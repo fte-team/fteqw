@@ -25,8 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
 
-void Mod_LoadBrushModel (model_t *mod, void *buffer);
-void Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
+qboolean Mod_LoadBrushModel (model_t *mod, void *buffer);
+qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 
 qboolean GL_LoadQ1Model (model_t *mod, void *buffer);
 qboolean GL_LoadQ2Model (model_t *mod, void *buffer);
@@ -279,49 +279,53 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 	{
 #if defined(Q2BSPS)
 	case IDBSPHEADER:	//looks like id switched to have proper ids
-		Mod_LoadQ2BrushModel (mod, buf);
+		if (!Mod_LoadQ2BrushModel (mod, buf))
+			goto couldntload;
 		break;
 #endif
 
 	case BSPVERSIONPREREL:
 	case BSPVERSION:
 	case BSPVERSIONHL:
-		Mod_LoadBrushModel (mod, buf);
+		if (!Mod_LoadBrushModel (mod, buf))
+			goto couldntload;
 		break;
 
 
 	case IDPOLYHEADER:
 		if (!GL_LoadQ1Model(mod, buf))
-			return NULL;
+			goto couldntload;
 		break;
 #ifdef MD2MODELS
 	case MD2IDALIASHEADER:
 		if (!GL_LoadQ2Model(mod, buf))
-			return NULL;
+			goto couldntload;
 		break;
 #endif
 #ifdef MD3MODELS
 	case MD3_IDENT:
 		if (!GL_LoadQ3Model (mod, buf))
-			return NULL;
+			goto couldntload;
 		break;
 #endif
 #ifdef ZYMOTICMODELS
 	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
 		if (!GLMod_LoadZymoticModel(mod, buf))
-			return NULL;
+			goto couldntload;
 		break;
 #endif
 #ifdef ZYMOTICMODELS
 	case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
 		if (!GLMod_LoadDarkPlacesModel(mod, buf))
-			return NULL;
+			goto couldntload;
 		break;
 #endif
 
 	default:
+		Con_Printf (S_ERROR "Mod_NumForName: %s: format not recognised\n", mod->name);
+couldntload:
 		if (crash)
-			SV_Error ("Mod_NumForName: %s: format not recognised", mod->name);
+			SV_Error ("Load failed on critical model %s", mod->name);
 		return NULL;
 	}
 
@@ -591,7 +595,7 @@ Mod_LoadSubmodels
 =================
 */
 static qboolean hexen2map;
-void Mod_LoadSubmodels (lump_t *l)
+qboolean Mod_LoadSubmodels (lump_t *l)
 {
 	dq1model_t	*inq;
 	dh2model_t	*inh;
@@ -606,7 +610,10 @@ void Mod_LoadSubmodels (lump_t *l)
 	{
 		hexen2map = true;
 		if (l->filelen % sizeof(*inh))
-			Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+		{
+			Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
 		count = l->filelen / sizeof(*inh);
 		out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
@@ -641,7 +648,10 @@ void Mod_LoadSubmodels (lump_t *l)
 	{
 		hexen2map = false;
 		if (l->filelen % sizeof(*inq))
-			Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+		{
+			Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
 		count = l->filelen / sizeof(*inq);
 		out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
@@ -671,6 +681,8 @@ void Mod_LoadSubmodels (lump_t *l)
 			out->numfaces = LittleLong (inq->numfaces);
 		}
 	}
+
+	return true;
 }
 
 /*
@@ -909,7 +921,7 @@ void Mod_SetParent (mnode_t *node, mnode_t *parent)
 Mod_LoadNodes
 =================
 */
-void Mod_LoadNodes (lump_t *l)
+qboolean Mod_LoadNodes (lump_t *l)
 {
 	int			i, j, count, p;
 	dnode_t		*in;
@@ -917,7 +929,10 @@ void Mod_LoadNodes (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		SV_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
@@ -949,6 +964,8 @@ void Mod_LoadNodes (lump_t *l)
 	}
 
 	Mod_SetParent (loadmodel->nodes, NULL);	// sets nodes and leafs
+
+	return true;
 }
 
 /*
@@ -956,7 +973,7 @@ void Mod_LoadNodes (lump_t *l)
 Mod_LoadLeafs
 =================
 */
-void Mod_LoadLeafs (lump_t *l)
+qboolean Mod_LoadLeafs (lump_t *l)
 {
 	dleaf_t 	*in;
 	mleaf_t 	*out;
@@ -964,7 +981,10 @@ void Mod_LoadLeafs (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		SV_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
@@ -996,6 +1016,8 @@ void Mod_LoadLeafs (lump_t *l)
 		for (j=0 ; j<4 ; j++)
 			out->ambient_sound_level[j] = in->ambient_level[j];
 	}
+
+	return true;
 }
 
 /*
@@ -1003,7 +1025,7 @@ void Mod_LoadLeafs (lump_t *l)
 Mod_LoadClipnodes
 =================
 */
-void Mod_LoadClipnodes (lump_t *l)
+qboolean Mod_LoadClipnodes (lump_t *l)
 {
 	dclipnode_t *in, *out;
 	int			i, count;
@@ -1011,7 +1033,10 @@ void Mod_LoadClipnodes (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		SV_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
@@ -1107,6 +1132,8 @@ void Mod_LoadClipnodes (lump_t *l)
 		out->children[0] = LittleShort(in->children[0]);
 		out->children[1] = LittleShort(in->children[1]);
 	}
+
+	return true;
 }
 
 /*
@@ -1205,7 +1232,7 @@ void Mod_LoadSurfedges (lump_t *l)
 Mod_LoadPlanes
 =================
 */
-void Mod_LoadPlanes (lump_t *l)
+qboolean Mod_LoadPlanes (lump_t *l)
 {
 	int			i, j;
 	mplane_t	*out;
@@ -1215,7 +1242,10 @@ void Mod_LoadPlanes (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		SV_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*2*sizeof(*out), loadname);
 
@@ -1236,6 +1266,8 @@ void Mod_LoadPlanes (lump_t *l)
 		out->type = LittleLong (in->type);
 		out->signbits = bits;
 	}
+
+	return true;
 }
 
 /*
@@ -1243,12 +1275,16 @@ void Mod_LoadPlanes (lump_t *l)
 Mod_LoadBrushModel
 =================
 */
-void Mod_LoadBrushModel (model_t *mod, void *buffer)
+qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 {
 	int			i, j;
 	dheader_t	*header;
 	mmodel_t 	*bm;
 	unsigned int chksum;
+	int start;
+	qboolean noerrors;
+
+	start = Hunk_LowMark();
 
 	loadmodel->type = mod_brush;
 
@@ -1262,7 +1298,10 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 	else if (i == BSPVERSIONHL)
 		loadmodel->fromgame = fg_halflife;
 	else
-		SV_Error ("Mod_LoadBrushModel: %s has wrong version number (%i should be %i)", mod->name, i, BSPVERSION);
+	{
+		Con_Printf (S_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i should be %i)\n", mod->name, i, BSPVERSION);
+		return false;
+	}
 
 // swap all the lumps
 	mod_base = (qbyte *)header;
@@ -1288,23 +1327,33 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 		mod->checksum2 ^= chksum;
 	}
 
+	noerrors = true;
 //	Mod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
 //	Mod_LoadEdges (&header->lumps[LUMP_EDGES]);
 //	Mod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
 ///*/on server?*/	Mod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
 //	Mod_LoadLighting (&header->lumps[LUMP_LIGHTING]);
-	Mod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
-	Mod_LoadPlanes (&header->lumps[LUMP_PLANES]);
+	noerrors = noerrors && Mod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
+	noerrors = noerrors && Mod_LoadPlanes (&header->lumps[LUMP_PLANES]);
 ///*/on server?*/	Mod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
 //	Mod_LoadFaces (&header->lumps[LUMP_FACES]);
 //	Mod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES]);
-	Mod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
-	Mod_LoadLeafs (&header->lumps[LUMP_LEAFS]);
-	Mod_LoadNodes (&header->lumps[LUMP_NODES]);
-	Mod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES]);
-	Mod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
+	if (noerrors)
+		Mod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
+	noerrors = noerrors && Mod_LoadLeafs (&header->lumps[LUMP_LEAFS]);
+	noerrors = noerrors && Mod_LoadNodes (&header->lumps[LUMP_NODES]);
+	noerrors = noerrors && Mod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES]);
+	if (noerrors)
+	{
+		Mod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
+		Mod_MakeHull0 ();
+	}
 
-	Mod_MakeHull0 ();
+	if (!noerrors)
+	{
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
 
 	Q1BSP_SetModelFuncs(mod);
 
@@ -1345,6 +1394,8 @@ void Mod_LoadBrushModel (model_t *mod, void *buffer)
 			mod = loadmodel;
 		}
 	}
+
+	return true;
 }
 
 

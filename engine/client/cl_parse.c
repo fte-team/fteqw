@@ -2635,7 +2635,7 @@ void CL_NewTranslation (int slot)
 	player_info_t	*player;
 
 	if (slot >= MAX_CLIENTS)
-		Sys_Error ("CL_NewTranslation: slot > MAX_CLIENTS");
+		Host_Error ("CL_NewTranslation: slot > MAX_CLIENTS");
 
 	player = &cl.players[slot];
 

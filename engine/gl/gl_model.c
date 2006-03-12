@@ -51,9 +51,9 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 qboolean GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
 void GLMod_LoadSpriteModel (model_t *mod, void *buffer);
 void GLMod_LoadSprite2Model (model_t *mod, void *buffer);
-void GLMod_LoadBrushModel (model_t *mod, void *buffer);
+qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer);
 #ifdef Q2BSPS
-void Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
+qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 #endif
 qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
 #ifdef ZYMOTICMODELS
@@ -442,7 +442,8 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 #ifdef Q2BSPS
 	if (!*mod->name)
 	{
-		Mod_LoadQ2BrushModel (mod, buf);
+		if (!Mod_LoadQ2BrushModel (mod, buf))
+			goto couldntload;
 		mod->needload = false;
 		P_DefaultTrail(mod);
 		return mod;
@@ -556,7 +557,8 @@ couldntload:
 #ifdef Q2BSPS
 	case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 	case IDBSPHEADER:	//looks like id switched to have proper ids
-		Mod_LoadQ2BrushModel (mod, buf);
+		if (!Mod_LoadQ2BrushModel (mod, buf))
+			goto couldntload;
 		break;
 #endif
 #ifdef HALFLIFEMODELS
@@ -580,7 +582,8 @@ couldntload:
 	case 30:	//hl
 	case 29:	//q1
 	case 28:	//prerel
-		GLMod_LoadBrushModel (mod, buf);
+		if (!GLMod_LoadBrushModel (mod, buf))
+			goto couldntload;
 		break;
 #ifdef ZYMOTICMODELS
 	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
@@ -844,7 +847,7 @@ void GLMod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int 
 Mod_LoadTextures
 =================
 */
-void GLMod_LoadTextures (lump_t *l)
+qboolean GLMod_LoadTextures (lump_t *l)
 {
 	extern cvar_t gl_shadeq1, gl_shadeq1_name;
 	extern int gl_bumpmappingpossible;
@@ -865,7 +868,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 	if (!l->filelen)
 	{
 		loadmodel->textures = NULL;
-		return;
+		return true;
 	}
 	m = (dmiptexlump_t *)(mod_base + l->fileofs);
 	
@@ -886,7 +889,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 		if (!*mt->name)	//I HATE MAPPERS!
 		{
 			sprintf(mt->name, "unnamed%i", i);
-			Con_Printf("warning: unnamed texture in %s, renaming to %s\n", loadmodel->name, mt->name);
+			Con_Printf(S_WARNING "warning: unnamed texture in %s, renaming to %s\n", loadmodel->name, mt->name);
 		}
 
 		mt->width = LittleLong (mt->width);
@@ -895,9 +898,9 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 			mt->offsets[j] = LittleLong (mt->offsets[j]);
 		
 		if ( (mt->width & 15) || (mt->height & 15) )
-			Con_Printf ("Warning: Texture %s is not 16 aligned", mt->name);
+			Con_Printf (S_WARNING "Warning: Texture %s is not 16 aligned", mt->name);
 		if (mt->width < 1 || mt->height < 1)
-			Con_Printf ("Warning: Texture %s has no size", mt->name);
+			Con_Printf (S_WARNING "Warning: Texture %s has no size", mt->name);
 		pixels = mt->width*mt->height/64*85;
 		tx = Hunk_AllocName (sizeof(texture_t)/* +pixels*/, loadname );
 		loadmodel->textures[i] = tx;
@@ -1067,7 +1070,10 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 			altmax++;
 		}
 		else
-			Sys_Error ("Bad animating texture %s", tx->name);
+		{
+			Con_Printf (S_ERROR "Bad animating texture %s\n", tx->name);
+			return false;
+		}
 
 		for (j=i+1 ; j<m->nummiptex ; j++)
 		{
@@ -1095,7 +1101,10 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 					altmax = num+1;
 			}
 			else
-				Sys_Error ("Bad animating texture %s", tx->name);
+			{
+				Con_Printf (S_ERROR "Bad animating texture %s\n", tx->name);
+				return false;
+			}
 		}
 		
 #define	ANIM_CYCLE	2
@@ -1104,7 +1113,10 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 		{
 			tx2 = anims[j];
 			if (!tx2)
-				Sys_Error ("Missing frame %i of %s",j, tx->name);
+			{
+				Con_Printf (S_ERROR "Missing frame %i of %s\n",j, tx->name);
+				return false;
+			}
 			tx2->anim_total = max * ANIM_CYCLE;
 			tx2->anim_min = j * ANIM_CYCLE;
 			tx2->anim_max = (j+1) * ANIM_CYCLE;
@@ -1116,7 +1128,10 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 		{
 			tx2 = altanims[j];
 			if (!tx2)
-				Sys_Error ("Missing frame %i of %s",j, tx->name);
+			{
+				Con_Printf (S_ERROR "Missing frame %i of %s\n",j, tx->name);
+				return false;
+			}
 			tx2->anim_total = altmax * ANIM_CYCLE;
 			tx2->anim_min = j * ANIM_CYCLE;
 			tx2->anim_max = (j+1) * ANIM_CYCLE;
@@ -1125,6 +1140,8 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 				tx2->alternate_anims = anims[0];
 		}
 	}
+
+	return true;
 }
 
 void GLMod_NowLoadExternal(void)
@@ -1494,7 +1511,7 @@ void GLMod_LoadEntities (lump_t *l)
 Mod_LoadVertexes
 =================
 */
-void GLMod_LoadVertexes (lump_t *l)
+qboolean GLMod_LoadVertexes (lump_t *l)
 {
 	dvertex_t	*in;
 	mvertex_t	*out;
@@ -1502,7 +1519,10 @@ void GLMod_LoadVertexes (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
@@ -1515,6 +1535,8 @@ void GLMod_LoadVertexes (lump_t *l)
 		out->position[1] = LittleFloat (in->point[1]);
 		out->position[2] = LittleFloat (in->point[2]);
 	}
+
+	return true;
 }
 
 /*
@@ -1523,7 +1545,7 @@ Mod_LoadSubmodels
 =================
 */
 static qboolean hexen2map;
-void GLMod_LoadSubmodels (lump_t *l)
+qboolean GLMod_LoadSubmodels (lump_t *l)
 {
 	dq1model_t	*inq;
 	dh2model_t	*inh;
@@ -1538,7 +1560,10 @@ void GLMod_LoadSubmodels (lump_t *l)
 	{
 		hexen2map = true;
 		if (l->filelen % sizeof(*inh))
-			Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+		{
+			Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
 		count = l->filelen / sizeof(*inh);
 		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
@@ -1573,7 +1598,10 @@ void GLMod_LoadSubmodels (lump_t *l)
 	{
 		hexen2map = false;
 		if (l->filelen % sizeof(*inq))
-			Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+		{
+			Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
 		count = l->filelen / sizeof(*inq);
 		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
@@ -1603,6 +1631,8 @@ void GLMod_LoadSubmodels (lump_t *l)
 			out->numfaces = LittleLong (inq->numfaces);
 		}
 	}
+
+	return true;
 }
 
 /*
@@ -1610,7 +1640,7 @@ void GLMod_LoadSubmodels (lump_t *l)
 Mod_LoadEdges
 =================
 */
-void GLMod_LoadEdges (lump_t *l)
+qboolean GLMod_LoadEdges (lump_t *l)
 {
 	dedge_t *in;
 	medge_t *out;
@@ -1618,7 +1648,10 @@ void GLMod_LoadEdges (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( (count + 1) * sizeof(*out), loadname);	
 
@@ -1630,6 +1663,8 @@ void GLMod_LoadEdges (lump_t *l)
 		out->v[0] = (unsigned short)LittleShort(in->v[0]);
 		out->v[1] = (unsigned short)LittleShort(in->v[1]);
 	}
+
+	return true;
 }
 
 /*
@@ -1637,7 +1672,7 @@ void GLMod_LoadEdges (lump_t *l)
 Mod_LoadTexinfo
 =================
 */
-void GLMod_LoadTexinfo (lump_t *l)
+qboolean GLMod_LoadTexinfo (lump_t *l)
 {
 	texinfo_t *in;
 	mtexinfo_t *out;
@@ -1647,7 +1682,10 @@ void GLMod_LoadTexinfo (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
@@ -1694,6 +1732,8 @@ void GLMod_LoadTexinfo (lump_t *l)
 			}
 		}
 	}
+
+	return true;
 }
 
 /*
@@ -1758,7 +1798,7 @@ void CalcSurfaceExtents (msurface_t *s);
 Mod_LoadFaces
 =================
 */
-void GLMod_LoadFaces (lump_t *l)
+qboolean GLMod_LoadFaces (lump_t *l)
 {
 	dface_t		*in;
 	msurface_t 	*out;
@@ -1768,7 +1808,10 @@ void GLMod_LoadFaces (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
@@ -1841,6 +1884,8 @@ void GLMod_LoadFaces (lump_t *l)
 		if (out->flags & SURF_DRAWALPHA)
 			out->flags &= ~SURF_DRAWALPHA;
 	}
+
+	return true;
 }
 
 
@@ -1865,7 +1910,7 @@ void GLMod_SetParent (mnode_t *node, mnode_t *parent)
 Mod_LoadNodes
 =================
 */
-void GLMod_LoadNodes (lump_t *l)
+qboolean GLMod_LoadNodes (lump_t *l)
 {
 	int			i, j, count, p;
 	dnode_t		*in;
@@ -1873,7 +1918,10 @@ void GLMod_LoadNodes (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
@@ -1905,6 +1953,7 @@ void GLMod_LoadNodes (lump_t *l)
 	}
 	
 	GLMod_SetParent (loadmodel->nodes, NULL);	// sets nodes and leafs
+	return true;
 }
 
 /*
@@ -1912,7 +1961,7 @@ void GLMod_LoadNodes (lump_t *l)
 Mod_LoadLeafs
 =================
 */
-void GLMod_LoadLeafs (lump_t *l)
+qboolean GLMod_LoadLeafs (lump_t *l)
 {
 	dleaf_t 	*in;
 	mleaf_t 	*out;
@@ -1921,7 +1970,10 @@ void GLMod_LoadLeafs (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
@@ -1970,6 +2022,8 @@ void GLMod_LoadLeafs (lump_t *l)
 			}
 		}
 	}	
+
+	return true;
 }
 
 
@@ -2054,7 +2108,7 @@ void GLMod_LoadCrouchHull(void)
 Mod_LoadClipnodes
 =================
 */
-void GLMod_LoadClipnodes (lump_t *l)
+qboolean GLMod_LoadClipnodes (lump_t *l)
 {
 	dclipnode_t *in, *out;
 	int			i, count;
@@ -2062,7 +2116,10 @@ void GLMod_LoadClipnodes (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( (count+numsuplementryclipnodes)*sizeof(*out), loadname);//space for both
 
@@ -2251,6 +2308,8 @@ void GLMod_LoadClipnodes (lump_t *l)
 			out->children[1] += out->children[1]>=0?1:0;
 		}
 	}
+
+	return true;
 }
 
 /*
@@ -2297,7 +2356,7 @@ void GLMod_MakeHull0 (void)
 Mod_LoadMarksurfaces
 =================
 */
-void GLMod_LoadMarksurfaces (lump_t *l)
+qboolean GLMod_LoadMarksurfaces (lump_t *l)
 {	
 	int		i, j, count;
 	short		*in;
@@ -2305,7 +2364,10 @@ void GLMod_LoadMarksurfaces (lump_t *l)
 	
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
@@ -2316,9 +2378,14 @@ void GLMod_LoadMarksurfaces (lump_t *l)
 	{
 		j = LittleShort(in[i]);
 		if (j < 0 || j >= loadmodel->numsurfaces)
-			Sys_Error ("Mod_ParseMarksurfaces: bad surface number");
+		{
+			Con_Printf (S_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
+			return false;
+		}
 		out[i] = loadmodel->surfaces + j;
 	}
+
+	return true;
 }
 
 /*
@@ -2326,14 +2393,17 @@ void GLMod_LoadMarksurfaces (lump_t *l)
 Mod_LoadSurfedges
 =================
 */
-void GLMod_LoadSurfedges (lump_t *l)
+qboolean GLMod_LoadSurfedges (lump_t *l)
 {	
 	int		i, count;
 	int		*in, *out;
 	
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
@@ -2342,6 +2412,8 @@ void GLMod_LoadSurfedges (lump_t *l)
 
 	for ( i=0 ; i<count ; i++)
 		out[i] = LittleLong (in[i]);
+
+	return true;
 }
 
 
@@ -2350,7 +2422,7 @@ void GLMod_LoadSurfedges (lump_t *l)
 Mod_LoadPlanes
 =================
 */
-void GLMod_LoadPlanes (lump_t *l)
+qboolean GLMod_LoadPlanes (lump_t *l)
 {
 	int			i, j;
 	mplane_t	*out;
@@ -2360,7 +2432,10 @@ void GLMod_LoadPlanes (lump_t *l)
 	
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( (count+numsuplementryplanes)*2*sizeof(*out), loadname);	
 	
@@ -2401,6 +2476,8 @@ void GLMod_LoadPlanes (lump_t *l)
 			out->signbits = bits;
 		}
 	}
+
+	return true;
 }
 
 /*
@@ -2474,14 +2551,18 @@ void GLQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambie
 Mod_LoadBrushModel
 =================
 */
-void GLMod_LoadBrushModel (model_t *mod, void *buffer)
+qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 {
 	int			i, j;
 	dheader_t	*header;
 	mmodel_t 	*bm;
 	model_t *lm=mod;
 	unsigned int chksum;
+	int start;
+	qboolean noerrors;
 	
+	start = Hunk_LowMark();
+
 	loadmodel->type = mod_brush;
 	
 	header = (dheader_t *)buffer;
@@ -2502,7 +2583,10 @@ void GLMod_LoadBrushModel (model_t *mod, void *buffer)
 	else if (i == BSPVERSIONHL)	//halflife support
 		loadmodel->fromgame = fg_halflife;
 	else
-		Sys_Error ("Mod_LoadBrushModel: %s has wrong version number (%i should be %i)", mod->name, i, BSPVERSION);
+	{
+		Con_Printf (S_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i should be %i)\n", mod->name, i, BSPVERSION);
+		return false;
+	}
 
 // swap all the lumps
 	mod_base = (qbyte *)header;
@@ -2537,39 +2621,55 @@ void GLMod_LoadBrushModel (model_t *mod, void *buffer)
 		mod->checksum2 ^= chksum;
 	}
 		
+	noerrors = true;
+
+	crouchhullfile = NULL;
+
 // load into heap
 #ifndef CLIENTONLY
 	if (!isDedicated)
 #endif
 	{
-		GLMod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
-		GLMod_LoadEdges (&header->lumps[LUMP_EDGES]);
-		GLMod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
-		GLMod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
-		GLMod_LoadLighting (&header->lumps[LUMP_LIGHTING]);	
+		noerrors = noerrors && GLMod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
+		noerrors = noerrors && GLMod_LoadEdges (&header->lumps[LUMP_EDGES]);
+		noerrors = noerrors && GLMod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
+		noerrors = noerrors && GLMod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
+		if (noerrors)
+			GLMod_LoadLighting (&header->lumps[LUMP_LIGHTING]);	
 	}
-	GLMod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
-	GLMod_LoadCrouchHull();
-	GLMod_LoadPlanes (&header->lumps[LUMP_PLANES]);
+	noerrors = noerrors && GLMod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
+	if (noerrors)
+		GLMod_LoadCrouchHull();
+	noerrors = noerrors && GLMod_LoadPlanes (&header->lumps[LUMP_PLANES]);
 #ifndef CLIENTONLY
 	if (!isDedicated)
 #endif
 	{
-		GLMod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
-		GLMod_LoadFaces (&header->lumps[LUMP_FACES]);
-		GLMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES]);
+		noerrors = noerrors && GLMod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
+		noerrors = noerrors && GLMod_LoadFaces (&header->lumps[LUMP_FACES]);
+		noerrors = noerrors && GLMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES]);
 	}	
-	GLMod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
-	GLMod_LoadLeafs (&header->lumps[LUMP_LEAFS]);
-	GLMod_LoadNodes (&header->lumps[LUMP_NODES]);
-	GLMod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES]);
-	GLMod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
-	GLMod_MakeHull0 ();
+	if (noerrors)
+		GLMod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
+	noerrors = noerrors && GLMod_LoadLeafs (&header->lumps[LUMP_LEAFS]);
+	noerrors = noerrors && GLMod_LoadNodes (&header->lumps[LUMP_NODES]);
+	noerrors = noerrors && GLMod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES]);
+	if (noerrors)
+	{
+		GLMod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
+		GLMod_MakeHull0 ();
+	}
 
 	if (crouchhullfile)
 	{
 		BZ_Free(crouchhullfile);
 		crouchhullfile=NULL;
+	}
+
+	if (!noerrors)
+	{
+		Hunk_FreeToLowMark(start);
+		return false;
 	}
 
 #ifndef CLIENTONLY
@@ -2642,6 +2742,8 @@ void GLMod_LoadBrushModel (model_t *mod, void *buffer)
 	if (lightmodel == lm)
 		LightLoadEntities(lightmodel->entities);
 #endif
+
+	return true;
 }
 
 /*

@@ -30,16 +30,16 @@ extern qboolean r_usinglits;
 extern cvar_t r_shadow_bumpscale_basetexture;
 
 //these are in model.c (or gl_model.c)
-void GLMod_LoadVertexes (lump_t *l);
-void GLMod_LoadEdges (lump_t *l);
-void GLMod_LoadMarksurfaces (lump_t *l);
-void GLMod_LoadSurfedges (lump_t *l);
+qboolean GLMod_LoadVertexes (lump_t *l);
+qboolean GLMod_LoadEdges (lump_t *l);
+qboolean GLMod_LoadMarksurfaces (lump_t *l);
+qboolean GLMod_LoadSurfedges (lump_t *l);
 void GLMod_LoadLighting (lump_t *l);
 
-void SWMod_LoadVertexes (lump_t *l);
-void SWMod_LoadEdges (lump_t *l);
-void SWMod_LoadMarksurfaces (lump_t *l);
-void SWMod_LoadSurfedges (lump_t *l);
+qboolean SWMod_LoadVertexes (lump_t *l);
+qboolean SWMod_LoadEdges (lump_t *l);
+qboolean SWMod_LoadMarksurfaces (lump_t *l);
+qboolean SWMod_LoadSurfedges (lump_t *l);
 void SWMod_LoadLighting (lump_t *l);
 
 
@@ -3462,6 +3462,8 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	int				length;
 	static unsigned	last_checksum;
 	qboolean useshaders;
+	qboolean noerrors = true;
+	int start;
 
 	// free old stuff
 	numplanes = 0;
@@ -3489,7 +3491,10 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	buf = (unsigned	*)filein;
 	length = com_filesize;
 	if (!buf)
-		Host_Error ("Couldn't load %s", name);
+	{
+		Con_Printf (S_ERROR "Couldn't load %s\n", name);
+		return NULL;
+	}
 
 	last_checksum = LittleLong (Com_BlockChecksum (buf, length));
 	*checksum = last_checksum;
@@ -3503,9 +3508,9 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	switch(header.version)
 	{
 	default:
-		if (header.version != Q2BSPVERSION && header.version != Q3BSPVERSION)
-			Host_Error ("Quake 2 or Quake 3 based BSP with unknown header (%i should be %i or %i)"
+		Con_Printf (S_ERROR "Quake 2 or Quake 3 based BSP with unknown header (%i should be %i or %i)\n"
 			, name, header.version, Q2BSPVERSION, Q3BSPVERSION);
+		return NULL;
 		break;
 #if 1
 	case 1: //rbsp
@@ -3665,13 +3670,15 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #ifdef SERVERONLY
 			SV_Error("Cannot load q3bsps with the current renderer (only dedicated and opengl renderer)\n");
 #else
-			Host_EndGame("Cannot load q3bsps with the current renderer (only dedicated and opengl renderer)\n");
+			Con_Printf(S_ERROR "Cannot load q3bsps with the current renderer (only dedicated and opengl renderer)\n");
+			return NULL;
 #endif
 		}
 		break;
 #endif
 	case Q2BSPVERSION:
 		mapisq3 = false;
+		start = Hunk_LowMark();
 		for (i=0 ; i<Q2HEADER_LUMPS ; i++)
 		{
 			header.lumps[i].filelen = LittleLong (header.lumps[i].filelen);
@@ -3719,10 +3726,11 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 		case QR_OPENGL:
 		// load into heap
 		#ifndef SERVERONLY
-			GLMod_LoadVertexes		(&header.lumps[Q2LUMP_VERTEXES]);
-			GLMod_LoadEdges			(&header.lumps[Q2LUMP_EDGES]);
-			GLMod_LoadSurfedges		(&header.lumps[Q2LUMP_SURFEDGES]);
-			GLMod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);
+			noerrors = noerrors && GLMod_LoadVertexes		(&header.lumps[Q2LUMP_VERTEXES]);
+			noerrors = noerrors && GLMod_LoadEdges			(&header.lumps[Q2LUMP_EDGES]);
+			noerrors = noerrors && GLMod_LoadSurfedges		(&header.lumps[Q2LUMP_SURFEDGES]);
+			if (noerrors)
+				GLMod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);
 		#endif
 			CMod_LoadSurfaces		(&header.lumps[Q2LUMP_TEXINFO]);
 			CMod_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
@@ -3730,7 +3738,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 		#ifndef SERVERONLY
 			CMod_LoadTexInfo		(&header.lumps[Q2LUMP_TEXINFO]);
 			CMod_LoadFaces			(&header.lumps[Q2LUMP_FACES]);
-			GLMod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES]);
+			noerrors = noerrors && GLMod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES]);
 		#endif
 			CMod_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
 			CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
@@ -3741,6 +3749,12 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			CMod_LoadAreas			(&header.lumps[Q2LUMP_AREAS]);
 			CMod_LoadAreaPortals	(&header.lumps[Q2LUMP_AREAPORTALS]);
 			CMod_LoadEntityString	(&header.lumps[Q2LUMP_ENTITIES]);
+
+			if (!noerrors)
+			{
+				Hunk_FreeToLowMark(start);
+				return NULL;
+			}
 #ifndef CLIENTONLY
 			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
 			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
@@ -3761,10 +3775,11 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 		case QR_SOFTWARE:
 		// load into heap
 		#ifndef SERVERONLY
-			SWMod_LoadVertexes		(&header.lumps[Q2LUMP_VERTEXES]);
-			SWMod_LoadEdges			(&header.lumps[Q2LUMP_EDGES]);
-			SWMod_LoadSurfedges		(&header.lumps[Q2LUMP_SURFEDGES]);
-			SWMod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);
+			noerrors = noerrors && SWMod_LoadVertexes		(&header.lumps[Q2LUMP_VERTEXES]);
+			noerrors = noerrors && SWMod_LoadEdges			(&header.lumps[Q2LUMP_EDGES]);
+			noerrors = noerrors && SWMod_LoadSurfedges		(&header.lumps[Q2LUMP_SURFEDGES]);
+			if (noerrors)
+				SWMod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);
 		#endif
 			CMod_LoadSurfaces		(&header.lumps[Q2LUMP_TEXINFO]);
 			CMod_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
@@ -3772,7 +3787,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 		#ifndef SERVERONLY
 			CMod_LoadTexInfo		(&header.lumps[Q2LUMP_TEXINFO]);
 			CMod_LoadFaces			(&header.lumps[Q2LUMP_FACES]);
-			SWMod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES]);
+			noerrors = noerrors && SWMod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES]);
 		#endif
 			CMod_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
 			CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
@@ -3784,6 +3799,11 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			CMod_LoadAreaPortals	(&header.lumps[Q2LUMP_AREAPORTALS]);
 			CMod_LoadEntityString	(&header.lumps[Q2LUMP_ENTITIES]);
 
+			if (!noerrors)
+			{
+				Hunk_FreeToLowMark(start);
+				return NULL;
+			}
 
 			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
 			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
@@ -5620,10 +5640,10 @@ void Q2BSP_SetHullFuncs(hull_t *hull)
 
 
 int map_checksum;
-void Mod_LoadQ2BrushModel (model_t *mod, void *buffer)
+qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer)
 {
 	mod->fromgame = fg_quake2;
-	CM_LoadMap(mod->name, buffer, true, &map_checksum);
+	return CM_LoadMap(mod->name, buffer, true, &map_checksum) != NULL;
 }
 
 void CM_Init(void)	//register cvars.

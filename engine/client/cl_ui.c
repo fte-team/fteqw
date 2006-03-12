@@ -30,6 +30,8 @@ typedef struct pc_token_s
 typedef struct {
 	char *filestack[SCRIPT_MAXDEPTH];
 	char *originalfilestack[SCRIPT_MAXDEPTH];
+	char *lastreadptr;
+	int lastreaddepth;
 	char filename[MAX_QPATH][SCRIPT_MAXDEPTH];
 	int stackdepth;
 
@@ -38,20 +40,81 @@ typedef struct {
 } script_t;
 script_t *scripts;
 int maxscripts;
-#define Q3SCRIPTPUNCTUATION "(,{})(\':;=!><&|+-"
+#define Q3SCRIPTPUNCTUATION "(,{})(\':;=!><&|+-\""
+void StripCSyntax (char *s)
+{
+	while(*s)
+	{
+		if (*s == '\\')
+		{
+			memmove(s, s+1, strlen(s+1)+1);
+			switch (*s)
+			{
+			case 'r':
+				*s = '\r';
+				break;
+			case 'n':
+				*s = '\n';
+				break;
+			case '\\':
+				*s = '\\';
+				break;
+			default:
+				*s = '?';
+				break;
+			}
+		}
+		s++;
+	}
+}
 int Script_Read(int handle, struct pc_token_s *token)
 {
+	char *s;
+	char readstring[8192];
 	int i;
 	script_t *sc = scripts+handle-1;
 
 	for(;;)
 	{
 		if (!sc->stackdepth)
+		{
+			memset(token, 0, sizeof(*token));
 			return 0;
+		}
 
-		sc->filestack[sc->stackdepth-1] = (char *)COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
+		s = sc->filestack[sc->stackdepth-1];
+		sc->lastreadptr = s;
+		sc->lastreaddepth = sc->stackdepth;
 
-		if (!strcmp(com_token, "#include"))
+		s = (char *)COM_ParseToken(s, Q3SCRIPTPUNCTUATION);
+		strcpy(readstring, com_token);
+		if (com_tokentype == TTP_STRING)
+		{
+			while(s)
+			{
+				while (*s > '\0' && *s <= ' ')
+					s++;
+				if (*s == '/' && s[1] == '/')
+				{
+					while(*s && *s != '\n')
+						s++;
+					continue;
+				}
+				while (*s > '\0' && *s <= ' ')
+					s++;
+				if (*s == '\"')
+				{
+					s = (char*)COM_ParseToken(s, Q3SCRIPTPUNCTUATION);
+					strcat(readstring, com_token);
+				}
+				else
+					break;
+			}
+		}
+		sc->filestack[sc->stackdepth-1] = s;
+		
+
+		if (!strcmp(readstring, "#include"))
 		{
 			sc->filestack[sc->stackdepth-1] = (char *)COM_ParseToken(sc->filestack[sc->stackdepth-1], Q3SCRIPTPUNCTUATION);
 
@@ -61,10 +124,11 @@ int Script_Read(int handle, struct pc_token_s *token)
 			if (sc->originalfilestack[sc->stackdepth])
 				BZ_Free(sc->originalfilestack[sc->stackdepth]);
 			sc->filestack[sc->stackdepth] = sc->originalfilestack[sc->stackdepth] = COM_LoadMallocFile(com_token);
+			Q_strncpyz(sc->filename[sc->stackdepth], com_token, MAX_QPATH);
 			sc->stackdepth++;
 			continue;
 		}
-		if (!strcmp(com_token, "#define"))
+		if (!strcmp(readstring, "#define"))
 		{
 			sc->numdefines++;
 			sc->defines = BZ_Realloc(sc->defines, sc->numdefines*SCRIPT_DEFINELENGTH*2);
@@ -75,30 +139,42 @@ int Script_Read(int handle, struct pc_token_s *token)
 
 			continue;
 		}
-		if (!*com_token)
+		if (!*readstring && com_tokentype != TTP_STRING)
 		{
 			if (sc->stackdepth==0)
+			{
+				memset(token, 0, sizeof(*token));
 				return 0;
+			}
 
 			sc->stackdepth--;
 			continue;
 		}
 		break;
 	}
-	for (i = 0; i < sc->numdefines; i++)
+	if (com_tokentype == TTP_STRING)
 	{
-		if (!strcmp(com_token, sc->defines+SCRIPT_DEFINELENGTH*2*i))
+		i = sc->numdefines;
+	}
+	else
+	{
+		for (i = 0; i < sc->numdefines; i++)
 		{
-			Q_strncpyz(token->string, sc->defines+SCRIPT_DEFINELENGTH*2*i+SCRIPT_DEFINELENGTH, sizeof(token->string));
-			break;
+			if (!strcmp(readstring, sc->defines+SCRIPT_DEFINELENGTH*2*i))
+			{
+				Q_strncpyz(token->string, sc->defines+SCRIPT_DEFINELENGTH*2*i+SCRIPT_DEFINELENGTH, sizeof(token->string));
+				break;
+			}
 		}
 	}
-	//fill in the token
-	if (i == sc->numdefines)
-		Q_strncpyz(token->string, com_token, sizeof(token->string));
+	if (i == sc->numdefines)	//otherwise
+		Q_strncpyz(token->string, readstring, sizeof(token->string));
+
+	StripCSyntax(token->string);
+
 	token->intvalue = atoi(token->string);
 	token->floatvalue = atof(token->string);
-	if (token->floatvalue || *token->string == '0')
+	if (token->floatvalue || *token->string == '0' || *token->string == '.')
 	{
 		token->type = TT_NUMBER;
 		token->subtype = 0;
@@ -123,8 +199,7 @@ int Script_Read(int handle, struct pc_token_s *token)
 	}
 
 //	Con_Printf("Found %s (%i, %i)\n", token->string, token->type, token->subtype);
-	
-	return !!*token->string;
+	return !!*token->string || com_tokentype == TTP_STRING;
 }
 
 int Script_LoadFile(char *filename)
@@ -143,6 +218,7 @@ int Script_LoadFile(char *filename)
 	sc = scripts+i;
 	memset(sc, 0, sizeof(*sc));
 	sc->filestack[0] = sc->originalfilestack[0] = COM_LoadMallocFile(filename);
+	Q_strncpyz(sc->filename[sc->stackdepth], filename, MAX_QPATH);
 	sc->stackdepth = 1;
 
 	return i+1;
@@ -157,6 +233,8 @@ void Script_Free(int handle)
 
 	for (i = 0; i < sc->stackdepth; i++)
 		BZ_Free(sc->originalfilestack[i]);
+
+	sc->stackdepth = 0;
 }
 
 void Script_Get_File_And_Line(int handle, char *filename, int *line)
@@ -165,14 +243,16 @@ void Script_Get_File_And_Line(int handle, char *filename, int *line)
 	char *src;
 	char *start;
 
-	*line = 0;
-
-	if (!sc->stackdepth)
+	if (!sc->lastreaddepth)
+	{
+		*line = 0;
+		Q_strncpyz(filename, sc->filename[0], MAX_QPATH);
 		return;
+	}
 	*line = 1;
 
-	src = sc->filestack[sc->stackdepth-1];
-	start = sc->originalfilestack[sc->stackdepth-1];
+	src = sc->lastreadptr;
+	start = sc->originalfilestack[sc->lastreaddepth-1];
 
 	while(start < src)
 	{
@@ -180,6 +260,8 @@ void Script_Get_File_And_Line(int handle, char *filename, int *line)
 			(*line)++;
 		start++;
 	}
+
+	Q_strncpyz(filename, sc->filename[sc->lastreaddepth-1], MAX_QPATH);
 
 }
 
@@ -773,6 +855,9 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 
 
 
+#define VM_FROMHANDLE(a) ((void*)a)
+#define VM_TOHANDLE(a) ((int)a)
+#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to ui trap %i passes invalid pointer\n", fn);	//out of bounds.
 
 #ifndef _DEBUG
 static
@@ -934,7 +1019,26 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case UI_R_REGISTERMODEL:	//precache model
 		{
 			char *name = VM_POINTER(arg[0]);
-			VM_LONG(ret) = (int)Mod_ForName(name, false);
+			VM_LONG(ret) = VM_TOHANDLE(Mod_ForName(name, false));
+		}
+		break;
+	case UI_R_MODELBOUNDS:
+		{
+			VALIDATEPOINTER(arg[1], sizeof(vec3_t));
+			VALIDATEPOINTER(arg[2], sizeof(vec3_t));
+			{
+				model_t *mod = VM_FROMHANDLE(arg[0]);
+				if (mod)
+				{
+					VectorCopy(mod->mins, ((float*)VM_POINTER(arg[1])));
+					VectorCopy(mod->maxs, ((float*)VM_POINTER(arg[2])));
+				}
+				else
+				{
+					VectorClear(((float*)VM_POINTER(arg[1])));
+					VectorClear(((float*)VM_POINTER(arg[2])));
+				}
+			}
 		}
 		break;
 

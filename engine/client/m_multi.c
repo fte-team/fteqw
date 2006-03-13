@@ -48,8 +48,8 @@ void M_Menu_MultiPlayer_f (void)
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Join A Game ",	"menu_slist\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Browser2    ",	"menu_servers2\n");mgt+=20;
-		MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"New Game    ",	"menu_newmulti\n");mgt+=20;
-		MC_AddConsoleCommandQBigFont	(menu, 72, 92,	"Setup       ",	"menu_setup\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"New Server  ",	"menu_newmulti\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, 92,	"Player Setup",	"menu_setup\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, 112,	"Demos       ",	"menu_demo\n");mgt+=20;
 
 		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);

@@ -46,7 +46,7 @@ extern char	loadname[32];	// for hunk tags
 
 void CM_Init(void);
 
-void GLMod_LoadCompositeAnim(model_t *mod, void *buffer);
+qboolean GLMod_LoadCompositeAnim(model_t *mod, void *buffer);
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 qboolean GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
 void GLMod_LoadSpriteModel (model_t *mod, void *buffer);
@@ -60,7 +60,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
 qboolean GLMod_LoadZymoticModel(model_t *mod, void *buffer);
 #endif
 #ifdef MD5MODELS
-void GLMod_LoadMD5MeshModel(model_t *mod, void *buffer);
+qboolean GLMod_LoadMD5MeshModel(model_t *mod, void *buffer);
 #endif
 model_t *GLMod_LoadModel (model_t *mod, qboolean crash);
 
@@ -601,12 +601,14 @@ couldntload:
 #ifdef MD5MODELS
 		if (!strcmp(com_token, "MD5Version"))
 		{
-			GLMod_LoadMD5MeshModel (mod, buf);
+			if (!GLMod_LoadMD5MeshModel (mod, buf))
+				goto couldntload;
 			break;
 		}
 		if (!strcmp(com_token, "EXTERNALANIM"))
 		{
-			GLMod_LoadCompositeAnim (mod, buf);
+			if (!GLMod_LoadCompositeAnim (mod, buf))
+				goto couldntload;
 			break;
 		}
 #endif

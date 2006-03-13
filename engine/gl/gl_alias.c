@@ -5248,6 +5248,8 @@ static void GenMatrix(float x, float y, float z, float qx, float qy, float qz, f
 
 galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 {
+#define MD5ERROR0PARAM(x) { Con_Printf(S_ERROR x "\n"); return NULL; }
+#define MD5ERROR1PARAM(x, y) { Con_Printf(S_ERROR x "\n", y); return NULL; }
 #define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) Sys_Error("MD5MESH: expected %s", x);
 	int numjoints = 0;
 	int nummeshes = 0;
@@ -5269,11 +5271,11 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 
 	buffer = COM_Parse(buffer);
 	if (strcmp(com_token, "MD5Version"))
-		Sys_Error("MD5 model without MD5Version identifier first\n");
+		MD5ERROR0PARAM("MD5 model without MD5Version identifier first");
 
 	buffer = COM_Parse(buffer);
 	if (atoi(com_token) != 10)
-		Sys_Error("MD5 model with unsupported MD5Version\n");
+		MD5ERROR0PARAM("MD5 model with unsupported MD5Version");
 
 
 	root = Hunk_Alloc(sizeof(galiasinfo_t));
@@ -5294,28 +5296,28 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 		else if (!strcmp(com_token, "numJoints"))
 		{
 			if (numjoints)
-				Sys_Error("MD5MESH: numMeshes was already declared");
+				MD5ERROR0PARAM("MD5MESH: numMeshes was already declared");
 			buffer = COM_Parse(buffer);
 			numjoints = atoi(com_token);
 			if (numjoints <= 0)
-				Sys_Error("MD5MESH: Needs some joints");
+				MD5ERROR0PARAM("MD5MESH: Needs some joints");
 		}
 		else if (!strcmp(com_token, "numMeshes"))
 		{
 			if (nummeshes)
-				Sys_Error("MD5MESH: numMeshes was already declared");
+				MD5ERROR0PARAM("MD5MESH: numMeshes was already declared");
 			buffer = COM_Parse(buffer);
 			nummeshes = atoi(com_token);
 			if (nummeshes <= 0)
-				Sys_Error("MD5MESH: Needs some meshes");
+				MD5ERROR0PARAM("MD5MESH: Needs some meshes");
 		}
 		else if (!strcmp(com_token, "joints"))
 		{
 			if (foundjoints)
-				Sys_Error("MD5MESH: Duplicate joints section");
+				MD5ERROR0PARAM("MD5MESH: Duplicate joints section");
 			foundjoints=true;
 			if (!numjoints)
-				Sys_Error("MD5MESH: joints section before (or without) numjoints");
+				MD5ERROR0PARAM("MD5MESH: joints section before (or without) numjoints");
 
 			bones = Hunk_Alloc(sizeof(*bones) * numjoints);
 			pose = Hunk_Alloc(sizeof(galiasgroup_t));
@@ -5338,9 +5340,9 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 				buffer = COM_Parse(buffer);
 				bones[i].parent = atoi(com_token);
 				if (bones[i].parent >= i)
-					Sys_Error("MD5MESH: joints parent's must be lower");
+					MD5ERROR0PARAM("MD5MESH: joints parent's must be lower");
 				if ((bones[i].parent < 0 && i) || (!i && bones[i].parent!=-1))
-					Sys_Error("MD5MESH: Only the root joint may have a negative parent");
+					MD5ERROR0PARAM("MD5MESH: Only the root joint may have a negative parent");
 
 				EXPECT("(");
 				buffer = COM_Parse(buffer);
@@ -5387,9 +5389,9 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 
 
 			if (!nummeshes)
-				Sys_Error("MD5MESH: mesh section before (or without) nummeshes");
+				MD5ERROR0PARAM("MD5MESH: mesh section before (or without) nummeshes");
 			if (!foundjoints || !bones || !pose)
-				Sys_Error("MD5MESH: mesh must come after joints");
+				MD5ERROR0PARAM("MD5MESH: mesh must come after joints");
 
 			if (!lastsurf)
 			{
@@ -5422,7 +5424,7 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 			{
 				buffer = COM_Parse(buffer);
 				if (!buffer)
-					Sys_Error("MD5MESH: unexpected eof");
+					MD5ERROR0PARAM("MD5MESH: unexpected eof");
 
 				if (!strcmp(com_token, "shader"))
 				{
@@ -5435,11 +5437,11 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 				else if (!strcmp(com_token, "numverts"))
 				{
 					if (numverts)
-						Sys_Error("MD5MESH: numverts was already specified");
+						MD5ERROR0PARAM("MD5MESH: numverts was already specified");
 					buffer = COM_Parse(buffer);
 					numverts = atoi(com_token);
 					if (numverts < 0)
-						Sys_Error("MD5MESH: numverts cannot be negative");
+						MD5ERROR0PARAM("MD5MESH: numverts cannot be negative");
 
 					firstweightlist = Z_Malloc(sizeof(*firstweightlist) * numverts);
 					numweightslist = Z_Malloc(sizeof(*numweightslist) * numverts);
@@ -5455,13 +5457,13 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 					buffer = COM_Parse(buffer);
 					num = atoi(com_token);
 					if (num < 0 || num >= numverts || !indexes)
-						Sys_Error("MD5MESH: vertex out of range");
+						MD5ERROR0PARAM("MD5MESH: vertex out of range");
 
 					EXPECT("(");
 					buffer = COM_Parse(buffer);
 #ifndef SERVERONLY
 					if (!stcoord)
-						Sys_Error("MD5MESH: vertex out of range");
+						MD5ERROR0PARAM("MD5MESH: vertex out of range");
 					stcoord[num*2+0] = atof(com_token);
 #endif
 					buffer = COM_Parse(buffer);
@@ -5479,11 +5481,11 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 				else if (!strcmp(com_token, "numtris"))
 				{
 					if (numtris)
-						Sys_Error("MD5MESH: numtris was already specified");
+						MD5ERROR0PARAM("MD5MESH: numtris was already specified");
 					buffer = COM_Parse(buffer);
 					numtris = atoi(com_token);
 					if (numtris < 0)
-						Sys_Error("MD5MESH: numverts cannot be negative");
+						MD5ERROR0PARAM("MD5MESH: numverts cannot be negative");
 
 					indexes = Hunk_Alloc(sizeof(int)*3*numtris);
 					inf->ofs_indexes = (char*)indexes - (char*)inf;
@@ -5494,7 +5496,7 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 					buffer = COM_Parse(buffer);
 					num = atoi(com_token);
 					if (num < 0 || num >= numtris)
-						Sys_Error("MD5MESH: vertex out of range");
+						MD5ERROR0PARAM("MD5MESH: vertex out of range");
 
 					buffer = COM_Parse(buffer);
 					indexes[num*3+0] = atoi(com_token);
@@ -5506,7 +5508,7 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 				else if (!strcmp(com_token, "numweights"))
 				{
 					if (numweights)
-						Sys_Error("MD5MESH: numweights was already specified");
+						MD5ERROR0PARAM("MD5MESH: numweights was already specified");
 					buffer = COM_Parse(buffer);
 					numweights = atoi(com_token);
 
@@ -5519,12 +5521,12 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 					buffer = COM_Parse(buffer);
 					num = atoi(com_token);
 					if (num < 0 || num >= numweights)
-						Sys_Error("MD5MESH: weight out of range");
+						MD5ERROR0PARAM("MD5MESH: weight out of range");
 
 					buffer = COM_Parse(buffer);
 					rawweightbone[num] = atoi(com_token);
 					if (rawweightbone[num] < 0 || rawweightbone[num] >= numjoints)
-						Sys_Error("MD5MESH: weight specifies bad bone");
+						MD5ERROR0PARAM("MD5MESH: weight specifies bad bone");
 					buffer = COM_Parse(buffer);
 					w = atof(com_token);
 
@@ -5541,7 +5543,7 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 				else if (!strcmp(com_token, "}"))
 					break;
 				else
-					Sys_Error("MD5MESH: Unrecognised token inside mesh (%s)", com_token);
+					MD5ERROR1PARAM("MD5MESH: Unrecognised token inside mesh (%s)", com_token);
 
 			}
 
@@ -5551,7 +5553,7 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 			for (num = 0, vnum = 0; num < numverts; num++)
 			{
 				if (numweightslist[num] <= 0)
-					Sys_Error("MD5MESH: weights not set on vertex");
+					MD5ERROR0PARAM("MD5MESH: weights not set on vertex");
 				while(numweightslist[num])
 				{
 					trans[vnum].vertexindex = num;
@@ -5577,17 +5579,19 @@ galiasinfo_t *GLMod_ParseMD5MeshModel(char *buffer)
 				Z_Free(rawweightbone);
 		}
 		else
-			Sys_Error("Unrecognised token in MD5 model (%s)", com_token);
+			MD5ERROR1PARAM("Unrecognised token in MD5 model (%s)", com_token);
 	}
 
 	if (!lastsurf)
-		Sys_Error("MD5MESH: No meshes");
+		MD5ERROR0PARAM("MD5MESH: No meshes");
 
 	return root;
+#undef MD5ERROR0PARAM
+#undef MD5ERROR1PARAM
 #undef EXPECT
 }
 
-void GLMod_LoadMD5MeshModel(model_t *mod, void *buffer)
+qboolean GLMod_LoadMD5MeshModel(model_t *mod, void *buffer)
 {
 	galiasinfo_t *root;
 	int hunkstart, hunkend, hunktotal;
@@ -5601,6 +5605,11 @@ void GLMod_LoadMD5MeshModel(model_t *mod, void *buffer)
 
 
 	root = GLMod_ParseMD5MeshModel(buffer);
+	if (root == NULL)
+	{
+		Hunk_FreeToLowMark(hunkstart);
+		return false;
+	}
 
 
 	hunkend = Hunk_LowMark ();
@@ -5615,7 +5624,7 @@ void GLMod_LoadMD5MeshModel(model_t *mod, void *buffer)
 	if (!mod->cache.data)
 	{
 		Hunk_FreeToLowMark (hunkstart);
-		return;
+		return false;
 	}
 	memcpy (mod->cache.data, root, hunktotal);
 
@@ -5623,11 +5632,14 @@ void GLMod_LoadMD5MeshModel(model_t *mod, void *buffer)
 
 
 	mod->funcs.Trace = GLMod_Trace;
+	return true;
 }
 
-galiasgroup_t GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs)
+qboolean GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, galiasgroup_t *gat)
 {
-#define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) Sys_Error("MD5ANIM: expected %s", x);
+#define MD5ERROR0PARAM(x) { Con_Printf(S_ERROR x "\n"); return false; }
+#define MD5ERROR1PARAM(x, y) { Con_Printf(S_ERROR x "\n", y); return false; }
+#define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) MD5ERROR1PARAM("MD5ANIM: expected %s", x);
 	unsigned int i, j;
 
 	galiasgroup_t grp;
@@ -5681,7 +5693,7 @@ galiasgroup_t GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**po
 	if (prototype)
 	{
 		if (prototype->numbones != numjoints)
-			Sys_Error("MD5ANIM: number of bones doesn't match");
+			MD5ERROR0PARAM("MD5ANIM: number of bones doesn't match");
 		bonelist = (galiasbone_t *)((char*)prototype + prototype->ofsbones);
 	}
 	else
@@ -5699,7 +5711,7 @@ galiasgroup_t GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**po
 		if (prototype)
 		{
 			if (strcmp(bonelist->name, com_token))
-				Sys_Error("MD5ANIM: bone name doesn't match (%s)", com_token);
+				MD5ERROR1PARAM("MD5ANIM: bone name doesn't match (%s)", com_token);
 		}
 		else
 			Q_strncpyz(bonelist->name, com_token, sizeof(bonelist->name));
@@ -5708,7 +5720,7 @@ galiasgroup_t GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**po
 		if (prototype)
 		{
 			if (bonelist->parent != parent)
-				Sys_Error("MD5ANIM: bone name doesn't match (%s)", com_token);
+				MD5ERROR1PARAM("MD5ANIM: bone name doesn't match (%s)", com_token);
 		}
 		else
 			bonelist->parent = parent;
@@ -5823,7 +5835,10 @@ galiasgroup_t GLMod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**po
 	grp.rate = framespersecond;
 	grp.loop = true;
 
-	return grp;
+	*gat = grp;
+	return true;
+#undef MD5ERROR0PARAM
+#undef MD5ERROR1PARAM
 #undef EXPECT
 }
 
@@ -5839,9 +5854,8 @@ clampgroup test/idle1.md5anim
 frames test/idle1.md5anim
 
 */
-void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
+qboolean GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 {
-	#define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) Sys_Error("MD5MESH: expected %s", x);
 	int i;
 
 	char *file;
@@ -5864,7 +5878,10 @@ void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 
 	buffer = COM_Parse(buffer);
 	if (strcmp(com_token, "EXTERNALANIM"))
-		Sys_Error("EXTERNALANIM: header is not compleate (%s)", mod->name);
+	{
+		Con_Printf (S_ERROR "EXTERNALANIM: header is not compleate (%s)\n", mod->name);
+		return false;
+	}
 
 	buffer = COM_Parse(buffer);
 	if (!strcmp(com_token, "model"))
@@ -5873,9 +5890,18 @@ void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 		file = COM_LoadTempFile2(com_token);
 
 		if (!file)	//FIXME: make non fatal somehow..
-			Sys_Error("Couldn't open %s (from %s)", com_token, mod->name);
+		{
+			Con_Printf(S_ERROR "Couldn't open %s (from %s)\n", com_token, mod->name);
+			Hunk_FreeToLowMark(hunkstart);
+			return false;
+		}
 
 		root = GLMod_ParseMD5MeshModel(file);
+		if (root == NULL)
+		{
+			Hunk_FreeToLowMark(hunkstart);
+			return false;
+		}
 		newgroup = (galiasgroup_t*)((char*)root + root->groupofs);
 
 		grouplist = BZ_Malloc(sizeof(galiasgroup_t)*(numgroups+root->groups));
@@ -5890,9 +5916,10 @@ void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 	}
 	else
 	{
-		Sys_Error("EXTERNALANIM: model must be defined immediatly after the header");
-		return;
+		Con_Printf (S_ERROR "EXTERNALANIM: model must be defined immediatly after the header\n");
+		return false;
 	}
+
 	for (;;)
 	{
 		buffer = COM_Parse(buffer);
@@ -5909,25 +5936,32 @@ void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 			{
 				char namebkup[MAX_QPATH];
 				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
-				grouplist[numgroups] = GLMod_ParseMD5Anim(file, root, &poseofs[numgroups]);
+				if (!GLMod_ParseMD5Anim(file, root, &poseofs[numgroups], &grouplist[numgroups]))
+				{
+					Hunk_FreeToLowMark(hunkstart);
+					return false;
+				}
 				Q_strncpyz(grouplist[numgroups].name, namebkup, sizeof(grouplist[numgroups].name));
 				numgroups++;
 			}
 		}
 		else if (!strcmp(com_token, "clampgroup"))
 		{
-			Sys_Error("EXTERNALANIM: clampgroup not yet supported (%s)", mod->name);
-			return;
+			Con_Printf(S_ERROR "EXTERNALANIM: clampgroup not yet supported (%s)\n", mod->name);
+			Hunk_FreeToLowMark(hunkstart);
+			return false;
 		}
 		else if (!strcmp(com_token, "frames"))
 		{
-			Sys_Error("EXTERNALANIM: frames not yet supported (%s)", mod->name);
-			return;
+			Con_Printf (S_ERROR "EXTERNALANIM: frames not yet supported (%s)\n", mod->name);
+			Hunk_FreeToLowMark(hunkstart);
+			return false;
 		}
 		else
 		{
-			Sys_Error("EXTERNALANIM: unrecognised token (%s)", mod->name);
-			return;
+			Con_Printf(S_ERROR "EXTERNALANIM: unrecognised token (%s)\n", mod->name);
+			Hunk_FreeToLowMark(hunkstart);
+			return false;
 		}
 	}
 
@@ -5960,7 +5994,7 @@ void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 	if (!mod->cache.data)
 	{
 		Hunk_FreeToLowMark (hunkstart);
-		return;
+		return false;
 	}
 	memcpy (mod->cache.data, root, hunktotal);
 
@@ -5968,6 +6002,7 @@ void GLMod_LoadCompositeAnim(model_t *mod, void *buffer)
 
 
 	mod->funcs.Trace = GLMod_Trace;
+	return true;
 }
 
 #endif //MD5MODELS

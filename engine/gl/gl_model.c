@@ -49,8 +49,8 @@ void CM_Init(void);
 qboolean GLMod_LoadCompositeAnim(model_t *mod, void *buffer);
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 qboolean GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
-void GLMod_LoadSpriteModel (model_t *mod, void *buffer);
-void GLMod_LoadSprite2Model (model_t *mod, void *buffer);
+qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer);
+qboolean GLMod_LoadSprite2Model (model_t *mod, void *buffer);
 qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer);
 #ifdef Q2BSPS
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
@@ -547,12 +547,14 @@ couldntload:
 
 #ifdef SP2MODELS
 	case IDSPRITE2HEADER:
-		GLMod_LoadSprite2Model (mod, buf);
+		if (!GLMod_LoadSprite2Model (mod, buf))
+			goto couldntload;
 		break;
 #endif
 
 	case IDSPRITEHEADER:
-		GLMod_LoadSpriteModel (mod, buf);
+		if (!GLMod_LoadSpriteModel (mod, buf))
+			goto couldntload;
 		break;
 #ifdef Q2BSPS
 	case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
@@ -575,7 +577,8 @@ couldntload:
 #ifdef DOOMWADS
 	case (('D'<<24)+('A'<<16)+('W'<<8)+'I'):
 	case (('D'<<24)+('A'<<16)+('W'<<8)+'P'):
-		Mod_LoadDoomLevel (mod);
+		if (!Mod_LoadDoomLevel (mod))
+			goto couldntload;
 		break;
 #endif
 
@@ -2957,7 +2960,10 @@ void * GLMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum
 	{
 		*poutintervals = LittleFloat (pin_intervals->interval);
 		if (*poutintervals <= 0.0)
-			Sys_Error ("Mod_LoadSpriteGroup: interval<=0");
+		{
+			Con_Printf (S_ERROR "Mod_LoadSpriteGroup: interval<=0\n");
+			return NULL;
+		}
 
 		poutintervals++;
 		pin_intervals++;
@@ -2978,7 +2984,7 @@ void * GLMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum
 Mod_LoadSpriteModel
 =================
 */
-void GLMod_LoadSpriteModel (model_t *mod, void *buffer)
+qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 {
 	int					i;
 	int					version;
@@ -2990,15 +2996,20 @@ void GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 	int rendertype=0;
 	unsigned char pal[256*4];
 	int sptype;
+	int hunkstart;
 	
+	hunkstart = Hunk_LowMark();
 	pin = (dsprite_t *)buffer;
 
 	version = LittleLong (pin->version);
 	if (version != SPRITE_VERSION)
 	if (version != SPRITE32_VERSION)
 	if (version != SPRITEHL_VERSION)
-		Sys_Error ("%s has wrong version number "
-				 "(%i should be %i)", mod->name, version, SPRITE_VERSION);
+	{
+		Con_Printf (S_ERROR "%s has wrong version number "
+				 "(%i should be %i)\n", mod->name, version, SPRITE_VERSION);
+		return false;
+	}
 
 	sptype = LittleLong (pin->type);
 
@@ -3034,7 +3045,11 @@ void GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 		short *numi = (short*)(pin+1);
 		unsigned char *src = (unsigned char *)(numi+1);
 		if (*numi != 256)
-			Sys_Error("%s has wrong number of palette indexes (we only support 256)\n", mod->name);
+		{
+			Con_Printf(S_ERROR "%s has wrong number of palette indexes (we only support 256)\n", mod->name);
+			Hunk_FreeToLowMark(hunkstart);
+			return false;
+		}
 
 		for (i = 0; i < 256; i++)
 		{
@@ -3053,7 +3068,11 @@ void GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 // load the frames
 //
 	if (numframes < 1)
-		Sys_Error ("Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
+	{
+		Con_Printf (S_ERROR "Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
+		Hunk_FreeToLowMark(hunkstart);
+		return false;
+	}
 
 	mod->numframes = numframes;
 
@@ -3076,12 +3095,19 @@ void GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 					GLMod_LoadSpriteGroup (pframetype + 1,
 										 &psprite->frames[i].frameptr, i, version, pal);
 		}
+		if (pframetype == NULL)
+		{
+			Hunk_FreeToLowMark(hunkstart);
+			return false;
+		}
 	}
 
 	mod->type = mod_sprite;
+
+	return true;
 }
 
-void GLMod_LoadSprite2Model (model_t *mod, void *buffer)
+qboolean GLMod_LoadSprite2Model (model_t *mod, void *buffer)
 {
 	int					i;
 	int					version;
@@ -3092,13 +3118,19 @@ void GLMod_LoadSprite2Model (model_t *mod, void *buffer)
 	dmd2sprframe_t		*pframetype;
 	mspriteframe_t		*frame;
 	float origin[2];
+	int hunkstart;
+
+	hunkstart = Hunk_LowMark();
 	
 	pin = (dmd2sprite_t *)buffer;
 
 	version = LittleLong (pin->version);
 	if (version != SPRITE2_VERSION)
-		Sys_Error ("%s has wrong version number "
+	{
+		Con_Printf (S_ERROR "%s has wrong version number "
 				 "(%i should be %i)", mod->name, version, SPRITE2_VERSION);
+		return false;
+	}
 
 	numframes = LittleLong (pin->numframes);
 
@@ -3124,7 +3156,11 @@ void GLMod_LoadSprite2Model (model_t *mod, void *buffer)
 // load the frames
 //
 	if (numframes < 1)
-		Sys_Error ("Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
+	{
+		Con_Printf (S_ERROR "Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
+		Hunk_FreeToLowMark(hunkstart);
+		return false;
+	}
 
 	mod->numframes = numframes;
 
@@ -3154,6 +3190,8 @@ void GLMod_LoadSprite2Model (model_t *mod, void *buffer)
 	}
 
 	mod->type = mod_sprite;
+
+	return true;
 }
 
 

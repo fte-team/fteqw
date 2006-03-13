@@ -28,8 +28,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
 
-void SWMod_LoadSpriteModel (model_t *mod, void *buffer);
-void SWMod_LoadSprite2Model (model_t *mod, void *buffer);
+qboolean SWMod_LoadSpriteModel (model_t *mod, void *buffer);
+qboolean SWMod_LoadSprite2Model (model_t *mod, void *buffer);
 qboolean SWMod_LoadBrushModel (model_t *mod, void *buffer);
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer);
@@ -391,11 +391,13 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 		break;
 
 	case IDSPRITEHEADER:
-		SWMod_LoadSpriteModel (mod, buf);
+		if (!SWMod_LoadSpriteModel (mod, buf))
+			goto couldntload;
 		break;
 	
 	case IDSPRITE2HEADER:
-		SWMod_LoadSprite2Model (mod, buf);
+		if (!SWMod_LoadSprite2Model (mod, buf))
+			goto couldntload;
 		break;
 #endif
 #ifdef Q2BSPS
@@ -3609,7 +3611,10 @@ void * SWMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int version)
 	{
 		*poutintervals = LittleFloat (pin_intervals->interval);
 		if (*poutintervals <= 0.0)
-			Sys_Error ("Mod_LoadSpriteGroup: interval<=0");
+		{
+			Con_Printf (S_ERROR "Mod_LoadSpriteGroup: interval<=0\n");
+			return NULL;
+		}
 
 		poutintervals++;
 		pin_intervals++;
@@ -3631,7 +3636,7 @@ void * SWMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int version)
 Mod_LoadSpriteModel
 =================
 */
-void SWMod_LoadSpriteModel (model_t *mod, void *buffer)
+qboolean SWMod_LoadSpriteModel (model_t *mod, void *buffer)
 {
 	int					i;
 	int					version;
@@ -3640,14 +3645,20 @@ void SWMod_LoadSpriteModel (model_t *mod, void *buffer)
 	int					numframes;
 	int					size;
 	dspriteframetype_t	*pframetype;
+	int hunkstart;
+
+	hunkstart = Hunk_LowMark();
 	
 	pin = (dsprite_t *)buffer;
 
 	version = LittleLong (pin->version);
 	if (version != SPRITE32_VERSION)
 	if (version != SPRITE_VERSION)
-		Sys_Error ("%s has wrong version number "
-				 "(%i should be %i)", mod->name, version, SPRITE_VERSION);
+	{
+		Con_Printf (S_ERROR "%s has wrong version number "
+				 "(%i should be %i)\n", mod->name, version, SPRITE_VERSION);
+		return false;
+	}
 
 	numframes = LittleLong (pin->numframes);
 
@@ -3673,7 +3684,10 @@ void SWMod_LoadSpriteModel (model_t *mod, void *buffer)
 // load the frames
 //
 	if (numframes < 1)
-		Sys_Error ("Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
+	{
+		Con_Printf (S_ERROR "Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
+		return false;
+	}
 
 	mod->numframes = numframes;
 
@@ -3698,12 +3712,18 @@ void SWMod_LoadSpriteModel (model_t *mod, void *buffer)
 					SWMod_LoadSpriteGroup (pframetype + 1,
 										 &psprite->frames[i].frameptr, version);
 		}
+		if (pframetype == NULL)
+		{
+			Hunk_FreeToLowMark(hunkstart);
+			return false;
+		}
 	}
 
 	mod->type = mod_sprite;
+	return true;
 }
 
-void SWMod_LoadSprite2Model (model_t *mod, void *buffer)
+qboolean SWMod_LoadSprite2Model (model_t *mod, void *buffer)
 {
 	int					i, j;
 	int					version;
@@ -3718,13 +3738,19 @@ void SWMod_LoadSprite2Model (model_t *mod, void *buffer)
 	int height;
 	qbyte *framefile;
 	qbyte *framedata;
+	int hunkstart;
+
+	hunkstart = Hunk_LowMark();
 	
 	pin = (dmd2sprite_t *)buffer;
 
 	version = LittleLong (pin->version);
 	if (version != SPRITE2_VERSION)
-		Sys_Error ("%s has wrong version number "
-				 "(%i should be %i)", mod->name, version, SPRITE2_VERSION);
+	{
+		Con_Printf ("%s has wrong version number "
+				 "(%i should be %i)\n", mod->name, version, SPRITE2_VERSION);
+		return false;
+	}
 
 	numframes = LittleLong (pin->numframes);
 
@@ -3750,7 +3776,11 @@ void SWMod_LoadSprite2Model (model_t *mod, void *buffer)
 // load the frames
 //
 	if (numframes < 1)
-		Sys_Error ("Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
+	{
+		Con_Printf (S_ERROR "Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
+		Hunk_FreeToLowMark(hunkstart);
+		return false;
+	}
 
 	mod->numframes = 0;
 
@@ -3814,6 +3844,7 @@ void SWMod_LoadSprite2Model (model_t *mod, void *buffer)
 	}
 
 	mod->type = mod_sprite;
+	return true;
 }
 
 //=============================================================================

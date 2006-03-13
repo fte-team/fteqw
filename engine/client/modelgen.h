@@ -43,6 +43,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #define ALIAS_VERSION	6
+#define QTESTALIAS_VERSION 3
 
 #define ALIAS_ONSEAM				0x0020
 
@@ -131,6 +132,12 @@ typedef struct {
 	dtrivertx_t	bboxmax;	// lightnormal isn't used
 	char		name[16];	// frame name from grabbing
 } daliasframe_t;
+
+typedef struct {
+	dtrivertx_t	bboxmin;	// lightnormal isn't used
+	dtrivertx_t	bboxmax;	// lightnormal isn't used
+	// no name[16]!
+} qtestaliasframe_t;
 
 typedef struct {
 	int			numframes;

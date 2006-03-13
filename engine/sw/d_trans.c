@@ -415,7 +415,6 @@ palremap_t *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate,
 
 palremap_t *RebuildMenuTint(void)
 {
-	char *t;
 	vec3_t rgb;
 
 	if (r_menutint.string[0])

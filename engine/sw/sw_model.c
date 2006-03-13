@@ -2144,6 +2144,48 @@ ALIAS MODELS
 ==============================================================================
 */
 
+void * SWMod_LoadAliasQTestFrame (void * pin, int *pframeindex, int numv,
+	dtrivertx_t *pbboxmin, dtrivertx_t *pbboxmax, aliashdr_t *pheader, char *name)
+{
+	dtrivertx_t		*pframe, *pinframe;
+	int				i, j;
+	qtestaliasframe_t	*pdaliasframe;
+
+	pdaliasframe = (qtestaliasframe_t *)pin;
+
+	name[0] = '\0';
+
+	for (i=0 ; i<3 ; i++)
+	{
+	// these are byte values, so we don't have to worry about
+	// endianness
+		pbboxmin->v[i] = pdaliasframe->bboxmin.v[i];
+		pbboxmax->v[i] = pdaliasframe->bboxmax.v[i];
+	}
+
+	pinframe = (dtrivertx_t *)(pdaliasframe + 1);
+	pframe = Hunk_AllocName (numv * sizeof(*pframe), loadname);
+
+	*pframeindex = (qbyte *)pframe - (qbyte *)pheader;
+
+	for (j=0 ; j<numv ; j++)
+	{
+		int		k;
+
+	// these are all byte values, so no need to deal with endianness
+		pframe[j].lightnormalindex = pinframe[j].lightnormalindex;
+
+		for (k=0 ; k<3 ; k++)
+		{
+			pframe[j].v[k] = pinframe[j].v[k];
+		}
+	}
+
+	pinframe += numv;
+
+	return (void *)pinframe;
+}
+
 /*
 =================
 Mod_LoadAliasFrame
@@ -2382,6 +2424,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	maliasskindesc_t	*pskindesc;
 	int					skinsize;
 	int					start, end, total;
+	qboolean qtest = false;
 	
 	if (loadmodel->engineflags & MDLF_DOCRC)
 	{
@@ -2412,7 +2455,9 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	pinmodel = (dmdl_t *)buffer;
 
 	version = LittleLong (pinmodel->version);
-	if (version != ALIAS_VERSION)
+	if (version == QTESTALIAS_VERSION)
+		qtest = true;
+	else if (version != ALIAS_VERSION)
 	{
 		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)\n",
 				 mod->name, version, ALIAS_VERSION);
@@ -2435,7 +2480,10 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 			 sizeof (pheader->frames[0]));
 	
 //	mod->cache.data = pheader;
-	mod->flags = LittleLong (pinmodel->flags);
+	if (qtest)
+		mod->flags = 0;
+	else
+		mod->flags = LittleLong (pinmodel->flags);
 
 //
 // endian-adjust and copy the data, starting with the alias model header
@@ -2480,7 +2528,10 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	}
 
 	pmodel->numframes = LittleLong (pinmodel->numframes);
-	pmodel->size = LittleFloat (pinmodel->size) * ALIAS_BASE_SIZE_RATIO;
+	if (qtest)
+		pmodel->size = 1.0 * ALIAS_BASE_SIZE_RATIO;
+	else
+		pmodel->size = LittleFloat (pinmodel->size) * ALIAS_BASE_SIZE_RATIO;
 	mod->synctype = LittleLong (pinmodel->synctype);
 	mod->numframes = pmodel->numframes;
 
@@ -2515,7 +2566,10 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 		return false;
 	}
 
-	pskintype = (daliasskintype_t *)&pinmodel[1];
+	if (qtest)
+		pskintype = (daliasskintype_t *)((char *)&pinmodel[1] - sizeof(int)*2);
+	else
+		pskintype = (daliasskintype_t *)&pinmodel[1];
 
 	pskindesc = Hunk_AllocName (numskins * sizeof (maliasskindesc_t),
 								loadname);
@@ -2612,8 +2666,17 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 		VectorCopy(pmodel->scale_origin, pheader->frames[i].scale_origin);
 		VectorCopy(pmodel->scale, pheader->frames[i].scale);
 
-
-		if (frametype == ALIAS_SINGLE)
+		if (qtest)
+		{
+			pframetype = (daliasframetype_t *)
+					SWMod_LoadAliasQTestFrame (pframetype + 1,
+										&pheader->frames[i].frame,
+										pmodel->numverts,
+										&pheader->frames[i].bboxmin,
+										&pheader->frames[i].bboxmax,
+										pheader, pheader->frames[i].name);
+		}
+		else if (frametype == ALIAS_SINGLE)
 		{
 			pframetype = (daliasframetype_t *)
 					SWMod_LoadAliasFrame (pframetype + 1,

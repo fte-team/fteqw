@@ -2965,6 +2965,68 @@ static galiasinfo_t *galias;
 static dmdl_t *pq1inmodel;
 #define NUMVERTEXNORMALS	162
 extern float	r_avertexnormals[NUMVERTEXNORMALS][3];
+static void *QTest_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
+{
+	galiaspose_t *pose;
+	galiasgroup_t *frame;
+	dtrivertx_t		*pinframe;
+	qtestaliasframe_t *frameinfo;
+	int				i, j;
+
+	vec3_t *normals;
+	vec3_t *verts;
+
+	frame = (galiasgroup_t*)((char *)galias + galias->groupofs);
+
+	for (i = 0; i < pq1inmodel->numframes; i++)
+	{
+		switch(LittleLong(pframetype->type))
+		{
+		case ALIAS_SINGLE:
+			frameinfo = (qtestaliasframe_t*)((char *)(pframetype+1));
+			pinframe = (dtrivertx_t*)((char*)frameinfo+sizeof(qtestaliasframe_t));
+			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vec3_t)*2*galias->numverts);
+			frame->poseofs = (char *)pose - (char *)frame;
+			frame->numposes = 1;
+			galias->groups++;
+
+			frame->name[0] = '\0';
+
+			verts = (vec3_t *)(pose+1);
+			normals = &verts[galias->numverts];
+			pose->ofsverts = (char *)verts - (char *)pose;
+#ifndef SERVERONLY
+			pose->ofsnormals = (char *)normals - (char *)pose;
+#endif
+
+			for (j = 0; j < pq1inmodel->numverts; j++)
+			{
+				verts[j][0] = pinframe[j].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
+				verts[j][1] = pinframe[j].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
+				verts[j][2] = pinframe[j].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
+#ifndef SERVERONLY
+				VectorCopy(r_avertexnormals[pinframe[j].lightnormalindex], normals[j]);
+#endif
+				if (seamremaps[j] != j)
+				{
+					VectorCopy(verts[j], verts[seamremaps[j]]);
+					VectorCopy(normals[j], normals[seamremaps[j]]);
+				}
+			}
+
+//			GL_GenerateNormals((float*)verts, (float*)normals, (int *)((char *)galias + galias->ofs_indexes), galias->numindexes/3, galias->numverts);
+
+			pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
+			break;
+		default:
+			Con_Printf(S_ERROR "Bad frame type for QTest model in %s\n", loadmodel->name);
+			return NULL;
+		}
+		frame++;
+	}
+	return pframetype;
+}
+
 static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 {
 	galiaspose_t *pose;
@@ -3329,6 +3391,7 @@ qboolean GL_LoadQ1Model (model_t *mod, void *buffer)
 	dtriangle_t *pintriangles;
 	int *seamremap;
 	index_t *indexes;
+	qboolean qtest = false;
 
 	int size;
 
@@ -3340,17 +3403,25 @@ qboolean GL_LoadQ1Model (model_t *mod, void *buffer)
 
 	pq1inmodel = (dmdl_t *)buffer;
 
-	seamremap = (int*)pq1inmodel;	//I like overloading locals.
-	for (i = 0; i < sizeof(dmdl_t)/4; i++)
-		seamremap[i] = LittleLong(seamremap[i]);
-
 	version = pq1inmodel->version;
-	if (version != ALIAS_VERSION)
+	if (version == QTESTALIAS_VERSION)
+		qtest = true;
+	else if (version != ALIAS_VERSION)
 	{
 		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)\n",
 				 mod->name, version, ALIAS_VERSION);
 		return false;
 	}
+
+	seamremap = (int*)pq1inmodel;	//I like overloading locals.
+	
+	if (qtest)
+		i = sizeof(dmdl_t)/4 - sizeof(int)*2 - 1;
+	else
+		i = sizeof(dmdl_t)/4 - 1;
+
+	for (; i >= 0; i--)
+		seamremap[i] = LittleLong(seamremap[i]);
 
 	if (pq1inmodel->numframes < 1 ||
 		pq1inmodel->numskins < 1 ||
@@ -3363,7 +3434,10 @@ qboolean GL_LoadQ1Model (model_t *mod, void *buffer)
 		return false;
 	}
 
-	mod->flags = pq1inmodel->flags;
+	if (qtest)
+		mod->flags = 0; // Qtest has no flags in header
+	else
+		mod->flags = pq1inmodel->flags;
 
 	size = sizeof(galiasinfo_t)
 #ifndef SERVERONLY
@@ -3379,7 +3453,9 @@ qboolean GL_LoadQ1Model (model_t *mod, void *buffer)
 	galias->nextsurf = 0;
 
 //skins
-	if( mod->flags & EF_HOLEY )
+	if (qtest)
+		pinstverts = (dstvert_t *)Q1_LoadSkins((daliasskintype_t *)((char *)buffer + sizeof(dmdl_t) - sizeof(int)*2), 0);
+	else if( mod->flags & EF_HOLEY )
 		pinstverts = (dstvert_t *)Q1_LoadSkins((daliasskintype_t *)(pq1inmodel+1), 3);
 	else if( mod->flags & EF_TRANSPARENT )
 		pinstverts = (dstvert_t *)Q1_LoadSkins((daliasskintype_t *)(pq1inmodel+1), 2);
@@ -3444,11 +3520,23 @@ qboolean GL_LoadQ1Model (model_t *mod, void *buffer)
 	}
 
 	//frames
-	if (Q1_LoadFrameGroup((daliasframetype_t *)&pintriangles[pq1inmodel->numtris], seamremap) == NULL)
+	if (qtest)
 	{
-		BZ_Free(seamremap);
-		Hunk_FreeToLowMark (hunkstart);
-		return false;
+		if (QTest_LoadFrameGroup((daliasframetype_t *)&pintriangles[pq1inmodel->numtris], seamremap) == NULL)
+		{
+			BZ_Free(seamremap);
+			Hunk_FreeToLowMark (hunkstart);
+			return false;
+		}
+	}
+	else
+	{
+		if (Q1_LoadFrameGroup((daliasframetype_t *)&pintriangles[pq1inmodel->numtris], seamremap) == NULL)
+		{
+			BZ_Free(seamremap);
+			Hunk_FreeToLowMark (hunkstart);
+			return false;
+		}
 	}
 	BZ_Free(seamremap);
 

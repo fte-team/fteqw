@@ -27,6 +27,9 @@ void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s
 
 #define CGTAGNUM 5423
 
+#define VM_FROMHANDLE(a) ((void*)a)
+#define VM_TOHANDLE(a) ((int)a)
+
 typedef enum {
 	CG_PRINT,
 	CG_ERROR,
@@ -845,8 +848,11 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 
 	case CG_S_ADDLOOPINGSOUND:
 		break;
+	case CG_S_STOPLOOPINGSOUND:
+		break;
 
 	case CG_S_STARTBACKGROUNDTRACK:
+	case CG_S_STOPBACKGROUNDTRACK:
 	case CG_S_CLEARLOOPINGSOUNDS:
 		break;
 
@@ -865,6 +871,14 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 				VM_LONG(ret) = 1;
 			else
 				VM_LONG(ret) = 0;
+		}
+		break;
+
+	case CG_KEY_GETKEY:
+		{
+			int ret[2];
+			M_FindKeysForCommand (VM_POINTER(arg[0]), ret);
+			return ret[0];
 		}
 		break;
 
@@ -1001,7 +1015,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		UI_RegisterFont(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]));
 		break;
 	default:
-		Host_EndGame("Q3CG: Bad system trap: %d\n", fn);
+		Con_Printf("Q3CG: Bad system trap: %d\n", fn);
 	}
 
 	return ret;

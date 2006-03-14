@@ -17,6 +17,7 @@ int ftpfilelistsocket;
 char *COM_ParseOut (char *data, char *out, int outlen);
 
 static iwboolean ftpserverinitied = false;
+iwboolean ftpserverfailed = false;
 static int	ftpserversocket;
 
 
@@ -44,7 +45,7 @@ typedef struct FTPclient_s{
 
 FTPclient_t *FTPclient;
 
-void FTP_ServerInit(void)
+qboolean FTP_ServerInit(void)
 {	
 	struct sockaddr_in address;
 	unsigned long _true = true;
@@ -53,12 +54,16 @@ void FTP_ServerInit(void)
 
 	if ((ftpserversocket = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		Sys_Error ("FTP_TCP_OpenSocket: socket:", strerror(qerrno));
+		Con_Printf ("FTP_TCP_OpenSocket: socket: %s\n", strerror(qerrno));
+		ftpserverfailed = true;
+		return false;
 	}
 
 	if (ioctlsocket (ftpserversocket, FIONBIO, &_true) == -1)
 	{
 		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
+		ftpserverfailed = true;
+		return false;
 	}
 
 	address.sin_family = AF_INET;
@@ -77,8 +82,10 @@ void FTP_ServerInit(void)
 	
 	if( bind (ftpserversocket, (void *)&address, sizeof(address)) == -1)
 	{
+		Con_Printf("FTP_ServerInit: failed to bind socket\n");
 		closesocket(ftpserversocket);
-		return;
+		ftpserverfailed = true;
+		return false;
 	}
 	
 	listen(ftpserversocket, 3);
@@ -87,7 +94,7 @@ void FTP_ServerInit(void)
 
 
 	IWebPrintf("FTP server is running\n");
-	return;
+	return true;
 }
 
 void FTP_ServerShutdown(void)
@@ -747,7 +754,7 @@ unsigned long _true = true;
 	if (!ftpserverinitied)
 	{
 		if (ftpserverwanted)
-			FTP_ServerInit();
+			return FTP_ServerInit();
 		return false;
 	}
 	else if (!ftpserverwanted)

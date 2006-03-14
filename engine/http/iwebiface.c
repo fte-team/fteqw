@@ -68,8 +68,8 @@ int main(int argc, char **argv)
 	{
 		FTP_ServerRun(1);
 		HTTP_ServerPoll(1);
-		if (httpserverfailed)
-			Sys_Error("HTTP server failed");
+		if (ftpserverfailed || httpserverfailed)
+			Sys_Error("FTP/HTTP server failed");
 		Sleep(1);
 	}
 }
@@ -370,10 +370,16 @@ void IWebInit(void)
 void IWebRun(void)
 {
 #ifdef WEBSERVER
-	extern qboolean httpserverfailed;
+	extern qboolean httpserverfailed, ftpserverfailed;
 
 	FTP_ServerRun(ftpserver.value!= 0);
 	HTTP_ServerPoll(httpserver.value!=0);
+	if (ftpserverfailed)
+	{
+		Con_Printf("FTP Server failed to load, setting %s to 0\n", ftpserver.name);
+		Cvar_SetValue(&ftpserver, 0);
+		ftpserverfailed = false;
+	}
 	if (httpserverfailed)
 	{
 		Con_Printf("HTTP Server failed to load, setting %s to 0\n", httpserver.name);

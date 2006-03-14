@@ -114,6 +114,9 @@ void EmitWaterPolys (msurface_t *fa, float basealpha)
 		mb.shader = fa->texinfo->texture->shader;
 		mb.fog = NULL;
 		mb.mesh = fa->mesh;
+		r_worldentity.shaderRGBAf[3] = basealpha;
+		R_PushMesh(mb.mesh, mb.shader->features);
+		r_worldentity.shaderRGBAf[3] = 1;
 		R_RenderMeshBuffer(&mb, false);
 		return;
 	}

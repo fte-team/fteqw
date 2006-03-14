@@ -53,8 +53,6 @@ HTTP_DIR=$(BASE_DIR)/http
 LIBS_DIR?=.
 PROGS_DIR=$(BASE_DIR)/qclib
 SNDCODEC_DIR=$(BASE_DIR)/sndcodec
-MP3_DIR=$(BASE_DIR)/../mp3/libmad
-QUX_DIR=$(BASE_DIR)/qux
 
 RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
@@ -77,6 +75,9 @@ ifeq ($(FTE_TARGET),cygwin)
 	BASELDFLAGS=-lm
 endif
 ifeq ($(FTE_TARGET),morphos)
+	BASELDFLAGS=-lm
+endif
+ifeq ($(FTE_TARGET),bsd)
 	BASELDFLAGS=-lm
 endif
 BASELDFLAGS ?= -lm -ldl

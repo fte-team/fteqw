@@ -209,6 +209,10 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 		return Master_CompareInteger(a->maxplayers - a->players, b->maxplayers - b->players, SLIST_TEST_LESS);
 	case SLKEY_BASEGAME:
 		return Master_CompareInteger(a->special, b->special, SLIST_TEST_LESS);
+	case SLKEY_TIMELIMIT:
+		return Master_CompareInteger(a->tl, b->tl, SLIST_TEST_LESS);
+	case SLKEY_FRAGLIMIT:
+		return Master_CompareInteger(a->fl, b->fl, SLIST_TEST_LESS);
 	case SLKEY_MAP:
 		return Master_CompareString(a->map, b->map, SLIST_TEST_LESS);
 	case SLKEY_GAMEDIR:
@@ -244,6 +248,12 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 			break;
 		case SLKEY_FREEPLAYERS:
 			res = Master_CompareInteger(a->maxplayers-a->players, visrules[i].operandi, visrules[i].compareop);
+			break;
+		case SLKEY_TIMELIMIT:
+			res = Master_CompareInteger(a->tl, visrules[i].operandi, visrules[i].compareop);
+			break;
+		case SLKEY_FRAGLIMIT:
+			res = Master_CompareInteger(a->fl, visrules[i].operandi, visrules[i].compareop);
 			break;
 
 		case SLKEY_MAP:
@@ -426,6 +436,10 @@ float Master_ReadKeyFloat(serverinfo_t *server, int keynum)
 			return server->maxplayers - server->players;
 		case SLKEY_BASEGAME:
 			return server->special;
+		case SLKEY_TIMELIMIT:
+			return server->tl;
+		case SLKEY_FRAGLIMIT:
+			return server->fl;
 
 		default:
 			return atof(Master_ReadKeyString(server, keynum));
@@ -1323,6 +1337,12 @@ void CL_QueryServers(void)
 	static int poll;
 	int op;
 	serverinfo_t *server;	
+
+	extern cvar_t	sb_hidequake2;
+	extern cvar_t	sb_hidequake3;
+	extern cvar_t	sb_hidenetquake;
+	extern cvar_t	sb_hidequakeworld;
+
 	op = poll;
 	
 
@@ -1336,7 +1356,40 @@ void CL_QueryServers(void)
 
 	if (op == 0)
 	{
-		if (server->sends > 0)
+
+		//we only want to send poll packets to servers which will not be filtered (otherwise it's pointless)
+		while(server)
+		{
+			if (server->special & SS_QUAKE3 && !sb_hidequake3.value)
+				break;
+			if (server->special & SS_QUAKE2 && !sb_hidequake2.value)
+				break;
+			if ((server->special & (SS_NETQUAKE|SS_DARKPLACES)) && !sb_hidenetquake.value)
+				break;
+			if ((server->special & (SS_QUAKE3|SS_QUAKE2|SS_DARKPLACES|SS_NETQUAKE))==0 && !sb_hidequakeworld.value)
+				break;
+			server = server->next;
+			poll++;
+		}
+		if (!server)
+		{
+			server = firstserver;
+			while (server)
+			{
+				if (server->special & SS_QUAKE3 && !sb_hidequake3.value)
+					break;
+				if (server->special & SS_QUAKE2 && !sb_hidequake2.value)
+					break;
+				if ((server->special & (SS_NETQUAKE|SS_DARKPLACES)) && !sb_hidenetquake.value)
+					break;
+				if ((server->special & (SS_QUAKE3|SS_QUAKE2|SS_DARKPLACES|SS_NETQUAKE))==0 && !sb_hidequakeworld.value)
+					break;
+				server = server->next;
+				poll++;
+			}
+
+		}
+		if (server && server->sends > 0)
 		{
 			Master_QueryServer(server);
 		}

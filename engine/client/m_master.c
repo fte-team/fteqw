@@ -901,15 +901,21 @@ typedef struct {
 
 void SL_TitlesDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 {
+	char *smark;
+	int sf = Master_GetSortField();
+	if (Master_GetSortDescending())
+		smark = "^6%s";
+	else
+		smark = "^5%s";
 	x = ths->common.width/8;
-	if (sb_showtimelimit.value)	{x-=4; Draw_FunStringLen(x+8, y, "tl", 3); }
-	if (sb_showfraglimit.value)	{x-=4; Draw_FunStringLen(x+8, y, "fl", 3); }
-	if (sb_showplayers.value)	{Draw_FunStringLen((x-5)*8, y, "plyrs", 5); x-=6;}
-	if (sb_showmap.value)		{Draw_FunStringLen((x-8)*8, y, "map", 8); x-=9;}
-	if (sb_showgamedir.value)	{Draw_FunStringLen((x-8)*8, y, "gamedir", 8); x-=9;}
-	if (sb_showping.value)		{Draw_FunStringLen((x-3)*8, y, "png", 3); x-=4;}
-	if (sb_showaddress.value)	{Draw_FunStringLen((x-21)*8, y, "address", 21); x-=22;}
-		Draw_FunStringLen(0, y, "name", x);
+	if (sb_showtimelimit.value)	{Draw_FunStringLen((x-3)*8, y, va((sf==SLKEY_TIMELIMIT)?smark:"%s", "tl"), 3); x-=4;}
+	if (sb_showfraglimit.value)	{Draw_FunStringLen((x-3)*8, y, va((sf==SLKEY_FRAGLIMIT)?smark:"%s", "fl"), 3); x-=4;}
+	if (sb_showplayers.value)	{Draw_FunStringLen((x-5)*8, y, va((sf==SLKEY_NUMPLAYERS)?smark:"%s", "plyrs"), 5); x-=6;}
+	if (sb_showmap.value)		{Draw_FunStringLen((x-8)*8, y, va((sf==SLKEY_MAP)?smark:"%s", "map"), 8); x-=9;}
+	if (sb_showgamedir.value)	{Draw_FunStringLen((x-8)*8, y, va((sf==SLKEY_GAMEDIR)?smark:"%s", "gamedir"), 8); x-=9;}
+	if (sb_showping.value)		{Draw_FunStringLen((x-3)*8, y, va((sf==SLKEY_PING)?smark:"%s", "png"), 3); x-=4;}
+	if (sb_showaddress.value)	{Draw_FunStringLen((x-21)*8, y, va((sf==SLKEY_ADDRESS)?smark:"%s", "address"), 21); x-=22;}
+	Draw_FunStringLen(0, y, va((sf==SLKEY_NAME)?smark:"%s", "hostname^7 "), x);
 }
 
 qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key)
@@ -925,8 +931,8 @@ qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key)
 	do {
 		x = ths->common.width/8;
 		if (mx > x) return false;	//out of bounds
-		if (sb_showtimelimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_NAME; break;}}
-		if (sb_showfraglimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_NAME; break;}}
+		if (sb_showtimelimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_TIMELIMIT; break;}}
+		if (sb_showfraglimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_FRAGLIMIT; break;}}
 		if (sb_showplayers.value)	{x-=6;if (mx > x) {sortkey = SLKEY_NUMPLAYERS; break;}}
 		if (sb_showmap.value)		{x-=9;if (mx > x) {sortkey = SLKEY_MAP; break;}}
 		if (sb_showgamedir.value)	{x-=9;if (mx > x) {sortkey = SLKEY_GAMEDIR; break;}}
@@ -934,6 +940,9 @@ qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key)
 		if (sb_showaddress.value)	{x-=22;if (mx > x) {sortkey = SLKEY_ADDRESS; break;}}
 			sortkey = SLKEY_NAME;break;
 	} while (0);
+
+	if (sortkey == SLKEY_ADDRESS)
+		return true;
 
 	Master_SetSortField(sortkey, Master_GetSortField()!=sortkey||!Master_GetSortDescending());
 	return true;
@@ -1254,7 +1263,16 @@ qboolean SL_ReFilter (menucheck_t *option, menu_t *menu, chk_set_t set)
 		return info->filter[option->bits];
 	case CHK_TOGGLE:
 		if (option->bits>0)
+		{
 			info->filter[option->bits] ^= 1;
+			Cvar_Set(&sb_hidenetquake, info->filter[1]?"0":"1");
+			Cvar_Set(&sb_hidequakeworld, info->filter[2]?"0":"1");
+			Cvar_Set(&sb_hidequake2, info->filter[3]?"0":"1");
+			Cvar_Set(&sb_hidequake3, info->filter[4]?"0":"1");
+
+			Cvar_Set(&sb_hideempty, info->filter[6]?"1":"0");
+			Cvar_Set(&sb_hidefull, info->filter[7]?"1":"0");
+		}
 
 		CalcFilters(menu);
 

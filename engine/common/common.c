@@ -1882,14 +1882,20 @@ const char *COM_ParseToken (const char *data, const char *punctuation)
 	com_token[0] = 0;
 
 	if (!data)
+	{
+		com_tokentype = TTP_UNKNOWN;
 		return NULL;
+	}
 
 // skip whitespace
 skipwhite:
-	while ( (c = *data) <= ' ')
+	while ( (c = *(unsigned char*)data) <= ' ')
 	{
 		if (c == 0)
+		{
+			com_tokentype = TTP_UNKNOWN;
 			return NULL;			// end of file;
+		}
 		data++;
 	}
 

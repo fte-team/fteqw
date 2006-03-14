@@ -818,6 +818,8 @@ void SVQ3_SendServerCommand(client_t *cl, char *str)
 
 void SVQ3_SetConfigString(int num, char *string)
 {
+	if (!string)
+		string = "";
 	if (svq3_configstrings[num])
 		Z_Free(svq3_configstrings[num]);
 	svq3_configstrings[num] = Z_Malloc(strlen(string)+1);
@@ -1102,8 +1104,8 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		return !!mapentspointer;
 
 	case G_REAL_TIME:																			//	41
-Con_Printf("builtin %i is not implemented\n", fn);
-		return 0;
+		VM_FLOAT(ret) = realtime;
+		return ret;
 	case G_SNAPVECTOR:
 		{
 			float *fp = (float *)VM_POINTER( arg[0] );
@@ -2742,7 +2744,7 @@ void SVQ3_ParseClientCommand(client_t *client)
 	if(commandNum <= client->last_client_command_num)
 		return; // we have already received this command
 
-	Con_Printf("ClientCommand %i: %s\n", commandNum, buffer);
+//	Con_Printf("ClientCommand %i: %s\n", commandNum, buffer);
 
 //	Con_DPrintf("clientCommand: %s : %i : %s\n", client->name, commandNum, Com_TranslateLinefeeds(command));
 

@@ -68,6 +68,8 @@ int main(int argc, char **argv)
 	{
 		FTP_ServerRun(1);
 		HTTP_ServerPoll(1);
+		if (httpserverfailed)
+			Sys_Error("HTTP server failed");
 		Sleep(1);
 	}
 }
@@ -368,8 +370,16 @@ void IWebInit(void)
 void IWebRun(void)
 {
 #ifdef WEBSERVER
+	extern qboolean httpserverfailed;
+
 	FTP_ServerRun(ftpserver.value!= 0);
 	HTTP_ServerPoll(httpserver.value!=0);
+	if (httpserverfailed)
+	{
+		Con_Printf("HTTP Server failed to load, setting %s to 0\n", httpserver.name);
+		Cvar_SetValue(&httpserver, 0);
+		httpserverfailed = false;
+	}
 #endif
 }
 void IWebShutdown(void)

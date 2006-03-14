@@ -9,13 +9,14 @@
 //FIXME: Before any admins use this for any serious usage, make the server send bits of file slowly.
 
 static qboolean httpserverinitied = false;
+qboolean httpserverfailed = false;
 static int	httpserversocket;
 
 typedef enum {HTTP_WAITINGFORREQUEST,HTTP_SENDING} http_mode_t;
 
 
 
-void HTTP_ServerInit(void)
+qboolean HTTP_ServerInit(void)
 {	
 	struct sockaddr_in address;
 	unsigned long _true = true;
@@ -24,12 +25,16 @@ void HTTP_ServerInit(void)
 
 	if ((httpserversocket = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		Sys_Error ("HTTP_UDP_OpenSocket: socket:", strerror(qerrno));
+		Con_Printf ("HTTP_ServerInit: socket: %s\n", strerror(qerrno));
+		httpserverfailed = true;
+		return false;
 	}
 
 	if (ioctlsocket (httpserversocket, FIONBIO, &_true) == -1)
 	{
-		Sys_Error ("HTTP_UDP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
+		Con_Printf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(qerrno));
+		httpserverfailed = true;
+		return false;
 	}
 
 	address.sin_family = AF_INET;
@@ -51,7 +56,9 @@ void HTTP_ServerInit(void)
 	if( bind (httpserversocket, (void *)&address, sizeof(address)) == -1)
 	{
 		closesocket(httpserversocket);
-		return;
+		Con_Printf("HTTP_ServerInit: failed to bind to socket\n");
+		httpserverfailed = true;
+		return false;
 	}
 	
 	listen(httpserversocket, 3);
@@ -60,7 +67,7 @@ void HTTP_ServerInit(void)
 
 
 	IWebPrintf("HTTP server is running\n");
-	return;
+	return true;
 }
 
 void HTTP_ServerShutdown(void)
@@ -481,7 +488,7 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted)	//loop while true
 	if (!httpserverinitied)
 	{
 		if (httpserverwanted)
-			HTTP_ServerInit();
+			return HTTP_ServerInit();
 		return false;
 	}
 	else if (!httpserverwanted)

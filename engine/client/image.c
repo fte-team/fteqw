@@ -925,6 +925,8 @@ qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height)
   if (setjmp(jerr.setjmp_buffer)) {
     // If we get here, the JPEG code has signaled an error.
 
+badjpeg:
+
     jpeg_destroy_decompress(&cinfo);    
 
 	if (mem)
@@ -941,7 +943,10 @@ qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height)
 
 
   if (cinfo.output_components!=3)
-	  Sys_Error("Bad number of componants in jpeg");
+  {
+		Con_Printf("Bad number of componants in jpeg");
+		goto badjpeg;
+  }
   size_stride = cinfo.output_width * cinfo.output_components;
   /* Make a one-row-high sample array that will go away when done with image */
    buffer = (*cinfo.mem->alloc_sarray)

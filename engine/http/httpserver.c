@@ -64,7 +64,7 @@ qboolean HTTP_ServerInit(void)
 	listen(httpserversocket, 3);
 
 	httpserverinitied = true;
-
+	httpserverfailed = false;
 
 	IWebPrintf("HTTP server is running\n");
 	return true;

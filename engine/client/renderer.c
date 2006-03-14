@@ -247,6 +247,7 @@ cvar_t gl_schematics = SCVAR("gl_schematics","0");
 cvar_t	gl_ztrick = SCVAR("gl_ztrick","0");
 cvar_t	gl_lerpimages = SCVAR("gl_lerpimages", "1");
 cvar_t gl_lightmap_shift = SCVARF("gl_lightmap_shift", "0", CVAR_ARCHIVE | CVAR_LATCH);
+cvar_t gl_menutint_shader = SCVAR("gl_menutint_shader", "1");
 extern cvar_t r_waterlayers;
 cvar_t			gl_triplebuffer = SCVARF("gl_triplebuffer", "1", CVAR_ARCHIVE);
 cvar_t			vid_hardwaregamma = SCVARF("vid_hardwaregamma", "1", CVAR_ARCHIVE);
@@ -366,6 +367,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_mylumassuck, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_lightmap_shift, GLRENDEREROPTIONS);
+
+	Cvar_Register (&gl_menutint_shader, GLRENDEREROPTIONS);
 
 	R_BloomRegister();
 }

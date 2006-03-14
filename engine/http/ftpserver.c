@@ -91,7 +91,7 @@ qboolean FTP_ServerInit(void)
 	listen(ftpserversocket, 3);
 
 	ftpserverinitied = true;
-
+	ftpserverfailed = false;
 
 	IWebPrintf("FTP server is running\n");
 	return true;

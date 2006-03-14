@@ -155,6 +155,11 @@ int scenepp_ww_parm_texture1i;
 int scenepp_ww_parm_texture2i;
 int scenepp_ww_parm_ampscalef;
 
+int scenepp_mt_program;
+int scenepp_mt_parm_texture0i;
+int scenepp_mt_parm_colorf;
+int scenepp_mt_parm_inverti;
+
 // KrimZon - init post processing - called in GL_CheckExtensions, when they're called
 // I put it here so that only this file need be changed when messing with the post
 // processing shaders
@@ -221,11 +226,62 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 	GLSlang_UseProgram(0);
 
 	if (qglGetError())
-		Con_Printf("GL Error initing shader object\n");
+		Con_Printf(S_ERROR "GL Error initing shader object\n");
 }
+
+void GL_InitSceneProcessingShaders_MenuTint(void)
+{
+	static vec3_t defaultcolor = {1, 1, 1};
+
+	char *vshader = "\
+		varying vec2 texcoord;\
+		void main(void)\
+		{\
+			texcoord = gl_MultiTexCoord0.xy;\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;\
+		}";
+	char *fshader = "\
+		varying vec2 texcoord;\
+		uniform vec3 colorparam;\
+		uniform sampler2D source;\
+		uniform int invert;\
+		const vec3 lumfactors = vec3(0.299, 0.587, 0.114);\
+		const vec3 invertvec = vec3(1.0, 1.0, 1.0);\
+		void main(void)\
+		{\
+			vec3 texcolor = texture2D(source, texcoord).rgb;\
+			float luminance = dot(lumfactors, texcolor);\
+			texcolor = vec3(luminance, luminance, luminance);\
+			texcolor *= colorparam;\
+			texcolor = invert > 0 ? (invertvec - texcolor) : texcolor;\
+			gl_FragColor = vec4(texcolor, 1.0);\
+		}";
+
+	if (qglGetError())
+		Con_Printf("GL Error before initing shader object\n");
+
+	scenepp_mt_program = GLSlang_CreateProgram(NULL, vshader, fshader);
+
+	if (!scenepp_mt_program)
+		return;
+
+	scenepp_mt_parm_texture0i	= GLSlang_GetUniformLocation(scenepp_mt_program, "source");
+	scenepp_mt_parm_colorf		= GLSlang_GetUniformLocation(scenepp_mt_program, "colorparam");
+	scenepp_mt_parm_inverti		= GLSlang_GetUniformLocation(scenepp_mt_program, "invert");
+
+	GLSlang_UseProgram(scenepp_mt_program);
+	GLSlang_SetUniform1i(scenepp_mt_parm_texture0i, 0);
+
+	GLSlang_UseProgram(0);
+
+	if (qglGetError())
+		Con_Printf(S_ERROR "GL Error initing shader object\n");
+}
+
 void GL_InitSceneProcessingShaders (void)
 {
 	GL_InitSceneProcessingShaders_WaterWarp();
+	GL_InitSceneProcessingShaders_MenuTint();
 }
 
 #define PP_WARP_TEX_SIZE 64
@@ -1862,7 +1918,7 @@ void GLR_RenderView (void)
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 		if (qglGetError())
-			Con_Printf("GL Error after qglCopyTexImage2D\n");
+			Con_Printf(S_ERROR "GL Error after qglCopyTexImage2D\n");
 
 		// Here we apply the shaders - currently just waterwarp
 		GLSlang_UseProgram(scenepp_ww_program);

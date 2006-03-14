@@ -2007,12 +2007,14 @@ Draw_FadeScreen
 ================
 */
 vec3_t fadecolor;
+vec3_t fadecolorreal;
 int faderender;
 int fademodified;
 
 void GLDraw_FadeScreen (void)
 {
-	extern cvar_t r_menutint;
+	extern cvar_t r_menutint, gl_menutint_shader;
+	extern int scenepp_texture, scenepp_mt_program, scenepp_mt_parm_colorf, scenepp_mt_parm_inverti;
 
 	if (fademodified != r_menutint.modified)
 	{
@@ -2032,24 +2034,16 @@ void GLDraw_FadeScreen (void)
 				faderender = GL_ONE_MINUS_DST_COLOR;
 				fadecolor[0] = -(fadecolor[0]);
 			}
-			if (fadecolor[0] > 1)
-				fadecolor[0] = 1;
-
 			if (fadecolor[1] < 0)
 			{
 				faderender = GL_ONE_MINUS_DST_COLOR;
 				fadecolor[1] = -(fadecolor[1]);
 			}
-			if (fadecolor[1] > 1)
-				fadecolor[1] = 1;
-
 			if (fadecolor[2] < 0)
 			{
 				faderender = GL_ONE_MINUS_DST_COLOR;
 				fadecolor[2] = -(fadecolor[2]);
 			}
-			if (fadecolor[2] > 1)
-				fadecolor[2] = 1;
 		}
 
 		fademodified = r_menutint.modified;
@@ -2058,24 +2052,103 @@ void GLDraw_FadeScreen (void)
 	if (!faderender)
 		return;
 
-	qglEnable (GL_BLEND);
-	qglBlendFunc(faderender, GL_ZERO);
-	qglDisable(GL_ALPHA_TEST);
-	qglDisable (GL_TEXTURE_2D);
-	qglColor4f (fadecolor[0], fadecolor[1], fadecolor[2], 1);
-	qglBegin (GL_QUADS);
+	if (scenepp_mt_program && gl_menutint_shader.value)
+	{
+		float vwidth = 1, vheight = 1;
+		float vs, vt;
 
-	qglVertex2f (0,0);
-	qglVertex2f (vid.width, 0);
-	qglVertex2f (vid.width, vid.height);
-	qglVertex2f (0, vid.height);
+		// get the powers of 2 for the size of the texture that will hold the scene
+		while (vwidth < glwidth)
+			vwidth *= 2;
+		while (vheight < glheight)
+			vheight *= 2;
 
-	qglEnd ();
-	qglColor4f (1,1,1,1);
-	qglEnable (GL_TEXTURE_2D);
-	qglDisable (GL_BLEND);
-	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglEnable(GL_ALPHA_TEST);
+		// get the maxtexcoords while we're at it (cache this or just use largest?)
+		vs = glwidth / vwidth;
+		vt = glheight / vheight;
+
+		// 2d mode, but upside down to quake's normal 2d drawing
+		// this makes grabbing the sreen a lot easier
+		qglViewport (glx, gly, glwidth, glheight);
+
+		qglMatrixMode(GL_PROJECTION);
+		// Push the matrices to go into 2d mode, that matches opengl's mode
+		qglPushMatrix();
+		qglLoadIdentity ();
+		// TODO: use actual window width and height
+		qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
+
+		qglMatrixMode(GL_MODELVIEW);
+		qglPushMatrix();
+		qglLoadIdentity ();
+
+		GL_Bind(scenepp_texture);
+		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		if (qglGetError())
+			Con_Printf(S_ERROR "GL Error after qglCopyTexImage2D\n");
+
+		GLSlang_UseProgram(scenepp_mt_program);
+		qglUniform3fvARB(scenepp_mt_parm_colorf, 1, fadecolor);
+		if (faderender == GL_ONE_MINUS_DST_COLOR)
+			qglUniform1iARB(scenepp_mt_parm_inverti, 1);
+		else
+			qglUniform1iARB(scenepp_mt_parm_inverti, 0);
+
+		if (qglGetError())
+			Con_Printf(S_ERROR "GL Error after GLSlang_UseProgram\n");
+
+		qglEnable(GL_TEXTURE_2D);
+		GL_Bind(scenepp_texture);
+
+		qglBegin(GL_QUADS);
+
+		qglTexCoord2f (0, 0);
+		qglVertex2f(0, 0);
+		qglTexCoord2f (vs, 0);
+		qglVertex2f(glwidth, 0);
+		qglTexCoord2f (vs, vt);
+		qglVertex2f(glwidth, glheight);
+		qglTexCoord2f (0, vt);
+		qglVertex2f(0, glheight);
+	
+		qglEnd();
+
+		GLSlang_UseProgram(0);
+
+		// After all the post processing, pop the matrices
+		qglMatrixMode(GL_PROJECTION);
+		qglPopMatrix();
+		qglMatrixMode(GL_MODELVIEW);
+		qglPopMatrix();
+
+		if (qglGetError())
+			Con_Printf(S_ERROR "GL Error after drawing with shaderobjects\n");
+	}
+	else
+	{
+		// shaderless way
+		qglEnable (GL_BLEND);
+		qglBlendFunc(faderender, GL_ZERO);
+		qglDisable(GL_ALPHA_TEST);
+		qglDisable (GL_TEXTURE_2D);
+		qglColor4f (fadecolor[0], fadecolor[1], fadecolor[2], 1);
+		qglBegin (GL_QUADS);
+
+		qglVertex2f (0,0);
+		qglVertex2f (vid.width, 0);
+		qglVertex2f (vid.width, vid.height);
+		qglVertex2f (0, vid.height);
+
+		qglEnd ();
+		qglColor4f (1,1,1,1);
+		qglEnable (GL_TEXTURE_2D);
+		qglDisable (GL_BLEND);
+		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		qglEnable(GL_ALPHA_TEST);
+	}
 
 	Sbar_Changed();
 }

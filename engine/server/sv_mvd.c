@@ -2345,7 +2345,7 @@ void SV_MVDInit(void)
 	Cmd_AddCommand ("easyrecord", SV_MVDEasyRecord_f);
 	Cmd_AddCommand ("mvdstop", SV_MVDStop_f);
 	Cmd_AddCommand ("mvdcancel", SV_MVD_Cancel_f);
-	Cmd_AddCommand ("mvdplaynum", SV_MVDPlayNum_f);
+	//Cmd_AddCommand ("mvdplaynum", SV_MVDPlayNum_f);
 	Cmd_AddCommand ("mvdlist", SV_MVDList_f);
 	Cmd_AddCommand ("demolist", SV_MVDList_f);
 	Cmd_AddCommand ("rmdemo", SV_MVDRemove_f);

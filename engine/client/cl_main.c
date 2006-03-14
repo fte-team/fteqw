@@ -2683,6 +2683,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("rerecord", CL_ReRecord_f);
 	Cmd_AddCommand ("stop", CL_Stop_f);
 	Cmd_AddCommand ("playdemo", CL_PlayDemo_f);
+	Cmd_AddCommand ("playqtv", CL_QTVPlay_f);
 	Cmd_AddCommand ("demo_jump", CL_DemoJump_f);
 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
 

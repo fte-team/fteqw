@@ -1675,3 +1675,114 @@ void	NET_Shutdown (void)
 #endif
 }
 
+
+
+
+
+
+
+
+typedef struct {
+	vfsfile_t funcs;
+
+	int sock;
+
+	char readbuffer[65536];
+	int readbuffered;
+} tcpfile_t;
+void VFSTCP_Error(tcpfile_t *f)
+{
+	if (f->sock != INVALID_SOCKET)
+	{
+		closesocket(f->sock);
+		f->sock = INVALID_SOCKET;
+	}
+}
+int VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	tcpfile_t *tf = (tcpfile_t*)file;
+	int len;
+
+	if (tf->sock != INVALID_SOCKET)
+	{
+		len = recv(tf->sock, tf->readbuffer + tf->readbuffered, sizeof(tf->readbuffer) - tf->readbuffered, 0);
+		if (len == -1)
+		{
+			//fixme: figure out wouldblock or error
+		}
+		else if (len == 0)
+			VFSTCP_Error(tf);
+		else
+			tf->readbuffered += len;
+	}
+	if (bytestoread <= tf->readbuffered)
+	{
+		memcpy(buffer, tf->readbuffer, bytestoread);
+		tf->readbuffered -= bytestoread;
+		memmove(tf->readbuffer, tf->readbuffer+bytestoread, tf->readbuffered);
+		return bytestoread;
+	}
+	else
+		return 0;
+}
+int VFSTCP_WriteBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	tcpfile_t *tf = (tcpfile_t*)file;
+	int len;
+
+	if (tf->sock == INVALID_SOCKET)
+		return 0;
+
+	len = send(tf->sock, buffer, bytestoread, 0);
+	if (len == -1 || len == 0)
+	{
+		VFSTCP_Error(tf);
+		return 0;
+	}
+	return len;
+}
+qboolean VFSTCP_Seek (struct vfsfile_s *file, unsigned long pos)
+{
+	VFSTCP_Error((tcpfile_t*)file);
+	return false;
+}
+unsigned long VFSTCP_Tell (struct vfsfile_s *file)
+{
+	VFSTCP_Error((tcpfile_t*)file);
+	return 0;
+}
+unsigned long VFSTCP_GetLen (struct vfsfile_s *file)
+{
+	return 0;
+}
+void VFSTCP_Close (struct vfsfile_s *file)
+{
+	VFSTCP_Error((tcpfile_t*)file);
+	Z_Free(file);
+}
+
+vfsfile_t *FS_OpenTCP(char *name)
+{
+	tcpfile_t *newf;
+	int sock;
+	netadr_t adr;
+	if (!NET_StringToAdr(name, &adr))
+		return NULL;
+
+	sock = TCP_OpenStream(adr);
+	if (sock == INVALID_SOCKET)
+		return NULL;
+
+	newf = Z_Malloc(sizeof(*newf));
+	newf->sock = sock;
+	newf->funcs.Close = VFSTCP_Close;
+	newf->funcs.Flush = NULL;
+	newf->funcs.GetLen = VFSTCP_GetLen;
+	newf->funcs.ReadBytes = VFSTCP_ReadBytes;
+	newf->funcs.Seek = VFSTCP_Seek;
+	newf->funcs.Tell = VFSTCP_Tell;
+	newf->funcs.WriteBytes = VFSTCP_WriteBytes;
+	newf->funcs.seekingisabadplan = true;
+
+	return &newf->funcs;
+}

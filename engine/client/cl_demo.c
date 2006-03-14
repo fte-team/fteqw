@@ -147,26 +147,31 @@ void CL_WriteDemoMessage (sizebuf_t *msg)
 	VFS_FLUSH (cls.demofile);
 }
 
-int unreaddata;
-int unreadbytes;
+unsigned char unreaddata[16];
+int unreadcount;
 int readdemobytes(void *data, int len)
 {
 	int i;
 
-	if (unreadbytes)
-	{
-		if (len != unreadbytes)
-			Sys_Error("Demo playback unread the wrong number of bytes\n");
-		memcpy(data, &unreaddata, len);
+//	if (rand()&63 == 63)
+//		return 0;
 
-		unreadbytes=0;
+	if (unreadcount)
+	{
+		if (len > unreadcount)
+			Sys_Error("Demo playback unread the wrong number of bytes\n");
+		unreadcount -= len;
+		memcpy(data, unreaddata+unreadcount, len);
 		return len;
 	}
 
 	i = VFS_READ(cls.demofile, data, len);
-
-	memcpy(&unreaddata, data, 4);
 	return i;
+}
+void unreadbytes(int count, void *data)
+{
+	memcpy(unreaddata+unreadcount, data, count);
+	unreadcount += count;
 }
 
 
@@ -336,12 +341,15 @@ readnext:
 	// read the time from the packet
 	if (cls.demoplayback == DPB_MVD)
 	{
+		if (realtime < 0)
+			return 0;
 		if (olddemotime > realtime)
 			olddemotime = realtime;
 		if (realtime + 1.0 < olddemotime)
 			realtime = olddemotime - 1.0;
 
-		readdemobytes(&msecsadded, sizeof(msecsadded));
+		if (readdemobytes(&msecsadded, sizeof(msecsadded)) == 0)
+			return 0;
 		demotime = olddemotime + msecsadded*(1.0f/1000);
 		nextdemotime = demotime;
 	}
@@ -361,9 +369,9 @@ readnext:
 			cls.td_lastframe = demotime;
 			// rewind back to time
 			if (cls.demoplayback == DPB_MVD)
-				unreadbytes = sizeof(msecsadded);
+				unreadbytes(sizeof(msecsadded), &msecsadded);
 			else
-				unreadbytes = sizeof(demotime);
+				unreadbytes(sizeof(demotime), &demotime);
 			return 0;		// already read this frame's message
 		}
 		if (!cls.td_starttime && cls.state == ca_active)
@@ -381,18 +389,18 @@ readnext:
 			realtime = demotime - 1.0;
 			// rewind back to time
 			if (cls.demoplayback == DPB_MVD)
-				unreadbytes = sizeof(msecsadded);
+				unreadbytes(sizeof(msecsadded), &msecsadded);
 			else
-				unreadbytes = sizeof(demotime);
+				unreadbytes(sizeof(demotime), &demotime);
 			return 0;
 		}
 		else if (realtime < demotime)
 		{
 			// rewind back to time
 			if (cls.demoplayback == DPB_MVD)
-				unreadbytes = sizeof(msecsadded);
+				unreadbytes(sizeof(msecsadded), &msecsadded);
 			else
-				unreadbytes = sizeof(demotime);
+				unreadbytes(sizeof(demotime), &demotime);
 			return 0;		// don't need another message yet
 		}
 	}
@@ -416,7 +424,25 @@ readnext:
 		Host_Error ("CL_GetDemoMessage: cls.state != ca_active");
 	
 	// get the msg type
-	VFS_READ (cls.demofile, &c, sizeof(c));
+	if (!readdemobytes (&c, sizeof(c)))
+	{
+		if (1)//!VFS_GETLEN(cls.demofile))
+		{
+			if (cls.demoplayback == DPB_MVD)
+			{
+				r = 0;
+				unreadbytes(1, &r);
+			}
+			else
+			{
+				demotime = LittleFloat(demotime);
+				unreadbytes(4, &demotime);
+			}
+		}
+		else
+			CL_StopPlayback ();
+		return 0;
+	}
 	
 	switch (c&7)
 	{
@@ -456,10 +482,32 @@ readnext:
 	case dem_read:
 readit:
 		// get the next message
-		readdemobytes (&net_message.cursize, 4);
+		if (readdemobytes (&net_message.cursize, 4) != 4)
+		{
+			if (1)//!VFS_GETLEN(cls.demofile))
+			{
+				if ((c & 7) == dem_multiple)
+					unreadbytes(4, &i);
+				unreadbytes(1, &c);
+
+				if (cls.demoplayback == DPB_MVD)
+				{
+					r = 0;
+					unreadbytes(1, &r);
+				}
+				else
+				{
+					demotime = LittleFloat(demotime);
+					unreadbytes(4, &demotime);
+				}
+			}
+			else
+				CL_StopPlayback ();
+			return 0;
+		}
 		net_message.cursize = LittleLong (net_message.cursize);
 	//Con_Printf("read: %ld bytes\n", net_message.cursize);
-		if (net_message.cursize > MAX_OVERALLMSGLEN)
+		if ((unsigned int)net_message.cursize > MAX_OVERALLMSGLEN)
 		{
 			Con_Printf ("Demo message > MAX_OVERALLMSGLEN\n");
 			CL_StopPlayback ();
@@ -468,7 +516,29 @@ readit:
 		r = readdemobytes (net_message.data, net_message.cursize);
 		if (r != net_message.cursize)
 		{
-			CL_StopPlayback ();
+			if (1)//!VFS_GETLEN(cls.demofile))
+			{
+				net_message.cursize = LittleLong (net_message.cursize);
+				unreadbytes(4, &net_message.cursize);
+
+				if ((c & 7) == dem_multiple)
+					unreadbytes(4, &i);
+
+				unreadbytes(1, &c);
+
+				if (cls.demoplayback == DPB_MVD)
+				{
+					r = 0;
+					unreadbytes(1, &r);
+				}
+				else
+				{
+					demotime = LittleFloat(demotime);
+					unreadbytes(4, &demotime);
+				}
+			}
+			else
+				CL_StopPlayback ();
 			return 0;
 		}
 
@@ -505,7 +575,30 @@ readit:
 		goto readnext;
 
 	case dem_multiple:
-		readdemobytes (&i, sizeof(i));
+		if (readdemobytes (&i, sizeof(i)) != sizeof(i))
+		{
+			if (1)//!VFS_GETLEN(cls.demofile))
+			{
+				if ((c & 7) == dem_multiple)
+					unreadbytes(4, &i);
+
+				unreadbytes(1, &c);
+
+				if (cls.demoplayback == DPB_MVD)
+				{
+					r = 0;
+					unreadbytes(1, &r);
+				}
+				else
+				{
+					demotime = LittleFloat(demotime);
+					unreadbytes(4, &demotime);
+				}
+			}
+			else
+				CL_StopPlayback ();
+			return 0;
+		}
 		cls_lastto = LittleLong(i);
 		cls_lasttype = dem_multiple;
 		goto readit;
@@ -1176,7 +1269,7 @@ void CL_PlayDemo(char *demoname)
 //
 	CL_Disconnect_f ();
 	
-	unreadbytes = 0;	//just in case
+	unreadcount = 0;	//just in case
 //
 // open the demo file
 //
@@ -1203,6 +1296,15 @@ void CL_PlayDemo(char *demoname)
 	}
 	Q_strncpyz (lastdemoname, demoname, sizeof(lastdemoname));
 	Con_Printf ("Playing demo from %s.\n", name);
+
+	if (!VFS_GETLEN (cls.demofile))
+	{
+		VFS_CLOSE(cls.demofile);
+		cls.demofile = NULL;
+		Con_Printf ("demo \"%s\" is empty.\n", demoname);
+		cls.demonum = -1;		// stop demo loop
+		return;
+	}
 
 	if (!Q_strcasecmp(name + strlen(name) - 3, "mvd") ||
 		!Q_strcasecmp(name + strlen(name) - 6, "mvd.gz"))
@@ -1268,6 +1370,41 @@ void CL_PlayDemo(char *demoname)
 			VFS_SEEK(cls.demofile, start);	//quakeworld demo, so go back to start.
 	}
 
+	TP_ExecTrigger ("f_demostart");
+}
+
+void CL_QTVPlay_f (void)
+{
+	vfsfile_t *newf;
+	newf = FS_OpenTCP(Cmd_Argv(1));
+
+	if (!newf)
+	{
+		Con_Printf("Couldn't connect to proxy\n");
+		return;
+	}
+
+	CL_Disconnect_f ();
+
+	cls.demofile = newf;
+
+	unreadcount = 0;	//just in case
+
+	cls.demoplayback = DPB_MVD;
+	cls.findtrack = true;
+
+	cls.state = ca_demostart;
+	net_message.packing = SZ_RAWBYTES;
+	Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, 0);
+	realtime = -10;
+	cl.gametime = -10;
+	cl.gametimemark = realtime;
+
+	Con_Printf("Buffering for ten seconds\n");
+
+	cls.netchan.last_received=realtime;
+
+	cls.protocol = CP_QUAKEWORLD;
 	TP_ExecTrigger ("f_demostart");
 }
 

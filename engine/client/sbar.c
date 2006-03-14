@@ -216,9 +216,6 @@ void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
 
 	while(*str)
 	{
-		if (--len< 0)
-			break;
-
 		if (*str == '^')
 		{
 			str++;
@@ -288,11 +285,17 @@ void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
 			}
 			else if (*str == '^')
 			{
+				if (--len< 0)
+					break;
 				Draw_ColouredCharacter(x, y, '^' | ext);
 				str++;
 			}
 			else
 			{
+				if (--len< 0)
+					break;
+				if (--len< 0)
+					break;
 				Draw_ColouredCharacter(x, y, '^' | ext);
 				x += 8;
 				Draw_ColouredCharacter (x, y, (*str++) | ext);
@@ -300,6 +303,8 @@ void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
 			x += 8;
 			continue;
 		}
+		if (--len< 0)
+			break;
 		Draw_ColouredCharacter (x, y, (*str++) | ext);
 		x += 8;
 	}

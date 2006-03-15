@@ -3572,6 +3572,7 @@ void * SWMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int version)
 				else
 					ppixout[i] = GetPaletteNoFB(ppixin[i*4], ppixin[i*4+1], ppixin[i*4+2]);
 			}
+			size *= 4;
 		}
 		else
 			Q_memcpy (&pspriteframe->pixels[0], (qbyte *)(pinframe + 1), size);
@@ -3593,6 +3594,7 @@ void * SWMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int version)
 				else
 					p16out[i] = ((ppixin[i*4]*32/255)<<10) + ((ppixin[i*4+1]*32/255)<<5) + ((ppixin[i*4+2]*32/255)<<0);
 			}
+			size *= 4;
 		}
 		else
 		{
@@ -3618,6 +3620,8 @@ void * SWMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int version)
 
 			for (i=0 ; i<size ; i++)
 				p32out[i] = p32in[i];
+
+			size *= 4;
 		}
 		else
 		{	//upgrade

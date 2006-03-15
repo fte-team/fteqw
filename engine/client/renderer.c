@@ -94,6 +94,7 @@ static cvar_t	vid_fullscreen = SCVARF("vid_fullscreen", "1", CVAR_ARCHIVE|CVAR_R
 static cvar_t	vid_width = SCVARF("vid_width", "640", CVAR_ARCHIVE|CVAR_RENDERERLATCH);	//more readable defaults to match conwidth/conheight.
 static cvar_t	vid_height = SCVARF("vid_height", "480", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 static cvar_t	vid_refreshrate = SCVARF("vid_displayfrequency", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
+static cvar_t	vid_multisample = SCVARF("vid_multisample", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 
 cvar_t	gl_texturemode = SCVAR("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST");
 cvar_t	gl_motionblur = SCVARF("gl_motionblur", "0", CVAR_ARCHIVE);
@@ -302,6 +303,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_mindist, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_conwidth, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_conheight, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_multisample, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_fontedgeclamp, GRAPHICALNICETIES);
 	Cvar_Register (&gl_font, GRAPHICALNICETIES);
@@ -1875,6 +1877,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 
 	newr.allow_modex = vid_allow_modex.value;
 
+	newr.multisample = vid_multisample.value;
 	newr.bpp = vid_bpp.value;
 	newr.fullscreen = vid_fullscreen.value;
 	newr.rate = vid_refreshrate.value;

@@ -1081,13 +1081,15 @@ BOOL CheckForcePixelFormat(rendererstate_t *info)
 
 		TRACE(("dbg: bSetupPixelFormat: attempting wglChoosePixelFormatARB (multisample 4)\n"));
 		hDC = GetDC(mainwindow);
+
 		valid = qwglChoosePixelFormatARB(hDC,iAttributes,fAttributes,1,&pixelformat,&numFormats);
-		if (!valid || numFormats < 1)
+		while ((!valid || numFormats < 1) && iAttributes[19] > 1)
 		{	//failed, switch wgl_samples to 2
-			iAttributes[19] = 2;
-			TRACE(("dbg: bSetupPixelFormat: attempting wglChoosePixelFormatARB (multisample 2)\n"));
+			iAttributes[19] /= 2;
+			TRACE(("dbg: bSetupPixelFormat: attempting wglChoosePixelFormatARB (smaller multisample)\n"));
 			valid = qwglChoosePixelFormatARB(hDC,iAttributes,fAttributes,1,&pixelformat,&numFormats);
 		}
+
 		ReleaseDC(mainwindow, hDC);
 		if (valid && numFormats > 0)
 		{

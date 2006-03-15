@@ -34,6 +34,7 @@ typedef struct {
 	qboolean fullscreen;
 	int bpp;
 	int rate;
+	int multisample;	//for opengl antialiasing (which requires context stuff)
 	float streach;
 	char glrenderer[MAX_QPATH];
 	r_qrenderer_t renderer;

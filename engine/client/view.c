@@ -342,13 +342,15 @@ void BuildGammaTable (float g, float c)
 //	g = bound (0.1, g, 3);
 //	c = bound (1, c, 3);
 
-	if (g == 1 && c == 1) {
+	if (g == 1 && c == 1)
+	{
 		for (i = 0; i < 256; i++)
 			gammatable[i] = i;
 		return;
 	}
 
-	for (i = 0; i < 256; i++) {
+	for (i = 0; i < 256; i++)
+	{
 		inf = 255 * pow ((i + 0.5) / 255.5 * c, g) + 0.5;
 		if (inf < 0)
 			inf = 0;

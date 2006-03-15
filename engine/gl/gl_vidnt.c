@@ -206,6 +206,8 @@ BOOL (WINAPI *qwglSwapIntervalEXT) (int);
 BOOL (APIENTRY *qGetDeviceGammaRamp)(HDC hDC, GLvoid *ramp);
 BOOL (APIENTRY *qSetDeviceGammaRamp)(HDC hDC, GLvoid *ramp);
 
+BOOL (APIENTRY *qwglChoosePixelFormatARB)(HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int* piFormats, UINT* nNumFormats);
+
 qboolean GLInitialise (char *renderer)
 {
 	if (hInstGL)
@@ -378,8 +380,8 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	CenterWindow(dibwindow, WindowRect.right - WindowRect.left,
 				 WindowRect.bottom - WindowRect.top, false);
 
-	ShowWindow (dibwindow, SW_SHOWDEFAULT);
-	UpdateWindow (dibwindow);
+//	ShowWindow (dibwindow, SW_SHOWDEFAULT);
+//	UpdateWindow (dibwindow);
 
 	modestate = MS_WINDOWED;
 
@@ -551,23 +553,10 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 }
 
 extern int gammaworks;
-
-int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
+static void ReleaseGL(void);
+static qboolean CreateMainWindow(rendererstate_t *info)
 {
-	int				temp;
 	qboolean		stat;
-    MSG				msg;
-//	HDC				hdc;
-
-	TRACE(("dbg: GLVID_SetMode\n"));
-
-// so Con_Printfs don't mess us up by forcing vid and snd updates
-	temp = scr_disabled_for_loading;
-	scr_disabled_for_loading = true;
-
-	CDAudio_Pause ();
-
-	// Set either the fullscreen or windowed mode
 	if (!info->fullscreen)
 	{
 		if (_windowed_mouse.value && (key_dest == key_game || key_dest == key_menu))
@@ -591,6 +580,63 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 		stat = VID_SetFullDIBMode(info);
 		IN_ActivateMouse ();
 		IN_HideMouse ();
+	}
+	return stat;
+}
+BOOL CheckForcePixelFormat(rendererstate_t *info);
+void VID_UnSetMode (void);
+int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
+{
+	int				temp;
+	qboolean		stat;
+    MSG				msg;
+//	HDC				hdc;
+
+	TRACE(("dbg: GLVID_SetMode\n"));
+
+// so Con_Printfs don't mess us up by forcing vid and snd updates
+	temp = scr_disabled_for_loading;
+	scr_disabled_for_loading = true;
+
+	CDAudio_Pause ();
+
+	// Set either the fullscreen or windowed mode
+	qwglChoosePixelFormatARB = NULL;
+	stat = CreateMainWindow(info);
+	if (stat)
+	{
+		stat = VID_AttachGL(info);
+		if (stat)
+		{
+			TRACE(("dbg: GLVID_SetMode: attaching gl okay\n"));
+			if (CheckForcePixelFormat(info))
+			{
+				HMODULE oldgl = hInstGL;
+				hInstGL = NULL;	//don't close the gl library, just in case
+				VID_UnSetMode();
+				hInstGL = oldgl;
+
+				if (CreateMainWindow(info) && VID_AttachGL(info))
+				{
+					//we have our multisample window
+				}
+				else
+				{
+					//multisample failed
+					//try the origional way
+					if (!CreateMainWindow(info) || !VID_AttachGL(info))
+					{
+						Con_Printf("Failed to undo antialising. Giving up.\n");
+						return false;	//eek
+					}
+				}
+			}
+		}
+		else
+		{
+			TRACE(("dbg: GLVID_SetMode: attaching gl failed\n"));
+			return false;
+		}
 	}
 
 	if (!stat)
@@ -636,14 +682,6 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 
 	vid.recalc_refdef = 1;
 
-	TRACE(("dbg: GLVID_SetMode: attaching gl\n"));
-	if (!VID_AttachGL(info))
-	{
-		TRACE(("dbg: GLVID_SetMode: attaching gl failed\n"));
-		return false;
-	}
-TRACE(("dbg: GLVID_SetMode: attaching gl okay\n"));
-
 	maindc = GetDC(mainwindow);
 	if (vid_desktopgamma.value)
 	{
@@ -657,30 +695,35 @@ TRACE(("dbg: GLVID_SetMode: attaching gl okay\n"));
 	return true;
 }
 
-void VID_UnSetMode (void)
+static void ReleaseGL(void)
 {
 	HGLRC hRC;
    	HDC	  hDC = NULL;
 
+	if (qwglGetCurrentContext)
+	{
+		hRC = qwglGetCurrentContext();
+		hDC = qwglGetCurrentDC();
+
+    	qwglMakeCurrent(NULL, NULL);
+
+    	if (hRC)
+    		qwglDeleteContext(hRC);
+	}
+	qwglGetCurrentContext=NULL;
+
+	if (hDC && dibwindow)
+		ReleaseDC(dibwindow, hDC);
+}
+
+void VID_UnSetMode (void)
+{
 	if (mainwindow && vid_initialized)
 	{
 		GLAppActivate(false, false);
 
 		vid_canalttab = false;
-		if (qwglGetCurrentContext)
-		{
-			hRC = qwglGetCurrentContext();
-			hDC = qwglGetCurrentDC();
-
-    		qwglMakeCurrent(NULL, NULL);
-
-    		if (hRC)
-    			qwglDeleteContext(hRC);
-		}
-		qwglGetCurrentContext=NULL;
-
-		if (hDC && dibwindow)
-			ReleaseDC(dibwindow, hDC);
+		ReleaseGL();
 
 		if (modestate == MS_FULLDIB)
 			ChangeDisplaySettings (NULL, 0);
@@ -803,6 +846,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 
 	TRACE(("dbg: VID_AttachGL: GL_Init\n"));
 	GL_Init(getglfunc);
+	qwglChoosePixelFormatARB	= getglfunc("wglChoosePixelFormatARB");
 	qwglSwapIntervalEXT		= getglfunc("wglSwapIntervalEXT");
 	if (qwglSwapIntervalEXT && *_vid_wait_override.string)
 	{
@@ -1002,6 +1046,58 @@ void	GLVID_Shutdown (void)
 
 //==========================================================================
 
+#define 	WGL_DRAW_TO_WINDOW_ARB   0x2001
+#define 	WGL_SUPPORT_OPENGL_ARB   0x2010
+#define 	WGL_ACCELERATION_ARB   0x2003
+#define 	WGL_FULL_ACCELERATION_ARB   0x2027
+#define 	WGL_COLOR_BITS_ARB   0x2014
+#define 	WGL_ALPHA_BITS_ARB   0x201B
+#define 	WGL_DEPTH_BITS_ARB   0x2022
+#define 	WGL_STENCIL_BITS_ARB   0x2023
+#define 	WGL_DOUBLE_BUFFER_ARB   0x2011
+qboolean shouldforcepixelformat;
+int forcepixelformat;
+
+BOOL CheckForcePixelFormat(rendererstate_t *info)
+{
+	if (qwglChoosePixelFormatARB && info->multisample)
+	{
+		HDC hDC;
+		int valid;
+		float fAttributes[] = {0,0};
+		UINT numFormats;
+		int pixelformat;
+		int iAttributes[] = { WGL_DRAW_TO_WINDOW_ARB,GL_TRUE,
+				WGL_SUPPORT_OPENGL_ARB,GL_TRUE,
+				WGL_ACCELERATION_ARB,WGL_FULL_ACCELERATION_ARB,
+				WGL_COLOR_BITS_ARB,info->bpp,
+				WGL_ALPHA_BITS_ARB,8,
+				WGL_DEPTH_BITS_ARB,16,
+				WGL_STENCIL_BITS_ARB,8,
+				WGL_DOUBLE_BUFFER_ARB,GL_TRUE,
+				WGL_SAMPLE_BUFFERS_ARB,GL_TRUE,
+				WGL_SAMPLES_ARB, info->multisample,						// Check For 4x Multisampling
+				0,0};
+
+		TRACE(("dbg: bSetupPixelFormat: attempting wglChoosePixelFormatARB (multisample 4)\n"));
+		hDC = GetDC(mainwindow);
+		valid = qwglChoosePixelFormatARB(hDC,iAttributes,fAttributes,1,&pixelformat,&numFormats);
+		if (!valid || numFormats < 1)
+		{	//failed, switch wgl_samples to 2
+			iAttributes[19] = 2;
+			TRACE(("dbg: bSetupPixelFormat: attempting wglChoosePixelFormatARB (multisample 2)\n"));
+			valid = qwglChoosePixelFormatARB(hDC,iAttributes,fAttributes,1,&pixelformat,&numFormats);
+		}
+		ReleaseDC(mainwindow, hDC);
+		if (valid && numFormats > 0)
+		{
+			shouldforcepixelformat = true;
+			forcepixelformat = pixelformat;
+			return true;
+		}
+	}
+	return false;
+}
 
 BOOL bSetupPixelFormat(HDC hDC)
 {
@@ -1026,28 +1122,37 @@ BOOL bSetupPixelFormat(HDC hDC)
 	0, 0, 0				// layer masks ignored
     };
     int pixelformat;
+
 	TRACE(("dbg: bSetupPixelFormat: ChoosePixelFormat\n"));
 
-	if ((pixelformat = ChoosePixelFormat(hDC, &pfd)))
+	if (shouldforcepixelformat && qwglChoosePixelFormatARB)	//the extra && is paranoia
 	{
-		TRACE(("dbg: ChoosePixelFormat 1: worked\n"));
-		if (SetPixelFormat(hDC, pixelformat, &pfd))
+		shouldforcepixelformat = false;
+		pixelformat = forcepixelformat;
+	}
+	else
+	{
+		if ((pixelformat = ChoosePixelFormat(hDC, &pfd)))
 		{
-			TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
-			gl_canstencil = pfd.cStencilBits;
-			return TRUE;
+			TRACE(("dbg: ChoosePixelFormat 1: worked\n"));
+			if (SetPixelFormat(hDC, pixelformat, &pfd))
+			{
+				TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
+				gl_canstencil = pfd.cStencilBits;
+				return TRUE;
+			}
+		}
+		TRACE(("dbg: ChoosePixelFormat 1: no stencil buffer for us\n"));
+
+		pfd.cStencilBits = 0;
+		gl_canstencil = false;
+
+		if ( (pixelformat = ChoosePixelFormat(hDC, &pfd)) == 0 )
+		{
+			Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed\n");
+			return FALSE;
 		}
 	}
-	TRACE(("dbg: ChoosePixelFormat 1: no stencil buffer for us\n"));
-
-	pfd.cStencilBits = 0;
-	gl_canstencil = false;
-
-    if ( (pixelformat = ChoosePixelFormat(hDC, &pfd)) == 0 )
-    {
-		Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed\n");
-        return FALSE;
-    }
 
     if (SetPixelFormat(hDC, pixelformat, &pfd) == FALSE)
     {

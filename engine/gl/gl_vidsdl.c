@@ -46,6 +46,13 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
 
 	SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, 8 );
+
+	if (info->multisample)
+	{
+		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, info->multisample);
+		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
+	}
+
 Con_Printf("Getting gamma\n");
 	SDL_GetGammaRamp(intitialgammaramps[0], intitialgammaramps[1], intitialgammaramps[2]);
 

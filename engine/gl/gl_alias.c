@@ -1274,7 +1274,11 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 	if (e->skinnum >= 0 && e->skinnum < inf->numskins)
 		skins += e->skinnum;
 	else
+	{
 		Con_DPrintf("Skin number out of range\n");
+		if (!inf->numskins)
+			return NULL;
+	}
 
 	if (!skins->texnums)
 		return NULL;
@@ -2863,8 +2867,13 @@ int GL_BuildSkinFileList(char *modelname)
 		}
 	}
 
-	COM_EnumerateFiles(va("%s_*.skin", modelname), GL_EnumerateSkins, NULL);
-	COM_EnumerateFiles(va("%s_*.skin", skinfilename), GL_EnumerateSkins, NULL);
+//	if (strstr(modelname, "lower") || strstr(modelname, "upper") || strstr(modelname, "head"))
+//	{
+		COM_EnumerateFiles(va("%s_*.skin", modelname), GL_EnumerateSkins, NULL);
+		COM_EnumerateFiles(va("%s_*.skin", skinfilename), GL_EnumerateSkins, NULL);
+//	}
+//	else
+//		COM_EnumerateFiles("*.skin", GL_EnumerateSkins, NULL);
 
 	return skinfilecount;
 }

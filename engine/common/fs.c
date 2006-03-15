@@ -901,6 +901,8 @@ int FSZIP_GeneratePureCRC(void *handle, int seed, int crctype)
 typedef struct {
 	vfsfile_t funcs;
 
+	vfsfile_t *defer;
+
 	//in case we're forced away.
 	zipfile_t *parent;
 	qboolean iscompressed;
@@ -941,6 +943,9 @@ int VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 	int read;
 	vfszip_t *vfsz = (vfszip_t*)file;
 
+	if (vfsz->defer)
+		return VFS_READ(vfsz->defer, buffer, bytestoread);
+
 	if (vfsz->iscompressed)
 	{
 		VFSZIP_MakeActive(vfsz);
@@ -969,11 +974,49 @@ qboolean VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
 {
 	vfszip_t *vfsz = (vfszip_t*)file;
 
+	if (vfsz->defer)
+		return VFS_SEEK(vfsz->defer, pos);
+
 	//This is *really* inefficient
 	if (vfsz->parent->currentfile == file)
 	{
+		if (vfsz->iscompressed)
+		{	//if they're going to seek on a file in a zip, let's just copy it out
+			char buffer[8192];
+			unsigned int chunk;
+			unsigned int i;
+			unsigned int length;
+
+			vfsz->defer = FS_OpenTemp();
+			if (vfsz->defer)
+			{
+				unzCloseCurrentFile(vfsz->parent->handle);
+				vfsz->parent->currentfile = NULL;	//make it not us
+
+				length = vfsz->length;
+				i = 0;
+				vfsz->pos = 0;
+				VFSZIP_MakeActive(vfsz);
+				while (1)
+				{
+					chunk = length - i;
+					if (chunk > sizeof(buffer))
+						chunk = sizeof(buffer);
+					if (chunk == 0)
+						break;
+					unzReadCurrentFile(vfsz->parent->handle, buffer, chunk);
+					VFS_WRITE(vfsz->defer, buffer, chunk);
+
+					i += chunk;
+				}
+			}
+		}
+
 		unzCloseCurrentFile(vfsz->parent->handle);
 		vfsz->parent->currentfile = NULL;	//make it not us
+
+		if (vfsz->defer)
+			return VFS_SEEK(vfsz->defer, pos);
 	}
 
 
@@ -987,6 +1030,10 @@ qboolean VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
 unsigned long VFSZIP_Tell (struct vfsfile_s *file)
 {
 	vfszip_t *vfsz = (vfszip_t*)file;
+
+	if (vfsz->defer)
+		return VFS_TELL(vfsz->defer);
+
 	return vfsz->pos;
 }
 unsigned long VFSZIP_GetLen (struct vfsfile_s *file)
@@ -1000,6 +1047,9 @@ void VFSZIP_Close (struct vfsfile_s *file)
 
 	if (vfsz->parent->currentfile == file)
 		vfsz->parent->currentfile = NULL;	//make it not us
+
+	if (vfsz->defer)
+		VFS_CLOSE(vfsz->defer);
 
 	FSZIP_ClosePath(vfsz->parent);
 	Z_Free(vfsz);
@@ -1040,6 +1090,7 @@ vfsfile_t *FSZIP_OpenVFS(void *handle, flocation_t *loc, char *mode)
 	}
 
 	zip->references++;
+
 	return (vfsfile_t*)vfsz;
 }
 

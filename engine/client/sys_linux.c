@@ -405,6 +405,7 @@ int main (int c, char **v)
 //	static char cwd[1024];
 
 	signal(SIGFPE, SIG_IGN);
+	signal(SIGPIPE, SIG_IGN);
 
 	memset(&parms, 0, sizeof(parms));
 

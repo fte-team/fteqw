@@ -17,8 +17,10 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
+#include <signal.h>
 #include <sys/types.h>
 #include "qwsvdef.h"
+
 
 #undef malloc
 
@@ -650,6 +652,7 @@ int main(int argc, char *argv[])
 //	extern	int		net_socket;
 	int j;
 
+	signal(SIGPIPE, SIG_IGN);
 	tcgetattr(STDIN_FILENO, &orig);
 	changes = orig;
 
@@ -659,6 +662,7 @@ int main(int argc, char *argv[])
 	TL_InitLanguages();
 	parms.argc = com_argc;
 	parms.argv = com_argv;
+
 
 	parms.memsize = 16*1024*1024;
 

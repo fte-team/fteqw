@@ -18,6 +18,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 
+#ifndef _WIN32
+#include <signal.h>
+#endif
+
 #include "qtv.h"
 
 #define RECONNECT_TIME (1000*30)
@@ -238,7 +242,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 
 	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress, sizeof(qtv->serveraddress)) == INVALID_SOCKET)
 	{
-		if (qerrno != EWOULDBLOCK)
+		if (qerrno != EINPROGRESS)
 		{
 			closesocket(qtv->sourcesock);
 			qtv->sourcesock = INVALID_SOCKET;
@@ -427,6 +431,7 @@ void Net_TryFlushProxyBuffer(cluster_t *cluster, oproxy_t *prox)
 	char *buffer;
 	int length;
 	int bufpos;
+	fd_set wfds;
 
 	while (prox->bufferpos >= MAX_PROXY_BUFFER)
 	{	//so we never get any issues with wrapping..
@@ -1776,6 +1781,10 @@ void DoCommandLine(cluster_t *cluster, int argc, char **argv)
 int main(int argc, char **argv)
 {
 	cluster_t cluster;
+
+#ifndef _WIN32
+	signal(SIGPIPE, SIG_IGN);
+#endif
 
 #ifdef _WIN32
 	{

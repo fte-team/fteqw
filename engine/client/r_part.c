@@ -416,6 +416,7 @@ void P_ParticleEffect_f(void)
 	skytris_t *st;
 	qboolean settype = false;
 	qboolean setalphadelta = false;
+	qboolean setbeamlen = false;
 
 	part_type_t *ptype;
 	int pnum, assoc;
@@ -527,6 +528,7 @@ void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "beamtexstep"))
 		{
 			ptype->rotationstartmin = 1/atof(value);
+			setbeamlen = true;
 		}
 		else if (!strcmp(var, "beamtexspeed"))
 		{
@@ -973,6 +975,9 @@ void P_ParticleEffect_f(void)
 				ptype->type = PT_SPARKFAN;
 		}
 	}
+
+	if (ptype->type == PT_BEAM && !setbeamlen)
+		ptype->rotationstartmin = 1/128.0;
 
 	// use old behavior if not using alphadelta
 	if (!setalphadelta)

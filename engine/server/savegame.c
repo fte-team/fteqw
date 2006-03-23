@@ -704,7 +704,10 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 				if (e2)
 					e2->_float = 1;
 				for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
-					*spawnparamglobals[j] = host_client->spawn_parms[j];
+				{
+					if (spawnparamglobals[j])
+						*spawnparamglobals[j] = host_client->spawn_parms[j];
+				}
 				pr_global_struct->time = sv.time;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 				ent->area.next = ent->area.prev = NULL;

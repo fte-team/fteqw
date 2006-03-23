@@ -1210,11 +1210,36 @@ qboolean SL_Key	(int key, menu_t *menu)
 void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
-	Draw_FillRGB(x, y, ths->common.width, ths->common.height, 0.1, 0.1, 0.2);
 
-	y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (ths->common.height-8);
+	mpic_t *pic;
 
-	Draw_FillRGB(x, y, 8, 8, 0.35, 0.35, 0.55);
+	pic = Draw_CachePic("scrollbars/slidebg.png");
+	if (pic)
+	{
+		Draw_ScalePic(x + ths->common.width - 8, y+8, 8, ths->common.height-16, pic);
+
+		pic = Draw_CachePic("scrollbars/arrow_down.png");
+		Draw_ScalePic(x + ths->common.width - 8, y, 8, 8, pic);
+
+		pic = Draw_CachePic("scrollbars/arrow_up.png");
+		Draw_ScalePic(x + ths->common.width - 8, y + ths->common.height - 8, 8, 8, pic);
+
+		y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (float)(ths->common.height-(64+16-1));
+
+		y += 8;
+
+		pic = Draw_CachePic("scrollbars/slider.png");
+		Draw_ScalePic(x + ths->common.width - 8, y, 8, 64, pic);
+	}
+	else
+	{
+
+		Draw_FillRGB(x, y, ths->common.width, ths->common.height, 0.1, 0.1, 0.2);
+
+		y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (ths->common.height-8);
+
+		Draw_FillRGB(x, y, 8, 8, 0.35, 0.35, 0.55);
+	}
 
 	if (info->sliderpressed)
 	{
@@ -1227,7 +1252,13 @@ void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 			my = mousecursor_y;
 			my -= ths->common.posy;
-			my /= ths->common.height;
+			if (Draw_CachePic("scrollbars/slidebg.png"))
+			{
+				my -= 32+8;
+				my /= ths->common.height - (64+16);
+			}
+			else
+				my /= ths->common.height;
 			my *= (info->numslots-info->visibleslots);
 
 			if (my > info->numslots-info->visibleslots-1)
@@ -1251,7 +1282,13 @@ qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key)
 
 		my = mousecursor_y;
 		my -= ths->common.posy;
-		my /= ths->common.height;
+		if (Draw_CachePic("scrollbars/slidebg.png"))
+		{
+			my -= 32+8;
+			my /= ths->common.height - (64+16);
+		}
+		else
+			my /= ths->common.height;
 		my *= (info->numslots-info->visibleslots);
 
 		if (my > info->numslots-info->visibleslots-1)

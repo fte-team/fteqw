@@ -420,11 +420,11 @@ void SCR_CenterPrintBreaks(conchar_t *start, int *lines, int *maxlength)
 	{
 	// scan the width of the line
 		for (l=0 ; l<40 ; l++)
-			if (start[l] == '\n' || !start[l])
+			if ((start[l]&255) == '\n' || !(start[l]&255))
 				break;
 		if (l == 40)
 		{
-			while(l > 0 && start[l-1]>' ')
+			while(l > 0 && (start[l-1]&255)>' ')
 			{
 				l--;
 			}
@@ -438,9 +438,9 @@ void SCR_CenterPrintBreaks(conchar_t *start, int *lines, int *maxlength)
 //		for (l=0 ; l<40 && *start && *start != '\n'; l++)
  //			start++;
 
-		if (!*start)
+		if (!(*start&255))
 			break;
-		else if (*start == '\n'||!l)
+		else if ((*start&255) == '\n'||!l)
 			start++;                // skip the \n
 	} while (1);
 }
@@ -492,7 +492,7 @@ void SCR_DrawCenterString (int pnum)
 			start+=2;
 			SCR_CenterPrintBreaks(start, &lines, &len);
 			x = rect.x+(rect.width-len*8)/2;
-			Draw_TextBox(x, y-8, len-2, lines);
+			Draw_TextBox(x-6, y-8, len-1, lines);
 		}
 	}
 
@@ -500,11 +500,11 @@ void SCR_DrawCenterString (int pnum)
 	{
 	// scan the width of the line
 		for (l=0 ; l<40 ; l++)
-			if (start[l] == '\n' || !start[l])
+			if ((start[l]&255) == '\n' || !(start[l]&255))
 				break;
 		if (l == 40)
 		{
-			while(l > 0 && start[l-1]>' ' && start[l-1] != ' '+128)
+			while(l > 0 && (start[l-1]&255)>' ' && (start[l-1]&255) != ' '+128)
 			{
 				l--;
 			}
@@ -530,9 +530,9 @@ void SCR_DrawCenterString (int pnum)
 //		for (l=0 ; l<40 && *start && *start != '\n'; l++)
  //			start++;
 
-		if (!*start)
+		if (!(*start&255))
 			break;
-		else if (*start == '\n'||!l)
+		else if ((*start&255) == '\n'||!l)
 			start++;                // skip the \n
 	} while (1);
 }

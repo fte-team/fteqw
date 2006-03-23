@@ -899,23 +899,51 @@ typedef struct {
 	menupicture_t *mappic;
 } serverlist_t;
 
+void SL_DrawColumnTitle (int *x, int y, int xlen, int mx, char *str, qboolean recolor, qbyte clr, qboolean *filldraw)
+{
+	int xmin;
+
+	if (x == NULL)
+		xmin = 0;
+	else
+		xmin = (*x - xlen);
+
+	if (recolor)
+		str = va("^&%c-%s", clr, str);
+	if (mx > xmin && !(*filldraw))
+	{
+		*filldraw = true;
+		Draw_FillRGB(xmin*8, y, xlen*8, 8, (sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08);
+	}
+	Draw_FunStringLen(xmin*8, y, str, xlen);
+
+	if (x != NULL)
+		*x -= xlen + 1;
+}
+
 void SL_TitlesDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 {
-	char *smark;
 	int sf = Master_GetSortField();
+	extern int mousecursor_x, mousecursor_y;
+	int mx = mousecursor_x/8;
+	qboolean filldraw = false;
+	qbyte clr;
+
 	if (Master_GetSortDescending())
-		smark = "^6%s";
+		clr = 'D';
 	else
-		smark = "^5%s";
+		clr = 'B';
 	x = ths->common.width/8;
-	if (sb_showtimelimit.value)	{Draw_FunStringLen((x-3)*8, y, va((sf==SLKEY_TIMELIMIT)?smark:"%s", "tl"), 3); x-=4;}
-	if (sb_showfraglimit.value)	{Draw_FunStringLen((x-3)*8, y, va((sf==SLKEY_FRAGLIMIT)?smark:"%s", "fl"), 3); x-=4;}
-	if (sb_showplayers.value)	{Draw_FunStringLen((x-5)*8, y, va((sf==SLKEY_NUMPLAYERS)?smark:"%s", "plyrs"), 5); x-=6;}
-	if (sb_showmap.value)		{Draw_FunStringLen((x-8)*8, y, va((sf==SLKEY_MAP)?smark:"%s", "map"), 8); x-=9;}
-	if (sb_showgamedir.value)	{Draw_FunStringLen((x-8)*8, y, va((sf==SLKEY_GAMEDIR)?smark:"%s", "gamedir"), 8); x-=9;}
-	if (sb_showping.value)		{Draw_FunStringLen((x-3)*8, y, va((sf==SLKEY_PING)?smark:"%s", "png"), 3); x-=4;}
-	if (sb_showaddress.value)	{Draw_FunStringLen((x-21)*8, y, va((sf==SLKEY_ADDRESS)?smark:"%s", "address"), 21); x-=22;}
-	Draw_FunStringLen(0, y, va((sf==SLKEY_NAME)?smark:"%s", "hostname^7 "), x);
+	if (mx > x || mousecursor_y < y || mousecursor_y >= y+8)
+		filldraw = true;
+	if (sb_showtimelimit.value)	{SL_DrawColumnTitle(&x, y, 3, mx, "tl", (sf==SLKEY_TIMELIMIT), clr, &filldraw);}
+	if (sb_showfraglimit.value)	{SL_DrawColumnTitle(&x, y, 3, mx, "fl", (sf==SLKEY_FRAGLIMIT), clr, &filldraw);}
+	if (sb_showplayers.value)	{SL_DrawColumnTitle(&x, y, 5, mx, "plyrs", (sf==SLKEY_NUMPLAYERS), clr, &filldraw);}
+	if (sb_showmap.value)		{SL_DrawColumnTitle(&x, y, 8, mx, "map", (sf==SLKEY_MAP), clr, &filldraw);}
+	if (sb_showgamedir.value)	{SL_DrawColumnTitle(&x, y, 8, mx, "gamedir", (sf==SLKEY_GAMEDIR), clr, &filldraw);}
+	if (sb_showping.value)		{SL_DrawColumnTitle(&x, y, 3, mx, "png", (sf==SLKEY_PING), clr, &filldraw);}
+	if (sb_showaddress.value)	{SL_DrawColumnTitle(&x, y, 21, mx, "address", (sf==SLKEY_ADDRESS), clr, &filldraw);}
+	SL_DrawColumnTitle(NULL, y, x, mx, "hostname^7 ", (sf==SLKEY_NAME), clr, &filldraw);
 }
 
 qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key)

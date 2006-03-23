@@ -327,10 +327,10 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				else
 					Draw_Character (x, y, 129);
 #endif
-				if (on)
-					Draw_String (x, y, "on");
+				if (!menu->cursoritem && menu->selecteditem == option)
+					Draw_Alt_String (x, y, on ? "on" : "off");
 				else
-					Draw_String (x, y, "off");
+					Draw_String (x, y, on ? "on" : "off");
 			}
 			break;
 		case mt_edit:

@@ -910,7 +910,7 @@ void SL_DrawColumnTitle (int *x, int y, int xlen, int mx, char *str, qboolean re
 
 	if (recolor)
 		str = va("^&%c-%s", clr, str);
-	if (mx > xmin && !(*filldraw))
+	if (mx >= xmin && !(*filldraw))
 	{
 		*filldraw = true;
 		Draw_FillRGB(xmin*8, y, xlen*8, 8, (sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08);

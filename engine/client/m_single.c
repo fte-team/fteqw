@@ -154,6 +154,23 @@ void M_Menu_SinglePlayer_f (void)
 	}
 	else if (mgt == MGT_HEXEN2)
 	{	//h2
+		cvar_t *pc;
+		static char *classlist[] = {
+			"Random",
+			"Barbarian",
+			"Crusader",
+			"Paladin",
+			"Assasin",
+			NULL
+		};
+		static char *classvalues[] = {
+			"",
+			"1",
+			"2",
+			"3",
+			"4",
+			NULL
+		};
 		menu = M_CreateMenu(0);
 		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
 		MC_AddCenterPicture(menu, 0, "gfx/menu/title1.lmp");
@@ -165,6 +182,10 @@ void M_Menu_SinglePlayer_f (void)
 
 		MC_AddConsoleCommand	(menu, 64, 96,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommand	(menu, 64, 104,	"Save Game", "menu_save\n");
+
+		pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
+		if (pc)
+			MC_AddCvarCombo (menu, 64, 104+16,	"Player class", pc, classlist, classvalues);
 
 		return;
 	}

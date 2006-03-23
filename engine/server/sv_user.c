@@ -1245,6 +1245,8 @@ void SV_Begin_f (void)
 		return;
 	}
 
+	host_client->edict->v->playerclass = host_client->playerclass;	//make sure it's set the same as the userinfo
+
 	for (split = host_client; split; split = split->controlled)
 	{
 #ifdef Q2SERVER
@@ -1277,6 +1279,13 @@ void SV_Begin_f (void)
 
 				if (SpectatorConnect)
 				{
+					//keep the spectator tracking the player from the previous map
+					if (split->spec_track > 0)
+						split->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, svs.clients[split->spec_track-1].edict);
+					else
+						split->edict->v->goalentity = 0;
+
+
 					// copy spawn parms out of the client_t
 					for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
 					{
@@ -1365,7 +1374,6 @@ void SV_Begin_f (void)
 	host_client->netchan.good_count = 0;
 
 	//check he's not cheating
-
 	if (progstype == PROG_QW)
 	{
 		pmodel = atoi(Info_ValueForKey (host_client->userinfo, "pmodel"));

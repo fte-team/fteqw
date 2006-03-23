@@ -1765,24 +1765,26 @@ vfsfile_t *FS_OpenTCP(char *name)
 {
 	tcpfile_t *newf;
 	int sock;
-	netadr_t adr;
-	if (!NET_StringToAdr(name, &adr))
+	netadr_t adr = {0};
+	if (NET_StringToAdr(name, &adr))
+	{
+		sock = TCP_OpenStream(adr);
+		if (sock == INVALID_SOCKET)
+			return NULL;
+
+		newf = Z_Malloc(sizeof(*newf));
+		newf->sock = sock;
+		newf->funcs.Close = VFSTCP_Close;
+		newf->funcs.Flush = NULL;
+		newf->funcs.GetLen = VFSTCP_GetLen;
+		newf->funcs.ReadBytes = VFSTCP_ReadBytes;
+		newf->funcs.Seek = VFSTCP_Seek;
+		newf->funcs.Tell = VFSTCP_Tell;
+		newf->funcs.WriteBytes = VFSTCP_WriteBytes;
+		newf->funcs.seekingisabadplan = true;
+
+		return &newf->funcs;
+	}
+	else
 		return NULL;
-
-	sock = TCP_OpenStream(adr);
-	if (sock == INVALID_SOCKET)
-		return NULL;
-
-	newf = Z_Malloc(sizeof(*newf));
-	newf->sock = sock;
-	newf->funcs.Close = VFSTCP_Close;
-	newf->funcs.Flush = NULL;
-	newf->funcs.GetLen = VFSTCP_GetLen;
-	newf->funcs.ReadBytes = VFSTCP_ReadBytes;
-	newf->funcs.Seek = VFSTCP_Seek;
-	newf->funcs.Tell = VFSTCP_Tell;
-	newf->funcs.WriteBytes = VFSTCP_WriteBytes;
-	newf->funcs.seekingisabadplan = true;
-
-	return &newf->funcs;
 }

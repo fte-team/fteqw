@@ -162,18 +162,34 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 {
 	char fullname[10248];
 	char *stripfrom;
+	int doubledots;
 
 	char *end = fullname;
 
 	if (!*newfile)
 		return;
 
+	doubledots = 0;
+	while(!strncmp(newfile, "../", 3) || !strncmp(newfile, "..\\", 3))
+	{
+		newfile+=3;
+		doubledots++;
+	}
+
 	currentfile += strlen(rootpath);	//could this be bad?
 
 	for(stripfrom = currentfile+strlen(currentfile)-1; stripfrom>currentfile; stripfrom--)
 	{
 		if (*stripfrom == '/' || *stripfrom == '\\')
-			break;
+		{
+			if (doubledots>0)
+				doubledots--;
+			else
+			{
+				stripfrom++;
+				break;
+			}
+		}
 	}
 	strcpy(end, rootpath); end = end+strlen(end);
 	if (*fullname && end[-1] != '/')

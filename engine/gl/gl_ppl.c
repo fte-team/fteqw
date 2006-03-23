@@ -1731,12 +1731,25 @@ void PPL_BaseBModelTextures(entity_t *e)
 	currentmodel = model = e->model;
 	s = model->surfaces+model->firstmodelsurface;
 
-	GL_TexEnv(GL_MODULATE);
+	if (currententity->drawflags & DRF_TRANSLUCENT)
+		currententity->shaderRGBAf[3]=0.5;
+	if ((currententity->drawflags & MLS_ABSLIGHT) == MLS_ABSLIGHT)
+	{
+		currententity->shaderRGBAf[0] =
+		currententity->shaderRGBAf[1] =
+		currententity->shaderRGBAf[2] = currententity->abslight/255.0f;
+	}
 
 	if (currententity->shaderRGBAf[3]<1)
+	{
+		GL_TexEnv(GL_MODULATE);
 		qglEnable(GL_BLEND);
+	}
 	else
+	{
+		GL_TexEnv(GL_REPLACE);
 		qglDisable(GL_BLEND);
+	}
 
 	qglColor4fv(currententity->shaderRGBAf);
 

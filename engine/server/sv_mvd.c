@@ -114,13 +114,13 @@ void DestFlush(qboolean compleate)
 			break;
 
 		case DEST_STREAM:
-			if (d->cacheused)
+			if (d->cacheused && !d->error)
 			{
 				len = send(d->socket, d->cache, d->cacheused, 0);
 				if (len == 0) //client died
 					d->error = true;
-				else if (len > 0)	//error of some kind
-				{
+				else if (len > 0)	//we put some data through
+				{	//move up the buffer
 					d->cacheused -= len;
 					memmove(d->cache, d->cache+len, d->cacheused);
 				}

@@ -119,7 +119,10 @@ void Chat_GetTag(char *filename, float tag, char **text, char **condition, char 
 			}
 		}		
 	}
-	Sys_Error("Tag %f not found in file %s", tag, host_client->chat.filename);
+	*text = va("Chat Tag %f not found in file %s", tag, host_client->chat.filename);
+	*condition = "";
+	*options = "";
+	return;
 }
 
 chatvar_t *SV_ChatFindVariable(char *name)

@@ -1022,6 +1022,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 		if (progstype == PROG_H2)
 		{
+			cvar_t *cv;
 			if (coop.value)
 			{
 				eval = PR_FindGlobal(svprogfuncs, "coop", 0);
@@ -1032,11 +1033,13 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				eval = PR_FindGlobal(svprogfuncs, "deathmatch", 0);
 				if (eval) eval->_float = deathmatch.value;
 			}
+			cv = Cvar_Get("randomclass", "0", CVAR_LATCH, "Hexen2");
 			eval = PR_FindGlobal(svprogfuncs, "randomclass", 0);
-			if (eval) eval->_float = Cvar_Get("randomclass", "1", CVAR_LATCH, "Hexen2 rules")->value;
+			if (eval && cv) eval->_float = cv->value;
 
+			cv = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
 			eval = PR_FindGlobal(svprogfuncs, "cl_playerclass", 0);
-			if (eval) eval->_float = 1;
+			if (eval && cv) eval->_float = cv->value;
 		}
 		else
 		{
@@ -1078,6 +1081,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			spawnflagmask |= SPAWNFLAG_NOT_H2HARD;
 		else
 			spawnflagmask |= SPAWNFLAG_NOT_H2MEDIUM;
+
+		//don't filter based on player class. we're lame and don't have any real concept of player classes.
 	}
 	else if (!deathmatch.value)	//decide if we are to inhibit single player game ents instead
 	{

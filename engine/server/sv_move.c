@@ -72,7 +72,10 @@ realcheck:
 	start[0] = stop[0] = (mins[0] + maxs[0])*0.5;
 	start[1] = stop[1] = (mins[1] + maxs[1])*0.5;
 	stop[2] = start[2] - 2*pm_stepheight;
+	savedhull = ent->v->hull;
+	ent->v->hull = 0;
 	trace = SV_Move (start, vec3_origin, vec3_origin, stop, true, ent);
+	ent->v->hull = savedhull;
 
 	if (trace.fraction == 1.0)
 		return false;

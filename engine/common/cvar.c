@@ -686,7 +686,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	}
 #endif
 
-	latch = var->string;
+	latch = var->string;//save off the old value (so cvar_set(var, var->string) works)
 
 	var->string = (char*)Z_Malloc (Q_strlen(value)+1);
 	Q_strcpy (var->string, value);
@@ -920,13 +920,19 @@ void Cvar_RegisterVariable (cvar_t *variable)
 cvar_t *Cvar_Get(const char *name, const char *defaultvalue, int flags, const char *group)
 {
 	cvar_t *var;
+	int old;
 	var = Cvar_FindVar(name);
 
 	if (var)
 	{
 		//allow this to change all < cvar_latch values.
 		//this allows q2 dlls to apply different flags to a cvar without destroying our important ones (like cheat).
+		old = var->flags;
 		var->flags = (var->flags & ~(CVAR_NOSET)) | (flags & (CVAR_NOSET|CVAR_SERVERINFO|CVAR_USERINFO|CVAR_ARCHIVE));
+		if (old != var->flags)
+		{
+			Cvar_Set(var, var->string);
+		}
 		return var;
 	}
 

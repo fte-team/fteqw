@@ -259,6 +259,18 @@ void GLR_AddStain(vec3_t org, float red, float green, float blue, float radius)
 			parms[1] = org[0] - pe->origin[0];
 			parms[2] = org[1] - pe->origin[1];
 			parms[3] = org[2] - pe->origin[2];
+
+			if (pe->angles[0] || pe->angles[1] || pe->angles[2])
+			{
+				vec3_t f, r, u, temp;
+				AngleVectors(pe->angles, f, r, u);
+				VectorCopy((parms+1), temp);
+				parms[1] = DotProduct(temp, f);
+				parms[2] = -DotProduct(temp, r);
+				parms[3] = DotProduct(temp, u);
+			}
+
+
 			pe->model->funcs.StainNode(pe->model->nodes+pe->model->hulls[0].firstclipnode, parms);
 		}
 	}

@@ -711,6 +711,13 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 	float	scale;
 	int			maps;
 
+	if (!cl.worldmodel->lightdata)
+	{
+		l[0]=255;l[1]=255;l[2]=255;
+		l[3]=0;l[4]=1;l[5]=1;
+		return l;
+	}
+
 	if (cl.worldmodel->fromgame == fg_quake2)
 	{
 		if (node->contents != -1)

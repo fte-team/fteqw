@@ -389,26 +389,42 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 	if (ent->v->solid == SOLID_BSP && 
 	(ent->v->angles[0] || ent->v->angles[1] || ent->v->angles[2]) )
 	{	// expand for rotation
+
+#if 1
+		int i;
+		float v;
+		float max, min;
+		//q2 method
+		max = 0;
+		for (i=0 ; i<3 ; i++)
+		{
+			v =fabs( ent->v->mins[i]);
+			if (v > max)
+				max = v;
+			v =fabs( ent->v->maxs[i]);
+			if (v > max)
+				max = v;
+		}
+		for (i=0 ; i<3 ; i++)
+		{
+			ent->v->absmin[i] = ent->v->origin[i] - max;
+			ent->v->absmax[i] = ent->v->origin[i] + max;
+		}
+#else
+
 		int			i;
 
 		vec3_t f, r, u;
 		vec3_t mn, mx;
-		
+
 		//we need to link to the correct leaves
 
-		if (progstype == PROG_H2)
-		{
-			ent->v->angles[0]*=-1;
-			AngleVectors(ent->v->angles, f,r,u);
-			ent->v->angles[0]*=-1;
-		}
-		else
-			AngleVectors(ent->v->angles, f,r,u);
+		AngleVectors(ent->v->angles, f,r,u);
 
 		mn[0] = DotProduct(ent->v->mins, f);
 		mn[1] = -DotProduct(ent->v->mins, r);
 		mn[2] = DotProduct(ent->v->mins, u);
-		
+
 		mx[0] = DotProduct(ent->v->maxs, f);
 		mx[1] = -DotProduct(ent->v->maxs, r);
 		mx[2] = DotProduct(ent->v->maxs, u);
@@ -425,6 +441,7 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 				ent->v->absmax[i] = ent->v->origin[i]+mn[i]+0.1;
 			}
 		}
+#endif
 	}
 	else
 	{
@@ -959,22 +976,29 @@ qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, v
 		if (rotated)
 		{
 			// FIXME: figure out how to do this with existing angles
-	//		VectorNegate (angles, a);
-			a[0] = -angles[0];
-			a[1] = -angles[1];
-			a[2] = -angles[2];
-			AngleVectors (a, forward, right, up);
 
-			VectorCopy (trace->plane.normal, temp);
-			trace->plane.normal[0] = DotProduct (temp, forward);
-			trace->plane.normal[1] = -DotProduct (temp, right);
-			trace->plane.normal[2] = DotProduct (temp, up);
+			if (trace->fraction != 1)
+			{
+				VectorNegate (angles, a);
+				AngleVectors (a, forward, right, up);
 
-			trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
-			trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
-			trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
+				VectorCopy (trace->plane.normal, temp);
+				trace->plane.normal[0] = DotProduct (temp, forward);
+				trace->plane.normal[1] = -DotProduct (temp, right);
+				trace->plane.normal[2] = DotProduct (temp, up);
+
+
+				trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
+				trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
+				trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
+			}
+			else
+			{
+				VectorCopy (end, trace->endpos);
+			}
 		}
-		VectorAdd (trace->endpos, origin, trace->endpos);
+		else
+			VectorAdd (trace->endpos, origin, trace->endpos);
 	}
 	else
 	{
@@ -1115,15 +1139,15 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 	}
 
 // trace a line through the apropriate clipping hull
-	if (progstype == PROG_H2 && ent->v->solid == SOLID_BSP)
+	if (ent->v->solid != SOLID_BSP)
 	{
-		ent->v->angles[0]*=-1;
-		TransformedTrace(model, 0, ent->v->frame, start, end, mins, maxs, &trace, ent->v->origin, ent->v->angles);
+		ent->v->angles[0]*=-1;	//carmack made bsp models rotate wrongly.
+		TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, ent->v->origin, ent->v->angles);
 		ent->v->angles[0]*=-1;
 	}
 	else
 	{
-		TransformedTrace(model, 0, ent->v->frame, start, end, mins, maxs, &trace, ent->v->origin, ent->v->angles);
+		TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, ent->v->origin, ent->v->angles);
 	}
 
 // fix trace up by the offset
@@ -1146,7 +1170,7 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 			if (model && model->funcs.Trace)
 			{
 				//do the second trace
-				TransformedTrace(model, 0, ent->v->frame, start, end, mins, maxs, &trace, ent->v->origin, ent->v->angles);
+				TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, ent->v->origin, ent->v->angles);
 			}
 		}
 

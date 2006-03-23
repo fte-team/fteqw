@@ -544,6 +544,9 @@ void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	float *ret = G_VECTOR(OFS_RETURN);
 
+	if (!p)
+		p = Draw_SafeCachePic(va("%s.tga", picname));
+
 	if (p)
 	{
 		ret[0] = p->width;

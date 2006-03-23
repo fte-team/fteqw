@@ -3721,6 +3721,12 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	else
 		cl->drate = 0;	//0 disables the downloading check
 
+	val = Info_ValueForKey (cl->userinfo, "cl_playerclass");
+	if (val)
+	{
+		PR_SetPlayerClass(cl, atoi(val), false);
+	}
+
 	// msg command
 	val = Info_ValueForKey (cl->userinfo, "msg");
 	if (strlen(val))

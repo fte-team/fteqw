@@ -199,9 +199,9 @@ qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, trac
 
 		if (trace->fraction != 1.0)
 		{
-			a[0] = angles[0];
-			a[1] = angles[1];
-			a[2] = angles[2];
+			a[0] = -angles[0];
+			a[1] = -angles[1];
+			a[2] = -angles[2];
 			AngleVectors (a, forward, right, up);
 
 			VectorCopy (trace->plane.normal, temp);

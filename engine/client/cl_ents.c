@@ -1742,7 +1742,8 @@ void CL_LinkPacketEntities (void)
 		}
 
 		VectorCopy(angles, ent->angles);
-		angles[0]*=-1;
+		if (model && model->type == mod_alias)
+			angles[0]*=-1;	//carmack screwed up when he added alias models - they pitch the wrong way.
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 

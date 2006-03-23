@@ -129,7 +129,7 @@ typedef enum {
 	// ClientCommand and ServerCommand parameter access
 
 	G_ARGV,			// ( int n, char *buffer, int bufferLength );
-
+//10
 	G_FS_FOPEN_FILE,	// ( const char *qpath, fileHandle_t *file, fsMode_t mode );
 	G_FS_READ,		// ( void *buffer, int len, fileHandle_t f );
 	G_FS_WRITE,		// ( const void *buffer, int len, fileHandle_t f );
@@ -162,7 +162,7 @@ typedef enum {
 	// All confgstrings are cleared at each level start.
 
 	G_GET_CONFIGSTRING,	// ( int num, char *buffer, int bufferSize );
-
+//20
 	G_GET_USERINFO,		// ( int num, char *buffer, int bufferSize );
 	// userinfo strings are maintained by the server system, so they
 	// are persistant across level loads, while all other game visible
@@ -189,7 +189,7 @@ typedef enum {
 	G_ADJUST_AREA_PORTAL_STATE,	// ( gentity_t *ent, qboolean open );
 
 	G_AREAS_CONNECTED,	// ( int area1, int area2 );
-
+//30
 	G_LINKENTITY,		// ( gentity_t *ent );
 	// an entity will never be sent to a client or used for collision
 	// if it is not passed to linkentity.  If the size, position, or
@@ -219,6 +219,7 @@ typedef enum {
 
 	G_FS_GETFILELIST,
 	G_DEBUG_POLYGON_CREATE,
+//40
 	G_DEBUG_POLYGON_DELETE,
 	G_REAL_TIME,
 	G_SNAPVECTOR,

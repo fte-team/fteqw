@@ -114,6 +114,7 @@ func_t pr_SV_ShouldPause;
 
 func_t SV_PlayerPhysicsQC;	//DP's DP_SV_PLAYERPHYSICS extension
 func_t EndFrameQC;
+func_t pr_ClassChangeWeapon;
 
 qboolean pr_items2;
 
@@ -540,6 +541,7 @@ void PR_LoadGlabalStruct(void)
 
 	pr_SV_PausedTic = PR_FindFunction(svprogfuncs, "SV_PausedTic", PR_ANY);
 	pr_SV_ShouldPause = PR_FindFunction(svprogfuncs, "SV_ShouldPause", PR_ANY);
+	pr_ClassChangeWeapon = PR_FindFunction(svprogfuncs, "ClassChangeWeapon", PR_ANY);
 
 	if (pr_no_playerphysics.value)
 		SV_PlayerPhysicsQC = 0;
@@ -1262,7 +1264,7 @@ void Q_InitProgs(void)
 				if (f)
 				{
 					pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-					G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, as);
+					G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, sv_addon[i2].string);
 					PR_ExecuteProgram (svprogfuncs, f);
 				}
 				else
@@ -1328,7 +1330,7 @@ qboolean PR_ShouldTogglePause(client_t *initiator, qboolean newpaused)
 	globalvars_t *pr_globals;
 
 	if (!svprogfuncs || !pr_SV_ShouldPause)
-		return false;
+		return true;
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
@@ -7478,6 +7480,32 @@ void PF_advanceweaponframe (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	G_FLOAT(OFS_RETURN) = state;
 }
 
+void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
+{
+	char		temp[16];
+	if (classnum < 1)
+		return;	//reject it (it would crash the (standard hexen2) mod)
+	if (classnum > 5)
+		return;
+	if (cl->playerclass != classnum)
+	{
+		cl->edict->v->playerclass = classnum;
+		cl->playerclass = classnum;
+
+		sprintf(temp,"%i",(int)classnum);
+		Info_SetValueForKey (cl->userinfo, "cl_playerclass", temp, sizeof(cl->userinfo));
+
+		if (!fromqc)
+		{
+			cl->sendinfo = true;
+			if (cl->state == cs_spawned && pr_ClassChangeWeapon)
+			{
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
+				PR_ExecuteProgram (svprogfuncs, pr_ClassChangeWeapon);
+			}
+		}
+	}
+}
 
 void PF_setclass (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

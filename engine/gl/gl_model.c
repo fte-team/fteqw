@@ -2194,7 +2194,7 @@ qboolean GLMod_LoadClipnodes (lump_t *l)
 		hull->planes = loadmodel->planes;
 		hull->clip_mins[0] = -48;
 		hull->clip_mins[1] = -48;
-		hull->clip_mins[2] = -50;
+		hull->clip_mins[2] = -50 - 24;
 		hull->clip_maxs[0] = 48;
 		hull->clip_maxs[1] = 48;
 		hull->clip_maxs[2] = 50;

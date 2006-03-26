@@ -549,8 +549,7 @@ void Model_NextDownload (void)
 	}
 #endif
 
-	for ( i = 1; cl.model_name[i][0]
-		; i++)
+	for (i = 1; cl.model_name[i][0]; i++)
 	{
 		s = cl.model_name[i];
 		if (s[0] == '*')

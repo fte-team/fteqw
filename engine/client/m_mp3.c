@@ -312,8 +312,9 @@ void M_Media_Draw (void)
 
 #define MP_Hightlight(x,y,text,hl) (hl?M_PrintWhite(x, y, text):M_Print(x, y, text))
 
-	p = Draw_CachePic ("gfx/p_option.lmp");
-	M_DrawPic ( (320-p->width)/2, 4, p);
+	p = Draw_SafeCachePic ("gfx/p_option.lmp");
+	if (p)
+		M_DrawPic ( (320-p->width)/2, 4, p);
 	if (!bgmvolume.value)
 		M_Print (12, 32, "Not playing - no volume");
 	else if (!*currenttrack.nicename)

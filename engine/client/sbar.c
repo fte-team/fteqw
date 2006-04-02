@@ -2379,8 +2379,9 @@ void Sbar_CoopIntermission (void)
 		return;
 	Draw_Pic ((sbar_rect.width - 320)/2 + 64, (sbar_rect.height - 200)/2 + 24, pic);
 
-	pic = Draw_CachePic ("gfx/inter.lmp");
-	Draw_TransPic ((sbar_rect.width - 320)/2 + 0, (sbar_rect.height - 200)/2 + 56, pic);
+	pic = Draw_SafeCachePic ("gfx/inter.lmp");
+	if (pic)
+		Draw_TransPic ((sbar_rect.width - 320)/2 + 0, (sbar_rect.height - 200)/2 + 56, pic);
 
 // time
 	dig = cl.completed_time/60;
@@ -2437,7 +2438,8 @@ void Sbar_FinaleOverlay (void)
 	if (UI_DrawFinale()>0)
 		return;
 #endif
-	pic = Draw_CachePic ("gfx/finale.lmp");
-	Draw_TransPic ( (vid.width-pic->width)/2, 16, pic);
+	pic = Draw_SafeCachePic ("gfx/finale.lmp");
+	if (pic)
+		Draw_TransPic ( (vid.width-pic->width)/2, 16, pic);
 }
 

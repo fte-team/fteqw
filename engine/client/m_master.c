@@ -1213,22 +1213,22 @@ void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 	mpic_t *pic;
 
-	pic = Draw_CachePic("scrollbars/slidebg.png");
+	pic = Draw_SafeCachePic("scrollbars/slidebg.png");
 	if (pic)
 	{
 		Draw_ScalePic(x + ths->common.width - 8, y+8, 8, ths->common.height-16, pic);
 
-		pic = Draw_CachePic("scrollbars/arrow_down.png");
+		pic = Draw_SafeCachePic("scrollbars/arrow_down.png");
 		Draw_ScalePic(x + ths->common.width - 8, y, 8, 8, pic);
 
-		pic = Draw_CachePic("scrollbars/arrow_up.png");
+		pic = Draw_SafeCachePic("scrollbars/arrow_up.png");
 		Draw_ScalePic(x + ths->common.width - 8, y + ths->common.height - 8, 8, 8, pic);
 
 		y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (float)(ths->common.height-(64+16-1));
 
 		y += 8;
 
-		pic = Draw_CachePic("scrollbars/slider.png");
+		pic = Draw_SafeCachePic("scrollbars/slider.png");
 		Draw_ScalePic(x + ths->common.width - 8, y, 8, 64, pic);
 	}
 	else
@@ -1252,7 +1252,7 @@ void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 			my = mousecursor_y;
 			my -= ths->common.posy;
-			if (Draw_CachePic("scrollbars/slidebg.png"))
+			if (Draw_SafeCachePic("scrollbars/slidebg.png"))
 			{
 				my -= 32+8;
 				my /= ths->common.height - (64+16);
@@ -1282,7 +1282,7 @@ qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key)
 
 		my = mousecursor_y;
 		my -= ths->common.posy;
-		if (Draw_CachePic("scrollbars/slidebg.png"))
+		if (Draw_SafeCachePic("scrollbars/slidebg.png"))
 		{
 			my -= 32+8;
 			my /= ths->common.height - (64+16);

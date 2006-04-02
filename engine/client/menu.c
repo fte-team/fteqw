@@ -175,7 +175,11 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 			{
 				cy += 8;
 				if (n == 1)
-					p = Draw_CachePic ("gfx/box_mm2.lmp");
+				{
+					p = Draw_SafeCachePic ("gfx/box_mm2.lmp");
+					if (!p)
+						break;
+				}
 				M_DrawTransPic (cx, cy, p);
 			}
 		p = Draw_SafeCachePic ("gfx/box_bm.lmp");

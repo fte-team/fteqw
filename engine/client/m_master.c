@@ -1218,10 +1218,10 @@ void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 	{
 		Draw_ScalePic(x + ths->common.width - 8, y+8, 8, ths->common.height-16, pic);
 
-		pic = Draw_SafeCachePic("scrollbars/arrow_down.png");
+		pic = Draw_SafeCachePic("scrollbars/arrow_up.png");
 		Draw_ScalePic(x + ths->common.width - 8, y, 8, 8, pic);
 
-		pic = Draw_SafeCachePic("scrollbars/arrow_up.png");
+		pic = Draw_SafeCachePic("scrollbars/arrow_down.png");
 		Draw_ScalePic(x + ths->common.width - 8, y + ths->common.height - 8, 8, 8, pic);
 
 		y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (float)(ths->common.height-(64+16-1));

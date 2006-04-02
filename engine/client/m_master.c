@@ -1013,7 +1013,7 @@ float serverhighlight[MAX_SERVERTYPES][3] =
 	{0.20, 0.20, 0.60}, // Quake 3
 	{0.40, 0.40, 0.25}, // NetQuake
 	{0.45, 0.20, 0.45}, // FTEQTV
-	{0.10, 0.70, 0.10}  // Favorite
+	{0.10, 0.60, 0.60}  // Favorite
 };
 
 servertypes_t flagstoservertype(int flags)

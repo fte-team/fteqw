@@ -757,8 +757,49 @@ pbool QCC_PR_Precompiler(void)
 			else if (!QC_strcasecmp(qcc_token, "PROGS_DAT"))
 			{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
 				extern char		destfile[1024];
+#ifndef QCCONLY
+				extern char qccmfilename[1024];
+				int p;
+				char *s, *s2;
+#endif
 				QCC_COM_Parse(msg);
+
+#ifndef QCCONLY
+	p=0;
+	s2 = qcc_token;	
+	if (!strncmp(s2, "./", 2))
+		s2+=2;
+	else
+	{
+		while(!strncmp(s2, "../", 3))
+		{
+			s2+=3;
+			p++;
+		}
+	}
+	strcpy(qccmfilename, qccmsourcedir);
+	for (s=qccmfilename+strlen(qccmfilename);p && s>=qccmfilename; s--)
+	{
+		if (*s == '/' || *s == '\\')
+		{
+			*(s+1) = '\0';
+			p--;
+		}
+	}
+	sprintf(destfile, "%s", s2);
+
+	while (p>0)
+	{
+		memmove(destfile+3, destfile, strlen(destfile)+1);
+		destfile[0] = '.';
+		destfile[1] = '.';
+		destfile[2] = '/';
+		p--;
+	}
+#else
+
 				strcpy(destfile, qcc_token);
+#endif
 				printf("Outputfile: %s\n", destfile);
 			}
 			else if (!QC_strcasecmp(qcc_token, "keyword") || !QC_strcasecmp(qcc_token, "flag"))

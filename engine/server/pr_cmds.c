@@ -758,10 +758,10 @@ void PR_Compile_f(void)
 {
 	int argc=3;
 	double time = Sys_DoubleTime();
-	char *argv[64] = {"", "-srcfile", "qwprogs.src"};
+	char *argv[64] = {"", "-src", "src", "-srcfile", "qwprogs.src"};
 
 	if (Cmd_Argc() == 2)
-		argv[2] = Cmd_Argv(1);
+		argv[4] = Cmd_Argv(1);
 	else if (Cmd_Argc()>2)
 	{
 		for (argc = 0; argc < Cmd_Argc(); argc++)
@@ -9055,7 +9055,7 @@ void PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals
 	else
 		model = NULL;
 
-	if (!model || surfnum >= model->numsurfaces)
+	if (!model || model->type != mod_brush || surfnum >= model->numsurfaces)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 		G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numvertexes;
@@ -9078,7 +9078,7 @@ void PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else
 		model = NULL;
 
-	if (!model || surfnum >= model->numsurfaces)
+	if (!model || model->type != mod_brush || surfnum >= model->numsurfaces)
 	{
 		G_FLOAT(OFS_RETURN+0) = 0;
 		G_FLOAT(OFS_RETURN+1) = 0;
@@ -9094,7 +9094,7 @@ void PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
 void PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-		unsigned int surfnum, pointnum;
+	unsigned int surfnum, pointnum;
 	model_t *model;
 	int modelindex;
 	edict_t *ent;
@@ -9109,7 +9109,7 @@ void PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else
 		model = NULL;
 
-	if (!model || surfnum >= model->numsurfaces)
+	if (!model || model->type != mod_brush || surfnum >= model->numsurfaces)
 	{
 		G_FLOAT(OFS_RETURN+0) = 0;
 		G_FLOAT(OFS_RETURN+1) = 0;
@@ -9127,10 +9127,112 @@ void PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
 void PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	model_t *model;
+	edict_t *ent;
+	msurface_t *surf;
+	int modelindex;
+	int surfnum;
+
+	ent = G_EDICT(prinst, OFS_PARM0);
+	surfnum = G_FLOAT(OFS_PARM1);
+
+	modelindex = ent->v->modelindex;
+	if (modelindex > 0 && modelindex < MAX_MODELS)
+		model = sv.models[(int)ent->v->modelindex];
+	else
+		model = NULL;
+
+	G_INT(OFS_RETURN) = 0;
+	if (!model || model->type != mod_brush)
+		return;
+
+	if (surfnum < 0 || surfnum > model->numsurfaces)
+		return;
+
+	surf = &model->surfaces[surfnum];
+	G_INT(OFS_RETURN) = PR_TempString(prinst, surf->texinfo->texture->name);
 }
 // #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
 void PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	model_t *model;
+	edict_t *ent;
+	msurface_t *surf;
+	int i;
+	float planedist;
+	float *point;
+	int modelindex;
+
+	vec3_t edgedir;
+	vec3_t edgenormal;
+	mvertex_t *v1, *v2;
+	int edge;
+	int e;
+
+	ent = G_EDICT(prinst, OFS_PARM0);
+	point = G_VECTOR(OFS_PARM1);
+
+	G_FLOAT(OFS_RETURN) = -1;
+
+	modelindex = ent->v->modelindex;
+	if (modelindex > 0 && modelindex < MAX_MODELS)
+		model = sv.models[(int)ent->v->modelindex];
+	else
+		model = NULL;
+
+	if (!model || model->type != mod_brush)
+		return;
+
+	if (model->fromgame != fg_quake)
+		return;
+
+
+	surf = model->surfaces;
+	for (i = model->numsurfaces; i; i--, surf = surf++)
+	{
+		if (surf->flags & SURF_PLANEBACK)
+			planedist = -DotProduct(point, surf->plane->normal);
+		else
+			planedist = DotProduct(point, surf->plane->normal);
+
+		if (planedist*planedist < 8*8)
+		{	//within a specific range
+			//make sure it's within the poly
+			for (e = surf->firstedge+surf->numedges, edge = model->surfedges[surf->firstedge]; e > surf->firstedge; e--, edge++)
+			{
+				if (edge < 0)
+				{
+					v1 = &model->vertexes[model->edges[-edge].v[0]];
+					v2 = &model->vertexes[model->edges[-edge].v[1]];
+				}
+				else
+				{
+					v2 = &model->vertexes[model->edges[edge].v[0]];
+					v1 = &model->vertexes[model->edges[edge].v[1]];
+				}
+
+				if (surf->flags & SURF_PLANEBACK)
+				{
+					VectorSubtract(v1->position, v2->position, edgedir)
+					CrossProduct(edgedir, surf->plane->normal, edgenormal);
+					if (DotProduct(edgenormal, v1->position) > DotProduct(edgenormal, point))
+						break;
+				}
+				else
+				{
+					VectorSubtract(v1->position, v2->position, edgedir)
+					CrossProduct(edgedir, surf->plane->normal, edgenormal);
+					if (DotProduct(edgenormal, v1->position) < DotProduct(edgenormal, point))
+						break;
+				}
+			}
+			if (e == surf->firstedge)
+			{
+				G_FLOAT(OFS_RETURN) = i;
+				break;
+			}
+		}
+	}
 }
 // #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
 void PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -9161,8 +9263,14 @@ void PF_matchclient(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (*prinst->callargc < 2)
 	{
-		SV_GetClientForString(name, &clnum);
-		G_INT(OFS_RETURN) = clnum;
+		cl = SV_GetClientForString(name, &clnum);
+		if (!cl)
+			G_INT(OFS_RETURN) = 0;
+		else
+			G_INT(OFS_RETURN) = (cl - svs.clients) + 1;
+
+		if (cl = SV_GetClientForString(name, &clnum))
+			G_INT(OFS_RETURN) = 0;	//prevent multiple matches.
 		return;
 	}
 
@@ -9170,7 +9278,7 @@ void PF_matchclient(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 		if (!matchnum)
 		{	//this is the one that matches
-			G_INT(OFS_RETURN) = clnum;
+			G_INT(OFS_RETURN) = (cl - svs.clients) + 1;
 			return;
 		}
 		matchnum--;

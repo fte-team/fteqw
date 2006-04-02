@@ -2824,14 +2824,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		printf ("Source directory: %s\n", qccmsourcedir);
 	}
 	else
-#ifndef QCCONLY
-		if (!*qcc_gamedir)
-			sprintf (qccmsourcedir, "src/");
-		else
-			sprintf (qccmsourcedir, "%s/src/", qcc_gamedir);
-#else
 		*qccmsourcedir = '\0';
-#endif
 
 	QCC_InitData ();
 
@@ -2940,6 +2933,15 @@ newstyle:
 		sprintf(destfile, "%s%s", qccmfilename, s2);
 	else
 		sprintf(destfile, "%s", s2);
+
+	while (p>0)
+	{
+		memmove(destfile+3, destfile, strlen(destfile)+1);
+		destfile[0] = '.';
+		destfile[1] = '.';
+		destfile[2] = '/';
+		p--;
+	}
 #endif
 
 	printf ("outputfile: %s\n", destfile);

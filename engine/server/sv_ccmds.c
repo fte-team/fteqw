@@ -82,7 +82,8 @@ client_t *SV_GetClientForString(char *name, int *id)
 				continue;
 			if (cl->userid == uid)
 			{
-				*id=sv.allocated_client_slots;
+				if (id)
+					*id=sv.allocated_client_slots;
 				return cl;
 			}
 		}
@@ -121,7 +122,8 @@ client_t *SV_GetClientForString(char *name, int *id)
 
 		if (strstr(nicename, name))
 		{
-			*id=i+1;
+			if (id)
+				*id=i+1;
 			return cl;
 		}
 	}

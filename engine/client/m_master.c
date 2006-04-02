@@ -1001,8 +1001,8 @@ float serverbackcolor[MAX_SERVERTYPES * 2][3] =
 	{0.24, 0.16, 0.04},
 	{0.10, 0.05, 0.10}, // FTEQTV
 	{0.20, 0.10, 0.20},
-	{0.01, 0.16, 0.01}, // Favorite
-	{0.02, 0.32, 0.02}
+	{0.01, 0.13, 0.13}, // Favorite
+	{0.02, 0.26, 0.26}
 };
 
 float serverhighlight[MAX_SERVERTYPES][3] =

@@ -198,7 +198,6 @@ int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...);
 int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
 #endif
 
-
 #define _vsnprintf unsafe_vsnprintf
 #define _snprintf unsafe_snprintf
 #endif

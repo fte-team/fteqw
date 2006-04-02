@@ -31,6 +31,10 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 		#pragma comment (lib, "botlib.lib")
 		#define FTE_GetBotLibAPI GetBotLibAPI
 	#else
+		#ifndef WIN32_LEAN_AND_MEAN
+		#define WIN32_LEAN_AND_MEAN
+		#endif
+
 		#include <windows.h>
 		botlib_export_t *FTE_GetBotLibAPI( int apiVersion, botlib_import_t *import )
 		{

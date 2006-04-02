@@ -393,7 +393,7 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 #if 1
 		int i;
 		float v;
-		float max, min;
+		float max;
 		//q2 method
 		max = 0;
 		for (i=0 ; i<3 ; i++)

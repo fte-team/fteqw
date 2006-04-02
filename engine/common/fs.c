@@ -658,6 +658,192 @@ searchpathfuncs_t packfilefuncs = {
 	FSPAK_OpenVFS
 };
 
+
+
+#ifdef DOOMWADS
+void *FSPAK_LoadDoomWadFile (vfsfile_t *packhandle, char *desc)
+{
+	dwadheader_t	header;
+	int				i;
+	packfile_t		*newfiles;
+	int				numpackfiles;
+	pack_t			*pack;
+	dwadfile_t		info;
+
+	int section=0;
+	char sectionname[MAX_QPATH];
+	char filename[52];
+	char neatwadname[52];
+
+	if (packhandle == NULL)
+		return NULL;
+
+	VFS_READ(packhandle, &header, sizeof(header));
+	if (header.id[1] != 'W'	|| header.id[2] != 'A' || header.id[3] != 'D')
+		return NULL;	//not a doom wad
+
+	//doom wads come in two sorts. iwads and pwads.
+	//iwads are the master wads, pwads are meant to replace parts of the master wad.
+	//this is awkward, of course.
+	//we ignore the i/p bit for the most part, but with maps, pwads are given a prefixed name.
+	if (header.id[0] == 'I')
+		*neatwadname = '\0';
+	else if (header.id[0] == 'P')
+	{
+		COM_FileBase(desc, neatwadname, sizeof(neatwadname)-1);
+		strcat(neatwadname, "#");
+	}
+	else
+		return NULL;
+
+	header.dirofs = LittleLong (header.dirofs);
+	header.dirlen = LittleLong (header.dirlen);
+
+	numpackfiles = header.dirlen;
+	newfiles = (packfile_t*)Z_Malloc (numpackfiles * sizeof(packfile_t));
+	VFS_SEEK(packhandle, header.dirofs);
+
+	//doom wads are awkward.
+	//they have no directory structure, except for start/end 'files'.
+	//they follow along the lines of lumps after the parent name.
+	//a map is the name of that map, and then a squence of the lumps that form that map (found by next-with-that-name).
+	//this is a problem for a real virtual filesystem, so we add a hack to recognise special names and expand them specially.
+	for (i=0 ; i<numpackfiles ; i++)
+	{
+		VFS_READ (packhandle, &info, sizeof(info));
+
+		strcpy (filename, info.name);
+		filename[8] = '\0';
+		Q_strlwr(filename);
+
+		newfiles[i].filepos = LittleLong(info.filepos);
+		newfiles[i].filelen = LittleLong(info.filelen);
+
+		switch(section)	//be prepared to remap filenames.
+		{
+newsection:
+		case 0:
+			if (info.filelen == 0)
+			{	//marker for something...
+
+				if (!strcmp(filename, "s_start"))
+				{
+					section = 2;
+					sprintf (newfiles[i].name, "sprites/%s", filename);	//the model loader has a hack to recognise .dsp
+					break;
+				}
+				if (!strcmp(filename, "p_start"))
+				{
+					section = 3;
+					sprintf (newfiles[i].name, "patches/%s", filename); //the map loader will find these.
+					break;
+				}
+				if (!strcmp(filename, "f_start"))
+				{
+					section = 4;
+					sprintf (newfiles[i].name, "flats/%s", filename);	//the map loader will find these
+					break;
+				}
+				if ((filename[0] == 'e' && filename[2] == 'm') || !strncmp(filename, "map", 3))
+				{	//this is the start of a beutiful new map
+					section = 1;
+					strcpy(sectionname, filename);
+					sprintf (newfiles[i].name, "maps/%s%s.bsp", neatwadname, filename);	//generate fake bsps to allow the server to find them
+					newfiles[i].filepos = 0;
+					newfiles[i].filelen = 4;
+					break;
+				}
+				if (!strncmp(filename, "gl_", 3) && ((filename[4] == 'e' && filename[5] == 'm') || !strncmp(filename+3, "map", 3)))
+				{	//this is the start of a beutiful new map
+					section = 5;
+					strcpy(sectionname, filename+3);
+					break;
+				}
+			}
+
+			sprintf (newfiles[i].name, "wad/%s", filename);	//but there are many files that we don't recognise/know about. archive them off to keep the vfs moderatly clean.
+			break;
+		case 1:	//map section
+			if (strcmp(filename, "things") &&
+				strcmp(filename, "linedefs") &&
+				strcmp(filename, "sidedefs") &&
+				strcmp(filename, "vertexes") &&
+				strcmp(filename, "segs") &&
+				strcmp(filename, "ssectors") &&
+				strcmp(filename, "nodes") &&
+				strcmp(filename, "sectors") &&
+				strcmp(filename, "reject") &&
+				strcmp(filename, "blockmap"))
+			{
+				section = 0;
+				goto newsection;
+			}
+			sprintf (newfiles[i].name, "maps/%s%s.%s", neatwadname, sectionname, filename);
+			break;
+		case 5:	//glbsp output section
+			if (strcmp(filename, "gl_vert") &&
+				strcmp(filename, "gl_segs") &&
+				strcmp(filename, "gl_ssect") &&
+				strcmp(filename, "gl_pvs") &&
+				strcmp(filename, "gl_nodes"))
+			{
+				section = 0;
+				goto newsection;
+			}
+			sprintf (newfiles[i].name, "maps/%s%s.%s", neatwadname, sectionname, filename);
+			break;
+		case 2:	//sprite section
+			if (!strcmp(filename, "s_end"))
+			{
+				section = 0;
+				goto newsection;
+			}
+			sprintf (newfiles[i].name, "sprites/%s", filename);
+			break;
+		case 3:	//patches section
+			if (!strcmp(filename, "p_end"))
+			{
+				section = 0;
+				goto newsection;
+			}
+			sprintf (newfiles[i].name, "patches/%s", filename);
+			break;
+		case 4:	//flats section
+			if (!strcmp(filename, "f_end"))
+			{
+				section = 0;
+				goto newsection;
+			}
+			sprintf (newfiles[i].name, "flats/%s", filename);
+			break;
+		}
+	}
+
+	pack = (pack_t*)Z_Malloc (sizeof (pack_t));
+	strcpy (pack->descname, desc);
+	pack->handle = packhandle;
+	pack->numfiles = numpackfiles;
+	pack->files = newfiles;
+	pack->filepos = 0;
+	VFS_SEEK(packhandle, pack->filepos);
+
+	pack->references++;
+
+	Con_TPrintf (TL_ADDEDPACKFILE, desc, numpackfiles);
+	return pack;
+}
+searchpathfuncs_t doomwadfilefuncs = {
+	FSPAK_PrintPath,
+	FSPAK_ClosePath,
+	FSPAK_BuildHash,
+	FSPAK_FLocate,
+	FSOS_ReadFile,
+	FSPAK_EnumerateFiles,
+	FSPAK_LoadDoomWadFile,
+	NULL,
+	FSPAK_OpenVFS
+};
+#endif
 //======================================================================================================
 //ZIP files (*.zip *.pk3)
 
@@ -1161,6 +1347,11 @@ searchpath_t *COM_AddPathHandle(char *probablepath, searchpathfuncs_t *funcs, vo
 	if (loadstuff & 8)
 		COM_AddDataFiles(probablepath, search, "pk4", &zipfilefuncs);	//q4
 	//we could easily add zip, but it's friendlier not to
+#endif
+
+#ifdef DOOMWADS
+	if (loadstuff & 16)
+		COM_AddDataFiles(probablepath, search, "wad", &doomwadfilefuncs);	//q4
 #endif
 
 	return search;
@@ -2310,228 +2501,7 @@ qboolean COM_LoadMapPackFile (char *filename, int ofs)
 */
 }
 
-#ifdef DOOMWADS
-qboolean COM_LoadWadFile (char *wadname)
-{
-	dwadheader_t	header;
-	int				i;
-	packfile_t		*newfiles;
-	int				numpackfiles;
-	pack_t			*pack;
-	FILE			*packhandle;
-	dwadfile_t		info;
-	int fstart;
 
-	int section=0;
-	char sectionname[MAX_QPATH];
-	char filename[52];
-	char neatwadname[52];
-
-	searchpath_t *search;
-	flocation_t loc;
-
-	FS_FLocateFile(wadname, FSLFRT_LENGTH, &loc);
-
-	if (!loc.search)
-	{
-		return false;
-	}
-
-	if (!*loc.rawname)
-	{
-		Con_Printf("File %s is compressed\n");
-		return false;
-	}
-	packhandle = fopen(loc.rawname, "rb");
-	if (!packhandle)
-	{
-		Con_Printf("Couldn't open file\n");
-		return false;
-	}
-	fseek(packhandle, loc.offset, SEEK_SET);
-
-	fstart = loc.offset;
-	fseek(packhandle, fstart, SEEK_SET);
-
-	fread (&header, 1, sizeof(header), packhandle);
-	if (header.id[1] != 'W'
-	|| header.id[2] != 'A' || header.id[3] != 'D')
-	{
-		return false;
-	}
-	if (header.id[0] == 'I')
-		*neatwadname = '\0';
-	else if (header.id[0] == 'P')
-	{
-		COM_StripExtension(wadname, neatwadname);
-		strcat(neatwadname, ":");
-	}
-	else
-		return false;
-	header.dirofs = LittleLong (header.dirofs);
-	header.dirlen = LittleLong (header.dirlen);
-
-	numpackfiles = header.dirlen;
-
-	newfiles = (packfile_t*)Z_Malloc (numpackfiles * sizeof(packfile_t));
-
-	fseek (packhandle, header.dirofs+fstart, SEEK_SET);
-
-	pack = (pack_t*)Z_Malloc (sizeof (pack_t));
-#ifdef HASH_FILESYSTEM
-	Hash_InitTable(&pack->hash, numpackfiles+1, Z_Malloc(Hash_BytesForBuckets(numpackfiles+1)));
-#endif
-// parse the directory
-	for (i=0 ; i<numpackfiles ; i++)
-	{
-		fread (&info, 1, sizeof(info), packhandle);
-
-		strcpy (filename, info.name);
-		filename[8] = '\0';
-		Q_strlwr(filename);
-
-		newfiles[i].filepos = LittleLong(info.filepos)+fstart;
-		newfiles[i].filelen = LittleLong(info.filelen);
-
-		switch(section)	//be prepared to remap filenames.
-		{
-newsection:
-		case 0:
-			if (info.filelen == 0)
-			{	//marker for something...
-
-				if (!strcmp(filename, "s_start"))
-				{
-					section = 2;
-					sprintf (newfiles[i].name, "sprites/%s", filename);
-					break;
-				}
-				if (!strcmp(filename, "p_start"))
-				{
-					section = 3;
-					sprintf (newfiles[i].name, "patches/%s", filename);
-					break;
-				}
-				if (!strcmp(filename, "f_start"))
-				{
-					section = 4;
-					sprintf (newfiles[i].name, "flats/%s", filename);
-					break;
-				}
-				if ((filename[0] == 'e' && filename[2] == 'm') || !strncmp(filename, "map", 3))
-				{	//this is the start of a beutiful new map
-					section = 1;
-					strcpy(sectionname, filename);
-					sprintf (newfiles[i].name, "maps/%s%s.bsp", neatwadname, filename);
-					newfiles[i].filepos = fstart;
-					newfiles[i].filelen = 4;
-					break;
-				}
-				if (!strncmp(filename, "gl_", 3) && ((filename[4] == 'e' && filename[5] == 'm') || !strncmp(filename+3, "map", 3)))
-				{	//this is the start of a beutiful new map
-					section = 5;
-					strcpy(sectionname, filename+3);
-					break;
-				}
-			}
-
-			sprintf (newfiles[i].name, "wad/%s", filename);
-			break;
-		case 1:	//map section
-			if (strcmp(filename, "things") &&
-				strcmp(filename, "linedefs") &&
-				strcmp(filename, "sidedefs") &&
-				strcmp(filename, "vertexes") &&
-				strcmp(filename, "segs") &&
-				strcmp(filename, "ssectors") &&
-				strcmp(filename, "nodes") &&
-				strcmp(filename, "sectors") &&
-				strcmp(filename, "reject") &&
-				strcmp(filename, "blockmap"))
-			{
-				section = 0;
-				goto newsection;
-			}
-			sprintf (newfiles[i].name, "maps/%s%s.%s", neatwadname, sectionname, filename);
-			break;
-		case 5:	//glbsp output section
-			if (strcmp(filename, "gl_vert") &&
-				strcmp(filename, "gl_segs") &&
-				strcmp(filename, "gl_ssect") &&
-				strcmp(filename, "gl_pvs") &&
-				strcmp(filename, "gl_nodes"))
-			{
-				section = 0;
-				goto newsection;
-			}
-			sprintf (newfiles[i].name, "maps/%s%s.%s", neatwadname, sectionname, filename);
-			break;
-		case 2:	//sprite section
-			if (!strcmp(filename, "s_end"))
-			{
-				section = 0;
-				goto newsection;
-			}
-			sprintf (newfiles[i].name, "sprites/%s", filename);
-			break;
-		case 3:	//patches section
-			if (!strcmp(filename, "p_end"))
-			{
-				section = 0;
-				goto newsection;
-			}
-			sprintf (newfiles[i].name, "patches/%s", filename);
-			break;
-		case 4:	//flats section
-			if (!strcmp(filename, "f_end"))
-			{
-				section = 0;
-				goto newsection;
-			}
-			sprintf (newfiles[i].name, "flats/%s", filename);
-			break;
-		}
-#ifdef HASH_FILESYSTEM
-		Hash_AddInsensative(&pack->hash, newfiles[i].name, &newfiles[i], &newfiles[i].bucket);
-#endif
-	}
-
-	strcpy (pack->filename, loc.rawname);
-	pack->handle = packhandle;
-	pack->numfiles = numpackfiles;
-	pack->files = newfiles;
-
-	Con_Printf ("Added wad file %s\n", wadname, numpackfiles);
-
-	COM_AddPathHandle(&packfilefuncs, pack, true, false);
-
-	COM_StripExtension(wadname, sectionname);
-	strcat(sectionname, ".gwa");
-	if (strcmp(sectionname, wadname))
-		COM_LoadWadFile(sectionname);
-	return true;
-}
-#endif
-
-
-
-#ifdef DOOMWADS
-static int COM_AddWad (char *descriptor)
-{
-	searchpath_t	*search;
-	char			pakfile[MAX_OSPATH];
-
-	sprintf (pakfile, descriptor, com_gamedir);
-
-	for (search = com_searchpaths; search; search = search->next)
-	{
-		if (!stricmp(search->filename, pakfile))
-			return true; //already loaded (base paths?)
-	}
-
-	return COM_LoadWadFile (descriptor);
-}
-#endif
 
 typedef struct {
 	searchpathfuncs_t *funcs;

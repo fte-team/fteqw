@@ -736,7 +736,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	out->skinnum = in->v->skin;
 	out->fatness = in->v->fatness;
 #ifdef Q3SHADERS
-	if (in->v->forceshader > 0)
+	if (in->v->forceshader >= 1)
 		out->forcedshader = r_shaders + ((int)in->v->forceshader-1);
 	else
 		out->forcedshader = NULL;

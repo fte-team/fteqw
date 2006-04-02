@@ -248,7 +248,7 @@ int CL_CalcNet (void)
 			lost++;
 	}
 
-	if (cl_countpendingpl.value)
+	if (!cl_countpendingpl.value)
 	{
 		pending = cls.netchan.outgoing_sequence - cls.netchan.incoming_sequence - 1;
 		lost -= pending;
@@ -263,7 +263,12 @@ int CL_CalcNet (void)
 			percent = 1;
 	}
 	else
-		percent = lost * 100 / sent;
+	{
+		if (sent < 1)
+			percent = 100;	//shouldn't ever happen.
+		else
+			percent = lost * 100 / sent;
+	}
 
 	return percent;
 }

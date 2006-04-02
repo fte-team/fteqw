@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "winquake.h"
 
-#if (_MSC_VER < 1200)
+#if (_MSC_VER < 1300)
 #define DWORD_PTR DWORD
 #endif
 

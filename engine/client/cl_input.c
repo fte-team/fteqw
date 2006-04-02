@@ -1192,6 +1192,7 @@ void CL_SendCmd (float frametime)
 		cmd = &cl.frames[i].cmd[plnum];
 		*cmd = independantphysics[plnum];
 		cl.frames[i].senttime = realtime;
+		cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
 
 		CLNQ_SendCmd ();
@@ -1274,6 +1275,7 @@ void CL_SendCmd (float frametime)
 			cmd = &cl.frames[i].cmd[plnum];
 			*cmd = independantphysics[plnum];
 			cl.frames[i].senttime = realtime;
+			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 			memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
 
 #ifdef Q2CLIENT

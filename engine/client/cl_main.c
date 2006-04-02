@@ -119,6 +119,7 @@ cvar_t	allow_download_csprogs = SCVAR("allow_download_csprogs", "0");
 cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
 
 cvar_t	cl_item_bobbing = SCVAR("cl_model_bobbing", "0");
+cvar_t	cl_countpendingpl = SCVAR("cl_countpendingpl", "1");
 
 cvar_t	requiredownloads = SCVARF("requiredownloads","1", CVAR_ARCHIVE);
 cvar_t	cl_standardchat = SCVARF("cl_standardchat", "0", CVAR_ARCHIVE);
@@ -221,6 +222,7 @@ CL_Quit_f
 */
 void CL_Quit_f (void)
 {
+
 	TP_ExecTrigger("f_quit");
 	Cbuf_Execute();
 
@@ -2672,6 +2674,7 @@ void CL_Init (void)
 	host_mapname.name2 = "mapname";
 	Cvar_Register (&host_mapname,		"Scripting");
 
+	Cvar_Register (&cl_countpendingpl, cl_controlgroup);
 	Cvar_Register (&cl_indepphysics, cl_controlgroup);
 	Cvar_Register (&cl_antibunch, "evil hacks");
 	Cvar_Register (&hud_tracking_show, "statusbar");

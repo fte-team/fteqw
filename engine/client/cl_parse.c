@@ -193,7 +193,7 @@ char *svc_nqstrings[] =
 	"dpsvc_spawnstaticsound2"
 };
 
-extern cvar_t requiredownloads, cl_standardchat, msg_filter;
+extern cvar_t requiredownloads, cl_standardchat, msg_filter, cl_countpendingpl;
 int	oldparsecountmod;
 int	parsecountmod;
 double	parsecounttime;
@@ -213,7 +213,12 @@ int CL_CalcNet (void)
 	int		a, i;
 	frame_t	*frame;
 	int lost;
+	int percent;
+	int sent;
+	int pending;
 //	char st[80];
+
+	sent = NET_TIMINGS;
 
 	for (i=cls.netchan.outgoing_sequence-UPDATE_BACKUP+1
 		; i <= cls.netchan.outgoing_sequence
@@ -224,6 +229,11 @@ int CL_CalcNet (void)
 			packet_latency[i&NET_TIMINGSMASK] = 9999;	// dropped
 		else if (frame->receivedtime == -2)
 			packet_latency[i&NET_TIMINGSMASK] = 10000;	// choked
+		else if (frame->receivedtime == -3)
+		{
+			packet_latency[i&NET_TIMINGSMASK] = 9997;	// c2spps
+			sent--;
+		}
 		else if (frame->invalid)
 			packet_latency[i&NET_TIMINGSMASK] = 9998;	// invalid delta
 		else
@@ -237,7 +247,25 @@ int CL_CalcNet (void)
 		if (packet_latency[i] == 9999)
 			lost++;
 	}
-	return lost * 100 / NET_TIMINGS;
+
+	if (cl_countpendingpl.value)
+	{
+		pending = cls.netchan.outgoing_sequence - cls.netchan.incoming_sequence - 1;
+		lost -= pending;
+		sent -= pending;
+
+		if (sent < 1)
+			percent = 100;
+		else
+			percent = lost * 100 / sent;
+
+		if (lost && !percent)	//if they have any confirmed lost packets, report at least 1%
+			percent = 1;
+	}
+	else
+		percent = lost * 100 / sent;
+
+	return percent;
 }
 
 //=============================================================================

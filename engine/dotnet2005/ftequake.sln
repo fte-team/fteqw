@@ -2,6 +2,9 @@
 Microsoft Visual Studio Solution File, Format Version 9.00
 # Visual Studio 2005
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ftequake", "ftequake.vcproj", "{91EB8023-5BC5-422A-B55E-1A25F25F5AE1}"
+	ProjectSection(ProjectDependencies) = postProject
+		{E9BED2C3-4D4D-429D-8C33-7D5E6787A7EB} = {E9BED2C3-4D4D-429D-8C33-7D5E6787A7EB}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gas2masm", "gas2masm.vcproj", "{E9BED2C3-4D4D-429D-8C33-7D5E6787A7EB}"
 EndProject

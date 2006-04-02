@@ -50,7 +50,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define WM_INPUT 255
 #endif
 
-extern cvar_t vid_conwidth;
+extern cvar_t vid_conwidth, vid_conautoscale;
 
 
 #define WINDOW_CLASS_NAME "WinQuake"
@@ -400,6 +400,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	{
 		vid.conwidth = 640;
 		vid_conwidth.modified = true;	//make it reapplied
+		vid_conautoscale.modified = true;
 	}
 
 	vid.conwidth &= 0xfff8; // make it a multiple of eight
@@ -422,6 +423,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	vid.width = vid.conwidth;
 	vid.height = vid.conheight;
 	vid_conwidth.modified = true;
+	vid_conautoscale.modified = true;
 
 	vid.numpages = 2;
 
@@ -536,6 +538,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	vid.width = vid.conwidth;
 	vid.height = vid.conheight;
 	vid_conwidth.modified = true;
+	vid_conautoscale.modified = true;
 
 	vid.numpages = 2;
 
@@ -1412,6 +1415,7 @@ LONG WINAPI GLMainWndProc (
 				WindowRect.right = ((short*)&lParam)[0] - WindowRect.left;
 				WindowRect.bottom = ((short*)&lParam)[1] - WindowRect.top;
 				vid_conwidth.modified = true;	//make it reapplied
+				vid_conautoscale.modified = true;
 			}
             break;
 

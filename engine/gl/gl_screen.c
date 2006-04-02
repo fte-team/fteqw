@@ -172,12 +172,12 @@ void GLSCR_UpdateScreen (void)
 	if (vid_conwidth.modified || vid_conheight.modified)
 	{
 		//let let the user be too crazy
-		if (vid_conwidth.value > (glwidth * 2))	//anything higher is unreadable.
-			Cvar_SetValue(&vid_conwidth, (float)(glwidth * 2));
+		if (vid_conwidth.value > 2048)	//anything higher is unreadable.
+			Cvar_Set(&vid_conwidth, "2048");
+		if (vid_conheight.value > 1536)	//anything higher is unreadable.
+			Cvar_Set(&vid_conheight, "1536");
 		if (vid_conwidth.value < 320)	//lower would be wrong
 			Cvar_Set(&vid_conwidth, "320");
-		if (vid_conheight.value > (glheight * 2))	//anything higher is unreadable.
-			Cvar_SetValue(&vid_conheight, (float)(glheight * 2));
 		if (vid_conheight.value < 200)	//lower would be wrong
 			Cvar_Set(&vid_conheight, "200");
 

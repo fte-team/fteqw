@@ -131,7 +131,7 @@ needs almost the entire 256k of stack space!
 
 void GLSCR_UpdateScreen (void)
 {
-	extern cvar_t vid_conwidth, vid_conheight, gl_texturemode;
+	extern cvar_t vid_conwidth, vid_conheight, gl_texturemode, vid_conautoscale;
 	int uimenu;
 #ifdef TEXTEDITOR
 	extern qboolean editormodal;
@@ -145,16 +145,40 @@ void GLSCR_UpdateScreen (void)
 		return;
 	}
 
+	if (vid_conautoscale.modified)
+	{
+		float xratio, yratio = 0;
+
+		xratio = vid_conautoscale.value;
+		if (xratio > 0)
+		{
+			char *s = strchr(vid_conautoscale.string, ' ');
+			if (s)
+				yratio = atof(s + 1);
+			
+			if (yratio <= 0)
+				yratio = xratio;
+
+			xratio = 1 / xratio;
+			yratio = 1 / yratio;
+
+			Cvar_SetValue(&vid_conwidth, glwidth * xratio);
+			Cvar_SetValue(&vid_conheight, glheight * yratio);
+		}
+
+		vid_conautoscale.modified = false;
+	}
+
 	if (vid_conwidth.modified || vid_conheight.modified)
 	{
 		//let let the user be too crazy
-		if (vid_conwidth.value > 2048)	//anything higher is unreadable.
-			Cvar_Set(&vid_conwidth, "2048");
-		if (vid_conwidth.value < 240)	//lower would be wrong
+		if (vid_conwidth.value > (glwidth * 2))	//anything higher is unreadable.
+			Cvar_SetValue(&vid_conwidth, (float)(glwidth * 2));
+		if (vid_conwidth.value < 320)	//lower would be wrong
 			Cvar_Set(&vid_conwidth, "320");
-		if (vid_conheight.value > 1536)	//anything higher is unreadable.
-			Cvar_Set(&vid_conheight, "1536");
-		if (vid_conheight.value < 240)	//lower would be wrong
+		if (vid_conheight.value > (glheight * 2))	//anything higher is unreadable.
+			Cvar_SetValue(&vid_conheight, (float)(glheight * 2));
+		if (vid_conheight.value < 200)	//lower would be wrong
 			Cvar_Set(&vid_conheight, "200");
 
 		vid_conwidth.modified = false;

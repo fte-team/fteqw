@@ -15,8 +15,8 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory=".\Debug"
-			IntermediateDirectory=".\Debug"
+			OutputDirectory="..\gas2masm\Debug"
+			IntermediateDirectory="..\gas2masm\Debug"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -45,10 +45,10 @@
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				MinimalRebuild="true"
 				RuntimeLibrary="1"
-				PrecompiledHeaderFile=".\Debug/gas2masm.pch"
-				AssemblerListingLocation=".\Debug/"
-				ObjectFile=".\Debug/"
-				ProgramDataBaseFileName=".\Debug/"
+				PrecompiledHeaderFile="..\gas2masm\Debug\gas2masm.pch"
+				AssemblerListingLocation="..\gas2masm\Debug\"
+				ObjectFile="..\gas2masm\Debug\"
+				ProgramDataBaseFileName="..\gas2masm\Debug\"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
 				DebugInformationFormat="4"
@@ -66,11 +66,11 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile=".\Debug/gas2masm.exe"
+				OutputFile="..\gas2masm\Debug\gas2masm.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile=".\Debug/gas2masm.pdb"
+				ProgramDatabaseFile="..\gas2masm\Debug\gas2masm.pdb"
 				SubSystem="1"
 				TargetMachine="1"
 			/>

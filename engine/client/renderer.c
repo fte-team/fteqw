@@ -118,6 +118,7 @@ cvar_t	gl_nocolors	= SCVAR("gl_nocolors","0");
 cvar_t		gl_load24bit	= SCVARF("gl_load24bit", "1", CVAR_ARCHIVE);
 cvar_t		vid_conwidth	= SCVARF("vid_conwidth", "640", CVAR_ARCHIVE);
 cvar_t		vid_conheight	= SCVARF("vid_conheight", "480", CVAR_ARCHIVE);
+cvar_t		vid_conautoscale = SCVARF("vid_conautoscale", "0", CVAR_ARCHIVE);
 cvar_t		gl_nobind	= SCVAR("gl_nobind", "0");
 cvar_t		gl_max_size	= SCVAR("gl_max_size", "1024");
 cvar_t		gl_picmip	= SCVAR("gl_picmip", "0");
@@ -301,8 +302,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_mindist, GLRENDEREROPTIONS);
-	Cvar_Register (&vid_conwidth, GLRENDEREROPTIONS);
-	Cvar_Register (&vid_conheight, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_multisample, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_fontedgeclamp, GRAPHICALNICETIES);
@@ -477,6 +476,10 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_fullscreen, VIDCOMMANDGROUP);
 //	Cvar_Register (&vid_stretch, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_bpp, VIDCOMMANDGROUP);
+
+	Cvar_Register (&vid_conwidth, VIDCOMMANDGROUP);
+	Cvar_Register (&vid_conheight, VIDCOMMANDGROUP);
+	Cvar_Register (&vid_conautoscale, VIDCOMMANDGROUP);
 
 	Cvar_Register (&vid_allow_modex, VIDCOMMANDGROUP);
 

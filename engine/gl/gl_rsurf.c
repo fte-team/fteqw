@@ -3755,6 +3755,7 @@ void GL_BuildLightmaps (void)
 	else
 		gl_lightmap_format = GL_LUMINANCE;
 
+/*
 	if (COM_CheckParm ("-lm_1"))
 		gl_lightmap_format = GL_LUMINANCE;
 	if (COM_CheckParm ("-lm_a"))
@@ -3765,7 +3766,7 @@ void GL_BuildLightmaps (void)
 		gl_lightmap_format = GL_RGB;
 	if (COM_CheckParm ("-lm_4"))
 		gl_lightmap_format = GL_RGBA;
-/*	if (*gl_lightmapmode.string)
+	if (*gl_lightmapmode.string)
 	{
 		switch(*gl_lightmapmode.string)
 		{

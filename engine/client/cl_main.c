@@ -125,7 +125,7 @@ cvar_t	requiredownloads = SCVARF("requiredownloads","1", CVAR_ARCHIVE);
 cvar_t	cl_standardchat = SCVARF("cl_standardchat", "0", CVAR_ARCHIVE);
 cvar_t	msg_filter = SCVAR("msg_filter", "0");	//0 for neither, 1 for mm1, 2 for mm2, 3 for both
 cvar_t  cl_standardmsg = SCVARF("cl_standardmsg", "0", CVAR_ARCHIVE);
-cvar_t  cl_parsewhitetext = SCVAR("cl_parsewhitetext", "0");
+cvar_t  cl_parsewhitetext = SCVAR("cl_parsewhitetext", "1");
 
 cvar_t	host_mapname = SCVAR("host_mapname", "");
 

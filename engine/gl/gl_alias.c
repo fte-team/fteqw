@@ -3412,7 +3412,7 @@ qboolean GL_LoadQ1Model (model_t *mod, void *buffer)
 
 	pq1inmodel = (dmdl_t *)buffer;
 
-	version = pq1inmodel->version;
+	version = LittleLong(pq1inmodel->version);
 	if (version == QTESTALIAS_VERSION)
 		qtest = true;
 	else if (version != ALIAS_VERSION)

@@ -244,35 +244,6 @@ char *particle_set_spikeset =
 
 /////////////////////////////////////////////////
 //rocket explosions
-"r_part randomspark\n"
-"{\n" 
-"count 1\n"
-"texture \"ball\"\n"
-"rgb 255 128 76\n"
-"gravity 400\n"
-"spawnmode ball\n"
-"die 2\n"
-"blend add\n"
-"randomvel 128\n"
-"cliptype randomspark\n"
-"type texturedspark\n"
-"}\n" 
-
-"r_part insaneshrapnal\n"
-"{\n" 
-"count 24\n"
-"texture \"ball\"\n"
-"rgb 255 128 76\n"
-"gravity 400\n"
-"die 2\n"
-"blend add\n"
-"randomvel 512\n"
-"veladd 1\n"
-"cliptype randomspark\n"
-"clipcount 5\n"
-"type texturedspark\n"
-"}\n" 
-
 "r_part ember\n"
 "{\n" 
 "count 1\n"
@@ -310,7 +281,6 @@ char *particle_set_spikeset =
 "emit ember\n"
 "emitinterval 0.01\n"
 "spawnmode circle\n"
-"assoc insaneshrapnal\n"
 "}\n" 
 
 //the heart of the explosion

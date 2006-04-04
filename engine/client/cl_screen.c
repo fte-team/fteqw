@@ -1324,7 +1324,7 @@ void SCR_DrawLoading (void)
 
 	if (COM_FDepthFile("gfx/loading.lmp", true) < COM_FDepthFile("gfx/menu/loading.lmp", true))
 	{
-		pic = Draw_SafeCachePic ("loading");
+		pic = Draw_SafeCachePic ("gfx/loading.lmp");
 		if (pic)
 			Draw_Pic ( (vid.width - pic->width)/2,
 				(vid.height - 48 - pic->height)/2, pic);

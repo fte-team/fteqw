@@ -1910,11 +1910,15 @@ void TP_NewMap (void)
 	if (strcmp(host_mapname.string, last_map))
 	{	// map name has changed
 		loc_numentries = 0;	// clear loc file
-		if (tp_loadlocs.value && cl.deathmatch && !cls.demoplayback) {
+		if (tp_loadlocs.value && cl.deathmatch && !cls.demoplayback)
+		{
 			Q_snprintfz (locname, sizeof(locname), "%s.loc", host_mapname.string);
 			TP_LoadLocFile (locname, true);
+
+			strlcpy (last_map, host_mapname.string, sizeof(last_map));
 		}
-		strlcpy (last_map, host_mapname.string, sizeof(last_map));
+		else
+			strlcpy (last_map, "", sizeof(last_map));
 	}
 
 	TP_ExecTrigger ("f_newmap");

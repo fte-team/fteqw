@@ -47,7 +47,7 @@ void M_Menu_MultiPlayer_f (void)
 		mgt=32;
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Join A Game ",	"menu_slist\n");mgt+=20;
-		MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Browser     ",	"menu_servers\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Old Browser ",	"menu_serversold\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"New Server  ",	"menu_newmulti\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, 92,	"Player Setup",	"menu_setup\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, 112,	"Demos       ",	"menu_demo\n");mgt+=20;

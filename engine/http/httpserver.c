@@ -137,7 +137,7 @@ void HTTP_RunExisting (void)
 	int contentlen;
 
 	int HTTPmarkup;	//version
-	int errno;
+	int localerrno;
 
 	HTTP_active_connections_t *prev, *cl = HTTP_ServerConnections;
 
@@ -436,8 +436,8 @@ notimplemented:
 
 			if (ammount == -1)
 			{
-				errno = qerrno;
-				if (errno != EWOULDBLOCK)
+				localerrno = qerrno;
+				if (localerrno != EWOULDBLOCK)
 				{
 					cl->close = true;
 				}

@@ -1247,8 +1247,8 @@
 		</Configuration>
 		<Configuration
 			Name="GLRelease|Win32"
-			OutputDirectory=".\ftequake___Win32_GLRelease"
-			IntermediateDirectory=".\ftequake___Win32_GLRelease"
+			OutputDirectory=".\GLRelease"
+			IntermediateDirectory=".\GLRelease"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -1289,9 +1289,9 @@
 				UsePrecompiledHeader="2"
 				PrecompiledHeaderThrough="quakedef.h"
 				PrecompiledHeaderFile=".\ftequake___Win32_GLRelease/ftequake.pch"
-				AssemblerListingLocation=".\ftequake___Win32_GLRelease/"
-				ObjectFile=".\ftequake___Win32_GLRelease/"
-				ProgramDataBaseFileName=".\ftequake___Win32_GLRelease/"
+				AssemblerListingLocation=".\GLRelease/"
+				ObjectFile=".\GLRelease/"
+				ProgramDataBaseFileName=".\GLRelease/"
 				BrowseInformation="1"
 				WarningLevel="3"
 				SuppressStartupBanner="true"

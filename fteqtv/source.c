@@ -242,7 +242,11 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 
 	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress, sizeof(qtv->serveraddress)) == INVALID_SOCKET)
 	{
+#ifdef _WIN32
+		if (qerrno != WSAEINPROGRESS)
+#else
 		if (qerrno != EINPROGRESS)
+#endif
 		{
 			closesocket(qtv->sourcesock);
 			qtv->sourcesock = INVALID_SOCKET;

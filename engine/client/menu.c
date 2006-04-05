@@ -843,10 +843,10 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_mediafiles", M_Menu_MediaFiles_f);
 
 #ifdef CL_MASTER
-	Cmd_AddRemCommand ("menu_servers2", M_Menu_ServerList2_f);
+	Cmd_AddRemCommand ("menu_servers", M_Menu_ServerList2_f);
 
-	Cmd_AddRemCommand ("menu_servers", M_Menu_ServerList_f);
-	Cmd_AddRemCommand ("menu_slist", M_Menu_ServerList_f);
+	Cmd_AddRemCommand ("menu_serversold", M_Menu_ServerList_f);
+	Cmd_AddRemCommand ("menu_slist", M_Menu_ServerList2_f);
 #endif
 	Cmd_AddRemCommand ("menu_setup", M_Menu_Setup_f);
 	Cmd_AddRemCommand ("menu_newmulti", M_Menu_GameOptions_f);
@@ -893,6 +893,7 @@ void M_DeInit_Internal (void)
 
 #ifdef CL_MASTER
 	Cmd_RemoveCommand ("menu_servers");
+	Cmd_RemoveCommand ("menu_servers2");
 	Cmd_RemoveCommand ("menu_slist");
 #endif
 	Cmd_RemoveCommand ("menu_setup");

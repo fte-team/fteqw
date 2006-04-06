@@ -1884,7 +1884,7 @@ void SV_SendClientMessages (void)
 		if (ISNQCLIENT(c))
 		{	//nq clients get artificial choke too
 			c->send_message = false;
-			if (c->nextservertimeupdate != sv.physicstime)
+			if (c->nextservertimeupdate != sv.physicstime && c->state != cs_zombie)
 				c->send_message = true;
 		}
 		if (!c->send_message)

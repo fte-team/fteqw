@@ -265,12 +265,14 @@ void Sys_PrintColouredChar(unsigned int chr)
 {
 	ApplyColour(chr);
 
+	chr = chr & CON_CHARMASK;
+
 	if ((chr > 128 || chr < 32) && chr != 10 && chr != 13 && chr != 9)
 		printf("[%02x]", chr);
 	else
 		chr &= ~0x80;
 
-	putch(chr & CON_CHARMASK);
+	putch(chr);
 }
 
 /*
@@ -372,7 +374,6 @@ void Sys_Printf (char *fmt, ...)
 							continue;
 						}
 						Sys_PrintColouredChar('^' | ext);
-						Sys_PrintColouredChar('&' | ext);
 						// else invalid code
 					}
 					else if (*str == 'a')

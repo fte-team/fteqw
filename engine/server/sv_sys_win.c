@@ -582,7 +582,6 @@ void Sys_Printf (char *fmt, ...)
 							continue;
 						}
 						Sys_PrintColouredChar('^' | ext);
-						Sys_PrintColouredChar('&' | ext);
 						// else invalid code
 					}
 					else if (*str == 'a')

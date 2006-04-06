@@ -1931,10 +1931,18 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 		}
 		else
 		{
-			Con_Printf(S_NOTICE "Trying default refresh rate\n");
-			newr.rate = 0;
-			if (!R_ApplyRenderer(&oldr))
+			qboolean failed = true;
+
+			if (newr.rate != 0)
 			{
+				Con_Printf(S_NOTICE "Trying default refresh rate\n");
+				newr.rate = 0;
+				failed = !R_ApplyRenderer(&newr);
+			}
+
+			if (failed)
+			{
+				newr.renderer = QR_NONE;
 				if (R_ApplyRenderer(&newr))
 				{
 					TRACE(("dbg: R_RestartRenderer_f going to dedicated\n"));

@@ -743,7 +743,7 @@ qboolean SV_Push (edict_t *pusher, vec3_t move, vec3_t amove)
 		moved_edict[num_moved] = check;
 		num_moved++;
 
-		check->v->flags = (int)check->v->flags & ~FL_ONGROUND;
+//		check->v->flags = (int)check->v->flags & ~FL_ONGROUND;
 
 		// try moving the contacted entity
 		VectorAdd (check->v->origin, move, check->v->origin);

@@ -215,8 +215,8 @@ void ApplyColour(unsigned int chr)
 	if (chr & CON_BLINKTEXT)
 		printf("5;"); // set blink
 
-	bg = chr & CON_BGMASK >> CON_BGSHIFT;
-	fg = chr & CON_FGMASK >> CON_FGSHIFT;
+	bg = (chr & CON_BGMASK) >> CON_BGSHIFT;
+	fg = (chr & CON_FGMASK) >> CON_FGSHIFT;
 	
 	// don't handle intensive bit for background
 	// as terminals differ too much in displaying \e[1;7;3?m
@@ -254,7 +254,7 @@ void ApplyColour(unsigned int chr)
 				fg &= 0x7; // strip intensive bit
 			}
 
-			printf("3%im", fg); // set foreground
+			printf("3%im", ansiremap[fg]); // set foreground
 			break;
 		}
 	}
@@ -371,7 +371,9 @@ void Sys_Printf (char *fmt, ...)
 								ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
 							continue;
 						}
-						str--; // else invalid code
+						Sys_PrintColouredChar('^' | ext);
+						Sys_PrintColouredChar('&' | ext);
+						// else invalid code
 					}
 					else if (*str == 'a')
 					{

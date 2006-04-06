@@ -581,7 +581,9 @@ void Sys_Printf (char *fmt, ...)
 								ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
 							continue;
 						}
-						str--; // else invalid code
+						Sys_PrintColouredChar('^' | ext);
+						Sys_PrintColouredChar('&' | ext);
+						// else invalid code
 					}
 					else if (*str == 'a')
 					{

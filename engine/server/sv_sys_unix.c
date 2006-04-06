@@ -371,6 +371,7 @@ void Sys_Printf (char *fmt, ...)
 								ext = ((*str - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
 							else
 								ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+							str++;
 							continue;
 						}
 						Sys_PrintColouredChar('^' | ext);

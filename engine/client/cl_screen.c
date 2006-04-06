@@ -191,7 +191,6 @@ void CopyAndMarkup(conchar_t *dest, qbyte *src, int maxlength)
 	if (maxlength < 0)
 		return;	// ...
 
-	maxlength--;
 	while(*src && maxlength>0)
 	{
 		if (*src == '^')
@@ -220,9 +219,14 @@ void CopyAndMarkup(conchar_t *dest, qbyte *src, int maxlength)
 						ext = ((*src - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
 					else
 						ext = ((*src - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					src++;
 					continue;
 				}
-				src--; // else invalid code
+				// else invalid code
+				*dest++ = '^' | ext;
+				maxlength--;
+				if (maxlength <= 0)
+					break; // need an extra check for writing length
 			}
 			else if (*src == 'b') // toggle blink bit
 			{
@@ -269,6 +273,7 @@ void CopyAndMarkup(conchar_t *dest, qbyte *src, int maxlength)
 			*dest++ = *src++;
 		else
 			*dest++ = *src++ | ext;
+		maxlength--;
 	}
 	*dest = 0;
 }

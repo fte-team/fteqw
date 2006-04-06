@@ -1192,7 +1192,7 @@ void CL_SendCmd (float frametime)
 		cmd = &cl.frames[i].cmd[plnum];
 		*cmd = independantphysics[plnum];
 		cl.frames[i].senttime = realtime;
-		cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
+		cl.frames[i].receivedtime = 0;	// nq doesn't allow us to find our own packetloss
 		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
 
 		CLNQ_SendCmd ();

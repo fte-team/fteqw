@@ -635,7 +635,7 @@ error:
 	if (png_get_valid( png, pnginfo, PNG_INFO_tRNS ))		
 		png_set_tRNS_to_alpha(png); 
 
-	if (bitdepth == 8 && colortype == PNG_COLOR_TYPE_RGB)	
+	if (/*bitdepth == 8 && */colortype == PNG_COLOR_TYPE_RGB)	
 		png_set_filler(png, 255, PNG_FILLER_AFTER);
 	
 	if (colortype == PNG_COLOR_TYPE_GRAY || colortype == PNG_COLOR_TYPE_GRAY_ALPHA) {

@@ -1485,6 +1485,51 @@ void SWDraw_TransPicTranslate (int x, int y, int width, int height, qbyte *sourc
 			}
 		}
 	}
+	else if (r_pixbytes == 2)
+	{
+		unsigned short	*dest;
+		dest = (unsigned short*)vid.buffer + y * vid.rowbytes + x;
+
+		if (width & 7)
+		{	// general
+			for (v=0 ; v<height ; v++)
+			{
+				for (u=0 ; u<width ; u++)
+					if ( (tbyte=source[u]) != TRANSPARENT_COLOR)
+						dest[u] = d_8to16table[translation[tbyte]];
+
+				dest += vid.rowbytes;
+				source += width;
+			}
+		}
+		else
+		{	// unwound
+			for (v=0 ; v<height ; v++)
+			{
+				for (u=0 ; u<width ; u+=8)
+				{
+					if ( (tbyte=source[u]) != TRANSPARENT_COLOR)
+						dest[u] = d_8to16table[translation[tbyte]];
+					if ( (tbyte=source[u+1]) != TRANSPARENT_COLOR)
+						dest[u+1] = d_8to16table[translation[tbyte]];
+					if ( (tbyte=source[u+2]) != TRANSPARENT_COLOR)
+						dest[u+2] = d_8to16table[translation[tbyte]];
+					if ( (tbyte=source[u+3]) != TRANSPARENT_COLOR)
+						dest[u+3] = d_8to16table[translation[tbyte]];
+					if ( (tbyte=source[u+4]) != TRANSPARENT_COLOR)
+						dest[u+4] = d_8to16table[translation[tbyte]];
+					if ( (tbyte=source[u+5]) != TRANSPARENT_COLOR)
+						dest[u+5] = d_8to16table[translation[tbyte]];
+					if ( (tbyte=source[u+6]) != TRANSPARENT_COLOR)
+						dest[u+6] = d_8to16table[translation[tbyte]];
+					if ( (tbyte=source[u+7]) != TRANSPARENT_COLOR)
+						dest[u+7] = d_8to16table[translation[tbyte]];
+				}
+				dest += vid.rowbytes;
+				source += width;
+			}
+		}
+	}
 	else if (r_pixbytes == 4)
 	{
 		unsigned int	*puidest;

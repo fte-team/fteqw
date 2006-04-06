@@ -355,7 +355,7 @@ void Sys_Printf (char *fmt, ...)
 					}
 					else if (*str == '&') // extended code
 					{
-						if (isextendedcode(*str+1) && isextendedcode(*str+2))
+						if (isextendedcode(str[1]) && isextendedcode(str[2]))
 						{
 							str++; // foreground char
 							if (*str == '-') // default for FG

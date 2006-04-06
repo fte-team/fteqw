@@ -204,7 +204,7 @@ void CopyAndMarkup(conchar_t *dest, qbyte *src, int maxlength)
 			}
 			else if (*src == '&') // extended code
 			{
-				if (isextendedcode(*src+1) && isextendedcode(*src+2))
+				if (isextendedcode(src[1]) && isextendedcode(src[2]))
 				{
 					src++; // foreground char
 					if (*src == '-') // default for FG

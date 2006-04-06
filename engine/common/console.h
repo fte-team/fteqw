@@ -85,7 +85,7 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 
 #define		CON_TEXTSIZE	16384
 
-#define isextendedcode(x) (((x) >= '0' && (x) <= '9') || ((x) >= 'A' && (x) <= 'F') || (x) == '-')
+#define isextendedcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || x == '-')
 
 typedef struct console_s
 {

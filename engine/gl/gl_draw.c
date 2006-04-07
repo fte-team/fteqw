@@ -916,7 +916,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	qglClear(GL_COLOR_BUFFER_BIT);
 	{
-		mpic_t *pic = Draw_SafeCachePic ("loading");
+		mpic_t *pic = Draw_SafeCachePic ("gfx/loading.lmp");
 		if (pic)
 			Draw_Pic ( (vid.width - pic->width)/2,
 				(vid.height - 48 - pic->height)/2, pic);

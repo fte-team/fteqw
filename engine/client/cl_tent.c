@@ -2284,20 +2284,33 @@ void CLQ2_ParseTEnt (void)
 		// Color should be 7+(rand()%8)
 		// not 8&~7+(rand()%8)
 		break;
-/*
+
 	case Q2TE_WIDOWBEAMOUT:
-		CL_ParseWidow ();
+		// this one is really annoying, it's supposed to be a random choice
+		// between 2*8, 13*8, 21*8, 18*8, and it respreads every frame
+		// into a circle but it could be faked well enough, well except for
+		// the fact that these effects have ids associated with them
+		// sort of how beams have ents associated
+		{
+			int id = MSG_ReadShort();
+		}
+		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_widowbeamout"))
+			P_RunParticleEffect(pos, NULL, 13*8, 300); 
 		break;
 
 	case Q2TE_NUKEBLAST:
-		CL_ParseNuke ();
+		// same problem as te_widowbeamout, but colors are a bit easier to manage
+		// and there's no id to read in
+		MSG_ReadPos (pos);
+		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_nukeblast"))
+			P_RunParticleEffect(pos, NULL, 110, 700); 
 		break;
 
-*/
 	case Q2TE_WIDOWSPLASH:
+		// there's the color issue like with te_widowbeamout, but the particles
+		// are spawned in an immediate circle and not substained, so it's much
+		// easier to manage
 		MSG_ReadPos (pos);
-		// this one is really annoying, it's supposed to be a random choice
-		// between 2*8, 13*8, 21*8, 18*8
 		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_widowsplash"))
 			P_RunParticleEffect(pos, NULL, 13*8, 256); 
 		break;

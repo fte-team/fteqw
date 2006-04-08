@@ -484,7 +484,12 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 		return;
 #endif
 
-	skyname[0] = '\0';
+	// this hack is necessary to ensure Quake 2 maps get their
+	// default skybox
+	if (loadmodel->fromgame == fg_quake2)
+		strcpy(skyname, "unit1_");
+	else
+		skyname[0] = '\0';
 
 	if (data)
 	if ((data=COM_Parse(data)))	//read the map info.

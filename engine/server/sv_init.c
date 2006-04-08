@@ -892,7 +892,22 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef Q2SERVER
 	else if (svs.gametype == GT_QUAKE2)
 	{
+		extern int map_checksum;
+		extern cvar_t sv_airaccelerate;
+
 		memset(sv.strings.configstring, 0, sizeof(sv.strings.configstring));
+
+		if (deathmatch.value)
+			sprintf(sv.strings.configstring[Q2CS_AIRACCEL], "%g", sv_airaccelerate.value);
+		else
+			strcpy(sv.strings.configstring[Q2CS_AIRACCEL], "0");
+
+		// init map checksum config string but only for Q2/Q3 maps
+		if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
+			sprintf(sv.strings.configstring[Q2CS_MAPCHECKSUM], "%i", map_checksum);
+		else
+			strcpy(sv.strings.configstring[Q2CS_MAPCHECKSUM], "0");
+
 		strcpy(sv.strings.configstring[Q2CS_MODELS+1], sv.modelname);
 		for (i=1; i<sv.worldmodel->numsubmodels; i++)
 		{

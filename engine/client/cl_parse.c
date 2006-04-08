@@ -2286,6 +2286,18 @@ void CLQ2_ParseConfigString (void)
 //		if (cl.refresh_prepped && strcmp(olds, s))
 			CLQ2_ParseClientinfo (i-Q2CS_PLAYERSKINS, s);
 	}
+	else if (i == Q2CS_MAPCHECKSUM)
+	{
+		extern int map_checksum;
+		int serverchecksum = atoi(s);
+
+		if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3))
+		{
+			// the Q2 client normally exits here, however for our purposes we might as well ignore it
+			if (map_checksum != serverchecksum)
+				Con_Printf(S_WARNING "WARNING: Client checksum does not match server checksum (%i != %i)", map_checksum, serverchecksum);
+		}
+	}
 
 #ifdef VM_UI
 	UI_StringChanged(i);

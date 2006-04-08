@@ -1245,7 +1245,8 @@ void SV_Begin_f (void)
 		return;
 	}
 
-	host_client->edict->v->playerclass = host_client->playerclass;	//make sure it's set the same as the userinfo
+	if (progstype == PROG_H2)
+		host_client->edict->v->playerclass = host_client->playerclass;	//make sure it's set the same as the userinfo
 
 	for (split = host_client; split; split = split->controlled)
 	{

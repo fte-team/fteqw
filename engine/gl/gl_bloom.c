@@ -136,7 +136,7 @@ void R_Bloom_InitBackUpTexture( int width, int height )
 
 	r_screenbackuptexture_size = width;
 
-	r_bloombackuptexture = GL_LoadTexture("***r_bloombackuptexture***", width, height, data, false, false );
+	r_bloombackuptexture = GL_LoadTexture32("***r_bloombackuptexture***", width, height, data, false, false );
 	
 	Z_Free ( data );
 }
@@ -175,7 +175,7 @@ void R_Bloom_InitEffectTexture( void )
 
 	data = Z_Malloc( BLOOM_SIZE * BLOOM_SIZE * 4 );
 
-	r_bloomeffecttexture = GL_LoadTexture("***r_bloomeffecttexture***", BLOOM_SIZE, BLOOM_SIZE, data, false, false );
+	r_bloomeffecttexture = GL_LoadTexture32("***r_bloomeffecttexture***", BLOOM_SIZE, BLOOM_SIZE, data, false, false );
 	
 	Z_Free ( data );
 }
@@ -187,6 +187,7 @@ R_Bloom_InitTextures
 */
 void R_Bloom_InitTextures( void )
 {
+	extern int		gl_filter_max;
 	qbyte	*data;
 	int		size;
 	int maxtexsize;
@@ -209,7 +210,12 @@ void R_Bloom_InitTextures( void )
 	size = screen_texture_width * screen_texture_height * 4;
 	data = Z_Malloc( size );
 	memset( data, 255, size );
-	r_bloomscreentexture = GL_LoadTexture("***r_bloomscreentexture***", screen_texture_width, screen_texture_height, data, false, false );
+	if (!r_bloomscreentexture)
+		r_bloomscreentexture = texture_extension_number++;
+	GL_Bind(r_bloomscreentexture);
+	qglTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, screen_texture_width, screen_texture_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	Z_Free ( data );
 
 
@@ -223,7 +229,7 @@ void R_Bloom_InitTextures( void )
 	{
 		r_screendownsamplingtexture_size = (int)(BLOOM_SIZE * 2);
 		data = Z_Malloc( r_screendownsamplingtexture_size * r_screendownsamplingtexture_size * 4 );
-		r_bloomdownsamplingtexture = GL_LoadTexture("***r_bloomdownsamplingtexture***", r_screendownsamplingtexture_size, r_screendownsamplingtexture_size, data, false, false );
+		r_bloomdownsamplingtexture = GL_LoadTexture32("***r_bloomdownsamplingtexture***", r_screendownsamplingtexture_size, r_screendownsamplingtexture_size, data, false, false );
 		Z_Free ( data );
 	}
 
@@ -256,6 +262,7 @@ void R_InitBloomTextures( void )
 	if( !r_bloom.value )
 		return;
 
+	r_bloomscreentexture = 0;	//this came from a vid_restart, where none of the textures are valid any more.
 	R_Bloom_InitTextures ();
 }
 
@@ -486,18 +493,33 @@ void R_Bloom_DownsampleView( void )
 		int		midsample_width = r_screendownsamplingtexture_size * sampleText_tcw;
 		int		midsample_height = r_screendownsamplingtexture_size * sampleText_tch;
 		
+		if (qglGetError())
+			Con_Printf("GL Error whilst rendering bloom\n");
 		//copy the screen and draw resized
 		GL_Bind(r_bloomscreentexture);
+		if (qglGetError())
+			Con_Printf("GL Error whilst rendering bloom\n");
 		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, curView_x, glheight - (curView_y + curView_height), curView_width, curView_height);
+		if (qglGetError())
+			Con_Printf("GL Error whilst rendering bloom\n");
 		R_Bloom_Quad( 0,  glheight-midsample_height, midsample_width, midsample_height, screenText_tcw, screenText_tch  );
+
+		if (qglGetError())
+			Con_Printf("GL Error whilst rendering bloom\n");
 		
 		//now copy into Downsampling (mid-sized) texture
 		GL_Bind(r_bloomdownsamplingtexture);
 		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, midsample_width, midsample_height);
 
+		if (qglGetError())
+			Con_Printf("GL Error whilst rendering bloom\n");
+
 		//now draw again in bloom size
 		qglColor4f( 0.5f, 0.5f, 0.5f, 1.0f );
 		R_Bloom_Quad( 0,  glheight-sample_height, sample_width, sample_height, sampleText_tcw, sampleText_tch );
+
+		if (qglGetError())
+			Con_Printf("GL Error whilst rendering bloom\n");
 		
 		//now blend the big screen texture into the bloom generation space (hoping it adds some blur)
 		qglEnable( GL_BLEND );
@@ -507,6 +529,9 @@ void R_Bloom_DownsampleView( void )
 		R_Bloom_Quad( 0,  glheight-sample_height, sample_width, sample_height, screenText_tcw, screenText_tch );
 		qglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
 		qglDisable( GL_BLEND );
+
+		if (qglGetError())
+			Con_Printf("GL Error whilst rendering bloom\n");
 
 	} else {	//downsample simple
 
@@ -548,6 +573,9 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 
 	qglColor4f( 1, 1, 1, 1 );
 
+	if (qglGetError())
+		Con_Printf("GL Error whilst rendering bloom\n");
+
 	//set up current sizes
 	curView_x = scr_vrect.x*((float)glwidth/vid.width);
 	curView_y = scr_vrect.y*((float)glheight/vid.height);
@@ -564,15 +592,24 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 	}
 	sample_width = BLOOM_SIZE * sampleText_tcw;
 	sample_height = BLOOM_SIZE * sampleText_tch;
+
+	if (qglGetError())
+		Con_Printf("GL Error whilst rendering bloom\n");
 	
 	//copy the screen space we'll use to work into the backup texture
 	GL_Bind(r_bloombackuptexture);
 	qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, r_screenbackuptexture_size * sampleText_tcw, r_screenbackuptexture_size * sampleText_tch);
-
+	if (qglGetError())
+		Con_Printf("GL Error whilst rendering bloom\n");
 	//create the bloom image
 	R_Bloom_DownsampleView();
+	if (qglGetError())
+		Con_Printf("GL Error whilst rendering bloom\n");
 	R_Bloom_GeneratexDiamonds();
 	//R_Bloom_GeneratexCross();
+
+	if (qglGetError())
+		Con_Printf("GL Error whilst rendering bloom\n");
 
 	//restore the screen-backup to the screen
 	qglDisable(GL_BLEND);
@@ -589,5 +626,8 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 
 
 	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	if (qglGetError())
+		Con_Printf("GL Error whilst rendering bloom\n");
 }
 

@@ -2734,7 +2734,7 @@ void Cmd_WriteConfig_f(void)
 
 		filename = va("configs/%s.cfg",filename);
 	}
-	Q_strncpyz(fname, filename, sizeof(fname));
+	COM_StripExtension(filename, fname, sizeof(fname));
 	COM_DefaultExtension(fname, ".cfg", sizeof(fname));
 	FS_CreatePath(filename, FS_CONFIGONLY);
 	f = FS_OpenVFS(filename, "wb", FS_CONFIGONLY);

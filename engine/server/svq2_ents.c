@@ -292,7 +292,10 @@ void SVQ2_EmitPacketEntities (q2client_frame_t *from, q2client_frame_t *to, size
 			// in any bytes being emited if the entity has not changed at all
 			// note that players are always 'newentities', this updates their oldorigin always
 			// and prevents warping
-			MSGQ2_WriteDeltaEntity (oldent, newent, msg, false, newent->number <= MAX_CLIENTS);
+			if (msg->cursize+128 > msg->maxsize)
+				memcpy(newent, oldent, sizeof(*newent));	//too much data, so set the ent up as the same as the old, so it's sent next frame
+			else
+				MSGQ2_WriteDeltaEntity (oldent, newent, msg, false, newent->number <= MAX_CLIENTS);
 			oldindex++;
 			newindex++;
 			continue;
@@ -300,8 +303,18 @@ void SVQ2_EmitPacketEntities (q2client_frame_t *from, q2client_frame_t *to, size
 
 		if (newnum < oldnum)
 		{	// this is a new entity, send it from the baseline
-			MSGQ2_WriteDeltaEntity (&sv_baselines[newnum], newent, msg, true, true);
-			newindex++;
+
+			if (msg->cursize+128 > msg->maxsize)
+			{	//might cause the packet to overflow
+				//so strip out this ent, we can add it next frame if it's still relevent
+				to->num_entities--;
+				memmove(newent, newent+1, sizeof(*newent) * (to->num_entities-newindex));
+			}
+			else
+			{
+				MSGQ2_WriteDeltaEntity (&sv_baselines[newnum], newent, msg, true, true);
+				newindex++;
+			}
 			continue;
 		}
 

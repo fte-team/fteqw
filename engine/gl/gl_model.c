@@ -3013,7 +3013,7 @@ qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 
 	sptype = LittleLong (pin->type);
 
-	if (pin->version == SPRITEHL_VERSION)
+	if (LittleLong(pin->version) == SPRITEHL_VERSION)
 	{
 		pin = (dsprite_t*)((char*)pin + 4);
 		rendertype = LittleLong (pin->type);
@@ -3044,7 +3044,7 @@ qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 		int i;
 		short *numi = (short*)(pin+1);
 		unsigned char *src = (unsigned char *)(numi+1);
-		if (*numi != 256)
+		if (LittleShort(*numi) != 256)
 		{
 			Con_Printf(S_ERROR "%s has wrong number of palette indexes (we only support 256)\n", mod->name);
 			Hunk_FreeToLowMark(hunkstart);

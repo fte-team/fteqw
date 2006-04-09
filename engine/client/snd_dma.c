@@ -1334,7 +1334,7 @@ void S_Update_(soundcardinfo_t *sc)
 	}
 
 // mix ahead of current position
-	endtime = soundtime + _snd_mixahead.value * sc->sn.speed;
+	endtime = soundtime + (int)(_snd_mixahead.value * sc->sn.speed);
 //	samps = shm->samples >> (shm->numchannels-1);
 	samps = sc->sn.samples / sc->sn.numchannels;
 	if (endtime - soundtime > samps)

@@ -407,6 +407,8 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 	else
 		path = "skins/";
 
+	skin->cachedbpp = 32;
+
 //
 // load the pic from disk
 //
@@ -415,6 +417,19 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 	if (raw)
 	{
 		pix = ReadTargaFile(raw, com_filesize, &skin->width, &skin->height, false);
+		if (pix)
+		{
+			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);
+			memcpy(out, pix, skin->width*skin->height*4);
+			BZ_Free(pix);
+			return out;
+		}
+	}
+	sprintf (name, "%s%s.pcx", path, skin->name);
+	raw = COM_LoadTempFile (name);
+	if (raw)
+	{
+		pix = ReadPCXFile(raw, com_filesize, &skin->width, &skin->height);
 		if (pix)
 		{
 			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);

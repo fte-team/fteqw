@@ -478,9 +478,7 @@ static int DSOUND_GetDMAPos(soundcardinfo_t *sc)
 
 	s >>= (sc->sn.samplebits/8) - 1;
 
-	s &= (sc->sn.samples) - 1;
-
-//	s = (s/sc->sn.numchannels % (sc->sn.samples-1));
+	s %= (sc->sn.samples);
 
 	return s;
 }

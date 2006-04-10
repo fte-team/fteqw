@@ -570,15 +570,6 @@ static char *Macro_LastDeath (void)
 		return tp_name_someplace.string;
 }
 
-static char *Macro_Mapname (void)
-{
-	if (vars.deathtrigger_time)
-		return vars.lastdeathloc;
-	else
-		return tp_name_someplace.string;
-}
-
-
 static char *Macro_Last_Location (void)
 {
 	if (vars.deathtrigger_time && realtime - vars.deathtrigger_time <= 5)
@@ -1182,7 +1173,6 @@ static void TP_InitMacros(void)
 	Cmd_AddMacro("pointloc", Macro_PointLocation, true);
 	Cmd_AddMacro("matchname", Macro_Match_Name, false);
 	Cmd_AddMacro("matchtype", Macro_Match_Type, false);
-	Cmd_AddMacro("mapname", Macro_Mapname, false);
 
 	Cmd_AddMacro("ledpoint", Macro_Point_LED, true);
 	Cmd_AddMacro("ledstatus", Macro_MyStatus_LED, true);

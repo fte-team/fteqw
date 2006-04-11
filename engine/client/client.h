@@ -501,7 +501,11 @@ typedef struct
 	float		punchangle[MAX_SPLITS];		// temporar yview kick from weapon firing
 
 	int			intermission;	// don't change view angle, full screen, etc
-	int			completed_time;	// latched ffrom time at intermission start
+	float		completed_time;	// latched ffrom time at intermission start
+
+#define Q2MAX_VISIBLE_WEAPONS 32 //q2 has about 20.
+	int		numq2visibleweapons;	//q2 sends out visible-on-model weapons in a wierd gender-nutral way.
+	char	*q2visibleweapons[Q2MAX_VISIBLE_WEAPONS];//model names beginning with a # are considered 'sexed', and are loaded on a per-client basis. yay. :(
 
 //
 // information that is static for the entire time connected to a server

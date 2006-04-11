@@ -1533,7 +1533,9 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 		if (s1->number == cl.playernum[0]+1)	//woo! this is us!
 		{
-			ent.flags |= Q2RF_EXTERNALMODEL;	// only draw from mirrors
+//			VectorCopy(cl.predicted_origin, ent.origin);
+//			VectorCopy(cl.predicted_origin, ent.oldorigin);
+//			ent.flags |= Q2RF_EXTERNALMODEL;	// only draw from mirrors
 
 			if (effects & Q2EF_FLAG1)
 				V_AddLight (ent.origin, 225, 0.2, 0.05, 0.05);
@@ -1645,7 +1647,18 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		{
 			if (s1->modelindex2 == 255)
 			{	// custom weapon
+				char *modelname = "male";
+				char *skin;
 				ent.model=NULL;
+
+				player = &cl.players[(s1->skinnum&0xff)%MAX_CLIENTS];
+				modelname = Info_ValueForKey(player->userinfo, "skin");
+				skin = strchr(modelname, '/');
+				if (skin) *skin = '\0';
+
+				i = (s1->skinnum >> 8); // 0 is default weapon model
+				if (i >= 0 && i < cl.numq2visibleweapons)
+					ent.model = Mod_ForName(va("players/%s/%s", modelname, cl.q2visibleweapons[i]), false);
 				/*
 				ci = &cl.clientinfo[s1->skinnum & 0xff];
 				i = (s1->skinnum >> 8); // 0 is default weapon model
@@ -1866,6 +1879,9 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 
 	// allow the gun to be completely removed
 	if (!r_drawviewmodel.value)
+		return;
+
+	if (!Cam_DrawViewModel(0))
 		return;
 
 	// don't draw gun if in wide angle view

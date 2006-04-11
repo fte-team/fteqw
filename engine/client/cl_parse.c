@@ -1647,6 +1647,10 @@ void CLQ2_ParseServerData (void)
 //	if ((*str && (!fs_gamedirvar->string || !*fs_gamedirvar->string || strcmp(fs_gamedirvar->string, str))) || (!*str && (fs_gamedirvar->string || *fs_gamedirvar->string)))
 //		Cvar_Set("game", str);
 
+	Cvar_Get("timescale", "1", 0, "Q2Admin hacks");	//Q2Admin will kick players who have a timescale set to something other than 1
+													//FTE doesn't actually have a timescale cvar, so create one to fool q2admin.
+													//I can't really blame q2admin for rejecting engines that don't have this cvar, as it could have been renamed via a hex-edit.
+
 	CL_ClearState ();
 	cl.minpitch = -89;
 	cl.maxpitch = 89;
@@ -1660,6 +1664,9 @@ void CLQ2_ParseServerData (void)
 	cl.splitclients = 1;
 	CL_RegisterSplitCommands();
 	cl.spectator = false;
+
+	cl.numq2visibleweapons = 1;	//give it a default.
+	cl.q2visibleweapons[0] = "weapon.md2";
 
 	// get the full level name
 	str = MSG_ReadString ();
@@ -2268,7 +2275,17 @@ void CLQ2_ParseConfigString (void)
 //		if (cl.refresh_prepped)
 		{
 			Q_strncpyz(cl.model_name[i-Q2CS_MODELS], s, MAX_QPATH);
-			cl.model_precache[i-Q2CS_MODELS] = Mod_ForName (cl.model_name[i-Q2CS_MODELS], false);
+			if (cl.model_name[i-Q2CS_MODELS][0] == '#')
+			{
+				if (cl.numq2visibleweapons < Q2MAX_VISIBLE_WEAPONS)
+				{
+					cl.q2visibleweapons[cl.numq2visibleweapons] = cl.model_name[i-Q2CS_MODELS]+1;
+					cl.numq2visibleweapons++;
+				}
+				cl.model_precache[i-Q2CS_MODELS] = NULL;
+			}
+			else
+				cl.model_precache[i-Q2CS_MODELS] = Mod_ForName (cl.model_name[i-Q2CS_MODELS], false);
 		}
 	}
 	else if (i >= Q2CS_SOUNDS && i < Q2CS_SOUNDS+Q2MAX_MODELS)
@@ -2574,6 +2591,19 @@ void CLQ2_ParseStartSoundPacket(void)
 	if (!cl.sound_precache[sound_num])
 		return;
 
+	if (cl.sound_precache[sound_num]->name[0] == '*' && ent > 0 && ent <= MAX_CLIENTS)
+	{	//a 'sexed' sound
+		char *model = Info_ValueForKey(cl.players[ent-1].userinfo, "skin");
+		char *skin;
+		skin = strchr(model, '/');
+		if (skin)
+			*skin = '\0';
+		if (*model)
+		{
+			S_StartSound (ent, channel, S_PrecacheSound(va("players/%s/%s", model, cl.sound_precache[sound_num]->name+1)), pos, volume, attenuation);
+			return;
+		}
+	}
 	S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume, attenuation);
 }
 #endif

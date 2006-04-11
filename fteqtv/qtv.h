@@ -388,7 +388,7 @@ struct sv_s {
 	qboolean ispaused;
 	unsigned int packetratelimiter;
 	viewer_t *controller;
-		boolean maysend;
+	qboolean maysend;
 
 	FILE *file;
 	unsigned int filelength;

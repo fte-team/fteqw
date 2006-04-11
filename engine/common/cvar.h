@@ -67,12 +67,16 @@ typedef struct cvar_s
 	//free style :)
 	char		*name2;
 
+	void		(*callback) (struct cvar_s *var, char *oldvalue);
+
 	char		*defaultstr;	//default
 	qbyte		restriction;
 } cvar_t;
 
-#define FCVAR(ConsoleName,ConsoleName2,Value,Flags) {ConsoleName, Value, NULL, Flags, 0, 0, 0, ConsoleName2}
+#define FCVARC(ConsoleName,ConsoleName2,Value,Flags,Callback) {ConsoleName, Value, NULL, Flags, 0, 0, 0, ConsoleName2, Callback}
+#define FCVAR(ConsoleName,ConsoleName2,Value,Flags) FCVARC(ConsoleName, ConsoleName2, Value, Flags, NULL)
 #define SCVARF(ConsoleName,Value, Flags) FCVAR(ConsoleName, NULL, Value, Flags)
+#define SCVARC(ConsoleName,Value,Callback) FCVARC(ConsoleName, NULL, Value, 0, Callback)
 #define SCVAR(ConsoleName,Value) FCVAR(ConsoleName, NULL, Value, 0)
 
 typedef struct cvar_group_s

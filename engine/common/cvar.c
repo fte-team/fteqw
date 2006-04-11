@@ -695,7 +695,11 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	if (latch)
 	{
 		if (strcmp(latch, value))
+		{
 			var->modified++;	//only modified if it changed.
+			if (var->callback)
+				var->callback(var, latch);
+		}
 
 		Z_Free (latch);	// free the old value string
 	}

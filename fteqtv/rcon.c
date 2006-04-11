@@ -308,7 +308,7 @@ char *Cluster_Rcon_Dispatch(cluster_t *cluster, char *arg[MAX_ARGS], char *buffe
 		strncpy(cluster->master, arg[1], sizeof(cluster->master)-1);
 		cluster->mastersendtime = cluster->curtime;
 
-		if (NET_StringToAddr(arg[1], &addr))	//send a ping like a qw server does. this is kinda pointless of course.
+		if (NET_StringToAddr(arg[1], &addr, 27000))	//send a ping like a qw server does. this is kinda pointless of course.
 			NET_SendPacket (cluster, cluster->qwdsocket, 1, "k", addr);
 
 		return "Master server set.\n";
@@ -346,7 +346,7 @@ char *Cluster_Rcon_Dispatch(cluster_t *cluster, char *arg[MAX_ARGS], char *buffe
 		memmove(arg[1]+4, arg[1], ARG_LEN-5);
 		strncpy(arg[1], "tcp:", 4);
 
-		if (!QTV_NewServerConnection(cluster, arg[1], false, !strcmp(arg[0], "connect")))
+		if (!QTV_NewServerConnection(cluster, arg[1], false, !strcmp(arg[0], "connect"), false))
 			return "Failed to connect to server, connection aborted\n";
 		return "Connection registered\n";
 	}
@@ -358,7 +358,7 @@ char *Cluster_Rcon_Dispatch(cluster_t *cluster, char *arg[MAX_ARGS], char *buffe
 		memmove(arg[1]+4, arg[1], ARG_LEN-5);
 		strncpy(arg[1], "udp:", 4);
 
-		if (!QTV_NewServerConnection(cluster, arg[1], false, false))
+		if (!QTV_NewServerConnection(cluster, arg[1], false, false, false))
 			return "Failed to connect to server, connection aborted\n";
 		return "Connection registered\n";
 	}
@@ -374,7 +374,7 @@ char *Cluster_Rcon_Dispatch(cluster_t *cluster, char *arg[MAX_ARGS], char *buffe
 		memmove(arg[1]+5, arg[1], ARG_LEN-6);
 		strncpy(arg[1], "file:", 5);
 
-		if (!QTV_NewServerConnection(cluster, arg[1], false, false))
+		if (!QTV_NewServerConnection(cluster, arg[1], false, false, false))
 			return "Failed to connect to server, connection aborted\n";
 		return "Connection registered\n";
 	}
@@ -459,7 +459,7 @@ char *Cluster_Rcon_Dispatch(cluster_t *cluster, char *arg[MAX_ARGS], char *buffe
 	else if (!strcmp(arg[0], "ping"))
 	{
 		netadr_t addr;
-		if (NET_StringToAddr(arg[1], &addr))
+		if (NET_StringToAddr(arg[1], &addr, 27500))
 		{
 			NET_SendPacket (cluster, cluster->qwdsocket, 1, "k", addr);
 			return "pinged\n";

@@ -90,6 +90,10 @@ SOURCE=.\bsp.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\crc.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\mdfour.c
 # End Source File
 # Begin Source File

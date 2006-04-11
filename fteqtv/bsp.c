@@ -231,11 +231,21 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 
 
 	header = (dheader_t*)data;
-	if (data[0] != 29)
+	if (size < sizeof(dheader_t) || data[0] != 29)
 	{
 		free(data);
 		Sys_Printf(cluster, "BSP not version 29\n", bspname, gamedir);
 		return NULL;
+	}
+
+	for (i = 0; i < HEADER_LUMPS; i++)
+	{
+		if (LittleLong(header->lumps[i].fileofs) + LittleLong(header->lumps[i].filelen) > size)
+		{
+			free(data);
+			Sys_Printf(cluster, "BSP appears truncated\n", bspname, gamedir);
+			return NULL;
+		}
 	}
 
 	planes = (dplane_t*)(data+LittleLong(header->lumps[LUMP_PLANES].fileofs));

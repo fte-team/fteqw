@@ -31,7 +31,7 @@ void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, net
 	ret = sendto(sock, data, length, 0, (struct sockaddr *)adr, sizeof(struct sockaddr_in));
 	if (ret < 0)
 	{
-		Sys_Printf(cluster, "udp send error\n");
+		Sys_Printf(cluster, "udp send error %i\n", ret);
 	}
 }
 

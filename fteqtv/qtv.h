@@ -46,6 +46,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#pragma comment (lib, "wsock32.lib")
 	#define qerrno WSAGetLastError()
 	#define EWOULDBLOCK WSAEWOULDBLOCK
+	#define EINPROGRESS WSAEINPROGRESS
 
 	#ifdef _MSC_VER
 		//okay, so warnings are here to help... they're ugly though.
@@ -205,6 +206,7 @@ typedef struct {
 	unsigned char modelindex;
 	unsigned char skinnum;
 	short origin[3];
+	short velocity[3];
 	unsigned short angles[3];
 	unsigned char effects;
 	unsigned char weaponframe;
@@ -234,6 +236,15 @@ typedef struct {
 	int numents;
 } packet_entities_t;
 
+typedef struct {
+	unsigned char msec;
+	unsigned short angles[3];
+	short forwardmove, sidemove, upmove;
+	unsigned char buttons;
+	unsigned char impulse;
+} usercmd_t;
+extern const usercmd_t nullcmd;
+
 #define MAX_BACK_BUFFERS	16
 typedef struct sv_s sv_t;
 typedef struct cluster_s cluster_t;
@@ -251,13 +262,18 @@ typedef struct viewer_s {
 	int backbuffered;
 
 	unsigned int currentstats[MAX_STATS];
-	unsigned int trackplayer;
+	int trackplayer;
+	int thisplayer;
 
 	packet_entities_t frame[ENTITY_FRAMES];
 
 	struct viewer_s *next;
 
 	char name[32];
+	char userinfo[256];
+
+	int lost;	//packets
+	usercmd_t ucmds[3];
 
 
 	int settime;	//the time that we last told the client.
@@ -307,12 +323,9 @@ typedef struct {
 } entity_t;
 
 typedef struct {
-	unsigned char msec;
-	unsigned short angles[3];
-	short forwardmove, sidemove, upmove;
-	unsigned char buttons;
-	unsigned char impulse;
-} usercmd_t;
+	unsigned char number;
+	char bits[6];
+} nail_t;
 
 struct sv_s {
 	netadr_t serveraddress;
@@ -355,17 +368,27 @@ struct sv_s {
 	int modelindex_spike;	// qw is wierd.
 	int modelindex_player;	// qw is wierd.
 
+	FILE *downloadfile;
+	char downloadname[256];
+
+	char status[64];
+
+	nail_t nails[32];
+	int nailcount;
+
 	qboolean usequkeworldprotocols;
 	int challenge;
 	unsigned short qport;
 	int isconnected;
 	int clservercount;
 	unsigned int nextsendpings;
-	unsigned int trackplayer;
+	int trackplayer;
 	int thisplayer;
 	unsigned int timeout;
 	qboolean ispaused;
 	unsigned int packetratelimiter;
+	viewer_t *controller;
+		boolean maysend;
 
 	FILE *file;
 	unsigned int filelength;
@@ -388,10 +411,9 @@ struct sv_s {
 
 
 
+	qboolean drop;
 	qboolean disconnectwhennooneiswatching;
 	unsigned int numviewers;
-
-
 
 	cluster_t *cluster;
 	sv_t *next;	//next proxy->server connection
@@ -484,7 +506,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 //#define	svc_clientdata		15	// <shortbits + data>
 //#define	svc_stopsound		16	// <see code>
 //#define	svc_updatecolors	17	// [qbyte] [qbyte] [qbyte]
-//#define	svc_particle		18	// [vec3] <variable>
+#define	svc_particle		18	// [vec3] <variable>
 #define	svc_damage			19
 
 #define	svc_spawnstatic		20
@@ -531,7 +553,7 @@ void ReadString(netmsg_t *b, char *string, int maxlen);
 #define	svc_soundlist		46		// [strings]
 #define	svc_packetentities	47		// [...]
 #define	svc_deltapacketentities	48		// [...]
-//#define svc_maxspeed		49		// maxspeed change, for prediction
+#define svc_maxspeed		49		// maxspeed change, for prediction
 #define svc_entgravity		50		// gravity change, for prediction
 #define svc_setinfo			51		// setinfo on a client
 #define svc_serverinfo		52		// serverinfo
@@ -623,7 +645,7 @@ unsigned int Sys_Milliseconds(void);
 void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
 qboolean QTV_Connect(sv_t *qtv, char *serverurl);
 void QTV_Shutdown(sv_t *qtv);
-qboolean	NET_StringToAddr (char *s, netadr_t *sadr);
+qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport);
 
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable);
 void QW_PrintfToViewer(viewer_t *v, char *format, ...);
@@ -637,7 +659,7 @@ qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);
 qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg);
 void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const unsigned char *data);
 int SendList(sv_t *qtv, int first, const filename_t *list, int svc, netmsg_t *msg);
-int Prespawn(sv_t *qtv, int curmsgsize, netmsg_t *msg, int bufnum);
+int Prespawn(sv_t *qtv, int curmsgsize, netmsg_t *msg, int bufnum, int thisplayer);
 
 bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname);
 void BSP_Free(bsp_t *bsp);
@@ -659,7 +681,7 @@ int vsnprintf(char *buffer, int buffersize, char *format, va_list argptr);
 #endif
 
 qboolean Net_FileProxy(sv_t *qtv, char *filename);
-sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force, qboolean autoclose);
+sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force, qboolean autoclose, qboolean noduplicates);
 SOCKET Net_MVDListen(int port);
 qboolean Net_StopFileProxy(sv_t *qtv);
 

@@ -30,8 +30,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define UDPTIMEOUT_LENGTH (1000*20)
 #define UDPPACKETINTERVAL (1000/72)
 
+void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox);
 
-qboolean	NET_StringToAddr (char *s, netadr_t *sadr)
+
+qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport)
 {
 	struct hostent	*h;
 	char	*colon;
@@ -129,7 +131,7 @@ dblbreak:
 	{
 		((struct sockaddr_in *)sadr)->sin_family = AF_INET;
 
-		((struct sockaddr_in *)sadr)->sin_port = 0;
+		((struct sockaddr_in *)sadr)->sin_port = htons(defaultport);
 
 		strcpy (copy, s);
 		// strip off a trailing :port if present
@@ -215,7 +217,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 	netadr_t from;
 	unsigned long nonblocking = true;
 
-	if (!NET_StringToAddr(ip+4, &qtv->serveraddress))
+	if (!NET_StringToAddr(ip+4, &qtv->serveraddress, 27500))
 	{
 		Sys_Printf(qtv->cluster, "Unable to resolve %s\n", ip);
 		return false;
@@ -242,11 +244,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 
 	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress, sizeof(qtv->serveraddress)) == INVALID_SOCKET)
 	{
-#ifdef _WIN32
-		if (qerrno != WSAEINPROGRESS)
-#else
 		if (qerrno != EINPROGRESS)
-#endif
 		{
 			closesocket(qtv->sourcesock);
 			qtv->sourcesock = INVALID_SOCKET;
@@ -260,7 +258,7 @@ qboolean Net_ConnectToUDPServer(sv_t *qtv, char *ip)
 	netadr_t from;
 	unsigned long nonblocking = true;
 
-	if (!NET_StringToAddr(ip+4, &qtv->serveraddress))
+	if (!NET_StringToAddr(ip+4, &qtv->serveraddress, 27500))
 	{
 		Sys_Printf(qtv->cluster, "Unable to resolve %s\n", ip);
 		return false;
@@ -349,7 +347,6 @@ void Net_FindProxies(sv_t *qtv)
 		return;
 	}
 	memset(prox, 0, sizeof(*prox));
-	prox->flushing = true;	//allow the buffer overflow resumption code to send the connection info.
 	prox->sock = sock;
 	prox->file = NULL;
 
@@ -357,6 +354,8 @@ void Net_FindProxies(sv_t *qtv)
 	qtv->proxies = prox;
 
 	qtv->numproxies++;
+
+	Net_SendConnectionMVD(qtv, prox);
 }
 
 qboolean Net_FileProxy(sv_t *qtv, char *filename)
@@ -374,7 +373,7 @@ qboolean Net_FileProxy(sv_t *qtv, char *filename)
 	if (!prox)
 		return false;
 	memset(prox, 0, sizeof(*prox));
-	prox->flushing = true;	//allow the buffer overflow resumption code to send the connection info.
+
 	prox->sock = INVALID_SOCKET;
 	prox->file = f;
 
@@ -382,6 +381,8 @@ qboolean Net_FileProxy(sv_t *qtv, char *filename)
 	qtv->proxies = prox;
 
 	qtv->numproxies++;
+
+	Net_SendConnectionMVD(qtv, prox);
 
 	return true;
 }
@@ -435,7 +436,9 @@ void Net_TryFlushProxyBuffer(cluster_t *cluster, oproxy_t *prox)
 	char *buffer;
 	int length;
 	int bufpos;
-	fd_set wfds;
+
+	if (prox->drop)
+		return;
 
 	while (prox->bufferpos >= MAX_PROXY_BUFFER)
 	{	//so we never get any issues with wrapping..
@@ -602,7 +605,7 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 
 	for(prespawn = 0;prespawn>=0;)
 	{
-		prespawn = Prespawn(qtv, 0, &msg, prespawn);
+		prespawn = Prespawn(qtv, 0, &msg, prespawn, MAX_CLIENTS-1);
 
 		Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 		msg.cursize = 0;
@@ -923,7 +926,8 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 	else
 	{
 		qtv->parsetime = Sys_Milliseconds() + BUFFERTIME*1000;
-		Sys_Printf(qtv->cluster, "Buffering for %i seconds\n", BUFFERTIME);
+		if (!qtv->usequkeworldprotocols)
+			Sys_Printf(qtv->cluster, "Buffering for %i seconds\n", BUFFERTIME);
 	}
 	return true;
 }
@@ -1296,6 +1300,123 @@ void SendClientCommand(sv_t *qtv, char *fmt, ...)
 	WriteString(&qtv->netchan.message, buf);
 }
 
+
+
+
+
+
+void ChooseFavoriteTrack(sv_t *tv)
+{
+	int frags, best, pnum;
+	char buffer[64];
+
+	frags = -10000;
+	best = -1;
+	if (tv->controller)
+		best = tv->trackplayer;
+	else
+	{
+		for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
+		{
+			if (*tv->players[pnum].userinfo && !atoi(Info_ValueForKey(tv->players[pnum].userinfo, "*spectator", buffer, sizeof(buffer))))
+			{
+				if (tv->thisplayer == pnum)
+					continue;
+				if (frags < tv->players[pnum].frags)
+				{
+					best = pnum;
+					frags = tv->players[pnum].frags;
+				}
+			}
+		}
+	}
+	if (best != tv->trackplayer)
+	{
+		SendClientCommand (tv, "ptrack %i\n", best);
+		tv->trackplayer = best;
+	}
+}
+
+
+
+
+
+
+static const unsigned char chktbl[1024] = {
+0x78,0xd2,0x94,0xe3,0x41,0xec,0xd6,0xd5,0xcb,0xfc,0xdb,0x8a,0x4b,0xcc,0x85,0x01,
+0x23,0xd2,0xe5,0xf2,0x29,0xa7,0x45,0x94,0x4a,0x62,0xe3,0xa5,0x6f,0x3f,0xe1,0x7a,
+0x64,0xed,0x5c,0x99,0x29,0x87,0xa8,0x78,0x59,0x0d,0xaa,0x0f,0x25,0x0a,0x5c,0x58,
+0xfb,0x00,0xa7,0xa8,0x8a,0x1d,0x86,0x80,0xc5,0x1f,0xd2,0x28,0x69,0x71,0x58,0xc3,
+0x51,0x90,0xe1,0xf8,0x6a,0xf3,0x8f,0xb0,0x68,0xdf,0x95,0x40,0x5c,0xe4,0x24,0x6b,
+0x29,0x19,0x71,0x3f,0x42,0x63,0x6c,0x48,0xe7,0xad,0xa8,0x4b,0x91,0x8f,0x42,0x36,
+0x34,0xe7,0x32,0x55,0x59,0x2d,0x36,0x38,0x38,0x59,0x9b,0x08,0x16,0x4d,0x8d,0xf8,
+0x0a,0xa4,0x52,0x01,0xbb,0x52,0xa9,0xfd,0x40,0x18,0x97,0x37,0xff,0xc9,0x82,0x27,
+0xb2,0x64,0x60,0xce,0x00,0xd9,0x04,0xf0,0x9e,0x99,0xbd,0xce,0x8f,0x90,0x4a,0xdd,
+0xe1,0xec,0x19,0x14,0xb1,0xfb,0xca,0x1e,0x98,0x0f,0xd4,0xcb,0x80,0xd6,0x05,0x63,
+0xfd,0xa0,0x74,0xa6,0x86,0xf6,0x19,0x98,0x76,0x27,0x68,0xf7,0xe9,0x09,0x9a,0xf2,
+0x2e,0x42,0xe1,0xbe,0x64,0x48,0x2a,0x74,0x30,0xbb,0x07,0xcc,0x1f,0xd4,0x91,0x9d,
+0xac,0x55,0x53,0x25,0xb9,0x64,0xf7,0x58,0x4c,0x34,0x16,0xbc,0xf6,0x12,0x2b,0x65,
+0x68,0x25,0x2e,0x29,0x1f,0xbb,0xb9,0xee,0x6d,0x0c,0x8e,0xbb,0xd2,0x5f,0x1d,0x8f,
+0xc1,0x39,0xf9,0x8d,0xc0,0x39,0x75,0xcf,0x25,0x17,0xbe,0x96,0xaf,0x98,0x9f,0x5f,
+0x65,0x15,0xc4,0x62,0xf8,0x55,0xfc,0xab,0x54,0xcf,0xdc,0x14,0x06,0xc8,0xfc,0x42,
+0xd3,0xf0,0xad,0x10,0x08,0xcd,0xd4,0x11,0xbb,0xca,0x67,0xc6,0x48,0x5f,0x9d,0x59,
+0xe3,0xe8,0x53,0x67,0x27,0x2d,0x34,0x9e,0x9e,0x24,0x29,0xdb,0x69,0x99,0x86,0xf9,
+0x20,0xb5,0xbb,0x5b,0xb0,0xf9,0xc3,0x67,0xad,0x1c,0x9c,0xf7,0xcc,0xef,0xce,0x69,
+0xe0,0x26,0x8f,0x79,0xbd,0xca,0x10,0x17,0xda,0xa9,0x88,0x57,0x9b,0x15,0x24,0xba,
+0x84,0xd0,0xeb,0x4d,0x14,0xf5,0xfc,0xe6,0x51,0x6c,0x6f,0x64,0x6b,0x73,0xec,0x85,
+0xf1,0x6f,0xe1,0x67,0x25,0x10,0x77,0x32,0x9e,0x85,0x6e,0x69,0xb1,0x83,0x00,0xe4,
+0x13,0xa4,0x45,0x34,0x3b,0x40,0xff,0x41,0x82,0x89,0x79,0x57,0xfd,0xd2,0x8e,0xe8,
+0xfc,0x1d,0x19,0x21,0x12,0x00,0xd7,0x66,0xe5,0xc7,0x10,0x1d,0xcb,0x75,0xe8,0xfa,
+0xb6,0xee,0x7b,0x2f,0x1a,0x25,0x24,0xb9,0x9f,0x1d,0x78,0xfb,0x84,0xd0,0x17,0x05,
+0x71,0xb3,0xc8,0x18,0xff,0x62,0xee,0xed,0x53,0xab,0x78,0xd3,0x65,0x2d,0xbb,0xc7,
+0xc1,0xe7,0x70,0xa2,0x43,0x2c,0x7c,0xc7,0x16,0x04,0xd2,0x45,0xd5,0x6b,0x6c,0x7a,
+0x5e,0xa1,0x50,0x2e,0x31,0x5b,0xcc,0xe8,0x65,0x8b,0x16,0x85,0xbf,0x82,0x83,0xfb,
+0xde,0x9f,0x36,0x48,0x32,0x79,0xd6,0x9b,0xfb,0x52,0x45,0xbf,0x43,0xf7,0x0b,0x0b,
+0x19,0x19,0x31,0xc3,0x85,0xec,0x1d,0x8c,0x20,0xf0,0x3a,0xfa,0x80,0x4d,0x2c,0x7d,
+0xac,0x60,0x09,0xc0,0x40,0xee,0xb9,0xeb,0x13,0x5b,0xe8,0x2b,0xb1,0x20,0xf0,0xce,
+0x4c,0xbd,0xc6,0x04,0x86,0x70,0xc6,0x33,0xc3,0x15,0x0f,0x65,0x19,0xfd,0xc2,0xd3
+};
+
+
+unsigned char	COM_BlockSequenceCRCByte (unsigned char *base, int length, int sequence)
+{
+	unsigned short crc;
+	const unsigned char	*p;
+	unsigned char chkb[60 + 4];
+
+	p = chktbl + (sequence % (sizeof(chktbl) - 4));
+
+	if (length > 60)
+		length = 60;
+	memcpy (chkb, base, length);
+
+	chkb[length] = (sequence & 0xff) ^ p[0];
+	chkb[length+1] = p[1];
+	chkb[length+2] = ((sequence>>8) & 0xff) ^ p[2];
+	chkb[length+3] = p[3];
+
+	length += 4;
+
+	crc = QCRC_Block(chkb, length);
+
+	crc &= 0xff;
+
+	return crc;
+}
+void SetMoveCRC(sv_t *qtv, netmsg_t *msg)
+{
+	char *outbyte;
+	outbyte = msg->data + msg->startpos+1;
+
+	*outbyte = COM_BlockSequenceCRCByte(
+				outbyte+1, msg->cursize - (msg->startpos+2),
+				qtv->netchan.outgoing_sequence);
+}
+
+
+
+
+
 void QTV_ParseQWStream(sv_t *qtv)
 {
 	char buffer[1500];
@@ -1318,18 +1439,25 @@ void QTV_ParseQWStream(sv_t *qtv)
 		{
 			if (buffer[4] == 'c')
 			{	//got a challenge
+				strcpy(qtv->status, "Attemping connection\n");
 				qtv->challenge = atoi(buffer+5);
-				sprintf(buffer, "connect %i %i %i \"%s\"", 28, qtv->qport, qtv->challenge, "\\*ver\\fteqtv\\name\\fteqtv\\spectator\\1\\rate\\10000");
+				if (qtv->controller)
+					sprintf(buffer, "connect %i %i %i \"%s\"", 28, qtv->qport, qtv->challenge, qtv->controller->userinfo);
+				else
+					sprintf(buffer, "connect %i %i %i \"%s\\name\\%s\"", 28, qtv->qport, qtv->challenge, "\\*ver\\fteqtv\\spectator\\1\\rate\\10000", qtv->cluster->hostname);
 				Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, strlen(buffer), buffer);
 				continue;
 			}
 			if (buffer[4] == 'n')
 			{
+				strncpy(qtv->status, buffer+5, sizeof(qtv->status));
+				qtv->status[sizeof(qtv->status)-1] = 0;
 				Sys_Printf(qtv->cluster, "%s: %s", qtv->server, buffer+5);
 				continue;
 			}
 			if (buffer[4] == 'j')
 			{
+				strcpy(qtv->status, "Waiting for gamestate\n");
 				Netchan_Setup(qtv->sourcesock, &qtv->netchan, qtv->serveraddress, qtv->qport, true);
 
 				qtv->trackplayer = -1;
@@ -1358,9 +1486,15 @@ void QTV_ParseQWStream(sv_t *qtv)
 
 		if (qtv->simtime < qtv->oldpackettime)
 			qtv->simtime = qtv->oldpackettime;	//too old
+
+		if (qtv->controller)
+		{
+			qtv->controller->maysend = true;
+			qtv->controller->netchan.outgoing_sequence = qtv->netchan.incoming_sequence;
+			qtv->controller->netchan.incoming_sequence = qtv->netchan.incoming_acknowledged;
+		}
 	}
 }
-
 
 void QTV_Run(sv_t *qtv)
 {
@@ -1370,7 +1504,7 @@ void QTV_Run(sv_t *qtv)
 	int oldcurtime;
 	int packettime;
 
-	if (qtv->disconnectwhennooneiswatching && qtv->numviewers == 0)
+	if (qtv->drop || (qtv->disconnectwhennooneiswatching && qtv->numviewers == 0))
 	{
 		QTV_Shutdown(qtv);
 		return;
@@ -1410,6 +1544,7 @@ void QTV_Run(sv_t *qtv)
 
 		if (!qtv->isconnected && (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - UDPRECONNECT_TIME*2))
 		{
+			strcpy(qtv->status, "Attemping challenge\n");
 			Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, 13, "getchallenge\n");
 			qtv->nextconnectattempt = qtv->curtime + UDPRECONNECT_TIME;
 		}
@@ -1417,7 +1552,7 @@ void QTV_Run(sv_t *qtv)
 
 		if (qtv->isconnected)
 		{
-			char buffer[64];
+			char buffer[128];
 			netmsg_t msg;
 			memset(&msg, 0, sizeof(msg));
 			msg.data = buffer;
@@ -1430,8 +1565,23 @@ void QTV_Run(sv_t *qtv)
 				return;
 			}
 
-			if (qtv->curtime < qtv->packetratelimiter - UDPPACKETINTERVAL*2)
-				qtv->packetratelimiter = qtv->curtime;
+			if (qtv->controller)
+			{
+				qtv->netchan.outgoing_sequence = qtv->controller->netchan.incoming_sequence;
+				qtv->netchan.incoming_sequence = qtv->controller->netchan.incoming_acknowledged;
+				if (qtv->maysend)
+				{
+					qtv->maysend = false;
+					qtv->curtime = qtv->packetratelimiter;
+				}
+				else
+					qtv->curtime = qtv->packetratelimiter - 1;
+			}
+			else
+			{
+				if (qtv->curtime < qtv->packetratelimiter - UDPPACKETINTERVAL*2)
+					qtv->packetratelimiter = qtv->curtime;
+			}
 			if (qtv->curtime >= qtv->packetratelimiter)
 			{
 				qtv->packetratelimiter += UDPPACKETINTERVAL;
@@ -1440,11 +1590,38 @@ void QTV_Run(sv_t *qtv)
 				{
 					qtv->nextsendpings = qtv->curtime + PINGSINTERVAL_TIME;
 					SendClientCommand(qtv, "pings\n");
+
 				}
-				WriteByte(&msg, clc_tmove);
-				WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[0]);
-				WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[1]);
-				WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[2]);
+				ChooseFavoriteTrack(qtv);
+
+				if (qtv->trackplayer >= 0)
+				{
+					WriteByte(&msg, clc_tmove);
+					WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[0]);
+					WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[1]);
+					WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[2]);
+				}
+				else if (qtv->controller)
+				{
+					WriteByte(&msg, clc_tmove);
+					WriteShort(&msg, qtv->controller->origin[0]);
+					WriteShort(&msg, qtv->controller->origin[1]);
+					WriteShort(&msg, qtv->controller->origin[2]);
+
+/*					qtv->controller->ucmds[0].angles[1] = qtv->curtime*120;
+					qtv->controller->ucmds[1].angles[1] = qtv->curtime*120;
+					qtv->controller->ucmds[2].angles[1] = qtv->curtime*120;
+*/
+					msg.startpos = msg.cursize;
+					WriteByte(&msg, clc_move);
+					WriteByte(&msg, 0);
+					WriteByte(&msg, 0);
+					WriteDeltaUsercmd(&msg, &nullcmd, &qtv->controller->ucmds[0]);
+					WriteDeltaUsercmd(&msg, &qtv->controller->ucmds[0], &qtv->controller->ucmds[1]);
+					WriteDeltaUsercmd(&msg, &qtv->controller->ucmds[1], &qtv->controller->ucmds[2]);
+
+					SetMoveCRC(qtv, &msg);
+				}
 
 				Netchan_Transmit(qtv->cluster, &qtv->netchan, msg.cursize, msg.data);
 			}
@@ -1719,9 +1896,20 @@ void Cluster_Run(cluster_t *cluster)
 		QW_UpdateUDPStuff(cluster);
 }
 
-sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force, qboolean autoclose)
+sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force, qboolean autoclose, qboolean noduplicates)
 {
-	sv_t *qtv = malloc(sizeof(sv_t));
+	sv_t *qtv;
+
+	if (noduplicates)
+	{
+		for (qtv = cluster->servers; qtv; qtv = qtv->next)
+		{
+			if (!strcmp(qtv->server, server))
+				return qtv;
+		}
+	}
+
+	qtv = malloc(sizeof(sv_t));
 	if (!qtv)
 		return NULL;
 
@@ -1787,7 +1975,9 @@ int main(int argc, char **argv)
 	cluster_t cluster;
 
 #ifndef _WIN32
+#ifdef SIGPIPE
 	signal(SIGPIPE, SIG_IGN);
+#endif
 #endif
 
 #ifdef _WIN32

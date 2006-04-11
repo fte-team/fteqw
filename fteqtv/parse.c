@@ -218,6 +218,8 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 
 	tv->clservercount = ReadLong(m);	//we don't care about server's servercount, it's all reliable data anyway.
 
+	tv->trackplayer = -1;
+
 	ReadString(m, tv->gamedir, sizeof(tv->gamedir));
 
 	if (tv->usequkeworldprotocols)
@@ -265,8 +267,10 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 
 	if (tv->usequkeworldprotocols)
 	{
+		tv->netchan.message.cursize = 0;	//mvdsv sucks
 		SendClientCommand(tv, "soundlist %i 0\n", tv->clservercount);
 	}
+	strcpy(tv->status, "Receiving soundlist\n");
 }
 
 static void ParseCDTrack(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -284,12 +288,14 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	qboolean fromproxy;
 
 	ReadString(m, text, sizeof(text));
-	Sys_Printf(tv->cluster, "stuffcmd: %s", text);
+//	Sys_Printf(tv->cluster, "stuffcmd: %s", text);
 
 	if (!strcmp(text, "skins\n"))
 	{
 		const char newcmd[10] = {svc_stufftext, 'c', 'm', 'd', ' ', 'n','e','w','\n','\0'};
 		tv->parsingconnectiondata = false;
+
+		strcpy(tv->status, "On server\n");
 
 		for (v = tv->cluster->viewers; v; v = v->next)
 		{
@@ -353,8 +359,39 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			SendClientCommand(tv, "new\n");
 		return;
 	}
+	else if (!strncmp(text, "packet ", 7))
+	{
+		if(tv->usequkeworldprotocols)
+		{//eeeevil hack
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
+#define ARG_LEN 256
+			char *ptr;
+			char arg[3][ARG_LEN];
+			netadr_t adr;
+			ptr = text;
+			ptr = COM_ParseToken(ptr, arg[0], ARG_LEN, "");
+			ptr = COM_ParseToken(ptr, arg[1], ARG_LEN, "");
+			ptr = COM_ParseToken(ptr, arg[2], ARG_LEN, "");
+			NET_StringToAddr(arg[1], &adr, 27500);
+			Netchan_OutOfBand(tv->cluster, tv->sourcesock, adr, strlen(arg[2]), arg[2]);
+
+			//this is an evil hack
+			SendClientCommand(tv, "new\n");
+			return;
+		}
+		tv->drop = true;	//this shouldn't ever happen
+		return;
+	}
+	else if (tv->usequkeworldprotocols && !strncmp(text, "setinfo ", 8))
+	{
+		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
+		SendClientCommand(tv, text);
+	}
+	else
+	{
+		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
+		return;
+	}
 }
 
 static void ParseSetInfo(sv_t *tv, netmsg_t *m)
@@ -577,7 +614,9 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 		for (i=0 ; i<3 ; i++)
 		{
 			if (flags & (PF_VELOCITY1<<i) )
-				ReadShort(m);
+				tv->players[num].current.velocity[i] = ReadShort(m);
+			else
+				tv->players[num].current.velocity[i] = 0;
 		}
 
 		if (flags & PF_MODEL)
@@ -600,7 +639,7 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 		else
 			tv->players[num].current.weaponframe = 0;
 
-		tv->players[num].active = (num != tv->thisplayer);
+		tv->players[num].active = true;
 	}
 	else
 	{
@@ -659,6 +698,8 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m)
 	qboolean forcerelink;
 
 	viewer_t *v;
+
+	tv->nailcount = 0;
 
 	tv->physicstime = tv->parsetime;
 
@@ -750,12 +791,10 @@ static void ParseUpdatePing(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 static void ParseUpdateFrags(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
-	int best;
 	int pnum;
 	int frags;
-	char buffer[64];
 	pnum = ReadByte(m);
-	frags = ReadShort(m);
+	frags = (signed short)ReadShort(m);
 
 	if (pnum < MAX_CLIENTS)
 		tv->players[pnum].frags = frags;
@@ -763,26 +802,6 @@ static void ParseUpdateFrags(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		Sys_Printf(tv->cluster, "svc_updatefrags: invalid player number\n");
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask);
-
-	if (!tv->usequkeworldprotocols)
-		return;
-
-	frags = -10000;
-	best = -1;
-	for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
-	{
-		if (*tv->players[pnum].userinfo && !atoi(Info_ValueForKey(tv->players[pnum].userinfo, "*spectator", buffer, sizeof(buffer))))
-		if (frags < tv->players[pnum].frags)
-		{
-			best = pnum;
-			frags = tv->players[pnum].frags;
-		}
-	}
-	if (best != tv->trackplayer)
-	{
-		SendClientCommand (tv, "ptrack %i\n", best);
-		tv->trackplayer = best;
-	}
 }
 
 static void ParseUpdateStat(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -1045,20 +1064,79 @@ void ParseLightstyle(sv_t *tv, netmsg_t *m)
 void ParseNails(sv_t *tv, netmsg_t *m, qboolean nails2)
 {
 	int count;
-	int nailnum;
 	int i;
-	unsigned char bits[6];
 	count = (unsigned char)ReadByte(m);
+	while(count > sizeof(tv->nails) / sizeof(tv->nails[0]))
+	{
+		count--;
+		if (nails2)
+			ReadByte(m);
+		for (i = 0; i < 6; i++)
+			ReadByte(m);
+	}
+
+	tv->nailcount = count;
 	while(count-- > 0)
 	{
 		if (nails2)
-			nailnum = ReadByte(m);
+			tv->nails[count].number = ReadByte(m);
 		else
-			nailnum = count;
+			tv->nails[count].number = count;
 		for (i = 0; i < 6; i++)
-			bits[i] = ReadByte(m);
+			tv->nails[count].bits[i] = ReadByte(m);
 	}
-//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
+}
+
+void ParseDownload(sv_t *tv, netmsg_t *m)
+{
+	int size, b;
+	unsigned int percent;
+	char buffer[2048];
+
+	size = ReadShort(m);
+	percent = ReadByte(m);
+
+	if (size < 0)
+	{
+		Sys_Printf(tv->cluster, "Downloading failed\n");
+		if (tv->file)
+			fclose(tv->file);
+		tv->file = NULL;
+		tv->drop = true;
+		return;
+	}
+
+	for (b = 0; b < size; b++)
+		buffer[b] = ReadByte(m);
+
+	if (!tv->file)
+	{
+		Sys_Printf(tv->cluster, "Not downloading anything\n");
+		tv->drop = true;
+		return;
+	}
+	fwrite(buffer, 1, size, tv->file);
+
+	if (percent == 100)
+	{
+		fclose(tv->file);
+		tv->file = NULL;
+		Sys_Printf(tv->cluster, "Download complete\n");
+
+		tv->bsp = BSP_LoadModel(tv->cluster, tv->gamedir, tv->modellist[1].name);
+		if (!tv->bsp)
+			tv->drop = true;
+		else
+		{
+			SendClientCommand(tv, "prespawn %i 0 %i\n", tv->clservercount, LittleLong(BSP_Checksum(tv->bsp)));
+			strcpy(tv->status, "Prespawning\n");
+		}
+	}
+	else
+	{
+		snprintf(tv->status, sizeof(tv->status), "Downloading map, %i%%\n", percent);
+		SendClientCommand(tv, "nextdl\n");
+	}
 }
 
 void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
@@ -1118,10 +1196,14 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			break;
 
 		case svc_setangle:
+			if (!tv->usequkeworldprotocols)
+				ReadByte(&buf);
 			ReadByte(&buf);
 			ReadByte(&buf);
 			ReadByte(&buf);
-			ReadByte(&buf);
+
+			if (tv->usequkeworldprotocols && tv->controller)
+				SendBufferToViewer(tv->controller, buf.data+buf.startpos, buf.readpos - buf.startpos, true);
 			break;
 
 		case svc_serverdata:
@@ -1139,7 +1221,18 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 //#define	svc_clientdata		15	// <shortbits + data>
 //#define	svc_stopsound		16	// <see code>
 //#define	svc_updatecolors	17	// [qbyte] [qbyte] [qbyte]
-//#define	svc_particle		18	// [vec3] <variable>
+
+		case svc_particle:
+			ReadShort(&buf);
+			ReadShort(&buf);
+			ReadShort(&buf);
+			ReadByte(&buf);
+			ReadByte(&buf);
+			ReadByte(&buf);
+			ReadByte(&buf);
+			ReadByte(&buf);
+			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1);
+			break;
 		case svc_damage:
 			ParseDamage(tv, &buf, to, mask);
 			break;
@@ -1214,7 +1307,9 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ParseUpdateUserinfo(tv, &buf, to, mask);
 			break;
 
-//#define	svc_download		41		// [short] size [size bytes]
+		case svc_download:	// [short] size [size bytes]
+			ParseDownload(tv, &buf);
+			break;
 		case svc_playerinfo:
 			ParsePlayerInfo(tv, &buf, clearoldplayers);
 			clearoldplayers = false;
@@ -1233,7 +1328,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 				if (tv->bsp)
 					BSP_Free(tv->bsp);
 
-				if (tv->cluster->nobsp)
+				if (tv->cluster->nobsp && !tv->usequkeworldprotocols)
 					tv->bsp = NULL;
 				else
 					tv->bsp = BSP_LoadModel(tv->cluster, tv->gamedir, tv->modellist[1].name);
@@ -1245,17 +1340,42 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 						break;
 					tv->numinlines = j;
 				}
+				strcpy(tv->status, "Prespawning\n");
 			}
 			if (tv->usequkeworldprotocols)
 			{
 				if (i)
 					SendClientCommand(tv, "modellist %i %i\n", tv->clservercount, i);
+				else if (!tv->bsp)
+				{
+					if (tv->file)
+					{
+						fclose(tv->file);
+						unlink(tv->downloadname);
+						Sys_Printf(tv->cluster, "Was already downloading %s\nOld download canceled\n");
+						tv->file = NULL;
+					}
+					snprintf(tv->downloadname, sizeof(tv->downloadname), "%s/%s", (tv->gamedir&&*tv->gamedir)?tv->gamedir:"qw", tv->modellist[1].name, sizeof(tv->downloadname));
+					tv->file = fopen(tv->downloadname, "wb");
+					if (!tv->file)
+						tv->drop = true;
+					else
+					{
+						strcpy(tv->status, "Downloading map\n");
+						Sys_Printf(tv->cluster, "Attempting download of %s\n", tv->downloadname);
+						SendClientCommand(tv, "download %s\n", tv->modellist[1].name);
+					}
+				}
 				else
+				{
 					SendClientCommand(tv, "prespawn %i 0 %i\n", tv->clservercount, LittleLong(BSP_Checksum(tv->bsp)));
+				}
 			}
 			break;
 		case svc_soundlist:
 			i = ParseList(tv, &buf, tv->soundlist, to, mask);
+			if (!i)
+				strcpy(tv->status, "Receiving modellist\n");
 			if (tv->usequkeworldprotocols)
 			{
 				if (i)
@@ -1274,8 +1394,13 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			break;
 //#define svc_maxspeed		49		// maxspeed change, for prediction
 case svc_entgravity:		// gravity change, for prediction
-ReadFloat(&buf);
-break;
+	ReadFloat(&buf);
+	Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask);
+	break;
+case svc_maxspeed:
+	ReadFloat(&buf);
+	Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask);
+	break;
 		case svc_setinfo:
 			ParseSetInfo(tv, &buf);
 			break;

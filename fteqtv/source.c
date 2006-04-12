@@ -1628,6 +1628,8 @@ void QTV_Run(sv_t *qtv)
 		}
 		return;
 	}
+	else
+		qtv->simtime = qtv->curtime;
 
 
 	if (qtv->sourcesock == INVALID_SOCKET && !qtv->file)

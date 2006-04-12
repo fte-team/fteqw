@@ -136,7 +136,7 @@ void R_Bloom_InitBackUpTexture( int width, int height )
 
 	r_screenbackuptexture_size = width;
 
-	r_bloombackuptexture = GL_LoadTexture32("***r_bloombackuptexture***", width, height, data, false, false );
+	r_bloombackuptexture = GL_LoadTexture32("***r_bloombackuptexture***", width, height, (unsigned int*)data, false, false );
 	
 	Z_Free ( data );
 }
@@ -175,7 +175,7 @@ void R_Bloom_InitEffectTexture( void )
 
 	data = Z_Malloc( BLOOM_SIZE * BLOOM_SIZE * 4 );
 
-	r_bloomeffecttexture = GL_LoadTexture32("***r_bloomeffecttexture***", BLOOM_SIZE, BLOOM_SIZE, data, false, false );
+	r_bloomeffecttexture = GL_LoadTexture32("***r_bloomeffecttexture***", BLOOM_SIZE, BLOOM_SIZE, (unsigned int*)data, false, false );
 	
 	Z_Free ( data );
 }
@@ -229,7 +229,7 @@ void R_Bloom_InitTextures( void )
 	{
 		r_screendownsamplingtexture_size = (int)(BLOOM_SIZE * 2);
 		data = Z_Malloc( r_screendownsamplingtexture_size * r_screendownsamplingtexture_size * 4 );
-		r_bloomdownsamplingtexture = GL_LoadTexture32("***r_bloomdownsamplingtexture***", r_screendownsamplingtexture_size, r_screendownsamplingtexture_size, data, false, false );
+		r_bloomdownsamplingtexture = GL_LoadTexture32("***r_bloomdownsamplingtexture***", r_screendownsamplingtexture_size, r_screendownsamplingtexture_size, (unsigned int*)data, false, false );
 		Z_Free ( data );
 	}
 

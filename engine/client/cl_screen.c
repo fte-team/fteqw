@@ -292,7 +292,9 @@ void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
 		int i = atoi(rgbstring);
 		i = bound(0, i, 255);
 
-		pal = host_basepal + (i * 3);
+		pal = host_basepal;
+
+		pal += (i * 3);
 		// convert r8g8b8 to rgb floats
 		rgb[0] = (float)(pal[0]);
 		rgb[1] = (float)(pal[1]);

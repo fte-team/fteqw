@@ -3063,7 +3063,6 @@ void Host_Frame (double time)
 		}
 	}
 
-	TP_CheckVars();
 	RSpeedEnd(RSPEED_PROTOCOL);
 
 	// update video

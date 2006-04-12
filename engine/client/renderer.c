@@ -1953,6 +1953,8 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 			}
 		}
 	}
+
+	Cvar_ApplyCallbacks(CVAR_RENDERERCALLBACK);
 	SCR_EndLoadingPlaque();
 
 	TRACE(("dbg: R_RestartRenderer_f success\n"));

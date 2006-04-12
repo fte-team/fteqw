@@ -2,10 +2,14 @@
 
 #include "quakedef.h"
 
+// cvar callbacks
+void Log_Dir_Callback (struct cvar_s *var, char *oldvalue);
+void Log_Name_Callback (struct cvar_s *var, char *oldvalue);
+
 // cvars
 #define CONLOGGROUP "Console logging"
-cvar_t		log_name = SCVARF("log_name", "", CVAR_NOTFROMSERVER);
-cvar_t		log_dir = SCVARF("log_dir", "", CVAR_NOTFROMSERVER);
+cvar_t		log_name = SCVARFC("log_name", "", CVAR_NOTFROMSERVER, Log_Name_Callback);
+cvar_t		log_dir = SCVARFC("log_dir", "", CVAR_NOTFROMSERVER, Log_Dir_Callback);
 cvar_t		log_readable = SCVARF("log_readable", "0", CVAR_NOTFROMSERVER);
 cvar_t		log_enable = SCVARF("log_enable", "0", CVAR_NOTFROMSERVER);
 cvar_t		log_developer = SCVARF("log_developer", "0", CVAR_NOTFROMSERVER);
@@ -54,6 +58,34 @@ char readable[256] =
 	'x', 'y', 'z', '{', '|', '}', '~', '_'
 };
 
+// Log_Dir_Callback: called when a log_dir is changed
+void Log_Dir_Callback (struct cvar_s *var, char *oldvalue)
+{
+	char *t = var->string;
+
+	// sanity check for directory
+	if (strstr(t, "..") || strstr(t, ":") || *t == '/' || *t == '\\')
+	{
+		Con_Printf(S_NOTICE "%s forced to default due to invalid characters.\n", var->name);
+		// recursion is avoided by assuming the default value is sane
+		Cvar_ForceSet(var, var->defaultstr);
+	}
+}
+
+// Log_Name_Callback: called when a log_dir is changed
+void Log_Name_Callback (struct cvar_s *var, char *oldvalue)
+{
+	char *t = var->string;
+
+	// sanity check for directory
+	if (strstr(t, "..") || strstr(t, ":") || strstr(t, "/") || strstr(t, "\\"))
+	{
+		Con_Printf(S_NOTICE "%s forced to default due to invalid characters.\n", var->name);
+		// recursion is avoided by assuming the default value is sane
+		Cvar_ForceSet(var, var->defaultstr);
+	}
+}
+
 // Con_Log: log string to console log
 void Con_Log (char *s)
 {
@@ -65,31 +97,6 @@ void Con_Log (char *s)
 
 	if (!log_enable.value)
 		return;
-
-	// cvar sanity checks
-	if (log_dir.modified)
-	{
-		t = log_dir.string;
-		if (strstr(t, "..") || strstr(t, ":") || *t == '/' || *t == '\\')
-		{
-			Con_Printf("log_dir forced to default due to invalid characters.\n");
-			Cvar_ForceSet(&log_dir, log_dir.defaultstr);
-		}
-
-		log_dir.modified = false;
-	}
-
-	if (log_name.modified)
-	{
-		t = log_name.string;
-		if (strstr(t, "..") || strstr(t, ":") || strstr(t, "/") || strstr(t, "\\"))
-		{
-			Con_Printf("log_name forced to default due to invalid characters.\n");
-			Cvar_ForceSet(&log_name, log_name.defaultstr);
-		}
-
-		log_name.modified = false;
-	}
 
 	// get directory/filename
 	d = gamedirfile;

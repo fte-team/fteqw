@@ -75,6 +75,7 @@ typedef struct cvar_s
 
 #define FCVARC(ConsoleName,ConsoleName2,Value,Flags,Callback) {ConsoleName, Value, NULL, Flags, 0, 0, 0, ConsoleName2, Callback}
 #define FCVAR(ConsoleName,ConsoleName2,Value,Flags) FCVARC(ConsoleName, ConsoleName2, Value, Flags, NULL)
+#define SCVARFC(ConsoleName, Value, Flags, Callback) FCVARC(ConsoleName, NULL, Value, Flags, Callback)
 #define SCVARF(ConsoleName,Value, Flags) FCVAR(ConsoleName, NULL, Value, Flags)
 #define SCVARC(ConsoleName,Value,Callback) FCVARC(ConsoleName, NULL, Value, 0, Callback)
 #define SCVAR(ConsoleName,Value) FCVAR(ConsoleName, NULL, Value, 0)
@@ -96,15 +97,16 @@ typedef struct cvar_group_s
 #define	CVAR_LATCH			16	// save changes until server restart
 
 //freestyle
-#define CVAR_POINTER		32	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
-#define CVAR_NOTFROMSERVER	64	// the console will ignore changes to cvars if set at from the server or any gamecode. This is to protect against security flaws - like qterm
-#define CVAR_USERCREATED	128	//write a 'set' or 'seta' in front of the var name.
-#define CVAR_CHEAT			256	//latch to the default, unless cheats are enabled.
-#define CVAR_SEMICHEAT		512	//if strict ruleset, force to 0/blank.
-#define CVAR_RENDERERLATCH	1024	//requires a vid_restart to reapply.
-#define CVAR_SERVEROVERRIDE 2048	//the server has overridden out local value - should probably be called SERVERLATCH
+#define CVAR_POINTER			32	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
+#define CVAR_NOTFROMSERVER		64	// the console will ignore changes to cvars if set at from the server or any gamecode. This is to protect against security flaws - like qterm
+#define CVAR_USERCREATED		128	//write a 'set' or 'seta' in front of the var name.
+#define CVAR_CHEAT				256	//latch to the default, unless cheats are enabled.
+#define CVAR_SEMICHEAT			512	//if strict ruleset, force to 0/blank.
+#define CVAR_RENDERERLATCH		1024	//requires a vid_restart to reapply.
+#define CVAR_SERVEROVERRIDE		2048	//the server has overridden out local value - should probably be called SERVERLATCH
+#define CVAR_RENDERERCALLBACK	4096 //force callback for cvars on renderer change
 
-#define CVAR_LASTFLAG CVAR_SERVEROVERRIDE
+#define CVAR_LASTFLAG CVAR_RENDERERCALLBACK
 
 #define CVAR_LATCHMASK		(CVAR_LATCH|CVAR_RENDERERLATCH|CVAR_SERVEROVERRIDE|CVAR_CHEAT|CVAR_SEMICHEAT)	//you're only allowed one of these.
 #define CVAR_NEEDDEFAULT	CVAR_CHEAT
@@ -128,6 +130,9 @@ void	Cvar_SetValue (cvar_t *var, float value);
 
 void Cvar_ApplyLatches(int latchflag);
 //sets vars to thier latched values
+
+void Cvar_ApplyCallbacks(int callbackflag);
+//forces callbacks to be ran for given flags
 
 float	Cvar_VariableValue (const char *var_name);
 // returns 0 if not defined or non numeric

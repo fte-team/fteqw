@@ -54,8 +54,10 @@ qboolean	keydown[K_MAX];
 
 qboolean deltaused[K_MAX][KEY_MODIFIERSTATES];
 
+void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue);
+
 extern cvar_t con_displaypossabilities;
-cvar_t con_selectioncolour = SCVAR("con_selectioncolour", "0");
+cvar_t con_selectioncolour = SCVARFC("con_selectioncolour", "0", CVAR_RENDERERCALLBACK, Con_Selectioncolour_Callback);
 extern cvar_t cl_chatmode;
 
 static int KeyModifier (qboolean shift, qboolean alt, qboolean ctrl)
@@ -385,8 +387,13 @@ void Con_ExecuteLine(console_t *con, char *line)
 									// may take some time
 }
 
-int scmodified;
 vec3_t sccolor;
+
+void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (qrenderer != QR_NONE && qrenderer != -1)
+		SCR_StringToRGB(var->string, sccolor, 1);
+}
 
 void Key_ConsoleDrawSelectionBox(void)
 {
@@ -426,9 +433,6 @@ void Key_ConsoleDrawSelectionBox(void)
 			ypos2 = temp;
 		}
 		ypos++;
-
-	if (scmodified != con_selectioncolour.modified)
-		SCR_StringToRGB(con_selectioncolour.string, sccolor, 1);
 
 	Draw_FillRGB(xpos2*8, ypos2*8, (xpos - xpos2)*8, (ypos - ypos2)*8, sccolor[0], sccolor[1], sccolor[2]);
 }

@@ -922,7 +922,6 @@ void TP_ExecTrigger (char *s);
 qboolean TP_SuppressMessage(char *buf);
 
 void TP_Init(void);
-void TP_CheckVars(void);
 void TP_CheckPickupSound(char *s, vec3_t org);
 void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info);
 void CL_Say (qboolean team, char *extra);

@@ -92,6 +92,9 @@ static size_t strlcat (char *dst, const char *src, size_t size)
 }
 #endif
 
+// callbacks used for TP cvars
+void TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
+
 //a list of all the cvars
 //this is down to the fact that I keep defining them but forgetting to register. :/
 #define TP_CVARS \
@@ -101,8 +104,8 @@ static size_t strlcat (char *dst, const char *src, size_t size)
 	TP_CVAR(cl_triggers,		"1");	\
 	TP_CVAR(tp_forceTriggers,		"0");	\
 	TP_CVAR(tp_loadlocs,		"1");	\
-	TP_CVAR(cl_teamskin,		"");	\
-	TP_CVAR(cl_enemyskin,		"");	\
+	TP_CVARC(cl_teamskin,		"", TP_SkinCvar_Callback);	\
+	TP_CVARC(cl_enemyskin,		"", TP_SkinCvar_Callback);	\
 	TP_CVAR(tp_soundtrigger,		"~");	\
 										\
 	TP_CVAR(tp_name_none,		"");	\
@@ -186,9 +189,10 @@ static size_t strlcat (char *dst, const char *src, size_t size)
 
 //create the globals for all the TP cvars.
 #define TP_CVAR(name,def) cvar_t	name = SCVAR(#name, def)
+#define TP_CVARC(name,def,call) cvar_t name = SCVARC(#name, def, call)
 TP_CVARS;
 #undef TP_CVAR
-
+#undef TP_CVARC
 
 extern cvar_t	host_mapname;
 
@@ -3114,14 +3118,9 @@ static void TP_MsgFilter_f (void)
 	}
 }
 
-void TP_CheckVars(void)
+void TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue)
 {
-	if (cl_enemyskin.modified || cl_teamskin.modified)
-	{
-		Skin_FlushPlayers();
-		cl_enemyskin.modified = false;
-		cl_teamskin.modified = false;
-	}
+	Skin_FlushPlayers();
 }
 
 void TP_Init (void)
@@ -3130,8 +3129,10 @@ void TP_Init (void)
 
 	//register all the TeamPlay cvars.
 #define TP_CVAR(name,def) Cvar_Register (&name,	TEAMPLAYVARS);
+#define TP_CVARC(name,def,callback) Cvar_Register (&name, TEAMPLAYVARS);
 	TP_CVARS;
 #undef TP_CVAR
+#undef TP_CVARC
 
 	Cmd_AddCommand ("loadloc", TP_LoadLocFile_f);
 	Cmd_AddCommand ("filter", TP_MsgFilter_f);

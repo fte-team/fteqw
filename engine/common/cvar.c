@@ -157,6 +157,8 @@ char *Cvar_FlagToName(int flag)
 		return "renderlatch";
 	case CVAR_SERVEROVERRIDE:
 		return "serverlatch";
+	case CVAR_RENDERERCALLBACK:
+		return "rendercallback";
 	}
 
 	return NULL;
@@ -757,6 +759,22 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 				Z_Free(latch);
 			else
 				var->latched_string = latch;
+		}
+	}
+}
+
+void Cvar_ApplyCallbacks(int callbackflag)
+{
+	cvar_group_t	*grp;
+	cvar_t	*var;
+
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+	for (var=grp->cvars ; var ; var=var->next)
+	{
+		if (var->flags & callbackflag)
+		{
+			if (var->callback)
+				var->callback(var, var->string);
 		}
 	}
 }

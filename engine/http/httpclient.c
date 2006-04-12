@@ -7,18 +7,6 @@
 #include "netinc.h"
 
 /*
-Test files/servers.:
-
-http://mywebpages.comcast.net/jsgeneric/prog5.asm
-http://mywebpages.comcast.net/jsgeneric/sshot001.jpg
-http://spike.corecodec.org/ftemqwtest.zip
-http://www.fuhquake.net/files/releases/v0.31/fuhquake-win32-v0.31.zip
-http://download.microsoft.com/download/d/c/3/dc37439a-172b-4f20-beac-bab52cdd38bc/Windows-KB833330-ENU.exe
-*/
-
-
-
-/*
 This file does one thing. Connects to servers and grabs the specified file. It doesn't do any uploading whatsoever. Live with it.
 It doesn't use persistant connections.
 
@@ -329,31 +317,45 @@ static qboolean HTTP_CL_Run(http_con_t *con)
 	return true;
 }
 
+qboolean HTTP_CL_SingleThink(http_con_t *con)
+{
+	if (!HTTP_CL_Run(con))
+	{
+		if (con->NotifyFunction)
+			con->NotifyFunction(con->filename, false);
+
+		if (cls.downloadmethod == DL_HTTP)
+			cls.downloadmethod = DL_NONE;
+		closesocket(con->sock);
+
+		if (con->buffer)
+			IWebFree(con->buffer);
+		IWebFree(con);
+
+		//I don't fancy fixing this up.
+		return false;
+	}
+
+	return true;
+}
+
 void HTTP_CL_Think(void)
 {
 	http_con_t *con = httpcl;
 	http_con_t *prev = NULL;
+	http_con_t *oldnext;
+
 	while (con)
 	{
-		if (!HTTP_CL_Run(con))
+		oldnext = con->next;
+
+		if (!HTTP_CL_SingleThink(con))
 		{
-			if (con->NotifyFunction)
-				con->NotifyFunction(con->filename, false);
-
-			if (cls.downloadmethod == DL_HTTP)
-				cls.downloadmethod = DL_NONE;
-			closesocket(con->sock);
-
 			if (prev)
-				prev->next = con->next;
+				prev->next = oldnext;
 			else
-				httpcl = con->next;
+				httpcl = oldnext;
 
-			if (con->buffer)
-				IWebFree(con->buffer);
-			IWebFree(con);
-
-			//I don't fancy fixing this up.
 			return;
 		}
 		else if (!cls.downloadmethod)
@@ -497,12 +499,14 @@ qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *lo
 	if (slash)
 		*slash = '_';
 
-	con->next = httpcl;
-	httpcl = con;
+	if (HTTP_CL_SingleThink(con))
+	{
+		con->next = httpcl;
+		httpcl = con;
+		return true;
+	}
 
-	HTTP_CL_Think();
-
-	return true;
+	return false;
 }
 
 #endif

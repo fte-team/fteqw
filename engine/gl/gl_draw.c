@@ -736,7 +736,7 @@ void GLDraw_ReInit (void)
 	extern int		solidskytexture;
 	extern int		alphaskytexture;
 	extern int skyboxtex[6];
-	extern int	lightmap_textures;
+	extern int	*lightmap_textures;
 
 	int maxtexsize;
 
@@ -758,7 +758,7 @@ void GLDraw_ReInit (void)
 	solidskytexture=0;
 	alphaskytexture=0;
 	skyboxtex[0] = 0; skyboxtex[1] = 0; skyboxtex[2] = 0; skyboxtex[3] = 0; skyboxtex[4] = 0; skyboxtex[5] = 0;
-	lightmap_textures=0;
+	lightmap_textures=NULL;
 	filmtexture=0;
 	glmenu_numcachepics=0;
 #ifdef Q3SHADERS

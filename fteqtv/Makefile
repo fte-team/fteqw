@@ -4,7 +4,7 @@ STRIP=strip
 
 STRIPFLAGS=--strip-unneeded --remove-section=.comment
 
-OBJS = netchan.o parse.o qw.o source.o bsp.o rcon.o mdfour.o
+OBJS = netchan.o parse.o qw.o source.o bsp.o rcon.o mdfour.o crc.o
 
 qtv: $(OBJS) qtv.h
 	$(CC) $(CFLAGS) $(OBJS) -o $@.db -lm $(LDFLAGS)

@@ -1,27 +1,31 @@
-// GPL'd, really needed?
-
-
 #include "../plugin.h"
-//#include <time.h>
-//#include <ctype.h>
+//#define RELEASE "__DATE__"
 
-/*void ezScript_InitCvars(void)
+#define ezscriptcvars "ezScript Console Variables"
+vmcvar_t	ezscript_silentmode = {"ezscript_silentmode", "1", ezscriptcvars, 0};
+#undef ezscriptcvars
+
+vmcvar_t	*cvarlist[] ={
+	&ezscript_silentmode
+};
+
+void ezScript_InitCvars(void)
 {
 	vmcvar_t *v;
 	int i;
 
 	for (v = cvarlist[0],i=0; i < sizeof(cvarlist)/sizeof(cvarlist[0]); v++, i++)
 		v->handle = Cvar_Register(v->name, v->string, v->flags, v->group);
-}*/
+}
 
-/*int ezScript_CvarUpdate(void) // perhaps void instead?
+int ezScript_CvarUpdate(void)
 {
 	vmcvar_t *v;
 	int i;
 	for (v = cvarlist[0],i=0; i < sizeof(cvarlist)/sizeof(cvarlist[0]); v++, i++)
 		v->modificationcount = Cvar_Update(v->handle, v->modificationcount, v->string, &v->value);
 	return 0;
-}*/
+}
 
 int Plug_ExecuteCommand(int *args)
 {
@@ -88,7 +92,11 @@ int Plug_ExecuteCommand(int *args)
 			Cmd_Argv(1, param, sizeof(param));
 
 			Cvar_SetString(cvar,param);
-			Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar);
+
+			ezScript_CvarUpdate();
+
+			if (ezscript_silentmode.value == 0) { Con_Printf("-------------------------------------\n^7ezScript: ^1%s^7 is a ^3Fuh/ez/Z/More quakeworld ^7cvar, sending '^6%s^7' to ^2%s^7\n-------------------------------------\n",cmd,param,cvar); }
+
 		}
 		return 1;
 	}
@@ -159,7 +167,8 @@ int Plug_Init(int *args)
 		return false;
 	}
 
-	Con_Printf("ezScript Plugin Build 1 by Moodles Loaded\n");
+	Con_Printf(va("ezScript Plugin %s Loaded\n",RELEASE));
+	ezScript_InitCvars();
 	ezScript_InitCommands();
 	return true;
 }

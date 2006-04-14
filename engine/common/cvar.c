@@ -763,22 +763,6 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 	}
 }
 
-void Cvar_ApplyCallbacks(int callbackflag)
-{
-	cvar_group_t	*grp;
-	cvar_t	*var;
-
-	for (grp=cvar_groups ; grp ; grp=grp->next)
-	for (var=grp->cvars ; var ; var=var->next)
-	{
-		if (var->flags & callbackflag)
-		{
-			if (var->callback)
-				var->callback(var, var->string);
-		}
-	}
-}
-
 void Cvar_ApplyLatches(int latchflag)
 {
 	cvar_group_t	*grp;
@@ -1124,6 +1108,32 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
 					s = va("%s \"%s\"\n", var->name, val);
 				VFS_WRITE(f, s, strlen(s));
 			}
+	}
+}
+
+void Cvar_Hook(cvar_t *cvar, void (*callback) (struct cvar_s *var, char *oldvalue))
+{
+	cvar->callback = callback;
+}
+
+void Cvar_Unhook(cvar_t *cvar)
+{
+	cvar->callback = NULL;
+}
+
+void Cvar_ApplyCallbacks(int callbackflag)
+{
+	cvar_group_t	*grp;
+	cvar_t	*var;
+
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+	for (var=grp->cvars ; var ; var=var->next)
+	{
+		if (var->flags & callbackflag)
+		{
+			if (var->callback)
+				var->callback(var, var->string);
+		}
 	}
 }
 

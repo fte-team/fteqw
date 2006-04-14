@@ -131,6 +131,12 @@ void	Cvar_SetValue (cvar_t *var, float value);
 void Cvar_ApplyLatches(int latchflag);
 //sets vars to thier latched values
 
+void Cvar_Hook(cvar_t *cvar, void (*callback) (struct cvar_s *var, char *oldvalue));
+//hook a cvar with a given callback function at runtime
+
+void Cvar_Unhook(cvar_t *cvar);
+//unhook a cvar
+
 void Cvar_ApplyCallbacks(int callbackflag);
 //forces callbacks to be ran for given flags
 

@@ -90,6 +90,7 @@ float custom_char_instep, default_char_instep;	//to avoid blending issues
 float	char_instep;
 
 static unsigned cs_data[16*16];
+static int externalhair;
 
 typedef struct
 {
@@ -1347,20 +1348,66 @@ void GLDraw_Alt_String (int x, int y, const qbyte *str)
 vec3_t chcolor;
 int chmodified;
 
+void GLCrosshairimage_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (*(var->string))
+		externalhair = Mod_LoadHiResTexture (var->string, "crosshairs", false, true, true);
+}
+
+void GLCrosshair_Callback(struct cvar_s *var, char *oldvalue)
+{
+	unsigned int c, c2;
+
+	if (!var->value)
+		return;
+
+	c = (unsigned int)(chcolor[0] * 255) | // red
+		((unsigned int)(chcolor[1] * 255) << 8) | // green
+		((unsigned int)(chcolor[2] * 255) << 16) | // blue
+		0xff000000; // alpha
+	c2 = c;
+
+#define Pix(x,y,c) {	\
+		if (y+8<0)c=0;	\
+		if (y+8>=16)c=0;	\
+		if (x+8<0)c=0;	\
+		if (x+8>=16)c=0;	\
+			\
+		cs_data[(y+8)*16+(x+8)] = c;	\
+	}
+	memset(cs_data, 0, sizeof(cs_data));
+	switch((int)var->value)
+	{
+	default:
+#include "crosshairs.dat"
+	}
+#undef Pix
+
+	GL_Bind (cs_texture);
+	GL_Upload32(NULL, cs_data, 16, 16, 0, true);
+
+}
+
+void GLCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue)
+{
+	SCR_StringToRGB(var->string, chcolor, 255);
+
+	chcolor[0] = bound(0, chcolor[0], 1);
+	chcolor[1] = bound(0, chcolor[1], 1);
+	chcolor[2] = bound(0, chcolor[2], 1);
+
+	GLCrosshair_Callback(&crosshair, "");
+}
+
 void GLDraw_Crosshair(void)
 {
 	int x, y;
 	int sc;
-	static int externalhair;
 
 	float x1, x2, y1, y2;
 	float size, chc;
 
-	int c2, c, usecolor;
-	int chrebuild;
-
-	usecolor = 0;
-	c2 = c = 0; // shut up msvc
+	int usecolor = 0;
 
 	if (crosshair.value == 1 && !*crosshairimage.string)
 	{
@@ -1373,36 +1420,9 @@ void GLDraw_Crosshair(void)
 	}
 	GL_TexEnv(GL_MODULATE);
 
-	chrebuild = chmodified != crosshaircolor.modified ||
-		crosshair.modified ||
-		(*crosshairimage.string && crosshairimage.modified) ||
-		crosshair.value >= FIRSTANIMATEDCROSHAIR;
-
-	if (chrebuild)
-	{
-		SCR_StringToRGB(crosshaircolor.string, chcolor, 255);
-
-		chcolor[0] = bound(0, chcolor[0], 1);
-		chcolor[1] = bound(0, chcolor[1], 1);
-		chcolor[2] = bound(0, chcolor[2], 1);
-
-		c = (int)(chcolor[0] * 255) | // red
-			((int)(chcolor[1] * 255) << 8) | // green
-			((int)(chcolor[2] * 255) << 16) | // blue
-			0xff000000; // alpha
-		c2 = c;
-
-		chmodified = crosshaircolor.modified;
-	}
-
 	if (*crosshairimage.string)
 	{
 		usecolor = 1;
-		if (crosshairimage.modified)
-		{
-			crosshairimage.modified = false;
-			externalhair = Mod_LoadHiResTexture (crosshairimage.string, "crosshairs", false, true, true);
-		}
 		GL_Bind (externalhair);
 		chc = 0;
 
@@ -1414,28 +1434,10 @@ void GLDraw_Crosshair(void)
 		GL_Bind (cs_texture);
 		chc = 1/16.0;
 
-		if (chrebuild)
-		{
-			crosshair.modified = false;
+		// force crosshair refresh with animated crosshairs
+		if (crosshair.value >= FIRSTANIMATEDCROSHAIR)
+			GLCrosshair_Callback(&crosshair, "");
 
-#define Pix(x,y,c) {	\
-			if (y+8<0)c=0;	\
-			if (y+8>=16)c=0;	\
-			if (x+8<0)c=0;	\
-			if (x+8>=16)c=0;	\
-				\
-			cs_data[(y+8)*16+(x+8)] = c;	\
-		}
-			memset(cs_data, 0, sizeof(cs_data));
-			switch((int)crosshair.value)
-			{
-			default:
-#include "crosshairs.dat"
-			}
-			GL_Upload32(NULL, cs_data, 16, 16, 0, true);
-
-#undef Pix
-		}
 		if (crosshairsize.value <= 16)
 		{
 			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);

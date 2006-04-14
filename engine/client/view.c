@@ -74,13 +74,13 @@ cvar_t	v_ipitch_level = SCVAR("v_ipitch_level", "0.3");
 cvar_t	v_idlescale = SCVAR("v_idlescale", "0");
 
 cvar_t	crosshair = SCVARF("crosshair", "0", CVAR_ARCHIVE);
-cvar_t	crosshaircolor = SCVARF("crosshaircolor", "79", CVAR_ARCHIVE);
+cvar_t	crosshaircolor = SCVARF("crosshaircolor", "79", CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
 cvar_t	crosshairsize = SCVARF("crosshairsize", "8", CVAR_ARCHIVE);
 
 cvar_t  cl_crossx = SCVARF("cl_crossx", "0", CVAR_ARCHIVE);
 cvar_t  cl_crossy = SCVARF("cl_crossy", "0", CVAR_ARCHIVE);
 cvar_t	crosshaircorrect = SCVARF("crosshaircorrect", "0", CVAR_SEMICHEAT);
-cvar_t	crosshairimage = SCVAR("crosshairimage", "");
+cvar_t	crosshairimage = SCVARF("crosshairimage", "", CVAR_RENDERERCALLBACK);
 cvar_t	crosshairalpha = SCVAR("crosshairalpha", "1");
 
 cvar_t	gl_cshiftpercent = SCVAR("gl_cshiftpercent", "100");

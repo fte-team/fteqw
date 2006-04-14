@@ -909,6 +909,11 @@ void SWDraw_Pixel(int x, int y, qbyte color)
 	}
 }
 
+void SWCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue)
+{
+	sw_crosshaircolor = SCR_StringToPalIndex(var->string, 255);
+}
+
 #include "crosshairs.dat"
 qbyte *COM_LoadFile (char *path, int usehunk);
 void SWDraw_Crosshair(void)
@@ -918,12 +923,6 @@ void SWDraw_Crosshair(void)
 	extern vrect_t		scr_vrect;
 	qbyte c, c2;
 	int sc;
-
-	if (crosshaircolor.modified)
-	{ // redo color every modification to crosshaircolor
-		sw_crosshaircolor = SCR_StringToPalIndex(crosshaircolor.string, 255);
-		crosshaircolor.modified = false;
-	}
 
 	c2 = c = sw_crosshaircolor;
 

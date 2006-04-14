@@ -657,6 +657,12 @@ void GLR_TimeRefresh_f (void);
 extern cvar_t gl_bump;
 extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
 
+// callback defines
+extern cvar_t crosshair, crosshairimage, crosshaircolor;
+void GLCrosshairimage_Callback(struct cvar_s *var, char *oldvalue);
+void GLCrosshair_Callback(struct cvar_s *var, char *oldvalue);
+void GLCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue);
+
 void GLR_DeInit (void)
 {
 	Cmd_RemoveCommand ("timerefresh");
@@ -664,6 +670,10 @@ void GLR_DeInit (void)
 	Cmd_RemoveCommand ("pointfile");
 
 	Cmd_RemoveCommand ("makewad");
+
+	Cvar_Unhook(&crosshair);
+	Cvar_Unhook(&crosshairimage);
+	Cvar_Unhook(&crosshaircolor);
 
 	GLDraw_DeInit();
 
@@ -676,6 +686,10 @@ void GLR_Init (void)
 	Cmd_AddRemCommand ("envmap", R_Envmap_f);
 
 //	Cmd_AddRemCommand ("makewad", R_MakeTexWad_f);
+
+	Cvar_Hook(&crosshair, GLCrosshair_Callback);
+	Cvar_Hook(&crosshairimage, GLCrosshairimage_Callback);
+	Cvar_Hook(&crosshaircolor, GLCrosshaircolor_Callback);
 
 	R_InitBubble();
 

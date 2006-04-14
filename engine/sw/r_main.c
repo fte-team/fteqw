@@ -203,10 +203,16 @@ void	SWR_InitTextures (void)
 	}	
 }*/
 
+// callback declares
+extern cvar_t crosshaircolor;
+void SWCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue);
+
 void SWR_DeInit (void)
 {
 	Cmd_RemoveCommand ("timerefresh");	
 	Cmd_RemoveCommand ("pointfile");
+
+	Cvar_Unhook(&crosshaircolor);
 
 	SWDraw_Shutdown();
 	D_Shutdown();
@@ -227,6 +233,8 @@ void SWR_Init (void)
 	R_InitTurb ();
 	
 	Cmd_AddRemCommand ("timerefresh", SWR_TimeRefresh_f);	
+
+	Cvar_Hook(&crosshaircolor, SWCrosshaircolor_Callback);
 
 	if (!r_maxedges.value)
 		Cvar_SetValue (&r_maxedges, (float)NUMSTACKEDGES);

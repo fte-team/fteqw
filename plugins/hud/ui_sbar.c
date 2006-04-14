@@ -135,7 +135,7 @@ static qhandle_t pic_facequad;
 static qhandle_t pic_faceinvis;
 static qhandle_t pic_faceinvisinvuln;
 static qhandle_t pic_faceinvuln;
-static qhandle_t pic_faceinvulnquad;
+//static qhandle_t pic_faceinvulnquad;
 
 static int currenttime;
 static int gotweapontime[numweaps];
@@ -558,74 +558,74 @@ void UI_SbarInit(void)
 	int j;
 
 //main bar (add cvars later)
-	ibarback = Draw_LoadImage("ibar", false);
-	sbarback = Draw_LoadImage("sbar", false);
+	ibarback = Draw_LoadImage("ibar", true);
+	sbarback = Draw_LoadImage("sbar", true);
 
-	con_chars = Draw_LoadImage("conchars", false);
+	con_chars = Draw_LoadImage("conchars", true);
 
 //load images.
 	for (i = 0; i < 10; i++)
 	{
-		pic_num[i] = Draw_LoadImage(va("num_%i", i), false);
-		pic_anum[i] = Draw_LoadImage(va("anum_%i", i), false);
+		pic_num[i] = Draw_LoadImage(va("num_%i", i), true);
+		pic_anum[i] = Draw_LoadImage(va("anum_%i", i), true);
 	}
-	pic_num[10] = Draw_LoadImage("num_minus", false);
-	pic_anum[10] = Draw_LoadImage("anum_minus", false);
-	pic_num[11] = Draw_LoadImage("num_colon", false);
-	pic_num[12] = Draw_LoadImage("num_slash", false);
+	pic_num[10] = Draw_LoadImage("num_minus", true);
+	pic_anum[10] = Draw_LoadImage("anum_minus", true);
+	pic_num[11] = Draw_LoadImage("num_colon", true);
+	pic_num[12] = Draw_LoadImage("num_slash", true);
 
 	for (i = 0; i < numweaps; i++)
 	{
 		gotweapontime[i] = 0;
-		pic_weapon[0][i] = Draw_LoadImage(va("inv_%s", weaponabbreviation[i]), false);
-		pic_weapon[1][i] = Draw_LoadImage(va("inv2_%s", weaponabbreviation[i]), false);
+		pic_weapon[0][i] = Draw_LoadImage(va("inv_%s", weaponabbreviation[i]), true);
+		pic_weapon[1][i] = Draw_LoadImage(va("inv2_%s", weaponabbreviation[i]), true);
 		for (j = 0; j < 5; j++)
 		{
-			pic_weapon[2+j][i] = Draw_LoadImage(va("inva%i_%s", j+1, weaponabbreviation[i]), false);
+			pic_weapon[2+j][i] = Draw_LoadImage(va("inva%i_%s", j+1, weaponabbreviation[i]), true);
 		}
 	}
 	for (i = 0; i < numpups; i++)
 	{
 		gotpuptime[i] = 0;
-		pic_pup[0][i] = Draw_LoadImage(va("sb_%s", pupabbr2[i]), false);
+		pic_pup[0][i] = Draw_LoadImage(va("sb_%s", pupabbr2[i]), true);
 		for (j = 0; j < 5; j++)
 		{
-			pic_pup[1+j][i] = Draw_LoadImage(va("sba%i_%s", j+1, pupabbr[i]), false);
+			pic_pup[1+j][i] = Draw_LoadImage(va("sba%i_%s", j+1, pupabbr[i]), true);
 		}
 	}
 	pic_cursor = Draw_LoadImage("gfx/cursor", false);
 
-	pic_armour[0] = Draw_LoadImage("sb_armor1", false);
-	pic_armour[1] = Draw_LoadImage("sb_armor2", false);
-	pic_armour[2] = Draw_LoadImage("sb_armor3", false);
+	pic_armour[0] = Draw_LoadImage("sb_armor1", true);
+	pic_armour[1] = Draw_LoadImage("sb_armor2", true);
+	pic_armour[2] = Draw_LoadImage("sb_armor3", true);
 
-	pic_ammo[0] = Draw_LoadImage("sb_shells", false);
-	pic_ammo[1] = Draw_LoadImage("sb_nails", false);
-	pic_ammo[2] = Draw_LoadImage("sb_rocket", false);
-	pic_ammo[3] = Draw_LoadImage("sb_cells", false);
+	pic_ammo[0] = Draw_LoadImage("sb_shells", true);
+	pic_ammo[1] = Draw_LoadImage("sb_nails", true);
+	pic_ammo[2] = Draw_LoadImage("sb_rocket", true);
+	pic_ammo[3] = Draw_LoadImage("sb_cells", true);
 
-	pic_rune[0] = Draw_LoadImage("sb_sigil1", false);
-	pic_rune[1] = Draw_LoadImage("sb_sigil2", false);
-	pic_rune[2] = Draw_LoadImage("sb_sigil3", false);
-	pic_rune[3] = Draw_LoadImage("sb_sigil4", false);
+	pic_rune[0] = Draw_LoadImage("sb_sigil1", true);
+	pic_rune[1] = Draw_LoadImage("sb_sigil2", true);
+	pic_rune[2] = Draw_LoadImage("sb_sigil3", true);
+	pic_rune[3] = Draw_LoadImage("sb_sigil4", true);
 
-	pic_face[0] = Draw_LoadImage("face1", false);
-	pic_face[1] = Draw_LoadImage("face2", false);
-	pic_face[2] = Draw_LoadImage("face3", false);
-	pic_face[3] = Draw_LoadImage("face4", false);
-	pic_face[4] = Draw_LoadImage("face5", false);
+	pic_face[0] = Draw_LoadImage("face1", true);
+	pic_face[1] = Draw_LoadImage("face2", true);
+	pic_face[2] = Draw_LoadImage("face3", true);
+	pic_face[3] = Draw_LoadImage("face4", true);
+	pic_face[4] = Draw_LoadImage("face5", true);
 
-	pic_facep[0] = Draw_LoadImage("face_p1", false);
-	pic_facep[1] = Draw_LoadImage("face_p2", false);
-	pic_facep[2] = Draw_LoadImage("face_p3", false);
-	pic_facep[3] = Draw_LoadImage("face_p4", false);
-	pic_facep[4] = Draw_LoadImage("face_p5", false);
+	pic_facep[0] = Draw_LoadImage("face_p1", true);
+	pic_facep[1] = Draw_LoadImage("face_p2", true);
+	pic_facep[2] = Draw_LoadImage("face_p3", true);
+	pic_facep[3] = Draw_LoadImage("face_p4", true);
+	pic_facep[4] = Draw_LoadImage("face_p5", true);
 
-	pic_facequad = Draw_LoadImage("face_quad", false);
-	pic_faceinvis = Draw_LoadImage("face_invis", false);
-	pic_faceinvisinvuln = Draw_LoadImage("face_inv2", false);
-	pic_faceinvuln = Draw_LoadImage("face_invul1", false);
-	pic_faceinvulnquad = Draw_LoadImage("face_invul2", false);
+	pic_facequad = Draw_LoadImage("face_quad", true);
+	pic_faceinvis = Draw_LoadImage("face_invis", true);
+	pic_faceinvisinvuln = Draw_LoadImage("face_inv2", true);
+	pic_faceinvuln = Draw_LoadImage("face_invul2", true);
+//	pic_faceinvulnquad = Draw_LoadImage("face_invul1", true);
 
 	SBar_FlushAll();
 	SBar_ReloadDefaults();
@@ -663,9 +663,9 @@ void Hud_HealthPic(void)
 
 	if (stats[STAT_ITEMS] & IT_PUP4)
 	{	//invuln
-		if (stats[STAT_ITEMS] & IT_PUP6)
-			UI_DrawPic(pic_faceinvulnquad, 0, 0, 24, 24);
-		else
+//		if (stats[STAT_ITEMS] & IT_PUP6)
+//			UI_DrawPic(pic_faceinvulnquad, 0, 0, 24, 24);
+//		else
 			UI_DrawPic(pic_faceinvuln, 0, 0, 24, 24);
 		return;
 	}

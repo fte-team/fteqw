@@ -47,6 +47,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define qerrno WSAGetLastError()
 	#define EWOULDBLOCK WSAEWOULDBLOCK
 	#define EINPROGRESS WSAEINPROGRESS
+	#define ENOTCONN WSAENOTCONN
 
 	#ifdef _MSC_VER
 		//okay, so warnings are here to help... they're ugly though.

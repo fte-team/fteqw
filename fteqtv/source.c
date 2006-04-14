@@ -244,7 +244,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 
 	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress, sizeof(qtv->serveraddress)) == INVALID_SOCKET)
 	{
-		if (qerrno != EINPROGRESS)
+		if (qerrno != EINPROGRESS && qerrno != EWOULDBLOCK)	//bsd sockets are meant to return EINPROGRESS, but some winsock drivers use EWOULDBLOCK instead. *sigh*...
 		{
 			closesocket(qtv->sourcesock);
 			qtv->sourcesock = INVALID_SOCKET;
@@ -707,6 +707,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 	int maxreadable;
 	int read;
 	char *buffer;
+	int err;
 
 	maxreadable = MAX_PROXY_BUFFER - qtv->buffersize;
 	if (!maxreadable)
@@ -733,7 +734,8 @@ qboolean Net_ReadStream(sv_t *qtv)
 	}
 	else
 	{
-		if (read == 0 || qerrno != EWOULDBLOCK)
+		err = qerrno;
+		if (read == 0 || (err != EWOULDBLOCK && err != ENOTCONN))	//ENOTCONN can be returned whilst waiting for a connect to finish.
 		{
 			if (qtv->sourcesock != INVALID_SOCKET)
 			{

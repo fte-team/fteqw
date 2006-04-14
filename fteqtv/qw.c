@@ -1147,7 +1147,7 @@ void UpdateStats(sv_t *qtv, viewer_t *v)
 
 	if (qtv && qtv->controller == v)
 		stats = qtv->players[qtv->thisplayer].stats;
-	else if (v->trackplayer < 0 || !qtv)
+	else if (v->trackplayer != -1 || !qtv)
 		stats = nullstats;
 	else
 		stats = qtv->players[v->trackplayer].stats;

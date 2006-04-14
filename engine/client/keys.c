@@ -362,7 +362,7 @@ void Con_ExecuteLine(console_t *con, char *line)
 	con_commandmatch=1;
 	if (line[0] == '\\' || line[0] == '/')
 		Cbuf_AddText (line+1, RESTRICT_LOCAL);	// skip the >
-	else if (cl_chatmode.value && Cmd_IsCommand(line))
+	else if (cl_chatmode.value == 2 && Cmd_IsCommand(line))
 		Cbuf_AddText (line, RESTRICT_LOCAL);	// valid command
 #ifdef Q2CLIENT
 	else if (cls.protocol == CP_QUAKE2)
@@ -1424,6 +1424,7 @@ void Key_Event (int key, qboolean down)
 	if (down)
 	{
 		key_repeats[key]++;
+		/*
 		if (key != K_BACKSPACE 
 			&& key != K_DEL
 			&& key != K_PAUSE 
@@ -1435,6 +1436,7 @@ void Key_Event (int key, qboolean down)
 			&& key != K_DOWNARROW
 			&& key_repeats[key] > 1)
 			return;	// ignore most autorepeats
+		*/
 			
 //		if (key >= 200 && !keybindings[key])	//is this too annoying?
 //			Con_Printf ("%s is unbound, hit F4 to set.\n", Key_KeynumToString (key) );

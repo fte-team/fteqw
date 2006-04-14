@@ -54,10 +54,10 @@ void BadBuiltin(void);
 #define EBUILTIN(t, n, args) extern int BUILTIN_##n; t n args
 #define TEST
 #ifdef TEST
-	#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {if (!BUILTINISVALID(n))Sys_Error("Builtin "#n" is not valid\n");return (t)plugin_syscall(BUILTIN_##n ARGNAMES);}
+	#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {int res; if (!BUILTINISVALID(n))Sys_Error("Builtin "#n" is not valid\n");res = plugin_syscall(BUILTIN_##n ARGNAMES); return *(t*)&res;}
 	#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {if (!BUILTINISVALID(n))Sys_Error("Builtin "#n" is not valid\n");plugin_syscall(BUILTIN_##n ARGNAMES);}
 #else
-	#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {return (t)plugin_syscall(BUILTIN_##n ARGNAMES);}
+	#define BUILTINR(t, n, args) int BUILTIN_##n; t n args {int res = plugin_syscall(BUILTIN_##n ARGNAMES); return *(t*)&res;}
 	#define BUILTIN(t, n, args) int BUILTIN_##n; t n args {plugin_syscall(BUILTIN_##n ARGNAMES);}
 #endif
 #define CHECKBUILTIN(n) BUILTIN_##n = (int)Plug_GetEngineFunction(#n);

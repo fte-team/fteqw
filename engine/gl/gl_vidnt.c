@@ -452,6 +452,11 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 		if (info->rate)
 			gdevmode.dmFields |= DM_DISPLAYFREQUENCY;
 		gdevmode.dmBitsPerPel = info->bpp;
+		if (info->bpp && (gdevmode.dmBitsPerPel < 15))
+		{
+			Con_Printf("Forcing at least 16bpp\n");
+			gdevmode.dmBitsPerPel = 16;
+		}
 		gdevmode.dmDisplayFrequency = info->rate;
 		gdevmode.dmPelsWidth = info->width;
 		gdevmode.dmPelsHeight = info->height;

@@ -1185,27 +1185,15 @@ static void PPL_BaseChain_Flat(msurface_t *first)
 	{
 		if (r_wallcolour.modified)
 		{
-			char *s;
 			r_wallcolour.modified = false;
 
-			s = COM_Parse(r_wallcolour.string);
-			wallcolour[0] = atof(com_token);
-			s = COM_Parse(s);
-			wallcolour[1] = atof(com_token);
-			s = COM_Parse(s);
-			wallcolour[2] = atof(com_token);
+			SCR_StringToRGB(r_wallcolour.string, wallcolour, 1);
 		}
 		if (r_floorcolour.modified)
 		{
-			char *s;
 			r_floorcolour.modified = false;
 
-			s = COM_Parse(r_floorcolour.string);
-			floorcolour[0] = atof(com_token);
-			s = COM_Parse(s);
-			floorcolour[1] = atof(com_token);
-			s = COM_Parse(s);
-			floorcolour[2] = atof(com_token);
+			SCR_StringToRGB(r_floorcolour.string, floorcolour, 1);
 		}
 	}
 

@@ -27,7 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <time.h>
 
 void GLSCR_UpdateScreen (void);
-void GLDraw_TextureMode_Changed (void);
 
 
 extern qboolean	scr_drawdialog;
@@ -239,8 +238,6 @@ void GLSCR_UpdateScreen (void)
 		oldsbar = cl_sbar.value;
 		vid.recalc_refdef = true;
 	}
-	if (gl_texturemode.modified)
-		GLDraw_TextureMode_Changed();
 
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 

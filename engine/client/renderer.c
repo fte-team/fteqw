@@ -25,6 +25,10 @@ unsigned int	*d_8to32table = d_8to24bgrtable;	//palette lookups while rendering 
 
 extern int gl_anisotropy_factor;
 
+// callbacks used for cvars
+#if defined(RGLQUAKE)
+void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue);
+#endif
 
 //
 
@@ -96,7 +100,9 @@ static cvar_t	vid_height = SCVARF("vid_height", "480", CVAR_ARCHIVE|CVAR_RENDERE
 static cvar_t	vid_refreshrate = SCVARF("vid_displayfrequency", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 static cvar_t	vid_multisample = SCVARF("vid_multisample", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 
-cvar_t	gl_texturemode = SCVAR("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST");
+#if defined(RGLQUAKE)
+cvar_t	gl_texturemode = SCVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, GL_Texturemode_Callback);
+#endif
 cvar_t	gl_motionblur = SCVARF("gl_motionblur", "0", CVAR_ARCHIVE);
 cvar_t	gl_motionblurscale = SCVAR("gl_motionblurscale", "1");
 cvar_t	gl_fontedgeclamp = SCVAR("gl_fontedgeclamp", "0");	//gl blends. Set this to 1 to stop the outside of your conchars from being visible
@@ -1239,8 +1245,8 @@ void M_Menu_Video_f (void)
 	int prefabmode;
 	int prefab2dmode;
 	int currentbpp;
-	int currenttexturefilter;
 #ifdef RGLQUAKE
+	int currenttexturefilter;
 	int currentanisotropy;
 #endif
 
@@ -1294,14 +1300,15 @@ void M_Menu_Video_f (void)
 #ifdef RGLQUAKE
 	if (gl_anisotropy_factor >= 2)
 		currenttexturefilter = 2;
-	else
-#endif
-		if (strcmp(gl_texturemode.string,trilinear))
+
+	if (strcmp(gl_texturemode.string,trilinear))
 		currenttexturefilter = 0;
 	else if (strcmp(gl_texturemode.string,bilinear))
 		currenttexturefilter = 1;
 	else
 		currenttexturefilter = 1;
+#endif
+
 #ifdef RGLQUAKE
 	if (gl_anisotropy_factor == 1)
 		currentanisotropy = 0;

@@ -643,18 +643,19 @@ void GLDraw_Anisotropy_f (void)
 Draw_TextureMode_f
 ===============
 */
-void GLDraw_TextureMode_Changed (void)
+void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue)
 {
 	int		i;
 	gltexture_t	*glt;
 
-	gl_texturemode.modified = false;
+	if (qrenderer != QR_OPENGL)
+		return;
 
 	for (i=0 ; i< sizeof(modes)/sizeof(modes[0]) ; i++)
 	{
-		if (!Q_strcasecmp (modes[i].name, gl_texturemode.string ) )
+		if (!Q_strcasecmp (modes[i].name, var->string ) )
 			break;
-		if (!Q_strcasecmp (modes[i].altname, gl_texturemode.string ) )
+		if (!Q_strcasecmp (modes[i].altname, var->string ) )
 			break;
 	}
 	if (i == 6)
@@ -994,8 +995,6 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	}
 
 	cs_texture = texture_extension_number++;
-	crosshair.modified=true;
-	crosshairimage.modified = true;
 
 	missing_texture = GL_LoadTexture("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], true, false);
 

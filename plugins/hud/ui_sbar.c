@@ -1,5 +1,10 @@
 #include "../plugin.h"
 
+#ifdef _MSC_VER
+#pragma warning(4: 4244)
+#pragma warning(4: 4305)
+#endif
+
 #define DEFAULTHUDNAME "ftehud.hud"
 
 #define MAX_ELEMENTS 128
@@ -145,6 +150,7 @@ int		sbartype;
 int sbarindex;
 
 static int hudedit;
+static int typetoinsert;
 
 enum {
 	DZ_BOTTOMLEFT,
@@ -196,35 +202,39 @@ int statsremap[] =
 	STAT_SHELLS,
 	STAT_NAILS,
 	STAT_ROCKETS,
-	STAT_NAILS
+	STAT_CELLS
 };
 
+struct subtypenames {
+	char *name;
+};
 typedef struct {
 	drawelementfnc_t *draw;
 	char *name;
 	int width, height;
 	int maxsubtype;
+	struct subtypenames subtypename[20];
 } drawelement_t;
 drawelement_t drawelement[] =
 {
 	{Hud_SBar,				"Status bar",	320,	24,		0},
-	{Hud_StatSmall,			"Stat (small)",	8*3,	8,		6}, // equal to sizeof(statsremap)/sizeof(statsremap[0])-1
-	{Hud_StatBig,			"Stat (big)",	24*3,	24,		6}, // equal to sizeof(statsremap)/sizeof(statsremap[0])-1
+	{Hud_StatSmall,			"Stat (small)",	8*3,	8,		6, {"Health", "Armour", "Ammo", "Shells", "Nails", "Rockets", "Cells"}}, // equal to sizeof(statsremap)/sizeof(statsremap[0])-1
+	{Hud_StatBig,			"Stat (big)",	24*3,	24,		6, {"Health", "Armour", "Ammo", "Shells", "Nails", "Rockets", "Cells"}}, // equal to sizeof(statsremap)/sizeof(statsremap[0])-1
 	{Hud_ArmourPic,			"Armor pic",	24,		24,		0},
 	{Hud_HealthPic,			"Health pic",	24,		24,		0},
 	{Hud_CurrentAmmoPic,	"Ammo pic",		24,		24,		0},
 	{Hud_IBar,				"Info bar",		320,	24,		0},
-	{Hud_Weapon,			"Weapon pic",	24,		16,		6},
+	{Hud_Weapon,			"Weapon pic",	24,		16,		6, {"Shotgun", "Super Shotgun", "Nailgun", "Super Nailgun", "Grenade Launcher", "Rocket Launcher", "Thunderbolt"}},
 	{Hud_W_Lightning,		"Shaft pic",	24,		16,		0},
-	{Hud_Powerup,			"Powerup pic",	16,		16,		5},
-	{Hud_Rune,				"Rune pic",		8,		16,		3},
-	{Hud_Ammo,				"Ammo display",	42,		11,		3},
-	{Hud_Blackness,			"Blackness",	16,		16,		10},
-	{Hud_ScoreCard,			"Scorecard",	32,		8,		16},
-	{Hud_ScoreName,			"Scorename",	128,	8,		8},
+	{Hud_Powerup,			"Powerup pic",	16,		16,		5, {"Key 1", "Key 2", "Ring of Invis", "Pentagram", "Biosuit", "Quad"}},
+	{Hud_Rune,				"Rune pic",		8,		16,		3, {"Rune 1", "Rune 2", "Rune 3", "Rune 4"}},
+	{Hud_Ammo,				"Ammo display",	42,		11,		3, {"Shells", "Spikes", "Rockets", "Cells"}},
+	{Hud_Blackness,			"Blackness",	16,		16,		9, {"10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"}},
+	{Hud_ScoreCard,			"Scorecard",	32,		8,		15, {"Player 0", "Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7", "Player 8", "Player 9", "Player 10", "Player 11", "Player 12", "Player 13", "Player 14", "Player 15"}},
+	{Hud_ScoreName,			"Scorename",	128,	8,		7, {"Player 0", "Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7"}},
 
-	{Hud_TeamScore,			"TeamScore",	32,	8,		8},
-	{Hud_TeamName,			"TeamName",		128,	8,		8}
+	{Hud_TeamScore,			"TeamScore",	32,		8,		7, {"Team 0", "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7"}},
+	{Hud_TeamName,			"TeamName",		128,	8,		7, {"Team 0", "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7"}}
 };
 
 huddefaultelement_t hedefaulttype[] = {
@@ -446,6 +456,16 @@ void UI_DrawString(char *s, int x, int y)
 		x+=8;
 	}
 }
+void UI_DrawAltString(char *s, int x, int y, qboolean shouldmask)
+{
+	int mask = shouldmask?128:0;
+	while(*s)
+	{
+		UI_DrawChar((unsigned int)*s++ | mask, x, y);
+		x+=8;
+	}
+}
+
 
 void UI_DrawBigNumber(int num, int x, int y, qboolean red)
 {
@@ -972,7 +992,6 @@ void Hud_ScoreCard(void)
 	int frags, tc, bc, p;
 	int brackets;
 	char number[6];
-	char *num;
 
 	if (hudedit)
 	{
@@ -1036,7 +1055,6 @@ void Hud_TeamScore(void)
 	int frags, tc, bc, p;
 	int brackets;
 	char number[6];
-	char *num;
 
 	if (hudedit)
 	{
@@ -1121,7 +1139,7 @@ void Hud_TeamName(void)
 //fixme: draw dark blobs
 void Hud_Blackness(void)
 {
-	Draw_Colour4f(0, 0, 0, sbartype/10.0f);
+	Draw_Colour4f(0, 0, 0, (sbartype+1)/10.0f);
 
 	if (hudedit)
 	{
@@ -1132,11 +1150,11 @@ void Hud_Blackness(void)
 				j = -j;
 			j/=3;
 
-			Draw_Colour4f(j, 0, 0, sbartype/10.0f);
+			Draw_Colour4f(j, 0, 0, (sbartype+1)/10.0f);
 		}
 		else if (sbarindex == hoveritem)
 		{
-			Draw_Colour4f(0.0, 0.2, 0.0, sbartype/10.0f);
+			Draw_Colour4f(0.0, 0.2, 0.0, (sbartype+1)/10.0f);
 		}
 	}
 	Draw_Fill(sbarminx, sbarminy, (float)16*sbarscalex, (float)16*sbarscaley);
@@ -1250,7 +1268,7 @@ int UI_ScoreBoard(int *arg)
 {
 	int i;
 	if (!arg[5])
-		return;
+		return 0;
 
 	sbarminx = 320;
 	sbarminy = 48;
@@ -1267,6 +1285,8 @@ int UI_ScoreBoard(int *arg)
 
 		sbarminy += 16;
 	}
+
+	return 0;
 }
 
 #define HUD_VERSION 52345
@@ -1358,7 +1378,7 @@ void Hud_Load(char *fname)
 	float x, y, sx, sy, a;
 	int type, subtype;
 
-	if (!*fname)
+	if (!fname || !*fname)
 		fname = DEFAULTHUDNAME;
 	len = FS_Open(fname, &handle, 1);
 	if (len < 0)
@@ -1462,7 +1482,6 @@ int FindItemUnderMouse(int mx, int my)
 
 void DrawContextMenu(int mx, int my)
 {
-	int i;
 	int y;
 	Draw_Colour4f(0, 0, 0, 0.4);
 	Draw_Fill((mouseofsx-8)*sbarscalex, (mouseofsy-8)*sbarscaley, (float)112*sbarscalex, (float)(9*8)*sbarscaley);
@@ -1475,30 +1494,108 @@ void DrawContextMenu(int mx, int my)
 	my/=8;
 	my--;
 
+	mx -= mouseofsx;
+
+	if (mx < 0)
+		my = -10;
+	if (mx > 12*8)
+		my = -10;
+
 	y = 0;
-	UI_DrawString("CONTEXT MENU", 0, y);
+	UI_DrawAltString("CONTEXT MENU", 0, y, 1);
 	y+=8;
-	UI_DrawString("------------", 0, y);
+	UI_DrawAltString("------------", 0, y, 0);
 	y+=8;
-	Draw_Colour4f(1-(my--)!=0,1,1,1);
-	UI_DrawString("Clone", 0, y);
+	UI_DrawAltString("New", 0, y, (my--)==1);
 	y+=8;
-	Draw_Colour4f(1-(my--)!=0,1,1,1);
-	UI_DrawString("Snap To Grid", 0, y);
+	UI_DrawAltString("Snap To Grid", 0, y, (my--)==1);
 	if (shiftdown)
-		UI_DrawString("X", -8, y);
+		UI_DrawAltString("X", -8, y, (my)==1);
 	y+=8;
-	Draw_Colour4f(1-(my--)!=0,1,1,1);
-	UI_DrawString("Save", 0, y);
+	UI_DrawAltString("Save", 0, y, (my--)==1);
 	y+=8;
-	Draw_Colour4f(1-(my--)!=0,1,1,1);
-	UI_DrawString("Reload", 0, y);
+	UI_DrawAltString("Reload", 0, y, (my--)==1);
 	y+=8;
-	Draw_Colour4f(1-(my--)!=0,1,1,1);
-	UI_DrawString("Defaults", 0, y);
+	UI_DrawAltString("Defaults", 0, y, (my--)==1);
+	y+=8;
+}
+
+void DrawPrimaryCreationMenu(int mx, int my)
+{
+	int i;
+	int y;
+	int numopts;
+	numopts = sizeof(drawelement)/sizeof(drawelement[0]);
+	numopts += 2;
+	Draw_Colour4f(0, 0, 0, 0.4);
+	Draw_Fill((mouseofsx-8)*sbarscalex, (mouseofsy-8)*sbarscaley, (float)(17*8)*sbarscalex, (float)((numopts+2)*8)*sbarscaley);
+	Draw_Colour4f(1,1,1,1);
+
+	sbarminx = mouseofsx*sbarscalex;
+	sbarminy = mouseofsy*sbarscaley;
+
+	my -= mouseofsy;
+	my/=8;
+	my--;
+
+	mx -= mouseofsx;
+
+	if (mx < 0)
+		my = -10;
+	if (mx > 12*8)
+		my = -10;
+
+	y = 0;
+	UI_DrawAltString("CREATE NEW ITEM", 0, y, 1);
+	y+=8;
+	UI_DrawAltString("------------", 0, y, 0);
 	y+=8;
 
+
+	for (i = 0; i < sizeof(drawelement)/sizeof(drawelement[0]); i++)
+	{
+		UI_DrawAltString(drawelement[i].name, 0, y, (my--)==1);
+		y+=8;
+	}
+}
+
+void DrawSecondaryCreationMenu(int mx, int my)
+{
+	int i;
+	int y;
+	int numopts;
+	numopts = drawelement[typetoinsert].maxsubtype+1;
+	numopts += 2;
+	Draw_Colour4f(0, 0, 0, 0.4);
+	Draw_Fill((mouseofsx-8)*sbarscalex, (mouseofsy-8)*sbarscaley, (float)(17*8)*sbarscalex, (float)((numopts+2)*8)*sbarscaley);
 	Draw_Colour4f(1,1,1,1);
+
+	sbarminx = mouseofsx*sbarscalex;
+	sbarminy = mouseofsy*sbarscaley;
+
+	my -= mouseofsy;
+	my/=8;
+	my--;
+
+	mx -= mouseofsx;
+
+	if (mx < 0)
+		my = -10;
+	if (mx > 12*8)
+		my = -10;
+
+	y = 0;
+	UI_DrawAltString("CREATE NEW ITEM", 0, y, 1);
+	y+=8;
+	UI_DrawAltString("------------", 0, y, 0);
+	y+=8;
+
+
+	for (i = 0; i <= drawelement[typetoinsert].maxsubtype; i++)
+	{
+		UI_DrawAltString(drawelement[typetoinsert].subtypename[i].name, 0, y, (my--)==1);
+		y+=8;
+	}
 }
 
 void UI_KeyPress(int key, int mx, int my)
@@ -1512,31 +1609,93 @@ void UI_KeyPress(int key, int mx, int my)
 
 	if (context)
 	{
+		if (key != K_MOUSE1)
+		{
+			context = false;
+			return;
+		}
+
+		mx -= mouseofsx;
+		if (mx < 0)
+			my = -10;
+		if (mx > 12*8)
+			my = -10;
+
 		i = my - mouseofsy;
 		i /= 8;
-		context = false;
-		switch(i)
+
+		if (context == 3)
 		{
-		case 2:	//clone
-			if (numelements==MAX_ELEMENTS)
-				return;	//too many
-			memcpy(element+numelements, element+currentitem, sizeof(hudelement_t));
+			context = false;
+			if ((unsigned)(i-2) > drawelement[typetoinsert].maxsubtype)
+				return;
 			currentitem = numelements;
 			numelements++;
-			break;
-		case 3: //snap
-			shiftdown ^= 1;
-			break;
-		case 4: //save
-			Hud_Save(NULL);
-			break;
-		case 5: //reload
-			Hud_Load(NULL);
-			break;
-		case 6: //defaults
-			SBar_FlushAll();
-			SBar_ReloadDefaults();
-			break;
+
+			element[currentitem].type = typetoinsert;
+			element[currentitem].alpha = 1;
+			element[currentitem].scalex = 1;
+			element[currentitem].scaley = 1;
+
+			element[currentitem].x = 320;
+			element[currentitem].y = 240;
+			element[currentitem].subtype = i-2;
+		}
+		else if (context == 2)
+		{
+			typetoinsert = i-2;
+			if ((unsigned)typetoinsert >= sizeof(drawelement)/sizeof(drawelement[0]))
+			{
+				context = false;
+				return;
+			}
+			if (drawelement[typetoinsert].maxsubtype != 0)
+				context = 3;
+			else
+			{
+				context = false;
+				currentitem = numelements;
+				numelements++;
+
+				element[currentitem].type = i-2;
+				element[currentitem].alpha = 1;
+				element[currentitem].scalex = 1;
+				element[currentitem].scaley = 1;
+
+				element[currentitem].x = 320;
+				element[currentitem].y = 240;
+				element[currentitem].subtype = 0;
+			}
+		}
+		else
+		{
+			context = false;
+			switch(i)
+			{
+			case 2:	//clone
+				if (numelements==MAX_ELEMENTS)
+					return;	//too many
+				/*
+				memcpy(element+numelements, element+currentitem, sizeof(hudelement_t));
+				currentitem = numelements;
+				numelements++;
+				*/
+				context = 2;
+				break;
+			case 3: //snap
+				shiftdown ^= 1;
+				break;
+			case 4: //save
+				Hud_Save(NULL);
+				break;
+			case 5: //reload
+				Hud_Load(NULL);
+				break;
+			case 6: //defaults
+				SBar_FlushAll();
+				SBar_ReloadDefaults();
+				break;
+			}
 		}
 		return;
 	}
@@ -1592,6 +1751,8 @@ void UI_KeyPress(int key, int mx, int my)
 			mouseofsy = my - element[i].scaley*drawelement[element[i].type].height;
 			mousedown |= 2;
 		}
+		else
+			currentitem = -1;
 	}
 
 	// TODO: extra buttons
@@ -1628,16 +1789,24 @@ void UI_KeyPress(int key, int mx, int my)
 		element[numelements].alpha = 1;
 		numelements++;
 	}
-	else if (currentitem < numelements)
+	else if (key == K_SHIFT)
+		shiftdown = true;
+	else if (currentitem < numelements && currentitem != -1)
 	{
-		if (key == K_SHIFT)
-			shiftdown = true;
-		else if (key == 'd')
+		if (key == 'd')
 		{
 			mousedown = false;
 			memcpy(element+currentitem, element+currentitem+1, sizeof(element[0]) * (numelements - currentitem-1));
 			numelements--;
-			currentitem = 0;
+			currentitem = -1;
+		}
+		else if (key == 'c' || key == 'C')
+		{
+			if (numelements==MAX_ELEMENTS)
+				return;	//too many
+			memcpy(element+numelements, element+currentitem, sizeof(hudelement_t));
+			currentitem = numelements;
+			numelements++;
 		}
 		else if (key == K_PAGEUP)
 		{	//send to back
@@ -1719,6 +1888,8 @@ void UI_KeyPress(int key, int mx, int my)
 int Plug_MenuEvent(int *args)
 {
 	int altargs[5];
+	float cursorbias;
+	float cursorsize;
 
 	args[2]=(int)(args[2]*640.0f/vid.width);
 	args[3]=(int)(args[3]*480.0f/vid.height);
@@ -1777,16 +1948,28 @@ int Plug_MenuEvent(int *args)
 
 		sbarscalex = vid.width/640.0f;
 		sbarscaley = vid.height/480.0f;
-		if (context)
+		switch (context)
 		{
-
+		case 1:
 			DrawContextMenu(args[2], args[3]);
+			break;
+		case 2:
+			DrawPrimaryCreationMenu(args[2], args[3]);
+			break;
+		case 3:
+			DrawSecondaryCreationMenu(args[2], args[3]);
+			break;
+		default:
+			break;
 		}
 		sbarminx = args[2];
 		sbarminy = args[3];
 
+		cursorbias = Cvar_GetFloat("cl_cursorbias");
+		cursorsize = Cvar_GetFloat("cl_cursorsize");
+
 		Draw_Colour4f(1,1,1,1);
-		Draw_Image((float)args[2]*sbarscalex, (float)args[3]*sbarscaley, (float)32*sbarscalex, (float)32*sbarscaley, 0, 0, 1, 1, pic_cursor);
+		Draw_Image(((float)args[2]*sbarscalex)-cursorbias, ((float)args[3]*sbarscaley)-cursorbias, (float)cursorsize*sbarscalex, (float)cursorsize*sbarscaley, 0, 0, 1, 1, pic_cursor);
 		break;
 	case 1:	//keydown
 		UI_KeyPress(args[1], args[2], args[3]);
@@ -1817,28 +2000,28 @@ int Plug_ExecuteCommand(int *args)
 {
 	char cmd[256];
 	Cmd_Argv(0, cmd, sizeof(cmd));
-	if (!strcmp("sbar_edit", cmd))
+	if (!strcmp("sbar_edit", cmd) || !strcmp("hud_edit", cmd))
 	{
 		Menu_Control(1);
 		mousedown=false;
 		hudedit=true;
 		return 1;
 	}
-	if (!strcmp("sbar_save", cmd))
+	if (!strcmp("sbar_save", cmd) || !strcmp("hud_save", cmd))
 	{
 		Cmd_Argv(1, cmd, sizeof(cmd));
 		Hud_Save(cmd);
 		mousedown=false;
 		return 1;
 	}
-	if (!strcmp("sbar_load", cmd))
+	if (!strcmp("sbar_load", cmd) || !strcmp("hud_load", cmd))
 	{
 		Cmd_Argv(1, cmd, sizeof(cmd));
 		Hud_Load(cmd);
 		mousedown=false;
 		return 1;
 	}
-	if (!strcmp("sbar_defaults", cmd))
+	if (!strcmp("sbar_defaults", cmd) || !strcmp("hud_defaults", cmd))
 	{
 		Cmd_Argv(1, cmd, sizeof(cmd));
 		SBar_FlushAll();
@@ -1872,11 +2055,19 @@ int Plug_Init(int *args)
 		K_PAGEUP		= Key_GetKeyCode("pgup");
 		K_PAGEDOWN		= Key_GetKeyCode("pgdn");
 
+		Cmd_AddCommand("hud_edit");
 		Cmd_AddCommand("sbar_edit");
 		if (BUILTINISVALID(FS_Write))
+		{
+			Cmd_AddCommand("hud_save");
 			Cmd_AddCommand("sbar_save");
+		}
 		if (BUILTINISVALID(FS_Read))
+		{
+			Cmd_AddCommand("hud_load");
 			Cmd_AddCommand("sbar_load");
+		}
+		Cmd_AddCommand("hud_defaults");
 		Cmd_AddCommand("sbar_defaults");
 
 		UI_SbarInit();

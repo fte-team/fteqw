@@ -26,6 +26,8 @@ unsigned int	*d_8to32table = d_8to24bgrtable;	//palette lookups while rendering 
 extern int gl_anisotropy_factor;
 
 // callbacks used for cvars
+void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue);
+void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
 #if defined(RGLQUAKE)
 void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue);
 #endif
@@ -103,13 +105,14 @@ static cvar_t	vid_desktopsettings = SCVARF("vid_desktopsettings", "0", CVAR_ARCH
 
 #if defined(RGLQUAKE)
 cvar_t	gl_texturemode = SCVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, GL_Texturemode_Callback);
+cvar_t	gl_conback = SCVARF("gl_conback", "", CVAR_RENDERERCALLBACK);
+cvar_t	gl_font = SCVARF("gl_font", "", CVAR_RENDERERCALLBACK);
+//gl blends. Set this to 1 to stop the outside of your conchars from being visible
+cvar_t	gl_fontedgeclamp = SCVAR("gl_fontedgeclamp", "0");	
+cvar_t	gl_smoothfont	= SCVAR("gl_smoothfont", "1");
 #endif
 cvar_t	gl_motionblur = SCVARF("gl_motionblur", "0", CVAR_ARCHIVE);
 cvar_t	gl_motionblurscale = SCVAR("gl_motionblurscale", "1");
-cvar_t	gl_fontedgeclamp = SCVAR("gl_fontedgeclamp", "0");	//gl blends. Set this to 1 to stop the outside of your conchars from being visible
-cvar_t	gl_font = SCVAR("gl_font", "");
-cvar_t	gl_conback = SCVAR("gl_conback", "");
-cvar_t	gl_smoothfont	= SCVAR("gl_smoothfont", "1");
 cvar_t	gl_part_flame	= SCVAR("gl_part_flame", "1");
 cvar_t	r_part_rain	= SCVARF("r_part_rain", "0", CVAR_ARCHIVE);
 
@@ -123,9 +126,9 @@ cvar_t	r_shadow_bumpscale_basetexture	= SCVAR("r_shadow_bumpscale_basetexture", 
 cvar_t	r_shadow_bumpscale_bumpmap	= SCVAR("r_shadow_bumpscale_bumpmap", "10");
 cvar_t	gl_nocolors	= SCVAR("gl_nocolors","0");
 cvar_t		gl_load24bit	= SCVARF("gl_load24bit", "1", CVAR_ARCHIVE);
-cvar_t		vid_conwidth	= SCVARF("vid_conwidth", "640", CVAR_ARCHIVE);
+cvar_t		vid_conwidth	= SCVARF("vid_conwidth", "640", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK);
 cvar_t		vid_conheight	= SCVARF("vid_conheight", "480", CVAR_ARCHIVE);
-cvar_t		vid_conautoscale = SCVARF("vid_conautoscale", "0", CVAR_ARCHIVE);
+cvar_t		vid_conautoscale = SCVARF("vid_conautoscale", "0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK);
 cvar_t		gl_nobind	= SCVAR("gl_nobind", "0");
 cvar_t		gl_max_size	= SCVAR("gl_max_size", "1024");
 cvar_t		gl_picmip	= SCVAR("gl_picmip", "0");
@@ -172,8 +175,8 @@ cvar_t			scr_centersbar	= SCVAR("scr_centersbar", "0");
 cvar_t			scr_consize	= SCVAR("scr_consize", "0.5");
 cvar_t			scr_conalpha = SCVAR("scr_conalpha", "0.7");
 
-cvar_t          scr_viewsize	= SCVARF("viewsize","100", CVAR_ARCHIVE);
-cvar_t          scr_fov	= SCVARF("fov","90", CVAR_ARCHIVE); // 10 - 170
+cvar_t          scr_viewsize	= SCVARFC("viewsize","100", CVAR_ARCHIVE, SCR_Viewsize_Callback);
+cvar_t          scr_fov	= SCVARFC("fov","90", CVAR_ARCHIVE, SCR_Fov_Callback); // 10 - 170
 cvar_t          scr_conspeed	= SCVAR("scr_conspeed","300");
 cvar_t          scr_centertime	= SCVAR("scr_centertime","2");
 cvar_t          scr_showram	= SCVAR("showram","1");

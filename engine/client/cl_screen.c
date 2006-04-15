@@ -96,7 +96,6 @@ float           scr_conlines;           // lines of console to display
 
 qboolean		scr_con_forcedraw;
 
-float           oldscreensize, oldfov;
 extern cvar_t          scr_viewsize;
 extern cvar_t          scr_fov;
 extern cvar_t          scr_conspeed;
@@ -837,6 +836,43 @@ float CalcFov (float fov_x, float width, float height)
     return a;
 }
 
+void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue)
+{
+	if (var->value < 10)
+	{
+		Cvar_ForceSet (var, "10");
+		return;
+	}
+	if (var->value > 170)
+	{
+		Cvar_ForceSet (var, "170");
+		return;
+	}
+
+	vid.recalc_refdef = true;
+}
+
+void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue)
+{
+	if (var->value < 30)
+	{
+		Cvar_ForceSet (var, "30");
+		return;
+	}
+	if (var->value > 120)
+	{
+		Cvar_ForceSet (var, "120");
+		return;
+	}
+
+	vid.recalc_refdef = true;
+}
+
+void CL_Sbar_Callback(struct cvar_s *var, char *oldvalue)
+{
+	vid.recalc_refdef = true;
+}
+
 /*
 =================
 SCR_CalcRefdef
@@ -853,7 +889,6 @@ void SCR_CalcRefdef (void)
 
 	scr_fullupdate = 0;             // force a background redraw
 	vid.recalc_refdef = 0;
-	scr_viewsize.modified = false;
 
 // force the status bar to redraw
 	Sbar_Changed ();
@@ -861,17 +896,6 @@ void SCR_CalcRefdef (void)
 //========================================
 
 	r_refdef.flags = 0;
-// bound viewsize
-	if (scr_viewsize.value < 30)
-		Cvar_Set (&scr_viewsize,"30");
-	if (scr_viewsize.value > 120)
-		Cvar_Set (&scr_viewsize,"120");
-
-// bound field of view
-	if (scr_fov.value < 10)
-		Cvar_Set (&scr_fov,"10");
-	if (scr_fov.value > 170)
-		Cvar_Set (&scr_fov,"170");
 
 // intermission is always full screen
 	if (cl.intermission)
@@ -1045,7 +1069,6 @@ Keybinding command
 void SCR_SizeUp_f (void)
 {
 	Cvar_SetValue (&scr_viewsize,scr_viewsize.value+10);
-	vid.recalc_refdef = 1;
 }
 
 
@@ -1059,7 +1082,6 @@ Keybinding command
 void SCR_SizeDown_f (void)
 {
 	Cvar_SetValue (&scr_viewsize,scr_viewsize.value-10);
-	vid.recalc_refdef = 1;
 }
 
 //============================================================================

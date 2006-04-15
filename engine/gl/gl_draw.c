@@ -61,7 +61,7 @@ extern cvar_t		gl_lerpimages;
 extern cvar_t		gl_picmip2d;
 extern cvar_t		r_drawdisk;
 extern cvar_t		gl_compress;
-extern cvar_t		gl_font, gl_conback, gl_smoothfont, gl_fontedgeclamp;
+extern cvar_t		gl_smoothfont, gl_fontedgeclamp;
 extern cvar_t		gl_texturemode;
 extern cvar_t cl_noblink;
 
@@ -905,11 +905,6 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	TRACE(("dbg: GLDraw_ReInit: loaded charset\n"));
 
-	gl_font.modified = true;
-
-	gl_smoothfont.modified = 1;
-
-
 	TRACE(("dbg: GLDraw_ReInit: GL_BeginRendering\n"));
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 	TRACE(("dbg: GLDraw_ReInit: SCR_DrawLoading\n"));
@@ -1103,8 +1098,6 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	gl->th = 1;
 	custom_conback->width = vid.conwidth;
 	custom_conback->height = vid.conheight;
-
-	gl_conback.modified = true;
 
 	// free loaded console
 	Hunk_FreeToLowMark (start);
@@ -2260,6 +2253,67 @@ void GLDraw_EndDisc (void)
 {
 }
 
+// conback/font callbacks
+void GL_Smoothfont_Callback(struct cvar_s *var, char *oldvalue)
+{
+	GL_Bind(char_texture);
+	if (var->value)
+	{
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+	else
+	{
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	}
+}
+
+void GL_Fontedgeclamp_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (var->value)
+		char_instep = custom_char_instep;
+	else
+		char_instep = 0;
+}
+
+void GL_Font_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (!*var->string
+		|| (!(char_texture=Mod_LoadHiResTexture(var->string, "fonts", false, true, true))
+		&& !(char_texture=Mod_LoadHiResTexture(var->string, "charsets", false, true, true))))
+	{
+		char_texture = default_char_texture;
+		custom_char_instep = default_char_instep;
+	}
+	else
+		custom_char_instep = 0.5f/((image_width+image_height)/2);
+
+	GL_Smoothfont_Callback(&gl_smoothfont, "");
+	GL_Fontedgeclamp_Callback(&gl_fontedgeclamp, "");
+}
+
+void GL_Conback_Callback(struct cvar_s *var, char *oldvalue)
+{
+	int newtex = 0;
+#ifdef Q3SHADERS
+	if (*var->string && (shader_console = R_RegisterCustom(var->string, NULL)))
+	{
+		conback = default_conback;
+	}
+	else
+#endif
+	if (!*var->string || !(newtex=Mod_LoadHiResTexture(var->string, "conbacks", false, true, true)))
+	{
+		conback = default_conback;
+	}
+	else
+	{
+		conback = custom_conback;
+		((glpic_t *)conback->data)->texnum = newtex;
+	}
+}
+
 /*
 ================
 GL_Set2D
@@ -2296,69 +2350,6 @@ void GL_Set2D (void)
 //	qglDisable (GL_ALPHA_TEST);
 
 	qglColor4f (1,1,1,1);
-
-	if (gl_font.modified)
-	{
-		gl_font.modified = 0;
-		if (!*gl_font.string
-			|| (!(char_texture=Mod_LoadHiResTexture(gl_font.string, "fonts", false, true, true))
-			&& !(char_texture=Mod_LoadHiResTexture(gl_font.string, "charsets", false, true, true))))
-		{
-			char_texture = default_char_texture;
-			custom_char_instep = default_char_instep;
-		}
-		else
-			custom_char_instep = 0.5f/((image_width+image_height)/2);
-
-		gl_smoothfont.modified = true;
-		gl_fontedgeclamp.modified = true;
-	}
-	if (gl_conback.modified)
-	{
-		int newtex = 0;
-		gl_conback.modified = 0;
-#ifdef Q3SHADERS
-		if (*gl_conback.string && (shader_console = R_RegisterCustom(gl_conback.string, NULL)))
-		{
-			conback = default_conback;
-		}
-		else
-#endif
-		if (!*gl_conback.string || !(newtex=Mod_LoadHiResTexture(gl_conback.string, "conbacks", false, true, true)))
-		{
-			conback = default_conback;
-		}
-		else
-		{
-			conback = custom_conback;
-			((glpic_t *)conback->data)->texnum = newtex;
-		}
-	}
-
-	if (gl_fontedgeclamp.modified)
-	{
-		if (gl_fontedgeclamp.value)
-			char_instep = custom_char_instep;
-		else
-			char_instep = 0;
-		gl_fontedgeclamp.modified = false;
-	}
-
-	if (gl_smoothfont.modified)
-	{
-		gl_smoothfont.modified = false;
-		GL_Bind(char_texture);
-		if (gl_smoothfont.value)
-		{
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		}
-		else
-		{
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		}
-	}
 
 	r_refdef.time = realtime;
 }

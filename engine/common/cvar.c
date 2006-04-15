@@ -1121,6 +1121,12 @@ void Cvar_Unhook(cvar_t *cvar)
 	cvar->callback = NULL;
 }
 
+void Cvar_ForceCallback(cvar_t *var)
+{
+	if (var->callback)
+		var->callback(var, var->string);
+}
+
 void Cvar_ApplyCallbacks(int callbackflag)
 {
 	cvar_group_t	*grp;

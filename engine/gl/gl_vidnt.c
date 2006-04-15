@@ -399,8 +399,6 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	else
 	{
 		vid.conwidth = 640;
-		vid_conwidth.modified = true;	//make it reapplied
-		vid_conautoscale.modified = true;
 	}
 
 	vid.conwidth &= 0xfff8; // make it a multiple of eight
@@ -422,8 +420,6 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		vid.conwidth = info->width;
 	vid.width = vid.conwidth;
 	vid.height = vid.conheight;
-	vid_conwidth.modified = true;
-	vid_conautoscale.modified = true;
 
 	vid.numpages = 2;
 
@@ -542,8 +538,6 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 		vid.conwidth = info->width;
 	vid.width = vid.conwidth;
 	vid.height = vid.conheight;
-	vid_conwidth.modified = true;
-	vid_conautoscale.modified = true;
 
 	vid.numpages = 2;
 
@@ -1419,8 +1413,11 @@ LONG WINAPI GLMainWndProc (
 			{
 				WindowRect.right = ((short*)&lParam)[0] - WindowRect.left;
 				WindowRect.bottom = ((short*)&lParam)[1] - WindowRect.top;
-				vid_conwidth.modified = true;	//make it reapplied
-				vid_conautoscale.modified = true;
+				// force width/height to be updated
+				glwidth = WindowRect.right - WindowRect.left;
+				glheight = WindowRect.bottom - WindowRect.top;
+				Cvar_ForceCallback(&vid_conautoscale);
+				Cvar_ForceCallback(&vid_conwidth);
 			}
             break;
 

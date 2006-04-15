@@ -33,9 +33,6 @@ extern qboolean        scr_initialized;
 extern float oldsbar;
 extern qboolean        scr_drawloading;
 
-extern float   oldfov, oldscreensize;
-
-
 extern int scr_chatmode;
 extern cvar_t scr_chatmodecvar;
 
@@ -85,20 +82,6 @@ void SWSCR_UpdateScreen (void)
 	uimenu = 0;
 #endif
 
-//
-// check for vid changes
-//
-	if (oldfov != scr_fov.value)
-	{
-		oldfov = scr_fov.value;
-		vid.recalc_refdef = true;
-	}
-
-	if (oldsbar != cl_sbar.value)
-	{
-		oldsbar = cl_sbar.value;
-		vid.recalc_refdef = true;
-	}
 #ifdef TEXTEDITOR
 	if (editormodal)
 	{
@@ -129,7 +112,7 @@ void SWSCR_UpdateScreen (void)
 		return;
 	}
 
-	if (vid.recalc_refdef || scr_viewsize.modified)
+	if (vid.recalc_refdef)
 	{
 		// something changed, so reorder the screen
 		SCR_CalcRefdef ();

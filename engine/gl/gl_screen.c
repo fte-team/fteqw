@@ -38,9 +38,6 @@ extern qboolean        scr_initialized;
 extern float oldsbar;
 extern qboolean        scr_drawloading;
 
-extern float   oldfov;
-
-
 extern int scr_chatmode;
 extern cvar_t scr_chatmodecvar;
 
@@ -116,6 +113,79 @@ void RSpeedShow(void)
 	}
 }
 
+// console size manipulation callbacks
+void GLVID_Console_Resize(void)
+{
+	extern cvar_t vid_conwidth, vid_conheight;
+
+	vid.width = vid.conwidth = vid_conwidth.value;
+	vid.height = vid.conheight = vid_conheight.value;
+
+	vid.recalc_refdef = true;
+	Con_CheckResize();
+
+#ifdef PLUGINS
+	Plug_ResChanged();
+#endif
+}
+
+void GLVID_Conheight_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (var->value > 1536)	//anything higher is unreadable.
+	{
+		Cvar_ForceSet(var, "1536");
+		return;
+	}
+	if (var->value < 200)	//lower would be wrong
+	{
+		Cvar_ForceSet(var, "200");
+		return;
+	}
+
+	GLVID_Console_Resize();
+}
+
+void GLVID_Conwidth_Callback(struct cvar_s *var, char *oldvalue)
+{
+	//let let the user be too crazy
+	if (var->value > 2048)	//anything higher is unreadable.
+	{
+		Cvar_ForceSet(var, "2048");
+		return;
+	}
+	if (var->value < 320)	//lower would be wrong
+	{
+		Cvar_ForceSet(var, "320");
+		return;
+	}
+
+	GLVID_Console_Resize();
+}
+
+void GLVID_Conautoscale_Callback(struct cvar_s *var, char *oldvalue)
+{
+	extern cvar_t vid_conwidth, vid_conheight;
+
+	float xratio, yratio = 0;
+
+	xratio = var->value;
+	if (xratio > 0)
+	{
+		char *s = strchr(var->string, ' ');
+		if (s)
+			yratio = atof(s + 1);
+		
+		if (yratio <= 0)
+			yratio = xratio;
+
+		xratio = 1 / xratio;
+		yratio = 1 / yratio;
+
+		Cvar_SetValue(&vid_conwidth, glwidth * xratio);
+		Cvar_SetValue(&vid_conheight, glheight * yratio);
+	}
+}
+
 /*
 ==================
 SCR_UpdateScreen
@@ -130,7 +200,7 @@ needs almost the entire 256k of stack space!
 
 void GLSCR_UpdateScreen (void)
 {
-	extern cvar_t vid_conwidth, vid_conheight, gl_texturemode, vid_conautoscale;
+	extern cvar_t vid_conheight;
 	int uimenu;
 #ifdef TEXTEDITOR
 	extern qboolean editormodal;
@@ -142,60 +212,6 @@ void GLSCR_UpdateScreen (void)
 	{
 		RSpeedEnd(RSPEED_TOTALREFRESH);
 		return;
-	}
-
-	if (vid_conautoscale.modified)
-	{
-		float xratio, yratio = 0;
-
-		xratio = vid_conautoscale.value;
-		if (xratio > 0)
-		{
-			char *s = strchr(vid_conautoscale.string, ' ');
-			if (s)
-				yratio = atof(s + 1);
-			
-			if (yratio <= 0)
-				yratio = xratio;
-
-			xratio = 1 / xratio;
-			yratio = 1 / yratio;
-
-			Cvar_SetValue(&vid_conwidth, glwidth * xratio);
-			Cvar_SetValue(&vid_conheight, glheight * yratio);
-		}
-
-		vid_conautoscale.modified = false;
-	}
-
-	if (vid_conwidth.modified || vid_conheight.modified)
-	{
-		//let let the user be too crazy
-		if (vid_conwidth.value > 2048)	//anything higher is unreadable.
-			Cvar_Set(&vid_conwidth, "2048");
-		if (vid_conheight.value > 1536)	//anything higher is unreadable.
-			Cvar_Set(&vid_conheight, "1536");
-		if (vid_conwidth.value < 320)	//lower would be wrong
-			Cvar_Set(&vid_conwidth, "320");
-		if (vid_conheight.value < 200)	//lower would be wrong
-			Cvar_Set(&vid_conheight, "200");
-
-		vid_conwidth.modified = false;
-		vid_conheight.modified = false;
-
-//		vid.width = vid.conwidth = (glwidth - 320) * gl_2dscale.value + 320;
-//		vid.height = vid.conheight = (glheight - 240) * gl_2dscale.value + 240;
-
-		vid.width = vid.conwidth = vid_conwidth.value;
-		vid.height = vid.conheight = vid_conheight.value;
-
-		vid.recalc_refdef = true;
-		Con_CheckResize();
-
-#ifdef PLUGINS
-		Plug_ResChanged();
-#endif
-		GL_Set2D();
 	}
 
 	vid.numpages = 2 + gl_triplebuffer.value;
@@ -232,12 +248,6 @@ void GLSCR_UpdateScreen (void)
 #else
 	uimenu = 0;
 #endif
-
-
-	if (oldsbar != cl_sbar.value) {
-		oldsbar = cl_sbar.value;
-		vid.recalc_refdef = true;
-	}
 
 	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
 
@@ -276,13 +286,7 @@ void GLSCR_UpdateScreen (void)
 	//
 	// determine size of refresh window
 	//
-	if (oldfov != scr_fov.value)
-	{
-		oldfov = scr_fov.value;
-		vid.recalc_refdef = true;
-	}
-
-	if (vid.recalc_refdef || scr_viewsize.modified)
+	if (vid.recalc_refdef)
 		SCR_CalcRefdef ();
 
 //

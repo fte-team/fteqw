@@ -31,6 +31,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WINAVI
 #endif
 
+// callbacks
+void CL_Sbar_Callback(struct cvar_s *var, char *oldvalue);
+
 // we need to declare some mouse variables here, because the menu system
 // references them even when on a unix system.
 
@@ -45,7 +48,7 @@ cvar_t	cl_timeout = SCVAR("cl_timeout", "60");
 
 cvar_t	cl_shownet = SCVAR("cl_shownet","0");	// can be 0, 1, or 2
 
-cvar_t	cl_sbar		= SCVARF("cl_sbar", "0", CVAR_ARCHIVE);
+cvar_t	cl_sbar		= SCVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= SCVARF("cl_hudswap", "0", CVAR_ARCHIVE);
 cvar_t	cl_maxfps	= SCVARF("cl_maxfps", "1000", CVAR_ARCHIVE);
 cvar_t	cl_nopext	= SCVARF("cl_nopext", "0", CVAR_ARCHIVE);

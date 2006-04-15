@@ -137,6 +137,9 @@ void Cvar_Hook(cvar_t *cvar, void (*callback) (struct cvar_s *var, char *oldvalu
 void Cvar_Unhook(cvar_t *cvar);
 //unhook a cvar
 
+void Cvar_ForceCallback(cvar_t *cvar);
+// force a cvar callback
+
 void Cvar_ApplyCallbacks(int callbackflag);
 //forces callbacks to be ran for given flags
 

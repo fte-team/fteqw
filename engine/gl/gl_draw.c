@@ -61,7 +61,7 @@ extern cvar_t		gl_lerpimages;
 extern cvar_t		gl_picmip2d;
 extern cvar_t		r_drawdisk;
 extern cvar_t		gl_compress;
-extern cvar_t		gl_smoothfont, gl_fontedgeclamp;
+extern cvar_t		gl_smoothfont, gl_smoothcrosshair, gl_fontedgeclamp;
 extern cvar_t		gl_texturemode;
 extern cvar_t cl_noblink;
 
@@ -1399,7 +1399,7 @@ void GLDraw_Crosshair(void)
 	float x1, x2, y1, y2;
 	float size, chc;
 
-	int usecolor = 0;
+	qboolean usingimage = false;
 
 	if (crosshair.value == 1 && !*crosshairimage.string)
 	{
@@ -1414,7 +1414,7 @@ void GLDraw_Crosshair(void)
 
 	if (*crosshairimage.string)
 	{
-		usecolor = 1;
+		usingimage = true;
 		GL_Bind (externalhair);
 		chc = 0;
 
@@ -1430,17 +1430,6 @@ void GLDraw_Crosshair(void)
 		if (crosshair.value >= FIRSTANIMATEDCROSHAIR)
 			GLCrosshair_Callback(&crosshair, "");
 
-		if (crosshairsize.value <= 16)
-		{
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		}
-		else
-		{
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		}
-
 		if (crosshairalpha.value<1)
 		{
 			qglEnable (GL_BLEND);
@@ -1455,13 +1444,24 @@ void GLDraw_Crosshair(void)
 	else
 		return;
 
-	if (usecolor)
+	if (usingimage)
 		qglColor4f(chcolor[0], chcolor[1], chcolor[2], crosshairalpha.value);
 	else
 		qglColor4f(1, 1, 1, crosshairalpha.value);
 
 	size = crosshairsize.value;
 	chc = size * chc;
+
+	if (gl_smoothcrosshair.value && (size > 16 || usingimage))
+	{
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+	else
+	{
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	}
 
 	for (sc = 0; sc < cl.splitclients; sc++)
 	{

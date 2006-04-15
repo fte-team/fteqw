@@ -110,6 +110,7 @@ cvar_t	gl_font = SCVARF("gl_font", "", CVAR_RENDERERCALLBACK);
 //gl blends. Set this to 1 to stop the outside of your conchars from being visible
 cvar_t	gl_fontedgeclamp = SCVAR("gl_fontedgeclamp", "0");	
 cvar_t	gl_smoothfont	= SCVAR("gl_smoothfont", "1");
+cvar_t  gl_smoothcrosshair = SCVAR("gl_smoothcrosshair", "1");
 #endif
 cvar_t	gl_motionblur = SCVARF("gl_motionblur", "0", CVAR_ARCHIVE);
 cvar_t	gl_motionblurscale = SCVAR("gl_motionblurscale", "1");
@@ -318,6 +319,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_font, GRAPHICALNICETIES);
 	Cvar_Register (&gl_conback, GRAPHICALNICETIES);
 	Cvar_Register (&gl_smoothfont, GRAPHICALNICETIES);
+	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_bump, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_glsl_offsetmapping, GRAPHICALNICETIES);

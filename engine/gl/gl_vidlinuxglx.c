@@ -754,7 +754,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		vid_dpy = XOpenDisplay(NULL);
 	if (!vid_dpy)
 	{
-		Sys_Error("Error couldn't open the X display\n");
+		Con_Printf(S_ERROR "Error: couldn't open the X display\n");
+		return false;
 	}
 
 	scrnum = DefaultScreen(vid_dpy);
@@ -857,7 +858,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
 	}
 #endif
-	XStoreName(vid_dpy, vid_window, "GLX QuakeWorld Cient");
+	XStoreName(vid_dpy, vid_window, "FTE QuakeWorld");
 
 //hide the cursor.
 	XDefineCursor(vid_dpy, vid_window, CreateNullCursor(vid_dpy, vid_window));

@@ -85,6 +85,8 @@ void VARGS Sys_SetFPCW (void);
 
 int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void *), void *parm);
 
+qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
+
 #ifdef _WIN32
 int StartLocalServer(int close);
 #endif

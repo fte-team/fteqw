@@ -658,7 +658,7 @@ void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue)
 		if (!Q_strcasecmp (modes[i].altname, var->string ) )
 			break;
 	}
-	if (i == 6)
+	if (i == sizeof(modes)/sizeof(modes[0]))
 	{
 		Con_Printf ("bad gl_texturemode name\n");
 		return;

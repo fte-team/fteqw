@@ -99,6 +99,7 @@ static cvar_t	vid_width = SCVARF("vid_width", "640", CVAR_ARCHIVE|CVAR_RENDERERL
 static cvar_t	vid_height = SCVARF("vid_height", "480", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 static cvar_t	vid_refreshrate = SCVARF("vid_displayfrequency", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 static cvar_t	vid_multisample = SCVARF("vid_multisample", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
+static cvar_t	vid_desktopsettings = SCVARF("vid_desktopsettings", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 
 #if defined(RGLQUAKE)
 cvar_t	gl_texturemode = SCVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, GL_Texturemode_Callback);
@@ -492,6 +493,8 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_width, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_height, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_refreshrate, VIDCOMMANDGROUP);
+
+	Cvar_Register (&vid_desktopsettings, VIDCOMMANDGROUP);
 
 	Cvar_Register (&gl_skyboxname, GRAPHICALNICETIES);
 
@@ -1891,6 +1894,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	newr.bpp = vid_bpp.value;
 	newr.fullscreen = vid_fullscreen.value;
 	newr.rate = vid_refreshrate.value;
+
 	Q_strncpyz(newr.glrenderer, gl_driver.string, sizeof(newr.glrenderer));
 
 	newr.renderer = -1;
@@ -1923,6 +1927,42 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 		Cmd_ExecuteString("setrenderer sw\n", RESTRICT_LOCAL);
 #endif
 		return;
+	}
+
+	// use desktop settings if set to 0 and not dedicated
+	if (newr.renderer != QR_NONE)
+	{
+		int dbpp, dheight, dwidth, drate;
+
+		if (!Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
+		{
+			// force default values for systems not supporting desktop parameters
+			dwidth = 640;
+			dheight = 480;
+			if (newr.renderer == QR_SOFTWARE) // hack for software default
+				dbpp = 8;
+			else
+				dbpp = 32;
+		}
+
+		if (vid_desktopsettings.value)
+		{
+			newr.width = dwidth;
+			newr.height = dheight;
+			newr.bpp = dbpp;
+			newr.rate = drate;
+		}
+		else
+		{
+			if (newr.width <= 0 || newr.height <= 0)
+			{
+				newr.width = dwidth;
+				newr.height = dheight;
+			}
+
+			if (newr.bpp <= 0)
+				newr.bpp = dbpp;
+		}
 	}
 
 	TRACE(("dbg: R_RestartRenderer_f renderer %i\n", newr.renderer));

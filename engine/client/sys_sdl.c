@@ -299,6 +299,11 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
+{
+	return false;
+}
+
 void Sys_HighFPPrecision(void)
 {
 }

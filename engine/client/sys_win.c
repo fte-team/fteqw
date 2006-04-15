@@ -1256,8 +1256,27 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     return TRUE;
 }
 
+qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
+{
+	HDC hdc;
+	int rate;
 
+	hdc = GetDC(NULL);
 
+	*width = GetDeviceCaps(hdc, HORZRES);
+	*height = GetDeviceCaps(hdc, VERTRES);
+	*bpp = GetDeviceCaps(hdc, BITSPIXEL);
+	rate = GetDeviceCaps(hdc, VREFRESH);
+
+	if (rate == 1)
+		rate = 0;
+
+	*refreshrate = rate;
+
+	ReleaseDC(NULL, hdc);
+
+	return true;
+}
 
 
 #ifdef NOASM //these couldn't be found... (it is a masm thing, right?)

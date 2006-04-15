@@ -274,6 +274,11 @@ void Sys_ServerActivity(void)
 {
 }
 
+qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
+{
+	return false;
+}
+
 /* x86 crap */
 void Sys_HighFPPrecision (void)
 {

@@ -884,18 +884,22 @@ void SCR_CalcRefdef (void)
 		sb_lines = 0;
 	else
 #endif
-		if (size >= 120)
+
+	if (size >= 120)
 		sb_lines = 0;           // no status bar at all
 	else if (size >= 110)
 		sb_lines = 24;          // no inventory
 	else
 		sb_lines = 24+16+8;
 
-	if (scr_viewsize.value >= 100.0 || scr_chatmode) {
+	if (scr_viewsize.value >= 100.0 || scr_chatmode)
+	{
 		full = true;
 		size = 100.0;
-	} else
+	} 
+	else
 		size = scr_viewsize.value;
+
 	if (cl.intermission)
 	{
 		full = true;
@@ -917,11 +921,14 @@ void SCR_CalcRefdef (void)
 	}
 
 	r_refdef.vrect.height = vid.height * size;
-	if (cl_sbar.value==1 || !full) {
+	if (cl_sbar.value==1 || !full)
+	{
   		if (r_refdef.vrect.height > vid.height - sb_lines)
   			r_refdef.vrect.height = vid.height - sb_lines;
-	} else if (r_refdef.vrect.height > vid.height)
+	} 
+	else if (r_refdef.vrect.height > vid.height)
 			r_refdef.vrect.height = vid.height;
+
 	r_refdef.vrect.x = (vid.width - r_refdef.vrect.width)/2;
 	if (full)
 		r_refdef.vrect.y = 0;

@@ -477,8 +477,30 @@ void Sys_ServerActivity(void)
 {
 }
 
+//FIXME: this is hacky. Unlike other OSes where the GUI is part of the OS, X is seperate
+//from the OS. This will cause problems with framebuffer-only setups.
+qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
+{
+	Display *xtemp;
+	int scr;
+	XPixmapFormatValues xpfv;
+	
+	xtemp = XOpenDisplay(NULL);
 
+	if (!xtemp)
+		return false;
 
+	scr = DefaultScreen(xtemp);
+
+	*width = DisplayWidth(xtemp, scr);
+	*height = DisplayHeight(xtemp, scr);
+	*bpp = DefaultDepth(xtemp, scr);
+	*refreshrate = 0;
+
+	XCloseDisplay(xtemp);
+
+	return true;
+}
 
 #define SYS_CLIPBOARD_SIZE		256
 static char clipboard_buffer[SYS_CLIPBOARD_SIZE] = {0};

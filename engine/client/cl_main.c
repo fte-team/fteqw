@@ -3324,6 +3324,9 @@ void Host_Init (quakeparms_t *parms)
 	if ((i = COM_CheckParm ("-bpp")))
 		Cvar_Set(Cvar_FindVar("vid_bpp"), com_argv[i+1]);
 
+	if (COM_CheckParm ("-current"))
+		Cvar_Set(Cvar_FindVar("vid_desktopsettings"), "1");
+
 	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
 
 //-1 means 'never set'

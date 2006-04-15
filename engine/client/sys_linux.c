@@ -41,6 +41,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <errno.h>
+#include <X11/Xlib.h>
 
 #include "quakedef.h"
 
@@ -483,7 +484,6 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 {
 	Display *xtemp;
 	int scr;
-	XPixmapFormatValues xpfv;
 	
 	xtemp = XOpenDisplay(NULL);
 

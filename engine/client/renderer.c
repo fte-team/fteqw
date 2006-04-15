@@ -245,11 +245,11 @@ void R_BulletenForce_f (void);
 
 rendererstate_t currentrendererstate;
 
-cvar_t	gl_skyboxname	= SCVAR("r_skybox", "");
+cvar_t	r_skyboxname	= SCVARF("r_skybox", "", CVAR_RENDERERCALLBACK);
 cvar_t	r_fastsky	= SCVAR("r_fastsky", "0");
 cvar_t	r_fastskycolour	= SCVAR("r_fastskycolour", "0");
 
-cvar_t r_menutint = SCVAR("r_menutint", "0.68 0.4 0.13");
+cvar_t r_menutint = SCVARF("r_menutint", "0.68 0.4 0.13", CVAR_RENDERERCALLBACK);
 
 #if defined(RGLQUAKE)
 cvar_t gl_schematics = SCVAR("gl_schematics","0");
@@ -496,7 +496,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&vid_desktopsettings, VIDCOMMANDGROUP);
 
-	Cvar_Register (&gl_skyboxname, GRAPHICALNICETIES);
+	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
 
 	Cvar_Register(&r_dodgytgafiles, "Bug fixes");
 	Cvar_Register(&r_dodgypcxfiles, "Bug fixes");
@@ -1512,8 +1512,6 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	Hunk_FreeToLowMark(host_hunklevel);	//is this a good idea?
 
 	TRACE(("dbg: R_ApplyRenderer: old renderer closed\n"));
-
-	gl_skyboxname.modified = true;
 
 	pmove.numphysent = 0;
 

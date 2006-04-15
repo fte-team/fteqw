@@ -655,13 +655,15 @@ if (!data)
 void GLR_TimeRefresh_f (void);
 
 extern cvar_t gl_bump;
-extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
+extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount, r_menutint;
 
 // callback defines
-extern cvar_t crosshair, crosshairimage, crosshaircolor;
+extern cvar_t crosshair, crosshairimage, crosshaircolor, r_skyboxname;
 void GLCrosshairimage_Callback(struct cvar_s *var, char *oldvalue);
 void GLCrosshair_Callback(struct cvar_s *var, char *oldvalue);
 void GLCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue);
+void GLR_Skyboxname_Callback(struct cvar_s *var, char *oldvalue);
+void GLR_Menutint_Callback (struct cvar_s *var, char *oldvalue);
 
 void GLR_DeInit (void)
 {
@@ -674,6 +676,8 @@ void GLR_DeInit (void)
 	Cvar_Unhook(&crosshair);
 	Cvar_Unhook(&crosshairimage);
 	Cvar_Unhook(&crosshaircolor);
+	Cvar_Unhook(&r_skyboxname);
+	Cvar_Unhook(&r_menutint);
 
 	GLDraw_DeInit();
 
@@ -690,6 +694,8 @@ void GLR_Init (void)
 	Cvar_Hook(&crosshair, GLCrosshair_Callback);
 	Cvar_Hook(&crosshairimage, GLCrosshairimage_Callback);
 	Cvar_Hook(&crosshaircolor, GLCrosshaircolor_Callback);
+	Cvar_Hook(&r_skyboxname, GLR_Skyboxname_Callback);
+	Cvar_Hook(&r_menutint, GLR_Menutint_Callback);
 
 	R_InitBubble();
 
@@ -1043,7 +1049,7 @@ TRACE(("dbg: GLR_NewMap: figuring out skys and mirrors\n"));
 	}
 TRACE(("dbg: GLR_NewMap: that skybox thang\n"));
 //#ifdef QUAKE2
-	R_LoadSkys ();
+	GLR_LoadSkys ();
 //#endif
 TRACE(("dbg: GLR_NewMap: ui\n"));
 #ifdef VM_UI

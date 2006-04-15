@@ -287,7 +287,7 @@ struct mleaf_s *GLMod_PointInLeaf (struct model_s *model, float *p);
 void GLMod_Think (void);
 void GLMod_NowLoadExternal(void);
 void GLR_WipeStains(void);
-void R_LoadSkys (void);
+void GLR_LoadSkys (void);
 #endif
 
 #if defined(SWQUAKE)

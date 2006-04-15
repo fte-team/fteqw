@@ -16,14 +16,10 @@ qbyte *pal555to8;
 int swzpal[TRANS_LEVELS][256];
 
 // menutint
-palremap_t *RebuildMenuTint(void);
 palremap_t *mtpalremap;
 
 // IB remap
 palremap_t *ib_remap;
-
-extern cvar_t r_menutint;
-int mtmodified;
 
 #define palette host_basepal
 #define _abs(x) ((x)*(x))
@@ -44,7 +40,6 @@ void D_ShutdownTrans(void)
 	}
 
 	mtpalremap = NULL;
-	mtmodified = 0;
 	ib_remap = NULL;
 }
 
@@ -57,7 +52,6 @@ void D_InitTrans(void)
 
 	srctable = swzpal[0];
 	dsttable = swzpal[TRANS_MAX];
-	mtpalremap = RebuildMenuTint();
 	ib_remap = D_IdentityRemap();
 }
 
@@ -413,12 +407,12 @@ palremap_t *D_GetPaletteRemap(int red, int green, int blue, qboolean desaturate,
 	return palremaps + deref;
 }
 
-palremap_t *RebuildMenuTint(void)
+palremap_t *RebuildMenuTint(struct cvar_s *var)
 {
 	vec3_t rgb;
 
-	if (r_menutint.string[0])
-		SCR_StringToRGB(r_menutint.string, rgb, 1);
+	if (var->string[0])
+		SCR_StringToRGB(var->string, rgb, 1);
 	else
 		return NULL;
 
@@ -443,17 +437,16 @@ void D_DereferenceRemap(palremap_t *palremap)
 	}
 }
 
+void SWR_Menutint_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (mtpalremap)
+		D_DereferenceRemap(mtpalremap);
+
+	mtpalremap = RebuildMenuTint(var);
+}
+
 qbyte *D_GetMenuTintPal(void)
 {
-	if (mtmodified != r_menutint.modified)
-	{
-		if (mtpalremap)
-			D_DereferenceRemap(mtpalremap);
-
-		mtpalremap = RebuildMenuTint();
-		mtmodified = r_menutint.modified;
-	}
-
 	if (mtpalremap && mtpalremap != palremaps)
 		return mtpalremap->pal;	
 	else

@@ -120,8 +120,6 @@ static char	*suf[6] = {"rt", "bk", "lf", "ft", "up", "dn"};
 int	r_skysideimage[6] = {5, 2, 4, 1, 0, 3};
 extern	mtexinfo_t		r_skytexinfo[6];
 
-extern cvar_t gl_skyboxname;
-
 char skyname[64];
 
 /*
@@ -129,7 +127,7 @@ char skyname[64];
 R_LoadSkyBox
 ================
 */
-void R_LoadSkyBox (void)
+void SWR_LoadSkyBox (void)
 {
 #ifdef Q2BSPS
 	void *Mod_LoadWall(char *name);
@@ -167,7 +165,7 @@ void SWR_SetSky (char *name, float rotate, vec3_t axis)
 		r_skytexinfo[i].texture = NULL;
 	}
 
-	R_LoadSkyBox();
+	SWR_LoadSkyBox();
 }
 
 qboolean SWR_CheckSky (void)
@@ -259,6 +257,12 @@ void R_InitSkyBox (void)
 	Hunk_Check();
 }
 
+void SWR_Skyboxname_Callback(struct cvar_s *var, char *oldvalue)
+{
+	Q_strncpyz (skyname, var->string, sizeof(skyname));
+	SWR_LoadSkyBox();
+}
+
 /*
 ================
 R_EmitSkyBox
@@ -273,13 +277,6 @@ qboolean R_EmitSkyBox (void)
 		return false;		// submodels should never have skies
 	if (r_skyframe == r_framecount)
 		return true;		// already set this frame
-
-	if (gl_skyboxname.modified)
-	{
-		Q_strncpyz (skyname, gl_skyboxname.string, sizeof(skyname));
-		R_LoadSkyBox();
-		gl_skyboxname.modified = false;
-	}
 
 	if (!*skyname)	//none set
 		return false;

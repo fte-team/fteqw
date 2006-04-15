@@ -47,12 +47,11 @@ qboolean usingskybox;
 
 msurface_t	*warpface;
 
-extern cvar_t gl_skyboxname;
+extern cvar_t r_skyboxname;
 extern cvar_t gl_skyboxdist;
 extern cvar_t r_fastsky;
 extern cvar_t r_fastskycolour;
 char defaultskybox[MAX_QPATH];
-qboolean reloadskybox;
 
 int skyboxtex[6];
 
@@ -301,15 +300,15 @@ static char *skyname_pattern[] = {
 	"gfx/env/%s%s"
 };
 
-void R_LoadSkys (void)
+void GLR_LoadSkys (void)
 {
 	int		i;
 	char	name[MAX_QPATH];
 	char *boxname;
 	int p, s;
 
-	if (*gl_skyboxname.string)
-		boxname = gl_skyboxname.string;	//user forced
+	if (*r_skyboxname.string)
+		boxname = r_skyboxname.string;	//user forced
 	else
 		boxname = defaultskybox;
 
@@ -350,7 +349,6 @@ void R_LoadSkys (void)
 			break;
 		}
 	}
-	reloadskybox = false;
 }
 
 
@@ -358,13 +356,17 @@ qboolean GLR_CheckSky()
 {
 	return true;
 }
+
+void GLR_Skyboxname_Callback(struct cvar_s *var, char *oldvalue)
+{
+	GLR_LoadSkys();
+}
+
 void GLR_SetSky(char *name, float rotate, vec3_t axis)	//called from the client code, once per level
 {
 	Q_strncpyz(defaultskybox, name, sizeof(defaultskybox));
-	if (!*gl_skyboxname.string)	//don't override a user's settings
-	{
-		reloadskybox = true;
-	}
+	if (!*r_skyboxname.string)	//don't override a user's settings
+		GLR_Skyboxname_Callback(&r_skyboxname, "");
 
 	skyrotate = rotate;
 	VectorCopy(axis, skyaxis);
@@ -772,14 +774,6 @@ void R_ClearSkyBox (void)
 		usingskybox = false;		
 		return;
 	}
-	if (gl_skyboxname.modified)
-	{
-		gl_skyboxname.modified = false;
-		reloadskybox = true;
-	}
-
-	if (reloadskybox)
-		R_LoadSkys();
 
 	if (!skyboxtex[0] || !skyboxtex[1] || !skyboxtex[2] || !skyboxtex[3] || !skyboxtex[4] || !skyboxtex[5])
 	{

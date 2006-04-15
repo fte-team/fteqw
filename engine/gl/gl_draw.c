@@ -2008,47 +2008,43 @@ Draw_FadeScreen
 ================
 */
 vec3_t fadecolor;
-vec3_t fadecolorreal;
 int faderender;
-int fademodified;
+
+void GLR_Menutint_Callback (struct cvar_s *var, char *oldvalue)
+{
+	// parse r_menutint and clear defaults
+	faderender = GL_DST_COLOR;
+
+	if (var->string[0])
+		SCR_StringToRGB(var->string, fadecolor, 1);
+	else
+		faderender = 0;
+
+	// bounds check and inverse check
+	if (faderender)
+	{
+		if (fadecolor[0] < 0)
+		{
+			faderender = GL_ONE_MINUS_DST_COLOR;
+			fadecolor[0] = -(fadecolor[0]);
+		}
+		if (fadecolor[1] < 0)
+		{
+			faderender = GL_ONE_MINUS_DST_COLOR;
+			fadecolor[1] = -(fadecolor[1]);
+		}
+		if (fadecolor[2] < 0)
+		{
+			faderender = GL_ONE_MINUS_DST_COLOR;
+			fadecolor[2] = -(fadecolor[2]);
+		}
+	}
+}
 
 void GLDraw_FadeScreen (void)
 {
-	extern cvar_t r_menutint, gl_menutint_shader;
+	extern cvar_t gl_menutint_shader;
 	extern int scenepp_texture, scenepp_mt_program, scenepp_mt_parm_colorf, scenepp_mt_parm_inverti;
-
-	if (fademodified != r_menutint.modified)
-	{
-		// parse r_menutint and clear defaults
-		faderender = GL_DST_COLOR;
-
-		if (r_menutint.string[0])
-			SCR_StringToRGB(r_menutint.string, fadecolor, 1);
-		else
-			faderender = 0;
-
-		// bounds check and inverse check
-		if (faderender)
-		{
-			if (fadecolor[0] < 0)
-			{
-				faderender = GL_ONE_MINUS_DST_COLOR;
-				fadecolor[0] = -(fadecolor[0]);
-			}
-			if (fadecolor[1] < 0)
-			{
-				faderender = GL_ONE_MINUS_DST_COLOR;
-				fadecolor[1] = -(fadecolor[1]);
-			}
-			if (fadecolor[2] < 0)
-			{
-				faderender = GL_ONE_MINUS_DST_COLOR;
-				fadecolor[2] = -(fadecolor[2]);
-			}
-		}
-
-		fademodified = r_menutint.modified;
-	}
 
 	if (!faderender)
 		return;

@@ -489,7 +489,7 @@ void CL_SendConnectPacket (
 
 #ifdef PROTOCOL_VERSION_FTE
 	if (ftepext)
-		strcat(data, va("0x%x 0x%x\n", LittleLong(PROTOCOL_VERSION_FTE), LittleLong(fteprotextsupported)));
+		strcat(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE, fteprotextsupported));
 #endif
 
 #ifdef HUFFNETWORK

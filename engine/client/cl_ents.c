@@ -39,9 +39,6 @@ extern int cl_playerindex;
 
 static struct predicted_player {
 	int flags;
-	int frame;
-	int oldframe;
-	float lerptime;
 	qboolean active;
 	vec3_t origin;	// predicted origin
 
@@ -2786,21 +2783,20 @@ void CL_LinkPlayers (void)
 		ent->frame1time = cl.time - cl.lerpplayers[j].framechange;
 		ent->frame2time = cl.time - cl.lerpplayers[j].oldframechange;
 
-		ent->frame = state->frame;
-		ent->oldframe = state->oldframe;
-		if (state->lerpstarttime)
+		if (ent->frame != cl.lerpplayers[j].frame)
 		{
-			ent->lerpfrac = 1-(realtime - state->lerpstarttime)*10;
-			if (ent->lerpfrac > 1)
-				ent->lerpfrac = 1;
-			else if (ent->lerpfrac < 0)
-			{
-				ent->lerpfrac = 0;
-				//state->lerpstarttime = 0;
-			}
+			ent->oldframe = ent->frame;
+			ent->frame = cl.lerpplayers[j].frame;
 		}
-		else
+
+		ent->lerpfrac = 1-(realtime - cl.lerpplayers[j].framechange)*10;
+		if (ent->lerpfrac > 1)
+			ent->lerpfrac = 1;
+		else if (ent->lerpfrac < 0)
+		{
 			ent->lerpfrac = 0;
+			//state->lerpstarttime = 0;
+		}
 
 #ifdef SWQUAKE
 		ent->palremap = info->palremap;
@@ -3147,6 +3143,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 		pplayer->active = true;
 		pplayer->flags = state->flags;
 
+		/*
 		if (pplayer->frame != state->frame)
 		{
 			state->oldframe = pplayer->oldframe = pplayer->frame;
@@ -3158,6 +3155,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 			state->lerpstarttime = pplayer->lerptime;
 			state->oldframe = pplayer->oldframe;
 		}
+		*/
 
 		// note that the local player is special, since he moves locally
 		// we use his last predicted postition

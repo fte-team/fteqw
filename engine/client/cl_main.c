@@ -489,13 +489,13 @@ void CL_SendConnectPacket (
 
 #ifdef PROTOCOL_VERSION_FTE
 	if (ftepext)
-		strcat(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE, fteprotextsupported));
+		strcat(data, va("0x%x 0x%x\n", LittleLong(PROTOCOL_VERSION_FTE), LittleLong(fteprotextsupported)));
 #endif
 
 #ifdef HUFFNETWORK
 	if (compressioncrc && Huff_CompressionCRC(compressioncrc))
 	{
-		strcat(data, va("0x%x 0x%x\n", (('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24)), compressioncrc));
+		strcat(data, va("0x%x 0x%x\n", (('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24)), LittleLong(compressioncrc)));
 		cls.netchan.compress = true;
 	}
 	else

@@ -473,7 +473,7 @@ qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *lo
 	}//end of quake.
 
 	//not yet blocking.
-	if (connect(con->sock, (struct sockaddr *)&from, sizeof(from)) == -1)
+	if (connect(con->sock, (struct sockaddr *)&from, sizeof(struct sockaddr_in)) == -1)
 	{
 		IWebWarnPrintf ("HTTPCL_TCP_OpenSocket: connect: %i %s\n", qerrno, strerror(qerrno));
 		closesocket(con->sock);		

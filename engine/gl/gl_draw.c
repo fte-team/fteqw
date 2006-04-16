@@ -2279,6 +2279,9 @@ void GL_Fontedgeclamp_Callback(struct cvar_s *var, char *oldvalue)
 
 void GL_Font_Callback(struct cvar_s *var, char *oldvalue)
 {
+	mpic_t *pic;
+	int old_char_texture = char_texture;
+
 	if (!*var->string
 		|| (!(char_texture=Mod_LoadHiResTexture(var->string, "fonts", false, true, true))
 		&& !(char_texture=Mod_LoadHiResTexture(var->string, "charsets", false, true, true))))
@@ -2289,6 +2292,19 @@ void GL_Font_Callback(struct cvar_s *var, char *oldvalue)
 	else
 		custom_char_instep = 0.5f/((image_width+image_height)/2);
 
+	// update the conchars texture within the menu cache
+	if (old_char_texture != char_texture)
+	{
+		pic = GLDraw_IsCached("conchars");
+		if (pic)
+		{
+			glpic_t *gl = (glpic_t *)pic->data;
+			gl->texnum = char_texture;
+		}
+		else
+			Con_Printf(S_ERROR "ERROR: Unable to update conchars texture!");
+	}
+	
 	GL_Smoothfont_Callback(&gl_smoothfont, "");
 	GL_Fontedgeclamp_Callback(&gl_fontedgeclamp, "");
 }

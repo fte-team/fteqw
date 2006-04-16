@@ -21,23 +21,11 @@
 #ifdef _WIN32
 #include "winquake.h"
 #define USEIPX
-#define EWOULDBLOCK		WSAEWOULDBLOCK
-#define ECONNREFUSED	WSAECONNREFUSED
-#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
-#define EMSGSIZE		WSAEMSGSIZE
-#define ECONNABORTED	WSAECONNABORTED
-#define ECONNRESET		WSAECONNRESET
-
-#define qerrno WSAGetLastError()
 #else
-#define qerrno errno
-
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <errno.h>
 typedef int SOCKET;
 #endif
+
+#include "common/netinc.h"
 
 #ifdef AF_IPX
 #define USEIPX
@@ -754,7 +742,7 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 			pollsocketsUDP[lastpollsockUDP] = UDP_OpenSocket(PORT_ANY, true);
 		if (pollsocketsUDP[lastpollsockUDP]==INVALID_SOCKET)
 			return;	//bother
-		ret = sendto (pollsocketsUDP[lastpollsockUDP], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
+		ret = sendto (pollsocketsUDP[lastpollsockUDP], data, len, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in) );
 	}
 
 	if (ret == -1)

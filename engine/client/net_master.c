@@ -25,7 +25,7 @@
 typedef int SOCKET;
 #endif
 
-#include "common/netinc.h"
+#include "netinc.h"
 
 #ifdef AF_IPX
 #define USEIPX

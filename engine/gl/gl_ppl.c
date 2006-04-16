@@ -12,7 +12,7 @@
 //these are shared with gl_rsurf - move to header
 void R_MirrorChain (msurface_t *s);
 void GL_SelectTexture (GLenum target);
-void R_RenderDynamicLightmaps (msurface_t *fa);
+void R_RenderDynamicLightmaps (msurface_t *fa, int shift);
 void R_BlendLightmaps (void);
 
 
@@ -73,6 +73,8 @@ int ppl_specular_shader_vieworg;
 int ppl_specular_shader_texr;
 int ppl_specular_shader_texu;
 int ppl_specular_shader_texf;
+
+int GLR_LightmapShift (model_t *model);
 
 //#define glBegin glEnd
 
@@ -1712,6 +1714,7 @@ void PPL_BaseBModelTextures(entity_t *e)
 {
 	extern msurface_t  *r_alpha_surfaces;
 	int i, k;
+	int shift;
 	model_t *model;
 	msurface_t *s;
 	msurface_t *chain = NULL;
@@ -1720,6 +1723,8 @@ void PPL_BaseBModelTextures(entity_t *e)
 	R_RotateForEntity(e);
 	currentmodel = model = e->model;
 	s = model->surfaces+model->firstmodelsurface;
+
+	shift = GLR_LightmapShift(currentmodel);
 
 	if (currententity->drawflags & DRF_TRANSLUCENT)
 		currententity->shaderRGBAf[3]=0.5;
@@ -1765,7 +1770,7 @@ void PPL_BaseBModelTextures(entity_t *e)
 
 //update lightmaps.
 		for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-			R_RenderDynamicLightmaps (s);
+			R_RenderDynamicLightmaps (s, shift);
 	}
 
 

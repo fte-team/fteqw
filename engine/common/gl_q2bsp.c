@@ -4030,6 +4030,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #endif
 	case Q2BSPVERSION:
 		mapisq3 = false;
+		loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
 		for (i=0 ; i<Q2HEADER_LUMPS ; i++)
 		{
 			header.lumps[i].filelen = LittleLong (header.lumps[i].filelen);
@@ -5997,7 +5998,6 @@ int map_checksum;
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer)
 {
 	mod->fromgame = fg_quake2;
-	mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 	return CM_LoadMap(mod->name, buffer, true, &map_checksum) != NULL;
 }
 

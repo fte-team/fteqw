@@ -58,7 +58,7 @@ extern msurface_t *r_mirror_chain;
 
 mleaf_t		*r_vischain;		// linked list of visible leafs
 
-void R_RenderDynamicLightmaps (msurface_t *fa);
+void R_RenderDynamicLightmaps (msurface_t *fa, int shift);
 
 extern cvar_t gl_detail;
 extern cvar_t r_stains;
@@ -68,6 +68,14 @@ extern cvar_t r_stainfadeammount;
 
 //extern cvar_t gl_lightmapmode;
 
+int GLR_LightmapShift (model_t *model)
+{
+	extern cvar_t gl_overbright_all, gl_lightmap_shift;
+
+	if (gl_overbright_all.value || (model->engineflags & MDLF_NEEDOVERBRIGHT))
+		return bound(0, gl_lightmap_shift.value, 2);
+	return 0;
+}
 
 //radius, x y z, r g b
 void GLR_StainSurf (msurface_t *surf, float *parms)
@@ -725,7 +733,7 @@ R_BuildLightMap
 Combine and scale multiple lightmaps into the 8.8 format in blocklights
 ===============
 */
-void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc)
+void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift)
 {
 	int			smax, tmax;
 	int			t;
@@ -745,15 +753,8 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 	int cr, cg, cb;
 #endif
 	int stride = LMBLOCK_WIDTH*lightmap_bytes;
-	int shift;
 
-	if (gl_lightmap_shift.value >= 2)
-		shift = 9;
-	else if (gl_lightmap_shift.value == 1)
-		shift = 8;
-	else
-		shift = 7;
-
+	shift += 7; // increase to base value
 	surf->cached_dlight = (surf->dlightframe == r_framecount);
 
 	smax = (surf->extents[0]>>4)+1;
@@ -1914,9 +1915,10 @@ R_RenderDynamicLightmaps
 Multitexture
 ================
 */
-void R_RenderDynamicLightmaps (msurface_t *fa)
+void R_RenderDynamicLightmaps (msurface_t *fa, int shift)
 {
-	qbyte		*base, *luxbase; stmap *stainbase;
+	qbyte		*base, *luxbase;
+	stmap *stainbase;
 	int			maps;
 	glRect_t    *theRect;
 	int smax, tmax;
@@ -1941,7 +1943,6 @@ void R_RenderDynamicLightmaps (msurface_t *fa)
 			return;	//some textures do this.
 	}
 	
-		
 //	fa->polys->chain = lightmap[fa->lightmaptexturenum]->polys;
 //	lightmap[fa->lightmaptexturenum]->polys = fa->polys;
 
@@ -2011,7 +2012,7 @@ dynamic:
 		luxbase += fa->light_t * LMBLOCK_WIDTH * 3 + fa->light_s * 3;
 		stainbase = lightmap[fa->lightmaptexturenum]->stainmaps;
 		stainbase += (fa->light_t * LMBLOCK_WIDTH + fa->light_s) * 3;
-		GLR_BuildLightMap (fa, base, luxbase, stainbase);
+		GLR_BuildLightMap (fa, base, luxbase, stainbase, shift);
 
 		RSpeedEnd(RSPEED_DYNAMIC);
 	}
@@ -2814,6 +2815,7 @@ static void GLR_RecursiveWorldNode (mnode_t *node)
 	msurface_t	*surf, **mark;
 	mleaf_t		*pleaf;
 	double		dot;
+	int shift;
 
 start:
 
@@ -2883,6 +2885,8 @@ start:
 	{
 		surf = cl.worldmodel->surfaces + node->firstsurface;
 
+		shift = GLR_LightmapShift(cl.worldmodel);
+
 //		if (dot < 0 -BACKFACE_EPSILON)
 //			side = SURF_PLANEBACK;
 //		else if (dot > BACKFACE_EPSILON)
@@ -2896,7 +2900,7 @@ start:
 //				if (((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)))
 //					continue;		// wrong side
 
-				R_RenderDynamicLightmaps (surf);
+				R_RenderDynamicLightmaps (surf, shift);
 				// if sorting by texture, just store it out
 /*				if (surf->flags & SURF_DRAWALPHA)
 				{	// add to the translucent chain
@@ -2927,6 +2931,7 @@ static void GLR_RecursiveQ2WorldNode (mnode_t *node)
 	msurface_t	*surf, **mark;
 	mleaf_t		*pleaf;
 	double		dot;
+	int shift;
 
 	int sidebit;
 
@@ -2999,6 +3004,8 @@ static void GLR_RecursiveQ2WorldNode (mnode_t *node)
 // recurse down the children, front side first
 	GLR_RecursiveQ2WorldNode (node->children[side]);
 
+	shift = GLR_LightmapShift(currentmodel);
+
 	// draw stuff
 	for ( c = node->numsurfaces, surf = currentmodel->surfaces + node->firstsurface; c ; c--, surf++)
 	{
@@ -3010,7 +3017,7 @@ static void GLR_RecursiveQ2WorldNode (mnode_t *node)
 
 		surf->visframe = r_framecount+1;//-1;
 
-		R_RenderDynamicLightmaps (surf);
+		R_RenderDynamicLightmaps (surf, shift);
 
 		if (surf->texinfo->flags & (SURF_TRANS33|SURF_TRANS66))
 		{	// add to the translucent chain
@@ -3663,7 +3670,7 @@ void BuildSurfaceDisplayList (msurface_t *fa)
 GL_CreateSurfaceLightmap
 ========================
 */
-void GL_CreateSurfaceLightmap (msurface_t *surf)
+void GL_CreateSurfaceLightmap (msurface_t *surf, int shift)
 {
 	int		smax, tmax;
 	qbyte	*base, *luxbase; stmap *stainbase;
@@ -3697,7 +3704,7 @@ void GL_CreateSurfaceLightmap (msurface_t *surf)
 	stainbase = lightmap[surf->lightmaptexturenum]->stainmaps;
 	stainbase += (surf->light_t * LMBLOCK_WIDTH + surf->light_s) * 3;
 	
-	GLR_BuildLightMap (surf, base, luxbase, stainbase);
+	GLR_BuildLightMap (surf, base, luxbase, stainbase, shift);
 }
 
 
@@ -3736,6 +3743,7 @@ void GL_BuildLightmaps (void)
 {
 	int		i, j;
 	model_t	*m;
+	int shift;
 
 	r_framecount = 1;		// no dlightcache
 
@@ -3821,9 +3829,11 @@ void GL_BuildLightmaps (void)
 
 		r_pcurrentvertbase = m->vertexes;
 		currentmodel = m;
+		shift = GLR_LightmapShift(currentmodel);
+
 		for (i=0 ; i<m->numsurfaces ; i++)
 		{
-			GL_CreateSurfaceLightmap (m->surfaces + i);
+			GL_CreateSurfaceLightmap (m->surfaces + i, shift);
 			P_EmitSkyEffectTris(m, &m->surfaces[i]);
 			if (m->surfaces[i].mesh)	//there are some surfaces that have a display list already (the subdivided ones)
 				continue;

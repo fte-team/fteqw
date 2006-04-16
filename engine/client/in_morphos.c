@@ -212,6 +212,9 @@ void IN_Commands(void)
 
 void IN_Move (usercmd_t *cmd, int pnum)
 {
+	extern int mousecursor_x, mousecursor_y;
+	extern int mousemove_x, mousemove_y;
+
 	if (pnum != 0)
 		return;	//we're lazy today.
 
@@ -222,14 +225,39 @@ void IN_Move (usercmd_t *cmd, int pnum)
 
 	old_mouse_x = mouse_x;
 	old_mouse_y = mouse_y;
-   
-	mouse_x *= sensitivity.value;
-	mouse_y *= sensitivity.value;
-   
+
 #ifdef IN_XFLIP
 	if(in_xflip.value) mouse_x *= -1;
 #endif
 
+   	if (Key_MouseShouldBeFree())
+	{
+		mousemove_x += mouse_x;
+		mousemove_y += mouse_y;
+		mousecursor_x += mouse_x;
+		mousecursor_y += mouse_y;
+
+		if (mousecursor_y<0)
+			mousecursor_y=0;
+		if (mousecursor_x<0)
+			mousecursor_x=0;
+
+		if (mousecursor_x >= vid.width)
+			mousecursor_x = vid.width - 1;
+
+		if (mousecursor_y >= vid.height)
+			mousecursor_y = vid.height - 1;
+
+		mouse_x = mouse_y = 0;
+#ifdef VM_UI
+		UI_MousePosition(mousecursor_x, mousecursor_y);
+#endif
+	}
+
+
+	mouse_x *= sensitivity.value;
+	mouse_y *= sensitivity.value;
+   
 	if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
 	{
 		if (cmd)

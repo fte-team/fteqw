@@ -671,8 +671,11 @@ void Huff_Init( int *huffCounts ) {
 		for( j=0 ; j<huffCounts[i] ; j++ ) {
 			Huff_AddReference( huffTree, i );
 		}
+		huffCounts[i] = LittleLong(huffCounts[i]);
 	}
 	madetable=Com_BlockChecksum(huffCounts, sizeof(huffCounts));
+	for(i=0;i<256;i++)
+		huffCounts[i] = LittleLong(huffCounts[i]);
 }
 
 void Huff_LoadTable(char *filename)
@@ -690,7 +693,7 @@ qboolean Huff_CompressionCRC(int crc)
 {
 	if (!madetable)
 		Huff_Init(NULL);
-	if (crc != madetable)
+	if (crc != LittleLong(madetable))
 		return false;
 	return true;
 }

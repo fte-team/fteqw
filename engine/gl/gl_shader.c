@@ -541,7 +541,7 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 
 static void Shader_ProgramName ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
-	char *vert, *frag;
+	void *vert, *frag;
 	char *token;
 	if (shader->programhandle)
 	{	//this allows fallbacks
@@ -554,7 +554,7 @@ static void Shader_ProgramName ( shader_t *shader, shaderpass_t *pass, char **pt
 	token = Shader_ParseString ( ptr );
 	FS_LoadFile(token, &frag);
 	if (vert && frag)
-		shader->programhandle = GLSlang_CreateProgram("", vert, frag);
+		shader->programhandle = GLSlang_CreateProgram("", (char *)vert, (char *)frag);
 	if (vert)
 		FS_FreeFile(vert);
 	if (frag)

@@ -1488,7 +1488,6 @@ packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp)
 {
 	packet_entities_t	*packnew, *packold;
 	int					i;
-	static float oldoldtime;
 	//, spnum;
 
 	if (nolerp)

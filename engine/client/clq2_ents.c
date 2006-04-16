@@ -1610,11 +1610,13 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 						renderfx |= Q2RF_SHELL_BLUE;
 					// if we have a blue shell (and not a red shell), turn it to cyan by adding green
 					else if (renderfx & Q2RF_SHELL_BLUE)
+					{
 						// go to green if it's on already, otherwise do cyan (flash green)
 						if (renderfx & Q2RF_SHELL_GREEN)
 							renderfx &= ~Q2RF_SHELL_BLUE;
 						else
 							renderfx |= Q2RF_SHELL_GREEN;
+					}
 				}
 			}
 			// pmm

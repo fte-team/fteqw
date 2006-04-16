@@ -813,7 +813,6 @@ void CLNQ_SendCmd(void)
 
 float CL_FilterTime (double time, float wantfps)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.
 {
-	extern cvar_t rate;
 	float fps, fpscap;
 
 	if (cls.timedemo || cls.protocol == CP_QUAKE3)
@@ -1060,8 +1059,6 @@ void CL_SendCmd (float frametime)
 	int clientcount;
 
 	extern cvar_t cl_maxfps;
-
-	int cursor_entitynumber=0;//I hate warnings as errors
 
 	if (cls.demoplayback != DPB_NONE)
 	{

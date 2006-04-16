@@ -178,6 +178,7 @@ vfsfile_t	*sv_fraglogfile;
 void SV_FixupName(char *in, char *out);
 void SV_AcceptClient (netadr_t adr, int userid, char *userinfo);
 void Master_Shutdown (void);
+void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
 
 //============================================================================
 

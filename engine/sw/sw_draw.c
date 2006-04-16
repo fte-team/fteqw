@@ -790,9 +790,9 @@ void SWDraw_ColouredCharacter (int x, int y, unsigned int num)
 				{
 					if (source[i])
 					{
-						dest16[i] = ((((128+pal[source[i]*4+0]*ib_ri)>>12)<<10) + ((dest16[i]&0x7B00)>>1)) |
+						dest16[i] = (((((128+pal[source[i]*4+0]*ib_ri)>>12)<<10) + ((dest16[i]&0x7B00)>>1)) |
 							((((128+pal[source[i]*4+1]*ib_gi)>>12)<<5) + ((dest16[i]&0x03D0)>>1)) |
-							((128+pal[source[i]*4+2]*ib_bi)>>12) + ((dest16[i]&0x001E)>>1);
+							((128+pal[source[i]*4+2]*ib_bi)>>12)) + ((dest16[i]&0x001E)>>1);
 					}
 				}
 				source += 128;
@@ -919,7 +919,7 @@ qbyte *COM_LoadFile (char *path, int usehunk);
 void SWDraw_Crosshair(void)
 {
 	int x, y;
-	extern cvar_t crosshair, cl_crossx, cl_crossy, crosshaircolor;
+	extern cvar_t crosshair, cl_crossx, cl_crossy;
 	extern vrect_t		scr_vrect;
 	qbyte c, c2;
 	int sc;

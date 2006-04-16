@@ -2291,9 +2291,7 @@ void CLQ2_ParseTEnt (void)
 		// into a circle but it could be faked well enough, well except for
 		// the fact that these effects have ids associated with them
 		// sort of how beams have ents associated
-		{
-			int id = MSG_ReadShort();
-		}
+		MSG_ReadShort(); // id
 		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_widowbeamout"))
 			P_RunParticleEffect(pos, NULL, 13*8, 300); 
 		break;

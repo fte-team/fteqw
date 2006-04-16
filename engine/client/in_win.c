@@ -64,6 +64,7 @@ cvar_t  m_threshold_noforce = SCVAR("m_threshold_noforce", "0");
 cvar_t	cl_keypad = SCVAR("cl_keypad", "0");
 
 qboolean CSQC_MouseMove(float xdelta, float ydelta);
+qboolean Key_MouseShouldBeFree(void);
 
 typedef struct {
 	union {
@@ -1334,7 +1335,7 @@ void IN_MouseEvent (int mstate)
 
 static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 {
-	extern int mouseusedforgui, mousecursor_x, mousecursor_y;
+	extern int mousecursor_x, mousecursor_y;
 	extern int mousemove_x, mousemove_y;
 
 	int mx, my;

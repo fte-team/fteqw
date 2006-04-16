@@ -62,8 +62,6 @@ static model_t		*pmodel;
 
 extern int cl_playerindex;
 
-static vec3_t		alias_forward, alias_right, alias_up;
-
 static maliasskindesc_t	*pskindesc;
 
 int				r_amodels_drawn;
@@ -366,7 +364,6 @@ void R_AliasPreparePoints (void)
 		if ( ! ( (pfv[0]->flags | pfv[1]->flags | pfv[2]->flags) &
 			(ALIAS_XY_CLIP_MASK | ALIAS_Z_CLIP) ) )
 		{	// totally unclipped
-			extern int	r_p0[6], r_p1[6], r_p2[6];
 			r_affinetridesc.pfinalverts = pfinalverts;
 			r_affinetridesc.ptriangles = ptri;
 
@@ -389,7 +386,6 @@ void R_AliasSetUpTransform (int trivial_accept)
 {
 	int				i;
 	float			rotationmatrix[3][4], t2matrix[3][4];
-	static float	tmatrix[3][4];
 	static float	viewmatrix[3][4];
 
 	for (i=0 ; i<3 ; i++)

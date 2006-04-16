@@ -436,7 +436,8 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 #ifdef IPPROTO_IPV6
 		if (pgetaddrinfo)
 	{
-		struct addrinfo *addrinfo, *pos;
+		struct addrinfo *addrinfo = NULL;
+		struct addrinfo *pos;
 		struct addrinfo udp6hint;
 		int error;
 		char *port;

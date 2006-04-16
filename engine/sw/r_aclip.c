@@ -24,7 +24,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "d_local.h"
 
 static finalvert_t		fv[2][8];
-static mstvert_t			fstv[2][8];
 static auxvert_t		av[8];
 
 void R_AliasProjectFinalVert (finalvert_t *fv, auxvert_t *av);

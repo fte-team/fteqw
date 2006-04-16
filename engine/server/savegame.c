@@ -33,7 +33,7 @@ void SV_SavegameComment (char *text)
 #ifdef Q2SERVER
 	if (ge)	//q2
 	{
-		sprintf (kills,"");
+		kills[0] = '\0';
 	}
 	else
 #endif

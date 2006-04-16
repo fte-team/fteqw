@@ -329,6 +329,7 @@ int FS_Remove(char *fname, int relativeto);	//0 on success, non-0 on error
 qboolean FS_WriteFile (char *filename, void *data, int len, int relativeto);
 vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto);
 vfsfile_t *FS_OpenTemp(void);
+vfsfile_t *FS_OpenTCP(char *name);
 void FS_UnloadPackFiles(void);
 void FS_ReloadPackFiles(void);
 char *FS_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);

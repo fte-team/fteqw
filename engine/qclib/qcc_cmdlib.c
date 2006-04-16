@@ -52,10 +52,10 @@ long    QCC_SwapLong (long l)
 {
 	qbyte    b1,b2,b3,b4;
 
-	b1 = l&255;
-	b2 = (l>>8)&255;
-	b3 = (l>>16)&255;
-	b4 = (l>>24)&255;
+	b1 = (qbyte)l;
+	b2 = (qbyte)(l>>8);
+	b3 = (qbyte)(l>>16);
+	b4 = (qbyte)(l>>24);
 
 	return ((long)b1<<24) + ((long)b2<<16) + ((long)b3<<8) + b4;
 }

@@ -231,8 +231,6 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 
 void GL_InitSceneProcessingShaders_MenuTint(void)
 {
-	static vec3_t defaultcolor = {1, 1, 1};
-
 	char *vshader = "\
 		varying vec2 texcoord;\
 		void main(void)\

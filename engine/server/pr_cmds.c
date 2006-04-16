@@ -6480,7 +6480,6 @@ int PR_EnableEBFSBuiltin(char *name, int binum)
 lh_extension_t *checkfteextensioncl(int mask, char *name)	//true if the cient extension mask matches an extension name
 {
 	int i;
-	unsigned int m = 1;
 	for (i = 0; i < sizeof(FTE_Protocol_Extensions)/sizeof(lh_extension_t); i++)
 	{
 		if (mask & (1<<i))	//suported

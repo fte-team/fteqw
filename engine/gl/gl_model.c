@@ -2584,7 +2584,10 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 	i = LittleLong (header->version);
 
 	if (i == BSPVERSION || i == BSPVERSIONPREREL)
+	{
 		loadmodel->fromgame = fg_quake;
+		loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
+	}
 	else if (i == BSPVERSIONHL)	//halflife support
 		loadmodel->fromgame = fg_halflife;
 	else

@@ -810,6 +810,7 @@ typedef struct model_s
 #define MDLF_PLAYER          0x08 // players have specific lighting values
 #define MDLF_FLAME           0x10 // can be excluded with r_drawflame
 #define MDLF_DOCRC           0x20 // model needs CRC built
+#define MDLF_NEEDOVERBRIGHT  0x40 // only overbright these models with gl_overbright_all set
 
 //============================================================================
 /*

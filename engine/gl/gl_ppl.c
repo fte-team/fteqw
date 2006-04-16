@@ -29,7 +29,7 @@ extern int		lightmap_bytes;		// 1, 2, or 4
 
 extern cvar_t		gl_detail;
 extern cvar_t		gl_detailscale;
-extern cvar_t		gl_overbright;
+extern cvar_t		gl_overbright, gl_overbright_all;
 extern cvar_t		r_fb_bmodels;
 extern cvar_t		gl_part_flame;
 
@@ -1651,12 +1651,14 @@ void PPL_BaseTextures(model_t *model)
 
 	qglShadeModel(GL_FLAT);
 
-	if (gl_overbright.value>=2)
-		overbright = 4;
-	else if (gl_overbright.value)
-		overbright = 2;
-	else
-		overbright = 1;
+	overbright = 1;
+	if (gl_overbright_all.value || (model->engineflags & MDLF_NEEDOVERBRIGHT))
+	{
+		if (gl_overbright.value>=2)
+			overbright = 4;
+		else if (gl_overbright.value)
+			overbright = 2;
+	}
 
 	currentmodel = model;
 

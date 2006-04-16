@@ -3412,6 +3412,8 @@ qboolean GL_LoadQ1Model (model_t *mod, void *buffer)
 
 	pq1inmodel = (dmdl_t *)buffer;
 
+	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
+
 	version = LittleLong(pq1inmodel->version);
 	if (version == QTESTALIAS_VERSION)
 		qtest = true;
@@ -3700,6 +3702,8 @@ qboolean GL_LoadQ2Model (model_t *mod, void *buffer)
 
 
 	loadmodel=mod;
+
+	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
 
 	Mod_DoCRC(mod, buffer, com_filesize);
 

@@ -145,6 +145,7 @@ extern	cvar_t	gl_mindist;
 cvar_t		gl_detail	= SCVARF("gl_detail", "0", CVAR_ARCHIVE);
 cvar_t		gl_detailscale	= SCVAR("gl_detailscale", "5");
 cvar_t		gl_overbright	= SCVARF("gl_overbright", "0", CVAR_ARCHIVE);
+cvar_t		gl_overbright_all = SCVARF("gl_overbright_all", "0", CVAR_ARCHIVE);
 cvar_t		r_shadows	= SCVARF("r_shadows", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 cvar_t		r_shadow_realtime_world	= SCVARF("r_shadow_realtime_world", "0", CVAR_CHEAT|CVAR_ARCHIVE);
 cvar_t		r_shadow_realtime_world_lightmaps	= SCVARF("r_shadow_realtime_world_lightmaps", "0.8", CVAR_CHEAT);
@@ -351,6 +352,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_detail, GRAPHICALNICETIES);
 	Cvar_Register (&gl_detailscale, GRAPHICALNICETIES);
 	Cvar_Register (&gl_overbright, GRAPHICALNICETIES);
+	Cvar_Register (&gl_overbright_all, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);

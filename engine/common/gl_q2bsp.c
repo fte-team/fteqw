@@ -5997,6 +5997,7 @@ int map_checksum;
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer)
 {
 	mod->fromgame = fg_quake2;
+	mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 	return CM_LoadMap(mod->name, buffer, true, &map_checksum) != NULL;
 }
 

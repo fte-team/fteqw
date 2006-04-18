@@ -2744,6 +2744,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	float step;
 	float stop;
 	float tdegree = 2*M_PI/256; /* MSVC whine */
+	float sdegree = 0;
 	float nrfirst, nrlast;
 
 	VectorCopy(startpos, start);
@@ -2824,6 +2825,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	// add offset
 	start[2] += ptype->offsetup;
 
+	// spawn mode precalculations
 	if (ptype->spawnmode == SM_SPIRAL)
 	{
 		VectorVectors(vec, right, up);
@@ -2831,6 +2833,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		// precalculate degree of rotation
 		if (ptype->spawnparam1)
 			tdegree = 2*M_PI/ptype->spawnparam1; /* distance per rotation inversed */
+		sdegree = ptype->spawnparam2*(M_PI/180);
 	}
 	else if (ptype->spawnmode == SM_CIRCLE)
 	{
@@ -3001,8 +3004,8 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 				{
 					float tsin, tcos;
 
-					tcos = cos(len*tdegree)*ptype->areaspread;
-					tsin = sin(len*tdegree)*ptype->areaspread;
+					tcos = cos(len*tdegree+sdegree)*ptype->areaspread;
+					tsin = sin(len*tdegree+sdegree)*ptype->areaspread;
 
 					p->org[0] = start[0] + right[0]*tcos + up[0]*tsin;
 					p->org[1] = start[1] + right[1]*tcos + up[1]*tsin;

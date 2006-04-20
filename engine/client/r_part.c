@@ -3003,20 +3003,24 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 			case SM_SPIRAL:
 				{
 					float tsin, tcos;
+					float tright, tup;
 
-					tcos = cos(len*tdegree+sdegree)*ptype->areaspread;
-					tsin = sin(len*tdegree+sdegree)*ptype->areaspread;
+					tcos = cos(len*tdegree+sdegree);
+					tsin = sin(len*tdegree+sdegree);
 
-					p->org[0] = start[0] + right[0]*tcos + up[0]*tsin;
-					p->org[1] = start[1] + right[1]*tcos + up[1]*tsin;
-					p->org[2] = start[2] + right[2]*tcos + up[2]*tsin;
+					tright = tcos*ptype->areaspread;
+					tup = tsin*ptype->areaspread;
 
-					tcos = cos(len*tdegree)*ptype->offsetspread;
-					tsin = sin(len*tdegree)*ptype->offsetspread;
+					p->org[0] = start[0] + right[0]*tright + up[0]*tup;
+					p->org[1] = start[1] + right[1]*tright + up[1]*tup;
+					p->org[2] = start[2] + right[2]*tright + up[2]*tup;
 
-					p->vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tcos + up[0]*tsin;
-					p->vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tcos + up[1]*tsin;
-					p->vel[2] = vec[2]*veladd+crandom()*randvelvert + right[2]*tcos + up[2]*tsin;
+					tright = tcos*ptype->offsetspread;
+					tup = tsin*ptype->offsetspread;
+
+					p->vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tright + up[0]*tup;
+					p->vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tright + up[1]*tup;
+					p->vel[2] = vec[2]*veladd+crandom()*randvelvert + right[2]*tright + up[2]*tup;
 				}
 				break;
 			// TODO: directionalize SM_BALL/SM_CIRCLE/SM_DISTBALL

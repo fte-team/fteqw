@@ -106,7 +106,7 @@ void SWR_StainSurf (msurface_t *surf, float *parms)
 
 	stmap *stainbase;
 
-	lim = 255 - (bound(0, r_stains.value, 1)*255);
+	lim = 255 - (r_stains.value*255);
 
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;

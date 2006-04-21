@@ -1864,7 +1864,7 @@ void GLDraw_ConsoleBackground (int lines)
 	}
 	else
 	{
-		if (scr_conalpha.value <= 0)
+		if (!scr_conalpha.value)
 			return; 
 
 		a = scr_conalpha.value;

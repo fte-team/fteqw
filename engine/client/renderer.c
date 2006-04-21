@@ -81,7 +81,7 @@ cvar_t	r_sirds = SCVARF("r_sirds", "0", CVAR_SEMICHEAT);//whack in a value of 2 
 
 cvar_t	r_loadlits = SCVAR("r_loadlit", "1");
 
-cvar_t r_stains = SCVARF("r_stains", "0.75", CVAR_ARCHIVE);
+cvar_t r_stains = SCVARFC("r_stains", "0.75", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
 cvar_t r_stainfadetime = SCVAR("r_stainfadetime", "1");
 cvar_t r_stainfadeammount = SCVAR("r_stainfadeammount", "1");
 
@@ -175,7 +175,7 @@ cvar_t			scr_sshot_type	= SCVAR("scr_sshot_type", "jpg");
 
 cvar_t			scr_centersbar	= SCVAR("scr_centersbar", "0");
 cvar_t			scr_consize	= SCVAR("scr_consize", "0.5");
-cvar_t			scr_conalpha = SCVAR("scr_conalpha", "0.7");
+cvar_t			scr_conalpha = SCVARC("scr_conalpha", "0.7", Cvar_Limiter_ZeroToOne_Callback);
 
 cvar_t          scr_viewsize	= SCVARFC("viewsize","100", CVAR_ARCHIVE, SCR_Viewsize_Callback);
 cvar_t          scr_fov	= SCVARFC("fov","90", CVAR_ARCHIVE, SCR_Fov_Callback); // 10 - 170

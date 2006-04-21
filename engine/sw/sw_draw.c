@@ -2023,7 +2023,7 @@ void SWDraw_ConsoleBackground (int lines)
 	char			ver[100];
 	static			char saveback[320*8];
 
-	if (!scr_con_forcedraw && scr_conalpha.value <= 0)
+	if (!scr_con_forcedraw && !scr_conalpha.value)
 		return;
 
 	conback = (mpic_t *)SWDraw_SafeCachePic ("gfx/conback.lmp");
@@ -2154,7 +2154,7 @@ void SWDraw_ConsoleBackground (int lines)
 		if (scr_con_forcedraw)
 			alpha = 255;
 		else
-			alpha = bound(0, scr_conalpha.value*255, 255);
+			alpha = scr_conalpha.value*255;
 		p24dest = (unsigned int *)vid.conbuffer;
 		dest = (unsigned char *)vid.conbuffer;	
 

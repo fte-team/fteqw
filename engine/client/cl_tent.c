@@ -174,7 +174,7 @@ sfx_t			*cl_sfx_ric3;
 sfx_t			*cl_sfx_r_exp3;
 
 cvar_t	cl_expsprite = SCVAR("cl_expsprite", "0");
-cvar_t  r_explosionlight = SCVAR("r_explosionlight", "1");
+cvar_t  r_explosionlight = SCVARC("r_explosionlight", "1", Cvar_Limiter_ZeroToOne_Callback);
 cvar_t	cl_truelightning = SCVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
 cvar_t  cl_beam_trace = SCVAR("cl_beam_trace", "0");
 
@@ -762,7 +762,7 @@ void CL_ParseTEnt (void)
 		{
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
-			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 1;
 			dl->decay = 300;
 		
@@ -802,7 +802,7 @@ void CL_ParseTEnt (void)
 		{
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
-			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 1;
 			dl->decay = 300;
 			
@@ -843,7 +843,7 @@ void CL_ParseTEnt (void)
 		{
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
-			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 0.5;
 			dl->decay = 300;
 		
@@ -874,7 +874,7 @@ void CL_ParseTEnt (void)
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
 			// no point in doing this the fuh/ez way
-			dl->radius = 500*bound(0, r_explosionlight.value, 1); 
+			dl->radius = 500*r_explosionlight.value; 
 			dl->die = cl.time + 1;
 			dl->decay = 500;
 			
@@ -1727,7 +1727,7 @@ void CLQ2_ParseTEnt (void)
 			dlight_t *dl;
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
-			dl->radius = 150 * bound(0, r_explosionlight.value, 1);
+			dl->radius = 150 * r_explosionlight.value;
 			dl->die = cl.time + 0.4;
 			dl->decay = 400;
 			dl->color[0] = 0.2;
@@ -1764,7 +1764,7 @@ void CLQ2_ParseTEnt (void)
 			dlight_t *dl;
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
-			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 0.5;
 			dl->decay = 300;
 			dl->color[0] = 0.2;
@@ -1859,7 +1859,7 @@ void CLQ2_ParseTEnt (void)
 			dlight_t *dl;
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
-			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 0.5;
 			dl->decay = 300;
 			dl->color[0] = 0.2;
@@ -2054,7 +2054,7 @@ void CLQ2_ParseTEnt (void)
 			dlight_t *dl;
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
-			dl->radius = 150 * bound(0, r_explosionlight.value, 1);
+			dl->radius = 150 * r_explosionlight.value;
 			dl->die = cl.time + 0.4;
 			dl->decay = 400;
 			dl->color[0] = 0.01;
@@ -2104,7 +2104,7 @@ void CLQ2_ParseTEnt (void)
 			dlight_t *dl;
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
-			dl->radius = 150 * bound(0, r_explosionlight.value, 1);
+			dl->radius = 150 * r_explosionlight.value;
 			dl->die = cl.time + 0.4;
 			dl->decay = 400;
 			dl->color[0] = 0.038;
@@ -2149,7 +2149,7 @@ void CLQ2_ParseTEnt (void)
 			dlight_t *dl;
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
-			dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 0.5;
 			dl->decay = 300;
 			dl->color[0] = 0.2;
@@ -2264,7 +2264,7 @@ void CLQ2_ParseTEnt (void)
 			dlight_t *dl;
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
-			dl->radius = 150 * bound(0, r_explosionlight.value, 1);
+			dl->radius = 150 * r_explosionlight.value;
 			dl->die = cl.time + 0.1;
 			dl->minlight = 250;
 			dl->color[0] = -0.2;

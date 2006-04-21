@@ -143,6 +143,9 @@ void Cvar_ForceCallback(cvar_t *cvar);
 void Cvar_ApplyCallbacks(int callbackflag);
 //forces callbacks to be ran for given flags
 
+void Cvar_Limiter_ZeroToOne_Callback(struct cvar_s *var, char *oldvalue);
+//cvar callback to limit cvar value to 0 or 1
+
 float	Cvar_VariableValue (const char *var_name);
 // returns 0 if not defined or non numeric
 

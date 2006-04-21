@@ -92,7 +92,7 @@ void GLR_StainSurf (msurface_t *surf, float *parms)
 	mtexinfo_t	*tex;
 	stmap *stainbase;
 
-	lim = 255 - (bound(0, r_stains.value, 1)*255);
+	lim = 255 - (r_stains.value*255);
 
 #define stain(x)							\
 	change = stainbase[(s)*3+x] + amm*parms[4+x];	\
@@ -309,7 +309,7 @@ void GLR_LessenStains(void)
 
 	static float time;
 
-	if (r_stains.value <= 0)
+	if (!r_stains.value)
 		return;
 
 	time += host_frametime;
@@ -970,7 +970,7 @@ store:
 		blg = greenblklights;
 		blb = blueblklights;
 
-		if (r_stains.value <= 0)
+		if (!r_stains.value)
 			isstained = false;
 		else
 			isstained = surf->stained;
@@ -1128,7 +1128,7 @@ store:
 		blg = greenblklights;
 		blb = blueblklights;
 
-		if (r_stains.value <= 0)
+		if (!r_stains.value)
 			isstained = false;
 		else
 			isstained = surf->stained;
@@ -1321,7 +1321,7 @@ store:
 		blg = greenblklights;
 		blb = blueblklights;
 
-		if (r_stains.value <= 0)
+		if (!r_stains.value)
 			isstained = false;
 		else
 			isstained = surf->stained;
@@ -1479,7 +1479,7 @@ store:
 		blg = greenblklights;
 		blb = blueblklights;
 
-		if (r_stains.value <= 0)
+		if (!r_stains.value)
 			isstained = false;
 		else
 			isstained = surf->stained;

@@ -1143,6 +1143,21 @@ void Cvar_ApplyCallbacks(int callbackflag)
 	}
 }
 
+// standard callbacks
+void Cvar_Limiter_ZeroToOne_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (var->value > 1)
+	{
+		Cvar_ForceSet(var, "1");
+		return;
+	}
+	else if (var->value < 0)
+	{
+		Cvar_ForceSet(var, "0");
+		return;
+	}
+}
+
 void Cvar_Shutdown(void)
 {
 	cvar_t	*var;

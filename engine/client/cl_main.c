@@ -109,7 +109,7 @@ cvar_t	cl_chatsound = SCVAR("cl_chatsound","1");
 cvar_t cl_enemychatsound = SCVAR("cl_enemychatsound", "misc/talk.wav");
 cvar_t cl_teamchatsound = SCVAR("cl_teamchatsound", "misc/talk.wav");
 
-cvar_t	r_rocketlight	= SCVAR("r_rocketlight",	"1");
+cvar_t	r_rocketlight	= SCVARC("r_rocketlight",	"1", Cvar_Limiter_ZeroToOne_Callback);
 cvar_t	r_lightflicker	= SCVAR("r_lightflicker",	"1");
 cvar_t	cl_r2g			= SCVAR("cl_r2g",	"0");
 cvar_t	r_powerupglow	= SCVAR("r_powerupglow", "1");

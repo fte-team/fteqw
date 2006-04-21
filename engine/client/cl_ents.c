@@ -1801,7 +1801,6 @@ void CL_LinkPacketEntities (void)
 			}
 		}
 
-
 		//dlights are not so customisable.
 		if (r_rocketlight.value)
 		{
@@ -1844,7 +1843,7 @@ void CL_LinkPacketEntities (void)
 				dl->die = (float)cl.time;
 				if (model->flags & EF_ROCKET)
 					dl->origin[2] += 1; // is this even necessary
-				dl->radius = rad * bound(0, r_rocketlight.value, 1);
+				dl->radius = rad * r_rocketlight.value;
 				VectorCopy(dclr, dl->color);
 			}
 
@@ -2150,7 +2149,7 @@ void CL_LinkPacketEntities (void)
 				dl->die = (float)cl.time;
 				if (model->flags & EF_ROCKET)
 					dl->origin[2] += 1; // is this even necessary
-				dl->radius = rad * bound(0, r_rocketlight.value, 1);
+				dl->radius = rad * r_rocketlight.value;
 				VectorCopy(dclr, dl->color);
 			}
 

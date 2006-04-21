@@ -2225,7 +2225,7 @@ static void PF_cl_te_explosion (progfuncs_t *prinst, struct globalvars_s *pr_glo
 
 		dl = CL_AllocDlight (0);
 		VectorCopy (pos, dl->origin);
-		dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+		dl->radius = 150 + r_explosionlight.value*200;
 		dl->die = cl.time + 1;
 		dl->decay = 300;
 
@@ -2316,7 +2316,7 @@ static void PF_cl_te_explosionquad (progfuncs_t *prinst, struct globalvars_s *pr
 
 		dl = CL_AllocDlight (0);
 		VectorCopy (pos, dl->origin);
-		dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+		dl->radius = 150 + r_explosionlight.value*200;
 		dl->die = cl.time + 1;
 		dl->decay = 300;
 
@@ -2427,7 +2427,7 @@ static void PF_cl_te_explosionrgb (progfuncs_t *prinst, struct globalvars_s *pr_
 	{
 		dl = CL_AllocDlight (0);
 		VectorCopy (org, dl->origin);
-		dl->radius = 150 + bound(0, r_explosionlight.value, 1)*200;
+		dl->radius = 150 + r_explosionlight.value*200;
 		dl->die = cl.time + 0.5;
 		dl->decay = 300;
 

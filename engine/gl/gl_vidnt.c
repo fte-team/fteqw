@@ -143,7 +143,6 @@ qboolean isPermedia = false;
 // Note that 0 is MODE_WINDOWED
 extern cvar_t	vid_mode;
 // Note that 3 is MODE_FULLSCREEN_DEFAULT
-extern cvar_t		vid_wait;
 extern cvar_t		_vid_wait_override;
 extern cvar_t		_windowed_mouse;
 extern cvar_t		vid_hardwaregamma;
@@ -855,7 +854,6 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		TRACE(("dbg: VID_AttachGL: qwglSwapIntervalEXT\n"));
 		qwglSwapIntervalEXT(_vid_wait_override.value);
 	}
-	_vid_wait_override.modified = false;
 	TRACE(("dbg: VID_AttachGL: qSwapBuffers\n"));
 	qglClearColor(0, 0, 0, 0);
 	qglClear(GL_COLOR_BUFFER_BIT);
@@ -885,6 +883,12 @@ void GL_BeginRendering (int *x, int *y, int *width, int *height)
 //	glViewport (*x, *y, *width, *height);
 }
 
+void VID_Wait_Override_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (qwglSwapIntervalEXT && *_vid_wait_override.string)
+		qwglSwapIntervalEXT(_vid_wait_override.value);
+}
+
 qboolean screenflush;
 void GL_DoSwap (void)
 {
@@ -895,12 +899,6 @@ void GL_DoSwap (void)
 
 	if (!scr_skipupdate || block_drawing)
 		qSwapBuffers(maindc);
-
-	if (_vid_wait_override.modified && qwglSwapIntervalEXT && *_vid_wait_override.string)
-	{
-		qwglSwapIntervalEXT(_vid_wait_override.value);
-		_vid_wait_override.modified = false;
-	}
 
 // handle the mouse state when windowed if that's changed
 	if (modestate == MS_WINDOWED)
@@ -1542,6 +1540,8 @@ void GLVID_DeInit (void)
 {
 	GLVID_Shutdown();
 
+	Cvar_Unhook(&_vid_wait_override);
+
 	UnregisterClass(WINDOW_CLASS_NAME, global_hInstance);
 }
 /*
@@ -1602,6 +1602,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid_canalttab = true;
 
 	S_Restart_f();
+
+	Cvar_Hook(&_vid_wait_override, VID_Wait_Override_Callback);
 
 	vid_initialized = true;
 	vid_initializing = false;

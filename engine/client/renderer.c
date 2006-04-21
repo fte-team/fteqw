@@ -86,8 +86,7 @@ cvar_t r_stainfadetime = SCVAR("r_stainfadetime", "1");
 cvar_t r_stainfadeammount = SCVAR("r_stainfadeammount", "1");
 
 cvar_t		_windowed_mouse = SCVARF("_windowed_mouse","1", CVAR_ARCHIVE);
-cvar_t		vid_wait = SCVAR("vid_wait","0");
-cvar_t		_vid_wait_override = SCVARF("_vid_wait_override", "", CVAR_ARCHIVE);
+cvar_t		_vid_wait_override = FCVAR("vid_wait", "_vid_wait_override", "", CVAR_ARCHIVE);
 
 static cvar_t		vid_stretch = SCVARF("vid_stretch","1", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 //cvar_t		_windowed_mouse = SCVARF("_windowed_mouse","1", CVAR_ARCHIVE);
@@ -480,8 +479,6 @@ void Renderer_Init(void)
 #endif
 
 	//but register ALL vid_ commands.
-	Cvar_Register (&vid_wait, VIDCOMMANDGROUP);
-	_vid_wait_override.name2 = "vid_vsync";
 	Cvar_Register (&_vid_wait_override, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_stretch, VIDCOMMANDGROUP);
 	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);

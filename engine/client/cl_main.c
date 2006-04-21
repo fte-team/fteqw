@@ -76,7 +76,7 @@ cvar_t	cl_predict_players2 = SCVAR("cl_predict_players2", "1");
 cvar_t	cl_solid_players = SCVAR("cl_solid_players", "1");
 cvar_t	cl_noblink = SCVAR("cl_noblink", "0");
 
-cvar_t cl_demospeed = SCVAR("cl_demospeed", "1");
+cvar_t cl_demospeed = FCVAR("cl_demospeed", "demo_setspeed", "1", 0);
 
 
 cvar_t	cl_indepphysics = SCVAR("cl_indepphysics", "0");
@@ -130,7 +130,7 @@ cvar_t	msg_filter = SCVAR("msg_filter", "0");	//0 for neither, 1 for mm1, 2 for 
 cvar_t  cl_standardmsg = SCVARF("cl_standardmsg", "0", CVAR_ARCHIVE);
 cvar_t  cl_parsewhitetext = SCVAR("cl_parsewhitetext", "1");
 
-cvar_t	host_mapname = SCVAR("host_mapname", "");
+cvar_t	host_mapname = FCVAR("host_mapname", "mapname", "", 0);
 
 extern cvar_t cl_hightrack;
 
@@ -2585,7 +2585,6 @@ void CL_Init (void)
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
-	cl_demospeed.name2 = "demo_setspeed";
 	Cvar_Register (&cl_demospeed, "Demo playback");
 	Cvar_Register (&cl_warncmd, "Warnings");
 	Cvar_Register (&cl_upspeed, cl_inputgroup);
@@ -2674,7 +2673,6 @@ void CL_Init (void)
 	Cvar_Register (&cl_nopext, cl_controlgroup);
 	Cvar_Register (&cl_splitscreen, cl_controlgroup);
 
-	host_mapname.name2 = "mapname";
 	Cvar_Register (&host_mapname,		"Scripting");
 
 	Cvar_Register (&cl_countpendingpl, cl_controlgroup);

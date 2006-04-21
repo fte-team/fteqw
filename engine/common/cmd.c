@@ -1536,8 +1536,12 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 				Cmd_CompleteCheck(a->name, &match);
 		for (grp=cvar_groups ; grp ; grp=grp->next)
 		for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
+		{
 			if (!Q_strncasecmp (partial,cvar->name, len))
 				Cmd_CompleteCheck(cvar->name, &match);
+			if (cvar->name2 && !Q_strncasecmp (partial,cvar->name2, len))
+				Cmd_CompleteCheck(cvar->name2, &match);
+		}
 
 	}
 	else
@@ -1550,8 +1554,12 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 				Cmd_CompleteCheck(a->name, &match);
 		for (grp=cvar_groups ; grp ; grp=grp->next)
 		for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
+		{
 			if (!Q_strncmp (partial,cvar->name, len))
 				Cmd_CompleteCheck(cvar->name, &match);
+			if (cvar->name2 && !Q_strncmp (partial,cvar->name2, len))
+				Cmd_CompleteCheck(cvar->name2, &match);
+		}
 	}
 	if (match.matchnum>0)
 		return NULL;

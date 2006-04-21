@@ -89,13 +89,12 @@ cvar_t *Cvar_FindVar (const char *var_name)
 
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 		for (var=grp->cvars ; var ; var=var->next)
+		{
 			if (!Q_strcasecmp (var_name, var->name))
 				return var;
-
-	for (grp=cvar_groups ; grp ; grp=grp->next)
-		for (var=grp->cvars ; var ; var=var->next)
 			if (var->name2 && !Q_strcasecmp (var_name, var->name2))
 				return var;
+		}
 
 	return NULL;
 }

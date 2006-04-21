@@ -1368,11 +1368,11 @@ void S_Play(void)
 	{
 		if (!Q_strrchr(Cmd_Argv(i), '.'))
 		{
-			Q_strncpy(name, Cmd_Argv(i), sizeof(name)-4);
+			Q_strncpyz(name, Cmd_Argv(i), sizeof(name)-4);
 			Q_strcat(name, ".wav");
 		}
 		else
-			Q_strncpy(name, Cmd_Argv(i), sizeof(name));
+			Q_strncpyz(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
 		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, 1.0, 0.0);
 //		hash++;

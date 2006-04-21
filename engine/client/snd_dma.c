@@ -1368,11 +1368,11 @@ void S_Play(void)
 	{
 		if (!Q_strrchr(Cmd_Argv(i), '.'))
 		{
-			Q_strcpy(name, Cmd_Argv(i));
+			Q_strncpy(name, Cmd_Argv(i), sizeof(name)-4);
 			Q_strcat(name, ".wav");
 		}
 		else
-			Q_strcpy(name, Cmd_Argv(i));
+			Q_strncpy(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
 		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, 1.0, 0.0);
 //		hash++;
@@ -1393,11 +1393,11 @@ void S_PlayVol(void)
 	{
 		if (!Q_strrchr(Cmd_Argv(i), '.'))
 		{
-			Q_strcpy(name, Cmd_Argv(i));
+			Q_strncpy(name, Cmd_Argv(i), sizeof(name)-4);
 			Q_strcat(name, ".wav");
 		}
 		else
-			Q_strcpy(name, Cmd_Argv(i));
+			Q_strncpy(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
 		vol = Q_atof(Cmd_Argv(i+1));
 		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, vol, 0.0);

@@ -215,7 +215,7 @@ void Con_Log (char *s)
 
 			// TODO: option to compress file somewhere in here?
 			// rename our base file, which better exist...
-			if (rename(f, oldf))
+			if (FS_Rename(f, oldf, FS_BASE))
 			{
 				// rename failed, disable log and bug out
 				Cvar_ForceSet(&log_enable, "0");

@@ -364,18 +364,15 @@ void *Sys_GetGameAPI(void *parms)
 	void *(*GetGameAPI)(void *);
 
 	char name[MAX_OSPATH];
-	char curpath[MAX_OSPATH];
 	char *searchpath;
 	const char *gamename = "gamei386.so";
 
 	void *ret;
 
-	getcwd(curpath, sizeof(curpath));
-
 	searchpath = 0;
 	while((searchpath = COM_NextPath(searchpath)))
 	{
-		sprintf (name, "%s/%s/%s", curpath, path, gamename);
+		sprintf (name, "%s/%s", searchpath, gamename);
 		game_library = dlopen (name, RTLD_LAZY );
 		if (game_library)
 		{

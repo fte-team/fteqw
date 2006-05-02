@@ -1,4 +1,7 @@
 CC=gcc
+STRIP=strip
+
+STRIPFLAGS=--strip-unneeded --remove-section=.comment
 
 CPUOPTIMIZATIONS=
 
@@ -513,7 +516,7 @@ ifeq ($(FTE_TARGET),morphos)
 	SWCL_OBJS=$(SOFTWARE_OBJS) vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	SW_EXE_NAME=../fteqw.sw
 	SWCL_EXE_NAME=../fteqwcl.sw
-	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS)
+	SW_LDFLAGS=$(SWLDFLAGS) -ljpeg_shared -lpng_shared -lsyscall
 	SW_CFLAGS=$(SWCFLAGS) -noixemul -D__MORPHOS_SHAREDLIBS
 	SWB_DIR=sw_morphos
 	SWCL_DIR=swcl_morphos
@@ -636,7 +639,7 @@ $(OUT_DIR)/$(EXE_NAME):   $(OUT_DIR)/quakedef.h.gch    $(addprefix $(OUT_DIR)/, 
 
 _out-rel:
 	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
-	strip --strip-all $(OUT_DIR)/$(EXE_NAME)
+	$(STRIP) $(STRIPFLAGS) $(OUT_DIR)/$(EXE_NAME)
 
 _out-dbg:
 	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"

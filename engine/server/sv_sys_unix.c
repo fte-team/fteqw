@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include <signal.h>
 #include <sys/types.h>
+#include <dlfcn.h>
 #include "qwsvdef.h"
 
 
@@ -788,12 +789,49 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	return true;
 }
 
-void Sys_UnloadGame (void)
+static void *game_library;
+
+void Sys_UnloadGame(void)
 {
+	if (game_library) 
+	{
+		dlclose(game_library);
+		game_library = 0;
+	}
 }
-void *Sys_GetGameAPI (void *parms)
+
+void *Sys_GetGameAPI(void *parms)
 {
-	return NULL;
+	void *(*GetGameAPI)(void *);
+
+	char name[MAX_OSPATH];
+	char curpath[MAX_OSPATH];
+	char *searchpath;
+	const char *gamename = "gamei386.so";
+
+	void *ret;
+
+	getcwd(curpath, sizeof(curpath));
+
+	searchpath = 0;
+	while((searchpath = COM_NextPath(searchpath)))
+	{
+		sprintf (name, "%s/%s/%s", curpath, searchpath, gamename);
+		game_library = dlopen (name, RTLD_LAZY );
+		if (game_library)
+		{
+			GetGameAPI = (void *)dlsym (game_library, "GetGameAPI");
+			if (GetGameAPI && (ret = GetGameAPI(parms)))
+			{
+				return ret;
+			}
+
+			dlclose(game_library);
+			game_library = 0;
+		}
+	}
+
+	return 0;
 }
 
 void Sys_ServerActivity(void)

@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <dlfcn.h>
 #ifndef __CYGWIN__
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -347,13 +348,49 @@ double Sys_DoubleTime (void)
 	return (tp.tv_sec - secbase) + tp.tv_usec/1000000.0;
 }
 
-void Sys_UnloadGame (void)
+static void *game_library;
+
+void Sys_UnloadGame(void)
 {
+	if (game_library) 
+	{
+		dlclose(game_library);
+		game_library = 0;
+	}
 }
 
-void *Sys_GetGameAPI (void *parms)
+void *Sys_GetGameAPI(void *parms)
 {
-	return NULL;
+	void *(*GetGameAPI)(void *);
+
+	char name[MAX_OSPATH];
+	char curpath[MAX_OSPATH];
+	char *searchpath;
+	const char *gamename = "gamei386.so";
+
+	void *ret;
+
+	getcwd(curpath, sizeof(curpath));
+
+	searchpath = 0;
+	while((searchpath = COM_NextPath(searchpath)))
+	{
+		sprintf (name, "%s/%s/%s", curpath, path, gamename);
+		game_library = dlopen (name, RTLD_LAZY );
+		if (game_library)
+		{
+			GetGameAPI = (void *)dlsym (game_library, "GetGameAPI");
+			if (GetGameAPI && (ret = GetGameAPI(parms)))
+			{
+				return ret;
+			}
+
+			dlclose(game_library);
+			game_library = 0;
+		}
+	}
+
+	return 0;
 }
 
 // =======================================================================

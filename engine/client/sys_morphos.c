@@ -6,6 +6,8 @@
 #include <proto/exec.h>
 #include <proto/dos.h>
 
+#include <dlfcn.h>
+
 #include "quakedef.h"
 
 #warning Find a better stack size
@@ -195,13 +197,51 @@ qboolean Sys_remove(char *path)
 }
 
 /* Quake 2 stuff */
-void Sys_UnloadGame (void)
+static void *gamefile;
+
+void *Sys_GetGameAPI(void *parms)
 {
+	int (*q2_so_init)(void);
+	void (*q2_so_deinit)(void);
+	void *(*GetGameAPI)(void *);
+	void *ret;
+
+	gamefile = dlopen("gameppc.so", RTLD_NOW);
+	if (gamefile)
+	{
+		q2_so_init = dlsym(gamefile, "q2_so_init");
+		q2_so_deinit = dlsym(gamefile, "q2_so_deinit");
+		if (q2_so_init && q2_so_init())
+		{
+			GetGameAPI = dlsym(gamefile, "GetGameAPI");
+			if (GetGameAPI && (ret = GetGameAPI(parms)))
+			{
+				return ret;
+			}
+
+			if (q2_so_deinit)
+				q2_so_deinit();
+		}
+		dlclose(gamefile);
+		gamefile = 0;
+	}
+
+	return 0;
 }
 
-void *Sys_GetGameAPI (void *parms)
+void Sys_UnloadGame(void)
 {
-	return NULL;
+	void (*q2_so_deinit)(void);
+
+	if (gamefile)
+	{
+		q2_so_deinit = dlsym(gamefile, "q2_so_deinit");
+		if (q2_so_deinit)
+			q2_so_deinit();
+
+		dlclose(gamefile);
+		gamefile = 0;
+	}
 }
 
 int main(int argc, char **argv)

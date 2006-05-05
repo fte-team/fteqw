@@ -103,10 +103,10 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 
 		Close(fh);
 
-		return true;
+		return 0;
 	}
 
-	return false;
+	return 1;
 }
 
 int secbase;

@@ -199,7 +199,7 @@ void Con_Log (char *s)
 				snprintf(oldf, sizeof(oldf)-1, "%s.%i", f, x);
 
 				// check if file exists, otherwise skip
-				if ((fi = FS_OpenVFS(f, "rb", FS_BASE)))
+				if ((fi = FS_OpenVFS(oldf, "rb", FS_BASE)))
 					VFS_CLOSE(fi);
 				else
 					continue; // skip nonexistant files

@@ -1338,7 +1338,6 @@ void GLDraw_Alt_String (int x, int y, const qbyte *str)
 
 #include "crosshairs.dat"
 vec3_t chcolor;
-int chmodified;
 
 void GLCrosshairimage_Callback(struct cvar_s *var, char *oldvalue)
 {

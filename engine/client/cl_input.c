@@ -770,6 +770,17 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum, sizebuf_t *buf)
 	}
 }
 
+void Name_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (cls.state <= ca_connected)
+		return;
+
+	if (cls.protocol != CP_NETQUAKE)
+		return;
+
+	CL_SendClientCommand(true, "name \"%s\"\n", var->string);
+}
+
 void CLNQ_SendCmd(void)
 {
 	extern int cl_latestframenum, nq_dp_protocol;
@@ -790,12 +801,6 @@ void CLNQ_SendCmd(void)
 			CLNQ_SendMove (&independantphysics[0], 0, &cls.netchan.message);
 		else
 			CLNQ_SendMove (&independantphysics[0], 0, &unrel);
-	}
-
-	if (name.modified)
-	{
-		name.modified = false;
-		CL_SendClientCommand(true, "name \"%s\"\n", name.string);
 	}
 
 	if (nq_dp_protocol > 0 && cls.signon == 4)

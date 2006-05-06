@@ -33,6 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // callbacks
 void CL_Sbar_Callback(struct cvar_s *var, char *oldvalue);
+void Name_Callback(struct cvar_s *var, char *oldvalue);
 
 // we need to declare some mouse variables here, because the menu system
 // references them even when on a unix system.
@@ -94,7 +95,7 @@ static qboolean allowremotecmd = true;
 //
 cvar_t	password = SCVARF("password",		"",			CVAR_USERINFO);	//this is parhaps slightly dodgy...
 cvar_t	spectator = SCVARF("spectator",		"",			CVAR_USERINFO);
-cvar_t	name = SCVARF("name",				"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	name = SCVARFC("name",				"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
 cvar_t	team = SCVARF("team",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	skin = SCVARF("skin",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	model = SCVARF("model",				"",			CVAR_ARCHIVE | CVAR_USERINFO);

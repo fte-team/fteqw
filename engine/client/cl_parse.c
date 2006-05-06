@@ -1876,7 +1876,6 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 
 	case 2:
 		CL_SendClientCommand(true, "name \"%s\"\n", name.string);
-		name.modified = false;
 
 		CL_SendClientCommand(true, "color %i %i\n", (int)topcolor.value, (int)bottomcolor.value);
 

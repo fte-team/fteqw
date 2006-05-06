@@ -36,11 +36,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <errno.h>
 #include <fcntl.h>
 
-cvar_t sys_nostdout = {"sys_nostdout","0"};
-cvar_t sys_extrasleep = {"sys_extrasleep","0"};
-cvar_t sys_maxtic = {"sys_maxtic", "100"};
-cvar_t sys_colorconsole = {"sys_colorconsole", "0"};
-cvar_t sys_linebuffer = {"sys_linebuffer", "1"};
+// callbacks
+void Sys_Linebuffer_Callback (struct cvar_s *var, char *oldvalue);
+
+cvar_t sys_nostdout = SCVAR{"sys_nostdout","0"};
+cvar_t sys_extrasleep = SCVAR{"sys_extrasleep","0"};
+cvar_t sys_maxtic = SCVAR{"sys_maxtic", "100"};
+cvar_t sys_colorconsole = SCVAR{"sys_colorconsole", "0"};
+cvar_t sys_linebuffer = SCVARC{"sys_linebuffer", "1", Sys_Linebuffer_Callback};
 
 qboolean	stdin_ready;
 
@@ -578,27 +581,26 @@ Checks for a complete line of text typed in at the console, then forwards
 it to the host command processor
 ================
 */
+void Sys_Linebuffer_Callback (struct cvar_s *var, char *oldvalue)
+{
+	changes = orig;
+	if (var->value)
+	{
+		changes.c_lflag |= (ICANON|ECHO);
+	}
+	else
+	{
+		changes.c_lflag &= ~(ICANON|ECHO);
+		changes.c_cc[VTIME] = 0;
+		changes.c_cc[VMIN] = 1;
+	}
+	tcsetattr(STDIN_FILENO, TCSADRAIN, &changes);
+}
+
 char *Sys_ConsoleInput (void)
 {
 	static char	text[256];
 	int	len;
-
-	if (sys_linebuffer.modified)
-	{
-		sys_linebuffer.modified = false;
-		changes = orig;
-		if (sys_linebuffer.value)
-		{
-			changes.c_lflag |= (ICANON|ECHO);
-		}
-		else
-		{
-			changes.c_lflag &= ~(ICANON|ECHO);
-			changes.c_cc[VTIME] = 0;
-			changes.c_cc[VMIN] = 1;
-		}
-		tcsetattr(STDIN_FILENO, TCSADRAIN, &changes);
-	}
 
 	if (!stdin_ready || !do_stdin)
 		return NULL;		// the select didn't say it was ready

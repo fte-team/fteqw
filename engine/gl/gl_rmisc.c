@@ -661,6 +661,7 @@ extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
 extern cvar_t gl_conback, gl_font, gl_smoothfont, gl_fontedgeclamp, r_menutint;
 extern cvar_t vid_conautoscale, vid_conheight, vid_conwidth;
 extern cvar_t crosshair, crosshairimage, crosshaircolor, r_skyboxname;
+extern cvar_t r_floorcolour, r_wallcolour;
 void GLCrosshairimage_Callback(struct cvar_s *var, char *oldvalue);
 void GLCrosshair_Callback(struct cvar_s *var, char *oldvalue);
 void GLCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue);
@@ -673,6 +674,9 @@ void GL_Fontedgeclamp_Callback (struct cvar_s *var, char *oldvalue);
 void GLVID_Conwidth_Callback(struct cvar_s *var, char *oldvalue);
 void GLVID_Conautoscale_Callback(struct cvar_s *var, char *oldvalue);
 void GLVID_Conheight_Callback(struct cvar_s *var, char *oldvalue);
+void GLR_Wallcolour_Callback(struct cvar_s *var, char *oldvalue);
+void GLR_Floorcolour_Callback(struct cvar_s *var, char *oldvalue);
+void GLR_Drawflat_Callback(struct cvar_s *var, char *oldvalue);
 
 void GLR_DeInit (void)
 {
@@ -694,6 +698,9 @@ void GLR_DeInit (void)
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&vid_conheight);
 	Cvar_Unhook(&vid_conwidth);
+	Cvar_Unhook(&r_wallcolour);
+	Cvar_Unhook(&r_floorcolour);
+	Cvar_Unhook(&r_drawflat);
 
 	GLDraw_DeInit();
 
@@ -719,6 +726,9 @@ void GLR_Init (void)
 	Cvar_Hook(&vid_conautoscale, GLVID_Conautoscale_Callback);
 	Cvar_Hook(&vid_conheight, GLVID_Conheight_Callback);
 	Cvar_Hook(&vid_conwidth, GLVID_Conwidth_Callback);
+	Cvar_Hook(&r_floorcolour, GLR_Floorcolour_Callback);
+	Cvar_Hook(&r_wallcolour, GLR_Wallcolour_Callback);
+	Cvar_Hook(&r_drawflat, GLR_Drawflat_Callback);
 
 	R_InitBubble();
 

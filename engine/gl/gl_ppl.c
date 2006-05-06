@@ -1161,11 +1161,22 @@ static void PPL_BaseChain_Specular_FP(msurface_t *s, texture_t *tex)
 
 #endif
 
+static vec_t wallcolour[4] = {0,0,0,1};
+static vec_t floorcolour[4] = {0,0,0,1};
+
 //single textured.
+void GLR_Wallcolour_Callback(struct cvar_s *var, char *oldvalue)
+{
+	SCR_StringToRGB(var->string, wallcolour, 1);
+}
+
+void GLR_Floorcolour_Callback(struct cvar_s *var, char *oldvalue)
+{
+	SCR_StringToRGB(var->string, floorcolour, 1);
+}
+
 static void PPL_BaseChain_Flat(msurface_t *first)
 {
-	static vec_t wallcolour[4] = {0,0,0,1};
-	static vec_t floorcolour[4] = {0,0,0,1};
 	msurface_t *s;
 	int iswall = -1;
 	int vi=-10;
@@ -1182,21 +1193,6 @@ static void PPL_BaseChain_Flat(msurface_t *first)
 		PPL_FlushArrays();
 		qglEnable(GL_TEXTURE_2D);
 		return;
-	}
-	else
-	{
-		if (r_wallcolour.modified)
-		{
-			r_wallcolour.modified = false;
-
-			SCR_StringToRGB(r_wallcolour.string, wallcolour, 1);
-		}
-		if (r_floorcolour.modified)
-		{
-			r_floorcolour.modified = false;
-
-			SCR_StringToRGB(r_floorcolour.string, floorcolour, 1);
-		}
 	}
 
 	PPL_EnableVertexArrays();
@@ -1260,6 +1256,39 @@ static void PPL_BaseChain_Flat(msurface_t *first)
 	qglColor3f(1,1,1);
 }
 
+static int nprtextures[10];
+
+void GLR_Drawflat_Callback(struct cvar_s *var, char *oldvalue)
+{
+	int i;
+
+	for (i = 0; i < sizeof(nprtextures)/sizeof(nprtextures[0]); i++)
+	{
+		nprtextures[i] = Mod_LoadHiResTexture(va("sketch%i", i+1), "sketch", true, false, false);
+		if (!nprtextures[i])
+		{
+			int data[128*128];
+			FILE *file;
+			unsigned char *f;
+			int p;
+
+			file = fopen(va("nprtextures/tex%i_3_128_128.raw", i+1), "rb");
+		
+			if (file)
+			{
+				f = Hunk_TempAlloc(128*128*3);
+				if (fread(f, 128*3, 128, file) == 128)
+				{
+					for (p = 0; p < 128*128; p++)
+						data[p] = LittleLong(f[p*3] + (f[p*3+1]<<8) + (f[p*3+2]<<16) + (255<<24));
+					nprtextures[i] = GL_LoadTexture32 (va("textures/tex%i_3_128_128.raw", i+1), 128, 128, data, true, false);
+				}
+				fclose(file);
+			}
+		}
+	}
+}
+
 static void PPL_BaseChain_NPR_Sketch(msurface_t *first)
 {
 	msurface_t *s;
@@ -1267,39 +1296,7 @@ static void PPL_BaseChain_NPR_Sketch(msurface_t *first)
 	int i;
 	glRect_t    *theRect;
 
-	static int textures[10];
-
 	GL_SelectTexture(GL_TEXTURE0_ARB);
-	if (r_drawflat.modified)	//reload textures
-	{
-		r_drawflat.modified = false;
-		for (i = 0; i < sizeof(textures)/sizeof(textures[0]); i++)
-		{
-			textures[i] = Mod_LoadHiResTexture(va("sketch%i", i+1), "sketch", true, false, false);
-			if (!textures[i])
-			{
-				int data[128*128];
-				FILE *file;
-				unsigned char *f;
-				int p;
-
-				file = fopen(va("textures/tex%i_3_128_128.raw", i+1), "rb");
-			
-				if (file)
-				{
-					f = Hunk_TempAlloc(128*128*3);
-					if (fread(f, 128*3, 128, file) == 128)
-					{
-						for (p = 0; p < 128*128; p++)
-							data[p] = LittleLong(f[p*3] + (f[p*3+1]<<8) + (f[p*3+2]<<16) + (255<<24));
-						textures[i] = GL_LoadTexture32 (va("textures/tex%i_3_128_128.raw", i+1), 128, 128, data, true, false);
-					}
-					fclose(file);
-				}
-			}
-		}
-	}
-
 	PPL_EnableVertexArrays();
 
 //draw the surface properly
@@ -1323,7 +1320,7 @@ static void PPL_BaseChain_NPR_Sketch(msurface_t *first)
 			PPL_FlushArrays();
 			vi = s->lightmaptexturenum;
 
-			GL_MBind(GL_TEXTURE0_ARB, textures[rand()%10]);
+			GL_MBind(GL_TEXTURE0_ARB, nprtextures[rand()%10]);
 
 			if (vi < 0)
 				GL_MBind(GL_TEXTURE1_ARB, 0 );

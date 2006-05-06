@@ -219,9 +219,9 @@ cvar_t	r_lightstylespeed	= SCVAR("r_lightstylespeed", "10");
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 
-cvar_t r_drawflat	= SCVARF("r_drawflat","0", CVAR_SEMICHEAT);
-cvar_t r_wallcolour	= SCVAR("r_wallcolour","0 0 1");
-cvar_t r_floorcolour	= SCVAR("r_floorcolour","0.5 0.5 1");
+cvar_t r_drawflat	= SCVARF("r_drawflat","0", CVAR_SEMICHEAT|CVAR_RENDERERCALLBACK);
+cvar_t r_wallcolour	= SCVAR("r_wallcolour","1 1 1");
+cvar_t r_floorcolour	= SCVAR("r_floorcolour","1 1 1");
 
 cvar_t d_palconvwrite	= SCVAR("d_palconvwrite", "1");
 cvar_t d_palremapsize	= SCVARF("d_palremapsize", "64", CVAR_RENDERERLATCH);

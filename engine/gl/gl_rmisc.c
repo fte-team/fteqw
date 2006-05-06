@@ -654,7 +654,7 @@ if (!data)
 */
 void GLR_TimeRefresh_f (void);
 
-extern cvar_t gl_bump;
+extern cvar_t gl_bump, v_contrast;
 extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
 
 // callback defines
@@ -677,6 +677,7 @@ void GLVID_Conheight_Callback(struct cvar_s *var, char *oldvalue);
 void GLR_Wallcolour_Callback(struct cvar_s *var, char *oldvalue);
 void GLR_Floorcolour_Callback(struct cvar_s *var, char *oldvalue);
 void GLR_Drawflat_Callback(struct cvar_s *var, char *oldvalue);
+void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 
 void GLR_DeInit (void)
 {
@@ -701,6 +702,8 @@ void GLR_DeInit (void)
 	Cvar_Unhook(&r_wallcolour);
 	Cvar_Unhook(&r_floorcolour);
 	Cvar_Unhook(&r_drawflat);
+	Cvar_Unhook(&v_gamma);
+	Cvar_Unhook(&v_contrast);
 
 	GLDraw_DeInit();
 
@@ -729,6 +732,8 @@ void GLR_Init (void)
 	Cvar_Hook(&r_floorcolour, GLR_Floorcolour_Callback);
 	Cvar_Hook(&r_wallcolour, GLR_Wallcolour_Callback);
 	Cvar_Hook(&r_drawflat, GLR_Drawflat_Callback);
+	Cvar_Hook(&v_gamma, GLV_Gamma_Callback);
+	Cvar_Hook(&v_contrast, GLV_Gamma_Callback);
 
 	R_InitBubble();
 

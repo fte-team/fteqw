@@ -255,7 +255,7 @@ void GLSCR_UpdateScreen (void)
 	if (editormodal)
 	{
 		Editor_Draw();
-		GLV_UpdatePalette ();
+		GLV_UpdatePalette (false);
 #if defined(_WIN32) && defined(RGLQUAKE)
 		Media_RecordFrame();
 #endif
@@ -272,7 +272,7 @@ void GLSCR_UpdateScreen (void)
 	if (Media_ShowFilm())
 	{
 		M_Draw(0);
-		GLV_UpdatePalette ();
+		GLV_UpdatePalette (false);
 #if defined(_WIN32) && defined(RGLQUAKE)
 		Media_RecordFrame();
 #endif
@@ -323,7 +323,7 @@ void GLSCR_UpdateScreen (void)
 
 	SCR_DrawTwoDimensional(uimenu, nohud);
 
-	GLV_UpdatePalette ();
+	GLV_UpdatePalette (false);
 #if defined(_WIN32) && defined(RGLQUAKE)
 	Media_RecordFrame();
 #endif

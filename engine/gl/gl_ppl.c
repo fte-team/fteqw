@@ -1262,6 +1262,9 @@ void GLR_Drawflat_Callback(struct cvar_s *var, char *oldvalue)
 {
 	int i;
 
+	if (var->value != 2)
+		return;
+
 	for (i = 0; i < sizeof(nprtextures)/sizeof(nprtextures[0]); i++)
 	{
 		nprtextures[i] = Mod_LoadHiResTexture(va("sketch%i", i+1), "sketch", true, false, false);

@@ -86,7 +86,7 @@ void SWSCR_UpdateScreen (void)
 	if (editormodal)
 	{
 		Editor_Draw();
-		SWV_UpdatePalette ();
+		SWV_UpdatePalette (false);
 
 		vrect.x = 0;
 		vrect.y = 0;
@@ -100,7 +100,7 @@ void SWSCR_UpdateScreen (void)
 #endif
 	if (Media_ShowFilm())
 	{
-		SWV_UpdatePalette ();
+		SWV_UpdatePalette (false);
 
 		vrect.x = 0;
 		vrect.y = 0;
@@ -156,7 +156,7 @@ void SWSCR_UpdateScreen (void)
 	D_DisableBackBufferAccess ();	// for adapters that can't stay mapped in
 									//  for linear writes all the time
 
-	SWV_UpdatePalette ();
+	SWV_UpdatePalette (false);
 
 //
 // update one of three areas

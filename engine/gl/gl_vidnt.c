@@ -1245,7 +1245,7 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 			IN_HideMouse ();
 		}
 
-		v_gamma.modified = true;	//so that we can start doing palette flashes and things
+		Cvar_ForceCallback(&v_gamma);
 	}
 
 	if (!fActive)
@@ -1265,7 +1265,7 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 			IN_ShowMouse ();
 		}
 
-		v_gamma.modified = true;	//wham bam thanks.
+		Cvar_ForceCallback(&v_gamma);	//wham bam thanks.
 
 		if (qSetDeviceGammaRamp)
 		{
@@ -1281,8 +1281,6 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 			}
 		}
 	}
-
-	vid_hardwaregamma.modified = true;
 
 	return true;
 }
@@ -1503,39 +1501,6 @@ void VID_Init8bitPalette()
 	is8bit = TRUE;
 }
 
-static void Check_Gamma (unsigned char *pal, float usegammaval)
-{
-//	float	f, inf;
-//	unsigned char	palette[768];
-//	int		i;
-/*
-	if (usegammaval)
-		vid_gamma = usegammaval;
-	else if ((i = COM_CheckParm("-gamma")) == 0) {
-		if ((gl_renderer && strstr(gl_renderer, "Voodoo")) ||
-			(gl_vendor && strstr(gl_vendor, "3Dfx")))
-			vid_gamma = 1;
-		else
-			vid_gamma = 0.7; // default to 0.7 on non-3dfx hardware
-	} else
-		vid_gamma = Q_atof(com_argv[i+1]);
-
-	for (i=0 ; i<768 ; i++)
-	{
-		f = pow ( (pal[i]+1)/256.0 , vid_gamma );
-		inf = f*255 + 0.5;
-		if (inf < 0)
-			inf = 0;
-		if (inf > 255)
-			inf = 255;
-		palette[i] = inf;
-	}
-
-	memcpy (pal, palette, sizeof(palette));
-	*/
-}
-
-
 void GLVID_DeInit (void)
 {
 	GLVID_Shutdown();
@@ -1587,7 +1552,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	if (hwnd_dialog)
 		DestroyWindow (hwnd_dialog);
 
-	Check_Gamma(palette, 0);
 	VID_SetPalette (palette);
 
 	if (!GLVID_SetMode (info, palette))

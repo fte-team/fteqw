@@ -220,8 +220,8 @@ extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 
 cvar_t r_drawflat	= SCVARF("r_drawflat","0", CVAR_SEMICHEAT|CVAR_RENDERERCALLBACK);
-cvar_t r_wallcolour	= SCVAR("r_wallcolour","1 1 1");
-cvar_t r_floorcolour	= SCVAR("r_floorcolour","1 1 1");
+cvar_t r_wallcolour	= SCVARF("r_wallcolour","1 1 1", CVAR_RENDERERCALLBACK);
+cvar_t r_floorcolour	= SCVARF("r_floorcolour","1 1 1", CVAR_RENDERERCALLBACK);
 
 cvar_t d_palconvwrite	= SCVAR("d_palconvwrite", "1");
 cvar_t d_palremapsize	= SCVARF("d_palremapsize", "64", CVAR_RENDERERLATCH);
@@ -263,7 +263,7 @@ cvar_t gl_lightmap_shift = SCVARF("gl_lightmap_shift", "0", CVAR_ARCHIVE | CVAR_
 cvar_t gl_menutint_shader = SCVAR("gl_menutint_shader", "1");
 extern cvar_t r_waterlayers;
 cvar_t			gl_triplebuffer = SCVARF("gl_triplebuffer", "1", CVAR_ARCHIVE);
-cvar_t			vid_hardwaregamma = SCVARF("vid_hardwaregamma", "1", CVAR_ARCHIVE);
+cvar_t			vid_hardwaregamma = SCVARF("vid_hardwaregamma", "1", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 cvar_t			vid_desktopgamma = SCVARF("vid_desktopgamma", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 
 void GLRenderer_Init(void)
@@ -1525,8 +1525,6 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 #ifndef CLIENTONLY
 		isDedicated = false;
 #endif
-		v_gamma.modified = true;	//force the gamma to be reset
-
 		Con_Printf("Setting mode %i*%i*%i*%i\n", newr->width, newr->height, newr->bpp, newr->rate);
 
 		if (host_basepal)
@@ -1602,14 +1600,6 @@ TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 		}
 TRACE(("dbg: R_ApplyRenderer: vid applied\n"));
 
-#ifdef RGLQUAKE	//fixme: should we scrap this in favor of only hardware gamma?
-		if (qrenderer == QR_OPENGL)
-			GLV_UpdatePalette();
-#endif
-
-TRACE(("dbg: R_ApplyRenderer: done palette\n"));
-
-		v_gamma.modified = true;	//force the gamma to be reset
 		W_LoadWadFile("gfx.wad");
 TRACE(("dbg: R_ApplyRenderer: wad loaded\n"));
 		Draw_Init();

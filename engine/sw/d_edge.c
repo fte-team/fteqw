@@ -71,7 +71,6 @@ int D_MipLevelForScale (float scale)
 	return lmiplevel;
 }
 
-
 /*
 ==============
 D_DrawSolidSurface

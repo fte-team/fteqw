@@ -304,7 +304,7 @@ cshift_t	cshift_lava = { {255,80,0}, 150 };
 
 cshift_t	cshift_server = { {130,80,50}, 0 };
 
-cvar_t		v_gamma = SCVARF("gamma", "0.8", CVAR_ARCHIVE);
+cvar_t		v_gamma = SCVARF("gamma", "0.8", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK);
 cvar_t		v_contrast = SCVARF("contrast", "1.4", CVAR_ARCHIVE);
 
 qbyte		gammatable[256];	// palette is sent through this
@@ -365,18 +365,22 @@ void BuildGammaTable (float g, float c)
 V_CheckGamma
 =================
 */
+void SWV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
+{
+	BuildGammaTable (v_gamma.value, v_contrast.value);
+	vid.recalc_refdef = 1; // force a surface cache flush
+	SWV_UpdatePalette (true);
+}
+
+void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
+{
+	BuildGammaTable (v_gamma.value, v_contrast.value);
+	vid.recalc_refdef = 1; // force a surface cache flush
+	GLV_UpdatePalette (true);
+}
+
 qboolean V_CheckGamma (void)
 {
-	if (v_gamma.modified || v_contrast.modified)
-	{
-		v_contrast.modified = false;
-		v_gamma.modified = false;
-
-		BuildGammaTable (v_gamma.value, v_contrast.value);
-		vid.recalc_refdef = 1;				// force a surface cache flush
-		
-		return true;
-	}
 	return false;
 }
 
@@ -678,7 +682,7 @@ void GLV_CalcBlend (void)
 V_UpdatePalette
 =============
 */
-void GLV_UpdatePalette (void)
+void GLV_UpdatePalette (qboolean force)
 {
 	qboolean ogw;
 	int		i, j;
@@ -687,10 +691,6 @@ void GLV_UpdatePalette (void)
 //	qbyte	pal[768];
 	float	r,g,b,a;
 	int		ir, ig, ib;
-	qboolean force;
-	extern cvar_t vid_hardwaregamma;
-
-	float hwg;
 
 	RSpeedMark();
 
@@ -723,54 +723,39 @@ void GLV_UpdatePalette (void)
 			}
 	}
 
-	force = V_CheckGamma ();
-
-	hwg = vid_hardwaregamma.value;
-	if (vid_hardwaregamma.modified && !hwg)
+	if (new || force)
 	{
-		vid_hardwaregamma.value = hwg;
-		force = true;
-	}
+		GLV_CalcBlend ();
 
-	if (!new && !force)
-	{
-		RSpeedEnd(RSPEED_PALETTEFLASHES);
-		return;
-	}
+		a = v_blend[3];
+		r = 255*v_blend[0]*a;
+		g = 255*v_blend[1]*a;
+		b = 255*v_blend[2]*a;
 
-	GLV_CalcBlend ();
+		a = 1-a;
+		for (i=0 ; i<256 ; i++)
+		{
+			ir = i*a + r;
+			ig = i*a + g;
+			ib = i*a + b;
+			if (ir > 255)
+				ir = 255;
+			if (ig > 255)
+				ig = 255;
+			if (ib > 255)
+				ib = 255;
 
-//Con_Printf("b: %4.2f %4.2f %4.2f %4.6f\n", v_blend[0],	v_blend[1],	v_blend[2],	v_blend[3]);
+			ramps[0][i] = gammatable[ir]<<8;
+			ramps[1][i] = gammatable[ig]<<8;
+			ramps[2][i] = gammatable[ib]<<8;
+		}
 
-	a = v_blend[3];
-	r = 255*v_blend[0]*a;
-	g = 255*v_blend[1]*a;
-	b = 255*v_blend[2]*a;
-
-	a = 1-a;
-	for (i=0 ; i<256 ; i++)
-	{
-		ir = i*a + r;
-		ig = i*a + g;
-		ib = i*a + b;
-		if (ir > 255)
-			ir = 255;
-		if (ig > 255)
-			ig = 255;
-		if (ib > 255)
-			ib = 255;
-
-		ramps[0][i] = gammatable[ir]<<8;
-		ramps[1][i] = gammatable[ig]<<8;
-		ramps[2][i] = gammatable[ib]<<8;
-	}
-
-	ogw = gammaworks;
-	VID_ShiftPalette (NULL);
-	vid_hardwaregamma.value = hwg;
-	if (ogw != gammaworks)
-	{
-		Con_DPrintf("Gamma working state %i\n", gammaworks);
+		ogw = gammaworks;
+		VID_ShiftPalette (NULL);
+		if (ogw != gammaworks)
+		{
+			Con_DPrintf("Gamma working state %i\n", gammaworks);
+		}
 	}
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
@@ -782,20 +767,17 @@ V_UpdatePalette
 =============
 */
 #ifdef SWQUAKE
-void SWV_UpdatePalette (void)
+void SWV_UpdatePalette (qboolean force)
 {
 	int		i, j;
 	qboolean	new;
 	qbyte	*basepal, *newpal;
 	qbyte	pal[768];
 	int		r,g,b;
-	qboolean force;
 
 	V_CalcPowerupCshift ();
 	
 	new = false;
-	
-	force = V_CheckGamma ();
 	
 	for (i=0 ; i<NUM_CSHIFTS ; i++)
 	{

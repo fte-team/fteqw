@@ -456,7 +456,7 @@ static void GetEvent(void)
 		break;
 
 	case FocusIn:
-		v_gamma.modified = true;
+		Cvar_ForceCallback(&v_gamma);
 		ActiveApp = true;
 #ifdef WITH_VMODE
 		if (vidmode_ext && vidmode_usemode>=0)

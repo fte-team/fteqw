@@ -204,10 +204,11 @@ void	SWR_InitTextures (void)
 }*/
 
 // callback declares
-extern cvar_t crosshaircolor, r_skyboxname, r_menutint;
+extern cvar_t crosshaircolor, r_skyboxname, r_menutint, v_contrast;
 void SWCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue);
 void SWR_Skyboxname_Callback(struct cvar_s *var, char *oldvalue);
 void SWR_Menutint_Callback(struct cvar_s *var, char *oldvalue);
+void SWV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 
 void SWR_DeInit (void)
 {
@@ -217,6 +218,8 @@ void SWR_DeInit (void)
 	Cvar_Unhook(&crosshaircolor);
 	Cvar_Unhook(&r_skyboxname);
 	Cvar_Unhook(&r_menutint);
+	Cvar_Unhook(&v_gamma);
+	Cvar_Unhook(&v_contrast);
 
 	SWDraw_Shutdown();
 	D_Shutdown();
@@ -241,6 +244,8 @@ void SWR_Init (void)
 	Cvar_Hook(&crosshaircolor, SWCrosshaircolor_Callback);
 	Cvar_Hook(&r_skyboxname, SWR_Skyboxname_Callback);
 	Cvar_Hook(&r_menutint, SWR_Menutint_Callback);
+	Cvar_Hook(&v_gamma, SWV_Gamma_Callback);
+	Cvar_Hook(&v_contrast, SWV_Gamma_Callback);
 
 	if (!r_maxedges.value)
 		Cvar_SetValue (&r_maxedges, (float)NUMSTACKEDGES);

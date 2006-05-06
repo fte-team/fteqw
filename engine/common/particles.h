@@ -136,7 +136,6 @@ typedef struct beamseg_s
 void P_DrawParticles (void);
 void P_InitParticles (void);
 void P_ClearParticles (void);
-void P_NewServer(void);
 
 //allocate a new effect
 int P_ParticleTypeForName(char *name);
@@ -181,5 +180,8 @@ void P_EmitSkyEffectTris(struct model_s *mod, struct msurface_s 	*fa);
 void P_DelinkTrailstate(trailstate_t **tsk);
 
 typedef enum { BM_BLEND, BM_BLENDCOLOUR, BM_ADD, BM_SUBTRACT } blendmode_t;
+
+// used for callback
+extern cvar_t r_particlesdesc;
 
 #endif

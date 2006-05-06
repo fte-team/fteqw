@@ -121,7 +121,10 @@ extern cvar_t r_part_rain;
 extern cvar_t r_bloodstains;
 extern cvar_t gl_part_flame;
 
-cvar_t r_particlesdesc = SCVARF("r_particlesdesc", "spikeset", CVAR_LATCH|CVAR_SEMICHEAT);
+// callbacks
+void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue);
+
+cvar_t r_particlesdesc = SCVARFC("r_particlesdesc", "spikeset", CVAR_SEMICHEAT, R_ParticlesDesc_Callback);
 
 cvar_t r_part_rain_quantity = SCVAR("r_part_rain_quantity", "1");
 
@@ -1483,13 +1486,17 @@ void P_ExportBuiltinSet_f(void)
 	Con_Printf("Written particles/%s.cfg\n", efname);
 }
 
-void P_NewServer(void)
+void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue)
 {
 	extern model_t	mod_known[];
 	extern int		mod_numknown;
+	int restrictlevel = Cmd_FromGamecode() ? RESTRICT_SERVER : RESTRICT_LOCAL; 
 
 	model_t *mod;
 	int i;
+
+	if (cls.state == ca_disconnected)
+		return; // don't bother parsing while disconnected
 
 	for (i = 0; i < numparticletypes; i++)
 	{
@@ -1500,8 +1507,6 @@ void P_NewServer(void)
 			BZ_Free(part_type->ramp);
 		part_type->ramp = NULL;
 	}
-
-
 
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
 	{
@@ -1539,8 +1544,8 @@ void P_NewServer(void)
 			file = COM_LoadMallocFile(va("%s.cfg", r_particlesdesc.string));
 		if (file)
 		{
-			Cbuf_AddText(file, RESTRICT_LOCAL);
-			Cbuf_AddText("\n", RESTRICT_LOCAL);	//I'm paranoid.
+			Cbuf_AddText(file, restrictlevel);
+			Cbuf_AddText("\n", restrictlevel);
 			BZ_Free(file);
 		}
 		else

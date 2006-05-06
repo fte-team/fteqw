@@ -1486,7 +1486,7 @@ void CL_ParseServerData (void)
 	}
 
 	CL_ClearState ();
-	P_NewServer();
+	Cvar_ForceCallback(&r_particlesdesc);
 	Stats_NewMap();
 	cl.servercount = svcnt;
 
@@ -1692,7 +1692,7 @@ void CLQ2_ParseServerData (void)
 		//cl.refresh_prepped = false;
 	}
 
-	P_NewServer();
+	Cvar_ForceCallback(&r_particlesdesc);
 
 	if (R_PreNewMap)
 		R_PreNewMap();
@@ -1712,7 +1712,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		Con_TPrintf (TLC_GOTSVDATAPACKET);
 	CL_ClearState ();
 	Stats_NewMap();
-	P_NewServer();
+	Cvar_ForceCallback(&r_particlesdesc);
 
 	protover = MSG_ReadLong ();
 

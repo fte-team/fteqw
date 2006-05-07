@@ -43,24 +43,28 @@ double		realtime;				// without any filtering or bounding
 
 int			host_hunklevel;
 
+// callbacks
+void SV_Masterlist_Callback(struct cvar_s *var, char *oldvalue);
+void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue);
+
 typedef struct {
 	qboolean	isdp;
 	cvar_t		cv;
 	netadr_t	adr;
 } sv_masterlist_t;
 sv_masterlist_t sv_masterlist[] = {
-	{false, SCVAR("sv_master1", "")},
-	{false, SCVAR("sv_master2", "")},
-	{false, SCVAR("sv_master3", "")},
-	{false, SCVAR("sv_master4", "")},
-	{false, SCVAR("sv_master5", "")},
-	{false, SCVAR("sv_master6", "")},
-	{false, SCVAR("sv_master7", "")},
-	{false, SCVAR("sv_master8", "")},
+	{false, SCVARC("sv_master1", "", SV_Masterlist_Callback)},
+	{false, SCVARC("sv_master2", "", SV_Masterlist_Callback)},
+	{false, SCVARC("sv_master3", "", SV_Masterlist_Callback)},
+	{false, SCVARC("sv_master4", "", SV_Masterlist_Callback)},
+	{false, SCVARC("sv_master5", "", SV_Masterlist_Callback)},
+	{false, SCVARC("sv_master6", "", SV_Masterlist_Callback)},
+	{false, SCVARC("sv_master7", "", SV_Masterlist_Callback)},
+	{false, SCVARC("sv_master8", "", SV_Masterlist_Callback)},
 
-	{true, SCVAR("sv_masterextra1", "ghdigital.com")}, //69.59.212.88
-	{true, SCVAR("sv_masterextra2", "dpmaster.deathmask.net")}, //209.164.24.243
-	{true, SCVAR("sv_masterextra3", "12.166.196.192")}, //blaze.mindphukd.org (doesn't resolve currently but works as an ip)
+	{true, SCVARC("sv_masterextra1", "ghdigital.com", SV_Masterlist_Callback)}, //69.59.212.88
+	{true, SCVARC("sv_masterextra2", "dpmaster.deathmask.net", SV_Masterlist_Callback)}, //209.164.24.243
+	{true, SCVARC("sv_masterextra3", "12.166.196.192", SV_Masterlist_Callback)}, //blaze.mindphukd.org (doesn't resolve currently but works as an ip)
 	{false, SCVAR(NULL, NULL)}
 };
 
@@ -124,7 +128,7 @@ cvar_t sv_masterport = SCVAR("sv_masterport", "0");
 cvar_t	sv_voicechat = SCVAR("sv_voicechat", "0");	//still development.
 cvar_t	sv_gamespeed = SCVAR("sv_gamespeed", "1");
 cvar_t	sv_csqcdebug = SCVAR("sv_csqcdebug", "0");
-cvar_t	sv_tcpport = SCVAR("sv_tcpport", "0");
+cvar_t	sv_tcpport = SCVARC("sv_tcpport", "0", SV_Tcpport_Callback);
 
 cvar_t pausable	= SCVAR("pausable", "1");
 
@@ -3342,6 +3346,51 @@ void SV_InitLocal (void)
 
 //============================================================================
 
+void SV_Masterlist_Callback(struct cvar_s *var, char *oldvalue)
+{
+	int i;
+	char	data[2];
+
+	for (i = 0; sv_masterlist[i].cv.name; i++)
+	{
+		if (var == &sv_masterlist[i].cv)
+			break;
+	}
+
+	if (!sv_masterlist[i].cv.name)
+		return;
+
+	if (*var->string)
+	{
+		sv_masterlist[i].adr.port = 0;
+		return;
+	}
+
+	if (!NET_StringToAdr(var->string, &sv_masterlist[i].adr))
+	{
+		sv_masterlist[i].adr.port = 0;
+		Con_Printf ("Couldn't resolve master \"%s\"\n", var->string);
+	}
+	else
+	{
+		if (sv_masterlist[i].isdp)
+		{
+			if (sv_masterlist[i].adr.port == 0)
+				sv_masterlist[i].adr.port = BigShort (27950);
+		}
+		else
+		{
+			if (sv_masterlist[i].adr.port == 0)
+				sv_masterlist[i].adr.port = BigShort (27000);
+
+			data[0] = A2A_PING;
+			data[1] = 0;
+			if (sv.state)
+				NET_SendPacket (NS_SERVER, 2, data, sv_masterlist[i].adr);
+		}
+	}
+}
+
 /*
 ================
 Master_Heartbeat
@@ -3357,7 +3406,6 @@ void Master_Heartbeat (void)
 	int			active;
 	int			i, j;
 	qboolean	madeqwstring = false;
-	char	data[2];
 
 	if (!sv_public.value)
 		return;
@@ -3372,36 +3420,6 @@ void Master_Heartbeat (void)
 	// send to group master
 	for (i = 0; sv_masterlist[i].cv.name; i++)
 	{
-		if (sv_masterlist[i].cv.modified)
-		{
-			sv_masterlist[i].cv.modified = false;
-			if (!NET_StringToAdr(sv_masterlist[i].cv.string, &sv_masterlist[i].adr))
-			{
-				sv_masterlist[i].adr.port = 0;
-				Con_Printf ("Couldn't resolve master \"%s\"\n", sv_masterlist[i].cv.string);
-			}
-			else
-			{
-				switch(sv_masterlist[i].isdp)
-				{
-				case false:
-					if (sv_masterlist[i].adr.port == 0)
-						sv_masterlist[i].adr.port = BigShort (27000);
-
-					data[0] = A2A_PING;
-					data[1] = 0;
-					if (sv.state)
-						NET_SendPacket (NS_SERVER, 2, data, sv_masterlist[i].adr);
-					break;
-
-				case true:
-					if (sv_masterlist[i].adr.port == 0)
-						sv_masterlist[i].adr.port = BigShort (27950);
-					break;
-				}
-			}
-		}
-
 		if (sv_masterlist[i].adr.port)
 		{
 			switch(sv_masterlist[i].isdp)

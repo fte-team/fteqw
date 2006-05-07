@@ -189,7 +189,7 @@ void Cbuf_AddText (const char *text, int level)
 
 	if (!cmd_text[level].buf.maxsize)
 	{
-		cmd_text[level].buf.data = (qbyte*)Z_Malloc(8192);
+		cmd_text[level].buf.data = (qbyte*)BZ_Malloc(8192);
 		cmd_text[level].buf.maxsize = 8192;
 	}
 	if (cmd_text[level].buf.cursize + l >= cmd_text[level].buf.maxsize)
@@ -205,7 +205,7 @@ void Cbuf_AddText (const char *text, int level)
 		}
 		while (newmax < cmd_text[level].buf.cursize + l)
 			newmax*=2;
-		cmd_text[level].buf.data = (qbyte*)Z_Malloc(newmax);
+		cmd_text[level].buf.data = (qbyte*)BZ_Realloc(cmd_text[level].buf.data, newmax);
 		cmd_text[level].buf.maxsize = newmax;
 	}
 	SZ_Write (&cmd_text[level].buf, text, Q_strlen (text));

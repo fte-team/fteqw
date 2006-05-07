@@ -652,6 +652,25 @@ void NET_SendLoopPacket (netsrc_t sock, int length, void *data, netadr_t to)
 }
 //=============================================================================
 
+void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
+{
+#ifdef TCPCONNECT
+	if (svs.sockettcp == INVALID_SOCKET && sv_tcpport.value)
+	{
+		svs.sockettcp = TCP_OpenListenSocket(sv_tcpport.value);
+		if (svs.sockettcp != INVALID_SOCKET)
+			NET_GetLocalAddress (svs.sockettcp, &net_local_sv_tcpipadr);
+		else
+			Con_Printf("Failed to open TCP port %i\n", (int)sv_tcpport.value);
+	}
+	else
+	{
+		UDP_CloseSocket(svs.sockettcp);
+		svs.sockettcp = INVALID_SOCKET;
+	}
+#endif
+}
+
 qboolean NET_GetPacket (netsrc_t netsrc)
 {
 	int 	ret;
@@ -914,26 +933,6 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 			return true;
 		}
 
-
-#ifdef TCPCONNECT
-		if (sv_tcpport.modified)
-		{
-			if (svs.sockettcp == INVALID_SOCKET && sv_tcpport.value)
-			{
-				svs.sockettcp = TCP_OpenListenSocket(sv_tcpport.value);
-				if (svs.sockettcp != INVALID_SOCKET)
-					NET_GetLocalAddress (svs.sockettcp, &net_local_sv_tcpipadr);
-				else
-					Con_Printf("Failed to open TCP port %i\n", (int)sv_tcpport.value);
-			}
-			else
-			{
-				UDP_CloseSocket(svs.sockettcp);
-				svs.sockettcp = INVALID_SOCKET;
-			}
-			sv_tcpport.modified = false;
-		}
-#endif
 		if (svs.sockettcp != INVALID_SOCKET)
 		{
 			int newsock;
@@ -1583,9 +1582,8 @@ void NET_CloseServer(void)
 #ifdef TCPCONNECT
 	if (svs.sockettcp != INVALID_SOCKET)
 	{
-		UDP_CloseSocket(svs.sockettcp );
+		UDP_CloseSocket(svs.sockettcp);
 		svs.sockettcp = INVALID_SOCKET;
-		sv_tcpport.modified = true;
 	}
 #endif
 
@@ -1638,9 +1636,14 @@ void NET_InitServer(void)
 				NET_GetLocalAddress (svs.socketipx, &net_local_sv_ipxadr);
 		}
 #endif
+
+	#ifdef TCPCONNECT
+		Cvar_ForceCallback(&sv_tcpport);
+	#endif
 	}
 	else
 		NET_CloseServer();
+
 
 	//
 	// init the message buffer

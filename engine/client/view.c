@@ -365,19 +365,23 @@ void BuildGammaTable (float g, float c)
 V_CheckGamma
 =================
 */
+#ifdef SWQUAKE
 void SWV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
 	BuildGammaTable (v_gamma.value, v_contrast.value);
 	vid.recalc_refdef = 1; // force a surface cache flush
 	SWV_UpdatePalette (true);
 }
+#endif
 
+#ifdef RGLQUAKE
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
 	BuildGammaTable (v_gamma.value, v_contrast.value);
 	vid.recalc_refdef = 1; // force a surface cache flush
 	GLV_UpdatePalette (true);
 }
+#endif
 
 qboolean V_CheckGamma (void)
 {

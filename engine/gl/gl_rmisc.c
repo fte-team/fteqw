@@ -654,7 +654,7 @@ if (!data)
 */
 void GLR_TimeRefresh_f (void);
 
-extern cvar_t gl_bump, v_contrast;
+extern cvar_t gl_bump, v_contrast, r_drawflat;
 extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
 
 // callback defines

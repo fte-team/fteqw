@@ -1368,27 +1368,27 @@ void SCR_DrawLoading (void)
 			x = (vid.width - pic->width)/2;
 			y = (vid.height - 48 - pic->height)/2;
 			Draw_Pic (x, y, pic);
-			x = (vid.width/2) - 80;
+			x = (vid.width/2) - 96;
 			y += pic->height + 8;
 		}
 		else
 		{
-			x = (vid.width/2) - 80;
+			x = (vid.width/2) - 96;
 			y = (vid.height/2) - 8;
 		}
 
 		if (loading_stage)
 		{
-			sizex = current_loading_size * 160 / total_loading_size;
+			sizex = current_loading_size * 192 / total_loading_size;
 			if (loading_stage == 1)
 			{
 				Draw_FillRGB(x, y, sizex, 16, 1.0, 0.0, 0.0);
-				Draw_FillRGB(x+sizex, y, 160-sizex, 16, 0.0, 0.0, 0.0);
+				Draw_FillRGB(x+sizex, y, 192-sizex, 16, 0.0, 0.0, 0.0);
 			}
 			else
 			{
 				Draw_FillRGB(x, y, sizex, 16, 1.0, 1.0, 0.0);
-				Draw_FillRGB(x+sizex, y, 160-sizex, 16, 1.0, 0.0, 0.0);
+				Draw_FillRGB(x+sizex, y, 192-sizex, 16, 1.0, 0.0, 0.0);
 			}
 
 			Draw_String(x+8, y+4, va("Loading %s... %i%%", 

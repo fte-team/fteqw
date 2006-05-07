@@ -36,7 +36,6 @@ static qboolean	wasPlaying = false;
 static qboolean	initialized = false;
 static qboolean	enabled = false;
 static qboolean playLooping = false;
-static float	cdvolume;
 static qbyte 	remap[100];
 static qbyte		playTrack;
 static qbyte		maxTrack;
@@ -189,7 +188,7 @@ void CDAudio_Play(int track, qboolean looping)
 	playTrack = track;
 	playing = true;
 
-	if (cdvolume == 0.0)
+	if (!bgmvolume.value)
 		CDAudio_Pause ();
 
 	return;
@@ -250,7 +249,7 @@ void CDAudio_Resume(void)
 	if (!wasPlaying)
 		return;
 
-	if (!cdvolume)
+	if (!bgmvolume.value)
 		return;
 	
     mciPlayParms.dwFrom = MCI_MAKE_TMSF(playTrack, 0, 0, 0);
@@ -379,7 +378,7 @@ static void CD_f (void)
 			Con_Printf("Currently %s track %u\n", playLooping ? "looping" : "playing", playTrack);
 		else if (wasPlaying)
 			Con_Printf("Paused %s track %u\n", playLooping ? "looping" : "playing", playTrack);
-		Con_Printf("Volume is %f\n", cdvolume);
+		Con_Printf("Volume is %f\n", bgmvolume.value);
 		return;
 	}
 }
@@ -418,27 +417,24 @@ LONG CDAudio_MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-
-void CDAudio_Update(void)
+void BGMVolume_Callback(struct cvar_s *var, char *oldvalue)
 {
+	int cdvolume;
+
 	if (!enabled)
 		return;
 
-	if (bgmvolume.value != cdvolume)
-	{
-		if (cdvolume)
-		{
-			Cvar_SetValue (&bgmvolume, 0.0);
-			cdvolume = bgmvolume.value;
-			CDAudio_Pause ();
-		}
-		else
-		{
-			Cvar_SetValue (&bgmvolume, 1.0);
-			cdvolume = bgmvolume.value;
-			CDAudio_Resume ();
-		}
-	}
+	cdvolume = atof(oldvalue);
+
+	if (cdvolume && !var->value)
+		CDAudio_Pause ();
+	else if (!cdvolume && var->value)
+		CDAudio_Resume ();
+}
+
+void CDAudio_Update(void)
+{
+
 }
 
 
@@ -489,6 +485,7 @@ int CDAudio_Init(void)
 
 	Cmd_AddCommand ("cd", CD_f);
 
+	Cvar_Hook(&bgmvolume, BGMVolume_Callback);
 //	Con_Printf("CD Audio Initialized\n");
 
 	return 0;
@@ -502,4 +499,6 @@ void CDAudio_Shutdown(void)
 	CDAudio_Stop();
 	if (mciSendCommand(wDeviceID, MCI_CLOSE, MCI_WAIT, (DWORD_PTR)NULL))
 		Con_DPrintf("CDAudio_Shutdown: MCI_CLOSE failed\n");
+
+	Cvar_Unhook(&bgmvolume);
 }

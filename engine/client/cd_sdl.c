@@ -10,7 +10,6 @@ static qboolean	wasPlaying = false;
 static qboolean	initialized = false;
 static qboolean	enabled = false;
 static qboolean playLooping = false;
-static float	cdvolume;
 static qbyte 	remap[100];
 static qbyte		playTrack;
 static qbyte		maxTrack;
@@ -90,7 +89,7 @@ void CDAudio_Play(int track, qboolean looping)
 	playTrack = track;
 	playing = true;
 
-	if (cdvolume == 0.0)
+	if (!bgmvolume.value)
 		CDAudio_Pause ();
 
 	return;
@@ -306,26 +305,23 @@ LONG CDAudio_MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 }
 */
 
-void CDAudio_Update(void)
+void BGMVolume_Callback(struct cvar_s *var, char *oldvalue)
 {
+	int cdvolume;
+
 	if (!enabled)
 		return;
 
-	if (bgmvolume.value != cdvolume)
-	{
-		if (cdvolume)
-		{
-			Cvar_SetValue (&bgmvolume, 0.0);
-			cdvolume = bgmvolume.value;
-			CDAudio_Pause ();
-		}
-		else
-		{
-			Cvar_SetValue (&bgmvolume, 1.0);
-			cdvolume = bgmvolume.value;
-			CDAudio_Resume ();
-		}
-	}
+	cdvolume = atof(oldvalue);
+
+	if (cdvolume && !var->value)
+		CDAudio_Pause ();
+	else if (!cdvolume && var->value)
+		CDAudio_Resume ();
+}
+
+void CDAudio_Update(void)
+{
 }
 
 
@@ -369,6 +365,7 @@ int CDAudio_Init(void)
 
 	Cmd_AddCommand ("cd", CD_f);
 
+	Cvar_Hook(&bgmvolume, BGMVolume_Callback);
 //	Con_Printf("CD Audio Initialized\n");
 
 	return 0;
@@ -384,4 +381,6 @@ void CDAudio_Shutdown(void)
 	SDL_CDClose(cddevice);
 	cddevice = NULL;
 	initialized = false;
+
+	Cvar_Unhook(&bgmvolume);
 }

@@ -90,6 +90,8 @@ cvar_t	r_drawflame = SCVAR("r_drawflame", "1");
 
 static qboolean allowremotecmd = true;
 
+extern int			total_loading_size, current_loading_size, loading_stage;
+
 //
 // info mirrors
 //
@@ -2080,6 +2082,11 @@ client_connect:	//fixme: make function
 		cls.state = ca_connected;
 		Con_TPrintf (TLC_CONNECTED);
 		allowremotecmd = false; // localid required now for remote cmds
+
+		total_loading_size = 100;
+		current_loading_size = 0;
+		loading_stage = 2;
+
 		return;
 	}
 	// remote command from gui front end
@@ -2225,6 +2232,11 @@ void CLNQ_ConnectionlessPacket(void)
 		cls.protocol = CP_NETQUAKE;
 		cls.state = ca_connected;
 		Con_TPrintf (TLC_CONNECTED);
+
+		total_loading_size = 100;
+		current_loading_size = 0;
+		loading_stage = 2;
+
 		allowremotecmd = false; // localid required now for remote cmds
 
 		//send a dummy packet.

@@ -231,26 +231,6 @@ void D_DrawSurfaces (void)
 			D_DrawZSpans (s->spans);
 		}
 	}
-// TODO: could preset a lot of this at mode set time
-	else if (r_drawflat.value)
-	{
-		for (s = &surfaces[1] ; s<surface_p ; s++)
-		{
-			if (!s->spans)
-				continue;
-
-			d_zistepu = s->d_zistepu;
-			d_zistepv = s->d_zistepv;
-			d_ziorigin = s->d_ziorigin;
-
-#ifdef __alpha__
-			D_DrawSolidSurface (s, (int)((long)s->data & 0xFF));
-#else
-			D_DrawSolidSurface (s, (int)s->data & 0xFF);
-#endif
-			D_DrawZSpans (s->spans);
-		}
-	}
 	else
 	{
 		for (s = &surfaces[1] ; s<surface_p ; s++)

@@ -2399,13 +2399,13 @@ void QCC_PR_PrintScope (void)
 	if (pr_scope)
 	{
 		if (errorscope != pr_scope)
-			printf ("in function %s (line %i)\n", pr_scope->name, pr_scope->s_line);
+			printf ("in function %s (line %i),\n", pr_scope->name, pr_scope->s_line);
 		errorscope = pr_scope;
 	}
 	else
 	{
 		if (errorscope)
-			printf ("at global scope\n");
+			printf ("at global scope,\n");
 		errorscope = NULL;
 	}
 }

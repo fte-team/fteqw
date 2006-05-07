@@ -124,7 +124,7 @@ extern cvar_t gl_part_flame;
 // callbacks
 void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue);
 
-cvar_t r_particlesdesc = SCVARFC("r_particlesdesc", "spikeset", CVAR_SEMICHEAT, R_ParticlesDesc_Callback);
+cvar_t r_particlesdesc = SCVARFC("r_particlesdesc", "spikeset;tsshaft", CVAR_SEMICHEAT, R_ParticlesDesc_Callback);
 
 cvar_t r_part_rain_quantity = SCVAR("r_part_rain_quantity", "1");
 
@@ -1486,11 +1486,48 @@ void P_ExportBuiltinSet_f(void)
 	Con_Printf("Written particles/%s.cfg\n", efname);
 }
 
+void P_LoadParticleSet(char *name, qboolean first)
+{
+	int restrictlevel = Cmd_FromGamecode() ? RESTRICT_SERVER : RESTRICT_LOCAL; 
+
+	//particle descriptions submitted by the server are deemed to not be cheats but game configs.
+	if (!stricmp(name, "none"))
+		return;
+	else if (!stricmp(name, "faithful") || (first && !*name))
+		Cbuf_AddText(particle_set_faithful, RESTRICT_SERVER);
+	else if (!stricmp(name, "spikeset"))
+		Cbuf_AddText(particle_set_spikeset, RESTRICT_SERVER);
+	else if (!stricmp(name, "highfps"))
+		Cbuf_AddText(particle_set_highfps, RESTRICT_SERVER);
+	else if (!stricmp(name, "minimal"))
+		Cbuf_AddText(particle_set_minimal, RESTRICT_SERVER);
+	else if (!stricmp(name, "tsshaft"))
+		Cbuf_AddText(particle_set_tsshaft, RESTRICT_SERVER);
+	else
+	{
+		char *file = COM_LoadMallocFile(va("particles/%s.cfg", name));
+		if (!file)
+			file = COM_LoadMallocFile(va("%s.cfg", name));
+		if (file)
+		{
+			Cbuf_AddText(file, restrictlevel);
+			Cbuf_AddText("\n", restrictlevel);
+			BZ_Free(file);
+		}
+		else if (first)
+		{
+			Con_Printf(S_WARNING "Couldn't find particle description %s, using spikeset\n", name);
+			Cbuf_AddText(particle_set_spikeset, RESTRICT_SERVER);
+		}
+		else
+			Con_Printf(S_WARNING "Couldn't find particle description %s\n", name);
+	}
+}
+
 void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue)
 {
 	extern model_t	mod_known[];
 	extern int		mod_numknown;
-	int restrictlevel = Cmd_FromGamecode() ? RESTRICT_SERVER : RESTRICT_LOCAL; 
 
 	model_t *mod;
 	int i;
@@ -1520,79 +1557,27 @@ void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue)
 	f_modified_particles = false;
 
 	{
+		char name[32];
+		int len;
+		qboolean first = true;
+
+		char *oldsemi;		
 		char *semi;
-		semi = strchr(r_particlesdesc.string, ';');
-		if (semi)	//make sure nothing uses this for other means.
-			*semi = '\0';
-	}
-
-	//particle descriptions submitted by the server are deemed to not be cheats but game configs.
-	if (!stricmp(r_particlesdesc.string, "none"))
-		return;
-	else if (!stricmp(r_particlesdesc.string, "faithful") || !*r_particlesdesc.string)
-		Cbuf_AddText(particle_set_faithful, RESTRICT_SERVER);
-	else if (!stricmp(r_particlesdesc.string, "spikeset"))
-		Cbuf_AddText(particle_set_spikeset, RESTRICT_SERVER);
-	else if (!stricmp(r_particlesdesc.string, "highfps"))
-		Cbuf_AddText(particle_set_highfps, RESTRICT_SERVER);
-	else if (!stricmp(r_particlesdesc.string, "minimal"))
-		Cbuf_AddText(particle_set_minimal, RESTRICT_SERVER);
-	else
-	{
-		char *file = COM_LoadMallocFile(va("particles/%s.cfg", r_particlesdesc.string));
-		if (!file)
-			file = COM_LoadMallocFile(va("%s.cfg", r_particlesdesc.string));
-		if (file)
+		oldsemi = r_particlesdesc.string;
+		semi = strchr(oldsemi, ';');
+		while (semi)
 		{
-			Cbuf_AddText(file, restrictlevel);
-			Cbuf_AddText("\n", restrictlevel);
-			BZ_Free(file);
+			len = (int)(semi - oldsemi) + 1;
+			if (len > sizeof(name))
+				len = sizeof(name);
+			Q_strncpyz(name, oldsemi, len);
+			P_LoadParticleSet(name, first);
+			first = false;
+			oldsemi = semi + 1;
+			semi = strchr(oldsemi, ';');
 		}
-		else
-		{
-			Con_Printf("Couldn't find particle description, using spikeset\n");
-			Cbuf_AddText(particle_set_spikeset, RESTRICT_SERVER);
-		}
-/*
-#if defined(_DEBUG) && defined(_WIN32)	//expand the particles cfg into a C style quoted string, and copy to clipboard so I can paste it in.
-		{
-			char *TL_ExpandToCString(char *in);
-			extern HWND mainwindow;
-			char *file = COM_LoadTempFile(va("%s.cfg", r_particlesdesc.string));
-			char *lptstrCopy, *buf, temp;
-			int len;
-			HANDLE hglbCopy = GlobalAlloc(GMEM_MOVEABLE,
-				com_filesize*2);
-			lptstrCopy = GlobalLock(hglbCopy);
-			while(file && *file)
-			{
-				len = strlen(file)+1;
-				if (len > 1024)
-					len = 1024;
-				temp = file[len-1];
-				file[len-1] = '\0';
-				buf = TL_ExpandToCString(file);
-				file[len-1] = temp;
-				len-=1;
-				com_filesize -= len;
-				file+=len;
-
-				len = strlen(buf);
-				memcpy(lptstrCopy, buf, len);
-				lptstrCopy+=len;
-			}
-			*lptstrCopy = '\0';
-			GlobalUnlock(hglbCopy);
-
-			if (!OpenClipboard(mainwindow))
-				return;
-			EmptyClipboard();
-
-			SetClipboardData(CF_TEXT, hglbCopy);
-			CloseClipboard();
-		}
-#endif
-*/
+		Q_strncpyz(name, oldsemi, sizeof(name));
+		P_LoadParticleSet(name, first);
 	}
 }
 

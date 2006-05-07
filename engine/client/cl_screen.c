@@ -1360,10 +1360,41 @@ void SCR_DrawLoading (void)
 
 	if (COM_FDepthFile("gfx/loading.lmp", true) < COM_FDepthFile("gfx/menu/loading.lmp", true))
 	{
+		int sizex, x, y;
+
 		pic = Draw_SafeCachePic ("gfx/loading.lmp");
 		if (pic)
-			Draw_Pic ( (vid.width - pic->width)/2,
-				(vid.height - 48 - pic->height)/2, pic);
+		{
+			x = (vid.width - pic->width)/2;
+			y = (vid.height - 48 - pic->height)/2;
+			Draw_Pic (x, y, pic);
+			x = (vid.width/2) - 80;
+			y += pic->height + 8;
+		}
+		else
+		{
+			x = (vid.width/2) - 80;
+			y = (vid.height/2) - 8;
+		}
+
+		if (loading_stage)
+		{
+			sizex = current_loading_size * 160 / total_loading_size;
+			if (loading_stage == 1)
+			{
+				Draw_FillRGB(x, y, sizex, 16, 1.0, 0.0, 0.0);
+				Draw_FillRGB(x+sizex, y, 160-sizex, 16, 0.0, 0.0, 0.0);
+			}
+			else
+			{
+				Draw_FillRGB(x, y, sizex, 16, 1.0, 1.0, 0.0);
+				Draw_FillRGB(x+sizex, y, 160-sizex, 16, 1.0, 0.0, 0.0);
+			}
+
+			Draw_String(x+8, y+4, va("Loading %s... %i%%", 
+				(loading_stage == 1) ? "server" : "client",
+				current_loading_size * 100 / total_loading_size));
+		}
 	}
 	else
 	{

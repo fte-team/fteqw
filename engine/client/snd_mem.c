@@ -147,6 +147,123 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 }
 
 //=============================================================================
+#ifdef DOOMWADS
+#define DSPK_RATE 140
+#define DSPK_FREQ 30
+
+sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+{
+	sfxcache_t	*sc;
+
+	// format data from Unofficial Doom Specs v1.6
+	unsigned short *dataus;
+	int samples, len, timeraccum, inrate, inaccum;
+	qbyte *outdata;
+	qbyte towrite;
+
+	if (datalen < 4)
+		return NULL;
+
+	dataus = (unsigned short*)data;
+
+	if (LittleShort(dataus[0]) != 0)
+		return NULL;
+
+	samples = LittleShort(dataus[1]);
+
+	data += 4;
+	datalen -= 4;
+
+	if (datalen != samples)
+		return NULL;
+
+	len = (int)((double)samples * (double)snd_speed / DSPK_RATE);
+
+	sc = Cache_Alloc (&s->cache, len + sizeof(sfxcache_t), s->name);
+	if (!sc)
+	{
+		return NULL;
+	}
+
+	sc->length = len;
+	sc->loopstart = -1;
+	sc->numchannels = 1;
+	sc->width = 1;
+	sc->speed = snd_speed;
+
+	timeraccum = 0;
+	outdata = sc->data;
+	towrite = 0x40;
+	inrate = (int)((double)snd_speed / DSPK_RATE);
+	inaccum = inrate;
+
+	while (len > 0)
+	{
+		timeraccum += *data * DSPK_FREQ;
+		if (timeraccum > snd_speed)
+		{
+			towrite ^= 0xFF; // swap speaker component
+			timeraccum -= snd_speed;
+		}
+
+		inaccum--;
+		if (!inaccum)
+		{
+			data++;
+			inaccum = inrate;
+		}
+		*outdata = towrite;
+		outdata++;
+		len--;
+	}
+
+	return sc;
+}
+
+sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+{
+	sfxcache_t	*sc;
+
+	// format data from Unofficial Doom Specs v1.6
+	unsigned short *dataus;
+	int samples, rate, len;
+
+	if (datalen < 8)
+		return NULL;
+
+	dataus = (unsigned short*)data;
+
+	if (LittleShort(dataus[0]) != 3)
+		return NULL;
+
+	rate = LittleShort(dataus[1]);
+	samples = LittleShort(dataus[2]);
+
+	data += 8;
+	datalen -= 8;
+
+	if (datalen != samples)
+		return NULL;
+
+	len = (int)((double)samples * (double)snd_speed / (double)rate);
+
+	sc = Cache_Alloc (&s->cache, len + sizeof(sfxcache_t), s->name);
+	if (!sc)
+	{
+		return NULL;
+	}
+
+	sc->length = samples;
+	sc->loopstart = -1;
+	sc->numchannels = 1;
+	sc->width = 1;
+	sc->speed = rate;
+
+	ResampleSfx (s, sc->speed, sc->width, data);
+
+	return sc;
+}
+#endif
 
 sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
@@ -183,12 +300,16 @@ sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 
 sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
 
-S_LoadSound_t AudioInputPlugins[8] =
+S_LoadSound_t AudioInputPlugins[10] =
 {
 #ifdef AVAIL_OGGVORBIS
 	S_LoadOVSound,
 #endif
-	S_LoadWavSound
+	S_LoadWavSound,
+#ifdef DOOMWADS
+	S_LoadDoomSound,
+	S_LoadDoomSpeakerSound
+#endif
 };
 
 qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc)

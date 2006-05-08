@@ -1163,6 +1163,9 @@ static void PPL_BaseChain_Specular_FP(msurface_t *s, texture_t *tex)
 
 static vec_t wallcolour[4] = {0,0,0,1};
 static vec_t floorcolour[4] = {0,0,0,1};
+static int walltexture = 0;
+static int floortexture = 0;
+static qboolean simpletextures = false;
 
 //single textured.
 void GLR_Wallcolour_Callback(struct cvar_s *var, char *oldvalue)
@@ -1173,6 +1176,36 @@ void GLR_Wallcolour_Callback(struct cvar_s *var, char *oldvalue)
 void GLR_Floorcolour_Callback(struct cvar_s *var, char *oldvalue)
 {
 	SCR_StringToRGB(var->string, floorcolour, 1);
+}
+
+void GLR_Walltexture_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (!var->string[0])
+	{
+		walltexture = 0;
+		if (!floortexture)
+			simpletextures = false;
+		return;
+	}
+
+	walltexture = Mod_LoadHiResTexture(var->string, NULL, true, false, true);
+	if (walltexture)
+		simpletextures = true;
+}
+
+void GLR_Floortexture_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (!var->string[0])
+	{
+		floortexture = 0;
+		if (!walltexture)
+			simpletextures = false;
+		return;
+	}
+
+	floortexture = Mod_LoadHiResTexture(var->string, NULL, true, false, true);
+	if (floortexture)
+		simpletextures = true;
 }
 
 static void PPL_BaseChain_Flat(msurface_t *first)
@@ -1233,7 +1266,7 @@ static void PPL_BaseChain_Flat(msurface_t *first)
 			}
 		}
 
-		if ((s->plane->normal[2]*s->plane->normal[2]) <= 0.5*0.5)
+		if (s->plane->normal[2] <= 0.5)
 		{
 			if (iswall != 0)
 			{
@@ -1290,6 +1323,88 @@ void GLR_Drawflat_Callback(struct cvar_s *var, char *oldvalue)
 			}
 		}
 	}
+}
+
+static void PPL_BaseChain_SimpleTexture(msurface_t *first)
+{
+	msurface_t *s;
+	int vi=-10;
+	int iswall;
+	int oldwall=-1;
+	glRect_t    *theRect;
+
+	GL_SelectTexture(GL_TEXTURE0_ARB);
+	PPL_EnableVertexArrays();
+
+//draw the surface properly
+	qglEnable(GL_TEXTURE_2D);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
+
+	GL_TexEnv(GL_MODULATE);
+
+	GL_SelectTexture(GL_TEXTURE1_ARB);
+	GL_TexEnv(GL_MODULATE);
+	qglEnable(GL_TEXTURE_2D);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
+
+	for (s = first; s ; s=s->texturechain)
+	{
+		if (s->plane->normal[2] <= 0.5)
+			iswall = 1;
+		else
+			iswall = 0;
+
+		if (vi != s->lightmaptexturenum || iswall != oldwall)
+		{
+			PPL_FlushArrays();
+			vi = s->lightmaptexturenum;
+			oldwall = iswall;
+
+			if (iswall)
+			{
+				GL_MBind(GL_TEXTURE0_ARB, walltexture);			
+				qglColor4fv(wallcolour);
+			}
+			else
+			{
+				GL_MBind(GL_TEXTURE0_ARB, floortexture);
+				qglColor4fv(floorcolour);
+			}
+
+			if (vi < 0)
+				GL_MBind(GL_TEXTURE1_ARB, 0 );
+			else
+			{
+				GL_MBind(GL_TEXTURE1_ARB, lightmap_textures[vi] );
+				if (lightmap[vi]->modified)
+				{
+					lightmap[vi]->modified = false;
+					theRect = &lightmap[vi]->rectchange;
+					qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+						LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+						lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+					theRect->l = LMBLOCK_WIDTH;
+					theRect->t = LMBLOCK_HEIGHT;
+					theRect->h = 0;
+					theRect->w = 0;
+				}
+			}
+		}
+		PPL_GenerateArrays(s);
+	}
+	PPL_FlushArrays();
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglDisableClientState(GL_VERTEX_ARRAY);
+	qglDisable(GL_TEXTURE_2D);
+	qglColor3f(1,1,1);
+
+	GL_SelectTexture(GL_TEXTURE0_ARB);
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglDisableClientState(GL_VERTEX_ARRAY);
+	qglEnable(GL_TEXTURE_2D);
+	qglColor3f(1,1,1);
 }
 
 static void PPL_BaseChain_NPR_Sketch(msurface_t *first)
@@ -1402,7 +1517,10 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		}
 		else
 		{
-			PPL_BaseChain_Flat(first);	//who cares about texture? :/
+			if (gl_mtexarbable >= 2 && simpletextures)
+				PPL_BaseChain_SimpleTexture(first);
+			else
+				PPL_BaseChain_Flat(first);	//who cares about texture? :/
 			return;
 		}
 	}

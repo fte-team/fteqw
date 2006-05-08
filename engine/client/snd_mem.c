@@ -148,8 +148,9 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 
 //=============================================================================
 #ifdef DOOMWADS
-#define DSPK_RATE 140
-#define DSPK_FREQ 30
+// needs fine tuning.. educated guesses
+#define DSPK_RATE 128
+#define DSPK_FREQ 31
 
 sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
@@ -308,7 +309,7 @@ S_LoadSound_t AudioInputPlugins[10] =
 	S_LoadWavSound,
 #ifdef DOOMWADS
 	S_LoadDoomSound,
-	S_LoadDoomSpeakerSound
+	S_LoadDoomSpeakerSound,
 #endif
 };
 

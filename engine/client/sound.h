@@ -193,8 +193,6 @@ qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc);	//called to register
 
 wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength);
 
-void SND_InitScaletable (void);
-
 void S_AmbientOff (void);
 void S_AmbientOn (void);
 
@@ -230,9 +228,6 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	int	oldsamplepos;	//fixme: is this still needed?
 	int snd_linear_count;	//used by the mixer.
 	int	buffers;	//used to keep track of buffer wraps for consistant sound
-
-	int rawend;	//streaming audio (avi/cin/roq)
-	int rawstart;
 
 //callbacks
 	void *(*Lock) (soundcardinfo_t *sc);

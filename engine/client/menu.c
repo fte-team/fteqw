@@ -940,9 +940,7 @@ void M_Draw (int uimenu)
 #ifdef VM_UI
 		UI_DrawMenu();
 #endif
-		VID_UnlockBuffer ();
 		S_ExtraUpdate ();
-		VID_LockBuffer ();
 	}
 
 	if (m_state != m_complex)
@@ -965,9 +963,7 @@ void M_Draw (int uimenu)
 		if (scr_con_current)
 		{
 			Draw_ConsoleBackground (vid.height);
-			VID_UnlockBuffer ();
 			S_ExtraUpdate ();
-			VID_LockBuffer ();
 		}
 		else
 			Draw_FadeScreen ();
@@ -1015,9 +1011,7 @@ void M_Draw (int uimenu)
 #endif
 	}
 
-	VID_UnlockBuffer ();
 	S_ExtraUpdate ();
-	VID_LockBuffer ();
 }
 
 

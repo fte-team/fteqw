@@ -39,6 +39,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define sc		8+16
 #define count	12+16
 
+#if 0
+// This code isn't maintained. It needs the snd_scaletable references removed.
+// snd_scaletable[x][y] -> x * 8 * y
+
 .globl C(SND_PaintChannelFrom8)
 C(SND_PaintChannelFrom8):
 	pushl	%esi				// preserve register variables
@@ -136,7 +140,7 @@ LDone:
 	popl	%esi
 
 	ret
-
+#endif
 
 //----------------------------------------------------------------------
 // Transfer of stereo buffer to 16-bit DMA buffer code

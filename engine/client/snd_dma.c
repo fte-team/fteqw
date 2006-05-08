@@ -351,7 +351,7 @@ void SNDDMA_SetUnderWater(qboolean underwater)
 //so that the video code can call it directly without flushing the models it's just loaded.
 void S_DoRestart (void)
 {
-	if (COM_CheckParm("-nosound"))
+	if (nosound.value)
 		return;
 
 	S_StopAllSounds (true);
@@ -589,8 +589,6 @@ void S_Init (void)
 	}
 
 	snd_initialized = true;
-
-	SND_InitScaletable ();
 
 	known_sfx = Hunk_AllocName (MAX_SFX*sizeof(sfx_t), "sfx_t");
 	num_sfx = 0;
@@ -1279,11 +1277,7 @@ void GetSoundtime(soundcardinfo_t *sc)
 			sc->paintedtime = fullsamples;
 			S_StopAllSounds (true);
 		}
-
-		sc->rawstart =0;
 	}
-	else
-		sc->rawstart += samplepos - sc->oldsamplepos;
 	sc->oldsamplepos = samplepos;
 
 	soundtime = sc->buffers*fullsamples + samplepos/sc->sn.numchannels;

@@ -2598,10 +2598,6 @@ void SWDraw_FadeScreen (void)
 {
 	int			x,y;
 
-	VID_UnlockBuffer ();
-	S_ExtraUpdate ();
-	VID_LockBuffer ();
-
 	if (r_pixbytes == 4)
 	{
 		qbyte		*pbuf;
@@ -2652,9 +2648,7 @@ void SWDraw_FadeScreen (void)
 		}
 	}
 
-	VID_UnlockBuffer ();
 	S_ExtraUpdate ();
-	VID_LockBuffer ();
 }
 
 

@@ -315,11 +315,11 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 	p = (int *) paintbuffer;
 	count = (endtime - sc->paintedtime) * sc->sn.numchannels;
 	out_mask = sc->sn.samples - 1; 
-	out_idx = sc->paintedtime * sc->sn.numchannels & out_mask;
+	out_idx = (sc->paintedtime * sc->sn.numchannels) & out_mask;
 	if (sc->sn.numchannels>2)
 		step = 1;
 	else
-		step = 3 - sc->sn.numchannels;
+		step = 6;
 	snd_vol = volume.value*256;
 
 	pbuf = sc->Lock(sc);

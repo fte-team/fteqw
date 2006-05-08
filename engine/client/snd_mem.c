@@ -202,6 +202,7 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 }
 
 //=============================================================================
+#ifdef DOOMWADS
 // needs fine tuning.. educated guesses
 #define DSPK_RATE 128
 #define DSPK_FREQ 31
@@ -318,6 +319,7 @@ sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 
 	return sc;
 }
+#endif
 
 sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
@@ -360,8 +362,10 @@ S_LoadSound_t AudioInputPlugins[10] =
 	S_LoadOVSound,
 #endif
 	S_LoadWavSound,
+#ifdef DOOMWADS
 	S_LoadDoomSound,
 	S_LoadDoomSpeakerSound,
+#endif
 };
 
 qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc)

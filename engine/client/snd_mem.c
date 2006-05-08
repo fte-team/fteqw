@@ -34,6 +34,7 @@ ResampleSfx
 */
 void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 {
+	int		incount;
 	int		outcount;
 	int		srcsample;
 	float	stepscale;
@@ -41,6 +42,8 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 	int		sample, fracstep;
 	unsigned int samplefrac;
 	sfxcache_t	*sc;
+	extern cvar_t snd_linearresample;
+	qboolean linearsampling = !!(snd_linearresample.value);
 	
 	sc = Cache_Check (&sfx->cache);
 	if (!sc)
@@ -48,6 +51,7 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 
 	stepscale = (float)inrate / snd_speed;	// this is usually 0.5, 1, or 2
 
+	incount = sc->length;
 	outcount = sc->length / stepscale;
 	sc->length = outcount;
 	if (sc->loopstart != -1)
@@ -84,12 +88,28 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 			for (i=0 ; i<outcount ; i++)
 			{
 				srcsample = samplefrac >> 8;
-				samplefrac += fracstep;
+				linearsampling = linearsampling && ((srcsample+1) < incount);
 
-				if (inwidth == 2)
-					sample = LittleShort ( ((short *)data)[(srcsample<<1)] );
+				if (linearsampling)
+				{
+					if (inwidth == 2)
+						sample = ((255 - (samplefrac & 0xFF)) * 
+							LittleShort( ((short *)data)[ srcsample<<1 ] ) +
+							(samplefrac & 0xFF) * 
+							LittleShort( ((short *)data)[ (srcsample+1)<<1 ] )) >> 8;
+					else
+						sample = ((255-(samplefrac & 0xFF)) *
+							(int)( (unsigned char)(data[ srcsample<<1 ]) - 128 ) +
+							(samplefrac & 0xFF) *
+							(int)( (unsigned char)(data[ (srcsample+1)<<1 ]) - 128 ));
+				}
 				else
-					sample = (int)( (unsigned char)(data[(srcsample<<1)]) - 128) << 8;
+				{
+					if (inwidth == 2)
+						sample = LittleShort ( ((short *)data)[(srcsample<<1)] );
+					else
+						sample = (int)( (unsigned char)(data[(srcsample<<1)]) - 128) << 8;
+				}
 				if (sc->width == 2)
 					((short *)sc->data)[i<<1] = sample;
 				else
@@ -97,14 +117,32 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 
 //				srcsample = samplefrac >> 8;
 //				samplefrac += fracstep;
-				if (inwidth == 2)
-					sample = LittleShort ( ((short *)data)[(srcsample<<1)+1] );
+				if (linearsampling)
+				{
+					if (inwidth == 2)
+						sample = ((255 - (samplefrac & 0xFF)) * 
+							LittleShort( ((short *)data)[ (srcsample<<1)+1 ] ) +
+							(samplefrac & 0xFF) * 
+							LittleShort( ((short *)data)[ ((srcsample+1)<<1)+1 ] )) >> 8;
+					else
+						sample = ((255-(samplefrac & 0xFF)) *
+							(int)( (unsigned char)(data[ (srcsample<<1)+1 ]) - 128 ) +
+							(samplefrac & 0xFF) *
+							(int)( (unsigned char)(data[ ((srcsample+1)<<1)+1 ]) - 128 ));
+				}
 				else
-					sample = (int)( (unsigned char)(data[(srcsample<<1)+1]) - 128) << 8;
+				{
+					if (inwidth == 2)
+						sample = LittleShort ( ((short *)data)[(srcsample<<1)+1] );
+					else
+						sample = (int)( (unsigned char)(data[(srcsample<<1)+1]) - 128) << 8;
+				}
 				if (sc->width == 2)
 					((short *)sc->data)[(i<<1)+1] = sample;
 				else
 					((signed char *)sc->data)[(i<<1)+1] = sample >> 8;
+
+				samplefrac += fracstep;
 			}
 		}
 		return;
@@ -133,21 +171,37 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 		for (i=0 ; i<outcount ; i++)
 		{
 			srcsample = samplefrac >> 8;
-			samplefrac += fracstep;
-			if (inwidth == 2)
-				sample = LittleShort ( ((short *)data)[srcsample] );
+			linearsampling = linearsampling && ((srcsample+1) < incount);
+			if (linearsampling)
+			{
+				if (inwidth == 2)
+					sample = ((255 - (samplefrac & 0xFF)) * 
+						LittleShort( ((short *)data)[srcsample] ) +
+						(samplefrac & 0xFF) * 
+						LittleShort( ((short *)data)[srcsample+1] )) >> 8;
+				else
+					sample = ((255-(samplefrac & 0xFF)) *
+						(int)( (unsigned char)(data[srcsample]) - 128 ) +
+						(samplefrac & 0xFF) *
+						(int)( (unsigned char)(data[srcsample+1]) - 128 ));
+			}
 			else
-				sample = (int)( (unsigned char)(data[srcsample]) - 128) << 8;
+			{
+				if (inwidth == 2)
+					sample = LittleShort ( ((short *)data)[srcsample] );
+				else
+					sample = (int)( (unsigned char)(data[srcsample]) - 128) << 8;
+			}
 			if (sc->width == 2)
 				((short *)sc->data)[i] = sample;
 			else
 				((signed char *)sc->data)[i] = sample >> 8;
+			samplefrac += fracstep;
 		}
 	}
 }
 
 //=============================================================================
-#ifdef DOOMWADS
 // needs fine tuning.. educated guesses
 #define DSPK_RATE 128
 #define DSPK_FREQ 31
@@ -264,7 +318,6 @@ sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 
 	return sc;
 }
-#endif
 
 sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
@@ -307,10 +360,8 @@ S_LoadSound_t AudioInputPlugins[10] =
 	S_LoadOVSound,
 #endif
 	S_LoadWavSound,
-#ifdef DOOMWADS
 	S_LoadDoomSound,
 	S_LoadDoomSpeakerSound,
-#endif
 };
 
 qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc)

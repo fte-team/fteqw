@@ -81,6 +81,7 @@ cvar_t snd_speakers = SCVAR("snd_numspeakers", "2");
 cvar_t	snd_playersoundvolume = SCVAR("snd_localvolume", "1");	//sugested by crunch
 
 cvar_t	snd_capture = SCVAR("snd_capture", "0");
+cvar_t  snd_linearresample = SCVAR("snd_linearresample", "1");
 
 cvar_t snd_usemultipledevices = SCVAR("snd_multipledevices", "0");
 
@@ -555,6 +556,8 @@ void S_Init (void)
 
 	Cvar_Register(&snd_playersoundvolume,		"Sound controls");
 	Cvar_Register(&snd_usemultipledevices,		"Sound controls");
+
+	Cvar_Register(&snd_linearresample, "Sound controls");
 
 	if (COM_CheckParm("-nosound"))
 	{

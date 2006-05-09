@@ -140,7 +140,6 @@ LDone:
 	popl	%esi
 
 	ret
-#endif
 
 //----------------------------------------------------------------------
 // Transfer of stereo buffer to 16-bit DMA buffer code
@@ -224,6 +223,7 @@ LClampDone2:
 	popl	%esi
 
 	ret
+#endif
 
 
 #endif	// id386

@@ -85,6 +85,7 @@ cvar_t  snd_linearresample = SCVAR("snd_linearresample", "1");
 
 cvar_t snd_usemultipledevices = SCVAR("snd_multipledevices", "0");
 
+extern vfsfile_t *rawwritefile;
 
 // ====================================================================
 // User-setable variables

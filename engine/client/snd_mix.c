@@ -26,300 +26,50 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #define	PAINTBUFFER_SIZE	2048
+
 portable_samplegroup_t paintbuffer[PAINTBUFFER_SIZE];
+
 int 	*snd_p, snd_vol;
 short	*snd_out;
 
-void Snd_WriteLinearBlastStereo16 (soundcardinfo_t *sc);
-
-#if	defined(NOSOUNDASM) || !id386
-void Snd_WriteLinearBlastStereo16 (soundcardinfo_t *sc)
+static int paintskip[6][6] =
 {
-	int		i, i2;
-	int		val;
+	{6},
+	{1, 5},
+	{1, 1, 4},
+	{1, 1, 1, 3},
+	{1, 1, 1, 1, 2},
+	{1, 1, 1, 1, 1, 1}
+};
 
-	for (i=0, i2=0; i<sc->snd_linear_count ; i+=2, i2+=6)
-	{
-		val = (snd_p[i2]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i] = (short)0x8000;
-		else
-			snd_out[i] = val;
-
-		val = (snd_p[i2+1]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i+1] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i+1] = (short)0x8000;
-		else
-			snd_out[i+1] = val;
-	}
-}
-#endif
-
-void S_TransferStereo16 (soundcardinfo_t *sc, int endtime)
+static int chnskip[6][6] =
 {
-	int		lpos;
-	int		lpaintedtime;
-	short	*pbuf;
-	
-	snd_vol = volume.value*256;
-
-	snd_p = (int *) paintbuffer;
-	lpaintedtime = sc->paintedtime;
-
-	pbuf = sc->Lock(sc);
-	if (!pbuf)
-		return;
-
-	while (lpaintedtime < endtime)
-	{
-	// handle recirculating buffer issues
-		lpos = lpaintedtime % ((sc->sn.samples>>1));
-
-		snd_out = (short *) pbuf + (lpos<<1);
-
-		sc->snd_linear_count = (sc->sn.samples>>1) - lpos;
-		if (lpaintedtime + sc->snd_linear_count > endtime)
-			sc->snd_linear_count = endtime - lpaintedtime;
-
-		sc->snd_linear_count <<= 1;
-
-	// write a linear blast of samples
-		Snd_WriteLinearBlastStereo16 (sc);
-
-		if (sc == sndcardinfo)	//only do this for one sound card.
-			Media_RecordAudioFrame(snd_out, sc->snd_linear_count);
-
-		snd_p += sc->snd_linear_count;
-		lpaintedtime += (sc->snd_linear_count>>1);		
-	}
-
-	sc->Unlock(sc, pbuf);
-}
-
-void Snd_WriteLinearBlastStereo16_4Speaker (soundcardinfo_t *sc)
-{
-	int		i, i2;
-	int		val;
-
-	for (i=0, i2=0; i<sc->snd_linear_count ; i+=4, i2+=6)
-	{
-		val = (snd_p[i2]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i] = (short)0x8000;
-		else
-			snd_out[i] = val;
-
-		val = (snd_p[i2+1]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i+1] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i+1] = (short)0x8000;
-		else
-			snd_out[i+1] = val;
-
-		val = (snd_p[i2+2]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i+2] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i+2] = (short)0x8000;
-		else
-			snd_out[i+2] = val;
-
-		val = (snd_p[i2+3]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i+3] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i+3] = (short)0x8000;
-		else
-			snd_out[i+3] = val;
-
-//		snd_out[i+0] = rand();
-//		snd_out[i+1] = rand();
-//		snd_out[i+2] = rand();
-//		snd_out[i+3] = rand();
-	}
-}
-
-void S_Transfer4Speaker16 (soundcardinfo_t *sc, int endtime)
-{
-	int		lpos;
-	int		lpaintedtime;
-	short	*pbuf;
-	
-	snd_vol = volume.value*256;
-
-	snd_p = (int *) paintbuffer;
-	lpaintedtime = sc->paintedtime;
-
-	pbuf = sc->Lock(sc);
-	if (!pbuf)
-		return;
-
-	while (lpaintedtime < endtime)
-	{
-	// handle recirculating buffer issues
-		lpos = lpaintedtime % ((sc->sn.samples>>2));
-
-		snd_out = (short *) pbuf + (lpos<<2);
-
-		sc->snd_linear_count = (sc->sn.samples>>2) - lpos;
-		if (lpaintedtime + sc->snd_linear_count > endtime)
-			sc->snd_linear_count = endtime - lpaintedtime;
-
-		sc->snd_linear_count <<= 2;
-
-	// write a linear blast of samples
-		Snd_WriteLinearBlastStereo16_4Speaker (sc);
-
-		if (sc == sndcardinfo)	//only do this for one sound card.
-			Media_RecordAudioFrame(snd_out, sc->snd_linear_count);
-
-		snd_p += sc->snd_linear_count;
-		lpaintedtime += (sc->snd_linear_count>>2);		
-	}
-
-	sc->Unlock(sc, pbuf);
-}
-
-void Snd_WriteLinearBlast6Speaker16 (soundcardinfo_t *sc)
-{
-	int		i;
-	int		val;
-
-	for (i=0 ; i<sc->snd_linear_count ; i+=6)
-	{
-		val = (snd_p[i]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i] = (short)0x8000;
-		else
-			snd_out[i] = val;
-
-		val = (snd_p[i+1]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i+1] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i+1] = (short)0x8000;
-		else
-			snd_out[i+1] = val;
-
-		val = (snd_p[i+2]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i+2] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i+2] = (short)0x8000;
-		else
-			snd_out[i+2] = val;
-
-		val = (snd_p[i+3]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i+3] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i+3] = (short)0x8000;
-		else
-			snd_out[i+3] = val;
-
-		val = (snd_p[i+4]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i+4] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i+4] = (short)0x8000;
-		else
-			snd_out[i+4] = val;
-
-		val = (snd_p[i+5]*snd_vol)>>8;
-		if (val > 0x7fff)
-			snd_out[i+5] = 0x7fff;
-		else if (val < (short)0x8000)
-			snd_out[i+5] = (short)0x8000;
-		else
-			snd_out[i+5] = val;
-	}
-}
-void S_Transfer6Speaker16 (soundcardinfo_t *sc, int endtime)
-{
-	int		lpos;
-	int		lpaintedtime;
-	short	*pbuf;
-	
-	snd_vol = volume.value*256;
-
-	snd_p = (int *) paintbuffer;
-	lpaintedtime = sc->paintedtime;
-
-	pbuf = sc->Lock(sc);
-	if (!pbuf)
-		return;
-
-	while (lpaintedtime < endtime)
-	{
-	// handle recirculating buffer issues
-		lpos = (lpaintedtime % ((sc->sn.samples/6)));
-
-		snd_out = (short *) pbuf + (lpos*6);
-
-		sc->snd_linear_count = (sc->sn.samples/6) - lpos;
-		if (lpaintedtime + sc->snd_linear_count > endtime)
-			sc->snd_linear_count = endtime - lpaintedtime;
-
-		sc->snd_linear_count *= 6;
-
-	// write a linear blast of samples
-		Snd_WriteLinearBlast6Speaker16 (sc);
-
-		if (sc == sndcardinfo)	//only do this for one sound card.
-			Media_RecordAudioFrame(snd_out, sc->snd_linear_count);
-
-		snd_p += sc->snd_linear_count;
-		lpaintedtime += (sc->snd_linear_count/6);	
-	}
-
-	sc->Unlock(sc, pbuf);
-}
+	{0},
+	{1, -1},
+	{1, 1, -2},
+	{1, 1, 1, -3},
+	{1, 1, 1, 1, -4},
+	{1, 1, 1, 1, 1, -5}
+};
 
 void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 {
-	int 	out_idx;
+	int 	startidx, out_idx;
 	int 	count;
 	int 	out_mask;
 	int 	*p;
-	int 	step;
+	int 	*skip;
+	int		*cskip;
 	int		val;
 	int		snd_vol;
 	short	*pbuf;
 
-	if (sc->sn.samplebits == 16 && sc->sn.numchannels == 2)
-	{
-		S_TransferStereo16 (sc, endtime);
-		return;
-	}
-
-	if (sc->sn.samplebits == 16 && sc->sn.numchannels == 6)
-	{
-		S_Transfer6Speaker16 (sc, endtime);
-		return;
-	}
-
-	if (sc->sn.samplebits == 16 && sc->sn.numchannels == 4)
-	{
-		S_Transfer4Speaker16 (sc, endtime);
-		return;
-	}
 	p = (int *) paintbuffer;
+	skip = paintskip[sc->sn.numchannels-1];
+	cskip = chnskip[sc->sn.numchannels-1];
 	count = (endtime - sc->paintedtime) * sc->sn.numchannels;
 	out_mask = sc->sn.samples - 1; 
-	out_idx = (sc->paintedtime * sc->sn.numchannels) & out_mask;
-	if (sc->sn.numchannels>2)
-		step = 1;
-	else
-		step = 6;
+	startidx = out_idx = (sc->paintedtime * sc->sn.numchannels) & out_mask;
 	snd_vol = volume.value*256;
 
 	pbuf = sc->Lock(sc);
@@ -332,13 +82,27 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 		while (count--)
 		{
 			val = (*p * snd_vol) >> 8;
-			p+= step;
+			p += *skip;
 			if (val > 0x7fff)
 				val = 0x7fff;
 			else if (val < (short)0x8000)
 				val = (short)0x8000;
 			out[out_idx] = val;
 			out_idx = (out_idx + 1) & out_mask;
+			skip += *cskip;
+			cskip += *cskip;
+		}
+		// Only do this for 1 sound card with 2 channels, because
+		// this function is hacky
+		if (sc == sndcardinfo && sc->sn.numchannels == 2)
+		{
+			if (out_idx <= startidx) // buffer looped
+			{
+				Media_RecordAudioFrame(out + startidx, (sc->sn.samples - startidx) / 2);
+				Media_RecordAudioFrame(out, out_idx / (2*2));
+			}
+			else
+				Media_RecordAudioFrame(out + startidx, (out_idx - startidx) / 2);
 		}
 	}
 	else if (sc->sn.samplebits == 8)
@@ -347,13 +111,15 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 		while (count--)
 		{
 			val = (*p * snd_vol) >> 8;
-			p+= step;
+			p += *skip;
 			if (val > 0x7fff)
 				val = 0x7fff;
 			else if (val < (short)0x8000)
 				val = (short)0x8000;
 			out[out_idx] = (val>>8) + 128;
 			out_idx = (out_idx + 1) & out_mask;
+			skip += *cskip;
+			cskip += *cskip;
 		}
 	}
 

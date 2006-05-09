@@ -1578,6 +1578,9 @@ void Media_RecordAudioFrame (short *sample_buffer, int samples)
 	if (capturetype != CT_AVI)
 		return;
 
+	if (samples <= 0)
+		return;
+
 	if (!recordavi_uncompressed_audio_stream)
 		return;
 

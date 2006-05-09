@@ -197,15 +197,15 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	cvar_t *devname;
 
 	int					 err, i;
-	int					 bps = -1, stereo = -1;
-	unsigned int		 rate = 0;
+	int					 bps, stereo;
+	unsigned int		 rate;
 	snd_pcm_hw_params_t	*hw;
 	snd_pcm_sw_params_t	*sw;
 	snd_pcm_uframes_t	 frag_size;
 
 	if (!Alsa_InitAlsa())
 	{
-		Con_Printf("Alsa does not appear to be installed or compatable\n");
+		Con_Printf(S_ERROR "Alsa does not appear to be installed or compatable\n");
 		return 2;
 	}
 
@@ -228,197 +228,140 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	Con_Printf("Initing ALSA sound device %s\n", pcmname);
 
-// COMMANDLINEOPTION: Linux ALSA Sound: -sndbits <number> sets sound precision to 8 or 16 bit (email me if you want others added)
-	if ((i=COM_CheckParm("-sndbits")) != 0)
-	{
-		bps = atoi(com_argv[i+1]);
-		if (bps != 16 && bps != 8)
-		{
-			Con_Printf("Error: invalid sample bits: %d\n", bps);
-			return false;
-		}
-	}
-
-// COMMANDLINEOPTION: Linux ALSA Sound: -sndspeed <hz> chooses 44100 hz, 22100 hz, or 11025 hz sound output rate
-	if ((i=COM_CheckParm("-sndspeed")) != 0)
-	{
-		rate = atoi(com_argv[i+1]);
-		if (rate!=44100 && rate!=22050 && rate!=11025)
-		{
-			Con_Printf("Error: invalid sample rate: %d\n", rate);
-			return false;
-		}
-	}
-
-// COMMANDLINEOPTION: Linux ALSA Sound: -sndmono sets sound output to mono
-	if ((i=COM_CheckParm("-sndmono")) != 0)
-		stereo=0;
-// COMMANDLINEOPTION: Linux ALSA Sound: -sndstereo sets sound output to stereo
-	if ((i=COM_CheckParm("-sndstereo")) != 0)
-		stereo=1;
-
 	err = psnd_pcm_open (&pcm, pcmname, SND_PCM_STREAM_PLAYBACK,
 						  SND_PCM_NONBLOCK);
-	if (0 > err) {
-		Con_Printf ("Error: audio open error: %s\n", psnd_strerror (err));
+	if (0 > err)
+	{
+		Con_Printf (S_ERROR "Error: audio open error: %s\n", psnd_strerror (err));
 		return 0;
 	}
 	Con_Printf ("ALSA: Using PCM %s.\n", pcmname);
 
 	err = psnd_pcm_hw_params_any (pcm, hw);
 	if (0 > err) {
-		Con_Printf ("ALSA: error setting hw_params_any. %s\n",
+		Con_Printf (S_ERROR "ALSA: error setting hw_params_any. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
 
 	err = psnd_pcm_hw_params_set_access (pcm, hw,  SND_PCM_ACCESS_MMAP_INTERLEAVED);
-	if (0 > err) {
-		Con_Printf ("ALSA: Failure to set noninterleaved PCM access. %s\n"
+	if (0 > err) 
+	{
+		Con_Printf (S_ERROR "ALSA: Failure to set noninterleaved PCM access. %s\n"
 					"Note: Interleaved is not supported\n",
 					psnd_strerror (err));
 		goto error;
 	}
 
-	switch (bps) {
-		case -1:
-			err = psnd_pcm_hw_params_set_format (pcm, hw, SND_PCM_FORMAT_S16);
-			if (0 <= err) {
-				bps = 16;
-			} else if (0 <= (err = psnd_pcm_hw_params_set_format (pcm, hw, SND_PCM_FORMAT_U8))) {
+	// get sample bit size
+	bps = sc->sn.samplebits;
+	{
+		snd_pcm_format_t spft;
+		if (bps == 16)
+			spft = SND_PCM_FORMAT_S16;
+		else
+			spft = SND_PCM_FORMAT_U8;
+
+		err = psnd_pcm_hw_params_set_format (pcm, hw, spft);
+		while (err < 0)
+		{
+			if (spft == SND_PCM_FORMAT_S16)
+			{
 				bps = 8;
-			} else {
-				Con_Printf ("ALSA: no useable formats. %s\n",
-							psnd_strerror (err));
+				spft = SND_PCM_FORMAT_U8;
+			}
+			else
+			{
+				Con_Printf (S_ERROR "ALSA: no usable formats. %s\n", psnd_strerror (err));
 				goto error;
 			}
-			break;
-		case 8:
-		case 16:
-			err = psnd_pcm_hw_params_set_format (pcm, hw, bps == 8 ?
-												  SND_PCM_FORMAT_U8 :
-												  SND_PCM_FORMAT_S16);
-			if (0 > err) {
-				Con_Printf ("ALSA: no usable formats. %s\n",
-							psnd_strerror (err));
-				goto error;
-			}
-			break;
-		default:
-			Con_Printf ("ALSA: desired format not supported\n");
-			goto error;
+			err = psnd_pcm_hw_params_set_format (pcm, hw, spft);
+		}
 	}
 
-	switch (stereo) {
-		case -1:
-			err = psnd_pcm_hw_params_set_channels (pcm, hw, 2);
-			if (0 <= err) {
-				stereo = 1;
-			} else if (0 <= (err = psnd_pcm_hw_params_set_channels (pcm, hw, 1))) {
-				stereo = 0;
-			} else {
-				Con_Printf ("ALSA: no usable channels. %s\n",
-							psnd_strerror (err));
-				goto error;
-			}
-			break;
-		case 0:
-		case 1:
-		case 2:
-		case 3:
-		case 4:
-		case 5:
-			err = psnd_pcm_hw_params_set_channels (pcm, hw, stereo+1);
-			if (0 > err) {
-				Con_Printf ("ALSA: no usable channels. %s\n",
-							psnd_strerror (err));
-				goto error;
-			}
-			break;
-		default:
-			Con_Printf ("ALSA: desired channels not supported\n");
+	// get speaker channels
+	stereo = sc->sn.numchannels;
+	err = psnd_pcm_hw_params_set_channels (pcm, hw, stereo);
+	while (err < 0) 
+	{
+		if (stereo > 2)
+			stereo = 2;
+		else if (stereo > 1)
+			stereo = 1;
+		else
+		{
+			Con_Printf (S_ERROR "ALSA: no usable number of channels. %s\n", psnd_strerror (err));
 			goto error;
+		}
+		err = psnd_pcm_hw_params_set_channels (pcm, hw, stereo);
 	}
 
-	switch (rate) {
-		case 0:
+	// get rate
+	rate = sc->sn.speed;
+	err = psnd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
+	while (err < 0)
+	{
+		if (rate > 48000)
+			rate = 48000;
+		else if (rate > 44100)
 			rate = 44100;
-			err = psnd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
-			if (0 <= err) {
-				frag_size = 32 * bps;
-			} else {
-				rate = 22050;
-				err = psnd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
-				if (0 <= err) {
-					frag_size = 16 * bps;
-				} else {
-					rate = 11025;
-					err = psnd_pcm_hw_params_set_rate_near (pcm, hw, &rate,
-															 0);
-					if (0 <= err) {
-						frag_size = 8 * bps;
-					} else {
-						Con_Printf ("ALSA: no usable rates. %s\n",
-									psnd_strerror (err));
-						goto error;
-					}
-				}
-			}
-			break;
-		case 11025:
-		case 22050:
-		case 44100:
-			err = psnd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
-			if (0 > err) {
-				Con_Printf ("ALSA: desired rate %i not supported. %s\n", rate,
-							psnd_strerror (err));
-				goto error;
-			}
-			frag_size = 8 * bps * rate / 11025;
-			break;
-		default:
-			Con_Printf ("ALSA: desired rate %i not supported.\n", rate);
+		else if (rate > 22150)
+			rate = 22150;
+		else if (rate > 11025)
+			rate = 11025;
+		else if (rate > 800)
+			rate = 800;
+		else
+		{
+			Con_Printf (S_ERROR "ALSA: no usable rates. %s\n", psnd_strerror (err));
 			goto error;
+		}
+		err = psnd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
 	}
+
+	if (rate > 11025)
+		frag_size = 8 * bps * rate / 11025;
+	else
+		frag_size = 8 * bps;
 
 	err = psnd_pcm_hw_params_set_period_size_near (pcm, hw, &frag_size, 0);
 	if (0 > err) {
-		Con_Printf ("ALSA: unable to set period size near %i. %s\n",
+		Con_Printf (S_ERROR "ALSA: unable to set period size near %i. %s\n",
 					(int) frag_size, psnd_strerror (err));
 		goto error;
 	}
 	err = psnd_pcm_hw_params (pcm, hw);
 	if (0 > err) {
-		Con_Printf ("ALSA: unable to install hw params: %s\n",
+		Con_Printf (S_ERROR "ALSA: unable to install hw params: %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
 	err = psnd_pcm_sw_params_current (pcm, sw);
 	if (0 > err) {
-		Con_Printf ("ALSA: unable to determine current sw params. %s\n",
+		Con_Printf (S_ERROR "ALSA: unable to determine current sw params. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
 	err = psnd_pcm_sw_params_set_start_threshold (pcm, sw, ~0U);
 	if (0 > err) {
-		Con_Printf ("ALSA: unable to set playback threshold. %s\n",
+		Con_Printf (S_ERROR "ALSA: unable to set playback threshold. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
 	err = psnd_pcm_sw_params_set_stop_threshold (pcm, sw, ~0U);
 	if (0 > err) {
-		Con_Printf ("ALSA: unable to set playback stop threshold. %s\n",
+		Con_Printf (S_ERROR "ALSA: unable to set playback stop threshold. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
 	err = psnd_pcm_sw_params (pcm, sw);
 	if (0 > err) {
-		Con_Printf ("ALSA: unable to install sw params. %s\n",
+		Con_Printf (S_ERROR "ALSA: unable to install sw params. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
 
-	sc->sn.numchannels = stereo + 1;
+	sc->sn.numchannels = stereo;
 	sc->sn.samplepos = 0;
 	sc->sn.samplebits = bps;
 

@@ -171,6 +171,7 @@ static void WAV_Submit(soundcardinfo_t *sc)
 	LPWAVEHDR	h;
 	int			wResult;
 	wavhandle_t *wh = sc->handle;
+	int chunkstosubmit;
 
 	//
 	// find which sound blocks have completed
@@ -194,7 +195,12 @@ static void WAV_Submit(soundcardinfo_t *sc)
 	//
 	// submit two new sound blocks
 	//
-	while (((sc->snd_sent - sc->snd_completed) >> ((sc->sn.samplebits/8) - 1)) < 4)
+	if (sc->sn.speed <= 22050)
+		chunkstosubmit = 4;
+	else
+		chunkstosubmit = 4 + (sc->sn.speed/6000);
+
+	while (((sc->snd_sent - sc->snd_completed) >> ((sc->sn.samplebits/8) - 1)) < chunkstosubmit)
 	{
 		h = wh->lpWaveHdr + ( sc->snd_sent&WAV_MASK );
 

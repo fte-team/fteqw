@@ -181,14 +181,25 @@ static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
 	int st = 0;
 
 	memset(sc, 0, sizeof(*sc));
-	if (snd_khz.value >= 45)
+	//set by a slider
+	if (!snd_khz.value)
+		sc->sn.speed = 22050;
+/*	else if (snd_khz.value >= 195)
+		sc->sn.speed = 200000;
+	else if (snd_khz.value >= 180)
+		sc->sn.speed = 192000;
+	else if (snd_khz.value >= 90)
+		sc->sn.speed = 96000; */
+	else if (snd_khz.value >= 45)
 		sc->sn.speed = 48000;
-	else if (snd_khz.value >= 30)	//set by a slider
+	else if (snd_khz.value >= 30)
 		sc->sn.speed = 44100;
 	else if (snd_khz.value >= 20)
 		sc->sn.speed = 22050;
-	else
+	else if (snd_khz.value >= 10)
 		sc->sn.speed = 11025;
+	else
+		sc->sn.speed = 8000;
 
 	sd = &drivers[*drivernum];
 	if (!sd->ptr)

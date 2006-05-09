@@ -226,7 +226,6 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 
 	int	paintedtime;	//used in the mixer
 	int	oldsamplepos;	//fixme: is this still needed?
-	int snd_linear_count;	//used by the mixer.
 	int	buffers;	//used to keep track of buffer wraps for consistant sound
 
 //callbacks

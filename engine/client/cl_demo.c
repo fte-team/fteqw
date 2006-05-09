@@ -1258,9 +1258,10 @@ void CL_PlayDemo_f (void)
 void CL_PlayDemo(char *demoname)
 {
 	char	name[256];
-	int ft, c, neg;
+	int ft, neg;
 	int len;
 	char type;
+	char chr;
 	int protocol;
 	int start;
 
@@ -1346,16 +1347,16 @@ void CL_PlayDemo(char *demoname)
 		cls.protocol = CP_QUAKEWORLD;
 
 		ft = 0;	//work out if the first line is a int for the track number.
-		while ((VFS_READ(cls.demofile, &c, 1)==1) && (c != '\n'))
+		while ((VFS_READ(cls.demofile, &chr, 1)==1) && (chr != '\n'))
 		{
-			if (c == '-')
+			if (chr == '-')
 				neg = true;
-			else if (c < '0' || c > '9')
+			else if (chr < '0' || chr > '9')
 				break;
 			else
-				ft = ft * 10 + (c - '0');
+				ft = ft * 10 + ((int)chr - '0');
 		}
-		if (c == '\n')
+		if (chr == '\n')
 		{
 #ifndef NQPROT
 			Con_Printf ("ERROR: cannot play NQ demos.\n");

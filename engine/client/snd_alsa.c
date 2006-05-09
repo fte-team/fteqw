@@ -197,7 +197,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	char *pcmname;
 	cvar_t *devname;
 
-	int					 err, i;
+	int					 err;
 	int					 bps, stereo;
 	unsigned int		 rate;
 	snd_pcm_hw_params_t	*hw;
@@ -255,6 +255,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	}
 
 	// get sample bit size
+	sc->sn.samplebits = 16; // TODO: this should be changable by a cvar
 	bps = sc->sn.samplebits;
 	{
 		snd_pcm_format_t spft;
@@ -282,7 +283,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	// get speaker channels
 	stereo = (int)snd_speakers.value;
-	if (stereo > 6)
+	if (stereo > 6) // limit channels to 6 (engine limit)
 		stereo = 6;
 	if (!stereo)
 		stereo = 2;

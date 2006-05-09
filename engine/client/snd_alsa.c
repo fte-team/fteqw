@@ -191,6 +191,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 {
 	snd_pcm_t   *pcm;
 	snd_pcm_uframes_t buffer_size;
+	extern cvar_t snd_speakers;
 
 	soundcardinfo_t *ec;	//existing card
 	char *pcmname;
@@ -280,7 +281,11 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	}
 
 	// get speaker channels
-	stereo = sc->sn.numchannels;
+	stereo = (int)snd_speakers.value;
+	if (stereo > 6)
+		stereo = 6;
+	if (!stereo)
+		stereo = 2;
 	err = psnd_pcm_hw_params_set_channels (pcm, hw, stereo);
 	while (err < 0) 
 	{

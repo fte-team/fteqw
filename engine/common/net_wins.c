@@ -67,11 +67,22 @@ void (*pfreeaddrinfo) (struct addrinfo*);
 
 void NET_GetLocalAddress (int socket, netadr_t *out);
 int TCP_OpenListenSocket (int port);
+extern cvar_t sv_port;
+#ifdef IPPROTO_IPV6
+int UDP6_OpenSocket (int port, qboolean bcast);
+extern cvar_t sv_port_ipv6;
+#endif
+#ifdef USEIPX
+void IPX_CloseSocket (int socket);
+extern cvar_t sv_port_ipx;
+#endif
+#ifdef TCPCONNECT
+extern cvar_t sv_port_tcp;
+#endif
 
 extern cvar_t sv_public, sv_listen;
-extern cvar_t sv_tcpport;
 
-
+static qboolean allowconnects = false;
 
 #define	MAX_LOOPBACK	4
 typedef struct
@@ -655,18 +666,103 @@ void NET_SendLoopPacket (netsrc_t sock, int length, void *data, netadr_t to)
 void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
 {
 #ifdef TCPCONNECT
-	if (svs.sockettcp == INVALID_SOCKET && sv_tcpport.value)
+	if (!allowconnects)
+		return;
+
+	if (var->value)
 	{
-		svs.sockettcp = TCP_OpenListenSocket(sv_tcpport.value);
-		if (svs.sockettcp != INVALID_SOCKET)
-			NET_GetLocalAddress (svs.sockettcp, &net_local_sv_tcpipadr);
-		else
-			Con_Printf("Failed to open TCP port %i\n", (int)sv_tcpport.value);
+		if (svs.sockettcp == INVALID_SOCKET)
+		{
+			svs.sockettcp = TCP_OpenListenSocket(var->value);
+			if (svs.sockettcp != INVALID_SOCKET)
+				NET_GetLocalAddress (svs.sockettcp, &net_local_sv_tcpipadr);
+			else
+				Con_Printf("Failed to open TCP port %i\n", (int)var->value);
+		}
 	}
 	else
 	{
-		UDP_CloseSocket(svs.sockettcp);
-		svs.sockettcp = INVALID_SOCKET;
+		if (svs.sockettcp != INVALID_SOCKET)
+		{
+			closesocket(svs.sockettcp);
+			svs.sockettcp = INVALID_SOCKET;
+		}
+	}
+#endif
+}
+
+void SV_Port_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (!allowconnects)
+		return;
+	
+	if (var->value)
+	{
+		if (svs.socketip == INVALID_SOCKET)
+		{
+			svs.socketip = UDP_OpenSocket (var->value, false);
+			if (svs.socketip != INVALID_SOCKET)
+				NET_GetLocalAddress (svs.socketip, &net_local_sv_ipadr);
+		}
+	}
+	else
+	{
+		if (svs.socketip != INVALID_SOCKET)
+		{
+			UDP_CloseSocket(svs.socketip);
+			svs.socketip = INVALID_SOCKET;
+		}
+	}
+}
+
+void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue)
+{
+#ifdef IPPROTO_IPV6
+	if (!allowconnects)
+		return;
+
+	if (var->value)
+	{
+		if (svs.socketip6 == INVALID_SOCKET)
+		{
+			svs.socketip6 = UDP6_OpenSocket (var->value, false);
+			if (svs.socketip6 != INVALID_SOCKET)
+				NET_GetLocalAddress (svs.socketip6, &net_local_sv_ip6adr);
+		}
+	}
+	else
+	{
+		if (svs.socketip6 != INVALID_SOCKET)
+		{
+			UDP_CloseSocket(svs.socketip6);
+			svs.socketip6 = INVALID_SOCKET;
+		}
+	}
+#endif
+}
+
+void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue)
+{
+#ifdef USEIPX
+	if (!allowconnects)
+		return;
+
+	if (var->value)
+	{
+		if (svs.socketipx == INVALID_SOCKET)
+		{
+			svs.socketipx = IPX_OpenSocket (var->value, false);
+			if (svs.socketipx != INVALID_SOCKET)
+				NET_GetLocalAddress (svs.socketipx, &net_local_sv_ipxadr);
+		}
+	}
+	else
+	{
+		if (svs.socketipx != INVALID_SOCKET)
+		{
+			IPX_CloseSocket(svs.socketipx);
+			svs.socketipx = INVALID_SOCKET;
+		}
 	}
 #endif
 }
@@ -1560,6 +1656,8 @@ void NET_InitClient(void)
 
 void NET_CloseServer(void)
 {
+	allowconnects = false;
+
 	if (svs.socketip != INVALID_SOCKET)
 	{
 		UDP_CloseSocket(svs.socketip);
@@ -1582,7 +1680,7 @@ void NET_CloseServer(void)
 #ifdef TCPCONNECT
 	if (svs.sockettcp != INVALID_SOCKET)
 	{
-		UDP_CloseSocket(svs.sockettcp);
+		closesocket(svs.sockettcp);
 		svs.sockettcp = INVALID_SOCKET;
 	}
 #endif
@@ -1595,51 +1693,22 @@ void NET_CloseServer(void)
 void NET_InitServer(void)
 {
 	int port;
-	int p;
 	port = PORT_SERVER;
 
 	if (sv_listen.value)
 	{
-		p = COM_CheckParm ("-port");
-		if (p && p < com_argc)
-		{
-			port = atoi(com_argv[p+1]);
-		}
-		p = COM_CheckParm ("-svport");
-		if (p && p < com_argc)
-		{
-			port = atoi(com_argv[p+1]);
-		}
+		allowconnects = true;
 
-		//
-		// open the single socket to be used for all communications
-		//
-		if (svs.socketip == INVALID_SOCKET)
-		{
-			svs.socketip = UDP_OpenSocket (port, false);
-			if (svs.socketip != INVALID_SOCKET)
-				NET_GetLocalAddress (svs.socketip, &net_local_sv_ipadr);
-		}
+		Cvar_ForceCallback(&sv_port);
+#ifdef TCPCONNECT
+		Cvar_ForceCallback(&sv_port_tcp);
+#endif
 #ifdef IPPROTO_IPV6
-		if (svs.socketip6 == INVALID_SOCKET)
-		{
-			svs.socketip6 = UDP6_OpenSocket (port, false);
-			if (svs.socketip6 != INVALID_SOCKET)
-				NET_GetLocalAddress (svs.socketip6, &net_local_sv_ip6adr);
-		}
+		Cvar_ForceCallback(&sv_port_ipv6);
 #endif
 #ifdef USEIPX
-		if (svs.socketipx == INVALID_SOCKET)
-		{
-			svs.socketipx = IPX_OpenSocket (port, false);
-			if (svs.socketipx != INVALID_SOCKET)
-				NET_GetLocalAddress (svs.socketipx, &net_local_sv_ipxadr);
-		}
+		Cvar_ForceCallback(&sv_port_ipx);
 #endif
-
-	#ifdef TCPCONNECT
-		Cvar_ForceCallback(&sv_tcpport);
-	#endif
 	}
 	else
 		NET_CloseServer();

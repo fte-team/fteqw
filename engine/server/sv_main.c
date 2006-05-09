@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 #include "qwsvdef.h"
+#include "netinc.h"
 #include <sys/types.h>
 #ifndef CLIENTONLY
 #define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+i*ge->edict_size)
@@ -46,6 +47,9 @@ int			host_hunklevel;
 // callbacks
 void SV_Masterlist_Callback(struct cvar_s *var, char *oldvalue);
 void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue);
+void SV_Port_Callback(struct cvar_s *var, char *oldvalue);
+void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue);
+void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue);
 
 typedef struct {
 	qboolean	isdp;
@@ -128,7 +132,16 @@ cvar_t sv_masterport = SCVAR("sv_masterport", "0");
 cvar_t	sv_voicechat = SCVAR("sv_voicechat", "0");	//still development.
 cvar_t	sv_gamespeed = SCVAR("sv_gamespeed", "1");
 cvar_t	sv_csqcdebug = SCVAR("sv_csqcdebug", "0");
-cvar_t	sv_tcpport = SCVARC("sv_tcpport", "0", SV_Tcpport_Callback);
+#ifdef TCPCONNECT
+cvar_t	sv_port_tcp = SCVARC("sv_port_tcp", "0", SV_Tcpport_Callback);
+#endif
+cvar_t  sv_port = SCVARC("sv_port", "27500", SV_Port_Callback);
+#ifdef IPPROTO_IPV6
+cvar_t  sv_port_ipv6 = SCVARC("sv_port_ipv6", "27500", SV_PortIPv6_Callback);
+#endif
+#ifdef USEIPX
+cvar_t  sv_port_ipx = SCVARC("sv_port_ipx", "27500", SV_PortIPX_Callback);
+#endif
 
 cvar_t pausable	= SCVAR("pausable", "1");
 
@@ -3182,7 +3195,17 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_public,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen,	cvargroup_servercontrol);
-	Cvar_Register (&sv_tcpport,	cvargroup_servercontrol);
+#ifdef TCPCONNECT
+	Cvar_Register (&sv_port_tcp,	cvargroup_servercontrol);
+#endif
+#ifdef IPPROTO_IPV6
+	Cvar_Register (&sv_port_ipv6,	cvargroup_servercontrol);
+#endif
+#ifdef USEIPX
+	Cvar_Register (&sv_port_ipx,	cvargroup_servercontrol);
+#endif
+	Cvar_Register (&sv_port,	cvargroup_servercontrol);
+
 	Cvar_Register (&sv_reportheartbeats, cvargroup_servercontrol);
 
 #ifndef SERVERONLY
@@ -3811,6 +3834,8 @@ SV_Init
 void SV_Demo_Init(void);
 void SV_Init (quakeparms_t *parms)
 {
+	int p;
+
 #ifndef SERVERONLY
 	if (isDedicated)
 #endif
@@ -3837,6 +3862,24 @@ void SV_Init (quakeparms_t *parms)
 		COM_Init ();
 		Mod_Init ();
 	}
+
+	p = COM_CheckParm ("-port");
+	if (!p)
+		p = COM_CheckParm ("-svport");
+	if (p && p < com_argc)
+	{
+		int port = atoi(com_argv[p+1]);
+		if (!port)
+			port = PORT_SERVER;
+		Cvar_SetValue(&sv_port, port);
+#ifdef IPPROTO_IPV6
+		Cvar_SetValue(&sv_port_ipv6, port);
+#endif
+#ifdef USEIPX
+		Cvar_SetValue(&sv_port_ipx, port);
+#endif
+	}
+
 	PR_Init ();
 
 	SV_InitNet ();

@@ -117,7 +117,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 			else if (val < (short)0x8000)
 				val = (short)0x8000;
 			out[out_idx] = (val>>8) + 128;
-			out_idx = (out_idx + 1) & outlimit;
+			out_idx = (out_idx + 1) % outlimit;
 			skip += *cskip;
 			cskip += *cskip;
 		}

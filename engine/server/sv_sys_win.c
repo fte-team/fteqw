@@ -289,6 +289,8 @@ void Sys_Error (const char *error, ...)
 	va_list		argptr;
 	char		text[1024];
 	double end;
+	LPWSTR *szArglist;
+	int nArgs;
 
 	va_start (argptr,error);
 	vsnprintf (text,sizeof(text)-1, error,argptr);
@@ -329,7 +331,8 @@ void Sys_Error (const char *error, ...)
 //	free(host_parms.membase);	//get rid of the mem. We don't need it now.
 //	system("dqwsv.exe");	//spawn a new server to take over. This way, if debugging, then any key will quit, otherwise the server will just spawn a new one.
 	GetModuleFileName(NULL, text, sizeof(text));
-	spawnl(P_NOWAIT|P_OVERLAY, text, text, GetCommandLine(), NULL);
+	szArglist = CommandLineToArgV(GetCommandLine(), &nArgs);
+	spawnv(P_NOWAIT|P_OVERLAY, text, text, szArglist);
 	Sys_Quit ();
 }
 

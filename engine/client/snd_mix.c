@@ -56,7 +56,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 {
 	int 	startidx, out_idx;
 	int 	count;
-	int 	out_mask;
+	int 	outlimit;
 	int 	*p;
 	int 	*skip;
 	int		*cskip;
@@ -68,8 +68,8 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 	skip = paintskip[sc->sn.numchannels-1];
 	cskip = chnskip[sc->sn.numchannels-1];
 	count = (endtime - sc->paintedtime) * sc->sn.numchannels;
-	out_mask = sc->sn.samples - 1; 
-	startidx = out_idx = (sc->paintedtime * sc->sn.numchannels) & out_mask;
+	outlimit = sc->sn.samples; 
+	startidx = out_idx = (sc->paintedtime * sc->sn.numchannels) % outlimit;
 	snd_vol = volume.value*256;
 
 	pbuf = sc->Lock(sc);
@@ -88,7 +88,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 			else if (val < (short)0x8000)
 				val = (short)0x8000;
 			out[out_idx] = val;
-			out_idx = (out_idx + 1) & out_mask;
+			out_idx = (out_idx + 1) % outlimit;
 			skip += *cskip;
 			cskip += *cskip;
 		}
@@ -99,7 +99,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 			if (out_idx <= startidx) // buffer looped
 			{
 				Media_RecordAudioFrame(out + startidx, (sc->sn.samples - startidx) / 2);
-				Media_RecordAudioFrame(out, out_idx / (2*2));
+				Media_RecordAudioFrame(out, out_idx / 2);
 			}
 			else
 				Media_RecordAudioFrame(out + startidx, (out_idx - startidx) / 2);
@@ -117,7 +117,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 			else if (val < (short)0x8000)
 				val = (short)0x8000;
 			out[out_idx] = (val>>8) + 128;
-			out_idx = (out_idx + 1) & out_mask;
+			out_idx = (out_idx + 1) & outlimit;
 			skip += *cskip;
 			cskip += *cskip;
 		}

@@ -172,7 +172,6 @@ void SV_SetMaster_f (void)
 	svs.last_heartbeat = -99999;
 }
 
-
 /*
 ==================
 SV_Quit_f

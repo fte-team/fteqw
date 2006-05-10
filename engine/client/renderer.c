@@ -1615,7 +1615,7 @@ TRACE(("dbg: R_ApplyRenderer: renderer inited\n"));
 TRACE(("dbg: R_ApplyRenderer: screen inited\n"));
 		Sbar_Flush();
 
-		IN_Init();
+		IN_ReInit();
 	}
 	else
 	{

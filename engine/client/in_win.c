@@ -1199,86 +1199,84 @@ void IN_StartupMouse (void)
 IN_Init
 ===========
 */
+void IN_ReInit (void)
+{
+	IN_StartupMouse ();
+	IN_StartupJoystick ();
+	IN_ActivateMouse();
+}
+
 void IN_Init (void)
 {
-	static qboolean firstinit = true;
-	if (firstinit)
+	//keyboard variables
+	Cvar_Register (&cl_keypad, "Input Controls");
+
+	// mouse variables
+	Cvar_Register (&m_filter, "Input Controls");
+	Cvar_Register (&m_accel, "Input Controls");
+	Cvar_Register (&m_forcewheel, "Input Controls");
+	Cvar_Register (&in_mwhook, "Input Controls");
+
+	Cvar_Register (&in_dinput, "Input Controls");
+
+	Cvar_Register (&m_accel_noforce, "Input Controls");
+	Cvar_Register (&m_threshold_noforce, "Input Controls");
+
+	// this looks strange but quake cmdline definitions
+	// and MS documentation don't agree with each other
+	if (COM_CheckParm ("-noforcemspd"))
+		Cvar_Set(&m_accel_noforce, "1");
+
+	if (COM_CheckParm ("-noforcemaccel"))
+		Cvar_Set(&m_threshold_noforce, "1");
+
+	if (COM_CheckParm ("-noforcemparms"))
 	{
-		//keyboard variables
-		Cvar_Register (&cl_keypad, "Input Controls");
+		Cvar_Set(&m_accel_noforce, "1");
+		Cvar_Set(&m_threshold_noforce, "1");
+	}
 
-		// mouse variables
-		Cvar_Register (&m_filter, "Input Controls");
-		Cvar_Register (&m_accel, "Input Controls");
-		Cvar_Register (&m_forcewheel, "Input Controls");
-		Cvar_Register (&in_mwhook, "Input Controls");
-
-		Cvar_Register (&in_dinput, "Input Controls");
-
-		Cvar_Register (&m_accel_noforce, "Input Controls");
-		Cvar_Register (&m_threshold_noforce, "Input Controls");
-
-		// this looks strange but quake cmdline definitions
-		// and MS documentation don't agree with each other
-		if (COM_CheckParm ("-noforcemspd"))
-			Cvar_Set(&m_accel_noforce, "1");
-
-		if (COM_CheckParm ("-noforcemaccel"))
-			Cvar_Set(&m_threshold_noforce, "1");
-
-		if (COM_CheckParm ("-noforcemparms"))
-		{
-			Cvar_Set(&m_accel_noforce, "1");
-			Cvar_Set(&m_threshold_noforce, "1");
-		}
-
-		if (COM_CheckParm ("-dinput"))
-			Cvar_Set(&in_dinput, "1");
+	if (COM_CheckParm ("-dinput"))
+		Cvar_Set(&in_dinput, "1");
 
 #ifdef IN_XFLIP
-		Cvar_Register (&in_xflip, "Input stuff");
+	Cvar_Register (&in_xflip, "Input stuff");
 #endif
 
-		// joystick variables		
-		Cvar_Register (&in_joystick, "Joystick variables");
+	// joystick variables		
+	Cvar_Register (&in_joystick, "Joystick variables");
 
-		Cvar_Register (&joy_name, "Joystick variables");
-		Cvar_Register (&joy_advanced, "Joystick variables");
-		Cvar_Register (&joy_advaxisx, "Joystick variables");
-		Cvar_Register (&joy_advaxisy, "Joystick variables");
-		Cvar_Register (&joy_advaxisz, "Joystick variables");
-		Cvar_Register (&joy_advaxisr, "Joystick variables");
-		Cvar_Register (&joy_advaxisu, "Joystick variables");
-		Cvar_Register (&joy_advaxisv, "Joystick variables");
-		Cvar_Register (&joy_forwardthreshold, "Joystick variables");
-		Cvar_Register (&joy_sidethreshold, "Joystick variables");
-		Cvar_Register (&joy_pitchthreshold, "Joystick variables");
-		Cvar_Register (&joy_yawthreshold, "Joystick variables");
-		Cvar_Register (&joy_forwardsensitivity, "Joystick variables");
-		Cvar_Register (&joy_sidesensitivity, "Joystick variables");
-		Cvar_Register (&joy_pitchsensitivity, "Joystick variables");
-		Cvar_Register (&joy_yawsensitivity, "Joystick variables");
-		Cvar_Register (&joy_wwhack1, "Joystick variables");
-		Cvar_Register (&joy_wwhack2, "Joystick variables");
+	Cvar_Register (&joy_name, "Joystick variables");
+	Cvar_Register (&joy_advanced, "Joystick variables");
+	Cvar_Register (&joy_advaxisx, "Joystick variables");
+	Cvar_Register (&joy_advaxisy, "Joystick variables");
+	Cvar_Register (&joy_advaxisz, "Joystick variables");
+	Cvar_Register (&joy_advaxisr, "Joystick variables");
+	Cvar_Register (&joy_advaxisu, "Joystick variables");
+	Cvar_Register (&joy_advaxisv, "Joystick variables");
+	Cvar_Register (&joy_forwardthreshold, "Joystick variables");
+	Cvar_Register (&joy_sidethreshold, "Joystick variables");
+	Cvar_Register (&joy_pitchthreshold, "Joystick variables");
+	Cvar_Register (&joy_yawthreshold, "Joystick variables");
+	Cvar_Register (&joy_forwardsensitivity, "Joystick variables");
+	Cvar_Register (&joy_sidesensitivity, "Joystick variables");
+	Cvar_Register (&joy_pitchsensitivity, "Joystick variables");
+	Cvar_Register (&joy_yawsensitivity, "Joystick variables");
+	Cvar_Register (&joy_wwhack1, "Joystick variables");
+	Cvar_Register (&joy_wwhack2, "Joystick variables");
 
-		Cmd_AddCommand ("force_centerview", Force_CenterView_f);
-		Cmd_AddCommand ("joyadvancedupdate", Joy_AdvancedUpdate_f);
+	Cmd_AddCommand ("force_centerview", Force_CenterView_f);
+	Cmd_AddCommand ("joyadvancedupdate", Joy_AdvancedUpdate_f);
 
-		uiWheelMessage = RegisterWindowMessage ( "MSWHEEL_ROLLMSG" );
+	uiWheelMessage = RegisterWindowMessage ( "MSWHEEL_ROLLMSG" );
 
 #ifdef USINGRAWINPUT
-		Cvar_Register (&in_rawinput, "Input Controls");
-		Cvar_Register (&in_rawinput_combine, "Input Controls");
-		Cvar_Register (&in_rawinput_rdp, "Input Controls");
+	Cvar_Register (&in_rawinput, "Input Controls");
+	Cvar_Register (&in_rawinput_combine, "Input Controls");
+	Cvar_Register (&in_rawinput_rdp, "Input Controls");
 #endif
-	}
-	else
-	{
-		IN_StartupMouse ();
-		IN_StartupJoystick ();
-	}
 
-	firstinit = false;
+	IN_ReInit();
 }
 
 /*

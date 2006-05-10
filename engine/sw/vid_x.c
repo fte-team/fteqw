@@ -1263,6 +1263,14 @@ void SWD_EndDirectRect (int x, int y, int width, int height)
 // direct drawing of the "accessing disk" icon isn't supported under Linux
 }
 
+void IN_ReInit(void)
+{
+	if ( COM_CheckParm ("-nomouse") )
+		return;
+	mouse_x = mouse_y = 0.0;
+	mouseactive = mouse_avail = 1;
+}
+
 void IN_Init (void)
 {
 	Cvar_Register (&_windowed_mouse, "Input Controls");
@@ -1271,10 +1279,8 @@ void IN_Init (void)
 #ifdef IN_XFLIP
 	Cvar_Register (&in_xflip, "Input Controls");
 #endif
-   if ( COM_CheckParm ("-nomouse") )
-     return;
-   mouse_x = mouse_y = 0.0;
-   mouseactive = mouse_avail = 1;
+
+	IN_ReInit();
 }
 
 void IN_Shutdown (void)

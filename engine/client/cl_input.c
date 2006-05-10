@@ -331,7 +331,7 @@ void IN_Impulse (void)
 void IN_Restart (void)
 {
 	IN_Shutdown();
-	IN_Init();
+	IN_ReInit();
 }
 
 /*

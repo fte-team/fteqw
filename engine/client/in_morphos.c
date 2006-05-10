@@ -68,14 +68,11 @@ void IN_Shutdown(void)
 
 		inputport = 0;
 	}
-
 }
 
-void IN_Init()
+void IN_ReInit()
 {
 /*	Cvar_Register (&m_filter, "input controls");*/
-
-	Cvar_Register (&in_xflip, "input controls");
 
 	inputport = CreatePort(0, 0);
 	if (inputport == 0)
@@ -106,7 +103,12 @@ void IN_Init()
 	inputreq->io_Data = (void *)&InputHandler;
 	inputreq->io_Command = IND_ADDHANDLER;
 	DoIO((struct IORequest *)inputreq);
+}
 
+void IN_Init(void)
+{
+	Cvar_Register (&in_xflip, "input controls");
+	IN_ReInit();
 }
 
 static void ExpireRingBuffer()

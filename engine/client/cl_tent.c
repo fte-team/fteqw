@@ -1571,7 +1571,7 @@ static qbyte splash_color[] = {0x00, 0xe0, 0xb0, 0x50, 0xd0, 0xe0, 0xe8};
 #define ATTN_STATIC 1
 void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float timeofs)
 {
-	S_StartSound(entnum, entchannel, sfx, origin, fvol, attenuation);
+	S_StartSoundDelayed(entnum, entchannel, sfx, origin, fvol, attenuation, timeofs);
 }
 void CLQ2_ParseTEnt (void)
 {

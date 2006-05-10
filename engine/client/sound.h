@@ -77,14 +77,13 @@ typedef struct
 	unsigned char	*buffer;
 } dma_t;
 
-// !!! if this is changed, it much be changed in asm_i386.h too !!!
 typedef struct
 {
 	sfx_t	*sfx;			// sfx number
 	int		vol[MAXSOUNDCHANNELS];		// 0-255 volume
 	int		delay[MAXSOUNDCHANNELS];
 	int		end;			// end time in global paintsamples
-	int 	pos;			// sample position in sfx
+	int 	pos;			// sample position in sfx, <0 means delay sound start
 	int		looping;		// where to loop, -1 = no looping
 	int		entnum;			// to allow overriding a specific sound
 	int		entchannel;		//int audio_fd
@@ -109,7 +108,8 @@ typedef struct soundcardinfo_s soundcardinfo_t;
 void S_Init (void);
 void S_Startup (void);
 void S_Shutdown (void);
-void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol,  float attenuation);
+void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation);
+void S_StartSoundDelayed(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs);
 void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);
 void S_StopAllSounds(qboolean clear);

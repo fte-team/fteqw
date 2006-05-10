@@ -194,7 +194,6 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 {
 	snd_pcm_t   *pcm;
 	snd_pcm_uframes_t buffer_size;
-	extern cvar_t snd_speakers;
 
 	soundcardinfo_t *ec;	//existing card
 	char *pcmname;
@@ -375,14 +374,14 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 		err = psnd_pcm_hw_params_set_buffer_size_near(pcm, hw, &buffer_size);
 		if (err < 0)
 		{
-			Con_Printf ("ALSA: unable to set buffer size. %s\n", psnd_strerror (err));
+			Con_Printf (S_ERROR "ALSA: unable to set buffer size. %s\n", psnd_strerror (err));
 			goto error;
 		}
 	}
 
 	err = psnd_pcm_hw_params_get_buffer_size (hw, &buffer_size);
 	if (0 > err) {
-		Con_Printf ("ALSA: unable to get buffer size. %s\n",
+		Con_Printf (S_ERROR "ALSA: unable to get buffer size. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}

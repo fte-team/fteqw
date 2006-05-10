@@ -205,8 +205,8 @@ static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
 		sc->sn.speed = 8000;
 
 	// set requested speaker count
-	if (snd_speakers.value > 6)
-		sc->sn.numchannels = 6;
+	if (snd_speakers.value > MAXSOUNDCHANNELS)
+		sc->sn.numchannels = MAXSOUNDCHANNELS;
 	else if (snd_speakers.value > 1)
 		sc->sn.numchannels = (int)snd_speakers.value;
 	else
@@ -926,6 +926,17 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 			break;
 		}
 	}
+}
+
+void S_StartSoundDelayed(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs)
+{
+	soundcardinfo_t *sc;
+
+	if (!sfx || !*sfx->name)	//no named sounds would need specific starting.
+		return;
+
+	for (sc = sndcardinfo; sc; sc = sc->next)
+		S_StartSoundCard(sc, entnum, entchannel, sfx, origin, fvol, attenuation, -(int)(timeofs * sc->sn.speed));
 }
 
 void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation)

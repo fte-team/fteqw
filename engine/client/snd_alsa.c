@@ -50,6 +50,7 @@ int (*psnd_pcm_sw_params_set_start_threshold)	(snd_pcm_t *pcm, snd_pcm_sw_params
 int (*psnd_pcm_sw_params_set_stop_threshold)	(snd_pcm_t *pcm, snd_pcm_sw_params_t *params, snd_pcm_uframes_t val);
 int (*psnd_pcm_sw_params)			(snd_pcm_t *pcm, snd_pcm_sw_params_t *params);
 int (*psnd_pcm_hw_params_get_buffer_size)	(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
+int (*psnd_pcm_hw_params_set_buffer_size_near)	(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
 snd_pcm_sframes_t (*psnd_pcm_avail_update)	(snd_pcm_t *pcm);
 int (*psnd_pcm_mmap_begin)			(snd_pcm_t *pcm, const snd_pcm_channel_area_t **areas, snd_pcm_uframes_t *offset, snd_pcm_uframes_t *frames);
 snd_pcm_sframes_t (*psnd_pcm_mmap_commit)	(snd_pcm_t *pcm, snd_pcm_uframes_t offset, snd_pcm_uframes_t frames);
@@ -160,6 +161,7 @@ static qboolean Alsa_InitAlsa(void)
 	psnd_pcm_start				= dlsym(alsasharedobject, "snd_pcm_start");
 	psnd_pcm_hw_params_sizeof		= dlsym(alsasharedobject, "snd_pcm_hw_params_sizeof");
 	psnd_pcm_sw_params_sizeof		= dlsym(alsasharedobject, "snd_pcm_sw_params_sizeof");
+	psnd_pcm_hw_params_set_buffer_size_near = dlsym(alsasharedobject, "snd_pcm_hw_params_set_buffer_size_near");
 
 	alsaworks = psnd_pcm_open
 		&& psnd_pcm_close
@@ -182,7 +184,8 @@ static qboolean Alsa_InitAlsa(void)
 		&& psnd_pcm_mmap_commit
 		&& psnd_pcm_start
 		&& psnd_pcm_hw_params_sizeof
-		&& psnd_pcm_sw_params_sizeof;
+		&& psnd_pcm_sw_params_sizeof
+		&& psnd_pcm_hw_params_set_buffer_size_near;
 
 	return alsaworks;
 }

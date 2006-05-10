@@ -1194,6 +1194,9 @@ int UI_StatusBar(int *arg)
 
 	float vsx, vsy;
 
+	if (hudedit) // don't redraw twice
+		return true;
+
 	if (arg[5])
 		return false;
 
@@ -1432,6 +1435,8 @@ void Hud_Load(char *fname)
 		element[i].type = type;
 		element[i].subtype = subtype;
 	}
+
+	currentitem = -1;
 }
 
 // FindItemUnderMouse: given mouse coordinates, finds element number under mouse
@@ -1609,7 +1614,7 @@ void UI_KeyPress(int key, int mx, int my)
 
 	if (context)
 	{
-		if (key != K_MOUSE1)
+		if (key != K_MOUSE1 || currentitem < 0)
 		{
 			context = false;
 			return;
@@ -1627,7 +1632,7 @@ void UI_KeyPress(int key, int mx, int my)
 		if (context == 3)
 		{
 			context = false;
-			if ((unsigned)(i-2) > drawelement[typetoinsert].maxsubtype)
+			if ((unsigned)(i-2) > (unsigned)drawelement[typetoinsert].maxsubtype)
 				return;
 			currentitem = numelements;
 			numelements++;
@@ -1941,10 +1946,11 @@ int Plug_MenuEvent(int *args)
 		altargs[4] = vid.height;
 		if (hudedit)
 			UI_StatusBarEdit(altargs);
-		else
-			UI_StatusBar(altargs);	//draw it using the same function (we're lazy)
+//		else
+//			UI_StatusBar(altargs);	//draw it using the same function (we're lazy)
 
-		UI_DrawHandles(altargs, currentitem);
+		if (currentitem >= 0)
+			UI_DrawHandles(altargs, currentitem);
 
 		sbarscalex = vid.width/640.0f;
 		sbarscaley = vid.height/480.0f;

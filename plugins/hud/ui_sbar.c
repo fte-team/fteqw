@@ -1310,7 +1310,7 @@ void Hud_Save(char *fname)
 {
 	int i;
 	qhandle_t handle;
-	if (!*fname)
+	if (!fname || !*fname)
 		fname = DEFAULTHUDNAME;
 	if (FS_Open(fname, &handle, 2)<0)
 	{
@@ -1614,7 +1614,7 @@ void UI_KeyPress(int key, int mx, int my)
 
 	if (context)
 	{
-		if (key != K_MOUSE1 || currentitem < 0)
+		if (key != K_MOUSE1)
 		{
 			context = false;
 			return;

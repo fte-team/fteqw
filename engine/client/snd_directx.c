@@ -506,7 +506,7 @@ Direct-Sound support
 */
 int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 {
-	extern cvar_t snd_khz, snd_eax, snd_speakers, snd_inactive;
+	extern cvar_t snd_eax, snd_inactive;
 	DSBUFFERDESC	dsbuf;
 	DSBCAPS			dsbcaps;
 	DWORD			dwSize, dwWrite;
@@ -521,13 +521,9 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	if (COM_CheckParm("-wavonly"))
 		return SND_NOMORE;
 
-
-	sc->sn.numchannels = 2;
-	sc->sn.samplebits = 16;
-
 	memset (&format, 0, sizeof(format));
 
-	if (snd_speakers.value >= 5)	//5.1 surround
+	if (sc->sn.numchannels >= 6)	//5.1 surround
 	{
 		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
 		format.Format.cbSize = 22;
@@ -536,7 +532,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		format.dwChannelMask = KSAUDIO_SPEAKER_5POINT1;
 		sc->sn.numchannels = 6;
 	}
-	else if (snd_speakers.value >= 3)	//4 speaker quad
+	else if (sc->sn.numchannels >= 4)	//4 speaker quad
 	{
 		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
 		format.Format.cbSize = 22;
@@ -545,7 +541,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		format.dwChannelMask = KSAUDIO_SPEAKER_QUAD;
 		sc->sn.numchannels = 4;
 	}
-	else if (snd_speakers.value >= 1.5)	//stereo
+	else if (sc->sn.numchannels >= 2)	//stereo
 	{
 		format.Format.wFormatTag = WAVE_FORMAT_PCM;
 		format.Format.cbSize = 0;
@@ -713,7 +709,14 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 			dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
 			sc->inactive_sound = true;
 		}
-		dsbuf.dwBufferBytes = SECONDARY_BUFFER_SIZE;
+		dsbuf.dwBufferBytes = sc->sn.samples / format.Format.nChannels;
+		if (!dsbuf.dwBufferBytes)
+		{
+			dsbuf.dwBufferBytes = SECONDARY_BUFFER_SIZE;
+			// the fast rates will need a much bigger buffer
+			if (format.Format.nSamplesPerSec > 48000)
+				dsbuf.dwBufferBytes *= 4;
+		}
 		dsbuf.lpwfxFormat = (WAVEFORMATEX *)&format;
 
 		memset(&dsbcaps, 0, sizeof(dsbcaps));

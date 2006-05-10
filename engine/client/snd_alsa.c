@@ -255,7 +255,6 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	}
 
 	// get sample bit size
-	sc->sn.samplebits = 16; // TODO: this should be changable by a cvar
 	bps = sc->sn.samplebits;
 	{
 		snd_pcm_format_t spft;
@@ -282,11 +281,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	}
 
 	// get speaker channels
-	stereo = (int)snd_speakers.value;
-	if (stereo > 6) // limit channels to 6 (engine limit)
-		stereo = 6;
-	if (!stereo)
-		stereo = 2;
+	stereo = sc->sn.numchannels;
 	err = psnd_pcm_hw_params_set_channels (pcm, hw, stereo);
 	while (err < 0) 
 	{
@@ -370,6 +365,17 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	sc->sn.numchannels = stereo;
 	sc->sn.samplepos = 0;
 	sc->sn.samplebits = bps;
+
+	buffer_size = sc->sn.samples / stereo;
+	if (buffer_size)
+	{
+		err = psnd_pcm_hw_params_set_buffer_size_near(pcm, hw, &buffer_size);
+		if (err < 0)
+		{
+			Con_Printf ("ALSA: unable to set buffer size. %s\n", psnd_strerror (err));
+			goto error;
+		}
+	}
 
 	err = psnd_pcm_hw_params_get_buffer_size (hw, &buffer_size);
 	if (0 > err) {

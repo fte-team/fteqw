@@ -85,7 +85,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (sc->audio_fd < 0)
 	{
 		perror(snddev);
-		Con_Printf("Could not open %s\n", snddev);
+		Con_Printf(S_ERROR "OSS: Could not open %s\n", snddev);
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -95,7 +95,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (rc < 0)
 	{
 		perror(snddev);
-		Con_Printf("Could not reset %s\n", snddev);
+		Con_Printf(S_ERROR "OSS: Could not reset %s\n", snddev);
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -103,14 +103,14 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (ioctl(sc->audio_fd, SNDCTL_DSP_GETCAPS, &caps)==-1)
 	{
 		perror(snddev);
-		Con_Printf("Sound driver too old\n");
+		Con_Printf(S_ERROR "OSS: Sound driver too old\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}
 
 	if (!(caps & DSP_CAP_TRIGGER) || !(caps & DSP_CAP_MMAP))
 	{
-		Con_Printf("Sorry but your soundcard can't do this\n");
+		Con_Printf(S_ERROR "OSS: Sorry but your soundcard can't do this\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -118,7 +118,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (ioctl(sc->audio_fd, SNDCTL_DSP_GETOSPACE, &info)==-1)
 	{
 		perror("GETOSPACE");
-		Con_Printf("Um, can't do GETOSPACE?\n");
+		Con_Printf(S_ERROR "OSS: Um, can't do GETOSPACE?\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -127,56 +127,51 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 
 // set sample bits & speed
 
-	s = getenv("QUAKE_SOUND_SAMPLEBITS");
-	if (s) sc->sn.samplebits = atoi(s);
-	else if ((i = COM_CheckParm("-sndbits")) != 0)
-		sc->sn.samplebits = atoi(com_argv[i+1]);
-	if (sc->sn.samplebits != 16 && sc->sn.samplebits != 8)
+	ioctl(sc->audio_fd, SNDCTL_DSP_GETFMTS, &fmt);
+	if (!(fmt & AFMT_S16_LE) && sc->sn.samplebits > 8)
+		sc->sn.samplebits = 8;
+	else if (!(fmt & AFMT_U8))
 	{
-		ioctl(sc->audio_fd, SNDCTL_DSP_GETFMTS, &fmt);
-		if (fmt & AFMT_S16_LE)
-			sc->sn.samplebits = 16;
-		else if (fmt & AFMT_U8)
-			sc->sn.samplebits = 8;
+		Con_Printf(S_ERROR "OSS: No needed sample formats supported\n");
+		OSS_Shutdown(sc);
+		return 0;
 	}
 
-	s = getenv("QUAKE_SOUND_SPEED");
-	if (s)
-		sc->sn.speed = atoi(s);
-	else if ((i = COM_CheckParm("-sndspeed")) != 0)
-		sc->sn.speed = atoi(com_argv[i+1]);
-	else
-	{
-		if (!sc->sn.speed || ioctl(sc->audio_fd, SNDCTL_DSP_SPEED, &sc->sn.speed))	//use the default - menu set value.
-		{	//humph, default didn't work. Go for random preset ones that should work.
-			for (i=0 ; i<sizeof(tryrates)/4 ; i++)
-				if (!ioctl(sc->audio_fd, SNDCTL_DSP_SPEED, &tryrates[i])) break;
-			sc->sn.speed = tryrates[i];
+	//use the default - menu set value.
+	if (ioctl(sc->audio_fd, SNDCTL_DSP_SPEED, &sc->sn.speed))	
+	{	//humph, default didn't work. Go for random preset ones that should work.
+		for (i=0 ; i<sizeof(tryrates)/4 ; i++)
+			if (!ioctl(sc->audio_fd, SNDCTL_DSP_SPEED, &tryrates[i])) break;
+		if (i == (sizeof(tryrates)/4))
+		{
+			perror(snddev);
+			Con_Printf(S_ERROR "OSS: Failed to obtain a suitable rate\n");
+			OSS_Shutdown(sc);
+			return 0;
 		}
+		sc->sn.speed = tryrates[i];
 	}
 
-	s = getenv("QUAKE_SOUND_CHANNELS");
-	if (s) sc->sn.numchannels = atoi(s);
-	else if ((i = COM_CheckParm("-sndmono")) != 0)
-		sc->sn.numchannels = 1;
-	else if ((i = COM_CheckParm("-sndstereo")) != 0)
-		sc->sn.numchannels = 2;
-	else sc->sn.numchannels = 2;
-
-	sc->sn.samples = info.fragstotal * info.fragsize / (sc->sn.samplebits/8);
+	if (sc->sn.samples > (info.fragstotal * info.fragsize * 4))
+	{
+		Con_Printf(S_NOTICE "OSS: Enabling bigfoot's mmap hack! Hope you know what you're doing!\n");
+		sc->sn.samples = info.fragstotal * info.fragsize * 4;
+	}
+	sc->sn.samples = info.fragstotal * info.fragsize;
 	sc->sn.submission_chunk = 1;
 
 // memory map the dma buffer
 
-	sc->sn.buffer = (unsigned char *) mmap(NULL, info.fragstotal
-			* info.fragsize, PROT_WRITE, MAP_FILE|MAP_SHARED, sc->audio_fd, 0);
+	sc->sn.buffer = (unsigned char *) mmap(NULL, sc->sn.samples, PROT_WRITE, MAP_FILE|MAP_SHARED, sc->audio_fd, 0);
 	if (!sc->sn.buffer)
 	{
 		perror(snddev);
-		Con_Printf("Could not mmap %s\n", snddev);
+		Con_Printf(S_ERROR "OSS: Could not mmap %s\n", snddev);
 		OSS_Shutdown(sc);
 		return 0;
 	}
+
+	sc->sn.samples /= (sc->sn.samplebits/8);
 
 	tmp = 0;
 	if (sc->sn.numchannels == 2)
@@ -185,7 +180,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (rc < 0)
 	{
 		perror(snddev);
-		Con_Printf("Could not set %s to stereo=%d", snddev, sc->sn.numchannels);
+		Con_Printf(S_ERROR "OSS: Could not set %s to stereo=%d\n", snddev, sc->sn.numchannels);
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -198,7 +193,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (rc < 0)
 	{
 		perror(snddev);
-		Con_Printf("Could not set %s speed to %d", snddev, sc->sn.speed);
+		Con_Printf(S_ERROR "OSS: Could not set %s speed to %d\n", snddev, sc->sn.speed);
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -210,7 +205,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		if (rc < 0)
 		{
 			perror(snddev);
-			Con_Printf("Could not support 16-bit data.  Try 8-bit.\n");
+			Con_Printf(S_ERROR "OSS: Could not support 16-bit data.  Try 8-bit.\n");
 			OSS_Shutdown(sc);
 			return 0;
 		}
@@ -222,7 +217,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		if (rc < 0)
 		{
 			perror(snddev);
-			Con_Printf("Could not support 8-bit data.\n");
+			Con_Printf(S_ERROR "OSS: Could not support 8-bit data.\n");
 			OSS_Shutdown(sc);
 			return 0;
 		}
@@ -230,7 +225,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	else
 	{
 		perror(snddev);
-		Con_Printf("%d-bit sound not supported.", sc->sn.samplebits);
+		Con_Printf(S_ERROR "OSS: %d-bit sound not supported.\n", sc->sn.samplebits);
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -242,7 +237,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (rc < 0)
 	{
 		perror(snddev);
-		Con_Printf("Could not toggle.\n");
+		Con_Printf(S_ERROR "OSS: Could not toggle.\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -251,7 +246,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (rc < 0)
 	{
 		perror(snddev);
-		Con_Printf("Could not toggle.\n");
+		Con_Printf(S_ERROR "OSS: Could not toggle.\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}

@@ -78,6 +78,8 @@ cvar_t _snd_mixahead = SCVARF("_snd_mixahead", "0.2", CVAR_ARCHIVE);
 cvar_t snd_leftisright = SCVARF("snd_leftisright", "0", CVAR_ARCHIVE);
 cvar_t snd_eax = SCVAR("snd_eax", "0");
 cvar_t snd_speakers = SCVAR("snd_numspeakers", "2");
+cvar_t snd_buffersize = SCVAR("snd_buffersize", "0");
+cvar_t snd_samplebits = SCVARF("snd_samplebits", "16", CVAR_ARCHIVE);
 cvar_t	snd_playersoundvolume = SCVAR("snd_localvolume", "1");	//sugested by crunch
 
 cvar_t	snd_capture = SCVAR("snd_capture", "0");
@@ -181,7 +183,8 @@ static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
 	int st = 0;
 
 	memset(sc, 0, sizeof(*sc));
-	//set by a slider
+
+	// set requested rate
 	if (!snd_khz.value)
 		sc->sn.speed = 22050;
 /*	else if (snd_khz.value >= 195)
@@ -200,6 +203,26 @@ static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
 		sc->sn.speed = 11025;
 	else
 		sc->sn.speed = 8000;
+
+	// set requested speaker count
+	if (snd_speakers.value > 6)
+		sc->sn.numchannels = 6;
+	else if (snd_speakers.value > 1)
+		sc->sn.numchannels = (int)snd_speakers.value;
+	else
+		sc->sn.numchannels = 1;
+
+	// set requested sample bits
+	if (snd_samplebits.value >= 16)
+		sc->sn.samplebits = 16;
+	else
+		sc->sn.samplebits = 8;
+
+	// set requested buffer size
+	if (snd_buffersize.value > 0)
+		sc->sn.samples = (int)snd_buffersize.value * sc->sn.numchannels;
+	else
+		sc->sn.samples = 0;
 
 	sd = &drivers[*drivernum];
 	if (!sd->ptr)
@@ -561,6 +584,8 @@ void S_Init (void)
 	Cvar_Register(&snd_leftisright,		"Sound controls");
 	Cvar_Register(&snd_eax,				"Sound controls");
 	Cvar_Register(&snd_speakers,		"Sound controls");
+	Cvar_Register(&snd_buffersize,		"Sound controls");
+	Cvar_Register(&snd_samplebits,		"Sound controls");
 
 	Cvar_Register(&snd_capture,			"Sound controls");
 

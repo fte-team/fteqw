@@ -232,7 +232,6 @@ Crappy windows multimedia base
 */
 int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 {
-	extern cvar_t snd_khz;
 	WAVEFORMATEX  format; 
 	int				i;
 	HRESULT			hr;
@@ -246,8 +245,8 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 	sc->snd_sent = 0;
 	sc->snd_completed = 0;
 
-	sc->sn.numchannels = 2;
-	sc->sn.samplebits = 16;
+	if (sc->sn.speed > 48000) // limit waveout to 48000 until that buffer issue gets solved
+		sc->sn.speed = 48000;
 	
 	memset (&format, 0, sizeof(format));
 	format.wFormatTag = WAVE_FORMAT_PCM;
@@ -267,7 +266,10 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 	{
 		if (hr != MMSYSERR_ALLOCATED)
 		{
-			Con_SafePrintf ("waveOutOpen failed\n");
+			if (hr == WAVERR_BADFORMAT)
+				Con_SafePrintf (S_ERROR "waveOutOpen failed, format not supported\n");
+			else
+				Con_SafePrintf (S_ERROR "waveOutOpen failed, return code %i\n", hr);
 			WAV_Shutdown (sc);
 			return false;
 		}
@@ -278,7 +280,7 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 //						"Sound not available",
 //						MB_RETRYCANCEL | MB_SETFOREGROUND | MB_ICONEXCLAMATION) != IDRETRY)
 //		{
-			Con_SafePrintf ("waveOutOpen failure;\n"
+			Con_SafePrintf (S_ERROR "waveOutOpen failure;\n"
 							"  hardware already in use\nclose the app, then try using snd_restart\n");
 			WAV_Shutdown (sc);
 			return false;
@@ -295,14 +297,14 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 	wh->hData = GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE, wh->gSndBufSize); 
 	if (!wh->hData) 
 	{ 
-		Con_SafePrintf ("Sound: Out of memory.\n");
+		Con_SafePrintf (S_ERROR "Sound: Out of memory.\n");
 		WAV_Shutdown (sc);
 		return false; 
 	}
 	wh->lpData = GlobalLock(wh->hData);
 	if (!wh->lpData)
 	{ 
-		Con_SafePrintf ("Sound: Failed to lock.\n");
+		Con_SafePrintf (S_ERROR "Sound: Failed to lock.\n");
 		WAV_Shutdown (sc);
 		return false; 
 	} 
@@ -318,7 +320,7 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	if (wh->hWaveHdr == NULL)
 	{ 
-		Con_SafePrintf ("Sound: Failed to Alloc header.\n");
+		Con_SafePrintf (S_ERROR "Sound: Failed to Alloc header.\n");
 		WAV_Shutdown (sc);
 		return false; 
 	} 
@@ -327,7 +329,7 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	if (wh->lpWaveHdr == NULL)
 	{ 
-		Con_SafePrintf ("Sound: Failed to lock header.\n");
+		Con_SafePrintf (S_ERROR "Sound: Failed to lock header.\n");
 		WAV_Shutdown (sc);
 		return false; 
 	}
@@ -343,7 +345,7 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 		if (waveOutPrepareHeader(wh->hWaveOut, wh->lpWaveHdr+i, sizeof(WAVEHDR)) !=
 				MMSYSERR_NOERROR)
 		{
-			Con_SafePrintf ("Sound: failed to prepare wave headers\n");
+			Con_SafePrintf (S_ERROR "Sound: failed to prepare wave headers\n");
 			WAV_Shutdown (sc);
 			return false;
 		}

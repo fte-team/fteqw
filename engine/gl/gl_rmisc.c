@@ -956,7 +956,6 @@ void R_LoadRTLights(void)
 	char fname[MAX_QPATH];
 	char *file;
 	char *end;
-	int i;
 	int style;
 
 	vec3_t org;
@@ -964,10 +963,8 @@ void R_LoadRTLights(void)
 	vec3_t rgb;
 
 	//delete all old lights
-	for (i=0 ; i<MAX_DLIGHTS ; i++)
-	{
-		cl_dlights[i].radius = 0;
-	}
+	dlights_running = 0;
+	dlights_software = 0;
 
 	COM_StripExtension(cl.worldmodel->name, fname, sizeof(fname));
 	strncat(fname, ".rtlights", MAX_QPATH-1);

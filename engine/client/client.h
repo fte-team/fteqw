@@ -645,6 +645,8 @@ extern  trailstate_t   *cl_static_emit[MAX_STATIC_ENTITIES];
 extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 extern	dlight_t		cl_dlights[MAX_DLIGHTS];
 
+extern int dlights_running, dlights_software;
+
 extern	qboolean	nomaster;
 extern float	server_version;	// version of server we connected to
 

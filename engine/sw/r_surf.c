@@ -633,7 +633,7 @@ void SWR_AddDynamicLights (void)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<MAX_SWLIGHTS ; lnum++)
+	for (lnum=0 ; lnum<dlights_software ; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -699,7 +699,7 @@ void SWR_AddDynamicLightsRGB (void)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<MAX_SWLIGHTS ; lnum++)
+	for (lnum=0 ; lnum<dlights_software ; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light

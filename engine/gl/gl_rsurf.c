@@ -379,7 +379,7 @@ void GLR_AddDynamicLights (msurface_t *surf)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<MAX_SWLIGHTS ; lnum++)
+	for (lnum=0 ; lnum<dlights_software ; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -447,7 +447,7 @@ void GLR_AddDynamicLightNorms (msurface_t *surf)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<MAX_SWLIGHTS ; lnum++)
+	for (lnum=0 ; lnum<dlights_software ; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -521,7 +521,7 @@ void GLR_AddDynamicLightsColours (msurface_t *surf)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<MAX_SWLIGHTS ; lnum++)
+	for (lnum=0 ; lnum<dlights_software ; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -2733,7 +2733,7 @@ static void R_DrawBrushModel (entity_t *e)
 // instanced model
 	if (currentmodel->firstmodelsurface != 0 && !r_flashblend.value)
 	{
-		for (k=0 ; k<MAX_SWLIGHTS ; k++)
+		for (k=0 ; k<dlights_software ; k++)
 		{
 			if ((cl_dlights[k].die < cl.time) ||
 				(!cl_dlights[k].radius))

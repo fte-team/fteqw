@@ -180,7 +180,7 @@ void SWR_PushDlights (void)
 
 	if (cl.worldmodel->fromgame == fg_quake2)
 	{
-		for (i=0 ; i<MAX_SWLIGHTS ; i++, l++)
+		for (i=0 ; i<dlights_software ; i++, l++)
 		{
 			if (!l->radius)
 				continue;
@@ -190,7 +190,7 @@ void SWR_PushDlights (void)
 	}
 	else
 	{
-		for (i=0 ; i<MAX_SWLIGHTS ; i++, l++)
+		for (i=0 ; i<dlights_software ; i++, l++)
 		{
 			if (!l->radius)
 				continue;

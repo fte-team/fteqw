@@ -181,7 +181,7 @@ void R_RenderDlights (void)
 	}
 
 	l = cl_dlights;
-	for (i=0 ; i<MAX_DLIGHTS ; i++, l++)
+	for (i=0 ; i<dlights_running ; i++, l++)
 	{
 		if (!l->radius || l->noflash)
 			continue;
@@ -386,7 +386,7 @@ void GLR_PushDlights (void)
 	currentmodel = cl.worldmodel;
 	
 	l = cl_dlights;
-	for (i=0 ; i<MAX_SWLIGHTS ; i++, l++)
+	for (i=0 ; i<dlights_software ; i++, l++)
 	{
 		if (!l->radius || l->nodynamic)
 			continue;

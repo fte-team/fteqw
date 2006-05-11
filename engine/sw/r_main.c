@@ -777,7 +777,7 @@ void SWR_DrawEntitiesOnList (void)
 
 					lighting.plightvec = lightvec;
 
-					for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
+					for (lnum=0 ; lnum<dlights_running ; lnum++)
 					{
 						if (cl_dlights[lnum].radius)
 						{
@@ -868,7 +868,7 @@ void SWR_DrawViewModel (void)
 	r_viewlighting.shadelight = j;
 
 // add dynamic lights		
-	for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
+	for (lnum=0 ; lnum<dlights_running ; lnum++)
 	{
 		dl = &cl_dlights[lnum];
 		if (!dl->radius)
@@ -1206,7 +1206,7 @@ void R_DrawBEntitiesOnList (void)
 				// instanced model
 					if (clmodel->firstmodelsurface != 0)
 					{
-						for (k=0 ; k<MAX_SWLIGHTS ; k++)
+						for (k=0 ; k<dlights_software ; k++)
 						{
 							if ((cl_dlights[k].die < cl.time) ||
 								(!cl_dlights[k].radius))

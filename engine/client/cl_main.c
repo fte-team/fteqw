@@ -155,6 +155,8 @@ lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 //lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 dlight_t		cl_dlights[MAX_DLIGHTS];
 
+int dlights_running, dlights_software;
+
 // refresh list
 // this is double buffered so the last frame
 // can be scanned for oldorigins of trailing objects
@@ -972,8 +974,10 @@ void CL_ClearState (void)
 
 // clear other arrays
 	memset (cl_efrags, 0, sizeof(cl_efrags));
-	memset (cl_dlights, 0, sizeof(cl_dlights));
+//	memset (cl_dlights, 0, sizeof(cl_dlights));
 	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
+
+	dlights_running = 0;
 
 	for (i = 0; i < MAX_EDICTS; i++)
 	{

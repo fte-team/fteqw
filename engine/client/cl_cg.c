@@ -770,15 +770,8 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 
 	case CG_R_CLEARSCENE:	//clear scene
 		cl_numvisedicts=0;
-		{
-			int i;
-			for (i = 0; i < MAX_DLIGHTS; i++)
-			{
-				if (cl_dlights[i].isstatic)
-					continue;
-				cl_dlights[i].radius = 0; 
-			}
-		}
+		dlights_running=0;
+		dlights_software=0;
 		break;
 	case CG_R_ADDPOLYTOSCENE:
 		// ...

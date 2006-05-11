@@ -724,7 +724,7 @@ static void R_GAliasApplyLighting(mesh_t *mesh, vec3_t org, vec3_t angles, float
 
 	if (r_vertexdlights.value && mesh->colors_array)
 	{
-		for (l=0 ; l<MAX_DLIGHTS ; l++)
+		for (l=0 ; l<dlights_running ; l++)
 		{
 			if (cl_dlights[l].radius)
 			{
@@ -1668,7 +1668,7 @@ void R_DrawGAliasModel (entity_t *e)
 
 	if (!r_vertexdlights.value)
 	{
-		for (i=0 ; i<MAX_DLIGHTS ; i++)
+		for (i=0 ; i<dlights_running ; i++)
 		{
 			if (cl_dlights[i].radius)
 			{

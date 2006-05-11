@@ -95,7 +95,7 @@ dlight_t *CL_AllocDlight (int key)
 	if (key)
 	{
 		dl = cl_dlights;
-		for (i=0 ; i<MAX_DLIGHTS ; i++, dl++)
+		for (i=0 ; i<dlights_running ; i++, dl++)
 		{
 			if (dl->key == key)
 			{
@@ -107,15 +107,15 @@ dlight_t *CL_AllocDlight (int key)
 	}
 
 // then look for anything else
-	dl = cl_dlights;
-	for (i=0 ; i<MAX_DLIGHTS ; i++, dl++)
+	if (dlights_running < MAX_DLIGHTS)
 	{
-		if (!dl->radius)
-		{
-			memset (dl, 0, sizeof(*dl));
-			dl->key = key;
-			return dl;
-		}
+		dl = &cl_dlights[dlights_running];
+		memset (dl, 0, sizeof(*dl));
+		dl->key = key;
+		dlights_running++;
+		if (dlights_software < MAX_SWLIGHTS)
+			dlights_software++;
+		return dl;
 	}
 
 	dl = &cl_dlights[0];
@@ -186,13 +186,14 @@ CL_DecayLights
 void CL_DecayLights (void)
 {
 	int			i;
+	int lastrunning = -1;
 	dlight_t	*dl;
 
 	if (cl.paused)	//DON'T DO IT!!!
 		return;
 
 	dl = cl_dlights;
-	for (i=0 ; i<MAX_DLIGHTS ; i++, dl++)
+	for (i=0 ; i<dlights_running ; i++, dl++)
 	{
 		if (!dl->radius)
 			continue;
@@ -205,7 +206,11 @@ void CL_DecayLights (void)
 
 		dl->radius -= host_frametime*dl->decay;
 		if (dl->radius < 0)
+		{
 			dl->radius = 0;
+			continue;
+		}
+		lastrunning = i;
 
 		if (dl->channelfade[0])
 		{
@@ -228,6 +233,10 @@ void CL_DecayLights (void)
 				dl->color[2] = 0;
 		}
 	}
+	dlights_running = lastrunning+1;
+	dlights_software = dlights_running;
+	if (dlights_software > MAX_SWLIGHTS)
+		dlights_software = MAX_SWLIGHTS;
 }
 
 

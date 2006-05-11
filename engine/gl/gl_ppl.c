@@ -1874,7 +1874,7 @@ void PPL_BaseBModelTextures(entity_t *e)
 	{
 		if (currentmodel->nummodelsurfaces != 0 && r_dynamic.value)
 		{
-			for (k=0 ; k<MAX_SWLIGHTS ; k++)
+			for (k=0 ; k<dlights_software ; k++)
 			{
 				if (!cl_dlights[k].radius)
 					continue;
@@ -4958,7 +4958,7 @@ void PPL_DrawWorld (void)
 		if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife || cl.worldmodel->fromgame == fg_quake2 /*|| cl.worldmodel->fromgame == fg_quake3*/)
 		{
 //			lc = NULL;
-			for (l = cl_dlights, i=0 ; i<MAX_DLIGHTS ; i++, l++)
+			for (l = cl_dlights, i=0 ; i<dlights_running ; i++, l++)
 			{
 				if (!l->radius || l->noppl)
 					continue;

@@ -116,7 +116,26 @@ struct menu_s;
 typedef enum {m_none, m_complex, m_help, m_keys, m_slist, m_media, m_plugin, m_menu_dat} m_state_t;
 extern m_state_t m_state;
 
-typedef enum {mt_childwindow, mt_button, mt_qbuttonbigfont, mt_hexen2buttonbigfont, mt_box, mt_colouredbox, mt_line, mt_edit, mt_text, mt_slider, mt_combo, mt_bind, mt_checkbox, mt_picture, mt_strechpic, mt_menudot, mt_custom} menutype_t;
+typedef enum {
+	mt_childwindow, 
+	mt_button, 
+	mt_qbuttonbigfont,
+	mt_hexen2buttonbigfont,
+	mt_box,
+	mt_colouredbox,
+	mt_line,
+	mt_edit,
+	mt_text, 
+	mt_slider,
+	mt_combo, 
+	mt_bind, 
+	mt_checkbox,
+	mt_picture, 
+	mt_picturesel, 
+	mt_strechpic,
+	mt_menudot, 
+	mt_custom
+} menutype_t;
 
 typedef struct {	//must be first of each structure type.
 	menutype_t type;
@@ -256,6 +275,7 @@ menutext_t *MC_AddWhiteText(menu_t *menu, int x, int y, const char *text, qboole
 menubind_t *MC_AddBind(menu_t *menu, int x, int y, const char *caption, char *command);
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height);
 menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, char *picname);
+menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname);
 menupicture_t *MC_AddStrechPicture(menu_t *menu, int x, int y, int width, int height, char *picname);
 menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, char *picname);
 menupicture_t *MC_AddCursor(menu_t *menu, int x, int y);

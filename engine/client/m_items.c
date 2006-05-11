@@ -232,22 +232,25 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 			p = Draw_SafeCachePic(va(menudotstyle, i+mindot ));
 			Draw_TransPic(xpos+option->common.posx, ypos+option->common.posy+dotofs, p);
 			break;
-		case mt_picture:
+		case mt_picturesel:
 			p = NULL;
 			if (menu->selecteditem && menu->selecteditem->common.posx == option->common.posx && menu->selecteditem->common.posy == option->common.posy)
 			{
 				char selname[MAX_QPATH];
 				Q_strncpyz(selname, option->picture.picturename, sizeof(selname));
 				COM_StripExtension(selname, selname, sizeof(selname));
-				p = Draw_SafeCachePic(va("%s_sel", selname));
+				Q_strncatz(selname, "_sel", sizeof(selname));
+				p = Draw_SafeCachePic(selname);
 			}
-
 			if (!p)
 				p = Draw_SafeCachePic(option->picture.picturename);
 
 			Draw_TransPic (xpos+option->common.posx, ypos+option->common.posy, p);
 			break;
-
+		case mt_picture:
+			p = Draw_SafeCachePic(option->picture.picturename);
+			Draw_TransPic (xpos+option->common.posx, ypos+option->common.posy, p);
+			break;
 		case mt_strechpic:
 			p = Draw_SafeCachePic(option->picture.picturename);
 			if (p) Draw_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
@@ -482,6 +485,34 @@ menubind_t *MC_AddBind(menu_t *menu, int x, int y, const char *caption, char *co
 	strcpy(n->command, command);
 	n->common.width = strlen(caption)*8 + 64;
 	n->common.height = 8;
+
+	n->common.next = menu->options;
+	menu->options = (menuoption_t *)n;
+	return n;
+}
+
+menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname)
+{
+	char selname[MAX_QPATH];
+	menupicture_t *n;
+
+	if (!qrenderer)
+		return NULL;
+
+	Q_strncpyz(selname, picname, sizeof(selname));
+	COM_StripExtension(selname, selname, sizeof(selname));
+	Q_strncatz(selname, "_sel", sizeof(selname));
+
+	Draw_SafeCachePic(picname);
+	Draw_SafeCachePic(selname);
+
+	n = Z_Malloc(sizeof(menupicture_t) + strlen(picname)+1);
+	n->common.type = mt_picturesel;
+	n->common.iszone = true;
+	n->common.posx = x;
+	n->common.posy = y;
+	n->picturename = (char *)(n+1);
+	strcpy(n->picturename, picname);
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -1526,11 +1557,11 @@ void M_Menu_Main_f (void)
 			if (!p)
 				return;
 			MC_AddPicture(mainm, 0, 173, "pics/m_main_logo");
-			MC_AddPicture(mainm, 68, 13, "pics/m_main_game");
-			MC_AddPicture(mainm, 68, 53, "pics/m_main_multiplayer");
-			MC_AddPicture(mainm, 68, 93, "pics/m_main_options");
-			MC_AddPicture(mainm, 68, 133, "pics/m_main_video");
-			MC_AddPicture(mainm, 68, 173, "pics/m_main_quit");
+			MC_AddSelectablePicture(mainm, 68, 13, "pics/m_main_game");
+			MC_AddSelectablePicture(mainm, 68, 53, "pics/m_main_multiplayer");
+			MC_AddSelectablePicture(mainm, 68, 93, "pics/m_main_options");
+			MC_AddSelectablePicture(mainm, 68, 133, "pics/m_main_video");
+			MC_AddSelectablePicture(mainm, 68, 173, "pics/m_main_quit");
 
 			b = MC_AddConsoleCommand	(mainm, 68, 13,	"", "menu_single\n");
 			mainm->selecteditem = (menuoption_t *)b;

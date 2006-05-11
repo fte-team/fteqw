@@ -118,9 +118,9 @@ cvar_t	r_part_rain	= SCVARF("r_part_rain", "0", CVAR_ARCHIVE);
 
 cvar_t	r_bouncysparks	= SCVARF("r_bouncysparks", "0", CVAR_ARCHIVE);
 
-cvar_t	r_fullbrightSkins	= SCVARF("r_fullbrightSkins", "1",	CVAR_SEMICHEAT);
-cvar_t	r_fb_models		= SCVARF("gl_fb_models", "1", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);	//as it can highlight the gun a little... ooo nooo....
-cvar_t	r_fb_bmodels	= SCVARF("gl_fb_bmodels", "1", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);	//as it can highlight the gun a little... ooo nooo....
+cvar_t	r_fullbrightSkins	= SCVARF("r_fullbrightSkins", "0",	CVAR_SEMICHEAT);
+cvar_t	r_fb_models		= FCVAR("r_fb_models", "gl_fb_models", "1", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t	r_fb_bmodels	= SCVARF("gl_fb_bmodels", "1", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 
 cvar_t	r_shadow_bumpscale_basetexture	= SCVAR("r_shadow_bumpscale_basetexture", "4");
 cvar_t	r_shadow_bumpscale_bumpmap	= SCVAR("r_shadow_bumpscale_bumpmap", "10");
@@ -355,7 +355,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_overbright, GRAPHICALNICETIES);
 	Cvar_Register (&gl_overbright_all, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
-	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_ati_truform, GRAPHICALNICETIES);
@@ -568,6 +567,8 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
 	Cvar_Register (&r_menutint, GRAPHICALNICETIES);
+
+	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
 
 //bulletens
 	Cvar_Register(&bul_nowater, BULLETENVARS);

@@ -950,11 +950,11 @@ void Force_CenterView_f (void)
 	cl.viewangles[0][PITCH] = 0;
 }
 
+#ifndef SWQUAKE
 void IN_ReInit(void)
 {
 }
 
-#ifndef SWQUAKE
 void IN_Init(void)
 {
 #ifdef IN_XFLIP

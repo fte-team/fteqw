@@ -750,6 +750,7 @@ void SWR_DrawEntitiesOnList (void)
 			{
 				float *org;
 				extern cvar_t r_fullbrightSkins;
+				extern cvar_t r_fb_models;
 				float fb = r_fullbrightSkins.value;
 				if (fb > cls.allow_fbskins)
 					fb = cls.allow_fbskins;
@@ -761,32 +762,41 @@ void SWR_DrawEntitiesOnList (void)
 				else
 					org = currententity->origin;
 
-				j = SWR_LightPoint (org);
-	
-				lighting.ambientlight = j+fb * 120;
-				lighting.shadelight = j+fb * 120;
-
-				lighting.plightvec = lightvec;
-
-				for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
+				if (fb >= 1 && r_fb_models.value)
 				{
-					if (cl_dlights[lnum].radius)
-					{
-						VectorSubtract (org,
-										cl_dlights[lnum].origin,
-										dist);
-						add = cl_dlights[lnum].radius - Length(dist);
-	
-						if (add > 0)
-							lighting.ambientlight += add;
-					}
+					lighting.ambientlight = 4096;
+					lighting.shadelight = 4096;
+					lighting.plightvec = lightvec;
 				}
-	
-			// clamp lighting so it doesn't overbright as much
-				if (lighting.ambientlight > 128)
-					lighting.ambientlight = 128;
-				if (lighting.ambientlight + lighting.shadelight > 192)
-					lighting.shadelight = 192 - lighting.ambientlight;
+				else
+				{
+					j = SWR_LightPoint (org);
+		
+					lighting.ambientlight = j+fb * 120;
+					lighting.shadelight = j+fb * 120;
+
+					lighting.plightvec = lightvec;
+
+					for (lnum=0 ; lnum<MAX_DLIGHTS ; lnum++)
+					{
+						if (cl_dlights[lnum].radius)
+						{
+							VectorSubtract (org,
+											cl_dlights[lnum].origin,
+											dist);
+							add = cl_dlights[lnum].radius - Length(dist);
+		
+							if (add > 0)
+								lighting.ambientlight += add;
+						}
+					}
+		
+				// clamp lighting so it doesn't overbright as much
+					if (lighting.ambientlight > 128)
+						lighting.ambientlight = 128;
+					if (lighting.ambientlight + lighting.shadelight > 192)
+						lighting.shadelight = 192 - lighting.ambientlight;
+				}
 
 				R_AliasDrawModel (&lighting);
 			}

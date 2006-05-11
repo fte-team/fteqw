@@ -1723,10 +1723,23 @@ void R_DrawGAliasModel (entity_t *e)
 			fb = 0;
 		if (fb)
 		{
-			for (i = 0; i < 3; i++)
+			extern cvar_t r_fb_models;
+
+			if (fb >= 1 && r_fb_models.value)
 			{
-				ambientlight[i] = max(ambientlight[i], 8 + fb * 120);
-				shadelight[i] = max(shadelight[i], 8 + fb * 120);
+				for (i = 0; i < 3; i++)
+				{
+					ambientlight[i] = 4096;
+					shadelight[i] = 4096;
+				}
+			}
+			else
+			{
+				for (i = 0; i < 3; i++)
+				{
+					ambientlight[i] = max(ambientlight[i], 8 + fb * 120);
+					shadelight[i] = max(shadelight[i], 8 + fb * 120);
+				}
 			}
 		}
 		for (i = 0; i < 3; i++)

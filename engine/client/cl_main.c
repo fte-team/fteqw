@@ -1320,6 +1320,7 @@ void CL_CheckServerInfo(void)
 #ifdef FISH
 	cls.allow_fish=false;
 #endif
+	cls.allow_fbskins = 1;
 //	cls.allow_fbskins = 0;
 //	cls.allow_overbrightlight;
 	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "rearview")))
@@ -1352,10 +1353,10 @@ void CL_CheckServerInfo(void)
 #endif
 
 	s = Info_ValueForKey(cl.serverinfo, "fbskins");
-	if (cls.demoplayback || *s)
+	if (*s)
 		cls.allow_fbskins = atof(s);
-	else
-		cls.allow_fbskins = 1;
+	else if (cl.teamfortress)
+		cls.allow_fbskins = 0;
 
 	s = Info_ValueForKey(cl.serverinfo, "*cheats");
 	if (cls.demoplayback || !stricmp(s, "on"))

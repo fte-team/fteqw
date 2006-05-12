@@ -220,8 +220,8 @@ extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 
 cvar_t r_drawflat	= SCVARF("r_drawflat","0", CVAR_SEMICHEAT|CVAR_RENDERERCALLBACK);
-cvar_t r_wallcolour	= SCVARF("r_wallcolour","1 1 1", CVAR_RENDERERCALLBACK);
-cvar_t r_floorcolour	= SCVARF("r_floorcolour","1 1 1", CVAR_RENDERERCALLBACK);
+cvar_t r_wallcolour	= SCVARF("r_wallcolour","255 255 255", CVAR_RENDERERCALLBACK);
+cvar_t r_floorcolour	= SCVARF("r_floorcolour","255 255 255", CVAR_RENDERERCALLBACK);
 cvar_t r_walltexture	= SCVARF("r_walltexture","", CVAR_RENDERERCALLBACK);
 cvar_t r_floortexture	= SCVARF("r_floortexture","", CVAR_RENDERERCALLBACK);
 

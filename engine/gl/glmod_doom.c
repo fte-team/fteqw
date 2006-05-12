@@ -1432,7 +1432,7 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 
 	int *gl_nodes;
 
-	COM_StripExtension(mod->name, name);
+	COM_StripExtension(mod->name, name, sizeof(name));
 
 	if (!COM_LoadTempFile(va("%s", mod->name)))
 	{

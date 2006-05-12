@@ -1170,12 +1170,12 @@ static qboolean simpletextures = false;
 //single textured.
 void GLR_Wallcolour_Callback(struct cvar_s *var, char *oldvalue)
 {
-	SCR_StringToRGB(var->string, wallcolour, 1);
+	SCR_StringToRGB(var->string, wallcolour, 255);
 }
 
 void GLR_Floorcolour_Callback(struct cvar_s *var, char *oldvalue)
 {
-	SCR_StringToRGB(var->string, floorcolour, 1);
+	SCR_StringToRGB(var->string, floorcolour, 255);
 }
 
 void GLR_Walltexture_Callback(struct cvar_s *var, char *oldvalue)

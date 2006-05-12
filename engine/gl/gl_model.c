@@ -3336,7 +3336,7 @@ void GLMod_LoadDoomSprite (model_t *mod)
 	msprite_t *psprite;
 
 
-	COM_StripExtension(mod->name, basename);
+	COM_StripExtension(mod->name, basename, sizeof(basename));
 	baselen = strlen(basename);
 	strcat(basename, "*");
 	*(int *)files=4;

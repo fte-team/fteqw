@@ -289,8 +289,8 @@ void Sys_Error (const char *error, ...)
 	va_list		argptr;
 	char		text[1024];
 	double end;
-	LPWSTR *szArglist;
-	int nArgs;
+	STARTUPINFO startupinfo;
+	PROCESS_INFORMATION processinfo;
 
 	va_start (argptr,error);
 	vsnprintf (text,sizeof(text)-1, error,argptr);
@@ -319,9 +319,12 @@ void Sys_Error (const char *error, ...)
 	end = Sys_DoubleTime() + 10;
 	while(Sys_DoubleTime() < end)
 	{
+		Sleep(500); // don't burn up CPU with polling
 		if (_kbhit())
 			Sys_Quit();
 	}
+
+	Sys_Printf("\nLoading new instance of FTE...\n\n\n");
 	PR_Deinit();	//this takes a bit more mem
 	Rank_Flush();
 #ifndef MINGW
@@ -330,9 +333,24 @@ void Sys_Error (const char *error, ...)
 	VirtualFree (host_parms.membase, 0, MEM_RELEASE);
 //	free(host_parms.membase);	//get rid of the mem. We don't need it now.
 //	system("dqwsv.exe");	//spawn a new server to take over. This way, if debugging, then any key will quit, otherwise the server will just spawn a new one.
-	GetModuleFileName(NULL, text, sizeof(text));
-	szArglist = CommandLineToArgV(GetCommandLine(), &nArgs);
-	spawnv(P_NOWAIT|P_OVERLAY, text, text, szArglist);
+
+	memset(&startupinfo, 0, sizeof(startupinfo));
+	memset(&processinfo, 0, sizeof(processinfo));
+
+	CreateProcess(NULL,
+		GetCommandLine(),
+		NULL,
+		NULL,
+		false,
+		0,
+		NULL,
+		NULL,
+		&startupinfo,
+		&processinfo);
+
+	CloseHandle(processinfo.hProcess);
+	CloseHandle(processinfo.hThread);
+
 	Sys_Quit ();
 }
 

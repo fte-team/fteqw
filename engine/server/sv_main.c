@@ -3097,7 +3097,7 @@ extern void Log_Init (void);
 
 void SV_InitLocal (void)
 {
-	int		i;
+	int		i, p;
 	extern	cvar_t	sv_maxvelocity;
 	extern	cvar_t	sv_gravity;
 	extern	cvar_t	sv_aim;
@@ -3364,6 +3364,25 @@ void SV_InitLocal (void)
 	svs.log[1].maxsize = sizeof(svs.log_buf[1]);
 	svs.log[1].cursize = 0;
 	svs.log[1].allowoverflow = true;
+
+	// parse params for cvars
+	p = COM_CheckParm ("-port");
+	if (!p)
+		p = COM_CheckParm ("-svport");
+	if (p && p < com_argc)
+	{
+		int port = atoi(com_argv[p+1]);
+		if (!port)
+			port = PORT_SERVER;
+		Cvar_SetValue(&sv_port, port);
+#ifdef IPPROTO_IPV6
+		Cvar_SetValue(&sv_port_ipv6, port);
+#endif
+#ifdef USEIPX
+		Cvar_SetValue(&sv_port_ipx, port);
+#endif
+	}
+
 }
 
 
@@ -3834,8 +3853,6 @@ SV_Init
 void SV_Demo_Init(void);
 void SV_Init (quakeparms_t *parms)
 {
-	int p;
-
 #ifndef SERVERONLY
 	if (isDedicated)
 #endif
@@ -3861,23 +3878,6 @@ void SV_Init (quakeparms_t *parms)
 #endif
 		COM_Init ();
 		Mod_Init ();
-	}
-
-	p = COM_CheckParm ("-port");
-	if (!p)
-		p = COM_CheckParm ("-svport");
-	if (p && p < com_argc)
-	{
-		int port = atoi(com_argv[p+1]);
-		if (!port)
-			port = PORT_SERVER;
-		Cvar_SetValue(&sv_port, port);
-#ifdef IPPROTO_IPV6
-		Cvar_SetValue(&sv_port_ipv6, port);
-#endif
-#ifdef USEIPX
-		Cvar_SetValue(&sv_port_ipx, port);
-#endif
 	}
 
 	PR_Init ();

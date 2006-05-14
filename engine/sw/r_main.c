@@ -89,6 +89,8 @@ float	screenAspect;
 float	verticalFieldOfView;
 float	xOrigin, yOrigin;
 
+float r_wateralphaval;
+
 mplane_t	screenedge[4];
 
 //colour bits (for 16 bit rendering)

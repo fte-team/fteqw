@@ -632,6 +632,7 @@ R_RenderFace
 */
 void R_RenderFace (msurface_t *fa, int clipflags)
 {
+	extern float r_wateralphaval;
 	int			i, lindex;
 	unsigned	mask;
 	mplane_t	*pplane;
@@ -641,6 +642,16 @@ void R_RenderFace (msurface_t *fa, int clipflags)
 	clipplane_t	*pclip;
 
 	if (fa->texinfo->texture && (*fa->texinfo->texture->name == '{' || fa->texinfo->flags & (SURF_TRANS33|SURF_TRANS66)))
+	{
+		if (fa->nextalphasurface)
+			return;
+
+		fa->nextalphasurface = r_alpha_surfaces;
+		r_alpha_surfaces = fa;
+		return;
+	}
+
+	if (r_wateralphaval != 1.0 && fa->flags & SURF_DRAWTURB)
 	{
 		if (fa->nextalphasurface)
 			return;
@@ -1351,7 +1362,7 @@ void R_8DrawSpanletAlphaBlend( void )	//8 bit rendering only
 {
 	unsigned btemp;
 
-	D_SetTransLevel(r_q2polydesc.alpha*255.0, BM_BLEND);
+	D_SetTransLevel(r_q2polydesc.alpha/255.0, BM_BLEND);
 
 	do
 	{
@@ -1383,7 +1394,7 @@ void R_8DrawSpanletTurbulentAlphaBlend( void )
 	extern int				*r_turb_turb;
 	unsigned btemp;
 
-	D_SetTransLevel(r_q2polydesc.alpha*255.0, BM_BLEND);
+	D_SetTransLevel(r_q2polydesc.alpha/255.0, BM_BLEND);
 
 	do
 	{
@@ -2099,6 +2110,8 @@ void R_ClipAndDrawPoly ( float alpha, int isturbulent, qboolean textured )
 	{
 		if (alpha == 1 && !isturbulent)
 			r_q2polydesc.drawspanlet = R_32DrawSpanletAlphaTest;
+		else if (alpha <= 0)
+			return;
 		else
 		{
 			r_q2polydesc.alpha = alpha*255;
@@ -2110,7 +2123,9 @@ void R_ClipAndDrawPoly ( float alpha, int isturbulent, qboolean textured )
 	}
 	else if (r_pixbytes == 2)
 	{
-		if (alpha < 0.5)
+		if (alpha < 0.2)
+			return;
+		else if (alpha < 0.5)
 			r_q2polydesc.drawspanlet = R_16DrawSpanlet33Stipple;
 		else if (alpha < 0.9)
 			r_q2polydesc.drawspanlet = R_16DrawSpanlet66Stipple;
@@ -2121,6 +2136,8 @@ void R_ClipAndDrawPoly ( float alpha, int isturbulent, qboolean textured )
 	{
 		if (alpha >= TRANS_UPPER_CAP)
 			r_q2polydesc.drawspanlet = R_8DrawSpanletAlphaTest;
+		else if (alpha <= TRANS_LOWER_CAP)
+			return;
 		else if (isturbulent)
 		{
 			r_q2polydesc.alpha = alpha*255;
@@ -2227,7 +2244,7 @@ void R_BuildPolygonFromSurface(msurface_t *fa)
 	}
 
 // PGM 09/16/98
-	if ( fa->texinfo->flags & (SURF_WARP|SURF_FLOWING) )
+	if ( fa->texinfo->flags & (SURF_WARP|SURF_FLOWING) || (fa->flags & SURF_DRAWTURB) )
 	{
 		r_q2polydesc.pixels       = (qbyte *)fa->texinfo->texture + fa->texinfo->texture->offsets[0];
 		r_q2polydesc.pixel_width  = fa->texinfo->texture->width;
@@ -2278,7 +2295,12 @@ void SWR_DrawAlphaSurfaces( void )
 	{
 		R_BuildPolygonFromSurface( s );
 
-		if (s->texinfo->flags & SURF_TRANS66)
+		if (s->flags & SURF_DRAWTURB)
+		{
+			extern float r_wateralphaval;
+			R_ClipAndDrawPoly( r_wateralphaval, true, true );
+		}
+		else if (s->texinfo->flags & SURF_TRANS66)
 		{
 			R_ClipAndDrawPoly( 0.66f, (s->texinfo->flags & (SURF_WARP|SURF_FLOWING)), true );
 		}

@@ -279,7 +279,6 @@ void GLRenderer_Init(void)
 
 //renderer
 	Cvar_Register (&r_novis, GLRENDEREROPTIONS);
-	Cvar_Register (&r_wateralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_norefresh, GLRENDEREROPTIONS);
 
@@ -564,6 +563,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_fastsky, GRAPHICALNICETIES);
 	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
+	Cvar_Register (&r_wateralpha, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
 	Cvar_Register (&r_menutint, GRAPHICALNICETIES);

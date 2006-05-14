@@ -457,12 +457,17 @@ void SWR_SetupFrame (void)
 	extern int r_dosirds;
 
 	extern int scr_chatmode;
+	extern float r_wateralphaval;
 
 	int				edgecount;
 	vrect_t			vrect;
 	float			w, h;
 
+
 // don't allow cheats in multiplayer
+	r_wateralphaval = r_wateralpha.value;
+	if (!cls.allow_watervis)
+		r_wateralphaval = 1;
 
 	if (r_numsurfs.value)
 	{

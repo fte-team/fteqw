@@ -127,12 +127,6 @@ extern void (*d_drawspans) (espan_t *pspan);
 
 #define REMAP_MAX 64
 
-#ifdef _fastcall
-#define FASTCALL _fastcall
-#else
-#define FASTCALL
-#endif
-
 // palette remap cache
 typedef struct palremap_s {
 	int r;
@@ -159,11 +153,10 @@ void D_DereferenceRemap(palremap_t *palremap);
 void D_InitTrans(void);
 // void Set_TransLevelI(int level);
 void D_SetTransLevel(float level, blendmode_t blend);
-extern qbyte FASTCALL Trans(qbyte p, qbyte p2);
-extern qbyte FASTCALL AddBlend(qbyte p, qbyte p2);
+extern qbyte Trans(qbyte p, qbyte p2);
+extern qbyte AddBlend(qbyte p, qbyte p2);
 
 extern qbyte *pal555to8;
-
 
 void D_ShutdownTrans(void);
 #endif

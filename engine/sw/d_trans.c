@@ -56,7 +56,7 @@ void D_InitTrans(void)
 }
 
 // TODO: INLINE THESE FUNCTIONS
-qbyte FASTCALL Trans(qbyte p, qbyte p2)
+qbyte Trans(qbyte p, qbyte p2)
 {	
 	int x;
 
@@ -65,7 +65,7 @@ qbyte FASTCALL Trans(qbyte p, qbyte p2)
 
 }
 
-qbyte FASTCALL AddBlend(qbyte p, qbyte p2)
+qbyte AddBlend(qbyte p, qbyte p2)
 {
 	int x, y;
 

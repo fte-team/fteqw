@@ -1247,282 +1247,6 @@ typedef struct
 
 spanletvars_t s_spanletvars;
 
-void R_DrawSpanletTurbulentStipple33( void )
-{
-	extern int				*r_turb_turb;
-	unsigned btemp;
-	int	     sturb, tturb;
-	qbyte    *pdest = s_spanletvars.pdest;
-	short   *pz    = s_spanletvars.pz;
-	int      izi   = s_spanletvars.izi;
-	
-	if ( s_spanletvars.v & 1 )
-	{
-		s_spanletvars.pdest += s_spanletvars.spancount;
-		s_spanletvars.pz    += s_spanletvars.spancount;
-
-		if ( s_spanletvars.spancount == AFFINE_SPANLET_SIZE )
-			s_spanletvars.izi += s_spanletvars.izistep << AFFINE_SPANLET_SIZE_BITS;
-		else
-			s_spanletvars.izi += s_spanletvars.izistep * s_spanletvars.izistep;
-		
-		if ( s_spanletvars.u & 1 )
-		{
-			izi += s_spanletvars.izistep;
-			s_spanletvars.s   += s_spanletvars.sstep;
-			s_spanletvars.t   += s_spanletvars.tstep;
-
-			pdest++;
-			pz++;
-			s_spanletvars.spancount--;
-		}
-
-		s_spanletvars.sstep   *= 2;
-		s_spanletvars.tstep   *= 2;
-
-		while ( s_spanletvars.spancount > 0 )
-		{
-			sturb = ((s_spanletvars.s + r_turb_turb[(s_spanletvars.t>>16)&(CYCLE-1)])>>16)&63;
-			tturb = ((s_spanletvars.t + r_turb_turb[(s_spanletvars.s>>16)&(CYCLE-1)])>>16)&63;
-			
-			btemp = *( s_spanletvars.pbase + ( sturb ) + ( tturb << 6 ) );
-			
-			if ( *pz <= ( izi >> 16 ) )
-				*pdest = btemp;
-			
-			izi               += s_spanletvars.izistep_times_2;
-			s_spanletvars.s   += s_spanletvars.sstep;
-			s_spanletvars.t   += s_spanletvars.tstep;
-			
-			pdest += 2;
-			pz    += 2;
-			
-			s_spanletvars.spancount -= 2;
-		}
-	}
-}
-
-/*
-** R_DrawSpanletTurbulentStipple66
-*/
-void R_DrawSpanletTurbulentStipple66( void )
-{
-	extern int				*r_turb_turb;
-	unsigned btemp;
-	int	     sturb, tturb;
-	qbyte    *pdest = s_spanletvars.pdest;
-	short   *pz    = s_spanletvars.pz;
-	int      izi   = s_spanletvars.izi;
-	
-	if ( !( s_spanletvars.v & 1 ) )
-	{
-		s_spanletvars.pdest += s_spanletvars.spancount;
-		s_spanletvars.pz    += s_spanletvars.spancount;
-
-		if ( s_spanletvars.spancount == AFFINE_SPANLET_SIZE )
-			s_spanletvars.izi += s_spanletvars.izistep << AFFINE_SPANLET_SIZE_BITS;
-		else
-			s_spanletvars.izi += s_spanletvars.izistep * s_spanletvars.izistep;
-		
-		if ( s_spanletvars.u & 1 )
-		{
-			izi += s_spanletvars.izistep;
-			s_spanletvars.s   += s_spanletvars.sstep;
-			s_spanletvars.t   += s_spanletvars.tstep;
-
-			pdest++;
-			pz++;
-			s_spanletvars.spancount--;
-		}
-
-		s_spanletvars.sstep   *= 2;
-		s_spanletvars.tstep   *= 2;
-
-		while ( s_spanletvars.spancount > 0 )
-		{
-			sturb = ((s_spanletvars.s + r_turb_turb[(s_spanletvars.t>>16)&(CYCLE-1)])>>16)&63;
-			tturb = ((s_spanletvars.t + r_turb_turb[(s_spanletvars.s>>16)&(CYCLE-1)])>>16)&63;
-			
-			btemp = *( s_spanletvars.pbase + ( sturb ) + ( tturb << 6 ) );
-			
-			if ( *pz <= ( izi >> 16 ) )
-				*pdest = btemp;
-			
-			izi               += s_spanletvars.izistep_times_2;
-			s_spanletvars.s   += s_spanletvars.sstep;
-			s_spanletvars.t   += s_spanletvars.tstep;
-			
-			pdest += 2;
-			pz    += 2;
-			
-			s_spanletvars.spancount -= 2;
-		}
-	}
-	else
-	{
-		s_spanletvars.pdest += s_spanletvars.spancount;
-		s_spanletvars.pz    += s_spanletvars.spancount;
-
-		if ( s_spanletvars.spancount == AFFINE_SPANLET_SIZE )
-			s_spanletvars.izi += s_spanletvars.izistep << AFFINE_SPANLET_SIZE_BITS;
-		else
-			s_spanletvars.izi += s_spanletvars.izistep * s_spanletvars.izistep;
-		
-		while ( s_spanletvars.spancount > 0 )
-		{
-			sturb = ((s_spanletvars.s + r_turb_turb[(s_spanletvars.t>>16)&(CYCLE-1)])>>16)&63;
-			tturb = ((s_spanletvars.t + r_turb_turb[(s_spanletvars.s>>16)&(CYCLE-1)])>>16)&63;
-			
-			btemp = *( s_spanletvars.pbase + ( sturb ) + ( tturb << 6 ) );
-			
-			if ( *pz <= ( izi >> 16 ) )
-				*pdest = btemp;
-			
-			izi               += s_spanletvars.izistep;
-			s_spanletvars.s   += s_spanletvars.sstep;
-			s_spanletvars.t   += s_spanletvars.tstep;
-			
-			pdest++;
-			pz++;
-			
-			s_spanletvars.spancount--;
-		}
-	}
-}
-
-/*
-** R_DrawSpanletTurbulentBlended
-*/
-/*void R_DrawSpanletTurbulentBlended66( void )
-{
-	extern int				*r_turb_turb;
-	unsigned btemp;
-	int	     sturb, tturb;
-
-	do
-	{
-		sturb = ((s_spanletvars.s + r_turb_turb[(s_spanletvars.t>>16)&(CYCLE-1)])>>16)&63;
-		tturb = ((s_spanletvars.t + r_turb_turb[(s_spanletvars.s>>16)&(CYCLE-1)])>>16)&63;
-
-		btemp = *( s_spanletvars.pbase + ( sturb ) + ( tturb << 6 ) );
-
-		if ( *s_spanletvars.pz <= ( s_spanletvars.izi >> 16 ) )
-			*s_spanletvars.pdest = vid.alphamap[btemp*256+*s_spanletvars.pdest];
-
-		s_spanletvars.izi += s_spanletvars.izistep;
-		s_spanletvars.pdest++;
-		s_spanletvars.pz++;
-		s_spanletvars.s += s_spanletvars.sstep;
-		s_spanletvars.t += s_spanletvars.tstep;
-
-	} while ( --s_spanletvars.spancount > 0 );
-}
-
-void R_DrawSpanletTurbulentBlended33( void )
-{
-	unsigned btemp;
-	int	     sturb, tturb;
-
-	do
-	{
-		sturb = ((s_spanletvars.s + r_turb_turb[(s_spanletvars.t>>16)&(CYCLE-1)])>>16)&63;
-		tturb = ((s_spanletvars.t + r_turb_turb[(s_spanletvars.s>>16)&(CYCLE-1)])>>16)&63;
-
-		btemp = *( s_spanletvars.pbase + ( sturb ) + ( tturb << 6 ) );
-
-		if ( *s_spanletvars.pz <= ( s_spanletvars.izi >> 16 ) )
-			*s_spanletvars.pdest = vid.alphamap[btemp+*s_spanletvars.pdest*256];
-
-		s_spanletvars.izi += s_spanletvars.izistep;
-		s_spanletvars.pdest++;
-		s_spanletvars.pz++;
-		s_spanletvars.s += s_spanletvars.sstep;
-		s_spanletvars.t += s_spanletvars.tstep;
-
-	} while ( --s_spanletvars.spancount > 0 );
-}
-*/
-/*
-** R_DrawSpanlet33
-*/
-/*void R_DrawSpanlet33( void )
-{
-	unsigned btemp;
-
-	do
-	{
-		unsigned ts, tt;
-
-		ts = s_spanletvars.s >> 16;
-		tt = s_spanletvars.t >> 16;
-
-		btemp = *(s_spanletvars.pbase + (ts) + (tt) * cachewidth);
-
-		if ( btemp != 255 )
-		{
-			if (*s_spanletvars.pz <= (s_spanletvars.izi >> 16))
-			{
-				*s_spanletvars.pdest = vid.alphamap[btemp+*s_spanletvars.pdest*256];
-			}
-		}
-
-		s_spanletvars.izi += s_spanletvars.izistep;
-		s_spanletvars.pdest++;
-		s_spanletvars.pz++;
-		s_spanletvars.s += s_spanletvars.sstep;
-		s_spanletvars.t += s_spanletvars.tstep;
-	} while (--s_spanletvars.spancount > 0);
-}
-
-void R_DrawSpanletConstant33( void )
-{
-	do
-	{
-		if (*s_spanletvars.pz <= (s_spanletvars.izi >> 16))
-		{
-			*s_spanletvars.pdest = vid.alphamap[r_polyblendcolor+*s_spanletvars.pdest*256];
-		}
-
-		s_spanletvars.izi += s_spanletvars.izistep;
-		s_spanletvars.pdest++;
-		s_spanletvars.pz++;
-	} while (--s_spanletvars.spancount > 0);
-}
-*/
-/*
-** R_DrawSpanlet66
-*/
-/*
-void R_DrawSpanlet66( void )
-{
-	unsigned btemp;
-
-	do
-	{
-		unsigned ts, tt;
-
-		ts = s_spanletvars.s >> 16;
-		tt = s_spanletvars.t >> 16;
-
-		btemp = *(s_spanletvars.pbase + (ts) + (tt) * cachewidth);
-
-		if ( btemp != 255 )
-		{
-			if (*s_spanletvars.pz <= (s_spanletvars.izi >> 16))
-			{
-				*s_spanletvars.pdest = vid.alphamap[btemp*256+*s_spanletvars.pdest];
-			}
-		}
-
-		s_spanletvars.izi += s_spanletvars.izistep;
-		s_spanletvars.pdest++;
-		s_spanletvars.pz++;
-		s_spanletvars.s += s_spanletvars.sstep;
-		s_spanletvars.t += s_spanletvars.tstep;
-	} while (--s_spanletvars.spancount > 0);
-}
-*/
-
 void R_DrawSpanletConstant( void )
 {
 	do
@@ -1537,64 +1261,7 @@ void R_DrawSpanletConstant( void )
 		s_spanletvars.pz++;
 	} while (--s_spanletvars.spancount > 0);
 }
-/*
-** R_DrawSpanlet33Stipple
-*/
-void R_DrawSpanlet33Stipple( void )
-{
-	unsigned btemp;
-	qbyte    *pdest = s_spanletvars.pdest;
-	short   *pz    = s_spanletvars.pz;
-	int      izi   = s_spanletvars.izi;
-	
-	if ( r_q2polydesc.stipple_parity ^ ( s_spanletvars.v & 1 ) )
-	{
-		s_spanletvars.pdest += s_spanletvars.spancount;
-		s_spanletvars.pz    += s_spanletvars.spancount;
 
-		if ( s_spanletvars.spancount == AFFINE_SPANLET_SIZE )
-			s_spanletvars.izi += s_spanletvars.izistep << AFFINE_SPANLET_SIZE_BITS;
-		else
-			s_spanletvars.izi += s_spanletvars.izistep * s_spanletvars.izistep;
-		
-		if ( r_q2polydesc.stipple_parity ^ ( s_spanletvars.u & 1 ) )
-		{
-			izi += s_spanletvars.izistep;
-			s_spanletvars.s   += s_spanletvars.sstep;
-			s_spanletvars.t   += s_spanletvars.tstep;
-
-			pdest++;
-			pz++;
-			s_spanletvars.spancount--;
-		}
-
-		s_spanletvars.sstep *= 2;
-		s_spanletvars.tstep *= 2;
-
-		while ( s_spanletvars.spancount > 0 )
-		{
-			unsigned s = s_spanletvars.s >> 16;
-			unsigned t = s_spanletvars.t >> 16;
-
-			btemp = *( s_spanletvars.pbase + ( s ) + ( t * cachewidth ) );
-			
-			if ( btemp != 255 )
-			{
-				if ( *pz <= ( izi >> 16 ) )
-					*pdest = btemp;
-			}
-			
-			izi               += s_spanletvars.izistep_times_2;
-			s_spanletvars.s   += s_spanletvars.sstep;
-			s_spanletvars.t   += s_spanletvars.tstep;
-			
-			pdest += 2;
-			pz    += 2;
-			
-			s_spanletvars.spancount -= 2;
-		}
-	}
-}
 void R_16DrawSpanlet33Stipple( void )
 {
 	unsigned btemp;
@@ -1680,6 +1347,70 @@ void R_8DrawSpanletAlphaTest( void )	//8 bit rendering only
 	} while (--s_spanletvars.spancount > 0);
 }
 
+void R_8DrawSpanletAlphaBlend( void )	//8 bit rendering only
+{
+	unsigned btemp;
+
+	D_SetTransLevel(r_q2polydesc.alpha*255.0, BM_BLEND);
+
+	do
+	{
+		unsigned ts, tt;
+
+		ts = s_spanletvars.s >> 16;
+		tt = s_spanletvars.t >> 16;
+
+		btemp = *(s_spanletvars.pbase + (ts) + (tt) * cachewidth);
+
+		if ( btemp != 255 )
+		{
+			if (*s_spanletvars.pz <= (s_spanletvars.izi >> 16))
+			{
+				*s_spanletvars.pdest = Trans(*s_spanletvars.pdest, btemp);
+			}
+		}
+
+		s_spanletvars.izi += s_spanletvars.izistep;
+		s_spanletvars.pdest++;
+		s_spanletvars.pz++;
+		s_spanletvars.s += s_spanletvars.sstep;
+		s_spanletvars.t += s_spanletvars.tstep;
+	} while (--s_spanletvars.spancount > 0);
+}
+
+void R_8DrawSpanletTurbulentAlphaBlend( void )
+{
+	extern int				*r_turb_turb;
+	unsigned btemp;
+
+	D_SetTransLevel(r_q2polydesc.alpha*255.0, BM_BLEND);
+
+	do
+	{
+		unsigned ts, tt;
+
+		ts = ((s_spanletvars.s + r_turb_turb[(s_spanletvars.t>>16)&(CYCLE-1)])>>16)&63;
+		tt = ((s_spanletvars.t + r_turb_turb[(s_spanletvars.s>>16)&(CYCLE-1)])>>16)&63;
+
+		btemp = *(s_spanletvars.pbase + (ts) + (tt) * cachewidth);
+
+		if ( btemp != 255 )
+		{
+			if (*s_spanletvars.pz <= (s_spanletvars.izi >> 16))
+			{
+				*s_spanletvars.pdest = Trans(*s_spanletvars.pdest, btemp);
+			}
+		}
+
+		s_spanletvars.izi += s_spanletvars.izistep;
+		s_spanletvars.pdest++;
+		s_spanletvars.pz++;
+		s_spanletvars.s += s_spanletvars.sstep;
+		s_spanletvars.t += s_spanletvars.tstep;
+	} while (--s_spanletvars.spancount > 0);
+}
+
+
 void R_16DrawSpanletAlphaTest( void )	//16 bit rendering only
 {
 	unsigned btemp;
@@ -1708,37 +1439,6 @@ void R_16DrawSpanletAlphaTest( void )	//16 bit rendering only
 		s_spanletvars.t += s_spanletvars.tstep;
 	} while (--s_spanletvars.spancount > 0);
 }
-
-#if 0
-void R_8DrawSpanletBlended( void )	//8 bit FIXME
-{
-	unsigned btemp;
-
-	do
-	{
-		unsigned ts, tt;
-
-		ts = s_spanletvars.s >> 16;
-		tt = s_spanletvars.t >> 16;
-
-		btemp = *(s_spanletvars.pbase + (ts) + (tt) * cachewidth);
-
-//		if ( btemp != 255 )
-		{
-			if (*s_spanletvars.pz <= (s_spanletvars.izi >> 16))
-			{
-				*s_spanletvars.pdest = t_lookup[1][btemp][*s_spanletvars.pdest];
-			}
-		}
-
-		s_spanletvars.izi += s_spanletvars.izistep;
-		s_spanletvars.pdest++;
-		s_spanletvars.pz++;
-		s_spanletvars.s += s_spanletvars.sstep;
-		s_spanletvars.t += s_spanletvars.tstep;
-	} while (--s_spanletvars.spancount > 0);
-}
-#endif
 
 void R_32DrawSpanletAlphaTest( void )
 {
@@ -1830,87 +1530,6 @@ void R_32DrawSpanletTurbulentBlended( void )
 /*
 ** R_DrawSpanlet66Stipple
 */
-void R_DrawSpanlet66Stipple( void )
-{
-	unsigned btemp;
-	qbyte    *pdest = s_spanletvars.pdest;
-	short   *pz    = s_spanletvars.pz;
-	int      izi   = s_spanletvars.izi;
-
-	s_spanletvars.pdest += s_spanletvars.spancount;
-	s_spanletvars.pz    += s_spanletvars.spancount;
-
-	if ( s_spanletvars.spancount == AFFINE_SPANLET_SIZE )
-		s_spanletvars.izi += s_spanletvars.izistep << AFFINE_SPANLET_SIZE_BITS;
-	else
-		s_spanletvars.izi += s_spanletvars.izistep * s_spanletvars.izistep;
-
-	if ( r_q2polydesc.stipple_parity ^ ( s_spanletvars.v & 1 ) )
-	{
-		if ( r_q2polydesc.stipple_parity ^ ( s_spanletvars.u & 1 ) )
-		{
-			izi += s_spanletvars.izistep;
-			s_spanletvars.s += s_spanletvars.sstep;
-			s_spanletvars.t += s_spanletvars.tstep;
-
-			pdest++;
-			pz++;
-			s_spanletvars.spancount--;
-		}
-
-		s_spanletvars.sstep *= 2;
-		s_spanletvars.tstep *= 2;
-
-		while ( s_spanletvars.spancount > 0 )
-		{
-			unsigned s = s_spanletvars.s >> 16;
-			unsigned t = s_spanletvars.t >> 16;
-			
-			btemp = *( s_spanletvars.pbase + ( s ) + ( t * cachewidth ) );
-
-			if ( btemp != 255 )
-			{
-				if ( *pz <= ( izi >> 16 ) )
-					*pdest = btemp;
-			}
-			
-			izi             += s_spanletvars.izistep_times_2;
-			s_spanletvars.s += s_spanletvars.sstep;
-			s_spanletvars.t += s_spanletvars.tstep;
-			
-			pdest += 2;
-			pz    += 2;
-			
-			s_spanletvars.spancount -= 2;
-		}
-	}
-	else
-	{
-		while ( s_spanletvars.spancount > 0 )
-		{
-			unsigned s = s_spanletvars.s >> 16;
-			unsigned t = s_spanletvars.t >> 16;
-			
-			btemp = *( s_spanletvars.pbase + ( s ) + ( t * cachewidth ) );
-			
-			if ( btemp != 255 )
-			{
-				if ( *pz <= ( izi >> 16 ) )
-					*pdest = btemp;
-			}
-			
-			izi             += s_spanletvars.izistep;
-			s_spanletvars.s += s_spanletvars.sstep;
-			s_spanletvars.t += s_spanletvars.tstep;
-			
-			pdest++;
-			pz++;
-			
-			s_spanletvars.spancount--;
-		}
-	}
-}
-
 void R_16DrawSpanlet66Stipple( void )
 {
 	unsigned btemp;
@@ -2500,81 +2119,18 @@ void R_ClipAndDrawPoly ( float alpha, int isturbulent, qboolean textured )
 	}
 	else
 	{
-		if (isturbulent)
+		if (alpha >= TRANS_UPPER_CAP)
+			r_q2polydesc.drawspanlet = R_8DrawSpanletAlphaTest;
+		else if (isturbulent)
 		{
-			if (alpha < 0.5)
-				r_q2polydesc.drawspanlet = R_DrawSpanletTurbulentStipple33;
-			else if (alpha < 0.9)
-				r_q2polydesc.drawspanlet = R_DrawSpanletTurbulentStipple66;
-			else
-				r_q2polydesc.drawspanlet = R_8DrawSpanletAlphaTest;
+			r_q2polydesc.alpha = alpha*255;
+			r_q2polydesc.drawspanlet = R_8DrawSpanletTurbulentAlphaBlend;
 		}
 		else
 		{
-			if (alpha < 0.5)
-				r_q2polydesc.drawspanlet = R_DrawSpanlet33Stipple;
-			else if (alpha < 0.9)
-				r_q2polydesc.drawspanlet = R_DrawSpanlet66Stipple;
-			else
-				r_q2polydesc.drawspanlet = R_8DrawSpanletAlphaTest;
+			r_q2polydesc.alpha = alpha*255;		
+			r_q2polydesc.drawspanlet = R_8DrawSpanletAlphaBlend;
 		}
-/*
-		if ( !textured )
-		{
-			r_q2polydesc.drawspanlet = R_DrawSpanletConstant;//R_DrawSpanletConstant33;
-		}
-		else
-		{
-			//
-			// choose the correct spanlet routine based on alpha
-			//
-			if ( alpha == 1 )
-			{
-				// isturbulent is ignored because we know that turbulent surfaces
-				// can't be opaque
-				r_q2polydesc.drawspanlet = R_DrawSpanletConstant;//R_DrawSpanletOpaque;
-			}
-			else
-			{
-				if (1)// sw_stipplealpha->value )
-				{
-					if ( isturbulent )
-					{
-						if ( alpha > 0.33 )
-							r_q2polydesc.drawspanlet = R_DrawSpanletTurbulentStipple66;
-						else 
-							r_q2polydesc.drawspanlet = R_DrawSpanletTurbulentStipple33;
-					}
-					else if (1)
-						r_q2polydesc.drawspanlet = R_DrawSpanletAlphaTest;
-					else
-					{
-						if ( alpha > 0.33 )
-							r_q2polydesc.drawspanlet = R_DrawSpanlet66Stipple;
-						else 
-							r_q2polydesc.drawspanlet = R_DrawSpanlet33Stipple;
-					}
-				}
-				else
-				{
-					if ( isturbulent )
-					{
-						if ( alpha > 0.33 )
-							r_q2polydesc.drawspanlet = R_DrawSpanletConstant;//R_DrawSpanletTurbulentBlended66;
-						else
-							r_q2polydesc.drawspanlet = R_DrawSpanletConstant;//R_DrawSpanletTurbulentBlended33;
-					}
-					else
-					{
-						if ( alpha > 0.33 )
-							r_q2polydesc.drawspanlet = R_DrawSpanletConstant;//R_DrawSpanlet66;
-						else 
-							r_q2polydesc.drawspanlet = R_DrawSpanletConstant;//R_DrawSpanlet33;
-					}
-				}
-			}
-		}
-		*/
 	}
 
 	// clip to the frustum in worldspace

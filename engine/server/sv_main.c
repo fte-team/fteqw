@@ -3195,16 +3195,21 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_public,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen,	cvargroup_servercontrol);
+	sv_listen.restriction = RESTRICT_MAX;
 #ifdef TCPCONNECT
 	Cvar_Register (&sv_port_tcp,	cvargroup_servercontrol);
+	sv_port_tcp.restriction = RESTRICT_MAX;
 #endif
 #ifdef IPPROTO_IPV6
 	Cvar_Register (&sv_port_ipv6,	cvargroup_servercontrol);
+	sv_port_ipv6.restriction = RESTRICT_MAX;
 #endif
 #ifdef USEIPX
 	Cvar_Register (&sv_port_ipx,	cvargroup_servercontrol);
+	sv_port_ipx.restriction = RESTRICT_MAX;
 #endif
 	Cvar_Register (&sv_port,	cvargroup_servercontrol);
+	sv_port.restriction = RESTRICT_MAX;
 
 	Cvar_Register (&sv_reportheartbeats, cvargroup_servercontrol);
 

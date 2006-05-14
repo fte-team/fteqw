@@ -44,6 +44,7 @@ int				lightright, lightleftstep, lightrightstep, blockdivshift;
 unsigned		blockdivmask;
 void			*prowdestbase;
 unsigned char	*pbasesource;
+unsigned char   ptexcolor;
 int				surfrowbytes;	// used by ASM files
 unsigned		*r_lightptr;
 int				r_stepback;
@@ -59,6 +60,7 @@ void R_DrawSurfaceBlock16From8 (void);
 void R_DrawSurfaceBlock32From8 (void);
 void R_DrawSurfaceBlock32From8Lit (void);
 void R_DrawSurfaceBlock32From32Lit (void);
+void R_DrawSurfaceBlock8_notex (void);
 
 static void	(*surfmiptable[4])(void) = {
 	R_DrawSurfaceBlock8_mip0,
@@ -1052,7 +1054,6 @@ texture_t *SWR_TextureAnimation (texture_t *base)
 	return base;
 }
 
-
 /*
 ===============
 R_DrawSurface
@@ -1060,6 +1061,9 @@ R_DrawSurface
 */
 void R_DrawSurface (void)
 {
+	extern cvar_t r_drawflat;
+	extern int r_wallindex, r_floorindex;
+	extern unsigned char ptexcolor;
 	unsigned char	*basetptr;
 	int				smax, tmax, twidth;
 	int				u;
@@ -1099,7 +1103,16 @@ void R_DrawSurface (void)
 
 	if (r_pixbytes == 1 || r_pixbytes == 4)	//if we are using 4, textures are stored as 1 and expanded acording to palette
 	{
-		pblockdrawer = surfmiptable[r_drawsurf.surfmip];
+		if (r_drawflat.value)
+		{
+			if (r_drawsurf.surf->plane->normal[2] <= 0.5)
+				ptexcolor = r_wallindex;
+			else
+				ptexcolor = r_floorindex;
+			pblockdrawer = R_DrawSurfaceBlock8_notex;
+		}
+		else
+			pblockdrawer = surfmiptable[r_drawsurf.surfmip];
 	// TODO: only needs to be set when there is a display settings change
 		horzblockstep = blocksize;
 	}
@@ -1260,6 +1273,44 @@ void R_DrawSurface32 (void)
 }
 
 //=============================================================================
+void R_DrawSurfaceBlock8_notex (void)
+{
+	int				v, i, b, lightstep, lighttemp, light;
+	unsigned char	pix, *prowdest;
+
+	pix = ptexcolor;
+	prowdest = prowdestbase;
+
+	for (v=0 ; v<r_numvblocks ; v++)
+	{
+	// FIXME: make these locals?
+	// FIXME: use delta rather than both right and left, like ASM?
+		lightleft = r_lightptr[0];
+		lightright = r_lightptr[1];
+		r_lightptr += r_lightwidth;
+		lightleftstep = (r_lightptr[0] - lightleft) >> blockdivshift;
+		lightrightstep = (r_lightptr[1] - lightright) >> blockdivshift;
+
+		for (i=0 ; i<blocksize ; i++)
+		{
+			lighttemp = lightleft - lightright;
+			lightstep = lighttemp >> blockdivshift;
+
+			light = lightright;
+
+			for (b=blocksize-1; b>=0; b--)
+			{
+				prowdest[b] = ((unsigned char *)vid.colormap)
+						[(light & 0xFF00) + pix];
+				light += lightstep;
+			}
+	
+			lightright += lightrightstep;
+			lightleft += lightleftstep;
+			prowdest += surfrowbytes;
+		}
+	}
+}
 
 #if	!id386
 

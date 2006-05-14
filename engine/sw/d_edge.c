@@ -28,6 +28,7 @@ float		scale_for_mip;
 int			screenwidth;
 int			ubasestep, errorterm, erroradjustup, erroradjustdown;
 int			vstartscan;
+int r_wallindex, r_floorindex;
 
 // FIXME: should go away
 extern void			R_RotateBmodel (void);
@@ -78,7 +79,6 @@ D_DrawSolidSurface
 */
 
 // FIXME: clean this up
-
 void D_DrawSolidSurface (surf_t *surf, int color)
 {
 	espan_t	*span;
@@ -197,6 +197,22 @@ void D_CalcGradients (msurface_t *pface)
 	bbextentt = ((pface->extents[1] << 16) >> miplevel) - 1;
 }
 
+void SWR_Drawflat_Callback(struct cvar_s *var, char *oldvalue)
+{
+	D_FlushCaches();
+}
+
+void SWR_Floorcolour_Callback(struct cvar_s *var, char *oldvalue)
+{
+	r_floorindex = fbremapidx(SCR_StringToPalIndex(var->string, 255));
+	D_FlushCaches();
+}
+
+void SWR_Wallcolour_Callback(struct cvar_s *var, char *oldvalue)
+{
+	r_wallindex = fbremapidx(SCR_StringToPalIndex(var->string, 255));
+	D_FlushCaches();
+}
 
 /*
 ==============
@@ -212,7 +228,7 @@ void D_DrawSurfaces (void)
 	vec3_t			world_transformed_modelorg;
 	vec3_t			local_modelorg;
 	extern int r_dosirds;
-	extern cvar_t r_fastsky, r_fastskycolour;
+	extern cvar_t r_fastsky, r_fastskycolour, r_drawflat;
 
 	currententity = &r_worldentity;
 	TransformVector (modelorg, transformed_modelorg);
@@ -401,7 +417,6 @@ void D_DrawSurfaces (void)
 				cachewidth = pcurrentcache->width;
 
 				cacheheight = pcurrentcache->height;
-
 
 //				if (s->entity == &r_worldentity)	//temporary
 //				{

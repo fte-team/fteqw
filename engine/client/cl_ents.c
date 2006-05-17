@@ -49,8 +49,6 @@ static struct predicted_player {
 	player_state_t *oldstate;
 } predicted_players[MAX_CLIENTS];
 
-float newlerprate;
-
 extern int cl_playerindex, cl_h_playerindex, cl_rocketindex, cl_grenadeindex, cl_gib1index, cl_gib2index, cl_gib3index;
 
 qboolean CL_FilterModelindex(int modelindex, int frame)
@@ -2934,6 +2932,8 @@ void CL_LinkViewModel(void)
 	static int oldframe[MAX_SPLITS];
 	float alpha;
 
+	extern cvar_t cl_gunx, cl_guny, cl_gunz;
+
 #ifdef SIDEVIEWS
 	extern qboolean r_secondaryview;
 	if (r_secondaryview==1)
@@ -2963,9 +2963,6 @@ void CL_LinkViewModel(void)
 	if (!ent.model)
 		return;
 
-#ifdef PEXT_SCALE
-	ent.scale = r_viewmodelsize.value;
-#endif
 	if (r_drawviewmodel.value > 0 && r_drawviewmodel.value < 1)
 		alpha = r_drawviewmodel.value;
 	else
@@ -2975,6 +2972,10 @@ void CL_LinkViewModel(void)
 		&& r_drawviewmodelinvis.value > 0
 		&& r_drawviewmodelinvis.value < 1)
 		alpha *= r_drawviewmodelinvis.value;
+
+	ent.origin[0] = cl_gunz.value;
+	ent.origin[1] = -cl_gunx.value;
+	ent.origin[2] = -cl_guny.value;
 
 	ent.shaderRGBAf[0] = 1;
 	ent.shaderRGBAf[1] = 1;

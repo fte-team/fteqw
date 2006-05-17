@@ -301,7 +301,6 @@ void GL_Set2D (void);
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 qboolean R_CullSphere (vec3_t origin, float radius);
 void R_RotateForEntity (entity_t *e);
-void R_DrawAliasModel (entity_t *e);
 
 void GL_InitSceneProcessingShaders (void);
 void GL_SetupSceneProcessingTextures (void);

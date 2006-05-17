@@ -35,7 +35,6 @@ void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue);
 //
 
 cvar_t	r_drawviewmodel = SCVAR("r_drawviewmodel","1");
-cvar_t	r_viewmodelsize = SCVAR("r_viewmodelsize","1");
 cvar_t  r_drawviewmodelinvis = SCVAR("r_drawviewmodelinvis", "0");
 cvar_t	r_netgraph = SCVAR("r_netgraph","0");
 cvar_t	r_speeds = SCVARF("r_speeds","0", CVAR_CHEAT);
@@ -548,7 +547,6 @@ void Renderer_Init(void)
 //renderer
 	Cvar_Register (&r_fullbright, SCREENOPTIONS);
 	Cvar_Register (&r_drawentities, GRAPHICALNICETIES);
-	Cvar_Register (&r_viewmodelsize, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawviewmodel, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawviewmodelinvis, GRAPHICALNICETIES);
 	Cvar_Register (&r_waterwarp, GRAPHICALNICETIES);

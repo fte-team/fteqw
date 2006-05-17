@@ -71,8 +71,6 @@ mplane_t	*mirror_plane;
 msurface_t	*r_mirror_chain;
 qboolean	r_inmirror;	//or out-of-body
 
-void R_DrawAliasModel (entity_t *e);
-
 //
 // view origin
 //

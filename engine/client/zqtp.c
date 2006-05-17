@@ -45,6 +45,7 @@ typedef qboolean qbool;
 #define Com_Printf Con_Printf
 
 #define strlcpy Q_strncpyz
+#define strlcat Q_strncatz
 #define Q_stricmp stricmp
 #define Q_strnicmp strnicmp
 
@@ -64,33 +65,6 @@ qboolean suppress;
 #define isxdigit(x) (isdigit(x) || ((x) >= 'a' && (x) <= 'f'))
 */
 #define Q_rint(f) ((int)((f)+0.5))
-
-#ifndef HAVE_STRLCAT
-static size_t strlcat (char *dst, const char *src, size_t size)
-{
-	int dstlen = strlen(dst);
-	int srclen = strlen(src);
-	int len = dstlen + srclen;
-
-	if (len < size)
-	{
-		// it'll fit
-		memcpy (dst + dstlen, src, srclen + 1);
-		return len;
-	}
-
-	if (dstlen >= size - 1)
-		return srclen + size;
-
-	if (size == 0)
-		return srclen;
-
-	memcpy (dst + dstlen, src, size - 1 - dstlen);
-	dst[size - 1] = 0;
-
-	return len;
-}
-#endif
 
 // callbacks used for TP cvars
 void TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);

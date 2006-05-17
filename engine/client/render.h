@@ -354,7 +354,6 @@ extern	cvar_t	r_norefresh;
 extern	cvar_t	r_drawentities;
 extern	cvar_t	r_drawworld;
 extern	cvar_t	r_drawviewmodel;
-extern	cvar_t	r_viewmodelsize;
 extern	cvar_t	r_drawviewmodelinvis;
 extern	cvar_t	r_speeds;
 extern	cvar_t	r_waterwarp;

@@ -36,8 +36,6 @@ float			d_scalemip[NUM_MIPS-1];
 
 static float	basemip[NUM_MIPS-1] = {1.0, 0.5*0.8, 0.25*0.8};
 
-extern int			d_aflatcolor;
-
 void (*d_drawspans) (espan_t *pspan);
 
 void D_DrawSpans32 (espan_t *pspan);
@@ -182,8 +180,6 @@ void D_SetupFrame (void)
 				else
 					d_drawspans = d_smooth.value?D_DrawSpans8_Smooth:D_DrawSpans8;
 #endif				
-
-	d_aflatcolor = 0;
 }
 
 

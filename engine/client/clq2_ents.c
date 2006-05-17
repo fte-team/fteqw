@@ -1877,7 +1877,7 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	entity_t	gun;		// view model
 	int			i;
 	entity_t	*view;
-	extern cvar_t r_viewmodelsize;
+	extern cvar_t cl_gunx, cl_guny, cl_gunz;
 
 	// allow the gun to be completely removed
 	if (!r_drawviewmodel.value)
@@ -1905,7 +1905,6 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	if (!gun.model)
 		return;
 
-	gun.scale = r_viewmodelsize.value;
 	gun.shaderRGBAf[0] = 1;
 	gun.shaderRGBAf[1] = 1;
 	gun.shaderRGBAf[2] = 1;
@@ -1914,29 +1913,22 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	else
 		gun.shaderRGBAf[3] = 1;
 
+	gun.origin[0] = cl_gunz.value;
+	gun.origin[1] = -cl_gunx.value;
+	gun.origin[2] = -cl_guny.value;
+
 	// set up gun position
 	for (i=0 ; i<3 ; i++)
 	{
-		gun.origin[i] = 0;//ops->gunoffset[i]
-		//	+ cl.lerpfrac * (ps->gunoffset[i] - ops->gunoffset[i]);
 		gun.angles[i] = 0;//LerpAngle (ops->gunangles[i],
 		//	ps->gunangles[i], cl.lerpfrac);
 	}
-	gun.angles[0]*=-1;
 
-//	if (gun_frame)
-//	{
-//		gun.frame = gun_frame;	// development tool
-//		gun.oldframe = gun_frame;	// development tool
-//	}
-//	else
-	{
-		gun.frame = ps->gunframe;
-		if (gun.frame == 0)
-			gun.oldframe = 0;	// just changed weapons, don't lerp from old
-		else
-			gun.oldframe = ops->gunframe;
-	}
+	gun.frame = ps->gunframe;
+	if (gun.frame == 0)
+		gun.oldframe = 0;	// just changed weapons, don't lerp from old
+	else
+		gun.oldframe = ops->gunframe;
 
 	gun.flags = Q2RF_MINLIGHT | Q2RF_DEPTHHACK | Q2RF_WEAPONMODEL;
 	gun.lerpfrac = 1-cl.lerpfrac;

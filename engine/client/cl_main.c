@@ -120,6 +120,10 @@ cvar_t	v_powerupshell	= SCVAR("v_powerupshell", "0");
 cvar_t	cl_gibfilter	= SCVAR("cl_gibfilter", "0");
 cvar_t	cl_deadbodyfilter	= SCVAR("cl_deadbodyfilter", "0");
 
+cvar_t  cl_gunx = SCVAR("cl_gunx", "0");
+cvar_t  cl_guny = SCVAR("cl_guny", "0");
+cvar_t  cl_gunz = SCVAR("cl_gunz", "0");
+
 cvar_t	allow_download_csprogs = SCVAR("allow_download_csprogs", "0");
 
 cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
@@ -2697,6 +2701,10 @@ void CL_Init (void)
 	Cvar_Register (&cl_indepphysics, cl_controlgroup);
 	Cvar_Register (&cl_antibunch, "evil hacks");
 	Cvar_Register (&hud_tracking_show, "statusbar");
+
+	Cvar_Register (&cl_gunx, cl_controlgroup);
+	Cvar_Register (&cl_guny, cl_controlgroup);
+	Cvar_Register (&cl_gunz, cl_controlgroup);
 
 #ifdef WEBCLIENT
 	Cmd_AddCommand ("ftp", CL_FTP_f);

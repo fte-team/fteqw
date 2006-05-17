@@ -72,7 +72,6 @@ int	r_p0[6], r_p1[6], r_p2[6];
 
 qbyte		*d_pcolormap;
 
-int			d_aflatcolor;
 int			d_xdenom;
 
 edgetable	*pedgetable;
@@ -770,47 +769,6 @@ void D_PolysetDrawSpans16 (spanpackage_t *pspanpackage)
 		pspanpackage++;
 	} while (pspanpackage->count != -999999);
 }
-
-/*
-================
-D_PolysetFillSpans8
-================
-*/
-void D_PolysetFillSpans8Trans (spanpackage_t *pspanpackage)
-{
-	int				color;
-
-// FIXME: do z buffering
-
-	color = d_aflatcolor++;
-
-	while (1)
-	{
-		int		lcount;
-		qbyte	*lpdest;
-
-		lcount = pspanpackage->count;
-
-		if (lcount == -1)
-			return;
-
-		if (lcount)
-		{
-			lpdest = pspanpackage->pdest;
-
-			do
-			{
-				*lpdest = Trans(*lpdest, (unsigned char)color);
-				lpdest++;
-			} while (--lcount);
-		}
-
-		pspanpackage++;
-	}
-}
-
-
-
 
 void D_RasterizeAliasPolySmoothC (void)
 {
@@ -1892,44 +1850,6 @@ void D_PolysetDrawSpans8C (spanpackage_t *pspanpackage)
 
 		pspanpackage++;
 	} while (pspanpackage->count != -999999);
-}
-
-
-/*
-================
-D_PolysetFillSpans8
-================
-*/
-void D_PolysetFillSpans8 (spanpackage_t *pspanpackage)
-{
-	int				color;
-
-// FIXME: do z buffering
-
-	color = d_aflatcolor++;
-
-	while (1)
-	{
-		int		lcount;
-		qbyte	*lpdest;
-
-		lcount = pspanpackage->count;
-
-		if (lcount == -1)
-			return;
-
-		if (lcount)
-		{
-			lpdest = pspanpackage->pdest;
-
-			do
-			{
-				*lpdest++ = color;
-			} while (--lcount);
-		}
-
-		pspanpackage++;
-	}
 }
 
 /*

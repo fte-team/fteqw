@@ -242,34 +242,6 @@ void D_SCDump (void)
 
 //=============================================================================
 
-// if the num is not a power of 2, assume it will not repeat
-
-int     MaskForNum (int num)
-{
-	if (num==128)
-		return 127;
-	if (num==64)
-		return 63;
-	if (num==32)
-		return 31;
-	if (num==16)
-		return 15;
-	return 255;
-}
-
-int D_log2 (int num)
-{
-	int     c;
-	
-	c = 0;
-	
-	while (num>>=1)
-		c++;
-	return c;
-}
-
-//=============================================================================
-
 /*
 ================
 D_CacheSurface

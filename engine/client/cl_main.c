@@ -124,6 +124,10 @@ cvar_t  cl_gunx = SCVAR("cl_gunx", "0");
 cvar_t  cl_guny = SCVAR("cl_guny", "0");
 cvar_t  cl_gunz = SCVAR("cl_gunz", "0");
 
+cvar_t  cl_gunanglex = SCVAR("cl_gunanglex", "0");
+cvar_t  cl_gunangley = SCVAR("cl_gunangley", "0");
+cvar_t  cl_gunanglez = SCVAR("cl_gunanglez", "0");
+
 cvar_t	allow_download_csprogs = SCVAR("allow_download_csprogs", "0");
 
 cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
@@ -2705,6 +2709,10 @@ void CL_Init (void)
 	Cvar_Register (&cl_gunx, cl_controlgroup);
 	Cvar_Register (&cl_guny, cl_controlgroup);
 	Cvar_Register (&cl_gunz, cl_controlgroup);
+
+	Cvar_Register (&cl_gunanglex, cl_controlgroup);
+	Cvar_Register (&cl_gunangley, cl_controlgroup);
+	Cvar_Register (&cl_gunanglez, cl_controlgroup);
 
 #ifdef WEBCLIENT
 	Cmd_AddCommand ("ftp", CL_FTP_f);

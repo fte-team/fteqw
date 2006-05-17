@@ -1875,9 +1875,9 @@ CL_AddViewWeapon
 void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 {
 	entity_t	gun;		// view model
-	int			i;
 	entity_t	*view;
 	extern cvar_t cl_gunx, cl_guny, cl_gunz;
+	extern cvar_t cl_gunanglex, cl_gunangley, cl_gunanglez;
 
 	// allow the gun to be completely removed
 	if (!r_drawviewmodel.value)
@@ -1913,16 +1913,14 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	else
 		gun.shaderRGBAf[3] = 1;
 
+	// set up gun position
 	gun.origin[0] = cl_gunz.value;
 	gun.origin[1] = -cl_gunx.value;
 	gun.origin[2] = -cl_guny.value;
 
-	// set up gun position
-	for (i=0 ; i<3 ; i++)
-	{
-		gun.angles[i] = 0;//LerpAngle (ops->gunangles[i],
-		//	ps->gunangles[i], cl.lerpfrac);
-	}
+	gun.angles[0] = cl_gunanglex.value;
+	gun.angles[1] = cl_gunangley.value;
+	gun.angles[2] = cl_gunanglez.value;
 
 	gun.frame = ps->gunframe;
 	if (gun.frame == 0)

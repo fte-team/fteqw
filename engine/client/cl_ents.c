@@ -2933,6 +2933,7 @@ void CL_LinkViewModel(void)
 	float alpha;
 
 	extern cvar_t cl_gunx, cl_guny, cl_gunz;
+	extern cvar_t cl_gunanglex, cl_gunangley, cl_gunanglez;
 
 #ifdef SIDEVIEWS
 	extern qboolean r_secondaryview;
@@ -2976,6 +2977,10 @@ void CL_LinkViewModel(void)
 	ent.origin[0] = cl_gunz.value;
 	ent.origin[1] = -cl_gunx.value;
 	ent.origin[2] = -cl_guny.value;
+
+	ent.angles[0] = cl_gunanglex.value;
+	ent.angles[1] = cl_gunangley.value;
+	ent.angles[2] = cl_gunanglez.value;
 
 	ent.shaderRGBAf[0] = 1;
 	ent.shaderRGBAf[1] = 1;

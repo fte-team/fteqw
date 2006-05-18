@@ -1021,7 +1021,7 @@ void MasterInfo_ProcessHTTP(char *name, qboolean success, int type)
 			info->special = type;
 			info->refreshtime = 0;
 
-			sprintf(info->name, "%s", NET_AdrToString(info->adr));
+			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(info->adr));
 
 			info->next = firstserver;
 			firstserver = info;
@@ -1487,7 +1487,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 
 		info->adr = net_from;
 
-		sprintf(info->name, "%s", NET_AdrToString(info->adr));
+		snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(info->adr));
 
 		info->next = firstserver;
 		firstserver = info;
@@ -1723,7 +1723,7 @@ void CL_MasterListParse(int type, qboolean slashpad)
 			info->special = type;
 			info->refreshtime = 0;
 
-			sprintf(info->name, "%s", NET_AdrToString(info->adr));
+			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(info->adr));
 
 			info->next = last;
 			last = info;

@@ -505,7 +505,7 @@ void SV_Map_f (void)
 	}
 	else
 	{
-		sprintf (expanded, "maps/%s.bsp", level);
+		snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level);
 		if (!COM_FCheckExists (expanded))
 		{
 			//doesn't exist, so try lowercase. Q3 does this.
@@ -514,7 +514,7 @@ void SV_Map_f (void)
 				if (level[i] >= 'A' && level[i] <= 'Z')
 					level[i] = level[i] - 'A' + 'a';
 			}
-			sprintf (expanded, "maps/%s.bsp", level);
+			snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level);
 			if (!COM_FCheckExists (expanded))
 			{
 				Con_TPrintf (STL_CANTFINDMAP, expanded);
@@ -1389,7 +1389,7 @@ void SV_Floodprotmsg_f (void)
 		Con_TPrintf(STL_FLOODPROTMESSAGESYNTAX);
 		return;
 	}
-	sprintf(fp_msg, "%s", Cmd_Argv(1));
+	snprintf(fp_msg, sizeof(fp_msg), "%s", Cmd_Argv(1));
 }
 
 

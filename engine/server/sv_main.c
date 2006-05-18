@@ -2526,7 +2526,7 @@ void SV_WriteIP_f (void)
 	int		i;
 	char *s;
 
-	sprintf (name, "listip.cfg");
+	strcpy (name, "listip.cfg");
 
 	Con_Printf ("Writing %s.\n", name);
 

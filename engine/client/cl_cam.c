@@ -591,6 +591,12 @@ void Cam_TrackPlayer(int pnum, char *cmdname, char *plrarg)
 	int slot;
 	player_info_t	*s;
 
+	if (pnum >= MAX_SPLITS)
+	{
+		Con_Printf("This command is unavailable in this compilation.\n");
+		return;
+	}
+
 	if (cls.state <= ca_connected)
 	{
 		Con_Printf("Not connected.\n");
@@ -698,12 +704,6 @@ void Cam_Track2_f(void)
 		return;
 	}
 
-	if (MAX_SPLITS < 2)
-	{
-		Con_Printf("This command is unavailable in this compilation of FTE QuakeWorld.\n");
-		return;
-	}
-
 	Cam_TrackPlayer(1, Cmd_Argv(0), Cmd_Argv(1));
 }
 
@@ -715,12 +715,6 @@ void Cam_Track3_f(void)
 		return;
 	}
 
-	if (MAX_SPLITS < 3)
-	{
-		Con_Printf("This command is unavailable in this compilation of FTE QuakeWorld.\n");
-		return;
-	}
-
 	Cam_TrackPlayer(2, Cmd_Argv(0), Cmd_Argv(1));
 }
 
@@ -729,12 +723,6 @@ void Cam_Track4_f(void)
 	if (Cmd_Argc() < 2)
 	{
 		Con_Printf("Usage: %s userid|nick|off\n", Cmd_Argv(0));
-		return;
-	}
-
-	if (MAX_SPLITS < 4)
-	{
-		Con_Printf("This command is unavailable in this compilation of FTE QuakeWorld.\n");
 		return;
 	}
 

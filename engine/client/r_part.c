@@ -123,13 +123,15 @@ extern cvar_t gl_part_flame;
 
 // callbacks
 void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue);
+void R_Rockettrail_Callback(struct cvar_s *var, char *oldvalue);
+void R_Grenadetrail_Callback(struct cvar_s *var, char *oldvalue);
 
 cvar_t r_particlesdesc = SCVARFC("r_particlesdesc", "spikeset;tsshaft", CVAR_SEMICHEAT, R_ParticlesDesc_Callback);
 
 cvar_t r_part_rain_quantity = SCVAR("r_part_rain_quantity", "1");
 
-cvar_t r_rockettrail = SCVARF("r_rockettrail", "1", CVAR_SEMICHEAT);
-cvar_t r_grenadetrail = SCVARF("r_grenadetrail", "1", CVAR_SEMICHEAT);
+cvar_t r_rockettrail = SCVARFC("r_rockettrail", "1", CVAR_SEMICHEAT, R_Rockettrail_Callback);
+cvar_t r_grenadetrail = SCVARFC("r_grenadetrail", "1", CVAR_SEMICHEAT, R_Grenadetrail_Callback);
 
 cvar_t r_particle_tracelimit = SCVAR("r_particle_tracelimit", "250");
 cvar_t r_part_sparks = SCVAR("r_part_sparks", "1");
@@ -1076,6 +1078,12 @@ void P_SelectableTrail(model_t *model, cvar_t *selection, int mdleffect, int mdl
 	switch (select)
 	{
 	case 0: // check for string, otherwise no trail
+		if (selection->string[0] == '0')
+		{
+			model->particletrail = -1;		
+			break;
+		}
+		else
 		{
 			int effect = P_FindParticleType(selection->string);
 
@@ -1086,9 +1094,7 @@ void P_SelectableTrail(model_t *model, cvar_t *selection, int mdleffect, int mdl
 				break;
 			}
 		}
-
-		model->particletrail = -1;
-		break;
+		// fall through to default (so semicheat will work properly)
 	case 1: // default model effect
 	default:
 		model->particletrail = mdleffect;
@@ -1222,6 +1228,40 @@ void P_DefaultTrail (model_t *model)
 	}
 	else
 		model->particletrail = -1;
+}
+
+void R_Rockettrail_Callback(struct cvar_s *var, char *oldvalue)
+{
+	int i;
+	model_t *mod;
+	extern model_t	mod_known[];
+	extern int		mod_numknown;
+
+	if (cls.state == ca_disconnected)
+		return; // don't bother parsing while disconnected
+
+	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
+	{
+		if (mod->flags & EF_ROCKET)
+			P_DefaultTrail(mod);
+	}
+}
+
+void R_Grenadetrail_Callback(struct cvar_s *var, char *oldvalue)
+{
+	int i;
+	model_t *mod;
+	extern model_t	mod_known[];
+	extern int		mod_numknown;
+
+	if (cls.state == ca_disconnected)
+		return; // don't bother parsing while disconnected
+
+	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
+	{
+		if (mod->flags & EF_GRENADE)
+			P_DefaultTrail(mod);
+	}
 }
 
 #if _DEBUG

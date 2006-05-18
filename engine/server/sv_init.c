@@ -1165,9 +1165,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		if (val)
 		{
 			if (progstype == PROG_H2)
-				sprintf(sv.mapname, "%s", T_GetString(val->_float-1));
+				Q_snprintfz(sv.mapname, sizeof(sv.mapname), "%s", T_GetString(val->_float-1));
 			else
-				sprintf(sv.mapname, "%s", PR_GetString(svprogfuncs, val->string));
+				Q_snprintfz(sv.mapname, sizeof(sv.mapname), "%s", PR_GetString(svprogfuncs, val->string));
 		}
 		if (Cvar_Get("sv_readonlyworld", "1", 0, "DP compatability")->value)
 			ent->readonly = true;	//lock it down!

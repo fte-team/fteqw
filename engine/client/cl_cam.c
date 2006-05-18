@@ -586,12 +586,173 @@ void Cam_Reset(void)
 	}
 }
 
+void Cam_TrackPlayer(int pnum, char *cmdname, char *plrarg)
+{
+	int slot;
+	player_info_t	*s;
+
+	if (cls.state <= ca_connected)
+	{
+		Con_Printf("Not connected.\n");
+		return;
+	}
+
+	if (!cl.spectator)
+	{
+		Con_Printf("Not spectating.\n");
+		return;
+	}
+
+	if (!Q_strcasecmp(plrarg, "off"))
+	{
+		Cam_Unlock(pnum);
+		return;
+	}
+
+	// search nicks first
+	for (slot = 0; slot < MAX_CLIENTS; slot++)
+	{
+		s = &cl.players[slot];
+		if (s->name[0] && !s->spectator && !Q_strcasecmp(s->name, plrarg))
+			break;
+	}
+
+	if (slot == MAX_CLIENTS)
+	{
+		// didn't find nick, so search userids
+		int userid;
+		char *c;
+
+		// check if given arg is in fact a number
+		c = plrarg;
+		while (*c)
+		{
+			if (!isdigit(*c))
+			{
+				Con_Printf("Couldn't find nick %s\n", plrarg);
+				return;
+			}
+			c++;
+		}
+
+		userid = atoi(plrarg);
+
+		for (slot = 0; slot < MAX_CLIENTS; slot++)
+		{
+			s = &cl.players[slot];
+			if (s->name[0] && !s->spectator && s->userid == userid)
+				break;
+		}
+
+		if (slot == MAX_CLIENTS)
+		{
+			Con_Printf("Couldn't find userid %i\n", userid);
+			return;
+		}
+	}
+
+	autocam[pnum] = CAM_TRACK;
+	Cam_Lock(pnum, slot);
+	locked[pnum] = true;
+}
+
+void Cam_Track_f(void)
+{
+	int i, j;
+
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf("Usage: %s userid|nick|off\n", Cmd_Argv(0));
+		return;
+	}
+
+	i = 1;
+	j = Cmd_Argc() - 1;
+	if (j > MAX_SPLITS)
+		j = MAX_SPLITS;
+
+	while (j > 0)
+	{
+		Cam_TrackPlayer(i - 1, Cmd_Argv(0), Cmd_Argv(i));
+		i++;
+		j--;
+	}
+}
+
+void Cam_Track1_f(void)
+{
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf("Usage: %s userid|nick|off\n", Cmd_Argv(0));
+		return;
+	}
+
+	Cam_TrackPlayer(0, Cmd_Argv(0), Cmd_Argv(1));
+}
+
+void Cam_Track2_f(void)
+{
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf("Usage: %s userid|nick|off\n", Cmd_Argv(0));
+		return;
+	}
+
+	if (MAX_SPLITS < 2)
+	{
+		Con_Printf("This command is unavailable in this compilation of FTE QuakeWorld.\n");
+		return;
+	}
+
+	Cam_TrackPlayer(1, Cmd_Argv(0), Cmd_Argv(1));
+}
+
+void Cam_Track3_f(void)
+{
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf("Usage: %s userid|nick|off\n", Cmd_Argv(0));
+		return;
+	}
+
+	if (MAX_SPLITS < 3)
+	{
+		Con_Printf("This command is unavailable in this compilation of FTE QuakeWorld.\n");
+		return;
+	}
+
+	Cam_TrackPlayer(2, Cmd_Argv(0), Cmd_Argv(1));
+}
+
+void Cam_Track4_f(void)
+{
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf("Usage: %s userid|nick|off\n", Cmd_Argv(0));
+		return;
+	}
+
+	if (MAX_SPLITS < 4)
+	{
+		Con_Printf("This command is unavailable in this compilation of FTE QuakeWorld.\n");
+		return;
+	}
+
+	Cam_TrackPlayer(3, Cmd_Argv(0), Cmd_Argv(1));
+}
+
 void CL_InitCam(void)
 {
 	Cvar_Register (&cl_hightrack, cl_spectatorgroup);
 	Cvar_Register (&cl_chasecam, cl_spectatorgroup);
 //	Cvar_Register (&cl_camera_maxpitch, cl_spectatorgroup);
 //	Cvar_Register (&cl_camera_maxyaw, cl_spectatorgroup);
+
+	Cmd_AddCommand("track", Cam_Track_f);
+	Cmd_AddCommand("track1", Cam_Track1_f);
+	Cmd_AddCommand("track2", Cam_Track2_f);
+	Cmd_AddCommand("track3", Cam_Track3_f);
+	Cmd_AddCommand("track4", Cam_Track4_f);
 }
 
 

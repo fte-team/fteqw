@@ -188,7 +188,8 @@ extern "C" {
 #ifdef _WIN32
 #if (_MSC_VER >= 1400)
 //with MSVC 8, use MS extensions
-#define snprintf sprintf_s
+#define snprintf linuxlike_snprintf_vc8
+int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...);
 #define vsnprintf(a, b, c, d) vsnprintf_s(a, b, _TRUNCATE, c, d)
 #else
 //msvc crap

@@ -3112,6 +3112,18 @@ int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_lis
 
 	return ret;
 }
+#else
+int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...)
+{
+	int ret;
+	va_list		argptr;
+
+	va_start (argptr, format);
+	ret = vsnprintf_s (buffer,size, _TRUNCATE, format,argptr);
+	va_end (argptr);
+
+	return ret;
+}
 #endif
 
 #endif

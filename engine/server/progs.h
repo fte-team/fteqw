@@ -30,7 +30,6 @@ void Q_SetProgsParms(qboolean forcompiler);
 void PR_Deinit(void);
 void PR_LoadGlabalStruct(void);
 void Q_InitProgs(void);
-void PR_RegisterSVBuiltins(void);
 void PR_RegisterFields(void);
 void PR_Init(void);
 void ED_Spawned (struct edict_s *ent);

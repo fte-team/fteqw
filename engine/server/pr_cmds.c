@@ -55,6 +55,7 @@ cvar_t	progs = SCVARF("progs", "", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROM
 cvar_t	qc_nonetaccess = SCVAR("qc_nonetaccess", "0");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 
 cvar_t pr_overridebuiltins = SCVAR("pr_overridebuiltins", "1");
+cvar_t pr_brokenfloatconvert = SCVAR("pr_brokenfloatconvert", "0");
 
 cvar_t pr_compatabilitytest = SCVARF("pr_compatabilitytest", "0", CVAR_LATCH);
 
@@ -126,7 +127,6 @@ progparms_t svprogparms;
 
 progstype_t progstype;
 
-void PR_RegisterSVBuiltins(void);
 void PR_RegisterFields(void);
 void PR_ResetBuiltins(progstype_t type);
 
@@ -410,7 +410,6 @@ void Q_SetProgsParms(qboolean forcompiler)
 	if (!svprogfuncs)
 	{
 		svprogfuncs = InitProgs(&svprogparms);
-		PR_RegisterSVBuiltins();
 	}
 	PR_ClearThreads();
 	PR_fclose_progs(svprogfuncs);
@@ -935,6 +934,8 @@ void PR_Init(void)
 
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
+
+	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 
 	Cvar_Register (&sv_gameplayfix_honest_tracelines, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
@@ -3521,37 +3522,10 @@ void PF_ftos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (v == (int)v)
 		sprintf (pr_string_temp, "%d",(int)v);
-	else
+	else if (pr_brokenfloatconvert.value)
 		sprintf (pr_string_temp, "%5.1f",v);
-	RETURN_TSTRING(pr_string_temp);
-}
-void PF_ftosp(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float	v;
-	int num;
-	char *pr_string_temp = PF_TempStr(prinst);
-	v = G_FLOAT(OFS_PARM0);
-	num = G_FLOAT(OFS_PARM1);
-
-	switch(num)
-	{
-	case 1:
-		sprintf(pr_string_temp, "%1f", v);
-		break;
-	case 2:
-		sprintf(pr_string_temp, "%2f", v);
-		break;
-	case 3:
-		sprintf(pr_string_temp, "%3f", v);
-		break;
-	case 4:
-		sprintf(pr_string_temp, "%4f", v);
-		break;
-	default:
-		sprintf(pr_string_temp, "%f", v);
-		break;
-	}
-
+	else
+		sprintf (pr_string_temp, "%f",v);
 	RETURN_TSTRING(pr_string_temp);
 }
 
@@ -9868,48 +9842,6 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 builtin_t *pr_builtins = pr_builtin;
 int pr_numbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
-
-
-void PR_RegisterSVBuiltins(void)
-{/*
-	PR_RegisterBuiltin(svprogfuncs, "getmodelindex", &PF_WeapIndex);
-	PR_RegisterBuiltin(svprogfuncs, "tracebox", &PF_traceline);
-#ifdef Q2BSPS
-	PR_RegisterBuiltin(svprogfuncs, "SetAreaPortalState", &PF_OpenPortal);
-#endif
-	PR_RegisterBuiltin(svprogfuncs, "logtext", &PF_logstring);
-
-	PR_RegisterBuiltin(svprogfuncs, "newstring", &PF_newstring);
-	PR_RegisterBuiltin(svprogfuncs, "forgetstring", &PF_forgetstring);
-	PR_RegisterBuiltin(svprogfuncs, "strlen", &PF_strlen);
-	PR_RegisterBuiltin(svprogfuncs, "strcat", &PF_strcat);
-	PR_RegisterBuiltin(svprogfuncs, "strcatp", &PF_strcatp);
-	PR_RegisterBuiltin(svprogfuncs, "ftosp", &PF_ftosp);
-	PR_RegisterBuiltin(svprogfuncs, "redstring", &PF_redstring);
-
-#ifdef USEBULLETENS
-	PR_RegisterBuiltin(svprogfuncs, "bulleten", &PF_bulleten);
-#endif
-#ifdef SVCHAT
-	PR_RegisterBuiltin(svprogfuncs, "chat", &PF_chat);
-#endif
-
-	PR_RegisterBuiltin(svprogfuncs, "cvar_string", &PF_cvar_string);
-
-
-	PR_RegisterBuiltin(svprogfuncs, "_externcall", &PF_externcall);
-	PR_RegisterBuiltin(svprogfuncs, "_addprogs", &PF_addprogs);
-	PR_RegisterBuiltin(svprogfuncs, "_externvalue", &PF_externvalue);
-	PR_RegisterBuiltin(svprogfuncs, "_externset", &PF_externset);
-//	PR_RegisterBuiltin(svprogfuncs, "_externrefcall", &PF_externrefcall);
-	PR_RegisterBuiltin(svprogfuncs, "instr", &PF_instr);
-	PR_RegisterBuiltin(svprogfuncs, "temppointentity", &PF_tempentity);
-
-//these are for nq progs
-	PR_RegisterBuiltin(svprogfuncs, "logfrag", &PF_logfrag);
-	PR_RegisterBuiltin(svprogfuncs, "infokey", &PF_infokey);
-	PR_RegisterBuiltin(svprogfuncs, "stof", &PF_stof);*/
-}
 
 void PR_RegisterFields(void)	//it's just easier to do it this way.
 {

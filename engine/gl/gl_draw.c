@@ -2318,7 +2318,7 @@ void GL_Conback_Callback(struct cvar_s *var, char *oldvalue)
 	}
 	else
 #endif
-	if (!*var->string || !(newtex=Mod_LoadHiResTexture(var->string, "conbacks", false, true, true)))
+	if (!*var->string || !(newtex=Mod_LoadHiResTexture(var->string, "gfx", false, true, true)))
 	{
 		conback = default_conback;
 	}

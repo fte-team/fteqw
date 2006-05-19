@@ -375,7 +375,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	if (!gpath)
 		return 0;
 //	strcpy(apath, match);
-	sprintf(apath, "%s/%s", gpath, match);
+	Q_snprintfz(apath, sizeof(apath), "%s/%s", gpath, match);
 	for (s = apath+strlen(apath)-1; s> apath; s--)
 	{
 		if (*s == '/')			
@@ -384,7 +384,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	*s = '\0';
 
 	//this is what we ask windows for.
-	sprintf(file, "%s/*.*", apath);
+	Q_snprintfz(file, sizeof(file), "%s/*.*", apath);
 
 	//we need to make apath contain the path in match but not gpath
 	Q_strncpyz(apath2, match, sizeof(apath));
@@ -409,7 +409,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 		{
 			if (wildcmp(match, fd.cFileName))
 			{
-				sprintf(file, "%s%s/", apath2, fd.cFileName);
+				Q_snprintfz(file, sizeof(file), "%s%s/", apath2, fd.cFileName);
 				go = func(file, fd.nFileSizeLow, parm);
 			}
 		}
@@ -417,7 +417,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 		{
 			if (wildcmp(match, fd.cFileName))
 			{
-				sprintf(file, "%s%s", apath2, fd.cFileName);
+				Q_snprintfz(file, sizeof(file), "%s%s", apath2, fd.cFileName);
 				go = func(file, fd.nFileSizeLow, parm);
 			}
 		}

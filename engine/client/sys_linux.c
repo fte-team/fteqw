@@ -267,7 +267,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	if (s < apath)	//didn't find a '/'
 		*apath = '\0';
 
-	sprintf(truepath, "%s/%s", gpath, apath);
+	Q_snprintfz(truepath, sizeof(truepath), "%s/%s", gpath, apath);
 
 
 //printf("truepath = %s\n", truepath);
@@ -288,18 +288,18 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 		if (*ent->d_name != '.')
 			if (wildcmp(match, ent->d_name))
 			{
-				snprintf(file, sizeof(file)-1, "%s/%s", gpath, ent->d_name);
+				Q_snprintfz(file, sizeof(file), "%s/%s", gpath, ent->d_name);
 //would use stat, but it breaks on fat32.
 
 				if ((dir2 = opendir(file)))
 				{
 					closedir(dir2);
-					snprintf(file, sizeof(file)-1, "%s%s/", apath, ent->d_name);
+					Q_snprintfz(file, sizeof(file), "%s%s/", apath, ent->d_name);
 //printf("is directory = %s\n", file);
 				}
 				else
 				{
-					snprintf(file, sizeof(file)-1, "%s%s", apath, ent->d_name);
+					Q_snprintfz(file, sizeof(file), "%s%s", apath, ent->d_name);
 //printf("file = %s\n", file);
 				}
 

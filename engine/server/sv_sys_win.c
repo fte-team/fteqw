@@ -239,7 +239,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	char file[MAX_OSPATH];
 	char *s;
 	int go;
-	strcpy(apath, match);
+	Q_strncpyz(apath, match, sizeof(apath));
 //	sprintf(apath, "%s%s", gpath, match);
 	for (s = apath+strlen(apath)-1; s>= apath; s--)
 	{
@@ -251,7 +251,7 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 	
 
 
-	sprintf(file, "%s/%s", gpath, match);
+	Q_snprintfz(file, sizeof(file), "%s/%s", gpath, match);
 	r = FindFirstFile(file, &fd);
 	if (r==(HANDLE)-1)
 		return 1;
@@ -262,13 +262,13 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 		{
 			if (*fd.cFileName != '.')
 			{
-				sprintf(file, "%s%s/", apath, fd.cFileName);
+				Q_snprintfz(file, sizeof(file), "%s%s/", apath, fd.cFileName);
 				go = func(file, fd.nFileSizeLow, parm);
 			}
 		}
 		else
 		{
-			sprintf(file, "%s%s", apath, fd.cFileName);
+			Q_snprintfz(file, sizeof(file), "%s%s", apath, fd.cFileName);
 			go = func(file, fd.nFileSizeLow, parm);
 		}
 	}

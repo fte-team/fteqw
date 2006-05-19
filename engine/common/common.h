@@ -169,6 +169,7 @@ void MSG_ReadData (void *data, int len);
 
 char *Q_strcpyline(char *out, char *in, int maxlen);	//stops at '\n' (and '\r')
 
+void Q_ftoa(char *str, float in);
 char *Q_strlwr(char *str);
 int wildcmp(char *wild, char *string);	//1 if match
 

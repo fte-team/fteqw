@@ -3525,7 +3525,7 @@ void PF_ftos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else if (pr_brokenfloatconvert.value)
 		sprintf (pr_string_temp, "%5.1f",v);
 	else
-		sprintf (pr_string_temp, "%f",v);
+		Q_ftoa (pr_string_temp, v);
 	RETURN_TSTRING(pr_string_temp);
 }
 

@@ -328,6 +328,54 @@ int Q_strcasecmp (char *s1, char *s2)
 
 #endif
 
+// Q_ftoa: convert IEEE 754 float to a base-10 string with "infinite" decimal places
+void Q_ftoa(char *str, float in)
+{
+	unsigned int i = *((float *)&in);
+
+	int signbit = (i & 0x80000000) >> 31;
+	int exp = (signed int)((i & 0x7F800000) >> 23) - 127;
+	int mantissa = (i & 0x007FFFFF);
+
+	if (exp == 128) // 255(NaN/Infinity bits) - 127(bias)
+	{
+		if (signbit)
+		{
+			*str = '-';
+			str++;
+		}
+		if (mantissa == 0) // infinity
+			strcpy(str, "1.#INF");
+		else // NaN or indeterminate
+			strcpy(str, "1.#NAN");
+		return;
+	}
+
+	exp = -exp;
+	exp = (int)(exp * 0.30102999957f); // convert base 2 to base 10
+	exp += 11; // 
+
+	if (exp <= 0)
+		sprintf(str, "%f", in);
+	else
+	{
+		char tstr[8];
+		char *lsig = str - 1; // last significant character
+		sprintf(tstr, "%%.%if", exp);
+		sprintf(str, tstr, in);
+		// find last significant digit and trim
+		while (*str)
+		{
+			if (*str >= '1' && *str <= '9')
+				lsig = str;
+			else if (*str == '.')
+				lsig = str - 1;
+			str++;
+		}
+		lsig[1] = '\0';
+	}
+}
+
 char *Q_strlwr(char *s)
 {
 	char *ret=s;

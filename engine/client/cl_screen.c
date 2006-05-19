@@ -1193,6 +1193,8 @@ void SCR_DrawFPS (void)
 	extern int fps_count;
 	static float lastfps;
 	char str[80];
+	int sfps;
+	qboolean usemsecs = false;
 
 	if (!show_fps.value)
 		return;
@@ -1205,31 +1207,41 @@ void SCR_DrawFPS (void)
 		lastframetime = t;
 	}
 
-	if (show_fps.value == 2)	//alternate mode that displays the lowest noticed
+	sfps = show_fps.value;
+	if (sfps < 0)
 	{
+		sfps = -sfps;
+		usemsecs = true;
+	}
+
+	switch (sfps)
+	{
+	case 2: // lowest FPS, highest MS encountered
 		if (lastfps > 1/host_frametime)
 		{
 			lastfps = 1/host_frametime;
 			fps_count = 0;
 			lastframetime = t;
 		}
-	}
-	else if (show_fps.value == 3)	//alternate mode that displays the highest noticed
-	{
+		break;
+	case 3: // highest FPS, lowest MS encountered
 		if (lastfps < 1/host_frametime)
 		{
 			lastfps = 1/host_frametime;
 			fps_count = 0;
 			lastframetime = t;
 		}
-	}
-	else if (show_fps.value == 4)	//alternate mode that displays the highest noticed
-	{
+		break;
+	case 4:
 		lastfps = 1/host_frametime;
 		lastframetime = t;
+		break;
 	}
 
-	sprintf(str, "%3.1f FPS", lastfps);
+	if (usemsecs)
+		sprintf(str, "%4.1f MS", 1000.0/lastfps);
+	else
+		sprintf(str, "%3.1f FPS", lastfps);
 	SCR_StringXY(str, show_fps_x.value, show_fps_y.value);
 }
 

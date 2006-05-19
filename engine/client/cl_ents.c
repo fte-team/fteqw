@@ -2974,6 +2974,10 @@ void CL_LinkViewModel(void)
 		&& r_drawviewmodelinvis.value < 1)
 		alpha *= r_drawviewmodelinvis.value;
 
+#ifdef PEXT_SCALE
+	ent.scale = 1;
+#endif
+
 	ent.origin[0] = cl_gunz.value;
 	ent.origin[1] = -cl_gunx.value;
 	ent.origin[2] = -cl_guny.value;

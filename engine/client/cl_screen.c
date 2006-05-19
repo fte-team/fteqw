@@ -1232,7 +1232,7 @@ void SCR_DrawFPS (void)
 			lastframetime = t;
 		}
 		break;
-	case 4:
+	case 4: // immediate FPS/MS
 		lastfps = 1/host_frametime;
 		lastframetime = t;
 		break;

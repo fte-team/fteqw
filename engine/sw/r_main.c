@@ -25,7 +25,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 
-extern cvar_t r_drawviewmodel;
 extern cvar_t r_netgraph;
 extern cvar_t r_sirds;
 
@@ -823,124 +822,6 @@ void SWR_DrawEntitiesOnList (void)
 
 /*
 =============
-R_DrawViewModel
-=============
-*/
-void SWR_DrawViewModel (void)
-{
-	/*
-// FIXME: remove and do real lighting
-	float		lightvec[3] = {-1, 0, 0};
-	int			j;
-	int			lnum;
-	vec3_t		dist;
-	float		add;
-	dlight_t	*dl;
-
-	int pnum = r_refdef.currentplayernum;
-	static struct model_s *oldmodel[MAX_SPLITS];	
-	static float lerptime[MAX_SPLITS];
-	static int prevframe[MAX_SPLITS];
-
-#ifdef SIDEVIEWS
-	if (r_secondaryview==1)
-		return;
-#endif
-
-#ifdef Q2CLIENT
-	if (cls.q2server)
-		return;
-#endif
-	
-	if (!r_drawviewmodel.value || r_fov_greater_than_90 || !Cam_DrawViewModel(pnum))
-		return;
-
-	if (cl.stats[pnum][STAT_ITEMS] & IT_INVISIBILITY)
-		return;
-
-	if (cl.stats[pnum][STAT_HEALTH] <= 0)
-		return;
-
-
-	currententity = &cl.viewent[pnum];
-	if (!currententity->model)
-		return;
-
-	VectorCopy (currententity->origin, r_entorigin);
-	VectorSubtract (r_origin, r_entorigin, modelorg);
-
-	VectorCopy (vup, viewlightvec);
-	VectorInverse (viewlightvec);
-
-	j = SWR_LightPoint (currententity->origin);
-
-	if (j < 24)
-		j = 24;		// always give some light on gun
-	r_viewlighting.ambientlight = j;
-	r_viewlighting.shadelight = j;
-
-// add dynamic lights		
-	for (lnum=0 ; lnum<dlights_running ; lnum++)
-	{
-		dl = &cl_dlights[lnum];
-		if (!dl->radius)
-			continue;
-		if (dl->die < cl.time)
-			continue;
-
-		VectorSubtract (currententity->origin, dl->origin, dist);
-		add = dl->radius - Length(dist);
-		if (add > 0)
-			r_viewlighting.ambientlight += add;
-	}
-
-// clamp lighting so it doesn't overbright as much
-	if (r_viewlighting.ambientlight > 128)
-		r_viewlighting.ambientlight = 128;
-	if (r_viewlighting.ambientlight + r_viewlighting.shadelight > 192)
-		r_viewlighting.shadelight = 192 - r_viewlighting.ambientlight;
-
-	r_viewlighting.plightvec = lightvec;
-
-	currententity->scale = 1;
-	if (r_drawviewmodel.value > 0 && r_drawviewmodel.value < 1)
-		currententity->alpha = r_drawviewmodel.value;
-	else
-		currententity->alpha = 1;
-
-	if (currententity->frame != prevframe[pnum])
-	{
-		currententity->oldframe = prevframe[pnum];
-		lerptime[pnum] = realtime;
-	}
-	prevframe[pnum] = currententity->frame;
-
-	if (currententity->model != oldmodel[pnum])
-	{
-		oldmodel[pnum] = currententity->model;
-		currententity->oldframe = currententity->frame;
-		lerptime[pnum] = realtime;
-	}
-	currententity->lerptime = 1-(realtime-lerptime[pnum])*10;
-	if (currententity->lerptime<0)currententity->lerptime=0;
-
-	switch(currententity->model->type)
-	{
-	default:
-		Sys_Error("Invalid model type in R_DrawViewModel");
-		break;
-	case mod_alias:
-		R_AliasDrawModel (&r_viewlighting);
-		break;
-	case mod_dummy:
-		break;
-	}
-	*/
-}
-
-
-/*
-=============
 R_BmodelCheckBBox
 =============
 */
@@ -1425,7 +1306,6 @@ void SWR_RenderView_ (void)
 	{
 		D_ClearDepth();
 		SWR_DrawEntitiesOnList ();
-		SWR_DrawViewModel ();
 		return;
 	}
 
@@ -1472,8 +1352,6 @@ SetVisibilityByPassages ();
 		de_time2 = Sys_DoubleTime ();
 		dv_time1 = de_time2;
 	}
-
-	SWR_DrawViewModel ();
 
 	if (r_dspeeds.value)
 	{

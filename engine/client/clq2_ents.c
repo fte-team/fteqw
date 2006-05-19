@@ -1914,6 +1914,10 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 		gun.shaderRGBAf[3] = 1;
 
 	// set up gun position
+#ifdef PEXT_SCALE
+	gun.scale = 1;
+#endif
+
 	gun.origin[0] = cl_gunz.value;
 	gun.origin[1] = -cl_gunx.value;
 	gun.origin[2] = -cl_guny.value;

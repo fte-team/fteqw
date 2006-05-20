@@ -243,14 +243,14 @@ void R_InitSkyBox (void)
 
 	for (i=0 ; i<24 ; i++)
 		if (box_surfedges[i] > 0)
-			r_skysurfedges[i] = wm->numedges-12 + box_surfedges[i];
+			r_skysurfedges[i] = wm->numedges - 1 + box_surfedges[i];
 		else
-			r_skysurfedges[i] = - (wm->numedges-12 + -box_surfedges[i]);
+			r_skysurfedges[i] = -(wm->numedges - 1 + -box_surfedges[i]);
 
 	for(i=0 ; i<12 ; i++)
 	{
-		r_skyedges[i].v[0] = wm->numvertexes-8+box_edges[i*2+0];
-		r_skyedges[i].v[1] = wm->numvertexes-8+box_edges[i*2+1];
+		r_skyedges[i].v[0] = wm->numvertexes-1+box_edges[i*2+0];
+		r_skyedges[i].v[1] = wm->numvertexes-1+box_edges[i*2+1];
 		r_skyedges[i].cachededgeoffset = 0;
 	}
 

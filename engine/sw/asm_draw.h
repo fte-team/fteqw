@@ -107,7 +107,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // !!! if this is changed, it must be changed in model.h too !!!
 #define me_v				0
 #define me_cachededgeoffset	4
-#define me_size				8
 
 // mvertex_t structure
 // !!! if this is changed, it must be changed in model.h too !!!

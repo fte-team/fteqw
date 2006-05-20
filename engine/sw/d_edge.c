@@ -298,6 +298,7 @@ void D_DrawSurfaces (void)
 				}
 				cacheblock = (qbyte *)pface->texinfo->texture + pface->texinfo->texture->offsets[0];
 				cachewidth = 256;
+				cacheheight = 256;
 
 				d_zistepu = s->d_zistepu;
 				d_zistepv = s->d_zistepv;
@@ -309,7 +310,6 @@ void D_DrawSurfaces (void)
 					D_DrawSpans16From8(s->spans);
 				else
 					(*d_drawspans) (s->spans);
-//				D_DrawSolidSurface (s, (int)15);
 
 			// set up a gradient for the background surface that places it
 			// effectively at infinity distance from the viewpoint

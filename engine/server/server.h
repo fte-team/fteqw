@@ -650,6 +650,7 @@ typedef struct
 typedef struct bannedips_s {
 	struct bannedips_s *next;
 	netadr_t	adr;
+	netadr_t	adrmask;
 } bannedips_t;
 
 typedef enum {
@@ -1060,7 +1061,6 @@ void ClientReliableWrite_SZ(client_t *cl, void *data, int len);
 
 #ifdef  SVRANKING
 //flags
-#define RANK_BANNED		1
 #define RANK_MUTED		2
 #define RANK_CUFFED		4
 #define RANK_CRIPPLED	8	//ha ha... get speed cheaters with this!... :o)

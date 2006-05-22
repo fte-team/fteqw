@@ -1762,21 +1762,10 @@ client_t *SVC_DirectConnect(void)
 		bannedips_t *banip;
 		for (banip = svs.bannedips; banip; banip=banip->next)
 		{
-			if (banip->adr.port)
+			if (NET_CompareAdrMasked(adr, banip->adr, banip->adrmask))
 			{
-				if (NET_CompareAdr (adr, newcl->netchan.remote_address))
-				{
-					SV_RejectMessage (protocol, "You were banned.\nContact the administrator to complain.\n");
-					return NULL;
-				}
-			}
-			else
-			{
-				if (NET_CompareBaseAdr (adr, newcl->netchan.remote_address))
-				{
-					SV_RejectMessage (protocol, "You were banned.\nContact the administrator to complain.\n");
-					return NULL;
-				}
+				SV_RejectMessage (protocol, "You were banned.\nContact the administrator to complain.\n");
+				return NULL;
 			}
 		}
 		//yay, a legit client who we havn't banned yet.
@@ -1910,16 +1899,6 @@ client_t *SVC_DirectConnect(void)
 			if (!Rank_GetPlayerStats(newcl->rankid, &rs))
 			{
 				SV_RejectMessage (protocol, "Rankings/Account system failed\n");
-				Con_Printf("banned player %s is trying to connect\n", newcl->name);
-				newcl->name[0] = 0;
-				memset (newcl->userinfo, 0, sizeof(newcl->userinfo));
-				newcl->state = cs_free;
-				return NULL;
-			}
-
-			if (rs.flags1 & RANK_BANNED)
-			{
-				SV_RejectMessage (protocol, "You were banned.\nContact the administrator to complain.\n");
 				Con_Printf("banned player %s is trying to connect\n", newcl->name);
 				newcl->name[0] = 0;
 				memset (newcl->userinfo, 0, sizeof(newcl->userinfo));

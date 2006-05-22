@@ -575,6 +575,323 @@ qboolean	NET_StringToAdr (char *s, netadr_t *a)
 	return true;
 }
 
+// NET_IntegerToMask: given a source address pointer, a mask address pointer, and
+// desired number of bits, fills the mask pointer with given bits 
+// (bits < 0 will always fill all bits)
+void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
+{
+	int i;
+	qbyte *n;
+
+	memset (amask, 0, sizeof(*amask));
+	amask->type = a->type;
+
+	if (bits < 0)
+		i = 8000; // fill all bits
+	else
+		i = bits;
+
+	switch (amask->type)
+	{
+#ifdef USEIPX
+	case NA_IPX:
+	case NA_BROADCAST_IPX:
+		n = amask->address.ipx;
+		if (i > 80)
+			i = 80;
+		for (; i >= 8; i -= 8)
+		{
+			*n = 0xFF;
+			n++;
+		}
+
+		// fill last bit
+		if (i)
+		{
+			i = (~((1 << i) - 1)) & 0xFF;
+			*n = i;
+		}
+		break;
+#endif
+#ifdef IPPROTO_IPV6
+	case NA_IPV6:
+	case NA_BROADCAST_IP6:
+		n = amask->address.ip6;
+		if (i > 128)
+			i = 128;
+		for (; i >= 8; i -= 8)
+		{
+			*n = 0xFF;
+			n++;
+		}
+
+		// fill last bit
+		if (i)
+		{
+			i = (~((1 << i) - 1)) & 0xFF;
+			*n = i;
+		}
+		break;
+#endif
+	case NA_IP:
+	case NA_BROADCAST_IP:
+		n = amask->address.ip;
+		if (i > 32)
+			i = 32;
+		for (; i >= 8; i -= 8)
+		{
+			*n = 0xFF;
+			n++;
+		}
+
+		// fill last bit
+		if (i)
+		{
+			i = (~((1 << i) - 1)) & 0xFF;
+			*n = i;
+		}
+		break;
+	}
+}
+
+// NET_StringToAdrMasked: extension to NET_StringToAdr to handle IP addresses
+// with masks or integers representing the bit masks
+qboolean NET_StringToAdrMasked (char *s, netadr_t *a, netadr_t *amask)
+{
+	char t[64];
+	char *spoint;
+	int i;
+
+	spoint = strchr(s, '/');
+
+	if (spoint)
+	{
+		// we have a slash in the address so split and resolve separately
+		char *c;
+
+		i = spoint - s;
+		if (i + 1 > sizeof(t))
+			i = sizeof(t);
+
+		Q_strncpyz(t, s, i);
+		if (!NET_StringToAdr(t, a))
+			return false;
+		spoint++;
+		
+		c = spoint;
+		if (!*c)
+			return false;
+
+		while (*c) // check for non-numeric characters
+		{
+			if (*c < '0' || *c > '9')
+			{
+				c = NULL;
+				break;
+			}
+			c++;
+		}
+
+		if (c == NULL) // we have an address so resolve it and return
+			return NET_StringToAdr(spoint, amask);
+
+		// otherwise generate mask for given bits
+		i = atoi(spoint);
+		NET_IntegerToMask(a, amask, i);
+	}
+	else
+	{
+		// we don't have a slash, resolve and fill with a full mask
+		if (!NET_StringToAdr(s, a))
+			return false;
+
+		memset (amask, 0, sizeof(*amask));
+		amask->type = a->type;
+
+		NET_IntegerToMask(a, amask, -1);
+	}
+
+	return true;
+}
+
+// NET_CompareAdrMasked: given 3 addresses, 2 to compare with a complimentary mask,
+// returns true or false if they match
+qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask)
+{
+	int i;
+
+	// check to make sure all types match
+	if (a.type != b.type || a.type != mask.type)
+		return false;
+
+	// check port if both are non-zero
+	if (a.port && b.port && a.port != b.port)
+		return false;
+
+	// match on protocol type and compare address
+	switch (a.type)
+	{
+	case NA_LOOPBACK:
+		return true;
+	case NA_BROADCAST_IP:
+	case NA_IP:
+		for (i = 0; i < 4; i++)
+		{
+			if ((a.address.ip[i] & mask.address.ip[i]) != (b.address.ip[i] & mask.address.ip[i]))
+				return false;
+		}
+		break;
+#ifdef IPPROTO_IPV6
+	case NA_BROADCAST_IP6:
+	case NA_IPV6:
+		for (i = 0; i < 16; i++)
+		{
+			if ((a.address.ip6[i] & mask.address.ip6[i]) != (b.address.ip6[i] & mask.address.ip6[i]))
+				return false;
+		}
+		break;
+#endif
+#ifdef USEIPX
+	case NA_BROADCAST_IPX:
+	case NA_IPX:
+		for (i = 0; i < 10; i++)
+		{
+			if ((a.address.ipx[i] & mask.address.ipx[i]) != (b.address.ipx[i] & mask.address.ipx[i]))
+				return false;
+		}
+		break;
+#endif
+	default:
+		return false; // invalid protocol
+	}
+
+	return true; // all checks passed
+}
+
+// UniformMaskedBits: counts number of bits in an assumed uniform mask, returns
+// -1 if not uniform
+int UniformMaskedBits(netadr_t mask)
+{
+	int bits;
+	int b;
+	int bs;
+	qboolean bitenc = false;
+
+	switch (mask.type)
+	{
+	case NA_BROADCAST_IP:
+	case NA_IP:
+		bits = 32;
+		for (b = 3; b >= 0; b--)
+		{
+			if (mask.address.ip[b] == 0xFF)
+				bitenc = true;
+			else if (mask.address.ip[b])
+			{
+				bs = ~mask.address.ip[b];
+				while (bs)
+				{
+					if (bs & 1)
+					{
+						bits -= 1;
+						if (bitenc)
+							return -1;
+					}
+					else
+						bitenc = true;
+					bs >>= 1;
+				}
+			}
+			else if (bitenc)
+				return -1;
+			else
+				bits -= 8;
+		}
+		break;
+#ifdef IPPROTO_IPV6
+	case NA_BROADCAST_IP6:
+	case NA_IPV6:
+		bits = 128;
+		for (b = 15; b >= 0; b--)
+		{
+			if (mask.address.ip6[b] == 0xFF)
+				bitenc = true;
+			else if (mask.address.ip6[b])
+			{
+				bs = ~mask.address.ip6[b];
+				while (bs)
+				{
+					if (bs & 1)
+					{
+						bits -= 1;
+						if (bitenc)
+							return -1;
+					}
+					else
+						bitenc = true;
+					bs >>= 1;
+				}
+			}
+			else if (bitenc)
+				return -1;
+			else
+				bits -= 8;
+		}
+		break;
+#endif
+#ifdef USEIPX
+	case NA_BROADCAST_IPX:
+	case NA_IPX:
+		bits = 80;
+		for (b = 9; b >= 0; b--)
+		{
+			if (mask.address.ipx[b] == 0xFF)
+				bitenc = true;
+			else if (mask.address.ipx[b])
+			{
+				bs = ~mask.address.ipx[b];
+				while (bs)
+				{
+					if (bs & 1)
+					{
+						bits -= 1;
+						if (bitenc)
+							return -1;
+					}
+					else
+						bitenc = true;
+					bs >>= 1;
+				}
+			}
+			else if (bitenc)
+				return -1;
+			else
+				bits -= 8;
+		}
+		break;
+#endif
+	default:
+		return -1; // invalid protocol
+	}
+
+	return bits; // all checks passed
+}
+
+char	*NET_AdrToStringMasked (netadr_t a, netadr_t amask)
+{
+	static	char	s[128];
+	int i;
+
+	i = UniformMaskedBits(amask);
+
+	if (i >= 0)
+		sprintf(s, "%s/%i", NET_AdrToString(a), i);
+	else
+		sprintf(s, "%s/%s", NET_AdrToString(a), NET_AdrToString(amask));
+
+	return s;
+}
+
 // Returns true if we can't bind the address locally--in other words,
 // the IP is NOT one of our interfaces.
 qboolean NET_IsClientLegal(netadr_t *adr)

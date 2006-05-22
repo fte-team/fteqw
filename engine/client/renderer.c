@@ -210,7 +210,7 @@ extern	cvar_t	r_waterwarp;
 extern	cvar_t	r_fullbright;
 extern	cvar_t	r_shadows;
 extern	cvar_t	r_mirroralpha;
-extern	cvar_t	r_wateralpha;
+cvar_t	r_wateralpha = SCVAR("r_wateralpha","1");
 cvar_t	r_dynamic	= SCVARF("r_dynamic","1", CVAR_ARCHIVE);
 cvar_t	r_flashblend	= SCVARF("gl_flashblend","0", CVAR_ARCHIVE);
 cvar_t	r_lightstylesmooth	= SCVAR("r_lightstylesmooth", "0");

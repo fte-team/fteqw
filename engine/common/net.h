@@ -84,6 +84,11 @@ qboolean NET_IsClientLegal(netadr_t *adr);
 
 qboolean	NET_IsLoopBackAddress (netadr_t adr);
 
+qboolean NET_StringToAdrMasked (char *s, netadr_t *a, netadr_t *amask);
+char	*NET_AdrToStringMasked (netadr_t a, netadr_t amask);
+void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits);
+qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask);
+
 //============================================================================
 
 #define	OLD_AVG		0.99		// total = oldtotal*OLD_AVG + new*(1-OLD_AVG)

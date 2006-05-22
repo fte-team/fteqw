@@ -104,7 +104,6 @@ cvar_t	r_norefresh = SCVAR("r_norefresh","0");
 //cvar_t	r_speeds = SCVAR("r_speeds","0");
 //cvar_t	r_fullbright = SCVAR("r_fullbright","0");
 cvar_t	r_mirroralpha = SCVARF("r_mirroralpha","1", CVAR_CHEAT);
-cvar_t	r_wateralpha = SCVAR("r_wateralpha","1");
 //cvar_t	r_waterwarp = SCVAR("r_waterwarp", "0");
 cvar_t	r_novis = SCVAR("r_novis","0");
 //cvar_t	r_netgraph = SCVAR("r_netgraph","0");

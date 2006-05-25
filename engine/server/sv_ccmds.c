@@ -454,7 +454,7 @@ void SV_Map_f (void)
 		return;
 	}
 
-	strcpy (level, Cmd_Argv(1));
+	Q_strncpyz (level, Cmd_Argv(1), sizeof(level));
 	startspot = ((Cmd_Argc() == 2)?NULL:Cmd_Argv(2));
 
 	waschangelevel = !strcmp(Cmd_Argv(0), "changelevel");

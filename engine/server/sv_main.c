@@ -3258,7 +3258,7 @@ void SV_Masterlist_Callback(struct cvar_s *var, char *oldvalue)
 	if (!sv_masterlist[i].cv.name)
 		return;
 
-	if (*var->string)
+	if (!*var->string)
 	{
 		sv_masterlist[i].adr.port = 0;
 		return;

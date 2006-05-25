@@ -605,11 +605,6 @@ void Model_NextDownload (void)
 
 	CL_AllowIndependantSendCmd(false);	//stop it now, the indep stuff *could* require model tracing.
 
-
-//	if (cl.worldmodel->type != mod_brush && cl.worldmodel->type != mod_heightmap)
-//		Host_EndGame("Worldmodel must be a bsp of some sort\n");
-
-
 	Hunk_Check ();		// make sure nothing is hurt
 
 	cl.sendprespawn = true;
@@ -696,7 +691,7 @@ int CL_LoadModels(int stage)
 	if (atstage())
 	{
 		cl.worldmodel = cl.model_precache[1];
-		if (!cl.worldmodel)
+		if (!cl.worldmodel || cl.worldmodel->type == mod_dummy)
 			Host_EndGame("Worldmodel wasn't sent\n");
 
 		R_CheckSky();
@@ -713,7 +708,7 @@ int CL_LoadModels(int stage)
 	if (atstage())
 	{
 		loadmodel = cl.worldmodel;
-		if (!loadmodel)
+		if (!loadmodel || loadmodel->type == mod_dummy)
 			Host_EndGame("No worldmodel was loaded\n");
 
 		if (R_PreNewMap)
@@ -724,7 +719,7 @@ int CL_LoadModels(int stage)
 	if (atstage())
 	{
 		loadmodel = cl.worldmodel;
-		if (!loadmodel)
+		if (!loadmodel || loadmodel->type == mod_dummy)
 			Host_EndGame("No worldmodel was loaded\n");
 		Mod_NowLoadExternal();
 
@@ -736,7 +731,7 @@ int CL_LoadModels(int stage)
 	if (atstage())
 	{
 		loadmodel = cl.worldmodel;
-		if (!loadmodel)
+		if (!loadmodel || loadmodel->type == mod_dummy)
 			Host_EndGame("No worldmodel was loaded\n");
 		R_NewMap ();
 

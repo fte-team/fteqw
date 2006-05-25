@@ -67,7 +67,7 @@ qbyte Trans(qbyte p, qbyte p2)
 
 qbyte AddBlend(qbyte p, qbyte p2)
 {
-	int x, y;
+	unsigned int x, y;
 
 	x = (srctable[p] + dsttable[p2]);
 	y = x & 0x40100400; // overflow bits

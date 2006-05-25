@@ -651,7 +651,14 @@ typedef struct bannedips_s {
 	struct bannedips_s *next;
 	netadr_t	adr;
 	netadr_t	adrmask;
+	char reason[1];
 } bannedips_t;
+
+typedef struct filteredip_s {
+	struct filteredip_s *next;
+	netadr_t	adr;
+	netadr_t	adrmask;
+} filteredips_t;
 
 typedef enum {
 	GT_PROGS,	//q1, qw, h2 are similar enough that we consider it only one game mode. (We don't support the h2 protocol)
@@ -711,6 +718,7 @@ typedef struct
 	challenge_t	challenges[MAX_CHALLENGES];	// to prevent invalid IPs from connecting
 
 	bannedips_t *bannedips;
+	filteredips_t *filteredips;
 
 	char progsnames[MAX_PROGS][32];
 	progsnum_t progsnum[MAX_PROGS];

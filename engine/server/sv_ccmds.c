@@ -638,11 +638,19 @@ void SV_BanName_f (void)
 {
 	client_t	*cl;
 	int clnum=-1;
+	char *reason = NULL;
+	int reasonsize = 0;
 
 	if (Cmd_Argc() < 2)
 	{
-		Con_Printf("%s userid|nick\n", Cmd_Argv(0));
+		Con_Printf("%s userid|nick [reason]\n", Cmd_Argv(0));
 		return;
+	}
+
+	if (Cmd_Argc() > 2)
+	{
+		reason = Cmd_Argv(2);
+		reasonsize = strlen(reason);
 	}
 
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
@@ -656,13 +664,15 @@ void SV_BanName_f (void)
 			continue;
 		}
 
-		nb = Z_Malloc(sizeof(bannedips_t));
+		nb = Z_Malloc(sizeof(bannedips_t)+reasonsize);
 		nb->next = svs.bannedips;
 		nb->adr = cl->netchan.remote_address;
 		NET_IntegerToMask(&nb->adr, &nb->adrmask, -1); // fill mask
 		if (*Cmd_Argv(2))	//explicit blocking of all ports of a client ip
 			nb->adr.port = 0;
 		svs.bannedips = nb;
+		if (reasonsize)
+			Q_strcpy(nb->reason, reason);
 
 		SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTWASBANNED, cl->name);
 		// print directly, because the dropped client won't get the
@@ -682,10 +692,12 @@ void SV_BanIP_f (void)
 	int i;
 	client_t	*cl;
 	bannedips_t *nb;
+	char *reason = NULL;
+	int reasonsize = 0;
 
 	if (Cmd_Argc() < 2)
 	{
-		Con_Printf("%s address/mask|adress/maskbits\n", Cmd_Argv(0));
+		Con_Printf("%s address/mask|adress/maskbits [reason]\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -699,6 +711,12 @@ void SV_BanIP_f (void)
 	{
 		Con_Printf("You're not allowed to ban loopback!\n");
 		return;
+	}
+
+	if (Cmd_Argc() > 2)
+	{
+		reason = Cmd_Argv(2);
+		reasonsize = strlen(reason);
 	}
 
 	// loop through clients and kick the ones that match
@@ -719,11 +737,58 @@ void SV_BanIP_f (void)
 	}
 
 	// add IP and mask to ban list
-	nb = Z_Malloc(sizeof(bannedips_t));
+	nb = Z_Malloc(sizeof(bannedips_t)+reasonsize);
 	nb->next = svs.bannedips;
 	nb->adr = banadr;
 	nb->adrmask = banmask;
 	svs.bannedips = nb;
+	if (reasonsize)
+		Q_strcpy(nb->reason, reason);
+}
+
+void SV_FilterIP_f (void)
+{
+	netadr_t banadr;
+	netadr_t banmask;
+	int i;
+	client_t	*cl;
+	filteredips_t *nb;
+	extern cvar_t filterban;
+
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf("%s address/mask|adress/maskbits\n", Cmd_Argv(0));
+		return;
+	}
+
+	if (!NET_StringToAdrMasked(Cmd_Argv(1), &banadr, &banmask))
+	{
+		Con_Printf("invalid address or mask\n");
+		return;
+	}
+
+	if (NET_IsLoopBackAddress(banadr))
+	{
+		Con_Printf("You're not allowed to filter loopback!\n");
+		return;
+	}
+
+	// loop through clients and kick the ones that match
+	for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
+	{
+		if (cl->state<=cs_zombie)
+			continue;
+
+		if (filterban.value && NET_CompareAdrMasked(cl->netchan.remote_address, banadr, banmask))
+			SV_DropClient (cl);
+	}
+
+	// add IP and mask to filter list
+	nb = Z_Malloc(sizeof(filteredips_t));
+	nb->next = svs.filteredips;
+	nb->adr = banadr;
+	nb->adrmask = banmask;
+	svs.filteredips = nb;
 }
 
 void SV_BanList_f (void)
@@ -733,12 +798,30 @@ void SV_BanList_f (void)
 
 	while (nb)
 	{
-		Con_Printf("%s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask));
+		if (nb->reason[0])
+			Con_Printf("%s, %s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask), nb->reason);
+		else
+			Con_Printf("%s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask));
 		bancount++;
 		nb = nb->next;
 	}
 
 	Con_Printf("%i total entries in ban list\n", bancount);
+}
+
+void SV_FilterList_f (void)
+{
+	int filtercount = 0;
+	filteredips_t *nb = svs.filteredips;
+
+	while (nb)
+	{
+		Con_Printf("%s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask));
+		filtercount++;
+		nb = nb->next;
+	}
+
+	Con_Printf("%i total entries in filter list\n", filtercount);
 }
 
 void SV_Unban_f (void)
@@ -766,12 +849,50 @@ void SV_Unban_f (void)
 	while (nb)
 	{
 		nbnext = nb->next;
-		if (NET_CompareAdrMasked(nb->adr, unbanadr, unbanmask))
+		if (all || NET_CompareAdrMasked(nb->adr, unbanadr, unbanmask))
 		{
 			if (!all)
 				Con_Printf("unbanned %s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask));
 			if (svs.bannedips == nb)
 				svs.bannedips = nbnext;
+			Z_Free(nb);
+		}
+
+		nb = nbnext;
+	}
+}
+
+void SV_Unfilter_f (void)
+{
+	qboolean all = false;
+	filteredips_t *nb = svs.filteredips;
+	filteredips_t *nbnext;
+	netadr_t unbanadr = {0};
+	netadr_t unbanmask = {0};
+
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf("%s address/mask|address/maskbits|all\n", Cmd_Argv(0));
+		return;
+	}
+
+	if (!Q_strcasecmp(Cmd_Argv(1), "all"))
+		all = true;
+	else if (!NET_StringToAdrMasked(Cmd_Argv(1), &unbanadr, &unbanmask))
+	{
+		Con_Printf("invalid address or mask\n");
+		return;
+	}
+
+	while (nb)
+	{
+		nbnext = nb->next;
+		if (all || NET_CompareAdrMasked(nb->adr, unbanadr, unbanmask))
+		{
+			if (!all)
+				Con_Printf("unfiltered %s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask));
+			if (svs.filteredips == nb)
+				svs.filteredips = nbnext;
 			Z_Free(nb);
 		}
 
@@ -1806,6 +1927,16 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("unban", SV_Unban_f);
 //	Cmd_AddCommand ("ban", SV_BanName_f);
 	Cmd_AddCommand ("status", SV_Status_f);
+
+	Cmd_AddCommand ("addip", SV_FilterIP_f);
+	Cmd_AddCommand ("removeip", SV_Unfilter_f);
+	Cmd_AddCommand ("listip", SV_FilterList_f);
+
+//	Cmd_AddCommand ("filterip", SV_FilterIP_f);
+//	Cmd_AddCommand ("unfilter", SV_Unfilter_f);
+//	Cmd_AddCommand ("filterlist", SV_FilterList_f);
+
+//	Cmd_AddCommand ("writeip", SV_WriteIP_f);
 
 	Cmd_AddCommand ("sv", SV_SendGameCommand_f);
 

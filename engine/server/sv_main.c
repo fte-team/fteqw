@@ -196,6 +196,7 @@ void SV_FixupName(char *in, char *out);
 void SV_AcceptClient (netadr_t adr, int userid, char *userinfo);
 void Master_Shutdown (void);
 void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
+bannedips_t *SV_BannedAddress (netadr_t *a);
 
 //============================================================================
 
@@ -1757,18 +1758,16 @@ client_t *SVC_DirectConnect(void)
 		}
 	}
 
-
 	{
-		bannedips_t *banip;
-		for (banip = svs.bannedips; banip; banip=banip->next)
+		bannedips_t *banip = SV_BannedAddress(&adr);
+		if (banip)
 		{
-			if (NET_CompareAdrMasked(adr, banip->adr, banip->adrmask))
-			{
-				SV_RejectMessage (protocol, "You were banned.\nContact the administrator to complain.\n");
-				return NULL;
-			}
+			if (banip->reason[0])
+				SV_RejectMessage (protocol, "You were banned.\nReason: %s\n", banip->reason);
+			else
+				SV_RejectMessage (protocol, "You were banned.\n");
+			return NULL;
 		}
-		//yay, a legit client who we havn't banned yet.
 	}
 
 	edictnum = (newcl-svs.clients)+1;
@@ -2091,6 +2090,15 @@ void SVC_RemoteCommand (void)
 	int		i;
 	char	remaining[1024];
 
+	{
+		bannedips_t *banip = SV_BannedAddress(&net_from);
+		if (banip)
+		{
+			Con_Printf ("Rcon from banned ip %s\n", NET_AdrToString (net_from));
+			return;
+		}
+	}
+
 	if (!Rcon_Validate ())
 	{
 #ifdef SVRANKING
@@ -2362,135 +2370,7 @@ If 0, then only addresses matching the list will be allowed.  This lets you easi
 ==============================================================================
 */
 
-
-typedef struct
-{
-	unsigned	mask;
-	unsigned	compare;
-} ipfilter_t;
-
-#define	MAX_IPFILTERS	1024
-
-ipfilter_t	ipfilters[MAX_IPFILTERS];
-int			numipfilters;
-
 cvar_t	filterban = SCVAR("filterban", "1");
-
-/*
-=================
-StringToFilter
-=================
-*/
-qboolean StringToFilter (char *s, ipfilter_t *f)
-{
-	char	num[128];
-	int		i, j;
-	qbyte	b[4];
-	qbyte	m[4];
-
-	for (i=0 ; i<4 ; i++)
-	{
-		b[i] = 0;
-		m[i] = 0;
-	}
-
-	for (i=0 ; i<4 ; i++)
-	{
-		if (*s < '0' || *s > '9')
-		{
-			Con_Printf ("Bad filter address: %s\n", s);
-			return false;
-		}
-
-		j = 0;
-		while (*s >= '0' && *s <= '9')
-		{
-			num[j++] = *s++;
-		}
-		num[j] = 0;
-		b[i] = atoi(num);
-		if (b[i] != 0)
-			m[i] = 255;
-
-		if (!*s)
-			break;
-		s++;
-	}
-
-	f->mask = *(unsigned *)m;
-	f->compare = *(unsigned *)b;
-
-	return true;
-}
-
-/*
-=================
-SV_AddIP_f
-=================
-*/
-void SV_AddIP_f (void)
-{
-	int		i;
-
-	for (i=0 ; i<numipfilters ; i++)
-		if (ipfilters[i].compare == 0xffffffff)
-			break;		// free spot
-	if (i == numipfilters)
-	{
-		if (numipfilters == MAX_IPFILTERS)
-		{
-			Con_Printf ("IP filter list is full\n");
-			return;
-		}
-		numipfilters++;
-	}
-
-	if (!StringToFilter (Cmd_Argv(1), &ipfilters[i]))
-		ipfilters[i].compare = 0xffffffff;
-}
-
-/*
-=================
-SV_RemoveIP_f
-=================
-*/
-void SV_RemoveIP_f (void)
-{
-	ipfilter_t	f;
-	int			i, j;
-
-	if (!StringToFilter (Cmd_Argv(1), &f))
-		return;
-	for (i=0 ; i<numipfilters ; i++)
-		if (ipfilters[i].mask == f.mask
-		&& ipfilters[i].compare == f.compare)
-		{
-			for (j=i+1 ; j<numipfilters ; j++)
-				ipfilters[j-1] = ipfilters[j];
-			numipfilters--;
-			Con_Printf ("Removed.\n");
-			return;
-		}
-	Con_Printf ("Didn't find %s.\n", Cmd_Argv(1));
-}
-
-/*
-=================
-SV_ListIP_f
-=================
-*/
-void SV_ListIP_f (void)
-{
-	int		i;
-	qbyte	b[4];
-
-	Con_Printf ("Filter list:\n");
-	for (i=0 ; i<numipfilters ; i++)
-	{
-		*(unsigned *)b = ipfilters[i].compare;
-		Con_Printf ("%3i.%3i.%3i.%3i\n", b[0], b[1], b[2], b[3]);
-	}
-}
 
 /*
 =================
@@ -2499,6 +2379,8 @@ SV_WriteIP_f
 */
 void SV_WriteIP_f (void)
 {
+// TODO: function needs to be rewritten to handle new banning and filtering logic
+/*
 	vfsfile_t	*f;
 	char	name[MAX_OSPATH];
 	qbyte	b[4];
@@ -2524,23 +2406,7 @@ void SV_WriteIP_f (void)
 	}
 
 	VFS_CLOSE (f);
-}
-
-/*
-=================
-SV_SendBan
-=================
 */
-void SV_SendBan (void)
-{
-	char		data[128];
-
-	data[0] = data[1] = data[2] = data[3] = 0xff;
-	data[4] = A2C_PRINT;
-	data[5] = 0;
-	strcat (data, "\nbanned.\n");
-
-	NET_SendPacket (NS_SERVER, strlen(data), data, net_from);
 }
 
 /*
@@ -2548,18 +2414,32 @@ void SV_SendBan (void)
 SV_FilterPacket
 =================
 */
-qboolean SV_FilterPacket (void)
+qboolean SV_FilterPacket (netadr_t *a)
 {
-	int		i;
-	unsigned	in;
+	filteredips_t *banip;
 
-	in = *(unsigned *)net_from.address.ip;
+	if (NET_IsLoopBackAddress(*a))
+		return 0; // never filter loopback
 
-	for (i=0 ; i<numipfilters ; i++)
-		if ( (in & ipfilters[i].mask) == ipfilters[i].compare)
+	for (banip = svs.filteredips; banip; banip=banip->next)
+	{
+		if (NET_CompareAdrMasked(*a, banip->adr, banip->adrmask))
 			return filterban.value;
-
+	}
 	return !filterban.value;
+}
+
+// SV_BannedAdress, run through ban address list and return corresponding bannedips_t
+// pointer, otherwise return NULL if not in the list
+bannedips_t *SV_BannedAddress (netadr_t *a)
+{
+	bannedips_t *banip;
+	for (banip = svs.bannedips; banip; banip=banip->next)
+	{
+		if (NET_CompareAdrMasked(*a, banip->adr, banip->adrmask))
+			return banip;
+	}
+	return NULL;
 }
 
 //send a network packet to a new non-connected client.
@@ -2598,11 +2478,8 @@ void SV_ReadPackets (void)
 	good = false;
 	while (SV_GetPacket ())
 	{
-		if (SV_FilterPacket ())
-		{
-			SV_SendBan ();	// tell them we aren't listening...
+		if (SV_FilterPacket (&net_from))
 			continue;
-		}
 
 		// check for connectionless packet (0xffffffff) first
 		if (*(int *)net_message.data == -1)
@@ -3234,11 +3111,6 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_maxdrate, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_nailhack, cvargroup_servercontrol);
-
-	Cmd_AddCommand ("addip", SV_AddIP_f);
-	Cmd_AddCommand ("removeip", SV_RemoveIP_f);
-	Cmd_AddCommand ("listip", SV_ListIP_f);
-	Cmd_AddCommand ("writeip", SV_WriteIP_f);
 
 	Cmd_AddCommand ("sv_impulse", SV_Impulse_f);
 

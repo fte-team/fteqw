@@ -580,7 +580,7 @@ qboolean	NET_StringToAdr (char *s, netadr_t *a)
 // (bits < 0 will always fill all bits)
 void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 {
-	int i;
+	unsigned int i;
 	qbyte *n;
 
 	memset (amask, 0, sizeof(*amask));
@@ -608,7 +608,8 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 		// fill last bit
 		if (i)
 		{
-			i = (~((1 << i) - 1)) & 0xFF;
+			i = 8 - i;
+			i = 255 - ((1 << i) - 1);
 			*n = i;
 		}
 		break;
@@ -628,7 +629,8 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 		// fill last bit
 		if (i)
 		{
-			i = (~((1 << i) - 1)) & 0xFF;
+			i = 8 - i;
+			i = 255 - ((1 << i) - 1);
 			*n = i;
 		}
 		break;
@@ -647,11 +649,60 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 		// fill last bit
 		if (i)
 		{
-			i = (~((1 << i) - 1)) & 0xFF;
+			i = 8 - i;
+			i = 255 - ((1 << i) - 1);
 			*n = i;
 		}
 		break;
 	}
+}
+
+// ParsePartialIPv4: check string to see if it is a partial IPv4 address and
+// return bits to mask and set netadr_t or 0 if not an address
+int ParsePartialIPv4(char *s, netadr_t *a)
+{
+	char *colon = NULL;
+	char *address = a->address.ip;
+	int bits = 8;
+
+	if (!*s)
+		return 0;
+
+	memset (a, 0, sizeof(*a));
+	while (*s)
+	{
+		if (*s == ':')
+		{
+			if (colon) // only 1 colon
+				return 0;
+			colon = s + 1;
+		}
+		else if (*s == '.')
+		{
+			if (colon) // no colons before periods (probably invalid anyway)
+				return 0;
+			else if (bits >= 32) // only 32 bits in ipv4
+				return 0; 
+			else if (*(s+1) == '.') 
+				return 0;
+			else if (*(s+1) == '\0')
+				break; // don't add more bits to the mask for x.x., etc
+			bits += 8;
+			address++;
+		}
+		else if (*s >= '0' && *s <= '9')
+			*address = ((*address)*10) + (*s-'0');
+		else
+			return 0; // invalid character
+
+		s++;
+	}
+
+	a->type = NA_IP;
+	if (colon)
+		a->port = atoi(colon);
+
+	return bits;
 }
 
 // NET_StringToAdrMasked: extension to NET_StringToAdr to handle IP addresses
@@ -669,12 +720,12 @@ qboolean NET_StringToAdrMasked (char *s, netadr_t *a, netadr_t *amask)
 		// we have a slash in the address so split and resolve separately
 		char *c;
 
-		i = spoint - s;
-		if (i + 1 > sizeof(t))
+		i = (int)(spoint - s) + 1;
+		if (i > sizeof(t))
 			i = sizeof(t);
 
 		Q_strncpyz(t, s, i);
-		if (!NET_StringToAdr(t, a))
+		if (!ParsePartialIPv4(t, a) && !NET_StringToAdr(t, a))
 			return false;
 		spoint++;
 		
@@ -693,7 +744,7 @@ qboolean NET_StringToAdrMasked (char *s, netadr_t *a, netadr_t *amask)
 		}
 
 		if (c == NULL) // we have an address so resolve it and return
-			return NET_StringToAdr(spoint, amask);
+			return ParsePartialIPv4(spoint, amask) || NET_StringToAdr(spoint, amask);
 
 		// otherwise generate mask for given bits
 		i = atoi(spoint);
@@ -702,13 +753,17 @@ qboolean NET_StringToAdrMasked (char *s, netadr_t *a, netadr_t *amask)
 	else
 	{
 		// we don't have a slash, resolve and fill with a full mask
-		if (!NET_StringToAdr(s, a))
+		i = ParsePartialIPv4(s, a);
+		if (!i && !NET_StringToAdr(s, a))
 			return false;
 
 		memset (amask, 0, sizeof(*amask));
 		amask->type = a->type;
 
-		NET_IntegerToMask(a, amask, -1);
+		if (i)
+			NET_IntegerToMask(a, amask, i);
+		else
+			NET_IntegerToMask(a, amask, -1);
 	}
 
 	return true;
@@ -774,7 +829,7 @@ int UniformMaskedBits(netadr_t mask)
 {
 	int bits;
 	int b;
-	int bs;
+	unsigned int bs;
 	qboolean bitenc = false;
 
 	switch (mask.type)
@@ -788,7 +843,7 @@ int UniformMaskedBits(netadr_t mask)
 				bitenc = true;
 			else if (mask.address.ip[b])
 			{
-				bs = ~mask.address.ip[b];
+				bs = (~mask.address.ip[b]) & 0xFF;
 				while (bs)
 				{
 					if (bs & 1)
@@ -818,7 +873,7 @@ int UniformMaskedBits(netadr_t mask)
 				bitenc = true;
 			else if (mask.address.ip6[b])
 			{
-				bs = ~mask.address.ip6[b];
+				bs = (~mask.address.ip6[b]) & 0xFF;
 				while (bs)
 				{
 					if (bs & 1)
@@ -849,7 +904,7 @@ int UniformMaskedBits(netadr_t mask)
 				bitenc = true;
 			else if (mask.address.ipx[b])
 			{
-				bs = ~mask.address.ipx[b];
+				bs = (~mask.address.ipx[b]) & 0xFF;
 				while (bs)
 				{
 					if (bs & 1)
@@ -887,7 +942,13 @@ char	*NET_AdrToStringMasked (netadr_t a, netadr_t amask)
 	if (i >= 0)
 		sprintf(s, "%s/%i", NET_AdrToString(a), i);
 	else
-		sprintf(s, "%s/%s", NET_AdrToString(a), NET_AdrToString(amask));
+	{
+		// has to be done this way due to NET_AdrToString returning a
+		// static address
+		Q_strncatz(s, NET_AdrToString(a), sizeof(s));
+		Q_strncatz(s, "/", sizeof(s));
+		Q_strncatz(s, NET_AdrToString(amask), sizeof(s));
+	}
 
 	return s;
 }

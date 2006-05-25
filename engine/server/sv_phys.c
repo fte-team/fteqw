@@ -54,12 +54,12 @@ cvar_t	sv_friction			 = SCVAR( "sv_friction", "4");
 cvar_t	sv_waterfriction	 = SCVAR( "sv_waterfriction", "4");
 cvar_t	sv_gameplayfix_noairborncorpse = SCVAR( "sv_gameplayfix_noairborncorpse", "0");
 
-cvar_t	pm_ktjump			 = SCVARF("pm_ktjump", "", CVAR_SERVERINFO);
-cvar_t	pm_bunnyspeedcap	 = SCVARF("pm_bunnyspeedcap", "", CVAR_SERVERINFO);
-cvar_t	pm_slidefix			 = SCVARF("pm_slidefix", "", CVAR_SERVERINFO);
-cvar_t	pm_slidyslopes		 = SCVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
-cvar_t	pm_airstep			 = SCVARF("pm_airstep", "", CVAR_SERVERINFO);
-cvar_t	pm_walljump			 = SCVARF("pm_walljump", "", CVAR_SERVERINFO);
+cvar_t	pm_ktjump			 = SCVARF("pm_ktjump", "0", CVAR_SERVERINFO);
+cvar_t	pm_bunnyspeedcap	 = SCVARF("pm_bunnyspeedcap", "0", CVAR_SERVERINFO);
+cvar_t	pm_slidefix			 = SCVARF("pm_slidefix", "0", CVAR_SERVERINFO);
+cvar_t	pm_slidyslopes		 = SCVARF("pm_slidyslopes", "0", CVAR_SERVERINFO);
+cvar_t	pm_airstep			 = SCVARF("pm_airstep", "0", CVAR_SERVERINFO);
+cvar_t	pm_walljump			 = SCVARF("pm_walljump", "0", CVAR_SERVERINFO);
 
 extern cvar_t sv_nomsec;
 

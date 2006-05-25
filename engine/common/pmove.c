@@ -49,26 +49,38 @@ void PM_Init (void)
 #define BLOCKED_ANY		7
 
 /*
+** Add an entity to touch list, discarding duplicates
+*/
+static void PM_AddTouchedEnt (int num)
+{
+	int i;
+
+	if (pmove.numtouch == sizeof(pmove.touchindex)/sizeof(pmove.touchindex[0]))
+		return;
+
+	for (i = 0; i < pmove.numtouch; i++)
+		if (pmove.touchindex[i] == num)
+			return;		// already added
+
+	pmove.touchindex[pmove.numtouch] = num;
+	pmove.numtouch++;
+}
+
+
+/*
 ==================
 PM_ClipVelocity
 
 Slide off of the impacting object
-returns the blocked flags (1 = floor, 2 = step / wall)
 ==================
 */
 
-int PM_ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
+void PM_ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
 {
 	float	backoff;
 	float	change;
-	int		i, blocked;
-
-	blocked = 0;
-	if (normal[2] > 0)
-		blocked |= BLOCKED_FLOOR;		// floor
-	if (!normal[2])
-		blocked |= BLOCKED_STEP;		// step
-
+	int		i;
+	
 	backoff = DotProduct (in, normal) * overbounce;
 
 	for (i=0 ; i<3 ; i++)
@@ -78,8 +90,6 @@ int PM_ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
 		if (out[i] > -STOP_EPSILON && out[i] < STOP_EPSILON)
 			out[i] = 0;
 	}
-
-	return blocked;
 }
 
 
@@ -138,11 +148,7 @@ int PM_SlideMove (void)
 			 break;		// moved the entire distance
 
 		// save entity for contact
-		if (pmove.numtouch < MAX_PHYSENTS)
-		{
-			pmove.touchindex[pmove.numtouch] = trace.entnum;
-			pmove.numtouch++;
-		}
+		PM_AddTouchedEnt (trace.entnum);
 
 		if (trace.plane.normal[2] >= MIN_STEP_NORMAL)
 			blocked |= BLOCKED_FLOOR;
@@ -237,13 +243,14 @@ Each intersection will try to step over the obstruction instead of
 sliding along it.
 =============
 */
-void PM_StepSlideMove (void)
+int PM_StepSlideMove (qboolean in_air)
 {
 	vec3_t	dest;
 	trace_t	trace;
 	vec3_t	original, originalvel, down, up, downvel;
 	float	downdist, updist;
 	int		blocked;
+	float	stepsize;
 
 	// try sliding forward both on ground and up 16 pixels
 	// take the move that goes farthest
@@ -253,7 +260,33 @@ void PM_StepSlideMove (void)
 	blocked = PM_SlideMove ();
 
 	if (!blocked)
-		return;		// moved the entire distance
+		return blocked;		// moved the entire distance
+
+	if (in_air) 
+	{
+		// don't let us step up unless it's indeed a step we bumped in
+		// (that is, there's solid ground below)
+		float *org;
+
+		if (!(blocked & BLOCKED_STEP))
+			return blocked;
+
+		//FIXME: "pmove.velocity < 0" ???? :)
+		// Of course I meant pmove.velocity[2], but I'm afraid I don't understand
+		// the code's purpose any more, so let it stay just this way for now :)  -- Tonik
+		org = (pmove.velocity < 0) ? pmove.origin : original;	// cryptic, eh?
+		VectorCopy (org, dest);
+		dest[2] -= pm_stepheight;
+		trace = PM_PlayerTrace (org, dest);
+		if (trace.fraction == 1 || trace.plane.normal[2] < MIN_STEP_NORMAL)
+			return blocked;
+
+		// adjust stepsize, otherwise it would be possible to walk up a
+		// a step higher than STEPSIZE
+		stepsize = pm_stepheight - (org[2] - trace.endpos[2]);
+	}
+	else
+		stepsize = pm_stepheight;
 
 	VectorCopy (pmove.origin, down);
 	VectorCopy (pmove.velocity, downvel);
@@ -263,7 +296,7 @@ void PM_StepSlideMove (void)
 
 // move up a stair height
 	VectorCopy (pmove.origin, dest);
-	dest[2] += pm_stepheight;
+	dest[2] += stepsize;
 	trace = PM_PlayerTrace (pmove.origin, dest);
 	if (!trace.startsolid && !trace.allsolid)
 	{
@@ -274,7 +307,7 @@ void PM_StepSlideMove (void)
 
 // press down the stepheight
 	VectorCopy (pmove.origin, dest);
-	dest[2] -= pm_stepheight;
+	dest[2] -= stepsize;
 	trace = PM_PlayerTrace (pmove.origin, dest);
 	if (trace.fraction != 1 && trace.plane.normal[2] < MIN_STEP_NORMAL)
 		goto usedown;
@@ -299,7 +332,7 @@ void PM_StepSlideMove (void)
 usedown:
 		VectorCopy (down, pmove.origin);
 		VectorCopy (downvel, pmove.velocity);
-		return;
+		return blocked;
 	}
 
 	// copy z value from slide move
@@ -313,6 +346,8 @@ usedown:
 		pmove.velocity[0] *= scale;
 		pmove.velocity[1] *= scale;
 	}
+
+	return blocked;
 }
 
 
@@ -501,7 +536,7 @@ void PM_WaterMove (void)
 //
 	PM_Accelerate (wishdir, wishspeed, movevars.wateraccelerate);
 
-	PM_StepSlideMove ();
+	PM_StepSlideMove (false);
 }
 
 
@@ -528,8 +563,8 @@ void PM_FlyMove ()
 	}
 
 	PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
-
-	PM_StepSlideMove ();
+	
+	PM_StepSlideMove (false);
 }
 
 void PM_LadderMove (void)
@@ -619,10 +654,18 @@ void PM_AirMove (void)
 
 	if (pmove.onground)
 	{
-		if (pmove.velocity[2] > 0 || !movevars.slidefix)
+		if (movevars.slidefix)
+		{
+			pmove.velocity[2] = min(pmove.velocity[2], 0);	// bound above by 0
+			PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
+			// add gravity
+			pmove.velocity[2] -= movevars.entgravity * movevars.gravity * frametime;
+		}
+		else
+		{
 			pmove.velocity[2] = 0;
-		PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
-		pmove.velocity[2] -= movevars.entgravity * movevars.gravity * frametime;
+			PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
+		}
 
 		if (!pmove.velocity[0] && !pmove.velocity[1] && !movevars.slidyslopes)
 		{
@@ -632,20 +675,22 @@ void PM_AirMove (void)
 		else if (!movevars.slidefix && !movevars.slidyslopes)
 			pmove.velocity[2] = 0;
 
-		PM_StepSlideMove ();
+		PM_StepSlideMove(false);
 	}
 	else
-	{	// not on ground, so little effect on velocity
+	{
+		int blocked;
+		
+		// not on ground, so little effect on velocity
 		PM_AirAccelerate (wishdir, wishspeed, movevars.accelerate);
-//		PM_Accelerate (wishdir, wishspeed, movevars.airaccelerate);
 
 		// add gravity
 		pmove.velocity[2] -= movevars.entgravity * movevars.gravity * frametime;
 
 		if (movevars.airstep)
-			PM_StepSlideMove ();
+			blocked = PM_StepSlideMove (true);
 		else
-			PM_SlideMove ();
+			blocked = PM_SlideMove ();
 	}
 }
 
@@ -691,12 +736,7 @@ void PM_CategorizePosition (void)
 
 		// standing on an entity other than the world
 		if (trace.entnum > 0)
-		{
-			if (pmove.numtouch < MAX_PHYSENTS) {
-				pmove.touchindex[pmove.numtouch] = trace.entnum;
-				pmove.numtouch++;
-			}
-		}
+			PM_AddTouchedEnt (trace.entnum);
 	}
 
 //
@@ -770,7 +810,7 @@ void PM_CategorizePosition (void)
 	}
 #endif
 
-	if (pmove.onground && pmove.pm_type != PM_FLY && pmove.waterlevel < 3)
+	if (pmove.onground && pmove.pm_type != PM_FLY && pmove.waterlevel < 2)
 	{
 		// snap to ground so that we can't jump higher than we're supposed to
 		if (!trace.startsolid && !trace.allsolid)
@@ -825,8 +865,7 @@ void PM_CheckJump (void)
 
 	// check for jump bug
 	// groundplane normal was set in the call to PM_CategorizePosition
-	if (pmove.velocity[2] < 0 &&
-		DotProduct(pmove.velocity, groundplane.normal) < -0.1)
+	if (pmove.velocity[2] < 0 && DotProduct(pmove.velocity, groundplane.normal) < -0.1)
 	{
 		// pmove.velocity is pointing into the ground, clip it
 		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);
@@ -860,7 +899,7 @@ void PM_CheckWaterJump (void)
 	int		cont;
 	vec3_t	flatforward;
 
-	if (pmove.waterjumptime>0)
+	if (pmove.waterjumptime)
 		return;
 
 	// don't hop out if we just jumped in

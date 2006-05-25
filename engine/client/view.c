@@ -85,14 +85,14 @@ cvar_t	crosshairalpha = SCVAR("crosshairalpha", "1");
 
 cvar_t	gl_cshiftpercent = SCVAR("gl_cshiftpercent", "100");
 
-cvar_t	v_bonusflash = SCVAR("v_bonusflash", "0");
+cvar_t	v_bonusflash = SCVAR("v_bonusflash", "1");
 
-cvar_t  v_contentblend = SCVARF("v_contentblend", "0", CVAR_ARCHIVE);
-cvar_t	v_damagecshift = SCVAR("v_damagecshift", "0");
-cvar_t	v_quadcshift = SCVAR("v_quadcshift", "0");
-cvar_t	v_suitcshift = SCVAR("v_suitcshift", "0");
-cvar_t	v_ringcshift = SCVAR("v_ringcshift", "0");
-cvar_t	v_pentcshift = SCVAR("v_pentcshift", "0");
+cvar_t  v_contentblend = SCVARF("v_contentblend", "1", CVAR_ARCHIVE);
+cvar_t	v_damagecshift = SCVAR("v_damagecshift", "1");
+cvar_t	v_quadcshift = SCVAR("v_quadcshift", "1");
+cvar_t	v_suitcshift = SCVAR("v_suitcshift", "1");
+cvar_t	v_ringcshift = SCVAR("v_ringcshift", "1");
+cvar_t	v_pentcshift = SCVAR("v_pentcshift", "1");
 cvar_t	v_gunkick = SCVAR("v_gunkick", "0");
 
 cvar_t	v_viewheight = SCVAR("v_viewheight", "0");

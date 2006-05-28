@@ -814,6 +814,11 @@ void CLNQ_SendCmd(void)
 	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
 	cl.allowsendpacket = false;
 }
+#else
+void Name_Callback(struct cvar_s *var, char *oldvalue)
+{
+
+}
 #endif
 
 float CL_FilterTime (double time, float wantfps)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.

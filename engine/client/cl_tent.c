@@ -165,6 +165,9 @@ typedef struct
 
 explosion_t	cl_explosions[MAX_EXPLOSIONS];
 
+static int explosions_running;
+static int beams_running;
+
 sfx_t			*cl_sfx_wizhit;
 sfx_t			*cl_sfx_knighthit;
 sfx_t			*cl_sfx_tink1;
@@ -277,13 +280,24 @@ explosion_t *CL_AllocExplosion (void)
 	float	time;
 	int		index;
 	
-	for (i=0 ; i<MAX_EXPLOSIONS ; i++)
+	for (i=0; i < explosions_running; i++)
+	{
 		if (!cl_explosions[i].model)
 		{
 			cl_explosions[i].firstframe = -1;
 			cl_explosions[i].framerate = 10;
 			return &cl_explosions[i];
 		}
+	}
+
+	if (i == explosions_running && i != MAX_EXPLOSIONS)
+	{
+		explosions_running++;
+		cl_explosions[i].firstframe = -1;
+		cl_explosions[i].framerate = 10;
+		return &cl_explosions[i];
+	}
+
 // find the oldest explosion
 	time = cl.time;
 	index = 0;
@@ -312,7 +326,7 @@ beam_t	*CL_NewBeam (int entity, int tag)
 // override any beam with the same entity (unless they used world)
 	if (entity)
 	{
-		for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
+		for (i=0, b=cl_beams; i < beams_running; i++, b++)
 			if (b->entity == entity && b->tag == tag)
 			{
 				return b;
@@ -320,13 +334,20 @@ beam_t	*CL_NewBeam (int entity, int tag)
 	}
 
 // find a free beam
-	for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
+	for (i=0, b=cl_beams; i < beams_running; i++, b++)
 	{
 		if (!b->model)
 		{
 			return b;
 		}
 	}
+
+	if (i == beams_running && i != MAX_BEAMS)
+	{
+		beams_running++;
+		return &cl_beams[i];
+	}
+
 	return NULL;
 }
 #define STREAM_ATTACHED			16
@@ -393,7 +414,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	// save end position for truelightning
 	if (ent)
 	{
-		for (i = 0; i < MAX_SPLITS; i++)
+		for (i = 0; i < cl.splitclients; i++)
 		{
 			if (ent == (autocam[i]?spec_track[i]:(cl.playernum[i]+1)))
 			{
@@ -2424,11 +2445,12 @@ void CL_UpdateBeams (void)
 	entity_state_t *st;
 	float		yaw, pitch;
 	float		forward, offset;
+	int lastrunningbeam = -1;
 
 	extern cvar_t cl_truelightning, v_viewheight;
 
 // update lightning
-	for (i=0, b=cl_beams ; i< MAX_BEAMS ; i++, b++)
+	for (i=0, b=cl_beams; i < beams_running; i++, b++)
 	{
 		if (!b->model)
 			continue;
@@ -2440,6 +2462,8 @@ void CL_UpdateBeams (void)
 			b->model = NULL;
 			continue;
 		}
+
+		lastrunningbeam = i;
 
 	// if coming from the player, update the start position
 		if ((b->flags & 1) && b->entity > 0 && b->entity <= MAX_CLIENTS)
@@ -2600,6 +2624,7 @@ void CL_UpdateBeams (void)
 		}
 	}
 	
+	beams_running = lastrunningbeam+1;
 }
 
 /*
@@ -2616,11 +2641,14 @@ void CL_UpdateExplosions (void)
 	int firstframe;
 	explosion_t	*ex;
 	entity_t	*ent;
+	int lastrunningexplosion = -1;
 
-	for (i=0, ex=cl_explosions ; i< MAX_EXPLOSIONS ; i++, ex++)
+	for (i=0, ex=cl_explosions; i < explosions_running; i++, ex++)
 	{
 		if (!ex->model)
 			continue;
+
+		lastrunningexplosion = i;
 		f = ex->framerate*(cl.time - ex->start);
 		if (ex->firstframe >= 0)
 		{
@@ -2659,6 +2687,8 @@ void CL_UpdateExplosions (void)
 		ent->shaderRGBAf[3] = 1.0 - f/(numframes);
 		ent->flags = ex->flags;
 	}
+
+	explosions_running = lastrunningexplosion + 1;
 }
 
 entity_state_t *CL_FindPacketEntity(int num);

@@ -473,19 +473,20 @@ void SWDraw_Init (void)
 	// add conchars into sw menu cache
 	swmenu_numcachepics = 0;
 
-	strcpy(swmenu_cachepics[swmenu_numcachepics].name, "conchars");
+	// lame hack but whatever works
+	strcpy(swmenu_cachepics[swmenu_numcachepics].name, "pics/conchars.pcx");
 	swmenu_cachepics[swmenu_numcachepics].cache.fake = true;
-	swmenu_cachepics[swmenu_numcachepics].cache.data = BZ_Malloc(sizeof(qpic_t) + 128*128);
+	swmenu_cachepics[swmenu_numcachepics].cache.data = BZ_Malloc(sizeof(mpic_t) + 128*128);
 	{
-		qpic_t *dat = (qpic_t *)swmenu_cachepics[swmenu_numcachepics].cache.data;
+		mpic_t *dat = (mpic_t *)swmenu_cachepics[swmenu_numcachepics].cache.data;
 		// reformat conchars for use in cache
 		int j;
 
 		for (j = 0; j < 128*128; j++)
 			dat->data[j] = (draw_chars[j] == 255 || !draw_chars[j]) ? draw_chars[j] ^ 255 : draw_chars[j];
 
-		((mpic_t*)dat)->width = ((mpic_t*)dat)->height = 128;
-		((mpic_t*)dat)->flags = 1;
+		dat->width = dat->height = 128;
+		dat->flags = 1;
 	}
 	swmenu_numcachepics++;
 

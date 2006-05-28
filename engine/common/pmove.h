@@ -77,22 +77,22 @@ typedef struct
 } playermove_t;
 
 typedef struct {
-	float	gravity;
-	float	stopspeed;
-	float	maxspeed;
-	float	spectatormaxspeed;
-	float	accelerate;
-	float	airaccelerate;
-	float	wateraccelerate;
-	float	friction;
-	float	waterfriction;
-	float	entgravity;
-	float	bunnyspeedcap;
-	float	ktjump;
-	qboolean	slidefix;
-	qboolean	airstep;
-	qboolean	walljump;
-	qboolean	slidyslopes;
+	float gravity;
+	float stopspeed;
+	float maxspeed;
+	float spectatormaxspeed;
+	float accelerate;
+	float airaccelerate;
+	float wateraccelerate;
+	float friction;
+	float waterfriction;
+	float entgravity;
+	float bunnyspeedcap;
+	float ktjump;
+	int	walljump;
+	qboolean slidefix;
+	qboolean airstep;
+	qboolean slidyslopes;
 } movevars_t;
 
 

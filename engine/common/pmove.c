@@ -53,14 +53,12 @@ void PM_Init (void)
 */
 static void PM_AddTouchedEnt (int num)
 {
-	int i;
-
-	if (pmove.numtouch == sizeof(pmove.touchindex)/sizeof(pmove.touchindex[0]))
+	if (pmove.numtouch == MAX_PHYSENTS)
 		return;
 
-	for (i = 0; i < pmove.numtouch; i++)
-		if (pmove.touchindex[i] == num)
-			return;		// already added
+	if (pmove.numtouch)
+		if (pmove.touchindex[pmove.numtouch - 1] == num)
+			return; // already added
 
 	pmove.touchindex[pmove.numtouch] = num;
 	pmove.numtouch++;
@@ -271,9 +269,6 @@ int PM_StepSlideMove (qboolean in_air)
 		if (!(blocked & BLOCKED_STEP))
 			return blocked;
 
-		//FIXME: "pmove.velocity < 0" ???? :)
-		// Of course I meant pmove.velocity[2], but I'm afraid I don't understand
-		// the code's purpose any more, so let it stay just this way for now :)  -- Tonik
 		org = (pmove.velocity < 0) ? pmove.origin : original;	// cryptic, eh?
 		VectorCopy (org, dest);
 		dest[2] -= pm_stepheight;

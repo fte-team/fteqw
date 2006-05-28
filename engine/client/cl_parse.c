@@ -2162,6 +2162,8 @@ void CL_ParseModellist (qboolean lots)
 }
 
 void CL_ProcessUserInfo (int slot, player_info_t *player);
+
+#ifdef Q2CLIENT
 void CLQ2_ParseClientinfo(int i, char *s)
 {
 	char *model, *name;
@@ -2314,7 +2316,7 @@ void CLQ2_ParseConfigString (void)
 	UI_StringChanged(i);
 #endif
 }
-
+#endif
 
 
 /*

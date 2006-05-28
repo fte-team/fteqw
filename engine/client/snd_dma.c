@@ -956,7 +956,7 @@ qboolean S_IsPlayingSomewhere(sfx_t *s)
 	int i;
 	for (si = sndcardinfo; si; si=si->next)
 	{
-		for (i = 0; i < MAX_CHANNELS; i++)
+		for (i = 0; i < si->total_chans; i++)
 		if (si->channel[i].sfx == s)
 			return true;
 	}
@@ -999,9 +999,7 @@ void S_StopAllSounds(qboolean clear)
 			return;
 
 
-		sc->total_chans = MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS + NUM_MUSICS;	// no statics
-
-		for (i=0 ; i<MAX_CHANNELS ; i++)
+		for (i=0 ; i<sc->total_chans ; i++)
 			if (sc->channel[i].sfx)
 			{
 				s = sc->channel[i].sfx;
@@ -1012,6 +1010,8 @@ void S_StopAllSounds(qboolean clear)
 					s->decoder->abort(s);
 				}
 			}
+
+		sc->total_chans = MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS + NUM_MUSICS;	// no statics
 
 		Q_memset(sc->channel, 0, MAX_CHANNELS * sizeof(channel_t));
 
@@ -1627,7 +1627,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	prepadl = 0x7fffffff;
 	for (si = sndcardinfo; si; si=si->next)	//make sure all cards are playing, and that we still get a prepad if just one is.
 	{
-		for (i = 0; i < MAX_CHANNELS; i++)
+		for (i = 0; i < si->total_chans; i++)
 			if (si->channel[i].sfx == &s->sfx)
 			{
 				if (prepadl > si->channel[i].pos)
@@ -1660,21 +1660,6 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			spare = 0;	//too far out. sacrifice it all
 		}
 	}
-
-/*	else if (spare > snd_speed)
-	{
-		for (si = sndcardinfo; si; si=si->next)
-		{
-			for (i = 0; i < MAX_CHANNELS; i++)
-				if (si->channel[i].sfx == &s->sfx)
-				{
-					break;
-				}
-			if (i == MAX_CHANNELS)	//this one wasn't playing.
-				S_StartSoundCard(si, -1, 0, &s->sfx, r_origin, 1, 32767, prepadl);
-		}
-		return;	//let the slower sound cards catch up. (This shouldn't really happen, but it's possible two cards have slightly different timings but report the same speed)
-	}*/
 
 	newcache = BZ_Malloc(sizeof(sfxcache_t) + (spare+outsamples) * (s->sfxcache->numchannels) * s->sfxcache->width);
 	memcpy(newcache, s->sfxcache, sizeof(sfxcache_t));
@@ -1785,7 +1770,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 
 	for (si = sndcardinfo; si; si=si->next)
 	{
-		for (i = 0; i < MAX_CHANNELS; i++)
+		for (i = 0; i < si->total_chans; i++)
 			if (si->channel[i].sfx == &s->sfx)
 			{
 				si->channel[i].pos -= prepadl;
@@ -1799,7 +1784,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 				}
 				break;
 			}
-		if (i == MAX_CHANNELS)	//this one wasn't playing.
+		if (i == si->total_chans)	//this one wasn't playing.
 		{
 			S_StartSoundCard(si, -1, 0, &s->sfx, r_origin, 1, 32767, 500);
 //			Con_Printf("Restarted\n");

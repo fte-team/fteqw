@@ -128,11 +128,9 @@ int VARGS Plug_Draw_LoadImage(void *offset, unsigned int mask, const long *arg)
 			pic = Draw_SafePicFromWad(name);
 		else
 		{
-#ifdef RGLQUAKE	//GL saves images persistantly (so don't bother with cachepic stuff)
-			if (qrenderer == QR_OPENGL && Draw_SafeCachePic)
+			if (Draw_SafeCachePic)
 				pic = Draw_SafeCachePic(name);
 			else
-#endif
 				pic = NULL;
 		}
 	}
@@ -157,12 +155,10 @@ void Plug_DrawReloadImages(void)
 			continue;
 		}
 
-		if (pluginimagearray[i].picfromwad)
+		if (Draw_SafePicFromWad)
 			pluginimagearray[i].pic = Draw_SafePicFromWad(pluginimagearray[i].name);
-#ifdef RGLQUAKE
-		else if (qrenderer == QR_OPENGL)
+		else if (Draw_SafeCachePic)
 				pluginimagearray[i].pic = Draw_SafeCachePic(pluginimagearray[i].name);
-#endif
 		else
 			pluginimagearray[i].pic = NULL;
 	}

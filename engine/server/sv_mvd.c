@@ -1720,9 +1720,15 @@ void SV_MVDEasyRecord_f (void)
 	Check_DemoDir();
 
 	c = Cmd_Argc();
-	if (c > 2)
+	if (c < 2)
 	{
 		Con_Printf ("easyrecord [demoname]\n");
+		return;
+	}
+
+	if (sv.state < ss_active)
+	{
+		Con_Printf("Server isn't running or is still loading\n");
 		return;
 	}
 

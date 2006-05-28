@@ -1720,7 +1720,7 @@ void SV_MVDEasyRecord_f (void)
 	Check_DemoDir();
 
 	c = Cmd_Argc();
-	if (c < 2)
+	if (c > 2)
 	{
 		Con_Printf ("easyrecord [demoname]\n");
 		return;

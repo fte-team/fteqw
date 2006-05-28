@@ -401,7 +401,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 			if (!mem)
 				mem = ReadTargaFile((qbyte *)data, com_filesize, &pic->pic.width, &height, 0);
 #ifdef AVAIL_PNGLIB
-			if (!mem);
+			if (!mem)
 				mem = ReadPNGFile((qbyte *)data, com_filesize, &pic->pic.width, &height, alternatename);
 #endif
 #ifdef AVAIL_JPEGLIB

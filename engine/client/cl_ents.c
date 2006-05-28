@@ -1924,7 +1924,7 @@ void CL_LinkPacketEntities (void)
 			f * (s1->origin[i] - cl.lerpents[s1->number].origin[i]);
 
 		//bots or powerup glows. Bots always glow, powerups can be disabled
-		if (s1->modelindex != cl_playerindex && r_powerupglow.value);
+		if (s1->modelindex != cl_playerindex && r_powerupglow.value)
 		{
 			flicker = r_lightflicker.value?(rand()&31):0;
 			// spawn light flashes, even ones coming from invisible objects

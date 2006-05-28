@@ -1621,7 +1621,7 @@ void CL_LinkPacketEntities (void)
 		VectorCopy(le->origin, ent->origin)
 
 		//bots or powerup glows. Bots always glow, powerups can be disabled
-		if (state->modelindex != cl_playerindex && r_powerupglow.value);
+		if (state->modelindex != cl_playerindex && r_powerupglow.value)
 		{
 			flicker = r_lightflicker.value?(rand()&31):0;
 			// spawn light flashes, even ones coming from invisible objects

@@ -436,8 +436,8 @@ typedef struct client_s
 
 	qbyte		istobeloaded;	//loadgame creates place holders for clients to connect to. Effectivly loading a game reconnects all clients, but has precreated ents.
 
-	double			whensaid[10];       // JACK: For floodprots
- 	int			whensaidhead;       // Head value for floodprots
+	double			floodprotmessage;
+	double			lastspoke;
  	double			lockedtill;
 
 	qboolean		upgradewarn;		// did we warn him?

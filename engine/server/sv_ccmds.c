@@ -29,8 +29,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 qboolean	sv_allow_cheats;
 
-int fp_messages=4, fp_persecond=4, fp_secondsdead=10;
-char fp_msg[255] = { 0 };
 extern cvar_t cl_warncmd;
 cvar_t sv_cheats = SCVARF("sv_cheats", "0", CVAR_LATCH);
 	extern		redirect_t	sv_redirected;
@@ -1539,65 +1537,6 @@ Sets the gamedir and path to a different directory.
 ================
 */
 
-void SV_Floodprot_f (void)
-{
-	int arg1, arg2, arg3;
-
-	if (Cmd_Argc() == 1)
-	{
-		if (fp_messages)
-		{
-			Con_TPrintf (STL_FLOODPROTSETTINGS,
-				fp_messages, fp_persecond, fp_secondsdead);
-			return;
-		}
-		else
-			Con_TPrintf (STL_FLOODPROTNOTON);
-	}
-
-	if (Cmd_Argc() != 4)
-	{
-		Con_TPrintf (STL_FLOODPROTSYNTAX);
-		return;
-	}
-
-	arg1 = atoi(Cmd_Argv(1));
-	arg2 = atoi(Cmd_Argv(2));
-	arg3 = atoi(Cmd_Argv(3));
-
-	if (arg1<=0 || arg2 <= 0 || arg3<=0)
-	{
-		Con_TPrintf (STL_NONEGATIVEVALUES);
-		return;
-	}
-
-	if (arg1 > 10)
-	{
-		Con_TPrintf (STL_TRACK10PLUSSMESSAGES);
-		return;
-	}
-
-	fp_messages	= arg1;
-	fp_persecond = arg2;
-	fp_secondsdead = arg3;
-}
-
-void SV_Floodprotmsg_f (void)
-{
-	if (Cmd_Argc() == 1)
-	{
-		Con_TPrintf(STL_FLOODPROTCURRENTMESSAGE, fp_msg);
-		return;
-	}
-	else if (Cmd_Argc() != 2)
-	{
-		Con_TPrintf(STL_FLOODPROTMESSAGESYNTAX);
-		return;
-	}
-	snprintf(fp_msg, sizeof(fp_msg), "%s", Cmd_Argv(1));
-}
-
-
 /*
 ================
 SV_Gamedir
@@ -1955,8 +1894,6 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("localinfo", SV_Localinfo_f);
 	Cmd_AddCommand ("gamedir", SV_Gamedir_f);
 	Cmd_AddCommand ("sv_gamedir", SV_Gamedir);
-	Cmd_AddCommand ("floodprot", SV_Floodprot_f);
-	Cmd_AddCommand ("floodprotmsg", SV_Floodprotmsg_f);
 	Cmd_AddCommand ("sv_settimer", SV_SetTimer_f);
 	Cmd_AddCommand ("stuffcmd", SV_StuffToClient_f);
 

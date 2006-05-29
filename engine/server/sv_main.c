@@ -1866,9 +1866,8 @@ client_t *SVC_DirectConnect(void)
 	SV_GenerateBasicUserInfo (newcl);
 
 	// JACK: Init the floodprot stuff.
-	for (i=0; i<10; i++)
-		newcl->whensaid[i] = 0.0;
-	newcl->whensaidhead = 0;
+	newcl->floodprotmessage = 0.0;
+	newcl->lastspoke = 0.0;
 	newcl->lockedtill = 0;
 
 #ifdef SVRANKING

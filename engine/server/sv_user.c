@@ -58,7 +58,10 @@ cvar_t	sv_brokenmovetypes = SCVAR("sv_brokenmovetypes", "0");
 
 cvar_t	sv_chatfilter = SCVAR("sv_chatfilter", "0");
 
-cvar_t  sv_floodprotect = SCVAR("sv_floodprotect", "1");
+cvar_t	sv_floodprotect = SCVAR("sv_floodprotect", "1");
+cvar_t	sv_floodprotect_messages = SCVAR("sv_floodprotect_messages", "4");
+cvar_t	sv_floodprotect_interval = SCVAR("sv_floodprotect_interval", "4");
+cvar_t  sv_floodprotect_silencetime = SCVAR("sv_floodprotect_silencetime", "10");
 
 cvar_t	votelevel	= SCVAR("votelevel", "0");
 cvar_t	voteminimum	= SCVAR("voteminimum", "4");
@@ -86,8 +89,6 @@ extern char cvargroup_servercontrol[];
 
 extern	vec3_t	player_mins, player_maxs;
 
-extern int fp_messages, fp_persecond, fp_secondsdead;
-extern char fp_msg[];
 extern cvar_t pausable;
 
 
@@ -1864,40 +1865,46 @@ void SV_SayOne_f (void)
 
 float SV_CheckFloodProt(client_t *client)
 {
-	int tmp;
 	if (!sv_floodprotect.value)
 		return 0;
-	if (fp_messages)
+	if (sv_floodprotect_messages.value < 0 || sv_floodprotect_interval.value < 0)
+		return 0;
+	if (sv.paused)
+		return 0;
+	if (realtime < client->lockedtill)
+		return client->lockedtill - realtime;
+
+	if (client->floodprotmessage > sv_floodprotect_messages.value)
 	{
-		if (!sv.paused && realtime<client->lockedtill)
-		{
-			return client->lockedtill - realtime;
-		}
-		tmp = client->whensaidhead - fp_messages + 1;
-		if (tmp < 0)
-			tmp = 10+tmp;
-		if (!sv.paused &&
-			client->whensaid[tmp] && (realtime-client->whensaid[tmp] < fp_persecond))
-		{
-			client->lockedtill = realtime + fp_secondsdead;
-			if (fp_msg[0])
-				SV_ClientPrintf(client, PRINT_CHAT,
-					"FloodProt: %s\n", fp_msg);
-			return fp_secondsdead;
-		}
+		client->lockedtill = realtime + sv_floodprotect_silencetime.value;
+		client->floodprotmessage = 0.0;
+		client->lastspoke = 0.0;
+		return sv_floodprotect_silencetime.value;
 	}
+
 	return 0;
 }
 
 void SV_PushFloodProt(client_t *client)
 {
-	if (fp_messages)
+	if (!sv_floodprotect.value)
+		return;
+	if (sv_floodprotect_messages.value < 0 || sv_floodprotect_interval.value < 0)
+		return;
+	if (sv.paused)
+		return;
+
+	if (client->lastspoke)
 	{
-		client->whensaidhead++;
-		if (client->whensaidhead > 9)
-			client->whensaidhead = 0;
-		client->whensaid[client->whensaidhead] = realtime;
+		client->floodprotmessage -= (realtime - client->lastspoke) 
+			* sv_floodprotect_messages.value
+			/ sv_floodprotect_interval.value;
+		client->floodprotmessage = max(0, client->floodprotmessage);
+		client->floodprotmessage++;
 	}
+	else
+		client->floodprotmessage = 1.0;
+	client->lastspoke = realtime;
 }
 
 /*
@@ -2133,13 +2140,13 @@ void SV_Kill_f (void)
 	float floodtime;
 	if (sv_player->v->health <= 0)
 	{
-		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_NOSUISIDEWHENDEAD);
+		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_NOSUICIDEWHENDEAD);
 		return;
 	}
 
 	if ((floodtime = SV_CheckFloodProt(host_client)))
 	{
-		SV_ClientPrintf (host_client, PRINT_HIGH, "You can't suiside for %i seconds\n", (int)floodtime);
+		SV_ClientPrintf (host_client, PRINT_HIGH, "You can't suicide for %i seconds\n", (int)floodtime);
 		return;
 	}
 	SV_PushFloodProt(host_client);
@@ -5071,6 +5078,9 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_pushplayers, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_floodprotect, cvargroup_servercontrol);
+	Cvar_Register (&sv_floodprotect_interval, cvargroup_servercontrol);
+	Cvar_Register (&sv_floodprotect_messages, cvargroup_servercontrol);
+	Cvar_Register (&sv_floodprotect_silencetime, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_cmdlikercon, cvargroup_serverpermissions);
 	Cvar_Register(&cmd_gamecodelevel, "Access controls");

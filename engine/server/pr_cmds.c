@@ -5183,7 +5183,7 @@ void PF_logfrag (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 
 #ifdef SVRANKING
-	if (e1 != e2)	//don't get a point for suiside.
+	if (e1 != e2)	//don't get a point for suicide.
 		svs.clients[e1-1].kills += 1;
 	svs.clients[e2-1].deaths += 1;
 #endif

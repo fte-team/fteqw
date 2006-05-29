@@ -248,7 +248,6 @@ int PM_StepSlideMove (qboolean in_air)
 	vec3_t	original, originalvel, down, up, downvel;
 	float	downdist, updist;
 	int		blocked;
-	float	stepsize;
 
 	// try sliding forward both on ground and up 16 pixels
 	// take the move that goes farthest
@@ -260,6 +259,8 @@ int PM_StepSlideMove (qboolean in_air)
 	if (!blocked)
 		return blocked;		// moved the entire distance
 
+#if 0
+	// disable this until I clear this up with Tonik or someone
 	if (in_air) 
 	{
 		// don't let us step up unless it's indeed a step we bumped in
@@ -282,6 +283,7 @@ int PM_StepSlideMove (qboolean in_air)
 	}
 	else
 		stepsize = pm_stepheight;
+#endif
 
 	VectorCopy (pmove.origin, down);
 	VectorCopy (pmove.velocity, downvel);
@@ -291,7 +293,7 @@ int PM_StepSlideMove (qboolean in_air)
 
 // move up a stair height
 	VectorCopy (pmove.origin, dest);
-	dest[2] += stepsize;
+	dest[2] += pm_stepheight;
 	trace = PM_PlayerTrace (pmove.origin, dest);
 	if (!trace.startsolid && !trace.allsolid)
 	{
@@ -302,7 +304,7 @@ int PM_StepSlideMove (qboolean in_air)
 
 // press down the stepheight
 	VectorCopy (pmove.origin, dest);
-	dest[2] -= stepsize;
+	dest[2] -= pm_stepheight;
 	trace = PM_PlayerTrace (pmove.origin, dest);
 	if (trace.fraction != 1 && trace.plane.normal[2] < MIN_STEP_NORMAL)
 		goto usedown;

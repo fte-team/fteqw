@@ -58,6 +58,8 @@ cvar_t	sv_brokenmovetypes = SCVAR("sv_brokenmovetypes", "0");
 
 cvar_t	sv_chatfilter = SCVAR("sv_chatfilter", "0");
 
+cvar_t  sv_floodprotect = SCVAR("sv_floodprotect", "1");
+
 cvar_t	votelevel	= SCVAR("votelevel", "0");
 cvar_t	voteminimum	= SCVAR("voteminimum", "4");
 cvar_t	votepercent = SCVAR("votepercent", "-1");
@@ -1863,6 +1865,8 @@ void SV_SayOne_f (void)
 float SV_CheckFloodProt(client_t *client)
 {
 	int tmp;
+	if (!sv_floodprotect.value)
+		return 0;
 	if (fp_messages)
 	{
 		if (!sv.paused && realtime<client->lockedtill)
@@ -5065,6 +5069,8 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_playermodelchecks, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_pushplayers, cvargroup_servercontrol);
+
+	Cvar_Register (&sv_floodprotect, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_cmdlikercon, cvargroup_serverpermissions);
 	Cvar_Register(&cmd_gamecodelevel, "Access controls");

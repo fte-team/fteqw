@@ -64,6 +64,8 @@ cvar_t pr_ssqc_coreonerror = SCVAR("pr_coreonerror", "1");
 cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "16");
 cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
 
+cvar_t pr_droptofloorunits = SCVAR("pr_droptofloorunits", "");
+
 cvar_t sv_gameplayfix_honest_tracelines = SCVAR("sv_gameplayfix_honest_tracelines", "1");
 cvar_t sv_gameplayfix_blowupfallenzombies = SCVAR("sv_gameplayfix_blowupfallenzombies", "0");
 extern cvar_t sv_gameplayfix_noairborncorpse;
@@ -181,8 +183,8 @@ pbool ED_CanFree (edict_t *ed)
 	ed->v->colormap = 0;
 	ed->v->skin = 0;
 	ed->v->frame = 0;
-	VectorCopy (vec3_origin, ed->v->origin);
-	VectorCopy (vec3_origin, ed->v->angles);
+	VectorClear (ed->v->origin);
+	VectorClear (ed->v->angles);
 	ed->v->nextthink = 0;
 	ed->v->solid = 0;
 
@@ -934,6 +936,8 @@ void PR_Init(void)
 
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
+
+	Cvar_Register (&pr_droptofloorunits, cvargroup_progs);
 
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 
@@ -3885,7 +3889,10 @@ void PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
 
 	VectorCopy (ent->v->origin, end);
-	end[2] -= 512;
+	if (pr_droptofloorunits.value > 0)
+		end[2] -= pr_droptofloorunits.value;
+	else
+		end[2] -= 256;
 
 	VectorCopy (ent->v->origin, start);
 	trace = SV_Move (start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, ent);

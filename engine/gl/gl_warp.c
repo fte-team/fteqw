@@ -427,7 +427,7 @@ void DrawSkyPolygon (int nump, vec3_t vecs)
 	c_sky++;
 
 	// decide which face it maps to
-	VectorCopy (vec3_origin, v);
+	VectorClear (v);
 	for (i=0, vp=vecs ; i<nump ; i++, vp+=3)
 	{
 		VectorAdd (vp, v, v);

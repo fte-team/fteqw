@@ -4079,7 +4079,7 @@ void CL_ParseServerMessage (void)
 				cl.simorg[0][i] = MSG_ReadCoord ();
 			for (i=0 ; i<3 ; i++)
 				cl.simangles[0][i] = MSG_ReadAngle ();
-			VectorCopy (vec3_origin, cl.simvel[0]);
+			VectorClear (cl.simvel[0]);
 
 			VectorCopy (cl.simvel[0], cl.simvel[1]);
 			VectorCopy (cl.simangles[0], cl.simangles[1]);

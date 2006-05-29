@@ -155,7 +155,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 	}
 	else
 	{
-		VectorSubtract (vec3_origin, plane->normal, trace->plane.normal);
+		VectorNegate (plane->normal, trace->plane.normal);
 		trace->plane.dist = -plane->dist;
 	}
 

@@ -3084,7 +3084,7 @@ void CL_SetSolidEntities (void)
 	entity_state_t		*state;
 
 	pmove.physents[0].model = cl.worldmodel;
-	VectorCopy (vec3_origin, pmove.physents[0].origin);
+	VectorClear (pmove.physents[0].origin);
 	pmove.physents[0].info = 0;
 	pmove.numphysent = 1;
 

@@ -160,7 +160,7 @@ trace_t Cam_DoTrace(vec3_t vec1, vec3_t vec2)
 	memset(&pmove, 0, sizeof(pmove));
 
 	pmove.numphysent = 1;
-	VectorCopy (vec3_origin, pmove.physents[0].origin);
+	VectorClear (pmove.physents[0].origin);
 	pmove.physents[0].model = cl.worldmodel;
 #endif
 
@@ -294,7 +294,7 @@ static qboolean InitFlyby(int pnum, player_state_t *self, player_state_t *player
 		VectorCopy(vec2, vec);
     }
 	// invert
-	VectorSubtract(vec3_origin, forward, vec2);
+	VectorNegate(forward, vec2);
     if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
 	{
         max = f;
@@ -307,7 +307,7 @@ static qboolean InitFlyby(int pnum, player_state_t *self, player_state_t *player
 		VectorCopy(vec2, vec);
     }
 	// invert
-	VectorSubtract(vec3_origin, right, vec2);
+	VectorNegate(right, vec2);
     if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
 	{
         max = f;

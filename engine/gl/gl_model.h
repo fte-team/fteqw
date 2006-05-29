@@ -430,7 +430,6 @@ typedef struct
 	int					maxheight;
 	int					numframes;
 	float				beamlength;		// remove?
-	void				*cachespot;		// remove?
 	mspriteframedesc_t	frames[1];
 } msprite_t;
 

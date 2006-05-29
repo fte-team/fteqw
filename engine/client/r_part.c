@@ -2984,7 +2984,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
 		p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
 
-		VectorCopy (vec3_origin, p->vel);
+		VectorClear (p->vel);
 		if (ptype->emittime < 0)
 			p->state.trailstate = NULL; // init trailstate
 		else

@@ -2240,7 +2240,7 @@ void R_BuildPolygonFromSurface(msurface_t *fa)
 
 	if ( fa->flags & SURF_PLANEBACK )
 	{
-		VectorSubtract( vec3_origin, r_q2polydesc.vpn, r_q2polydesc.vpn );
+		VectorNegate( r_q2polydesc.vpn, r_q2polydesc.vpn );
 	}
 
 // PGM 09/16/98

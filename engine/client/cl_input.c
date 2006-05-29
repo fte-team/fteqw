@@ -666,7 +666,7 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 //	cursor_screen[0] = bound(-1, cursor_screen[0], 1);
 //	cursor_screen[1] = bound(-1, cursor_screen[1], 1);
 
-	VectorCopy(vec3_origin, cursor_start);
+	VectorClear(cursor_start);
 	temp[0] = (cursor_screen[0]+1)/2;
 	temp[1] = (-cursor_screen[1]+1)/2;
 	temp[2] = 1;

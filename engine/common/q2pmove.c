@@ -171,7 +171,7 @@ void PMQ2_StepSlideMove_ (void)
 		// slide along this plane
 		if (numplanes >= MAX_CLIP_PLANES)
 		{	// this shouldn't really happen
-			VectorCopy (vec3_origin, q2pml.velocity);
+			VectorClear (q2pml.velocity);
 			break;
 		}
 
@@ -215,7 +215,7 @@ void PMQ2_StepSlideMove_ (void)
 		else
 		{
 //			Con_Printf ("clip velocity, numplanes == %i\n",numplanes);
-			VectorCopy (vec3_origin, q2pml.velocity);
+			VectorClear (q2pml.velocity);
 			break;
 		}
 
@@ -244,7 +244,7 @@ void PMQ2_StepSlideMove_ (void)
 			if (numplanes != 2)
 			{
 //				Con_Printf ("clip velocity, numplanes == %i\n",numplanes);
-				VectorCopy (vec3_origin, q2pml.velocity);
+				VectorClear (q2pml.velocity);
 				break;
 			}
 			CrossProduct (planes[0], planes[1], dir);
@@ -258,7 +258,7 @@ void PMQ2_StepSlideMove_ (void)
 		//
 		if (DotProduct (q2pml.velocity, primal_velocity) <= 0)
 		{
-			VectorCopy (vec3_origin, q2pml.velocity);
+			VectorClear (q2pml.velocity);
 			break;
 		}
 	}
@@ -905,7 +905,7 @@ void PMQ2_FlyMove (qboolean doclip)
 	speed = Length (q2pml.velocity);
 	if (speed < 1)
 	{
-		VectorCopy (vec3_origin, q2pml.velocity);
+		VectorClear (q2pml.velocity);
 	}
 	else
 	{

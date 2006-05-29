@@ -2373,43 +2373,6 @@ cvar_t	filterban = SCVAR("filterban", "1");
 
 /*
 =================
-SV_WriteIP_f
-=================
-*/
-void SV_WriteIP_f (void)
-{
-// TODO: function needs to be rewritten to handle new banning and filtering logic
-/*
-	vfsfile_t	*f;
-	char	name[MAX_OSPATH];
-	qbyte	b[4];
-	int		i;
-	char *s;
-
-	strcpy (name, "listip.cfg");
-
-	Con_Printf ("Writing %s.\n", name);
-
-	f = FS_OpenVFS(name, "wb", FS_GAME);
-	if (!f)
-	{
-		Con_Printf ("Couldn't open %s\n", name);
-		return;
-	}
-
-	for (i=0 ; i<numipfilters ; i++)
-	{
-		*(unsigned *)b = ipfilters[i].compare;
-		s = va("addip %i.%i.%i.%i\n", b[0], b[1], b[2], b[3]);
-		VFS_WRITE(f, s, strlen(s));
-	}
-
-	VFS_CLOSE (f);
-*/
-}
-
-/*
-=================
 SV_FilterPacket
 =================
 */

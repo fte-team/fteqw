@@ -847,13 +847,14 @@ void SV_Unban_f (void)
 	while (nb)
 	{
 		nbnext = nb->next;
-		if (all || NET_CompareAdrMasked(nb->adr, unbanadr, unbanmask))
+		if (all || (NET_CompareAdr(nb->adr, unbanadr) && NET_CompareAdr(nb->adrmask, unbanmask)))
 		{
 			if (!all)
 				Con_Printf("unbanned %s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask));
 			if (svs.bannedips == nb)
 				svs.bannedips = nbnext;
 			Z_Free(nb);
+			break;
 		}
 
 		nb = nbnext;
@@ -885,18 +886,67 @@ void SV_Unfilter_f (void)
 	while (nb)
 	{
 		nbnext = nb->next;
-		if (all || NET_CompareAdrMasked(nb->adr, unbanadr, unbanmask))
+		if (all || (NET_CompareAdr(nb->adr, unbanadr) && NET_CompareAdr(nb->adrmask, unbanmask)))
 		{
 			if (!all)
 				Con_Printf("unfiltered %s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask));
 			if (svs.filteredips == nb)
 				svs.filteredips = nbnext;
 			Z_Free(nb);
+			break;
 		}
 
 		nb = nbnext;
 	}
 }
+
+void SV_WriteIP_f (void)
+{
+	vfsfile_t	*f;
+	char	name[MAX_OSPATH];
+	bannedips_t *bi;
+	filteredips_t *fi;
+	char *s;
+
+	strcpy (name, "listip.cfg");
+
+	Con_Printf ("Writing %s.\n", name);
+
+	f = FS_OpenVFS(name, "wb", FS_GAME);
+	if (!f)
+	{
+		Con_Printf ("Couldn't open %s\n", name);
+		return;
+	}
+
+	s = "// banned ip addresses\n";
+	VFS_WRITE(f, s, strlen(s));
+
+	bi = svs.bannedips;
+	while (bi)
+	{
+		if (bi->reason[0])
+			s = va("banip %s \"%s\"\n", NET_AdrToStringMasked(bi->adr, bi->adrmask), bi->reason);
+		else
+			s = va("banip %s\n", NET_AdrToStringMasked(bi->adr, bi->adrmask));
+		VFS_WRITE(f, s, strlen(s));
+		bi = bi->next;
+	}
+
+	s = "\n// filtered ip addresses\n";
+	VFS_WRITE(f, s, strlen(s));
+
+	fi = svs.filteredips;
+	while (fi)
+	{
+		s = va("addip %s\n", NET_AdrToStringMasked(fi->adr, fi->adrmask));
+		VFS_WRITE(f, s, strlen(s));
+		fi = fi->next;
+	}
+
+	VFS_CLOSE (f);
+}
+
 
 void SV_ForceName_f (void)
 {
@@ -1870,6 +1920,7 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("addip", SV_FilterIP_f);
 	Cmd_AddCommand ("removeip", SV_Unfilter_f);
 	Cmd_AddCommand ("listip", SV_FilterList_f);
+	Cmd_AddCommand ("writeip", SV_WriteIP_f);
 
 //	Cmd_AddCommand ("filterip", SV_FilterIP_f);
 //	Cmd_AddCommand ("unfilter", SV_Unfilter_f);

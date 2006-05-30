@@ -62,6 +62,8 @@ cvar_t	sv_floodprotect = SCVAR("sv_floodprotect", "1");
 cvar_t	sv_floodprotect_messages = SCVAR("sv_floodprotect_messages", "4");
 cvar_t	sv_floodprotect_interval = SCVAR("sv_floodprotect_interval", "4");
 cvar_t  sv_floodprotect_silencetime = SCVAR("sv_floodprotect_silencetime", "10");
+cvar_t	sv_floodprotect_suicide = SCVAR("sv_floodprotect_suicide", "1");
+cvar_t	sv_floodprotect_sendmessage = FCVAR("sv_floodprotect_sendmessage", "floodprotmsg", "", 0);
 
 cvar_t	votelevel	= SCVAR("votelevel", "0");
 cvar_t	voteminimum	= SCVAR("voteminimum", "4");
@@ -1867,7 +1869,7 @@ float SV_CheckFloodProt(client_t *client)
 {
 	if (!sv_floodprotect.value)
 		return 0;
-	if (sv_floodprotect_messages.value < 0 || sv_floodprotect_interval.value < 0)
+	if (sv_floodprotect_messages.value <= 0 || sv_floodprotect_interval.value <= 0)
 		return 0;
 	if (sv.paused)
 		return 0;
@@ -1879,6 +1881,8 @@ float SV_CheckFloodProt(client_t *client)
 		client->lockedtill = realtime + sv_floodprotect_silencetime.value;
 		client->floodprotmessage = 0.0;
 		client->lastspoke = 0.0;
+		if (sv_floodprotect_sendmessage.string[0])
+			 SV_ClientPrintf(client, PRINT_CHAT, "FloodProt: %s\n", sv_floodprotect_sendmessage.string);
 		return sv_floodprotect_silencetime.value;
 	}
 
@@ -1889,7 +1893,7 @@ void SV_PushFloodProt(client_t *client)
 {
 	if (!sv_floodprotect.value)
 		return;
-	if (sv_floodprotect_messages.value < 0 || sv_floodprotect_interval.value < 0)
+	if (sv_floodprotect_messages.value <= 0 || sv_floodprotect_interval.value <= 0)
 		return;
 	if (sv.paused)
 		return;
@@ -2144,12 +2148,15 @@ void SV_Kill_f (void)
 		return;
 	}
 
-	if ((floodtime = SV_CheckFloodProt(host_client)))
+	if (sv_floodprotect_suicide.value)
 	{
-		SV_ClientPrintf (host_client, PRINT_HIGH, "You can't suicide for %i seconds\n", (int)floodtime);
-		return;
+		if ((floodtime = SV_CheckFloodProt(host_client)))
+		{
+			SV_ClientPrintf (host_client, PRINT_HIGH, "You can't suicide for %i seconds\n", (int)floodtime);
+			return;
+		}
+		SV_PushFloodProt(host_client);
 	}
-	SV_PushFloodProt(host_client);
 
 	pr_global_struct->time = sv.time;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
@@ -5081,6 +5088,8 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_floodprotect_interval, cvargroup_servercontrol);
 	Cvar_Register (&sv_floodprotect_messages, cvargroup_servercontrol);
 	Cvar_Register (&sv_floodprotect_silencetime, cvargroup_servercontrol);
+	Cvar_Register (&sv_floodprotect_suicide, cvargroup_servercontrol);
+	Cvar_Register (&sv_floodprotect_sendmessage, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_cmdlikercon, cvargroup_serverpermissions);
 	Cvar_Register(&cmd_gamecodelevel, "Access controls");

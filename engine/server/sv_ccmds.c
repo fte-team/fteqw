@@ -1072,6 +1072,36 @@ void SV_Cuff_f (void)
 		Con_TPrintf (STL_USERDOESNTEXIST, Cmd_Argv(1));
 }
 
+void SV_Floodprot_f(void)
+{
+	extern cvar_t sv_floodprotect;
+	extern cvar_t sv_floodprotect_messages;
+	extern cvar_t sv_floodprotect_interval;
+	extern cvar_t sv_floodprotect_silencetime;
+
+	if (Cmd_Argc() == 1)
+	{
+		if (sv_floodprotect_messages.value <= 0 || !sv_floodprotect.value)
+			Con_Printf("Flood protection is off.\n");
+		else
+			Con_Printf("Current flood protection settings: \nAfter %g msgs for %g seconds, silence for %g seconds\n",
+				sv_floodprotect_messages.value,
+				sv_floodprotect_interval.value,
+				sv_floodprotect_silencetime.value);
+		return;
+	}
+
+	if (Cmd_Argc() != 4)
+	{
+		Con_Printf("Usage: %s <messagerate> <ratepersecond> <silencetime>\n", Cmd_Argv(0));
+		return;
+	}
+
+	Cvar_SetValue(&sv_floodprotect_messages, atof(Cmd_Argv(1)));
+	Cvar_SetValue(&sv_floodprotect_interval, atof(Cmd_Argv(2)));
+	Cvar_SetValue(&sv_floodprotect_silencetime, atof(Cmd_Argv(3)));
+}
+
 void SV_StuffToClient_f(void)
 {	//with this we emulate the progs 'stuffcmds' builtin
 
@@ -1921,6 +1951,8 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("removeip", SV_Unfilter_f);
 	Cmd_AddCommand ("listip", SV_FilterList_f);
 	Cmd_AddCommand ("writeip", SV_WriteIP_f);
+
+	Cmd_AddCommand ("floodprot", SV_Floodprot_f);
 
 //	Cmd_AddCommand ("filterip", SV_FilterIP_f);
 //	Cmd_AddCommand ("unfilter", SV_Unfilter_f);

@@ -2131,15 +2131,11 @@ client_connect:	//fixme: make function
 
 		if (!allowremotecmd && (!*localid.string || strcmp(localid.string, s))) {
 			if (!*localid.string) {
-				Con_TPrintf (TL_LINEBREAK_EQUALS);
 				Con_TPrintf (TLC_LOCALID_NOTSET);
-				Con_TPrintf (TL_LINEBREAK_EQUALS);
 				return;
 			}
-			Con_TPrintf (TL_LINEBREAK_EQUALS);
 			Con_TPrintf (TLC_LOCALID_BAD,
 				s, localid.string);
-			Con_TPrintf (TL_LINEBREAK_EQUALS);
 			Cvar_Set(&localid, "");
 			return;
 		}
@@ -2818,10 +2814,7 @@ void VARGS Host_EndGame (char *message, ...)
 	va_start (argptr,message);
 	vsnprintf (string,sizeof(string)-1, message,argptr);
 	va_end (argptr);
-	Con_TPrintf (TL_NL);
-	Con_TPrintf (TL_LINEBREAK_EQUALS);
 	Con_TPrintf (TLC_CLIENTCON_ERROR_ENDGAME, string);
-	Con_TPrintf (TL_LINEBREAK_EQUALS);
 	Con_TPrintf (TL_NL);
 
 	SCR_EndLoadingPlaque();

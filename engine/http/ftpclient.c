@@ -92,15 +92,15 @@ FTPclientconn_t *FTP_CreateConnection(char *addy)
 //duplicate a connection to get multiple data channels with a server.
 FTPclientconn_t *FTP_DuplicateConnection(FTPclientconn_t *old)
 {
-	FTPclientconn_t *new;
-	new = FTP_CreateConnection(old->server);
-	*new->server = '\0';	//mark it as non control
-	strcpy(new->name, old->name);
-	strcpy(new->pwd, old->pwd);
-	strcpy(new->path, old->path);
-	strcpy(new->pathprefix, old->pathprefix);
+	FTPclientconn_t *newf;
+	newf = FTP_CreateConnection(old->server);
+	*newf->server = '\0';	//mark it as non control
+	strcpy(newf->name, old->name);
+	strcpy(newf->pwd, old->pwd);
+	strcpy(newf->path, old->path);
+	strcpy(newf->pathprefix, old->pathprefix);
 
-	return new;
+	return newf;
 }
 
 int FTP_CL_makelistensocket(void)
@@ -772,26 +772,26 @@ qboolean FTP_Client_Command (char *cmd, void (*NotifyFunction)(char *localfile, 
 	}
 	else if (!stricmp(command, "list"))
 	{
-		FTPclientconn_t *new, *con = FTP_FindControl();
+		FTPclientconn_t *newf, *con = FTP_FindControl();
 		if (!con)
 		{
 			Con_Printf("Not connected\n");
 			return false;
 		}
 
-		new = FTP_DuplicateConnection(con);
-		if (!new)
+		newf = FTP_DuplicateConnection(con);
+		if (!newf)
 		{
 			Con_Printf("Failed duplicate connection\n");
 			return false;
 		}
-		new->type = ftp_listing;
-		new->NotifyFunction = NotifyFunction;
+		newf->type = ftp_listing;
+		newf->NotifyFunction = NotifyFunction;
 		return true;
 	}
 	else if (!stricmp(command, "get"))
 	{
-		FTPclientconn_t *new, *con = FTP_FindControl();
+		FTPclientconn_t *newf, *con = FTP_FindControl();
 		if (!con)
 		{
 			Con_Printf("Not connected\n");
@@ -805,21 +805,21 @@ qboolean FTP_Client_Command (char *cmd, void (*NotifyFunction)(char *localfile, 
 			return false;
 		}
 
-		new = FTP_DuplicateConnection(con);
-		if (!new)
+		newf = FTP_DuplicateConnection(con);
+		if (!newf)
 		{
 			Con_Printf("Failed duplicate connection\n");
 			return false;
 		}
-		new->NotifyFunction = NotifyFunction;
-		new->type = ftp_getting;
-		sprintf(new->file, command);
-		sprintf(new->localfile, "%s%s", new->path, command);
+		newf->NotifyFunction = NotifyFunction;
+		newf->type = ftp_getting;
+		sprintf(newf->file, command);
+		sprintf(newf->localfile, "%s%s", newf->path, command);
 		return true;
 	}
 	else if (!stricmp(command, "put"))
 	{
-		FTPclientconn_t *new, *con = FTP_FindControl();
+		FTPclientconn_t *newf, *con = FTP_FindControl();
 		if (!con)
 		{
 			Con_Printf("Not connected\n");
@@ -833,16 +833,16 @@ qboolean FTP_Client_Command (char *cmd, void (*NotifyFunction)(char *localfile, 
 			return false;
 		}
 
-		new = FTP_DuplicateConnection(con);
-		if (!new)
+		newf = FTP_DuplicateConnection(con);
+		if (!newf)
 		{
 			Con_Printf("Failed duplicate connection\n");
 			return false;
 		}
-		new->NotifyFunction = NotifyFunction;
-		new->type = ftp_putting;
-		sprintf(new->file, command);
-		sprintf(new->localfile, "%s%s", new->path, command);
+		newf->NotifyFunction = NotifyFunction;
+		newf->type = ftp_putting;
+		sprintf(newf->file, command);
+		sprintf(newf->localfile, "%s%s", newf->path, command);
 
 		return true;
 	}

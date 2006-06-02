@@ -690,7 +690,7 @@ void GLV_UpdatePalette (qboolean force)
 {
 	qboolean ogw;
 	int		i, j;
-	qboolean	new;
+	qboolean	update;
 //	qbyte	*basepal, *newpal;
 //	qbyte	pal[768];
 	float	r,g,b,a;
@@ -710,24 +710,24 @@ void GLV_UpdatePalette (qboolean force)
 	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
 		cl.cshifts[CSHIFT_BONUS].percent = 0;
 
-	new = false;
+	update = false;
 
 	for (i=0 ; i<CSHIFT_SERVER ; i++)
 	{
 		if (cl.cshifts[i].percent != cl.prev_cshifts[i].percent)
 		{
-			new = true;
+			update = true;
 			cl.prev_cshifts[i].percent = cl.cshifts[i].percent;
 		}
 		for (j=0 ; j<3 ; j++)
 			if (cl.cshifts[i].destcolor[j] != cl.prev_cshifts[i].destcolor[j])
 			{
-				new = true;
+				update = true;
 				cl.prev_cshifts[i].destcolor[j] = cl.cshifts[i].destcolor[j];
 			}
 	}
 
-	if (new || force)
+	if (update || force)
 	{
 		GLV_CalcBlend ();
 
@@ -774,14 +774,14 @@ V_UpdatePalette
 void SWV_UpdatePalette (qboolean force)
 {
 	int		i, j;
-	qboolean	new;
+	qboolean	update;
 	qbyte	*basepal, *newpal;
 	qbyte	pal[768];
 	int		r,g,b;
 
 	V_CalcPowerupCshift ();
 	
-	new = false;
+	update = false;
 	
 	for (i=0 ; i<NUM_CSHIFTS ; i++)
 	{
@@ -789,13 +789,13 @@ void SWV_UpdatePalette (qboolean force)
 		{
 			if (i == CSHIFT_SERVER)
 				force = true;	// don't let them cheat.
-			new = true;
+			update = true;
 			cl.prev_cshifts[i].percent = cl.cshifts[i].percent;
 		}
 		for (j=0 ; j<3 ; j++)
 			if (cl.cshifts[i].destcolor[j] != cl.prev_cshifts[i].destcolor[j])
 			{
-				new = true;
+				update = true;
 				cl.prev_cshifts[i].destcolor[j] = cl.cshifts[i].destcolor[j];
 			}
 	}
@@ -813,7 +813,7 @@ void SWV_UpdatePalette (qboolean force)
 
 	if (r_pixbytes == 4)	//doesn't support palette cycling. It messes up caches.
 	{
-		if (!new && !force)
+		if (!update && !force)
 			return;
 		basepal = host_basepal;
 		newpal = pal;
@@ -835,7 +835,7 @@ void SWV_UpdatePalette (qboolean force)
 		D_FlushCaches();
 		return;
 	}
-	if (!new && !force)
+	if (!update && !force)
 		return;
 			
 	basepal = host_basepal;

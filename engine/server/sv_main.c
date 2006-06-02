@@ -607,22 +607,22 @@ void PIN_DeleteOldestMessage(void)
 void PIN_MakeMessage(char *from, char *msg)
 {
 	pinnedmessages_t *p;
-	pinnedmessages_t *new;
+	pinnedmessages_t *newp;
 
-	new = BZ_Malloc(sizeof(pinnedmessages_t));
-	Q_strncpyz(new->setby, from, sizeof(new->setby));
-	Q_strncpyz(new->message, msg, sizeof(new->message));
-	new->next = NULL;
+	newp = BZ_Malloc(sizeof(pinnedmessages_t));
+	Q_strncpyz(newp->setby, from, sizeof(newp->setby));
+	Q_strncpyz(newp->message, msg, sizeof(newp->message));
+	newp->next = NULL;
 
 	if (!pinned)
-		pinned = new;
+		pinned = newp;
 	else
 	{
 		for (p = pinned; ; p = p->next)
 		{
 			if (!p->next)
 			{
-				p->next = new;
+				p->next = newp;
 				break;
 			}
 		}

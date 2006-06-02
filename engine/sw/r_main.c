@@ -1633,6 +1633,38 @@ static int R_SIRDZFunc(int sub)
 	return ((e<=R_SIRDmaxDiff)? e : R_SIRDmaxDiff );
 }
 
+#if 0
+void R_ApplyFog(void)
+{
+	// test code for fog, the real implementation should use a lookup table
+	qbyte *pbuf;
+	short *zbuf;
+	extern short *d_pzbuffer;
+	int y, x;
+	float v;
+
+	for (y=0 ; y<vid.height ; y++)
+	{
+		pbuf = (qbyte *)(vid.buffer + vid.rowbytes*y);
+		zbuf = d_pzbuffer + (vid.width*y);
+
+		for (x=0 ; x<vid.width ; x++)
+		{
+			if (!zbuf[x])
+				D_SetTransLevel(1.0f, BM_ADD);
+			else
+			{
+				v = 64.0f / zbuf[x];
+				v = bound(0, v, 1);
+				D_SetTransLevel(v, BM_ADD);
+			}
+
+			pbuf[x] = AddBlend(pbuf[x], 74);
+		}
+	}
+}
+#endif
+
 void R_ApplySIRDAlgorithum(void)
 {
 	unsigned short* curz, *oldz;

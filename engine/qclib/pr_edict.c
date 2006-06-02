@@ -971,15 +971,15 @@ ED_NewString
 */
 char *ED_NewString (progfuncs_t *progfuncs, char *string, int minlength)
 {
-	char	*new, *new_p;
+	char	*newc, *new_p;
 	int		i,l;
 
 	minlength++;
 
 	l = strlen(string) + 1;
 
-	new = PRAddressableAlloc (progfuncs, l<minlength?minlength:l);
-	new_p = new;
+	newc = PRAddressableAlloc (progfuncs, l<minlength?minlength:l);
+	new_p = newc;
 
 	for (i=0 ; i< l ; i++)
 	{
@@ -995,7 +995,7 @@ char *ED_NewString (progfuncs_t *progfuncs, char *string, int minlength)
 			*new_p++ = string[i];
 	}
 
-	return new;
+	return newc;
 }
 
 

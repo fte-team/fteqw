@@ -254,7 +254,7 @@ void D_PolysetRecursiveTriangleTrans (int *lp1, int *lp2, int *lp3)
 {
 	int		*temp;
 	int		d;
-	int		new[6];
+	int		newt[6];
 	int		z;
 	short	*zbuf;
 
@@ -297,11 +297,11 @@ split2:
 
 split:
 // split this edge
-	new[0] = (lp1[0] + lp2[0]) >> 1;
-	new[1] = (lp1[1] + lp2[1]) >> 1;
-	new[2] = (lp1[2] + lp2[2]) >> 1;
-	new[3] = (lp1[3] + lp2[3]) >> 1;
-	new[5] = (lp1[5] + lp2[5]) >> 1;
+	newt[0] = (lp1[0] + lp2[0]) >> 1;
+	newt[1] = (lp1[1] + lp2[1]) >> 1;
+	newt[2] = (lp1[2] + lp2[2]) >> 1;
+	newt[3] = (lp1[3] + lp2[3]) >> 1;
+	newt[5] = (lp1[5] + lp2[5]) >> 1;
 
 // draw the point if splitting a leading edge
 	if (lp2[1] > lp1[1])
@@ -310,28 +310,28 @@ split:
 		goto nodraw;
 
 
-	z = new[5]>>16;
-	zbuf = zspantable[new[1]] + new[0];
+	z = newt[5]>>16;
+	zbuf = zspantable[newt[1]] + newt[0];
 	if (z >= *zbuf)
 	{
 		int		pix;
 		
 		*zbuf = z;
-		pix = d_pcolormap[apalremap[skintable[new[3]>>16][new[2]>>16]]];
-		d_viewbuffer[d_scantable[new[1]] + new[0]] = Trans(d_viewbuffer[d_scantable[new[1]] + new[0]], (unsigned char)pix);
+		pix = d_pcolormap[apalremap[skintable[newt[3]>>16][newt[2]>>16]]];
+		d_viewbuffer[d_scantable[newt[1]] + newt[0]] = Trans(d_viewbuffer[d_scantable[newt[1]] + newt[0]], (unsigned char)pix);
 	}
 
 nodraw:
 // recursively continue
-	D_PolysetRecursiveTriangleTrans (lp3, lp1, new);
-	D_PolysetRecursiveTriangleTrans (lp3, new, lp2);
+	D_PolysetRecursiveTriangleTrans (lp3, lp1, newt);
+	D_PolysetRecursiveTriangleTrans (lp3, newt, lp2);
 }
 
 void D_PolysetRecursiveTriangle32Trans (int *lp1, int *lp2, int *lp3)
 {
 	int		*temp;
 	int		d;
-	int		new[6];
+	int		newt[6];
 	int		z;
 	short	*zbuf;	
 
@@ -374,11 +374,11 @@ split2:
 
 split:
 // split this edge
-	new[0] = (lp1[0] + lp2[0]) >> 1;
-	new[1] = (lp1[1] + lp2[1]) >> 1;
-	new[2] = (lp1[2] + lp2[2]) >> 1;
-	new[3] = (lp1[3] + lp2[3]) >> 1;
-	new[5] = (lp1[5] + lp2[5]) >> 1;
+	newt[0] = (lp1[0] + lp2[0]) >> 1;
+	newt[1] = (lp1[1] + lp2[1]) >> 1;
+	newt[2] = (lp1[2] + lp2[2]) >> 1;
+	newt[3] = (lp1[3] + lp2[3]) >> 1;
+	newt[5] = (lp1[5] + lp2[5]) >> 1;
 
 // draw the point if splitting a leading edge
 	if (lp2[1] > lp1[1])
@@ -387,32 +387,32 @@ split:
 		goto nodraw;
 
 
-	z = new[5]>>16;
-	if ((new[1]>=vid.height|| new[1] < 0 || new[0] >= vid.width || new[0]<0))	//fixme: temp
+	z = newt[5]>>16;
+	if ((newt[1]>=vid.height|| newt[1] < 0 || newt[0] >= vid.width || newt[0]<0))	//fixme: temp
 		return;
-	zbuf = zspantable[new[1]] + new[0];
+	zbuf = zspantable[newt[1]] + newt[0];
 
 	if (z >= *zbuf)
 	{
 		int		pix;
 		
 		*zbuf = z;
-		pix = ((unsigned int *)((unsigned int **)skintable)[new[3]>>16])[new[2]>>16];
+		pix = ((unsigned int *)((unsigned int **)skintable)[newt[3]>>16])[newt[2]>>16];
 //		pix = d_pcolormap[skintable[new[3]>>16][new[2]>>16]];
-		((unsigned int *)d_viewbuffer)[d_scantable[new[1]] + new[0]] = pix;//d_8to32table[pix];
+		((unsigned int *)d_viewbuffer)[d_scantable[newt[1]] + newt[0]] = pix;//d_8to32table[pix];
 	}
 
 nodraw:
 // recursively continue
-	D_PolysetRecursiveTriangle32Trans (lp3, lp1, new);
-	D_PolysetRecursiveTriangle32Trans (lp3, new, lp2);
+	D_PolysetRecursiveTriangle32Trans (lp3, lp1, newt);
+	D_PolysetRecursiveTriangle32Trans (lp3, newt, lp2);
 }
 
 void D_PolysetRecursiveTriangle16 (int *lp1, int *lp2, int *lp3)
 {
 	int		*temp;
 	int		d;
-	int		new[6];
+	int		newt[6];
 	int		z;
 	short	*zbuf;	
 
@@ -455,11 +455,11 @@ split2:
 
 split:
 // split this edge
-	new[0] = (lp1[0] + lp2[0]) >> 1;
-	new[1] = (lp1[1] + lp2[1]) >> 1;
-	new[2] = (lp1[2] + lp2[2]) >> 1;
-	new[3] = (lp1[3] + lp2[3]) >> 1;
-	new[5] = (lp1[5] + lp2[5]) >> 1;
+	newt[0] = (lp1[0] + lp2[0]) >> 1;
+	newt[1] = (lp1[1] + lp2[1]) >> 1;
+	newt[2] = (lp1[2] + lp2[2]) >> 1;
+	newt[3] = (lp1[3] + lp2[3]) >> 1;
+	newt[5] = (lp1[5] + lp2[5]) >> 1;
 
 // draw the point if splitting a leading edge
 	if (lp2[1] > lp1[1])
@@ -468,24 +468,24 @@ split:
 		goto nodraw;
 
 
-	z = new[5]>>16;
-	if ((new[1]>=vid.height|| new[1] < 0 || new[0] >= vid.width || new[0]<0))	//fixme: temp
+	z = newt[5]>>16;
+	if ((newt[1]>=vid.height|| newt[1] < 0 || newt[0] >= vid.width || newt[0]<0))	//fixme: temp
 		return;
-	zbuf = zspantable[new[1]] + new[0];
+	zbuf = zspantable[newt[1]] + newt[0];
 
 	if (z >= *zbuf)
 	{
 		int		pix;
 		
 		*zbuf = z;
-		pix = ((unsigned short *)d_pcolormap)[skintable[new[3]>>16][new[2]>>16]];
-		((unsigned short *)d_viewbuffer)[d_scantable[new[1]] + new[0]] = pix;//d_8to32table[pix];
+		pix = ((unsigned short *)d_pcolormap)[skintable[newt[3]>>16][newt[2]>>16]];
+		((unsigned short *)d_viewbuffer)[d_scantable[newt[1]] + newt[0]] = pix;//d_8to32table[pix];
 	}
 
 nodraw:
 // recursively continue
-	D_PolysetRecursiveTriangle16 (lp3, lp1, new);
-	D_PolysetRecursiveTriangle16 (lp3, new, lp2);
+	D_PolysetRecursiveTriangle16 (lp3, lp1, newt);
+	D_PolysetRecursiveTriangle16 (lp3, newt, lp2);
 }
 
 void D_PolysetDrawSpans8Trans (spanpackage_t *pspanpackage)
@@ -1370,7 +1370,7 @@ void D_PolysetRecursiveTriangleC (int *lp1, int *lp2, int *lp3)
 {
 	int		*temp;
 	int		d;
-	int		new[6];
+	int		newt[6];
 	int		z;
 	short	*zbuf;
 
@@ -1413,11 +1413,11 @@ split2:
 
 split:
 // split this edge
-	new[0] = (lp1[0] + lp2[0]) >> 1;
-	new[1] = (lp1[1] + lp2[1]) >> 1;
-	new[2] = (lp1[2] + lp2[2]) >> 1;
-	new[3] = (lp1[3] + lp2[3]) >> 1;
-	new[5] = (lp1[5] + lp2[5]) >> 1;
+	newt[0] = (lp1[0] + lp2[0]) >> 1;
+	newt[1] = (lp1[1] + lp2[1]) >> 1;
+	newt[2] = (lp1[2] + lp2[2]) >> 1;
+	newt[3] = (lp1[3] + lp2[3]) >> 1;
+	newt[5] = (lp1[5] + lp2[5]) >> 1;
 
 // draw the point if splitting a leading edge
 	if (lp2[1] > lp1[1])
@@ -1426,28 +1426,28 @@ split:
 		goto nodraw;
 
 
-	z = new[5]>>16;
-	zbuf = zspantable[new[1]] + new[0];
+	z = newt[5]>>16;
+	zbuf = zspantable[newt[1]] + newt[0];
 	if (z >= *zbuf)
 	{
 		int		pix;
 		
 		*zbuf = z;
-		pix = d_pcolormap[apalremap[skintable[new[3]>>16][new[2]>>16]]];
-		d_viewbuffer[d_scantable[new[1]] + new[0]] = pix;
+		pix = d_pcolormap[apalremap[skintable[newt[3]>>16][newt[2]>>16]]];
+		d_viewbuffer[d_scantable[newt[1]] + newt[0]] = pix;
 	}
 
 nodraw:
 // recursively continue
-	D_PolysetRecursiveTriangleC (lp3, lp1, new);
-	D_PolysetRecursiveTriangleC (lp3, new, lp2);
+	D_PolysetRecursiveTriangleC (lp3, lp1, newt);
+	D_PolysetRecursiveTriangleC (lp3, newt, lp2);
 }
 
 void D_PolysetRecursiveTriangle16C (int *lp1, int *lp2, int *lp3)
 {
 	int		*temp;
 	int		d;
-	int		new[6];
+	int		newt[6];
 	int		z;
 	short	*zbuf;
 
@@ -1490,11 +1490,11 @@ split2:
 
 split:
 // split this edge
-	new[0] = (lp1[0] + lp2[0]) >> 1;
-	new[1] = (lp1[1] + lp2[1]) >> 1;
-	new[2] = (lp1[2] + lp2[2]) >> 1;
-	new[3] = (lp1[3] + lp2[3]) >> 1;
-	new[5] = (lp1[5] + lp2[5]) >> 1;
+	newt[0] = (lp1[0] + lp2[0]) >> 1;
+	newt[1] = (lp1[1] + lp2[1]) >> 1;
+	newt[2] = (lp1[2] + lp2[2]) >> 1;
+	newt[3] = (lp1[3] + lp2[3]) >> 1;
+	newt[5] = (lp1[5] + lp2[5]) >> 1;
 
 // draw the point if splitting a leading edge
 	if (lp2[1] > lp1[1])
@@ -1503,8 +1503,8 @@ split:
 		goto nodraw;
 
 
-	z = new[5]>>16;
-	zbuf = zspantable[new[1]] + new[0];
+	z = newt[5]>>16;
+	zbuf = zspantable[newt[1]] + newt[0];
 	if (z >= *zbuf)
 	{
 		int		pix;
@@ -1514,14 +1514,14 @@ split:
 
 		
 		*zbuf = z;
-		pix = skintable[new[3]>>16][new[2]>>16];
-		((unsigned short *)d_viewbuffer)[d_scantable[new[1]] + new[0]] = pix;
+		pix = skintable[newt[3]>>16][newt[2]>>16];
+		((unsigned short *)d_viewbuffer)[d_scantable[newt[1]] + newt[0]] = pix;
 	}
 
 nodraw:
 // recursively continue
-	D_PolysetRecursiveTriangle16C (lp3, lp1, new);
-	D_PolysetRecursiveTriangle16C (lp3, new, lp2);
+	D_PolysetRecursiveTriangle16C (lp3, lp1, newt);
+	D_PolysetRecursiveTriangle16C (lp3, newt, lp2);
 }
 
 /*
@@ -2562,7 +2562,7 @@ void D_PolysetSetEdgeTable (void)
 void D_PolysetRecursiveDrawLine (int *lp1, int *lp2)
 {
 	int		d;
-	int		new[6];
+	int		newt[6];
 	int 	ofs;
 	
 	d = lp2[0] - lp1[0];
@@ -2576,34 +2576,34 @@ void D_PolysetRecursiveDrawLine (int *lp1, int *lp2)
 
 split:
 // split this edge
-	new[0] = (lp1[0] + lp2[0]) >> 1;
-	new[1] = (lp1[1] + lp2[1]) >> 1;
-	new[5] = (lp1[5] + lp2[5]) >> 1;
-	new[2] = (lp1[2] + lp2[2]) >> 1;
-	new[3] = (lp1[3] + lp2[3]) >> 1;
-	new[4] = (lp1[4] + lp2[4]) >> 1;
+	newt[0] = (lp1[0] + lp2[0]) >> 1;
+	newt[1] = (lp1[1] + lp2[1]) >> 1;
+	newt[5] = (lp1[5] + lp2[5]) >> 1;
+	newt[2] = (lp1[2] + lp2[2]) >> 1;
+	newt[3] = (lp1[3] + lp2[3]) >> 1;
+	newt[4] = (lp1[4] + lp2[4]) >> 1;
 
 // draw the point
-	ofs = d_scantable[new[1]] + new[0];
-	if (new[5] > d_pzbuffer[ofs])
+	ofs = d_scantable[newt[1]] + newt[0];
+	if (newt[5] > d_pzbuffer[ofs])
 	{
 		int		pix;
 		
-		d_pzbuffer[ofs] = new[5];
-		pix = apalremap[skintable[new[3]>>16][new[2]>>16]];
-//		pix = ((qbyte *)acolormap)[pix + (new[4] & 0xFF00)];
+		d_pzbuffer[ofs] = newt[5];
+		pix = apalremap[skintable[newt[3]>>16][newt[2]>>16]];
+//		pix = ((qbyte *)acolormap)[pix + (newt[4] & 0xFF00)];
 		d_viewbuffer[ofs] = pix;
 	}
 
 // recursively continue
-	D_PolysetRecursiveDrawLine (lp1, new);
-	D_PolysetRecursiveDrawLine (new, lp2);
+	D_PolysetRecursiveDrawLine (lp1, newt);
+	D_PolysetRecursiveDrawLine (newt, lp2);
 }
 
 void D_PolysetRecursiveTriangle2 (int *lp1, int *lp2, int *lp3)
 {
 	int		d;
-	int		new[4];
+	int		newt[4];
 	
 	d = lp2[0] - lp1[0];
 	if (d < -1 || d > 1)
@@ -2615,18 +2615,18 @@ void D_PolysetRecursiveTriangle2 (int *lp1, int *lp2, int *lp3)
 
 split:
 // split this edge
-	new[0] = (lp1[0] + lp2[0]) >> 1;
-	new[1] = (lp1[1] + lp2[1]) >> 1;
-	new[5] = (lp1[5] + lp2[5]) >> 1;
-	new[2] = (lp1[2] + lp2[2]) >> 1;
-	new[3] = (lp1[3] + lp2[3]) >> 1;
-	new[4] = (lp1[4] + lp2[4]) >> 1;
+	newt[0] = (lp1[0] + lp2[0]) >> 1;
+	newt[1] = (lp1[1] + lp2[1]) >> 1;
+	newt[5] = (lp1[5] + lp2[5]) >> 1;
+	newt[2] = (lp1[2] + lp2[2]) >> 1;
+	newt[3] = (lp1[3] + lp2[3]) >> 1;
+	newt[4] = (lp1[4] + lp2[4]) >> 1;
 
-	D_PolysetRecursiveDrawLine (new, lp3);
+	D_PolysetRecursiveDrawLine (newt, lp3);
 
 // recursively continue
-	D_PolysetRecursiveTriangle (lp1, new, lp3);
-	D_PolysetRecursiveTriangle (new, lp2, lp3);
+	D_PolysetRecursiveTriangle (lp1, newt, lp3);
+	D_PolysetRecursiveTriangle (newt, lp2, lp3);
 }
 
 #endif

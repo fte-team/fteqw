@@ -90,6 +90,11 @@ void (APIENTRY *qglStencilOp) (GLenum fail, GLenum zfail, GLenum zpass);
 void (APIENTRY *qglStencilFunc) (GLenum func, GLint ref, GLuint mask);
 void (APIENTRY *qglPushAttrib) (GLbitfield mask);
 void (APIENTRY *qglPopAttrib) (void);
+
+void (APIENTRY *qglFogf) (GLenum pname, GLfloat param);
+void (APIENTRY *qglFogi) (GLenum pname, GLint param);
+void (APIENTRY *qglFogfv) (GLenum pname, const GLfloat *params);
+
 /*
 PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
 PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
@@ -565,6 +570,11 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglPushAttrib		= (void *)getglcore("glPushAttrib");
 	qglPopAttrib		= (void *)getglcore("glPopAttrib");
 	qglScissor			= (void *)getglcore("glScissor");
+
+	//does this need to be non-core as well?
+	qglFogi				= (void *)getglcore("glFogi");
+	qglFogf				= (void *)getglcore("glFogf");
+	qglFogfv			= (void *)getglcore("glFogfv");
 
 	qglPolygonOffset	= (void *)getglext("glPolygonOffset");
 

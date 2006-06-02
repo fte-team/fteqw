@@ -611,7 +611,7 @@ char *particle_set_spikeset =
 "assoc empcore\n"
 "}\n" 
 
-"r_part te_blob\n"
+"r_part te_tarexplosion\n"
 "{\n" 
 "texture \"particles/emp\"\n"
 "count 120\n"
@@ -905,7 +905,7 @@ char *particle_set_faithful =
 "randomvel 256\n"
 "assoc blobexp1b\n"
 "}\n" 
-"r_part te_blob\n"
+"r_part te_tarexplosion\n"
 "{\n" 
 "texture \"particles/quake\"\n"
 "count 256\n"
@@ -1103,7 +1103,7 @@ char *particle_set_highfps =
 "}\n" 
 
 //the blob tempent is used quite a bit with teamfortress emp grenades.
-"r_part te_blob\n"
+"r_part te_tarexplosion\n"
 "{\n" 
 "texture \"particles/blob\"\n"
 "count 64\n"

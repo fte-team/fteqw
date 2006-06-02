@@ -883,7 +883,7 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_bigexplosion"))
+		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_tei_bigexplosion"))
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 				P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 

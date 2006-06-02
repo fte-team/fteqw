@@ -974,7 +974,7 @@ Key_SetBinding
 */
 void Key_SetBinding (int keynum, int modifier, char *binding, int level)
 {
-	char	*new;
+	char	*newc;
 	int		l;
 
 	if (modifier == ~0)	//all of the possabilities.
@@ -1002,10 +1002,10 @@ void Key_SetBinding (int keynum, int modifier, char *binding, int level)
 	}
 // allocate memory for new binding
 	l = Q_strlen (binding);	
-	new = Z_Malloc (l+1);
-	Q_strcpy (new, binding);
-	new[l] = 0;
-	keybindings[keynum][modifier] = new;
+	newc = Z_Malloc (l+1);
+	Q_strcpy (newc, binding);
+	newc[l] = 0;
+	keybindings[keynum][modifier] = newc;
 	bindcmdlevel[keynum][modifier] = level;
 }
 

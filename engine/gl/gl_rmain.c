@@ -1714,6 +1714,62 @@ qglPolygonOffset(0, 0);
 }
 //#endif
 
+#if 0
+void GLR_SetupFog (void)
+{
+	if (r_viewleaf)// && r_viewleaf->contents != CONTENTS_EMPTY)
+	{
+		//	static fogcolour;
+		float fogcol[4]={0};
+		float fogperc;
+		float fogdist;
+
+		fogperc=0;
+		fogdist=512;
+		switch(r_viewleaf->contents)
+		{
+		case FTECONTENTS_WATER:
+			fogcol[0] = 64/255.0;
+			fogcol[1] = 128/255.0;
+			fogcol[2] = 192/255.0;
+			fogperc=0.2;
+			fogdist=512;
+			break;
+		case FTECONTENTS_SLIME:
+			fogcol[0] = 32/255.0;
+			fogcol[1] = 192/255.0;
+			fogcol[2] = 92/255.0;
+			fogperc=1;
+			fogdist=256;
+			break;
+		case FTECONTENTS_LAVA:
+			fogcol[0] = 192/255.0;
+			fogcol[1] = 32/255.0;
+			fogcol[2] = 64/255.0;
+			fogperc=1;
+			fogdist=128;
+			break;
+		default:
+			fogcol[0] = 192/255.0;
+			fogcol[1] = 192/255.0;
+			fogcol[2] = 192/255.0;
+			fogperc=1;
+			fogdist=1024;
+			break;
+		}
+		if (fogperc)
+		{
+			qglFogi(GL_FOG_MODE, GL_LINEAR);
+			qglFogfv(GL_FOG_COLOR, fogcol);
+			qglFogf(GL_FOG_DENSITY, fogperc);
+			qglFogf(GL_FOG_START, 1);
+			qglFogf(GL_FOG_END, fogdist);
+			qglEnable(GL_FOG);
+		}
+	}
+}
+#endif
+
 /*
 ================
 R_RenderView
@@ -1777,59 +1833,9 @@ void GLR_RenderView (void)
 	mirror = false;
 
 	R_Clear ();
-/*
-	if (r_viewleaf)// && r_viewleaf->contents != CONTENTS_EMPTY)
-	{
-		//	static fogcolour;
-	float fogcol[4]={0};
-	float fogperc;
-	float fogdist;
-#pragma comment (lib, "opengl32.lib")	//temp only.
 
-		fogperc=0;
-		fogdist=512;
-		switch(r_viewleaf->contents)
-		{
-		case CONTENTS_WATER:
-			fogcol[0] = 64/255.0;
-			fogcol[1] = 128/255.0;
-			fogcol[2] = 192/255.0;
-			fogperc=0.2;
-			fogdist=512;
-			break;
-		case CONTENTS_SLIME:
-			fogcol[0] = 32/255.0;
-			fogcol[1] = 192/255.0;
-			fogcol[2] = 92/255.0;
-			fogperc=1;
-			fogdist=256;
-			break;
-		case CONTENTS_LAVA:
-			fogcol[0] = 192/255.0;
-			fogcol[1] = 32/255.0;
-			fogcol[2] = 64/255.0;
-			fogperc=1;
-			fogdist=128;
-			break;
-		default:
-			fogcol[0] = 192/255.0;
-			fogcol[1] = 192/255.0;
-			fogcol[2] = 192/255.0;
-			fogperc=1;
-			fogdist=1024;
-			break;
-		}
-		if (fogperc)
-		{
-			glFogi(GL_FOG_MODE, GL_LINEAR);
-			glFogfv(GL_FOG_COLOR, fogcol);
-			glFogf(GL_FOG_DENSITY, fogperc);
-			glFogf(GL_FOG_START, 1);
-			glFogf(GL_FOG_END, fogdist);
-			glEnable(GL_FOG);
-		}
-	}
-*/
+//	GLR_SetupFog ();
+
 	r_alpha_surfaces = NULL;
 
 	GL_SetShaderState2D(false);
@@ -1847,7 +1853,7 @@ void GLR_RenderView (void)
 
 	R_PolyBlend ();
 
-//	glDisable(GL_FOG);
+//	qglDisable(GL_FOG);
 
 	if (r_speeds.value)
 	{

@@ -2333,7 +2333,7 @@ void CL_ParsePlayerinfo (void)
 	player_state_t	*state, *oldstate;
 	int			num;
 	int			i;
-	int new;
+	int newf;
 	vec3_t		org;
 
 	lastplayerinfo = num = MSG_ReadByte ();
@@ -2453,11 +2453,11 @@ void CL_ParsePlayerinfo (void)
 
 	VectorCopy(org, state->origin);
 
-	new = MSG_ReadByte ();
-	if (state->frame != new)
+	newf = MSG_ReadByte ();
+	if (state->frame != newf)
 	{
 //		state->lerpstarttime = realtime;
-		state->frame = new;
+		state->frame = newf;
 	}
 
 	// the other player's last move was likely some time

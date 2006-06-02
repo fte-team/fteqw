@@ -785,7 +785,7 @@ strofs = (strofs+3)&~3;
 	printf("Writing %s\n", destfile);
 	h = SafeOpenWrite (destfile, 2*1024*1024);
 	SafeWrite (h, &progs, sizeof(progs));
-	SafeWrite (h, "\r\n\r\n", 2);
+	SafeWrite (h, "\r\n\r\n", 4);
 	SafeWrite (h, QCC_copyright, strlen(QCC_copyright)+1);
 	SafeWrite (h, "\r\n\r\n", 4);
 	while(SafeSeek (h, 0, SEEK_CUR) & 3)//this is a lame way to do it

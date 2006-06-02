@@ -2170,6 +2170,7 @@ void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char		*s;
 	int			entnum;
 	client_t	*cl, *sp;
+	int			slen;
 
 	if (sv.demofile)
 		return;
@@ -2184,6 +2185,7 @@ void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 
 	cl = &svs.clients[entnum-1];
+	slen = strlen(s);
 
 	if (cl->controller)
 	{	//this is a slave client.
@@ -2197,15 +2199,22 @@ void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 		sp = cl->controller;
 
-		ClientReliableWrite_Begin (sp, svc_choosesplitclient, 4 + strlen(s));
+		ClientReliableWrite_Begin (sp, svc_choosesplitclient, 4 + slen);
 		ClientReliableWrite_Byte (sp, pnum);
 		ClientReliableWrite_Byte (sp, svc_centerprint);
 		ClientReliableWrite_String (sp, s);
 	}
 	else
 	{
-		ClientReliableWrite_Begin (cl, svc_centerprint, 2 + strlen(s));
+		ClientReliableWrite_Begin (cl, svc_centerprint, 2 + slen);
 		ClientReliableWrite_String (cl, s);
+	}
+
+	if (sv.mvdrecording)
+	{
+		MVDWrite_Begin (dem_single, entnum - 1, 2 + slen);
+		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_centerprint);
+		MSG_WriteString ((sizebuf_t*)demo.dbuf, s);
 	}
 }
 
@@ -2221,21 +2230,21 @@ void PF_normalize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*value1;
 	vec3_t	newvalue;
-	float	new;
+	float	newf;
 
 	value1 = G_VECTOR(OFS_PARM0);
 
-	new = value1[0] * value1[0] + value1[1] * value1[1] + value1[2]*value1[2];
-	new = sqrt(new);
+	newf = value1[0] * value1[0] + value1[1] * value1[1] + value1[2]*value1[2];
+	newf = sqrt(newf);
 
-	if (new == 0)
+	if (newf == 0)
 		newvalue[0] = newvalue[1] = newvalue[2] = 0;
 	else
 	{
-		new = 1/new;
-		newvalue[0] = value1[0] * new;
-		newvalue[1] = value1[1] * new;
-		newvalue[2] = value1[2] * new;
+		newf = 1/newf;
+		newvalue[0] = value1[0] * newf;
+		newvalue[1] = value1[1] * newf;
+		newvalue[2] = value1[2] * newf;
 	}
 
 	VectorCopy (newvalue, G_VECTOR(OFS_RETURN));
@@ -2251,14 +2260,14 @@ scalar vlen(vector)
 void PF_vlen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*value1;
-	float	new;
+	float	newv;
 
 	value1 = G_VECTOR(OFS_PARM0);
 
-	new = value1[0] * value1[0] + value1[1] * value1[1] + value1[2]*value1[2];
-	new = sqrt(new);
+	newv = value1[0] * value1[0] + value1[1] * value1[1] + value1[2]*value1[2];
+	newv = sqrt(newv);
 
-	G_FLOAT(OFS_RETURN) = new;
+	G_FLOAT(OFS_RETURN) = newv;
 }
 
 /*
@@ -2271,14 +2280,14 @@ scalar vhlen(vector)
 void PF_vhlen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*value1;
-	float	new;
+	float	newv;
 
 	value1 = G_VECTOR(OFS_PARM0);
 
-	new = value1[0] * value1[0] + value1[1] * value1[1];
-	new = sqrt(new);
+	newv = value1[0] * value1[0] + value1[1] * value1[1];
+	newv = sqrt(newv);
 
-	G_FLOAT(OFS_RETURN) = new;
+	G_FLOAT(OFS_RETURN) = newv;
 }
 
 /*
@@ -3103,6 +3112,7 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char	*str;
 	client_t	*cl;
 	static qboolean expectingcolour;
+	int		slen;
 
 	entnum = G_EDICTNUM(prinst, OFS_PARM0);
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
@@ -3111,7 +3121,6 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	str = PR_GetStringOfs(prinst, OFS_PARM1);
 
 	cl = &svs.clients[entnum-1];
-
 
 	if (strcmp(str, "disconnect\n") == 0)
 	{
@@ -3132,6 +3141,7 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			else
 				str += 6;
 		}
+		// FIXME: this seems broken and color->teamname needs a common functions
 		if (expectingcolour)
 		{
 			int team = atoi(str);
@@ -3154,6 +3164,8 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 	}
 
+	slen = strlen(str);
+
 	if (cl->controller)
 	{	//this is a slave client.
 		//find the right number and send.
@@ -3167,15 +3179,22 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 		sp = cl->controller;
 
-		ClientReliableWrite_Begin (sp, svc_choosesplitclient, 4 + strlen(str));
+		ClientReliableWrite_Begin (sp, svc_choosesplitclient, 4 + slen);
 		ClientReliableWrite_Byte (sp, pnum);
 		ClientReliableWrite_Byte (sp, svc_stufftext);
 		ClientReliableWrite_String (sp, str);
 	}
 	else
 	{
-		ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen(str));
+		ClientReliableWrite_Begin (cl, svc_stufftext, 2+slen);
 		ClientReliableWrite_String (cl, str);
+	}
+
+	if (sv.mvdrecording)
+	{
+		MVDWrite_Begin (dem_single, entnum - 1, 2 + slen);
+		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_stufftext);
+		MSG_WriteString ((sizebuf_t*)demo.dbuf, str);
 	}
 }
 

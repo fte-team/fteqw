@@ -277,6 +277,7 @@ void S_Startup (void)
 		S_Shutdown();
 
 	snd_blocked = 0;
+	snd_speed = 0;
 
 	if (!fakedma)
 	{
@@ -345,7 +346,7 @@ void S_Startup (void)
 
 			if (sndcardinfo)
 			{	//if the sample speeds of multiple soundcards do not match, it'll fail.
-				if (sc->sn.speed != sc->sn.speed)
+				if (snd_speed != sc->sn.speed)
 				{
 					if (!warningmessage)
 					{

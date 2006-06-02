@@ -1405,7 +1405,7 @@ void P_InitParticles (void)
 	pt_explosion		= P_AllocateParticleType("te_explosion");
 	pt_pointfile		= P_AllocateParticleType("pe_pointfile");
 	pt_entityparticles	= P_AllocateParticleType("ef_entityparticles");
-	pt_blob				= P_AllocateParticleType("te_blob");
+	pt_blob				= P_AllocateParticleType("te_tarexplosion");
 
 	pt_blood			= P_AllocateParticleType("te_blood");
 	pt_lightningblood	= P_AllocateParticleType("te_lightningblood");

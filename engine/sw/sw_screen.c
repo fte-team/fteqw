@@ -47,6 +47,9 @@ WARNING: be very careful calling this from elsewhere, because the refresh
 needs almost the entire 256k of stack space!
 ==================
 */
+extern void D_SetTransLevel(float level, blendmode_t blend);
+extern qbyte Trans(qbyte p, qbyte p2);
+
 void SWSCR_UpdateScreen (void)
 {
 	qboolean nohud;

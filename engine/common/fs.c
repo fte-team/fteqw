@@ -690,7 +690,7 @@ void *FSPAK_LoadDoomWadFile (vfsfile_t *packhandle, char *desc)
 		*neatwadname = '\0';
 	else if (header.id[0] == 'P')
 	{
-		COM_FileBase(desc, neatwadname, sizeof(neatwadname)-1);
+		COM_FileBase(desc, neatwadname, sizeof(neatwadname));
 		strcat(neatwadname, "#");
 	}
 	else
@@ -2298,7 +2298,7 @@ qbyte *COM_LoadFile (char *path, int usehunk)
 	vfsfile_t *f;
 	qbyte *buf;
 	int len;
-	char	base[32];
+	char	base[MAX_OSPATH];
 	flocation_t loc;
 	FS_FLocateFile(path, FSLFRT_LENGTH, &loc);
 

@@ -80,10 +80,11 @@ cvar_t snd_eax = SCVAR("snd_eax", "0");
 cvar_t snd_speakers = SCVAR("snd_numspeakers", "2");
 cvar_t snd_buffersize = SCVAR("snd_buffersize", "0");
 cvar_t snd_samplebits = SCVARF("snd_samplebits", "16", CVAR_ARCHIVE);
-cvar_t	snd_playersoundvolume = SCVAR("snd_localvolume", "1");	//sugested by crunch
+cvar_t snd_playersoundvolume = SCVAR("snd_localvolume", "1");	//sugested by crunch
 
-cvar_t	snd_capture = SCVAR("snd_capture", "0");
-cvar_t  snd_linearresample = SCVAR("snd_linearresample", "1");
+cvar_t snd_capture = SCVAR("snd_capture", "0");
+cvar_t snd_linearresample = SCVAR("snd_linearresample", "1");
+cvar_t snd_linearresample_stream = SCVAR("snd_linearresample_stream", "0");
 
 cvar_t snd_usemultipledevices = SCVAR("snd_multipledevices", "0");
 
@@ -596,6 +597,7 @@ void S_Init (void)
 	Cvar_Register(&snd_usemultipledevices,		"Sound controls");
 
 	Cvar_Register(&snd_linearresample, "Sound controls");
+	Cvar_Register(&snd_linearresample_stream, "Sound controls");
 
 	if (COM_CheckParm("-nosound"))
 	{
@@ -1560,7 +1562,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	int oldlength;
 	int spare;
 	int outsamples;
-	float speedfactor;
+	double speedfactor;
 	sfxcache_t *newcache;
 	streaming_t *s, *free=NULL;
 	for (s = s_streamers, i = 0; i < MAX_RAW_SOURCES; i++, s++)
@@ -1671,100 +1673,19 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 
 	newcache->length = spare + outsamples;
 
-	// move this whole operation to a seperate function?
-	if (channels == 1)
 	{
-		if (width == 2)
-		{
-			short sample;
-			short *indata = (short *)data;
-			short *outpos = (short *)(newcache->data + spare * (s->sfxcache->numchannels) * s->sfxcache->width);
-			if (speedfactor==1)	//fast
-			{
-				while (samples--)
-				{
-					sample = *indata++;
-					*outpos++ = sample;
-				}
-			}
-			else
-			{
-				int src=0;
-				int pos=0;
-
-				while (pos++ < outsamples)
-				{
-					src = pos*speedfactor;
-					sample = indata[src];
-					*outpos++ = sample;
-				}
-			}
-		}
-		else if (width == 1)
-		{
-			char sample;
-			char *indata = (char *)data;
-			char *outpos = (char *)(newcache->data + spare * (s->sfxcache->numchannels) * s->sfxcache->width);
-			if (speedfactor==1)	//fast
-			{
-				while (samples--)
-				{
-					sample = *indata++;
-					*outpos++ = (int)( (unsigned char)(sample) - 128);
-				}
-			}
-			else
-			{
-				int src=0;
-				int pos=0;
-
-				while (pos++ < outsamples)
-				{
-					src = pos*speedfactor;
-					sample = indata[src];
-					*outpos++ = (int)( (unsigned char)(sample) - 128);
-				}
-			}
-		}
-		else
-			Sys_Error("Width isn't 2\n");
-	}
-	else
-	{
-		if (width == 2)
-		{
-			short sample;
-			short *indata = (short *)data;
-			short *outpos = (short *)((qbyte *)newcache->data + spare * (s->sfxcache->numchannels) * s->sfxcache->width);
-			if (speedfactor==1)	//fast
-			{
-				while (samples--)
-				{
-					sample = *indata++;
-					*outpos++ = sample;
-
-					sample = *indata++;
-					*outpos++ = sample;
-				}
-			}
-			else
-			{
-				int src=0;
-				int pos=0;
-
-				while (pos++ < outsamples)
-				{
-					src = pos*speedfactor;
-					sample = indata[src*2];
-					*outpos++ = sample;
-
-					sample = indata[src*2+1];
-					*outpos++ = sample;
-				}
-			}
-		}
-		else
-			Sys_Error("Width isn't 2\n");
+		extern cvar_t snd_linearresample_stream;
+		short *outpos = (short *)(newcache->data + spare * (s->sfxcache->numchannels) * s->sfxcache->width);
+		SND_ResampleStream(data, 
+			speed, 
+			width, 
+			channels,
+			samples,
+			outpos, 
+			snd_speed, 
+			s->sfxcache->width, 
+			s->sfxcache->numchannels, 
+			(int)snd_linearresample_stream.value);
 	}
 
 	s->sfxcache->loopstart = s->sfxcache->length;

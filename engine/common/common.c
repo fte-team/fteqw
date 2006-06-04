@@ -641,6 +641,35 @@ float FloatNoSwap (float f)
 	return f;
 }
 
+void COM_SwapLittleShortBlock (short *s, int size)
+{
+	if (size <= 0)
+		return;
+
+	if (!bigendien)
+		return;
+
+	while (size)
+	{
+		*s = ShortSwap(*s);
+		s++;
+		size--;
+	}
+}
+
+void COM_CharBias (signed char *c, int size)
+{
+	if (size <= 0)
+		return;
+
+	while (size)
+	{
+		*c = (*(unsigned char *)c) - 128;
+		c++;
+		size--;
+	}
+}
+
 /*
 ==============================================================================
 

@@ -112,6 +112,9 @@ extern	float	(*LittleFloat) (float l);
 short   ShortSwap (short l);
 int    LongSwap (int l);
 
+void COM_CharBias (signed char *c, int size);
+void COM_SwapLittleShortBlock (short *s, int size);
+
 //============================================================================
 
 struct usercmd_s;

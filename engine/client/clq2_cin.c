@@ -361,6 +361,11 @@ qbyte *CIN_ReadNextFrame (void)
 
 	VFS_READ (cin.cinematic_file, samples, count*cin.s_width*cin.s_channels);
 
+	if (cin.s_width == 1)
+		COM_CharBias(samples, count*cin.s_channels);
+	else if (cin.s_width == 2)
+		COM_SwapLittleShortBlock(samples, count*cin.s_channels);
+
 	S_RawAudio (0, samples, cin.s_rate, count, cin.s_channels, cin.s_width);
 
 	in.data = compressed;

@@ -395,44 +395,58 @@ void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue)
 		SCR_StringToRGB(var->string, sccolor, 1);
 }
 
+/*
+// TODO: fix this to be used as the common coord function for selection logic
+void GetSelectionCoords(int *selectcoords)
+{
+	extern cvar_t vid_conwidth, vid_conheight;
+	extern int mousecursor_x, mousecursor_y;
+	int xpos, ypos;
+
+	// convert to console coords
+	xpos = (int)(mousecursor_x*vid_conwidth.value)/vid.width;
+	ypos = (int)(mousecursor_y*vid_conheight.value)/vid.height;
+}
+*/
+
 void Key_ConsoleDrawSelectionBox(void)
 {
-		extern cvar_t vid_conwidth, vid_conheight;
-		extern int mousecursor_x, mousecursor_y;
-		int xpos, ypos, temp;
-		int xpos2, ypos2;
-		
-		if (!con_mousedown[2])
-			return;
+	extern cvar_t vid_conwidth, vid_conheight;
+	extern int mousecursor_x, mousecursor_y;
+	int xpos, ypos, temp;
+	int xpos2, ypos2;
+	
+	if (!con_mousedown[2])
+		return;
 
-		xpos2 = con_mousedown[0];
-		ypos2 = con_mousedown[1];
+	xpos2 = con_mousedown[0];
+	ypos2 = con_mousedown[1];
 
-		xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
-		ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
+	xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
+	ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
 
-		if (xpos2 < 1)
-			xpos2 = 1;
-		if (xpos < 1)
-			xpos = 1;
-		if (xpos2 > con_current->linewidth)
-			xpos2 = con_current->linewidth;
-		if (xpos > con_current->linewidth)
-			xpos = con_current->linewidth;
-		if (xpos2 > xpos)
-		{
-			temp = xpos;
-			xpos = xpos2;
-			xpos2 = temp;
-		}
-		xpos++;
-		if (ypos2 > ypos)
-		{
-			temp = ypos;
-			ypos = ypos2;
-			ypos2 = temp;
-		}
-		ypos++;
+	if (xpos2 < 1)
+		xpos2 = 1;
+	if (xpos < 1)
+		xpos = 1;
+	if (xpos2 > con_current->linewidth)
+		xpos2 = con_current->linewidth;
+	if (xpos > con_current->linewidth)
+		xpos = con_current->linewidth;
+	if (xpos2 > xpos)
+	{
+		temp = xpos;
+		xpos = xpos2;
+		xpos2 = temp;
+	}
+	xpos++;
+	if (ypos2 > ypos)
+	{
+		temp = ypos;
+		ypos = ypos2;
+		ypos2 = temp;
+	}
+	ypos++;
 
 	Draw_FillRGB(xpos2*8, ypos2*8, (xpos - xpos2)*8, (ypos - ypos2)*8, sccolor[0], sccolor[1], sccolor[2]);
 }

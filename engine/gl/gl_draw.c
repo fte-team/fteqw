@@ -579,6 +579,9 @@ void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldval
 	gltexture_t *glt;
 	int anfactor;
 
+	if (qrenderer != QR_OPENGL)
+		return;
+
 	gl_anisotropy_factor = 0;
 	
 	if (gl_config.ext_texture_filter_anisotropic < 2)

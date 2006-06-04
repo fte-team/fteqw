@@ -97,12 +97,11 @@ typedef struct {
 	qboolean arb_texture_env_dot3;
 	qboolean arb_texture_cube_map;
 
-	qboolean ext_texture_filter_anisotropic;
-
 	qboolean arb_texture_compression;
 //	qboolean arb_fragment_program;
 	qboolean arb_shader_objects;
 	qboolean ext_stencil_wrap;
+	int ext_texture_filter_anisotropic;
 	int maxtmus;	//max texture units
 } gl_config_t;
 

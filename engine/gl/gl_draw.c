@@ -31,7 +31,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define GL_USE8BITTEX
 
-int gl_anisotropy_factor = 1;
 int glx, gly, glwidth, glheight;
 
 mesh_t	draw_mesh;
@@ -62,7 +61,7 @@ extern cvar_t		gl_picmip2d;
 extern cvar_t		r_drawdisk;
 extern cvar_t		gl_compress;
 extern cvar_t		gl_smoothfont, gl_smoothcrosshair, gl_fontedgeclamp;
-extern cvar_t		gl_texturemode;
+extern cvar_t		gl_texturemode, gl_texture_anisotropic_filtering;
 extern cvar_t cl_noblink;
 
 extern cvar_t		gl_savecompressedtex;
@@ -91,6 +90,7 @@ float	char_instep;
 
 static unsigned cs_data[16*16];
 static int externalhair;
+int gl_anisotropy_factor;
 
 typedef struct
 {
@@ -112,8 +112,6 @@ int		gl_alpha_format = 4;
 
 int		gl_filter_min = GL_LINEAR_MIPMAP_NEAREST;
 int		gl_filter_max = GL_LINEAR;
-int		gl_anisotropy_factor_max = 0;
-
 
 int		texels;
 
@@ -576,55 +574,17 @@ glmode_t modes[] = {
 	{"GL_LINEAR_MIPMAP_LINEAR", "ll", GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR}
 };
 
-void GLDraw_Anisotropy_f (void)
+void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldvalue)
 {
 	gltexture_t *glt;
-	char *arg;
-	int param;
+	int anfactor;
 
-	if (!gl_config.ext_texture_filter_anisotropic)
-	{
-		Con_Printf("Anisotropic Filtering: NOT SUPPORTED\n");
+	gl_anisotropy_factor = 0;
+	
+	if (gl_config.ext_texture_filter_anisotropic < 2)
 		return;
-	}
 
-	qglGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_anisotropy_factor_max);
-
-	arg = Cmd_Argv(1);
-
-	param = atoi(arg);
-
-	if (Cmd_Argc() == 1)
-	{
-		//insert code that detects if user has forced AF through drivers
-		//because it has no effect if it is forced
-
-		if (gl_anisotropy_factor == 1)
-		{
-			Con_Printf("Anisotropic Filtering: 1 (OFF) (Maximum: %dx)\n",gl_anisotropy_factor_max);
-		}
-		else
-		{
-			Con_Printf("Anisotropic Filtering: %dx (Maximum: %dx)\n",gl_anisotropy_factor,gl_anisotropy_factor_max);
-		}
-		return;
-	}
-
-	if (param == 0) // Nvidia says GL Error when this is 0, ATI doesn't. 1 = off anyway.
-		param = 1;
-
-	if ((fmod(param,2.0f) != 0.0f) && (param != 1)) // anisotropic filtering works in factors of 2
-		param = param+1;
-
-	if (param > gl_anisotropy_factor_max)
-		param = gl_anisotropy_factor_max;
-
-	gl_anisotropy_factor = param;
-
-	if (param == 1)
-		Con_Printf("Anisotropic Filtering: %d (OFF) (Maximum: %dx)\n",gl_anisotropy_factor,gl_anisotropy_factor_max);
-	else
-		Con_Printf("Anisotropic Filtering: %dx (Maximum: %dx)\n",gl_anisotropy_factor,gl_anisotropy_factor_max);
+	anfactor = bound(1, var->value, gl_config.ext_texture_filter_anisotropic);
 
 	/* change all the existing max anisotropy settings */
 	for (glt = gltextures; glt ; glt = glt->next) //redo anisotropic filtering when map is changed
@@ -633,9 +593,14 @@ void GLDraw_Anisotropy_f (void)
 		{
 			//qglBindTexture (GL_TEXTURE_2D, glt->texnum);
 			GL_Bind (glt->texnum);
-			qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT,gl_anisotropy_factor);
+			qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, (float)anfactor);
 		}
 	}
+
+	if (anfactor >= 2)
+		gl_anisotropy_factor = anfactor;
+	else
+		gl_anisotropy_factor = 0;
 }
 
 /*
@@ -1136,8 +1101,6 @@ void GLDraw_Init (void)
 {
 
 	memset(scrap_allocated, 0, sizeof(scrap_allocated));
-
-	Cmd_AddRemCommand ("gl_texture_anisotropic_filtering", &GLDraw_Anisotropy_f);
 
 	GLDraw_ReInit();
 
@@ -3153,10 +3116,8 @@ done:
 	if (gl_config.sgis_generate_mipmap&&mipmap)
 		qglTexParameterf(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
 
-	if (gl_config.ext_texture_filter_anisotropic)
-	{
-		qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT,gl_anisotropy_factor); // without this, you could loose anisotropy on mapchange
-	}
+	if (gl_anisotropy_factor)
+		qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, gl_anisotropy_factor); // without this, you could loose anisotropy on mapchange
 
 	if (mipmap)
 	{

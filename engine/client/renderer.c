@@ -30,6 +30,7 @@ void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue);
 void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
 #if defined(RGLQUAKE)
 void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue);
+void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldvalue);
 #endif
 
 //
@@ -103,6 +104,7 @@ static cvar_t	vid_desktopsettings = SCVARF("vid_desktopsettings", "0", CVAR_ARCH
 
 #if defined(RGLQUAKE)
 cvar_t	gl_texturemode = SCVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, GL_Texturemode_Callback);
+cvar_t	gl_texture_anisotropic_filtering = SCVARFC("gl_texture_anisotropic_filtering", "0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, GL_Texture_Anisotropic_Filtering_Callback);
 cvar_t	gl_conback = SCVARF("gl_conback", "", CVAR_RENDERERCALLBACK);
 cvar_t	gl_font = SCVARF("gl_font", "", CVAR_RENDERERCALLBACK);
 //gl blends. Set this to 1 to stop the outside of your conchars from being visible
@@ -345,6 +347,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_drawdisk, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_savecompressedtex, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_compress, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_driver, GLRENDEREROPTIONS);
@@ -1046,7 +1049,6 @@ typedef struct {
 	menucombo_t *conscalecombo;
 	menucombo_t *bppcombo;
 	menucombo_t *texturefiltercombo;
-	menucombo_t *anisotropycombo;
 	menuedit_t *customwidth;
 	menuedit_t *customheight;
 } videomenuinfo_t;
@@ -1130,47 +1132,13 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 	switch(info->texturefiltercombo->selectedoption)
 	{
 	case 0:
+		Cbuf_AddText("gl_texturemode gl_nearest_mipmap_nearest\n", RESTRICT_LOCAL);
+		break;
+	case 1:
 		Cbuf_AddText("gl_texturemode gl_linear_mipmap_nearest\n", RESTRICT_LOCAL);
-		Cbuf_AddText("gl_texture_anisotropic_filtering 1\n", RESTRICT_LOCAL);
 		break;
-	case 1:
+	case 2:
 		Cbuf_AddText("gl_texturemode gl_linear_mipmap_linear\n", RESTRICT_LOCAL);
-		Cbuf_AddText("gl_texture_anisotropic_filtering \n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("gl_texturemode gl_linear_mipmap_linear\n",RESTRICT_LOCAL);
-		Cbuf_AddText("gl_texture_anisotropic_filtering 2\n", RESTRICT_LOCAL);
-		break;
-	}
-
-	switch(info->anisotropycombo->selectedoption)
-	{
-	case 0:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 1\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 2\n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 4\n", RESTRICT_LOCAL);
-		break;
-	case 3:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 6\n", RESTRICT_LOCAL);
-		break;
-	case 4:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 8\n", RESTRICT_LOCAL);
-		break;
-	case 5:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 10\n", RESTRICT_LOCAL);
-		break;
-	case 6:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 12\n", RESTRICT_LOCAL);
-		break;
-	case 7:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 14\n", RESTRICT_LOCAL);
-		break;
-	case 8:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 16\n", RESTRICT_LOCAL);
 		break;
 	}
 
@@ -1232,22 +1200,9 @@ void M_Menu_Video_f (void)
 	};
 	static const char *texturefilternames[] =
 	{
+		"Nearest",
 		"Bilinear",
 		"Trilinear",
-		"Anisotropy",
-		NULL
-	};
-	static const char *possibleanisotropylevels[] =
-	{
-		"0",
-		"2",
-		"4",
-		"6",
-		"8",
-		"10",
-		"12",
-		"14",
-		"16",
 		NULL
 	};
 
@@ -1258,12 +1213,9 @@ void M_Menu_Video_f (void)
 	int currentbpp;
 #ifdef RGLQUAKE
 	int currenttexturefilter;
-	int currentanisotropy;
 #endif
 
 	int i, y;
-	char bilinear[] = "gl_linear_mipmap_nearest";
-	char trilinear[] = "gl_linear_mipmap_linear";
 	prefabmode = -1;
 	prefab2dmode = -1;
 	for (i = 0; i < sizeof(vid_modes)/sizeof(vidmode_t); i++)
@@ -1309,22 +1261,14 @@ void M_Menu_Video_f (void)
 		currentbpp = 0;
 
 #ifdef RGLQUAKE
-	if (gl_anisotropy_factor >= 2)
-		currenttexturefilter = 2;
-
-	if (strcmp(gl_texturemode.string,trilinear))
+	if (!Q_strcasecmp(gl_texturemode.string, "gl_nearest_mipmap_nearest"))
 		currenttexturefilter = 0;
-	else if (strcmp(gl_texturemode.string,bilinear))
+	else if (!Q_strcasecmp(gl_texturemode.string, "gl_linear_mipmap_linear"))
+		currenttexturefilter = 2;
+	else if (!Q_strcasecmp(gl_texturemode.string, "gl_linear_mipmap_nearest"))
 		currenttexturefilter = 1;
 	else
 		currenttexturefilter = 1;
-#endif
-
-#ifdef RGLQUAKE
-	if (gl_anisotropy_factor == 1)
-		currentanisotropy = 0;
-	else
-		currentanisotropy = gl_anisotropy_factor/2;
 #endif
 
 
@@ -1357,7 +1301,7 @@ void M_Menu_Video_f (void)
 	MC_AddSlider(menu,	16, y,								"        Contrast", &v_contrast, 1, 3);	y+=8;
 #ifdef RGLQUAKE
 	info->texturefiltercombo = MC_AddCombo(menu, 16, y,		" Texture Filter ", texturefilternames, currenttexturefilter); y+=8;
-	info->anisotropycombo = MC_AddCombo(menu, 16, y,		"Anisotropy Level", possibleanisotropylevels, currentanisotropy); y+=8;
+	MC_AddSlider(menu, 16, y,								"Anisotropy Level", &gl_texture_anisotropic_filtering, 1, 16); y+=8;
 #endif
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, 32, NULL, false);

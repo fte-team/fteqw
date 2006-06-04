@@ -1515,7 +1515,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 				return;
 			}
 		}
-		else
+		else if (!(first->flags & SURF_NOFLAT))
 		{
 			if (gl_mtexarbable >= 2 && simpletextures)
 				PPL_BaseChain_SimpleTexture(first);
@@ -1830,9 +1830,11 @@ void PPL_BaseTextures(model_t *model)
 
 void PPL_BaseBModelTextures(entity_t *e)
 {
+	extern cvar_t r_drawflat_nonworldmodel;
 	extern msurface_t  *r_alpha_surfaces;
 	int i, k;
 	int shift;
+	int sflags;
 	model_t *model;
 	msurface_t *s;
 	msurface_t *chain = NULL;
@@ -1891,6 +1893,10 @@ void PPL_BaseBModelTextures(entity_t *e)
 			R_RenderDynamicLightmaps (s, shift);
 	}
 
+	if (!r_drawflat_nonworldmodel.value && (!cl.worldmodel->submodels || model->submodels != cl.worldmodel->submodels))
+		sflags = SURF_NOFLAT;
+	else
+		sflags = 0;
 
 	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
 	{
@@ -1907,6 +1913,7 @@ void PPL_BaseBModelTextures(entity_t *e)
 			chain = NULL;
 		}
 
+		s->flags |= sflags;
 		s->texturechain = chain;
 		chain = s;
 	}

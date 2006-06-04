@@ -1103,7 +1103,7 @@ void R_DrawSurface (void)
 
 	if (r_pixbytes == 1 || r_pixbytes == 4)	//if we are using 4, textures are stored as 1 and expanded acording to palette
 	{
-		if (r_drawflat.value)
+		if (r_drawflat.value && !(r_drawsurf.surf->flags & SURF_NOFLAT))
 		{
 			if (r_drawsurf.surf->plane->normal[2] <= 0.5)
 				ptexcolor = r_wallindex;

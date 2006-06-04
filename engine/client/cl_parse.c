@@ -542,6 +542,7 @@ qboolean CL_CheckMD2Skins (char *name)
 
 	return false;
 }
+
 /*
 =================
 Model_NextDownload

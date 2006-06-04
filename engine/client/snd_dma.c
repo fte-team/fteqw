@@ -1622,7 +1622,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 //		Con_Printf("Restarting raw stream\n");
 	}
 
-	speedfactor	= (float)speed/snd_speed;
+	speedfactor	= (double)speed/snd_speed;
 	outsamples = samples/speedfactor;
 
 	oldlength = s->sfxcache->length;

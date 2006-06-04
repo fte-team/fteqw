@@ -1099,7 +1099,6 @@ TRACE(("dbg: GLR_NewMap: ui\n"));
 TRACE(("dbg: GLR_NewMap: tp\n"));
 	TP_NewMap();
 
-
 	if (r_shadows.value)
 	{
 		R_LoadRTLights();

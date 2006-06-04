@@ -221,6 +221,7 @@ extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
 
 cvar_t r_drawflat	= SCVARF("r_drawflat","0", CVAR_SEMICHEAT|CVAR_RENDERERCALLBACK);
+cvar_t r_drawflat_nonworldmodel = SCVAR("r_drawflat_nonworldmodel", "0");
 cvar_t r_wallcolour	= SCVARF("r_wallcolour","255 255 255", CVAR_RENDERERCALLBACK);
 cvar_t r_floorcolour	= SCVARF("r_floorcolour","255 255 255", CVAR_RENDERERCALLBACK);
 cvar_t r_walltexture	= SCVARF("r_walltexture","", CVAR_RENDERERCALLBACK);
@@ -433,7 +434,6 @@ void SWRenderer_Init(void)
 }
 #endif
 
-
 void	R_InitTextures (void)
 {
 	int		x,y, m;
@@ -567,6 +567,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_wateralpha, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
+	Cvar_Register (&r_drawflat_nonworldmodel, GRAPHICALNICETIES);
 	Cvar_Register (&r_menutint, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);

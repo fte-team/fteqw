@@ -589,6 +589,7 @@ void CLQ3_ParseGameState(void)
 
 	if (!cl.worldmodel)
 		Host_EndGame("CGame didn't set a map.\n");
+
 	R_NewMap ();
 
 	SCR_EndLoadingPlaque();

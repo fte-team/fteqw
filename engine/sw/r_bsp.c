@@ -433,13 +433,18 @@ void R_DrawSubmodelPolygons (model_t *pmodel, int clipflags)
 	int			i;
 	vec_t		dot;
 	msurface_t	*psurf;
-	int			numsurfaces;
+	int			numsurfaces, sflags;
 	mplane_t	*pplane;
 
 // FIXME: use bounding-box-based frustum clipping info?
 
 	psurf = &pmodel->surfaces[pmodel->firstmodelsurface];
 	numsurfaces = pmodel->nummodelsurfaces;
+
+	if (!cl.worldmodel->submodels || pmodel->submodels != cl.worldmodel->submodels)
+		sflags = SURF_NOFLAT;
+	else
+		sflags = 0;
 
 	for (i=0 ; i<numsurfaces ; i++, psurf++)
 	{
@@ -454,6 +459,7 @@ void R_DrawSubmodelPolygons (model_t *pmodel, int clipflags)
 		{
 			r_currentkey = ((mleaf_t *)currententity->topnode)->key;
 
+			psurf->flags |= sflags;
 		// FIXME: use bounding-box-based frustum clipping info?
 			R_RenderFace (psurf, clipflags);
 		}

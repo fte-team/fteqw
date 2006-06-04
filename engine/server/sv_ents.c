@@ -452,6 +452,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 #endif
 	int		bits;
 	int		i;
+	int fromeffects;
 	float	miss;
 
 	static entity_state_t defaultbaseline;
@@ -503,9 +504,14 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if ( to->frame != from->frame )
 		bits |= U_FRAME;
 
-	if ( (to->effects&0x00ff) != (from->effects&0x00ff) )
+
+	if (force && !(protext & PEXT_SPAWNSTATIC2))
+		fromeffects = 0;	//force is true if we're going from baseline
+	else					//old quakeworld protocols do not include effects in the baseline
+		fromeffects = from->effects;	//so old clients will see the effects baseline as 0
+	if ( (to->effects&0x00ff) != (fromeffects&0x00ff) )
 		bits |= U_EFFECTS;
-	if ( (to->effects&0xff00) != (from->effects&0xff00) )
+	if ( (to->effects&0xff00) != (fromeffects&0xff00) )
 		evenmorebits |= U_EFFECTS16;
 
 	if ( to->modelindex != from->modelindex )

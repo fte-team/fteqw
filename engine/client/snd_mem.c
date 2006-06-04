@@ -38,7 +38,7 @@ qbyte *S_Alloc (int size);
 	\
 		while (outsamps) \
 		{ \
-			*out = ((0xFFFF - inaccum)*in[0] + inaccum*in[1]) >> (16 + outrshift); \
+			*out = ((0xFFFF - inaccum)*in[0] + inaccum*in[1]) >> (16 - outlshift + outrshift); \
 			inaccum += infrac; \
 			in += (inaccum >> 16); \
 			inaccum &= 0xFFFF; \
@@ -64,8 +64,8 @@ qbyte *S_Alloc (int size);
 	\
 		while (outsamps) \
 		{ \
-			out[0] = ((0xFFFF - inaccum)*in[0] + inaccum*in[2]) >> (16 + outrshift); \
-			out[1] = ((0xFFFF - inaccum)*in[1] + inaccum*in[3]) >> (16 + outrshift); \
+			out[0] = ((0xFFFF - inaccum)*in[0] + inaccum*in[2]) >> (16 - outlshift + outrshift); \
+			out[1] = ((0xFFFF - inaccum)*in[1] + inaccum*in[3]) >> (16 - outlshift + outrshift); \
 			inaccum += infrac; \
 			in += (inaccum >> 16) * 2; \
 			inaccum &= 0xFFFF; \
@@ -106,6 +106,99 @@ qbyte *S_Alloc (int size);
 			out++; \
 			outnlsamps--; \
 		} \
+	}
+
+#define LINEARDOWNSCALE(in, inrate, insamps, out, outrate, outlshift, outrshift) \
+	{ \
+		scale = outrate / (double)inrate; \
+		infrac = floor(scale * 65536); \
+		inaccum = 0; \
+		insamps--; \
+		outsampleft = 0; \
+	\
+		while (insamps) \
+		{ \
+			inaccum += infrac; \
+			if (inaccum >> 16) \
+			{ \
+				inaccum &= 0xFFFF; \
+				outsampleft += (infrac - inaccum) * (*in); \
+				*out = outsampleft >> (16 - outlshift + outrshift); \
+				out++; \
+				outsampleft = inaccum * (*in); \
+			} \
+			else \
+				outsampleft += infrac * (*in); \
+			in++; \
+			insamps--; \
+		} \
+		outsampleft += (0xFFFF - inaccum) * (*in);\
+		*out = outsampleft >> (16 - outlshift + outrshift); \
+	}
+
+#define LINEARDOWNSCALESTEREO(in, inrate, insamps, out, outrate, outlshift, outrshift) \
+	{ \
+		scale = outrate / (double)inrate; \
+		infrac = floor(scale * 65536); \
+		inaccum = 0; \
+		insamps--; \
+		outsampleft = 0; \
+		outsampright = 0; \
+	\
+		while (insamps) \
+		{ \
+			inaccum += infrac; \
+			if (inaccum >> 16) \
+			{ \
+				inaccum &= 0xFFFF; \
+				outsampleft += (infrac - inaccum) * in[0]; \
+				outsampright += (infrac - inaccum) * in[1]; \
+				out[0] = outsampleft >> (16 - outlshift + outrshift); \
+				out[1] = outsampright >> (16 - outlshift + outrshift); \
+				out += 2; \
+				outsampleft = inaccum * in[0]; \
+				outsampright = inaccum * in[1]; \
+			} \
+			else \
+			{ \
+				outsampleft += infrac * in[0]; \
+				outsampright += infrac * in[1]; \
+			} \
+			in += 2; \
+			insamps--; \
+		} \
+		outsampleft += (0xFFFF - inaccum) * in[0];\
+		outsampright += (0xFFFF - inaccum) * in[1];\
+		out[0] = outsampleft >> (16 - outlshift + outrshift); \
+		out[1] = outsampright >> (16 - outlshift + outrshift); \
+	}
+
+#define LINEARDOWNSCALESTEREOTOMONO(in, inrate, insamps, out, outrate, outlshift, outrshift) \
+	{ \
+		scale = outrate / (double)inrate; \
+		infrac = floor(scale * 65536); \
+		inaccum = 0; \
+		insamps--; \
+		outsampleft = 0; \
+	\
+		while (insamps) \
+		{ \
+			inaccum += infrac; \
+			if (inaccum >> 16) \
+			{ \
+				inaccum &= 0xFFFF; \
+				outsampleft += (infrac - inaccum) * ((in[0] + in[1]) >> 1); \
+				*out = outsampleft >> (16 - outlshift + outrshift); \
+				out++; \
+				outsampleft = inaccum * ((in[0] + in[1]) >> 1); \
+			} \
+			else \
+				outsampleft += infrac * ((in[0] + in[1]) >> 1); \
+			in += 2; \
+			insamps--; \
+		} \
+		outsampleft += (0xFFFF - inaccum) * ((in[0] + in[1]) >> 1);\
+		*out = outsampleft >> (16 - outlshift + outrshift); \
 	}
 
 #define STANDARDRESCALE(in, inrate, insamps, out, outrate, outlshift, outrshift) \
@@ -186,7 +279,7 @@ qbyte *S_Alloc (int size);
 	}
 
 // SND_ResampleStream: takes a sound stream and converts with given parameters. Limited to
-// 8-16-bit signed conversions and mono-to-mono/stereo-to-stereo/stereo-to-mono conversions.
+// 8-16-bit signed conversions and mono-to-mono/stereo-to-stereo conversions.
 // Not an in-place algorithm.
 void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int insamps, void *out, int outrate, int outwidth, int outchannels, int resampstyle)
 {
@@ -195,7 +288,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 	short *in16 = (short *)in;
 	signed char *out8 = (signed char *)out;
 	short *out16 = (short *)out;
-	int outsamps, outnlsamps;
+	int outsamps, outnlsamps, outsampleft, outsampright;
 	int infrac, inaccum;
 
 	if (insamps <= 0)
@@ -221,7 +314,12 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 						STANDARDRESCALE(in8, inrate, insamps, out8, outrate, 0, 0)
 				}
 				else // downsample
-					STANDARDRESCALE(in8, inrate, insamps, out8, outrate, 0, 0)
+				{
+					if (resampstyle > 1)
+						LINEARDOWNSCALE(in8, inrate, insamps, out8, outrate, 0, 0)
+					else
+						STANDARDRESCALE(in8, inrate, insamps, out8, outrate, 0, 0)
+				}
 				return;
 			}
 			else
@@ -236,7 +334,12 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 						STANDARDRESCALE(in8, inrate, insamps, out16, outrate, 8, 0)
 				}
 				else // downsample
-					STANDARDRESCALE(in8, inrate, insamps, out16, outrate, 8, 0)
+				{
+					if (resampstyle > 1)
+						LINEARDOWNSCALE(in8, inrate, insamps, out16, outrate, 8, 0)
+					else
+						STANDARDRESCALE(in8, inrate, insamps, out16, outrate, 8, 0)
+				}
 				return;
 			}
 		}
@@ -252,7 +355,12 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 						STANDARDRESCALE(in16, inrate, insamps, out16, outrate, 0, 0)
 				}
 				else // downsample
-					STANDARDRESCALE(in16, inrate, insamps, out16, outrate, 0, 0)
+				{
+					if (resampstyle > 1)
+						LINEARDOWNSCALE(in16, inrate, insamps, out16, outrate, 0, 0)
+					else
+						STANDARDRESCALE(in16, inrate, insamps, out16, outrate, 0, 0)
+				}
 				return;
 			}
 			else
@@ -267,7 +375,12 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 						STANDARDRESCALE(in16, inrate, insamps, out8, outrate, 0, 8)
 				}
 				else // downsample
-					STANDARDRESCALE(in16, inrate, insamps, out8, outrate, 0, 8)
+				{
+					if (resampstyle > 1)
+						LINEARDOWNSCALE(in16, inrate, insamps, out8, outrate, 0, 8)
+					else
+						STANDARDRESCALE(in16, inrate, insamps, out8, outrate, 0, 8)
+				}
 				return;
 			}
 		}
@@ -286,7 +399,12 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 						STANDARDRESCALESTEREO(in8, inrate, insamps, out8, outrate, 0, 0)
 				}
 				else // downsample
-					STANDARDRESCALESTEREO(in8, inrate, insamps, out8, outrate, 0, 0)
+				{
+					if (resampstyle > 1)
+						LINEARDOWNSCALESTEREO(in8, inrate, insamps, out8, outrate, 0, 0)
+					else
+						STANDARDRESCALESTEREO(in8, inrate, insamps, out8, outrate, 0, 0)
+				}
 			}
 			else
 			{
@@ -303,7 +421,12 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 						STANDARDRESCALESTEREO(in8, inrate, insamps, out16, outrate, 8, 0)
 				}
 				else // downsample
-					STANDARDRESCALESTEREO(in8, inrate, insamps, out16, outrate, 8, 0)
+				{
+					if (resampstyle > 1)
+						LINEARDOWNSCALESTEREO(in8, inrate, insamps, out16, outrate, 8, 0)
+					else
+						STANDARDRESCALESTEREO(in8, inrate, insamps, out16, outrate, 8, 0)
+				}
 			}
 		}
 		else // 16-bit
@@ -318,7 +441,12 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 						STANDARDRESCALESTEREO(in16, inrate, insamps, out16, outrate, 0, 0)
 				}
 				else // downsample
-					STANDARDRESCALESTEREO(in16, inrate, insamps, out16, outrate, 0, 0)
+				{
+					if (resampstyle > 1)
+						LINEARDOWNSCALESTEREO(in16, inrate, insamps, out16, outrate, 0, 0)
+					else
+						STANDARDRESCALESTEREO(in16, inrate, insamps, out16, outrate, 0, 0)
+				}
 			}
 			else 
 			{
@@ -335,10 +463,16 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 						STANDARDRESCALESTEREO(in16, inrate, insamps, out8, outrate, 0, 8)
 				}
 				else // downsample
-					STANDARDRESCALESTEREO(in16, inrate, insamps, out8, outrate, 0, 8)
+				{
+					if (resampstyle > 1)
+						LINEARDOWNSCALESTEREO(in16, inrate, insamps, out8, outrate, 0, 8)
+					else
+						STANDARDRESCALESTEREO(in16, inrate, insamps, out8, outrate, 0, 8)
+				}
 			}
 		}
 	}
+#if 0
 	else if (outchannels == 1 && inchannels == 2)
 	{
 		if (inwidth == 1)
@@ -400,6 +534,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 			}
 		}
 	}
+#endif
 }
 
 /*

@@ -55,6 +55,7 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 cvar_t	m_filter = SCVAR("m_filter","0");
 cvar_t  m_accel = SCVAR("m_accel", "0");
 cvar_t	m_forcewheel = SCVAR("m_forcewheel", "1");
+cvar_t	m_forcewheel_threshold = SCVAR("m_forcewheel_threshold", "32");
 cvar_t	in_mwhook = SCVARF("in_mwhook","0", CVAR_ARCHIVE);
 cvar_t	in_dinput = SCVARF("in_dinput","0", CVAR_ARCHIVE);
 
@@ -908,7 +909,11 @@ unsigned long __stdcall IN_SerialMSIntelliRun(void *param)
 			mouse->delta[1] +=	(signed char)(((code[0] & 0x0C) << 4) | (code[2]/* & 0x3F*/));
 
 			if (m_forcewheel.value)
-				mouse->wheeldelta += (signed char)((code[3] & 0x0f)<<4)/16;
+			{
+				int wdv;
+				wdv = (signed char)((code[3] & 0x0f)<<4)/16;
+				mouse->wheeldelta += wdv * m_forcewheel_threshold.value;
+			}
 
 			total=0;
 		}
@@ -1215,6 +1220,7 @@ void IN_Init (void)
 	Cvar_Register (&m_filter, "Input Controls");
 	Cvar_Register (&m_accel, "Input Controls");
 	Cvar_Register (&m_forcewheel, "Input Controls");
+	Cvar_Register (&m_forcewheel_threshold, "Input Controls");
 	Cvar_Register (&in_mwhook, "Input Controls");
 
 	Cvar_Register (&in_dinput, "Input Controls");
@@ -1338,6 +1344,7 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 
 	int mx, my;
 	double mouse_x, mouse_y, mouse_deltadist;
+	int mfwt;
 
 	int i;
 
@@ -1357,20 +1364,20 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 		}
 	}
 	mouse->oldbuttons = mouse->buttons;
-	while(mouse->wheeldelta<0)
+	mfwt = (int)m_forcewheel_threshold.value;
+	while(mouse->wheeldelta <= -mfwt)
 	{
 		Key_Event (K_MWHEELUP, true);
 		Key_Event (K_MWHEELUP, false);
-		mouse->wheeldelta++;
+		mouse->wheeldelta += mfwt;
 	}
 
-	while(mouse->wheeldelta>0)
+	while(mouse->wheeldelta >= mfwt)
 	{
 		Key_Event (K_MWHEELDOWN, true);
 		Key_Event (K_MWHEELDOWN, false);
-		mouse->wheeldelta--;
+		mouse->wheeldelta -= mfwt;
 	}
-
 
 	mx = mouse->delta[0];
 	mouse->delta[0]=0;
@@ -1580,12 +1587,16 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 					break;
 
 				case DIMOFS_Z:
-					if (m_forcewheel.value)
+					if (m_forcewheel.value >= 2)
+						sysmouse.wheeldelta -= (signed int)od.dwData;
+					else if (m_forcewheel.value)
 					{
-						if (od.dwData &	0x80)
-							sysmouse.wheeldelta++;
-						else
-							sysmouse.wheeldelta--;
+						int mfwt = (int)m_forcewheel_threshold.value;
+
+						if ((signed int)od.dwData > mfwt)
+							sysmouse.wheeldelta -= mfwt;
+						else if ((signed int)od.dwData < -mfwt)
+							sysmouse.wheeldelta += mfwt;
 					}
 					break;
 

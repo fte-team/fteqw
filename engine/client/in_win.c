@@ -1364,19 +1364,25 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 		}
 	}
 	mouse->oldbuttons = mouse->buttons;
-	mfwt = (int)m_forcewheel_threshold.value;
-	while(mouse->wheeldelta <= -mfwt)
+	if (m_forcewheel.value)
 	{
-		Key_Event (K_MWHEELUP, true);
-		Key_Event (K_MWHEELUP, false);
-		mouse->wheeldelta += mfwt;
-	}
+		mfwt = (int)m_forcewheel_threshold.value;
+		while(mouse->wheeldelta <= -mfwt)
+		{
+			Key_Event (K_MWHEELUP, true);
+			Key_Event (K_MWHEELUP, false);
+			mouse->wheeldelta += mfwt;
+		}
 
-	while(mouse->wheeldelta >= mfwt)
-	{
-		Key_Event (K_MWHEELDOWN, true);
-		Key_Event (K_MWHEELDOWN, false);
-		mouse->wheeldelta -= mfwt;
+		while(mouse->wheeldelta >= mfwt)
+		{
+			Key_Event (K_MWHEELDOWN, true);
+			Key_Event (K_MWHEELDOWN, false);
+			mouse->wheeldelta -= mfwt;
+		}
+
+		if (m_forcewheel.value < 2)
+			mouse->wheeldelta = 0;
 	}
 
 	mx = mouse->delta[0];

@@ -773,7 +773,21 @@ void SWR_DrawEntitiesOnList (void)
 				else
 					org = currententity->origin;
 
-				if (fb >= 1 && r_fb_models.value)
+				if ((currententity->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT
+					|| (currententity->flags & Q2RF_FULLBRIGHT)
+					|| (currententity->model->engineflags & MDLF_FLAME))
+				{
+					lighting.ambientlight = 4096;
+					lighting.shadelight = 4096;
+					lighting.plightvec = lightvec;
+				}
+				else if ((currententity->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
+				{
+					lighting.shadelight = currententity->abslight;
+					lighting.ambientlight = 0;
+					lighting.plightvec = lightvec;
+				}
+				else if (fb >= 1 && r_fb_models.value)
 				{
 					lighting.ambientlight = 4096;
 					lighting.shadelight = 4096;
@@ -801,7 +815,7 @@ void SWR_DrawEntitiesOnList (void)
 								lighting.ambientlight += add;
 						}
 					}
-		
+	
 				// clamp lighting so it doesn't overbright as much
 					if (lighting.ambientlight > 128)
 						lighting.ambientlight = 128;

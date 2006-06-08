@@ -516,8 +516,17 @@ couldntload:
 	// set necessary engine flags for loading purposes
 	if (!strcmp(mod->name, "progs/player.mdl"))
 		mod->engineflags |= MDLF_PLAYER | MDLF_DOCRC;
-	else if (!strcmp(mod->name, "progs/flame.mdl") || !strcmp(mod->name, "progs/flame2.mdl"))
+	else if (!strcmp(mod->name, "progs/flame.mdl") || 
+		!strcmp(mod->name, "progs/flame2.mdl"))
 		mod->engineflags |= MDLF_FLAME;
+	else if (!strcmp(mod->name, "progs/bolt.mdl") ||
+		!strcmp(mod->name, "progs/bolt2.mdl") ||
+		!strcmp(mod->name, "progs/bolt3.mdl") ||
+		!strcmp(mod->name, "progs/beam.mdl") || 
+		!strcmp(mod->name, "models/stsunsf2.mdl") || 
+		!strcmp(mod->name, "models/stsunsf1.mdl") ||
+		!strcmp(mod->name, "models/stice.mdl"))
+		mod->engineflags |= MDLF_BOLT;
 	else if (!strcmp(mod->name, "progs/eyes.mdl"))
 		mod->engineflags |= MDLF_DOCRC;
 

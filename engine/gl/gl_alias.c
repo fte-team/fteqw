@@ -341,7 +341,7 @@ static hashtable_t skincolourmapped;
 
 static vec3_t shadevector;
 static vec3_t shadelight, ambientlight;
-static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float lerp, qbyte alpha, float expand)
+static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float lerp, qbyte alpha, float expand, qboolean nolightdir)
 {
 	extern cvar_t r_nolerp, r_nolightdir;
 	float blerp = 1-lerp;
@@ -360,7 +360,7 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	{
 		mesh->normals_array = (vec3_t*)((char *)p1 + p1->ofsnormals);
 		mesh->xyz_array = p1v;
-		if (r_nolightdir.value)
+		if (r_nolightdir.value || nolightdir)
 		{
 			mesh->colors_array = NULL;
 		}
@@ -391,7 +391,7 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	}
 	else
 	{
-		if (r_nolightdir.value)
+		if (r_nolightdir.value || nolightdir)
 		{
 			mesh->colors_array = NULL;
 			for (i = 0; i < mesh->numvertexes; i++)
@@ -786,7 +786,7 @@ static void R_GAliasApplyLighting(mesh_t *mesh, vec3_t org, vec3_t angles, float
 	}
 }
 
-static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int frame2, float lerp, float alpha, float fg1time, float fg2time)
+static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int frame2, float lerp, float alpha, float fg1time, float fg2time, qboolean nolightdir)
 {
 	galiasgroup_t *g1, *g2;
 
@@ -963,7 +963,7 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 
 	R_LerpFrames(mesh,	(galiaspose_t *)((char *)g1 + g1->poseofs + sizeof(galiaspose_t)*frame1),
 						(galiaspose_t *)((char *)g2 + g2->poseofs + sizeof(galiaspose_t)*frame2),
-						1-lerp, (qbyte)(alpha*255), currententity->fatness);//20*sin(cl.time));
+						1-lerp, (qbyte)(alpha*255), currententity->fatness, nolightdir);
 
 	return true;	//to allow the mesh to be dlighted.
 }
@@ -1626,6 +1626,7 @@ void R_DrawGAliasModel (entity_t *e)
 	float	tmatrix[3][4];
 
 	qboolean needrecolour;
+	qboolean nolightdir;
 
 	currententity = e;
 
@@ -1714,6 +1715,7 @@ void R_DrawGAliasModel (entity_t *e)
 //MORE HUGE HACKS! WHEN WILL THEY CEASE!
 	// clamp lighting so it doesn't overbright as much
 	// ZOID: never allow players to go totally black
+	nolightdir = false;
 	if (clmodel->engineflags & MDLF_PLAYER)
 	{
 		float fb = r_fullbrightSkins.value;
@@ -1727,11 +1729,9 @@ void R_DrawGAliasModel (entity_t *e)
 
 			if (fb >= 1 && r_fb_models.value)
 			{
-				for (i = 0; i < 3; i++)
-				{
-					ambientlight[i] = 4096;
-					shadelight[i] = 4096;
-				}
+				ambientlight[0] = ambientlight[1] = ambientlight[2] = 4096;
+				shadelight[0] = shadelight[1] = shadelight[2] = 4096;
+				nolightdir = true;
 			}
 			else
 			{
@@ -1747,15 +1747,23 @@ void R_DrawGAliasModel (entity_t *e)
 			if (ambientlight[i] < 8)
 				ambientlight[i] = shadelight[i] = 8;
 		}
-
 	}
-	for (i = 0; i < 3; i++)
+	if (clmodel->engineflags & MDLF_FLAME)
 	{
-		if (ambientlight[i] > 128)
-			ambientlight[i] = 128;
+		shadelight[0] = shadelight[1] = shadelight[2] = 4096;
+		ambientlight[0] = ambientlight[1] = ambientlight[2] = 4096;
+		nolightdir = true;
+	}
+	else
+	{
+		for (i = 0; i < 3; i++)
+		{
+			if (ambientlight[i] > 128)
+				ambientlight[i] = 128;
 
-		shadelight[i] /= 200.0/255;
-		ambientlight[i] /= 200.0/255;
+			shadelight[i] /= 200.0/255;
+			ambientlight[i] /= 200.0/255;
+		}
 	}
 
 	if ((e->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
@@ -1763,10 +1771,11 @@ void R_DrawGAliasModel (entity_t *e)
 		shadelight[0] = shadelight[1] = shadelight[2] = e->abslight;
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = 0;
 	}
-	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT || e->flags & Q2RF_FULLBRIGHT)
+	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT || (e->flags & Q2RF_FULLBRIGHT))
 	{
 		shadelight[0] = shadelight[1] = shadelight[2] = 255;
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = 0;
+		nolightdir = true;
 	}
 
 //#define SHOWLIGHTDIR
@@ -1982,7 +1991,7 @@ void R_DrawGAliasModel (entity_t *e)
 	memset(&mesh, 0, sizeof(mesh));
 	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
 	{
-		needrecolour = R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->shaderRGBAf[3], e->frame1time, e->frame2time);
+		needrecolour = R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->shaderRGBAf[3], e->frame1time, e->frame2time, nolightdir);
 
 		c_alias_polys += mesh.numindexes/3;
 
@@ -2579,7 +2588,7 @@ void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, fl
 //	qglDepthFunc(GL_ALWAYS);
 	for(surfnum=0;inf;surfnum++)
 	{
-		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha, e->frame1time, e->frame2time);
+		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->alpha, e->frame1time, e->frame2time, false);
 		mesh.colors_array = tempColours;
 
 		tex = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
@@ -2631,9 +2640,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	mesh_t mesh;
 	vec3_t lightorg;
 
-	if (clmodel->engineflags & MDLF_FLAME)
-		return;
-	if (!strncmp (clmodel->name, "progs/bolt", 10))
+	if (clmodel->engineflags & (MDLF_FLAME | MDLF_BOLT))
 		return;
 	if (r_noaliasshadows.value)
 		return;
@@ -2655,7 +2662,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	{
 		if (inf->ofs_trineighbours)
 		{
-			R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, 1, e->frame1time, e->frame2time);
+			R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, 1, e->frame1time, e->frame2time, true);
 			R_CalcFacing(&mesh, lightorg);
 			R_ProjectShadowVolume(&mesh, lightorg);
 			R_DrawShadowVolume(&mesh);

@@ -808,9 +808,10 @@ typedef struct model_s
 #define MDLF_NODEFAULTTRAIL  0x02
 #define MDLF_RGBLIGHTING     0x04
 #define MDLF_PLAYER          0x08 // players have specific lighting values
-#define MDLF_FLAME           0x10 // can be excluded with r_drawflame
+#define MDLF_FLAME           0x10 // can be excluded with r_drawflame, fullbright render hack
 #define MDLF_DOCRC           0x20 // model needs CRC built
 #define MDLF_NEEDOVERBRIGHT  0x40 // only overbright these models with gl_overbright_all set
+#define MDLF_BOLT            0x80 // doesn't produce shadows
 
 //============================================================================
 /*

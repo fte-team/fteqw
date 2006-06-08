@@ -207,12 +207,13 @@ void NPP_NQFlush(void)
 	}
 	bufferlen = 0;
 	protocollen=0;
+	nullterms = 0;
 	multicastpos=0;
 	requireextension=0;
 }
 void NPP_NQCheckFlush(void)
 {
-	if (bufferlen >= protocollen && protocollen)
+	if (bufferlen >= protocollen && protocollen && !nullterms)
 		NPP_NQFlush();
 }
 
@@ -268,6 +269,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 	} else
 		MSG_WriteByte (NQWriteDest(dest), data);
 #endif
+
 	if (!bufferlen)	//new message section
 	{
 		switch(data)
@@ -284,6 +286,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = sizeof(qbyte)*1 + sizeof(short);
 			break;
 		case svc_updatename:
+			nullterms = 1;
 			break;
 		case svc_setfrags:
 			protocollen = 4;	//or this
@@ -293,6 +296,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			break;
 		case svc_print:
 			protocollen = 3;
+			nullterms = 1;
 			break;
 		case svc_cdtrack:
 			protocollen = sizeof(qbyte)*3;
@@ -321,6 +325,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			break;
 		case svc_stufftext:
 		case svc_centerprint:
+			nullterms = 1;
 			break;
 		case svc_clearviewflags:
 			protocollen = 2;
@@ -483,6 +488,9 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 	}
 
 	NPP_AddData(&data, sizeof(qbyte));
+	if (!data && bufferlen>=protocollen)
+		if (nullterms)
+			nullterms--;
 	NPP_NQCheckFlush();
 }
 
@@ -630,6 +638,8 @@ void NPP_NQWriteString(int dest, char *data)	//replacement write func (nq to qw)
 		}
 	}
 
+	if (nullterms)
+		nullterms--;
 	NPP_NQCheckFlush();
 }
 void NPP_NQWriteEntity(int dest, short data)	//replacement write func (nq to qw)

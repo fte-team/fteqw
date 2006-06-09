@@ -1120,12 +1120,62 @@ void CLNQ_ParseEntity(unsigned int bits)
 	else
 		state->angles[2] = base->angles[2];
 
-#ifdef PEXT_SCALE
-	state->scale = 1*16;
-#endif
+	if (bits & DPU_ALPHA)
+		i = MSG_ReadByte();
+	else
+		i = -1;
+
 #ifdef PEXT_TRANS
-	state->trans = 255;
+	if (i == -1)
+		state->trans = base->trans;
+	else
+		state->trans = i;
 #endif
+
+	if (bits & DPU_SCALE)
+		i = MSG_ReadByte();
+	else
+		i = -1;
+
+#ifdef PEXT_SCALE
+	if (i == -1)
+		state->scale = base->scale;
+	else
+		state->scale = i;
+#endif
+
+	if (bits & DPU_EFFECTS2)
+		state->effects |= MSG_ReadByte() << 8;
+
+	if (bits & DPU_GLOWSIZE)
+		state->glowsize = MSG_ReadByte();
+	else
+		state->glowsize = base->glowsize;
+
+	if (bits & DPU_GLOWCOLOR)
+		state->glowcolour = MSG_ReadByte();
+	else
+		state->glowcolour = base->glowcolour;
+
+	if (bits & DPU_COLORMOD)
+	{
+		i = MSG_ReadByte(); // follows format RRRGGGBB
+		state->colormod[0] = (qbyte)(((i >> 5) & 7) * (32.0f / 7.0f));
+		state->colormod[1] = (qbyte)(((i >> 2) & 7) * (32.0f / 7.0f));
+		state->colormod[2] = (qbyte)((i & 3) * (32.0f / 3.0f));
+	}
+	else
+	{
+		state->colormod[0] = base->colormod[0];
+		state->colormod[1] = base->colormod[1];
+		state->colormod[2] = base->colormod[2];
+	}
+
+	if (bits & DPU_FRAME2)
+		state->frame |= MSG_ReadByte() << 8;
+
+	if (bits & DPU_MODEL2)
+		state->modelindex |= MSG_ReadByte() << 8;
 
 	if (cls.demoplayback != DPB_NONE)
 		for (pnum = 0; pnum < cl.splitclients; pnum++)

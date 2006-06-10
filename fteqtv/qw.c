@@ -40,7 +40,9 @@ int snprintf(char *buffer, int buffersize, char *format, ...)
 
 	return ret;
 }
-int vsnprintf(char *buffer, int buffersize, char *format, va_list		argptr)
+#endif
+#if (defined(_WIN32) && !defined(_VC80_UPGRADE))
+int vsnprintf(char *buffer, int buffersize, char *format, va_list argptr)
 {
 	int ret;
 	ret = _vsnprintf (buffer, buffersize, format, argptr);
@@ -289,16 +291,18 @@ int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i, int thispl
 
 	for (; i < MAX_CLIENTS; i++)
 	{
-		if (i == thisplayer && !tv->controller)
+		if (i == thisplayer && (!tv || !(tv->controller)))
 		{
 			WriteByte(msg, svc_updateuserinfo);
 			WriteByte(msg, i);
 			WriteLong(msg, i);
 			WriteString2(msg, "\\*spectator\\1\\name\\");
-			if (!tv || !*tv->hostname)
-				WriteString(msg, "FTEQTV");
-			else
+
+			if (tv && tv->hostname && tv->hostname[0])
 				WriteString(msg, tv->hostname);
+			else
+				WriteString(msg, "FTEQTV");
+
 
 			WriteByte(msg, svc_updatefrags);
 			WriteByte(msg, i);
@@ -996,7 +1000,7 @@ void SendLocalPlayerState(sv_t *tv, viewer_t *v, int playernum, netmsg_t *msg)
 void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 {
 	packet_entities_t *e;
-	int i,j;
+	int i;
 	usercmd_t to;
 	unsigned short flags;
 	short interp;

@@ -669,15 +669,25 @@ unsigned int BSP_Checksum(bsp_t *bsp);
 int BSP_SphereLeafNums(bsp_t *bsp, int maxleafs, unsigned short *list, float x, float y, float z, float radius);
 qboolean BSP_Visible(bsp_t *bsp, int leafcount, unsigned short *list);
 void BSP_SetupForPosition(bsp_t *bsp, float x, float y, float z);
+void QW_SetViewersServer(viewer_t *viewer, sv_t *sv);
+unsigned short QCRC_Block (unsigned char *start, int count);
+void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int length, unsigned char *data);
+void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move);
+void SendClientCommand(sv_t *qtv, char *fmt, ...);
+void QTV_Run(sv_t *qtv);
 
 char *Rcon_Command(cluster_t *cluster, sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qboolean localcommand);
 char *COM_ParseToken (char *data, char *out, int outsize, const char *punctuation);
 char *Info_ValueForKey (char *s, const char *key, char *buffer, int buffersize);
 void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
+void ReadDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move);
+unsigned Com_BlockChecksum (void *buffer, int length);
 
 void Sys_Printf(cluster_t *cluster, char *fmt, ...);
 #ifdef _WIN32
 int snprintf(char *buffer, int buffersize, char *format, ...);
+#endif
+#if (defined(_WIN32) && !defined(_VC80_UPGRADE))
 int vsnprintf(char *buffer, int buffersize, char *format, va_list argptr);
 #endif
 
@@ -685,4 +695,3 @@ qboolean Net_FileProxy(sv_t *qtv, char *filename);
 sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, qboolean force, qboolean autoclose, qboolean noduplicates);
 SOCKET Net_MVDListen(int port);
 qboolean Net_StopFileProxy(sv_t *qtv);
-

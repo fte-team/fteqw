@@ -1351,7 +1351,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 					if (tv->file)
 					{
 						fclose(tv->file);
-						unlink(tv->downloadname);
+						_unlink(tv->downloadname);
 						Sys_Printf(tv->cluster, "Was already downloading %s\nOld download canceled\n");
 						tv->file = NULL;
 					}

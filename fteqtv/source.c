@@ -1826,9 +1826,9 @@ void Cluster_Run(cluster_t *cluster)
 			char *result;
 			char c;
 
-			if (!kbhit())
+			if (!_kbhit())
 				break;
-			c = getch();
+			c = _getch();
 
 			if (c == '\n' || c == '\r')
 			{

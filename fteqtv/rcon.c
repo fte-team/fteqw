@@ -22,6 +22,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define MAX_INFO_KEY 64
 
+#define HELPSTRING "\
+FTEQTV proxy commands: (build "__DATE__")\n\
+----------------------\n\
+connect, qtv, addserver\n\
+ - connect to a MVD stream (TCP)\n\
+qw\n\
+ - connect to a server as a player (UDP)\n\
+adddemo\n\
+ - play a demo from a MVD file\n\
+port\n\
+ - UDP port for QuakeWorld client connections\n\
+mvdport\n\
+ - specify TCP port for MVD broadcasting\n\
+maxviewers, maxproxies\n\
+- limit number of connections\n\
+status, choke, late, talking, nobsp, reconnect, exec, password, master, hostname, record, stop, quit\n\n"
+
 char *Info_ValueForKey (char *s, const char *key, char *buffer, int buffersize)
 {
 	char	pkey[1024];
@@ -468,7 +485,7 @@ char *Cluster_Rcon_Dispatch(cluster_t *cluster, char *arg[MAX_ARGS], char *buffe
 	}
 	else if (!strcmp(arg[0], "help"))
 	{
-		return "FTEQTV proxy\nValid commands: connect, addserver, adddemo, status, choke, late, talking, nobsp, exec, password, master, hostname, port, maxviewers, maxproxies\n";
+		return HELPSTRING;
 	}
 
 	else if (!strcmp(arg[0], "mvdport"))

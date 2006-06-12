@@ -41,9 +41,9 @@ void Name_Callback(struct cvar_s *var, char *oldvalue);
 qboolean	noclip_anglehack;		// remnant from old quake
 
 
-cvar_t	rcon_password = SCVAR("rcon_password", "");
+cvar_t	rcon_password = SCVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);
 
-cvar_t	rcon_address = SCVAR("rcon_address", "");
+cvar_t	rcon_address = SCVARF("rcon_address", "", CVAR_NOUNSAFEEXPAND);
 
 cvar_t	cl_timeout = SCVAR("cl_timeout", "60");
 
@@ -95,7 +95,7 @@ extern int			total_loading_size, current_loading_size, loading_stage;
 //
 // info mirrors
 //
-cvar_t	password = SCVARF("password",		"",			CVAR_USERINFO);	//this is parhaps slightly dodgy...
+cvar_t	password = SCVARF("password",		"",			CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy...
 cvar_t	spectator = SCVARF("spectator",		"",			CVAR_USERINFO);
 cvar_t	name = SCVARFC("name",				"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
 cvar_t	team = SCVARF("team",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
@@ -3186,7 +3186,7 @@ void CL_ReadCDKey(void)
 				break;
 			}
 		}
-		var = Cvar_Get("cl_cdkey", buffer, CVAR_LATCH, "Q3 compatability");
+		var = Cvar_Get("cl_cdkey", buffer, CVAR_LATCH|CVAR_NOUNSAFEEXPAND, "Q3 compatability");
 	}
 }
 #endif

@@ -1095,7 +1095,7 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 				buf[i] = 0;
 				if ( (var = Cvar_FindVar(buf+striptrailing)) != NULL )
 				{
-					if (var->restriction <= maxaccesslevel)
+					if (var->restriction <= maxaccesslevel && !((var->flags & CVAR_NOUNSAFEEXPAND) && Cmd_IsInsecure()))
 						bestvar = var;
 				}
 #ifndef SERVERONLY

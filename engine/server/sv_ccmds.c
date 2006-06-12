@@ -1133,30 +1133,30 @@ void SV_StuffToClient_f(void)
 
 	//a list of safe, allowed commands. Allows any extention of this.
 	if (strchr(str, '\n') || strchr(str, ';') || (
-		strncmp(str, "setinfo", 7) &&
-		strncmp(str, "quit", 4) &&
-		strncmp(str, "gl_fb", 5) &&
-		strncmp(str, "r_fb", 4) &&
-		strncmp(str, "say", 3) &&	//note that the say parsing could be useful here.
-		strncmp(str, "echo", 4) &&
-		strncmp(str, "name", 4) &&
-		strncmp(str, "skin", 4) &&
-		strncmp(str, "color", 5) &&
-		strncmp(str, "cmd", 3) &&
-		strncmp(str, "fov", 3) &&
-		strncmp(str, "connect", 7) &&
-		strncmp(str, "rate", 4) &&
-		strncmp(str, "cd", 2) &&
-		strncmp(str, "easyrecord", 10) &&
-		strncmp(str, "leftisright", 11) &&
-		strncmp(str, "menu_", 5) &&
-		strncmp(str, "r_fullbright", 12) &&
-		strncmp(str, "toggleconsole", 13) &&
-		strncmp(str, "v_i", 3) &&	//idlescale vars
-		strncmp(str, "bf", 2) &&
-		strncmp(str, "+", 1) &&
-		strncmp(str, "-", 1) &&
-		strncmp(str, "impulse", 7) &&
+		!strncmp(str, "setinfo", 7) &&
+		!strncmp(str, "quit", 4) &&
+		!strncmp(str, "gl_fb", 5) &&
+		!strncmp(str, "r_fb", 4) &&
+//		!strncmp(str, "say", 3) &&	//note that the say parsing could be useful here.
+		!strncmp(str, "echo", 4) &&
+		!strncmp(str, "name", 4) &&
+		!strncmp(str, "skin", 4) &&
+		!strncmp(str, "color", 5) &&
+		!strncmp(str, "cmd", 3) &&
+		!strncmp(str, "fov", 3) &&
+		!strncmp(str, "connect", 7) &&
+		!strncmp(str, "rate", 4) &&
+		!strncmp(str, "cd", 2) &&
+		!strncmp(str, "easyrecord", 10) &&
+		!strncmp(str, "leftisright", 11) &&
+		!strncmp(str, "menu_", 5) &&
+		!strncmp(str, "r_fullbright", 12) &&
+		!strncmp(str, "toggleconsole", 13) &&
+		!strncmp(str, "v_i", 3) &&	//idlescale vars
+		!strncmp(str, "bf", 2) &&
+		!strncmp(str, "+", 1) &&
+		!strncmp(str, "-", 1) &&
+		!strncmp(str, "impulse", 7) &&
 		1))
 	{
 		Con_Printf("You're not allowed to stuffcmd that\n");

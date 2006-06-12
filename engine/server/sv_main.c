@@ -90,14 +90,14 @@ cvar_t	zombietime = SCVAR("zombietime", "2");	// seconds to sink messages
 #ifdef SERVERONLY
 cvar_t	developer = SCVAR("developer","0");		// show extra messages
 
-cvar_t	rcon_password = SCVAR("rcon_password", "");	// password for remote server commands
-cvar_t	password = SCVAR("password", "");	// password for entering the game
+cvar_t	rcon_password = SCVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);	// password for remote server commands
+cvar_t	password = SCVARF("password", "", CVAR_NOUNSAFEEXPAND);	// password for entering the game
 #else
 extern cvar_t	developer;
 extern cvar_t	rcon_password;
 extern cvar_t	password;
 #endif
-cvar_t	spectator_password = SCVAR("spectator_password", "");	// password for entering as a sepctator
+cvar_t	spectator_password = SCVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
 
 cvar_t	allow_download = SCVAR("allow_download", "1");
 cvar_t	allow_download_skins = SCVAR("allow_download_skins", "1");

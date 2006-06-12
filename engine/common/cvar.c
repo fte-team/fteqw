@@ -158,6 +158,8 @@ char *Cvar_FlagToName(int flag)
 		return "serverlatch";
 	case CVAR_RENDERERCALLBACK:
 		return "rendercallback";
+	case CVAR_NOUNSAFEEXPAND:
+		return "nounsafeexpand";
 	}
 
 	return NULL;

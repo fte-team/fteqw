@@ -105,8 +105,9 @@ typedef struct cvar_group_s
 #define CVAR_RENDERERLATCH		1024	//requires a vid_restart to reapply.
 #define CVAR_SERVEROVERRIDE		2048	//the server has overridden out local value - should probably be called SERVERLATCH
 #define CVAR_RENDERERCALLBACK	4096 //force callback for cvars on renderer change
+#define CVAR_NOUNSAFEEXPAND		8192 // do not expand cvar value when command is from gamecode
 
-#define CVAR_LASTFLAG CVAR_RENDERERCALLBACK
+#define CVAR_LASTFLAG CVAR_NOUNSAFEEXPAND
 
 #define CVAR_LATCHMASK		(CVAR_LATCH|CVAR_RENDERERLATCH|CVAR_SERVEROVERRIDE|CVAR_CHEAT|CVAR_SEMICHEAT)	//you're only allowed one of these.
 #define CVAR_NEEDDEFAULT	CVAR_CHEAT

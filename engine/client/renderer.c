@@ -108,7 +108,7 @@ cvar_t	gl_texture_anisotropic_filtering = SCVARFC("gl_texture_anisotropic_filter
 cvar_t	gl_conback = SCVARF("gl_conback", "", CVAR_RENDERERCALLBACK);
 cvar_t	gl_font = SCVARF("gl_font", "", CVAR_RENDERERCALLBACK);
 //gl blends. Set this to 1 to stop the outside of your conchars from being visible
-cvar_t	gl_fontedgeclamp = SCVAR("gl_fontedgeclamp", "0");	
+cvar_t	gl_fontinwardstep = SCVAR("gl_fontinwardstep", "0");	
 cvar_t	gl_smoothfont	= SCVAR("gl_smoothfont", "1");
 cvar_t  gl_smoothcrosshair = SCVAR("gl_smoothcrosshair", "1");
 #endif
@@ -318,7 +318,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_mindist, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_multisample, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_fontedgeclamp, GRAPHICALNICETIES);
+	Cvar_Register (&gl_fontinwardstep, GRAPHICALNICETIES);
 	Cvar_Register (&gl_font, GRAPHICALNICETIES);
 	Cvar_Register (&gl_conback, GRAPHICALNICETIES);
 	Cvar_Register (&gl_smoothfont, GRAPHICALNICETIES);

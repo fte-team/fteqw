@@ -60,7 +60,7 @@ extern cvar_t		gl_lerpimages;
 extern cvar_t		gl_picmip2d;
 extern cvar_t		r_drawdisk;
 extern cvar_t		gl_compress;
-extern cvar_t		gl_smoothfont, gl_smoothcrosshair, gl_fontedgeclamp;
+extern cvar_t		gl_smoothfont, gl_smoothcrosshair, gl_fontinwardstep;
 extern cvar_t		gl_texturemode, gl_texture_anisotropic_filtering;
 extern cvar_t cl_noblink;
 
@@ -1188,9 +1188,9 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	row = num>>4;
 	col = num&15;
 
-	frow = row*0.0625;
-	fcol = col*0.0625;
-	size = 0.0625;
+	frow = row*0.0625+char_instep;
+	fcol = col*0.0625+char_instep;
+	size = 0.0625-char_instep*2;
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
 	draw_mesh_st[0][0] = fcol;
@@ -1218,37 +1218,6 @@ void GLDraw_Character (int x, int y, unsigned int num)
 		GL_DrawMesh(&draw_mesh, char_tex2);
 	else
 		GL_DrawMesh(&draw_mesh, char_texture);
-
-/*#else
-
-	if (num&CON_2NDCHARSETTEXT)
-		GL_Bind (char_tex2);
-	else
-		GL_Bind (char_texture);
-
-	num &= 255;
-
-	row = num>>4;
-	col = num&15;
-
-	frow = row*0.0625+char_instep;
-	fcol = col*0.0625+char_instep;
-	size = 0.0625-char_instep*2;
-	qglEnable(GL_BLEND);
-	qglDisable(GL_ALPHA_TEST);
-
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (fcol, frow);
-	qglVertex2f (x, y);
-	qglTexCoord2f (fcol + size, frow);
-	qglVertex2f (x+8, y);
-	qglTexCoord2f (fcol + size, frow + size);
-	qglVertex2f (x+8, y+8);
-	qglTexCoord2f (fcol, frow + size);
-	qglVertex2f (x, y+8);
-	qglEnd ();
-
-#endif*/
 }
 
 void GLDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b);
@@ -2245,10 +2214,10 @@ void GL_Smoothfont_Callback(struct cvar_s *var, char *oldvalue)
 	}
 }
 
-void GL_Fontedgeclamp_Callback(struct cvar_s *var, char *oldvalue)
+void GL_Fontinwardstep_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (var->value)
-		char_instep = custom_char_instep;
+		char_instep = custom_char_instep*bound(0, var->value, 1);
 	else
 		char_instep = 0;
 }
@@ -2282,7 +2251,7 @@ void GL_Font_Callback(struct cvar_s *var, char *oldvalue)
 	}
 	
 	GL_Smoothfont_Callback(&gl_smoothfont, "");
-	GL_Fontedgeclamp_Callback(&gl_fontedgeclamp, "");
+	GL_Fontinwardstep_Callback(&gl_fontinwardstep, "");
 }
 
 void GL_Conback_Callback(struct cvar_s *var, char *oldvalue)

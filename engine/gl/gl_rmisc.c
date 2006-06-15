@@ -658,7 +658,7 @@ extern cvar_t gl_bump, v_contrast, r_drawflat;
 extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
 
 // callback defines
-extern cvar_t gl_conback, gl_font, gl_smoothfont, gl_fontedgeclamp, r_menutint;
+extern cvar_t gl_conback, gl_font, gl_smoothfont, gl_fontinwardstep, r_menutint;
 extern cvar_t vid_conautoscale, vid_conheight, vid_conwidth;
 extern cvar_t crosshair, crosshairimage, crosshaircolor, r_skyboxname;
 extern cvar_t r_floorcolour, r_wallcolour, r_floortexture, r_walltexture;
@@ -670,7 +670,7 @@ void GLR_Menutint_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Conback_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Font_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Smoothfont_Callback (struct cvar_s *var, char *oldvalue);
-void GL_Fontedgeclamp_Callback (struct cvar_s *var, char *oldvalue);
+void GL_Fontinwardstep_Callback (struct cvar_s *var, char *oldvalue);
 void GLVID_Conwidth_Callback(struct cvar_s *var, char *oldvalue);
 void GLVID_Conautoscale_Callback(struct cvar_s *var, char *oldvalue);
 void GLVID_Conheight_Callback(struct cvar_s *var, char *oldvalue);
@@ -697,7 +697,7 @@ void GLR_DeInit (void)
 	Cvar_Unhook(&gl_conback);
 	Cvar_Unhook(&gl_font);
 	Cvar_Unhook(&gl_smoothfont);
-	Cvar_Unhook(&gl_fontedgeclamp);
+	Cvar_Unhook(&gl_fontinwardstep);
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&vid_conheight);
 	Cvar_Unhook(&vid_conwidth);
@@ -729,7 +729,7 @@ void GLR_Init (void)
 	Cvar_Hook(&gl_conback, GL_Conback_Callback);
 	Cvar_Hook(&gl_font, GL_Font_Callback);
 	Cvar_Hook(&gl_smoothfont, GL_Smoothfont_Callback);
-	Cvar_Hook(&gl_fontedgeclamp, GL_Fontedgeclamp_Callback);
+	Cvar_Hook(&gl_fontinwardstep, GL_Fontinwardstep_Callback);
 	Cvar_Hook(&vid_conautoscale, GLVID_Conautoscale_Callback);
 	Cvar_Hook(&vid_conheight, GLVID_Conheight_Callback);
 	Cvar_Hook(&vid_conwidth, GLVID_Conwidth_Callback);

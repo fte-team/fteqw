@@ -141,7 +141,7 @@ static gltexture_t	*gltextures;
 #define	BLOCK_HEIGHT	256
 
 int			scrap_allocated[MAX_SCRAPS][BLOCK_WIDTH];
-qbyte		scrap_texels[MAX_SCRAPS][BLOCK_WIDTH*BLOCK_HEIGHT*4];
+qbyte		scrap_texels[MAX_SCRAPS][BLOCK_WIDTH*BLOCK_HEIGHT];
 qboolean	scrap_dirty;
 int			scrap_texnum;
 
@@ -183,8 +183,7 @@ int Scrap_AllocBlock (int w, int h, int *x, int *y)
 		return texnum;
 	}
 
-	Sys_Error ("Scrap_AllocBlock: full");
-	return 0;
+	return -1;
 }
 
 int	scrap_uploads;
@@ -285,20 +284,30 @@ qboolean Draw_RealPicFromWad (mpic_t	*out, char *name)
 		int		texnum;
 
 		texnum = Scrap_AllocBlock (in->width, in->height, &x, &y);
-		scrap_dirty = true;
-		k = 0;
-		for (i=0 ; i<in->height ; i++)
-			for (j=0 ; j<in->width ; j++, k++)
-				scrap_texels[texnum][(y+i)*BLOCK_WIDTH + x + j] = in->data[k];
-		texnum += scrap_texnum;
-		gl->texnum = texnum;
-		gl->sl = (x+0.01)/(float)BLOCK_WIDTH;
-		gl->sh = (x+in->width-0.01)/(float)BLOCK_WIDTH;
-		gl->tl = (y+0.01)/(float)BLOCK_WIDTH;
-		gl->th = (y+in->height-0.01)/(float)BLOCK_WIDTH;
-
-		pic_count++;
-		pic_texels += in->width*in->height;
+		if (texnum >= 0)
+		{
+			scrap_dirty = true;
+			k = 0;
+			for (i=0 ; i<in->height ; i++)
+				for (j=0 ; j<in->width ; j++, k++)
+					scrap_texels[texnum][(y+i)*BLOCK_WIDTH + x + j] = in->data[k];
+			texnum += scrap_texnum;
+			gl->texnum = texnum;
+			gl->sl = (x+0.25)/(float)BLOCK_WIDTH;
+			gl->sh = (x+in->width-0.25)/(float)BLOCK_WIDTH;
+			gl->tl = (y+0.25)/(float)BLOCK_WIDTH;
+			gl->th = (y+in->height-0.25)/(float)BLOCK_WIDTH;
+			pic_count++;
+			pic_texels += in->width*in->height;
+		}
+		else
+		{
+			gl->texnum = GL_LoadPicTexture (in);
+			gl->sl = 0;
+			gl->sh = 1;
+			gl->tl = 0;
+			gl->th = 1;
+		}
 	}
 	else
 	{
@@ -740,6 +749,7 @@ void GLDraw_ReInit (void)
 	GL_GAliasFlushSkinCache();
 
 	memset(scrap_allocated, 0, sizeof(scrap_allocated));
+	memset(scrap_texels, 255, sizeof(scrap_texels));
 
 
 	qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxtexsize);
@@ -1104,6 +1114,7 @@ void GLDraw_Init (void)
 {
 
 	memset(scrap_allocated, 0, sizeof(scrap_allocated));
+	memset(scrap_texels, 255, sizeof(scrap_texels));
 
 	GLDraw_ReInit();
 

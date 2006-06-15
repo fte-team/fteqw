@@ -66,6 +66,8 @@ void (APIENTRY *qglTexGeni) (GLenum coord, GLenum pname, GLint param);
 void (APIENTRY *qglTexImage2D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
 void (APIENTRY *qglTexParameteri) (GLenum target, GLenum pname, GLint param);
 void (APIENTRY *qglTexParameterf) (GLenum target, GLenum pname, GLfloat param);
+void (APIENTRY *qglTexParameteriv) (GLenum target, GLenum pname, const GLint *params);
+void (APIENTRY *qglTexParameterfv) (GLenum target, GLenum pname, const GLfloat *params);
 void (APIENTRY *qglTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
 void (APIENTRY *qglTranslatef) (GLfloat x, GLfloat y, GLfloat z);
 void (APIENTRY *qglVertex2f) (GLfloat x, GLfloat y);
@@ -535,6 +537,8 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglTexImage2D		= (void *)getglcore("glTexImage2D");
 	qglTexParameteri	= (void *)getglcore("glTexParameteri");
 	qglTexParameterf	= (void *)getglcore("glTexParameterf");
+	qglTexParameteriv	= (void *)getglcore("glTexParameteriv");
+	qglTexParameterfv	= (void *)getglcore("glTexParameterfv");
 	qglTexSubImage2D	= (void *)getglcore("glTexSubImage2D");
 	qglTranslatef		= (void *)getglcore("glTranslatef");
 	qglVertex2f			= (void *)getglcore("glVertex2f");

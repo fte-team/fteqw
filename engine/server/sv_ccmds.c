@@ -1137,7 +1137,7 @@ void SV_StuffToClient_f(void)
 		!strncmp(str, "quit", 4) &&
 		!strncmp(str, "gl_fb", 5) &&
 		!strncmp(str, "r_fb", 4) &&
-//		!strncmp(str, "say", 3) &&	//note that the say parsing could be useful here.
+		!strncmp(str, "say", 3) &&	//note that the say parsing could be useful here.
 		!strncmp(str, "echo", 4) &&
 		!strncmp(str, "name", 4) &&
 		!strncmp(str, "skin", 4) &&

@@ -420,6 +420,9 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 	char	*colon;
 	char	copy[128];
 
+	if (!(*s))
+		return false;
+
 	memset (sadr, 0, sizeof(*sadr));
 
 #ifdef USEIPX
@@ -544,9 +547,9 @@ dblbreak:
 		else
 		{
 			if (! (h = gethostbyname(copy)) )
-				return 0;
+				return false;
 			if (h->h_addrtype != AF_INET)
-				return 0;
+				return false;
 			*(int *)&((struct sockaddr_in *)sadr)->sin_addr = *(int *)h->h_addr_list[0];
 		}
 	}

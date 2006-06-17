@@ -106,6 +106,7 @@ extern cvar_t          scr_showpause;
 extern cvar_t          scr_printspeed;
 extern cvar_t			scr_allowsnap;
 extern cvar_t			scr_sshot_type;
+extern cvar_t			scr_sshot_compression;
 extern  		cvar_t  crosshair;
 extern cvar_t			scr_consize;
 
@@ -1643,7 +1644,7 @@ typedef struct _TargaHeader {
 
 
 #ifdef AVAIL_JPEGLIB
-void screenshotJPEG(char *filename, qbyte *screendata, int screenwidth, int screenheight);
+void screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight);
 #endif
 #ifdef AVAIL_PNGLIB
 int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, int height);
@@ -1690,6 +1691,7 @@ void SCR_ScreenShot (char *filename)
 	int truewidth, trueheight;
 	qbyte            *buffer;
 	int                     i, c, temp;
+	extern cvar_t scr_sshot_compression;
 
 #define MAX_PREPAD	128
 	char *ext;
@@ -1701,14 +1703,14 @@ void SCR_ScreenShot (char *filename)
 #ifdef AVAIL_PNGLIB
 	if (!strcmp(ext, "png"))
 	{
-		Image_WritePNG(filename, 100, buffer+MAX_PREPAD, truewidth, trueheight);
+		Image_WritePNG(filename, scr_sshot_compression.value, buffer+MAX_PREPAD, truewidth, trueheight);
 	}
 	else
 #endif
 #ifdef AVAIL_JPEGLIB
 		if (!strcmp(ext, "jpeg") || !strcmp(ext, "jpg"))
 	{
-		screenshotJPEG(filename, buffer+MAX_PREPAD, truewidth, trueheight);
+		screenshotJPEG(filename, scr_sshot_compression.value, buffer+MAX_PREPAD, truewidth, trueheight);
 	}
 	else
 #endif

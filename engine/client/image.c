@@ -713,7 +713,8 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
     }
 
 	png_init_io(png_ptr, fp);
-	png_set_compression_level(png_ptr, (compression*Z_BEST_COMPRESSION)/100);
+	compression = bound(0, compression, 100);
+	png_set_compression_level(png_ptr, Z_NO_COMPRESSION + (compression*(Z_BEST_COMPRESSION-Z_NO_COMPRESSION))/100);
 
 	png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);	
 	png_write_info(png_ptr, info_ptr);
@@ -1050,7 +1051,7 @@ void jpeg_mem_dest (j_compress_ptr cinfo, vfsfile_t *vfs)
 METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo) {	
   longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
-void screenshotJPEG(char *filename, qbyte *screendata, int screenwidth, int screenheight)	//input is rgb NOT rgba
+void screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight)	//input is rgb NOT rgba
 {
 	qbyte	*buffer;
 	vfsfile_t	*outfile;
@@ -1088,7 +1089,7 @@ void screenshotJPEG(char *filename, qbyte *screendata, int screenwidth, int scre
 	cinfo.input_components = 3;
 	cinfo.in_color_space = JCS_RGB;
 	jpeg_set_defaults(&cinfo);
-	jpeg_set_quality (&cinfo, 75/*bound(0, (int) gl_image_jpeg_quality_level.value, 100)*/, true);
+	jpeg_set_quality (&cinfo, bound(0, compression, 100), true);
 	jpeg_start_compress(&cinfo, true);
 
 	while (cinfo.next_scanline < cinfo.image_height)

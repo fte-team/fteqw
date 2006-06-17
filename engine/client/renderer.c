@@ -171,7 +171,7 @@ cvar_t		gl_lateswap	= SCVAR("gl_lateswap", "0");
 cvar_t		gl_mylumassuck	= SCVAR("gl_mylumassuck", "0");
 
 cvar_t			scr_sshot_type	= SCVAR("scr_sshot_type", "jpg");
-
+cvar_t			scr_sshot_compression = SCVAR("scr_sshot_compression", "75");
 
 cvar_t			scr_centersbar	= SCVAR("scr_centersbar", "0");
 cvar_t			scr_consize	= SCVAR("scr_consize", "0.5");
@@ -522,6 +522,7 @@ void Renderer_Init(void)
 	Cvar_Register(&scr_chatmodecvar, SCREENOPTIONS);
 
 	Cvar_Register (&scr_sshot_type, SCREENOPTIONS);
+	Cvar_Register (&scr_sshot_compression, SCREENOPTIONS);
 
 	Cvar_Register(&cl_cursor,	SCREENOPTIONS);
 	Cvar_Register(&cl_cursorsize,	SCREENOPTIONS);

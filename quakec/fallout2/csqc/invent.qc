@@ -1,6 +1,6 @@
 void bprint(float plev, string st, string s2){}
 float PRINT_MEDIUM = 1;
-#include "/../inventory.qc"
+#include "../inventory.qc"
 
 float show_inventory;
 
@@ -18,6 +18,8 @@ float downslotnum;	//the slot number when the mousecursor when down
 vector toppos = '0 32 0';
 
 float k_mouse1;
+float k_mwheelup;
+float k_mwheeldown;
 float mouseisdown;
 
 #define IMGSIZEF 64
@@ -60,7 +62,7 @@ void() Invent_Draw =
 
 
 	local float slotofs;
-	slotofs = sliderpos*IMGSIZEF*8 + IMGSIZEF*3;
+	slotofs = sliderpos*(height - (IMGSIZEF*3)) + (IMGSIZEF*3);
 
 	for (i = 3; i < MAXSLOTS; i++)
 	{
@@ -176,6 +178,18 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			else
 				downslotnum = slotnum;
 		}
+		else if (param1 == k_mwheelup)
+		{
+			sliderpos = sliderpos - 0.05;
+			if (sliderpos < 0)
+				sliderpos = 0;
+		}
+		else if (param1 == k_mwheeldown)
+		{
+			sliderpos = sliderpos + 0.05;
+			if (sliderpos > 1)
+				sliderpos = 1;
+		}
 		else
 			return false;
 		return true;
@@ -256,4 +270,6 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 void() FigureOutButtons =
 {
 	k_mouse1 = stringtokeynum("K_MOUSE1");
+	k_mwheelup = stringtokeynum("K_MWHEELUP");
+	k_mwheeldown = stringtokeynum("K_MWHEELDOWN");
 };

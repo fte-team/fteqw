@@ -2315,6 +2315,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			state->number++;
 			state->skinnum = 1;
 		}
+		state->effects &= ~(QWEF_FLAG1 | QWEF_FLAG2);
 	}
 
 #ifdef NQPROT
@@ -2553,6 +2554,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			}
 		}
 
+		if (state->effects & 0x32)
+			state->effects |= 0;
+
 		if (state->effects & EF_FULLBRIGHT)
 		{
 			state->hexen2flags |= MLS_FULLBRIGHT;
@@ -2572,7 +2576,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 					state->modelindex = 0;
 			}
 
-			state->effects &= ~ (QWEF_FLAG1|QWEF_FLAG2);
+			if (e <= sv.allocated_client_slots) // clear only client ents
+				state->effects &= ~ (QWEF_FLAG1|QWEF_FLAG2);
 		}
 
 		if (!ent->v->colormod[0] && !ent->v->colormod[1] && !ent->v->colormod[2])

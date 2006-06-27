@@ -1729,6 +1729,7 @@ int maxport = port + 100;
 #ifdef IPPROTO_IPV6
 int UDP6_OpenSocket (int port, qboolean bcast)
 {
+	int err;
 	int newsocket;
 	struct sockaddr_in6 address;
 	unsigned long _true = true;
@@ -1775,10 +1776,20 @@ int maxport = port + 100;
 		if( bind (newsocket, (void *)&address, sizeof(address)) == -1)
 		{
 			if (!port)
-				Sys_Error ("UDP6_OpenSocket: bind: %s", strerror(qerrno));
+			{
+				err = qerrno;
+				Con_Printf ("UDP6_OpenSocket: bind: (%i) %s", err, strerror(err));
+				closesocket(newsocket);
+				return INVALID_SOCKET;
+			}
 			port++;
 			if (port > maxport)
-				Sys_Error ("UDP6_OpenSocket: bind: %s", strerror(qerrno));
+			{
+				err = qerrno;
+				Con_Printf ("UDP6_OpenSocket: bind: (%i) %s", err, strerror(err));
+				closesocket(newsocket);
+				return INVALID_SOCKET;
+			}
 		}
 		else
 			break;

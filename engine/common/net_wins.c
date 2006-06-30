@@ -448,7 +448,7 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 	else
 #endif
 #ifdef IPPROTO_IPV6
-		if (pgetaddrinfo)
+	if (pgetaddrinfo)
 	{
 		struct addrinfo *addrinfo = NULL;
 		struct addrinfo *pos;
@@ -457,7 +457,7 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 		char *port;
 		char dupbase[256];
 		int len;
-
+		
 		memset(&udp6hint, 0, sizeof(udp6hint));
 		udp6hint.ai_family = 0;//Any... we check for AF_INET6 or 4
 		udp6hint.ai_socktype = SOCK_DGRAM;
@@ -530,6 +530,9 @@ dblbreak:
 		((struct sockaddr_in *)sadr)->sin_family = AF_INET;
 
 		((struct sockaddr_in *)sadr)->sin_port = 0;
+
+		if (strlen(s) >= sizeof(copy)-1)
+			return false;
 
 		strcpy (copy, s);
 		// strip off a trailing :port if present

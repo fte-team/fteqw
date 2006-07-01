@@ -269,7 +269,7 @@ int PM_StepSlideMove (qboolean in_air)
 		if (!(blocked & BLOCKED_STEP))
 			return blocked;
 
-		org = (pmove.velocity < 0) ? pmove.origin : original;	// cryptic, eh?
+		org = (originalvel[2] < 0) ? pmove.origin : original;
 		VectorCopy (org, dest);
 		dest[2] -= pm_stepheight;
 		trace = PM_PlayerTrace (org, dest);
@@ -297,6 +297,9 @@ int PM_StepSlideMove (qboolean in_air)
 	{
 		VectorCopy (trace.endpos, pmove.origin);
 	}
+
+	if (in_air && originalvel[2] < 0)
+		pmove.velocity[2] = 0;
 
 	PM_SlideMove ();
 

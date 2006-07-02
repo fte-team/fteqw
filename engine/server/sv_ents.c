@@ -1329,7 +1329,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 			{	// don't show the corpse looking around...
 				cmd.angles[0] = 0;
 				cmd.angles[1] = ent->angles[1]*65535/360;
-				cmd.angles[0] = 0;
+				cmd.angles[2] = 0;
 			}
 
 			cmd.buttons = 0;	// never send buttons
@@ -1621,11 +1621,10 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 	for (j=0,cl=svs.clients ; j<sv.allocated_client_slots ; j++,cl++)
 	{
-		isbot = !cl->state && (cl->name[0] || cl->protocol == SCP_BAD);
 		if (cl->state != cs_spawned)	//this includes bots
-			if (!isbot || progstype == PROG_QW)	//unless they're NQ bots...
-				continue;
+			continue;
 
+		isbot = (cl->name[0] || cl->protocol == SCP_BAD);
 		ent = cl->edict;
 		if (cl->viewent && ent == clent)
 		{

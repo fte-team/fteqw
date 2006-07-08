@@ -2,11 +2,23 @@
 
 #ifdef AVAIL_OGGVORBIS
 
+#ifdef __MORPHOS__
+#include <exec/exec.h>
+#include <libraries/vorbisfile.h>
+
+#include <proto/exec.h>
+#include <proto/vorbisfile.h>
+#else
 #include <vorbis/vorbisfile.h>
+#endif
 
 
+#if defined(__MORPHOS__)
 
-#if defined(_WIN32)
+#define oggvorbislibrary VorbisFileBase
+struct Library *VorbisFileBase;
+
+#elif defined(_WIN32)
 #define WINDOWSDYNAMICLINK
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -20,6 +32,14 @@ HINSTANCE oggvorbislibrary;
 void *oggvorbislibrary;
 #endif
 
+#ifdef __MORPHOS__
+#define p_ov_open_callbacks(a, b, c, d, e) ov_open_callbacks(a, b, c, d, &e)
+#define p_ov_clear ov_clear
+#define p_ov_info ov_info
+#define p_ov_comment ov_comment
+#define p_ov_pcm_total ov_pcm_total
+#define p_ov_read ov_read
+#else
 int (VARGS *p_ov_open_callbacks) (void *datasource, OggVorbis_File *vf, char *initial, long ibytes, ov_callbacks callbacks);
 int (VARGS *p_ov_clear)(OggVorbis_File *vf);
 vorbis_info *(VARGS *p_ov_info)(OggVorbis_File *vf,int link);
@@ -27,6 +47,7 @@ vorbis_comment *(VARGS *p_ov_comment) (OggVorbis_File *vf,int link);
 ogg_int64_t (VARGS *p_ov_pcm_total)(OggVorbis_File *vf,int i);
 long (VARGS *p_ov_read)(OggVorbis_File *vf,char *buffer,int length,
 		    int bigendianp,int word,int sgned,int *bitstream);
+#endif
 
 
 typedef struct {
@@ -101,7 +122,7 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 {	
 	extern int snd_speed;
 	int i;
-	int bigendianp = 0;
+	int bigendianp = bigendian;
 	int current_section = 0;
 	sfxcache_t *sc;
 
@@ -243,39 +264,51 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 {
 	static qboolean tried;
 	if (!oggvorbislibrary && !tried)
-#ifdef WINDOWSDYNAMICLINK
+#if defined(__MORPHOS__)
 	{
-		tried = true;
+		VorbisFileBase = OpenLibrary("vorbisfile.library", 2);
+		if (!VorbisFileBase)
+		{
+			Con_Printf("Unable to open vorbisfile.library version 2\n");
+		}
+	}
+#elif defined(WINDOWSDYNAMICLINK)
+	{
 		oggvorbislibrary = LoadLibrary("vorbisfile.dll");
 		if (!oggvorbislibrary)
 		{
 			Con_Printf("Couldn't load DLL: \"vorbisfile.dll\".\n");
-			return false;
 		}
-		p_ov_open_callbacks	= (void *)GetProcAddress(oggvorbislibrary, "ov_open_callbacks");
-		p_ov_comment		= (void *)GetProcAddress(oggvorbislibrary, "ov_comment");
-		p_ov_pcm_total		= (void *)GetProcAddress(oggvorbislibrary, "ov_pcm_total");
-		p_ov_clear			= (void *)GetProcAddress(oggvorbislibrary, "ov_clear");
-		p_ov_info			= (void *)GetProcAddress(oggvorbislibrary, "ov_info");
-		p_ov_read			= (void *)GetProcAddress(oggvorbislibrary, "ov_read");
+		else
+		{
+			p_ov_open_callbacks	= (void *)GetProcAddress(oggvorbislibrary, "ov_open_callbacks");
+			p_ov_comment		= (void *)GetProcAddress(oggvorbislibrary, "ov_comment");
+			p_ov_pcm_total		= (void *)GetProcAddress(oggvorbislibrary, "ov_pcm_total");
+			p_ov_clear			= (void *)GetProcAddress(oggvorbislibrary, "ov_clear");
+			p_ov_info			= (void *)GetProcAddress(oggvorbislibrary, "ov_info");
+			p_ov_read			= (void *)GetProcAddress(oggvorbislibrary, "ov_read");
+		}
 	}
 #else
 	{
-		tried = true;
 		oggvorbislibrary = dlopen("libvorbisfile.so", RTLD_LOCAL | RTLD_LAZY);
 		if (!oggvorbislibrary)
 		{
-			Con_Printf("Couldn't load DLL: \"vorbisfile.dll\".\n");
-			return false;
+			Con_Printf("Couldn't load SO: \"libvorbisfile.so\".\n");
 		}
-		p_ov_open_callbacks	= (void *)dlsym(oggvorbislibrary, "ov_open_callbacks");
-		p_ov_comment		= (void *)dlsym(oggvorbislibrary, "ov_comment");
-		p_ov_pcm_total		= (void *)dlsym(oggvorbislibrary, "ov_pcm_total");
-		p_ov_clear		= (void *)dlsym(oggvorbislibrary, "ov_clear");
-		p_ov_info		= (void *)dlsym(oggvorbislibrary, "ov_info");
-		p_ov_read		= (void *)dlsym(oggvorbislibrary, "ov_read");
+		else
+		{
+			p_ov_open_callbacks	= (void *)dlsym(oggvorbislibrary, "ov_open_callbacks");
+			p_ov_comment		= (void *)dlsym(oggvorbislibrary, "ov_comment");
+			p_ov_pcm_total		= (void *)dlsym(oggvorbislibrary, "ov_pcm_total");
+			p_ov_clear		= (void *)dlsym(oggvorbislibrary, "ov_clear");
+			p_ov_info		= (void *)dlsym(oggvorbislibrary, "ov_info");
+			p_ov_read		= (void *)dlsym(oggvorbislibrary, "ov_read");
+		}
 	}
 #endif
+
+	tried = true;
 
 	if (!oggvorbislibrary)
 		return false;

@@ -124,7 +124,7 @@ CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
 DEBUG_CFLAGS=-ggdb -g
-RELEASE_CFLAGS=-O6 -s -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 GLCFLAGS=-DGLQUAKE
 SWCFLAGS=-DSWQUAKE
 
@@ -508,16 +508,16 @@ ifeq ($(FTE_TARGET),morphos)
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
-	GL_LDFLAGS=$(GLLDFLAGS) -ljpeg_shared -lpng_shared -lsyscall
-	GL_CFLAGS=$(GLCFLAGS) -noixemul -D__MORPHOS_SHAREDLIBS
+	GL_LDFLAGS=$(GLLDFLAGS) -ldl -lsyscall -lpng -ljpeg -lz
+	GL_CFLAGS=$(GLCFLAGS) -noixemul
 	GLB_DIR=gl_morphos
 	GLCL_DIR=glcl_morphos
 
 	SWCL_OBJS=$(SOFTWARE_OBJS) vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	SW_EXE_NAME=../fteqw.sw
 	SWCL_EXE_NAME=../fteqwcl.sw
-	SW_LDFLAGS=$(SWLDFLAGS) -ljpeg_shared -lpng_shared -lsyscall
-	SW_CFLAGS=$(SWCFLAGS) -noixemul -D__MORPHOS_SHAREDLIBS
+	SW_LDFLAGS=$(SWLDFLAGS) -ldl -lsyscall
+	SW_CFLAGS=$(SWCFLAGS) -noixemul
 	SWB_DIR=sw_morphos
 	SWCL_DIR=swcl_morphos
 

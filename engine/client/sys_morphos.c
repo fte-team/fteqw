@@ -18,6 +18,8 @@ int __stack = 4*1024*1024;
 struct Library *DynLoadBase;
 #endif
 
+extern struct Library *VorbisFileBase;
+
 #ifndef CLIENTONLY
 qboolean isDedicated;
 #endif
@@ -31,6 +33,12 @@ static void Sys_Shutdown()
 		DynLoadBase = 0;
 	}
 #endif
+
+	if (VorbisFileBase)
+	{
+		CloseLibrary(VorbisFileBase);
+		VorbisFileBase = 0;
+	}
 }
 
 void Sys_Quit (void)

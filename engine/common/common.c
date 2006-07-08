@@ -578,7 +578,7 @@ float Q_atof (char *str)
 ============================================================================
 */
 
-qboolean	bigendien;
+qboolean	bigendian;
 
 short	(*BigShort) (short l);
 short	(*LittleShort) (short l);
@@ -646,7 +646,7 @@ void COM_SwapLittleShortBlock (short *s, int size)
 	if (size <= 0)
 		return;
 
-	if (!bigendien)
+	if (!bigendian)
 		return;
 
 	while (size)
@@ -2353,7 +2353,7 @@ void COM_Init (void)
 // set the qbyte swapping variables in a portable manner
 	if ( *(short *)swaptest == 1)
 	{
-		bigendien = false;
+		bigendian = false;
 		BigShort = ShortSwap;
 		LittleShort = ShortNoSwap;
 		BigLong = LongSwap;
@@ -2363,7 +2363,7 @@ void COM_Init (void)
 	}
 	else
 	{
-		bigendien = true;
+		bigendian = true;
 		BigShort = ShortNoSwap;
 		LittleShort = ShortSwap;
 		BigLong = LongNoSwap;

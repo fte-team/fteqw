@@ -175,8 +175,6 @@ int Sys_FileTime(char *path)
 
 		UnLock(lock);
 	}
-	else
-		dprintf("Unable to find file %s\n", path);
 
 	return ret;
 }

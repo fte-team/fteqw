@@ -14,7 +14,9 @@
 
 int __stack = 4*1024*1024;
 
+#if I_AM_BIGFOOT
 struct Library *DynLoadBase;
+#endif
 
 #ifndef CLIENTONLY
 qboolean isDedicated;
@@ -22,11 +24,13 @@ qboolean isDedicated;
 
 static void Sys_Shutdown()
 {
+#if I_AM_BIGFOOT
 	if(DynLoadBase)
 	{
 		CloseLibrary(DynLoadBase);
 		DynLoadBase = 0;
 	}
+#endif
 }
 
 void Sys_Quit (void)
@@ -277,7 +281,9 @@ int main(int argc, char **argv)
 	if (parms.membase == 0)
 		Sys_Error("Can't allocated %d bytes\n", parms.memsize);
 
+#if I_AM_BIGFOOT
 	DynLoadBase = OpenLibrary("dynload.library", 0);
+#endif
 
 	Host_Init(&parms);
 

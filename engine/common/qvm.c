@@ -131,7 +131,7 @@ void Sys_UnloadDLL(void *handle)
 	}
 }
 #else
-#ifdef __MORPHOS__
+#if defined(__MORPHOS__) && I_AM_BIGFOOT
 #include <proto/dynload.h>
 #else
 #include <dlfcn.h>
@@ -143,7 +143,7 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 	char dllname[MAX_OSPATH];
 	void *hVM;
 
-#ifdef __MORPHOS__
+#if defined(__MORPHOS__) && I_AM_BIGFOOT
 	if (DynLoadBase == 0)
 		return 0;
 #endif

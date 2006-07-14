@@ -15,7 +15,6 @@ pbool QCC_PR_UndefineName(char *name);
 char *QCC_PR_CheakCompConstString(char *def);
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
 pbool QCC_Include(char *filename);
-float QCC_PR_LexOctal (void);
 
 char *compilingfile;
 
@@ -1082,12 +1081,6 @@ void QCC_PR_LexString (void)
 				c = '\'';
 			else if (c >= '0' && c <= '9')
 				c = 18 + c - '0';
-			else if (c >= '0' && c <= '8')
-			{	//octal
-				c = c - '0';
-				while(*pr_file_p >= '0' && *pr_file_p <= '8')
-					c = (c<<3) | (*pr_file_p++ - '0');
-			}
 			else if (c == '\r')
 			{	//sigh
 				c = *pr_file_p++;
@@ -1194,36 +1187,6 @@ void QCC_PR_LexString (void)
 PR_LexNumber
 ==============
 */
-float QCC_PR_LexOctal (void)
-{
-	int		c;
-	int		len;
-	int result;
-
-	char *s;
-	
-	len = 0;
-	c = *pr_file_p;
-	do
-	{
-		pr_token[len] = c;
-		len++;
-		pr_file_p++;
-		c = *pr_file_p;
-		if (len >= 3)
-			break;	//max of 3
-	} while ((c >= '0' && c<= '7'));
-	pr_token[len] = 0;
-
-	result = 0;
-	for (s = pr_token, result = 0; *s; s++)
-	{
-		result*=8;
-		result+=*s-'0';
-	}
-	return (float)result;
-}
-
 int QCC_PR_LexInteger (void)
 {
 	int		c;
@@ -1377,18 +1340,6 @@ void QCC_PR_LexVector (void)
 			break;
 		case '\\':
 			pr_immediate._float = '\\';
-			break;
-		case '0':
-		case '1':
-		case '2':	//assume string constant
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-			pr_immediate._float = QCC_PR_LexOctal();	//what's the real point? Neatness?
 			break;
 		default:
 			QCC_PR_ParseError (ERR_INVALIDVECTORIMMEDIATE, "Bad characture constant");

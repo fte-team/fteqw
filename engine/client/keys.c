@@ -415,6 +415,7 @@ void Key_ConsoleDrawSelectionBox(void)
 	extern int mousecursor_x, mousecursor_y;
 	int xpos, ypos, temp;
 	int xpos2, ypos2;
+	int yadj;
 	
 	if (!con_mousedown[2])
 		return;
@@ -448,7 +449,9 @@ void Key_ConsoleDrawSelectionBox(void)
 	}
 	ypos++;
 
-	Draw_FillRGB(xpos2*8, ypos2*8, (xpos - xpos2)*8, (ypos - ypos2)*8, sccolor[0], sccolor[1], sccolor[2]);
+	yadj = (con_current->vislines-22) % 8;
+
+	Draw_FillRGB(xpos2*8, yadj+ypos2*8, (xpos - xpos2)*8, (ypos - ypos2)*8, sccolor[0], sccolor[1], sccolor[2]);
 }
 
 void Key_ConsoleRelease(int key)
@@ -491,8 +494,8 @@ void Key_ConsoleRelease(int key)
 		}
 		ypos++;
 
-		ypos += con_current->display-(con_current->vislines/8)+4;
-		con_mousedown[1] += con_current->display-(con_current->vislines/8)+4;
+		ypos += con_current->display-((con_current->vislines-22)/8)+1;
+		con_mousedown[1] += con_current->display-((con_current->vislines-22)/8)+1;
 		if (con_current->display != con_current->current)
 		{
 			ypos++;

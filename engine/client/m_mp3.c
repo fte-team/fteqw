@@ -1344,6 +1344,11 @@ qboolean Media_PlayFilm(char *name)
 	if (fullscreenvid)
 	{
 		Con_ClearNotify();
+		if (key_dest == key_menu)
+		{
+			key_dest = key_game;
+			m_state = m_none;
+		}
 		if (key_dest != key_console)
 			scr_con_current=0;
 		return true;

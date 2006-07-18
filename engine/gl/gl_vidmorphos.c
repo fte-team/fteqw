@@ -91,6 +91,9 @@ static void *TinyGL_GetSymbol(char *name)
 	else if (strcmp(name, "glCopyTexImage2D") == 0)
 		ret = stub_glCopyTexImage2D;
 
+	else if (strcmp(name, "glCopyTexSubImage2D") == 0)
+		ret = stub_glCopyTexSubImage2D;
+
 	else if (strcmp(name, "glCullFace") == 0)
 		ret = stub_glCullFace;
 

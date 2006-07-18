@@ -94,6 +94,14 @@ void stub_glCopyTexImage2D(GLenum target, GLint level, GLenum internalFormat, GL
 #endif
 }
 
+void stub_glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height)
+{
+#warning Not implemented
+#if 0
+	glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
+#endif
+}
+
 void stub_glCullFace(GLenum mode)
 {
 	glCullFace(mode);

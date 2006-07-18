@@ -1047,6 +1047,7 @@ void NET_SendLoopPacket (netsrc_t sock, int length, void *data, netadr_t to)
 }
 //=============================================================================
 
+#ifndef CLIENTONLY
 void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
 {
 #ifdef TCPCONNECT
@@ -1150,6 +1151,7 @@ void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue)
 	}
 #endif
 }
+#endif
 
 qboolean NET_GetPacket (netsrc_t netsrc)
 {

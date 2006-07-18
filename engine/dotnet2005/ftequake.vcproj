@@ -384,7 +384,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
-				OutputFile="../../fteswqw_dbg.exe"
+				OutputFile="../../fteminswqw.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -20621,6 +20621,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20726,6 +20727,14 @@
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinSW|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -20911,6 +20920,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21047,6 +21057,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21183,6 +21194,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21319,6 +21331,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21431,6 +21444,14 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
+						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCustomBuildTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
 						Name="MinGLRelease|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -21475,6 +21496,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21611,6 +21633,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21747,6 +21770,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21883,6 +21907,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22019,6 +22044,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22155,6 +22181,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"

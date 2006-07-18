@@ -1534,15 +1534,15 @@ void P_LoadParticleSet(char *name, qboolean first)
 	if (!stricmp(name, "none"))
 		return;
 	else if (!stricmp(name, "faithful") || (first && !*name))
-		Cbuf_AddText(particle_set_faithful, RESTRICT_SERVER);
+		Cbuf_AddText(particle_set_faithful, RESTRICT_LOCAL);
 	else if (!stricmp(name, "spikeset"))
-		Cbuf_AddText(particle_set_spikeset, RESTRICT_SERVER);
+		Cbuf_AddText(particle_set_spikeset, RESTRICT_LOCAL);
 	else if (!stricmp(name, "highfps"))
-		Cbuf_AddText(particle_set_highfps, RESTRICT_SERVER);
+		Cbuf_AddText(particle_set_highfps, RESTRICT_LOCAL);
 	else if (!stricmp(name, "minimal"))
-		Cbuf_AddText(particle_set_minimal, RESTRICT_SERVER);
+		Cbuf_AddText(particle_set_minimal, RESTRICT_LOCAL);
 	else if (!stricmp(name, "tsshaft"))
-		Cbuf_AddText(particle_set_tsshaft, RESTRICT_SERVER);
+		Cbuf_AddText(particle_set_tsshaft, RESTRICT_LOCAL);
 	else
 	{
 		char *file = COM_LoadMallocFile(va("particles/%s.cfg", name));
@@ -1557,7 +1557,7 @@ void P_LoadParticleSet(char *name, qboolean first)
 		else if (first)
 		{
 			Con_Printf(S_WARNING "Couldn't find particle description %s, using spikeset\n", name);
-			Cbuf_AddText(particle_set_spikeset, RESTRICT_SERVER);
+			Cbuf_AddText(particle_set_spikeset, RESTRICT_LOCAL);
 		}
 		else
 			Con_Printf(S_WARNING "Couldn't find particle description %s\n", name);

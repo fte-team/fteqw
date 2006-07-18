@@ -2661,7 +2661,7 @@ guess_pm_type:
 	if (cl.lerpplayers[num].frame != state->frame)
 	{
 		cl.lerpplayers[num].oldframechange = cl.lerpplayers[num].framechange;
-		cl.lerpplayers[num].framechange = cl.time;
+		cl.lerpplayers[num].framechange = cl.servertime;
 		cl.lerpplayers[num].frame = state->frame;
 
 		//don't care about position interpolation.
@@ -3574,6 +3574,13 @@ void MVD_Interpolate(void)
 				state->origin[j] = oldstate->origin[j] + f * (pplayer->oldo[j] - oldstate->origin[j]);
 				state->velocity[j] = oldstate->velocity[j] + f * (pplayer->oldv[j] - oldstate->velocity[j]);
 			}
+		}
+
+		if (cl.lerpplayers[i].frame != state->frame)
+		{
+			cl.lerpplayers[i].oldframechange = cl.lerpplayers[i].framechange;
+			cl.lerpplayers[i].framechange = demtime;
+			cl.lerpplayers[i].frame = state->frame;
 		}
 	}
 }

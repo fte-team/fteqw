@@ -287,7 +287,11 @@ static void VARGS PFQ2_setmodel (q2edict_t *ent, char *name)
 	model_t	*mod;
 
 	if (!name)
-		Sys_Error ("PF_setmodel: NULL");
+	{
+		Con_Printf (S_ERROR "ERROR: PF_setmodel: NULL\n");
+		ent->s.modelindex = 0;
+		return;
+	}
 
 	i = SVQ2_ModelIndex (name);
 		

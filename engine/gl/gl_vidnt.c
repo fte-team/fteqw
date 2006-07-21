@@ -803,8 +803,8 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		{
 			maindc = GetDC(mainwindow);
 			TRACE(("dbg: VID_AttachGL: bSetupPixelFormat\n"));
-			bSetupPixelFormat(maindc);
-			break;
+			if (bSetupPixelFormat(maindc))
+				break;
 		}
 
 		if (!*info->glrenderer || !stricmp(info->glrenderer, "opengl32.dll") || !stricmp(info->glrenderer, "opengl32"))	//go for windows system dir if we failed with the default. Should help to avoid the 3dfx problem.
@@ -821,8 +821,8 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			{
 				maindc = GetDC(mainwindow);
 				TRACE(("dbg: VID_AttachGL: bSetupPixelFormat\n"));
-				bSetupPixelFormat(maindc);
-				break;
+				if (bSetupPixelFormat(maindc))
+					break;
 			}
 		}
 
@@ -1101,6 +1101,71 @@ BOOL CheckForcePixelFormat(rendererstate_t *info)
 	return false;
 }
 
+BYTE IntensityFromShifted(unsigned int index, unsigned int shift, unsigned int bits)
+{
+	unsigned int val;
+
+	val = (index >> shift) & ((1 << bits) - 1);
+
+	switch (bits)
+	{
+	case 1:
+		val = val ? 0xFF : 0;
+		break;
+	case 2:
+		val |= val << 2;
+		val |= val << 4;
+		break;
+	case 3:
+		val = val << (8 - bits);
+		val |= val >> 3;
+		break;
+	case 4:
+	case 5:
+	case 6:
+	case 7:
+		val = val << (8 - bits);
+		val |= val >> bits;
+		break;
+	case 8:
+		break;
+	default:
+		return 0;
+	}
+
+	return val;
+}
+
+void FixPaletteInDescriptor(HDC hDC, PIXELFORMATDESCRIPTOR *pfd)
+{
+	LOGPALETTE *ppal;
+	HPALETTE hpal;
+	int idx, clrs;
+
+	if (pfd->dwFlags & PFD_NEED_PALETTE)
+	{
+		clrs = 1 << pfd->cColorBits;
+
+		ppal = Z_Malloc(sizeof(LOGPALETTE) + sizeof(PALETTEENTRY) * clrs);
+
+		ppal->palVersion = 0x300;
+		ppal->palNumEntries = clrs;
+
+		for (idx = 0; idx < clrs; idx++)
+		{
+			ppal->palPalEntry[idx].peRed = IntensityFromShifted(idx, pfd->cRedShift, pfd->cRedBits);
+			ppal->palPalEntry[idx].peGreen = IntensityFromShifted(idx, pfd->cGreenShift, pfd->cGreenBits);
+			ppal->palPalEntry[idx].peBlue = IntensityFromShifted(idx, pfd->cBlueShift, pfd->cBlueBits);
+			ppal->palPalEntry[idx].peFlags = 0;
+		}
+
+		hpal = CreatePalette(ppal);
+		SelectPalette(hDC, hpal, FALSE);
+		RealizePalette(hDC);
+		Z_Free(ppal);
+	}
+}
+
 BOOL bSetupPixelFormat(HDC hDC)
 {
     static PIXELFORMATDESCRIPTOR pfd = {
@@ -1137,9 +1202,11 @@ BOOL bSetupPixelFormat(HDC hDC)
 		if ((pixelformat = ChoosePixelFormat(hDC, &pfd)))
 		{
 			TRACE(("dbg: ChoosePixelFormat 1: worked\n"));
+
 			if (SetPixelFormat(hDC, pixelformat, &pfd))
 			{
 				TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
+				FixPaletteInDescriptor(hDC, &pfd);
 				gl_canstencil = pfd.cStencilBits;
 				return TRUE;
 			}
@@ -1151,17 +1218,18 @@ BOOL bSetupPixelFormat(HDC hDC)
 
 		if ( (pixelformat = ChoosePixelFormat(hDC, &pfd)) == 0 )
 		{
-			Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed\n");
+			Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed (%i)\n", GetLastError());
 			return FALSE;
 		}
 	}
 
     if (SetPixelFormat(hDC, pixelformat, &pfd) == FALSE)
     {
-        Con_Printf("bSetupPixelFormat: SetPixelFormat failed\n");
+        Con_Printf("bSetupPixelFormat: SetPixelFormat failed (%i)\n", GetLastError());
         return FALSE;
     }
 
+	FixPaletteInDescriptor(hDC, &pfd);
     return TRUE;
 }
 

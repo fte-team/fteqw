@@ -3540,10 +3540,7 @@ void MVD_Interpolate(void)
 	oldents = oldframe->packet_entities.entities;
 
 	f = (demtime - olddemotime) / (nextdemotime - olddemotime);
-	if (f < 0)
-		f = 0;
-	if (f > 1)
-		f = 1;
+	f = bound(0, f, 1);
 
 	// interpolate nails
 /*	for (i = 0; i < cl_num_projectiles; i++)

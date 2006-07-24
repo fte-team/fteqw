@@ -638,7 +638,7 @@ extern	cvar_t	name;
 extern	client_state_t	cl;
 
 // FIXME, allocate dynamically
-extern	entity_state_t	cl_baselines[MAX_EDICTS];
+extern	entity_state_t *cl_baselines;
 extern	efrag_t			cl_efrags[MAX_EFRAGS];
 extern	entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
 extern  trailstate_t   *cl_static_emit[MAX_STATIC_ENTITIES];
@@ -646,6 +646,7 @@ extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 extern	dlight_t		cl_dlights[MAX_DLIGHTS];
 
 extern int dlights_running, dlights_software;
+extern int cl_baselines_count;
 
 extern	qboolean	nomaster;
 extern float	server_version;	// version of server we connected to

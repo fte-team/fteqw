@@ -604,7 +604,9 @@ void CL_ParsePacketEntities (qboolean delta)
 				newp->entities = BZ_Realloc(newp->entities, sizeof(entity_state_t)*newp->max_entities);
 			}
 
-			CL_ParseDelta (&cl_baselines[newnum], &newp->entities[newindex], word, true);
+			if (!CL_CheckBaselines(newnum))
+				Host_EndGame("CL_ParsePacketEntities: check baselines failed with size %i", newnum);
+			CL_ParseDelta (cl_baselines + newnum, &newp->entities[newindex], word, true);
 			newindex++;
 			continue;
 		}
@@ -1064,7 +1066,9 @@ void CLNQ_ParseEntity(unsigned int bits)
 
 	from = CL_FindOldPacketEntity(num);	//this could be optimised.
 
-	base = &cl_baselines[num];
+	if (!CL_CheckBaselines(num))
+		Host_EndGame("CLNQ_ParseEntity: check baselines failed with size %i", num);
+	base = cl_baselines + num;
 
 	state->number = num;
 
@@ -2661,7 +2665,7 @@ guess_pm_type:
 	if (cl.lerpplayers[num].frame != state->frame)
 	{
 		cl.lerpplayers[num].oldframechange = cl.lerpplayers[num].framechange;
-		cl.lerpplayers[num].framechange = cl.servertime;
+		cl.lerpplayers[num].framechange = cl.time;
 		cl.lerpplayers[num].frame = state->frame;
 
 		//don't care about position interpolation.
@@ -3058,8 +3062,8 @@ void CL_LinkViewModel(void)
 		lerptime[r_refdef.currentplayernum] = realtime;
 	}
 	ent.lerpfrac = 1-(realtime-lerptime[r_refdef.currentplayernum])*10;
-	if (ent.lerpfrac<0)ent.lerpfrac=0;
-	if (ent.lerpfrac>1)ent.lerpfrac=1;
+	ent.lerpfrac = bound(0, ent.lerpfrac, 1);
+
 #define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
 #define	Q2RF_WEAPONMODEL		4		// only draw through eyes
 #define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching

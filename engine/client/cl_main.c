@@ -155,7 +155,7 @@ client_static_t	cls;
 client_state_t	cl;
 
 // alot of this should probably be dynamically allocated
-entity_state_t	cl_baselines[MAX_EDICTS];
+entity_state_t	*cl_baselines;
 efrag_t			cl_efrags[MAX_EFRAGS];
 entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
 trailstate_t   *cl_static_emit[MAX_STATIC_ENTITIES];
@@ -163,6 +163,7 @@ lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 //lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 dlight_t		cl_dlights[MAX_DLIGHTS];
 
+int cl_baselines_count;
 int dlights_running, dlights_software;
 
 // refresh list
@@ -987,12 +988,12 @@ void CL_ClearState (void)
 
 	dlights_running = 0;
 
-	for (i = 0; i < MAX_EDICTS; i++)
+	if (cl_baselines)
 	{
-		memcpy(&cl_baselines[i], &nullentitystate, sizeof(cl_baselines[i]));
+		BZ_Free(cl_baselines);
+		cl_baselines = NULL;
 	}
-
-
+	cl_baselines_count = 0;
 
 //
 // allocate the efrags and chain together into a free list

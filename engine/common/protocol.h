@@ -458,6 +458,8 @@ enum clcq2_ops_e
 #define U_COLOURMOD	(1<<10)	//rgb
 
 #define U_DPFLAGS (1<<11)
+
+
 #define U_TAGINFO (1<<12)
 #define U_LIGHT (1<<13)
 #define	U_EFFECTS16	(1<<14)

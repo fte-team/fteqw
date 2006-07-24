@@ -2320,6 +2320,30 @@ void CLQ2_ParseConfigString (void)
 #endif
 
 
+qboolean CL_CheckBaselines (int size)
+{
+	int i;
+
+	if (size < 0)
+		return false;
+	if (size > MAX_EDICTS)
+		return false;
+
+	size = (size + 64) & ~63; // round up to next 64
+	if (size < cl_baselines_count)
+		return true;
+
+	cl_baselines = BZ_Realloc(cl_baselines, sizeof(*cl_baselines)*size);
+	for (i = cl_baselines_count; i < size; i++)
+	{
+		memcpy(cl_baselines + i, &nullentitystate, sizeof(*cl_baselines));
+	}
+
+	cl_baselines_count = size;
+
+	return true;
+}
+
 /*
 ==================
 CL_ParseBaseline
@@ -2347,7 +2371,9 @@ void CL_ParseBaseline2 (void)
 	entity_state_t es;
 
 	CL_ParseDelta(&nullentitystate, &es, MSG_ReadShort(), true);
-	memcpy(&cl_baselines[es.number], &es, sizeof(es));
+	if (!CL_CheckBaselines(es.number))
+		Host_EndGame("CL_ParseBaseline2: check baselines failed with size %i", es.number);
+	memcpy(cl_baselines + es.number, &es, sizeof(es));
 }
 
 void CLQ2_Precache_f (void)
@@ -4007,7 +4033,9 @@ void CL_ParseServerMessage (void)
 
 		case svc_spawnbaseline:
 			i = MSG_ReadShort ();
-			CL_ParseBaseline (&cl_baselines[i]);
+			if (!CL_CheckBaselines(i))
+				Host_EndGame("CL_ParseServerMessage: svc_spawnbaseline failed with size %i", i);
+			CL_ParseBaseline (cl_baselines + i);
 			break;
 		case svc_spawnbaseline2:
 			CL_ParseBaseline2 ();
@@ -4678,7 +4706,9 @@ void CLNQ_ParseServerMessage (void)
 
 		case svc_spawnbaseline:
 			i = MSG_ReadShort ();
-			CL_ParseBaseline (&cl_baselines[i]);
+			if (!CL_CheckBaselines(i))
+				Host_EndGame("CLNQ_ParseServerMessage: svc_spawnbaseline failed with size %i", i);		
+			CL_ParseBaseline (cl_baselines + i);
 			break;
 
 		case svc_time:

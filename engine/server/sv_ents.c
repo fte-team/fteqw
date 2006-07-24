@@ -543,12 +543,8 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if ((to->colormod[0]!=from->colormod[0]||to->colormod[1]!=from->colormod[1]||to->colormod[2]!=from->colormod[2]) && protext & PEXT_COLOURMOD)
 		evenmorebits |= U_COLOURMOD;
 
-	if (to->dpflags != from->dpflags && protext & PEXT_DPFLAGS)
-		evenmorebits |= U_DPFLAGS;
-
-
 	if (to->glowsize != from->glowsize)
-		to->dpflags |= 4;
+		to->dpflags |= 2; // RENDER_GLOWTRAIL
 
 	if (to->dpflags != from->dpflags && protext & PEXT_DPFLAGS)
 		evenmorebits |= U_DPFLAGS;

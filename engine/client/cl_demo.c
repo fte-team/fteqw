@@ -765,7 +765,7 @@ void CL_Record_f (void)
 	int n, i, j;
 	char *s, *p, *fname;
 	entity_t *ent;
-	entity_state_t *es, blankes;
+	entity_state_t *es;
 	player_info_t *player;
 	extern	char gamedirfile[];
 	int seq = 1;
@@ -1051,12 +1051,11 @@ void CL_Record_f (void)
 
 // baselines
 
-	memset(&blankes, 0, sizeof(blankes));
-	for (i = 0; i < MAX_EDICTS; i++)
+	for (i = 0; i < cl_baselines_count; i++)
 	{
 		es = cl_baselines + i;
 
-		if (memcmp(es, &blankes, sizeof(blankes)))
+		if (memcmp(es, &nullentitystate, sizeof(nullentitystate)))
 		{
 			MSG_WriteByte (&buf,svc_spawnbaseline);		
 			MSG_WriteShort (&buf, i);

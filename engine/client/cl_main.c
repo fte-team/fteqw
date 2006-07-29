@@ -1919,9 +1919,17 @@ void CL_ConnectionlessPacket (void)
 		if (!strcmp(com_token, "hallengeResponse"))
 		{
 #ifdef Q3CLIENT
-			cls.protocol = CP_QUAKE3;
-			cls.challenge = atoi(s+17);
-			CL_SendConnectPacket (0, 0/*, ...*/);
+			if (cls.protocol == CP_QUAKE3 || cls.protocol == CP_UNKNOWN)
+			{
+				cls.protocol = CP_QUAKE3;
+				cls.challenge = atoi(s+17);
+				CL_SendConnectPacket (0, 0/*, ...*/);
+			}
+			else
+			{
+					Con_Printf("\nChallange from another protocol, ignoring Q3 challange\n");
+					return;
+			}
 			return;
 #else
 			Con_Printf("\nUnable to connect to Quake3\n");
@@ -1939,8 +1947,13 @@ void CL_ConnectionlessPacket (void)
 			if (*s2)
 			{//and if it's not, we're unlikly to be compatable with whatever it is that's talking at us.
 #ifdef NQPROT
-				cls.protocol = CP_NETQUAKE;
-				CL_ConnectToDarkPlaces(s+9, net_from);
+				if (cls.protocol == CP_NETQUAKE || cls.protocol == CP_UNKNOWN)
+				{
+					cls.protocol = CP_NETQUAKE;
+					CL_ConnectToDarkPlaces(s+9, net_from);
+				}
+				else
+					Con_Printf("\nChallange from another protocol, ignoring DP challange\n");
 #else
 				Con_Printf("\nUnable connect to DarkPlaces\n");
 #endif
@@ -1948,7 +1961,13 @@ void CL_ConnectionlessPacket (void)
 			}
 
 #ifdef Q2CLIENT
-			cls.protocol = CP_QUAKE2;
+			if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_UNKNOWN)
+				cls.protocol = CP_QUAKE2;
+			else
+			{
+				Con_Printf("\nChallange from another protocol, ignoring Q2 challange\n");
+				return;
+			}
 #else
 			Con_Printf("\nUnable to connect to Quake2\n");
 #endif
@@ -1966,8 +1985,13 @@ void CL_ConnectionlessPacket (void)
 			goto client_connect;
 		}
 #endif
-		else
+		else if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_UNKNOWN)
 			cls.protocol = CP_QUAKEWORLD;
+		else
+		{
+			Con_Printf("\nChallange from another protocol, ignoring QW challange\n");
+			return;
+		}
 		cls.challenge = atoi(s);
 
 		for(;;)

@@ -471,7 +471,7 @@ void ApplyColour(unsigned int chr)
 		// bits 28-31 of the console chars match up to the attributes for 
 		// the CHAR_INFO struct exactly
 		if (chr & CON_NONCLEARBG)
-			val = (chr & (CON_FGMASK|CON_BGMASK) >> CON_FGSHIFT);
+			val = ((chr & (CON_FGMASK|CON_BGMASK)) >> CON_FGSHIFT);
 		else
 		{
 			int fg = (chr & CON_FGMASK) >> CON_FGSHIFT;

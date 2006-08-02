@@ -2537,6 +2537,57 @@ void CL_Download_f (void)
 	CL_SendClientCommand("download %s\n",url);*/
 }
 
+void CL_FinishDownload(char *filename, char *tempname);
+void CL_ForceStopDownload (qboolean finish)
+{
+	if (Cmd_IsInsecure())
+	{
+		Con_Printf(S_WARNING "Execution from server rejected for %s\n", Cmd_Argv(0));
+		return;
+	}
+
+	if (!cls.downloadqw)
+	{
+		Con_Printf("No files downloading by QW protocol\n");
+		return;
+	}
+
+	VFS_CLOSE (cls.downloadqw);
+
+	if (finish)
+		CL_FinishDownload(cls.downloadname, cls.downloadtempname);
+	else
+	{
+		char *tempname;
+
+		if (*cls.downloadtempname)
+			tempname = cls.downloadtempname;
+		else
+			tempname = cls.downloadname;
+
+		if (strncmp(tempname,"skins/",6))
+			FS_Remove(tempname, FS_GAME);
+		else
+			FS_Remove(tempname+6, FS_SKINS);
+	}
+	*cls.downloadname = '\0';
+	cls.downloadqw = NULL;
+	cls.downloadpercent = 0;
+
+	// get another file if needed
+	CL_RequestNextDownload ();
+}
+
+void CL_SkipDownload_f (void)
+{
+	CL_ForceStopDownload(false);
+}
+
+void CL_FinishDownload_f (void)
+{
+	CL_ForceStopDownload(true);
+}
+
 #ifdef _WINDOWS
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -2791,6 +2842,9 @@ void CL_Init (void)
 
 	Cmd_AddCommand ("nextul", CL_NextUpload);
 	Cmd_AddCommand ("stopul", CL_StopUpload);
+
+	Cmd_AddCommand ("skipdl", CL_SkipDownload_f);
+	Cmd_AddCommand ("finishdl", CL_FinishDownload_f);
 
 //
 // forward to server commands

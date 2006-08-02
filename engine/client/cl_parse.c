@@ -1256,9 +1256,9 @@ void CL_ParseDownload (void)
 	if (cls.downloadmethod == DL_QWPENDING)
 		cls.downloadmethod = DL_QW;
 
-	if (size == 0 && cl_dlemptyterminate.value)
+	if (percent != 100 && size == 0 && cl_dlemptyterminate.value)
 	{
-		Con_Printf("Client received empty svc_download, assuming EOF\n");
+		Con_Printf(S_WARNING "WARNING: Client received empty svc_download, assuming EOF\n");
 		percent = 100;
 	}
 

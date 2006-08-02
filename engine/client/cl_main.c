@@ -2729,6 +2729,8 @@ void CL_Init (void)
 	Cvar_Register (&cl_antibunch, "evil hacks");
 	Cvar_Register (&hud_tracking_show, "statusbar");
 
+	Cvar_Register (&cl_dlemptyterminate, cl_controlgroup);
+
 	Cvar_Register (&cl_gunx, cl_controlgroup);
 	Cvar_Register (&cl_guny, cl_controlgroup);
 	Cvar_Register (&cl_gunz, cl_controlgroup);

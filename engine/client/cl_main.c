@@ -141,6 +141,8 @@ cvar_t	msg_filter = SCVAR("msg_filter", "0");	//0 for neither, 1 for mm1, 2 for 
 cvar_t  cl_standardmsg = SCVARF("cl_standardmsg", "0", CVAR_ARCHIVE);
 cvar_t  cl_parsewhitetext = SCVAR("cl_parsewhitetext", "1");
 
+cvar_t	cl_dlemptyterminate = SCVAR("cl_dlemptyterminate", "1");
+
 cvar_t	host_mapname = FCVAR("host_mapname", "mapname", "", 0);
 
 extern cvar_t cl_hightrack;

@@ -1155,6 +1155,7 @@ A download message has been received from the server
 */
 void CL_ParseDownload (void)
 {
+	extern cvar_t cl_dlemptyterminate;
 	int		size, percent;
 	qbyte	name[1024];
 
@@ -1254,6 +1255,12 @@ void CL_ParseDownload (void)
 
 	if (cls.downloadmethod == DL_QWPENDING)
 		cls.downloadmethod = DL_QW;
+
+	if (size == 0 && cl_dlemptyterminate.value)
+	{
+		Con_Printf("Client received empty svc_download, assuming EOF\n");
+		percent = 100;
+	}
 
 	if (percent != 100)
 	{

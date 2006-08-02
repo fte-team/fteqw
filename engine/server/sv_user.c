@@ -1475,9 +1475,17 @@ void SV_NextDownload_f (void)
 
 	host_client->downloadcount += r;
 	size = host_client->downloadsize;
-	if (!size)
-		size = 1;
-	percent = host_client->downloadcount*100/size;
+
+	if (host_client->downloadcount < size)
+	{
+		if (!size)
+			size = 1;
+
+		percent = (double)host_client->downloadcount*100.0/size;
+		percent = bound(0, percent, 99);
+	}
+	else
+		percent = 100;
 
 #ifdef PEXT_ZLIBDL
 	if (host_client->fteprotocolextensions & PEXT_ZLIBDL)
@@ -1492,7 +1500,7 @@ void SV_NextDownload_f (void)
 		ClientReliableWrite_SZ (host_client, buffer, r);
 	}
 
-	if (host_client->downloadcount != host_client->downloadsize)
+	if (host_client->downloadcount < host_client->downloadsize)
 		return;
 
 	VFS_CLOSE (host_client->download);

@@ -3755,7 +3755,7 @@ void CL_ParsePrecache(void)
 		if (i >= 1 && i < MAX_SOUNDS)
 		{
 			sfx_t *sfx;
-			CL_CheckOrEnqueDownloadFile(va("sounds/%s", s), NULL);
+			CL_CheckOrEnqueDownloadFile(va("sound/%s", s), NULL);
 			sfx = S_PrecacheSound (s);
 			if (!sfx)
 				Con_Printf("svc_precache: S_PrecacheSound(\"%s\") failed\n", s);

@@ -260,6 +260,7 @@ typedef struct part_type_s {
 	clippeddecal_t *clippeddecals;
 	beamseg_t *beams;
 	skytris_t *skytris;
+	struct part_type_s *nexttorun;
 
 	unsigned int flags;
 #define PT_VELOCITY	     0x001
@@ -271,9 +272,12 @@ typedef struct part_type_s {
 #define PT_NOSTATE       0x040 // don't use trailstate for this emitter (careful with assoc...)
 #define PT_NOSPREADFIRST 0x080 // don't randomize org/vel for first generated particle
 #define PT_NOSPREADLAST  0x100 // don't randomize org/vel for last generated particle
+	unsigned int state;
+#define PS_INRUNLIST 0x1 // particle type is currently in execution list
 } part_type_t;
 int numparticletypes;
 part_type_t *part_type;
+part_type_t *part_run_list;
 
 static part_type_t *P_GetParticleType(char *name)
 {
@@ -423,8 +427,8 @@ void P_ParticleEffect_f(void)
 	qboolean setalphadelta = false;
 	qboolean setbeamlen = false;
 
-	part_type_t *ptype;
-	int pnum, assoc;
+	part_type_t *ptype, *torun;
+	int pnum, assoc, state;
 
 	if (Cmd_Argc()!=2)
 	{
@@ -475,6 +479,8 @@ void P_ParticleEffect_f(void)
 	}
 
 	beamsegs = ptype->beams;
+	state = ptype->state;
+	torun = ptype->nexttorun;
 	memset(ptype, 0, sizeof(*ptype));
 //	ptype->particles = parts;
 	ptype->beams = beamsegs;
@@ -491,6 +497,8 @@ void P_ParticleEffect_f(void)
 	ptype->rotationstartmin = -M_PI;	//start with a random angle
 	ptype->rotationstartrand = M_PI-ptype->rotationstartmin;
 	ptype->spawnchance = 1;
+	ptype->nexttorun = torun;
+	ptype->state = state; // should this really be maintained?
 
 	while(1)
 	{
@@ -2466,6 +2474,14 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 		if (ts)
 			ts->state2.emittime = pcount - i;
 
+		// maintain run list
+		if (!(ptype->state & PS_INRUNLIST))
+		{
+			ptype->nexttorun = part_run_list;
+			part_run_list = ptype;
+			ptype->state |= PS_INRUNLIST;
+		}
+
 		// go to next associated effect
 		if (ptype->assoc < 0)
 			break;
@@ -3194,6 +3210,14 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		}
 	}
 
+	// maintain run list
+	if (!(ptype->state & PS_INRUNLIST))
+	{
+		ptype->nexttorun = part_run_list;
+		part_run_list = ptype;
+		ptype->state |= PS_INRUNLIST;
+	}
+
 	return;
 }
 
@@ -3333,7 +3357,7 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 #endif
 
 
-part_type_t *lasttype;
+part_type_t *lastgltype;
 static vec3_t pright, pup;
 float pframetime;
 #ifdef RGLQUAKE
@@ -3342,9 +3366,9 @@ void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
 	float x,y;
 	float scale;
 
-	if (lasttype != type)
+	if (lastgltype != type)
 	{
-		lasttype = type;
+		lastgltype = type;
 		qglEnd();
 		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
@@ -3394,9 +3418,9 @@ void GL_DrawSketchParticle(particle_t *p, part_type_t *type)
 
 	int quant;
 
-	if (lasttype != type)
+	if (lastgltype != type)
 	{
-		lasttype = type;
+		lastgltype = type;
 		qglEnd();
 		qglDisable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
@@ -3449,9 +3473,9 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 
 	qglEnd();
 
-	if (lasttype != type)
+	if (lastgltype != type)
 	{
-		lasttype = type;
+		lastgltype = type;
 		qglDisable(GL_TEXTURE_2D);
 		APPLYBLEND(type->blendmode);
 		qglShadeModel(GL_SMOOTH);
@@ -3491,9 +3515,9 @@ void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
 
 void GL_DrawLineSparkParticle(particle_t *p, part_type_t *type)
 {
-	if (lasttype != type)
+	if (lastgltype != type)
 	{
-		lasttype = type;
+		lastgltype = type;
 		qglEnd();
 		qglDisable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
@@ -3518,9 +3542,9 @@ void GL_DrawLineSparkParticle(particle_t *p, part_type_t *type)
 void GL_DrawTexturedSparkParticle(particle_t *p, part_type_t *type)
 {
 	vec3_t v, cr, o2, point;
-	if (lasttype != type)
+	if (lastgltype != type)
 	{
-		lasttype = type;
+		lastgltype = type;
 		qglEnd();
 		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
@@ -3562,9 +3586,9 @@ void GL_DrawTexturedSparkParticle(particle_t *p, part_type_t *type)
 
 void GL_DrawSketchSparkParticle(particle_t *p, part_type_t *type)
 {
-	if (lasttype != type)
+	if (lastgltype != type)
 	{
-		lasttype = type;
+		lastgltype = type;
 		qglEnd();
 		qglDisable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
@@ -3608,9 +3632,9 @@ void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
 //	if (!p)
 //		return;
 
-	if (lasttype != type)
+	if (lastgltype != type)
 	{
-		lasttype = type;
+		lastgltype = type;
 		qglEnd();
 		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
@@ -3677,9 +3701,9 @@ void GL_DrawParticleBeam_Untextured(beamseg_t *b, part_type_t *type)
 //	if (!p)
 //		return;
 
-	if (lasttype != type)
+	if (lastgltype != type)
 	{
-		lasttype = type;
+		lastgltype = type;
 		qglEnd();
 		qglDisable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
@@ -3763,9 +3787,9 @@ void GL_DrawParticleBeam_Untextured(beamseg_t *b, part_type_t *type)
 
 void GL_DrawClippedDecal(clippeddecal_t *d, part_type_t *type)
 {
-	if (lasttype != type)
+	if (lastgltype != type)
 	{
-		lasttype = type;
+		lastgltype = type;
 		qglEnd();
 		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(type->texturenum);
@@ -3891,19 +3915,18 @@ void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
 }
 #endif
 
-void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void sparklineparticles(particle_t*,part_type_t*), void sparkfanparticles(particle_t*,part_type_t*), void sparktexturedparticles(particle_t*,part_type_t*), void beamparticlest(beamseg_t*,part_type_t*), void beamparticlesut(beamseg_t*,part_type_t*), void drawdecalparticles(clippeddecal_t*,part_type_t*))
+void DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), void (*sparklineparticles)(particle_t*,part_type_t*), void (*sparkfanparticles)(particle_t*,part_type_t*), void (*sparktexturedparticles)(particle_t*,part_type_t*), void (*beamparticlest)(beamseg_t*,part_type_t*), void (*beamparticlesut)(beamseg_t*,part_type_t*), void (*drawdecalparticles)(clippeddecal_t*,part_type_t*))
 {
 	RSpeedMark();
 
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 	void *pdraw, *bdraw;
 
-	int i;
 	vec3_t oldorg;
 	vec3_t stop, normal;
-	part_type_t *type;
+	part_type_t *type, *prevtype;
 	particle_t		*p, *kill;
-	clippeddecal_t *d; //*dkill; // dkill is unreferenced
+	clippeddecal_t *d;
 	ramp_t *ramp;
 	float grav;
 	vec3_t friction;
@@ -3915,7 +3938,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 
 	int traces=r_particle_tracelimit.value;
 
-	lasttype = NULL;
+	lastgltype = NULL;
 
 	pframetime = host_frametime;
 	if (cl.paused || r_secondaryview)
@@ -3938,7 +3961,40 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 
 	kill_list = kill_first = NULL;
 
-	for (i = 0, type = &part_type[i]; i < numparticletypes; i++, type++)
+	// reassign drawing methods by cvars
+	if (r_part_beams_textured.value < 0)
+		beamparticlest = NULL;
+	else if (!r_part_beams_textured.value)
+		beamparticlest = beamparticlesut;
+
+	if (r_part_beams.value < 0)
+		beamparticlesut = NULL;
+	else if (!r_part_beams.value)
+	{
+		beamparticlest = NULL;
+		beamparticlesut = NULL;
+	}
+
+	if (r_part_sparks_textured.value < 0)
+		sparktexturedparticles = NULL;
+	else if (!r_part_sparks_textured.value)
+		sparktexturedparticles = sparklineparticles;
+
+	if (r_part_sparks_trifan.value < 0)
+		sparkfanparticles = NULL;
+	else if (!r_part_sparks_trifan.value)
+		sparkfanparticles = sparklineparticles;
+
+	if (r_part_sparks.value < 0)
+		sparklineparticles = NULL;
+	else if (!r_part_sparks.value)
+	{
+		sparktexturedparticles = NULL;
+		sparkfanparticles = NULL;
+		sparklineparticles = NULL;
+	}
+
+	for (type = part_run_list, prevtype = NULL; type != NULL; prevtype = type, type = type->nexttorun)
 	{
 		if (type->clippeddecals)
 		{
@@ -4004,9 +4060,6 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 			}
 		}
 
-		if (!type->particles)
-			continue;
-
 		bdraw = NULL;
 		pdraw = NULL;
 
@@ -4018,47 +4071,19 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 			pdraw = texturedparticles;
 			break;
 		case PT_BEAM:
-			if (r_part_beams.value)
-			{
-				if (r_part_beams_textured.value && *type->texname)
-				{
-					if (r_part_beams_textured.value > 0)
-						bdraw = beamparticlest;
-				}
-				else if (r_part_beams.value > 0)
-					bdraw = beamparticlesut;
-			}
+			if (*type->texname)
+				bdraw = beamparticlest;
+			else
+				bdraw = beamparticlesut;
 			break;
 		case PT_TEXTUREDSPARK:
-			if (r_part_sparks.value)
-			{
-				if (r_part_sparks_textured.value)
-				{
-					if (r_part_sparks_textured.value > 0)
-						pdraw = sparktexturedparticles;
-				}
-				else
-					pdraw = sparklineparticles;
-			}
+			pdraw = sparktexturedparticles;
 			break;
 		case PT_SPARKFAN:
-			if (r_part_sparks.value)
-			{
-				if (r_part_sparks_trifan.value)
-				{
-					if (r_part_sparks_trifan.value > 0)
-						pdraw = sparkfanparticles;
-				}
-				else
-					pdraw = sparklineparticles;
-			}
+			pdraw = sparkfanparticles;
 			break;
 		case PT_SPARK:
-			if (r_part_sparks.value)
-			{
-				if (r_part_sparks.value > 0)
-					pdraw = sparklineparticles;
-			}
+			pdraw = sparklineparticles;
 			break;
 		}
 
@@ -4287,7 +4312,7 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 											p->rgb[0]*-10+p->rgb[1]*-10,
 											30*p->alpha);
 
-					if (type->cliptype == i)
+					if (part_type + type->cliptype == type)
 					{	//bounce
 						dist = DotProduct(p->vel, normal) * (-1-(rand()/(float)0x7fff)/2);
 
@@ -4345,66 +4370,76 @@ void DrawParticleTypes (void texturedparticles(particle_t *,part_type_t*), void 
 
 
 		b = type->beams;
-		if (!b)
-			continue;
-
-		for ( ;; )
+		if (b)
 		{
-			if (b->next)
+			for ( ;; )
 			{
-				// mark dead entries
-				if (b->flags & (BS_LASTSEG|BS_DEAD|BS_NODRAW))
+				if (b->next)
 				{
-					// kill some more dead entries
-					for ( ;; )
+					// mark dead entries
+					if (b->flags & (BS_LASTSEG|BS_DEAD|BS_NODRAW))
 					{
-						bkill = b->next;
-						if (bkill && (bkill->flags & BS_DEAD) && !(bkill->flags & BS_LASTSEG))
+						// kill some more dead entries
+						for ( ;; )
 						{
-							b->next = bkill->next;
-							bkill->next = free_beams;
-							free_beams = bkill;
-							continue;
+							bkill = b->next;
+							if (bkill && (bkill->flags & BS_DEAD) && !(bkill->flags & BS_LASTSEG))
+							{
+								b->next = bkill->next;
+								bkill->next = free_beams;
+								free_beams = bkill;
+								continue;
+							}
+							break;
 						}
-						break;
-					}
 
-					if (!bkill) // have to check so we don't hit NULL->next
-						continue;
+						if (!bkill) // have to check so we don't hit NULL->next
+							continue;
+					}
+					else
+					{
+						if (!(b->next->flags & BS_DEAD))
+						{
+							VectorCopy(b->next->p->org, stop);
+							VectorCopy(b->p->org, oldorg);
+							VectorSubtract(stop, oldorg, b->next->dir);
+							VectorNormalize(b->next->dir);
+							if (bdraw)
+							{
+								VectorAdd(stop, oldorg, stop);
+								VectorScale(stop, 0.5, stop);
+
+								RQ_AddDistReorder(bdraw, b, type, stop);
+							}
+						}
+
+	//					if (b->p->die < particletime)
+	//						b->flags |= BS_DEAD;
+					}
 				}
 				else
 				{
-					if (!(b->next->flags & BS_DEAD))
-					{
-						VectorCopy(b->next->p->org, stop);
-						VectorCopy(b->p->org, oldorg);
-						VectorSubtract(stop, oldorg, b->next->dir);
-						VectorNormalize(b->next->dir);
-						if (bdraw)
-						{
-							VectorAdd(stop, oldorg, stop);
-							VectorScale(stop, 0.5, stop);
+					if (b->p->die < particletime) // end of the list check
+						b->flags |= BS_DEAD;
 
-							RQ_AddDistReorder(bdraw, b, type, stop);
-						}
-					}
-
-//					if (b->p->die < particletime)
-//						b->flags |= BS_DEAD;
+					break;
 				}
-			}
-			else
-			{
-				if (b->p->die < particletime) // end of the list check
+
+				if (b->p->die < particletime)
 					b->flags |= BS_DEAD;
 
-				break;
+				b = b->next;
 			}
+		}
 
-			if (b->p->die < particletime)
-				b->flags |= BS_DEAD;
-
-			b = b->next;
+		// delete from run list if necessary
+		if (!type->particles && !type->beams)
+		{
+			if (!prevtype)
+				part_run_list = type->nexttorun;
+			else
+				prevtype->nexttorun = type->nexttorun;
+			type->state &= ~PS_INRUNLIST;
 		}
 	}
 
@@ -4428,7 +4463,7 @@ void P_FlushRenderer(void)
 	qglEnable (GL_BLEND);
 	GL_TexEnv(GL_MODULATE);
 	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	lasttype = NULL;
+	lastgltype = NULL;
 }
 #endif
 
@@ -4486,7 +4521,7 @@ void P_DrawParticles (void)
 #ifdef SWQUAKE
 	if (qrenderer == QR_SOFTWARE)
 	{
-		lasttype = NULL;
+		lastgltype = NULL;
 		DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleBeam, SWD_DrawParticleBeam, NULL);
 
 		RSpeedRemark();

@@ -181,7 +181,72 @@ int Sys_FileTime(char *path)
 
 int Sys_EnumerateFiles(char *gpath, char *match, int (*func)(char *, int, void *), void *parm)
 {
-	return true;
+	char *pattern;
+	char pattrans[256];
+	char finddir[256];
+	char findpattern[514];
+	char filename[256];
+	int i, j;
+	BPTR lock;
+	struct FileInfoBlock fib;
+	int ret = false;
+
+	snprintf(finddir, sizeof(finddir), "%s/%s", gpath, match);
+
+	pattern = strrchr(finddir, '/');
+	if (pattern)
+	{
+		finddir[((unsigned int)(pattern-finddir))] = 0;
+		pattern++;
+	}
+
+	for(i=0,j=0;i<sizeof(pattrans)-1 && *pattern;i++,j++)
+	{
+		if (pattern[j] == '*')
+		{
+			if (i < sizeof(pattrans)-2)
+			{
+				pattrans[i] = '#';
+				pattrans[i+1] = '?';
+				i++;
+			}
+			else
+				pattrans[i] = 0;
+		}
+		else
+			pattrans[i] = pattern[j];
+	}
+
+	pattrans[i] = 0;
+
+	lock = Lock(finddir, ACCESS_READ);
+	if (lock)
+	{
+		if (Examine(lock, &fib))
+		{
+			if (ParsePatternNoCase(pattrans, findpattern, sizeof(findpattern)) >= 0)
+			{
+				ret = true;
+
+				while(ExNext(lock, &fib))
+				{
+					if (MatchPatternNoCase(findpattern, fib.fib_FileName))
+					{
+						snprintf(filename, sizeof(filename), "%s%s", fib.fib_FileName, fib.fib_DirEntryType>=0?"/":"");
+						if (func(filename, fib.fib_Size, parm) == 0)
+						{
+							ret = false;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		UnLock(lock);
+	}
+
+	return ret;
 }
 
 void Sys_mkdir(char *path)

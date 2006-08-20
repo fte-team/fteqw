@@ -4447,7 +4447,7 @@ void DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), vo
 		// delete from run list if necessary
 		if (!type->particles && !type->beams)
 		{
-			if (!prevtype)
+			if (part_run_list == type)
 				part_run_list = type->nexttorun;
 			else
 				prevtype->nexttorun = type->nexttorun;

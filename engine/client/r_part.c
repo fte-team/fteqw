@@ -3936,7 +3936,7 @@ void DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), vo
 
 	vec3_t oldorg;
 	vec3_t stop, normal;
-	part_type_t *type, *prevtype;
+	part_type_t *type, *lastvalidtype;
 	particle_t		*p, *kill;
 	clippeddecal_t *d;
 	ramp_t *ramp;
@@ -4006,7 +4006,7 @@ void DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), vo
 		sparklineparticles = NULL;
 	}
 
-	for (type = part_run_list, prevtype = NULL; type != NULL; prevtype = type, type = type->nexttorun)
+	for (type = part_run_list, lastvalidtype = NULL; type != NULL; type = type->nexttorun)
 	{
 		if (type->clippeddecals)
 		{
@@ -4447,12 +4447,14 @@ void DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), vo
 		// delete from run list if necessary
 		if (!type->particles && !type->beams)
 		{
-			if (part_run_list == type)
+			if (!lastvalidtype)
 				part_run_list = type->nexttorun;
 			else
-				prevtype->nexttorun = type->nexttorun;
+				lastvalidtype->nexttorun = type->nexttorun;
 			type->state &= ~PS_INRUNLIST;
 		}
+		else
+			lastvalidtype = type;
 	}
 
 	RSpeedEnd(RSPEED_PARTICLES);

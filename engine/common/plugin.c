@@ -1532,9 +1532,10 @@ void Plug_SBar(void)
 	extern qboolean sb_showscores, sb_showteamscores;
 
 	plugin_t *oc=currentplug;
-	int cp;
+	int cp, ret;
 	vrect_t rect;
 
+	ret = 0;
 	if (!plug_sbar.value)
 		currentplug = NULL;
 	else
@@ -1548,13 +1549,13 @@ void Plug_SBar(void)
 					SCR_VRectForPlayer(&rect, cp);
 					if (Draw_ImageColours)
 						Draw_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
-					VM_Call(currentplug->vm, currentplug->sbarlevel[0], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
+					ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[0], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
 				}
 				break;
 			}
 		}
 	}
-	if (!currentplug)
+	if (!ret)
 	{
 		Sbar_Draw();
 		currentplug = oc;

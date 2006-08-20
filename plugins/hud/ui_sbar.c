@@ -1265,13 +1265,13 @@ int UI_StatusBarEdit(int *arg) // seperated so further improvements to editor vi
 	return true;
 }
 
-
-
+/*
 int UI_ScoreBoard(int *arg)
 {
 	int i;
+
 	if (!arg[5])
-		return 0;
+		return false;
 
 	sbarminx = 320;
 	sbarminy = 48;
@@ -1289,8 +1289,9 @@ int UI_ScoreBoard(int *arg)
 		sbarminy += 16;
 	}
 
-	return 0;
+	return true;
 }
+*/
 
 #define HUD_VERSION 52345
 void PutFloat(float f, char sep, qhandle_t handle)
@@ -2042,7 +2043,7 @@ int Plug_Init(int *args)
 {
 	if (Plug_Export("Tick", Plug_Tick) &&
 		Plug_Export("SbarBase", UI_StatusBar) &&
-		Plug_Export("SbarOverlay", UI_ScoreBoard) &&
+//		Plug_Export("SbarOverlay", UI_ScoreBoard) &&
 		Plug_Export("ExecuteCommand", Plug_ExecuteCommand) &&
 		Plug_Export("MenuEvent", Plug_MenuEvent))
 	{

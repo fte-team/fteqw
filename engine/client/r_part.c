@@ -428,7 +428,7 @@ void P_ParticleEffect_f(void)
 	qboolean setbeamlen = false;
 
 	part_type_t *ptype, *torun;
-	int pnum, assoc, state;
+	int pnum, assoc;
 
 	if (Cmd_Argc()!=2)
 	{
@@ -479,8 +479,22 @@ void P_ParticleEffect_f(void)
 	}
 
 	beamsegs = ptype->beams;
-	state = ptype->state;
-	torun = ptype->nexttorun;
+
+	// if we're in the runstate loop through and remove from linked list
+	if (ptype->state & PS_INRUNLIST)
+	{
+		if (part_run_list == ptype)
+			part_run_list = part_run_list->nexttorun;
+		else
+		{
+			for (torun = part_run_list; torun != NULL; torun = torun->nexttorun)
+			{
+				if (torun->nexttorun == ptype)
+					torun->nexttorun = torun->nexttorun->nexttorun;
+			}
+		}
+	}
+
 	memset(ptype, 0, sizeof(*ptype));
 //	ptype->particles = parts;
 	ptype->beams = beamsegs;
@@ -497,8 +511,6 @@ void P_ParticleEffect_f(void)
 	ptype->rotationstartmin = -M_PI;	//start with a random angle
 	ptype->rotationstartrand = M_PI-ptype->rotationstartmin;
 	ptype->spawnchance = 1;
-	ptype->nexttorun = torun;
-	ptype->state = state; // should this really be maintained?
 
 	while(1)
 	{

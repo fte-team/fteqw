@@ -582,7 +582,7 @@ void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs, vec3_
 	if (!maxs)
 		maxs = vec3_origin;
 
-	sv.worldmodel->funcs.Trace(sv.worldmodel, 0, 0, start, end, mins, maxs, &tr);
+	sv.worldmodel->funcs.NativeTrace(sv.worldmodel, 0, 0, start, end, mins, maxs, contentmask, &tr);
 	result->allsolid = tr.allsolid;
 	result->contents = tr.contents;
 	VectorCopy(tr.endpos, result->endpos);

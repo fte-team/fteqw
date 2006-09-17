@@ -63,6 +63,7 @@ LINK32=link.exe
 # PROP Use_Debug_Libraries 1
 # PROP Output_Dir "Debug"
 # PROP Intermediate_Dir "Debug"
+# PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /GZ /c
 # ADD CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /FR /Yu"qtv.h" /FD /GZ /c
@@ -90,7 +91,15 @@ SOURCE=.\bsp.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\control.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\crc.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\forward.c
 # End Source File
 # Begin Source File
 
@@ -164,6 +173,185 @@ SOURCE=.\qtv.h
 # Begin Group "Resource Files"
 
 # PROP Default_Filter "ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
+# End Group
+# Begin Group "viewer"
+
+# PROP Default_Filter ""
+# Begin Group "d3d"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\viewer\d3drend\d3d_backend.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+# SUBTRACT CPP /YX
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\d3drend\d3d_image.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\d3drend\d3d_video.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# End Group
+# Begin Source File
+
+SOURCE=.\viewer\cvar.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\gl_backend.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\gl_bsp29.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\gl_image.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\gl_mdl.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\gl_testgrid.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\gl_vidsdl.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\matrix.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\model.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\renderer.cpp
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ENDIF 
+
+# End Source File
 # End Group
 # End Target
 # End Project

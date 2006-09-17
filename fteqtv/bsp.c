@@ -113,92 +113,6 @@ void DecompressVis(unsigned char *in, unsigned char *out, int bytecount)
 	}
 }
 
-typedef struct {
-	char name[56];
-	int offset;
-	int length;
-} pakfile;
-// PACK, offset, lengthofpakfiles
-FILE *FindInPaks(char *gamedir, char *filename, int *size)
-{
-	FILE *f;
-	char fname[1024];
-	int i, j;
-	int numfiles;
-	unsigned int header[3];
-
-	pakfile pf;
-
-	for (i = 0; ; i++)
-	{
-		sprintf(fname, "%s/pak%i.pak", gamedir, i);
-		f = fopen(fname, "rb");
-		if (!f)
-			return NULL;	//ran out of possible pak files.
-
-		fread(header, 1, sizeof(header), f);
-		if (header[0] != *(unsigned int*)"PACK")
-		{	//err... hmm.
-			fclose(f);
-			continue;
-		}
-		numfiles = LittleLong(header[2])/sizeof(pakfile);
-		fseek(f, LittleLong(header[1]), SEEK_SET);
-		for (j = 0; j < numfiles; j++)
-		{
-			fread(&pf, 1, sizeof(pf), f);
-			if (!strcmp(pf.name, filename))
-			{
-				fseek(f, LittleLong(pf.offset), 0);
-				*size = LittleLong(pf.length);
-				return f;
-			}
-		}
-		fclose(f);
-		//not found
-	}
-	return NULL;
-}
-
-unsigned char *ReadFile_WINDOWSSUCKS(char *gamedir, char *filename, int *size)
-{
-	unsigned char *data;
-
-	FILE *f;
-	char fname[1024];
-
-	if (!*filename)
-		return NULL;
-
-	//try and read it straight out of the file system
-	sprintf(fname, "%s/%s", gamedir, filename);
-	f = fopen(fname, "rb");
-	if (!f)
-		f = fopen(filename, "rb");	//see if we're being run from inside the gamedir
-	if (!f)
-	{
-		f = FindInPaks(gamedir, filename, size);
-		if (!f)
-			f = FindInPaks("id1", filename, size);
-		if (!f)
-		{
-			return NULL;
-		}
-	}
-	else
-	{
-		fseek(f, 0, SEEK_END);
-		*size = ftell(f);
-		fseek(f, 0, SEEK_SET);
-	}
-	data = malloc(*size);
-	if (data)
-		fread(data, 1, *size, f);
-	fclose(f);
-
-	return data;
-}
-
 bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 {
 	unsigned char *data;
@@ -215,18 +129,11 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 
 	bsp_t *bsp;
 
-	if (!gamedir || !*gamedir)
-		gamedir = "qw";
-
-	data = ReadFile_WINDOWSSUCKS(gamedir, bspname, &size);
+	data = FS_ReadFile(gamedir, bspname, &size);
 	if (!data)
 	{
-		data = ReadFile_WINDOWSSUCKS("id1", bspname, &size);
-		if (!data)
-		{
-			Sys_Printf(cluster, "Couldn't open bsp file \"%s\" (gamedir \"%s\")\n", bspname, gamedir);
-			return NULL;
-		}
+		Sys_Printf(cluster, "Couldn't open bsp file \"%s\" (gamedir \"%s\")\n", bspname, gamedir);
+		return NULL;
 	}
 
 

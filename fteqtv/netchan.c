@@ -240,9 +240,80 @@ A 0 length will still generate a packet and deal with the reliable messages.
 void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const unsigned char *data)
 {
 	netmsg_t	send;
-	unsigned char	send_buf[MAX_MSGLEN + PACKET_HEADER];
+	unsigned char	send_buf[MAX_NQMSGLEN + PACKET_HEADER];
 	qboolean		send_reliable;
 	unsigned	w1, w2;
+
+	if (chan->isnqprotocol)
+	{
+		int i;
+
+		send.data = send_buf;
+		send.maxsize = MAX_NQMSGLEN + PACKET_HEADER;
+		send.cursize = 0;
+
+		if (!chan->reliable_length && chan->message.cursize)
+		{
+			memcpy (chan->reliable_buf, chan->message_buf, chan->message.cursize);
+			chan->reliable_length = chan->message.cursize;
+			chan->reliable_start = 0;
+			chan->message.cursize = 0;
+		}
+
+		i = chan->reliable_length - chan->reliable_start;
+		if (i>0)
+		{
+			WriteLong(&send, 0);
+			WriteLong(&send, SwapLong(chan->reliable_sequence));
+			if (i > MAX_NQDATAGRAM)
+				i = MAX_NQDATAGRAM;
+
+			WriteData (&send, chan->reliable_buf+chan->reliable_start, i);
+			if (length && send.cursize + length < send.maxsize)
+			{	//throw the unreliable packet into the same one as the reliable (but not sent reliably)
+				WriteData (&send, data, length);
+				length = 0;
+			}
+
+
+			if (chan->reliable_start+i == chan->reliable_length)
+				*(int*)send_buf = BigLong(NETFLAG_DATA | NETFLAG_EOM | send.cursize);
+			else
+				*(int*)send_buf = BigLong(NETFLAG_DATA | send.cursize);
+			NET_SendPacket(cluster, chan->sock, send.cursize, send.data, chan->remote_address);
+
+			if (chan->cleartime < curtime)
+				chan->cleartime = curtime + send.cursize*chan->rate;
+			else
+				chan->cleartime += send.cursize*chan->rate;
+		}
+
+		//send out the unreliable (if still unsent)
+		if (length)
+		{
+			WriteLong(&send, 0);
+			WriteLong(&send, SwapLong(chan->outgoing_unreliable));
+			chan->outgoing_unreliable++;
+
+			WriteData (&send, data, length);
+
+			*(int*)send_buf = BigLong(NETFLAG_UNRELIABLE | send.cursize);
+			NET_SendPacket (cluster, chan->sock, send.cursize, send.data, chan->remote_address);
+
+			if (chan->cleartime < curtime)
+				chan->cleartime = curtime + send.cursize*chan->rate;
+			else
+				chan->cleartime += send.cursize*chan->rate;
+
+			send.cursize = 0;
+		}
+		return;
+	}
+
+
+
+
+
 
 // check for message overflow
 	if (chan->message.overflowed)
@@ -323,6 +394,110 @@ void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const un
 			, send.cursize);
 */
 }
+
+
+
+
+qboolean NQNetchan_Process(cluster_t *cluster, netchan_t *chan, netmsg_t *msg)
+{
+	int header;
+	int sequence;
+	int drop;
+
+	msg->readpos = 0;
+
+	header = SwapLong(ReadLong(msg));
+	if (msg->cursize != (header & NETFLAG_LENGTH_MASK))
+		return false;	//size was wrong, couldn't have been ours.
+
+	if (header & NETFLAG_CTL)
+		return false;	//huh?
+
+	sequence = SwapLong(ReadLong(msg));
+
+	if (header & NETFLAG_ACK)
+	{
+		if (sequence == chan->reliable_sequence)
+		{
+			chan->reliable_start += MAX_NQDATAGRAM;
+			if (chan->reliable_start >= chan->reliable_length)
+			{
+				chan->reliable_length = 0;	//they got the entire message
+				chan->reliable_start = 0;
+			}
+			chan->incoming_reliable_acknowledged = chan->reliable_sequence;
+			chan->reliable_sequence++;
+
+			chan->last_received = curtime;
+		}
+//		else if (sequence < chan->reliable_sequence)
+//			Con_DPrintf("Stale ack recieved\n");
+//		else if (sequence > chan->reliable_sequence)
+//			Con_Printf("Future ack recieved\n");
+
+		return false;	//don't try execing the 'payload'. I hate ack packets.
+	}
+
+	if (header & NETFLAG_UNRELIABLE)
+	{
+		if (sequence < chan->incoming_unreliable)
+		{
+//			Con_DPrintf("Stale datagram recieved\n");
+			return false;
+		}
+		drop = sequence - chan->incoming_unreliable - 1;
+		if (drop > 0)
+		{
+//			Con_DPrintf("Dropped %i datagrams\n", drop);
+//			chan->drop_count += drop;
+		}
+		chan->incoming_unreliable = sequence;
+
+		chan->last_received = curtime;
+
+		chan->incoming_acknowledged++;
+//		chan->good_count++;
+		return 1;
+	}
+	if (header & NETFLAG_DATA)
+	{
+		int runt[2];
+		//always reply. a stale sequence probably means our ack got lost.
+		runt[0] = BigLong(NETFLAG_ACK | 8);
+		runt[1] = BigLong(sequence);
+		NET_SendPacket (cluster, chan->sock, 8, (void*)runt, chan->remote_address);
+
+		chan->last_received = curtime;
+		if (sequence == chan->incoming_reliable_sequence)
+		{
+			chan->incoming_reliable_sequence++;
+
+			if (chan->in_fragment_length + msg->cursize-8 >= sizeof(chan->in_fragment_buf))
+			{
+				chan->drop = true;
+				return false;
+			}
+
+			memcpy(chan->in_fragment_buf + chan->in_fragment_length, msg->data+8, msg->cursize-8);
+			chan->in_fragment_length += msg->cursize-8;
+
+			if (header & NETFLAG_EOM)
+			{
+				msg->cursize = 0;
+				WriteData(msg, chan->in_fragment_buf, chan->in_fragment_length);
+				chan->in_fragment_length = 0;
+				msg->readpos = 0;
+				return 2;	//we can read it now
+			}
+		}
+//		else
+//			Con_DPrintf("Stale reliable (%i)\n", sequence);
+		return false;
+	}
+
+	return false;	//not supported.
+}
+
 
 /*
 =================

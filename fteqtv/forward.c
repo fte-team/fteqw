@@ -266,7 +266,7 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 
 	prox->flushing = false;
 
-	BuildServerData(qtv, &msg, true, false, 0);
+	BuildServerData(qtv, &msg, true, 0);
 	Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 	msg.cursize = 0;
 

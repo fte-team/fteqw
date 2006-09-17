@@ -576,6 +576,9 @@ unsigned int ReadLong(netmsg_t *b);
 float ReadFloat(netmsg_t *b);
 void ReadString(netmsg_t *b, char *string, int maxlen);
 
+unsigned int SwapLong(unsigned int val);
+unsigned int BigLong(unsigned int val);
+
 
 
 
@@ -769,7 +772,7 @@ int Netchan_IsLocal (netadr_t adr);
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, netadr_t adr);
 qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);
 qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg);
-qboolean NQNetChan_Process(cluster_t *cluster, netchan_t *chan, netmsg_t *msg);
+qboolean NQNetchan_Process(cluster_t *cluster, netchan_t *chan, netmsg_t *msg);
 void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const unsigned char *data);
 int SendList(sv_t *qtv, int first, const filename_t *list, int svc, netmsg_t *msg);
 int Prespawn(sv_t *qtv, int curmsgsize, netmsg_t *msg, int bufnum, int thisplayer);
@@ -788,6 +791,7 @@ void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int lengt
 void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move);
 void SendClientCommand(sv_t *qtv, char *fmt, ...);
 void QTV_Run(sv_t *qtv);
+void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer);
 
 char *Rcon_Command(cluster_t *cluster, sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qboolean localcommand);
 char *COM_ParseToken (char *data, char *out, int outsize, const char *punctuation);

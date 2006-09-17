@@ -1339,8 +1339,6 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 	int e;
 	int i;
 	usercmd_t to;
-	unsigned short flags;
-	short interp;
 	float lerp;
 	int bits;
 	unsigned short org[3];

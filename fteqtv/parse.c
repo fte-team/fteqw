@@ -63,7 +63,6 @@ unsigned int BigLong(unsigned int val)
 		unsigned int i;
 		unsigned char c[4];
 	} v;
-	unsigned char s;
 
 	v.i = val;
 	return (v.c[0]<<24) | (v.c[1] << 16) | (v.c[2] << 8) | (v.c[3] << 0);

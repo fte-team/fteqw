@@ -1679,10 +1679,18 @@ qboolean UI_KeyPress(int key, qboolean down)
 	{
 		if (key == K_ESCAPE && down)
 		{
+			if (Media_PlayingFullScreen())
+			{
+				Media_PlayFilm("");
+			}
+
 			if (cls.state)
-				return VM_Call(uivm, UI_SET_ACTIVE_MENU, 2)>0;
+				VM_Call(uivm, UI_SET_ACTIVE_MENU, 2)>0;
 			else
-				return VM_Call(uivm, UI_SET_ACTIVE_MENU, 1)>0;
+				VM_Call(uivm, UI_SET_ACTIVE_MENU, 1)>0;
+
+			scr_conlines = 0;
+			return true;
 		}
 		return false;
 	}
@@ -1693,12 +1701,12 @@ qboolean UI_KeyPress(int key, qboolean down)
 		key |= 1024;
 
 	/*result = */VM_Call(uivm, UI_KEY_EVENT, key, down);
-
+/*
 	if (!keycatcher && !cls.state && key == K_ESCAPE && down)
 	{
 		M_Menu_Main_f();
 		return true;
-	}
+	}*/
 
 	return true;
 

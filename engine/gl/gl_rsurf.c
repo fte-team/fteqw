@@ -244,7 +244,7 @@ void GLR_AddStain(vec3_t org, float red, float green, float blue, float radius)
 	int i;
 
 	float parms[7];
-	if (!cl.worldmodel || r_stains.value <= 0)
+	if (!cl.worldmodel || cl.worldmodel->needload || r_stains.value <= 0)
 		return;
 	parms[0] = radius;
 	parms[1] = org[0];

@@ -593,7 +593,7 @@ void Heightmap_FindTouchedLeafs	(model_t *mod, edict_t *ent)
 {
 }
 
-void Heightmap_LightPointValues	(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+void Heightmap_LightPointValues	(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 }
 void Heightmap_StainNode			(mnode_t *node, float *parms)

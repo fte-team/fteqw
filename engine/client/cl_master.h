@@ -6,7 +6,7 @@
 #define SS_KEEPINFO		16
 #define SS_DARKPLACES	32
 #define SS_QUAKE3		64
-#define SS_QTV			128
+#define SS_PROXY		128
 
 
 //despite not supporting nq or q2, we still load them. We just filter them. This is to make sure we properly write the listing files.

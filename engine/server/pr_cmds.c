@@ -3395,14 +3395,14 @@ void PF_sv_getlight (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	vec3_t diffuse, ambient, dir;
 	if (sv.worldmodel && sv.worldmodel->funcs.LightPointValues)
 	{
-		sv.worldmodel->funcs.LightPointValues(point, diffuse, ambient, dir);
+		sv.worldmodel->funcs.LightPointValues(sv.worldmodel, point, diffuse, ambient, dir);
 		VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
 	}
 	else
 	{
-		G_FLOAT(OFS_RETURN+0) = 0.5;
-		G_FLOAT(OFS_RETURN+1) = 0.5;
-		G_FLOAT(OFS_RETURN+2) = 0.5;
+		G_FLOAT(OFS_RETURN+0) = 128;
+		G_FLOAT(OFS_RETURN+1) = 128;
+		G_FLOAT(OFS_RETURN+2) = 128;
 		return;
 	}
 }
@@ -3928,33 +3928,11 @@ void PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
-/*
-===============
-PF_lightstyle
-
-void(float style, string value [, float colour]) lightstyle
-===============
-*/
-void PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_applylightstyle(int style, char *val, int col)
 {
-	int		style;
-	char	*val;
 	client_t	*client;
 	int			j;
 
-#ifdef PEXT_LIGHTSTYLECOL
-	int col;
-	if (*svprogfuncs->callargc >= 3)
-	{
-		col = G_FLOAT(OFS_PARM2);
-		if (IS_NAN(col) || !col || col > 0x111)
-			col = 7;
-	}
-	else col = 7;
-#endif
-
-	style = G_FLOAT(OFS_PARM0);
-	val = PR_GetStringOfs(prinst, OFS_PARM1);
 
 	if (style < 0 || style >= MAX_LIGHTSTYLES)
 	{
@@ -4009,6 +3987,35 @@ void PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
+/*
+===============
+PF_lightstyle
+
+void(float style, string value [, float colour]) lightstyle
+===============
+*/
+void PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int		style;
+	char	*val;
+
+#ifdef PEXT_LIGHTSTYLECOL
+	int col;
+	if (*svprogfuncs->callargc >= 3)
+	{
+		col = G_FLOAT(OFS_PARM2);
+		if (IS_NAN(col) || !col || col > 0x111)
+			col = 7;
+	}
+	else col = 7;
+#endif
+
+	style = G_FLOAT(OFS_PARM0);
+	val = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	PF_applylightstyle(style, val, col);
+}
+
 void PF_lightstylevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int style;
@@ -4026,8 +4033,6 @@ void PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int		style;
 	float	num;
 	char	*val;
-	client_t	*client;
-	int			j;
 
 	static char *styleDefs[] =
 	{
@@ -4056,56 +4061,7 @@ void PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		num = 'z'-'a'-1;
 	val = styleDefs[(int)num];
 
-
-	if (style < 0 || style >= MAX_LIGHTSTYLES)
-	{
-		Con_Printf("WARNING: Bad lightstyle %i.\n", style);
-		return;
-	}
-	if (strlen(val) > MAX_STYLESTRING-1)
-		Con_Printf("WARNING: Style string is longer than standard (%i). Some clients could crash.\n", MAX_STYLESTRING-1);
-
-
-// change the string in sv
-	if (sv.strings.lightstyles[style])
-		Z_Free(sv.strings.lightstyles[style]);
-	sv.strings.lightstyles[style] = Z_Malloc(strlen(val)+1);
-	strcpy(sv.strings.lightstyles[style], val);
-//	sv.lightstyles[style] = val;
-#ifdef PEXT_LIGHTSTYLECOL
-	sv.strings.lightstylecolours[style] = col;
-#endif
-
-// send message to all clients on this server
-	if (sv.state != ss_active)
-		return;
-
-	for (j=0, client = svs.clients ; j<sv.allocated_client_slots ; j++, client++)
-	{
-		if (client->controller)
-			continue;
-
-		if ( client->state == cs_spawned )
-		{
-#ifdef PEXT_LIGHTSTYLECOL
-			if ((client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && col!=7)
-			{
-				ClientReliableWrite_Begin (client, svc_lightstylecol, strlen(val)+4);
-				ClientReliableWrite_Char (client, style);
-				ClientReliableWrite_Char (client, col);
-				ClientReliableWrite_String (client, val);
-			}
-			else
-			{
-#endif
-				ClientReliableWrite_Begin (client, svc_lightstyle, strlen(val)+3);
-				ClientReliableWrite_Char (client, style);
-				ClientReliableWrite_String (client, val);
-#ifdef PEXT_LIGHTSTYLECOL
-			}
-#endif
-		}
-	}
+	PF_applylightstyle(style, val, col);
 }
 
 void PF_rint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -9188,7 +9144,7 @@ void PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 
 	surf = model->surfaces;
-	for (i = model->numsurfaces; i; i--, surf = surf++)
+	for (i = model->numsurfaces; i; i--, surf++)
 	{
 		if (surf->flags & SURF_PLANEBACK)
 			planedist = -DotProduct(point, surf->plane->normal);

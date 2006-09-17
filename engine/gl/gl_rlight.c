@@ -406,7 +406,7 @@ LIGHT SAMPLING
 mplane_t		*lightplane;
 vec3_t			lightspot;
 
-void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 	q3lightgridinfo_t *lg = (q3lightgridinfo_t *)cl.worldmodel->lightgrid;
 	int index[8];
@@ -675,7 +675,7 @@ int GLR_LightPoint (vec3_t p)
 
 	if (cl.worldmodel->fromgame == fg_quake3)
 	{
-		GLQ3_LightGrid(p, NULL, end, NULL);
+		GLQ3_LightGrid(cl.worldmodel, p, NULL, end, NULL);
 		return (end[0] + end[1] + end[2])/3;
 	}
 
@@ -904,7 +904,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 
 #endif
 
-void GLQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 	vec3_t		end;
 	float *r;
@@ -913,7 +913,7 @@ void GLQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambie
 	end[1] = point[1];
 	end[2] = point[2] - 2048;
 
-	r = GLRecursiveLightPoint3C(cl.worldmodel->nodes, point, end);
+	r = GLRecursiveLightPoint3C(model->nodes, point, end);
 	if (r == NULL)
 	{
 		res_diffuse[0] = 0;

@@ -513,6 +513,11 @@ typedef struct client_s
 
 	int rate;
 	int drate;
+
+	netadr_t realip;
+	int realip_status;
+	int realip_num;
+	int realip_ping;
 } client_t;
 
 #define ISQWCLIENT(cl) ((cl)->protocol == SCP_QUAKEWORLD)
@@ -616,6 +621,7 @@ typedef struct
 	int			forceFrame;
 
 	struct mvddest_s *dest;
+	struct mvdpendingdest_s *pendingdest;
 } demo_t;
 
 

@@ -1,7 +1,7 @@
 [Project]
 FileName=FTEQuake.dev
 Name=FTEQuake
-UnitCount=141
+UnitCount=140
 Type=0
 Ver=1
 ObjFiles=""
@@ -211,7 +211,7 @@ BuildCmd=
 Major=2
 Minor=5
 Release=5
-Build=72
+Build=74
 LanguageID=2057
 CharsetID=1252
 CompanyName=
@@ -1304,16 +1304,6 @@ OverrideBuildCmd=0
 BuildCmd=
 
 [Unit127]
-FileName=..\irc\ircclient.c
-CompileCpp=0
-Folder=inet
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit128]
 FileName=..\client\pr_menu.c
 CompileCpp=0
 Folder=Client
@@ -1323,7 +1313,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit129]
+[Unit128]
 FileName=..\common\plugin.c
 CompileCpp=0
 Folder=Common
@@ -1333,7 +1323,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit130]
+[Unit129]
 FileName=..\client\pr_csqc.c
 CompileCpp=0
 Folder=Client
@@ -1343,9 +1333,19 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit131]
+[Unit130]
 FileName=..\gl\gl_shader.c
+CompileCpp=0
 Folder=gl
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit131]
+FileName=..\client\m_download.c
+Folder=Client
 Compile=1
 Link=1
 Priority=1000
@@ -1354,16 +1354,6 @@ BuildCmd=
 CompileCpp=0
 
 [Unit132]
-FileName=..\client\m_download.c
-CompileCpp=0
-Folder=Client
-Compile=1
-Link=1
-Priority=1000
-OverrideBuildCmd=0
-BuildCmd=
-
-[Unit133]
 FileName=..\client\snd_directx.c
 CompileCpp=0
 Folder=Client
@@ -1373,7 +1363,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit134]
+[Unit133]
 FileName=..\common\fs.c
 CompileCpp=0
 Folder=Common
@@ -1383,7 +1373,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit135]
+[Unit134]
 FileName=..\common\log.c
 CompileCpp=0
 Folder=Common
@@ -1393,7 +1383,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit136]
+[Unit135]
 FileName=..\gl\gl_heightmap.c
 CompileCpp=0
 Folder=gl
@@ -1403,7 +1393,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit137]
+[Unit136]
 FileName=..\client\clq3_parse.c
 CompileCpp=0
 Folder=Client
@@ -1413,7 +1403,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit138]
+[Unit137]
 FileName=..\client\cl_cg.c
 CompileCpp=0
 Folder=Client
@@ -1423,7 +1413,7 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit139]
+[Unit138]
 FileName=..\server\svq3_game.c
 CompileCpp=0
 Folder=server
@@ -1433,10 +1423,20 @@ Priority=1000
 OverrideBuildCmd=0
 BuildCmd=
 
-[Unit140]
+[Unit139]
 FileName=..\client\cl_ignore.c
 CompileCpp=0
 Folder=Client
+Compile=1
+Link=1
+Priority=1000
+OverrideBuildCmd=0
+BuildCmd=
+
+[Unit140]
+FileName=..\common\q3common.c
+CompileCpp=0
+Folder=Common
 Compile=1
 Link=1
 Priority=1000

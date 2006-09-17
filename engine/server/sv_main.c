@@ -2196,6 +2196,61 @@ void SVC_RemoteCommand (void)
 	SV_EndRedirect ();
 }
 
+void SVC_RealIP (void)
+{
+	unsigned int slotnum;
+	int cookie;
+	slotnum = atoi(Cmd_Argv(1));
+	cookie = atoi(Cmd_Argv(2));
+
+	if (slotnum >= MAX_CLIENTS)
+	{
+		//a malitious user
+		return;
+	}
+
+	if (cookie != svs.clients[slotnum].realip_num)
+	{
+		//could be someone trying to kick someone else
+		//so we can't kick, as much as we might like to.
+		return;
+	}
+
+	if (svs.clients[slotnum].realip_status)
+		return;
+
+
+	svs.clients[slotnum].realip_status = 1;
+	svs.clients[slotnum].realip = net_from;
+}
+
+void SVC_ACK (void)
+{
+	int slotnum;
+	for (slotnum = 0; slotnum < MAX_CLIENTS; slotnum++)
+	{
+		if (svs.clients[slotnum].state)
+		{
+			if (svs.clients[slotnum].realip_status == 1 && NET_CompareAdr(svs.clients[slotnum].realip, net_from))
+			{
+				if (!*Cmd_Argv(1))
+					svs.clients[slotnum].realip_status = 2;
+				else if (atoi(Cmd_Argv(1)) == svs.clients[slotnum].realip_ping &&
+						atoi(Cmd_Argv(2)) == svs.clients[slotnum].realip_num)
+				{
+					svs.clients[slotnum].realip_status = 3;
+				}
+				else
+				{
+					Netchan_OutOfBandPrint(NS_SERVER, net_from, "realip not accepted. Please stop hacking.\n");
+				}
+				return;
+			}
+		}
+	}
+	Con_Printf ("A2A_ACK from %s\n", NET_AdrToString (net_from));
+}
+
 /*
 =================
 SV_ConnectionlessPacket
@@ -2231,7 +2286,7 @@ qboolean SV_ConnectionlessPacket (void)
 	if (!strcmp(c, "ping") || ( c[0] == A2A_PING && (c[1] == 0 || c[1] == '\n')) )
 		SVC_Ping ();
 	else if (c[0] == A2A_ACK && (c[1] == 0 || c[1] == '\n') )
-		Con_Printf ("A2A_ACK from %s\n", NET_AdrToString (net_from));
+		SVC_ACK ();
 	else if (!strcmp(c,"status"))
 		SVC_Status ();
 	else if (!strcmp(c,"log"))
@@ -2272,6 +2327,8 @@ qboolean SV_ConnectionlessPacket (void)
 #endif
 	else if (!strcmp(c, "rcon"))
 		SVC_RemoteCommand ();
+	else if (!strcmp(c, "realip"))
+		SVC_RealIP ();
 	else if (!PR_GameCodePacket(net_message.data+4))
 		Con_Printf ("bad connectionless packet from %s:\n%s\n"
 		, NET_AdrToString (net_from), s);

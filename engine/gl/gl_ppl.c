@@ -89,11 +89,11 @@ qboolean PPL_ShouldDraw(void)
 	{
 		if (currententity->flags & Q2RF_EXTERNALMODEL)
 			return false;
-		if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
-			return false;
+//		if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
+//			return false;
 //		if (cl.viewentity[r_refdef.currentplayernum] && currententity->keynum == cl.viewentity[r_refdef.currentplayernum])
 //			continue;
-		if (!Cam_DrawPlayer(0, currententity->keynum-1))
+		if (!Cam_DrawPlayer(r_refdef.currentplayernum, currententity->keynum-1))
 			return false;
 	}
 	return true;
@@ -632,6 +632,9 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 	}
 	PPL_FlushArrays();
 
+	qglEnable(GL_BLEND);
+	qglBlendFunc(GL_DST_COLOR, GL_ZERO);
+
 	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
 
 	GL_SelectTexture(GL_TEXTURE1_ARB);
@@ -664,6 +667,9 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 		PPL_GenerateArrays(s);
 	}
 	PPL_FlushArrays();
+
+	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglDisable(GL_BLEND);
 
 	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	GL_SelectTexture(GL_TEXTURE0_ARB);

@@ -259,6 +259,7 @@ void M_Script_Init(void)
 	Cmd_AddCommand("menucheck",	M_MenuS_CheckBox_f);
 	Cmd_AddCommand("menuslider",	M_MenuS_Slider_f);
 	Cmd_AddCommand("menubind",	M_MenuS_Bind_f);
+//	Cmd_AddCommand("menucombo",	M_MenuS_Combo_f);
 
 	Cvar_Register(&menualias, "Scripting");
 }

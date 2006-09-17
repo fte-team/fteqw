@@ -352,6 +352,10 @@ int DemoAddItem(char *filename, int size, void *parm)
 		if (extnum == menu->numext)	//wasn't on our list of extensions.
 			return true;
 	}
+	else
+	{
+		//directory
+	}
 	if (menu->maxmatches < menu->nummatches+10)
 	{
 		menu->maxmatches = menu->nummatches+10;
@@ -359,7 +363,7 @@ int DemoAddItem(char *filename, int size, void *parm)
 	}
 	for (match = 0; match < menu->nummatches; match++)
 		if (!strcmp(menu->options[match].name, filename))
-			return true;
+			return true;	//already got that one
 	Q_strncpyz(menu->options[menu->nummatches].name, filename, sizeof(menu->options[menu->nummatches].name));
 	menu->options[menu->nummatches].size = size;
 	menu->nummatches++;
@@ -430,7 +434,7 @@ void M_Menu_Demos_f (void)
 	info->ext[2] = ".dm2";
 	info->command[3] = "playdemo";
 	info->ext[3] = ".mvd";
-	//there are also quizmo demos (.qwz) out there...
+	//there are also qizmo demos (.qwz) out there...
 	//we don't support them, but if we were to ask quizmo to decode them for us, we could do.
 	info->numext = 4;
 

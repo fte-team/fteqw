@@ -327,7 +327,7 @@ void GLR_AnimateLight (void);
 void R_RenderDlights (void);
 int GLR_LightPoint (vec3_t p);
 
-void GLQ3_LightGrid(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_lightdir);
+void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
 
 //gl_heightmap.c

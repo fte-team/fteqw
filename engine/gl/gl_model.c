@@ -2557,7 +2557,7 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
 qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
-void GLQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
 
 /*

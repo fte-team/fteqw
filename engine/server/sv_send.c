@@ -1914,7 +1914,7 @@ void SV_SendClientMessages (void)
 #endif
 
 
-
+void DemoWriteQTVTimePad(int msecs);
 #define Max(a, b) ((a>b)?a:b)
 void SV_SendMVDMessage(void)
 {
@@ -1928,6 +1928,8 @@ void SV_SendMVDMessage(void)
 	extern		cvar_t sv_demofps;
 	extern		cvar_t sv_demoPings;
 //	extern		cvar_t	sv_demoMaxSize;
+
+	SV_MVD_RunPendingConnections();
 
 	if (!sv.mvdrecording)
 		return;
@@ -1959,8 +1961,12 @@ void SV_SendMVDMessage(void)
 		cls |= 1 << i;
 	}
 
-	if (!cls) {
+	if (!cls)
+	{
 		SZ_Clear (&demo.datagram);
+		DemoWriteQTVTimePad((int)((sv.time - demo.time)*1000));
+		DestFlush(false);
+		demo.time = sv.time;
 		return;
 	}
 

@@ -695,6 +695,8 @@ void CL_PredictMovePNum (int pnum)
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
+		if (!cl.worldmodel || cl.worldmodel->needload)
+			return;
 		cl.crouch[pnum] = 0;
 		CLQ2_PredictMovement();
 		return;

@@ -1908,6 +1908,7 @@ qboolean is_numeric (const char *c)
 		((*c == '-' || *c == '+') && (c[1] == '.' || (c[1]>='0' && c[1]<='9'))) ||
 		(*c == '.' && (c[1]>='0' && c[1]<='9'))?true:false;
 }
+#define IFPUNCT "(,{})(\':;=!><&|+*/-"
 const char *If_Token(const char *func, const char **end)
 {
 	const char *s, *s2;
@@ -1916,7 +1917,7 @@ const char *If_Token(const char *func, const char **end)
 	while(*func <= ' ' && *func)
 		func++;
 
-	s = COM_ParseToken(func, NULL);
+	s = COM_ParseToken(func, IFPUNCT);
 
 	if (*com_token == '(')
 	{
@@ -1949,9 +1950,19 @@ const char *If_Token(const char *func, const char **end)
 		else
 			return "true";
 	}
+	else if (!strcmp(com_token, "int"))
+	{
+		func = If_Token(s, end);
+		return retfloat(atof(func));
+	}
+	else if (!strcmp(com_token, "strlen"))
+	{
+		func = If_Token(s, end);
+		return retfloat(strlen(func));
+	}
 	else if (!strcmp(com_token, "defined"))	//functions
 	{
-		s = COM_ParseToken(s, NULL);
+		s = COM_ParseToken(s, IFPUNCT);
 		var = Cvar_FindVar(com_token);
 		*end = s;
 		return retstring((var != NULL)?"true":"");
@@ -1962,7 +1973,7 @@ const char *If_Token(const char *func, const char **end)
 	}
 	else if (!strcmp(com_token, "vid"))	//mostly for use with the menu system.
 	{
-		s = COM_ParseToken(s, NULL);
+		s = COM_ParseToken(s, IFPUNCT);
 #ifndef SERVERONLY
 		if (qrenderer == QR_NONE)
 			s2 = "";
@@ -1993,10 +2004,10 @@ const char *If_Token(const char *func, const char **end)
 
 	*end = s;
 
-	s = COM_ParseToken(s, NULL);
+	s = COM_ParseToken(s, IFPUNCT);
 	if (!strcmp(com_token, "="))	//comparisions
 	{
-		func=COM_ParseToken(s, NULL);
+		func=COM_ParseToken(s, IFPUNCT);
 		if (*com_token == '=')	//lol. "=" == "=="
 			return retfloat(!strcmp(s2, If_Token(func, end)));
 		else
@@ -2006,7 +2017,7 @@ const char *If_Token(const char *func, const char **end)
 		return retfloat(!strcmp(s2, If_Token(s, end)));
 	if (!strcmp(com_token, "!"))
 	{
-		func=COM_ParseToken(s, NULL);
+		func=COM_ParseToken(s, IFPUNCT);
 		if (*com_token == '=')
 		{
 			s = If_Token(func, end);
@@ -2024,7 +2035,7 @@ const char *If_Token(const char *func, const char **end)
 	}
 	if (!strcmp(com_token, ">"))
 	{
-		func=COM_ParseToken(s, NULL);
+		func=COM_ParseToken(s, IFPUNCT);
 		if (*com_token == '=')
 			return retfloat(atof(s2)>=atof(If_Token(func, end)));
 		else if (*com_token == '<')//vb?
@@ -2044,7 +2055,7 @@ const char *If_Token(const char *func, const char **end)
 	}
 	if (!strcmp(com_token, "<"))
 	{
-		func=COM_ParseToken(s, NULL);
+		func=COM_ParseToken(s, IFPUNCT);
 		if (*com_token == '=')
 			return retfloat(atof(s2)<=atof(If_Token(func, end)));
 		else if (*com_token == '>')//vb?
@@ -2063,17 +2074,33 @@ const char *If_Token(const char *func, const char **end)
 		return retfloat(atof(s2)*atof(If_Token(s, end)));
 	if (!strcmp(com_token, "/"))
 		return retfloat(atof(s2)/atof(If_Token(s, end)));
+	if (!strcmp(com_token, "%"))
+	{
+		level = (int)atof(If_Token(s, end));
+		if (level == 0)
+			return retfloat(0);
+		else
+			return retfloat((int)atof(s2)%level);
+	}
 	if (!strcmp(com_token, "&"))	//and
 	{
-		func=COM_ParseToken(s, NULL);
+		func=COM_ParseToken(s, IFPUNCT);
 		if (*com_token == '&')
 			return retfloat(*s2&&*If_Token(s, end));
 		else
 			return retfloat(atoi(s2)&atoi(If_Token(s, end)));
 	}
+	if (!strcmp(com_token, "div"))	//qw262 compatability
+		return retfloat(atof(s2)/atof(If_Token(s, end)));
+	if (!strcmp(com_token, "or"))	//qw262 compatability
+		return retfloat(atoi(s2)|atoi(If_Token(s, end)));
+	if (!strcmp(com_token, "xor"))	//qw262 compatability
+		return retfloat(atoi(s2)^atoi(If_Token(s, end)));
+	if (!strcmp(com_token, "and"))	//qw262 compatability
+		return retfloat(atoi(s2)&atoi(If_Token(s, end)));
 	if (!strcmp(com_token, "|"))	//or
 	{
-		func=COM_ParseToken(s, NULL);
+		func=COM_ParseToken(s, IFPUNCT);
 		if (*com_token == '|')
 		{
 			func = If_Token(func, end);
@@ -2323,12 +2350,18 @@ void Cmd_set_f(void)
 	const char *end;
 	const char *text;
 	int forceflags = 0;
+	qboolean docalc;
 
 	if (Cmd_Argc()<3)
 	{
 		Con_TPrintf(TL_SETSYNTAX);
 		return;
 	}
+
+	if (!strcmp(Cmd_Argv(0), "set_calc") || !strcmp(Cmd_Argv(0), "seta_calc"))
+		docalc = true;
+	else
+		docalc = false;
 
 	var = Cvar_Get (Cmd_Argv(1), "0", 0, "Custom variables");
 
@@ -2345,19 +2378,12 @@ void Cmd_set_f(void)
 	}
 	else
 	{
+		Cmd_ShiftArgs(1, false);
 		text = Cmd_Args();
+		if (*text == '\"')	//if it's already quoted, dequote it, and ignore trailing stuff, for q2/q3 compatability
+			text = Cmd_Argv(1);
 		forceflags = 0;
-
-		while(*text <= ' ' && *text)	//first whitespace
-			text++;
-		while(*text > ' ')	//first var
-			text++;
-		while(*text <= ' ' && *text)	//second whitespace
-			text++;
 	}
-
-	//second var
-	var = Cvar_FindVar (Cmd_Argv(1));
 
 	mark = If_Token_GetMark();
 
@@ -2380,7 +2406,8 @@ void Cmd_set_f(void)
 		}
 		else
 		{
-			text = If_Token(text, &end);
+			if (docalc)
+				text = If_Token(text, &end);
 			Cvar_Set(var, text);
 			var->flags |= CVAR_USERCREATED;
 
@@ -2390,11 +2417,13 @@ void Cmd_set_f(void)
 	}
 	else
 	{
-		text = If_Token(text, &end);
+		if (docalc)
+			text = If_Token(text, &end);
 		if (Cmd_FromGamecode())
 		{
 			var = Cvar_Get(Cmd_Argv(1), "", 0, "Game variables");
-			Cvar_LockFromServer(var, text);
+			if (var)
+				Cvar_LockFromServer(var, text);
 		}
 		else
 			var = Cvar_Get(Cmd_Argv(1), text, 0, "User variables");
@@ -2406,7 +2435,6 @@ void Cmd_set_f(void)
 
 	If_Token_Clear(mark);
 }
-
 
 void Cvar_Inc_f (void)
 {
@@ -2589,7 +2617,9 @@ void Cmd_Init (void)
 //	Cmd_AddCommand ("filter", Cmd_Msg_Filter_f);
 
 	Cmd_AddCommand ("set", Cmd_set_f);
+	Cmd_AddCommand ("set_calc", Cmd_set_f);
 	Cmd_AddCommand ("seta", Cmd_set_f);
+	Cmd_AddCommand ("seta_calc", Cmd_set_f);
 	Cmd_AddCommand ("vstr", Cmd_Vstr_f);
 	Cmd_AddCommand ("inc", Cvar_Inc_f);
 	//FIXME: Add seta some time.

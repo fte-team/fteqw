@@ -283,6 +283,7 @@ static part_type_t *P_GetParticleType(char *name)
 {
 	int i;
 	part_type_t *ptype;
+	part_type_t *oldlist = part_type;
 	for (i = 0; i < numparticletypes; i++)
 	{
 		ptype = &part_type[i];
@@ -295,6 +296,17 @@ static part_type_t *P_GetParticleType(char *name)
 	ptype->assoc=-1;
 	ptype->cliptype = -1;
 	ptype->emit = -1;
+
+
+	if (oldlist)
+	{
+		part_run_list=NULL;
+
+		for (i = 0; i < numparticletypes; i++)
+			if (part_type[i].nexttorun)
+				part_type[i].nexttorun = (part_type_t*)((char*)part_type[i].nexttorun - (char*)oldlist + (char*)part_type);
+	}
+
 /*
 	Due to BZ_Realloc we can assume all of this anyway
 	ptype->loaded = 0;
@@ -4445,13 +4457,13 @@ void DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), vo
 		}
 
 		// delete from run list if necessary
-		if (!type->particles && !type->beams)
+		if (!type->particles && !type->beams && !type->clippeddecals)
 		{
-			if (!lastvalidtype)
-				part_run_list = type->nexttorun;
-			else
-				lastvalidtype->nexttorun = type->nexttorun;
-			type->state &= ~PS_INRUNLIST;
+//			if (!lastvalidtype)
+//				part_run_list = type->nexttorun;
+//			else
+//				lastvalidtype->nexttorun = type->nexttorun;
+//			type->state &= ~PS_INRUNLIST;
 		}
 		else
 			lastvalidtype = type;

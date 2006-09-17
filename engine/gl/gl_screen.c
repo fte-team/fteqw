@@ -229,7 +229,9 @@ void GLSCR_UpdateScreen (void)
 		else
 		{		
 			GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
+			scr_drawloading = true;
 			SCR_DrawLoading ();
+			scr_drawloading = false;
 			GL_EndRendering ();	
 			GL_DoSwap();
 			RSpeedEnd(RSPEED_TOTALREFRESH);

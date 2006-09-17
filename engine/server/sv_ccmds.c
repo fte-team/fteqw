@@ -488,14 +488,17 @@ void SV_Map_f (void)
 		startspot = spot;
 	}
 
-	COM_FlushFSCache();
-
 	// check to make sure the level exists
 	if (*level == '*')
 	{
 		memmove(level, level+1, strlen(level));
 		newunit=true;
 	}
+#ifndef SERVERONLY
+	SCR_ImageName(level);
+#endif
+
+	COM_FlushFSCache();
 
 	if (strlen(level) > 4 && !strcmp(level + strlen(level)-4, ".cin"))
 	{
@@ -573,13 +576,14 @@ void SV_Map_f (void)
 			svs.clients[i].state=cs_connected;
 	}
 
-	SV_BroadcastCommand ("changing\n");
-	SV_SendMessagesToAll ();
-
 #ifndef SERVERONLY
 	S_StopAllSounds (true);
-	SCR_BeginLoadingPlaque();
+//	SCR_BeginLoadingPlaque();
+	SCR_ImageName(level);
 #endif
+
+	SV_BroadcastCommand ("changing \"%s\"\n", level);
+	SV_SendMessagesToAll ();
 
 	if (newunit || !startspot || !SV_LoadLevelCache(level, startspot, false))
 	{

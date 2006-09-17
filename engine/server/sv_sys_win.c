@@ -367,7 +367,7 @@ double Sys_DoubleTime (void)
 	static int	starttime;
 
 	_ftime( &tstruct );
- 
+
 	if (!starttime)
 		starttime = tstruct.time;
 	t = (tstruct.time-starttime) + tstruct.millitm*0.001;

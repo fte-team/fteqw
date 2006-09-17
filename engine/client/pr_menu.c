@@ -1488,7 +1488,7 @@ void MP_Init (void)
 	}
 }
 
-void MP_CoreDump(void)
+void MP_CoreDump_f(void)
 {
 	if (!menuprogs)
 	{
@@ -1505,9 +1505,16 @@ void MP_CoreDump(void)
 	}
 }
 
+void MP_Reload_f(void)
+{
+	MP_Shutdown();
+	MP_Init();
+}
+
 void MP_RegisterCvarsAndCmds(void)
 {
-	Cmd_AddCommand("coredump_menuqc", MP_CoreDump);
+	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
+	Cmd_AddCommand("menuqc_reload", MP_Reload_f);
 
 	Cvar_Register(&forceqmenu, MENUPROGSGROUP);
 	Cvar_Register(&pr_menuqc_coreonerror, MENUPROGSGROUP);

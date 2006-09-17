@@ -48,7 +48,7 @@ typedef struct {
 	qboolean (*EdictInFatPVS)	(struct model_s *model, struct edict_s *edict);
 	void (*FindTouchedLeafs_Q1)	(struct model_s *model, struct edict_s *ent);	//edict system as opposed to q2 game dll system.
 
-	void (*LightPointValues)	(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+	void (*LightPointValues)	(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 	void (*StainNode)			(struct mnode_s *node, float *parms);
 	void (*MarkLights)			(struct dlight_s *light, int bit, struct mnode_s *node);
 

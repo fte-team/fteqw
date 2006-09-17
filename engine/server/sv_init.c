@@ -581,7 +581,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	total_loading_size = 100;
 	current_loading_size = 0;
 	loading_stage = 1;
-	SCR_BeginLoadingPlaque();
+//	SCR_BeginLoadingPlaque();
+	SCR_ImageName(server);
 #endif
 
 	NET_InitServer();
@@ -711,7 +712,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	strcpy (sv.name, server);
 #ifndef SERVERONLY
 	current_loading_size+=10;
-	SCR_BeginLoadingPlaque();
+	//SCR_BeginLoadingPlaque();
+	SCR_ImageName(server);
 #endif
 
 	Cvar_ApplyLatches(CVAR_LATCH);
@@ -772,12 +774,14 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 #ifndef SERVERONLY
 	current_loading_size+=10;
-	SCR_BeginLoadingPlaque();
+//	SCR_BeginLoadingPlaque();
+	SCR_ImageName(server);
 #endif
 	SV_CalcPHS ();
 #ifndef SERVERONLY
 	current_loading_size+=10;
-	SCR_BeginLoadingPlaque();
+	//SCR_BeginLoadingPlaque();
+	SCR_ImageName(server);
 #endif
 
 	if (sv.worldmodel->fromgame == fg_doom)
@@ -921,7 +925,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 #ifndef SERVERONLY
 	current_loading_size+=10;
-	SCR_BeginLoadingPlaque();
+	//SCR_BeginLoadingPlaque();
+	SCR_ImageName(server);
 #endif
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)
@@ -993,7 +998,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 #ifndef SERVERONLY
 	current_loading_size+=10;
-	SCR_BeginLoadingPlaque();
+	//SCR_BeginLoadingPlaque();
+	SCR_ImageName(server);
 #endif
 
 	//
@@ -1152,7 +1158,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 #ifndef SERVERONLY
 	current_loading_size+=10;
-	SCR_BeginLoadingPlaque();
+	//SCR_BeginLoadingPlaque();
+	SCR_ImageName(server);
 #endif
 
 	Q_strncpyz(sv.mapname, sv.name, sizeof(sv.mapname));
@@ -1178,14 +1185,16 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 #ifndef SERVERONLY
 	current_loading_size+=10;
-	SCR_BeginLoadingPlaque();
+	//SCR_BeginLoadingPlaque();
+	SCR_ImageName(server);
 #endif
 	// run two frames to allow everything to settle
 	realtime += 0.1;
 	SV_Physics ();
 #ifndef SERVERONLY
 	current_loading_size+=10;
-	SCR_BeginLoadingPlaque();
+	//SCR_BeginLoadingPlaque();
+	SCR_ImageName(server);
 #endif
 	realtime += 0.1;
 	sv.time += 0.1;
@@ -1194,7 +1203,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 #ifndef SERVERONLY
 	current_loading_size+=10;
-	SCR_BeginLoadingPlaque();
+	//SCR_BeginLoadingPlaque();
+	SCR_ImageName(server);
 #endif
 
 	// save movement vars
@@ -1242,7 +1252,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 #ifndef SERVERONLY
 	current_loading_size+=10;
-	SCR_BeginLoadingPlaque();
+	//SCR_BeginLoadingPlaque();
+	SCR_ImageName(server);
 #endif
 
 	if (svs.gametype == GT_PROGS)

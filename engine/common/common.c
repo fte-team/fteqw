@@ -359,7 +359,7 @@ int wildcmp(char *wild, char *string)
 	{
 		if (*wild == '*')
 		{
-			if (!*++wild)
+			if (!*++wild)	//a * at the end of the wild string matches anything the checked string has
 			{
 				return 1;
 			}
@@ -1560,7 +1560,12 @@ void COM_FileBase (char *in, char *out, int outlen)
 		s2 = in;
 
 	if (s-s2 < 2)
-		strcpy (out,"?model?");
+	{
+		if (s == s2)
+			Q_strncpyz(out, in, outlen);
+		else
+			Q_strncpyz(out,"?model?", outlen);
+	}
 	else
 	{
 		s--;
@@ -1946,7 +1951,7 @@ skipwhite:
 }
 
 #define DEFAULT_PUNCTUATION "(,{})(\':;=!><&|+"
-const char *COM_ParseToken (const char *data, const char *punctuation)
+char *COM_ParseToken (const char *data, const char *punctuation)
 {
 	int		c;
 	int		len;
@@ -2005,13 +2010,13 @@ skipwhite:
 			if (len >= TOKENSIZE-1)
 			{
 				com_token[len] = '\0';
-				return data;
+				return (char*)data;
 			}
 			c = *data++;
 			if (c=='\"' || !c)
 			{
 				com_token[len] = 0;
-				return data;
+				return (char*)data;
 			}
 			com_token[len] = c;
 			len++;
@@ -2026,7 +2031,7 @@ skipwhite:
 		com_token[len] = c;
 		len++;
 		com_token[len] = 0;
-		return data+1;
+		return (char*)(data+1);
 	}
 
 // parse a regular word
@@ -2043,7 +2048,7 @@ skipwhite:
 	} while (c>32);
 
 	com_token[len] = 0;
-	return data;
+	return (char*)data;
 }
 
 char *COM_ParseCString (char *data)

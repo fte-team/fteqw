@@ -767,7 +767,7 @@ char *Media_NextTrack(void)
 
 //Avi files are specific to windows. Bit of a bummer really.
 #if defined(_WIN32) && !defined(__GNUC__)
-#define WINAVI
+//#define WINAVI
 #endif
 
 
@@ -1447,7 +1447,8 @@ void Media_PlayFilm_f (void)
 
 
 
-#if defined(RGLQUAKE) && defined(WINAVI)
+#if defined(RGLQUAKE)
+#if defined(WINAVI)
 #define WINAVIRECORDING
 PAVIFILE recordavi_file;
 #define recordavi_video_stream (recordavi_codec_fourcc?recordavi_compressed_video_stream:recordavi_uncompressed_video_stream)
@@ -1456,6 +1457,9 @@ PAVISTREAM recordavi_compressed_video_stream;
 PAVISTREAM recordavi_uncompressed_audio_stream;
 WAVEFORMATEX recordavi_wave_format;
 unsigned long recordavi_codec_fourcc;
+#endif
+
+soundcardinfo_t *capture_fakesounddevice;
 int recordavi_video_frame_counter;
 int recordavi_audio_frame_counter;
 float recordavi_frametime;
@@ -1464,12 +1468,19 @@ float recordavi_audiotime;
 int capturesize;
 int capturewidth;
 char *capturevideomem;
-short *captureaudiomem;
+//short *captureaudiomem;
 int captureaudiosamples;
-captureframe;
+int captureframe;
+qboolean capturepaused;
 cvar_t capturerate = SCVAR("capturerate", "15");
+#if defined(WINAVI)
 cvar_t capturecodec = SCVAR("capturecodec", "divx");
+#else
+cvar_t capturecodec = SCVAR("capturecodec", "tga");
+#endif
 cvar_t capturesound = SCVAR("capturesound", "1");
+cvar_t capturesoundchannels = SCVAR("capturesoundchannels", "1");
+cvar_t capturesoundbits = SCVAR("capturesoundbits", "8");
 cvar_t capturemessage = SCVAR("capturemessage", "");
 qboolean recordingdemo;
 enum {
@@ -1479,28 +1490,47 @@ enum {
 } capturetype;
 char capturefilenameprefix[MAX_QPATH];
 
+qboolean Media_Capturing (void)
+{
+	if (!capturetype)
+		return false;
+	return true;
+}
+
+void Media_CapturePause_f (void)
+{
+	capturepaused = !capturepaused;
+}
+
 qboolean Media_PausedDemo (void)
 {
 	//capturedemo doesn't record any frames when the console is visible
 	//but that's okay, as we don't load any demo frames either.
-	if (recordingdemo)
-		if (scr_con_current > 0 || !cl.validsequence)
+	if (cls.demoplayback && Media_Capturing() || capturepaused)
+		if (scr_con_current > 0 || !cl.validsequence || capturepaused)
 			return true;
 
 	return false;
 }
 void Media_RecordFrame (void)
 {
-	HRESULT hr;
-	char *framebuffer = capturevideomem;
-	qbyte temp;
-	int i, c;
-
 	if (!capturetype)
 		return;
 
 	if (Media_PausedDemo())
+	{
+		int y = vid.height -32-16;
+		if (y < scr_con_current) y = scr_con_current;
+		if (y > vid.height-8)
+			y = vid.height-8;
+		qglColor4f(1, 0, 0, sin(realtime*4)/4+0.75);
+		qglEnable(GL_BLEND);
+		qglDisable(GL_ALPHA_TEST);
+		GL_TexEnv(GL_MODULATE);
+		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		Draw_String((strlen(capturemessage.string)+1)*8, y, "PAUSED");
 		return;
+	}
 
 	if (cls.findtrack)
 		return;	//skip until we're tracking the right player.
@@ -1532,23 +1562,36 @@ void Media_RecordFrame (void)
 
 	switch (capturetype)
 	{
+#if defined(WINAVI)
 	case CT_AVI:
-	//ask gl for it
-		qglReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer ); 
-
-		// swap rgb to bgr
-		c = glwidth*glheight*3;
-		for (i=0 ; i<c ; i+=3)
 		{
-			temp = framebuffer[i];
-			framebuffer[i] = framebuffer[i+2];
-			framebuffer[i+2] = temp;
-		}
-		//write it
-		hr = AVIStreamWrite(recordavi_video_stream, recordavi_video_frame_counter++, 1, framebuffer, glwidth*glheight * 3, AVIIF_KEYFRAME%15, NULL, NULL);
-		if (FAILED(hr)) Con_Printf("Recoring error\n");	
-		break;
+			HRESULT hr;
+			char *framebuffer = capturevideomem;
+			qbyte temp;
+			int i, c;
 
+			if (!framebuffer)
+			{
+				Con_Printf("framebuffer = NULL with AVI capture type (this shouldn't happen)\n");
+				return;
+			}
+		//ask gl for it
+			qglReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer ); 
+
+			// swap rgb to bgr
+			c = glwidth*glheight*3;
+			for (i=0 ; i<c ; i+=3)
+			{
+				temp = framebuffer[i];
+				framebuffer[i] = framebuffer[i+2];
+				framebuffer[i+2] = temp;
+			}
+			//write it
+			hr = AVIStreamWrite(recordavi_video_stream, captureframe++, 1, framebuffer, glwidth*glheight * 3, ((captureframe%15) == 0)?AVIIF_KEYFRAME:0, NULL, NULL);
+			if (FAILED(hr)) Con_Printf("Recoring error\n");	
+		}
+		break;
+#endif
 	case CT_SCREENSHOT:
 		{
 			char filename[MAX_OSPATH];
@@ -1575,70 +1618,143 @@ skipframe:
 	Draw_String((strlen(capturemessage.string)+1)*8, y, "RECORDING");
 }
 }
-void Media_RecordAudioFrame (short *sample_buffer, int samples)
+
+static void MSD_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)
 {
-	HRESULT hr;
-	int samps;
-
-	if (capturetype != CT_AVI)
-		return;
-
-	if (samples <= 0)
-		return;
-
-	if (!recordavi_uncompressed_audio_stream)
-		return;
-
-	if (recordingdemo)
-		if (scr_con_current > 0)
-		{			
-			return;
-		}
-
-	if (captureaudiosamples > recordavi_wave_format.nSamplesPerSec)
-		captureaudiosamples = 0;	//doh, this WILL cause a bit of wierd sound...
-
-	memcpy(captureaudiomem+captureaudiosamples*2, sample_buffer, samples*2);
-
-	captureaudiosamples+=samples/2;
-
-	samps = captureaudiosamples;//recordavi_wave_format.nSamplesPerSec*recordavi_frametime;
-
-	if (samps < recordavi_wave_format.nSamplesPerSec*recordavi_frametime)
-		return;	//not enough - wouldn't make a frame
-	samps=recordavi_wave_format.nSamplesPerSec*recordavi_frametime;
-
-	//time for annother frame?
-	if (recordavi_audiotime > realtime)
-		return;
-	recordavi_audiotime += recordavi_frametime;
-
-	captureaudiosamples-=samps;
-
-
-    hr = AVIStreamWrite(recordavi_uncompressed_audio_stream, recordavi_audio_frame_counter++, 1, captureaudiomem, samps*recordavi_wave_format.nBlockAlign, AVIIF_KEYFRAME, NULL, NULL);
-	if (FAILED(hr)) Con_Printf("Recoring error\n");	
-//save excess for later.
-	memmove(captureaudiomem, captureaudiomem+samps*2, captureaudiosamples*4);
-
 }
+
+static void *MSD_Lock (soundcardinfo_t *sc)
+{
+	return sc->sn.buffer;
+}
+static void MSD_Unlock (soundcardinfo_t *sc, void *buffer)
+{
+}
+
+static int MSD_GetDMAPos(soundcardinfo_t *sc)
+{
+	int		s;
+
+	s = captureframe*(snd_speed*recordavi_frametime);
+
+
+//	s >>= (sc->sn.samplebits/8) - 1;
+	s *= sc->sn.numchannels;
+	return s;
+}
+
+static void MSD_Submit(soundcardinfo_t *sc)
+{
+	//Fixme: support outputting to wav
+	//http://www.borg.com/~jglatt/tech/wave.htm
+
+
+	int lastpos;
+	int newpos;
+	int samplestosubmit;
+	int partialsamplestosubmit;
+	int offset;
+	int bytespersample;
+
+	lastpos = sc->snd_completed;
+	newpos = sc->paintedtime;
+
+	samplestosubmit = newpos - lastpos;
+	if (samplestosubmit < (snd_speed*recordavi_frametime))
+		return;
+
+	bytespersample = sc->sn.numchannels*sc->sn.samplebits/8;
+
+	sc->snd_completed = newpos;
+	offset = (lastpos % (sc->sn.samples/sc->sn.numchannels));
+
+	//we could just use a buffer size equal to the number of samples in each frame
+	//but that isn't as robust when it comes to floating point imprecisions
+	//namly: that it would loose a sample each frame with most framerates.
+
+	switch (capturetype)
+	{
+#if defined(WINAVI)
+	case CT_AVI:
+		if ((sc->snd_completed % (sc->sn.samples/sc->sn.numchannels)) < offset)
+		{
+			//wraped, two chunks to send
+			partialsamplestosubmit = ((sc->sn.samples/sc->sn.numchannels)) - offset;
+			AVIStreamWrite(recordavi_uncompressed_audio_stream, recordavi_audio_frame_counter++, 1, sc->sn.buffer+offset*bytespersample, partialsamplestosubmit*bytespersample, AVIIF_KEYFRAME, NULL, NULL);
+			samplestosubmit -= partialsamplestosubmit;
+			offset = 0;
+		}
+		AVIStreamWrite(recordavi_uncompressed_audio_stream, recordavi_audio_frame_counter++, 1, sc->sn.buffer+offset*bytespersample, samplestosubmit*bytespersample, AVIIF_KEYFRAME, NULL, NULL);
+		break;
+#endif
+	}
+}
+
+static void MSD_Shutdown (soundcardinfo_t *sc)
+{
+	Z_Free(sc->sn.buffer);
+	capture_fakesounddevice = NULL;
+}
+
+void Media_InitFakeSoundDevice (int channels, int samplebits)
+{
+	soundcardinfo_t *sc;
+
+	if (capture_fakesounddevice)
+		return;
+
+	sc = Z_Malloc(sizeof(soundcardinfo_t));
+
+	sc->snd_sent = 0;
+	sc->snd_completed = 0;
+
+	sc->sn.samples = snd_speed*0.5;
+	sc->sn.speed = snd_speed;
+	sc->sn.samplebits = samplebits;
+	sc->sn.samplepos = 0;
+	sc->sn.numchannels = channels;
+	sc->inactive_sound = true;
+
+	sc->sn.buffer = (unsigned char *) BZ_Malloc(sc->sn.samples*sc->sn.numchannels*(sc->sn.samplebits/8));
+
+
+	sc->Lock		= MSD_Lock;
+	sc->Unlock		= MSD_Unlock;
+	sc->SetWaterDistortion = MSD_SetUnderWater;
+	sc->Submit		= MSD_Submit;
+	sc->Shutdown	= MSD_Shutdown;
+	sc->GetDMAPos	= MSD_GetDMAPos;
+
+	sc->next = sndcardinfo;
+	sndcardinfo = sc;
+
+	capture_fakesounddevice = sc;
+
+	S_DefaultSpeakerConfiguration(sc);
+}
+
+
+
 void Media_StopRecordFilm_f (void)
 {
+#if defined(WINAVI)
     if (recordavi_uncompressed_video_stream)	AVIStreamRelease(recordavi_uncompressed_video_stream);
     if (recordavi_compressed_video_stream)		AVIStreamRelease(recordavi_compressed_video_stream);
     if (recordavi_uncompressed_audio_stream)	AVIStreamRelease(recordavi_uncompressed_audio_stream);
     if (recordavi_file)					AVIFileRelease(recordavi_file);	
 
-	if (capturevideomem)	BZ_Free(capturevideomem);
-	if (captureaudiomem)	BZ_Free(captureaudiomem);
-
 	recordavi_uncompressed_video_stream=NULL;
 	recordavi_compressed_video_stream = NULL;
 	recordavi_uncompressed_audio_stream=NULL;
 	recordavi_file = NULL;
+#endif
+
+	if (capturevideomem)	BZ_Free(capturevideomem);
+
+	if (capture_fakesounddevice) S_ShutdownCard(capture_fakesounddevice);
+
 
 	capturevideomem = NULL;
-	captureaudiomem=NULL;
 
 	recordingdemo=false;
 
@@ -1647,11 +1763,6 @@ void Media_StopRecordFilm_f (void)
 void Media_RecordFilm_f (void)
 {
 	char *fourcc = capturecodec.string;
-	char filename[256];
-	HRESULT hr;
-	BITMAPINFOHEADER bitmap_info_header;
-	AVISTREAMINFO stream_header;
-	FILE *f;
 
 	if (Cmd_Argc() != 2)
 	{
@@ -1659,14 +1770,9 @@ void Media_RecordFilm_f (void)
 		return;
 	}
 
-	if (Cmd_IsInsecure())	//err... don't think so sony.
+	if (Cmd_IsInsecure())	//err... don't think so sonny.
 		return;
 
-	if (!aviinited)
-	{
-		aviinited=true;
-		AVIFileInit();
-	}
 
 	Media_StopRecordFilm_f();
 
@@ -1681,6 +1787,7 @@ void Media_RecordFilm_f (void)
 
 	recordavi_frametime = 1/capturerate.value;
 
+	captureframe = 0;
 	if (*fourcc)
 	{
 		if (!strcmp(fourcc, "tga") ||
@@ -1690,24 +1797,46 @@ void Media_RecordFilm_f (void)
 		{
 			capturetype = CT_SCREENSHOT;
 			strcpy(capturefilenameprefix, Cmd_Argv(1));
-			captureframe = 0;
 		}
 		else
 		{
 			capturetype = CT_AVI;
-			recordavi_codec_fourcc = mmioFOURCC(*(fourcc+0), *(fourcc+1), *(fourcc+2), *(fourcc+3));
 		}
 	}
 	else
 	{
-		recordavi_codec_fourcc = 0;
 		capturetype = CT_AVI;	//uncompressed avi
 	}
 
-
-	if (capturetype == CT_AVI)
+	if (capturetype == CT_NONE)
 	{
-		snprintf(filename, 192, "%s%s", com_gamedir, Cmd_Argv(1));
+		
+	}
+	else if (capturetype == CT_SCREENSHOT)
+	{
+	}
+#if defined(WINAVI)
+	else if (capturetype == CT_AVI)
+	{
+		HRESULT hr;
+		BITMAPINFOHEADER bitmap_info_header;
+		AVISTREAMINFO stream_header;
+		FILE *f;
+		char filename[256];
+
+		if (strlen(fourcc) == 4)
+			recordavi_codec_fourcc = mmioFOURCC(*(fourcc+0), *(fourcc+1), *(fourcc+2), *(fourcc+3));
+		else
+			recordavi_codec_fourcc = 0;
+
+		if (!aviinited)
+		{
+			aviinited=true;
+			AVIFileInit();
+		}
+
+
+		snprintf(filename, 192, "%s%s", com_quakedir, Cmd_Argv(1));
 		COM_StripExtension(filename, filename, sizeof(filename));
 		COM_DefaultExtension (filename, ".avi", sizeof(filename));
 
@@ -1778,13 +1907,18 @@ void Media_RecordFilm_f (void)
 			return;
 		}
 
+		if (capturesoundbits.value != 8 && capturesoundbits.value != 16)
+			Cvar_Set(&capturesoundbits, "8");
+		if (capturesoundchannels.value < 1 && capturesoundchannels.value > 6)
+			Cvar_Set(&capturesoundchannels, "1");
+
 		if (capturesound.value)
 		{
 			memset(&recordavi_wave_format, 0, sizeof(WAVEFORMATEX));
 			recordavi_wave_format.wFormatTag = WAVE_FORMAT_PCM; 
-			recordavi_wave_format.nChannels = 2; // always stereo in Quake sound engine
-			recordavi_wave_format.nSamplesPerSec = sndcardinfo->sn.speed;
-			recordavi_wave_format.wBitsPerSample = 16; // always 16bit in Quake sound engine
+			recordavi_wave_format.nChannels = capturesoundchannels.value;
+			recordavi_wave_format.nSamplesPerSec = snd_speed;
+			recordavi_wave_format.wBitsPerSample = capturesoundbits.value;
 			recordavi_wave_format.nBlockAlign = recordavi_wave_format.wBitsPerSample/8 * recordavi_wave_format.nChannels; 
 			recordavi_wave_format.nAvgBytesPerSec = recordavi_wave_format.nSamplesPerSec * recordavi_wave_format.nBlockAlign; 
 			recordavi_wave_format.cbSize = 0; 
@@ -1801,16 +1935,23 @@ void Media_RecordFilm_f (void)
 
 			hr = AVIStreamSetFormat(recordavi_uncompressed_audio_stream, 0, &recordavi_wave_format, sizeof(WAVEFORMATEX));
 			if (FAILED(hr)) return;
+
+			Media_InitFakeSoundDevice(recordavi_wave_format.nChannels, recordavi_wave_format.wBitsPerSample);
 		}
 
 
 		recordavi_videotime = realtime;
 		recordavi_audiotime = realtime;
 
-		if (recordavi_wave_format.nSamplesPerSec)
-			captureaudiomem = BZ_Malloc(recordavi_wave_format.nSamplesPerSec*2);
+//		if (recordavi_wave_format.nSamplesPerSec)
+//			captureaudiomem = BZ_Malloc(recordavi_wave_format.nSamplesPerSec*2);
 
 		capturevideomem = BZ_Malloc(glwidth*glheight*3);
+	}
+#endif
+	else
+	{
+		Con_Printf("That sort of video capturing is not supported in this build\n");
 	}
 }
 void Media_CaptureDemoEnd(void)
@@ -1842,15 +1983,19 @@ void Media_Init(void)
 	Cmd_AddCommand("music_rewind", Media_Rewind_f);
 	Cmd_AddCommand("music_next", Media_Next_f);
 
-#ifdef WINAVIRECORDING
 	Cmd_AddCommand("capture", Media_RecordFilm_f);
 	Cmd_AddCommand("capturedemo", Media_RecordDemo_f);
 	Cmd_AddCommand("capturestop", Media_StopRecordFilm_f);
+	Cmd_AddCommand("capturepause", Media_CapturePause_f);
 
 	Cvar_Register(&capturemessage,	"AVI capture controls");
 	Cvar_Register(&capturesound,	"AVI capture controls");
 	Cvar_Register(&capturerate,	"AVI capture controls");
 	Cvar_Register(&capturecodec,	"AVI capture controls");
+
+#if defined(WINAVI)
+	Cvar_Register(&capturesoundbits,	"AVI capture controls");
+	Cvar_Register(&capturesoundchannels,	"AVI capture controls");
 #endif
 
 #ifdef WINAMP

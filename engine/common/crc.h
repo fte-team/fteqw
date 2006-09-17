@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /* crc.h */
 
 void QCRC_Init(unsigned short *crcvalue);
+void QCRC_AddBlock (unsigned short *crcvalue, qbyte *start, int count);
 void QCRC_ProcessByte(unsigned short *crcvalue, qbyte data);
 unsigned short QCRC_Value(unsigned short crcvalue);
 unsigned short QCRC_Block (qbyte *start, int count);

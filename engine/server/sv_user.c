@@ -107,6 +107,60 @@ host_client and sv_player will be valid.
 ============================================================
 */
 
+qboolean SV_CheakRealIP(client_t *client, qboolean force)
+{
+	//returns true if they have a real ip
+	cvar_t *sv_getrealip;
+	char *serverip;
+	char *msg;
+
+	sv_getrealip = Cvar_Get("sv_getrealip", "0", 0, "Experimental cvars");
+
+	if (!sv_getrealip || !sv_getrealip->value)
+		return true;
+
+	if (client->netchan.remote_address.type == NA_LOOPBACK)
+		return true;	//the loopback client doesn't have to pass realip checks
+
+	if (client->realip_status == 3)
+		return true;	//we know that the ip is authentic
+	if (client->realip_status == 2)
+	{
+		ClientReliableWrite_Begin(client, svc_print, 256);
+		ClientReliableWrite_Byte(client, svc_print);
+		ClientReliableWrite_Byte(client, PRINT_HIGH);
+		ClientReliableWrite_String(client, "Couldn't verify your real ip\n");
+		return true;	//client doesn't support certainty.
+	}
+	if (client->realip_status == -1)
+		return true;	//can't get a better answer
+
+	if (realtime - host_client->connection_started > 10)
+	{
+		client->realip_status = -1;
+		ClientReliableWrite_Begin(client, svc_print, 256);
+		ClientReliableWrite_Byte(client, svc_print);
+		ClientReliableWrite_Byte(client, PRINT_HIGH);
+		ClientReliableWrite_String(client, "Couldn't determine your real ip\n");
+		return true;
+	}
+
+
+	if (client->realip_status == 1)
+	{
+		msg = va("\xff\xff\xff\xff%c %i", A2A_PING, client->realip_ping);
+		NET_SendPacket(NS_SERVER, strlen(msg), msg, client->realip);
+	}
+	else
+	{
+		serverip = NET_AdrToString (net_local_sv_ipadr);
+
+		ClientReliableWrite_Byte(client, svc_stufftext);
+		ClientReliableWrite_String(client, va("packet %s \"realip %i %i\"\n", serverip, client-svs.clients, client->realip_num));
+	}
+	return false;
+}
+
 /*
 ================
 SV_New_f
@@ -124,6 +178,8 @@ void SV_New_f (void)
 
 	if (host_client->state == cs_spawned)
 		return;
+
+	SV_CheakRealIP(host_client, false);
 
 /*	splitt delay
 	host_client->state = cs_connected;
@@ -1235,6 +1291,16 @@ void SV_Begin_f (void)
 	unsigned pmodel = 0, emodel = 0;
 	int		i;
 	qboolean sendangles=false;
+
+	if (!SV_CheakRealIP(host_client, true))
+	{
+		if (host_client->protocol == SCP_QUAKE2)
+			ClientReliableWrite_Begin (host_client, svcq2_stufftext, 13+strlen(Cmd_Args()));
+		else
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 13+strlen(Cmd_Args()));
+		ClientReliableWrite_String (host_client, va("cmd begin %s\n", Cmd_Args()));
+		return;
+	}
 
 	if (host_client->state == cs_spawned)
 		return; // don't begin again

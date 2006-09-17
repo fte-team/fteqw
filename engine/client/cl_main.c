@@ -28,7 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "cl_ignore.h"
 
 #if defined(_WIN32) && !defined(MINGW) && defined(RGLQUAKE)
-#define WINAVI
+//#define WINAVI
 #endif
 
 // callbacks
@@ -1659,6 +1659,7 @@ void CL_Packet_f (void)
 		return;
 	}
 
+
 	if (Cmd_FromGamecode())	//some mvd servers stuffcmd a packet command which lets them know which ip the client is from.
 	{						//unfortunatly, 50% of servers are badly configured.
 		if (adr.type == NA_IP)
@@ -1708,6 +1709,14 @@ void CL_Packet_f (void)
 #else
 	NET_SendPacket (NS_CLIENT, out-send, send, adr);
 #endif
+
+
+	if (Cmd_FromGamecode())
+	{
+		//realip
+		Cmd_TokenizeString(in, false, false);
+		cls.realip_ident = atoi(Cmd_Argv(2));
+	}
 }
 
 
@@ -1826,10 +1835,14 @@ drop to full console
 */
 void CL_Changing_f (void)
 {
+	char *mapname = Cmd_Argv(1);
 	if (cls.downloadqw)  // don't change when downloading
 		return;
 
-	SCR_BeginLoadingPlaque();
+	if (*mapname)
+		SCR_ImageName(mapname);
+	else
+		SCR_BeginLoadingPlaque();
 
 	S_StopAllSounds (true);
 	cl.intermission = 0;
@@ -1906,6 +1919,36 @@ void CL_ConnectionlessPacket (void)
 #endif
 
 	c = MSG_ReadByte ();
+
+	// ping from somewhere
+	if (c == A2A_PING)
+	{
+		char	data[256];
+
+		data[0] = 0xff;
+		data[1] = 0xff;
+		data[2] = 0xff;
+		data[3] = 0xff;
+		data[4] = A2A_ACK;
+		data[5] = 0;
+
+		if (!cls.state || !NET_CompareAdr(cls.netchan.remote_address, net_from))
+		{
+			Con_TPrintf (TL_ST_COLON, NET_AdrToString (net_from));
+			Con_TPrintf (TLC_A2A_PING);
+		}
+		else
+		{
+			//ack needs two parameters to work with realip properly.
+			//firstly it needs an auth message, so it can't be spoofed.
+			//secondly, it needs a copy of the realip ident, so you can't report a different player's client (you would need access to thier ip).
+			data[5] = ' ';
+			sprintf(data+6, "%i %i", atoi(MSG_ReadString()), cls.realip_ident);
+		}
+
+		NET_SendPacket (NS_CLIENT, 6, &data, net_from);
+		return;
+	}
 
 	if (cls.demoplayback == DPB_NONE)
 		Con_TPrintf (TL_ST_COLON, NET_AdrToString (net_from));
@@ -2193,25 +2236,6 @@ client_connect:	//fixme: make function
 	{
 		s = MSG_ReadString ();
 		Con_Printf("r%s\n", s);
-		return;
-	}
-
-
-	// ping from somewhere
-	if (c == A2A_PING)
-	{
-		char	data[6];
-
-		Con_TPrintf (TLC_A2A_PING);
-
-		data[0] = 0xff;
-		data[1] = 0xff;
-		data[2] = 0xff;
-		data[3] = 0xff;
-		data[4] = A2A_ACK;
-		data[5] = 0;
-
-		NET_SendPacket (NS_CLIENT, 6, &data, net_from);
 		return;
 	}
 
@@ -2802,7 +2826,8 @@ void CL_Init (void)
 	Cmd_AddCommand ("rerecord", CL_ReRecord_f);
 	Cmd_AddCommand ("stop", CL_Stop_f);
 	Cmd_AddCommand ("playdemo", CL_PlayDemo_f);
-	Cmd_AddCommand ("playqtv", CL_QTVPlay_f);
+	Cmd_AddCommand ("qtvplay", CL_QTVPlay_f);
+	Cmd_AddCommand ("qtvlist", CL_QTVList_f);
 	Cmd_AddCommand ("demo_jump", CL_DemoJump_f);
 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
 
@@ -3014,7 +3039,7 @@ Runs all active servers
 */
 #if defined(WINAVI) && !defined(NOMEDIA)
 extern float recordavi_frametime;
-extern qboolean recordingdemo;
+qboolean Media_Capturing();
 #endif
 
 extern cvar_t cl_netfps;
@@ -3039,7 +3064,7 @@ void Host_Frame (double time)
 	realframetime = time;
 
 #if defined(WINAVI) && !defined(NOMEDIA)
-	if (cls.demoplayback && recordingdemo && recordavi_frametime>0.01)
+	if (cls.demoplayback && Media_Capturing() && recordavi_frametime>0.01)
 	{
 		realframetime = time = recordavi_frametime;
 	}
@@ -3053,6 +3078,7 @@ void Host_Frame (double time)
 	SV_Frame();
 	RSpeedEnd(RSPEED_SERVER);
 #endif
+
 	if (cl.gamespeed<0.1)
 		cl.gamespeed = 1;
 	time *= cl.gamespeed;
@@ -3232,6 +3258,9 @@ void Host_Frame (double time)
 	Cbuf_Execute ();
 
 	CL_RequestNextDownload();
+
+
+	CL_QTVPoll();
 }
 
 static void simple_crypt(char *buf, int len)

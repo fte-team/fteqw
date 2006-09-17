@@ -1372,7 +1372,7 @@ void SCR_DrawLoading (void)
 	}
 
 	if (COM_FDepthFile("gfx/loading.lmp", true) < COM_FDepthFile("gfx/menu/loading.lmp", true))
-	{
+	{	//quake files
 		int sizex, x, y;
 
 		pic = Draw_SafeCachePic ("gfx/loading.lmp");
@@ -1410,7 +1410,7 @@ void SCR_DrawLoading (void)
 		}
 	}
 	else
-	{
+	{	//hexen2 files
 		pic = Draw_SafeCachePic ("gfx/menu/loading.lmp");
 		if (pic)
 		{
@@ -1449,6 +1449,9 @@ void SCR_DrawLoading (void)
 			Draw_Fill (offset+42, 97+5, count, 1, 168);
 		}
 	}
+
+	SCR_SetUpToDrawConsole();
+	SCR_DrawConsole(!!*levelshotname);
 }
 
 void SCR_BeginLoadingPlaque (void)
@@ -1513,6 +1516,7 @@ void SCR_ImageName (char *mapname)
 	GL_EndRendering();
 	scr_drawloading = false;
 
+	scr_disabled_time = Sys_DoubleTime();	//realtime tends to change... Hmmm....
 	scr_disabled_for_loading = true;
 
 #endif
@@ -1540,42 +1544,45 @@ void SCR_SetUpToDrawConsole (void)
 		return;         // never a console with loading plaque
 
 // decide on the height of the console
-	if (cls.state != ca_active && !Media_PlayingFullScreen()
-#ifdef TEXTEDITOR
-		&& !editoractive
-#endif
-#ifdef VM_UI
-		&& !UI_MenuState()
-#endif
-		)
+	if (!scr_disabled_for_loading)
 	{
-		scr_conlines = vid.height;              // full screen
-		scr_con_current = scr_conlines;
-		scr_con_forcedraw = true;
-	}
-	else if (key_dest == key_console || scr_chatmode)
-	{
-		scr_conlines = vid.height*scr_consize.value;    // half screen
-		if (scr_conlines < 32)
-			scr_conlines = 32;	//prevent total loss of console.
-		else if (scr_conlines>vid.height)
-			scr_conlines = vid.height;
-	}
-	else
-		scr_conlines = 0;                               // none visible
-
-	if (scr_conlines < scr_con_current)
-	{
-		scr_con_current -= scr_conspeed.value*host_frametime;
-		if (scr_conlines > scr_con_current)
+		if (cls.state != ca_active && !Media_PlayingFullScreen()
+	#ifdef TEXTEDITOR
+			&& !editoractive
+	#endif
+	#ifdef VM_UI
+			&& !UI_MenuState()
+	#endif
+			)
+		{
+			scr_conlines = vid.height;              // full screen
 			scr_con_current = scr_conlines;
+			scr_con_forcedraw = true;
+		}
+		else if (key_dest == key_console || scr_chatmode)
+		{
+			scr_conlines = vid.height*scr_consize.value;    // half screen
+			if (scr_conlines < 32)
+				scr_conlines = 32;	//prevent total loss of console.
+			else if (scr_conlines>vid.height)
+				scr_conlines = vid.height;
+		}
+		else
+			scr_conlines = 0;                               // none visible
 
-	}
-	else if (scr_conlines > scr_con_current)
-	{
-		scr_con_current += scr_conspeed.value*host_frametime;
 		if (scr_conlines < scr_con_current)
-			scr_con_current = scr_conlines;
+		{
+			scr_con_current -= scr_conspeed.value*host_frametime;
+			if (scr_conlines > scr_con_current)
+				scr_con_current = scr_conlines;
+
+		}
+		else if (scr_conlines > scr_con_current)
+		{
+			scr_con_current += scr_conspeed.value*host_frametime;
+			if (scr_conlines < scr_con_current)
+				scr_con_current = scr_conlines;
+		}
 	}
 
 	if (scr_con_current>vid.height)

@@ -47,6 +47,7 @@ char cl_spectatorgroup[] = "Spectator Tracking";
 cvar_t cl_hightrack = SCVAR("cl_hightrack", "0");
 
 cvar_t cl_chasecam = SCVAR("cl_chasecam", "1");
+cvar_t cl_selfcam = SCVAR("cl_selfcam", "1");
 
 //cvar_t cl_camera_maxpitch = {"cl_camera_maxpitch", "10" };
 //cvar_t cl_camera_maxyaw = {"cl_camera_maxyaw", "30" };
@@ -56,6 +57,8 @@ double cam_lastviewtime[MAX_SPLITS];
 
 int spec_track[MAX_SPLITS]; // player# of who we are tracking
 int autocam[MAX_SPLITS];
+
+int selfcam=1;
 
 void vectoangles(vec3_t vec, vec3_t ang)
 {
@@ -72,12 +75,12 @@ void vectoangles(vec3_t vec, vec3_t ang)
 	}
 	else
 	{
-		yaw = (int) (atan2(vec[1], vec[0]) * 180 / M_PI);
+		yaw = /*(int)*/ (atan2(vec[1], vec[0]) * 180 / M_PI);
 		if (yaw < 0)
 			yaw += 360;
 
 		forward = sqrt (vec[0]*vec[0] + vec[1]*vec[1]);
-		pitch = (int) (atan2(vec[2], forward) * 180 / M_PI);
+		pitch = /*(int)*/ (atan2(vec[2], forward) * 180 / M_PI);
 		if (pitch < 0)
 			pitch += 360;
 	}
@@ -95,12 +98,18 @@ static float vlen(vec3_t v)
 // returns true if weapon model should be drawn in camera mode
 qboolean Cam_DrawViewModel(int pnum)
 {
-	if (!cl.spectator)
-		return true;
-
-	if (autocam[pnum] && locked[pnum] && cl_chasecam.value)
-		return true;
-	return false;
+	if (cl.spectator)
+	{
+		if (autocam[pnum] && locked[pnum] && cl_chasecam.value)
+			return true;
+		return false;
+	}
+	else
+	{
+		if (selfcam == 1)
+			return true;
+		return false;
+	}
 }
 
 // returns true if we should draw this player, we don't if we are chase camming
@@ -108,9 +117,18 @@ qboolean Cam_DrawPlayer(int pnum, int playernum)
 {
 //	if (playernum == cl.playernum[pnum])
 //		return false;
-	if (cl.spectator && autocam[pnum] && locked[pnum] && (cl_chasecam.value||scr_chatmode==2) && 
-		spec_track[pnum] == playernum && r_secondaryview != 2)
-		return false;
+	if (cl.spectator)
+	{
+		if (autocam[pnum] && locked[pnum] && (cl_chasecam.value||scr_chatmode==2) && 
+			spec_track[pnum] == playernum && r_secondaryview != 2)
+			return false;
+	}
+	else
+	{
+		if (selfcam == 1)
+			if (playernum == (cl.viewentity[pnum]?cl.viewentity[pnum]-1:(cl.playernum[pnum])))
+				return false;
+	}
 	return true;
 }
 
@@ -174,7 +192,7 @@ extern vec3_t	player_mins;
 extern vec3_t	player_maxs;
 	
 // Returns distance or 9999 if invalid for some reason
-static float Cam_TryFlyby(player_state_t *self, player_state_t *player, vec3_t vec, qboolean checkvis)
+static float Cam_TryFlyby(vec3_t selforigin, vec3_t playerorigin, vec3_t vec, qboolean checkvis)
 {
 	vec3_t v;
 	trace_t trace;
@@ -189,23 +207,23 @@ static float Cam_TryFlyby(player_state_t *self, player_state_t *player, vec3_t v
 //	v[0] = -v[0];
 	VectorCopy (v, pmove.angles);
 	VectorNormalize(vec);
-	VectorMA(player->origin, 800, vec, v);
+	VectorMA(playerorigin, 800, vec, v);
 	// v is endpos
 	// fake a player move
-	trace = Cam_DoTrace(player->origin, v);
+	trace = Cam_DoTrace(playerorigin, v);
 	if (/*trace.inopen ||*/ trace.inwater)
 		return 9999;
 	VectorCopy(trace.endpos, vec);
-	VectorSubtract(trace.endpos, player->origin, v);
+	VectorSubtract(trace.endpos, playerorigin, v);
 	len = sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
 	if (len < 32 || len > 800)
 		return 9999;
 	if (checkvis)
 	{
-		VectorSubtract(trace.endpos, self->origin, v);
+		VectorSubtract(trace.endpos, selforigin, v);
 		len = sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
 
-		trace = Cam_DoTrace(self->origin, vec);
+		trace = Cam_DoTrace(selforigin, vec);
 		if (trace.fraction != 1 || trace.inwater)
 			return 9999;
 	}
@@ -213,30 +231,30 @@ static float Cam_TryFlyby(player_state_t *self, player_state_t *player, vec3_t v
 }
 
 // Is player visible?
-static qboolean Cam_IsVisible(player_state_t *player, vec3_t vec)
+static qboolean Cam_IsVisible(vec3_t playerorigin, vec3_t vec)
 {
 	trace_t trace;
 	vec3_t v;
 	float d;
 
-	trace = Cam_DoTrace(player->origin, vec);
+	trace = Cam_DoTrace(playerorigin, vec);
 	if (trace.fraction != 1 || /*trace.inopen ||*/ trace.inwater)
 		return false;
 	// check distance, don't let the player get too far away or too close
-	VectorSubtract(player->origin, vec, v);
+	VectorSubtract(playerorigin, vec, v);
 	d = vlen(v);
 	if (d < 16)
 		return false;
 	return true;
 }
 
-static qboolean InitFlyby(int pnum, player_state_t *self, player_state_t *player, int checkvis) 
+static qboolean InitFlyby(int pnum, vec3_t selforigin, vec3_t playerorigin, vec3_t playerviewangles, int checkvis) 
 {
     float f, max;
     vec3_t vec, vec2;
 	vec3_t forward, right, up;
 
-	VectorCopy(player->viewangles, vec);
+	VectorCopy(playerviewangles, vec);
     vec[0] = 0;
 	AngleVectors (vec, forward, right, up);
 //	for (i = 0; i < 3; i++)
@@ -245,78 +263,78 @@ static qboolean InitFlyby(int pnum, player_state_t *self, player_state_t *player
     max = 1000;
 	VectorAdd(forward, up, vec2);
 	VectorAdd(vec2, right, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
     }
 	VectorAdd(forward, up, vec2);
 	VectorSubtract(vec2, right, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
     }
 	VectorAdd(forward, right, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
     }
 	VectorSubtract(forward, right, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
     }
 	VectorAdd(forward, up, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
     }
 	VectorSubtract(forward, up, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
     }
 	VectorAdd(up, right, vec2);
 	VectorSubtract(vec2, forward, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
     }
 	VectorSubtract(up, right, vec2);
 	VectorSubtract(vec2, forward, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
     }
 	// invert
 	VectorNegate(forward, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
     }
 	VectorCopy(forward, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
     }
 	// invert
 	VectorNegate(right, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
     }
 	VectorCopy(right, vec2);
-    if ((f = Cam_TryFlyby(self, player, vec2, checkvis)) < max)
+    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
 	{
         max = f;
 		VectorCopy(vec2, vec);
@@ -358,6 +376,57 @@ static void Cam_CheckHighTarget(int pnum)
 		Cam_Unlock(pnum);
 }
 
+void Cam_SelfTrack(int pnum)
+{
+	vec3_t vec;
+	if (!cl.worldmodel || cl.worldmodel->needload)
+		return;
+
+	if (selfcam == 1)
+	{	//view-from-eyes
+	}
+	else
+	{
+		if (selfcam == 2)
+		{	//fixme:
+			vec3_t forward, right, up;
+			trace_t tr;
+			AngleVectors(r_refdef.viewangles, forward, right, up);
+			VectorMA(cl.simorg[pnum], -128, forward, desired_position[pnum]);
+			tr = Cam_DoTrace(cl.simorg[pnum], desired_position[pnum]);
+			VectorCopy(tr.endpos, desired_position[pnum]);
+		}
+		else
+		{	//view from a random wall
+			if (!locked[pnum] || !Cam_IsVisible(cl.simorg[pnum], desired_position[pnum]))
+			{
+				if (!locked[pnum] || realtime - cam_lastviewtime[pnum] > 0.1)
+				{
+					if (!InitFlyby(pnum, desired_position[pnum], cl.simorg[pnum], cl.simangles[pnum], true))
+						InitFlyby(pnum, desired_position[pnum], cl.simorg[pnum], cl.simangles[pnum], false);
+					cam_lastviewtime[pnum] = realtime;
+				}
+			}
+			else
+			{
+				cam_lastviewtime[pnum] = realtime;
+			}
+
+			//tracking failed.
+			if (!locked[pnum])
+				return;
+		}
+
+
+		// move there locally immediately
+		VectorCopy(desired_position[pnum], r_refdef.vieworg);
+
+		VectorSubtract(cl.simorg[pnum], desired_position[pnum], vec);
+		vectoangles(vec, r_refdef.viewangles);
+		r_refdef.viewangles[0] = -r_refdef.viewangles[0];
+	}
+}
+
 // ZOID
 //
 // Take over the user controls and track a player.
@@ -392,12 +461,12 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 	player = frame->playerstate + spec_track[pnum];
 	self = frame->playerstate + cl.playernum[pnum];
 
-	if (!locked[pnum] || !Cam_IsVisible(player, desired_position[pnum]))
+	if (!locked[pnum] || !Cam_IsVisible(player->origin, desired_position[pnum]))
 	{
 		if (!locked[pnum] || realtime - cam_lastviewtime[pnum] > 0.1)
 		{
-			if (!InitFlyby(pnum, self, player, true))
-				InitFlyby(pnum, self, player, false);
+			if (!InitFlyby(pnum, self->origin, player->origin, player->viewangles, true))
+				InitFlyby(pnum, self->origin, player->origin, player->viewangles, false);
 			cam_lastviewtime[pnum] = realtime;
 		}
 	}
@@ -737,6 +806,7 @@ void CL_InitCam(void)
 	Cvar_Register (&cl_chasecam, cl_spectatorgroup);
 //	Cvar_Register (&cl_camera_maxpitch, cl_spectatorgroup);
 //	Cvar_Register (&cl_camera_maxyaw, cl_spectatorgroup);
+//	Cvar_Register (&cl_selfcam, cl_spectatorgroup);
 
 	Cmd_AddCommand("track", Cam_Track_f);
 	Cmd_AddCommand("track1", Cam_Track1_f);

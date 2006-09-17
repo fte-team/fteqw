@@ -1655,9 +1655,9 @@ void R_DrawGAliasModel (entity_t *e)
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
 		if (e->flags & Q2RF_WEAPONMODEL)
-			cl.worldmodel->funcs.LightPointValues(r_refdef.vieworg, shadelight, ambientlight, lightdir);
+			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, r_refdef.vieworg, shadelight, ambientlight, lightdir);
 		else
-			cl.worldmodel->funcs.LightPointValues(e->origin, shadelight, ambientlight, lightdir);
+			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, e->origin, shadelight, ambientlight, lightdir);
 	}
 	else
 	{

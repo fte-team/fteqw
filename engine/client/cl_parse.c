@@ -2760,11 +2760,11 @@ void CL_NewTranslation (int slot)
 #ifdef RGLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{	//gl doesn't need to do anything except prevent the sys_error below.
+		return;
 	}
-	else
 #endif
 #ifdef SWQUAKE
-		if (qrenderer == QR_SOFTWARE)
+	if (qrenderer == QR_SOFTWARE)
 	{
 		top = player->topcolor;
 		bottom = player->bottomcolor;
@@ -2806,10 +2806,9 @@ void CL_NewTranslation (int slot)
 			D_DereferenceRemap(player->palremap);
 			player->palremap = D_GetPaletteRemap(255, 255, 255, false, true, top, bottom);
 		}
+		return;
 	}
-	else
 #endif
-		Sys_Error("Bad rendering method in CL_NewTranslation");
 }
 
 /*

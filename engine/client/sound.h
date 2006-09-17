@@ -65,12 +65,12 @@ typedef struct sfxcache_s
 
 typedef struct
 {
-	qboolean		gamealive;
-	qboolean		soundalive;
-	qboolean		splitbuffer;
+//	qboolean		gamealive;
+//	qboolean		soundalive;
+//	qboolean		splitbuffer;
 	int				numchannels;
-	int				samples;				// mono samples in buffer
-	int				submission_chunk;		// don't mix less than this #
+	int				samples;				// mono samples in buffer (individual, non grouped)
+//	int				submission_chunk;		// don't mix less than this #
 	int				samplepos;				// in mono samples
 	int				samplebits;
 	int				speed;
@@ -169,8 +169,6 @@ void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 
 extern int				snd_speed;
 
-extern qboolean 		fakedma;
-extern int 			fakedma_updates;
 extern vec3_t listener_origin;
 extern vec3_t listener_forward;
 extern vec3_t listener_right;
@@ -227,8 +225,8 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	qboolean selfpainting;	//allow the sound code to call the right functions when it feels the need (not properly supported).
 
 	int	paintedtime;	//used in the mixer
-	int	oldsamplepos;	//fixme: is this still needed?
-	int	buffers;	//used to keep track of buffer wraps for consistant sound
+	int	oldsamplepos;	//this is used to track buffer wraps
+	int	buffers;	//used to keep track of how many buffer wraps for consistant sound
 
 //callbacks
 	void *(*Lock) (soundcardinfo_t *sc);

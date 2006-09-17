@@ -759,6 +759,9 @@ qboolean SV_Push (edict_t *pusher, vec3_t move, vec3_t amove)
 		block = SV_TestEntityPosition (check);
 		if (!block)
 		{
+			//if leaving it where it was, allow it to drop to the floor again (useful for plats that move downward)
+			check->v->flags = (int)check->v->flags & ~FL_ONGROUND;
+
 			num_moved--;
 			continue;
 		}
@@ -1914,6 +1917,7 @@ qboolean SV_Physics (void)
 				old_time = sv.time;
 			host_frametime = 0;
 		}
+		if (svs.gametype != GT_QUAKE3)
 		if (host_frametime < sv_maxtic.value && realtime)
 		{
 //			sv.time+=host_frametime;

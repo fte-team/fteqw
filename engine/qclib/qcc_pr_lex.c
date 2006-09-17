@@ -1075,6 +1075,33 @@ void QCC_PR_LexString (void)
 				c = 30;
 			else if (c == '>')
 				c = 31;
+			else if (c == 'x' || c == 'X')
+			{
+				int d;
+				c = 0;
+
+				d = (unsigned char)*pr_file_p++;
+				if (d >= '0' && d <= '9')
+					c += d - '0';
+				else if (d >= 'A' && d <= 'F')
+					c += d - 'A' + 10;
+				else if (d >= 'a' && d <= 'f')
+					c += d - 'a' + 10;
+				else
+					QCC_PR_ParseError(ERR_BADCHARACTURECODE, "Bad character code");
+
+				c *= 16;
+
+				d = (unsigned char)*pr_file_p++;
+				if (d >= '0' && d <= '9')
+					c += d - '0';
+				else if (d >= 'A' && d <= 'F')
+					c += d - 'A' + 10;
+				else if (d >= 'a' && d <= 'f')
+					c += d - 'a' + 10;
+				else
+					QCC_PR_ParseError(ERR_BADCHARACTURECODE, "Bad character code");
+			}
 			else if (c == '\\')
 				c = '\\';
 			else if (c == '\'')
@@ -1364,6 +1391,16 @@ void QCC_PR_LexVector (void)
 	{
 		pr_immediate.vector[i] = QCC_PR_LexFloat ();
 		QCC_PR_LexWhitespace ();
+
+		if (*pr_file_p == '\'' && i == 1)
+		{
+			if (i < 2)
+				QCC_PR_ParseWarning (WARN_FTE_SPECIFIC, "Bad vector");
+
+			for (i++ ; i<3 ; i++)
+				pr_immediate.vector[i] = 0;
+			break;
+		}
 	}
 	if (*pr_file_p != '\'')
 		QCC_PR_ParseError (ERR_INVALIDVECTORIMMEDIATE, "Bad vector");

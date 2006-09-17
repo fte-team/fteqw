@@ -48,8 +48,6 @@ the fact that it uses wrapper functions to call methods in a class could be a re
 #define WINGDIAPI DECLSPEC_IMPORT
 #endif
 
-
-
 #pragma warning( disable : 4244 )
 #pragma warning( disable : 4820 )
 

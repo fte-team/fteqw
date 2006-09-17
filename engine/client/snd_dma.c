@@ -90,20 +90,6 @@ cvar_t snd_usemultipledevices = SCVAR("snd_multipledevices", "0");
 
 extern vfsfile_t *rawwritefile;
 
-// ====================================================================
-// User-setable variables
-// ====================================================================
-
-
-//
-// Fake dma is a synchronous faking of the DMA progress used for
-// isolating performance in the renderer.  The fakedma_updates is
-// number of times S_Update() is called per second.
-//
-
-qboolean fakedma = false;
-int fakedma_updates = 15;
-
 
 void S_AmbientOff (void)
 {
@@ -137,7 +123,6 @@ void S_SoundInfo_f(void)
 		Con_Printf("%5d samples\n", sc->sn.samples);
 		Con_Printf("%5d samplepos\n", sc->sn.samplepos);
 		Con_Printf("%5d samplebits\n", sc->sn.samplebits);
-		Con_Printf("%5d submission_chunk\n", sc->sn.submission_chunk);
 		Con_Printf("%5d speed\n", sc->sn.speed);
 		Con_Printf("0x%x dma buffer\n", sc->sn.buffer);
 		Con_Printf("%5d total_channels\n", sc->total_chans);
@@ -257,6 +242,56 @@ static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
 	}
 }
 
+void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc)
+{
+	if (sc->sn.numchannels < 3)
+	{
+		sc->pitch[0] = 0;
+		sc->pitch[1] = 0;
+		sc->dist[0] = 1;
+		sc->dist[1] = 1;
+		sc->yaw[0] = 270;
+		sc->yaw[1] = 90;
+	}
+	else if (sc->sn.numchannels < 5)
+	{
+		sc->pitch[0] = 0;
+		sc->pitch[1] = 0;
+		sc->pitch[2] = 0;
+		sc->pitch[3] = 0;
+		sc->dist[0] = 1;
+		sc->dist[1] = 1;
+		sc->dist[2] = 1;
+		sc->dist[3] = 1;
+		sc->yaw[0] = 315;
+		sc->yaw[1] = 45;
+		sc->yaw[2] = 225;
+		sc->yaw[3] = 135;
+	}
+	else
+	{
+		sc->pitch[0] = 0;
+		sc->pitch[1] = 0;
+		sc->pitch[2] = 0;
+		sc->pitch[3] = 0;
+		sc->pitch[4] = 0;
+		sc->pitch[5] = 0;
+		sc->dist[0] = 1;
+		sc->dist[1] = 1;
+		sc->dist[2] = 1;
+		sc->dist[3] = 1;
+		sc->dist[4] = 1;
+		sc->dist[5] = 1;
+		sc->yaw[0] = 315;
+		sc->yaw[1] = 45;
+		sc->yaw[2] = 0;
+		sc->yaw[3] = 0;
+		sc->yaw[4] = 225;
+		sc->yaw[5] = 135;
+	}
+}
+
+
 /*
 ================
 S_Startup
@@ -280,95 +315,48 @@ void S_Startup (void)
 	snd_blocked = 0;
 	snd_speed = 0;
 
-	if (!fakedma)
+	for(cardnum = 0, drivernum = 0;;)
 	{
-		for(cardnum = 0, drivernum = 0;;)
+		sc = Z_Malloc(sizeof(soundcardinfo_t));
+		rc = SNDDMA_Init(sc, &cardnum, &drivernum);
+
+		if (!rc)	//error stop
 		{
-			sc = Z_Malloc(sizeof(soundcardinfo_t));
-			rc = SNDDMA_Init(sc, &cardnum, &drivernum);
-
-			if (!rc)	//error stop
-			{
-				Con_Printf("S_Startup: SNDDMA_Init failed.\n");
-				Z_Free(sc);
-				break;
-			}
-			if (rc == 2)	//silently stop (no more cards)
-			{
-				Z_Free(sc);
-				break;
-			}
-
-			if (sc->sn.numchannels < 3)
-			{
-				sc->pitch[0] = 0;
-				sc->pitch[1] = 0;
-				sc->dist[0] = 1;
-				sc->dist[1] = 1;
-				sc->yaw[0] = 270;
-				sc->yaw[1] = 90;
-			}
-			else if (sc->sn.numchannels < 5)
-			{
-				sc->pitch[0] = 0;
-				sc->pitch[1] = 0;
-				sc->pitch[2] = 0;
-				sc->pitch[3] = 0;
-				sc->dist[0] = 1;
-				sc->dist[1] = 1;
-				sc->dist[2] = 1;
-				sc->dist[3] = 1;
-				sc->yaw[0] = 315;
-				sc->yaw[1] = 45;
-				sc->yaw[2] = 225;
-				sc->yaw[3] = 135;
-			}
-			else
-			{
-				sc->pitch[0] = 0;
-				sc->pitch[1] = 0;
-				sc->pitch[2] = 0;
-				sc->pitch[3] = 0;
-				sc->pitch[4] = 0;
-				sc->pitch[5] = 0;
-				sc->dist[0] = 1;
-				sc->dist[1] = 1;
-				sc->dist[2] = 1;
-				sc->dist[3] = 1;
-				sc->dist[4] = 1;
-				sc->dist[5] = 1;
-				sc->yaw[0] = 315;
-				sc->yaw[1] = 45;
-				sc->yaw[2] = 0;
-				sc->yaw[3] = 0;
-				sc->yaw[4] = 225;
-				sc->yaw[5] = 135;
-			}
-
-			if (sndcardinfo)
-			{	//if the sample speeds of multiple soundcards do not match, it'll fail.
-				if (snd_speed != sc->sn.speed)
-				{
-					if (!warningmessage)
-					{
-						Con_Printf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\nTry running Quake with -singlesound to use just the primary soundcard\n", sc->name);
-						S_ShutdownCard(sc);
-						warningmessage = true;
-					}
-
-					Z_Free(sc);
-					continue;
-				}
-			}
-			else
-				snd_speed = sc->sn.speed;
-
-			sc->next = sndcardinfo;
-			sndcardinfo = sc;
-
-			if (!snd_usemultipledevices.value)
-				break;
+			Con_Printf("S_Startup: SNDDMA_Init failed.\n");
+			Z_Free(sc);
+			break;
 		}
+		if (rc == 2)	//silently stop (no more cards)
+		{
+			Z_Free(sc);
+			break;
+		}
+
+		S_DefaultSpeakerConfiguration(sc);
+
+		if (sndcardinfo)
+		{	//if the sample speeds of multiple soundcards do not match, it'll fail.
+			if (snd_speed != sc->sn.speed)
+			{
+				if (!warningmessage)
+				{
+					Con_Printf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\nTry running Quake with -singlesound to use just the primary soundcard\n", sc->name);
+					S_ShutdownCard(sc);
+					warningmessage = true;
+				}
+
+				Z_Free(sc);
+				continue;
+			}
+		}
+		else
+			snd_speed = sc->sn.speed;
+
+		sc->next = sndcardinfo;
+		sndcardinfo = sc;
+
+		if (!snd_usemultipledevices.value)
+			break;
 	}
 
 	sound_started = 1;
@@ -557,9 +545,6 @@ void S_Init (void)
 	}
 	Con_DPrintf("\nSound Initialization\n");
 
-//	if (COM_CheckParm("-simsound"))
-//		fakedma = true;
-
 	Cmd_AddCommand("play", S_Play);
 	Cmd_AddCommand("play2", S_Play);
 	Cmd_AddCommand("playvol", S_PlayVol);
@@ -656,22 +641,38 @@ void S_Init (void)
 
 void S_ShutdownCard(soundcardinfo_t *sc)
 {
+	soundcardinfo_t *prev;
 #if defined(_WIN32) && !defined(NODIRECTX)
 	extern int aimedforguid;
 	aimedforguid = 0;
 #endif
-	if (!fakedma)
+
+	if (sndcardinfo == sc)
+		sndcardinfo = sc->next;
+	else
 	{
-		sc->Shutdown(sc);
+		for (prev = sndcardinfo; prev->next; prev = prev->next)
+		{
+			if (prev->next == sc)
+				prev->next = sc->next;
+		}
 	}
+
+	sc->Shutdown(sc);
+	Z_Free(sc);
 }
 void S_Shutdown(void)
 {
 	soundcardinfo_t *sc, *next;
+#if defined(_WIN32) && !defined(NODIRECTX)
+	extern int aimedforguid;
+	aimedforguid = 0;
+#endif
+
 	for (sc = sndcardinfo; sc; sc=next)
 	{
 		next = sc->next;
-		S_ShutdownCard(sc);
+		sc->Shutdown(sc);
 		Z_Free(sc);
 		sndcardinfo = next;
 	}

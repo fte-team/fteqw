@@ -2912,7 +2912,7 @@ newstyle:
 	strcpy (destfile, qcc_token);
 
 #ifndef QCCONLY
-	p=1;
+	p=0;
 	s2 = strcpy(destfile2, destfile);	
 	if (!strncmp(s2, "./", 2))
 		s2+=2;
@@ -2933,10 +2933,7 @@ newstyle:
 			p--;
 		}
 	}
-	if (s>=qccmfilename)
-		sprintf(destfile, "%s%s", qccmfilename, s2);
-	else
-		sprintf(destfile, "%s", s2);
+	sprintf(destfile, "%s", s2);
 
 	while (p>0)
 	{

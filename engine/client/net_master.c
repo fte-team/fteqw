@@ -168,17 +168,17 @@ qboolean Master_CompareString(char *a, char *b, slist_test_t rule)
 	case SLIST_TEST_NOTCONTAIN:
 		return !strstr(a, b);
 	case SLIST_TEST_LESSEQUAL:
-		return strcmp(a, b)<=0;
+		return stricmp(a, b)<=0;
 	case SLIST_TEST_LESS:
-		return strcmp(a, b)<0;
+		return stricmp(a, b)<0;
 	case SLIST_TEST_EQUAL:
-		return strcmp(a, b)==0;
+		return stricmp(a, b)==0;
 	case SLIST_TEST_GREATER:
-		return strcmp(a, b)>0;
+		return stricmp(a, b)>0;
 	case SLIST_TEST_GREATEREQUAL:
-		return strcmp(a, b)>=0;
+		return stricmp(a, b)>=0;
 	case SLIST_TEST_NOTEQUAL:
-		return strcmp(a, b)!=0;
+		return stricmp(a, b)!=0;
 	}
 	return false;
 }
@@ -1545,7 +1545,9 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 	info->fl = atoi(Info_ValueForKey(msg, "fraglimit"));
 
 	if (*Info_ValueForKey(msg, "*qtv"))
-		info->special |= SS_QTV;
+		info->special |= SS_PROXY|SS_FTESERVER;
+	if (!strcmp(Info_ValueForKey(msg, "*progs"), "666") && !strcmp(Info_ValueForKey(msg, "*version"), "2.91"))
+		info->special |= SS_PROXY;	//qizmo
 
 	if (servertype == MT_SINGLEQ3 || servertype == MT_SINGLEQ2 || servertype == MT_SINGLEDP)
 	{

@@ -525,7 +525,7 @@ void R_DrawHLModel(entity_t	*curent)
 
 	{
 		vec3_t difuse, ambient, ldir;
-		cl.worldmodel->funcs.LightPointValues(curent->origin, difuse, ambient, ldir);
+		cl.worldmodel->funcs.LightPointValues(cl.worldmodel, curent->origin, difuse, ambient, ldir);
 		qglColor4f(difuse[0]/255+ambient[0]/255, difuse[1]/255+ambient[1]/255, difuse[2]/255+ambient[2]/255, curent->shaderRGBAf[3]);
 	}
 

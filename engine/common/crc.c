@@ -91,3 +91,8 @@ unsigned short QCRC_Block (qbyte *start, int count)
 	return crc;
 }
 
+void QCRC_AddBlock (unsigned short *crcvalue, qbyte *start, int count)
+{
+    while (count--)
+		QCRC_ProcessByte(crcvalue, *start++);
+}

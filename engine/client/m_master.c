@@ -407,7 +407,7 @@ void M_DrawServerList(void)
 				colour = COLOR_BLUE;
 			else if (server->special & SS_NETQUAKE)
 				colour = COLOR_GREY;
-			else if (server->special & SS_QTV)
+			else if (server->special & SS_PROXY)
 				colour = COLOR_MAGENTA;
 			else
 				colour = COLOR_WHITE;
@@ -982,7 +982,8 @@ typedef enum {
 	ST_QUAKE2,
 	ST_QUAKE3,
 	ST_NETQUAKE,
-	ST_FTEQTV,
+	ST_QTV,
+	ST_PROXY,
 	ST_FAVORITE,
 	MAX_SERVERTYPES
 } servertypes_t;
@@ -1001,6 +1002,8 @@ float serverbackcolor[MAX_SERVERTYPES * 2][3] =
 	{0.24, 0.16, 0.04},
 	{0.10, 0.05, 0.10}, // FTEQTV
 	{0.20, 0.10, 0.20},
+	{0.10, 0.05, 0.10}, // qizmo
+	{0.20, 0.10, 0.20},
 	{0.01, 0.13, 0.13}, // Favorite
 	{0.02, 0.26, 0.26}
 };
@@ -1013,6 +1016,7 @@ float serverhighlight[MAX_SERVERTYPES][3] =
 	{0.20, 0.20, 0.60}, // Quake 3
 	{0.40, 0.40, 0.25}, // NetQuake
 	{0.45, 0.20, 0.45}, // FTEQTV
+	{0.45, 0.20, 0.45}, // qizmo
 	{0.10, 0.60, 0.60}  // Favorite
 };
 
@@ -1020,8 +1024,13 @@ servertypes_t flagstoservertype(int flags)
 {
 	if (flags & SS_FAVORITE)
 		return ST_FAVORITE;
-	if (flags & SS_QTV)
-		return ST_FTEQTV;
+	if (flags & SS_PROXY)
+	{
+		if (flags & SS_FTESERVER)
+			return ST_QTV;
+		else
+			return ST_PROXY;
+	}
 	if (flags & SS_FTESERVER)
 		return ST_FTESERVER;
 	if ((flags & SS_NETQUAKE) || (flags & SS_DARKPLACES))
@@ -1055,6 +1064,10 @@ void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		}
 		else if (thisone == info->scrollpos + (mousecursor_y-16)/8 && mousecursor_x < x)
 			Draw_FillRGB(0, y, ths->common.width, 8, (sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08);
+		else if (selectedserver.inuse && NET_CompareAdr(si->adr, selectedserver.adr))
+		{		
+			Draw_FillRGB(0, y, ths->common.width, 8, ((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5);
+		}
 		else
 		{		
 			Draw_FillRGB(0, y, ths->common.width, 8, 
@@ -1088,9 +1101,15 @@ qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 		oldselection = info->selectedpos;
 		info->selectedpos = info->scrollpos + (mousecursor_y-16)/8;
 		server = Master_SortedServer(info->selectedpos);
+
+//		selectedserver.inuse = true;
+//		SListOptionChanged(server);
+
 		if (server)
 		{
 			snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
+			if (!Draw_SafeCachePic(info->mappic->picturename))
+				snprintf(info->mappic->picturename, 32, "levelshots/nomap");
 		}
 		else
 		{
@@ -1185,9 +1204,15 @@ qboolean SL_Key	(int key, menu_t *menu)
 	{
 		serverinfo_t *server;
 		server = Master_SortedServer(info->selectedpos);
+
+//		selectedserver.inuse = true;
+//		SListOptionChanged(server);
+
 		if (server)
 		{
 			snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
+			if (!Draw_SafeCachePic(info->mappic->picturename))
+				snprintf(info->mappic->picturename, 32, "levelshots/nomap");
 		}
 		else
 		{
@@ -1205,6 +1230,23 @@ qboolean SL_Key	(int key, menu_t *menu)
 		info->scrollpos = info->selectedpos;
 
 	return true;
+}
+
+void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
+{
+	if (selectedserver.inuse)
+	{
+		if (selectedserver.detail)
+			if ((int)ths->data < selectedserver.detail->numplayers)
+			{
+				int i = (int)ths->data;
+				Draw_Fill (x, y, 28, 4, Sbar_ColorForMap(selectedserver.detail->players[i].topc));
+				Draw_Fill (x, y+4, 28, 4, Sbar_ColorForMap(selectedserver.detail->players[i].botc));
+				NM_PrintWhite (x, y, va("%3i", selectedserver.detail->players[i].frags));
+
+				Draw_FunStringLen (x+28, y, selectedserver.detail->players[i].name, 12);
+			}
+	}
 }
 
 void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
@@ -1368,7 +1410,7 @@ qboolean SL_DoRefresh (menuoption_t *opt, menu_t *menu, int key)
 
 void M_Menu_ServerList2_f(void)
 {
-	int i, y;
+	int i, y, x;
 	menu_t *menu;
 	menucustom_t *cust;
 	serverlist_t *info;
@@ -1411,6 +1453,19 @@ void M_Menu_ServerList2_f(void)
 		cust->common.noselectionsound = true;
 	}
 	menu->dontexpand = true;
+
+	i = 0;
+	for (x = 256; x < vid.width-64; x += 128)
+	{
+		for (y = vid.height-64+8; y < vid.height; y += 8, i++)
+		{
+			cust = MC_AddCustom(menu, x+16, y, (void*)i);
+			cust->draw = SL_ServerPlayer;
+			cust->key = NULL;
+			cust->common.height = 8;
+			cust->common.width = 0;
+		}
+	}
 
 	MC_AddCheckBox(menu, 0, vid.height - 64+8*1, "Ping     ", &sb_showping, 1);
 	MC_AddCheckBox(menu, 0, vid.height - 64+8*2, "Address  ", &sb_showaddress, 1);

@@ -1042,6 +1042,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	static	char	cwd[1024];
 	int				t;
 	RECT			rect;
+	char *qtvfile = NULL;
 	
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
@@ -1071,11 +1072,25 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 		if (*lpCmdLine)
 		{
-			argv[parms.argc] = lpCmdLine;
-			parms.argc++;
-
-			while (*lpCmdLine && ((*lpCmdLine > 32) && (*lpCmdLine <= 126)))
+			if (*lpCmdLine == '\"')
+			{
 				lpCmdLine++;
+
+				argv[parms.argc] = lpCmdLine;
+				parms.argc++;
+
+				while (*lpCmdLine && *lpCmdLine != '\"')
+					lpCmdLine++;
+			}
+			else
+			{
+				argv[parms.argc] = lpCmdLine;
+				parms.argc++;
+
+
+				while (*lpCmdLine && ((*lpCmdLine > 32) && (*lpCmdLine <= 126)))
+					lpCmdLine++;
+			}
 
 			if (*lpCmdLine)
 			{
@@ -1097,10 +1112,29 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		return true;
 	}
 
-
-
 	if (!GetCurrentDirectory (sizeof(cwd), cwd))
 		Sys_Error ("Couldn't determine current directory");
+	if (parms.argc >= 2)
+	{
+		if (*parms.argv[1] != '-' && *parms.argv[1] != '+')
+		{
+			char *e;
+
+			qtvfile = parms.argv[1];
+
+
+			GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
+			for (e = cwd+strlen(cwd)-1; e >= cwd; e--)
+			{
+				if (*e == '/' || *e == '\\')
+				{
+					*e = 0;
+					break;
+				}
+			}
+
+		}
+	}
 
 	TL_InitLanguages();
 	//tprints are now allowed
@@ -1195,7 +1229,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #endif
 
 	tevent = CreateEvent(NULL, FALSE, FALSE, NULL);
-
 	if (!tevent)
 		Sys_Error ("Couldn't create event");
 
@@ -1209,6 +1242,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	oldtime = Sys_DoubleTime ();
 
+
+	if (qtvfile)
+		Cbuf_AddText(va("qtvplay \"#%s\"\n", qtvfile), RESTRICT_LOCAL);
 
 //client console should now be initialized.
 

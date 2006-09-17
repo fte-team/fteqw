@@ -351,11 +351,8 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 		}
 	}
 
-	sc->sn.soundalive = true;
-	sc->sn.splitbuffer = false;
 	sc->sn.samples = wh->gSndBufSize/(sc->sn.samplebits/8);
 	sc->sn.samplepos = 0;
-	sc->sn.submission_chunk = 1;
 	sc->sn.buffer = (unsigned char *) wh->lpData;
 
 

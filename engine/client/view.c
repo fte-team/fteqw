@@ -1368,6 +1368,7 @@ void V_RenderPlayerViews(int plnum)
 		r_viewchanged = true;
 #endif
 
+	Cam_SelfTrack(plnum);
 #if defined(FISH) && defined(SWQUAKE)
 	if (ffov.value && cls.allow_fish && qrenderer == QR_SOFTWARE)
 		R_RenderView_fisheye();

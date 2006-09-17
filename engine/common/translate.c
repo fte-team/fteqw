@@ -208,6 +208,7 @@ static char *defaultlanguagetext =
 "TLC_CHANGINGMAP \"\\nChanging map...\\n\"\n"
 "TLC_RECONNECTING \"reconnecting...\\n\"\n"
 "TLC_RECONNECT_NOSERVER \"No server to reconnect to...\\n\"\n"
+"TLC_VERSIONST \"%s Build %i\n\"\n"
 "TL_ST_COLON \"%s: \"\n"
 "TLC_GOTCONNECTION \"connection\\n\"\n"
 "TLC_DUPCONNECTION \"Dup connect received.  Ignored.\\n\"\n"

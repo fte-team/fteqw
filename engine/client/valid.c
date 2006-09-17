@@ -43,12 +43,6 @@ cvar_t allow_f_modified		= SCVAR("allow_f_modified", "1");
 cvar_t allow_f_skins		= SCVAR("allow_f_skins", "1");
 cvar_t auth_validateclients	= SCVAR("auth_validateclients", "1");
 
-
-void QCRC_AddBlock (unsigned short *crcvalue, qbyte *start, int count)
-{
-    while (count--)
-		QCRC_ProcessByte(crcvalue, *start++);
-}
 unsigned short SCRC_GetQueryStateCrc(char *f_query_string)
 {
     unsigned short crc;

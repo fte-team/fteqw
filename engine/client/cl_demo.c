@@ -147,7 +147,7 @@ void CL_WriteDemoMessage (sizebuf_t *msg)
 	VFS_FLUSH (cls.demofile);
 }
 
-unsigned char unreaddata[16];
+unsigned char unreaddata[4096];
 int unreadcount;
 int readdemobytes(void *data, int len)
 {
@@ -159,9 +159,17 @@ int readdemobytes(void *data, int len)
 	if (unreadcount)
 	{
 		if (len > unreadcount)
-			Sys_Error("Demo playback unread the wrong number of bytes\n");
+		{
+			//this can only happen when the remaining 'unread' buffer from the initial qtv stream is part-way used up.
+			i = VFS_READ(cls.demofile, unreaddata+unreadcount, len - unreadcount);
+			unreadcount += i;
+
+			if (len > unreadcount)
+				return 0;
+		}
 		unreadcount -= len;
-		memcpy(data, unreaddata+unreadcount, len);
+		memcpy(data, unreaddata, len);
+		memmove(unreaddata, unreaddata+len, unreadcount);
 		return len;
 	}
 
@@ -170,7 +178,8 @@ int readdemobytes(void *data, int len)
 }
 void unreadbytes(int count, void *data)
 {
-	memcpy(unreaddata+unreadcount, data, count);
+	memmove(unreaddata+count, unreaddata, unreadcount);
+	memcpy(unreaddata, data, count);
 	unreadcount += count;
 }
 
@@ -1373,8 +1382,210 @@ void CL_PlayDemo(char *demoname)
 	TP_ExecTrigger ("f_demostart");
 }
 
+void CL_QTVPlay (vfsfile_t *newf)
+{
+	CL_Disconnect_f ();
+
+	cls.demofile = newf;
+
+	unreadcount = 0;	//just in case
+
+	cls.demoplayback = DPB_MVD;
+	cls.findtrack = true;
+
+	cls.state = ca_demostart;
+	net_message.packing = SZ_RAWBYTES;
+	Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, 0);
+	realtime = -10;
+	cl.gametime = -10;
+	cl.gametimemark = realtime;
+
+	Con_Printf("Buffering for ten seconds\n");
+
+	cls.netchan.last_received=realtime;
+
+	cls.protocol = CP_QUAKEWORLD;
+	TP_ExecTrigger ("f_demostart");
+}
+
+char qtvrequestbuffer[4096];
+int qtvrequestsize;
+vfsfile_t *qtvrequest;
+
+void CL_QTVPoll (void)
+{
+	char *s, *e, *colon;
+	int len;
+	qboolean error = false;
+
+	if (!qtvrequest)
+		return;
+
+	for(;;)
+	{
+		len = VFS_READ(qtvrequest, qtvrequestbuffer+qtvrequestsize, (sizeof(qtvrequestbuffer) - qtvrequestsize -1 > 0)?1:0);
+		if (len <= 0)
+			break;
+		qtvrequestsize += len;
+	}
+	qtvrequestbuffer[qtvrequestsize] = '\0';
+	if (!qtvrequestsize)
+		return;
+
+	//make sure it's a compleate chunk.
+	for (s = qtvrequestbuffer; *s; s++)
+	{
+		if (s[0] == '\n' && s[1] == '\n')
+			break;
+	}
+	if (!*s)
+		return;
+	s = qtvrequestbuffer;
+	for (e = s; *e; )
+	{
+		if (*e == '\n')
+		{
+			*e = '\0';
+			colon = strchr(s, ':');
+			if (colon)
+			{
+				*colon++ = '\0';
+				if (!strcmp(s, "PERROR"))
+				{	//printable error
+					Con_Printf("QTV:\n%s\n", colon);
+					error = true;
+				}
+				else if (!strcmp(s, "ADEMO"))
+				{	//printable error
+					Con_Printf("Demo%s is available\n", colon);
+					error = true;	//not really an error, but meh
+				}
+				else if (!strcmp(s, "ASOURCE"))
+				{	//printable error
+					Con_Printf("Source%s is available\n", colon);
+					error = true;
+				}
+			}
+			else
+			{
+			}
+			//from e to s, we have a line	
+			s = e+1;
+		}
+		e++;
+	}
+
+	if (!error)
+	{
+		CL_QTVPlay(qtvrequest);
+		qtvrequest = NULL;
+		unreadbytes(qtvrequestsize - (e-qtvrequestbuffer), e);
+		return;
+	}
+
+	VFS_CLOSE(qtvrequest);
+	qtvrequest = NULL;
+	qtvrequestsize = 0;
+}
+
 void CL_QTVPlay_f (void)
 {
+	qboolean raw=0;
+	char *connrequest;
+	vfsfile_t *newf;
+	char *host;
+
+	connrequest = Cmd_Argv(1);
+
+	if (*connrequest == '#')
+	{
+		char buffer[1024];
+		char *s;
+		FILE *f;
+		f = fopen(connrequest+1, "rt");
+		if (!f)
+			return;
+		while (!feof(f))
+		{
+			fgets(buffer, sizeof(buffer)-1, f);
+			if (!strncmp(buffer, "Stream=", 7) || !strncmp(buffer, "Stream:", 7))
+			{
+				for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
+				{
+					if (*s == '\r' || *s == '\n')
+						*s = 0;
+					else
+						break;
+				}
+				s = buffer+8;
+				while(*s && *s <= ' ')
+					s++;
+				Cbuf_AddText(va("qtvplay \"%s\"\n", s), Cmd_ExecLevel);
+				break;
+			}
+		}
+		fclose(f);
+		return;
+	}
+
+	host = connrequest;
+
+	connrequest = strchr(connrequest, '@');
+	if (connrequest)
+		host = connrequest+1;
+	newf = FS_OpenTCP(host);
+
+	if (!newf)
+	{
+		Con_Printf("Couldn't connect to proxy\n");
+		return;
+	}
+
+	host = connrequest = Cmd_Argv(1);
+	connrequest = strchr(connrequest, '@');
+	if (connrequest)
+		*connrequest = '\0';
+	else
+		host = NULL;
+
+	connrequest =	"QTV\n"
+					"VERSION: 1\n";
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
+	if (raw)
+	{
+		connrequest =	"RAW: 1\n";
+		VFS_WRITE(newf, connrequest, strlen(connrequest));
+	}
+	if (host)
+	{
+		connrequest =	"SOURCE: ";
+		VFS_WRITE(newf, connrequest, strlen(connrequest));
+		connrequest =	host;
+		VFS_WRITE(newf, connrequest, strlen(connrequest));
+		connrequest =	"\n";
+	}
+
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
+	connrequest =	"\n";
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
+
+	if (raw)
+	{
+		CL_QTVPlay(newf);
+	}
+	else
+	{
+		if (qtvrequest)
+			VFS_CLOSE(qtvrequest);
+		qtvrequest = newf;
+		qtvrequestsize = 0;
+	}
+}
+
+/*
+void CL_QTVPlay_f (void)
+{
+	char *connrequest;
 	vfsfile_t *newf;
 	newf = FS_OpenTCP(Cmd_Argv(1));
 
@@ -1383,6 +1594,15 @@ void CL_QTVPlay_f (void)
 		Con_Printf("Couldn't connect to proxy\n");
 		return;
 	}
+
+	connrequest =	"QTV\n"
+					"VERSION: 1\n"
+					"RAW: 1\n";
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
+	connrequest =	"SOURCE: file:test.mvd\n";
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
+	connrequest =	"\n";
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
 
 	CL_Disconnect_f ();
 
@@ -1406,6 +1626,57 @@ void CL_QTVPlay_f (void)
 
 	cls.protocol = CP_QUAKEWORLD;
 	TP_ExecTrigger ("f_demostart");
+}
+*/
+
+void CL_QTVList_f (void)
+{
+	char *connrequest;
+	vfsfile_t *newf;
+	newf = FS_OpenTCP(Cmd_Argv(1));
+
+	if (!newf)
+	{
+		Con_Printf("Couldn't connect to proxy\n");
+		return;
+	}
+
+	connrequest =	"QTV\n"
+					"VERSION: 1\n";
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
+	connrequest =	"SOURCELIST\n";
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
+	connrequest =	"\n";
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
+
+	if (qtvrequest)
+		VFS_CLOSE(qtvrequest);
+	qtvrequest = newf;
+	qtvrequestsize = 0;
+
+	/*
+	CL_Disconnect_f ();
+
+	cls.demofile = newf;
+
+	unreadcount = 0;	//just in case
+
+	cls.demoplayback = DPB_MVD;
+	cls.findtrack = true;
+
+	cls.state = ca_demostart;
+	net_message.packing = SZ_RAWBYTES;
+	Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, 0);
+	realtime = 0;
+	cl.gametime = 0;
+	cl.gametimemark = realtime;
+
+	Con_Printf("Querying proxy\n");
+
+	cls.netchan.last_received=realtime;
+
+	cls.protocol = CP_QUAKEWORLD;
+	TP_ExecTrigger ("f_demostart");*/
 }
 
 /*

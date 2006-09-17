@@ -92,18 +92,6 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 			skip += *cskip;
 			cskip += *cskip;
 		}
-		// Only do this for 1 sound card with 2 channels, because
-		// this function is hacky
-		if (sc == sndcardinfo && sc->sn.numchannels == 2)
-		{
-			if (out_idx <= startidx) // buffer looped
-			{
-				Media_RecordAudioFrame(out + startidx, (sc->sn.samples - startidx) / 2);
-				Media_RecordAudioFrame(out, out_idx / 2);
-			}
-			else
-				Media_RecordAudioFrame(out + startidx, (out_idx - startidx) / 2);
-		}
 	}
 	else if (sc->sn.samplebits == 8)
 	{

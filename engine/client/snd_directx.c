@@ -809,11 +809,8 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	dh->pDSBuf->lpVtbl->GetCurrentPosition(dh->pDSBuf, &dh->mmstarttime, &dwWrite);
 	dh->pDSBuf->lpVtbl->Play(dh->pDSBuf, 0, 0, DSBPLAY_LOOPING);
 
-	sc->sn.soundalive = true;
-	sc->sn.splitbuffer = false;
 	sc->sn.samples = dh->gSndBufSize/(sc->sn.samplebits/8);
 	sc->sn.samplepos = 0;
-	sc->sn.submission_chunk = 1;
 	sc->sn.buffer = NULL;
 
 

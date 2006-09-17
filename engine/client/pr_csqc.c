@@ -2559,7 +2559,7 @@ static void PF_cl_runningserver (progfuncs_t *prinst, struct globalvars_s *pr_gl
 static void PF_cl_getlight (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	vec3_t ambient, diffuse, dir;
-	cl.worldmodel->funcs.LightPointValues(G_VECTOR(OFS_PARM0), ambient, diffuse, dir);
+	cl.worldmodel->funcs.LightPointValues(cl.worldmodel, G_VECTOR(OFS_PARM0), ambient, diffuse, dir);
 	VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
 }
 

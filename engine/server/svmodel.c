@@ -43,7 +43,154 @@ int		mod_numknown;
 texture_t	r_notexture_mip_real;
 texture_t	*r_notexture_mip = &r_notexture_mip_real;
 
+cvar_t sv_nogetlight = SCVAR("sv_nogetlight", "0");
+
 unsigned *model_checksum;
+
+
+int SVQ1_RecursiveLightPoint3C (model_t *model, mnode_t *node, vec3_t start, vec3_t end)
+{
+	int			r;
+	float		front, back, frac;
+	int			side;
+	mplane_t	*plane;
+	vec3_t		mid;
+	msurface_t	*surf;
+	int			s, t, ds, dt;
+	int			i;
+	mtexinfo_t	*tex;
+	qbyte		*lightmap;
+	unsigned	scale;
+	int			maps;
+
+
+	if (model->fromgame == fg_quake2)
+	{
+		if (node->contents != -1)
+			return -1;		// solid
+	}
+	else
+	{
+		if (node->contents < 0)
+			return -1;		// didn't hit anything
+	}
+	
+// calculate mid point
+
+// FIXME: optimize for axial
+	plane = node->plane;
+	front = DotProduct (start, plane->normal) - plane->dist;
+	back = DotProduct (end, plane->normal) - plane->dist;
+	side = front < 0;
+	
+	if ( (back < 0) == side)
+		return SVQ1_RecursiveLightPoint3C (model, node->children[side], start, end);
+	
+	frac = front / (front-back);
+	mid[0] = start[0] + (end[0] - start[0])*frac;
+	mid[1] = start[1] + (end[1] - start[1])*frac;
+	mid[2] = start[2] + (end[2] - start[2])*frac;
+	
+// go down front side	
+	r = SVQ1_RecursiveLightPoint3C (model, node->children[side], start, mid);
+	if (r >= 0)
+		return r;		// hit something
+		
+	if ( (back < 0) == side )
+		return -1;		// didn't hit anuthing
+		
+// check for impact on this node
+
+	surf = model->surfaces + node->firstsurface;
+	for (i=0 ; i<node->numsurfaces ; i++, surf++)
+	{
+		if (surf->flags & SURF_DRAWTILED)
+			continue;	// no lightmaps
+
+		tex = surf->texinfo;
+		
+		s = DotProduct (mid, tex->vecs[0]) + tex->vecs[0][3];
+		t = DotProduct (mid, tex->vecs[1]) + tex->vecs[1][3];;
+
+		if (s < surf->texturemins[0] ||
+		t < surf->texturemins[1])
+			continue;
+		
+		ds = s - surf->texturemins[0];
+		dt = t - surf->texturemins[1];
+		
+		if ( ds > surf->extents[0] || dt > surf->extents[1] )
+			continue;
+
+		if (!surf->samples)
+			return 0;
+
+		ds >>= 4;
+		dt >>= 4;
+
+		lightmap = surf->samples;
+		r = 0;
+		if (lightmap)
+		{
+
+			lightmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
+
+			for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+					maps++)
+			{
+				scale = sv.strings.lightstyles[surf->styles[maps]][0];
+				r += (lightmap[0]+lightmap[1]+lightmap[2])/3 * scale;
+				lightmap += ((surf->extents[0]>>4)+1) *
+						((surf->extents[1]>>4)+1)*3;
+			}
+			
+			r >>= 8;
+		}
+		
+		return r;
+	}
+
+// go down back side
+	return SVQ1_RecursiveLightPoint3C (model, node->children[!side], mid, end);
+}
+
+void SVQ1_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+{
+	vec3_t		end;
+	float r;
+
+	res_dir[0] = 0;	//software doesn't load luxes
+	res_dir[1] = 1;
+	res_dir[2] = 1;
+
+	end[0] = point[0];
+	end[1] = point[1];
+	end[2] = point[2] - 2048;
+
+	r = SVQ1_RecursiveLightPoint3C (model, model->nodes, point, end);
+	if (r < 0)
+	{
+		res_diffuse[0] = 0;
+		res_diffuse[1] = 0;
+		res_diffuse[2] = 0;
+	
+		res_ambient[0] = 0;
+		res_ambient[1] = 0;
+		res_ambient[2] = 0;
+	}
+	else
+	{
+		res_diffuse[0] = r;
+		res_diffuse[1] = r;
+		res_diffuse[2] = r;
+	
+		res_ambient[0] = r;
+		res_ambient[1] = r;
+		res_ambient[2] = r;
+	}
+}
+
+
 
 /*
 ===============
@@ -53,6 +200,7 @@ Mod_Init
 void Mod_Init (void)
 {
 	memset (mod_novis, 0xff, sizeof(mod_novis));
+	Cvar_Register(&sv_nogetlight, "Memory preservation");
 }
 
 /*
@@ -514,15 +662,38 @@ void Mod_LoadTextures (lump_t *l)
 Mod_LoadLighting
 =================
 */
-void Mod_LoadLighting (lump_t *l)
+qboolean Mod_LoadLighting (lump_t *l)
 {
+	int i;
+	char *in;
+	char *out;
 	if (!l->filelen)
 	{
 		loadmodel->lightdata = NULL;
-		return;
+		return true;
 	}
-	loadmodel->lightdata = Hunk_AllocName ( l->filelen, loadname);
-	memcpy (loadmodel->lightdata, mod_base + l->fileofs, l->filelen);
+
+	if (loadmodel->fromgame == fg_halflife)
+	{
+		loadmodel->lightdata = Hunk_AllocName ( l->filelen, loadname);
+		memcpy (loadmodel->lightdata, mod_base + l->fileofs, l->filelen);
+	}
+	else
+	{
+		loadmodel->lightdata = Hunk_AllocName ( l->filelen*3, loadname);
+
+		in = mod_base + l->fileofs;
+		out = loadmodel->lightdata;
+
+		for (i = 0; i < l->filelen; i++)
+		{
+			*out++ = *in;
+			*out++ = *in;
+			*out++ = *in++;
+		}
+	}
+
+	return true;
 }
 
 
@@ -566,7 +737,7 @@ void Mod_LoadEntities (lump_t *l)
 Mod_LoadVertexes
 =================
 */
-void Mod_LoadVertexes (lump_t *l)
+qboolean Mod_LoadVertexes (lump_t *l)
 {
 	dvertex_t	*in;
 	mvertex_t	*out;
@@ -574,7 +745,10 @@ void Mod_LoadVertexes (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		SV_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
@@ -587,6 +761,7 @@ void Mod_LoadVertexes (lump_t *l)
 		out->position[1] = LittleFloat (in->point[1]);
 		out->position[2] = LittleFloat (in->point[2]);
 	}
+	return true;
 }
 
 /*
@@ -690,7 +865,7 @@ qboolean Mod_LoadSubmodels (lump_t *l)
 Mod_LoadEdges
 =================
 */
-void Mod_LoadEdges (lump_t *l)
+qboolean Mod_LoadEdges (lump_t *l)
 {
 	dedge_t *in;
 	medge_t *out;
@@ -698,7 +873,10 @@ void Mod_LoadEdges (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		SV_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( (count + 1) * sizeof(*out), loadname);
 
@@ -710,6 +888,7 @@ void Mod_LoadEdges (lump_t *l)
 		out->v[0] = (unsigned short)LittleShort(in->v[0]);
 		out->v[1] = (unsigned short)LittleShort(in->v[1]);
 	}
+	return true;
 }
 
 /*
@@ -717,7 +896,7 @@ void Mod_LoadEdges (lump_t *l)
 Mod_LoadTexinfo
 =================
 */
-void Mod_LoadTexinfo (lump_t *l)
+qboolean Mod_LoadTexinfo (lump_t *l)
 {
 	texinfo_t *in;
 	mtexinfo_t *out;
@@ -727,7 +906,10 @@ void Mod_LoadTexinfo (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		SV_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
@@ -774,6 +956,7 @@ void Mod_LoadTexinfo (lump_t *l)
 			}
 		}
 	}
+	return true;
 }
 
 /*
@@ -837,7 +1020,7 @@ void CalcSurfaceExtents (msurface_t *s);
 Mod_LoadFaces
 =================
 */
-void Mod_LoadFaces (lump_t *l)
+qboolean Mod_LoadFaces (lump_t *l)
 {
 	dface_t		*in;
 	msurface_t 	*out;
@@ -846,7 +1029,10 @@ void Mod_LoadFaces (lump_t *l)
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		SV_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
@@ -877,8 +1063,10 @@ void Mod_LoadFaces (lump_t *l)
 		i = LittleLong(in->lightofs);
 		if (i == -1)
 			out->samples = NULL;
-		else
+		else if (loadmodel->fromgame == fg_halflife)
 			out->samples = loadmodel->lightdata + i;
+		else
+			out->samples = loadmodel->lightdata + i*3;
 
 	// set the drawing flags flag
 
@@ -899,6 +1087,8 @@ void Mod_LoadFaces (lump_t *l)
 			continue;
 		}
 	}
+
+	return true;
 }
 
 
@@ -1209,14 +1399,17 @@ void Mod_LoadMarksurfaces (lump_t *l)
 Mod_LoadSurfedges
 =================
 */
-void Mod_LoadSurfedges (lump_t *l)
+qboolean Mod_LoadSurfedges (lump_t *l)
 {
 	int		i, count;
 	int		*in, *out;
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
-		SV_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+	{
+		Con_Printf ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
+		return false;
+	}
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);
 
@@ -1225,6 +1418,8 @@ void Mod_LoadSurfedges (lump_t *l)
 
 	for ( i=0 ; i<count ; i++)
 		out[i] = LittleLong (in[i]);
+
+	return true;
 }
 
 /*
@@ -1315,7 +1510,8 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 	mod->checksum2 = 0;
 
 	// checksum all of the map, except for entities
-	for (i = 0; i < HEADER_LUMPS; i++) {
+	for (i = 0; i < HEADER_LUMPS; i++)
+	{
 		if (i == LUMP_ENTITIES)
 			continue;
 		chksum = Com_BlockChecksum(mod_base + header->lumps[i].fileofs,
@@ -1328,15 +1524,21 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 	}
 
 	noerrors = true;
-//	Mod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
-//	Mod_LoadEdges (&header->lumps[LUMP_EDGES]);
-//	Mod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
+	if (!sv_nogetlight.value)
+	{
+		noerrors = noerrors && Mod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
+		noerrors = noerrors && Mod_LoadEdges (&header->lumps[LUMP_EDGES]);
+		noerrors = noerrors && Mod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
 ///*/on server?*/	Mod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
-//	Mod_LoadLighting (&header->lumps[LUMP_LIGHTING]);
+		noerrors = noerrors && Mod_LoadLighting (&header->lumps[LUMP_LIGHTING]);
+	}
 	noerrors = noerrors && Mod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
 	noerrors = noerrors && Mod_LoadPlanes (&header->lumps[LUMP_PLANES]);
-///*/on server?*/	Mod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
-//	Mod_LoadFaces (&header->lumps[LUMP_FACES]);
+	if (!sv_nogetlight.value)
+	{
+		noerrors = noerrors && Mod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
+		noerrors = noerrors && Mod_LoadFaces (&header->lumps[LUMP_FACES]);
+	}
 //	Mod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES]);
 	if (noerrors)
 		Mod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
@@ -1356,6 +1558,9 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 	}
 
 	Q1BSP_SetModelFuncs(mod);
+
+	if (mod->surfaces && mod->lightdata)
+		mod->funcs.LightPointValues = SVQ1_LightPointValues;
 
 
 	mod->numframes = 2;		// regular and alternate animation

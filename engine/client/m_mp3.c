@@ -1983,6 +1983,7 @@ void Media_Init(void)
 	Cmd_AddCommand("music_rewind", Media_Rewind_f);
 	Cmd_AddCommand("music_next", Media_Next_f);
 
+#if defined(RGLQUAKE)
 	Cmd_AddCommand("capture", Media_RecordFilm_f);
 	Cmd_AddCommand("capturedemo", Media_RecordDemo_f);
 	Cmd_AddCommand("capturestop", Media_StopRecordFilm_f);
@@ -1992,6 +1993,7 @@ void Media_Init(void)
 	Cvar_Register(&capturesound,	"AVI capture controls");
 	Cvar_Register(&capturerate,	"AVI capture controls");
 	Cvar_Register(&capturecodec,	"AVI capture controls");
+#endif
 
 #if defined(WINAVI)
 	Cvar_Register(&capturesoundbits,	"AVI capture controls");

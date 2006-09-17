@@ -438,7 +438,7 @@ int SWR_LightPoint (vec3_t p)
 	return r;
 }
 
-void SWQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+void SWQ1BSP_LightPointValues(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 	vec3_t		end;
 	float r;
@@ -451,7 +451,7 @@ void SWQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambie
 	end[1] = point[1];
 	end[2] = point[2] - 2048;
 
-	r = SWRecursiveLightPoint3C(cl.worldmodel->nodes, point, end);
+	r = SWRecursiveLightPoint3C(mod->nodes, point, end);
 	if (r < 0)
 	{
 		res_diffuse[0] = 0;

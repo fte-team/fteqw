@@ -1969,7 +1969,7 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 
 
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
-void SWQ1BSP_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+void SWQ1BSP_LightPointValues(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
 void SWR_Q1BSP_StainNode (mnode_t *node, float *parms);
 /*

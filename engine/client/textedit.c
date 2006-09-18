@@ -398,7 +398,7 @@ void Editor_Key(int key)
 	if (key == K_SHIFT)
 		return;
 
-	if (useeval && key != K_F11)
+	if (useeval && key != K_F11 && key != K_F5)
 	{
 		switch(key)
 		{
@@ -554,6 +554,8 @@ void Editor_Key(int key)
 		break;
 //	case K_STOP:
 	case K_ESCAPE:
+		if (editprogfuncs)
+			editprogfuncs->AbortStack(editprogfuncs);
 		CloseEditor();
 		break;
 
@@ -757,7 +759,7 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 			colour = COLOR_YELLOW;	//yellow
 	}
 
-	if (cursorx <= strlen(d)+1 && (int)(realtime*4.0) & 1)
+	if (cursorx <= strlen(d)+1 && (int)(Sys_DoubleTime()*4.0) & 1)
 		cx = -1;
 	else
 		cx = cursorx;
@@ -911,8 +913,23 @@ void Editor_Draw(void)
 			useeval = false;
 		else
 		{
+			char *eq;
 			Draw_String(0, 8, evalstring);
+
+			eq = strchr(evalstring, '=');
+			if (eq)
+			{
+				if (strchr(eq, ';'))
+				{
+					*strchr(eq, ';') = '\0';
+					eq = NULL;
+				}
+				else
+					*eq = '\0';
+			}
 			Draw_String(vid.width/2, 8, editprogfuncs->EvaluateDebugString(editprogfuncs, evalstring));
+			if (eq)
+				*eq = '=';
 		}
 		y = 16;
 	}
@@ -1025,6 +1042,7 @@ int QCLibEditor(progfuncs_t *prfncs, char *filename, int line, int nump, char **
 			scr_disabled_for_loading=false;
 			SCR_UpdateScreen();
 			Sys_SendKeyEvents();
+			S_ExtraUpdate();
 
 			NET_Sleep(100, false);	//any os.
 		}

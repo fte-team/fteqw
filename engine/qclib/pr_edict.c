@@ -133,6 +133,11 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 			}
 		}
 
+		if (i >= maxedicts-2)
+		{
+			printf("Running out of edicts\n");
+			pr_trace = 1;	//trip the debugger whilst it's still valid
+		}
 		if (i >= maxedicts-1)
 		{
 			int size;
@@ -157,6 +162,7 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 
 	if (externs->entspawn)
 		externs->entspawn((struct edict_s *) e);
+
 	return (struct edict_s *)e;
 }
 
@@ -2256,7 +2262,7 @@ int PR_ReallyLoadProgs (progfuncs_t *progfuncs, char *filename, int headercrc, p
 
 	int hmark=0xffffffff;
 
-	int reorg = prinst->reorganisefields;
+	int reorg = prinst->reorganisefields || numfields;
 
 	int stringadjust;
 
@@ -2670,6 +2676,29 @@ retry:
 					QC_RegisterFieldVar(progfuncs, type, fld16[i].s_name+pr_strings, -1, fld16[i].ofs);
 				}
 			}
+			else
+			{
+				fdef_t *nf;
+				if (numfields+1>maxfields)
+				{
+					i = maxfields;
+					maxfields += 32;
+					nf = memalloc(sizeof(fdef_t) * maxfields);
+					memcpy(nf, field, sizeof(fdef_t) * i);
+					memfree(field);
+					field = nf;
+				}
+				nf = &field[numfields];
+				nf->name = fld16[i].s_name+pr_strings;
+				nf->type = fld16[i].type;
+				nf->progsofs = fld16[i].ofs;
+				nf->ofs = fld16[i].ofs;
+
+				if (fields_size < (nf->ofs+type_size[nf->type])*4)
+					fields_size = (nf->ofs+type_size[nf->type])*4;
+
+				numfields++;
+			}
 			fld16[i].s_name += stringadjust;
 		}
 		if (reorg && !(progfuncs->fieldadjust && !pr_typecurrent))
@@ -2853,7 +2882,8 @@ retry:
 			switch(type)
 			{
 			case ev_field:
-				QC_AddSharedFieldVar(progfuncs, i, pr_strings - stringadjust);
+				if (reorg)
+					QC_AddSharedFieldVar(progfuncs, i, pr_strings - stringadjust);
 				break;
 			case ev_string:
 				if (((unsigned int *)glob)[gd16[i].ofs]>=progstate->progs->numstrings)
@@ -3001,7 +3031,6 @@ retry:
 	eval = PR_FindGlobal(progfuncs, "__ext__fasttrackarrays", PR_CURRENT);
 	if (eval)	//we support these opcodes
 		eval->_float = true;
-
 
 	return true;
 }

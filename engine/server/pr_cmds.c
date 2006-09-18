@@ -762,7 +762,10 @@ void PR_Compile_f(void)
 	char *argv[64] = {"", "-src", "src", "-srcfile", "qwprogs.src"};
 
 	if (Cmd_Argc() == 2)
+	{
 		argv[4] = Cmd_Argv(1);
+		argc = 5;
+	}
 	else if (Cmd_Argc()>2)
 	{
 		for (argc = 0; argc < Cmd_Argc(); argc++)
@@ -3226,7 +3229,7 @@ void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int i;
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
-		if (!*svs.clients[i].name)
+		if (!*svs.clients[i].name && !svs.clients[i].protocol && svs.clients[i].state == cs_free)
 		{
 			svs.clients[i].protocol = SCP_BAD;	//marker for bots
 			svs.clients[i].state = cs_spawned;

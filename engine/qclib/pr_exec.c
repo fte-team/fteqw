@@ -487,26 +487,39 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 			}
 			*(int *)val = G_INT(fdef->ofs);
 			break;
-/*
+
 		case ev_function:
-			if (s[1]==':'&&s[2]=='\0')
 			{
-				*(func_t *)val = 0;
-				return true;
+				dfunction_t *func;
+				int i;
+				int progsnum = -1;
+				char *s = assignment;
+				if (s[0] && s[1] == ':')
+				{
+					progsnum = atoi(s);
+					s+=2;
+				}
+				else if (s[0] && s[1] && s[2] == ':')
+				{
+					progsnum = atoi(s);
+					s+=3;
+				}
+
+				func = ED_FindFunction (progfuncs, s, &i, progsnum);
+				if (!func)
+				{
+					assignment[-1] = '=';
+					return va("Can't find function %s\n", s);
+				}
+				*(func_t *)val = (func - pr_progstate[i].functions) | (i<<24);
 			}
-			func = ED_FindFunction (assignment, &i, -1);
-			if (!func)
-			{
-				printf ("Can't find function %s\n", assignment);
-				return false;
-			}
-			*(func_t *)val = (func - pr_progstate[i].functions) | (i<<24);
 			break;
-*/
+
 		default:
 			break;
 
 		}
+		assignment[-1] = '=';
 	}
 	strcpy(buf, PR_ValueString(progfuncs, def->type, val));
 
@@ -749,8 +762,9 @@ static char *lastfile = 0;
 	}
 	else if (f)	//annoying.
 	{
-		if (externs->useeditor)
-			externs->useeditor(progfuncs, f->s_file+progfuncs->stringtable, -1, 0, NULL);
+		if (*(f->s_file+progfuncs->stringtable))	//if we can't get the filename, then it was stripped, and debugging it like this is useless
+			if (externs->useeditor)
+				externs->useeditor(progfuncs, f->s_file+progfuncs->stringtable, -1, 0, NULL);
 		return statement;
 	}
 	
@@ -782,7 +796,7 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 
 	int fnum = pr_xfunction - pr_functions;
 
-	runaway = 1000000;
+	runaway = 100000000;
 
 	prinst->continuestatement = -1;
 

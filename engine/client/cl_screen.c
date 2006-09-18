@@ -199,6 +199,7 @@ void CopyAndMarkup(conchar_t *dest, qbyte *src, int maxlength)
 			if (*src >= '0' && *src <= '9')
 			{
 				ext = q3codemasks[*src - '0'] | (ext&~CON_Q3MASK);
+				src++;
 				continue;
 			}
 			else if (*src == '&') // extended code
@@ -460,6 +461,7 @@ void SCR_DrawCenterString (int pnum)
 	int             x, y;
 	int             remaining;
 	int hd = 1;
+	int screenwidth;
 
 	vrect_t rect;
 
@@ -486,6 +488,8 @@ void SCR_DrawCenterString (int pnum)
 
 	y += rect.y;
 
+	screenwidth = 40;//vid.width/8;
+
 	if ((start[0]&255) == '/')
 	{
 		if ((start[1]&255) == 'O')
@@ -506,10 +510,10 @@ void SCR_DrawCenterString (int pnum)
 	do
 	{
 	// scan the width of the line
-		for (l=0 ; l<40 ; l++)
+		for (l=0 ; l<=screenwidth ; l++)
 			if ((start[l]&255) == '\n' || !(start[l]&255))
 				break;
-		if (l == 40)
+		if (l == screenwidth+1)
 		{
 			while(l > 0 && (start[l-1]&255)>' ' && (start[l-1]&255) != ' '+128)
 			{

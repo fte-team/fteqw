@@ -877,9 +877,18 @@ void Cmd_AliasList_f (void)
 {
 	cmdalias_t	*cmd;
 	int num=0;
+	int flags;
+
+	if (!strcmp(Cmd_Argv(1), "server"))
+		flags = ALIAS_FROMSERVER;
+	else
+		flags = 0;
+
 	for (cmd=cmd_alias ; cmd ; cmd=cmd->next)
 	{
 		if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+			continue;
+		if (flags && !(cmd->flags & flags))
 			continue;
 		if (!num)
 			Con_TPrintf(TL_ALIASLIST);

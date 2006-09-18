@@ -446,6 +446,12 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				multicasttype=MULTICAST_PHS;
 				break;
 
+			case DPTE_TEI_BIGEXPLOSION:
+				protocollen = sizeofcoord*3+sizeof(qbyte)*2;
+				multicastpos = 2;
+				multicasttype=MULTICAST_PHS;
+				break;
+
 			case DPTE_TEI_PLASMAHIT:
 				protocollen = sizeofcoord*6+sizeof(qbyte)*3;
 				multicastpos = 2;
@@ -455,6 +461,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			default:
 				protocollen = sizeof(buffer);
 				Con_Printf("NQWriteByte: bad tempentity\n");
+				PR_StackTrace(svprogfuncs);
 				break;
 			}
 			break;

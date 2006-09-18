@@ -1766,6 +1766,15 @@ void MP_Keydown(int key)
 			return;
 		}
 	}
+	if (key == K_ESCAPE)
+	{
+		extern qboolean	keydown[K_MAX];
+		if (keydown[K_SHIFT])
+		{
+			Con_ToggleConsole_f();
+			return;
+		}
+	}
 
 	menutime = Sys_DoubleTime();
 	if (mp_time)

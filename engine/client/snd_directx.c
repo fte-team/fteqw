@@ -926,7 +926,7 @@ int SNDDMA_InitCapture (void)
 	{
 		pDirectSoundCaptureCreate = (void *)GetProcAddress(hInstDS,"DirectSoundCaptureCreate");
 
-		if (!pDirectSoundCreate)
+		if (!pDirectSoundCaptureCreate)
 		{
 			Con_SafePrintf ("Couldn't get DS proc addr\n");
 			return SIS_FAILURE;

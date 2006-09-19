@@ -161,6 +161,7 @@ void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, char *buffer, int length)
 		Net_TryFlushProxyBuffer(cluster, prox);	//try flushing
 		if (prox->buffersize-prox->bufferpos + length > MAX_PROXY_BUFFER)	//damn, still too big.
 		{	//they're too slow. hopefully it was just momentary lag
+			printf("QTV client is too lagged\n");
 			prox->flushing = true;
 			return;
 		}
@@ -311,8 +312,7 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 	Prox_SendPlayerStats(qtv, prox);
 	Net_TryFlushProxyBuffer(qtv->cluster, prox);
 
-	if (!qtv->cluster->lateforward)
-		Net_ProxySend(qtv->cluster, prox, qtv->buffer, qtv->buffersize);	//send all the info we've not yet processed.
+	Net_ProxySend(qtv->cluster, prox, qtv->buffer, qtv->forwardpoint);	//send all the info we've not yet processed.
 
 
 	if (prox->flushing)
@@ -570,6 +570,7 @@ void SV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, int streamid)
 //truth does not imply that it should be freed/released, just unlinked.
 qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 {
+	char tempbuf[512];
 	char *s;
 	char *e;
 	char *colon;
@@ -691,6 +692,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		{
 			*e = '\0';
 			colon = strchr(s, ':');
+			if (*s)
 			if (!colon)
 			{
 				if (!strcmp(s, "SOURCELIST"))
@@ -706,14 +708,9 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 					{
 						for (qtv = cluster->servers; qtv; qtv = qtv->next)
 						{
-							s = "ASOURCE: ";
-								Net_ProxySend(cluster, pend, s, strlen(s));
-							s = qtv->hostname;
-							if (!s || !*s)
-								s = qtv->server;
-								Net_ProxySend(cluster, pend, s, strlen(s));
-							s = "\n";
-								Net_ProxySend(cluster, pend, s, strlen(s));
+							sprintf(tempbuf, "ASOURCE: %i: %15s: %15s\n", qtv->streamid, qtv->server, qtv->hostname);
+							s = tempbuf;
+							Net_ProxySend(cluster, pend, s, strlen(s));
 						}
 						qtv = NULL;
 					}
@@ -723,7 +720,6 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 				}
 				else if (!strcmp(s, "DEMOLIST"))
 				{	//lists the demos available on this proxy
-
 					s = "QTVSV 1\n";
 						Net_ProxySend(cluster, pend, s, strlen(s));
 					s = "PERROR: DEMOLIST command not yet implemented\n";
@@ -732,6 +728,8 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						Net_ProxySend(cluster, pend, s, strlen(s));
 					pend->flushing = true;
 				}
+				else
+					printf("Unrecognised token in QTV connection request (%s)\n", s);
 			}
 			else
 			{
@@ -790,6 +788,8 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 					Net_ProxySend(cluster, pend, s, strlen(s));
 					pend->flushing = true;
 				}
+				else
+					printf("Unrecognised token in QTV connection request (%s)\n", s);
 			}
 			s = e+1;
 		}

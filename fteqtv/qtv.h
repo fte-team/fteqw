@@ -147,7 +147,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define MAX_PROXY_INBUFFER 4096
 #define MAX_PROXY_BUFFER (1<<14)	//must be power-of-two
-#define PREFERED_PROXY_BUFFER	8192 //the ammount of data we try to leave in our input buffer (must be large enough to contain any single mvd frame)
+#define PREFERED_PROXY_BUFFER	4096 //the ammount of data we try to leave in our input buffer (must be large enough to contain any single mvd frame)
 
 #define MAX_ENTITY_LEAFS 32
 #define ENTS_PER_FRAME 64 //max number of entities per frame (OUCH!).
@@ -208,13 +208,20 @@ typedef unsigned char netadr_t[64];
 #define NETFLAG_CTL			0x80000000
 
 #define CCREQ_CONNECT		0x01
+#define CCREQ_SERVER_INFO	0x02
 
 #define CCREP_ACCEPT		0x81
 #define CCREP_REJECT		0x82
+#define CCREP_SERVER_INFO	0x83
 
 #define NET_GAMENAME_NQ		"QUAKE"
 #define NET_PROTOCOL_VERSION	3
 
+
+typedef struct soundcapt_s {
+	int (*update)(struct soundcapt_s *ghnd, int samplechunks, char *buffer);
+	void (*close)(struct soundcapt_s *ptr);
+} soundcapt_t;
 
 typedef struct {
 	unsigned int readpos;
@@ -421,6 +428,7 @@ struct sv_s {
 
 	unsigned char buffer[MAX_PROXY_BUFFER];	//this doesn't cycle.
 	int buffersize;	//it memmoves down
+	int forwardpoint;	//the point in the stream that we're forwarded up to.
 	qboolean parsingqtvheader;
 
 	unsigned char upstreambuffer[2048];
@@ -519,6 +527,9 @@ struct sv_s {
 
 	bsp_t *bsp;
 	int numinlines;
+
+	//audio stuff
+	soundcapt_t *comentrycapture;
 
 	//options:
 	char server[MAX_QPATH];
@@ -675,6 +686,7 @@ unsigned int BigLong(unsigned int val);
 
 
 
+#define dem_audio		0
 
 #define dem_cmd			0
 #define dem_read		1
@@ -732,6 +744,7 @@ unsigned int BigLong(unsigned int val);
 #define Q1 (NQ|QW)
 #define QW 1
 #define NQ 2
+#define CONNECTING 4
 
 
 

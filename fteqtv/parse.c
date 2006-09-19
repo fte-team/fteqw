@@ -208,21 +208,23 @@ void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playerma
 		//check and send to them only if they're tracking this player(s).
 		for (v = tv->cluster->viewers; v; v = v->next)
 		{
-			if (v->server == tv)
-				if (v->trackplayer>=0)
-					if ((1<<v->trackplayer)&playermask)
-					{
-						if (suitablefor&(v->netchan.isnqprotocol?NQ:QW))
-							SendBufferToViewer(v, buffer, length, true);	//FIXME: change the reliable depending on message type
-					}
+			if (v->thinksitsconnected||suitablefor&CONNECTING)
+				if (v->server == tv)
+					if (v->trackplayer>=0)
+						if ((1<<v->trackplayer)&playermask)
+						{
+							if (suitablefor&(v->netchan.isnqprotocol?NQ:QW))
+								SendBufferToViewer(v, buffer, length, true);	//FIXME: change the reliable depending on message type
+						}
 		}
 		break;
 	default:
 		//send to all
 		for (v = tv->cluster->viewers; v; v = v->next)
 		{
-			if (v->server == tv)
-				if (suitablefor&(v->netchan.isnqprotocol?NQ:QW))
+			if (v->thinksitsconnected||suitablefor&CONNECTING)
+				if (v->server == tv)
+					if (suitablefor&(v->netchan.isnqprotocol?NQ:QW))
 					SendBufferToViewer(v, buffer, length, true);	//FIXME: change the reliable depending on message type
 		}
 		break;
@@ -521,8 +523,8 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		}
 	}
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
-	Multicast(tv, buffer, strlen(buffer), to, mask, NQ);
+	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW|CONNECTING);
+//	Multicast(tv, buffer, strlen(buffer), to, mask, NQ);
 }
 static void ParseCenterprint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
@@ -971,30 +973,69 @@ static void ParseSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 #define DEFAULT_SOUND_PACKET_VOLUME 255
 #define DEFAULT_SOUND_PACKET_ATTENUATION 1.0
 	int i;
-	unsigned short chan;
+	int channel;
 	unsigned char vol;
 	unsigned char atten;
 	unsigned char sound_num;
 	short org[3];
+	int ent;
 
-	chan = ReadShort(m);
 
-    if (chan & SND_VOLUME)
+	unsigned char nqversion[64];
+	int nqlen = 0;
+
+	channel = (unsigned short)ReadShort(m);
+
+
+    if (channel & SND_VOLUME)
 		vol = ReadByte (m);
 	else
 		vol = DEFAULT_SOUND_PACKET_VOLUME;
 
-    if (chan & SND_ATTENUATION)
+    if (channel & SND_ATTENUATION)
 		atten = ReadByte (m) / 64.0;
 	else
 		atten = DEFAULT_SOUND_PACKET_ATTENUATION;
 
 	sound_num = ReadByte (m);
 
+	ent = (channel>>3)&1023;
+	channel &= 7;
+
 	for (i=0 ; i<3 ; i++)
 		org[i] = ReadShort (m);
 
 	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+
+	nqversion[0] = svc_sound;
+	nqversion[1] = 0;
+	if (vol != DEFAULT_SOUND_PACKET_VOLUME)
+		nqversion[1] |= 1;
+	if (atten != DEFAULT_SOUND_PACKET_ATTENUATION)
+		nqversion[1] |= 2;
+	nqlen=2;
+
+	if (nqversion[1] & 1)
+		nqversion[nqlen++] = vol;
+	if (nqversion[1] & 2)
+		nqversion[nqlen++] = atten*64;
+
+	channel = (ent<<3) | channel;
+
+	nqversion[nqlen++] = (channel&0x00ff)>>0;
+	nqversion[nqlen++] = (channel&0xff00)>>8;
+	nqversion[nqlen++] = sound_num;
+
+	nqversion[nqlen++] = 0;
+	nqversion[nqlen++] = 0;
+
+	nqversion[nqlen++] = 0;
+	nqversion[nqlen++] = 0;
+
+	nqversion[nqlen++] = 0;
+	nqversion[nqlen++] = 0;
+
+	Multicast(tv, nqversion, nqlen, to, mask, NQ);
 }
 
 static void ParseDamage(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -1027,6 +1068,10 @@ enum {
 static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	int i;
+	int dest = QW;
+	char nqversion[64];
+	int nqversionlength=0;
+
 	i = ReadByte (m);
 	switch(i)
 	{
@@ -1034,27 +1079,35 @@ static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		ReadShort (m);
 		ReadShort (m);
 		ReadShort (m);
+		dest |= NQ;
 		break;
 	case TE_SUPERSPIKE:
 		ReadShort (m);
 		ReadShort (m);
 		ReadShort (m);
+		dest |= NQ;
 		break;
 	case TE_GUNSHOT:
 		ReadByte (m);
-		ReadShort (m);
-		ReadShort (m);
-		ReadShort (m);
+
+		nqversion[0] = svc_temp_entity;
+		nqversion[1] = TE_GUNSHOT;
+		nqversion[2] = ReadByte (m);nqversion[3] = ReadByte (m);
+		nqversion[4] = ReadByte (m);nqversion[5] = ReadByte (m);
+		nqversion[6] = ReadByte (m);nqversion[7] = ReadByte (m);
+		nqversionlength = 8;
 		break;
 	case TE_EXPLOSION:
 		ReadShort (m);
 		ReadShort (m);
 		ReadShort (m);
+		dest |= NQ;
 		break;
 	case TE_TAREXPLOSION:
 		ReadShort (m);
 		ReadShort (m);
 		ReadShort (m);
+		dest |= NQ;
 		break;
 	case TE_LIGHTNING1:
 	case TE_LIGHTNING2:
@@ -1068,26 +1121,31 @@ static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		ReadShort (m);
 		ReadShort (m);
 		ReadShort (m);
+		dest |= NQ;
 		break;
 	case TE_WIZSPIKE:
 		ReadShort (m);
 		ReadShort (m);
 		ReadShort (m);
+		dest |= NQ;
 		break;
 	case TE_KNIGHTSPIKE:
 		ReadShort (m);
 		ReadShort (m);
 		ReadShort (m);
+		dest |= NQ;
 		break;
 	case TE_LAVASPLASH:
 		ReadShort (m);
 		ReadShort (m);
 		ReadShort (m);
+		dest |= NQ;
 		break;
 	case TE_TELEPORT:
 		ReadShort (m);
 		ReadShort (m);
 		ReadShort (m);
+		dest |= NQ;
 		break;
 	case TE_BLOOD:
 		ReadByte (m);
@@ -1105,7 +1163,10 @@ static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		return;
 	}
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, dest);
+
+	if (nqversionlength)
+		Multicast(tv, nqversion, nqversionlength, to, mask, NQ);
 }
 
 void ParseLightstyle(sv_t *tv, netmsg_t *m)
@@ -1280,7 +1341,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 				nq[1] = tv->proxyplayerangles[0];
 				nq[2] = tv->proxyplayerangles[1];
 				nq[3] = tv->proxyplayerangles[2];
-				Multicast(tv, nq, 4, to, mask, Q1);
+//				Multicast(tv, nq, 4, to, mask, Q1);
 			}
 			break;
 

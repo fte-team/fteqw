@@ -266,13 +266,13 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount)
 		WriteString(msg, "\"\n");
 	}
 }
-void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount)
+void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int playernum)
 {
 	int i;
 	WriteByte(msg, svc_serverdata);
 	WriteLong(msg, PROTOCOL_VERSION_NQ);
 	WriteByte(msg, 16);	//MAX_CLIENTS
-	WriteByte(msg, 0);	//game type
+	WriteByte(msg, 1);	//game type
 
 
 	if (!tv || tv->parsingconnectiondata )
@@ -300,7 +300,7 @@ void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount)
 		WriteByte(msg, 0);
 
 		WriteByte(msg, svc_nqsetview);
-		WriteShort(msg, 1);
+		WriteShort(msg, playernum);
 
 		WriteByte(msg, svc_nqsignonnum);
 		WriteByte(msg, 1);
@@ -330,7 +330,7 @@ void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount)
 		WriteByte(msg, tv->cdtrack);
 
 		WriteByte(msg, svc_nqsetview);
-		WriteShort(msg, 1);
+		WriteShort(msg, tv->trackplayer);
 
 		WriteByte(msg, svc_nqsignonnum);
 		WriteByte(msg, 1);
@@ -350,9 +350,9 @@ void SendServerData(sv_t *tv, viewer_t *viewer)
 	if (tv && (tv->controller == viewer || !tv->controller))
 		viewer->thisplayer = tv->thisplayer;
 	else
-		viewer->thisplayer = MAX_CLIENTS-1;
+		viewer->thisplayer = 15;
 	if (viewer->netchan.isnqprotocol)
-		BuildNQServerData(tv, &msg, false, viewer->servercount);
+		BuildNQServerData(tv, &msg, false, viewer->thisplayer);
 	else
 		BuildServerData(tv, &msg, false, viewer->servercount);
 
@@ -365,7 +365,9 @@ void SendServerData(sv_t *tv, viewer_t *viewer)
 
 void SendNQSpawnInfoToViewer(cluster_t *cluster, viewer_t *viewer, netmsg_t *msg)
 {
+	char buffer[64];
 	int i;
+	int colours;
 	sv_t *tv = viewer->server;
 	WriteByte(msg, svc_nqtime);
 	WriteFloat(msg, cluster->curtime/1000.0f);
@@ -376,13 +378,20 @@ void SendNQSpawnInfoToViewer(cluster_t *cluster, viewer_t *viewer, netmsg_t *msg
 		{
 			WriteByte (msg, svc_nqupdatename);
 			WriteByte (msg, i);
-			WriteString (msg, "FIXME");	//fixme
+			Info_ValueForKey(tv->players[i].userinfo, "name", buffer, sizeof(buffer));
+			WriteString (msg, buffer);	//fixme
+
 			WriteByte (msg, svc_updatefrags);
 			WriteByte (msg, i);
 			WriteShort (msg, tv->players[i].frags);
+
+			Info_ValueForKey(tv->players[i].userinfo, "bottomcolor", buffer, sizeof(buffer));
+			colours = atoi(buffer);
+			Info_ValueForKey(tv->players[i].userinfo, "topcolor", buffer, sizeof(buffer));
+			colours |= atoi(buffer)*16;
 			WriteByte (msg, svc_nqupdatecolors);
 			WriteByte (msg, i);
-			WriteByte (msg, 0);	//fixme
+			WriteByte (msg, colours);
 		}
 	}
 	else
@@ -1257,7 +1266,20 @@ void SendNQClientData(sv_t *tv, viewer_t *v, netmsg_t *msg)
 		return;
 
 	if (v->trackplayer < 0)
-		pl = &tv->players[v->thisplayer];
+	{
+		WriteByte (msg, svc_nqclientdata);
+		WriteShort (msg, SU_VIEWHEIGHT|SU_ITEMS);
+		WriteByte (msg, 22);
+		WriteLong (msg, 0);
+		WriteShort (msg, 1000);
+		WriteByte (msg, 0);
+		WriteByte (msg, 0);
+		WriteByte (msg, 0);
+		WriteByte (msg, 0);
+		WriteByte (msg, 0);
+		WriteByte (msg, 0);
+		return;
+	}
 	else
 		pl = &tv->players[v->trackplayer];
 
@@ -1383,9 +1405,14 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			WriteShort(msg, v->trackplayer+1);
 
 			WriteByte(msg, svc_setangle);
-			WriteByte(msg, tv->players[v->trackplayer].current.angles[0]>>8);
-			WriteByte(msg, tv->players[v->trackplayer].current.angles[1]>>8);
-			WriteByte(msg, tv->players[v->trackplayer].current.angles[2]>>8);
+			WriteByte(msg, (int)InterpolateAngle(tv->players[v->trackplayer].old.angles[0], tv->players[v->trackplayer].current.angles[0], lerp)>>8);
+			WriteByte(msg, (int)InterpolateAngle(tv->players[v->trackplayer].old.angles[1], tv->players[v->trackplayer].current.angles[1], lerp)>>8);
+			WriteByte(msg, (int)InterpolateAngle(tv->players[v->trackplayer].old.angles[2], tv->players[v->trackplayer].current.angles[2], lerp)>>8);
+		}
+		else
+		{
+			WriteByte(msg, svc_nqsetview);
+			WriteShort(msg, v->thisplayer+1);
 		}
 
 
@@ -1393,6 +1420,50 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 		{
 			pl = &tv->players[e];
 			ent = &tv->entity[e+1];
+
+			if (e == v->thisplayer && v->trackplayer < 0)
+			{
+				bits = UNQ_ORIGIN1 | UNQ_ORIGIN2 | UNQ_ORIGIN3 | UNQ_COLORMAP;
+
+
+  				if (e+1 >= 256)
+					bits |= UNQ_LONGENTITY;
+					
+				if (bits >= 256)
+					bits |= UNQ_MOREBITS;
+				WriteByte (msg,bits | UNQ_SIGNAL);
+				if (bits & UNQ_MOREBITS)
+					WriteByte (msg, bits>>8);
+				if (bits & UNQ_LONGENTITY)
+					WriteShort (msg,e+1);
+				else
+					WriteByte (msg,e+1);
+
+				if (bits & UNQ_MODEL)
+					WriteByte (msg,	0);
+				if (bits & UNQ_FRAME)
+					WriteByte (msg, 0);
+				if (bits & UNQ_COLORMAP)
+					WriteByte (msg, 0);
+				if (bits & UNQ_SKIN)
+					WriteByte (msg, 0);
+				if (bits & UNQ_EFFECTS)
+					WriteByte (msg, 0);
+				if (bits & UNQ_ORIGIN1)
+					WriteShort (msg, v->origin[0]);		
+				if (bits & UNQ_ANGLE1)
+					WriteByte(msg, -(v->ucmds[2].angles[0]>>8));
+				if (bits & UNQ_ORIGIN2)
+					WriteShort (msg, v->origin[1]);
+				if (bits & UNQ_ANGLE2)
+					WriteByte(msg, v->ucmds[2].angles[1]>>8);
+				if (bits & UNQ_ORIGIN3)
+					WriteShort (msg, v->origin[2]);
+				if (bits & UNQ_ANGLE3)
+					WriteByte(msg, v->ucmds[2].angles[2]>>8);
+				continue;
+			}
+
 			if (!pl->active)
 				continue;
 
@@ -1422,7 +1493,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 //			if (pl->v.movetype == MOVETYPE_STEP)
 //				bits |= UNQ_NOLERP;	// don't mess up the step animation
 		
-			if (ent->baseline.colormap != e+1)
+			if (ent->baseline.colormap != e+1 || ent->baseline.colormap > 15)
 				bits |= UNQ_COLORMAP;
 				
 			if (ent->baseline.skinnum != pl->current.skinnum)
@@ -1489,13 +1560,26 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			
 // send an update
 			bits = 0;
-			
-			for (i=0 ; i<3 ; i++)
+
+			if (tv->entity[i].updatetime == tv->oldpackettime)
 			{
-				org[i] = (lerp)*ent->current.origin[i] + (1-lerp)*ent->old.origin[i];
-				miss = org[i] - ent->baseline.origin[i];
-			//	if ( miss < -1 || miss > 1 )
-					bits |= UNQ_ORIGIN1<<i;
+				for (i=0 ; i<3 ; i++)
+				{
+					org[i] = (lerp)*ent->current.origin[i] + (1-lerp)*ent->old.origin[i];
+					miss = org[i] - ent->baseline.origin[i];
+				//	if ( miss < -1 || miss > 1 )
+						bits |= UNQ_ORIGIN1<<i;
+				}
+			}
+			else
+			{
+				for (i=0 ; i<3 ; i++)
+				{
+					org[i] = ent->current.origin[i];
+					miss = org[i] - ent->baseline.origin[i];
+				//	if ( miss < -1 || miss > 1 )
+						bits |= UNQ_ORIGIN1<<i;
+				}
 			}
 
 			if ( ent->current.angles[0] != ent->baseline.angles[0] )
@@ -1510,7 +1594,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 //			if (ent->v.movetype == MOVETYPE_STEP)
 //				bits |= UNQ_NOLERP;	// don't mess up the step animation
 		
-			if (ent->baseline.colormap != ent->current.colormap)
+			if (ent->baseline.colormap != ent->current.colormap || ent->baseline.colormap > 15)
 				bits |= UNQ_COLORMAP;
 				
 			if (ent->baseline.skinnum != ent->current.skinnum)
@@ -1957,7 +2041,36 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 								".qw qwserver:port\n"
 								".qtv tcpserver:port\n"
 								".demo gamedir/demoname.mvd\n"
-								".disconnect\n");
+								".disconnect\n"
+								".admin\n"
+								".bind\n"
+								);
+	}
+	else if (!strncmp(message, ".reset", 6))
+	{
+		QW_SetViewersServer(v, NULL);
+		QW_SetMenu(v, MENU_SERVERS);
+	}
+	else if (!strncmp(message, ".admin", 6))
+	{
+		if (!*cluster->adminpassword)
+		{
+			if (Netchan_IsLocal(v->netchan.remote_address))
+			{
+				Sys_Printf(cluster, "Local player %s logs in as admin\n", v->name);
+				QW_SetMenu(v, MENU_ADMIN);
+				v->isadmin = true;
+			}
+			else
+				QW_PrintfToViewer(v, "There is no admin password set\nYou may not log in.\n");
+		}
+		else if (v->isadmin)
+			QW_SetMenu(v, MENU_ADMIN);
+		else
+		{
+			strcpy(v->expectcommand, "admin");
+			QW_StuffcmdToViewer(v, "echo Please enter the rcon password\nmessagemode\n");
+		}
 	}
 	else if (!strncmp(message, ".connect ", 9) || !strncmp(message, ".qw ", 4))
 	{
@@ -2025,9 +2138,9 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		QW_SetViewersServer(v, NULL);
 		QW_PrintfToViewer(v, "Connected\n", message);
 	}
-	else if (!strncmp(message, ".admin", 11))
+	else if (!strncmp(message, "admin", 11))
 	{
-		QW_StuffcmdToViewer(v, "cmd admin\n");
+		QW_StuffcmdToViewer(v, "cmd say \".admin\"\n");
 	}
 	else if (!strncmp(message, "proxy:menu up", 13))
 	{
@@ -2067,19 +2180,30 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else
 			QW_SetMenu(v, MENU_SERVERS);
 	}
+	else if (!strncmp(message, ".bind", 5))
+	{
+		QW_StuffcmdToViewer(v, "bind uparrow +proxfwd\n");
+		QW_StuffcmdToViewer(v, "bind downarrow +proxback\n");
+		QW_StuffcmdToViewer(v, "bind rightarrow +proxright\n");
+		QW_StuffcmdToViewer(v, "bind leftarrow +proxleft\n");
+	}
 	else if (!strncmp(message, ".menu bind", 10) || !strncmp(message, "proxy:menu bindstd", 18))
 	{
-		QW_StuffcmdToViewer(v, "bind uparrow proxy:menu up\n");
-		QW_StuffcmdToViewer(v, "bind downarrow proxy:menu down\n");
-		QW_StuffcmdToViewer(v, "bind rightarrow proxy:menu right\n");
-		QW_StuffcmdToViewer(v, "bind leftarrow proxy:menu left\n");
+		QW_StuffcmdToViewer(v, "bind uparrow \"proxy:menu up\"\n");
+		QW_StuffcmdToViewer(v, "bind downarrow \"proxy:menu down\"\n");
+		QW_StuffcmdToViewer(v, "bind rightarrow \"proxy:menu right\"\n");
+		QW_StuffcmdToViewer(v, "bind leftarrow \"proxy:menu left\"\n");
 
-		QW_StuffcmdToViewer(v, "bind enter proxy:menu select\n");
+		QW_StuffcmdToViewer(v, "bind enter \"proxy:menu select\"\n");
 
-		QW_StuffcmdToViewer(v, "bind home proxy:menu home\n");
-		QW_StuffcmdToViewer(v, "bind end proxy:menu end\n");
-		QW_StuffcmdToViewer(v, "bind pause proxy:menu\n");
-		QW_StuffcmdToViewer(v, "bind backspace proxy:back up\n");
+		QW_StuffcmdToViewer(v, "bind home \"proxy:menu home\"\n");
+		QW_StuffcmdToViewer(v, "bind end \"proxy:menu end\"\n");
+		QW_StuffcmdToViewer(v, "bind pause \"proxy:menu\"\n");
+		QW_StuffcmdToViewer(v, "bind backspace \"proxy:menu back\"\n");
+	}
+	else if (!strncmp(message, ".", 1))
+	{
+		QW_PrintfToViewer(v, "Proxy command not recognised\n");
 	}
 	else
 	{
@@ -2128,7 +2252,7 @@ viewer_t *QW_IsOn(cluster_t *cluster, char *name)
 {
 	viewer_t *v;
 	for (v = cluster->viewers; v; v = v->next)
-		if (!strcmp(v->name, name))		//this needs to allow dequakified names.
+		if (!stricmp(v->name, name))		//this needs to allow dequakified names.
 			return v;
 
 	return NULL;
@@ -2195,15 +2319,15 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				msg.cursize = 0;
 				msg.overflowed = 0;
 
-	if (qtv)
-	{
-		SendCurrentBaselines(qtv, 64, &msg, msg.maxsize, 0);
-		SendCurrentLightmaps(qtv, 64, &msg, msg.maxsize, 0);
+				if (qtv)
+				{
+					SendCurrentBaselines(qtv, 64, &msg, msg.maxsize, 0);
+					SendCurrentLightmaps(qtv, 64, &msg, msg.maxsize, 0);
 
-		SendStaticSounds(qtv, 64, &msg, msg.maxsize, 0);
+					SendStaticSounds(qtv, 64, &msg, msg.maxsize, 0);
 
-		SendStaticEntities(qtv, 64, &msg, msg.maxsize, 0);
-	}
+					SendStaticEntities(qtv, 64, &msg, msg.maxsize, 0);
+				}
 				WriteByte (&msg, svc_nqsignonnum);
 				WriteByte (&msg, 2);
 				SendBufferToViewer(v, msg.data, msg.cursize, true);
@@ -2268,12 +2392,22 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			v->ucmds[2].upmove = ReadShort(m);
 
 			//one button
-			v->ucmds[2].buttons = ReadByte(m); 
+			v->ucmds[1].buttons = v->ucmds[2].buttons;
+			v->ucmds[2].buttons = ReadByte(m);
 			//one impulse
 			v->ucmds[2].impulse = ReadByte(m);
 
-			v->ucmds[2].msec = 1000/NQ_PACKETS_PER_SECOND;
+			v->ucmds[2].msec = 5000/NQ_PACKETS_PER_SECOND;
 			PMove(v, &v->ucmds[2]);
+
+			if ((v->ucmds[1].buttons&1) != (v->ucmds[2].buttons&1) && (v->ucmds[2].buttons&1))
+			{
+				v->trackplayer++;
+			}
+			if ((v->ucmds[1].buttons&2) != (v->ucmds[2].buttons&2) && (v->ucmds[2].buttons&2))
+			{
+				v->trackplayer--;
+			}
 			break;
 		default:
 			Sys_Printf(cluster, "Bad message type %i\n", mtype);
@@ -2462,7 +2596,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				if ((other = QW_IsOn(cluster, buf+5)))
 				{
 					if (!other->server)
-						QW_PrintfToViewer(v, "%s is on the proxy, but not yet watching a game\n");
+						QW_PrintfToViewer(v, "%s is on the proxy, but not yet watching a game\n", other->name);
 					else
 						QW_PrintfToViewer(v, "%s is watching %s\n", buf+5, other->server->server);
 				}
@@ -2489,32 +2623,6 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			else if (!strncmp(buf, "servers", 7))
 			{
 				QW_SetMenu(v, MENU_SERVERS);
-			}
-			else if (!strncmp(buf, "reset", 5))
-			{
-				QW_SetViewersServer(v, NULL);
-				QW_SetMenu(v, MENU_SERVERS);
-			}
-			else if (!strncmp(buf, "admin", 5))
-			{
-				if (!*cluster->adminpassword)
-				{
-					if (Netchan_IsLocal(v->netchan.remote_address))
-					{
-						Sys_Printf(cluster, "Local player %s logs in as admin\n", v->name);
-						QW_SetMenu(v, MENU_ADMIN);
-						v->isadmin = true;
-					}
-					else
-						QW_PrintfToViewer(v, "There is no admin password set\nYou may not log in.\n");
-				}
-				else if (v->isadmin)
-					QW_SetMenu(v, MENU_ADMIN);
-				else
-				{
-					strcpy(v->expectcommand, "admin");
-					QW_StuffcmdToViewer(v, "echo Please enter the rcon password\nmessagemode\n");
-				}
 			}
 
 			else if (!strncmp(buf, "setinfo", 5))
@@ -2602,34 +2710,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			ReadDeltaUsercmd(m, &nullcmd, &v->ucmds[0]);
 			ReadDeltaUsercmd(m, &v->ucmds[0], &v->ucmds[1]);
 			ReadDeltaUsercmd(m, &v->ucmds[1], &v->ucmds[2]);
-/*
-			if (v->server && v->server->controller)
-			{
-				v->
-			}
-*/
-/*			if (v->menunum)
-			{
-				if (newcmd.buttons&1 && !(oldcmd.buttons&1))
-					Menu_Enter(cluster, v, 0);
-				if (newcmd.buttons&2 && !(oldcmd.buttons&2))
-					Menu_Enter(cluster, v, 1);
-				if (newcmd.sidemove && !oldcmd.sidemove)
-					Menu_Enter(cluster, v, newcmd.sidemove<0);
 
-				if (newcmd.forwardmove && !oldcmd.forwardmove)
-				{	//they pressed the button...
-					if (newcmd.forwardmove < 0)
-					{
-						v->menuop+=1;
-					}
-					else
-					{
-						v->menuop-=1;
-					}
-				}
-			}
-*/
 			PMove(v, &v->ucmds[2]);
 			break;
 		case clc_tmove:
@@ -3145,6 +3226,23 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 			{	//looks hopeful
 				switch(ReadByte(&m))
 				{
+				case CCREQ_SERVER_INFO:
+					ReadString(&m, tempbuffer, sizeof(tempbuffer));
+					if (!strcmp(tempbuffer, NET_GAMENAME_NQ))
+					{
+						m.cursize = 0;
+						WriteLong(&m, 0);
+						WriteByte(&m, CCREP_SERVER_INFO);
+						WriteString(&m, "??");
+						WriteString(&m, cluster->hostname);
+						WriteString(&m, "Quake TV");
+						WriteByte(&m, cluster->numviewers>255?255:cluster->numviewers);
+						WriteByte(&m, cluster->maxviewers>255?255:cluster->maxviewers);
+						WriteByte(&m, NET_PROTOCOL_VERSION);
+						*(int*)m.data = BigLong(NETFLAG_CTL | m.cursize);
+						NET_SendPacket(cluster, cluster->qwdsocket, m.cursize, m.data, from);
+					}
+					break;
 				case CCREQ_CONNECT:
 					ReadString(&m, tempbuffer, sizeof(tempbuffer));
 					if (!strcmp(tempbuffer, NET_GAMENAME_NQ))

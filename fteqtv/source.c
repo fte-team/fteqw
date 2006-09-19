@@ -477,6 +477,49 @@ qboolean Net_WriteUpStream(sv_t *qtv)
 	return true;
 }
 
+int SV_ConsistantMVDData(unsigned char *buffer, int remaining)
+{
+	int lengthofs;
+	int length;
+	int available = 0;
+	while(1)
+	{
+		if (remaining < 2)
+			return available;
+
+		//buffer[0] is time
+
+		switch (buffer[1]&dem_mask)
+		{
+		case dem_set:
+			length = 10;
+			goto gottotallength;
+		case dem_multiple:
+			lengthofs = 6;
+			break;
+		default:
+			lengthofs = 2;
+			break;
+		}
+
+		if (lengthofs+4 > remaining)
+			return available;
+
+		length = (buffer[lengthofs]<<0) + (buffer[lengthofs+1]<<8) + (buffer[lengthofs+2]<<16) + (buffer[lengthofs+3]<<24);
+
+		length += lengthofs+4;
+		if (length > 1400)
+			printf("Corrupt mvd\n");
+gottotallength:
+		if (remaining < length)
+			return available;
+		
+		remaining -= length;
+		available += length;
+		buffer += length;
+	}
+}
+
 qboolean Net_ReadStream(sv_t *qtv)
 {
 	int maxreadable;
@@ -515,8 +558,16 @@ qboolean Net_ReadStream(sv_t *qtv)
 	if (read > 0)
 	{
 		qtv->buffersize += read;
-		if (!qtv->cluster->lateforward && !qtv->parsingqtvheader)
-			SV_ForwardStream(qtv, buffer, read);
+		if (!qtv->cluster->lateforward && !qtv->parsingqtvheader)	//qtv header being the auth part of the connection rather than the stream
+		{
+			int forwardable;
+			forwardable = SV_ConsistantMVDData(qtv->buffer+qtv->forwardpoint, qtv->buffersize - qtv->forwardpoint);
+			if (forwardable > 0)
+			{
+				SV_ForwardStream(qtv, qtv->buffer+qtv->forwardpoint, forwardable);
+				qtv->forwardpoint += forwardable;
+			}
+		}
 	}
 	else
 	{
@@ -1009,6 +1060,50 @@ void QTV_ParseQWStream(sv_t *qtv)
 	}
 }
 
+void QTV_CollectCommentry(sv_t *qtv)
+{
+	int samps;
+	unsigned char buffer[8192+6];
+	unsigned char *uchar;
+	signed char *schar;
+	int bytesleft;
+	if (!qtv->comentrycapture)
+	{
+		if (0)
+			qtv->comentrycapture = SND_InitCapture(11025, 8);
+		return;
+	}
+
+	while(1)
+	{
+		buffer[0] = 0;
+		buffer[1] = dem_audio;
+		buffer[2] = 255;
+		buffer[3] = 255;
+		buffer[4] = 8;
+		buffer[5] = 11*5;
+
+		samps=qtv->comentrycapture->update(qtv->comentrycapture, 2048, buffer+6);
+
+		bytesleft = samps;
+		schar = buffer+6;
+		uchar = buffer+6;
+		while(bytesleft-->0)
+		{
+			*schar++ = *uchar++ - 128;
+		}
+
+		buffer[2] = samps&255;
+		buffer[3] = samps>>8;
+
+		if (samps)
+			SV_ForwardStream(qtv, buffer, 6 + samps);
+
+		if (samps < 64)
+			break;
+	}
+}
+
 void QTV_Run(sv_t *qtv)
 {
 	int lengthofs;
@@ -1322,9 +1417,10 @@ void QTV_Run(sv_t *qtv)
 		if (!qtv->usequkeworldprotocols)
 			Sys_Printf(qtv->cluster, "Connection established, buffering for %i seconds\n", BUFFERTIME);
 
-		if (!qtv->cluster->lateforward)
-			SV_ForwardStream(qtv, qtv->buffer, qtv->buffersize);
+		SV_ForwardStream(qtv, qtv->buffer, qtv->forwardpoint);
 	}
+
+	QTV_CollectCommentry(qtv);
 
 
 	while (qtv->curtime >= qtv->parsetime)
@@ -1345,7 +1441,8 @@ void QTV_Run(sv_t *qtv)
 		switch (qtv->buffer[1]&dem_mask)
 		{
 		case dem_set:
-			if (qtv->buffersize < 10)
+			length = 10;
+			if (qtv->buffersize < length)
 			{	//not enough stuff to play.
 				qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
 				if (qtv->file || qtv->sourcesock != INVALID_SOCKET)
@@ -1353,8 +1450,16 @@ void QTV_Run(sv_t *qtv)
 				continue;
 			}
 			qtv->parsetime += buffer[0];	//well this was pointless
-			memmove(qtv->buffer, qtv->buffer+10, qtv->buffersize-(10));
-			qtv->buffersize -= 10;
+
+			if (qtv->forwardpoint < length)	//we're about to destroy this data, so it had better be forwarded by now!
+			{
+				SV_ForwardStream(qtv, qtv->buffer, length);
+				qtv->forwardpoint += length;
+			}
+
+			memmove(qtv->buffer, qtv->buffer+10, qtv->buffersize-(length));
+			qtv->buffersize -= length;
+			qtv->forwardpoint -= length;
 			continue;
 		case dem_multiple:
 			lengthofs = 6;
@@ -1404,9 +1509,6 @@ void QTV_Run(sv_t *qtv)
 
 		if (qtv->nextpackettime < qtv->curtime)
 		{
-			if (qtv->cluster->lateforward)
-				SV_ForwardStream(qtv, qtv->buffer, lengthofs+4+length);
-
 			switch(qtv->buffer[1]&dem_mask)
 			{
 			case dem_multiple:
@@ -1425,13 +1527,23 @@ void QTV_Run(sv_t *qtv)
 				break;
 			}
 
+			length = lengthofs+4+length;	//make length be the length of the entire packet
+
 			qtv->oldpackettime = qtv->curtime;
 
 			packettime = buffer[0];
 			if (qtv->buffersize)
 			{	//svc_disconnect can flush our input buffer (to prevent the EndOfDemo part from interfering)
-				memmove(qtv->buffer, qtv->buffer+lengthofs+4+length, qtv->buffersize-(lengthofs+length+4));
-				qtv->buffersize -= lengthofs+4+length;
+
+				if (qtv->forwardpoint < length)	//we're about to destroy this data, so it had better be forwarded by now!
+				{
+					SV_ForwardStream(qtv, qtv->buffer, length);
+					qtv->forwardpoint += length;
+				}
+
+				memmove(qtv->buffer, qtv->buffer+length, qtv->buffersize-(length));
+				qtv->buffersize -= length;
+				qtv->forwardpoint -= length;
 			}
 
 			if (qtv->file)

@@ -1617,10 +1617,10 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 	for (j=0,cl=svs.clients ; j<sv.allocated_client_slots ; j++,cl++)
 	{
-		if (cl->state != cs_spawned)	//this includes bots
+		if (cl->state != cs_spawned || (cl->state == cs_free && cl->name[0]))	//this includes bots, and nq bots
 			continue;
 
-		isbot = (cl->name[0] || cl->protocol == SCP_BAD);
+		isbot = (!cl->name[0] || cl->protocol == SCP_BAD);
 		ent = cl->edict;
 		if (cl->viewent && ent == clent)
 		{

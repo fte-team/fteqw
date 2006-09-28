@@ -3036,10 +3036,43 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 		QCC_type_t *fieldtype;
 		char membername[2048];
 		char *classname = QCC_PR_ParseName();
-		newt = QCC_PR_NewType(classname, ev_entity);
+		int forwarddeclaration;
+
+		newt = 0;
+
+		/* Don't advance the line number yet */
+		forwarddeclaration = pr_token[0] == ';';
+
+		/* Look to see if this type is already defined */
+		for(i=0;i<numtypeinfos;i++)
+		{
+			if (STRCMP(qcc_typeinfo[i].name, classname) == 0)
+			{
+				newt = &qcc_typeinfo[i];
+				break;
+			}	
+		}
+
+		if (newt && forwarddeclaration)
+			QCC_PR_ParseError(ERR_REDECLARATION, "Forward declaration of already defined class %s", classname);
+
+		if (newt && newt->num_parms != 0)
+			QCC_PR_ParseError(ERR_REDECLARATION, "Redeclaration of class %s", classname);
+
+		if (!newt)
+			newt = QCC_PR_NewType(classname, ev_entity);
+
 		newt->size=type_entity->size;
 
 		type = NULL;
+
+		if (forwarddeclaration)
+		{
+			QCC_PR_CheckToken(";");
+			return NULL;
+		}
+
+		
 
 		if (QCC_PR_CheckToken(":"))
 		{

@@ -1285,7 +1285,7 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 		if (var_a->type->type == ev_entity && var_b->type->type == ev_entity)
 			if (var_a->type != var_b->type)
 				if (strcmp(var_a->type->name, var_b->type->name))
-					QCC_PR_ParseWarning(0, "Inexplict cast");
+					QCC_PR_ParseWarning(0, "Implicit cast from '%s' to '%s'", var_a->type->name, var_b->type->name);
 	}
 
 	//maths operators

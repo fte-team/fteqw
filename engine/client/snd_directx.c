@@ -30,7 +30,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define iDirectSoundEnumerate(a,b,c)	pDirectSoundEnumerate(a,b)
 
 HRESULT (WINAPI *pDirectSoundCreate)(GUID FAR *lpGUID, LPDIRECTSOUND FAR *lplpDS, IUnknown FAR *pUnkOuter);
+#if defined(VOICECHAT) && !defined(__MINGW32__)
 HRESULT (WINAPI *pDirectSoundCaptureCreate)(GUID FAR *lpGUID, LPDIRECTSOUNDCAPTURE FAR *lplpDS, IUnknown FAR *pUnkOuter);
+#endif
 HRESULT (WINAPI *pDirectSoundEnumerate)(LPDSENUMCALLBACKA lpCallback, LPVOID lpContext );
 
 // 64K is > 1 second at 16-bit, 22050 Hz
@@ -122,12 +124,12 @@ static void DSOUND_Shutdown (soundcardinfo_t *sc)
 	if (!dh)
 		return;
 	sc->handle = NULL;
-
+#ifdef _IKsPropertySet_
 	if (dh->EaxKsPropertiesSet)
 	{
 		IKsPropertySet_Release(dh->EaxKsPropertiesSet);
 	}
-
+#endif
 	if (dh->pDSBuf)
 	{
 		dh->pDSBuf->lpVtbl->Stop(dh->pDSBuf);
@@ -149,7 +151,9 @@ static void DSOUND_Shutdown (soundcardinfo_t *sc)
 	dh->pDS = NULL;
 	dh->pDSBuf = NULL;
 	dh->pDSPBuf = NULL;
+#ifdef _IKsPropertySet_
 	dh->EaxKsPropertiesSet = NULL;
+#endif
 
 	Z_Free(dh);
 }
@@ -601,6 +605,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	dh = sc->handle;
  //EAX attempt
 #ifndef MINIMAL
+#ifdef _IKsPropertySet_
 	dh->pDS = NULL;
 	if (snd_eax.value)
 	{
@@ -612,6 +617,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	}
 
 	if (!dh->pDS)
+#endif
 #endif
 	{
 		while ((hresult = iDirectSoundCreate(dsndguid, &dh->pDS, NULL)) != DS_OK)
@@ -667,11 +673,13 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	dsbuf.dwBufferBytes = 0;
 	dsbuf.lpwfxFormat = NULL;
 
+#ifdef DSBCAPS_GLOBALFOCUS
 	if (snd_inactive.value)
 	{
 		dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
 		sc->inactive_sound = true;
 	}
+#endif
 
 	memset(&dsbcaps, 0, sizeof(dsbcaps));
 	dsbcaps.dwSize = sizeof(dsbcaps);
@@ -704,11 +712,13 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		memset (&dsbuf, 0, sizeof(dsbuf));
 		dsbuf.dwSize = sizeof(DSBUFFERDESC);
 		dsbuf.dwFlags = DSBCAPS_CTRLFREQUENCY|DSBCAPS_LOCSOFTWARE;	//dmw 29 may, 2003 removed locsoftware
+#ifdef DSBCAPS_GLOBALFOCUS
 		if (snd_inactive.value)
 		{
 			dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
 			sc->inactive_sound = true;
 		}
+#endif
 		dsbuf.dwBufferBytes = sc->sn.samples / format.Format.nChannels;
 		if (!dsbuf.dwBufferBytes)
 		{
@@ -867,7 +877,7 @@ int (*pDSOUND_InitCard) (soundcardinfo_t *sc, int cardnum) = &DSOUND_InitCard;
 
 
 
-#if defined(VOICECHAT) && !defined(NODIRECTX)
+#if defined(VOICECHAT) && !defined(NODIRECTX) && !defined(__MINGW32__)
 
 
 

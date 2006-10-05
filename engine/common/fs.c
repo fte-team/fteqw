@@ -1854,6 +1854,7 @@ qboolean Sys_PathProtection(char *pattern)
 	return true;
 }
 
+#ifdef AVAIL_ZLIB
 typedef struct {
 	unsigned char ident1;
 	unsigned char ident2;
@@ -2003,6 +2004,7 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, gzheader_t *header)
 
 	return temp;
 }
+#endif
 
 vfsfile_t *VFS_Filter(char *filename, vfsfile_t *handle)
 {
@@ -2010,8 +2012,8 @@ vfsfile_t *VFS_Filter(char *filename, vfsfile_t *handle)
 
 	if (!handle || handle->WriteBytes || handle->seekingisabadplan)	//only on readonly files
 		return handle;
-
 //	ext = COM_FileExtension (filename);
+#ifdef AVAIL_ZLIB
 //	if (!stricmp(ext, ".gz"))
 	{
 		gzheader_t gzh;
@@ -2024,7 +2026,7 @@ vfsfile_t *VFS_Filter(char *filename, vfsfile_t *handle)
 		}
 		VFS_SEEK(handle, 0);
 	}
-
+#endif
 	return handle;
 }
 

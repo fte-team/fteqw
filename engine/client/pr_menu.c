@@ -1754,12 +1754,12 @@ int MP_TranslateDPtoFTECodes(int code)
 
 void MP_Keydown(int key)
 {
+	extern qboolean	keydown[K_MAX];
 	if (setjmp(mp_abort))
 		return;
 
 	if (key == 'c')
 	{
-		extern int keydown[];
 		if (keydown[K_CTRL])
 		{
 			MP_Shutdown();
@@ -1768,7 +1768,6 @@ void MP_Keydown(int key)
 	}
 	if (key == K_ESCAPE)
 	{
-		extern qboolean	keydown[K_MAX];
 		if (keydown[K_SHIFT])
 		{
 			Con_ToggleConsole_f();

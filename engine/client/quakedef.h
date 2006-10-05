@@ -199,8 +199,12 @@ int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...);
 int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
 #endif
 
+#ifdef _MSC_VER
+//these are provided so we don't use them
+//but mingw has some defines elsewhere and makes gcc moan
 #define _vsnprintf unsafe_vsnprintf
 #define _snprintf unsafe_snprintf
+#endif
 #endif
 
 //=============================================================================

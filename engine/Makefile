@@ -367,6 +367,15 @@ SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 #specific targets override those defaults as needed.
 
 ifeq ($(FTE_TARGET),win32)
+
+	#cygwin's gcc requires an extra command to use mingw instead of cygwin (default paths, etc).
+	ifneq ($(shell $(CC) -v 2>&1 | grep cygwin),)
+		W32_CFLAGS=-mno-cygwin
+	endif
+
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
+
+
 	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../fteqwsv.exe
 	SV_LDFLAGS=libs/zlib.lib -lwsock32
@@ -381,7 +390,7 @@ endif
 	GL_EXE_NAME=../fteglqw.exe
 	GLCL_EXE_NAME=../fteglqwcl.exe
 	GL_LDFLAGS=$(GLLDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
-	GL_CFLAGS=$(GLCFLAGS)
+	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
 	GLB_DIR=gl_mgw
 	GLCL_DIR=glcl_mgw
 
@@ -393,7 +402,7 @@ endif
 	SW_EXE_NAME=../fteswqw.exe
 	SWCL_EXE_NAME=../fteswqwcl.exe
 	SW_LDFLAGS=$(SWLDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
-	SW_CFLAGS=$(SWCFLAGS)
+	SW_CFLAGS=$(SWCFLAGS) $(W32_CFLAGS)
 	SWB_DIR=sw_mgw
 	SWCL_DIR=swcl_mgw
 
@@ -405,7 +414,7 @@ endif
 	M_EXE_NAME=../fteqw.exe
 	MCL_EXE_NAME=../fteqwcl.exe
 	M_LDFLAGS=$(GLLDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
-	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS)
+	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) $(W32_CFLAGS)
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw
 

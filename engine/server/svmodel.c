@@ -1512,6 +1512,12 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 	// checksum all of the map, except for entities
 	for (i = 0; i < HEADER_LUMPS; i++)
 	{
+		if ((unsigned)header->lumps[i].fileofs + (unsigned)header->lumps[i].filelen > com_filesize)
+		{
+			Con_Printf (S_ERROR "Mod_LoadBrushModel: %s appears truncated\n", mod->name);
+			return false;
+		}
+
 		if (i == LUMP_ENTITIES)
 			continue;
 		chksum = Com_BlockChecksum(mod_base + header->lumps[i].fileofs,

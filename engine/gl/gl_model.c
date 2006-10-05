@@ -2611,23 +2611,18 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 	for (i=0 ; i<sizeof(dheader_t)/4 ; i++)
 		((int *)header)[i] = LittleLong ( ((int *)header)[i]);
 
-	if (1)//mod_ebfs.value)
-	{
-		char *id;
-		id = (char *)(header + 1);
-		if (id[0]=='P' && id[1]=='A' && id[2]=='C' && id[3]=='K')
-		{	//EBFS detected.
-			COM_LoadMapPackFile(mod->name, sizeof(dheader_t));
-		}
-	}
-
-
 
 // checksum all of the map, except for entities
 	mod->checksum = 0;
 	mod->checksum2 = 0;
 
-	for (i = 0; i < HEADER_LUMPS; i++) {
+	for (i = 0; i < HEADER_LUMPS; i++)
+	{
+		if ((unsigned)header->lumps[i].fileofs + (unsigned)header->lumps[i].filelen > com_filesize)
+		{
+			Con_Printf (S_ERROR "Mod_LoadBrushModel: %s appears truncated\n", mod->name);
+			return false;
+		}
 		if (i == LUMP_ENTITIES)
 			continue;
 		chksum = Com_BlockChecksum(mod_base + header->lumps[i].fileofs, header->lumps[i].filelen);
@@ -2636,6 +2631,16 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 		if (i == LUMP_VISIBILITY || i == LUMP_LEAFS || i == LUMP_NODES)
 			continue;
 		mod->checksum2 ^= chksum;
+	}
+
+	if (1)//mod_ebfs.value)
+	{
+		char *id;
+		id = (char *)(header + 1);
+		if (id[0]=='P' && id[1]=='A' && id[2]=='C' && id[3]=='K')
+		{	//EBFS detected.
+			COM_LoadMapPackFile(mod->name, sizeof(dheader_t));
+		}
 	}
 		
 	noerrors = true;

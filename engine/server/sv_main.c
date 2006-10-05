@@ -498,14 +498,14 @@ void SV_DropClient (client_t *drop)
 		drop->frameunion.frames = NULL;
 	}
 
-	if (svs.gametype != GT_PROGS)	//gamecode should do it all for us.
-		return;
-
+	if (svs.gametype == GT_PROGS)	//gamecode should do it all for us.
+	{
 // send notification to all remaining clients
-	SV_FullClientUpdate (drop, &sv.reliable_datagram, 0);
+		SV_FullClientUpdate (drop, &sv.reliable_datagram, 0);
 #ifdef NQPROT
-	SVNQ_FullClientUpdate (drop, &sv.nqreliable_datagram);
+		SVNQ_FullClientUpdate (drop, &sv.nqreliable_datagram);
 #endif
+	}
 
 	if (drop->controlled)
 	{
@@ -3594,17 +3594,21 @@ void SV_ExtractFromUserinfo (client_t *cl)
 
 	if (strncmp(newname, cl->name, sizeof(cl->namebuf)-1))
 	{
-		if (cl->ismuted)
+		if (cl->ismuted && *cl->name)
 			SV_ClientTPrintf (cl, PRINT_HIGH, STL_NONAMEASMUTE);
 		else
 		{
 
 			Info_SetValueForKey (cl->userinfo, "name", newname, sizeof(cl->userinfo));
-			if (!sv.paused) {
-				if (!cl->lastnametime || realtime - cl->lastnametime > 5) {
+			if (!sv.paused && *cl->name)
+			{
+				if (!cl->lastnametime || realtime - cl->lastnametime > 5)
+				{
 					cl->lastnamecount = 0;
 					cl->lastnametime = realtime;
-				} else if (cl->lastnamecount++ > 4) {
+				}
+				else if (cl->lastnamecount++ > 4)
+				{
 					SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTKICKEDNAMESPAM, cl->name);
 					SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREKICKEDNAMESPAM);
 					SV_DropClient (cl);
@@ -3612,7 +3616,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 				}
 			}
 
-			if (cl->state >= cs_spawned && !cl->spectator)
+			if (*cl->name && cl->state >= cs_spawned && !cl->spectator)
 			{
 				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTNAMECHANGE, cl->name, val);
 			}

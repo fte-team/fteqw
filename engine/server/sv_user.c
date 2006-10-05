@@ -4102,23 +4102,27 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	// (also extra inside parm on all SV_RunCmds that follow)
 
 	// To prevent a infinite loop
-	if (!recurse) {
+	if (!recurse)
+	{
 		host_client->msecs += ucmd->msec;
 
-		if ((tmp_time = realtime - host_client->last_check) >= sv_cheatspeedchecktime.value) {
+		if ((tmp_time = realtime - host_client->last_check) >= sv_cheatspeedchecktime.value)
+		{
 			tmp_time = tmp_time * 1000.0 * sv_cheatpc.value/100.0;
-		    if (host_client->msecs > tmp_time) {
+		    if (host_client->msecs > tmp_time)
+			{
 				host_client->msec_cheating++;
 				SV_BroadcastTPrintf(PRINT_HIGH,
 						STL_SPEEDCHEATPOSSIBLE,
 							host_client->msecs, tmp_time,
 							host_client->msec_cheating, host_client->name);
 
-				if (host_client->msec_cheating >= 2) {
+				if (host_client->msec_cheating >= 2)
+				{
 					SV_BroadcastTPrintf(PRINT_HIGH,
 							STL_SPEEDCHEATKICKED,
 								host_client->name, NET_AdrToString(host_client->netchan.remote_address));
-					SV_DropClient(host_client);
+					host_client->drop = true;	//drop later
 				}
 		    }
 

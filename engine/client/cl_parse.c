@@ -432,6 +432,7 @@ void CL_FinishDownload(char *filename, char *tempname)
 				break;
 			}
 		}
+		S_ResetFailedLoad();	//okay, so this can still get a little spammy in bad places...
 
 		//this'll do the magic for us
 		Skin_FlushSkin(filename);

@@ -720,6 +720,13 @@ sfx_t *S_FindName (char *name)
 	return sfx;
 }
 
+void S_ResetFailedLoad(void)
+{
+	int i;
+	for (i=0 ; i < num_sfx ; i++)
+		known_sfx[i].failedload = false;
+}
+
 
 /*
 ==================

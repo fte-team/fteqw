@@ -785,6 +785,9 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 	char *name = s->name;
 
+	if (s->failedload)
+		return NULL;	//it failed to load once before, don't bother trying again.
+
 // see if still in memory
 	sc = Cache_Check (&s->cache);
 	if (sc)
@@ -854,6 +857,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	{
 		//FIXME: check to see if qued for download.
 		Con_DPrintf ("Couldn't load %s\n", namebuffer);
+		s->failedload = true;
 		return NULL;
 	}
 
@@ -866,6 +870,8 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 				return sc;
 		}
 	}
+
+	s->failedload = true;
 	return NULL;
 }
 

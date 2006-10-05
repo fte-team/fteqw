@@ -48,6 +48,7 @@ typedef struct {
 typedef struct sfx_s
 {
 	char 	name[MAX_OSPATH];
+	qboolean failedload; //no more super-spammy
 	cache_user_t	cache;
 	sfxdecode_t *decoder;
 } sfx_t;

@@ -922,6 +922,7 @@ void CL_ClearState (void)
 	CL_AllowIndependantSendCmd(false);	//model stuff could be a problem.
 
 	S_StopAllSounds (true);
+	S_ResetFailedLoad();
 
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
 

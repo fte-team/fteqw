@@ -819,7 +819,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 			pend->flushing = true;
 			return false;
 		}
-		len = s - pend->inbuffer + len;
+		len = s - (char*)pend->inbuffer + len;
 		if (len > pend->inbuffersize)
 			return false;	//still need the body
 
@@ -913,107 +913,109 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 			*e = '\0';
 			colon = strchr(s, ':');
 			if (*s)
-			if (!colon)
 			{
-				if (!strcmp(s, "QTV"))
+				if (!colon)
 				{
-					//just a qtv request
-				}
-				else if (!strcmp(s, "SOURCELIST"))
-				{	//lists sources that are currently playing
-					s = "QTVSV 1\n";
-						Net_ProxySend(cluster, pend, s, strlen(s));
-					if (!cluster->servers)
+					if (!strcmp(s, "QTV"))
 					{
-						s = "PERROR: No sources currently available\n";
-							Net_ProxySend(cluster, pend, s, strlen(s));
+						//just a qtv request
 					}
-					else
-					{
-						for (qtv = cluster->servers; qtv; qtv = qtv->next)
+					else if (!strcmp(s, "SOURCELIST"))
+					{	//lists sources that are currently playing
+						s = "QTVSV 1\n";
+							Net_ProxySend(cluster, pend, s, strlen(s));
+						if (!cluster->servers)
 						{
-							sprintf(tempbuf, "ASOURCE: %i: %15s: %15s\n", qtv->streamid, qtv->server, qtv->hostname);
-							s = tempbuf;
-							Net_ProxySend(cluster, pend, s, strlen(s));
+							s = "PERROR: No sources currently available\n";
+								Net_ProxySend(cluster, pend, s, strlen(s));
 						}
-						qtv = NULL;
+						else
+						{
+							for (qtv = cluster->servers; qtv; qtv = qtv->next)
+							{
+								sprintf(tempbuf, "ASOURCE: %i: %15s: %15s\n", qtv->streamid, qtv->server, qtv->hostname);
+								s = tempbuf;
+								Net_ProxySend(cluster, pend, s, strlen(s));
+							}
+							qtv = NULL;
+						}
+						s = "\n";
+							Net_ProxySend(cluster, pend, s, strlen(s));
+						pend->flushing = true;
 					}
-					s = "\n";
-						Net_ProxySend(cluster, pend, s, strlen(s));
-					pend->flushing = true;
-				}
-				else if (!strcmp(s, "DEMOLIST"))
-				{	//lists the demos available on this proxy
-					s = "QTVSV 1\n";
-						Net_ProxySend(cluster, pend, s, strlen(s));
-					s = "PERROR: DEMOLIST command not yet implemented\n";
-						Net_ProxySend(cluster, pend, s, strlen(s));
-					s = "\n";
-						Net_ProxySend(cluster, pend, s, strlen(s));
-					pend->flushing = true;
-				}
-				else
-					printf("Unrecognised token in QTV connection request (%s)\n", s);
-			}
-			else
-			{
-				*colon++ = '\0';
-				if (!strcmp(s, "VERSION"))
-				{
-					switch(atoi(colon))
-					{
-					case 1:
-						//got a usable version
-						usableversion = 1;
-						break;
-					default:
-						//not recognised.
-						break;
+					else if (!strcmp(s, "DEMOLIST"))
+					{	//lists the demos available on this proxy
+						s = "QTVSV 1\n";
+							Net_ProxySend(cluster, pend, s, strlen(s));
+						s = "PERROR: DEMOLIST command not yet implemented\n";
+							Net_ProxySend(cluster, pend, s, strlen(s));
+						s = "\n";
+							Net_ProxySend(cluster, pend, s, strlen(s));
+						pend->flushing = true;
 					}
-				}
-				else if (!strcmp(s, "RAW"))
-					raw = atoi(colon);
-				/*else if (!strcmp(s, "ROUTE"))
-				{	//pure rewroute...
-					//is this safe? probably not.
-					s = "QTVSV 1\n"
-						"PERROR: ROUTE command not yet implemented\n"
-						"\n";
-					Net_ProxySend(cluster, pend, s, strlen(s));
-					pend->flushing = true;
-				}
-				*/
-				else if (!strcmp(s, "SOURCE"))
-				{	//connects, creating a new source
-					while (*colon == ' ')
-						colon++;
-					for (s = colon; *s; s++)
-						if (*s < '0' || *s > '9')
-							break;
-					if (*s)
-						qtv = QTV_NewServerConnection(cluster, colon, "", false, true, true);
 					else
-					{
-						//numerical source, use a stream id.
-						for (qtv = cluster->servers; qtv; qtv = qtv->next)
-							if (qtv->streamid == atoi(colon))
-								break;
-					}
-//					s = "QTVSV 1\n"
-//						"PERROR: SOURCE command not yet implemented\n"
-//						"\n";
-//					Net_ProxySend(cluster, pend, s, strlen(s));
-				}
-				else if (!strcmp(s, "DEMO"))
-				{	//starts a demo off the server... source does the same thing though...
-					s = "QTVSV 1\n"
-						"PERROR: DEMO command not yet implemented\n"
-						"\n";
-					Net_ProxySend(cluster, pend, s, strlen(s));
-					pend->flushing = true;
+						printf("Unrecognised token in QTV connection request (%s)\n", s);
 				}
 				else
-					printf("Unrecognised token in QTV connection request (%s)\n", s);
+				{
+					*colon++ = '\0';
+					if (!strcmp(s, "VERSION"))
+					{
+						switch(atoi(colon))
+						{
+						case 1:
+							//got a usable version
+							usableversion = 1;
+							break;
+						default:
+							//not recognised.
+							break;
+						}
+					}
+					else if (!strcmp(s, "RAW"))
+						raw = atoi(colon);
+					/*else if (!strcmp(s, "ROUTE"))
+					{	//pure rewroute...
+						//is this safe? probably not.
+						s = "QTVSV 1\n"
+							"PERROR: ROUTE command not yet implemented\n"
+							"\n";
+						Net_ProxySend(cluster, pend, s, strlen(s));
+						pend->flushing = true;
+					}
+					*/
+					else if (!strcmp(s, "SOURCE"))
+					{	//connects, creating a new source
+						while (*colon == ' ')
+							colon++;
+						for (s = colon; *s; s++)
+							if (*s < '0' || *s > '9')
+								break;
+						if (*s)
+							qtv = QTV_NewServerConnection(cluster, colon, "", false, true, true);
+						else
+						{
+							//numerical source, use a stream id.
+							for (qtv = cluster->servers; qtv; qtv = qtv->next)
+								if (qtv->streamid == atoi(colon))
+									break;
+						}
+	//					s = "QTVSV 1\n"
+	//						"PERROR: SOURCE command not yet implemented\n"
+	//						"\n";
+	//					Net_ProxySend(cluster, pend, s, strlen(s));
+					}
+					else if (!strcmp(s, "DEMO"))
+					{	//starts a demo off the server... source does the same thing though...
+						s = "QTVSV 1\n"
+							"PERROR: DEMO command not yet implemented\n"
+							"\n";
+						Net_ProxySend(cluster, pend, s, strlen(s));
+						pend->flushing = true;
+					}
+					else
+						printf("Unrecognised token in QTV connection request (%s)\n", s);
+				}
 			}
 			s = e+1;
 		}

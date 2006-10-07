@@ -845,6 +845,7 @@ void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move);
 void SendClientCommand(sv_t *qtv, char *fmt, ...);
 void QTV_Run(sv_t *qtv);
 void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer);
+void QW_SetMenu(viewer_t *v, int menunum);
 
 char *Rcon_Command(cluster_t *cluster, sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qboolean localcommand);
 char *COM_ParseToken (char *data, char *out, int outsize, const char *punctuation);

@@ -26,7 +26,6 @@ static const filename_t ConnectionlessSoundList[] = {{""}, {""}};
 
 
 void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum);
-void QW_SetMenu(viewer_t *v, int menunum);
 
 #if defined(_WIN32) && !defined(__MINGW32_VERSION)
 int snprintf(char *buffer, int buffersize, char *format, ...)
@@ -207,7 +206,7 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount, qbo
 		if (mvd)
 			WriteFloat(msg, 0);
 		else
-			WriteByte(msg, MAX_CLIENTS-1 | (spectatorflag?128:0));
+			WriteByte(msg, (MAX_CLIENTS-1) | (spectatorflag?128:0));
 		WriteString(msg, "FTEQTV Proxy");
 
 
@@ -1565,7 +1564,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 // send an update
 			bits = 0;
 
-			if (tv->entity[i].updatetime == tv->oldpackettime)
+			if (ent->updatetime == tv->oldpackettime)
 			{
 				for (i=0 ; i<3 ; i++)
 				{

@@ -24,10 +24,6 @@ static const filename_t ConnectionlessModelList[] = {{""}, {"maps/start.bsp"}, {
 static const filename_t ConnectionlessSoundList[] = {{""}, {""}};
 
 
-#define MENU_NONE 0
-#define MENU_SERVERS 1
-#define MENU_ADMIN 2
-#define MENU_ADMINSERVER 3
 
 void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum);
 void QW_SetMenu(viewer_t *v, int menunum);
@@ -197,7 +193,7 @@ SOCKET QW_InitUDPSocket(int port)
 	return sock;
 }
 
-void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount)
+void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount, qboolean spectatorflag)
 {
 	WriteByte(msg, svc_serverdata);
 	WriteLong(msg, PROTOCOL_VERSION);
@@ -211,7 +207,7 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount)
 		if (mvd)
 			WriteFloat(msg, 0);
 		else
-			WriteByte(msg, MAX_CLIENTS-1);
+			WriteByte(msg, MAX_CLIENTS-1 | (spectatorflag?128:0));
 		WriteString(msg, "FTEQTV Proxy");
 
 
@@ -242,7 +238,7 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount)
 		if (mvd)
 			WriteFloat(msg, 0);
 		else
-			WriteByte(msg, tv->thisplayer);
+			WriteByte(msg, tv->thisplayer | (spectatorflag?128:0));
 		WriteString(msg, tv->mapname);
 
 
@@ -330,7 +326,7 @@ void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int playernum)
 		WriteByte(msg, tv->cdtrack);
 
 		WriteByte(msg, svc_nqsetview);
-		WriteShort(msg, tv->trackplayer);
+		WriteShort(msg, 15);
 
 		WriteByte(msg, svc_nqsignonnum);
 		WriteByte(msg, 1);
@@ -350,11 +346,11 @@ void SendServerData(sv_t *tv, viewer_t *viewer)
 	if (tv && (tv->controller == viewer || !tv->controller))
 		viewer->thisplayer = tv->thisplayer;
 	else
-		viewer->thisplayer = 15;
+		viewer->thisplayer = viewer->netchan.isnqprotocol?15:MAX_CLIENTS-1;
 	if (viewer->netchan.isnqprotocol)
 		BuildNQServerData(tv, &msg, false, viewer->thisplayer);
 	else
-		BuildServerData(tv, &msg, false, viewer->servercount);
+		BuildServerData(tv, &msg, false, viewer->servercount, !tv || tv->controller != viewer);
 
 	SendBufferToViewer(viewer, msg.data, msg.cursize, true);
 
@@ -650,7 +646,7 @@ void NewClient(cluster_t *cluster, viewer_t *viewer)
 	}
 
 
-	QW_PrintfToViewer(viewer, "Welcome to FTEQTV\n");
+	QW_PrintfToViewer(viewer, "Welcome to FTEQTV build %i\n", cluster->buildnumber);
 	QW_StuffcmdToViewer(viewer, "alias admin \"cmd admin\"\n");
 
 		QW_StuffcmdToViewer(viewer, "alias \"proxy:up\" \"say proxy:menu up\"\n");
@@ -835,6 +831,10 @@ void QW_SetMenu(viewer_t *v, int menunum)
 			QW_StuffcmdToViewer(v, "alias \"-proxleft\" \"-moveleft\"\n");
 			QW_StuffcmdToViewer(v, "alias \"-proxright\" \"-moveright\"\n");
 		}
+		QW_StuffcmdToViewer(v, "-forward\n");
+		QW_StuffcmdToViewer(v, "-back\n");
+		QW_StuffcmdToViewer(v, "-moveleft\n");
+		QW_StuffcmdToViewer(v, "-moveright\n");
 	}
 
 	v->menunum = menunum;
@@ -879,6 +879,10 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 	InitNetMsg(&msg, buffer, sizeof(buffer));
 	WriteLong(&msg, -1);
 	WriteByte(&msg, 'n');
+
+	WriteString2(&msg, "\\*QTV\\");
+	sprintf(elem, "%i", cluster->buildnumber);
+	WriteString2(&msg, elem);
 
 	if (cluster->numservers==1)
 	{	//show this server's info
@@ -946,11 +950,11 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 
 		for (sv = cluster->servers, i = 0; sv; sv = sv->next, i++)
 		{
-			sprintf(elem, "\\%i\\", i);
+			sprintf(elem, "\\%i\\", sv->streamid);
 			WriteString2(&msg, elem);
 			WriteString2(&msg, sv->serveraddress);
 			sprintf(elem, " (%s)", sv->serveraddress);
-			WriteString2(&msg, sv->serveraddress);
+			WriteString2(&msg, elem);
 		}
 	}
 
@@ -2038,13 +2042,136 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 	{
 		QW_PrintfToViewer(v,	"Website: http://www.fteqw.com/\n"
 								"Commands:\n"
-								".qw qwserver:port\n"
+								".observe qwserver:port\n"
 								".qtv tcpserver:port\n"
 								".demo gamedir/demoname.mvd\n"
 								".disconnect\n"
 								".admin\n"
 								".bind\n"
 								);
+	}
+	else if (!strncmp(message, ".guimenu", 8))
+	{
+		sv_t *sv;
+		int y;
+		qboolean shownheader = false;
+		QW_StuffcmdToViewer(v, 
+
+			"alias menucallback\n"
+			"{\n"
+				"menuclear\n"
+				"if (option == \"OBSERVE\")\n"
+					"{\necho Spectating server $_server\nsay .observe $_server\n}\n"
+				"if (option == \"QTV\")\n"
+					"{\necho Streaming from qtv at $_server\nsay .qtv $_server\n}\n"
+				"if (option == \"JOIN\")\n"
+					"{\necho Joining game at $_server\nsay .join $_server\n}\n"
+				"if (option == \"ADMIN\")\n"
+					"{\nsay .guiadmin\n}\n"
+				"if (\"stream \" isin option)\n"
+					"{\necho Changing stream\nsay .$option\n}\n"
+			"}\n"
+/*
+			"conmenu menucallback\n"
+			"menupic 16 4 gfx/qplaque.lmp\n"
+			"menupic - 4 gfx/p_option.lmp\n"
+
+			"menuedit 16 32 \"        Server\" \"_server\"\n"
+
+			"menutext 72 48 \"Observe\" OBSERVE\n"
+			"menutext 136 48 \"QTV\" QTV\n"
+			"menutext 168 48 \"Cancel\" cancel\n"
+			"menutext 224 48 \"Join\" JOIN\n"
+			"menutext 264 48 \"Admin\" ADMIN\n"
+*/
+			"conmenu menucallback\n"
+			"menupic 0 4 gfx/qplaque.lmp\n"
+			"menupic 96 4 gfx/p_option.lmp\n"
+
+			"menuedit 48 36 \"Óåòöåòº\" \"_server\"\n"
+
+			"menutext 104 52 \"Join\" JOIN\n"
+
+			"menutext 152 52 \"Observe\" OBSERVE\n"
+
+			"menutext 224 52 \"QTV\" QTV\n"
+
+
+
+			"menutext 48 84 \"Admin\" ADMIN\n"
+
+			"menutext 48 92 \"Close Menu\" cancel\n"
+
+
+
+			"menutext 48 116 \"Type in a server address and\"\n"
+			"menutext 48 124 \"click join to play in the game,\"\n"
+			"menutext 48 132 \"observe(udp) to watch, or qtv(tcp)\"\n"
+			"menutext 48 140 \"to connect to a stream or proxy.\"\n"
+			);
+
+		y = 140+16;
+		for (sv = cluster->servers; sv; sv = sv->next)
+		{
+			if (!shownheader)
+			{
+				shownheader = true;
+				QW_StuffcmdToViewer(v, "menutext 72 %i \"Áãôéöå Çáíåóº\"\n", y);
+				y+=8;
+			}
+			QW_StuffcmdToViewer(v, "menutext 32 %i \"%30s\" \"stream %i\"\n", y, *sv->hostname?sv->hostname:sv->server, sv->streamid);
+			y+=8;
+		}
+		if (!shownheader)
+			QW_StuffcmdToViewer(v, "menutext 72 %i \"There are no active games\"\n", y);
+		
+	}
+	else if (!strncmp(message, ".guiadmin", 6))
+	{
+		if (!*cluster->adminpassword)
+		{
+			QW_StuffcmdToViewer(v, 
+
+				"alias menucallback\n"
+				"{\n"
+					"menuclear\n"
+				"}\n"
+
+				"conmenu menucallback\n"
+				"menupic 16 4 gfx/qplaque.lmp\n"
+				"menupic - 4 gfx/p_option.lmp\n"
+
+				"menutext 72 48 \"No admin password is set\"\n"
+				"menutext 72 56 \"Admin access is prohibited\"\n"
+				);
+		}
+		else if (v->isadmin)
+			//already an admin, so don't show admin login screen
+			QW_SetMenu(v, MENU_ADMIN);
+		else
+		{
+			QW_StuffcmdToViewer(v, 
+
+				"alias menucallback\n"
+				"{\n"
+					"menuclear\n"
+					"if (option == \"log\")\n"
+						"{\nsay $_password\n}\n"
+					"set _password \"\"\n"
+				"}\n"
+
+				"conmenu menucallback\n"
+				"menupic 16 4 gfx/qplaque.lmp\n"
+				"menupic - 4 gfx/p_option.lmp\n"
+
+				"menuedit 16 32 \"        Password\" \"_password\"\n"
+
+				"menutext 72 48 \"Log in QW\" log\n"
+				"menutext 192 48 \"Cancel\" cancel\n"
+				);
+
+			strcpy(v->expectcommand, "admin");
+		}
 	}
 	else if (!strncmp(message, ".reset", 6))
 	{
@@ -2072,7 +2199,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 			QW_StuffcmdToViewer(v, "echo Please enter the rcon password\nmessagemode\n");
 		}
 	}
-	else if (!strncmp(message, ".connect ", 9) || !strncmp(message, ".qw ", 4))
+	else if (!strncmp(message, ".connect ", 9) || !strncmp(message, ".qw ", 4) || !strncmp(message, ".observe ", 9))
 	{
 		if (!strncmp(message, ".qw ", 4))
 			message += 4;
@@ -2117,6 +2244,29 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		}
 		else
 			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", message);
+	}
+	else if (!strncmp(message, ".stream ", 7))
+	{
+		int id;
+		message += 7;
+		id = atoi(message);
+		for (qtv = cluster->servers; qtv; qtv = qtv->next)
+		{
+			if (qtv->streamid == id)
+			{
+				break;
+			}
+		}
+		if (qtv)
+		{
+			QW_SetMenu(v, MENU_NONE);
+			QW_SetViewersServer(v, qtv);
+			QW_PrintfToViewer(v, "Connected\n", message);
+		}
+		else
+		{
+			QW_PrintfToViewer(v, "Stream not recognised. Stream id is invalid or terminated.\n", message);
+		}
 	}
 	else if (!strncmp(message, ".demo ", 6))
 	{
@@ -2201,26 +2351,38 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		QW_StuffcmdToViewer(v, "bind pause \"proxy:menu\"\n");
 		QW_StuffcmdToViewer(v, "bind backspace \"proxy:menu back\"\n");
 	}
-	else if (!strncmp(message, ".", 1))
+	else if (!strncmp(message, ".", 1) && strncmp(message, "..", 2))
 	{
 		QW_PrintfToViewer(v, "Proxy command not recognised\n");
 	}
 	else
 	{
+		if (!strncmp(message, ".", 1))
+			message++;
 		*v->expectcommand = '\0';
-
-		if (cluster->notalking)
-			return;
 
 		if (qtv && qtv->usequkeworldprotocols && !noupwards)
 		{
 			if (qtv->controller == v || !*v->name)
+			{
 				SendClientCommand(qtv, "say %s\n", message);
+
+				if (cluster->notalking)
+					return;
+			}
 			else
+			{
+				if (cluster->notalking)
+					return;
 				SendClientCommand(qtv, "say %s: %s\n", v->name, message);
+			}
+
+			//FIXME: we ought to broadcast this to everyone not watching that qtv.
 		}
 		else
 		{
+			if (cluster->notalking)
+				return;
 
 			InitNetMsg(&msg, buf, sizeof(buf));
 
@@ -2334,9 +2496,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			}
 			else if (!strncmp(buf, "name ", 5))
 			{
-				/*
-				fixme
-				*/
+				Q_strncpyz(v->name, buf+5, sizeof(v->name));
 			}
 			else if (!strncmp(buf, "color ", 6))
 			{
@@ -2344,7 +2504,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				fixme
 				*/
 			}
-			else if (!strncmp(buf, "spawn ", 6))
+			else if (!strncmp(buf, "spawn", 5))
 			{
 				msg.data = buf;
 				msg.maxsize = sizeof(buf);
@@ -2442,6 +2602,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					QW_StuffcmdToViewer(v, "cmd new\n");
 				else
 				{
+					QW_StuffcmdToViewer(v, "//querycmd conmenu\n");
 					SendServerData(qtv, v);
 				}
 			}
@@ -2648,7 +2809,13 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				if (v->server && v->server->controller == v)
 					SendClientCommand(v->server, "%s", buf);
 			}
-
+			else if (!strncmp(buf, "cmdsupported ", 13))
+			{
+				if (!strcmp(buf+13, "conmenu"))
+					v->conmenussupported = true;
+				else if (v->server && v->server->controller == v)
+					SendClientCommand(v->server, "%s", buf);
+			}
 			else if (!qtv)
 			{
 				//all the other things need an active server.
@@ -2809,7 +2976,7 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 		if (i++ == viewer->menuop)
 		{	//qw port
 			QW_StuffcmdToViewer(viewer, "echo You will need to reconnect\n");
-			cluster->qwlistenportnum += buttonnum?-1:1;
+			cluster->qwlistenportnum += (buttonnum<0)?-1:1;
 		}
 		if (i++ == viewer->menuop)
 		{	//hostname
@@ -2875,7 +3042,8 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 
 	WriteByte(&m, svc_centerprint);
 
-	WriteString2(&m, "FTEQTV\n");
+	sprintf(str, "FTEQTV build %i\n", cluster->buildnumber);
+	WriteString2(&m, str);
 	if (strcmp(cluster->hostname, DEFAULT_HOSTNAME))
 		WriteString2(&m, cluster->hostname);
 
@@ -3216,7 +3384,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 				}
 			}
 		}
-		if (!v)
+		if (!v && cluster->allownqclients)
 		{
 			//NQ connectionless packet?
 			m.readpos = 0;

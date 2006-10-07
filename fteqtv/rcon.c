@@ -433,66 +433,69 @@ char *Cmd_Exec(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer,
 		return "Execed\n";
 	}
 }
+
+void catbuffer(char *buffer, int bufsize, char *format, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr, format);
+	vsnprintf (string,sizeof(string)-1, format,argptr);
+	va_end (argptr);
+
+	Q_strncatz(buffer, string, bufsize);
+}
 char *Cmd_Status(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
+
 	buffer[0] = '\0';
 
-	sprintf(buffer, "%i connections\n", cluster->numservers);
+	catbuffer(buffer, sizeofbuffer, "%i sources\n", cluster->numservers);
+	catbuffer(buffer, sizeofbuffer, "%i viewers\n", cluster->numviewers);
+	catbuffer(buffer, sizeofbuffer, "%i proxies\n", cluster->numproxies);
 
-	strcat(buffer, "Options:\n");
-	strcat(buffer, " Hostname ");
-	strcat(buffer, cluster->hostname);
-	strcat(buffer, "\n");
+	catbuffer(buffer, sizeofbuffer, "Options:\n");
+	catbuffer(buffer, sizeofbuffer, " Hostname %s\n", cluster->hostname);
+	
 	if (cluster->chokeonnotupdated)
-		strcat(buffer, " Choke\n");
+		catbuffer(buffer, sizeofbuffer, " Choke\n");
 	if (cluster->lateforward)
-		strcat(buffer, " Late forwarding\n");
+		catbuffer(buffer, sizeofbuffer, " Late forwarding\n");
 	if (!cluster->notalking)
-		strcat(buffer, " Talking allowed\n");
+		catbuffer(buffer, sizeofbuffer, " Talking allowed\n");
 	if (cluster->nobsp)
-		strcat(buffer, " No BSP loading\n");
-	strcat(buffer, "\n");
+		catbuffer(buffer, sizeofbuffer, " No BSP loading\n");
+	catbuffer(buffer, sizeofbuffer, "\n");
 
 
 	if (qtv)
 	{
-		strcat(buffer, "Selected server: ");
-		strcat(buffer, qtv->server);
-		strcat(buffer, "\n");
+		catbuffer(buffer, sizeofbuffer, "Selected server: %s\n", qtv->server);
 		if (qtv->file)
-			strcat(buffer, "Playing from file\n");
+			catbuffer(buffer, sizeofbuffer, "Playing from file\n");
 		if (qtv->sourcesock != INVALID_SOCKET)
-			strcat(buffer, "Connected\n");
+			catbuffer(buffer, sizeofbuffer, "Connected\n");
 		if (qtv->parsingqtvheader || qtv->parsingconnectiondata)
-			strcat(buffer, "Waiting for gamestate\n");
+			catbuffer(buffer, sizeofbuffer, "Waiting for gamestate\n");
 		if (qtv->controller)
 		{
-			strcat(buffer, "Spectating through ");
-			strcat(buffer, qtv->controller->name);
-			strcat(buffer, "\n");
+			catbuffer(buffer, sizeofbuffer, "Spectating through %s\n");
 		}
 		if (*qtv->modellist[1].name)
 		{
-			strcat(buffer, "Map name ");
-			strcat(buffer, qtv->modellist[1].name);
-			strcat(buffer, "\n");
+			catbuffer(buffer, sizeofbuffer, "Map name %s\n", qtv->modellist[1].name);
 		}
-		if (qtv->connectpassword)
-			strcat(buffer, "Using a password\n");
+		if (*qtv->connectpassword)
+			catbuffer(buffer, sizeofbuffer, "Using a password\n");
 
 		if (qtv->tcpsocket != INVALID_SOCKET)
 		{
-			strcat(buffer, "Listening for proxies (");
-			sprintf(arg[0], "%i", qtv->tcplistenportnum);
-			strcat(buffer, arg[0]);
-			strcat(buffer, ")\n");
+			catbuffer(buffer, sizeofbuffer, "Listening for proxies (%i)\n", qtv->tcplistenportnum);
 		}
 
 		if (qtv->bsp)
 		{
-			strcat(buffer, "BSP (");
-			strcat(buffer, qtv->mapname);
-			strcat(buffer, ") is loaded\n");
+			catbuffer(buffer, sizeofbuffer, "BSP (%s) is loaded\n", qtv->mapname);
 		}
 	}
 
@@ -575,6 +578,17 @@ char *Cmd_Quit(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer,
 
 
 
+
+char *Cmd_Streams(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
+{
+	catbuffer(buffer, sizeofbuffer, "Streams:\n");
+
+	for (qtv = cluster->servers; qtv; qtv = qtv->next)
+	{
+		catbuffer(buffer, sizeofbuffer, "%i: %s\n", qtv->streamid, qtv->server);
+	}
+	return buffer;
+}
 
 
 
@@ -679,6 +693,7 @@ const rconcommands_t rconcommands[] =
 	 {"addserver",	0, 1, Cmd_QTVConnect},
 	 {"connect",	0, 1, Cmd_QTVConnect},
 	{"qw",			0, 1, Cmd_QWConnect},
+	 {"observe",	0, 1, Cmd_QWConnect},
 	{"demo",		0, 1, Cmd_MVDConnect},
 	 {"playdemo",	0, 1, Cmd_MVDConnect},
 	{"choke",		0, 1, Cmd_Choke},
@@ -691,6 +706,7 @@ const rconcommands_t rconcommands[] =
 	{"reconnect",	0, 1, Cmd_Reconnect},
 	{"echo",		0, 1, Cmd_Echo},
 	{"quit",		0, 1, Cmd_Quit},
+	{"streams",		0, 1, Cmd_Streams},
 
 
 
@@ -704,401 +720,6 @@ const rconcommands_t rconcommands[] =
 	{NULL}
 };
 
-
-
-/*
-static char *Cluster_Rcon_Dispatch(cluster_t *cluster, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
-{
-	if (!strcmp(arg[0], "hostname"))
-	{
-		strncpy(cluster->hostname, arg[1], sizeof(cluster->hostname)-1);
-		return "hostname will change at start of next map\n";	//I'm too lazy to alter the serverinfo here.
-	}
-	else if (!strcmp(arg[0], "master"))
-	{
-		netadr_t addr;
-
-		strncpy(cluster->master, arg[1], sizeof(cluster->master)-1);
-		cluster->mastersendtime = cluster->curtime;
-
-		if (NET_StringToAddr(arg[1], &addr, 27000))	//send a ping like a qw server does. this is kinda pointless of course.
-			NET_SendPacket (cluster, cluster->qwdsocket, 1, "k", addr);
-
-		return "Master server set.\n";
-	}
-	else if (!strcmp(arg[0], "port"))
-	{
-		int news;
-		int newp = atoi(arg[1]);
-		news = QW_InitUDPSocket(newp);
-
-		if (news != INVALID_SOCKET)
-		{
-			cluster->mastersendtime = cluster->curtime;
-			closesocket(cluster->qwdsocket);
-			cluster->qwdsocket = news;
-			cluster->qwlistenportnum = newp;
-			return "Opened udp port (all connected qw clients will time out)\n";
-		}
-		else
-			return "Failed to open udp port\n";
-	}
-	else if (!strcmp(arg[0], "password"))
-	{
-		if (!localcommand)
-			return "Rejecting rcon password change.\n";
-
-		strncpy(cluster->password, arg[1], sizeof(cluster->password)-1);
-		return "Password changed.\n";
-	}
-	else if (!strcmp(arg[0], "qtv") || !strcmp(arg[0], "connect") || !strcmp(arg[0], "addserver"))
-	{
-		if (!*arg[1])
-			return "connect requires an ip:port parameter\n";
-
-		memmove(arg[1]+4, arg[1], ARG_LEN-5);
-		strncpy(arg[1], "tcp:", 4);
-
-		if (!QTV_NewServerConnection(cluster, arg[1], false, false, false))
-			return "Failed to connect to server, connection aborted\n";
-		return "Source registered\n";
-	}
-	else if (!strcmp(arg[0], "qw"))
-	{
-		if (!*arg[1])
-			return "connect requires an ip:port parameter\n";
-
-		memmove(arg[1]+4, arg[1], ARG_LEN-5);
-		strncpy(arg[1], "udp:", 4);
-
-		if (!QTV_NewServerConnection(cluster, arg[1], false, false, false))
-			return "Failed to connect to server, connection aborted\n";
-		return "Source registered\n";
-	}
-	else if (!strcmp(arg[0], "demo") || !strcmp(arg[0], "adddemo") || !strcmp(arg[0], "addfile"))
-	{
-		if (!*arg[1])
-			return "adddemo requires an filename parameter\n";
-
-		if (!localcommand)
-			if (*arg[1] == '\\' || *arg[1] == '/' || strstr(arg[1], "..") || arg[1][1] == ':')
-				return "Absolute paths are prohibited.\n";
-
-		memmove(arg[1]+5, arg[1], ARG_LEN-6);
-		strncpy(arg[1], "file:", 5);
-
-		if (!QTV_NewServerConnection(cluster, arg[1], false, false, false))
-			return "Failed to connect to server, connection aborted\n";
-		return "Source registered\n";
-	}
-	else if (!strcmp(arg[0], "exec"))
-	{
-		FILE *f;
-		char line[512], *res;
-
-		if (!localcommand)
-			if (*arg[1] == '\\' || *arg[1] == '/' || strstr(arg[1], "..") || arg[1][1] == ':')
-				return "Absolute paths are prohibited.\n";
-
-		f = fopen(arg[1], "rt");
-		if (!f)
-		{
-			snprintf(buffer, sizeofbuffer, "Couldn't exec \"%s\"\n", arg[1]);
-			return buffer;
-		}
-		else
-		{
-			while(fgets(line, sizeof(line)-1, f))
-			{
-				res = Rcon_Command(cluster, NULL, line, buffer, sizeofbuffer, localcommand);
-				Sys_Printf(cluster, "%s", res);
-			}
-			fclose(f);
-			return "Execed\n";
-		}
-	}
-	else if (!strcmp(arg[0], "status"))
-	{
-		buffer[0] = '\0';
-
-		sprintf(buffer, "%i connections\n", cluster->numservers);
-
-		strcat(buffer, "Options:\n");
-		if (cluster->chokeonnotupdated)
-			strcat(buffer, " Choke\n");
-		if (cluster->lateforward)
-			strcat(buffer, " Late forwarding\n");
-		if (!cluster->notalking)
-			strcat(buffer, " Talking allowed\n");
-		if (cluster->nobsp)
-			strcat(buffer, " No BSP loading\n");
-		strcat(buffer, "\n");
-
-		return buffer;
-	}
-	else if (!strcmp(arg[0], "choke"))
-	{
-		cluster->chokeonnotupdated = !!atoi(arg[1]);
-		return "choke-until-update set\n";
-	}
-	else if (!strcmp(arg[0], "late"))
-	{
-		cluster->lateforward = !!atoi(arg[1]);
-		return "late forwarding set\n";
-	}
-	else if (!strcmp(arg[0], "talking"))
-	{
-		cluster->notalking = !atoi(arg[1]);
-		return "talking permissions set\n";
-	}
-	else if (!strcmp(arg[0], "nobsp"))
-	{
-		cluster->nobsp = !!atoi(arg[1]);
-		return "nobsp will change at start of next map\n";
-	}
-
-	else if (!strcmp(arg[1], "maxviewers"))
-	{
-		cluster->maxviewers = atoi(arg[2]);
-		return "maxviewers set\n";
-	}
-	else if (!strcmp(arg[1], "maxproxies"))
-	{
-		cluster->maxproxies = atoi(arg[2]);
-		return "maxproxies set\n";
-	}
-
-
-	else if (!strcmp(arg[0], "ping"))
-	{
-		netadr_t addr;
-		if (NET_StringToAddr(arg[1], &addr, 27500))
-		{
-			NET_SendPacket (cluster, cluster->qwdsocket, 1, "k", addr);
-			return "pinged\n";
-		}
-		return "couldn't resolve\n";
-	}
-	else if (!strcmp(arg[0], "help"))
-	{
-		return HELPSTRING;
-	}
-
-	else if (!strcmp(arg[0], "mvdport"))
-	{
-		return "mvdport requires a targeted server. Connect first.\n";
-	}
-
-	else if (!strcmp(arg[0], "record"))
-	{
-		return "record requires a targeted server\n";
-	}
-
-	else if (!strcmp(arg[0], "reconnect"))
-	{
-		return "reconnect requires a targeted server\n";
-	}
-
-	else if (!strcmp(arg[0], "stop"))
-	{	//fixme
-		return "stop requires a targeted server\n";
-	}
-
-	else if (!strcmp(arg[0], "echo"))
-	{
-		return "Poly wants a cracker.\n";
-	}
-	
-	else if (!strcmp(arg[0], "quit"))
-	{
-		cluster->wanttoexit = true;
-		return "Shutting down.\n";
-	}
-	else
-		return NULL;
-}
-
-static char *Server_Rcon_Dispatch(sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
-{
-#define TOKENIZE_PUNCTUATION ""
-
-
-	buffer[0] = '\0';
-	if (!strcmp(arg[0], "status"))
-	{
-		sprintf(buffer, "%i connections\n", qtv->cluster->numservers);
-
-		strcat(buffer, "\n");
-		strcat(buffer, "Selected server: ");
-		strcat(buffer, qtv->server);
-		strcat(buffer, "\n");
-		if (qtv->file)
-			strcat(buffer, "Playing from file\n");
-		if (qtv->sourcesock != INVALID_SOCKET)
-			strcat(buffer, "Connected\n");
-		if (qtv->parsingconnectiondata)
-			strcat(buffer, "Waiting for gamestate\n");
-
-		if (qtv->listenmvd != INVALID_SOCKET)
-		{
-			strcat(buffer, "Listening for proxies (");
-			sprintf(arg[0], "%i", qtv->tcplistenportnum);
-			strcat(buffer, arg[0]);
-			strcat(buffer, ")\n");
-		}
-
-		if (qtv->bsp)
-		{
-			strcat(buffer, "BSP (");
-			strcat(buffer, qtv->mapname);
-			strcat(buffer, ") is loaded\n");
-		}
-
-		strcat(buffer, "Options:\n");
-		if (qtv->cluster->chokeonnotupdated)
-			strcat(buffer, " Choke\n");
-		if (qtv->cluster->lateforward)
-			strcat(buffer, " Late forwarding\n");
-		if (!qtv->cluster->notalking)
-			strcat(buffer, " Talking allowed\n");
-		if (qtv->cluster->nobsp)
-			strcat(buffer, " No BSP loading\n");
-		strcat(buffer, "\n");
-
-		return buffer;
-	}
-
-	else if (!strcmp(arg[0], "connect"))
-	{
-		if (!*arg[1])
-			return "connect requires an ip:port parameter\n";
-
-		if (QTV_Connect(qtv, arg[1]))
-			return "Connected, waiting for data\n";
-		else
-			return "Failed (will keep trying)\n";
-	}
-
-	else if (!strcmp(arg[0], "disconnect"))
-	{
-		QTV_Shutdown(qtv);
-		return "Disconnected\n";
-	}
-
-	else if (!strcmp(arg[0], "file") || !strcmp(arg[0], "play") || !strcmp(arg[0], "playdemo"))
-	{
-		if (!*arg[1])
-			return "file requires a filename on the proxy's machine\n";
-
-		if (!localcommand)
-			if (*arg[1] == '\\' || *arg[1] == '/' || strstr(arg[1], "..") || arg[1][1] == ':')
-				return "Absolute paths are prohibited.\n";
-
-		memmove(arg[1]+5, arg[1], ARG_LEN-6);
-		strncpy(arg[1], "file:", 5);
-		if (QTV_Connect(qtv, arg[1]))
-			return "File opened successfully\n";
-		else
-			return "Failed (will keep trying)\n";
-	}
-	else if (!strcmp(arg[0], "record"))
-	{
-		if (!*arg[1])
-			return "record requires a filename on the proxy's machine\n";
-
-		if (!localcommand)
-			if (*arg[1] == '\\' || *arg[1] == '/' || strstr(arg[1], "..") || arg[1][1] == ':')
-				return "Absolute paths are prohibited.\n";
-
-		if (Net_FileProxy(qtv, arg[1]))
-			return "Recording to disk\n";
-		else
-			return "Failed to open file\n";
-	}
-	else if (!strcmp(arg[0], "stop"))
-	{
-		if (Net_StopFileProxy(qtv))
-			return "stopped\n";
-		else
-			return "not recording to disk\n";
-	}
-
-	else if (!strcmp(arg[0], "reconnect"))
-	{
-		if (QTV_Connect(qtv, qtv->server))
-			return "Reconnected\n";
-		else
-			return "Failed to reconnect (will keep trying)\n";
-	}
-
-	else if (!strcmp(arg[0], "mvdport"))
-	{
-		int news;
-		int newp = atoi(arg[1]);
-
-		if (!newp)
-		{
-			if (qtv->listenmvd != INVALID_SOCKET)
-			{
-				closesocket(qtv->listenmvd);
-				qtv->listenmvd = INVALID_SOCKET;
-				qtv->tcplistenportnum = 0;
-
-				return "mvd port is now closed\n";
-			}
-			return "Already closed\n";
-		}
-		else
-		{
-			news = Net_MVDListen(newp);
-
-			if (news != INVALID_SOCKET)
-			{
-				if (qtv->listenmvd != INVALID_SOCKET)
-					closesocket(qtv->listenmvd);
-				qtv->listenmvd = news;
-				qtv->disconnectwhennooneiswatching = false;
-				qtv->tcplistenportnum = newp;
-				return "Opened tcp port\n";
-			}
-			else
-				return "Failed to open tcp port\n";
-		}
-	}
-
-	else if (!strcmp(arg[0], "exec"))
-	{
-		FILE *f;
-		char line[512], *res;
-
-		if (!localcommand)
-			if (*arg[1] == '\\' || *arg[1] == '/' || strstr(arg[1], "..") || arg[1][1] == ':')
-				return "Absolute paths are prohibited.\n";
-
-		f = fopen(arg[1], "rt");
-		if (!f)
-		{
-			snprintf(buffer, sizeofbuffer, "Couldn't exec \"%s\"\n", arg[1]);
-			return buffer;
-		}
-		else
-		{
-			while(fgets(line, sizeof(line)-1, f))
-			{
-				res = Rcon_Command(qtv->cluster, qtv, line, buffer, sizeofbuffer, localcommand);
-				Sys_Printf(qtv->cluster, "%s", res);
-			}
-			fclose(f);
-			return "Execed\n";
-		}
-	}
-
-	else
-	{
-		return NULL;
-	}
-}
-*/
 char *Rcon_Command(cluster_t *cluster, sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qboolean localcommand)
 {
 #define TOKENIZE_PUNCTUATION ""
@@ -1106,6 +727,26 @@ char *Rcon_Command(cluster_t *cluster, sv_t *qtv, char *command, char *buffer, i
 	int i;
 	char arg[MAX_ARGS][ARG_LEN];
 	char *argptrs[MAX_ARGS];
+	char *sid;
+
+	for (sid = command; *sid; sid = sid++)
+	{
+		if (*sid == ':')
+			break;
+		if (*sid < '0' || *sid > '9')
+			break;
+	}
+	if (*sid == ':')
+	{
+		i = atoi(command);
+		command = sid+1;
+
+		for (qtv = cluster->servers; qtv; qtv = qtv->next)
+			if (qtv->streamid == i)
+				break;
+	}
+
+
 
 	for (i = 0; i < MAX_ARGS; i++)
 	{

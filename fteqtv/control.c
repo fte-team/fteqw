@@ -6,6 +6,49 @@ Contains the control routines that handle both incoming and outgoing stuff
 
 
 
+// char *date = "Oct 24 1996";
+static char *date = __DATE__ ;
+static char *mon[12] =
+{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+static char mond[12] =
+{ 31,    28,    31,    30,    31,    30,    31,    31,    30,    31,    30,    31 };
+
+// returns days since Oct 24 1996
+int build_number( void )
+{
+	int m = 0;
+	int d = 0;
+	int y = 0;
+	static int b = 0;
+
+	if (b != 0)
+		return b;
+
+	for (m = 0; m < 11; m++)
+	{
+		if (strncmp( &date[0], mon[m], 3 ) == 0)
+			break;
+		d += mond[m];
+	}
+
+	d += atoi( &date[4] ) - 1;
+
+	y = atoi( &date[7] ) - 1900;
+
+	b = d + (int)((y - 1) * 365.25);
+
+	if (((y % 4) == 0) && m > 1)
+	{
+		b += 1;
+	}
+
+	b -= 35778; // Dec 16 1998
+
+	return b;
+}
+
+
+
 typedef struct {
 	char name[56];
 	int offset;
@@ -285,6 +328,9 @@ void DoCommandLine(cluster_t *cluster, int argc, char **argv)
 	char *start, *end, *result;
 	char buffer[8192];
 
+	result = Rcon_Command(cluster, NULL, "exec qtv.cfg", buffer, sizeof(buffer), true);
+	Sys_Printf(cluster, "%s", result);
+
 	commandline[0] = '\0';
 
 	//build a block of strings.
@@ -333,8 +379,11 @@ int main(int argc, char **argv)
 	cluster.qwdsocket = INVALID_SOCKET;
 	cluster.tcpsocket = INVALID_SOCKET;
 	cluster.qwlistenportnum = 0;
+	cluster.allownqclients = true;
 	strcpy(cluster.hostname, DEFAULT_HOSTNAME);
+	cluster.buildnumber = build_number();
 
+	Sys_Printf(&cluster, "QTV Build %i.\n", cluster.buildnumber);
 
 	if (argc >= 2 && (!strcmp(argv[1], "-view") || !strcmp(argv[1], "-play")))
 	{

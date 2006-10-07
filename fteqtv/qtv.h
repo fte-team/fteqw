@@ -25,6 +25,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define LittleShort(x) (x)
 #endif
 
+//this is for a future version
+//#define COMMENTARY
+
 //each server that we are connected to has it's own state.
 //it should be easy enough to use one thread per server.
 
@@ -128,6 +131,24 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stdio.h>
 #include <string.h>
 
+
+//linux and other systems have strlcat / strlcpy
+//we support windows and can't use those
+#define Q_strncatz(dest, src, sizeofdest)	\
+	do {	\
+		strncat(dest, src, sizeofdest - strlen(dest) - 1);	\
+		dest[sizeofdest - 1] = 0;	\
+	} while (0)
+#define Q_strncpyz(dest, src, sizeofdest)	\
+	do {	\
+		strncpy(dest, src, sizeofdest - 1);	\
+		dest[sizeofdest - 1] = 0;	\
+	} while (0)
+
+
+
+
+
 #define VERSION "0.01"	//this will be added to the serverinfo
 
 #define PROX_DEFAULTLISTENPORT 27501
@@ -191,7 +212,7 @@ extern "C" {
 
 typedef unsigned char netadr_t[64];
 
-#define NQ_PACKETS_PER_SECOND 100
+#define NQ_PACKETS_PER_SECOND 20
 #define MAX_NQMSGLEN 8000
 #define MAX_MSGLEN 1400
 #define MAX_NQDATAGRAM 1024
@@ -217,11 +238,12 @@ typedef unsigned char netadr_t[64];
 #define NET_GAMENAME_NQ		"QUAKE"
 #define NET_PROTOCOL_VERSION	3
 
-
+#ifdef COMMENTARY
 typedef struct soundcapt_s {
 	int (*update)(struct soundcapt_s *ghnd, int samplechunks, char *buffer);
 	void (*close)(struct soundcapt_s *ptr);
 } soundcapt_t;
+#endif
 
 typedef struct {
 	unsigned int readpos;
@@ -339,6 +361,7 @@ typedef struct viewer_s {
 	qboolean maysend;
 	qboolean chokeme;
 	qboolean thinksitsconnected;
+	qboolean conmenussupported;
 	int delta_frame;
 
 	int servercount;
@@ -416,6 +439,13 @@ typedef struct {
 	unsigned short leafs[MAX_ENTITY_LEAFS];
 } entity_t;
 
+#define MAX_ENTITY_FRAMES 64
+typedef struct {
+	int numents;
+	int maxents;
+	entity_state_t *ents;	//dynamically allocated
+} frame_t;
+
 typedef struct {
 	unsigned char number;
 	char bits[6];
@@ -452,6 +482,7 @@ struct sv_s {
 	} movevars;
 	int cdtrack;
 	entity_t entity[MAX_ENTITIES];
+	frame_t frame[MAX_ENTITY_FRAMES];
 	int maxents;
 	staticsound_t staticsound[MAX_STATICSOUNDS];
 	int staticsound_count;
@@ -528,8 +559,10 @@ struct sv_s {
 	bsp_t *bsp;
 	int numinlines;
 
+#ifdef COMMENTARY
 	//audio stuff
 	soundcapt_t *comentrycapture;
+#endif
 
 	//options:
 	char server[MAX_QPATH];
@@ -564,8 +597,12 @@ struct cluster_s {
 	qboolean lateforward;
 	qboolean notalking;
 	qboolean nobsp;
+	qboolean allownqclients;	//nq clients require no challenge
+	qboolean nouserconnects;	//prohibit users from connecting to new streams.
 
 	int maxviewers;
+
+	int buildnumber;
 
 	int numproxies;
 	int maxproxies;
@@ -575,7 +612,10 @@ struct cluster_s {
 	oproxy_t *pendingproxies;
 };
 
-
+#define MENU_NONE 0
+#define MENU_SERVERS 1
+#define MENU_ADMIN 2
+#define MENU_ADMINSERVER 3
 
 
 
@@ -765,7 +805,7 @@ void WriteData(netmsg_t *b, const char *data, int length);
 void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playermask,int suitablefor);
 void Broadcast(cluster_t *cluster, char *buffer, int length, int suitablefor);
 void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask);
-void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
+void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount, qboolean spectatorflag);
 void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
 SOCKET QW_InitUDPSocket(int port);
 void QW_UpdateUDPStuff(cluster_t *qtv);

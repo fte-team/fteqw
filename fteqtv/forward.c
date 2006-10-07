@@ -267,7 +267,7 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 
 	prox->flushing = false;
 
-	BuildServerData(qtv, &msg, true, 0);
+	BuildServerData(qtv, &msg, true, 0, true);
 	Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 	msg.cursize = 0;
 
@@ -451,6 +451,9 @@ void SV_GenerateNowPlayingHTTP(cluster_t *cluster, oproxy_t *dest)
 					"<BODY>");
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 
+	snprintf(buffer, sizeof(buffer), "<H1>Now Playing on %s</H1>", cluster->hostname);
+	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
+
 	for (streams = cluster->servers; streams; streams = streams->next)
 	{
 		sprintf(buffer, "<A HREF=\"watch.qtv?sid=%i\">%s (%s: %s)</A><br/>", streams->streamid, streams->server, streams->gamedir, streams->mapname);
@@ -466,6 +469,13 @@ void SV_GenerateNowPlayingHTTP(cluster_t *cluster, oproxy_t *dest)
 			}
 		}
 	}
+	if (!cluster->servers)
+	{
+		
+		s = "No streams are currently being played";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+	}
+
 	sprintf(buffer, "</BODY>");
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 }
@@ -542,7 +552,8 @@ void SV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, int streamid)
 				"<TITLE>QuakeTV: Now Playing</TITLE>"
 			"</HEAD>"
 			"<BODY>"
-			"Your client did not send a Host field\n"
+			"Your client did not send a Host field, which is required in HTTP/1.1\n<BR />"
+			"Please try a different browser.\n"
 			"</BODY>"
 			"</HTML>";
 
@@ -550,7 +561,7 @@ void SV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, int streamid)
 		return;
 	}
 
-	s = "HTTP/1.1 200 OK\n"
+		s = "HTTP/1.1 200 OK\n"
 		"Content-Type: text/x-quaketvident\n"
 		"Connection: close\n"
 		"\n";
@@ -565,6 +576,166 @@ void SV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, int streamid)
 
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 }
+
+char *SV_ParsePOST(char *post, char *buffer, int buffersize)
+{
+	while(*post && *post != '&')
+	{
+		if (--buffersize>0)
+		{
+			if (*post == '+')
+				*buffer++ = ' ';
+			else if  (*post == '%')
+			{
+				*buffer = 0;
+				post++;
+				if (*post == '\0' || *post == '&')
+					break;
+				else if (*post >= 'a' && *post <= 'f')
+					*buffer += 10 + *post-'a';
+				else if (*post >= 'A' && *post <= 'F')
+					*buffer += 10 + *post-'A';
+				else if (*post >= '0' && *post <= '9')
+					*buffer += *post-'0';
+
+				*buffer <<= 4;
+
+				post++;
+				if (*post == '\0' || *post == '&')
+					break;
+				else if (*post >= 'a' && *post <= 'f')
+					*buffer += 10 + *post-'a';
+				else if (*post >= 'A' && *post <= 'F')
+					*buffer += 10 + *post-'A';
+				else if (*post >= '0' && *post <= '9')
+					*buffer += *post-'0';
+
+				buffer++;
+			}
+			else
+				*buffer++ = *post;
+		}
+		post++;
+	}
+	*buffer = 0;
+
+	return post;
+}
+void SV_GenerateAdminHTTP(cluster_t *cluster, oproxy_t *dest, int streamid, char *postbody)
+{
+	char pwd[64];
+	char cmd[256];
+	char result[8192];
+	char *s;
+	char *o;
+
+	if (!*cluster->adminpassword)
+	{
+		s = "HTTP/1.1 403 OK\n"
+			"Content-Type: text/html\n"
+			"Connection: close\n"
+			"\n"
+			"<HEAD><TITLE>QuakeTV</TITLE></HEAD><BODY>The admin password is disabled. You may not log in remotely.</BODY>\n";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+		return;
+	}
+		
+
+	pwd[0] = 0;
+	cmd[0] = 0;
+	if (postbody)
+	while (*postbody)
+	{
+		if (!strncmp(postbody, "pwd=", 4))
+		{
+			postbody = SV_ParsePOST(postbody+4, pwd, sizeof(pwd));
+		}
+		else if (!strncmp(postbody, "cmd=", 4))
+		{
+			postbody = SV_ParsePOST(postbody+4, cmd, sizeof(cmd));
+		}
+		else
+		{
+			while(*postbody && *postbody != '&')
+			{
+				postbody++;
+			}
+			if (*postbody == '&')
+				postbody++;
+		}
+	}
+
+	if (!*pwd)
+		o = "";
+	else if (!strcmp(pwd, cluster->adminpassword))
+	{
+		o = Rcon_Command(cluster, NULL, cmd, result, sizeof(result), false);
+	}
+	else
+	{
+		o = "Bad Password";
+	}
+	if (o != result)
+	{
+		strcpy(result, o);
+		o = result;
+	}
+
+		s = "HTTP/1.1 200 OK\n"
+			"Content-Type: text/html\n"
+			"Connection: close\n"
+			"\n"
+
+			"<HTML>"
+			"<HEAD>"
+				"<TITLE>QuakeTV: Admin</TITLE>\n"
+"<script type=\"text/javascript\">\n"
+//"<!--"
+"function sf(){document.f.cmd.focus();}\n"
+//"// -->"
+"</script>\n"
+			"</HEAD>\n"
+			"<BODY onload=sf()>";
+
+		Net_ProxySend(cluster, dest, s, strlen(s));
+
+		s = 
+		"<FORM action=\"admin.html\" method=\"post\" name=f>"
+			"<CENTER>"
+				"Password <input name=pwd value=\"";
+
+		Net_ProxySend(cluster, dest, s, strlen(s));
+		if (*o)
+			Net_ProxySend(cluster, dest, pwd, strlen(pwd));
+
+				
+		s	=		"\">"
+				"<BR />"
+				"Command <input name=cmd maxsize=255 size=40 value=\"\">"
+				"<input type=submit value=\"Submit\" name=btn>"
+			"</CENTER>"
+		"</FORM>";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+
+		while(*o)
+		{
+			s = strchr(o, '\n');
+			if (s)
+				*s = 0;
+			Net_ProxySend(cluster, dest, o, strlen(o));
+			Net_ProxySend(cluster, dest, "<BR />", 6);
+			if (!s)
+				break;
+			o = s+1;
+		}
+
+		s = "</BODY>"
+			"</HTML>";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+}
+
+
+
 
 //returns true if the pending proxy should be unlinked
 //truth does not imply that it should be freed/released, just unlinked.
@@ -583,6 +754,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	{
 		closesocket(pend->sock);
 		free(pend);
+		cluster->numproxies--;
 		return true;
 	}
 
@@ -610,7 +782,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	if (pend->inbuffersize >= 4)
 	{
-		if (strncmp(pend->inbuffer, "QTV\n", 4) && strncmp(pend->inbuffer, "GET ", 4))
+		if (strncmp(pend->inbuffer, "QTV\n", 4) && strncmp(pend->inbuffer, "GET ", 4) && strncmp(pend->inbuffer, "POST ", 5))
 		{	//I have no idea what the smeg you are.
 			pend->drop = true;
 			return false;
@@ -626,8 +798,52 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	}
 	if (!*s)
 		return false;	//don't have enough yet
+	s+=3;
 
-	if (!strncmp(pend->inbuffer, "GET ", 4))
+	if (!strncmp(pend->inbuffer, "POST ", 5))
+	{
+		if (!SV_GetHTTPHeaderField(pend->inbuffer, "Content-Length", tempbuf, sizeof(tempbuf)))
+		{
+			s = "HTTP/1.1 411 OK\n"
+				"Content-Type: text/html\n"
+				"Connection: close\n"
+				"\n"
+				"<HEAD><TITLE>QuakeTV</TITLE></HEAD><BODY>No Content-Length was provided.</BODY>\n";
+			Net_ProxySend(cluster, pend, s, strlen(s));
+			pend->flushing = true;
+			return false;
+		}
+		len = atoi(tempbuf);
+		if (pend->inbuffersize + len >= sizeof(pend->inbuffer)-20)
+		{	//too much data
+			pend->flushing = true;
+			return false;
+		}
+		len = s - pend->inbuffer + len;
+		if (len > pend->inbuffersize)
+			return false;	//still need the body
+
+//		if (len >= pend->inbuffersize)
+		{
+			if (!strncmp(pend->inbuffer+5, "/admin", 6))
+			{
+				SV_GenerateAdminHTTP(cluster, pend, 0, s);
+			}
+			else
+			{
+				s = "HTTP/1.1 404 OK\n"
+					"Content-Type: text/html\n"
+					"Connection: close\n"
+					"\n"
+					"<HEAD><TITLE>QuakeTV</TITLE></HEAD><BODY>That HTTP method is not supported for that URL.</BODY>\n";
+				Net_ProxySend(cluster, pend, s, strlen(s));
+		
+			}
+			pend->flushing = true;
+			return false;
+		}
+	}
+	else if (!strncmp(pend->inbuffer, "GET ", 4))
 	{
 		if (!strncmp(pend->inbuffer+4, "/nowplaying", 11))
 		{
@@ -638,11 +854,15 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 			SV_GenerateQTVStub(cluster, pend, atoi(pend->inbuffer+19));
 		}
 		else if (!strncmp(pend->inbuffer+4, "/about", 6))
-		{
+		{	//redirect them to our funky website
 			s = "HTTP/1.0 302 Found\n"
 				"Location: http://www.fteqw.com/\n"
 				"\n";
 			Net_ProxySend(cluster, pend, s, strlen(s));
+		}
+		else if (!strncmp(pend->inbuffer+4, "/admin", 6))
+		{
+			SV_GenerateAdminHTTP(cluster, pend, 0, NULL);
 		}
 		else if (!strncmp(pend->inbuffer+4, "/ ", 2))
 		{
@@ -695,7 +915,11 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 			if (*s)
 			if (!colon)
 			{
-				if (!strcmp(s, "SOURCELIST"))
+				if (!strcmp(s, "QTV"))
+				{
+					//just a qtv request
+				}
+				else if (!strcmp(s, "SOURCELIST"))
 				{	//lists sources that are currently playing
 					s = "QTVSV 1\n";
 						Net_ProxySend(cluster, pend, s, strlen(s));

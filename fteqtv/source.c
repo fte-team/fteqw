@@ -821,7 +821,8 @@ void QTV_Shutdown(sv_t *qtv)
 		if (v->server == qtv)
 		{
 			QW_SetViewersServer(v, NULL);
-			v->menunum = 1;
+			QW_SetMenu(v, MENU_SERVERS);
+			QW_PrintfToViewer(v, "Stream %s is closing\n", qtv->server);
 		}
 	}
 
@@ -834,6 +835,7 @@ void QTV_Shutdown(sv_t *qtv)
 		old = prox;
 		prox = prox->next;
 		free(old);
+		cluster->numproxies--;
 	}
 
 
@@ -1060,8 +1062,13 @@ void QTV_ParseQWStream(sv_t *qtv)
 	}
 }
 
+#ifdef COMMENTARY
+#include <speex/speex.h> 
+#endif
+
 void QTV_CollectCommentry(sv_t *qtv)
 {
+#ifdef COMMENTARY
 	int samps;
 	unsigned char buffer[8192+6];
 	unsigned char *uchar;
@@ -1070,12 +1077,18 @@ void QTV_CollectCommentry(sv_t *qtv)
 	if (!qtv->comentrycapture)
 	{
 		if (0)
-			qtv->comentrycapture = SND_InitCapture(11025, 8);
+		{
+			if (usespeex)
+				qtv->comentrycapture = SND_InitCapture(11025, 16);
+			else
+				qtv->comentrycapture = SND_InitCapture(11025, 8);
+		}
 		return;
 	}
 
 	while(1)
 	{
+		//the protocol WILL be different. Don't add compatability for this code.
 		buffer[0] = 0;
 		buffer[1] = dem_audio;
 		buffer[2] = 255;
@@ -1083,14 +1096,50 @@ void QTV_CollectCommentry(sv_t *qtv)
 		buffer[4] = 8;
 		buffer[5] = 11*5;
 
-		samps=qtv->comentrycapture->update(qtv->comentrycapture, 2048, buffer+6);
-
-		bytesleft = samps;
-		schar = buffer+6;
-		uchar = buffer+6;
-		while(bytesleft-->0)
+		if (usespeex)
 		{
-			*schar++ = *uchar++ - 128;
+
+			SpeexBits bits; 
+			void *enc_state; 
+
+			int frame_size;
+
+			spx_int16_t pcmdata[8192/2];
+
+			samps=qtv->comentrycapture->update(qtv->comentrycapture, 2048, (char*)pcmdata);
+
+
+			speex_bits_init(&bits);
+
+			enc_state = speex_encoder_init(&speex_nb_mode); 
+
+
+			speex_encoder_ctl(enc_state,SPEEX_GET_FRAME_SIZE,&frame_size); 
+
+
+			speex_bits_reset(&bits);
+
+			speex_encode_int(enc_state, (spx_int16_t*)pcmdata, &bits);
+
+			samps = speex_bits_write(&bits, buffer+6, sizeof(buffer)-6); 
+
+
+			speex_bits_destroy(&bits);
+
+			speex_encoder_destroy(enc_state); 
+
+		}
+		else
+		{
+			samps=qtv->comentrycapture->update(qtv->comentrycapture, 2048, buffer+6);
+
+			bytesleft = samps;
+			schar = buffer+6;
+			uchar = buffer+6;
+			while(bytesleft-->0)
+			{
+				*schar++ = *uchar++ - 128;
+			}
 		}
 
 		buffer[2] = samps&255;
@@ -1102,6 +1151,7 @@ void QTV_CollectCommentry(sv_t *qtv)
 		if (samps < 64)
 			break;
 	}
+#endif
 }
 
 void QTV_Run(sv_t *qtv)
@@ -1114,11 +1164,13 @@ void QTV_Run(sv_t *qtv)
 
 	if (qtv->drop || (qtv->disconnectwhennooneiswatching && qtv->numviewers == 0 && qtv->proxies == NULL))
 	{
+		if (!qtv->drop)
+			Sys_Printf(qtv->cluster, "Stream %s became inactive\n", qtv->server);
 		QTV_Shutdown(qtv);
 		return;
 	}
 
-	
+
 //we will read out as many packets as we can until we're up to date
 //note: this can cause real issues when we're overloaded for any length of time
 //each new packet comes with a leading msec byte (msecs from last packet)
@@ -1568,6 +1620,9 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, 
 				return qtv;
 		}
 	}
+	if (autoclose)
+		if (cluster->nouserconnects)
+			return NULL;
 
 	qtv = malloc(sizeof(sv_t));
 	if (!qtv)

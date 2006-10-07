@@ -375,6 +375,8 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		Info_SetValueForStarKey(tv->serverinfo, "*qtv", VERSION, sizeof(tv->serverinfo));
 		Info_SetValueForStarKey(tv->serverinfo, "*z_ext", Z_EXT_STRING, sizeof(tv->serverinfo));
 
+		Info_ValueForKey(tv->serverinfo, "hostname", tv->hostname, sizeof(tv->hostname));
+
 		//change the hostname (the qtv's hostname with the server's hostname in brackets)
 		Info_ValueForKey(tv->serverinfo, "hostname", value, sizeof(value));
 		if (fromproxy && strchr(value, '(') && value[strlen(value)-1] == ')')	//already has brackets

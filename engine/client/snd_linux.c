@@ -123,8 +123,6 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		return 0;
 	}
 
-	sc->sn.splitbuffer = 0;
-
 // set sample bits & speed
 
 	ioctl(sc->audio_fd, SNDCTL_DSP_GETFMTS, &fmt);
@@ -158,7 +156,6 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		sc->sn.samples = info.fragstotal * info.fragsize * 4;
 	}
 	sc->sn.samples = info.fragstotal * info.fragsize;
-	sc->sn.submission_chunk = 1;
 
 // memory map the dma buffer
 

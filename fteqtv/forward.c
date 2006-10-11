@@ -472,9 +472,12 @@ void SV_GenerateNowPlayingHTTP(cluster_t *cluster, oproxy_t *dest)
 	if (!cluster->servers)
 	{
 		
-		s = "No streams are currently being played";
+		s = "No streams are currently being played<br />";
 		Net_ProxySend(cluster, dest, s, strlen(s));
 	}
+
+	s = "<br /><A href=\"/demos.html\">Available Demos</A>";
+	Net_ProxySend(cluster, dest, s, strlen(s));
 
 	sprintf(buffer, "</BODY>");
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
@@ -534,7 +537,7 @@ qboolean SV_GetHTTPHeaderField(char *s, char *field, char *buffer, int buffersiz
 	return false;
 }
 
-void SV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, int streamid)
+void SV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *streamtype, char *streamid)
 {
 	char *s;
 	char hostname[64];
@@ -561,17 +564,24 @@ void SV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, int streamid)
 		return;
 	}
 
-		s = "HTTP/1.1 200 OK\n"
+	s = "HTTP/1.1 200 OK\n"
 		"Content-Type: text/x-quaketvident\n"
 		"Connection: close\n"
 		"\n";
 	Net_ProxySend(cluster, dest, s, strlen(s));
 
+	{
+		char *ws;
+		for (ws = streamid; *ws > ' '; ws++)
+			;
+		*ws = '\0';
+	}
+
 
 	sprintf(buffer, "[QTV]\r\n"
-					"Stream: %i@%s\r\n"
+					"Stream: %s%s@%s\r\n"
 					"", 
-					streamid, hostname);
+					streamtype, streamid, hostname);
 
 
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
@@ -697,6 +707,13 @@ void SV_GenerateAdminHTTP(cluster_t *cluster, oproxy_t *dest, int streamid, char
 			"</HEAD>\n"
 			"<BODY onload=sf()>";
 
+
+		Net_ProxySend(cluster, dest, s, strlen(s));
+		s = "<H1>FTEQTV Admin: ";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+		s = cluster->hostname;
+		Net_ProxySend(cluster, dest, s, strlen(s));
+		s = "</H1>";
 		Net_ProxySend(cluster, dest, s, strlen(s));
 
 		s = 
@@ -734,6 +751,46 @@ void SV_GenerateAdminHTTP(cluster_t *cluster, oproxy_t *dest, int streamid, char
 		Net_ProxySend(cluster, dest, s, strlen(s));
 }
 
+void SV_GenerateQTVDemoListing(cluster_t *cluster, oproxy_t *dest)
+{
+	int numdemos = 0;
+	char link[256];
+	char *s;
+		s = "HTTP/1.1 200 OK\n"
+			"Content-Type: text/html\n"
+			"Connection: close\n"
+			"\n"
+			"<HEAD><TITLE>QuakeTV Demos</TITLE></HEAD><BODY>";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+
+		s = "<H1>QTV Demo listing</H1>";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+
+#ifdef _WIN32
+		{
+			WIN32_FIND_DATA ffd;
+			HANDLE h;
+			h = FindFirstFile("*.mvd", &ffd);
+			do
+			{
+				numdemos++;
+				snprintf(link, sizeof(link), "<A HREF=\"watch.qtv?demo=%s\">%s</A><br/>", ffd.cFileName, ffd.cFileName);
+				Net_ProxySend(cluster, dest, link, strlen(link));
+			} while(FindNextFile(h, &ffd));
+			FindClose(h);
+		}
+#else
+		s = "QTV Proxy is running on a platform for which file system listing is not coded.<br />Demo listing is not available.";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+#endif
+
+		sprintf(link, "<P>Total: %i demos</P>", numdemos);
+		Net_ProxySend(cluster, dest, link, strlen(link));
+
+		s = "</BODY>"
+			"</HTML>";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+}
 
 
 
@@ -851,7 +908,11 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		}
 		else if (!strncmp(pend->inbuffer+4, "/watch.qtv?sid=", 15))
 		{
-			SV_GenerateQTVStub(cluster, pend, atoi(pend->inbuffer+19));
+			SV_GenerateQTVStub(cluster, pend, "", pend->inbuffer+19);
+		}
+		else if (!strncmp(pend->inbuffer+4, "/watch.qtv?demo=", 16))
+		{
+			SV_GenerateQTVStub(cluster, pend, "file:", pend->inbuffer+20);
 		}
 		else if (!strncmp(pend->inbuffer+4, "/about", 6))
 		{	//redirect them to our funky website
@@ -873,10 +934,15 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		}
 		else if (!strncmp(pend->inbuffer+4, "/demos", 6))
 		{
-			s = "HTTP/1.0 302 Found\n"
-				"Location: http://www.fteqw.com/\n"
-				"\n";
+			SV_GenerateQTVDemoListing(cluster, pend);
+			/*
+			s = "HTTP/1.1 200 OK\n"
+				"Content-Type: text/html\n"
+				"Connection: close\n"
+				"\n"
+				"<HTML><HEAD><TITLE>FTEQTV</TITLE></HEAD><BODY>Not Yet Supported</BODY></HTML>";
 			Net_ProxySend(cluster, pend, s, strlen(s));
+			*/
 		}
 /*		else
 		{
@@ -1044,6 +1110,26 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	}
 	if (pend->flushing)
 		return false;
+
+
+	if (qtv->usequkeworldprotocols)
+	{
+		s = "QTVSV 1\n"
+			"PERROR: This version of QTV is unable to convert QuakeWorld to QTV protocols\n"
+			"\n";
+		Net_ProxySend(cluster, pend, s, strlen(s));
+		pend->flushing = true;
+		return false;
+	}
+	if (cluster->numproxies >= cluster->maxproxies)
+	{
+		s = "QTVSV 1\n"
+			"TERROR: This QTV has reached it's connection limit\n"
+			"\n";
+		Net_ProxySend(cluster, pend, s, strlen(s));
+		pend->flushing = true;
+		return false;
+	}
 
 	pend->next = qtv->proxies;
 	qtv->proxies = pend;

@@ -131,6 +131,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stdio.h>
 #include <string.h>
 
+#ifndef _WIN32
+//stricmp is ansi, strcasecmp is unix.
+	#define stricmp strcasecmp
+	#define strnicmp strncasecmp
+#endif
+
 
 //linux and other systems have strlcat / strlcpy
 //we support windows and can't use those

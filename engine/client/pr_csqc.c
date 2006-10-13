@@ -2503,8 +2503,10 @@ static void PF_cs_addprogs (progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 static void PF_cs_OpenPortal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifdef Q2BSPS
 	if (sv.worldmodel->fromgame == fg_quake2)
 		CMQ2_SetAreaPortalState(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
+#endif
 }
 
 void PF_cs_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)

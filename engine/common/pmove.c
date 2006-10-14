@@ -897,7 +897,7 @@ void PM_CheckWaterJump (void)
 	int		cont;
 	vec3_t	flatforward;
 
-	if (pmove.waterjumptime)
+	if (pmove.waterjumptime>0)
 		return;
 
 	// don't hop out if we just jumped in

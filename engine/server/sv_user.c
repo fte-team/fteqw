@@ -1493,7 +1493,10 @@ void SV_NextChunkedDownload(int chunknum)
 
 	if (host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize)
 		return;	//choked!
-	VFS_SEEK (host_client->download, chunknum*CHUNKSIZE);
+
+	if (VFS_SEEK (host_client->download, chunknum*CHUNKSIZE) == false)
+		return;
+
 	i = VFS_READ (host_client->download, buffer, CHUNKSIZE);
 
 	if (i > 0)

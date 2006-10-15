@@ -1489,14 +1489,22 @@ void SV_NextChunkedDownload(int chunknum)
 {
 #define CHUNKSIZE 1024
 	char buffer[1024];
+	int i;
+
 	if (host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize)
 		return;	//choked!
 	VFS_SEEK (host_client->download, chunknum*CHUNKSIZE);
-	VFS_READ (host_client->download, buffer, CHUNKSIZE);
+	i = VFS_READ (host_client->download, buffer, CHUNKSIZE);
 
-	MSG_WriteByte(&host_client->datagram, svc_download);
-	MSG_WriteLong(&host_client->datagram, chunknum);
-	SZ_Write(&host_client->datagram, buffer, CHUNKSIZE);
+	if (i > 0)
+	{
+		if (i != CHUNKSIZE)
+			bzero(buffer+i, CHUNKSIZE-i);
+
+		MSG_WriteByte(&host_client->datagram, svc_download);
+		MSG_WriteLong(&host_client->datagram, chunknum);
+		SZ_Write(&host_client->datagram, buffer, CHUNKSIZE);
+	}
 }
 
 /*

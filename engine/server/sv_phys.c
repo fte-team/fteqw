@@ -594,7 +594,7 @@ qboolean SV_PushAngles (edict_t *pusher, vec3_t move, vec3_t amove)
 			// figure movement due to the pusher's amove
 			VectorSubtract (check->v->origin, pusher->v->origin, org);
 			org2[0] = DotProduct (org, forward);
-			org2[1] = DotProduct (org, right);
+			org2[1] = -DotProduct (org, right);
 			org2[2] = DotProduct (org, up);
 			VectorSubtract (org2, org, move2);
 			VectorAdd (check->v->origin, move2, check->v->origin);

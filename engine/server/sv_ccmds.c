@@ -446,6 +446,14 @@ void SV_Map_f (void)
 	int i;
 	char *startspot;
 
+#ifndef SERVERONLY
+	if (qrenderer == -1)
+	{
+		Cbuf_AddText(va("wait;map %s\n", Cmd_Args()), Cmd_ExecLevel);
+		return;
+	}
+#endif
+
 	if (Cmd_Argc() != 2 && Cmd_Argc() != 3)
 	{
 		Con_TPrintf (STL_MAPCOMMANDUSAGE);

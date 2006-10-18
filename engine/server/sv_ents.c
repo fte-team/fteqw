@@ -2327,6 +2327,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		if (progstype != PROG_QW)
 		{
+//			if (progstype == PROG_H2)
+//				if (ent->v->effects == H2EF_NODRAW)
+//					continue;
 			if ((int)ent->v->effects & EF_MUZZLEFLASH)
 			{
 				if (needcleanup < e)
@@ -2562,8 +2565,17 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			//The client still needs to know about it though, as it might have other effects on it.
 			if (progstype == PROG_H2)
 			{
-				if (state->effects & H2EF_NODRAW)
+				if (state->effects == H2EF_NODRAW)
+				{
+					//actually, H2 is pretty lame about this
+					state->effects = 0;
 					state->modelindex = 0;
+					state->frame = 0;
+					state->colormap = 0;
+					state->abslight = 0;
+					state->skinnum = 0;
+					state->hexen2flags = 0;
+				}
 			}
 			else
 			{

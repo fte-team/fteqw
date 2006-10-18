@@ -1484,11 +1484,10 @@ void SV_Begin_f (void)
 
 //=============================================================================
 
-int buffer;
 void SV_NextChunkedDownload(int chunknum)
 {
 #define CHUNKSIZE 1024
-	char buffer[1024];
+	char buffer[CHUNKSIZE];
 	int i;
 
 	if (host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize)
@@ -1502,7 +1501,7 @@ void SV_NextChunkedDownload(int chunknum)
 	if (i > 0)
 	{
 		if (i != CHUNKSIZE)
-			bzero(buffer+i, CHUNKSIZE-i);
+			memset(buffer+i, 0, CHUNKSIZE-i);
 
 		MSG_WriteByte(&host_client->datagram, svc_download);
 		MSG_WriteLong(&host_client->datagram, chunknum);

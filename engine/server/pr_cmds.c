@@ -3589,9 +3589,9 @@ void PF_Remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	ed = G_EDICT(prinst, OFS_PARM0);
 
-	if (ed->isfree && progstype != PROG_H2)	//h2 is dire...
+	if (ed->isfree)
 	{
-		ED_CanFree(ed);
+		ED_CanFree(ed);	//fake it
 		if (developer.value)
 		{
 			Con_Printf("Tried removing free entity at:\n");

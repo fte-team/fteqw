@@ -475,7 +475,6 @@ static void ParseServerinfo(sv_t *tv, netmsg_t *m)
 
 static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
-	unsigned char *t;
 	char text[1024];
 	char buffer[1024];
 	int level;
@@ -498,29 +497,6 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	{
 		if (level > 1)
 		{
-			for (t = (unsigned char*)text; *t; t++)
-			{
-				if (*t >= 146 && *t < 156)
-					*t = *t - 146 + '0';
-				if (*t == 143)
-					*t = '.';
-				if (*t == 157 || *t == 158 || *t == 159)
-					*t = '-';
-				if (*t >= 128)
-					*t -= 128;
-				if (*t == 16)
-					*t = '[';
-				if (*t == 17)
-					*t = ']';
-				if (*t == 29)
-					*t = '-';
-				if (*t == 30)
-					*t = '-';
-				if (*t == 31)
-					*t = '-';
-				if (*t == '\a')	//doh. :D
-					*t = ' ';
-			}
 			Sys_Printf(tv->cluster, "%s", text);
 		}
 	}
@@ -892,7 +868,7 @@ static void ParseUpdateStat(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	else
 		Sys_Printf(tv->cluster, "svc_updatestat: invalid stat number\n");
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+//	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 static void ParseUpdateStatLong(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
@@ -914,7 +890,7 @@ static void ParseUpdateStatLong(sv_t *tv, netmsg_t *m, int to, unsigned int mask
 	else
 		Sys_Printf(tv->cluster, "svc_updatestatlong: invalid stat number\n");
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+//	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
 static void ParseUpdateUserinfo(sv_t *tv, netmsg_t *m, int to, unsigned int mask)

@@ -410,7 +410,7 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 {
 	qtv->usequkeworldprotocols = false;
 
-	if (!strncmp(ip, "file:", 5))
+	if (!strncmp(ip, "file:", 5) || !strncmp(ip, "demo:", 5))
 	{
 		qtv->sourcesock = INVALID_SOCKET;
 		qtv->file = fopen(ip+5, "rb");
@@ -1433,6 +1433,13 @@ void QTV_Run(sv_t *qtv)
 				return;
 			}
 			else if (!strcmp(start, "PERROR"))
+			{
+				Sys_Printf(qtv->cluster, "\nQTV server error: %s\n\n", colon);
+				qtv->drop = true;
+				qtv->buffersize = 0;
+				return;
+			}
+			else if (!strcmp(start, "TERROR"))
 			{	//we don't support compression, we didn't ask for it.
 				Sys_Printf(qtv->cluster, "\nQTV server error: %s\n\n", colon);
 				qtv->drop = true;
@@ -1440,9 +1447,12 @@ void QTV_Run(sv_t *qtv)
 				return;
 			}
 			else if (!strcmp(start, "PRINT"))
-			{	//we don't support compression, we didn't ask for it.
-				Sys_Printf(qtv->cluster, "QTV server: \n");
-				return;
+			{
+				Sys_Printf(qtv->cluster, "QTV server: %s\n", colon);
+			}
+			else if (!strcmp(start, "BEGIN"))
+			{
+				qtv->parsingqtvheader = false;
 			}
 			else
 			{
@@ -1455,15 +1465,18 @@ void QTV_Run(sv_t *qtv)
 		qtv->buffersize -= length;
 		memmove(qtv->buffer, qtv->buffer + length, qtv->buffersize);
 
-		if (*authmethod == '\0')
-			qtv->parsingqtvheader = false;
-		else
+		if (*authmethod)
 		{	//we need to send a challenge response now.
 			Net_SendQTVConnectionRequest(qtv, authmethod, challenge);
-		}
-
-		if (qtv->parsingqtvheader)
 			return;
+		}
+		else if (qtv->parsingqtvheader)
+		{
+			Sys_Printf(qtv->cluster, "QTV server sent no begin command - assuming incompatable\n\n", colon);
+			qtv->drop = true;
+			qtv->buffersize = 0;
+			return;
+		}
 
 		qtv->parsetime = Sys_Milliseconds() + BUFFERTIME*1000;
 		if (!qtv->usequkeworldprotocols)

@@ -356,6 +356,36 @@ typedef struct {
 } usercmd_t;
 extern const usercmd_t nullcmd;
 
+
+typedef float vec3_t[3];
+typedef struct {
+	float gravity;
+	float maxspeed;
+	float spectatormaxspeed;
+	float accelerate;
+	float airaccelerate;
+	float waterfriction;
+	float entgrav;
+	float stopspeed;
+	float wateraccelerate;
+	float friction;
+} movevars_t;
+typedef struct {
+	//in / out
+	vec3_t origin;
+	vec3_t velocity;
+
+	//in
+	usercmd_t cmd;
+	movevars_t movevars;
+
+	//internal
+	vec3_t angles;
+	float frametime;
+	vec3_t forward, right, up;
+} pmove_t;
+
+
 #define MAX_BACK_BUFFERS	16
 typedef struct sv_s sv_t;
 typedef struct cluster_s cluster_t;
@@ -384,7 +414,7 @@ typedef struct viewer_s {
 	struct viewer_s *next;
 
 	char name[32];
-	char userinfo[256];
+	char userinfo[1024];
 
 	int lost;	//packets
 	usercmd_t ucmds[3];
@@ -392,7 +422,8 @@ typedef struct viewer_s {
 
 	int settime;	//the time that we last told the client.
 
-	float origin[3];
+	vec3_t velocity;
+	vec3_t origin;
 
 	int isadmin;
 	char expectcommand[16];
@@ -474,18 +505,7 @@ struct sv_s {
 
 	char gamedir[MAX_QPATH];
 	char mapname[256];
-	struct {
-		float gravity;
-		float maxspeed;
-		float spectatormaxspeed;
-		float accelerate;
-		float airaccelerate;
-		float waterfriction;
-		float entgrav;
-		float stopspeed;
-		float wateraccelerate;
-		float friction;
-	} movevars;
+	movevars_t movevars;
 	int cdtrack;
 	entity_t entity[MAX_ENTITIES];
 	frame_t frame[MAX_ENTITY_FRAMES];
@@ -824,6 +844,8 @@ qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport);
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable);
 void QW_PrintfToViewer(viewer_t *v, char *format, ...);
 void QW_StuffcmdToViewer(viewer_t *v, char *format, ...);
+
+void PM_PlayerMove (pmove_t *pmove);
 
 void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qboolean isclient);
 void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock, netadr_t adr, char *format, ...);

@@ -1121,7 +1121,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		pend->flushing = true;
 		return false;
 	}
-	if (cluster->numproxies >= cluster->maxproxies)
+	if (cluster->maxproxies && cluster->numproxies >= cluster->maxproxies)
 	{
 		s = "QTVSV 1\n"
 			"TERROR: This QTV has reached it's connection limit\n"
@@ -1136,7 +1136,13 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	if (!raw)
 	{
-		s = "QTVSV 1\n\n";
+		s = "QTVSV 1\n";
+		Net_ProxySend(cluster, pend, s, strlen(s));
+		s = "BEGIN: ";
+		Net_ProxySend(cluster, pend, s, strlen(s));
+		s = qtv->server;
+		Net_ProxySend(cluster, pend, s, strlen(s));
+		s = "\n\n";
 		Net_ProxySend(cluster, pend, s, strlen(s));
 	}
 //	else if (passwordprotected)	//raw mode doesn't support passwords, so reject them

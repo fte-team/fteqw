@@ -178,17 +178,17 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 	}
 
 	// this next line is kinda trippy
-/*	if (*(v = Info_ValueForKey(s, key)))
+	if (*(v = Info_ValueForKey(s, key, newv, sizeof(newv))))
 	{
 		// key exists, make sure we have enough room for new value, if we don't,
 		// don't change it!
 		if (strlen(value) - strlen(v) + strlen(s) + 1 > maxsize)
 		{
-			Con_TPrintf (TL_INFOSTRINGTOOLONG);
+	//		Con_TPrintf (TL_INFOSTRINGTOOLONG);
 			return;
 		}
 	}
-*/
+
 
 	Info_RemoveKey (s, key);
 	if (!value || !strlen(value))
@@ -324,19 +324,45 @@ typedef char *(*dispatchrconcommand_t)(cluster_t *cluster, sv_t *qtv, char *arg[
 
 char *Cmd_Hostname(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
+	if (!*arg[1])
+	{
+		buffer[0] = 0;
+		if (*cluster->hostname)
+			snprintf(buffer, sizeofbuffer, "Current hostname is %s\n", cluster->hostname);
+		else
+			return "No master server is currently set.\n";
+		return buffer;
+	}
 	strncpy(cluster->hostname, arg[1], sizeof(cluster->hostname)-1);
-	return "hostname will change at start of next map\n";	//I'm too lazy to alter the serverinfo here.
+	return "hostname set (might have a slight delay)\n";	//I'm too lazy to alter the serverinfo here.
 }
 char *Cmd_Master(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
 	netadr_t addr;
 
+	if (!*arg[1])
+	{
+		if (*cluster->master)
+			return "Subscribed to a master server (use '-' to clear)\n";
+		else
+			return "No master server is currently set.\n";
+	}
+
+	if (!strcmp(arg[1], "-"))
+	{
+		strncpy(cluster->master, "", sizeof(cluster->master)-1);
+		return "Master server cleared\n";
+	}
+
+	if (!NET_StringToAddr(arg[1], &addr, 27000))	//send a ping like a qw server does. this is kinda pointless of course.
+	{
+		return "Couldn't resolve address\n";
+	}
+
 	strncpy(cluster->master, arg[1], sizeof(cluster->master)-1);
 	cluster->mastersendtime = cluster->curtime;
 
-	if (NET_StringToAddr(arg[1], &addr, 27000))	//send a ping like a qw server does. this is kinda pointless of course.
-		NET_SendPacket (cluster, cluster->qwdsocket, 1, "k", addr);
-
+	NET_SendPacket (cluster, cluster->qwdsocket, 1, "k", addr);
 	return "Master server set.\n";
 }
 
@@ -363,6 +389,14 @@ char *Cmd_AdminPassword(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char
 {
 	if (!localcommand)
 		return "Rejecting remote password change.\n";
+
+	if (!*arg[1])
+	{
+		if (*cluster->adminpassword)
+			return "An admin password is currently set\n";
+		else
+			return "No admin passsword is currently set\n";
+	}
 
 	strncpy(cluster->adminpassword, arg[1], sizeof(cluster->adminpassword)-1);
 	return "Password changed.\n";
@@ -413,8 +447,12 @@ char *Cmd_Exec(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer,
 	char line[512], *res;
 
 	if (!localcommand)
+	{
 		if (*arg[1] == '\\' || *arg[1] == '/' || strstr(arg[1], "..") || arg[1][1] == ':')
 			return "Absolute paths are prohibited.\n";
+		if (!strncmp(arg[1], "usercfg/", 8))	//this is how we stop users from execing a 50gb pk3..
+			return "Remote-execed configs must be in the usercfg directory\n";
+	}
 
 	f = fopen(arg[1], "rt");
 	if (!f)
@@ -503,33 +541,79 @@ char *Cmd_Status(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffe
 }
 char *Cmd_Choke(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
+	if (!*arg[1])
+	{
+		if (cluster->chokeonnotupdated)
+			return "proxy will not interpolate packets\n";
+		else
+			return "proxy will smooth action at the expense of extra packets\n";
+	}
 	cluster->chokeonnotupdated = !!atoi(arg[1]);
 	return "choke-until-update set\n";
 }
 char *Cmd_Late(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
+	if (!*arg[1])
+	{
+		if (cluster->lateforward)
+			return "forwarded streams will be artificially delayed\n";
+		else
+			return "forwarded streams are forwarded immediatly\n";
+	}
 	cluster->lateforward = !!atoi(arg[1]);
 	return "late forwarding set\n";
 }
 char *Cmd_Talking(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
+	if (!*arg[1])
+	{
+		if (cluster->notalking)
+			return "viewers may not talk\n";
+		else
+			return "viewers may talk freely\n";
+	}
 	cluster->notalking = !atoi(arg[1]);
 	return "talking permissions set\n";
 }
 char *Cmd_NoBSP(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
+	if (!*arg[1])
+	{
+		if (cluster->nobsp)
+			return "no bsps will be loaded\n";
+		else
+			return "attempting to load bsp files\n";
+	}
 	cluster->nobsp = !!atoi(arg[1]);
 	return "nobsp will change at start of next map\n";
 }
 
 char *Cmd_MaxViewers(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
-	cluster->maxviewers = atoi(arg[2]);
+	if (!*arg[1])
+	{
+		buffer[0] = '\0';
+		if (cluster->maxviewers)
+			snprintf(buffer, sizeofbuffer, "maxviewers is currently %i\n", cluster->maxviewers);
+		else
+			return "maxviewers is currently unlimited\n";
+		return buffer;
+	}
+	cluster->maxviewers = atoi(arg[1]);
 	return "maxviewers set\n";
 }
 char *Cmd_MaxProxies(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
-	cluster->maxproxies = atoi(arg[2]);
+	if (!*arg[1])
+	{
+		buffer[0] = '\0';
+		if (cluster->maxproxies)
+			snprintf(buffer, sizeofbuffer, "maxproxies is currently %i\n", cluster->maxproxies);
+		else
+			return "maxproxies is currently unlimited\n";
+		return buffer;
+	}
+	cluster->maxproxies = atoi(arg[1]);
 	return "maxproxies set\n";
 }
 

@@ -479,11 +479,37 @@ int main(int argc, char **argv)
 void Sys_Printf(cluster_t *cluster, char *fmt, ...)
 {
 	va_list		argptr;
-	char		string[2024];
+	char		string[2048];
+	unsigned char *t;
 	
 	va_start (argptr, fmt);
-	vsnprintf (string, sizeof(string), fmt,argptr);
+	vsnprintf (string, sizeof(string)-1, fmt,argptr);
+	string[sizeof(string)-1] = 0;
 	va_end (argptr);
+
+	for (t = (unsigned char*)string; *t; t++)
+	{
+		if (*t >= 146 && *t < 156)
+			*t = *t - 146 + '0';
+		if (*t == 143)
+			*t = '.';
+		if (*t == 157 || *t == 158 || *t == 159)
+			*t = '-';
+		if (*t >= 128)
+			*t -= 128;
+		if (*t == 16)
+			*t = '[';
+		if (*t == 17)
+			*t = ']';
+		if (*t == 29)
+			*t = '-';
+		if (*t == 30)
+			*t = '-';
+		if (*t == 31)
+			*t = '-';
+		if (*t == '\a')	//doh. :D
+			*t = ' ';
+	}
 
 	printf("%s", string);
 }

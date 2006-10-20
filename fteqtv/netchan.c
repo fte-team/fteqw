@@ -31,7 +31,11 @@ void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, net
 	ret = sendto(sock, data, length, 0, (struct sockaddr *)adr, sizeof(struct sockaddr_in));
 	if (ret < 0)
 	{
-		Sys_Printf(cluster, "udp send error %i\n", ret);
+		int er = qerrno;
+		if (er == EWOULDBLOCK)
+			return;
+
+		Sys_Printf(cluster, "udp send error %i\n", er);
 	}
 }
 
@@ -189,7 +193,7 @@ void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qbool
 
 	chan->message.allowoverflow = true;
 	
-	chan->rate = 1.0f/2500;
+	chan->rate = 1000.0f/2500;
 }
 
 
@@ -203,11 +207,13 @@ Returns true if the bandwidth choke isn't active
 #define	MAX_BACKUP	200
 qboolean Netchan_CanPacket (netchan_t *chan)
 {
+	unsigned int t;
 	// unlimited bandwidth for local client
 //	if (chan->remote_address.type == NA_LOOPBACK)
 //		return true;
 
-	if (chan->cleartime < curtime + MAX_BACKUP*chan->rate)
+	t = curtime;
+	if (chan->cleartime < t + MAX_BACKUP*chan->rate)
 		return true;
 	return false;
 }
@@ -239,6 +245,7 @@ A 0 length will still generate a packet and deal with the reliable messages.
 */
 void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const unsigned char *data)
 {
+	unsigned int t;
 	netmsg_t	send;
 	unsigned char	send_buf[MAX_NQMSGLEN + PACKET_HEADER];
 	qboolean		send_reliable;
@@ -376,8 +383,9 @@ void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const un
 
 	NET_SendPacket (cluster, chan->sock, send.cursize, send.data, chan->remote_address);
 
-	if (chan->cleartime < curtime)
-		chan->cleartime = curtime + send.cursize*chan->rate;
+	t = curtime;
+	if (chan->cleartime < t)
+		chan->cleartime = t + send.cursize*chan->rate;
 	else
 		chan->cleartime += send.cursize*chan->rate;
 #ifndef CLIENTONLY

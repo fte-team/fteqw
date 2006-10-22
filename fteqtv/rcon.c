@@ -509,7 +509,7 @@ char *Cmd_Status(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffe
 	if (qtv)
 	{
 		catbuffer(buffer, sizeofbuffer, "Selected server: %s\n", qtv->server);
-		if (qtv->file)
+		if (qtv->sourcefile)
 			catbuffer(buffer, sizeofbuffer, "Playing from file\n");
 		if (qtv->sourcesock != INVALID_SOCKET)
 			catbuffer(buffer, sizeofbuffer, "Connected\n");

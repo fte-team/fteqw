@@ -387,7 +387,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		}
 		else
 		{
-			if (tv->file)
+			if (tv->sourcefile)
 				snprintf(text, sizeof(text), "%s (recorded from: %s)", tv->cluster->hostname, value);
 			else
 				snprintf(text, sizeof(text), "%s (live: %s)", tv->cluster->hostname, value);
@@ -1196,15 +1196,15 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 	unsigned int percent;
 	char buffer[2048];
 
-	size = ReadShort(m);
+	size = (signed short)ReadShort(m);
 	percent = ReadByte(m);
 
 	if (size < 0)
 	{
 		Sys_Printf(tv->cluster, "Downloading failed\n");
-		if (tv->file)
-			fclose(tv->file);
-		tv->file = NULL;
+		if (tv->downloadfile)
+			fclose(tv->downloadfile);
+		tv->downloadfile = NULL;
 		tv->drop = true;
 		return;
 	}
@@ -1212,18 +1212,18 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 	for (b = 0; b < size; b++)
 		buffer[b] = ReadByte(m);
 
-	if (!tv->file)
+	if (!tv->downloadfile)
 	{
 		Sys_Printf(tv->cluster, "Not downloading anything\n");
 		tv->drop = true;
 		return;
 	}
-	fwrite(buffer, 1, size, tv->file);
+	fwrite(buffer, 1, size, tv->downloadfile);
 
 	if (percent == 100)
 	{
-		fclose(tv->file);
-		tv->file = NULL;
+		fclose(tv->downloadfile);
+		tv->downloadfile = NULL;
 
 		snprintf(buffer, sizeof(buffer), "%s/%s", (tv->gamedir&&*tv->gamedir)?tv->gamedir:"id1", tv->modellist[1].name);
 		rename(tv->downloadname, buffer);
@@ -1232,7 +1232,10 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 
 		tv->bsp = BSP_LoadModel(tv->cluster, tv->gamedir, tv->modellist[1].name);
 		if (!tv->bsp)
+		{
+			Sys_Printf(tv->cluster, "Failed to read BSP\n");
 			tv->drop = true;
+		}
 		else
 		{
 			SendClientCommand(tv, "prespawn %i 0 %i\n", tv->clservercount, LittleLong(BSP_Checksum(tv->bsp)));
@@ -1470,19 +1473,21 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			{
 				if (i)
 					SendClientCommand(tv, "modellist %i %i\n", tv->clservercount, i);
-				else if (!tv->bsp)
+				else if (!tv->bsp && !tv->cluster->nobsp)
 				{
-					if (tv->file)
+					if (tv->downloadfile)
 					{
-						fclose(tv->file);
+						fclose(tv->downloadfile);
 						unlink(tv->downloadname);
 						Sys_Printf(tv->cluster, "Was already downloading %s\nOld download canceled\n", tv->downloadname);
-						tv->file = NULL;
+						tv->downloadfile = NULL;
 					}
 					snprintf(tv->downloadname, sizeof(tv->downloadname), "%s/%s.tmp", (tv->gamedir&&*tv->gamedir)?tv->gamedir:"id1", tv->modellist[1].name);
-					tv->file = fopen(tv->downloadname, "wb");
-					if (!tv->file)
-						tv->drop = true;
+					tv->downloadfile = fopen(tv->downloadname, "wb");
+					if (!tv->downloadfile)
+					{
+						Sys_Printf(tv->cluster, "Couldn't open temporary file %s\n", tv->downloadname);
+					}
 					else
 					{
 						strcpy(tv->status, "Downloading map\n");

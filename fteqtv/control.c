@@ -261,6 +261,7 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 			if (cluster->inputlength >= 1)
 			{
 				cluster->commandinput[cluster->inputlength-1] = 0;        // rip off the /n and terminate
+				cluster->inputlength--;
 
 				if (cluster->inputlength)
 				{

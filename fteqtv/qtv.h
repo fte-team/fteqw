@@ -559,7 +559,7 @@ struct sv_s {
 
 	qboolean maysend;
 
-	FILE *file;
+	FILE *sourcefile;
 	unsigned int filelength;
 	SOCKET sourcesock;
 

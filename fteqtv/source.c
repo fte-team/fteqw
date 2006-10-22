@@ -413,12 +413,12 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 	if (!strncmp(ip, "file:", 5) || !strncmp(ip, "demo:", 5))
 	{
 		qtv->sourcesock = INVALID_SOCKET;
-		qtv->file = fopen(ip+5, "rb");
-		if (qtv->file)
+		qtv->sourcefile = fopen(ip+5, "rb");
+		if (qtv->sourcefile)
 		{
-			fseek(qtv->file, 0, SEEK_END);
-			qtv->filelength = ftell(qtv->file);
-			fseek(qtv->file, 0, SEEK_SET);
+			fseek(qtv->sourcefile, 0, SEEK_END);
+			qtv->filelength = ftell(qtv->sourcefile);
+			fseek(qtv->sourcefile, 0, SEEK_SET);
 			return true;
 		}
 		Sys_Printf(qtv->cluster, "Unable to open file %s\n", ip+5);
@@ -541,13 +541,13 @@ qboolean Net_ReadStream(sv_t *qtv)
 		return true;	//this is bad!
 	buffer = qtv->buffer + qtv->buffersize;
 
-	if (qtv->file)
+	if (qtv->sourcefile)
 	{
 		if (maxreadable > PREFERED_PROXY_BUFFER-qtv->buffersize)
 			maxreadable = PREFERED_PROXY_BUFFER-qtv->buffersize;
 		if (maxreadable<=0)
 			return true;
-		read = fread(buffer, 1, maxreadable, qtv->file);
+		read = fread(buffer, 1, maxreadable, qtv->sourcefile);
 	}
 	else
 	{
@@ -586,7 +586,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 			err = qerrno;
 		if (read == 0 || (err != EWOULDBLOCK && err != EAGAIN && err != ENOTCONN))	//ENOTCONN can be returned whilst waiting for a connect to finish.
 		{
-			if (qtv->file)
+			if (qtv->sourcefile)
 				Sys_Printf(qtv->cluster, "Error: End of file\n");
 			else if (read)
 				Sys_Printf(qtv->cluster, "Error: source socket error %i\n", qerrno);
@@ -597,10 +597,10 @@ qboolean Net_ReadStream(sv_t *qtv)
 				closesocket(qtv->sourcesock);
 				qtv->sourcesock = INVALID_SOCKET;
 			}
-			if (qtv->file)
+			if (qtv->sourcefile)
 			{
-				fclose(qtv->file);
-				qtv->file = NULL;
+				fclose(qtv->sourcefile);
+				qtv->sourcefile = NULL;
 			}
 			return false;
 		}
@@ -745,10 +745,10 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 		qtv->sourcesock = INVALID_SOCKET;
 	}
 
-	if (qtv->file)
+	if (qtv->sourcefile)
 	{
-		fclose(qtv->file);
-		qtv->file = NULL;
+		fclose(qtv->sourcefile);
+		qtv->sourcefile = NULL;
 	}
 
 	*qtv->serverinfo = '\0';
@@ -795,10 +795,16 @@ void QTV_Shutdown(sv_t *qtv)
 		closesocket(qtv->sourcesock);
 		qtv->sourcesock = INVALID_SOCKET;
 	}
-	if (qtv->file)
+	if (qtv->sourcefile)
 	{
-		fclose(qtv->file);
-		qtv->file = NULL;
+		fclose(qtv->sourcefile);
+		qtv->sourcefile = NULL;
+	}
+	if (qtv->downloadfile)
+	{
+		fclose(qtv->downloadfile);
+		qtv->downloadfile = NULL;
+		unlink(qtv->downloadname);
 	}
 	if (qtv->tcpsocket != INVALID_SOCKET)
 		closesocket(qtv->tcpsocket);
@@ -1002,6 +1008,9 @@ void QTV_ParseQWStream(sv_t *qtv)
 			//FIXME: Check for error
 			break;
 		}
+		if (readlen > sizeof(buffer)-1)
+			break;	//oversized!
+
 		buffer[readlen] = 0;
 		if (*(int*)buffer == -1)
 		{
@@ -1166,10 +1175,13 @@ void QTV_Run(sv_t *qtv)
 	int oldcurtime;
 	int packettime;
 
-	if (qtv->drop || (qtv->disconnectwhennooneiswatching && qtv->numviewers == 0 && qtv->proxies == NULL))
+	if (qtv->disconnectwhennooneiswatching && qtv->numviewers == 0 && qtv->proxies == NULL)
 	{
-		if (!qtv->drop)
-			Sys_Printf(qtv->cluster, "Stream %s became inactive\n", qtv->server);
+		Sys_Printf(qtv->cluster, "Stream %s became inactive\n", qtv->server);
+		qtv->drop = true;
+	}
+	if (qtv->drop)
+	{
 		QTV_Shutdown(qtv);
 		return;
 	}
@@ -1330,7 +1342,7 @@ void QTV_Run(sv_t *qtv)
 		qtv->simtime = qtv->curtime;
 
 
-	if (qtv->sourcesock == INVALID_SOCKET && !qtv->file)
+	if (qtv->sourcesock == INVALID_SOCKET && !qtv->sourcefile)
 	{
 		if (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - RECONNECT_TIME*2)
 		if (!QTV_Connect(qtv, qtv->server))
@@ -1342,7 +1354,7 @@ void QTV_Run(sv_t *qtv)
 
 	SV_FindProxies(qtv->tcpsocket, qtv->cluster, qtv);	//look for any other proxies wanting to muscle in on the action.
 
-	if (qtv->file || qtv->sourcesock != INVALID_SOCKET)
+	if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
 	{
 		if (!Net_ReadStream(qtv))
 		{	//if we have an error reading it
@@ -1499,7 +1511,7 @@ void QTV_Run(sv_t *qtv)
 			if (qtv->parsetime < qtv->curtime)
 			{
 				qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
-				if (qtv->file || qtv->sourcesock != INVALID_SOCKET)
+				if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
 					Sys_Printf(qtv->cluster, "Not enough buffered\n");
 			}
 			break;
@@ -1514,7 +1526,7 @@ void QTV_Run(sv_t *qtv)
 			if (qtv->buffersize < length)
 			{	//not enough stuff to play.
 				qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
-				if (qtv->file || qtv->sourcesock != INVALID_SOCKET)
+				if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
 					Sys_Printf(qtv->cluster, "Not enough buffered\n");
 				continue;
 			}
@@ -1540,7 +1552,7 @@ void QTV_Run(sv_t *qtv)
 
 		if (qtv->buffersize < lengthofs+4)
 		{	//the size parameter doesn't fit.
-			if (qtv->file || qtv->sourcesock != INVALID_SOCKET)
+			if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
 				Sys_Printf(qtv->cluster, "Not enough buffered\n");
 			qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
 			break;
@@ -1552,10 +1564,10 @@ void QTV_Run(sv_t *qtv)
 		{	//FIXME: THIS SHOULDN'T HAPPEN!
 			//Blame the upstream proxy!
 			Sys_Printf(qtv->cluster, "Warning: corrupt input packet (%i) too big! Flushing and reconnecting!\n", length);
-			if (qtv->file)
+			if (qtv->sourcefile)
 			{
-				fclose(qtv->file);
-				qtv->file = NULL;
+				fclose(qtv->sourcefile);
+				qtv->sourcefile = NULL;
 			}
 			else
 			{
@@ -1568,7 +1580,7 @@ void QTV_Run(sv_t *qtv)
 
 		if (length+lengthofs+4 > qtv->buffersize)
 		{
-			if (qtv->file || qtv->sourcesock != INVALID_SOCKET)
+			if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
 				Sys_Printf(qtv->cluster, "Not enough buffered\n");
 			qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
 			break;	//can't parse it yet.
@@ -1615,7 +1627,7 @@ void QTV_Run(sv_t *qtv)
 				qtv->forwardpoint -= length;
 			}
 
-			if (qtv->file)
+			if (qtv->sourcefile)
 				Net_ReadStream(qtv);
 
 			qtv->parsetime += packettime;

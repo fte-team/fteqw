@@ -646,6 +646,7 @@ qboolean ChallengePasses(netadr_t *addr, int challenge)
 
 void NewClient(cluster_t *cluster, viewer_t *viewer)
 {
+	viewer->timeout = cluster->curtime + 15*1000;
 	viewer->trackplayer = -1;
 
 
@@ -3179,7 +3180,7 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 			sv = viewer->server;
 			WriteString2(&m, "\n\nConnection Admin\n");
 			WriteString2(&m, sv->hostname);
-			if (sv->file)
+			if (sv->sourcefile)
 				WriteString2(&m, " (demo)");
 			WriteString2(&m, "\n\n");
 
@@ -3456,6 +3457,8 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 						if (useserver && useserver->parsingconnectiondata)
 							useserver = NULL;
 
+						v->timeout = cluster->curtime + 15*1000;
+
 						ParseNQC(cluster, useserver, v, &m);
 
 						if (v->server && v->server->controller == v)
@@ -3474,6 +3477,8 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 						useserver = v->server;
 						if (useserver && useserver->parsingconnectiondata)
 							useserver = NULL;
+
+						v->timeout = cluster->curtime + 15*1000;
 
 						v->netchan.outgoing_sequence = v->netchan.incoming_sequence;	//compensate for client->server packetloss.
 						if (v->server && v->server->controller == v)
@@ -3581,6 +3586,9 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 		}
 
 		v->drop |= v->netchan.drop;
+
+		if (v->timeout < cluster->curtime)
+			v->drop = true;
 
 		if (v->netchan.isnqprotocol)
 		{

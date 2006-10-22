@@ -679,11 +679,17 @@ void NewClient(cluster_t *cluster, viewer_t *viewer)
 	QW_PrintfToViewer(viewer, "Type admin for the admin menu\n");
 }
 
-void ParseUserInfo(viewer_t *viewer)
+void ParseUserInfo(cluster_t *cluster, viewer_t *viewer)
 {
 	float rate;
 	char temp[64];
-	Info_ValueForKey(viewer->userinfo, "name", viewer->name, sizeof(viewer->name));
+	Info_ValueForKey(viewer->userinfo, "name", temp, sizeof(temp));
+
+	if (!*temp)
+		strcpy(temp, "unnamed");
+	if (!*viewer->name)
+		Sys_Printf(cluster, "Viewer %s connected\n", temp);
+	Q_strncpyz(viewer->name, temp, sizeof(temp));
 
 	Info_ValueForKey(viewer->userinfo, "rate", temp, sizeof(temp));
 	rate = atof(temp);
@@ -769,7 +775,7 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 
 	sprintf(viewer->userinfo, "\\name\\%s", "unnamed");
 
-	ParseUserInfo(viewer);
+	ParseUserInfo(cluster, viewer);
 
 	NewClient(cluster, viewer);
 
@@ -829,7 +835,7 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	cluster->numviewers++;
 
 	strncpy(viewer->userinfo, infostring, sizeof(viewer->userinfo)-1);
-	ParseUserInfo(viewer);
+	ParseUserInfo(cluster, viewer);
 
 	Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *addr, "j");
 
@@ -2603,7 +2609,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				}
 
 				Info_SetValueForStarKey(v->userinfo, arg[1], arg[2], sizeof(v->userinfo));
-				ParseUserInfo(v);
+				ParseUserInfo(cluster, v);
 //				Info_ValueForKey(v->userinfo, "name", v->name, sizeof(v->name));
 
 				if (v->server && v->server->controller == v)
@@ -2613,7 +2619,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			else if (!strncmp(buf, "name ", 5))
 			{
 				Info_SetValueForStarKey(v->userinfo, "name", buf+5, sizeof(v->userinfo));
-				ParseUserInfo(v);
+				ParseUserInfo(cluster, v);
 
 				if (v->server && v->server->controller == v)
 					SendClientCommand(v->server, "setinfo name \"%s\"", v->name);
@@ -2658,6 +2664,8 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			}
 			break;
 		case clc_disconnect:
+			if (!v->drop)
+				Sys_Printf(cluster, "NQ viewer %s disconnects\n", v->name);
 			v->drop = true;
 			return;
 		case clc_move:
@@ -2870,7 +2878,11 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				SendBufferToViewer(v, m.data, m.cursize, true);
 			}
 			else if (!strncmp(buf, "drop", 4))
+			{
+				if (!v->drop)
+					Sys_Printf(cluster, "QW viewer %s disconnects\n", v->name);
 				v->drop = true;
+			}
 			else if (!strncmp(buf, "ison", 4))
 			{
 				viewer_t *other;
@@ -2924,7 +2936,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				}
 
 				Info_SetValueForStarKey(v->userinfo, arg[1], arg[2], sizeof(v->userinfo));
-				ParseUserInfo(v);
+				ParseUserInfo(cluster, v);
 //				Info_ValueForKey(v->userinfo, "name", v->name, sizeof(v->name));
 
 				if (v->server && v->server->controller == v)
@@ -3008,6 +3020,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			break;
 
 		case clc_upload:
+			Sys_Printf(cluster, "Client uploads are not supported from %s\n", v->name);
 			v->drop = true;
 			return;
 
@@ -3350,7 +3363,7 @@ void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer)
 	int i;
 	//note: unlink them yourself.
 
-	Sys_Printf(cluster, "Dropping viewer %s\n", viewer->name);
+//	Sys_Printf(cluster, "Dropping viewer %s\n", viewer->name);
 
 	//spam them thrice, then forget about them
 	Netchan_Transmit(cluster, &viewer->netchan, strlen(dropcmd)+1, dropcmd);
@@ -3567,7 +3580,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 
 	if (cluster->viewers && cluster->viewers->drop)
 	{
-		Sys_Printf(cluster, "Dropping client\n");
+//		Sys_Printf(cluster, "Dropping viewer %s\n", v->name);
 		f = cluster->viewers;
 		cluster->viewers = f->next;
 
@@ -3578,7 +3591,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 	{
 		if (v->next && v->next->drop)
 		{	//free the next/
-			Sys_Printf(cluster, "Dropping client\n");
+//			Sys_Printf(cluster, "Dropping viewer %s\n", v->name);
 			f = v->next;
 			v->next = f->next;
 
@@ -3588,7 +3601,10 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 		v->drop |= v->netchan.drop;
 
 		if (v->timeout < cluster->curtime)
+		{
+			Sys_Printf(cluster, "Viewer %s timed out\n", v->name);
 			v->drop = true;
+		}
 
 		if (v->netchan.isnqprotocol)
 		{

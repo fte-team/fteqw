@@ -359,7 +359,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress, sizeof(qtv->serveraddress)) == INVALID_SOCKET)
 	{
 		err = qerrno;
-		if (err != EINPROGRESS && err != EWOULDBLOCK)	//bsd sockets are meant to return EINPROGRESS, but some winsock drivers use EWOULDBLOCK instead. *sigh*...
+		if (err != EINPROGRESS && err != EAGAIN && err != EWOULDBLOCK)	//bsd sockets are meant to return EINPROGRESS, but some winsock drivers use EWOULDBLOCK instead. *sigh*...
 		{
 			closesocket(qtv->sourcesock);
 			qtv->sourcesock = INVALID_SOCKET;
@@ -448,6 +448,7 @@ void Net_QueueUpstream(sv_t *qtv, int size, char *buffer)
 
 	if (qtv->upstreambuffersize + size > sizeof(qtv->upstreambuffer))
 	{
+		Sys_Printf(qtv->cluster, "Upstream queue overflowed for %s\n", qtv->server);
 		qtv->drop = true;
 		return;
 	}
@@ -467,8 +468,16 @@ qboolean Net_WriteUpStream(sv_t *qtv)
 		if (len < 0)
 		{
 			int err = qerrno;
-			if (err != EWOULDBLOCK && err != ENOTCONN)
+			if (err != EWOULDBLOCK && err != EAGAIN && err != ENOTCONN)
+			{
+				int err;
+				err = qerrno;
+				if (qerrno)
+					Sys_Printf(qtv->cluster, "Error: source socket error %i\n", qerrno);
+				else
+					Sys_Printf(qtv->cluster, "Error: server disconnected\n");
 				qtv->drop = true;
+			}
 			return false;
 		}
 		qtv->upstreambuffersize -= len;
@@ -571,7 +580,10 @@ qboolean Net_ReadStream(sv_t *qtv)
 	}
 	else
 	{
-		err = qerrno;
+		if (read == 0)
+			err = 0;
+		else
+			err = qerrno;
 		if (read == 0 || (err != EWOULDBLOCK && err != EAGAIN && err != ENOTCONN))	//ENOTCONN can be returned whilst waiting for a connect to finish.
 		{
 			if (qtv->file)
@@ -582,8 +594,6 @@ qboolean Net_ReadStream(sv_t *qtv)
 				Sys_Printf(qtv->cluster, "Error: server disconnected\n");
 			if (qtv->sourcesock != INVALID_SOCKET)
 			{
-				int err;
-				err = qerrno;
 				closesocket(qtv->sourcesock);
 				qtv->sourcesock = INVALID_SOCKET;
 			}
@@ -782,12 +792,6 @@ void QTV_Shutdown(sv_t *qtv)
 
 	if (qtv->sourcesock != INVALID_SOCKET)
 	{
-		int err;
-		err = qerrno;
-		if (qerrno)
-			Sys_Printf(qtv->cluster, "Error: source socket error %i\n", qerrno);
-		else
-			Sys_Printf(qtv->cluster, "Error: server disconnected\n");
 		closesocket(qtv->sourcesock);
 		qtv->sourcesock = INVALID_SOCKET;
 	}

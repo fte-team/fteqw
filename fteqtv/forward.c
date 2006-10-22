@@ -144,8 +144,11 @@ void Net_TryFlushProxyBuffer(cluster_t *cluster, oproxy_t *prox)
 		prox->drop = true;
 		break;
 	case -1:
-		if (qerrno != EWOULDBLOCK)	//not a problem, so long as we can flush it later.
+		if (qerrno != EWOULDBLOCK && qerrno != EAGAIN)	//not a problem, so long as we can flush it later.
+		{
+			Sys_Printf(cluster, "oversize flush\n");
 			prox->drop = true;	//drop them if we get any errors
+		}
 		break;
 	default:
 		prox->bufferpos += length;

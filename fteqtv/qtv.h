@@ -859,6 +859,9 @@ qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);
 qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg);
 qboolean NQNetchan_Process(cluster_t *cluster, netchan_t *chan, netmsg_t *msg);
 void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const unsigned char *data);
+void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int length, unsigned char *data);
+qboolean Netchan_CanPacket (netchan_t *chan);
+
 int SendList(sv_t *qtv, int first, const filename_t *list, int svc, netmsg_t *msg);
 int Prespawn(sv_t *qtv, int curmsgsize, netmsg_t *msg, int bufnum, int thisplayer);
 
@@ -872,7 +875,6 @@ void BSP_SetupForPosition(bsp_t *bsp, float x, float y, float z);
 void QW_SetViewersServer(viewer_t *viewer, sv_t *sv);
 unsigned short QCRC_Block (unsigned char *start, int count);
 unsigned short QCRC_Value(unsigned short crcvalue);
-void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int length, unsigned char *data);
 void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move);
 void SendClientCommand(sv_t *qtv, char *fmt, ...);
 void QTV_Run(sv_t *qtv);

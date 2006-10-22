@@ -602,6 +602,17 @@ char *Cmd_MaxViewers(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *b
 	cluster->maxviewers = atoi(arg[1]);
 	return "maxviewers set\n";
 }
+char *Cmd_AllowNQ(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
+{
+	if (!*arg[1])
+	{
+		buffer[0] = '\0';
+		snprintf(buffer, sizeofbuffer, "allownq is currently %i\n", cluster->allownqclients);
+		return buffer;
+	}
+	cluster->allownqclients = atoi(arg[1]);
+	return "allownq set\n";
+}
 char *Cmd_MaxProxies(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
 	if (!*arg[1])
@@ -750,7 +761,7 @@ char *Cmd_MVDPort(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buff
 
 char *Cmd_Commands(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
-	return "";
+	return "fixme";
 }
 
 typedef struct rconcommands_s {
@@ -791,6 +802,7 @@ const rconcommands_t rconcommands[] =
 	{"echo",		0, 1, Cmd_Echo},
 	{"quit",		0, 1, Cmd_Quit},
 	{"streams",		0, 1, Cmd_Streams},
+	{"allownq",		0, 1, Cmd_AllowNQ},
 
 
 

@@ -572,7 +572,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 	else
 	{
 		err = qerrno;
-		if (read == 0 || (err != EWOULDBLOCK && err != ENOTCONN))	//ENOTCONN can be returned whilst waiting for a connect to finish.
+		if (read == 0 || (err != EWOULDBLOCK && err != EAGAIN && err != ENOTCONN))	//ENOTCONN can be returned whilst waiting for a connect to finish.
 		{
 			if (qtv->file)
 				Sys_Printf(qtv->cluster, "Error: End of file\n");

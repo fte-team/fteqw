@@ -32,7 +32,7 @@ void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, net
 	if (ret < 0)
 	{
 		int er = qerrno;
-		if (er == EWOULDBLOCK)
+		if (er == EWOULDBLOCK || er == EAGAIN)
 			return;
 
 		Sys_Printf(cluster, "udp send error %i\n", er);

@@ -682,7 +682,10 @@ void SV_GenerateAdminHTTP(cluster_t *cluster, oproxy_t *dest, int streamid, char
 		o = "";
 	else if (!strcmp(pwd, cluster->adminpassword))
 	{
+		//small hack (as http connections are considered non-connected proxies)
+		cluster->numproxies--;
 		o = Rcon_Command(cluster, NULL, cmd, result, sizeof(result), false);
+		cluster->numproxies++;
 	}
 	else
 	{
@@ -702,6 +705,8 @@ void SV_GenerateAdminHTTP(cluster_t *cluster, oproxy_t *dest, int streamid, char
 			"<HTML>"
 			"<HEAD>"
 				"<TITLE>QuakeTV: Admin</TITLE>\n"
+
+//this section of code is to put focus into the command box, so you don't need to click it all the time.
 "<script type=\"text/javascript\">\n"
 //"<!--"
 "function sf(){document.f.cmd.focus();}\n"
@@ -754,6 +759,10 @@ void SV_GenerateAdminHTTP(cluster_t *cluster, oproxy_t *dest, int streamid, char
 		Net_ProxySend(cluster, dest, s, strlen(s));
 }
 
+#ifndef _WIN32
+#include <dirent.h>
+#endif
+
 void SV_GenerateQTVDemoListing(cluster_t *cluster, oproxy_t *dest)
 {
 	int numdemos = 0;
@@ -783,8 +792,45 @@ void SV_GenerateQTVDemoListing(cluster_t *cluster, oproxy_t *dest)
 			FindClose(h);
 		}
 #else
+		{
+			int namelen;
+			dir_t	d;
+			DIR		*dir;
+
+			dir=opendir(path);
+			if (!dir)
+			{		
+				s = "QTV Proxy is unable to search for available demos.";
+				Net_ProxySend(cluster, dest, s, strlen(s));
+			}
+			else
+			{
+				for(;;)
+				{
+					oneentry=readdir(dir);
+					if(!oneentry)
+						break;					
+#ifndef __CYGWIN__
+					if (oneentry->d_type == DT_DIR || oneentry->d_type == DT_LNK)
+					{
+						continue;
+					}
+#endif
+					namelen = strlen(oneentry->d_name);
+					if (namelen > 4 && !strcmp(oneentry->d_name + namelen-4, ".mvd"))
+					{
+						snprintf(link, sizeof(link), "<A HREF=\"watch.qtv?demo=%s\">%s</A><br/>", oneentry->d_name, oneentry->d_name);
+						Net_ProxySend(cluster, dest, link, strlen(link));
+					}
+				}
+
+				closedir(dir);
+			}
+		}
+		/*
 		s = "QTV Proxy is running on a platform for which file system listing is not coded.<br />Demo listing is not available.";
 		Net_ProxySend(cluster, dest, s, strlen(s));
+		*/
 #endif
 
 		sprintf(link, "<P>Total: %i demos</P>", numdemos);
@@ -883,7 +929,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		if (len > pend->inbuffersize)
 			return false;	//still need the body
 
-//		if (len >= pend->inbuffersize)
+//		if (len <= pend->inbuffersize)
 		{
 			if (!strncmp(pend->inbuffer+5, "/admin", 6))
 			{

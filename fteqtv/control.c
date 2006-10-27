@@ -3,6 +3,7 @@ Contains the control routines that handle both incoming and outgoing stuff
 */
 
 #include "qtv.h"
+#include <signal.h>
 
 
 

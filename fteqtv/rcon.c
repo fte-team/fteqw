@@ -464,8 +464,11 @@ char *Cmd_Exec(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer,
 	{
 		while(fgets(line, sizeof(line)-1, f))
 		{
-			res = Rcon_Command(cluster, qtv, line, buffer, sizeofbuffer, localcommand);
-			Sys_Printf(cluster, "%s", res);	//this is perhaps wrong.
+			if (*line)
+			{
+				res = Rcon_Command(cluster, qtv, line, buffer, sizeofbuffer, localcommand);
+				Sys_Printf(cluster, "%s", res);	//this is perhaps wrong.
+			}
 		}
 		fclose(f);
 		return "Execed\n";
@@ -610,7 +613,7 @@ char *Cmd_AllowNQ(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buff
 		snprintf(buffer, sizeofbuffer, "allownq is currently %i\n", cluster->allownqclients);
 		return buffer;
 	}
-	cluster->allownqclients = atoi(arg[1]);
+	cluster->allownqclients = !!atoi(arg[1]);
 	return "allownq set\n";
 }
 char *Cmd_MaxProxies(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
@@ -761,7 +764,7 @@ char *Cmd_MVDPort(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buff
 
 char *Cmd_Commands(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
-	return "fixme";
+	return "fixme\n";
 }
 
 typedef struct rconcommands_s {

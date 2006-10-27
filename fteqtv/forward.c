@@ -794,7 +794,6 @@ void SV_GenerateQTVDemoListing(cluster_t *cluster, oproxy_t *dest)
 #else
 		{
 			int namelen;
-			dir_t	d;
 			DIR		*dir;
 
 			dir=opendir(path);

@@ -266,6 +266,9 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 	netmsg_t msg;
 	int prespawn;
 
+	if (!*qtv->mapname)
+		return;
+
 	InitNetMsg(&msg, buffer, sizeof(buffer));
 
 	prox->flushing = false;
@@ -1067,6 +1070,10 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						s = "\n";
 							Net_ProxySend(cluster, pend, s, strlen(s));
 						pend->flushing = true;
+					}
+					else if (!strcmp(s, "AUTH"))
+					{	//lists the demos available on this proxy
+						//part of the connection process, can be ignored if there's no password
 					}
 					else
 						printf("Unrecognised token in QTV connection request (%s)\n", s);

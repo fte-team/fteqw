@@ -247,19 +247,41 @@ SOCKET Net_MVDListen(int port)
 	return sock;
 }
 
+char *strchrrev(char *str, char chr)
+{
+	char *firstchar = str;
+	for (str = str + strlen(str)-1; str>=firstchar; str--)
+		if (*str == chr)
+			return str;
+
+	return NULL;
+}
+
 void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 {
+	char *at;
 	char *str;
 	char hash[512];
 
 	//due to mvdsv sucking and stuff, we try using raw connections where possibleso that we don't end up expecting a header.
 	//at some point, this will be forced to 1
-	qtv->parsingqtvheader = !!*qtv->connectpassword;
+	qtv->parsingqtvheader = true;//!!*qtv->connectpassword;
 
 
 
 	str =	"QTV\n";			Net_QueueUpstream(qtv, strlen(str), str);
 	str =	"VERSION: 1\n";		Net_QueueUpstream(qtv, strlen(str), str);
+
+	at = strchrrev(qtv->server, '@');
+	if (at)
+	{
+		*at = '\0';
+		str =	"SOURCE: ";		Net_QueueUpstream(qtv, strlen(str), str);
+		str =	qtv->server;	Net_QueueUpstream(qtv, strlen(str), str);
+		str =	"\n";			Net_QueueUpstream(qtv, strlen(str), str);
+		*at = '@';
+	}
+
 	if (!qtv->parsingqtvheader)
 	{
 		str =	"RAW: 1\n";		Net_QueueUpstream(qtv, strlen(str), str);
@@ -408,6 +430,9 @@ qboolean Net_ConnectToUDPServer(sv_t *qtv, char *ip)
 
 qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 {
+	char *at;
+	qboolean status;
+
 	qtv->usequkeworldprotocols = false;
 
 	if (!strncmp(ip, "file:", 5) || !strncmp(ip, "demo:", 5))
@@ -427,18 +452,23 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 
 	qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;	//wait half a minuite before trying to reconnect
 
+	at = strchrrev(ip, '@');
+	if (at)
+		ip = at+1;
+
 	if (!strncmp(ip, "udp:", 4))
 	{
 		qtv->usequkeworldprotocols = true;
-		return Net_ConnectToUDPServer(qtv, ip);
+		status = Net_ConnectToUDPServer(qtv, ip);
 	}
 	else if (!strncmp(ip, "tcp:", 4))
-		return Net_ConnectToTCPServer(qtv, ip);
+		status = Net_ConnectToTCPServer(qtv, ip);
 	else
 	{
 		Sys_Printf(qtv->cluster, "Unknown source type %s\n", ip);
-		return false;
+		status = false;
 	}
+	return status;
 }
 
 void Net_QueueUpstream(sv_t *qtv, int size, char *buffer)

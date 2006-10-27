@@ -433,6 +433,10 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 	char *at;
 	qboolean status;
 
+	at = strchrrev(ip, '@');
+	if (at)
+		ip = at+1;
+
 	qtv->usequkeworldprotocols = false;
 
 	if (!strncmp(ip, "file:", 5) || !strncmp(ip, "demo:", 5))
@@ -451,10 +455,6 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 	}
 
 	qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;	//wait half a minuite before trying to reconnect
-
-	at = strchrrev(ip, '@');
-	if (at)
-		ip = at+1;
 
 	if (!strncmp(ip, "udp:", 4))
 	{

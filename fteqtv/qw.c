@@ -2386,6 +2386,10 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 	{
 		v->menuop += 1;
 	}
+	else if (!strncmp(message, "proxy:menu enter", 16))
+	{
+		Menu_Enter(cluster, v, 1);
+	}
 	else if (!strncmp(message, "proxy:menu right", 16))
 	{
 		Menu_Enter(cluster, v, 1);

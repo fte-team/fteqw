@@ -796,7 +796,7 @@ void SV_GenerateQTVDemoListing(cluster_t *cluster, oproxy_t *dest)
 			int namelen;
 			DIR		*dir;
 
-			dir=opendir(path);
+			dir=opendir(".");
 			if (!dir)
 			{		
 				s = "QTV Proxy is unable to search for available demos.";

@@ -404,7 +404,7 @@ void ResetFrameBuffer(void)
 	if (!x_framebuffer[0])
 		Sys_Error("VID: XCreateImage failed\n");
 
-	vid.buffer = (qbyte*) (x_framebuffer[0]);
+	vid.buffer = (qbyte*) (x_framebuffer[0]->data);
 	vid.conbuffer = vid.buffer;
 
 }
@@ -806,8 +806,6 @@ void SWVID_SetPalette(unsigned char *palette)
 
 	if (x_visinfo->class == PseudoColor && x_visinfo->depth == 8)
 	{
-		if (palette != vid_curpal)
-			memcpy(vid_curpal, palette, 768);
 		for (i=0 ; i<256 ; i++)
 		{
 			colors[i].pixel = i;
@@ -819,6 +817,8 @@ void SWVID_SetPalette(unsigned char *palette)
 		XStoreColors(vid_dpy, x_cmap, colors, 256);
 	}
 
+	if (palette != vid_curpal)
+		memcpy(vid_curpal, palette, 768);
 }
 
 // Called at shutdown

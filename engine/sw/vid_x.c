@@ -24,8 +24,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "d_local.h"
 
+// these need to be fixed to assured n-bit types
 typedef unsigned short PIXEL;
-typedef unsigned long PIXEL32;
+typedef unsigned int PIXEL32;
 
 #include <ctype.h>
 #include <sys/time.h>
@@ -540,7 +541,6 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 
 		return false;
 	}
-printf("%8x\n", (int)vid_dpy);
 
 // catch signals so i can turn on auto-repeat
 
@@ -584,7 +584,7 @@ printf("%8x\n", (int)vid_dpy);
 	{
 		Con_Printf("Found more than one visual id at depth %d:\n", template.depth);
 		for (i=0 ; i<num_visuals ; i++)
-			printf("	-visualid %d\n", (int)(x_visinfo[i].visualid));
+			Con_Printf("	-visualid %d\n", (int)(x_visinfo[i].visualid));
 	}
 	else if (num_visuals == 0)
 	{
@@ -602,13 +602,13 @@ printf("%8x\n", (int)vid_dpy);
 
 	if (verbose)
 	{
-		printf("Using visualid %d:\n", (int)(x_visinfo->visualid));
-		printf("	screen %d\n", x_visinfo->screen);
-		printf("	red_mask 0x%x\n", (int)(x_visinfo->red_mask));
-		printf("	green_mask 0x%x\n", (int)(x_visinfo->green_mask));
-		printf("	blue_mask 0x%x\n", (int)(x_visinfo->blue_mask));
-		printf("	colormap_size %d\n", x_visinfo->colormap_size);
-		printf("	bits_per_rgb %d\n", x_visinfo->bits_per_rgb);
+		Con_Printf("Using visualid %d:\n", (int)(x_visinfo->visualid));
+		Con_Printf("	screen %d\n", x_visinfo->screen);
+		Con_Printf("	red_mask 0x%x\n", (int)(x_visinfo->red_mask));
+		Con_Printf("	green_mask 0x%x\n", (int)(x_visinfo->green_mask));
+		Con_Printf("	blue_mask 0x%x\n", (int)(x_visinfo->blue_mask));
+		Con_Printf("	colormap_size %d\n", x_visinfo->colormap_size);
+		Con_Printf("	bits_per_rgb %d\n", x_visinfo->bits_per_rgb);
 	}
 
 //our rendering works in 8, 16, or 32 bpp.
@@ -1157,26 +1157,6 @@ void	SWVID_Update (vrect_t *rects)
 		XSync(vid_dpy, False);
 	}
 
-}
-
-static int dither;
-
-void VID_DitherOn(void)
-{
-    if (dither == 0)
-    {
-		vid.recalc_refdef = 1;
-        dither = 1;
-    }
-}
-
-void VID_DitherOff(void)
-{
-    if (dither)
-    {
-		vid.recalc_refdef = 1;
-        dither = 0;
-    }
 }
 
 int Sys_OpenWindow(void)

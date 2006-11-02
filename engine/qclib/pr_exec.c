@@ -509,7 +509,8 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 				if (!func)
 				{
 					assignment[-1] = '=';
-					return va("Can't find function %s\n", s);
+					sprintf(buf, "Can't find function %s\n", s);
+					return buf;
 				}
 				*(func_t *)val = (func - pr_progstate[i].functions) | (i<<24);
 			}

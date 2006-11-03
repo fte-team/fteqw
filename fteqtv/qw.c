@@ -205,7 +205,7 @@ SOCKET QW_InitUDPSocket(int port)
 	return sock;
 }
 
-void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount, qboolean spectatorflag)
+void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *viewer)
 {
 	movevars_t movevars;
 	WriteByte(msg, svc_serverdata);
@@ -217,10 +217,10 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount, qbo
 		//dummy connection, for choosing a game to watch.
 		WriteString(msg, "qw");
 
-		if (mvd)
+		if (!viewer)
 			WriteFloat(msg, 0);
 		else
-			WriteByte(msg, (MAX_CLIENTS-1) | (spectatorflag?128:0));
+			WriteByte(msg, (MAX_CLIENTS-1) | (128));
 		WriteString(msg, "FTEQTV Proxy");
 
 
@@ -249,10 +249,15 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount, qbo
 	{
 		WriteString(msg, tv->gamedir);
 
-		if (mvd)
+		if (!viewer)
 			WriteFloat(msg, 0);
 		else
-			WriteByte(msg, tv->thisplayer | (spectatorflag?128:0));
+		{
+			if (tv->controller == viewer)
+				WriteByte(msg, viewer->thisplayer);
+			else
+				WriteByte(msg, viewer->thisplayer | 128);
+		}
 		WriteString(msg, tv->mapname);
 
 
@@ -364,7 +369,7 @@ void SendServerData(sv_t *tv, viewer_t *viewer)
 	if (viewer->netchan.isnqprotocol)
 		BuildNQServerData(tv, &msg, false, viewer->thisplayer);
 	else
-		BuildServerData(tv, &msg, false, viewer->servercount, !tv || tv->controller != viewer);
+		BuildServerData(tv, &msg, viewer->servercount, viewer);
 
 	SendBufferToViewer(viewer, msg.data, msg.cursize, true);
 
@@ -646,6 +651,7 @@ qboolean ChallengePasses(netadr_t *addr, int challenge)
 
 void NewClient(cluster_t *cluster, viewer_t *viewer)
 {
+	viewer->userid = ++cluster->nextuserid;
 	viewer->timeout = cluster->curtime + 15*1000;
 	viewer->trackplayer = -1;
 
@@ -689,7 +695,7 @@ void ParseUserInfo(cluster_t *cluster, viewer_t *viewer)
 		strcpy(temp, "unnamed");
 	if (!*viewer->name)
 		Sys_Printf(cluster, "Viewer %s connected\n", temp);
-	Q_strncpyz(viewer->name, temp, sizeof(temp));
+	Q_strncpyz(viewer->name, temp, sizeof(viewer->name));
 
 	Info_ValueForKey(viewer->userinfo, "rate", temp, sizeof(temp));
 	rate = atof(temp);
@@ -815,6 +821,7 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	memset(viewer, 0, sizeof(viewer_t));
 
 	Netchan_Setup (cluster->qwdsocket, &viewer->netchan, *addr, atoi(qport), false);
+	viewer->netchan.message.maxsize = 1400;
 
 	viewer->next = cluster->viewers;
 	cluster->viewers = viewer;
@@ -1717,12 +1724,15 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 
 void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 {
+	viewer_t *cv;
 	packet_entities_t *e;
 	int i;
 	usercmd_t to;
 	unsigned short flags;
 	short interp;
 	float lerp;
+	int track;
+	int runaway = 10;
 
 
 	memset(&to, 0, sizeof(to));
@@ -1749,6 +1759,21 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 		if (tv->controller == v)
 			lerp = 1;
 
+		track = v->trackplayer;
+		for (cv = v; cv && runaway-->0; cv = cv->commentator)
+		{
+			track = cv->trackplayer;
+			if (track != MAX_CLIENTS-2)
+				break;
+		}
+		/*
+		if (v->commentator && track == MAX_CLIENTS-2)
+		{
+			track = v->commentator->trackplayer;
+			if (track < 0)
+				track = MAX_CLIENTS-2;
+		}*/
+
 		for (i = 0; i < MAX_CLIENTS; i++)
 		{
 			if (i == v->thisplayer)
@@ -1756,14 +1781,56 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 				SendLocalPlayerState(tv, v, i, msg);
 				continue;
 			}
+
+			if (v->commentator)// && track == i)
+			{
+				if (i == MAX_CLIENTS-2)
+				{
+					flags = PF_COMMAND;
+					WriteByte(msg, svc_playerinfo);
+					WriteByte(msg, i);
+					WriteShort(msg, flags);
+
+
+					interp = v->commentator->origin[0]*8;
+					WriteShort(msg, interp);
+					interp = v->commentator->origin[1]*8;
+					WriteShort(msg, interp);
+					interp = v->commentator->origin[2]*8;
+					WriteShort(msg, interp);
+
+					WriteByte(msg, 0);
+
+					if (flags & PF_MSEC)
+					{
+						WriteByte(msg, 0);
+					}
+					if (flags & PF_COMMAND)
+					{
+						to.angles[0] = v->commentator->ucmds[2].angles[0];
+						to.angles[1] = v->commentator->ucmds[2].angles[1];
+						to.angles[2] = v->commentator->ucmds[2].angles[2];
+						WriteDeltaUsercmd(msg, &nullcmd, &to);
+					}
+					if (flags & PF_MODEL)
+						WriteByte(msg, tv->players[i].current.modelindex);
+					if (flags & PF_WEAPONFRAME)
+						WriteByte(msg, tv->players[i].current.weaponframe);
+					continue;
+				}
+				if (track == i)
+					continue;
+			}
+
 			if (!tv->players[i].active)
 				continue;
 
-			if (v->trackplayer != i && !BSP_Visible(tv->bsp, tv->players[i].leafcount, tv->players[i].leafs))
+			//bsp cull. currently tracked player is always visible
+			if (track != i && !BSP_Visible(tv->bsp, tv->players[i].leafcount, tv->players[i].leafs))
 				continue;
 
 			flags = PF_COMMAND;
-			if (v->trackplayer == i && tv->players[i].current.weaponframe)
+			if (track == i && tv->players[i].current.weaponframe)
 				flags |= PF_WEAPONFRAME;
 
 			WriteByte(msg, svc_playerinfo);
@@ -1860,6 +1927,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 
 void UpdateStats(sv_t *qtv, viewer_t *v)
 {
+	viewer_t *cv;
 	netmsg_t msg;
 	char buf[6];
 	int i;
@@ -1869,12 +1937,17 @@ void UpdateStats(sv_t *qtv, viewer_t *v)
 
 	InitNetMsg(&msg, buf, sizeof(buf));
 
-	if (qtv && qtv->controller == v)
+	if (v->commentator)
+		cv = v->commentator;
+	else
+		cv = v;
+
+	if (qtv && qtv->controller == cv)
 		stats = qtv->players[qtv->thisplayer].stats;
-	else if (v->trackplayer == -1 || !qtv)
+	else if (cv->trackplayer == -1 || !qtv)
 		stats = nullstats;
 	else
-		stats = qtv->players[v->trackplayer].stats;
+		stats = qtv->players[cv->trackplayer].stats;
 
 	for (i = 0; i < MAX_STATS; i++)
 	{
@@ -1984,6 +2057,32 @@ void PMove(viewer_t *v, usercmd_t *cmd)
 	v->velocity[0] = pmove.velocity[0];
 	v->velocity[1] = pmove.velocity[1];
 	v->velocity[2] = pmove.velocity[2];
+}
+
+void QW_SetCommentator(viewer_t *v, viewer_t *commentator)
+{
+//	if (v->commentator == commentator)
+//		return;
+
+	WriteByte(&v->netchan.message, svc_setinfo);
+	WriteByte(&v->netchan.message, MAX_CLIENTS-2);
+	WriteString(&v->netchan.message, "name");
+	if (commentator)
+	{
+		WriteString(&v->netchan.message, commentator->name);
+		QW_StuffcmdToViewer(v, "cmd ptrack %i\n", MAX_CLIENTS-2);
+		QW_PrintfToViewer(v, "Following commentator %s\n", commentator->name);
+
+		if (v->server != commentator->server)
+			QW_SetViewersServer(v, commentator->server);
+	}
+	else
+	{
+		WriteString(&v->netchan.message, "");
+		if (v->commentator )
+			QW_PrintfToViewer(v, "Commentator disabled\n");
+	}
+	v->commentator = commentator;
 }
 
 void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean noupwards)
@@ -2378,6 +2477,42 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		if (remaining)
 			QW_PrintfToViewer(v, "%i clients not shown\n", remaining);
 	}
+	else if (!strncmp(message, ".followid ", 8))
+	{
+		int id = atoi(message+8);
+		viewer_t *cv;
+
+		for (cv = cluster->viewers; cv; cv = cv->next)
+		{
+			if (cv->userid == id)
+			{
+				QW_SetCommentator(v, cv);
+				return;
+			}
+		}
+		QW_PrintfToViewer(v, "Couldn't find that player\n");
+		QW_SetCommentator(v, NULL);
+	}
+	else if (!strncmp(message, ".follow ", 8))
+	{
+		char *id = message+8;
+		viewer_t *cv;
+
+		for (cv = cluster->viewers; cv; cv = cv->next)
+		{
+			if (!strcmp(cv->name, id))
+			{
+				QW_SetCommentator(v, cv);
+				return;
+			}
+		}
+		QW_PrintfToViewer(v, "Couldn't find that player\n");
+		QW_SetCommentator(v, NULL);
+	}
+	else if (!strncmp(message, ".follow", 7))
+	{
+		QW_SetCommentator(v, NULL);
+	}
 	else if (!strncmp(message, "proxy:menu up", 13))
 	{
 		v->menuop -= 1;
@@ -2426,6 +2561,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		QW_StuffcmdToViewer(v, "bind downarrow +proxback\n");
 		QW_StuffcmdToViewer(v, "bind rightarrow +proxright\n");
 		QW_StuffcmdToViewer(v, "bind leftarrow +proxleft\n");
+		QW_PrintfToViewer(v, "Keys bound not recognised\n");
 	}
 	else if (!strncmp(message, ".menu bind", 10) || !strncmp(message, "proxy:menu bindstd", 18))
 	{
@@ -2440,6 +2576,8 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		QW_StuffcmdToViewer(v, "bind end \"proxy:menu end\"\n");
 		QW_StuffcmdToViewer(v, "bind pause \"proxy:menu\"\n");
 		QW_StuffcmdToViewer(v, "bind backspace \"proxy:menu back\"\n");
+
+		QW_PrintfToViewer(v, "All keys bound not recognised\n");
 	}
 	else if (!strncmp(message, ".", 1) && strncmp(message, "..", 2))
 	{
@@ -2860,6 +2998,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			}
 			else if (!strncmp(buf, "begin", 5))
 			{
+				viewer_t *com;
 				if (atoi(buf+6) != v->servercount)
 					SendServerData(qtv, v);	//this is unfortunate!
 				else
@@ -2871,6 +3010,10 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 						SendBufferToViewer(v, msgb, sizeof(msgb), true);
 					}
 				}
+
+				com = v->commentator;
+				v->commentator = NULL;
+				QW_SetCommentator(v, com);
 			}
 			else if (!strncmp(buf, "download", 8))
 			{
@@ -2901,9 +3044,16 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					QW_PrintfToViewer(v, "%s is not on the proxy, sorry\n", buf+5);	//the apology is to make the alternatives distinct.
 			}
 			else if (!strncmp(buf, "ptrack ", 7))
+			{
 				v->trackplayer = atoi(buf+7);
+//				if (v->trackplayer != MAX_CLIENTS-2)
+//					QW_SetCommentator(v, NULL);
+			}
 			else if (!strncmp(buf, "ptrack", 6))
+			{
 				v->trackplayer = -1;
+				QW_SetCommentator(v, NULL);
+			}
 			else if (!strncmp(buf, "pings", 5))
 			{
 			}
@@ -3364,6 +3514,7 @@ static const char dropcmd[] = {svc_stufftext, 'd', 'i', 's', 'c', 'o', 'n', 'n',
 
 void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer)
 {
+	viewer_t *oview;
 	int i;
 	//note: unlink them yourself.
 
@@ -3386,6 +3537,12 @@ void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer)
 			viewer->server->drop = true;
 
 		viewer->server->numviewers--;
+	}
+
+	for (oview = cluster->viewers; oview; oview = oview->next)
+	{
+		if (oview->commentator == viewer)
+			QW_SetCommentator(oview, NULL);
 	}
 
 	free(viewer);
@@ -3435,6 +3592,9 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 				break;
 			continue;
 		}
+
+//		if (rand()&3)
+//			continue;
 
 		m.data = buffer;
 		m.cursize = read;

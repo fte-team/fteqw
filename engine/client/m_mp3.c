@@ -767,7 +767,7 @@ char *Media_NextTrack(void)
 
 //Avi files are specific to windows. Bit of a bummer really.
 #if defined(_WIN32) && !defined(__GNUC__)
-//#define WINAVI
+#define WINAVI
 #endif
 
 
@@ -1462,7 +1462,7 @@ unsigned long recordavi_codec_fourcc;
 soundcardinfo_t *capture_fakesounddevice;
 int recordavi_video_frame_counter;
 int recordavi_audio_frame_counter;
-float recordavi_frametime;
+float recordavi_frametime;	//length of a frame in fractional seconds
 float recordavi_videotime;
 float recordavi_audiotime;
 int capturesize;
@@ -1512,6 +1512,16 @@ qboolean Media_PausedDemo (void)
 
 	return false;
 }
+
+double Media_TweekCaptureFrameTime(double time)
+{
+	if (cls.demoplayback && Media_Capturing() && recordavi_frametime>0.01)
+	{
+		return time = recordavi_frametime;
+	}
+	return time;
+}
+
 void Media_RecordFrame (void)
 {
 	if (!capturetype)
@@ -1546,19 +1556,12 @@ void Media_RecordFrame (void)
 	}
 
 	//time for annother frame?
-	/*if (recordavi_uncompressed_audio_stream)	//sync video to the same frame as audio.
-	{
-		if (recordavi_video_frame_counter > recordavi_audio_frame_counter)
-			goto skipframe;
-	}
-	else*/
-	{
-		if (recordavi_videotime > realtime+1)
-			recordavi_videotime = realtime;	//urm, wrapped?..
-		if (recordavi_videotime > realtime)
-			goto skipframe;
-		recordavi_videotime += recordavi_frametime;
-	}
+	if (recordavi_videotime > realtime+1)
+		recordavi_videotime = realtime;	//urm, wrapped?..
+	if (recordavi_videotime > realtime)
+		goto skipframe;
+	recordavi_videotime += recordavi_frametime;
+	//audio is mixed to match the video times
 
 	switch (capturetype)
 	{
@@ -1796,7 +1799,7 @@ void Media_RecordFilm_f (void)
 			!strcmp(fourcc, "pcx"))
 		{
 			capturetype = CT_SCREENSHOT;
-			strcpy(capturefilenameprefix, Cmd_Argv(1));
+			Q_strncpyz(capturefilenameprefix, Cmd_Argv(1), sizeof(capturefilenameprefix));
 		}
 		else
 		{
@@ -1836,7 +1839,7 @@ void Media_RecordFilm_f (void)
 		}
 
 
-		snprintf(filename, 192, "%s%s", com_quakedir, Cmd_Argv(1));
+		snprintf(filename, sizeof(filename) - 5, "%s%s", com_quakedir, Cmd_Argv(1));
 		COM_StripExtension(filename, filename, sizeof(filename));
 		COM_DefaultExtension (filename, ".avi", sizeof(filename));
 
@@ -1952,6 +1955,7 @@ void Media_RecordFilm_f (void)
 	else
 	{
 		Con_Printf("That sort of video capturing is not supported in this build\n");
+		capturetype = CT_NONE;
 	}
 }
 void Media_CaptureDemoEnd(void)
@@ -1968,6 +1972,8 @@ void Media_RecordDemo_f(void)
 
 	if (capturetype != CT_NONE)
 		recordingdemo = true;
+	else
+		CL_Stopdemo_f();	//capturing failed for some reason
 }
 #else
 void Media_CaptureDemoEnd(void){}

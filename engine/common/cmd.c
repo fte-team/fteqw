@@ -1640,9 +1640,23 @@ void Cmd_ForwardToServer_f (void)
 		return;
 	}
 
-	if (Q_strcasecmp(Cmd_Argv(1), "snap") == 0) {
+	if (Q_strcasecmp(Cmd_Argv(1), "snap") == 0)
+	{
 		if (SCR_RSShot())
 			return;
+	}
+	if (Q_strcasecmp(Cmd_Argv(1), "ptrack") == 0)
+	{
+		if (!*Cmd_Argv(2))
+		{
+			Cam_Unlock(0);
+		}
+		else
+		{
+			Cam_Lock(0, atoi(Cmd_Argv(2)));
+			autocam[0] = CAM_TRACK;
+		}
+		return;
 	}
 
 	if (cls.demoplayback)

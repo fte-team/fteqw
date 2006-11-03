@@ -1183,7 +1183,7 @@ void SV_MVDPings (void);
 void SV_MVDWriteToDisk(int type, int to, float time);
 void MVDWrite_Begin(qbyte type, int to, int size);
 void MVDSetMsgBuf(demobuf_t *prev,demobuf_t *cur);
-void SV_MVDStop (int reason);
+void SV_MVDStop (int reason, qboolean mvdonly);
 void SV_MVDStop_f (void);
 void SV_MVDWritePackets (int num);
 void MVD_Init (void);

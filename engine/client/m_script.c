@@ -15,10 +15,12 @@ qboolean M_Script_Key (int key, menu_t *menu)
 {
 	if (menu->selecteditem && menu->selecteditem->common.type == mt_edit)
 		return false;
-	if (key >= '0' && key <= '9')
+	if (key >= '0' && key <= '9' && *menualias.string)
 	{
-		if (key == '0')	//specal case so that "hello" < "0"... (plus matches impulses)
-			Cbuf_AddText(va("set option %i\n%s\n", key-'0'+1, menualias.string), RESTRICT_LOCAL);
+		if (key == '0')	//specal case so that "hello" < "0"... (plus matches common impulses)
+			Cbuf_AddText(va("set option %i\n%s\n", 10, menualias.string), RESTRICT_LOCAL);
+		else
+			Cbuf_AddText(va("set option %i\n%s\n", key-'0', menualias.string), RESTRICT_LOCAL);
 		return true;
 	}
 	return false;
@@ -150,7 +152,10 @@ void M_MenuS_Picture_f (void)
 		return;
 	}
 
-	MC_AddPicture(menu_script, x, y, picname);
+	if (!strcmp(Cmd_Argv(1), "-"))
+		MC_AddCenterPicture(menu_script, y, picname);
+	else
+		MC_AddPicture(menu_script, x, y, picname);
 }
 
 void M_MenuS_Edit_f (void)

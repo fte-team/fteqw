@@ -1295,6 +1295,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			}
 		}
 	}
+
+
+	SV_MVD_SendInitialGamestate(NULL);
 }
 
 #endif

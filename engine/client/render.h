@@ -311,6 +311,7 @@ qboolean Media_ShowFilm(void);
 void Media_CaptureDemoEnd(void);
 void Media_RecordFrame (void);
 qboolean Media_PausedDemo (void);
+double Media_TweekCaptureFrameTime(double time);
 
 void R_SetRenderer(int wanted);
 void RQ_Init(void);

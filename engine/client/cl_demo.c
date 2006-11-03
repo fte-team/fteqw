@@ -452,40 +452,88 @@ readnext:
 			CL_StopPlayback ();
 		return 0;
 	}
-	
+//	Con_Printf("demo packet %x\n", (int)c);
 	switch (c&7)
 	{
 	case dem_cmd :
-		// user sent input
-		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-		pcmd = &cl.frames[i].cmd[0];
-		r = readdemobytes (&q1cmd, sizeof(q1cmd));
-		if (r != sizeof(q1cmd))
+/*		if (cls.demoplayback == DPB_MVD)
 		{
-			CL_StopPlayback ();
+			unsigned short samps;
+			unsigned char bits;
+			unsigned char rateid;
+			unsigned char audio[8192];
+
+			if (readdemobytes (&samps, 2) == 2)
+			{
+				if (readdemobytes (&bits, 1) == 1)
+				{
+					if (samps > sizeof(audio))
+					{
+						Con_Printf("Corrupted/too large audio chunk\n");
+						CL_StopPlayback();
+						return 0;
+					}
+					if (readdemobytes (&rateid, 1) == 1)
+					{
+						if (readdemobytes (audio, samps) == samps)
+						{
+							FILE *f;
+							samps = samps/(bits/8);
+							f = fopen("c:/test.raw", "r+b");
+							if (f)
+							{
+								fseek(f, 0, SEEK_END);
+								fwrite(audio, samps, bits/8, f);
+								fclose(f);
+							}
+							S_RawAudio(0, audio, 11025, samps, 1, bits/8);
+							break;
+						}
+						unreadbytes(1, &rateid);
+					}
+					unreadbytes(1, &bits);
+				}
+				unreadbytes(1, &samps);
+			}
+
+			unreadbytes(1, &c);
+			r = 0;
+			unreadbytes(1, &r);
 			return 0;
 		}
-		// byte order stuff
-		for (j = 0; j < 3; j++)
-		{
-			q1cmd.angles[j] = LittleFloat(q1cmd.angles[j]);
-			pcmd->angles[j] = ((int)(q1cmd.angles[j]*65536.0/360)&65535);
-		}
-		pcmd->forwardmove = q1cmd.forwardmove	= LittleShort(q1cmd.forwardmove);
-		pcmd->sidemove = q1cmd.sidemove			= LittleShort(q1cmd.sidemove);
-		pcmd->upmove = q1cmd.upmove				= LittleShort(q1cmd.upmove);
-		pcmd->msec = q1cmd.msec;
-		pcmd->buttons = q1cmd.buttons;
+		else
+		{*/
+			// user sent input
+			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
+			pcmd = &cl.frames[i].cmd[0];
+			r = readdemobytes (&q1cmd, sizeof(q1cmd));
+			if (r != sizeof(q1cmd))
+			{
+				CL_StopPlayback ();
+				return 0;
+			}
+			// byte order stuff
+			for (j = 0; j < 3; j++)
+			{
+				q1cmd.angles[j] = LittleFloat(q1cmd.angles[j]);
+				pcmd->angles[j] = ((int)(q1cmd.angles[j]*65536.0/360)&65535);
+			}
+			pcmd->forwardmove = q1cmd.forwardmove	= LittleShort(q1cmd.forwardmove);
+			pcmd->sidemove = q1cmd.sidemove			= LittleShort(q1cmd.sidemove);
+			pcmd->upmove = q1cmd.upmove				= LittleShort(q1cmd.upmove);
+			pcmd->msec = q1cmd.msec;
+			pcmd->buttons = q1cmd.buttons;
 
 
-		cl.frames[i].senttime = demotime;
-		cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
-		cls.netchan.outgoing_sequence++;
-		for (i=0 ; i<3 ; i++)
-		{
-			readdemobytes (&f, 4);
-			cl.viewangles[0][i] = LittleFloat (f);
-		}
+			cl.frames[i].senttime = demotime;
+			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
+			cls.netchan.outgoing_sequence++;
+			for (i=0 ; i<3 ; i++)
+			{
+				readdemobytes (&f, 4);
+				cl.viewangles[0][i] = LittleFloat (f);
+			}
+/*		}*/
 		break;
 
 	case dem_read:
@@ -1384,6 +1432,7 @@ void CL_PlayDemo(char *demoname)
 
 void CL_QTVPlay (vfsfile_t *newf)
 {
+#define BUFFERTIME 10
 	CL_Disconnect_f ();
 
 	cls.demofile = newf;
@@ -1396,11 +1445,11 @@ void CL_QTVPlay (vfsfile_t *newf)
 	cls.state = ca_demostart;
 	net_message.packing = SZ_RAWBYTES;
 	Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, 0);
-	realtime = -10;
-	cl.gametime = -10;
+	realtime = -BUFFERTIME;
+	cl.gametime = -BUFFERTIME;
 	cl.gametimemark = realtime;
 
-	Con_Printf("Buffering for ten seconds\n");
+	Con_Printf("Buffering for %i seconds\n", (int)-realtime);
 
 	cls.netchan.last_received=realtime;
 
@@ -1416,7 +1465,8 @@ void CL_QTVPoll (void)
 {
 	char *s, *e, *colon;
 	int len;
-	qboolean error = false;
+	qboolean streamavailable = false;
+	qboolean saidheader = false;
 
 	if (!qtvrequest)
 		return;
@@ -1452,22 +1502,36 @@ void CL_QTVPoll (void)
 				*colon++ = '\0';
 				if (!strcmp(s, "PERROR"))
 				{	//printable error
+					Con_Printf("QTV Error:\n%s\n", colon);
+				}
+				else if (!strcmp(s, "PRINT"))
+				{	//printable error
 					Con_Printf("QTV:\n%s\n", colon);
-					error = true;
+				}
+				else if (!strcmp(s, "TERROR"))
+				{	//printable error
+					Con_Printf("QTV Error:\n%s\n", colon);
 				}
 				else if (!strcmp(s, "ADEMO"))
 				{	//printable error
 					Con_Printf("Demo%s is available\n", colon);
-					error = true;	//not really an error, but meh
 				}
 				else if (!strcmp(s, "ASOURCE"))
-				{	//printable error
-					Con_Printf("Source%s is available\n", colon);
-					error = true;
+				{	//printable source
+					if (!saidheader)
+					{
+						saidheader=true;
+						Con_Printf("Available Sources:\n");
+					}
+					Con_Printf("%s\n", colon);
 				}
+				else if (!strcmp(s, "BEGIN"))
+					streamavailable = true;
 			}
 			else
 			{
+				if (!strcmp(s, "BEGIN"))
+					streamavailable = true;
 			}
 			//from e to s, we have a line	
 			s = e+1;
@@ -1475,7 +1539,7 @@ void CL_QTVPoll (void)
 		e++;
 	}
 
-	if (!error)
+	if (streamavailable)
 	{
 		CL_QTVPlay(qtvrequest);
 		qtvrequest = NULL;
@@ -1488,12 +1552,28 @@ void CL_QTVPoll (void)
 	qtvrequestsize = 0;
 }
 
+char *strchrrev(char *str, char chr)
+{
+	char *firstchar = str;
+	for (str = str + strlen(str)-1; str>=firstchar; str--)
+		if (*str == chr)
+			return str;
+
+	return NULL;
+}
+
 void CL_QTVPlay_f (void)
 {
 	qboolean raw=0;
 	char *connrequest;
 	vfsfile_t *newf;
 	char *host;
+
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf("Usage: qtvplay [stream@]hostname[:port] [password]\n");
+		return;
+	}
 
 	connrequest = Cmd_Argv(1);
 
@@ -1530,7 +1610,7 @@ void CL_QTVPlay_f (void)
 
 	host = connrequest;
 
-	connrequest = strchr(connrequest, '@');
+	connrequest = strchrrev(connrequest, '@');
 	if (connrequest)
 		host = connrequest+1;
 	newf = FS_OpenTCP(host);
@@ -1541,8 +1621,7 @@ void CL_QTVPlay_f (void)
 		return;
 	}
 
-	host = connrequest = Cmd_Argv(1);
-	connrequest = strchr(connrequest, '@');
+	host = Cmd_Argv(1);
 	if (connrequest)
 		*connrequest = '\0';
 	else
@@ -1582,53 +1661,6 @@ void CL_QTVPlay_f (void)
 	}
 }
 
-/*
-void CL_QTVPlay_f (void)
-{
-	char *connrequest;
-	vfsfile_t *newf;
-	newf = FS_OpenTCP(Cmd_Argv(1));
-
-	if (!newf)
-	{
-		Con_Printf("Couldn't connect to proxy\n");
-		return;
-	}
-
-	connrequest =	"QTV\n"
-					"VERSION: 1\n"
-					"RAW: 1\n";
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
-	connrequest =	"SOURCE: file:test.mvd\n";
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
-	connrequest =	"\n";
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
-
-	CL_Disconnect_f ();
-
-	cls.demofile = newf;
-
-	unreadcount = 0;	//just in case
-
-	cls.demoplayback = DPB_MVD;
-	cls.findtrack = true;
-
-	cls.state = ca_demostart;
-	net_message.packing = SZ_RAWBYTES;
-	Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, 0);
-	realtime = -10;
-	cl.gametime = -10;
-	cl.gametimemark = realtime;
-
-	Con_Printf("Buffering for ten seconds\n");
-
-	cls.netchan.last_received=realtime;
-
-	cls.protocol = CP_QUAKEWORLD;
-	TP_ExecTrigger ("f_demostart");
-}
-*/
-
 void CL_QTVList_f (void)
 {
 	char *connrequest;
@@ -1653,30 +1685,6 @@ void CL_QTVList_f (void)
 		VFS_CLOSE(qtvrequest);
 	qtvrequest = newf;
 	qtvrequestsize = 0;
-
-	/*
-	CL_Disconnect_f ();
-
-	cls.demofile = newf;
-
-	unreadcount = 0;	//just in case
-
-	cls.demoplayback = DPB_MVD;
-	cls.findtrack = true;
-
-	cls.state = ca_demostart;
-	net_message.packing = SZ_RAWBYTES;
-	Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, 0);
-	realtime = 0;
-	cl.gametime = 0;
-	cl.gametimemark = realtime;
-
-	Con_Printf("Querying proxy\n");
-
-	cls.netchan.last_received=realtime;
-
-	cls.protocol = CP_QUAKEWORLD;
-	TP_ExecTrigger ("f_demostart");*/
 }
 
 /*

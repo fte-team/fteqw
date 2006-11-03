@@ -649,10 +649,19 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 			tv->players[num].current.angles[2] = nonnullcmd.angles[2];
 		}
 		else
-		{
-			tv->players[num].current.angles[0] = tv->proxyplayerangles[0]/360*65535;
-			tv->players[num].current.angles[1] = tv->proxyplayerangles[1]/360*65535;
-			tv->players[num].current.angles[2] = tv->proxyplayerangles[2]/360*65535;
+		{	//the only reason we'd not get a command is if it's us.
+			if (tv->controller)
+			{
+				tv->players[num].current.angles[0] = tv->controller->ucmds[2].angles[0];
+				tv->players[num].current.angles[1] = tv->controller->ucmds[2].angles[1];
+				tv->players[num].current.angles[2] = tv->controller->ucmds[2].angles[2];
+			}
+			else
+			{
+				tv->players[num].current.angles[0] = tv->proxyplayerangles[0]/360*65535;
+				tv->players[num].current.angles[1] = tv->proxyplayerangles[1]/360*65535;
+				tv->players[num].current.angles[2] = tv->proxyplayerangles[2]/360*65535;
+			}
 		}
 
 		for (i=0 ; i<3 ; i++)

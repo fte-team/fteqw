@@ -112,7 +112,7 @@ void DestFlush(qboolean compleate)
 
 		if (!demo.dest)
 		{
-			SV_MVDStop(2);
+			SV_MVDStop(2, false);
 			return;
 		}
 	}
@@ -497,6 +497,7 @@ void SV_MVD_RunPendingConnections(void)
 						if (p->hasauthed == true)
 						{
 							e =	("QTVSV 1\n"
+								 "BEGIN\n"
 								 "\n");
 							send(p->socket, e, strlen(e), 0);
 							e = NULL;
@@ -531,18 +532,29 @@ void SV_MVD_RunPendingConnections(void)
 	}
 }
 
-void DestCloseAllFlush(qboolean destroyfiles)
+int DestCloseAllFlush(qboolean destroyfiles, qboolean mvdonly)
 {
-	mvddest_t *d;
+	int numclosed = 0;
+	mvddest_t *d, **prev;
 	DestFlush(true);	//make sure it's all written.
 
-	while (demo.dest)
+	prev = &demo.dest;
+	d = demo.dest;
+	while(d)
 	{
-		d = demo.dest;
-		demo.dest = d->nextdest;
+		if (!mvdonly || d->desttype != DEST_STREAM)
+		{
+			*prev = d->nextdest;
+			DestClose(d, destroyfiles);
+			numclosed++;
+		}
+		else
+			prev = &d;
 
-		DestClose(d, destroyfiles);
+		d = (*prev)->nextdest;
 	}
+
+	return numclosed;
 }
 
 
@@ -1504,8 +1516,9 @@ SV_Stop
 stop recording a demo
 ====================
 */
-void SV_MVDStop (int reason)
+void SV_MVDStop (int reason, qboolean mvdonly)
 {
+	int numclosed;
 	if (!sv.mvdrecording)
 	{
 		Con_Printf ("Not recording a demo.\n");
@@ -1514,7 +1527,7 @@ void SV_MVDStop (int reason)
 
 	if (reason == 2)
 	{
-		DestCloseAllFlush(true);
+		DestCloseAllFlush(true, mvdonly);
 		// stop and remove
 
 		if (!demo.dest)
@@ -1539,14 +1552,17 @@ void SV_MVDStop (int reason)
 	SV_MVDWritePackets(demo.parsecount - demo.lastwritten + 1);
 // finish up
 
-	DestCloseAllFlush(false);
+	numclosed = DestCloseAllFlush(false, mvdonly);
 
-
-	sv.mvdrecording = false;
-	if (!reason)
-		SV_BroadcastPrintf (PRINT_CHAT, "Server recording completed\n");
-	else
-		SV_BroadcastPrintf (PRINT_CHAT, "Server recording stoped\nMax demo size exceeded\n");
+	if (!demo.dest)
+		sv.mvdrecording = false;
+	if (numclosed)
+	{
+		if (!reason)
+			SV_BroadcastPrintf (PRINT_CHAT, "Server recording completed\n");
+		else
+			SV_BroadcastPrintf (PRINT_CHAT, "Server recording stoped\nMax demo size exceeded\n");
+	}
 
 	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), "");
 }
@@ -1558,7 +1574,7 @@ SV_Stop_f
 */
 void SV_MVDStop_f (void)
 {
-	SV_MVDStop(0);
+	SV_MVDStop(0, true);
 }
 
 /*
@@ -1570,7 +1586,7 @@ Stops recording, and removes the demo
 */
 void SV_MVD_Cancel_f (void)
 {
-	SV_MVDStop(2);
+	SV_MVDStop(2, true);
 }
 
 /*
@@ -1631,9 +1647,10 @@ void SV_WriteSetMVDMessage (void)
 	DestFlush(false);
 }
 
+void SV_MVD_SendInitialGamestate(mvddest_t *dest);
 static qboolean SV_MVD_Record (mvddest_t *dest)
 {
-	sizebuf_t	buf;
+/*	sizebuf_t	buf;
 	char buf_data[MAX_QWMSGLEN];
 	int n, i;
 	char *s, info[MAX_INFO_STRING];
@@ -1641,6 +1658,8 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 	client_t *player;
 	char *gamedir;
 	int seq = 1;
+*/
+	int i;
 
 	if (!dest)
 		return false;
@@ -1663,15 +1682,35 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 
 		demo.datagram.maxsize = sizeof(demo.datagram_data);
 		demo.datagram.data = demo.datagram_data;
-
-		sv.mvdrecording = true;
 	}
 //	else
 //		SV_WriteRecordMVDMessage(&buf, dem_read);
-	demo.pingtime = demo.time = sv.time;
 
 	dest->nextdest = demo.dest;
 	demo.dest = dest;
+
+	SV_MVD_SendInitialGamestate(dest);
+	return true;
+}
+void SV_MVD_SendInitialGamestate(mvddest_t *dest)
+{
+	sizebuf_t	buf;
+	char buf_data[MAX_QWMSGLEN];
+	int n, i;
+	char *s, info[MAX_INFO_STRING];
+
+	client_t *player;
+	char *gamedir;
+	int seq = 1;
+
+	if (!demo.dest)
+		return;
+
+	sv.mvdrecording = true;
+
+
+	demo.pingtime = demo.time = sv.time;
+
 
 	singledest = dest;
 
@@ -1937,9 +1976,6 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 	SV_WriteSetMVDMessage();
 
 	singledest = NULL;
-
-	// done
-	return true;
 }
 
 /*

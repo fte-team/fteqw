@@ -1732,7 +1732,14 @@ void Sbar_Draw (void)
 			if (scr_viewsize.value != 120)
 				Cvar_Set(&scr_viewsize, "120");
 
-			Sbar_DrawString (0, -8, va("%i", cl.stats[pnum][STAT_HEALTH]));
+			Sbar_DrawString (0, -8, va("Health: %i", cl.stats[pnum][STAT_HEALTH]));
+			Sbar_DrawString (0, -16, va(" Armor: %i", cl.stats[pnum][STAT_ARMOR]));
+
+			if (cl.stats[pnum][STAT_H2_BLUEMANA])
+				Sbar_DrawString (0, -24, va("  Blue: %i", cl.stats[pnum][STAT_H2_BLUEMANA]));
+			if (cl.stats[pnum][STAT_H2_GREENMANA])
+				Sbar_DrawString (0, -32, va(" Green: %i", cl.stats[pnum][STAT_H2_GREENMANA]));
+
 			continue;
 		}
 

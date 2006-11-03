@@ -400,6 +400,28 @@ char *COM_TrimString(char *str)
 	return buffer;
 }
 
+#ifdef _WIN32
+#if (_MSC_VER >= 1400)
+//with MSVC 8, use MS extensions
+#define snprintf linuxlike_snprintf_vc8
+int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...);
+#define vsnprintf(a, b, c, d) vsnprintf_s(a, b, _TRUNCATE, c, d)
+#else
+//msvc crap
+#define snprintf linuxlike_snprintf
+int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...);
+#define vsnprintf linuxlike_vsnprintf
+int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
+#endif
+
+#ifdef _MSC_VER
+//these are provided so we don't use them
+//but mingw has some defines elsewhere and makes gcc moan
+#define _vsnprintf unsafe_vsnprintf
+#define _snprintf unsafe_snprintf
+#endif
+#endif
+
 char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 {
 	static char buf[256];
@@ -509,7 +531,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 				if (!func)
 				{
 					assignment[-1] = '=';
-					sprintf(buf, "Can't find function %s\n", s);
+					snprintf(buf, sizeof(buf), "Can't find function %s\n", s);
 					return buf;
 				}
 				*(func_t *)val = (func - pr_progstate[i].functions) | (i<<24);

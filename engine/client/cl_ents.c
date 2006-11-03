@@ -2898,7 +2898,7 @@ void CL_LinkPlayers (void)
 				ent->origin[0] = cl.simorg[pnum][0];
 				ent->origin[1] = cl.simorg[pnum][1];
 				ent->origin[2] = cl.simorg[pnum][2]+cl.crouch[pnum];
-				ent->flags |= 2;
+				ent->flags |= Q2RF_EXTERNALMODEL;
 				break;
 			}
 		}

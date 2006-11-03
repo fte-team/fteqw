@@ -518,10 +518,17 @@ char *Cmd_Status(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffe
 			catbuffer(buffer, sizeofbuffer, "Connected\n");
 		if (qtv->parsingqtvheader || qtv->parsingconnectiondata)
 			catbuffer(buffer, sizeofbuffer, "Waiting for gamestate\n");
-		if (qtv->controller)
+		if (qtv->usequkeworldprotocols)
 		{
-			catbuffer(buffer, sizeofbuffer, "Spectating through %s\n");
+			catbuffer(buffer, sizeofbuffer, "QuakeWorld protocols\n");
+			if (qtv->controller)
+			{
+				catbuffer(buffer, sizeofbuffer, "Controlled by %s\n", qtv->controller->name);
+			}
 		}
+		else if (qtv->sourcesock == INVALID_SOCKET && !qtv->sourcefile)
+			catbuffer(buffer, sizeofbuffer, "Connection not established\n");
+
 		if (*qtv->modellist[1].name)
 		{
 			catbuffer(buffer, sizeofbuffer, "Map name %s\n", qtv->modellist[1].name);

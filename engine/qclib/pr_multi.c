@@ -384,8 +384,8 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 		}
 
 		//oh well, must be a parameter.
-		if (*(int *)&pr_globals[pr_globaldefs16[num].ofs])
-			Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", pr_globaldefs16[num].s_name+stringtable, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
+//		if (*(int *)&pr_globals[pr_globaldefs16[num].ofs])
+//			Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", pr_globaldefs16[num].s_name+stringtable, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
 		return;
 	case 32:
 		for (i=1 ; i<pr_progs->numfielddefs; i++)

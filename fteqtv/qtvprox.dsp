@@ -477,6 +477,10 @@ SOURCE=.\parse.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\pmove.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\qw.c
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"

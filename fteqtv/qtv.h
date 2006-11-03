@@ -412,10 +412,12 @@ typedef struct viewer_s {
 	unsigned int currentstats[MAX_STATS];
 	int trackplayer;
 	int thisplayer;
+	int userid;
 
 	packet_entities_t frame[ENTITY_FRAMES];
 
 	struct viewer_s *next;
+	struct viewer_s *commentator;
 
 	char name[32];
 	char userinfo[1024];
@@ -615,6 +617,7 @@ struct cluster_s {
 	sv_t *servers;
 	int numservers;
 	int nextstreamid;
+	int nextuserid;
 
 	//options
 	int qwlistenportnum;
@@ -835,7 +838,7 @@ void WriteData(netmsg_t *b, const char *data, int length);
 void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playermask,int suitablefor);
 void Broadcast(cluster_t *cluster, char *buffer, int length, int suitablefor);
 void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask);
-void BuildServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount, qboolean spectatorflag);
+void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *spectatorflag);
 void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
 SOCKET QW_InitUDPSocket(int port);
 void QW_UpdateUDPStuff(cluster_t *qtv);

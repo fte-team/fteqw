@@ -618,6 +618,7 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 	static mplane_t mainplane, patchplanes[20];
 	qboolean skip[20];
 	int	numpatchplanes = 0;
+	float dot;
 
 	int matchplane;
 
@@ -709,10 +710,14 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 
 			for (matchplane = 0; matchplane < numplanes; matchplane++)
 			{
-				if (!memcmp(&map_planes[matchplane], &patchplanes[i], sizeof(patchplanes[i])))
+				if (map_planes[matchplane].dist+0.1 > patchplanes[i].dist && map_planes[matchplane].dist-0.1 < patchplanes[i].dist)
 				{
-					plane = &map_planes[matchplane];
-					break;
+					dot = DotProduct(map_planes[matchplane].normal, patchplanes[i].normal);
+					if (dot >= 0.98)
+					{
+						plane = &map_planes[matchplane];
+						break;
+					}
 				}
 			}
 			if (matchplane == numplanes)

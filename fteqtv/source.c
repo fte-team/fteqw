@@ -490,7 +490,7 @@ qboolean Net_WriteUpStream(sv_t *qtv)
 {
 	int len;
 
-	if (qtv->upstreambuffersize)
+	if (qtv->upstreambuffersize && qtv->sourcesock != INVALID_SOCKET)
 	{
 		len = send(qtv->sourcesock, qtv->upstreambuffer, qtv->upstreambuffersize, 0);
 		if (len == 0)
@@ -589,6 +589,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 			Sys_Printf(qtv->cluster, "Error: server %s refused connection\n", qtv->server);
 			closesocket(qtv->sourcesock);
 			qtv->sourcesock = INVALID_SOCKET;
+			qtv->upstreambuffersize = 0;	//probably contains initial connection request info
 			return false;
 		}
 
@@ -1049,7 +1050,7 @@ void QTV_ParseQWStream(sv_t *qtv)
 				strcpy(qtv->status, "Attemping connection\n");
 				qtv->challenge = atoi(buffer+5);
 				if (qtv->controller)
-					sprintf(buffer, "connect %i %i %i \"%s\\*qtv\\1\\\"", 28, qtv->qport, qtv->challenge, qtv->controller->userinfo);
+					sprintf(buffer, "connect %i %i %i \"%s\\*qtv\\1\"", 28, qtv->qport, qtv->challenge, qtv->controller->userinfo);
 				else if (qtv->proxyplayer)
 					sprintf(buffer, "connect %i %i %i \"%s\\name\\%s\"", 28, qtv->qport, qtv->challenge, "\\*ver\\fteqtv\\spectator\\0\\rate\\10000", qtv->cluster->hostname);
 				else
@@ -1661,6 +1662,8 @@ void QTV_Run(sv_t *qtv)
 				Net_ReadStream(qtv);
 
 			qtv->parsetime += packettime;
+
+			qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;
 		}
 		else
 			break;

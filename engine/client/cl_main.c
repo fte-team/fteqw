@@ -27,10 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "cl_master.h"
 #include "cl_ignore.h"
 
-#if defined(_WIN32) && !defined(MINGW) && defined(RGLQUAKE)
-//#define WINAVI
-#endif
-
 // callbacks
 void CL_Sbar_Callback(struct cvar_s *var, char *oldvalue);
 void Name_Callback(struct cvar_s *var, char *oldvalue);
@@ -1029,6 +1025,7 @@ void CL_Disconnect (void)
 	qbyte	final[12];
 
 	connect_time = -1;
+	connect_tries = 0;
 
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
 
@@ -3038,11 +3035,6 @@ Host_Frame
 Runs all active servers
 ==================
 */
-#if defined(WINAVI) && !defined(NOMEDIA)
-extern float recordavi_frametime;
-qboolean Media_Capturing();
-#endif
-
 extern cvar_t cl_netfps;
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
@@ -3054,7 +3046,7 @@ void Host_Frame (double time)
 	static double		time3 = 0;
 	int			pass1, pass2, pass3;
 //	float fps;
-	float realframetime;
+	double realframetime;
 	static double spare;
 
 	RSpeedLocals();
@@ -3062,14 +3054,7 @@ void Host_Frame (double time)
 	if (setjmp (host_abort) )
 		return;			// something bad happened, or the server disconnected
 
-	realframetime = time;
-
-#if defined(WINAVI) && !defined(NOMEDIA)
-	if (cls.demoplayback && Media_Capturing() && recordavi_frametime>0.01)
-	{
-		realframetime = time = recordavi_frametime;
-	}
-#endif
+	realframetime = time = Media_TweekCaptureFrameTime(time);
 
 //	if (cls.demoplayback && cl_demospeed.value>0)
 //		realframetime *= cl_demospeed.value; // this probably screws up other timings
@@ -3117,10 +3102,11 @@ void Host_Frame (double time)
 
 	*/
 	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
-	if (cl_maxfps.value>0 && (cl_netfps.value>0 || cls.demoplayback))
+	if ((cl_netfps.value>0 || cls.demoplayback || cl_indepphysics.value))
 	{	//limit the fps freely, and expect the netfps to cope.
-		if ((realtime - oldrealtime) < 1/cl_maxfps.value)
-			return;
+		if (cl_maxfps.value > 0)
+			if ((realtime - oldrealtime) < 1/cl_maxfps.value)
+				return;
 	}
 	else
 	{

@@ -843,7 +843,7 @@ float CL_FilterTime (double time, float wantfps)	//now returns the extra time no
 		if (wantfps < 1)
 			fps = fpscap;
 		else
-			fps = bound (10.0, wantfps, fpscap);
+			fps = bound (6.7, wantfps, fpscap);	//we actually cap ourselves to 150msecs (1000/7 = 142)
 	}
 
 	if (time < 1000 / fps)
@@ -983,15 +983,21 @@ unsigned long _stdcall CL_IndepPhysicsThread(void *param)
 	int sleeptime;
 	float fps;
 	float time, lasttime;
+	float spare;
 	lasttime = Sys_DoubleTime();
 	while(1)
 	{
-		EnterCriticalSection(&indepcriticialsection);
 		time = Sys_DoubleTime();
-		if (cls.state)
-			CL_SendCmd(time - lasttime);
-		lasttime = time;
-		LeaveCriticalSection(&indepcriticialsection);
+		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value);
+		if (spare)
+		{
+			time -= spare/1000.0f;
+			EnterCriticalSection(&indepcriticialsection);
+			if (cls.state)
+				CL_SendCmd(time - lasttime);
+			lasttime = time;
+			LeaveCriticalSection(&indepcriticialsection);
+		}
 
 		fps = cl_netfps.value;
 		if (fps < 4)
@@ -1003,6 +1009,8 @@ unsigned long _stdcall CL_IndepPhysicsThread(void *param)
 
 		if (sleeptime)
 			Sleep(sleeptime);
+		else
+			Sleep(1);
 	}
 }
 
@@ -1014,11 +1022,18 @@ void CL_UseIndepPhysics(qboolean allow)
 	if (allow)
 	{	//enable it
 		DWORD tid;	//*sigh*...
+
+//		TIMECAPS tc;
+//		timeGetDevCaps(&tc, sizeof(TIMECAPS));
+//		Con_Printf("Timer has a resolution of %i millisecond%s\n", tc.wPeriodMin, tc.wPeriodMin!=1?"s":"");
+
 		InitializeCriticalSection(&indepcriticialsection);
 		runningindepphys = true;
 
 		indepphysicsthread = CreateThread(NULL, 8192, CL_IndepPhysicsThread, NULL, 0, &tid);
 		allowindepphys = 1;
+
+		SetThreadPriority(independantphysics, HIGH_PRIORITY_CLASS);
 	}
 	else
 	{
@@ -1050,6 +1065,7 @@ CL_SendCmd
 vec3_t accum[MAX_SPLITS];
 void CL_SendCmd (float frametime)
 {
+	extern cvar_t cl_indepphysics;
 	sizebuf_t	buf;
 	qbyte		data[512];
 	int			i, plnum;
@@ -1185,10 +1201,17 @@ void CL_SendCmd (float frametime)
 		independantphysics[plnum].msec = msecstouse;
 	}
 
-//	if (!CL_FilterTime(msecstouse, cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value) && msecstouse<255 && cls.state == ca_active)
-//	{
-//		return;
-//	}
+	if (cl_netfps.value && !cl_indepphysics.value)
+	{
+		int spare;
+		spare = CL_FilterTime(msecstouse, cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value);
+		if (!spare && msecstouse<255 && cls.state == ca_active)
+		{
+			return;
+		}
+		if (spare > 0)
+			msecstouse -= spare;
+	}
 
 #ifdef NQPROT
 	if (cls.protocol == CP_NETQUAKE)

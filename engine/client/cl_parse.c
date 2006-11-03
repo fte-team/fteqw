@@ -3716,8 +3716,19 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 			Cmd_ExecuteString(stufftext, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded
 		else
 		{
+			if (!strncmp(stufftext, "//querycmd ", 11))
+			{
+				COM_Parse(stufftext + 11);
+				if (Cmd_Exists(com_token))
+				{
+					Cbuf_AddText ("cmd cmdsupported ", RESTRICT_SERVER+destsplit);
+					Cbuf_AddText (com_token, RESTRICT_SERVER+destsplit);
+					Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
+				}
+			}
+			else
 #ifdef CSQC_DAT
-			if (!CSQC_StuffCmd(stufftext))
+				 if (!CSQC_StuffCmd(stufftext))
 #endif
 			{
 				Cbuf_AddText (stufftext, RESTRICT_SERVER+destsplit);

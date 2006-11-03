@@ -112,7 +112,7 @@ void DestFlush(qboolean compleate)
 
 		if (!demo.dest)
 		{
-			SV_MVDStop(2, false);
+			SV_MVDStop(3, false);
 			return;
 		}
 	}
@@ -1525,7 +1525,7 @@ void SV_MVDStop (int reason, qboolean mvdonly)
 		return;
 	}
 
-	if (reason == 2)
+	if (reason == 2 || reason == 3)
 	{
 		DestCloseAllFlush(true, mvdonly);
 		// stop and remove
@@ -1533,7 +1533,10 @@ void SV_MVDStop (int reason, qboolean mvdonly)
 		if (!demo.dest)
 			sv.mvdrecording = false;
 
-		SV_BroadcastPrintf (PRINT_CHAT, "Server recording canceled, demo removed\n");
+		if (reason == 3)
+			SV_BroadcastPrintf (PRINT_CHAT, "QTV disconnected\n");
+		else
+			SV_BroadcastPrintf (PRINT_CHAT, "Server recording canceled, demo removed\n");
 
 		Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), "");
 

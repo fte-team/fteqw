@@ -504,7 +504,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 			fdef = ED_FindField (progfuncs, assignment);
 			if (!fdef)
 			{
-				sprintf(buf, "Can't find field %s\n", assignment);
+				snprintf(buf, sizeof(buf), "Can't find field %s\n", assignment);
 				return buf;
 			}
 			*(int *)val = G_INT(fdef->ofs);

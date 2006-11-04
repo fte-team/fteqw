@@ -28,9 +28,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, netadr_t adr)
 {
 	int ret;
-	Sys_Printf(cluster, "udp send size %i\n", length);
-	if (length > 1000)
-		Sys_Printf(cluster, "udp send size %i\n", length);
 
 	ret = sendto(sock, data, length, 0, (struct sockaddr *)adr, sizeof(struct sockaddr_in));
 	if (ret < 0)

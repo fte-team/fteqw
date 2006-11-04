@@ -3593,9 +3593,6 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 			continue;
 		}
 
-//		if (rand()&3)
-//			continue;
-
 		m.data = buffer;
 		m.cursize = read;
 		m.maxsize = MAX_MSGLEN;

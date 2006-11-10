@@ -26,8 +26,8 @@ int		qcc_eof;
 */
 short   (*PRBigShort) (short l);
 short   (*PRLittleShort) (short l);
-long     (*PRBigLong) (long l);
-long     (*PRLittleLong) (long l);
+int     (*PRBigLong) (int l);
+int     (*PRLittleLong) (int l);
 float   (*PRBigFloat) (float l);
 float   (*PRLittleFloat) (float l);
 
@@ -48,7 +48,7 @@ short   QCC_Short (short l)
 }
 
 
-long    QCC_SwapLong (long l)
+int    QCC_SwapLong (int l)
 {
 	qbyte    b1,b2,b3,b4;
 
@@ -57,10 +57,10 @@ long    QCC_SwapLong (long l)
 	b3 = (qbyte)(l>>16);
 	b4 = (qbyte)(l>>24);
 
-	return ((long)b1<<24) + ((long)b2<<16) + ((long)b3<<8) + b4;
+	return ((int)b1<<24) + ((int)b2<<16) + ((int)b3<<8) + b4;
 }
 
-long    QCC_Long (long l)
+int    QCC_Long (int l)
 {
 	return l;
 }

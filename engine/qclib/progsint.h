@@ -103,8 +103,8 @@ void    StripExtension (char *path);
 void SetEndian(void);
 extern short   (*PRBigShort) (short l);
 extern short   (*PRLittleShort) (short l);
-extern long     (*PRBigLong) (long l);
-extern long     (*PRLittleLong) (long l);
+extern int     (*PRBigLong) (int l);
+extern int     (*PRLittleLong) (int l);
 extern float   (*PRBigFloat) (float l);
 extern float   (*PRLittleFloat) (float l);
 

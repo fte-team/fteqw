@@ -1457,7 +1457,7 @@ PAVISTREAM recordavi_compressed_video_stream;
 PAVISTREAM recordavi_uncompressed_audio_stream;
 WAVEFORMATEX recordavi_wave_format;
 unsigned long recordavi_codec_fourcc;
-#endif
+#endif /* WINAVI */
 
 soundcardinfo_t *capture_fakesounddevice;
 int recordavi_video_frame_counter;
@@ -1594,7 +1594,7 @@ void Media_RecordFrame (void)
 			if (FAILED(hr)) Con_Printf("Recoring error\n");	
 		}
 		break;
-#endif
+#endif /* WINAVI */
 	case CT_SCREENSHOT:
 		{
 			char filename[MAX_OSPATH];
@@ -1689,7 +1689,7 @@ static void MSD_Submit(soundcardinfo_t *sc)
 		}
 		AVIStreamWrite(recordavi_uncompressed_audio_stream, recordavi_audio_frame_counter++, 1, sc->sn.buffer+offset*bytespersample, samplestosubmit*bytespersample, AVIIF_KEYFRAME, NULL, NULL);
 		break;
-#endif
+#endif /* WINAVI */
 	}
 }
 
@@ -1750,7 +1750,7 @@ void Media_StopRecordFilm_f (void)
 	recordavi_compressed_video_stream = NULL;
 	recordavi_uncompressed_audio_stream=NULL;
 	recordavi_file = NULL;
-#endif
+#endif /* WINAVI */
 
 	if (capturevideomem)	BZ_Free(capturevideomem);
 
@@ -1951,7 +1951,7 @@ void Media_RecordFilm_f (void)
 
 		capturevideomem = BZ_Malloc(glwidth*glheight*3);
 	}
-#endif
+#endif /* WINAVI */
 	else
 	{
 		Con_Printf("That sort of video capturing is not supported in this build\n");
@@ -1975,12 +1975,13 @@ void Media_RecordDemo_f(void)
 	else
 		CL_Stopdemo_f();	//capturing failed for some reason
 }
-#else
+#else /* RGLQUAKE */
 void Media_CaptureDemoEnd(void){}
 void Media_RecordAudioFrame (short *sample_buffer, int samples){}
+double Media_TweekCaptureFrameTime(double time) { return time ; }
 void Media_RecordFrame (void) {}
 qboolean Media_PausedDemo (void) {return false;} //should not return a value
-#endif
+#endif /* RGLQUAKE */
 void Media_Init(void)
 {
 	Cmd_AddCommand("playfilm", Media_PlayFilm_f);
@@ -2026,6 +2027,7 @@ void M_Media_Key (int key) {}
 qboolean Media_ShowFilm(void){return false;}
 qboolean Media_PlayFilm(char *name) {return false;}
 
+double Media_TweekCaptureFrameTime(double time) { return time ; }
 void Media_RecordFrame (void) {}
 void Media_CaptureDemoEnd(void) {}
 void Media_RecordDemo_f(void) {}

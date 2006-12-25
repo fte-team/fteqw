@@ -29,6 +29,7 @@ void M_Menu_MultiPlayer_f (void)
 
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommand	(menu, 64, 40,	"Join network server", "menu_slist\n");
+		MC_AddConsoleCommand	(menu, 64, 40,	"Quick Connect", "quickconnect qw\n");
 		MC_AddConsoleCommand	(menu, 64, 48,	"Start network server", "menu_newmulti\n");
 		MC_AddConsoleCommand	(menu, 64, 56,	"Player setup", "menu_setup\n");
 		MC_AddConsoleCommand	(menu, 64, 64,	"Demos", "menu_demo\n");
@@ -47,10 +48,11 @@ void M_Menu_MultiPlayer_f (void)
 		mgt=32;
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Join A Game ",	"menu_slist\n");mgt+=20;
-		MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Old Browser ",	"menu_serversold\n");mgt+=20;
-		MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"New Server  ",	"menu_newmulti\n");mgt+=20;
-		MC_AddConsoleCommandQBigFont	(menu, 72, 92,	"Player Setup",	"menu_setup\n");mgt+=20;
-		MC_AddConsoleCommandQBigFont	(menu, 72, 112,	"Demos       ",	"menu_demo\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Quick Connect", "quickconnect qw\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Old Browser ",	"menu_serversold\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"New Server  ",	"menu_newmulti\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Demos       ",	"menu_demo\n");mgt+=20;
 
 		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
 		return;
@@ -79,6 +81,11 @@ void M_Menu_MultiPlayer_f (void)
 
 	b = MC_AddConsoleCommand(menu, 72, 92, "", "menu_demo\n");
 	MC_AddWhiteText(menu, 72, 92+20/2-6, "Demos", false);
+	b->common.height = 20/2+2;
+	b->common.width = p?p->width:320;
+
+	b = MC_AddConsoleCommand(menu, 72, 112, "", "quickconnect qw\n");
+	MC_AddWhiteText(menu, 72, 112+20/2-6, "Quick Connect", false);
 	b->common.height = 20/2+2;
 	b->common.width = p?p->width:320;
 

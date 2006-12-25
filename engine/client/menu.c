@@ -809,6 +809,7 @@ void M_Menu_Quit_f (void)
 /* Menu Subsystem */
 
 void M_Menu_ServerList2_f(void);
+void M_QuickConnect_f(void);
 
 void M_Menu_MediaFiles_f (void);
 void M_Menu_FPS_f (void);
@@ -866,6 +867,8 @@ void M_Init_Internal (void)
 #ifdef WEBCLIENT
 	Cmd_AddRemCommand ("menu_download", Menu_DownloadStuff_f);
 #endif
+
+	Cmd_AddRemCommand ("quickconnect", M_QuickConnect_f);
 }
 
 void M_DeInit_Internal (void)
@@ -909,6 +912,8 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_particlesets");
 
 	Cmd_RemoveCommand ("menu_download");
+
+	Cmd_RemoveCommand ("quickconnect");
 }
 
 void FPS_Preset_f(void);

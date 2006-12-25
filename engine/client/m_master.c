@@ -1499,10 +1499,101 @@ void M_Menu_ServerList2_f(void)
 	Master_SetSortField(SLKEY_PING, true);
 }
 
+float quickconnecttimeout;
 
+void M_QuickConnect_PreDraw(menu_t *menu)
+{
+	serverinfo_t *best = NULL;
+	serverinfo_t *s;
+	NET_CheckPollSockets();	//see if we were told something important.
+	CL_QueryServers();
 
+	if (Sys_DoubleTime() > quickconnecttimeout)
+	{
+		for (s = firstserver; s; s = s->next)
+		{
+			if (!s->maxplayers)	//no response?
+				continue;
+			if (s->players == s->maxplayers)
+				continue;	//server is full already
+			if (s->special & SS_PROXY)
+				continue;	//don't quickconnect to a proxy. thier player counts are often wrong (especially with qtv)
+			if (s->ping < 50)	//don't like servers with too high a ping
+			{
+				if (s->players > 0)
+				{
+					if (best)
+						if (best->players > s->players)
+							continue;	//go for the one with most players
+					best = s;
+				}
+			}
+		}
 
+		if (best)
+		{
+			Con_Printf("Quick connect found %s (gamedir %s, players %i/%i, ping %ims)\n", best->name, best->gamedir, best->players, best->maxplayers, best->ping);
 
+			if (best->special & SS_NETQUAKE)
+				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(best->adr)), RESTRICT_LOCAL);
+			else
+				Cbuf_AddText(va("join %s\n", NET_AdrToString(best->adr)), RESTRICT_LOCAL);
+
+			M_ToggleMenu_f();
+			return;
+		}
+
+		//retry
+		MasterInfo_Begin();
+
+		quickconnecttimeout = Sys_DoubleTime() + 5;
+	}
+}
+
+qboolean M_QuickConnect_Key	(int key, menu_t *menu)
+{
+	return false;
+}
+
+void M_QuickConnect_Remove	(menu_t *menu)
+{
+}
+
+qboolean M_QuickConnect_Cancel (menuoption_t *opt, menu_t *menu, int key)
+{
+	return false;
+}
+
+void M_QuickConnect_DrawStatus (int x, int y, menucustom_t *ths, menu_t *menu)
+{
+	Draw_String(x, y, va("Polling, %i secs\n", (int)(quickconnecttimeout - Sys_DoubleTime() + 0.9)));
+}
+
+void M_QuickConnect_f(void)
+{
+	menucustom_t *cust;
+	menu_t *menu;
+
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	MasterInfo_Begin();
+
+	quickconnecttimeout = Sys_DoubleTime() + 5;
+
+	menu = M_CreateMenu(sizeof(serverlist_t));
+	menu->event = M_QuickConnect_PreDraw;
+	menu->key = M_QuickConnect_Key;
+	menu->remove = M_QuickConnect_Remove;
+
+	cust = MC_AddCustom(menu, 64, 64, NULL);
+	cust->draw = M_QuickConnect_DrawStatus;
+	cust->common.height = 8;
+	cust->common.width = vid.width-8;
+
+	MC_AddCommand(menu, 64, 128, "Refresh", SL_DoRefresh);
+	MC_AddCommand(menu, 64, 136, "Cancel", M_QuickConnect_Cancel);
+}
 
 
 

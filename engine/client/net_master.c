@@ -1245,7 +1245,7 @@ void MasterInfo_Begin(void)
 			Master_AddMaster("150.254.66.120:27000",		MT_MASTERQW, "Poland's master server.");
 			Master_AddMaster("62.112.145.129:27000",		MT_MASTERQW, "Ocrana master server.");
 
-			Master_AddMaster("master.edome.net",			MT_MASTERQW, "edome master server.");
+//			Master_AddMaster("master.edome.net",			MT_MASTERQW, "edome master server.");
 			Master_AddMaster("qwmaster.barrysworld.com",	MT_MASTERQW, "barrysworld master server.");
 			Master_AddMaster("qwmaster.ocrana.de:27000",	MT_MASTERQW, "Ocrana2 master server.");
 			Master_AddMaster("213.221.174.165:27000",		MT_MASTERQW, "unknown1 master server.");

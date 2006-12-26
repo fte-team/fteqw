@@ -696,6 +696,7 @@ typedef struct
 	gametype_e	gametype;
 	int			spawncount;			// number of servers spawned since start,
 									// used to check late spawns
+	int framenum;	//physics frame number for out-of-sequence thinks (fix for slow rockets)
 
 	int socketip;
 	int socketip6;

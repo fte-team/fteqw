@@ -2805,6 +2805,7 @@ void SV_Frame (void)
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
 	end = start;
+	svs.framenum++;
 
 // keep the random time dependent
 	rand ();

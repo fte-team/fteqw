@@ -1730,9 +1730,9 @@ void SV_RunEntity (edict_t *ent)
 	}
 	else
 	{
-		if (ent->v->lastruntime == (float)realtime)
+		if (ent->v->lastruntime == svs.framenum)
 			return;
-		ent->v->lastruntime = (float)realtime;
+		ent->v->lastruntime = svs.framenum;
 	}
 
 

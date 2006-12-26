@@ -90,7 +90,7 @@ typedef struct entvars_s
 	vec3_t	absmin;
 	vec3_t	absmax;
 	float	ltime;
-	float	lastruntime;
+	int		lastruntime;
 	float	movetype;
 	float	solid;
 	vec3_t	origin;

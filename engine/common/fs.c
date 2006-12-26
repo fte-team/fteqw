@@ -1041,11 +1041,13 @@ static void *FSZIP_LoadZipFile (vfsfile_t *packhandle, char *desc)
 	zip->files = newfiles = Z_Malloc (zip->numfiles * sizeof(packfile_t));
 	for (i = 0; i < zip->numfiles; i++)
 	{
-		unzGetCurrentFileInfo (zip->handle, &file_info, newfiles[i].name, sizeof(newfiles[i].name), NULL, 0, NULL, 0);
+		if (unzGetCurrentFileInfo (zip->handle, &file_info, newfiles[i].name, sizeof(newfiles[i].name), NULL, 0, NULL, 0) != UNZ_OK)
+			Con_Printf("Zip Error\n");
 		Q_strlwr(newfiles[i].name);
 		newfiles[i].filelen = file_info.uncompressed_size;
 		newfiles[i].filepos = file_info.c_offset;
-		unzGoToNextFile (zip->handle);
+		if (unzGoToNextFile (zip->handle) != UNZ_OK)
+			Con_Printf("Zip Error\n");
 	}
 
 	zip->references = 1;

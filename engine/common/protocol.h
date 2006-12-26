@@ -409,6 +409,7 @@ enum clcq2_ops_e
 
 // the first 16 bits of a packetentities update holds 9 bits
 // of entity number and 7 bits of flags
+#define	U_UNUSABLE	(1<<8)
 #define	U_ORIGIN1	(1<<9)
 #define	U_ORIGIN2	(1<<10)
 #define	U_ORIGIN3	(1<<11)

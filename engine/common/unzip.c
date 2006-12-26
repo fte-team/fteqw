@@ -142,7 +142,7 @@ local int unzlocal_getShort(vfsfile_t *fin,unsigned long *pi) {
 }
 
 local int unzlocal_getLong(vfsfile_t *fin,unsigned long *pi) {
-	unsigned long c;
+	unsigned int c;
 	int err = VFS_READ(fin, &c, 4);
     if (err==4) {
 	    *pi = LittleLong(c);

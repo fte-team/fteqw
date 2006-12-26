@@ -1198,12 +1198,14 @@ void SV_EmitPacketEntities (const sv_t *qtv, const viewer_t *v, const packet_ent
 
 void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg)
 {
-	int i;
+	frame_t *frame;
+	int i, entnum;
 	WriteByte(msg, svc_packetentities);
-	for (i = 0; i < qtv->maxents; i++)
+	frame = &qtv->frame[qtv->netchan.incoming_sequence & (ENTITY_FRAMES-1)];
+	for (i = 0; i < frame->numents; i++)
 	{
-		if (qtv->entity[i].current.modelindex)
-			SV_WriteDelta(i, &nullentstate, &qtv->entity[i].current, msg, true);
+		entnum = frame->entnums[i];
+		SV_WriteDelta(i, &qtv->entity[entnum].baseline, &frame->ents[i], msg, true);
 	}
 	WriteShort(msg, 0);
 }
@@ -1609,7 +1611,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			if (bits & UNQ_ANGLE3)
 				WriteByte(msg, pl->current.angles[2]>>8);
 		}
-		for (e = 0; e < tv->maxents; e++)
+/*		for (e = 0; e < tv->maxents; e++)
 		{
 			ent = &tv->entity[e];
 			if (!ent->current.modelindex)
@@ -1617,6 +1619,9 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 
 			if (ent->current.modelindex >= tv->numinlines && !BSP_Visible(tv->bsp, ent->leafcount, ent->leafs))
 				continue;
+
+			if (msg->cursize + 128 > msg->maxsize)
+				break;
 			
 // send an update
 			bits = 0;
@@ -1710,6 +1715,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			if (bits & UNQ_ANGLE3)
 				WriteByte(msg, ent->current.angles[2]);
 		}
+*/
 	}
 	else
 	{
@@ -1733,6 +1739,11 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 	float lerp;
 	int track;
 	int runaway = 10;
+
+	int snapdist = 128;	//in quake units
+
+	snapdist = snapdist*8;
+	snapdist = snapdist*snapdist;
 
 
 	memset(&to, 0, sizeof(to));
@@ -1837,12 +1848,23 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 			WriteByte(msg, i);
 			WriteShort(msg, flags);
 
-			interp = (lerp)*tv->players[i].current.origin[0] + (1-lerp)*tv->players[i].old.origin[0];
-			WriteShort(msg, interp);
-			interp = (lerp)*tv->players[i].current.origin[1] + (1-lerp)*tv->players[i].old.origin[1];
-			WriteShort(msg, interp);
-			interp = (lerp)*tv->players[i].current.origin[2] + (1-lerp)*tv->players[i].old.origin[2];
-			WriteShort(msg, interp);
+			if ((tv->players[i].current.origin[0] - tv->players[i].old.origin[0])*(tv->players[i].current.origin[0] - tv->players[i].old.origin[0]) > snapdist ||
+				(tv->players[i].current.origin[1] - tv->players[i].old.origin[1])*(tv->players[i].current.origin[1] - tv->players[i].old.origin[1]) > snapdist ||
+				(tv->players[i].current.origin[2] - tv->players[i].old.origin[2])*(tv->players[i].current.origin[2] - tv->players[i].old.origin[2]) > snapdist)
+			{	//teleported (or respawned), so don't interpolate
+				WriteShort(msg, tv->players[i].current.origin[0]);
+				WriteShort(msg, tv->players[i].current.origin[1]);
+				WriteShort(msg, tv->players[i].current.origin[2]);
+			}
+			else
+			{	//send interpolated angles
+				interp = (lerp)*tv->players[i].current.origin[0] + (1-lerp)*tv->players[i].old.origin[0];
+				WriteShort(msg, interp);
+				interp = (lerp)*tv->players[i].current.origin[1] + (1-lerp)*tv->players[i].old.origin[1];
+				WriteShort(msg, interp);
+				interp = (lerp)*tv->players[i].current.origin[2] + (1-lerp)*tv->players[i].old.origin[2];
+				WriteShort(msg, interp);
+			}
 
 			WriteByte(msg, tv->players[i].current.frame);
 
@@ -1883,22 +1905,79 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 	e = &v->frame[v->netchan.outgoing_sequence&(ENTITY_FRAMES-1)];
 	e->numents = 0;
 	if (tv)
-		for (i = 0; i < tv->maxents; i++)
+	{
+		int oldindex = 0, newindex = 0;
+		entity_state_t *newstate;
+		int newnum, oldnum;
+		frame_t *frompacket, *topacket;
+		topacket = &tv->frame[tv->netchan.incoming_sequence&(ENTITY_FRAMES-1)];
+		if (tv->usequkeworldprotocols)
 		{
-			if (!tv->entity[i].current.modelindex)
+			//qw protocols don't interpolate... yet
+			frompacket = topacket;
+		}
+		else
+		{
+			frompacket = &tv->frame[(tv->netchan.incoming_sequence-1)&(ENTITY_FRAMES-1)];
+		}
+
+		for (newindex = 0; newindex < topacket->numents; newindex++)
+		{
+			//don't pvs cull bsp models
+			//pvs cull everything else
+			newstate = &topacket->ents[newindex];
+			newnum = topacket->entnums[newindex];
+			if (newstate->modelindex >= tv->numinlines && !BSP_Visible(tv->bsp, tv->entity[newnum].leafcount, tv->entity[newnum].leafs))
 				continue;
 
-			if (tv->entity[i].current.modelindex >= tv->numinlines && !BSP_Visible(tv->bsp, tv->entity[i].leafcount, tv->entity[i].leafs))
-				continue;
+			e->entnum[e->numents] = newnum;
+			memcpy(&e->ents[e->numents], newstate, sizeof(entity_state_t));
 
-			e->entnum[e->numents] = i;
-			memcpy(&e->ents[e->numents], &tv->entity[i].current, sizeof(entity_state_t));
-
-			if (tv->entity[i].updatetime == tv->oldpackettime)
+			if (frompacket != topacket)	//optimisation for qw protocols
 			{
-				e->ents[e->numents].origin[0] = (lerp)*tv->entity[i].current.origin[0] + (1-lerp)*tv->entity[i].old.origin[0];
-				e->ents[e->numents].origin[1] = (lerp)*tv->entity[i].current.origin[1] + (1-lerp)*tv->entity[i].old.origin[1];
-				e->ents[e->numents].origin[2] = (lerp)*tv->entity[i].current.origin[2] + (1-lerp)*tv->entity[i].old.origin[2];
+				entity_state_t *oldstate;
+
+				if (oldindex < frompacket->numents)
+				{
+					oldnum = frompacket->entnums[oldindex];
+				
+					while(oldnum < newnum)
+					{
+						oldindex++;
+						if (oldindex >= frompacket->numents)
+							break;	//no more
+						oldnum = frompacket->entnums[oldindex];
+					}
+					if (oldnum == newnum)
+					{
+						//ent exists in old packet
+						oldstate = &frompacket->ents[oldindex];
+					}
+					else
+					{
+						oldstate = newstate;
+					}
+				}
+				else
+				{	//reached end, definatly not in packet
+					oldstate = newstate;
+				}
+
+
+				if ((newstate->origin[0] - oldstate->origin[0])*(newstate->origin[0] - oldstate->origin[0]) > snapdist ||
+					(newstate->origin[1] - oldstate->origin[1])*(newstate->origin[1] - oldstate->origin[1]) > snapdist ||
+					(newstate->origin[2] - oldstate->origin[2])*(newstate->origin[2] - oldstate->origin[2]) > snapdist)
+				{	//teleported (or respawned), so don't interpolate
+					e->ents[e->numents].origin[0] = newstate->origin[0];
+					e->ents[e->numents].origin[1] = newstate->origin[1];
+					e->ents[e->numents].origin[2] = newstate->origin[2];
+				}
+				else
+				{
+					e->ents[e->numents].origin[0] = (lerp)*newstate->origin[0] + (1-lerp)*oldstate->origin[0];
+					e->ents[e->numents].origin[1] = (lerp)*newstate->origin[1] + (1-lerp)*oldstate->origin[1];
+					e->ents[e->numents].origin[2] = (lerp)*newstate->origin[2] + (1-lerp)*oldstate->origin[2];
+				}
 			}
 
 			e->numents++;
@@ -1906,6 +1985,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 			if (e->numents == ENTS_PER_FRAME)
 				break;
 		}
+	}
 
 	SV_EmitPacketEntities(tv, v, e, msg);
 

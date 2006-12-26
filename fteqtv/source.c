@@ -857,6 +857,9 @@ void QTV_Shutdown(sv_t *qtv)
 		}
 	}
 
+	if (cluster->viewserver == qtv)
+		cluster->viewserver = NULL;
+
 	for (v = cluster->viewers; v; v = v->next)
 	{
 		if (v->server == qtv)
@@ -1200,6 +1203,8 @@ void QTV_CollectCommentry(sv_t *qtv)
 
 void QTV_Run(sv_t *qtv)
 {
+	int from;
+	int to;
 	int lengthofs;
 	unsigned int length;
 	unsigned char *buffer;
@@ -1331,7 +1336,7 @@ void QTV_Run(sv_t *qtv)
 
 					SetMoveCRC(qtv, &msg);
 				}
-				else if (qtv->proxyplayer)
+				else if (qtv->proxyplayer || qtv->trackplayer < 0)
 				{
 					usercmd_t *cmd[3];
 					cmd[0] = &qtv->proxyplayerucmds[(qtv->proxyplayerucmdnum-2)%3];
@@ -1363,6 +1368,21 @@ void QTV_Run(sv_t *qtv)
 
 					SetMoveCRC(qtv, &msg);
 				}
+
+				to = qtv->netchan.outgoing_sequence & (ENTITY_FRAMES-1);
+				from = qtv->netchan.incoming_sequence & (ENTITY_FRAMES-1);
+				if (qtv->frame[from].numents)
+				{
+					//remember which one we came from
+					qtv->frame[to].oldframe = from;
+
+					WriteByte(&msg, clc_delta);
+					WriteByte(&msg, qtv->frame[to].oldframe);	//let the server know
+				}
+				else
+					qtv->frame[to].oldframe = -1;
+
+				qtv->frame[to].numents = 0;
 
 				Netchan_Transmit(qtv->cluster, &qtv->netchan, msg.cursize, msg.data);
 			}

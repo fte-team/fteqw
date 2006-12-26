@@ -474,9 +474,9 @@ typedef struct bsp_s bsp_t;
 
 typedef struct {
 	entity_state_t baseline;
-	entity_state_t current;
-	entity_state_t old;
-	unsigned int updatetime;	//to stop lerping when it's an old entity (bodies, stationary grenades, ...)
+//	entity_state_t current;
+//	entity_state_t old;
+//	unsigned int updatetime;	//to stop lerping when it's an old entity (bodies, stationary grenades, ...)
 
 	int leafcount;
 	unsigned short leafs[MAX_ENTITY_LEAFS];
@@ -484,9 +484,11 @@ typedef struct {
 
 #define MAX_ENTITY_FRAMES 64
 typedef struct {
+	int oldframe;
 	int numents;
 	int maxents;
-	entity_state_t *ents;	//dynamically allocated
+	entity_state_t *ents;		//dynamically allocated
+	unsigned short *entnums;	//dynamically allocated
 } frame_t;
 
 typedef struct {
@@ -515,7 +517,7 @@ struct sv_s {
 	int cdtrack;
 	entity_t entity[MAX_ENTITIES];
 	frame_t frame[MAX_ENTITY_FRAMES];
-	int maxents;
+//	int maxents;
 	staticsound_t staticsound[MAX_STATICSOUNDS];
 	int staticsound_count;
 	entity_state_t spawnstatic[MAX_STATICENTITIES];
@@ -618,6 +620,8 @@ struct cluster_s {
 	int numservers;
 	int nextstreamid;
 	int nextuserid;
+
+	sv_t *viewserver;
 
 	//options
 	int qwlistenportnum;
@@ -908,9 +912,7 @@ unsigned char *FS_ReadFile(char *gamedir, char *filename, unsigned int *size);
 
 void ChooseFavoriteTrack(sv_t *tv);
 
-void DemoViewer_Init(void);
 void DemoViewer_Update(sv_t *svtest);
-void DemoViewer_Shutdown(void);
 
 
 #ifdef __cplusplus

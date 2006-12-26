@@ -203,8 +203,16 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 			m = STDIN+1;
 	#endif
 
-		timeout.tv_sec = 100/1000;
-		timeout.tv_usec = (100%1000)*1000;
+		if (cluster->viewserver)
+		{
+			timeout.tv_sec = 0;
+			timeout.tv_usec = 1000;
+		}
+		else
+		{
+			timeout.tv_sec = 100/1000;
+			timeout.tv_usec = (100%1000)*1000;
+		}
 
 		m = select(m, &socketset, NULL, NULL, &timeout);
 
@@ -363,10 +371,8 @@ int main(int argc, char **argv)
 {
 	cluster_t cluster;
 
-#ifndef _WIN32
 #ifdef SIGPIPE
 	signal(SIGPIPE, SIG_IGN);
-#endif
 #endif
 
 #ifdef _WIN32
@@ -386,61 +392,6 @@ int main(int argc, char **argv)
 	cluster.buildnumber = build_number();
 
 	Sys_Printf(&cluster, "QTV Build %i.\n", cluster.buildnumber);
-
-	if (argc >= 2 && (!strcmp(argv[1], "-view") || !strcmp(argv[1], "-play")))
-	{
-#ifdef VIEWER
-		sv_t *sv;
-		sv_t *svtest;
-		char sourcename[256];
-		char *s;
-		printf("Please enter a QTV source\n");
-		printf("eg: file:test.mvd\n");
-		printf("eg: udp:localhost:27500\n");
-		printf("eg: tcp:localhost:27599\n");
-		fgets(sourcename, sizeof(sourcename), stdin);
-		for (s = sourcename + strlen(sourcename)-1; s>=sourcename; s--)
-		{
-			if (*s == '\r' || *s == '\n')
-				*s = '\0';
-			else
-				break;
-		}
-
-		sv = QTV_NewServerConnection(&cluster, sourcename, "", false, false, true);
-		if (!sv)
-		{
-			printf("Unable to connect\n");
-			return 0;
-		}
-		if (!strcmp(argv[1], "-play"))
-			sv->proxyplayer = true;
-		DemoViewer_Init();
-		while (!cluster.wanttoexit)
-		{
-			Cluster_Run(&cluster, false);
-
-			for (svtest = cluster.servers; svtest; svtest = svtest->next)
-			{	//not the cleanest way to do this, of course
-				if (svtest == sv)
-					break;
-			}
-			if (svtest)
-				DemoViewer_Update(svtest);
-			else
-				cluster.wanttoexit = true;
-		}
-		DemoViewer_Shutdown();
-		while(cluster.viewers)
-			QW_FreeViewer(&cluster, cluster.viewers);
-		while(cluster.servers)
-			QTV_Shutdown(cluster.servers);
-#else
-		Sys_Printf(&cluster, "Demo viewer is not enabled in this build. Sorry.\n");
-#endif
-		return 0;
-	}
-
 
 	DoCommandLine(&cluster, argc, argv);
 
@@ -472,7 +423,12 @@ int main(int argc, char **argv)
 	}
 
 	while (!cluster.wanttoexit)
+	{
 		Cluster_Run(&cluster, true);
+#ifdef VIEWER
+		DemoViewer_Update(cluster.viewserver);
+#endif
+	}
 
 	return 0;
 }

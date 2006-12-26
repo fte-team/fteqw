@@ -292,7 +292,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 			v->thinksitsconnected = false;
 	}
 
-	tv->maxents = 0;	//clear these
+//	tv->maxents = 0;	//clear these
 	tv->spawnstatic_count = 0;
 	memset(tv->modellist, 0, sizeof(tv->modellist));
 	memset(tv->soundlist, 0, sizeof(tv->soundlist));
@@ -737,18 +737,122 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 														tv->players[num].current.origin[2]/8.0f, 32);
 }
 
-static void FlushPacketEntities(sv_t *tv)
-{
-	int i;
-	for (i = 0; i < MAX_ENTITIES; i++)
-		tv->entity[i].current.modelindex = 0;
-}
-
-static void ParsePacketEntities(sv_t *tv, netmsg_t *m)
+static int readentitynum(netmsg_t *m, unsigned int *retflags)
 {
 	int entnum;
-	int flags;
-	qboolean forcerelink;
+	unsigned int flags;
+	unsigned short moreflags = 0;
+	flags = ReadShort(m);
+	if (!flags)
+	{
+		*retflags = 0;
+		return 0;
+	}
+
+	entnum = flags&511;
+	flags &= ~511;
+
+	if (flags & U_MOREBITS)
+	{
+		flags |= ReadByte(m);
+
+/*		if (flags & U_EVENMORE)
+			flags |= ReadByte(m)<<16;
+		if (flags & U_YETMORE)
+			flags |= ReadByte(m)<<24;
+*/	}
+
+/*	if (flags & U_ENTITYDBL)
+		entnum += 512;
+	if (flags & U_ENTITYDBL2)
+		entnum += 1024;
+*/
+	*retflags = flags;
+
+	return entnum;
+}
+
+static void ParseEntityDelta(sv_t *tv, netmsg_t *m, entity_state_t *old, entity_state_t *new, unsigned int flags, entity_t *ent, qboolean forcerelink)
+{
+	memcpy(new, old, sizeof(entity_state_t));
+
+	if (flags & U_MODEL)
+		new->modelindex = ReadByte(m);
+	if (flags & U_FRAME)
+		new->frame = ReadByte(m);
+	if (flags & U_COLORMAP)
+		new->colormap = ReadByte(m);
+	if (flags & U_SKIN)
+		new->skinnum = ReadByte(m);
+	if (flags & U_EFFECTS)
+		new->effects = ReadByte(m);
+
+	if (flags & U_ORIGIN1)
+		new->origin[0] = ReadShort(m);
+	if (flags & U_ANGLE1)
+		new->angles[0] = ReadByte(m);
+	if (flags & U_ORIGIN2)
+		new->origin[1] = ReadShort(m);
+	if (flags & U_ANGLE2)
+		new->angles[1] = ReadByte(m);
+	if (flags & U_ORIGIN3)
+		new->origin[2] = ReadShort(m);
+	if (flags & U_ANGLE3)
+		new->angles[2] = ReadByte(m);
+
+
+	if (forcerelink || (flags & (U_ORIGIN1|U_ORIGIN2|U_ORIGIN3|U_MODEL)))
+	{
+		ent->leafcount = 
+				BSP_SphereLeafNums(tv->bsp, MAX_ENTITY_LEAFS, ent->leafs,
+				new->origin[0]/8.0f,
+				new->origin[1]/8.0f,
+				new->origin[2]/8.0f, 32);
+	}
+}
+
+static int ExpandFrame(unsigned int newmax, frame_t *frame)
+{
+	entity_state_t *newents;
+	unsigned short *newnums;
+
+	if (newmax < frame->maxents)
+		return true;
+
+	newmax += 16;
+
+	newents = malloc(sizeof(*newents) * newmax);
+	if (!newents)
+		return false;
+	newnums = malloc(sizeof(*newnums) * newmax);
+	if (!newnums)
+	{
+		free(newents);
+		return false;
+	}
+
+	memcpy(newents, frame->ents, sizeof(*newents) * frame->maxents);
+	memcpy(newnums, frame->entnums, sizeof(*newnums) * frame->maxents);
+
+	if (frame->ents)
+		free(frame->ents);
+	if (frame->entnums)
+		free(frame->entnums);
+	
+	frame->ents = newents;
+	frame->entnums = newnums;
+	frame->maxents = newmax;
+	return true;
+}
+
+static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
+{
+	frame_t *newframe;
+	frame_t *oldframe;
+	int oldcount;
+	int newnum, oldnum;
+	int newindex, oldindex;
+	unsigned int flags;
 
 	viewer_t *v;
 
@@ -762,6 +866,120 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m)
 			if (v->server == tv)
 				v->chokeme = false;
 		}
+
+
+	if (deltaframe != -1)
+		deltaframe &= (ENTITY_FRAMES-1);
+
+	if (tv->usequkeworldprotocols)
+	{
+		newframe = &tv->frame[tv->netchan.incoming_sequence & (ENTITY_FRAMES-1)];
+
+		if (newframe->oldframe != deltaframe)
+			Sys_Printf(tv->cluster, "Mismatching delta frames\n");
+	}
+	else
+	{
+		deltaframe = tv->netchan.incoming_sequence & (ENTITY_FRAMES-1);
+		tv->netchan.incoming_sequence++;
+		newframe = &tv->frame[tv->netchan.incoming_sequence & (ENTITY_FRAMES-1)];
+	}
+	if (deltaframe != -1)
+	{
+		oldframe = &tv->frame[deltaframe];
+		oldcount = oldframe->numents;
+	}
+	else
+	{
+		oldframe = NULL;
+		oldcount = 0;
+	}
+
+	oldindex = 0;
+	newindex = 0;
+
+//printf("frame\n");
+
+	for(;;)
+	{
+		newnum = readentitynum(m, &flags);
+		if (!newnum)
+		{
+			//end of packet
+			//any remaining old ents need to be copied to the new frame
+			while (oldindex < oldcount)
+			{
+//printf("Propogate (spare)\n");
+				if (!ExpandFrame(newindex, newframe))
+					break;
+
+				memcpy(&newframe->ents[newindex], &oldframe->ents[oldindex], sizeof(entity_state_t));
+				newframe->entnums[newindex] = oldframe->entnums[oldindex];
+				newindex++;
+				oldindex++;
+			}
+			break;
+		}
+
+		if (oldindex >= oldcount)
+			oldnum = 0xffff;
+		else
+			oldnum = oldframe->entnums[oldindex];
+		while(newnum > oldnum)
+		{
+//printf("Propogate (unchanged)\n");
+			if (!ExpandFrame(newindex, newframe))
+				break;
+
+			memcpy(&newframe->ents[newindex], &oldframe->ents[oldindex], sizeof(entity_state_t));
+			newframe->entnums[newindex] = oldframe->entnums[oldindex];
+			newindex++;
+			oldindex++;
+
+			if (oldindex >= oldcount)
+				oldnum = 0xffff;
+			else
+				oldnum = oldframe->entnums[oldindex];
+		}
+
+		if (newnum < oldnum)
+		{	//this ent wasn't in the last packet
+//printf("add\n");
+			if (flags & U_REMOVE)
+			{	//remove this ent... just don't copy it across.
+				//printf("add\n");
+				continue;
+			}
+
+			if (!ExpandFrame(newindex, newframe))
+				break;
+			ParseEntityDelta(tv, m, &tv->entity[newnum].baseline, &newframe->ents[newindex], flags, &tv->entity[newnum], true);
+			newframe->entnums[newindex] = newnum;
+			newindex++;
+		}
+		else if (newnum == oldnum)
+		{
+			if (flags & U_REMOVE)
+			{	//remove this ent... just don't copy it across.
+				//printf("add\n");
+				oldindex++;
+				continue;
+			}
+//printf("Propogate (changed)\n");
+			if (!ExpandFrame(newindex, newframe))
+				break;
+			ParseEntityDelta(tv, m, &oldframe->ents[oldindex], &newframe->ents[newindex], flags, &tv->entity[newnum], false);
+			newframe->entnums[newindex] = newnum;
+			newindex++;
+			oldindex++;
+		}
+
+	}
+
+	newframe->numents = newindex;
+return;
+
+/*
 
 	//luckilly, only updated entities are here, so that keeps cpu time down a bit.
 	for (;;)
@@ -825,6 +1043,7 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m)
 															tv->entity[entnum].current.origin[1]/8.0f,
 															tv->entity[entnum].current.origin[2]/8.0f, 32);
 	}
+*/
 }
 
 static void ParseUpdatePing(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -1524,12 +1743,11 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			break;
 
 		case svc_packetentities:
-			FlushPacketEntities(tv);
-			ParsePacketEntities(tv, &buf);
+//			FlushPacketEntities(tv);
+			ParsePacketEntities(tv, &buf, -1);
 			break;
 		case svc_deltapacketentities:
-			ReadByte(&buf);
-			ParsePacketEntities(tv, &buf);
+			ParsePacketEntities(tv, &buf, ReadByte(&buf));
 			break;
 
 //#define svc_maxspeed		49		// maxspeed change, for prediction
@@ -1561,3 +1779,4 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 		}
 	}
 }
+

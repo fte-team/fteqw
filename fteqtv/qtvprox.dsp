@@ -525,7 +525,31 @@ SOURCE=.\source.c
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
+SOURCE=.\viewer\common.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\cvar.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\d3drend\d3drenderer.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\glrenderer.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\maths.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\qtv.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\viewer\renderer.h
 # End Source File
 # End Group
 # Begin Group "Resource Files"

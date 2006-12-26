@@ -486,6 +486,27 @@ void catbuffer(char *buffer, int bufsize, char *format, ...)
 
 	Q_strncatz(buffer, string, bufsize);
 }
+
+char *Cmd_Say(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
+{
+	int i;
+	viewer_t *v;
+	char message[8192];
+	message[0] = '\0';
+	for (i = 1; i < MAX_ARGS; i++)
+		catbuffer(message, sizeof(message)-1, "%s%s", i==1?"":" ", arg[i]);
+
+	for (v = cluster->viewers; v; v = v->next)
+	{
+		if (v->server == qtv || !qtv)
+			QW_PrintfToViewer(v, "proxy: %s\n", message);
+	}
+
+	buffer[0] = '\0';
+	catbuffer(buffer, sizeofbuffer, "proxy: %s\n", message);
+	return buffer;
+}
+
 char *Cmd_Status(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
 
@@ -769,6 +790,24 @@ char *Cmd_MVDPort(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buff
 	}
 }
 
+#ifdef VIEWER
+char *Cmd_Watch(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
+{
+	if (!localcommand)
+		return "watch is not permitted remotly\n";
+
+	if (cluster->viewserver == qtv)
+	{
+		cluster->viewserver = NULL;
+		return "Stopped watching\n";
+	}
+
+	cluster->viewserver = qtv;
+
+	return "Watching\n";
+}
+#endif
+
 char *Cmd_Commands(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
 	return "fixme\n";
@@ -785,6 +824,7 @@ const rconcommands_t rconcommands[] =
 {
 	{"exec",		1, 1, Cmd_Exec},
 	{"status",		1, 1, Cmd_Status},
+	{"say",			1, 1, Cmd_Say},
 
 	{"help",		0, 1, Cmd_Help},
 	{"commands",	0, 1, Cmd_Commands},
@@ -816,12 +856,15 @@ const rconcommands_t rconcommands[] =
 
 
 
-
 	{"disconnect",	1, 0, Cmd_Disconnect},
 	{"record",		1, 0, Cmd_Record},
 	{"stop",		1, 0, Cmd_Stop},
 	{"tcpport",		1, 0, Cmd_MVDPort},
 	 {"mvdport",	1, 0, Cmd_MVDPort},
+
+#ifdef VIEWER
+	{"watch",		1, 0, Cmd_Watch},
+#endif
 	 
 	{NULL}
 };

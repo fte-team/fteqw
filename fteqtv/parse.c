@@ -242,6 +242,7 @@ void Broadcast(cluster_t *cluster, char *buffer, int length, int suitablefor)
 
 static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playermask)
 {
+	int i;
 	int protocol;
 	viewer_t *v;
 
@@ -303,6 +304,10 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 	memset(tv->players, 0, sizeof(tv->players));
 
 
+	for (i = 0; i < MAX_ENTITY_FRAMES; i++)
+	{
+		tv->frame[i].numents = 0;
+	}
 
 	if (tv->usequkeworldprotocols)
 	{

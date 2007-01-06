@@ -39,6 +39,7 @@ cvar_t	cl_smartjump = SCVAR("cl_smartjump", "1");
 cvar_t	cl_prydoncursor = SCVAR("cl_prydoncursor", "0");	//for dp protocol
 cvar_t	cl_instantrotate = SCVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
 
+cvar_t	prox_inmenu = SCVAR("prox_inmenu", "0");
 
 usercmd_t independantphysics[MAX_SPLITS];
 
@@ -388,7 +389,32 @@ float CL_KeyState (kbutton_t *key, int pnum)
 	return val;
 }
 
+void CL_ProxyMenuHook(char *command, kbutton_t *key)
+{
+	if ((key->state[0] & 3) == 3)	//2 is impulse down, 1 is held down
+	{
+		key->state[0] = 0;		// clear impulses
 
+		Cbuf_AddText(command, RESTRICT_DEFAULT);
+	}
+}
+
+void CL_ProxyMenuHooks(void)
+{
+	if (!prox_inmenu.value)
+		return;
+
+	CL_ProxyMenuHook("say proxy:menu down\n", &in_back);
+	CL_ProxyMenuHook("say proxy:menu up\n", &in_forward);
+
+	CL_ProxyMenuHook("say proxy:menu left\n", &in_left);
+	CL_ProxyMenuHook("say proxy:menu right\n", &in_right);
+
+	CL_ProxyMenuHook("say proxy:menu left\n", &in_moveleft);
+	CL_ProxyMenuHook("say proxy:menu right\n", &in_moveright);
+
+	CL_ProxyMenuHook("say proxy:menu use\n", &in_jump);
+}
 
 
 //==========================================================================
@@ -1088,6 +1114,8 @@ void CL_SendCmd (float frametime)
 
 	extern cvar_t cl_maxfps;
 
+	CL_ProxyMenuHooks();
+
 	if (cls.demoplayback != DPB_NONE)
 	{
 		if (cls.demoplayback == DPB_MVD)
@@ -1590,6 +1618,8 @@ void CL_InitInput (void)
 	Cmd_AddCommand("in_restart", IN_Restart);
 
 	Cvar_Register (&cl_nodelta, inputnetworkcvargroup);
+
+	Cvar_Register (&prox_inmenu, inputnetworkcvargroup);
 
 	Cvar_Register (&cl_c2sImpulseBackup, inputnetworkcvargroup);
 	Cvar_Register (&cl_c2spps, inputnetworkcvargroup);

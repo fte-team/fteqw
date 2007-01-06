@@ -786,13 +786,16 @@ void SV_GenerateQTVDemoListing(cluster_t *cluster, oproxy_t *dest)
 			WIN32_FIND_DATA ffd;
 			HANDLE h;
 			h = FindFirstFile("*.mvd", &ffd);
-			do
+			if (h != INVALID_HANDLE_VALUE)
 			{
-				numdemos++;
-				snprintf(link, sizeof(link), "<A HREF=\"watch.qtv?demo=%s\">%s</A><br/>", ffd.cFileName, ffd.cFileName);
-				Net_ProxySend(cluster, dest, link, strlen(link));
-			} while(FindNextFile(h, &ffd));
-			FindClose(h);
+				do
+				{
+					numdemos++;
+					snprintf(link, sizeof(link), "<A HREF=\"watch.qtv?demo=%s\">%s</A><br/>", ffd.cFileName, ffd.cFileName);
+					Net_ProxySend(cluster, dest, link, strlen(link));
+				} while(FindNextFile(h, &ffd));
+				FindClose(h);
+			}
 		}
 #else
 		{
@@ -891,7 +894,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	if (pend->inbuffersize >= 4)
 	{
-		if (strncmp(pend->inbuffer, "QTV\n", 4) && strncmp(pend->inbuffer, "GET ", 4) && strncmp(pend->inbuffer, "POST ", 5))
+		if (strncmp(pend->inbuffer, "QTV\r", 4) && strncmp(pend->inbuffer, "QTV\n", 4) && strncmp(pend->inbuffer, "GET ", 4) && strncmp(pend->inbuffer, "POST ", 5))
 		{	//I have no idea what the smeg you are.
 			pend->drop = true;
 			return false;
@@ -1026,7 +1029,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	s = e;
 	while(*e)
 	{
-		if (*e == '\n')
+		if (*e == '\n' || *e == '\r')
 		{
 			*e = '\0';
 			colon = strchr(s, ':');

@@ -864,8 +864,9 @@ void QTV_Shutdown(sv_t *qtv)
 	{
 		if (v->server == qtv)
 		{
-			QW_SetViewersServer(v, NULL);
-			QW_SetMenu(v, MENU_SERVERS);
+			QW_SetViewersServer(qtv->cluster, v, NULL);
+			QW_SetMenu(v, MENU_NONE);
+			QTV_Say(cluster, v->server, v, ".menu", false);
 			QW_PrintfToViewer(v, "Stream %s is closing\n", qtv->server);
 		}
 	}

@@ -36,7 +36,14 @@ struct bsp_s {
 
 	unsigned char decpvs[(MAX_MAP_LEAFS+7)/8];	//decompressed pvs
 	int pvsbytecount;
+
+
+
+	int numintermissionspots;
+	intermission_t intermissionspot[8];
 };
+
+static const intermission_t intermissionspot;
 
 
 typedef struct
@@ -113,10 +120,152 @@ void DecompressVis(unsigned char *in, unsigned char *out, int bytecount)
 	}
 }
 
+void BSP_LoadEntities(bsp_t *bsp, char *entitydata)
+{
+	char *v;
+	char key[2048];
+	char value[2048];
+
+	enum {et_random, et_startspot, et_primarystart, et_intermission} etype;
+
+	float org[3];
+	float angles[3];
+
+	qboolean foundstartspot = false;
+	float startspotorg[3];
+	float startspotangles[3];
+
+	//char *COM_ParseToken (char *data, char *out, int outsize, const char *punctuation)
+	while (entitydata)
+	{
+		entitydata = COM_ParseToken(entitydata, key, sizeof(key), NULL);
+		if (!entitydata)
+			break;
+
+		if (!strcmp(key, "{"))
+		{
+			org[0] = 0;
+			org[1] = 0;
+			org[2] = 0;
+
+			angles[0] = 0;
+			angles[1] = 0;
+			angles[2] = 0;
+			etype = et_random;
+
+			for(;;)
+			{
+
+				if(!entitydata)
+				{
+					printf("unexpected eof in bsp entities section\n");
+					return;
+				}
+
+				entitydata = COM_ParseToken(entitydata, key, sizeof(key), NULL);
+				if (!strcmp(key, "}"))
+					break;
+				
+				entitydata = COM_ParseToken(entitydata, value, sizeof(value), NULL);
+
+				if (!strcmp(key, "origin"))
+				{
+					v = value;
+					v = COM_ParseToken(v, key, sizeof(key), NULL);
+					org[0] = atof(key);
+					v = COM_ParseToken(v, key, sizeof(key), NULL);
+					org[1] = atof(key);
+					v = COM_ParseToken(v, key, sizeof(key), NULL);
+					org[2] = atof(key);
+				}
+
+				if (!strcmp(key, "angles") || !strcmp(key, "angle") || !strcmp(key, "mangle"))
+				{
+					v = value;
+					v = COM_ParseToken(v, key, sizeof(key), NULL);
+					angles[0] = atof(key);
+					v = COM_ParseToken(v, key, sizeof(key), NULL);
+					if (v)
+					{
+						angles[1] = atof(key);
+						v = COM_ParseToken(v, key, sizeof(key), NULL);
+						angles[2] = atof(key);
+					}
+					else
+					{
+						angles[1] = angles[0];
+						angles[0] = 0;
+						angles[2] = 0;
+					}
+				}
+
+
+				if (!strcmp(key, "classname"))
+				{
+					if (!strcmp(value, "info_player_start"))
+						etype = et_primarystart;
+					if (!strcmp(value, "info_deathmatch_start"))
+						etype = et_startspot;
+					if (!strcmp(value, "info_intermission"))
+						etype = et_intermission;
+				}
+			}
+
+			switch (etype)
+			{
+			case et_primarystart:	//a single player start
+				memcpy(startspotorg, org, sizeof(startspotorg));
+				memcpy(startspotangles, angles, sizeof(startspotangles));
+				foundstartspot = true;
+				break;
+			case et_startspot:
+				if (!foundstartspot)
+				{
+					memcpy(startspotorg, org, sizeof(startspotorg));
+					memcpy(startspotangles, angles, sizeof(startspotangles));
+					foundstartspot = true;
+				}
+				break;
+			case et_intermission:
+				if (bsp->numintermissionspots < sizeof(bsp->intermissionspot)/sizeof(bsp->intermissionspot[0]))
+				{
+					bsp->intermissionspot[bsp->numintermissionspots].pos[0] = org[0];
+					bsp->intermissionspot[bsp->numintermissionspots].pos[1] = org[1];
+					bsp->intermissionspot[bsp->numintermissionspots].pos[2] = org[2];
+
+					bsp->intermissionspot[bsp->numintermissionspots].angle[0] = angles[0];
+					bsp->intermissionspot[bsp->numintermissionspots].angle[1] = angles[1];
+					bsp->intermissionspot[bsp->numintermissionspots].angle[2] = angles[2];
+					bsp->numintermissionspots++;
+				}
+				break;
+			}
+		}
+		else
+		{
+			printf("data not expected here\n");
+			return;
+		}
+	}
+
+	if (foundstartspot && !bsp->numintermissionspots)
+	{
+		bsp->intermissionspot[bsp->numintermissionspots].pos[0] = startspotorg[0];
+		bsp->intermissionspot[bsp->numintermissionspots].pos[1] = startspotorg[1];
+		bsp->intermissionspot[bsp->numintermissionspots].pos[2] = startspotorg[2];
+
+		bsp->intermissionspot[bsp->numintermissionspots].angle[0] = startspotangles[0];
+		bsp->intermissionspot[bsp->numintermissionspots].angle[1] = startspotangles[1];
+		bsp->intermissionspot[bsp->numintermissionspots].angle[2] = startspotangles[2];
+		bsp->numintermissionspots++;
+	}
+}
+
 bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 {
 	unsigned char *data;
 	unsigned int size;
+	char *entdata;
 
 	dheader_t *header;
 	dplane_t *planes;
@@ -159,10 +308,13 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 	nodes = (dnode_t*)(data+LittleLong(header->lumps[LUMP_NODES].fileofs));
 	leaf = (dleaf_t*)(data+LittleLong(header->lumps[LUMP_LEAFS].fileofs));
 
+	entdata = (char*)(data+LittleLong(header->lumps[LUMP_ENTITIES].fileofs));
+
 	numnodes = LittleLong(header->lumps[LUMP_NODES].filelen)/sizeof(dnode_t);
 	numleafs = LittleLong(header->lumps[LUMP_LEAFS].filelen)/sizeof(dleaf_t);
 
 	bsp = malloc(sizeof(bsp_t) + sizeof(node_t)*numnodes + LittleLong(header->lumps[LUMP_VISIBILITY].filelen) + sizeof(unsigned char *)*numleafs);
+	bsp->numintermissionspots = 0;
 	if (bsp)
 	{
 		bsp->fullchecksum = 0;
@@ -203,6 +355,8 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 				bsp->pvsofs[i] = bsp->pvslump+leaf[i].visofs;
 		}
 	}
+
+	BSP_LoadEntities(bsp, entdata);
 
 	free(data);
 
@@ -318,3 +472,16 @@ void BSP_SetupForPosition(bsp_t *bsp, float x, float y, float z)
 	DecompressVis(bsp->pvsofs[leafnum], bsp->decpvs, bsp->pvsbytecount);
 }
 
+const intermission_t *BSP_IntermissionSpot(bsp_t *bsp)
+{
+	int spotnum;
+	if (bsp)
+	{
+		if (bsp->numintermissionspots>0)
+		{
+			spotnum = rand()%bsp->numintermissionspots;
+			return &bsp->intermissionspot[spotnum];
+		}
+	}
+	return &intermissionspot;
+}

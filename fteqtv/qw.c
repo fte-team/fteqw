@@ -23,6 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static const filename_t ConnectionlessModelList[] = {{""}, {"maps/start.bsp"}, {"progs/player.mdl"}, {""}};
 static const filename_t ConnectionlessSoundList[] = {{""}, {""}};
 
+void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean noupwards);
+
 void QTV_DefaultMovevars(movevars_t *vars)
 {
 	vars->gravity = 800;
@@ -620,8 +622,26 @@ int SendList(sv_t *qtv, int first, const filename_t *list, int svc, netmsg_t *ms
 	return i;
 }
 
-void QW_SetViewersServer(viewer_t *viewer, sv_t *sv)
+void QW_StreamPrint(cluster_t *cluster, sv_t *server, viewer_t *allbut, char *message)
 {
+	viewer_t *v;
+
+	for (v = cluster->viewers; v; v = v->next)
+	{
+		if (v->server == server)
+		{
+			if (v == allbut)
+				continue;
+			QW_PrintfToViewer(v, "%s", message);
+		}
+	}
+}
+
+void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv)
+{
+	char buffer[1024];
+	sv_t *oldserver;
+	oldserver = viewer->server;
 	if (viewer->server)
 		viewer->server->numviewers--;
 	viewer->server = sv;
@@ -635,6 +655,17 @@ void QW_SetViewersServer(viewer_t *viewer, sv_t *sv)
 	viewer->origin[0] = 0;
 	viewer->origin[1] = 0;
 	viewer->origin[2] = 0;
+
+	if (sv != oldserver)
+	{
+		if (sv)
+		{
+			snprintf(buffer, sizeof(buffer), "%cQTV%c%s leaves to watch %s (%i)\n", 91+128, 93+128, viewer->name, *sv->hostname?sv->hostname:sv->server, sv->streamid);
+			QW_StreamPrint(cluster, oldserver, viewer, buffer);
+		}
+		snprintf(buffer, sizeof(buffer), "%cQTV%c%s joins the stream\n", 91+128, 93+128, viewer->name);
+		QW_StreamPrint(cluster, sv, viewer, buffer);
+	}
 }
 
 //fixme: will these want to have state?..
@@ -655,16 +686,8 @@ void NewClient(cluster_t *cluster, viewer_t *viewer)
 	viewer->timeout = cluster->curtime + 15*1000;
 	viewer->trackplayer = -1;
 
-
-	if (!viewer->server)
-	{
-		QW_SetMenu(viewer, MENU_SERVERS);
-	}
-	else
-	{
-		viewer->menunum = -1;
-		QW_SetMenu(viewer, MENU_NONE);
-	}
+	viewer->menunum = -1;
+	QW_SetMenu(viewer, MENU_NONE);
 
 
 	QW_PrintfToViewer(viewer, "Welcome to FTEQTV build %i\n", cluster->buildnumber);
@@ -682,11 +705,22 @@ void NewClient(cluster_t *cluster, viewer_t *viewer)
 		QW_StuffcmdToViewer(viewer, "alias \"proxy:menu\" \"say proxy:menu\"\n");
 		QW_StuffcmdToViewer(viewer, "alias \"proxy:backspace\" \"say proxy:menu backspace\"\n");
 
+		QW_StuffcmdToViewer(viewer, "alias \".help\" \"say .help\"\n");
+		QW_StuffcmdToViewer(viewer, "alias \".disconnect\" \"say .disconnect\"\n");
+		QW_StuffcmdToViewer(viewer, "alias \".menu\" \"say .menu\"\n");
+		QW_StuffcmdToViewer(viewer, "alias \".admin\" \"say .admin\"\n");
+		QW_StuffcmdToViewer(viewer, "alias \".reset\" \"say .reset\"\n");
+		QW_StuffcmdToViewer(viewer, "alias \".clients\" \"say .clients\"\n");
+//		QW_StuffcmdToViewer(viewer, "alias \".qtv\" \"say .qtv\"\n");
+//		QW_StuffcmdToViewer(viewer, "alias \".join\" \"say .join\"\n");
+//		QW_StuffcmdToViewer(viewer, "alias \".observe\" \"say .observe\"\n");
+
 	QW_PrintfToViewer(viewer, "Type admin for the admin menu\n");
 }
 
 void ParseUserInfo(cluster_t *cluster, viewer_t *viewer)
 {
+	char buf[1024];
 	float rate;
 	char temp[64];
 	Info_ValueForKey(viewer->userinfo, "name", temp, sizeof(temp));
@@ -695,6 +729,27 @@ void ParseUserInfo(cluster_t *cluster, viewer_t *viewer)
 		strcpy(temp, "unnamed");
 	if (!*viewer->name)
 		Sys_Printf(cluster, "Viewer %s connected\n", temp);
+
+	if (strcmp(viewer->name, temp))
+	{
+		if (*viewer->name)
+		{
+			snprintf(buf, sizeof(buf), "%cQTV%c%s changed name to %cQTV%c%s\n", 
+					91+128, 93+128, viewer->name,
+					91+128, 93+128, temp
+					);
+		}
+		else
+		{
+			snprintf(buf, sizeof(buf), "%cQTV%c%s joins the stream\n", 
+					91+128, 93+128, temp
+					);
+
+		}
+
+		QW_StreamPrint(cluster, viewer->server, NULL, buf);
+	}
+
 	Q_strncpyz(viewer->name, temp, sizeof(viewer->name));
 
 	Info_ValueForKey(viewer->userinfo, "rate", temp, sizeof(temp));
@@ -855,6 +910,8 @@ void QW_SetMenu(viewer_t *v, int menunum)
 	{
 		if (menunum != MENU_NONE)
 		{
+			QW_StuffcmdToViewer(v, "//set prox_inmenu 1\n");
+
 			QW_StuffcmdToViewer(v, "alias \"+proxfwd\" \"proxy:up\"\n");
 			QW_StuffcmdToViewer(v, "alias \"+proxback\" \"proxy:down\"\n");
 			QW_StuffcmdToViewer(v, "alias \"+proxleft\" \"proxy:left\"\n");
@@ -867,6 +924,8 @@ void QW_SetMenu(viewer_t *v, int menunum)
 		}
 		else
 		{
+			QW_StuffcmdToViewer(v, "//set prox_inmenu 0\n");
+
 			QW_StuffcmdToViewer(v, "alias \"+proxfwd\" \"+forward\"\n");
 			QW_StuffcmdToViewer(v, "alias \"+proxback\" \"+back\"\n");
 			QW_StuffcmdToViewer(v, "alias \"+proxleft\" \"+moveleft\"\n");
@@ -1419,7 +1478,6 @@ void SendNQClientData(sv_t *tv, viewer_t *v, netmsg_t *msg)
 
 void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg)
 {
-	int miss;
 	int e;
 	int i;
 	usercmd_t to;
@@ -2139,7 +2197,7 @@ void PMove(viewer_t *v, usercmd_t *cmd)
 	v->velocity[2] = pmove.velocity[2];
 }
 
-void QW_SetCommentator(viewer_t *v, viewer_t *commentator)
+void QW_SetCommentator(cluster_t *cluster, viewer_t *v, viewer_t *commentator)
 {
 //	if (v->commentator == commentator)
 //		return;
@@ -2154,7 +2212,7 @@ void QW_SetCommentator(viewer_t *v, viewer_t *commentator)
 		QW_PrintfToViewer(v, "Following commentator %s\n", commentator->name);
 
 		if (v->server != commentator->server)
-			QW_SetViewersServer(v, commentator->server);
+			QW_SetViewersServer(cluster, v, commentator->server);
 	}
 	else
 	{
@@ -2195,7 +2253,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 			qtv = QTV_NewServerConnection(cluster, buf, "", false, false, false);
 			if (qtv)
 			{
-				QW_SetViewersServer(v, qtv);
+				QW_SetViewersServer(cluster, v, qtv);
 				QW_PrintfToViewer(v, "Connected\n", message);
 			}
 			else
@@ -2215,6 +2273,19 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 				Sys_Printf(cluster, "Player %s gets incorrect admin password\n", v->name);
 			}
 		}
+		else if (!strcmp(v->expectcommand, "insecadddemo"))
+		{
+			snprintf(buf, sizeof(buf), "file:%s", message);
+			qtv = QTV_NewServerConnection(cluster, buf, "", false, false, false);
+			if (!qtv)
+				QW_PrintfToViewer(v, "Failed to play demo \"%s\"\n", message);
+			else
+			{
+				QW_SetViewersServer(cluster, v, qtv);
+				QW_PrintfToViewer(v, "Opened demo file.\n", message);
+			}
+		}
+		
 		else if (!strcmp(v->expectcommand, "adddemo"))
 		{
 			snprintf(buf, sizeof(buf), "file:%s", message);
@@ -2223,7 +2294,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 				QW_PrintfToViewer(v, "Failed to play demo \"%s\"\n", message);
 			else
 			{
-				QW_SetViewersServer(v, qtv);
+				QW_SetViewersServer(cluster, v, qtv);
 				QW_PrintfToViewer(v, "Opened demo file.\n", message);
 			}
 		}
@@ -2277,11 +2348,41 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 								".bind\n"
 								);
 	}
+
+	else if (!strncmp(message, ".menu", 5))
+	{
+		message += 5;
+
+		if (v->conmenussupported)
+			goto guimenu;
+		else
+			goto tuimenu;
+	}
+
+	else if (!strncmp(message, ".tuimenu", 8))
+	{
+		message += 8;
+
+tuimenu:
+		if (v->menunum)
+			QW_SetMenu(v, MENU_NONE);
+		else
+			QW_SetMenu(v, MENU_SERVERS);
+	}
 	else if (!strncmp(message, ".guimenu", 8))
 	{
 		sv_t *sv;
 		int y;
-		qboolean shownheader = false;
+		qboolean shownheader;
+
+		message += 8;
+
+guimenu:
+
+		QW_SetMenu(v, MENU_NONE);
+
+		shownheader = false;
+
 		QW_StuffcmdToViewer(v, 
 
 			"alias menucallback\n"
@@ -2402,15 +2503,8 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 	}
 	else if (!strncmp(message, ".reset", 6))
 	{
-		QW_SetViewersServer(v, NULL);
+		QW_SetViewersServer(cluster, v, NULL);
 		QW_SetMenu(v, MENU_SERVERS);
-	}
-	else if (!strncmp(message, ".menu", 5))
-	{
-		if (v->menunum)
-			QW_SetMenu(v, MENU_NONE);
-		else
-			QW_SetMenu(v, MENU_SERVERS);
 	}
 	else if (!strncmp(message, ".admin", 6))
 	{
@@ -2444,7 +2538,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
-			QW_SetViewersServer(v, qtv);
+			QW_SetViewersServer(cluster, v, qtv);
 			QW_PrintfToViewer(v, "Connected\n", message);
 		}
 		else
@@ -2458,7 +2552,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
-			QW_SetViewersServer(v, qtv);
+			QW_SetViewersServer(cluster, v, qtv);
 			qtv->controller = v;
 			QW_PrintfToViewer(v, "Connected\n", message);
 		}
@@ -2473,7 +2567,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
-			QW_SetViewersServer(v, qtv);
+			QW_SetViewersServer(cluster, v, qtv);
 			QW_PrintfToViewer(v, "Connected\n", message);
 		}
 		else
@@ -2494,7 +2588,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
-			QW_SetViewersServer(v, qtv);
+			QW_SetViewersServer(cluster, v, qtv);
 			QW_PrintfToViewer(v, "Connected\n", message);
 		}
 		else
@@ -2510,7 +2604,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
-			QW_SetViewersServer(v, qtv);
+			QW_SetViewersServer(cluster, v, qtv);
 			QW_PrintfToViewer(v, "Connected\n", message);
 		}
 		else
@@ -2519,7 +2613,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 	else if (!strncmp(message, ".disconnect", 11))
 	{
 		QW_SetMenu(v, MENU_SERVERS);
-		QW_SetViewersServer(v, NULL);
+		QW_SetViewersServer(cluster, v, NULL);
 		QW_PrintfToViewer(v, "Connected\n", message);
 	}
 	else if (!strncmp(message, "admin", 11))
@@ -2544,12 +2638,12 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 				if (ov->server)
 				{
 					if (ov->server->controller == ov)
-						QW_PrintfToViewer(v, "%s: %s\n", ov->name, ov->server->server);
+						QW_PrintfToViewer(v, "%i: %s: %s\n", ov->userid, ov->name, ov->server->server);
 					else
-						QW_PrintfToViewer(v, "%s: %s\n", ov->name, ov->server->server);
+						QW_PrintfToViewer(v, "%i: %s: %s\n", ov->userid, ov->name, ov->server->server);
 				}
 				else
-					QW_PrintfToViewer(v, "%s: %s\n", ov->name, "None");
+					QW_PrintfToViewer(v, "%i: %s: %s\n", ov->userid, ov->name, "None");
 			}
 			else
 				remaining++;
@@ -2557,21 +2651,21 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		if (remaining)
 			QW_PrintfToViewer(v, "%i clients not shown\n", remaining);
 	}
-	else if (!strncmp(message, ".followid ", 8))
+	else if (!strncmp(message, ".followid ", 10))
 	{
-		int id = atoi(message+8);
+		int id = atoi(message+10);
 		viewer_t *cv;
 
 		for (cv = cluster->viewers; cv; cv = cv->next)
 		{
 			if (cv->userid == id)
 			{
-				QW_SetCommentator(v, cv);
+				QW_SetCommentator(cluster, v, cv);
 				return;
 			}
 		}
 		QW_PrintfToViewer(v, "Couldn't find that player\n");
-		QW_SetCommentator(v, NULL);
+		QW_SetCommentator(cluster, v, NULL);
 	}
 	else if (!strncmp(message, ".follow ", 8))
 	{
@@ -2582,16 +2676,16 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		{
 			if (!strcmp(cv->name, id))
 			{
-				QW_SetCommentator(v, cv);
+				QW_SetCommentator(cluster, v, cv);
 				return;
 			}
 		}
 		QW_PrintfToViewer(v, "Couldn't find that player\n");
-		QW_SetCommentator(v, NULL);
+		QW_SetCommentator(cluster, v, NULL);
 	}
 	else if (!strncmp(message, ".follow", 7))
 	{
-		QW_SetCommentator(v, NULL);
+		QW_SetCommentator(cluster, v, NULL);
 	}
 	else if (!strncmp(message, "proxy:menu up", 13))
 	{
@@ -2659,6 +2753,52 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 
 		QW_PrintfToViewer(v, "All keys bound not recognised\n");
 	}
+	else if (!strncmp(message, ".bsay ", 6))
+	{
+		viewer_t *ov;
+		if (cluster->notalking)
+			return;
+
+		message += 6;
+
+		for (ov = cluster->viewers; ov; ov = ov->next)
+		{
+			InitNetMsg(&msg, buf, sizeof(buf));
+
+			WriteByte(&msg, svc_print);
+
+			if (ov->netchan.isnqprotocol)
+				WriteByte(&msg, 1);
+			else
+			{
+				if (ov->conmenussupported)
+				{
+					WriteByte(&msg, 3);	//PRINT_CHAT
+					WriteString2(&msg, "[^sBQTV^s]^s^5");
+				}
+				else
+				{
+					WriteByte(&msg, 2);	//PRINT_HIGH
+					WriteByte(&msg, 91+128);
+					WriteString2(&msg, "BQTV");
+					WriteByte(&msg, 93+128);
+					WriteByte(&msg, 0);
+
+					WriteByte(&msg, svc_print);
+					WriteByte(&msg, 3);	//PRINT_CHAT
+
+				}
+			}
+
+			WriteString2(&msg, v->name);
+			WriteString2(&msg, ": ");
+//				WriteString2(&msg, "\x8d ");
+			WriteString2(&msg, message);
+			WriteString(&msg, "\n");
+
+			SendBufferToViewer(ov, msg.data, msg.cursize, true);
+		}
+	}
 	else if (!strncmp(message, ".", 1) && strncmp(message, "..", 2))
 	{
 		QW_PrintfToViewer(v, "Proxy command not recognised\n");
@@ -2709,16 +2849,25 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 					if (ov->conmenussupported)
 					{
 						WriteByte(&msg, 3);	//PRINT_CHAT
-						WriteString2(&msg, "^s^5");
+						WriteString2(&msg, "[^sQTV^s]^s^5");
 					}
 					else
 					{
+						WriteByte(&msg, 2);	//PRINT_HIGH
+						WriteByte(&msg, 91+128);
+						WriteString2(&msg, "QTV");
+						WriteByte(&msg, 93+128);
+						WriteByte(&msg, 0);
+
+						WriteByte(&msg, svc_print);
 						WriteByte(&msg, 3);	//PRINT_CHAT
+
 					}
 				}
 
 				WriteString2(&msg, v->name);
-				WriteString2(&msg, "\x8d ");
+				WriteString2(&msg, ": ");
+//				WriteString2(&msg, "\x8d ");
 				WriteString2(&msg, message);
 				WriteString(&msg, "\n");
 
@@ -2765,6 +2914,37 @@ void QW_StuffcmdToViewer(viewer_t *v, char *format, ...)
 
 	buf[0] = svc_stufftext;
 	SendBufferToViewer(v, buf, strlen(buf)+1, true);
+}
+
+void QW_PositionAtIntermission(sv_t *qtv, viewer_t *v)
+{
+	netmsg_t msg;
+	char buf[4];
+	const intermission_t *spot;
+
+
+	if (qtv)
+		spot = BSP_IntermissionSpot(qtv->bsp);
+	else
+		spot = BSP_IntermissionSpot(NULL);
+
+
+	v->origin[0] = spot->pos[0];
+	v->origin[1] = spot->pos[1];
+	v->origin[2] = spot->pos[2];
+
+
+	msg.data = buf;
+	msg.maxsize = sizeof(buf);
+	msg.cursize = 0;
+	msg.overflowed = 0;
+
+	WriteByte (&msg, svc_setangle);
+	WriteByte (&msg, (spot->angle[0]/360) * 256);
+	WriteByte (&msg, (spot->angle[1]/360) * 256);
+	WriteByte (&msg, 0);//spot->angle[2]);
+
+	SendBufferToViewer(v, msg.data, msg.cursize, true);
 }
 
 void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
@@ -2861,11 +3041,21 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				SendNQSpawnInfoToViewer(cluster, v, &msg);
 				SendBufferToViewer(v, msg.data, msg.cursize, true);
 
+				QW_PositionAtIntermission(qtv, v);
+
 				v->thinksitsconnected = true;
 			}
 			else if (!strncmp(buf, "begin", 5))
 			{
+				int oldmenu;
 				v->thinksitsconnected = true;
+
+				oldmenu = v->menunum;
+				QW_SetMenu(v, MENU_NONE);
+				QW_SetMenu(v, oldmenu);
+
+				if (!v->server)
+					QTV_Say(cluster, v->server, v, ".menu", false);
 			}
 
 			else if (!strncmp(buf, "say \"", 5))
@@ -2930,12 +3120,14 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 //	usercmd_t	oldest, oldcmd, newcmd;
 	char buf[1024];
 	netmsg_t msg;
+	int i;
 
 	v->delta_frame = -1;
 
 	while (m->readpos < m->cursize)
 	{
-		switch (ReadByte(m))
+		i = ReadByte(m);
+		switch (i)
 		{
 		case clc_nop:
 			return;
@@ -3075,9 +3267,12 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				char skin[64];
 				sprintf(skin, "%cskins\n", svc_stufftext);
 				SendBufferToViewer(v, skin, strlen(skin)+1, true);
+
+				QW_PositionAtIntermission(qtv, v);
 			}
 			else if (!strncmp(buf, "begin", 5))
 			{
+				int oldmenu;
 				viewer_t *com;
 				if (atoi(buf+6) != v->servercount)
 					SendServerData(qtv, v);	//this is unfortunate!
@@ -3089,11 +3284,20 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 						char msgb[] = {svc_setpause, 1};
 						SendBufferToViewer(v, msgb, sizeof(msgb), true);
 					}
-				}
 
-				com = v->commentator;
-				v->commentator = NULL;
-				QW_SetCommentator(v, com);
+					oldmenu = v->menunum;
+					QW_SetMenu(v, MENU_NONE);
+					QW_SetMenu(v, oldmenu);
+				
+
+					com = v->commentator;
+					v->commentator = NULL;
+					QW_SetCommentator(cluster, v, com);
+
+
+					if (!v->server)
+						QTV_Say(cluster, v->server, v, ".menu", false);
+				}
 			}
 			else if (!strncmp(buf, "download", 8))
 			{
@@ -3132,7 +3336,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			else if (!strncmp(buf, "ptrack", 6))
 			{
 				v->trackplayer = -1;
-				QW_SetCommentator(v, NULL);
+				QW_SetCommentator(cluster, v, NULL);
 			}
 			else if (!strncmp(buf, "pings", 5))
 			{
@@ -3259,6 +3463,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			return;
 
 		default:
+			Sys_Printf(cluster, "bad clc from %s\n", v->name);
 			v->drop = true;
 			return;
 		}
@@ -3326,7 +3531,7 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 					}
 					else*/
 					{
-						QW_SetViewersServer(viewer, sv);
+						QW_SetViewersServer(cluster, viewer, sv);
 						QW_SetMenu(viewer, MENU_NONE);
 						viewer->thinksitsconnected = false;
 					}
@@ -3406,6 +3611,10 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 	unsigned char *s;
 
 	netmsg_t m;
+
+	if (viewer->backbuffered)
+		return;
+
 	InitNetMsg(&m, buffer, sizeof(buffer));
 
 	WriteByte(&m, svc_centerprint);
@@ -3594,11 +3803,15 @@ static const char dropcmd[] = {svc_stufftext, 'd', 'i', 's', 'c', 'o', 'n', 'n',
 
 void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer)
 {
+	char buf[1024];
 	viewer_t *oview;
 	int i;
 	//note: unlink them yourself.
 
-//	Sys_Printf(cluster, "Dropping viewer %s\n", viewer->name);
+	snprintf(buf, sizeof(buf), "%cQTV%c%s leaves the proxy\n", 91+128, 93+128, viewer->name);
+	QW_StreamPrint(cluster, viewer->server, NULL, buf);
+
+	Sys_Printf(cluster, "Dropping viewer %s\n", viewer->name);
 
 	//spam them thrice, then forget about them
 	Netchan_Transmit(cluster, &viewer->netchan, strlen(dropcmd)+1, dropcmd);
@@ -3622,7 +3835,7 @@ void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer)
 	for (oview = cluster->viewers; oview; oview = oview->next)
 	{
 		if (oview->commentator == viewer)
-			QW_SetCommentator(oview, NULL);
+			QW_SetCommentator(cluster, oview, NULL);
 	}
 
 	free(viewer);
@@ -3803,6 +4016,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 								{
 									if (Net_CompareAddress(&v->netchan.remote_address, &from, 0, 0))
 									{
+										Sys_Printf(cluster, "Dup connect from %s\n", v->name);
 										v->drop = true;
 									}
 								}

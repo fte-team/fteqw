@@ -527,6 +527,14 @@ char *Cmd_Status(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffe
 		catbuffer(buffer, sizeofbuffer, " Talking allowed\n");
 	if (cluster->nobsp)
 		catbuffer(buffer, sizeofbuffer, " No BSP loading\n");
+	if (cluster->tcpsocket != INVALID_SOCKET)
+	{
+		catbuffer(buffer, sizeofbuffer, " tcp port %i\n", cluster->tcplistenportnum);
+	}
+	if (cluster->tcpsocket != INVALID_SOCKET)
+	{
+		catbuffer(buffer, sizeofbuffer, " udp port %i\n", cluster->qwlistenportnum);
+	}
 	catbuffer(buffer, sizeofbuffer, "\n");
 
 
@@ -556,6 +564,9 @@ char *Cmd_Status(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffe
 		}
 		if (*qtv->connectpassword)
 			catbuffer(buffer, sizeofbuffer, "Using a password\n");
+
+		if (qtv->disconnectwhennooneiswatching)
+			catbuffer(buffer, sizeofbuffer, "Stream is temporary\n");
 
 		if (qtv->tcpsocket != INVALID_SOCKET)
 		{
@@ -762,11 +773,11 @@ char *Cmd_MVDPort(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buff
 
 	if (!newp)
 	{
-		if (qtv->tcpsocket != INVALID_SOCKET)
+		if (cluster->tcpsocket != INVALID_SOCKET)
 		{
-			closesocket(qtv->tcpsocket);
-			qtv->tcpsocket = INVALID_SOCKET;
-			qtv->tcplistenportnum = 0;
+			closesocket(cluster->tcpsocket);
+			cluster->tcpsocket = INVALID_SOCKET;
+			cluster->tcplistenportnum = 0;
 
 			return "mvd port is now closed\n";
 		}
@@ -778,11 +789,10 @@ char *Cmd_MVDPort(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buff
 
 		if (news != INVALID_SOCKET)
 		{
-			if (qtv->tcpsocket != INVALID_SOCKET)
-				closesocket(qtv->tcpsocket);
-			qtv->tcpsocket = news;
-			qtv->disconnectwhennooneiswatching = false;
-			qtv->tcplistenportnum = newp;
+			if (cluster->tcpsocket != INVALID_SOCKET)
+				closesocket(cluster->tcpsocket);
+			cluster->tcpsocket = news;
+			cluster->tcplistenportnum = newp;
 			return "Opened tcp port\n";
 		}
 		else
@@ -859,8 +869,8 @@ const rconcommands_t rconcommands[] =
 	{"disconnect",	1, 0, Cmd_Disconnect},
 	{"record",		1, 0, Cmd_Record},
 	{"stop",		1, 0, Cmd_Stop},
-	{"tcpport",		1, 0, Cmd_MVDPort},
-	 {"mvdport",	1, 0, Cmd_MVDPort},
+	{"tcpport",		0, 1, Cmd_MVDPort},
+	 {"mvdport",	0, 1, Cmd_MVDPort},
 
 #ifdef VIEWER
 	{"watch",		1, 0, Cmd_Watch},

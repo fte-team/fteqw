@@ -1688,7 +1688,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 				if (tv->bsp)
 					BSP_Free(tv->bsp);
 
-				if (tv->cluster->nobsp || !tv->usequkeworldprotocols)
+				if (tv->cluster->nobsp)// || !tv->usequkeworldprotocols)
 					tv->bsp = NULL;
 				else
 					tv->bsp = BSP_LoadModel(tv->cluster, tv->gamedir, tv->modellist[1].name);

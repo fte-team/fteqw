@@ -496,6 +496,11 @@ typedef struct {
 	char bits[6];
 } nail_t;
 
+typedef struct {
+	float pos[3];
+	float angle[3];
+} intermission_t;
+
 struct sv_s {
 	char connectpassword[64];	//password given to server
 	netadr_t serveraddress;
@@ -879,7 +884,9 @@ unsigned int BSP_Checksum(bsp_t *bsp);
 int BSP_SphereLeafNums(bsp_t *bsp, int maxleafs, unsigned short *list, float x, float y, float z, float radius);
 qboolean BSP_Visible(bsp_t *bsp, int leafcount, unsigned short *list);
 void BSP_SetupForPosition(bsp_t *bsp, float x, float y, float z);
-void QW_SetViewersServer(viewer_t *viewer, sv_t *sv);
+const intermission_t *BSP_IntermissionSpot(bsp_t *bsp);
+
+void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv);
 unsigned short QCRC_Block (unsigned char *start, int count);
 unsigned short QCRC_Value(unsigned short crcvalue);
 void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move);

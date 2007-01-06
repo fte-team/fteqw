@@ -535,13 +535,14 @@ void SV_MVD_RunPendingConnections(void)
 int DestCloseAllFlush(qboolean destroyfiles, qboolean mvdonly)
 {
 	int numclosed = 0;
-	mvddest_t *d, **prev;
+	mvddest_t *d, **prev, *next;
 	DestFlush(true);	//make sure it's all written.
 
 	prev = &demo.dest;
 	d = demo.dest;
 	while(d)
 	{
+		next = d->nextdest;
 		if (!mvdonly || d->desttype != DEST_STREAM)
 		{
 			*prev = d->nextdest;
@@ -549,9 +550,9 @@ int DestCloseAllFlush(qboolean destroyfiles, qboolean mvdonly)
 			numclosed++;
 		}
 		else
-			prev = &d;
+			prev = &d->nextdest;
 
-		d = (*prev)->nextdest;
+		d = next;
 	}
 
 	return numclosed;

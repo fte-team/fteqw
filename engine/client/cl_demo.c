@@ -1603,6 +1603,36 @@ void CL_QTVPlay_f (void)
 				Cbuf_AddText(va("qtvplay \"%s\"\n", s), Cmd_ExecLevel);
 				break;
 			}
+			if (!strncmp(buffer, "Join=", 7) || !strncmp(buffer, "Join:", 7))
+			{
+				for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
+				{
+					if (*s == '\r' || *s == '\n')
+						*s = 0;
+					else
+						break;
+				}
+				s = buffer+8;
+				while(*s && *s <= ' ')
+					s++;
+				Cbuf_AddText(va("join \"%s\"\n", s), Cmd_ExecLevel);
+				break;
+			}
+			if (!strncmp(buffer, "Observe=", 7) || !strncmp(buffer, "Observe:", 7))
+			{
+				for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
+				{
+					if (*s == '\r' || *s == '\n')
+						*s = 0;
+					else
+						break;
+				}
+				s = buffer+8;
+				while(*s && *s <= ' ')
+					s++;
+				Cbuf_AddText(va("observe \"%s\"\n", s), Cmd_ExecLevel);
+				break;
+			}
 		}
 		fclose(f);
 		return;

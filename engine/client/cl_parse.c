@@ -868,7 +868,7 @@ void CL_RequestNextDownload (void)
 		else
 #endif
 		{
-			if (cl.worldmodel->needload)
+			if (!cl.worldmodel || cl.worldmodel->needload)
 			{
 				Con_Printf("\n\n-------------\nCouldn't download %s - cannot fully connect\n", cl.worldmodel->name);
 				return;
@@ -3725,6 +3725,16 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 					Cbuf_AddText (com_token, RESTRICT_SERVER+destsplit);
 					Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
 				}
+			}
+			else if (!strncmp(stufftext, "//exectrigger ", 14))
+			{
+				COM_Parse(stufftext + 14);
+				if (Cmd_AliasExist(com_token, RESTRICT_SERVER))
+					Cmd_ExecuteString(com_token, RESTRICT_SERVER);	//do this NOW so that it's done before any models or anything are loaded
+			}
+			else if (!strncmp(stufftext, "//set ", 6))
+			{
+				Cmd_ExecuteString(stufftext+2, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded
 			}
 			else
 #ifdef CSQC_DAT

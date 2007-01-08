@@ -1049,7 +1049,7 @@ void Cmd_ShiftArgs (int ammount, qboolean expandstring)
 		{
 			cmd_args = COM_StringParse(cmd_args, expandstring, false);
 			if (cmd_args)
-				while(*cmd_args == ' ')
+				while(*cmd_args == ' ' || *cmd_args == '\t')
 					cmd_args++;
 		}
 	}

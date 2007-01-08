@@ -1478,7 +1478,6 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 	}
 	else
 	{
-		QW_StreamPrint(tv->cluster, tv, NULL, "Attempting map download\n");
 		snprintf(tv->status, sizeof(tv->status), "Downloading map, %i%%\n", percent);
 		SendClientCommand(tv, "nextdl\n");
 	}
@@ -1728,6 +1727,8 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 						strcpy(tv->status, "Downloading map\n");
 						Sys_Printf(tv->cluster, "Attempting download of %s\n", tv->downloadname);
 						SendClientCommand(tv, "download %s\n", tv->modellist[1].name);
+
+						QW_StreamPrint(tv->cluster, tv, NULL, "[QTV] Attempting map download\n");
 					}
 				}
 				else

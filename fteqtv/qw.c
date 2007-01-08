@@ -4127,12 +4127,13 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 
 				if (v->menunum)
 					Menu_Draw(cluster, v);
-				else if (v->server && v->server->parsingconnectiondata)
-				{
-					WriteByte(&m, svc_centerprint);
-					WriteString(&m, v->server->status);
-				}
 			}
+			if (!v->menunum && v->server && v->server->parsingconnectiondata)
+			{
+				WriteByte(&m, svc_centerprint);
+				WriteString(&m, v->server->status);
+			}
+
 			Netchan_Transmit(cluster, &v->netchan, m.cursize, m.data);
 
 			if (!v->netchan.message.cursize && v->backbuffered)

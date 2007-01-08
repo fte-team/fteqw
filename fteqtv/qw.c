@@ -637,6 +637,36 @@ void QW_StreamPrint(cluster_t *cluster, sv_t *server, viewer_t *allbut, char *me
 	}
 }
 
+
+void QW_StreamStuffcmd(cluster_t *cluster, sv_t *server, char *fmt, ...)
+{
+	viewer_t *v;
+	va_list		argptr;
+	char buf[1024];
+	char cmd[512];
+
+	netmsg_t msg;
+
+	va_start (argptr, fmt);
+	vsnprintf (cmd, sizeof(cmd), fmt, argptr);
+	va_end (argptr);
+
+	InitNetMsg(&msg, buf, sizeof(buf));
+	WriteByte(&msg, svc_stufftext);
+	WriteString(&msg, cmd);
+	
+
+	for (v = cluster->viewers; v; v = v->next)
+	{
+		if (v->server == server)
+		{
+			SendBufferToViewer(v, msg.data, msg.cursize, true);
+		}
+	}
+}
+
+
+
 void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv)
 {
 	char buffer[1024];
@@ -650,6 +680,7 @@ void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv)
 	if (!sv || !sv->parsingconnectiondata)
 	{
 		QW_StuffcmdToViewer(viewer, "cmd new\n");
+		viewer->thinksitsconnected = false;
 	}
 	viewer->servercount++;
 	viewer->origin[0] = 0;
@@ -1808,6 +1839,14 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 
 	if (tv)
 	{
+		if (v->trackplayer >= 0 && !v->backbuffered)
+		{
+			if (v->trackplayer != tv->trackplayer && tv->usequkeworldprotocols)
+				if (!tv->players[v->trackplayer].active && tv->players[tv->trackplayer].active)
+				{
+					QW_StuffcmdToViewer (v, "track %i\n", tv->trackplayer);
+				}
+		}
 		if (tv->physicstime != v->settime && tv->cluster->chokeonnotupdated)
 		{
 			WriteByte(msg, svc_updatestatlong);
@@ -1851,7 +1890,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 				continue;
 			}
 
-			if (v->commentator)// && track == i)
+			if (v->commentator && v->thinksitsconnected)// && track == i)
 			{
 				if (i == MAX_CLIENTS-2)
 				{
@@ -2075,7 +2114,7 @@ void UpdateStats(sv_t *qtv, viewer_t *v)
 
 	InitNetMsg(&msg, buf, sizeof(buf));
 
-	if (v->commentator)
+	if (v->commentator && v->thinksitsconnected)
 		cv = v->commentator;
 	else
 		cv = v;
@@ -2208,7 +2247,7 @@ void QW_SetCommentator(cluster_t *cluster, viewer_t *v, viewer_t *commentator)
 	if (commentator)
 	{
 		WriteString(&v->netchan.message, commentator->name);
-		QW_StuffcmdToViewer(v, "cmd ptrack %i\n", MAX_CLIENTS-2);
+		QW_StuffcmdToViewer(v, "track %i\n", MAX_CLIENTS-2);
 		QW_PrintfToViewer(v, "Following commentator %s\n", commentator->name);
 
 		if (v->server != commentator->server)
@@ -2503,6 +2542,7 @@ guimenu:
 	}
 	else if (!strncmp(message, ".reset", 6))
 	{
+		QW_SetCommentator(cluster, v, NULL);
 		QW_SetViewersServer(cluster, v, NULL);
 		QW_SetMenu(v, MENU_SERVERS);
 	}

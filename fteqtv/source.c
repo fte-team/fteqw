@@ -943,6 +943,9 @@ void ChooseFavoriteTrack(sv_t *tv)
 	{
 		SendClientCommand (tv, "ptrack %i\n", best);
 		tv->trackplayer = best;
+
+		if (tv->usequkeworldprotocols)
+			QW_StreamStuffcmd(tv->cluster, tv, "track %i\n", best);
 	}
 }
 

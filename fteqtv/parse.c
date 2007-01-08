@@ -1439,6 +1439,7 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 			fclose(tv->downloadfile);
 		tv->downloadfile = NULL;
 		tv->drop = true;
+		QW_StreamPrint(tv->cluster, tv, NULL, "Map download failed\n");
 		return;
 	}
 
@@ -1477,6 +1478,7 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 	}
 	else
 	{
+		QW_StreamPrint(tv->cluster, tv, NULL, "Attempting map download\n");
 		snprintf(tv->status, sizeof(tv->status), "Downloading map, %i%%\n", percent);
 		SendClientCommand(tv, "nextdl\n");
 	}

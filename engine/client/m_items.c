@@ -402,9 +402,18 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				int x = xpos+option->common.posx;
 				int y = ypos+option->common.posy;
 
-				Draw_String(x, y, option->combo.caption);
+				if (!menu->cursoritem && menu->selecteditem == option)
+					Draw_Alt_String(x, y, option->combo.caption);
+				else
+					Draw_String(x, y, option->combo.caption);
 				x += strlen(option->combo.caption)*8+24;
-				Draw_String(x, y, option->combo.options[option->combo.selectedoption]);
+				if (option->combo.numoptions)
+				{
+					if (!menu->cursoritem && menu->selecteditem == option)
+						Draw_Alt_String(x, y, option->combo.options[option->combo.selectedoption]);
+					else
+						Draw_String(x, y, option->combo.options[option->combo.selectedoption]);
+				}
 			}
 			break;
 		case mt_custom:
@@ -759,25 +768,52 @@ menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t 
 
 menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const char **ops, int initialvalue)
 {
-	menucombo_t *n = Z_Malloc(sizeof(menucombo_t));
+	int numopts;
+	int optlen;
+	int maxoptlen;
+	int optbufsize;
+	menucombo_t *n;
+	char **newops;
+	char *optbuf;
+	int i;
+
+	maxoptlen = 0;
+	optbufsize = sizeof(char*);
+	numopts = 0;
+	optlen = 0;
+	while(ops[numopts])
+	{
+		optlen = strlen(ops[numopts]);
+		if (maxoptlen < optlen)
+			maxoptlen = optlen;
+		optbufsize += optlen+1+sizeof(char*);
+		numopts++;
+	}
+	
+	
+	n = Z_Malloc(sizeof(*n) + optbufsize);
+	newops = (char **)(n+1);
+	optbuf = (char*)(newops + numopts+1);
 	n->common.type = mt_combo;
 	n->common.iszone = true;	
 	n->common.posx = x;
 	n->common.posy = y;	
 	n->common.height = 8;
-	n->common.width = strlen(caption)*8;
+	n->common.width = strlen(caption)*8 + maxoptlen*8;
 	n->caption = caption;
-	n->options = ops;
+	n->options = newops;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
 
-	n->numoptions = 0;
-	while(ops[n->numoptions])
+	n->numoptions = numopts;
+	for (i = 0; i < numopts; i++)
 	{
-		n->common.width = strlen(caption)*8+strlen(ops[n->numoptions])*8;
-		n->numoptions++;
+		strcpy(optbuf, ops[i]);
+		newops[i] = optbuf;
+		optbuf += strlen(optbuf)+1;
 	}
+	newops[i] = NULL;
 
 	if (initialvalue >= n->numoptions) 
 	{
@@ -790,34 +826,75 @@ menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const 
 }
 menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values)
 {
-	menucombo_t *n = Z_Malloc(sizeof(menucombo_t));
+	int numopts;
+	int optlen;
+	int maxoptlen;
+	int optbufsize;
+	menucombo_t *n;
+	char **newops;
+	char **newvalues;
+	char *optbuf;
+	int i;
+
+	maxoptlen = 0;
+	optbufsize = sizeof(char*)*2 + strlen(caption)+1;
+	numopts = 0;
+	optlen = 0;
+	while(ops[numopts])
+	{
+		optlen = strlen(ops[numopts]);
+		if (maxoptlen < optlen)
+			maxoptlen = optlen;
+		optbufsize += optlen+1+sizeof(char*);
+		optbufsize += strlen(values[numopts])+1+sizeof(char*);
+		numopts++;
+	}
+	
+	
+
+	n = Z_Malloc(sizeof(*n) + optbufsize);
+	newops = (char **)(n+1);
+	newvalues = (char**)(newops + numopts+1);
+	optbuf = (char*)(newvalues + numopts+1);
 	n->common.type = mt_combo;
 	n->common.iszone = true;	
 	n->common.posx = x;
 	n->common.posy = y;	
 	n->common.height = 8;
-	n->common.width = strlen(caption)*8;
-	n->caption = caption;
-	n->options = ops;
-	n->values = values;
+	n->common.width = strlen(caption)*8 + maxoptlen*8;
+
+	strcpy(optbuf, caption);
+	n->caption = optbuf;
+	optbuf += strlen(optbuf)+1;
+
+	n->options = newops;
+	n->values = newvalues;
 	n->cvar = cvar;
 
-	if (!(cvar->flags & CVAR_ARCHIVE))
-		Con_Printf("Warning: %s is not set for archiving\n", cvar->name);
+//	if (!(cvar->flags & CVAR_ARCHIVE))
+//		Con_Printf("Warning: %s is not set for archiving\n", cvar->name);
 
 	n->selectedoption = 0;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
 
-	n->numoptions = 0;
-	while(ops[n->numoptions])
+	n->numoptions = numopts;
+	for (i = 0; i < numopts; i++)
 	{
-		if (!strcmp(values[n->numoptions], cvar->string))
-			n->selectedoption = n->numoptions;
-		n->common.width = strlen(caption)*8+strlen(ops[n->numoptions])*8;
-		n->numoptions++;
+		if (!strcmp(values[i], cvar->string))
+			n->selectedoption = i;
+
+		strcpy(optbuf, ops[i]);
+		newops[i] = optbuf;
+		optbuf += strlen(optbuf)+1;
+
+		strcpy(optbuf, values[i]);
+		newvalues[i] = optbuf;
+		optbuf += strlen(optbuf)+1;
 	}
+	newops[i] = NULL;
+	newvalues[i] = NULL;
 
 	return n;
 }
@@ -1029,7 +1106,7 @@ void MC_Combo_Key(menucombo_t *combo, int key)
 			combo->selectedoption = 0;
 
 changed:
-		if (combo->cvar)
+		if (combo->cvar && combo->numoptions)
 			Cvar_Set(combo->cvar, (char *)combo->values[combo->selectedoption]);
 	}
 	else if (key == K_LEFTARROW)

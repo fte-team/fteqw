@@ -239,6 +239,118 @@ void M_MenuS_Bind_f (void)
 	MC_AddBind(menu_script, x, y, command, caption);
 }
 
+void M_MenuS_Comboi_f (void)
+{
+	int opt;
+	char *opts[64];
+	char *values[64];
+	char valuesb[64][8];
+	int x = atoi(Cmd_Argv(1));
+	int y = atoi(Cmd_Argv(2));
+	char *caption = Cmd_Argv(3);
+	char *command = Cmd_Argv(4);
+	char *line;
+
+	cvar_t *var;
+
+	if (!menu_script)
+	{
+		Con_Printf("%s with no active menu\n", Cmd_Argv(0));
+		return;
+	}
+
+	var = Cvar_Get(command, "0", 0, "custom cvars");
+	if (!var)
+		return;
+
+	if (!*caption)
+		caption = command;
+
+	for (opt = 0; opt < sizeof(opts)/sizeof(opts[0])-2 && *(line=Cmd_Argv(5+opt)); opt++)
+	{
+		opts[opt] = line;
+		sprintf(valuesb[opt], "%i", opt);
+		values[opt] = valuesb[opt];
+	}
+	opts[opt] = NULL;
+
+	MC_AddCvarCombo(menu_script, x, y, caption, var, opts, values);
+}
+
+char *Hunk_TempString(char *s)
+{
+	char *h;
+	h = Hunk_TempAllocMore(strlen(s)+1);
+	strcpy(h, s);
+	return h;
+}
+
+void M_MenuS_Combos_f (void)
+{
+	int opt;
+	char *opts[64];
+	char *values[64];
+	int x = atoi(Cmd_Argv(1));
+	int y = atoi(Cmd_Argv(2));
+	char *caption = Cmd_Argv(3);
+	char *command = Cmd_Argv(4);
+	char *line;
+
+	cvar_t *var;
+
+	if (!menu_script)
+	{
+		Con_Printf("%s with no active menu\n", Cmd_Argv(0));
+		return;
+	}
+
+	var = Cvar_Get(command, "0", 0, "custom cvars");
+	if (!var)
+		return;
+
+	if (!*caption)
+		caption = command;
+
+	line = Cmd_Argv(5);
+	if (!*line)
+	{
+		line = Cbuf_GetNext(Cmd_ExecLevel);
+		if (*line != '{')
+			Cbuf_InsertText(line, Cmd_ExecLevel, true);	//whoops. Stick the trimmed string back in to the cbuf.
+		else
+			line = "{";
+	}
+	if (!strcmp(line, "{"))
+	{
+		char *line;
+		Hunk_TempAlloc(4);
+		for (opt = 0; opt < sizeof(opts)/sizeof(opts[0])-2; opt++)
+		{
+			line = Cbuf_GetNext(Cmd_ExecLevel);
+			line = COM_Parse(line);
+			if (!strcmp(com_token, "}"))
+				break;
+			opts[opt] = Hunk_TempString(com_token);
+			line = COM_Parse(line);
+			values[opt] = Hunk_TempString(com_token);
+		}
+	}
+	else
+	{
+		for (opt = 0; opt < sizeof(opts)/sizeof(opts[0])-2; opt++)
+		{
+			line = Cmd_Argv(5+opt*2);
+			if (!*line)
+				break;
+			opts[opt] = line;
+			values[opt] = Cmd_Argv(5+opt*2 + 1);
+		}
+	}
+	opts[opt] = NULL;
+
+	MC_AddCvarCombo(menu_script, x, y, caption, var, opts, values);
+}
+
 /*
 menuclear
 menualias menucallback
@@ -264,7 +376,8 @@ void M_Script_Init(void)
 	Cmd_AddCommand("menucheck",	M_MenuS_CheckBox_f);
 	Cmd_AddCommand("menuslider",	M_MenuS_Slider_f);
 	Cmd_AddCommand("menubind",	M_MenuS_Bind_f);
-//	Cmd_AddCommand("menucombo",	M_MenuS_Combo_f);
+	Cmd_AddCommand("menucomboi",	M_MenuS_Comboi_f);
+	Cmd_AddCommand("menucombos",	M_MenuS_Combos_f);
 
 	Cvar_Register(&menualias, "Scripting");
 }

@@ -898,7 +898,7 @@ void P_ParticleEffect_f(void)
 			int cidx, i;
 
 			i = 1;
-			while (i <= Cmd_Argc())
+			while (i < Cmd_Argc())
 			{
 				ptype->ramp = BZ_Realloc(ptype->ramp, sizeof(ramp_t)*(ptype->rampindexes+1));
 
@@ -1534,7 +1534,7 @@ void P_ExportBuiltinSet_f(void)
 
 	if (!*efname)
 	{
-		Con_Printf("Please name the built in effect (faithful, spikeset or highfps)\n");
+		Con_Printf("Please name the built in effect (faithful, spikeset, tsshaft, minimal or highfps)\n");
 		return;
 	}
 	else if (!stricmp(efname, "faithful"))
@@ -1543,6 +1543,10 @@ void P_ExportBuiltinSet_f(void)
 		file = particle_set_spikeset;
 	else if (!stricmp(efname, "highfps"))
 		file = particle_set_highfps;
+	else if (!stricmp(efname, "minimal"))
+		file = particle_set_minimal;
+	else if (!stricmp(efname, "tsshaft"))
+		file = particle_set_tsshaft;
 	else
 	{
 		if (!stricmp(efname, "none"))
@@ -3961,6 +3965,7 @@ void DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), vo
 	beamseg_t *b, *bkill;
 
 	int traces=r_particle_tracelimit.value;
+	int rampind;
 
 	lastgltype = NULL;
 
@@ -4061,7 +4066,10 @@ void DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), vo
 				switch (type->rampmode)
 				{
 				case RAMP_ABSOLUTE:
-					ramp = type->ramp + (int)(type->rampindexes * (type->die - (d->die - particletime)) / type->die);
+					rampind = (int)(type->rampindexes * (type->die - (d->die - particletime)) / type->die);
+					if (rampind >= type->rampindexes)
+						rampind = type->rampindexes - 1;
+					ramp = type->ramp + rampind;
 					VectorCopy(ramp->rgb, d->rgb);
 					d->alpha = ramp->alpha;
 					break;
@@ -4293,13 +4301,19 @@ void DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), vo
 			switch (type->rampmode)
 			{
 			case RAMP_ABSOLUTE:
-				ramp = type->ramp + (int)(type->rampindexes * (type->die - (p->die - particletime)) / type->die);
+				rampind = (int)(type->rampindexes * (type->die - (p->die - particletime)) / type->die);
+				if (rampind >= type->rampindexes)
+					rampind = type->rampindexes - 1;
+				ramp = type->ramp + rampind;
 				VectorCopy(ramp->rgb, p->rgb);
 				p->alpha = ramp->alpha;
 				p->scale = ramp->scale;
 				break;
 			case RAMP_DELTA:	//particle ramps
-				ramp = type->ramp + (int)(type->rampindexes * (type->die - (p->die - particletime)) / type->die);
+				rampind = (int)(type->rampindexes * (type->die - (p->die - particletime)) / type->die);
+				if (rampind >= type->rampindexes)
+					rampind = type->rampindexes - 1;
+				ramp = type->ramp + rampind;
 				VectorMA(p->rgb, pframetime, ramp->rgb, p->rgb);
 				p->alpha -= pframetime*ramp->alpha;
 				p->scale += pframetime*ramp->scale;

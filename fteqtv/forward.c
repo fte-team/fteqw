@@ -825,6 +825,7 @@ void SV_GenerateQTVDemoListing(cluster_t *cluster, oproxy_t *dest)
 					namelen = strlen(oneentry->d_name);
 					if (namelen > 4 && !strcmp(oneentry->d_name + namelen-4, ".mvd"))
 					{
+						numdemos++;
 						snprintf(link, sizeof(link), "<A HREF=\"watch.qtv?demo=%s\">%s</A><br/>", oneentry->d_name, oneentry->d_name);
 						Net_ProxySend(cluster, dest, link, strlen(link));
 					}
@@ -1063,6 +1064,42 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						s = "\n";
 							Net_ProxySend(cluster, pend, s, strlen(s));
 						pend->flushing = true;
+					}
+					else if (!strcmp(s, "REVERSE"))
+					{	//this is actually a server trying to connect to us
+						//start up a new stream
+					}
+					else if (!strcmp(s, "RECEIVE"))
+					{	//a client connection request without a source
+						if (cluster->numservers == 1)
+						{	//only one stream anyway
+							qtv = cluster->servers;
+						}
+						else
+						{	//try and hunt down an explicit stream (rather than a user-recorded one)
+							int numfound = 0;
+							sv_t *suitable;
+							for (qtv = cluster->servers; qtv; qtv = qtv->next)
+							{
+								if (!qtv->disconnectwhennooneiswatching)
+								{
+									suitable = qtv;
+									numfound++;
+								}
+							}
+							if (numfound == 1)
+								qtv = suitable;
+						}
+						if (!qtv)
+						{
+							s = "QTVSV 1\n";
+								Net_ProxySend(cluster, pend, s, strlen(s));
+							s = "PERROR: Multiple streams are currently playing\n";
+								Net_ProxySend(cluster, pend, s, strlen(s));
+							s = "\n";
+								Net_ProxySend(cluster, pend, s, strlen(s));
+							pend->flushing = true;
+						}
 					}
 					else if (!strcmp(s, "DEMOLIST"))
 					{	//lists the demos available on this proxy

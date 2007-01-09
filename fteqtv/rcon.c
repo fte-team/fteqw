@@ -362,7 +362,8 @@ char *Cmd_Master(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffe
 	strncpy(cluster->master, arg[1], sizeof(cluster->master)-1);
 	cluster->mastersendtime = cluster->curtime;
 
-	NET_SendPacket (cluster, cluster->qwdsocket, 1, "k", addr);
+	if (cluster->qwdsocket != INVALID_SOCKET)
+		NET_SendPacket (cluster, cluster->qwdsocket, 1, "k", addr);
 	return "Master server set.\n";
 }
 
@@ -535,6 +536,7 @@ char *Cmd_Status(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffe
 	{
 		catbuffer(buffer, sizeofbuffer, " udp port %i\n", cluster->qwlistenportnum);
 	}
+	catbuffer(buffer, sizeofbuffer, " user connections are %sallowed\n", cluster->nouserconnects?"":"NOT ");
 	catbuffer(buffer, sizeofbuffer, "\n");
 
 
@@ -568,10 +570,11 @@ char *Cmd_Status(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffe
 		if (qtv->disconnectwhennooneiswatching)
 			catbuffer(buffer, sizeofbuffer, "Stream is temporary\n");
 
-		if (qtv->tcpsocket != INVALID_SOCKET)
+/*		if (qtv->tcpsocket != INVALID_SOCKET)
 		{
 			catbuffer(buffer, sizeofbuffer, "Listening for proxies (%i)\n", qtv->tcplistenportnum);
 		}
+*/
 
 		if (qtv->bsp)
 		{

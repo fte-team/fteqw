@@ -880,7 +880,12 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
 	{
 		newframe = &tv->frame[tv->netchan.incoming_sequence & (ENTITY_FRAMES-1)];
 
-		if (newframe->oldframe != deltaframe)
+		if (tv->netchan.outgoing_sequence - tv->netchan.incoming_sequence >= ENTITY_FRAMES - 1)
+		{
+			//should drop it
+			Sys_Printf(tv->cluster, "Outdated frames\n");
+		}
+		else if (deltaframe != -1 && newframe->oldframe != deltaframe)
 			Sys_Printf(tv->cluster, "Mismatching delta frames\n");
 	}
 	else

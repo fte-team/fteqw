@@ -501,7 +501,7 @@ typedef struct {
 	float angle[3];
 } intermission_t;
 
-struct sv_s {
+struct sv_s {	//details about a server connection (also known as stream)
 	char connectpassword[64];	//password given to server
 	netadr_t serveraddress;
 	netchan_t netchan;
@@ -557,7 +557,9 @@ struct sv_s {
 	unsigned int timeout;
 	qboolean ispaused;
 	unsigned int packetratelimiter;
+
 	viewer_t *controller;
+	int controllersquencebias;
 
 	qboolean proxyplayer;	//a player is actually playing on the proxy.
 	usercmd_t proxyplayerucmds[3];
@@ -572,8 +574,8 @@ struct sv_s {
 	unsigned int filelength;
 	SOCKET sourcesock;
 
-	SOCKET tcpsocket;	//tcp + mvd protocol
-	int tcplistenportnum;
+//	SOCKET tcpsocket;	//tcp + mvd protocol
+//	int tcplistenportnum;
 
 	oproxy_t *proxies;
 
@@ -654,10 +656,11 @@ struct cluster_s {
 	oproxy_t *pendingproxies;
 };
 
-#define MENU_NONE 0
-#define MENU_SERVERS 1
-#define MENU_ADMIN 2
-#define MENU_ADMINSERVER 3
+#define MENU_NONE			0
+#define MENU_SERVERS		1
+#define MENU_ADMIN			2
+#define MENU_ADMINSERVER	3
+#define	MENU_MAIN			MENU_SERVERS
 
 
 

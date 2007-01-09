@@ -281,6 +281,12 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 		str =	"\n";			Net_QueueUpstream(qtv, strlen(str), str);
 		*at = '@';
 	}
+	else
+	{
+		*at = '\0';
+		str =	"RECEIVE\n";	Net_QueueUpstream(qtv, strlen(str), str);
+		*at = '@';
+	}
 
 	if (!qtv->parsingqtvheader)
 	{
@@ -428,6 +434,52 @@ qboolean Net_ConnectToUDPServer(sv_t *qtv, char *ip)
 	return true;
 }
 
+qboolean DemoFilenameIsOkay(char *fname)
+{
+	int len;
+	if (strchr(fname, '/'))
+		return false;	//unix path seperator
+	if (strchr(fname, '\\'))
+		return false;	//windows path seperator
+	if (strchr(fname, ':'))
+		return false;	//mac path seperator
+
+	//now make certain that the last four characters are '.mvd' and not something like '.cfg' perhaps
+	len = strlen(fname);
+	if (len < 5)
+		return false;
+	if (strcmp(fname+len-4, ".mvd"))
+		return false;
+
+	return true;
+
+/*
+	if (strchr(fname, '\\'))
+	{
+		char *s;
+		Con_Printf("Warning: \\ charactures in filename %s\n", fname);
+		while((s = strchr(fname, '\\')))
+			*s = '/';
+	}
+
+	if (strstr(fname, ".."))
+	{
+		Con_Printf("Error: '..' charactures in filename %s\n", fname);
+	}
+	else if (fname[0] == '/')
+	{
+		Con_Printf("Error: absolute path in filename %s\n", fname);
+	}
+	else if (strstr(fname, ":")) //win32 drive seperator (or mac path seperator, but / works there and they're used to it)
+	{
+		Con_Printf("Error: absolute path in filename %s\n", fname);
+	}
+	else
+		return false;
+	return true;
+*/
+}
+
 qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 {
 	char *at;
@@ -442,7 +494,10 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 	if (!strncmp(ip, "file:", 5) || !strncmp(ip, "demo:", 5))
 	{
 		qtv->sourcesock = INVALID_SOCKET;
-		qtv->sourcefile = fopen(ip+5, "rb");
+		if (DemoFilenameIsOkay(ip+5))
+			qtv->sourcefile = fopen(ip+5, "rb");
+		else
+			qtv->sourcefile = NULL;
 		if (qtv->sourcefile)
 		{
 			fseek(qtv->sourcefile, 0, SEEK_END);
@@ -461,7 +516,7 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 		qtv->usequkeworldprotocols = true;
 		status = Net_ConnectToUDPServer(qtv, ip);
 	}
-	else if (!strncmp(ip, "tcp:", 4))
+	else if (!strncmp(ip, "tcp:", 4) || at!=NULL)
 		status = Net_ConnectToTCPServer(qtv, ip);
 	else
 	{
@@ -837,8 +892,8 @@ void QTV_Shutdown(sv_t *qtv)
 		qtv->downloadfile = NULL;
 		unlink(qtv->downloadname);
 	}
-	if (qtv->tcpsocket != INVALID_SOCKET)
-		closesocket(qtv->tcpsocket);
+//	if (qtv->tcpsocket != INVALID_SOCKET)
+//		closesocket(qtv->tcpsocket);
 	BSP_Free(qtv->bsp);
 	qtv->bsp = NULL;
 
@@ -1107,8 +1162,10 @@ void QTV_ParseQWStream(sv_t *qtv)
 		if (qtv->controller)
 		{
 			qtv->controller->maysend = true;
-			qtv->controller->netchan.outgoing_sequence = qtv->netchan.incoming_sequence;
-			qtv->controller->netchan.incoming_sequence = qtv->netchan.incoming_acknowledged;
+if (qtv->controller->netchan.outgoing_sequence != qtv->controller->netchan.incoming_sequence)
+printf("bug is here\n");
+			qtv->controller->netchan.outgoing_sequence = qtv->controller->netchan.incoming_sequence;
+//			qtv->controller->netchan.incoming_sequence = qtv->netchan.incoming_acknowledged;
 		}
 	}
 }
@@ -1283,15 +1340,15 @@ void QTV_Run(sv_t *qtv)
 
 			if (qtv->controller && !qtv->controller->netchan.isnqprotocol)
 			{
-				qtv->netchan.outgoing_sequence = qtv->controller->netchan.incoming_sequence;
-				qtv->netchan.incoming_sequence = qtv->controller->netchan.incoming_acknowledged;
+//				qtv->netchan.outgoing_sequence = qtv->controller->netchan.incoming_sequence;
+//				qtv->netchan.incoming_sequence = qtv->controller->netchan.incoming_acknowledged;
 				if (qtv->maysend)
 				{
 					qtv->maysend = false;
-					qtv->curtime = qtv->packetratelimiter;
+					qtv->packetratelimiter = qtv->curtime;
 				}
 				else
-					qtv->curtime = qtv->packetratelimiter - 1;
+					qtv->packetratelimiter = qtv->curtime + 1;
 			}
 			else
 			{
@@ -1407,7 +1464,7 @@ void QTV_Run(sv_t *qtv)
 	}
 
 
-	SV_FindProxies(qtv->tcpsocket, qtv->cluster, qtv);	//look for any other proxies wanting to muscle in on the action.
+//	SV_FindProxies(qtv->tcpsocket, qtv->cluster, qtv);	//look for any other proxies wanting to muscle in on the action.
 
 	if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
 	{
@@ -1716,12 +1773,12 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, 
 
 	memset(qtv, 0, sizeof(*qtv));
 	//set up a default config
-	qtv->tcplistenportnum = PROX_DEFAULTLISTENPORT;
+//	qtv->tcplistenportnum = PROX_DEFAULTLISTENPORT;
 	strcpy(qtv->server, PROX_DEFAULTSERVER);
 
 	memcpy(qtv->connectpassword, password, sizeof(qtv->connectpassword)-1);
 
-	qtv->tcpsocket = INVALID_SOCKET;
+//	qtv->tcpsocket = INVALID_SOCKET;
 	qtv->sourcesock = INVALID_SOCKET;
 	qtv->disconnectwhennooneiswatching = autoclose;
 	qtv->parsingconnectiondata = true;

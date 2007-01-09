@@ -914,7 +914,7 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	viewer->delta_frame = -1;
 
 	initialserver = NULL;
-	if (cluster->numservers == 1)
+	if (cluster->nouserconnects && cluster->numservers == 1)
 	{
 		initialserver = cluster->servers;
 		if (!initialserver->modellist[1].name[0])
@@ -1817,6 +1817,25 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 	}
 }
 
+//returns self, or the final commentator
+viewer_t *GetCommentator(viewer_t *v)
+{
+	viewer_t *orig = v;
+	int runaway = 10;
+
+	while(runaway-- > 0)
+	{
+		if (!v->commentator)
+			break;
+		if (v->commentator->thinksitsconnected == false)
+			break;
+		if (v->commentator->server != orig->server)
+			break;
+		v = v->commentator;
+	}
+	return v;
+}
+
 void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 {
 	viewer_t *cv;
@@ -1839,14 +1858,6 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 
 	if (tv)
 	{
-		if (v->trackplayer >= 0 && !v->backbuffered)
-		{
-			if (v->trackplayer != tv->trackplayer && tv->usequkeworldprotocols)
-				if (!tv->players[v->trackplayer].active && tv->players[tv->trackplayer].active)
-				{
-					QW_StuffcmdToViewer (v, "track %i\n", tv->trackplayer);
-				}
-		}
 		if (tv->physicstime != v->settime && tv->cluster->chokeonnotupdated)
 		{
 			WriteByte(msg, svc_updatestatlong);
@@ -1867,20 +1878,25 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 		if (tv->controller == v)
 			lerp = 1;
 
-		track = v->trackplayer;
-		for (cv = v; cv && runaway-->0; cv = cv->commentator)
-		{
-			track = cv->trackplayer;
-			if (track != MAX_CLIENTS-2)
-				break;
+		cv = GetCommentator(v);
+		track = cv->trackplayer;
+
+		if (cv != v && track < 0)
+		{	//following a commentator
+			track = MAX_CLIENTS-2;
 		}
-		/*
-		if (v->commentator && track == MAX_CLIENTS-2)
+
+		if (v->trackplayer != track)
+			QW_StuffcmdToViewer (v, "track %i\n", track);
+
+		if (!v->commentator && track >= 0 && !v->backbuffered)
 		{
-			track = v->commentator->trackplayer;
-			if (track < 0)
-				track = MAX_CLIENTS-2;
-		}*/
+			if (v->trackplayer != tv->trackplayer && tv->usequkeworldprotocols)
+				if (!tv->players[v->trackplayer].active && tv->players[tv->trackplayer].active)
+				{
+					QW_StuffcmdToViewer (v, "track %i\n", tv->trackplayer);
+				}
+		}
 
 		for (i = 0; i < MAX_CLIENTS; i++)
 		{
@@ -1888,46 +1904,6 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 			{
 				SendLocalPlayerState(tv, v, i, msg);
 				continue;
-			}
-
-			if (v->commentator && v->thinksitsconnected)// && track == i)
-			{
-				if (i == MAX_CLIENTS-2)
-				{
-					flags = PF_COMMAND;
-					WriteByte(msg, svc_playerinfo);
-					WriteByte(msg, i);
-					WriteShort(msg, flags);
-
-
-					interp = v->commentator->origin[0]*8;
-					WriteShort(msg, interp);
-					interp = v->commentator->origin[1]*8;
-					WriteShort(msg, interp);
-					interp = v->commentator->origin[2]*8;
-					WriteShort(msg, interp);
-
-					WriteByte(msg, 0);
-
-					if (flags & PF_MSEC)
-					{
-						WriteByte(msg, 0);
-					}
-					if (flags & PF_COMMAND)
-					{
-						to.angles[0] = v->commentator->ucmds[2].angles[0];
-						to.angles[1] = v->commentator->ucmds[2].angles[1];
-						to.angles[2] = v->commentator->ucmds[2].angles[2];
-						WriteDeltaUsercmd(msg, &nullcmd, &to);
-					}
-					if (flags & PF_MODEL)
-						WriteByte(msg, tv->players[i].current.modelindex);
-					if (flags & PF_WEAPONFRAME)
-						WriteByte(msg, tv->players[i].current.weaponframe);
-					continue;
-				}
-				if (track == i)
-					continue;
 			}
 
 			if (!tv->players[i].active)
@@ -2010,8 +1986,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 		topacket = &tv->frame[tv->netchan.incoming_sequence&(ENTITY_FRAMES-1)];
 		if (tv->usequkeworldprotocols)
 		{
-			//qw protocols don't interpolate... yet
-			frompacket = topacket;
+			frompacket = &tv->frame[(topacket->oldframe)&(ENTITY_FRAMES-1)];
 		}
 		else
 		{
@@ -2341,31 +2316,26 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		{
 			int newp;
 			int news;
-			if (qtv)
+
+			newp = atoi(message);
+
+			if (newp)
 			{
-				newp = atoi(message);
+				news = Net_MVDListen(newp);
 
-				if (newp)
+				if (news != INVALID_SOCKET)
 				{
-					news = Net_MVDListen(newp);
-
-					if (news != INVALID_SOCKET)
-					{
-						if (qtv->tcpsocket != INVALID_SOCKET)
-							closesocket(qtv->tcpsocket);
-						qtv->tcpsocket = news;
-						qtv->tcplistenportnum = newp;
-						qtv->disconnectwhennooneiswatching = false;
-					}
-				}
-				else if (qtv->tcpsocket != INVALID_SOCKET)
-				{
-					closesocket(qtv->tcpsocket);
-					qtv->tcpsocket = INVALID_SOCKET;
+					if (cluster->tcpsocket != INVALID_SOCKET)
+						closesocket(cluster->tcpsocket);
+					cluster->tcpsocket = news;
+					cluster->tcplistenportnum = newp;
 				}
 			}
-			else
-				QW_PrintfToViewer(v, "You were disconnected from that stream\n");
+			else if (cluster->tcpsocket != INVALID_SOCKET)
+			{
+				closesocket(cluster->tcpsocket);
+				cluster->tcpsocket = INVALID_SOCKET;
+			}
 		}
 		else
 		{
@@ -2678,7 +2648,7 @@ guimenu:
 				if (ov->server)
 				{
 					if (ov->server->controller == ov)
-						QW_PrintfToViewer(v, "%i: %s: %s\n", ov->userid, ov->name, ov->server->server);
+						QW_PrintfToViewer(v, "%i: %s: *%s\n", ov->userid, ov->name, ov->server->server);
 					else
 						QW_PrintfToViewer(v, "%i: %s: %s\n", ov->userid, ov->name, ov->server->server);
 				}
@@ -2862,7 +2832,7 @@ guimenu:
 			{
 				if (cluster->notalking)
 					return;
-				SendClientCommand(qtv, "say %s: %s\n", v->name, message);
+				SendClientCommand(qtv, "say [%s]: %s\n", v->name, message);
 			}
 
 			//FIXME: we ought to broadcast this to everyone not watching that qtv.
@@ -3146,8 +3116,11 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			}
 			if ((v->ucmds[1].buttons&2) != (v->ucmds[2].buttons&2) && (v->ucmds[2].buttons&2))
 			{
+				if (!v->server && !v->menunum)
+					QW_SetMenu(v, MENU_MAIN);
 				v->trackplayer--;
 			}
+
 			break;
 		default:
 			Sys_Printf(cluster, "Bad message type %i\n", mtype);
@@ -3376,7 +3349,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			else if (!strncmp(buf, "ptrack", 6))
 			{
 				v->trackplayer = -1;
-				QW_SetCommentator(cluster, v, NULL);
+				QW_SetCommentator(cluster, v, NULL);	//clicking out will stop the client from tracking thier commentator
 			}
 			else if (!strncmp(buf, "pings", 5))
 			{
@@ -3490,6 +3463,12 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			ReadDeltaUsercmd(m, &v->ucmds[1], &v->ucmds[2]);
 
 			PMove(v, &v->ucmds[2]);
+
+			if (v->ucmds[0].buttons & 2)
+			{
+				if (!v->server && !v->menunum)
+					QW_SetMenu(v, MENU_MAIN);
+			}
 			break;
 		case clc_tmove:
 			v->origin[0] = ((signed short)ReadShort(m))/8.0f;
@@ -3528,13 +3507,22 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 			i = 0;
 			sv = viewer->server;
 			if (i++ == viewer->menuop)
-			{	//mvd port
-				QW_StuffcmdToViewer(viewer, "echo Please enter a new tcp port number\nmessagemode\n");
-				strcpy(viewer->expectcommand, "setmvdport");
+			{	//auto disconnect
+				sv->disconnectwhennooneiswatching ^= 1;
 			}
 			if (i++ == viewer->menuop)
 			{	//disconnect
 				QTV_Shutdown(viewer->server);
+			}
+			if (i++ == viewer->menuop)
+			{
+				if (sv->controller == viewer)
+					sv->controller = NULL;
+				else
+				{
+					sv->controller = viewer;
+					sv->controllersquencebias = viewer->netchan.outgoing_sequence - sv->netchan.outgoing_sequence;
+				}
 			}
 			if (i++ == viewer->menuop)
 			{	//back
@@ -3670,7 +3658,7 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 		WriteString2(&m, "bad menu");
 		break;
 
-	case 3:	//per-connection options
+	case MENU_ADMINSERVER:	//per-connection options
 		if (viewer->server)
 		{
 			sv = viewer->server;
@@ -3684,16 +3672,23 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 				viewer->menuop = 0;
 
 			i = 0;
-			WriteString2(&m, "            port");
+
+			WriteString2(&m, " auto disconnect");
 			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-			if (sv->tcpsocket == INVALID_SOCKET)
-				sprintf(str, "!%-19i", sv->tcplistenportnum);
+			if (viewer->server->disconnectwhennooneiswatching)
+				sprintf(str, "%-20s", "when inactive");
 			else
-				sprintf(str, "%-20i", sv->tcplistenportnum);
+				sprintf(str, "%-20s", "never");
 			WriteString2(&m, str);
 			WriteString2(&m, "\n");
 
-			WriteString2(&m, "      disconnect");
+			WriteString2(&m, "force disconnect");
+			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
+			sprintf(str, "%-20s", "...");
+			WriteString2(&m, str);
+			WriteString2(&m, "\n");
+
+			WriteString2(&m, "    take control");
 			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
 			sprintf(str, "%-20s", "...");
 			WriteString2(&m, str);
@@ -3708,10 +3703,18 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 			if (viewer->menuop >= i)
 				viewer->menuop = i - 1;
 
+			WriteString2(&m, "\n");
+
+			WriteString2(&m, "          status");
+			WriteString2(&m, " : ");
+			sprintf(str, "%-20s", viewer->server->status);
+			WriteString2(&m, str);
+			WriteString2(&m, "\n");
+
 			break;
 		}
 		//fallthrough
-	case 1:	//connections list
+	case MENU_SERVERS:	//connections list
 
 		WriteString2(&m, "\n\nServers\n\n");
 
@@ -3749,7 +3752,7 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 		}
 		break;
 
-	case 2:	//admin menu
+	case MENU_ADMIN:	//admin menu
 
 		WriteString2(&m, "\n\nCluster Admin\n\n");
 
@@ -3867,7 +3870,12 @@ void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer)
 	if (viewer->server)
 	{
 		if (viewer->server->controller == viewer)
-			viewer->server->drop = true;
+		{
+			if (viewer->server->disconnectwhennooneiswatching)
+				viewer->server->drop = true;
+			else
+				viewer->server->controller = NULL;
+		}
 
 		viewer->server->numviewers--;
 	}
@@ -3883,6 +3891,78 @@ void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer)
 	cluster->numviewers--;
 }
 
+void SendViewerPackets(cluster_t *cluster, viewer_t *v)
+{
+	char buffer[MAX_MSGLEN*2];
+	netmsg_t m;
+	int read;
+	sv_t *useserver;
+
+	v->drop |= v->netchan.drop;
+
+	if (v->timeout < cluster->curtime)
+	{
+		Sys_Printf(cluster, "Viewer %s timed out\n", v->name);
+		v->drop = true;
+	}
+
+	if (v->netchan.isnqprotocol)
+	{
+		v->maysend = (v->nextpacket < cluster->curtime);
+	}
+	if (!Netchan_CanPacket(&v->netchan))
+		return;
+	if (v->maysend)	//don't send incompleate connection data.
+	{
+		v->nextpacket = cluster->curtime + 1000/NQ_PACKETS_PER_SECOND;
+
+		useserver = v->server;
+		if (useserver && useserver->parsingconnectiondata)
+			useserver = NULL;
+
+		v->maysend = false;
+		InitNetMsg(&m, buffer, MAX_MSGLEN);
+		m.cursize = 0;
+		if (v->thinksitsconnected)
+		{
+			if (v->netchan.isnqprotocol)
+				SendNQPlayerStates(cluster, useserver, v, &m);
+			else
+				SendPlayerStates(useserver, v, &m);
+			UpdateStats(useserver, v);
+		}
+		if (v->menunum)
+			Menu_Draw(cluster, v);
+		else if (v->server && v->server->parsingconnectiondata)
+		{
+			WriteByte(&m, svc_centerprint);
+			WriteString(&m, v->server->status);
+		}
+//printf("in %i, out %i, ", v->netchan.incoming_sequence, v->netchan.outgoing_sequence);
+if (v->netchan.incoming_sequence != v->netchan.outgoing_sequence)
+printf("%s: in %i, out %i\n", v->name, v->netchan.incoming_sequence, v->netchan.outgoing_sequence);
+		Netchan_Transmit(cluster, &v->netchan, m.cursize, m.data);
+
+		if (!v->netchan.message.cursize && v->backbuffered)
+		{//shift the backbuffers around
+			memcpy(v->netchan.message.data, v->backbuf[0].data,  v->backbuf[0].cursize);
+			v->netchan.message.cursize = v->backbuf[0].cursize;
+			for (read = 0; read < v->backbuffered; read++)
+			{
+				if (read == v->backbuffered-1)
+				{
+					v->backbuf[read].cursize = 0;
+				}
+				else
+				{
+					memcpy(v->backbuf[read].data, v->backbuf[read+1].data,  v->backbuf[read+1].cursize);
+					v->backbuf[read].cursize = v->backbuf[read+1].cursize;
+				}
+			}
+			v->backbuffered--;
+		}
+	}
+}
 void QW_UpdateUDPStuff(cluster_t *cluster)
 {
 	char buffer[MAX_MSGLEN*2];
@@ -3893,8 +3973,8 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 	int qport;
 	netmsg_t m;
 
-	sv_t *useserver;
 	viewer_t *v, *f;
+	sv_t *useserver;
 
 	if (*cluster->master && (cluster->curtime > cluster->mastersendtime || cluster->mastersendtime > cluster->curtime + 4*1000*60))	//urm... time wrapped?
 	{
@@ -3910,10 +3990,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 		cluster->mastersendtime = cluster->curtime + 3*1000*60;	//3 minuites.
 	}
 
-	m.data = buffer;
-	m.cursize = 0;
-	m.maxsize = MAX_MSGLEN;
-	m.readpos = 0;
+	InitNetMsg(&m, buffer, MAX_MSGLEN);
 
 	for (;;)
 	{
@@ -3926,10 +4003,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 			continue;
 		}
 
-		m.data = buffer;
 		m.cursize = read;
-		m.maxsize = MAX_MSGLEN;
-		m.readpos = 0;
 
 		if (*(int*)buffer == -1)
 		{	//connectionless message
@@ -3979,6 +4053,9 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 			{
 				if (Net_CompareAddress(&v->netchan.remote_address, &from, v->netchan.qport, qport))
 				{
+					if (v->server && v->server->controller == v && v->maysend)
+						SendViewerPackets(cluster, v);	//do this before we read the new sequences
+
 					if (Netchan_Process(&v->netchan, &m))
 					{
 						useserver = v->server;
@@ -3991,8 +4068,8 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 						if (v->server && v->server->controller == v)
 						{
 	//						v->maysend = true;
-							v->server->maysend =  true;
-	//						v->server->netchan.outgoing_sequence = v->netchan.incoming_sequence;
+							v->server->maysend = true;
+							v->server->netchan.outgoing_sequence = v->netchan.incoming_sequence + v->server->controllersquencebias;
 						}
 						else
 						{
@@ -4093,66 +4170,6 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 			QW_FreeViewer(cluster, f);
 		}
 
-		v->drop |= v->netchan.drop;
-
-		if (v->timeout < cluster->curtime)
-		{
-			Sys_Printf(cluster, "Viewer %s timed out\n", v->name);
-			v->drop = true;
-		}
-
-		if (v->netchan.isnqprotocol)
-		{
-			v->maysend = (v->nextpacket < cluster->curtime);
-		}
-		if (!Netchan_CanPacket(&v->netchan))
-			continue;
-		if (v->maysend)	//don't send incompleate connection data.
-		{
-			v->nextpacket = cluster->curtime + 1000/NQ_PACKETS_PER_SECOND;
-
-			useserver = v->server;
-			if (useserver && useserver->parsingconnectiondata)
-				useserver = NULL;
-
-			v->maysend = false;
-			m.cursize = 0;
-			if (v->thinksitsconnected)
-			{
-				if (v->netchan.isnqprotocol)
-					SendNQPlayerStates(cluster, useserver, v, &m);
-				else
-					SendPlayerStates(useserver, v, &m);
-				UpdateStats(useserver, v);
-
-				if (v->menunum)
-					Menu_Draw(cluster, v);
-			}
-			if (!v->menunum && v->server && v->server->parsingconnectiondata)
-			{
-				WriteByte(&m, svc_centerprint);
-				WriteString(&m, v->server->status);
-			}
-
-			Netchan_Transmit(cluster, &v->netchan, m.cursize, m.data);
-
-			if (!v->netchan.message.cursize && v->backbuffered)
-			{//shift the backbuffers around
-				memcpy(v->netchan.message.data, v->backbuf[0].data,  v->backbuf[0].cursize);
-				v->netchan.message.cursize = v->backbuf[0].cursize;
-				for (read = 0; read < v->backbuffered; read++)
-				{
-					if (read == v->backbuffered-1)
-					{
-						v->backbuf[read].cursize = 0;
-					}
-					else
-					{
-						memcpy(v->backbuf[read].data, v->backbuf[read+1].data,  v->backbuf[read+1].cursize);
-						v->backbuf[read].cursize = v->backbuf[read+1].cursize;
-					}
-				}
-			}
-		}
+		SendViewerPackets(cluster, v);
 	}
 }

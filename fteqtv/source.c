@@ -283,9 +283,7 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 	}
 	else
 	{
-		*at = '\0';
 		str =	"RECEIVE\n";	Net_QueueUpstream(qtv, strlen(str), str);
-		*at = '@';
 	}
 
 	if (!qtv->parsingqtvheader)

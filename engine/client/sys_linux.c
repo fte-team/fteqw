@@ -375,7 +375,10 @@ void *Sys_GetGameAPI(void *parms)
 	searchpath = 0;
 	while((searchpath = COM_NextPath(searchpath)))
 	{
-		sprintf (name, "%s/%s/%s", curpath, searchpath, gamename);
+		if (searchpath[0] == '/')
+			snprintf(name, sizeof(name), "%s/%s", searchpath, gamename);
+		else
+			snprintf(name, sizeof(name), "%s/%s/%s", curpath, searchpath, gamename);
 
 		game_library = dlopen (name, RTLD_LAZY );
 		if (game_library)

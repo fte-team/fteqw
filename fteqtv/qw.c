@@ -1295,7 +1295,7 @@ void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg)
 	for (i = 0; i < frame->numents; i++)
 	{
 		entnum = frame->entnums[i];
-		SV_WriteDelta(i, &qtv->entity[entnum].baseline, &frame->ents[i], msg, true);
+		SV_WriteDelta(entnum, &qtv->entity[entnum].baseline, &frame->ents[i], msg, true);
 	}
 	WriteShort(msg, 0);
 }

@@ -3236,7 +3236,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 
 	Cmd_ExecLevel=1;
 
-	if (atoi(Cmd_Argv(0))>0)	//now see if it's meant to be from a slave client
+	if (host_client->controlled && atoi(Cmd_Argv(0))>0)	//now see if it's meant to be from a slave client
 	{
 		int pnum = atoi(Cmd_Argv(0));
 		client_t *s;

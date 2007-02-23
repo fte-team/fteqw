@@ -927,7 +927,7 @@ int VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const long *arg
 
 	pluginstream_t *stream;
 	int handle = VM_LONG(arg[0]);
-	qboolean anon = false;
+	qboolean anon = true;
 	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
 	{
 		Con_Printf("Plug_Net_SetTLSClient: socket does not belong to you (or is invalid)\n");
@@ -939,6 +939,8 @@ int VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const long *arg
 		Con_Printf("Plug_Net_SetTLSClient: Not a socket handle\n");
 		return -2;
 	}
+
+	ioctlsocket (stream->socket, FIONBIO, &_false);
 
 
 {
@@ -978,7 +980,6 @@ int VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const long *arg
 
 	// Perform the TLS handshake
 
-	ioctlsocket (stream->socket, FIONBIO, &_false);
 
 	ret = GNUTLS_E_AGAIN;
 	while ((ret == GNUTLS_E_AGAIN) || (ret == GNUTLS_E_INTERRUPTED))
@@ -988,7 +989,7 @@ int VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const long *arg
 
 	if (ret < 0)
 	{
-		Con_Printf (S_ERROR "*** TLS handshake failed\n");
+		Con_Printf (S_ERROR "*** TLS handshake failed (%i)\n", ret);
 		gnutls_perror (ret);
 
 		stream->type = STREAM_SOCKET;	//go back to regular socket
@@ -1600,13 +1601,18 @@ qboolean Plug_ServerMessage(char *buffer, int messagelevel)
 {
 	qboolean ret = true;
 
+	Cmd_TokenizeString(buffer, false, false);
+	Cmd_Args_Set(buffer);
+
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 	{
 		if (currentplug->svmsgfunction)
 		{
-			ret &= VM_Call(currentplug->vm, currentplug->svmsgfunction, buffer, messagelevel);
+			ret &= VM_Call(currentplug->vm, currentplug->svmsgfunction, messagelevel);
 		}
 	}
+
+	Cmd_Args_Set(NULL);
 
 	return ret; // true to display message, false to supress
 }
@@ -1615,13 +1621,18 @@ qboolean Plug_ChatMessage(char *buffer, int talkernum, int tpflags)
 {
 	qboolean ret = true;
 
+	Cmd_TokenizeString(buffer, false, false);
+	Cmd_Args_Set(buffer);
+
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 	{
 		if (currentplug->chatmsgfunction)
 		{
-			ret &= VM_Call(currentplug->vm, currentplug->chatmsgfunction, buffer, talkernum, tpflags);
+			ret &= VM_Call(currentplug->vm, currentplug->chatmsgfunction, talkernum, tpflags);
 		}
 	}
+
+	Cmd_Args_Set(NULL);
 
 	return ret; // true to display message, false to supress
 }
@@ -1630,13 +1641,18 @@ qboolean Plug_CenterPrintMessage(char *buffer, int clientnum)
 {
 	qboolean ret = true;
 
+	Cmd_TokenizeString(buffer, false, false);
+	Cmd_Args_Set(buffer);
+
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 	{
 		if (currentplug->centerprintfunction)
 		{
-			ret &= VM_Call(currentplug->vm, currentplug->centerprintfunction, buffer, clientnum);
+			ret &= VM_Call(currentplug->vm, currentplug->centerprintfunction, clientnum);
 		}
 	}
+
+	Cmd_Args_Set(NULL);
 
 	return ret; // true to display message, false to supress
 }
@@ -1683,6 +1699,10 @@ void Plug_Close_f(void)
 		Con_Printf("Close which plugin?\n");
 		return;
 	}
+
+	if (currentplug)
+		Sys_Error("Plug_CloseAll_f called inside a plugin!\n");
+
 	for (plug = plugs; plug; plug = plug->next)
 	{
 		if (!strcmp(plug->name, name))

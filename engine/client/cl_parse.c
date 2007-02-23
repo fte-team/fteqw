@@ -2876,7 +2876,7 @@ void CL_UpdateUserinfo (void)
 CL_SetInfo
 ==============
 */
-void CL_SetInfo (void)
+void CL_ParseSetInfo (void)
 {
 	int		slot;
 	player_info_t	*player;
@@ -3291,7 +3291,7 @@ char *CL_ParseChat(char *text, player_info_t **player)
 	{
 		if (!cls.demoplayback)
 			Sys_ServerActivity();	//chat always flashes the screen..
-
+/*
 		//check f_ stuff
 		if (!strncmp(s, "f_", 2))
 		{
@@ -3322,7 +3322,7 @@ char *CL_ParseChat(char *text, player_info_t **player)
 			}
 			return s;
 		}
-
+*/
 		Validation_CheckIfResponse(text);
 
 #ifdef PLUGINS
@@ -4170,7 +4170,7 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_setinfo:
-			CL_SetInfo ();
+			CL_ParseSetInfo ();
 			break;
 
 		case svc_serverinfo:

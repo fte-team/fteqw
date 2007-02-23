@@ -1821,7 +1821,10 @@ void SV_InitBotLib()
 
 //	Z_FreeTags(Z_TAG_BOTLIB);
 	botlibmemoryavailable = 1024*1024*16;
-	botlib = FTE_GetBotLibAPI(BOTLIB_API_VERSION, &import);
+	if (bot_enable->value)
+		botlib = FTE_GetBotLibAPI(BOTLIB_API_VERSION, &import);
+	else
+		botlib = NULL;
 	if (!botlib)
 	{
 		bot_enable->flags |= CVAR_LATCH;
@@ -2572,6 +2575,7 @@ static qboolean SVQ3_Netchan_Process(client_t *client)
 	bitmask = serverid ^ lastSequence ^ client->challenge;
 	string = client->server_commands[lastServerCommandNum & TEXTCMD_MASK];
 
+#ifndef Q3_NOENCRYPT
 	// decrypt the packet
 	for( i=msg_readcount+12,j=0 ; i<net_message.cursize ; i++,j++ )
 	{
@@ -2587,6 +2591,7 @@ static qboolean SVQ3_Netchan_Process(client_t *client)
 		bitmask ^= c << (i & 1);
 		net_message.data[i] ^= bitmask;
 	}
+#endif
 
 	return true;
 }
@@ -2603,6 +2608,7 @@ void SVQ3_Netchan_Transmit( client_t *client, int length, qbyte *data )
 	bitmask = client->netchan.outgoing_sequence ^ client->challenge;
 	string = client->last_client_command;
 
+#ifndef Q3_NOENCRYPT
 	//first four bytes are not encrypted.
 	for( i=0; i<4 ; i++)
 		buffer[i] = data[i];
@@ -2620,6 +2626,10 @@ void SVQ3_Netchan_Transmit( client_t *client, int length, qbyte *data )
 		bitmask ^= c << (i & 1);
 		buffer[i] = data[i]^bitmask;
 	}
+#else
+	for( i=0 ; i<length ; i++ )
+		buffer[i] = data[i];
+#endif
 
 	// deliver the message
 	Netchan_TransmitQ3( &client->netchan, length, buffer);

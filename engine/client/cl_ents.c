@@ -465,6 +465,8 @@ void CL_ParsePacketEntities (qboolean delta)
 	{
 		from = MSG_ReadByte ();
 
+//		Con_Printf("%i %i from %i\n", cls.netchan.outgoing_sequence, cls.netchan.incoming_sequence, from);
+
 		oldpacket = cl.frames[newpacket].delta_sequence;
 		if (cls.demoplayback == DPB_MVD)
 			from = oldpacket = cls.netchan.incoming_sequence - 1;
@@ -483,7 +485,8 @@ void CL_ParsePacketEntities (qboolean delta)
 //			return;
 		}
 
-		if (cls.netchan.outgoing_sequence - oldpacket >= UPDATE_BACKUP - 1) {
+		if (cls.netchan.outgoing_sequence - oldpacket >= UPDATE_BACKUP - 1)
+		{
 			// we can't use this, it is too old
 			FlushEntityPacket ();
 			// don't clear cl.validsequence, so that frames can still be rendered;
@@ -1594,7 +1597,7 @@ packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp)
 	}
 	if (!packold)	//can happem at map start, and really laggy games, but really shouldn't in a normal game
 	{
-		Con_DPrintf("Warning: No lerp-from frame packet\n");
+//		Con_DPrintf("Warning: No lerp-from frame packet\n");
 		packold = packnew;
 	}
 

@@ -1020,6 +1020,10 @@ char *VARGS Cmd_Args (void)
 	return cmd_args;
 }
 
+void Cmd_Args_Set(char *newargs)
+{
+	cmd_args = newargs;
+}
 
 /*
 ============

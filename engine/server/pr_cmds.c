@@ -9256,6 +9256,13 @@ void PF_SendPacket(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	NET_SendPacket(NS_SERVER, strlen(contents), contents, to);
 }
 
+void PF_WasFreed (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t	*ent;
+	ent = (edict_t*)G_EDICT(prinst, OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = ent->isfree;
+}
+
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0},
 	{"ignore",			PF_Ignore,			0,		0,		0},
@@ -9568,6 +9575,23 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #ifdef PEXT_BULLETENS
 	{"bulleten",		PF_bulleten,		0,		0,		0,		243},
 #endif
+
+//EXT_CSQC
+//	{"setmodelindex",	PF_sv_SetModelIndex,0,		0,		0,		333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
+//	{"modelnameforindex",PF_sv_ModelnameForIndex,0,	0,		0,		334},	// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
+
+//	{"particleeffectnum",PF_sv_particlesloaded,0,	0,		0,		335},	// #335 float(string effectname) particleeffectnum (EXT_CSQC)
+//	{"trailparticles",	PF_sv_trailparticles,0,		0,		0,		336},	// #336 void(entity ent, float effectnum, vector start, vector end) trailparticles (EXT_CSQC),
+//	{"pointparticles",	PF_sv_pointparticles,0,		0,		0,		337},	// #337 void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
+
+//	{"cprint",			PF_sv_cprint,		0,		0,		0,		338},	// #338 void(string s) cprint (EXT_CSQC)
+//	{"print",			PF_sv_print,		0,		0,		0,		339},	// #339 void(string s) print (EXT_CSQC)
+
+//	{"runningserver",	PF_sv_runningserver,0,		0,		0,		350},	// #350 float() isserver (EXT_CSQC)
+//	{"registercommand",	PF_sv_registercommand,0,	0,		0,		352},	// #352 void(string cmdname) registercommand (EXT_CSQC)
+	{"wasfreed",		PF_WasFreed,		0,		0,		0,		353},	// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
+//	{"serverkey",		PF_sv_serverkey,	0,		0,		0,		354},	// #354 string(string key) serverkey;
+//END EXT_CSQC
 
 //end fte extras
 

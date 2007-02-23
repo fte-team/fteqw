@@ -72,6 +72,7 @@ cvar_t	cl_predict_players = SCVAR("cl_predict_players", "1");
 cvar_t	cl_predict_players2 = SCVAR("cl_predict_players2", "1");
 cvar_t	cl_solid_players = SCVAR("cl_solid_players", "1");
 cvar_t	cl_noblink = SCVAR("cl_noblink", "0");
+cvar_t	cl_servername = SCVAR("cl_servername", "none");
 
 cvar_t cl_demospeed = FCVAR("cl_demospeed", "demo_setspeed", "1", 0);
 
@@ -139,7 +140,7 @@ cvar_t  cl_parsewhitetext = SCVAR("cl_parsewhitetext", "1");
 
 cvar_t	cl_dlemptyterminate = SCVAR("cl_dlemptyterminate", "1");
 
-cvar_t	host_mapname = FCVAR("host_mapname", "mapname", "", 0);
+cvar_t	host_mapname = FCVAR("mapname", "host_mapname", "", 0);
 
 extern cvar_t cl_hightrack;
 
@@ -538,6 +539,8 @@ void CL_CheckForResend (void)
 	if (!cls.state && sv.state)
 	{
 		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
+		Cvar_ForceSet(&cl_servername, cls.servername);
+
 		cls.state = ca_disconnected;
 		switch (svs.gametype)
 		{
@@ -610,6 +613,8 @@ void CL_CheckForResend (void)
 	t2 = Sys_DoubleTime ();
 
 	connect_time = realtime+t2-t1;	// for retransmit requests
+
+	Cvar_ForceSet(&cl_servername, cls.servername);
 
 #ifdef Q3CLIENT
 	//Q3 clients send thier cdkey to the q3 authorize server.
@@ -1158,6 +1163,8 @@ void CL_Disconnect (void)
 #endif
 
 	cls.qport++;	//a hack I picked up from qizmo
+
+	Cvar_ForceSet(&cl_servername, "none");
 }
 
 #undef serverrunning
@@ -1554,6 +1561,27 @@ void CL_FullInfo_f (void)
 	}
 }
 
+void CL_SetInfo (char *key, char *value)
+{
+	cvar_t *var;
+	var = Cvar_FindVar(key);
+	if (var && (var->flags & CVAR_USERINFO))
+	{	//get the cvar code to set it. the server might have locked it.
+		Cvar_Set(var, value);
+		return;
+	}
+
+	Info_SetValueForStarKey (cls.userinfo, key, value, MAX_INFO_STRING);
+	if (cls.state >= ca_connected)
+	{
+#ifdef Q2CLIENT
+		if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)
+			cls.resendinfo = true;
+		else
+#endif
+			Cmd_ForwardToServer ();
+	}
+}
 /*
 ==================
 CL_SetInfo_f
@@ -1591,7 +1619,7 @@ void CL_SetInfo_f (void)
 						break;	//no more.
 					else if (*k == '*')
 						i++;	//can't remove * keys
-					else if ((var = Cvar_FindVar(k)) && var->flags&CVAR_SERVERINFO)
+					else if ((var = Cvar_FindVar(k)) && var->flags&CVAR_USERINFO)
 						i++;	//this one is a cvar.
 					else
 						Info_RemoveKey(cls.userinfo, k);	//we can remove this one though, so yay.
@@ -1603,23 +1631,8 @@ void CL_SetInfo_f (void)
 		return;
 	}
 
-	var = Cvar_FindVar(Cmd_Argv(1));
-	if (var && (var->flags & CVAR_USERINFO))
-	{	//get the cvar code to set it. the server might have locked it.
-		Cvar_Set(var, Cmd_Argv(2));
-		return;
-	}
 
-	Info_SetValueForKey (cls.userinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_INFO_STRING);
-	if (cls.state >= ca_connected)
-	{
-#ifdef Q2CLIENT
-		if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)
-			cls.resendinfo = true;
-		else
-#endif
-			Cmd_ForwardToServer ();
-	}
+	CL_SetInfo(Cmd_Argv(1), Cmd_Argv(2));
 }
 
 void CL_SaveInfo(vfsfile_t *f)
@@ -2447,6 +2460,12 @@ void CL_ReadPackets (void)
 			}
 			else if (!Netchan_Process(&cls.netchan))
 				continue;		// wasn't accepted for some reason
+
+			if (cls.netchan.incoming_sequence >= cls.netchan.outgoing_sequence)
+			{
+				Con_Printf("Server is in a timewarp (%i packets)\n", cls.netchan.incoming_sequence - cls.netchan.outgoing_sequence+1);
+				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence + 1;
+			}
 			CL_ParseServerMessage ();
 			break;
 		}
@@ -2707,6 +2726,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
+	Cvar_Register (&cl_servername, cl_controlgroup);
 	Cvar_Register (&cl_demospeed, "Demo playback");
 	Cvar_Register (&cl_warncmd, "Warnings");
 	Cvar_Register (&cl_upspeed, cl_inputgroup);
@@ -3220,7 +3240,12 @@ void Host_Frame (double time)
 	else
 #endif
 	if (cls.state == ca_active)
-		S_Update (r_origin, vpn, vright, vup);
+	{
+		if (cls.protocol == CP_QUAKE3)
+			S_ExtraUpdate();
+		else
+			S_Update (r_origin, vpn, vright, vup);
+	}
 	else
 		S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
 

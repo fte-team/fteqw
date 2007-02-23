@@ -431,6 +431,11 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	return true;
 }
 
+void GLVID_SetCaption(char *text)
+{
+	SetWindowText(mainwindow, text);
+}
+
 
 qboolean VID_SetFullDIBMode (rendererstate_t *info)
 {

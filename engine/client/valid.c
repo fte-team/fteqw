@@ -315,6 +315,12 @@ void Validation_CheckIfResponse(char *text)
 			return; //looks like a validation, but it's not from a known client.
 	}
 
+	{
+		char *match = DISTRIBUTION"Quake v";
+		if (strncmp(versionstring, match, strlen(match)))
+			return;	//this is not us
+	}
+
 	//now do the validation
 	{
 		f_query_t *query = NULL;

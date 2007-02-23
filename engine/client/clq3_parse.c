@@ -84,9 +84,9 @@ void CLQ3_ParseServerCommand(void)
 
 	ccs.lastServerCommandNum++;
 
-	if( number > ccs.lastServerCommandNum )
+	if( number > ccs.lastServerCommandNum+TEXTCMD_MASK-1 )
 	{
-		Host_EndGame("Lost %i reliable serverCommands\n",
+		Con_Printf("Warning: Lost %i reliable serverCommands\n",
 			number - ccs.lastServerCommandNum );
 	}
 
@@ -723,6 +723,7 @@ qboolean CLQ3_Netchan_Process(void)
 	bitmask = sequence ^ cls.challenge;
 	string = ccs.clientCommands[lastClientCommandNum & TEXTCMD_MASK];
 
+#ifndef Q3_NOENCRYPT
 	// decrypt the packet
 	for(i=msg_readcount+4,j=0 ; i<net_message.cursize ; i++,j++)
 	{
@@ -738,6 +739,7 @@ qboolean CLQ3_Netchan_Process(void)
 		bitmask ^= c << (i & 1);
 		net_message.data[i] ^= bitmask;
 	}
+#endif
 
 	return true;
 }
@@ -772,6 +774,7 @@ void CL_Netchan_Transmit( int length, const qbyte *data )
 	bitmask = lastSequence ^ serverid ^ cls.challenge;
 	string = ccs.serverCommands[lastServerCommandNum & TEXTCMD_MASK];
 
+#ifndef Q3_NOENCRYPT
 	// encrypt the packet
 	for( i=12,j=0 ; i<msg.cursize ; i++,j++ )
 	{
@@ -787,6 +790,7 @@ void CL_Netchan_Transmit( int length, const qbyte *data )
 		bitmask ^= c << (i & 1);
 		msg.data[i] ^= bitmask;
 	}
+#endif
 
 	Netchan_TransmitQ3( &cls.netchan, msg.cursize, msg.data );
 #undef msg

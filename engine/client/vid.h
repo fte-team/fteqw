@@ -112,6 +112,7 @@ qboolean GLVID_Is8bit();
 void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height);
 void GLD_EndDirectRect (int x, int y, int width, int height);
 char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight);
+void GLVID_SetCaption(char *caption);
 #endif
 
 #ifdef SWQUAKE

@@ -1837,6 +1837,10 @@ client_t *SVC_DirectConnect(void)
 	}
 
 	newcl->zquake_extensions = atoi(Info_ValueForKey(newcl->userinfo, "*z_ext"));
+	if (*Info_ValueForKey(newcl->userinfo, "*fuhquake"))	//fuhquake doesn't claim to support z_ext but does look at our z_ext serverinfo key.
+	{														//so switch on the bits that it should be sending.
+		newcl->zquake_extensions |= Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW;
+	}
 
 	//dmw - delayed - Netchan_OutOfBandPrint (adr, "%c", S2C_CONNECTION );
 

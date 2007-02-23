@@ -423,6 +423,11 @@ void SV_MapList_f(void)
 	COM_EnumerateFiles("maps/*.bsp", ShowMapList, NULL);
 }
 
+void gtcallback(struct cvar_s *var, char *oldvalue)
+{
+	Con_Printf("g_gametype changed\n");
+}
+
 /*
 ======================
 SV_Map_f
@@ -570,7 +575,13 @@ void SV_Map_f (void)
 #ifdef Q3SERVER
 	{
 		cvar_t *gametype;
-		gametype = Cvar_Get("g_gametype", "0", CVAR_LATCH, "Q3 compatability");
+
+		gametype = Cvar_Get("mapname", "0", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
+		gametype->flags |= CVAR_SERVERINFO;
+		Cvar_ForceSet(gametype, level);
+
+		gametype = Cvar_Get("g_gametype", "0", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
+		gametype->callback = gtcallback;
 		if (wasspmap)
 			Cvar_ForceSet(gametype, "2");
 		else if (gametype->value == 2)	//singleplayer

@@ -883,7 +883,7 @@ rendererinfo_t softwarerendererinfo = {
 	SWVID_ShiftPalette,
 	SWVID_GetRGBInfo,
 
-	NULL,
+	SWVID_SetCaption,
 
 	SWSCR_UpdateScreen,
 
@@ -980,7 +980,7 @@ rendererinfo_t openglrendererinfo = {
 	GLVID_ShiftPalette,
 	GLVID_GetRGBInfo,
 
-	NULL,	//setcaption
+	GLVID_SetCaption,	//setcaption
 
 
 	GLSCR_UpdateScreen,

@@ -2160,13 +2160,6 @@ static void PF_cs_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	RETURN_EDICT(prinst, (void*)chain);
 }
 
-void PF_WasFreed (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	edict_t	*ent;
-	ent = (edict_t*)G_EDICT(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = ent->isfree;
-}
-
 static void PF_cl_te_gunshot (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);

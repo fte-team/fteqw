@@ -604,7 +604,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 				}
 
 				if (mod)
-					pc = cl.worldmodel->funcs.NativeContents(mod, 0, 0, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
+					pc = mod->funcs.NativeContents(mod, 0, 0, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
 				else
 					pc = 1;//FTECONTENTS_SOLID;
 			}
@@ -852,6 +852,22 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 	case CG_S_UPDATEENTITYPOSITION://void		trap_S_UpdateEntityPosition( int entityNum, const vec3_t origin );
 		break;
 	case CG_S_RESPATIALIZE://void		trap_S_Respatialize( int entityNum, const vec3_t origin, vec3_t axis[3], int inwater );
+		{
+			float *org = VM_POINTER(arg[1]);
+			float *axis = VM_POINTER(arg[2]);
+/*
+vec3_t		listener_origin;
+vec3_t		listener_forward;
+vec3_t		listener_right;
+vec3_t		listener_up;
+*/
+			VectorCopy(org, listener_origin);
+			VectorCopy(axis+0, listener_forward);
+			VectorCopy(axis+3, listener_right);
+			VectorCopy(axis+6, listener_up);
+
+//			S_Update(origin, axis[0], axis[1], axis[2], false);
+		}
 		break;
 
 	case CG_S_ADDREALLOOPINGSOUND:

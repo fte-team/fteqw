@@ -1403,6 +1403,7 @@ void CL_SendCmd (float frametime)
 	{
 		cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = cl.validsequence;
 		MSG_WriteByte (&buf, clc_delta);
+//		Con_Printf("%i\n", cl.validsequence);
 		MSG_WriteByte (&buf, cl.validsequence&255);
 	}
 	else

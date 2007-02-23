@@ -398,6 +398,33 @@ int VARGS Plug_GetPlayerInfo(void *offset, unsigned int mask, const long *arg)
 		return pt == i;
 }
 
+int VARGS Plug_LocalPlayerNumber(void *offset, unsigned int mask, const long *arg)
+{
+	return cl.playernum[0];
+}
+
+int VARGS Plug_GetServerInfo(void *offset, unsigned int mask, const long *arg)
+{
+	char *outptr = VM_POINTER(arg[0]);
+	int outlen = VM_LONG(arg[1]);
+
+	if (VM_OOB(arg[0], outlen))
+		return false;
+
+	Q_strncpyz(outptr, cl.serverinfo, outlen);
+
+	return true;
+}
+
+int VARGS Plug_SetUserInfo(void *offset, unsigned int mask, const long *arg)
+{
+	char *key = VM_POINTER(arg[0]);
+	char *value = VM_POINTER(arg[1]);
+
+	CL_SetInfo(key, value);
+
+	return true;
+}
 
 int VARGS Plug_Con_SubPrint(void *offset, unsigned int mask, const long *arg)
 {
@@ -519,6 +546,9 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, PLUG_BIF_NEEDSRENDERER);
 
 	Plug_RegisterBuiltin("GetPlayerInfo",			Plug_GetPlayerInfo, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("LocalPlayerNumber",		Plug_LocalPlayerNumber, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("GetServerInfo",			Plug_GetServerInfo, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("SetUserInfo",				Plug_SetUserInfo, PLUG_BIF_NEEDSRENDERER);
 }
 
 void Plug_Client_Close(plugin_t *plug)

@@ -2187,11 +2187,17 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	if (scr_drawdialog)
 	{
 		if (!nohud)
+		{
 #ifdef PLUGINS
 			Plug_SBar ();
 #else
-			Sbar_Draw ();
+			if (Sbar_ShouldDraw())
+			{
+				Sbar_Draw ();
+				Sbar_DrawScoreboard ();
+			}
 #endif
+		}
 		SCR_ShowPics_Draw();
 		Draw_FadeScreen ();
 		SCR_DrawNotifyString ();
@@ -2202,11 +2208,17 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		SCR_DrawLoading ();
 
 		if (!nohud)
+		{
 #ifdef PLUGINS
 			Plug_SBar ();
 #else
-			Sbar_Draw ();
+			if (Sbar_ShouldDraw())
+			{
+				Sbar_Draw ();
+				Sbar_DrawScoreboard ();
+			}
 #endif
+		}
 		SCR_ShowPics_Draw();
 	}
 	else if (cl.intermission == 1 && key_dest == key_game)
@@ -2239,7 +2251,11 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 #ifdef PLUGINS
 			Plug_SBar ();
 #else
-			Sbar_Draw ();
+			if (Sbar_ShouldDraw())
+			{
+				Sbar_Draw ();
+				Sbar_DrawScoreboard ();
+			}
 #endif
 			SCR_ShowPics_Draw();
 

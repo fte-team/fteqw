@@ -927,7 +927,7 @@ int VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const long *arg
 
 	pluginstream_t *stream;
 	int handle = VM_LONG(arg[0]);
-	qboolean anon = true;
+	qboolean anon = false;
 	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
 	{
 		Con_Printf("Plug_Net_SetTLSClient: socket does not belong to you (or is invalid)\n");
@@ -1536,8 +1536,11 @@ void Plug_SBar(void)
 	int cp, ret;
 	vrect_t rect;
 
+	if (!Sbar_ShouldDraw())
+		return;
+
 	ret = 0;
-	if (!plug_sbar.value)
+	if (!plug_sbar.value || cl.splitclients > 1)
 		currentplug = NULL;
 	else
 	{
@@ -1556,12 +1559,9 @@ void Plug_SBar(void)
 			}
 		}
 	}
-	if (!ret)
+	if (!(ret & 1))
 	{
 		Sbar_Draw();
-		currentplug = oc;
-		return;	//our current sbar draws a scoreboard too. We don't want that bug to be quite so apparent.
-				//please don't implement this identical hack in your engines...
 	}
 
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
@@ -1573,7 +1573,7 @@ void Plug_SBar(void)
 				SCR_VRectForPlayer(&rect, cp);
 				if (Draw_ImageColours)
 					Draw_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
-				VM_Call(currentplug->vm, currentplug->sbarlevel[1], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
+				ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[1], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
 			}
 		}
 	}
@@ -1587,9 +1587,14 @@ void Plug_SBar(void)
 				SCR_VRectForPlayer(&rect, cp);
 				if (Draw_ImageColours)
 					Draw_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
-				VM_Call(currentplug->vm, currentplug->sbarlevel[2], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
+				ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[2], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
 			}
 		}
+	}
+
+	if (!(ret & 2))
+	{
+		Sbar_DrawScoreboard();
 	}
 
 

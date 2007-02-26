@@ -1195,12 +1195,15 @@ int UI_StatusBar(int *arg)
 	float vsx, vsy;
 
 	if (hudedit) // don't redraw twice
-		return true;
+		return 1;
 
 	if (arg[5])
-		return false;
+		return 1;
 
 	CL_GetStats(arg[0], stats, sizeof(stats)/sizeof(int));
+
+	if (stats[STAT_HEALTH] <= 0)
+		return 1;
 
 	vsx = arg[3]/640.0f;
 	vsy = arg[4]/480.0f;
@@ -1215,7 +1218,7 @@ int UI_StatusBar(int *arg)
 		drawelement[element[i].type].draw();
 	}
 
-	return true;
+	return 1;
 }
 
 int UI_StatusBarEdit(int *arg) // seperated so further improvements to editor view can be done

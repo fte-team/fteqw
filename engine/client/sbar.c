@@ -1255,6 +1255,10 @@ void Sbar_SoloScoreboard (void)
 	units = seconds - 10*tens;
 	sprintf (str,"Time :%3i:%i%i", minutes, tens, units);
 	Sbar_DrawString (184, 4, str);
+
+	// draw level name
+	l = strlen (cl.levelname);
+	Sbar_DrawString (232 - l*4, 12, cl.levelname);
 }
 
 void Sbar_CoopScoreboard (void)
@@ -1650,6 +1654,70 @@ void Sbar_DrawNormal (int pnum)
 	, cl.stats[pnum][STAT_AMMO] <= 10);
 }
 
+qboolean Sbar_ShouldDraw (void)
+{
+	#ifdef TEXTEDITOR
+	extern qboolean editoractive;
+#endif
+	qboolean headsup;
+	char st[512];
+	int pnum;
+
+	int deadcount=0;
+
+	if (scr_con_current == vid.height)
+		return false;		// console is full screen
+
+#ifdef TEXTEDITOR
+	if (editoractive)
+		return false;
+#endif
+
+#ifdef VM_UI
+	if (UI_DrawStatusBar((sb_showscores?1:0) + (sb_showteamscores?2:0))>0)
+		return false;
+	if (UI_MenuState())
+		return false;
+#endif
+
+	headsup = !(cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1));
+	if ((sb_updates >= vid.numpages) && !headsup)
+		return false;
+
+	return true;
+}
+
+void Sbar_DrawScoreboard (void)
+{
+	int pnum;
+	int deadcount=0;
+
+	if (cls.protocol == CP_QUAKE2)
+		return;
+
+	for (pnum = 0; pnum < cl.splitclients; pnum++)
+	{
+		if (cl.stats[pnum][STAT_HEALTH] <= 0)
+			deadcount++;
+	}
+
+	if (deadcount == cl.splitclients && !cl.spectator)
+	{
+		if (cl.teamplay > 0 && !sb_showscores)
+			Sbar_TeamOverlay();
+		else
+			Sbar_DeathmatchOverlay (0);
+	}
+	else if (sb_showscores)
+		Sbar_DeathmatchOverlay (0);
+	else if (sb_showteamscores)
+		Sbar_TeamOverlay();
+	else
+		return;
+
+	sb_updates = 0;
+}
+
 /*
 ===============
 Sbar_Draw
@@ -1664,22 +1732,7 @@ void Sbar_Draw (void)
 	char st[512];
 	int pnum;
 
-	int deadcount=0;
 
-	if (scr_con_current == vid.height)
-		return;		// console is full screen
-
-#ifdef TEXTEDITOR
-	if (editoractive)
-		return;
-#endif
-
-#ifdef VM_UI
-	if (UI_DrawStatusBar((sb_showscores?1:0) + (sb_showteamscores?2:0))>0)
-		return;
-	if (UI_MenuState())
-		return;
-#endif
 
 	headsup = !(cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1));
 	if ((sb_updates >= vid.numpages) && !headsup)
@@ -1692,7 +1745,7 @@ void Sbar_Draw (void)
 		SCR_VRectForPlayer(&sbar_rect, 0);
 
 		if (*cl.q2statusbar)
-		Sbar_ExecuteLayoutString(cl.q2statusbar);
+			Sbar_ExecuteLayoutString(cl.q2statusbar);
 		if (*cl.q2layout)
 		{
 			if (cl.q2frame.playerstate.stats[Q2STAT_LAYOUTS])
@@ -1798,34 +1851,11 @@ void Sbar_Draw (void)
 			else
 				Sbar_DrawNormal (pnum);
 		}
-
-		if (cl.stats[pnum][STAT_HEALTH] <= 0)
-			deadcount++;
 	}
-
-	// main screen deathmatch rankings
-	// if we're dead show team scores in team games
-	if (deadcount == cl.splitclients && !cl.spectator)
-	{
-		if (cl.teamplay > 0 &&
-			!sb_showscores)
-			Sbar_TeamOverlay();
-		else
-			Sbar_DeathmatchOverlay (0);
-	}
-	else if (sb_showscores)
-		Sbar_DeathmatchOverlay (0);
-	else if (sb_showteamscores)
-		Sbar_TeamOverlay();
 
 #ifdef RGLQUAKE
 	if (cl_sbar.value == 1 || scr_viewsize.value<100)
 	{
-		if (sb_showscores || sb_showteamscores ||
-			deadcount == cl.splitclients)
-			sb_updates = 0;
-		// clear unused areas in gl
-
 		if (cl.splitclients==1 && sbar_rect.x>0)
 		{	// left
 				Draw_TileClear (0, sbar_rect.height - sb_lines, sbar_rect.x, sb_lines);

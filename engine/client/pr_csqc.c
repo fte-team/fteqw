@@ -1136,11 +1136,17 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 	vid.recalc_refdef = 1;
 
 	if (csqc_drawsbar)
+	{
 #ifdef PLUGINS
 		Plug_SBar();
 #else
-		Sbar_Draw();
+		if (Sbar_ShouldDraw())
+		{
+			Sbar_Draw ();
+			Sbar_DrawScoreboard ();
+		}
 #endif
+	}
 
 	if (csqc_addcrosshair)
 		Draw_Crosshair();

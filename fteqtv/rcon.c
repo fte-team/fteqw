@@ -27,18 +27,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 FTEQTV proxy commands: (build "__DATE__")\n\
 ----------------------\n\
 connect, qtv, addserver\n\
- - connect to a MVD stream (TCP)\n\
+  connect to a MVD stream (TCP)\n\
+qtvlist\n\
+  lists available streams on a proxy\n\
 qw\n\
- - connect to a server as a player (UDP)\n\
+  connect to a server as a player (UDP)\n\
 adddemo\n\
- - play a demo from a MVD file\n\
+  play a demo from a MVD file\n\
 port\n\
- - UDP port for QuakeWorld client connections\n\
+  UDP port for QuakeWorld client connections\n\
 mvdport\n\
- - specify TCP port for MVD broadcasting\n\
+  specify TCP port for MVD broadcasting\n\
 maxviewers, maxproxies\n\
-- limit number of connections\n\
-status, choke, late, talking, nobsp, reconnect, exec, password, master, hostname, record, stop, quit\n\n"
+  limit number of connections\n\
+status, choke, late, talking, nobsp, reconnect, exec, password, master, hostname, record, stop, quit\n\
+  other random commands\n\
+\n"
 
 
 
@@ -402,6 +406,33 @@ char *Cmd_AdminPassword(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char
 	strncpy(cluster->adminpassword, arg[1], sizeof(cluster->adminpassword)-1);
 	return "Password changed.\n";
 }
+
+char *Cmd_QTVList(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
+{
+	if (!*arg[1])
+		return "connect requires an ip:port parameter\n";
+
+	memmove(arg[1]+4, arg[1], ARG_LEN-5);
+	strncpy(arg[1], "tcp:", 4);
+
+	qtv = QTV_NewServerConnection(cluster, arg[1], arg[2], false, false, false, true);
+	if (!qtv)
+		return "Failed to connect to server, connection aborted\n";
+	return "Querying proxy\n";
+}
+char *Cmd_QTVDemoList(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
+{
+	if (!*arg[1])
+		return "connect requires an ip:port parameter\n";
+
+	memmove(arg[1]+4, arg[1], ARG_LEN-5);
+	strncpy(arg[1], "tcp:", 4);
+
+	qtv = QTV_NewServerConnection(cluster, arg[1], arg[2], false, false, false, 2);
+	if (!qtv)
+		return "Failed to connect to server, connection aborted\n";
+	return "Querying proxy\n";
+}
 char *Cmd_QTVConnect(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
 	if (!*arg[1])
@@ -410,7 +441,7 @@ char *Cmd_QTVConnect(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *b
 	memmove(arg[1]+4, arg[1], ARG_LEN-5);
 	strncpy(arg[1], "tcp:", 4);
 
-	if (!QTV_NewServerConnection(cluster, arg[1], arg[2], false, false, false))
+	if (!QTV_NewServerConnection(cluster, arg[1], arg[2], false, false, false, false))
 		return "Failed to connect to server, connection aborted\n";
 	return "Source registered\n";
 }
@@ -422,7 +453,7 @@ char *Cmd_QWConnect(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *bu
 	memmove(arg[1]+4, arg[1], ARG_LEN-5);
 	strncpy(arg[1], "udp:", 4);
 
-	if (!QTV_NewServerConnection(cluster, arg[1], arg[2], false, false, false))
+	if (!QTV_NewServerConnection(cluster, arg[1], arg[2], false, false, false, false))
 		return "Failed to connect to server, connection aborted\n";
 	return "Source registered\n";
 }
@@ -438,7 +469,7 @@ char *Cmd_MVDConnect(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *b
 	memmove(arg[1]+5, arg[1], ARG_LEN-6);
 	strncpy(arg[1], "file:", 5);
 
-	if (!QTV_NewServerConnection(cluster, arg[1], arg[2], false, false, false))
+	if (!QTV_NewServerConnection(cluster, arg[1], arg[2], false, false, false, false))
 		return "Failed to connect to server, connection aborted\n";
 	return "Source registered\n";
 }
@@ -847,6 +878,8 @@ const rconcommands_t rconcommands[] =
 	 {"port",		0, 1, Cmd_UDPPort},
 	{"adminpassword",0, 1, Cmd_AdminPassword},
 	 {"rconpassword",0, 1, Cmd_AdminPassword},
+	{"qtvlist",		0, 1, Cmd_QTVList},
+	{"qtvdemolist",	0, 1, Cmd_QTVDemoList},
 	{"qtv",			0, 1, Cmd_QTVConnect},
 	 {"addserver",	0, 1, Cmd_QTVConnect},
 	 {"connect",	0, 1, Cmd_QTVConnect},

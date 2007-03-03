@@ -435,6 +435,7 @@ int main(int argc, char **argv)
 	cluster.allownqclients = true;
 	strcpy(cluster.hostname, DEFAULT_HOSTNAME);
 	cluster.buildnumber = build_number();
+	cluster.maxproxies = -1;
 
 	Sys_Printf(&cluster, "QTV Build %i.\n", cluster.buildnumber);
 

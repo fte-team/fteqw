@@ -2300,7 +2300,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else if (!strcmp(v->expectcommand, "addserver"))
 		{
 			snprintf(buf, sizeof(buf), "tcp:%s", message);
-			qtv = QTV_NewServerConnection(cluster, buf, "", false, false, false);
+			qtv = QTV_NewServerConnection(cluster, buf, "", false, false, false, false);
 			if (qtv)
 			{
 				QW_SetViewersServer(cluster, v, qtv);
@@ -2326,7 +2326,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else if (!strcmp(v->expectcommand, "insecadddemo"))
 		{
 			snprintf(buf, sizeof(buf), "file:%s", message);
-			qtv = QTV_NewServerConnection(cluster, buf, "", false, false, false);
+			qtv = QTV_NewServerConnection(cluster, buf, "", false, false, false, false);
 			if (!qtv)
 				QW_PrintfToViewer(v, "Failed to play demo \"%s\"\n", message);
 			else
@@ -2339,7 +2339,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else if (!strcmp(v->expectcommand, "adddemo"))
 		{
 			snprintf(buf, sizeof(buf), "file:%s", message);
-			qtv = QTV_NewServerConnection(cluster, buf, "", false, false, false);
+			qtv = QTV_NewServerConnection(cluster, buf, "", false, false, false, false);
 			if (!qtv)
 				QW_PrintfToViewer(v, "Failed to play demo \"%s\"\n", message);
 			else
@@ -2681,7 +2681,7 @@ tuidemos:
 		else
 			message += 9;
 		snprintf(buf, sizeof(buf), "udp:%s", message);
-		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true);
+		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
@@ -2695,7 +2695,7 @@ tuidemos:
 	{
 		message += 6;
 		snprintf(buf, sizeof(buf), "udp:%s", message);
-		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, false);
+		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, false, false);
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
@@ -2710,7 +2710,7 @@ tuidemos:
 	{
 		message += 5;
 		snprintf(buf, sizeof(buf), "tcp:%s", message);
-		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true);
+		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
@@ -2747,7 +2747,7 @@ tuidemos:
 	{
 		message += 6;
 		snprintf(buf, sizeof(buf), "file:%s", message);
-		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true);
+		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);

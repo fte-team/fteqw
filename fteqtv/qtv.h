@@ -509,6 +509,7 @@ struct sv_s {	//details about a server connection (also known as stream)
 	char connectpassword[64];	//password given to server
 	netadr_t serveraddress;
 	netchan_t netchan;
+	qboolean serverquery;
 
 	unsigned char buffer[MAX_PROXY_BUFFER];	//this doesn't cycle.
 	int buffersize;	//it memmoves down
@@ -924,7 +925,7 @@ void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf);
 void Sys_Printf(cluster_t *cluster, char *fmt, ...);
 
 oproxy_t *Net_FileProxy(sv_t *qtv, char *filename);
-sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates);
+sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates, qboolean query);
 SOCKET Net_MVDListen(int port);
 qboolean Net_StopFileProxy(sv_t *qtv);
 

@@ -70,7 +70,7 @@ void SV_FindProxies(SOCKET sock, cluster_t *cluster, sv_t *defaultqtv)
 	if (sock == INVALID_SOCKET)
 		return;
 
-	if (cluster->numproxies >= cluster->maxproxies && cluster->maxproxies)
+	if (cluster->maxproxies >= 0 && cluster->numproxies >= cluster->maxproxies)
 	{
 		const char buffer[] = {dem_all, 1, 'P','r','o','x','y',' ','i','s',' ','f','u','l','l','.'};
 		send(sock, buffer, strlen(buffer), 0);
@@ -437,6 +437,100 @@ void SV_ForwardStream(sv_t *qtv, char *buffer, int length)
 	}
 }
 
+static const char qfont_table[256] = {
+	'\0', '#', '#', '#', '#', '.', '#', '#',
+	'#', 9, 10, '#', ' ', 13, '.', '.',
+	'[', ']', '0', '1', '2', '3', '4', '5',
+	'6', '7', '8', '9', '.', '<', '=', '>',
+	' ', '!', '"', '#', '$', '%', '&', '\'',
+	'(', ')', '*', '+', ',', '-', '.', '/',
+	'0', '1', '2', '3', '4', '5', '6', '7',
+	'8', '9', ':', ';', '<', '=', '>', '?',
+	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
+	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+	'X', 'Y', 'Z', '[', '\\', ']', '^', '_',
+	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
+	'x', 'y', 'z', '{', '|', '}', '~', '<',
+ 
+	'<', '=', '>', '#', '#', '.', '#', '#',
+	'#', '#', ' ', '#', ' ', '>', '.', '.',
+	'[', ']', '0', '1', '2', '3', '4', '5',
+	'6', '7', '8', '9', '.', '<', '=', '>',
+	' ', '!', '"', '#', '$', '%', '&', '\'',
+	'(', ')', '*', '+', ',', '-', '.', '/',
+	'0', '1', '2', '3', '4', '5', '6', '7',
+	'8', '9', ':', ';', '<', '=', '>', '?',
+	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
+	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+	'X', 'Y', 'Z', '[', '\\', ']', '^', '_',
+	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
+	'x', 'y', 'z', '{', '|', '}', '~', '<'
+};
+
+void HTMLprintf(char *outb, int outl, char *fmt, ...)
+{
+	va_list val;
+	char qfmt[8192*4];
+	char *inb = qfmt;
+
+	va_start(val, fmt);
+	vsnprintf(qfmt, sizeof(qfmt), fmt, val);
+	va_end(val);
+	qfmt[sizeof(qfmt)-1] = 0;
+
+	outl--;
+	outl -= 5;
+	while (outl > 0 && *inb)
+	{
+		if (*inb == '<')
+		{
+			*outb++ = '&';
+			*outb++ = 'l';
+			*outb++ = 't';
+			*outb++ = ';';
+			outl -= 4;
+		}
+		else if (*inb == '>')
+		{
+			*outb++ = '&';
+			*outb++ = 'g';
+			*outb++ = 't';
+			*outb++ = ';';
+			outl -= 4;
+		}
+		else if (*inb == '\n')
+		{
+			*outb++ = '<';
+			*outb++ = 'b';
+			*outb++ = 'r';
+			*outb++ = '/';
+			*outb++ = '>';
+			outl -= 5;
+		}
+		else if (*inb == '&')
+		{
+			*outb++ = '&';
+			*outb++ = 'a';
+			*outb++ = 'm';
+			*outb++ = 'p';
+			*outb++ = ';';
+			outl -= 5;
+		}
+		else
+		{
+			*outb++ = qfont_table[*(unsigned char*)inb];
+		}
+		inb++;
+	}
+	*outb++ = 0;
+}
+
 void SV_GenerateNowPlayingHTTP(cluster_t *cluster, oproxy_t *dest)
 {
 	int player;
@@ -462,28 +556,41 @@ void SV_GenerateNowPlayingHTTP(cluster_t *cluster, oproxy_t *dest)
 
 	for (streams = cluster->servers; streams; streams = streams->next)
 	{
-		sprintf(buffer, "<A HREF=\"watch.qtv?sid=%i\">%s (%s: %s)</A><br/>", streams->streamid, streams->server, streams->gamedir, streams->mapname);
+		sprintf(buffer, "<A HREF=\"watch.qtv?sid=%i\">", streams->streamid);
 		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
+		HTMLprintf(buffer, sizeof(buffer), "%s (%s: %s)", streams->server, streams->gamedir, streams->mapname);
+		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
+		s = "</A><br/>";
+		Net_ProxySend(cluster, dest, s, strlen(s));
 
 		for (player = 0; player < MAX_CLIENTS; player++)
 		{
 			if (*streams->players[player].userinfo)
 			{
 				Info_ValueForKey(streams->players[player].userinfo, "name", plname, sizeof(plname));
-				sprintf(buffer, "&nbsp;%s<br/>", plname);
+
+				s = "&nbsp;";
+				Net_ProxySend(cluster, dest, s, strlen(s));
+				HTMLprintf(buffer, sizeof(buffer), "%s", plname);
 				Net_ProxySend(cluster, dest, buffer, strlen(buffer));
+				s = "<br/>";
+				Net_ProxySend(cluster, dest, s, strlen(s));
 			}
 		}
 	}
 	if (!cluster->servers)
 	{
-		
 		s = "No streams are currently being played<br />";
 		Net_ProxySend(cluster, dest, s, strlen(s));
 	}
 
-	s = "<br /><A href=\"/demos.html\">Available Demos</A>";
+	s = "<br /><A href=\"/demos.html\">Available Demos</A><br />";
 	Net_ProxySend(cluster, dest, s, strlen(s));
+	s = "<A href=\"/admin.html\">Admin</A><br />";
+	Net_ProxySend(cluster, dest, s, strlen(s));
+
+	sprintf(buffer, "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\">www.fteqw.com</a><br />", cluster->buildnumber);
+	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 
 	sprintf(buffer, "</BODY>");
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
@@ -750,12 +857,21 @@ void SV_GenerateAdminHTTP(cluster_t *cluster, oproxy_t *dest, int streamid, char
 			s = strchr(o, '\n');
 			if (s)
 				*s = 0;
-			Net_ProxySend(cluster, dest, o, strlen(o));
+			HTMLprintf(cmd, sizeof(cmd), "%s", o);
+			Net_ProxySend(cluster, dest, cmd, strlen(cmd));
 			Net_ProxySend(cluster, dest, "<BR />", 6);
 			if (!s)
 				break;
 			o = s+1;
 		}
+
+		s = "<br /><A href=\"/nowplaying.html\">Now Playing</A><br />";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+		s = "<A href=\"/demos.html\">Available Demos</A><br />";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+
+		sprintf(result, "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\">www.fteqw.com</a><br />", cluster->buildnumber);
+		Net_ProxySend(cluster, dest, result, strlen(result));
 
 		s = "</BODY>"
 			"</HTML>";
@@ -768,7 +884,7 @@ void SV_GenerateAdminHTTP(cluster_t *cluster, oproxy_t *dest, int streamid, char
 
 void SV_GenerateQTVDemoListing(cluster_t *cluster, oproxy_t *dest)
 {
-	int numdemos = 0;
+	int i;
 	char link[256];
 	char *s;
 		s = "HTTP/1.1 200 OK\n"
@@ -781,67 +897,24 @@ void SV_GenerateQTVDemoListing(cluster_t *cluster, oproxy_t *dest)
 		s = "<H1>QTV Demo listing</H1>";
 		Net_ProxySend(cluster, dest, s, strlen(s));
 
-#ifdef _WIN32
+		Cluster_BuildAvailableDemoList(cluster);
+		for (i = 0; i < cluster->availdemoscount; i++)
 		{
-			WIN32_FIND_DATA ffd;
-			HANDLE h;
-			h = FindFirstFile("*.mvd", &ffd);
-			if (h != INVALID_HANDLE_VALUE)
-			{
-				do
-				{
-					numdemos++;
-					snprintf(link, sizeof(link), "<A HREF=\"watch.qtv?demo=%s\">%s</A><br/>", ffd.cFileName, ffd.cFileName);
-					Net_ProxySend(cluster, dest, link, strlen(link));
-				} while(FindNextFile(h, &ffd));
-				FindClose(h);
-			}
+			snprintf(link, sizeof(link), "<A HREF=\"watch.qtv?demo=%s\">%s</A> (%ikb)<br/>", cluster->availdemos[i].name, cluster->availdemos[i].name, cluster->availdemos[i].size/1024);
+			Net_ProxySend(cluster, dest, link, strlen(link));
 		}
-#else
-		{
-			int namelen;
-			DIR		*dir;
-			struct dirent *oneentry;
 
-			dir=opendir(".");
-			if (!dir)
-			{		
-				s = "QTV Proxy is unable to search for available demos.";
-				Net_ProxySend(cluster, dest, s, strlen(s));
-			}
-			else
-			{
-				for(;;)
-				{
-					oneentry=readdir(dir);
-					if(!oneentry)
-						break;					
-#ifndef __CYGWIN__
-					if (oneentry->d_type == DT_DIR || oneentry->d_type == DT_LNK)
-					{
-						continue;
-					}
-#endif
-					namelen = strlen(oneentry->d_name);
-					if (namelen > 4 && !strcmp(oneentry->d_name + namelen-4, ".mvd"))
-					{
-						numdemos++;
-						snprintf(link, sizeof(link), "<A HREF=\"watch.qtv?demo=%s\">%s</A><br/>", oneentry->d_name, oneentry->d_name);
-						Net_ProxySend(cluster, dest, link, strlen(link));
-					}
-				}
-
-				closedir(dir);
-			}
-		}
-		/*
-		s = "QTV Proxy is running on a platform for which file system listing is not coded.<br />Demo listing is not available.";
-		Net_ProxySend(cluster, dest, s, strlen(s));
-		*/
-#endif
-
-		sprintf(link, "<P>Total: %i demos</P>", numdemos);
+		sprintf(link, "<P>Total: %i demos</P>", cluster->availdemoscount);
 		Net_ProxySend(cluster, dest, link, strlen(link));
+
+		s = "<br /><A href=\"/nowplaying.html\">Now Playing</A><br />";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+		s = "<A href=\"/admin.html\">Admin</A><br />";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+
+		sprintf(link, "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\">www.fteqw.com</a><br />", cluster->buildnumber);
+		Net_ProxySend(cluster, dest, link, strlen(link));
+
 
 		s = "</BODY>"
 			"</HTML>";
@@ -1102,11 +1175,28 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						}
 					}
 					else if (!strcmp(s, "DEMOLIST"))
-					{	//lists the demos available on this proxy
+					{	//lists sources that are currently playing
+						int i;
+
+						Cluster_BuildAvailableDemoList(cluster);
+
 						s = "QTVSV 1\n";
 							Net_ProxySend(cluster, pend, s, strlen(s));
-						s = "PERROR: DEMOLIST command not yet implemented\n";
-							Net_ProxySend(cluster, pend, s, strlen(s));
+						if (!cluster->availdemoscount)
+						{
+							s = "PERROR: No demos currently available\n";
+								Net_ProxySend(cluster, pend, s, strlen(s));
+						}
+						else
+						{
+							for (i = 0; i < cluster->availdemoscount; i++)
+							{
+								sprintf(tempbuf, "ADEMO: %i: %15s\n", cluster->availdemos[i].size, cluster->availdemos[i].name);
+								s = tempbuf;
+								Net_ProxySend(cluster, pend, s, strlen(s));
+							}
+							qtv = NULL;
+						}
 						s = "\n";
 							Net_ProxySend(cluster, pend, s, strlen(s));
 						pend->flushing = true;
@@ -1154,7 +1244,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 							if (*s < '0' || *s > '9')
 								break;
 						if (*s)
-							qtv = QTV_NewServerConnection(cluster, colon, "", false, true, true);
+							qtv = QTV_NewServerConnection(cluster, colon, "", false, true, true, false);
 						else
 						{
 							//numerical source, use a stream id.
@@ -1162,18 +1252,25 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 								if (qtv->streamid == atoi(colon))
 									break;
 						}
-	//					s = "QTVSV 1\n"
-	//						"PERROR: SOURCE command not yet implemented\n"
-	//						"\n";
-	//					Net_ProxySend(cluster, pend, s, strlen(s));
 					}
 					else if (!strcmp(s, "DEMO"))
 					{	//starts a demo off the server... source does the same thing though...
-						s = "QTVSV 1\n"
-							"PERROR: DEMO command not yet implemented\n"
-							"\n";
-						Net_ProxySend(cluster, pend, s, strlen(s));
-						pend->flushing = true;
+						char buf[256];
+	
+						sprintf(buf, sizeof(buf), "demo:%s", colon);
+						qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
+						if (!qtv)
+						{
+							s = "QTVSV 1\n"
+								"PERROR: couldn't open demo\n"
+								"\n";
+							Net_ProxySend(cluster, pend, s, strlen(s));
+							pend->flushing = true;
+						}
+					}
+					else if (!strcmp(s, "AUTH"))
+					{	//lists the demos available on this proxy
+						//part of the connection process, can be ignored if there's no password
 					}
 					else
 						printf("Unrecognised token in QTV connection request (%s)\n", s);
@@ -1217,7 +1314,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		pend->flushing = true;
 		return false;
 	}
-	if (cluster->maxproxies && cluster->numproxies >= cluster->maxproxies)
+	if (cluster->maxproxies>=0 && cluster->numproxies >= cluster->maxproxies)
 	{
 		s = "QTVSV 1\n"
 			"TERROR: This QTV has reached it's connection limit\n"

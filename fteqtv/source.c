@@ -272,80 +272,110 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 	str =	"QTV\n";			Net_QueueUpstream(qtv, strlen(str), str);
 	str =	"VERSION: 1\n";		Net_QueueUpstream(qtv, strlen(str), str);
 
-	at = strchrrev(qtv->server, '@');
-	if (at)
+	if (qtv->serverquery)
 	{
-		*at = '\0';
-		str =	"SOURCE: ";		Net_QueueUpstream(qtv, strlen(str), str);
-		str =	qtv->server;	Net_QueueUpstream(qtv, strlen(str), str);
-		str =	"\n";			Net_QueueUpstream(qtv, strlen(str), str);
-		*at = '@';
-	}
-	else
-	{
-		str =	"RECEIVE\n";	Net_QueueUpstream(qtv, strlen(str), str);
-	}
-
-	if (!qtv->parsingqtvheader)
-	{
-		str =	"RAW: 1\n";		Net_QueueUpstream(qtv, strlen(str), str);
-	}
-	else
-	{
-		if (authmethod)
+		if (qtv->serverquery == 2)
 		{
-			if (!strcmp(authmethod, "PLAIN"))
-			{
-				str = "AUTH: PLAIN\n";	Net_QueueUpstream(qtv, strlen(str), str);
-				str = "PASSWORD: \"";	Net_QueueUpstream(qtv, strlen(str), str);
-				str = qtv->connectpassword;	Net_QueueUpstream(qtv, strlen(str), str);
-				str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);
-			}
-			else if (challenge && strlen(challenge)>=32 && !strcmp(authmethod, "CCITT"))
-			{
-				unsigned short crcvalue;
-				str = "AUTH: CCITT\n";	Net_QueueUpstream(qtv, strlen(str), str);
-				str = "PASSWORD: \"";	Net_QueueUpstream(qtv, strlen(str), str);
-
-				snprintf(hash, sizeof(hash), "%s%s", challenge, qtv->connectpassword);
-				crcvalue = QCRC_Block(hash, strlen(hash));
-				sprintf(hash, "0x%X", (unsigned int)QCRC_Value(crcvalue));
-
-				str = hash;				Net_QueueUpstream(qtv, strlen(str), str);
-				str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);
-			}
-			else if (challenge && strlen(challenge)>=8 && !strcmp(authmethod, "MD4"))
-			{
-				unsigned int md4sum[4];
-				str = "AUTH: MD4\n";	Net_QueueUpstream(qtv, strlen(str), str);
-				str = "PASSWORD: \"";	Net_QueueUpstream(qtv, strlen(str), str);
-
-				snprintf(hash, sizeof(hash), "%s%s", challenge, qtv->connectpassword);
-				Com_BlockFullChecksum (hash, strlen(hash), (unsigned char*)md4sum);
-				sprintf(hash, "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);
-
-				str = hash;				Net_QueueUpstream(qtv, strlen(str), str);
-				str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);
-			}
-			else if (!strcmp(authmethod, "NONE"))
-			{
-				str = "AUTH: NONE\n";	Net_QueueUpstream(qtv, strlen(str), str);
-				str = "PASSWORD: \n";	Net_QueueUpstream(qtv, strlen(str), str);
-			}
-			else
-			{
-				qtv->drop = true;
-				qtv->upstreambuffersize = 0;
-				Sys_Printf(qtv->cluster, "Auth method %s was not usable\n", authmethod);
-				return;
-			}
+			str =	"DEMOLIST\n";		Net_QueueUpstream(qtv, strlen(str), str);
 		}
 		else
 		{
-			str = "AUTH: MD4\n";		Net_QueueUpstream(qtv, strlen(str), str);
-			str = "AUTH: CCITT\n";		Net_QueueUpstream(qtv, strlen(str), str);
-			str = "AUTH: PLAIN\n";		Net_QueueUpstream(qtv, strlen(str), str);
-			str = "AUTH: NONE\n";		Net_QueueUpstream(qtv, strlen(str), str);
+			str =	"SOURCELIST\n";		Net_QueueUpstream(qtv, strlen(str), str);
+		}
+	}
+	else
+	{
+
+		at = strchrrev(qtv->server, '@');
+		if (at)
+		{
+			*at = '\0';
+			str =	"SOURCE: ";		Net_QueueUpstream(qtv, strlen(str), str);
+
+			if (strncmp(qtv->server, "tcp:", 4))
+			{
+				str = qtv->server;
+				Net_QueueUpstream(qtv, strlen(str), str);
+			}
+			else
+			{
+				str = strchr(qtv->server, ':');
+				if (str)
+				{
+					str++;
+					Net_QueueUpstream(qtv, strlen(str), str);
+				}
+			}
+
+			str =	"\n";			Net_QueueUpstream(qtv, strlen(str), str);
+			*at = '@';
+		}
+		else
+		{
+			str =	"RECEIVE\n";	Net_QueueUpstream(qtv, strlen(str), str);
+		}
+
+		if (!qtv->parsingqtvheader)
+		{
+			str =	"RAW: 1\n";		Net_QueueUpstream(qtv, strlen(str), str);
+		}
+		else
+		{
+			if (authmethod)
+			{
+				if (!strcmp(authmethod, "PLAIN"))
+				{
+					str = "AUTH: PLAIN\n";	Net_QueueUpstream(qtv, strlen(str), str);
+					str = "PASSWORD: \"";	Net_QueueUpstream(qtv, strlen(str), str);
+					str = qtv->connectpassword;	Net_QueueUpstream(qtv, strlen(str), str);
+					str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);
+				}
+				else if (challenge && strlen(challenge)>=32 && !strcmp(authmethod, "CCITT"))
+				{
+					unsigned short crcvalue;
+					str = "AUTH: CCITT\n";	Net_QueueUpstream(qtv, strlen(str), str);
+					str = "PASSWORD: \"";	Net_QueueUpstream(qtv, strlen(str), str);
+
+					snprintf(hash, sizeof(hash), "%s%s", challenge, qtv->connectpassword);
+					crcvalue = QCRC_Block(hash, strlen(hash));
+					sprintf(hash, "0x%X", (unsigned int)QCRC_Value(crcvalue));
+
+					str = hash;				Net_QueueUpstream(qtv, strlen(str), str);
+					str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);
+				}
+				else if (challenge && strlen(challenge)>=8 && !strcmp(authmethod, "MD4"))
+				{
+					unsigned int md4sum[4];
+					str = "AUTH: MD4\n";	Net_QueueUpstream(qtv, strlen(str), str);
+					str = "PASSWORD: \"";	Net_QueueUpstream(qtv, strlen(str), str);
+
+					snprintf(hash, sizeof(hash), "%s%s", challenge, qtv->connectpassword);
+					Com_BlockFullChecksum (hash, strlen(hash), (unsigned char*)md4sum);
+					sprintf(hash, "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);
+
+					str = hash;				Net_QueueUpstream(qtv, strlen(str), str);
+					str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);
+				}
+				else if (!strcmp(authmethod, "NONE"))
+				{
+					str = "AUTH: NONE\n";	Net_QueueUpstream(qtv, strlen(str), str);
+					str = "PASSWORD: \n";	Net_QueueUpstream(qtv, strlen(str), str);
+				}
+				else
+				{
+					qtv->drop = true;
+					qtv->upstreambuffersize = 0;
+					Sys_Printf(qtv->cluster, "Auth method %s was not usable\n", authmethod);
+					return;
+				}
+			}
+			else
+			{
+				str = "AUTH: MD4\n";		Net_QueueUpstream(qtv, strlen(str), str);
+				str = "AUTH: CCITT\n";		Net_QueueUpstream(qtv, strlen(str), str);
+				str = "AUTH: PLAIN\n";		Net_QueueUpstream(qtv, strlen(str), str);
+				str = "AUTH: NONE\n";		Net_QueueUpstream(qtv, strlen(str), str);
+			}
 		}
 	}
 	str =	"\n";		Net_QueueUpstream(qtv, strlen(str), str);
@@ -357,7 +387,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 	netadr_t from;
 	unsigned long nonblocking = true;
 
-	if (!NET_StringToAddr(ip+4, &qtv->serveraddress, 27500))
+	if (!NET_StringToAddr(ip, &qtv->serveraddress, 27500))
 	{
 		Sys_Printf(qtv->cluster, "Unable to resolve %s\n", ip);
 		return false;
@@ -402,7 +432,7 @@ qboolean Net_ConnectToUDPServer(sv_t *qtv, char *ip)
 	netadr_t from;
 	unsigned long nonblocking = true;
 
-	if (!NET_StringToAddr(ip+4, &qtv->serveraddress, 27500))
+	if (!NET_StringToAddr(ip, &qtv->serveraddress, 27500))
 	{
 		Sys_Printf(qtv->cluster, "Unable to resolve %s\n", ip);
 		return false;
@@ -478,22 +508,56 @@ qboolean DemoFilenameIsOkay(char *fname)
 */
 }
 
-qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
+qboolean Net_ConnectToServer(sv_t *qtv)
 {
 	char *at;
-	qboolean status;
+	enum {
+		SRC_BAD,
+		SRC_DEMO,
+		SRC_UDP,
+		SRC_TCP
+	} type = SRC_BAD;
+	char *ip = qtv->server;
+
+	if (!strncmp(ip, "udp:", 4))
+	{
+		type = SRC_UDP;
+		ip += 4;
+	}
+	else if (!strncmp(ip, "tcp:", 4))
+	{
+		type = SRC_TCP;
+		ip += 4;
+	}
+	else if (!strncmp(ip, "demo:", 5))
+	{
+		type = SRC_DEMO;
+		ip += 5;
+	}
+	else if (!strncmp(ip, "file:", 5))
+	{
+		type = SRC_DEMO;
+		ip += 5;
+	}
 
 	at = strchrrev(ip, '@');
-	if (at)
+	if (at && (type == SRC_DEMO || type == SRC_TCP))
+	{
+		if (type == SRC_DEMO)
+			type = SRC_TCP;
 		ip = at+1;
+	}
 
 	qtv->usequkeworldprotocols = false;
 
-	if (!strncmp(ip, "file:", 5) || !strncmp(ip, "demo:", 5))
+	qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;	//wait half a minuite before trying to reconnect
+
+	switch(type)
 	{
+	case SRC_DEMO:
 		qtv->sourcesock = INVALID_SOCKET;
-		if (DemoFilenameIsOkay(ip+5))
-			qtv->sourcefile = fopen(ip+5, "rb");
+		if (DemoFilenameIsOkay(ip))
+			qtv->sourcefile = fopen(ip, "rb");
 		else
 			qtv->sourcefile = NULL;
 		if (qtv->sourcefile)
@@ -505,23 +569,19 @@ qboolean Net_ConnectToServer(sv_t *qtv, char *ip)
 		}
 		Sys_Printf(qtv->cluster, "Unable to open file %s\n", ip+5);
 		return false;
-	}
 
-	qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;	//wait half a minuite before trying to reconnect
 
-	if (!strncmp(ip, "udp:", 4))
-	{
+	case SRC_UDP:
 		qtv->usequkeworldprotocols = true;
-		status = Net_ConnectToUDPServer(qtv, ip);
-	}
-	else if (!strncmp(ip, "tcp:", 4) || at!=NULL)
-		status = Net_ConnectToTCPServer(qtv, ip);
-	else
-	{
+		return Net_ConnectToUDPServer(qtv, ip);
+	
+	case SRC_TCP:
+		return Net_ConnectToTCPServer(qtv, ip);
+	
+	default:
 		Sys_Printf(qtv->cluster, "Unknown source type %s\n", ip);
-		status = false;
+		return false;
 	}
-	return status;
 }
 
 void Net_QueueUpstream(sv_t *qtv, int size, char *buffer)
@@ -847,7 +907,7 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 
 	memcpy(qtv->server, serverurl, sizeof(qtv->server)-1);
 
-	if (!Net_ConnectToServer(qtv, qtv->server))
+	if (!Net_ConnectToServer(qtv))
 	{
 		Sys_Printf(qtv->cluster, "Couldn't connect (%s)\n", qtv->server);
 		return false;
@@ -1566,12 +1626,42 @@ void QTV_Run(sv_t *qtv)
 				qtv->buffersize = 0;
 				return;
 			}
-			else if (!strcmp(start, "TERROR"))
+			else if (!strcmp(start, "TERROR") || !strcmp(start, "ERROR"))
 			{	//we don't support compression, we didn't ask for it.
 				Sys_Printf(qtv->cluster, "\nQTV server error: %s\n\n", colon);
-				qtv->drop = true;
 				qtv->buffersize = 0;
+
+				if (qtv->disconnectwhennooneiswatching)
+					qtv->drop = true;	//if its a user registered stream, drop it immediatly
+				else
+				{	//otherwise close the socket (this will result in a timeout and reconnect)
+					if (qtv->sourcesock != INVALID_SOCKET)
+					{
+						closesocket(qtv->sourcesock);
+						qtv->sourcesock = INVALID_SOCKET;
+					}
+				}
 				return;
+			}
+			else if (!strcmp(start, "ASOURCE"))
+			{
+				Sys_Printf(qtv->cluster, "SRC: %s\n", colon);
+			}
+			else if (!strcmp(start, "ADEMO"))
+			{
+				int size;
+				size = atoi(colon);
+				colon = strchr(colon, ':');
+				if (!colon)
+					colon = "";
+				else
+					colon = colon+1;
+				while(*colon == ' ')
+					colon++;
+				if (size > 1024*1024)
+					Sys_Printf(qtv->cluster, "DEMO: (%3imb) %s\n", size/(1024*1024), colon);
+				else
+					Sys_Printf(qtv->cluster, "DEMO: (%3ikb) %s\n", size/1024, colon);
 			}
 			else if (!strcmp(start, "PRINT"))
 			{
@@ -1592,7 +1682,14 @@ void QTV_Run(sv_t *qtv)
 		qtv->buffersize -= length;
 		memmove(qtv->buffer, qtv->buffer + length, qtv->buffersize);
 
-		if (*authmethod)
+		if (qtv->serverquery)
+		{
+			Sys_Printf(qtv->cluster, "End of sources\n", colon);
+			qtv->drop = true;
+			qtv->buffersize = 0;
+			return;
+		}
+		else if (*authmethod)
 		{	//we need to send a challenge response now.
 			Net_SendQTVConnectionRequest(qtv, authmethod, challenge);
 			return;
@@ -1750,7 +1847,7 @@ void QTV_Run(sv_t *qtv)
 	}
 }
 
-sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates)
+sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates, qboolean query)
 {
 	sv_t *qtv;
 
@@ -1781,6 +1878,7 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, 
 	qtv->sourcesock = INVALID_SOCKET;
 	qtv->disconnectwhennooneiswatching = autoclose;
 	qtv->parsingconnectiondata = true;
+	qtv->serverquery = query;
 
 	qtv->streamid = ++cluster->nextstreamid;
 

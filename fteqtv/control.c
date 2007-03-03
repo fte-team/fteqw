@@ -163,6 +163,49 @@ unsigned char *FS_ReadFile(char *gamedir, char *filename, unsigned int *size)
 }
 
 
+int SortFilesByDate(const void *a, const void *b) 
+{
+	if (((availdemo_t*)a)->time < ((availdemo_t*)b)->time)
+		return 1;
+	if (((availdemo_t*)a)->time > ((availdemo_t*)b)->time)
+		return -1;
+
+	if (((availdemo_t*)a)->smalltime < ((availdemo_t*)b)->smalltime)
+		return 1;
+	if (((availdemo_t*)a)->smalltime > ((availdemo_t*)b)->smalltime)
+		return -1;
+	return 0;
+}
+
+void Cluster_BuildAvailableDemoList(cluster_t *cluster)
+{
+	cluster->availdemoscount = 0;
+
+#ifdef _WIN32
+	{
+		WIN32_FIND_DATA ffd;
+		HANDLE h;
+		h = FindFirstFile("*.mvd", &ffd);
+		if (h != INVALID_HANDLE_VALUE)
+		{
+			do
+			{
+				if (cluster->availdemoscount == sizeof(cluster->availdemos)/sizeof(cluster->availdemos[0]))
+					break;
+				strncpy(cluster->availdemos[cluster->availdemoscount].name, ffd.cFileName, sizeof(cluster->availdemos[0].name));
+				cluster->availdemos[cluster->availdemoscount].size = ffd.nFileSizeLow;
+				cluster->availdemos[cluster->availdemoscount].time = ffd.ftLastWriteTime.dwHighDateTime;
+				cluster->availdemos[cluster->availdemoscount].smalltime = ffd.ftLastWriteTime.dwLowDateTime;
+				cluster->availdemoscount++;
+			} while(FindNextFile(h, &ffd));
+			FindClose(h);
+		}
+	}
+#endif
+
+	qsort(cluster->availdemos, cluster->availdemoscount, sizeof(cluster->availdemos[0]), SortFilesByDate);
+}
+
 void Cluster_Run(cluster_t *cluster, qboolean dowait)
 {
 	oproxy_t *pend, *pend2, *pend3;
@@ -371,6 +414,8 @@ int main(int argc, char **argv)
 {
 	cluster_t cluster;
 
+//	soundtest();
+
 #ifdef SIGPIPE
 	signal(SIGPIPE, SIG_IGN);
 #endif
@@ -421,6 +466,8 @@ int main(int argc, char **argv)
 			" to play a demo from an mvd.\n"
 			"\n");
 	}
+
+//	Cluster_BuildAvailableDemoList(&cluster);
 
 	while (!cluster.wanttoexit)
 	{

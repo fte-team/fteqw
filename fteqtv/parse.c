@@ -341,8 +341,9 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 	ReadString(m, text, sizeof(text));
 //	Sys_Printf(tv->cluster, "stuffcmd: %s", text);
-
-	if (!strcmp(text, "skins\n"))
+	if (strstr(text, "screenshot"))
+		return;
+	else if (!strcmp(text, "skins\n"))
 	{
 		const char newcmd[10] = {svc_stufftext, 'c', 'm', 'd', ' ', 'n','e','w','\n','\0'};
 		tv->parsingconnectiondata = false;
@@ -870,6 +871,11 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
 		{
 			if (v->server == tv)
 				v->chokeme = false;
+		}
+		for (v = tv->cluster->viewers; v; v = v->next)
+		{
+			if (v->server == tv && v->netchan.isnqprotocol)
+				v->maysend = true;
 		}
 
 

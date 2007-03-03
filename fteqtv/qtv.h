@@ -253,6 +253,10 @@ typedef struct soundcapt_s {
 	int (*update)(struct soundcapt_s *ghnd, int samplechunks, char *buffer);
 	void (*close)(struct soundcapt_s *ptr);
 } soundcapt_t;
+typedef struct soundplay_s {
+	int (*update)(struct soundplay_s *ghnd, int samplechunks, char *buffer);
+	void (*close)(struct soundplay_s *ptr);
+} soundplay_t;
 #endif
 
 typedef struct {
@@ -610,6 +614,12 @@ struct sv_s {	//details about a server connection (also known as stream)
 	int streamid;
 };
 
+typedef struct {
+	char name[64];
+	int size;
+	int time, smalltime;
+} availdemo_t;
+
 struct cluster_s {
 	SOCKET qwdsocket;	//udp + quakeworld protocols
 	SOCKET tcpsocket;	//tcp listening socket (for mvd and listings and stuff)
@@ -654,12 +664,17 @@ struct cluster_s {
 	qboolean wanttoexit;
 
 	oproxy_t *pendingproxies;
+
+	char demodir[128];
+	availdemo_t availdemos[2048];
+	int availdemoscount;
 };
 
 #define MENU_NONE			0
 #define MENU_SERVERS		1
 #define MENU_ADMIN			2
 #define MENU_ADMINSERVER	3
+#define MENU_DEMOS			4
 #define	MENU_MAIN			MENU_SERVERS
 
 

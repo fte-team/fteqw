@@ -1174,6 +1174,7 @@ printf("bug is here\n");
 
 void QTV_CollectCommentry(sv_t *qtv)
 {
+#define usespeex 0
 #ifdef COMMENTARY
 	int samps;
 	unsigned char buffer[8192+6];
@@ -1184,9 +1185,9 @@ void QTV_CollectCommentry(sv_t *qtv)
 	{
 		if (0)
 		{
-			if (usespeex)
-				qtv->comentrycapture = SND_InitCapture(11025, 16);
-			else
+//			if (usespeex)
+//				qtv->comentrycapture = SND_InitCapture(11025, 16);
+//			else
 				qtv->comentrycapture = SND_InitCapture(11025, 8);
 		}
 		return;
@@ -1202,7 +1203,7 @@ void QTV_CollectCommentry(sv_t *qtv)
 		buffer[4] = 8;
 		buffer[5] = 11*5;
 
-		if (usespeex)
+	/*	if (usespeex)
 		{
 
 			SpeexBits bits; 
@@ -1235,7 +1236,7 @@ void QTV_CollectCommentry(sv_t *qtv)
 			speex_encoder_destroy(enc_state); 
 
 		}
-		else
+		else*/
 		{
 			samps=qtv->comentrycapture->update(qtv->comentrycapture, 2048, buffer+6);
 

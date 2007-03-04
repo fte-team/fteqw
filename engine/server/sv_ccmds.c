@@ -465,6 +465,8 @@ void SV_Map_f (void)
 		return;
 	}
 
+	sv.mapchangelocked = false;
+
 	Q_strncpyz (level, Cmd_Argv(1), sizeof(level));
 	startspot = ((Cmd_Argc() == 2)?NULL:Cmd_Argv(2));
 
@@ -583,9 +585,9 @@ void SV_Map_f (void)
 		gametype = Cvar_Get("g_gametype", "0", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
 		gametype->callback = gtcallback;
 		if (wasspmap)
-			Cvar_ForceSet(gametype, "2");
-		else if (gametype->value == 2)	//singleplayer
-			Cvar_ForceSet(gametype, "0");
+			Cvar_ForceSet(gametype, "2");//singleplayer
+		else if (gametype->value == 2)
+			Cvar_ForceSet(gametype, "0");//force to ffa deathmatch
 	}
 #endif
 

@@ -104,6 +104,7 @@ typedef struct
 
 	float		gamespeed;	//time progression multiplier, fixed per-level.
 	qboolean	csqcdebug;
+	qboolean	mapchangelocked;
 
 	double		time;
 	double		starttime;

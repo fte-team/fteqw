@@ -1241,6 +1241,7 @@ Sbar_SoloScoreboard
 */
 void Sbar_SoloScoreboard (void)
 {
+	int l;
 	float time;
 	char	str[80];
 	int		minutes, seconds, tens, units;

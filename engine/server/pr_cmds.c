@@ -5116,23 +5116,22 @@ PF_changelevel
 void PF_changelevel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s, *spot;
-	static	int	last_spawncount;
 
-// make sure we don't issue two changelevels
-	if (svs.spawncount == last_spawncount)
+// make sure we don't issue two changelevels (unless the last one failed)
+	if (sv.mapchangelocked)
 		return;
-	last_spawncount = svs.spawncount;
+	sv.mapchangelocked = true;
 
 	if (*svprogfuncs->callargc == 2)
 	{
 		s = PR_GetStringOfs(prinst, OFS_PARM0);
 		spot = PR_GetStringOfs(prinst, OFS_PARM1);
-		Cbuf_AddText (va("changelevel %s %s\n",s, spot), RESTRICT_LOCAL);
+		Cbuf_AddText (va("\nchangelevel %s %s\n",s, spot), RESTRICT_LOCAL);
 	}
 	else
 	{
 		s = PR_GetStringOfs(prinst, OFS_PARM0);
-		Cbuf_AddText (va("map %s\n",s), RESTRICT_LOCAL);
+		Cbuf_AddText (va("\nmap %s\n",s), RESTRICT_LOCAL);
 	}
 }
 

@@ -894,6 +894,8 @@ void PR_ExecuteProgram (progfuncs_t *progfuncs, func_t fnum)
 
 	int s;
 
+	int tempdepth;
+
 	unsigned int newprogs = (fnum & 0xff000000)>>24;
 
 	initial_progs = pr_typecurrent;
@@ -953,13 +955,18 @@ void PR_ExecuteProgram (progfuncs_t *progfuncs, func_t fnum)
 // make a stack frame
 	prinst->exitdepth = pr_depth;
 
+
 	s = PR_EnterFunction (progfuncs, f, initial_progs);
 
+	tempdepth = prinst->numtempstringsstack;
 	PR_ExecuteCode(progfuncs, s);
 
 
 	PR_MoveParms(progfuncs, initial_progs, pr_typecurrent);
 	PR_SwitchProgs(progfuncs, initial_progs);
+
+	PR_FreeTemps(progfuncs, tempdepth);
+	prinst->numtempstringsstack = tempdepth;
 
 	prinst->exitdepth = oldexitdepth;
 }
@@ -1061,6 +1068,7 @@ void PR_ResumeThread (progfuncs_t *progfuncs, struct qcthread_s *thread)
 	int		oldexitdepth;
 
 	int s;
+	int tempdepth;
 
 	progsnum_t prnum = thread->xprogs;
 	int fnum = thread->xfunction;
@@ -1133,11 +1141,14 @@ void PR_ResumeThread (progfuncs_t *progfuncs, struct qcthread_s *thread)
 	pr_xfunction = f;
 	s = thread->xstatement;
 
+	tempdepth = prinst->numtempstringsstack;
 	PR_ExecuteCode(progfuncs, s);
 
 
 	PR_MoveParms(progfuncs, initial_progs, pr_typecurrent);
 	PR_SwitchProgs(progfuncs, initial_progs);
+	PR_FreeTemps(progfuncs, tempdepth);
+	prinst->numtempstringsstack = tempdepth;
 
 	prinst->exitdepth = oldexitdepth;
 	pr_xfunction = oldf;

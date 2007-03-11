@@ -61,7 +61,7 @@ cvar_t pr_compatabilitytest = SCVARF("pr_compatabilitytest", "0", CVAR_LATCH);
 
 cvar_t pr_ssqc_coreonerror = SCVAR("pr_coreonerror", "1");
 
-cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "16");
+cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "");//"16");
 cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
 
 cvar_t pr_droptofloorunits = SCVAR("pr_droptofloorunits", "");
@@ -1611,7 +1611,7 @@ char *PF_VarString (progfuncs_t *prinst, int	first, globalvars_t *pr_globals)
 
 //#define	RETURN_EDICT(pf, e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(pf, e))
 #define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
-#define	RETURN_TSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//temp (static but cycle buffers?)
+#define	RETURN_TSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_TempString(prinst, s))	//temp (static but cycle buffers)
 #define	RETURN_CSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//semi-permanant. (hash tables?)
 #define	RETURN_PSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_NewString(prinst, s, 0))	//permanant
 
@@ -3510,40 +3510,43 @@ void PF_printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #define MAX_TEMPSTRS	((int)pr_tempstringcount.value)
 #define MAXTEMPBUFFERLEN	((int)pr_tempstringsize.value)
-char *PF_TempStr(progfuncs_t *prinst)
-{
-	if (prinst->tempstringnum == MAX_TEMPSTRS)
-		prinst->tempstringnum = 0;
-	return prinst->tempstringbase + (prinst->tempstringnum++)*MAXTEMPBUFFERLEN;
-}
-
 string_t PR_TempString(progfuncs_t *prinst, char *str)
 {
 	char *tmp;
+	if (!prinst->tempstringbase)
+		return prinst->TempString(prinst, str);
+
 	if (!str || !*str)
 		return 0;
-	tmp = PF_TempStr(prinst);
+
+	if (prinst->tempstringnum == MAX_TEMPSTRS)
+		prinst->tempstringnum = 0;
+	tmp = prinst->tempstringbase + (prinst->tempstringnum++)*MAXTEMPBUFFERLEN;
+
 	Q_strncpyz(tmp, str, MAXTEMPBUFFERLEN);
 	return tmp - prinst->stringtable;
 }
 
 void PF_InitTempStrings(progfuncs_t *prinst)
 {
-	if (pr_tempstringcount.value < 2)
+	if (pr_tempstringcount.value > 0 && pr_tempstringcount.value < 2)
 		pr_tempstringcount.value = 2;
 	if (pr_tempstringsize.value < 256)
 		pr_tempstringsize.value = 256;
 	pr_tempstringcount.flags |= CVAR_NOSET;
 	pr_tempstringsize.flags |= CVAR_NOSET;
 
-	prinst->tempstringbase = prinst->AddString(prinst, "", MAXTEMPBUFFERLEN*MAX_TEMPSTRS);
+	if (pr_tempstringcount.value >= 2)
+		prinst->tempstringbase = prinst->AddString(prinst, "", MAXTEMPBUFFERLEN*MAX_TEMPSTRS);
+	else
+		prinst->tempstringbase = 0;
 	prinst->tempstringnum = 0;
 }
 
 void PF_ftos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	v;
-	char *pr_string_temp = PF_TempStr(prinst);
+	char pr_string_temp[64];
 	v = G_FLOAT(OFS_PARM0);
 
 	if (v == (int)v)
@@ -3564,8 +3567,9 @@ void PF_fabs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_vtos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *pr_string_temp = PF_TempStr(prinst);
+	char pr_string_temp[64];
 	sprintf (pr_string_temp, "'%5.1f %5.1f %5.1f'", G_VECTOR(OFS_PARM0)[0], G_VECTOR(OFS_PARM0)[1], G_VECTOR(OFS_PARM0)[2]);
+	PR_TempString(prinst, pr_string_temp);
 	RETURN_TSTRING(pr_string_temp);
 }
 
@@ -3630,7 +3634,7 @@ void PF_FindString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		t = ((string_t *)ed->v)[f];
 		if (!t)
 			continue;
-		if (!strcmp(t+prinst->stringtable,s))
+		if (!strcmp(PR_GetString(prinst, t),s))
 		{
 			RETURN_EDICT(prinst, ed);
 			return;
@@ -5190,7 +5194,6 @@ void PF_infokey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char	*value;
 	char	*key;
 	char ov[256];
-	char *dest;
 
 	e = G_EDICT(prinst, OFS_PARM0);
 	e1 = NUM_FOR_EDICT(prinst, e);
@@ -5236,9 +5239,7 @@ void PF_infokey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	} else
 		value = "";
 
-	dest = PF_TempStr(prinst);
-	strcpy(dest, value);
-	RETURN_CSTRING(dest);
+	G_INT(OFS_RETURN) = PR_TempString(prinst, value);
 }
 
 /*
@@ -5486,7 +5487,7 @@ void PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, start, length;
 	char *s;
-	char *string = PF_TempStr(prinst);
+	char string[4096];
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
 	start = G_FLOAT(OFS_PARM1);
@@ -5513,7 +5514,7 @@ void PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		string[i] = *s;
 	string[i] = 0;
 
-	RETURN_SSTRING(string);
+	RETURN_TSTRING(string);
 }
 
 
@@ -5592,11 +5593,11 @@ void PF_chr2str (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
 
-	char *string = PF_TempStr(prinst);
+	char string[16];
 	for (i = 0; i < *prinst->callargc; i++)
 		string[i] = G_FLOAT(OFS_PARM0 + i*3);
 	string[i] = '\0';
-	RETURN_SSTRING(string);
+	RETURN_TSTRING(string);
 }
 static int chrconv_number(int i, int base, int conv)
 {
@@ -5688,13 +5689,13 @@ void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	unsigned char *string = PF_VarString(prinst, 3, pr_globals);
 	int len = strlen(string);
 	int i;
-	unsigned char *result = PF_TempStr(prinst);
-	unsigned char *resbuf = result;
+	unsigned char resbuf[8192];
+	unsigned char *result = resbuf;
 
 	if (len >= MAXTEMPBUFFERLEN)
 		len = MAXTEMPBUFFERLEN-1;
 
-	for (i = 0; i < len; i++, string++, result++)	//do this backwards
+	for (i = 0; i < len; i++, string++, result++)	//should this be done backwards?
 	{
 		if (*string >= '0' && *string <= '9')	//normal numbers...
 			*result = chrconv_number(*string, '0', redchars);
@@ -5764,14 +5765,13 @@ void PF_infoadd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *info = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *key = PR_GetStringOfs(prinst, OFS_PARM1);
 	char *value = PF_VarString(prinst, 2, pr_globals);
-	char *temp;
+	char temp[8192];
 
-	temp = PF_TempStr(prinst);
 	Q_strncpyz(temp, info, MAXTEMPBUFFERLEN);
 
 	Info_SetValueForStarKey(temp, key, value, MAXTEMPBUFFERLEN);
 
-	RETURN_SSTRING(temp);
+	RETURN_TSTRING(temp);
 }
 
 //uses qw style \key\value strings
@@ -5779,13 +5779,10 @@ void PF_infoget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *info = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *key = PR_GetStringOfs(prinst, OFS_PARM1);
-	char *temp;
 
 	key = Info_ValueForKey(info, key);
 
-	temp = PF_TempStr(prinst);
-	strcpy(temp, key);
-	RETURN_SSTRING(temp);
+	RETURN_TSTRING(key);
 }
 
 //back to frik_file support.
@@ -5919,10 +5916,10 @@ void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char c, *s, *o, *max;
 	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	char *pr_string_temp = PF_TempStr(prinst);
+	char pr_string_temp[4096];
 
 	*pr_string_temp = '\0';
-	RETURN_SSTRING(pr_string_temp);
+	G_INT(OFS_RETURN) = 0;	//EOF
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
 		PR_BIError(prinst, "PF_fgets: File out of range\n");
@@ -5964,7 +5961,7 @@ void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (!pr_string_temp[0] && !*s)
 		G_INT(OFS_RETURN) = 0;	//EOF
 	else
-		G_INT(OFS_RETURN) = pr_string_temp - prinst->stringtable;
+		RETURN_TSTRING(pr_string_temp);
 }
 
 void PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6194,7 +6191,7 @@ void PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 			if (num < 0 || num >= s->entries)
 				return;
-			G_INT(OFS_RETURN) = (int)(s->names[num] - prinst->stringtable);
+			RETURN_TSTRING(s->names[num]);
 			return;
 		}
 	}
@@ -6578,7 +6575,6 @@ void PF_Tokenize  (progfuncs_t *prinst, struct globalvars_s *pr_globals)			//84	
 }
 void PF_ArgV  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//86			//string(float num) argv;
 {
-	char *dest = PF_TempStr(prinst);
 	int i = G_FLOAT(OFS_PARM0);
 	if (i < 0)
 	{
@@ -6586,8 +6582,7 @@ void PF_ArgV  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//86			/
 		G_INT(OFS_RETURN) = 0;
 		return;
 	}
-	strcpy(dest, Cmd_Argv(i));
-	RETURN_CSTRING(dest);
+	RETURN_TSTRING(Cmd_Argv(i));
 }
 
 /*
@@ -6613,7 +6608,7 @@ string substr(string str, float start, float len)
 
 void PF_substr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *dest;
+	char dest[4096];
 	char *s;
 	int start, len, l;
 
@@ -6627,13 +6622,15 @@ void PF_substr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		RETURN_TSTRING("");
 		return;
 	}
-	dest = PF_TempStr(prinst);
 
 	s += start;
 	l -= start;
 
 	if (len > l + 1)
 		len = l + 1;
+
+	if (len > sizeof(dest)-1)
+		len = sizeof(dest)-1;
 
 	Q_strncpyz(dest, s, len + 1);
 
@@ -6650,7 +6647,7 @@ string strcat(string str1, string str2)
 
 void PF_strcat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *dest = PF_TempStr(prinst);
+	char dest[4096];
 	char *src = PF_VarString(prinst, 0, pr_globals);
 	Q_strncpyz(dest, src, MAXTEMPBUFFERLEN);
 	RETURN_TSTRING(dest);
@@ -6666,11 +6663,10 @@ string strcat(float pad, string str1, ...)
 
 void PF_strpad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *dest = PF_TempStr(prinst);
+	char destbuf[4096];
+	char *dest = destbuf;
 	int pad = G_FLOAT(OFS_PARM0);
 	char *src = PF_VarString(prinst, 1, pr_globals);
-
-	RETURN_TSTRING(dest);
 
 	if (pad < 0)
 	{	//pad left
@@ -6702,6 +6698,8 @@ void PF_strpad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			*dest++ = ' ';
 		*dest = '\0';
 	}
+
+	RETURN_TSTRING(destbuf);
 }
 
 /*
@@ -6804,7 +6802,6 @@ void PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	date_t date;
 	func_t f;
-	char *ret = PF_TempStr(prinst);
 
 	f = PR_FindFunction(svprogfuncs, "timeofday", PR_ANY);
 	if (f)
@@ -6817,8 +6814,7 @@ void PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_PARM3) = (float)date.day;
 		G_FLOAT(OFS_PARM4) = (float)date.mon;
 		G_FLOAT(OFS_PARM5) = (float)date.year;
-		strcpy(ret, date.str);
-		G_INT(OFS_PARM6) = (int)PR_SetString(prinst, ret);
+		G_INT(OFS_PARM6) = (int)PR_TempString(prinst, date.str);
 
 		PR_ExecuteProgram(prinst, f);
 	}
@@ -7033,10 +7029,9 @@ static void PF_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //string(entity ent) etos = #65
 void PF_etos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *s;
-	s = PF_TempStr(prinst);
-	sprintf (s, "entity %i", G_EDICTNUM(prinst, OFS_PARM0));
-	G_INT(OFS_RETURN) = (int)PR_SetString(prinst, s);
+	char s[64];
+	snprintf (s, sizeof(s), "entity %i", G_EDICTNUM(prinst, OFS_PARM0));
+	RETURN_TSTRING(s);
 }
 
 

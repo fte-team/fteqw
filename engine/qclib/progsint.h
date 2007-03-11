@@ -328,6 +328,16 @@ void PR_SetBuiltins(int type);
 #define vars(type, name, size) type name[size]
 
 typedef struct prinst_s {
+
+	char **tempstrings;
+	int maxtempstrings;
+	int numtempstrings;
+	int numtempstringsstack;
+
+	char **allocedstrings;
+	int maxallocedstrings;
+	int numallocedstrings;
+
 var(progstate_t *, pr_progstate);
 #define pr_progstate prinst->pr_progstate
 
@@ -439,6 +449,11 @@ ddef16_t *ED_GlobalAtOfs16 (progfuncs_t *progfuncs, int ofs);
 ddef16_t *ED_FindGlobal16 (progfuncs_t *progfuncs, char *name);
 ddef32_t *ED_FindGlobal32 (progfuncs_t *progfuncs, char *name);
 ddef32_t *ED_GlobalAtOfs32 (progfuncs_t *progfuncs, unsigned int ofs);
+
+string_t PR_StringToProgs			(progfuncs_t *inst, char *str);
+char *PR_StringToNative				(progfuncs_t *inst, string_t str);
+
+void PR_FreeTemps			(progfuncs_t *progfuncs, int depth);
 
 char *PR_GlobalString (progfuncs_t *progfuncs, int ofs);
 char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs);

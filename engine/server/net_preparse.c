@@ -262,7 +262,12 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 	if (dest == MSG_ONE) 
 	{
 		client_t *cl = Write_GetClient();
-		if (cl)
+		if (!cl)
+		{
+			Con_Printf("msg_entity: not a client\n");
+			return;
+		}
+		else
 		{
 			if (cl->protocol == SCP_BAD) // is a bot
 				return;
@@ -571,11 +576,21 @@ void NPP_NQWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
-		if (cl && !ISQWCLIENT(cl))
+		if (!cl)
 		{
-			ClientReliableCheckBlock(cl, sizeof(char));
-			ClientReliableWrite_Angle(cl, in);
+			Con_Printf("msg_entity: not a client\n");
 			return;
+		}
+		else
+		{
+			if (cl->protocol == SCP_BAD)
+				return;
+			else if (!ISQWCLIENT(cl))
+			{
+				ClientReliableCheckBlock(cl, sizeof(char));
+				ClientReliableWrite_Angle(cl, in);
+				return;
+			}
 		}
 	}
 	else
@@ -594,15 +609,27 @@ void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 		Con_Printf("NQWriteCoord: Messages should start with WriteByte\n");
 
 #ifdef NQPROT
-	if (dest == MSG_ONE) {
+	if (dest == MSG_ONE)
+	{
 		client_t *cl = Write_GetClient();
-		if (cl && !ISQWCLIENT(cl))
+		if (!cl)
 		{
-			ClientReliableCheckBlock(cl, sizeof(float));
-			ClientReliableWrite_Coord(cl, in);
+			Con_Printf("msg_entity: not a client\n");
 			return;
 		}
-	} else
+		else
+		{
+			if (cl->protocol == SCP_BAD)
+				return;
+			else if (!ISQWCLIENT(cl))
+			{
+				ClientReliableCheckBlock(cl, sizeof(float));
+				ClientReliableWrite_Coord(cl, in);
+				return;
+			}
+		}
+	}
+	else
 		MSG_WriteCoord (NQWriteDest(dest), in);
 #endif
 
@@ -627,15 +654,27 @@ void NPP_NQWriteString(int dest, char *data)	//replacement write func (nq to qw)
 	}
 
 #ifdef NQPROT
-	if (dest == MSG_ONE) {
+	if (dest == MSG_ONE)
+	{
 		client_t *cl = Write_GetClient();
-		if (cl && !ISQWCLIENT(cl))
+		if (!cl)
 		{
-			ClientReliableCheckBlock(cl, strlen(data)+1);
-			ClientReliableWrite_String(cl, data);
+			Con_Printf("msg_entity: not a client\n");
 			return;
 		}
-	} else
+		else
+		{
+			if (cl->protocol == SCP_BAD)
+				return;
+			else if (!ISQWCLIENT(cl))
+			{
+				ClientReliableCheckBlock(cl, strlen(data)+1);
+				ClientReliableWrite_String(cl, data);
+				return;
+			}
+		}
+	}
+	else
 		MSG_WriteString (NQWriteDest(dest), data);
 #endif
 
@@ -668,15 +707,27 @@ void NPP_NQWriteEntity(int dest, short data)	//replacement write func (nq to qw)
 			data = svs.clients[data-1].viewent;
 
 #ifdef NQPROT
-	if (dest == MSG_ONE) {
+	if (dest == MSG_ONE)
+	{
 		client_t *cl = Write_GetClient();
-		if (cl && !ISQWCLIENT(cl))
+		if (!cl)
 		{
-			ClientReliableCheckBlock(cl, sizeof(short));
-			ClientReliableWrite_Short(cl, data);
+			Con_Printf("msg_entity: not a client\n");
 			return;
 		}
-	} else
+		else
+		{
+			if (cl->protocol == SCP_BAD)
+				return;
+			else if (!ISQWCLIENT(cl))
+			{
+				ClientReliableCheckBlock(cl, sizeof(short));
+				ClientReliableWrite_Short(cl, data);
+				return;
+			}
+		}
+	}
+	else
 		MSG_WriteShort (NQWriteDest(dest), data);
 #endif
 
@@ -961,6 +1012,7 @@ void NPP_QWCheckDest(int dest)
 		}
 		cldest = cl;
 */
+		cldest = NULL;
 	}
 	else
 	{
@@ -985,16 +1037,21 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
-		if (cl)
+		if (!cl)
 		{
-			if (ISQWCLIENT(cl))
+			Con_Printf("msg_entity: not a client\n");
+			return;
+		}
+		else
+		{
+			if (cl->protocol == SCP_BAD) // is a bot
+				return;
+			else if (ISQWCLIENT(cl))
 			{
 				ClientReliableCheckBlock(cl, sizeof(qbyte));
 				ClientReliableWrite_Byte(cl, data);
 				return;
 			}
-			else if (cl->protocol == SCP_BAD) // is a bot
-				return;
 		}
 	} 
 	else
@@ -1218,15 +1275,27 @@ void NPP_QWWriteString(int dest, char *data)	//replacement write func (nq to qw)
 	NPP_QWCheckDest(dest);
 
 #ifdef NQPROT
-	if (dest == MSG_ONE) {
+	if (dest == MSG_ONE)
+	{
 		client_t *cl = Write_GetClient();
-		if (cl && ISQWCLIENT(cl))
+		if (!cl)
 		{
-			ClientReliableCheckBlock(cl, strlen(data)+1);
-			ClientReliableWrite_String(cl, data);
+			Con_Printf("msg_entity: not a client\n");
 			return;
 		}
-	} else
+		else
+		{
+			if (cl->protocol == SCP_BAD)
+				return;
+			else if (ISQWCLIENT(cl))
+			{
+				ClientReliableCheckBlock(cl, strlen(data)+1);
+				ClientReliableWrite_String(cl, data);
+				return;
+			}
+		}
+	}
+	else
 		MSG_WriteString (QWWriteDest(dest), data);
 #endif
 

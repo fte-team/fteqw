@@ -127,6 +127,12 @@ struct progfuncs_s {
 
 	char	*tempstringbase;				//for engine's use. Store your base tempstring pointer here.
 	int		tempstringnum;			//for engine's use.
+
+	string_t (*TempString)				(progfuncs_t *prinst, char *str);
+
+	string_t (*StringToProgs)			(progfuncs_t *prinst, char *str);
+	char *(*StringToNative)				(progfuncs_t *prinst, string_t str);
+	int stringtablesize;
 };
 
 typedef struct progexterns_s {
@@ -244,6 +250,10 @@ typedef union eval_s
 
 #define PR_RegisterBuiltin(pf, name, func)					(*pf->RegisterBuiltin)		(pf, name, func)
 
+#define PR_GetString(pf,s)									(*pf->StringToNative)		(pf, s)
+#define PR_GetStringOfs(pf,o)								(*pf->StringToNative)		(pf, G_INT(o))
+#define PR_SetString(pf, s)									(*pf->StringToProgs)		(pf, s)
+
 #define NEXT_EDICT(pf,o)		EDICT_NUM(pf, NUM_FOR_EDICT(pf, o)+1)
 #define	RETURN_EDICT(pf, e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(pf, e))
 
@@ -258,11 +268,14 @@ typedef union eval_s
 #define	G_VECTOR(o) (&((float *)pr_globals)[o])
 #define	G_FUNCTION(o) (*(func_t *)&((float *)pr_globals)[o])
 
+/*
 #define PR_GetString(p,s) (s?s + p->stringtable:"")
 #define PR_GetStringOfs(p,o) (G_INT(o)?G_INT(o) + p->stringtable:"")
 #define PR_SetStringOfs(p,o,s) (G_INT(o) = s - p->stringtable)
-#define PR_SetString(p, s) ((s&&*s)?(s - p->stringtable):0)
-#define PR_NewString(p, s, l) (PR_AddString(p, s, l) - p->stringtable)
+*/
+//#define PR_SetString(p, s) ((s&&*s)?(s - p->stringtable):0)
+#define PR_NewString(p, s, l) PR_SetString(p, PR_AddString(p, s, l))
+/**/
 
 #define ev_prog ev_integer
 

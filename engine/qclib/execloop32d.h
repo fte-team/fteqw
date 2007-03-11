@@ -176,7 +176,7 @@ reeval:
 		OPC->_float = (float)(!OPA->_vector[0] && !OPA->_vector[1] && !OPA->_vector[2]);
 		break;
 	case OP_NOT_S:
-		OPC->_float = (float)(!(OPA->string) || !*(OPA->string+progfuncs->stringtable));
+		OPC->_float = (float)(!(OPA->string) || !*PR_StringToNative(progfuncs, OPA->string));
 		break;
 	case OP_NOT_FNC:
 		OPC->_float = (float)(!(OPA->function & ~0xff000000));
@@ -206,20 +206,20 @@ reeval:
 			OPC->_float = true;
 		else if (!OPA->string)
 		{
-			if (!OPB->string || !*(OPB->string+progfuncs->stringtable))
+			if (!OPB->string || !*PR_StringToNative(progfuncs, OPB->string))
 				OPC->_float = true;
 			else
 				OPC->_float = false;
 		}
 		else if (!OPB->string)
 		{
-			if (!OPA->string || !*(OPA->string+progfuncs->stringtable))
+			if (!OPA->string || !*PR_StringToNative(progfuncs, OPA->string))
 				OPC->_float = true;
 			else
 				OPC->_float = false;
 		}
 		else
-			OPC->_float = (float)(!strcmp(OPA->string+progfuncs->stringtable,OPB->string+progfuncs->stringtable));
+			OPC->_float = (float)(!strcmp(PR_StringToNative(progfuncs, OPA->string),PR_StringToNative(progfuncs, OPB->string)));
 		break;
 	case OP_EQ_E:
 		OPC->_float = (float)(OPA->_int == OPB->_int);
@@ -242,20 +242,20 @@ reeval:
 			OPC->_float = false;
 		else if (!OPA->string)
 		{
-			if (!OPB->string || !*(OPB->string+progfuncs->stringtable))
+			if (!OPB->string || !*(PR_StringToNative(progfuncs, OPB->string)))
 				OPC->_float = false;
 			else
 				OPC->_float = true;
 		}
 		else if (!OPB->string)
 		{
-			if (!OPA->string || !*(OPA->string+progfuncs->stringtable))
+			if (!OPA->string || !*PR_StringToNative(progfuncs, OPA->string))
 				OPC->_float = false;
 			else
 				OPC->_float = true;
 		}
 		else
-			OPC->_float = (float)(strcmp(OPA->string+progfuncs->stringtable,OPB->string+progfuncs->stringtable));		
+			OPC->_float = (float)(strcmp(PR_StringToNative(progfuncs, OPA->string),PR_StringToNative(progfuncs, OPB->string)));		
 		break;
 	case OP_NE_E:
 		OPC->_float = (float)(OPA->_int != OPB->_int);
@@ -394,11 +394,18 @@ reeval:
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
-		if (ed->readonly)
+		if (!ed || ed->readonly)
 		{
 			pr_xstatement = st-pr_statements;
 			PR_RunError (progfuncs, "assignment to read-only entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
 		}
+
+//Whilst the next block would technically be correct, we don't use it as it breaks too many quake mods.
+//		if (ed->isfree)
+//		{
+//			pr_xstatement = st-pr_statements;
+//			PR_RunError (progfuncs, "assignment to free entitiy in %s", progfuncs->stringtable + pr_xfunction->s_name);
+//		}
 		OPC->_int = ENGINEPOINTER((((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust));
 		break;
 
@@ -436,7 +443,7 @@ reeval:
 
 	case OP_IFNOTS:
 		RUNAWAYCHECK();
-		if (!OPA->string || !OPA->string[progfuncs->stringtable])
+		if (!OPA->string || !PR_StringToNative(progfuncs, OPA->string))
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
 
@@ -448,7 +455,7 @@ reeval:
 
 	case OP_IFS:
 		RUNAWAYCHECK();
-		if (OPA->string && OPA->string[progfuncs->stringtable])
+		if (OPA->string && PR_StringToNative(progfuncs, OPA->string))
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
 		
@@ -535,6 +542,7 @@ if (pr_typecurrent != 0)
 			progfuncs->lastcalledbuiltinnumber = i;
 			if (i < externs->numglobalbuiltins)
 			{
+				prinst->numtempstringsstack = prinst->numtempstrings;
 				(*externs->globalbuiltins[i]) (progfuncs, (struct globalvars_s *)current_progstate->globals);
 				if (prinst->continuestatement!=-1)
 				{
@@ -734,7 +742,7 @@ if (pr_typecurrent != 0)
 	case OP_FETCH_GBL_E:
 	case OP_FETCH_GBL_FNC:
 		i = (int)OPB->_float;
-		if(i < 0 || i > G_INT((uofs)st->a - 1))
+		if(i < 0 || i > ((eval_t *)&glob[st->a-1])->_int)
 		{
 			PR_RunError(progfuncs, "array index out of bounds: %s[%d]", PR_GlobalStringNoContents(progfuncs, st->a), i);
 		}
@@ -743,7 +751,7 @@ if (pr_typecurrent != 0)
 		break;
 	case OP_FETCH_GBL_V:
 		i = (int)OPB->_float;
-		if(i < 0 || i > G_INT((uofs)st->a - 1))
+		if(i < 0 || i > ((eval_t *)&glob[st->a-1])->_int)
 		{
 			PR_RunError(progfuncs, "array index out of bounds: %s[%d]", PR_GlobalStringNoContents(progfuncs, st->a), i);
 		}
@@ -861,9 +869,9 @@ if (pr_typecurrent != 0)
 				RUNAWAYCHECK();
 				st += (sofs)st->b-1; // -1 to offset the s++
 			}
-			if ((!swtch->_int && progfuncs->stringtable[OPA->string]) || (!OPA->_int && progfuncs->stringtable[swtch->string]))	//one is null (cannot be not both).
+			if ((!swtch->_int && PR_StringToNative(progfuncs, OPA->string)) || (!OPA->_int && PR_StringToNative(progfuncs, swtch->string)))	//one is null (cannot be not both).
 				break;
-			if (!strcmp(progfuncs->stringtable+swtch->string, progfuncs->stringtable+OPA->string))
+			if (!strcmp(PR_StringToNative(progfuncs, swtch->string), PR_StringToNative(progfuncs, OPA->string)))
 			{
 				RUNAWAYCHECK();
 				st += (sofs)st->b-1; // -1 to offset the s++

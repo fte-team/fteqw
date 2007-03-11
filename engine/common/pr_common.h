@@ -4,8 +4,7 @@ string_t PR_TempString(progfuncs_t *prinst, char *str);	//returns a tempstring c
 char *PF_TempStr(progfuncs_t *prinst);	//returns a tempstring which can be filled in with whatever junk you want.
 
 #define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
-#define MAX_TEMPSTRS	((int)pr_tempstringcount.value)
-#define MAXTEMPBUFFERLEN	((int)pr_tempstringsize.value)
+#define	RETURN_TSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_TempString(prinst, s))	//temp (static but cycle buffers)
 extern cvar_t pr_tempstringsize;
 extern cvar_t pr_tempstringcount;
 

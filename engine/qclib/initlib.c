@@ -330,6 +330,130 @@ int EdictToProgs (progfuncs_t *progfuncs, struct edict_s *ed)
 	return EDICT_TO_PROG(progfuncs, ed);
 }
 
+string_t PR_StringToProgs			(progfuncs_t *progfuncs, char *str)
+{
+	char **ntable;
+	int i, free=-1;
+
+	if (!str)
+		return 0;
+
+//	if (str-progfuncs->stringtable < progfuncs->stringtablesize)
+//		return str - progfuncs->stringtable;
+
+	for (i = prinst->numallocedstrings-1; i >= 0; i--)
+	{
+		if (prinst->allocedstrings[i] == str)
+			return (string_t)((unsigned int)i | 0x80000000);
+		if (!prinst->allocedstrings[i])
+			free = i;
+	}
+
+	if (free != -1)
+	{
+		i = free;
+		prinst->allocedstrings[i] = str;
+		return (string_t)((unsigned int)i | 0x80000000);
+	}
+
+	prinst->maxallocedstrings += 1024;
+	ntable = memalloc(sizeof(char*) * prinst->maxallocedstrings);
+	memcpy(ntable, prinst->allocedstrings, sizeof(char*) * prinst->numallocedstrings);
+	prinst->numallocedstrings = prinst->maxallocedstrings;
+	if (prinst->allocedstrings)
+		memfree(prinst->allocedstrings);
+	prinst->allocedstrings = ntable;
+
+	for (i = prinst->numallocedstrings-1; i >= 0; i--)
+	{
+		if (!prinst->allocedstrings[i])
+		{
+			prinst->allocedstrings[i] = str;
+			return (string_t)((unsigned int)i | 0x80000000);
+		}
+	}
+
+	return 0;
+}
+
+char *PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
+{
+	if ((unsigned int)str & 0xc0000000)
+	{
+		if ((unsigned int)str & 0x80000000)
+		{
+			int i = str & ~0x80000000;
+			if (i >= prinst->numallocedstrings)
+				return "";
+			if (prinst->allocedstrings[i])
+				return prinst->allocedstrings[i];
+			else
+				return "";	//urm, was freed...
+		}
+		if ((unsigned int)str & 0x40000000)
+		{
+			int i = str & ~0x40000000;
+			if (i >= prinst->numtempstrings)
+				return "";
+			return prinst->tempstrings[i];
+		}
+	}
+
+	if (str >= progfuncs->stringtablesize)
+		return "";
+	return progfuncs->stringtable + str;
+}
+
+
+string_t PR_AllocTempString			(progfuncs_t *progfuncs, char *str)
+{
+	char **ntable;
+	int newmax;
+	int i;
+
+	if (!str)
+		return 0;
+
+	if (prinst->numtempstrings == prinst->maxtempstrings)
+	{
+		newmax = prinst->maxtempstrings += 1024;
+		prinst->maxtempstrings += 1024;
+		ntable = memalloc(sizeof(char*) * newmax);
+		memcpy(ntable, prinst->tempstrings, sizeof(char*) * prinst->numtempstrings);
+		prinst->maxtempstrings = newmax;
+		if (prinst->tempstrings)
+			memfree(prinst->tempstrings);
+		prinst->tempstrings = ntable;
+	}
+
+	i = prinst->numtempstrings;
+	if (i == 0x10000000)
+		return 0;
+
+	prinst->numtempstrings++;
+
+	prinst->tempstrings[i] = memalloc(strlen(str)+1);
+	strcpy(prinst->tempstrings[i], str);
+
+	return (string_t)((unsigned int)i | 0x40000000);
+}
+
+void PR_FreeTemps			(progfuncs_t *progfuncs, int depth)
+{
+	int i;
+	if (depth > prinst->numtempstrings)
+	{
+		Sys_Error("QC Temp stack inverted\n");
+		return;
+	}
+	for (i = depth; i < prinst->numtempstrings; i++)
+	{
+		memfree(prinst->tempstrings[i]);
+	}
+
+	prinst->numtempstrings = depth;
+}
+
 
 struct qcthread_s *PR_ForkStack	(progfuncs_t *progfuncs);
 void PR_ResumeThread			(progfuncs_t *progfuncs, struct qcthread_s *thread);
@@ -416,7 +540,12 @@ progfuncs_t deffuncs = {
 	QC_RegisterFieldVar,
 
 	0,
-	0
+	0,
+
+	PR_AllocTempString,
+
+	PR_StringToProgs,
+	PR_StringToNative
 };
 #undef printf
 

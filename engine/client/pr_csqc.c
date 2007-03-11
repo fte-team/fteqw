@@ -1176,9 +1176,7 @@ static void PF_cs_getstati(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 static void PF_cs_getstats(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int stnum = G_FLOAT(OFS_PARM0);
-	char *out;
-
-	out = PF_TempStr(prinst);
+	char out[8];
 
 	//the network protocol byteswaps
 
@@ -1188,7 +1186,7 @@ static void PF_cs_getstats(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	((unsigned int*)out)[3] = LittleLong(cl.stats[0][stnum+3]);
 	((unsigned int*)out)[4] = 0;	//make sure it's null terminated
 
-	RETURN_SSTRING(out);
+	RETURN_TSTRING(out);
 }
 
 static void PF_cs_SetOrigin(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1555,10 +1553,9 @@ static void PF_ReadFloat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 static void PF_ReadString(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *str = PF_TempStr(prinst);
 	char *read = MSG_ReadString();
 
-	Q_strncpyz(str, read, MAXTEMPBUFFERLEN);
+	RETURN_TSTRING(read);
 }
 
 static void PF_ReadAngle(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1854,7 +1851,7 @@ static void PF_cs_serverkey (progfuncs_t *prinst, struct globalvars_s *pr_global
 	}
 
 	if (*ret)
-		RETURN_SSTRING(ret);
+		RETURN_TSTRING(ret);
 	else
 		G_INT(OFS_RETURN) = 0;
 }
@@ -1862,6 +1859,7 @@ static void PF_cs_serverkey (progfuncs_t *prinst, struct globalvars_s *pr_global
 //string(float pnum, string keyname)
 static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	char buffer[64];
 	char *ret;
 	int pnum = G_FLOAT(OFS_PARM0);
 	char *keyname = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -1886,24 +1884,24 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 	{
 		CheckSendPings();
 
-		ret = PF_TempStr(prinst);
+		ret = buffer;
 		sprintf(ret, "%i", cl.players[pnum].ping);
 	}
 	else if (!strcmp(keyname, "frags"))
 	{
-		ret = PF_TempStr(prinst);
+		ret = buffer;
 		sprintf(ret, "%i", cl.players[pnum].frags);
 	}
 	else if (!strcmp(keyname, "pl"))	//packet loss
 	{
 		CheckSendPings();
 
-		ret = PF_TempStr(prinst);
+		ret = buffer;
 		sprintf(ret, "%i", cl.players[pnum].pl);
 	}
 	else if (!strcmp(keyname, "entertime"))	//packet loss
 	{
-		ret = PF_TempStr(prinst);
+		ret = buffer;
 		sprintf(ret, "%i", (int)cl.players[pnum].entertime);
 	}
 	else
@@ -1911,7 +1909,7 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 		ret = Info_ValueForKey(cl.players[pnum].userinfo, keyname);
 	}
 	if (*ret)
-		RETURN_SSTRING(ret);
+		RETURN_TSTRING(ret);
 	else
 		G_INT(OFS_RETURN) = 0;
 }
@@ -3770,15 +3768,11 @@ qboolean CSQC_MouseMove(float xdelta, float ydelta)
 qboolean CSQC_ConsoleCommand(char *cmd)
 {
 	void *pr_globals;
-	char *str;
 	if (!csqcprogs || !csqcg.console_command)
 		return false;
 
-	str = PF_TempStr(csqcprogs);
-	Q_strncpyz(str, cmd, MAXTEMPBUFFERLEN);
-
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-	(((string_t *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, cmd));
 
 	PR_ExecuteProgram (csqcprogs, csqcg.console_command);
 	return G_FLOAT(OFS_RETURN);
@@ -3787,15 +3781,11 @@ qboolean CSQC_ConsoleCommand(char *cmd)
 qboolean CSQC_StuffCmd(char *cmd)
 {
 	void *pr_globals;
-	char *str;
 	if (!csqcprogs || !csqcg.parse_stuffcmd)
 		return false;
 
-	str = PF_TempStr(csqcprogs);
-	Q_strncpyz(str, cmd, MAXTEMPBUFFERLEN);
-
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-	(((string_t *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, cmd));
 
 	PR_ExecuteProgram (csqcprogs, csqcg.parse_stuffcmd);
 	return true;
@@ -3803,15 +3793,11 @@ qboolean CSQC_StuffCmd(char *cmd)
 qboolean CSQC_CenterPrint(char *cmd)
 {
 	void *pr_globals;
-	char *str;
 	if (!csqcprogs || !csqcg.parse_centerprint)
 		return false;
 
-	str = PF_TempStr(csqcprogs);
-	Q_strncpyz(str, cmd, MAXTEMPBUFFERLEN);
-
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-	(((string_t *)pr_globals)[OFS_PARM0] = PR_SetString(csqcprogs, str));
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, cmd));
 
 	PR_ExecuteProgram (csqcprogs, csqcg.parse_centerprint);
 	return G_FLOAT(OFS_RETURN);
@@ -3823,7 +3809,6 @@ qboolean CSQC_CenterPrint(char *cmd)
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation)
 {
 	void *pr_globals;
-	char *str;
 	csqcedict_t *ent;
 
 	if (!csqcprogs || !csqcg.serversound)
@@ -3840,12 +3825,9 @@ int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float 
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 
-	str = PF_TempStr(csqcprogs);
-	Q_strncpyz(str, soundname, MAXTEMPBUFFERLEN);
-
 	*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
 	G_FLOAT(OFS_PARM0) = channel;
-	G_INT(OFS_PARM1) = PR_SetString(csqcprogs, str);
+	G_INT(OFS_PARM1) = PR_TempString(csqcprogs, soundname);
 	VectorCopy(pos, G_VECTOR(OFS_PARM2));
 	G_FLOAT(OFS_PARM3) = vol;
 	G_FLOAT(OFS_PARM4) = attenuation;
@@ -3960,7 +3942,7 @@ void CSQC_ParseEntities(void)
 #ifndef CLIENTONLY
 					if (sv.state)
 					{
-						Con_Printf("Server classname: \"%s\"\n", svprogfuncs->stringtable+EDICT_NUM(svprogfuncs, entnum)->v->classname);
+						Con_Printf("Server classname: \"%s\"\n", PR_GetString(svprogfuncs, EDICT_NUM(svprogfuncs, entnum)->v->classname));
 					}
 #endif
 				}

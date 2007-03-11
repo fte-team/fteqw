@@ -1629,7 +1629,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 			}
 
 			ent = sv.edicts;
-			ent->v->model = PR_SetString(svprogfuncs, sv.worldmodel->name);	//FIXME: is this a problem for normal ents?
+//			ent->v->model = PR_NewString(svprogfuncs, sv.worldmodel->name);	//FIXME: is this a problem for normal ents?
 			for (i=0 ; i<sv.num_edicts ; i++)
 			{
 				ent = EDICT_NUM(svprogfuncs, i);

@@ -508,7 +508,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "union");
 		break;
 	case ev_string:
-		sprintf (line, "%s", val->string+progfuncs->stringtable);
+		sprintf (line, "%s", PR_StringToNative(progfuncs, val->string));
 		break;
 	case ev_entity:
 		sprintf (line, "entity %i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)) );
@@ -609,7 +609,7 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		if ((unsigned)val->_int > (unsigned)addressableused)
 			_snprintf (line, sizeof(line), "CORRUPT STRING");
 		else
-			_snprintf (line, sizeof(line), "%s", val->string+progfuncs->stringtable);
+			_snprintf (line, sizeof(line), "%s", PR_StringToNative(progfuncs, val->string));
 		break;
 	case ev_entity:
 		sprintf (line, "%i", val->_int);
@@ -683,7 +683,7 @@ char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "unions cannot yet be saved");
 		break;
 	case ev_string:
-		sprintf (line, "%s", val->string+progfuncs->stringtable);
+		sprintf (line, "%s", PR_StringToNative(progfuncs, val->string));
 		break;
 	case ev_entity:
 		sprintf (line, "%i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)));
@@ -1051,7 +1051,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 	switch (type)
 	{
 	case ev_string:
-		st = ED_NewString (progfuncs, s, 0)-progfuncs->stringtable;
+		st = PR_StringToProgs(progfuncs, ED_NewString (progfuncs, s, 0));
 		*(string_t *)d = st;
 		break;
 
@@ -2018,7 +2018,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					CheckSpawn = PR_FindFunc(progfuncs, "CheckSpawn", -2);
 
 				var = GetEdictFieldValue (progfuncs, (struct edict_s *)ed, "classname", NULL);
-				if (!var || !var->string || !*(var->string+progfuncs->stringtable))
+				if (!var || !var->string || !*PR_StringToNative(progfuncs, var->string))
 				{
 					printf("No classname\n");
 					ED_Free(progfuncs, (struct edict_s *)ed);
@@ -2044,7 +2044,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					selfvar = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
 					selfvar->edict = EDICT_TO_PROG(progfuncs, ed);
 
-					f = PR_FindFunc(progfuncs, var->string+progfuncs->stringtable, PR_ANYBACK);
+					f = PR_FindFunc(progfuncs, PR_StringToNative(progfuncs, var->string), PR_ANYBACK);
 					if (f)
 					{
 						if (CheckSpawn)
@@ -2064,7 +2064,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					}
 					else
 					{
-						printf("Couldn't find spawn function %s\n", var->string+progfuncs->stringtable);
+						printf("Couldn't find spawn function %s\n", PR_StringToNative(progfuncs, var->string));
 						ED_Free(progfuncs, (struct edict_s *)ed);
 					}
 				}
@@ -2976,6 +2976,9 @@ retry:
 	pr_strings+=stringadjust;
 	if (!progfuncs->stringtable)
 		progfuncs->stringtable = pr_strings;
+
+	if (progfuncs->stringtablesize + progfuncs->stringtable < pr_strings + pr_progs->numstrings)
+		progfuncs->stringtablesize = (pr_strings + pr_progs->numstrings) - progfuncs->stringtable;
 
 	eval = PR_FindGlobal(progfuncs, "thisprogs", progstype);
 	if (eval)

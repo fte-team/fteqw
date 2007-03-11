@@ -633,22 +633,16 @@ int MP_TranslateDPtoFTECodes(int code);
 void PF_cl_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int code = G_FLOAT(OFS_PARM0);
-	char *keyname = PF_TempStr(prinst);
 
 	code = MP_TranslateDPtoFTECodes (code);
 
-	strcpy(keyname, Key_KeynumToString(code));
-	RETURN_SSTRING(keyname);
+	RETURN_TSTRING(Key_KeynumToString(code));
 }
 
 void PF_cl_getkeybind (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *binding = Key_GetBinding(G_FLOAT(OFS_PARM0));
-	char *result = PF_TempStr(prinst);
-	if (!binding)
-		binding = "";
-	Q_strncpyz(result, binding, MAXTEMPBUFFERLEN);
-	RETURN_SSTRING(result);
+	RETURN_TSTRING(binding);
 }
 
 int MP_TranslateDPtoFTECodes(int code);
@@ -657,16 +651,16 @@ void PF_cl_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
 	int keynums[2];
-	char *keyname = PF_TempStr(prinst);
+	char keyname[512];
 
 	M_FindKeysForCommand(cmdname, keynums);
 
 	keyname[0] = '\0';
 
-	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[0])), MAXTEMPBUFFERLEN);
-	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[1])), MAXTEMPBUFFERLEN);
+	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[0])), sizeof(keyname));
+	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[1])), sizeof(keyname));
 
-	RETURN_SSTRING(keyname);
+	RETURN_TSTRING(keyname);
 }
 
 //vector	getmousepos(void)  	= #66;
@@ -813,17 +807,15 @@ void PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_global
 }
 void PF_M_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *keyname = PF_TempStr(prinst);
-	char *ret = "";
+	char *ret;
 	int keynum = G_FLOAT(OFS_PARM0);
 	int svnum = G_FLOAT(OFS_PARM1);
 	serverinfo_t *sv;
-	sv = Master_SortedServer(svnum);
 
+	sv = Master_SortedServer(svnum);
 	ret = Master_ReadKeyString(sv, keynum);
 
-	Q_strncpyz(keyname, ret, MAXTEMPBUFFERLEN);
-	RETURN_SSTRING(keyname);
+	RETURN_TSTRING(ret);
 }
 
 //float	gethostcacheindexforkey(string key) = #622;
@@ -1010,7 +1002,7 @@ void PF_altstr_count(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //string  altstr_prepare(string str) = #83;
 void PF_altstr_prepare(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *outstr, *out;
+	char outstr[8192], *out;
 	char *instr, *in;
 	int size;
 
@@ -1018,23 +1010,26 @@ void PF_altstr_prepare(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	instr = PR_GetStringOfs(prinst, OFS_PARM0 );
 	//VM_CheckEmptyString( instr );
-	outstr = PF_TempStr(prinst);
 
-	for( out = outstr, in = instr, size = MAXTEMPBUFFERLEN - 1 ; size && *in ; size--, in++, out++ )
-		if( *in == '\'' ) {
+	for( out = outstr, in = instr, size = sizeof(outstr) - 1 ; size && *in ; size--, in++, out++ )
+	{
+		if( *in == '\'' )
+		{
 			*out++ = '\\';
 			*out = '\'';
 			size--;
-		} else
+		}
+		else
 			*out = *in;
+	}
 	*out = 0;
 
-	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, outstr );
+	G_INT( OFS_RETURN ) = (int)PR_TempString( prinst, outstr );
 }
 //string  altstr_get(string str, float num) = #84;
 void PF_altstr_get(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *altstr, *pos, *outstr, *out;
+	char *altstr, *pos, outstr[8192], *out;
 	int count, size;
 
 //	VM_SAFEPARMCOUNT( 2, VM_altstr_get );
@@ -1046,27 +1041,33 @@ void PF_altstr_get(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	count = count * 2 + 1;
 
 	for( pos = altstr ; *pos && count ; pos++ )
+	{
 		if( *pos == '\\' && !*++pos )
 			break;
 		else if( *pos == '\'' )
 			count--;
+	}
 
-	if( !*pos ) {
+	if( !*pos )
+	{
 		G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, "" );
 		return;
 	}
 
-    outstr = PF_TempStr(prinst);
-	for( out = outstr, size = MAXTEMPBUFFERLEN - 1 ; size && *pos ; size--, pos++, out++ )
-		if( *pos == '\\' ) {
+	for( out = outstr, size = sizeof(outstr) - 1 ; size && *pos ; size--, pos++, out++ )
+	{
+		if( *pos == '\\' )
+		{
 			if( !*++pos )
 				break;
 			*out = *pos;
 			size--;
-		} else if( *pos == '\'' )
+		}
+		else if( *pos == '\'' )
 			break;
 		else
 			*out = *pos;
+	}
 
 	*out = 0;
 	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, outstr );
@@ -1077,7 +1078,7 @@ void PF_altstr_set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int num;
 	char *altstr, *str;
 	char *in;
-	char *outstr, *out;
+	char outstr[8192], *out;
 
 //	VM_SAFEPARMCOUNT( 3, VM_altstr_set );
 
@@ -1089,23 +1090,29 @@ void PF_altstr_set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	str = PR_GetStringOfs(prinst, OFS_PARM2 );
 	//VM_CheckEmptyString( str );
 
-	outstr = out = PF_TempStr(prinst);
+	out = outstr;
 	for( num = num * 2 + 1, in = altstr; *in && num; *out++ = *in++ )
+	{
 		if( *in == '\\' && !*++in )
 			break;
 		else if( *in == '\'' )
 			num--;
+	}
 
-	if( !in ) {
+	if( !in )
+	{
 		G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, "" );
 		return;
 	}
 	// copy set in
-	for( ; *str; *out++ = *str++ );
+	for( ; *str; *out++ = *str++ )
+		;
 	// now jump over the old contents
 	for( ; *in ; in++ )
+	{
 		if( *in == '\'' || (*in == '\\' && !*++in) )
 			break;
+	}
 
 	if( !in ) {
 		G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, "" );
@@ -1113,7 +1120,7 @@ void PF_altstr_set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 
 	strcpy( out, in );
-	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, outstr );
+	G_INT( OFS_RETURN ) = (int)PR_TempString( prinst, outstr );
 
 }
 

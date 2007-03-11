@@ -99,8 +99,8 @@ void Sys_mkdir (char *path)
 {
 	if (mkdir (path, 0777) != -1)
 		return;
-	if (errno != EEXIST)
-		Sys_Error ("mkdir %s: %s",path, strerror(errno));
+//	if (errno != EEXIST)
+//		Sys_Error ("mkdir %s: %s",path, strerror(errno));
 }
 
 qboolean Sys_remove (char *path)

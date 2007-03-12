@@ -165,13 +165,18 @@ pbool ED_CanFree (edict_t *ed)
 {
 	if (ed == sv.edicts)
 	{
-		Con_TPrintf(STL_CANTFREEWORLD);
-		*svprogfuncs->pr_trace = 1;
+		if (developer.value)
+		{
+			Con_TPrintf(STL_CANTFREEWORLD);
+			PR_StackTrace(svprogfuncs);
+			*svprogfuncs->pr_trace = 1;
+		}
 		return false;
 	}
 	if (NUM_FOR_EDICT(svprogfuncs, ed) <= sv.allocated_client_slots)
 	{
 		Con_TPrintf(STL_CANTFREEPLAYERS);
+		PR_StackTrace(svprogfuncs);
 		*svprogfuncs->pr_trace = 1;
 		return false;
 	}
@@ -2357,12 +2362,12 @@ void PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 	else
 	{
-		yaw = (int) (atan2(value1[1], value1[0]) * 180 / M_PI);
+		yaw = /*(int)*/ (atan2(value1[1], value1[0]) * 180 / M_PI);
 		if (yaw < 0)
 			yaw += 360;
 
 		forward = sqrt (value1[0]*value1[0] + value1[1]*value1[1]);
-		pitch = (int) (atan2(value1[2], forward) * 180 / M_PI);
+		pitch = /*(int)*/ (atan2(value1[2], forward) * 180 / M_PI);
 		if (pitch < 0)
 			pitch += 360;
 	}
@@ -6269,6 +6274,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_MULTIPLETEMPSTRINGS"},
 	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
 	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
+	{"DP_QC_UNLIMITEDTEMPSTRINGS"},
 	{"DP_QC_TRACEBOX",					1,	NULL, {"tracebox"}},
 	{"DP_QC_TRACETOSS"},
 	{"DP_QC_TRACE_MOVETYPE_HITMODEL"},

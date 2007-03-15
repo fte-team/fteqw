@@ -27,7 +27,6 @@ Password checks and stuff are implemented here. This is server side stuff.
 #include "qtv.h"
 
 
-
 #undef IN
 #define IN(x) buffer[(x)&(MAX_PROXY_BUFFER-1)]
 
@@ -531,6 +530,53 @@ void HTMLprintf(char *outb, int outl, char *fmt, ...)
 	*outb++ = 0;
 }
 
+static void SV_SendHTTPHeader(cluster_t *cluster, oproxy_t *dest, char *error_code, char *content_type, qboolean nocache)
+{
+    char *s;
+    char buffer[2048];
+
+    if (nocache) {
+	    s = "HTTP/1.1 %s OK\n"
+		    "Content-Type: %s\n"
+            "Cache-Control: no-cache, must-revalidate\n"
+            "Expires: Mon, 26 Jul 1997 05:00:00 GMT\n"
+            "Connection: close\n"
+            "\n";
+    } else {
+	    s = "HTTP/1.1 %s OK\n"
+		    "Content-Type: %s\n"
+            "Connection: close\n"
+            "\n";
+    }
+    
+    snprintf(buffer, sizeof(buffer), s, error_code, content_type);
+
+    Net_ProxySend(cluster, dest, buffer, strlen(buffer));
+}
+
+static void SV_SendHTMLHeader(cluster_t *cluster, oproxy_t *dest, char *title)
+{
+    char *s;
+    char buffer[2048];
+
+    s = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\n"
+        "<html>\n"
+        "<head>\n"
+        "  <meta http-equiv=\"content-type\" content=\"text/html; charset=iso-8859-1\">\n"
+        "  <title>%s</title>\n"
+        "  <link rel=\"StyleSheet\" href=\"/style.css\" type=\"text/css\" />\n"
+        "</head>\n"
+        "<body><div id=\"navigation\"><ul>"
+        "<li><a href=\"/nowplaying/\">Live</a></li><li><a href=\"/demos/\">Demos</a></li><li><a href=\"/admin/\">Admin</a></li>"
+        "</ul></div>";
+
+    snprintf(buffer, sizeof(buffer), s, title);
+
+    Net_ProxySend(cluster, dest, buffer, strlen(buffer));
+}
+
+#define HTMLPRINT(str) { sprintf(buffer, str "\n"); Net_ProxySend(cluster, dest, buffer, strlen(buffer)); }
+
 void SV_GenerateNowPlayingHTTP(cluster_t *cluster, oproxy_t *dest)
 {
 	int player;
@@ -539,29 +585,21 @@ void SV_GenerateNowPlayingHTTP(cluster_t *cluster, oproxy_t *dest)
 	char plname[64];
 	sv_t *streams;
 
-	s = "HTTP/1.1 200 OK\n"
-		"Content-Type: text/html\n"
-		"Connection: close\n"
-		"\n";
-	Net_ProxySend(cluster, dest, s, strlen(s));
+    SV_SendHTTPHeader(cluster, dest, "200", "text/html", true);
+    SV_SendHTMLHeader(cluster, dest, "QuakeTV: Now Playing");
 
-	sprintf(buffer, "<HEAD>"
-						"<TITLE>QuakeTV: Now Playing</TITLE>"
-					"</HEAD>"
-					"<BODY>");
+    snprintf(buffer, sizeof(buffer), "<h1>QuakeTV on %s: Now Playing</h1>", cluster->hostname);
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 
-	snprintf(buffer, sizeof(buffer), "<H1>Now Playing on %s</H1>", cluster->hostname);
-	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
-
+    HTMLPRINT("<dl class=\"nowplaying\">");
 	for (streams = cluster->servers; streams; streams = streams->next)
 	{
-		sprintf(buffer, "<A HREF=\"watch.qtv?sid=%i\">", streams->streamid);
+        HTMLPRINT("<dt>");
+        HTMLprintf(buffer, sizeof(buffer), "%s (%s: %s)", streams->server, streams->gamedir, streams->mapname);
+        Net_ProxySend(cluster, dest, buffer, strlen(buffer));
+		sprintf(buffer, "<span class=\"qtvfile\"> [ <a href=\"/watch.qtv?sid=%i\">Watch Now</a> ]</span>", streams->streamid);
 		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
-		HTMLprintf(buffer, sizeof(buffer), "%s (%s: %s)", streams->server, streams->gamedir, streams->mapname);
-		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
-		s = "</A><br/>";
-		Net_ProxySend(cluster, dest, s, strlen(s));
+        HTMLPRINT("</dt><dd><ul class=\"playerslist\">");
 
 		for (player = 0; player < MAX_CLIENTS; player++)
 		{
@@ -569,31 +607,51 @@ void SV_GenerateNowPlayingHTTP(cluster_t *cluster, oproxy_t *dest)
 			{
 				Info_ValueForKey(streams->players[player].userinfo, "name", plname, sizeof(plname));
 
-				s = "&nbsp;";
-				Net_ProxySend(cluster, dest, s, strlen(s));
+                if (streams->players[player].frags < -90) {
+                    HTMLPRINT("<li class=\"spectator\">");
+                } else {
+                    HTMLPRINT("<li class=\"player\">");
+                }
+
 				HTMLprintf(buffer, sizeof(buffer), "%s", plname);
 				Net_ProxySend(cluster, dest, buffer, strlen(buffer));
-				s = "<br/>";
-				Net_ProxySend(cluster, dest, s, strlen(s));
+				HTMLPRINT("</li>");
 			}
 		}
+        HTMLPRINT("</ul></dd>");
 	}
+    HTMLPRINT("</dl>");
 	if (!cluster->servers)
 	{
 		s = "No streams are currently being played<br />";
 		Net_ProxySend(cluster, dest, s, strlen(s));
 	}
 
-	s = "<br /><A href=\"/demos.html\">Available Demos</A><br />";
-	Net_ProxySend(cluster, dest, s, strlen(s));
-	s = "<A href=\"/admin.html\">Admin</A><br />";
-	Net_ProxySend(cluster, dest, s, strlen(s));
-
 	sprintf(buffer, "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\">www.fteqw.com</a><br />", cluster->buildnumber);
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 
-	sprintf(buffer, "</BODY>");
-	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
+	HTMLPRINT("</body></html>");
+}
+
+void SV_GenerateCSSFile(cluster_t *cluster, oproxy_t *dest)
+{
+	char buffer[1024];
+
+    SV_SendHTTPHeader(cluster, dest, "200", "text/css", false);
+
+    HTMLPRINT("* { font-family: Verdana, Helvetica, sans-serif; }");
+    HTMLPRINT("body { color: #000; background-color: #fff; padding: 0 40px; }");
+    HTMLPRINT("a { color: #00f; }");
+    HTMLPRINT("a.qtvfile { font-weight: bold; }");
+    HTMLPRINT("a:visited { color: #00f; }");
+    HTMLPRINT("a:hover { background-color: black; color: yellow; }");
+    HTMLPRINT("li.spectator { color: #666; font-size: 0.9ex; }");
+    HTMLPRINT("dl.nowplaying dd { margin: 0 0 2em 0; }");
+    HTMLPRINT("dl.nowplaying dt { margin: 1em 0 0 0; font-size: 1.1em; font-weight: bold; }");
+    HTMLPRINT("dl.nowplaying li { list-style: none; margin: 0 0 0 1em; padding: 0; }");
+    HTMLPRINT("dl.nowplaying ul { margin: 0 0 0 1em; padding: 0; }");
+    HTMLPRINT("#navigation { background-color: #eef; }");
+    HTMLPRINT("#navigation li { display: inline; list-style: none; margin: 0 3em; }");
 }
 
 qboolean SV_GetHTTPHeaderField(char *s, char *field, char *buffer, int buffersize)
@@ -658,17 +716,10 @@ void SV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *streamtype, ch
 
 	if (!SV_GetHTTPHeaderField(dest->inbuffer, "Host", hostname, sizeof(hostname)))
 	{
-		s = "HTTP/1.1 400 OK\n"
-			"Content-Type: text/html\n"
-			"Connection: close\n"
-			"\n"
+        SV_SendHTTPHeader(cluster, dest, "400", "text/html", true);
+        SV_SendHTMLHeader(cluster, dest, "QuakeTV: Error");
 
-			"<HTML>"
-			"<HEAD>"
-				"<TITLE>QuakeTV: Now Playing</TITLE>"
-			"</HEAD>"
-			"<BODY>"
-			"Your client did not send a Host field, which is required in HTTP/1.1\n<BR />"
+        s = "Your client did not send a Host field, which is required in HTTP/1.1\n<BR />"
 			"Please try a different browser.\n"
 			"</BODY>"
 			"</HTML>";
@@ -677,11 +728,7 @@ void SV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *streamtype, ch
 		return;
 	}
 
-	s = "HTTP/1.1 200 OK\n"
-		"Content-Type: text/x-quaketvident\n"
-		"Connection: close\n"
-		"\n";
-	Net_ProxySend(cluster, dest, s, strlen(s));
+    SV_SendHTTPHeader(cluster, dest, "200", "text/x-quaketvident", true);
 
 	{
 		char *ws;
@@ -754,11 +801,10 @@ void SV_GenerateAdminHTTP(cluster_t *cluster, oproxy_t *dest, int streamid, char
 
 	if (!*cluster->adminpassword)
 	{
-		s = "HTTP/1.1 403 OK\n"
-			"Content-Type: text/html\n"
-			"Connection: close\n"
-			"\n"
-			"<HEAD><TITLE>QuakeTV</TITLE></HEAD><BODY>The admin password is disabled. You may not log in remotely.</BODY>\n";
+        SV_SendHTTPHeader(cluster, dest, "403", "text/html", true);
+        SV_SendHTMLHeader(cluster, dest, "QuakeTV: Admin Error");
+
+        s = "The admin password is disabled. You may not log in remotely.</body></html>\n";
 		Net_ProxySend(cluster, dest, s, strlen(s));
 		return;
 	}
@@ -865,9 +911,9 @@ void SV_GenerateAdminHTTP(cluster_t *cluster, oproxy_t *dest, int streamid, char
 			o = s+1;
 		}
 
-		s = "<br /><A href=\"/nowplaying.html\">Now Playing</A><br />";
+		s = "<br /><A href=\"/nowplaying/\">Now Playing</A><br />";
 		Net_ProxySend(cluster, dest, s, strlen(s));
-		s = "<A href=\"/demos.html\">Available Demos</A><br />";
+		s = "<A href=\"/demos/\">Available Demos</A><br />";
 		Net_ProxySend(cluster, dest, s, strlen(s));
 
 		sprintf(result, "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\">www.fteqw.com</a><br />", cluster->buildnumber);
@@ -887,38 +933,31 @@ void SV_GenerateQTVDemoListing(cluster_t *cluster, oproxy_t *dest)
 	int i;
 	char link[256];
 	char *s;
-		s = "HTTP/1.1 200 OK\n"
-			"Content-Type: text/html\n"
-			"Connection: close\n"
-			"\n"
-			"<HEAD><TITLE>QuakeTV Demos</TITLE></HEAD><BODY>";
-		Net_ProxySend(cluster, dest, s, strlen(s));
 
-		s = "<H1>QTV Demo listing</H1>";
-		Net_ProxySend(cluster, dest, s, strlen(s));
+    SV_SendHTTPHeader(cluster, dest, "200", "text/html", true);
+    SV_SendHTMLHeader(cluster, dest, "QuakeTV: Demos");
 
-		Cluster_BuildAvailableDemoList(cluster);
-		for (i = 0; i < cluster->availdemoscount; i++)
-		{
-			snprintf(link, sizeof(link), "<A HREF=\"watch.qtv?demo=%s\">%s</A> (%ikb)<br/>", cluster->availdemos[i].name, cluster->availdemos[i].name, cluster->availdemos[i].size/1024);
-			Net_ProxySend(cluster, dest, link, strlen(link));
-		}
+    s = "<h1>QuakeTV: Demo Listing</h1>";
+	Net_ProxySend(cluster, dest, s, strlen(s));
 
-		sprintf(link, "<P>Total: %i demos</P>", cluster->availdemoscount);
+	Cluster_BuildAvailableDemoList(cluster);
+	for (i = 0; i < cluster->availdemoscount; i++)
+	{
+		snprintf(link, sizeof(link), "<A HREF=\"/watch.qtv?demo=%s\">%s</A> (%ikb)<br/>", cluster->availdemos[i].name, cluster->availdemos[i].name, cluster->availdemos[i].size/1024);
 		Net_ProxySend(cluster, dest, link, strlen(link));
+	}
 
-		s = "<br /><A href=\"/nowplaying.html\">Now Playing</A><br />";
-		Net_ProxySend(cluster, dest, s, strlen(s));
-		s = "<A href=\"/admin.html\">Admin</A><br />";
-		Net_ProxySend(cluster, dest, s, strlen(s));
-
-		sprintf(link, "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\">www.fteqw.com</a><br />", cluster->buildnumber);
-		Net_ProxySend(cluster, dest, link, strlen(link));
+	sprintf(link, "<P>Total: %i demos</P>", cluster->availdemoscount);
+	Net_ProxySend(cluster, dest, link, strlen(link));
 
 
-		s = "</BODY>"
-			"</HTML>";
-		Net_ProxySend(cluster, dest, s, strlen(s));
+	sprintf(link, "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\">www.fteqw.com</a><br />", cluster->buildnumber);
+	Net_ProxySend(cluster, dest, link, strlen(link));
+
+
+	s = "</BODY>"
+		"</HTML>";
+	Net_ProxySend(cluster, dest, s, strlen(s));
 }
 
 
@@ -994,7 +1033,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 				"Content-Type: text/html\n"
 				"Connection: close\n"
 				"\n"
-				"<HEAD><TITLE>QuakeTV</TITLE></HEAD><BODY>No Content-Length was provided.</BODY>\n";
+				"<html><HEAD><TITLE>QuakeTV</TITLE></HEAD><BODY>No Content-Length was provided.</BODY>\n";
 			Net_ProxySend(cluster, pend, s, strlen(s));
 			pend->flushing = true;
 			return false;
@@ -1021,7 +1060,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 					"Content-Type: text/html\n"
 					"Connection: close\n"
 					"\n"
-					"<HEAD><TITLE>QuakeTV</TITLE></HEAD><BODY>That HTTP method is not supported for that URL.</BODY>\n";
+					"<html><HEAD><TITLE>QuakeTV</TITLE></HEAD><BODY>That HTTP method is not supported for that URL.</BODY></html>\n";
 				Net_ProxySend(cluster, pend, s, strlen(s));
 		
 			}
@@ -1043,6 +1082,10 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		{
 			SV_GenerateQTVStub(cluster, pend, "file:", pend->inbuffer+20);
 		}
+        else if (!strncmp(pend->inbuffer+4, "/demo/", 6))
+        {
+            SV_GenerateQTVStub(cluster, pend, "file:", pend->inbuffer+9);
+        }
 		else if (!strncmp(pend->inbuffer+4, "/about", 6))
 		{	//redirect them to our funky website
 			s = "HTTP/1.0 302 Found\n"
@@ -1057,7 +1100,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		else if (!strncmp(pend->inbuffer+4, "/ ", 2))
 		{
 			s = "HTTP/1.0 302 Found\n"
-				"Location: /nowplaying.html\n"
+				"Location: /nowplaying/\n"
 				"\n";
 			Net_ProxySend(cluster, pend, s, strlen(s));
 		}
@@ -1082,6 +1125,10 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 			"Hello World\n";
 		Net_ProxySend(cluster, pend, s, strlen(s));
 		}*/
+        else if (!strncmp(pend->inbuffer+4, "/style.css", 10))
+        {
+            SV_GenerateCSSFile(cluster, pend);
+        }
 		else
 		{
 			s = "HTTP/1.1 404 OK\n"
@@ -1257,7 +1304,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 					{	//starts a demo off the server... source does the same thing though...
 						char buf[256];
 	
-						sprintf(buf, sizeof(buf), "demo:%s", colon);
+						snprintf(buf, sizeof(buf), "demo:%s", colon);
 						qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
 						if (!qtv)
 						{

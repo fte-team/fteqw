@@ -455,7 +455,8 @@ typedef struct oproxy_s {
 
 	sv_t *defaultstream;
 
-	FILE *file;		//recording a demo
+	FILE *srcfile;	//buffer is padded with data from this file when its empty
+	FILE *file;		//recording a demo (written to)
 	SOCKET sock;	//playing to a proxy
 
 	unsigned char inbuffer[MAX_PROXY_INBUFFER];
@@ -921,9 +922,11 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 void ReadDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move);
 unsigned Com_BlockChecksum (void *buffer, int length);
 void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf);
+void Cluster_BuildAvailableDemoList(cluster_t *cluster);
 
 void Sys_Printf(cluster_t *cluster, char *fmt, ...);
 
+void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, char *buffer, int length);
 oproxy_t *Net_FileProxy(sv_t *qtv, char *filename);
 sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates, qboolean query);
 SOCKET Net_MVDListen(int port);
@@ -939,6 +942,11 @@ unsigned char *FS_ReadFile(char *gamedir, char *filename, unsigned int *size);
 void ChooseFavoriteTrack(sv_t *tv);
 
 void DemoViewer_Update(sv_t *svtest);
+
+
+//httpsv.c
+void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend);
+void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata);
 
 
 #ifdef __cplusplus

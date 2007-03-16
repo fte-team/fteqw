@@ -1684,7 +1684,7 @@ void QTV_Run(sv_t *qtv)
 
 		if (qtv->serverquery)
 		{
-			Sys_Printf(qtv->cluster, "End of sources\n", colon);
+			Sys_Printf(qtv->cluster, "End of list\n", colon);
 			qtv->drop = true;
 			qtv->buffersize = 0;
 			return;

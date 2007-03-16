@@ -437,6 +437,10 @@ SOURCE=.\forward.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\httpsv.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\mdfour.c
 # End Source File
 # Begin Source File

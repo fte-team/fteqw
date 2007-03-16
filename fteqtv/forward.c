@@ -25,6 +25,7 @@ Password checks and stuff are implemented here. This is server side stuff.
 */
 
 #include "qtv.h"
+#include "time.h"
 
 
 #undef IN
@@ -530,6 +531,13 @@ void HTMLprintf(char *outb, int outl, char *fmt, ...)
 	*outb++ = 0;
 }
 
+static const char* SV_GetTime()
+{
+    time_t rawtime;
+    time (&rawtime);
+    return ctime(&rawtime);
+}
+
 static void SV_SendHTTPHeader(cluster_t *cluster, oproxy_t *dest, char *error_code, char *content_type, qboolean nocache)
 {
     char *s;
@@ -540,16 +548,17 @@ static void SV_SendHTTPHeader(cluster_t *cluster, oproxy_t *dest, char *error_co
 		    "Content-Type: %s\n"
             "Cache-Control: no-cache, must-revalidate\n"
             "Expires: Mon, 26 Jul 1997 05:00:00 GMT\n"
+            "Last-Modified: %s"
             "Connection: close\n"
             "\n";
+        snprintf(buffer, sizeof(buffer), s, error_code, content_type, SV_GetTime());
     } else {
 	    s = "HTTP/1.1 %s OK\n"
 		    "Content-Type: %s\n"
             "Connection: close\n"
             "\n";
-    }
-    
-    snprintf(buffer, sizeof(buffer), s, error_code, content_type);
+        snprintf(buffer, sizeof(buffer), s, error_code, content_type);
+    }    
 
     Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 }

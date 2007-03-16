@@ -728,7 +728,7 @@ void SV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *streamtype, ch
 		return;
 	}
 
-    SV_SendHTTPHeader(cluster, dest, "200", "text/x-quaketvident", true);
+    SV_SendHTTPHeader(cluster, dest, "200", "text/x-quaketvident", false);
 
 	{
 		char *ws;
@@ -1082,10 +1082,6 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		{
 			SV_GenerateQTVStub(cluster, pend, "file:", pend->inbuffer+20);
 		}
-        else if (!strncmp(pend->inbuffer+4, "/demo/", 6))
-        {
-            SV_GenerateQTVStub(cluster, pend, "file:", pend->inbuffer+9);
-        }
 		else if (!strncmp(pend->inbuffer+4, "/about", 6))
 		{	//redirect them to our funky website
 			s = "HTTP/1.0 302 Found\n"

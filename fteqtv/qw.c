@@ -2400,7 +2400,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		unsigned char *ip;
 		gethostname(buf, sizeof(buf));
 		NET_StringToAddr(buf, &addr, 0);
-		ip = ((struct sockaddr_in *)&addr)->sin_addr;
+		ip = (char*)&((struct sockaddr_in *)&addr)->sin_addr;
 		QW_PrintfToViewer(v, "[QuakeTV] %s | %i.%i.%i.%i\n", cluster->hostname, ip[0], ip[1], ip[2], ip[3]);
 	}
 

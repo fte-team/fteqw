@@ -2396,15 +2396,12 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 
 	else if (!strncmp(message, ".qtvinfo", 8))
 	{
-		struct sockaddr_in *sina;
 		netadr_t addr;
+		unsigned char *ip;
 		gethostname(buf, sizeof(buf));
 		NET_StringToAddr(buf, &addr, 0);
-		sina = (void*)&addr;
-		QW_PrintfToViewer(v, "[QuakeTV] %s | %i.%i.%i.%i\n", cluster->hostname, sina->sin_addr.S_un.S_un_b.s_b1,
-																				sina->sin_addr.S_un.S_un_b.s_b2,
-																				sina->sin_addr.S_un.S_un_b.s_b3,
-																				sina->sin_addr.S_un.S_un_b.s_b4);
+		ip = ((struct sockaddr_in *)&addr)->sin_addr;
+		QW_PrintfToViewer(v, "[QuakeTV] %s | %i.%i.%i.%i\n", cluster->hostname, ip[0], ip[1], ip[2], ip[3]);
 	}
 
 	else if (!strncmp(message, ".menu", 5))

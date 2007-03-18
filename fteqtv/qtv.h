@@ -406,6 +406,7 @@ typedef struct viewer_s {
 	qboolean chokeme;
 	qboolean thinksitsconnected;
 	qboolean conmenussupported;
+	qboolean isproxy;
 	int delta_frame;
 
 	int servercount;
@@ -440,6 +441,7 @@ typedef struct viewer_s {
 
 	sv_t *server;
 
+	int menuspamtime;
 	int menunum;
 	int menuop;
 	int fwdval;	//for scrolling up/down the menu using +forward/+back :)
@@ -511,6 +513,11 @@ struct sv_s {	//details about a server connection (also known as stream)
 	netadr_t serveraddress;
 	netchan_t netchan;
 	qboolean serverquery;
+
+	//proxy chaining
+	qboolean serverisproxy;
+	qboolean proxyisselected;
+	//
 
 	unsigned char buffer[MAX_PROXY_BUFFER];	//this doesn't cycle.
 	int buffersize;	//it memmoves down
@@ -673,13 +680,30 @@ struct cluster_s {
 };
 
 #define MENU_NONE			0
-#define MENU_SERVERS		1
-#define MENU_ADMIN			2
-#define MENU_ADMINSERVER	3
-#define MENU_DEMOS			4
-#define	MENU_MAIN			MENU_SERVERS
+#define	MENU_MAIN			1//MENU_SERVERS
+#define MENU_SERVERS		2
+#define MENU_CLIENTS		3
+#define MENU_ADMIN			4
+#define MENU_ADMINSERVER	5
+#define MENU_DEMOS			6
+#define MENU_FORWARDING		7
+
+#define	MENU_DEFAULT		MENU_MAIN
 
 
+enum {
+	MENU_MAIN_STREAMS,
+	MENU_MAIN_NEWSTREAM,
+	MENU_MAIN_FIXME,
+	MENU_MAIN_PREVPROX,
+
+	MENU_MAIN_CLIENTLIST,
+	MENU_MAIN_DEMOS,
+	MENU_MAIN_ADMIN,
+	MENU_MAIN_NEXTPROX,
+
+	MENU_MAIN_ITEMCOUNT
+};
 
 
 
@@ -840,6 +864,15 @@ unsigned int BigLong(unsigned int val);
 #define	PF_DEAD			(1<<9)		// don't block movement any more
 #define	PF_GIB			(1<<10)		// offset the view height differently
 
+//flags on players in mvds
+#define DF_ORIGIN		1
+#define DF_ANGLES		(1<<3)
+#define DF_EFFECTS		(1<<6)
+#define DF_SKINNUM		(1<<7)
+#define DF_DEAD			(1<<8)
+#define DF_GIB			(1<<9)
+#define DF_WEAPONFRAME	(1<<10)
+#define DF_MODEL		(1<<11)
 
 
 //flags for where a message can be sent, for easy broadcasting

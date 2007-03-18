@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qtv.h"
 
+#define CENTERTIME 1.5
+
 static const filename_t ConnectionlessModelList[] = {{""}, {"maps/start.bsp"}, {"progs/player.mdl"}, {""}};
 static const filename_t ConnectionlessSoundList[] = {{""}, {""}};
 
@@ -754,6 +756,16 @@ void ParseUserInfo(cluster_t *cluster, viewer_t *viewer)
 	char buf[1024];
 	float rate;
 	char temp[64];
+
+	viewer->isproxy = false;
+
+	Info_ValueForKey(viewer->userinfo, "*qtv", temp, sizeof(temp));
+	if (*temp)
+		viewer->isproxy = true;
+	Info_ValueForKey(viewer->userinfo, "Qizmo", temp, sizeof(temp));
+	if (*temp)
+		viewer->isproxy = true;
+
 	Info_ValueForKey(viewer->userinfo, "name", temp, sizeof(temp));
 
 	if (!*temp)
@@ -939,42 +951,66 @@ void QW_SetMenu(viewer_t *v, int menunum)
 {
 	if ((v->menunum==MENU_NONE) != (menunum==MENU_NONE))
 	{
-		if (menunum != MENU_NONE)
+		if (v->isproxy)
 		{
-			QW_StuffcmdToViewer(v, "//set prox_inmenu 1\n");
-
-			QW_StuffcmdToViewer(v, "alias \"+proxfwd\" \"proxy:up\"\n");
-			QW_StuffcmdToViewer(v, "alias \"+proxback\" \"proxy:down\"\n");
-			QW_StuffcmdToViewer(v, "alias \"+proxleft\" \"proxy:left\"\n");
-			QW_StuffcmdToViewer(v, "alias \"+proxright\" \"proxy:right\"\n");
-
-			QW_StuffcmdToViewer(v, "alias \"-proxfwd\" \" \"\n");
-			QW_StuffcmdToViewer(v, "alias \"-proxback\" \" \"\n");
-			QW_StuffcmdToViewer(v, "alias \"-proxleft\" \" \"\n");
-			QW_StuffcmdToViewer(v, "alias \"-proxright\" \" \"\n");
+			if (menunum != MENU_NONE)
+				QW_StuffcmdToViewer(v, "//set prox_inmenu 1\n");
+			else
+				QW_StuffcmdToViewer(v, "//set prox_inmenu 0\n");
 		}
 		else
 		{
-			QW_StuffcmdToViewer(v, "//set prox_inmenu 0\n");
+			if (menunum != MENU_NONE)
+			{
+				QW_StuffcmdToViewer(v, "//set prox_inmenu 1\n");
 
-			QW_StuffcmdToViewer(v, "alias \"+proxfwd\" \"+forward\"\n");
-			QW_StuffcmdToViewer(v, "alias \"+proxback\" \"+back\"\n");
-			QW_StuffcmdToViewer(v, "alias \"+proxleft\" \"+moveleft\"\n");
-			QW_StuffcmdToViewer(v, "alias \"+proxright\" \"+moveright\"\n");
+				QW_StuffcmdToViewer(v, "alias \"+proxjump\" \"say proxy:menu enter\"\n");
+				QW_StuffcmdToViewer(v, "alias \"+proxfwd\" \"say proxy:menu up\"\n");
+				QW_StuffcmdToViewer(v, "alias \"+proxback\" \"say proxy:menu down\"\n");
+				QW_StuffcmdToViewer(v, "alias \"+proxleft\" \"say proxy:menu left\"\n");
+				QW_StuffcmdToViewer(v, "alias \"+proxright\" \"say proxy:menu right\"\n");
 
-			QW_StuffcmdToViewer(v, "alias \"-proxfwd\" \"-forward\"\n");
-			QW_StuffcmdToViewer(v, "alias \"-proxback\" \"-back\"\n");
-			QW_StuffcmdToViewer(v, "alias \"-proxleft\" \"-moveleft\"\n");
-			QW_StuffcmdToViewer(v, "alias \"-proxright\" \"-moveright\"\n");
+				QW_StuffcmdToViewer(v, "alias \"-proxjump\" \" \"\n");
+				QW_StuffcmdToViewer(v, "alias \"-proxfwd\" \" \"\n");
+				QW_StuffcmdToViewer(v, "alias \"-proxback\" \" \"\n");
+				QW_StuffcmdToViewer(v, "alias \"-proxleft\" \" \"\n");
+				QW_StuffcmdToViewer(v, "alias \"-proxright\" \" \"\n");
+			}
+			else
+			{
+				QW_StuffcmdToViewer(v, "//set prox_inmenu 0\n");
+
+				QW_StuffcmdToViewer(v, "alias \"+proxjump\" \"+jump\"\n");
+				QW_StuffcmdToViewer(v, "alias \"+proxfwd\" \"+forward\"\n");
+				QW_StuffcmdToViewer(v, "alias \"+proxback\" \"+back\"\n");
+				QW_StuffcmdToViewer(v, "alias \"+proxleft\" \"+moveleft\"\n");
+				QW_StuffcmdToViewer(v, "alias \"+proxright\" \"+moveright\"\n");
+
+				QW_StuffcmdToViewer(v, "alias \"-proxjump\" \"-jump\"\n");
+				QW_StuffcmdToViewer(v, "alias \"-proxfwd\" \"-forward\"\n");
+				QW_StuffcmdToViewer(v, "alias \"-proxback\" \"-back\"\n");
+				QW_StuffcmdToViewer(v, "alias \"-proxleft\" \"-moveleft\"\n");
+				QW_StuffcmdToViewer(v, "alias \"-proxright\" \"-moveright\"\n");
+			}
+			QW_StuffcmdToViewer(v, "-forward\n");
+			QW_StuffcmdToViewer(v, "-back\n");
+			QW_StuffcmdToViewer(v, "-moveleft\n");
+			QW_StuffcmdToViewer(v, "-moveright\n");
 		}
-		QW_StuffcmdToViewer(v, "-forward\n");
-		QW_StuffcmdToViewer(v, "-back\n");
-		QW_StuffcmdToViewer(v, "-moveleft\n");
-		QW_StuffcmdToViewer(v, "-moveright\n");
+	}
+
+	if (v->server && v->server->controller == v)
+	{
+		if (menunum==MENU_NONE || menunum==MENU_FORWARDING)
+			v->server->proxyisselected = false;
+		else
+			v->server->proxyisselected = true;
 	}
 
 	v->menunum = menunum;
 	v->menuop = 0;
+
+	v->menuspamtime = 0;
 }
 
 void QTV_Rcon(cluster_t *cluster, char *message, netadr_t *from)
@@ -2273,6 +2309,587 @@ void QW_SetCommentator(cluster_t *cluster, viewer_t *v, viewer_t *commentator)
 	v->commentator = commentator;
 }
 
+void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcommand)
+{
+	char command[256];
+	char *args;
+	args = COM_ParseToken(fullcommand, command, sizeof(command), NULL);
+	if (!args)
+		args = "";
+	while(*args && *args <= ' ')
+		args++;
+
+	if (!strcmp(command, "help"))
+	{
+		QW_PrintfToViewer(v,	"Website: http://www.fteqw.com/\n"
+								"Commands:\n"
+								".observe qwserver:port\n"
+								".qtv tcpserver:port\n"
+								".demo gamedir/demoname.mvd\n"
+								".disconnect\n"
+								".admin\n"
+								".bind\n"
+								);
+	}
+	else if (!strcmp(command, "qtvinfo"))
+	{
+		char buf[256];
+		netadr_t addr;
+		unsigned char *ip;
+		gethostname(buf, sizeof(buf));	//ask the operating system for the local dns name
+		NET_StringToAddr(buf, &addr, 0);	//look that up
+		ip = (char*)&((struct sockaddr_in *)&addr)->sin_addr;
+		QW_PrintfToViewer(v, "[QuakeTV] %s | %i.%i.%i.%i\n", cluster->hostname, ip[0], ip[1], ip[2], ip[3]);
+	}
+	else if (!strcmp(command, "menu"))
+	{
+		v->menuspamtime = cluster->curtime-1;
+
+		COM_ParseToken(args, command, sizeof(command), NULL);
+		if (!strcmp(command, "up"))
+		{
+			v->menuop -= 1;
+		}
+		else if (!strcmp(command, "down"))
+		{
+			v->menuop += 1;
+		}
+		else if (!strcmp(command, "enter"))
+		{
+			Menu_Enter(cluster, v, 0);
+		}
+		else if (!strcmp(command, "use"))
+		{
+			Menu_Enter(cluster, v, 0);
+		}
+		else if (!strcmp(command, "right"))
+		{
+			Menu_Enter(cluster, v, 1);
+		}
+		else if (!strcmp(command, "left"))
+		{
+			Menu_Enter(cluster, v, -1);
+		}
+		else if (!strcmp(command, "select"))
+		{
+			Menu_Enter(cluster, v, 0);
+		}
+		else if (!strcmp(command, "home"))
+		{
+			v->menuop -= 100000;
+		}
+		else if (!strcmp(command, "end"))
+		{
+			v->menuop += 100000;
+		}
+		else if (!strcmp(command, "back"))
+		{
+			QW_SetMenu(v, MENU_DEFAULT);
+		}
+		else if (!strcmp(command, "enter"))
+		{
+			if (v->menunum)
+				Menu_Enter(cluster, v, 0);
+			else
+				QW_SetMenu(v, MENU_SERVERS);
+		}
+		else if (!strcmp(command, "bind") || !strcmp(command, "bindstd"))
+		{
+			QW_StuffcmdToViewer(v, "bind uparrow \"say proxy:menu up\"\n");
+			QW_StuffcmdToViewer(v, "bind downarrow \"say proxy:menu down\"\n");
+			QW_StuffcmdToViewer(v, "bind rightarrow \"say proxy:menu right\"\n");
+			QW_StuffcmdToViewer(v, "bind leftarrow \"say proxy:menu left\"\n");
+
+			QW_StuffcmdToViewer(v, "bind enter \"say proxy:menu select\"\n");
+
+			QW_StuffcmdToViewer(v, "bind home \"say proxy:menu home\"\n");
+			QW_StuffcmdToViewer(v, "bind end \"say proxy:menu end\"\n");
+			QW_StuffcmdToViewer(v, "bind pause \"say proxy:menu\"\n");
+			QW_StuffcmdToViewer(v, "bind backspace \"say proxy:menu back\"\n");
+
+			QW_PrintfToViewer(v, "All keys bound not recognised\n");
+		}
+		else if (!*command)
+		{
+			if (v->menunum)
+				QW_SetMenu(v, MENU_NONE);
+			else if (v->conmenussupported)
+				goto guimenu;
+			else
+				goto tuimenu;
+		}
+		else
+			QW_PrintfToViewer(v, "\"menu %s\" not recognised\n", command);
+	}
+
+	else if (!strcmp(command, "tuimenu"))
+	{
+tuimenu:
+		if (v->menunum)
+			QW_SetMenu(v, MENU_NONE);
+		else
+			QW_SetMenu(v, MENU_MAIN);
+	}
+	else if (!strcmp(command, "guimenu"))
+	{
+		sv_t *sv;
+		int y;
+		qboolean shownheader;
+
+guimenu:
+
+		QW_SetMenu(v, MENU_NONE);
+
+		shownheader = false;
+
+		QW_StuffcmdToViewer(v, 
+
+			"alias menucallback\n"
+			"{\n"
+				"menuclear\n"
+				"if (option == \"OBSERVE\")\n"
+					"{\necho Spectating server $_server\nsay .observe $_server\n}\n"
+				"if (option == \"QTV\")\n"
+					"{\necho Streaming from qtv at $_server\nsay .qtv $_server\n}\n"
+				"if (option == \"JOIN\")\n"
+					"{\necho Joining game at $_server\nsay .join $_server\n}\n"
+				"if (option == \"ADMIN\")\n"
+					"{\nsay .guiadmin\n}\n"
+				"if (option == \"DEMOS\")\n"
+					"{\nsay .demos\n}\n"
+				"if (\"stream \" isin option)\n"
+					"{\necho Changing stream\nsay .$option\n}\n"
+			"}\n"
+
+			"conmenu menucallback\n"
+			"menupic 0 4 gfx/qplaque.lmp\n"
+			"menupic 96 4 gfx/p_option.lmp\n"
+
+			"menuedit 48 36 \"Óåòöåòº\" \"_server\"\n"
+
+			"menutext 48 52 \"Demos\" DEMOS\n"
+
+			"menutext 104 52 \"Join\" JOIN\n"
+
+			"menutext 152 52 \"Observe\" OBSERVE\n"
+
+			"menutext 224 52 \"QTV\" QTV\n"
+
+
+
+			"menutext 48 84 \"Admin\" ADMIN\n"
+
+			"menutext 48 92 \"Close Menu\" cancel\n"
+
+
+
+			"menutext 48 116 \"Type in a server address and\"\n"
+			"menutext 48 124 \"click join to play in the game,\"\n"
+			"menutext 48 132 \"observe(udp) to watch, or qtv(tcp)\"\n"
+			"menutext 48 140 \"to connect to a stream or proxy.\"\n"
+			);
+
+		y = 140+16;
+		for (sv = cluster->servers; sv; sv = sv->next)
+		{
+			if (!shownheader)
+			{
+				shownheader = true;
+				QW_StuffcmdToViewer(v, "menutext 72 %i \"Áãôéöå Çáíåóº\"\n", y);
+				y+=8;
+			}
+			QW_StuffcmdToViewer(v, "menutext 32 %i \"%30s\" \"stream %i\"\n", y, *sv->hostname?sv->hostname:sv->server, sv->streamid);
+			y+=8;
+		}
+		if (!shownheader)
+			QW_StuffcmdToViewer(v, "menutext 72 %i \"There are no active games\"\n", y);
+		
+	}
+
+	else if (!strcmp(command, "demos"))
+	{
+		if (v->conmenussupported)
+			goto guidemos;
+		else
+			goto tuidemos;
+	}
+	else if (!strcmp(command, "guidemos"))
+	{
+		int maxshowndemos;
+		char sizestr[7];
+		int start;
+		int i;
+
+guidemos:
+		maxshowndemos = 12;
+
+		if (!*args)
+			Cluster_BuildAvailableDemoList(cluster);
+
+		start = atoi(args);	//FIXME
+		QW_SetMenu(v, MENU_NONE);
+
+		QW_StuffcmdToViewer(v, 
+
+			"alias menucallback\n"
+			"{\n"
+				"menuclear\n"
+				"if (option == \"PREV\")\n"
+					"{\nsay .demos %i\n}\n"
+				"if (option == \"NEXT\")\n"
+					"{\nsay .demos %i\n}\n"
+				"if (\"demo \" isin option)\n"
+					"{\necho Changing stream\nsay .$option\n}\n"
+			"}\n"
+
+			"conmenu menucallback\n"
+			"menupic 0 4 gfx/qplaque.lmp\n"
+			"menupic 96 4 gfx/p_option.lmp\n",
+			start - maxshowndemos, start + maxshowndemos
+		);
+
+		if (start < 0)
+			start = 0;
+
+		if (start-maxshowndemos >= 0)
+			QW_StuffcmdToViewer(v, "menutext 48 52 \"Prev\" \"PREV\"\n");
+		if (start+maxshowndemos <= cluster->availdemoscount)
+			QW_StuffcmdToViewer(v, "menutext 152 52 \"Next\" \"NEXT\"\n");
+
+		for (i = start; i < start+maxshowndemos; i++)
+		{
+			if (i >= cluster->availdemoscount)
+				break;
+			if (cluster->availdemos[i].size < 1024)
+				sprintf(sizestr, "%4ib", cluster->availdemos[i].size);
+			else if (cluster->availdemos[i].size < 1024*1024)
+				sprintf(sizestr, "%4ikb", cluster->availdemos[i].size/1024);
+			else if (cluster->availdemos[i].size < 1024*1024*1024)
+				sprintf(sizestr, "%4imb", cluster->availdemos[i].size/(1024*1024));
+			else// if (cluster->availdemos[i].size < 1024*1024*1024*1024)
+				sprintf(sizestr, "%4igb", cluster->availdemos[i].size/(1024*1024*1024));
+//			else
+//				*sizestr = 0;
+			QW_StuffcmdToViewer(v, "menutext 32 %i \"%6s %-30s\" \"demo %s\"\n", (i-start)*8 + 52+16, sizestr, cluster->availdemos[i].name, cluster->availdemos[i].name);
+		}
+	}
+	else if (!strncmp(command, ".tuidemos", 9))
+	{
+tuidemos:
+		if (!*args)
+			Cluster_BuildAvailableDemoList(cluster);
+
+		if (v->menunum == MENU_DEMOS)
+			QW_SetMenu(v, MENU_NONE);
+		else
+			QW_SetMenu(v, MENU_DEMOS);
+	}
+
+	else if (!strcmp(command, "admin"))
+	{
+		if (v->conmenussupported)
+			goto guiadmin;
+		else
+			goto tuiadmin;
+	}
+
+	else if (!strcmp(command, "guiadmin"))
+	{
+guiadmin:
+		if (!*cluster->adminpassword)
+		{
+			QW_StuffcmdToViewer(v, 
+
+				"alias menucallback\n"
+				"{\n"
+					"menuclear\n"
+				"}\n"
+
+				"conmenu menucallback\n"
+				"menupic 16 4 gfx/qplaque.lmp\n"
+				"menupic - 4 gfx/p_option.lmp\n"
+
+				"menutext 72 48 \"No admin password is set\"\n"
+				"menutext 72 56 \"Admin access is prohibited\"\n"
+				);
+		}
+		else if (v->isadmin)
+			//already an admin, so don't show admin login screen
+			QW_SetMenu(v, MENU_ADMIN);
+		else
+		{
+			QW_StuffcmdToViewer(v, 
+
+				"alias menucallback\n"
+				"{\n"
+					"menuclear\n"
+					"if (option == \"log\")\n"
+						"{\nsay $_password\n}\n"
+					"set _password \"\"\n"
+				"}\n"
+
+				"conmenu menucallback\n"
+				"menupic 16 4 gfx/qplaque.lmp\n"
+				"menupic - 4 gfx/p_option.lmp\n"
+
+				"menuedit 16 32 \"        Password\" \"_password\"\n"
+
+				"menutext 72 48 \"Log in QW\" log\n"
+				"menutext 192 48 \"Cancel\" cancel\n"
+				);
+
+			strcpy(v->expectcommand, "admin");
+		}
+	}
+
+	else if (!strcmp(command, "tuiadmin"))
+	{
+tuiadmin:
+		if (!*cluster->adminpassword)
+		{
+			if (Netchan_IsLocal(v->netchan.remote_address))
+			{
+				Sys_Printf(cluster, "Local player %s logs in as admin\n", v->name);
+				QW_SetMenu(v, MENU_ADMIN);
+				v->isadmin = true;
+			}
+			else
+				QW_PrintfToViewer(v, "There is no admin password set\nYou may not log in.\n");
+		}
+		else if (v->isadmin)
+			QW_SetMenu(v, MENU_ADMIN);
+		else
+		{
+			strcpy(v->expectcommand, "admin");
+			QW_StuffcmdToViewer(v, "echo Please enter the rcon password\nmessagemode\n");
+		}
+	}
+
+	else if (!strcmp(command, "reset"))
+	{
+		QW_SetCommentator(cluster, v, NULL);
+		QW_SetViewersServer(cluster, v, NULL);
+		QW_SetMenu(v, MENU_SERVERS);
+	}
+	else if (!strcmp(command, "connect") || !strcmp(command, "qw") || !strcmp(command, "observe") || !strcmp(command, "join"))
+	{
+		char buf[256];
+		int isjoin = false;
+
+		if (!strcmp(command, "join") || !strcmp(command, "connect"))
+			isjoin = true;
+
+		snprintf(buf, sizeof(buf), "udp:%s", args);
+		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, !isjoin, false);
+		if (qtv)
+		{
+			QW_SetMenu(v, MENU_NONE);
+			QW_SetViewersServer(cluster, v, qtv);
+			if (isjoin)
+				qtv->controller = v;
+			QW_PrintfToViewer(v, "Connected to %s\n", qtv->server);
+		}
+		else
+			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", buf);
+	}
+	else if (!strcmp(command, "qtv"))
+	{
+		char buf[256];
+
+		snprintf(buf, sizeof(buf), "tcp:%s", args);
+		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
+		if (qtv)
+		{
+			QW_SetMenu(v, MENU_NONE);
+			QW_SetViewersServer(cluster, v, qtv);
+			QW_PrintfToViewer(v, "Connected to %s\n", qtv->server);
+		}
+		else
+			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", buf);
+	}
+	else if (!strcmp(command, "stream"))
+	{
+		int id;
+		id = atoi(args);
+		for (qtv = cluster->servers; qtv; qtv = qtv->next)
+		{
+			if (qtv->streamid == id)
+			{
+				break;
+			}
+		}
+		if (qtv)
+		{
+			QW_SetMenu(v, MENU_NONE);
+			QW_SetViewersServer(cluster, v, qtv);
+			QW_PrintfToViewer(v, "Watching to %s\n", qtv->server);
+		}
+		else
+		{
+			QW_PrintfToViewer(v, "Stream not recognised. Stream id is invalid or terminated.\n", args);
+		}
+	}
+	else if (!strcmp(command, "demo"))
+	{
+		char buf[256];
+		snprintf(buf, sizeof(buf), "file:%s", args);
+		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
+		if (qtv)
+		{
+			QW_SetMenu(v, MENU_NONE);
+			QW_SetViewersServer(cluster, v, qtv);
+			QW_PrintfToViewer(v, "Streaming from %s\n", qtv->server);
+		}
+		else
+			QW_PrintfToViewer(v, "Demo is not exist on proxy\n", buf);
+	}
+	else if (!strcmp(command, "disconnect"))
+	{
+		QW_SetMenu(v, MENU_SERVERS);
+		QW_SetViewersServer(cluster, v, NULL);
+		QW_PrintfToViewer(v, "Connected\n");
+	}
+	else if (!strcmp(command, "clients"))
+	{
+		viewer_t *ov;
+		int skipfirst = 0;
+		int printable = 30;
+		int remaining = 0;
+		for (ov = cluster->viewers; ov; ov = ov->next)
+		{
+			if (skipfirst > 0)
+			{
+				skipfirst--;
+			}
+			else if (printable > 0)
+			{
+				printable--;
+				if (ov->server)
+				{
+					if (ov->server->controller == ov)
+						QW_PrintfToViewer(v, "%i: %s: *%s\n", ov->userid, ov->name, ov->server->server);
+					else
+						QW_PrintfToViewer(v, "%i: %s: %s\n", ov->userid, ov->name, ov->server->server);
+				}
+				else
+					QW_PrintfToViewer(v, "%i: %s: %s\n", ov->userid, ov->name, "None");
+			}
+			else
+				remaining++;
+		}
+		if (remaining)
+			QW_PrintfToViewer(v, "%i clients not shown\n", remaining);
+	}
+	else if (!strcmp(command, "followid"))
+	{
+		int id = atoi(args);
+		viewer_t *cv;
+
+		for (cv = cluster->viewers; cv; cv = cv->next)
+		{
+			if (cv->userid == id)
+			{
+				QW_SetCommentator(cluster, v, cv);
+				return;
+			}
+		}
+		QW_PrintfToViewer(v, "Couldn't find that player\n");
+		QW_SetCommentator(cluster, v, NULL);
+	}
+	else if (!strcmp(command, "follow"))
+	{
+		int id = atoi(args);
+		viewer_t *cv;
+
+		for (cv = cluster->viewers; cv; cv = cv->next)
+		{
+			if (!strcmp(cv->name, args))
+			{
+				QW_SetCommentator(cluster, v, cv);
+				return;
+			}
+		}
+		if (id)
+		{
+			for (cv = cluster->viewers; cv; cv = cv->next)
+			{
+				if (cv->userid == id)
+				{
+					QW_SetCommentator(cluster, v, cv);
+					return;
+				}
+			}
+		}
+		QW_PrintfToViewer(v, "Couldn't find that player\n");
+		QW_SetCommentator(cluster, v, NULL);
+	}
+	else if (!strcmp(command, "follow"))
+	{
+		QW_SetCommentator(cluster, v, NULL);
+	}
+	else if (!strcmp(command, "bind"))
+	{
+		QW_StuffcmdToViewer(v, "bind uparrow +proxfwd\n");
+		QW_StuffcmdToViewer(v, "bind downarrow +proxback\n");
+		QW_StuffcmdToViewer(v, "bind rightarrow +proxright\n");
+		QW_StuffcmdToViewer(v, "bind leftarrow +proxleft\n");
+		QW_PrintfToViewer(v, "Keys bound not recognised\n");
+	}
+	else if (!strcmp(command, "bsay"))
+	{
+		char buf[1024];
+		netmsg_t msg;
+
+		viewer_t *ov;
+		if (cluster->notalking)
+			return;
+
+		for (ov = cluster->viewers; ov; ov = ov->next)
+		{
+			InitNetMsg(&msg, buf, sizeof(buf));
+
+			WriteByte(&msg, svc_print);
+
+			if (ov->netchan.isnqprotocol)
+				WriteByte(&msg, 1);
+			else
+			{
+				if (ov->conmenussupported)
+				{
+					WriteByte(&msg, 3);	//PRINT_CHAT
+					WriteString2(&msg, "[^sBQTV^s]^s^5");
+				}
+				else
+				{
+					WriteByte(&msg, 2);	//PRINT_HIGH
+					WriteByte(&msg, 91+128);
+					WriteString2(&msg, "BQTV");
+					WriteByte(&msg, 93+128);
+					WriteByte(&msg, 0);
+
+					WriteByte(&msg, svc_print);
+					WriteByte(&msg, 3);	//PRINT_CHAT
+
+				}
+			}
+
+			WriteString2(&msg, v->name);
+			WriteString2(&msg, ": ");
+//				WriteString2(&msg, "\x8d ");
+			WriteString2(&msg, args);
+			WriteString(&msg, "\n");
+
+			if (msg.maxsize == msg.cursize)
+				return;
+			SendBufferToViewer(ov, msg.data, msg.cursize, true);
+		}
+	}
+	else
+	{
+		QW_PrintfToViewer(v, "QTV Proxy command not recognised\n");
+	}
+}
+
 void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean noupwards)
 {
 	char buf[1024];
@@ -2381,532 +2998,76 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		*v->expectcommand = '\0';
 		return;
 	}
-	if (!strncmp(message, ".help", 5))
+
+	if (*message == '.')
 	{
-		QW_PrintfToViewer(v,	"Website: http://www.fteqw.com/\n"
-								"Commands:\n"
-								".observe qwserver:port\n"
-								".qtv tcpserver:port\n"
-								".demo gamedir/demoname.mvd\n"
-								".disconnect\n"
-								".admin\n"
-								".bind\n"
-								);
-	}
-
-	else if (!strncmp(message, ".qtvinfo", 8))
-	{
-		netadr_t addr;
-		unsigned char *ip;
-		gethostname(buf, sizeof(buf));
-		NET_StringToAddr(buf, &addr, 0);
-		ip = (char*)&((struct sockaddr_in *)&addr)->sin_addr;
-		QW_PrintfToViewer(v, "[QuakeTV] %s | %i.%i.%i.%i\n", cluster->hostname, ip[0], ip[1], ip[2], ip[3]);
-	}
-
-	else if (!strncmp(message, ".menu", 5))
-	{
-		message += 5;
-
-		if (v->conmenussupported)
-			goto guimenu;
-		else
-			goto tuimenu;
-	}
-
-	else if (!strncmp(message, ".tuimenu", 8))
-	{
-		message += 8;
-
-tuimenu:
-		if (v->menunum)
-			QW_SetMenu(v, MENU_NONE);
-		else
-			QW_SetMenu(v, MENU_SERVERS);
-	}
-	else if (!strncmp(message, ".guimenu", 8))
-	{
-		sv_t *sv;
-		int y;
-		qboolean shownheader;
-
-		message += 8;
-
-guimenu:
-
-		QW_SetMenu(v, MENU_NONE);
-
-		shownheader = false;
-
-		QW_StuffcmdToViewer(v, 
-
-			"alias menucallback\n"
-			"{\n"
-				"menuclear\n"
-				"if (option == \"OBSERVE\")\n"
-					"{\necho Spectating server $_server\nsay .observe $_server\n}\n"
-				"if (option == \"QTV\")\n"
-					"{\necho Streaming from qtv at $_server\nsay .qtv $_server\n}\n"
-				"if (option == \"JOIN\")\n"
-					"{\necho Joining game at $_server\nsay .join $_server\n}\n"
-				"if (option == \"ADMIN\")\n"
-					"{\nsay .guiadmin\n}\n"
-				"if (option == \"DEMOS\")\n"
-					"{\nsay .demos\n}\n"
-				"if (\"stream \" isin option)\n"
-					"{\necho Changing stream\nsay .$option\n}\n"
-			"}\n"
-/*
-			"conmenu menucallback\n"
-			"menupic 16 4 gfx/qplaque.lmp\n"
-			"menupic - 4 gfx/p_option.lmp\n"
-
-			"menuedit 16 32 \"        Server\" \"_server\"\n"
-
-			"menutext 72 48 \"Observe\" OBSERVE\n"
-			"menutext 136 48 \"QTV\" QTV\n"
-			"menutext 168 48 \"Cancel\" cancel\n"
-			"menutext 224 48 \"Join\" JOIN\n"
-			"menutext 264 48 \"Admin\" ADMIN\n"
-*/
-			"conmenu menucallback\n"
-			"menupic 0 4 gfx/qplaque.lmp\n"
-			"menupic 96 4 gfx/p_option.lmp\n"
-
-			"menuedit 48 36 \"Óåòöåòº\" \"_server\"\n"
-
-			"menutext 48 52 \"Demos\" DEMOS\n"
-
-			"menutext 104 52 \"Join\" JOIN\n"
-
-			"menutext 152 52 \"Observe\" OBSERVE\n"
-
-			"menutext 224 52 \"QTV\" QTV\n"
-
-
-
-			"menutext 48 84 \"Admin\" ADMIN\n"
-
-			"menutext 48 92 \"Close Menu\" cancel\n"
-
-
-
-			"menutext 48 116 \"Type in a server address and\"\n"
-			"menutext 48 124 \"click join to play in the game,\"\n"
-			"menutext 48 132 \"observe(udp) to watch, or qtv(tcp)\"\n"
-			"menutext 48 140 \"to connect to a stream or proxy.\"\n"
-			);
-
-		y = 140+16;
-		for (sv = cluster->servers; sv; sv = sv->next)
-		{
-			if (!shownheader)
-			{
-				shownheader = true;
-				QW_StuffcmdToViewer(v, "menutext 72 %i \"Áãôéöå Çáíåóº\"\n", y);
-				y+=8;
-			}
-			QW_StuffcmdToViewer(v, "menutext 32 %i \"%30s\" \"stream %i\"\n", y, *sv->hostname?sv->hostname:sv->server, sv->streamid);
-			y+=8;
-		}
-		if (!shownheader)
-			QW_StuffcmdToViewer(v, "menutext 72 %i \"There are no active games\"\n", y);
-		
-	}
-	else if (!strncmp(message, ".demos", 6))
-	{
-		message += 6;
-
-		if (v->conmenussupported)
-			goto guidemos;
-		else
-			goto tuidemos;
-	}
-	else if (!strncmp(message, ".guidemos", 9))
-	{
-		int maxshowndemos;
-		char sizestr[7];
-		int start;
-		int i;
-		message += 9;
-
-guidemos:
-		maxshowndemos = 12;
-
-		if (!*message)
-			Cluster_BuildAvailableDemoList(cluster);
-
-		while(*message == ' ')
+		if (message[1] == '.')	//double it up to say it
 			message++;
-		start = atoi(message);	//FIXME
-		QW_SetMenu(v, MENU_NONE);
-
-		QW_StuffcmdToViewer(v, 
-
-			"alias menucallback\n"
-			"{\n"
-				"menuclear\n"
-				"if (option == \"PREV\")\n"
-					"{\nsay .demos %i\n}\n"
-				"if (option == \"NEXT\")\n"
-					"{\nsay .demos %i\n}\n"
-				"if (\"demo \" isin option)\n"
-					"{\necho Changing stream\nsay .$option\n}\n"
-			"}\n"
-
-			"conmenu menucallback\n"
-			"menupic 0 4 gfx/qplaque.lmp\n"
-			"menupic 96 4 gfx/p_option.lmp\n",
-			start - maxshowndemos, start + maxshowndemos
-		);
-
-		if (start < 0)
-			start = 0;
-
-		if (start-maxshowndemos >= 0)
-			QW_StuffcmdToViewer(v, "menutext 48 52 \"Prev\" \"PREV\"\n");
-		if (start+maxshowndemos <= cluster->availdemoscount)
-			QW_StuffcmdToViewer(v, "menutext 152 52 \"Next\" \"NEXT\"\n");
-
-		for (i = start; i < start+maxshowndemos; i++)
-		{
-			if (i >= cluster->availdemoscount)
-				break;
-			if (cluster->availdemos[i].size < 1024)
-				sprintf(sizestr, "%4ib", cluster->availdemos[i].size);
-			else if (cluster->availdemos[i].size < 1024*1024)
-				sprintf(sizestr, "%4ikb", cluster->availdemos[i].size/1024);
-			else if (cluster->availdemos[i].size < 1024*1024*1024)
-				sprintf(sizestr, "%4imb", cluster->availdemos[i].size/(1024*1024));
-			else// if (cluster->availdemos[i].size < 1024*1024*1024*1024)
-				sprintf(sizestr, "%4igb", cluster->availdemos[i].size/(1024*1024*1024));
-//			else
-//				*sizestr = 0;
-			QW_StuffcmdToViewer(v, "menutext 32 %i \"%6s %-30s\" \"demo %s\"\n", (i-start)*8 + 52+16, sizestr, cluster->availdemos[i].name, cluster->availdemos[i].name);
-		}
-	}
-	else if (!strncmp(message, ".tuidemos", 9))
-	{
-		message += 9;
-tuidemos:
-		if (!*message)
-			Cluster_BuildAvailableDemoList(cluster);
-
-		if (v->menunum == MENU_DEMOS)
-			QW_SetMenu(v, MENU_NONE);
-		else
-			QW_SetMenu(v, MENU_DEMOS);
-	}
-	else if (!strncmp(message, ".guiadmin", 6))
-	{
-		if (!*cluster->adminpassword)
-		{
-			QW_StuffcmdToViewer(v, 
-
-				"alias menucallback\n"
-				"{\n"
-					"menuclear\n"
-				"}\n"
-
-				"conmenu menucallback\n"
-				"menupic 16 4 gfx/qplaque.lmp\n"
-				"menupic - 4 gfx/p_option.lmp\n"
-
-				"menutext 72 48 \"No admin password is set\"\n"
-				"menutext 72 56 \"Admin access is prohibited\"\n"
-				);
-		}
-		else if (v->isadmin)
-			//already an admin, so don't show admin login screen
-			QW_SetMenu(v, MENU_ADMIN);
 		else
 		{
-			QW_StuffcmdToViewer(v, 
-
-				"alias menucallback\n"
-				"{\n"
-					"menuclear\n"
-					"if (option == \"log\")\n"
-						"{\nsay $_password\n}\n"
-					"set _password \"\"\n"
-				"}\n"
-
-				"conmenu menucallback\n"
-				"menupic 16 4 gfx/qplaque.lmp\n"
-				"menupic - 4 gfx/p_option.lmp\n"
-
-				"menuedit 16 32 \"        Password\" \"_password\"\n"
-
-				"menutext 72 48 \"Log in QW\" log\n"
-				"menutext 192 48 \"Cancel\" cancel\n"
-				);
-
-			strcpy(v->expectcommand, "admin");
+			//this is always execed (. is local server)
+			QTV_SayCommand(cluster, qtv, v, message+1);
+			return;
 		}
 	}
-	else if (!strncmp(message, ".reset", 6))
+	else if (!strncmp(message, "proxy:", 6))
 	{
-		QW_SetCommentator(cluster, v, NULL);
-		QW_SetViewersServer(cluster, v, NULL);
-		QW_SetMenu(v, MENU_SERVERS);
+		//this is execed on the 'active' server
+		if (qtv && (qtv->controller == v && !qtv->proxyisselected))
+			SendClientCommand(qtv, "say %s", message);
+		else
+			QTV_SayCommand(cluster, qtv, v, message+6);
+		return;
 	}
-	else if (!strncmp(message, ".admin", 6))
+	else if (*message == ',')
 	{
-		if (!*cluster->adminpassword)
+		if (message[1] == ',')	//double up to say it
+			message++;
+		else
 		{
-			if (Netchan_IsLocal(v->netchan.remote_address))
-			{
-				Sys_Printf(cluster, "Local player %s logs in as admin\n", v->name);
-				QW_SetMenu(v, MENU_ADMIN);
-				v->isadmin = true;
-			}
+			if (qtv && (qtv->controller == v && qtv->serverisproxy))
+				SendClientCommand(qtv, "say %s", message);
 			else
-				QW_PrintfToViewer(v, "There is no admin password set\nYou may not log in.\n");
-		}
-		else if (v->isadmin)
-			QW_SetMenu(v, MENU_ADMIN);
-		else
-		{
-			strcpy(v->expectcommand, "admin");
-			QW_StuffcmdToViewer(v, "echo Please enter the rcon password\nmessagemode\n");
+				QTV_SayCommand(cluster, qtv, v, message+1);
+			return;
 		}
 	}
-	else if (!strncmp(message, ".connect ", 9) || !strncmp(message, ".qw ", 4) || !strncmp(message, ".observe ", 9))
-	{
-		if (!strncmp(message, ".qw ", 4))
-			message += 4;
-		else
-			message += 9;
-		snprintf(buf, sizeof(buf), "udp:%s", message);
-		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
-		if (qtv)
-		{
-			QW_SetMenu(v, MENU_NONE);
-			QW_SetViewersServer(cluster, v, qtv);
-			QW_PrintfToViewer(v, "Connected\n", message);
-		}
-		else
-			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", message);
-	}
-	else if (!strncmp(message, ".join ", 6))
-	{
-		message += 6;
-		snprintf(buf, sizeof(buf), "udp:%s", message);
-		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, false, false);
-		if (qtv)
-		{
-			QW_SetMenu(v, MENU_NONE);
-			QW_SetViewersServer(cluster, v, qtv);
-			qtv->controller = v;
-			QW_PrintfToViewer(v, "Connected\n", message);
-		}
-		else
-			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", message);
-	}
-	else if (!strncmp(message, ".qtv ", 5))
-	{
-		message += 5;
-		snprintf(buf, sizeof(buf), "tcp:%s", message);
-		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
-		if (qtv)
-		{
-			QW_SetMenu(v, MENU_NONE);
-			QW_SetViewersServer(cluster, v, qtv);
-			QW_PrintfToViewer(v, "Connected\n", message);
-		}
-		else
-			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", message);
-	}
-	else if (!strncmp(message, ".stream ", 7))
-	{
-		int id;
-		message += 7;
-		id = atoi(message);
-		for (qtv = cluster->servers; qtv; qtv = qtv->next)
-		{
-			if (qtv->streamid == id)
-			{
-				break;
-			}
-		}
-		if (qtv)
-		{
-			QW_SetMenu(v, MENU_NONE);
-			QW_SetViewersServer(cluster, v, qtv);
-			QW_PrintfToViewer(v, "Connected\n", message);
-		}
-		else
-		{
-			QW_PrintfToViewer(v, "Stream not recognised. Stream id is invalid or terminated.\n", message);
-		}
-	}
-	else if (!strncmp(message, ".demo ", 6))
-	{
-		message += 6;
-		snprintf(buf, sizeof(buf), "file:%s", message);
-		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
-		if (qtv)
-		{
-			QW_SetMenu(v, MENU_NONE);
-			QW_SetViewersServer(cluster, v, qtv);
-			QW_PrintfToViewer(v, "Connected\n", message);
-		}
-		else
-			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", message);
-	}
-	else if (!strncmp(message, ".disconnect", 11))
-	{
-		QW_SetMenu(v, MENU_SERVERS);
-		QW_SetViewersServer(cluster, v, NULL);
-		QW_PrintfToViewer(v, "Connected\n", message);
-	}
-	else if (!strncmp(message, "admin", 11))
-	{
-		QW_StuffcmdToViewer(v, "cmd say \".admin\"\n");
-	}
-	else if (!strncmp(message, ".clients", 8))
-	{
-		viewer_t *ov;
-		int skipfirst = 0;
-		int printable = 30;
-		int remaining = 0;
-		for (ov = cluster->viewers; ov; ov = ov->next)
-		{
-			if (skipfirst > 0)
-			{
-				skipfirst--;
-			}
-			else if (printable > 0)
-			{
-				printable--;
-				if (ov->server)
-				{
-					if (ov->server->controller == ov)
-						QW_PrintfToViewer(v, "%i: %s: *%s\n", ov->userid, ov->name, ov->server->server);
-					else
-						QW_PrintfToViewer(v, "%i: %s: %s\n", ov->userid, ov->name, ov->server->server);
-				}
-				else
-					QW_PrintfToViewer(v, "%i: %s: %s\n", ov->userid, ov->name, "None");
-			}
-			else
-				remaining++;
-		}
-		if (remaining)
-			QW_PrintfToViewer(v, "%i clients not shown\n", remaining);
-	}
-	else if (!strncmp(message, ".followid ", 10))
-	{
-		int id = atoi(message+10);
-		viewer_t *cv;
 
-		for (cv = cluster->viewers; cv; cv = cv->next)
+
+
+	if (!strncmp(message, ".", 1))
+		message++;
+	*v->expectcommand = '\0';
+
+	if (qtv && qtv->usequkeworldprotocols && !noupwards)
+	{
+		if (qtv->controller == v || !*v->name)
 		{
-			if (cv->userid == id)
-			{
-				QW_SetCommentator(cluster, v, cv);
+			SendClientCommand(qtv, "say %s", message);
+
+			if (cluster->notalking)
 				return;
-			}
 		}
-		QW_PrintfToViewer(v, "Couldn't find that player\n");
-		QW_SetCommentator(cluster, v, NULL);
-	}
-	else if (!strncmp(message, ".follow ", 8))
-	{
-		char *id = message+8;
-		viewer_t *cv;
-
-		for (cv = cluster->viewers; cv; cv = cv->next)
-		{
-			if (!strcmp(cv->name, id))
-			{
-				QW_SetCommentator(cluster, v, cv);
-				return;
-			}
-		}
-		QW_PrintfToViewer(v, "Couldn't find that player\n");
-		QW_SetCommentator(cluster, v, NULL);
-	}
-	else if (!strncmp(message, ".follow", 7))
-	{
-		QW_SetCommentator(cluster, v, NULL);
-	}
-	else if (!strncmp(message, "proxy:menu up", 13))
-	{
-		v->menuop -= 1;
-	}
-	else if (!strncmp(message, "proxy:menu down", 15))
-	{
-		v->menuop += 1;
-	}
-	else if (!strncmp(message, "proxy:menu enter", 16))
-	{
-		Menu_Enter(cluster, v, 1);
-	}
-	else if (!strncmp(message, "proxy:menu right", 16))
-	{
-		Menu_Enter(cluster, v, 1);
-	}
-	else if (!strncmp(message, "proxy:menu left", 15))
-	{
-		Menu_Enter(cluster, v, -1);
-	}
-	else if (!strncmp(message, "proxy:menu select", 17))
-	{
-		Menu_Enter(cluster, v, 0);
-	}
-	else if (!strncmp(message, "proxy:menu home", 15))
-	{
-		v->menuop -= 100000;
-	}
-	else if (!strncmp(message, "proxy:menu end", 14))
-	{
-		v->menuop += 100000;
-	}
-	else if (!strncmp(message, "proxy:menu back", 15))
-	{
-	}
-	else if (!strncmp(message, "proxy:menu", 10))
-	{
-		if (v->menunum)
-			Menu_Enter(cluster, v, 0);
 		else
-			QW_SetMenu(v, MENU_SERVERS);
-	}
-	else if (!strncmp(message, ".bind", 5))
-	{
-		QW_StuffcmdToViewer(v, "bind uparrow +proxfwd\n");
-		QW_StuffcmdToViewer(v, "bind downarrow +proxback\n");
-		QW_StuffcmdToViewer(v, "bind rightarrow +proxright\n");
-		QW_StuffcmdToViewer(v, "bind leftarrow +proxleft\n");
-		QW_PrintfToViewer(v, "Keys bound not recognised\n");
-	}
-	else if (!strncmp(message, ".menu bind", 10) || !strncmp(message, "proxy:menu bindstd", 18))
-	{
-		QW_StuffcmdToViewer(v, "bind uparrow \"proxy:menu up\"\n");
-		QW_StuffcmdToViewer(v, "bind downarrow \"proxy:menu down\"\n");
-		QW_StuffcmdToViewer(v, "bind rightarrow \"proxy:menu right\"\n");
-		QW_StuffcmdToViewer(v, "bind leftarrow \"proxy:menu left\"\n");
+		{
+			if (cluster->notalking)
+				return;
+			SendClientCommand(qtv, "say [%s]: %s", v->name, message);
+		}
 
-		QW_StuffcmdToViewer(v, "bind enter \"proxy:menu select\"\n");
-
-		QW_StuffcmdToViewer(v, "bind home \"proxy:menu home\"\n");
-		QW_StuffcmdToViewer(v, "bind end \"proxy:menu end\"\n");
-		QW_StuffcmdToViewer(v, "bind pause \"proxy:menu\"\n");
-		QW_StuffcmdToViewer(v, "bind backspace \"proxy:menu back\"\n");
-
-		QW_PrintfToViewer(v, "All keys bound not recognised\n");
+		//FIXME: we ought to broadcast this to everyone not watching that qtv.
 	}
-	else if (!strncmp(message, ".bsay ", 6))
+	else
 	{
 		viewer_t *ov;
 		if (cluster->notalking)
 			return;
 
-		message += 6;
-
 		for (ov = cluster->viewers; ov; ov = ov->next)
 		{
+			if (ov->server != v->server)
+				continue;
+
 			InitNetMsg(&msg, buf, sizeof(buf));
 
 			WriteByte(&msg, svc_print);
@@ -2918,13 +3079,13 @@ tuidemos:
 				if (ov->conmenussupported)
 				{
 					WriteByte(&msg, 3);	//PRINT_CHAT
-					WriteString2(&msg, "[^sBQTV^s]^s^5");
+					WriteString2(&msg, "[^sQTV^s]^s^5");
 				}
 				else
 				{
 					WriteByte(&msg, 2);	//PRINT_HIGH
 					WriteByte(&msg, 91+128);
-					WriteString2(&msg, "BQTV");
+					WriteString2(&msg, "QTV");
 					WriteByte(&msg, 93+128);
 					WriteByte(&msg, 0);
 
@@ -2936,87 +3097,11 @@ tuidemos:
 
 			WriteString2(&msg, v->name);
 			WriteString2(&msg, ": ");
-//				WriteString2(&msg, "\x8d ");
+//			WriteString2(&msg, "\x8d ");
 			WriteString2(&msg, message);
 			WriteString(&msg, "\n");
 
 			SendBufferToViewer(ov, msg.data, msg.cursize, true);
-		}
-	}
-	else if (!strncmp(message, ".", 1) && strncmp(message, "..", 2))
-	{
-		QW_PrintfToViewer(v, "Proxy command not recognised\n");
-	}
-	else
-	{
-		if (!strncmp(message, ".", 1))
-			message++;
-		*v->expectcommand = '\0';
-
-		if (qtv && qtv->usequkeworldprotocols && !noupwards)
-		{
-			if (qtv->controller == v || !*v->name)
-			{
-				SendClientCommand(qtv, "say %s\n", message);
-
-				if (cluster->notalking)
-					return;
-			}
-			else
-			{
-				if (cluster->notalking)
-					return;
-				SendClientCommand(qtv, "say [%s]: %s\n", v->name, message);
-			}
-
-			//FIXME: we ought to broadcast this to everyone not watching that qtv.
-		}
-		else
-		{
-			viewer_t *ov;
-			if (cluster->notalking)
-				return;
-
-			for (ov = cluster->viewers; ov; ov = ov->next)
-			{
-				if (ov->server != v->server)
-					continue;
-
-				InitNetMsg(&msg, buf, sizeof(buf));
-
-				WriteByte(&msg, svc_print);
-
-				if (ov->netchan.isnqprotocol)
-					WriteByte(&msg, 1);
-				else
-				{
-					if (ov->conmenussupported)
-					{
-						WriteByte(&msg, 3);	//PRINT_CHAT
-						WriteString2(&msg, "[^sQTV^s]^s^5");
-					}
-					else
-					{
-						WriteByte(&msg, 2);	//PRINT_HIGH
-						WriteByte(&msg, 91+128);
-						WriteString2(&msg, "QTV");
-						WriteByte(&msg, 93+128);
-						WriteByte(&msg, 0);
-
-						WriteByte(&msg, svc_print);
-						WriteByte(&msg, 3);	//PRINT_CHAT
-
-					}
-				}
-
-				WriteString2(&msg, v->name);
-				WriteString2(&msg, ": ");
-//				WriteString2(&msg, "\x8d ");
-				WriteString2(&msg, message);
-				WriteString(&msg, "\n");
-
-				SendBufferToViewer(ov, msg.data, msg.cursize, true);
-			}
 		}
 	}
 }
@@ -3284,7 +3369,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			if ((v->ucmds[1].buttons&2) != (v->ucmds[2].buttons&2) && (v->ucmds[2].buttons&2))
 			{
 				if (!v->server && !v->menunum)
-					QW_SetMenu(v, MENU_MAIN);
+					QW_SetMenu(v, MENU_DEFAULT);
 				
 				if(v->server)
 				{
@@ -3361,7 +3446,12 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			ReadString (m, buf, sizeof(buf));
 //			printf("stringcmd: %s\n", buf);
 
-			if (!strcmp(buf, "new"))
+			if (!strncmp(buf, "cmd ", 4))
+			{
+				if (v->server && v->server->controller == v)
+					SendClientCommand(v->server, "%s", buf+4);
+			}
+			else if (!strcmp(buf, "new"))
 			{
 				if (qtv && qtv->parsingconnectiondata)
 					QW_StuffcmdToViewer(v, "cmd new\n");
@@ -3613,7 +3703,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			else if (!qtv)
 			{
 				//all the other things need an active server.
-				QW_PrintfToViewer(v, "Choose a server first\n");
+				QW_PrintfToViewer(v, "Choose a server first    DEBUG:(%s)\n", buf);
 			}
 			else if (!strncmp(buf, "serverinfo", 5))
 			{
@@ -3677,7 +3767,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			if (v->ucmds[0].buttons & 2)
 			{
 				if (!v->server && !v->menunum)
-					QW_SetMenu(v, MENU_MAIN);
+					QW_SetMenu(v, MENU_DEFAULT);
 			}
 			break;
 		case clc_tmove:
@@ -3709,6 +3799,65 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 	switch(viewer->menunum)
 	{
 	default:
+		break;
+
+	case MENU_MAIN:
+		if (buttonnum < 0)
+			viewer->menuop -= MENU_MAIN_ITEMCOUNT/2;
+		else if (buttonnum > 0)
+			viewer->menuop += MENU_MAIN_ITEMCOUNT/2;
+		else if (buttonnum == 0)
+		{
+			switch(viewer->menuop)
+			{
+			case MENU_MAIN_STREAMS: //Streams
+				QW_SetMenu(viewer, MENU_SERVERS);
+				break;
+			case MENU_MAIN_CLIENTLIST://Client List
+				QW_SetMenu(viewer, MENU_CLIENTS);
+				break;
+
+			case MENU_MAIN_NEWSTREAM://New Stream
+				QW_PrintfToViewer(viewer, "Not implemented yet\n");
+				break;
+			case MENU_MAIN_DEMOS://Demos
+				Cluster_BuildAvailableDemoList(cluster);
+				QW_SetMenu(viewer, MENU_DEMOS);
+				break;
+
+			case MENU_MAIN_FIXME://FIXME
+				QW_PrintfToViewer(viewer, "Not implemented yet\n");
+				break;
+			case MENU_MAIN_ADMIN://Admin
+				QW_SetMenu(viewer, MENU_ADMIN);
+				break;
+
+			case MENU_MAIN_PREVPROX://Previous Proxy
+				if (viewer->isproxy)
+				{
+					QW_SetMenu(viewer, MENU_NONE);
+					QW_StuffcmdToViewer(viewer, "say proxy:menu\n");
+				}
+				else
+					QW_PrintfToViewer(viewer, "No client proxy detected\n");
+				break;
+			case MENU_MAIN_NEXTPROX://Next Proxy
+				if (viewer->server && viewer->server->serverisproxy && viewer->server->controller == viewer)
+				{
+					viewer->server->proxyisselected = false;
+					QW_SetMenu(viewer, MENU_NONE);
+					SendClientCommand(viewer->server, "say .menu");
+				}
+				else
+					QW_PrintfToViewer(viewer, "No server proxy detected\n");
+				break;
+			}
+		}
+		break;
+
+	case MENU_CLIENTS:
+		{
+		}
 		break;
 
 	case MENU_DEMOS:
@@ -3842,8 +3991,23 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 			QW_SetMenu(viewer, MENU_NONE);
 		}
 
-
 		break;
+	}
+}
+
+void WriteStringSelection(netmsg_t *b, qboolean selected, const char *str)
+{
+	if (selected)
+	{
+		WriteByte(b, 13);
+		while(*str)
+			WriteByte(b, 128|*str++);
+	}
+	else
+	{
+		WriteByte(b, ' ');
+		while(*str)
+			WriteByte(b, *str++);
 	}
 }
 
@@ -3860,6 +4024,13 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 	if (viewer->backbuffered)
 		return;
 
+	if (viewer->menunum == MENU_FORWARDING)
+		return;
+
+	if (viewer->menuspamtime > cluster->curtime && viewer->menuspamtime < cluster->curtime + CENTERTIME*2000)
+		return;
+	viewer->menuspamtime = cluster->curtime + CENTERTIME*1000;
+
 	InitNetMsg(&m, buffer, sizeof(buffer));
 
 	WriteByte(&m, svc_centerprint);
@@ -3874,6 +4045,76 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 	default:
 		WriteString2(&m, "bad menu");
 		break;
+
+	case MENU_MAIN:
+		{
+			int o = 8;
+			WriteString2(&m, "\n\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f\n");
+			while (viewer->menuop < 0)
+				viewer->menuop += MENU_MAIN_ITEMCOUNT;
+			while (viewer->menuop >= MENU_MAIN_ITEMCOUNT)
+				viewer->menuop -= MENU_MAIN_ITEMCOUNT;
+			i = viewer->menuop;	
+
+			WriteStringSelection(&m, i==MENU_MAIN_STREAMS,		"Streams          ");
+			WriteStringSelection(&m, i==MENU_MAIN_CLIENTLIST,	"Client List      ");
+			WriteByte(&m, '\n');
+			WriteStringSelection(&m, i==MENU_MAIN_NEWSTREAM,	"New Stream       ");
+			WriteStringSelection(&m, i==MENU_MAIN_DEMOS,		"Demos            ");
+			WriteByte(&m, '\n');
+			WriteStringSelection(&m, i==MENU_MAIN_FIXME,		"FIXME            ");
+			WriteStringSelection(&m, i==MENU_MAIN_ADMIN,		"Admin            ");
+			WriteByte(&m, '\n');
+			WriteStringSelection(&m, i==MENU_MAIN_PREVPROX,		"Previous Proxy   ");
+			WriteStringSelection(&m, i==MENU_MAIN_NEXTPROX,		"Next Proxy       ");
+
+			WriteString2(&m, "\n\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f\n");
+		}
+		break;
+
+	case MENU_CLIENTS:
+		{
+			int start;
+			viewer_t *v;
+			char *srv;
+			int c;
+			v = cluster->viewers;
+
+			WriteString2(&m, "\nActive Clients\n\n");
+
+			start = viewer->menuop & ~7;
+			for (i = 0; i < start; i++)
+				v = v->next;
+			for (i = start; i < start+8 && v; i++, v = v->next)
+			{
+				for (c = strlen(v->name); c < 14; c++)
+					WriteByte(&m, ' ');
+				WriteStringSelection(&m, viewer->menuop == i, v->name);
+				WriteString2(&m, ": ");
+				if (v->server)
+				{
+					if (!v->server->sourcefile && !v->server->parsingconnectiondata)
+						srv = v->server->hostname;
+					else
+						srv = v->server->server;
+				}
+				else
+					srv = "None";
+				for (c = 0; c < 20; c++)
+				{
+					if (*srv)
+						WriteByte(&m, *srv++);
+					else
+						WriteByte(&m, ' ');
+				}
+
+				WriteByte(&m, '\n');
+			}
+			for (; i < start+8; i++)
+				WriteByte(&m, '\n');
+		}
+		break;
+
 
 	case MENU_DEMOS:
 		{
@@ -4263,6 +4504,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 		}
 
 		m.cursize = read;
+		m.readpos = 0;
 
 		if (*(int*)buffer == -1)
 		{	//connectionless message

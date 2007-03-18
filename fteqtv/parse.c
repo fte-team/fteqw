@@ -163,15 +163,6 @@ void WriteData(netmsg_t *b, const char *data, int length)
 	b->cursize+=length;
 }
 
-#define DF_ORIGIN	1
-#define DF_ANGLES	(1<<3)
-#define DF_EFFECTS	(1<<6)
-#define DF_SKINNUM	(1<<7)
-#define DF_DEAD		(1<<8)
-#define DF_GIB		(1<<9)
-#define DF_WEAPONFRAME (1<<10)
-#define DF_MODEL	(1<<11)
-
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable)
 {
 	if (reliable)
@@ -182,7 +173,13 @@ void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean re
 		else if (v->backbuffered>0 && v->backbuf[v->backbuffered-1].cursize+length < v->backbuf[v->backbuffered-1].maxsize)	//try and put it in the current backbuffer
 			WriteData(&v->backbuf[v->backbuffered-1], buffer, length);
 		else if (v->backbuffered == MAX_BACK_BUFFERS)
+		{
+			v->netchan.message.cursize = 0;
+			WriteByte(&v->netchan.message, svc_print);
+			WriteString(&v->netchan.message, "backbuffer overflow\n");
+			Sys_Printf(NULL, "%s backbuffers overflowed\n", v->name);	//FIXME
 			v->drop = true;	//we would need too many backbuffers.
+		}
 		else
 		{
 			//create a new backbuffer
@@ -225,7 +222,7 @@ void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playerma
 			if (v->thinksitsconnected||suitablefor&CONNECTING)
 				if (v->server == tv)
 					if (suitablefor&(v->netchan.isnqprotocol?NQ:QW))
-					SendBufferToViewer(v, buffer, length, true);	//FIXME: change the reliable depending on message type
+						SendBufferToViewer(v, buffer, length, true);	//FIXME: change the reliable depending on message type
 		}
 		break;
 	}
@@ -341,8 +338,20 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 	ReadString(m, text, sizeof(text));
 //	Sys_Printf(tv->cluster, "stuffcmd: %s", text);
-	if (strstr(text, "screenshot"))
-		return;
+	if (!strcmp(text, "say proxy:menu\n"))
+	{	//qizmo's 'previous proxy' message
+		tv->proxyisselected = true;
+		if (tv->controller)
+			QW_SetMenu(tv->controller, MENU_MAIN);
+		tv->serverisproxy = true;	//FIXME: Detect this properly on qizmo
+	}
+	else if (!strncmp(text, "//set prox_inmenu ", 18))
+	{
+		if (tv->controller)
+			QW_SetMenu(tv->controller, atoi(text+18)?MENU_FORWARDING:MENU_NONE);
+	}
+	else if (strstr(text, "screenshot"))
+		return;	//this was generating far too many screenshots when watching demos
 	else if (!strcmp(text, "skins\n"))
 	{
 		const char newcmd[10] = {svc_stufftext, 'c', 'm', 'd', ' ', 'n','e','w','\n','\0'};
@@ -371,11 +380,13 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		//copy over the server's serverinfo
 		strncpy(tv->serverinfo, text+16, sizeof(tv->serverinfo)-1);
 
-		Info_ValueForKey(tv->serverinfo, "*qtv", value, sizeof(value));
+		Info_ValueForKey(tv->serverinfo, "*QTV", value, sizeof(value));
 		if (*value)
 			fromproxy = true;
 		else
 			fromproxy = false;
+
+		tv->serverisproxy = fromproxy;
 
 		//add on our extra infos
 		Info_SetValueForStarKey(tv->serverinfo, "*qtv", VERSION, sizeof(tv->serverinfo));
@@ -512,10 +523,42 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 }
 static void ParseCenterprint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
+	viewer_t *v;
 	char text[1024];
 	ReadString(m, text, sizeof(text));
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
+
+
+
+	switch(to)
+	{
+	case dem_multiple:
+	case dem_single:
+	case dem_stats:
+		//check and send to them only if they're tracking this player(s).
+		for (v = tv->cluster->viewers; v; v = v->next)
+		{
+			if (!v->menunum || v->menunum == MENU_FORWARDING)
+			if (v->thinksitsconnected)
+				if (v->server == tv)
+					if (v->trackplayer>=0)
+						if ((1<<v->trackplayer)&mask)
+						{
+							SendBufferToViewer(v, m->data+m->startpos, m->readpos - m->startpos, true);	//FIXME: change the reliable depending on message type
+						}
+		}
+		break;
+	default:
+		//send to all
+		for (v = tv->cluster->viewers; v; v = v->next)
+		{
+			if (!v->menunum || v->menunum == MENU_FORWARDING)
+			if (v->thinksitsconnected)
+				if (v->server == tv)
+					SendBufferToViewer(v, m->data+m->startpos, m->readpos - m->startpos, true);	//FIXME: change the reliable depending on message type
+		}
+		break;
+	}
 }
 static int ParseList(sv_t *tv, netmsg_t *m, filename_t *list, int to, unsigned int mask)
 {

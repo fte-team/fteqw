@@ -1170,7 +1170,7 @@ void QTV_ParseQWStream(sv_t *qtv)
 				strcpy(qtv->status, "Attemping connection\n");
 				qtv->challenge = atoi(buffer+5);
 				if (qtv->controller)
-					sprintf(buffer, "connect %i %i %i \"%s\\*qtv\\1\"", 28, qtv->qport, qtv->challenge, qtv->controller->userinfo);
+					sprintf(buffer, "connect %i %i %i \"%s\\*qtv\\1\\Qizmo\\2.9 notimer\"", 28, qtv->qport, qtv->challenge, qtv->controller->userinfo);
 				else if (qtv->proxyplayer)
 					sprintf(buffer, "connect %i %i %i \"%s\\name\\%s\"", 28, qtv->qport, qtv->challenge, "\\*ver\\fteqtv\\spectator\\0\\rate\\10000", qtv->cluster->hostname);
 				else
@@ -1194,7 +1194,7 @@ void QTV_ParseQWStream(sv_t *qtv)
 
 				qtv->isconnected = true;
 				qtv->timeout = qtv->curtime + UDPTIMEOUT_LENGTH;
-				SendClientCommand(qtv, "new\n");
+				SendClientCommand(qtv, "new");
 				Sys_Printf(qtv->cluster, "Connected!\n");
 				continue;
 			}
@@ -1220,8 +1220,8 @@ void QTV_ParseQWStream(sv_t *qtv)
 		if (qtv->controller)
 		{
 			qtv->controller->maysend = true;
-if (qtv->controller->netchan.outgoing_sequence != qtv->controller->netchan.incoming_sequence)
-printf("bug is here\n");
+//if (qtv->controller->netchan.outgoing_sequence != qtv->controller->netchan.incoming_sequence)
+//printf("bug is here\n");
 			qtv->controller->netchan.outgoing_sequence = qtv->controller->netchan.incoming_sequence;
 //			qtv->controller->netchan.incoming_sequence = qtv->netchan.incoming_acknowledged;
 		}

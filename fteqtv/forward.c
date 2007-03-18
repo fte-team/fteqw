@@ -260,6 +260,56 @@ void Prox_SendPlayerStats(sv_t *qtv, oproxy_t *prox)
 	}
 }
 
+void Prox_SendInitialPlayers(sv_t *qtv, oproxy_t *prox, netmsg_t *msg)
+{
+	int i, j, flags;
+	char buffer[64];
+
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (!qtv->players[i].active) // interesting, is this set to false if player disconnect from server?
+			continue;
+
+		flags =   (DF_ORIGIN << 0) | (DF_ORIGIN << 1) | (DF_ORIGIN << 2)
+				| (DF_ANGLES << 0) | (DF_ANGLES << 1) | (DF_ANGLES << 2) // angles is something what changed frequently, so may be not send it?
+				| DF_EFFECTS
+				| DF_SKINNUM // though it rare thingie, so better send it?
+				| (qtv->players[i].dead   ? DF_DEAD : 0)
+				| (qtv->players[i].gibbed ? DF_GIB  : 0)
+				| DF_WEAPONFRAME // do we so really need it?
+				| DF_MODEL; // generally, that why we wrote this function, so YES send this
+
+		if (*qtv->players[i].userinfo && atoi(Info_ValueForKey(qtv->players[i].userinfo, "*spectator", buffer, sizeof(buffer))))
+			flags = DF_MODEL; // oh, that spec, just sent his model, may be even better ignore him?
+
+		WriteByte (msg, svc_playerinfo);
+		WriteByte (msg, i);
+		WriteShort (msg, flags);
+
+		WriteByte (msg, qtv->players[i].current.frame); // always sent
+
+		for (j = 0 ; j < 3 ; j++)
+			if (flags & (DF_ORIGIN << j))
+				WriteShort (msg, qtv->players[i].current.origin[j]);
+
+		for (j = 0 ; j < 3 ; j++)
+			if (flags & (DF_ANGLES << j))
+				WriteShort (msg, qtv->players[i].current.angles[j]);
+
+		if (flags & DF_MODEL) // generally, that why we wrote this function, so YES send this
+			WriteByte (msg, qtv->players[i].current.modelindex);
+
+		if (flags & DF_SKINNUM)
+			WriteByte (msg, qtv->players[i].current.skinnum);
+
+		if (flags & DF_EFFECTS)
+			WriteByte (msg, qtv->players[i].current.effects);
+
+		if (flags & DF_WEAPONFRAME)
+			WriteByte (msg, qtv->players[i].current.weaponframe);
+	}
+}
+
 void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 {
 	char buffer[MAX_MSGLEN*8];
@@ -301,7 +351,10 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 		msg.cursize = 0;
 	}
 
-	//playerstates arn't actually delta-compressed, so the first send (simply forwarded from server) entirly replaces the old.
+	//playerstates are delta-compressed, unfortunatly this isn't qwd (thanks to qqshka for showing my folly)
+	Prox_SendInitialPlayers(qtv, prox, &msg);
+	Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
+	msg.cursize = 0;
 
 	//we do need to send entity states.
 	Prox_SendInitialEnts(qtv, prox, &msg);

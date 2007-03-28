@@ -1039,7 +1039,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	quakeparms_t	parms;
 	double			time, oldtime, newtime;
 	MEMORYSTATUS	lpBuffer;
-	static	char	cwd[1024];
+	char	cwd[1024];
 	int				t;
 	RECT			rect;
 	char *qtvfile = NULL;

@@ -338,8 +338,8 @@ int Plug_Emumerated (char *name, int size, void *param)
 
 int VARGS Plug_Con_Print(void *offset, unsigned int mask, const long *arg)
 {
-	if (qrenderer <= 0)
-		return false;
+//	if (qrenderer <= 0)
+//		return false;
 	Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 	return 0;
 }

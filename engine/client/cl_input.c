@@ -209,7 +209,7 @@ void IN_JumpDown (void)
 	
 
 
-	condition = (cls.state == ca_active && cl_smartjump.value);
+	condition = (cls.state == ca_active && cl_smartjump.value && !prox_inmenu.value);
 #ifdef Q2CLIENT
 	if (condition && cls.protocol == CP_QUAKE2)
 		KeyDown(&in_up);

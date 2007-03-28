@@ -985,6 +985,12 @@ void	SWVID_Update (vrect_t *rects)	//end frame...
 	}
 }
 
+void SWVID_SetCaption(char *text)
+{
+	SetWindowText(mainwindow, text);
+}
+
+
 void SWVID_HandlePause (qboolean pause)	//release mouse
 {
 #ifdef MGL

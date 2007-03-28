@@ -2000,11 +2000,12 @@ void Media_Init(void)
 	Cvar_Register(&capturesound,	"AVI capture controls");
 	Cvar_Register(&capturerate,	"AVI capture controls");
 	Cvar_Register(&capturecodec,	"AVI capture controls");
-#endif
 
 #if defined(WINAVI)
 	Cvar_Register(&capturesoundbits,	"AVI capture controls");
 	Cvar_Register(&capturesoundchannels,	"AVI capture controls");
+#endif
+
 #endif
 
 #ifdef WINAMP

@@ -656,3 +656,9 @@ void GLVID_HandlePause (qboolean pause)
 void Sys_SendKeyEvents(void)
 {
 }
+
+void GLVID_SetCaption(char *caption)
+{
+	SetWindowTitles(window, caption, (void *)-1);
+}
+

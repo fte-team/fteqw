@@ -247,3 +247,8 @@ void Sys_SendKeyEvents(void)
 {
 }
 
+void SWVID_SetCaption(char *caption)
+{
+	SetWindowTitles(window, caption, (void *)-1);
+}
+

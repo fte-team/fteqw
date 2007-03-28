@@ -1081,3 +1081,9 @@ void GLVID_ForceLockState (int lk) {}
 void GLVID_HandlePause (qboolean pause) {}
 
 void GL_DoSwap(void) {}
+
+void GLVID_SetCaption(char *text)
+{
+	XStoreName(vid_dpy, vid_window, text);
+}
+

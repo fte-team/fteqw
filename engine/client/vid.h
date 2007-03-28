@@ -143,4 +143,5 @@ int SWVID_ForceUnlockedAndReturnState (void);
 void SWVID_ForceLockState (int lk);
 
 char *SWVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight);
+void SWVID_SetCaption(char *caption);
 #endif

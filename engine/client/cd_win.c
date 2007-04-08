@@ -103,6 +103,9 @@ static int CDAudio_GetAudioDiskInfo(void)
 	return 0;
 }
 
+#ifndef NOMEDIA
+void Media_FakeTrack(int i, qboolean loop);
+#endif
 
 void CDAudio_Play(int track, qboolean looping)
 {
@@ -113,7 +116,6 @@ void CDAudio_Play(int track, qboolean looping)
 	if (!enabled)
 	{
 #ifndef NOMEDIA
-		void Media_FakeTrack(int i, qboolean loop);
 		Media_FakeTrack(track, looping);
 #endif
 		return;

@@ -2526,6 +2526,20 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	else
 		np = t->num_parms;
 
+	if (def_ret.temp->used)
+	{
+		old = QCC_GetTemp(def_ret.type);
+		if (def_ret.type->size == 3)
+			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_V], &def_ret, old, NULL));
+		else
+			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], &def_ret, old, NULL));
+		QCC_UnFreeTemp(old);
+		QCC_UnFreeTemp(&def_ret);
+		QCC_PR_ParseWarning(WARN_FIXEDRETURNVALUECONFLICT, "Return value conflict - output is inefficient");
+	}
+	else
+		old = NULL;
+
 	if (opt_vectorcalls && (t->num_parms == 1 && t->param->type == ev_vector))
 	{	//if we're using vectorcalls
 		//if it's a function, takes a vector
@@ -2749,20 +2763,6 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			}
 		}
 	}
-
-	if (def_ret.temp->used)
-	{
-		old = QCC_GetTemp(def_ret.type);
-		if (def_ret.type->size == 3)
-			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_V], &def_ret, old, NULL));
-		else
-			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], &def_ret, old, NULL));
-		QCC_UnFreeTemp(old);
-		QCC_UnFreeTemp(&def_ret);
-		QCC_PR_ParseWarning(WARN_FIXEDRETURNVALUECONFLICT, "Return value conflict - output is inefficient");
-	}
-	else
-		old = NULL;
 
 	if (strchr(func->name, ':') && laststatement && statements[laststatement-1].op == OP_LOAD_FNC && statements[laststatement-1].c == func->ofs)
 	{	//we're entering C++ code with a different self.

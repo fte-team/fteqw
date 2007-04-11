@@ -624,7 +624,7 @@ qboolean Net_WriteUpStream(sv_t *qtv)
 			return false;
 		}
 		qtv->upstreambuffersize -= len;
-		memmove(qtv->upstreambuffer + len, qtv->upstreambuffer, qtv->upstreambuffersize);
+		memmove(qtv->upstreambuffer, qtv->upstreambuffer + len, qtv->upstreambuffersize);
 	}
 	return true;
 }
@@ -1801,7 +1801,7 @@ void QTV_Run(sv_t *qtv)
 			switch(qtv->buffer[1]&dem_mask)
 			{
 			case dem_multiple:
-				ParseMessage(qtv, buffer+lengthofs+4, length, qtv->buffer[1]&dem_mask, (buffer[lengthofs-4]<<0) + (buffer[lengthofs+3]<<8) + (buffer[lengthofs-2]<<16) + (buffer[lengthofs-1]<<24));
+				ParseMessage(qtv, buffer+lengthofs+4, length, qtv->buffer[1]&dem_mask, (buffer[lengthofs-4]<<0) + (buffer[lengthofs-3]<<8) + (buffer[lengthofs-2]<<16) + (buffer[lengthofs-1]<<24));
 				break;
 			case dem_single:
 			case dem_stats:

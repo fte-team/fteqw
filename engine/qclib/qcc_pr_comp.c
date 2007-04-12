@@ -2507,7 +2507,9 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 		}
 	}
 
+	QCC_FreeTemp(func);
 	QCC_LockActiveTemps();	//any temps before are likly to be used with the return value.
+	QCC_UnFreeTemp(func);
 
 	//any temps referenced to build the parameters don't need to be locked.
 

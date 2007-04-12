@@ -3364,6 +3364,28 @@ void Sys_Error(const char *text, ...)
 }
 
 #ifndef USEGUI
+#include <stdarg.h>
+FILE *logfile;
+int logprintf(const char *format, ...)
+{
+	va_list		argptr;
+	static char		string[1024];
+
+	va_start (argptr, format);
+#ifdef _WIN32
+	_vsnprintf (string,sizeof(string)-1, format,argptr);
+#else
+	vsnprintf (string,sizeof(string), format,argptr);
+#endif
+	va_end (argptr);
+
+	puts(string);
+	if (logfile)
+		fputs(string, logfile);
+
+	return 0;
+}
+
 int main (int argc, char **argv)
 {
 	int sucess;
@@ -3376,10 +3398,13 @@ int main (int argc, char **argv)
 	funcs.parms->ReadFile = QCC_ReadFile;
 	funcs.parms->FileSize = QCC_FileSize;
 	funcs.parms->WriteFile = QCC_WriteFile;
-	funcs.parms->printf = printf;
+	funcs.parms->printf = logprintf;
 	funcs.parms->Sys_Error = Sys_Error;
+	logfile = fopen("fteqcc.log", "wt");
 	sucess = CompileParams(&funcs, true, argc, argv);
 	qccClearHunk();
+	if (logfile)
+		fclose(logfile);
 
 #ifdef _WIN32
 //	fgetc(stdin);	//wait for keypress

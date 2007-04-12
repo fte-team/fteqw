@@ -2374,6 +2374,8 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				qccwarningdisabled[WARN_BADPRAGMA] = true;	//C specs say that these should be ignored. We're close enough to C that I consider that a valid statement.
 				qccwarningdisabled[WARN_IDENTICALPRECOMPILER] = true;
 				qccwarningdisabled[WARN_UNDEFNOTDEFINED] = true;
+				qccwarningdisabled[WARN_FIXEDRETURNVALUECONFLICT] = true;
+				qccwarningdisabled[WARN_EXTRAPRECACHE] = true;
 			}
 			else
 			{

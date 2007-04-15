@@ -530,7 +530,7 @@ void QCC_PR_Lex (void);
 // reads the next token into pr_token and classifies its type
 
 QCC_type_t *QCC_PR_NewType (char *name, int basictype);
-QCC_type_t *QCC_PR_ParseType (int newtype);
+QCC_type_t *QCC_PR_ParseType (int newtype); extern pbool type_inlinefunction;
 QCC_type_t *QCC_TypeForName(char *name);
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype);
 QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype);
@@ -607,6 +607,7 @@ enum {
 	WARN_UNDESIRABLECONVENTION,
 	WARN_SAMENAMEASGLOBAL,
 	WARN_CONSTANTCOMPARISON,
+	WARN_UNSAFEFUNCTIONRETURNTYPE,
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 

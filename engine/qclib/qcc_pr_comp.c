@@ -1583,17 +1583,23 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 							break;
 
 					if (statements[st].c == var_b->ofs)
-						QCC_PR_ParseWarning(0, "Temp-reuse may have broken your %s\n", pr_opcodes);
+						QCC_PR_ParseWarning(0, "Temp-reuse may have broken your %s", op->name);
 				}
 				if (st < 0)
-					QCC_PR_ParseError(ERR_INTERNAL, "XSTOREP_F couldn't find pointer generation");
+					QCC_PR_ParseError(ERR_INTERNAL, "XSTOREP_F: pointer was not generated from previous statement");
 				var_c = QCC_GetTemp(*op->type_c);
 
-				statement_linenums[statement-statements] = pr_source_line;
-				statement->op = OP_LOAD_F;
+				statement_linenums[statement-statements] = statement_linenums[st];
+				statement->op = OP_ADDRESS;
 				statement->a = statements[st].a;
 				statement->b = statements[st].b;
-				statement->c = var_c->ofs;
+				statement->c = statements[st].c;
+
+				statement_linenums[st] = pr_source_line;
+				statements[st].op = OP_LOAD_F;
+				statements[st].a = statements[st].a;
+				statements[st].b = statements[st].b;
+				statements[st].c = var_c->ofs;
 			}
 
 			statement = &statements[numstatements];
@@ -7388,6 +7394,7 @@ void QCC_PR_ParseDefs (char *classname)
 	pbool noref = false;
 	pbool nosave = false;
 	pbool allocatenew = true;
+	pbool inlinefunction = false;
 	int ispointer;
 	gofs_t oldglobals;
 	int arraysize;
@@ -7669,6 +7676,8 @@ void QCC_PR_ParseDefs (char *classname)
 	if (type == NULL)	//ignore
 		return;
 
+	inlinefunction = type_inlinefunction;
+
 	if (externfnc && type->type != ev_function)
 	{
 		printf ("Only functions may be defined as external (yet)\n");
@@ -7866,7 +7875,12 @@ void QCC_PR_ParseDefs (char *classname)
 			arraysize = 1;
 
 		if (QCC_PR_CheckToken("("))
+		{
+			if (inlinefunction)
+				QCC_PR_ParseWarning(WARN_UNSAFEFUNCTIONRETURNTYPE, "Function returning function. Is this what you meant? (suggestion: use typedefs)");
+			inlinefunction = false;
 			type = QCC_PR_ParseFunctionType(false, type);
+		}
 
 		if (classname)
 		{

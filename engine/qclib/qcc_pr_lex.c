@@ -2988,6 +2988,7 @@ QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto)
 	return QCC_PR_FindType (ptype);
 }
 
+pbool type_inlinefunction;
 QCC_type_t *QCC_PR_ParseType (int newtype)
 {
 	QCC_type_t	*newparm;
@@ -2995,6 +2996,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 	QCC_type_t	*type;
 	char	*name;
 	int i;
+
+	type_inlinefunction = false;	//doesn't really matter so long as its not from an inline function type
 
 //	int ofs;
 
@@ -3259,7 +3262,10 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 	QCC_PR_Lex ();
 	
 	if (QCC_PR_CheckToken ("("))	//this is followed by parameters. Must be a function.
+	{
+		type_inlinefunction = true;
 		return QCC_PR_ParseFunctionType(newtype, type);
+	}
 	else
 	{
 		if (newtype)

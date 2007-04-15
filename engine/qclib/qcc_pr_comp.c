@@ -1686,16 +1686,25 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 					if (statements[st].op == OP_ADDRESS)
 						if (statements[st].c == var_b->ofs)
 							break;
+
+					if (statements[st].c == var_b->ofs)
+						QCC_PR_ParseWarning(0, "Temp-reuse may have broken your %s", op->name);
 				}
 				if (st < 0)
 					QCC_PR_ParseError(ERR_INTERNAL, "XSTOREP_V couldn't find pointer generation");
 				var_c = QCC_GetTemp(*op->type_c);
 
-				statement_linenums[statement-statements] = pr_source_line;
-				statement->op = OP_LOAD_V;
+				statement_linenums[statement-statements] = statement_linenums[st];
+				statement->op = OP_ADDRESS;
 				statement->a = statements[st].a;
 				statement->b = statements[st].b;
-				statement->c = var_c ? var_c->ofs : 0;
+				statement->c = statements[st].c;
+
+				statement_linenums[st] = pr_source_line;
+				statements[st].op = OP_LOAD_V;
+				statements[st].a = statements[st].a;
+				statements[st].b = statements[st].b;
+				statements[st].c = var_c->ofs;
 			}
 
 			statement = &statements[numstatements];

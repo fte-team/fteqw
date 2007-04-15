@@ -3379,7 +3379,7 @@ int logprintf(const char *format, ...)
 #endif
 	va_end (argptr);
 
-	puts(string);
+	printf("%s", string);
 	if (logfile)
 		fputs(string, logfile);
 

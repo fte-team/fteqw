@@ -4083,7 +4083,7 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 			WriteString2(&m, "\nActive Clients\n\n");
 
 			start = viewer->menuop & ~7;
-			for (i = 0; i < start; i++)
+			for (i = 0; i < start && v; i++)
 				v = v->next;
 			for (i = start; i < start+8 && v; i++, v = v->next)
 			{

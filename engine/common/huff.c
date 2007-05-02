@@ -673,7 +673,7 @@ void Huff_Init( int *huffCounts ) {
 		}
 		huffCounts[i] = LittleLong(huffCounts[i]);
 	}
-	madetable=Com_BlockChecksum(huffCounts, sizeof(huffCounts));
+	madetable=Com_BlockChecksum(huffCounts, sizeof(*huffCounts)*256);
 	for(i=0;i<256;i++)
 		huffCounts[i] = LittleLong(huffCounts[i]);
 }

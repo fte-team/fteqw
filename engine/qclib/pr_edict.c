@@ -2326,7 +2326,7 @@ retry:
 
 // byte swap the header
 #ifndef NOENDIAN
-	for (i=0 ; i<sizeof(*pr_progs)/4 ; i++)
+	for (i=0 ; i<sizeof(*pr_progs)/sizeof(int) ; i++)
 		((int *)pr_progs)[i] = PRLittleLong ( ((int *)pr_progs)[i] );
 #endif
 

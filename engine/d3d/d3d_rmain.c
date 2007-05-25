@@ -2,9 +2,9 @@
 #ifdef D3DQUAKE
 #include "d3dquake.h"
 
-mleaf_t		*r_viewleaf, *r_oldviewleaf;
-mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
-int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
+extern mleaf_t		*r_viewleaf, *r_oldviewleaf;
+extern mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
+extern int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 extern qbyte			areabits[MAX_Q2MAP_AREAS/8];
 
 

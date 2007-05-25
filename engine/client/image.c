@@ -536,22 +536,22 @@ return NULL;
 }
 
 #ifdef AVAIL_PNGLIB
-#ifndef AVAIL_ZLIB
-#error PNGLIB requires ZLIB
-#endif
+	#ifndef AVAIL_ZLIB
+		#error PNGLIB requires ZLIB
+	#endif
 
-#undef channels
+	#undef channels
 
-#ifndef PNG_SUCKS_WITH_SETJMP
-#if defined(MINGW)
-#error no pngs with mingw
-#elif defined(_WIN32)
-#include "png.h"
-#pragma comment(lib, "../libs/libpng.lib")
-#else
-#include <png.h>
-#endif
-#endif
+	#ifndef PNG_SUCKS_WITH_SETJMP
+		#if defined(MINGW)
+			#error no pngs with mingw
+		#elif defined(_WIN32)
+			#include "png.h"
+			#pragma comment(lib, "../libs/libpng.lib")
+		#else
+			#include <png.h>
+		#endif
+	#endif
 
 
 #if defined(MINGW)	//hehehe... add annother symbol so the statically linked cygwin libpng can link
@@ -567,6 +567,7 @@ typedef struct {
 	int readposition;
 	int filelen;
 } pngreadinfo_t;
+
 void PNGAPI png_default_read_data(png_structp png_ptr, png_bytep data, png_size_t length);
 
 void VARGS readpngdata(png_structp png_ptr,png_bytep data,png_size_t len)

@@ -2289,11 +2289,11 @@ texture_t *R_TextureAnimation (texture_t *base)
 
 
 
-extern mleaf_t		*r_viewleaf, *r_oldviewleaf;
-extern mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
-extern int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
-extern int r_visframecount;
-extern mleaf_t		*r_vischain;		// linked list of visible leafs
+mleaf_t		*r_viewleaf, *r_oldviewleaf;
+mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
+int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
+int r_visframecount;
+mleaf_t		*r_vischain;		// linked list of visible leafs
 
 /*
 ===============

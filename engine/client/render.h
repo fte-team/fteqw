@@ -359,6 +359,7 @@ int R_LoadTexture(char *name, int width, int height, void *data, void *palette, 
 	#define R_LoadCompressed(name)  ((qrenderer == QR_DIRECT3D)?D3D_LoadCompressed(name):GL_LoadCompressed(name))
 #elif defined(D3DQUAKE)
 	#define R_LoadTexture8Pal32	D3D_LoadTexture8Pal32
+	#define R_LoadTexture8Pal24	D3D_LoadTexture8Pal24
 	#define R_LoadTexture8		D3D_LoadTexture
 	#define R_LoadTexture32		D3D_LoadTexture32
 	#define R_LoadTextureFB		D3D_LoadTextureFB
@@ -368,6 +369,7 @@ int R_LoadTexture(char *name, int width, int height, void *data, void *palette, 
 	#define R_LoadCompressed	D3D_LoadCompressed
 #elif defined(RGLQUAKE)
 	#define R_LoadTexture8Pal32	GL_LoadTexture8Pal32
+	#define R_LoadTexture8Pal24	GL_LoadTexture8Pal24
 	#define R_LoadTexture8		GL_LoadTexture
 	#define R_LoadTexture32		GL_LoadTexture32
 	#define R_LoadTextureFB		GL_LoadTextureFB

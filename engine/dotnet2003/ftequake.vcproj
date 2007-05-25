@@ -507,8 +507,8 @@
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				OptimizeForProcessor="2"
-				AdditionalIncludeDirectories="..\client,../libs/dxsdk7/include,../common,../server,../gl,../sw,../qclib,../libs"
-				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;GLQUAKE;SWQUAKE;USE_D3D"
+				AdditionalIncludeDirectories="..\client;../libs/dxsdk9/include;../libs/dxsdk7/include;../common;../server;../d3d9;../d3d;../gl;../sw;../qclib;../libs"
+				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;GLQUAKE;SWQUAKE;USE_D3D;D3DQUAKE"
 				StringPooling="TRUE"
 				RuntimeLibrary="4"
 				EnableFunctionLevelLinking="TRUE"
@@ -782,8 +782,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				OptimizeForProcessor="1"
-				AdditionalIncludeDirectories="..\client,../libs/dxsdk7/include,../common,../server,../gl,../sw,../qclib,../libs"
-				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;GLQUAKE;SWQUAKE;USE_D3D"
+				AdditionalIncludeDirectories="..\client;../libs/dxsdk9/include;../libs/dxsdk7/include;../common;../server;../d3d9;../d3d;../gl;../sw;../qclib;../libs"
+				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;GLQUAKE;SWQUAKE;USE_D3D;D3DQUAKE"
 				RuntimeLibrary="5"
 				UsePrecompiledHeader="3"
 				PrecompiledHeaderThrough="quakedef.h"
@@ -17725,6 +17725,9 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\common\com_mesh.c">
+				</File>
+				<File
 					RelativePath="..\common\common.c">
 					<FileConfiguration
 						Name="MinGLDebug|Win32">
@@ -25714,6 +25717,44 @@ del $(OUTDIR)\$(InputName).spp
 							PreprocessorDefinitions=""
 							BrowseInformation="1"/>
 					</FileConfiguration>
+				</File>
+			</Filter>
+			<Filter
+				Name="d3d7"
+				Filter="">
+				<File
+					RelativePath="..\d3d\d3d_draw.c">
+				</File>
+				<File
+					RelativePath="..\d3d\d3d_mesh.c">
+				</File>
+				<File
+					RelativePath="..\d3d\d3d_rmain.c">
+				</File>
+				<File
+					RelativePath="..\d3d\d3d_rsurf.c">
+				</File>
+				<File
+					RelativePath="..\d3d\vid_d3d.c">
+				</File>
+			</Filter>
+			<Filter
+				Name="d3d9"
+				Filter="">
+				<File
+					RelativePath="..\d3d9\d3d9_draw.c">
+				</File>
+				<File
+					RelativePath="..\d3d9\d3d9_mesh.c">
+				</File>
+				<File
+					RelativePath="..\d3d9\d3d9_rmain.c">
+				</File>
+				<File
+					RelativePath="..\d3d9\d3d9_rsurf.c">
+				</File>
+				<File
+					RelativePath="..\d3d9\vid_d3d9.c">
 				</File>
 			</Filter>
 		</Filter>

@@ -876,8 +876,8 @@ void	(D3D9_R_NewMap)					(void)
 	}
 }
 
-mleaf_t		*r_viewleaf, *r_oldviewleaf;
-mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
+extern mleaf_t		*r_viewleaf, *r_oldviewleaf;
+extern mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
 void	(D3D9_R_PreNewMap)				(void)
 {
 	r_viewleaf = NULL;

@@ -54,7 +54,7 @@ int			r_framecount;		// used for dlight push checking
 
 float		r_wateralphaval;	//allowed or not...
 
-mplane_t	frustum[4];
+//mplane_t	frustum[4];
 
 int			c_brush_polys, c_alias_polys;
 
@@ -79,8 +79,8 @@ vec3_t	vpn;
 vec3_t	vright;
 vec3_t	r_origin;
 
-float	r_projection_matrix[16];
-float	r_view_matrix[16];
+extern float	r_projection_matrix[16];
+extern float	r_view_matrix[16];
 
 //
 // screen size info
@@ -93,10 +93,7 @@ int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 
 texture_t	*r_notexture_mip;
 
-int		d_lightstylevalue[256];	// 8.8 fraction of base light value
-
-
-void GLR_MarkLeaves (void);
+//void R_MarkLeaves (void);
 
 cvar_t	r_norefresh = SCVAR("r_norefresh","0");
 //cvar_t	r_drawentities = SCVAR("r_drawentities","1");
@@ -105,7 +102,7 @@ cvar_t	r_norefresh = SCVAR("r_norefresh","0");
 //cvar_t	r_fullbright = SCVAR("r_fullbright","0");
 cvar_t	r_mirroralpha = SCVARF("r_mirroralpha","1", CVAR_CHEAT);
 //cvar_t	r_waterwarp = SCVAR("r_waterwarp", "0");
-cvar_t	r_novis = SCVAR("r_novis","0");
+//cvar_t	r_novis = SCVAR("r_novis","0");
 //cvar_t	r_netgraph = SCVAR("r_netgraph","0");
 
 extern cvar_t	gl_part_flame;
@@ -122,7 +119,7 @@ cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_contrast = SCVAR("gl_contrast", "1");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
 cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
-cvar_t	gl_mindist = SCVARF("gl_mindist", "4", CVAR_CHEAT);	//by setting to 64 or something, you can use this as a wallhack
+extern cvar_t	gl_mindist;
 
 extern cvar_t	gl_motionblur;
 extern cvar_t	gl_motionblurscale;
@@ -365,39 +362,6 @@ void GL_SetupSceneProcessingTextures (void)
 	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_edge_tex);
 }
 
-/*
-=================
-R_CullBox
-
-Returns true if the box is completely outside the frustom
-=================
-*/
-qboolean R_CullBox (vec3_t mins, vec3_t maxs)
-{
-	int		i;
-
-	for (i=0 ; i<4 ; i++)
-		if (BOX_ON_PLANE_SIDE (mins, maxs, &frustum[i]) == 2)
-			return true;
-	return false;
-}
-
-qboolean R_CullSphere (vec3_t org, float radius)
-{
-	//four frustrum planes all point inwards in an expanding 'cone'.
-	int		i;
-	float d;
-
-	for (i=0 ; i<4 ; i++)
-	{
-		d = DotProduct(frustum[i].normal, org)-frustum[i].dist;
-		if (d <= -radius)
-			return true;
-	}
-	return false;
-}
-
-
 void R_RotateForEntity (entity_t *e)
 {
 	float m[16];
@@ -462,6 +426,7 @@ void R_RotateForEntity (entity_t *e)
 R_GetSpriteFrame
 ================
 */
+/*
 mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 {
 	msprite_t		*psprite;
@@ -512,7 +477,7 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 
 	return pspriteframe;
 }
-
+*/
 
 /*
 =================
@@ -535,7 +500,7 @@ void R_DrawSpriteModel (entity_t *e)
 		mesh_t mesh;
 		vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
 		vec3_t vertcoords[4];
-		int indexes[6] = {0, 1, 2, 0, 2, 3};
+		index_t indexes[6] = {0, 1, 2, 0, 2, 3};
 		byte_vec4_t colours[4];
 		float x, y;
 
@@ -890,100 +855,6 @@ void GLR_BrightenScreen (void)
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
 }
 
-int SignbitsForPlane (mplane_t *out)
-{
-	int	bits, j;
-
-	// for fast box on planeside test
-
-	bits = 0;
-	for (j=0 ; j<3 ; j++)
-	{
-		if (out->normal[j] < 0)
-			bits |= 1<<j;
-	}
-	return bits;
-}
-#if 1
-void R_SetFrustum (void)
-{
-	float scale;
-	int i;
-	float mvp[16];
-
-	if ((int)r_novis.value & 4)
-		return;
-
-	Matrix4_Multiply(r_projection_matrix, r_view_matrix, mvp);
-
-	for (i = 0; i < 4; i++)
-	{
-		if (i & 1)
-		{
-			frustum[i].normal[0]	= mvp[3] + mvp[0+i/2];
-			frustum[i].normal[1]	= mvp[7] + mvp[4+i/2];
-			frustum[i].normal[2]	= mvp[11] + mvp[8+i/2];
-			frustum[i].dist			= mvp[15] + mvp[12+i/2];
-		}
-		else
-		{
-			frustum[i].normal[0]	= mvp[3] - mvp[0+i/2];
-			frustum[i].normal[1]	= mvp[7] - mvp[4+i/2];
-			frustum[i].normal[2]	= mvp[11] - mvp[8+i/2];
-			frustum[i].dist			= mvp[15] - mvp[12+i/2];
-		}
-
-		scale = 1/sqrt(DotProduct(frustum[i].normal, frustum[i].normal));
-		frustum[i].normal[0] *= scale;
-		frustum[i].normal[1] *= scale;
-		frustum[i].normal[2] *= scale;
-		frustum[i].dist	*= -scale;
-
-		frustum[i].type = PLANE_ANYZ;
-		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
-	}
-}
-#else
-void R_SetFrustum (void)
-{
-	int		i;
-
-	if ((int)r_novis.value & 4)
-		return;
-
-	/*	removed - assumes fov_x == fov_y
-	if (r_refdef.fov_x == 90) 
-	{
-		// front side is visible
-
-		VectorAdd (vpn, vright, frustum[0].normal);
-		VectorSubtract (vpn, vright, frustum[1].normal);
-
-		VectorAdd (vpn, vup, frustum[2].normal);
-		VectorSubtract (vpn, vup, frustum[3].normal);
-	}
-	else
-		*/
-	{
-
-		// rotate VPN right by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[0].normal, vup, vpn, -(90-r_refdef.fov_x / 2 ) );
-		// rotate VPN left by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[1].normal, vup, vpn, 90-r_refdef.fov_x / 2 );
-		// rotate VPN up by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[2].normal, vright, vpn, 90-r_refdef.fov_y / 2 );
-		// rotate VPN down by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[3].normal, vright, vpn, -( 90 - r_refdef.fov_y / 2 ) );
-	}
-
-	for (i=0 ; i<4 ; i++)
-	{
-		frustum[i].type = PLANE_ANYZ;
-		frustum[i].dist = DotProduct (r_origin, frustum[i].normal);
-		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
-	}
-}
-#endif
 /*
 ===============
 R_SetupFrame
@@ -1100,98 +971,6 @@ void GLR_SetupFrame (void)
 
 }
 
-
-void MYgluPerspective( GLdouble fovx, GLdouble fovy,
-		     GLdouble zNear, GLdouble zFar )
-{
-	GLdouble xmin, xmax, ymin, ymax;
-
-	ymax = zNear * tan( fovy * M_PI / 360.0 );
-	ymin = -ymax;
-
-	xmax = zNear * tan( fovx * M_PI / 360.0 );
-	xmin = -xmax;
-
-	r_projection_matrix[0] = (2*zNear) / (xmax - xmin);
-	r_projection_matrix[4] = 0;
-	r_projection_matrix[8] = (xmax + xmin) / (xmax - xmin);
-	r_projection_matrix[12] = 0;
-
-	r_projection_matrix[1] = 0;
-	r_projection_matrix[5] = (2*zNear) / (ymax - ymin);
-	r_projection_matrix[9] = (ymax + ymin) / (ymax - ymin);
-	r_projection_matrix[13] = 0;
-
-	r_projection_matrix[2] = 0;
-	r_projection_matrix[6] = 0;
-	r_projection_matrix[10] = - (zFar+zNear)/(zFar-zNear);
-	r_projection_matrix[14] = - (2.0f*zFar*zNear)/(zFar-zNear);
-	
-	r_projection_matrix[3] = 0;
-	r_projection_matrix[7] = 0;
-	r_projection_matrix[11] = -1;
-	r_projection_matrix[15] = 0;
-}
-
-void GL_InfinatePerspective( GLdouble fovx, GLdouble fovy,
-		     GLdouble zNear)
-{
-	// nudge infinity in just slightly for lsb slop
-    GLfloat nudge = 1;// - 1.0 / (1<<23);
-
-	GLdouble xmin, xmax, ymin, ymax;
-
-	ymax = zNear * tan( fovy * M_PI / 360.0 );
-	ymin = -ymax;
-
-	xmax = zNear * tan( fovx * M_PI / 360.0 );
-	xmin = -xmax;
-
-	r_projection_matrix[0] = (2*zNear) / (xmax - xmin);
-	r_projection_matrix[4] = 0;
-	r_projection_matrix[8] = (xmax + xmin) / (xmax - xmin);
-	r_projection_matrix[12] = 0;
-
-	r_projection_matrix[1] = 0;
-	r_projection_matrix[5] = (2*zNear) / (ymax - ymin);
-	r_projection_matrix[9] = (ymax + ymin) / (ymax - ymin);
-	r_projection_matrix[13] = 0;
-
-	r_projection_matrix[2] = 0;
-	r_projection_matrix[6] = 0;
-	r_projection_matrix[10] = -1  * nudge;
-	r_projection_matrix[14] = -2*zNear * nudge;
-	
-	r_projection_matrix[3] = 0;
-	r_projection_matrix[7] = 0;
-	r_projection_matrix[11] = -1;
-	r_projection_matrix[15] = 0;
-}
-
-void GL_ParallelPerspective(GLdouble xmin, GLdouble xmax, GLdouble ymax, GLdouble ymin,
-		     GLdouble znear, GLdouble zfar)
-{
-	r_projection_matrix[0] = 2/(xmax-xmin);
-	r_projection_matrix[4] = 0;
-	r_projection_matrix[8] = 0;
-	r_projection_matrix[12] = (xmax+xmin)/(xmax-xmin);
-
-	r_projection_matrix[1] = 0;
-	r_projection_matrix[5] = 2/(ymax-ymin);
-	r_projection_matrix[9] = 0;
-	r_projection_matrix[13] = (ymax+ymin)/(ymax-ymin);
-
-	r_projection_matrix[2] = 0;
-	r_projection_matrix[6] = 0;
-	r_projection_matrix[10] = -2/(zfar-znear);
-	r_projection_matrix[14] = (zfar+znear)/(zfar-znear);
-	
-	r_projection_matrix[3] = 0;
-	r_projection_matrix[7] = 0;
-	r_projection_matrix[11] = 0;
-	r_projection_matrix[15] = 1;
-}
-
 /*
 =============
 R_SetupGL
@@ -1293,7 +1072,7 @@ void R_SetupGL (void)
 	qglMatrixMode(GL_MODELVIEW);
 
 
-	ML_ModelViewMatrixFromAxis(r_view_matrix, vpn, vright, vup, r_refdef.vieworg);
+	Matrix4_ModelViewMatrixFromAxis(r_view_matrix, vpn, vright, vup, r_refdef.vieworg);
 	qglLoadMatrixf(r_view_matrix);
 
 	//
@@ -1367,7 +1146,7 @@ void R_RenderScene (void)
 #endif
 		{
 			TRACE(("dbg: calling GLR_MarkLeaves\n"));
-			GLR_MarkLeaves ();	// done here so we know if we're in water
+			R_MarkLeaves ();	// done here so we know if we're in water
 			TRACE(("dbg: calling R_DrawWorld\n"));
 			R_DrawWorld ();		// adds static entities to the list
 		}
@@ -1384,7 +1163,7 @@ void R_RenderScene (void)
 	GL_DisableMultitexture();
 
 	TRACE(("dbg: calling R_RenderDlights\n"));
-	R_RenderDlights ();
+	GLR_RenderDlights ();
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
@@ -1541,7 +1320,7 @@ void R_Mirror (void)
 		for (prevs = s; s; s=s->nextalphasurface)	//write the polys to the stencil buffer.
 		{
 			qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
-			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
 		}
 
 

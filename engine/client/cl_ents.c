@@ -1453,6 +1453,11 @@ void V_AddLerpEntity(entity_t *in)	//a convienience function
 	ent->angles[0]*=-1;
 }
 
+void V_AddLight (vec3_t org, float quant, float r, float g, float b)
+{
+	CL_NewDlightRGB (0, org[0], org[1], org[2], quant, -0.1, r, g, b);
+}
+
 /*
 ===============
 CL_LinkPacketEntities

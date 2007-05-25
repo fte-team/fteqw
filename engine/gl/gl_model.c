@@ -23,8 +23,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // on the same machine.
 
 #include "quakedef.h"
-#ifdef RGLQUAKE
+
+
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
+
+#if defined(RGLQUAKE)
 #include "glquake.h"
+#endif
+
+#ifdef D3DQUAKE
+#include "d3dquake.h"
+#endif
 
 #ifdef Q3SHADERS
 #include "shader.h"
@@ -46,9 +55,8 @@ extern char	loadname[32];	// for hunk tags
 
 void CM_Init(void);
 
-qboolean GLMod_LoadCompositeAnim(model_t *mod, void *buffer);
+qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer);
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
-qboolean GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
 qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer);
 qboolean GLMod_LoadSprite2Model (model_t *mod, void *buffer);
 qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer);
@@ -57,10 +65,11 @@ qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 #endif
 qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
 #ifdef ZYMOTICMODELS
-qboolean GLMod_LoadZymoticModel(model_t *mod, void *buffer);
+qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer);
+qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer);
 #endif
 #ifdef MD5MODELS
-qboolean GLMod_LoadMD5MeshModel(model_t *mod, void *buffer);
+qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer);
 #endif
 model_t *GLMod_LoadModel (model_t *mod, qboolean crash);
 
@@ -68,12 +77,12 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash);
 qboolean Mod_LoadDoomLevel(model_t *mod);
 #endif
 
-qboolean GL_LoadQ1Model (model_t *mod, void *buffer);
+qboolean Mod_LoadQ1Model (model_t *mod, void *buffer);
 #ifdef MD2MODELS
-qboolean GL_LoadQ2Model (model_t *mod, void *buffer);
+qboolean Mod_LoadQ2Model (model_t *mod, void *buffer);
 #endif
 #ifdef MD3MODELS
-qboolean GL_LoadQ3Model (model_t *mod, void *buffer);
+qboolean Mod_LoadQ3Model (model_t *mod, void *buffer);
 #endif
 
 #ifdef DOOMWADS
@@ -187,13 +196,12 @@ void GLMod_BlockTextureColour_f (void)
 
 				if (!stricmp(tx->name, match))
 				{
-					tx->gl_texturenum = GL_LoadTexture32(texname, 8, 8, colour, true, false);
+					tx->gl_texturenum = R_LoadTexture32(texname, 8, 8, colour, true, false);
 				}
 			}
 		}
 	}
 }
-
 /*
 ===============
 Mod_Init
@@ -455,7 +463,7 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 //
 	//look for a replacement, but not for q1 sprites
 	ext = COM_FileExtension(mod->name);
-	if (Q_strcasecmp(ext, "spr") && Q_strcasecmp(ext, "sp2"))	
+	if (gl_load24bit.value && Q_strcasecmp(ext, "spr") && Q_strcasecmp(ext, "sp2"))	
 	{
 		char mdlbase[MAX_QPATH];
 		COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
@@ -535,25 +543,47 @@ couldntload:
 	
 	switch (LittleLong(*(unsigned *)buf))
 	{
+//The binary 3d mesh model formats
 	case IDPOLYHEADER:
-		if (!GL_LoadQ1Model(mod, buf))
+		if (!Mod_LoadQ1Model(mod, buf))
 			goto couldntload;
 		break;
 	
 #ifdef MD2MODELS
 	case MD2IDALIASHEADER:
-		if (!GL_LoadQ2Model(mod, buf))
+		if (!Mod_LoadQ2Model(mod, buf))
 			goto couldntload;
 		break;
 #endif
 
 #ifdef MD3MODELS
 	case MD3_IDENT:
-		if (!GL_LoadQ3Model (mod, buf))
+		if (!Mod_LoadQ3Model (mod, buf))
 			goto couldntload;
 		break;
 #endif
 
+#ifdef HALFLIFEMODELS
+	case (('T'<<24)+('S'<<16)+('D'<<8)+'I'):
+		if (!Mod_LoadHLModel (mod, buf))
+			goto couldntload;
+		break;
+#endif
+
+//Binary skeletal model formats
+#ifdef ZYMOTICMODELS
+	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
+		if (!Mod_LoadZymoticModel(mod, buf))
+			goto couldntload;
+		break;
+	case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
+		if (!Mod_LoadDarkPlacesModel(mod, buf))
+			goto couldntload;
+		break;
+#endif
+
+
+//Binary Sprites
 #ifdef SP2MODELS
 	case IDSPRITE2HEADER:
 		if (!GLMod_LoadSprite2Model (mod, buf))
@@ -565,6 +595,9 @@ couldntload:
 		if (!GLMod_LoadSpriteModel (mod, buf))
 			goto couldntload;
 		break;
+
+
+//Binary Map formats
 #ifdef Q2BSPS
 	case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 	case IDBSPHEADER:	//looks like id switched to have proper ids
@@ -572,20 +605,9 @@ couldntload:
 			goto couldntload;
 		break;
 #endif
-#ifdef HALFLIFEMODELS
-	case (('T'<<24)+('S'<<16)+('D'<<8)+'I'):
-		if (!Mod_LoadHLModel (mod, buf))
-			goto couldntload;
-		break;
-#endif
-#ifdef TERRAINMAPS
-	case (('R'<<24)+('R'<<16)+('E'<<8)+'T'):
-		Mod_LoadTerrain(mod, buf);
-		break;
-#endif
 #ifdef DOOMWADS
-	case (('D'<<24)+('A'<<16)+('W'<<8)+'I'):
-	case (('D'<<24)+('A'<<16)+('W'<<8)+'P'):
+	case (('D'<<24)+('A'<<16)+('W'<<8)+'I'):	//the id is hacked by the FS .wad loader (main wad).
+	case (('D'<<24)+('A'<<16)+('W'<<8)+'P'):	//the id is hacked by the FS .wad loader (patch wad).
 		if (!Mod_LoadDoomLevel (mod))
 			goto couldntload;
 		break;
@@ -597,35 +619,27 @@ couldntload:
 		if (!GLMod_LoadBrushModel (mod, buf))
 			goto couldntload;
 		break;
-#ifdef ZYMOTICMODELS
-	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
-		if (!GLMod_LoadZymoticModel(mod, buf))
-			goto couldntload;
-		break;
-	case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
-		if (!GLMod_LoadDarkPlacesModel(mod, buf))
-			goto couldntload;
-		break;
-#endif
+
+//Text based misc types.
 	default:
 		//check for text based headers
 		COM_Parse((char*)buf);
 #ifdef MD5MODELS
-		if (!strcmp(com_token, "MD5Version"))
+		if (!strcmp(com_token, "MD5Version"))	//doom3 format, text based, skeletal
 		{
-			if (!GLMod_LoadMD5MeshModel (mod, buf))
+			if (!Mod_LoadMD5MeshModel (mod, buf))
 				goto couldntload;
 			break;
 		}
-		if (!strcmp(com_token, "EXTERNALANIM"))
+		if (!strcmp(com_token, "EXTERNALANIM"))	//custom format, text based, specifies skeletal models to load and which md5anim files to use.
 		{
-			if (!GLMod_LoadCompositeAnim (mod, buf))
+			if (!Mod_LoadCompositeAnim (mod, buf))
 				goto couldntload;
 			break;
 		}
 #endif
 #ifdef TERRAIN
-		if (!strcmp(com_token, "terrain"))
+		if (!strcmp(com_token, "terrain"))	//custom format, text based.
 		{
 			if (!GL_LoadHeightmapModel(mod, buf))
 				goto couldntload;
@@ -812,6 +826,7 @@ void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int 
 	if (!*stdname && !*flatname)
 		return;
 TRACE(("dbg: GLMod_LoadAdvancedTextureSection: %s\n", name));
+
 	if (norm && gl_bumpmappingpossible && cls.allow_bump)
 	{
 		*base = 0;
@@ -935,11 +950,10 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 		// the pixels immediately follow the structures
 //		memcpy ( tx+1, mt+1, pixels);	//have to be saved for dynamic screen changing (done by reloading entire vid/draw subsystem and all textures)
 		
-
 		if (!Q_strncmp(mt->name,"sky",3))
 		{
 			tx->offsets[0] = (char *)mt + mt->offsets[0] - (char *)tx;
-			GLR_InitSky (tx);
+			R_InitSky (tx);
 		}
 		else
 #ifdef PEXT_BULLETENS
@@ -957,21 +971,17 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 			{//external textures have already been filtered.
 				base = W_ConvertWAD3Texture(mt, &mt->width, &mt->height, &alphaed);	//convert texture to 32 bit.
 				tx->alphaed = alphaed;
-				texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
 				if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, loadname, true, alphaed, true)))
 					if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, "bmodels", true, alphaed, true)))
-						tx->gl_texturenum = GL_LoadTexture32 (mt->name, tx->width, tx->height, (unsigned int *)base, true, alphaed);
+						tx->gl_texturenum = R_LoadTexture32 (mt->name, tx->width, tx->height, (unsigned int *)base, true, alphaed);
 
 				*tx->name = *mt->name;
-				texture_mode = GL_LINEAR;
 			}
 			else
 			{
-				texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
 				if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, loadname, true, false, true)))
 					if (!(tx->gl_texturenum = Mod_LoadReplacementTexture(mt->name, "bmodels", true, false, true)))
-						tx->gl_texturenum = GL_LoadTexture (mt->name, tx->width, tx->height, base, true, false);
-				texture_mode = GL_LINEAR;
+						tx->gl_texturenum = R_LoadTexture8 (mt->name, tx->width, tx->height, base, true, false);
 
 				if (r_fb_bmodels.value)
 				{
@@ -983,7 +993,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 							tx->gl_texturenumfb = Mod_LoadReplacementTexture(altname, "bmodels", true, false, true);
 					}
 					if (!tx->gl_texturenumfb)	//generate one (if possible).
-						tx->gl_texturenumfb = GL_LoadTextureFB(altname, tx->width, tx->height, base, true, true);
+						tx->gl_texturenumfb = R_LoadTextureFB(altname, tx->width, tx->height, base, true, true);
 				}
 			}
 
@@ -1017,7 +1027,7 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 					for (j = 0; j < pixels; j++)
 						base[j] = (host_basepal[base[j]*3] + host_basepal[base[j]*3+1] + host_basepal[base[j]*3+2]) / 3;
 
-					tx->gl_texturenumbumpmap = GL_LoadTexture8Bump(altname, tx->width, tx->height, base, true, r_shadow_bumpscale_basetexture.value);	//normalise it and then bump it.
+					tx->gl_texturenumbumpmap = R_LoadTexture8Bump(altname, tx->width, tx->height, base, true, r_shadow_bumpscale_basetexture.value);	//normalise it and then bump it.
 				}
 
 				//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
@@ -1181,7 +1191,6 @@ void GLMod_NowLoadExternal(void)
 #endif
 			{
 				qbyte * data;
-				texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
 
 				data = W_GetTexture(tx->name, &width, &height, &alphaed);
 				if (data)
@@ -1192,7 +1201,6 @@ void GLMod_NowLoadExternal(void)
 				if (!(tx->gl_texturenum = Mod_LoadHiResTexture(tx->name, loadname, true, false, true)))
 					if (!(tx->gl_texturenum = Mod_LoadHiResTexture(tx->name, "bmodels", true, false, true)))
 						tx->gl_texturenum = Mod_LoadReplacementTexture("light1_4", NULL, true, false, true);	//a fallback. :/
-				texture_mode = GL_LINEAR;
 			}
 		}
 		if (!tx->gl_texturenumbumpmap && *tx->name != '{' && gl_bumpmappingpossible && cls.allow_bump)
@@ -1217,7 +1225,7 @@ void GLMod_NowLoadExternal(void)
 					*heightmap++ = (data[j*4+0] + data[j*4+1] + data[j*4+2])/3;
 				}
 				
-				tx->gl_texturenumbumpmap = GL_LoadTexture8Bump (va("%s_bump", tx->name), width, height, heightmap-j, true, r_shadow_bumpscale_basetexture.value);
+				tx->gl_texturenumbumpmap = R_LoadTexture8Bump (va("%s_bump", tx->name), width, height, heightmap-j, true, r_shadow_bumpscale_basetexture.value);
 			}
 		}
 	}
@@ -2519,6 +2527,7 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 void GLR_StainSurf (msurface_t *surf, float *parms);
 static void Q1BSP_StainNode (mnode_t *node, float *parms)
 {
+#ifdef RGLQUAKE
 	mplane_t	*splitplane;
 	float		dist;
 	msurface_t	*surf;
@@ -2552,6 +2561,7 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 
 	Q1BSP_StainNode (node->children[0], parms);
 	Q1BSP_StainNode (node->children[1], parms);
+#endif
 }
 
 
@@ -2559,6 +2569,121 @@ void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
 qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
 void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
+
+void GLMod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
+{
+	if (!node)
+		return;
+
+	if (node->contents >= 0)
+	{
+		GLMod_FixupNodeMinsMaxs (node->children[0], node);
+		GLMod_FixupNodeMinsMaxs (node->children[1], node);
+	}
+
+	if (parent)
+	{
+		if (parent->minmaxs[0] > node->minmaxs[0])
+			parent->minmaxs[0] = node->minmaxs[0];
+		if (parent->minmaxs[1] > node->minmaxs[1])
+			parent->minmaxs[1] = node->minmaxs[1];
+		if (parent->minmaxs[2] > node->minmaxs[2])
+			parent->minmaxs[2] = node->minmaxs[2];
+
+		if (parent->minmaxs[3] < node->minmaxs[3])
+			parent->minmaxs[3] = node->minmaxs[3];
+		if (parent->minmaxs[4] < node->minmaxs[4])
+			parent->minmaxs[4] = node->minmaxs[4];
+		if (parent->minmaxs[5] < node->minmaxs[5])
+			parent->minmaxs[5] = node->minmaxs[5];
+	}
+
+}
+void GLMod_FixupMinsMaxs(void)
+{
+	//q1 bsps are capped to +/- 32767 by the nodes/leafs
+	//verts arn't though
+	//so if the map is too big, let's figure out what they should be
+	float *v;
+	msurface_t **mark, *surf;
+	mleaf_t *pleaf;
+	medge_t *e, *pedges;
+	int en, lindex;
+	int i, c, lnumverts;
+	qboolean needsfixup = false;
+
+	if (loadmodel->mins[0] < -32768)
+		needsfixup = true;
+	if (loadmodel->mins[1] < -32768)
+		needsfixup = true;
+	if (loadmodel->mins[2] < -32768)
+		needsfixup = true;
+
+	if (loadmodel->maxs[0] > 32767)
+		needsfixup = true;
+	if (loadmodel->maxs[1] > 32767)
+		needsfixup = true;
+	if (loadmodel->maxs[2] > 32767)
+		needsfixup = true;
+
+	if (!needsfixup)
+		return;
+
+	//this is insane.
+	//why am I writing this?
+	//by the time the world actually gets this large, the floating point errors are going to be so immensly crazy that it's just not worth it.
+
+	pedges = loadmodel->edges;
+
+	for (i = 0; i < loadmodel->numleafs; i++)
+	{
+		pleaf = &loadmodel->leafs[i];
+
+		mark = pleaf->firstmarksurface;
+		c = pleaf->nummarksurfaces;
+
+		if (c)
+		{
+			do
+			{
+				surf = (*mark++);
+
+				lnumverts = surf->numedges;
+				for (en=0 ; en<lnumverts ; en++)
+				{
+					lindex = currentmodel->surfedges[surf->firstedge + en];
+
+					if (lindex > 0)
+					{
+						e = &pedges[lindex];
+						v = currentmodel->vertexes[e->v[0]].position;
+					}
+					else
+					{
+						e = &pedges[-lindex];
+						v = currentmodel->vertexes[e->v[1]].position;
+					}
+
+					if (pleaf->minmaxs[0] > v[0])
+						pleaf->minmaxs[0] = v[0];
+					if (pleaf->minmaxs[1] > v[1])
+						pleaf->minmaxs[1] = v[1];
+					if (pleaf->minmaxs[2] > v[2])
+						pleaf->minmaxs[2] = v[2];
+
+					if (pleaf->minmaxs[3] < v[0])
+						pleaf->minmaxs[3] = v[0];
+					if (pleaf->minmaxs[4] < v[1])
+						pleaf->minmaxs[4] = v[1];
+					if (pleaf->minmaxs[5] < v[2])
+						pleaf->minmaxs[5] = v[2];
+
+				}
+			} while (--c);
+		}
+	}
+	GLMod_FixupNodeMinsMaxs (loadmodel->nodes, NULL);	// sets nodes and leafs
+}
 
 /*
 =================
@@ -2765,6 +2890,9 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 		LightLoadEntities(lightmodel->entities);
 #endif
 
+	if (1)
+		GLMod_FixupMinsMaxs();
+
 	return true;
 }
 
@@ -2925,17 +3053,17 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 	{
 		size *= 4;
 		if (!pspriteframe->gl_texturenum)
-			pspriteframe->gl_texturenum = GL_LoadTexture32 (name, width, height, (unsigned *)(pinframe + 1), true, true);
+			pspriteframe->gl_texturenum = R_LoadTexture32 (name, width, height, (unsigned *)(pinframe + 1), true, true);
 	}
 	else if (version == SPRITEHL_VERSION)
 	{
 		if (!pspriteframe->gl_texturenum)
-			pspriteframe->gl_texturenum = GL_LoadTexture8Pal32 (name, width, height, (qbyte *)(pinframe + 1), (qbyte*)palette, true, true);
+			pspriteframe->gl_texturenum = R_LoadTexture8Pal32 (name, width, height, (qbyte *)(pinframe + 1), (qbyte*)palette, true, true);
 	}
 	else
 	{
 		if (!pspriteframe->gl_texturenum)
-			pspriteframe->gl_texturenum = GL_LoadTexture (name, width, height, (qbyte *)(pinframe + 1), true, true);
+			pspriteframe->gl_texturenum = R_LoadTexture8 (name, width, height, (qbyte *)(pinframe + 1), true, true);
 	}
 
 	return (void *)((qbyte *)(pinframe+1) + size);
@@ -3193,6 +3321,7 @@ qboolean GLMod_LoadSprite2Model (model_t *mod, void *buffer)
 		frame = psprite->frames[i].frameptr = Hunk_AllocName(sizeof(mspriteframe_t), loadname);
 
 		frame->gl_texturenum = Mod_LoadHiResTexture(pframetype->name, NULL, true, true, true);
+
 		frame->width = LittleLong(pframetype->width);
 		frame->height = LittleLong(pframetype->height);
 		origin[0] = LittleLong (pframetype->origin_x);

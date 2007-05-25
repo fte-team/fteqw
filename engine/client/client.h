@@ -754,6 +754,7 @@ void CL_ReRecord_f (void);
 void CL_PlayDemo_f (void);
 void CL_QTVPlay_f (void);
 void CL_QTVList_f (void);
+void CL_QTVDemos_f (void);
 void CL_DemoJump_f(void);
 void CL_ProgressDemoTime(void);
 void CL_TimeDemo_f (void);

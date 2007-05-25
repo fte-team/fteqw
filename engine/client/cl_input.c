@@ -641,7 +641,6 @@ void CL_DrawPrydonCursor(void)
 	}
 }
 
-void ML_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
 void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t cursor_start, vec3_t cursor_impact, int *entnum)
 {
 	vec3_t cursor_end;
@@ -699,7 +698,7 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 	temp[1] = (-cursor_screen[1]+1)/2;
 	temp[2] = 1;
 
-	ML_UnProject(temp, cursor_end, cl.viewangles[0], vec3_origin, (float)vid.width/vid.height, scr_fov.value );
+	Matrix4_UnProject(temp, cursor_end, cl.viewangles[0], vec3_origin, (float)vid.width/vid.height, scr_fov.value );
 	VectorScale(cursor_end, 100000, cursor_end);
 
 	VectorAdd(cursor_start, cl.simorg[0], cursor_start);

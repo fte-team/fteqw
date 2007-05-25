@@ -569,6 +569,12 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (!isDedicated && (!qrenderer || qrenderer == -1))
 	{
 		R_RestartRenderer_f();
+
+		if (!qrenderer || qrenderer == -1)
+		{
+			Sys_Error("No renderer set when map restarted\n");
+			return;
+		}
 	}
 #endif
 
@@ -766,8 +772,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	}
 	sv.state = ss_loading;
 	sv.worldmodel = Mod_ForName (sv.modelname, true);
-	if (sv.worldmodel->needload)
-		Sys_Error("%s is missing\n", sv.modelname);
+	if (!sv.worldmodel || sv.worldmodel->needload)
+		Sys_Error("%s is missing or corrupt\n", sv.modelname);
 	if (sv.worldmodel->type != mod_brush && sv.worldmodel->type != mod_heightmap)
 		Sys_Error("%s is not a bsp model\n", sv.modelname);
 	sv.state = ss_dead;

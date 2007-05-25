@@ -83,7 +83,6 @@ extern	PFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
 extern	PFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
 
 extern	int texture_extension_number;
-extern	int		texture_mode;
 
 typedef struct {
 	qboolean tex_env_combine;
@@ -158,7 +157,7 @@ extern	int glx, gly, glwidth, glheight;
 
 void R_TimeRefresh_f (void);
 texture_t *SWR_TextureAnimation (texture_t *base);
-texture_t *GLR_TextureAnimation (texture_t *base);
+texture_t *R_TextureAnimation (texture_t *base);
 
 #include "particles.h"
 
@@ -226,6 +225,11 @@ void R_IBrokeTheArrays(void);
 void R_ClearArrays (void);
 #endif
 
+int Mod_LoadReplacementTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
+extern int image_width, image_height;
+int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
+int Mod_LoadBumpmapTexture(char *name, char *subpath);
+
 #if defined(RGLQUAKE)
 void R_TranslatePlayerSkin (int playernum);
 void GL_Bind (int texnum);
@@ -278,10 +282,10 @@ void GL_DoSwap (void);
 // gl_warp.c
 //
 void GL_SubdivideSurface (msurface_t *fa, float dividesize);
-void EmitBothSkyLayers (msurface_t *fa);
+void GL_EmitBothSkyLayers (msurface_t *fa);
 void EmitWaterPolys (msurface_t *fa, float basealpha);
 void EmitSkyPolys (msurface_t *fa);
-void R_DrawSkyChain (msurface_t *s);
+void GL_DrawSkyChain (msurface_t *s);
 
 void R_ClearSkyBox (void);
 void R_DrawSkyBox (msurface_t *s);
@@ -324,7 +328,7 @@ void R_DrawGroupModel (entity_t *ent);
 void GLR_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 void GLR_AnimateLight (void);
-void R_RenderDlights (void);
+void GLR_RenderDlights (void);
 int GLR_LightPoint (vec3_t p);
 
 void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
@@ -348,11 +352,8 @@ void R_DrawWorld (void);
 void GL_BuildLightmaps (void);
 
 void GL_LoadShaders(void);
-int Mod_LoadReplacementTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
-extern int image_width, image_height;
-int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
-int Mod_LoadBumpmapTexture(char *name, char *subpath);
 
+#ifndef LMBLOCK_WIDTH
 #define	LMBLOCK_WIDTH		128
 #define	LMBLOCK_HEIGHT		128
 typedef struct glRect_s {
@@ -369,6 +370,7 @@ typedef struct {
 	qbyte		deluxmaps[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//fixme: make seperate structure for easy disabling with less memory usage.
 	stmap		stainmaps[3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//rgb no a. added to lightmap for added (hopefully) speed.
 } lightmapinfo_t;
+#endif
 
 //gl_ppl.c
 void PPL_DrawWorld (void);

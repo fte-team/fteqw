@@ -736,7 +736,8 @@ menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int x, int y, const char *text, qb
 	return n;
 }
 
-menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t *var, float min, float max)
+//delta may be 0
+menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t *var, float min, float max, float delta)
 {	
 	menuslider_t *n = Z_Malloc(sizeof(menuslider_t)+strlen(text)+1);
 	n->common.type = mt_slider;
@@ -759,6 +760,8 @@ menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t 
 
 	n->min = min;
 	n->max = max;
+	n->smallchange = delta;
+	n->largechange = delta*5;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -999,35 +1002,41 @@ menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int x, int y, const char
 
 void MC_Slider_Key(menuslider_t *option, int key)
 {
-	float range = (option->current - option->min)/(option->max-option->min);
+	float range = option->current;
+	float delta;
+
+	if (option->smallchange)
+		delta = option->smallchange;
+	else
+		delta = 0.1;
 
 	if (key == K_LEFTARROW || key == K_MWHEELDOWN)
 	{
-		range -= 0.1;
-		if (range < 0)
-			range = 0;
-		option->current = range = (range * (option->max-option->min)) + option->min;
+		range -= delta;
+		if (range < option->min)
+			range = option->min;
+		option->current = range;
 		if (option->var)
 			Cvar_SetValue(option->var, range);
 	}
 	else if (key == K_RIGHTARROW || key == K_MWHEELUP)
 	{
-		range += 0.1;
-		if (range > 1)
-			range = 1;
-		option->current = range = (range * (option->max-option->min)) + option->min;
+		range += delta;
+		if (range > option->max)
+			range = option->max;
+		option->current = range;
 		if (option->var)
 			Cvar_SetValue(option->var, range);
 	}
 	else if (key == K_ENTER || key == K_MOUSE1)
 	{
-		range += 0.1;
+		range += delta;
 
-		if (range >= 1.05)
-			range = 0;
-		if (range > 1)
-			range = 1;
-		option->current = range = (range * (option->max-option->min)) + option->min;
+		if (range >= option->max + delta/2)
+			range = option->min;
+		if (range > option->max)
+			range = option->max;
+		option->current = range;
 		if (option->var)
 			Cvar_SetValue(option->var, range);
 	}

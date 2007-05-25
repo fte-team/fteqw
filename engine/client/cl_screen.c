@@ -28,6 +28,75 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 
+void RSpeedShow(void)
+{
+	int i;
+	static int samplerspeeds[RSPEED_MAX];
+	static int samplerquant[RQUANT_MAX];
+	char *RSpNames[RSPEED_MAX];
+	char *RQntNames[RQUANT_MAX];
+	char *s;
+	static int framecount;
+
+	if (!r_speeds.value)
+		return;
+
+	memset(RSpNames, 0, sizeof(RSpNames));
+	RSpNames[RSPEED_TOTALREFRESH] = "Total refresh";
+	RSpNames[RSPEED_PROTOCOL] = "Protocol";
+	RSpNames[RSPEED_LINKENTITIES] = "Entity setup";
+	RSpNames[RSPEED_WORLDNODE] = "World walking";
+	RSpNames[RSPEED_WORLD] = "World rendering";
+	RSpNames[RSPEED_DYNAMIC] = "Lightmap updates";
+	RSpNames[RSPEED_PARTICLES] = "Particle physics and sorting";
+	RSpNames[RSPEED_PARTICLESDRAW] = "Particle drawing";
+	RSpNames[RSPEED_2D] = "2d elements";
+	RSpNames[RSPEED_SERVER] = "Server";
+
+	RSpNames[RSPEED_DRAWENTITIES] = "Entity rendering";
+
+	RSpNames[RSPEED_PALETTEFLASHES] = "Palette flashes";
+	RSpNames[RSPEED_STENCILSHADOWS] = "Stencil Shadows";
+
+	RSpNames[RSPEED_FULLBRIGHTS] = "World fullbrights";
+
+	RSpNames[RSPEED_FINISH] = "Waiting for card to catch up";
+
+	RQntNames[RQUANT_MSECS] = "Microseconds";
+	RQntNames[RQUANT_EPOLYS] = "Entity Polys";
+	RQntNames[RQUANT_WPOLYS] = "World Polys";
+	RQntNames[RQUANT_SHADOWFACES] = "Shadow Faces";
+	RQntNames[RQUANT_SHADOWEDGES] = "Shadow edges";
+	RQntNames[RQUANT_LITFACES] = "Lit faces";
+
+	for (i = 0; i < RSPEED_MAX; i++)
+	{
+		s = va("%i %-30s", samplerspeeds[i], RSpNames[i]);
+		Draw_String(vid.width-strlen(s)*8, i*8, s);
+	}
+	for (i = 0; i < RQUANT_MAX; i++)
+	{
+		s = va("%i %-30s", samplerquant[i], RQntNames[i]);
+		Draw_String(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
+	}
+	s = va("%f %-30s", 100000000.0f/samplerspeeds[RSPEED_TOTALREFRESH], "Framerate");
+	Draw_String(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
+
+	if (framecount++>=100)
+	{
+		for (i = 0; i < RSPEED_MAX; i++)
+		{
+			samplerspeeds[i] = rspeeds[i];
+			rspeeds[i] = 0;
+		}
+		for (i = 0; i < RQUANT_MAX; i++)
+		{
+			samplerquant[i] = rquant[i];
+			rquant[i] = 0;
+		}
+		framecount=0;
+	}
+}
 
 
 /*
@@ -1050,7 +1119,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 				adj+=v_viewheight.value;
 
 			start[2]+=adj;
-			ML_Project(tr.endpos, end, cl.simangles[pnum], start, (float)rect.width/rect.height, r_refdef.fov_y);
+			Matrix4_Project(tr.endpos, end, cl.simangles[pnum], start, (float)rect.width/rect.height, r_refdef.fov_y);
 			*x = rect.x+rect.width*end[0];
 			*y = rect.y+rect.height*(1-end[1]);
 			return;
@@ -1697,7 +1766,7 @@ int MipColor(int r, int g, int b)
 	return best;
 }
 
-void SCR_ScreenShot (char *filename)
+qboolean SCR_ScreenShot (char *filename)
 {
 	int truewidth, trueheight;
 	qbyte            *buffer;
@@ -1710,6 +1779,9 @@ void SCR_ScreenShot (char *filename)
 	ext = COM_FileExtension(filename);
 
 	buffer = VID_GetRGBInfo(MAX_PREPAD, &truewidth, &trueheight);
+
+	if (!buffer)
+		return false;
 
 #ifdef AVAIL_PNGLIB
 	if (!strcmp(ext, "png"))
@@ -1773,6 +1845,8 @@ void SCR_ScreenShot (char *filename)
 
 
 	BZ_Free (buffer);
+
+	return true;
 }
 
 /*
@@ -1828,8 +1902,10 @@ void SCR_ScreenShot_f (void)
 		}
 	}
 
-	SCR_ScreenShot(pcxname);
-	Con_Printf ("Wrote %s\n", pcxname);
+	if (SCR_ScreenShot(pcxname))
+		Con_Printf ("Wrote %s\n", pcxname);
+	else
+		Con_Printf ("Screenshot failed\n");
 }
 
 

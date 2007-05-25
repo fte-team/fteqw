@@ -374,7 +374,7 @@ void SWV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 }
 #endif
 
-#ifdef RGLQUAKE
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
 	BuildGammaTable (v_gamma.value, v_contrast.value);
@@ -610,7 +610,7 @@ void V_CalcPowerupCshift (void)
 V_CalcBlend
 =============
 */
-#if defined(RGLQUAKE)
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
 
 void GLV_CalcBlendServer (float colors[4])
 {
@@ -1299,7 +1299,6 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	r_refdef.fov_y = CalcFov(r_refdef.fov_x, vrect->width, vrect->height);
 }
 
-void ML_Project(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
 void R_DrawNameTags(void)
 {
 	int i;
@@ -1332,7 +1331,7 @@ void R_DrawNameTags(void)
 		{
 			VectorCopy(state->origin, tagcenter);
 			tagcenter[2] += 32;
-			ML_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, (float)r_refdef.vrect.width/r_refdef.vrect.height, r_refdef.fov_y);
+			Matrix4_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, (float)r_refdef.vrect.width/r_refdef.vrect.height, r_refdef.fov_y);
 			if (center[2] > 1)
 				continue;
 			Draw_FunString(center[0]*r_refdef.vrect.width+r_refdef.vrect.x, (1-center[1])*r_refdef.vrect.height+r_refdef.vrect.y, cl.players[i].name);

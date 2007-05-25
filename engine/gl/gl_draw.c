@@ -798,7 +798,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		if (!draw_chars)	//or low res.
 		{
 			if (!(char_texture=Mod_LoadHiResTexture("pics/conchars.pcx", NULL, false, true, false)))	//try low res q2 path
-			if (!(char_texture=Mod_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, false, true, false)))	//try low res q2 path
+			if (!(char_texture=Mod_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, false, true, false)))	//try q3 path
 			{
 
 				//gulp... so it's come to this has it? rework the hexen2 conchars into the q1 system.

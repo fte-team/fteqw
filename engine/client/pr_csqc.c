@@ -856,10 +856,10 @@ static void buildmatricies(void)
 	float modelview[16];
 	float proj[16];
 
-	ML_ModelViewMatrix(modelview, r_refdef.viewangles, r_refdef.vieworg);
-	ML_ProjectionMatrix2(proj, r_refdef.fov_x, r_refdef.fov_y);
+	Matrix4_ModelViewMatrix(modelview, r_refdef.viewangles, r_refdef.vieworg);
+	Matrix4_Projection2(proj, r_refdef.fov_x, r_refdef.fov_y, 4);
 	Matrix4_Multiply(proj, modelview, mvp);
-	Matrix4x4_Invert_Simple((matrix4x4_t*)mvpi, (matrix4x4_t*)mvp);	//not actually used in this function.
+	Matrix4_Invert_Simple((matrix4x4_t*)mvpi, (matrix4x4_t*)mvp);	//not actually used in this function.
 
 	csqc_rebuildmatricies = false;
 }

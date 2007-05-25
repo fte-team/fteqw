@@ -141,7 +141,7 @@ typedef struct {
 
 #define MAXARRAYVERTS	2048
 static surfvertexarray_t varray_v[MAXARRAYVERTS];
-static unsigned int varray_i[MAXARRAYVERTS];
+static index_t varray_i[MAXARRAYVERTS];
 //static unsigned int varray_i_forward[MAXARRAYVERTS];
 //static unsigned int varray_i_polytotri[MAXARRAYVERTS];	//012 023 034 045...
 int varray_ic;
@@ -162,7 +162,7 @@ inline void PPL_EnableVertexArrays(void)
 inline void PPL_FlushArrays(void)
 {
 	if (varray_ic)
-		qglDrawElements(GL_TRIANGLES, varray_ic, GL_UNSIGNED_INT, varray_i);
+		qglDrawElements(GL_TRIANGLES, varray_ic, GL_INDEX_TYPE, varray_i);
 	varray_ic = 0;
 	varray_vc = 0;
 }
@@ -362,8 +362,8 @@ static void PPL_BaseChain_NoBump_1TMU(msurface_t *first, texture_t *tex)
 
 		qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
 
-		qglDrawRangeElements(GL_TRIANGLES, 0, s->mesh->numvertexes, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
-		//qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+		qglDrawRangeElements(GL_TRIANGLES, 0, s->mesh->numvertexes, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
+		//qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
 	}
 
 	qglDisable(GL_TEXTURE_2D);
@@ -448,7 +448,7 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 
 		qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
 
-		qglDrawRangeElements(GL_TRIANGLES, 0, s->mesh->numvertexes, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+		qglDrawRangeElements(GL_TRIANGLES, 0, s->mesh->numvertexes, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
 	}
 
 	if (overbright != 1)
@@ -1146,7 +1146,7 @@ static void PPL_BaseChain_Specular_FP(msurface_t *s, texture_t *tex)
 		qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->lmst_array);
 		
 		qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
-		qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+		qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
 	}
 
 	GLSlang_UseProgram(0);
@@ -1288,7 +1288,7 @@ static void PPL_BaseChain_Flat(msurface_t *first)
 
 		qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->lmst_array);
 		qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
-		qglDrawRangeElements(GL_TRIANGLES, 0, s->mesh->numvertexes, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+		qglDrawRangeElements(GL_TRIANGLES, 0, s->mesh->numvertexes, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
 	}
 
 	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -1654,7 +1654,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 
 
 
-	t = GLR_TextureAnimation (first->texinfo->texture);
+	t = R_TextureAnimation (first->texinfo->texture);
 
 	if (first->flags & SURF_DRAWTURB)
 	{
@@ -1714,7 +1714,7 @@ static void PPL_FullBrightTextureChain(msurface_t *first)
 	texture_t	*t;
 	msurface_t	*s;
 
-	t = GLR_TextureAnimation (first->texinfo->texture);
+	t = R_TextureAnimation (first->texinfo->texture);
 
 	if (detailtexture && gl_detail.value)
 	{
@@ -1797,7 +1797,7 @@ void PPL_BaseTextures(model_t *model)
 			if (s)
 			{
 				t->texturechain = NULL;
-				R_DrawSkyChain (s);
+				GL_DrawSkyChain (s);
 			}
 		}
 	}
@@ -2511,7 +2511,7 @@ void PPL_LightTexturesFP_Cached(model_t *model, vec3_t modelorigin, dlight_t *li
 
 		s = shm->litsurfs[j].s[0];
 		t = s->texinfo->texture;
-		t = GLR_TextureAnimation (t);
+		t = R_TextureAnimation (t);
 
 		for (i=0 ; i<shm->litsurfs[j].count ; i++)
 		{
@@ -2582,7 +2582,7 @@ void PPL_LightTexturesFP_Cached(model_t *model, vec3_t modelorigin, dlight_t *li
 			qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->st_array);
 
 			qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
-			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
 		}
 	}
 	GLSlang_UseProgram(0);
@@ -2628,7 +2628,7 @@ void PPL_LightTexturesFP(model_t *model, vec3_t modelorigin, dlight_t *light, ve
 //		if ((s->flags & SURF_DRAWTURB) && r_wateralphaval != 1.0)
 //			continue;	// draw translucent water later
 
-		t = GLR_TextureAnimation (t);
+		t = R_TextureAnimation (t);
 
 
 		p = 0;
@@ -2684,7 +2684,7 @@ void PPL_LightTexturesFP(model_t *model, vec3_t modelorigin, dlight_t *light, ve
 			qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->st_array);
 
 			qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
-			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
 		}
 
 	}
@@ -2732,7 +2732,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light, vec3
 		{
 			extern int normalisationCubeMap;
 
-			t = GLR_TextureAnimation (t);
+			t = R_TextureAnimation (t);
 
 
 			qglEnableClientState(GL_COLOR_ARRAY);
@@ -2814,7 +2814,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light, vec3
 				PPL_GenerateLightArrays(s, relativelightorigin, light, colour);
 
 				qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
-				qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+				qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
 				varray_ic = 0;
 				varray_vc = 0;
 
@@ -2878,7 +2878,7 @@ void PPL_LightBModelTexturesFP(entity_t *e, dlight_t *light, vec3_t colour)
 		{
 			tnum = s->texinfo->texture;
 
-			t = GLR_TextureAnimation (tnum);
+			t = R_TextureAnimation (tnum);
 
 			p = 0;
 			if (t->gl_texturenumbumpmap && ppl_light_shader[p|PERMUTATION_BUMPMAP])
@@ -2913,7 +2913,7 @@ void PPL_LightBModelTexturesFP(entity_t *e, dlight_t *light, vec3_t colour)
 
 		qglTexCoordPointer(2, GL_FLOAT, 0, s->mesh->st_array);
 		qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
-		qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+		qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
 
 
 	}
@@ -2954,7 +2954,7 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light, vec3_t colour)
 
 		for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
 		{
-			t = GLR_TextureAnimation (s->texinfo->texture);
+			t = R_TextureAnimation (s->texinfo->texture);
 
 			qglEnableClientState(GL_COLOR_ARRAY);
 			qglColorPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
@@ -3043,7 +3043,7 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light, vec3_t colour)
 				PPL_GenerateLightArrays(s, relativelightorigin, light, colour);
 
 				qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
-				qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_UNSIGNED_INT, s->mesh->indexes);
+				qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
 				varray_ic = 0;
 				varray_vc = 0;
 			}
@@ -3702,7 +3702,7 @@ void PPL_RecursiveWorldNode_r (mnode_t *node)
 				shadowsurfcount++;
 
 				qglVertexPointer(3, GL_FLOAT, 0, surf->mesh->xyz_array);
-				qglDrawElements(GL_TRIANGLES, surf->mesh->numindexes, GL_UNSIGNED_INT, surf->mesh->indexes);
+				qglDrawElements(GL_TRIANGLES, surf->mesh->numindexes, GL_INDEX_TYPE, surf->mesh->indexes);
 
 				//fixme:this only works becuse q1bsps don't have combined meshes yet...
 					//back (depth precision doesn't matter)
@@ -3877,7 +3877,7 @@ void PPL_RecursiveWorldNodeQ2_r (mnode_t *node)
 
 				//front face
 				qglVertexPointer(3, GL_FLOAT, 0, surf->mesh->xyz_array);
-				qglDrawElements(GL_TRIANGLES, surf->mesh->numindexes, GL_UNSIGNED_INT, surf->mesh->indexes);
+				qglDrawElements(GL_TRIANGLES, surf->mesh->numindexes, GL_INDEX_TYPE, surf->mesh->indexes);
 
 				//fixme:this only works becuse q1bsps don't have combined meshes yet...
 				//back (depth precision doesn't matter)
@@ -3972,7 +3972,7 @@ void PPL_RecursiveWorldNodeQ3_r (mnode_t *node)
 				{
 					//front face
 					qglVertexPointer(3, GL_FLOAT, sizeof(GLfloat)*VERTEXSIZE, p->verts);
-					qglDrawElements(GL_TRIANGLES, (p->numverts-2)*3, GL_UNSIGNED_INT, varray_i_polytotri);
+					qglDrawElements(GL_TRIANGLES, (p->numverts-2)*3, GL_INDEX_TYPE, varray_i_polytotri);
 //fixme...
 					for (v = 0; v < p->numverts; v++)
 					{
@@ -4086,7 +4086,7 @@ void PPL_RecursiveWorldNode (dlight_t *dl)
 	{
 		qglEnableClientState(GL_VERTEX_ARRAY);
 		qglVertexPointer(3, GL_FLOAT, 0, dl->worldshadowmesh->verts);
-		qglDrawRangeElements(GL_TRIANGLES, 0, dl->worldshadowmesh->numverts, dl->worldshadowmesh->numindicies, GL_UNSIGNED_INT, dl->worldshadowmesh->indicies);
+		qglDrawRangeElements(GL_TRIANGLES, 0, dl->worldshadowmesh->numverts, dl->worldshadowmesh->numindicies, GL_INDEX_TYPE, dl->worldshadowmesh->indicies);
 		return;
 	}
 
@@ -4491,7 +4491,7 @@ qboolean PPL_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[1] = (i & 2) ? mins[1] : maxs[1];
 			v[2] = (i & 4) ? mins[2] : maxs[2];
 			v[3] = 1.0f;
-			ML_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, (float)vid.width/vid.height, r_refdef.fov_y);
+			Matrix4_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, (float)vid.width/vid.height, r_refdef.fov_y);
 			v2[0]*=r_view_width;
 			v2[1]*=r_view_height;
 //			GL_TransformToScreen(v, v2);
@@ -4561,7 +4561,7 @@ qboolean PPL_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[1] = v2[0] * vright[1] + v2[1] * vup[1] + v2[2] * vpn[1] + r_refdef.vieworg[1];
 			v[2] = v2[0] * vright[2] + v2[1] * vup[2] + v2[2] * vpn[2] + r_refdef.vieworg[2];
 			v[3] = 1.0f;
-			ML_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, vid.width/vid.height, r_refdef.fov_y);
+			Matrix4_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, vid.width/vid.height, r_refdef.fov_y);
 			v2[0]*=r_view_width;
 			v2[1]*=r_view_height;
 //			GL_TransformToScreen(v, v2);

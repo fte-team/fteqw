@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //http://www.quakesrc.org/forums/viewtopic.php?t=4340&start=0
 
 #include "quakedef.h"
+
 #ifdef RGLQUAKE
 #include "glquake.h"
 

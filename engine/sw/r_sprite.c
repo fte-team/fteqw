@@ -233,13 +233,16 @@ void R_SetupAndDrawSprite ()
 R_GetSpriteframe
 ================
 */
-mspriteframe_t *R_GetSpriteframe (msprite_t *psprite)
+/*
+mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 {
+	msprite_t		*psprite;
 	mspritegroup_t	*pspritegroup;
 	mspriteframe_t	*pspriteframe;
 	int				i, numframes, frame;
 	float			*pintervals, fullinterval, targettime, time;
 
+	psprite = currententity->model->cache.data;
 	frame = currententity->frame;
 
 	if ((frame >= psprite->numframes) || (frame < 0))
@@ -276,7 +279,7 @@ mspriteframe_t *R_GetSpriteframe (msprite_t *psprite)
 
 	return pspriteframe;
 }
-
+*/
 
 /*
 ================
@@ -292,7 +295,7 @@ void R_DrawSprite (void)
 
 	psprite = currententity->model->cache.data;
 
-	r_spritedesc.pspriteframe = R_GetSpriteframe (psprite);
+	r_spritedesc.pspriteframe = R_GetSpriteFrame (currententity);
 
 	sprite_width = r_spritedesc.pspriteframe->width;
 	sprite_height = r_spritedesc.pspriteframe->height;

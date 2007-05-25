@@ -85,7 +85,6 @@ static qboolean	vid_initialized = false;
 static qboolean	leavecurrentmode= true;
 static qboolean vid_canalttab = false;
 static qboolean vid_wassuspended = false;
-static int		windowed_mouse;
 extern qboolean	mouseactive;  // from in_win.c
 static HICON	hIcon;
 extern qboolean vid_isfullscreen;
@@ -910,16 +909,14 @@ void GL_DoSwap (void)
 	{
 		if (!_windowed_mouse.value)
 		{
-			if (windowed_mouse)
+			if (mouseactive)
 			{
 				IN_DeactivateMouse ();
 				IN_ShowMouse ();
-				windowed_mouse = false;
 			}
 		}
 		else
 		{
-			windowed_mouse = true;
 			if ((key_dest == key_game||mouseusedforgui) && !mouseactive && ActiveApp)
 			{
 				IN_ActivateMouse ();

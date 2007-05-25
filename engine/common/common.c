@@ -1185,7 +1185,7 @@ char *MSG_ReadString (void)
 	do
 	{
 		c = MSG_ReadChar ();
-		if (c == -1 || c == 0)
+		if (msg_badread || c == 0)
 			break;
 		string[l] = c;
 		l++;
@@ -1205,7 +1205,7 @@ char *MSG_ReadStringLine (void)
 	do
 	{
 		c = MSG_ReadChar ();
-		if (c == -1 || c == 0 || c == '\n')
+		if (msg_badread || c == 0 || c == '\n')
 			break;
 		string[l] = c;
 		l++;

@@ -39,6 +39,18 @@ void M_Menu_MultiPlayer_f (void)
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+
+		mgt=64;
+		menu->selecteditem = (menuoption_t*)
+		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Join A Game ",	"menu_slist\n");mgt+=20;
+		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Old Browser ",	"menu_serversold\n");mgt+=20;
+		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"New Server  ",	"menu_newmulti\n");mgt+=20;
+		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
+		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Demos       ",	"menu_demo\n");mgt+=20;
+
+		menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, 48, 64);
+		return;
 	}
 	else if (QBigFontWorks())
 	{
@@ -435,7 +447,7 @@ void M_Menu_GameOptions_f (void)
 	info->timelimit		= MC_AddCombo	(menu, 64, y,			" Time Limit", (const char **)timelimitoptions,		timelimit.value/5);y+=8;
 	info->fraglimit		= MC_AddCombo	(menu, 64, y,			" Frag Limit", (const char **)fraglimitoptions,		fraglimit.value/10);y+=8;
 	y+=8;
-	MC_AddSlider	(menu, 64-7*8, y,					"Extra edict support", &pr_maxedicts, 512, 2047);y+=8;
+	MC_AddSlider	(menu, 64-7*8, y,					"Extra edict support", &pr_maxedicts, 512, 2047, 256);y+=8;
 	y+=8;
 	if (mgt == MGT_QUAKE2)
 		info->mapnameedit	= MC_AddEdit	(menu, 64, y,			"        map", "base1");

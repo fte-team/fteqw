@@ -100,8 +100,8 @@ extern void	FNC(Mod_TouchModel)						(char *name);
 extern void	FNC(Mod_NowLoadExternal)				(void);
 
 extern void	FNC(Mod_Think)							(void);
-extern qboolean	FNC(Mod_GetTag)						(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
-extern int FNC(Mod_TagNumForName)					(struct model_s *model, char *name);
+//extern qboolean	FNC(Mod_GetTag)						(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
+//extern int FNC(Mod_TagNumForName)					(struct model_s *model, char *name);
 extern int FNC(Mod_SkinForName)						(struct model_s *model, char *name);
 
 #undef FNC

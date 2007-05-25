@@ -2410,6 +2410,11 @@ void Sbar_CoopIntermission (void)
 	int		dig;
 	int		num;
 
+	sbar_rect.width = vid.width;
+	sbar_rect.height = vid.height;
+	sbar_rect.x = 0;
+	sbar_rect.y = 0;
+
 	scr_copyeverything = 1;
 	scr_fullupdate = 0;
 
@@ -2453,6 +2458,9 @@ void Sbar_IntermissionOverlay (void)
 	if (UI_DrawIntermission()>0)
 		return;
 #endif
+
+	Sbar_Start();
+
 	if (cls.gamemode != GAME_DEATHMATCH)
 		Sbar_CoopIntermission();
 	else if (cl.teamplay > 0 && !sb_showscores)

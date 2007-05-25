@@ -1056,11 +1056,12 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		UI_RegisterFont(VM_POINTER(arg[0]), arg[1], VM_POINTER(arg[2]));
 		break;
 	case UI_R_REGISTERSHADERNOMIP:
-		if (!Draw_SafeCachePic || !*(char*)VM_POINTER(arg[0]))
+		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
-		else
-//			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));
+		else if (qrenderer == QR_OPENGL)
 			VM_LONG(ret) = (long)R_RegisterPic(VM_POINTER(arg[0]));
+		else
+			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));
 		break;
 
 	case UI_R_CLEARSCENE:	//clear scene
@@ -1090,9 +1091,10 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 //		qglDisable(GL_ALPHA_TEST);
 //		qglEnable(GL_BLEND);
 //		GL_TexEnv(GL_MODULATE);
-		if (Draw_Image)
+		if (qrenderer == QR_OPENGL)
 			GLDraw_ShaderImage(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (void *)VM_LONG(arg[8]));
-//			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
+		else
+			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
 		break;
 
 	case UI_CM_LERPTAG:	//Lerp tag...
@@ -1753,7 +1755,7 @@ void UI_Start (void)
 	if (!Draw_SafeCachePic)	//no renderer loaded
 		return;
 
-	if (qrenderer != QR_OPENGL)
+	if (qrenderer != QR_OPENGL && qrenderer != QR_DIRECT3D)
 		return;
 
 	uivm = VM_Create(NULL, "vm/qwui", UI_SystemCalls, UI_SystemCallsEx);

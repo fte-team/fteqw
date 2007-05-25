@@ -4073,7 +4073,7 @@ extern "C" {
 rendererinfo_t d3drendererinfo = {
 		"Direct3D",
 		{
-			"d3d",
+			"faked3d",
 			"crap"
 		},
 		QR_OPENGL,
@@ -4140,8 +4140,8 @@ rendererinfo_t d3drendererinfo = {
 		GLMod_NowLoadExternal,
 		GLMod_Think,
 
-		GLMod_GetTag,
-		GLMod_TagNumForName,
+		Mod_GetTag,
+		Mod_TagNumForName,
 		NULL,
 
 		D3DVID_Init,

@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "winquake.h"
 
+#include <dsound.h>
+
 #define SND_ERROR 0
 #define SND_LOADED 1
 #define SND_NOMORE 2	//like error, but doesn't try the next card.

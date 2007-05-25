@@ -3,6 +3,9 @@
 #include "glquake.h"
 #include "shader.h"
 #endif
+#ifdef D3DQUAKE
+#include "d3dquake.h"
+#endif
 
 #define MAX_Q3MAP_INDICES 0x80000
 #define	MAX_Q3MAP_VERTEXES	0x80000
@@ -1067,7 +1070,7 @@ void *Mod_LoadWall(char *name)
 	if (in)	//this is a pcx.
 	{
 #ifdef RGLQUAKE
-		if (qrenderer == QR_OPENGL)
+		if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
 		{
 			tex = Hunk_AllocName(sizeof(texture_t), ln);
 
@@ -1075,11 +1078,9 @@ void *Mod_LoadWall(char *name)
 			tex->width = width;
 			tex->height = height;
 
-			texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
 			if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(name, loadname, true, false, true)))
 				if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(name, "bmodels", true, false, true)))
 					tex->gl_texturenum = GL_LoadTexture32 (name, width, height, (unsigned int *)in, true, false);
-			texture_mode = GL_LINEAR;
 		}
 		else
 #endif
@@ -1148,8 +1149,8 @@ void *Mod_LoadWall(char *name)
 		return tex;
 	}
 
-#if defined(RGLQUAKE)
-	if (qrenderer == QR_OPENGL)
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
+	if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
 	{
 		int j;
 		tex = Hunk_AllocName(sizeof(texture_t), ln);
@@ -1158,17 +1159,15 @@ void *Mod_LoadWall(char *name)
 		tex->width = wal->width;
 		tex->height = wal->height;
 
-		texture_mode = GL_LINEAR_MIPMAP_NEAREST; //_LINEAR;
 		if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(wal->name, loadname, true, false, true)))
 			if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(wal->name, "bmodels", true, false, true)))
-				tex->gl_texturenum = GL_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, true, false);
+				tex->gl_texturenum = R_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, true, false);
 
 		in = Hunk_TempAllocMore(wal->width*wal->height);
 		oin = (qbyte *)wal+wal->offsets[0];
 		for (j = 0; j < wal->width*wal->height; j++)
 			in[j] = (d_q28to24table[oin[j]*3+0] + d_q28to24table[oin[j]*3+1] + d_q28to24table[oin[j]*3+2])/3;
-		tex->gl_texturenumbumpmap = GL_LoadTexture8Bump (va("%s_bump", wal->name), tex->width, tex->height, in, true, r_shadow_bumpscale_basetexture.value);
-		texture_mode = GL_LINEAR;
+		tex->gl_texturenumbumpmap = R_LoadTexture8Bump (va("%s_bump", wal->name), tex->width, tex->height, in, true, r_shadow_bumpscale_basetexture.value);
 	}
 	else
 #endif
@@ -1259,7 +1258,7 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 	loadmodel->texinfo = out;
 	loadmodel->numtexinfo = count;
 
-#if !defined(SERVERONLY) && defined(RGLQUAKE)
+#if !defined(SERVERONLY) && (defined(RGLQUAKE) || defined(D3DQUAKE))
 	skytexturenum = -1;
 #endif
 
@@ -1462,7 +1461,7 @@ qboolean CMod_LoadFaces (lump_t *l)
 		if (i == -1)
 			out->samples = NULL;
 #ifdef RGLQUAKE
-		else if (qrenderer == QR_OPENGL)
+		else if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
 			out->samples = loadmodel->lightdata + i;
 #endif
 #ifdef SWQUAKE
@@ -2099,7 +2098,7 @@ qboolean CModQ3_LoadShaders (lump_t *l, qboolean useshaders)
 	numtexinfo = count;
 	out = map_surfaces = Hunk_Alloc(count*sizeof(*out));
 
-#if !defined(SERVERONLY) && defined(RGLQUAKE)
+#if !defined(SERVERONLY) && (defined(RGLQUAKE) || defined(D3DQUAKE))
 	skytexturenum = -1;
 #endif
 
@@ -2111,8 +2110,8 @@ qboolean CModQ3_LoadShaders (lump_t *l, qboolean useshaders)
 	{
 		loadmodel->texinfo[i].texture = Hunk_Alloc(sizeof(texture_t));
 		Q_strncpyz(loadmodel->texinfo[i].texture->name, in->shadername, sizeof(loadmodel->texinfo[i].texture->name));
-#ifdef RGLQUAKE
-		if (qrenderer == QR_OPENGL && !useshaders)
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
+		if ((qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D) && !useshaders)
 		{
 			loadmodel->texinfo[i].texture->gl_texturenum = Mod_LoadHiResTexture(in->shadername, loadname, true, false, true);
 			if (!loadmodel->texinfo[i].texture->gl_texturenum)
@@ -2252,7 +2251,8 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 qboolean CModQ3_LoadIndexes (lump_t *l)
 {
 	int		i, count;
-	int		*in, *out;
+	int		*in;
+	index_t	*out;
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -3475,7 +3475,7 @@ int CM_GetQ2Palette (void)
 	BZ_Free(f);
 
 
-#ifdef RGLQUAKE
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
 	{
 		extern float vid_gamma;
 		float	f, inf;
@@ -3855,7 +3855,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #ifdef Q3SHADERS
 		{
 			extern cvar_t gl_shadeq3;
-			useshaders = gl_shadeq3.value;
+			useshaders = qrenderer == QR_OPENGL && gl_shadeq3.value;
 		}
 #else
 		useshaders = false;
@@ -3902,6 +3902,9 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #if defined(RGLQUAKE)
 		case QR_OPENGL:
 #endif
+#if defined(D3DQUAKE)
+		case QR_DIRECT3D:
+#endif
 		case QR_NONE:	//dedicated only
 			mapisq3 = true;
 			noerrors = noerrors && CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS], useshaders);
@@ -3922,8 +3925,8 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 				noerrors = noerrors && CModRBSP_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
 			else
 				noerrors = noerrors && CModQ3_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
-#if defined(RGLQUAKE)
-			if (qrenderer == QR_OPENGL)
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
+			if (qrenderer != QR_NONE)
 			{
 				if (noerrors)
 					GLMod_LoadLighting		(&header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
@@ -3972,7 +3975,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
 			loadmodel->funcs.LeafnumForPoint			= CM_PointLeafnum;
 
-#if defined(RGLQUAKE)
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
 			loadmodel->funcs.LightPointValues		= GLQ3_LightGrid;
 			loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
@@ -4180,6 +4183,8 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			break;
 #endif
 		default:
+			Hunk_FreeToLowMark(start);
+			return NULL;
 			Sys_Error("Bad internal renderer on q2 map load\n");
 		}
 	}

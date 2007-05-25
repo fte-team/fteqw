@@ -56,7 +56,18 @@ typedef struct {
 	int	(*LeafnumForPoint)		(struct model_s *model, vec3_t point);
 } bspfuncs_t;
 
-typedef int index_t;
+#ifdef D3DQUAKE
+	#define sizeof_index_t 2
+#endif
+
+#if sizeof_index_t == 2
+	#define GL_INDEX_TYPE GL_UNSIGNED_SHORT
+	typedef unsigned short index_t;
+#else
+	#define GL_INDEX_TYPE GL_UNSIGNED_INT
+	typedef unsigned int index_t;
+#endif
+
 typedef struct mesh_s
 {
     int				numvertexes;
@@ -336,9 +347,13 @@ typedef struct mleaf_s
 	int			nummarksurfaces;
 	int			key;			// BSP sequence number for leaf's contents
 	qbyte		ambient_sound_level[NUM_AMBIENTS];
+
+#if defined(Q2BSPS) || defined(Q3BSPS)
+	int			cluster;
+	struct mleaf_s *vischain;
+#endif
 #ifdef Q2BSPS
 	//it's a q2 thing
-	int			cluster;
 	int			area;
 	unsigned short	firstleafbrush;
 	unsigned short	numleafbrushes;
@@ -348,8 +363,6 @@ typedef struct mleaf_s
 
 	unsigned short	numleafpatches;
 	unsigned short	firstleafpatch;
-
-	struct mleaf_s *vischain;
 #endif
 } mleaf_t;
 

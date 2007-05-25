@@ -236,7 +236,7 @@ int VARGS Plug_Draw_Character(void *offset, unsigned int mask, const long *arg)
 	Draw_Character(arg[0], arg[1], (unsigned int)arg[2]);
 	return 0;
 }
-
+void	(D3D_Draw_Fill_Colours)				(int x, int y, int w, int h);
 int VARGS Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
 {
 	float x, y, width, height;
@@ -260,6 +260,9 @@ int VARGS Plug_Draw_Fill(void *offset, unsigned int mask, const long *arg)
 		qglEnable(GL_TEXTURE_2D);
 		return 1;
 #endif
+	case QR_DIRECT3D:
+//		D3D_Draw_Fill_Colours(x, y, width, height);
+		break;
 	default:
 		break;
 	}

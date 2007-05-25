@@ -533,7 +533,7 @@ dblbreak:
 
 		if (strlen(s) >= sizeof(copy)-1)
 			return false;
-
+	
 		strcpy (copy, s);
 		// strip off a trailing :port if present
 		for (colon = copy ; *colon ; colon++)

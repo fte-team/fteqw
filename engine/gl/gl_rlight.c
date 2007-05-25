@@ -20,11 +20,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_light.c
 
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
 #include "glquake.h"
 
 int	r_dlightframecount;
-
+int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 /*
 ==================
@@ -64,6 +64,9 @@ void GLR_AnimateLight (void)
 		v2 = cl_lightstyle[j].map[v2] - 'a';
 
 		d_lightstylevalue[j] = (v1*(1-f) + v2*(f))*22;
+
+		if (d_lightstylevalue[j] > 255)
+			d_lightstylevalue[j] = 255;
 	}	
 }
 
@@ -111,6 +114,7 @@ void R_InitBubble() {
 	}
 }
 
+#ifdef RGLQUAKE
 void R_RenderDlight (dlight_t *light)
 {
 	int		i, j;
@@ -157,7 +161,7 @@ void R_RenderDlight (dlight_t *light)
 R_RenderDlights
 =============
 */
-void R_RenderDlights (void)
+void GLR_RenderDlights (void)
 {
 	int		i;
 	dlight_t	*l;
@@ -206,7 +210,7 @@ void R_RenderDlights (void)
 	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	qglDepthMask (1);
 }
-
+#endif
 
 /*
 =============================================================================

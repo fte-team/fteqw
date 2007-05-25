@@ -37,7 +37,7 @@ void M_Menu_Options_f (void)
 {
 	int mgt;
 	extern cvar_t cl_standardchat;
-	extern cvar_t cl_standardmsg;
+	extern cvar_t cl_standardmsg, crosshair;
 #ifdef _WIN32
 	extern qboolean vid_isfullscreen;
 #endif
@@ -72,7 +72,8 @@ void M_Menu_Options_f (void)
 	MC_AddConsoleCommand(menu, 16, y,	"         Go to console", "toggleconsole\nplay misc/menu2.wav\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"     Reset to defaults", "exec default.cfg\nplay misc/menu2.wav\n"); y+=8;
 
-	MC_AddSlider(menu, 16, y,			"           Mouse Speed", &sensitivity,		1,		10); y+=8;
+	MC_AddSlider(menu, 16, y,			"           Mouse Speed", &sensitivity,		1,		10, 0.5); y+=8;
+	MC_AddSlider(menu, 16, y,			"             Crosshair", &crosshair,		0,		22, 1); y+=8;
 
 	MC_AddCheckBox(menu, 16, y,		"            Always Run", NULL,0)->func = M_Options_AlwaysRun; y+=8;
 	MC_AddCheckBox(menu, 16, y,		"          Invert Mouse", NULL,0)->func = M_Options_InvertMouse; y+=8;
@@ -282,9 +283,9 @@ void M_Menu_Audio_f (void)
 
 	menu->selecteditem = (union menuoption_s *)
 
-	MC_AddSlider(menu, 16, y,			"       CD Music Volume", &bgmvolume,		0,		1);y+=8;
-	MC_AddSlider(menu, 16, y,			"          Sound Volume", &volume,			0,		1);y+=8;
-	MC_AddSlider(menu, 16, y,			"        Ambient Volume", &ambient_level,	0,		1);y+=8;
+	MC_AddSlider(menu, 16, y,			"       CD Music Volume", &bgmvolume,		0,		1, 0.1);y+=8;
+	MC_AddSlider(menu, 16, y,			"          Sound Volume", &volume,			0,		1, 0.1);y+=8;
+	MC_AddSlider(menu, 16, y,			"        Ambient Volume", &ambient_level,	0,		1, 0.1);y+=8;
 	MC_AddCheckBox(menu, 16, y,			"              no sound", &nosound,0);y+=8;
 	MC_AddCheckBox(menu, 16, y,			"              precache", &precache,0);y+=8;
 	MC_AddCheckBox(menu, 16, y,			"     Low Quality Sound", &loadas8bit,0);y+=8;
@@ -482,7 +483,7 @@ void M_Menu_FPS_f (void)
 		MC_AddCheckBox(menu, 48, y,			"   Dynamic shadows", &r_shadows,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   Realtime Lights", &r_shadow_realtime_world,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"         Waterwarp", &r_waterwarp,0);y+=8;
-		MC_AddSlider(menu, 48, y,			"       Motion blur", &gl_motionblur,		0,		0.99);y+=8;
+		MC_AddSlider(menu, 48, y,			"       Motion blur", &gl_motionblur,		0,		0.99, 0);y+=8;
 		break;
 #endif
 #ifdef SWQUAKE
@@ -490,8 +491,8 @@ void M_Menu_FPS_f (void)
 		if (r_pixbytes == 4)
 		{MC_AddCheckBox(menu, 48, y,			"   Load .lit files", &r_loadlits,0);y+=8;}
 		MC_AddCheckBox(menu, 48, y,			" Texture Smoothing", &d_smooth,0);y+=8;
-		MC_AddSlider(menu, 48, y,			"      Mipmap scale", &d_mipscale,		0.1,	3);y+=8;
-		MC_AddSlider(menu, 48, y,			"    Mipmap Capping", &d_mipcap,		0,		3);y+=8;
+		MC_AddSlider(menu, 48, y,			"      Mipmap scale", &d_mipscale,		0.1,	3, 1);y+=8;
+		MC_AddSlider(menu, 48, y,			"    Mipmap Capping", &d_mipcap,		0,		3, 1);y+=8;
 		break;
 #endif
 	default:

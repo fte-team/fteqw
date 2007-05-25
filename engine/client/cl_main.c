@@ -508,7 +508,7 @@ void CL_SendConnectPacket (
 #ifdef HUFFNETWORK
 	if (compressioncrc && Huff_CompressionCRC(compressioncrc))
 	{
-		strcat(data, va("0x%x 0x%x\n", (('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24)), LittleLong(compressioncrc)));
+		strcat(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_HUFFMAN, LittleLong(compressioncrc)));
 		cls.netchan.compress = true;
 	}
 	else
@@ -2846,6 +2846,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("playdemo", CL_PlayDemo_f);
 	Cmd_AddCommand ("qtvplay", CL_QTVPlay_f);
 	Cmd_AddCommand ("qtvlist", CL_QTVList_f);
+	Cmd_AddCommand ("qtvdemos", CL_QTVDemos_f);
 	Cmd_AddCommand ("demo_jump", CL_DemoJump_f);
 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
 

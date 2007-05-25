@@ -3,6 +3,10 @@
 #include "glquake.h"
 #endif
 
+#ifdef D3DQUAKE
+#include "d3dquake.h"
+#endif
+
 cvar_t r_dodgytgafiles = SCVAR("r_dodgytgafiles", "0");	//Certain tgas are upside down.
 													//This is due to a bug in tenebrae.
 													//(normally) the textures are actually the right way around.
@@ -1727,7 +1731,13 @@ void BoostGamma(qbyte *rgba, int width, int height)
 #endif
 }
 
-#if defined(RGLQUAKE)
+
+
+
+
+
+
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
 
 #ifdef DDS
 #ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
@@ -1925,16 +1935,16 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 		*data = '#';
 	}
 
-	if ((len = GL_FindTexture(name))!=-1)	//don't bother if it already exists.
+	if ((len = R_FindTexture(name))!=-1)	//don't bother if it already exists.
 		return len;
 	if (subpath && *subpath)
 	{
 		snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
-		if ((len = GL_FindTexture(fname))!=-1)	//don't bother if it already exists.
+		if ((len = R_FindTexture(fname))!=-1)	//don't bother if it already exists.
 			return len;
 	}
 
-	if ((len = GL_LoadCompressed(name)))
+	if ((len = R_LoadCompressed(name)))
 		return len;
 
 	if (strchr(name, '/'))	//never look in a root dir for the pic
@@ -1985,10 +1995,10 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 					if (i == 1)
 					{	//if it came from a special subpath (eg: map specific), upload it using the subpath prefix
 						snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
-						len = GL_LoadTexture32 (fname, image_width, image_height, (unsigned*)data, mipmap, alpha);
+						len = R_LoadTexture32 (fname, image_width, image_height, (unsigned*)data, mipmap, alpha);
 					}
 					else
-						len = GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
+						len = R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
 
 					BZ_Free(data);
 
@@ -2008,7 +2018,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 	//now look in wad files. (halflife compatability)
 	data = W_GetTexture(name, &image_width, &image_height, &alphaed);
 	if (data)
-		return GL_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alphaed);
+		return R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alphaed);
 	return 0;	
 }
 int Mod_LoadReplacementTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust)
@@ -2044,10 +2054,10 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 
 	COM_StripExtension(name, nicename, sizeof(nicename));
 
-	if ((len = GL_FindTexture(name))!=-1)	//don't bother if it already exists.
+	if ((len = R_FindTexture(name))!=-1)	//don't bother if it already exists.
 		return len;
 
-	if ((len = GL_LoadCompressed(name)))
+	if ((len = R_LoadCompressed(name)))
 		return len;
 
 	if (strchr(name, '/'))	//never look in a root dir for the pic
@@ -2081,7 +2091,7 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 				if ((data = ReadTargaFile(buf, com_filesize, &image_width, &image_height, 2)))	//Only load a greyscale image.
 				{
 					TRACE(("dbg: Mod_LoadBumpmapTexture: tga %s loaded\n", name));
-					len = GL_LoadTexture8Bump(name, image_width, image_height, data, true, r_shadow_bumpscale_bumpmap.value);
+					len = R_LoadTexture8Bump(name, image_width, image_height, data, true, r_shadow_bumpscale_bumpmap.value);
 					BZ_Free(data);
 				}
 				else

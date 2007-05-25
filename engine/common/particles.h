@@ -126,6 +126,128 @@ typedef struct beamseg_s
 	float texture_s;
 } beamseg_t;
 
+
+
+typedef struct skytris_s {
+	struct skytris_s *next;
+	vec3_t org;
+	vec3_t x;
+	vec3_t y;
+	float area;
+	float nexttime;
+	struct msurface_s *face;
+} skytris_t;
+
+//these could be deltas or absolutes depending on ramping mode.
+typedef struct {
+	vec3_t rgb;
+	float alpha;
+	float scale;
+	float rotation;
+} ramp_t;
+typedef enum { BM_BLEND, BM_BLENDCOLOUR, BM_ADD, BM_SUBTRACT } blendmode_t;
+// TODO: merge in alpha with rgb to gain benefit of vector opts
+typedef struct part_type_s {
+	char name[MAX_QPATH];
+	char texname[MAX_QPATH];
+	vec3_t rgb;
+	vec3_t rgbchange;
+	vec3_t rgbrand;
+	int colorindex;
+	int colorrand;
+	float rgbchangetime;
+	vec3_t rgbrandsync;
+	float scale, alpha;
+	float alphachange;
+	float die, randdie;
+	float randomvel, veladd;
+	float orgadd;
+	float offsetspread;
+	float offsetspreadvert;
+	float randomvelvert;
+	float randscale;
+
+	float spawntime;
+	float spawnchance;
+
+	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_DECAL} type;
+	blendmode_t blendmode;
+
+	float rotationstartmin, rotationstartrand;
+	float rotationmin, rotationrand;
+
+	float scaledelta;
+	float count;
+	float countrand;
+	int texturenum;
+#ifdef D3DQUAKE
+	void *d3dtexture;
+#endif
+	int assoc;
+	int cliptype;
+	int inwater;
+	float clipcount;
+	int emit;
+	float emittime;
+	float emitrand;
+	float emitstart;
+
+	float areaspread;
+	float areaspreadvert;
+	float scalefactor;
+	float invscalefactor;
+
+	float spawnparam1;
+	float spawnparam2;
+/*	float spawnparam3; */
+
+	float offsetup; // make this into a vec3_t later with dir, possibly for mdls
+
+	enum {
+		SM_BOX, //box = even spread within the area
+		SM_CIRCLE, //circle = around edge of a circle
+		SM_BALL, //ball = filled sphere
+		SM_SPIRAL, //spiral = spiral trail
+		SM_TRACER, //tracer = tracer trail
+		SM_TELEBOX, //telebox = q1-style telebox
+		SM_LAVASPLASH, //lavasplash = q1-style lavasplash
+		SM_UNICIRCLE, //unicircle = uniform circle
+		SM_FIELD, //field = synced field (brightfield, etc)
+		SM_DISTBALL // uneven distributed ball
+	} spawnmode;
+
+	float gravity;
+	vec3_t friction;
+	float clipbounce;
+	int stains;
+
+	enum {RAMP_NONE, RAMP_DELTA, RAMP_ABSOLUTE} rampmode;
+	int rampindexes;
+	ramp_t *ramp;
+
+	int loaded;
+	particle_t	*particles;
+	clippeddecal_t *clippeddecals;
+	beamseg_t *beams;
+	skytris_t *skytris;
+	struct part_type_s *nexttorun;
+
+	unsigned int flags;
+#define PT_VELOCITY	     0x001
+#define PT_FRICTION	     0x002
+#define PT_CHANGESCOLOUR 0x004
+#define PT_CITRACER      0x008 // Q1-style tracer behavior for colorindex
+#define PT_INVFRAMETIME  0x010 // apply inverse frametime to count (causes emits to be per frame)
+#define PT_AVERAGETRAIL  0x020 // average trail points from start to end, useful with t_lightning, etc
+#define PT_NOSTATE       0x040 // don't use trailstate for this emitter (careful with assoc...)
+#define PT_NOSPREADFIRST 0x080 // don't randomize org/vel for first generated particle
+#define PT_NOSPREADLAST  0x100 // don't randomize org/vel for last generated particle
+	unsigned int state;
+#define PS_INRUNLIST 0x1 // particle type is currently in execution list
+} part_type_t;
+
+
+
 #define PARTICLE_Z_CLIP	8.0
 
 #define frandom() (rand()*(1.0f/RAND_MAX))
@@ -178,8 +300,6 @@ void P_EmitSkyEffectTris(struct model_s *mod, struct msurface_s 	*fa);
 
 // trailstate functions
 void P_DelinkTrailstate(trailstate_t **tsk);
-
-typedef enum { BM_BLEND, BM_BLENDCOLOUR, BM_ADD, BM_SUBTRACT } blendmode_t;
 
 // used for callback
 extern cvar_t r_particlesdesc;

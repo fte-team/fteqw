@@ -762,10 +762,20 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		break;
 
 	case CG_R_REGISTERSHADER:
-		VM_LONG(ret) = VM_TOHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
+		if (!*(char*)VM_POINTER(arg[0]))
+			VM_LONG(ret) = 0;
+		else if (qrenderer == QR_OPENGL)
+			VM_LONG(ret) = VM_TOHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
+		else
+			VM_LONG(ret) = VM_TOHANDLE(Draw_SafeCachePic(VM_POINTER(arg[0])));
 		break;
 	case CG_R_REGISTERSHADERNOMIP:
-		VM_LONG(ret) = VM_TOHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
+		if (!*(char*)VM_POINTER(arg[0]))
+			VM_LONG(ret) = 0;
+		else if (qrenderer == QR_OPENGL)
+			VM_LONG(ret) = VM_TOHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
+		else
+			VM_LONG(ret) = VM_TOHANDLE(Draw_SafeCachePic(VM_POINTER(arg[0])));
 		break;
 
 	case CG_R_CLEARSCENE:	//clear scene
@@ -802,16 +812,10 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		break;
 
 	case CG_R_DRAWSTRETCHPIC:
-		switch (qrenderer)
-		{
-#ifdef RGLQUAKE
-		case QR_OPENGL:
-			GLDraw_ShaderImage(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_FROMHANDLE(arg[8]));
-			break;
-#endif
-		default:
-			break;	//FIXME
-		}
+		if (qrenderer == QR_OPENGL)
+			GLDraw_ShaderImage(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (void *)VM_LONG(arg[8]));
+		else
+			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
 		break;
 
 	case CG_R_LERPTAG:	//Lerp tag...
@@ -1104,17 +1108,17 @@ void CG_Start (void)
 		return;
 	}
 
-#ifdef RGLQUAKE
+#if defined(RGLQUAKE) || defined(DIRECT3D)
 	if (!Draw_SafeCachePic)	//no renderer loaded
 	{
 		CG_Stop();
 		return;
 	}
 
-	if (qrenderer != QR_OPENGL)
+	if (qrenderer != QR_OPENGL && qrenderer != QR_DIRECT3D)
 	{	//sorry.
 		CG_Stop();
-		Host_EndGame("Unable to connect to q3 servers without opengl.\n");
+		Host_EndGame("Unable to connect to q3 servers without opengl or d3d.\n");
 		return;
 	}
 

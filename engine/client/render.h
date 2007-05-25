@@ -27,6 +27,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	TOP_RANGE		(TOP_DEFAULT<<4)
 #define	BOTTOM_RANGE	(BOTTOM_DEFAULT<<4)
 
+extern int		r_framecount;
+
 struct msurface_s;
 
 //=============================================================================
@@ -266,15 +268,124 @@ void R_SetVrect (vrect_t *pvrect, vrect_t *pvrectin, int lineadj);
 
 struct palremap_s *D_IdentityRemap(void);
 
+//normalmaps
+//bumpmaps
+//32bits
+//8bits
+//8bitpal24
+//8bitpal32
+
+#define TF_NOMIPMAP		0x0000
+#define TF_NOTBUMPMAP	0x0000
+#define TF_NOALPHA		0x0000
+
+#define TF_MIPMAP		0x0001
+#define TF_BUMPMAP		0x0002	//or normalmap, depending on 8/24 bitness
+#define TF_ALPHA		0x0004	//preserve alpha channel (8biit, use index 255 for transparency)
+
+#define TF_FULLBRIGHT	0x0008	//dark pixels have alpha forced to 0
+#define TF_24BIT		0x0010
+#define TF_32BIT		0x0020	//use the standard quake palette
+
+#define TF_MANDATORY	(TF_NOMIPMAP|TF_NOTBUMPMAP|TF_NOALPHA)
+
+#if 0
+/*
+int R_LoadTexture(char *name, int width, int height, void *data, void *palette, int flags)
+{
+	if (palette)
+	{
+		if (flags & TF_BUMPMAP)
+			return 0;	//huh?
+
+		if (flags & TF_FULLBRIGHT)
+			return 0;	//huh?
+
+		if (flags & TF_32BIT)
+			return R_LoadTexture8Pal32(name, width, height, data, palette, flags&TF_MIPMAP, flags&TF_ALPHA);
+
+		return 0;
+	}
+
+	if (flags & TF_FULLBRIGHT)
+	{
+		if (flags & TF_BUMPMAP)
+			return 0;	//huh?
+
+		if (flags & TF_24BIT)
+			return 0;
+		if (flags & TF_32BIT)
+			return 0;
+
+		//8bit fullbrights
+		return R_LoadTextureFB(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);
+	}
+
+	if (flags & TF_BUMPMAP)
+	{
+		if (flags & TF_24BIT)
+			return 0;
+		if (flags & TF_32BIT)
+			return R_LoadTexture32(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);	//Warning: this is not correct
+		return R_LoadTexture8Bump(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_BUMPMAP | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
+	}
+
+	if (flags & TF_32BIT)
+		return R_LoadTexture32(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);
+	if (data)
+		return R_LoadTexture8(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);
+
+	return R_FindTexture(name);
+}
+
+	#define R_LoadTexture8Pal32(skinname,width,height,data,palette,usemips,alpha) R_LoadTexture(name, width, height, data, palette, TF_32BIT | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
+	#define R_LoadTexture8(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
+	#define R_LoadTexture32(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_32BIT | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
+	#define R_LoadTextureFB(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_FULLBRIGHT | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
+	#define R_LoadTexture8Bump(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_BUMPMAP | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
+
+	#define R_FindTexture(name) R_LoadTexture(name, 0, 0, NULL, NULL, 0)
+	#define R_LoadCompressed(name)  ((qrenderer == QR_OPENGL)?GL_LoadCompressed(name):0)
+*/
+#elif defined(RGLQUAKE) && defined(D3DQUAKE)
+	#define R_LoadTexture8Pal32(skinname,width,height,data,palette,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture8Pal32(skinname, width, height, data, palette, usemips, alpha):GL_LoadTexture8Pal32(skinname, width, height, data, palette, usemips, alpha))
+	#define R_LoadTexture8Pal24(skinname,width,height,data,palette,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture8Pal24(skinname, width, height, data, palette, usemips, alpha):GL_LoadTexture8Pal24(skinname, width, height, data, palette, usemips, alpha))
+	#define R_LoadTexture8(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture(skinname, width, height, data, usemips, alpha):GL_LoadTexture(skinname, width, height, data, usemips, alpha))
+	#define R_LoadTexture32(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture32(skinname, width, height, data, usemips, alpha):GL_LoadTexture32(skinname, width, height, data, usemips, alpha))
+	#define R_LoadTextureFB(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTextureFB(skinname, width, height, data, usemips, alpha):GL_LoadTextureFB(skinname, width, height, data, usemips, alpha))
+	#define R_LoadTexture8Bump(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?/*D3D_LoadTexture8Bump(skinname, width, height, data, usemips, alpha)*/NULL:GL_LoadTexture8Bump(skinname, width, height, data, usemips, alpha))
+
+	#define R_FindTexture(name)  ((qrenderer == QR_DIRECT3D)?D3D_FindTexture(name):GL_FindTexture(name))
+	#define R_LoadCompressed(name)  ((qrenderer == QR_DIRECT3D)?D3D_LoadCompressed(name):GL_LoadCompressed(name))
+#elif defined(D3DQUAKE)
+	#define R_LoadTexture8Pal32	D3D_LoadTexture8Pal32
+	#define R_LoadTexture8		D3D_LoadTexture
+	#define R_LoadTexture32		D3D_LoadTexture32
+	#define R_LoadTextureFB		D3D_LoadTextureFB
+	#define R_LoadTexture8Bump	D3D_LoadTexture8Bump
+
+	#define R_FindTexture		D3D_FindTexture
+	#define R_LoadCompressed	D3D_LoadCompressed
+#elif defined(RGLQUAKE)
+	#define R_LoadTexture8Pal32	GL_LoadTexture8Pal32
+	#define R_LoadTexture8		GL_LoadTexture
+	#define R_LoadTexture32		GL_LoadTexture32
+	#define R_LoadTextureFB		GL_LoadTextureFB
+	#define R_LoadTexture8Bump	GL_LoadTexture8Bump
+
+	#define R_FindTexture		GL_FindTexture
+	#define R_LoadCompressed	GL_LoadCompressed
+#endif
 
 
 
-#if defined(RGLQUAKE)
+
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
 
 void	GLMod_Init (void);
-qboolean GLMod_GetTag(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *result);
-int GLMod_TagNumForName(struct model_s *model, char *name);
-int GLMod_SkinNumForName(struct model_s *model, char *name);
+qboolean Mod_GetTag(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *result);
+int Mod_TagNumForName(struct model_s *model, char *name);
+int Mod_SkinNumForName(struct model_s *model, char *name);
 
 void	GLMod_ClearAll (void);
 struct model_s *GLMod_ForName (char *name, qboolean crash);

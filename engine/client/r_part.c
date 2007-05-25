@@ -32,6 +32,9 @@ The engine has a few builtins.
 #ifdef RGLQUAKE
 #include "glquake.h"//hack
 #endif
+#ifdef D3DQUAKE
+#include "d3dquake.h"//hack
+#endif
 
 #include "renderque.h"
 
@@ -143,24 +146,6 @@ cvar_t r_part_contentswitch = SCVAR("r_part_contentswitch", "1");
 
 static float particletime;
 
-typedef struct skytris_s {
-	struct skytris_s *next;
-	vec3_t org;
-	vec3_t x;
-	vec3_t y;
-	float area;
-	float nexttime;
-	msurface_t *face;
-} skytris_t;
-
-//these could be deltas or absolutes depending on ramping mode.
-typedef struct {
-	vec3_t rgb;
-	float alpha;
-	float scale;
-	float rotation;
-} ramp_t;
-
 #define APPLYBLEND(bm)	\
 		switch (bm)												\
 		{														\
@@ -179,102 +164,29 @@ typedef struct {
 			break;												\
 		}
 
-// TODO: merge in alpha with rgb to gain benefit of vector opts
-typedef struct part_type_s {
-	char name[MAX_QPATH];
-	char texname[MAX_QPATH];
-	vec3_t rgb;
-	vec3_t rgbchange;
-	vec3_t rgbrand;
-	int colorindex;
-	int colorrand;
-	float rgbchangetime;
-	vec3_t rgbrandsync;
-	float scale, alpha;
-	float alphachange;
-	float die, randdie;
-	float randomvel, veladd;
-	float orgadd;
-	float offsetspread;
-	float offsetspreadvert;
-	float randomvelvert;
-	float randscale;
+#define APPLYD3DBLEND(bm)	\
+		switch (bm)												\
+		{														\
+		case BM_ADD:											\
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_SRCBLEND,  D3DBLEND_SRCALPHA);		\
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_DESTBLEND,  D3DBLEND_ONE);			\
+			break;												\
+		case BM_SUBTRACT:										\
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_SRCBLEND,  D3DBLEND_SRCALPHA);		\
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_DESTBLEND,  D3DBLEND_INVSRCCOLOR);	\
+			break;												\
+		case BM_BLENDCOLOUR:									\
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_SRCBLEND,  D3DBLEND_SRCCOLOR);		\
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_DESTBLEND,  D3DBLEND_INVSRCCOLOR);	\
+			break;												\
+		case BM_BLEND:											\
+		default:												\
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_SRCBLEND,  D3DBLEND_SRCALPHA);		\
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_DESTBLEND,  D3DBLEND_INVSRCALPHA);	\
+			break;												\
+		}
 
-	float spawntime;
-	float spawnchance;
 
-	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_DECAL} type;
-	blendmode_t blendmode;
-
-	float rotationstartmin, rotationstartrand;
-	float rotationmin, rotationrand;
-
-	float scaledelta;
-	float count;
-	float countrand;
-	int texturenum;
-	int assoc;
-	int cliptype;
-	int inwater;
-	float clipcount;
-	int emit;
-	float emittime;
-	float emitrand;
-	float emitstart;
-
-	float areaspread;
-	float areaspreadvert;
-	float scalefactor;
-	float invscalefactor;
-
-	float spawnparam1;
-	float spawnparam2;
-/*	float spawnparam3; */
-
-	float offsetup; // make this into a vec3_t later with dir, possibly for mdls
-
-	enum {
-		SM_BOX, //box = even spread within the area
-		SM_CIRCLE, //circle = around edge of a circle
-		SM_BALL, //ball = filled sphere
-		SM_SPIRAL, //spiral = spiral trail
-		SM_TRACER, //tracer = tracer trail
-		SM_TELEBOX, //telebox = q1-style telebox
-		SM_LAVASPLASH, //lavasplash = q1-style lavasplash
-		SM_UNICIRCLE, //unicircle = uniform circle
-		SM_FIELD, //field = synced field (brightfield, etc)
-		SM_DISTBALL // uneven distributed ball
-	} spawnmode;
-
-	float gravity;
-	vec3_t friction;
-	float clipbounce;
-	int stains;
-
-	enum {RAMP_NONE, RAMP_DELTA, RAMP_ABSOLUTE} rampmode;
-	int rampindexes;
-	ramp_t *ramp;
-
-	int loaded;
-	particle_t	*particles;
-	clippeddecal_t *clippeddecals;
-	beamseg_t *beams;
-	skytris_t *skytris;
-	struct part_type_s *nexttorun;
-
-	unsigned int flags;
-#define PT_VELOCITY	     0x001
-#define PT_FRICTION	     0x002
-#define PT_CHANGESCOLOUR 0x004
-#define PT_CITRACER      0x008 // Q1-style tracer behavior for colorindex
-#define PT_INVFRAMETIME  0x010 // apply inverse frametime to count (causes emits to be per frame)
-#define PT_AVERAGETRAIL  0x020 // average trail points from start to end, useful with t_lightning, etc
-#define PT_NOSTATE       0x040 // don't use trailstate for this emitter (careful with assoc...)
-#define PT_NOSPREADFIRST 0x080 // don't randomize org/vel for first generated particle
-#define PT_NOSPREADLAST  0x100 // don't randomize org/vel for last generated particle
-	unsigned int state;
-#define PS_INRUNLIST 0x1 // particle type is currently in execution list
-} part_type_t;
 int numparticletypes;
 part_type_t *part_type;
 part_type_t *part_run_list;
@@ -403,28 +315,56 @@ static int CheckAssosiation(char *name, int from)
 	return orig;
 }
 
-#ifdef RGLQUAKE
 void P_LoadTexture(part_type_t *ptype, qboolean warn)
 {
-	if (*ptype->texname && strcmp(ptype->texname, "default"))
+	switch (qrenderer)
 	{
-		ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
-
-		if (!ptype->texturenum)
+#ifdef RGLQUAKE
+	case QR_OPENGL:
+		if (*ptype->texname && strcmp(ptype->texname, "default"))
 		{
-			if (warn)
-				Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
+			ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
 
-			if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball"))
-				ptype->texturenum = balltexture;
-			else
-				ptype->texturenum = explosiontexture;
+			if (!ptype->texturenum)
+			{
+				if (warn)
+					Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
+
+				if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball"))
+					ptype->texturenum = balltexture;
+				else
+					ptype->texturenum = explosiontexture;
+			}
 		}
-	}
-	else
-		ptype->texturenum = explosiontexture;
-}
+		else
+			ptype->texturenum = explosiontexture;
+		break;
 #endif
+#ifdef D3DQUAKE
+	case QR_DIRECT3D:
+		if (*ptype->texname && strcmp(ptype->texname, "default"))
+		{
+			ptype->d3dtexture = NULL;//Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
+
+			if (!ptype->d3dtexture)
+			{
+				if (warn)
+					Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
+
+				if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball"))
+					ptype->d3dtexture = d3dballtexture;
+				else
+					ptype->d3dtexture = d3dexplosiontexture;
+			}
+		}
+		else
+			ptype->d3dtexture = d3dexplosiontexture;
+		break;
+#endif
+	default:
+		break;
+	}
+}
 
 //Uses FTE's multiline console stuff.
 //This is the function that loads the effect descriptions (via console).
@@ -1030,12 +970,7 @@ void P_ParticleEffect_f(void)
 		Con_Printf("Particle type %s has a ramp but no ramp mode\n", ptype->name);
 	}
 
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		P_LoadTexture(ptype, true);
-	}
-#endif
+	P_LoadTexture(ptype, true);
 }
 
 //assosiate a point effect with a model.
@@ -1061,6 +996,8 @@ void P_AssosiateEffect_f (void)
 	}
 
 	model = Mod_FindName(modelname);
+	if (!model)
+		return;
 	if (!cls.demoplayback && (model->flags & EF_ROTATE))
 	{
 		Con_Printf("Sorry: You may not assosiate effects with item model \"%s\"\n", modelname);
@@ -1094,6 +1031,8 @@ void P_AssosiateTrail_f (void)
 	}
 
 	model = Mod_FindName(modelname);
+	if (!model)
+		return;
 	effectnum = P_AllocateParticleType(effectname);
 	model->particletrail = effectnum;
 	model->engineflags |= MDLF_NODEFAULTTRAIL;	//we could have assigned the trail to a model that wasn't loaded.
@@ -1508,15 +1447,10 @@ void P_ClearParticles (void)
 
 	particletime = cl.time;
 
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
+	for (i = 0; i < numparticletypes; i++)
 	{
-		for (i = 0; i < numparticletypes; i++)
-		{
-			P_LoadTexture(&part_type[i], false);
-		}
+		P_LoadTexture(&part_type[i], false);
 	}
-#endif
 
 	for (i = 0; i < numparticletypes; i++)
 	{
@@ -3942,6 +3876,422 @@ void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
 	D_DrawSparkTrans(p, p->org, q->org, type->blendmode);
 }
 #endif
+#ifdef D3DQUAKE
+typedef struct d3dparticlevert_s {
+	float org[3];
+	unsigned int colour;
+	float s, t;	//these could actually be preinitialised
+} d3dparticlevert_t;
+d3dparticlevert_t d3dparticlevert[4];
+
+typedef struct d3dparticlevertut_s {
+	float org[3];
+	unsigned int colour;
+} d3dparticlevertut_t;
+d3dparticlevertut_t d3dparticlevertut[4];
+
+unsigned short d3dparticlevertindexes[] =
+{
+	0, 1, 2,
+	0, 2, 3
+};
+
+void D3D_DrawParticleBlob(particle_t *p, part_type_t *type)
+{
+	float scale;
+	float x;
+	float y;
+	unsigned int colour;
+	int cb, cg, cr, ca;
+	if (lastgltype != type)
+	{
+		lastgltype = type;
+		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, type->d3dtexture);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+
+		APPLYD3DBLEND(type->blendmode);
+	}
+
+	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
+		+ (p->org[2] - r_origin[2])*vpn[2];
+	scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
+	if (scale < 20)
+		scale = 0.25;
+	else
+		scale = 0.25 + scale * 0.001;
+
+	cr = p->rgb[0]*255;
+	if (cr < 0) cr = 0;
+	if (cr > 255) cr = 255;
+
+	cg = p->rgb[1]*255;
+	if (cg < 0) cg = 0;
+	if (cg > 255) cg = 255;
+
+	cb = p->rgb[2]*255;
+	if (cb < 0) cb = 0;
+	if (cb > 255) cb = 255;
+
+	ca = p->alpha*255;
+	if (ca < 0) ca = 0;
+	if (ca > 255) ca = 255;
+
+	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+	if (p->angle)
+	{
+		x = sin(p->angle)*scale;
+		y = cos(p->angle)*scale;
+	}
+	else
+	{
+		x = 0;
+		y = scale;
+	}
+	d3dparticlevert[0].s = 0;
+	d3dparticlevert[0].t = 0;
+	d3dparticlevert[0].colour = colour;
+	d3dparticlevert[0].org[0] = p->org[0] - x*pright[0] - y*pup[0];
+	d3dparticlevert[0].org[1] = p->org[1] - x*pright[1] - y*pup[1];
+	d3dparticlevert[0].org[2] = p->org[2] - x*pright[2] - y*pup[2];
+
+	d3dparticlevert[1].s = 0;
+	d3dparticlevert[1].t = 1;
+	d3dparticlevert[1].colour = colour;
+	d3dparticlevert[1].org[0] = p->org[0] - y*pright[0] + x*pup[0];
+	d3dparticlevert[1].org[1] = p->org[1] - y*pright[1] + x*pup[1];
+	d3dparticlevert[1].org[2] = p->org[2] - y*pright[2] + x*pup[2];
+
+	d3dparticlevert[2].s = 1;
+	d3dparticlevert[2].t = 1;
+	d3dparticlevert[2].colour = colour;
+	d3dparticlevert[2].org[0] = p->org[0] + x*pright[0] + y*pup[0];
+	d3dparticlevert[2].org[1] = p->org[1] + x*pright[1] + y*pup[1];
+	d3dparticlevert[2].org[2] = p->org[2] + x*pright[2] + y*pup[2];
+
+	d3dparticlevert[3].s = 1;
+	d3dparticlevert[3].t = 0;
+	d3dparticlevert[3].colour = colour;
+	d3dparticlevert[3].org[0] = p->org[0] + y*pright[0] - x*pup[0];
+	d3dparticlevert[3].org[1] = p->org[1] + y*pright[1] - x*pup[1];
+	d3dparticlevert[3].org[2] = p->org[2] + y*pright[2] - x*pup[2];
+
+	pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dparticlevert, 4, d3dparticlevertindexes, 6, 0);
+}
+void D3D_DrawParticleSpark(particle_t *p, part_type_t *type)
+{
+	vec3_t v, crv, o2;
+
+	unsigned int colour;
+	int cb, cg, cr, ca;
+
+	if (lastgltype != type)
+	{
+		lastgltype = type;
+		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, type->d3dtexture);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+
+		APPLYD3DBLEND(type->blendmode);
+	}
+
+
+	cr = p->rgb[0]*255;
+	if (cr < 0) cr = 0;
+	if (cr > 255) cr = 255;
+
+	cg = p->rgb[1]*255;
+	if (cg < 0) cg = 0;
+	if (cg > 255) cg = 255;
+
+	cb = p->rgb[2]*255;
+	if (cb < 0) cb = 0;
+	if (cb > 255) cb = 255;
+
+	ca = p->alpha*255;
+	if (ca < 0) ca = 0;
+	if (ca > 255) ca = 255;
+
+	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+
+
+
+	VectorSubtract(r_refdef.vieworg, p->org, v);
+	CrossProduct(v, p->vel, crv);
+	VectorNormalize(crv);
+
+	VectorMA(p->org, -p->scale/2, crv, d3dparticlevert[0].org);
+	d3dparticlevert[0].s = 0;
+	d3dparticlevert[0].t = 0;
+	d3dparticlevert[0].colour = colour;
+
+	VectorMA(p->org, p->scale/2, crv, d3dparticlevert[1].org);
+	d3dparticlevert[1].s = 0;
+	d3dparticlevert[1].t = 1;
+	d3dparticlevert[1].colour = colour;
+
+
+	VectorMA(p->org, 0.1, p->vel, o2);
+
+	VectorSubtract(r_refdef.vieworg, o2, v);
+	CrossProduct(v, p->vel, crv);
+	VectorNormalize(crv);
+
+	VectorMA(o2, p->scale/2, crv, d3dparticlevert[2].org);
+	d3dparticlevert[2].s = 1;
+	d3dparticlevert[2].t = 1;
+	d3dparticlevert[2].colour = colour;
+
+	VectorMA(o2, -p->scale/2, crv, d3dparticlevert[3].org);
+	d3dparticlevert[3].s = 1;
+	d3dparticlevert[3].t = 0;
+	d3dparticlevert[3].colour = colour;
+
+
+	pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dparticlevert, 4, d3dparticlevertindexes, 6, 0);
+}
+void D3D_DrawParticleBeam(beamseg_t *b, part_type_t *type)
+{
+	vec3_t v;
+	vec3_t crv;
+	beamseg_t *c;
+	particle_t *p;
+	particle_t *q;
+	float ts;
+
+
+	unsigned int colour;
+	int cb, cg, cr, ca;
+
+	if (lastgltype != type)
+	{
+		lastgltype = type;
+		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, type->d3dtexture);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+
+		APPLYD3DBLEND(type->blendmode);
+	}
+
+
+
+
+	c = b->next;
+	q = c->p;
+	p = b->p;
+
+
+	cr = q->rgb[0]*255;
+	if (cr < 0) cr = 0;
+	if (cr > 255) cr = 255;
+
+	cg = q->rgb[1]*255;
+	if (cg < 0) cg = 0;
+	if (cg > 255) cg = 255;
+
+	cb = q->rgb[2]*255;
+	if (cb < 0) cb = 0;
+	if (cb > 255) cb = 255;
+
+	ca = q->alpha*255;
+	if (ca < 0) ca = 0;
+	if (ca > 255) ca = 255;
+
+	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+
+
+
+
+	c = b->next;
+
+	q = c->p;
+
+	p = b->p;
+
+	VectorSubtract(r_refdef.vieworg, q->org, v);
+	VectorNormalize(v);
+	CrossProduct(c->dir, v, crv);
+	ts = c->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+
+	VectorMA(q->org, -q->scale, crv, d3dparticlevert[0].org);
+	d3dparticlevert[0].s = ts;
+	d3dparticlevert[0].t = 0;
+	d3dparticlevert[0].colour = colour;
+	
+	VectorMA(q->org, q->scale, crv, d3dparticlevert[1].org);
+	d3dparticlevert[1].s = ts;
+	d3dparticlevert[1].t = 1;
+	d3dparticlevert[1].colour = colour;
+	
+
+	cr = p->rgb[0]*255;
+	if (cr < 0) cr = 0;
+	if (cr > 255) cr = 255;
+
+	cg = p->rgb[1]*255;
+	if (cg < 0) cg = 0;
+	if (cg > 255) cg = 255;
+
+	cb = p->rgb[2]*255;
+	if (cb < 0) cb = 0;
+	if (cb > 255) cb = 255;
+
+	ca = p->alpha*255;
+	if (ca < 0) ca = 0;
+	if (ca > 255) ca = 255;
+
+	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+
+	VectorSubtract(r_refdef.vieworg, p->org, v);
+	VectorNormalize(v);
+	CrossProduct(b->dir, v, crv); // replace with old p->dir?
+	ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+
+	VectorMA(p->org, p->scale, crv, d3dparticlevert[2].org);
+	d3dparticlevert[2].s = ts;
+	d3dparticlevert[2].t = 1;
+	d3dparticlevert[2].colour = colour;
+	
+	VectorMA(p->org, -p->scale, crv, d3dparticlevert[3].org);
+	d3dparticlevert[3].s = ts;
+	d3dparticlevert[3].t = 0;
+	d3dparticlevert[3].colour = colour;
+	
+
+	pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dparticlevert, 4, d3dparticlevertindexes, 6, 0);
+}
+
+void D3D_DrawParticleBeamUT(beamseg_t *b, part_type_t *type)
+{
+	vec3_t v;
+	vec3_t crv;
+	beamseg_t *c;
+	particle_t *p;
+	particle_t *q;
+	float ts;
+
+
+	unsigned int colour;
+	int cb, cg, cr, ca;
+
+//	D3D_DrawParticleBeam(b, type);
+//	return;
+
+	if (lastgltype != type)
+	{
+		lastgltype = type;
+		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, NULL);
+		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_SELECTARG2);
+
+		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG2);
+
+
+		APPLYD3DBLEND(type->blendmode);
+	}
+
+
+
+
+	c = b->next;
+	q = c->p;
+	p = b->p;
+
+
+	cr = q->rgb[0]*255;
+	if (cr < 0) cr = 0;
+	if (cr > 255) cr = 255;
+
+	cg = q->rgb[1]*255;
+	if (cg < 0) cg = 0;
+	if (cg > 255) cg = 255;
+
+	cb = q->rgb[2]*255;
+	if (cb < 0) cb = 0;
+	if (cb > 255) cb = 255;
+
+	ca = q->alpha*255;
+	if (ca < 0) ca = 0;
+	if (ca > 255) ca = 255;
+
+	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+
+
+
+
+	c = b->next;
+
+	q = c->p;
+
+	p = b->p;
+
+	VectorSubtract(r_refdef.vieworg, q->org, v);
+	VectorNormalize(v);
+	CrossProduct(c->dir, v, crv);
+	ts = c->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+
+	VectorMA(q->org, -q->scale, crv, d3dparticlevertut[0].org);
+	d3dparticlevertut[0].colour = colour;
+	
+	VectorMA(q->org, q->scale, crv, d3dparticlevertut[1].org);
+	d3dparticlevertut[1].colour = colour;
+	
+
+	cr = p->rgb[0]*255;
+	if (cr < 0) cr = 0;
+	if (cr > 255) cr = 255;
+
+	cg = p->rgb[1]*255;
+	if (cg < 0) cg = 0;
+	if (cg > 255) cg = 255;
+
+	cb = p->rgb[2]*255;
+	if (cb < 0) cb = 0;
+	if (cb > 255) cb = 255;
+
+	ca = p->alpha*255;
+	if (ca < 0) ca = 0;
+	if (ca > 255) ca = 255;
+
+	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+
+	VectorSubtract(r_refdef.vieworg, p->org, v);
+	VectorNormalize(v);
+	CrossProduct(b->dir, v, crv); // replace with old p->dir?
+	ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+
+	VectorMA(p->org, p->scale, crv, d3dparticlevertut[2].org);
+	d3dparticlevertut[2].colour = colour;
+	
+	VectorMA(p->org, -p->scale, crv, d3dparticlevertut[3].org);
+	d3dparticlevertut[3].colour = colour;
+	
+
+	pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE, d3dparticlevertut, 4, d3dparticlevertindexes, 6, 0);
+}
+#endif
 
 void DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), void (*sparklineparticles)(particle_t*,part_type_t*), void (*sparkfanparticles)(particle_t*,part_type_t*), void (*sparktexturedparticles)(particle_t*,part_type_t*), void (*beamparticlest)(beamseg_t*,part_type_t*), void (*beamparticlesut)(beamseg_t*,part_type_t*), void (*drawdecalparticles)(clippeddecal_t*,part_type_t*))
 {
@@ -4572,6 +4922,41 @@ void P_DrawParticles (void)
 		return;
 	}
 #endif
+#if defined(D3DQUAKE)
+	if (qrenderer == QR_DIRECT3D)
+	{
+		if (pD3DDev)
+		{
+			lastgltype = NULL;
+			DrawParticleTypes(D3D_DrawParticleBlob, D3D_DrawParticleSpark, D3D_DrawParticleSpark, D3D_DrawParticleSpark, D3D_DrawParticleBeam, D3D_DrawParticleBeamUT, NULL);
+
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ZWRITEENABLE, FALSE );
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHATESTENABLE, FALSE );
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHABLENDENABLE, TRUE );
+
+			RSpeedRemark();
+			RQ_RenderDistAndClear();
+			RSpeedEnd(RSPEED_PARTICLESDRAW);
+
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ZWRITEENABLE, TRUE );
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHATESTENABLE, TRUE );
+			pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHABLENDENABLE, FALSE );
+
+			pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+
+			return;
+		}
+		else
+			D3D9_DrawParticles(particletime);
+	}
+#endif
+
+	if (qrenderer)
+	{
+			RSpeedRemark();
+			RQ_RenderDistAndClear();
+			RSpeedEnd(RSPEED_PARTICLESDRAW);
+	}
 }
 
 

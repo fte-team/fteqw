@@ -35,6 +35,7 @@ void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldval
 
 //
 
+cvar_t	r_novis = SCVAR("r_novis", "0");
 cvar_t	r_drawviewmodel = SCVAR("r_drawviewmodel","1");
 cvar_t  r_drawviewmodelinvis = SCVAR("r_drawviewmodelinvis", "0");
 cvar_t	r_netgraph = SCVAR("r_netgraph","0");
@@ -139,7 +140,7 @@ cvar_t		gl_compress	= SCVARF("gl_compress", "0", CVAR_ARCHIVE);
 cvar_t		gl_savecompressedtex	 = SCVAR("gl_savecompressedtex", "0");
 extern cvar_t gl_dither;
 extern	cvar_t	gl_maxdist;
-extern	cvar_t	gl_mindist;
+cvar_t	gl_mindist = SCVARF("gl_mindist", "4", CVAR_CHEAT);	//by setting to 64 or something, you can use this as a wallhack
 
 
 cvar_t		gl_detail	= SCVARF("gl_detail", "0", CVAR_ARCHIVE);
@@ -259,6 +260,13 @@ cvar_t	r_fastskycolour	= SCVAR("r_fastskycolour", "0");
 
 cvar_t r_menutint = SCVARF("r_menutint", "0.68 0.4 0.13", CVAR_RENDERERCALLBACK);
 
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
+void GLD3DRenderer_Init(void)
+{
+	Cvar_Register (&gl_load24bit, GRAPHICALNICETIES);
+}
+#endif
+
 #if defined(RGLQUAKE)
 cvar_t gl_schematics = SCVAR("gl_schematics","0");
 cvar_t	gl_ztrick = SCVAR("gl_ztrick","0");
@@ -280,7 +288,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_desktopgamma, GLRENDEREROPTIONS);
 
 //renderer
-	Cvar_Register (&r_novis, GLRENDEREROPTIONS);
 	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_norefresh, GLRENDEREROPTIONS);
 
@@ -333,7 +340,6 @@ void GLRenderer_Init(void)
 #ifdef R_XFLIP
 	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
 #endif
-	Cvar_Register (&gl_load24bit, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
 
 //	Cvar_Register (&gl_lightmapmode, GLRENDEREROPTIONS);
@@ -476,12 +482,17 @@ void Renderer_Init(void)
 	Cmd_AddCommand("setrenderer", R_SetRenderer_f);
 	Cmd_AddCommand("vid_restart", R_RestartRenderer_f);
 
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
+	GLD3DRenderer_Init();
+#endif
 #if defined(RGLQUAKE)
 	GLRenderer_Init();
 #endif
 #if defined(SWQUAKE)
 	SWRenderer_Init();
 #endif
+
+	Cvar_Register (&r_novis, GLRENDEREROPTIONS);
 
 	//but register ALL vid_ commands.
 	Cvar_Register (&_vid_wait_override, VIDCOMMANDGROUP);
@@ -662,8 +673,8 @@ void	(*Mod_TouchModel)			(char *name);
 
 void	(*Mod_NowLoadExternal)		(void);
 void	(*Mod_Think)				(void);
-qboolean	(*Mod_GetTag)			(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
-int (*Mod_TagNumForName)			(struct model_s *model, char *name);
+//qboolean	(*Mod_GetTag)			(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
+//int (*Mod_TagNumForName)			(struct model_s *model, char *name);
 int (*Mod_SkinForName)				(struct model_s *model, char *name);
 
 
@@ -759,7 +770,7 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	SWMod_NowLoadExternal,
 	SWMod_Think,
-#elif defined(RGLQUAKE)
+#elif defined(RGLQUAKE) || defined(D3DQUAKE)
 	GLMod_Init,
 	GLMod_ClearAll,
 	GLMod_ForName,
@@ -770,7 +781,7 @@ rendererinfo_t dedicatedrendererinfo = {
 	GLMod_NowLoadExternal,
 	GLMod_Think,
 #else
-	#error "No renderer in client build"
+#error "Need logic here!"
 #endif
 
 	NULL, //Mod_GetTag
@@ -963,9 +974,9 @@ rendererinfo_t openglrendererinfo = {
 	GLMod_NowLoadExternal,
 	GLMod_Think,
 
-	GLMod_GetTag,
-	GLMod_TagNumForName,
-	GLMod_SkinNumForName,
+	Mod_GetTag,
+	Mod_TagNumForName,
+	Mod_SkinNumForName,
 
 	GLVID_Init,
 	GLVID_DeInit,
@@ -990,7 +1001,15 @@ rendererinfo_t openglrendererinfo = {
 rendererinfo_t *popenglrendererinfo = &openglrendererinfo;
 #endif
 
+#ifdef D3DQUAKE
+rendererinfo_t d3d7rendererinfo;
+rendererinfo_t *pd3d7rendererinfo = &d3d7rendererinfo;
+#endif
+
 rendererinfo_t *pd3drendererinfo;
+
+rendererinfo_t d3d9rendererinfo;
+rendererinfo_t *pd3d9rendererinfo = &d3d9rendererinfo;
 
 rendererinfo_t **rendererinfo[] =
 {
@@ -1001,6 +1020,12 @@ rendererinfo_t **rendererinfo[] =
 #ifdef RGLQUAKE
 	&popenglrendererinfo,
 	&pd3drendererinfo,
+#endif
+#ifdef D3DQUAKE
+	&pd3d7rendererinfo,
+#endif
+#ifdef D3DQUAKE
+	&pd3d9rendererinfo,
 #endif
 };
 
@@ -1191,6 +1216,9 @@ void M_Menu_Video_f (void)
 		"Direct3D",
 #endif
 #endif
+#ifdef D3DQUAKE
+		"NDirect3D",
+#endif
 		NULL
 	};
 	static const char *bppnames[] =
@@ -1298,12 +1326,12 @@ void M_Menu_Video_f (void)
 	MC_AddCheckBox(menu,	16, y,							"           Bloom", &r_bloom,0);	y+=8;
 #endif
 	MC_AddCheckBox(menu,	16, y,							"  Dynamic lights", &r_dynamic,0);	y+=8;
-	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120);y+=8;
-	MC_AddSlider(menu,	16, y,								"           Gamma", &v_gamma, 0.3, 1);	y+=8;
-	MC_AddSlider(menu,	16, y,								"        Contrast", &v_contrast, 1, 3);	y+=8;
+	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120, 0.1);y+=8;
+	MC_AddSlider(menu,	16, y,								"           Gamma", &v_gamma, 0.3, 1, 0.05);	y+=8;
+	MC_AddSlider(menu,	16, y,								"        Contrast", &v_contrast, 1, 3, 0.05);	y+=8;
 #ifdef RGLQUAKE
 	info->texturefiltercombo = MC_AddCombo(menu, 16, y,		" Texture Filter ", texturefilternames, currenttexturefilter); y+=8;
-	MC_AddSlider(menu, 16, y,								"Anisotropy Level", &gl_texture_anisotropic_filtering, 1, 16); y+=8;
+	MC_AddSlider(menu, 16, y,								"Anisotropy Level", &gl_texture_anisotropic_filtering, 1, 16, 1); y+=8;	//urm, this shouldn't really be a slider, but should be a combo instead
 #endif
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, 32, NULL, false);
@@ -1398,8 +1426,8 @@ void R_SetRenderer(int wanted)
 
 	Mod_NowLoadExternal		= ri->Mod_NowLoadExternal;
 
-	Mod_GetTag				= ri->Mod_GetTag;
-	Mod_TagNumForName 		= ri->Mod_TagNumForName;
+//	Mod_GetTag				= ri->Mod_GetTag;
+//	Mod_TagNumForName 		= ri->Mod_TagNumForName;
 	Mod_SkinForName 		= ri->Mod_SkinForName;
 
 	SCR_UpdateScreen		= ri->SCR_UpdateScreen;
@@ -1418,6 +1446,15 @@ qbyte default_conchar[11356] =
 {
 #include "lhfont.h"
 };
+
+qboolean R_ApplyRenderer_Load (rendererstate_t *newr);
+void D3DSucks(void)
+{
+	SCR_DeInit();
+
+	if (!R_ApplyRenderer_Load(NULL))//&currentrendererstate))
+		Sys_Error("Failed to reload content after mode switch\n");
+}
 
 qboolean R_ApplyRenderer (rendererstate_t *newr)
 {
@@ -1461,6 +1498,14 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 
 	R_SetRenderer(newr->renderer);
 
+	R_ApplyRenderer_Load(newr);
+}
+qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
+{
+	int i, j;
+	extern model_t *loadmodel;
+	extern int host_hunklevel;
+
 	Cache_Flush();
 
 	Hunk_FreeToLowMark(host_hunklevel);	//is this a good idea?
@@ -1475,7 +1520,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 #ifndef CLIENTONLY
 		isDedicated = false;
 #endif
-		Con_Printf("Setting mode %i*%i*%i*%i\n", newr->width, newr->height, newr->bpp, newr->rate);
+		if (newr)
+			Con_Printf("Setting mode %i*%i*%i*%i\n", newr->width, newr->height, newr->bpp, newr->rate);
 
 		if (host_basepal)
 			BZ_Free(host_basepal);
@@ -1544,10 +1590,19 @@ q2colormap:
 
 TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 
-		if (!VID_Init(newr, host_basepal))
+#ifdef _WIN32
+		if (hwnd_dialog)
 		{
-			return false;
+			DestroyWindow (hwnd_dialog);
+			hwnd_dialog = NULL;
 		}
+#endif
+
+		if (newr)
+			if (!VID_Init(newr, host_basepal))
+			{
+				return false;
+			}
 TRACE(("dbg: R_ApplyRenderer: vid applied\n"));
 
 		W_LoadWadFile("gfx.wad");
@@ -1799,6 +1854,12 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 					"-----------------------------\n"
 					"OpenGL renderer initialized\n");
 		break;
+		
+	case QR_DIRECT3D:
+		Con_Printf(	"\n"
+					"-----------------------------\n"
+					"Direct3d renderer initialized\n");
+		break;
 	}
 
 	TRACE(("dbg: R_ApplyRenderer: S_Restart_f\n"));
@@ -1807,7 +1868,8 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 	TRACE(("dbg: R_ApplyRenderer: done\n"));
 
-	memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
+	if (newr)
+		memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
 	return true;
 }
 
@@ -1865,6 +1927,8 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 
 #elif defined(RGLQUAKE)
 		Cmd_ExecuteString("setrenderer gl\n", RESTRICT_LOCAL);
+#elif defined(D3DQUAKE)
+		Cmd_ExecuteString("setrenderer d3d\n", RESTRICT_LOCAL);
 #else
 		Cmd_ExecuteString("setrenderer sw\n", RESTRICT_LOCAL);
 #endif
@@ -2014,3 +2078,558 @@ void R_SetRenderer_f (void)
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+================
+R_GetSpriteFrame
+================
+*/
+mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
+{
+	msprite_t		*psprite;
+	mspritegroup_t	*pspritegroup;
+	mspriteframe_t	*pspriteframe;
+	int				i, numframes, frame;
+	float			*pintervals, fullinterval, targettime, time;
+
+	psprite = currententity->model->cache.data;
+	frame = currententity->frame;
+
+	if ((frame >= psprite->numframes) || (frame < 0))
+	{
+		Con_DPrintf ("R_DrawSprite: no such frame %d (%s)\n", frame, currententity->model->name);
+		frame = 0;
+	}
+
+	if (psprite->frames[frame].type == SPR_SINGLE)
+	{
+		pspriteframe = psprite->frames[frame].frameptr;
+	}
+	else if (psprite->frames[frame].type == SPR_ANGLED)
+	{
+		pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
+		pspriteframe = pspritegroup->frames[(int)((r_refdef.viewangles[1]-currententity->angles[1])/360*8 + 0.5-4)&7];
+	}
+	else
+	{
+		pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
+		pintervals = pspritegroup->intervals;
+		numframes = pspritegroup->numframes;
+		fullinterval = pintervals[numframes-1];
+
+		time = currententity->frame1time;
+
+	// when loading in Mod_LoadSpriteGroup, we guaranteed all interval values
+	// are positive, so we don't have to worry about division by 0
+		targettime = time - ((int)(time / fullinterval)) * fullinterval;
+
+		for (i=0 ; i<(numframes-1) ; i++)
+		{
+			if (pintervals[i] > targettime)
+				break;
+		}
+
+		pspriteframe = pspritegroup->frames[i];
+	}
+
+	return pspriteframe;
+}
+
+
+
+float	r_projection_matrix[16];
+float	r_view_matrix[16];
+
+void MYgluPerspective(double fovx, double fovy, double zNear, double zFar)
+{
+	double xmin, xmax, ymin, ymax;
+
+	ymax = zNear * tan( fovy * M_PI / 360.0 );
+	ymin = -ymax;
+
+	xmax = zNear * tan( fovx * M_PI / 360.0 );
+	xmin = -xmax;
+
+	r_projection_matrix[0] = (2*zNear) / (xmax - xmin);
+	r_projection_matrix[4] = 0;
+	r_projection_matrix[8] = (xmax + xmin) / (xmax - xmin);
+	r_projection_matrix[12] = 0;
+
+	r_projection_matrix[1] = 0;
+	r_projection_matrix[5] = (2*zNear) / (ymax - ymin);
+	r_projection_matrix[9] = (ymax + ymin) / (ymax - ymin);
+	r_projection_matrix[13] = 0;
+
+	r_projection_matrix[2] = 0;
+	r_projection_matrix[6] = 0;
+	r_projection_matrix[10] = - (zFar+zNear)/(zFar-zNear);
+	r_projection_matrix[14] = - (2.0f*zFar*zNear)/(zFar-zNear);
+	
+	r_projection_matrix[3] = 0;
+	r_projection_matrix[7] = 0;
+	r_projection_matrix[11] = -1;
+	r_projection_matrix[15] = 0;
+}
+
+void GL_InfinatePerspective(double fovx, double fovy,
+		     double zNear)
+{
+	// nudge infinity in just slightly for lsb slop
+    float nudge = 1;// - 1.0 / (1<<23);
+
+	double xmin, xmax, ymin, ymax;
+
+	ymax = zNear * tan( fovy * M_PI / 360.0 );
+	ymin = -ymax;
+
+	xmax = zNear * tan( fovx * M_PI / 360.0 );
+	xmin = -xmax;
+
+	r_projection_matrix[0] = (2*zNear) / (xmax - xmin);
+	r_projection_matrix[4] = 0;
+	r_projection_matrix[8] = (xmax + xmin) / (xmax - xmin);
+	r_projection_matrix[12] = 0;
+
+	r_projection_matrix[1] = 0;
+	r_projection_matrix[5] = (2*zNear) / (ymax - ymin);
+	r_projection_matrix[9] = (ymax + ymin) / (ymax - ymin);
+	r_projection_matrix[13] = 0;
+
+	r_projection_matrix[2] = 0;
+	r_projection_matrix[6] = 0;
+	r_projection_matrix[10] = -1  * nudge;
+	r_projection_matrix[14] = -2*zNear * nudge;
+	
+	r_projection_matrix[3] = 0;
+	r_projection_matrix[7] = 0;
+	r_projection_matrix[11] = -1;
+	r_projection_matrix[15] = 0;
+}
+
+void GL_ParallelPerspective(double xmin, double xmax, double ymax, double ymin,
+		     double znear, double zfar)
+{
+	r_projection_matrix[0] = 2/(xmax-xmin);
+	r_projection_matrix[4] = 0;
+	r_projection_matrix[8] = 0;
+	r_projection_matrix[12] = (xmax+xmin)/(xmax-xmin);
+
+	r_projection_matrix[1] = 0;
+	r_projection_matrix[5] = 2/(ymax-ymin);
+	r_projection_matrix[9] = 0;
+	r_projection_matrix[13] = (ymax+ymin)/(ymax-ymin);
+
+	r_projection_matrix[2] = 0;
+	r_projection_matrix[6] = 0;
+	r_projection_matrix[10] = -2/(zfar-znear);
+	r_projection_matrix[14] = (zfar+znear)/(zfar-znear);
+	
+	r_projection_matrix[3] = 0;
+	r_projection_matrix[7] = 0;
+	r_projection_matrix[11] = 0;
+	r_projection_matrix[15] = 1;
+}
+
+
+
+/*
+===============
+R_TextureAnimation
+
+Returns the proper texture for a given time and base texture
+===============
+*/
+extern entity_t *currententity;
+texture_t *R_TextureAnimation (texture_t *base)
+{
+	int		reletive;
+	int		count;
+
+	if (currententity->frame)
+	{
+		if (base->alternate_anims)
+			base = base->alternate_anims;
+	}
+	
+	if (!base->anim_total)
+		return base;
+
+	reletive = (int)(cl.time*10) % base->anim_total;
+
+	count = 0;	
+	while (base->anim_min > reletive || base->anim_max <= reletive)
+	{
+		base = base->anim_next;
+		if (!base)
+			Sys_Error ("R_TextureAnimation: broken cycle");
+		if (++count > 100)
+			Sys_Error ("R_TextureAnimation: infinite cycle");
+	}
+
+	return base;
+}
+
+
+
+
+
+extern mleaf_t		*r_viewleaf, *r_oldviewleaf;
+extern mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
+extern int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
+extern int r_visframecount;
+extern mleaf_t		*r_vischain;		// linked list of visible leafs
+
+/*
+===============
+R_MarkLeaves
+===============
+*/
+
+void R_MarkLeaves (void)
+{
+	qbyte	fatvis[MAX_MAP_LEAFS/8];
+	qbyte	*vis;
+	mnode_t	*node;
+	int		i;
+	qbyte	solid[4096];
+#ifdef Q3BSPS
+	if (cl.worldmodel->fromgame == fg_quake3)
+	{
+		int cluster;
+		mleaf_t	*leaf;
+
+		if (r_oldviewcluster == r_viewcluster && !r_novis.value && r_viewcluster != -1)
+			return;
+
+		// development aid to let you run around and see exactly where
+		// the pvs ends
+//		if (r_lockpvs->value)
+//			return;
+
+		r_vischain = NULL;
+		r_visframecount++;
+		r_oldviewcluster = r_viewcluster;
+
+		if (r_novis.value || r_viewcluster == -1 || !cl.worldmodel->vis )
+		{
+			// mark everything
+			for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
+			{
+				if ( !leaf->nummarksurfaces ) {
+					continue;
+				}
+
+				leaf->visframe = r_visframecount;
+				leaf->vischain = r_vischain;
+				r_vischain = leaf;
+			}
+			return;
+		}
+
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL);//, cl.worldmodel);
+		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
+		{
+			cluster = leaf->cluster;
+			if ( cluster == -1 || !leaf->nummarksurfaces ) {
+				continue;
+			}
+			if ( vis[cluster>>3] & (1<<(cluster&7)) ) {
+				leaf->visframe = r_visframecount;
+				leaf->vischain = r_vischain;
+				r_vischain = leaf;
+			}
+		}
+		return;
+	}
+#endif
+
+#ifdef Q2BSPS
+	if (cl.worldmodel->fromgame == fg_quake2)
+	{
+		int c;
+		mleaf_t	*leaf;
+		int		cluster;
+
+		if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
+			return;
+
+		r_oldviewcluster = r_viewcluster;
+		r_oldviewcluster2 = r_viewcluster2;
+
+		if (r_novis.value == 2)
+			return;
+		r_visframecount++;
+		if (r_novis.value || r_viewcluster == -1 || !cl.worldmodel->vis)
+		{
+			// mark everything
+			for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+				cl.worldmodel->leafs[i].visframe = r_visframecount;
+			for (i=0 ; i<cl.worldmodel->numnodes ; i++)
+				cl.worldmodel->nodes[i].visframe = r_visframecount;
+			return;
+		}
+
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL);//, cl.worldmodel);
+		// may have to combine two clusters because of solid water boundaries
+		if (r_viewcluster2 != r_viewcluster)
+		{
+			memcpy (fatvis, vis, (cl.worldmodel->numleafs+7)/8);
+			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL);//, cl.worldmodel);
+			c = (cl.worldmodel->numleafs+31)/32;
+			for (i=0 ; i<c ; i++)
+				((int *)fatvis)[i] |= ((int *)vis)[i];
+			vis = fatvis;
+		}
+		
+		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
+		{
+			cluster = leaf->cluster;
+			if (cluster == -1)
+				continue;
+			if (vis[cluster>>3] & (1<<(cluster&7)))
+			{
+				node = (mnode_t *)leaf;
+				do
+				{
+					if (node->visframe == r_visframecount)
+						break;
+					node->visframe = r_visframecount;
+					node = node->parent;
+				} while (node);
+			}
+		}
+		return;
+	}
+#endif
+
+	if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.value) || r_novis.value == 2)
+		return;
+	
+//	if (mirror)
+//		return;
+
+	r_visframecount++;
+
+	r_oldviewleaf = r_viewleaf;
+	r_oldviewleaf2 = r_viewleaf2;
+
+	if (r_novis.value)
+	{
+		vis = solid;
+		memset (solid, 0xff, (cl.worldmodel->numleafs+7)>>3);
+	}
+	else if (r_viewleaf2)
+	{
+		int c;
+		Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis);
+		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
+		c = (cl.worldmodel->numleafs+31)/32;
+		for (i=0 ; i<c ; i++)
+			((int *)fatvis)[i] |= ((int *)vis)[i];
+
+		vis = fatvis;
+	}
+	else
+		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
+		
+	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+	{
+		if (vis[i>>3] & (1<<(i&7)))
+		{
+			node = (mnode_t *)&cl.worldmodel->leafs[i+1];
+			do
+			{
+				if (node->visframe == r_visframecount)
+					break;
+				node->visframe = r_visframecount;
+				node = node->parent;
+			} while (node);
+		}
+	}
+}
+
+
+
+mplane_t	frustum[4];
+
+
+/*
+=================
+R_CullBox
+
+Returns true if the box is completely outside the frustom
+=================
+*/
+qboolean R_CullBox (vec3_t mins, vec3_t maxs)
+{
+	int		i;
+
+	for (i=0 ; i<4 ; i++)
+		if (BOX_ON_PLANE_SIDE (mins, maxs, &frustum[i]) == 2)
+			return true;
+	return false;
+}
+
+qboolean R_CullSphere (vec3_t org, float radius)
+{
+	//four frustrum planes all point inwards in an expanding 'cone'.
+	int		i;
+	float d;
+
+	for (i=0 ; i<4 ; i++)
+	{
+		d = DotProduct(frustum[i].normal, org)-frustum[i].dist;
+		if (d <= -radius)
+			return true;
+	}
+	return false;
+}
+
+qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs)
+{
+	int i;
+	vec3_t wmin, wmax;
+	float fmin, fmax;
+
+	//convert the model's bbox to the expanded maximum size of the entity, as drawn with this model.
+	//The result is an axial box, which we pass to R_CullBox
+
+	for (i = 0; i < 3; i++)
+	{
+		fmin = DotProduct(modmins, e->axis[i]);
+		fmax = DotProduct(modmaxs, e->axis[i]);
+
+		if (fmin > -16)
+			fmin = -16;
+		if (fmax < 16)
+			fmax = 16;
+
+		if (fmin < fmax)
+		{
+			wmin[i] = e->origin[i]+fmin;
+			wmax[i] = e->origin[i]+fmax;
+		}
+		else
+		{       //box went inside out
+			wmin[i] = e->origin[i]+fmax;
+			wmax[i] = e->origin[i]+fmin;
+		}
+	}
+
+
+	return R_CullBox(wmin, wmax);
+}
+
+
+
+
+int SignbitsForPlane (mplane_t *out)
+{
+	int	bits, j;
+
+	// for fast box on planeside test
+
+	bits = 0;
+	for (j=0 ; j<3 ; j++)
+	{
+		if (out->normal[j] < 0)
+			bits |= 1<<j;
+	}
+	return bits;
+}
+#if 1
+void R_SetFrustum (void)
+{
+	float scale;
+	int i;
+	float mvp[16];
+
+	if ((int)r_novis.value & 4)
+		return;
+
+	Matrix4_Multiply(r_projection_matrix, r_view_matrix, mvp);
+
+	for (i = 0; i < 4; i++)
+	{
+		if (i & 1)
+		{
+			frustum[i].normal[0]	= mvp[3] + mvp[0+i/2];
+			frustum[i].normal[1]	= mvp[7] + mvp[4+i/2];
+			frustum[i].normal[2]	= mvp[11] + mvp[8+i/2];
+			frustum[i].dist			= mvp[15] + mvp[12+i/2];
+		}
+		else
+		{
+			frustum[i].normal[0]	= mvp[3] - mvp[0+i/2];
+			frustum[i].normal[1]	= mvp[7] - mvp[4+i/2];
+			frustum[i].normal[2]	= mvp[11] - mvp[8+i/2];
+			frustum[i].dist			= mvp[15] - mvp[12+i/2];
+		}
+
+		scale = 1/sqrt(DotProduct(frustum[i].normal, frustum[i].normal));
+		frustum[i].normal[0] *= scale;
+		frustum[i].normal[1] *= scale;
+		frustum[i].normal[2] *= scale;
+		frustum[i].dist	*= -scale;
+
+		frustum[i].type = PLANE_ANYZ;
+		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
+	}
+}
+#else
+void R_SetFrustum (void)
+{
+	int		i;
+
+	if ((int)r_novis.value & 4)
+		return;
+
+	/*	removed - assumes fov_x == fov_y
+	if (r_refdef.fov_x == 90) 
+	{
+		// front side is visible
+
+		VectorAdd (vpn, vright, frustum[0].normal);
+		VectorSubtract (vpn, vright, frustum[1].normal);
+
+		VectorAdd (vpn, vup, frustum[2].normal);
+		VectorSubtract (vpn, vup, frustum[3].normal);
+	}
+	else
+		*/
+	{
+
+		// rotate VPN right by FOV_X/2 degrees
+		RotatePointAroundVector( frustum[0].normal, vup, vpn, -(90-r_refdef.fov_x / 2 ) );
+		// rotate VPN left by FOV_X/2 degrees
+		RotatePointAroundVector( frustum[1].normal, vup, vpn, 90-r_refdef.fov_x / 2 );
+		// rotate VPN up by FOV_X/2 degrees
+		RotatePointAroundVector( frustum[2].normal, vright, vpn, 90-r_refdef.fov_y / 2 );
+		// rotate VPN down by FOV_X/2 degrees
+		RotatePointAroundVector( frustum[3].normal, vright, vpn, -( 90 - r_refdef.fov_y / 2 ) );
+	}
+
+	for (i=0 ; i<4 ; i++)
+	{
+		frustum[i].type = PLANE_ANYZ;
+		frustum[i].dist = DotProduct (r_origin, frustum[i].normal);
+		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
+	}
+}
+#endif

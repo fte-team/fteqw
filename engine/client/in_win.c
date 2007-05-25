@@ -1208,7 +1208,7 @@ void IN_ReInit (void)
 {
 	IN_StartupMouse ();
 	IN_StartupJoystick ();
-	IN_ActivateMouse();
+//	IN_ActivateMouse();
 }
 
 void IN_Init (void)

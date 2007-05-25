@@ -41,7 +41,7 @@ int		*lightmap_textures;
 int		*deluxmap_textures;
 int		detailtexture;
 
-#define MAX_LIGHTMAP_SIZE 256
+#define MAX_LIGHTMAP_SIZE LMBLOCK_WIDTH
 
 vec3_t			blocknormals[MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
 unsigned		blocklights[MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
@@ -1665,42 +1665,6 @@ store:
 #endif
 }
 
-/*
-===============
-R_TextureAnimation
-
-Returns the proper texture for a given time and base texture
-===============
-*/
-texture_t *GLR_TextureAnimation (texture_t *base)
-{
-	int		reletive;
-	int		count;
-
-	if (currententity->frame)
-	{
-		if (base->alternate_anims)
-			base = base->alternate_anims;
-	}
-	
-	if (!base->anim_total)
-		return base;
-
-	reletive = (int)(cl.time*10) % base->anim_total;
-
-	count = 0;	
-	while (base->anim_min > reletive || base->anim_max <= reletive)
-	{
-		base = base->anim_next;
-		if (!base)
-			Sys_Error ("R_TextureAnimation: broken cycle");
-		if (++count > 100)
-			Sys_Error ("R_TextureAnimation: infinite cycle");
-	}
-
-	return base;
-}
-
 
 /*
 =============================================================
@@ -1758,7 +1722,7 @@ static void DrawGLPoly (mesh_t *mesh)
 	qglEnableClientState( GL_VERTEX_ARRAY );
 	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
 	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
-	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_UNSIGNED_INT, mesh->indexes);
+	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_INDEX_TYPE, mesh->indexes);
 	R_IBrokeTheArrays();
 
 	/*
@@ -1892,11 +1856,11 @@ void R_RenderBrushPoly (msurface_t *fa)
 
 	if (fa->flags & SURF_DRAWSKY)
 	{	// warp texture, no lightmaps
-		EmitBothSkyLayers (fa);
+		GL_EmitBothSkyLayers (fa);
 		return;
 	}
 		
-	t = GLR_TextureAnimation (fa->texinfo->texture);
+	t = R_TextureAnimation (fa->texinfo->texture);
 	GL_Bind (t->gl_texturenum);
 
 	if (fa->flags & SURF_DRAWTURB)
@@ -2328,6 +2292,7 @@ void VectorVectors(vec3_t forward, vec3_t right, vec3_t up);
 DrawTextureChains
 ================
 */
+/*
 #if 0
 static void DrawTextureChains (model_t *model, float alpha, vec3_t relativelightorigin)
 {
@@ -2353,7 +2318,7 @@ static void DrawTextureChains (model_t *model, float alpha, vec3_t relativelight
 			if (s)
 			{
 				t->texturechain = NULL;
-				R_DrawSkyChain (s);
+				GL_DrawSkyChain (s);
 			}
 		}
 	}
@@ -2383,7 +2348,7 @@ static void DrawTextureChains (model_t *model, float alpha, vec3_t relativelight
 			continue;
 		t->texturechain = NULL;
 		if (i == skytexturenum && model == cl.worldmodel)
-			R_DrawSkyChain (s);
+			GL_DrawSkyChain (s);
 		else if (i == mirrortexturenum && model == cl.worldmodel && r_mirroralpha.value != 1.0)
 			R_MirrorChain (s);
 		else
@@ -2399,7 +2364,7 @@ static void DrawTextureChains (model_t *model, float alpha, vec3_t relativelight
 			else
 				first = s;
 
-			t = GLR_TextureAnimation (t);
+			t = R_TextureAnimation (t);
 
 			cf = s;
 
@@ -2674,11 +2639,13 @@ static void DrawTextureChains (model_t *model, float alpha, vec3_t relativelight
 	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 #endif
+*/
 /*
 =================
 R_DrawBrushModel
 =================
 */
+/*
 #if 0
 static void R_DrawBrushModel (entity_t *e)
 {
@@ -2794,7 +2761,7 @@ e->angles[0] = -e->angles[0];	// stupid quake bug
 	glPopMatrix ();
 }
 #endif
-
+*/
 /*
 =============================================================
 
@@ -3038,6 +3005,7 @@ static void GLR_RecursiveQ2WorldNode (mnode_t *node)
 #endif
 
 #ifdef Q3BSPS
+mleaf_t		*r_vischain;		// linked list of visible leafs
 static void GLR_LeafWorldNode (void)
 {
 	int			i;
@@ -3175,174 +3143,6 @@ qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer);
 
-/*
-===============
-R_MarkLeaves
-===============
-*/
-void GLR_MarkLeaves (void)
-{
-	qbyte	fatvis[MAX_MAP_LEAFS/8];
-	qbyte	*vis;
-	mnode_t	*node;
-	int		i;
-	qbyte	solid[4096];
-#ifdef Q3BSPS
-	if (cl.worldmodel->fromgame == fg_quake3)
-	{
-		int cluster;
-		mleaf_t	*leaf;
-
-		if (r_oldviewcluster == r_viewcluster && !r_novis.value && r_viewcluster != -1)
-			return;
-
-		// development aid to let you run around and see exactly where
-		// the pvs ends
-//		if (r_lockpvs->value)
-//			return;
-
-		r_vischain = NULL;
-		r_visframecount++;
-		r_oldviewcluster = r_viewcluster;
-
-		if (r_novis.value || r_viewcluster == -1 || !cl.worldmodel->vis )
-		{
-			// mark everything
-			for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
-			{
-				if ( !leaf->nummarksurfaces ) {
-					continue;
-				}
-
-				leaf->visframe = r_visframecount;
-				leaf->vischain = r_vischain;
-				r_vischain = leaf;
-			}
-			return;
-		}
-
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL);//, cl.worldmodel);
-		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
-		{
-			cluster = leaf->cluster;
-			if ( cluster == -1 || !leaf->nummarksurfaces ) {
-				continue;
-			}
-			if ( vis[cluster>>3] & (1<<(cluster&7)) ) {
-				leaf->visframe = r_visframecount;
-				leaf->vischain = r_vischain;
-				r_vischain = leaf;
-			}
-		}
-		return;
-	}
-#endif
-
-#ifdef Q2BSPS
-	if (cl.worldmodel->fromgame == fg_quake2)
-	{
-		int c;
-		mleaf_t	*leaf;
-		int		cluster;
-
-		if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
-			return;
-
-		r_oldviewcluster = r_viewcluster;
-		r_oldviewcluster2 = r_viewcluster2;
-
-		if (r_novis.value == 2)
-			return;
-		r_visframecount++;
-		if (r_novis.value || r_viewcluster == -1 || !cl.worldmodel->vis)
-		{
-			// mark everything
-			for (i=0 ; i<cl.worldmodel->numleafs ; i++)
-				cl.worldmodel->leafs[i].visframe = r_visframecount;
-			for (i=0 ; i<cl.worldmodel->numnodes ; i++)
-				cl.worldmodel->nodes[i].visframe = r_visframecount;
-			return;
-		}
-
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL);//, cl.worldmodel);
-		// may have to combine two clusters because of solid water boundaries
-		if (r_viewcluster2 != r_viewcluster)
-		{
-			memcpy (fatvis, vis, (cl.worldmodel->numleafs+7)/8);
-			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL);//, cl.worldmodel);
-			c = (cl.worldmodel->numleafs+31)/32;
-			for (i=0 ; i<c ; i++)
-				((int *)fatvis)[i] |= ((int *)vis)[i];
-			vis = fatvis;
-		}
-		
-		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
-		{
-			cluster = leaf->cluster;
-			if (cluster == -1)
-				continue;
-			if (vis[cluster>>3] & (1<<(cluster&7)))
-			{
-				node = (mnode_t *)leaf;
-				do
-				{
-					if (node->visframe == r_visframecount)
-						break;
-					node->visframe = r_visframecount;
-					node = node->parent;
-				} while (node);
-			}
-		}
-		return;
-	}
-#endif
-
-	if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.value) || r_novis.value == 2)
-		return;
-	
-//	if (mirror)
-//		return;
-
-	r_visframecount++;
-
-	r_oldviewleaf = r_viewleaf;
-	r_oldviewleaf2 = r_viewleaf2;
-
-	if (r_novis.value)
-	{
-		vis = solid;
-		memset (solid, 0xff, (cl.worldmodel->numleafs+7)>>3);
-	}
-	else if (r_viewleaf2)
-	{
-		int c;
-		Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis);
-		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
-		c = (cl.worldmodel->numleafs+31)/32;
-		for (i=0 ; i<c ; i++)
-			((int *)fatvis)[i] |= ((int *)vis)[i];
-
-		vis = fatvis;
-	}
-	else
-		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
-		
-	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
-	{
-		if (vis[i>>3] & (1<<(i&7)))
-		{
-			node = (mnode_t *)&cl.worldmodel->leafs[i+1];
-			do
-			{
-				if (node->visframe == r_visframecount)
-					break;
-				node->visframe = r_visframecount;
-				node = node->parent;
-			} while (node);
-		}
-	}
-}
-
 
 
 /*
@@ -3471,7 +3271,7 @@ int	nColinElim;
 BuildSurfaceDisplayList
 ================
 */
-void BuildSurfaceDisplayList (msurface_t *fa)
+void GL_BuildSurfaceDisplayList (msurface_t *fa)
 {
 	int			i, lindex, lnumverts;
 	medge_t		*pedges, *r_pedge;
@@ -3837,7 +3637,7 @@ void GL_BuildLightmaps (void)
 			P_EmitSkyEffectTris(m, &m->surfaces[i]);
 			if (m->surfaces[i].mesh)	//there are some surfaces that have a display list already (the subdivided ones)
 				continue;
-			BuildSurfaceDisplayList (m->surfaces + i);
+			GL_BuildSurfaceDisplayList (m->surfaces + i);
 		}
 	}
 

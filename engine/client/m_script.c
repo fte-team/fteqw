@@ -137,7 +137,7 @@ void M_MenuS_Slider_f (void)
 	cvar = Cvar_Get(cvarname, text, 0, "User variables");
 	if (!cvar)
 		return;
-	MC_AddSlider(menu_script, x, y, text, cvar, min, max);
+	MC_AddSlider(menu_script, x, y, text, cvar, min, max, 0);
 }
 
 void M_MenuS_Picture_f (void)

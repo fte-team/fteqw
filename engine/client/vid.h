@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // a pixel can be one, two, or four bytes
 typedef qbyte pixel_t;
 
-typedef enum {QR_NONE, QR_SOFTWARE, QR_OPENGL} r_qrenderer_t;
+typedef enum {QR_NONE, QR_SOFTWARE, QR_OPENGL, QR_DIRECT3D} r_qrenderer_t;
 
 typedef struct {
 	//you are not allowed to make anything not work if it's not based on these vars...
@@ -59,10 +59,12 @@ typedef struct
 	float			aspect;		// width / height -- < 0 is taller than wide
 	int				numpages;
 	int				recalc_refdef;	// if true, recalc vid-based stuff
+
 	pixel_t			*conbuffer;
 	int				conrowbytes;
 	unsigned		conwidth;
 	unsigned		conheight;
+
 	int				maxwarpwidth;
 	int				maxwarpheight;
 	pixel_t			*direct;		// direct drawing to framebuffer, if not
@@ -143,5 +145,6 @@ int SWVID_ForceUnlockedAndReturnState (void);
 void SWVID_ForceLockState (int lk);
 
 char *SWVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight);
+
 void SWVID_SetCaption(char *caption);
 #endif

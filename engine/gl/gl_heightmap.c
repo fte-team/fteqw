@@ -1,6 +1,9 @@
 #include "quakedef.h"
+
 #if defined(TERRAIN) && !defined(SERVERONLY) //fixme
+#ifdef RGLQUAKE
 #include "glquake.h"
+#endif
 
 //heightmaps work thusly:
 //there is one raw heightmap file
@@ -27,7 +30,7 @@ typedef struct {
 	unsigned short mins[SECTIONS*SECTIONS], maxs[SECTIONS*SECTIONS];
 } heightmap_t;
 
-
+#ifdef RGLQUAKE
 #define DISPLISTS
 //#define MULTITEXTURE	//ATI suck. I don't know about anyone else (this goes at 1/5th the speed).
 
@@ -51,7 +54,7 @@ void GL_DrawHeightmapModel (entity_t *e)
 
 		R_ClearSkyBox();
 		R_ForceSkyBox();
-		R_DrawSkyBox(NULL);
+		GL_DrawSkyBox(NULL);
 	}
 	else
 		qglColor4fv(e->shaderRGBAf);
@@ -173,6 +176,8 @@ void GL_DrawHeightmapModel (entity_t *e)
 		}
 	}
 }
+#endif
+
 unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t org)
 {
 	float x, y;
@@ -652,6 +657,10 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 		Con_Printf(S_ERROR "%s wasn't terrain map\n", mod->name);	//shouldn't happen
 		return false;
 	}
+
+	if (qrenderer != QR_OPENGL)
+		return false;
+
 	for(;;)
 	{
 		buffer = COM_Parse(buffer);
@@ -751,9 +760,10 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 	hm->heightscale = heightsize;
 	hm->numsegs = numsegs;
 
-	hm->detailtexture = Mod_LoadHiResTexture(detailtexname, "", true, true, false);
-
 	mod->entities = COM_LoadHunkFile(entfile);
+
+#ifdef RGLQUAKE
+	hm->detailtexture = Mod_LoadHiResTexture(detailtexname, "", true, true, false);
 
 	for (x = 0; x < numsegs; x++)
 	{
@@ -764,6 +774,7 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 			qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		}
 	}
+#endif
 
 	R_SetSky(skyname, skyrotate, skyaxis);
 

@@ -843,7 +843,7 @@ void R_FlushArrays (void)
 	if ( !r_arrays_locked ) {
 		R_DrawTriangleStrips ( indexesArray, numIndexes );
 	} else {
-		qglDrawElements( GL_TRIANGLES, numIndexes, GL_UNSIGNED_INT,	indexesArray );
+		qglDrawElements( GL_TRIANGLES, numIndexes, GL_INDEX_TYPE,	indexesArray );
 	}
 
 	r_numtris += numIndexes / 3;
@@ -888,7 +888,7 @@ void R_FlushArraysMtex (void)
 	if ( !r_arrays_locked ) {
 		R_DrawTriangleStrips ( indexesArray, numIndexes );
 	} else {
-		qglDrawElements( GL_TRIANGLES, numIndexes, GL_UNSIGNED_INT,	indexesArray );
+		qglDrawElements( GL_TRIANGLES, numIndexes, GL_INDEX_TYPE,	indexesArray );
 	}
 
 	r_numtris += numIndexes / 3;
@@ -1193,7 +1193,7 @@ void RB_CalcEnvironmentTexCoords( float *st )
 R_VertexTCBase
 ==============
 */
-void R_VertexTCBase ( int tcgen, int unit )
+float *R_VertexTCBase ( int tcgen, int unit )
 {
 	int	i;
 //	vec3_t t, n;
@@ -1203,7 +1203,6 @@ void R_VertexTCBase ( int tcgen, int unit )
 //	mat3_t axis;
 
 	outCoords = tUnitCoordsArray[unit][0];
-	qglTexCoordPointer( 2, GL_FLOAT, 0, outCoords );
 
 	if ( tcgen == TC_GEN_BASE )
 	{
@@ -1278,6 +1277,7 @@ void R_VertexTCBase ( int tcgen, int unit )
 		}
 	}
 
+	return tUnitCoordsArray[unit][0];
 }
 
 /*
@@ -1331,7 +1331,7 @@ void R_ModifyTextureCoords ( shaderpass_t *pass, int unit )
 		} else if ( pass->tcgen == TC_GEN_LIGHTMAP ) {
 			qglTexCoordPointer( 2, GL_FLOAT, 0, lightmapCoordsArray );
 		} else {
-			R_VertexTCBase ( pass->tcgen, unit );
+			qglTexCoordPointer( 2, GL_FLOAT, 0, R_VertexTCBase (pass->tcgen, unit));
 		}
 		return;
 	}

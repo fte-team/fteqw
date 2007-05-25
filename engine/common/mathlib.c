@@ -832,7 +832,7 @@ void Matrix4_Transform3(float *matrix, float *vector, float *product)
 	product[2] = matrix[2]*vector[0] + matrix[6]*vector[1] + matrix[10]*vector[2] + matrix[14];
 }
 
-void ML_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg)
+void Matrix4_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg)
 {
 	float tempmat[16];
 	//load identity.
@@ -861,7 +861,7 @@ void ML_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg)
 
 	Matrix4_Multiply(tempmat, Matrix4_NewTranslation(-vieworg[0],  -vieworg[1],  -vieworg[2]), modelview);	    // put Z going up
 }
-void ML_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg)
+void Matrix4_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg)
 {
 	float tempmat[16];
 
@@ -886,64 +886,108 @@ void ML_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_
 }
 
 
-void ML_ProjectionMatrix(float *proj, float wdivh, float fovy)
+void Matrix4_ModelMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg)
+{
+	float tempmat[16];
+
+	tempmat[ 0] = pn[0];
+	tempmat[ 1] = pn[1];
+	tempmat[ 2] = pn[2];
+	tempmat[ 3] = 0;
+	tempmat[ 4] = right[0];
+	tempmat[ 5] = right[1];
+	tempmat[ 6] = right[2];
+	tempmat[ 7] = 0;
+	tempmat[ 8] = up[0];
+	tempmat[ 9] = up[1];
+	tempmat[10] = up[2];
+	tempmat[11] = 0;
+	tempmat[12] = 0;
+	tempmat[13] = 0;
+	tempmat[14] = 0;
+	tempmat[15] = 1;
+
+	Matrix4_Multiply(Matrix4_NewTranslation(vieworg[0],  vieworg[1],  vieworg[2]), tempmat, modelview);	    // put Z going up
+}
+
+void Matrix4_Identity(float *outm)
+{
+	outm[ 0] = 1;
+	outm[ 1] = 0;
+	outm[ 2] = 0;
+	outm[ 3] = 0;
+	outm[ 4] = 0;
+	outm[ 5] = 1;
+	outm[ 6] = 0;
+	outm[ 7] = 0;
+	outm[ 8] = 0;
+	outm[ 9] = 0;
+	outm[10] = 1;
+	outm[11] = 0;
+	outm[12] = 0;
+	outm[13] = 0;
+	outm[14] = 0;
+	outm[15] = 1;
+}
+
+void Matrix4_Projection(float *proj, float wdivh, float fovy, float neard)
 {
 	float xmin, xmax, ymin, ymax;
 	float nudge = 1;
 
 	//proj
-	ymax = 4 * tan( fovy * M_PI / 360.0 );
+	ymax = neard * tan( fovy * M_PI / 360.0 );
 	ymin = -ymax;
 
 	xmin = ymin * wdivh;
 	xmax = ymax * wdivh;
 
-	proj[0] = (2*4) / (xmax - xmin);
+	proj[0] = (2*neard) / (xmax - xmin);
 	proj[4] = 0;
 	proj[8] = (xmax + xmin) / (xmax - xmin);
 	proj[12] = 0;
 
 	proj[1] = 0;
-	proj[5] = (2*4) / (ymax - ymin);
+	proj[5] = (2*neard) / (ymax - ymin);
 	proj[9] = (ymax + ymin) / (ymax - ymin);
 	proj[13] = 0;
 
 	proj[2] = 0;
 	proj[6] = 0;
 	proj[10] = -1  * nudge;
-	proj[14] = -2*4 * nudge;
+	proj[14] = -2*neard * nudge;
 	
 	proj[3] = 0;
 	proj[7] = 0;
 	proj[11] = -1;
 	proj[15] = 0;
 }
-void ML_ProjectionMatrix2(float *proj, float fovx, float fovy)
+void Matrix4_Projection2(float *proj, float fovx, float fovy, float neard)
 {
 	float xmin, xmax, ymin, ymax;
 	float nudge = 1;
 
 	//proj
-	ymax = 4 * tan( fovy * M_PI / 360.0 );
+	ymax = neard * tan( fovy * M_PI / 360.0 );
 	ymin = -ymax;
 
-	xmax = 4 * tan( fovx * M_PI / 360.0 );
+	xmax = neard * tan( fovx * M_PI / 360.0 );
 	xmin = -xmax;
 
-	proj[0] = (2*4) / (xmax - xmin);
+	proj[0] = (2*neard) / (xmax - xmin);
 	proj[4] = 0;
 	proj[8] = (xmax + xmin) / (xmax - xmin);
 	proj[12] = 0;
 
 	proj[1] = 0;
-	proj[5] = (2*4) / (ymax - ymin);
+	proj[5] = (2*neard) / (ymax - ymin);
 	proj[9] = (ymax + ymin) / (ymax - ymin);
 	proj[13] = 0;
 
 	proj[2] = 0;
 	proj[6] = 0;
 	proj[10] = -1  * nudge;
-	proj[14] = -2*4 * nudge;
+	proj[14] = -2*neard * nudge;
 	
 	proj[3] = 0;
 	proj[7] = 0;
@@ -951,7 +995,31 @@ void ML_ProjectionMatrix2(float *proj, float fovx, float fovy)
 	proj[15] = 0;
 }
 
-void Matrix4x4_Invert_Simple (matrix4x4_t *out, const matrix4x4_t *in1)
+void Matrix4_Orthographic(float *proj, float xmin, float xmax, float ymax, float ymin,
+		     float znear, float zfar)
+{
+	proj[0] = 2/(xmax-xmin);
+	proj[4] = 0;
+	proj[8] = 0;
+	proj[12] = (xmax+xmin)/(xmax-xmin);
+
+	proj[1] = 0;
+	proj[5] = 2/(ymax-ymin);
+	proj[9] = 0;
+	proj[13] = (ymax+ymin)/(ymax-ymin);
+
+	proj[2] = 0;
+	proj[6] = 0;
+	proj[10] = -2/(zfar-znear);
+	proj[14] = (zfar+znear)/(zfar-znear);
+	
+	proj[3] = 0;
+	proj[7] = 0;
+	proj[11] = 0;
+	proj[15] = 1;
+}
+
+void Matrix4_Invert_Simple (matrix4x4_t *out, const matrix4x4_t *in1)
 {
 	// we only support uniform scaling, so assume the first row is enough
 	// (note the lack of sqrt here, because we're trying to undo the scaling,
@@ -993,17 +1061,17 @@ void Matrix4x4_Invert_Simple (matrix4x4_t *out, const matrix4x4_t *in1)
 
 //screen->3d
 
-void ML_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy)
+void Matrix4_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy)
 {
 	float modelview[16];
 	float proj[16];
 	float tempm[16];
 
-	ML_ModelViewMatrix(modelview, viewangles, vieworg);
-	ML_ProjectionMatrix(proj, wdivh, fovy);
+	Matrix4_ModelViewMatrix(modelview, viewangles, vieworg);
+	Matrix4_Projection(proj, wdivh, fovy, 4);
 	Matrix4_Multiply(proj, modelview, tempm);
 
-	Matrix4x4_Invert_Simple((void*)proj, (void*)tempm);
+	Matrix4_Invert_Simple((void*)proj, (void*)tempm);
 
 	{
 		float v[4], tempv[4];
@@ -1023,13 +1091,13 @@ void ML_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, floa
 //returns fractions of screen.
 //uses GL style rotations and translations and stuff.
 //3d -> screen (fixme: offscreen return values needed)
-void ML_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy)
+void Matrix4_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy)
 {
 	float modelview[16];
 	float proj[16];
 
-	ML_ModelViewMatrix(modelview, viewangles, vieworg);
-	ML_ProjectionMatrix(proj, wdivh, fovy);
+	Matrix4_ModelViewMatrix(modelview, viewangles, vieworg);
+	Matrix4_Projection(proj, wdivh, fovy, 4);
 
 	{
 		float v[4], tempv[4];
@@ -1120,3 +1188,4 @@ void MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up)
 	VectorNormalize (right);
 	CrossProduct (right, forward, up);
 }
+

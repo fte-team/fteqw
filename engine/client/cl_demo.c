@@ -266,12 +266,19 @@ qboolean CL_GetDemoMessage (void)
 	q1usercmd_t q1cmd;
 
 #ifdef NQPROT
-	if (cls.demoplayback == DPB_NETQUAKE || cls.demoplayback == DPB_QUAKE2)
+	if (cls.demoplayback == DPB_NETQUAKE 
+#ifdef Q2CLIENT
+		|| cls.demoplayback == DPB_QUAKE2
+#endif
+		)
 	{	//read the nq demo
 
+#ifdef Q2CLIENT
 		if (cls.demoplayback == DPB_QUAKE2 && (cls.netchan.last_received == realtime || cls.netchan.last_received > realtime-0.1))
 			return 0;
-		else if (cls.demoplayback == DPB_NETQUAKE && cls.signon == 4/*SIGNONS*/)
+		else 
+#endif
+			if (cls.demoplayback == DPB_NETQUAKE && cls.signon == 4/*SIGNONS*/)
 		{
 			if (!realtime)
 			{
@@ -1707,6 +1714,32 @@ void CL_QTVList_f (void)
 					"VERSION: 1\n";
 	VFS_WRITE(newf, connrequest, strlen(connrequest));
 	connrequest =	"SOURCELIST\n";
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
+	connrequest =	"\n";
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
+
+	if (qtvrequest)
+		VFS_CLOSE(qtvrequest);
+	qtvrequest = newf;
+	qtvrequestsize = 0;
+}
+
+void CL_QTVDemos_f (void)
+{
+	char *connrequest;
+	vfsfile_t *newf;
+	newf = FS_OpenTCP(Cmd_Argv(1));
+
+	if (!newf)
+	{
+		Con_Printf("Couldn't connect to proxy\n");
+		return;
+	}
+
+	connrequest =	"QTV\n"
+					"VERSION: 1\n";
+	VFS_WRITE(newf, connrequest, strlen(connrequest));
+	connrequest =	"DEMOLIST\n";
 	VFS_WRITE(newf, connrequest, strlen(connrequest));
 	connrequest =	"\n";
 	VFS_WRITE(newf, connrequest, strlen(connrequest));

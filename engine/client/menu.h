@@ -279,7 +279,7 @@ menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname
 menupicture_t *MC_AddStrechPicture(menu_t *menu, int x, int y, int width, int height, char *picname);
 menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, char *picname);
 menupicture_t *MC_AddCursor(menu_t *menu, int x, int y);
-menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t *var, float min, float max);
+menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t *var, float min, float max, float delta);
 menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t *var, int cvarbitmask);
 menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int x, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits);
 menubutton_t *MC_AddConsoleCommand(menu_t *menu, int x, int y, const char *text, const char *command);

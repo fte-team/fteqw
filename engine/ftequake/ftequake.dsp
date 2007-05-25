@@ -195,7 +195,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NOSOUNDASM" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "SERVERDLL" /D "NQPROT" /D "WIN32" /D "_WINDOWS" /FR /YX /FD /c
-# ADD CPP /nologo /G6 /GX /O2 /I "..\client" /I "../libs/dxsdk7/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "NDEBUG" /D "_MBCS" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "USE_D3D" /Fr /Yu"quakedef.h" /FD /c
+# ADD CPP /nologo /G6 /GX /O2 /I "..\client" /I "../libs/dxsdk7/include" /I "../libs/dxsdk9/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../d3d" /I "../d3d9" /D "NDEBUG" /D "_MBCS" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "USE_D3D" /D "D3DQUAKE" /Fr /Yu"quakedef.h" /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "NDEBUG"

@@ -381,6 +381,8 @@ int R_LoadTexture(char *name, int width, int height, void *data, void *palette, 
 
 
 
+void GL_ParallelPerspective(double xmin, double xmax, double ymax, double ymin, double znear, double zfar);
+void GL_InfinatePerspective(double fovx, double fovy, double zNear);
 
 #if defined(RGLQUAKE) || defined(D3DQUAKE)
 

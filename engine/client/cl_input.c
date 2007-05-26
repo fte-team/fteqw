@@ -1088,7 +1088,7 @@ CL_SendCmd
 =================
 */
 vec3_t accum[MAX_SPLITS];
-void CL_SendCmd (float frametime)
+void CL_SendCmd (double frametime)
 {
 	extern cvar_t cl_indepphysics;
 	sizebuf_t	buf;
@@ -1105,7 +1105,7 @@ void CL_SendCmd (float frametime)
 
 	static float	pps_balance = 0;
 	static int	dropcount = 0;
-	static float msecs;
+	static double msecs;
 	int msecstouse;
 	qboolean	dontdrop=false;
 
@@ -1229,15 +1229,21 @@ void CL_SendCmd (float frametime)
 	}
 
 	if (cl_netfps.value && !cl_indepphysics.value)
-	{
+	{//this chunk of code is here to stop the client from using too few msecs per packet
 		int spare;
 		spare = CL_FilterTime(msecstouse, cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value);
 		if (!spare && msecstouse<255 && cls.state == ca_active)
 		{
 			return;
 		}
+		if (spare > 10)
+			spare = 10;
 		if (spare > 0)
+		{
 			msecstouse -= spare;
+			for (plnum = 0; plnum < cl.splitclients; plnum++)
+				independantphysics[plnum].msec = msecstouse;
+		}
 	}
 
 #ifdef NQPROT
@@ -1326,7 +1332,7 @@ void CL_SendCmd (float frametime)
 
 			lightlev = 0;
 		}
-		msecs -= msecstouse;
+		msecs = msecs - (double)msecstouse;
 		firstsize=0;
 		for (plnum = 0; plnum<clientcount; plnum++)
 		{

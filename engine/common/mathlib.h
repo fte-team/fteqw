@@ -128,5 +128,4 @@ void Matrix4_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, 
 
 
 void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
-qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);

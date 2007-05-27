@@ -28,11 +28,11 @@ char	loadname[32];	// for hunk tags
 qboolean Mod_LoadBrushModel (model_t *mod, void *buffer);
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 
-qboolean GL_LoadQ1Model (model_t *mod, void *buffer);
-qboolean GL_LoadQ2Model (model_t *mod, void *buffer);
-qboolean GL_LoadQ3Model (model_t *mod, void *buffer);
-qboolean GLMod_LoadZymoticModel (model_t *mod, void *buffer);
-qboolean GLMod_LoadDarkPlacesModel(model_t *mod, void *buffer);
+qboolean Mod_LoadQ1Model (model_t *mod, void *buffer);
+qboolean Mod_LoadQ2Model (model_t *mod, void *buffer);
+qboolean Mod_LoadQ3Model (model_t *mod, void *buffer);
+qboolean Mod_LoadZymoticModel (model_t *mod, void *buffer);
+qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer);
 
 qbyte	mod_novis[MAX_MAP_LEAFS/8];
 
@@ -441,30 +441,30 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 
 
 	case IDPOLYHEADER:
-		if (!GL_LoadQ1Model(mod, buf))
+		if (!Mod_LoadQ1Model(mod, buf))
 			goto couldntload;
 		break;
 #ifdef MD2MODELS
 	case MD2IDALIASHEADER:
-		if (!GL_LoadQ2Model(mod, buf))
+		if (!Mod_LoadQ2Model(mod, buf))
 			goto couldntload;
 		break;
 #endif
 #ifdef MD3MODELS
 	case MD3_IDENT:
-		if (!GL_LoadQ3Model (mod, buf))
+		if (!Mod_LoadQ3Model (mod, buf))
 			goto couldntload;
 		break;
 #endif
 #ifdef ZYMOTICMODELS
 	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
-		if (!GLMod_LoadZymoticModel(mod, buf))
+		if (!Mod_LoadZymoticModel(mod, buf))
 			goto couldntload;
 		break;
 #endif
 #ifdef ZYMOTICMODELS
 	case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
-		if (!GLMod_LoadDarkPlacesModel(mod, buf))
+		if (!Mod_LoadDarkPlacesModel(mod, buf))
 			goto couldntload;
 		break;
 #endif

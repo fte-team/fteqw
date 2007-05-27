@@ -1,5 +1,5 @@
 #include "quakedef.h"
-#if defined(D3DQUAKE) || defined(RGLQUAKE)
+#if defined(D3DQUAKE) || defined(RGLQUAKE) || defined(SERVERONLY)
 
 #ifdef D3DQUAKE
 #include "d3dquake.h"
@@ -211,7 +211,7 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 
 
 
-
+#if defined(D3DQUAKE) || defined(RGLQUAKE)
 
 extern entity_t *currententity;
 int numTempColours;
@@ -530,7 +530,7 @@ qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int fram
 	return true;	//to allow the mesh to be dlighted.
 }
 
-
+#endif
 
 
 
@@ -740,6 +740,7 @@ void Mod_CompileTriangleNeighbours(galiasinfo_t *galias)
 #endif
 }
 
+#if defined(D3DQUAKE) || defined(RGLQUAKE)
 /*
 =================
 Mod_FloodFillSkin
@@ -813,7 +814,7 @@ void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 		skin[x + skinwidth * y] = fdc;
 	}
 }
-
+#endif
 
 //additional skin loading
 char **skinfilelist;
@@ -989,6 +990,8 @@ void Mod_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum
 			break;
 	}
 }
+
+#if defined(D3DQUAKE) || defined(RGLQUAKE)
 void Mod_LoadSkinFile(galiastexnum_t *texnum, char *surfacename, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette)
 {
 	char shadername[MAX_QPATH];
@@ -1002,7 +1005,7 @@ void Mod_LoadSkinFile(galiastexnum_t *texnum, char *surfacename, int skinnumber,
 
 	texnum->base = Mod_LoadHiResTexture(shadername, "models", true, true, true);
 }
-
+#endif
 
 
 

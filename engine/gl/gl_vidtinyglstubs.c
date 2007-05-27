@@ -10,6 +10,10 @@ Obviously, in an engine that likes function pointers to all the gl functions, th
 You can see the state of his opengl library be seeing which functions are actually implemented. :)
 */
 
+/*
+ * PS: It is Kiero's library and everything _IS_ implemented ;)
+ *   - bigfoot
+ */
 
 void stub_glAlphaFunc(GLenum func, GLclampf ref)
 {
@@ -88,18 +92,12 @@ void stub_glColorMask(GLboolean red, GLboolean green, GLboolean blue, GLboolean 
 
 void stub_glCopyTexImage2D(GLenum target, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border)
 {
-#warning Not implemented
-#if 0
 	glCopyTexImage2D(target, level, internalFormat, x, y, width, height, border);
-#endif
 }
 
 void stub_glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height)
 {
-#warning Not implemented
-#if 0
 	glCopyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height);
-#endif
 }
 
 void stub_glCullFace(GLenum mode)
@@ -129,18 +127,12 @@ void stub_glDisable(GLenum cap)
 
 void stub_glDrawBuffer(GLenum mode)
 {
-#warning Not implemented
-#if 0
 	glDrawBuffer(mode);
-#endif
 }
 
 void stub_glDrawPixels(GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels)
 {
-#warning Not implemented
-#if 0
 	glDrawPixels(width, height, format, type, pixels);
-#endif
 }
 
 void stub_glEnable(GLenum cap)

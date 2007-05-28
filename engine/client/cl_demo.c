@@ -1464,6 +1464,7 @@ void CL_QTVPlay (vfsfile_t *newf)
 	TP_ExecTrigger ("f_demostart");
 }
 
+char qtvhostname[1024];
 char qtvrequestbuffer[4096];
 int qtvrequestsize;
 vfsfile_t *qtvrequest;
@@ -1474,6 +1475,14 @@ void CL_QTVPoll (void)
 	int len;
 	qboolean streamavailable = false;
 	qboolean saidheader = false;
+	menu_t *sourcesmenu = NULL;
+	int sourcenum = 0;
+
+	int streamid;
+	int numplayers;
+	int numviewers;
+	char srchost[256];
+
 
 	if (!qtvrequest)
 		return;
@@ -1523,6 +1532,8 @@ void CL_QTVPoll (void)
 				{	//printable error
 					Con_Printf("Demo%s is available\n", colon);
 				}
+
+				//generic sourcelist responce
 				else if (!strcmp(s, "ASOURCE"))
 				{	//printable source
 					if (!saidheader)
@@ -1531,7 +1542,47 @@ void CL_QTVPoll (void)
 						Con_Printf("Available Sources:\n");
 					}
 					Con_Printf("%s\n", colon);
+					//we're too lazy to even try and parse this
 				}
+
+				//v1.1 sourcelist responce includes SRCSRV, SRCHOST, SRCPLYRS, SRCVIEWS, SRCID
+				else if (!strcmp(s, "SRCSRV"))
+				{
+					//the proxy's source string (beware of file:blah without file:blah@blah)
+				}
+				else if (!strcmp(s, "SRCHOST"))
+				{
+					//the hostname from the server the stream came from
+					Q_strncpyz(srchost, colon, sizeof(srchost));
+				}
+				else if (!strcmp(s, "SRCPLYRS"))
+				{
+					//number of active players actually playing on that stream
+					numplayers = atoi(colon);
+				}
+				else if (!strcmp(s, "SRCVIEWS"))
+				{
+					//number of people watching this stream on the proxy itself
+					numviewers = atoi(colon);
+				}
+				else if (!strcmp(s, "SRCID"))
+				{
+					streamid = atoi(colon);
+
+					//now put it on a menu
+					if (!sourcesmenu)
+					{
+						m_state = m_complex;
+						key_dest = key_menu;
+						sourcesmenu = M_CreateMenu(0);
+
+						MC_AddPicture(sourcesmenu, 16, 4, "gfx/qplaque.lmp");
+						MC_AddCenterPicture(sourcesmenu, 4, "gfx/p_option.lmp");
+					}
+					MC_AddConsoleCommand(sourcesmenu, 42, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %i@%s\n", streamid, qtvhostname));
+				}
+				//end of sourcelist entry
+
 				else if (!strcmp(s, "BEGIN"))
 					streamavailable = true;
 			}
@@ -1650,7 +1701,8 @@ void CL_QTVPlay_f (void)
 	connrequest = strchrrev(connrequest, '@');
 	if (connrequest)
 		host = connrequest+1;
-	newf = FS_OpenTCP(host);
+	Q_strncpyz(qtvhostname, host, sizeof(qtvhostname));
+	newf = FS_OpenTCP(qtvhostname);
 
 	if (!newf)
 	{
@@ -1665,7 +1717,7 @@ void CL_QTVPlay_f (void)
 		host = NULL;
 
 	connrequest =	"QTV\n"
-					"VERSION: 1\n";
+					"VERSION: 1.1\n";
 	VFS_WRITE(newf, connrequest, strlen(connrequest));
 	if (raw)
 	{
@@ -1679,6 +1731,10 @@ void CL_QTVPlay_f (void)
 		connrequest =	host;
 		VFS_WRITE(newf, connrequest, strlen(connrequest));
 		connrequest =	"\n";
+	}
+	else
+	{
+		connrequest =	"SOURCELIST\n";
 	}
 
 	VFS_WRITE(newf, connrequest, strlen(connrequest));
@@ -1702,7 +1758,7 @@ void CL_QTVList_f (void)
 {
 	char *connrequest;
 	vfsfile_t *newf;
-	newf = FS_OpenTCP(Cmd_Argv(1));
+	newf = FS_OpenTCP(qtvhostname);
 
 	if (!newf)
 	{
@@ -1711,7 +1767,7 @@ void CL_QTVList_f (void)
 	}
 
 	connrequest =	"QTV\n"
-					"VERSION: 1\n";
+					"VERSION: 1.1\n";
 	VFS_WRITE(newf, connrequest, strlen(connrequest));
 	connrequest =	"SOURCELIST\n";
 	VFS_WRITE(newf, connrequest, strlen(connrequest));

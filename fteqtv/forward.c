@@ -90,6 +90,7 @@ void SV_FindProxies(SOCKET sock, cluster_t *cluster, sv_t *defaultqtv)
 
 	cluster->numproxies++;
 
+	prox->droptime = cluster->curtime + 5*1000;
 #if 1
 	prox->defaultstream = defaultqtv;
 
@@ -500,8 +501,9 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	char *s;
 	char *e;
 	char *colon;
-	int usableversion = 0;
+	float clientversion = 0;
 	int len;
+	int headersize;
 	qboolean raw;
 	sv_t *qtv;
 
@@ -514,6 +516,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		cluster->numproxies--;
 		return true;
 	}
+#define QTVSVHEADER "QTVSV 1.1\n"
 
 	Net_TryFlushProxyBuffer(cluster, pend);
 
@@ -541,6 +544,12 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		}
 		else
 			return false;
+	}
+
+	if (pend->droptime < cluster->curtime)
+	{
+		pend->drop = true;
+		return false;
 	}
 
 	len = sizeof(pend->inbuffer) - pend->inbuffersize - 1;
@@ -575,6 +584,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	if (!*s)
 		return false;	//don't have enough yet
 	s+=3;
+	headersize = s - pend->inbuffer - 1;
 
 	if (!strncmp(pend->inbuffer, "POST ", 5))
 	{
@@ -608,11 +618,11 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 				{
 					if (!strcmp(s, "QTV"))
 					{
-						//just a qtv request
+						//just a qtv request (as in, not http or some other protocol)
 					}
 					else if (!strcmp(s, "SOURCELIST"))
 					{	//lists sources that are currently playing
-						s = "QTVSV 1\n";
+						s = QTVSVHEADER;
 							Net_ProxySend(cluster, pend, s, strlen(s));
 						if (!cluster->servers)
 						{
@@ -623,9 +633,32 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						{
 							for (qtv = cluster->servers; qtv; qtv = qtv->next)
 							{
-								sprintf(tempbuf, "ASOURCE: %i: %15s: %15s\n", qtv->streamid, qtv->server, qtv->hostname);
 								s = tempbuf;
-								Net_ProxySend(cluster, pend, s, strlen(s));
+								if (clientversion > 1)
+								{
+									int plyrs = 0;
+									int i;
+									for (i = 0; i < MAX_CLIENTS; i++)
+									{
+										if (*qtv->players[i].userinfo)
+											plyrs++;
+									}
+									sprintf(tempbuf, "SRCSRV: %s\n", qtv->server);
+									Net_ProxySend(cluster, pend, s, strlen(s));
+									sprintf(tempbuf, "SRCHOST: %s\n", qtv->hostname);
+									Net_ProxySend(cluster, pend, s, strlen(s));
+									sprintf(tempbuf, "SRCPLYRS: %i\n", plyrs);
+									Net_ProxySend(cluster, pend, s, strlen(s));
+									sprintf(tempbuf, "SRCVIEWS: %i\n", qtv->numviewers);
+									Net_ProxySend(cluster, pend, s, strlen(s));
+									sprintf(tempbuf, "SRCID: %i\n", qtv->streamid);	//final part of each source
+									Net_ProxySend(cluster, pend, s, strlen(s));
+								}
+								else
+								{
+									sprintf(tempbuf, "ASOURCE: %i: %15s: %15s\n", qtv->streamid, qtv->server, qtv->hostname);
+									Net_ProxySend(cluster, pend, s, strlen(s));
+								}
 							}
 							qtv = NULL;
 						}
@@ -636,6 +669,25 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 					else if (!strcmp(s, "REVERSE"))
 					{	//this is actually a server trying to connect to us
 						//start up a new stream
+
+						//FIXME: does this work?
+#if 1	//left disabled until properly tested
+						qtv = QTV_NewServerConnection(cluster, "reverse"/*server*/, "", true, 2, false, 0);
+
+						s = QTVSVHEADER;		Net_ProxySend(cluster, pend, s, strlen(s));
+						s = "REVERSED\n";		Net_ProxySend(cluster, pend, s, strlen(s));
+						s = "VERSION: 1\n";		Net_ProxySend(cluster, pend, s, strlen(s));
+						s = "\n";				Net_ProxySend(cluster, pend, s, strlen(s));
+
+						//switch over the socket to the actual source connection rather than the pending
+						Net_TryFlushProxyBuffer(cluster, pend); //flush anything... this isn't ideal, but should be small enough
+						qtv->sourcesock = pend->sock;
+						pend->sock = 0;
+
+						memcpy(qtv->buffer, pend->inbuffer + headersize, pend->inbuffersize - headersize);
+						qtv->parsingqtvheader = true;
+						return false;
+#endif
 					}
 					else if (!strcmp(s, "RECEIVE"))
 					{	//a client connection request without a source
@@ -660,7 +712,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						}
 						if (!qtv)
 						{
-							s = "QTVSV 1\n";
+							s = QTVSVHEADER;
 								Net_ProxySend(cluster, pend, s, strlen(s));
 							s = "PERROR: Multiple streams are currently playing\n";
 								Net_ProxySend(cluster, pend, s, strlen(s));
@@ -675,7 +727,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 						Cluster_BuildAvailableDemoList(cluster);
 
-						s = "QTVSV 1\n";
+						s = QTVSVHEADER;
 							Net_ProxySend(cluster, pend, s, strlen(s));
 						if (!cluster->availdemoscount)
 						{
@@ -708,16 +760,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 					*colon++ = '\0';
 					if (!strcmp(s, "VERSION"))
 					{
-						switch(atoi(colon))
-						{
-						case 1:
-							//got a usable version
-							usableversion = 1;
-							break;
-						default:
-							//not recognised.
-							break;
-						}
+						clientversion = atof(colon);
 					}
 					else if (!strcmp(s, "RAW"))
 						raw = atoi(colon);
@@ -756,7 +799,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
 						if (!qtv)
 						{
-							s = "QTVSV 1\n"
+							s = QTVSVHEADER
 								"PERROR: couldn't open demo\n"
 								"\n";
 							Net_ProxySend(cluster, pend, s, strlen(s));
@@ -779,9 +822,9 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	if (!pend->flushing)
 	{
-		if (!usableversion)
+		if (clientversion < 1)
 		{
-			s = "QTVSV 1\n"
+			s = QTVSVHEADER
 				"PERROR: Requested protocol version not supported\n"
 				"\n";
 			Net_ProxySend(cluster, pend, s, strlen(s));
@@ -789,7 +832,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		}
 		if (!qtv)
 		{
-			s = "QTVSV 1\n"
+			s = QTVSVHEADER
 				"PERROR: No stream selected\n"
 				"\n";
 			Net_ProxySend(cluster, pend, s, strlen(s));
@@ -802,7 +845,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	if (qtv->usequkeworldprotocols)
 	{
-		s = "QTVSV 1\n"
+		s = QTVSVHEADER
 			"PERROR: This version of QTV is unable to convert QuakeWorld to QTV protocols\n"
 			"\n";
 		Net_ProxySend(cluster, pend, s, strlen(s));
@@ -811,7 +854,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	}
 	if (cluster->maxproxies>=0 && cluster->numproxies >= cluster->maxproxies)
 	{
-		s = "QTVSV 1\n"
+		s = QTVSVHEADER
 			"TERROR: This QTV has reached it's connection limit\n"
 			"\n";
 		Net_ProxySend(cluster, pend, s, strlen(s));
@@ -824,7 +867,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	if (!raw)
 	{
-		s = "QTVSV 1\n";
+		s = QTVSVHEADER;
 		Net_ProxySend(cluster, pend, s, strlen(s));
 		s = "BEGIN: ";
 		Net_ProxySend(cluster, pend, s, strlen(s));

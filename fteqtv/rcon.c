@@ -338,7 +338,9 @@ char *Cmd_Hostname(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buf
 		return buffer;
 	}
 	strncpy(cluster->hostname, arg[1], sizeof(cluster->hostname)-1);
-	return "hostname set (might have a slight delay)\n";	//I'm too lazy to alter the serverinfo here.
+
+	snprintf(buffer, sizeofbuffer, "hostname set to \"%s\"\n", cluster->hostname);
+	return buffer;
 }
 char *Cmd_Master(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
@@ -385,10 +387,12 @@ char *Cmd_UDPPort(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buff
 		closesocket(cluster->qwdsocket);
 		cluster->qwdsocket = news;
 		cluster->qwlistenportnum = newp;
-		return "Opened udp port (all connected qw clients will time out)\n";
+
+		snprintf(buffer, sizeofbuffer, "Opened udp port %i (all connected qw clients will time out)\n", newp);
 	}
 	else
-		return "Failed to open udp port\n";
+		snprintf(buffer, sizeofbuffer, "Failed to open udp port %i\n", newp);
+	return buffer;
 }
 char *Cmd_AdminPassword(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
@@ -443,7 +447,9 @@ char *Cmd_QTVConnect(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *b
 
 	if (!QTV_NewServerConnection(cluster, arg[1], arg[2], false, false, false, false))
 		return "Failed to connect to server, connection aborted\n";
-	return "Source registered\n";
+
+	snprintf(buffer, sizeofbuffer, "Source registered \"%s\"\n", arg[1]);
+	return buffer;
 }
 char *Cmd_QWConnect(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
@@ -455,7 +461,9 @@ char *Cmd_QWConnect(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *bu
 
 	if (!QTV_NewServerConnection(cluster, arg[1], arg[2], false, false, false, false))
 		return "Failed to connect to server, connection aborted\n";
-	return "Source registered\n";
+
+	snprintf(buffer, sizeofbuffer, "Source registered \"%s\"\n", arg[1]);
+	return buffer;
 }
 char *Cmd_MVDConnect(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
@@ -471,12 +479,14 @@ char *Cmd_MVDConnect(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *b
 
 	if (!QTV_NewServerConnection(cluster, arg[1], arg[2], false, false, false, false))
 		return "Failed to connect to server, connection aborted\n";
-	return "Source registered\n";
+
+	snprintf(buffer, sizeofbuffer, "Source registered \"%s\"\n", arg[1]);
+	return buffer;
 }
 char *Cmd_Exec(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
 	FILE *f;
-	char line[512], *res;
+	char line[512], *res, *l;
 
 	if (!localcommand)
 	{
@@ -496,14 +506,19 @@ char *Cmd_Exec(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer,
 	{
 		while(fgets(line, sizeof(line)-1, f))
 		{
-			if (*line)
+			l = line;
+			while(*(unsigned char*)l <= ' ' && *l)
+				l++;
+			if (*l && l[0] != '/' && l[1] != '/')
 			{
-				res = Rcon_Command(cluster, qtv, line, buffer, sizeofbuffer, localcommand);
+				res = Rcon_Command(cluster, qtv, l, buffer, sizeofbuffer, localcommand);
 				Sys_Printf(cluster, "%s", res);	//this is perhaps wrong.
 			}
 		}
 		fclose(f);
-		return "Execed\n";
+
+		snprintf(buffer, sizeofbuffer, "Execed \"%s\"\n", arg[1]);
+		return buffer;
 	}
 }
 
@@ -794,7 +809,9 @@ char *Cmd_Stop(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer,
 
 char *Cmd_Reconnect(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buffer, int sizeofbuffer, qboolean localcommand)
 {
-	if (QTV_Connect(qtv, qtv->server))
+	if (qtv->disconnectwhennooneiswatching == 2)
+		return "Stream is a reverse connection (command rejected)\n";
+	else if (QTV_Connect(qtv, qtv->server))
 		return "Reconnected\n";
 	else
 		return "Failed to reconnect (will keep trying)\n";
@@ -827,10 +844,12 @@ char *Cmd_MVDPort(cluster_t *cluster, sv_t *qtv, char *arg[MAX_ARGS], char *buff
 				closesocket(cluster->tcpsocket);
 			cluster->tcpsocket = news;
 			cluster->tcplistenportnum = newp;
-			return "Opened tcp port\n";
+
+			snprintf(buffer, sizeofbuffer, "Opened tcp port %i\n", newp);
 		}
 		else
-			return "Failed to open tcp port\n";
+			snprintf(buffer, sizeofbuffer, "Failed to open tcp port %i\n", newp);
+		return buffer;
 	}
 }
 

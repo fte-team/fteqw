@@ -4168,7 +4168,9 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 
 			WriteString2(&m, " auto disconnect");
 			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-			if (viewer->server->disconnectwhennooneiswatching)
+			if (viewer->server->disconnectwhennooneiswatching == 2)
+				sprintf(str, "%-20s", "when server disconnects");
+			else if (viewer->server->disconnectwhennooneiswatching)
 				sprintf(str, "%-20s", "when inactive");
 			else
 				sprintf(str, "%-20s", "never");

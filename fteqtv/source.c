@@ -760,6 +760,20 @@ unsigned int Sys_Milliseconds(void)
 	#ifdef _MSC_VER
 		#pragma comment(lib, "winmm.lib")
 	#endif
+
+#if 0
+	static firsttime = 1;
+	static starttime;
+	if (firsttime)
+	{
+		starttime = timeGetTime() + 1000*20;
+		firsttime = 0;
+	}
+	return timeGetTime() - starttime;
+#endif
+
+
+
 	return timeGetTime();
 #else
 	//assume every other system follows standards.
@@ -907,7 +921,12 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 
 	memcpy(qtv->server, serverurl, sizeof(qtv->server)-1);
 
-	if (!Net_ConnectToServer(qtv))
+	if (qtv->disconnectwhennooneiswatching)
+	{	//added because of paranoia rather than need. Should never occur.
+		printf("bug: autoclose==2\n");
+		return false;
+	}
+	else if (!Net_ConnectToServer(qtv))
 	{
 		Sys_Printf(qtv->cluster, "Couldn't connect (%s)\n", qtv->server);
 		return false;
@@ -916,7 +935,7 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 	if (qtv->sourcesock == INVALID_SOCKET)
 	{
 		qtv->parsetime = Sys_Milliseconds();
-		Sys_Printf(qtv->cluster, "Playing from file\n");
+//		Sys_Printf(qtv->cluster, "Playing from file\n");
 	}
 	else
 	{
@@ -1331,7 +1350,7 @@ void QTV_Run(sv_t *qtv)
 	int oldcurtime;
 	int packettime;
 
-	if (qtv->disconnectwhennooneiswatching && qtv->numviewers == 0 && qtv->proxies == NULL)
+	if (qtv->disconnectwhennooneiswatching == 1 && qtv->numviewers == 0 && qtv->proxies == NULL)
 	{
 		Sys_Printf(qtv->cluster, "Stream %s became inactive\n", qtv->server);
 		qtv->drop = true;
@@ -1516,9 +1535,16 @@ void QTV_Run(sv_t *qtv)
 	if (qtv->sourcesock == INVALID_SOCKET && !qtv->sourcefile)
 	{
 		if (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - RECONNECT_TIME*2)
-		if (!QTV_Connect(qtv, qtv->server))
 		{
-			return;
+			if (qtv->disconnectwhennooneiswatching == 2)
+			{
+				qtv->drop = true;
+				return;
+			}
+			if (!QTV_Connect(qtv, qtv->server))
+			{
+				return;
+			}
 		}
 	}
 
@@ -1879,16 +1905,20 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, 
 	qtv->disconnectwhennooneiswatching = autoclose;
 	qtv->parsingconnectiondata = true;
 	qtv->serverquery = query;
+	qtv->silentstream = true;
 
 	qtv->streamid = ++cluster->nextstreamid;
 
 	qtv->cluster = cluster;
 	qtv->next = cluster->servers;
 
-	if (!QTV_Connect(qtv, server) && !force)
+	if (autoclose != 2)	//2 means reverse connection (don't ever try reconnecting)
 	{
-		free(qtv);
-		return NULL;
+		if (!QTV_Connect(qtv, server) && !force)
+		{
+			free(qtv);
+			return NULL;
+		}
 	}
 	cluster->servers = qtv;
 	cluster->numservers++;

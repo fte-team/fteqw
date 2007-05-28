@@ -299,7 +299,7 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 		if (LittleLong(header->lumps[i].fileofs) + LittleLong(header->lumps[i].filelen) > size)
 		{
 			free(data);
-			Sys_Printf(cluster, "BSP appears truncated\n", bspname, gamedir);
+			Sys_Printf(cluster, "BSP appears truncated (%s in gamedir %s)\n", bspname, gamedir);
 			return NULL;
 		}
 	}

@@ -559,6 +559,8 @@ struct sv_s {	//details about a server connection (also known as stream)
 	nail_t nails[32];
 	int nailcount;
 
+	qboolean silentstream;
+
 	qboolean usequkeworldprotocols;
 	int challenge;
 	unsigned short qport;
@@ -767,8 +769,8 @@ unsigned int BigLong(unsigned int val);
 
 #define	svc_centerprint		26	// [string] to put in center of the screen
 
-//#define	svc_killedmonster	27
-//#define	svc_foundsecret		28
+#define	svc_killedmonster	27
+#define	svc_foundsecret		28
 
 #define	svc_spawnstaticsound	29	// [coord3] [qbyte] samp [qbyte] vol [qbyte] aten
 

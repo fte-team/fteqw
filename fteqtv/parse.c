@@ -267,10 +267,10 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 	}
 	ReadString(m, tv->mapname, sizeof(tv->mapname));
 
-	Sys_Printf(tv->cluster, "Gamedir: %s\n", tv->gamedir);
-	Sys_Printf(tv->cluster, "---------------------\n");
-	Sys_Printf(tv->cluster, "%s\n", tv->mapname);
-	Sys_Printf(tv->cluster, "---------------------\n");
+	QTV_Printf(tv, "Gamedir: %s\n", tv->gamedir);
+	QTV_Printf(tv, "---------------------\n");
+	Sys_Printf(tv->cluster, "Stream %i: %s\n", tv->streamid, tv->mapname);
+	QTV_Printf(tv, "---------------------\n");
 
 	// get the movevars
 	tv->movevars.gravity			= ReadFloat(m);
@@ -514,7 +514,7 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	{
 		if (level > 1)
 		{
-			Sys_Printf(tv->cluster, "%s", text);
+			QTV_Printf(tv, "%s", text);
 		}
 	}
 
@@ -1563,7 +1563,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			Sys_Printf(tv->cluster, "ParseMessage: svc_bad\n");
 			return;
 		case svc_nop:	//quakeworld isn't meant to send these.
-			Sys_Printf(tv->cluster, "nop\n");
+			QTV_Printf(tv, "nop\n");
 			break;
 
 		case svc_disconnect:
@@ -1812,12 +1812,11 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ParsePacketEntities(tv, &buf, ReadByte(&buf));
 			break;
 
-//#define svc_maxspeed		49		// maxspeed change, for prediction
 		case svc_entgravity:		// gravity change, for prediction
 			ReadFloat(&buf);
 			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, QW);
 			break;
-		case svc_maxspeed:
+		case svc_maxspeed:			// maxspeed change, for prediction
 			ReadFloat(&buf);
 			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, QW);
 			break;
@@ -1832,6 +1831,13 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			break;
 		case svc_nails2:
 			ParseNails(tv, &buf, true);
+			break;
+
+		case svc_killedmonster:
+			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, Q1);
+			break;
+		case svc_foundsecret:
+			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, Q1);
 			break;
 
 		default:

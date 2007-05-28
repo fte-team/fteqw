@@ -408,6 +408,7 @@ void DoCommandLine(cluster_t *cluster, int argc, char **argv)
 
 		start = end;
 	}
+	Sys_Printf(cluster, "\n");
 }
 
 int main(int argc, char **argv)
@@ -481,6 +482,21 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+void QTV_Printf(sv_t *qtv, char *fmt, ...)
+{
+	va_list		argptr;
+	char		string[2048];
+	
+	va_start (argptr, fmt);
+	vsnprintf (string, sizeof(string)-1, fmt,argptr);
+	string[sizeof(string)-1] = 0;
+	va_end (argptr);
+
+	if (qtv->silentstream)
+		return;
+
+	Sys_Printf(qtv->cluster, "%s", string);
+}
 
 void Sys_Printf(cluster_t *cluster, char *fmt, ...)
 {

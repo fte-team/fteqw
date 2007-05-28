@@ -40,7 +40,8 @@ typedef struct mvdpendingdest_s {
 	char outbuffer[2048];
 
 	char challenge[64];
-	int hasauthed;
+	qboolean hasauthed;
+	qboolean isreverse;
 
 	int insize;
 	int outsize;
@@ -50,6 +51,7 @@ typedef struct mvdpendingdest_s {
 
 typedef struct mvddest_s {
 	qboolean error;	//disables writers, quit ASAP.
+	qboolean droponmapchange;
 
 	enum {DEST_NONE, DEST_FILE, DEST_BUFFEREDFILE, DEST_STREAM} desttype;
 
@@ -254,6 +256,7 @@ void SV_MVD_RunPendingConnections(void)
 				}
 				if (end)
 				{	//we found the end of the header
+					qboolean server = false, reverse = false;
 					char *start, *lineend;
 					int versiontouse = 0;
 					int raw = 0;
@@ -283,9 +286,20 @@ void SV_MVD_RunPendingConnections(void)
 					start = lineend+1;
 					if (strcmp(com_token, "QTV"))
 					{	//it's an error if it's not qtv.
+						if (!strcmp(com_token, "QTVSV"))
+							server = true;
+						else
+						{
+							p->error = true;
+							lineend = strchr(start, '\n');
+							continue;
+						}
+					}
+
+					if (server != p->isreverse)
+					{	//just a small check
 						p->error = true;
-						lineend = strchr(start, '\n');
-						continue;
+						return;
 					}
 
 					for(;;)
@@ -375,6 +389,8 @@ void SV_MVD_RunPendingConnections(void)
 					if (p->hasauthed)
 					{
 					}
+					else if (p->isreverse)
+						p->hasauthed = true;	//reverse connections do not need to auth.
 					else if (!*qtv_password.string)
 						p->hasauthed = true;	//no password, no need to auth.
 					else if (*password)
@@ -496,12 +512,15 @@ void SV_MVD_RunPendingConnections(void)
 					{
 						if (p->hasauthed == true)
 						{
+							mvddest_t *dst;
 							e =	("QTVSV 1\n"
 								 "BEGIN\n"
 								 "\n");
 							send(p->socket, e, strlen(e), 0);
 							e = NULL;
-							SV_MVD_Record(SV_InitStream(p->socket));
+							dst = SV_InitStream(p->socket);
+							dst->droponmapchange = p->isreverse;
+							SV_MVD_Record(dst);
 							p->socket = -1;	//so it's not cleared wrongly.
 						}
 						else
@@ -543,7 +562,7 @@ int DestCloseAllFlush(qboolean destroyfiles, qboolean mvdonly)
 	while(d)
 	{
 		next = d->nextdest;
-		if (!mvdonly || d->desttype != DEST_STREAM)
+		if (!mvdonly || d->droponmapchange)
 		{
 			*prev = d->nextdest;
 			DestClose(d, destroyfiles);
@@ -1437,6 +1456,7 @@ mvddest_t *SV_InitRecordFile (char *name)
 		dst->maxcachesize = 0x81000;
 		dst->cache = BZ_Malloc(dst->maxcachesize);
 	}
+	dst->droponmapchange = true;
 
 	Check_DemoDir();
 
@@ -1489,13 +1509,14 @@ mvddest_t *SV_InitStream(int socket)
 	dst->socket = socket;
 	dst->maxcachesize = 0x8000;	//is this too small?
 	dst->cache = BZ_Malloc(dst->maxcachesize);
+	dst->droponmapchange = false;
 
 	SV_BroadcastPrintf (PRINT_CHAT, "Smile, you're on QTV!\n");
 
 	return dst;
 }
 
-void SV_MVD_InitPendingStream(int socket, char *ip)
+mvdpendingdest_t *SV_MVD_InitPendingStream(int socket, char *ip)
 {
 	mvdpendingdest_t *dst;
 	int i;
@@ -1508,6 +1529,8 @@ void SV_MVD_InitPendingStream(int socket, char *ip)
 
 	dst->nextdest = demo.pendingdest;
 	demo.pendingdest = dst;
+
+	return dst;
 }
 
 /*
@@ -2056,6 +2079,91 @@ void SV_MVD_Record_f (void)
 	// open the demo file and start recording
 	//
 	SV_MVD_Record (SV_InitRecordFile(name));
+}
+
+void SV_MVD_QTVReverse_f (void)
+{
+	char *ip;
+	if (sv.state != ss_active)
+	{
+		Con_Printf ("Server is not running\n");
+		return;
+	}
+	if (Cmd_Argc() != 2)
+	{
+		Con_Printf ("%s ip:port\n", Cmd_Argv(0));
+		return;
+	}
+
+	ip = Cmd_Argv(1);
+
+
+
+{
+	char *data;
+	int sock;
+
+	struct sockaddr_in	local;
+	struct sockaddr_qstorage	remote;
+//	int fromlen;
+
+	unsigned int nonblocking = true;
+
+
+	if (!NET_StringToSockaddr(ip, &remote))
+	{
+		Con_Printf ("qtvreverse: failed to resolve address\n");
+		return;
+	}
+
+
+	local.sin_family = AF_INET;
+	local.sin_addr.s_addr = INADDR_ANY;
+	local.sin_port = 0;
+
+	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+	{
+		Con_Printf ("qtvreverse: socket: %s\n", strerror(qerrno));
+		return;
+	}
+
+	if( bind (sock, (void *)&local, sizeof(local)) == -1)
+	{
+		closesocket(sock);
+		Con_Printf ("qtvreverse: bind: %s\n", strerror(qerrno));
+		return;
+	}
+
+	if (connect(sock, (void*)&remote, sizeof(remote)) == -1)
+	{
+		closesocket(sock);
+		Con_Printf ("qtvreverse: connect: %s\n", strerror(qerrno));
+		return;
+	}
+
+	if (ioctlsocket (sock, FIONBIO, &nonblocking) == -1)
+	{
+		closesocket(sock);
+		Con_Printf ("qtvreverse: ioctl FIONBIO: %s\n", strerror(qerrno));
+		return;
+	}
+
+	data =	"QTV\n"
+			"REVERSE\n"
+			"\n";
+	if (send(sock, data, strlen(data), 0) == -1)
+	{
+		closesocket(sock);
+		Con_Printf ("qtvreverse: send: %s\n", strerror(qerrno));
+		return;
+	}
+
+
+	SV_MVD_InitPendingStream(sock, ip)->isreverse = true;
+}
+
+	//SV_MVD_Record (dest);
+
 }
 
 /*
@@ -2786,6 +2894,7 @@ void SV_MVDInit(void)
 	Cmd_AddCommand ("stop", SV_MVDStop_f);
 	Cmd_AddCommand ("cancel", SV_MVD_Cancel_f);
 #endif
+	Cmd_AddCommand ("qtvreverse", SV_MVD_QTVReverse_f);
 	Cmd_AddCommand ("mvdrecord", SV_MVD_Record_f);
 	Cmd_AddCommand ("easyrecord", SV_MVDEasyRecord_f);
 	Cmd_AddCommand ("mvdstop", SV_MVDStop_f);

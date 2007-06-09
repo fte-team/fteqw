@@ -4239,11 +4239,6 @@ QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma)
 				elsej->a = &statements[numstatements] - elsej;
 				return e2;
 			}
-			if (allowcomma && QCC_PR_CheckToken (","))
-			{
-				QCC_FreeTemp(e);
-				return QCC_PR_Expression(TOP_PRIORITY, true);
-			}
 		}
 
 		opnum=0;
@@ -4601,6 +4596,13 @@ QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma)
 	}
 	if (e == NULL)
 		QCC_PR_ParseError(ERR_INTERNAL, "e == null");
+
+	if (allowcomma && priority == TOP_PRIORITY && QCC_PR_CheckToken (","))
+	{
+		QCC_FreeTemp(e);
+		return QCC_PR_Expression(TOP_PRIORITY, true);
+	}
+			
 	return e;
 }
 

@@ -259,6 +259,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svcdp_precache		54		// [short] precacheindex [string] filename, precacheindex is + 0 for modelindex and +32768 for soundindex
 #define svcdp_spawnbaseline2	55
 #define svcdp_entities		57
+#define svcdp_csqcentities 58
 
 
 

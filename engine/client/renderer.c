@@ -30,6 +30,7 @@ void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue);
 void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
 #if defined(RGLQUAKE)
 void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue);
+void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldvalue);
 #endif
 
@@ -105,6 +106,7 @@ static cvar_t	vid_desktopsettings = SCVARF("vid_desktopsettings", "0", CVAR_ARCH
 
 #if defined(RGLQUAKE)
 cvar_t	gl_texturemode = SCVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, GL_Texturemode_Callback);
+cvar_t	gl_texturemode2d = SCVARFC("gl_texturemode2d", "GL_LINEAR", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, GL_Texturemode2d_Callback);
 cvar_t	gl_texture_anisotropic_filtering = SCVARFC("gl_texture_anisotropic_filtering", "0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, GL_Texture_Anisotropic_Filtering_Callback);
 cvar_t	gl_conback = SCVARF("gl_conback", "", CVAR_RENDERERCALLBACK);
 cvar_t	gl_font = SCVARF("gl_font", "", CVAR_RENDERERCALLBACK);
@@ -354,6 +356,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_drawdisk, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_savecompressedtex, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_compress, GLRENDEREROPTIONS);

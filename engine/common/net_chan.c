@@ -373,15 +373,17 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				i = MAX_NQDATAGRAM;
 
 			SZ_Write (&send, chan->reliable_buf+chan->reliable_start, i);
-			if (send.cursize + length < send.maxsize)
-			{	//throw the unreliable packet into the same one as the reliable (but not sent reliably)
-				SZ_Write (&send, data, length);
-				length = 0;
-			}
-
 
 			if (chan->reliable_start+i == chan->reliable_length)
+			{
+				if (send.cursize + length < send.maxsize)
+				{	//throw the unreliable packet into the same one as the reliable (but not sent reliably)
+					SZ_Write (&send, data, length);
+					length = 0;
+				}
+
 				*(int*)send_buf = BigLong(NETFLAG_DATA | NETFLAG_EOM | send.cursize);
+			}
 			else
 				*(int*)send_buf = BigLong(NETFLAG_DATA | send.cursize);
 			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);

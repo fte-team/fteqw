@@ -80,7 +80,7 @@ extern cvar_t sv_port_ipx;
 extern cvar_t sv_port_tcp;
 #endif
 
-extern cvar_t sv_public, sv_listen;
+extern cvar_t sv_public, sv_listen_qw, sv_listen_nq, sv_listen_dp;
 
 static qboolean allowconnects = false;
 
@@ -2092,7 +2092,7 @@ void NET_InitServer(void)
 	int port;
 	port = PORT_SERVER;
 
-	if (sv_listen.value)
+	if (sv_listen_nq.value || sv_listen_dp.value || sv_listen_qw.value)
 	{
 		allowconnects = true;
 

@@ -343,6 +343,23 @@ void SVNQ_New_f (void)
 #endif
 	MSG_WriteString (&host_client->netchan.message,message);
 
+	if (host_client->protocol == SCP_DARKPLACES7)
+	{
+		char *f;
+		f = COM_LoadTempFile("csprogs.dat");
+		if (f)
+		{
+			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString (&host_client->netchan.message, va("csqc_progname %s\n", "csprogs.dat"));
+			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString (&host_client->netchan.message, va("csqc_progsize %i\n", com_filesize));
+			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString (&host_client->netchan.message, va("csqc_progcrc %i\n", QCRC_Block(f, com_filesize)));
+
+			host_client->csqcactive = true;
+		}
+	}
+
 	MSG_WriteByte (&host_client->netchan.message, svc_serverdata);
 	switch(host_client->protocol)
 	{
@@ -381,7 +398,6 @@ void SVNQ_New_f (void)
 	for (i = 1; *sv.strings.sound_precache[i] ; i++)
 		MSG_WriteString (&host_client->netchan.message, sv.strings.sound_precache[i]);
 	MSG_WriteByte (&host_client->netchan.message, 0);
-
 
 // send music
 	MSG_WriteByte (&host_client->netchan.message, svc_cdtrack);
@@ -4992,7 +5008,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	move->sidemove = MSG_ReadShort ();
 	move->upmove = MSG_ReadShort ();
 
-	move->msec=100;
+	move->msec=(1/72.0f)*1000;//MSG_ReadFloat;
 
 // read buttons
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)

@@ -112,6 +112,7 @@ int		gl_alpha_format = 4;
 
 int		gl_filter_min = GL_LINEAR_MIPMAP_NEAREST;
 int		gl_filter_max = GL_LINEAR;
+int		gl_filter_max_2d = GL_LINEAR;
 
 int		texels;
 
@@ -143,6 +144,7 @@ static gltexture_t	*gltextures;
 int			scrap_allocated[MAX_SCRAPS][BLOCK_WIDTH];
 qbyte		scrap_texels[MAX_SCRAPS][BLOCK_WIDTH*BLOCK_HEIGHT];
 qboolean	scrap_dirty;
+int			scrap_usedcount;
 int			scrap_texnum;
 
 // returns a texture number and the position inside it
@@ -180,6 +182,9 @@ int Scrap_AllocBlock (int w, int h, int *x, int *y)
 		for (i=0 ; i<w ; i++)
 			scrap_allocated[texnum][*x + i] = best + h;
 
+		if (scrap_usedcount < texnum+1)
+			scrap_usedcount = texnum+1;
+
 		return texnum;
 	}
 
@@ -190,9 +195,13 @@ int	scrap_uploads;
 
 void Scrap_Upload (void)
 {
+	int i;
 	scrap_uploads++;
-	GL_Bind(scrap_texnum);
-	GL_Upload8 ("scrap", scrap_texels[0], BLOCK_WIDTH, BLOCK_HEIGHT, false, true);
+	for (i = 0; i < scrap_usedcount; i++)
+	{
+		GL_Bind(scrap_texnum + i);
+		GL_Upload8 ("scrap", scrap_texels[i], BLOCK_WIDTH, BLOCK_HEIGHT, false, true);
+	}
 	scrap_dirty = false;
 }
 
@@ -654,6 +663,42 @@ void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue)
 			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 		}
 	}
+}
+void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue)
+{
+	int		i;
+	gltexture_t	*glt;
+
+	if (qrenderer != QR_OPENGL)
+		return;
+
+	for (i=0 ; i< sizeof(modes)/sizeof(modes[0]) ; i++)
+	{
+		if (!Q_strcasecmp (modes[i].name, var->string ) )
+			break;
+		if (!Q_strcasecmp (modes[i].altname, var->string ) )
+			break;
+	}
+	if (i == sizeof(modes)/sizeof(modes[0]))
+	{
+		Con_Printf ("bad gl_texturemode name\n");
+		return;
+	}
+
+//	gl_filter_min = modes[i].minimize;
+	gl_filter_max_2d = modes[i].maximize;
+
+	// change all the existing mipmap texture objects
+	for (glt=gltextures ; glt ; glt=glt->next)
+	{
+		if (!glt->mipmap)
+		{
+			GL_Bind (glt->texnum);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
+			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
+		}
+	}
+	Scrap_Upload();
 }
 
 #ifdef Q3SHADERS
@@ -2927,8 +2972,8 @@ qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsi
 	}
 	else
 	{
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
 	return true;
 }
@@ -3109,8 +3154,8 @@ done:
 	}
 	else
 	{
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
 }
 
@@ -3319,8 +3364,8 @@ done: ;
 	}
 	else
 	{
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
 }
 
@@ -3512,8 +3557,8 @@ void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap, float bu
 	}
 	else
 	{
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
 
 //	if (gl_texturefilteranisotropic)
@@ -3604,8 +3649,8 @@ done: ;
 	}
 	else
 	{
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
 }
 #endif

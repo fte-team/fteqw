@@ -114,7 +114,9 @@ cvar_t	allow_download_wads = SCVAR("allow_download_wads", "1");
 cvar_t	allow_download_configs = SCVAR("allow_download_configs", "0");
 
 cvar_t sv_public = SCVAR("sv_public", "0");
-cvar_t sv_listen = SCVAR("sv_listen", "1");
+cvar_t sv_listen_qw = FCVAR("sv_listen_qw", "sv_listen", "1", 0);
+cvar_t sv_listen_nq = SCVAR("sv_listen_nq", "0");
+cvar_t sv_listen_dp = SCVAR("sv_listen_dp", "1");
 cvar_t sv_reportheartbeats = SCVAR("sv_reportheartbeats", "1");
 cvar_t sv_highchars = SCVAR("sv_highchars", "1");
 cvar_t sv_loadentfiles = SCVAR("sv_loadentfiles", "1");
@@ -1226,11 +1228,12 @@ void SVC_GetChallenge (void)
 			}
 #endif
 		}
-		Netchan_OutOfBand(NS_SERVER, net_from, over-buf, buf);
+		if (sv_listen_qw.value)
+			Netchan_OutOfBand(NS_SERVER, net_from, over-buf, buf);
 
-		if (sv_listen.value >= 2)
+		if (sv_listen_dp.value)
 		{
-		//dp can respond to this (and fte won't get confused because the challenge will be wrong)
+		//dp (protocol6 upwards) can respond to this (and fte won't get confused because the challenge will be wrong)
 			buf = va("challenge "DISTRIBUTION"%i", svs.challenges[i].challenge);
 			Netchan_OutOfBand(NS_SERVER, net_from, strlen(buf)+1, buf);
 		}
@@ -1448,7 +1451,7 @@ client_t *SVC_DirectConnect(void)
 
 	if (*(Cmd_Argv(0)+7) == '\\')
 	{
-		if (sv_listen.value < 2)
+		if (!sv_listen_dp.value)
 			return NULL;
 		Q_strncpyz (userinfo[0], net_message.data + 11, sizeof(userinfo[0])-1);
 
@@ -1461,7 +1464,14 @@ client_t *SVC_DirectConnect(void)
 		//it's a darkplaces client.
 
 		s = Info_ValueForKey(userinfo[0], "protocols");
-		if (strstr(s, "DP7"))
+		if (sizeofcoord != 4)
+		{	//we allow nq with sv_listen_nq 0...
+			//reason: dp is too similar for concerns about unsupported code, while the main reason why we disable nq is because of the lack of challenges
+			//(and no, this isn't a way to bypass invalid challenges)
+			protocol = SCP_NETQUAKE;
+			Con_Printf ("* DP without sv_bigcoords 1\n");
+		}
+		else if (strstr(s, "DP7"))
 			protocol = SCP_DARKPLACES7;
 		else
 			protocol = SCP_DARKPLACES6;
@@ -1636,8 +1646,12 @@ client_t *SVC_DirectConnect(void)
 			&& ( cl->netchan.qport == qport
 			|| adr.port == cl->netchan.remote_address.port ))
 		{
-			if (cl->state == cs_connected) {
-				Con_Printf("%s:dup connect\n", NET_AdrToString (adr));
+			if (cl->state == cs_connected)
+			{
+				if (cl->protocol != protocol)
+					Con_Printf("%s: diff prot connect\n", NET_AdrToString (adr));
+				else
+					Con_Printf("%s:dup connect\n", NET_AdrToString (adr));
 				nextuserid--;
 				return NULL;
 			}
@@ -2351,7 +2365,7 @@ void SVNQ_ConnectionlessPacket(void)
 	if (net_from.type == NA_LOOPBACK)
 		return;
 
-	if (sv_listen.value < 2)
+	if (!sv_listen_nq.value)
 		return;
 	if (sv_bigcoords.value)
 		return;	//no, start using dp7 instead.
@@ -3074,8 +3088,11 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_resetparms,	cvargroup_servercontrol);
 
 	Cvar_Register (&sv_public,	cvargroup_servercontrol);
-	Cvar_Register (&sv_listen,	cvargroup_servercontrol);
-	sv_listen.restriction = RESTRICT_MAX;
+	Cvar_Register (&sv_listen_qw,	cvargroup_servercontrol);
+	Cvar_Register (&sv_listen_nq,	cvargroup_servercontrol);
+	Cvar_Register (&sv_listen_dp,	cvargroup_servercontrol);
+	sv_listen_qw.restriction = RESTRICT_MAX;
+
 #ifdef TCPCONNECT
 	Cvar_Register (&sv_port_tcp,	cvargroup_servercontrol);
 	sv_port_tcp.restriction = RESTRICT_MAX;
@@ -3368,7 +3385,7 @@ void Master_Heartbeat (void)
 				NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
 				break;
 			case true:
-				if (sv_listen.value>=2)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
+				if (sv_listen_dp.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
 					if (sv_reportheartbeats.value)
 						Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));

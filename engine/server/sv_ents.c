@@ -343,7 +343,10 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 			if (!writtenheader)
 			{
 				writtenheader=true;
-				MSG_WriteByte(msg, svc_csqcentities);
+				if (client->protocol != SCP_QUAKEWORLD)
+					MSG_WriteByte(msg, svcdp_csqcentities);
+				else
+					MSG_WriteByte(msg, svc_csqcentities);
 			}
 			MSG_WriteShort(msg, ent->entnum);
 			if (sv.csqcdebug)	//optional extra.

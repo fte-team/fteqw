@@ -29,6 +29,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define CHAN_ITEM   3
 #define CHAN_BODY   4
 
+extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, sv_edgefriction;
+
 /*
 =============================================================================
 
@@ -1303,6 +1305,30 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 	else
 		stats[STAT_VIEWZOOM] = ent->v->viewzoom*255;
 
+	if (host_client->protocol == SCP_DARKPLACES7)
+	{
+		float *statsf = (float*)stats;
+//		statsf[STAT_MOVEVARS_WALLFRICTION] = sv_wall
+		statsf[STAT_MOVEVARS_FRICTION] = sv_friction.value;
+		statsf[STAT_MOVEVARS_WATERFRICTION] = sv_waterfriction.value;
+		statsf[STAT_MOVEVARS_TICRATE] = 72;
+		statsf[STAT_MOVEVARS_TIMESCALE] = sv_gamespeed.value;
+		statsf[STAT_MOVEVARS_GRAVITY] = sv_gravity.value;
+		statsf[STAT_MOVEVARS_STOPSPEED] = sv_stopspeed.value;
+		statsf[STAT_MOVEVARS_MAXSPEED] = host_client->maxspeed;
+		statsf[STAT_MOVEVARS_SPECTATORMAXSPEED] = sv_spectatormaxspeed.value;
+		statsf[STAT_MOVEVARS_ACCELERATE] = sv_accelerate.value;
+		statsf[STAT_MOVEVARS_AIRACCELERATE] = sv_airaccelerate.value;
+		statsf[STAT_MOVEVARS_WATERACCELERATE] = sv_wateraccelerate.value;
+		statsf[STAT_MOVEVARS_ENTGRAVITY] = host_client->entgravity;
+		statsf[STAT_MOVEVARS_JUMPVELOCITY] = 280;//sv_jumpvelocity.value;	//bah
+		statsf[STAT_MOVEVARS_EDGEFRICTION] = sv_edgefriction.value;
+		statsf[STAT_MOVEVARS_MAXAIRSPEED] = host_client->maxspeed;
+		statsf[STAT_MOVEVARS_STEPHEIGHT] = 18;
+		statsf[STAT_MOVEVARS_AIRACCEL_QW] = 1;
+		statsf[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION] = sv_gravity.value;
+	}
+
 	SV_UpdateQCStats(ent, stats);
 
 	//dmw tweek for stats
@@ -1601,7 +1627,6 @@ void SV_UpdateToReliableMessages (void)
 			}
 
 			{
-				extern cvar_t sv_gravity;
 				// maxspeed/entgravity changes
 				ent = host_client->edict;
 

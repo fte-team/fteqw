@@ -253,6 +253,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 //DP extended svcs
+#define svcdp_downloaddata	50
 #define svcdp_updatestatbyte	51
 #define svcnq_effect		52		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
 #define svcnq_effect2		53		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
@@ -318,6 +319,8 @@ enum clcq2_ops_e
 #define	clc_delta		5		// [qbyte] sequence number, requests delta compression of message
 #define clc_tmove		6		// teleport request, spectator only
 #define clc_upload		7		// teleport request, spectator only
+
+#define clcdp_ackdownloaddata 51
 
 
 //==============================================

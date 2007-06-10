@@ -1228,7 +1228,7 @@ void SVC_GetChallenge (void)
 			}
 #endif
 		}
-		if (sv_listen_qw.value)
+		if (sv_listen_qw.value || svs.gametype != GT_PROGS)
 			Netchan_OutOfBand(NS_SERVER, net_from, over-buf, buf);
 
 		if (sv_listen_dp.value)
@@ -1532,6 +1532,14 @@ client_t *SVC_DirectConnect(void)
 
 	if (protocol == SCP_QUAKEWORLD)	//readd?
 	{
+		if (!sv_listen_qw.value && net_from.type != NA_LOOPBACK)
+		{
+			SV_RejectMessage (SCP_BAD, "QuakeWorld protocols are not permitted on this server.\n");
+			Con_Printf ("* rejected connect from quakeworld\n", version);
+			return NULL;
+		}
+
+
 		while(!msg_badread)
 		{
 			Cmd_TokenizeString(MSG_ReadStringLine(), false, false);

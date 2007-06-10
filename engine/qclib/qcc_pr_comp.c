@@ -795,6 +795,7 @@ QCC_def_t *QCC_SupplyConversion(QCC_def_t *var, etype_t wanted)
 QCC_def_t *QCC_MakeStringDef(char *value);
 QCC_def_t *QCC_MakeFloatDef(float value);
 QCC_def_t *QCC_MakeIntDef(int value);
+QCC_def_t *QCC_MakeVectorDef(float a, float b, float c);
 
 typedef struct freeoffset_s {
 	struct freeoffset_s *next;
@@ -1330,6 +1331,38 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 		case OP_SUB_I:
 			optres_constantarithmatic++;
 			return QCC_MakeIntDef(G_INT(var_a->ofs) - G_INT(var_b->ofs));
+
+		case OP_AND:
+			optres_constantarithmatic++;
+			return QCC_MakeIntDef(G_INT(var_a->ofs) && G_INT(var_b->ofs));
+		case OP_OR:
+			optres_constantarithmatic++;
+			return QCC_MakeIntDef(G_INT(var_a->ofs) || G_INT(var_b->ofs));
+		case OP_MUL_V:	//mul_f is actually a dot-product
+			optres_constantarithmatic++;
+			return QCC_MakeFloatDef(	G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+0) +
+										G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+1) +
+										G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+2));
+		case OP_MUL_FV:
+			optres_constantarithmatic++;
+			return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+0),
+										G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+1),
+										G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+2));
+		case OP_MUL_VF:
+			optres_constantarithmatic++;
+			return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs+0) * G_FLOAT(var_b->ofs),
+										G_FLOAT(var_a->ofs+1) * G_FLOAT(var_b->ofs),
+										G_FLOAT(var_a->ofs+2) * G_FLOAT(var_b->ofs));
+		case OP_ADD_V:
+			optres_constantarithmatic++;
+			return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs+0) + G_FLOAT(var_b->ofs+0),
+										G_FLOAT(var_a->ofs+1) + G_FLOAT(var_b->ofs+1),
+										G_FLOAT(var_a->ofs+2) + G_FLOAT(var_b->ofs+2));
+		case OP_SUB_V:
+			optres_constantarithmatic++;
+			return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs+0) - G_FLOAT(var_b->ofs+0),
+										G_FLOAT(var_a->ofs+1) - G_FLOAT(var_b->ofs+1),
+										G_FLOAT(var_a->ofs+2) - G_FLOAT(var_b->ofs+2));
 		}
 	}
 
@@ -2936,6 +2969,54 @@ QCC_def_t *QCC_MakeIntDef(int value)
 	
 	G_INT(cn->ofs) = value;	
 		
+
+	return cn;
+}
+
+QCC_def_t *QCC_MakeVectorDef(float a, float b, float c)
+{
+	QCC_def_t	*cn;
+	
+// check for a constant with the same value
+	for (cn=pr.def_head.next ; cn ; cn=cn->next)
+	{
+		varchecks++;
+		if (!cn->initialized)
+			continue;
+		if (!cn->constant)
+			continue;
+		constchecks++;
+		if (cn->type != type_vector)
+			continue;
+		typechecks++;
+
+		if ( G_FLOAT(cn->ofs+0) == a &&
+			G_FLOAT(cn->ofs+1) == b &&
+			G_FLOAT(cn->ofs+2) == c)
+		{				
+			return cn;
+		}	
+	}
+
+// allocate a new one
+	cn = (void *)qccHunkAlloc (sizeof(QCC_def_t));
+	cn->next = NULL;
+	pr.def_tail->next = cn;
+	pr.def_tail = cn;
+
+	cn->type = type_vector;
+	cn->name = "IMMEDIATE";
+	cn->constant = true;
+	cn->initialized = 1;
+	cn->scope = NULL;		// always share immediates
+	cn->arraysize = 1;
+
+// copy the immediate to the global area
+	cn->ofs = QCC_GetFreeOffsetSpace (type_size[type_integer->type]);
+	
+	G_FLOAT(cn->ofs+0) = a;
+	G_FLOAT(cn->ofs+1) = b;
+	G_FLOAT(cn->ofs+2) = c;
 
 	return cn;
 }

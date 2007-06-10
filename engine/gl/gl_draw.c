@@ -510,7 +510,13 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 		sprintf(alternatename, "gfx/%s.lmp", path);
 		qpic = (qpic_t *)COM_LoadTempFile (alternatename);
 		if (!qpic)
-			return GLDraw_SafePicFromWad(path);
+		{
+			mpic_t *m;
+			m = GLDraw_SafePicFromWad(path);
+			if (!m && !strncmp(path, "gfx/", 4))
+				return GLDraw_SafePicFromWad(path+4);
+			return m;
+		}
 	}
 
 	SwapPic (qpic);

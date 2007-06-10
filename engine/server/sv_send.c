@@ -233,7 +233,7 @@ EVENT MESSAGES
 =============================================================================
 */
 
-static void SV_PrintToClient(client_t *cl, int level, char *string)
+void SV_PrintToClient(client_t *cl, int level, char *string)
 {
 	switch (cl->protocol)
 	{

@@ -346,6 +346,10 @@ void SVNQ_New_f (void)
 	if (host_client->protocol == SCP_DARKPLACES7)
 	{
 		char *f;
+
+		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+		MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
+
 		f = COM_LoadTempFile("csprogs.dat");
 		if (f)
 		{
@@ -1500,6 +1504,71 @@ void SV_Begin_f (void)
 
 //=============================================================================
 
+void SV_DarkPlacesDownloadChunk(client_t *cl)
+{
+#define MAXDPDOWNLOADCHUNK 1024
+	char buffer[MAXDPDOWNLOADCHUNK];
+
+	int size, start;
+
+	if (cl->num_backbuf)
+		size = 16;
+	else
+		size = 512;
+	if (size > MAXDPDOWNLOADCHUNK)	//don't clog it too much
+		size = MAXDPDOWNLOADCHUNK;
+
+	start = VFS_TELL(cl->download);
+	if (start+size > cl->downloadsize)	//clamp to the size of the file.
+		size = cl->downloadsize - start;
+
+	VFS_READ(cl->download, buffer, size);
+
+	//reliable? I don't care, this works.
+	ClientReliableWrite_Begin (cl, svcdp_downloaddata, 7+size);
+	ClientReliableWrite_Long (cl, start);
+	ClientReliableWrite_Short (cl, size);
+	ClientReliableWrite_SZ (cl, buffer, size);
+}
+
+void SVDP_ForceDownloadChunk_f(void)
+{
+	if (host_client->protocol != SCP_DARKPLACES7)
+		return;
+	SV_DarkPlacesDownloadChunk(host_client);
+}
+
+void SV_DarkPlacesDownloadAck(client_t *cl)
+{
+	int start = MSG_ReadLong();
+	int size = (unsigned short)MSG_ReadShort();
+
+	if (size == 0)
+	{
+		char *s;
+		unsigned short crc;
+		int pos=0, csize;
+		qbyte chunk[1024];
+		QCRC_Init(&crc);
+		VFS_SEEK(host_client->download, 0);
+		while (pos < host_client->downloadsize)
+		{
+			csize = sizeof(chunk);
+			if (pos + csize > host_client->downloadsize)
+				csize = host_client->downloadsize - pos;
+			VFS_READ(host_client->download, chunk, csize);
+			QCRC_AddBlock(&crc, chunk, csize);
+			pos += csize;
+		}
+
+		s = va("\ncl_downloadfinished %i %i \"\"\n", host_client->downloadsize, crc);
+		ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen(s));
+		ClientReliableWrite_String(cl, s);
+	}
+	else
+		SV_DarkPlacesDownloadChunk(cl);
+}
+
 void SV_NextChunkedDownload(int chunknum)
 {
 #define CHUNKSIZE 1024
@@ -1780,11 +1849,22 @@ void SV_BeginDownload_f(void)
 	if (!strncmp(name, "demonum/", 8))
 		name = SV_MVDNum(atoi(name+8));
 
+	if (ISNQCLIENT(host_client) && host_client->protocol != SCP_DARKPLACES7)
+	{
+		SV_PrintToClient(host_client, PRINT_HIGH, "Your client isn't meant to support downloads\n");
+		return;
+	}
+
 // hacked by zoid to allow more conrol over download
 	if (!SV_AllowDownload(name))
 	{	// don't allow anything with .. path
+		if (ISNQCLIENT(host_client))
+		{
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+			ClientReliableWrite_String (host_client, "\nstopdownload\n");
+		}
 #ifdef PEXT_CHUNKEDDOWNLOADS
-		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+		else if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 		{
 			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
 			ClientReliableWrite_Long (host_client, -1);
@@ -1830,6 +1910,12 @@ void SV_BeginDownload_f(void)
 		}
 
 		Sys_Printf ("Couldn't download %s to %s\n", name, host_client->name);
+		if (ISNQCLIENT(host_client))
+		{
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+			ClientReliableWrite_String (host_client, "\nstopdownload\n");
+		}
+		else
 #ifdef PEXT_CHUNKEDDOWNLOADS
 		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 		{
@@ -1882,7 +1968,15 @@ void SV_BeginDownload_f(void)
 	}
 #endif
 
-	SV_NextDownload_f ();
+	if (ISNQCLIENT(host_client))
+	{
+		char *s = va("\ncl_downloadbegin %i %s\n", host_client->downloadsize, name);
+		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(s));
+		ClientReliableWrite_String (host_client, s);
+	}
+	else
+		SV_NextDownload_f ();
+
 	SV_EndRedirect();
 	Con_Printf ("Downloading %s to %s\n", name, host_client->name);
 }
@@ -3741,6 +3835,9 @@ ucmd_t nqucmds[] =
 	{"ban",			NULL},
 	{"vote",		SV_Vote_f},
 
+	{"download",	SV_BeginDownload_f},
+	{"sv_startdownload",	SVDP_ForceDownloadChunk_f},
+
 	{"setinfo", SV_SetInfo_f},
 	{"playermodel",	NULL},
 	{"playerskin",	NULL},
@@ -5163,6 +5260,9 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			sv_player = cl->edict;
 			break;
 
+		case clcdp_ackdownloaddata:
+			SV_DarkPlacesDownloadAck(host_client);
+			break;
 		}
 	}
 }

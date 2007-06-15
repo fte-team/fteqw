@@ -553,6 +553,8 @@ int rand(void)
 
 #endif
 
+#if defined(__MINGW32_VERSION) || defined(__MINGW__) || defined(__MINGW32__) || defined(__CYGWIN__)
+#else
 void strlcpy(char *d, const char *s, int n)
 {
 	int i;
@@ -568,3 +570,4 @@ void strlcpy(char *d, const char *s, int n)
 	}
 	*d='\0';
 }
+#endif

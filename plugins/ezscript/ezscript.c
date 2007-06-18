@@ -1,5 +1,5 @@
 #include "../plugin.h"
-//#define RELEASE "__DATE__"
+#define RELEASE "__DATE__"
 
 #define ezscriptcvars "ezScript Console Variables"
 vmcvar_t	ezscript_silentmode = {"ezscript_silentmode", "1", ezscriptcvars, 0};
@@ -35,11 +35,12 @@ int Plug_ExecuteCommand(int *args)
 
 	Cmd_Argv(0, cmd, sizeof(cmd));
 
-	     if (!strcmp("loadsky",			cmd))	cvar = "r_skybox";
+	     if (!strcmp("loadsky",				cmd))	cvar = "r_skybox";
 	else if (!strcmp("r_skyname",			cmd))	cvar = "r_skybox";
-	else if (!strcmp("r_skycolor",		cmd))	cvar = "r_fastskycolour"; // note the england spelling, spike is a englander
+	else if (!strcmp("r_skycolor",			cmd))	cvar = "r_fastskycolour"; // note the england spelling, spike is a englander
+	else if (!strcmp("cl_physfps",			cmd))	cvar = "cl_netfps";
 	else if (!strcmp("fps_skycolor",		cmd))	cvar = "r_fastskycolour"; // note the england spelling, spike is a englander
-	else if (!strcmp("fps_sky",			cmd))	cvar = "r_fastsky";
+	else if (!strcmp("fps_sky",				cmd))	cvar = "r_fastsky";
 	else if (!strcmp("gl_consolefont",		cmd))	cvar = "gl_font";
 	else if (!strcmp("gl_bounceparticles",	cmd))	cvar = "r_bouncysparks";
 	else if (!strcmp("gl_loadlitfiles",		cmd))	cvar = "r_loadlit";
@@ -47,35 +48,42 @@ int Plug_ExecuteCommand(int *args)
 	else if (!strcmp("cl_bonusflash",		cmd))	cvar = "v_bonusflash";
 	else if (!strcmp("gl_gamma",			cmd))	cvar = "gamma";
 	else if (!strcmp("sw_gamma",			cmd))	cvar = "gamma";
-	else if (!strcmp("gl_contrast",		cmd))	cvar = "contrast";
-	else if (!strcmp("sw_contrast",		cmd))	cvar = "contrast";
-	else if (!strcmp("s_khz",			cmd))	cvar = "snd_khz";
+	else if (!strcmp("sw_contrast",			cmd))	cvar = "contrast";
+	else if (!strcmp("s_khz",				cmd))	cvar = "snd_khz";
 	else if (!strcmp("s_loadas8bit",		cmd))	cvar = "loadas8bit";
-	else if (!strcmp("s_mixahead",		cmd))	cvar = "_snd_mixahead";
+	else if (!strcmp("s_mixahead",			cmd))	cvar = "_snd_mixahead";
 	else if (!strcmp("s_noextraupdate",		cmd))	cvar = "snd_noextraupdate";
 	else if (!strcmp("s_nosound",			cmd))	cvar = "nosound";
-	else if (!strcmp("s_precache",		cmd))	cvar = "precache";
-	else if (!strcmp("s_show",			cmd))	cvar = "snd_show";
+	else if (!strcmp("s_precache",			cmd))	cvar = "precache";
+	else if (!strcmp("s_show",				cmd))	cvar = "snd_show";
 	else if (!strcmp("s_swapstereo",		cmd))	cvar = "snd_leftisright";
 	else if (!strcmp("s_ambientlevel",		cmd))	cvar = "ambient_level";
 	else if (!strcmp("s_ambientfade",		cmd))	cvar = "ambient_fade";
-	else if (!strcmp("tp_triggers",		cmd))	cvar = "cl_triggers";
+	else if (!strcmp("scr_conback",			cmd))	cvar = "gl_conback";
+	else if (!strcmp("sv_maxpitch",			cmd))	cvar = "serverinfo maxpitch";
+	else if (!strcmp("sv_minpitch",			cmd))	cvar = "serverinfo minpitch";
+	else if (!strcmp("sv_zombietime",		cmd))	cvar = "zombietime";
+	else if (!strcmp("tp_triggers",			cmd))	cvar = "cl_triggers";
 	else if (!strcmp("teamskin",			cmd))	cvar = "cl_teamskin";
 	else if (!strcmp("enemyskin",			cmd))	cvar = "cl_enemyskin";
-	else if (!strcmp("scr_consize",		cmd))	cvar = "con_height";
 	else if (!strcmp("cl_predictPlayers",	cmd))	cvar = "cl_predict_players"; //lets not forget there is a cl_predict_players2
 	else if (!strcmp("sshot_format",		cmd))	cvar = "scr_sshot_type";
 	else if (!strcmp("cl_solidPlayers",		cmd))	cvar = "cl_solid_players";
 	else if (!strcmp("fps_muzzleflash",		cmd))	cvar = "cl_muzzleflash";
+	else if (!strcmp("in_m_mwhook",			cmd))	cvar = "in_mwhook";
 	else if (!strcmp("r_floorcolor",		cmd))	cvar = "r_floorcolour";
-	else if (!strcmp("r_wallcolor",		cmd))	cvar = "r_wallcolour";
-	else if (!strcmp("r_farclip",		cmd))	cvar = "gl_maxdist";
-	else if (!strcmp("b_switch",		cmd))	cvar = "setinfo b_switch";
-	else if (!strcmp("w_switch",		cmd))	cvar = "setinfo w_switch";
-	else if (!strcmp("vid_vsync",		cmd))	cvar = "_vid_wait_override";
+	else if (!strcmp("r_wallcolor",			cmd))	cvar = "r_wallcolour";
+	else if (!strcmp("r_farclip",			cmd))	cvar = "gl_maxdist";
+	else if (!strcmp("b_switch",			cmd))	cvar = "setinfo b_switch";
+	else if (!strcmp("w_switch",			cmd))	cvar = "setinfo w_switch";
+	else if (!strcmp("vid_colorbits",		cmd))	cvar = "vid_bpp";
+	else if (!strcmp("vid_customheight",	cmd))	cvar = "vid_height";
+	else if (!strcmp("vid_customwidth",		cmd))	cvar = "vid_width";
+	else if (!strcmp("vid_hwgammacontrol",	cmd))	cvar = "vid_hardwaregamma";
+	else if (!strcmp("vid_vsync",			cmd))	cvar = "_vid_wait_override";
 	else if (!strcmp("gl_lighting_vertex",	cmd))	cvar = "r_vertexlight";
-	else if (!strcmp("bgmvolume",		cmd))	cvar = "musicvolume";
-	else if (!strcmp("scr_menualpha",	cmd))	cvar = "scr_conalpha";
+	else if (!strcmp("bgmvolume",			cmd))	cvar = "musicvolume";
+	else if (!strcmp("scr_menualpha",		cmd))	cvar = "scr_conalpha";
 	else cvar = NULL;
 
 	if (cvar)
@@ -120,6 +128,7 @@ void ezScript_InitCommands(void) // not really needed actually
 	Cmd_AddCommand("r_farclip");
 	Cmd_AddCommand("vid_vsync");
 	Cmd_AddCommand("gl_lighting_vertex");
+	Cmd_AddCommand("scr_conback");
 	//misc
 	Cmd_AddCommand("cl_bonusflash");
 	Cmd_AddCommand("r_floorcolor");
@@ -129,7 +138,6 @@ void ezScript_InitCommands(void) // not really needed actually
 	//gamma
 	Cmd_AddCommand("gl_gamma");
 	Cmd_AddCommand("sw_gamma");
-	Cmd_AddCommand("gl_contrast");
 	Cmd_AddCommand("sw_contrast");
 	//sound
 	Cmd_AddCommand("s_khz");
@@ -147,7 +155,6 @@ void ezScript_InitCommands(void) // not really needed actually
 	Cmd_AddCommand("teamskin");
 	Cmd_AddCommand("enemyskin");
 	//console
-	Cmd_AddCommand("scr_consize");
 	Cmd_AddCommand("scr_menualpha");
 	//misc
 	Cmd_AddCommand("cl_predictPlayers");
@@ -155,8 +162,20 @@ void ezScript_InitCommands(void) // not really needed actually
 	Cmd_AddCommand("cl_solidPlayers");
 	Cmd_AddCommand("fps_muzzleflash");
 	Cmd_AddCommand("scr_menualpha");
+	Cmd_AddCommand("in_m_mwhook");
 	//sound
 	Cmd_AddCommand("bgmvolume");
+	//fps
+	Cmd_AddCommand("cl_physfps");
+	//video
+	Cmd_AddCommand("vid_colorbits");
+	Cmd_AddCommand("vid_customheight");
+	Cmd_AddCommand("vid_cumstomwidth");
+	Cmd_AddCommand("vid_hwgammacontrol");
+	//server
+	Cmd_AddCommand("sv_maxpitch");
+	Cmd_AddCommand("sv_minpitch");
+	Cmd_AddCommand("sv_zombietime");
 }
 
 int Plug_Init(int *args)

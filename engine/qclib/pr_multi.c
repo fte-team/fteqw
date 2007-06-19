@@ -226,7 +226,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 		{
 			if (field[i].type != type)
 			{
-				printf("Field type mismatch on %s\n", name);
+				printf("Field type mismatch on \"%s\"\n", name);
 				continue;
 			}
 			if (!progfuncs->fieldadjust && engineofs>=0)

@@ -431,6 +431,8 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 	eval_t *val;
 	char *assignment;
 	int type;
+	ddef32_t fakedef;
+	eval_t fakeval;
 
 	assignment = strchr(key, '=');
 	if (assignment)
@@ -439,19 +441,31 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 	c = strchr(key, '.');
 	if (c) *c = '\0';
 	def = ED_FindLocalOrGlobal(progfuncs, key, &val);	
+	if (!def)
+	{
+		if (atoi(key))
+		{
+			def = &fakedef;
+			def->ofs = 0;
+			def->type = ev_entity;
+			val = &fakeval;
+			val->edict = atoi(key);
+		}
+	}
 	if (c) *c = '.';
 	if (!def)
 	{		
 		return "(Bad string)";
 	}	
-		//go through ent vars
+	type = def->type;
 
+	//go through ent vars
 	c = strchr(key, '.');	
 	while(c)
 	{
 		c2 = c+1;
 		c = strchr(c2, '.');
-		type = def->type &~DEF_SAVEGLOBAL;
+		type = type &~DEF_SAVEGLOBAL;
 		if (current_progstate->types)
 			type = current_progstate->types[type].type;
 		if (type != ev_entity)
@@ -462,13 +476,13 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		if (!fdef)
 			return "(Bad string)";
 		val = (eval_t *) (((char *)PROG_TO_EDICT(progfuncs, val->_int)->fields) + fdef->ofs*4);		
-		def->type = fdef->type;
+		type = fdef->type;
 	}
 	
 	if (assignment)
 	{
 		assignment++;
-		switch (def->type&~DEF_SAVEGLOBAL)
+		switch (type&~DEF_SAVEGLOBAL)
 		{
 		case ev_string:
 			*(string_t *)val = ED_NewString (progfuncs, assignment, 0)-progfuncs->stringtable;
@@ -544,7 +558,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		}
 		assignment[-1] = '=';
 	}
-	strcpy(buf, PR_ValueString(progfuncs, def->type, val));
+	strcpy(buf, PR_ValueString(progfuncs, type, val));
 
 	return buf;
 }

@@ -3012,7 +3012,7 @@ QCC_def_t *QCC_MakeVectorDef(float a, float b, float c)
 	cn->arraysize = 1;
 
 // copy the immediate to the global area
-	cn->ofs = QCC_GetFreeOffsetSpace (type_size[type_integer->type]);
+	cn->ofs = QCC_GetFreeOffsetSpace (type_size[type_vector->type]);
 	
 	G_FLOAT(cn->ofs+0) = a;
 	G_FLOAT(cn->ofs+1) = b;

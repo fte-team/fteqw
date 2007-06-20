@@ -1535,7 +1535,7 @@ client_t *SVC_DirectConnect(void)
 		if (!sv_listen_qw.value && net_from.type != NA_LOOPBACK)
 		{
 			SV_RejectMessage (SCP_BAD, "QuakeWorld protocols are not permitted on this server.\n");
-			Con_Printf ("* rejected connect from quakeworld\n", version);
+			Con_Printf ("* rejected connect from quakeworld\n");
 			return NULL;
 		}
 
@@ -3018,6 +3018,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	pm_airstep;
 	extern	cvar_t	pm_walljump;
 	extern	cvar_t	pm_slidyslopes;
+	extern	cvar_t	pm_stepheight;
 
 	SV_InitOperatorCommands	();
 	SV_UserInit ();
@@ -3085,6 +3086,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&pm_slidyslopes,			cvargroup_serverphysics);
 	Cvar_Register (&pm_airstep,				cvargroup_serverphysics);
 	Cvar_Register (&pm_walljump,			cvargroup_serverphysics);
+	Cvar_Register (&pm_stepheight,			cvargroup_serverphysics);
 
 	Cvar_Register (&sv_compatablehulls,		cvargroup_serverphysics);
 
@@ -3490,7 +3492,8 @@ void SV_FixupName(char *in, char *out)
 	}
 	*s = '\0';
 
-	if (!*out) {	//reached end and it was all whitespace
+	if (!*out)
+	{	//reached end and it was all whitespace
 		//white space only
 		strcpy(out, "unnamed");
 		p = out;
@@ -3585,9 +3588,12 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	val = Info_ValueForKey (cl->userinfo, "name");
 	val[40] = 0;	//trim to smallish length now (to allow for adding more.
 
-	SV_FixupName(val, newname);
+	if (cl->protocol != SCP_BAD || *val)
+		SV_FixupName(val, newname);
+	else
+		newname[0] = 0;
 
-	if (!val[0])
+	if (!val[0] && cl->protocol != SCP_BAD)
 		strcpy(newname, "Hidden");
 	else if (!stricmp(val, "console"))
 	{
@@ -3778,6 +3784,8 @@ void SV_Init (quakeparms_t *parms)
 
 		Memory_Init (parms->membase, parms->memsize);
 
+		Sys_Init();
+
 		COM_ParsePlusSets();
 
 		Cbuf_Init ();
@@ -3810,7 +3818,6 @@ void SV_Init (quakeparms_t *parms)
 	if (isDedicated)
 #endif
 	{
-		Sys_Init ();
 		PM_Init ();
 
 #ifdef PLUGINS

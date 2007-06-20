@@ -1477,6 +1477,8 @@ qboolean SV_SendClientDatagram (client_t *client)
 		SZ_Clear (&msg);
 	}
 
+	SV_DarkPlacesDownloadChunk(client, &msg);
+
 	// send the datagram
 	Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
 
@@ -1563,7 +1565,7 @@ void SV_UpdateToReliableMessages (void)
 						MSG_WriteString (&sv.reliable_datagram, host_client->name);
 					}
 				}
-				host_client->edict->v->netname = host_client->name - svprogfuncs->stringtable;
+				host_client->edict->v->netname = PR_SetString(svprogfuncs, host_client->name);
 			}
 		}
 
@@ -1910,7 +1912,22 @@ void SV_SendClientMessages (void)
 		{	//nq clients get artificial choke too
 			c->send_message = false;
 			if (c->nextservertimeupdate != sv.physicstime && c->state != cs_zombie)
+			{
 				c->send_message = true;
+
+				if (c->state == cs_connected && !c->datagram.cursize && !c->netchan.message.cursize)
+				{
+					if (c->nextservertimeupdate < sv.physicstime)
+					{	//part of the nq protocols allowed downloading content over isdn
+						//the nop requirement of the protocol persisted to prevent timeouts when content loading is otherwise slow..
+						//aditionally we might need this for lost packets, not sure
+						//but the client isn't able to respond unless we send an occasional datagram
+						if (c->nextservertimeupdate)
+							MSG_WriteByte(&c->datagram, svc_nop);
+						c->nextservertimeupdate = sv.physicstime+5;
+					}
+				}
+			}
 		}
 		if (!c->send_message)
 			continue;
@@ -1925,6 +1942,7 @@ void SV_SendClientMessages (void)
 			SV_SendClientDatagram (c);
 		else
 		{
+			SV_DarkPlacesDownloadChunk(c, &c->datagram);
 			Netchan_Transmit (&c->netchan, c->datagram.cursize, c->datagram.data, SV_RateForClient(c));	// just update reliable
 			c->datagram.cursize = 0;
 		}

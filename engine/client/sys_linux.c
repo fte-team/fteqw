@@ -473,8 +473,6 @@ int main (int c, char **v)
 	if (COM_CheckParm("-nostdout"))
 		nostdout = 1;
 
-	Sys_Init();
-
 	Host_Init(&parms);
 
 	oldtime = Sys_DoubleTime ();

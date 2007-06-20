@@ -709,9 +709,13 @@ sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	int		len;
 	sfxcache_t	*sc;
 
+	if (datalen < 4 || strncmp(data, "RIFF", 4))
+		return NULL;
+
 	info = GetWavinfo (s->name, data, datalen);
 	if (info.numchannels < 1 || info.numchannels > 2)
 	{
+		s->failedload = true;
 		Con_Printf ("%s has an unsupported quantity of channels.\n",s->name);
 		return NULL;
 	}
@@ -851,6 +855,15 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 		if (!data)
 			data = COM_LoadStackFile(namebuffer, stackbuf, sizeof(stackbuf));
+		if (!data)
+		{
+			char altname[sizeof(namebuffer)];
+			COM_StripExtension(namebuffer, altname, sizeof(altname));
+			COM_DefaultExtension(altname, ".ogg", sizeof(altname));
+			data = COM_LoadStackFile(altname, stackbuf, sizeof(stackbuf));
+			if (data)
+				Con_DPrintf("found a mangled name\n");
+		}
 	}
 
 	if (!data)
@@ -861,6 +874,8 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		return NULL;
 	}
 
+	s->failedload = false;
+
 	for (i = sizeof(AudioInputPlugins)/sizeof(AudioInputPlugins[0])-1; i >= 0; i--)
 	{
 		if (AudioInputPlugins[i])
@@ -870,6 +885,9 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 				return sc;
 		}
 	}
+
+	if (!s->failedload)
+		Con_Printf ("Format not recognised: %s\n", namebuffer);
 
 	s->failedload = true;
 	return NULL;

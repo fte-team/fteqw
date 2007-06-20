@@ -1065,7 +1065,7 @@ void M_Draw (int uimenu)
 #endif
 #ifdef MENU_DAT
 	case m_menu_dat:
-		MP_Draw();
+//		MP_Draw();
 		return;
 #endif
 	}

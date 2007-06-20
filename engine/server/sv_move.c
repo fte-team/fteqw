@@ -71,7 +71,7 @@ realcheck:
 // the midpoint must be within 16 of the bottom
 	start[0] = stop[0] = (mins[0] + maxs[0])*0.5;
 	start[1] = stop[1] = (mins[1] + maxs[1])*0.5;
-	stop[2] = start[2] - 2*pm_stepheight;
+	stop[2] = start[2] - 2*movevars.stepheight;
 	savedhull = ent->v->hull;
 	ent->v->hull = 0;
 	trace = SV_Move (start, vec3_origin, vec3_origin, stop, true, ent);
@@ -95,7 +95,7 @@ realcheck:
 			
 			if (trace.fraction != 1.0 && trace.endpos[2] > bottom)
 				bottom = trace.endpos[2];
-			if (trace.fraction == 1.0 || mid - trace.endpos[2] > pm_stepheight)
+			if (trace.fraction == 1.0 || mid - trace.endpos[2] > movevars.stepheight)
 				return false;
 		}
 
@@ -184,9 +184,9 @@ qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noene
 	}
 
 // push down from a step height above the wished position
-	neworg[2] += pm_stepheight;
+	neworg[2] += movevars.stepheight;
 	VectorCopy (neworg, end);
-	end[2] -= pm_stepheight*2;
+	end[2] -= movevars.stepheight*2;
 
 	trace = SV_Move (neworg, ent->v->mins, ent->v->maxs, end, false, ent);
 	if (set_trace)
@@ -197,7 +197,7 @@ qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noene
 
 	if (trace.startsolid)
 	{
-		neworg[2] -= pm_stepheight;
+		neworg[2] -= movevars.stepheight;
 		trace = SV_Move (neworg, ent->v->mins, ent->v->maxs, end, false, ent);
 		if (set_trace)
 			set_move_trace(&trace, set_trace);

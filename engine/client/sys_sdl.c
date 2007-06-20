@@ -259,7 +259,6 @@ int main(int argc, char **argv)
 #else
 	parms.membase = malloc (parms.memsize);
 #endif
-	Sys_Init ();
 
 	Sys_Printf ("Host_Init\n");
 	Host_Init (&parms);

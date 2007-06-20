@@ -462,6 +462,9 @@ void Sys_Init (void)
 //	unsigned int	lowpart, highpart;
 	OSVERSIONINFO	vinfo;
 
+	Cvar_Register(&sys_disableWinKeys, "System vars");
+	Cvar_Register(&sys_disableTaskSwitch, "System vars");
+
 #ifndef SERVERONLY
 #ifndef CLIENTONLY
 	if (!isDedicated && !COM_CheckParm("-nomutex"))
@@ -1232,13 +1235,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	if (!tevent)
 		Sys_Error ("Couldn't create event");
 
-	Sys_Init ();
-
 	Sys_Printf ("Host_Init\n");
 	Host_Init (&parms);
-
-	Cvar_Register(&sys_disableWinKeys, "System vars");
-	Cvar_Register(&sys_disableTaskSwitch, "System vars");
 
 	oldtime = Sys_DoubleTime ();
 

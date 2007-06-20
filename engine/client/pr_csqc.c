@@ -86,6 +86,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	\
 	globalfloat(player_localentnum,		"player_localentnum");	/*float		the entity number of the local player*/	\
 	globalfloat(intermission,			"intermission");	/*float		the entity number of the local player*/	\
+	globalvector(view_angles,			"view_angles");		\
 	\
 	globalvector(pmove_org,				"pmove_org");			\
 	globalvector(pmove_vel,				"pmove_vel");			\
@@ -2699,11 +2700,11 @@ static void PF_shaderforname (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	shader_t *shad;
 	shad = R_RegisterSkin(str);
 	if (shad)
-		G_INT(OFS_RETURN) = shad-r_shaders + 1;
+		G_FLOAT(OFS_RETURN) = shad-r_shaders + 1;
 	else
-		G_INT(OFS_RETURN) = 0;
+		G_FLOAT(OFS_RETURN) = 0;
 #else
-	G_INT(OFS_RETURN) = 0;
+	G_FLOAT(OFS_RETURN) = 0;
 #endif
 }
 
@@ -2747,7 +2748,7 @@ realcheck:
 // the midpoint must be within 16 of the bottom
 	start[0] = stop[0] = (mins[0] + maxs[0])*0.5;
 	start[1] = stop[1] = (mins[1] + maxs[1])*0.5;
-	stop[2] = start[2] - 2*pm_stepheight;
+	stop[2] = start[2] - 2*movevars.stepheight;
 	trace = CS_Move (start, vec3_origin, vec3_origin, stop, true, ent);
 
 	if (trace.fraction == 1.0)
@@ -2768,7 +2769,7 @@ realcheck:
 
 			if (trace.fraction != 1.0 && trace.endpos[2] > bottom)
 				bottom = trace.endpos[2];
-			if (trace.fraction == 1.0 || mid - trace.endpos[2] > pm_stepheight)
+			if (trace.fraction == 1.0 || mid - trace.endpos[2] > movevars.stepheight)
 				return false;
 		}
 
@@ -2846,9 +2847,9 @@ qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qboolean n
 	}
 
 // push down from a step height above the wished position
-	neworg[2] += pm_stepheight;
+	neworg[2] += movevars.stepheight;
 	VectorCopy (neworg, end);
-	end[2] -= pm_stepheight*2;
+	end[2] -= movevars.stepheight*2;
 
 	trace = CS_Move (neworg, ent->v->mins, ent->v->maxs, end, false, ent);
 	if (set_trace)
@@ -2859,7 +2860,7 @@ qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qboolean n
 
 	if (trace.startsolid)
 	{
-		neworg[2] -= pm_stepheight;
+		neworg[2] -= movevars.stepheight;
 		trace = CS_Move (neworg, ent->v->mins, ent->v->maxs, end, false, ent);
 		if (set_trace)
 			cs_settracevars(&trace);
@@ -3211,7 +3212,7 @@ PF_str2chr,		// #222 float(string str, float index) str2chr (FTE_STRINGS)
 PF_chr2str,		// #223 string(float chr, ...) chr2str (FTE_STRINGS)
 PF_strconv,		// #224 string(float ccase, float redalpha, float redchars, string str, ...) strconv (FTE_STRINGS)
 
-PF_strpad,		// #225 string(float ccase, float redalpha, float redchars, string str, ...) strconv (FTE_STRINGS)
+PF_strpad,		// #225 string strpad(float pad, string str1, ...) strpad (FTE_STRINGS)
 PF_infoadd,		// #226 string(string old, string key, string value) infoadd
 PF_infoget,		// #227 string(string info, string key) infoget
 PF_strncmp,		// #228 float(string s1, string s2, float len) strncmp (FTE_STRINGS)
@@ -3525,14 +3526,32 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 
 		file = COM_LoadStackFile(newname, buffer, bufsize);
 		if (file)
-			if (Com_BlockChecksum(file, com_filesize) == csqcchecksum)	//and the user wasn't trying to be cunning.
-				return file;
+		{
+			if (cls.protocol == CP_NETQUAKE)
+			{
+				if (QCRC_Block(file, com_filesize) == csqcchecksum)
+					return file;
+			}
+			else
+			{
+				if (Com_BlockChecksum(file, com_filesize) == csqcchecksum)	//and the user wasn't trying to be cunning.
+					return file;
+			}
+		}
 
 		file = COM_LoadStackFile(path, buffer, bufsize);
 		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
 		{
-			if (Com_BlockChecksum(file, com_filesize) != csqcchecksum)
-				return NULL;	//not valid
+			if (cls.protocol == CP_NETQUAKE)
+			{
+				if (QCRC_Block(file, com_filesize) != csqcchecksum)
+					return NULL;
+			}
+			else
+			{
+				if (Com_BlockChecksum(file, com_filesize) != csqcchecksum)
+					return NULL;	//not valid
+			}
 
 			//back it up
 			COM_WriteFile(newname, file, com_filesize);
@@ -3556,15 +3575,35 @@ int CSQC_PRFileSize (char *path)
 
 		file = COM_LoadTempFile (newname);
 		if (file)
-			if (Com_BlockChecksum(file, com_filesize) == csqcchecksum)	//and the user wasn't trying to be cunning.
-				return com_filesize+1;
+		{
+			if (cls.protocol == CP_NETQUAKE)
+			{
+				if (QCRC_Block(file, com_filesize) == csqcchecksum)
+					return com_filesize+1;
+			}
+			else
+			{
+				if (Com_BlockChecksum(file, com_filesize) == csqcchecksum)	//and the user wasn't trying to be cunning.
+					return com_filesize+1;
+			}
+		}
 
 		file = COM_LoadTempFile(path);
 		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
 		{
-			if (Com_BlockChecksum(file, com_filesize) != csqcchecksum)
-				return -1;	//not valid
+			if (cls.protocol == CP_NETQUAKE)
+			{
+				if (QCRC_Block(file, com_filesize) != csqcchecksum)
+					return -1;	//not valid
+			}
+			else
+			{
+				if (Com_BlockChecksum(file, com_filesize) != csqcchecksum)
+					return -1;	//not valid
+			}
 		}
+		if (!file)
+			return -1;
 
 		return com_filesize;
 	}
@@ -3718,9 +3757,16 @@ qboolean CSQC_DrawView(void)
 	if (csqcg.clientcommandframe)
 		*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
 	if (csqcg.servercommandframe)
-		*csqcg.servercommandframe = cls.netchan.incoming_sequence;
+		*csqcg.servercommandframe = cl.ackedinputsequence;
 	if (csqcg.intermission)
 		*csqcg.intermission = cl.intermission;
+
+	if (csqcg.view_angles)
+	{
+		csqcg.view_angles[0] = cl.viewangles[0][0];
+		csqcg.view_angles[1] = cl.viewangles[0][1];
+		csqcg.view_angles[2] = cl.viewangles[0][2];
+	}
 
 	if (csqcg.time)
 		*csqcg.time = Sys_DoubleTime();
@@ -3858,7 +3904,7 @@ void CSQC_ParseEntities(void)
 	if (csqcg.clientcommandframe)
 		*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
 	if (csqcg.servercommandframe)
-		*csqcg.servercommandframe = cls.netchan.incoming_sequence;
+		*csqcg.servercommandframe = cl.ackedinputsequence;
 
 	for(;;)
 	{

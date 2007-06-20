@@ -3,50 +3,50 @@
 #ifdef AVAIL_OGGVORBIS
 
 #ifdef __MORPHOS__
-#include <exec/exec.h>
-#include <libraries/vorbisfile.h>
+	#include <exec/exec.h>
+	#include <libraries/vorbisfile.h>
 
-#include <proto/exec.h>
-#include <proto/vorbisfile.h>
-#else
-#include <vorbis/vorbisfile.h>
+	#include <proto/exec.h>
+	#include <proto/vorbisfile.h>
+	#else
+	#include <vorbis/vorbisfile.h>
 #endif
 
 
 #if defined(__MORPHOS__)
 
-#define oggvorbislibrary VorbisFileBase
-struct Library *VorbisFileBase;
+	#define oggvorbislibrary VorbisFileBase
+	struct Library *VorbisFileBase;
 
 #elif defined(_WIN32)
-#define WINDOWSDYNAMICLINK
+	#define WINDOWSDYNAMICLINK
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
+	#ifndef WIN32_LEAN_AND_MEAN
+	#define WIN32_LEAN_AND_MEAN
+	#endif
+	#include <windows.h>
 
-HINSTANCE oggvorbislibrary;
+	HINSTANCE oggvorbislibrary;
 #else
-#include <dlfcn.h>
-void *oggvorbislibrary;
+	#include <dlfcn.h>
+	void *oggvorbislibrary;
 #endif
 
 #ifdef __MORPHOS__
-#define p_ov_open_callbacks(a, b, c, d, e) ov_open_callbacks(a, b, c, d, &e)
-#define p_ov_clear ov_clear
-#define p_ov_info ov_info
-#define p_ov_comment ov_comment
-#define p_ov_pcm_total ov_pcm_total
-#define p_ov_read ov_read
+	#define p_ov_open_callbacks(a, b, c, d, e) ov_open_callbacks(a, b, c, d, &e)
+	#define p_ov_clear ov_clear
+	#define p_ov_info ov_info
+	#define p_ov_comment ov_comment
+	#define p_ov_pcm_total ov_pcm_total
+	#define p_ov_read ov_read
 #else
-int (VARGS *p_ov_open_callbacks) (void *datasource, OggVorbis_File *vf, char *initial, long ibytes, ov_callbacks callbacks);
-int (VARGS *p_ov_clear)(OggVorbis_File *vf);
-vorbis_info *(VARGS *p_ov_info)(OggVorbis_File *vf,int link);
-vorbis_comment *(VARGS *p_ov_comment) (OggVorbis_File *vf,int link);
-ogg_int64_t (VARGS *p_ov_pcm_total)(OggVorbis_File *vf,int i);
-long (VARGS *p_ov_read)(OggVorbis_File *vf,char *buffer,int length,
-		    int bigendianp,int word,int sgned,int *bitstream);
+	int (VARGS *p_ov_open_callbacks) (void *datasource, OggVorbis_File *vf, char *initial, long ibytes, ov_callbacks callbacks);
+	int (VARGS *p_ov_clear)(OggVorbis_File *vf);
+	vorbis_info *(VARGS *p_ov_info)(OggVorbis_File *vf,int link);
+	vorbis_comment *(VARGS *p_ov_comment) (OggVorbis_File *vf,int link);
+	ogg_int64_t (VARGS *p_ov_pcm_total)(OggVorbis_File *vf,int i);
+	long (VARGS *p_ov_read)(OggVorbis_File *vf,char *buffer,int length,
+				int bigendianp,int word,int sgned,int *bitstream);
 #endif
 
 
@@ -84,6 +84,9 @@ sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	//qboolean telluser; //unreferenced
 	//int len; //unreferenced
 
+	if (datalen < 4 || strncmp(data, "OggS", 4))
+		return NULL;
+
 	name = s->name;
 
 	if (!s->decoder)
@@ -107,6 +110,7 @@ sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 		}
 		Z_Free(s->decoder);
 		s->decoder=NULL;
+		s->failedload = true;
 		return NULL;
 	}
 
@@ -131,34 +135,38 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 
 //	Con_Printf("Minlength = %03i   ", minlength);
 
-	if (dec->mediaaswavbuflen < dec->mediaaswavpos+minlength+11050)	//expand if needed.
-	{
-//		Con_Printf("Expand buffer\n");
-		dec->mediaaswavbuflen += minlength+22100;
-		dec->mediaaswavdata = BZ_Realloc(dec->mediaaswavdata, dec->mediaaswavbuflen);
-		s->cache.data = dec->mediaaswavdata;
-		s->cache.fake = true;
-
-		sc = s->cache.data;
-		sc->numchannels = dec->mediasc.numchannels;
-		sc->loopstart = -1;
-	}
-	else
-		sc = s->cache.data;
-
-	if (minlength < sc->length)
-	{
-//		Con_Printf("No need for decode\n");
-		//done enough for now, don't whizz through the lot
-		return 0;
-	}
-
 	for (;;)
 	{
+		if (dec->mediaaswavbuflen < dec->mediaaswavpos+minlength+11050)	//expand if needed.
+		{
+	//		Con_Printf("Expand buffer\n");
+			dec->mediaaswavbuflen += minlength+22100;
+			dec->mediaaswavdata = BZ_Realloc(dec->mediaaswavdata, dec->mediaaswavbuflen);
+			s->cache.data = dec->mediaaswavdata;
+			s->cache.fake = true;
+
+			sc = s->cache.data;
+			sc->numchannels = dec->mediasc.numchannels;
+			sc->loopstart = -1;
+		}
+		else
+			sc = s->cache.data;
+
+		if (minlength < sc->length)
+		{
+	//		Con_Printf("No need for decode\n");
+			//done enough for now, don't whizz through the lot
+			return 0;
+		}
+
 		bytesread = p_ov_read(&dec->vf, dec->mediaaswavdata+dec->mediaaswavpos, dec->mediaaswavbuflen-dec->mediaaswavpos, bigendianp, 2, 1, &current_section);
 		if (bytesread <= 0)
 		{
-			Con_Printf("ogg decoding failed\n");
+			if (bytesread != 0)	//0==eof
+			{
+				Con_Printf("ogg decoding failed\n");
+				return 1;
+			}
 			return 0;
 		}
 
@@ -276,6 +284,8 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 	{
 		oggvorbislibrary = LoadLibrary("vorbisfile.dll");
 		if (!oggvorbislibrary)
+			oggvorbislibrary = LoadLibrary("libvorbisfile.dll");
+		if (!oggvorbislibrary)
 		{
 			Con_Printf("Couldn't load DLL: \"vorbisfile.dll\".\n");
 		}
@@ -311,14 +321,17 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 	tried = true;
 
 	if (!oggvorbislibrary)
+	{
+		Con_Printf("ogg vorbis library is not loaded.\n");
 		return false;
+	}
 
 	buffer->start = start;
 	buffer->length = length;
 	buffer->pos = 0;
 	if (p_ov_open_callbacks(buffer, &buffer->vf, NULL, 0, callbacks))
 	{
-//		Con_Printf("Input does not appear to be an Ogg bitstream.\n");
+		Con_Printf("Input does not appear to be an Ogg bitstream.\n");
 		return false;
 	}
 

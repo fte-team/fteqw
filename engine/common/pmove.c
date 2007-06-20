@@ -271,17 +271,17 @@ int PM_StepSlideMove (qboolean in_air)
 
 		org = (originalvel[2] < 0) ? pmove.origin : original;
 		VectorCopy (org, dest);
-		dest[2] -= pm_stepheight;
+		dest[2] -= movevars.stepheight;
 		trace = PM_PlayerTrace (org, dest);
 		if (trace.fraction == 1 || trace.plane.normal[2] < MIN_STEP_NORMAL)
 			return blocked;
 
 		// adjust stepsize, otherwise it would be possible to walk up a
 		// a step higher than STEPSIZE
-		stepsize = pm_stepheight - (org[2] - trace.endpos[2]);
+		stepsize = movevars.stepheight - (org[2] - trace.endpos[2]);
 	}
 	else
-		stepsize = pm_stepheight;
+		stepsize = movevars.stepheight;
 
 	VectorCopy (pmove.origin, down);
 	VectorCopy (pmove.velocity, downvel);
@@ -600,7 +600,7 @@ void PM_LadderMove (void)
 // assume it is a stair or a slope, so press down from stepheight above
 	VectorMA (pmove.origin, frametime, pmove.velocity, dest);
 	VectorCopy (dest, start);
-	start[2] += pm_stepheight + 1;
+	start[2] += movevars.stepheight + 1;
 	trace = PM_PlayerTrace (start, dest);
 	if (!trace.startsolid && !trace.allsolid)	// FIXME: check steep slope?
 	{	// walked up the step

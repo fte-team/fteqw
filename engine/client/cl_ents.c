@@ -893,7 +893,7 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	cl_latestframenum = MSG_ReadLong();
 
 	if (nq_dp_protocol >=7)
-	/*cl.servermovesequence =*/ MSG_ReadLong();
+		cl.ackedinputsequence = MSG_ReadLong();
 
 	pack = &cl.frames[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
 	pack->servertime = cl.gametime;

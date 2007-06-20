@@ -30,7 +30,7 @@ typedef enum multicast_e
 	MULTICAST_PVS_R
 } multicast_t;
 
-extern float	pm_stepheight;
+extern float	pm_q2stepheight;
 
 #ifdef Q2SERVER
 

@@ -1107,6 +1107,8 @@ TRACE(("dbg: GLR_NewMap: tp\n"));
 
 void GLR_PreNewMap(void)
 {
+	extern int solidskytexture;
+	solidskytexture = 0;
 }
 
 

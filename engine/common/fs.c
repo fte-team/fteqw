@@ -2788,6 +2788,7 @@ void COM_Gamedir (char *dir)
 #endif
 }
 
+/*
 typedef struct {
 	char *file;
 	char *path;
@@ -2801,13 +2802,17 @@ potentialgamepath_t pgp[] = {
 	{"%s/baseq3/pak0.pk3",	"%s/baseq3"},	//quake3
 	{"%s/base/assets0.pk3",	"%s/base"}		//jk2
 };
+*/
 
+#define NEXCFG "set sv_maxairspeed \"400\"\nset sv_mintic \"0.01\"\ncl_nolerp 0\n"
 
 typedef struct {
 	char *gamename;	//sent to the master server when this is the current gamemode.
 	char *exename;	//used if the exe name contains this
 	char *argname;	//used if this was used as a parameter.
 	char *auniquefile;	//used if this file is relative from the gamedir
+
+	char *customexec;
 
 	char *dir1;
 	char *dir2;
@@ -2817,17 +2822,19 @@ typedef struct {
 gamemode_info_t gamemode_info[] = {
 //note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
 //this is to avoid having too many gamemodes anyway.
-	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		"id1",		"qw",				"fte"},
-	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	NULL/*"hipnotic/pak0.pak"*/,"id1",		"qw",	"hipnotic",	"fte"},
-	{"Darkplaces-Rogue",	"rogue",		"-rogue",		NULL/*"rogue/pak0.pak",	"id1"*/,		"qw",	"rogue",	"fte"},
-	{"Nexuiz",				"nexuiz",		"-nexuiz",		"data/cvars.txt",	"id1",		"qw",	"data",		"fte"},
+
+//rogue/hipnotic have no special files - the detection conflicts and stops us from running regular quake
+	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		NULL,	"id1",		"qw",				"fte"},
+	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	NULL,				NULL,	"id1",		"qw",	"hipnotic",	"fte"},
+	{"Darkplaces-Rogue",	"rogue",		"-rogue",		NULL,				NULL,	"id1",		"qw",	"rogue",	"fte"},
+	{"Nexuiz",				"nexuiz",		"-nexuiz",		"nexuiz.exe",		NEXCFG,	"id1",		"qw",	"data",		"fte"},
 
 	//supported commercial mods (some are currently only partially supported)
-	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	"data1",						"fte"},
-	{"FTE-Quake2",			"q2",			"-q2",			"baseq2/pak0.pak",	"baseq2",						"fte"},
-	{"FTE-Quake3",			"q3",			"-q3",			"baseq3/pak0.pk3",	"baseq3",						"fte"},
+	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	NULL,	"data1",						"fte"},
+	{"FTE-Quake2",			"q2",			"-q2",			"baseq2/pak0.pak",	NULL,	"baseq2",						"fte"},
+	{"FTE-Quake3",			"q3",			"-q3",			"baseq3/pak0.pk3",	NULL,	"baseq3",						"fte"},
 
-	{"FTE-JK2",				"jk2",			"-jk2",			"base/assets0.pk3",	"base",							"fte"},
+	{"FTE-JK2",				"jk2",			"-jk2",			"base/assets0.pk3",	NULL,	"base",							"fte"},
 
 	{NULL}
 };
@@ -3094,6 +3101,9 @@ void COM_InitFilesystem (void)
 		}
 	}
 	Cvar_Set(&com_gamename, gamemode_info[gamenum].gamename);
+
+	if (gamemode_info[gamenum].customexec)
+		Cbuf_AddText(gamemode_info[gamenum].customexec, RESTRICT_LOCAL);
 
 
 #ifdef _WIN32

@@ -530,7 +530,7 @@ MAX_CL_STATS = 256
 #define	SAVEGAME_VERSION	667
 
 
-
+#define PM_DEFAULTSTEPHEIGHT	18
 
 
 #define dem_cmd			0

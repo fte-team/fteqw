@@ -409,9 +409,13 @@ typedef struct client_s
 		q3client_frame_t	*q3frames;
 #endif
 	} frameunion;
+
 	vfsfile_t		*download;			// file being downloaded
 	int				downloadsize;		// total bytes
 	int				downloadcount;		// bytes sent
+
+	int				downloadacked;		//DP-specific
+	int				downloadstarted;	//DP-specific
 
 	int				spec_track;			// entnum of player tracking
 

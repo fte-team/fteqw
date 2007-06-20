@@ -1783,6 +1783,9 @@ void Sbar_Draw (void)
 
 		if (sbarfailed)	//files failed to load.
 		{
+			if (cl.stats[pnum][STAT_HEALTH] <= 0)	//when dead, show nothing
+				continue;
+
 			if (scr_viewsize.value != 120)
 				Cvar_Set(&scr_viewsize, "120");
 

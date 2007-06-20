@@ -23,6 +23,8 @@ typedef struct menuedict_s
 
 
 
+evalc_t menuc_eval_chain;
+
 int menuentsize;
 
 // cvars
@@ -830,6 +832,12 @@ void PF_M_addwantedhostcachekey(progfuncs_t *prinst, struct globalvars_s *pr_glo
 {
 	PF_M_gethostcacheindexforkey(prinst, pr_globals);
 }
+
+void PF_M_getextresponse(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//this does something weird
+	G_INT(OFS_RETURN) = 0;
+}
 #else
 
 void PF_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
@@ -887,7 +895,8 @@ void PF_CL_precache_file (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_menu_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
-	char *s, *t;
+	char *s;
+	string_t t;
 	menuedict_t *ent, *chain;	//note, all edicts share the common header, but don't use it's fields!
 	eval_t *val;
 
@@ -901,13 +910,13 @@ void PF_menu_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ent = (menuedict_t *)EDICT_NUM(prinst, i);
 		if (ent->isfree)
 			continue;
-		t = *(string_t *)&((float*)ent->fields)[f] + prinst->stringtable;
+		t = *(string_t *)&((float*)ent->fields)[f];
 		if (!t)
 			continue;
-		if (strcmp(t, s))
+		if (strcmp(PR_GetString(prinst, t), s))
 			continue;
 
-		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", NULL);
+		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", &menuc_eval_chain);
 		if (val)
 			val->edict = EDICT_TO_PROG(prinst, (void*)chain);
 		chain = ent;
@@ -1295,7 +1304,8 @@ builtin_t menu_builtins[] = {
 	PF_M_refreshhostcache,
 	PF_M_gethostcachenumber,
 	PF_M_gethostcacheindexforkey,
-	PF_M_addwantedhostcachekey
+	PF_M_addwantedhostcachekey,
+	PF_M_getextresponse			// #624
 };
 int menu_numbuiltins = sizeof(menu_builtins)/sizeof(menu_builtins[0]);
 
@@ -1406,6 +1416,8 @@ void MP_Init (void)
 		return;
 
 	M_DeInit_Internal();
+
+	memset(&menuc_eval_chain, 0, sizeof(menuc_eval_chain));
 
 
 	menuprogparms.progsversion = PROGSTRUCT_VERSION;
@@ -1521,7 +1533,7 @@ void MP_Reload_f(void)
 void MP_RegisterCvarsAndCmds(void)
 {
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
-	Cmd_AddCommand("menuqc_reload", MP_Reload_f);
+	Cmd_AddCommand("menu_restart", MP_Reload_f);
 
 	Cvar_Register(&forceqmenu, MENUPROGSGROUP);
 	Cvar_Register(&pr_menuqc_coreonerror, MENUPROGSGROUP);
@@ -1532,6 +1544,8 @@ void MP_RegisterCvarsAndCmds(void)
 
 void MP_Draw(void)
 {
+	if (!menuprogs)
+		return;
 	if (setjmp(mp_abort))
 		return;
 

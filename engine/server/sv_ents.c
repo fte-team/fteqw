@@ -1719,7 +1719,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 			clst.zext = client->zquake_extensions;
 			clst.cl = cl;
 
-			if (ent != vent)
+			if (ent != vent || host_client->viewent == j+1)
 				clst.modelindex = 0;
 
 			if (sv.demostatevalid)
@@ -2293,25 +2293,28 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		state->fatness = clent->v->fatness*2;
 #endif
 
-		if (state->effects & QWEF_FLAG1)
+		if (progstype == PROG_QW)
 		{
-			memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
-			state = &pack->entities[pack->num_entities];
-			pack->num_entities++;
-			state->modelindex = SV_ModelIndex("progs/flag.mdl");
-			state->frame = 0;
-			state->number++;
-			state->skinnum = 0;
-		}
-		else if (state->effects & QWEF_FLAG2)
-		{
-			memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
-			state = &pack->entities[pack->num_entities];
-			pack->num_entities++;
-			state->modelindex = SV_ModelIndex("progs/flag.mdl");
-			state->frame = 0;
-			state->number++;
-			state->skinnum = 1;
+			if (state->effects & QWEF_FLAG1)
+			{
+				memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
+				state = &pack->entities[pack->num_entities];
+				pack->num_entities++;
+				state->modelindex = SV_ModelIndex("progs/flag.mdl");
+				state->frame = 0;
+				state->number++;
+				state->skinnum = 0;
+			}
+			else if (state->effects & QWEF_FLAG2)
+			{
+				memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
+				state = &pack->entities[pack->num_entities];
+				pack->num_entities++;
+				state->modelindex = SV_ModelIndex("progs/flag.mdl");
+				state->frame = 0;
+				state->number++;
+				state->skinnum = 1;
+			}
 		}
 		state->effects &= ~(QWEF_FLAG1 | QWEF_FLAG2);
 	}
@@ -2557,6 +2560,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		if (state->effects & 0x32)
 			state->effects |= 0;
+
+		if (state->effects & 0x00400000)
+			state->effects &= ~0x00400000;
 
 		if (state->effects & EF_FULLBRIGHT)
 		{

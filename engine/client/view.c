@@ -1168,7 +1168,7 @@ void V_CalcRefdef (int pnum)
 	else if (scr_viewsize.value == 80)
 		view->origin[2] += 0.5;
 
-	if (!view_message || view_message->flags & (PF_GIB|PF_DEAD) )
+	if (!view_message || view_message->flags & (PF_GIB|PF_DEAD) || (unsigned int)cl.stats[pnum][STAT_WEAPON] >= MAX_MODELS)
  		view->model = NULL;
  	else
 		view->model = cl.model_precache[cl.stats[pnum][STAT_WEAPON]];

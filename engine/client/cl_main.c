@@ -1412,6 +1412,11 @@ void CL_CheckServerInfo(void)
 	movevars.airstep = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_airstep")) != 0);
 	movevars.walljump = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_walljump")));
 	movevars.ktjump = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_ktjump"));
+	s = Info_ValueForKey(cl.serverinfo, "pm_stepheight");
+	if (*s)
+		movevars.stepheight = Q_atof(s);
+	else
+		movevars.stepheight = PM_DEFAULTSTEPHEIGHT;
 
 	// Initialize cl.maxpitch & cl.minpitch
 	s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "maxpitch") : "";
@@ -3344,6 +3349,8 @@ void Host_Init (quakeparms_t *parms)
 		Sys_Error ("Only %4.1f megs of memory reported, can't execute game", parms->memsize / (float)0x100000);
 
 	Memory_Init (parms->membase, parms->memsize);
+
+	Sys_Init();
 
 	COM_ParsePlusSets();
 	Cbuf_Init ();

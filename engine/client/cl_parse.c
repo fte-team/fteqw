@@ -29,6 +29,9 @@ void CL_SetStat (int pnum, int stat, int value);
 int nq_dp_protocol;
 int msgflags;
 
+int cl_dp_csqc_progssize;
+int cl_dp_csqc_progscrc;
+
 
 char *svc_strings[] =
 {
@@ -181,7 +184,7 @@ char *svc_nqstrings[] =
 	"NEW PROTOCOL",
 	"NEW PROTOCOL",
 	"NEW PROTOCOL",
-	"dpsvc_cgame",		//50
+	"dpsvc_downloaddata",		//50
 	"dpsvc_updatestatubyte",
 	"dpsvc_effect",
 	"dpsvc_effect2",
@@ -399,10 +402,12 @@ void CL_FinishDownload(char *filename, char *tempname)
 		{
 			if (strncmp(tempname,"skins/",6))
 			{
+				FS_CreatePath(filename, FS_GAME);
 				FS_Rename(tempname, filename, FS_GAME);
 			}
 			else
 			{
+				FS_CreatePath(filename+6, FS_SKINS);
 				FS_Rename(tempname+6, filename+6, FS_SKINS);
 			}
 		}
@@ -448,6 +453,21 @@ void MapDownload(char *name, qboolean gotornot)
 	CL_EnqueDownload(filename, false, false);
 }
 */
+
+qboolean CL_CheckFile(char *filename)
+{
+	if (strstr (filename, ".."))
+	{
+		Con_TPrintf (TL_NORELATIVEPATHS);
+		return true;
+	}
+
+	if (COM_FCheckExists (filename))
+	{	// it exists, no need to download
+		return true;
+	}
+	return false;
+}
 /*
 ===============
 CL_CheckOrEnqueDownloadFile
@@ -456,20 +476,14 @@ Returns true if the file exists, otherwise it attempts
 to start a download from the server.
 ===============
 */
+
 qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname)
 {	//returns false if we don't have the file yet.
 	if (!localname)
 		localname = filename;
-	if (strstr (localname, ".."))
-	{
-		Con_TPrintf (TL_NORELATIVEPATHS);
-		return true;
-	}
 
-	if (COM_FCheckExists (localname))
-	{	// it exists, no need to download
+	if (CL_CheckFile(localname))
 		return true;
-	}
 
 	//ZOID - can't download when recording
 	if (cls.demorecording)
@@ -627,6 +641,32 @@ int CL_LoadModels(int stage)
 #ifdef PEXT_CSQC
 	if (atstage())
 	{
+		if (cls.protocol == CP_NETQUAKE)
+		{
+			char *s;
+			s = Info_ValueForKey(cl.serverinfo, "*csprogs");
+			if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
+			{
+				extern cvar_t allow_download_csprogs;
+				unsigned int chksum = strtoul(s, NULL, 0);
+				if (allow_download_csprogs.value)
+				{
+					char *str = va("csprogsvers/%x.dat", chksum);
+					CL_CheckOrEnqueDownloadFile("csprogs.dat", str);
+				}
+				else
+				{
+					Con_Printf("Not downloading csprogs.dat due to allow_download_csprogs\n");
+				}
+			}
+		}
+		endstage();
+	}
+#endif
+
+#ifdef PEXT_CSQC
+	if (atstage())
+	{
 		if (cls.fteprotocolextensions & PEXT_CSQC)
 		{
 			char *s;
@@ -752,6 +792,7 @@ Sound_NextDownload
 */
 void Sound_NextDownload (void)
 {
+	char mangled[512];
 	char	*s;
 	int		i;
 
@@ -785,7 +826,19 @@ void Sound_NextDownload (void)
 		s = cl.sound_name[i];
 		if (*s == '*')
 			continue;
-		CL_CheckOrEnqueDownloadFile(va("sound/%s",s), NULL);
+		s = va("sound/%s",s);
+
+		if (CL_CheckFile(s))
+			continue;	//we have it already
+
+		//the things I do for nexuiz... *sigh*
+		COM_StripExtension(s, mangled, sizeof(mangled));
+		COM_DefaultExtension(mangled, ".ogg", sizeof(mangled));
+		if (CL_CheckFile(mangled))
+			continue;
+
+		//download the one the server said.
+		CL_CheckOrEnqueDownloadFile(s, NULL);
 	}
 
 	for (i=1 ; i<MAX_SOUNDS ; i++)
@@ -1134,6 +1187,7 @@ int CL_RequestADownloadChunk(void)
 //	Con_Printf("^1 EOF?\n");
 
 	VFS_CLOSE(cls.downloadqw);
+	CL_SendClientCommand(true, "stopdownload");
 	CL_FinishDownload(cls.downloadname, cls.downloadtempname);
 
 	Con_Printf("Download took %i seconds (%i more)\n", (int)(Sys_DoubleTime() - downloadstarttime), CL_CountQueuedDownloads());
@@ -1286,6 +1340,118 @@ void CL_ParseDownload (void)
 
 		CL_RequestNextDownload ();
 	}
+}
+
+void CLDP_ParseDownloadData(void)
+{
+	unsigned char buffer[1<<16];
+	int start;
+	int size;
+	start = MSG_ReadLong();
+	size = (unsigned short)MSG_ReadShort();
+	
+	MSG_ReadData(buffer, size);
+
+	VFS_SEEK(cls.downloadqw, start);
+	VFS_WRITE(cls.downloadqw, buffer, size);
+
+	//this is only reliable because I'm lazy
+	MSG_WriteByte(&cls.netchan.message, clcdp_ackdownloaddata);
+	MSG_WriteLong(&cls.netchan.message, start);
+	MSG_WriteShort(&cls.netchan.message, size);
+
+	cls.downloadpercent = start / (float)VFS_GETLEN(cls.downloadqw) * 100;
+}
+
+void CLDP_ParseDownloadBegin(char *s)
+{
+	char buffer[8192];
+	unsigned int size, pos, chunk;
+	char *fname;
+	Cmd_TokenizeString(s+1, false, false);
+	size = (unsigned int)atoi(Cmd_Argv(1));
+	fname = Cmd_Argv(2);
+
+	COM_StripExtension (fname, cls.downloadtempname, sizeof(cls.downloadtempname)-5);
+	strcat (cls.downloadtempname, ".tmp");
+
+	CL_SendClientCommand(true, "sv_startdownload");
+
+	if (cls.downloadqw)
+	{
+		Con_Printf("Warning: cl_begindownload while already downloading\n");
+		VFS_CLOSE(cls.downloadqw);
+	}
+
+	FS_CreatePath (cls.downloadtempname, FS_GAME);
+	cls.downloadqw = FS_OpenVFS (cls.downloadtempname, "wb", FS_GAME);
+	cls.downloadmethod = DL_DARKPLACES;
+	
+	//fill the file with 0 bytes
+	memset(buffer, 0, sizeof(buffer));
+	for (pos = 0, chunk = 1; chunk; pos += chunk)
+	{
+		chunk = size - pos;
+		if (chunk > sizeof(buffer))
+			chunk = sizeof(buffer);
+		VFS_WRITE(cls.downloadqw, buffer, chunk);
+	}
+
+	downloadstarttime = Sys_DoubleTime();
+}
+
+void CLDP_ParseDownloadFinished(char *s)
+{
+	unsigned short runningcrc;
+	char buffer[8192];
+	int size, pos, chunk;
+	if (!cls.downloadqw)
+		return;
+
+	Cmd_TokenizeString(s+1, false, false);
+
+	VFS_CLOSE (cls.downloadqw);
+
+	cls.downloadqw = FS_OpenVFS (cls.downloadtempname, "rb", FS_GAME);
+	if (cls.downloadqw)
+	{
+		size = VFS_GETLEN(cls.downloadqw);
+		QCRC_Init(&runningcrc);
+		for (pos = 0, chunk = 1; chunk; pos += chunk)
+		{
+			chunk = size - pos;
+			if (chunk > sizeof(buffer))
+				chunk = sizeof(buffer);
+			VFS_READ(cls.downloadqw, buffer, chunk);
+			QCRC_AddBlock(&runningcrc, buffer, chunk);
+		}
+		VFS_CLOSE (cls.downloadqw);
+	}
+
+	Cmd_TokenizeString(s+1, false, false);
+	if (size != atoi(Cmd_Argv(1)))
+	{
+		Con_Printf("Download failed: wrong file size\n");
+		CL_DownloadFailed(cls.downloadname);
+		return;
+	}
+	if (runningcrc != atoi(Cmd_Argv(2)))
+	{
+		Con_Printf("Download failed: wrong crc\n");
+		CL_DownloadFailed(cls.downloadname);
+		return;
+	}
+
+	CL_FinishDownload(cls.downloadname, cls.downloadtempname);
+	*cls.downloadname = '\0';
+	cls.downloadqw = NULL;
+	cls.downloadpercent = 0;
+
+	Con_Printf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
+
+	// get another file if needed
+
+	CL_RequestNextDownload ();
 }
 
 static vfsfile_t *upload_file;
@@ -1718,6 +1884,8 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	Stats_NewMap();
 	Cvar_ForceCallback(&r_particlesdesc);
 
+	Info_SetValueForStarKey(cl.serverinfo, "*csprogs", va("%i", cl_dp_csqc_progscrc), sizeof(cl.serverinfo));
+
 	protover = MSG_ReadLong ();
 
 	sizeofcoord = 2;
@@ -1875,7 +2043,8 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 	switch (cls.signon)
 	{
 	case 1:
-		CL_SendClientCommand(true, "prespawn");
+		cl.sendprespawn = true;
+//		CL_SendClientCommand(true, "prespawn");
 		break;
 
 	case 2:
@@ -1891,6 +2060,15 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 
 			CL_SendClientCommand(true, "playermodel %s", model.string);
 			CL_SendClientCommand(true, "playerskin %s", skin.string);
+
+			{
+				char *s;
+				s = Info_ValueForKey(cl.serverinfo, "*csprogs");
+				if (*s)
+					CSQC_Init(atoi(s));
+				else
+					CSQC_Shutdown();
+			}
 		}
 		break;
 
@@ -4211,10 +4389,12 @@ void CL_ParseServerMessage (void)
 
 		case svc_packetentities:
 			CL_ParsePacketEntities (false);
+			cl.ackedinputsequence = cl.validsequence;
 			break;
 
 		case svc_deltapacketentities:
 			CL_ParsePacketEntities (true);
+			cl.ackedinputsequence = cl.validsequence;
 			break;
 
 		case svc_maxspeed :
@@ -4673,7 +4853,25 @@ void CLNQ_ParseServerMessage (void)
 			else
 			{
 				Con_DPrintf ("stufftext: %s\n", s);
-				Cbuf_AddText (s, RESTRICT_SERVER);	//no cheating here...
+				if (!strncmp(s, "cl_serverextension_download ", 14))
+				{
+				}
+				else if (!strncmp(s, "\ncl_downloadbegin ", 17))
+					CLDP_ParseDownloadBegin(s);
+				else if (!strncmp(s, "\ncl_downloadfinished ", 17))
+					CLDP_ParseDownloadFinished(s);
+				else if (!strncmp(s, "csqc_progname ", 14))
+				{
+//					Info_SetValueForStarKey(cl.serverinfo, "*cspname", s+14, sizeof(cl.serverinfo));
+				}
+				else if (!strncmp(s, "csqc_progsize ", 14))
+					cl_dp_csqc_progssize = atoi(s+14);
+				else if (!strncmp(s, "csqc_progcrc ", 13))
+					cl_dp_csqc_progscrc = atoi(s+13);
+				else
+				{
+					Cbuf_AddText (s, RESTRICT_SERVER);	//no cheating here...
+				}
 			}
 			break;
 
@@ -4890,7 +5088,7 @@ void CLNQ_ParseServerMessage (void)
 			CL_ParseEffect(true);
 			break;
 
-		case 57://svc_entities
+		case svcdp_entities:
 			if (cls.signon == 4 - 1)
 			{	// first update is the final signon stage
 				cls.signon = 4;
@@ -4899,7 +5097,16 @@ void CLNQ_ParseServerMessage (void)
 			//well, it's really any protocol, but we're only going to support version 5.
 			CLNQ_ParseDarkPlaces5Entities();
 			break;
+
+		case svcdp_csqcentities:
+			CSQC_ParseEntities();
+			break;
+
+		case svcdp_downloaddata:
+			CLDP_ParseDownloadData();
+			break;
 		}
+
 	}
 }
 #endif

@@ -474,7 +474,7 @@ void CL_CalcCrouch (int pnum)
 
 	if (cl.onground[pnum] && cl.simorg[pnum][2] - oldz[pnum] > 0)
 	{
-		if (cl.simorg[pnum][2] - oldz[pnum] > 20)
+		if (cl.simorg[pnum][2] - oldz[pnum] > movevars.stepheight+2)
 		{
 			// if on steep stairs, increase speed
 			if (crouchspeed[pnum] < 160)
@@ -717,12 +717,12 @@ void CL_PredictMovePNum (int pnum)
 		return;
 	}
 
-	if (!cl.validsequence)
+	if (!cl.ackedinputsequence)
 	{
 		return;
 	}
 
-	if (cls.netchan.outgoing_sequence - cl.validsequence >= UPDATE_BACKUP-1)
+	if (cls.netchan.outgoing_sequence - cl.ackedinputsequence >= UPDATE_BACKUP-1)
 	{	//lagging like poo.
 		if (!cl.intermission)	//keep the angles working though.
 			VectorCopy (cl.viewangles[pnum], cl.simangles[pnum]);
@@ -730,7 +730,7 @@ void CL_PredictMovePNum (int pnum)
 	}
 
 	// this is the last frame received from the server
-	from = &cl.frames[cl.validsequence & UPDATE_MASK];
+	from = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
 
 	if (!cl.intermission)
 	{
@@ -793,7 +793,7 @@ fixedorg:
 		VectorCopy (vel, cl.simvel[pnum]);
 		VectorCopy (org, cl.simorg[pnum]);
 
-		to = &cl.frames[cl.validsequence & UPDATE_MASK];
+		to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
 
 
 
@@ -805,13 +805,13 @@ fixedorg:
 	oldphysent = pmove.numphysent;
 	CL_SetSolidPlayers (cl.playernum[pnum]);
 
-	to = &cl.frames[cl.validsequence & UPDATE_MASK];
+	to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
 
 	if (Cam_TrackNum(pnum)>=0 && !cl_nolerp.value && cls.demoplayback != DPB_MVD)
 	{
 		float f;
 
-		to = &cl.frames[cl.validsequence & UPDATE_MASK];
+		to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
 		from = &cl.frames[cl.oldvalidsequence & UPDATE_MASK];
 
 		//figure out the lerp factor
@@ -838,10 +838,10 @@ fixedorg:
 	}
 	else
 	{
-		for (i=1 ; i<UPDATE_BACKUP-1 && cl.validsequence+i <
+		for (i=1 ; i<UPDATE_BACKUP-1 && cl.ackedinputsequence+i <
 				cls.netchan.outgoing_sequence; i++)
 		{
-			to = &cl.frames[(cl.validsequence+i) & UPDATE_MASK];
+			to = &cl.frames[(cl.ackedinputsequence+i) & UPDATE_MASK];
 			if (cl.intermission)
 				to->playerstate->pm_type = PM_FLY;
 			CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]

@@ -1319,7 +1319,7 @@ void R_ModifyTextureCoords ( shaderpass_t *pass, int unit )
 	int i, j;
 	float *table;
 	float t1, t2, sint, cost;
-	float *tcArray;
+	float *tcArray, *buffer;
 	tcmod_t	*tcmod;
 
 	r_texNums[unit] = R_ShaderpassTex ( pass );
@@ -1336,11 +1336,12 @@ void R_ModifyTextureCoords ( shaderpass_t *pass, int unit )
 		return;
 	}
 
-	R_VertexTCBase ( pass->tcgen, unit );
+	buffer = R_VertexTCBase (pass->tcgen, unit);
+	qglTexCoordPointer(2, GL_FLOAT, 0, buffer);
 
 	for (i = 0, tcmod = pass->tcmods; i < pass->numtcmods; i++, tcmod++)
 	{
-		tcArray = tUnitCoordsArray[unit][0];
+		tcArray = buffer;
 
 		switch (tcmod->type)
 		{

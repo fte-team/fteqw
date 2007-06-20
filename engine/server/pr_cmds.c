@@ -3269,7 +3269,7 @@ void PF_clienttype (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 	if (svs.clients[entnum].protocol == SCP_BAD)
-		G_FLOAT(OFS_RETURN) = 2;	//an active, not-bot client.
+		G_FLOAT(OFS_RETURN) = 2;	//an active, bot client.
 	else
 		G_FLOAT(OFS_RETURN) = 1;	//an active, not-bot client.
 }
@@ -3287,7 +3287,7 @@ void PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
 
-	str = PR_GetStringOfs(prinst, OFS_PARM0);
+	str = PF_VarString(prinst, 0, pr_globals);
 	if (!strcmp(str, "host_framerate 0\n"))
 		Cbuf_AddText ("sv_mintic 0\n", RESTRICT_INSECURE);	//hmm... do this better...
 	else
@@ -3317,7 +3317,12 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_RETURN) = sv.worldmodel->fromgame == fg_halflife;
 	else
 	{
-		cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
+		cvar_t *cv = Cvar_FindVar(str);
+		if (!cv)
+		{
+			cv = Cvar_Get(str, "", 0, "QC variables");
+			Con_Printf("Creating cvar %s\n", str);
+		}
 		G_FLOAT(OFS_RETURN) = cv->value;
 	}
 }
@@ -5688,9 +5693,9 @@ static int chrchar_alpha(int i, int basec, int baset, int convc, int convt, int 
 //bulk convert a string. change case or colouring.
 void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int ccase = G_FLOAT(OFS_PARM0);	//0 same, 1 lower, 2 upper
+	int ccase = G_FLOAT(OFS_PARM0);		//0 same, 1 lower, 2 upper
 	int redalpha = G_FLOAT(OFS_PARM1);	//0 same, 1 white, 2 red,  5 alternate, 6 alternate-alternate
-	int redchars = G_FLOAT(OFS_PARM2);	//0 same, 1 white, 2 red, 3 redspecial, 4 whitespecial, 5 alternate, 6 alternate-alternate
+	int rednum = G_FLOAT(OFS_PARM2);	//0 same, 1 white, 2 red, 3 redspecial, 4 whitespecial, 5 alternate, 6 alternate-alternate
 	unsigned char *string = PF_VarString(prinst, 3, pr_globals);
 	int len = strlen(string);
 	int i;
@@ -5703,22 +5708,22 @@ void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	for (i = 0; i < len; i++, string++, result++)	//should this be done backwards?
 	{
 		if (*string >= '0' && *string <= '9')	//normal numbers...
-			*result = chrconv_number(*string, '0', redchars);
+			*result = chrconv_number(*string, '0', rednum);
 		else if (*string >= '0'+128 && *string <= '9'+128)
-			*result = chrconv_number(*string, '0'+128, redchars);
+			*result = chrconv_number(*string, '0'+128, rednum);
 		else if (*string >= '0'+128-30 && *string <= '9'+128-30)
-			*result = chrconv_number(*string, '0'+128-30, redchars);
+			*result = chrconv_number(*string, '0'+128-30, rednum);
 		else if (*string >= '0'-30 && *string <= '9'-30)
-			*result = chrconv_number(*string, '0'-30, redchars);
+			*result = chrconv_number(*string, '0'-30, rednum);
 
 		else if (*string >= 'a' && *string <= 'z')	//normal numbers...
-			*result = chrchar_alpha(*string, 'a', 0, ccase, redchars, i);
+			*result = chrchar_alpha(*string, 'a', 0, ccase, redalpha, i);
 		else if (*string >= 'A' && *string <= 'Z')	//normal numbers...
-			*result = chrchar_alpha(*string, 'A', 0, ccase, redchars, i);
+			*result = chrchar_alpha(*string, 'A', 0, ccase, redalpha, i);
 		else if (*string >= 'a'+128 && *string <= 'z'+128)	//normal numbers...
-			*result = chrchar_alpha(*string, 'a', 128, ccase, redchars, i);
+			*result = chrchar_alpha(*string, 'a', 128, ccase, redalpha, i);
 		else if (*string >= 'A'+128 && *string <= 'Z'+128)	//normal numbers...
-			*result = chrchar_alpha(*string, 'A', 128, ccase, redchars, i);
+			*result = chrchar_alpha(*string, 'A', 128, ccase, redalpha, i);
 
 		else if ((*string & 127) < 16 || !redalpha)	//special chars..
 			*result = *string;
@@ -5789,6 +5794,28 @@ void PF_infoget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	RETURN_TSTRING(key);
 }
+
+//DP_QC_STRINGCOLORFUNCTIONS
+// #476 float(string s) strlennocol - returns how many characters are in a string, minus color codes
+void PF_strlennocol (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = COM_FunStringLength(in);
+}
+
+//DP_QC_STRINGCOLORFUNCTIONS
+// string (string s) strdecolorize - returns the passed in string with color codes stripped
+void PF_strdecolorize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
+	char result[8192];
+	unsigned long flagged[8192];
+	COM_ParseFunString(in, flagged, sizeof(flagged)/sizeof(flagged[0]));
+	COM_DeFunString(flagged, result, sizeof(result), true);
+
+	RETURN_TSTRING(result);
+}
+
 
 //back to frik_file support.
 
@@ -5881,9 +5908,8 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
-void PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_fclose_i (int fnum)
 {
-	int fnum = G_FLOAT(OFS_PARM0)-FIRST_QC_FILE_INDEX;
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
 		Con_Printf("PF_fclose: File out of range\n");
@@ -5894,12 +5920,6 @@ void PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 		Con_Printf("PF_fclose: File is not open\n");
 		return;	//not open
-	}
-
-	if (pf_fopen_files[fnum].prinst != prinst)
-	{
-		Con_Printf("PF_fclose: File is from wrong instance\n");
-		return;	//this just isn't ours.
 	}
 
 	switch(pf_fopen_files[fnum].accessmode)
@@ -5915,6 +5935,25 @@ void PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 	pf_fopen_files[fnum].data = NULL;
 	pf_fopen_files[fnum].prinst = NULL;
+}
+
+void PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int fnum = G_FLOAT(OFS_PARM0)-FIRST_QC_FILE_INDEX;
+
+	if (fnum < 0 || fnum >= MAX_QC_FILES)
+	{
+		Con_Printf("PF_fclose: File out of range\n");
+		return;	//out of range
+	}
+
+	if (pf_fopen_files[fnum].prinst != prinst)
+	{
+		Con_Printf("PF_fclose: File is from wrong instance\n");
+		return;	//this just isn't ours.
+	}
+
+	PF_fclose_i(fnum);
 }
 
 void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6008,15 +6047,14 @@ void PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pf_fopen_files[fnum].ofs+=len;
 }
 
-void PF_fcloseall (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_fcloseall (progfuncs_t *prinst)
 {
 	int i;
 	for (i = 0; i < MAX_QC_FILES; i++)
 	{
 		if (pf_fopen_files[i].prinst != prinst)
 			continue;
-		G_FLOAT(OFS_PARM0) = i+FIRST_QC_FILE_INDEX;
-		PF_fclose(prinst, pr_globals);
+		PF_fclose_i(i);
 	}
 }
 
@@ -6274,6 +6312,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_MULTIPLETEMPSTRINGS"},
 	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
 	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
+	{"DP_QC_STRINGCOLORFUNCTIONS",		2,	NULL, {"strlennocol", "strdecolorize"}},
 	{"DP_QC_UNLIMITEDTEMPSTRINGS"},
 	{"DP_QC_TRACEBOX",					1,	NULL, {"tracebox"}},
 	{"DP_QC_TRACETOSS"},
@@ -6663,7 +6702,7 @@ void PF_strcat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 =================
 PF_strpad
 
-string strcat(float pad, string str1, ...)
+string strpad(float pad, string str1, ...)
 =================
 */
 
@@ -7048,7 +7087,8 @@ void PF_etos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
-	char *s, *t;
+	char *s;
+	string_t t;
 	edict_t *ent, *chain;
 
 	chain = (edict_t *) *prinst->parms->sv_edicts;
@@ -7061,10 +7101,10 @@ void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ent = EDICT_NUM(prinst, i);
 		if (ent->isfree)
 			continue;
-		t = *(string_t *)&((float*)ent->v)[f] + prinst->stringtable;
+		t = *(string_t *)&((float*)ent->v)[f];
 		if (!t)
 			continue;
-		if (strcmp(t, s))
+		if (strcmp(PR_GetString(prinst, t), s))
 			continue;
 
 		ent->v->chain = EDICT_TO_PROG(prinst, chain);
@@ -9686,6 +9726,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"clienttype",		PF_clienttype,		0,		0,		0,		455},	//float(entity client) clienttype = #455;
 
 	{"WriteUnterminatedString",PF_WriteString2,0,	0,		0,		456},	//writestring but without the null terminator. makes things a little nicer.
+
+	{"strlennocol",		PF_strlennocol,		0,		0,		0,		476},	// #476 float(string s) strlennocol
+	{"strdecolorize",	PF_strdecolorize,	0,		0,		0,		477},	// #477 string(string s) strdecolorize
 
 //end other peoples extras
 

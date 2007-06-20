@@ -241,7 +241,10 @@ qboolean Draw_RealPicFromWad (mpic_t	*out, char *name)
 	int texnum;
 	char name2[256];
 
-	in = W_SafeGetLumpName (name);
+	if (!strncmp(name, "gfx/", 4))
+		in = W_SafeGetLumpName (name+4);
+	else
+		in = W_SafeGetLumpName (name);
 	gl = (glpic_t *)out->data;
 
 	if (in)
@@ -513,8 +516,6 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 		{
 			mpic_t *m;
 			m = GLDraw_SafePicFromWad(path);
-			if (!m && !strncmp(path, "gfx/", 4))
-				return GLDraw_SafePicFromWad(path+4);
 			return m;
 		}
 	}

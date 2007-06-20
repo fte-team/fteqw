@@ -1602,6 +1602,247 @@ void COM_DefaultExtension (char *path, char *extension, int maxlen)
 	Q_strncatz (path, extension, maxlen);
 }
 
+
+
+
+///=====================================
+
+
+
+
+//Strips out the flags 
+void COM_DeFunString(unsigned long *str, char *out, int outsize, qboolean ignoreflags)
+{
+	if (ignoreflags)
+	{
+		while(*str)
+		{
+			if (!--outsize)
+				break;
+			*out++ = (unsigned char)(*str++&255);
+		}
+		*out++ = 0;
+	}
+	else
+	{
+		int fl, d;
+		//FIXME: TEST!
+
+		fl = CON_WHITEMASK;
+		while(*str)
+		{
+			if (!--outsize)
+				break;
+			if ((*str & CON_FLAGSMASK) != fl)
+			{
+				d = fl^(*str & CON_FLAGSMASK);
+//				if (fl & CON_NONCLEARBG)	//not represented.
+				if (d & CON_BLINKTEXT)
+				{
+					if (outsize<=2)
+						break;
+					outsize -= 2;
+					*out++ = '^';
+					*out++ = 'b';
+				}
+				if (d & CON_2NDCHARSETTEXT)
+				{
+					if (outsize<=2)
+						break;
+					outsize -= 2;
+					*out++ = '^';
+					*out++ = 'a';
+				}
+				if (d & CON_HALFALPHA)
+				{
+					if (outsize<=2)
+						break;
+					outsize -= 2;
+					*out++ = '^';
+					*out++ = 'h';
+				}
+				
+				if (d & (CON_FGMASK | CON_BGMASK | CON_NONCLEARBG))
+				{
+					if (outsize<=4)
+						break;
+					outsize -= 4;
+
+					d = (*str & CON_FLAGSMASK);
+					*out++ = '^';
+					*out++ = '&';
+					if ((d & CON_FGMASK) == CON_WHITEMASK)
+						*out++ = '-';
+					else
+						sprintf(out, "%X", d>>24);
+					if (d & CON_NONCLEARBG)
+					{
+						sprintf(out, "%X", d>>28);
+					}
+					else
+						*out++ = '-';
+				}
+
+				fl = (*str & CON_FLAGSMASK);
+			}
+			*out++ = (unsigned char)(*str++&255);
+		}
+		*out++ = 0;
+	}
+}
+
+//Takes a q3-style fun string, and returns an expanded string-with-flags
+void COM_ParseFunString(char *str, unsigned long *out, int outsize)
+{
+	int ext = CON_WHITEMASK;
+	int extstack[4];
+	int extstackdepth = 0;
+
+	while(*str)
+	{
+		if (*str == '^')
+		{
+			str++;
+			if (*str >= '0' && *str <= '9')
+			{
+				ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK); //change colour only.
+				continue;
+			}
+			else if (*str == '&') // extended code
+			{
+				if (isextendedcode(str[1]) && isextendedcode(str[2]))
+				{
+					str++;// foreground char
+					if (*str == '-') // default for FG
+						ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					else if (*str >= 'A')
+						ext = ((*str - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					else
+						ext = ((*str - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					str++; // background char
+					if (*str == '-') // default (clear) for BG
+						ext &= ~CON_BGMASK & ~CON_NONCLEARBG;
+					else if (*str >= 'A')
+						ext = ((*str - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					else
+						ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					str++;
+					continue;
+				}
+				// else invalid code
+				goto messedup;
+			}
+			else if (*str == 'a')
+			{
+				str++;
+				ext ^= CON_2NDCHARSETTEXT;
+				continue;
+			}
+			else if (*str == 'b')
+			{
+				str++;
+				ext ^= CON_BLINKTEXT;
+				continue;
+			}
+			else if (*str == 'h')
+			{
+				str++;
+				ext ^= CON_HALFALPHA;
+				continue;
+			}
+			else if (*str == 's')	//store on stack (it's great for names)
+			{
+				str++;
+				if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
+				{
+					extstack[extstackdepth] = ext;
+					extstackdepth++;
+				}
+				continue;
+			}
+			else if (*str == 'r')	//restore from stack (it's great for names)
+			{
+				str++;
+				if (extstackdepth)
+				{
+					extstackdepth--;
+					ext = extstack[extstackdepth];
+				}
+				continue;
+			}
+			else if (*str == '^')
+			{
+				if (!--outsize)
+					break;
+				*out++ = '^' | ext;
+				str++;
+			}
+			else
+			{
+				if (!--outsize)
+					break;
+				*out++ = '^' | ext;
+				if (!--outsize)
+					break;
+				*out++ = (*str++) | ext;
+			}
+			continue;
+		}
+messedup:
+		if (!--outsize)
+			break;
+		*out++ = (*str++) | ext;
+	}
+	*out = 0;
+}
+
+int COM_FunStringLength(unsigned char *str)
+{
+	int len;
+
+	while(*str)
+	{
+		if (*str == '^')
+		{
+			str++;
+			if (*str >= '0' && *str <= '9')
+				str++;	//invisible
+			else if (*str == '&') // extended code
+			{
+				if (isextendedcode(str[1]) && isextendedcode(str[2]))
+				{
+					str++;// foreground char
+					str++; // background char
+					str++;
+					continue;
+				}
+				// else invalid code
+				goto messedup;
+			}
+			else if (*str == 'a' || *str == 'b' || *str == 'h' || *str == 's' || *str == 'r')
+				str++;	//invisible
+			else if (*str == '^')
+			{
+				len++;	//double-code single-output
+				str++;
+			}
+			else
+			{
+				len++;	//not recognised
+				len++;
+				str++;
+			}
+			continue;
+		}
+messedup:
+		len++;
+		str++;
+	}
+
+	return len;
+}
+
+
 //============================================================================
 
 #define TOKENSIZE sizeof(com_token)

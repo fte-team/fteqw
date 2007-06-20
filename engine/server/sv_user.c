@@ -345,10 +345,14 @@ void SVNQ_New_f (void)
 
 	if (host_client->protocol == SCP_DARKPLACES7)
 	{
+		extern cvar_t allow_download;
 		char *f;
 
-		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-		MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
+		if (allow_download.value)
+		{
+			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+			MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
+		}
 
 		f = COM_LoadTempFile("csprogs.dat");
 		if (f)
@@ -1504,17 +1508,37 @@ void SV_Begin_f (void)
 
 //=============================================================================
 
-void SV_DarkPlacesDownloadChunk(client_t *cl)
+//dp downloads are a 2-stream system
+//the server->client stream is as you'd expect. except that its unreliable rather than reliable
+//the client->server stream contains no actual data.
+//when c2s has a hole, the s2c stream is reset to the last-known 'good' position.
+//eventually the client is left acking packets with no data in them, the server then tells the client that the download is complete.
+//the client does no checks to see if there's a hole, other than the crc
+
+//so any single lost packet (even client->server) means that the entire stream will be set back by your ping time
+void SV_DarkPlacesDownloadChunk(client_t *cl, sizebuf_t *msg)
 {
 #define MAXDPDOWNLOADCHUNK 1024
 	char buffer[MAXDPDOWNLOADCHUNK];
 
 	int size, start;
 
+	if (!ISNQCLIENT(cl))
+		return;
+	if (!cl->download)
+		return;
+
+	if (!cl->downloadstarted)
+		return;
+
 	if (cl->num_backbuf)
-		size = 16;
-	else
-		size = 512;
+		return;
+	
+	size = 1024;	//fixme
+
+	if (size > cl->datagram.maxsize - cl->datagram.cursize)
+		size = cl->datagram.maxsize - cl->datagram.cursize - 16;
+	
 	if (size > MAXDPDOWNLOADCHUNK)	//don't clog it too much
 		size = MAXDPDOWNLOADCHUNK;
 
@@ -1522,20 +1546,23 @@ void SV_DarkPlacesDownloadChunk(client_t *cl)
 	if (start+size > cl->downloadsize)	//clamp to the size of the file.
 		size = cl->downloadsize - start;
 
-	VFS_READ(cl->download, buffer, size);
+	size = VFS_READ(cl->download, buffer, size);
+	if (size < 0)
+		size = 0;
 
-	//reliable? I don't care, this works.
-	ClientReliableWrite_Begin (cl, svcdp_downloaddata, 7+size);
-	ClientReliableWrite_Long (cl, start);
-	ClientReliableWrite_Short (cl, size);
-	ClientReliableWrite_SZ (cl, buffer, size);
+	MSG_WriteByte(msg, svcdp_downloaddata);
+	MSG_WriteLong (msg, start);
+	MSG_WriteShort (msg, size);
+	SZ_Write(msg, buffer, size);
 }
 
-void SVDP_ForceDownloadChunk_f(void)
+void SVDP_StartDownload_f(void)
 {
 	if (host_client->protocol != SCP_DARKPLACES7)
 		return;
-	SV_DarkPlacesDownloadChunk(host_client);
+	if (!host_client->download)
+		return;
+	host_client->downloadstarted = true;
 }
 
 void SV_DarkPlacesDownloadAck(client_t *cl)
@@ -1543,7 +1570,20 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 	int start = MSG_ReadLong();
 	int size = (unsigned short)MSG_ReadShort();
 
-	if (size == 0)
+	if (!cl->download)
+		return;
+
+	if (start != cl->downloadacked)
+	{
+		//packetloss
+		VFS_SEEK(cl->download, cl->downloadacked);
+	}
+	else if (size != 0)
+	{
+		cl->downloadacked += size;	//successful packet
+		cl->downloadcount = cl->downloadacked;
+	}
+	else
 	{
 		char *s;
 		unsigned short crc;
@@ -1564,9 +1604,11 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 		s = va("\ncl_downloadfinished %i %i \"\"\n", host_client->downloadsize, crc);
 		ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen(s));
 		ClientReliableWrite_String(cl, s);
+
+		VFS_CLOSE(host_client->download);
+		host_client->download = NULL;
+		host_client->downloadsize = 0;
 	}
-	else
-		SV_DarkPlacesDownloadChunk(cl);
 }
 
 void SV_NextChunkedDownload(int chunknum)
@@ -1860,6 +1902,8 @@ void SV_BeginDownload_f(void)
 	{	// don't allow anything with .. path
 		if (ISNQCLIENT(host_client))
 		{
+			SV_PrintToClient(host_client, PRINT_HIGH, "Download rejected by server settings\n");
+
 			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
 			ClientReliableWrite_String (host_client, "\nstopdownload\n");
 		}
@@ -1979,6 +2023,20 @@ void SV_BeginDownload_f(void)
 
 	SV_EndRedirect();
 	Con_Printf ("Downloading %s to %s\n", name, host_client->name);
+}
+
+void SV_StopDownload_f(void)
+{
+	//this doesn't mean the download failed or was canceled.
+	if (host_client->download)
+	{
+		VFS_CLOSE (host_client->download);
+		host_client->download = NULL;
+	}
+	else
+		Con_Printf ("But you're not downloading anything\n");
+
+	host_client->downloadstarted = false;
 }
 
 //=============================================================================
@@ -2312,17 +2370,34 @@ void SV_Pings_f (void)
 		return;
 	}
 
-	for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+	if (ISNQCLIENT(host_client))
 	{
-		if (client->state != cs_spawned)
-			continue;
+		char *s;
+		ClientReliableWrite_Begin(host_client, svc_stufftext, 15+10*MAX_CLIENTS);
+		ClientReliableWrite_SZ(host_client, "pingplreport", 12);
+		for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+		{
+			s = va(" %i %i", SV_CalcPing(client), client->lossage);
+			ClientReliableWrite_SZ(host_client, s, strlen(s));
+		}
+		ClientReliableWrite_Byte (host_client, '\n');
+		ClientReliableWrite_Byte (host_client, '\0');
 
-		ClientReliableWrite_Begin (host_client, svc_updateping, 4);
-		ClientReliableWrite_Byte (host_client, j);
-		ClientReliableWrite_Short (host_client, SV_CalcPing(client));
-		ClientReliableWrite_Begin (host_client, svc_updatepl, 4);
-		ClientReliableWrite_Byte (host_client, j);
-		ClientReliableWrite_Byte (host_client, client->lossage);
+	}
+	else
+	{
+		for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+		{
+			if (client->state != cs_spawned)
+				continue;
+
+			ClientReliableWrite_Begin (host_client, svc_updateping, 4);
+			ClientReliableWrite_Byte (host_client, j);
+			ClientReliableWrite_Short (host_client, SV_CalcPing(client));
+			ClientReliableWrite_Begin (host_client, svc_updatepl, 4);
+			ClientReliableWrite_Byte (host_client, j);
+			ClientReliableWrite_Byte (host_client, client->lossage);
+		}
 	}
 }
 
@@ -3216,17 +3291,16 @@ void Cmd_Observe_f (void)
 void SV_EnableClientsCSQC(void)
 {
 #ifdef PEXT_CSQC
-	if (host_client->fteprotocolextensions & PEXT_CSQC)
+	if (host_client->fteprotocolextensions & PEXT_CSQC || atoi(Cmd_Argv(1)))
 		host_client->csqcactive = true;
 	else
-		Con_DPrintf("CSQC enabled without protocol extensions\n");
+		Con_Printf("CSQC entities not enabled - no support from network protocol\n");
 #endif
 }
 void SV_DisableClientsCSQC(void)
 {
 #ifdef PEXT_CSQC
-	if (host_client->fteprotocolextensions & PEXT_CSQC)
-		host_client->csqcactive = false;
+	host_client->csqcactive = false;
 #endif
 }
 
@@ -3291,7 +3365,7 @@ ucmd_t ucmds[] =
 	{"notarget", Cmd_Notarget_f},
 	{"setpos", Cmd_SetPos_f},
 
-//	{"stopdownload", SV_StopDownload_f},
+	{"stopdownload", SV_StopDownload_f},
 	{"demolist", SV_MVDList_f},
 	{"demoinfo", SV_MVDInfo_f},
 
@@ -3811,6 +3885,8 @@ void SVNQ_Ping_f(void)
 
 ucmd_t nqucmds[] =
 {
+	{"new",			SVNQ_New_f, true},
+
 	{"status",		NULL},
 
 	{"god",			Cmd_God_f},
@@ -3818,6 +3894,7 @@ ucmd_t nqucmds[] =
 	{"notarget",	Cmd_Notarget_f},
 	{"fly",			NULL},
 	{"noclip",		Cmd_Noclip_f},
+	{"pings",		SV_Pings_f},
 
 
 	{"name",		SVNQ_NQInfo_f},
@@ -3836,7 +3913,7 @@ ucmd_t nqucmds[] =
 	{"vote",		SV_Vote_f},
 
 	{"download",	SV_BeginDownload_f},
-	{"sv_startdownload",	SVDP_ForceDownloadChunk_f},
+	{"sv_startdownload",	SVDP_StartDownload_f},
 
 	{"setinfo", SV_SetInfo_f},
 	{"playermodel",	NULL},
@@ -5195,7 +5272,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 
 	// calc ping time
 	frame = &cl->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
-	frame->ping_time = 999;
+	frame->ping_time = -1;
 
 	// make sure the reply sequence number matches the incoming
 	// sequence number

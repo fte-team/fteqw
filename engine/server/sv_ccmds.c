@@ -613,7 +613,20 @@ void SV_Map_f (void)
 		SV_SpawnServer (level, startspot, false, cinematic);
 	}
 
-	SV_BroadcastCommand ("cmd new\n");
+	//SV_BroadcastCommand ("cmd new\n");
+	for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
+	{	//this expanded code cuts out a packet when changing maps...
+		//but more usefully, it stops dp(and probably nq too) from timing out.
+		if (host_client->controller)
+			continue;
+		if (host_client->state>=cs_connected)
+		{
+			if (ISNQCLIENT(host_client))
+				SVNQ_New_f();
+			else
+				SV_New_f();
+		}
+	}
 
 	if (!issamelevel)
 	{

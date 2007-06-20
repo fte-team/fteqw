@@ -739,7 +739,7 @@ void CLNQ_SendMove (usercmd_t		*cmd, int pnum, sizebuf_t *buf)
 	MSG_WriteByte (buf, clc_move);
 
 	if (nq_dp_protocol>=7)
-		MSG_WriteLong(buf, 0);
+		MSG_WriteLong(buf, cls.netchan.outgoing_sequence);
 
 	MSG_WriteFloat (buf, cl.gametime);	// so server can get ping times
 
@@ -1254,13 +1254,13 @@ void CL_SendCmd (double frametime)
 		msecs -= msecstouse;
 
 		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-		cmd = &cl.frames[i].cmd[plnum];
-		*cmd = independantphysics[plnum];
+		cmd = &cl.frames[i].cmd[0];
+		*cmd = independantphysics[0];
 		cl.frames[i].senttime = realtime;
 		cl.frames[i].receivedtime = 0;	// nq doesn't allow us to find our own packetloss
-		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
 
 		CLNQ_SendCmd ();
+		memset(&independantphysics[0], 0, sizeof(independantphysics[plnum]));
 		return;
 	}
 #endif
@@ -1609,6 +1609,22 @@ void CL_RegisterSplitCommands(void)
 	}
 }
 
+void CL_SendCvar_f (void)
+{
+	cvar_t *var;
+	char *val;
+	char *name = Cmd_Argv(1);
+
+	var = Cvar_FindVar(name);
+	if (!var)
+		val = "";
+	else if (var->flags & CVAR_NOUNSAFEEXPAND)
+		val = "";
+	else
+		val = var->string;
+	CL_SendClientCommand(true, "sentcvar %s \"%s\"", name, val);
+}
+
 /*
 ============
 CL_InitInput
@@ -1622,6 +1638,7 @@ void CL_InitInput (void)
 
 	Cmd_AddCommand("rotate", IN_Rotate_f);
 	Cmd_AddCommand("in_restart", IN_Restart);
+	Cmd_AddCommand("sendcvar", CL_SendCvar_f);
 
 	Cvar_Register (&cl_nodelta, inputnetworkcvargroup);
 

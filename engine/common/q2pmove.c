@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include "quakedef.h"
 
-float	pm_stepheight = 18;
+float	pm_q2stepheight = PM_DEFAULTSTEPHEIGHT;
 #if defined(Q2CLIENT) || defined(Q2SERVER)
 
 #define	Q2PMF_DUCKED			1
@@ -293,7 +293,7 @@ void PMQ2_StepSlideMove (void)
 	VectorCopy (q2pml.velocity, down_v);
 
 	VectorCopy (start_o, up);
-	up[2] += pm_stepheight;
+	up[2] += pm_q2stepheight;
 
 	trace = q2pm->trace (up, q2pm->mins, q2pm->maxs, up);
 	if (trace.allsolid)
@@ -307,7 +307,7 @@ void PMQ2_StepSlideMove (void)
 
 	// push down the final amount
 	VectorCopy (q2pml.origin, down);
-	down[2] -= pm_stepheight;
+	down[2] -= pm_q2stepheight;
 	trace = q2pm->trace (q2pml.origin, q2pm->mins, q2pm->maxs, down);
 	if (!trace.allsolid)
 	{

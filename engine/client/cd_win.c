@@ -68,8 +68,9 @@ static int CDAudio_GetAudioDiskInfo(void)
 	DWORD				dwReturn;
 	MCI_STATUS_PARMS	mciStatusParms;
 
-
 	cdValid = false;
+	if (!initialized)
+		return -1;
 
 	mciStatusParms.dwItem = MCI_STATUS_READY;
     dwReturn = mciSendCommand(wDeviceID, MCI_STATUS, MCI_STATUS_ITEM | MCI_WAIT, (DWORD_PTR) (LPVOID) &mciStatusParms);
@@ -132,6 +133,9 @@ void CDAudio_Play(int track, qboolean looping)
 			return;
 		}
 	}
+
+	if (!initialized)
+		return;
 
 	track = remap[track];
 
@@ -278,6 +282,26 @@ static void CD_f (void)
 
 	command = Cmd_Argv (1);
 
+
+	if (Q_strcasecmp(command, "play") == 0)
+	{
+		CDAudio_Play((qbyte)Q_atoi(Cmd_Argv (2)), false);
+		return;
+	}
+
+	if (Q_strcasecmp(command, "loop") == 0)
+	{
+		CDAudio_Play((qbyte)Q_atoi(Cmd_Argv (2)), true);
+		return;
+	}
+
+
+	if (!initialized)
+	{
+		Con_Printf("No cd drive detected\n");
+		return;
+	}
+
 	if (Q_strcasecmp(command, "on") == 0)
 	{
 		enabled = true;
@@ -321,18 +345,6 @@ static void CD_f (void)
 	if (Q_strcasecmp(command, "close") == 0)
 	{
 		CDAudio_CloseDoor();
-		return;
-	}
-
-	if (Q_strcasecmp(command, "play") == 0)
-	{
-		CDAudio_Play((qbyte)Q_atoi(Cmd_Argv (2)), false);
-		return;
-	}
-
-	if (Q_strcasecmp(command, "loop") == 0)
-	{
-		CDAudio_Play((qbyte)Q_atoi(Cmd_Argv (2)), true);
 		return;
 	}
 
@@ -446,6 +458,8 @@ int CDAudio_Init(void)
     MCI_SET_PARMS	mciSetParms;
 	int				n;
 
+	Cmd_AddCommand ("cd", CD_f);
+
 #if		0	// QW
 	if (cls.state == ca_dedicated)
 		return -1;
@@ -483,8 +497,6 @@ int CDAudio_Init(void)
 		cdValid = false;
 		enabled = false;
 	}
-
-	Cmd_AddCommand ("cd", CD_f);
 
 	Cvar_Hook(&bgmvolume, BGMVolume_Callback);
 //	Con_Printf("CD Audio Initialized\n");

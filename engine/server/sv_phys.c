@@ -60,6 +60,7 @@ cvar_t	pm_slidefix			 = SCVARF("pm_slidefix", "0", CVAR_SERVERINFO);
 cvar_t	pm_slidyslopes		 = SCVARF("pm_slidyslopes", "0", CVAR_SERVERINFO);
 cvar_t	pm_airstep			 = SCVARF("pm_airstep", "0", CVAR_SERVERINFO);
 cvar_t	pm_walljump			 = SCVARF("pm_walljump", "0", CVAR_SERVERINFO);
+cvar_t	pm_stepheight		 = FCVAR("pm_stepheight", "sv_stepheight", "0", CVAR_SERVERINFO);
 
 extern cvar_t sv_nomsec;
 
@@ -1213,7 +1214,7 @@ void SV_CheckStuck (edict_t *ent)
 		return;
 	}
 
-	for (z=0 ; z < pm_stepheight ; z++)
+	for (z=0 ; z < movevars.stepheight ; z++)
 		for (i=-1 ; i <= 1 ; i++)
 			for (j=-1 ; j <= 1 ; j++)
 			{
@@ -1419,8 +1420,8 @@ void SV_WalkMove (edict_t *ent)
 
 	VectorCopy (vec3_origin, upmove);
 	VectorCopy (vec3_origin, downmove);
-	upmove[2] = pm_stepheight;
-	downmove[2] = -pm_stepheight + oldvel[2]*host_frametime;
+	upmove[2] = movevars.stepheight;
+	downmove[2] = -movevars.stepheight + oldvel[2]*host_frametime;
 
 // move up
 	SV_PushEntity (ent, upmove);	// FIXME: don't link?
@@ -1609,7 +1610,7 @@ void SV_WalkMove (edict_t *ent)
 
 		// move up
 		VectorClear (upmove);
-		upmove[2] = pm_stepheight;
+		upmove[2] = movevars.stepheight;
 		// FIXME: don't link?
 		SV_PushEntity(ent, upmove);
 
@@ -1652,7 +1653,7 @@ void SV_WalkMove (edict_t *ent)
 
 	// move down
 	VectorClear (downmove);
-	downmove[2] = -pm_stepheight + start_velocity[2]*host_frametime;
+	downmove[2] = -movevars.stepheight + start_velocity[2]*host_frametime;
 	// FIXME: don't link?
 	downtrace = SV_PushEntity (ent, downmove);
 
@@ -2030,5 +2031,6 @@ void SV_SetMoveVars(void)
 	movevars.friction			= sv_friction.value;
 	movevars.waterfriction	    = sv_waterfriction.value;
 	movevars.entgravity			= 1.0;
+	movevars.stepheight			= pm_stepheight.value;
 }
 #endif

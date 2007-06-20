@@ -329,7 +329,7 @@ typedef struct
 	int tcpinlen;
 #endif
 
-	enum {DL_NONE, DL_QW, DL_QWCHUNKS, DL_Q3, DL_QWPENDING, DL_HTTP, DL_FTP} downloadmethod;
+	enum {DL_NONE, DL_QW, DL_QWCHUNKS, DL_Q3, DL_DARKPLACES, DL_QWPENDING, DL_HTTP, DL_FTP} downloadmethod;
 	vfsfile_t		*downloadqw;		// file transfer from server
 	char		downloadtempname[MAX_OSPATH];
 	char		downloadname[MAX_OSPATH];
@@ -429,6 +429,7 @@ typedef struct
 	int			parsecount;		// server message counter
 	int			oldparsecount;
 	int			oldvalidsequence;
+	int			ackedinputsequence;	//in quakeworld/q2 this is always equal to validsequence. dp can differ.
 	int			validsequence;	// this is the sequence number of the last good
 								// packetentity_t we got.  If this is 0, we can't
 								// render a frame yet

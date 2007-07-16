@@ -60,7 +60,7 @@ cvar_t	pm_slidefix			 = SCVARF("pm_slidefix", "0", CVAR_SERVERINFO);
 cvar_t	pm_slidyslopes		 = SCVARF("pm_slidyslopes", "0", CVAR_SERVERINFO);
 cvar_t	pm_airstep			 = SCVARF("pm_airstep", "0", CVAR_SERVERINFO);
 cvar_t	pm_walljump			 = SCVARF("pm_walljump", "0", CVAR_SERVERINFO);
-cvar_t	pm_stepheight		 = FCVAR("pm_stepheight", "sv_stepheight", "0", CVAR_SERVERINFO);
+cvar_t	pm_stepheight		 = FCVAR("pm_stepheight", "sv_stepheight", "18", CVAR_SERVERINFO);
 
 extern cvar_t sv_nomsec;
 

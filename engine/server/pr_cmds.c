@@ -6245,7 +6245,7 @@ void PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals
 //closes filesystem type stuff for when a progs has stopped needing it.
 void PR_fclose_progs (progfuncs_t *prinst)
 {
-	PF_fcloseall(prinst, PR_globals(prinst, PR_CURRENT));
+	PF_fcloseall(prinst);
 	search_close_progs(prinst, true);
 }
 

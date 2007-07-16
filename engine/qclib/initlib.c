@@ -71,10 +71,10 @@ void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount)
 
 	if (addressablehunk)
 #ifdef _WIN32
-		VirtualFree(addressablehunk, 0, MEM_RELEASE);	//doesn't this look complicated? :p
+	VirtualFree(addressablehunk, 0, MEM_RELEASE);	//doesn't this look complicated? :p
 	addressablehunk = VirtualAlloc (NULL, totalammount, MEM_RESERVE, PAGE_NOACCESS);
 #else
-		free(addressablehunk);
+	free(addressablehunk);
 	addressablehunk = malloc(totalammount);	//linux will allocate-on-use anyway, which is handy.
 //	memset(addressablehunk, 0xff, totalammount);
 #endif
@@ -627,6 +627,12 @@ void CloseProgs(progfuncs_t *inst)
 	}
 
 	PRHunkFree(inst, 0);
+
+#ifdef _WIN32
+	VirtualFree(addressablehunk, 0, MEM_RELEASE);	//doesn't this look complicated? :p
+#else
+	free(inst->addressablehunk);
+#endif
 
 /*
 	while(inst->prinst->extensionbuiltin)

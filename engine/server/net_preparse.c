@@ -836,7 +836,7 @@ void NPP_QWFlush(void)
 		{
 			short data;
 			float org[3];
-			edict_t *ent = EDICT_NUM(svprogfuncs, (*(short*)&buffer[1]));
+			edict_t *ent = EDICT_NUM(svprogfuncs, LittleShort((*(short*)&buffer[1])));
 			VectorCopy(ent->v->origin, org);
 
 			data = LittleShort((short)(org[0]*8));

@@ -1502,6 +1502,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	R_SetRenderer(newr->renderer);
 
 	R_ApplyRenderer_Load(newr);
+
+	return true;
 }
 qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 {

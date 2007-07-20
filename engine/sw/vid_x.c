@@ -276,7 +276,7 @@ PIXEL32 xlib_rgb32(int r, int g, int b)
 	p = r<<16;
 	p|= g<<8;
 	p|= b;
-	return LittleLong(p);
+	return p;
 }
 
 void st2_fixup( XImage *framebuf, int x, int y, int width, int height)

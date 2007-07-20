@@ -465,7 +465,7 @@ typedef struct
 
 	int	secondaryversion;	//Constant - to say that any version 7 progs are actually ours, not someone else's alterations.
 } dprograms_t;
-
+#define standard_dprograms_t_size ((int)&((dprograms_t*)NULL)->ofsfiles)
 
 #endif
 

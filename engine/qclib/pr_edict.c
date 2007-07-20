@@ -2326,7 +2326,7 @@ retry:
 
 // byte swap the header
 #ifndef NOENDIAN
-	for (i=0 ; i<sizeof(*pr_progs)/sizeof(int) ; i++)
+	for (i=0 ; i<standard_dprograms_t_size/sizeof(int); i++)
 		((int *)pr_progs)[i] = PRLittleLong ( ((int *)pr_progs)[i] );
 #endif
 
@@ -2337,6 +2337,10 @@ retry:
 	}
 	else if (pr_progs->version == PROG_EXTENDEDVERSION)
 	{
+#ifndef NOENDIAN
+		for (i = standard_dprograms_t_size/sizeof(int); i < sizeof(dprograms_t)/sizeof(int); i++)
+			((int *)pr_progs)[i] = PRLittleLong ( ((int *)pr_progs)[i] );
+#endif
 		if (pr_progs->secondaryversion == PROG_SECONDARYVERSION16)
 		{
 //			printf("Opening 16bit fte progs file \"%s\"\n", filename);

@@ -285,21 +285,7 @@ void R_FetchTopColour(int *retred, int *retgreen, int *retblue)
 	int i;
 	if (currententity->scoreboard)
 	{
-		i = currententity->scoreboard->topcolor;
-		//colour forcing
-		if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
-		{
-			if (cl.teamplay && !strcmp(currententity->scoreboard->team, cl.players[cl.playernum[0]].team))
-			{
-				if (cl_teamtopcolor>=0)
-					i = cl_teamtopcolor;
-			}
-			else
-			{
-				if (cl_enemytopcolor>=0)
-					i = cl_enemytopcolor;
-			}
-		}
+		i = currententity->scoreboard->ttopcolor;
 	}
 	else
 		i = TOP_RANGE>>4;
@@ -328,21 +314,7 @@ void R_FetchBottomColour(int *retred, int *retgreen, int *retblue)
 	int i;
 	if (currententity->scoreboard)
 	{
-		i = currententity->scoreboard->bottomcolor;
-		//colour forcing
-		if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
-		{
-			if (cl.teamplay && !strcmp(currententity->scoreboard->team, cl.players[cl.playernum[0]].team))
-			{
-				if (cl_teambottomcolor>=0)
-					i = cl_teambottomcolor;
-			}
-			else
-			{
-				if (cl_enemybottomcolor>=0)
-					i = cl_enemybottomcolor;
-			}
-		}
+		i = currententity->scoreboard->tbottomcolor;
 	}
 	else
 		i = BOTTOM_RANGE>>4;

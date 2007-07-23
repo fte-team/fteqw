@@ -33,6 +33,9 @@
 
 
 */
+
+//(2) This source has been modified to compile for AMD64 archetectures with gcc
+
 /* for more info about .ZIP format, see 
       ftp://ftp.cdrom.com/pub/infozip/doc/appnote-970311-iz.zip
    PkWare has also a specification at :

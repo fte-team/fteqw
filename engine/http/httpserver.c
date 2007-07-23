@@ -356,9 +356,9 @@ cont:
 				else
 				{
 					if (HTTPmarkup>=3)
-						sprintf(resource, "HTTP/1.1 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", VFS_GETLEN(cl->file));
+						sprintf(resource, "HTTP/1.1 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", (int)VFS_GETLEN(cl->file));
 					else if (HTTPmarkup==2)
-						sprintf(resource, "HTTP/1.0 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", VFS_GETLEN(cl->file));
+						sprintf(resource, "HTTP/1.0 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", (int)VFS_GETLEN(cl->file));
 					else if (HTTPmarkup)
 						sprintf(resource, "HTTP/0.9 200 OK\r\n\r\n");
 					else

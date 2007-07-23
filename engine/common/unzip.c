@@ -4,6 +4,9 @@
    Read unzip.h for more info
 */
 
+//Spike: ported to AMD64
+//Spike: FTE specific tweeks are in here starting with FTE's VFS filesystem stuff
+
 //# pragma comment (lib, "zip/zlib.lib") 
 
 
@@ -128,6 +131,24 @@ typedef struct {
    IN assertion: the stream s has been sucessfully opened for reading.
 */
 
+local int unzlocal_getShortSane(vfsfile_t *fin, unsigned short *pi)
+{
+	unsigned short c;
+	int err = VFS_READ(fin, &c, 2);
+	if (err==2)
+	{
+		*pi = LittleShort(c);
+		return UNZ_OK;
+	}
+	else
+	{
+		*pi = 0;
+		if (VFS_TELL(fin) != VFS_GETLEN(fin))
+			return UNZ_ERRNO;
+		else
+			return UNZ_EOF;
+	}
+}
 
 local int unzlocal_getShort(vfsfile_t *fin,unsigned long *pi) {
     unsigned short c;
@@ -352,6 +373,21 @@ local int unzlocal_GetCurrentFileInfoInternal (unzFile file,
 		else if (uMagic!=0x02014b50) err=UNZ_BADZIPFILE;
 	}
 
+	unzlocal_getShortSane(s->file, &file_info.version);
+	unzlocal_getShortSane(s->file, &file_info.version_needed);
+	unzlocal_getShortSane(s->file, &file_info.flag);
+	unzlocal_getShortSane(s->file, &file_info.compression_method);
+	unzlocal_getLong(s->file, &file_info.dosDate);
+	unzlocal_getLong(s->file, &file_info.crc);
+	unzlocal_getLong(s->file, &file_info.compressed_size);
+	unzlocal_getLong(s->file, &file_info.uncompressed_size);
+	unzlocal_getShortSane(s->file, &file_info.size_filename);
+	unzlocal_getShortSane(s->file, &file_info.size_file_extra);
+	unzlocal_getShortSane(s->file, &file_info.size_file_comment);
+	unzlocal_getShortSane(s->file, &file_info.disk_num_start);
+	unzlocal_getShortSane(s->file, &file_info.internal_fa);
+	unzlocal_getLong(s->file, &file_info.external_fa);
+/*
 	VFS_READ(s->file, &file_info, sizeof(file_info)-2*4); // 2*4 is the size of 2 my vars
 	file_info.version = LittleShort(file_info.version);
 	file_info.version_needed = LittleShort(file_info.version_needed);
@@ -367,7 +403,7 @@ local int unzlocal_GetCurrentFileInfoInternal (unzFile file,
 	file_info.disk_num_start = LittleShort(file_info.disk_num_start);
 	file_info.internal_fa = LittleShort(file_info.internal_fa);
 	file_info.external_fa = LittleLong(file_info.external_fa);
-
+*/
 	if (unzlocal_getLong(s->file,&file_info_internal.offset_curfile) != UNZ_OK) err=UNZ_ERRNO;
 
 	file_info.offset = file_info_internal.offset_curfile;

@@ -141,8 +141,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define strnicmp strncasecmp
 #endif
 
+#define ustrlen(s) strlen((char*)(s))
+#define ustrcmp(s1,s2) strcmp((char*)(s1),(char*)(s2))
+#define ustrncmp(s1,s2,l) strncmp((char*)(s1),(char*)(s2),l)
 
-//linux and other systems have strlcat / strlcpy
+//some systems have strlcat / strlcpy
 //we support windows and can't use those
 #define Q_strncatz(dest, src, sizeofdest)	\
 	do {	\
@@ -161,54 +164,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define VERSION "0.01"	//this will be added to the serverinfo
 
+#define PROX_DEFAULTSERVERPORT 27500
 #define PROX_DEFAULTLISTENPORT 27501
 #define PROX_DEFAULTSERVER "localhost:27500"
 
-#define	MAX_SERVERINFO_STRING	1024	//standard quake has 512 here.
-#define MAX_USERINFO 192
-#define MAX_CLIENTS 32
-#define MAX_LIST 256
-#define MAX_MODELS MAX_LIST
-#define MAX_SOUNDS MAX_LIST
-#define MAX_ENTITIES 512
-#define MAX_STATICSOUNDS 64
-#define MAX_STATICENTITIES 128
-#define MAX_LIGHTSTYLES 64
 #define DEFAULT_HOSTNAME "FTEQTV"
 
-#define MAX_PROXY_INBUFFER 4096
-#define MAX_PROXY_BUFFER (1<<14)	//must be power-of-two
-#define PREFERED_PROXY_BUFFER	4096 //the ammount of data we try to leave in our input buffer (must be large enough to contain any single mvd frame)
-
 #define MAX_ENTITY_LEAFS 32
-#define ENTS_PER_FRAME 64 //max number of entities per frame (OUCH!).
-#define ENTITY_FRAMES 64 //number of frames to remember for deltaing
 
 
-#define Z_EXT_SERVERTIME	(1<<3)	// STAT_TIME
-#define Z_EXT_STRING "8"
-
-
-#define MAX_STATS 32
-#define	STAT_HEALTH			0
-#define	STAT_FRAGS			1
-#define	STAT_WEAPON			2
-#define	STAT_AMMO			3
-#define	STAT_ARMOR			4
-#define	STAT_WEAPONFRAME	5
-#define	STAT_SHELLS			6
-#define	STAT_NAILS			7
-#define	STAT_ROCKETS		8
-#define	STAT_CELLS			9
-#define	STAT_ACTIVEWEAPON	10
-#define	STAT_TOTALSECRETS	11
-#define	STAT_TOTALMONSTERS	12
-#define	STAT_SECRETS		13		// bumped on client side by svc_foundsecret
-#define	STAT_MONSTERS		14		// bumped by svc_killedmonster
-#define STAT_ITEMS			15
-
-#define STAT_TIME 17	//A ZQ hack, sending time via a stat.
-						//this allows l33t engines to interpolate properly without spamming at a silly high fps.
+#include "protocol.h"
 
 
 
@@ -222,31 +187,6 @@ extern "C" {
 
 typedef unsigned char netadr_t[64];
 
-#define NQ_PACKETS_PER_SECOND 20
-#define MAX_NQMSGLEN 8000
-#define MAX_MSGLEN 1400
-#define MAX_NQDATAGRAM 1024
-#define MAX_BACKBUF_SIZE 1000	//this is smaller so we don't loose entities when lagging
-
-
-//NQ transport layer defines
-#define NETFLAG_LENGTH_MASK	0x0000ffff
-#define NETFLAG_DATA		0x00010000
-#define NETFLAG_ACK			0x00020000
-#define NETFLAG_NAK			0x00040000
-#define NETFLAG_EOM			0x00080000
-#define NETFLAG_UNRELIABLE	0x00100000
-#define NETFLAG_CTL			0x80000000
-
-#define CCREQ_CONNECT		0x01
-#define CCREQ_SERVER_INFO	0x02
-
-#define CCREP_ACCEPT		0x81
-#define CCREP_REJECT		0x82
-#define CCREP_SERVER_INFO	0x83
-
-#define NET_GAMENAME_NQ		"QUAKE"
-#define NET_PROTOCOL_VERSION	3
 
 #ifdef COMMENTARY
 typedef struct soundcapt_s {
@@ -263,7 +203,7 @@ typedef struct {
 	unsigned int readpos;
 	unsigned int cursize;
 	unsigned int maxsize;
-	char *data;
+	void *data;
 	unsigned int startpos;
 	qboolean overflowed;
 	qboolean allowoverflow;
@@ -456,6 +396,7 @@ typedef struct oproxy_s {
 	qboolean drop;
 
 	sv_t *defaultstream;
+	sv_t *stream;
 
 	FILE *srcfile;	//buffer is padded with data from this file when its empty
 	FILE *file;		//recording a demo (written to)
@@ -508,26 +449,38 @@ typedef struct {
 	float angle[3];
 } intermission_t;
 
+typedef enum {
+	SRC_BAD,
+	SRC_DEMO,
+	SRC_UDP,
+	SRC_TCP
+} sourcetype_t;
+
 struct sv_s {	//details about a server connection (also known as stream)
 	char connectpassword[64];	//password given to server
 	netadr_t serveraddress;
 	netchan_t netchan;
 	qboolean serverquery;
 
+	sourcetype_t sourcetype;
+
 	//proxy chaining
 	qboolean serverisproxy;
 	qboolean proxyisselected;
+	qboolean upstreamacceptschat;
+	qboolean upstreamacceptsdownload;
 	//
 
 	unsigned char buffer[MAX_PROXY_BUFFER];	//this doesn't cycle.
 	int buffersize;	//it memmoves down
-	int forwardpoint;	//the point in the stream that we're forwarded up to.
+	int forwardpoint;	//the point in the stream that we've forwarded up to.
 	qboolean parsingqtvheader;
 
 	unsigned char upstreambuffer[2048];
 	int upstreambuffersize;
 
 	unsigned int parsetime;
+	unsigned int parsespeed;
 
 	char gamedir[MAX_QPATH];
 	char mapname[256];
@@ -561,7 +514,7 @@ struct sv_s {	//details about a server connection (also known as stream)
 
 	qboolean silentstream;
 
-	qboolean usequkeworldprotocols;
+	qboolean usequakeworldprotocols;
 	int challenge;
 	unsigned short qport;
 	int isconnected;
@@ -658,6 +611,7 @@ struct cluster_s {
 	char qtvpassword[256];	//password required to connect a proxy
 	char hostname[256];
 	char master[MAX_QPATH];
+	char demodir[MAX_QPATH];
 	qboolean chokeonnotupdated;
 	qboolean lateforward;
 	qboolean notalking;
@@ -676,7 +630,6 @@ struct cluster_s {
 
 	oproxy_t *pendingproxies;
 
-	char demodir[128];
 	availdemo_t availdemos[2048];
 	int availdemoscount;
 };
@@ -722,170 +675,16 @@ unsigned int BigLong(unsigned int val);
 
 
 
-#define	clc_bad			0
-#define	clc_nop 		1
-#define	clc_disconnect	2		//NQ only
-#define	clc_move		3		// [[usercmd_t]
-#define	clc_stringcmd	4		// [string] message
-#define	clc_delta		5		// [byte] sequence number, requests delta compression of message
-#define clc_tmove		6		// teleport request, spectator only
-#define clc_upload		7		// teleport request, spectator only
-
-
-
-
-
-
-#define	svc_bad				0
-#define	svc_nop				1
-#define	svc_disconnect		2
-#define	svc_updatestat		3	// [qbyte] [qbyte]
-//#define	svc_version			4	// [long] server version
-#define	svc_nqsetview			5	// [short] entity number
-#define	svc_sound			6	// <see code>
-#define	svc_nqtime			7	// [float] server time
-#define	svc_print			8	// [qbyte] id [string] null terminated string
-#define	svc_stufftext		9	// [string] stuffed into client's console buffer
-								// the string should be \n terminated
-#define	svc_setangle		10	// [angle3] set the view angle to this absolute value
-
-#define	svc_serverdata		11	// [long] protocol ...
-#define	svc_lightstyle		12	// [qbyte] [string]
-#define	svc_nqupdatename		13	// [qbyte] [string]
-#define	svc_updatefrags		14	// [qbyte] [short]
-#define	svc_nqclientdata		15	// <shortbits + data>
-//#define	svc_stopsound		16	// <see code>
-#define	svc_nqupdatecolors	17	// [qbyte] [qbyte] [qbyte]
-#define	svc_particle		18	// [vec3] <variable>
-#define	svc_damage			19
-
-#define	svc_spawnstatic		20
-//#define	svc_spawnstatic2	21
-#define	svc_spawnbaseline	22
-
-#define	svc_temp_entity		23	// variable
-#define	svc_setpause		24	// [qbyte] on / off
-#define	svc_nqsignonnum		25	// [qbyte]  used for the signon sequence
-
-#define	svc_centerprint		26	// [string] to put in center of the screen
-
-#define	svc_killedmonster	27
-#define	svc_foundsecret		28
-
-#define	svc_spawnstaticsound	29	// [coord3] [qbyte] samp [qbyte] vol [qbyte] aten
-
-#define	svc_intermission	30		// [vec3_t] origin [vec3_t] angle
-//#define	svc_finale			31		// [string] text
-
-#define	svc_cdtrack			32		// [qbyte] track
-//#define svc_sellscreen		33
-
-//#define svc_cutscene		34	//hmm... nq only... added after qw tree splitt?
-
-#define	svc_smallkick		34		// set client punchangle to 2
-#define	svc_bigkick			35		// set client punchangle to 4
-
-#define	svc_updateping		36		// [qbyte] [short]
-#define	svc_updateentertime	37		// [qbyte] [float]
-
-#define	svc_updatestatlong	38		// [qbyte] [long]
-
-#define	svc_muzzleflash		39		// [short] entity
-
-#define	svc_updateuserinfo	40		// [qbyte] slot [long] uid
-									// [string] userinfo
-
-#define	svc_download		41		// [short] size [size bytes]
-#define	svc_playerinfo		42		// variable
-#define	svc_nails			43		// [qbyte] num [48 bits] xyzpy 12 12 12 4 8
-#define	svc_chokecount		44		// [qbyte] packets choked
-#define	svc_modellist		45		// [strings]
-#define	svc_soundlist		46		// [strings]
-#define	svc_packetentities	47		// [...]
-#define	svc_deltapacketentities	48		// [...]
-#define svc_maxspeed		49		// maxspeed change, for prediction
-#define svc_entgravity		50		// gravity change, for prediction
-#define svc_setinfo			51		// setinfo on a client
-#define svc_serverinfo		52		// serverinfo
-#define svc_updatepl		53		// [qbyte] [qbyte]
-#define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
-
-
-
-
-
-#define dem_audio		0
-
-#define dem_cmd			0
-#define dem_read		1
-#define dem_set			2
-#define dem_multiple	3
-#define dem_single		4
-#define dem_stats		5
-#define dem_all			6
-
-#define dem_mask		7
-
-
-#define PROTOCOL_VERSION_NQ	15
-#define	PROTOCOL_VERSION	28
-
-
-//flags on entities
-#define	U_ORIGIN1	(1<<9)
-#define	U_ORIGIN2	(1<<10)
-#define	U_ORIGIN3	(1<<11)
-#define	U_ANGLE2	(1<<12)
-#define	U_FRAME		(1<<13)
-#define	U_REMOVE	(1<<14)		// REMOVE this entity, don't add it
-#define	U_MOREBITS	(1<<15)
-
-// if MOREBITS is set, these additional flags are read in next
-#define	U_ANGLE1	(1<<0)
-#define	U_ANGLE3	(1<<1)
-#define	U_MODEL		(1<<2)
-#define	U_COLORMAP	(1<<3)
-#define	U_SKIN		(1<<4)
-#define	U_EFFECTS	(1<<5)
-#define	U_SOLID		(1<<6)		// the entity should be solid for prediction
-
-
-
-
-
-//flags on players
-#define	PF_MSEC			(1<<0)
-#define	PF_COMMAND		(1<<1)
-#define	PF_VELOCITY1	(1<<2)
-#define	PF_VELOCITY2	(1<<3)
-#define	PF_VELOCITY3	(1<<4)
-#define	PF_MODEL		(1<<5)
-#define	PF_SKINNUM		(1<<6)
-#define	PF_EFFECTS		(1<<7)
-#define	PF_WEAPONFRAME	(1<<8)		// only sent for view player
-#define	PF_DEAD			(1<<9)		// don't block movement any more
-#define	PF_GIB			(1<<10)		// offset the view height differently
-
-//flags on players in mvds
-#define DF_ORIGIN		1
-#define DF_ANGLES		(1<<3)
-#define DF_EFFECTS		(1<<6)
-#define DF_SKINNUM		(1<<7)
-#define DF_DEAD			(1<<8)
-#define DF_GIB			(1<<9)
-#define DF_WEAPONFRAME	(1<<10)
-#define DF_MODEL		(1<<11)
-
 
 //flags for where a message can be sent, for easy broadcasting
 #define Q1 (NQ|QW)
 #define QW 1
 #define NQ 2
 #define CONNECTING 4
+#include "cmd.h"
 
 
-
-void InitNetMsg(netmsg_t *b, char *buffer, int bufferlength);
+void InitNetMsg(netmsg_t *b, void *buffer, int bufferlength);
 unsigned char ReadByte(netmsg_t *b);
 unsigned short ReadShort(netmsg_t *b);
 unsigned int ReadLong(netmsg_t *b);
@@ -897,11 +696,11 @@ void WriteLong(netmsg_t *b, unsigned int l);
 void WriteFloat(netmsg_t *b, float f);
 void WriteString2(netmsg_t *b, const char *str);
 void WriteString(netmsg_t *b, const char *str);
-void WriteData(netmsg_t *b, const char *data, int length);
+void WriteData(netmsg_t *b, const void *data, int length);
 
-void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playermask,int suitablefor);
-void Broadcast(cluster_t *cluster, char *buffer, int length, int suitablefor);
-void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask);
+void Multicast(sv_t *tv, void *buffer, int length, int to, unsigned int playermask,int suitablefor);
+void Broadcast(cluster_t *cluster, void *buffer, int length, int suitablefor);
+void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask);
 void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *spectatorflag);
 void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
 SOCKET QW_InitUDPSocket(int port);
@@ -911,22 +710,26 @@ void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
 qboolean QTV_Connect(sv_t *qtv, char *serverurl);
 void QTV_Shutdown(sv_t *qtv);
 qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport);
+void QTV_Printf(sv_t *qtv, char *format, ...);
 
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable);
 void QW_PrintfToViewer(viewer_t *v, char *format, ...);
 void QW_StuffcmdToViewer(viewer_t *v, char *format, ...);
+void QW_StreamPrint(cluster_t *cluster, sv_t *server, viewer_t *allbut, char *message);
+void QW_StreamStuffcmd(cluster_t *cluster, sv_t *server, char *fmt, ...);
+void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcommand);	//execute a command from a view
 
 void PM_PlayerMove (pmove_t *pmove);
 
 void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qboolean isclient);
 void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock, netadr_t adr, char *format, ...);
 int Netchan_IsLocal (netadr_t adr);
-void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, netadr_t adr);
+void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, netadr_t adr);
 qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);
 qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg);
 qboolean NQNetchan_Process(cluster_t *cluster, netchan_t *chan, netmsg_t *msg);
-void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const unsigned char *data);
-void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int length, unsigned char *data);
+void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const void *data);
+void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int length, void *data);
 qboolean Netchan_CanPacket (netchan_t *chan);
 
 int SendList(sv_t *qtv, int first, const filename_t *list, int svc, netmsg_t *msg);
@@ -942,7 +745,7 @@ void BSP_SetupForPosition(bsp_t *bsp, float x, float y, float z);
 const intermission_t *BSP_IntermissionSpot(bsp_t *bsp);
 
 void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv);
-unsigned short QCRC_Block (unsigned char *start, int count);
+unsigned short QCRC_Block (void *start, int count);
 unsigned short QCRC_Value(unsigned short crcvalue);
 void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move);
 void SendClientCommand(sv_t *qtv, char *fmt, ...);
@@ -950,7 +753,6 @@ void QTV_Run(sv_t *qtv);
 void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer);
 void QW_SetMenu(viewer_t *v, int menunum);
 
-char *Rcon_Command(cluster_t *cluster, sv_t *qtv, char *command, char *buffer, int sizeofbuffer, qboolean localcommand);
 char *COM_ParseToken (char *data, char *out, int outsize, const char *punctuation);
 char *Info_ValueForKey (char *s, const char *key, char *buffer, int buffersize);
 void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
@@ -961,7 +763,7 @@ void Cluster_BuildAvailableDemoList(cluster_t *cluster);
 
 void Sys_Printf(cluster_t *cluster, char *fmt, ...);
 
-void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, char *buffer, int length);
+void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length);
 oproxy_t *Net_FileProxy(sv_t *qtv, char *filename);
 sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates, qboolean query);
 SOCKET Net_MVDListen(int port);
@@ -970,7 +772,7 @@ qboolean Net_StopFileProxy(sv_t *qtv);
 
 void SV_FindProxies(SOCKET sock, cluster_t *cluster, sv_t *defaultqtv);
 qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend);
-void SV_ForwardStream(sv_t *qtv, char *buffer, int length);
+void SV_ForwardStream(sv_t *qtv, void *buffer, int length);
 
 unsigned char *FS_ReadFile(char *gamedir, char *filename, unsigned int *size);
 

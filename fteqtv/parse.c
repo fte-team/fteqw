@@ -22,147 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define ParseError(m) (m)->cursize = (m)->cursize+1	//
 
-void InitNetMsg(netmsg_t *b, char *buffer, int bufferlength)
-{
-	b->data = buffer;
-	b->maxsize = bufferlength;
-	b->readpos = 0;
-	b->cursize = 0;
-}
-
-//probably not the place for these any more..
-unsigned char ReadByte(netmsg_t *b)
-{
-	if (b->readpos >= b->cursize)
-	{
-		b->readpos = b->cursize+1;
-		return 0;
-	}
-	return b->data[b->readpos++];
-}
-unsigned short ReadShort(netmsg_t *b)
-{
-	int b1, b2;
-	b1 = ReadByte(b);
-	b2 = ReadByte(b);
-
-	return b1 | (b2<<8);
-}
-unsigned int ReadLong(netmsg_t *b)
-{
-	int s1, s2;
-	s1 = ReadShort(b);
-	s2 = ReadShort(b);
-
-	return s1 | (s2<<16);
-}
-
-unsigned int BigLong(unsigned int val)
-{
-	union {
-		unsigned int i;
-		unsigned char c[4];
-	} v;
-
-	v.i = val;
-	return (v.c[0]<<24) | (v.c[1] << 16) | (v.c[2] << 8) | (v.c[3] << 0);
-}
-
-unsigned int SwapLong(unsigned int val)
-{
-	union {
-		unsigned int i;
-		unsigned char c[4];
-	} v;
-	unsigned char s;
-
-	v.i = val;
-	s = v.c[0];
-	v.c[0] = v.c[3];
-	v.c[3] = s;
-	s = v.c[1];
-	v.c[1] = v.c[2];
-	v.c[2] = s;
-
-	return v.i;
-}
-
-float ReadFloat(netmsg_t *b)
-{
-	union {
-		unsigned int i;
-		float f;
-	} u;
-
-	u.i = ReadLong(b);
-	return u.f;
-}
-void ReadString(netmsg_t *b, char *string, int maxlen)
-{
-	maxlen--;	//for null terminator
-	while(maxlen)
-	{
-		*string = ReadByte(b);
-		if (!*string)
-			return;
-		string++;
-		maxlen--;
-	}
-	*string++ = '\0';	//add the null
-}
-
-void WriteByte(netmsg_t *b, unsigned char c)
-{
-	if (b->cursize>=b->maxsize)
-		return;
-	b->data[b->cursize++] = c;
-}
-void WriteShort(netmsg_t *b, unsigned short l)
-{
-	WriteByte(b, (l&0x00ff)>>0);
-	WriteByte(b, (l&0xff00)>>8);
-}
-void WriteLong(netmsg_t *b, unsigned int l)
-{
-	WriteByte(b, (l&0x000000ff)>>0);
-	WriteByte(b, (l&0x0000ff00)>>8);
-	WriteByte(b, (l&0x00ff0000)>>16);
-	WriteByte(b, (l&0xff000000)>>24);
-}
-void WriteFloat(netmsg_t *b, float f)
-{
-	union {
-		unsigned int i;
-		float f;
-	} u;
-
-	u.f = f;
-	WriteLong(b, u.i);
-}
-void WriteString2(netmsg_t *b, const char *str)
-{	//no null terminator, convienience function.
-	while(*str)
-		WriteByte(b, *str++);
-}
-void WriteString(netmsg_t *b, const char *str)
-{
-	while(*str)
-		WriteByte(b, *str++);
-	WriteByte(b, 0);
-}
-void WriteData(netmsg_t *b, const char *data, int length)
-{
-	int i;
-	unsigned char *buf;
-
-	if (b->cursize + length > b->maxsize)	//urm, that's just too big. :(
-		return;
-	buf = b->data+b->cursize;
-	for (i = 0; i < length; i++)
-		*buf++ = *data++;
-	b->cursize+=length;
-}
-
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable)
 {
 	if (reliable)
@@ -176,8 +35,11 @@ void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean re
 		{
 			v->netchan.message.cursize = 0;
 			WriteByte(&v->netchan.message, svc_print);
+			if (!v->netchan.isnqprotocol)
+				WriteByte(&v->netchan.message, PRINT_HIGH);
 			WriteString(&v->netchan.message, "backbuffer overflow\n");
-			Sys_Printf(NULL, "%s backbuffers overflowed\n", v->name);	//FIXME
+			if (!v->drop)
+				Sys_Printf(NULL, "%s backbuffers overflowed\n", v->name);	//FIXME
 			v->drop = true;	//we would need too many backbuffers.
 		}
 		else
@@ -194,7 +56,7 @@ void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean re
 	}
 }
 
-void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playermask, int suitablefor)
+void Multicast(sv_t *tv, void *buffer, int length, int to, unsigned int playermask, int suitablefor)
 {
 	viewer_t *v;
 	switch(to)
@@ -227,7 +89,7 @@ void Multicast(sv_t *tv, char *buffer, int length, int to, unsigned int playerma
 		break;
 	}
 }
-void Broadcast(cluster_t *cluster, char *buffer, int length, int suitablefor)
+void Broadcast(cluster_t *cluster, void *buffer, int length, int suitablefor)
 {
 	viewer_t *v;
 	for (v = cluster->viewers; v; v = v->next)
@@ -235,6 +97,12 @@ void Broadcast(cluster_t *cluster, char *buffer, int length, int suitablefor)
 		if (suitablefor&(v->netchan.isnqprotocol?NQ:QW))
 			SendBufferToViewer(v, buffer, length, true);
 	}
+}
+
+void ConnectionData(sv_t *tv, void *buffer, int length, int to, unsigned int playermask, int suitablefor)
+{
+	if (!tv->parsingconnectiondata)
+		Multicast(tv, buffer, length, to, playermask, suitablefor);
 }
 
 static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playermask)
@@ -258,7 +126,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 
 	ReadString(m, tv->gamedir, sizeof(tv->gamedir));
 
-	if (tv->usequkeworldprotocols)
+	if (tv->usequakeworldprotocols)
 		tv->thisplayer = ReadByte(m)&~128;
 	else
 	{
@@ -306,7 +174,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 		tv->frame[i].numents = 0;
 	}
 
-	if (tv->usequkeworldprotocols)
+	if (tv->usequakeworldprotocols)
 	{
 		tv->netchan.message.cursize = 0;	//mvdsv sucks
 		SendClientCommand(tv, "soundlist %i 0\n", tv->clservercount);
@@ -319,15 +187,12 @@ static void ParseCDTrack(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	char nqversion[3];
 	tv->cdtrack = ReadByte(m);
 
-	if (!tv->parsingconnectiondata)
-	{
-		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	ConnectionData(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 
-		nqversion[0] = svc_cdtrack;
-		nqversion[1] = tv->cdtrack;
-		nqversion[2] = tv->cdtrack;
-		Multicast(tv, nqversion, 3, to, mask, NQ);
-	}
+	nqversion[0] = svc_cdtrack;
+	nqversion[1] = tv->cdtrack;
+	nqversion[2] = tv->cdtrack;
+	ConnectionData(tv, nqversion, 3, to, mask, NQ);
 }
 static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
@@ -351,7 +216,13 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			QW_SetMenu(tv->controller, atoi(text+18)?MENU_FORWARDING:MENU_NONE);
 	}
 	else if (strstr(text, "screenshot"))
+	{
+		if (tv->controller)
+		{	//let it through to the controller
+			SendBufferToViewer(tv->controller, m->data+m->startpos, m->readpos - m->startpos, true);
+		}
 		return;	//this was generating far too many screenshots when watching demos
+	}
 	else if (!strcmp(text, "skins\n"))
 	{
 		const char newcmd[10] = {svc_stufftext, 'c', 'm', 'd', ' ', 'n','e','w','\n','\0'};
@@ -368,7 +239,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			}
 		}
 
-		if (tv->usequkeworldprotocols)
+		if (tv->usequakeworldprotocols)
 			SendClientCommand(tv, "begin %i\n", tv->clservercount);
 		return;
 	}
@@ -415,22 +286,25 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	}
 	else if (!strncmp(text, "cmd ", 4))
 	{
-		if (tv->usequkeworldprotocols)
+		if (tv->usequakeworldprotocols)
 			SendClientCommand(tv, "%s", text+4);
 		return;	//commands the game server asked for are pointless.
 	}
 	else if (!strncmp(text, "reconnect", 9))
 	{
-		if (tv->usequkeworldprotocols)
+		if (tv->usequakeworldprotocols)
 			SendClientCommand(tv, "new\n");
 		return;
 	}
 	else if (!strncmp(text, "packet ", 7))
 	{
-		if(tv->usequkeworldprotocols)
-		{//eeeevil hack
-
-#define ARG_LEN 256
+		if (tv->controller)
+		{	//if we're acting as a proxy, forward the realip packets, and ONLY to the controller
+			SendBufferToViewer(tv->controller, m->data+m->startpos, m->readpos - m->startpos, true);
+			return;
+		}
+		if(tv->usequakeworldprotocols)
+		{//eeeevil hack for proxy-spectating
 			char *ptr;
 			char arg[3][ARG_LEN];
 			netadr_t adr;
@@ -438,7 +312,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			ptr = COM_ParseToken(ptr, arg[0], ARG_LEN, "");
 			ptr = COM_ParseToken(ptr, arg[1], ARG_LEN, "");
 			ptr = COM_ParseToken(ptr, arg[2], ARG_LEN, "");
-			NET_StringToAddr(arg[1], &adr, 27500);
+			NET_StringToAddr(arg[1], &adr, PROX_DEFAULTSERVERPORT);
 			Netchan_OutOfBand(tv->cluster, tv->sourcesock, adr, strlen(arg[2]), arg[2]);
 
 			//this is an evil hack
@@ -448,7 +322,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		tv->drop = true;	//this shouldn't ever happen
 		return;
 	}
-	else if (tv->usequkeworldprotocols && !strncmp(text, "setinfo ", 8))
+	else if (tv->usequakeworldprotocols && !strncmp(text, "setinfo ", 8))
 	{
 		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 		SendClientCommand(tv, text);
@@ -472,8 +346,7 @@ static void ParseSetInfo(sv_t *tv, netmsg_t *m)
 	if (pnum < MAX_CLIENTS)
 		Info_SetValueForStarKey(tv->players[pnum].userinfo, key, value, sizeof(tv->players[pnum].userinfo));
 
-	if (!tv->parsingconnectiondata)
-		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1, QW);
+	ConnectionData(tv, m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1, QW);
 }
 
 static void ParseServerinfo(sv_t *tv, netmsg_t *m)
@@ -486,8 +359,7 @@ static void ParseServerinfo(sv_t *tv, netmsg_t *m)
 	if (strcmp(key, "hostname"))	//don't allow the hostname to change, but allow the server to change other serverinfos.
 		Info_SetValueForStarKey(tv->serverinfo, key, value, sizeof(tv->serverinfo));
 
-	if (!tv->parsingconnectiondata)
-		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1, QW);
+	ConnectionData(tv, m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1, QW);
 }
 
 static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -510,7 +382,7 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	}
 	buffer[0] = svc_print;
 
-	if (to == dem_all || to == dem_read)
+	if ((to&dem_mask) == dem_all || to == dem_read)
 	{
 		if (level > 1)
 		{
@@ -619,8 +491,8 @@ static void ParseStaticSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	tv->staticsound[tv->staticsound_count].attenuation = ReadByte(m);
 
 	tv->staticsound_count++;
-	if (!tv->parsingconnectiondata)
-		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
+
+	ConnectionData(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 }
 
 static void ParseIntermission(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -647,8 +519,7 @@ void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 	tv->spawnstatic_count++;
 
-	if (!tv->parsingconnectiondata)
-		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
+	ConnectionData(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 }
 
 extern const usercmd_t nullcmd;
@@ -676,7 +547,7 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 	}
 	tv->players[num].old = tv->players[num].current;
 
-	if (tv->usequkeworldprotocols)
+	if (tv->usequakeworldprotocols)
 	{
 		tv->players[num].old = tv->players[num].current;
 		flags = (unsigned short)ReadShort (m);
@@ -790,7 +661,6 @@ static int readentitynum(netmsg_t *m, unsigned int *retflags)
 {
 	int entnum;
 	unsigned int flags;
-	unsigned short moreflags = 0;
 	flags = ReadShort(m);
 	if (!flags)
 	{
@@ -925,7 +795,7 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
 	if (deltaframe != -1)
 		deltaframe &= (ENTITY_FRAMES-1);
 
-	if (tv->usequkeworldprotocols)
+	if (tv->usequakeworldprotocols)
 	{
 		newframe = &tv->frame[tv->netchan.incoming_sequence & (ENTITY_FRAMES-1)];
 
@@ -1457,7 +1327,7 @@ void ParseNails(sv_t *tv, netmsg_t *m, qboolean nails2)
 	int i;
 	count = (unsigned char)ReadByte(m);
 	while(count > sizeof(tv->nails) / sizeof(tv->nails[0]))
-	{
+	{//they sent too many, suck it out.
 		count--;
 		if (nails2)
 			ReadByte(m);
@@ -1537,7 +1407,7 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 	}
 }
 
-void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
+void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 {
 	int i;
 	netmsg_t buf;
@@ -1571,8 +1441,16 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			//the client is meant to read that and disconnect without reading the intentionally corrupt packet following it.
 			//however, our demo playback is chained and looping and buffered.
 			//so we've already found the end of the source file and restarted parsing.
-			//so there's very little we can do except crash ourselves on the EndOfDemo text following the svc_disconnect
-			//that's a bad plan, so just stop reading this packet.
+			
+			//in fte at least, the server does give the packet the correct length
+			//I hope mvdsv is the same
+			if (tv->sourcetype != SRC_DEMO)
+				tv->drop = true;
+			else
+			{
+				while(ReadByte(&buf))
+					;
+			}
 			return;
 
 		case svc_updatestat:
@@ -1580,11 +1458,17 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			break;
 
 //#define	svc_version			4	// [long] server version
-//#define	svc_setview			5	// [short] entity number
+		case svc_nqsetview:
+			ReadShort(&buf);
+//no actual handling is done!
+			break;
 		case svc_sound:
 			ParseSound(tv, &buf, to, mask);
 			break;
-//#define	svc_time			7	// [float] server time
+		case svc_nqtime:
+			ReadFloat(&buf);
+//no actual handling is done!
+			break;
 
 		case svc_print:
 			ParsePrint(tv, &buf, to, mask);
@@ -1595,13 +1479,13 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			break;
 
 		case svc_setangle:
-			if (!tv->usequkeworldprotocols)
+			if (!tv->usequakeworldprotocols)
 				ReadByte(&buf);
 			tv->proxyplayerangles[0] = ReadByte(&buf)*360.0/255;
 			tv->proxyplayerangles[1] = ReadByte(&buf)*360.0/255;
 			tv->proxyplayerangles[2] = ReadByte(&buf)*360.0/255;
 
-			if (tv->usequkeworldprotocols && tv->controller)
+			if (tv->usequakeworldprotocols && tv->controller)
 				SendBufferToViewer(tv->controller, buf.data+buf.startpos, buf.readpos - buf.startpos, true);
 
 			{
@@ -1672,9 +1556,6 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ParseCenterprint(tv, &buf, to, mask);
 			break;
 
-//#define	svc_killedmonster	27
-//#define	svc_foundsecret		28
-
 		case svc_spawnstaticsound:
 			ParseStaticSound(tv, &buf, to, mask);
 			break;
@@ -1683,13 +1564,19 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			ParseIntermission(tv, &buf, to, mask);
 			break;
 
-//#define	svc_finale			31		// [string] text
+		case svc_finale:
+			while(ReadByte(&buf))
+				;
+			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1, Q1);
+			break;
 
 		case svc_cdtrack:
 			ParseCDTrack(tv, &buf, to, mask);
 			break;
 
-//#define svc_sellscreen		33
+		case svc_sellscreen:
+			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1, Q1);
+			break;
 
 //#define svc_cutscene		34	//hmm... nq only... added after qw tree splitt?
 
@@ -1757,7 +1644,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 				}
 				strcpy(tv->status, "Prespawning\n");
 			}
-			if (tv->usequkeworldprotocols)
+			if (tv->usequakeworldprotocols)
 			{
 				if (i)
 					SendClientCommand(tv, "modellist %i %i\n", tv->clservercount, i);
@@ -1795,7 +1682,7 @@ void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 			i = ParseList(tv, &buf, tv->soundlist, to, mask);
 			if (!i)
 				strcpy(tv->status, "Receiving modellist\n");
-			if (tv->usequkeworldprotocols)
+			if (tv->usequakeworldprotocols)
 			{
 				if (i)
 					SendClientCommand(tv, "soundlist %i %i\n", tv->clservercount, i);

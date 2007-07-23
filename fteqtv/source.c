@@ -59,6 +59,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #define RECONNECT_TIME (1000*30)
+#define RECONNECT_TIME_DEMO (1000*5)
 #define UDPRECONNECT_TIME (1000)
 #define PINGSINTERVAL_TIME (1000*5)
 #define UDPTIMEOUT_LENGTH (1000*20)
@@ -98,9 +99,9 @@ qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport)
 	}
 	else
 #endif
-#ifdef IPPROTO_IPV6
+#if 0//def IPPROTO_IPV6
 		if (getaddrinfo)
-	{
+	{//ipv6 method (can return ipv4 addresses too)
 		struct addrinfo *addrinfo, *pos;
 		struct addrinfo udp6hint;
 		int error;
@@ -163,7 +164,7 @@ dblbreak:
 	}
 	else
 #endif
-	{
+	{ //old fashioned method
 		((struct sockaddr_in *)sadr)->sin_family = AF_INET;
 
 		((struct sockaddr_in *)sadr)->sin_port = htons(defaultport);
@@ -511,12 +512,7 @@ qboolean DemoFilenameIsOkay(char *fname)
 qboolean Net_ConnectToServer(sv_t *qtv)
 {
 	char *at;
-	enum {
-		SRC_BAD,
-		SRC_DEMO,
-		SRC_UDP,
-		SRC_TCP
-	} type = SRC_BAD;
+	sourcetype_t type = SRC_BAD;
 	char *ip = qtv->server;
 
 	if (!strncmp(ip, "udp:", 4))
@@ -548,31 +544,58 @@ qboolean Net_ConnectToServer(sv_t *qtv)
 		ip = at+1;
 	}
 
-	qtv->usequkeworldprotocols = false;
+	qtv->usequakeworldprotocols = false;
 
-	qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;	//wait half a minuite before trying to reconnect
+	if (qtv->sourcetype == SRC_DEMO)
+		qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME_DEMO;	//wait half a minuite before trying to reconnect
+	else
+		qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;	//wait half a minuite before trying to reconnect
+
+	qtv->sourcetype = type;
 
 	switch(type)
 	{
 	case SRC_DEMO:
 		qtv->sourcesock = INVALID_SOCKET;
 		if (DemoFilenameIsOkay(ip))
-			qtv->sourcefile = fopen(ip, "rb");
+		{
+			char fullname[512];
+			snprintf(fullname, sizeof(fullname), "%s%s", qtv->cluster->demodir, ip);
+			qtv->sourcefile = fopen(fullname, "rb");
+		}
 		else
 			qtv->sourcefile = NULL;
 		if (qtv->sourcefile)
 		{
+			char smallbuffer[17];
 			fseek(qtv->sourcefile, 0, SEEK_END);
 			qtv->filelength = ftell(qtv->sourcefile);
+
+			//attempt to detect the end of the file
+			fseek(qtv->sourcefile, -sizeof(smallbuffer), SEEK_CUR);
+			fread(smallbuffer, 1, 17, qtv->sourcefile);
+			//0 is the time
+			if (smallbuffer[1] == dem_all || smallbuffer[1] == dem_read) //mvdsv changed it to read...
+			{
+				//2,3,4,5 are the length
+				if (smallbuffer[6] == svc_disconnect)
+				{
+					if (!strcmp(smallbuffer+7, "EndOfDemo"))
+					{
+						qtv->filelength -= 17;
+					}
+				}
+			}
+
 			fseek(qtv->sourcefile, 0, SEEK_SET);
 			return true;
 		}
-		Sys_Printf(qtv->cluster, "Unable to open file %s\n", ip+5);
+		Sys_Printf(qtv->cluster, "Unable to open file %s\n", ip);
 		return false;
 
 
 	case SRC_UDP:
-		qtv->usequkeworldprotocols = true;
+		qtv->usequakeworldprotocols = true;
 		return Net_ConnectToUDPServer(qtv, ip);
 	
 	case SRC_TCP:
@@ -586,7 +609,7 @@ qboolean Net_ConnectToServer(sv_t *qtv)
 
 void Net_QueueUpstream(sv_t *qtv, int size, char *buffer)
 {
-	if (qtv->usequkeworldprotocols)
+	if (qtv->usequakeworldprotocols)
 		return;
 
 	if (qtv->upstreambuffersize + size > sizeof(qtv->upstreambuffer))
@@ -599,7 +622,7 @@ void Net_QueueUpstream(sv_t *qtv, int size, char *buffer)
 	qtv->upstreambuffersize += size;
 }
 
-qboolean Net_WriteUpStream(sv_t *qtv)
+qboolean Net_WriteUpstream(sv_t *qtv)
 {
 	int len;
 
@@ -629,7 +652,48 @@ qboolean Net_WriteUpStream(sv_t *qtv)
 	return true;
 }
 
-int SV_ConsistantMVDData(unsigned char *buffer, int remaining)
+void SV_SendUpstream(sv_t *qtv, netmsg_t *nm)
+{
+	char size[2];
+
+	size[0] = (nm->cursize&0x00ff)>>0;
+	size[1] = (nm->cursize&0xff00)>>8;
+	Net_QueueUpstream(qtv, 2, size);
+	Net_QueueUpstream(qtv, nm->cursize, nm->data);
+	Net_WriteUpstream(qtv);	//try and flush it
+}
+
+int SV_SayToUpstream(sv_t *qtv, char *message)
+{
+	char buffer[1024];
+	netmsg_t nm;
+	if (!qtv->upstreamacceptschat)
+	{
+		Sys_Printf(qtv->cluster, "not forwarding say\n"); 
+		return 0;
+	}
+
+	InitNetMsg(&nm, buffer, sizeof(buffer));
+
+	WriteByte(&nm, qtv_clc_stringcmd);
+	WriteString2(&nm, "say ");
+	WriteString(&nm, message);
+	SV_SendUpstream(qtv, &nm);
+
+	return 1;
+}
+
+void SV_SayToViewers(sv_t *qtv, char *message)
+{
+	viewer_t *v;
+	Fwd_SayToDownstream(qtv, message);
+	#warning Send to viewers here too
+}
+
+//This function 1: parses the 'don't delay' packets in the stream
+//              2: returns the length of continuous data (that is, whole-packet bytes that have not been truncated by the networking layer)
+//                 this means we know that the client proxies have valid data, at least from our side.
+int SV_EarlyParse(sv_t *qtv, unsigned char *buffer, int remaining)
 {
 	int lengthofs;
 	int length;
@@ -644,8 +708,8 @@ int SV_ConsistantMVDData(unsigned char *buffer, int remaining)
 		switch (buffer[1]&dem_mask)
 		{
 		case dem_set:
-			length = 10;
-			goto gottotallength;
+			lengthofs = 0;	//to silence gcc, nothing more
+			break;
 		case dem_multiple:
 			lengthofs = 6;
 			break;
@@ -654,17 +718,27 @@ int SV_ConsistantMVDData(unsigned char *buffer, int remaining)
 			break;
 		}
 
-		if (lengthofs+4 > remaining)
-			return available;
+		if (lengthofs > 0)
+		{
+			if (lengthofs+4 > remaining)
+				return available;
 
-		length = (buffer[lengthofs]<<0) + (buffer[lengthofs+1]<<8) + (buffer[lengthofs+2]<<16) + (buffer[lengthofs+3]<<24);
+			length = (buffer[lengthofs]<<0) + (buffer[lengthofs+1]<<8) + (buffer[lengthofs+2]<<16) + (buffer[lengthofs+3]<<24);
 
-		length += lengthofs+4;
-		if (length > 1400)
-			printf("Corrupt mvd\n");
-gottotallength:
+			length += lengthofs+4;
+			if (length > 1500)
+				printf("Probably corrupt mvd (length %i)\n", length);
+		}
+		else
+			length = 10;
+
 		if (remaining < length)
 			return available;
+
+		if ((buffer[1]&dem_mask) == dem_all && (buffer[1] & ~dem_mask) && qtv->sourcetype != SRC_DEMO)	//dem_qtvdata
+		{
+			ParseMessage(qtv, buffer+lengthofs+4, length - (lengthofs+4), buffer[1], 0xffffffff);
+		}
 		
 		remaining -= length;
 		available += length;
@@ -676,7 +750,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 {
 	int maxreadable;
 	int read;
-	char *buffer;
+	void *buffer;
 	int err;
 
 	maxreadable = MAX_PROXY_BUFFER - qtv->buffersize;
@@ -690,13 +764,21 @@ qboolean Net_ReadStream(sv_t *qtv)
 			maxreadable = PREFERED_PROXY_BUFFER-qtv->buffersize;
 		if (maxreadable<=0)
 			return true;
+
+		//reuse read a little...
+		read = ftell(qtv->sourcefile);
+		if (read+maxreadable > qtv->filelength)
+			maxreadable = qtv->filelength-read;	//clamp to the end of the file
+								//even if that 'end' is before the svc_disconnect
+
 		read = fread(buffer, 1, maxreadable, qtv->sourcefile);
 	}
 	else
 	{
-		read = sizeof(err);
+		unsigned int errsize;
+		errsize = sizeof(err);
 		err = 0;
-		getsockopt(qtv->sourcesock, SOL_SOCKET, SO_ERROR, (char*)&err, &read);
+		getsockopt(qtv->sourcesock, SOL_SOCKET, SO_ERROR, (char*)&err, &errsize);
 		if (err == ECONNREFUSED)
 		{
 			Sys_Printf(qtv->cluster, "Error: server %s refused connection\n", qtv->server);
@@ -714,7 +796,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 		if (!qtv->cluster->lateforward && !qtv->parsingqtvheader)	//qtv header being the auth part of the connection rather than the stream
 		{
 			int forwardable;
-			forwardable = SV_ConsistantMVDData(qtv->buffer+qtv->forwardpoint, qtv->buffersize - qtv->forwardpoint);
+			forwardable = SV_EarlyParse(qtv, qtv->buffer+qtv->forwardpoint, qtv->buffersize - qtv->forwardpoint);
 			if (forwardable > 0)
 			{
 				SV_ForwardStream(qtv, qtv->buffer+qtv->forwardpoint, forwardable);
@@ -752,7 +834,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 	return true;
 }
 
-#define BUFFERTIME 10	//secords for arificial delay, so we can buffer things properly.
+#define BUFFERTIME 10	//secords for artificial delay, so we can buffer things properly.
 
 unsigned int Sys_Milliseconds(void)
 {
@@ -777,10 +859,12 @@ unsigned int Sys_Milliseconds(void)
 	return timeGetTime();
 #else
 	//assume every other system follows standards.
+	unsigned int t;
 	struct timeval tv;
 
 	gettimeofday(&tv, NULL);
-	return ((unsigned)tv.tv_sec)*1000 + (((unsigned)tv.tv_usec)/1000);
+	t = ((unsigned int)tv.tv_sec)*1000 + (((unsigned int)tv.tv_usec)/1000);
+	return t;
 #endif
 }
 /*
@@ -921,7 +1005,7 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 
 	memcpy(qtv->server, serverurl, sizeof(qtv->server)-1);
 
-	if (qtv->disconnectwhennooneiswatching)
+	if (qtv->disconnectwhennooneiswatching == 2)
 	{	//added because of paranoia rather than need. Should never occur.
 		printf("bug: autoclose==2\n");
 		return false;
@@ -998,7 +1082,7 @@ void QTV_Shutdown(sv_t *qtv)
 		{
 			QW_SetViewersServer(qtv->cluster, v, NULL);
 			QW_SetMenu(v, MENU_NONE);
-			QTV_Say(cluster, v->server, v, ".menu", false);
+			QTV_SayCommand(cluster, v->server, v, "menu");
 			QW_PrintfToViewer(v, "Stream %s is closing\n", qtv->server);
 		}
 	}
@@ -1076,7 +1160,7 @@ void ChooseFavoriteTrack(sv_t *tv)
 		SendClientCommand (tv, "ptrack %i\n", best);
 		tv->trackplayer = best;
 
-		if (tv->usequkeworldprotocols)
+		if (tv->usequakeworldprotocols)
 			QW_StreamStuffcmd(tv->cluster, tv, "track %i\n", best);
 	}
 }
@@ -1122,7 +1206,7 @@ static const unsigned char chktbl[1024] = {
 };
 
 
-unsigned char	COM_BlockSequenceCRCByte (unsigned char *base, int length, int sequence)
+unsigned char	COM_BlockSequenceCRCByte (void *base, int length, int sequence)
 {
 	unsigned short crc;
 	const unsigned char	*p;
@@ -1165,7 +1249,7 @@ void QTV_ParseQWStream(sv_t *qtv)
 {
 	char buffer[1500];
 	netadr_t from;
-	int fromlen;
+	unsigned int fromlen;
 	int readlen;
 	netmsg_t msg;
 	fromlen = sizeof(from);	//bug: this won't work on (free)bsd
@@ -1386,7 +1470,7 @@ void QTV_Run(sv_t *qtv)
 
 
 
-	if (qtv->usequkeworldprotocols)
+	if (qtv->sourcetype == SRC_UDP)
 	{
 		qtv->simtime += qtv->curtime - oldcurtime;
 
@@ -1560,12 +1644,13 @@ void QTV_Run(sv_t *qtv)
 			//obviously, we need to keep reading the stream to keep things smooth
 		}
 
-		Net_WriteUpStream(qtv);
+		Net_WriteUpstream(qtv);
 	}
 
 
 	if (qtv->parsingqtvheader)
 	{
+		float svversion;
 		int length;
 		char *start;
 		char *nl;
@@ -1584,16 +1669,17 @@ void QTV_Run(sv_t *qtv)
 		length = qtv->buffersize;
 		if (length > 6)
 			length = 6;
-		if (strncmp(qtv->buffer, "QTVSV ", length))
+		if (ustrncmp(qtv->buffer, "QTVSV ", length))
 		{
 			Sys_Printf(qtv->cluster, "Server is not a QTV server (or is incompatable)\n");
+printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 			qtv->drop = true;
 			return;
 		}
 		if (length < 6)
 			return;	//not ready yet
-		end = qtv->buffer + qtv->buffersize - 1;
-		for (nl = qtv->buffer; nl < end; nl++)
+		end = (char*)qtv->buffer + qtv->buffersize - 1;
+		for (nl = (char*)qtv->buffer; nl < end; nl++)
 		{
 			if (nl[0] == '\n' && nl[1] == '\n')
 				break;
@@ -1603,17 +1689,22 @@ void QTV_Run(sv_t *qtv)
 
 		//we now have a complete packet.
 
-		if (atoi(qtv->buffer + 6) != 1)
+		svversion = atof((char*)qtv->buffer + 6);
+		if ((int)svversion != 1)
 		{
-			Sys_Printf(qtv->cluster, "QTV server doesn't support a compatable protocol version (returned %i)\n", atoi(qtv->buffer + 6));
+			Sys_Printf(qtv->cluster, "QTV server doesn't support a compatable protocol version (returned %i)\n", atoi((char*)qtv->buffer + 6));
 			qtv->drop = true;
 			return;
 		}
 
+
+		qtv->upstreamacceptschat = svversion>=1.1;
+		qtv->upstreamacceptsdownload = svversion>=1.1;
+
 		length = (nl - (char*)qtv->buffer) + 2;
 		end = nl;
 		nl[1] = '\0';
-		start = strchr(qtv->buffer, '\n')+1;
+		start = strchr((char*)qtv->buffer, '\n')+1;
 
 		while((nl = strchr(start, '\n')))
 		{
@@ -1710,7 +1801,7 @@ void QTV_Run(sv_t *qtv)
 
 		if (qtv->serverquery)
 		{
-			Sys_Printf(qtv->cluster, "End of list\n", colon);
+			Sys_Printf(qtv->cluster, "End of list\n");
 			qtv->drop = true;
 			qtv->buffersize = 0;
 			return;
@@ -1722,21 +1813,20 @@ void QTV_Run(sv_t *qtv)
 		}
 		else if (qtv->parsingqtvheader)
 		{
-			Sys_Printf(qtv->cluster, "QTV server sent no begin command - assuming incompatable\n\n", colon);
+			Sys_Printf(qtv->cluster, "QTV server sent no begin command - assuming incompatable\n\n");
 			qtv->drop = true;
 			qtv->buffersize = 0;
 			return;
 		}
 
 		qtv->parsetime = Sys_Milliseconds() + BUFFERTIME*1000;
-		if (!qtv->usequkeworldprotocols)
+		if (!qtv->usequakeworldprotocols)
 			Sys_Printf(qtv->cluster, "Connection established, buffering for %i seconds\n", BUFFERTIME);
 
 		SV_ForwardStream(qtv, qtv->buffer, qtv->forwardpoint);
 	}
 
 	QTV_CollectCommentry(qtv);
-
 
 	while (qtv->curtime >= qtv->parsetime)
 	{
@@ -1746,7 +1836,7 @@ void QTV_Run(sv_t *qtv)
 			{
 				qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
 				if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-					Sys_Printf(qtv->cluster, "Not enough buffered\n");
+					QTV_Printf(qtv, "Not enough buffered\n");
 			}
 			break;
 		}
@@ -1761,7 +1851,7 @@ void QTV_Run(sv_t *qtv)
 			{	//not enough stuff to play.
 				qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
 				if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-					Sys_Printf(qtv->cluster, "Not enough buffered\n");
+					QTV_Printf(qtv, "Not enough buffered\n");
 				continue;
 			}
 			qtv->parsetime += buffer[0];	//well this was pointless
@@ -1787,17 +1877,17 @@ void QTV_Run(sv_t *qtv)
 		if (qtv->buffersize < lengthofs+4)
 		{	//the size parameter doesn't fit.
 			if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-				Sys_Printf(qtv->cluster, "Not enough buffered\n");
+				QTV_Printf(qtv, "Not enough buffered\n");
 			qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
 			break;
 		}
 
 
 		length = (buffer[lengthofs]<<0) + (buffer[lengthofs+1]<<8) + (buffer[lengthofs+2]<<16) + (buffer[lengthofs+3]<<24);
-		if (length > 1450)
-		{	//FIXME: THIS SHOULDN'T HAPPEN!
+		if (length > 1500)
+		{	//THIS SHOULDN'T HAPPEN!
 			//Blame the upstream proxy!
-			Sys_Printf(qtv->cluster, "Warning: corrupt input packet (%i) too big! Flushing and reconnecting!\n", length);
+			QTV_Printf(qtv, "Warning: corrupt input packet (%i bytes) too big! Flushing and reconnecting!\n", length);
 			if (qtv->sourcefile)
 			{
 				fclose(qtv->sourcefile);
@@ -1815,12 +1905,21 @@ void QTV_Run(sv_t *qtv)
 		if (length+lengthofs+4 > qtv->buffersize)
 		{
 			if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-				Sys_Printf(qtv->cluster, "Not enough buffered\n");
+				QTV_Printf(qtv, "Not enough buffered\n");
 			qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
 			break;	//can't parse it yet.
 		}
 
-		qtv->nextpackettime = qtv->parsetime+buffer[0];
+//		if (qtv->sourcesock != INVALID_SOCKET)
+//		{
+//			QTV_Printf(qtv, "Forcing demo speed to play at 100% speed\n");
+//			qtv->parsespeed = 1000;	//no speeding up/slowing down routed demos
+//		}
+
+		packettime = buffer[0];
+		if (qtv->parsespeed>0)
+			packettime = ((1000*packettime) / qtv->parsespeed);
+		qtv->nextpackettime = qtv->parsetime + packettime;
 
 		if (qtv->nextpackettime < qtv->curtime)
 		{
@@ -1833,9 +1932,13 @@ void QTV_Run(sv_t *qtv)
 			case dem_stats:
 				ParseMessage(qtv, buffer+lengthofs+4, length, qtv->buffer[1]&dem_mask, 1<<(qtv->buffer[1]>>3));
 				break;
-			case dem_read:
 			case dem_all:
-				ParseMessage(qtv, buffer+lengthofs+4, length, qtv->buffer[1]&dem_mask, 0xffffffff);
+				if (qtv->buffer[1] & ~dem_mask)	//dem_qtvdata
+					if (qtv->sourcetype != SRC_DEMO)
+						break;
+				//fallthrough
+			case dem_read:
+				ParseMessage(qtv, buffer+lengthofs+4, length, qtv->buffer[1], 0xffffffff);
 				break;
 			default:
 				Sys_Printf(qtv->cluster, "Message type %i\n", qtv->buffer[1]&dem_mask);
@@ -1846,7 +1949,6 @@ void QTV_Run(sv_t *qtv)
 
 			qtv->oldpackettime = qtv->curtime;
 
-			packettime = buffer[0];
 			if (qtv->buffersize)
 			{	//svc_disconnect can flush our input buffer (to prevent the EndOfDemo part from interfering)
 
@@ -1906,6 +2008,7 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, 
 	qtv->parsingconnectiondata = true;
 	qtv->serverquery = query;
 	qtv->silentstream = true;
+	qtv->parsespeed = 1000;
 
 	qtv->streamid = ++cluster->nextstreamid;
 

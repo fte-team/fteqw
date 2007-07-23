@@ -818,20 +818,20 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 	if (cluster->numviewers >= cluster->maxviewers && cluster->maxviewers)
 	{
 		buffer[4] = CCREP_REJECT;
-		strcpy(buffer+5, "Sorry, proxy is full.\n");
-		len = strlen(buffer+5)+5;
+		strcpy((char*)buffer+5, "Sorry, proxy is full.\n");
+		len = strlen((char*)buffer+5)+5;
 	}
 /*	else
 	{
 		buffer[4] = CCREP_REJECT;
-		strcpy(buffer+5, "NQ not supported yet\n");
-		len = strlen(buffer+5)+5;
+		strcpy((char*)buffer+5, "NQ not supported yet\n");
+		len = strlen((char*)buffer+5)+5;
 	}*/
 	else if (!(viewer = malloc(sizeof(viewer_t))))
 	{
 		buffer[4] = CCREP_REJECT;
-		strcpy(buffer+5, "Out of memory\n");
-		len = strlen(buffer+5)+5;
+		strcpy((char*)buffer+5, "Out of memory\n");
+		len = strlen((char*)buffer+5)+5;
 	}
 	else
 	{
@@ -1124,7 +1124,7 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 		{
 			sprintf(elem, "\\%i\\", sv->streamid);
 			WriteString2(&msg, elem);
-			WriteString2(&msg, sv->serveraddress);
+			WriteString2(&msg, (char*)sv->serveraddress);
 			sprintf(elem, " (%s)", sv->serveraddress);
 			WriteString2(&msg, elem);
 		}
@@ -1885,7 +1885,6 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 	short interp;
 	float lerp;
 	int track;
-	int runaway = 10;
 
 	int snapdist = 128;	//in quake units
 
@@ -1930,7 +1929,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 
 		if (!v->commentator && track >= 0 && !v->backbuffered)
 		{
-			if (v->trackplayer != tv->trackplayer && tv->usequkeworldprotocols)
+			if (v->trackplayer != tv->trackplayer && tv->usequakeworldprotocols)
 				if (!tv->players[v->trackplayer].active && tv->players[tv->trackplayer].active)
 				{
 					QW_StuffcmdToViewer (v, "track %i\n", tv->trackplayer);
@@ -2056,7 +2055,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 		int newnum, oldnum;
 		frame_t *frompacket, *topacket;
 		topacket = &tv->frame[tv->netchan.incoming_sequence&(ENTITY_FRAMES-1)];
-		if (tv->usequkeworldprotocols)
+		if (tv->usequakeworldprotocols)
 		{
 			frompacket = &tv->frame[(topacket->oldframe)&(ENTITY_FRAMES-1)];
 		}
@@ -2338,7 +2337,7 @@ void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcomman
 		unsigned char *ip;
 		gethostname(buf, sizeof(buf));	//ask the operating system for the local dns name
 		NET_StringToAddr(buf, &addr, 0);	//look that up
-		ip = (char*)&((struct sockaddr_in *)&addr)->sin_addr;
+		ip = (unsigned char*)&((struct sockaddr_in *)&addr)->sin_addr;
 		QW_PrintfToViewer(v, "[QuakeTV] %s | %i.%i.%i.%i\n", cluster->hostname, ip[0], ip[1], ip[2], ip[3]);
 	}
 	else if (!strcmp(command, "menu"))
@@ -2678,7 +2677,7 @@ tuiadmin:
 
 		if (!strcmp(command, "join") || !strcmp(command, "connect"))
 			isjoin = true;
-
+		
 		snprintf(buf, sizeof(buf), "udp:%s", args);
 		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, !isjoin, false);
 		if (qtv)
@@ -2689,6 +2688,8 @@ tuiadmin:
 				qtv->controller = v;
 			QW_PrintfToViewer(v, "Connected to %s\n", qtv->server);
 		}
+		else if (cluster->nouserconnects)
+			QW_PrintfToViewer(v, "you may not do that here\n");
 		else
 			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", buf);
 	}
@@ -2704,6 +2705,8 @@ tuiadmin:
 			QW_SetViewersServer(cluster, v, qtv);
 			QW_PrintfToViewer(v, "Connected to %s\n", qtv->server);
 		}
+		else if (cluster->nouserconnects)
+			QW_PrintfToViewer(v, "Ask an admin to connect first\n");
 		else
 			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", buf);
 	}
@@ -2741,7 +2744,7 @@ tuiadmin:
 			QW_PrintfToViewer(v, "Streaming from %s\n", qtv->server);
 		}
 		else
-			QW_PrintfToViewer(v, "Demo is not exist on proxy\n", buf);
+			QW_PrintfToViewer(v, "Demo does not exist on proxy\n", buf);
 	}
 	else if (!strcmp(command, "disconnect"))
 	{
@@ -3039,7 +3042,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		message++;
 	*v->expectcommand = '\0';
 
-	if (qtv && qtv->usequkeworldprotocols && !noupwards)
+	if (qtv && qtv->usequakeworldprotocols && !noupwards)
 	{
 		if (qtv->controller == v || !*v->name)
 		{
@@ -3062,6 +3065,8 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		viewer_t *ov;
 		if (cluster->notalking)
 			return;
+
+		SV_SayToUpstream(v->server, message);
 
 		for (ov = cluster->viewers; ov; ov = ov->next)
 		{
@@ -3227,18 +3232,14 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			else if (!strncmp(buf, "setinfo", 5))
 			{
 				#define TOKENIZE_PUNCTUATION ""
-				#define MAX_ARGS 3
-				#define ARG_LEN 256
 
 				int i;
-				char arg[MAX_ARGS][ARG_LEN];
-				char *argptrs[MAX_ARGS];
+				char arg[3][ARG_LEN];
 				char *command = buf;
 
 				for (i = 0; i < MAX_ARGS; i++)
 				{
 					command = COM_ParseToken(command, arg[i], ARG_LEN, TOKENIZE_PUNCTUATION);
-					argptrs[i] = arg[i];
 				}
 
 				Info_SetValueForStarKey(v->userinfo, arg[1], arg[2], sizeof(v->userinfo));
@@ -3672,18 +3673,14 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			else if (!strncmp(buf, "setinfo", 5))
 			{
 				#define TOKENIZE_PUNCTUATION ""
-				#define MAX_ARGS 3
-				#define ARG_LEN 256
 
 				int i;
-				char arg[MAX_ARGS][ARG_LEN];
-				char *argptrs[MAX_ARGS];
+				char arg[3][ARG_LEN];
 				char *command = buf;
 
-				for (i = 0; i < MAX_ARGS; i++)
+				for (i = 0; i < 3; i++)
 				{
 					command = COM_ParseToken(command, arg[i], ARG_LEN, TOKENIZE_PUNCTUATION);
-					argptrs[i] = arg[i];
 				}
 
 				Info_SetValueForStarKey(v->userinfo, arg[1], arg[2], sizeof(v->userinfo));
@@ -4048,7 +4045,6 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 
 	case MENU_MAIN:
 		{
-			int o = 8;
 			WriteString2(&m, "\n\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f\n");
 			while (viewer->menuop < 0)
 				viewer->menuop += MENU_MAIN_ITEMCOUNT;
@@ -4406,7 +4402,9 @@ void SendViewerPackets(cluster_t *cluster, viewer_t *v)
 		v->maysend = (v->nextpacket < cluster->curtime);
 	}
 	if (!Netchan_CanPacket(&v->netchan))
+	{
 		return;
+	}
 	if (v->maysend)	//don't send incompleate connection data.
 	{
 //		printf("maysend (%i, %i)\n", cluster->curtime, v->nextpacket);
@@ -4438,6 +4436,7 @@ void SendViewerPackets(cluster_t *cluster, viewer_t *v)
 			WriteByte(&m, svc_centerprint);
 			WriteString(&m, v->server->status);
 		}
+
 //printf("in %i, out %i, ", v->netchan.incoming_sequence, v->netchan.outgoing_sequence);
 //if (v->netchan.incoming_sequence != v->netchan.outgoing_sequence)
 //printf("%s: in %i, out %i\n", v->name, v->netchan.incoming_sequence, v->netchan.outgoing_sequence);
@@ -4496,7 +4495,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 
 	for (;;)
 	{
-		read = recvfrom(cluster->qwdsocket, buffer, sizeof(buffer), 0, (struct sockaddr*)from, &fromsize);
+		read = recvfrom(cluster->qwdsocket, buffer, sizeof(buffer), 0, (struct sockaddr*)from, (unsigned*)&fromsize);
 
 		if (read <= 5)	//otherwise it's a runt or bad.
 		{

@@ -43,7 +43,7 @@ struct bsp_s {
 	intermission_t intermissionspot[8];
 };
 
-static const intermission_t intermissionspot;
+static const intermission_t nullintermissionspot;
 
 
 typedef struct
@@ -213,6 +213,8 @@ void BSP_LoadEntities(bsp_t *bsp, char *entitydata)
 
 			switch (etype)
 			{
+			case et_random: //a random (unknown) entity
+				break;
 			case et_primarystart:	//a single player start
 				memcpy(startspotorg, org, sizeof(startspotorg));
 				memcpy(startspotangles, angles, sizeof(startspotangles));
@@ -483,5 +485,6 @@ const intermission_t *BSP_IntermissionSpot(bsp_t *bsp)
 			return &bsp->intermissionspot[spotnum];
 		}
 	}
-	return &intermissionspot;
+	return &nullintermissionspot;
 }
+

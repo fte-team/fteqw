@@ -343,7 +343,7 @@ static void HTTPSV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *str
 	streamid = fname;
 
 
-	if (!HTTPSV_GetHeaderField(dest->inbuffer, "Host", hostname, sizeof(hostname)))
+	if (!HTTPSV_GetHeaderField((char*)dest->inbuffer, "Host", hostname, sizeof(hostname)))
 	{
 		HTTPSV_SendHTTPHeader(cluster, dest, "400", "text/html", true);
 		HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Error");
@@ -639,7 +639,7 @@ void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata)
 	char *s;
 	int len;
 
-	if (!HTTPSV_GetHeaderField(pend->inbuffer, "Content-Length", tempbuf, sizeof(tempbuf)))
+	if (!HTTPSV_GetHeaderField((char*)pend->inbuffer, "Content-Length", tempbuf, sizeof(tempbuf)))
 	{
 		s = "HTTP/1.1 411 OK\n"
 			"Content-Type: text/html\n"
@@ -662,7 +662,7 @@ void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata)
 
 //	if (len <= pend->inbuffersize)
 	{
-		if (!strncmp(pend->inbuffer+5, "/admin", 6))
+		if (!strncmp((char*)pend->inbuffer+5, "/admin", 6))
 		{
 			HTTPSV_GenerateAdmin(cluster, pend, 0, postdata);
 		}
@@ -684,49 +684,49 @@ void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata)
 void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 {
 	char *s;
-	if (!strncmp(pend->inbuffer+4, "/nowplaying", 11))
+	if (!strncmp((char*)pend->inbuffer+4, "/nowplaying", 11))
 	{
 		HTTPSV_GenerateNowPlaying(cluster, pend);
 	}
-	else if (!strncmp(pend->inbuffer+4, "/watch.qtv?sid=", 15))
+	else if (!strncmp((char*)pend->inbuffer+4, "/watch.qtv?sid=", 15))
 	{
-		HTTPSV_GenerateQTVStub(cluster, pend, "", pend->inbuffer+19);
+		HTTPSV_GenerateQTVStub(cluster, pend, "", (char*)pend->inbuffer+19);
 	}
-	else if (!strncmp(pend->inbuffer+4, "/watch.qtv?demo=", 16))
+	else if (!strncmp((char*)pend->inbuffer+4, "/watch.qtv?demo=", 16))
 	{
-		HTTPSV_GenerateQTVStub(cluster, pend, "file:", pend->inbuffer+20);
+		HTTPSV_GenerateQTVStub(cluster, pend, "file:", (char*)pend->inbuffer+20);
 	}
-//	else if (!strncmp(pend->inbuffer+4, "/demo/", 6))
+//	else if (!strncmp((char*)pend->inbuffer+4, "/demo/", 6))
 //	{	//fixme: make this send the demo as an http download
-//		HTTPSV_GenerateQTVStub(cluster, pend, "file:", pend->inbuffer+10);
+//		HTTPSV_GenerateQTVStub(cluster, pend, "file:", (char*)pend->inbuffer+10);
 //	}
-	else if (!strncmp(pend->inbuffer+4, "/about", 6))
+	else if (!strncmp((char*)pend->inbuffer+4, "/about", 6))
 	{	//redirect them to our funky website
 		s = "HTTP/1.0 302 Found\n"
 			"Location: http://www.fteqw.com/\n"
 			"\n";
 		Net_ProxySend(cluster, pend, s, strlen(s));
 	}
-	else if (!strncmp(pend->inbuffer+4, "/admin", 6))
+	else if (!strncmp((char*)pend->inbuffer+4, "/admin", 6))
 	{
 		HTTPSV_GenerateAdmin(cluster, pend, 0, NULL);
 	}
-	else if (!strncmp(pend->inbuffer+4, "/ ", 2))
+	else if (!strncmp((char*)pend->inbuffer+4, "/ ", 2))
 	{
 		s = "HTTP/1.0 302 Found\n"
 			"Location: /nowplaying/\n"
 			"\n";
 		Net_ProxySend(cluster, pend, s, strlen(s));
 	}
-	else if (!strncmp(pend->inbuffer+4, "/demos", 6))
+	else if (!strncmp((char*)pend->inbuffer+4, "/demos", 6))
 	{
 		HTTPSV_GenerateDemoListing(cluster, pend);
 	}
-	else if (!strncmp(pend->inbuffer+4, "/file/", 6))
+	else if (!strncmp((char*)pend->inbuffer+4, "/file/", 6))
 	{
-		HTTPSV_GenerateDownload(cluster, pend, pend->inbuffer+10);
+		HTTPSV_GenerateDownload(cluster, pend, (char*)pend->inbuffer+10);
 	}
-	else if (!strncmp(pend->inbuffer+4, "/style.css", 10))
+	else if (!strncmp((char*)pend->inbuffer+4, "/style.css", 10))
 	{
 		HTTPSV_GenerateCSSFile(cluster, pend);
 	}

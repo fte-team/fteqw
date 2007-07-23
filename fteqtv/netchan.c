@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 
-void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, char *data, netadr_t adr)
+void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, netadr_t adr)
 {
 	int ret;
 
@@ -120,7 +120,7 @@ Netchan_OutOfBand
 Sends an out-of-band datagram
 ================
 */
-void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int length, unsigned char *data)
+void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int length, void *data)
 {
 	netmsg_t	send;
 	unsigned char		send_buf[MAX_MSGLEN + PACKET_HEADER];
@@ -205,7 +205,6 @@ Netchan_CanPacket
 Returns true if the bandwidth choke isn't active
 ================
 */
-#define	MAX_BACKUP	200
 qboolean Netchan_CanPacket (netchan_t *chan)
 {
 	unsigned int t;
@@ -214,7 +213,7 @@ qboolean Netchan_CanPacket (netchan_t *chan)
 //		return true;
 
 	t = curtime;
-	if (chan->cleartime < t + MAX_BACKUP*chan->rate)
+	if (chan->cleartime < t)
 		return true;
 	return false;
 }
@@ -244,7 +243,7 @@ transmition / retransmition of the reliable messages.
 A 0 length will still generate a packet and deal with the reliable messages.
 ================
 */
-void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const unsigned char *data)
+void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const void *data)
 {
 	unsigned int t;
 	netmsg_t	send;
@@ -291,9 +290,9 @@ void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const un
 			NET_SendPacket(cluster, chan->sock, send.cursize, send.data, chan->remote_address);
 
 			if (chan->cleartime < curtime)
-				chan->cleartime = curtime + send.cursize*chan->rate;
+				chan->cleartime = curtime + (int)(send.cursize*chan->rate);
 			else
-				chan->cleartime += send.cursize*chan->rate;
+				chan->cleartime += (int)(send.cursize*chan->rate);
 		}
 
 		//send out the unreliable (if still unsent)
@@ -309,9 +308,9 @@ void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const un
 			NET_SendPacket (cluster, chan->sock, send.cursize, send.data, chan->remote_address);
 
 			if (chan->cleartime < curtime)
-				chan->cleartime = curtime + send.cursize*chan->rate;
+				chan->cleartime = (int)(curtime + send.cursize*chan->rate);
 			else
-				chan->cleartime += send.cursize*chan->rate;
+				chan->cleartime += (int)(send.cursize*chan->rate);
 
 			send.cursize = 0;
 		}
@@ -386,9 +385,9 @@ void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const un
 
 	t = curtime;
 	if (chan->cleartime < t)
-		chan->cleartime = t + send.cursize*chan->rate;
+		chan->cleartime = t + (int)(send.cursize*chan->rate);
 	else
-		chan->cleartime += send.cursize*chan->rate;
+		chan->cleartime += (int)(send.cursize*chan->rate);
 #ifndef CLIENTONLY
 //	if (chan->sock == NS_SERVER && sv_paused.value)
 //		chan->cleartime = curtime;

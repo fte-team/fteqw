@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /*
 This is the file responsible for handling incoming tcp connections.
 This includes mvd recording.
-Password checks and stuff are implemented here. This is server side stuff.
+Password checks and stuff are implemented here. This i server side stuff.
 
 */
 
@@ -64,11 +64,19 @@ void CheckMVDConsistancy(unsigned char *buffer, int pos, int size)
 
 void SV_FindProxies(SOCKET sock, cluster_t *cluster, sv_t *defaultqtv)
 {
+	unsigned long nonblocking = true;
 	oproxy_t *prox;
 
 	sock = accept(sock, NULL, NULL);
 	if (sock == INVALID_SOCKET)
 		return;
+
+	if (ioctlsocket (sock, FIONBIO, &nonblocking) == -1)
+	{
+		Sys_Printf(cluster, "failed to set client socket to nonblocking. dropping.\n");
+		closesocket(sock);	//failed...
+		return;
+	}
 
 	if (cluster->maxproxies >= 0 && cluster->numproxies >= cluster->maxproxies)
 	{
@@ -104,10 +112,69 @@ void SV_FindProxies(SOCKET sock, cluster_t *cluster, sv_t *defaultqtv)
 }
 
 
+void Fwd_ParseCommands(cluster_t *cluster, oproxy_t *prox)
+{
+	netmsg_t buf;
+	int packetlength;
+	int bytes;
+	bytes = recv(prox->sock, prox->inbuffer+prox->inbuffersize, sizeof(prox->inbuffer)-prox->inbuffersize, 0);
+	if (bytes < 0)
+	{
+		if (qerrno != EWOULDBLOCK && qerrno != EAGAIN)	//not a problem, so long as we can flush it later.
+		{
+			Sys_Printf(cluster, "network error from client proxy\n");
+			prox->drop = true;	//drop them if we get any errors
+			return;
+		}
+		bytes = 0;
+	}
+	else if (bytes == 0)
+	{
+		prox->drop = true;
+		return;
+	}
+
+	prox->inbuffersize += bytes;
+
+	for(;;)
+	{
+		if (prox->inbuffersize < 2)	//we do need at least 3 bytes for anything useful
+			break;
+
+		packetlength = prox->inbuffer[0] + (prox->inbuffer[1]<<8);
+		if (packetlength+2 > prox->inbuffersize)
+			break;
+
+		InitNetMsg(&buf, prox->inbuffer+2, packetlength);
+		buf.cursize = packetlength;
+
+		while(buf.readpos < buf.cursize)
+		{
+			switch (ReadByte(&buf))
+			{
+			case qtv_clc_stringcmd:
+				{
+					char stringbuf[1024];
+					ReadString(&buf, stringbuf, sizeof(stringbuf));
+					QTV_Printf(prox->stream, "ds: %s\n", stringbuf);
+				}
+			
+				break;
+			default:
+				Sys_Printf(cluster, "Received unrecognised packet type from downstream proxy.\n");
+				buf.readpos = buf.cursize;
+				break;
+			}
+		}
+		packetlength+=2;
+		memmove(prox->inbuffer, prox->inbuffer+packetlength, prox->inbuffersize - packetlength);
+		prox->inbuffersize -= packetlength;
+	}
+}
 
 void Net_TryFlushProxyBuffer(cluster_t *cluster, oproxy_t *prox)
 {
-	char *buffer;
+	unsigned char *buffer;
 	int length;
 	int bufpos;
 
@@ -147,7 +214,7 @@ void Net_TryFlushProxyBuffer(cluster_t *cluster, oproxy_t *prox)
 	case -1:
 		if (qerrno != EWOULDBLOCK && qerrno != EAGAIN)	//not a problem, so long as we can flush it later.
 		{
-			Sys_Printf(cluster, "oversize flush\n");
+			Sys_Printf(cluster, "network error from client proxy\n");
 			prox->drop = true;	//drop them if we get any errors
 		}
 		break;
@@ -156,7 +223,12 @@ void Net_TryFlushProxyBuffer(cluster_t *cluster, oproxy_t *prox)
 	}
 }
 
-void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, char *buffer, int length)
+void Net_ProxySendString(cluster_t *cluster, oproxy_t *prox, void *buffer)
+{
+	Net_ProxySend(cluster, prox, buffer, strlen(buffer));
+}
+
+void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length)
 {
 	int wrap;
 
@@ -174,7 +246,10 @@ void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, char *buffer, int length)
 	//just simple
 	prox->buffersize+=length;
 	for (wrap = prox->buffersize-length; wrap < prox->buffersize; wrap++)
-		prox->buffer[wrap&(MAX_PROXY_BUFFER-1)] = *buffer++;
+	{
+		prox->buffer[wrap&(MAX_PROXY_BUFFER-1)] = *(unsigned char*)buffer;
+		buffer = (char*)buffer+1;
+	}
 #else
 	//we don't do multiple wrappings, the above check cannot succeed if it were required.
 
@@ -222,6 +297,29 @@ void Prox_SendMessage(cluster_t *cluster, oproxy_t *prox, char *buf, int length,
 	Net_ProxySend(cluster, prox, msg.data, msg.cursize);
 
 	Net_ProxySend(cluster, prox, buf, length);
+}
+
+void Fwd_SendDownstream(sv_t *qtv, void *buffer, int length)
+{	//broadcasts data to all client proxies, with dont-buffer
+	oproxy_t *prox;
+	for (prox = qtv->proxies; prox; prox = prox->next)
+	{
+		Prox_SendMessage(qtv->cluster, prox, buffer, length, dem_qtvdata, (unsigned int)-1);
+	}
+}
+
+void Fwd_SayToDownstream(sv_t *qtv, char *message)
+{
+	netmsg_t msg;
+	char buffer[1024];
+
+	InitNetMsg(&msg, buffer, sizeof(buffer));
+	WriteByte(&msg, svc_print);
+	WriteByte(&msg, PRINT_CHAT);
+	WriteString2(&msg, "[QTV]");
+	WriteString(&msg, message);
+
+	Fwd_SendDownstream(qtv, msg.data, msg.cursize);
 }
 
 void Prox_SendPlayerStats(sv_t *qtv, oproxy_t *prox)
@@ -311,6 +409,21 @@ void Prox_SendInitialPlayers(sv_t *qtv, oproxy_t *prox, netmsg_t *msg)
 	}
 }
 
+void Net_GreetingMessage(oproxy_t *prox)
+{
+	char buffer[1024];
+	netmsg_t msg;
+
+	InitNetMsg(&msg, buffer, sizeof(buffer));
+	WriteByte(&msg, svc_print);
+	WriteByte(&msg, PRINT_HIGH);
+	WriteString2(&msg, "Welcome to ");
+	WriteString2(&msg, prox->stream->cluster->hostname);
+	WriteString(&msg, "\n");
+
+	Prox_SendMessage(prox->stream->cluster, prox, msg.data, msg.cursize, dem_qtvdata, (unsigned)-1);
+}
+
 void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 {
 	char buffer[MAX_MSGLEN*8];
@@ -372,7 +485,8 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 	Prox_SendPlayerStats(qtv, prox);
 	Net_TryFlushProxyBuffer(qtv->cluster, prox);
 
-	Net_ProxySend(qtv->cluster, prox, qtv->buffer, qtv->forwardpoint);	//send all the info we've not yet processed.
+	if (!qtv->cluster->lateforward)
+		Net_ProxySend(qtv->cluster, prox, qtv->buffer, qtv->forwardpoint);	//send all the info we've not yet processed (but have already forwarded).
 
 
 	if (prox->flushing)
@@ -430,7 +544,7 @@ qboolean Net_StopFileProxy(sv_t *qtv)
 
 
 
-void SV_ForwardStream(sv_t *qtv, char *buffer, int length)
+void SV_ForwardStream(sv_t *qtv, void *buffer, int length)
 {	//forward the stream on to connected clients
 	oproxy_t *prox, *next, *fre;
 
@@ -490,6 +604,13 @@ void SV_ForwardStream(sv_t *qtv, char *buffer, int length)
 		Net_TryFlushProxyBuffer(qtv->cluster, prox);
 //		Net_TryFlushProxyBuffer(qtv->cluster, prox);
 //		Net_TryFlushProxyBuffer(qtv->cluster, prox);
+
+
+#warning This is not the place for this
+		if (prox->sock != INVALID_SOCKET)
+		{
+			Fwd_ParseCommands(qtv->cluster, prox);
+		}
 	}
 }
 
@@ -498,8 +619,8 @@ void SV_ForwardStream(sv_t *qtv, char *buffer, int length)
 qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 {
 	char tempbuf[512];
-	char *s;
-	char *e;
+	unsigned char *s;
+	unsigned char *e;
 	char *colon;
 	float clientversion = 0;
 	int len;
@@ -560,16 +681,22 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		return false;
 	}
 	if (len < 0)
+	{
+
 		return false;
+	}
 
 	pend->inbuffersize += len;
 	pend->inbuffer[pend->inbuffersize] = '\0';
 
 	if (pend->inbuffersize >= 4)
 	{
-		if (strncmp(pend->inbuffer, "QTV\r", 4) && strncmp(pend->inbuffer, "QTV\n", 4) && strncmp(pend->inbuffer, "GET ", 4) && strncmp(pend->inbuffer, "POST ", 5))
+		if (ustrncmp(pend->inbuffer, "QTV\r", 4) && ustrncmp(pend->inbuffer, "QTV\n", 4) && ustrncmp(pend->inbuffer, "GET ", 4) && ustrncmp(pend->inbuffer, "POST ", 5))
 		{	//I have no idea what the smeg you are.
 			pend->drop = true;
+
+			pend->inbuffer[16] = 0;
+			Sys_Printf(cluster, "Connect for unrecognised protocol %s\n", pend->inbuffer);
 			return false;
 		}
 	}
@@ -583,19 +710,18 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	}
 	if (!*s)
 		return false;	//don't have enough yet
-	s+=3;
+	s+=3;	//Fixme: this is wrong
 	headersize = s - pend->inbuffer - 1;
 
-	if (!strncmp(pend->inbuffer, "POST ", 5))
+	if (!ustrncmp(pend->inbuffer, "POST ", 5))
 	{
-		HTTPSV_PostMethod(cluster, pend, s);
+		HTTPSV_PostMethod(cluster, pend, (char*)s);
 
 		return false;	//not keen on this..
 	}
-	else if (!strncmp(pend->inbuffer, "GET ", 4))
+	else if (!ustrncmp(pend->inbuffer, "GET ", 4))
 	{
 		HTTPSV_GetMethod(cluster, pend);
-
 		pend->flushing = true;
 		return false;
 	}
@@ -611,29 +737,26 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		if (*e == '\n' || *e == '\r')
 		{
 			*e = '\0';
-			colon = strchr(s, ':');
+			colon = strchr((char*)s, ':');
 			if (*s)
 			{
 				if (!colon)
 				{
-					if (!strcmp(s, "QTV"))
+					if (!ustrcmp(s, "QTV"))
 					{
 						//just a qtv request (as in, not http or some other protocol)
 					}
-					else if (!strcmp(s, "SOURCELIST"))
+					else if (!ustrcmp(s, "SOURCELIST"))
 					{	//lists sources that are currently playing
-						s = QTVSVHEADER;
-							Net_ProxySend(cluster, pend, s, strlen(s));
+						Net_ProxySendString(cluster, pend, QTVSVHEADER);
 						if (!cluster->servers)
 						{
-							s = "PERROR: No sources currently available\n";
-								Net_ProxySend(cluster, pend, s, strlen(s));
+							Net_ProxySendString(cluster, pend, "PERROR: No sources currently available\n");
 						}
 						else
 						{
 							for (qtv = cluster->servers; qtv; qtv = qtv->next)
 							{
-								s = tempbuf;
 								if (clientversion > 1)
 								{
 									int plyrs = 0;
@@ -644,29 +767,28 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 											plyrs++;
 									}
 									sprintf(tempbuf, "SRCSRV: %s\n", qtv->server);
-									Net_ProxySend(cluster, pend, s, strlen(s));
+									Net_ProxySendString(cluster, pend, tempbuf);
 									sprintf(tempbuf, "SRCHOST: %s\n", qtv->hostname);
-									Net_ProxySend(cluster, pend, s, strlen(s));
+									Net_ProxySendString(cluster, pend, tempbuf);
 									sprintf(tempbuf, "SRCPLYRS: %i\n", plyrs);
-									Net_ProxySend(cluster, pend, s, strlen(s));
+									Net_ProxySendString(cluster, pend, tempbuf);
 									sprintf(tempbuf, "SRCVIEWS: %i\n", qtv->numviewers);
-									Net_ProxySend(cluster, pend, s, strlen(s));
+									Net_ProxySendString(cluster, pend, tempbuf);
 									sprintf(tempbuf, "SRCID: %i\n", qtv->streamid);	//final part of each source
-									Net_ProxySend(cluster, pend, s, strlen(s));
+									Net_ProxySendString(cluster, pend, tempbuf);
 								}
 								else
 								{
 									sprintf(tempbuf, "ASOURCE: %i: %15s: %15s\n", qtv->streamid, qtv->server, qtv->hostname);
-									Net_ProxySend(cluster, pend, s, strlen(s));
+									Net_ProxySendString(cluster, pend, tempbuf);
 								}
 							}
 							qtv = NULL;
 						}
-						s = "\n";
-							Net_ProxySend(cluster, pend, s, strlen(s));
+						Net_ProxySendString(cluster, pend, "\n");
 						pend->flushing = true;
 					}
-					else if (!strcmp(s, "REVERSE"))
+					else if (!ustrcmp(s, "REVERSE"))
 					{	//this is actually a server trying to connect to us
 						//start up a new stream
 
@@ -674,10 +796,10 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 #if 1	//left disabled until properly tested
 						qtv = QTV_NewServerConnection(cluster, "reverse"/*server*/, "", true, 2, false, 0);
 
-						s = QTVSVHEADER;		Net_ProxySend(cluster, pend, s, strlen(s));
-						s = "REVERSED\n";		Net_ProxySend(cluster, pend, s, strlen(s));
-						s = "VERSION: 1\n";		Net_ProxySend(cluster, pend, s, strlen(s));
-						s = "\n";				Net_ProxySend(cluster, pend, s, strlen(s));
+						Net_ProxySendString(cluster, pend, QTVSVHEADER);
+						Net_ProxySendString(cluster, pend, "REVERSED\n");
+						Net_ProxySendString(cluster, pend, "VERSION: 1\n");
+						Net_ProxySendString(cluster, pend, "\n");
 
 						//switch over the socket to the actual source connection rather than the pending
 						Net_TryFlushProxyBuffer(cluster, pend); //flush anything... this isn't ideal, but should be small enough
@@ -689,7 +811,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						return false;
 #endif
 					}
-					else if (!strcmp(s, "RECEIVE"))
+					else if (!ustrcmp(s, "RECEIVE"))
 					{	//a client connection request without a source
 						if (cluster->numservers == 1)
 						{	//only one stream anyway
@@ -698,7 +820,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						else
 						{	//try and hunt down an explicit stream (rather than a user-recorded one)
 							int numfound = 0;
-							sv_t *suitable;
+							sv_t *suitable = NULL;	//shush noisy compilers
 							for (qtv = cluster->servers; qtv; qtv = qtv->next)
 							{
 								if (!qtv->disconnectwhennooneiswatching)
@@ -712,43 +834,36 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						}
 						if (!qtv)
 						{
-							s = QTVSVHEADER;
-								Net_ProxySend(cluster, pend, s, strlen(s));
-							s = "PERROR: Multiple streams are currently playing\n";
-								Net_ProxySend(cluster, pend, s, strlen(s));
-							s = "\n";
-								Net_ProxySend(cluster, pend, s, strlen(s));
+							Net_ProxySendString(cluster, pend, QTVSVHEADER);
+							Net_ProxySendString(cluster, pend, "PERROR: Multiple streams are currently playing\n");
+							Net_ProxySendString(cluster, pend, "\n");
 							pend->flushing = true;
 						}
 					}
-					else if (!strcmp(s, "DEMOLIST"))
+					else if (!ustrcmp(s, "DEMOLIST"))
 					{	//lists sources that are currently playing
 						int i;
 
 						Cluster_BuildAvailableDemoList(cluster);
 
-						s = QTVSVHEADER;
-							Net_ProxySend(cluster, pend, s, strlen(s));
+						Net_ProxySendString(cluster, pend, QTVSVHEADER);
 						if (!cluster->availdemoscount)
 						{
-							s = "PERROR: No demos currently available\n";
-								Net_ProxySend(cluster, pend, s, strlen(s));
+							Net_ProxySendString(cluster, pend, "PERROR: No demos currently available\n");
 						}
 						else
 						{
 							for (i = 0; i < cluster->availdemoscount; i++)
 							{
 								sprintf(tempbuf, "ADEMO: %i: %15s\n", cluster->availdemos[i].size, cluster->availdemos[i].name);
-								s = tempbuf;
-								Net_ProxySend(cluster, pend, s, strlen(s));
+								Net_ProxySendString(cluster, pend, tempbuf);
 							}
 							qtv = NULL;
 						}
-						s = "\n";
-							Net_ProxySend(cluster, pend, s, strlen(s));
+						Net_ProxySendString(cluster, pend, "\n");
 						pend->flushing = true;
 					}
-					else if (!strcmp(s, "AUTH"))
+					else if (!ustrcmp(s, "AUTH"))
 					{	//lists the demos available on this proxy
 						//part of the connection process, can be ignored if there's no password
 					}
@@ -758,30 +873,31 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 				else
 				{
 					*colon++ = '\0';
-					if (!strcmp(s, "VERSION"))
+					if (!ustrcmp(s, "VERSION"))
 					{
 						clientversion = atof(colon);
 					}
-					else if (!strcmp(s, "RAW"))
+					else if (!ustrcmp(s, "RAW"))
 						raw = atoi(colon);
-					/*else if (!strcmp(s, "ROUTE"))
+					/*else if (!ustrcmp(s, "ROUTE"))
 					{	//pure rewroute...
 						//is this safe? probably not.
-						s = "QTVSV 1\n"
+						s = QTVSVHEADER
 							"PERROR: ROUTE command not yet implemented\n"
 							"\n";
-						Net_ProxySend(cluster, pend, s, strlen(s));
+						Net_ProxySend(cluster, pend, s, ustrlen(s));
 						pend->flushing = true;
 					}
 					*/
-					else if (!strcmp(s, "SOURCE"))
+					else if (!ustrcmp(s, "SOURCE"))
 					{	//connects, creating a new source
+						char *t;
 						while (*colon == ' ')
 							colon++;
-						for (s = colon; *s; s++)
-							if (*s < '0' || *s > '9')
+						for (t = colon; *t; t++)
+							if (*t < '0' || *t > '9')
 								break;
-						if (*s)
+						if (*t)
 							qtv = QTV_NewServerConnection(cluster, colon, "", false, true, true, false);
 						else
 						{
@@ -791,7 +907,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 									break;
 						}
 					}
-					else if (!strcmp(s, "DEMO"))
+					else if (!ustrcmp(s, "DEMO"))
 					{	//starts a demo off the server... source does the same thing though...
 						char buf[256];
 	
@@ -799,14 +915,13 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
 						if (!qtv)
 						{
-							s = QTVSVHEADER
-								"PERROR: couldn't open demo\n"
-								"\n";
-							Net_ProxySend(cluster, pend, s, strlen(s));
+							Net_ProxySendString(cluster, pend,	QTVSVHEADER
+												"PERROR: couldn't open demo\n"
+												"\n");
 							pend->flushing = true;
 						}
 					}
-					else if (!strcmp(s, "AUTH"))
+					else if (!ustrcmp(s, "AUTH"))
 					{	//lists the demos available on this proxy
 						//part of the connection process, can be ignored if there's no password
 					}
@@ -824,18 +939,16 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	{
 		if (clientversion < 1)
 		{
-			s = QTVSVHEADER
-				"PERROR: Requested protocol version not supported\n"
-				"\n";
-			Net_ProxySend(cluster, pend, s, strlen(s));
+			Net_ProxySendString(cluster, pend,	QTVSVHEADER
+								"PERROR: Requested protocol version not supported\n"
+								"\n");
 			pend->flushing = true;
 		}
-		if (!qtv)
+		else if (!qtv)
 		{
-			s = QTVSVHEADER
-				"PERROR: No stream selected\n"
-				"\n";
-			Net_ProxySend(cluster, pend, s, strlen(s));
+			Net_ProxySendString(cluster, pend,	QTVSVHEADER
+								"PERROR: No stream selected\n"
+								"\n");
 			pend->flushing = true;
 		}
 	}
@@ -843,21 +956,19 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 		return false;
 
 
-	if (qtv->usequkeworldprotocols)
+	if (qtv->usequakeworldprotocols)
 	{
-		s = QTVSVHEADER
-			"PERROR: This version of QTV is unable to convert QuakeWorld to QTV protocols\n"
-			"\n";
-		Net_ProxySend(cluster, pend, s, strlen(s));
+		Net_ProxySendString(cluster, pend,	QTVSVHEADER
+							"PERROR: This version of QTV is unable to convert QuakeWorld to QTV protocols\n"
+							"\n");
 		pend->flushing = true;
 		return false;
 	}
 	if (cluster->maxproxies>=0 && cluster->numproxies >= cluster->maxproxies)
 	{
-		s = QTVSVHEADER
-			"TERROR: This QTV has reached it's connection limit\n"
-			"\n";
-		Net_ProxySend(cluster, pend, s, strlen(s));
+		Net_ProxySendString(cluster, pend,	QTVSVHEADER
+							"TERROR: This QTV has reached it's connection limit\n"
+							"\n");
 		pend->flushing = true;
 		return false;
 	}
@@ -867,14 +978,10 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	if (!raw)
 	{
-		s = QTVSVHEADER;
-		Net_ProxySend(cluster, pend, s, strlen(s));
-		s = "BEGIN: ";
-		Net_ProxySend(cluster, pend, s, strlen(s));
-		s = qtv->server;
-		Net_ProxySend(cluster, pend, s, strlen(s));
-		s = "\n\n";
-		Net_ProxySend(cluster, pend, s, strlen(s));
+		Net_ProxySendString(cluster, pend,	QTVSVHEADER);
+		Net_ProxySendString(cluster, pend,	"BEGIN: ");
+		Net_ProxySendString(cluster, pend,	qtv->server);
+		Net_ProxySendString(cluster, pend,	"\n\n");
 	}
 //	else if (passwordprotected)	//raw mode doesn't support passwords, so reject them
 //	{
@@ -882,7 +989,12 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 //		return;
 //	}
 
+	pend->stream = qtv;
 
+	memmove(pend->inbuffer, pend->inbuffer+headersize, pend->inbuffersize-headersize);
+	pend->inbuffersize -= headersize;
+
+	Net_GreetingMessage(pend);
 	Net_SendConnectionMVD(qtv, pend);
 
 	return true;

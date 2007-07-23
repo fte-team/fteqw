@@ -27,6 +27,8 @@
 */
 //actually stolen from darkplaces.
 //I guess noone can be arsed to write it themselves. :/
+//
+//This file is otherwise known as 'will the linux jokers please stop fucking over the open sound system please'
 
 #include <alsa/asoundlib.h>
 
@@ -214,8 +216,11 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	hw = alloca(psnd_pcm_hw_params_sizeof());
 	sw = alloca(psnd_pcm_sw_params_sizeof());
+	memset(sw, 0, psnd_pcm_sw_params_sizeof());
+	memset(hw, 0, psnd_pcm_hw_params_sizeof());
 
-	devname = Cvar_Get(va("snd_alsadevice%i", cardnum+1), cardnum==0?"default":"", 0, "Sound controls");
+//WARNING: 'default' as the default sucks arse. it adds about a second's worth of lag.
+	devname = Cvar_Get(va("snd_alsadevice%i", cardnum+1), cardnum==0?"hw":"", 0, "Sound controls");
 	pcmname = devname->string;
 
 	if (!*pcmname)

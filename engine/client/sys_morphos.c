@@ -359,7 +359,7 @@ int main(int argc, char **argv)
 	Host_Init(&parms);
 
 	oldtime = Sys_DoubleTime ();
-	while (1)
+	while(!(SetSignal(0, 0)&SIGBREAKF_CTRL_C))
 	{
 		newtime = Sys_DoubleTime ();
 		Host_Frame(newtime - oldtime);

@@ -289,6 +289,7 @@ typedef struct
 	// reply
 	double				senttime;
 	float				ping_time;
+	int				move_msecs;
 	packet_entities_t	entities;	//must come last (mvd states are bigger)
 } client_frame_t;
 

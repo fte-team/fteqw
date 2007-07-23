@@ -3288,6 +3288,49 @@ void Cmd_Observe_f (void)
 	host_client->sendinfo = true;
 }
 
+void Cmd_FPSList_f(void)
+{
+	client_t *cl;
+	int c;
+	int f;
+	double minf, maxf, this;
+	double ftime;
+	int frames;
+
+
+	for (c = 0; c < sv.allocated_client_slots; c++)
+	{
+		cl = &svs.clients[c];
+		ftime = 0;
+		frames = 0;
+
+		if (!cl->state)
+			continue;
+
+		if (cl->frameunion.frames)
+		{
+			for (f = 0; f < UPDATE_BACKUP; f++)
+			{
+				if (cl->frameunion.frames[f].move_msecs >= 0)
+				{
+					this = 1000.0f/cl->frameunion.frames[f].move_msecs;
+					ftime += this;
+					if (minf < this)
+						minf = this;
+					if (maxf > this)
+						maxf = this;
+					frames++;
+				}
+			}
+		}
+
+		if (frames)
+			Con_Printf("%s: %ffps (min%f max %f\n", cl->name, ftime/frames, minf, maxf);
+		else
+			Con_Printf("%s: no information available\n", cl->name);
+	}
+}
+
 void SV_EnableClientsCSQC(void)
 {
 #ifdef PEXT_CSQC
@@ -3358,6 +3401,7 @@ ucmd_t ucmds[] =
 	{"topten", Rank_ListTop10_f},
 #endif
 
+	{"efpslist", Cmd_FPSList_f},	//don't conflict with the ktpro one
 	{"god", Cmd_God_f},
 	{"give", Cmd_Give_f},
 	{"noclip", Cmd_Noclip_f},
@@ -4770,6 +4814,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 	{	//split screen doesn't always have frames.
 		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
 		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
+		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].move_msecs = -1;
 	}
 
 	host_client = cl;
@@ -4830,6 +4875,9 @@ haveannothergo:
 				MSG_ReadDeltaUsercmd (&nullcmd, &oldest);
 				MSG_ReadDeltaUsercmd (&oldest, &oldcmd);
 				MSG_ReadDeltaUsercmd (&oldcmd, &newcmd);
+
+				if (cl->frameunion.frames)
+					cl->frameunion.frames[cl->netchan.outgoing_sequence&UPDATE_MASK].move_msecs = newcmd.msec;
 
 				if ( cl->state == cs_spawned )
 				{

@@ -2031,6 +2031,9 @@ void SV_SetMoveVars(void)
 	movevars.friction			= sv_friction.value;
 	movevars.waterfriction	    = sv_waterfriction.value;
 	movevars.entgravity			= 1.0;
-	movevars.stepheight			= pm_stepheight.value;
+	if (*pm_stepheight.string)
+		movevars.stepheight			= pm_stepheight.value;
+	else
+		movevars.stepheight			= PM_DEFAULTSTEPHEIGHT;
 }
 #endif

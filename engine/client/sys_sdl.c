@@ -41,6 +41,27 @@ void Sys_Printf (char *fmt, ...)
 	va_end (argptr);
 }
 
+unsigned int Sys_Milliseconds(void)
+{
+	static int first = true;
+	static unsigned long oldtime = 0, curtime = 0;
+	unsigned long newtime;
+
+	newtime = SDL_GetTicks();
+
+	if (first)
+	{
+		first = false;
+		oldtime = newtime;
+	}
+	if (newtime < oldtime)
+		Con_Printf("Sys_Milliseconds stepped backwards!\n");
+	else
+		curtime += oldtime - newtime;
+	oldtime = newtime;
+	return curtime;
+}
+
 //return the current time, in the form of a double
 double Sys_DoubleTime (void)
 {

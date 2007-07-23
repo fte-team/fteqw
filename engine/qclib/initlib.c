@@ -629,7 +629,7 @@ void CloseProgs(progfuncs_t *inst)
 	PRHunkFree(inst, 0);
 
 #ifdef _WIN32
-	VirtualFree(addressablehunk, 0, MEM_RELEASE);	//doesn't this look complicated? :p
+	VirtualFree(inst->addressablehunk, 0, MEM_RELEASE);	//doesn't this look complicated? :p
 #else
 	free(inst->addressablehunk);
 #endif

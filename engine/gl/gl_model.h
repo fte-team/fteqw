@@ -424,6 +424,9 @@ typedef struct mspriteframe_s
 #endif
 } mspriteframe_t;
 
+mspriteframe_t *R_GetSpriteFrame (entity_t *currententity);
+
+
 typedef struct
 {
 	int				numframes;

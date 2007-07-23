@@ -490,10 +490,13 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 		VectorCopy(player->viewangles, cl.viewangles[pnum]);
 		if (memcmp(player->origin, &self->origin, sizeof(player->origin)) != 0)
 		{
-			MSG_WriteByte (&cls.netchan.message, clc_tmove);
-			MSG_WriteCoord (&cls.netchan.message, player->origin[0]);
-			MSG_WriteCoord (&cls.netchan.message, player->origin[1]);
-			MSG_WriteCoord (&cls.netchan.message, player->origin[2]);
+			if (!cls.demoplayback)
+			{
+				MSG_WriteByte (&cls.netchan.message, clc_tmove);
+				MSG_WriteCoord (&cls.netchan.message, player->origin[0]);
+				MSG_WriteCoord (&cls.netchan.message, player->origin[1]);
+				MSG_WriteCoord (&cls.netchan.message, player->origin[2]);
+			}
 			// move there locally immediately
 			VectorCopy(player->origin, self->origin);
 		}

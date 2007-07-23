@@ -147,40 +147,120 @@ void CL_WriteDemoMessage (sizebuf_t *msg)
 	VFS_FLUSH (cls.demofile);
 }
 
-unsigned char unreaddata[4096];
-int unreadcount;
-int readdemobytes(void *data, int len)
+int demo_preparsedemo(unsigned char *buffer, int bytes)
+{
+	int parsed = 0;
+	int ofs;
+	unsigned int length;
+#define dem_mask 7
+	if (cls.demoplayback != DPB_MVD)
+		return bytes;	//no need if its not an mvd (this simplifies it a little)
+
+	while (bytes>2)
+	{
+		switch(buffer[1]&dem_mask)
+		{
+		case dem_set:
+			ofs = -10;
+			break;
+		case dem_multiple:
+			ofs = 6;
+			break;
+		default:
+			ofs = 2;
+			break;
+		}
+		if (ofs > 0)
+		{
+			if (ofs+4 > bytes)
+				break;
+			length = (buffer[ofs+0]<<0) + (buffer[ofs+1]<<8) + (buffer[ofs+2]<<16) + (buffer[ofs+3]<<24);
+			if (length > 1500)
+				return parsed;
+			ofs+=4;
+		}
+		else
+		{
+			length = -ofs;
+			ofs = 2;
+		}
+		//ofs is now the offset of the data
+		if (ofs+length > bytes)
+		{
+			return parsed; //not got it all
+		}
+		if ((buffer[1]&dem_mask) == dem_all && (buffer[1] & ~dem_mask) && length < MAX_NQMSGLEN)
+		{
+			net_message.cursize = length;
+			memcpy(net_message.data, buffer+ofs, length);
+			CL_ParseServerMessage();
+		}
+
+		parsed += ofs+length;
+		buffer += ofs+length;
+		bytes -= ofs+length;
+	}
+
+	return parsed;
+}
+
+unsigned char demobuffer[1024*16];
+int demobuffersize;
+int demopreparsedbytes;
+int readdemobytes(int *readpos, void *data, int len)
 {
 	int i;
 
-//	if (rand()&63 == 63)
-//		return 0;
+	if (demopreparsedbytes < 0)	//won't happen in normal running, but can still happen on corrupt data... if we don't disconnect first.
+		demopreparsedbytes = 0;
 
-	if (unreadcount)
+	i = VFS_READ(cls.demofile, demobuffer+demobuffersize, sizeof(demobuffer)-demobuffersize);
+	if (i > 0)
 	{
-		if (len > unreadcount)
-		{
-			//this can only happen when the remaining 'unread' buffer from the initial qtv stream is part-way used up.
-			i = VFS_READ(cls.demofile, unreaddata+unreadcount, len - unreadcount);
-			unreadcount += i;
-
-			if (len > unreadcount)
-				return 0;
-		}
-		unreadcount -= len;
-		memcpy(data, unreaddata, len);
-		memmove(unreaddata, unreaddata+len, unreadcount);
-		return len;
+		demobuffersize += i;
+		demopreparsedbytes += demo_preparsedemo(demobuffer+demopreparsedbytes, demobuffersize-demopreparsedbytes);
+	}
+	else if (i < 0)
+	{	//0 means no data available yet
+		printf("VFS_READ failed: %i\n", i);
 	}
 
-	i = VFS_READ(cls.demofile, data, len);
-	return i;
+	if (len > demobuffersize)
+	{
+		len = demobuffersize;
+
+		//CL_StopPlayback();
+	}
+	memcpy(data, demobuffer+*readpos, len);
+	*readpos += len;
+	return len;
 }
-void unreadbytes(int count, void *data)
+
+void demo_flushbytes(int bytes)
 {
-	memmove(unreaddata+count, unreaddata, unreadcount);
-	memcpy(unreaddata, data, count);
-	unreadcount += count;
+	if (bytes > demobuffersize)
+		Sys_Error("demo_flushbytes: flushed too much!\n");
+	memmove(demobuffer, demobuffer+bytes, demobuffersize - bytes);
+	demobuffersize -= bytes;
+	demopreparsedbytes -= bytes;
+}
+
+void demo_flushcache(void)
+{
+	demobuffersize = 0;
+	demopreparsedbytes = 0;
+}
+
+void demo_resetcache(int bytes, void *data)
+{
+	demo_flushcache();
+
+	demobuffersize = bytes;
+	memcpy(demobuffer, data, bytes);
+
+	//preparse it now
+	bytes = 0;
+	readdemobytes(&bytes, NULL, 0);
 }
 
 
@@ -264,6 +344,8 @@ qboolean CL_GetDemoMessage (void)
 	qbyte	c, msecsadded=0;
 	usercmd_t *pcmd;
 	q1usercmd_t q1cmd;
+	int demopos = 0;
+	int msglength;
 
 #ifdef NQPROT
 	if (cls.demoplayback == DPB_NETQUAKE 
@@ -315,14 +397,16 @@ qboolean CL_GetDemoMessage (void)
 				return 0;
 			}
 		}
-		readdemobytes(&net_message.cursize, 4);
-//		VectorCopy (cl.mviewangles[0], cl.mviewangles[1]);
+		if (readdemobytes(&demopos, &msglength, 4) != 4)
+		{
+			return 0;
+		}
 		if (cls.demoplayback == DPB_NETQUAKE)
 		{
 			VectorCopy (cl.viewangles[1], cl.viewangles[2]);
 			for (i=0 ; i<3 ; i++)
 			{
-				readdemobytes(&f, 4);
+				readdemobytes(&demopos, &f, 4);
 				cl.simangles[0][i] = cl.viewangles[1][i] = LittleFloat (f);
 			}
 			VectorCopy (cl.viewangles[1], cl.viewangles[0]);
@@ -330,25 +414,18 @@ qboolean CL_GetDemoMessage (void)
 
 		olddemotime = realtime;
 
-		net_message.cursize = LittleLong (net_message.cursize);
-		if (net_message.cursize > MAX_NQMSGLEN)
+		msglength = LittleLong (msglength);
+		if (msglength > MAX_NQMSGLEN)
 		{
 			Con_Printf ("Demo message > MAX_MSGLEN");
 			CL_StopPlayback ();
 			return 0;
 		}
-		if (net_message.cursize<0)
+		if (readdemobytes(&demopos, net_message.data, msglength) != msglength)
 		{
-			Con_Printf ("Demo finished\n");
-			CL_StopPlayback ();
 			return 0;
 		}
-		r = readdemobytes(net_message.data, net_message.cursize);
-		if (r != net_message.cursize)
-		{
-			CL_StopPlayback ();
-			return 0;
-		}
+		net_message.cursize = msglength;
 	
 		return 1;
 	}
@@ -358,20 +435,24 @@ readnext:
 	if (cls.demoplayback == DPB_MVD)
 	{
 		if (realtime < 0)
+		{
+			readdemobytes(&demopos, NULL, 0);
 			return 0;
+		}
 		if (olddemotime > realtime)
 			olddemotime = realtime;
 		if (realtime + 1.0 < olddemotime)
 			realtime = olddemotime - 1.0;
 
-		if (readdemobytes(&msecsadded, sizeof(msecsadded)) == 0)
+		if (readdemobytes(&demopos, &msecsadded, sizeof(msecsadded)) != sizeof(msecsadded))
 			return 0;
 		demotime = olddemotime + msecsadded*(1.0f/1000);
 		nextdemotime = demotime;
 	}
 	else
 	{
-		readdemobytes(&demotime, sizeof(demotime));
+		if (readdemobytes(&demopos, &demotime, sizeof(demotime)) != sizeof(demotime))
+			return 0;
 		demotime = LittleFloat(demotime);
 	}
 
@@ -383,11 +464,6 @@ readnext:
 		else if (demotime > cls.td_lastframe)
 		{
 			cls.td_lastframe = demotime;
-			// rewind back to time
-			if (cls.demoplayback == DPB_MVD)
-				unreadbytes(sizeof(msecsadded), &msecsadded);
-			else
-				unreadbytes(sizeof(demotime), &demotime);
 			return 0;		// already read this frame's message
 		}
 		if (!cls.td_starttime && cls.state == ca_active)
@@ -403,20 +479,10 @@ readnext:
 		{
 			// too far back
 			realtime = demotime - 1.0;
-			// rewind back to time
-			if (cls.demoplayback == DPB_MVD)
-				unreadbytes(sizeof(msecsadded), &msecsadded);
-			else
-				unreadbytes(sizeof(demotime), &demotime);
 			return 0;
 		}
 		else if (realtime < demotime)
 		{
-			// rewind back to time
-			if (cls.demoplayback == DPB_MVD)
-				unreadbytes(sizeof(msecsadded), &msecsadded);
-			else
-				unreadbytes(sizeof(demotime), &demotime);
 			return 0;		// don't need another message yet
 		}
 	}
@@ -440,25 +506,8 @@ readnext:
 		Host_Error ("CL_GetDemoMessage: cls.state != ca_active");
 	
 	// get the msg type
-	if (!readdemobytes (&c, sizeof(c)))
-	{
-		if (1)//!VFS_GETLEN(cls.demofile))
-		{
-			if (cls.demoplayback == DPB_MVD)
-			{
-				r = 0;
-				unreadbytes(1, &r);
-			}
-			else
-			{
-				demotime = LittleFloat(demotime);
-				unreadbytes(4, &demotime);
-			}
-		}
-		else
-			CL_StopPlayback ();
+	if (!readdemobytes (&demopos, &c, sizeof(c)))
 		return 0;
-	}
 //	Con_Printf("demo packet %x\n", (int)c);
 	switch (c&7)
 	{
@@ -470,9 +519,9 @@ readnext:
 			unsigned char rateid;
 			unsigned char audio[8192];
 
-			if (readdemobytes (&samps, 2) == 2)
+			if (readdemobytes (&demopos, &samps, 2) == 2)
 			{
-				if (readdemobytes (&bits, 1) == 1)
+				if (readdemobytes (&demopos, &bits, 1) == 1)
 				{
 					if (samps > sizeof(audio))
 					{
@@ -480,9 +529,9 @@ readnext:
 						CL_StopPlayback();
 						return 0;
 					}
-					if (readdemobytes (&rateid, 1) == 1)
+					if (readdemobytes (&demopos, &rateid, 1) == 1)
 					{
-						if (readdemobytes (audio, samps) == samps)
+						if (readdemobytes (&demopos, audio, samps) == samps)
 						{
 							FILE *f;
 							samps = samps/(bits/8);
@@ -496,16 +545,10 @@ readnext:
 							S_RawAudio(0, audio, 11025, samps, 1, bits/8);
 							break;
 						}
-						unreadbytes(1, &rateid);
 					}
-					unreadbytes(1, &bits);
 				}
-				unreadbytes(1, &samps);
 			}
 
-			unreadbytes(1, &c);
-			r = 0;
-			unreadbytes(1, &r);
 			return 0;
 		}
 		else
@@ -513,7 +556,7 @@ readnext:
 			// user sent input
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 			pcmd = &cl.frames[i].cmd[0];
-			r = readdemobytes (&q1cmd, sizeof(q1cmd));
+			r = readdemobytes (&demopos, &q1cmd, sizeof(q1cmd));
 			if (r != sizeof(q1cmd))
 			{
 				CL_StopPlayback ();
@@ -537,7 +580,7 @@ readnext:
 			cls.netchan.outgoing_sequence++;
 			for (i=0 ; i<3 ; i++)
 			{
-				readdemobytes (&f, 4);
+				readdemobytes (&demopos, &f, 4);
 				cl.viewangles[0][i] = LittleFloat (f);
 			}
 /*		}*/
@@ -546,65 +589,19 @@ readnext:
 	case dem_read:
 readit:
 		// get the next message
-		if (readdemobytes (&net_message.cursize, 4) != 4)
-		{
-			if (1)//!VFS_GETLEN(cls.demofile))
-			{
-				if ((c & 7) == dem_multiple)
-					unreadbytes(4, &i);
-				unreadbytes(1, &c);
-
-				if (cls.demoplayback == DPB_MVD)
-				{
-					r = 0;
-					unreadbytes(1, &r);
-				}
-				else
-				{
-					demotime = LittleFloat(demotime);
-					unreadbytes(4, &demotime);
-				}
-			}
-			else
-				CL_StopPlayback ();
+		if (readdemobytes (&demopos, &msglength, 4) != 4)
 			return 0;
-		}
-		net_message.cursize = LittleLong (net_message.cursize);
-	//Con_Printf("read: %ld bytes\n", net_message.cursize);
-		if ((unsigned int)net_message.cursize > MAX_OVERALLMSGLEN)
+		msglength = LittleLong (msglength);
+	//Con_Printf("read: %ld bytes\n", msglength);
+		if ((unsigned int)msglength > MAX_OVERALLMSGLEN)
 		{
 			Con_Printf ("Demo message > MAX_OVERALLMSGLEN\n");
 			CL_StopPlayback ();
 			return 0;
 		}
-		r = readdemobytes (net_message.data, net_message.cursize);
-		if (r != net_message.cursize)
-		{
-			if (1)//!VFS_GETLEN(cls.demofile))
-			{
-				net_message.cursize = LittleLong (net_message.cursize);
-				unreadbytes(4, &net_message.cursize);
-
-				if ((c & 7) == dem_multiple)
-					unreadbytes(4, &i);
-
-				unreadbytes(1, &c);
-
-				if (cls.demoplayback == DPB_MVD)
-				{
-					r = 0;
-					unreadbytes(1, &r);
-				}
-				else
-				{
-					demotime = LittleFloat(demotime);
-					unreadbytes(4, &demotime);
-				}
-			}
-			else
-				CL_StopPlayback ();
+		if (readdemobytes (&demopos, net_message.data, msglength) != msglength)
 			return 0;
-		}
+		net_message.cursize = msglength;
 
 		if (cls.demoplayback == DPB_MVD)
 		{
@@ -624,14 +621,18 @@ readit:
 				if (tracknum == -1 || cls_lastto != tracknum)
 					goto readnext;
 				break;
+			case dem_all:
+				if (c & ~dem_mask)
+					goto readnext;
+				break;
 			}
 		}
 		break;
 
 	case dem_set :
-		readdemobytes (&i, 4);
+		readdemobytes (&demopos, &i, 4);
 		cls.netchan.outgoing_sequence = LittleLong(i);
-		readdemobytes (&i, 4);
+		readdemobytes (&demopos, &i, 4);
 		cls.netchan.incoming_sequence = LittleLong(i);
 
 		if (cls.demoplayback == DPB_MVD)
@@ -639,30 +640,8 @@ readit:
 		goto readnext;
 
 	case dem_multiple:
-		if (readdemobytes (&i, sizeof(i)) != sizeof(i))
-		{
-			if (1)//!VFS_GETLEN(cls.demofile))
-			{
-				if ((c & 7) == dem_multiple)
-					unreadbytes(4, &i);
-
-				unreadbytes(1, &c);
-
-				if (cls.demoplayback == DPB_MVD)
-				{
-					r = 0;
-					unreadbytes(1, &r);
-				}
-				else
-				{
-					demotime = LittleFloat(demotime);
-					unreadbytes(4, &demotime);
-				}
-			}
-			else
-				CL_StopPlayback ();
+		if (readdemobytes (&demopos, &i, sizeof(i)) != sizeof(i))
 			return 0;
-		}
 		cls_lastto = LittleLong(i);
 		cls_lasttype = dem_multiple;
 		goto readit;
@@ -687,6 +666,8 @@ readit:
 		CL_StopPlayback ();
 		return 0;
 	}
+
+	demo_flushbytes(demopos);
 
 	return 1;
 }
@@ -1104,7 +1085,8 @@ void CL_Record_f (void)
 			MSG_WriteAngle (&buf, ent->angles[j]);
 		}
 
-		if (buf.cursize > MAX_QWMSGLEN/2) {
+		if (buf.cursize > MAX_QWMSGLEN/2)
+		{
 			CL_WriteRecordDemoMessage (&buf, seq++);
 			SZ_Clear (&buf); 
 		}
@@ -1204,7 +1186,8 @@ void CL_Record_f (void)
 		MSG_WriteByte (&buf, svc_updatestatlong);
 		MSG_WriteByte (&buf, i);
 		MSG_WriteLong (&buf, cl.stats[0][i]);
-		if (buf.cursize > MAX_QWMSGLEN/2) {
+		if (buf.cursize > MAX_QWMSGLEN/2)
+		{
 			CL_WriteRecordDemoMessage (&buf, seq++);
 			SZ_Clear (&buf); 
 		}
@@ -1332,8 +1315,8 @@ void CL_PlayDemo(char *demoname)
 // disconnect from server
 //
 	CL_Disconnect_f ();
-	
-	unreadcount = 0;	//just in case
+
+	demo_flushcache();
 //
 // open the demo file
 //
@@ -1444,7 +1427,7 @@ void CL_QTVPlay (vfsfile_t *newf)
 
 	cls.demofile = newf;
 
-	unreadcount = 0;	//just in case
+	demo_flushcache();	//just in case
 
 	cls.demoplayback = DPB_MVD;
 	cls.findtrack = true;
@@ -1601,7 +1584,7 @@ void CL_QTVPoll (void)
 	{
 		CL_QTVPlay(qtvrequest);
 		qtvrequest = NULL;
-		unreadbytes(qtvrequestsize - (e-qtvrequestbuffer), e);
+		demo_resetcache(qtvrequestsize - (e-qtvrequestbuffer), e);
 		return;
 	}
 

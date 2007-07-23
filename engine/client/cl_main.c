@@ -1454,6 +1454,12 @@ void CL_CheckServerInfo(void)
 		cls.allow_anyparticles = false;
 
 
+	if (cls.demoplayback)
+		cl.fpd = 0;
+	else
+		cl.fpd = atoi(Info_ValueForKey(cl.serverinfo, "fpd"));
+
+
 	s = Info_ValueForKey(cl.serverinfo, "status");
 	oldstate = cl.ktprostate;
 	if (!stricmp(s, "standby"))
@@ -2466,10 +2472,10 @@ void CL_ReadPackets (void)
 			else if (!Netchan_Process(&cls.netchan))
 				continue;		// wasn't accepted for some reason
 
-			if (cls.netchan.incoming_sequence >= cls.netchan.outgoing_sequence)
-			{
-				Con_Printf("Server is in a timewarp (%i packets)\n", cls.netchan.incoming_sequence - cls.netchan.outgoing_sequence+1);
-				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence + 1;
+			if (cls.netchan.incoming_sequence > cls.netchan.outgoing_sequence)
+			{	//server should not be responding to packets we have not sent yet
+				Con_Printf("Server is from the future! (%i packets)\n", cls.netchan.incoming_sequence - cls.netchan.outgoing_sequence);
+				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
 			}
 			CL_ParseServerMessage ();
 			break;

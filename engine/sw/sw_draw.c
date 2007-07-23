@@ -2016,15 +2016,15 @@ Draw_ConsoleBackground
 */
 void SWDraw_ConsoleBackground (int lines)
 {
-	int				x, y, v;
+	int				x, y, v, w, h;
 	qbyte			*src;
 	qbyte *dest;
 	int				f, fstep;
 	mpic_t			*conback;
 	char			ver[100];
-	static			char saveback[320*8];
+//	static			char saveback[320*8];
 
-	if (!scr_con_forcedraw && !scr_conalpha.value)
+	if ((!scr_con_forcedraw && !scr_conalpha.value) || !lines)
 		return;
 
 	conback = (mpic_t *)SWDraw_SafeCachePic ("gfx/conback.lmp");
@@ -2032,7 +2032,7 @@ void SWDraw_ConsoleBackground (int lines)
 		conback = (mpic_t *)SWDraw_SafeCachePic("pics/conback.pcx");
 	if (!conback)
 		conback = (mpic_t *)SWDraw_SafeCachePic ("gfx/menu/conback.lmp");
-	if (!conback)
+	if (!conback || conback->width < 320 || conback->height < 200)
 	{
 		swcachepic_t *cp;
 
@@ -2046,6 +2046,9 @@ void SWDraw_ConsoleBackground (int lines)
 		conback->flags = 0;
 	}
 
+	w = conback->width;
+	h = conback->height;
+
 	if (lines > vid.conheight)
 		lines = vid.conheight;
 
@@ -2054,9 +2057,9 @@ void SWDraw_ConsoleBackground (int lines)
 	//sprintf (ver, "start commands with a \\ character %4.2f", VERSION);
 
 	sprintf (ver, "%i", build_number());
-	dest = conback->data + 320 + 320*186 - 11 - 8*strlen(ver);
+	dest = conback->data + w + w*186 - 11 - 8*strlen(ver);
 
-	memcpy(saveback, conback->data + 320*186, 320*8);
+//	memcpy(saveback, conback->data + w*186, w*8);
 	for (x=0 ; x<strlen(ver) ; x++)
 		SWDraw_CharToConback (ver[x], dest+(x<<3));
 	
@@ -2071,10 +2074,10 @@ void SWDraw_ConsoleBackground (int lines)
 
 			for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
 			{
-				v = (vid.conheight - lines + y)*200/vid.conheight;
-				src = conback->data + v*320;
+				v = (vid.conheight - lines + y)*h/vid.conheight;
+				src = conback->data + v*w;
 				f = 0;
-				fstep = 320*0x10000/vid.conwidth;
+				fstep = w*0x10000/vid.conwidth;
 				for (x=0 ; x<vid.conwidth ; x+=4)
 				{
 					dest[x] = Trans(dest[x], src[f>>16]);
@@ -2093,14 +2096,14 @@ void SWDraw_ConsoleBackground (int lines)
 			for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
 			{
 
-				v = (vid.conheight - lines + y)*200/vid.conheight;
-				src = conback->data + v*320;
-				if (vid.conwidth == 320)
+				v = (vid.conheight - lines + y)*h/vid.conheight;
+				src = conback->data + v*w;
+				if (vid.conwidth == w)
 					memcpy (dest, src, vid.conwidth);
 				else
 				{
 					f = 0;
-					fstep = 320*0x10000/vid.conwidth;
+					fstep = w*0x10000/vid.conwidth;
 					for (x=0 ; x<vid.conwidth ; x+=4)
 					{
 						dest[x] = src[f>>16];
@@ -2124,14 +2127,14 @@ void SWDraw_ConsoleBackground (int lines)
 		for (y=0 ; y<lines ; y++, dest16 += vid.conrowbytes)
 		{
 
-			v = (vid.conheight - lines + y)*200/vid.conheight;
-			src = conback->data + v*320;
-//			if (vid.conwidth == 320)
+			v = (vid.conheight - lines + y)*h/vid.conheight;
+			src = conback->data + v*w;
+//			if (vid.conwidth == w)
 //				memcpy (dest16, src, vid.conwidth);
 //			else
 			{
 				f = 0;
-				fstep = 320*0x10000/vid.conwidth;
+				fstep = w*0x10000/vid.conwidth;
 				for (x=0 ; x<vid.conwidth ; x+=4)
 				{
 					dest16[x] = pal[src[f>>16]];
@@ -2166,16 +2169,16 @@ void SWDraw_ConsoleBackground (int lines)
 			int vf, hf;
 			for (y=0 ; y<lines ; y++, dest += (vid.conrowbytes<<2))
 			{
-				v = (vid.conheight - lines + y)*199/vid.conheight;
-				src = conback->data + v*320;
-				v = (vid.conheight - lines + y)*199/vid.conheight+1;
-				src2 = conback->data + v*320;
+				v = (vid.conheight - lines + y)*(h-1)/vid.conheight;
+				src = conback->data + v*w;
+				v = (vid.conheight - lines + y)*(h-1)/vid.conheight+1;
+				src2 = conback->data + v*w;
 
-				v = (vid.conheight - lines + y)*199/vid.conheight;
-				vf = (((vid.conheight - lines + y)*199.0/vid.conheight) - v) * 255;
+				v = (vid.conheight - lines + y)*(h-1)/vid.conheight;
+				vf = (((vid.conheight - lines + y)*(h-1.0)/vid.conheight) - v) * 255;
 
 				f = 0;
-				fstep = 319*0x10000/vid.conwidth;
+				fstep = (w-1)*0x10000/vid.conwidth;
 				for (x=0 ; x<vid.conwidth ; x+=1)
 				{
 					hf = (f - (f>>16)*65536) / 256;
@@ -2208,11 +2211,11 @@ void SWDraw_ConsoleBackground (int lines)
 		{
 			for (y=0 ; y<lines ; y++, dest += (vid.conrowbytes<<2))
 			{
-				v = (vid.conheight - lines + y)*200/vid.conheight;
-				src = conback->data + v*320;
+				v = (vid.conheight - lines + y)*h/vid.conheight;
+				src = conback->data + v*w;
 
 				f = 0;
-				fstep = 320*0x10000/vid.conwidth;
+				fstep = w*0x10000/vid.conwidth;
 				for (x=0 ; x<vid.conwidth ; x+=1)
 				{
 					dest[(x<<2) + 0] = ((255-alpha)*dest[(x<<2) + 0] + alpha*pal[(src[f>>16]<<2) + 0])/255;
@@ -2227,11 +2230,11 @@ void SWDraw_ConsoleBackground (int lines)
 		{
 			for (y=0 ; y<lines ; y++, p24dest += vid.conrowbytes)
 			{
-				v = (vid.conheight - lines + y)*200/vid.conheight;
-				src = conback->data + v*320;
+				v = (vid.conheight - lines + y)*h/vid.conheight;
+				src = conback->data + v*w;
 
 				f = 0;
-				fstep = 320*0x10000/vid.conwidth;
+				fstep = w*0x10000/vid.conwidth;
 				for (x=0 ; x<vid.conwidth ; x+=4)
 				{
 					p24dest[x] = d_8to32table[src[f>>16]];
@@ -2247,7 +2250,7 @@ void SWDraw_ConsoleBackground (int lines)
 		}
 	}
 	// put it back
-	memcpy(conback->data + 320*186, saveback, 320*8);
+//	memcpy(conback->data + 320*186, saveback, 320*8);
 }
 
 void SWDraw_EditorBackground (int lines)

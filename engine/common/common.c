@@ -1386,7 +1386,7 @@ void *SZ_GetSpace (sizebuf_t *buf, int length)
 		if (length > buf->maxsize)
 			Sys_Error ("SZ_GetSpace: %i is > full buffer size", length);
 
-		Sys_Printf ("SZ_GetSpace: overflow\n");	// because Con_Printf may be redirected
+		Sys_Printf ("SZ_GetSpace: overflow (%i+%i bytes of %i)\n", buf->cursize, length, buf->maxsize);	// because Con_Printf may be redirected
 		SZ_Clear (buf);
 		buf->overflowed = true;
 	}
@@ -1550,11 +1550,11 @@ void COM_FileBase (char *in, char *out, int outlen)
 
 	s = in + strlen(in) - 1;
 
-	while (s != in && *s != '.')
+	while (s > in && *s != '.')
 		s--;
 
 	for (s2 = s ; *s2 && *s2 != '/' ; s2--)
-	;
+		;
 
 	if (in > s2)
 		s2 = in;
@@ -2852,7 +2852,11 @@ void Info_RemoveKey (char *s, const char *key)
 
 		if (!strcmp (key, pkey) )
 		{
-			strcpy (start, s);	// remove this part
+			//strip out the value by copying the next string over the top of this one
+			//(we were using strcpy, but valgrind moaned)
+			while(*s)
+				*start++ = *s++;
+			*start = 0;
 			return;
 		}
 

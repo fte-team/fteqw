@@ -49,120 +49,41 @@ typedef unsigned int PIXEL32;
 #include <X11/keysym.h>
 #include <X11/extensions/XShm.h>
 
+#ifdef __linux__
+	#define WITH_VMODE	//undefine this if the following include fails.
+#endif
+#ifdef WITH_VMODE
+#include <X11/extensions/xf86vmode.h>
+#endif
+
+
 #undef free
 
 #ifdef __CYGWIN__
-XImage *XShmCreateImage(
-#if NeedFunctionPrototypes
-    Display*		dpy,
-    Visual*			visual,
-    unsigned int		depth,
-    int			format,
-    char*			data,
-    XShmSegmentInfo*	shminfo,
-    unsigned int		width,
-    unsigned int		height
+#define NOSHM
 #endif
-)
-{
-	return NULL;
-}
-Status XShmPutImage(
-#if NeedFunctionPrototypes
-    Display*		dpy,
-    Drawable		d,
-    GC			gc,
-    XImage*			image,
-    int			src_x,
-    int			src_y,
-    int			dst_x,
-    int			dst_y,
-    unsigned int		src_width,
-    unsigned int		src_height,
-    Bool			send_event
-#endif
-)
-{
-	return 0;
-}
-Bool XShmQueryExtension(
-#if NeedFunctionPrototypes
-    Display*            dpy
-#endif
-)
-{
-	return false;
-}
 
-int XShmGetEventBase(
-#if NeedFunctionPrototypes
-    Display* 		dpy
-#endif
-)
-{
-	return 0;
-}
-Status XShmAttach(
-#if NeedFunctionPrototypes
-    Display*		dpy,
-    XShmSegmentInfo*	shminfo
-#endif
-)
-{
-	return 0;
-}
-
-Status XShmDetach(
-#if NeedFunctionPrototypes
-    Display*		dpy,
-    XShmSegmentInfo*	shminfo
-#endif
-)
-{
-	return 0;
-}
-
-void *shmat (int shmid, const void *shmaddr, int shmflg)
-{
-	return NULL;
-}
-int   shmctl (int shmid, int cmd, struct shmid_ds *buf)
-{
-	return 0;
-}
-int   shmdt (const void *shmaddr)
-{
-	return 0;
-}
-int   shmget (key_t key, size_t size, int shmflg)
-{
-	return 0;
-}
-#endif
+#define NOSHM
 
 cvar_t		m_filter = {"m_filter","0", NULL, CVAR_ARCHIVE};
 cvar_t  m_accel = {"m_accel", "0"};
 #ifdef IN_XFLIP
 cvar_t	in_xflip = {"in_xflip", "0"};
 #endif
-float old_windowed_mouse;
+static qboolean old_windowed_mouse;
 
-// not used
-int		VGA_width, VGA_height, VGA_rowbytes, VGA_bufferrowbytes, VGA_planar;
-qbyte	*VGA_pagebase;
-
-
-qboolean        mouse_avail;
-qboolean	mouseactive;
-int             mouse_buttons=3;
-int             mouse_oldbuttonstate;
-int             mouse_buttonstate;
+static qboolean        mouse_avail;
+static qboolean	mouseactive;
+static int             mouse_buttons=3;
+static int             mouse_oldbuttonstate;
+static int             mouse_buttonstate;
 float   mouse_x, mouse_y;
-float   old_mouse_x, old_mouse_y;
-int p_mouse_x;
-int p_mouse_y;
-int ignorenext;
-int bits_per_pixel;
+static float   old_mouse_x, old_mouse_y;
+static int p_mouse_x;
+static int p_mouse_y;
+static int ignorenext;
+
+static int focusedapp;
 
 typedef struct
 {
@@ -173,13 +94,6 @@ typedef struct
 viddef_t vid; // global video state
 //unsigned short d_8to16table[256];
 
-int		num_shades=32;
-
-int	d_con_indirect = 0;
-
-int		vid_buffersize;
-
-static qboolean			doShm;
 #ifdef RGLQUAKE
 extern Display			*vid_dpy;
 #else
@@ -192,31 +106,26 @@ static Visual			*x_vis;
 static XVisualInfo		*x_visinfo;
 //static XImage			*x_image;
 
-static int				x_shmeventtype;
-//static XShmSegmentInfo	x_shminfo;
-
 static qboolean			oktodraw = false;
 
+#ifndef NOSHM
+static int				x_shmeventtype;
+static qboolean			doShm;
 int XShmQueryExtension(Display *);
 int XShmGetEventBase(Display *);
-
-int current_framebuffer;
-static XImage			*x_framebuffer[2] = { 0, 0 };
 static XShmSegmentInfo	x_shminfo[2];
+#endif
 
-static int verbose=0;
+static int current_framebuffer;
+static XImage			*x_framebuffer[2] = { 0, 0 };
 
 qbyte vid_curpal[768];
 
 static long X11_highhunkmark;
 static long X11_buffersize;
 
-int vid_surfcachesize;
-void *vid_surfcache;
-
-void (*vid_menudrawfn)(void);
-void (*vid_menukeyfn)(int key);
-void VID_MenuKey (int key);
+static int vid_surfcachesize;
+static void *vid_surfcache;
 
 static PIXEL st2d_8to16table[256];
 static PIXEL32 st3d_8to32table[256];
@@ -290,10 +199,12 @@ void st2_fixup( XImage *framebuf, int x, int y, int width, int height)
 
 	if( (x<0)||(y<0) )return;
 
-	for (yi = y; yi < (y+height); yi++) {
+	for (yi = y; yi < (y+height); yi++)
+	{
 		src = &framebuf->data [yi * framebuf->bytes_per_line];
 		dest = (PIXEL*)src;
-		for(xi = (x+width-1); xi >= x; xi--) {
+		for(xi = (x+width-1); xi >= x; xi--)
+		{
 			dest[xi] = st2d_8to16table[src[xi]];
 		}
 	}
@@ -306,10 +217,12 @@ void st3_fixup( XImage *framebuf, int x, int y, int width, int height)
 	PIXEL32 *dest;
 	if (r_pixbytes == 4)
 		return;
-	for (yi = y; yi < (y+height); yi++) {
+	for (yi = y; yi < (y+height); yi++)
+	{
 		src = &framebuf->data [yi * framebuf->bytes_per_line];
 		dest = (PIXEL32*)src;
-		for (xi = (x+width-1); xi >= x; xi--) {
+		for (xi = (x+width-1); xi >= x; xi--)
+		{
 			dest[xi] = st3d_8to32table[src[xi]];
 		}
 	}
@@ -410,6 +323,7 @@ void ResetFrameBuffer(void)
 
 }
 
+#ifndef NOSHM
 void ResetSharedFrameBuffers(void)
 {
 
@@ -497,6 +411,134 @@ void ResetSharedFrameBuffers(void)
 	}
 
 }
+#endif
+
+int X_TryChangeResolution(int trywidth, int tryheight, int onscreen)
+{
+#ifdef WITH_VMODE
+	int MajorVersion = 0, MinorVersion = 0;
+	int vidmode_ext;
+	int vidmode_usemode;
+
+	if (COM_CheckParm("-novmode") || !XF86VidModeQueryVersion(vid_dpy, &MajorVersion, &MinorVersion))
+	{
+		vidmode_ext = 0;
+	}
+	else
+	{
+		Con_Printf("Using XF86-VidModeExtension Ver. %d.%d\n", MajorVersion, MinorVersion);
+		vidmode_ext = MajorVersion;
+	}
+
+
+	vidmode_usemode = -1;
+	if (vidmode_ext)
+	{
+		int best_fit, best_dist, dist, x, y;
+
+int i;
+int num_vidmodes;
+XF86VidModeModeInfo **vidmodes;
+
+		XF86VidModeGetAllModeLines(vid_dpy, onscreen, &num_vidmodes, &vidmodes);
+		// Are we going fullscreen?  If so, let's change video mode
+		{
+			best_dist = 9999999;
+			best_fit = -1;
+
+			for (i = 0; i < num_vidmodes; i++)
+			{
+				if (trywidth > vidmodes[i]->hdisplay ||
+					tryheight > vidmodes[i]->vdisplay)
+					continue;
+
+				x = trywidth - vidmodes[i]->hdisplay;
+				y = tryheight - vidmodes[i]->vdisplay;
+				dist = (x * x) + (y * y);
+				if (dist < best_dist)
+				{
+					best_dist = dist;
+					best_fit = i;
+				}
+			}
+
+			if (best_fit != -1)// && (!best_dist || COM_CheckParm("-fullscreen")))
+			{
+				vid.width = vidmodes[best_fit]->hdisplay;
+				vid.height = vidmodes[best_fit]->vdisplay;
+
+//				if (best_dist)
+					Con_Printf("Matched res to %ix%i\n", vid.width, vid.height);
+
+				// change to the mode
+				XF86VidModeSwitchToMode(vid_dpy, onscreen, vidmodes[vidmode_usemode=best_fit]);
+//				vidmode_active = true;
+				// Move the viewport to top left
+				XF86VidModeSetViewPort(vid_dpy, onscreen, 0, 0);
+
+				return true;
+
+			}
+		}
+	}
+#endif
+	return false;
+}
+
+void X_StoreIconData(unsigned long *data, unsigned int elems)
+{
+	Atom propname = XInternAtom(vid_dpy, "_NET_WM_ICON", false);
+	Atom proptype = XInternAtom(vid_dpy, "CARDINAL", false);
+
+	XChangeProperty(vid_dpy, x_win, propname, proptype, 32, PropModeReplace, (void*)data, elems);
+}
+
+void X_SetWMHints(void)
+{	//this entire function is to appease wmaker
+	char *fakeappname[] = {"false", NULL};
+	XWMHints wmhints;
+	XClassHint clshint;
+
+	//the classname (the thing that never changes, as opposed to what the app says it is)
+	memset(&clshint, 0, sizeof(clshint));
+	clshint.res_name = "FTEQuakeWorld";
+	clshint.res_class = "FTEQW";
+	XSetClassHint(vid_dpy, x_win, &clshint);
+
+	//the command to restart the app (no idea why wmaker wants this
+	XSetCommand(vid_dpy, x_win, fakeappname, 1);
+
+	memset(&wmhints, 0, sizeof(wmhints));
+	wmhints.flags = InputHint|StateHint|WindowGroupHint;
+	wmhints.input = true;	//give us input!!!
+	wmhints.initial_state = NormalState;
+	wmhints.window_group = x_win;	//this is the only bit that is really required
+	XSetWMHints(vid_dpy, x_win, &wmhints);
+}
+
+#include "bymorphed.h"
+void X_StoreIcon(void)
+{
+	int i;
+	int elems;
+	unsigned long data[64*64+2]; //xlib requires long, even on 64bit
+	unsigned int *indata;
+	indata = (unsigned int*)icon.pixel_data;
+
+	X_SetWMHints();
+
+	memset(data, 0, sizeof(data));
+
+	data[0] = icon.width;
+	data[1] = icon.height;
+	elems = data[0]*data[1]+2;
+
+	for (i = 0; i < data[0]*data[1]; i++)
+	{
+		data[i+2] = indata[i];
+	}
+	X_StoreIconData(data, elems);
+}
 
 // Called at startup to set up translation tables, takes 256 8 bit RGB values
 // the palette data will go away after the call, so it must be copied off if
@@ -525,8 +567,6 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 	r_pixbytes = info->bpp/8;
    
 	srandom(getpid());
-
-	verbose=COM_CheckParm("-verbose");
 
 // open the display
 	if (!vid_dpy)
@@ -600,16 +640,13 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 		}
 	}
 
-	if (verbose)
-	{
-		Con_Printf("Using visualid %d:\n", (int)(x_visinfo->visualid));
-		Con_Printf("	screen %d\n", x_visinfo->screen);
-		Con_Printf("	red_mask 0x%x\n", (int)(x_visinfo->red_mask));
-		Con_Printf("	green_mask 0x%x\n", (int)(x_visinfo->green_mask));
-		Con_Printf("	blue_mask 0x%x\n", (int)(x_visinfo->blue_mask));
-		Con_Printf("	colormap_size %d\n", x_visinfo->colormap_size);
-		Con_Printf("	bits_per_rgb %d\n", x_visinfo->bits_per_rgb);
-	}
+	Con_DPrintf("Using visualid %d:\n", (int)(x_visinfo->visualid));
+	Con_DPrintf("	screen %d\n", x_visinfo->screen);
+	Con_DPrintf("	red_mask 0x%x\n", (int)(x_visinfo->red_mask));
+	Con_DPrintf("	green_mask 0x%x\n", (int)(x_visinfo->green_mask));
+	Con_DPrintf("	blue_mask 0x%x\n", (int)(x_visinfo->blue_mask));
+	Con_DPrintf("	colormap_size %d\n", x_visinfo->colormap_size);
+	Con_DPrintf("	bits_per_rgb %d\n", x_visinfo->bits_per_rgb);
 
 //our rendering works in 8, 16, or 32 bpp.
 //only 8bpp is scaled to the x server's depth.
@@ -639,7 +676,7 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 	   
            attribs.event_mask = StructureNotifyMask | KeyPressMask
 	     | KeyReleaseMask | ExposureMask | PointerMotionMask |
-	     ButtonPressMask | ButtonReleaseMask;
+	     ButtonPressMask | ButtonReleaseMask | FocusChangeMask;
 	   attribs.border_pixel = 0;
 	   attribs.colormap = tmpcmap;
 
@@ -654,13 +691,28 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 			x_vis,
 			attribmask,
 			&attribs );
-		XStoreName( vid_dpy,x_win,"xQuakeWorld");
+		XStoreName( vid_dpy,x_win,"FTE QuakeWorld");
+		XSetIconName(vid_dpy, x_win, "FTEQW");
 
 
 		if (x_visinfo->class != TrueColor)
 			XFreeColormap(vid_dpy, tmpcmap);
 
 	}
+
+	if (info->fullscreen)
+	{
+		Atom val = XInternAtom(vid_dpy, "_NET_WM_STATE_FULLSCREEN", false);
+		if (X_TryChangeResolution(info->width, info->height, x_visinfo->screen))
+		{
+			//kill off borders and everything else
+			XChangeProperty(vid_dpy, x_win, XInternAtom(vid_dpy, "_NET_WM_STATE", false), XInternAtom(vid_dpy, "ATOM", false), 32, PropModeAppend, (void*)&val, 1);
+			//make sure that we do take the full screen, even if the res chosen was a best-fit
+			printf("%ix%i\n", vid.width, vid.height);
+//			XMoveResizeWindow(vid_dpy, x_win, 0, 0, vid.width, vid.height);
+		}
+	}
+	X_StoreIcon();
 
 	if (x_visinfo->depth == 8)
 	{
@@ -741,6 +793,7 @@ Con_Printf("Event %i\n", event.type);
 	}
 // now safe to draw
 
+#ifndef NOSHM
 // even if MITSHM is available, make sure it's a local connection
 	if (XShmQueryExtension(vid_dpy))
 	{
@@ -763,6 +816,7 @@ Con_Printf("Event %i\n", event.type);
 		ResetSharedFrameBuffers();
 	}
 	else
+#endif
 		ResetFrameBuffer();
 
 	current_framebuffer = 0;
@@ -978,6 +1032,7 @@ int config_notify_height;
 						      
 void GetEvent(void)
 {
+	qboolean grabmouse;
 	XEvent x_event;
 	int b;
    
@@ -995,7 +1050,8 @@ void GetEvent(void)
 		break;
 
 	case MotionNotify:
-		if (_windowed_mouse.value) {
+		if (old_windowed_mouse)
+		{
 			mouse_x = (float) ((int)x_event.xmotion.x - (int)(vid.width/2));
 			mouse_y = (float) ((int)x_event.xmotion.y - (int)(vid.height/2));
 //printf("m: x=%d,y=%d, mx=%3.2f,my=%3.2f\n", 
@@ -1012,7 +1068,9 @@ void GetEvent(void)
 				|KeyReleaseMask|ExposureMask
 				|PointerMotionMask|ButtonPressMask
 				|ButtonReleaseMask);
-		} else {
+		}
+		else
+		{
 			mouse_x = (float) (x_event.xmotion.x-p_mouse_x);
 			mouse_y = (float) (x_event.xmotion.y-p_mouse_y);
 			p_mouse_x=x_event.xmotion.x;
@@ -1059,21 +1117,46 @@ void GetEvent(void)
 		config_notify = 1;
 		break;
 
+	case FocusIn:
+		for (b = 0; b < 256; b++)
+			Key_Event(b, false);
+		focusedapp = true;
+		break;
+	case FocusOut:
+		focusedapp = false;
+		break;
+
 	default:
+#ifndef NOSHM
 		if (doShm && x_event.type == x_shmeventtype)
 			oktodraw = true;
+#endif
+		break;
 	}
-   
-	if (old_windowed_mouse != _windowed_mouse.value) {
-		old_windowed_mouse = _windowed_mouse.value;
 
-		if (!_windowed_mouse.value) {
+	grabmouse = _windowed_mouse.value && focusedapp;
+	if (key_dest == key_console)
+		grabmouse = false;
+
+	if (!mouseactive)
+		grabmouse = false;	//nomouse is a misnomer
+   
+	if (old_windowed_mouse != grabmouse)
+	{
+		old_windowed_mouse = grabmouse;
+
+		if (!grabmouse)
+		{
 			/* ungrab the pointer */
 			XUngrabPointer(vid_dpy,CurrentTime);
-		} else {
+		}
+		else
+		{
 			/* grab the pointer */
 			XGrabPointer(vid_dpy,x_win,True,0,GrabModeAsync,
 				GrabModeAsync,x_win,None,CurrentTime);
+			/* make the keyboard follow the mouse too (wmaker doesn't activate us) */
+			XSetInputFocus(vid_dpy, x_win, RevertToPointerRoot, CurrentTime);
 		}
 	}
 }
@@ -1095,9 +1178,11 @@ void	SWVID_Update (vrect_t *rects)
 		vid.height = config_notify_height;
 		if (ow != vid.width || oh != vid.height)	//did the size actually change?
 		{	//yes
+#ifndef NOSHM
 			if (doShm)
 				ResetSharedFrameBuffers();
 			else
+#endif
 				ResetFrameBuffer();
 			vid.rowbytes = x_framebuffer[0]->bytes_per_line/r_pixbytes;
 			vid.buffer = x_framebuffer[current_framebuffer]->data;
@@ -1111,7 +1196,7 @@ void	SWVID_Update (vrect_t *rects)
 			return;
 		}
 	}
-
+#ifndef NOSHM
 	if (doShm)
 	{
 
@@ -1139,6 +1224,7 @@ void	SWVID_Update (vrect_t *rects)
 		XSync(vid_dpy, False);
 	}
 	else
+#endif
 	{
 		while (rects)
 		{
@@ -1265,7 +1351,8 @@ void IN_Init (void)
 
 void IN_Shutdown (void)
 {
-   mouseactive = mouse_avail = 0;
+	mouseactive = mouse_avail = 0;
+	focusedapp = false;
 }
 
 void IN_Commands (void)
@@ -1274,7 +1361,8 @@ void IN_Commands (void)
    
 	if (!mouse_avail) return;
    
-	for (i=0 ; i<mouse_buttons ; i++) {
+	for (i=0 ; i<mouse_buttons ; i++)
+	{
 		if ( (mouse_buttonstate & (1<<i)) && !(mouse_oldbuttonstate & (1<<i)) )
 			Key_Event (K_MOUSE1 + i, true);
 
@@ -1322,11 +1410,14 @@ void IN_Move (usercmd_t *cmd, int pnum)
 	old_mouse_x = mx;
 	old_mouse_y = my;
    
-	if (m_accel.value) {
+	if (m_accel.value)
+	{
 		mouse_deltadist = sqrt(mx*mx + my*my);
 		mouse_x *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
 		mouse_y *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
-	} else {
+	}
+	else
+	{
 		mouse_x *= sensitivity.value*in_sensitivityscale;
 		mouse_y *= sensitivity.value*in_sensitivityscale;
 	}
@@ -1342,10 +1433,13 @@ void IN_Move (usercmd_t *cmd, int pnum)
 	if (in_mlook.state[pnum] & 1)
 		V_StopPitchDrift (pnum);
    
-	if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1)) {
+	if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
+	{
 		cl.viewangles[pnum][PITCH] += m_pitch.value * mouse_y;
 		CL_ClampPitch(pnum);
-	} else {
+	}
+	else
+	{
 		if (cmd)
 		{
 			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)

@@ -1439,13 +1439,13 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 					return 0;
 				}	
 			}
-			vci->bottomcolour = cl.players[i].bottomcolor;
+			vci->bottomcolour = cl.players[i].rbottomcolor;
 			vci->frags = cl.players[i].frags;
 			Q_strncpyz(vci->name, cl.players[i].name, UIMAX_SCOREBOARDNAME);
 			vci->ping = cl.players[i].ping;
 			vci->pl = cl.players[i].pl;
 			vci->starttime = cl.players[i].entertime;
-			vci->topcolour = cl.players[i].topcolor;
+			vci->topcolour = cl.players[i].rtopcolor;
 			vci->userid = cl.players[i].userid;
 			Q_strncpyz(vci->userinfo, cl.players[i].userinfo, sizeof(vci->userinfo));
 		}

@@ -17,6 +17,7 @@ cvar_t r_dodgypcxfiles = SCVAR("r_dodgypcxfiles", "0");	//Quake 2's PCX loading 
 													//and some Q2 mods include PCX files
 													//that only work with this assumption
 
+#define GLOBAL(x) x
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -873,6 +874,8 @@ term_source (j_decompress_ptr cinfo)
 {
 }
 
+
+#define GLOBAL(x) x
 
 GLOBAL(void)
 jpeg_mem_src (j_decompress_ptr cinfo, qbyte * infile, int maxlen)

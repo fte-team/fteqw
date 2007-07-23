@@ -2445,19 +2445,19 @@ void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_
 
 		eyes = state->modelindex && cl.model_precache[state->modelindex] && !strcmp(cl.model_precache[state->modelindex]->name, "progs/eyes.mdl");
 
-        if (state->effects & (EF_BLUE | EF_RED) || eyes)
+		if (state->effects & (EF_BLUE | EF_RED) || eyes)
 		{
-            vars.enemy_powerups = 0;
-            vars.enemy_powerups_time = realtime;
+			vars.enemy_powerups = 0;
+			vars.enemy_powerups_time = realtime;
 
-            if (state->effects & EF_BLUE)
-                vars.enemy_powerups |= TP_QUAD;
-            if (state->effects & EF_RED)
-                vars.enemy_powerups |= TP_PENT;
-            if (eyes)
-                vars.enemy_powerups |= TP_RING;
-        }
-    }
+			if (state->effects & EF_BLUE)
+			vars.enemy_powerups |= TP_QUAD;
+			if (state->effects & EF_RED)
+				vars.enemy_powerups |= TP_PENT;
+			if (eyes)
+				vars.enemy_powerups |= TP_RING;
+		}
+	}
 	if (!cl.spectator && !cl.teamfortress && info - cl.players == cl.playernum[SP])
 	{
 		if ((state->effects & (QWEF_FLAG1|QWEF_FLAG2)) && !(oldstate->effects & (QWEF_FLAG1|QWEF_FLAG2)))
@@ -2505,9 +2505,11 @@ more:
 		if (FindNearestItem (it_weapons, &item)) {
 			ExecTookTrigger (item->cvar->string, item->itemflag, org);
 		}
-		else {
+		else
+		{
 			// we don't know what entity caused the sound, try to guess...
-			if (vars.stat_framecounts[STAT_ITEMS] == cls.framecount) {
+			if (vars.stat_framecounts[STAT_ITEMS] == cls.framecount)
+			{
 				if (vars.items & ~vars.olditems & IT_LIGHTNING)
 					ExecTookTrigger (tp_name_lg.string, it_lg, cl.simorg[SP]);
 				else if (vars.items & ~vars.olditems & IT_ROCKET_LAUNCHER)
@@ -2526,7 +2528,8 @@ more:
 	}
 
 	// armor
-	if (!strcmp(s, "items/armor1.wav"))	{
+	if (!strcmp(s, "items/armor1.wav"))
+	{
 		item_t	*item;
 		qbool armor_updated;
 		int armortype;
@@ -2552,7 +2555,8 @@ more:
 	}
 }
 
-static qboolean TP_IsItemVisible(item_vis_t *visitem) {
+static qboolean TP_IsItemVisible(item_vis_t *visitem)
+{
 	vec3_t end, v;
 	trace_t trace;
 
@@ -2602,7 +2606,8 @@ static qboolean TP_IsItemVisible(item_vis_t *visitem) {
 	return false;
 }
 
-static float TP_RankPoint(item_vis_t *visitem) {
+static float TP_RankPoint(item_vis_t *visitem)
+{
 	vec3_t v2, v3;
 	float miss;
 
@@ -2620,41 +2625,50 @@ static float TP_RankPoint(item_vis_t *visitem) {
 	return (visitem->dist < 3000.0 / 8.0) ? miss * (visitem->dist * 8.0 * 0.0002f + 0.3f) : miss;
 }
 
-static char *Utils_TF_ColorToTeam_Failsafe(int color) {
+static char *Utils_TF_ColorToTeam_Failsafe(int color)
+{
 	int i, j, teamcounts[8], numteamsseen = 0, best = -1;
 	char *teams[MAX_CLIENTS];
 
 	memset(teams, 0, sizeof(teams));
 	memset(teamcounts, 0, sizeof(teamcounts));
 
-	for (i = 0; i < MAX_CLIENTS; i++) {
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
 		if (!cl.players[i].name[0] || cl.players[i].spectator)
 			continue;
-		if (cl.players[i].bottomcolor != color)
+		if (cl.players[i].rbottomcolor != color)
 			continue;
-		for (j = 0; j < numteamsseen; j++) {
+		for (j = 0; j < numteamsseen; j++)
+		{
 			if (!strcmp(cl.players[i].team, teams[j]))
 				break;
 		}
-		if (j == numteamsseen) {
+		if (j == numteamsseen)
+		{
 			teams[numteamsseen] = cl.players[i].team;
 			teamcounts[numteamsseen] = 1;
 			numteamsseen++;
-		} else {
+		}
+		else
+		{
 			teamcounts[j]++;
 		}
 	}
-	for (i = 0; i < numteamsseen; i++) {
+	for (i = 0; i < numteamsseen; i++)
+	{
 		if (best == -1 || teamcounts[i] > teamcounts[best])
 			best = i;
 	}
 	return (best == -1) ? "" : teams[best];
 }
 
-char *Utils_TF_ColorToTeam(int color) {
+char *Utils_TF_ColorToTeam(int color)
+{
 	char *s;
 
-	switch (color) {
+	switch (color)
+	{
 		case 13:
 			if (*(s = Info_ValueForKey(cl.serverinfo, "team1")) || *(s = Info_ValueForKey(cl.serverinfo, "t1")))
 				return s;
@@ -2678,7 +2692,8 @@ char *Utils_TF_ColorToTeam(int color) {
 }
 
 
-static void TP_FindPoint (void) {
+static void TP_FindPoint (void)
+{
 	packet_entities_t *pak;
 	entity_state_t *ent;
 	int	i, j, pointflags_dmm;
@@ -2703,7 +2718,8 @@ static void TP_FindPoint (void) {
 	visitem.vieworg[2] += 22 + (v_viewheight.value ? bound (-7, v_viewheight.value, 4) : 0);
 
 	pointflags_dmm = pointflags;
-	if (!cl.teamfortress && cl.deathmatch >= 1 && cl.deathmatch <= 4) {
+	if (!cl.teamfortress && cl.deathmatch >= 1 && cl.deathmatch <= 4)
+	{
 		if (cl.deathmatch == 4)
 			pointflags_dmm &= ~it_ammo;
 		if (cl.deathmatch != 1)
@@ -2711,13 +2727,16 @@ static void TP_FindPoint (void) {
 	}
 
 	pak = &cl.frames[cl.validsequence & UPDATE_MASK].packet_entities;
-	for (i = 0,ent = pak->entities; i < pak->num_entities; i++, ent++) {
+	for (i = 0,ent = pak->entities; i < pak->num_entities; i++, ent++)
+	{
 		item = model2item[ent->modelindex];
 		if (!item || !(item->itemflag & pointflags_dmm))
 			continue;
 		// special check for armors
-		if (item->itemflag == (it_ra|it_ya|it_ga)) {
-			switch (ent->skinnum) {
+		if (item->itemflag == (it_ra|it_ya|it_ga))
+		{
+			switch (ent->skinnum)
+			{
 				case 0: if (!(pointflags_dmm & it_ga)) continue;
 				case 1: if (!(pointflags_dmm & it_ya)) continue;
 				default: if (!(pointflags_dmm & it_ra)) continue;
@@ -2733,7 +2752,8 @@ static void TP_FindPoint (void) {
 			continue;
 
 		// check if we can actually see the object
-		if ((rank < best || best < 0) && TP_IsItemVisible(&visitem)) {
+		if ((rank < best || best < 0) && TP_IsItemVisible(&visitem))
+		{
 			best = rank;
 			bestent = ent;
 			bestitem = item;
@@ -2742,7 +2762,8 @@ static void TP_FindPoint (void) {
 
 	state = cl.frames[cl.parsecount & UPDATE_MASK].playerstate;
 	info = cl.players;
-	for (j = 0; j < MAX_CLIENTS; j++, info++, state++) {			
+	for (j = 0; j < MAX_CLIENTS; j++, info++, state++)
+	{
 		if (state->messagenum != cl.parsecount || j == cl.playernum[0] || info->spectator)
 			continue;
 
@@ -2762,7 +2783,8 @@ static void TP_FindPoint (void) {
 			continue;
 
 		// check if we can actually see the object
-		if ((rank < best || best < 0) && TP_IsItemVisible(&visitem)) {
+		if ((rank < best || best < 0) && TP_IsItemVisible(&visitem))
+		{
 			qboolean teammate, eyes = false;
 
 			eyes = state->modelindex && cl.model_precache[state->modelindex] && !strcmp(cl.model_precache[state->modelindex]->name, "progs/eyes.mdl");
@@ -2781,13 +2803,15 @@ static void TP_FindPoint (void) {
 		}
 	}
 
-	if (best >= 0 && bestinfo) {
+	if (best >= 0 && bestinfo)
+	{
 		qboolean teammate, eyes;
 		char *name, buf[256] = {0};
 
 		eyes = beststate->modelindex && cl.model_precache[beststate->modelindex] && !strcmp(cl.model_precache[beststate->modelindex]->name, "progs/eyes.mdl");
-		if (cl.teamfortress) {
-			teammate = !strcmp(Utils_TF_ColorToTeam(bestinfo->bottomcolor), TP_PlayerTeam());
+		if (cl.teamfortress)
+		{
+			teammate = !strcmp(Utils_TF_ColorToTeam(bestinfo->rbottomcolor), TP_PlayerTeam());
 
 			if (eyes)
 				name = tp_name_eyes.string;		//duck on 2night2
@@ -2800,7 +2824,9 @@ static void TP_FindPoint (void) {
 
 			if (!eyes)
 				name = va("%s%s%s", name, name[0] ? " " : "", Skin_To_TFSkin(Info_ValueForKey(bestinfo->userinfo, "skin")));
-		} else {
+		}
+		else
+		{
 			teammate = !!(cl.teamplay && !strcmp(bestinfo->team, TP_PlayerTeam()));
 
 			if (eyes)
@@ -2819,17 +2845,23 @@ static void TP_FindPoint (void) {
 		Q_strncpyz (vars.pointloc, TP_LocationName (beststate->origin), sizeof(vars.pointloc));
 
 		vars.pointtype = (teammate && !eyes) ? POINT_TYPE_TEAMMATE : POINT_TYPE_ENEMY;
-	} else if (best >= 0) {
+	}
+	else if (best >= 0)
+	{
 		char *p;
 
-		if (!bestitem->cvar) {
+		if (!bestitem->cvar)
+		{
 			// armors are special
-			switch (bestent->skinnum) {
+			switch (bestent->skinnum)
+			{
 				case 0: p = tp_name_ga.string; break;
 				case 1: p = tp_name_ya.string; break;
 				default: p = tp_name_ra.string;
 			}
-		} else {
+		}
+		else
+		{
 			p = bestitem->cvar->string;
 		}
 
@@ -2837,7 +2869,8 @@ static void TP_FindPoint (void) {
 		Q_strncpyz (vars.pointname, p, sizeof(vars.pointname));
 		Q_strncpyz (vars.pointloc, TP_LocationName (bestent->origin), sizeof(vars.pointloc));
 	}
-	else {
+	else
+	{
 nothing:
 		Q_strncpyz (vars.pointname, tp_name_nothing.string, sizeof(vars.pointname));
 		vars.pointloc[0] = 0;

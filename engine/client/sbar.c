@@ -23,6 +23,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t hud_tracking_show;
 
+cvar_t scr_scoreboard_drawtitle = SCVAR("scr_scoreboard_drawtitle", "1");
+cvar_t scr_scoreboard_showfrags = SCVAR("scr_scoreboard_showfrags", "0");
+cvar_t scr_scoreboard_titleseperator = SCVAR("scr_scoreboard_titleseperator", "1");
+cvar_t scr_scoreboard_forcecolors = SCVAR("scr_scoreboard_forcecolors", "0");	//damn americans
+
 //===========================================
 //rogue changed and added defines
 
@@ -107,6 +112,31 @@ void Sbar_DeathmatchOverlay (int start);
 void Sbar_TeamOverlay (void);
 void Sbar_MiniDeathmatchOverlay (void);
 void Sbar_ChatModeOverlay(void);
+
+int Sbar_PlayerNum(void)
+{
+	int num;
+	num = cl.spectator?Cam_TrackNum(0):-1;
+	if (num < 0)
+		num = cl.playernum;
+	return num;
+}
+
+int Sbar_TopColour(player_info_t *p)
+{
+	if (scr_scoreboard_forcecolors.value)
+		return p->ttopcolor;
+	else
+		return p->rtopcolor;
+}
+
+int Sbar_BottomColour(player_info_t *p)
+{
+	if (scr_scoreboard_forcecolors.value)
+		return p->tbottomcolor;
+	else
+		return p->rbottomcolor;
+}
 
 void Draw_FunString(int x, int y, unsigned char *str)
 {
@@ -954,6 +984,11 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 
 void Sbar_Init (void)
 {
+	Cvar_Register(&scr_scoreboard_drawtitle, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_showfrags, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_titleseperator, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_forcecolors, "Scoreboard settings");
+
 	Cmd_AddCommand ("+showscores", Sbar_ShowScores);
 	Cmd_AddCommand ("-showscores", Sbar_DontShowScores);
 
@@ -1115,8 +1150,6 @@ void Sbar_DrawNum (int x, int y, int num, int digits, int color)
 
 //=============================================================================
 
-//ZOID: this should be MAX_CLIENTS, not MAX_SCOREBOARD!!
-//int		fragsort[MAX_SCOREBOARD];
 int		fragsort[MAX_CLIENTS];
 int		scoreboardlines;
 typedef struct {
@@ -1124,6 +1157,8 @@ typedef struct {
 	int frags;
 	int players;
 	int plow, phigh, ptotal;
+	int topcolour, bottomcolour;
+	qboolean ownteam;
 } team_t;
 team_t teams[MAX_CLIENTS];
 int teamsort[MAX_CLIENTS];
@@ -1167,6 +1202,7 @@ void Sbar_SortTeams (void)
 	int				i, j, k;
 	player_info_t	*s;
 	char t[16+1];
+	int ownnum;
 
 // request new ping times every two second
 	scoreboardteams = 0;
@@ -1179,36 +1215,49 @@ void Sbar_SortTeams (void)
 	for (i = 0; i < MAX_CLIENTS; i++)
 		teams[i].plow = 999;
 
-	for (i = 0; i < MAX_CLIENTS; i++) {
+	ownnum = Sbar_PlayerNum();
+
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
 		s = &cl.players[i];
-		if (!s->name[0])
-			continue;
-		if (s->spectator)
+		if (!s->name[0] || s->spectator)
 			continue;
 
 		// find his team in the list
-		t[16] = 0;
 		Q_strncpyz(t, s->team, sizeof(t));
 		if (!t[0])
 			continue; // not on team
 		for (j = 0; j < scoreboardteams; j++)
-			if (!strcmp(teams[j].team, t)) {
-				teams[j].frags += s->frags;
-				teams[j].players++;
-				goto addpinginfo;
+			if (!strcmp(teams[j].team, t))
+			{
+				break;
 			}
-		if (j == scoreboardteams) { // must add him
-			j = scoreboardteams++;
-			strcpy(teams[j].team, t);
-			teams[j].frags = s->frags;
-			teams[j].players = 1;
-addpinginfo:
-			if (teams[j].plow > s->ping)
-				teams[j].plow = s->ping;
-			if (teams[j].phigh < s->ping)
-				teams[j].phigh = s->ping;
-			teams[j].ptotal += s->ping;
+
+		/*if (cl.teamfortress)
+		{
+			teams[j].topcolour = teams[j].bottomcolour = TF_TeamToColour(t);
 		}
+		else*/ if (j == scoreboardteams || i == ownnum)
+		{
+			teams[j].topcolour = Sbar_TopColour(s);
+			teams[j].bottomcolour = Sbar_BottomColour(s);
+		}
+
+		if (j == scoreboardteams)
+		{ // create a team for this player
+			scoreboardteams++;
+			strcpy(teams[j].team, t);
+		}
+
+		teams[j].frags += s->frags;
+		teams[j].players++;
+
+		if (teams[j].plow > s->ping)
+			teams[j].plow = s->ping;
+		if (teams[j].phigh < s->ping)
+			teams[j].phigh = s->ping;
+		teams[j].ptotal += s->ping;
+		
 	}
 
 	// sort
@@ -1218,7 +1267,8 @@ addpinginfo:
 	// good 'ol bubble sort
 	for (i = 0; i < scoreboardteams - 1; i++)
 		for (j = i + 1; j < scoreboardteams; j++)
-			if (teams[teamsort[i]].frags < teams[teamsort[j]].frags) {
+			if (teams[teamsort[i]].frags < teams[teamsort[j]].frags)
+			{
 				k = teamsort[i];
 				teamsort[i] = teamsort[j];
 				teamsort[j] = k;
@@ -1468,10 +1518,13 @@ void Sbar_DrawFrags (void)
 	int				i, k, l;
 	int				top, bottom;
 	int				x, y, f;
+	int				ownnum;
 	char			num[12];
 	player_info_t	*s;
 
 	Sbar_SortFrags (false);
+
+	ownnum = Sbar_PlayerNum();
 
 // draw the text
 	l = scoreboardlines <= 4 ? scoreboardlines : 4;
@@ -1490,8 +1543,8 @@ void Sbar_DrawFrags (void)
 			continue;
 
 	// draw background
-		top = s->topcolor;
-		bottom = s->bottomcolor;
+		top = Sbar_TopColour(s);
+		bottom = Sbar_BottomColour(s);
 		top = (top < 0) ? 0 : ((top > 13) ? 13 : top);
 		bottom = (bottom < 0) ? 0 : ((bottom > 13) ? 13 : bottom);
 
@@ -1511,7 +1564,7 @@ void Sbar_DrawFrags (void)
 		Sbar_DrawCharacter ( (x+2)*8 , -24, num[1]);
 		Sbar_DrawCharacter ( (x+3)*8 , -24, num[2]);
 
-		if (k == cl.playernum[0])
+		if (k == ownnum)
 		{
 			Sbar_DrawCharacter (x*8+2, -24, 16);
 			Sbar_DrawCharacter ( (x+4)*8-4, -24, 17);
@@ -1942,11 +1995,16 @@ void Sbar_TeamOverlay (void)
 	scr_copyeverything = 1;
 	scr_fullupdate = 0;
 
-	pic = Draw_SafeCachePic ("gfx/ranking.lmp");
-	if (pic)
-		Draw_Pic ((vid.width-pic->width)/2, 0, pic);
+	y = 0;
 
-	y = 24;
+	if (scr_scoreboard_drawtitle.value)
+	{
+		pic = Draw_SafeCachePic ("gfx/ranking.lmp");
+		if (pic)
+			Draw_Pic ((vid.width-pic->width)/2, 0, pic);
+		y += 24;
+	}
+
 	x = (vid.width - 320)/2 + 36;
 	Draw_String(x, y, "low/avg/high team total players");
 	y += 8;
@@ -2012,6 +2070,83 @@ Sbar_DeathmatchOverlay
 ping time frags name
 ==================
 */
+
+//for reference:
+//define COLUMN(title, width, code)
+
+#define COLUMN_PING COLUMN(ping, 4*8,	\
+{					\
+	int p = s->ping;		\
+	if (p < 0 || p > 999) p = 999;	\
+	sprintf(num, "%4i", p);		\
+	Draw_FunString(x, y, num);	\
+})
+
+#define COLUMN_PL COLUMN(pl, 2*8,	\
+{					\
+	int p = s->pl;			\
+	sprintf(num, "%3i", p);		\
+	Draw_FunString(x, y, num);	\
+})
+#define COLUMN_TIME COLUMN(time, 4*8,				\
+{								\
+	if (cl.intermission)					\
+		total = cl.completed_time - s->entertime;	\
+	else							\
+		total = cl.servertime - s->entertime;		\
+	minutes = (int)total/60;				\
+	sprintf (num, "%4i", minutes);				\
+	Draw_String ( x , y, num);				\
+})
+#define COLUMN_FRAGS COLUMN(frags, 5*8,			\
+{							\
+	top = Sbar_TopColour(s);			\
+	bottom = Sbar_BottomColour(s);			\
+	top = Sbar_ColorForMap (top);			\
+	bottom = Sbar_ColorForMap (bottom);		\
+							\
+	if (largegame)					\
+		Draw_Fill ( x, y+1, 40, 3, top);	\
+	else						\
+		Draw_Fill ( x, y, 40, 4, top);		\
+	Draw_Fill ( x, y+4, 40, 4, bottom);		\
+							\
+	f = s->frags;					\
+	sprintf (num, "%3i",f);				\
+							\
+	Draw_Character ( x+8 , y, num[0]);		\
+	Draw_Character ( x+16 , y, num[1]);		\
+	Draw_Character ( x+24 , y, num[2]);		\
+							\
+	if ((cl.spectator && k == spec_track[0]) ||	\
+		(!cl.spectator && k == cl.playernum[0]))	\
+	{						\
+		Draw_Character ( x, y, 16);		\
+		Draw_Character ( x + 32, y, 17);	\
+	}						\
+})
+#define COLUMN_TEAMNAME COLUMN(team, 4*8, {Draw_FunStringLen(x, y, s->team, 4);})
+#define COLUMN_NAME COLUMN(name, 16*8,	{Draw_FunString(x, y, s->name);})
+#define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetKills(k)));})
+#define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetTKills(k)));})
+#define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetDeaths(k)));})
+#define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetTouches(k)));})
+#define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetCaptures(k)));})
+
+
+
+//columns are listed here in display order
+#define ALLCOLUMNS COLUMN_PING COLUMN_PL COLUMN_TIME COLUMN_FRAGS COLUMN_TEAMNAME COLUMN_NAME COLUMN_KILLS COLUMN_TKILLS COLUMN_DEATHS COLUMN_TOUCHES COLUMN_CAPS
+
+enum
+{
+#define COLUMN(title, width, code) COLUMN##title,
+	ALLCOLUMNS
+#undef COLUMN
+	COLUMN_MAX
+};
+
+#define ADDCOLUMN(id) showcolumns |= (1<<id)
 void Sbar_DeathmatchOverlay (int start)
 {
 	mpic_t			*pic;
@@ -2024,6 +2159,8 @@ void Sbar_DeathmatchOverlay (int start)
 	int				minutes;
 	int				p;
 	int				skip = 10;
+	int showcolumns;
+	int startx;
 
 	if (largegame)
 		skip = 8;
@@ -2038,11 +2175,18 @@ void Sbar_DeathmatchOverlay (int start)
 	scr_copyeverything = 1;
 	scr_fullupdate = 0;
 
-	if (!start)
+	if (start)
+		y = start;
+	else
 	{
-		pic = Draw_SafeCachePic ("gfx/ranking.lmp");
-		if (pic)
-			Draw_Pic ((vid.width - 320)/2 + 160-pic->width/2, 0, pic);
+		y = 0;
+		if (scr_scoreboard_drawtitle.value)
+		{
+			pic = Draw_SafeCachePic ("gfx/ranking.lmp");
+			if (pic)
+				Draw_Pic ((vid.width - 320)/2 + 160-pic->width/2, 0, pic);
+			y += 24;
+		}
 	}
 
 // scores
@@ -2055,6 +2199,78 @@ void Sbar_DeathmatchOverlay (int start)
 		y = start;
 	else
 		y = 24;
+
+	showcolumns = 0;
+
+//we use startx here as the total width
+	startx = 0;
+
+#define COLUMN(title, cwidth, code) if (startx+(cwidth)+8 <= vid.width) {showcolumns |= (1<<COLUMN##title); startx += cwidth+8;}
+//columns are listed here in priority order (if the screen is too narrow, later ones will be hidden)
+	COLUMN_NAME
+	COLUMN_PING
+	COLUMN_PL
+	COLUMN_TIME
+	COLUMN_FRAGS
+	if (cl.teamplay)
+	{
+		COLUMN_TEAMNAME
+	}
+	if (cl.teamplay && Stats_HaveFlags())
+	{
+		COLUMN_CAPS
+	}
+	if (scr_scoreboard_showfrags.value && Stats_HaveKills())
+	{
+		COLUMN_KILLS
+		COLUMN_DEATHS
+		if (cl.teamplay)
+		{
+			COLUMN_TKILLS
+		}
+	}
+	if (cl.teamplay && Stats_HaveFlags())
+	{
+		COLUMN_TOUCHES
+	}
+#undef COLUMN
+
+	startx = (vid.width-startx)/2;
+
+	x = startx;
+#define COLUMN(title, width, code) if (showcolumns & (1<<COLUMN##title)) {Draw_FunString(x, y, #title); x += width+8;}
+	ALLCOLUMNS
+#undef COLUMN
+	y += 8;
+
+	if (scr_scoreboard_titleseperator.value)
+	{
+		x = startx;
+#define COLUMN(title, width, code) if (showcolumns & (1<<COLUMN##title)) {Draw_String(x, y, "\x1d"); for (i = 8; i < width-8; i+= 8) Draw_String(x+i, y, "\x1e"); Draw_String(x+i, y, "\x1f"); x += width+8;}
+		ALLCOLUMNS
+#undef COLUMN
+		y += 8;
+	}
+
+	y -= skip;
+	for (i = 0; i < scoreboardlines; i++)
+	{
+		k = fragsort[i];
+		s = &cl.players[k];
+		if (!s->name[0])
+			continue;
+
+		y += skip;
+		if (y > vid.height-10)
+			break;
+
+		x = startx;
+#define COLUMN(title, width, code) if (showcolumns & (1<<COLUMN##title)) {code   x += width+8;}
+		ALLCOLUMNS
+#undef COLUMN
+	}
+
+/*
 	if (cl.teamplay)
 	{
 		if (scr_chatmode)
@@ -2165,7 +2381,7 @@ void Sbar_DeathmatchOverlay (int start)
 
 		y += skip;
 	}
-
+*/
 	Draw_Character(0,0,' ' | CON_WHITEMASK);
 
 	if (y >= vid.height-10) // we ran over the screen size, squish
@@ -2228,8 +2444,8 @@ void Sbar_ChatModeOverlay(void)
 			continue;
 
 		// draw background
-		top = s->topcolor;
-		bottom = s->bottomcolor;
+		top = Sbar_TopColour(s);
+		bottom = Sbar_BottomColour(s);
 		top = Sbar_ColorForMap (top);
 		bottom = Sbar_ColorForMap (bottom);
 
@@ -2338,8 +2554,8 @@ void Sbar_MiniDeathmatchOverlay (void)
 			continue;
 
 	// draw ping
-		top = s->topcolor;
-		bottom = s->bottomcolor;
+		top = Sbar_TopColour(s);
+		bottom = Sbar_BottomColour(s);
 		top = Sbar_ColorForMap (top);
 		bottom = Sbar_ColorForMap (bottom);
 

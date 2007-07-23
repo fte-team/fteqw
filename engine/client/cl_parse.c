@@ -2390,8 +2390,8 @@ void CLQ2_ParseClientinfo(int i, char *s)
 	Info_SetValueForKey(player->userinfo, "name", name, MAX_INFO_STRING);
 
 	cl.players[i].userid = i;
-	cl.players[i].bottomcolor = 1;
-	cl.players[i].topcolor = 1;
+	cl.players[i].rbottomcolor = 1;
+	cl.players[i].rtopcolor = 1;
 	CL_ProcessUserInfo (i, player);
 }
 
@@ -2915,12 +2915,8 @@ CL_NewTranslation
 */
 void CL_NewTranslation (int slot)
 {
-#ifdef SWQUAKE
-	//int		i, j; //unreferenced
 	int		top, bottom;
-	//qbyte	*dest, *source; //unreferenced
 		int local;
-#endif
 
 	char *s;
 	player_info_t	*player;
@@ -2936,58 +2932,56 @@ void CL_NewTranslation (int slot)
 		player->skin = NULL;
 
 
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{	//gl doesn't need to do anything except prevent the sys_error below.
-		return;
+
+	top = player->rtopcolor;
+	bottom = player->rbottomcolor;
+	if (cl.splitclients < 2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
+	{
+		if (cl.teamplay && cl.spectator)
+		{
+			local = Cam_TrackNum(0);
+			if (local < 0)
+				local = cl.playernum[0];
+		}
+		else
+			local = cl.playernum[0];
+		if (cl.teamplay && !strcmp(player->team, cl.players[local].team))
+		{
+			if (cl_teamtopcolor>=0)
+				top = cl_teamtopcolor;
+			if (cl_teambottomcolor>=0)
+				bottom = cl_teambottomcolor;
+		}
+		else
+		{
+			if (cl_enemytopcolor>=0)
+				top = cl_enemytopcolor;
+			if (cl_enemybottomcolor>=0)
+				bottom = cl_enemybottomcolor;
+		}
 	}
-#endif
+
+	if (top > 13 || top < 0)
+		top = 13;
+	if (bottom > 13 || bottom < 0)
+		bottom = 13;
+
 #ifdef SWQUAKE
 	if (qrenderer == QR_SOFTWARE)
 	{
-		top = player->topcolor;
-		bottom = player->bottomcolor;
-		if (!cl.splitclients && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
+		if (player->ttopcolor != top || player->tbottomcolor != bottom || !player->skin)
 		{
-			if (cl.teamplay && cl.spectator)
-			{
-				local = Cam_TrackNum(0);
-				if (local < 0)
-					local = cl.playernum[0];
-			}
-			else
-				local = cl.playernum[0];
-			if (cl.teamplay && !strcmp(player->team, cl.players[local].team))
-			{
-				if (cl_teamtopcolor>=0)
-					top = cl_teamtopcolor;
-				if (cl_teambottomcolor>=0)
-					bottom = cl_teambottomcolor;
-			}
-			else
-			{
-				if (cl_enemytopcolor>=0)
-					top = cl_enemytopcolor;
-				if (cl_enemybottomcolor>=0)
-					bottom = cl_enemybottomcolor;
-			}
-		}
-
-		if (top > 13 || top < 0)
-			top = 13;
-		if (bottom > 13 || bottom < 0)
-			bottom = 13;
-
-		if (player->_topcolor != top ||
-			player->_bottomcolor != bottom || !player->skin) {
-			player->_topcolor = top;
-			player->_bottomcolor = bottom;
+			player->ttopcolor = top;
+			player->tbottomcolor = bottom;
 			D_DereferenceRemap(player->palremap);
 			player->palremap = D_GetPaletteRemap(255, 255, 255, false, true, top, bottom);
 		}
 		return;
 	}
 #endif
+	//other renderers still need the team stuff set, but that's all
+	player->ttopcolor = top;
+	player->tbottomcolor = bottom;
 }
 
 /*
@@ -2999,8 +2993,8 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 {
 	Q_strncpyz (player->name, Info_ValueForKey (player->userinfo, "name"), sizeof(player->name));
 	Q_strncpyz (player->team, Info_ValueForKey (player->userinfo, "team"), sizeof(player->team));
-	player->topcolor = atoi(Info_ValueForKey (player->userinfo, "topcolor"));
-	player->bottomcolor = atoi(Info_ValueForKey (player->userinfo, "bottomcolor"));
+	player->rtopcolor = atoi(Info_ValueForKey (player->userinfo, "topcolor"));
+	player->rbottomcolor = atoi(Info_ValueForKey (player->userinfo, "bottomcolor"));
 	if (atoi(Info_ValueForKey (player->userinfo, "*spectator")))
 		player->spectator = true;
 	else
@@ -3590,7 +3584,7 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 	if (cl.teamfortress) //override based on team
 	{
 		// TODO: needs some work
-		switch (plr->bottomcolor)
+		switch (plr->rbottomcolor)
 		{	//translate q1 skin colours to console colours
 		case 10:
 		case 1:
@@ -4986,8 +4980,8 @@ void CLNQ_ParseServerMessage (void)
 				break;
 			//FIXME:!!!!
 
-			cl.players[i].topcolor = a&0x0f;
-			cl.players[i].bottomcolor = (a&0xf0)>>4;
+			cl.players[i].rtopcolor = a&0x0f;
+			cl.players[i].rbottomcolor = (a&0xf0)>>4;
 
 			if (cls.state == ca_active)
 				Skin_Find (&cl.players[i]);

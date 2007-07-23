@@ -144,11 +144,11 @@ typedef struct player_info_s
 	qboolean ignored;
 
 	// skin information
-	int		topcolor;
-	int		bottomcolor;
+	int		rtopcolor;	//real, according to their userinfo
+	int		rbottomcolor;
 
-	int		_topcolor;
-	int		_bottomcolor;
+	int		ttopcolor;	//team, according to colour forcing
+	int		tbottomcolor;
 
 #ifdef SWQUAKE
 	struct palremap_s *palremap;

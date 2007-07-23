@@ -382,13 +382,13 @@ int VARGS Plug_GetPlayerInfo(void *offset, unsigned int mask, const long *arg)
 			return 0;
 		}	
 	}
-	out->bottomcolour = cl.players[i].bottomcolor;
+	out->bottomcolour = cl.players[i].rbottomcolor;
+	out->topcolour = cl.players[i].rtopcolor;
 	out->frags = cl.players[i].frags;
 	Q_strncpyz(out->name, cl.players[i].name, PLUGMAX_SCOREBOARDNAME);
 	out->ping = cl.players[i].ping;
 	out->pl = cl.players[i].pl;
 	out->starttime = cl.players[i].entertime;
-	out->topcolour = cl.players[i].topcolor;
 	out->userid = cl.players[i].userid;
 	out->spectator = cl.players[i].spectator;
 	Q_strncpyz(out->userinfo, cl.players[i].userinfo, sizeof(out->userinfo));

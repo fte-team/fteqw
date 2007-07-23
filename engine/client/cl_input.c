@@ -1016,6 +1016,10 @@ unsigned long _stdcall CL_IndepPhysicsThread(void *param)
 		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value);
 		if (spare)
 		{
+			//don't let them bank too much and get sudden bursts
+			if (spare > 15)
+				spare = 15;
+
 			time -= spare/1000.0f;
 			EnterCriticalSection(&indepcriticialsection);
 			if (cls.state)
@@ -1071,6 +1075,99 @@ void CL_UseIndepPhysics(qboolean allow)
 		DeleteCriticalSection(&indepcriticialsection);
 
 		runningindepphys = false;
+	}
+}
+
+#elif defined(__linux__)
+
+#include <pthread.h>
+
+pthread_mutex_t indepcriticalsection;
+pthread_t indepphysicsthread;
+
+void CL_AllowIndependantSendCmd(qboolean allow)
+{
+	if (!runningindepphys)
+		return;
+
+	if (allowindepphys != allow && runningindepphys)
+	{
+		if (allow)
+			pthread_mutex_unlock(&indepcriticalsection);
+		else
+			pthread_mutex_lock(&indepcriticalsection);
+		allowindepphys = allow;
+	}
+}
+
+void *CL_IndepPhysicsThread(void *param)
+{
+	int sleeptime;
+	double fps;
+	double time, lasttime;
+	double spare;
+	lasttime = Sys_DoubleTime();
+	while(runningindepphys)
+	{
+		time = Sys_DoubleTime();
+		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value);
+		if (spare)
+		{
+			//don't let them bank too much and get sudden bursts
+			if (spare > 15)
+				spare = 15;
+
+			time -= spare/1000.0f;
+			pthread_mutex_lock(&indepcriticalsection);
+			if (cls.state)
+				CL_SendCmd(time - lasttime);
+			lasttime = time;
+			pthread_mutex_unlock(&indepcriticalsection);
+		}
+
+		fps = cl_netfps.value;
+		if (fps < 4)
+			fps = 4;
+		while (fps < 100)
+			fps*=2;
+
+		sleeptime = (1000*1000)/fps;
+
+		if (sleeptime)
+			usleep(sleeptime);
+		else
+			usleep(1);
+	}
+	return NULL;
+}
+
+void CL_UseIndepPhysics(qboolean allow)
+{
+	if (runningindepphys == allow)
+		return;
+
+	if (allow)
+	{	//enable it
+		pthread_mutex_init(&indepcriticalsection, NULL);
+		runningindepphys = true;
+
+		pthread_create(&indepphysicsthread, NULL, CL_IndepPhysicsThread, NULL);
+		allowindepphys = 1;
+
+		//now this would be awesome, but would require root permissions... which is plain wrong!
+		//however, lack of this line means its really duel-core only.
+		//pthread_setschedparam(indepthread, SCHED_*, ?);
+		//is there anything to weight the thread up a bit against the main thread? (considering that most of the time we'll be idling)
+	}
+	else
+	{
+		//shut it down.
+		runningindepphys = false;	//tell thread to exit gracefully
+
+		pthread_mutex_lock(&indepcriticalsection);
+		pthread_join(indepphysicsthread, 0);
+		pthread_mutex_unlock(&indepcriticalsection);
+		pthread_mutex_destroy(&indepcriticalsection);
 	}
 }
 #else

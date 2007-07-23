@@ -1741,6 +1741,8 @@ int UDP6_OpenSocket (int port, qboolean bcast)
 //	int i;
 int maxport = port + 100;
 
+	memset(&address, 0, sizeof(address));
+
 	if ((newsocket = socket (PF_INET6, SOCK_DGRAM, 0)) == -1)
 	{
 		Con_Printf("IPV6 is not supported: %s\n", strerror(qerrno));

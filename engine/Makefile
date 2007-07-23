@@ -11,6 +11,14 @@ BASE_DIR=.
 #linux->win32
 #if you are cross compiling, you'll need to use FTE_TARGET=mytaget
 
+#correct the gcc build when cross compiling
+ifeq ($(FTE_TARGET),win32)
+	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
+		#CC didn't state that it was mingw... so try fixing that up
+		CC=i586-mingw32msvc-gcc
+		W32_FLAGS=-Ilibs/dxsdk7/include
+	endif
+endif
 
 ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 	ifneq ($(shell $(CC) -v 2>&1 | grep mingw),)
@@ -83,7 +91,7 @@ endif
 ifeq ($(FTE_TARGET),bsd)
 	BASELDFLAGS=-lm
 endif
-BASELDFLAGS ?= -lm -ldl
+BASELDFLAGS ?= -lm -ldl -lpthread
 
 #BASELDFLAGS=-lm  -lz
 GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg
@@ -119,7 +127,7 @@ else
 	BASE_ASM_CFLAGS = -DNOASM
 endif
 
-BASE_CFLAGS=$(BASE_ASM_CFLAGS) -Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(QUX_DIR) -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/sdl/include -I$(LIBS_DIR)/sdl/include/SDL -D_vsnprintf=vsnprintf -D_snprintf=snprintf
+BASE_CFLAGS=$(BASE_ASM_CFLAGS) -Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/sdl/include -I$(LIBS_DIR)/sdl/include/SDL -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
@@ -487,7 +495,7 @@ else
 endif
 	SW_EXE_NAME=../fteqw.sw
 	SWCL_EXE_NAME=../fteqwcl.sw
-	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS)
+	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS) -lXxf86vm
 	SW_CFLAGS=$(SWCFLAGS) -I/usr/X11R6/include
 	SWB_DIR=sw_linux
 	SWCL_DIR=swcl_linux

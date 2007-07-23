@@ -89,6 +89,10 @@ flags |= SDL_SWSURFACE;
 	return true;
 }
 
+void SWVID_SetCaption(char *caption)
+{
+}
+
 void SWVID_SetPalette(unsigned char *palette)
 {
 	int i;

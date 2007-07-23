@@ -65,14 +65,46 @@ typedef struct {
 		stat deaths;	//times they died (including by you)
 		stat kills;		//times they killed (including by you)
 		stat teamkills;	//times they killed a team member.
-		stat teamdeaths;	//times they killed a team member.
+		stat teamdeaths;	//times they died to a team member.
 		stat suisides;	//times they were stupid.
 	} clienttotals[MAX_CLIENTS];
 
+	qboolean readcaps;
+	qboolean readkills;
 	statmessage_t *message;
 } fragstats_t;
 
 static fragstats_t fragstats;
+
+int Stats_GetKills(int playernum)
+{
+	return fragstats.clienttotals[playernum].kills;
+}
+int Stats_GetTKills(int playernum)
+{
+	return fragstats.clienttotals[playernum].teamkills;
+}
+int Stats_GetDeaths(int playernum)
+{
+	return fragstats.clienttotals[playernum].deaths;
+}
+int Stats_GetTouches(int playernum)
+{
+	return fragstats.clienttotals[playernum].grabs;
+}
+int Stats_GetCaptures(int playernum)
+{
+	return fragstats.clienttotals[playernum].caps;
+}
+
+qboolean Stats_HaveFlags(void)
+{
+	return fragstats.readcaps;
+}
+qboolean Stats_HaveKills(void)
+{
+	return fragstats.readkills;
+}
 
 void VARGS Stats_Message(char *msg, ...)
 {
@@ -111,6 +143,8 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 			fragstats.weapontotals[wid].ownsuicides++;
 			fragstats.weapontotals[wid].owndeaths++;
 			fragstats.weapontotals[wid].ownkills++;
+
+			Stats_Message("You are a fool\n");
 		}
 		fragstats.weapontotals[wid].suicides++;
 		fragstats.weapontotals[wid].kills++;
@@ -270,6 +304,12 @@ static void Stats_StatMessage(fragfilemsgtypes_t type, int wid, char *token1, ch
 
 	ms->next = fragstats.message;
 	fragstats.message = ms;
+
+	//we have a message type, save the fact that we have it.
+	if (type == ff_flagtouch || type == ff_flagcaps || type == ff_flagdrops)
+		fragstats.readcaps = true;
+	if (type == ff_frags || type == ff_fragedby)
+		fragstats.readkills = true;
 }
 
 static void Stats_Clear(void)
@@ -311,10 +351,15 @@ static void Stats_LoadFragFile(char *name)
 
 	file = COM_LoadTempFile(filename);
 	if (!file || !*file)
+	{
+		Con_DPrintf("Couldn't load %s\n", filename);
 		return;
+	}
+	else
+		Con_DPrintf("Loaded %s\n", filename);
 
 	oend = 1;
-	for (;;)
+	for (;*file;)
 	{
 		if (!oend)
 			break;
@@ -322,9 +367,6 @@ static void Stats_LoadFragFile(char *name)
 			;
 		oend = *end;
 		*end = '\0';
-		if (!*file)
-			break;
-
 		Cmd_TokenizeString(file, true, false);
 		file = end+1;
 		if (!Cmd_Argc())
@@ -477,7 +519,9 @@ void Stats_ParsePrintLine(char *line)
 
 	p1 = Stats_ExtractName(&line);
 	if (p1<0)	//reject it.
+	{
 		return;
+	}
 	
 	for (ms = fragstats.message; ms; ms = ms->next)
 	{

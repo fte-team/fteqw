@@ -719,7 +719,10 @@ void Key_Console (int key)
 
 	if (key == K_PGUP || key==K_MWHEELUP)
 	{
-		con_current->display -= 2;
+		if (keydown[K_CTRL])
+			con_current->display -= ( ( con_current->vislines / 8 ) - 3 );
+		else
+			con_current->display -= 2;
 		if (con_current->display < upperconbound)
 			con_current->display = upperconbound;
 		return;
@@ -727,7 +730,10 @@ void Key_Console (int key)
 
 	if (key == K_PGDN || key==K_MWHEELDOWN)
 	{
-		con_current->display += 2;
+		if (keydown[K_CTRL])
+			con_current->display += ( ( con_current->vislines / 8 ) - 3 );
+		else
+			con_current->display += 2;
 		if (con_current->display < upperconbound)
 			con_current->display = upperconbound;
 		if (con_current->display > con_current->current)

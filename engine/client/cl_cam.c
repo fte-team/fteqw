@@ -125,7 +125,7 @@ qboolean Cam_DrawPlayer(int pnum, int playernum)
 	}
 	else
 	{
-		if (selfcam == 1)
+		if (selfcam == 1 && r_secondaryview != 3)
 			if (playernum == (cl.viewentity[pnum]?cl.viewentity[pnum]-1:(cl.playernum[pnum])))
 				return false;
 	}

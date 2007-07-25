@@ -43,7 +43,7 @@ when crossing a water boudnary.
 */
 
 #ifdef SIDEVIEWS
-cvar_t	vsec_enabled[SIDEVIEWS] = {SCVAR("v2_enabled", "0"),	SCVAR("v3_enabled", "0"),	SCVAR("v4_enabled", "0"),	SCVAR("v5_enabled", "0")};
+cvar_t	vsec_enabled[SIDEVIEWS] = {SCVAR("v2_enabled", "2"),	SCVAR("v3_enabled", "0"),	SCVAR("v4_enabled", "0"),	SCVAR("v5_enabled", "0")};
 cvar_t	vsec_x[SIDEVIEWS]		= {SCVAR("v2_x", "0"),			SCVAR("v3_x", "0.25"),		SCVAR("v4_x", "0.5"),		SCVAR("v5_x", "0.75")};
 cvar_t	vsec_y[SIDEVIEWS]		= {SCVAR("v2_y", "0"),			SCVAR("v3_y", "0"),			SCVAR("v4_y", "0"),			SCVAR("v5_y", "0")};
 cvar_t	vsec_scalex[SIDEVIEWS]	= {SCVAR("v2_scalex", "0.25"),	SCVAR("v3_scalex", "0.25"),	SCVAR("v4_scalex", "0.25"),	SCVAR("v5_scalex", "0.25")};
@@ -1397,16 +1397,10 @@ void V_RenderPlayerViews(int plnum)
 		VectorCopy(desired_position[plnum], r_refdef.vieworg);
 		R_RenderView ();
 		vid.recalc_refdef=true;
-		r_secondaryview = false;
 	}
 	else
 		gl_ztrickdisabled&=~16;
 	
-	r_secondaryview = 2;
-
-
-
-
 
 #ifdef SIDEVIEWS
 /*	//adjust main view height to strip off the rearviews at the top
@@ -1420,7 +1414,9 @@ void V_RenderPlayerViews(int plnum)
 	gl_ztrickdisabled&=~1;
 #endif
 	for (viewnum = 0; viewnum < SIDEVIEWS; viewnum++)
-	if (vsec_enabled[viewnum].value && vsec_scalex[viewnum].value>0&&vsec_scaley[viewnum].value>0 && (cls.allow_rearview||(cl.stats[plnum][STAT_VIEW2]&&viewnum==0)))	//will the server allow us to?
+	if (vsec_scalex[viewnum].value>0&&vsec_scaley[viewnum].value>0
+		&& ((vsec_enabled[viewnum].value && vsec_enabled[viewnum].value != 2 && cls.allow_rearview) 	//rearview if v2_enabled = 1 and not 2
+		|| (vsec_enabled[viewnum].value && cl.stats[plnum][STAT_VIEW2]&&viewnum==0)))			//v2 enabled if v2_enabled is non-zero
 	{
 		vrect_t oldrect;
 		vec3_t oldangles;
@@ -1484,6 +1480,7 @@ void V_RenderPlayerViews(int plnum)
 			r_refdef.viewangles[2]=e->angles[2];//*s+(1-s)*e->msg_angles[1][2];
 			r_refdef.viewangles[PITCH] *= -1;
 
+			r_secondaryview = 3;	//show the player
 
 			R_RenderView ();
 //				r_framecount = old_framecount;
@@ -1513,6 +1510,7 @@ void V_RenderPlayerViews(int plnum)
 		vid.recalc_refdef=true;
 	}
 #endif
+	r_secondaryview = 0;
 }
 
 void V_RenderView (void)

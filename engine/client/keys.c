@@ -719,14 +719,15 @@ void Key_Console (int key)
 
 	if (key == K_PGUP || key==K_MWHEELUP)
 	{
-		// scr_conlines actually contains the height of the console in
+		// con_current->vislines actually contains the height of the console in
 		// pixels (and not the number of lines). It's 22 pixels larger
 		// than the text area to include borders I guess... weird shit.
 		// - Molgrum
 		if (keydown[K_CTRL])
-			con_current->display -= ( ( (int)scr_conlines - 22 ) / 8 );
+			con_current->display -= ( ( (int)con_current->vislines - 22 ) / 8 );
 		else
 			con_current->display -= 2;
+		
 		if (con_current->display < upperconbound)
 			con_current->display = upperconbound;
 		return;
@@ -734,18 +735,25 @@ void Key_Console (int key)
 
 	if (key == K_PGDN || key==K_MWHEELDOWN)
 	{
-		// scr_conlines actually contains the height of the console in
+		// con_current->vislines actually contains the height of the console in
 		// pixels (and not the number of lines). It's 22 pixels larger
 		// than the text area to include borders I guess... weird shit.
 		// - Molgrum
 		if (keydown[K_CTRL])
-			con_current->display += ( ( (int)scr_conlines - 22 ) / 8 );
+			con_current->display += ( ( (int)con_current->vislines - 22 ) / 8 );
 		else
 			con_current->display += 2;
+		
 		if (con_current->display < upperconbound)
 			con_current->display = upperconbound;
-		if (con_current->display > con_current->current)
+		
+		// Changed this to prevent the following scenario: PGUP, ENTER, PGDN ,(you'll
+		// see the ^^^^ indicator), PGDN, (the indicator disappears but the console position
+		// is still the same).
+		// - Molgrum
+		if (con_current->display >= ( con_current->current - 1 ))
 			con_current->display = con_current->current;
+		
 		return;
 	}
 

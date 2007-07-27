@@ -6,12 +6,20 @@
 void Log_Dir_Callback (struct cvar_s *var, char *oldvalue);
 void Log_Name_Callback (struct cvar_s *var, char *oldvalue);
 
+typedef enum {
+	LOG_CONSOLE,
+	LOG_PLAYER,
+	LOG_TYPES
+} logtype_t;
+
 // cvars
 #define CONLOGGROUP "Console logging"
-cvar_t		log_name = SCVARFC("log_name", "", CVAR_NOTFROMSERVER, Log_Name_Callback);
+cvar_t		log_enable[LOG_TYPES]	= {	SCVARF("log_enable", "0", CVAR_NOTFROMSERVER),
+								SCVARF("log_enable_players", "0", CVAR_NOTFROMSERVER)};
+cvar_t		log_name[LOG_TYPES] = { SCVARFC("log_name", "", CVAR_NOTFROMSERVER, Log_Name_Callback),
+							SCVARFC("log_name_players", "", CVAR_NOTFROMSERVER, Log_Name_Callback)};
 cvar_t		log_dir = SCVARFC("log_dir", "", CVAR_NOTFROMSERVER, Log_Dir_Callback);
 cvar_t		log_readable = SCVARF("log_readable", "0", CVAR_NOTFROMSERVER);
-cvar_t		log_enable = SCVARF("log_enable", "0", CVAR_NOTFROMSERVER);
 cvar_t		log_developer = SCVARF("log_developer", "0", CVAR_NOTFROMSERVER);
 cvar_t		log_rotate_files = SCVARF("log_rotate_files", "0", CVAR_NOTFROMSERVER);
 cvar_t		log_rotate_size = SCVARF("log_rotate_size", "131072", CVAR_NOTFROMSERVER);
@@ -72,7 +80,7 @@ void Log_Dir_Callback (struct cvar_s *var, char *oldvalue)
 	}
 }
 
-// Log_Name_Callback: called when a log_dir is changed
+// Log_Name_Callback: called when a log_name is changed
 void Log_Name_Callback (struct cvar_s *var, char *oldvalue)
 {
 	char *t = var->string;
@@ -87,15 +95,16 @@ void Log_Name_Callback (struct cvar_s *var, char *oldvalue)
 }
 
 // Con_Log: log string to console log
-void Con_Log (char *s)
+void Log_String (logtype_t lognum, char *s)
 {
+	vfsfile_t *fi;
 	char *d; // directory
 	char *f; // filename
 	char *t;
 	char logbuf[1024];
 	int i;
 
-	if (!log_enable.value)
+	if (!log_enable[lognum].value)
 		return;
 
 	// get directory/filename
@@ -103,9 +112,23 @@ void Con_Log (char *s)
 	if (log_dir.string[0])
 		d = log_dir.string;
 
-	f = "qconsole";
-	if (log_name.string[0])
-		f = log_name.string;
+	f = NULL;
+	switch(lognum)
+	{
+	case LOG_CONSOLE:
+		f = "qconsole";
+		break;
+	case LOG_PLAYER:
+		f = "players";
+		break;
+	default:
+		break;
+	}
+	if (log_name[lognum].string[0])
+		f = log_name[lognum].string;
+
+	if (!f)
+		return;
 
 	// readable translation and Q3 code removal, use t for final string to write
 	t = logbuf;
@@ -207,7 +230,7 @@ void Con_Log (char *s)
 				if (FS_Rename(oldf, newf, FS_BASE))
 				{
 					// rename failed, disable log and bug out
-					Cvar_ForceSet(&log_enable, "0");
+					Cvar_ForceSet(&log_enable[lognum], "0");
 					Con_Printf("Unable to rotate log files. Logging disabled.\n");
 					return;
 				}
@@ -218,34 +241,137 @@ void Con_Log (char *s)
 			if (FS_Rename(f, oldf, FS_BASE))
 			{
 				// rename failed, disable log and bug out
-				Cvar_ForceSet(&log_enable, "0");
+				Cvar_ForceSet(&log_enable[lognum], "0");
 				Con_Printf("Unable to rename base log file. Logging disabled.\n");
 				return;
 			}
 		}
 	}
 
-	// write to log file
-	if (Sys_DebugLog(f, "%s", logbuf))
+	FS_CreatePath(f, FS_BASE);
+	if ((fi = FS_OpenVFS(f, "ab", FS_BASE)))
+	{
+		VFS_WRITE(fi, logbuf, strlen(logbuf));
+		VFS_CLOSE(fi);
+	}
+	else
 	{
 		// write failed, bug out
-		Cvar_ForceSet(&log_enable, "0");
+		Cvar_ForceSet(&log_enable[lognum], "0");
 		Con_Printf("Unable to write to log file. Logging disabled.\n");
 		return;
 	}
 }
 
+void Con_Log (char *s)
+{
+	Log_String(LOG_CONSOLE, s);
+}
+
+
+//still to add stuff at:
+//connects
+//disconnects
+//kicked
+void SV_LogPlayer(client_t *cl, char *msg)
+{
+	char line[2048];
+	snprintf(line, sizeof(line),
+			"%s\\%s\\%i\\%s\\%s\\%i%s\n", 
+			msg, cl->name, cl->userid, 
+			NET_BaseAdrToString(cl->netchan.remote_address), "??",
+			cl->netchan.remote_address.port, cl->userinfo);
+
+	Log_String(LOG_PLAYER, line);
+}
+
+
+
+
+
+void Log_Logfile_f (void)
+{
+	extern char gamedirfile[];
+
+	if (log_enable[LOG_CONSOLE].value)
+	{
+		Cvar_SetValue(&log_enable[LOG_CONSOLE], 0);
+		Con_Printf("Logging disabled.\n");
+	}
+	else
+	{
+		char *d, *f;
+
+		d = gamedirfile;
+		if (log_dir.string[0])
+			d = log_dir.string;
+
+		f = "qconsole";
+		if (log_name[LOG_CONSOLE].string[0])
+			f = log_name[LOG_CONSOLE].string;
+
+		Con_Printf(va("Logging to %s/%s.log.\n", d, f));
+		Cvar_SetValue(&log_enable[LOG_CONSOLE], 1);
+	}
+
+}
+/*
+void SV_Fraglogfile_f (void)
+{
+	char	name[MAX_OSPATH];
+	int		i;
+
+	if (sv_fraglogfile)
+	{
+		Con_TPrintf (STL_FLOGGINGOFF);
+		VFS_CLOSE (sv_fraglogfile);
+		sv_fraglogfile = NULL;
+		return;
+	}
+
+	// find an unused name
+	for (i=0 ; i<1000 ; i++)
+	{
+		sprintf (name, "frag_%i.log", i);
+		sv_fraglogfile = FS_OpenVFS(name, "rb", FS_GAME);
+		if (!sv_fraglogfile)
+		{	// can't read it, so create this one
+			sv_fraglogfile = FS_OpenVFS (name, "wb", FS_GAME);
+			if (!sv_fraglogfile)
+				i=1000;	// give error
+			break;
+		}
+		VFS_CLOSE (sv_fraglogfile);
+	}
+	if (i==1000)
+	{
+		Con_TPrintf (STL_FLOGGINGFAILED);
+		sv_fraglogfile = NULL;
+		return;
+	}
+
+	Con_TPrintf (STL_FLOGGINGTO, name);
+}
+*/
+
+
 void Log_Init(void)
 {
+	int i;
 	// register cvars
-	Cvar_Register (&log_name, CONLOGGROUP);
+	for (i = 0; i < LOG_TYPES; i++)
+	{
+		Cvar_Register (&log_enable[i], CONLOGGROUP);
+		Cvar_Register (&log_name[i], CONLOGGROUP);
+	}
 	Cvar_Register (&log_dir, CONLOGGROUP);
 	Cvar_Register (&log_readable, CONLOGGROUP);
-	Cvar_Register (&log_enable, CONLOGGROUP);
 	Cvar_Register (&log_developer, CONLOGGROUP);
 	Cvar_Register (&log_rotate_size, CONLOGGROUP);
 	Cvar_Register (&log_rotate_files, CONLOGGROUP);
 	Cvar_Register (&log_dosformat, CONLOGGROUP);
+
+	Cmd_AddCommand("logfile", Log_Logfile_f);
 
 	// cmd line options, debug options
 #ifdef CRAZYDEBUGGING
@@ -254,5 +380,5 @@ void Log_Init(void)
 #endif
 
 	if (COM_CheckParm("-condebug"))
-		Cvar_ForceSet(&log_enable, "1");
+		Cvar_ForceSet(&log_enable[LOG_CONSOLE], "1");
 }

@@ -326,6 +326,8 @@ void SV_New_f (void)
 		ClientReliableWrite_Byte (host_client, sv.edicts->v->sounds);
 	else
 		ClientReliableWrite_Byte (host_client, 0);
+
+	SV_LogPlayer(host_client, "new (QW)");
 }
 #define GAME_DEATHMATCH 0
 #define GAME_COOP 1
@@ -373,14 +375,17 @@ void SVNQ_New_f (void)
 	{
 #ifdef NQPROT
 	case SCP_NETQUAKE:
+		SV_LogPlayer(host_client, "new (NQ)");
 		MSG_WriteLong (&host_client->netchan.message, NQ_PROTOCOL_VERSION);
 		MSG_WriteByte (&host_client->netchan.message, 16);
 		break;
 	case SCP_DARKPLACES6:
+		SV_LogPlayer(host_client, "new (DP6)");
 		MSG_WriteLong (&host_client->netchan.message, DP6_PROTOCOL_VERSION);
 		MSG_WriteByte (&host_client->netchan.message, sv.allocated_client_slots);
 		break;
 	case SCP_DARKPLACES7:
+		SV_LogPlayer(host_client, "new (DP7)");
 		MSG_WriteLong (&host_client->netchan.message, DP7_PROTOCOL_VERSION);
 		MSG_WriteByte (&host_client->netchan.message, sv.allocated_client_slots);
 		break;
@@ -2725,6 +2730,8 @@ void SV_SetInfo_f (void)
 		}
 	}
 
+	SV_LogPlayer(host_client, "userinfo changed");
+
 	PR_ClientUserInfoChanged(Cmd_Argv(1), oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)));
 }
 
@@ -2742,6 +2749,8 @@ void SV_ShowServerinfo_f (void)
 
 void SV_NoSnap_f(void)
 {
+	SV_LogPlayer(host_client, "refused snap");
+
 	if (*host_client->uploadfn) {
 		*host_client->uploadfn = 0;
 		SV_BroadcastTPrintf (PRINT_HIGH, STL_SNAPREFUSED, host_client->name);
@@ -2930,6 +2939,7 @@ void Cmd_Notarget_f (void)
 		return;
 	}
 
+	SV_LogPlayer(host_client, "notarget cheat");
 	if ((int) (sv_player->v->flags = (int) sv_player->v->flags ^ FL_NOTARGET) & FL_NOTARGET)
 		SV_ClientPrintf (host_client, PRINT_HIGH, "notarget ON\n");
 	else
@@ -2945,6 +2955,7 @@ void Cmd_God_f (void)
 		return;
 	}
 
+	SV_LogPlayer(host_client, "god cheat");
 	if ((int) (sv_player->v->flags = (int) sv_player->v->flags ^ FL_GODMODE) & FL_GODMODE)
 		SV_ClientPrintf (host_client, PRINT_HIGH, "godmode ON\n");
 	else
@@ -2966,6 +2977,7 @@ void Cmd_Give_f (void)
 	t = Cmd_Argv(1);
 	v = atoi (Cmd_Argv(2));
 
+	SV_LogPlayer(host_client, "give cheat");
 	if (strlen(t) == 1 && (Cmd_Argc() == 3 || (*t>='0' && *t <= '9')))
 	{
 		switch (t[0])
@@ -3017,6 +3029,7 @@ void Cmd_Noclip_f (void)
 		return;
 	}
 
+	SV_LogPlayer(host_client, "noclip cheat");
 	if (sv_player->v->movetype != MOVETYPE_NOCLIP)
 	{
 		sv_player->v->movetype = MOVETYPE_NOCLIP;
@@ -3042,6 +3055,7 @@ void Cmd_Fly_f (void)
 		return;
 	}
 
+	SV_LogPlayer(host_client, "fly cheat");
 	if (sv_player->v->movetype != MOVETYPE_FLY)
 	{
 		sv_player->v->movetype = MOVETYPE_FLY;
@@ -3077,6 +3091,7 @@ void Cmd_SetPos_f(void)
 		Con_Printf ("setpos %i %i %i\n", (int)sv_player->v->origin[0], (int)sv_player->v->origin[1], (int)sv_player->v->origin[2]);
 		return;
 	}
+	SV_LogPlayer(host_client, "setpos cheat");
 	if (sv_player->v->movetype != MOVETYPE_NOCLIP)
 	{
 		sv_player->v->movetype = MOVETYPE_NOCLIP;
@@ -3201,6 +3216,8 @@ void Cmd_Join_f (void)
 
 	// send notification to all clients
 	host_client->sendinfo = true;
+
+	SV_LogPlayer(host_client, "joined");
 }
 
 
@@ -3286,6 +3303,8 @@ void Cmd_Observe_f (void)
 
 	// send notification to all clients
 	host_client->sendinfo = true;
+
+	SV_LogPlayer(host_client, "observing");
 }
 
 void Cmd_FPSList_f(void)

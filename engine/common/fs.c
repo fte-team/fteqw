@@ -236,6 +236,7 @@ vfsfile_t *VFSOS_Open(char *osname, char *mode)
 	vfsosfile_t *file;
 	qboolean read = !!strchr(mode, 'r');
 	qboolean write = !!strchr(mode, 'w');
+	qboolean append = !!strchr(mode, 'a');
 	qboolean text = !!strchr(mode, 't');
 	char newmode[3];
 	int modec = 0;
@@ -244,6 +245,8 @@ vfsfile_t *VFSOS_Open(char *osname, char *mode)
 		newmode[modec++] = 'r';
 	if (write)
 		newmode[modec++] = 'w';
+	if (append)
+		newmode[modec++] = 'a';
 	if (text)
 		newmode[modec++] = 't';
 	else
@@ -256,7 +259,7 @@ vfsfile_t *VFSOS_Open(char *osname, char *mode)
 
 	file = Z_Malloc(sizeof(vfsosfile_t));
 	file->funcs.ReadBytes = strchr(mode, 'r')?VFSOS_ReadBytes:NULL;
-	file->funcs.WriteBytes = strchr(mode, 'w')?VFSOS_WriteBytes:NULL;
+	file->funcs.WriteBytes = (strchr(mode, 'w')||strchr(mode, 'a'))?VFSOS_WriteBytes:NULL;
 	file->funcs.Seek = VFSOS_Seek;
 	file->funcs.Tell = VFSOS_Tell;
 	file->funcs.GetLen = VFSOS_GetSize;
@@ -2048,7 +2051,8 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 
 	if (strcmp(mode, "rb"))
 		if (strcmp(mode, "wb"))
-			return NULL; //urm, unable to write/append
+			if (strcmp(mode, "ab"))
+				return NULL; //urm, unable to write/append
 
 	switch (relativeto)
 	{
@@ -2108,7 +2112,7 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 	}
 
 	//if we're meant to be writing, best write to it.
-	if (strchr(mode , 'w'))
+	if (strchr(mode , 'w') || strchr(mode , 'a'))
 		return VFSOS_Open(fullname, mode);
 	return NULL;
 }

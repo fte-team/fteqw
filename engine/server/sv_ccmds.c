@@ -185,39 +185,6 @@ void SV_Quit_f (void)
 
 /*
 ============
-SV_Logfile_f
-============
-*/
-void SV_Logfile_f (void)
-{
-	extern cvar_t log_enable, log_dir, log_name;
-	extern char gamedirfile[];
-
-	if (log_enable.value)
-	{
-		Cvar_SetValue(&log_enable, 0);
-		Con_Printf("Logging disabled.\n");
-	}
-	else
-	{
-		char *d, *f;
-
-		d = gamedirfile;
-		if (log_dir.string[0])
-			d = log_dir.string;
-
-		f = "qconsole";
-		if (log_name.string[0])
-			f = log_name.string;
-
-		Con_Printf(va("Logging to %s/%s.log.\n", d, f));
-		Cvar_SetValue(&log_enable, 1);
-	}
-
-}
-
-/*
-============
 SV_Fraglogfile_f
 ============
 */
@@ -308,6 +275,7 @@ void SV_God_f (void)
 	if (!SV_SetPlayer ())
 		return;
 
+	SV_LogPlayer(host_client, "god cheat");
 	sv_player->v->flags = (int)sv_player->v->flags ^ FL_GODMODE;
 	if ((int)sv_player->v->flags & FL_GODMODE)
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_GODON);
@@ -327,6 +295,7 @@ void SV_Noclip_f (void)
 	if (!SV_SetPlayer ())
 		return;
 
+	SV_LogPlayer(host_client, "noclip cheat");
 	if (sv_player->v->movetype != MOVETYPE_NOCLIP)
 	{
 		sv_player->v->movetype = MOVETYPE_NOCLIP;
@@ -365,6 +334,8 @@ void SV_Give_f (void)
 		pr_global_struct->self = oldself;
 		return;
 	}
+
+	SV_LogPlayer(host_client, "give cheat");
 
 	if (!svprogfuncs)
 		return;
@@ -663,6 +634,8 @@ void SV_Kick_f (void)
 		// print directly, because the dropped client won't get the
 		// SV_BroadcastPrintf message
 		SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREKICKED);
+
+		SV_LogPlayer(cl, "kicked");
 		SV_DropClient (cl);
 	}
 
@@ -714,6 +687,7 @@ void SV_BanName_f (void)
 		// print directly, because the dropped client won't get the
 		// SV_BroadcastPrintf message
 		SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREBANNED);
+		SV_LogPlayer(cl, "banned name");
 		SV_DropClient (cl);
 	}
 
@@ -768,6 +742,7 @@ void SV_BanIP_f (void)
 			// print directly, because the dropped client won't get the
 			// SV_BroadcastPrintf message
 			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREBANNED);
+			SV_LogPlayer(cl, "banned ip");
 			SV_DropClient (cl);
 		}
 	}
@@ -995,6 +970,7 @@ void SV_ForceName_f (void)
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
 		Info_SetValueForKey(cl->userinfo, "name", Cmd_Argv(2), MAX_INFO_STRING);
+		SV_LogPlayer(cl, "name forced");
 		SV_ExtractFromUserinfo(cl);
 		Q_strncpyz(cl->name, Cmd_Argv(2), sizeof(cl->namebuf));
 		i = cl - svs.clients;
@@ -1021,6 +997,7 @@ void SV_CripplePlayer_f (void)
 	{
 		if (!cl->iscrippled)
 		{
+			SV_LogPlayer(cl, "crippled");
 			if (persist)
 			{
 				cl->iscrippled = 2;
@@ -1034,6 +1011,7 @@ void SV_CripplePlayer_f (void)
 		}
 		else
 		{
+			SV_LogPlayer(cl, "uncrippled");
 			cl->iscrippled = false;
 			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUARNTCRIPPLED);
 		}
@@ -1054,6 +1032,7 @@ void SV_Mute_f (void)
 	{
 		if (!cl->ismuted)
 		{
+			SV_LogPlayer(cl, "muted");
 			if (persist)
 			{
 				cl->ismuted = 2;
@@ -1067,6 +1046,7 @@ void SV_Mute_f (void)
 		}
 		else
 		{
+			SV_LogPlayer(cl, "unmuted");
 			cl->ismuted = false;
 			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUARNTMUTED);
 		}
@@ -1087,6 +1067,7 @@ void SV_Cuff_f (void)
 	{
 		if (!cl->iscuffed)
 		{
+			SV_LogPlayer(cl, "cuffed");
 			if (persist)
 			{
 				cl->iscuffed = 2;
@@ -1100,6 +1081,7 @@ void SV_Cuff_f (void)
 		}
 		else
 		{
+			SV_LogPlayer(cl, "uncuffed");
 			cl->iscuffed = false;
 			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUARNTCUFFED);
 		}
@@ -1968,7 +1950,6 @@ void SV_InitOperatorCommands (void)
 		Cvar_Set(&sv_cheats, "1");
 	}
 
-	Cmd_AddCommand ("logfile", SV_Logfile_f);
 	Cmd_AddCommand ("fraglogfile", SV_Fraglogfile_f);
 
 	Cmd_AddCommand ("snap", SV_Snap_f);

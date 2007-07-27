@@ -1231,7 +1231,7 @@ void SVC_GetChallenge (void)
 		if (sv_listen_qw.value || svs.gametype != GT_PROGS)
 			Netchan_OutOfBand(NS_SERVER, net_from, over-buf, buf);
 
-		if (sv_listen_dp.value)
+		if (sv_listen_dp.value && (sv_listen_nq.value || sv_bigcoords.value || !sv_listen_qw.value))
 		{
 		//dp (protocol6 upwards) can respond to this (and fte won't get confused because the challenge will be wrong)
 			buf = va("challenge "DISTRIBUTION"%i", svs.challenges[i].challenge);

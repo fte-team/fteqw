@@ -1750,7 +1750,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 			else if (client->spectator)
 			{
 				clst.health=100;
-				if (client->spec_track && ent == clent)
+				if (client->spec_track == j+1)
 					clst.spectator = 2;
 				else
 					clst.spectator = 1;

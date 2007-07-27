@@ -87,7 +87,9 @@ qboolean PPL_ShouldDraw(void)
 	}
 	else
 	{
-		if (currententity->flags & Q2RF_EXTERNALMODEL)
+		if (currententity->flags & Q2RF_WEAPONMODEL)
+			return false;
+		if (currententity->flags & Q2RF_EXTERNALMODEL && r_secondaryview != 3)
 			return false;
 //		if (currententity->keynum == (cl.viewentity[r_refdef.currentplayernum]?cl.viewentity[r_refdef.currentplayernum]:(cl.playernum[r_refdef.currentplayernum]+1)))
 //			return false;

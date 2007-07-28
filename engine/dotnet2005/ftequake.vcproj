@@ -18255,6 +18255,140 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\common\com_mesh.c"
+					>
+					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebugQ3|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinSW|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated ServerQ3|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
 					RelativePath="..\common\common.c"
 					>
 					<FileConfiguration
@@ -26432,6 +26566,10 @@
 			</File>
 			<File
 				RelativePath="..\client\client.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\com_mesh.h"
 				>
 			</File>
 			<File

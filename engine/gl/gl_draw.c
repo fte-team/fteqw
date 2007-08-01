@@ -945,8 +945,8 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	{
 		mpic_t *pic = Draw_SafeCachePic ("gfx/loading.lmp");
 		if (pic)
-			Draw_Pic ( (vid.width - pic->width)/2,
-				(vid.height - 48 - pic->height)/2, pic);
+			Draw_Pic ( ((int)vid.width - pic->width)/2,
+				((int)vid.height - 48 - pic->height)/2, pic);
 	}
 
 	TRACE(("dbg: GLDraw_ReInit: GL_EndRendering\n"));

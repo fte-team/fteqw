@@ -944,6 +944,26 @@ void Cmd_DemoList(cmdctxt_t *ctx)
 	}
 }
 
+void Cmd_BaseDir(cmdctxt_t *ctx)
+{
+	char *val;
+	val = Cmd_Argv(ctx, 1);
+	if (!Cmd_IsLocal(ctx))
+		Cmd_Printf(ctx, "Sorry, you may not use this command remotly\n");
+
+	if (*val)
+		chdir(val);
+	else
+	{
+		char buffer[256];
+		val = getcwd(buffer, sizeof(buffer));
+		if (val)
+			Cmd_Printf(ctx, "basedir is: %s\n", val);
+		else
+			Cmd_Printf(ctx, "system error getting basedir\n");
+	}
+}
+
 void Cmd_DemoDir(cmdctxt_t *ctx)
 {
 	char *val;
@@ -1047,6 +1067,7 @@ const rconcommands_t rconcommands[] =
 	{"maxviewers",	0, 1, Cmd_MaxViewers},
 	{"maxproxies",	0, 1, Cmd_MaxProxies},
 	{"demodir",	0, 1, Cmd_DemoDir},
+	{"basedir",	0, 1, Cmd_BaseDir},
 	{"ping",		0, 1, Cmd_Ping},
 	{"reconnect",	0, 1, Cmd_Reconnect},
 	{"echo",		0, 1, Cmd_Echo},

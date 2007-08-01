@@ -43,7 +43,7 @@ struct bsp_s {
 	intermission_t intermissionspot[8];
 };
 
-static const intermission_t nullintermissionspot;
+static const intermission_t nullintermissionspot = {{0}};
 
 
 typedef struct

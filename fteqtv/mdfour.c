@@ -54,10 +54,10 @@ struct mdfour {
 	uint32 totalN;
 };
 
-void mdfour_begin(struct mdfour *md); // old: MD4Init
-void mdfour_update(struct mdfour *md, unsigned char *in, int n); //old: MD4Update
-void mdfour_result(struct mdfour *md, unsigned char *out); // old: MD4Final
-void mdfour(unsigned char *out, unsigned char *in, int n);
+static void mdfour_begin(struct mdfour *md); // old: MD4Init
+static void mdfour_update(struct mdfour *md, unsigned char *in, int n); //old: MD4Update
+static void mdfour_result(struct mdfour *md, unsigned char *out); // old: MD4Final
+static void mdfour(unsigned char *out, unsigned char *in, int n);
 
 #endif	// _MDFOUR_H
 
@@ -67,8 +67,6 @@ void mdfour(unsigned char *out, unsigned char *in, int n);
 
    It assumes that a int is at least 32 bits long
 */
-
-static struct mdfour *m;
 
 #define F(X,Y,Z) (((X)&(Y)) | ((~(X))&(Z)))
 #define G(X,Y,Z) (((X)&(Y)) | ((X)&(Z)) | ((Y)&(Z)))
@@ -84,7 +82,7 @@ static struct mdfour *m;
 #define ROUND3(a,b,c,d,k,s) a = lshift(a + H(b,c,d) + X[k] + 0x6ED9EBA1,s)
 
 /* this applies md4 to 64 byte chunks */
-static void mdfour64(uint32 *M)
+static void mdfour64(struct mdfour *m, uint32 *M)
 {
 	int j;
 	uint32 AA, BB, CC, DD;
@@ -154,7 +152,7 @@ static void copy4(unsigned char *out,uint32 x)
 	out[3] = (x>>24)&0xFF;
 }
 
-void mdfour_begin(struct mdfour *md)
+static void mdfour_begin(struct mdfour *md)
 {
 	md->A = 0x67452301;
 	md->B = 0xefcdab89;
@@ -164,7 +162,7 @@ void mdfour_begin(struct mdfour *md)
 }
 
 
-static void mdfour_tail(unsigned char *in, int n)
+static void mdfour_tail(struct mdfour *m, unsigned char *in, int n)
 {
 	unsigned char buf[128];
 	uint32 M[16];
@@ -178,43 +176,43 @@ static void mdfour_tail(unsigned char *in, int n)
 	if (n) memcpy(buf, in, n);
 	buf[n] = 0x80;
 
-	if (n <= 55) {
+	if (n <= 55)
+	{
 		copy4(buf+56, b);
 		copy64(M, buf);
-		mdfour64(M);
-	} else {
+		mdfour64(m, M);
+	}
+	else
+	{
 		copy4(buf+120, b);
 		copy64(M, buf);
-		mdfour64(M);
+		mdfour64(m, M);
 		copy64(M, buf+64);
-		mdfour64(M);
+		mdfour64(m, M);
 	}
 }
 
-void mdfour_update(struct mdfour *md, unsigned char *in, int n)
+static void mdfour_update(struct mdfour *m, unsigned char *in, int n)
 {
 	uint32 M[16];
 
-	m = md;
-
 //	if (n == 0) mdfour_tail(in, n); //Spike: This is where the bug was.
 
-	while (n >= 64) {
+	while (n >= 64)
+	{
 		copy64(M, in);
-		mdfour64(M);
+		mdfour64(m, M);
 		in += 64;
 		n -= 64;
 		m->totalN += 64;
 	}
 
-	mdfour_tail(in, n);
+	mdfour_tail(m, in, n);
 }
 
 
-void mdfour_result(struct mdfour *md, unsigned char *out)
+static void mdfour_result(struct mdfour *m, unsigned char *out)
 {
-	m = md;
-
 	copy4(out, m->A);
 	copy4(out+4, m->B);
 	copy4(out+8, m->C);
@@ -222,7 +220,7 @@ void mdfour_result(struct mdfour *md, unsigned char *out)
 }
 
 
-void mdfour(unsigned char *out, unsigned char *in, int n)
+static void mdfour(unsigned char *out, unsigned char *in, int n)
 {
 	struct mdfour md;
 	mdfour_begin(&md);

@@ -187,7 +187,7 @@ static void ParseCDTrack(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	char nqversion[3];
 	tv->cdtrack = ReadByte(m);
 
-	ConnectionData(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	ConnectionData(tv, (void*)((char*)m->data+m->startpos), m->readpos - m->startpos, to, mask, QW);
 
 	nqversion[0] = svc_cdtrack;
 	nqversion[1] = tv->cdtrack;

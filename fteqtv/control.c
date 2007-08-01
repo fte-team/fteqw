@@ -9,8 +9,8 @@ Contains the control routines that handle both incoming and outgoing stuff
 
 
 // char *date = "Oct 24 1996";
-static char *date = __DATE__ ;
-static char *mon[12] =
+static const char *date = __DATE__ ;
+static const char *mon[12] =
 { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 static char mond[12] =
 { 31,    28,    31,    30,    31,    30,    31,    31,    30,    31,    30,    31 };
@@ -18,13 +18,10 @@ static char mond[12] =
 // returns days since Oct 24 1996
 int build_number( void )
 {
-	int m = 0;
+	int m;
 	int d = 0;
-	int y = 0;
-	static int b = 0;
-
-	if (b != 0)
-		return b;
+	int y;
+	int b;
 
 	for (m = 0; m < 11; m++)
 	{
@@ -410,37 +407,66 @@ void DoCommandLine(cluster_t *cluster, int argc, char **argv)
 {
 	int i;
 	char commandline[8192];
-	char *start, *end, *result;
+	char *result;
+	char *arg;
 	char buffer[8192];
 
+//exec the - commands
+	commandline[0] = '\0';
+	for (i = 1; i <= argc; i++)
+	{
+		if (i == argc)
+			arg = "";
+		else
+		{
+			arg = argv[i];
+			if (!arg)	//NeXT can do this supposedly
+				arg = "";
+		}
+		if(i == argc || *arg == '+' || *arg == '-')
+		{
+			if (commandline[0] == '-')
+			{
+				result = Rcon_Command(cluster, NULL, commandline+1, buffer, sizeof(buffer), true);
+				Sys_Printf(cluster, "%s", result);
+			}
+
+			commandline[0] = '\0';
+		}
+		strcat(commandline, arg);
+		strcat(commandline, " ");
+	}
+
+//exec the configs
 	result = Rcon_Command(cluster, NULL, "exec qtv.cfg", buffer, sizeof(buffer), true);
 	Sys_Printf(cluster, "%s", result);
 
-	commandline[0] = '\0';
 
-	//build a block of strings.
-	for (i = 1; i < argc; i++)
+//exec the + commands
+	commandline[0] = '\0';
+	for (i = 1; i <= argc; i++)
 	{
-		strcat(commandline, argv[i]);
+		if (i == argc)
+			arg = "";
+		else
+		{
+			arg = argv[i];
+			if (!arg)	//NeXT can do this supposedly
+				arg = "";
+		}
+		if(i == argc || *arg == '+' || *arg == '-')
+		{
+			if (commandline[0] == '+')
+			{
+				result = Rcon_Command(cluster, NULL, commandline+1, buffer, sizeof(buffer), true);
+				Sys_Printf(cluster, "%s", result);
+			}
+
+			commandline[0] = '\0';
+		}
+		strcat(commandline, arg);
 		strcat(commandline, " ");
 	}
-	strcat(commandline, "+");
-	
-	start = commandline;
-	while(start)
-	{
-		end = strchr(start+1, '+');
-		if (end)
-			*end = '\0';
-		if (start[1])
-		{
-			result = Rcon_Command(cluster, NULL, start+1, buffer, sizeof(buffer), true);
-			Sys_Printf(cluster, "%s", result);
-		}
-
-		start = end;
-	}
-	Sys_Printf(cluster, "\n");
 }
 
 int main(int argc, char **argv)

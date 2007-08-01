@@ -68,7 +68,7 @@ int vsnprintf(char *buffer, int buffersize, char *format, va_list argptr)
 }
 #endif
 
-const usercmd_t nullcmd;
+const usercmd_t nullcmd = {0};
 
 #define	CM_ANGLE1 	(1<<0)
 #define	CM_ANGLE3 	(1<<1)
@@ -1255,7 +1255,7 @@ void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t 
 		WriteByte(msg, to->angles[2]);
 }
 
-const entity_state_t nullentstate;
+const entity_state_t nullentstate = {0};
 void SV_EmitPacketEntities (const sv_t *qtv, const viewer_t *v, const packet_entities_t *to, netmsg_t *msg)
 {
 	const entity_state_t *baseline;

@@ -997,8 +997,13 @@ void Cmd_MuteStream(cmdctxt_t *ctx)
 {
 	char *val;
 	val = Cmd_Argv(ctx, 1);
-	ctx->qtv->silentstream = atoi(val);
-#warning Implement me
+	if (*val)
+	{
+		ctx->qtv->silentstream = atoi(val);
+		Cmd_Printf(ctx, "Stream is now %smuted", ctx->qtv->silentstream?"un":"");
+	}
+	else
+		Cmd_Printf(ctx, "Stream is currently %smuted", ctx->qtv->silentstream?"un":"");
 }
 
 #ifdef VIEWER

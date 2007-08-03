@@ -221,7 +221,15 @@
 				>
 			</File>
 			<File
+				RelativePath="..\httpsv.c"
+				>
+			</File>
+			<File
 				RelativePath="..\mdfour.c"
+				>
+			</File>
+			<File
+				RelativePath="..\msg.c"
 				>
 			</File>
 			<File
@@ -253,6 +261,14 @@
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl"
 			>
+			<File
+				RelativePath="..\cmd.h"
+				>
+			</File>
+			<File
+				RelativePath="..\protocol.h"
+				>
+			</File>
 			<File
 				RelativePath="..\qtv.h"
 				>

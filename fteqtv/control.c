@@ -4,9 +4,11 @@ Contains the control routines that handle both incoming and outgoing stuff
 
 #include "qtv.h"
 #include <signal.h>
+
+#ifndef _WIN32
 #include <sys/stat.h>
 #include <dirent.h>
-
+#endif
 
 // char *date = "Oct 24 1996";
 static const char *date = __DATE__ ;

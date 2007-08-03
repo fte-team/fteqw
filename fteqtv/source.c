@@ -1234,7 +1234,7 @@ unsigned char	COM_BlockSequenceCRCByte (void *base, int length, int sequence)
 void SetMoveCRC(sv_t *qtv, netmsg_t *msg)
 {
 	char *outbyte;
-	outbyte = msg->data + msg->startpos+1;
+	outbyte = (char*)msg->data + msg->startpos+1;
 
 	*outbyte = COM_BlockSequenceCRCByte(
 				outbyte+1, msg->cursize - (msg->startpos+2),
@@ -1311,7 +1311,7 @@ void QTV_ParseQWStream(sv_t *qtv)
 		qtv->timeout = qtv->curtime + UDPTIMEOUT_LENGTH;
 		if (!Netchan_Process(&qtv->netchan, &msg))
 			continue;
-		ParseMessage(qtv, msg.data + msg.readpos, msg.cursize - msg.readpos, dem_all, -1);
+		ParseMessage(qtv, (char*)msg.data + msg.readpos, msg.cursize - msg.readpos, dem_all, -1);
 
 		qtv->oldpackettime = qtv->nextpackettime;
 		qtv->nextpackettime = qtv->parsetime;

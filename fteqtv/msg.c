@@ -138,7 +138,7 @@ void WriteData(netmsg_t *b, const void *data, int length)
 
 	if (b->cursize + length > b->maxsize)	//urm, that's just too big. :(
 		return;
-	buf = b->data+b->cursize;
+	buf = (char*)b->data+b->cursize;
 	for (i = 0; i < length; i++)
 		*buf++ = ((unsigned char*)data)[i];
 	b->cursize+=length;

@@ -435,6 +435,8 @@ void SendNQSpawnInfoToViewer(cluster_t *cluster, viewer_t *viewer, netmsg_t *msg
 
 int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i, int thisplayer)
 {
+	char name[MAX_QPATH];
+	
 	if (i < 0)
 		return i;
 	if (i >= MAX_CLIENTS)
@@ -449,11 +451,27 @@ int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i, int thispl
 			WriteLong(msg, i);
 			WriteString2(msg, "\\*spectator\\1\\name\\");
 
+			// Print the number of people on QTV along with the hostname
 			if (tv && tv->hostname[0])
-				WriteString(msg, tv->hostname);
+			{
+				if (tv->hostname[0])
+					snprintf(name, sizeof(name), "[%d] %s", tv->numviewers, tv->hostname);
+				else
+					snprintf(name, sizeof(name), "[%d] FTEQTV", tv->numviewers);
+			}
 			else
-				WriteString(msg, "FTEQTV");
+				snprintf(name, sizeof(name), "FTEQTV");
 
+			/*
+			if (tv)
+			{
+				char tmp[MAX_QPATH];
+				snprintf(tmp
+				strlcat(name, itoa(tv->numviewers), sizeof(name));
+				//snprintf(name, sizeof(name), "%s %d", name, tv->numviewers);
+			}
+			*/
+			WriteString(msg, name);
 
 			WriteByte(msg, svc_updatefrags);
 			WriteByte(msg, i);
@@ -1128,6 +1146,8 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 			sprintf(elem, " (%s)", sv->serveraddress);
 			WriteString2(&msg, elem);
 		}
+		
+		WriteString2(&msg, "\n");
 	}
 
 	WriteByte(&msg, 0);
@@ -2328,6 +2348,7 @@ void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcomman
 								".disconnect\n"
 								".admin\n"
 								".bind\n"
+								".qtvinfo\n"
 								);
 	}
 	else if (!strcmp(command, "qtvinfo"))
@@ -2709,6 +2730,14 @@ tuiadmin:
 			QW_PrintfToViewer(v, "Ask an admin to connect first\n");
 		else
 			QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", buf);
+	}
+	else if (!strcmp(command, "qtvinfo"))
+	{
+		char buf[256];
+		
+		snprintf(buf, sizeof(buf), "[QuakeTV] %s\n", qtv->serveraddress);
+		// Print a short line with info about the server
+		QW_PrintfToViewer(v, buf);
 	}
 	else if (!strcmp(command, "stream"))
 	{
@@ -3800,9 +3829,9 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 
 	case MENU_MAIN:
 		if (buttonnum < 0)
-			viewer->menuop -= MENU_MAIN_ITEMCOUNT/2;
+			viewer->menuop -= (MENU_MAIN_ITEMCOUNT + 1)/2;
 		else if (buttonnum > 0)
-			viewer->menuop += MENU_MAIN_ITEMCOUNT/2;
+			viewer->menuop += (MENU_MAIN_ITEMCOUNT + 1)/2;
 		else if (buttonnum == 0)
 		{
 			switch(viewer->menuop)
@@ -3822,7 +3851,7 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 				QW_SetMenu(viewer, MENU_DEMOS);
 				break;
 
-			case MENU_MAIN_FIXME://FIXME
+			case MENU_MAIN_SERVERBROWSER://Server Browser
 				QW_PrintfToViewer(viewer, "Not implemented yet\n");
 				break;
 			case MENU_MAIN_ADMIN://Admin
@@ -3847,6 +3876,10 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 				}
 				else
 					QW_PrintfToViewer(viewer, "No server proxy detected\n");
+				break;
+			
+			case MENU_MAIN_HELP://Help Menu
+				QW_PrintfToViewer(viewer, "Not implemented yet\n");
 				break;
 			}
 		}
@@ -4034,6 +4067,9 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 
 	sprintf(str, "FTEQTV build %i\n", cluster->buildnumber);
 	WriteString2(&m, str);
+	WriteString2(&m, "www.FTEQW.com\n");
+	WriteString2(&m, "-------------\n");
+	
 	if (strcmp(cluster->hostname, DEFAULT_HOSTNAME))
 		WriteString2(&m, cluster->hostname);
 
@@ -4058,11 +4094,14 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 			WriteStringSelection(&m, i==MENU_MAIN_NEWSTREAM,	"New Stream       ");
 			WriteStringSelection(&m, i==MENU_MAIN_DEMOS,		"Demos            ");
 			WriteByte(&m, '\n');
-			WriteStringSelection(&m, i==MENU_MAIN_FIXME,		"FIXME            ");
+			WriteStringSelection(&m, i==MENU_MAIN_SERVERBROWSER,"Server Browser   ");
 			WriteStringSelection(&m, i==MENU_MAIN_ADMIN,		"Admin            ");
 			WriteByte(&m, '\n');
 			WriteStringSelection(&m, i==MENU_MAIN_PREVPROX,		"Previous Proxy   ");
 			WriteStringSelection(&m, i==MENU_MAIN_NEXTPROX,		"Next Proxy       ");
+			WriteByte(&m, '\n');
+			WriteStringSelection(&m, i==MENU_MAIN_HELP,			"Help             ");
+			WriteString2(&m,									"                  ");
 
 			WriteString2(&m, "\n\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f\n");
 		}

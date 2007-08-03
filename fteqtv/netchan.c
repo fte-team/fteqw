@@ -486,7 +486,7 @@ qboolean NQNetchan_Process(cluster_t *cluster, netchan_t *chan, netmsg_t *msg)
 				return false;
 			}
 
-			memcpy(chan->in_fragment_buf + chan->in_fragment_length, msg->data+8, msg->cursize-8);
+			memcpy(chan->in_fragment_buf + chan->in_fragment_length, (char*)msg->data+8, msg->cursize-8);
 			chan->in_fragment_length += msg->cursize-8;
 
 			if (header & NETFLAG_EOM)

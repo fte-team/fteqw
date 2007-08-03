@@ -219,7 +219,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	{
 		if (tv->controller)
 		{	//let it through to the controller
-			SendBufferToViewer(tv->controller, m->data+m->startpos, m->readpos - m->startpos, true);
+			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);
 		}
 		return;	//this was generating far too many screenshots when watching demos
 	}
@@ -300,7 +300,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	{
 		if (tv->controller)
 		{	//if we're acting as a proxy, forward the realip packets, and ONLY to the controller
-			SendBufferToViewer(tv->controller, m->data+m->startpos, m->readpos - m->startpos, true);
+			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);
 			return;
 		}
 		if(tv->usequakeworldprotocols)
@@ -324,12 +324,12 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	}
 	else if (tv->usequakeworldprotocols && !strncmp(text, "setinfo ", 8))
 	{
-		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
+		Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 		SendClientCommand(tv, text);
 	}
 	else
 	{
-		Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
+		Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 		return;
 	}
 }
@@ -346,7 +346,7 @@ static void ParseSetInfo(sv_t *tv, netmsg_t *m)
 	if (pnum < MAX_CLIENTS)
 		Info_SetValueForStarKey(tv->players[pnum].userinfo, key, value, sizeof(tv->players[pnum].userinfo));
 
-	ConnectionData(tv, m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1, QW);
+	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1, QW);
 }
 
 static void ParseServerinfo(sv_t *tv, netmsg_t *m)
@@ -359,7 +359,7 @@ static void ParseServerinfo(sv_t *tv, netmsg_t *m)
 	if (strcmp(key, "hostname"))	//don't allow the hostname to change, but allow the server to change other serverinfos.
 		Info_SetValueForStarKey(tv->serverinfo, key, value, sizeof(tv->serverinfo));
 
-	ConnectionData(tv, m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1, QW);
+	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1, QW);
 }
 
 static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -390,7 +390,7 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		}
 	}
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW|CONNECTING);
+	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW|CONNECTING);
 //	Multicast(tv, buffer, strlen(buffer), to, mask, NQ);
 }
 static void ParseCenterprint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -416,7 +416,7 @@ static void ParseCenterprint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 					if (v->trackplayer>=0)
 						if ((1<<v->trackplayer)&mask)
 						{
-							SendBufferToViewer(v, m->data+m->startpos, m->readpos - m->startpos, true);	//FIXME: change the reliable depending on message type
+							SendBufferToViewer(v, (char*)m->data+m->startpos, m->readpos - m->startpos, true);	//FIXME: change the reliable depending on message type
 						}
 		}
 		break;
@@ -427,7 +427,7 @@ static void ParseCenterprint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			if (!v->menunum || v->menunum == MENU_FORWARDING)
 			if (v->thinksitsconnected)
 				if (v->server == tv)
-					SendBufferToViewer(v, m->data+m->startpos, m->readpos - m->startpos, true);	//FIXME: change the reliable depending on message type
+					SendBufferToViewer(v, (char*)m->data+m->startpos, m->readpos - m->startpos, true);	//FIXME: change the reliable depending on message type
 		}
 		break;
 	}
@@ -492,7 +492,7 @@ static void ParseStaticSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 	tv->staticsound_count++;
 
-	ConnectionData(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
+	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 }
 
 static void ParseIntermission(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -504,7 +504,7 @@ static void ParseIntermission(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	ReadByte(m);
 	ReadByte(m);
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
 void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -519,7 +519,7 @@ void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 	tv->spawnstatic_count++;
 
-	ConnectionData(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
+	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 }
 
 extern const usercmd_t nullcmd;
@@ -987,7 +987,7 @@ static void ParseUpdatePing(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	else
 		Sys_Printf(tv->cluster, "svc_updateping: invalid player number\n");
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
 static void ParseUpdateFrags(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -1002,7 +1002,7 @@ static void ParseUpdateFrags(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	else
 		Sys_Printf(tv->cluster, "svc_updatefrags: invalid player number\n");
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, (pnum < 16)?Q1:QW);
+	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, (pnum < 16)?Q1:QW);
 }
 
 static void ParseUpdateStat(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -1025,7 +1025,7 @@ static void ParseUpdateStat(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	else
 		Sys_Printf(tv->cluster, "svc_updatestat: invalid stat number\n");
 
-//	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+//	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 static void ParseUpdateStatLong(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
@@ -1047,7 +1047,7 @@ static void ParseUpdateStatLong(sv_t *tv, netmsg_t *m, int to, unsigned int mask
 	else
 		Sys_Printf(tv->cluster, "svc_updatestatlong: invalid stat number\n");
 
-//	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+//	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
 static void ParseUpdateUserinfo(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -1065,7 +1065,7 @@ static void ParseUpdateUserinfo(sv_t *tv, netmsg_t *m, int to, unsigned int mask
 		}
 	}
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
 static void ParsePacketloss(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -1081,7 +1081,7 @@ static void ParsePacketloss(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	else
 		Sys_Printf(tv->cluster, "svc_updatepl: invalid player number\n");
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
 static void ParseUpdateEnterTime(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -1097,7 +1097,7 @@ static void ParseUpdateEnterTime(sv_t *tv, netmsg_t *m, int to, unsigned int mas
 	else
 		Sys_Printf(tv->cluster, "svc_updateentertime: invalid player number\n");
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
 static void ParseSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -1140,7 +1140,7 @@ static void ParseSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	for (i=0 ; i<3 ; i++)
 		org[i] = ReadShort (m);
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 
 	nqversion[0] = svc_sound;
 	nqversion[1] = 0;
@@ -1180,7 +1180,7 @@ static void ParseDamage(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	ReadShort (m);
 	ReadShort (m);
 	ReadShort (m);
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
 enum {
@@ -1298,7 +1298,7 @@ static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		return;
 	}
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, to, mask, dest);
+	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, dest);
 
 	if (nqversionlength)
 		Multicast(tv, nqversion, nqversionlength, to, mask, NQ);
@@ -1318,7 +1318,7 @@ void ParseLightstyle(sv_t *tv, netmsg_t *m)
 		}
 	}
 
-	Multicast(tv, m->data+m->startpos, m->readpos - m->startpos, dem_read, (unsigned)-1, Q1);
+	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, dem_read, (unsigned)-1, Q1);
 }
 
 void ParseNails(sv_t *tv, netmsg_t *m, qboolean nails2)
@@ -1486,7 +1486,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			tv->proxyplayerangles[2] = ReadByte(&buf)*360.0/255;
 
 			if (tv->usequakeworldprotocols && tv->controller)
-				SendBufferToViewer(tv->controller, buf.data+buf.startpos, buf.readpos - buf.startpos, true);
+				SendBufferToViewer(tv->controller, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, true);
 
 			{
 				char nq[4];
@@ -1525,7 +1525,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			ReadByte(&buf);
 			ReadByte(&buf);
 			ReadByte(&buf);
-			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1, Q1);
+			Multicast(tv, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1, Q1);
 			break;
 
 		case svc_damage:
@@ -1547,7 +1547,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 
 		case svc_setpause:	// [qbyte] on / off
 			tv->ispaused = ReadByte(&buf);
-			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1, Q1);
+			Multicast(tv, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1, Q1);
 			break;
 
 //#define	svc_signonnum		25	// [qbyte]  used for the signon sequence
@@ -1567,7 +1567,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 		case svc_finale:
 			while(ReadByte(&buf))
 				;
-			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1, Q1);
+			Multicast(tv, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1, Q1);
 			break;
 
 		case svc_cdtrack:
@@ -1575,14 +1575,14 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			break;
 
 		case svc_sellscreen:
-			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1, Q1);
+			Multicast(tv, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1, Q1);
 			break;
 
 //#define svc_cutscene		34	//hmm... nq only... added after qw tree splitt?
 
 		case svc_smallkick:
 		case svc_bigkick:
-			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, QW);
+			Multicast(tv, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, QW);
 			break;
 
 		case svc_updateping:
@@ -1599,7 +1599,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 
 		case svc_muzzleflash:
 			ReadShort(&buf);
-			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, QW);
+			Multicast(tv, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, QW);
 			break;
 
 		case svc_updateuserinfo:
@@ -1701,11 +1701,11 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 
 		case svc_entgravity:		// gravity change, for prediction
 			ReadFloat(&buf);
-			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, QW);
+			Multicast(tv, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, QW);
 			break;
 		case svc_maxspeed:			// maxspeed change, for prediction
 			ReadFloat(&buf);
-			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, QW);
+			Multicast(tv, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, QW);
 			break;
 		case svc_setinfo:
 			ParseSetInfo(tv, &buf);
@@ -1721,10 +1721,10 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			break;
 
 		case svc_killedmonster:
-			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, Q1);
+			Multicast(tv, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, Q1);
 			break;
 		case svc_foundsecret:
-			Multicast(tv, buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, Q1);
+			Multicast(tv, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, to, mask, Q1);
 			break;
 
 		default:

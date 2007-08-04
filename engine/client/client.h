@@ -894,10 +894,15 @@ extern int spec_track[MAX_SPLITS]; // player# of who we are tracking
 
 qboolean Cam_DrawViewModel(int pnum);
 qboolean Cam_DrawPlayer(int pnum, int playernum);
-void Cam_Track(int pnum, usercmd_t *cmd);
 int Cam_TrackNum(int pnum);
+void Cam_Unlock(int pnum);
+void Cam_Lock(int pnum, int playernum);
+void Cam_SelfTrack(int pnum);
+void Cam_Track(int pnum, usercmd_t *cmd);
+void Cam_TrackCrosshairedPlayer(int pnum);
 void Cam_FinishMove(int pnum, usercmd_t *cmd);
 void Cam_Reset(void);
+void Cam_TrackPlayer(int pnum, char *cmdname, char *plrarg);
 void Cam_Lock(int pnum, int playernum);
 void CL_InitCam(void);
 

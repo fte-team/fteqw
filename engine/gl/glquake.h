@@ -286,6 +286,7 @@ void GL_EmitBothSkyLayers (msurface_t *fa);
 void EmitWaterPolys (msurface_t *fa, float basealpha);
 void EmitSkyPolys (msurface_t *fa);
 void GL_DrawSkyChain (msurface_t *s);
+void R_InitSky (texture_t *mt);
 
 void R_ClearSkyBox (void);
 void R_DrawSkyBox (msurface_t *s);
@@ -303,6 +304,7 @@ void GL_Set2D (void);
 //
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 qboolean R_CullSphere (vec3_t origin, float radius);
+qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs);
 void R_RotateForEntity (entity_t *e);
 
 void GL_InitSceneProcessingShaders (void);

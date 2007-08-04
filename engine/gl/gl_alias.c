@@ -993,7 +993,6 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 	int frame;
 
 	int tc, bc;
-	int local;
 
 	if (!gl_nocolors.value)
 	{

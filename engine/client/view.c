@@ -1327,6 +1327,12 @@ void R_DrawNameTags(void)
 	{
 		if (state->messagenum != cl.parsecount)
 			continue;	// not present this frame
+		if (i == cl.playernum[r_refdef.currentplayernum])
+			continue;	// Don't draw tag for the local player
+		if (Cam_DrawPlayer(r_refdef.currentplayernum, i) == false)
+			continue;	// Don't draw tag for players not drawn on the map
+		if (view_frame && view_frame->playerstate[i].flags & PF_DEAD)
+			continue;	// Don't draw tag for dead people
 		if (!TraceLineN(r_refdef.vieworg, state->origin, waste, waste2))
 		{
 			VectorCopy(state->origin, tagcenter);

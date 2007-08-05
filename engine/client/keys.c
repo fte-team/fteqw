@@ -724,7 +724,16 @@ void Key_Console (int key)
 		// than the text area to include borders I guess... weird shit.
 		// - Molgrum
 		if (keydown[K_CTRL])
-			con_current->display -= ( ( con_current->vislines - 22 ) / 8 );
+		{
+			if (con_current->display == con_current->current)
+			{
+				con_current->display -= ( ( con_current->vislines - 22 ) / 8 );
+			}
+			else
+			{
+				con_current->display -= ( ( con_current->vislines - 30 ) / 8 );
+			}
+		}
 		else
 			con_current->display -= 2;
 		
@@ -740,7 +749,7 @@ void Key_Console (int key)
 		// than the text area to include borders I guess... weird shit.
 		// - Molgrum
 		if (keydown[K_CTRL])
-			con_current->display += ( ( con_current->vislines - 22 ) / 8 );
+			con_current->display += ( ( con_current->vislines - 30 ) / 8 );
 		else
 			con_current->display += 2;
 		

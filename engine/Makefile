@@ -565,7 +565,7 @@ endif
 	GL_EXE_NAME=../fteqwglcyg.exe
 	GLCL_EXE_NAME=../fteqwclglcyg.exe
 	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
-	GL_CFLAGS=$(GLCFLAGS)
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
 	GLB_DIR=gl_cygwin
 	GLCL_DIR=glcl_cygwin
 

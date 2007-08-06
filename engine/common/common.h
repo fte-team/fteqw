@@ -256,6 +256,9 @@ char *COM_SkipPath (char *pathname);
 void COM_StripExtension (char *in, char *out, int outlen);
 void COM_FileBase (char *in, char *out, int outlen);
 void COM_DefaultExtension (char *path, char *extension, int maxlen);
+void COM_DeFunString(unsigned long *str, char *out, int outsize, qboolean ignoreflags);
+void COM_ParseFunString(char *str, unsigned long *out, int outsize);
+int COM_FunStringLength(unsigned char *str);
 char *COM_FileExtension (char *in);
 void COM_CleanUpPath(char *str);
 

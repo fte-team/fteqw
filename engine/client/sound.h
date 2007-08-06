@@ -131,6 +131,9 @@ void S_InitPaintChannels (soundcardinfo_t *sc);
 void S_ShutdownCard (soundcardinfo_t *sc);
 void S_StopSoundCard (soundcardinfo_t *sc, int entnum, int entchannel);
 
+void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc);
+void S_ResetFailedLoad(void);
+
 qboolean S_IsPlayingSomewhere(sfx_t *s);
 void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data);
 

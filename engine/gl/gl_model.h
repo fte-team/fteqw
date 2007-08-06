@@ -402,6 +402,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 void Q1BSP_FatPVS (struct model_s *mod, vec3_t org, qboolean add);
 qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct edict_s *ent);
 void Q1BSP_FindTouchedLeafs(struct model_s *mod, struct edict_s *ent);
+qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, qbyte *buffer);
 
 /*
 ==============================================================================

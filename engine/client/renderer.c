@@ -1461,7 +1461,6 @@ void D3DSucks(void)
 
 qboolean R_ApplyRenderer (rendererstate_t *newr)
 {
-	int i, j;
 	extern model_t *loadmodel;
 	extern int host_hunklevel;
 

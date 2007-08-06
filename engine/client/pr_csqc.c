@@ -2594,42 +2594,41 @@ void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	if (lerp < 0) lerp = 0;
 	if (lerp > 1) lerp = 1;
 
-	if (Mod_GetTag)
-		if (Mod_GetTag(mod, tagnum, frame1, frame2, lerp, frame1time, frame2time, transforms))
+	if (Mod_GetTag(mod, tagnum, frame1, frame2, lerp, frame1time, frame2time, transforms))
+	{
+		VectorCopy(csqcg.forward, src+0);
+		src[3] = 0;
+		VectorNegate(csqcg.right, src+4);
+		src[7] = 0;
+		VectorCopy(csqcg.up, src+8);
+		src[11] = 0;
+
+		if (ent->v->scale)
 		{
-			VectorCopy(csqcg.forward, src+0);
-			src[3] = 0;
-			VectorNegate(csqcg.right, src+4);
-			src[7] = 0;
-			VectorCopy(csqcg.up, src+8);
-			src[11] = 0;
-
-			if (ent->v->scale)
+			for (i = 0; i < 12; i+=4)
 			{
-				for (i = 0; i < 12; i+=4)
-				{
-					transforms[i+0] *= ent->v->scale;
-					transforms[i+1] *= ent->v->scale;
-					transforms[i+2] *= ent->v->scale;
-					transforms[i+3] *= ent->v->scale;
-				}
+				transforms[i+0] *= ent->v->scale;
+				transforms[i+1] *= ent->v->scale;
+				transforms[i+2] *= ent->v->scale;
+				transforms[i+3] *= ent->v->scale;
 			}
-
-			R_ConcatRotationsPad((void*)transforms, (void*)src, (void*)dest);
-
-			VectorCopy(dest+0, csqcg.forward);
-			VectorNegate(dest+4, csqcg.right);
-			VectorCopy(dest+8, csqcg.up);
-
-			VectorCopy(srcorg, retorg);
-			for (i = 0 ; i < 3 ; i++)
-			{
-				retorg[0] += transforms[i*4+3]*src[4*i+0];
-				retorg[1] += transforms[i*4+3]*src[4*i+1];
-				retorg[2] += transforms[i*4+3]*src[4*i+2];
-			}
-			return;
 		}
+
+		R_ConcatRotationsPad((void*)transforms, (void*)src, (void*)dest);
+
+		VectorCopy(dest+0, csqcg.forward);
+		VectorNegate(dest+4, csqcg.right);
+		VectorCopy(dest+8, csqcg.up);
+
+		VectorCopy(srcorg, retorg);
+		for (i = 0 ; i < 3 ; i++)
+		{
+			retorg[0] += transforms[i*4+3]*src[4*i+0];
+			retorg[1] += transforms[i*4+3]*src[4*i+1];
+			retorg[2] += transforms[i*4+3]*src[4*i+2];
+		}
+		return;
+	}
 
 	VectorCopy(srcorg, retorg);
 }
@@ -2639,10 +2638,7 @@ static void PF_cs_gettagindex (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	char *tagname = PR_GetStringOfs(prinst, OFS_PARM1);
 
 	model_t *mod = CSQC_GetModelForIndex(ent->v->modelindex);
-	if (Mod_TagNumForName)
-		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(mod, tagname);
-	else
-		G_FLOAT(OFS_RETURN) = 0;
+	G_FLOAT(OFS_RETURN) = Mod_TagNumForName(mod, tagname);
 }
 static void PF_rotatevectorsbyangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

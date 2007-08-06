@@ -113,6 +113,8 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 
 void	Cmd_ExecuteString (char *text, int restrictionlevel);
 
+void Cmd_Args_Set(char *newargs);
+
 #define RESTRICT_MAX		64	//1-64	it's all about bit size. This is max settable. servers are +1
 #define RESTRICT_DEFAULT	50	//rcon get's 63, local always gets 64
 #define RESTRICT_MIN		1	//rcon get's 63, local always gets 64

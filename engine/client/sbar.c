@@ -118,7 +118,7 @@ int Sbar_PlayerNum(void)
 	int num;
 	num = cl.spectator?Cam_TrackNum(0):-1;
 	if (num < 0)
-		num = cl.playernum;
+		num = cl.playernum[0];
 	return num;
 }
 
@@ -1714,8 +1714,6 @@ qboolean Sbar_ShouldDraw (void)
 	extern qboolean editoractive;
 #endif
 	qboolean headsup;
-	char st[512];
-	int pnum;
 
 	int deadcount=0;
 
@@ -2157,7 +2155,6 @@ void Sbar_DeathmatchOverlay (int start)
 	player_info_t	*s;
 	int				total;
 	int				minutes;
-	int				p;
 	int				skip = 10;
 	int showcolumns;
 	int startx;

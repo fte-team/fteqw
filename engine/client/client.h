@@ -674,8 +674,15 @@ void CL_Disconnect (void);
 void CL_Disconnect_f (void);
 void CL_Reconnect_f (void);
 void CL_NextDemo (void);
+void CL_Startdemos_f (void);
+void CL_Demos_f (void);
+void CL_Stopdemo_f (void);
+void CL_Changing_f (void);
+void CL_Reconnect_f (void);
+void CL_ConnectionlessPacket (void);
 qboolean CL_DemoBehind(void);
 void CL_SaveInfo(vfsfile_t *f);
+void CL_SetInfo (char *key, char *value);
 
 void CL_BeginServerConnect(void);
 void CLNQ_BeginServerConnect(void);
@@ -754,6 +761,7 @@ void CL_Record_f (void);
 void CL_ReRecord_f (void);
 void CL_PlayDemo_f (void);
 void CL_QTVPlay_f (void);
+void CL_QTVPoll (void);
 void CL_QTVList_f (void);
 void CL_QTVDemos_f (void);
 void CL_DemoJump_f(void);
@@ -783,6 +791,8 @@ void CL_StopUpload(void);
 
 void CL_RequestNextDownload (void);
 void CL_SendDownloadReq(sizebuf_t *msg);
+
+qboolean CL_CheckBaselines (int size);
 
 //
 // view.c
@@ -1047,6 +1057,16 @@ void Media_ShutdownCin(cin_t *cin);
 
 void MVD_Interpolate(void);
 
-void Stats_NewMap(void);
+int Stats_GetKills(int playernum);
+int Stats_GetTKills(int playernum);
+int Stats_GetDeaths(int playernum);
+int Stats_GetTouches(int playernum);
+int Stats_GetCaptures(int playernum);
+qboolean Stats_HaveFlags(void);
+qboolean Stats_HaveKills(void);
+void VARGS Stats_Message(char *msg, ...);
+int qm_strcmp(char *s1, char *s2);
+int qm_stricmp(char *s1, char *s2);
 void Stats_ParsePrintLine(char *line);
+void Stats_NewMap(void);
 

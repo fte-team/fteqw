@@ -678,16 +678,8 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 	org = (float*)out;
 	ang = ((float*)out+3);
 
-	if (Mod_GetTag)
-	{
-		if (Mod_TagNumForName)
-			tagnum = Mod_TagNumForName(model, tagname);
-		else
-			tagnum = 0;
-		found = Mod_GetTag(model, tagnum, f1, f2, l2, 0, 0, tr);
-	}
-	else
-		found = false;
+	tagnum = Mod_TagNumForName(model, tagname);
+	found = Mod_GetTag(model, tagnum, f1, f2, l2, 0, 0, tr);
 
 	if (found)
 	{
@@ -1687,9 +1679,9 @@ qboolean UI_KeyPress(int key, qboolean down)
 			}
 
 			if (cls.state)
-				VM_Call(uivm, UI_SET_ACTIVE_MENU, 2)>0;
+				VM_Call(uivm, UI_SET_ACTIVE_MENU, 2);
 			else
-				VM_Call(uivm, UI_SET_ACTIVE_MENU, 1)>0;
+				VM_Call(uivm, UI_SET_ACTIVE_MENU, 1);
 
 			scr_conlines = 0;
 			return true;

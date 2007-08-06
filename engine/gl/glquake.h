@@ -281,6 +281,10 @@ void GL_DoSwap (void);
 //
 // gl_warp.c
 //
+#ifdef RGLQUAKE
+void GL_DrawSkyBox (msurface_t *s);
+#endif
+
 void GL_SubdivideSurface (msurface_t *fa, float dividesize);
 void GL_EmitBothSkyLayers (msurface_t *fa);
 void EmitWaterPolys (msurface_t *fa, float basealpha);

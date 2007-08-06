@@ -67,6 +67,8 @@ void SCR_UpdateWholeScreen (void);
 
 
 //this stuff is internal to the screen systems.
+void RSpeedShow(void);
+
 void SCR_CrosshairPosition(int pnum, int *x, int *y);
 void SCR_DrawLoading (void);
 void SCR_CalcRefdef (void);

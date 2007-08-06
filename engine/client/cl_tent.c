@@ -2436,6 +2436,7 @@ CL_UpdateBeams
 */
 void CL_UpdateBeams (void)
 {
+	int bnum;
 	int			i, j;
 	beam_t		*b;
 	vec3_t		dist, org;
@@ -2450,7 +2451,7 @@ void CL_UpdateBeams (void)
 	extern cvar_t cl_truelightning, v_viewheight;
 
 // update lightning
-	for (i=0, b=cl_beams; i < beams_running; i++, b++)
+	for (bnum=0, b=cl_beams; bnum < beams_running; bnum++, b++)
 	{
 		if (!b->model)
 			continue;

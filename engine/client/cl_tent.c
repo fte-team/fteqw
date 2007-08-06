@@ -2464,7 +2464,7 @@ void CL_UpdateBeams (void)
 			continue;
 		}
 
-		lastrunningbeam = i;
+		lastrunningbeam = bnum;
 
 	// if coming from the player, update the start position
 		if ((b->flags & 1) && b->entity > 0 && b->entity <= MAX_CLIENTS)

@@ -15,6 +15,7 @@
 PR_PrintStatement
 =================
 */
+/*
 void PR_PrintStatement (progfuncs_t *progfuncs, dstatement16_t *s)
 {
 	int		i;
@@ -50,6 +51,7 @@ return;
 	}
 	printf ("\n");
 }
+*/
 
 /*
 ============

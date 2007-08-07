@@ -5391,6 +5391,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated ServerQ3|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -23316,7 +23317,6 @@
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -23461,7 +23461,6 @@
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -23606,7 +23605,6 @@
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -23895,7 +23893,6 @@
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"

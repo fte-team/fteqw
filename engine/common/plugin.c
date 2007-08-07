@@ -1272,20 +1272,25 @@ void Plug_Net_Close_Internal(int handle)
 {
 	switch(pluginstreamarray[handle].type)
 	{
-#ifdef GNUTLS
+	case STREAM_FILE:
+		if (*pluginstreamarray[handle].file.filename)
+			COM_WriteFile(pluginstreamarray[handle].file.filename, pluginstreamarray[handle].file.buffer, pluginstreamarray[handle].file.curlen);
+		BZ_Free(pluginstreamarray[handle].file.buffer);
+		break;
+	case STREAM_NONE:
+		break;
+	case STREAM_OSFILE:
+		break;
+	case STREAM_SOCKET:
+		closesocket(pluginstreamarray[handle].socket);
+		break;
 	case STREAM_TLS:
+#ifdef GNUTLS
 		gnutls_bye (pluginstreamarray[handle].session, GNUTLS_SHUT_RDWR);
 		pluginstreamarray[handle].type = STREAM_SOCKET;
 		Plug_Net_Close_Internal(handle);
 		return;
 #endif
-	case STREAM_SOCKET:
-		closesocket(pluginstreamarray[handle].socket);
-		break;
-	case STREAM_FILE:
-		if (*pluginstreamarray[handle].file.filename)
-			COM_WriteFile(pluginstreamarray[handle].file.filename, pluginstreamarray[handle].file.buffer, pluginstreamarray[handle].file.curlen);
-		BZ_Free(pluginstreamarray[handle].file.buffer);
 		break;
 	}
 

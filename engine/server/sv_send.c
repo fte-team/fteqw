@@ -239,27 +239,29 @@ void SV_PrintToClient(client_t *cl, int level, char *string)
 	{
 	case SCP_BAD:	//bot
 		break;
-#ifdef Q2SERVER
 	case SCP_QUAKE2:
+#ifdef Q2SERVER
 		ClientReliableWrite_Begin (cl, svcq2_print, strlen(string)+3);
 		ClientReliableWrite_Byte (cl, level);
 		ClientReliableWrite_String (cl, string);
-		break;
 #endif
-#ifdef NQPROT
-	case SCP_NETQUAKE:
-	case SCP_DARKPLACES6:
-	case SCP_DARKPLACES7:
-		ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
-		if (level == PRINT_CHAT)
-			ClientReliableWrite_Byte (cl, 1);
-		ClientReliableWrite_String (cl, string);
 		break;
-#endif
+	case SCP_QUAKE3:
+		break;
 	case SCP_QUAKEWORLD:
 		ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
 		ClientReliableWrite_Byte (cl, level);
 		ClientReliableWrite_String (cl, string);
+		break;
+	case SCP_DARKPLACES6:
+	case SCP_DARKPLACES7:
+	case SCP_NETQUAKE:
+#ifdef NQPROT
+		ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
+		if (level == PRINT_CHAT)
+			ClientReliableWrite_Byte (cl, 1);
+		ClientReliableWrite_String (cl, string);
+#endif
 		break;
 	}
 }

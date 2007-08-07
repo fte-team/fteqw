@@ -943,6 +943,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	switch (svs.gametype)
 	{
+	case GT_MAX:
+		break;
 	case GT_PROGS:
 		ent = EDICT_NUM(svprogfuncs, 0);
 		ent->isfree = false;
@@ -978,8 +980,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 
 		break;
-#ifdef Q2SERVER
 	case GT_QUAKE2:
+#ifdef Q2SERVER
 		for (i=0 ; i<MAX_CLIENTS ; i++)
 		{
 			q2ent = Q2EDICT_NUM(i+1);
@@ -987,13 +989,13 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			svs.clients[i].q2edict = q2ent;
 		}
 		sv.allocated_client_slots = i;
-		break;
 #endif
-#ifdef Q3SERVER
+		break;
 	case GT_QUAKE3:
+#ifdef Q3SERVER
 		sv.allocated_client_slots = 32;
-		break;
 #endif
+		break;
 	}
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)
@@ -1135,14 +1137,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		Info_SetValueForStarKey(svs.info, "*entfile", crc, MAX_SERVERINFO_STRING);
 		switch(svs.gametype)
 		{
+		case GT_MAX:
+			break;
 		case GT_PROGS:
 			pr_edict_size = PR_LoadEnts(svprogfuncs, file, spawnflagmask);
 			break;
-#ifdef Q2SERVER
 		case GT_QUAKE2:
+#ifdef Q2SERVER
 			ge->SpawnEntities(sv.name, file, startspot?startspot:"");
-			break;
 #endif
+			break;
+		case GT_QUAKE3:
+			break;
 		}
 		BZ_Free(file);
 	}
@@ -1151,14 +1157,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		Info_SetValueForStarKey(svs.info, "*entfile", "", MAX_SERVERINFO_STRING);
 		switch(svs.gametype)
 		{
+		case GT_MAX:
+			break;
 		case GT_PROGS:
 			pr_edict_size = PR_LoadEnts(svprogfuncs, sv.worldmodel->entities, spawnflagmask);
 			break;
-#ifdef Q2SERVER
 		case GT_QUAKE2:
+#ifdef Q2SERVER
 			ge->SpawnEntities(sv.name, sv.worldmodel->entities, startspot?startspot:"");
-			break;
 #endif
+			break;
+		case GT_QUAKE3:
+			break;
 		}
 	}
 

@@ -187,26 +187,32 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 {
 	switch(sortfield)
 	{
-	case SLKEY_PING:
-		return Master_CompareInteger(a->ping, b->ping, SLIST_TEST_LESS);
-	case SLKEY_NUMPLAYERS:
-		return Master_CompareInteger(a->players, b->players, SLIST_TEST_LESS);
-	case SLKEY_MAXPLAYERS:
-		return Master_CompareInteger(a->maxplayers, b->maxplayers, SLIST_TEST_LESS);
-	case SLKEY_FREEPLAYERS:
-		return Master_CompareInteger(a->maxplayers - a->players, b->maxplayers - b->players, SLIST_TEST_LESS);
+	case SLKEY_ADDRESS:
+		break;
 	case SLKEY_BASEGAME:
 		return Master_CompareInteger(a->special, b->special, SLIST_TEST_LESS);
-	case SLKEY_TIMELIMIT:
-		return Master_CompareInteger(a->tl, b->tl, SLIST_TEST_LESS);
+	case SLKEY_CUSTOM:
+		break;
 	case SLKEY_FRAGLIMIT:
 		return Master_CompareInteger(a->fl, b->fl, SLIST_TEST_LESS);
-	case SLKEY_MAP:
-		return Master_CompareString(a->map, b->map, SLIST_TEST_LESS);
+	case SLKEY_FREEPLAYERS:
+		return Master_CompareInteger(a->maxplayers - a->players, b->maxplayers - b->players, SLIST_TEST_LESS);
 	case SLKEY_GAMEDIR:
 		return Master_CompareString(a->gamedir, b->gamedir, SLIST_TEST_LESS);
+	case SLKEY_MAP:
+		return Master_CompareString(a->map, b->map, SLIST_TEST_LESS);
+	case SLKEY_MAXPLAYERS:
+		return Master_CompareInteger(a->maxplayers, b->maxplayers, SLIST_TEST_LESS);
 	case SLKEY_NAME:
 		return Master_CompareString(a->name, b->name, SLIST_TEST_LESS);
+	case SLKEY_NUMPLAYERS:
+		return Master_CompareInteger(a->players, b->players, SLIST_TEST_LESS);
+	case SLKEY_PING:
+		return Master_CompareInteger(a->ping, b->ping, SLIST_TEST_LESS);
+	case SLKEY_TIMELIMIT:
+		return Master_CompareInteger(a->tl, b->tl, SLIST_TEST_LESS);
+	case SLKEY_TOOMANY:
+		break;
 	}
 	return false;
 }

@@ -367,6 +367,10 @@ void SV_DropClient (client_t *drop)
 		case SCP_DARKPLACES7:
 			MSG_WriteByte (&drop->netchan.message, svc_disconnect);
 			break;
+		case SCP_BAD:
+			break;
+		case SCP_QUAKE3:
+			break;
 		}
 	}
 
@@ -409,19 +413,8 @@ void SV_DropClient (client_t *drop)
 #endif
 	switch(svs.gametype)
 	{
-#ifdef Q3SERVER
-	case GT_QUAKE3:
-		SVQ3_DropClient(drop);
+	case GT_MAX:
 		break;
-#endif
-
-#ifdef Q2SERVER
-	case GT_QUAKE2:
-		if (ge)
-			ge->ClientDisconnect(drop->q2edict);
-		break;
-#endif
-
 	case GT_PROGS:
 		if (svprogfuncs)
 		{
@@ -447,6 +440,17 @@ void SV_DropClient (client_t *drop)
 				Z_Free(drop->spawninfo);
 			drop->spawninfo = NULL;
 		}
+		break;
+	case GT_QUAKE2:
+#ifdef Q2SERVER
+		if (ge)
+			ge->ClientDisconnect(drop->q2edict);
+#endif
+		break;
+	case GT_QUAKE3:
+#ifdef Q3SERVER
+		SVQ3_DropClient(drop);
+#endif
 		break;
 	}
 
@@ -668,9 +672,15 @@ int SV_CalcPing (client_t *cl)
 
 	switch (cl->protocol)
 	{
-	case SCP_NETQUAKE:
+	case SCP_BAD:
+		break;
+	case SCP_QUAKE2:
+		break;
+	case SCP_QUAKE3:
+		break;
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
+	case SCP_NETQUAKE:
 	case SCP_QUAKEWORLD:
 		ping = 0;
 		count = 0;
@@ -3466,6 +3476,8 @@ void Master_Shutdown (void)
 					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
 
 				NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
+				break;
+			case true:
 				break;
 			}
 		}

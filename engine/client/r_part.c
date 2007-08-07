@@ -4449,23 +4449,25 @@ void DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), vo
 		// prediction takes care of the rest
 		switch(type->type)
 		{
-		case PT_NORMAL:
-			pdraw = texturedparticles;
-			break;
 		case PT_BEAM:
 			if (*type->texname)
 				bdraw = beamparticlest;
 			else
 				bdraw = beamparticlesut;
 			break;
-		case PT_TEXTUREDSPARK:
-			pdraw = sparktexturedparticles;
+		case PT_DECAL:
+			break;
+		case PT_NORMAL:
+			pdraw = texturedparticles;
+			break;
+		case PT_SPARK:
+			pdraw = sparklineparticles;
 			break;
 		case PT_SPARKFAN:
 			pdraw = sparkfanparticles;
 			break;
-		case PT_SPARK:
-			pdraw = sparklineparticles;
+		case PT_TEXTUREDSPARK:
+			pdraw = sparktexturedparticles;
 			break;
 		}
 

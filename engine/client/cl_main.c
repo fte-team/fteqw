@@ -1055,32 +1055,37 @@ void CL_Disconnect (void)
 
 		switch(cls.protocol)
 		{
-#ifdef NQPROT
 		case CP_NETQUAKE:
+#ifdef NQPROT
 			final[0] = clc_disconnect;
 			final[1] = clc_stringcmd;
 			strcpy (final+2, "drop");
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 250000);
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 250000);
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 250000);
-			break;
 #endif
-#ifdef Q2CLIENT
+			break;
+		case CP_PLUGIN:
+			break;
 		case CP_QUAKE2:
+#ifdef Q2CLIENT
 			final[0] = clcq2_stringcmd;
 			strcpy (final+1, "disconnect");
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
-			break;
-
 #endif
+			break;
+		case CP_QUAKE3:
+			break;
 		case CP_QUAKEWORLD:
 			final[0] = clc_stringcmd;
 			strcpy (final+1, "drop");
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
+			break;
+		case CP_UNKNOWN:
 			break;
 		}
 
@@ -2436,13 +2441,8 @@ void CL_ReadPackets (void)
 
 		switch(cls.protocol)
 		{
-#ifdef Q3CLIENT
-		case CP_QUAKE3:
-			CLQ3_ParseServerMessage();
-			break;
-#endif
-#ifdef NQPROT
 		case CP_NETQUAKE:
+#ifdef NQPROT
 			switch(NQNetChan_Process(&cls.netchan))
 			{
 			case 0:
@@ -2454,15 +2454,22 @@ void CL_ReadPackets (void)
 				CLNQ_ParseServerMessage ();
 				break;
 			}
-			break;
 #endif
-#ifdef Q2CLIENT
+			break;
+		case CP_PLUGIN:
+			break;
 		case CP_QUAKE2:
+#ifdef Q2CLIENT
 			if (!Netchan_Process(&cls.netchan))
 				continue;		// wasn't accepted for some reason
 			CLQ2_ParseServerMessage ();
-			break;
 #endif
+		case CP_QUAKE3:
+#ifdef Q3CLIENT
+			CLQ3_ParseServerMessage();
+#endif
+			break;
+			break;
 		case CP_QUAKEWORLD:
 			if (cls.demoplayback == DPB_MVD)
 			{
@@ -2478,6 +2485,8 @@ void CL_ReadPackets (void)
 				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
 			}
 			CL_ParseServerMessage ();
+			break;
+		case CP_UNKNOWN:
 			break;
 		}
 

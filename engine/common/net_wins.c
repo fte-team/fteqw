@@ -599,48 +599,8 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 
 	switch (amask->type)
 	{
-#ifdef USEIPX
-	case NA_IPX:
-	case NA_BROADCAST_IPX:
-		n = amask->address.ipx;
-		if (i > 80)
-			i = 80;
-		for (; i >= 8; i -= 8)
-		{
-			*n = 0xFF;
-			n++;
-		}
-
-		// fill last bit
-		if (i)
-		{
-			i = 8 - i;
-			i = 255 - ((1 << i) - 1);
-			*n = i;
-		}
+	case NA_INVALID:
 		break;
-#endif
-#ifdef IPPROTO_IPV6
-	case NA_IPV6:
-	case NA_BROADCAST_IP6:
-		n = amask->address.ip6;
-		if (i > 128)
-			i = 128;
-		for (; i >= 8; i -= 8)
-		{
-			*n = 0xFF;
-			n++;
-		}
-
-		// fill last bit
-		if (i)
-		{
-			i = 8 - i;
-			i = 255 - ((1 << i) - 1);
-			*n = i;
-		}
-		break;
-#endif
 	case NA_IP:
 	case NA_BROADCAST_IP:
 		n = amask->address.ip;
@@ -659,6 +619,50 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 			i = 255 - ((1 << i) - 1);
 			*n = i;
 		}
+		break;
+	case NA_IPV6:
+	case NA_BROADCAST_IP6:
+#ifdef IPPROTO_IPV6
+		n = amask->address.ip6;
+		if (i > 128)
+			i = 128;
+		for (; i >= 8; i -= 8)
+		{
+			*n = 0xFF;
+			n++;
+		}
+
+		// fill last bit
+		if (i)
+		{
+			i = 8 - i;
+			i = 255 - ((1 << i) - 1);
+			*n = i;
+		}
+#endif
+		break;
+	case NA_IPX:
+	case NA_BROADCAST_IPX:
+#ifdef USEIPX
+		n = amask->address.ipx;
+		if (i > 80)
+			i = 80;
+		for (; i >= 8; i -= 8)
+		{
+			*n = 0xFF;
+			n++;
+		}
+
+		// fill last bit
+		if (i)
+		{
+			i = 8 - i;
+			i = 255 - ((1 << i) - 1);
+			*n = i;
+		}
+#endif
+		break;
+	case NA_LOOPBACK:
 		break;
 	}
 }

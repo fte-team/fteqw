@@ -12110,10 +12110,6 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\gl\doommap.h"
-					>
-				</File>
-				<File
 					RelativePath="..\gl\gl_alias.c"
 					>
 					<FileConfiguration
@@ -15082,10 +15078,6 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="..\gl\shader.h"
-					>
 				</File>
 			</Filter>
 			<Filter
@@ -22456,10 +22448,6 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\qclib\execloop.h"
-					>
-				</File>
-				<File
 					RelativePath="..\QCLIB\hash.c"
 					>
 					<FileConfiguration
@@ -23178,10 +23166,6 @@
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="..\QCLIB\progtype.h"
-					>
 				</File>
 				<File
 					RelativePath="..\QCLIB\qcc_cmdlib.c"
@@ -26792,10 +26776,6 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\http\iweb.h"
-					>
-				</File>
-				<File
 					RelativePath="..\http\iwebiface.c"
 					>
 					<FileConfiguration
@@ -28495,10 +28475,6 @@
 				Name="d3d"
 				>
 				<File
-					RelativePath="..\common\com_mesh.h"
-					>
-				</File>
-				<File
 					RelativePath="..\d3d\d3d_draw.c"
 					>
 					<FileConfiguration
@@ -29017,10 +28993,6 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="..\d3d\d3dquake.h"
-					>
 				</File>
 				<File
 					RelativePath="..\d3d\vid_d3d.c"
@@ -29677,10 +29649,6 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\d3d9\d3d9quake.h"
-					>
-				</File>
-				<File
 					RelativePath="..\d3d9\vid_d3d9.c"
 					>
 					<FileConfiguration
@@ -29818,7 +29786,51 @@
 			Filter="h;hpp;hxx;hm;inl"
 			>
 			<File
+				RelativePath="..\sw\adivtab.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\anorms.h"
+				>
+			</File>
+			<File
+				RelativePath="..\sw\asm_draw.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\asm_i386.h"
+				>
+			</File>
+			<File
+				RelativePath="..\sw\block16.h"
+				>
+			</File>
+			<File
 				RelativePath="..\common\bothdefs.h"
+				>
+			</File>
+			<File
+				RelativePath="..\server\botlib.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\bspfile.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\bymorphed.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\cdaudio.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\cl_ignore.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\cl_master.h"
 				>
 			</File>
 			<File
@@ -29826,7 +29838,99 @@
 				>
 			</File>
 			<File
+				RelativePath="..\client\clq3defs.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\cmd.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\cmdlib.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\vorbis\codec.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\com_mesh.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\common.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\console.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\crc.h"
+				>
+			</File>
+			<File
 				RelativePath="..\common\cvar.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\d3d.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk9\include\d3d9.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk9\include\d3d9caps.h"
+				>
+			</File>
+			<File
+				RelativePath="..\d3d9\d3d9quake.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk9\include\d3d9types.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\d3dcaps.h"
+				>
+			</File>
+			<File
+				RelativePath="..\d3d\d3dquake.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\d3dtypes.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\d3dx.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\d3dxcore.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\d3dxerr.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\d3dxmath.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\d3dxshapes.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\d3dxsprite.h"
+				>
+			</File>
+			<File
+				RelativePath="..\sw\d_iface.h"
 				>
 			</File>
 			<File
@@ -29834,7 +29938,135 @@
 				>
 			</File>
 			<File
+				RelativePath="..\sw\d_local.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\ddraw.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\dinput.h"
+				>
+			</File>
+			<File
+				RelativePath="..\gl\doommap.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\dxsdk7\include\dsound.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\execloop.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\execloop16d.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\execloop32.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\execloop32d.h"
+				>
+			</File>
+			<File
+				RelativePath="..\sndcodec\g72x.h"
+				>
+			</File>
+			<File
+				RelativePath="..\gl\gl_draw.h"
+				>
+			</File>
+			<File
 				RelativePath="..\gl\gl_model.h"
+				>
+			</File>
+			<File
+				RelativePath="..\gl\gl_warp_sin.h"
+				>
+			</File>
+			<File
+				RelativePath="..\gl\glquake.h"
+				>
+			</File>
+			<File
+				RelativePath="..\gl\glsupp.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\gui.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\hash.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\in_morphos.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\in_raw.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\input.h"
+				>
+			</File>
+			<File
+				RelativePath="..\http\iweb.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\jconfig.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\jerror.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\jmorecfg.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\jpeglib.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\keys.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\lhfont.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\mathlib.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\menu.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\merged.h"
+				>
+			</File>
+			<File
+				RelativePath="..\gl\model_hl.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\modelgen.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\net.h"
 				>
 			</File>
 			<File
@@ -29842,7 +30074,87 @@
 				>
 			</File>
 			<File
+				RelativePath="..\common\netinc.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\ogg\ogg.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\ogg\os_types.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\particles.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\pmove.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\png.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\pngconf.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\pr_common.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\pr_comp.h"
+				>
+			</File>
+			<File
+				RelativePath="..\server\progdefs.h"
+				>
+			</File>
+			<File
+				RelativePath="..\server\progs.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\progsint.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\progslib.h"
+				>
+			</File>
+			<File
+				RelativePath="..\QCLIB\progtype.h"
+				>
+			</File>
+			<File
 				RelativePath="..\common\protocol.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\q2anorms.h"
+				>
+			</File>
+			<File
+				RelativePath="..\server\q2game.h"
+				>
+			</File>
+			<File
+				RelativePath="..\server\q3g_public.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\qcc.h"
+				>
+			</File>
+			<File
+				RelativePath="..\qclib\qcd.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\quakeasm.h"
 				>
 			</File>
 			<File
@@ -29850,7 +30162,131 @@
 				>
 			</File>
 			<File
+				RelativePath="..\server\qwsvdef.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\r_bulleten.h"
+				>
+			</File>
+			<File
+				RelativePath="..\sw\r_local.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\r_partset.h"
+				>
+			</File>
+			<File
+				RelativePath="..\sw\r_shared.h"
+				>
+			</File>
+			<File
 				RelativePath="..\client\render.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\renderque.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\resource.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\roq.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\sbar.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\screen.h"
+				>
+			</File>
+			<File
+				RelativePath="..\server\server.h"
+				>
+			</File>
+			<File
+				RelativePath="..\gl\shader.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\sound.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\spritegn.h"
+				>
+			</File>
+			<File
+				RelativePath="..\sw\sw_draw.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\sys.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\tlout.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\translate.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\ui_public.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\unzip.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\vid.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\view.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\vm.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\vorbis\vorbisfile.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\wad.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\winamp.h"
+				>
+			</File>
+			<File
+				RelativePath="..\client\winquake.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\world.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\zconf.h"
+				>
+			</File>
+			<File
+				RelativePath="..\libs\zlib.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\zone.h"
 				>
 			</File>
 		</Filter>

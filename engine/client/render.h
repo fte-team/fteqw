@@ -428,6 +428,10 @@ void Media_RecordFrame (void);
 qboolean Media_PausedDemo (void);
 double Media_TweekCaptureFrameTime(double time);
 
+void MYgluPerspective(double fovx, double fovy, double zNear, double zFar);
+
+void R_MarkLeaves (void);
+void R_SetFrustum (void);
 void R_SetRenderer(int wanted);
 void RQ_Init(void);
 

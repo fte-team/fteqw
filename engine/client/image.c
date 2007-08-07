@@ -875,7 +875,6 @@ term_source (j_decompress_ptr cinfo)
 }
 
 
-#define GLOBAL(x) x
 
 GLOBAL(void)
 jpeg_mem_src (j_decompress_ptr cinfo, qbyte * infile, int maxlen)

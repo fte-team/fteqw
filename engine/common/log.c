@@ -6,12 +6,6 @@
 void Log_Dir_Callback (struct cvar_s *var, char *oldvalue);
 void Log_Name_Callback (struct cvar_s *var, char *oldvalue);
 
-typedef enum {
-	LOG_CONSOLE,
-	LOG_PLAYER,
-	LOG_TYPES
-} logtype_t;
-
 // cvars
 #define CONLOGGROUP "Console logging"
 cvar_t		log_enable[LOG_TYPES]	= {	SCVARF("log_enable", "0", CVAR_NOTFROMSERVER),

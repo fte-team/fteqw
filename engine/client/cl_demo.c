@@ -1462,8 +1462,10 @@ void CL_QTVPoll (void)
 	int sourcenum = 0;
 
 	int streamid;
-	int numplayers;
-	int numviewers;
+	int numplayers = 0;
+	int numviewers = 0;
+	qboolean init_numplayers = false;
+	qboolean init_numviewers = false;
 	char srchost[256];
 
 
@@ -1542,11 +1544,13 @@ void CL_QTVPoll (void)
 				{
 					//number of active players actually playing on that stream
 					numplayers = atoi(colon);
+					init_numplayers = true;
 				}
 				else if (!strcmp(s, "SRCVIEWS"))
 				{
 					//number of people watching this stream on the proxy itself
 					numviewers = atoi(colon);
+					init_numviewers = true;
 				}
 				else if (!strcmp(s, "SRCID"))
 				{
@@ -1562,7 +1566,10 @@ void CL_QTVPoll (void)
 						MC_AddPicture(sourcesmenu, 16, 4, "gfx/qplaque.lmp");
 						MC_AddCenterPicture(sourcesmenu, 4, "gfx/p_option.lmp");
 					}
-					MC_AddConsoleCommand(sourcesmenu, 42, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %i@%s\n", streamid, qtvhostname));
+					if (init_numplayers == true && init_numviewers == true)
+						MC_AddConsoleCommand(sourcesmenu, 42, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %i@%s\n", streamid, qtvhostname));
+					//else
+					//	FIXME: add error message here
 				}
 				//end of sourcelist entry
 

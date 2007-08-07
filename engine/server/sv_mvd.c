@@ -30,45 +30,6 @@ void SV_MVDStop_f (void);
 
 #define demo_size_padding 0x1000
 
-//qtv proxies are meant to send a small header now, bit like http
-//this header gives supported version numbers and stuff
-typedef struct mvdpendingdest_s {
-	qboolean error;	//disables writers, quit ASAP.
-	int socket;
-
-	char inbuffer[2048];
-	char outbuffer[2048];
-
-	char challenge[64];
-	qboolean hasauthed;
-	qboolean isreverse;
-
-	int insize;
-	int outsize;
-
-	struct mvdpendingdest_s *nextdest;
-} mvdpendingdest_t;
-
-typedef struct mvddest_s {
-	qboolean error;	//disables writers, quit ASAP.
-	qboolean droponmapchange;
-
-	enum {DEST_NONE, DEST_FILE, DEST_BUFFEREDFILE, DEST_STREAM} desttype;
-
-	int socket;
-	FILE *file;
-
-	char name[MAX_QPATH];
-	char path[MAX_QPATH];
-
-	char *cache;
-	int cacheused;
-	int maxcachesize;
-
-	unsigned int totalsize;
-
-	struct mvddest_s *nextdest;
-} mvddest_t;
 mvddest_t *singledest;
 
 mvddest_t *SV_InitStream(int socket);

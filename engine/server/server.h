@@ -996,6 +996,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
     float attenuation);
+void SV_PrintToClient(client_t *cl, int level, char *string);
 void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...);
 void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);
 void VARGS SV_BroadcastPrintf (int level, char *fmt, ...);
@@ -1024,6 +1025,9 @@ void SV_ClientThink (void);
 void VoteFlushAll(void);
 void SV_SetUpClientEdict (client_t *cl, edict_t *ent);
 void SV_UpdateToReliableMessages (void);
+
+void SV_DarkPlacesDownloadChunk(client_t *cl, sizebuf_t *msg);
+void SV_New_f (void);
 
 //sv_master.c
 void SVM_Think(int port);
@@ -1186,6 +1190,45 @@ void SV_ConSay_f(void);
 //
 // sv_mvd.c
 //
+//qtv proxies are meant to send a small header now, bit like http
+//this header gives supported version numbers and stuff
+typedef struct mvdpendingdest_s {
+	qboolean error;	//disables writers, quit ASAP.
+	int socket;
+
+	char inbuffer[2048];
+	char outbuffer[2048];
+
+	char challenge[64];
+	qboolean hasauthed;
+	qboolean isreverse;
+
+	int insize;
+	int outsize;
+
+	struct mvdpendingdest_s *nextdest;
+} mvdpendingdest_t;
+
+typedef struct mvddest_s {
+	qboolean error;	//disables writers, quit ASAP.
+	qboolean droponmapchange;
+
+	enum {DEST_NONE, DEST_FILE, DEST_BUFFEREDFILE, DEST_STREAM} desttype;
+
+	int socket;
+	FILE *file;
+
+	char name[MAX_QPATH];
+	char path[MAX_QPATH];
+
+	char *cache;
+	int cacheused;
+	int maxcachesize;
+
+	unsigned int totalsize;
+
+	struct mvddest_s *nextdest;
+} mvddest_t;
 void SV_MVDPings (void);
 void SV_MVDWriteToDisk(int type, int to, float time);
 void MVDWrite_Begin(qbyte type, int to, int size);
@@ -1194,6 +1237,8 @@ void SV_MVDStop (int reason, qboolean mvdonly);
 void SV_MVDStop_f (void);
 void SV_MVDWritePackets (int num);
 void MVD_Init (void);
+void SV_MVD_RunPendingConnections(void);
+void SV_MVD_SendInitialGamestate(mvddest_t *dest);
 
 extern demo_t			demo;				// server demo struct
 
@@ -1209,6 +1254,7 @@ char *SV_MVDNum(int num);	//filename for demonum
 void SV_SendMVDMessage(void);
 qboolean SV_ReadMVD (void);
 void SV_FlushDemoSignon (void);
+void DestFlush(qboolean compleate);
 
 // savegame.c
 void SV_FlushLevelCache(void);
@@ -1240,3 +1286,19 @@ typedef struct
 	char str[128];
 } date_t;
 void SV_TimeOfDay(date_t *date);
+
+//
+// log.c
+//
+typedef enum {
+	LOG_CONSOLE,
+	LOG_PLAYER,
+	LOG_TYPES
+} logtype_t;
+void Log_Dir_Callback (struct cvar_s *var, char *oldvalue);
+void Log_Name_Callback (struct cvar_s *var, char *oldvalue);
+void Log_String (logtype_t lognum, char *s);
+void Con_Log (char *s);
+void SV_LogPlayer(client_t *cl, char *msg);
+void Log_Logfile_f (void);
+void Log_Init(void);

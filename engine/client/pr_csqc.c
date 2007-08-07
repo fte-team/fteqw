@@ -3557,7 +3557,7 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 
 	}
 
-	return COM_LoadStackFile(path, buffer, bufsize);;
+	return COM_LoadStackFile(path, buffer, bufsize);
 }
 
 int CSQC_PRFileSize (char *path)

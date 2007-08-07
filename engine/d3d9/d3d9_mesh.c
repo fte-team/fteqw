@@ -107,8 +107,8 @@ static galiastexnum_t *D3D9_ChooseSkin(galiasinfo_t *inf, char *modelname, int s
 		{
 			if (!e->scoreboard->skin)
 				Skin_Find(e->scoreboard);
-			tc = e->scoreboard->topcolor;
-			bc = e->scoreboard->bottomcolor;
+			tc = e->scoreboard->ttopcolor;
+			bc = e->scoreboard->tbottomcolor;
 
 			//colour forcing
 			if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.

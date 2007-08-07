@@ -962,10 +962,15 @@ static void D3D9_DrawSpriteModel (entity_t *e)
 		0, 2, 3
 	};
 
-	if (e->forcedshader || !e->model)
+#ifdef Q3SHADERS
+	mpic_t *pic = e->forcedshader;
+#else
+	mpic_t *pic = NULL;
+#endif
+
+	if (pic || !e->model)
 	{
 		int colour;
-		mpic_t *pic = e->forcedshader;
 
 		colour = 0;
 

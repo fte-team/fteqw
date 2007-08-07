@@ -199,6 +199,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef TERRAIN
 		#undef Q3CLIENT
 	#endif
+
+	// undefine things not supported yet for D3D
+	#if defined(D3DQUAKE) && !defined(GLQUAKE)
+		#undef DDS // this is dumb
+		#undef HALFLIFEMODELS
+		#undef Q3BSPS
+		#undef Q3CLIENT
+		#undef Q2BSPS
+		#undef Q2CLIENT
+		#undef Q2SERVER
+	#endif
+
 #endif
 
 #if !defined(GLQUAKE)

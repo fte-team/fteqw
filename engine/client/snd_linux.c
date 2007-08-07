@@ -63,7 +63,6 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	int fmt;
 	int tmp;
 	int i;
-	char *s;
 	struct audio_buf_info info;
 	int caps;
 	char *snddev = NULL;

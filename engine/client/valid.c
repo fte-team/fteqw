@@ -323,12 +323,12 @@ void Validation_CheckIfResponse(char *text)
 
 	//now do the validation
 	{
-		f_query_t *query = NULL;
+		//f_query_t *query = NULL;
 		int itemp;
 		char buffer[10];
 		unsigned short query_crc = 0;
 		unsigned long	user_crc = 0;
-		unsigned long	auth_crc = 0;
+		//unsigned long	auth_crc = 0;
 		//char auth_answer; //unreferenced
 
 		//int slot; //unreferenced

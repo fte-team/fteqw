@@ -1771,7 +1771,9 @@ qboolean SCR_ScreenShot (char *filename)
 	int truewidth, trueheight;
 	qbyte            *buffer;
 	int                     i, c, temp;
+#if defined(AVAIL_PNGLIB) || defined(AVAIL_JPEGLIB)
 	extern cvar_t scr_sshot_compression;
+#endif
 
 #define MAX_PREPAD	128
 	char *ext;

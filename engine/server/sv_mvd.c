@@ -217,7 +217,7 @@ void SV_MVD_RunPendingConnections(void)
 				}
 				if (end)
 				{	//we found the end of the header
-					qboolean server = false, reverse = false;
+					qboolean server = false;
 					char *start, *lineend;
 					int versiontouse = 0;
 					int raw = 0;

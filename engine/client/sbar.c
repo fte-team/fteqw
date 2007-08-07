@@ -1715,8 +1715,6 @@ qboolean Sbar_ShouldDraw (void)
 #endif
 	qboolean headsup;
 
-	int deadcount=0;
-
 	if (scr_con_current == vid.height)
 		return false;		// console is full screen
 
@@ -1777,9 +1775,6 @@ Sbar_Draw
 */
 void Sbar_Draw (void)
 {
-#ifdef TEXTEDITOR
-	extern qboolean editoractive;
-#endif
 	qboolean headsup;
 	char st[512];
 	int pnum;

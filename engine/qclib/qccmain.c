@@ -2605,7 +2605,6 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	int		p;
 
 #ifndef QCCONLY
-	extern char    qcc_gamedir[];
 	char	destfile2[1024], *s2;
 #endif
 	char *s;

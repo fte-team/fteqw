@@ -514,10 +514,8 @@ void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globa
 //void (float width, vector rgb, float alpha, float flags, vector pos1, ...) drawline;
 void PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	float width = G_FLOAT(OFS_PARM0);
 	float *rgb = G_VECTOR(OFS_PARM1);
 	float alpha = G_FLOAT(OFS_PARM2);
-	float flags = G_FLOAT(OFS_PARM3);
 	float *pos = G_VECTOR(OFS_PARM4);
 	int numpoints = *prinst->callargc-4;
 

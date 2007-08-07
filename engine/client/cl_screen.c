@@ -2301,7 +2301,9 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	{
 		Sbar_IntermissionOverlay ();
 		M_Draw (uimenu);
+#ifdef MENU_DAT
 		MP_Draw();
+#endif
 	}
 	else if (cl.intermission == 2 && key_dest == key_game)
 	{
@@ -2350,7 +2352,9 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 			Editor_Draw();
 #endif
 		M_Draw (uimenu);
+#ifdef MENU_DAT
 		MP_Draw();
+#endif
 		SCR_DrawConsole (false);
 	}
 

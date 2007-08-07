@@ -263,6 +263,7 @@ void Con_Log (char *s)
 }
 
 
+#ifndef CLIENTONLY
 //still to add stuff at:
 //connects
 //disconnects
@@ -278,6 +279,7 @@ void SV_LogPlayer(client_t *cl, char *msg)
 
 	Log_String(LOG_PLAYER, line);
 }
+#endif
 
 
 

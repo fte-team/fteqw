@@ -491,9 +491,10 @@ void R_DrawSpriteModel (entity_t *e)
 	mspriteframe_t	*frame;
 	vec3_t		forward, right, up;
 	msprite_t		*psprite;
-	qbyte coloursb[4];
 
 #ifdef Q3SHADERS
+	qbyte coloursb[4];
+
 	if (e->forcedshader)
 	{
 		meshbuffer_t mb;

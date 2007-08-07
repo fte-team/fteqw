@@ -1347,7 +1347,9 @@ void R_DrawNameTags(void)
 
 void V_RenderPlayerViews(int plnum)
 {
+#ifdef SIDEVIEWS
 	int viewnum;
+#endif
 	SCR_VRectForPlayer(&r_refdef.vrect, plnum);
 	view_message = &view_frame->playerstate[cl.playernum[plnum]];
 #ifdef NQPROT

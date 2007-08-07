@@ -1287,18 +1287,4 @@ typedef struct
 } date_t;
 void SV_TimeOfDay(date_t *date);
 
-//
-// log.c
-//
-typedef enum {
-	LOG_CONSOLE,
-	LOG_PLAYER,
-	LOG_TYPES
-} logtype_t;
-void Log_Dir_Callback (struct cvar_s *var, char *oldvalue);
-void Log_Name_Callback (struct cvar_s *var, char *oldvalue);
-void Log_String (logtype_t lognum, char *s);
-void Con_Log (char *s);
 void SV_LogPlayer(client_t *cl, char *msg);
-void Log_Logfile_f (void);
-void Log_Init(void);

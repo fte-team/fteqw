@@ -4914,15 +4914,17 @@ void GL_CheckTMUIs0(void);
 void PPL_DrawWorld (void)
 {
 	RSpeedLocals();
-	dlight_t *l;
 #if 0
 	dlight_t *lc, *furthestprev;
 	float furthest;
 #endif
+#ifdef PPL
+	dlight_t *l;
 	int i;
 	int numlights;
 
 	vec3_t mins, maxs;
+#endif
 
 	int maxshadowlights = gl_maxshadowlights.value;
 

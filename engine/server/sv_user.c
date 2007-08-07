@@ -3312,7 +3312,7 @@ void Cmd_FPSList_f(void)
 	client_t *cl;
 	int c;
 	int f;
-	double minf, maxf, this;
+	double minf = DBL_MIN, maxf = DBL_MAX, this;
 	double ftime;
 	int frames;
 

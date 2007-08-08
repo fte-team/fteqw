@@ -66,7 +66,7 @@ QCC_type_t	*type_variant;// = {ev_integer/*, &def_integer*/};
 QCC_type_t	*type_floatfield;// = {ev_field/*, &def_field*/, NULL, &type_float};
 
 #ifdef QCCONLY
-const int		type_size[12] = {1,	//void
+const unsigned int		type_size[12] = {1,	//void
 						sizeof(string_t)/4,	//string
 						1,	//float
 						3,	//vector

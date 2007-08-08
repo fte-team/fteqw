@@ -1426,20 +1426,20 @@ void CLDP_ParseDownloadFinished(char *s)
 			QCRC_AddBlock(&runningcrc, buffer, chunk);
 		}
 		VFS_CLOSE (cls.downloadqw);
-	}
 
-	Cmd_TokenizeString(s+1, false, false);
-	if (size != atoi(Cmd_Argv(1)))
-	{
-		Con_Printf("Download failed: wrong file size\n");
-		CL_DownloadFailed(cls.downloadname);
-		return;
-	}
-	if (runningcrc != atoi(Cmd_Argv(2)))
-	{
-		Con_Printf("Download failed: wrong crc\n");
-		CL_DownloadFailed(cls.downloadname);
-		return;
+		Cmd_TokenizeString(s+1, false, false);
+		if (size != atoi(Cmd_Argv(1)))
+		{
+			Con_Printf("Download failed: wrong file size\n");
+			CL_DownloadFailed(cls.downloadname);
+			return;
+		}
+		if (runningcrc != atoi(Cmd_Argv(2)))
+		{
+			Con_Printf("Download failed: wrong crc\n");
+			CL_DownloadFailed(cls.downloadname);
+			return;
+		}
 	}
 
 	CL_FinishDownload(cls.downloadname, cls.downloadtempname);

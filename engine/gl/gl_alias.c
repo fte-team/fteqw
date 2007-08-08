@@ -2619,6 +2619,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 
 
 
+#if 0
 static int R_FindTriangleWithEdge ( index_t *indexes, int numtris, index_t start, index_t end, int ignore)
 {
 	int i;
@@ -2648,7 +2649,9 @@ static int R_FindTriangleWithEdge ( index_t *indexes, int numtris, index_t start
 
 	return match;
 }
+#endif
 
+#if 0
 static void R_BuildTriangleNeighbours ( int *neighbours, index_t *indexes, int numtris )
 {
 	int i, *n;
@@ -2661,6 +2664,7 @@ static void R_BuildTriangleNeighbours ( int *neighbours, index_t *indexes, int n
 		n[2] = R_FindTriangleWithEdge (indexes, numtris, index[0], index[2], i);
 	}
 }
+#endif
 
 
 

@@ -273,7 +273,7 @@ unsigned int NUM_FOR_EDICT(progfuncs_t *progfuncs, struct edict_s *e);
 #define	E_VECTOR(e,o) (&((float*)&e->v)[o])
 #define	E_STRING(e,o) (*(string_t *)&((float*)(e+1))[o])
 
-const extern	int		type_size[];
+const extern	unsigned int		type_size[];
 
 
 extern	unsigned short		pr_crc;
@@ -408,9 +408,9 @@ var(evalc_t, spawnflagscache);
 
 
 
-var(int, fields_size);	// in bytes
+var(unsigned int, fields_size);	// in bytes
 #define fields_size prinst->fields_size
-var(int, max_fields_size);
+var(unsigned int, max_fields_size);
 #define max_fields_size prinst->max_fields_size
 
 

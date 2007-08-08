@@ -25,7 +25,7 @@ vec3_t vec3_origin;
 //int				pr_max_edict_size;
 
 //unsigned short		pr_crc;
-const int		type_size[12] = {1,	//void
+const unsigned int		type_size[12] = {1,	//void
 						sizeof(string_t)/4,	//string
 						1,	//float
 						3,	//vector
@@ -865,7 +865,7 @@ void ED_Print (progfuncs_t *progfuncs, struct edict_s *ed)
 	int		l;
 	fdef_t	*d;
 	int		*v;
-	unsigned int		i;int j;
+	unsigned int		i;unsigned int j;
 	char	*name;
 	int		type;
 
@@ -1228,7 +1228,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 	ddef32_t		*def32;
 	ddef16_t		*def16;
 	unsigned int			i;
-	int j;
+	unsigned int j;
 	char	*name;
 	int			type;
 	int curprogs = pr_typecurrent;
@@ -1366,7 +1366,7 @@ char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buffer, pbool 
 	fdef_t	*d;
 
 	int		*v;
-	unsigned int		i;int j;
+	unsigned int		i;unsigned int j;
 	char	*name;
 	int		type;
 	int len;
@@ -2096,7 +2096,7 @@ char *SaveEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed)
 {
 	fdef_t	*d;
 	int		*v;
-	unsigned int		i;int j;
+	unsigned int		i;unsigned int j;
 	char	*name;
 	int		type;
 

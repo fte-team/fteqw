@@ -1798,7 +1798,7 @@ messedup:
 
 int COM_FunStringLength(unsigned char *str)
 {
-	int len;
+	int len = 0;
 
 	while(*str)
 	{

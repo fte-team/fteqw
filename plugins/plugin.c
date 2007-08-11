@@ -117,7 +117,7 @@ BUILTINR(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stri
 BUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 #undef ARGNAMES
 #define ARGNAMES ,pnum,info
-BUILTIN(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));
+BUILTINR(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));
 #undef ARGNAMES
 
 #define ARGNAMES ,soundname
@@ -132,7 +132,7 @@ BUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
 BUILTINR(qhandle_t, Draw_LoadImage, (char *name, qboolean iswadimage));	//wad image is ONLY for loading out of q1 gfx.wad
 #undef ARGNAMES
 #define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),PASSFLOAT(w),PASSFLOAT(h),PASSFLOAT(s1),PASSFLOAT(t1),PASSFLOAT(s2),PASSFLOAT(t2),image
-BUILTIN(int, Draw_Image, (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image));
+BUILTINR(int, Draw_Image, (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image));
 #undef ARGNAMES
 #define ARGNAMES ,PASSFLOAT(x1),PASSFLOAT(y1),PASSFLOAT(x2),PASSFLOAT(y2)
 BUILTIN(void, Draw_Line, (float x1, float y1, float x2, float y2));

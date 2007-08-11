@@ -41,6 +41,13 @@ int K_PAGEDOWN;
 #define	STAT_MONSTERS		14		// bumped by svc_killedmonster
 #define	STAT_ITEMS			15
 
+// context menus
+
+#define CONTEXT_NONE			0
+#define CONTEXT_MAIN			1
+#define CONTEXT_NEW_ITEM		2
+#define CONTEXT_NEW_ITEM_SUB	3
+
 //some engines can use more.
 //any mod specific ones should be 31 and downwards rather than upwards.
 
@@ -87,13 +94,13 @@ int K_PAGEDOWN;
 #define UI_NOFLASH "ui_nosbarflash"
 
 static char *weaponabbreviation[] = {	//the postfix for the weapon anims
-	"shotgun",
-	"sshotgun",
-	"nailgun",
-	"snailgun",
-	"rlaunch",	//grenades actually.
-	"srlaunch",
-	"lightng"
+	"shotgun",  // shotgun
+	"sshotgun", // super shotgun
+	"nailgun",  // nailgun
+	"snailgun", // super nailgun
+	"rlaunch",  // grenade launcher
+	"srlaunch", // rocket launcher
+	"lightng"   // thunderbolt
 };
 #define numweaps (sizeof(weaponabbreviation) / sizeof(char *))
 
@@ -188,6 +195,7 @@ drawelementfnc_t Hud_ScoreName;
 drawelementfnc_t Hud_Blackness;
 drawelementfnc_t Hud_TeamScore;
 drawelementfnc_t Hud_TeamName;
+drawelementfnc_t Hud_Tracking;
 // TODO: more elements
 // - generalized graphic elements
 // - cvar controlled small and big numbers
@@ -232,9 +240,9 @@ drawelement_t drawelement[] =
 	{Hud_Blackness,			"Blackness",	16,		16,		9, {"10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"}},
 	{Hud_ScoreCard,			"Scorecard",	32,		8,		15, {"Player 0", "Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7", "Player 8", "Player 9", "Player 10", "Player 11", "Player 12", "Player 13", "Player 14", "Player 15"}},
 	{Hud_ScoreName,			"Scorename",	128,	8,		7, {"Player 0", "Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7"}},
-
 	{Hud_TeamScore,			"TeamScore",	32,		8,		7, {"Team 0", "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7"}},
-	{Hud_TeamName,			"TeamName",		128,	8,		7, {"Team 0", "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7"}}
+	{Hud_TeamName,			"TeamName",		128,	8,		7, {"Team 0", "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7"}},
+	{Hud_Tracking,			"Tracking",		128,	8,		0}
 };
 
 huddefaultelement_t hedefaulttype[] = {
@@ -437,6 +445,30 @@ qboolean mousedown, shiftdown;
 float mouseofsx, mouseofsy;
 qboolean context;
 
+/*
+==================
+COM_DefaultExtension
+==================
+*/
+void COM_DefaultExtension (char *path, char *extension, int maxlen)
+{
+	char    *src;
+//
+// if path doesn't have a .EXT, append extension
+// (extension should include the .)
+//
+	src = path + strlen(path) - 1;
+
+	while (*src != '/' && src != path)
+	{
+		if (*src == '.')
+			return;                 // it has an extension
+		src--;
+	}
+
+	strlcpy (path+strlen(path), extension, maxlen);
+}
+
 void UI_DrawPic(qhandle_t pic, int x, int y, int width, int height)
 {
 	Draw_Image((float)x*sbarscalex+sbarminx, (float)y*sbarscaley+sbarminy, (float)width*sbarscalex, (float)height*sbarscaley, 0, 0, 1, 1, pic);
@@ -445,7 +477,7 @@ void UI_DrawChar(unsigned int c, int x, int y)
 {
 static float size = 1.0f/16.0f;
 	float s1 = size * (c&15);
-	float t1 = size * (c>>4);
+	float t1 = size * ((c>>4)&15);
 	Draw_Image((float)x*sbarscalex+sbarminx, (float)y*sbarscaley+sbarminy, 8*sbarscalex, 8*sbarscaley, s1, t1, s1+size, t1+size, con_chars);
 }
 void UI_DrawString(char *s, int x, int y)
@@ -897,7 +929,7 @@ float pc[16][3] =
 };
 
 int numsortedplayers;
-int playerlocal;
+int trackedplayer;
 int sortedplayers[32];
 plugclientinfo_t players[32];
 
@@ -907,11 +939,11 @@ void SortPlayers(void)
 	int temp;
 
 	numsortedplayers = 0;
-	playerlocal = -1;
+	trackedplayer = -1;
 	for (i = 0; i < 32; i++)
 	{
 		if (GetPlayerInfo(i, &players[i])>0)
-			playerlocal = i;
+			trackedplayer = i;
 		if (players[i].spectator)
 			continue;
 		if (*players[i].name != 0)
@@ -947,11 +979,11 @@ void SortTeams(void)
 	int i, j;
 
 	numsortedplayers = 0;
-	playerlocal = -1;
+	trackedplayer = -1;
 	for (i = 0; i < 32; i++)
 	{
 		if (GetPlayerInfo(i, &players[i])>0)
-			playerlocal = i;
+			trackedplayer = i;
 		if (players[i].spectator)
 			continue;
 		if (*players[i].name != 0)
@@ -1009,7 +1041,7 @@ void Hud_ScoreCard(void)
 		bc = players[p].bottomcolour;
 		tc = players[p].topcolour;
 		frags = players[p].frags;
-		brackets = p==playerlocal;
+		brackets = p==trackedplayer;
 	}
 
 	Draw_Colour4f(pc[tc][0], pc[tc][1], pc[tc][2], sbaralpha);
@@ -1072,7 +1104,7 @@ void Hud_TeamScore(void)
 		bc = team[p].bc;
 		tc = team[p].tc;
 		frags = team[p].frags;
-		brackets = p==playerlocal;
+		brackets = p==trackedplayer;
 	}
 
 	Draw_Colour4f(pc[tc][0], pc[tc][1], pc[tc][2], sbaralpha);
@@ -1161,6 +1193,23 @@ void Hud_Blackness(void)
 	Draw_Colour4f(1,1,1,1);
 }
 
+void Hud_Tracking(void)
+{
+	qboolean flag = false;
+	char str[256];
+
+	if (hudedit)
+	{
+		UI_DrawString("Tracking ...", 0, 0);
+		return;
+	}
+
+	// FIXME: Need a check here to return if we are not spectating
+
+	// Print it
+	snprintf(str, sizeof(str), "Tracking %s", players[trackedplayer].name);
+	UI_DrawString(str, 0, 0);
+}
 
 void UI_DrawHandles(int *arg, int i)
 {
@@ -1312,13 +1361,16 @@ void PutInteger(int i, char sep, qhandle_t handle)
 
 void Hud_Save(char *fname)
 {
+	char name[256];
 	int i;
 	qhandle_t handle;
 	if (!fname || !*fname)
 		fname = DEFAULTHUDNAME;
-	if (FS_Open(fname, &handle, 2)<0)
+	snprintf(name, sizeof(name)-5, "huds/%s", fname);
+	COM_DefaultExtension(name, ".hud", sizeof(name));
+	if (FS_Open(name, &handle, 2)<0)
 	{
-		Con_Printf("Couldn't open %s\n", fname);
+		Con_Printf("Couldn't open %s\n", name);
 		return;
 	}
 
@@ -1376,6 +1428,7 @@ int GetInteger(char **f, qhandle_t handle)
 void Hud_Load(char *fname)
 {
 	char file[16384];
+	char name[256];
 	char *p;
 	int len;
 	int i;
@@ -1387,7 +1440,9 @@ void Hud_Load(char *fname)
 
 	if (!fname || !*fname)
 		fname = DEFAULTHUDNAME;
-	len = FS_Open(fname, &handle, 1);
+	snprintf(name, sizeof(name)-5, "huds/%s", fname);
+	COM_DefaultExtension(name, ".hud", sizeof(name));
+	len = FS_Open(name, &handle, 1);
 	if (len < 0)
 	{
 		Con_Printf("Couldn't load file\n");
@@ -2039,6 +2094,12 @@ int Plug_ExecuteCommand(int *args)
 		mousedown=false;
 		return 1;
 	}
+	// Modify a HUD element
+	if (!strcmp("sbar", cmd) || !strcmp("hud", cmd))
+	{
+		// FIXME: add this command
+		return 1;
+	}
 	return 0;
 }
 
@@ -2079,6 +2140,10 @@ int Plug_Init(int *args)
 		}
 		Cmd_AddCommand("hud_defaults");
 		Cmd_AddCommand("sbar_defaults");
+		
+		// For modifying hud elements
+		Cmd_AddCommand("hud");
+		Cmd_AddCommand("sbar");
 
 		UI_SbarInit();
 

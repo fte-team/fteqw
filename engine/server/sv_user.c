@@ -78,6 +78,7 @@ extern cvar_t	pm_ktjump;
 extern cvar_t	pm_slidefix;
 extern cvar_t	pm_slidyslopes;
 extern cvar_t	pm_airstep;
+extern cvar_t	pm_pground;
 extern cvar_t	pm_walljump;
 cvar_t sv_pushplayers = SCVAR("sv_pushplayers", "0");
 
@@ -4451,6 +4452,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		movevars.ktjump = pm_ktjump.value;
 		movevars.slidefix = (pm_slidefix.value != 0);
 		movevars.airstep = (pm_airstep.value != 0);
+		movevars.pground = (pm_pground.value != 0);
 		movevars.walljump = (pm_walljump.value);
 		movevars.slidyslopes = (pm_slidyslopes.value!=0);
 
@@ -4613,6 +4615,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.ktjump = pm_ktjump.value;
 	movevars.slidefix = (pm_slidefix.value != 0);
 	movevars.airstep = (pm_airstep.value != 0);
+	movevars.pground = (pm_pground.value != 0);
 	movevars.walljump = (pm_walljump.value);
 	movevars.slidyslopes = (pm_slidyslopes.value!=0);
 

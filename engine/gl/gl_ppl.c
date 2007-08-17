@@ -87,7 +87,7 @@ qboolean PPL_ShouldDraw(void)
 	}
 	else
 	{
-		if (currententity->flags & Q2RF_WEAPONMODEL)
+		if (currententity->flags & Q2RF_WEAPONMODEL && r_secondaryview >= 2)
 			return false;
 		if (currententity->flags & Q2RF_EXTERNALMODEL && r_secondaryview != 3)
 			return false;

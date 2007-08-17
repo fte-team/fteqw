@@ -279,6 +279,12 @@ void P_FlushRenderer(void);
 void GL_DoSwap (void);
 
 //
+// gl_backend.c
+//
+void R_BackendInit(void);
+void R_IBrokeTheArrays(void);
+
+//
 // gl_warp.c
 //
 #ifdef RGLQUAKE

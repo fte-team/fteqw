@@ -218,5 +218,6 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 
 int UDP_OpenSocket (int port, qboolean bcast);
 int IPX_OpenSocket (int port, qboolean bcast);
+int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
 void SockadrToNetadr (struct sockaddr_qstorage *s, netadr_t *a);
 qboolean NET_Sleep(int msec, qboolean stdinissocket);

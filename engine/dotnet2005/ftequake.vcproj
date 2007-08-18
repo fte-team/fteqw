@@ -217,109 +217,6 @@
 			/>
 		</Configuration>
 		<Configuration
-			Name="GLDebugQ3|Win32"
-			OutputDirectory=".\ftequake___Win32_GLDebugQ3"
-			IntermediateDirectory=".\ftequake___Win32_GLDebugQ3"
-			ConfigurationType="1"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
-			UseOfMFC="0"
-			ATLMinimizesCRunTimeLibraryUsage="false"
-			>
-			<Tool
-				Name="VCPreBuildEventTool"
-			/>
-			<Tool
-				Name="VCCustomBuildTool"
-			/>
-			<Tool
-				Name="VCXMLDataGeneratorTool"
-			/>
-			<Tool
-				Name="VCWebServiceProxyGeneratorTool"
-			/>
-			<Tool
-				Name="VCMIDLTool"
-				PreprocessorDefinitions="_DEBUG"
-				MkTypLibCompatible="true"
-				SuppressStartupBanner="true"
-				TargetEnvironment="1"
-				TypeLibraryName=".\ftequake___Win32_GLDebugQ3/ftequake.tlb"
-				HeaderFileName=""
-			/>
-			<Tool
-				Name="VCCLCompilerTool"
-				Optimization="0"
-				AdditionalIncludeDirectories="..\client,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include"
-				PreprocessorDefinitions="_DEBUG;GLQUAKE;WIN32;_WINDOWS;Q3CLIENT;Q3SERVER"
-				RuntimeLibrary="1"
-				FloatingPointModel="2"
-				UsePrecompiledHeader="2"
-				PrecompiledHeaderThrough="quakedef.h"
-				PrecompiledHeaderFile=".\GLDebugQ3/qwcl.pch"
-				AssemblerListingLocation=".\ftequake___Win32_GLDebugQ3/"
-				ObjectFile=".\GLDebugQ3/"
-				ProgramDataBaseFileName=".\GLDebugQ3/"
-				BrowseInformation="1"
-				WarningLevel="3"
-				SuppressStartupBanner="true"
-				DebugInformationFormat="4"
-				DisableSpecificWarnings="4996"
-			/>
-			<Tool
-				Name="VCManagedResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCResourceCompilerTool"
-				PreprocessorDefinitions="_DEBUG"
-				Culture="2057"
-				ResourceOutputFileName="GLDebugQ3/winquake.res"
-			/>
-			<Tool
-				Name="VCPreLinkEventTool"
-			/>
-			<Tool
-				Name="VCLinkerTool"
-				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
-				OutputFile="../../fteglqw_dbg.exe"
-				LinkIncremental="2"
-				SuppressStartupBanner="true"
-				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
-				IgnoreDefaultLibraryNames="libc.lib"
-				GenerateDebugInformation="true"
-				ProgramDatabaseFile=".\ftequake___Win32_GLDebugQ3/fteglqw_dbg.pdb"
-				GenerateMapFile="true"
-				MapFileName=".\ftequake___Win32_GLDebugQ3/fteglqw_dbg.map"
-				SubSystem="2"
-				TargetMachine="1"
-			/>
-			<Tool
-				Name="VCALinkTool"
-			/>
-			<Tool
-				Name="VCManifestTool"
-			/>
-			<Tool
-				Name="VCXDCMakeTool"
-			/>
-			<Tool
-				Name="VCBscMakeTool"
-				SuppressStartupBanner="true"
-				OutputFile="GLDebugQ3/ftequake.bsc"
-			/>
-			<Tool
-				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
-				Name="VCPostBuildEventTool"
-			/>
-		</Configuration>
-		<Configuration
 			Name="Debug|Win32"
 			OutputDirectory=".\Debug"
 			IntermediateDirectory=".\Debug"
@@ -1142,108 +1039,6 @@
 			/>
 		</Configuration>
 		<Configuration
-			Name="Debug Dedicated ServerQ3|Win32"
-			OutputDirectory=".\ftequake___Win32_Debug_Dedicated_ServerQ3"
-			IntermediateDirectory=".\ftequake___Win32_Debug_Dedicated_ServerQ3"
-			ConfigurationType="1"
-			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
-			UseOfMFC="0"
-			ATLMinimizesCRunTimeLibraryUsage="false"
-			>
-			<Tool
-				Name="VCPreBuildEventTool"
-			/>
-			<Tool
-				Name="VCCustomBuildTool"
-			/>
-			<Tool
-				Name="VCXMLDataGeneratorTool"
-			/>
-			<Tool
-				Name="VCWebServiceProxyGeneratorTool"
-			/>
-			<Tool
-				Name="VCMIDLTool"
-				PreprocessorDefinitions="_DEBUG"
-				MkTypLibCompatible="true"
-				SuppressStartupBanner="true"
-				TargetEnvironment="1"
-				TypeLibraryName=".\ftequake___Win32_Debug_Dedicated_ServerQ3/ftequake.tlb"
-				HeaderFileName=""
-			/>
-			<Tool
-				Name="VCCLCompilerTool"
-				Optimization="0"
-				AdditionalIncludeDirectories="..\client,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include"
-				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;SERVERONLY;Q3SERVER"
-				MinimalRebuild="true"
-				RuntimeLibrary="0"
-				FloatingPointModel="2"
-				UsePrecompiledHeader="2"
-				PrecompiledHeaderThrough="quakedef.h"
-				PrecompiledHeaderFile=".\DebugServer/qwcl.pch"
-				AssemblerListingLocation=".\ftequake___Win32_Debug_Dedicated_ServerQ3/"
-				ObjectFile=".\DebugServer/"
-				ProgramDataBaseFileName=".\DebugServer/"
-				BrowseInformation="1"
-				WarningLevel="3"
-				SuppressStartupBanner="true"
-				DebugInformationFormat="4"
-				DisableSpecificWarnings="4996"
-			/>
-			<Tool
-				Name="VCManagedResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCResourceCompilerTool"
-				PreprocessorDefinitions="_DEBUG"
-				Culture="2057"
-			/>
-			<Tool
-				Name="VCPreLinkEventTool"
-			/>
-			<Tool
-				Name="VCLinkerTool"
-				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
-				OutputFile="../../fteqwsv.exe"
-				LinkIncremental="2"
-				SuppressStartupBanner="true"
-				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
-				IgnoreDefaultLibraryNames="libc.lib"
-				GenerateDebugInformation="true"
-				GenerateMapFile="true"
-				MapFileName=".\ftequake___Win32_Debug_Dedicated_ServerQ3/fteqwsv.map"
-				SubSystem="1"
-				TargetMachine="1"
-			/>
-			<Tool
-				Name="VCALinkTool"
-			/>
-			<Tool
-				Name="VCManifestTool"
-			/>
-			<Tool
-				Name="VCXDCMakeTool"
-			/>
-			<Tool
-				Name="VCBscMakeTool"
-				SuppressStartupBanner="true"
-				OutputFile=".\ftequake___Win32_Debug_Dedicated_ServerQ3/ftequake.bsc"
-			/>
-			<Tool
-				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
-				Name="VCPostBuildEventTool"
-			/>
-		</Configuration>
-		<Configuration
 			Name="MDebug|Win32"
 			OutputDirectory=".\MDebug"
 			IntermediateDirectory=".\MDebug"
@@ -1480,15 +1275,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					>
-					<Tool
-						Name="VCResourceCompilerTool"
-						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\Projects\fteqw\engine\client"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					>
 					<Tool
@@ -1563,16 +1349,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCResourceCompilerTool"
-						PreprocessorDefinitions=""
-						AdditionalIncludeDirectories="\Projects\fteqw\engine\client"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="MDebug|Win32"
 					>
 					<Tool
@@ -1609,16 +1385,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebugQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -1699,16 +1465,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -1762,16 +1518,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -1843,16 +1589,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -1906,16 +1642,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -1987,16 +1713,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -2050,16 +1766,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -2131,16 +1837,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -2194,16 +1890,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -2275,16 +1961,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -2338,16 +2014,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -2419,16 +2085,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -2482,16 +2138,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -2563,16 +2209,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -2626,16 +2262,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -2707,16 +2333,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -2770,16 +2386,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -2851,16 +2457,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -2914,16 +2510,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -2995,16 +2581,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -3058,16 +2634,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -3139,16 +2705,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -3202,16 +2758,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -3283,16 +2829,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -3346,16 +2882,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -3427,16 +2953,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -3490,16 +3006,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -3571,16 +3077,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -3634,16 +3130,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -3715,16 +3201,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -3778,16 +3254,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -3859,16 +3325,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -3922,16 +3378,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -4003,16 +3449,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -4066,16 +3502,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -4147,16 +3573,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -4210,16 +3626,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -4291,16 +3697,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -4353,15 +3749,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -4432,15 +3819,6 @@
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
 						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -4491,16 +3869,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -4572,16 +3940,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -4637,15 +3995,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -4711,16 +4060,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -4770,15 +4109,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -4844,16 +4174,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -4904,15 +4224,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -4982,16 +4293,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -5041,15 +4342,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -5115,16 +4407,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -5174,15 +4456,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -5248,16 +4521,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -5307,15 +4570,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -5381,16 +4635,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -5440,15 +4684,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -5514,16 +4749,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -5573,15 +4798,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -5647,16 +4863,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -5706,15 +4912,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -5780,16 +4977,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -5839,15 +5026,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -5913,16 +5091,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -5972,15 +5140,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -6046,16 +5205,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -6105,15 +5254,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -6179,16 +5319,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -6238,15 +5368,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -6312,16 +5433,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -6371,16 +5482,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -6446,16 +5547,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -6505,16 +5596,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -6580,16 +5661,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -6640,15 +5711,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -6718,16 +5780,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -6777,15 +5829,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -6851,16 +5894,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -6910,15 +5943,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -6984,16 +6008,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -7043,15 +6057,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -7117,16 +6122,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -7176,15 +6171,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -7250,16 +6236,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -7309,15 +6285,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -7383,16 +6350,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -7442,15 +6399,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -7516,16 +6464,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -7575,15 +6513,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -7649,16 +6578,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -7708,16 +6627,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -7783,16 +6692,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -7842,15 +6741,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -7916,16 +6806,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -7975,15 +6855,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -8049,16 +6920,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -8108,15 +6969,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -8182,16 +7034,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -8241,15 +7083,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -8315,16 +7148,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -8374,15 +7197,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -8448,16 +7262,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -8507,15 +7311,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -8581,16 +7376,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -8640,16 +7425,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -8715,16 +7490,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -8774,15 +7539,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -8848,16 +7604,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -8907,15 +7653,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -8981,17 +7718,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							WarnAsError="true"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -9042,15 +7768,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -9116,16 +7833,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -9175,15 +7882,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -9249,16 +7947,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -9308,15 +7996,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -9382,16 +8061,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -9443,16 +8112,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -9525,17 +8184,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -9588,15 +8236,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -9662,16 +8301,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -9721,15 +8350,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -9795,16 +8415,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -9854,16 +8464,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -9929,16 +8529,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -9988,15 +8578,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -10062,16 +8643,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -10121,15 +8692,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -10195,16 +8757,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -10254,15 +8806,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -10328,16 +8871,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -10387,15 +8920,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -10461,16 +8985,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -10520,15 +9034,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -10594,16 +9099,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -10653,15 +9148,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -10727,16 +9213,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -10786,15 +9262,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -10860,16 +9327,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -10919,15 +9376,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -10993,16 +9441,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -11052,15 +9490,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -11126,16 +9555,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -11185,15 +9604,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -11259,16 +9669,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -11318,15 +9718,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -11392,16 +9783,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -11451,15 +9832,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -11525,16 +9897,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -11584,15 +9946,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -11658,16 +10011,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -11717,15 +10060,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -11791,16 +10125,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -11850,16 +10174,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -11925,16 +10239,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -11990,16 +10294,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -12071,16 +10365,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -12132,15 +10416,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -12207,15 +10482,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -12264,15 +10530,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -12340,16 +10597,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -12399,15 +10646,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -12475,15 +10713,6 @@
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
 						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -12532,15 +10761,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -12608,16 +10828,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -12669,16 +10879,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -12753,17 +10953,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -12816,15 +11005,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -12890,16 +11070,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -12948,16 +11118,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -13025,16 +11185,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -13084,15 +11234,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -13160,16 +11301,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -13219,15 +11350,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -13295,16 +11417,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -13354,15 +11466,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -13430,16 +11533,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -13489,15 +11582,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -13562,15 +11646,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -13619,15 +11694,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -13695,16 +11761,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -13754,15 +11810,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -13830,16 +11877,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -13889,15 +11926,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -13965,16 +11993,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -14024,15 +12042,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -14100,16 +12109,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -14159,15 +12158,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -14235,16 +12225,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -14294,15 +12274,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -14368,15 +12339,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -14425,15 +12387,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -14501,16 +12454,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -14560,15 +12503,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -14636,16 +12570,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -14695,15 +12619,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -14771,16 +12686,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -14830,15 +12735,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -14906,16 +12802,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -14966,16 +12852,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -15043,16 +12919,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -15108,16 +12974,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -15185,16 +13041,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -15247,16 +13093,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -15324,16 +13160,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -15386,16 +13212,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -15463,16 +13279,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -15525,16 +13331,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -15602,16 +13398,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -15664,16 +13450,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -15741,16 +13517,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -15803,16 +13569,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -15880,16 +13636,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -15942,16 +13688,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -16019,16 +13755,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -16081,16 +13807,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -16158,16 +13874,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -16220,16 +13926,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -16297,16 +13993,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -16359,16 +14045,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -16436,16 +14112,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -16498,16 +14164,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -16575,16 +14231,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -16637,16 +14283,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -16714,16 +14350,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -16776,16 +14402,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -16853,16 +14469,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -16915,16 +14521,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -16992,16 +14588,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -17054,16 +14640,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -17131,16 +14707,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -17193,16 +14759,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -17270,16 +14826,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -17332,16 +14878,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -17409,16 +14945,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -17471,16 +14997,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -17548,16 +15064,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -17610,16 +15116,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -17687,16 +15183,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -17749,16 +15235,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -17826,16 +15302,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -17888,16 +15354,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -17965,16 +15421,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -18027,16 +15473,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -18104,16 +15540,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -18166,16 +15592,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -18243,16 +15659,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -18305,16 +15711,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -18382,16 +15778,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -18444,16 +15830,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -18521,16 +15897,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -18583,16 +15949,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -18660,16 +16016,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -18722,16 +16068,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -18799,16 +16135,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -18861,16 +16187,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -18938,16 +16254,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -19000,16 +16306,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -19077,16 +16373,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -19139,16 +16425,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -19216,16 +16492,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -19278,16 +16544,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -19355,16 +16611,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -19417,16 +16663,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -19494,16 +16730,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -19562,15 +16788,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -19635,15 +16852,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -19692,15 +16900,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -19765,15 +16964,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -19824,16 +17014,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="1"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -19905,16 +17085,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="1"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -19966,15 +17136,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -20039,15 +17200,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20096,15 +17248,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -20169,15 +17312,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20226,15 +17360,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -20299,15 +17424,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20356,15 +17472,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -20429,15 +17536,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20486,15 +17584,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -20559,15 +17648,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20616,15 +17696,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -20689,15 +17760,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20748,16 +17810,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -20829,16 +17881,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20890,15 +17932,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -20963,15 +17996,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21020,15 +18044,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -21093,15 +18108,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21150,15 +18156,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -21223,15 +18220,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21280,15 +18268,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -21353,15 +18332,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21410,15 +18380,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -21483,15 +18444,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21540,15 +18492,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -21613,15 +18556,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21670,15 +18604,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -21743,15 +18668,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21801,15 +18717,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -21883,15 +18790,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="MDebug|Win32"
 						>
 						<Tool
@@ -21924,15 +18822,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebugQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22005,15 +18894,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22062,15 +18942,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -22135,15 +19006,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22192,15 +19054,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -22265,15 +19118,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22328,16 +19172,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -22409,16 +19243,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22472,16 +19296,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -22553,16 +19367,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22616,16 +19420,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -22697,16 +19491,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22760,16 +19544,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -22841,16 +19615,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22904,16 +19668,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -22985,16 +19739,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -23048,16 +19792,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -23129,16 +19863,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -23192,16 +19916,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -23273,16 +19987,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -23336,16 +20040,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -23417,16 +20111,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -23480,16 +20164,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -23561,16 +20235,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -23624,16 +20288,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -23705,16 +20359,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -23768,16 +20412,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -23849,16 +20483,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -23912,16 +20536,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -23993,16 +20607,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -24056,14 +20660,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -24125,14 +20721,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -24177,14 +20765,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -24246,14 +20826,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -24298,14 +20870,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -24367,14 +20931,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -24419,14 +20975,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -24488,14 +21036,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -24540,14 +21080,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -24609,14 +21141,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -24661,14 +21185,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -24730,14 +21246,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -24782,14 +21290,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -24851,14 +21351,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -24905,15 +21397,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &gt; $(OUTDIR)\$(InputName).spp $(InputPath)&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; $(OUTDIR)\$(InputName).spp &gt;          $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;del $(OUTDIR)\$(InputName).spp&#x0D;&#x0A;"
-							Outputs="$(OUTDIR)\$(InputName).obj"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -24982,15 +21465,6 @@
 						<Tool
 							Name="VCCustomBuildTool"
 							CommandLine="cl /EP /I ..\common $(InputPath) &gt; $(OUTDIR)\$(InputName).spp&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; $(OUTDIR)\$(InputName).spp &gt;          $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;del $(OUTDIR)\$(InputName).spp&#x0D;&#x0A;"
-							Outputs="$(OUTDIR)\$(InputName).obj"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &gt; $(OUTDIR)\$(InputName).spp $(InputPath)&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; $(OUTDIR)\$(InputName).spp &gt;          $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;del $(OUTDIR)\$(InputName).spp&#x0D;&#x0A;"
 							Outputs="$(OUTDIR)\$(InputName).obj"
 						/>
 					</FileConfiguration>
@@ -25033,14 +21507,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -25102,14 +21568,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -25154,14 +21612,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -25223,14 +21673,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -25275,14 +21717,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -25344,14 +21778,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -25396,14 +21822,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -25465,14 +21883,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -25517,14 +21927,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -25586,14 +21988,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -25640,15 +22034,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &gt; $(OUTDIR)\$(InputName).spp $(InputPath)&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; $(OUTDIR)\$(InputName).spp &gt;          $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;del $(OUTDIR)\$(InputName).spp&#x0D;&#x0A;"
-							Outputs="$(OUTDIR)\$(InputName).obj"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -25712,14 +22097,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -25765,14 +22142,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -25834,14 +22203,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -25886,14 +22247,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -25955,14 +22308,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -26009,15 +22354,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &gt; $(OUTDIR)\$(InputName).spp $(InputPath)&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; $(OUTDIR)\$(InputName).spp &gt;          $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;del $(OUTDIR)\$(InputName).spp&#x0D;&#x0A;"
-							Outputs="$(OUTDIR)\$(InputName).obj"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -26081,14 +22417,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -26136,15 +22464,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &gt; $(OUTDIR)\$(InputName).spp $(InputPath)&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; $(OUTDIR)\$(InputName).spp &gt;          $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;del $(OUTDIR)\$(InputName).spp&#x0D;&#x0A;"
-							Outputs="$(OUTDIR)\$(InputName).obj"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -26213,15 +22532,6 @@
 						<Tool
 							Name="VCCustomBuildTool"
 							CommandLine="cl /EP /I ..\common $(InputPath) &gt; $(OUTDIR)\$(InputName).spp&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; $(OUTDIR)\$(InputName).spp &gt;          $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;del $(OUTDIR)\$(InputName).spp&#x0D;&#x0A;"
-							Outputs="$(OUTDIR)\$(InputName).obj"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &gt; $(OUTDIR)\$(InputName).spp $(InputPath)&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; $(OUTDIR)\$(InputName).spp &gt;          $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm&#x0D;&#x0A;del $(OUTDIR)\$(InputName).spp&#x0D;&#x0A;"
 							Outputs="$(OUTDIR)\$(InputName).obj"
 						/>
 					</FileConfiguration>
@@ -26270,16 +22580,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -26344,15 +22644,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -26401,16 +22692,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -26475,15 +22756,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -26532,16 +22804,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -26606,15 +22868,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -26663,16 +22916,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -26737,15 +22980,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -26796,16 +23030,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -26877,16 +23101,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -26938,16 +23152,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -27012,15 +23216,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -27075,16 +23270,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -27156,16 +23341,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -27219,16 +23394,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -27300,16 +23465,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -27363,16 +23518,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -27444,16 +23589,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -27507,16 +23642,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -27588,16 +23713,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -27651,16 +23766,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -27732,16 +23837,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -27795,16 +23890,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -27876,16 +23961,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -27939,16 +24014,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -28020,16 +24085,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -28079,14 +24134,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -28144,14 +24191,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCustomBuildTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -28203,16 +24242,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -28284,16 +24313,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -28347,16 +24366,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -28428,16 +24437,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -28493,15 +24492,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -28566,15 +24556,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -28623,15 +24604,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -28696,15 +24668,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -28753,15 +24716,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -28826,15 +24780,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -28883,15 +24828,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -28956,15 +24892,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -29013,15 +24940,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -29086,15 +25004,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -29147,15 +25056,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -29220,15 +25120,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -29277,15 +25168,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -29350,15 +25232,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -29407,15 +25280,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -29480,15 +25344,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -29537,15 +25392,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -29610,15 +25456,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -29667,15 +25504,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLDebugQ3|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug|Win32"
 						>
 						<Tool
@@ -29740,15 +25568,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated ServerQ3|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -30331,16 +26150,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -30412,16 +26221,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool
@@ -30475,16 +26274,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -30556,16 +26345,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool
@@ -30619,16 +26398,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -30700,16 +26469,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool
@@ -30763,16 +26522,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -30844,16 +26593,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool
@@ -30907,16 +26646,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -30988,16 +26717,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool
@@ -31051,16 +26770,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -31132,16 +26841,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool
@@ -31195,16 +26894,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -31276,16 +26965,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool
@@ -31339,16 +27018,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -31420,16 +27089,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool
@@ -31483,16 +27142,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -31564,16 +27213,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool
@@ -31627,16 +27266,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -31708,16 +27337,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool
@@ -31771,16 +27390,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -31852,16 +27461,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool
@@ -31915,16 +27514,6 @@
 					/>
 				</FileConfiguration>
 				<FileConfiguration
-					Name="GLDebugQ3|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
 					Name="Debug|Win32"
 					ExcludedFromBuild="true"
 					>
@@ -31996,16 +27585,6 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Debug Dedicated Server|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories=""
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug Dedicated ServerQ3|Win32"
 					ExcludedFromBuild="true"
 					>
 					<Tool

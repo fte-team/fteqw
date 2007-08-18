@@ -3452,7 +3452,6 @@ static progparms_t csqcprogparms;
 
 
 
-int COM_FileSize(char *path);
 pbool QC_WriteFile(char *name, void *data, int len);
 void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the library reliably, so there should be no need to track them ourselves.
 void VARGS PR_CB_Free(void *mem);

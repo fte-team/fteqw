@@ -140,8 +140,6 @@ char *QC_ProgsNameForEnt(edict_t *ent)
 
 int pr_edict_size;
 
-int COM_FileSize(char *path);
-
 pbool QC_WriteFile(char *name, void *data, int len)
 {
 	char buffer[256];
@@ -9268,7 +9266,7 @@ void PF_matchclient(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		else
 			G_INT(OFS_RETURN) = (cl - svs.clients) + 1;
 
-		if (cl = SV_GetClientForString(name, &clnum))
+		if ((cl = SV_GetClientForString(name, &clnum)))
 			G_INT(OFS_RETURN) = 0;	//prevent multiple matches.
 		return;
 	}

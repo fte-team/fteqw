@@ -29,7 +29,9 @@
 
 #define MAX_BONES 256
 
+#ifndef SERVERONLY
 static model_t *loadmodel;
+#endif
 
 //FIXME
 typedef struct

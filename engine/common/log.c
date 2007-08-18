@@ -20,7 +20,6 @@ cvar_t		log_rotate_size = SCVARF("log_rotate_size", "131072", CVAR_NOTFROMSERVER
 cvar_t		log_dosformat = SCVARF("log_dosformat", "0", CVAR_NOTFROMSERVER);
 
 // externals
-int COM_FileSize(char *path);
 extern char gamedirfile[];
 
 // table of readable characters, same as ezquake

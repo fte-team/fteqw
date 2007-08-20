@@ -1301,7 +1301,7 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 		VectorInverse(axis[1]);
 
 		frame2ness = CL_EntLerpFactor(tagent);
-		if (Mod_GetTag && Mod_GetTag(cl.model_precache[model], tagnum, frame, frame2, frame2ness, cl.time - cl.lerpents[tagent].framechange, cl.time - cl.lerpents[tagent].oldframechange, transform))
+		if (Mod_GetTag(cl.model_precache[model], tagnum, frame, frame2, frame2ness, cl.time - cl.lerpents[tagent].framechange, cl.time - cl.lerpents[tagent].oldframechange, transform))
 		{
 			old[0] = ent->axis[0][0];
 			old[1] = ent->axis[1][0];

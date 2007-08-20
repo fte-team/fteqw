@@ -274,7 +274,7 @@ void M_MenuS_Comboi_f (void)
 	}
 	opts[opt] = NULL;
 
-	MC_AddCvarCombo(menu_script, x, y, caption, var, opts, values);
+	MC_AddCvarCombo(menu_script, x, y, caption, var, (const char **)opts, (const char **)values);
 }
 
 char *Hunk_TempString(char *s)
@@ -348,7 +348,7 @@ void M_MenuS_Combos_f (void)
 	}
 	opts[opt] = NULL;
 
-	MC_AddCvarCombo(menu_script, x, y, caption, var, opts, values);
+	MC_AddCvarCombo(menu_script, x, y, caption, var, (const char **)opts, (const char **)values);
 }
 
 /*

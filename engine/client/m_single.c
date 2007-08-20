@@ -185,7 +185,7 @@ void M_Menu_SinglePlayer_f (void)
 
 		pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
 		if (pc)
-			MC_AddCvarCombo (menu, 64, 104+16,	"Player class", pc, classlist, classvalues);
+			MC_AddCvarCombo (menu, 64, 104+16,	"Player class", pc, (const char **)classlist, (const char **)classvalues);
 
 		return;
 	}

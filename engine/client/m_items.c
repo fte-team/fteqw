@@ -804,7 +804,7 @@ menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const 
 	n->common.height = 8;
 	n->common.width = strlen(caption)*8 + maxoptlen*8;
 	n->caption = caption;
-	n->options = newops;
+	n->options = (const char **)newops;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -870,8 +870,8 @@ menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cv
 	n->caption = optbuf;
 	optbuf += strlen(optbuf)+1;
 
-	n->options = newops;
-	n->values = newvalues;
+	n->options = (const char **)newops;
+	n->values = (const char **)newvalues;
 	n->cvar = cvar;
 
 //	if (!(cvar->flags & CVAR_ARCHIVE))

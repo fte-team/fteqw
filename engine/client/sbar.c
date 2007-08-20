@@ -2078,7 +2078,7 @@ ping time frags name
 #define COLUMN_PL COLUMN(pl, 2*8,						\
 {														\
 	int p = s->pl;										\
-	sprintf(num, "%3i", p);								\
+	sprintf(num, "%2i", p);								\
 	Draw_FunString(x, y, num);							\
 })
 #define COLUMN_TIME COLUMN(time, 4*8,					\

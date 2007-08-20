@@ -1,4 +1,5 @@
 #include "quakedef.h"
+#include "netinc.h"
 
 //#define com_gamedir com__gamedir
 

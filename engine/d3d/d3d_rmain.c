@@ -883,9 +883,10 @@ void D3D_DrawWorld(void)
 
 	currententity = &ent;
 #ifdef TERRAIN
-	if (currentmodel->type == mod_heightmap)
-		GL_DrawHeightmapModel(currententity);
-	else
+// FIXME: Dunno what needs to be fixed here?
+//	if (currentmodel->type == mod_heightmap)
+//		D3D_DrawHeightmapModel(currententity);
+//	else
 #endif
 	{
 //		qglColor3f (1,1,1);

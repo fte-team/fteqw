@@ -75,7 +75,7 @@ qboolean	r_cache_thrash;	// set if thrashing the surface cache
 mpic_t		*draw_disc;	// also used on sbar
 
 int d3d9width, d3d9height;
-
+#if 0
 #if !defined(SWQUAKE) && !defined(RGLQUAKE)
 qbyte GetPalette(int red, int green, int blue)
 {
@@ -103,6 +103,7 @@ qbyte GetPalette(int red, int green, int blue)
 		return best;
 	}
 }
+#endif
 #endif
 
 void BuildGammaTable (float g, float c);
@@ -175,13 +176,13 @@ void	D3D9_VID_GenPaletteTables (unsigned char *palette)
 	if (pD3DDev9)
 		IDirect3DDevice9_SetGammaRamp(pD3DDev9, 0, D3DSGR_NO_CALIBRATION, ramps);
 }
-
+#if 0
 #if !defined(SWQUAKE) && !defined(GLQUAKE)
 void D_FlushCaches (void)
 {
 }
 #endif
-
+#endif
 
 /*
 
@@ -1067,7 +1068,7 @@ index_t d3d9quadindexes[6] = {
 };
 
 extern cvar_t gl_contrast;
-	extern float vid_gamma;
+	float vid_gamma = 1.0;
 	float f;
 	unsigned int colour;
 

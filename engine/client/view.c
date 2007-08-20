@@ -311,7 +311,7 @@ qbyte		gammatable[256];	// palette is sent through this
 
 
 unsigned short		ramps[3][256];
-extern qboolean		gammaworks;
+//extern qboolean		gammaworks;
 float		v_blend[4];		// rgba 0.0 - 1.0
 /*
 void BuildGammaTable (float g)
@@ -614,8 +614,9 @@ V_CalcBlend
 
 void GLV_CalcBlendServer (float colors[4])
 {
-	extern qboolean gammaworks;
-	if (gammaworks || !v_blend[3])
+//	extern qboolean gammaworks;
+//	if (gammaworks || !v_blend[3])
+	if (!v_blend[3])
 	{	//regular cshifts work through hardware gamma
 		//server sent cshifts do not.
 		colors[0] = cl.cshifts[CSHIFT_SERVER].destcolor[0]/255.0f;
@@ -688,7 +689,7 @@ V_UpdatePalette
 */
 void GLV_UpdatePalette (qboolean force)
 {
-	qboolean ogw;
+//	qboolean ogw;
 	int		i, j;
 	qboolean	update;
 //	qbyte	*basepal, *newpal;
@@ -754,12 +755,12 @@ void GLV_UpdatePalette (qboolean force)
 			ramps[2][i] = gammatable[ib]<<8;
 		}
 
-		ogw = gammaworks;
-		VID_ShiftPalette (NULL);
-		if (ogw != gammaworks)
-		{
-			Con_DPrintf("Gamma working state %i\n", gammaworks);
-		}
+//		ogw = gammaworks;
+//		VID_ShiftPalette (NULL);
+//		if (ogw != gammaworks)
+//		{
+//			Con_DPrintf("Gamma working state %i\n", gammaworks);
+//		}
 	}
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);

@@ -11,6 +11,9 @@ void *d3dballtexture;
 LPDIRECT3DBASETEXTURE9 d3d9chars_tex;
 mpic_t *conback_tex;
 
+extern cvar_t		gl_picmip;
+extern cvar_t		gl_picmip2d;
+
 typedef struct d3dcachepic_s
 {
 	char		name[MAX_QPATH];
@@ -101,6 +104,49 @@ static void Upload_Texture_32(LPDIRECT3DTEXTURE9 surf, unsigned int *data, int w
 	IDirect3DTexture9_UnlockRect(surf, 0);
 }
 
+void D3D9_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
+{
+//	if (gl_config.arb_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+//	{
+//		TRACE(("dbg: GL_RoundDimensions: GL_ARB_texture_non_power_of_two\n"));
+//	}
+//	else
+	{
+		int width = *scaled_width;
+		int height = *scaled_height;
+		for (*scaled_width = 1 ; *scaled_width < width ; *scaled_width<<=1)
+			;
+		for (*scaled_height = 1 ; *scaled_height < height ; *scaled_height<<=1)
+			;
+	}
+
+	if (mipmap)
+	{
+		TRACE(("dbg: GL_RoundDimensions: %f\n", gl_picmip.value));
+		*scaled_width >>= (int)gl_picmip.value;
+		*scaled_height >>= (int)gl_picmip.value;
+	}
+	else
+	{
+		*scaled_width >>= (int)gl_picmip2d.value;
+		*scaled_height >>= (int)gl_picmip2d.value;
+	}
+
+	TRACE(("dbg: GL_RoundDimensions: %f\n", gl_max_size.value));
+	if (gl_max_size.value)
+	{
+		if (*scaled_width > gl_max_size.value)
+			*scaled_width = gl_max_size.value;
+		if (*scaled_height > gl_max_size.value)
+			*scaled_height = gl_max_size.value;
+	}
+
+	if (*scaled_width < 1)
+		*scaled_width = 1;
+	if (*scaled_height < 1)
+		*scaled_height = 1;
+}
+
 void D3D9_MipMap (qbyte *out, qbyte *in, int width, int height)
 {
 	int		i, j;
@@ -135,7 +181,7 @@ LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_32(char *name, unsigned int *data, int w
 	
 	nwidth = width;
 	nheight = height;
-	GL_RoundDimensions(&nwidth, &nheight, flags & TF_MIPMAP);
+	D3D9_RoundDimensions(&nwidth, &nheight, flags & TF_MIPMAP);
 
 	IDirect3DDevice9_CreateTexture(pD3DDev9, nwidth, nheight, 0, 0|((flags & TF_MIPMAP)?D3DUSAGE_AUTOGENMIPMAP:0), D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &newsurf, NULL);
 

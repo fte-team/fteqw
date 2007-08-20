@@ -65,6 +65,10 @@ cvar_t	r_aliastransadj = SCVAR("r_aliastransadj", "100");
 cvar_t	d_smooth = SCVAR("d_smooth", "0");
 cvar_t  sw_surfcachesize = SCVARF("sw_surfcachesize", "0", CVAR_RENDERERLATCH);
 #endif
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
+cvar_t	gl_contrast = SCVAR("gl_contrast", "1");
+cvar_t	gl_polyblend = SCVAR("gl_polyblend","1");
+#endif
 cvar_t	gl_skyboxdist = SCVAR("gl_skyboxdist", "2300");
 
 cvar_t	r_vertexdlights = SCVAR("r_vertexdlights", "1");

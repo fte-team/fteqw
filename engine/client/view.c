@@ -756,7 +756,7 @@ void GLV_UpdatePalette (qboolean force)
 		}
 
 //		ogw = gammaworks;
-//		VID_ShiftPalette (NULL);
+		VID_ShiftPalette (NULL);
 //		if (ogw != gammaworks)
 //		{
 //			Con_DPrintf("Gamma working state %i\n", gammaworks);

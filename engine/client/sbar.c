@@ -2067,58 +2067,72 @@ ping time frags name
 //for reference:
 //define COLUMN(title, width, code)
 
-#define COLUMN_PING COLUMN(ping, 4*8,	\
-{					\
-	int p = s->ping;		\
-	if (p < 0 || p > 999) p = 999;	\
-	sprintf(num, "%4i", p);		\
-	Draw_FunString(x, y, num);	\
+#define COLUMN_PING COLUMN(ping, 4*8,					\
+{														\
+	int p = s->ping;									\
+	if (p < 0 || p > 999) p = 999;						\
+	sprintf(num, "%4i", p);								\
+	Draw_FunString(x, y, num);							\
 })
 
-#define COLUMN_PL COLUMN(pl, 2*8,	\
-{					\
-	int p = s->pl;			\
-	sprintf(num, "%3i", p);		\
-	Draw_FunString(x, y, num);	\
+#define COLUMN_PL COLUMN(pl, 2*8,						\
+{														\
+	int p = s->pl;										\
+	sprintf(num, "%3i", p);								\
+	Draw_FunString(x, y, num);							\
 })
-#define COLUMN_TIME COLUMN(time, 4*8,				\
-{								\
-	if (cl.intermission)					\
-		total = cl.completed_time - s->entertime;	\
-	else							\
-		total = cl.servertime - s->entertime;		\
-	minutes = (int)total/60;				\
-	sprintf (num, "%4i", minutes);				\
-	Draw_String ( x , y, num);				\
+#define COLUMN_TIME COLUMN(time, 4*8,					\
+{														\
+	if (cl.intermission)								\
+		total = cl.completed_time - s->entertime;		\
+	else												\
+		total = cl.servertime - s->entertime;			\
+	minutes = (int)total/60;							\
+	sprintf (num, "%4i", minutes);						\
+	Draw_String ( x , y, num);							\
 })
-#define COLUMN_FRAGS COLUMN(frags, 5*8,			\
-{							\
-	top = Sbar_TopColour(s);			\
-	bottom = Sbar_BottomColour(s);			\
-	top = Sbar_ColorForMap (top);			\
-	bottom = Sbar_ColorForMap (bottom);		\
-							\
-	if (largegame)					\
-		Draw_Fill ( x, y+1, 40, 3, top);	\
-	else						\
-		Draw_Fill ( x, y, 40, 4, top);		\
-	Draw_Fill ( x, y+4, 40, 4, bottom);		\
-							\
-	f = s->frags;					\
-	sprintf (num, "%3i",f);				\
-							\
-	Draw_Character ( x+8 , y, num[0]);		\
-	Draw_Character ( x+16 , y, num[1]);		\
-	Draw_Character ( x+24 , y, num[2]);		\
-							\
-	if ((cl.spectator && k == spec_track[0]) ||	\
-		(!cl.spectator && k == cl.playernum[0]))	\
-	{						\
-		Draw_Character ( x, y, 16);		\
-		Draw_Character ( x + 32, y, 17);	\
-	}						\
+#define COLUMN_FRAGS COLUMN(frags, 5*8,					\
+{														\
+	top = Sbar_TopColour(s);							\
+	bottom = Sbar_BottomColour(s);						\
+	top = Sbar_ColorForMap (top);						\
+	bottom = Sbar_ColorForMap (bottom);					\
+														\
+	if (s->spectator)									\
+	{													\
+		Draw_String( x, y, "spectator" );				\
+	}													\
+	else												\
+	{													\
+		if (largegame)									\
+			Draw_Fill ( x, y+1, 40, 3, top);			\
+		else											\
+			Draw_Fill ( x, y, 40, 4, top);				\
+		Draw_Fill ( x, y+4, 40, 4, bottom);				\
+														\
+		f = s->frags;									\
+		sprintf (num, "%3i",f);							\
+														\
+		Draw_Character ( x+8 , y, num[0]);				\
+		Draw_Character ( x+16 , y, num[1]);				\
+		Draw_Character ( x+24 , y, num[2]);				\
+														\
+		if ((cl.spectator && k == spec_track[0]) ||		\
+			(!cl.spectator && k == cl.playernum[0]))	\
+		{												\
+			Draw_Character ( x, y, 16);					\
+			Draw_Character ( x + 32, y, 17);			\
+		}												\
+	}													\
+														\
 })
-#define COLUMN_TEAMNAME COLUMN(team, 4*8, {Draw_FunStringLen(x, y, s->team, 4);})
+#define COLUMN_TEAMNAME COLUMN(team, 4*8,				\
+{														\
+	if (!s->spectator)									\
+	{													\
+		Draw_FunStringLen(x, y, s->team, 4);			\
+	}													\
+})
 #define COLUMN_NAME COLUMN(name, 16*8,	{Draw_FunString(x, y, s->name);})
 #define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetKills(k)));})
 #define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetTKills(k)));})

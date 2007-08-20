@@ -2100,7 +2100,10 @@ ping time frags name
 														\
 	if (s->spectator)									\
 	{													\
-		Draw_String( x, y, "spectator" );				\
+		if (cl.teamplay)								\
+			Draw_String( x, y, "spectator" );			\
+		else											\
+			Draw_String( x, y, "spec" );				\
 	}													\
 	else												\
 	{													\

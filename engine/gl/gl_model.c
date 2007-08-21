@@ -43,7 +43,14 @@ extern cvar_t r_shadow_bumpscale_basetexture;
 extern int gl_bumpmappingpossible;
 qboolean isnotmap = true;	//used to not warp ammo models.
 
-
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#ifdef MD2MODELS
+extern cvar_t gl_loadmd2;
+#endif
+#ifdef MD3MODELS
+extern cvar_t gl_loadmd3;
+#endif
+#endif
 
 #ifndef SWQUAKE
 model_t	*loadmodel;
@@ -468,11 +475,11 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 		char mdlbase[MAX_QPATH];
 		COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
 #ifdef MD3MODELS
-		if (!buf)
+		if (gl_loadmd3.value && !buf)
 			buf = (unsigned *)COM_LoadStackFile (va("%s.md3", mdlbase), stackbuf, sizeof(stackbuf));
 #endif
 #ifdef MD2MODELS
-		if (!buf)
+		if (gl_loadmd2.value && !buf)
 			buf = (unsigned *)COM_LoadStackFile (va("%s.md2", mdlbase), stackbuf, sizeof(stackbuf));
 #endif
 	}

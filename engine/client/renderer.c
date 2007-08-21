@@ -34,237 +34,333 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldvalue);
 #endif
 
-//
+cvar_t _vid_wait_override					= FCVAR  ("vid_wait", "_vid_wait_override", "",
+												CVAR_ARCHIVE);
 
-cvar_t	r_novis = SCVAR("r_novis", "0");
-cvar_t	r_drawviewmodel = SCVAR("r_drawviewmodel","1");
-cvar_t  r_drawviewmodelinvis = SCVAR("r_drawviewmodelinvis", "0");
-cvar_t	r_netgraph = SCVAR("r_netgraph","0");
-cvar_t	r_speeds = SCVARF("r_speeds","0", CVAR_CHEAT);
-cvar_t	r_waterwarp = SCVARF("r_waterwarp","1", CVAR_ARCHIVE);
-cvar_t	r_drawentities = SCVAR("r_drawentities","1");
-cvar_t	r_fullbright = SCVARF("r_fullbright","0", CVAR_CHEAT);
-cvar_t	r_ambient = SCVARF("r_ambient", "0", CVAR_CHEAT);
-#if defined(SWQUAKE)
-cvar_t	r_draworder = SCVARF("r_draworder","0", CVAR_CHEAT);
-cvar_t	r_timegraph = SCVAR("r_timegraph","0");
-cvar_t	r_zgraph = SCVAR("r_zgraph","0");
-cvar_t	r_graphheight = SCVAR("r_graphheight","15");
-cvar_t	r_clearcolor = SCVAR("r_clearcolor","218");
-cvar_t	r_aliasstats = SCVAR("r_polymodelstats","0");
-cvar_t	r_dspeeds = SCVAR("r_dspeeds","0");
-//cvar_t	r_drawflat = SCVARF("r_drawflat", "0", CVAR_CHEAT);
-cvar_t	r_reportsurfout = SCVAR("r_reportsurfout", "0");
-cvar_t	r_maxsurfs = SCVAR("r_maxsurfs", "0");
-cvar_t	r_numsurfs = SCVAR("r_numsurfs", "0");
-cvar_t	r_reportedgeout = SCVAR("r_reportedgeout", "0");
-cvar_t	r_maxedges = SCVAR("r_maxedges", "0");
-cvar_t	r_numedges = SCVAR("r_numedges", "0");
-cvar_t	r_aliastransbase = SCVAR("r_aliastransbase", "200");
-cvar_t	r_aliastransadj = SCVAR("r_aliastransadj", "100");
-cvar_t	d_smooth = SCVAR("d_smooth", "0");
-cvar_t  sw_surfcachesize = SCVARF("sw_surfcachesize", "0", CVAR_RENDERERLATCH);
-#endif
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
-cvar_t	gl_contrast = SCVAR("gl_contrast", "1");
-cvar_t	gl_polyblend = SCVAR("gl_polyblend","1");
-#endif
-cvar_t	gl_skyboxdist = SCVAR("gl_skyboxdist", "2300");
+cvar_t _windowed_mouse						= SCVARF ("_windowed_mouse","1", CVAR_ARCHIVE);
 
-cvar_t	r_vertexdlights = SCVAR("r_vertexdlights", "1");
+cvar_t con_ocranaleds						= SCVAR  ("con_ocranaleds", "2");
 
-cvar_t cl_cursor = SCVAR("cl_cursor", "");
-cvar_t cl_cursorsize = SCVAR("cl_cursorsize", "32");
-cvar_t cl_cursorbias = SCVAR("cl_cursorbias", "4");
+cvar_t d_palconvwrite						= SCVAR  ("d_palconvwrite", "1");
+cvar_t d_palremapsize						= SCVARF ("d_palremapsize", "64",
+												CVAR_RENDERERLATCH);
 
-extern	cvar_t	r_dodgytgafiles;
-extern	cvar_t	r_dodgypcxfiles;
+cvar_t cl_cursor							= SCVAR  ("cl_cursor", "");
+cvar_t cl_cursorsize						= SCVAR  ("cl_cursorsize", "32");
+cvar_t cl_cursorbias						= SCVAR  ("cl_cursorbias", "4");
 
-cvar_t	r_nolerp = SCVAR("r_nolerp", "0");
-cvar_t	r_nolightdir = SCVAR("r_nolightdir", "0");
+cvar_t gl_nocolors							= SCVAR  ("gl_nocolors", "0");
+cvar_t gl_part_flame						= SCVAR  ("gl_part_flame", "1");
+//opengl library
 
-cvar_t	r_sirds = SCVARF("r_sirds", "0", CVAR_SEMICHEAT);//whack in a value of 2 and you get easily visible players.
-
-cvar_t	r_loadlits = SCVAR("r_loadlit", "1");
-
-cvar_t r_stains = SCVARFC("r_stains", "0.75", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
-cvar_t r_stainfadetime = SCVAR("r_stainfadetime", "1");
-cvar_t r_stainfadeammount = SCVAR("r_stainfadeammount", "1");
-
-cvar_t		_windowed_mouse = SCVARF("_windowed_mouse","1", CVAR_ARCHIVE);
-cvar_t		_vid_wait_override = FCVAR("vid_wait", "_vid_wait_override", "", CVAR_ARCHIVE);
-
-static cvar_t		vid_stretch = SCVARF("vid_stretch","1", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-//cvar_t		_windowed_mouse = SCVARF("_windowed_mouse","1", CVAR_ARCHIVE);
-static cvar_t	gl_driver = SCVARF("gl_driver","", CVAR_ARCHIVE|CVAR_RENDERERLATCH);	//opengl library
-cvar_t	vid_renderer = SCVARF("vid_renderer", "", CVAR_ARCHIVE|CVAR_RENDERERLATCH);	//see R_RestartRenderer_f for the effective default 'if (newr.renderer == -1)'.
-
-static cvar_t	vid_bpp = SCVARF("vid_bpp", "32", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-static cvar_t	vid_allow_modex = SCVARF("vid_allow_modex", "1", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-static cvar_t	vid_fullscreen = SCVARF("vid_fullscreen", "1", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-static cvar_t	vid_width = SCVARF("vid_width", "640", CVAR_ARCHIVE|CVAR_RENDERERLATCH);	//more readable defaults to match conwidth/conheight.
-static cvar_t	vid_height = SCVARF("vid_height", "480", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-static cvar_t	vid_refreshrate = SCVARF("vid_displayfrequency", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-static cvar_t	vid_multisample = SCVARF("vid_multisample", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-static cvar_t	vid_desktopsettings = SCVARF("vid_desktopsettings", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-
-#if defined(RGLQUAKE)
-cvar_t	gl_texturemode = SCVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, GL_Texturemode_Callback);
-cvar_t	gl_texturemode2d = SCVARFC("gl_texturemode2d", "GL_LINEAR", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, GL_Texturemode2d_Callback);
-cvar_t	gl_texture_anisotropic_filtering = SCVARFC("gl_texture_anisotropic_filtering", "0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, GL_Texture_Anisotropic_Filtering_Callback);
-cvar_t	gl_conback = SCVARF("gl_conback", "", CVAR_RENDERERCALLBACK);
-cvar_t	gl_font = SCVARF("gl_font", "", CVAR_RENDERERCALLBACK);
-//gl blends. Set this to 1 to stop the outside of your conchars from being visible
-cvar_t	gl_fontinwardstep = SCVAR("gl_fontinwardstep", "0");	
-cvar_t	gl_smoothfont	= SCVAR("gl_smoothfont", "1");
-cvar_t  gl_smoothcrosshair = SCVAR("gl_smoothcrosshair", "1");
-#endif
-cvar_t	gl_motionblur = SCVARF("gl_motionblur", "0", CVAR_ARCHIVE);
-cvar_t	gl_motionblurscale = SCVAR("gl_motionblurscale", "1");
-cvar_t	gl_part_flame	= SCVAR("gl_part_flame", "1");
-cvar_t	r_part_rain	= SCVARF("r_part_rain", "0", CVAR_ARCHIVE);
-
-cvar_t	r_bouncysparks	= SCVARF("r_bouncysparks", "0", CVAR_ARCHIVE);
-
-cvar_t	r_fullbrightSkins	= SCVARF("r_fullbrightSkins", "0",	CVAR_SEMICHEAT);
-cvar_t	r_fb_models		= FCVAR("r_fb_models", "gl_fb_models", "1", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
-cvar_t	r_fb_bmodels	= SCVARF("gl_fb_bmodels", "1", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
-
-cvar_t	r_shadow_bumpscale_basetexture	= SCVAR("r_shadow_bumpscale_basetexture", "4");
-cvar_t	r_shadow_bumpscale_bumpmap	= SCVAR("r_shadow_bumpscale_bumpmap", "10");
-cvar_t	gl_nocolors	= SCVAR("gl_nocolors","0");
-cvar_t		gl_load24bit	= SCVARF("gl_load24bit", "1", CVAR_ARCHIVE);
-cvar_t		vid_conwidth	= SCVARF("vid_conwidth", "640", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK);
-cvar_t		vid_conheight	= SCVARF("vid_conheight", "480", CVAR_ARCHIVE);
-cvar_t		vid_conautoscale = SCVARF("vid_conautoscale", "0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK);
-cvar_t		gl_nobind	= SCVAR("gl_nobind", "0");
-cvar_t		gl_max_size	= SCVAR("gl_max_size", "1024");
-cvar_t		gl_picmip	= SCVAR("gl_picmip", "0");
-cvar_t		gl_picmip2d	= SCVAR("gl_picmip2d", "0");
-cvar_t		r_drawdisk	= SCVAR("r_drawdisk", "1");
-cvar_t		gl_compress	= SCVARF("gl_compress", "0", CVAR_ARCHIVE);
-cvar_t		gl_savecompressedtex	 = SCVAR("gl_savecompressedtex", "0");
-extern cvar_t gl_dither;
-extern	cvar_t	gl_maxdist;
-cvar_t	gl_mindist = SCVARF("gl_mindist", "4", CVAR_CHEAT);	//by setting to 64 or something, you can use this as a wallhack
-
-
-cvar_t		gl_detail	= SCVARF("gl_detail", "0", CVAR_ARCHIVE);
-cvar_t		gl_detailscale	= SCVAR("gl_detailscale", "5");
-cvar_t		gl_overbright	= SCVARF("gl_overbright", "0", CVAR_ARCHIVE);
-cvar_t		gl_overbright_all = SCVARF("gl_overbright_all", "0", CVAR_ARCHIVE);
-cvar_t		r_shadows	= SCVARF("r_shadows", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-cvar_t		r_shadow_realtime_world	= SCVARF("r_shadow_realtime_world", "0", CVAR_CHEAT|CVAR_ARCHIVE);
-cvar_t		r_shadow_realtime_world_lightmaps	= SCVARF("r_shadow_realtime_world_lightmaps", "0.8", CVAR_CHEAT);
-cvar_t		r_noaliasshadows	= SCVARF("r_noaliasshadows", "0", CVAR_ARCHIVE);
-cvar_t		gl_maxshadowlights	= SCVARF("gl_maxshadowlights", "2", CVAR_ARCHIVE);
-cvar_t		gl_bump	= SCVARF("gl_bump", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-cvar_t r_shadow_glsl_offsetmapping	= SCVAR("r_shadow_glsl_offsetmapping", "0");
-cvar_t r_shadow_glsl_offsetmapping_scale	= SCVAR("r_shadow_glsl_offsetmapping_scale", "-0.04");
-cvar_t r_shadow_glsl_offsetmapping_bias	= SCVAR("r_shadow_glsl_offsetmapping_bias", "0.04");
-#ifdef SPECULAR
-cvar_t		gl_specular	= SCVAR("gl_specular", "0");
-#endif
-//cvar_t		gl_lightmapmode	= SCVARF("gl_lightmapmode", "", CVAR_ARCHIVE);
-
-cvar_t		gl_ati_truform	= SCVAR("gl_ati_truform", "0");
-cvar_t		gl_ati_truform_type	= SCVAR("gl_ati_truform_type", "1");
-cvar_t		gl_ati_truform_tesselation	= SCVAR("gl_ati_truform_tesselation", "3");
-
-cvar_t		mod_md3flags	= SCVAR("mod_md3flags", "1");
-
-cvar_t		gl_lateswap	= SCVAR("gl_lateswap", "0");
-
-cvar_t		gl_mylumassuck	= SCVAR("gl_mylumassuck", "0");
-
-cvar_t			scr_sshot_type	= SCVAR("scr_sshot_type", "jpg");
-cvar_t			scr_sshot_compression = SCVAR("scr_sshot_compression", "75");
-
-cvar_t			scr_centersbar	= SCVAR("scr_centersbar", "0");
-cvar_t			scr_consize	= SCVAR("scr_consize", "0.5");
-cvar_t			scr_conalpha = SCVARC("scr_conalpha", "0.7", Cvar_Limiter_ZeroToOne_Callback);
-
-cvar_t          scr_viewsize	= SCVARFC("viewsize","100", CVAR_ARCHIVE, SCR_Viewsize_Callback);
-cvar_t          scr_fov	= SCVARFC("fov","90", CVAR_ARCHIVE, SCR_Fov_Callback); // 10 - 170
-cvar_t          scr_conspeed	= SCVAR("scr_conspeed","300");
-cvar_t          scr_centertime	= SCVAR("scr_centertime","2");
-cvar_t          scr_showram	= SCVAR("showram","1");
-cvar_t          scr_showturtle	= SCVAR("showturtle","0");
-cvar_t          scr_showpause	= SCVAR("showpause","1");
-cvar_t          scr_printspeed	= SCVAR("scr_printspeed","8");
-cvar_t			scr_allowsnap	= SCVARF("scr_allowsnap", "1", CVAR_NOTFROMSERVER);	//otherwise it would defeat the point.
-cvar_t			con_ocranaleds	= SCVAR("con_ocranaleds", "2");
-
-cvar_t			scr_chatmodecvar	= SCVAR("scr_chatmode", "0");
-
+static cvar_t gl_driver						= SCVARF ("gl_driver", "",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 #ifdef Q3SHADERS
-cvar_t 			gl_shadeq3	= SCVARF("gl_shadeq3", "1", CVAR_SEMICHEAT);	//use if you want.
-cvar_t 			gl_shadeq2	= SCVARF("gl_shadeq2", "0", CVAR_SEMICHEAT);	//use if you want.
+cvar_t gl_shadeq1							= SCVARF ("gl_shadeq1", "0",
+												CVAR_SEMICHEAT);
+cvar_t gl_shadeq1_name						= SCVAR  ("gl_shadeq1_name", "*");
+//use if you want.
+cvar_t gl_shadeq2							= SCVARF ("gl_shadeq2", "0",
+												CVAR_SEMICHEAT);
+//use if you want.
+cvar_t gl_shadeq3							= SCVARF ("gl_shadeq3", "1",
+												CVAR_SEMICHEAT);
+
 extern cvar_t r_vertexlight;
-cvar_t			gl_shadeq1	= SCVARF("gl_shadeq1", "0", CVAR_SEMICHEAT);
-cvar_t			gl_shadeq1_name	= SCVAR("gl_shadeq1_name", "*");
 #endif
 
-cvar_t			gl_blend2d	= SCVAR("gl_blend2d", "1");
-cvar_t			gl_blendsprites	= SCVAR("gl_blendsprites", "1");
+cvar_t mod_md3flags							= SCVAR  ("mod_md3flags", "1");
 
-cvar_t r_bloodstains	= SCVAR("r_bloodstains", "1");
+cvar_t r_ambient							= SCVARF ("r_ambient", "0",
+												CVAR_CHEAT);
+cvar_t r_bloodstains						= SCVAR  ("r_bloodstains", "1");
+cvar_t r_bouncysparks						= SCVARF ("r_bouncysparks", "0",
+												CVAR_ARCHIVE);
+cvar_t r_drawdisk							= SCVAR  ("r_drawdisk", "1");
+cvar_t r_drawentities						= SCVAR  ("r_drawentities", "1");
+cvar_t r_drawflat							= SCVARF ("r_drawflat", "0",
+												CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK);
+cvar_t r_drawflat_nonworldmodel				= SCVAR  ("r_drawflat_nonworldmodel", "0");
+cvar_t r_drawviewmodel						= SCVAR  ("r_drawviewmodel", "1");
+cvar_t r_drawviewmodelinvis					= SCVAR  ("r_drawviewmodelinvis", "0");
+cvar_t r_dynamic							= SCVARF ("r_dynamic", "1",
+												CVAR_ARCHIVE);
+cvar_t r_fastsky							= SCVAR  ("r_fastsky", "0");
+cvar_t r_fastskycolour						= SCVAR  ("r_fastskycolour", "0");
+cvar_t r_fb_bmodels							= SCVARF("gl_fb_bmodels", "1",
+												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t r_fb_models							= FCVAR  ("r_fb_models", "gl_fb_models", "1",
+												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
+												CVAR_ARCHIVE);
+cvar_t r_floorcolour						= SCVARF ("r_floorcolour", "255 255 255",
+												CVAR_RENDERERCALLBACK);
+cvar_t r_floortexture						= SCVARF ("r_floortexture", "",
+												CVAR_RENDERERCALLBACK);
+cvar_t r_fullbright							= SCVARF ("r_fullbright", "0",
+												CVAR_CHEAT);
+cvar_t r_fullbrightSkins					= SCVARF ("r_fullbrightSkins", "0",
+												CVAR_SEMICHEAT);
+cvar_t r_lightmap_saturation				= SCVAR  ("r_lightmap_saturation", "1");
+cvar_t r_lightstylesmooth					= SCVAR  ("r_lightstylesmooth", "0");
+cvar_t r_lightstylespeed					= SCVAR  ("r_lightstylespeed", "10");
+cvar_t r_loadlits							= SCVAR  ("r_loadlit", "1");
+cvar_t r_menutint							= SCVARF ("r_menutint", "0.68 0.4 0.13",
+												CVAR_RENDERERCALLBACK);
+cvar_t r_netgraph							= SCVAR  ("r_netgraph", "0");
+cvar_t r_nolerp								= SCVAR  ("r_nolerp", "0");
+cvar_t r_nolightdir							= SCVAR  ("r_nolightdir", "0");
+cvar_t r_novis								= SCVAR  ("r_novis", "0");
+cvar_t r_part_rain							= SCVARF ("r_part_rain", "0",
+												CVAR_ARCHIVE);
+//whack in a value of 2 and you get easily visible players.
+cvar_t r_sirds								= SCVARF ("r_sirds", "0",
+												CVAR_SEMICHEAT);
+cvar_t r_skyboxname							= SCVARF ("r_skybox", "",
+												CVAR_RENDERERCALLBACK);
+cvar_t r_speeds								= SCVARF ("r_speeds", "0",
+												CVAR_CHEAT);
+cvar_t r_stainfadeammount					= SCVAR  ("r_stainfadeammount", "1");
+cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
+cvar_t r_stains								= SCVARFC("r_stains", "0.75",
+												CVAR_ARCHIVE,
+												Cvar_Limiter_ZeroToOne_Callback);
+cvar_t r_wallcolour							= SCVARF ("r_wallcolour", "255 255 255",
+												CVAR_RENDERERCALLBACK);
+cvar_t r_walltexture						= SCVARF ("r_walltexture", "",
+												CVAR_RENDERERCALLBACK);
+cvar_t r_wateralpha							= SCVAR  ("r_wateralpha", "1");
+cvar_t r_waterwarp							= SCVARF ("r_waterwarp", "1",
+												CVAR_ARCHIVE);
 
-extern	cvar_t	r_norefresh;
-extern	cvar_t	r_drawentities;
-extern	cvar_t	r_drawworld;
-extern	cvar_t	r_drawviewmodel;
-extern	cvar_t	r_speeds;
-extern	cvar_t	r_waterwarp;
-extern	cvar_t	r_fullbright;
-extern	cvar_t	r_shadows;
-extern	cvar_t	r_mirroralpha;
-cvar_t	r_wateralpha = SCVAR("r_wateralpha","1");
-cvar_t	r_dynamic	= SCVARF("r_dynamic","1", CVAR_ARCHIVE);
-cvar_t	r_flashblend	= SCVARF("gl_flashblend","0", CVAR_ARCHIVE);
-cvar_t	r_lightstylesmooth	= SCVAR("r_lightstylesmooth", "0");
-cvar_t	r_lightstylespeed	= SCVAR("r_lightstylespeed", "10");
-extern	cvar_t	r_novis;
-extern	cvar_t	r_netgraph;
+//otherwise it would defeat the point.
+cvar_t scr_allowsnap						= SCVARF ("scr_allowsnap", "1",
+												CVAR_NOTFROMSERVER);
+cvar_t scr_centersbar						= SCVAR  ("scr_centersbar", "0");
+cvar_t scr_centertime						= SCVAR  ("scr_centertime", "2");
+cvar_t scr_chatmodecvar						= SCVAR  ("scr_chatmode", "0");
+cvar_t scr_conalpha							= SCVARC ("scr_conalpha", "0.7",
+												Cvar_Limiter_ZeroToOne_Callback);
+cvar_t scr_consize							= SCVAR  ("scr_consize", "0.5");
+cvar_t scr_conspeed							= SCVAR  ("scr_conspeed", "300");
+// 10 - 170
+cvar_t scr_fov								= SCVARFC("fov", "90",
+												CVAR_ARCHIVE,
+												SCR_Fov_Callback);
+cvar_t scr_printspeed						= SCVAR  ("scr_printspeed", "8");
+cvar_t scr_showpause						= SCVAR  ("showpause", "1");
+cvar_t scr_showram							= SCVAR  ("showram", "1");
+cvar_t scr_showturtle						= SCVAR  ("showturtle", "0");
+cvar_t scr_sshot_compression				= SCVAR  ("scr_sshot_compression", "75");
+cvar_t scr_sshot_type						= SCVAR  ("scr_sshot_type", "jpg");
+cvar_t scr_viewsize							= SCVARFC("viewsize", "100",
+												CVAR_ARCHIVE,
+												SCR_Viewsize_Callback);
 
-cvar_t r_drawflat	= SCVARF("r_drawflat","0", CVAR_SEMICHEAT|CVAR_RENDERERCALLBACK);
-cvar_t r_drawflat_nonworldmodel = SCVAR("r_drawflat_nonworldmodel", "0");
-cvar_t r_wallcolour	= SCVARF("r_wallcolour","255 255 255", CVAR_RENDERERCALLBACK);
-cvar_t r_floorcolour	= SCVARF("r_floorcolour","255 255 255", CVAR_RENDERERCALLBACK);
-cvar_t r_walltexture	= SCVARF("r_walltexture","", CVAR_RENDERERCALLBACK);
-cvar_t r_floortexture	= SCVARF("r_floortexture","", CVAR_RENDERERCALLBACK);
+cvar_t vid_conautoscale						= SCVARF ("vid_conautoscale", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
+cvar_t vid_conheight						= SCVARF ("vid_conheight", "480",
+												CVAR_ARCHIVE);
+cvar_t vid_conwidth							= SCVARF ("vid_conwidth", "640",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
+//see R_RestartRenderer_f for the effective default 'if (newr.renderer == -1)'.
+cvar_t vid_renderer							= SCVARF ("vid_renderer", "",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
-cvar_t d_palconvwrite	= SCVAR("d_palconvwrite", "1");
-cvar_t d_palremapsize	= SCVARF("d_palremapsize", "64", CVAR_RENDERERLATCH);
+static cvar_t vid_allow_modex				= SCVARF ("vid_allow_modex", "1",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+static cvar_t vid_bpp						= SCVARF ("vid_bpp", "32",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+static cvar_t vid_desktopsettings			= SCVARF ("vid_desktopsettings", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+static cvar_t vid_fullscreen				= SCVARF ("vid_fullscreen", "1",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+static cvar_t vid_height					= SCVARF ("vid_height", "480",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+static cvar_t vid_multisample				= SCVARF ("vid_multisample", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+static cvar_t vid_refreshrate				= SCVARF ("vid_displayfrequency", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+static cvar_t vid_stretch					= SCVARF ("vid_stretch", "1",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+//more readable defaults to match conwidth/conheight.
+static cvar_t vid_width						= SCVARF ("vid_width", "640",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
-cvar_t r_lightmap_saturation	= SCVAR("r_lightmap_saturation", "1");
-
+extern cvar_t bul_backcol;
+extern cvar_t bul_forcemode;
+extern cvar_t bul_norender;
+extern cvar_t bul_nowater;
+extern cvar_t bul_rippleamount;
+extern cvar_t bul_ripplespeed;
+extern cvar_t bul_scrollspeedx;
+extern cvar_t bul_scrollspeedy;
+extern cvar_t bul_sparkle;
 extern cvar_t bul_text1;
 extern cvar_t bul_text2;
 extern cvar_t bul_text3;
 extern cvar_t bul_text4;
 extern cvar_t bul_text5;
 extern cvar_t bul_text6;
-
-extern cvar_t bul_scrollspeedx;
-extern cvar_t bul_scrollspeedy;
-extern cvar_t bul_backcol;
 extern cvar_t bul_textpalette;
-extern cvar_t bul_norender;
-extern cvar_t bul_sparkle;
-extern cvar_t bul_forcemode;
-extern cvar_t bul_ripplespeed;
-extern cvar_t bul_rippleamount;
-extern cvar_t bul_nowater;
+
+extern cvar_t r_dodgytgafiles;
+extern cvar_t r_dodgypcxfiles;
+extern cvar_t r_drawentities;
+extern cvar_t r_drawviewmodel;
+extern cvar_t r_drawworld;
+extern cvar_t r_fullbright;
+extern cvar_t r_mirroralpha;
+extern cvar_t r_netgraph;
+extern cvar_t r_norefresh;
+extern cvar_t r_novis;
+extern cvar_t r_shadows;
+extern cvar_t r_speeds;
+extern cvar_t r_waterwarp;
+
 void R_BulletenForce_f (void);
 
 rendererstate_t currentrendererstate;
 
-cvar_t	r_skyboxname	= SCVARF("r_skybox", "", CVAR_RENDERERCALLBACK);
-cvar_t	r_fastsky	= SCVAR("r_fastsky", "0");
-cvar_t	r_fastskycolour	= SCVAR("r_fastskycolour", "0");
+#if defined(SWQUAKE)
+cvar_t d_smooth								= SCVAR  ("d_smooth", "0");
 
-cvar_t r_menutint = SCVARF("r_menutint", "0.68 0.4 0.13", CVAR_RENDERERCALLBACK);
+cvar_t r_aliastransadj						= SCVAR  ("r_aliastransadj", "100");
+cvar_t r_aliastransbase						= SCVAR  ("r_aliastransbase", "200");
+cvar_t r_clearcolor							= SCVAR  ("r_clearcolor", "218");
+//cvar_t r_drawflat							= SCVARF ("r_drawflat", "0",
+//												CVAR_CHEAT);
+cvar_t r_draworder							= SCVARF ("r_draworder", "0",
+												CVAR_CHEAT);
+cvar_t r_dspeeds							= SCVAR  ("r_dspeeds", "0");
+cvar_t r_graphheight						= SCVAR  ("r_graphheight", "15");
+cvar_t r_maxedges							= SCVAR  ("r_maxedges", "0");
+cvar_t r_maxsurfs							= SCVAR  ("r_maxsurfs", "0");
+cvar_t r_numedges							= SCVAR  ("r_numedges", "0");
+cvar_t r_numsurfs							= SCVAR  ("r_numsurfs", "0");
+cvar_t r_aliasstats							= SCVAR  ("r_polymodelstats", "0");
+cvar_t r_reportedgeout						= SCVAR  ("r_reportedgeout", "0");
+cvar_t r_reportsurfout						= SCVAR  ("r_reportsurfout", "0");
+cvar_t r_timegraph							= SCVAR  ("r_timegraph", "0");
+cvar_t r_zgraph								= SCVAR  ("r_zgraph","0");
+
+cvar_t sw_surfcachesize						= SCVARF ("sw_surfcachesize", "0",
+												CVAR_RENDERERLATCH);
+#endif
+
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
+cvar_t gl_ati_truform						= SCVAR  ("gl_ati_truform", "0");
+cvar_t gl_ati_truform_type					= SCVAR  ("gl_ati_truform_type", "1");
+cvar_t gl_ati_truform_tesselation			= SCVAR  ("gl_ati_truform_tesselation", "3");
+cvar_t gl_blend2d							= SCVAR  ("gl_blend2d", "1");
+cvar_t gl_blendsprites						= SCVAR  ("gl_blendsprites", "1");
+cvar_t gl_bump								= SCVARF ("gl_bump", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t gl_compress							= SCVARF ("gl_compress", "0",
+												CVAR_ARCHIVE);
+cvar_t gl_conback							= SCVARF ("gl_conback", "",
+												CVAR_RENDERERCALLBACK);
+cvar_t gl_contrast							= SCVAR  ("gl_contrast", "1");
+cvar_t gl_detail							= SCVARF ("gl_detail", "0",
+												CVAR_ARCHIVE);
+cvar_t gl_detailscale						= SCVAR  ("gl_detailscale", "5");
+cvar_t gl_font								= SCVARF ("gl_font", "",
+												CVAR_RENDERERCALLBACK);
+cvar_t gl_fontinwardstep					= SCVAR  ("gl_fontinwardstep", "0");
+cvar_t gl_lateswap							= SCVAR  ("gl_lateswap", "0");
+cvar_t gl_lerpimages						= SCVAR  ("gl_lerpimages", "1");
+cvar_t gl_lightmap_shift					= SCVARF ("gl_lightmap_shift", "0",
+												CVAR_ARCHIVE | CVAR_LATCH);
+//cvar_t gl_lightmapmode						= SCVARF("gl_lightmapmode", "",
+//												CVAR_ARCHIVE);
+cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
+												CVAR_ARCHIVE);
+
+#ifdef MD2MODELS
+cvar_t gl_loadmd2							= SCVARF ("gl_loadmd2","1",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+#endif
+
+#ifdef MD3MODELS
+cvar_t gl_loadmd3							= SCVARF ("gl_loadmd3","1",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+#endif
+
+cvar_t gl_max_size							= SCVAR  ("gl_max_size", "1024");
+cvar_t gl_maxshadowlights					= SCVARF ("gl_maxshadowlights", "2",
+												CVAR_ARCHIVE);
+cvar_t gl_menutint_shader					= SCVAR  ("gl_menutint_shader", "1");
+
+//by setting to 64 or something, you can use this as a wallhack
+cvar_t gl_mindist							= SCVARF ("gl_mindist", "4",
+												CVAR_CHEAT);
+
+cvar_t gl_motionblur						= SCVARF ("gl_motionblur", "0",
+												CVAR_ARCHIVE);
+cvar_t gl_motionblurscale					= SCVAR  ("gl_motionblurscale", "1");
+cvar_t gl_mylumassuck						= SCVAR  ("gl_mylumassuck", "0");
+cvar_t gl_nobind							= SCVAR  ("gl_nobind", "0");
+cvar_t gl_overbright						= SCVARF ("gl_overbright", "0",
+												CVAR_ARCHIVE);
+cvar_t gl_overbright_all					= SCVARF ("gl_overbright_all", "0",
+												CVAR_ARCHIVE);
+cvar_t gl_picmip							= SCVAR  ("gl_picmip", "0");
+cvar_t gl_picmip2d							= SCVAR  ("gl_picmip2d", "0");
+cvar_t gl_polyblend							= SCVAR  ("gl_polyblend","1");
+cvar_t gl_savecompressedtex					= SCVAR  ("gl_savecompressedtex", "0");
+cvar_t gl_schematics						= SCVAR  ("gl_schematics", "0");
+cvar_t gl_skyboxdist						= SCVAR  ("gl_skyboxdist", "2300");
+cvar_t gl_smoothcrosshair					= SCVAR  ("gl_smoothcrosshair", "1");
+
+//gl blends. Set this to 1 to stop the outside of your conchars from being visible
+cvar_t gl_smoothfont						= SCVAR  ("gl_smoothfont", "1");
+
+#ifdef SPECULAR
+cvar_t gl_specular							= SCVAR  ("gl_specular", "0");
+#endif
+
+// The callbacks are not in D3D yet
+#ifndef D3DQUAKE
+cvar_t gl_texture_anisotropic_filtering		= SCVARFC("gl_texture_anisotropic_filtering", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
+												GL_Texture_Anisotropic_Filtering_Callback);
+cvar_t gl_texturemode						= SCVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
+												GL_Texturemode_Callback);
+cvar_t gl_texturemode2d						= SCVARFC("gl_texturemode2d", "GL_LINEAR",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
+												GL_Texturemode2d_Callback);
+#endif
+
+cvar_t gl_triplebuffer						= SCVARF ("gl_triplebuffer", "1",
+												CVAR_ARCHIVE);
+cvar_t gl_ztrick							= SCVAR  ("gl_ztrick", "0");
+
+cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
+												CVAR_ARCHIVE);
+cvar_t r_shadow_bumpscale_basetexture		= SCVAR  ("r_shadow_bumpscale_basetexture", "4");
+cvar_t r_shadow_bumpscale_bumpmap			= SCVAR  ("r_shadow_bumpscale_bumpmap", "10");
+cvar_t r_shadow_glsl_offsetmapping			= SCVAR  ("r_shadow_glsl_offsetmapping", "0");
+cvar_t r_shadow_glsl_offsetmapping_bias		= SCVAR  ("r_shadow_glsl_offsetmapping_bias", "0.04");
+cvar_t r_shadow_glsl_offsetmapping_scale	= SCVAR  ("r_shadow_glsl_offsetmapping_scale", "-0.04");
+cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0",
+												CVAR_CHEAT | CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0.8",
+												CVAR_CHEAT);
+cvar_t r_shadows							= SCVARF ("r_shadows", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "1");
+
+cvar_t vid_hardwaregamma					= SCVARF ("vid_hardwaregamma", "1",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t vid_desktopgamma						= SCVARF ("vid_desktopgamma", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+
+extern cvar_t gl_dither;
+extern cvar_t gl_maxdist;
+extern cvar_t r_waterlayers;
+
+#endif
 
 #if defined(RGLQUAKE) || defined(D3DQUAKE)
 void GLD3DRenderer_Init(void)
@@ -274,16 +370,6 @@ void GLD3DRenderer_Init(void)
 #endif
 
 #if defined(RGLQUAKE)
-cvar_t gl_schematics = SCVAR("gl_schematics","0");
-cvar_t	gl_ztrick = SCVAR("gl_ztrick","0");
-cvar_t	gl_lerpimages = SCVAR("gl_lerpimages", "1");
-cvar_t gl_lightmap_shift = SCVARF("gl_lightmap_shift", "0", CVAR_ARCHIVE | CVAR_LATCH);
-cvar_t gl_menutint_shader = SCVAR("gl_menutint_shader", "1");
-extern cvar_t r_waterlayers;
-cvar_t			gl_triplebuffer = SCVARF("gl_triplebuffer", "1", CVAR_ARCHIVE);
-cvar_t			vid_hardwaregamma = SCVARF("vid_hardwaregamma", "1", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-cvar_t			vid_desktopgamma = SCVARF("vid_desktopgamma", "0", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
-
 void GLRenderer_Init(void)
 {
 	extern cvar_t gl_contrast;
@@ -371,6 +457,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_overbright_all, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);
+	Cvar_Register (&gl_loadmd2, GRAPHICALNICETIES);
+	Cvar_Register (&gl_loadmd3, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_ati_truform, GRAPHICALNICETIES);
 	Cvar_Register (&gl_ati_truform_type, GRAPHICALNICETIES);
@@ -406,6 +494,7 @@ void GLRenderer_Init(void)
 	R_BloomRegister();
 }
 #endif
+
 #if defined(SWQUAKE)
 extern cvar_t d_subdiv16;
 extern cvar_t d_mipcap;

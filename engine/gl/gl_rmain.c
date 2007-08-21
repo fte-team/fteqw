@@ -117,6 +117,8 @@ cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
 cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
+
+extern cvar_t	gl_contrast;
 extern cvar_t	gl_mindist;
 
 extern cvar_t	gl_motionblur;

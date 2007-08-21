@@ -858,13 +858,31 @@ CL_Rcon_f
 void CL_Rcon_f (void)
 {
 	char	message[1024];
+	char	password[1024];
 	int		i;
 	netadr_t	to;
 
 	if (!*rcon_password.string)	//FIXME: this is strange...
 	{
-		Con_TPrintf (TLC_NORCONPASSWORD);
-		return;
+		//Con_TPrintf (TLC_NORCONPASSWORD);
+		//return;
+		if (Cmd_Argc() < 3)
+		{
+			Con_Printf("usage: rcon (password) <command>\n");
+			return;
+		}
+		Q_strncpyz(password, Cmd_Argv(1), sizeof(password));
+		i = 2;
+	}
+	else
+	{
+		if (Cmd_Argc() < 2)
+		{
+			Con_Printf("usage: rcon (password) <command>\n");
+			return;
+		}
+		Q_strncpyz(password, rcon_password.string, sizeof(password));
+		i = 1;
 	}
 
 	message[0] = 255;
@@ -873,15 +891,16 @@ void CL_Rcon_f (void)
 	message[3] = 255;
 	message[4] = 0;
 
-	strcat (message, "rcon ");
+	Q_strncatz (message, "rcon ", sizeof(message));
 
-	strcat (message, rcon_password.string);
-	strcat (message, " ");
+	//Q_strncatz (message, rcon_password.string, sizeof(message));
+	Q_strncatz (message, password, sizeof(message));
+	Q_strncatz (message, " ", sizeof(message));
 
-	for (i=1 ; i<Cmd_Argc() ; i++)
+	for ( ; i<Cmd_Argc() ; i++)
 	{
-		strcat (message, Cmd_Argv(i));
-		strcat (message, " ");
+		Q_strncatz (message, Cmd_Argv(i), sizeof(message));
+		Q_strncatz (message, " ", sizeof(message));
 	}
 
 	if (cls.state >= ca_connected)

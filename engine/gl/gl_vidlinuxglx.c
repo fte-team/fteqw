@@ -113,7 +113,6 @@ const char *gl_extensions;
 
 qboolean is8bit = false;
 qboolean isPermedia = false;
-float vid_gamma = 1.0;
 qboolean mouseactive = false;
 qboolean ActiveApp = false;
 

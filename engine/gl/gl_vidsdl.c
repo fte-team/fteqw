@@ -11,7 +11,6 @@ extern int gammaworks;
 
 int glwidth;
 int glheight;
-float vid_gamma = 1.0;
 
 #ifdef _WIN32	//half the rest of the code uses windows apis to focus windows. Should be fixed, but it's not too important.
 HWND mainwindow;

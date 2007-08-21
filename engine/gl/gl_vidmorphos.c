@@ -28,8 +28,6 @@ struct Library *TinyGLBase = 0;
 GLContext *__tglContext;
 static int glctx = 0;
 
-float vid_gamma = 1.0;
-
 unsigned char *mosgammatable;
 
 struct Window *window;

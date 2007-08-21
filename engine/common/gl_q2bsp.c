@@ -3477,8 +3477,7 @@ int CM_GetQ2Palette (void)
 
 #if defined(RGLQUAKE) || defined(D3DQUAKE)
 	{
-		extern float vid_gamma;
-		float	f, inf;
+		float	inf;
 		qbyte	palette[768];
 		qbyte *pal;
 		int		i;
@@ -3487,8 +3486,7 @@ int CM_GetQ2Palette (void)
 
 		for (i=0 ; i<768 ; i++)
 		{
-			f = pow ( (pal[i]+1)/256.0 , vid_gamma );
-			inf = f*255 + 0.5;
+			inf = ((pal[i]+1)/256.0)*255 + 0.5;
 			if (inf < 0)
 				inf = 0;
 			if (inf > 255)

@@ -1068,7 +1068,6 @@ index_t d3d9quadindexes[6] = {
 };
 
 extern cvar_t gl_contrast;
-	float vid_gamma = 1.0;
 	float f;
 	unsigned int colour;
 
@@ -1080,8 +1079,6 @@ extern cvar_t gl_contrast;
 	f = gl_contrast.value;
 	f = min (f, 3);
 
-	f = pow (f, vid_gamma);
-	
 	IDirect3DDevice9_SetTexture (pD3DDev9, 0, NULL);
 	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ALPHABLENDENABLE, TRUE);
 	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SRCBLEND, D3DBLEND_DESTCOLOR);

@@ -819,7 +819,6 @@ void R_PolyBlend (void)
 
 void GLR_BrightenScreen (void)
 {
-	extern float vid_gamma;
 	float f;
 
 	RSpeedMark();
@@ -830,8 +829,6 @@ void GLR_BrightenScreen (void)
 	f = gl_contrast.value;
 	f = min (f, 3);
 
-	f = pow (f, vid_gamma);
-	
 	qglDisable (GL_TEXTURE_2D);
 	qglEnable (GL_BLEND);
 	qglBlendFunc (GL_DST_COLOR, GL_ONE);

@@ -106,8 +106,6 @@ HWND	mainwindow, dibwindow;
 
 unsigned char	vid_curpal[256*3];
 
-float vid_gamma = 1.0;
-
 HGLRC	baseRC;
 HDC		maindc;
 

@@ -319,7 +319,8 @@ cvar_t gl_smoothfont						= SCVAR  ("gl_smoothfont", "1");
 cvar_t gl_specular							= SCVAR  ("gl_specular", "0");
 #endif
 
-// The callbacks are not in D3D yet
+// The callbacks are not in D3D yet (also ugly way of seperating this)
+#ifdef RGLQUAKE
 cvar_t gl_texture_anisotropic_filtering		= SCVARFC("gl_texture_anisotropic_filtering", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												GL_Texture_Anisotropic_Filtering_Callback);
@@ -329,6 +330,7 @@ cvar_t gl_texturemode						= SCVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST
 cvar_t gl_texturemode2d						= SCVARFC("gl_texturemode2d", "GL_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												GL_Texturemode2d_Callback);
+#endif
 
 cvar_t gl_triplebuffer						= SCVARF ("gl_triplebuffer", "1",
 												CVAR_ARCHIVE);
@@ -455,8 +457,12 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_overbright_all, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);
+#ifdef MD2MODELS
 	Cvar_Register (&gl_loadmd2, GRAPHICALNICETIES);
+#endif
+#ifdef MD3MODELS
 	Cvar_Register (&gl_loadmd3, GRAPHICALNICETIES);
+#endif
 
 	Cvar_Register (&gl_ati_truform, GRAPHICALNICETIES);
 	Cvar_Register (&gl_ati_truform_type, GRAPHICALNICETIES);

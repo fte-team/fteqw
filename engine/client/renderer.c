@@ -320,7 +320,6 @@ cvar_t gl_specular							= SCVAR  ("gl_specular", "0");
 #endif
 
 // The callbacks are not in D3D yet
-#ifndef D3DQUAKE
 cvar_t gl_texture_anisotropic_filtering		= SCVARFC("gl_texture_anisotropic_filtering", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												GL_Texture_Anisotropic_Filtering_Callback);
@@ -330,7 +329,6 @@ cvar_t gl_texturemode						= SCVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST
 cvar_t gl_texturemode2d						= SCVARFC("gl_texturemode2d", "GL_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												GL_Texturemode2d_Callback);
-#endif
 
 cvar_t gl_triplebuffer						= SCVARF ("gl_triplebuffer", "1",
 												CVAR_ARCHIVE);

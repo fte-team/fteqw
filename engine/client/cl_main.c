@@ -858,31 +858,30 @@ CL_Rcon_f
 void CL_Rcon_f (void)
 {
 	char	message[1024];
-	char	password[1024];
+	char	*password;
 	int		i;
 	netadr_t	to;
 
-	if (!*rcon_password.string)	//FIXME: this is strange...
+	i = 1;
+	password = rcon_password.string;
+	if (!*password)	//FIXME: this is strange...
 	{
-		//Con_TPrintf (TLC_NORCONPASSWORD);
-		//return;
 		if (Cmd_Argc() < 3)
 		{
+			Con_TPrintf (TLC_NORCONPASSWORD);
 			Con_Printf("usage: rcon (password) <command>\n");
 			return;
 		}
-		Q_strncpyz(password, Cmd_Argv(1), sizeof(password));
+		password = Cmd_Argv(1);
 		i = 2;
 	}
 	else
 	{
 		if (Cmd_Argc() < 2)
 		{
-			Con_Printf("usage: rcon (password) <command>\n");
+			Con_Printf("usage: rcon <command>\n");
 			return;
 		}
-		Q_strncpyz(password, rcon_password.string, sizeof(password));
-		i = 1;
 	}
 
 	message[0] = 255;
@@ -892,8 +891,6 @@ void CL_Rcon_f (void)
 	message[4] = 0;
 
 	Q_strncatz (message, "rcon ", sizeof(message));
-
-	//Q_strncatz (message, rcon_password.string, sizeof(message));
 	Q_strncatz (message, password, sizeof(message));
 	Q_strncatz (message, " ", sizeof(message));
 

@@ -189,7 +189,7 @@ static char *defaultlanguagetext =
 "TLC_ILLEGALSERVERADDRESS \"Illegal server address\\n\"\n"
 "TLC_CONNECTINGTO \"Connecting to %s...\\n\"\n"
 "TLC_SYNTAX_CONNECT \"usage: connect <server>\\n\"\n"
-"TLC_NORCONPASSWORD \"'rcon_password' is not set.\"\n"
+"TLC_NORCONPASSWORD \"'rcon_password' is not set.\\n\"\n"
 "TLC_NORCONDEST \"You must either be connected,\\nor set the 'rcon_address' cvar\\nto issue rcon commands\\n\"\n"
 "TLC_SYNTAX_USER \"Usage: user <username / userid>\\n\"\n"
 "TLC_USER_NOUSER \"User not in server.\\n\"\n"

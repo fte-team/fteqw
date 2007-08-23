@@ -381,6 +381,8 @@ presetinfo_t preset[] =
 	{"r_shadow_realtime_world",{"0",	"0",		"0",		"0",		"1"}},
 	{"gl_detail",			{"0",		"0",		"0",		"1",		"1"}},
 	{"gl_load24bit",		{"0",		"0",		"1",		"1",		"1"}},
+	{"gl_loadmd2",			{"0",		"0",		"1",		"1",		"1"}},
+	{"gl_loadmd3",			{"0",		"0",		"0",		"1",		"1"}},
 	{"r_waterwarp",			{"0",		"-1",		"1",		"1",		"1"}},
 	{"r_lightstylesmooth",	{"0",		"0",		"0",		"1",		"1"}},
 	{NULL}

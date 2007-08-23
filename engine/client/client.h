@@ -636,6 +636,14 @@ extern cvar_t		_windowed_mouse;
 extern	cvar_t	name;
 
 
+extern cvar_t ruleset_allow_playercount;
+extern cvar_t ruleset_allow_frj;
+extern cvar_t ruleset_allow_semicheats;
+extern cvar_t ruleset_allow_packet;
+extern cvar_t ruleset_allow_particle_lightning;
+extern cvar_t ruleset_allow_overlongsounds;
+extern cvar_t ruleset_allow_larger_models;
+
 #define	MAX_STATIC_ENTITIES	256			// torches, etc
 
 extern	client_state_t	cl;

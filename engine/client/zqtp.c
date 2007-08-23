@@ -309,6 +309,13 @@ static char *Macro_Latency (void)
 	return macro_buf;
 }
 
+static char *Macro_Gamedir (void)
+{
+	extern char gamedirfile[];
+	Q_snprintfz(macro_buf, sizeof(macro_buf), "%s", gamedirfile);
+	return macro_buf;
+}
+
 static char *Macro_Health (void)
 {
 	sprintf(macro_buf, "%i", cl.stats[SP][STAT_HEALTH]);
@@ -929,6 +936,8 @@ static void CountNearbyPlayers(qboolean dead)
 
 static char *Macro_CountNearbyEnemyPlayers (void)
 {
+	if (!ruleset_allow_playercount.value)
+		return "banned by ruleset";
 	CountNearbyPlayers(false);
 	sprintf(macro_buf, "\xffz%d\xff", vars.numenemies);
 	suppress = true;
@@ -938,6 +947,8 @@ static char *Macro_CountNearbyEnemyPlayers (void)
 
 static char *Macro_Count_Last_NearbyEnemyPlayers (void)
 {
+	if (!ruleset_allow_playercount.value)
+		return "banned by ruleset";
 	if (vars.deathtrigger_time && realtime - vars.deathtrigger_time <= 5)
 	{
 		sprintf(macro_buf, "\xffz%d\xff", vars.last_numenemies);
@@ -954,6 +965,8 @@ static char *Macro_Count_Last_NearbyEnemyPlayers (void)
 
 static char *Macro_CountNearbyFriendlyPlayers (void)
 {
+	if (!ruleset_allow_playercount.value)
+		return "banned by ruleset";
 	CountNearbyPlayers(false);
 	sprintf(macro_buf, "\xffz%d\xff", vars.numfriendlies);
 	suppress = true;
@@ -963,6 +976,8 @@ static char *Macro_CountNearbyFriendlyPlayers (void)
 
 static char *Macro_Count_Last_NearbyFriendlyPlayers (void)
 {
+	if (!ruleset_allow_playercount.value)
+		return "banned by ruleset";
 	if (vars.deathtrigger_time && realtime - vars.deathtrigger_time <= 5)
 	{
 		sprintf(macro_buf, "\xffz%d\xff", vars.last_numfriendlies);
@@ -1163,6 +1178,16 @@ static void TP_InitMacros(void)
 
 	//new, fte only (at least when first implemented)
 	Cmd_AddMacro("chealth", Macro_CombinedHealth, true);
+
+	//added for ezquake compatability
+//	Cmd_AddMacro("lastip", Macro_LastIP, false);
+	Cmd_AddMacro("ping", Macro_Latency, false);
+//	Cmd_AddMacro("colored_armor", Macro_Coloured_Armour, true);	//*shudder*
+//	Cmd_AddMacro("colored_powerups", Macro_Coloured_Powerups, true);
+//	Cmd_AddMacro("colored_short_powerups", Macro_Coloured_Short_Powerups, true);
+	Cmd_AddMacro("gamedir", Macro_Gamedir, false);
+	Cmd_AddMacro("lastloc", Macro_Last_Location, true);
+	Cmd_AddMacro("lastpowerup", Macro_LastSeenPowerup, true);
 }
 
 #define MAX_MACRO_STRING 1024

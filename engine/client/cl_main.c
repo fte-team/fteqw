@@ -142,6 +142,14 @@ cvar_t	cl_dlemptyterminate = SCVAR("cl_dlemptyterminate", "1");
 
 cvar_t	host_mapname = FCVAR("mapname", "host_mapname", "", 0);
 
+cvar_t ruleset_allow_playercount	= SCVAR("ruleset_allow_playercount", "1");
+cvar_t ruleset_allow_frj		= SCVAR("ruleset_allow_frj", "1");
+cvar_t ruleset_allow_semicheats		= SCVAR("ruleset_allow_semicheats", "1");
+cvar_t ruleset_allow_packet		= SCVAR("ruleset_allow_packet", "1");
+cvar_t ruleset_allow_particle_lightning	= SCVAR("ruleset_allow_particle_lightning", "1");
+cvar_t ruleset_allow_overlongsounds	= SCVAR("ruleset_allow_overlong_sounds", "1");
+cvar_t ruleset_allow_larger_models	= SCVAR("ruleset_allow_larger_models", "1");
+
 extern cvar_t cl_hightrack;
 
 char cl_screengroup[] = "Screen options";
@@ -1404,7 +1412,7 @@ void CL_CheckServerInfo(void)
 		cls.allow_cheats = true;
 
 	s = Info_ValueForKey(cl.serverinfo, "strict");
-	if (!cls.demoplayback && *s && strcmp(s, "0"))
+	if ((!cls.demoplayback && *s && strcmp(s, "0")) || !ruleset_allow_semicheats.value)
 	{
 		cls.allow_semicheats = false;
 		cls.allow_cheats	= false;
@@ -1722,6 +1730,11 @@ void CL_Packet_f (void)
 			}
 
 		Con_DPrintf ("Sending realip packet\n");
+	}
+	else if (!ruleset_allow_packet.value)
+	{
+		Con_Printf("Sorry, the %s command is disallowed\n", Cmd_Argv(0));
+		return;
 	}
 	cls.lastarbiatarypackettime = Sys_DoubleTime();	//prevent the packet command from causing a reconnect on badly configured mvdsv servers.
 
@@ -2869,6 +2882,13 @@ void CL_Init (void)
 	Cvar_Register (&cl_gunangley, cl_controlgroup);
 	Cvar_Register (&cl_gunanglez, cl_controlgroup);
 
+	Cvar_Register (&ruleset_allow_playercount, cl_controlgroup);
+	Cvar_Register (&ruleset_allow_frj, cl_controlgroup);
+	Cvar_Register (&ruleset_allow_semicheats, cl_controlgroup);
+	Cvar_Register (&ruleset_allow_packet, cl_controlgroup);
+	Cvar_Register (&ruleset_allow_particle_lightning, cl_controlgroup);
+	Cvar_Register (&ruleset_allow_overlongsounds, cl_controlgroup);
+	Cvar_Register (&ruleset_allow_larger_models, cl_controlgroup);
 #ifdef WEBCLIENT
 	Cmd_AddCommand ("ftp", CL_FTP_f);
 #endif

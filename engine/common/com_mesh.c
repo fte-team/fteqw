@@ -682,6 +682,18 @@ static void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 #endif
 }
 
+
+static void Mod_ClampModelSize(model_t *mod)
+{
+#ifndef SERVERONLY
+	if (ruleset_allow_larger_models.value)
+		return;
+	//otherwise clamp them
+	
+	Con_Printf("Loading %s, but size clamping isn't implemented yet\n", mod->name);
+#endif
+}
+
 #ifdef RGLQUAKE
 static int R_FindTriangleWithEdge ( int *indexes, int numtris, int start, int end, int ignore)
 {
@@ -1625,6 +1637,8 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 	VectorCopy (pq1inmodel->scale_origin, mod->mins);
 	VectorMA (mod->mins, 255, pq1inmodel->scale, mod->maxs);
+
+	Mod_ClampModelSize(mod);
 //
 // move the complete, relocatable alias model to the cache
 //
@@ -1965,6 +1979,8 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 	VectorCopy (pq2inmodel->scale_origin, mod->mins);
 	VectorMA (mod->mins, 255, pq2inmodel->scale, mod->maxs);
 	*/
+
+	Mod_ClampModelSize(mod);
 //
 // move the complete, relocatable alias model to the cache
 //
@@ -2618,6 +2634,8 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 	if (!mod->flags)
 		mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);
 
+	Mod_ClampModelSize(mod);
+
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
 
@@ -2944,6 +2962,8 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 	hunkend = Hunk_LowMark ();
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
+
+	Mod_ClampModelSize(mod);
 
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
@@ -3303,6 +3323,8 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 	hunkend = Hunk_LowMark ();
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
+
+	Mod_ClampModelSize(mod);
 
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
@@ -3768,6 +3790,8 @@ qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer)
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
+	Mod_ClampModelSize(mod);
+
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;
 
@@ -4137,6 +4161,8 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 	hunkend = Hunk_LowMark ();
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
+
+	Mod_ClampModelSize(mod);
 
 	Hunk_Alloc(0);
 	hunktotal = hunkend - hunkstart;

@@ -444,7 +444,12 @@ void CL_AdjustAngles (int pnum)
 	float	up, down;
 	
 	if (in_speed.state[pnum] & 1)
-		speed = host_frametime * cl_anglespeedkey.value;
+	{
+		if (ruleset_allow_frj.value)
+			speed = host_frametime * cl_anglespeedkey.value;
+		else
+			speed = host_frametime * bound(-2, cl_anglespeedkey.value, 2);
+	}
 	else
 		speed = host_frametime;
 
@@ -454,13 +459,14 @@ void CL_AdjustAngles (int pnum)
 		if (!cl_instantrotate.value)
 			quant *= speed;
 		in_rotate -= quant;
-		cl.viewangles[pnum][YAW] += quant;
+		if (ruleset_allow_frj.value)
+			cl.viewangles[pnum][YAW] += quant;
 	}
 
 	if (!(in_strafe.state[pnum] & 1))
 	{
 		quant = cl_yawspeed.value;
-		if (cl.fpd & FPD_LIMIT_YAW)
+		if (cl.fpd & FPD_LIMIT_YAW || !ruleset_allow_frj.value)
 			quant = bound(-900, quant, 900);
 		cl.viewangles[pnum][YAW] -= speed*quant * CL_KeyState (&in_right, pnum);
 		cl.viewangles[pnum][YAW] += speed*quant * CL_KeyState (&in_left, pnum);
@@ -470,7 +476,7 @@ void CL_AdjustAngles (int pnum)
 	{
 		V_StopPitchDrift (pnum);
 		quant = cl_pitchspeed.value;
-		if (cl.fpd & FPD_LIMIT_PITCH)
+		if (cl.fpd & FPD_LIMIT_PITCH || !ruleset_allow_frj.value)
 			quant = bound(-700, quant, 700);
 		cl.viewangles[pnum][PITCH] -= speed*quant * CL_KeyState (&in_forward, pnum);
 		cl.viewangles[pnum][PITCH] += speed*quant * CL_KeyState (&in_back, pnum);
@@ -478,7 +484,10 @@ void CL_AdjustAngles (int pnum)
 	
 	up = CL_KeyState (&in_lookup, pnum);
 	down = CL_KeyState(&in_lookdown, pnum);
-	
+
+	quant = cl_pitchspeed.value;
+	if (!ruleset_allow_frj.value)
+		quant = bound(-700, quant, 700);	
 	cl.viewangles[pnum][PITCH] -= speed*cl_pitchspeed.value * up;
 	cl.viewangles[pnum][PITCH] += speed*cl_pitchspeed.value * down;
 

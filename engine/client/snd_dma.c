@@ -915,9 +915,15 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 		target_chan->sfx = NULL;
 		return;		// couldn't load the sound's data
 	}
+
+	if (scache->length > snd_speed*20 && !ruleset_allow_overlongsounds.value)
+	{
+		Con_DPrintf("Shortening over-long sound effect\n");
+		startpos = scache->length - snd_speed*20;
+	}
 	target_chan->sfx = sfx;
 	target_chan->pos = startpos;
-	target_chan->end = sc->paintedtime + scache->length;
+	target_chan->end = sc->paintedtime + scache->length - startpos;
 	target_chan->looping = false;
 
 // if an identical sound has also been started this frame, offset the pos

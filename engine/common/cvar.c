@@ -624,6 +624,8 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 //		latch = "variable %s is latched (type flush)\n";
 	else if (var->flags & CVAR_RENDERERLATCH && qrenderer)
 		latch = "variable %s will be changed after a vid_restart\n";
+	else if (var->flags & CVAR_RULESETLATCH)
+		latch = "variable %s is latched due to current ruleset\n";
 #ifndef SERVERONLY
 	else if (var->flags & CVAR_CHEAT && !cls.allow_cheats && cls.state)
 		latch = "variable %s is a cheat variable - latched\n";
@@ -769,6 +771,7 @@ void Cvar_ApplyLatches(int latchflag)
 	cvar_group_t	*grp;
 	cvar_t	*var;
 	int mask = ~0;
+	int of;
 
 	if (latchflag == CVAR_SERVEROVERRIDE)	//these ones are cleared
 		mask = ~CVAR_SERVEROVERRIDE;
@@ -780,7 +783,10 @@ void Cvar_ApplyLatches(int latchflag)
 		{
 			if (var->latched_string)
 			{
-				Cvar_ForceSet(var, var->latched_string);
+				of = var->flags;
+				var->flags &= ~latchflag;
+				Cvar_Set(var, var->latched_string);
+				var->flags = of;
 			}
 			var->flags &= mask;
 		}

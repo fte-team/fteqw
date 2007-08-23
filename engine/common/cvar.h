@@ -89,23 +89,24 @@ typedef struct cvar_group_s
 } cvar_group_t;
 
 //q2 constants
-#define	CVAR_ARCHIVE		1	// set to cause it to be saved to vars.rc
-#define	CVAR_USERINFO		2	// added to userinfo  when changed
-#define	CVAR_SERVERINFO		4	// added to serverinfo when changed
-#define	CVAR_NOSET			8	// don't allow change from console at all,
+#define	CVAR_ARCHIVE		(1<<0)	// set to cause it to be saved to vars.rc
+#define	CVAR_USERINFO		(1<<1)	// added to userinfo  when changed
+#define	CVAR_SERVERINFO		(1<<2)	// added to serverinfo when changed
+#define	CVAR_NOSET		(1<<3)	// don't allow change from console at all,
 							// but can be set from the command line
-#define	CVAR_LATCH			16	// save changes until server restart
+#define	CVAR_LATCH		(1<<4)	// save changes until server restart
 
 //freestyle
-#define CVAR_POINTER			32	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
-#define CVAR_NOTFROMSERVER		64	// the console will ignore changes to cvars if set at from the server or any gamecode. This is to protect against security flaws - like qterm
-#define CVAR_USERCREATED		128	//write a 'set' or 'seta' in front of the var name.
-#define CVAR_CHEAT				256	//latch to the default, unless cheats are enabled.
-#define CVAR_SEMICHEAT			512	//if strict ruleset, force to 0/blank.
-#define CVAR_RENDERERLATCH		1024	//requires a vid_restart to reapply.
-#define CVAR_SERVEROVERRIDE		2048	//the server has overridden out local value - should probably be called SERVERLATCH
-#define CVAR_RENDERERCALLBACK	4096 //force callback for cvars on renderer change
-#define CVAR_NOUNSAFEEXPAND		8192 // do not expand cvar value when command is from gamecode
+#define CVAR_POINTER		(1<<5)	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
+#define CVAR_NOTFROMSERVER	(1<<6)	// the console will ignore changes to cvars if set at from the server or any gamecode. This is to protect against security flaws - like qterm
+#define CVAR_USERCREATED	(1<<7)	//write a 'set' or 'seta' in front of the var name.
+#define CVAR_CHEAT		(1<<8)	//latch to the default, unless cheats are enabled.
+#define CVAR_SEMICHEAT		(1<<9)	//if strict ruleset, force to 0/blank.
+#define CVAR_RENDERERLATCH	(1<<10)	//requires a vid_restart to reapply.
+#define CVAR_SERVEROVERRIDE	(1<<11)	//the server has overridden out local value - should probably be called SERVERLATCH
+#define CVAR_RENDERERCALLBACK	(1<<12) //force callback for cvars on renderer change
+#define CVAR_NOUNSAFEEXPAND	(1<<13) // do not expand cvar value when command is from gamecode
+#define CVAR_RULESETLATCH	(1<<14)	//latched by the ruleset	
 
 #define CVAR_LASTFLAG CVAR_NOUNSAFEEXPAND
 

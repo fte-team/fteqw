@@ -2586,8 +2586,9 @@ void CL_UpdateBeams (void)
 //		if (part_type[rt_lightning1].loaded)
 //		if (!P_ParticleTrail(b->start, b->end, rt_lightning1, NULL))
 //			continue;
-		if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, &b->trailstate))
-			continue;
+		if (ruleset_allow_particle_lightning.value)
+			if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, &b->trailstate))
+				continue;
 
 	// add new entities for the lightning
 		VectorCopy (b->start, org);

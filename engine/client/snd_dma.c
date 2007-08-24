@@ -919,7 +919,7 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 	if (scache->length > snd_speed*20 && !ruleset_allow_overlongsounds.value)
 	{
 		Con_DPrintf("Shortening over-long sound effect\n");
-		startpos = scache->length - snd_speed*20;
+		startpos = scache->length - snd_speed*10;
 	}
 	target_chan->sfx = sfx;
 	target_chan->pos = startpos;

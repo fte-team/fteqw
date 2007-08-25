@@ -1243,7 +1243,6 @@ LPDIRECTDRAWSURFACE7 D3D_NewLightmap(void)
 	D3DX_SURFACEFORMAT tformat = D3DX_SF_A8R8G8B8;
 	LPDIRECTDRAWSURFACE7 newsurf;
 	DWORD nummips;
-	DDSURFACEDESC2 desc;
 
     D3DXCreateTexture(pD3DDev, &tflags, &twidth, &theight, &tformat, NULL, &newsurf, &nummips);
 	if (!newsurf)

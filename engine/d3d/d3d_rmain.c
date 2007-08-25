@@ -618,7 +618,6 @@ static void D3D_DrawSpriteModel (entity_t *e)
 	mspriteframe_t	*frame;
 	vec3_t		forward, right, up;
 	msprite_t		*psprite;
-	qbyte coloursb[4];
 
 	d3dvert_t d3dvert[4];
 	index_t vertindexes[6] = {

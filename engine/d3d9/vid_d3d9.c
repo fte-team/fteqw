@@ -719,8 +719,8 @@ qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	extern cvar_t vid_conwidth;
 	extern cvar_t vid_conheight;
 
-	DDGAMMARAMP gammaramp;
-	int i;
+	//DDGAMMARAMP gammaramp;
+	//int i;
 
 	char *CLASSNAME = "FTED3D9QUAKE";
 	WNDCLASS wc = {
@@ -1002,7 +1002,6 @@ void IDirect3DDevice9_SetRenderState(void *pD3DDev9, int D3DRS, int param)
 
 void D3D9_Set2D (void)
 {
-	int r;
 	float m[16];
 	D3DVIEWPORT9 vport;
 //	IDirect3DDevice9_EndScene(pD3DDev9);
@@ -1131,7 +1130,6 @@ extern cvar_t gl_contrast;
 
 void	(D3D9_SCR_UpdateScreen)			(void)
 {
-	int err;
 	extern int keydown[];
 	extern cvar_t vid_conheight;
 	int uimenu;

@@ -73,7 +73,7 @@ static void Upload_Texture_32(LPDIRECTDRAWSURFACE7 surf, unsigned int *data, int
 	{
 		int x, y;
 		int iny;
-		unsigned int *scaled, *row, *inrow;
+		unsigned int *row, *inrow;
 
 		for (y = 0; y < desc.dwHeight; y++)
 		{
@@ -119,14 +119,7 @@ void D3D_MipMap (qbyte *out, qbyte *in, int width, int height)
 //create a basic shader from a 32bit image
 void *D3D_LoadTexture_32(char *name, unsigned int *data, int width, int height, int flags)
 {
-	int x, y;
-	unsigned int *dest;
-	unsigned char swapbuf[4];
-	unsigned char swapbuf2[4];
-
 	static unsigned char mipdata[(MAX_WIDTH/2)*(MAX_HEIGHT/2)][4];
-
-
 
 	DWORD tflags;
 	DWORD twidth = width;

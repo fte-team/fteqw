@@ -284,7 +284,7 @@ void GL_DrawSkyChain (msurface_t *s)
 void R_DrawSkyBoxChain (msurface_t *s);
 void D3D7_DrawSkyChain (msurface_t *s)
 {
-	msurface_t	*fa;
+	//msurface_t	*fa;
 
 #ifdef Q3SHADERS
 	if (!solidskytexture&&!usingskybox)
@@ -337,7 +337,7 @@ void D3D7_DrawSkyChain (msurface_t *s)
 
 void D3D9_DrawSkyChain (msurface_t *s)
 {
-	msurface_t	*fa;
+	//msurface_t	*fa;
 
 #ifdef Q3SHADERS
 	if (!solidskytexture&&!usingskybox)

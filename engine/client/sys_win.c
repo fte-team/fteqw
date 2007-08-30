@@ -447,7 +447,18 @@ void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length)
 
 //@@@ copy on write or just read-write?
 	if (!VirtualProtect((LPVOID)startaddr, length, PAGE_READWRITE, &flOldProtect))
-   		Sys_Error("Protection change failed\n");
+	{
+		char str[1024];
+
+		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
+						NULL,
+						GetLastError(),
+						MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+						str,
+						sizeof(str),
+						NULL);
+		Sys_Error("Protection change failed!\nError %d: %s\n", GetLastError(), str);
+	}
 }
 
 

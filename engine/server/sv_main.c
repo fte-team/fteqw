@@ -122,6 +122,7 @@ cvar_t sv_highchars = SCVAR("sv_highchars", "1");
 cvar_t sv_loadentfiles = SCVAR("sv_loadentfiles", "1");
 cvar_t sv_maxrate = SCVAR("sv_maxrate", "10000");
 cvar_t sv_maxdrate = SCVAR("sv_maxdrate", "10000");
+cvar_t sv_minping = SCVARF("sv_minping", "0", CVAR_SERVERINFO);
 
 cvar_t sv_bigcoords = SCVARF("sv_bigcoords", "", CVAR_SERVERINFO);
 
@@ -350,6 +351,7 @@ or crashing.
 */
 void SV_DropClient (client_t *drop)
 {
+	laggedpacket_t *lp;
 	if (drop->controller)
 	{
 		SV_DropClient(drop->controller);
@@ -499,6 +501,14 @@ void SV_DropClient (client_t *drop)
 	drop->name = drop->namebuf;
 	memset (drop->userinfo, 0, sizeof(drop->userinfo));
 	memset (drop->userinfobasic, 0, sizeof(drop->userinfobasic));
+
+	while ((lp = drop->laggedpacket))
+	{
+		drop->laggedpacket = lp->next;
+		lp->next = svs.free_lagged_packet;
+		svs.free_lagged_packet = lp;
+	}
+	drop->laggedpacket_last = NULL;
 
 	if (drop->frameunion.frames)	//union of the same sort of structure
 	{
@@ -2529,10 +2539,46 @@ void SV_ReadPackets (void)
 {
 	int			i;
 	client_t	*cl;
-	qboolean	good;
 	int			qport;
+	laggedpacket_t *lp;
 
-	good = false;
+	for (i = 0; i < MAX_CLIENTS; i++)	//fixme: shouldn't we be using svs.allocated_client_slots ?
+	{
+		cl = &svs.clients[i];
+		while (cl->laggedpacket && cl->laggedpacket->time < realtime)
+		{
+			lp = cl->laggedpacket;
+			cl->laggedpacket = lp->next;
+			if (cl->laggedpacket_last == lp)
+				cl->laggedpacket_last = lp->next;
+		
+			lp->next = svs.free_lagged_packet;
+			svs.free_lagged_packet = lp;
+
+			SZ_Clear(&net_message);
+			memcpy(net_message.data, lp->data, lp->length);
+			net_message.cursize = lp->length;
+			
+			net_from = cl->netchan.remote_address;	//not sure if anything depends on this, but lets not screw them up willynilly
+
+			if (Netchan_Process(&cl->netchan))
+			{	// this is a valid, sequenced packet, so process it
+				svs.stats.packets++;
+				if (cl->state > cs_zombie)
+				{	//make sure they didn't already disconnect
+					cl->send_message = true;	// reply at end of frame
+
+#ifdef Q2SERVER
+					if (cl->protocol == SCP_QUAKE2)
+						SVQ2_ExecuteClientMessage(cl);
+					else
+#endif
+						SV_ExecuteClientMessage (cl);
+				}
+			}
+		}
+	}
+
 	while (SV_GetPacket ())
 	{
 		if (SV_FilterPacket (&net_from))
@@ -2588,10 +2634,37 @@ void SV_ReadPackets (void)
 				Con_DPrintf ("SV_ReadPackets: fixing up a translated port\n");
 				cl->netchan.remote_address.port = net_from.port;
 			}
+
+			if (cl->delay > 0)
+			{
+				if (cl->state == cs_zombie)
+					break;
+				if (net_message.cursize > sizeof(svs.free_lagged_packet->data))
+				{
+					Con_Printf("minping code is screwy\n");
+					break;	//drop this packet
+				}
+
+				if (!svs.free_lagged_packet)	//kinda nasty
+					svs.free_lagged_packet = Z_Malloc(sizeof(*svs.free_lagged_packet));
+
+				if (!cl->laggedpacket)
+					cl->laggedpacket_last = cl->laggedpacket = svs.free_lagged_packet;
+				else
+					cl->laggedpacket_last = cl->laggedpacket_last->next = svs.free_lagged_packet;
+				cl->laggedpacket_last->next = NULL;
+				svs.free_lagged_packet = svs.free_lagged_packet->next;
+
+				cl->laggedpacket_last->time = realtime + cl->delay;
+				memcpy(cl->laggedpacket_last->data, net_message.data, net_message.cursize);
+				cl->laggedpacket_last->length = net_message.cursize;
+				break;
+			}
+			
+
 			if (Netchan_Process(&cl->netchan))
 			{	// this is a valid, sequenced packet, so process it
 				svs.stats.packets++;
-				good = true;
 				if (cl->state != cs_zombie)
 				{
 					cl->send_message = true;	// reply at end of frame
@@ -3176,6 +3249,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_voicechat,	cvargroup_servercontrol);
 	Cvar_Register (&sv_maxrate, cvargroup_servercontrol);
 	Cvar_Register (&sv_maxdrate, cvargroup_servercontrol);
+	Cvar_Register (&sv_minping, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_nailhack, cvargroup_servercontrol);
 
@@ -3287,6 +3361,12 @@ void SV_InitLocal (void)
 	svs.log[1].maxsize = sizeof(svs.log_buf[1]);
 	svs.log[1].cursize = 0;
 	svs.log[1].allowoverflow = true;
+
+
+	svs.free_lagged_packet = Hunk_Alloc(1024*sizeof(*svs.free_lagged_packet));
+	for (i = 0; i < 1024-1; i++)
+		svs.free_lagged_packet[i].next = &svs.free_lagged_packet[i+1];
+	svs.free_lagged_packet[i].next = 0;
 
 	// parse params for cvars
 	p = COM_CheckParm ("-port");

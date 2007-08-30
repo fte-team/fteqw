@@ -80,7 +80,13 @@ typedef struct {
 #define CTE_CHANNELFADE     16
 #define CTE_ISBEAM			128
 
-
+typedef struct laggedpacket_s
+{
+	double time;
+	struct laggedpacket_s *next;
+	int length;
+	unsigned char data[MAX_QWMSGLEN];
+} laggedpacket_t;
 
 typedef struct
 {
@@ -524,6 +530,10 @@ typedef struct client_s
 	int realip_status;
 	int realip_num;
 	int realip_ping;
+
+	float delay;
+	laggedpacket_t *laggedpacket;
+	laggedpacket_t *laggedpacket_last;
 } client_t;
 
 #define ISQWCLIENT(cl) ((cl)->protocol == SCP_QUAKEWORLD)
@@ -746,6 +756,7 @@ typedef struct
 	qboolean msgfromdemo;
 
 	int language;	//the server operators language
+	laggedpacket_t *free_lagged_packet;
 
 	levelcache_t *levcache;
 } server_static_t;

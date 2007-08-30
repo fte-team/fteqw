@@ -71,6 +71,7 @@ cvar_t	votepercent = SCVAR("votepercent", "-1");
 cvar_t	votetime = SCVAR("votetime", "10");
 
 cvar_t	pr_allowbutton1 = SCVARF("pr_allowbutton1", "1", CVAR_LATCH);
+extern cvar_t sv_minping;
 
 
 extern cvar_t	pm_bunnyspeedcap;
@@ -4805,7 +4806,27 @@ void SV_ExecuteClientMessage (client_t *cl)
 		frame = &cl->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
 
 		if (cl->lastsequence_acknoledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
+		{
 			frame->ping_time = realtime - frame->senttime;	//no more phenomanally low pings please
+
+			if (cl->spectator)
+				cl->delay = 0;
+			else
+			{
+				if (frame->ping_time*1000 > sv_minping.value+1)
+				{
+					cl->delay -= 0.001;
+					if (cl->delay < 0)
+						cl->delay = 0;
+				}
+				if (frame->ping_time*1000 < sv_minping.value)
+				{
+					cl->delay += 0.001;
+					if (cl->delay > 1)
+						cl->delay = 1;
+				}
+			}
+		}
 #ifdef PEXT_CSQC
 		if (cl->lastsequence_acknoledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
 		{

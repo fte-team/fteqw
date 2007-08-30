@@ -230,7 +230,7 @@ qboolean ServerPaused(void);
 #endif
 
 #ifdef NQPROT
-qboolean NQNetChan_Process(netchan_t *chan)
+nqprot_t NQNetChan_Process(netchan_t *chan)
 {
 	int header;
 	int sequence;
@@ -240,10 +240,10 @@ qboolean NQNetChan_Process(netchan_t *chan)
 
 	header = LongSwap(MSG_ReadLong());
 	if (net_message.cursize != (header & NETFLAG_LENGTH_MASK))
-		return false;	//size was wrong, couldn't have been ours.
+		return NQP_ERROR;	//size was wrong, couldn't have been ours.
 
 	if (header & NETFLAG_CTL)
-		return false;	//huh?
+		return NQP_ERROR;	//huh?
 
 	sequence = LongSwap(MSG_ReadLong());
 
@@ -267,7 +267,7 @@ qboolean NQNetChan_Process(netchan_t *chan)
 		else if (sequence > chan->reliable_sequence)
 			Con_Printf("Future ack recieved\n");
 
-		return false;	//don't try execing the 'payload'. I hate ack packets.
+		return NQP_ERROR;	//don't try execing the 'payload'. I hate ack packets.
 	}
 
 	if (header & NETFLAG_UNRELIABLE)
@@ -275,7 +275,7 @@ qboolean NQNetChan_Process(netchan_t *chan)
 		if (sequence < chan->incoming_unreliable)
 		{
 			Con_DPrintf("Stale datagram recieved\n");
-			return false;
+			return NQP_ERROR;
 		}
 		drop = sequence - chan->incoming_unreliable - 1;
 		if (drop > 0)
@@ -289,7 +289,7 @@ qboolean NQNetChan_Process(netchan_t *chan)
 
 		chan->incoming_acknowledged++;
 		chan->good_count++;
-		return 1;
+		return NQP_DATAGRAM;
 	}
 	if (header & NETFLAG_DATA)
 	{
@@ -307,7 +307,7 @@ qboolean NQNetChan_Process(netchan_t *chan)
 			if (chan->in_fragment_length + net_message.cursize-8 >= sizeof(chan->in_fragment_buf))
 			{
 				chan->fatal_error = true;
-				return false;
+				return NQP_ERROR;
 			}
 
 			memcpy(chan->in_fragment_buf + chan->in_fragment_length, net_message.data+8, net_message.cursize-8);
@@ -319,15 +319,15 @@ qboolean NQNetChan_Process(netchan_t *chan)
 				SZ_Write(&net_message, chan->in_fragment_buf, chan->in_fragment_length);
 				chan->in_fragment_length = 0;
 				MSG_BeginReading();
-				return 2;	//we can read it now
+				return NQP_RELIABLE;	//we can read it now
 			}
 		}
 		else
 			Con_DPrintf("Stale reliable (%i)\n", sequence);
-		return false;
+		return NQP_ERROR;
 	}
 
-	return false;	//not supported.
+	return NQP_ERROR;	//not supported.
 }
 #endif
 

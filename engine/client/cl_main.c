@@ -2475,12 +2475,11 @@ void CL_ReadPackets (void)
 #ifdef NQPROT
 			switch(NQNetChan_Process(&cls.netchan))
 			{
-			case 0:
+			case NQP_ERROR:
 				break;
-			case 1://datagram
-//				if (cls.n
+			case NQP_DATAGRAM://datagram
 				cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence - 3;
-			case 2://reliable
+			case NQP_RELIABLE://reliable
 				CLNQ_ParseServerMessage ();
 				break;
 			}

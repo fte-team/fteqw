@@ -25,6 +25,8 @@ typedef enum {NA_INVALID, NA_LOOPBACK, NA_IP, NA_IPV6, NA_IPX, NA_BROADCAST_IP, 
 
 typedef enum {NS_CLIENT, NS_SERVER} netsrc_t;
 
+typedef enum {NQP_ERROR, NQP_DATAGRAM, NQP_RELIABLE} nqprot_t;
+
 typedef struct
 {
 	netadrtype_t	type;
@@ -168,7 +170,7 @@ void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t adr, int qport);
 qboolean Netchan_CanPacket (netchan_t *chan, int rate);
 qboolean Netchan_CanReliable (netchan_t *chan, int rate);
 #ifdef NQPROT
-qboolean NQNetChan_Process(netchan_t *chan);
+nqprot_t NQNetChan_Process(netchan_t *chan);
 #endif
 
 #ifdef HUFFNETWORK

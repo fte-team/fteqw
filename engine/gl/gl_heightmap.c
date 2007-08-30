@@ -589,6 +589,7 @@ void Heightmap_FatPVS		(model_t *mod, vec3_t org, qboolean add)
 {
 }
 
+#ifndef CLIENTONLY
 qboolean Heightmap_EdictInFatPVS	(model_t *mod, edict_t *edict)
 {
 	return true;
@@ -597,6 +598,7 @@ qboolean Heightmap_EdictInFatPVS	(model_t *mod, edict_t *edict)
 void Heightmap_FindTouchedLeafs	(model_t *mod, edict_t *ent)
 {
 }
+#endif
 
 void Heightmap_LightPointValues	(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {

@@ -5,6 +5,7 @@
 typedef enum {
 	//one componant
 	ff_death,
+	ff_tkdeath,
 	ff_suicide,
 	ff_bonusfrag,
 	ff_tkbonus,
@@ -227,8 +228,22 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 			Stats_Message("%s kills: %i (%i/%i)\n", fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills);
 		}
 		break;
+	case ff_tkdeath:
+		//killed by a teammate, but we don't know who
+		//kinda useless, but this is all some mods give us
+		fragstats.weapontotals[wid].teamkills++;
+		fragstats.weapontotals[wid].kills++;
+		fragstats.totalkills++;		//its a kill, but we don't know who from
+		fragstats.totalteamkills++;
+
+		fragstats.clienttotals[p1].teamdeaths++;
+		fragstats.clienttotals[p1].deaths++;
+		fragstats.totaldeaths++;
+		break;
+
 	case ff_tkills:
 	case ff_tkilledby:
+		//p1 killed by p2 (kills is already inverted)
 		fragstats.weapontotals[wid].teamkills++;
 		fragstats.weapontotals[wid].kills++;
 
@@ -421,6 +436,7 @@ static void Stats_LoadFragFile(char *name)
 				else if (!stricmp(tk, "PLAYER_SUICIDE"))		{fftype = ff_suicide;}
 				else if (!stricmp(tk, "X_FRAGS_UNKNOWN"))		{fftype = ff_bonusfrag;}
 				else if (!stricmp(tk, "X_TEAMKILLS_UNKNOWN"))	{fftype = ff_tkbonus;}
+				else if (!stricmp(tk, "X_TEAMKILLED_UNKNOWN"))	{fftype = ff_tkdeath;}
 				else if (!stricmp(tk, "X_FRAGS_Y"))				{fftype = ff_frags;}
 				else if (!stricmp(tk, "X_FRAGGED_BY_Y"))		{fftype = ff_fragedby;}
 				else if (!stricmp(tk, "X_TEAMKILLS_Y"))			{fftype = ff_tkills;}

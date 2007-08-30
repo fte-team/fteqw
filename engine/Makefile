@@ -769,6 +769,10 @@ help:
 	@-echo "sv"
 	@-echo "gl"
 	@-echo "sw"
+	@-echo "m"
+	@-echo "mcl (currently broken)"
+	@-echo "glcl (currently broken)"
+	@-echo "swcl (currently broken)"
 
 install:
 	-cp debug/*.* /opt/quake/

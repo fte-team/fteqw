@@ -486,37 +486,37 @@ void CL_SendConnectPacket (
 	sprintf(data, "%c%c%c%cconnect", 255, 255, 255, 255);
 
 	if (clients>1)	//splitscreen 'connect' command specifies the number of userinfos sent.
-		strcat(data, va("%i", clients));
+		Q_strncatz(data, va("%i", clients), sizeof(data));
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
-		strcat(data, va(" %i", PROTOCOL_VERSION_Q2));
+		Q_strncatz(data, va(" %i", PROTOCOL_VERSION_Q2), sizeof(data));
 	else
 #endif
-		strcat(data, va(" %i", PROTOCOL_VERSION));
+		Q_strncatz(data, va(" %i", PROTOCOL_VERSION), sizeof(data));
 
 
-	strcat(data, va(" %i %i", cls.qport, cls.challenge));
+	Q_strncatz(data, va(" %i %i", cls.qport, cls.challenge), sizeof(data));
 
 	//userinfo 0 + zquake extension info.
-	strcat(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo, SUPPORTED_Z_EXTENSIONS));
+	Q_strncatz(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo, SUPPORTED_Z_EXTENSIONS), sizeof(data));
 	for (c = 1; c < clients; c++)
 	{
 		Info_SetValueForStarKey (playerinfo2, "name", va("%s%i", name.string, c+1), MAX_INFO_STRING);
-		strcat(data, va(" \"%s\"", playerinfo2, SUPPORTED_Z_EXTENSIONS));
+		Q_strncatz(data, va(" \"%s\"", playerinfo2, SUPPORTED_Z_EXTENSIONS), sizeof(data));
 	}
 
-	strcat(data, "\n");
+	Q_strncatz(data, "\n", sizeof(data));
 
 #ifdef PROTOCOL_VERSION_FTE
 	if (ftepext)
-		strcat(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE, fteprotextsupported));
+		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE, fteprotextsupported), sizeof(data));
 #endif
 
 #ifdef HUFFNETWORK
 	if (compressioncrc && Huff_CompressionCRC(compressioncrc))
 	{
-		strcat(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_HUFFMAN, LittleLong(compressioncrc)));
+		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_HUFFMAN, LittleLong(compressioncrc)), sizeof(data));
 		cls.netchan.compress = true;
 	}
 	else

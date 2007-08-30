@@ -87,7 +87,7 @@ int Script_Read(int handle, struct pc_token_s *token)
 		sc->lastreaddepth = sc->stackdepth;
 
 		s = (char *)COM_ParseToken(s, Q3SCRIPTPUNCTUATION);
-		strcpy(readstring, com_token);
+		Q_strncpyz(readstring, com_token, sizeof(readstring));
 		if (com_tokentype == TTP_STRING)
 		{
 			while(s)
@@ -105,7 +105,7 @@ int Script_Read(int handle, struct pc_token_s *token)
 				if (*s == '\"')
 				{
 					s = (char*)COM_ParseToken(s, Q3SCRIPTPUNCTUATION);
-					strcat(readstring, com_token);
+					Q_strncatz(readstring, com_token, sizeof(readstring));
 				}
 				else
 					break;

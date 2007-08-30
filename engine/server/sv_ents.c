@@ -25,6 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void SV_CleanupEnts(void);
 
 extern cvar_t sv_nailhack;
+extern cvar_t sv_cullentities_trace;
+extern cvar_t sv_cullplayers_trace;
 
 /*
 =============================================================================
@@ -1383,6 +1385,39 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 }
 #endif
 
+
+qboolean Cull_Traceline(edict_t *viewer, edict_t *seen)
+{
+	int i;
+	trace_t tr;
+	vec3_t start;
+	vec3_t end;
+
+	if (seen->v->solid == SOLID_BSP)
+		return false;	//bsp ents are never culled this way
+
+	//stage 1: check against their origin
+	VectorAdd(viewer->v->origin, viewer->v->view_ofs, start);
+	tr.fraction = 1;
+	if (!sv.worldmodel->funcs.Trace (sv.worldmodel, 1, 0, start, seen->v->origin, vec3_origin, vec3_origin, &tr))
+		return false;	//wasn't blocked
+
+	//stage 2: check against their bbox
+	for (i = 0; i < 8; i++)
+	{
+		end[0] = seen->v->origin[0] + ((i&1)?seen->v->mins[0]:seen->v->maxs[0]);
+		end[1] = seen->v->origin[1] + ((i&2)?seen->v->mins[1]:seen->v->maxs[1]);
+		end[2] = seen->v->origin[2] + ((i&4)?seen->v->mins[2]+0.1:seen->v->maxs[2]);
+
+		tr.fraction = 1;
+		if (!sv.worldmodel->funcs.Trace (sv.worldmodel, 1, 0, start, end, vec3_origin, vec3_origin, &tr))
+			return false;	//this trace went through, so don't cull
+	}
+
+	return true;
+}
+
+
 /*
 =============
 SV_WritePlayersToClient
@@ -1669,6 +1704,9 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 			if (!((int)clent->v->dimension_see & ((int)ent->v->dimension_seen | (int)ent->v->dimension_ghost)))
 				continue;	//not in this dimension - sorry...
+			if (sv_cullplayers_trace.value || sv_cullentities_trace.value)
+				if (Cull_Traceline(clent, ent))
+					continue;
 		}
 
 		if (SV_AddCSQCUpdate(client, ent))
@@ -2404,6 +2442,14 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		if (client->edict)
 			if (!((int)client->edict->v->dimension_see & ((int)ent->v->dimension_seen | (int)ent->v->dimension_ghost)))
 				continue;	//not in this dimension - sorry...
+
+
+		if (!ignorepvs && ent != clent)
+		{	//more expensive culling
+			if ((e <= sv.allocated_client_slots && sv_cullplayers_trace.value) || sv_cullentities_trace.value)
+				if (Cull_Traceline(clent, ent))
+					continue;
+		}
 
 		if (SV_AddCSQCUpdate(client, ent))	//csqc took it.
 			continue;

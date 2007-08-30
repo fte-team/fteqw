@@ -125,6 +125,8 @@ cvar_t sv_maxdrate = SCVAR("sv_maxdrate", "10000");
 
 cvar_t sv_bigcoords = SCVARF("sv_bigcoords", "", CVAR_SERVERINFO);
 
+cvar_t sv_cullplayers_trace = SCVARF("sv_cullplayers_trace", "", CVAR_SERVERINFO);
+cvar_t sv_cullentities_trace = SCVARF("sv_cullentities_trace", "", CVAR_SERVERINFO);
 cvar_t sv_phs = SCVAR("sv_phs", "1");
 cvar_t sv_resetparms = SCVAR("sv_resetparms", "0");
 
@@ -3160,6 +3162,8 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_highchars,	cvargroup_servercontrol);
 
 	Cvar_Register (&sv_phs,	cvargroup_servercontrol);
+	Cvar_Register (&sv_cullplayers_trace, cvargroup_servercontrol);
+	Cvar_Register (&sv_cullentities_trace, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_csqcdebug, cvargroup_servercontrol);
 

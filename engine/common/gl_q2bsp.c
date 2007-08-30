@@ -4166,9 +4166,11 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 				return NULL;
 			}
 
+#ifndef CLIENTONLY
 			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
 			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
 			loadmodel->funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
+#endif
 			loadmodel->funcs.LightPointValues		= SWQ2BSP_LightPointValues;
 			loadmodel->funcs.StainNode				= SWR_Q2BSP_StainNode;
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;

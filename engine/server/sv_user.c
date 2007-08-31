@@ -1861,15 +1861,15 @@ qboolean SV_AllowDownload (char *name)
 	//wads
 	if (strncmp(name,	"wads/", 5) == 0)
 		return !!allow_download_wads.value;
-	if (!strcmp(".wad", COM_FileExtension(name)))
+	if (!strcmp("wad", COM_FileExtension(name)))
 		return !!allow_download_wads.value;
 
 	//pk3s.
-	if (!strcmp(".pk3", COM_FileExtension(name)) || !strcmp(".pak", COM_FileExtension(name)))
+	if (!strcmp("pk3", COM_FileExtension(name)) || !strcmp("pak", COM_FileExtension(name)))
 		if (strnicmp(name, "pak", 3))	//don't give out q3 pk3 files.
 			return !!allow_download_pk3s.value;
 
-	if (!strcmp(".cfg", COM_FileExtension(name)))
+	if (!strcmp("cfg", COM_FileExtension(name)))
 		return !!allow_download_configs.value;
 
 	//root of gamedir

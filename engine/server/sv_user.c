@@ -1844,8 +1844,8 @@ qboolean SV_AllowDownload (char *name)
 	if (strncmp(name,	"skins/", 6) == 0)
 		return !!allow_download_skins.value;
 	//models
-	if ((strncmp(name,	"progs/", 6) == 0||
-		strncmp(name,	"models/", 7) == 0))
+	if ((strncmp(name,	"progs/", 6) == 0) ||
+		(strncmp(name,	"models/", 7) == 0))
 		return !!allow_download_models.value;
 	//sound
 	if (strncmp(name,	"sound/", 6) == 0)
@@ -1855,7 +1855,7 @@ qboolean SV_AllowDownload (char *name)
 		return !!allow_download_demos.value;
 
 	//textures
-	if (strncmp(name,	"texures/", 8) == 0)
+	if (strncmp(name,	"textures/", 9) == 0)
 		return !!allow_download_textures.value;
 
 	//wads
@@ -1895,12 +1895,40 @@ void SV_BeginDownload_f(void)
 
 	name = Cmd_Argv(1);
 
-	if (!strncmp(name, "demonum/", 8))
-		name = SV_MVDNum(atoi(name+8));
-
 	if (ISNQCLIENT(host_client) && host_client->protocol != SCP_DARKPLACES7)
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "Your client isn't meant to support downloads\n");
+		return;
+	}
+
+	if (!strncmp(name, "demonum/", 8))
+		name = SV_MVDNum(atoi(name+8));
+
+	if (!name)
+	{
+		name = Cmd_Argv(1); // restore given name for cleaner error msg
+		Sys_Printf ("Couldn't download %s to %s\n", name, host_client->name);
+		if (ISNQCLIENT(host_client))
+		{
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+			ClientReliableWrite_String (host_client, "\nstopdownload\n");
+		}
+		else
+#ifdef PEXT_CHUNKEDDOWNLOADS
+		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+		{
+			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
+			ClientReliableWrite_Long (host_client, -1);
+			ClientReliableWrite_Long (host_client, -1);
+			ClientReliableWrite_String (host_client, name);
+		}
+		else
+#endif
+		{
+			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 4);
+			ClientReliableWrite_Short (host_client, -1);
+			ClientReliableWrite_Byte (host_client, 0);
+		}
 		return;
 	}
 

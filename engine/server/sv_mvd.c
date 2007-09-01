@@ -787,11 +787,12 @@ dir_t Sys_listdir (char *path, char *ext, qboolean usesorting)
 				demobuffer->start - demobuffer->end : \
 				demobuffer->maxsize - demobuffer->end)
 
+static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
 
 cvar_t	sv_demoUseCache = SCVAR("sv_demoUseCache", "");
 cvar_t	sv_demoCacheSize = SCVAR("sv_demoCacheSize", "");
 cvar_t	sv_demoMaxDirSize = SCVAR("sv_demoMaxDirSize", "102400");	//so ktpro autorecords.
-cvar_t	sv_demoDir = SCVAR("sv_demoDir", "demos");
+cvar_t	sv_demoDir = SCVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
 cvar_t	sv_demofps = SCVAR("sv_demofps", "");
 cvar_t	sv_demoPings = SCVAR("sv_demoPings", "");
 cvar_t	sv_demoNoVis = SCVAR("sv_demoNoVis", "");
@@ -816,22 +817,22 @@ entity_state_t demo_entities[UPDATE_MASK+1][MAX_MVDPACKET_ENTITIES];
 client_frame_t demo_frames[UPDATE_MASK+1];
 
 // only one .. is allowed (so we can get to the same dir as the quake exe)
-static void Check_DemoDir(void)
+static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue)
 {
 	char *value;
 
-	value = sv_demoDir.string;
-	if (!value[0])
+	value = var->string;
+	if (!value[0] || value[0] == '/' || (value[0] == '\\' && value[1] == '\\'))
 	{
 		Cvar_ForceSet(&sv_demoDir, "demos");
 		return;
 	}
-
 	if (value[0] == '.' && value[1] == '.')
 		value += 2;
 	if (strstr(value,".."))
 	{
 		Cvar_ForceSet(&sv_demoDir, "demos");
+		return;
 	}
 }
 
@@ -1418,8 +1419,6 @@ mvddest_t *SV_InitRecordFile (char *name)
 		dst->cache = BZ_Malloc(dst->maxcachesize);
 	}
 	dst->droponmapchange = true;
-
-	Check_DemoDir();
 
 	s = name + strlen(name);
 	while (*s != '/') s--;
@@ -2016,8 +2015,6 @@ void SV_MVD_Record_f (void)
 		return;
 	}
 
-	Check_DemoDir();
-
 	dir = Sys_listdir(va("%s/%s", com_gamedir, sv_demoDir.string), ".*", SORT_NO);
 	if (sv_demoMaxDirSize.value && dir.size > sv_demoMaxDirSize.value*1024)
 	{
@@ -2252,8 +2249,6 @@ void SV_MVDEasyRecord_f (void)
 	int		i;
 	FILE	*f;
 
-	Check_DemoDir();
-
 	c = Cmd_Argc();
 	if (c > 2)
 	{
@@ -2463,8 +2458,6 @@ void SV_MVDList_f (void)
 	float	f;
 	int		i,j,show;
 
-	Check_DemoDir();
-
 	Con_Printf("content of %s/%s/*.mvd\n", com_gamedir,sv_demoDir.string);
 	dir = Sys_listdir(va("%s/%s", com_gamedir,sv_demoDir.string), ".mvd", SORT_BY_DATE);
 	list = dir.files;
@@ -2510,8 +2503,6 @@ char *SV_MVDNum(int num)
 	file_t	*list;
 	dir_t	dir;
 
-	Check_DemoDir();
-
 	dir = Sys_listdir(va("%s/%s", com_gamedir, sv_demoDir.string), ".mvd", SORT_BY_DATE);
 	list = dir.files;
 
@@ -2555,8 +2546,6 @@ void SV_MVDRemove_f (void)
 	char name[MAX_MVD_NAME], *ptr;
 	char path[MAX_OSPATH];
 	int i;
-
-	Check_DemoDir();
 
 	if (Cmd_Argc() != 2)
 	{
@@ -2630,8 +2619,6 @@ void SV_MVDRemoveNum_f (void)
 	char	*val, *name;
 	char path[MAX_OSPATH];
 
-	Check_DemoDir();
-
 	if (Cmd_Argc() != 2)
 	{
 		Con_Printf("rmdemonum <#>\n");
@@ -2670,8 +2657,6 @@ void SV_MVDInfoAdd_f (void)
 {
 	char *name, *args, path[MAX_OSPATH];
 	FILE *f;
-
-	Check_DemoDir();
 
 	if (Cmd_Argc() < 3) {
 		Con_Printf("usage:MVDInfoAdd <demonum> <info string>\n<demonum> = * for currently recorded demo\n");
@@ -2722,8 +2707,6 @@ void SV_MVDInfoRemove_f (void)
 {
 	char *name, path[MAX_OSPATH];
 
-	Check_DemoDir();
-
 	if (Cmd_Argc() < 2)
 	{
 		Con_Printf("usage:demoInfoRemove <demonum>\n<demonum> = * for currently recorded demo\n");
@@ -2763,8 +2746,6 @@ void SV_MVDInfo_f (void)
 	char buf[64];
 	FILE *f = NULL;
 	char *name, path[MAX_OSPATH];
-
-	Check_DemoDir();
 
 	if (Cmd_Argc() < 2)
 	{

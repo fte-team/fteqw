@@ -1925,7 +1925,7 @@ void SV_BeginDownload_f(void)
 		// this is needed to cancel the current download
 		if (ISNQCLIENT(host_client))
 		{
-			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+12);
 			ClientReliableWrite_String (host_client, "\nstopdownload\n");
 		}
 		else
@@ -1947,7 +1947,7 @@ void SV_BeginDownload_f(void)
 
 		if (mvdname)
 		{
-			ClientReliableWrite_Begin (host_client, svc_stufftext, 17+strlen(mvdname)); 
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+15+strlen(mvdname)); 
 			ClientReliableWrite_String (host_client, va("\ndownload demos/%s\n", mvdname));
 		}
 		return;
@@ -1960,7 +1960,7 @@ void SV_BeginDownload_f(void)
 		{
 			SV_PrintToClient(host_client, PRINT_HIGH, "Download rejected by server settings\n");
 
-			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+12);
 			ClientReliableWrite_String (host_client, "\nstopdownload\n");
 		}
 #ifdef PEXT_CHUNKEDDOWNLOADS
@@ -2016,7 +2016,7 @@ void SV_BeginDownload_f(void)
 		Sys_Printf ("Couldn't download %s to %s\n", name, host_client->name);
 		if (ISNQCLIENT(host_client))
 		{
-			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+12);
 			ClientReliableWrite_String (host_client, "\nstopdownload\n");
 		}
 		else

@@ -1889,10 +1889,9 @@ SV_BeginDownload_f
 */
 void SV_BeginDownload_f(void)
 {
-	char name[MAX_OSPATH];
+	char *name = Cmd_Argv(1);
 	extern	cvar_t	allow_download_anymap, allow_download_pakcontents;
-
-	Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
+	extern cvar_t sv_demoDir;
 
 	if (ISNQCLIENT(host_client) && host_client->protocol != SCP_DARKPLACES7)
 	{
@@ -1900,39 +1899,59 @@ void SV_BeginDownload_f(void)
 		return;
 	}
 
+	// MVD hacked junk
 	if (!strncmp(name, "demonum/", 8))
 	{
-		extern cvar_t sv_demoDir;
-		char *mvdname = SV_MVDNum(atoi(name+8));
+		char *mvdname;
 
-		if (!mvdname)
+		if (ISQ2CLIENT(host_client))
 		{
-			Sys_Printf ("Couldn't download %s to %s\n", name, host_client->name);
-			if (ISNQCLIENT(host_client))
-			{
-				ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
-				ClientReliableWrite_String (host_client, "\nstopdownload\n");
-			}
-			else
-#ifdef PEXT_CHUNKEDDOWNLOADS
-			if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
-			{
-				ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
-				ClientReliableWrite_Long (host_client, -1);
-				ClientReliableWrite_Long (host_client, -1);
-				ClientReliableWrite_String (host_client, name);
-			}
-			else
-#endif
-			{
-				ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 4);
-				ClientReliableWrite_Short (host_client, -1);
-				ClientReliableWrite_Byte (host_client, 0);
-			}
-			return;
+			Sys_Printf ("Rejected MVD download to %s (Q2 client)\n", mvdname, host_client->name);
+			ClientReliableWrite_Begin (host_client, svcq2_download, 4);
+			ClientReliableWrite_Short (host_client, -1);
+			ClientReliableWrite_Byte (host_client, 0);
 		}
 
-		snprintf(name, sizeof(name), "%s/%s", sv_demoDir.string, mvdname); 
+		mvdname = SV_MVDNum(atoi(name+8));
+		if (!mvdname)
+		{
+			SV_ClientPrintf (host_client, PRINT_HIGH, "%s is an invalid MVD demonum.\n", name+8);
+			Sys_Printf ("%s requested invalid demonum %s\n", host_client->name, name+8);
+		}
+		else
+			SV_ClientPrintf (host_client, PRINT_HIGH, "Sending demo %s...\n", mvdname);
+
+		// this is needed to cancel the current download
+		if (ISNQCLIENT(host_client))
+		{
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+			ClientReliableWrite_String (host_client, "\nstopdownload\n");
+		}
+		else
+#ifdef PEXT_CHUNKEDDOWNLOADS
+		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+		{
+			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
+			ClientReliableWrite_Long (host_client, -1);
+			ClientReliableWrite_Long (host_client, -1);
+			ClientReliableWrite_String (host_client, name);
+		}
+		else
+#endif
+		{
+			ClientReliableWrite_Begin (host_client, svc_download, 4);
+			ClientReliableWrite_Short (host_client, -1);
+			ClientReliableWrite_Byte (host_client, 0);
+		}
+
+		if (mvdname)
+		{
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 16+strlen(mvdname)); 
+			ClientReliableWrite_String (host_client, "download demos/"); // 15
+			ClientReliableWrite_String (host_client, mvdname);
+			ClientReliableWrite_String (host_client, "\n"); // 1 
+		}
+		return;
 	}
 
 // hacked by zoid to allow more conrol over download
@@ -1977,7 +1996,11 @@ void SV_BeginDownload_f(void)
 			*p = (char)tolower(*p);
 	}
 
-	host_client->download = FS_OpenVFS(name, "rb", FS_GAME);
+	// yet another hack for MVD junk
+	if (!strncmp(name, "demos/", 6))
+		host_client->download = FS_OpenVFS(va("%s/%s", sv_demoDir.string, name+6), "rb", FS_GAME);
+	else
+		host_client->download = FS_OpenVFS(name, "rb", FS_GAME);
 	host_client->downloadcount = 0;
 
 	if (!host_client->download

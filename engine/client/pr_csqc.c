@@ -1168,7 +1168,10 @@ static void PF_cs_getstati(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 		int first, count;
 		first = G_FLOAT(OFS_PARM1);
-		count = G_FLOAT(OFS_PARM2);
+		if (*prinst->callargc > 2)
+			count = G_FLOAT(OFS_PARM2);
+		else
+			count = 1;
 		G_FLOAT(OFS_RETURN) = (((unsigned int)val)&(((1<<count)-1)<<first))>>first;
 	}
 	else

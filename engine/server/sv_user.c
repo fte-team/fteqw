@@ -1889,11 +1889,10 @@ SV_BeginDownload_f
 */
 void SV_BeginDownload_f(void)
 {
-	char	*name;
+	char name[MAX_OSPATH];
 	extern	cvar_t	allow_download_anymap, allow_download_pakcontents;
 
-
-	name = Cmd_Argv(1);
+	Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
 	if (ISNQCLIENT(host_client) && host_client->protocol != SCP_DARKPLACES7)
 	{
@@ -1902,34 +1901,38 @@ void SV_BeginDownload_f(void)
 	}
 
 	if (!strncmp(name, "demonum/", 8))
-		name = SV_MVDNum(atoi(name+8));
-
-	if (!name)
 	{
-		name = Cmd_Argv(1); // restore given name for cleaner error msg
-		Sys_Printf ("Couldn't download %s to %s\n", name, host_client->name);
-		if (ISNQCLIENT(host_client))
+		extern cvar_t sv_demoDir;
+		char *mvdname = SV_MVDNum(atoi(name+8));
+
+		if (!mvdname)
 		{
-			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
-			ClientReliableWrite_String (host_client, "\nstopdownload\n");
-		}
-		else
+			Sys_Printf ("Couldn't download %s to %s\n", name, host_client->name);
+			if (ISNQCLIENT(host_client))
+			{
+				ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+				ClientReliableWrite_String (host_client, "\nstopdownload\n");
+			}
+			else
 #ifdef PEXT_CHUNKEDDOWNLOADS
-		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
-		{
-			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
-			ClientReliableWrite_Long (host_client, -1);
-			ClientReliableWrite_Long (host_client, -1);
-			ClientReliableWrite_String (host_client, name);
-		}
-		else
+			if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+			{
+				ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
+				ClientReliableWrite_Long (host_client, -1);
+				ClientReliableWrite_Long (host_client, -1);
+				ClientReliableWrite_String (host_client, name);
+			}
+			else
 #endif
-		{
-			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 4);
-			ClientReliableWrite_Short (host_client, -1);
-			ClientReliableWrite_Byte (host_client, 0);
+			{
+				ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 4);
+				ClientReliableWrite_Short (host_client, -1);
+				ClientReliableWrite_Byte (host_client, 0);
+			}
+			return;
 		}
-		return;
+
+		snprintf(name, sizeof(name), "%s/%s", sv_demoDir.string, mvdname); 
 	}
 
 // hacked by zoid to allow more conrol over download

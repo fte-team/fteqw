@@ -1910,6 +1910,7 @@ void SV_BeginDownload_f(void)
 			ClientReliableWrite_Begin (host_client, svcq2_download, 4);
 			ClientReliableWrite_Short (host_client, -1);
 			ClientReliableWrite_Byte (host_client, 0);
+			return;
 		}
 
 		mvdname = SV_MVDNum(atoi(name+8));

@@ -1947,10 +1947,8 @@ void SV_BeginDownload_f(void)
 
 		if (mvdname)
 		{
-			ClientReliableWrite_Begin (host_client, svc_stufftext, 16+strlen(mvdname)); 
-			ClientReliableWrite_String (host_client, "download demos/"); // 15
-			ClientReliableWrite_String (host_client, mvdname);
-			ClientReliableWrite_String (host_client, "\n"); // 1 
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 17+strlen(mvdname)); 
+			ClientReliableWrite_String (host_client, va("\ndownload demos/%s\n", mvdname));
 		}
 		return;
 	}

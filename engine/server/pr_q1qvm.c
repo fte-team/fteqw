@@ -657,7 +657,8 @@ long syscallqvm (void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 
 	case G_CHECKCLIENT:
-		return PF_checkclientinternal(VM_LONG(arg[0]));
+//		return PF_checkclientinternal(VM_LONG(arg[0]));
+		break;
 
 	case G_STUFFCMD:
 		{
@@ -817,7 +818,7 @@ long syscallqvm (void *offset, unsigned int mask, int fn, const long *arg)
 
 	case G_DISABLEUPDATES:
 		//FIXME: remember to ask mvdsv people why this is useful
-		Con_Print("G_DISABLEUPDATES: not supported\n");
+		Con_Printf("G_DISABLEUPDATES: not supported\n");
 		break;
 
 	case G_WRITEBYTE:
@@ -1102,12 +1103,13 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 			Q_strncpyz(VM_POINTER(arg[0]), c, VM_LONG(arg[1]));
 		}
 		break;
-
 	case G_CMD_TOKENIZE:
-		char *str = VM_POINTER(arg[0]);
-		Cmd_TokenizeString(str, false, false);
-		return Cmd_Argc();
-
+		{
+			char *str = VM_POINTER(arg[0]);
+			Cmd_TokenizeString(str, false, false);
+			return Cmd_Argc();
+		}
+		break;
 	case G_strlcpy:
 		{
 			char *dst = VM_POINTER(arg[0]);

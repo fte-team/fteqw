@@ -299,289 +299,6 @@ netadr_t ui_pings[MAX_PINGREQUESTS];
 #define UITAGNUM 2452
 
 
-#define MAX_VMUI_FILES 8
-
-typedef struct {
-	char name[256];
-	char *data;
-	int bufferlen;
-	int len;
-	int ofs;
-	int accessmode;
-	int owner;
-} vmui_fopen_files_t;
-vmui_fopen_files_t vmui_fopen_files[MAX_VMUI_FILES];
-
-int VMUI_fopen (char *name, int *handle, int fmode, int owner)
-{
-	int i;
-
-	if (!handle)
-		return FS_FLocateFile(name, FSLFRT_IFFOUND, NULL);
-
-	*handle = 0;
-
-	for (i = 0; i < MAX_VMUI_FILES; i++)
-		if (!vmui_fopen_files[i].data)
-			break;
-
-	if (i == MAX_VMUI_FILES)	//too many already open
-	{
-		return -1;
-	}
-
-	if (name[1] == ':' ||	//dos filename absolute path specified - reject.
-		*name == '\\' || *name == '/' ||	//absolute path was given - reject
-		strstr(name, ".."))	//someone tried to be cleaver.
-	{
-		return -1;
-	}
-
-	Q_strncpyz(vmui_fopen_files[i].name, name, sizeof(vmui_fopen_files[i].name));
-
-	vmui_fopen_files[i].accessmode = fmode;
-	vmui_fopen_files[i].owner = owner;
-	switch (fmode)
-	{
-	case 0:	//read
-		vmui_fopen_files[i].data = COM_LoadMallocFile(name);
-		vmui_fopen_files[i].bufferlen = vmui_fopen_files[i].len = com_filesize;
-		vmui_fopen_files[i].ofs = 0;
-		if (vmui_fopen_files[i].data)
-			break;
-		else
-			return -1;
-		break;
-		/*
-	case 2:	//append
-	case 3:	//append
-		vmui_fopen_files[i].data = COM_LoadMallocFile(name);
-		vmui_fopen_files[i].ofs = vmui_fopen_files[i].bufferlen = vmui_fopen_files[i].len = com_filesize;
-		if (vmui_fopen_files[i].data)
-			break;
-		//fall through
-	case 1:	//write
-		vmui_fopen_files[i].bufferlen = 8192;
-		vmui_fopen_files[i].data = BZ_Malloc(vmui_fopen_files[i].bufferlen);
-		vmui_fopen_files[i].len = 0;
-		vmui_fopen_files[i].ofs = 0;
-		break;
-		*/
-	default: //bad
-		return -1;
-	}
-
-	*handle = i+1;
-	return vmui_fopen_files[i].len;
-}
-
-void VMUI_fclose (int fnum, int owner)
-{
-	fnum--;
-
-	if (fnum < 0 || fnum >= MAX_VMUI_FILES)
-		return;	//out of range
-
-	if (vmui_fopen_files[fnum].owner != owner)
-		return;	//cgs?
-
-	if (!vmui_fopen_files[fnum].data)
-		return;	//not open
-
-	switch(vmui_fopen_files[fnum].accessmode)
-	{
-	case 0:
-		BZ_Free(vmui_fopen_files[fnum].data);
-		break;
-	case 1:
-	case 2:
-	case 3:
-		COM_WriteFile(vmui_fopen_files[fnum].name, vmui_fopen_files[fnum].data, vmui_fopen_files[fnum].len);
-		BZ_Free(vmui_fopen_files[fnum].data);
-		break;
-	}
-	vmui_fopen_files[fnum].data = NULL;
-}
-
-int VMUI_FRead (char *dest, int quantity, int fnum, int owner)
-{
-	fnum--;
-	if (fnum < 0 || fnum >= MAX_VMUI_FILES)
-		return 0;	//out of range
-
-	if (vmui_fopen_files[fnum].owner != owner)
-		return 0;	//cgs?
-
-	if (!vmui_fopen_files[fnum].data)
-		return 0;	//not open
-
-	if (quantity > vmui_fopen_files[fnum].len - vmui_fopen_files[fnum].ofs)
-		quantity = vmui_fopen_files[fnum].len - vmui_fopen_files[fnum].ofs;
-	memcpy(dest, vmui_fopen_files[fnum].data + vmui_fopen_files[fnum].ofs, quantity);
-	vmui_fopen_files[fnum].ofs += quantity;
-
-	return quantity;
-}
-/*
-void VMUI_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int fnum = G_FLOAT(OFS_PARM0);
-	char *msg = PF_VarString(prinst, 1, pr_globals);
-	int len = strlen(msg);
-	if (fnum < 0 || fnum >= MAX_QC_FILES)
-		return;	//out of range
-
-	if (!pf_fopen_files[fnum].data)
-		return;	//not open
-
-	if (pf_fopen_files[fnum].prinst != prinst)
-		return;	//this just isn't ours.
-
-	if (pf_fopen_files[fnum].bufferlen < pf_fopen_files[fnum].ofs + len)
-	{
-		char *newbuf;
-		pf_fopen_files[fnum].bufferlen = pf_fopen_files[fnum].bufferlen*2 + len;
-		newbuf = BZF_Malloc(pf_fopen_files[fnum].bufferlen);
-		memcpy(newbuf, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
-		BZ_Free(pf_fopen_files[fnum].data);
-		pf_fopen_files[fnum].data = newbuf;
-	}
-
-	memcpy(pf_fopen_files[fnum].data + pf_fopen_files[fnum].ofs, msg, len);
-	if (pf_fopen_files[fnum].len < pf_fopen_files[fnum].ofs + len)
-		pf_fopen_files[fnum].len = pf_fopen_files[fnum].ofs + len;
-	pf_fopen_files[fnum].ofs+=len;
-}
-*/
-void VMUI_fcloseall (int owner)
-{
-	int i;
-	for (i = 1; i <= MAX_VMUI_FILES; i++)
-	{
-		VMUI_fclose(i, owner);
-	}
-}
-
-
-
-typedef struct {
-	char *initialbuffer;
-	char *buffer;
-	char *dir;
-	int found;
-	int bufferleft;
-	int skip;
-} vmsearch_t;
-int VMEnum(char *match, int size, void *args)
-{
-	char *check;
-	int newlen;
-	match += ((vmsearch_t *)args)->skip;
-	newlen = strlen(match)+1;
-	if (newlen > ((vmsearch_t *)args)->bufferleft)
-		return false;	//too many files for the buffer
-
-	check = ((vmsearch_t *)args)->initialbuffer;
-	while(check < ((vmsearch_t *)args)->buffer)
-	{
-		if (!stricmp(check, match))
-			return true;	//we found this one already
-		check += strlen(check)+1;
-	}
-
-	memcpy(((vmsearch_t *)args)->buffer, match, newlen);
-	((vmsearch_t *)args)->buffer+=newlen;
-	((vmsearch_t *)args)->bufferleft-=newlen;
-	((vmsearch_t *)args)->found++;
-	return true;
-}
-
-static int IfFound(char *match, int size, void *args)
-{
-	*(qboolean*)args = true;
-	return true;
-}
-
-int VMEnumMods(char *match, int size, void *args)
-{
-	char *check;
-	char desc[1024];
-	int newlen;
-	int desclen;
-	qboolean foundone;
-	vfsfile_t *f;
-
-	newlen = strlen(match)+1;
-
-	if (*match && match[newlen-2] != '/')
-		return true;
-	match[newlen-2] = '\0';
-	newlen--;
-
-	if (!stricmp(match, "baseq3"))
-		return true;	//we don't want baseq3
-
-	foundone = false;
-	Sys_EnumerateFiles(va("%s/%s/", ((vmsearch_t *)args)->dir, match), "*.pk3", IfFound, &foundone);
-	if (foundone == false)
-		return true;	//we only count directories with a pk3 file
-
-	Q_strncpyz(desc, match, sizeof(desc));
-	f = FS_OpenVFS(va("%s/description.txt", match), "rb", FS_BASE);
-	if (f)
-	{
-		VFS_GETS(f, desc, sizeof(desc));
-		VFS_CLOSE(f);
-	}
-
-	desclen = strlen(desc)+1;
-
-	if (newlen+desclen+5 > ((vmsearch_t *)args)->bufferleft)
-		return false;	//too many files for the buffer
-
-	check = ((vmsearch_t *)args)->initialbuffer;
-	while(check < ((vmsearch_t *)args)->buffer)
-	{
-		if (!stricmp(check, match))
-			return true;	//we found this one already
-		check += strlen(check)+1;
-		check += strlen(check)+1;
-	}
-
-	memcpy(((vmsearch_t *)args)->buffer, match, newlen);
-	((vmsearch_t *)args)->buffer+=newlen;
-	((vmsearch_t *)args)->bufferleft-=newlen;
-
-	memcpy(((vmsearch_t *)args)->buffer, desc, desclen);
-	((vmsearch_t *)args)->buffer+=desclen;
-	((vmsearch_t *)args)->bufferleft-=desclen;
-
-	((vmsearch_t *)args)->found++;
-	return true;
-}
-
-int VMQ3_GetFileList(char *path, char *ext, char *output, int buffersize)
-{
-	vmsearch_t vms;
-	vms.initialbuffer = vms.buffer = output;
-	vms.skip = strlen(path)+1;
-	vms.bufferleft = buffersize;
-	vms.found=0;
-	if (!strcmp(path, "$modlist"))
-	{
-		vms.skip=0;
-		Sys_EnumerateFiles((vms.dir=com_quakedir), "*", VMEnumMods, &vms);
-		if (*com_homedir)
-			Sys_EnumerateFiles((vms.dir=com_homedir), "*", VMEnumMods, &vms);
-	}
-	else if (*(char *)ext == '.' || *(char *)ext == '/')
-		COM_EnumerateFiles(va("%s/*%s", path, ext), VMEnum, &vms);
-	else
-		COM_EnumerateFiles(va("%s/*.%s", path, ext), VMEnum, &vms);
-	return vms.found;
-}
-
-
 
 
 
@@ -988,25 +705,25 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case UI_FS_FOPENFILE: //fopen
 		if ((int)arg[1] + 4 >= mask || VM_POINTER(arg[1]) < offset)
 			break;	//out of bounds.
-		VM_LONG(ret) = VMUI_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0);
+		VM_LONG(ret) = VM_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0);
 		break;
 
 	case UI_FS_READ:	//fread
 		if ((int)arg[0] + VM_LONG(arg[1]) >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
 
-		VM_LONG(ret) = VMUI_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 0);
+		VM_LONG(ret) = VM_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 0);
 		break;
 	case UI_FS_WRITE:	//fwrite
 		break;
 	case UI_FS_FCLOSEFILE:	//fclose
-		VMUI_fclose(VM_LONG(arg[0]), 0);
+		VM_fclose(VM_LONG(arg[0]), 0);
 		break;
 
 	case UI_FS_GETFILELIST:	//fs listing
 		if ((int)arg[2] + arg[3] >= mask || VM_POINTER(arg[2]) < offset)
 			break;	//out of bounds.
-		return VMQ3_GetFileList(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
+		return VM_GetFileList(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 
 	case UI_R_REGISTERMODEL:	//precache model
 		{
@@ -1736,7 +1453,7 @@ void UI_Stop (void)
 	{
 		VM_Call(uivm, UI_SHUTDOWN);
 		VM_Destroy(uivm);
-		VMUI_fcloseall(0);
+		VM_fcloseall(0);
 		uivm = NULL;
 	}
 }
@@ -1762,7 +1479,7 @@ void UI_Start (void)
 		{
 			Con_Printf("User-Interface VM uses incompatable API version (%i)\n", apiversion);
 			VM_Destroy(uivm);
-			VMUI_fcloseall(0);
+			VM_fcloseall(0);
 			uivm = NULL;
 			return;
 		}

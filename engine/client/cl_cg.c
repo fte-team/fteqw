@@ -546,17 +546,17 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 	case CG_FS_FOPENFILE: //fopen
 		if (arg[1])
 			VALIDATEPOINTER(arg[1], 4);
-		VM_LONG(ret) = VMUI_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 1);
+		VM_LONG(ret) = VM_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 1);
 		break;
 
 	case CG_FS_READ:	//fread
 		VALIDATEPOINTER(arg[1], 4);
-		VM_LONG(ret) = VMUI_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 1);
+		VM_LONG(ret) = VM_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 1);
 		break;
 	case CG_FS_WRITE:	//fwrite
 		break;
 	case CG_FS_FCLOSEFILE:	//fclose
-		VMUI_fclose(VM_LONG(arg[0]), 1);
+		VM_fclose(VM_LONG(arg[0]), 1);
 		break;
 
 	case CG_CM_POINTCONTENTS: //int			trap_CM_PointContents( const vec3_t p, clipHandle_t model );
@@ -1094,7 +1094,7 @@ void CG_Stop (void)
 	{
 		VM_Call(cgvm, CG_SHUTDOWN);
 		VM_Destroy(cgvm);
-		VMUI_fcloseall(1);
+		VM_fcloseall(1);
 		cgvm = NULL;
 	}
 #endif

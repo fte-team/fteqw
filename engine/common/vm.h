@@ -68,13 +68,6 @@ qboolean UI_DrawIntermission(void);
 qboolean UI_DrawFinale(void);
 int UI_MenuState(void);
 
-
-int VMUI_fopen (char *name, int *handle, int fmode, int owner);
-int VMUI_FRead (char *dest, int quantity, int fnum, int owner);
-void VMUI_fclose (int fnum, int owner);
-void VMUI_fcloseall (int owner);
-int VMQ3_GetFileList(char *path, char *ext, char *output, int buffersize);
-
 //sans botlib
 struct pc_token_s;
 int Script_LoadFile(char *filename);
@@ -82,6 +75,16 @@ void Script_Free(int handle);
 int Script_Read(int handle, struct pc_token_s *token);
 void Script_Get_File_And_Line(int handle, char *filename, int *line);
 #endif
+
+#define VM_FS_READ 0
+#define VM_FS_WRITE 1
+#define VM_FS_APPEND 2
+#define VM_FS_APPEND2 3	//I don't know, don't ask me. look at q3 source
+int VM_fopen (char *name, int *handle, int fmode, int owner);
+int VM_FRead (char *dest, int quantity, int fnum, int owner);
+void VM_fclose (int fnum, int owner);
+void VM_fcloseall (int owner);
+int VM_GetFileList(char *path, char *ext, char *output, int buffersize);
 
 #ifdef VM_CG
 void CG_Stop (void);

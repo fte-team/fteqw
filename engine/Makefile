@@ -7,18 +7,36 @@ CPUOPTIMIZATIONS=
 
 BASE_DIR=.
 
-#we only autodetect one cross target
+#only limited forms of cross-making is supported
+#only the following 3 are supported
 #linux->win32
+#linux->linux32
+#linux->linux64
 #if you are cross compiling, you'll need to use FTE_TARGET=mytaget
 
 #correct the gcc build when cross compiling
 ifeq ($(FTE_TARGET),win32)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
-		CC=i586-mingw32msvc-gcc
-		W32_FLAGS=-Ilibs/dxsdk7/include
+		ifneq ($(shell i586-mingw32msvc-gcc -v 2>&1 | grep mingw),)
+			#yup, the alternative exists (this matches the one debian has)
+			CC=i586-mingw32msvc-gcc
+#			BITS?=32
+		endif
 	endif
 endif
+#if you have an x86, you can get gcc to build 32bit or 64bit specific builds, instead of builds for the native platform
+ifeq ($(FTE_TARGET),linux32)
+	FTE_TARGET=linux
+	CC=gcc -m32
+	BITS=32
+endif
+ifeq ($(FTE_TARGET),linux64)
+	FTE_TARGET=linux
+	CC=gcc -m64
+	BITS=64
+endif
+
 
 ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 	ifneq ($(shell $(CC) -v 2>&1 | grep mingw),)
@@ -275,6 +293,7 @@ PROGS_OBJS =		\
 
 SERVER_OBJS = 		\
 	pr_cmds.o 		\
+	pr_q1qvm.o	\
 	sv_master.o 	\
 	sv_init.o 		\
 	sv_main.o 		\
@@ -345,20 +364,20 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 
 #the defaults for sdl come first
 GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
-GL_EXE_NAME=../fteqw_sdl.gl
-GLCL_EXE_NAME=../fteqwcl_sdl.gl
+GL_EXE_NAME=../fteqw_sdl.gl$(BITS)
+GLCL_EXE_NAME=../fteqwcl_sdl.gl$(BITS)
 ifdef windir
 	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lwsock32 `sdl-config --libs`
 else
 	GL_LDFLAGS=$(GLLDFLAGS) -lpng -ljpeg `sdl-config --libs`
 endif
 GL_CFLAGS=$(GLCFLAGS) `sdl-config --cflags`
-GLB_DIR=gl_sdl
-GLCL_DIR=glcl_sdl
+GLB_DIR=gl_sdl$(BITS)
+GLCL_DIR=glcl_sdl$(BITS)
 
 SWCL_OBJS=$(SOFTWARE_OBJS) vid_sdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
-SW_EXE_NAME=../fteqw_sdl.sw
-SWCL_EXE_NAME=../fteqwcl_sdl.sw
+SW_EXE_NAME=../fteqw_sdl.sw$(BITS)
+SWCL_EXE_NAME=../fteqwcl_sdl.sw$(BITS)
 ifdef windir
 SW_LDFLAGS=$(SWLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
 else
@@ -366,11 +385,11 @@ else
 SW_LDFLAGS=$(SWLDFLAGS) `sdl-config --libs` -lpng -ljpeg
 endif
 SW_CFLAGS=$(SWCFLAGS) `sdl-config --cflags`
-SWB_DIR=sw_sdl
-SWCL_DIR=swcl_sdl
+SWB_DIR=sw_sdl$(BITS)
+SWCL_DIR=swcl_sdl$(BITS)
 
 SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
-SV_EXE_NAME=../fteqw.sv
+SV_EXE_NAME=../fteqw.sv$(BITS)
 SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 
 #specific targets override those defaults as needed.
@@ -427,6 +446,8 @@ endif
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw
 
+	MINGL_EXE_NAME=../fteminglqw.exe
+	MINGL_DIR=mingl_mgw
 endif
 ifeq ($(FTE_TARGET),bsd)
 	#mostly uses the linux stuff.
@@ -471,9 +492,9 @@ endif
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd
 endif
-ifeq ($(FTE_TARGET),linux)
+ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 
-	SV_DIR=sv_linux
+	SV_DIR=sv_linux$(BITS)
 	SV_LDFLAGS=-lz
 
 ifeq ($(USEASM),true)
@@ -481,41 +502,41 @@ ifeq ($(USEASM),true)
 else
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
 endif
-	GL_EXE_NAME=../fteqw.gl
-	GLCL_EXE_NAME=../fteqwcl.gl
+	GL_EXE_NAME=../fteqw.gl$(BITS)
+	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
 	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
-	GLB_DIR=gl_linux
-	GLCL_DIR=glcl_linux
+	GLB_DIR=gl_linux$(BITS)
+	GLCL_DIR=glcl_linux$(BITS)
 
 ifeq ($(USEASM),true)
 	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o sys_dosa.o
 else
 	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
 endif
-	SW_EXE_NAME=../fteqw.sw
-	SWCL_EXE_NAME=../fteqwcl.sw
+	SW_EXE_NAME=../fteqw.sw$(BITS)
+	SWCL_EXE_NAME=../fteqwcl.sw$(BITS)
 	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS) -lXxf86vm
 	SW_CFLAGS=$(SWCFLAGS) -I/usr/X11R6/include
-	SWB_DIR=sw_linux
-	SWCL_DIR=swcl_linux
+	SWB_DIR=sw_linux$(BITS)
+	SWCL_DIR=swcl_linux$(BITS)
 
 ifeq ($(USEASM),true)
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o sys_dosa.o
 else
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
 endif
-	M_EXE_NAME=../fteqw
-	MCL_EXE_NAME=../fteqwcl
+	M_EXE_NAME=../fteqw$(BITS)
+	MCL_EXE_NAME=../fteqwcl$(BITS)
 	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm
 	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) -I/usr/X11R6/include
-	MB_DIR=m_linux
-	MCL_DIR=mcl_linux
+	MB_DIR=m_linux$(BITS)
+	MCL_DIR=mcl_linux$(BITS)
 
 
 
-	MINGL_EXE_NAME=../fteqw.mingl
-	MINGL_DIR=mingl_linux
+	MINGL_EXE_NAME=../fteqw.mingl$(BITS)
+	MINGL_DIR=mingl_linux$(BITS)
 endif
 
 ifeq ($(FTE_TARGET),morphos)
@@ -602,7 +623,20 @@ endif
 SV_DIR?=sv_sdl
 
 .default: help
-all: sv-rel sw-rel gl-rel m-rel
+all: rel
+rel: sv-rel sw-rel gl-rel m-rel mingl-rel
+dbg: sv-dbg sw-dbg gl-dbg m-dbg mingl-dbg
+relcl: swcl-rel glcl-rel mcl-rel
+
+releases:
+	#this is for releasing things from a linux box
+	#just go through compiling absolutly everything
+	-$(MAKE) FTE_TARGET=linux32 rel
+	-$(MAKE) FTE_TARGET=linux64 rel
+	-$(MAKE) FTE_TARGET=win32 rel
+#	-$(MAKE) FTE_TARGET=linux32 relcl
+#	-$(MAKE) FTE_TARGET=linux64 relcl
+#	-$(MAKE) FTE_TARGET=win32 relcl
 
 autoconfig: clean
 	/bin/bash makeconfig.sh y
@@ -731,9 +765,9 @@ mcl-rel:
 mcl-dbg:
 	$(MAKE) mcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(MCL_DIR)"
 m-rel:
-	$(MAKE) m-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(MCL_DIR)"
+	$(MAKE) m-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(MB_DIR)"
 m-dbg:
-	$(MAKE) m-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(MCL_DIR)"
+	$(MAKE) m-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(MB_DIR)"
 
 .PHONY: m-tmp mcl-tmp sw-tmp swcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg
 
@@ -763,6 +797,7 @@ help:
 	@-echo "Specfic targets:"
 	@-echo "clean - removes all output (use make dirs afterwards)"
 	@-echo "all - make all the targets possible"
+	@-echo "rel - make the releases for the default system"
 	@-echo ""
 	@-echo "Normal targets:"
 	@-echo "(each of these targets must have the postfix -rel or -dbg)"

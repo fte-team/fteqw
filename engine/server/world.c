@@ -243,7 +243,7 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 		|| ent->v->absmax[2] < touch->v->absmin[2] )
 			continue;
 
-		if (!((int)ent->v->dimension_solid & (int)touch->v->dimension_hit))
+		if (!((int)ent->xv->dimension_solid & (int)touch->xv->dimension_hit))
 			continue;
 
 		nodelinks[linkcount++] = touch;
@@ -268,13 +268,18 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 		|| ent->v->absmax[2] < touch->v->absmin[2] )
 			continue;
 
-		if (!((int)ent->v->dimension_solid & (int)touch->v->dimension_hit))	//didn't change did it?...
+		if (!((int)ent->xv->dimension_solid & (int)touch->xv->dimension_hit))	//didn't change did it?...
 			continue;
 
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, touch);
 		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
 		pr_global_struct->time = sv.time;
-		PR_ExecuteProgram (svprogfuncs, touch->v->touch);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_Touch();
+		else
+#endif
+			PR_ExecuteProgram (svprogfuncs, touch->v->touch);
 
 		if (ent->isfree)
 			break;
@@ -1448,7 +1453,7 @@ void SV_ClipMoveToEntities ( moveclip_t *clip )
 		if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
 			continue;
 
-		if (!((int)clip->passedict->v->dimension_hit & (int)touch->v->dimension_solid))
+		if (!((int)clip->passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
 			continue;
 
 //		if ( !(clip->contentmask & CONTENTS_DEADMONSTER)
@@ -1621,7 +1626,7 @@ void SV_ClipToEverything (moveclip_t *clip)
 			if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
 				continue;
 
-			if (!((int)clip->passedict->v->dimension_hit & (int)touch->v->dimension_solid))
+			if (!((int)clip->passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
 				continue;
 		}
 
@@ -1699,7 +1704,7 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 				if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
 					continue;
 	*/
-				if (!((int)clip->passedict->v->dimension_hit & (int)touch->v->dimension_solid))
+				if (!((int)clip->passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
 					continue;
 			}
 
@@ -1762,7 +1767,7 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 			if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
 				continue;
 
-			if (!((int)clip->passedict->v->dimension_hit & (int)touch->v->dimension_solid))
+			if (!((int)clip->passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
 				continue;
 		}
 
@@ -1919,8 +1924,8 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 
 	memset ( &clip, 0, sizeof ( moveclip_t ) );
 
-	if (passedict && passedict->v->hull)
-		hullnum = passedict->v->hull;
+	if (passedict && passedict->xv->hull)
+		hullnum = passedict->xv->hull;
 	else if (sv_compatablehulls.value)
 		hullnum = 0;
 	else

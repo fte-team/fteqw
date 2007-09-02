@@ -12,6 +12,8 @@ It doesn't use persistant connections.
 
 */
 
+qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *localfile, qboolean sucess));
+
 typedef struct http_con_s {
 	int sock;
 

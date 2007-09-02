@@ -684,6 +684,7 @@ typedef struct filteredip_s {
 
 typedef enum {
 	GT_PROGS,	//q1, qw, h2 are similar enough that we consider it only one game mode. (We don't support the h2 protocol)
+	GT_Q1QVM,
 	GT_QUAKE2,	//q2 servers run from a q2 game dll
 	GT_QUAKE3,	//q3 servers run off the q3 qvm api
 	GT_MAX

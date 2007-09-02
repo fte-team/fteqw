@@ -282,7 +282,7 @@ static qboolean SV_AddCSQCUpdate (client_t *client, edict_t *ent)
 	if (!(client->csqcactive))
 		return false;
 
-	if (!ent->v->SendEntity)
+	if (!ent->xv->SendEntity)
 		return false;
 
 	csqcent[csqcnuments++] = ent;
@@ -319,10 +319,10 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 		ent = csqcent[en];
 
 		//prevent mishaps with entities being respawned and things.
-		if ((int)ent->v->Version < sv.csqcentversion[ent->entnum])
-			ent->v->Version = sv.csqcentversion[ent->entnum];
+		if ((int)ent->xv->Version < sv.csqcentversion[ent->entnum])
+			ent->xv->Version = sv.csqcentversion[ent->entnum];
 		else
-			sv.csqcentversion[ent->entnum] = (int)ent->v->Version;
+			sv.csqcentversion[ent->entnum] = (int)ent->xv->Version;
 
 		//If it's not changed, don't send
 		if (client->csqcentversions[ent->entnum] == sv.csqcentversion[ent->entnum])
@@ -333,7 +333,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 		//Ask CSQC to write a buffer for it.
 		G_INT(OFS_PARM0) = EDICT_TO_PROG(svprogfuncs, client->edict);
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-		PR_ExecuteProgram(svprogfuncs, ent->v->SendEntity);
+		PR_ExecuteProgram(svprogfuncs, ent->xv->SendEntity);
 		if (G_INT(OFS_RETURN))	//0 means not to tell the client about it.
 		{
 			if (msg->cursize + csqcmsgbuffer.cursize+5 >= msg->maxsize)
@@ -485,7 +485,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	for (i=0 ; i<3 ; i++)
 	{
 		miss = to->origin[i] - from->origin[i];
-		if ( miss < -0.1 || miss > 0.1 )
+//		if ( miss < -0.1 || miss > 0.1 )
 		{
 			bits |= U_ORIGIN1<<i;
 		}
@@ -519,7 +519,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if ( (to->effects&0xff00) != (fromeffects&0xff00) )
 		evenmorebits |= U_EFFECTS16;
 
-	if ( to->modelindex != from->modelindex )
+//	if ( to->modelindex != from->modelindex )
 	{
 		bits |= U_MODEL;
 		if (to->modelindex > 255)
@@ -1702,7 +1702,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 			if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent))
 				continue;
 
-			if (!((int)clent->v->dimension_see & ((int)ent->v->dimension_seen | (int)ent->v->dimension_ghost)))
+			if (!((int)clent->xv->dimension_see & ((int)ent->xv->dimension_seen | (int)ent->xv->dimension_ghost)))
 				continue;	//not in this dimension - sorry...
 			if (sv_cullplayers_trace.value || sv_cullentities_trace.value)
 				if (Cull_Traceline(clent, ent))
@@ -1715,10 +1715,10 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 		{
 			clstate_t clst;
 			clst.playernum = j;
-			clst.onladder = (int)ent->v->fteflags&FF_LADDER;
+			clst.onladder = (int)ent->xv->fteflags&FF_LADDER;
 			clst.lastcmd = &cl->lastcmd;
 			clst.modelindex = vent->v->modelindex;
-			clst.modelindex2 = vent->v->vweapmodelindex;
+			clst.modelindex2 = vent->xv->vweapmodelindex;
 			clst.frame = vent->v->frame;
 			clst.weaponframe = ent->v->weaponframe;
 			clst.angles = ent->v->angles;
@@ -1734,22 +1734,22 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 			clst.skin = vent->v->skin;
 			clst.mins = vent->v->mins;
-			clst.hull = vent->v->hull;
+			clst.hull = vent->xv->hull;
 			clst.maxs = vent->v->maxs;
-			clst.scale = vent->v->scale;
-			clst.transparency = vent->v->alpha;
+			clst.scale = vent->xv->scale;
+			clst.transparency = vent->xv->alpha;
 
 			//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
-			if (((int)clent->v->dimension_see & (int)ent->v->dimension_ghost))
-				if (!((int)clent->v->dimension_see & ((int)ent->v->dimension_seen & ~(int)ent->v->dimension_ghost)) )
+			if (((int)clent->xv->dimension_see & (int)ent->xv->dimension_ghost))
+				if (!((int)clent->xv->dimension_see & ((int)ent->xv->dimension_seen & ~(int)ent->xv->dimension_ghost)) )
 				{
-					if (ent->v->dimension_ghost_alpha)
-						clst.transparency *= ent->v->dimension_ghost_alpha;
+					if (ent->xv->dimension_ghost_alpha)
+						clst.transparency *= ent->xv->dimension_ghost_alpha;
 					else
 						clst.transparency *= 0.5;
 				}
 
-			clst.fatness = vent->v->fatness;
+			clst.fatness = vent->xv->fatness;
 			clst.localtime = cl->localtime;
 			clst.health = ent->v->health;
 			clst.spectator = 0;
@@ -1804,10 +1804,10 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 //FIXME: Name flags
 		//player is visible, now would be a good time to update what the player is like.
 		pflags = 0;
-		if (client->fteprotocolextensions & PEXT_VWEAP && client->otherclientsknown[j].vweap != ent->v->vweapmodelindex)
+		if (client->fteprotocolextensions & PEXT_VWEAP && client->otherclientsknown[j].vweap != ent->xv->vweapmodelindex)
 		{
 			pflags |= 1;
-			client->otherclientsknown[j].vweap = ent->v->vweapmodelindex;
+			client->otherclientsknown[j].vweap = ent->xv->vweapmodelindex;
 		}
 		if (pflags)
 		{
@@ -1911,12 +1911,12 @@ int glowsize=0, glowcolor=0, colourmod=0;
 
 	if (0)
 	{
-		if (ent->baseline.trans != ent->v->alpha)
-			if (!(ent->baseline.trans == 1 && !ent->v->alpha))
+		if (ent->baseline.trans != ent->xv->alpha)
+			if (!(ent->baseline.trans == 1 && !ent->xv->alpha))
 				bits |= DPU_ALPHA;
-		if (ent->baseline.scale != ent->v->scale)
+		if (ent->baseline.scale != ent->xv->scale)
 		{
-			if (ent->v->scale != 0 || ent->baseline.scale != 1)
+			if (ent->xv->scale != 0 || ent->baseline.scale != 1)
 				bits |= DPU_SCALE;
 		}
 
@@ -1926,16 +1926,16 @@ int glowsize=0, glowcolor=0, colourmod=0;
 		if ((ent->baseline.effects&0xff00) != ((int)eff & 0xff00))
 			bits |= DPU_EFFECTS2;
 
-		if (ent->v->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, host_client->edict))
+		if (ent->xv->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, host_client->edict))
 			bits |= DPU_EXTERIORMODEL;
-		if (ent->v->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, host_client->edict))
+		if (ent->xv->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, host_client->edict))
 			bits |= DPU_VIEWMODEL;
 
 
-		glowsize = ent->v->glow_size*0.25f;
-		glowcolor = ent->v->glow_color;
+		glowsize = ent->xv->glow_size*0.25f;
+		glowcolor = ent->xv->glow_color;
 
-		colourmod = ((int)bound(0, ent->v->colormod[0] * (7.0f / 32.0f), 7) << 5) | ((int)bound(0, ent->v->colormod[1] * (7.0f / 32.0f), 7) << 2) | ((int)bound(0, ent->v->colormod[2] * (3.0f / 32.0f), 3) << 0);
+		colourmod = ((int)bound(0, ent->xv->colormod[0] * (7.0f / 32.0f), 7) << 5) | ((int)bound(0, ent->xv->colormod[1] * (7.0f / 32.0f), 7) << 2) | ((int)bound(0, ent->xv->colormod[2] * (3.0f / 32.0f), 3) << 0);
 
 		if (0 != glowsize)
 			bits |= DPU_GLOWSIZE;
@@ -1992,8 +1992,8 @@ int glowsize=0, glowcolor=0, colourmod=0;
 	if (bits & NQU_ORIGIN3)		MSG_WriteCoord (msg, ent->v->origin[2]);
 	if (bits & NQU_ANGLE3)		MSG_WriteAngle(msg, ent->v->angles[2]);
 
-	if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->v->alpha*255);
-	if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->v->scale*16);
+	if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->xv->alpha*255);
+	if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->xv->scale*16);
 	if (bits & DPU_EFFECTS2)	MSG_WriteByte(msg, eff >> 8);
 	if (bits & DPU_GLOWSIZE)	MSG_WriteByte(msg, glowsize);
 	if (bits & DPU_GLOWCOLOR)	MSG_WriteByte(msg, glowcolor);
@@ -2044,7 +2044,7 @@ void SV_GibFilterInit(void)
 		Z_Free(gf);
 	}
 
-	if (svs.gametype != GT_PROGS)
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)
 		return;
 
 	file = COM_LoadStackFile("gibfiltr.cfg", buffer, sizeof(buffer));
@@ -2179,8 +2179,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		sv.worldmodel->funcs.FatPVS(sv.worldmodel, org, false);
 
 #ifdef PEXT_VIEW2
-		if (clent->v->view2)
-			sv.worldmodel->funcs.FatPVS(sv.worldmodel, PROG_TO_EDICT(svprogfuncs, clent->v->view2)->v->origin, true);
+		if (clent->xv->view2)
+			sv.worldmodel->funcs.FatPVS(sv.worldmodel, PROG_TO_EDICT(svprogfuncs, clent->xv->view2)->v->origin, true);
 #endif
 		for (split = client->controlled; split; split = split->controlled)
 			sv.worldmodel->funcs.FatPVS(sv.worldmodel, split->edict->v->origin, true);
@@ -2204,8 +2204,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			SV_Q1BSP_FatPVS (org);
 
 #ifdef PEXT_VIEW2
-			if (clent->v->view2)
-				SV_Q1BSP_AddToFatPVS (PROG_TO_EDICT(svprogfuncs, clent->v->view2)->v->origin, sv.worldmodel->nodes);	//add a little more...
+			if (clent->xv->view2)
+				SV_Q1BSP_AddToFatPVS (PROG_TO_EDICT(svprogfuncs, clent->xv->view2)->v->origin, sv.worldmodel->nodes);	//add a little more...
 #endif
 			for (split = client->controlled; split; split = split->controlled)
 				SV_Q1BSP_AddToFatPVS (split->edict->v->origin, sv.worldmodel->nodes);	//add a little more...
@@ -2314,21 +2314,21 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		state->colormap = clent->v->colormap;
 		state->skinnum = clent->v->skin;
 		state->effects = clent->v->effects;
-		state->hexen2flags = clent->v->drawflags;
-		state->abslight = clent->v->abslight;
+		state->hexen2flags = clent->xv->drawflags;
+		state->abslight = clent->xv->abslight;
 
 #ifdef PEXT_SCALE
-		state->scale = clent->v->scale*16;
+		state->scale = clent->xv->scale*16;
 		if (!state->scale)
 			state->scale = 1*16;
 #endif
 #ifdef PEXT_TRANS
-		state->trans = clent->v->alpha*255;
+		state->trans = clent->xv->alpha*255;
 		if (!state->trans)
 			state->trans = 255;
 #endif
 #ifdef PEXT_FATNESS
-		state->fatness = clent->v->fatness*2;
+		state->fatness = clent->xv->fatness*2;
 #endif
 
 		if (progstype == PROG_QW)
@@ -2366,7 +2366,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		ent = EDICT_NUM(svprogfuncs, e);
 
 		// ignore ents without visible models
-		if (!ent->v->SendEntity && (!ent->v->modelindex || !*PR_GetString(svprogfuncs, ent->v->model)) && !((int)ent->v->pflags & PFLAGS_FULLDYNAMIC))
+		if (!ent->xv->SendEntity && (!ent->v->modelindex || !*PR_GetString(svprogfuncs, ent->v->model)) && !((int)ent->xv->pflags & PFLAGS_FULLDYNAMIC))
 			continue;
 
 		if (progstype != PROG_QW)
@@ -2389,17 +2389,17 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		if (!ignorepvs && ent != clent)
 		{
 			//branch out to the pvs testing.
-			if (ent->v->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+			if (ent->xv->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, client->edict))
 			{
 				//unconditional
 			}
-			else if (ent->v->tag_entity)
+			else if (ent->xv->tag_entity)
 			{
 				edict_t *p = ent;
 				int c = 10;
-				while(p->v->tag_entity&&c-->0)
+				while(p->xv->tag_entity&&c-->0)
 				{
-					p = EDICT_NUM(svprogfuncs, p->v->tag_entity);
+					p = EDICT_NUM(svprogfuncs, p->xv->tag_entity);
 				}
 				if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, p))
 					continue;
@@ -2422,16 +2422,16 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 //			continue;
 
 
-		if (ent->v->nodrawtoclient)	//DP extension.
-			if (ent->v->nodrawtoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+		if (ent->xv->nodrawtoclient)	//DP extension.
+			if (ent->xv->nodrawtoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
 				continue;
-		if (ent->v->drawonlytoclient)
-			if (ent->v->drawonlytoclient != EDICT_TO_PROG(svprogfuncs, client->edict))
+		if (ent->xv->drawonlytoclient)
+			if (ent->xv->drawonlytoclient != EDICT_TO_PROG(svprogfuncs, client->edict))
 			{
 				client_t *split;
 				for (split = client->controlled; split; split=split->controlled)
 				{
-					if (split->edict->v->view2 == EDICT_TO_PROG(svprogfuncs, ent))
+					if (split->edict->xv->view2 == EDICT_TO_PROG(svprogfuncs, ent))
 						break;
 				}
 				if (!split)
@@ -2440,7 +2440,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		//QSG_DIMENSION_PLANES
 		if (client->edict)
-			if (!((int)client->edict->v->dimension_see & ((int)ent->v->dimension_seen | (int)ent->v->dimension_ghost)))
+			if (!((int)client->edict->xv->dimension_see & ((int)ent->xv->dimension_seen | (int)ent->xv->dimension_ghost)))
 				continue;	//not in this dimension - sorry...
 
 
@@ -2555,9 +2555,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 #define RENDER_COLORMAPPED 32
 
 		state->dpflags = 0;
-		if (ent->v->viewmodelforclient)
+		if (ent->xv->viewmodelforclient)
 		{
-			if (ent->v->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+			if (ent->xv->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, client->edict))
 				state->dpflags |= RENDER_VIEWMODEL;
 			else
 			{	//noone else sees it.
@@ -2565,13 +2565,13 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				continue;
 			}
 		}
-		if (ent->v->exteriormodeltoclient)
+		if (ent->xv->exteriormodeltoclient)
 		{
-			if (ent->v->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+			if (ent->xv->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
 				state->dpflags |= RENDER_EXTERIORMODEL;
 			//everyone else sees it normally.
 		}
-
+		
 		state->number = e;
 		state->flags = 0;
 		VectorCopy (ent->v->origin, state->origin);
@@ -2581,17 +2581,17 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		state->colormap = ent->v->colormap;
 		state->skinnum = ent->v->skin;
 		state->effects = ent->v->effects;
-		state->hexen2flags = ent->v->drawflags;
-		state->abslight = (int)(ent->v->abslight*255) & 255;
-		state->tagentity = ent->v->tag_entity;
-		state->tagindex = ent->v->tag_index;
+		state->hexen2flags = ent->xv->drawflags;
+		state->abslight = (int)(ent->xv->abslight*255) & 255;
+		state->tagentity = ent->xv->tag_entity;
+		state->tagindex = ent->xv->tag_index;
 
-		state->light[0] = ent->v->color[0]*255;
-		state->light[1] = ent->v->color[1]*255;
-		state->light[2] = ent->v->color[2]*255;
-		state->light[3] = ent->v->light_lev;
-		state->lightstyle = ent->v->style;
-		state->lightpflags = ent->v->pflags;
+		state->light[0] = ent->xv->color[0]*255;
+		state->light[1] = ent->xv->color[1]*255;
+		state->light[2] = ent->xv->color[2]*255;
+		state->light[3] = ent->xv->light_lev;
+		state->lightstyle = ent->xv->style;
+		state->lightpflags = ent->xv->pflags;
 
 		if ((int)ent->v->flags & FL_CLASS_DEPENDENT && client->playerclass)	//hexen2 wierdness.
 		{
@@ -2642,7 +2642,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				state->effects &= ~ (QWEF_FLAG1|QWEF_FLAG2);
 		}
 
-		if (!ent->v->colormod[0] && !ent->v->colormod[1] && !ent->v->colormod[2])
+		if (!ent->xv->colormod[0] && !ent->xv->colormod[1] && !ent->xv->colormod[2])
 		{
 			state->colormod[0] = (256)/8;
 			state->colormod[1] = (256)/8;
@@ -2650,39 +2650,39 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		}
 		else
 		{
-			i = ent->v->colormod[0]*(256/8); state->colormod[0] = bound(0, i, 255);
-			i = ent->v->colormod[1]*(256/8); state->colormod[1] = bound(0, i, 255);
-			i = ent->v->colormod[2]*(256/8); state->colormod[2] = bound(0, i, 255);
+			i = ent->xv->colormod[0]*(256/8); state->colormod[0] = bound(0, i, 255);
+			i = ent->xv->colormod[1]*(256/8); state->colormod[1] = bound(0, i, 255);
+			i = ent->xv->colormod[2]*(256/8); state->colormod[2] = bound(0, i, 255);
 		}
-		state->glowsize = ent->v->glow_size*0.25;
-		state->glowcolour = ent->v->glow_color;
-		if (ent->v->glow_trail)
+		state->glowsize = ent->xv->glow_size*0.25;
+		state->glowcolour = ent->xv->glow_color;
+		if (ent->xv->glow_trail)
 			state->dpflags |= RENDER_GLOWTRAIL;
 
 
 #ifdef PEXT_SCALE
-		state->scale = ent->v->scale*16;
-		if (!ent->v->scale)
+		state->scale = ent->xv->scale*16;
+		if (!ent->xv->scale)
 			state->scale = 1*16;
 #endif
 #ifdef PEXT_TRANS
-		state->trans = ent->v->alpha*255;
-		if (!ent->v->alpha)
+		state->trans = ent->xv->alpha*255;
+		if (!ent->xv->alpha)
 			state->trans = 255;
 
 		//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
 		if (client->edict)
-			if (((int)client->edict->v->dimension_see & (int)ent->v->dimension_ghost))
-				if (!((int)client->edict->v->dimension_see & ((int)ent->v->dimension_seen & ~(int)ent->v->dimension_ghost)) )
+			if (((int)client->edict->xv->dimension_see & (int)ent->xv->dimension_ghost))
+				if (!((int)client->edict->xv->dimension_see & ((int)ent->xv->dimension_seen & ~(int)ent->xv->dimension_ghost)) )
 				{
-					if (ent->v->dimension_ghost_alpha)
-						state->trans *= ent->v->dimension_ghost_alpha;
+					if (ent->xv->dimension_ghost_alpha)
+						state->trans *= ent->xv->dimension_ghost_alpha;
 					else
 						state->trans *= 0.5;
 				}
 #endif
 #ifdef PEXT_FATNESS
-		state->fatness = ent->v->fatness*2;
+		state->fatness = ent->xv->fatness*2;
 #endif
 	}
 #ifdef NQPROT

@@ -660,7 +660,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 					goto inrange;
 			}
 			else if (svprogfuncs)
-				if (!((int)client->edict->v->dimension_see & dimension_mask))
+				if (!((int)client->edict->xv->dimension_see & dimension_mask))
 					continue;
 
 			// -1 is because pvs rows are 1 based, not 0 based like leafs
@@ -878,9 +878,9 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 		MSG_WriteCoord (&sv.nqmulticast, origin[i]);
 #endif
 	if (use_phs)
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, entity->v->dimension_seen, requiredextensions, 0);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, entity->xv->dimension_seen, requiredextensions, 0);
 	else
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, entity->v->dimension_seen, requiredextensions, 0);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, entity->xv->dimension_seen, requiredextensions, 0);
 }
 
 /*
@@ -1290,22 +1290,22 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 
 	// stuff the sigil bits into the high bits of items for sbar
 	if (pr_items2)
-		stats[STAT_ITEMS] = (int)ent->v->items | ((int)ent->v->items2 << 23);
+		stats[STAT_ITEMS] = (int)ent->v->items | ((int)ent->xv->items2 << 23);
 	else
 		stats[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
 
 	stats[STAT_VIEWHEIGHT] = ent->v->view_ofs[2];
 #ifdef PEXT_VIEW2
-	if (ent->v->view2)
-		stats[STAT_VIEW2] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, ent->v->view2));
+	if (ent->xv->view2)
+		stats[STAT_VIEW2] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, ent->xv->view2));
 	else
 		stats[STAT_VIEW2] = 0;
 #endif
 
-	if (!ent->v->viewzoom)
+	if (!ent->xv->viewzoom)
 		stats[STAT_VIEWZOOM] = 255;
 	else
-		stats[STAT_VIEWZOOM] = ent->v->viewzoom*255;
+		stats[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
 
 	if (host_client->protocol == SCP_DARKPLACES7)
 	{
@@ -1529,13 +1529,13 @@ void SV_UpdateToReliableMessages (void)
 // check for changes to be sent over the reliable streams to all clients
 	for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
 	{
-		if (svs.gametype == GT_PROGS && host_client->state == cs_spawned)
+		if ((svs.gametype == GT_Q1QVM || svs.gametype == GT_PROGS) && host_client->state == cs_spawned)
 		{
 			//DP_SV_CLIENTCOLORS
-			if (host_client->edict->v->clientcolors != host_client->playercolor)
+			if (host_client->edict->xv->clientcolors != host_client->playercolor)
 			{
-				Info_SetValueForKey(host_client->userinfo, "topcolor", va("%i", (int)host_client->edict->v->clientcolors/16), sizeof(host_client->userinfo));
-				Info_SetValueForKey(host_client->userinfo, "bottomcolor", va("%i", (int)host_client->edict->v->clientcolors&15), sizeof(host_client->userinfo));
+				Info_SetValueForKey(host_client->userinfo, "topcolor", va("%i", (int)host_client->edict->xv->clientcolors/16), sizeof(host_client->userinfo));
+				Info_SetValueForKey(host_client->userinfo, "bottomcolor", va("%i", (int)host_client->edict->xv->clientcolors&15), sizeof(host_client->userinfo));
 				{
 					SV_ExtractFromUserinfo (host_client);	//this will take care of nq for us anyway.
 
@@ -1634,7 +1634,7 @@ void SV_UpdateToReliableMessages (void)
 				// maxspeed/entgravity changes
 				ent = host_client->edict;
 
-				newval = ent->v->gravity*sv_gravity.value;
+				newval = ent->xv->gravity*sv_gravity.value;
 				if (progstype != PROG_QW)
 				{
 					if (!newval)
@@ -1650,14 +1650,14 @@ void SV_UpdateToReliableMessages (void)
 					}
 					host_client->entgravity = newval;
 				}
-				newval = ent->v->maxspeed;
+				newval = ent->xv->maxspeed;
 				if (progstype != PROG_QW)
 				{
 					if (!newval)
 						newval = sv_maxspeed.value;
 				}
-				if (ent->v->hasted)
-					newval*=ent->v->hasted;
+				if (ent->xv->hasted)
+					newval*=ent->xv->hasted;
 		#ifdef SVCHAT	//enforce a no moving time when chatting. Prevent client prediction going mad.
 				if (host_client->chat.active)
 					newval = 0;

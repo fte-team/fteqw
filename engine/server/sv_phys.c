@@ -158,7 +158,12 @@ qboolean SV_RunThink (edict_t *ent)
 		pr_global_struct->time = thinktime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
-		PR_ExecuteProgram (svprogfuncs, ent->v->think);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_Think();
+		else
+#endif
+			PR_ExecuteProgram (svprogfuncs, ent->v->think);
 		return !ent->isfree;
 	}
 
@@ -179,7 +184,12 @@ qboolean SV_RunThink (edict_t *ent)
 		pr_global_struct->time = thinktime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
-		PR_ExecuteProgram (svprogfuncs, ent->v->think);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_Think();
+		else
+#endif
+			PR_ExecuteProgram (svprogfuncs, ent->v->think);
 
 		if (ent->isfree)
 			return false;
@@ -210,14 +220,24 @@ void SV_Impact (edict_t *e1, edict_t *e2)
 	{
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, e1);
 		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, e2);
-		PR_ExecuteProgram (svprogfuncs, e1->v->touch);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_Touch();
+		else
+#endif
+			PR_ExecuteProgram (svprogfuncs, e1->v->touch);
 	}
 
 	if (e2->v->touch && e2->v->solid != SOLID_NOT)
 	{
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, e2);
 		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, e1);
-		PR_ExecuteProgram (svprogfuncs, e2->v->touch);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_Touch();
+		else
+#endif
+			PR_ExecuteProgram (svprogfuncs, e2->v->touch);
 	}
 
 	pr_global_struct->self = old_self;
@@ -641,7 +661,12 @@ qboolean SV_PushAngles (edict_t *pusher, vec3_t move, vec3_t amove)
 		{
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, pusher);
 			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, check);
-			PR_ExecuteProgram (svprogfuncs, pusher->v->blocked);
+#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+				Q1QVM_Blocked();
+			else
+#endif
+				PR_ExecuteProgram (svprogfuncs, pusher->v->blocked);
 		}
 
 		// move back any entities we already moved
@@ -791,7 +816,12 @@ qboolean SV_Push (edict_t *pusher, vec3_t move, vec3_t amove)
 		{
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, pusher);
 			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, check);
-			PR_ExecuteProgram (svprogfuncs, pusher->v->blocked);
+#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+				Q1QVM_Blocked();
+			else
+#endif
+				PR_ExecuteProgram (svprogfuncs, pusher->v->blocked);
 		}
 
 	// move back any entities we already moved
@@ -877,7 +907,12 @@ VectorCopy (ent->v->angles, oldang);
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
-		PR_ExecuteProgram (svprogfuncs, ent->v->think);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_Think();
+		else
+#endif
+			PR_ExecuteProgram (svprogfuncs, ent->v->think);
 		if (ent->isfree)
 			return;
 VectorSubtract (ent->v->origin, oldorg, move);
@@ -914,16 +949,16 @@ void SV_Physics_Follow (edict_t *ent)
 
 	// LordHavoc: implemented rotation on MOVETYPE_FOLLOW objects
 	e = PROG_TO_EDICT(svprogfuncs, ent->v->aiment);
-	if (e->v->angles[0] == ent->v->punchangle[0] && e->v->angles[1] == ent->v->punchangle[1] && e->v->angles[2] == ent->v->punchangle[2])
+	if (e->v->angles[0] == ent->xv->punchangle[0] && e->v->angles[1] == ent->xv->punchangle[1] && e->v->angles[2] == ent->xv->punchangle[2])
 	{
 		// quick case for no rotation
 		VectorAdd(e->v->origin, ent->v->view_ofs, ent->v->origin);
 	}
 	else
 	{
-		angles[0] = -ent->v->punchangle[0];
-		angles[1] =  ent->v->punchangle[1];
-		angles[2] =  ent->v->punchangle[2];
+		angles[0] = -ent->xv->punchangle[0];
+		angles[1] =  ent->xv->punchangle[1];
+		angles[2] =  ent->xv->punchangle[2];
 		AngleVectors (angles, vf, vr, vu);
 		v[0] = ent->v->view_ofs[0] * vf[0] + ent->v->view_ofs[1] * vr[0] + ent->v->view_ofs[2] * vu[0];
 		v[1] = ent->v->view_ofs[0] * vf[1] + ent->v->view_ofs[1] * vr[1] + ent->v->view_ofs[2] * vu[1];
@@ -1171,7 +1206,12 @@ void SV_ProgStartFrame (void)
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
 	pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
 	pr_global_struct->time = sv.time;
-	PR_ExecuteProgram (svprogfuncs, pr_global_struct->StartFrame);
+#ifdef VM_Q1
+	if (svs.gametype == GT_Q1QVM)
+		Q1QVM_StartFrame();
+	else
+#endif
+		PR_ExecuteProgram (svprogfuncs, pr_global_struct->StartFrame);
 }
 
 
@@ -1721,8 +1761,13 @@ void SV_RunEntity (edict_t *ent)
 	//
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-		if (pr_global_struct->PlayerPreThink)
-			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_PlayerPreThink();
+		else
+#endif
+			if (pr_global_struct->PlayerPreThink)
+				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
 
 		if (readyforjump)	//qw progs can't jump for themselves...
 		{
@@ -1739,7 +1784,7 @@ void SV_RunEntity (edict_t *ent)
 
 
 
-	movechain = PROG_TO_EDICT(svprogfuncs, ent->v->movechain);
+	movechain = PROG_TO_EDICT(svprogfuncs, ent->xv->movechain);
 	if (movechain != sv.edicts)
 	{
 		VectorCopy(ent->v->origin,initial_origin);
@@ -1777,7 +1822,7 @@ void SV_RunEntity (edict_t *ent)
 		if (!SV_RunThink (ent))
 			return;
 		if (!SV_CheckWater (ent) && ! ((int)ent->v->flags & FL_WATERJUMP) )
-			SV_AddGravity (ent, ent->v->gravity);
+			SV_AddGravity (ent, ent->xv->gravity);
 		SV_CheckStuck (ent);
 
 		SV_WalkMove (ent);
@@ -1800,17 +1845,22 @@ void SV_RunEntity (edict_t *ent)
 			VectorSubtract(ent->v->angles, initial_angle, moveang)
 			VectorSubtract(ent->v->origin, initial_origin, moveorg)
 
-			for(i=16;i && movechain != sv.edicts && !movechain->isfree;i--, movechain = PROG_TO_EDICT(svprogfuncs, movechain->v->movechain))
+			for(i=16;i && movechain != sv.edicts && !movechain->isfree;i--, movechain = PROG_TO_EDICT(svprogfuncs, movechain->xv->movechain))
 			{
 				if ((int)movechain->v->flags & FL_MOVECHAIN_ANGLE)
 					VectorAdd(movechain->v->angles, moveang, movechain->v->angles);
 				VectorAdd(movechain->v->origin, moveorg, movechain->v->origin);
 
-				if (movechain->v->chainmoved && callfunc)
+				if (movechain->xv->chainmoved && callfunc)
 				{
 					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, movechain);
 					pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
-					PR_ExecuteProgram(svprogfuncs, movechain->v->chainmoved);
+#ifdef VM_Q1
+					if (svs.gametype == GT_Q1QVM)
+						Q1QVM_ChainMoved();
+					else
+#endif
+						PR_ExecuteProgram(svprogfuncs, movechain->xv->chainmoved);
 				}
 			}
 		}
@@ -1822,8 +1872,15 @@ void SV_RunEntity (edict_t *ent)
 
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-		if (pr_global_struct->PlayerPostThink)
-			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_PostThink();
+		else
+#endif
+		{
+			if (pr_global_struct->PlayerPostThink)
+				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
+		}
 	}
 }
 
@@ -1864,7 +1921,7 @@ trace_t SV_Trace_Toss (edict_t *tossent, edict_t *ignore)
 	vec3_t origin, velocity;
 
 	// this has to fetch the field from the original edict, since our copy is truncated
-	gravity = tossent->v->gravity;
+	gravity = tossent->xv->gravity;
 	if (!gravity)
 		gravity = 1.0;
 	gravity *= sv_gravity.value * 0.05;
@@ -1910,7 +1967,7 @@ qboolean SV_Physics (void)
 	static double	old_time;
 
 
-	if (svs.gametype != GT_PROGS)	//make tics multiples of sv_maxtic (defaults to 0.1)
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)	//make tics multiples of sv_maxtic (defaults to 0.1)
 	{
 		host_frametime = sv.time - old_time;
 		if (host_frametime<0)
@@ -2008,7 +2065,17 @@ qboolean SV_Physics (void)
 	if (retouch)
 		pr_global_struct->force_retouch-=1;
 
-	if (EndFrameQC)
+#ifdef VM_Q1
+	if (svs.gametype == GT_Q1QVM)
+	{
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+		pr_global_struct->time = sv.time;
+		Q1QVM_EndFrame();
+	}
+	else
+#endif
+		if (EndFrameQC)
 	{
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
 		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);

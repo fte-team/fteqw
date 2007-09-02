@@ -69,9 +69,16 @@ typedef struct edict_s
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
 	qboolean	readonly;	//world
-	entvars_t		*v;
+
+#ifndef VM_Q1
+	stdentvars_t		*v;
+	#define xv v
+#else
+	stdentvars_t		*v;
 
 	//the rest is free for adaption
+	extentvars_t	*xv;
+#endif
 	link_t		area;				// linked to a division node or leaf
 
 	int			num_leafs;

@@ -84,13 +84,13 @@ typedef struct nqglobalvars_s
 
 #define P_VEC(v) (pr_global_struct->V_##v)
 
-typedef struct entvars_s
+typedef struct stdentvars_s //standard = standard for qw
 {
 	float	modelindex;
 	vec3_t	absmin;
 	vec3_t	absmax;
 	float	ltime;
-	int		lastruntime;
+	int		lastruntime;	//type doesn't match the qc, we use a hidden double instead. this is dead.
 	float	movetype;
 	float	solid;
 	vec3_t	origin;
@@ -128,14 +128,8 @@ typedef struct entvars_s
 	float	deadflag;
 	vec3_t	view_ofs;
 	float	button0;
-	float	button1;
+	float	button1;	//dead field in nq mode
 	float	button2;
-	float	button3;	//3 and 1 are the same
-	float	button4;
-	float	button5;
-	float	button6;
-	float	button7;
-	float	button8;
 	float	impulse;
 	float	fixangle;
 	vec3_t	v_angle;
@@ -162,32 +156,47 @@ typedef struct entvars_s
 	int	dmg_inflictor;
 	int	owner;
 	vec3_t	movedir;
+	string_t	message;	//WARNING: hexen2 uses a float and not a string
 	float	sounds;
 	string_t	noise;
 	string_t	noise1;
 	string_t	noise2;
 	string_t	noise3;
 
+#ifdef VM_Q1
+} stdentvars_t;
+
+typedef struct extentvars_s
+{
+#endif
+
 	//extra vars. use these if you wish.
-	float	gravity;
-	float	maxspeed;
-	float	items2;
-	vec3_t	punchangle;
-	float	scale;
-	float	alpha;
-	float	fatness;
-	int		view2;
+	float	maxspeed;	//added in quake 1.09
+	float	gravity;	//added in quake 1.09 (for hipnotic)
+	float	items2;		//added in quake 1.09 (for hipnotic)
+	vec3_t	punchangle; //std in nq
+
+	float	scale;	//DP_ENT_SCALE
+	float	alpha;	//DP_ENT_ALPHA
+	float	fatness;	//FTE_PEXT_FATNESS
+	int		view2;	//FTE_PEXT_VIEW2
 	float	fteflags;
-	vec3_t	movement;
+	vec3_t	movement;	
 	float	vweapmodelindex;
 
 	//dp extra fields
-	int		nodrawtoclient;
+	int		nodrawtoclient;		//
 	int		drawonlytoclient;
-	int		viewmodelforclient;
+	int		viewmodelforclient;	//DP_ENT_VIEWMODEL
 	int		exteriormodeltoclient;
+	float	button3;	//DP_INPUTBUTTONS (note in qw, we set 1 to equal 3, to match zquake/fuhquake/mvdsv)
+	float	button4;
+	float	button5;
+	float	button6;
+	float	button7;
+	float	button8;
 
-	float	viewzoom;
+	float	viewzoom;	//DP_VIEWZOOM
 
 	int		tag_entity;
 	float	tag_index;
@@ -218,7 +227,7 @@ typedef struct entvars_s
 	float	hull;
 	float	drawflags;
 
-	int		movechain;
+	int	movechain;
 	func_t	chainmoved;
 
 	float	light_level;//hexen2's grabbing light level from client
@@ -228,5 +237,10 @@ typedef struct entvars_s
 	//csqc stuph.
 	func_t	SendEntity;
 	float	Version;
-} entvars_t;
+
+#ifdef VM_Q1
+} extentvars_t;
+#else
+} stdentvars_t;
+#endif
 

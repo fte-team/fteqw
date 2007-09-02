@@ -150,13 +150,17 @@ pbool QC_WriteFile(char *name, void *data, int len)
 
 void ED_Spawned (struct edict_s *ent)
 {
-	ent->v->dimension_see = 255;
-	ent->v->dimension_seen = 255;
-	ent->v->dimension_ghost = 0;
-	ent->v->dimension_solid = 255;
-	ent->v->dimension_hit = 255;
+#ifdef VM_Q1
+	if (!ent->xv)
+		ent->xv = (extentvars_t *)(ent->v+1);
+#endif
+	ent->xv->dimension_see = 255;
+	ent->xv->dimension_seen = 255;
+	ent->xv->dimension_ghost = 0;
+	ent->xv->dimension_solid = 255;
+	ent->xv->dimension_hit = 255;
 
-	ent->v->Version = sv.csqcentversion[ent->entnum]+1;
+	ent->xv->Version = sv.csqcentversion[ent->entnum]+1;
 }
 
 pbool ED_CanFree (edict_t *ed)
@@ -203,15 +207,15 @@ pbool ED_CanFree (edict_t *ed)
 		ed->v->think = 0;
 	}
 
-	ed->v->SendEntity = 0;
-	sv.csqcentversion[ed->entnum] = ed->v->Version+1;
+	ed->xv->SendEntity = 0;
+	sv.csqcentversion[ed->entnum] = ed->xv->Version+1;
 
 	return true;
 }
 
 void StateOp (progfuncs_t *prinst, float var, func_t func)
 {
-	entvars_t *vars = PROG_TO_EDICT(prinst, pr_global_struct->self)->v;
+	stdentvars_t *vars = PROG_TO_EDICT(prinst, pr_global_struct->self)->v;
 	if (progstype == PROG_H2)
 		vars->nextthink = pr_global_struct->time+0.05;
 	else
@@ -221,7 +225,7 @@ void StateOp (progfuncs_t *prinst, float var, func_t func)
 }
 void CStateOp (progfuncs_t *prinst, float startFrame, float endFrame, func_t currentfunc)
 {
-	entvars_t *vars = PROG_TO_EDICT(prinst, pr_global_struct->self)->v;
+	stdentvars_t *vars = PROG_TO_EDICT(prinst, pr_global_struct->self)->v;
 
 	vars->nextthink = pr_global_struct->time+0.05;
 	vars->think = currentfunc;
@@ -257,7 +261,7 @@ void CStateOp (progfuncs_t *prinst, float startFrame, float endFrame, func_t cur
 }
 void CWStateOp (progfuncs_t *prinst, float startFrame, float endFrame, func_t currentfunc)
 {
-	entvars_t *vars = PROG_TO_EDICT(prinst, pr_global_struct->self)->v;
+	stdentvars_t *vars = PROG_TO_EDICT(prinst, pr_global_struct->self)->v;
 
 	vars->nextthink = pr_global_struct->time+0.05;
 	vars->think = currentfunc;
@@ -294,7 +298,7 @@ void CWStateOp (progfuncs_t *prinst, float startFrame, float endFrame, func_t cu
 
 void ThinkTimeOp (progfuncs_t *prinst, edict_t *ed, float var)
 {
-	entvars_t *vars = ed->v;
+	stdentvars_t *vars = ed->v;
 #ifdef PARANOID
 	NUM_FOR_EDICT(ed); // Make sure it's in range
 #endif
@@ -429,7 +433,8 @@ void PR_Deinit(void)
 	if (svprogfuncs)
 	{
 		PR_fclose_progs(svprogfuncs);
-		CloseProgs(svprogfuncs);
+		if (svprogfuncs->parms)
+			CloseProgs(svprogfuncs);
 
 		Z_FreeTags(Z_QC_TAG);
 	}
@@ -1442,8 +1447,29 @@ qboolean PR_UserCmd(char *s)
 		return true;
 	}
 
+#ifdef VM_Q1
+	if (svs.gametype == GT_Q1QVM)
+	{
+		pr_global_struct->time = sv.time;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		Q1QVM_ClientCommand();
+		return true;	//qvm can print something if it wants
+	}
+#endif
+
 	if (mod_UserCmd && pr_imitatemvdsv.value >= 0)
 	{	//we didn't recognise it. see if the mod does.
+
+		//ktpro bug warning:
+		//admin + judge. I don't know the exact rules behind this bug, so I just ban the entire command
+		//I can't be arsed detecting ktpro specifically, so assume we're always running ktpro
+		
+		if (!strncmp(s, "admin", 5) || !strncmp(s, "judge", 5))
+		{
+			Con_Printf("Blocking potentially unsafe ktpro command: %s\n", s);
+			return true;
+		}
+
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
@@ -1919,15 +1945,10 @@ setmodel(entity, model)
 Also sets size, mins, and maxs for inline bmodels
 =================
 */
-void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 {
-	edict_t	*e;
-	char	*m;
 	int		i;
 	model_t	*mod;
-
-	e = G_EDICT(prinst, OFS_PARM0);
-	m = PR_GetStringOfs(prinst, OFS_PARM1);
 
 // check to see if model was properly precached
 	if (!m || !*m)
@@ -2053,6 +2074,17 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			//qw was fixed - it never sets the size of an alias model.
 		}
 	}
+}
+
+void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t	*e;
+	char	*m;
+
+	e = G_EDICT(prinst, OFS_PARM0);
+	m = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	PF_setmodel_Internal(prinst, e, m);
 }
 
 void PF_set_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2821,7 +2853,7 @@ if the tryents flag is set.
 traceline (vector1, vector2, tryents)
 =================
 */
-static void PF_traceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v1, *v2, *mins, *maxs;
 	trace_t	trace;
@@ -2845,10 +2877,10 @@ static void PF_traceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		maxs = vec3_origin;
 	}
 
-	savedhull = ent->v->hull;
-	ent->v->hull = 0;
+	savedhull = ent->xv->hull;
+	ent->xv->hull = 0;
 	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
-	ent->v->hull = savedhull;
+	ent->xv->hull = savedhull;
 
 	if (trace.startsolid)
 		if (!sv_gameplayfix_honest_tracelines.value)
@@ -2888,10 +2920,10 @@ static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	nomonsters = G_FLOAT(OFS_PARM4);
 	ent = G_EDICT(prinst, OFS_PARM5);
 
-	savedhull = ent->v->hull;
-	ent->v->hull = 0;
+	savedhull = ent->xv->hull;
+	ent->xv->hull = 0;
 	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
-	ent->v->hull = savedhull;
+	ent->xv->hull = savedhull;
 
 	pr_global_struct->trace_allsolid = trace.allsolid;
 	pr_global_struct->trace_startsolid = trace.startsolid;
@@ -2924,10 +2956,10 @@ static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	nomonsters = G_FLOAT(OFS_PARM4);
 	ent = G_EDICT(prinst, OFS_PARM5);
 
-	savedhull = ent->v->hull;
-	ent->v->hull = 0;
+	savedhull = ent->xv->hull;
+	ent->xv->hull = 0;
 	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
-	ent->v->hull = savedhull;
+	ent->xv->hull = savedhull;
 
 	pr_global_struct->trace_allsolid = trace.allsolid;
 	pr_global_struct->trace_startsolid = trace.startsolid;
@@ -3663,20 +3695,9 @@ void PF_precache_file (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 }
 
-void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_precache_sound_Internal (progfuncs_t *prinst, char *s)
 {
-	char	*s;
 	int		i;
-
-	s = PR_GetStringOfs(prinst, OFS_PARM0);
-/*
-	if (sv.state != ss_loading)
-	{
-		PR_BIError (prinst, "PF_Precache_*: Precache can only be done in spawn functions (%s)", s);
-		return;
-	}
-*/
-	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 
 	if (s[0] <= ' ')
 	{
@@ -3709,22 +3730,20 @@ void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 	PR_BIError (prinst, "PF_precache_sound: overflow");
 }
-
-void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
-	int		i;
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
-/*
-	if (sv.state != ss_loading)
-	{
-		PR_BIError (prinst, "PF_Precache_*: Precache can only be done in spawn functions (%s)", s);
-		G_FLOAT(OFS_RETURN) = 1;
-		return;
-	}
-*/
+
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
+
+	PF_precache_sound_Internal(prinst, s);
+}
+
+void PF_precache_model_Internal (progfuncs_t *prinst, char *s)
+{
+	int		i;
 
 	if (s[0] <= ' ')
 	{
@@ -3765,6 +3784,16 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 	}
 	PR_BIError (prinst, "PF_precache_model: overflow");
+}
+void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*s;
+
+	s = PR_GetStringOfs(prinst, OFS_PARM0);
+	
+	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
+
+	PF_precache_model_Internal(prinst, s);
 }
 
 void PF_precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5042,7 +5071,7 @@ void PF_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	mdlindex = SV_ModelIndex(PR_GetString(prinst, ent->v->model));
 
-	if (ent->v->drawflags || ent->v->alpha || mdlindex > 255 || ent->v->frame > 255 || ent->v->scale || ent->v->abslight)
+	if (ent->xv->drawflags || ent->xv->alpha || mdlindex > 255 || ent->v->frame > 255 || ent->xv->scale || ent->xv->abslight)
 	{
 		if (sv.numextrastatics==sizeof(sv.extendedstatics)/sizeof(sv.extendedstatics[0]))
 			return;	//fail the whole makestatic thing.
@@ -5058,14 +5087,14 @@ void PF_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		state->colormap = ent->v->colormap;
 		state->skinnum = ent->v->skin;
 		state->effects = ent->v->effects;
-		state->hexen2flags = ent->v->drawflags;
-		state->abslight = (int)(ent->v->abslight*255) & 255;
-		state->trans = ent->v->alpha*255;
-		if (!ent->v->alpha)
+		state->hexen2flags = ent->xv->drawflags;
+		state->abslight = (int)(ent->xv->abslight*255) & 255;
+		state->trans = ent->xv->alpha*255;
+		if (!ent->xv->alpha)
 			state->trans = 255;
-		state->fatness = ent->v->fatness;
-		state->scale = ent->v->scale*16.0;
-		if (!ent->v->scale)
+		state->fatness = ent->xv->fatness;
+		state->scale = ent->xv->scale*16.0;
+		if (!ent->xv->scale)
 			state->scale = 1*16;
 
 		if (progstype != PROG_QW)	//don't send extra nq effects to a qw client.
@@ -5195,6 +5224,55 @@ PF_infokey
 string(entity e, string key) infokey
 ==============
 */
+char *PF_infokey_Internal (int entnum, char *key)
+{
+	char	*value;
+	char ov[256];
+
+
+	if (entnum == 0)
+	{
+		if (pr_imitatemvdsv.value && !strcmp(key, "*version"))
+			value = "2.40";
+		else
+		{
+			if ((value = Info_ValueForKey (svs.info, key)) == NULL || !*value)
+				value = Info_ValueForKey(localinfo, key);
+		}
+	}
+	else if (entnum <= MAX_CLIENTS)
+	{
+		value = ov;
+		if (!strcmp(key, "ip") || !strcmp(key, "realip"))	//note: FTE doesn't support mvdsv's realip stuff, so pretend that we do if the mod asks
+			value = strcpy(ov, NET_BaseAdrToString (svs.clients[entnum-1].netchan.remote_address));
+		else if (!strcmp(key, "ping"))
+			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1]));
+		else if (!strcmp(key, "*userid"))
+			sprintf(ov, "%d", svs.clients[entnum-1].userid);
+		else if (!strcmp(key, "download"))
+			sprintf(ov, "%d", svs.clients[entnum-1].download != NULL ? (int)(100*svs.clients[entnum-1].downloadcount/svs.clients[entnum-1].downloadsize) : -1);
+//		else if (!strcmp(key, "login"))	//mvdsv
+//			value = "";
+		else if (!strcmp(key, "trustlevel"))	//info for progs.
+		{
+#ifdef SVRANKING
+			rankstats_t rs;
+			if (!svs.clients[entnum-1].rankid)
+				value = "";
+			else if (Rank_GetPlayerStats(svs.clients[entnum-1].rankid, &rs))
+				sprintf(ov, "%d", rs.trustlevel);
+			else
+#endif
+				value = "";
+		}
+		else
+			value = Info_ValueForKey (svs.clients[entnum-1].userinfo, key);
+	} else
+		value = "";
+
+	return value;
+}
+
 void PF_infokey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*e;
@@ -5207,45 +5285,7 @@ void PF_infokey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	e1 = NUM_FOR_EDICT(prinst, e);
 	key = PR_GetStringOfs(prinst, OFS_PARM1);
 
-	if (e1 == 0)
-	{
-		if (pr_imitatemvdsv.value && !strcmp(key, "*version"))
-			value = "2.40";
-		else
-		{
-			if ((value = Info_ValueForKey (svs.info, key)) == NULL || !*value)
-				value = Info_ValueForKey(localinfo, key);
-		}
-	}
-	else if (e1 <= MAX_CLIENTS)
-	{
-		value = ov;
-		if (!strcmp(key, "ip") || !strcmp(key, "realip"))	//note: FTE doesn't support mvdsv's realip stuff, so pretend that we do if the mod asks
-			value = strcpy(ov, NET_BaseAdrToString (svs.clients[e1-1].netchan.remote_address));
-		else if (!strcmp(key, "ping"))
-			sprintf(ov, "%d", SV_CalcPing (&svs.clients[e1-1]));
-		else if (!strcmp(key, "*userid"))
-			sprintf(ov, "%d", svs.clients[e1-1].userid);
-		else if (!strcmp(key, "download"))
-			sprintf(ov, "%d", svs.clients[e1-1].download != NULL ? (int)(100*svs.clients[e1-1].downloadcount/svs.clients[e1-1].downloadsize) : -1);
-//		else if (!strcmp(key, "login"))	//mvdsv
-//			value = "";
-		else if (!strcmp(key, "trustlevel"))	//info for progs.
-		{
-#ifdef SVRANKING
-			rankstats_t rs;
-			if (!svs.clients[e1-1].rankid)
-				value = "";
-			else if (Rank_GetPlayerStats(svs.clients[e1-1].rankid, &rs))
-				sprintf(ov, "%d", rs.trustlevel);
-			else
-#endif
-				value = "";
-		}
-		else
-			value = Info_ValueForKey (svs.clients[e1-1].userinfo, key);
-	} else
-		value = "";
+	value = PF_infokey_Internal (e1, key);
 
 	G_INT(OFS_RETURN) = PR_TempString(prinst, value);
 }
@@ -7486,7 +7526,7 @@ void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
 		return;
 	if (cl->playerclass != classnum)
 	{
-		cl->edict->v->playerclass = classnum;
+		cl->edict->xv->playerclass = classnum;
 		cl->playerclass = classnum;
 
 		sprintf(temp,"%i",(int)classnum);
@@ -7525,7 +7565,7 @@ void PF_setclass (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	client = &svs.clients[entnum-1];
 
-	e->v->playerclass = NewClass;
+	e->xv->playerclass = NewClass;
 	client->playerclass = NewClass;
 
 	sprintf(temp,"%d",(int)NewClass);
@@ -8942,8 +8982,8 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	}
 
-	e->v->tag_entity = EDICT_TO_PROG(prinst,tagentity);
-	e->v->tag_index = tagidx;
+	e->xv->tag_entity = EDICT_TO_PROG(prinst,tagentity);
+	e->xv->tag_index = tagidx;
 }
 
 // #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
@@ -9320,7 +9360,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"vectoyaw",		PF_vectoyaw,		13,		13,		13},	// float(vector v) vectoyaw		= #13;
 	{"spawn",			PF_Spawn,			14,		14,		14},	// entity() spawn						= #14;
 	{"remove",			PF_Remove,			15,		15,		15},	// void(entity e) remove				= #15;
-	{"traceline",		PF_traceline,		16,		16,		16},	// float(vector v1, vector v2, float tryents) traceline = #16;
+	{"traceline",		PF_svtraceline,		16,		16,		16},	// float(vector v1, vector v2, float tryents) traceline = #16;
 	{"checkclient",		PF_checkclient,		17,		17,		17},	// entity() clientlist					= #17;
 	{"find",			PF_FindString,		18,		18,		18},	// entity(entity start, .string fld, string match) find = #18;
 	{"precache_sound",	PF_precache_sound,	19,		19,		19},	// void(string s) precache_sound		= #19;
@@ -9896,11 +9936,25 @@ int pr_numbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 
 void PR_RegisterFields(void)	//it's just easier to do it this way.
 {
-#define fieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, (int)&((entvars_t*)0)->name, -1)
-#define fieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, (int)&((entvars_t*)0)->name, -1)
-#define fieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, (int)&((entvars_t*)0)->name, -1)
-#define fieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, (int)&((entvars_t*)0)->name, -1)
-#define fieldfunction(name) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, (int)&((entvars_t*)0)->name, -1)
+#define fieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, (int)&((stdentvars_t*)0)->name, -1)
+#define fieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, (int)&((stdentvars_t*)0)->name, -1)
+#define fieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, (int)&((stdentvars_t*)0)->name, -1)
+#define fieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, (int)&((stdentvars_t*)0)->name, -1)
+#define fieldfunction(name) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, (int)&((stdentvars_t*)0)->name, -1)
+
+#ifdef VM_Q1
+#define fieldxfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
+#define fieldxvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
+#define fieldxentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
+#define fieldxstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
+#define fieldxfunction(name) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
+#else
+#define fieldxfloat fieldfloat
+#define fieldxvector fieldvector
+#define fieldxentity fieldentity
+#define fieldxstring fieldstring
+#define fieldxfunction fieldfunction
+#endif
 
 	fieldfloat(modelindex);
 	fieldvector(absmin);
@@ -9946,12 +10000,6 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldfloat(button0);
 	fieldfloat(button1);
 	fieldfloat(button2);
-	fieldfloat(button3);
-	fieldfloat(button4);
-	fieldfloat(button5);
-	fieldfloat(button6);
-	fieldfloat(button7);
-	fieldfloat(button8);
 	fieldfloat(impulse);
 	fieldfloat(fixangle);
 	fieldvector(v_angle);
@@ -9985,65 +10033,70 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldstring(noise3);
 
 //the rest are extras. (not in header)
-	fieldfloat(gravity);		//standard extension
-	fieldfloat(maxspeed);	//standard extension
-	fieldfloat(items2);	//standard nq
-	fieldvector(punchangle);//standard nq
-	fieldfloat(scale);
-	//fieldfloat(transparency);
-	fieldfloat(alpha);
-	fieldfloat(fatness);
-	fieldentity(view2);
-	fieldvector(movement);
-	fieldfloat(fteflags);
-	fieldfloat(vweapmodelindex);
+	fieldxfloat(button3);
+	fieldxfloat(button4);
+	fieldxfloat(button5);
+	fieldxfloat(button6);
+	fieldxfloat(button7);
+	fieldxfloat(button8);
+	fieldxfloat(gravity);		//standard extension
+	fieldxfloat(maxspeed);	//standard extension
+	fieldxfloat(items2);	//standard nq
+	fieldxvector(punchangle);//standard nq
+	fieldxfloat(scale);
+	fieldxfloat(alpha);
+	fieldxfloat(fatness);
+	fieldxentity(view2);
+	fieldxvector(movement);
+	fieldxfloat(fteflags);
+	fieldxfloat(vweapmodelindex);
 
 	//dp extra fields
-	fieldentity(nodrawtoclient);
-	fieldentity(drawonlytoclient);
-	fieldentity(viewmodelforclient);
-	fieldentity(exteriormodeltoclient);
+	fieldxentity(nodrawtoclient);
+	fieldxentity(drawonlytoclient);
+	fieldxentity(viewmodelforclient);
+	fieldxentity(exteriormodeltoclient);
 
-	fieldfloat(viewzoom);
+	fieldxfloat(viewzoom);
 
-	fieldentity(tag_entity);
-	fieldfloat(tag_index);
+	fieldxentity(tag_entity);
+	fieldxfloat(tag_index);
 
-	fieldfloat(glow_size);
-	fieldfloat(glow_color);
-	fieldfloat(glow_trail);
+	fieldxfloat(glow_size);
+	fieldxfloat(glow_color);
+	fieldxfloat(glow_trail);
 
-	fieldvector(colormod);
+	fieldxvector(colormod);
 
-	fieldvector(color);
-	fieldfloat(light_lev);
-	fieldfloat(style);
-	fieldfloat(pflags);
+	fieldxvector(color);
+	fieldxfloat(light_lev);
+	fieldxfloat(style);
+	fieldxfloat(pflags);
 
-	fieldfloat(clientcolors);
+	fieldxfloat(clientcolors);
 
 //hexen 2 stuff
-	fieldfloat(playerclass);
-	fieldfloat(hull);
-	fieldfloat(hasted);
+	fieldxfloat(playerclass);
+	fieldxfloat(hull);
+	fieldxfloat(hasted);
 
-	fieldfloat(light_level);
-	fieldfloat(abslight);
-	fieldfloat(drawflags);
-	fieldentity(movechain);
-	fieldfunction(chainmoved);
+	fieldxfloat(light_level);
+	fieldxfloat(abslight);
+	fieldxfloat(drawflags);
+	fieldxentity(movechain);
+	fieldxfunction(chainmoved);
 
 	//QSG_DIMENSION_PLANES
-	fieldfloat(dimension_see);
-	fieldfloat(dimension_seen);
-	fieldfloat(dimension_ghost);
-	fieldfloat(dimension_ghost_alpha);
-	fieldfloat(dimension_solid);
-	fieldfloat(dimension_hit);
+	fieldxfloat(dimension_see);
+	fieldxfloat(dimension_seen);
+	fieldxfloat(dimension_ghost);
+	fieldxfloat(dimension_ghost_alpha);
+	fieldxfloat(dimension_solid);
+	fieldxfloat(dimension_hit);
 
 
-	fieldfunction(SendEntity);
-	fieldfloat(Version);
+	fieldxfunction(SendEntity);
+	fieldxfloat(Version);
 
 	//Tell the qc library to split the entity fields each side.
 	//the fields above become < 0, the remaining fields specified by the qc stay where the mod specified, as far as possible (with addons at least).

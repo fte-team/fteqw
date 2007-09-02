@@ -856,16 +856,24 @@ void NPP_QWFlush(void)
 	case svc_updateuserinfo:
 		if (buffer[6])
 		{
-			Q_strncpyz(svs.clients[buffer[1]].userinfo, (buffer+6), sizeof(svs.clients[0].userinfo));
-			if (*Info_ValueForKey(svs.clients[buffer[1]].userinfo, "name"))
-				SV_ExtractFromUserinfo(&svs.clients[buffer[1]]);
-			else
-				*svs.clients[buffer[1]].name = '\0';
+			unsigned int j = buffer[1];
+			if (j < MAX_CLIENTS)
+			{
+				Q_strncpyz(svs.clients[j].userinfo, (buffer+6), sizeof(svs.clients[j].userinfo));
+				if (*Info_ValueForKey(svs.clients[j].userinfo, "name"))
+					SV_ExtractFromUserinfo(&svs.clients[j]);
+				else
+					*svs.clients[j].name = '\0';
+			}
 		}
 		else
 		{
-			*svs.clients[buffer[1]].name = '\0';
-			*svs.clients[buffer[1]].userinfo = '\0';
+			unsigned int j = buffer[1];
+			if (j < MAX_CLIENTS)
+			{
+				*svs.clients[j].name = '\0';
+				*svs.clients[j].userinfo = '\0';
+			}
 		}
 
 		break;
@@ -1766,10 +1774,13 @@ void NPP_MVDFlush(void)
 	case svc_updateuserinfo:
 //		ignoreprotocol = true;
 		{
-			int j;
+			unsigned int j;
 			j = buffer[1];
-			sv.recordedplayer[j].userid = buffer[2] | (buffer[3]<<8) | (buffer[4]<<16) | (buffer[5]<<24);
-			Q_strncpyz(sv.recordedplayer[j].userinfo, buffer+6, sizeof(sv.recordedplayer[j].userinfo));
+			if (j < MAX_CLIENTS)
+			{
+				sv.recordedplayer[j].userid = buffer[2] | (buffer[3]<<8) | (buffer[4]<<16) | (buffer[5]<<24);
+				Q_strncpyz(sv.recordedplayer[j].userinfo, buffer+6, sizeof(sv.recordedplayer[j].userinfo));
+			}
 		}
 		break;
 	case svc_setangle:	//FIXME: forward on to trackers.

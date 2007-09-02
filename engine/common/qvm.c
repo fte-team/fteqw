@@ -148,7 +148,13 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 		return 0;
 #endif
 
+#if defined(__amd64__)
+	sprintf(dllname, "%samd.so", name);
+#elif defined(_M_IX86) || defined(__i386__)
 	sprintf(dllname, "%sx86.so", name);
+#else
+	sprintf(dllname, "%sunk.so", name);
+#endif
 
 	hVM=NULL;
 	{

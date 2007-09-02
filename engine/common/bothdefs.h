@@ -126,6 +126,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PPL				//per pixel lighting (stencil shadowing)
 		#define DDS				//a sort of image file format.
 
+//fixme: test this a bit		#define VM_Q1			//q1 qvm gamecode interface
+
 		#define TCPCONNECT		//a tcpconnect command, that allows the player to connect to tcp-encapsulated qw protocols.
 
 		#define PLUGINS
@@ -149,7 +151,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifndef _WIN32
-	#undef QTERM
+	#undef QTERM	//not supported - FIXME: move to native plugin
+#endif
+
+#ifdef __amd64__
+	//nah... not gonna work too well
+	#undef VM_Q1
+	#undef Q3CLIENT
+	#undef Q3SERVER
+	#undef PLUGINS
 #endif
 
 #if (defined(Q2CLIENT) || defined(Q2SERVER))
@@ -174,14 +184,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef WEBCLIENT
 	#undef TEXTEDITOR
 	#undef RUNTIMELIGHTING
-//	#undef PLUGINS	//we don't have any server side stuff.
 	#undef Q3SHADERS
-	#undef TERRAIN
+	#undef TERRAIN	//not supported
 #endif
 #ifdef CLIENTONLY	//remove optional server componants that make no sence on a client only build.
 	#undef Q2SERVER
 	#undef Q3SERVER
 	#undef WEBSERVER
+	#undef VM_Q1
 
 	//this is regretable, but the csqc/ssqc needs a cleanup to move common builtins to a common c file.
 	#undef CSQC_DAT
@@ -230,7 +240,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define VM_UI
 #endif
 
-#if defined(VM_UI) || defined(VM_CG) || defined(Q3SERVER) || defined(PLUGINS)
+#if defined(VM_Q1) || defined(VM_UI) || defined(VM_CG) || defined(Q3SERVER) || defined(PLUGINS)
 	#define VM_ANY
 #endif
 
@@ -380,6 +390,7 @@ STAT_VIEW2			= 20,
 STAT_VIEWZOOM		= 21, // DP
 
 //note that hexen2 stats are only used in hexen2 gamemodes, and can be read by csqc without further server changes.
+//when running hexen2 mods, the server specifically sets up these stats for the csqc.
 STAT_H2_LEVEL	= 32,				// changes stat bar
 STAT_H2_INTELLIGENCE,				// changes stat bar
 STAT_H2_WISDOM,						// changes stat bar
@@ -456,28 +467,29 @@ STAT_H2_MAXHEALTH,
 STAT_H2_MAXMANA,
 STAT_H2_FLAGS,
 
-MAX_CL_STATS = 256
 
 
-#define STAT_MOVEVARS_WALLFRICTION					237 // DP
-#define STAT_MOVEVARS_FRICTION						238 // DP
-#define STAT_MOVEVARS_WATERFRICTION					239 // DP
-#define STAT_MOVEVARS_TICRATE						240 // DP
-#define STAT_MOVEVARS_TIMESCALE						241 // DP
-#define STAT_MOVEVARS_GRAVITY						242 // DP
-#define STAT_MOVEVARS_STOPSPEED						243 // DP
-#define STAT_MOVEVARS_MAXSPEED						244 // DP
-#define STAT_MOVEVARS_SPECTATORMAXSPEED				245 // DP
-#define STAT_MOVEVARS_ACCELERATE					246 // DP
-#define STAT_MOVEVARS_AIRACCELERATE					247 // DP
-#define STAT_MOVEVARS_WATERACCELERATE				248 // DP
-#define STAT_MOVEVARS_ENTGRAVITY					249 // DP
-#define STAT_MOVEVARS_JUMPVELOCITY					250 // DP
-#define STAT_MOVEVARS_EDGEFRICTION					251 // DP
-#define STAT_MOVEVARS_MAXAIRSPEED					252 // DP
-#define STAT_MOVEVARS_STEPHEIGHT					253 // DP
-#define STAT_MOVEVARS_AIRACCEL_QW					254 // DP
-#define STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION	255 // DP
+STAT_MOVEVARS_WALLFRICTION			= 237, // DP
+STAT_MOVEVARS_FRICTION				= 238, // DP
+STAT_MOVEVARS_WATERFRICTION			= 239, // DP
+STAT_MOVEVARS_TICRATE				= 240, // DP
+STAT_MOVEVARS_TIMESCALE				= 241, // DP
+STAT_MOVEVARS_GRAVITY				= 242, // DP
+STAT_MOVEVARS_STOPSPEED				= 243, // DP
+STAT_MOVEVARS_MAXSPEED				= 244, // DP
+STAT_MOVEVARS_SPECTATORMAXSPEED			= 245, // DP
+STAT_MOVEVARS_ACCELERATE			= 246, // DP
+STAT_MOVEVARS_AIRACCELERATE			= 247, // DP
+STAT_MOVEVARS_WATERACCELERATE			= 248, // DP
+STAT_MOVEVARS_ENTGRAVITY			= 249, // DP
+STAT_MOVEVARS_JUMPVELOCITY			= 250, // DP
+STAT_MOVEVARS_EDGEFRICTION			= 251, // DP
+STAT_MOVEVARS_MAXAIRSPEED			= 252, // DP
+STAT_MOVEVARS_STEPHEIGHT			= 253, // DP
+STAT_MOVEVARS_AIRACCEL_QW			= 254, // DP
+STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION	= 255, // DP
+
+	MAX_CL_STATS = 256
 };
 
 //

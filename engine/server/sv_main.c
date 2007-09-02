@@ -226,6 +226,7 @@ void SV_Shutdown (void)
 		sv_fraglogfile = NULL;
 	}
 
+	
 	PR_Deinit();
 
 	if (sv.mvdrecording)
@@ -265,7 +266,7 @@ void VARGS SV_Error (char *error, ...)
 	{
 		extern cvar_t pr_ssqc_coreonerror;
 
-		if (svprogfuncs && pr_ssqc_coreonerror.value)
+		if (svprogfuncs && pr_ssqc_coreonerror.value && svprogfuncs->save_ents)
 		{
 			int size = 1024*1024*8;
 			char *buffer = BZ_Malloc(size);
@@ -419,24 +420,36 @@ void SV_DropClient (client_t *drop)
 	{
 	case GT_MAX:
 		break;
+#ifdef VM_Q1
+	case GT_Q1QVM:
+#endif
 	case GT_PROGS:
 		if (svprogfuncs)
 		{
 			if (drop->state == cs_spawned)
 			{
-				if (!drop->spectator)
+#ifdef VM_Q1
+				if (svs.gametype == GT_Q1QVM)
 				{
-					// call the prog function for removing a client
-					// this will set the body to a dead frame, among other things
-					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
-					PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+					Q1QVM_DropClient(drop);
 				}
-				else if (SpectatorDisconnect)
+				else
+#endif
 				{
+					if (!drop->spectator)
+					{
 					// call the prog function for removing a client
 					// this will set the body to a dead frame, among other things
-					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
-					PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
+						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
+						PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+					}
+					else if (SpectatorDisconnect)
+					{
+					// call the prog function for removing a client
+					// this will set the body to a dead frame, among other things
+						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
+						PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
+					}
 				}
 			}
 
@@ -516,7 +529,7 @@ void SV_DropClient (client_t *drop)
 		drop->frameunion.frames = NULL;
 	}
 
-	if (svs.gametype == GT_PROGS)	//gamecode should do it all for us.
+	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)	//gamecode should do it all for us.
 	{
 // send notification to all remaining clients
 		SV_FullClientUpdate (drop, &sv.reliable_datagram, 0);
@@ -1220,7 +1233,7 @@ void SVC_GetChallenge (void)
 
 		over = buf + strlen(buf) + 1;
 
-		if (svs.gametype == GT_PROGS)
+		if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 		{
 #ifdef PROTOCOL_VERSION_FTE
 			//tell the client what fte extensions we support
@@ -1250,7 +1263,7 @@ void SVC_GetChallenge (void)
 			}
 #endif
 		}
-		if (sv_listen_qw.value || svs.gametype != GT_PROGS)
+		if (sv_listen_qw.value || (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM))
 			Netchan_OutOfBand(NS_SERVER, net_from, over-buf, buf);
 
 		if (sv_listen_dp.value && (sv_listen_nq.value || sv_bigcoords.value || !sv_listen_qw.value))
@@ -1271,8 +1284,15 @@ void SV_GetNewSpawnParms(client_t *cl)
 	if (svprogfuncs)	//q2 dlls don't use parms in this mannor. It's all internal to the dll.
 	{
 		// call the progs to get default spawn parms for the new client
-		if (pr_nqglobal_struct->SetNewParms)
-			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_SetNewParms();
+		else
+#endif
+		{
+			if (pr_nqglobal_struct->SetNewParms)
+				PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
+		}
 		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 		{
 			if (spawnparamglobals[i])
@@ -1817,6 +1837,9 @@ client_t *SVC_DirectConnect(void)
 	edictnum = (newcl-svs.clients)+1;
 	switch (svs.gametype)
 	{
+#ifdef VM_Q1
+	case GT_Q1QVM:
+#endif
 	case GT_PROGS:
 		ent = EDICT_NUM(svprogfuncs, edictnum);
 #ifdef Q2SERVER
@@ -3818,9 +3841,9 @@ void SV_ExtractFromUserinfo (client_t *cl)
 		if (bottom > 13)
 			bottom = 13;
 		cl->playercolor = top*16 + bottom;
-		if (svs.gametype == GT_PROGS)
+		if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 		{
-			cl->edict->v->clientcolors = cl->playercolor;
+			cl->edict->xv->clientcolors = cl->playercolor;
 			MSG_WriteByte (&sv.nqreliable_datagram, svc_updatecolors);
 			MSG_WriteByte (&sv.nqreliable_datagram, cl-svs.clients);
 			MSG_WriteByte (&sv.nqreliable_datagram, cl->playercolor);
@@ -3931,7 +3954,10 @@ void SV_Init (quakeparms_t *parms)
 		Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 		Con_TPrintf (TL_HEAPSIZE,parms->memsize/ (1024*1024.0));
 
-		Con_TPrintf (TL_VERSION, DISTRIBUTION, build_number());
+		if (sizeof(void*) == 8)
+			Con_TPrintf (TL_VERSION, DISTRIBUTION"-64", build_number());
+		else
+			Con_TPrintf (TL_VERSION, DISTRIBUTION"-32", build_number());
 
 		Con_TPrintf (STL_INITED);
 

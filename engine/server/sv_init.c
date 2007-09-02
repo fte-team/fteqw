@@ -209,17 +209,17 @@ void SV_EdictToEntState (int num, edict_t *ent, entity_state_t *state)
 	state->colormap = ent->v->colormap;
 	state->skinnum = ent->v->skin;
 	state->effects = ent->v->effects;
-	state->hexen2flags = ent->v->drawflags;
-	state->abslight = (int)(ent->v->abslight*255) & 255;
-	state->tagentity = ent->v->tag_entity;
-	state->tagindex = ent->v->tag_index;
+	state->hexen2flags = ent->xv->drawflags;
+	state->abslight = (int)(ent->xv->abslight*255) & 255;
+	state->tagentity = ent->xv->tag_entity;
+	state->tagindex = ent->xv->tag_index;
 
-	state->light[0] = ent->v->color[0]*255;
-	state->light[1] = ent->v->color[1]*255;
-	state->light[2] = ent->v->color[2]*255;
-	state->light[3] = ent->v->light_lev;
-	state->lightstyle = ent->v->style;
-	state->lightpflags = ent->v->pflags;
+	state->light[0] = ent->xv->color[0]*255;
+	state->light[1] = ent->xv->color[1]*255;
+	state->light[2] = ent->xv->color[2]*255;
+	state->light[3] = ent->xv->light_lev;
+	state->lightstyle = ent->xv->style;
+	state->lightpflags = ent->xv->pflags;
 
 /*	if ((int)ent->v->flags & FL_CLASS_DEPENDENT && client->playerclass)	//hexen2 wierdness.
 	{
@@ -239,12 +239,12 @@ void SV_EdictToEntState (int num, edict_t *ent, entity_state_t *state)
 		state->hexen2flags |= MLS_FULLBRIGHT;
 	}
 
-	if (!ent->v->alpha)
+	if (!ent->xv->alpha)
 		state->trans = 255;
 	else
-		state->trans = ent->v->alpha*255;
+		state->trans = ent->xv->alpha*255;
 
-	if (!ent->v->colormod[0] && !ent->v->colormod[1] && !ent->v->colormod[2])
+	if (!ent->xv->colormod[0] && !ent->xv->colormod[1] && !ent->xv->colormod[2])
 	{
 		state->colormod[0] = (256)/8;
 		state->colormod[1] = (256)/8;
@@ -252,22 +252,22 @@ void SV_EdictToEntState (int num, edict_t *ent, entity_state_t *state)
 	}
 	else
 	{
-		i = ent->v->colormod[0]*(256/8); state->colormod[0] = bound(0, i, 255);
-		i = ent->v->colormod[1]*(256/8); state->colormod[1] = bound(0, i, 255);
-		i = ent->v->colormod[2]*(256/8); state->colormod[2] = bound(0, i, 255);
+		i = ent->xv->colormod[0]*(256/8); state->colormod[0] = bound(0, i, 255);
+		i = ent->xv->colormod[1]*(256/8); state->colormod[1] = bound(0, i, 255);
+		i = ent->xv->colormod[2]*(256/8); state->colormod[2] = bound(0, i, 255);
 	}
-	state->glowsize = ent->v->glow_size*0.25;
-	state->glowcolour = ent->v->glow_color;
+	state->glowsize = ent->xv->glow_size*0.25;
+	state->glowcolour = ent->xv->glow_color;
 #define RENDER_GLOWTRAIL 2
-	if (ent->v->glow_trail)
+	if (ent->xv->glow_trail)
 		state->dpflags |= RENDER_GLOWTRAIL;
 
-	if (!ent->v->scale)
+	if (!ent->xv->scale)
 		state->scale = 1*16;
 	else
-		state->scale = ent->v->scale*16;
+		state->scale = ent->xv->scale*16;
 
-	state->fatness = ent->v->fatness*2;
+	state->fatness = ent->xv->fatness*2;
 }
 
 void SVNQ_CreateBaseline (void)
@@ -367,6 +367,20 @@ void SV_SaveSpawnparms (qboolean dontsave)
 			memcpy(host_client->spawninfo, buf, bufsize);
 			host_client->spawninfotime = sv.time;
 		}
+#ifdef VM_Q1
+		else if (svs.gametype == GT_Q1QVM)
+		{
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, host_client->edict);
+			Q1QVM_SetChangeParms();
+			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+			{
+				if (spawnparamglobals[j])
+					host_client->spawn_parms[j] = *spawnparamglobals[j];
+				else
+					host_client->spawn_parms[j] = 0;
+			}
+		}
+#endif
 		else if (pr_nqglobal_struct->SetChangeParms)
 		{
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, host_client->edict);
@@ -833,11 +847,13 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 
 
-
-	if (svprogfuncs)	//we don't want the q1 stuff anymore.
+	if (svs.gametype == GT_PROGS)
 	{
-		CloseProgs(svprogfuncs);
-		svprogfuncs = NULL;
+		if (svprogfuncs)	//we don't want the q1 stuff anymore.
+		{
+			CloseProgs(svprogfuncs);
+			svprogfuncs = NULL;
+		}
 	}
 
 	sv.state = ss_loading;
@@ -851,6 +867,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef Q2SERVER
 	if ((sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//these are the rules for running a q2 server
 		newgametype = GT_QUAKE2;	//we loaded the dll
+	else
+#endif
+#ifdef VM_Q1
+	if (PR_LoadQ1QVM())
+		newgametype = GT_Q1QVM;
 	else
 #endif
 	{
@@ -880,10 +901,14 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (newgametype != GT_QUAKE2)	//we don't want the q2 stuff anymore.
 		SVQ2_ShutdownGameProgs ();
 #endif
+#ifdef VM_Q1
+	if (newgametype != GT_Q1QVM)
+		Q1QVM_Shutdown();
+#endif
 
 
 	sv.models[1] = sv.worldmodel;
-	if (svs.gametype == GT_PROGS)
+	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 	{
 		strcpy(sv.strings.sound_precache[0], "");
 		sv.strings.model_precache[0] = "";
@@ -945,6 +970,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	{
 	case GT_MAX:
 		break;
+#ifdef VM_Q1
+	case GT_Q1QVM:
+#endif
 	case GT_PROGS:
 		ent = EDICT_NUM(svprogfuncs, 0);
 		ent->isfree = false;
@@ -1020,6 +1048,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	if (svprogfuncs)
 	{
+		//world entity is hackily spawned
 		extern cvar_t coop, pr_imitatemvdsv;
 		eval_t *eval;
 		ent = EDICT_NUM(svprogfuncs, 0);
@@ -1029,11 +1058,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		ent->v->solid = SOLID_BSP;
 		ent->v->movetype = MOVETYPE_PUSH;
 
-		ent->v->dimension_see = 255;
-		ent->v->dimension_seen = 255;
-		ent->v->dimension_ghost = 0;
-		ent->v->dimension_solid = 255;
-		ent->v->dimension_hit = 255;
+		ED_Spawned(ent);
 
 		if (progstype == PROG_QW && pr_imitatemvdsv.value>0)
 		{
@@ -1139,6 +1164,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		{
 		case GT_MAX:
 			break;
+#ifdef VM_Q1
+		case GT_Q1QVM:
+#endif
 		case GT_PROGS:
 			pr_edict_size = PR_LoadEnts(svprogfuncs, file, spawnflagmask);
 			break;
@@ -1159,6 +1187,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		{
 		case GT_MAX:
 			break;
+#ifdef VM_Q1
+		case GT_Q1QVM:
+#endif
 		case GT_PROGS:
 			pr_edict_size = PR_LoadEnts(svprogfuncs, sv.worldmodel->entities, spawnflagmask);
 			break;
@@ -1192,6 +1223,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			else
 				snprintf(sv.mapname, sizeof(sv.mapname), "%s", PR_GetString(svprogfuncs, val->string));
 		}
+		else
+			snprintf(sv.mapname, sizeof(sv.mapname), "%s", sv.name);
 		if (Cvar_Get("sv_readonlyworld", "1", 0, "DP compatability")->value)
 			ent->readonly = true;	//lock it down!
 
@@ -1272,7 +1305,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_ImageName(server);
 #endif
 
-	if (svs.gametype == GT_PROGS)
+	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 	{
 		for (i = 0; i < sv.allocated_client_slots; i++)
 		{
@@ -1290,7 +1323,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				}
 
 				SV_SetUpClientEdict(host_client, sv_player);
-				sv_player->v->clientcolors = atoi(Info_ValueForKey(host_client->userinfo, "topcolor"))*16 + atoi(Info_ValueForKey(host_client->userinfo, "bottomcolor"));
+				sv_player->xv->clientcolors = atoi(Info_ValueForKey(host_client->userinfo, "topcolor"))*16 + atoi(Info_ValueForKey(host_client->userinfo, "bottomcolor"));
 
 				// call the spawn function
 				pr_global_struct->time = sv.time;

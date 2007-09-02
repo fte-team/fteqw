@@ -1244,8 +1244,8 @@ void SV_Spawn_f (void)
 
 		if (split->istobeloaded)	//minimal setup
 		{
-			split->entgravity = ent->v->gravity;
-			split->maxspeed = ent->v->maxspeed;
+			split->entgravity = ent->xv->gravity;
+			split->maxspeed = ent->xv->maxspeed;
 		}
 		else
 		{
@@ -1348,7 +1348,7 @@ void SV_Begin_f (void)
 	}
 
 	if (progstype == PROG_H2)
-		host_client->edict->v->playerclass = host_client->playerclass;	//make sure it's set the same as the userinfo
+		host_client->edict->xv->playerclass = host_client->playerclass;	//make sure it's set the same as the userinfo
 
 	for (split = host_client; split; split = split->controlled)
 	{
@@ -1441,14 +1441,21 @@ void SV_Begin_f (void)
 						}
 
 						// call the spawn function
-						pr_global_struct->time = sv.time;
-						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
-						PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
-
-						// actually spawn the player
-						pr_global_struct->time = sv.time;
-						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
-						PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+#ifdef VM_Q1
+						if (svs.gametype == GT_Q1QVM)
+							Q1QVM_ClientConnect(split);
+						else
+#endif
+						{
+							pr_global_struct->time = sv.time;
+							pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
+							PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+					
+							// actually spawn the player
+							pr_global_struct->time = sv.time;
+							pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
+							PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+						}
 
 						oh = host_client;
 						SV_PreRunCmd();
@@ -2471,6 +2478,17 @@ SV_Kill_f
 void SV_Kill_f (void)
 {
 	float floodtime;
+
+#ifdef VM_Q1
+	if (svs.gametype == GT_Q1QVM)
+	{
+		pr_global_struct->time = sv.time;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		Q1QVM_ClientCommand();
+		return;
+	}
+#endif
+
 	if (sv_player->v->health <= 0)
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, STL_NOSUICIDEWHENDEAD);
@@ -3163,8 +3181,20 @@ void ED_ClearEdict (progfuncs_t *progfuncs, edict_t *e);
 void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 {
 	extern int pr_teamfield;
-	if (progstype != PROG_NQ)	//allow frikbots to work in NQ mods (but not qw!)
-		ED_ClearEdict(svprogfuncs, ent);
+#ifdef VM_Q1
+	if (svs.gametype == GT_Q1QVM)
+	{
+		string_t preserve;
+		preserve = ent->v->netname;
+		Q1QVMED_ClearEdict(ent, true);
+		ent->v->netname = preserve;
+	}
+	else
+#endif
+	{
+		if (progstype != PROG_NQ)	//allow frikbots to work in NQ mods (but not qw!)
+			ED_ClearEdict(svprogfuncs, ent);
+	}
 	ED_Spawned(ent);
 	ent->isfree = false;
 
@@ -3181,12 +3211,12 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 			tc = 0;
 		if (bc < 0 || bc > 13)
 			bc = 0;
-		ent->v->clientcolors = 16*tc + bc;
+		ent->xv->clientcolors = 16*tc + bc;
 	}
 
 
-	ent->v->gravity = cl->entgravity = 1.0;
-	ent->v->maxspeed = cl->maxspeed = sv_maxspeed.value;
+	ent->xv->gravity = cl->entgravity = 1.0;
+	ent->xv->maxspeed = cl->maxspeed = sv_maxspeed.value;
 	ent->v->movetype = MOVETYPE_NOCLIP;
 }
 /*
@@ -3679,8 +3709,8 @@ void SVNQ_Spawn_f (void)
 
 	if (host_client->istobeloaded)	//minimal setup
 	{
-		host_client->entgravity = ent->v->gravity*sv_gravity.value;
-		host_client->maxspeed = ent->v->maxspeed;
+		host_client->entgravity = ent->xv->gravity*sv_gravity.value;
+		host_client->maxspeed = ent->xv->maxspeed;
 	}
 	else
 	{
@@ -3691,9 +3721,9 @@ void SVNQ_Spawn_f (void)
 		ent->v->team = 0;	// FIXME
 		ent->v->netname = PR_SetString(svprogfuncs, host_client->name);
 
-		host_client->entgravity = ent->v->gravity = 1.0;
+		host_client->entgravity = ent->xv->gravity = 1.0;
 		host_client->entgravity*=sv_gravity.value;
-		host_client->maxspeed = ent->v->maxspeed = sv_maxspeed.value;
+		host_client->maxspeed = ent->xv->maxspeed = sv_maxspeed.value;
 	}
 
 //
@@ -4222,8 +4252,8 @@ void AddLinksToPmove ( areanode_t *node )
 			if (pmove.numphysent == MAX_PHYSENTS)
 				break;
 			pe = &pmove.physents[pmove.numphysent];
-			pe->notouch = !((int)sv_player->v->dimension_solid & (int)check->v->dimension_hit);
-			if (!((int)sv_player->v->dimension_hit & (int)check->v->dimension_solid))
+			pe->notouch = !((int)sv_player->xv->dimension_solid & (int)check->xv->dimension_hit);
+			if (!((int)sv_player->xv->dimension_hit & (int)check->xv->dimension_solid))
 				continue;
 			pmove.numphysent++;
 
@@ -4262,14 +4292,14 @@ void AddLinksToPmove ( areanode_t *node )
 			if (i != 3)
 				continue;
 
-			if (!((int)sv_player->v->dimension_hit & (int)check->v->dimension_solid))
+			if (!((int)sv_player->xv->dimension_hit & (int)check->xv->dimension_solid))
 				continue;
 
 			model = sv.models[(int)check->v->modelindex];
 			if (model)
 	// test the point
 			if ( model->funcs.PointContents (model, sv_player->v->origin) == FTECONTENTS_SOLID )
-				sv_player->v->fteflags = (int)sv_player->v->fteflags | FF_LADDER;	//touch that ladder!
+				sv_player->xv->fteflags = (int)sv_player->xv->fteflags | FF_LADDER;	//touch that ladder!
 		}
 	}
 
@@ -4541,19 +4571,19 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	}
 
 	if (progstype == PROG_H2)
-		sv_player->v->light_level = 128;	//hmm... HACK!!!
+		sv_player->xv->light_level = 128;	//hmm... HACK!!!
 
 	sv_player->v->button0 = ucmd->buttons & 1;
 	sv_player->v->button2 = (ucmd->buttons >> 1) & 1;
 	if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
 		sv_player->v->button1 = ((ucmd->buttons >> 2) & 1);
 // DP_INPUTBUTTONS
-	sv_player->v->button3 = ((ucmd->buttons >> 2) & 1);
-	sv_player->v->button4 = ((ucmd->buttons >> 3) & 1);
-	sv_player->v->button5 = ((ucmd->buttons >> 4) & 1);
-	sv_player->v->button6 = ((ucmd->buttons >> 5) & 1);
-	sv_player->v->button7 = ((ucmd->buttons >> 6) & 1);
-	sv_player->v->button8 = ((ucmd->buttons >> 7) & 1);
+	sv_player->xv->button3 = ((ucmd->buttons >> 2) & 1);
+	sv_player->xv->button4 = ((ucmd->buttons >> 3) & 1);
+	sv_player->xv->button5 = ((ucmd->buttons >> 4) & 1);
+	sv_player->xv->button6 = ((ucmd->buttons >> 5) & 1);
+	sv_player->xv->button7 = ((ucmd->buttons >> 6) & 1);
+	sv_player->xv->button8 = ((ucmd->buttons >> 7) & 1);
 	if (ucmd->impulse && SV_FiltureImpulse(ucmd->impulse, host_client->trustlevel))
 		sv_player->v->impulse = ucmd->impulse;
 
@@ -4563,9 +4593,9 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		sv_player->v->button0 = 0;
 	}
 
-	sv_player->v->movement[0] = ucmd->forwardmove * host_frametime;
-	sv_player->v->movement[1] = ucmd->sidemove * host_frametime;
-	sv_player->v->movement[2] = ucmd->upmove * host_frametime;
+	sv_player->xv->movement[0] = ucmd->forwardmove * host_frametime;
+	sv_player->xv->movement[1] = ucmd->sidemove * host_frametime;
+	sv_player->xv->movement[2] = ucmd->upmove * host_frametime;
 
 	SV_CheckVelocity(sv_player);
 
@@ -4613,7 +4643,13 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		}
 		else
 			jumpable = false;
-		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
+		
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_PlayerPreThink();
+		else
+#endif
+			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
 
 		if (progstype != PROG_QW)
 		{
@@ -4659,9 +4695,9 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	pmove.physents[0].model = sv.worldmodel;
 	pmove.cmd = *ucmd;
 	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
-		pmove.hullnum = ((int)sv_player->v->fteflags&FF_CROUCHING)?3:1;
+		pmove.hullnum = ((int)sv_player->xv->fteflags&FF_CROUCHING)?3:1;
 	else
-		pmove.hullnum = SV_HullNumForPlayer(sv_player->v->hull, sv_player->v->mins, sv_player->v->maxs);
+		pmove.hullnum = SV_HullNumForPlayer(sv_player->xv->hull, sv_player->v->mins, sv_player->v->maxs);
 
 	movevars.entgravity = host_client->entgravity/movevars.gravity;
 	movevars.maxspeed = host_client->maxspeed;
@@ -4673,22 +4709,22 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.walljump = (pm_walljump.value);
 	movevars.slidyslopes = (pm_slidyslopes.value!=0);
 
-	if (sv_player->v->hasted)
-		movevars.maxspeed*=sv_player->v->hasted;
+	if (sv_player->xv->hasted)
+		movevars.maxspeed*=sv_player->xv->hasted;
 
 	for (i=0 ; i<3 ; i++)
 	{
 		pmove_mins[i] = pmove.origin[i] - 256;
 		pmove_maxs[i] = pmove.origin[i] + 256;
 	}
-	sv_player->v->fteflags = (int)sv_player->v->fteflags & ~FF_LADDER;	//assume not touching ladder trigger
+	sv_player->xv->fteflags = (int)sv_player->xv->fteflags & ~FF_LADDER;	//assume not touching ladder trigger
 #if 1
 	AddLinksToPmove ( sv_areanodes );
 #else
 	AddAllEntsToPmove ();
 #endif
 
-	if ((int)sv_player->v->fteflags & FF_LADDER)
+	if ((int)sv_player->xv->fteflags & FF_LADDER)
 		pmove.onladder = true;
 	else
 		pmove.onladder = false;
@@ -4799,7 +4835,12 @@ if (sv_player->v->health > 0 && before && !after )
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv_player);
 			pr_global_struct->time = sv.time;
-			PR_ExecuteProgram (svprogfuncs, ent->v->touch);
+#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+				Q1QVM_Touch();
+			else
+#endif
+				PR_ExecuteProgram (svprogfuncs, ent->v->touch);
 			playertouch[n/8] |= 1 << (n%8);
 		}
 	}
@@ -4818,17 +4859,31 @@ void SV_PostRunCmd(void)
 	if (!svprogfuncs)
 		return;
 
-	if (!host_client->spectator) {
+#ifdef VM_Q1
+	if (svs.gametype == GT_Q1QVM)
+	{
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		Q1QVM_PostThink();
+	}
+	else
+#endif
+	{
+		if (!host_client->spectator)
+		{
+			pr_global_struct->time = sv.time;
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
-		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
+			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
 
-		SV_RunNewmis ();
-	} else if (SpectatorThink) {
-		pr_global_struct->time = sv.time;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-		PR_ExecuteProgram (svprogfuncs, SpectatorThink);
+			SV_RunNewmis ();
+		}
+		else if (SpectatorThink)
+		{
+			pr_global_struct->time = sv.time;
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+			PR_ExecuteProgram (svprogfuncs, SpectatorThink);
+		}
 	}
 }
 
@@ -5036,12 +5091,12 @@ haveannothergo:
 							if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
 								sv_player->v->button1 = ((newcmd.buttons >> 2) & 1);
 						// DP_INPUTBUTTONS
-							sv_player->v->button3 = ((newcmd.buttons >> 2) & 1);
-							sv_player->v->button4 = ((newcmd.buttons >> 3) & 1);
-							sv_player->v->button5 = ((newcmd.buttons >> 4) & 1);
-							sv_player->v->button6 = ((newcmd.buttons >> 5) & 1);
-							sv_player->v->button7 = ((newcmd.buttons >> 6) & 1);
-							sv_player->v->button8 = ((newcmd.buttons >> 7) & 1);
+							sv_player->xv->button3 = ((newcmd.buttons >> 2) & 1);
+							sv_player->xv->button4 = ((newcmd.buttons >> 3) & 1);
+							sv_player->xv->button5 = ((newcmd.buttons >> 4) & 1);
+							sv_player->xv->button6 = ((newcmd.buttons >> 5) & 1);
+							sv_player->xv->button7 = ((newcmd.buttons >> 6) & 1);
+							sv_player->xv->button8 = ((newcmd.buttons >> 7) & 1);
 
 
 							cl->lastcmd = newcmd;
@@ -5393,12 +5448,12 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
 		host_client->edict->v->button1 = ((bits >> 2) & 1);
 // DP_INPUTBUTTONS
-	host_client->edict->v->button3 = ((bits >> 2) & 1);
-	host_client->edict->v->button4 = ((bits >> 3) & 1);
-	host_client->edict->v->button5 = ((bits >> 4) & 1);
-	host_client->edict->v->button6 = ((bits >> 5) & 1);
-	host_client->edict->v->button7 = ((bits >> 6) & 1);
-	host_client->edict->v->button8 = ((bits >> 7) & 1);
+	host_client->edict->xv->button3 = ((bits >> 2) & 1);
+	host_client->edict->xv->button4 = ((bits >> 3) & 1);
+	host_client->edict->xv->button5 = ((bits >> 4) & 1);
+	host_client->edict->xv->button6 = ((bits >> 5) & 1);
+	host_client->edict->xv->button7 = ((bits >> 6) & 1);
+	host_client->edict->xv->button8 = ((bits >> 7) & 1);
 
 	if (host_client->last_sequence)
 		SV_RunEntity(host_client->edict);
@@ -5724,9 +5779,9 @@ void SV_AirMove (void)
 //	else
 //		scale = val->_float;
 
-	maxspeed=sv_player->v->maxspeed;//FIXME: This isn't fully compatable code...
-	if (sv_player->v->hasted)
-		maxspeed*=sv_player->v->hasted;
+	maxspeed=sv_player->xv->maxspeed;//FIXME: This isn't fully compatable code...
+	if (sv_player->xv->hasted)
+		maxspeed*=sv_player->xv->hasted;
 
 	if (wishspeed > maxspeed*scale)
 	{
@@ -5847,9 +5902,9 @@ void SV_ClientThink (void)
 	cmd = host_client->lastcmd;
 	sv_player = host_client->edict;
 
-	sv_player->v->movement[0] = cmd.forwardmove;
-	sv_player->v->movement[1] = cmd.sidemove;
-	sv_player->v->movement[2] = cmd.upmove;
+	sv_player->xv->movement[0] = cmd.forwardmove;
+	sv_player->xv->movement[1] = cmd.sidemove;
+	sv_player->xv->movement[2] = cmd.upmove;
 
 	if (SV_PlayerPhysicsQC)
 	{

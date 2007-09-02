@@ -985,25 +985,25 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case G_FS_FOPEN_FILE: //fopen
 		if ((int)arg[1] + 4 >= mask || VM_POINTER(arg[1]) < offset)
 			break;	//out of bounds.
-		VM_LONG(ret) = VMUI_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0);
+		VM_LONG(ret) = VM_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0);
 		break;
 
 	case G_FS_READ:	//fread
 		if ((int)arg[0] + VM_LONG(arg[1]) >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
 
-		VMUI_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 0);
+		VM_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 0);
 		break;
 	case G_FS_WRITE:	//fwrite
 		break;
 	case G_FS_FCLOSE_FILE:	//fclose
-		VMUI_fclose(VM_LONG(arg[0]), 0);
+		VM_fclose(VM_LONG(arg[0]), 0);
 		break;
 
 	case G_FS_GETFILELIST:	//fs listing
 		if ((int)arg[2] + arg[3] >= mask || VM_POINTER(arg[2]) < offset)
 			break;	//out of bounds.
-		return VMQ3_GetFileList(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
+		return VM_GetFileList(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 
 	case G_LOCATE_GAME_DATA:		// ( gentity_t *gEnts, int numGEntities, int sizeofGEntity_t,	15
 	//							playerState_t *clients, int sizeofGameClient );
@@ -1682,23 +1682,23 @@ void *BL_HunkMalloc(int size)
 
 int BL_FOpenFile(const char *name, fileHandle_t *handle, fsMode_t mode)
 {
-	return VMUI_fopen((char*)name, (int*)handle, mode, Z_TAG_BOTLIB);
+	return VM_fopen((char*)name, (int*)handle, mode, Z_TAG_BOTLIB);
 }
 int BL_FRead( void *buffer, int len, fileHandle_t f )
 {
-	return VMUI_FRead(buffer, len, (int)f, Z_TAG_BOTLIB);
+	return VM_FRead(buffer, len, (int)f, Z_TAG_BOTLIB);
 }
 //int BL_FWrite( const void *buffer, int len, fileHandle_t f )
 //{
-//	return VMUI_FWrite(buffer, len, f, Z_TAG_BOTLIB);
+//	return VM_FWrite(buffer, len, f, Z_TAG_BOTLIB);
 //}	
 void BL_FCloseFile( fileHandle_t f )
 {
-	VMUI_fclose((int)f, Z_TAG_BOTLIB);
+	VM_fclose((int)f, Z_TAG_BOTLIB);
 }
 //int BL_Seek( fileHandle_t f )
 //{
-//	VMUI_fseek(f, Z_TAG_BOTLIB)
+//	VM_fseek(f, Z_TAG_BOTLIB)
 //}
 char *BL_BSPEntityData(void)
 {

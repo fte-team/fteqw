@@ -155,11 +155,7 @@ typedef enum
 	GAME_SHUTDOWN,	// (void);
 
 	GAME_CLIENT_CONNECT,	 	// ( int clientNum ,int isSpectator);
-	// ( int clientNum, qboolean firstTime, qboolean isBot );
-	// return NULL if the client is allowed to connect, otherwise return
-	// a text string with the reason for denial
 	GAME_PUT_CLIENT_IN_SERVER,
-	//GAME_CLIENT_BEGIN,				// ( int clientNum ,int isSpectator);
 
 	GAME_CLIENT_USERINFO_CHANGED,	// ( int clientNum,int isSpectator );
 
@@ -178,11 +174,7 @@ typedef enum
 	GAME_EDICT_TOUCH,                      //(self,other)
 	GAME_EDICT_THINK,                      //(self,other=world,time)
 	GAME_EDICT_BLOCKED,                     //(self,other)
-	// ConsoleCommand will be called when a command has been issued
-	// that is not recognized as a builtin function.
-	// The game can issue trap_argc() / trap_argv() commands to get the command
-	// and parameters.  Return qfalse if the game doesn't recognize it as a command.
-
+	GAME_CLIENT_SAY, 		//(int isteam)
 } gameExport_t;
 
 
@@ -267,6 +259,7 @@ typedef struct {
 } q1qvmglobalvars_t;
 
 
+//this is not usable in 64bit to refer to a 32bit qvm (hence why we have two versions).
 typedef struct
 {
 	edict_t		*ents;
@@ -274,7 +267,16 @@ typedef struct
 	q1qvmglobalvars_t	*global;
 	field_t		*fields;
 	int 		APIversion;
-} gameData_t;
+} gameDataN_t;
+
+typedef struct
+{
+	unsigned int	ents;
+	int		sizeofent;
+	unsigned int	global;
+	unsigned int	fields;
+	int		APIversion;
+} gameData32_t;
 
 typedef int		fileHandle_t;
 
@@ -311,19 +313,22 @@ static edict_t *q1qvmedicts[MAX_Q1QVM_EDICTS];
 
 
 static void *evars;	//pointer to the gamecodes idea of an edict_t
-static long vevars;	//offset into the vm base of evars
+static int vevars;	//offset into the vm base of evars
 
-char *Q1QVMPF_AddString(progfuncs_t *pf, char *base, int minlength)
+/*
+static char *Q1QVMPF_AddString(progfuncs_t *pf, char *base, int minlength)
 {
 	char *n;
 	int l = strlen(base);
+	Con_Printf("warning: string %s will not be readable from the qvm\n", base);
 	l = l<minlength?minlength:l;
 	n = Z_TagMalloc(l+1, VMFSID_Q1QVM);
 	strcpy(n, base);
 	return n;
 }
+*/
 
-edict_t *Q1QVMPF_EdictNum(progfuncs_t *pf, unsigned int num)
+static edict_t *Q1QVMPF_EdictNum(progfuncs_t *pf, unsigned int num)
 {
 	edict_t *e;
 
@@ -341,16 +346,16 @@ edict_t *Q1QVMPF_EdictNum(progfuncs_t *pf, unsigned int num)
 	return e;
 }
 
-int Q1QVMPF_NumForEdict(progfuncs_t *pf, edict_t *e)
+static unsigned int Q1QVMPF_NumForEdict(progfuncs_t *pf, edict_t *e)
 {
 	return e->entnum;
 }
 
-int Q1QVMPF_EdictToProgs(progfuncs_t *pf, edict_t *e)
+static int Q1QVMPF_EdictToProgs(progfuncs_t *pf, edict_t *e)
 {
 	return e->entnum*pr_edict_size;
 }
-edict_t *Q1QVMPF_ProgsToEdict(progfuncs_t *pf, int num)
+static edict_t *Q1QVMPF_ProgsToEdict(progfuncs_t *pf, int num)
 {
 	if (num % pr_edict_size)
 		Con_Printf("Edict To Progs with remainder\n");
@@ -368,7 +373,7 @@ void Q1QVMED_ClearEdict (edict_t *e, qboolean wipe)
 	e->entnum = num;
 }
 
-void Q1QVMPF_EntRemove(progfuncs_t *pf, edict_t *e)
+static void Q1QVMPF_EntRemove(progfuncs_t *pf, edict_t *e)
 {
 	if (!ED_CanFree(e))
 		return;
@@ -376,7 +381,7 @@ void Q1QVMPF_EntRemove(progfuncs_t *pf, edict_t *e)
 	e->freetime = sv.time;
 }
 
-edict_t *Q1QVMPF_EntAlloc(progfuncs_t *pf)
+static edict_t *Q1QVMPF_EntAlloc(progfuncs_t *pf)
 {
 	int i;
 	edict_t *e;
@@ -427,7 +432,7 @@ edict_t *Q1QVMPF_EntAlloc(progfuncs_t *pf)
 	return (struct edict_s *)e;
 }
 
-int Q1QVMPF_LoadEnts(progfuncs_t *pf, char *mapstring, float spawnflags)
+static int Q1QVMPF_LoadEnts(progfuncs_t *pf, char *mapstring, float spawnflags)
 {
 	q1qvmentstring = mapstring;
 	VM_Call(q1qvm, GAME_LOADENTS);
@@ -435,7 +440,7 @@ int Q1QVMPF_LoadEnts(progfuncs_t *pf, char *mapstring, float spawnflags)
 	return pr_edict_size;
 }
 
-eval_t *Q1QVMPF_GetEdictFieldValue(progfuncs_t *pf, edict_t *e, char *fieldname, evalc_t *cache)
+static eval_t *Q1QVMPF_GetEdictFieldValue(progfuncs_t *pf, edict_t *e, char *fieldname, evalc_t *cache)
 {
 	if (!strcmp(fieldname, "message"))
 	{
@@ -444,24 +449,24 @@ eval_t *Q1QVMPF_GetEdictFieldValue(progfuncs_t *pf, edict_t *e, char *fieldname,
 	return NULL;
 }
 
-eval_t	*Q1QVMPF_FindGlobal		(progfuncs_t *prinst, char *name, progsnum_t num)
+static eval_t	*Q1QVMPF_FindGlobal		(progfuncs_t *prinst, char *name, progsnum_t num)
 {
 	return NULL;
 }
 
-globalvars_t *Q1QVMPF_Globals(progfuncs_t *prinst, int prnum)
+static globalvars_t *Q1QVMPF_Globals(progfuncs_t *prinst, int prnum)
 {
 	return NULL;
 }
 
-string_t Q1QVMPF_StringToProgs(progfuncs_t *prinst, char *str)
+static string_t Q1QVMPF_StringToProgs(progfuncs_t *prinst, char *str)
 {
-	return (string_t)str;
+	return (string_t)(str - (char*)VM_MemoryBase(q1qvm));
 }
 
-char *Q1QVMPF_StringToNative(progfuncs_t *prinst, string_t str)
+static char *Q1QVMPF_StringToNative(progfuncs_t *prinst, string_t str)
 {
-	return (char*)str;
+	return (char*)VM_MemoryBase(q1qvm) + str;
 }
 
 void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -493,12 +498,13 @@ void PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 
+int PF_checkclient_Internal (progfuncs_t *prinst);
 void PF_precache_sound_Internal (progfuncs_t *prinst, char *s);
 void PF_precache_model_Internal (progfuncs_t *prinst, char *s);
 void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m);
 char *PF_infokey_Internal (int entnum, char *value);
 
-int WrapQCBuiltin(builtin_t func, void *offset, unsigned int mask, const long *arg, char *argtypes)
+static int WrapQCBuiltin(builtin_t func, void *offset, unsigned int mask, const int *arg, char *argtypes)
 {
 	globalvars_t gv;
 	int argnum=0;
@@ -534,7 +540,7 @@ int WrapQCBuiltin(builtin_t func, void *offset, unsigned int mask, const long *a
 }
 
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %i passes invalid pointer\n", fn);	//out of bounds.
-long syscallqvm (void *offset, unsigned int mask, int fn, const long *arg)
+static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 {
 	switch (fn)
 	{
@@ -657,8 +663,7 @@ long syscallqvm (void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 
 	case G_CHECKCLIENT:
-//		return PF_checkclientinternal(VM_LONG(arg[0]));
-		break;
+		return PF_checkclient_Internal(svprogfuncs);
 
 	case G_STUFFCMD:
 		{
@@ -695,7 +700,7 @@ long syscallqvm (void *offset, unsigned int mask, int fn, const long *arg)
 
 	case G_FINDRADIUS:
 		{
-			int start = ((char*)VM_POINTER(arg[0]) - (char*)vevars) / pr_edict_size;
+			int start = ((char*)VM_POINTER(arg[0]) - (char*)evars) / pr_edict_size;
 			edict_t *ed;
 			vec3_t diff;
 			float *org = VM_POINTER(arg[1]);
@@ -708,7 +713,7 @@ long syscallqvm (void *offset, unsigned int mask, int fn, const long *arg)
 					continue;
 				VectorSubtract(ed->v->origin, org, diff);
 				if (rad > DotProduct(diff, diff))
-					return (long)((char*)vevars + start*pr_edict_size);
+					return (int)(vevars + start*pr_edict_size);
 			}
 			return 0;
 		}
@@ -851,14 +856,20 @@ long syscallqvm (void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 
 	case g_memset:
-		VALIDATEPOINTER(arg[0], arg[2]);
-		memset(VM_POINTER(arg[0]), arg[1], arg[2]);
-		return arg[0];
-		break;
+		{
+			void *dst = VM_POINTER(arg[0]);
+			VALIDATEPOINTER(arg[0], arg[2]);
+			memset(dst, arg[1], arg[2]);
+			return arg[0];
+		}
 	case g_memcpy:
-		VALIDATEPOINTER(arg[0], arg[2]);
-		memmove(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
-		return arg[0];
+		{
+			void *dst = VM_POINTER(arg[0]);
+			void *src = VM_POINTER(arg[1]);
+			VALIDATEPOINTER(arg[0], arg[2]);
+			memmove(dst, src, arg[2]);
+			return arg[0];
+		}
 		break;
 	case g_strncpy:
 		VALIDATEPOINTER(arg[0], arg[2]);
@@ -1006,12 +1017,12 @@ long syscallqvm (void *offset, unsigned int mask, int fn, const long *arg)
 				if (field == NULL)
 				{
 					if (*match == '\0')
-						return VM_LONG(e->v)-WASTED_EDICT_T_SIZE - (int)offset;
+						return ((char*)e->v - (char*)offset)-WASTED_EDICT_T_SIZE;
 				}
 				else
 				{
 					if (!strcmp(field, match))
-						return VM_LONG(e->v)-WASTED_EDICT_T_SIZE - (int)offset;
+						return ((char*)e->v - (char*)offset)-WASTED_EDICT_T_SIZE;
 				}
 			}
 		}
@@ -1089,7 +1100,7 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 			if (VM_OOB(arg[0], arg[1]) || !out)
 				return -1;	//please don't corrupt me
 			time(&curtime);
-			curtime + VM_LONG(arg[3]);
+			curtime += VM_LONG(arg[3]);
 			local = localtime(&curtime);
 			strftime(out, VM_LONG(arg[1]), fmt, local);
 		}
@@ -1137,11 +1148,11 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 
 	case G_NEXTCLIENT:
 		{
-			unsigned int start = ((char*)VM_POINTER(arg[0]) - (char*)vevars) / pr_edict_size;
+			unsigned int start = ((char*)VM_POINTER(arg[0]) - (char*)evars) / pr_edict_size;
 			while (start < sv.allocated_client_slots)
 			{
 				if (svs.clients[start].state == cs_spawned)
-					return (long)((char*)vevars + (start+1) * pr_edict_size);
+					return (int)(vevars + (start+1) * pr_edict_size);
 				start++;
 			}
 			return 0;
@@ -1155,9 +1166,9 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 	return 0;
 }
 
-long EXPORT_FN syscallnative (int arg, ...)
+static int EXPORT_FN syscallnative (int arg, ...)
 {
-	long args[13];
+	int args[13];
 	va_list argptr;
 
 	va_start(argptr, arg);
@@ -1201,7 +1212,8 @@ qboolean PR_LoadQ1QVM(void)
 {
 	static float writable;
 	int i;
-	gameData_t *gd;
+	gameDataN_t *gd, gdm;
+	gameData32_t *gd32;
 	int ret;
 
 	if (q1qvm)
@@ -1218,7 +1230,7 @@ qboolean PR_LoadQ1QVM(void)
 	svprogfuncs = &q1qvmprogfuncs;
 
 
-	q1qvmprogfuncs.AddString = Q1QVMPF_AddString;
+//	q1qvmprogfuncs.AddString = Q1QVMPF_AddString;	//using this breaks 64bit support, and is a 'bad plan' elsewhere too,
 	q1qvmprogfuncs.EDICT_NUM = Q1QVMPF_EdictNum;
 	q1qvmprogfuncs.NUM_FOR_EDICT = Q1QVMPF_NumForEdict;
 	q1qvmprogfuncs.EdictToProgs = Q1QVMPF_EdictToProgs;
@@ -1246,21 +1258,33 @@ qboolean PR_LoadQ1QVM(void)
 		Q1QVM_Shutdown();
 		return false;
 	}
-	gd = (gameData_t*)((char*)VM_MemoryBase(q1qvm) + ret);
+	gd32 = (gameData32_t*)((char*)VM_MemoryBase(q1qvm) + ret);	//qvm is 32bit
+
+	//when running native64, we need to convert these to real types, so we can use em below
+	gd = &gdm;
+	gd->ents = gd32->ents;
+	gd->sizeofent = gd32->sizeofent;
+	gd->global = gd32->global;
+	gd->fields = gd32->fields;
+	gd->APIversion = gd32->APIversion;
 
 	pr_edict_size = gd->sizeofent;
 
 	vevars = (long)gd->ents;
 	evars = ((char*)VM_MemoryBase(q1qvm) + vevars);
+	//FIXME: range check this pointer
+	//FIXME: range check the globals pointer
 
 	sv.num_edicts = 1;
 	sv.max_edicts = sizeof(q1qvmedicts)/sizeof(q1qvmedicts[0]);
 
-#define globalint(required, name) pr_nqglobal_struct->name = (int*)((char*)VM_MemoryBase(q1qvm)+(int)&gd->global->name)
-#define globalfloat(required, name) pr_nqglobal_struct->name = (float*)((char*)VM_MemoryBase(q1qvm)+(int)&gd->global->name)
-#define globalstring(required, name) pr_nqglobal_struct->name = (string_t*)((char*)VM_MemoryBase(q1qvm)+(int)&gd->global->name)
-#define globalvec(required, name) pr_nqglobal_struct->V_##name = (vec3_t*)((char*)VM_MemoryBase(q1qvm)+(int)&gd->global->name)
-#define globalfunc(required, name) pr_nqglobal_struct->name = (int*)((char*)VM_MemoryBase(q1qvm)+(int)&gd->global->name)
+//WARNING: global is not remapped yet...
+//This code is written evilly, but works well enough
+#define globalint(required, name) pr_nqglobal_struct->name = (int*)((char*)VM_MemoryBase(q1qvm)+(long)&gd->global->name)	//the logic of this is somewhat crazy
+#define globalfloat(required, name) pr_nqglobal_struct->name = (float*)((char*)VM_MemoryBase(q1qvm)+(long)&gd->global->name)
+#define globalstring(required, name) pr_nqglobal_struct->name = (string_t*)((char*)VM_MemoryBase(q1qvm)+(long)&gd->global->name)
+#define globalvec(required, name) pr_nqglobal_struct->V_##name = (vec3_t*)((char*)VM_MemoryBase(q1qvm)+(long)&gd->global->name)
+#define globalfunc(required, name) pr_nqglobal_struct->name = (int*)((char*)VM_MemoryBase(q1qvm)+(long)&gd->global->name)
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
 	globalint		(true, world);
@@ -1308,8 +1332,7 @@ qboolean PR_LoadQ1QVM(void)
 	pr_nqglobal_struct->trace_endcontents = &writable;
 
 	for (i = 0; i < 16; i++)
-		spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(int)(&gd->global->parm1 + i));
-		//spawnparamglobals[i] = (float *)&gd->global->parm1 + i;
+		spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(long)(&gd->global->parm1 + i));
 	for (; i < NUM_SPAWN_PARMS; i++)
 		spawnparamglobals[i] = NULL;
 
@@ -1327,7 +1350,8 @@ void Q1QVM_ClientConnect(client_t *cl)
 	if (cl->edict->v->netname)
 	{
 		strcpy(cl->namebuf, cl->name);
-		cl->name = cl->edict->v->netname + (char*)VM_MemoryBase(q1qvm);
+		cl->name = Q1QVMPF_StringToNative(svprogfuncs, cl->edict->v->netname);
+		//FIXME: check this pointer
 		strcpy(cl->name, cl->namebuf);
 	}
 	// call the spawn function
@@ -1339,6 +1363,56 @@ void Q1QVM_ClientConnect(client_t *cl)
 	pr_global_struct->time = sv.time;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
 	VM_Call(q1qvm, GAME_PUT_CLIENT_IN_SERVER, cl->spectator);
+}
+
+qboolean Q1QVM_GameConsoleCommand(void)
+{
+	int oldself, oldother;
+	if (!q1qvm)
+		return false;
+
+	//FIXME: if an rcon command from someone on the server, mvdsv sets self to match the ip of that player
+	//this is not required (broken by proxies anyway) but is a nice handy feature
+	
+	pr_global_struct->time = sv.time;
+	oldself = pr_global_struct->self;	//these are usually useless
+	oldother = pr_global_struct->other;	//but its possible that someone makes a mod that depends on the 'mod' command working via redirectcmd+co
+						//this at least matches mvdsv
+	pr_global_struct->self = 0;
+	pr_global_struct->other = 0;
+
+	VM_Call(q1qvm, GAME_CONSOLE_COMMAND);	//mod uses Cmd_Argv+co to get args
+
+	pr_global_struct->self = oldself;
+	pr_global_struct->other = oldother;
+	return true;
+}
+
+qboolean Q1QVM_ClientSay(edict_t *player, qboolean team)
+{
+	qboolean washandled;
+	if (!q1qvm)
+		return false;
+
+	SV_EndRedirect();
+
+	pr_global_struct->time = sv.time;
+	pr_global_struct->self = Q1QVMPF_EdictToProgs(svprogfuncs, player);
+	washandled = VM_Call(q1qvm, GAME_CLIENT_SAY, team);
+
+	SV_BeginRedirect(RD_CLIENT, host_client->language);	//put it back to how we expect it was. *shudder*
+
+	return washandled;
+}
+
+qboolean Q1QVM_UserInfoChanged(edict_t *player)
+{
+	if (!q1qvm)
+		return false;
+
+	pr_global_struct->time = sv.time;
+	pr_global_struct->self = Q1QVMPF_EdictToProgs(svprogfuncs, player);
+	return VM_Call(q1qvm, GAME_CLIENT_USERINFO_CHANGED);
 }
 
 void Q1QVM_PlayerPreThink(void)

@@ -155,8 +155,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifdef __amd64__
-	//nah... not gonna work too well
-	#undef VM_Q1
+	//I'm slowly getting these working in 64bit
 	#undef Q3CLIENT
 	#undef Q3SERVER
 	#undef PLUGINS

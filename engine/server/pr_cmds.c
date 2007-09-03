@@ -1959,7 +1959,10 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 		{
 			if (!strcmp(sv.strings.model_precache[i], m))
 			{
-				m = sv.strings.model_precache[i];
+#ifdef VM_Q1
+				if (svs.gametype != GT_Q1QVM)
+#endif
+					m = sv.strings.model_precache[i];
 				break;
 			}
 		}
@@ -1967,9 +1970,14 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 		{
 			if (i!=MAX_MODELS)
 			{
-				sv.strings.model_precache[i] = PR_AddString(prinst, m, 0);
+#ifdef VM_Q1
+				if (svs.gametype == GT_Q1QVM)
+					sv.strings.model_precache[i] = m;	//in a qvm, we expect the caller to have used a static location.
+				else
+#endif
+					m = sv.strings.model_precache[i] = PR_AddString(prinst, m, 0);
 				if (!strcmp(m + strlen(m) - 4, ".bsp"))
-					sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
+					sv.models[i] = Mod_FindName(m);
 				Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", m);
 
 				if (sv.state != ss_loading)
@@ -1992,7 +2000,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 		}
 	}
 
-	e->v->model = PR_SetString(prinst, sv.strings.model_precache[i]);
+	e->v->model = PR_SetString(prinst, m);
 	e->v->modelindex = i;
 
 	// if it is an inline model, get the size information for it
@@ -3095,7 +3103,7 @@ name checkclient ()
 */
 #define	MAX_CHECK	16
 int c_invis, c_notvis;
-void PF_checkclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+int PF_checkclient_Internal (progfuncs_t *prinst)
 {
 	edict_t	*ent, *self;
 	int		l;
@@ -3112,8 +3120,7 @@ void PF_checkclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent = EDICT_NUM(prinst, sv.lastcheck);
 	if (ent->isfree || ent->v->health <= 0)
 	{
-		RETURN_EDICT(prinst, sv.edicts);
-		return;
+		return 0;
 	}
 
 // if current entity can't possibly see the check entity, return 0
@@ -3123,13 +3130,17 @@ void PF_checkclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if ( (l<0) || !(checkpvs[l>>3] & (1<<(l&7)) ) )
 	{
 c_notvis++;
-		RETURN_EDICT(prinst, sv.edicts);
-		return;
+		return 0;
 	}
 
 // might be able to see it
 c_invis++;
-	RETURN_EDICT(prinst, ent);
+	return sv.lastcheck;
+}
+
+void PF_checkclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	RETURN_EDICT(prinst, EDICT_NUM(prinst, PF_checkclient_Internal(prinst)));
 }
 
 //============================================================================
@@ -3760,9 +3771,15 @@ void PF_precache_model_Internal (progfuncs_t *prinst, char *s)
 				PR_BIError (prinst, "Precache name too long");
 				return;
 			}
-			sv.strings.model_precache[i] = PR_AddString(prinst, s, 0);
+#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+				sv.strings.model_precache[i] = s;
+			else
+#endif
+				sv.strings.model_precache[i] = PR_AddString(prinst, s, 0);
+			s = sv.strings.model_precache[i];
 			if (!strcmp(s + strlen(s) - 4, ".bsp"))
-				sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
+				sv.models[i] = Mod_FindName(s);
 
 			if (sv.state != ss_loading)
 			{

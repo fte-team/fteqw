@@ -126,3 +126,27 @@ void PR_ClientUserInfoChanged(char *name, char *oldivalue, char *newvalue);
 void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue);
 void PF_InitTempStrings(progfuncs_t *prinst);
 
+#ifdef VM_Q1
+struct client_s;
+void Q1QVM_Shutdown(void);
+qboolean PR_LoadQ1QVM(void);
+void Q1QVM_ClientConnect(struct client_s *cl);
+qboolean Q1QVM_GameConsoleCommand(void);
+qboolean Q1QVM_ClientSay(edict_t *player, qboolean team);
+qboolean Q1QVM_UserInfoChanged(edict_t *player);
+void Q1QVM_PlayerPreThink(void);
+void Q1QVM_RunPlayerThink(void);
+void Q1QVM_PostThink(void);
+void Q1QVM_StartFrame(void);
+void Q1QVM_Touch(void);
+void Q1QVM_Think(void);
+void Q1QVM_Blocked(void);
+void Q1QVM_SetNewParms(void);
+void Q1QVM_SetChangeParms(void);
+void Q1QVM_ClientCommand(void);
+void Q1QVM_DropClient(struct client_s *cl);
+void Q1QVM_ChainMoved(void);
+void Q1QVM_EndFrame(void);
+void Q1QVMED_ClearEdict (edict_t *e, qboolean wipe);
+#endif
+

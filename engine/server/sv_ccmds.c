@@ -1886,6 +1886,11 @@ void SV_SendGameCommand_f(void)
 		return;
 #endif
 
+#ifdef VM_Q1
+	if (Q1QVM_GameConsoleCommand())
+		return;
+#endif
+
 #ifdef Q2SERVER
 	if (ge)
 	{
@@ -1980,6 +1985,7 @@ void SV_InitOperatorCommands (void)
 //	Cmd_AddCommand ("writeip", SV_WriteIP_f);
 
 	Cmd_AddCommand ("sv", SV_SendGameCommand_f);
+	Cmd_AddCommand ("mod", SV_SendGameCommand_f);
 
 	Cmd_AddCommand ("killserver", SV_KillServer_f);
 	Cmd_AddCommand ("map", SV_Map_f);

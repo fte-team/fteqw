@@ -11,12 +11,12 @@
 
 
 typedef int (EXPORT_FN *sys_calldll_t) (int arg, ...);
-typedef long (*sys_callqvm_t) (void *offset, unsigned int mask, int fn, const long *arg);
+typedef int (*sys_callqvm_t) (void *offset, unsigned int mask, int fn, const int *arg);
 
 typedef struct vm_s vm_t;
 
 // for syscall users
-#define VM_LONG(x)		(*(long*)&(x))
+#define VM_LONG(x)		(*(int*)&(x))
 #define VM_FLOAT(x)		(*(float*)&(x))
 #define VM_POINTER(x)	((x)?(void*)((char *)offset+((x)%mask)):NULL)
 #define VM_OOB(p,l)		(p + l >= mask || VM_POINTER(p) < offset)

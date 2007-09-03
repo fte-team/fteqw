@@ -908,7 +908,26 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 
 	sv.models[1] = sv.worldmodel;
-	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
+#ifdef VM_Q1
+	if (svs.gametype == GT_Q1QVM)
+	{
+		strcpy(sv.strings.sound_precache[0], "");
+		sv.strings.model_precache[0] = "";
+
+		sv.strings.model_precache[1] = sv.modelname;	//the qvm doesn't have access to this array
+		for (i=1 ; i<sv.worldmodel->numsubmodels ; i++)
+		{
+			sv.strings.model_precache[1+i] = localmodels[i];
+			sv.models[i+1] = Mod_ForName (localmodels[i], false);
+		}
+
+		//check player/eyes models for hacks
+		sv.model_player_checksum = SV_CheckModel("progs/player.mdl");
+		sv.eyes_player_checksum = SV_CheckModel("progs/eyes.mdl");
+	}
+	else
+#endif
+	if (svs.gametype == GT_PROGS)
 	{
 		strcpy(sv.strings.sound_precache[0], "");
 		sv.strings.model_precache[0] = "";
@@ -992,8 +1011,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			if (!svs.clients[i].state && svs.clients[i].name[0])	//this is a bot.
 				svs.clients[i].name[0] = '\0';						//make it go away
 
-			svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf));
-			svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf));
+#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+			{	//we'll fix it up later anyway
+				svs.clients[i].name = svs.clients[i].namebuf;
+				svs.clients[i].team = svs.clients[i].teambuf;
+			}
+			else
+#endif
+			{
+				svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf));
+				svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf));
+			}
 
 #ifdef PEXT_CSQC
 			memset(svs.clients[i].csqcentsequence, 0, sizeof(svs.clients[i].csqcentsequence));
@@ -1053,7 +1082,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		eval_t *eval;
 		ent = EDICT_NUM(svprogfuncs, 0);
 		ent->isfree = false;
-		ent->v->model = PR_NewString(svprogfuncs, sv.worldmodel->name, 0);
+#ifdef VM_Q1
+		if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
+#endif
+			ent->v->model = PR_NewString(svprogfuncs, sv.worldmodel->name, 0);
 		ent->v->modelindex = 1;		// world model
 		ent->v->solid = SOLID_BSP;
 		ent->v->movetype = MOVETYPE_PUSH;
@@ -1062,14 +1094,22 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 		if (progstype == PROG_QW && pr_imitatemvdsv.value>0)
 		{
-			ent->v->targetname = PR_NewString(svprogfuncs, "mvdsv", 0);
-			ent->v->netname = PR_NewString(svprogfuncs, va("%s %f %s, build %d\nBuild date: " __DATE__ ", " __TIME__ "", DISTRIBUTIONLONG, 2.4, PLATFORM, build_number()), 0);
+#ifdef VM_Q1
+			if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
+#endif
+			{
+				ent->v->targetname = PR_NewString(svprogfuncs, "mvdsv", 0);
+				ent->v->netname = PR_NewString(svprogfuncs, va("%s %f %s, build %d\nBuild date: " __DATE__ ", " __TIME__ "", DISTRIBUTIONLONG, 2.4, PLATFORM, build_number()), 0);
+			}
 			ent->v->impulse = 0;//QWE_VERNUM;
 			ent->v->items = 103;
 		}
 
 
-		pr_global_struct->mapname = PR_NewString(svprogfuncs, sv.name, 0);
+#ifdef VM_Q1
+		if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
+			pr_global_struct->mapname = PR_NewString(svprogfuncs, sv.name, 0);
+#endif
 		// serverflags are for cross level information (sigils)
 		pr_global_struct->serverflags = svs.serverflags;
 		pr_global_struct->time = 0.1;	//HACK!!!! A few QuakeC mods expect time to be non-zero in spawn funcs - like prydon gate...

@@ -2871,6 +2871,12 @@ Spawns a client, uses an impulse, uses that clients think then removes the clien
 void SV_Impulse_f (void)
 {
 	int i;
+	if (svs.gametype != GT_PROGS)
+	{
+		Con_Printf("Not supported in this game type\n");
+		return;
+	}
+
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
 		if (svs.clients[i].state == cs_free)

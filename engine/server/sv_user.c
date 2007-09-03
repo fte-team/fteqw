@@ -2278,6 +2278,11 @@ void SV_Say (qboolean team)
 		return;
 	}
 
+#ifdef VM_Q1
+	if (Q1QVM_ClientSay(sv_player, team))
+		return;
+#endif
+
 	if ((floodtime=SV_CheckFloodProt(host_client)))
 	{
 		SV_ClientTPrintf(host_client, PRINT_CHAT,
@@ -2740,7 +2745,12 @@ void SV_SetInfo_f (void)
 	if (strstr(Cmd_Argv(1), "\\") || strstr(Cmd_Argv(2), "\\"))
 		return;		// illegal char
 
-	strcpy(oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)));
+	Q_strncpyz(oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)), MAX_INFO_STRING);
+
+#ifdef VM_Q1
+	if (Q1QVM_UserInfoChanged(sv_player))	
+		return;
+#endif
 
 	Info_SetValueForKey (host_client->userinfo, Cmd_Argv(1), Cmd_Argv(2), sizeof(host_client->userinfo));
 // name is extracted below in ExtractFromUserInfo
@@ -2756,7 +2766,7 @@ void SV_SetInfo_f (void)
 	SV_ExtractFromUserinfo (host_client);
 
 	if (progstype != PROG_QW && !strcmp(Cmd_Argv(1), "bottomcolor"))
-	{
+	{	//team fortress has a nasty habit of booting people without this
 		sv_player->v->team = atoi(Cmd_Argv(2))+1;
 	}
 
@@ -3187,6 +3197,7 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 		string_t preserve;
 		preserve = ent->v->netname;
 		Q1QVMED_ClearEdict(ent, true);
+		Con_Printf("client netname: %x\n", preserve);
 		ent->v->netname = preserve;
 	}
 	else
@@ -3194,12 +3205,12 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	{
 		if (progstype != PROG_NQ)	//allow frikbots to work in NQ mods (but not qw!)
 			ED_ClearEdict(svprogfuncs, ent);
+		ent->v->netname = PR_SetString(svprogfuncs, cl->name);
 	}
 	ED_Spawned(ent);
 	ent->isfree = false;
 
 	ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
-	ent->v->netname = PR_SetString(svprogfuncs, cl->name);
 
 	if (pr_teamfield)
 		((string_t *)ent->v)[pr_teamfield] = (string_t)(cl->team-svprogfuncs->stringtable);
@@ -3237,6 +3248,12 @@ void Cmd_Join_f (void)
 		return;
 	if (!host_client->spectator)
 		return;		// already a player
+
+	if (svs.gametype != GT_PROGS)
+	{
+		Con_Printf ("Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
+		return;
+	}
 
 	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
 	{
@@ -3324,6 +3341,12 @@ void Cmd_Observe_f (void)
 		return;
 	if (host_client->spectator)
 		return;		// already a spectator
+	
+	if (svs.gametype != GT_PROGS)
+	{
+		Con_Printf ("Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
+		return;
+	}
 
 	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
 	{

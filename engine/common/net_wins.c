@@ -1426,7 +1426,9 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 			if (newsock != INVALID_SOCKET)
 			{
 				int _true = true;
+				ioctlsocket(newsock, FIONBIO, &_true);
 				setsockopt(newsock, IPPROTO_TCP, TCP_NODELAY, (char *)&_true, sizeof(_true));
+
 
 
 

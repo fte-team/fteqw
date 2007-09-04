@@ -506,6 +506,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			}
 			if (cl->dataislisten)	//accept a connect.
 			{
+				int _true = true;
 				int temp;
 				struct sockaddr_in adr;
 				int adrlen = sizeof(adr);
@@ -519,6 +520,8 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 					QueueMessageva (cl, "425 Your client connected too slowly - %i.\r\n", qerrno);
 					continue;
 				}
+				else
+					ioctlsocket(cl->datasock, FIONBIO, &_true);
 			}
 			if (cl->datasock == INVALID_SOCKET)
 			{
@@ -571,6 +574,8 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 					QueueMessageva (cl, "425 Your client connected too slowly - %i.\r\n", qerrno);
 					continue;
 				}
+				else
+					ioctlsocket(cl->datasock, FIONBIO, &_true);
 			}
 			if (cl->datasock == INVALID_SOCKET)
 			{
@@ -647,6 +652,8 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 						QueueMessageva (cl, "425 Your client connected too slowly - %i.\r\n", qerrno);
 						continue;
 					}
+					else
+						ioctlsocket(cl->datasock, FIONBIO, &_true);
 				}
 				if (cl->datasock == INVALID_SOCKET)
 				{
@@ -815,7 +822,6 @@ unsigned long _true = true;
 		return false;
 	}
 
-	//is this needed?
 	if (ioctlsocket (clientsock, FIONBIO, &_true) == -1)
 	{
 		IWebPrintf ("FTP_ServerRun: blocking error: %s\n", strerror(qerrno));

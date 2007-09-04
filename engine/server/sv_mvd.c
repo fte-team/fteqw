@@ -2372,6 +2372,7 @@ void SV_MVDStream_Poll(void)
 {
 	static int listensocket=INVALID_SOCKET;
 	static int listenport;
+	int _true = true;
 
 	int client;
 	netadr_t na;
@@ -2419,6 +2420,8 @@ void SV_MVDStream_Poll(void)
 
 	if (client == INVALID_SOCKET)
 		return;
+
+	ioctlsocket(client, FIONBIO, &_true);
 
 	if (qtv_maxstreams.value > 0)
 	{

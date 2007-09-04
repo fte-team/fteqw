@@ -482,6 +482,7 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted)	//loop while true
 	struct sockaddr_in	from;
 	int		fromlen;
 	int clientsock;
+	int _true = true;
 
 	HTTP_active_connections_t *cl;
 
@@ -521,6 +522,8 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted)	//loop while true
 		Con_TPrintf (TL_NETGETPACKETERROR, strerror(qerrno));
 		return false;
 	}
+
+	ioctlsocket(clientsock, FIONBIO, &_true);
 
 	cl = IWebMalloc(sizeof(HTTP_active_connections_t));
 

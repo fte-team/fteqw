@@ -689,12 +689,6 @@ void PM_AirMove (void)
 			blocked = PM_StepSlideMove (true);
 		else
 			blocked = PM_SlideMove ();
-
-		if (movevars.pground)
-		{
-			if (blocked & BLOCKED_FLOOR)
-				pmove.onground = true;
-		}
 	}
 }
 
@@ -725,7 +719,7 @@ void PM_CategorizePosition (void)
 	{
 		pmove.onground = false;
 	}
-	else if (!movevars.pground || pmove.onground)
+	else
 	{
 		trace = PM_PlayerTrace (pmove.origin, point);
 		if (trace.fraction == 1 || trace.plane.normal[2] < MIN_STEP_NORMAL)
@@ -814,7 +808,7 @@ void PM_CategorizePosition (void)
 	}
 #endif
 
-	if (!movevars.pground && pmove.onground && pmove.pm_type != PM_FLY && pmove.waterlevel < 2)
+	if (pmove.onground && pmove.pm_type != PM_FLY && pmove.waterlevel < 2)
 	{
 		// snap to ground so that we can't jump higher than we're supposed to
 		if (!trace.startsolid && !trace.allsolid)
@@ -873,17 +867,6 @@ void PM_CheckJump (void)
 	{
 		// pmove.velocity is pointing into the ground, clip it
 		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);
-	}
-
-	if (!movevars.pground)
-	{
-		// check for jump bug
-		// groundplane normal was set in the call to PM_CategorizePosition
-		if (pmove.velocity[2] < 0 && DotProduct(pmove.velocity, groundplane.normal) < -0.1)
-		{
-			// pmove.velocity is pointing into the ground, clip it
-			PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);
-		}
 	}
 
 	pmove.onground = false;
@@ -1142,14 +1125,11 @@ void PM_PlayerMove (float gamespeed)
 	// set onground, watertype, and waterlevel for final spot
 	PM_CategorizePosition ();
 
-	if (!movevars.pground)
+	// this is to make sure landing sound is not played twice
+	// and falling damage is calculated correctly
+	if (pmove.onground && pmove.velocity[2] < -300
+		&& DotProduct(pmove.velocity, groundplane.normal) < -0.1)
 	{
-		// this is to make sure landing sound is not played twice
-		// and falling damage is calculated correctly
-		if (pmove.onground && pmove.velocity[2] < -300
-			&& DotProduct(pmove.velocity, groundplane.normal) < -0.1)
-		{
-			PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);
-		}
+		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);
 	}
 }

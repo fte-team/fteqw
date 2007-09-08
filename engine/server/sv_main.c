@@ -3706,19 +3706,21 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	char	newname[80];
 
 	val = Info_ValueForKey (cl->userinfo, "team");
-	val[40] = 0;	//trim to smallish length now (to allow for adding more.
 	Q_strncpyz (cl->team, val, sizeof(cl->teambuf));
 
 	// name for C code
 	val = Info_ValueForKey (cl->userinfo, "name");
-	val[40] = 0;	//trim to smallish length now (to allow for adding more.
 
 	if (cl->protocol != SCP_BAD || *val)
+	{
 		SV_FixupName(val, newname);
+		if (strlen(newname) > 40)
+			newname[40] = 0;
+	}
 	else
 		newname[0] = 0;
 
-	if (!val[0] && cl->protocol != SCP_BAD)
+	if (!newname[0] && cl->protocol != SCP_BAD)
 		strcpy(newname, "Hidden");
 	else if (!stricmp(val, "console"))
 	{

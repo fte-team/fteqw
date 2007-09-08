@@ -561,6 +561,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			}
 			if (cl->dataislisten)	//accept a connect.
 			{
+				int _true = true;
 				int temp;
 				struct sockaddr_in adr;
 				int adrlen = sizeof(adr);
@@ -639,6 +640,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			{
 				if (cl->dataislisten)	//accept a connect.
 				{
+					int _true = true;
 					int temp;
 					struct sockaddr_in adr;
 					int adrlen = sizeof(adr);

@@ -347,7 +347,6 @@ typedef struct viewer_s {
 	qboolean thinksitsconnected;
 	qboolean conmenussupported;
 	qboolean isproxy;
-	int delta_frame;
 
 	int servercount;
 
@@ -360,6 +359,7 @@ typedef struct viewer_s {
 	int userid;
 
 	packet_entities_t frame[ENTITY_FRAMES];
+	int delta_frames[ENTITY_FRAMES];
 
 	struct viewer_s *next;
 	struct viewer_s *commentator;
@@ -776,6 +776,7 @@ qboolean Net_StopFileProxy(sv_t *qtv);
 void SV_FindProxies(SOCKET sock, cluster_t *cluster, sv_t *defaultqtv);
 qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend);
 void SV_ForwardStream(sv_t *qtv, void *buffer, int length);
+int SV_SayToUpstream(sv_t *qtv, char *message);
 
 unsigned char *FS_ReadFile(char *gamedir, char *filename, unsigned int *size);
 

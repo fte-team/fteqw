@@ -667,6 +667,7 @@ int SV_SayToUpstream(sv_t *qtv, char *message)
 {
 	char buffer[1024];
 	netmsg_t nm;
+
 	if (!qtv->upstreamacceptschat)
 	{
 		Sys_Printf(qtv->cluster, "not forwarding say\n"); 
@@ -1035,6 +1036,7 @@ void QTV_Shutdown(sv_t *qtv)
 	viewer_t *v;
 	sv_t *peer;
 	cluster_t *cluster;
+	int i;
 	Sys_Printf(qtv->cluster, "Closing source %s\n", qtv->server);
 
 	if (qtv->sourcesock != INVALID_SOCKET)
@@ -1085,6 +1087,14 @@ void QTV_Shutdown(sv_t *qtv)
 			QTV_SayCommand(cluster, v->server, v, "menu");
 			QW_PrintfToViewer(v, "Stream %s is closing\n", qtv->server);
 		}
+	}
+
+	for (i = 0; i < ENTITY_FRAMES; i++)
+	{
+		if (qtv->frame[i].ents)
+			free(qtv->frame[i].ents);
+		if (qtv->frame[i].entnums)
+			free(qtv->frame[i].entnums);
 	}
 
 	for (prox = qtv->proxies; prox; )
@@ -1325,8 +1335,6 @@ void QTV_ParseQWStream(sv_t *qtv)
 			qtv->controller->maysend = true;
 //if (qtv->controller->netchan.outgoing_sequence != qtv->controller->netchan.incoming_sequence)
 //printf("bug is here\n");
-			qtv->controller->netchan.outgoing_sequence = qtv->controller->netchan.incoming_sequence;
-//			qtv->controller->netchan.incoming_sequence = qtv->netchan.incoming_acknowledged;
 		}
 	}
 }
@@ -1502,8 +1510,7 @@ void QTV_Run(sv_t *qtv)
 
 			if (qtv->controller && !qtv->controller->netchan.isnqprotocol)
 			{
-//				qtv->netchan.outgoing_sequence = qtv->controller->netchan.incoming_sequence;
-//				qtv->netchan.incoming_sequence = qtv->controller->netchan.incoming_acknowledged;
+				qtv->netchan.outgoing_sequence = qtv->controller->netchan.incoming_sequence;
 				if (qtv->maysend)
 				{
 					qtv->maysend = false;

@@ -103,6 +103,11 @@ void ConnectionData(sv_t *tv, void *buffer, int length, int to, unsigned int pla
 {
 	if (!tv->parsingconnectiondata)
 		Multicast(tv, buffer, length, to, playermask, suitablefor);
+	else if (tv->controller)
+	{
+		if (suitablefor&(tv->controller->netchan.isnqprotocol?NQ:QW))
+			SendBufferToViewer(tv->controller, buffer, length, true);
+	}
 }
 
 static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playermask)
@@ -133,6 +138,8 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 		tv->thisplayer = MAX_CLIENTS-1;
 		/*tv->servertime =*/ ReadFloat(m);
 	}
+	if (tv->controller)
+		tv->controller->thisplayer = tv->thisplayer;
 	ReadString(m, tv->mapname, sizeof(tv->mapname));
 
 	QTV_Printf(tv, "Gamedir: %s\n", tv->gamedir);
@@ -174,11 +181,13 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 		tv->frame[i].numents = 0;
 	}
 
-	if (tv->usequakeworldprotocols)
+	if (!tv->controller && tv->usequakeworldprotocols)
 	{
 		tv->netchan.message.cursize = 0;	//mvdsv sucks
 		SendClientCommand(tv, "soundlist %i 0\n", tv->clservercount);
 	}
+	else
+		ConnectionData(tv, (void*)((char*)m->data+m->startpos), m->readpos - m->startpos, to, dem_read, QW);
 	strcpy(tv->status, "Receiving soundlist\n");
 }
 
@@ -232,14 +241,16 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 		for (v = tv->cluster->viewers; v; v = v->next)
 		{
-			if (v->server == tv)
+			if (v->server == tv && v != tv->controller)
 			{
 				v->servercount++;
 				SendBufferToViewer(v, newcmd, sizeof(newcmd), true);
 			}
 		}
 
-		if (tv->usequakeworldprotocols)
+		if (tv->controller)
+			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);
+		else if (tv->usequakeworldprotocols)
 			SendClientCommand(tv, "begin %i\n", tv->clservercount);
 		return;
 	}
@@ -286,13 +297,17 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	}
 	else if (!strncmp(text, "cmd ", 4))
 	{
-		if (tv->usequakeworldprotocols)
+		if (tv->controller)
+			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);
+		else if (tv->usequakeworldprotocols)
 			SendClientCommand(tv, "%s", text+4);
 		return;	//commands the game server asked for are pointless.
 	}
 	else if (!strncmp(text, "reconnect", 9))
 	{
-		if (tv->usequakeworldprotocols)
+		if (tv->controller)
+			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);
+		else if (tv->usequakeworldprotocols)
 			SendClientCommand(tv, "new\n");
 		return;
 	}
@@ -325,7 +340,8 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	else if (tv->usequakeworldprotocols && !strncmp(text, "setinfo ", 8))
 	{
 		Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
-		SendClientCommand(tv, text);
+		if (!tv->controller)
+			SendClientCommand(tv, text);
 	}
 	else
 	{
@@ -473,6 +489,8 @@ static void ParseBaseline(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		return;
 	}
 	ParseEntityState(&tv->entity[entnum].baseline, m);
+	
+	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 }
 
 static void ParseStaticSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -1644,7 +1662,8 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 				}
 				strcpy(tv->status, "Prespawning\n");
 			}
-			if (tv->usequakeworldprotocols)
+			ConnectionData(tv, (void*)((char*)buf.data+buf.startpos), buf.readpos - buf.startpos, to, mask, QW);
+			if (tv->usequakeworldprotocols && !tv->controller)
 			{
 				if (i)
 					SendClientCommand(tv, "modellist %i %i\n", tv->clservercount, i);
@@ -1682,7 +1701,8 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			i = ParseList(tv, &buf, tv->soundlist, to, mask);
 			if (!i)
 				strcpy(tv->status, "Receiving modellist\n");
-			if (tv->usequakeworldprotocols)
+			ConnectionData(tv, (void*)((char*)buf.data+buf.startpos), buf.readpos - buf.startpos, to, mask, QW);
+			if (tv->usequakeworldprotocols && !tv->controller)
 			{
 				if (i)
 					SendClientCommand(tv, "soundlist %i %i\n", tv->clservercount, i);

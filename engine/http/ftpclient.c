@@ -212,6 +212,7 @@ iwboolean	FTP_SocketToString (int socket, char *s)
 
 iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 {
+	unsigned long _true = true;
 	char *line, *msg;
 	int ret;
 

@@ -2073,8 +2073,12 @@ void SV_SendMVDMessage(void)
 	msg.cursize = 0;
 	if (!demo.recorder.delta_sequence)
 		demo.recorder.delta_sequence = -1;
+
 	SV_WriteEntitiesToClient (&demo.recorder, &msg, true);
-	MVDWrite_Begin(dem_all, 0, msg.cursize);
+
+	if (!MVDWrite_Begin(dem_all, 0, msg.cursize))
+		return;
+
 	SZ_Write ((sizebuf_t*)demo.dbuf, msg.data, msg.cursize);
 	// copy the accumulated multicast datagram
 	// for this client out to the message

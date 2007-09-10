@@ -1009,7 +1009,7 @@ void MVDMoveBuf(void)
 	demo.dbuf->maxsize = MAXSIZE + demo.dbuf->bufsize;
 }
 
-void MVDWrite_Begin(qbyte type, int to, int size)
+qboolean MVDWrite_Begin(qbyte type, int to, int size)
 {
 	qbyte *p;
 	qboolean move = false;
@@ -1022,7 +1022,7 @@ void MVDWrite_Begin(qbyte type, int to, int size)
 			move = true;
 
 		if (!SV_MVDWritePackets(1))
-			return;
+			return false;
 
 		if (move && demobuffer->start > demo.dbuf->bufsize + header + size)
 			MVDMoveBuf();
@@ -1048,6 +1048,8 @@ void MVDWrite_Begin(qbyte type, int to, int size)
 	demo.dbuf->h->size += size;
 	if ((demobuffer->end += size) > demobuffer->last)
 		demobuffer->last = demobuffer->end;
+
+	return true;
 }
 
 /*

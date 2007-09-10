@@ -674,18 +674,22 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 #ifndef SERVERONLY
 	if (var->flags & CVAR_USERINFO)
 	{
-		Info_SetValueForKey (cls.userinfo, var->name, value, MAX_INFO_STRING);
-		if (cls.state >= ca_connected)
-		{
+		char *old = Info_ValueForKey(cls.userinfo, var->name);
+		if (strcmp(old, value))	//only spam the server if it actually changed
+		{				//this helps with config execs
+			Info_SetValueForKey (cls.userinfo, var->name, value, MAX_INFO_STRING);
+			if (cls.state >= ca_connected)
+			{
 #ifdef Q2CLIENT
-			if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)	//q2 just resends the lot. Kinda bad...
-			{
-				cls.resendinfo = true;
-			}
-			else
+				if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)	//q2 just resends the lot. Kinda bad...
+				{
+					cls.resendinfo = true;
+				}
+				else
 #endif
-			{
-				CL_SendClientCommand(true, "setinfo \"%s\" \"%s\"\n", var->name, value);
+				{
+					CL_SendClientCommand(true, "setinfo \"%s\" \"%s\"\n", var->name, value);
+				}
 			}
 		}
 	}

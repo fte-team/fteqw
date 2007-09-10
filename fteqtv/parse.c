@@ -188,6 +188,10 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 	}
 	else
 		ConnectionData(tv, (void*)((char*)m->data+m->startpos), m->readpos - m->startpos, to, dem_read, QW);
+
+	if (tv->controller)
+		QW_ClearViewerState(tv->controller);
+
 	strcpy(tv->status, "Receiving soundlist\n");
 }
 
@@ -1086,7 +1090,7 @@ static void ParseUpdateUserinfo(sv_t *tv, netmsg_t *m, int to, unsigned int mask
 		}
 	}
 
-	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
 static void ParsePacketloss(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -1118,7 +1122,7 @@ static void ParseUpdateEnterTime(sv_t *tv, netmsg_t *m, int to, unsigned int mas
 	else
 		Sys_Printf(tv->cluster, "svc_updateentertime: invalid player number\n");
 
-	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
+	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
 static void ParseSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)

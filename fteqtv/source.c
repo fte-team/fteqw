@@ -1041,6 +1041,13 @@ void QTV_Shutdown(sv_t *qtv)
 
 	if (qtv->sourcesock != INVALID_SOCKET)
 	{
+		if (qtv->usequakeworldprotocols)
+		{
+			char dying[] = {clc_stringcmd, 'd', 'r', 'o', 'p', '\0'};
+			Netchan_Transmit (qtv->cluster, &qtv->netchan, sizeof(dying), dying);
+			Netchan_Transmit (qtv->cluster, &qtv->netchan, sizeof(dying), dying);
+			Netchan_Transmit (qtv->cluster, &qtv->netchan, sizeof(dying), dying);
+		}
 		closesocket(qtv->sourcesock);
 		qtv->sourcesock = INVALID_SOCKET;
 	}

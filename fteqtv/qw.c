@@ -4512,9 +4512,6 @@ void SendViewerPackets(cluster_t *cluster, viewer_t *v)
 			WriteString(&m, v->server->status);
 		}
 
-//printf("in %i, out %i\n", v->netchan.incoming_sequence, v->netchan.outgoing_sequence);
-//if (v->netchan.incoming_sequence != v->netchan.outgoing_sequence)
-printf("%s: in %i, out %i\n", v->name, v->netchan.incoming_sequence, v->netchan.outgoing_sequence);
 		if (v->server && v->server->controller == v)
 		{
 			int saved;

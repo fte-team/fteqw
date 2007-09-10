@@ -5296,7 +5296,6 @@ void PF_infokey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int		e1;
 	char	*value;
 	char	*key;
-	char ov[256];
 
 	e = G_EDICT(prinst, OFS_PARM0);
 	e1 = NUM_FOR_EDICT(prinst, e);

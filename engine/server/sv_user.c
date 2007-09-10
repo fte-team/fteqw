@@ -1908,22 +1908,20 @@ void SV_BeginDownload_f(void)
 	// MVD hacked junk
 	if (!strncmp(name, "demonum/", 8))
 	{
-		char *mvdname;
+		char *mvdname = SV_MVDNum(atoi(name+8));
 
-		if (ISQ2CLIENT(host_client))
-		{
-			Sys_Printf ("Rejected MVD download to %s (Q2 client)\n", mvdname, host_client->name);
-			ClientReliableWrite_Begin (host_client, svcq2_download, 4);
-			ClientReliableWrite_Short (host_client, -1);
-			ClientReliableWrite_Byte (host_client, 0);
-			return;
-		}
-
-		mvdname = SV_MVDNum(atoi(name+8));
 		if (!mvdname)
 		{
 			SV_ClientPrintf (host_client, PRINT_HIGH, "%s is an invalid MVD demonum.\n", name+8);
 			Sys_Printf ("%s requested invalid demonum %s\n", host_client->name, name+8);
+		}
+		else if (ISQ2CLIENT(host_client))
+		{
+			Sys_Printf ("Rejected MVD download of %s to %s (Q2 client)\n", mvdname, host_client->name);
+			ClientReliableWrite_Begin (host_client, svcq2_download, 4);
+			ClientReliableWrite_Short (host_client, -1);
+			ClientReliableWrite_Byte (host_client, 0);
+			return;
 		}
 		else
 			SV_ClientPrintf (host_client, PRINT_HIGH, "Sending demo %s...\n", mvdname);

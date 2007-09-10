@@ -1247,7 +1247,7 @@ void MVDWrite_Begin(qbyte type, int to, int size);
 void MVDSetMsgBuf(demobuf_t *prev,demobuf_t *cur);
 void SV_MVDStop (int reason, qboolean mvdonly);
 void SV_MVDStop_f (void);
-void SV_MVDWritePackets (int num);
+qboolean SV_MVDWritePackets (int num);
 void MVD_Init (void);
 void SV_MVD_RunPendingConnections(void);
 void SV_MVD_SendInitialGamestate(mvddest_t *dest);

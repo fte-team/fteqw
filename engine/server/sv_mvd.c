@@ -1021,7 +1021,9 @@ void MVDWrite_Begin(qbyte type, int to, int size)
 		if (!move && demobuffer->end > demobuffer->start)
 			move = true;
 
-		SV_MVDWritePackets(1);
+		if (!SV_MVDWritePackets(1))
+			return;
+
 		if (move && demobuffer->start > demo.dbuf->bufsize + header + size)
 			MVDMoveBuf();
 	}
@@ -1153,7 +1155,7 @@ float adjustangle(float current, float ideal, float fraction)
 #define DF_WEAPONFRAME (1<<10)
 #define DF_MODEL	(1<<11)
 
-void SV_MVDWritePackets (int num)
+qboolean SV_MVDWritePackets (int num)
 {
 	demo_frame_t	*frame, *nextframe;
 	demo_client_t	*cl, *nextcl = NULL;
@@ -1167,7 +1169,7 @@ void SV_MVDWritePackets (int num)
 	demoinfo_t		*demoinfo;
 
 	if (!sv.mvdrecording)
-		return;
+		return false;
 
 	msg.data = msg_buf;
 	msg.maxsize = sizeof(msg_buf);
@@ -1295,6 +1297,10 @@ void SV_MVDWritePackets (int num)
 		SV_MVDWriteToDisk(0,0, (float)time); // now goes the rest
 		if (msg.cursize)
 			SV_WriteMVDMessage(&msg, dem_all, 0, (float)time);
+
+		/* The above functions can set this variable to false, but that's a really bad thing. Let's try to fix it. */
+		if (!sv.mvdrecording)
+			return false;
 	}
 
 	if (demo.lastwritten > demo.parsecount)
@@ -1302,6 +1308,8 @@ void SV_MVDWritePackets (int num)
 
 	demo.dbuf = &demo.frames[demo.parsecount&DEMO_FRAMES_MASK].buf;
 	demo.dbuf->maxsize = MAXSIZE + demo.dbuf->bufsize;
+
+	return true;
 }
 
 extern char readable[256];

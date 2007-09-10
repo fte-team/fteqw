@@ -610,6 +610,9 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 				tv->players[num].current.velocity[i] = 0;
 		}
 
+		tv->players[num].gibbed = !!(flags & PF_GIB);
+		tv->players[num].dead = !!(flags & PF_DEAD);
+
 		if (flags & PF_MODEL)
 			tv->players[num].current.modelindex = ReadByte (m);
 		else

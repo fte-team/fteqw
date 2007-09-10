@@ -1387,13 +1387,19 @@ void SendLocalPlayerState(sv_t *tv, viewer_t *v, int playernum, netmsg_t *msg)
 	WriteByte(msg, playernum);
 
 	if (tv && tv->controller == v)
-	{
+	{	//we're the one that is actually playing.
 		v->trackplayer = tv->thisplayer;
 		flags = 0;
 		if (tv->players[tv->thisplayer].current.weaponframe)
 			flags |= PF_WEAPONFRAME;
 		if (tv->players[tv->thisplayer].current.effects)
 			flags |= PF_EFFECTS;
+
+		if (tv->players[tv->thisplayer].dead)
+			flags |= PF_DEAD;
+		if (tv->players[tv->thisplayer].gibbed)
+			flags |= PF_GIB;
+
 		for (j=0 ; j<3 ; j++)
 			if (tv->players[tv->thisplayer].current.velocity[j])
 				flags |= (PF_VELOCITY1<<j);

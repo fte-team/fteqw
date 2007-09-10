@@ -284,6 +284,12 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *viewer)
 		WriteString2(msg, tv->serverinfo);
 		WriteString(msg, "\"\n");
 	}
+	if (viewer)
+	{
+		//the quakeworld client will have flushed most of the information that it knows about things
+		//this is as good a place to flush our cache as any other
+		memset(viewer->currentstats, 0, sizeof(viewer->currentstats));
+	}
 }
 void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int playernum)
 {

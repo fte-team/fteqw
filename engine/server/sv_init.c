@@ -1108,8 +1108,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 #ifdef VM_Q1
 		if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
-			pr_global_struct->mapname = PR_NewString(svprogfuncs, sv.name, 0);
 #endif
+			pr_global_struct->mapname = PR_NewString(svprogfuncs, sv.name, 0);
+
 		// serverflags are for cross level information (sigils)
 		pr_global_struct->serverflags = svs.serverflags;
 		pr_global_struct->time = 0.1;	//HACK!!!! A few QuakeC mods expect time to be non-zero in spawn funcs - like prydon gate...

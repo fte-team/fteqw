@@ -235,6 +235,7 @@ extern com_tokentype_t com_tokentype;
 extern	qboolean	com_eof;
 
 char *COM_Parse (char *data);
+char *COM_ParseStringSet (char *data);
 char *COM_ParseCString (char *data);
 char *COM_StringParse (char *data, qboolean expandmacros, qboolean qctokenize);
 char *COM_ParseToken (const char *data, const char *punctuation);

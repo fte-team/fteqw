@@ -274,9 +274,16 @@ Loads a model into the cache
 */
 model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 {
+	extern cvar_t r_replacemodels;
+
 	void	*d;
 	unsigned *buf = NULL;
 	qbyte	stackbuf[1024];		// avoid dirtying the cache heap
+	char mdlbase[MAX_QPATH];
+	qboolean lastload = false;
+	char *replstr;
+//	qboolean doomsprite = false;
+
 	char *ext;
 
 	if (!mod->needload)
@@ -305,59 +312,6 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 //
 // because the world is so huge, load it one piece at a time
 //
-
-	//look for a replacement
-	ext = COM_FileExtension(mod->name);
-#ifndef CLIENTONLY
-	if (!isDedicated && (!Q_strcasecmp(ext, "mdl") || !Q_strcasecmp(ext, "bsp")))
-	{
-		char mdlbase[MAX_QPATH];
-		COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
-
-		if (!buf)
-			buf = (unsigned *)COM_LoadStackFile (va("%s.md3", mdlbase), stackbuf, sizeof(stackbuf));
-		if (!buf)
-			buf = (unsigned *)COM_LoadStackFile (va("%s.md2", mdlbase), stackbuf, sizeof(stackbuf));
-	}
-#endif
-	if (!buf)
-	{
-//
-// load the file
-//
-		buf = (unsigned *)COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
-		if (!buf)
-		{
-			if (crash)
-				Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
-
-			mod->type = mod_dummy;
-			mod->mins[0] = -16;
-			mod->mins[1] = -16;
-			mod->mins[2] = -16;
-			mod->maxs[0] = 16;
-			mod->maxs[1] = 16;
-			mod->maxs[2] = 16;
-			mod->needload = true;
-			P_DefaultTrail(mod);
-			return mod;
-		}
-	}
-	
-//
-// allocate a new model
-//
-	COM_FileBase (mod->name, loadname, sizeof(loadname));
-	
-	loadmodel = mod;
-#ifndef SERVERONLY
-	if (cl.model_precache[1])	//not the world.
-		Validation_IncludeFile(mod->name, (char *)buf, com_filesize);
-#endif
-//
-// fill it in
-//
-
 	// set necessary engine flags for loading purposes
 	if (!strcmp(mod->name, "progs/player.mdl"))
 	{
@@ -377,73 +331,119 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 	else if (!strcmp(mod->name, "progs/eyes.mdl"))
 		mod->engineflags |= MDLF_DOCRC;
 
-
-// call the apropriate loader
+	// call the apropriate loader
 	mod->needload = false;
-	
-	switch (LittleLong(*(unsigned *)buf))
+
+	// get string used for replacement tokens
+	ext = COM_FileExtension(mod->name);
+	if (isDedicated)
+		replstr = NULL;
+	else if (!Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "sp2"))
+		replstr = NULL; // sprite
+	else if (!Q_strcasecmp(ext, "dsp")) // doom sprite
+		replstr = NULL;
+	else // assume models
+		replstr = r_replacemodels.string;
+
+	COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
+
+	while (1)
 	{
-#ifndef SERVERONLY
-	case IDPOLYHEADER:
-		if (!SWMod_LoadAliasModel (mod, buf))
-			goto couldntload;
-		break;
+		for (replstr = COM_ParseStringSet(replstr); com_token[0] && !buf; replstr = COM_ParseStringSet(replstr))
+			buf = (unsigned *)COM_LoadStackFile (va("%s.%s", mdlbase, com_token), stackbuf, sizeof(stackbuf));
 
-	case MD2IDALIASHEADER:
-		if (!SWMod_LoadAlias2Model (mod, buf))
-			goto couldntload;
-		break;
-
-	case MD3_IDENT:
-		if (!SWMod_LoadAlias3Model (mod, buf))
-			goto couldntload;
-		break;
-
-	case IDSPRITEHEADER:
-		if (!SWMod_LoadSpriteModel (mod, buf))
-			goto couldntload;
-		break;
+		if (!buf)
+		{
+			if (lastload) // only load unreplaced file once
+				break;
+			lastload = true;
+			buf = (unsigned *)COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
+			if (!buf) // we would attempt Doom sprites here, but SW doesn't support them
+				break; // failed to load unreplaced file and nothing left
+		}
 	
-	case IDSPRITE2HEADER:
-		if (!SWMod_LoadSprite2Model (mod, buf))
-			goto couldntload;
-		break;
+//
+// allocate a new model
+//
+		COM_FileBase (mod->name, loadname, sizeof(loadname));
+			
+		loadmodel = mod;
+//
+// fill it in
+//
+			
+		switch (LittleLong(*(unsigned *)buf))
+		{
+#ifndef SERVERONLY
+		case IDPOLYHEADER:
+			if (!SWMod_LoadAliasModel (mod, buf))
+				continue;
+			break;
+
+		case MD2IDALIASHEADER:
+			if (!SWMod_LoadAlias2Model (mod, buf))
+				continue;
+			break;
+
+		case MD3_IDENT:
+			if (!SWMod_LoadAlias3Model (mod, buf))
+				continue;
+			break;
+
+		case IDSPRITEHEADER:
+			if (!SWMod_LoadSpriteModel (mod, buf))
+				continue;
+			break;
+			
+		case IDSPRITE2HEADER:
+			if (!SWMod_LoadSprite2Model (mod, buf))
+				continue;
+			break;
 #endif
 #ifdef Q2BSPS
-	case IDBSPHEADER:	//looks like id switched to have proper ids
-		if (!Mod_LoadQ2BrushModel (mod, buf))
-			goto couldntload;
-		break;
+		case IDBSPHEADER:	//looks like id switched to have proper ids
+			if (!Mod_LoadQ2BrushModel (mod, buf))
+				continue;
+			break;
 #endif
 
-	case BSPVERSIONHL:
-	case BSPVERSION:	//hmm.
-	case BSPVERSIONPREREL:
-		if (!SWMod_LoadBrushModel (mod, buf))
-			goto couldntload;
-		break;
+		case BSPVERSIONHL:
+		case BSPVERSION:	//hmm.
+		case BSPVERSIONPREREL:
+			if (!SWMod_LoadBrushModel (mod, buf))
+				continue;
+			break;
 
-	default:	//some telejano mods can do this
-		Con_Printf(S_ERROR "model %s, unrecognized format %i\n", mod->name, LittleLong(*(unsigned *)buf));
-couldntload:
+		default:	//some telejano mods can do this
+			Con_Printf(S_WARNING "Unrecognized format %i\n", LittleLong(*(unsigned *)buf));
+			continue;
+		}
 
-		if (crash)
-			Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
-
-		mod->type = mod_dummy;
-		mod->mins[0] = -16;
-		mod->mins[1] = -16;
-		mod->mins[2] = -16;
-		mod->maxs[0] = 16;
-		mod->maxs[1] = 16;
-		mod->maxs[2] = 16;
-		mod->needload = true;
 		P_DefaultTrail(mod);
+
+#ifndef SERVERONLY
+		if (cl.model_precache[1])	//not the world.
+			Validation_IncludeFile(mod->name, (char *)buf, com_filesize);
+#endif
+
 		return mod;
 	}
 
-	P_DefaultTrail(mod);
+couldntload:
+	if (crash)
+		Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 
+	Con_Printf(S_ERROR "Unable to load or replace %s\n", mod->name);
+	mod->type = mod_dummy;
+	mod->mins[0] = -16;
+	mod->mins[1] = -16;
+	mod->mins[2] = -16;
+	mod->maxs[0] = 16;
+	mod->maxs[1] = 16;
+	mod->maxs[2] = 16;
+	mod->needload = true;
+	mod->engineflags = 0;
+	P_DefaultTrail(mod);
 	return mod;
 }
 

@@ -218,7 +218,6 @@ void M_Menu_Audio_Speakers_f (void)
 
 	info->card = sndcardinfo;
 
-
 	menu->selecteditem = NULL;
 }
 
@@ -362,29 +361,28 @@ typedef struct {
 } presetinfo_t;
 presetinfo_t preset[] =
 {
-	{"r_presetname",		{"286",		"fast",		"default",	"nice",		"realtime"}},
-	{"gl_texturemode",		{"nn",		"ln",		"ln",		"ll",		"ll"}},
-	{"r_particlesdesc",		{"none",	"highfps",	"spikeset",	"spikeset",	"spikeset"}},
-	{"r_stains",			{"0",		"0",		"0.75",		"0.75",		"0.75"}},
-	{"r_drawflat",			{"1",		"0",		"0",		"0",		"0"}},
-	{"r_nolerp",			{"1",		"1",		"0",		"0",		"0"}},
-	{"r_nolightdir",		{"1",		"0",		"0",		"0",		"0"}},
-	{"r_dynamic",			{"0",		"0",		"1",		"1",		"1"}},
-	{"r_bloom",				{"0",		"0",		"0",		"0",		"1"}},
-	{"gl_flashblend",		{"0",		"1",		"0",		"1",		"2"}},
-	{"gl_bump",				{"0",		"0",		"0",		"1",		"1"}},
-	{"gl_specular",			{"0",		"0",		"0",		"1",		"1"}},
-	{"r_loadlit",			{"0",		"1",		"1",		"2",		"2"}},
-	{"r_fastsky",			{"1",		"1",		"0",		"0",		"0"}},
-	{"r_waterlayers",		{"0",		"2",		"3",		"4",		"4"}},
-	{"r_shadows",			{"0",		"0",		"0",		"1",		"1"}},
-	{"r_shadow_realtime_world",{"0",	"0",		"0",		"0",		"1"}},
-	{"gl_detail",			{"0",		"0",		"0",		"1",		"1"}},
-	{"gl_load24bit",		{"0",		"0",		"1",		"1",		"1"}},
-	{"gl_loadmd2",			{"0",		"0",		"1",		"1",		"1"}},
-	{"gl_loadmd3",			{"0",		"0",		"0",		"1",		"1"}},
-	{"r_waterwarp",			{"0",		"-1",		"1",		"1",		"1"}},
-	{"r_lightstylesmooth",	{"0",		"0",		"0",		"1",		"1"}},
+	{"r_presetname",		{"286",		"fast",		"default",			"nice",				"realtime"}},
+	{"gl_texturemode",		{"nn",		"ln",		"ln",				"ll",				"ll"}},
+	{"r_particlesdesc",		{"none",	"highfps",	"spikeset tsshaft",	"spikeset tsshaft",	"spikeset tsshaft"}},
+	{"r_stains",			{"0",		"0",		"0.75",				"0.75",				"0.75"}},
+	{"r_drawflat",			{"1",		"0",		"0",				"0",				"0"}},
+	{"r_nolerp",			{"1",		"1",		"0",				"0",				"0"}},
+	{"r_nolightdir",		{"1",		"0",		"0",				"0",				"0"}},
+	{"r_dynamic",			{"0",		"0",		"1",				"1",				"1"}},
+	{"r_bloom",				{"0",		"0",		"0",				"0",				"1"}},
+	{"gl_flashblend",		{"0",		"1",		"0",				"1",				"2"}},
+	{"gl_bump",				{"0",		"0",		"0",				"1",				"1"}},
+	{"gl_specular",			{"0",		"0",		"0",				"1",				"1"}},
+	{"r_loadlit",			{"0",		"1",		"1",				"2",				"2"}},
+	{"r_fastsky",			{"1",		"1",		"0",				"0",				"0"}},
+	{"r_waterlayers",		{"0",		"2",		"3",				"4",				"4"}},
+	{"r_shadows",			{"0",		"0",		"0",				"1",				"1"}},
+	{"r_shadow_realtime_world",{"0",	"0",		"0",				"0",				"1"}},
+	{"gl_detail",			{"0",		"0",		"0",				"1",				"1"}},
+	{"gl_load24bit",		{"0",		"0",		"1",				"1",				"1"}},
+	{"r_replacemodels",		{"",		"",			"md3 md2",			"md3 md2",			"md3 md2"}},
+	{"r_waterwarp",			{"0",		"-1",		"1",				"1",				"1"}},
+	{"r_lightstylesmooth",	{"0",		"0",		"0",				"1",				"1"}},
 	{NULL}
 };
 static void ApplyPreset (int presetnum)

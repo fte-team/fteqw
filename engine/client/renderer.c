@@ -133,6 +133,9 @@ cvar_t r_wateralpha							= SCVAR  ("r_wateralpha", "1");
 cvar_t r_waterwarp							= SCVARF ("r_waterwarp", "1",
 												CVAR_ARCHIVE);
 
+cvar_t r_replacemodels						= SCVARF ("r_replacemodels", "md3 md2", 
+												CVAR_ARCHIVE);
+
 //otherwise it would defeat the point.
 cvar_t scr_allowsnap						= SCVARF ("scr_allowsnap", "1",
 												CVAR_NOTFROMSERVER);
@@ -275,16 +278,6 @@ cvar_t gl_lightmap_shift					= SCVARF ("gl_lightmap_shift", "0",
 //												CVAR_ARCHIVE);
 cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
 												CVAR_ARCHIVE);
-
-#ifdef MD2MODELS
-cvar_t gl_loadmd2							= SCVARF ("gl_loadmd2","1",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-#endif
-
-#ifdef MD3MODELS
-cvar_t gl_loadmd3							= SCVARF ("gl_loadmd3","1",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-#endif
 
 cvar_t gl_max_size							= SCVAR  ("gl_max_size", "1024");
 cvar_t gl_maxshadowlights					= SCVARF ("gl_maxshadowlights", "2",
@@ -457,12 +450,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_overbright_all, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);
-#ifdef MD2MODELS
-	Cvar_Register (&gl_loadmd2, GRAPHICALNICETIES);
-#endif
-#ifdef MD3MODELS
-	Cvar_Register (&gl_loadmd3, GRAPHICALNICETIES);
-#endif
 
 	Cvar_Register (&gl_ati_truform, GRAPHICALNICETIES);
 	Cvar_Register (&gl_ati_truform_type, GRAPHICALNICETIES);
@@ -683,6 +670,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_menutint, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
+
+	Cvar_Register (&r_replacemodels, GRAPHICALNICETIES);
 
 //bulletens
 	Cvar_Register(&bul_nowater, BULLETENVARS);

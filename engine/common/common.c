@@ -1928,6 +1928,42 @@ skipwhite:
 	return data;
 }
 
+char *COM_ParseStringSet (char *data)
+{
+	int	c;
+	int	len;
+
+	len = 0;
+	com_token[0] = 0;
+
+	if (!data)
+		return NULL;
+
+// skip whitespace and semicolons
+	while ( (c = *data) <= ' ' || c == ';' )
+	{
+		if (c == 0)
+			return NULL;			// end of file;
+		data++;
+	}
+
+// parse a regular word
+	do
+	{
+		if (len >= TOKENSIZE-1)
+			return data;
+
+		com_token[len] = c;
+		data++;
+		len++;
+		c = *data;
+	} while (c>32 && c != ';');
+
+	com_token[len] = 0;
+	return data;
+}
+
+
 char *COM_ParseOut (char *data, char *out, int outlen)
 {
 	int		c;

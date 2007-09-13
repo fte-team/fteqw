@@ -129,7 +129,7 @@ void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue);
 void R_Rockettrail_Callback(struct cvar_s *var, char *oldvalue);
 void R_Grenadetrail_Callback(struct cvar_s *var, char *oldvalue);
 
-cvar_t r_particlesdesc = SCVARFC("r_particlesdesc", "spikeset;tsshaft", CVAR_SEMICHEAT, R_ParticlesDesc_Callback);
+cvar_t r_particlesdesc = SCVARFC("r_particlesdesc", "spikeset tsshaft", CVAR_SEMICHEAT, R_ParticlesDesc_Callback);
 
 cvar_t r_part_rain_quantity = SCVAR("r_part_rain_quantity", "1");
 
@@ -728,6 +728,12 @@ void P_ParticleEffect_f(void)
 			else
 				ptype->spawnmode = SM_BOX;
 
+			if (Cmd_Argc()>2)
+			{
+				if (Cmd_Argc()>3)
+					ptype->spawnparam2 = atof(Cmd_Argv(3));
+				ptype->spawnparam1 = atof(Cmd_Argv(2));
+			}
 		}
 		else if (!strcmp(var, "type"))
 		{
@@ -1538,9 +1544,11 @@ void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue)
 {
 	extern model_t	mod_known[];
 	extern int		mod_numknown;
+	qboolean		first;
 
 	model_t *mod;
 	int i;
+	char *c;
 
 	if (cls.state == ca_disconnected)
 		return; // don't bother parsing while disconnected
@@ -1566,28 +1574,11 @@ void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue)
 
 	f_modified_particles = false;
 
+	first = true;
+	for (c = COM_ParseStringSet(var->string); com_token[0]; c = COM_ParseStringSet(c))
 	{
-		char name[32];
-		int len;
-		qboolean first = true;
-
-		char *oldsemi;		
-		char *semi;
-		oldsemi = r_particlesdesc.string;
-		semi = strchr(oldsemi, ';');
-		while (semi)
-		{
-			len = (int)(semi - oldsemi) + 1;
-			if (len > sizeof(name))
-				len = sizeof(name);
-			Q_strncpyz(name, oldsemi, len);
-			P_LoadParticleSet(name, first);
-			first = false;
-			oldsemi = semi + 1;
-			semi = strchr(oldsemi, ';');
-		}
-		Q_strncpyz(name, oldsemi, sizeof(name));
-		P_LoadParticleSet(name, first);
+		P_LoadParticleSet(com_token, first);
+		first = false;
 	}
 }
 

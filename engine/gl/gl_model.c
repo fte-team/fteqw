@@ -40,17 +40,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 extern cvar_t r_shadow_bumpscale_basetexture;
+extern cvar_t r_replacemodels;
+
 extern int gl_bumpmappingpossible;
 qboolean isnotmap = true;	//used to not warp ammo models.
-
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
-#ifdef MD2MODELS
-extern cvar_t gl_loadmd2;
-#endif
-#ifdef MD3MODELS
-extern cvar_t gl_loadmd3;
-#endif
-#endif
 
 #ifndef SWQUAKE
 model_t	*loadmodel;
@@ -435,6 +428,10 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 	void	*d;
 	unsigned *buf = NULL;
 	qbyte	stackbuf[1024];		// avoid dirtying the cache heap
+	char mdlbase[MAX_QPATH];
+	qboolean lastload = false;
+	char *replstr;
+	qboolean doomsprite = false;
 
 	char *ext;
 
@@ -468,66 +465,6 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 //
 // load the file
 //
-	//look for a replacement, but not for q1 sprites
-	ext = COM_FileExtension(mod->name);
-	if (gl_load24bit.value && Q_strcasecmp(ext, "spr") && Q_strcasecmp(ext, "sp2"))	
-	{
-		char mdlbase[MAX_QPATH];
-		COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
-#ifdef MD3MODELS
-		if (gl_loadmd3.value && !buf)
-			buf = (unsigned *)COM_LoadStackFile (va("%s.md3", mdlbase), stackbuf, sizeof(stackbuf));
-#endif
-#ifdef MD2MODELS
-		if (gl_loadmd2.value && !buf)
-			buf = (unsigned *)COM_LoadStackFile (va("%s.md2", mdlbase), stackbuf, sizeof(stackbuf));
-#endif
-	}
-	if (!buf)
-	{
-		buf = (unsigned *)COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
-		if (!buf)
-		{
-			ext = COM_FileExtension(mod->name);
-#ifdef DOOMWADS
-			if (!stricmp(ext, "dsp"))
-			{
-				mod->needload = false;
-				GLMod_LoadDoomSprite(mod);
-				P_DefaultTrail(mod);
-				return mod;
-			}
-#endif
-
-couldntload:
-
-			if (crash)
-				Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
-
-			mod->type = mod_dummy;
-			mod->mins[0] = -16;
-			mod->mins[1] = -16;
-			mod->mins[2] = -16;
-			mod->maxs[0] = 16;
-			mod->maxs[1] = 16;
-			mod->maxs[2] = 16;
-			mod->needload = true;
-			P_DefaultTrail(mod);
-			return mod;
-			return NULL;
-		}
-	}
-	
-//
-// allocate a new model
-//
-	COM_FileBase (mod->name, loadname, sizeof(loadname));
-	Validation_IncludeFile(mod->name, (char *)buf, com_filesize);
-
-//
-// fill it in
-//
-
 	// set necessary engine flags for loading purposes
 	if (!strcmp(mod->name, "progs/player.mdl"))
 		mod->engineflags |= MDLF_PLAYER | MDLF_DOCRC;
@@ -545,121 +482,193 @@ couldntload:
 	else if (!strcmp(mod->name, "progs/eyes.mdl"))
 		mod->engineflags |= MDLF_DOCRC;
 
-// call the apropriate loader
+	// call the apropriate loader
 	mod->needload = false;
-	
-	switch (LittleLong(*(unsigned *)buf))
+
+	// get string used for replacement tokens
+	ext = COM_FileExtension(mod->name);
+	if (!Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "sp2"))
+		replstr = NULL; // sprite
+	else if (!Q_strcasecmp(ext, "dsp")) // doom sprite
 	{
-//The binary 3d mesh model formats
-	case IDPOLYHEADER:
-		if (!Mod_LoadQ1Model(mod, buf))
-			goto couldntload;
-		break;
+		replstr = NULL;
+		doomsprite = true;
+	}
+	else // assume models
+		replstr = r_replacemodels.string;
+
+	// gl_load24bit 0 disables all replacements
+	if (gl_load24bit.value)
+		replstr = NULL;
+
+	COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
+
+	while (1)
+	{
+		for (replstr = COM_ParseStringSet(replstr); com_token[0] && !buf; replstr = COM_ParseStringSet(replstr))
+			buf = (unsigned *)COM_LoadStackFile (va("%s.%s", mdlbase, com_token), stackbuf, sizeof(stackbuf));
+
+		if (!buf)
+		{
+			if (lastload) // only load unreplaced file once
+				break;
+			lastload = true;
+			buf = (unsigned *)COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
+			if (!buf)
+			{
+#ifdef DOOMWADS
+				if (doomsprite) // special case needed for doom sprites
+				{
+					mod->needload = false;
+					GLMod_LoadDoomSprite(mod);
+					P_DefaultTrail(mod);
+					return mod;
+				}
+#endif
+				break; // failed to load unreplaced file and nothing left
+			}
+		}
 	
+//
+// allocate a new model
+//
+		COM_FileBase (mod->name, loadname, sizeof(loadname));
+
+//
+// fill it in
+//
+		
+		switch (LittleLong(*(unsigned *)buf))
+		{
+//The binary 3d mesh model formats
+		case IDPOLYHEADER:
+			if (!Mod_LoadQ1Model(mod, buf))
+				continue;
+			break;
+		
 #ifdef MD2MODELS
-	case MD2IDALIASHEADER:
-		if (!Mod_LoadQ2Model(mod, buf))
-			goto couldntload;
-		break;
+		case MD2IDALIASHEADER:
+			if (!Mod_LoadQ2Model(mod, buf))
+				continue;
+			break;
 #endif
 
 #ifdef MD3MODELS
-	case MD3_IDENT:
-		if (!Mod_LoadQ3Model (mod, buf))
-			goto couldntload;
-		break;
+		case MD3_IDENT:
+			if (!Mod_LoadQ3Model (mod, buf))
+				continue;
+			break;
 #endif
 
 #ifdef HALFLIFEMODELS
-	case (('T'<<24)+('S'<<16)+('D'<<8)+'I'):
-		if (!Mod_LoadHLModel (mod, buf))
-			goto couldntload;
-		break;
+		case (('T'<<24)+('S'<<16)+('D'<<8)+'I'):
+			if (!Mod_LoadHLModel (mod, buf))
+				continue;
+			break;
 #endif
 
 //Binary skeletal model formats
 #ifdef ZYMOTICMODELS
-	case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
-		if (!Mod_LoadZymoticModel(mod, buf))
-			goto couldntload;
-		break;
-	case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
-		if (!Mod_LoadDarkPlacesModel(mod, buf))
-			goto couldntload;
-		break;
+		case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
+			if (!Mod_LoadZymoticModel(mod, buf))
+				continue;
+			break;
+		case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
+			if (!Mod_LoadDarkPlacesModel(mod, buf))
+				continue;
+			break;
 #endif
 
 
 //Binary Sprites
 #ifdef SP2MODELS
-	case IDSPRITE2HEADER:
-		if (!GLMod_LoadSprite2Model (mod, buf))
-			goto couldntload;
-		break;
+		case IDSPRITE2HEADER:
+			if (!GLMod_LoadSprite2Model (mod, buf))
+				continue;
+			break;
 #endif
 
-	case IDSPRITEHEADER:
-		if (!GLMod_LoadSpriteModel (mod, buf))
-			goto couldntload;
-		break;
+		case IDSPRITEHEADER:
+			if (!GLMod_LoadSpriteModel (mod, buf))
+				continue;
+			break;
 
 
-//Binary Map formats
+	//Binary Map formats
 #ifdef Q2BSPS
-	case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
-	case IDBSPHEADER:	//looks like id switched to have proper ids
-		if (!Mod_LoadQ2BrushModel (mod, buf))
-			goto couldntload;
-		break;
+		case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
+		case IDBSPHEADER:	//looks like id switched to have proper ids
+			if (!Mod_LoadQ2BrushModel (mod, buf))
+				continue;
+			break;
 #endif
 #ifdef DOOMWADS
-	case (('D'<<24)+('A'<<16)+('W'<<8)+'I'):	//the id is hacked by the FS .wad loader (main wad).
-	case (('D'<<24)+('A'<<16)+('W'<<8)+'P'):	//the id is hacked by the FS .wad loader (patch wad).
-		if (!Mod_LoadDoomLevel (mod))
-			goto couldntload;
-		break;
+		case (('D'<<24)+('A'<<16)+('W'<<8)+'I'):	//the id is hacked by the FS .wad loader (main wad).
+		case (('D'<<24)+('A'<<16)+('W'<<8)+'P'):	//the id is hacked by the FS .wad loader (patch wad).
+			if (!Mod_LoadDoomLevel (mod))
+				continue;
+			break;
 #endif
 
-	case 30:	//hl
-	case 29:	//q1
-	case 28:	//prerel
-		if (!GLMod_LoadBrushModel (mod, buf))
-			goto couldntload;
-		break;
+		case 30:	//hl
+		case 29:	//q1
+		case 28:	//prerel
+			if (!GLMod_LoadBrushModel (mod, buf))
+				continue;
+			break;
 
-//Text based misc types.
-	default:
-		//check for text based headers
-		COM_Parse((char*)buf);
+	//Text based misc types.
+		default:
+			//check for text based headers
+			COM_Parse((char*)buf);
 #ifdef MD5MODELS
-		if (!strcmp(com_token, "MD5Version"))	//doom3 format, text based, skeletal
-		{
-			if (!Mod_LoadMD5MeshModel (mod, buf))
-				goto couldntload;
-			break;
-		}
-		if (!strcmp(com_token, "EXTERNALANIM"))	//custom format, text based, specifies skeletal models to load and which md5anim files to use.
-		{
-			if (!Mod_LoadCompositeAnim (mod, buf))
-				goto couldntload;
-			break;
-		}
+			if (!strcmp(com_token, "MD5Version"))	//doom3 format, text based, skeletal
+			{
+				if (!Mod_LoadMD5MeshModel (mod, buf))
+					continue;
+				break;
+			}
+			if (!strcmp(com_token, "EXTERNALANIM"))	//custom format, text based, specifies skeletal models to load and which md5anim files to use.
+			{
+				if (!Mod_LoadCompositeAnim (mod, buf))
+					continue;
+				break;
+			}
 #endif
 #ifdef TERRAIN
-		if (!strcmp(com_token, "terrain"))	//custom format, text based.
-		{
-			if (!GL_LoadHeightmapModel(mod, buf))
-				goto couldntload;
-			break;
-		}
+			if (!strcmp(com_token, "terrain"))	//custom format, text based.
+			{
+				if (!GL_LoadHeightmapModel(mod, buf))
+					continue;
+				break;
+			}
 #endif
 
-		Con_Printf(S_ERROR "Unrecognised model format %i loading %s\n", LittleLong(*(unsigned *)buf), mod->name);
-		goto couldntload;
+			Con_Printf(S_WARNING "Unrecognised model format %i\n", LittleLong(*(unsigned *)buf));
+			continue;
+		}
+
+		P_DefaultTrail(mod);
+		Validation_IncludeFile(mod->name, (char *)buf, com_filesize);
+
+		return mod;
 	}
 
-	P_DefaultTrail(mod);
+couldntload:
+	if (crash)
+		Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 
+	Con_Printf(S_ERROR "Unable to load or replace %s\n", mod->name);
+	mod->type = mod_dummy;
+	mod->mins[0] = -16;
+	mod->mins[1] = -16;
+	mod->mins[2] = -16;
+	mod->maxs[0] = 16;
+	mod->maxs[1] = 16;
+	mod->maxs[2] = 16;
+	mod->needload = true;
+	mod->engineflags = 0;
+	P_DefaultTrail(mod);
 	return mod;
 }
 

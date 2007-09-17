@@ -1,5 +1,6 @@
 #include "quakedef.h"
 #ifdef D3DQUAKE
+#include "winquake.h"
 #include "d3d9quake.h"
 
 #define MAX_WIDTH 512

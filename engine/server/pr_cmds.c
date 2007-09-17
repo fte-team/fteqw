@@ -447,6 +447,7 @@ void PR_Deinit(void)
 #define PREREL_PROGHEADER_CRC	26940	//prerelease
 #define H2_PROGHEADER_CRC	38488	//basic hexen2
 #define H2MP_PROGHEADER_CRC	26905	//hexen2 mission pack uses slightly different defs... *sigh*...
+#define H2DEMO_PROGHEADER_CRC	14046	//I'm guessing this is from the original release or something
 
 void PR_LoadGlabalStruct(void)
 {
@@ -664,6 +665,8 @@ progsnum_t AddProgs(char *name)
 				num = PR_LoadProgs (svprogfuncs, name, H2_PROGHEADER_CRC, NULL, 0);
 				if (num == -1)	//don't commit if bad.
 					num = PR_LoadProgs (svprogfuncs, name, H2MP_PROGHEADER_CRC, NULL, 0);
+				if (num == -1)
+					num = PR_LoadProgs (svprogfuncs, name, H2DEMO_PROGHEADER_CRC, NULL, 0);
 				if (num == -1)	//don't commit if bad.
 				{
 					progstype = PROG_PREREL;
@@ -1388,9 +1391,9 @@ qboolean PR_GameCodePacket(char *s)
 
 
 
-	G_INT(OFS_PARM0) = (int)NET_AdrToString (net_from);
+	G_INT(OFS_PARM0) = PR_SetString(svprogfuncs, NET_AdrToString (net_from));
 
-	G_INT(OFS_PARM1) = (int)PR_SetString(svprogfuncs, s);
+	G_INT(OFS_PARM1) = PR_SetString(svprogfuncs, s);
 	PR_ExecuteProgram (svprogfuncs, SV_ParseConnectionlessPacket);
 	return G_FLOAT(OFS_RETURN);
 }
@@ -2006,7 +2009,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 	// if it is an inline model, get the size information for it
 	if (m[0] == '*' || (*m&&progstype == PROG_H2))
 	{
-		mod = Mod_ForName (m, true);
+		mod = Mod_ForName (m, false);
 		if (mod)
 		{
 			VectorCopy (mod->mins, e->v->mins);
@@ -3758,7 +3761,7 @@ void PF_precache_model_Internal (progfuncs_t *prinst, char *s)
 
 	if (s[0] <= ' ')
 	{
-		PR_BIError (prinst, "Bad string");
+		Con_Printf ("precache_model: empty string\n");
 		return;
 	}
 

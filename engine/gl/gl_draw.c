@@ -363,6 +363,8 @@ mpic_t *GLDraw_SafePicFromWad (char *name)
 
 mpic_t	*GLDraw_SafeCachePic (char *path)
 {
+	//this is EVIL! WRITE IT!
+
 	int height = 0;
 	qbyte *data;
 	glcachepic_t	*pic;

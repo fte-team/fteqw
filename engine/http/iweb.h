@@ -120,8 +120,8 @@ char *Q_strcpyline(char *out, char *in, int maxlen);
 iwboolean	FTP_StringToAdr (const char *s, qbyte ip[4], qbyte port[2]);
 
 //server tick/control functions
-iwboolean FTP_ServerRun(iwboolean ftpserverwanted);
-qboolean HTTP_ServerPoll(qboolean httpserverwanted);
+iwboolean FTP_ServerRun(iwboolean ftpserverwanted, int port);
+qboolean HTTP_ServerPoll(qboolean httpserverwanted, int port);
 
 void HTTP_CL_Think(void);
 qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *localfile, qboolean sucess));

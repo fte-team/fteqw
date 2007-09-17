@@ -154,13 +154,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef QTERM	//not supported - FIXME: move to native plugin
 #endif
 
-#ifdef __amd64__
-	//I'm slowly getting these working in 64bit
-	#undef Q3CLIENT
-	#undef Q3SERVER
-	#undef PLUGINS
-#endif
-
 #if (defined(Q2CLIENT) || defined(Q2SERVER))
 	#ifndef Q2BSPS
 		#error "Q2 game support without Q2BSP support. doesn't make sense"

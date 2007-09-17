@@ -94,4 +94,14 @@ qboolean CG_Command(void);
 qboolean CG_KeyPress(int key, int down);
 #endif
 
+typedef struct {
+	int			handle;
+	int			modificationCount;
+	float		value;
+	int			integer;
+	char		string[256];
+} vmcvar_t;
+int VMQ3_Cvar_Register(vmcvar_t *v, char *name, char *defval, int flags);
+int VMQ3_Cvar_Update(vmcvar_t *v);
+
 #endif

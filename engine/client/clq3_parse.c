@@ -442,6 +442,7 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 	char *pc, *pn;
 	char *rc, *rn;
 
+	Con_Printf("Server's sv_pure: \"%s\"\n", Info_ValueForKey(str, "sv_pure"));
 	usingpure = atoi(Info_ValueForKey(str, "sv_pure"));
 	usingcheats = atoi(Info_ValueForKey(str, "sv_cheats"));
 	Cvar_ForceCheatVars(usingpure||usingcheats, usingcheats);

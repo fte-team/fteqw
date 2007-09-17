@@ -1,3 +1,10 @@
+#ifndef __D3DQUAKE_H__
+#define __D3DQUAKE_H__
+
+#ifdef __GNUC__
+#define _inline static inline
+#endif
+
 #include    "ddraw.h"
 #include    "d3d.h"
 #include    "d3dx.h"
@@ -71,3 +78,6 @@ extern lightmapinfo_t **lightmap;
 
 extern void *d3dexplosiontexture;
 extern void *d3dballtexture;
+
+#endif
+

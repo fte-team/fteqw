@@ -1,6 +1,7 @@
 #include "quakedef.h"
 #ifdef D3DQUAKE
-#include    "d3d9quake.h"
+#include "winquake.h"
+#include "d3d9quake.h"
 
 //#include    "d3d9.h"
 
@@ -526,7 +527,7 @@ void resetD3D9(void)
 
 }
 
-#if WINVER < 0x500
+#if (WINVER < 0x500) && !defined(__GNUC__)
 typedef struct tagMONITORINFO
 {
     DWORD   cbSize;

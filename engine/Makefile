@@ -75,6 +75,8 @@ endif
 CLIENT_DIR=$(BASE_DIR)/client
 GL_DIR=$(BASE_DIR)/gl
 SW_DIR=$(BASE_DIR)/sw
+D3D7_DIR=$(BASE_DIR)/d3d
+D3D9_DIR=$(BASE_DIR)/d3d9
 SERVER_DIR=$(BASE_DIR)/server
 COMMON_DIR=$(BASE_DIR)/common
 HTTP_DIR=$(BASE_DIR)/http
@@ -111,10 +113,12 @@ ifeq ($(FTE_TARGET),bsd)
 endif
 BASELDFLAGS ?= -lm -ldl -lpthread
 
+IMAGELDFLAGS=-lpng -ljpeg
+
 #BASELDFLAGS=-lm  -lz
-GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg
+GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext $(IMAGELDFLAGS)
 GLSLDFLAGS=-L/usr/X11R6/lib -lMesaGL -lglide -lvga
-XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext -lpng -ljpeg
+XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext $(IMAGELDFLAGS)
 SLDFLAGS=-lvga
 
 ifeq ($(USEASM),true)
@@ -145,7 +149,7 @@ else
 	BASE_ASM_CFLAGS = -DNOASM
 endif
 
-BASE_CFLAGS=$(BASE_ASM_CFLAGS) -Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/sdl/include -I$(LIBS_DIR)/sdl/include/SDL -D_vsnprintf=vsnprintf -D_snprintf=snprintf
+BASE_CFLAGS=$(BASE_ASM_CFLAGS) -Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(SW_DIR) -I$(GL_DIR) -I$(D3D9_DIR) -I$(D3D7_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/sdl/include -I$(LIBS_DIR)/sdl/include/SDL -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
@@ -153,6 +157,7 @@ DEBUG_CFLAGS=-ggdb -g
 RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 GLCFLAGS=-DGLQUAKE
 SWCFLAGS=-DSWQUAKE
+D3DCFLAGS=-DD3DQUAKE
 
 CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	textedit.o	\
@@ -264,6 +269,18 @@ GLQUAKE_OBJS =		\
 	gl_vidcommon.o	\
 	gl_hlmdl.o
 
+D3DQUAKE_OBJS =		\
+	d3d_draw.o	\
+	d3d_mesh.o	\
+	d3d_rmain.o	\
+	d3d_rsurf.o	\
+	vid_d3d.o	\
+	d3d9_draw.o	\
+	d3d9_mesh.o	\
+	d3d9_rmain.o	\
+	d3d9_rsurf.o	\
+	vid_d3d9.o
+
 MP3_OBJS =			\
 	fixed.o		\
 	bit.o			\
@@ -369,7 +386,7 @@ GLCL_EXE_NAME=../fteqwcl_sdl.gl$(BITS)
 ifdef windir
 	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lwsock32 `sdl-config --libs`
 else
-	GL_LDFLAGS=$(GLLDFLAGS) -lpng -ljpeg `sdl-config --libs`
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) `sdl-config --libs`
 endif
 GL_CFLAGS=$(GLCFLAGS) `sdl-config --cflags`
 GLB_DIR=gl_sdl$(BITS)
@@ -382,7 +399,7 @@ ifdef windir
 SW_LDFLAGS=$(SWLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
 else
 #pthread is needed because of SDL.
-SW_LDFLAGS=$(SWLDFLAGS) `sdl-config --libs` -lpng -ljpeg
+SW_LDFLAGS=$(SWLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
 endif
 SW_CFLAGS=$(SWCFLAGS) `sdl-config --cflags`
 SWB_DIR=sw_sdl$(BITS)
@@ -445,6 +462,14 @@ endif
 	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) $(W32_CFLAGS)
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw
+
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o
+	D3D_EXE_NAME=../fted3dqw.exe
+	D3DCL_EXE_NAME=../fted3dclqw.exe
+	D3D_LDFLAGS= -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
+	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) -DMINIMAL
+	D3DB_DIR=d3d_mgw
+	D3DCL_DIR=d3dcl_mgw
 
 	MINGL_EXE_NAME=../fteminglqw.exe
 	MINGL_DIR=mingl_mgw
@@ -547,7 +572,7 @@ ifeq ($(FTE_TARGET),morphos)
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
-	GL_LDFLAGS=$(GLLDFLAGS) -ldl -lsyscall -lpng -ljpeg -lz
+	GL_LDFLAGS=$(GLLDFLAGS) -ldl -lsyscall $(IMAGELDFLAGS) -lz
 	GL_CFLAGS=$(GLCFLAGS) -noixemul
 	GLB_DIR=gl_morphos
 	GLCL_DIR=glcl_morphos
@@ -649,7 +674,7 @@ ifneq ($(OUT_DIR),)
 endif
 
 
-VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SW_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(SNDCODEC_DIR)
+VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SW_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(SNDCODEC_DIR) : $(D3D7_DIR) : $(D3D9_DIR)
 
 #$(OUT_DIR)/%.d: %.c
 #	@set -e; rm -f $@; \
@@ -718,6 +743,19 @@ sv-dbg:
 
 
 
+d3dcl-tmp:
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(D3DCL_EXE_NAME)" WCFLAGS="$(D3D_CFLAGS)" LDFLAGS="$(D3D_LDFLAGS) $(LDFLAGS)" SOBJS="$(D3DCL_OBJS)"
+d3d-tmp:
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(D3D_EXE_NAME)" WCFLAGS="$(D3D_CFLAGS)" LDFLAGS="$(D3D_LDFLAGS) $(LDFLAGS)" SOBJS="$(D3DCL_OBJS)"
+
+d3dcl-rel:
+	$(MAKE) d3dcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(D3DCL_DIR)"
+d3dcl-dbg:
+	$(MAKE) d3dcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(D3DCL_DIR)"
+d3d-rel:
+	$(MAKE) d3d-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(D3DB_DIR)"
+d3d-dbg:
+	$(MAKE) d3d-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(D3DB_DIR)"
 
 
 glcl-tmp:
@@ -805,6 +843,7 @@ help:
 	@-echo "gl"
 	@-echo "sw"
 	@-echo "m"
+	@-echo "d3d (for windows builds)"
 	@-echo "mcl (currently broken)"
 	@-echo "glcl (currently broken)"
 	@-echo "swcl (currently broken)"

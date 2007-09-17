@@ -45,12 +45,11 @@ typedef struct FTPclient_s{
 
 FTPclient_t *FTPclient;
 
-qboolean FTP_ServerInit(void)
+qboolean FTP_ServerInit(int port)
 {	
 	struct sockaddr_in address;
 	unsigned long _true = true;
 	int i;
-	int port = 21;
 
 	if ((ftpserversocket = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
@@ -752,7 +751,7 @@ unsigned int WINAPI BlockingClient(FTPclient_t *cl)
 }
 #endif
 
-iwboolean FTP_ServerRun(iwboolean ftpserverwanted)
+iwboolean FTP_ServerRun(iwboolean ftpserverwanted, int port)
 {
 	FTPclient_t *cl, *prevcl;
 	struct sockaddr_in	from;
@@ -763,7 +762,7 @@ unsigned long _true = true;
 	if (!ftpserverinitied)
 	{
 		if (ftpserverwanted)
-			return FTP_ServerInit();
+			return FTP_ServerInit(port);
 		return false;
 	}
 	else if (!ftpserverwanted)

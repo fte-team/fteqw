@@ -1417,11 +1417,13 @@ void COM_Path_f (void)
 
 	if (com_purepaths)
 	{
+		Con_Printf ("Pure paths:\n");
 		for (s=com_purepaths ; s ; s=s->nextpure)
 		{
 			s->funcs->PrintPath(s->handle);
 		}
 		Con_Printf ("----------\n");
+		Con_Printf ("Impure paths:\n");
 	}
 
 
@@ -1605,7 +1607,7 @@ void FS_FlushFSHash(void)
 			while(bucket)
 			{
 				next = bucket->next;
-				if (bucket->keystring == (char*)(bucket+1))
+				if (bucket->key.string == (char*)(bucket+1))
 					Z_Free(bucket);
 				bucket = next;
 			}
@@ -2856,10 +2858,14 @@ void FS_ForceToPure(char *str, char *crcs, int seed)
 
 	if (!str)
 	{	//pure isn't in use.
+		if (com_purepaths)
+			Con_Printf("Pure FS deactivated\n");
 		com_purepaths = NULL;
 		FS_FlushFSHash();
 		return;
 	}
+	if (!com_purepaths)
+		Con_Printf("Pure FS activated\n");
 
 	for (sp = com_searchpaths; sp; sp = sp->next)
 	{

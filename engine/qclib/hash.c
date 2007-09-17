@@ -45,7 +45,7 @@ void *Hash_Get(hashtable_t *table, char *name)
 
 	while(buck)
 	{
-		if (!STRCMP(name, buck->keystring))
+		if (!STRCMP(name, buck->key.string))
 			return buck->data;
 
 		buck = buck->next;
@@ -61,7 +61,7 @@ void *Hash_GetInsensative(hashtable_t *table, char *name)
 
 	while(buck)
 	{
-		if (!stricmp(name, buck->keystring))
+		if (!stricmp(name, buck->key.string))
 			return buck->data;
 
 		buck = buck->next;
@@ -77,7 +77,7 @@ void *Hash_GetKey(hashtable_t *table, int key)
 
 	while(buck)
 	{
-		if ((int)buck->keystring == key)
+		if (buck->key.value == key)
 			return buck->data;
 
 		buck = buck->next;
@@ -93,7 +93,7 @@ void *Hash_GetNext(hashtable_t *table, char *name, void *old)
 
 	while(buck)
 	{
-		if (!STRCMP(name, buck->keystring))
+		if (!STRCMP(name, buck->key.string))
 		{
 			if (buck->data == old)	//found the old one
 				break;
@@ -107,7 +107,7 @@ void *Hash_GetNext(hashtable_t *table, char *name, void *old)
 	buck = buck->next;//don't return old
 	while(buck)
 	{
-		if (!STRCMP(name, buck->keystring))
+		if (!STRCMP(name, buck->key.string))
 			return buck->data;
 
 		buck = buck->next;
@@ -123,7 +123,7 @@ void *Hash_GetNextInsensative(hashtable_t *table, char *name, void *old)
 
 	while(buck)
 	{
-		if (!STRCMP(name, buck->keystring))
+		if (!STRCMP(name, buck->key.string))
 		{
 			if (buck->data == old)	//found the old one
 				break;
@@ -137,7 +137,7 @@ void *Hash_GetNextInsensative(hashtable_t *table, char *name, void *old)
 	buck = buck->next;//don't return old
 	while(buck)
 	{
-		if (!STRCMP(name, buck->keystring))
+		if (!STRCMP(name, buck->key.string))
 			return buck->data;
 
 		buck = buck->next;
@@ -151,7 +151,7 @@ void *Hash_Add(hashtable_t *table, char *name, void *data, bucket_t *buck)
 	int bucknum = Hash_Key(name, table->numbuckets);
 
 	buck->data = data;
-	buck->keystring = name;
+	buck->key.string = name;
 	buck->next = table->bucket[bucknum];
 	table->bucket[bucknum] = buck;
 
@@ -162,7 +162,7 @@ void *Hash_AddInsensative(hashtable_t *table, char *name, void *data, bucket_t *
 	int bucknum = Hash_KeyInsensative(name, table->numbuckets);
 
 	buck->data = data;
-	buck->keystring = name;
+	buck->key.string = name;
 	buck->next = table->bucket[bucknum];
 	table->bucket[bucknum] = buck;
 
@@ -173,7 +173,7 @@ void *Hash_AddKey(hashtable_t *table, int key, void *data, bucket_t *buck)
 	int bucknum = key%table->numbuckets;
 
 	buck->data = data;
-	buck->keystring = (char*)key;
+	buck->key.value = key;
 	buck->next = table->bucket[bucknum];
 	table->bucket[bucknum] = buck;
 
@@ -187,7 +187,7 @@ void Hash_Remove(hashtable_t *table, char *name)
 
 	buck = table->bucket[bucknum];
 
-	if (!STRCMP(name, buck->keystring))
+	if (!STRCMP(name, buck->key.string))
 	{
 		table->bucket[bucknum] = buck->next;
 		return;
@@ -196,7 +196,7 @@ void Hash_Remove(hashtable_t *table, char *name)
 
 	while(buck->next)
 	{
-		if (!STRCMP(name, buck->next->keystring))
+		if (!STRCMP(name, buck->next->key.string))
 		{
 			buck->next = buck->next->next;
 			return;
@@ -215,7 +215,7 @@ void Hash_RemoveData(hashtable_t *table, char *name, void *data)
 	buck = table->bucket[bucknum];
 
 	if (buck->data == data)
-		if (!STRCMP(name, buck->keystring))
+		if (!STRCMP(name, buck->key.string))
 		{
 			table->bucket[bucknum] = buck->next;
 			return;
@@ -225,7 +225,7 @@ void Hash_RemoveData(hashtable_t *table, char *name, void *data)
 	while(buck->next)
 	{
 		if (buck->next->data == data)
-			if (!STRCMP(name, buck->next->keystring))
+			if (!STRCMP(name, buck->next->key.string))
 			{
 				buck->next = buck->next->next;
 				return;
@@ -244,7 +244,7 @@ void Hash_RemoveKey(hashtable_t *table, int key)
 
 	buck = table->bucket[bucknum];
 
-	if ((int)buck->keystring == key)
+	if (buck->key.value == key)
 	{
 		table->bucket[bucknum] = buck->next;
 		return;
@@ -253,7 +253,7 @@ void Hash_RemoveKey(hashtable_t *table, int key)
 
 	while(buck->next)
 	{
-		if ((int)buck->next->keystring == key)
+		if (buck->next->key.value == key)
 		{
 			buck->next = buck->next->next;
 			return;

@@ -1183,6 +1183,8 @@ void CL_Disconnect (void)
 	cl.servercount = 0;
 	cls.findtrack = false;
 
+	Validation_DelatchRulesets();
+
 #ifdef TCPCONNECT
 	if (cls.sockettcp != INVALID_SOCKET)
 	{
@@ -2170,6 +2172,7 @@ void CL_ConnectionlessPacket (void)
 		if (!strcmp(com_token, "ccept"))
 		{
 			Con_Printf ("accept\n");
+			Validation_Apply_Ruleset();
 			Netchan_Setup(NS_CLIENT, &cls.netchan, net_from, cls.qport);
 			Con_DPrintf ("CL_EstablishConnection: connected to %s\n", cls.servername);
 
@@ -2225,6 +2228,8 @@ client_connect:	//fixme: make function
 		total_loading_size = 100;
 		current_loading_size = 0;
 		loading_stage = 2;
+
+		Validation_Apply_Ruleset();
 
 		return;
 	}
@@ -2341,6 +2346,8 @@ void CLNQ_ConnectionlessPacket(void)
 				return;
 			}
 		}
+
+		Validation_Apply_Ruleset();
 
 		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
 		cls.netchan.isnqprotocol = true;

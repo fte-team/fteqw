@@ -999,13 +999,10 @@ void Skin_FlushPlayers(void);
 
 //valid.c
 void	Validation_FlushFileList(void);
-void	ValidationPrintVersion(char *f_query_string);
-void	Validation_Server(void);
-void	Validation_FilesModified (void);
-void	Validation_Skins(void);
 void	Validation_CheckIfResponse(char *text);
 void	InitValidation(void);
 void	Validation_IncludeFile(char *filename, char *file, int filelen);
+void	Validation_Auto_Response(int playernum, char *s);
 
 extern	qboolean f_modified_particles;
 extern	qboolean care_f_modified;

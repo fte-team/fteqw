@@ -500,7 +500,6 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 			// move there locally immediately
 			VectorCopy(player->origin, self->origin);
 		}
-		Con_Printf("self->weaponframe = %i\n", self->weaponframe);
 		self->weaponframe = player->weaponframe;
 
 		return;

@@ -247,14 +247,6 @@ typedef struct {
 extern ClientConnectionState_t ccs;
 
 
-typedef struct {
-	int			handle;
-	int			modificationCount;
-	float		value;
-	int			integer;
-	char		string[256];
-} vmcvar_t;
-
 typedef enum {
 	svcq3_bad,
 	svcq3_nop,

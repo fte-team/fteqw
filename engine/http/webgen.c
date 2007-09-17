@@ -321,7 +321,7 @@ typedef struct {
 IWebFile_t IWebFiles[] = {
 	{"allplayers.html", IWeb_GenerateRankingsFile},
 	{"index.html", IWeb_GenerateIndexFile},
-	{"admin.html", IWeb_GenerateAdminFile}
+//code is too flawed for this	{"admin.html", IWeb_GenerateAdminFile}
 };
 
 typedef struct {
@@ -409,6 +409,7 @@ vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
 	int fnum;
 	char *parms;
 	int len;
+	IWeb_FileGen_t *fbuf;
 
 	if (!sv.state)
 		return NULL;
@@ -434,7 +435,7 @@ vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
 		{
 			if (IWebFiles[fnum].buffer)
 			{
-				if (IWebFiles[fnum].lastgenerationtime+10 < Sys_DoubleTime() || contentlength||*parms)	//10 sec lifetime
+				if (IWebFiles[fnum].lastgenerationtime < Sys_DoubleTime())
 				{
 					IWebFiles[fnum].buffer->references--;		//remove our reference and check free
 					if (IWebFiles[fnum].buffer->references<=0)
@@ -452,7 +453,8 @@ vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
 				IWebFiles[fnum].buffer = IWeb_GenerationBuffer;
 
 				//so it can't be sent once and freed instantly.
-				IWebFiles[fnum].lastgenerationtime = Sys_DoubleTime();
+				if (contentlength)
+					IWebFiles[fnum].lastgenerationtime = Sys_DoubleTime()+10;
 			}
 			IWebFiles[fnum].buffer->references++;
 			IWeb_GenerationBuffer = NULL;

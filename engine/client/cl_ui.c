@@ -298,15 +298,20 @@ netadr_t ui_pings[MAX_PINGREQUESTS];
 
 #define UITAGNUM 2452
 
+extern model_t mod_known[];
+#define VM_FROMMHANDLE(a) (a?mod_known+a-1:NULL)
+#define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
 
-
+extern shader_t r_shaders[];
+#define VM_FROMSHANDLE(a) (a?r_shaders+a-1:NULL)
+#define VM_TOSHANDLE(a) (a?a-r_shaders+1:0)
 
 
 typedef struct q3refEntity_s {
 	refEntityType_t	reType;
 	int			renderfx;
 
-	struct model_s	*hModel;				// opaque type outside refresh
+	int hModel;				// opaque type outside refresh
 
 	// most recent data
 	vec3_t		lightingOrigin;		// so multi-part models can be lit identically (RF_LIGHTING_ORIGIN)
@@ -324,8 +329,7 @@ typedef struct q3refEntity_s {
 
 	// texturing
 	int			skinNum;			// inline skin index
-	//int		customSkin;			// NULL for default skin
-	char		*customSkin; //the function that references this wants a char* not an int
+	int		customSkin;			// NULL for default skin
 	int		customShader;		// use one image for the entire thing
 
 	// misc
@@ -346,13 +350,50 @@ typedef struct q3refEntity_s {
 #define	Q3RF_THIRD_PERSON		2		// don't draw through eyes, only mirrors (player bodies, chat sprites)
 #define	Q3RF_FIRST_PERSON		4		// only draw through eyes (view weapon, damage blood blob)
 #define	Q3RF_DEPTHHACK			8		// for view weapon Z crunching
+
+#define MAX_VMQ3_CACHED_STRINGS 1024
+char *stringcache[1024];
+
+char *VMQ3_StringFromHandle(int handle)
+{
+	if (!handle)
+		return "";
+	handle--;
+	if ((unsigned) handle >= MAX_VMQ3_CACHED_STRINGS)
+		return "";
+	return stringcache[handle];
+}
+
+int VMQ3_StringToHandle(char *str)
+{
+	int i;
+	for (i = 0; i < MAX_VMQ3_CACHED_STRINGS; i++)
+	{
+		if (!stringcache[i])
+			break;
+		if (!strcmp(str, stringcache[i]))
+			return i+1;
+	}
+	if (i == MAX_VMQ3_CACHED_STRINGS)
+	{
+		Con_Printf("Q3VM out of string handle space\n");
+		return 0;
+	}
+	stringcache[i] = Z_Malloc(strlen(str)+1);
+	strcpy(stringcache[i], str);
+	return i+1;
+}
+
+#define VM_TOSTRCACHE(a) VMQ3_StringToHandle(VM_POINTER(a))
+#define VM_FROMSTRCACHE(a) VMQ3_StringFromHandle(a)
+
 void VQ3_AddEntity(const q3refEntity_t *q3)
 {
 	entity_t ent;
 	if (!cl_visedicts)
 		cl_visedicts = cl_visedicts_list[0];
 	memset(&ent, 0, sizeof(ent));
-	ent.model = q3->hModel;
+	ent.model = VM_FROMMHANDLE(q3->hModel);
 	ent.frame = q3->frame;
 	ent.oldframe = q3->oldframe;
 	memcpy(ent.axis, q3->axis, sizeof(q3->axis));
@@ -362,14 +403,14 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.rotation = q3->rotation;
 
 	if (q3->customSkin)
-		ent.skinnum = Mod_SkinForName(ent.model, q3->customSkin);
+		ent.skinnum = Mod_SkinForName(ent.model, VM_FROMSTRCACHE(q3->customSkin));
 
 	ent.shaderRGBAf[0] = q3->shaderRGBA[0]/255.0f;
 	ent.shaderRGBAf[1] = q3->shaderRGBA[1]/255.0f;
 	ent.shaderRGBAf[2] = q3->shaderRGBA[2]/255.0f;
 	ent.shaderRGBAf[3] = q3->shaderRGBA[3]/255.0f;
 #ifdef Q3SHADERS
-	ent.forcedshader = (void*)q3->customShader;
+	ent.forcedshader = VM_FROMSHANDLE(q3->customShader);
 	ent.shaderTime = q3->shaderTime;
 #endif
 	if (q3->renderfx & Q3RF_FIRST_PERSON)
@@ -557,21 +598,19 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 		Q_strncpyz(font->name, name, sizeof(font->name));
 		for (i = GLYPH_START; i < GLYPH_END; i++)
 		{
-			font->glyphs[i].glyph = (int)R_RegisterPic(font->glyphs[i].shaderName);
+			font->glyphs[i].glyph = VM_TOSHANDLE(R_RegisterPic(font->glyphs[i].shaderName));
 		}
 	}
 }
 
 
 
-#define VM_FROMHANDLE(a) ((void*)a)
-#define VM_TOHANDLE(a) ((int)a)
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to ui trap %i passes invalid pointer\n", fn);	//out of bounds.
 
 #ifndef _DEBUG
 static
 #endif
-long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
+int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 {
 	int ret=0;
 
@@ -728,7 +767,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case UI_R_REGISTERMODEL:	//precache model
 		{
 			char *name = VM_POINTER(arg[0]);
-			VM_LONG(ret) = VM_TOHANDLE(Mod_ForName(name, false));
+			VM_LONG(ret) = VM_TOMHANDLE(Mod_ForName(name, false));
 		}
 		break;
 	case UI_R_MODELBOUNDS:
@@ -736,7 +775,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 			VALIDATEPOINTER(arg[1], sizeof(vec3_t));
 			VALIDATEPOINTER(arg[2], sizeof(vec3_t));
 			{
-				model_t *mod = VM_FROMHANDLE(arg[0]);
+				model_t *mod = VM_FROMMHANDLE(arg[0]);
 				if (mod)
 				{
 					VectorCopy(mod->mins, ((float*)VM_POINTER(arg[1])));
@@ -754,10 +793,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case UI_R_REGISTERSKIN:
 		{
 			char *buf;
-			char *skinname = VM_POINTER(arg[0]);
-			buf = Z_TagMalloc(strlen(skinname)+1, UITAGNUM);
-			strcpy(buf, skinname);
-			VM_LONG(ret) = (int)buf;	//precache skin - engine ignores these anyway... (for now)
+			VM_LONG(ret) = VM_TOSTRCACHE(arg[0]);
 		}
 		break;
 
@@ -768,9 +804,9 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
 		else if (qrenderer == QR_OPENGL)
-			VM_LONG(ret) = (long)R_RegisterPic(VM_POINTER(arg[0]));
-		else
-			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));
+			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
+//FIXME: 64bit		else
+//			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));
 		break;
 
 	case UI_R_CLEARSCENE:	//clear scene
@@ -801,16 +837,16 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 //		qglEnable(GL_BLEND);
 //		GL_TexEnv(GL_MODULATE);
 		if (qrenderer == QR_OPENGL)
-			GLDraw_ShaderImage(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (void *)VM_LONG(arg[8]));
-		else
-			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
+			GLDraw_ShaderImage(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_FROMSHANDLE(arg[8]));
+//		else
+//			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
 		break;
 
 	case UI_CM_LERPTAG:	//Lerp tag...
 	//	tag, model, startFrame, endFrame, frac, tagName
 		if ((int)arg[0] + sizeof(float)*12 >= mask || VM_POINTER(arg[0]) < offset)
 			break;	//out of bounds.
-		VM_LerpTag(VM_POINTER(arg[0]), (model_t*)VM_LONG(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_FLOAT(arg[4]), VM_POINTER(arg[5]));
+		VM_LerpTag(VM_POINTER(arg[0]), VM_FROMMHANDLE(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_FLOAT(arg[4]), VM_POINTER(arg[5]));
 		break;
 
 	case UI_S_REGISTERSOUND:
@@ -818,14 +854,14 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 			sfx_t *sfx;
 			sfx = S_PrecacheSound(va("../%s", VM_POINTER(arg[0])));
 			if (sfx)
-				VM_LONG(ret) = sfx->name - (char *)offset;
+				VM_LONG(ret) = VM_TOSTRCACHE(arg[0]);	//return handle is the parameter they just gave
 			else
 				VM_LONG(ret) = -1;
 		}
 		break;
 	case UI_S_STARTLOCALSOUND:
 		if (VM_LONG(arg[0]) != -1 && arg[0])
-			S_LocalSound(VM_LONG(arg[0])+(char *)offset);
+			S_LocalSound(VM_FROMSTRCACHE(arg[0]));	//now we can fix up the sound name
 		break;
 
 	case UI_KEY_GETOVERSTRIKEMODE:
@@ -979,37 +1015,14 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 		break;
 
 	case UI_CVAR_REGISTER:
-		if ((int)arg[0] + sizeof(vmcvar_t) >= mask || VM_POINTER(arg[0]) < offset)
+		if (VM_OOB(arg[0], sizeof(vmcvar_t)))
 			break;	//out of bounds.
-		{
-			vmcvar_t *vmc;
-			cvar_t *var;
-			vmc = VM_POINTER(arg[0]);
-			var = Cvar_Get(VM_POINTER(arg[1]), VM_POINTER(arg[2]), 0/*VM_LONG(arg[3])*/, "UI cvar");
-			if (!vmc)
-				break;
-			vmc->handle = (char *)var - (char *)offset;
+		return VMQ3_Cvar_Register(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 
-			vmc->integer = var->value;
-			vmc->value = var->value;
-			vmc->modificationCount = var->modified;
-			Q_strncpyz(vmc->string, var->string, sizeof(vmc->string));
-		}
 	case UI_CVAR_UPDATE:
-		if ((int)arg[0] + sizeof(vmcvar_t) >= mask || VM_POINTER(arg[0]) < offset)
+		if (VM_OOB(arg[0], sizeof(vmcvar_t)))
 			break;	//out of bounds.
-		{
-			cvar_t *var;
-			vmcvar_t *vmc;
-			vmc = VM_POINTER(arg[0]);
-			var = (cvar_t *)((int)vmc->handle + (char *)offset);
-
-			vmc->integer = var->value;
-			vmc->value = var->value;
-			vmc->modificationCount = var->modified;
-			Q_strncpyz(vmc->string, var->string, sizeof(vmc->string));
-		}
-		break;
+		return VMQ3_Cvar_Update(VM_POINTER(arg[0]));
 
 	case UI_MEMORY_REMAINING:
 		VM_LONG(ret) = Hunk_LowMemAvailable();
@@ -1112,14 +1125,13 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case UI_CEIL:
 		VM_FLOAT(ret)=(float)ceil(VM_FLOAT(arg[0]));
 		break;
-
+/*
 	case UI_CACHE_PIC:
 		if (!Draw_SafeCachePic)
 			VM_LONG(ret) = 0;
 		else
 		{
-			/*VM_LONG(ret) = (long)*/Draw_SafeCachePic(VM_POINTER(arg[0]));
-			VM_LONG(ret) = (long)R_RegisterPic(VM_POINTER(arg[0]));
+			VM_LONG(ret) = 0;//FIXME: 64bit (long)R_RegisterPic(VM_POINTER(arg[0]));
 		}
 		break;
 	case UI_PICFROMWAD:
@@ -1127,8 +1139,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 			VM_LONG(ret) = 0;
 		else
 		{
-			/*VM_LONG(ret) = (long)*/Draw_SafePicFromWad(VM_POINTER(arg[0]));
-			VM_LONG(ret) = (long)R_RegisterPic(VM_POINTER(arg[0]));
+			VM_LONG(ret) = 0;//FIXME: 64bit (long)R_RegisterPic(VM_POINTER(arg[0]));
 		}
 		break;
 	case UI_GETPLAYERINFO:
@@ -1225,7 +1236,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 
 			return strlen(str);
 		}
-
+*/
 
 	case UI_PC_ADD_GLOBAL_DEFINE:
 		Con_Printf("UI_PC_ADD_GLOBAL_DEFINE not supported\n");
@@ -1264,7 +1275,7 @@ long UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 }
 
 #ifdef _DEBUG
-static long UI_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, const long *arg)
+static int UI_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, const int *arg)
 {	//this is so we can use edit and continue properly (vc doesn't like function pointers for edit+continue)
 	return UI_SystemCallsEx(offset, mask, fn, arg);
 }
@@ -1275,7 +1286,7 @@ static long UI_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, con
 //but dlls call it without saying what sort of vm it comes from, so I've got to have them as specifics
 static int EXPORT_FN UI_SystemCalls(int arg, ...)
 {
-	long args[9];
+	int args[9];
 	va_list argptr;
 
 	va_start(argptr, arg);
@@ -1295,26 +1306,35 @@ static int EXPORT_FN UI_SystemCalls(int arg, ...)
 
 qboolean UI_DrawStatusBar(int scores)
 {
+	return false;
+/*
 	if (!uivm)
 		return false;
 
 	return VM_Call(uivm, UI_DRAWSTATUSBAR, scores);
+*/
 }
 
 qboolean UI_DrawFinale(void)
 {
+	return false;
+/*
 	if (!uivm)
 		return false;
 
 	return VM_Call(uivm, UI_FINALE);
+*/
 }
 
 qboolean UI_DrawIntermission(void)
 {
+	return false;
+/*
 	if (!uivm)
 		return false;
 
 	return VM_Call(uivm, UI_INTERMISSION);
+*/
 }
 
 void UI_DrawMenu(void)
@@ -1330,25 +1350,31 @@ void UI_DrawMenu(void)
 qboolean UI_CenterPrint(char *text, qboolean finale)
 {
 	scr_centerstring = text;
-
+	return false;
+/*
 	if (!uivm)
 		return false;
 
 	return VM_Call(uivm, UI_STRINGCHANGED, SID_CENTERPRINTTEXT);
+*/
 }
 
 qboolean UI_Q2LayoutChanged(void)
 {
+	return false;
+/*
 	if (!uivm)
 		return false;
 
 	return VM_Call(uivm, UI_STRINGCHANGED, SID_CENTERPRINTTEXT);
+*/
 }
 
 void UI_StringChanged(int num)
 {
-	if (uivm)
+/*	if (uivm)
 		VM_Call(uivm, UI_STRINGCHANGED, num);
+*/
 }
 
 void UI_Reset(void)
@@ -1467,15 +1493,11 @@ void UI_Start (void)
 	if (qrenderer != QR_OPENGL && qrenderer != QR_DIRECT3D)
 		return;
 
-	uivm = VM_Create(NULL, "vm/qwui", UI_SystemCalls, UI_SystemCallsEx);
-	if (!uivm)	//broken currently, I believe.
-		uivm = VM_Create(NULL, "vm/ui", UI_SystemCalls, UI_SystemCallsEx);
+	uivm = VM_Create(NULL, "vm/ui", UI_SystemCalls, UI_SystemCallsEx);
 	if (uivm)
 	{
-		apiversion = VM_Call(uivm, UI_GETAPIVERSION, UI_API_VERSION);
-		if (apiversion == UI_API_VERSION)
-			keycatcher = 0;
-		else if (apiversion != 4 && apiversion != 6)	//make sure we can run the thing
+		apiversion = VM_Call(uivm, UI_GETAPIVERSION, 6);
+		if (apiversion != 4 && apiversion != 6)	//make sure we can run the thing
 		{
 			Con_Printf("User-Interface VM uses incompatable API version (%i)\n", apiversion);
 			VM_Destroy(uivm);

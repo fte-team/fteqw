@@ -16,12 +16,11 @@ typedef enum {HTTP_WAITINGFORREQUEST,HTTP_SENDING} http_mode_t;
 
 
 
-qboolean HTTP_ServerInit(void)
+qboolean HTTP_ServerInit(int port)
 {	
 	struct sockaddr_in address;
 	unsigned long _true = true;
 	int i;
-	int port = 80;
 
 	if ((httpserversocket = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
@@ -331,11 +330,16 @@ cont:
 				cl->mode = HTTP_SENDING;
 			}
 			else if (!stricmp(mode, "GET") || !stricmp(mode, "HEAD") || !stricmp(mode, "POST"))
-			{	
+			{
+				if (*resource != '/')
+					resource[1] = 0;	//I'm lazy, they need to comply
+				Con_Printf("Download request for \"%s\"\n", resource+1);
 				if (!strnicmp(mode, "P", 1))	//when stuff is posted, data is provided. Give an error message if we couldn't do anything with that data.
 					cl->file = IWebGenerateFile(resource+1, content, contentlen);
+				else if (!SV_AllowDownload(resource+1))
+					cl->file = NULL;
 				else
-					cl->file = FS_OpenVFS(resource, "rb", FS_GAME);
+					cl->file = FS_OpenVFS(resource+1, "rb", FS_GAME);
 				if (!cl->file)
 				{
 					if (HTTPmarkup >= 3)
@@ -477,7 +481,7 @@ notimplemented:
 	}
 }
 
-qboolean HTTP_ServerPoll(qboolean httpserverwanted)	//loop while true
+qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while true
 {
 	struct sockaddr_in	from;
 	int		fromlen;
@@ -489,7 +493,7 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted)	//loop while true
 	if (!httpserverinitied)
 	{
 		if (httpserverwanted)
-			return HTTP_ServerInit();
+			return HTTP_ServerInit(portnum);
 		return false;
 	}
 	else if (!httpserverwanted)
@@ -523,7 +527,14 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted)	//loop while true
 		return false;
 	}
 
-	ioctlsocket(clientsock, FIONBIO, &_true);
+	if (ioctlsocket (clientsock, FIONBIO, &_true) == -1)
+	{
+		Con_Printf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(qerrno));
+		closesocket(clientsock);
+		return false;
+	}
+
+	Con_Printf("New connection\n");
 
 	cl = IWebMalloc(sizeof(HTTP_active_connections_t));
 

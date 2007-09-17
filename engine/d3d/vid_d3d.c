@@ -1,5 +1,6 @@
 #include "quakedef.h"
 #ifdef D3DQUAKE
+#include "winquake.h"
 #include "d3dquake.h"
 
 

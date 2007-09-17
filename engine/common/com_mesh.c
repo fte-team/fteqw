@@ -2,7 +2,7 @@
 #if defined(D3DQUAKE) || defined(RGLQUAKE) || defined(SERVERONLY)
 
 #ifdef D3DQUAKE
-#include "d3dquake.h"
+//#include "d3dquake.h"
 #endif
 #ifdef RGLQUAKE
 #include "glquake.h"
@@ -2597,8 +2597,8 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 		md3tag_t *src;
 		md3tag_t *dst;
 
-		src = (md3tag_t *)(((unsigned int)header)+LittleLong(header->ofsTags));
-		dst = (md3tag_t *)(((unsigned int)root)+root->ofstags);
+		src = (md3tag_t *)((char*)header+LittleLong(header->ofsTags));
+		dst = (md3tag_t *)((char*)root+root->ofstags);
 		for(i=0;i<LittleLong(header->numTags)*LittleLong(header->numFrames);i++)
 		{
 			memcpy(dst->name, src->name, sizeof(dst->name));

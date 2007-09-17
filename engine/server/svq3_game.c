@@ -8,7 +8,7 @@
 float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 
 
-#define USEBOTLIB
+//#define USEBOTLIB
 
 #ifdef USEBOTLIB
 
@@ -19,7 +19,7 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 #else
 #define QDECL
 #endif
-#define fileHandle_t char*
+#define fileHandle_t int
 #define fsMode_t int
 #define pc_token_t void
 #include "botlib.h"
@@ -64,7 +64,7 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 		handle = dlopen("botlib.so", RTLD_LAZY);
 		if (!handle)
 			return NULL;
-		
+
 		pGetBotLibAPI = dlsym(handle, "GetBotLibAPI");
 		if (!pGetBotLibAPI)
 			return NULL;
@@ -219,7 +219,7 @@ void QDECL Com_sprintf( char *dest, int size, const char *fmt, ...)
 #include "clq3defs.h"
 #include "q3g_public.h"
 
-vm_t *q3gamevm;
+static vm_t *q3gamevm;
 
 
 #define fs_key 0
@@ -874,7 +874,7 @@ void SVQ3_Adjust_Area_Portal_State(q3sharedEntity_t *ge, qboolean open)
 }
 
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %i passes invalid pointer\n", fn);	//out of bounds.
-long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
+int Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 {
 	int ret = 0;
 	switch(fn)
@@ -891,37 +891,10 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case G_CVAR_REGISTER:// ( vmCvar_t *vmCvar, const char *varName, const char *defaultValue, int flags );
 		if (arg[0])
 			VALIDATEPOINTER(arg[0], sizeof(vmcvar_t));
-		{
-			vmcvar_t *vmc;
-			cvar_t *var;
-			vmc = VM_POINTER(arg[0]);
-			var = Cvar_Get(VM_POINTER(arg[1]), VM_POINTER(arg[2]), 0/*VM_LONG(arg[3])*/, "Q3-Game-Code created");
-			if (!vmc)	//qvm doesn't need to retreive it
-				break;
-			vmc->handle = (char *)var - (char *)offset;
-
-			vmc->integer = var->value;
-			vmc->value = var->value;
-			vmc->modificationCount = var->modified;
-			Q_strncpyz(vmc->string, var->string, sizeof(vmc->string));
-		}
-		break;
+		return VMQ3_Cvar_Register(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 	case G_CVAR_UPDATE:// ( vmCvar_t *vmCvar );
 		VALIDATEPOINTER(arg[0], sizeof(vmcvar_t));
-		{
-			cvar_t *var;
-			vmcvar_t *vmc;
-			vmc = VM_POINTER(arg[0]);
-			var = (cvar_t *)((int)vmc->handle + (char *)offset);
-			if (!var || !vmc->handle)
-				return false;
-
-			vmc->integer = var->value;
-			vmc->value = var->value;
-			vmc->modificationCount = var->modified;
-			Q_strncpyz(vmc->string, var->string, sizeof(vmc->string));
-		}
-		break;
+		return VMQ3_Cvar_Update(VM_POINTER(arg[0]));
 
 	case G_CVAR_SET:// ( const char *var_name, const char *value );
 		{
@@ -1061,6 +1034,8 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case G_GET_USERINFO://int num, char *buffer, int bufferSize										20
 		if (VM_OOB(arg[1], arg[2]))
 			return 0;
+		if ((unsigned)VM_LONG(arg[0]) >= sv.allocated_client_slots)
+			return 0;
 		Q_strncpyz(VM_POINTER(arg[1]), svs.clients[VM_LONG(arg[0])].userinfo, VM_LONG(arg[2]));
 		break;
 
@@ -1087,7 +1062,7 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	case G_ENTITIES_IN_BOX:	// ( const vec3_t mins, const vec3_t maxs, gentity_t **list, int maxcount );	32
 	// EntitiesInBox will return brush models based on their bounding box,
 	// so exact determination must still be done with EntityContact
-		VALIDATEPOINTER(arg[2], sizeof(int*)*VM_LONG(arg[3]));
+		VALIDATEPOINTER(arg[2], sizeof(int)*VM_LONG(arg[3]));
 		return SVQ3_EntitiesInBox(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 
 	case G_ADJUST_AREA_PORTAL_STATE:
@@ -1122,15 +1097,26 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 	// standard Q3
 	case G_MEMSET:
 		VALIDATEPOINTER(arg[0], arg[2]);
-		memset(VM_POINTER(arg[0]), arg[1], arg[2]);
+		{
+			void *dst = VM_POINTER(arg[0]);
+			memset(dst, arg[1], arg[2]);
+		}
 		break;
 	case G_MEMCPY:
 		VALIDATEPOINTER(arg[0], arg[2]);
-		memmove(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+		{
+			void *dst = VM_POINTER(arg[0]);
+			void *src = VM_POINTER(arg[1]);
+			memmove(dst, src, arg[2]);
+		}
 		break;
 	case G_STRNCPY:
 		VALIDATEPOINTER(arg[0], arg[2]);
-		Q_strncpyS(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+		{
+			void *dst = VM_POINTER(arg[0]);
+			void *src = VM_POINTER(arg[1]);
+			Q_strncpyS(src, dst, arg[2]);
+		}
 		break;
 	case G_SIN:
 		VM_FLOAT(ret)=(float)sin(VM_FLOAT(arg[0]));
@@ -1592,7 +1578,7 @@ long Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
 
 int EXPORT_FN Q3G_SystemCalls(int arg, ...)
 {
-	long args[13];
+	int args[13];
 	va_list argptr;
 
 	va_start(argptr, arg);
@@ -1849,6 +1835,7 @@ qboolean SVQ3_InitGame(void)
 	char *str;
 	char sysinfo[8192];
 	extern cvar_t progs;
+	cvar_t *sv_pure;
 
 	if (sv.worldmodel->type == mod_heightmap)
 	{
@@ -1900,13 +1887,14 @@ qboolean SVQ3_InitGame(void)
 	str = FS_GetPackNames(buffer, sizeof(buffer), true);
 	Info_SetValueForKey(sysinfo, "sv_referencedPakNames", str, MAX_SERVERINFO_STRING);
 
-	Info_SetValueForKey(sysinfo, "sv_pure", "1", MAX_SERVERINFO_STRING);
+	sv_pure = Cvar_Get("sv_pure", "1", 0, "Q3 compatability");
+	Info_SetValueForKey(sysinfo, "sv_pure", sv_pure->string, MAX_SERVERINFO_STRING);
 
 	SVQ3_SetConfigString(1, sysinfo);
 
 
 	mapentspointer = sv.worldmodel->entities;
-	VM_Call(q3gamevm, GAME_INIT, 0, rand(), false);
+	VM_Call(q3gamevm, GAME_INIT, 0, (int)rand(), false);
 
 	CM_InitBoxHull();
 
@@ -1937,17 +1925,17 @@ void SVQ3_RunFrame(void)
 
 void SVQ3_ClientCommand(client_t *cl)
 {
-	VM_Call(q3gamevm, GAME_CLIENT_COMMAND, cl-svs.clients);
+	VM_Call(q3gamevm, GAME_CLIENT_COMMAND, (int)(cl-svs.clients));
 }
 
 void SVQ3_ClientBegin(client_t *cl)
 {
-	VM_Call(q3gamevm, GAME_CLIENT_BEGIN, cl-svs.clients);
+	VM_Call(q3gamevm, GAME_CLIENT_BEGIN, (int)(cl-svs.clients));
 }
 
 void SVQ3_ClientThink(client_t *cl)
 {
-	VM_Call(q3gamevm, GAME_CLIENT_THINK, cl-svs.clients);
+	VM_Call(q3gamevm, GAME_CLIENT_THINK, (int)(cl-svs.clients));
 }
 
 qboolean SVQ3_Command(void)
@@ -2303,7 +2291,8 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	bitvector = sv.worldmodel->funcs.LeafPVS(sv.worldmodel, sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, org), NULL);
 	clientarea = CM_LeafArea(sv.worldmodel, clientarea);
 /*
-	if( client->areanum != clientarea ) {
+	if (client->areanum != clientarea)
+	{
 		Com_Printf( "%s entered area %i\n", client->name, clientarea);
 		client->areanum = clientarea;
 	}
@@ -2409,7 +2398,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 void SVQ3_SendGameState(client_t *client)
 {
 	sizebuf_t		msg;
-	char			buffer[MAX_OVERALLMSGLEN];
+	unsigned char			buffer[MAX_OVERALLMSGLEN];
 	int				i;
 	int				j;
 	char			*configString;
@@ -2712,7 +2701,7 @@ void SVQ3_UpdateUserinfo_f(client_t *cl)
 
 	SV_ExtractFromUserinfo (cl);
 
-	VM_Call(q3gamevm, GAME_CLIENT_USERINFO_CHANGED, cl-svs.clients);
+	VM_Call(q3gamevm, GAME_CLIENT_USERINFO_CHANGED, (int)(cl-svs.clients));
 }
 
 void SVQ3_Drop_f(client_t *cl)
@@ -2850,7 +2839,6 @@ void SVQ3_ParseClientMessage(client_t *client)
 		{
 			Con_Printf("corrupted packet from %s\n", client->name);
 			client->drop = true;
-//			SV_DropClient(client);
 			return;
 		}
 
@@ -2865,7 +2853,6 @@ void SVQ3_ParseClientMessage(client_t *client)
 		default:
 			Con_Printf("corrupted packet from %s\n", client->name);
 			client->drop = true;
-//			SV_DropClient(client);
 			return;
 		case clcq3_nop:
 			break;
@@ -2937,7 +2924,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	Huff_DecryptPacket(&net_message, 12);
 
 
-	Cmd_TokenizeString(net_message.data+4, false, false);
+	Cmd_TokenizeString((char*)net_message.data+4, false, false);
 	userinfo = Cmd_Argv(1);
 	qport = atoi(Info_ValueForKey(userinfo, "qport"));
 	challenge = atoi(Info_ValueForKey(userinfo, "challenge"));
@@ -2980,7 +2967,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 			reason = NET_AdrToString(net_from);
 			Info_SetValueForStarKey(cl->userinfo, "ip", reason, sizeof(cl->userinfo));
 
-			ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, cl-svs.clients, false, false);
+			ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, (int)(cl-svs.clients), false, false);
 			if (!ret)
 				reason = NULL;
 			else
@@ -3039,7 +3026,7 @@ int SVQ3_AddBot(void)
 void SVQ3_DropClient(client_t *cl)
 {
 	if (q3gamevm)
-		VM_Call(q3gamevm, GAME_CLIENT_DISCONNECT, cl-svs.clients);
+		VM_Call(q3gamevm, GAME_CLIENT_DISCONNECT, (int)(cl-svs.clients));
 }
 
 #endif

@@ -160,6 +160,8 @@ char *Cvar_FlagToName(int flag)
 		return "rendercallback";
 	case CVAR_NOUNSAFEEXPAND:
 		return "nounsafeexpand";
+	case CVAR_RULESETLATCH:
+		return "rulesetlatch";
 	}
 
 	return NULL;
@@ -604,7 +606,7 @@ Cvar_Set
 ============
 */
 cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
-{
+{	//fixme: force should probably be a latch bitmask
 	char *latch=NULL;
 
 	if (!var)
@@ -722,6 +724,47 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	return var;
 }
 
+qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, int flag)
+{
+	qboolean result = true;
+
+	char *latch;
+	var->flags &= ~flag;
+	latch = var->latched_string;
+	var->latched_string = NULL;
+	if (!latch)
+	{
+#ifndef _MSC_VER
+		#warning this means the callback will never be called
+#endif
+		latch = var->string;
+		var->string = NULL;
+	}
+#ifndef _MSC_VER
+#warning set or forceset?
+#endif
+	Cvar_Set(var, value);
+
+	if (var->latched_string)
+	{	//something else latched it
+		Z_Free(var->latched_string);
+		var->latched_string = NULL;
+		result = false;
+	}
+	else
+		var->flags |= flag;
+
+	if (latch)
+	{
+		if (!strcmp(var->string, latch))
+			Z_Free(latch);	//don't allow a latch to be the same as the current value
+		else
+			var->latched_string = latch;
+	}
+
+	return result;
+}
+
 void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 {	//this either unlatches if the cheat type is allowed, or enforces a default for full cheats and blank for semicheats.
 	//this is clientside only.
@@ -741,6 +784,9 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 		var->latched_string = NULL;
 		if (!latch)
 		{
+#ifndef _MSC_VER
+		#warning this means the callback will never be called
+#endif
 			latch = var->string;
 			var->string = NULL;
 		}
@@ -777,8 +823,8 @@ void Cvar_ApplyLatches(int latchflag)
 	int mask = ~0;
 	int of;
 
-	if (latchflag == CVAR_SERVEROVERRIDE)	//these ones are cleared
-		mask = ~CVAR_SERVEROVERRIDE;
+	if (latchflag == CVAR_SERVEROVERRIDE || latchflag == CVAR_RULESETLATCH)	//these ones are cleared
+		mask = ~latchflag;
 
 	for (grp=cvar_groups ; grp ; grp=grp->next)
 	for (var=grp->cvars ; var ; var=var->next)

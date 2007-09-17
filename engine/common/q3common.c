@@ -308,8 +308,56 @@ int VM_GetFileList(char *path, char *ext, char *output, int buffersize)
 
 #include "clq3defs.h"	//okay, urr, this is bad for dedicated servers. urhum. Maybe they're not looking? It's only typedefs and one extern.
 
+#define MAX_VMQ3_CVARS 256	//can be blindly increased
+cvar_t *q3cvlist[MAX_VMQ3_CVARS];
+int VMQ3_Cvar_Register(vmcvar_t *v, char *name, char *defval, int flags)
+{
+	int i;
+	cvar_t *c = Cvar_Get(name, defval, 0, "Q3VM cvars");
+	if (!c)	//command name, etc
+		return 0;
+	for (i = 0; i < MAX_VMQ3_CVARS; i++)
+	{
+		if (!q3cvlist[i])
+			q3cvlist[i] = c;
+		if (q3cvlist[i] == c)
+		{
+			if (v)
+			{
+				v->handle = i+1;
 
+				VMQ3_Cvar_Update(v);
+			}
+			return i+1;
+		}
+	}
 
+	Con_Printf("Ran out of VMQ3 cvar handles\n");
+
+	return 0;
+}
+int VMQ3_Cvar_Update(vmcvar_t *v)
+{
+	cvar_t *c;
+	int i;
+	i = v->handle;
+	if (!i)
+		return 0;	//not initialised
+	i--;
+	if ((unsigned)i >= MAX_VMQ3_CVARS)
+		return 0;	//a hack attempt
+
+	c = q3cvlist[i];
+	if (!c)
+		return 0;	//that slot isn't active yet
+
+	v->integer = c->value;
+	v->value = c->value;
+	v->modificationCount = c->modified;
+	Q_strncpyz(v->string, c->string, sizeof(v->string));
+
+	return 1;
+}
 
 
 /*

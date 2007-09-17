@@ -93,7 +93,6 @@ typedef struct {
 	char			messageString[MAX_STRING_CHARS];
 } uiClientState_t;
 
-#define UI_API_VERSION 5000
 typedef enum {
 	UI_GETAPIVERSION = 0,	// system reserved
 
@@ -128,12 +127,15 @@ typedef enum {
 // overlayed over whatever the cgame has drawn.
 // a GetClientState syscall will be made to get the current strings
 
+
+/*
 	UI_DRAWSTATUSBAR	= 500,
 	UI_MOUSE_POS,
 	UI_INTERMISSION,
 	UI_FINALE,
 	UI_STRINGCHANGED,	//parma is the string id
 	UI_NEWSERVER	//indicates that all the strings have changed.
+*/
 } uiExport_t;
 
 typedef enum {
@@ -236,12 +238,12 @@ typedef enum {
 	UI_SQRT,
 	UI_FLOOR,
 	UI_CEIL,
-
+/*
 	UI_CACHE_PIC		= 500,
 	UI_PICFROMWAD		= 501,
 	UI_GETPLAYERINFO	= 502,
 	UI_GETSTAT			= 503,
 	UI_GETVIDINFO		= 504,
 	UI_GET_STRING		= 510,
-
+*/
 } uiImport_t;

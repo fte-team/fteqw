@@ -311,7 +311,9 @@ IWEBFILE *IWebFOpenRead(char *name)					//fread(name, "rb");
 
 #ifndef CLIENTONLY
 cvar_t ftpserver = SCVAR("sv_ftp", "0");
+cvar_t ftpserver_port = SCVAR("sv_ftp_port", "21");
 cvar_t httpserver = SCVAR("sv_http", "0");
+cvar_t httpserver_port = SCVAR("sv_http_port", "80");
 cvar_t sv_readlevel = SCVAR("sv_readlevel", "0");	//default to allow anyone
 cvar_t sv_writelevel = SCVAR("sv_writelevel", "35");	//allowed to write to uploads/uname
 cvar_t sv_fulllevel = SCVAR("sv_fulllevel", "51");	//allowed to write anywhere, replace any file...
@@ -364,7 +366,17 @@ void IWebInit(void)
 	Cvar_Register(&sv_readlevel, "Internet Server Access");
 
 	Cvar_Register(&ftpserver, "Internet Server Access");
+	Cvar_Register(&ftpserver_port, "Internet Server Access");
 	Cvar_Register(&httpserver, "Internet Server Access");
+	Cvar_Register(&httpserver_port, "Internet Server Access");
+
+	//don't allow these to be changed easily
+	//this basically blocks these from rcon / stuffcmd
+	ftpserver.restriction = RESTRICT_MAX;
+	httpserver.restriction = RESTRICT_MAX;
+	sv_fulllevel.restriction = RESTRICT_MAX;
+	sv_writelevel.restriction = RESTRICT_MAX;
+	sv_readlevel.restriction = RESTRICT_MAX;
 #endif
 }
 void IWebRun(void)
@@ -372,8 +384,8 @@ void IWebRun(void)
 #ifdef WEBSERVER
 	extern qboolean httpserverfailed, ftpserverfailed;
 
-	FTP_ServerRun(ftpserver.value!= 0);
-	HTTP_ServerPoll(httpserver.value!=0);
+	FTP_ServerRun(ftpserver.value!= 0, ftpserver_port.value);
+	HTTP_ServerPoll(httpserver.value!=0, httpserver_port.value);
 	if (ftpserverfailed)
 	{
 		Con_Printf("FTP Server failed to load, setting %s to 0\n", ftpserver.name);

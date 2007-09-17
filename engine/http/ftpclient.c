@@ -378,6 +378,7 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 
 				if (temp != INVALID_SOCKET)
 				{
+					int _true = true;
 					ioctlsocket(temp, FIONBIO, &_true);
 					con->stage = 6;
 					if (con->type == ftp_getting)

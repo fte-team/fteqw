@@ -27,8 +27,18 @@ void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s
 
 #define CGTAGNUM 5423
 
-#define VM_FROMHANDLE(a) ((void*)a)
-#define VM_TOHANDLE(a) ((int)a)
+#define VM_TOSTRCACHE(a) VMQ3_StringToHandle(VM_POINTER(a))
+#define VM_FROMSTRCACHE(a) VMQ3_StringFromHandle(a)
+char *VMQ3_StringFromHandle(int handle);
+int VMQ3_StringToHandle(char *str);
+
+extern model_t mod_known[];
+#define VM_FROMMHANDLE(a) (a?mod_known+a-1:NULL)
+#define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
+
+extern shader_t r_shaders[];
+#define VM_FROMSHANDLE(a) (a?r_shaders+a-1:NULL)
+#define VM_TOSHANDLE(a) (a?a-r_shaders+1:0)
 
 typedef enum {
 	CG_PRINT,
@@ -139,8 +149,6 @@ typedef enum {
 } cgameImport_t;
 
 
-#define VM_FROMHANDLE(a) ((void*)a)
-#define VM_TOHANDLE(a) ((int)a)
 
 /*
 ==================================================================
@@ -426,7 +434,7 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to cgame trap %i passes invalid pointer\n", fn);	//out of bounds.
 
-static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long *arg)
+static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 {
 	int ret=0;
 
@@ -463,35 +471,10 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 	case CG_CVAR_REGISTER:
 		if (arg[0])
 			VALIDATEPOINTER(arg[0], sizeof(vmcvar_t));
-		{
-			vmcvar_t *vmc;
-			cvar_t *var;
-			vmc = VM_POINTER(arg[0]);
-			var = Cvar_Get(VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3])&(CVAR_ARCHIVE|CVAR_USERINFO|CVAR_SERVERINFO), "UI cvar");
-			if (!vmc)
-				break;
-			vmc->handle = (char *)var - (char *)offset;
-
-			vmc->integer = var->value;
-			vmc->value = var->value;
-			vmc->modificationCount = var->modified;
-			Q_strncpyz(vmc->string, var->string, sizeof(vmc->string));
-		}
-		break;
+		return VMQ3_Cvar_Register(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 	case CG_CVAR_UPDATE:
 		VALIDATEPOINTER(arg[0], sizeof(vmcvar_t));
-		{
-			cvar_t *var;
-			vmcvar_t *vmc;
-			vmc = VM_POINTER(arg[0]);
-			var = (cvar_t *)((int)vmc->handle + (char *)offset);
-
-			vmc->integer = var->value;
-			vmc->value = var->value;
-			vmc->modificationCount = var->modified;
-			Q_strncpyz(vmc->string, var->string, sizeof(vmc->string));
-		}
-		break;
+		return VMQ3_Cvar_Update(VM_POINTER(arg[0]));
 
 	case CG_CVAR_SET:
 		{
@@ -562,7 +545,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 	case CG_CM_POINTCONTENTS: //int			trap_CM_PointContents( const vec3_t p, clipHandle_t model );
 		{
 			unsigned int pc;
-			model_t *mod = VM_FROMHANDLE(arg[1]);
+			model_t *mod = VM_FROMMHANDLE(arg[1]);
 			if (!mod)
 				mod = cl.worldmodel;
 			if (mod)
@@ -577,7 +560,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		{
 			unsigned int pc;
 			float *p = VM_POINTER(arg[0]);
-			model_t *mod = VM_FROMHANDLE(arg[1]);
+			model_t *mod = VM_FROMMHANDLE(arg[1]);
 			float *origin = VM_POINTER(arg[2]);
 			float *angles = VM_POINTER(arg[3]);
 
@@ -624,7 +607,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 			float *end			= VM_POINTER(arg[2]);
 			float *mins			= VM_POINTER(arg[3]);
 			float *maxs			= VM_POINTER(arg[4]);
-			model_t *mod		= VM_FROMHANDLE(arg[5]);
+			model_t *mod		= VM_FROMMHANDLE(arg[5]);
 			int brushmask			= VM_LONG(arg[6]);
 			float *origin		= VM_POINTER(arg[7]);
 			float *angles		= VM_POINTER(arg[8]);
@@ -668,7 +651,7 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 			float *end			= VM_POINTER(arg[2]);
 			float *mins			= VM_POINTER(arg[3]);
 			float *maxs			= VM_POINTER(arg[4]);
-			model_t *mod		= VM_FROMHANDLE(arg[5]);
+			model_t *mod		= VM_FROMMHANDLE(arg[5]);
 			int brushmask			= VM_LONG(arg[6]);
 			if (!mod)
 				mod = cl.worldmodel;
@@ -703,8 +686,9 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 	case CG_CM_LOADMAP:
 		{
 			int i;
-			strcpy(cl.model_name[1], VM_POINTER(arg[0]));
-			cl.worldmodel = cl.model_precache[1] = Mod_ForName(VM_POINTER(arg[0]), false);
+			char *mapname = VM_POINTER(arg[0]);
+			strcpy(cl.model_name[1], mapname);
+			cl.worldmodel = cl.model_precache[1] = Mod_ForName(mapname, false);
 			if (cl.worldmodel->needload)
 				Host_EndGame("Couldn't load map");
 
@@ -718,21 +702,21 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 		break;
 
 	case CG_CM_INLINEMODEL:
-		VM_LONG(ret) = VM_TOHANDLE(cl.model_precache[VM_LONG(arg[0])+1]);
+		VM_LONG(ret) = VM_TOMHANDLE(cl.model_precache[VM_LONG(arg[0])+1]);
 		break;
 	case CG_CM_NUMINLINEMODELS:
 		VM_LONG(ret) = cl.worldmodel?cl.worldmodel->numsubmodels:0;
 		break;
 
 	case CG_CM_TEMPBOXMODEL:
-		VM_LONG(ret) = VM_TOHANDLE(CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1])));
+		VM_LONG(ret) = VM_TOMHANDLE(CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1])));
 		break;
 
 	case CG_R_MODELBOUNDS:
 		VALIDATEPOINTER(arg[1], sizeof(vec3_t));
 		VALIDATEPOINTER(arg[2], sizeof(vec3_t));
 		{
-			model_t *mod = VM_FROMHANDLE(arg[0]);
+			model_t *mod = VM_FROMMHANDLE(arg[0]);
 			if (mod)
 			{
 				VectorCopy(mod->mins, ((float*)VM_POINTER(arg[1])));
@@ -747,35 +731,29 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 			mod = Mod_ForName(VM_POINTER(arg[0]), false);
 			if (mod->needload || mod->type == mod_dummy)
 				return 0;
-			VM_LONG(ret) = VM_TOHANDLE(mod);
+			VM_LONG(ret) = VM_TOMHANDLE(mod);
 		}
 		break;
 
 	case CG_R_REGISTERSKIN:
-		{
-			char *buf;
-			char *skinname = VM_POINTER(arg[0]);
-			buf = Z_TagMalloc(strlen(skinname)+1, CGTAGNUM);
-			strcpy(buf, skinname);
-			VM_LONG(ret) = VM_TOHANDLE(buf);	//precache skin - engine ignores these anyway... (for now)
-		}
+		VM_LONG(ret) = VM_TOSTRCACHE(arg[0]);
 		break;
 
 	case CG_R_REGISTERSHADER:
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
 		else if (qrenderer == QR_OPENGL)
-			VM_LONG(ret) = VM_TOHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
-		else
-			VM_LONG(ret) = VM_TOHANDLE(Draw_SafeCachePic(VM_POINTER(arg[0])));
+			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
+//FIXME: 64bit		else
+//			VM_LONG(ret) = VM_TOHANDLE(Draw_SafeCachePic(VM_POINTER(arg[0])));
 		break;
 	case CG_R_REGISTERSHADERNOMIP:
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
 		else if (qrenderer == QR_OPENGL)
-			VM_LONG(ret) = VM_TOHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
-		else
-			VM_LONG(ret) = VM_TOHANDLE(Draw_SafeCachePic(VM_POINTER(arg[0])));
+			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
+//FIXME: 64bit		else
+//			VM_LONG(ret) = VM_TOHANDLE(Draw_SafeCachePic(VM_POINTER(arg[0])));
 		break;
 
 	case CG_R_CLEARSCENE:	//clear scene
@@ -813,22 +791,22 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 
 	case CG_R_DRAWSTRETCHPIC:
 		if (qrenderer == QR_OPENGL)
-			GLDraw_ShaderImage(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (void *)VM_LONG(arg[8]));
-		else
-			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
+			GLDraw_ShaderImage(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_FROMSHANDLE(arg[8]));
+//		else
+//			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
 		break;
 
 	case CG_R_LERPTAG:	//Lerp tag...
 		VALIDATEPOINTER(arg[0], sizeof(float)*12);
-		VM_LONG(ret) = VM_LerpTag(VM_POINTER(arg[0]), (model_t*)VM_LONG(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_FLOAT(arg[4]), VM_POINTER(arg[5]));
+		VM_LONG(ret) = VM_LerpTag(VM_POINTER(arg[0]), VM_FROMMHANDLE(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_FLOAT(arg[4]), VM_POINTER(arg[5]));
 		break;
 
 	case CG_S_REGISTERSOUND:
 		{
 			sfx_t *sfx;
-			sfx = S_PrecacheSound(va("../%s", VM_POINTER(arg[0])));
+			sfx = S_PrecacheSound(VM_POINTER(arg[0]));
 			if (sfx)
-				VM_LONG(ret) = VM_TOHANDLE(sfx);
+				VM_LONG(ret) = VM_TOSTRCACHE(arg[0]);
 			else
 				VM_LONG(ret) = -1;
 		}
@@ -836,11 +814,11 @@ static long CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const long
 
 	case CG_S_STARTLOCALSOUND:
 		if (VM_LONG(arg[0]) != -1 && arg[0])
-			S_LocalSound(((sfx_t*)VM_FROMHANDLE(arg[0]))->name );
+			S_LocalSound(VM_FROMSTRCACHE(arg[0]));
 		break;
 
 	case CG_S_STARTSOUND:// ( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx )
-		S_StartSound(VM_LONG(arg[1]), VM_LONG(arg[2]), (sfx_t*)VM_LONG(arg[3]), VM_POINTER(arg[0]), 1, 1);
+		S_StartSound(VM_LONG(arg[1]), VM_LONG(arg[2]), S_PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), 1, 1);
 		break;
 
 	case CG_S_ADDLOOPINGSOUND:
@@ -906,11 +884,14 @@ vec3_t		listener_up;
 		VALIDATEPOINTER(arg[0], 11332);
 
 		//do any needed work
-		memset(VM_POINTER(arg[0]), 0, 11304);
-		*(int *)VM_POINTER(arg[0]+11304) = vid.width;
-		*(int *)VM_POINTER(arg[0]+11308) = vid.height;
-		*(float *)VM_POINTER(arg[0]+11312) = (float)vid.width/vid.height;
-		memset(VM_POINTER(arg[0]+11316), 0, 11332-11316);
+		unsigned char *glconfig = VM_POINTER(arg[0]);
+		{	//FIXME: Clean this shit up
+			memset(glconfig, 0, 11304);
+			*(int *)(glconfig+11304) = vid.width;
+			*(int *)(glconfig+11308) = vid.height;
+			*(float *)(glconfig+11312) = (float)vid.width/vid.height;
+			memset((glconfig+11316), 0, 11332-11316);
+		}
 		break;
 
 	case CG_GETGAMESTATE:
@@ -991,15 +972,26 @@ vec3_t		listener_up;
 // standard Q3
 	case CG_MEMSET:
 		VALIDATEPOINTER(arg[0], arg[2]);
-		memset(VM_POINTER(arg[0]), arg[1], arg[2]);
+		{
+			void *dst = VM_POINTER(arg[0]);
+			memset(dst, arg[1], arg[2]);
+		}
 		break;
 	case CG_MEMCPY:
 		VALIDATEPOINTER(arg[0], arg[2]);
-		memcpy(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+		{
+			void *dst = VM_POINTER(arg[0]);
+			void *src = VM_POINTER(arg[1]);
+			memcpy(dst, src, arg[2]);
+		}
 		break;
 	case CG_STRNCPY:
 		VALIDATEPOINTER(arg[0], arg[2]);
-		strncpy(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+		{
+			void *dst = VM_POINTER(arg[0]);
+			void *src = VM_POINTER(arg[1]);
+			strncpy(dst, src, arg[2]);
+		}
 		break;
 	case CG_SIN:
 		VM_FLOAT(ret)=(float)sin(VM_FLOAT(arg[0]));
@@ -1034,7 +1026,7 @@ vec3_t		listener_up;
 	return ret;
 }
 #ifdef _DEBUG
-static long CG_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, const long *arg)
+static int CG_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, const int *arg)
 {	//this is so we can use edit and continue properly (vc doesn't like function pointers for edit+continue)
 	return CG_SystemCallsEx(offset, mask, fn, arg);
 }
@@ -1045,7 +1037,7 @@ static long CG_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, con
 //but dlls call it without saying what sort of vm it comes from, so I've got to have them as specifics
 static int EXPORT_FN CG_SystemCalls(int arg, ...)
 {
-	long args[10];
+	int args[10];
 	va_list argptr;
 
 	va_start(argptr, arg);

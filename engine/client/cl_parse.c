@@ -3469,38 +3469,14 @@ char *CL_ParseChat(char *text, player_info_t **player)
 	{
 		if (!cls.demoplayback)
 			Sys_ServerActivity();	//chat always flashes the screen..
-/*
-		//check f_ stuff
-		if (!strncmp(s, "f_", 2))
-		{
-			static float versionresponsetime;
-			static float modifiedresponsetime;
-			static float skinsresponsetime;
-			static float serverresponsetime;
 
-			if (!strncmp(s, "f_version", 9) && versionresponsetime < Sys_DoubleTime())	//respond to it.
-			{
-				ValidationPrintVersion(text);
-				versionresponsetime = Sys_DoubleTime() + 5;
-			}
-			else if (!strncmp(s, "f_server", 8) && serverresponsetime < Sys_DoubleTime())	//respond to it.
-			{
-				Validation_Server();
-				serverresponsetime = Sys_DoubleTime() + 5;
-			}
-			else if (!strncmp(s, "f_modified", 10) && modifiedresponsetime < Sys_DoubleTime())	//respond to it.
-			{
-				Validation_FilesModified();
-				modifiedresponsetime = Sys_DoubleTime() + 5;
-			}
-			else if (!strncmp(s, "f_skins", 7) && skinsresponsetime < Sys_DoubleTime())	//respond to it.
-			{
-				Validation_Skins();
-				skinsresponsetime = Sys_DoubleTime() + 5;
-			}
+		//check f_ stuff
+		if (*player && !strncmp(s, "f_", 2))
+		{
+			Validation_Auto_Response(*player - cl.players, s);
 			return s;
 		}
-*/
+
 		Validation_CheckIfResponse(text);
 
 #ifdef PLUGINS

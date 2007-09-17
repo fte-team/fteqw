@@ -1,5 +1,6 @@
 #include "quakedef.h"
 #ifdef D3DQUAKE
+#include "winquake.h"
 #include "d3d9quake.h"
 
 mleaf_t		*r_viewleaf, *r_oldviewleaf;

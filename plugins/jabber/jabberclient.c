@@ -125,7 +125,7 @@ void JCL_Command(void);
 
 int JCL_ExecuteCommand(int *args)
 {
-	char cmd[8];
+	char cmd[256];
 	Cmd_Argv(0, cmd, sizeof(cmd));
 	if (!strcmp(cmd, COMMANDPREFIX))
 	{
@@ -1098,6 +1098,11 @@ void JCL_Command(void)
 				Con_Printf("You are already connected\nPlease /quit first\n");
 				return;
 			}
+			if (!*arg[1])
+			{
+				Con_Printf("%s <server[:port]> <account[@domain]> <password>\n", arg[0]+1);
+				return;
+			}
 			jclient = JCL_Connect(arg[1], 5223, true, arg[2], arg[3]);
 		}
 		else if (!strcmp(arg[0]+1, "open") || !strcmp(arg[0]+1, "connect"))
@@ -1105,6 +1110,11 @@ void JCL_Command(void)
 			if (jclient)
 			{
 				Con_Printf("You are already connected\nPlease /quit first\n");
+				return;
+			}
+			if (!*arg[1])
+			{
+				Con_Printf("%s <server[:port]> <account[@domain]> <password>\n", arg[0]+1);
 				return;
 			}
 			jclient = JCL_Connect(arg[1], 5222, false, arg[2], arg[3]);
@@ -1148,6 +1158,10 @@ void JCL_Command(void)
 			Con_SubPrintf(jclient->defaultdest, "%s: "COLOURYELLOW"%s\n", ">>", msg);
 		}
 		else
+		{
 			Con_Printf("Not connected\ntype \"" COMMANDPREFIX " /connect JABBERSERVER USERNAME@DOMAIN PASSWORD\" to connect\n");
+			if (BUILTINISVALID(Net_SetTLSClient))
+				Con_Printf("eg: " COMMANDPREFIX " /tlsconnect talk.google.com myusername@gmail.com mypassword\n");
+		}
 	}
 }

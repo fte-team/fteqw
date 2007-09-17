@@ -133,6 +133,9 @@ EBUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
 EBUILTIN(void, LocalSound, (char *soundname));
 EBUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 EBUILTIN(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));
+EBUILTIN(int, LocalPlayerNumber, (void));
+EBUILTIN(void, GetServerInfo, (char *info, int infolen));
+EBUILTIN(void, SetUserInfo, (char *key, char *value));
 
 EBUILTIN(void, Menu_Control, (int mnum));
 #define MENU_CLEAR 0

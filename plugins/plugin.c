@@ -119,6 +119,15 @@ BUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 #define ARGNAMES ,pnum,info
 BUILTINR(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));
 #undef ARGNAMES
+#define ARGNAMES
+BUILTINR(int, LocalPlayerNumber, (void));
+#undef ARGNAMES
+#define ARGNAMES ,info,infolen
+BUILTIN(void, GetServerInfo, (char *info, int infolen));
+#undef ARGNAMES
+#define ARGNAMES ,key,value
+BUILTIN(void, SetUserInfo, (char *key, char *value));
+#undef ARGNAMES
 
 #define ARGNAMES ,soundname
 BUILTIN(void, LocalSound, (char *soundname));
@@ -310,6 +319,9 @@ void Plug_InitStandardBuiltins(void)
 	//random things
 	CHECKBUILTIN(CL_GetStats);
 	CHECKBUILTIN(GetPlayerInfo);
+	CHECKBUILTIN(LocalPlayerNumber);
+	CHECKBUILTIN(GetServerInfo);
+	CHECKBUILTIN(SetUserInfo);
 	CHECKBUILTIN(LocalSound);
 	CHECKBUILTIN(Menu_Control);
 	CHECKBUILTIN(Key_GetKeyCode);

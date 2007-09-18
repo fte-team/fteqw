@@ -883,9 +883,9 @@ vec3_t		listener_up;
 	case CG_GETGLCONFIG:
 		VALIDATEPOINTER(arg[0], 11332);
 
-		//do any needed work
-		unsigned char *glconfig = VM_POINTER(arg[0]);
 		{	//FIXME: Clean this shit up
+			//do any needed work
+			unsigned char *glconfig = VM_POINTER(arg[0]);
 			memset(glconfig, 0, 11304);
 			*(int *)(glconfig+11304) = vid.width;
 			*(int *)(glconfig+11308) = vid.height;

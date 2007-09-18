@@ -791,10 +791,7 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 		break;
 
 	case UI_R_REGISTERSKIN:
-		{
-			char *buf;
-			VM_LONG(ret) = VM_TOSTRCACHE(arg[0]);
-		}
+		VM_LONG(ret) = VM_TOSTRCACHE(arg[0]);
 		break;
 
 	case UI_R_REGISTERFONT:	//register font

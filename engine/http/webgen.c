@@ -409,7 +409,6 @@ vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
 	int fnum;
 	char *parms;
 	int len;
-	IWeb_FileGen_t *fbuf;
 
 	if (!sv.state)
 		return NULL;

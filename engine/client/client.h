@@ -998,8 +998,11 @@ void Skin_FlushPlayers(void);
 
 
 //valid.c
+void	RulesetLatch(cvar_t *cvar);
+void	Validation_Apply_Ruleset(void);
 void	Validation_FlushFileList(void);
 void	Validation_CheckIfResponse(char *text);
+void	Validation_DelatchRulesets(void);
 void	InitValidation(void);
 void	Validation_IncludeFile(char *filename, char *file, int filelen);
 void	Validation_Auto_Response(int playernum, char *s);

@@ -130,6 +130,8 @@ cvar_t 	*Cvar_Set (cvar_t *var, const char *value);
 void	Cvar_SetValue (cvar_t *var, float value);
 // expands value to a string and calls Cvar_Set
 
+qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, int flag);
+
 void Cvar_ApplyLatches(int latchflag);
 //sets vars to thier latched values
 

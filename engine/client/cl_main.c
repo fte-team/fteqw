@@ -104,10 +104,12 @@ cvar_t	rate = SCVARF("rate",				"2500",		CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	drate = SCVARF("drate",				"100000",	CVAR_ARCHIVE | CVAR_USERINFO);		// :)
 cvar_t	noaim = SCVARF("noaim",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	msg = SCVARF("msg",					"1",		CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	b_switch = SCVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	w_switch = SCVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	cl_nofake = SCVAR("cl_nofake",		"2");
 cvar_t	cl_chatsound = SCVAR("cl_chatsound","1");
-cvar_t cl_enemychatsound = SCVAR("cl_enemychatsound", "misc/talk.wav");
-cvar_t cl_teamchatsound = SCVAR("cl_teamchatsound", "misc/talk.wav");
+cvar_t	cl_enemychatsound = SCVAR("cl_enemychatsound", "misc/talk.wav");
+cvar_t	cl_teamchatsound = SCVAR("cl_teamchatsound", "misc/talk.wav");
 
 cvar_t	r_rocketlight	= SCVARC("r_rocketlight",	"1", Cvar_Limiter_ZeroToOne_Callback);
 cvar_t	r_lightflicker	= SCVAR("r_lightflicker",	"1");
@@ -142,13 +144,13 @@ cvar_t	cl_dlemptyterminate = SCVAR("cl_dlemptyterminate", "1");
 
 cvar_t	host_mapname = FCVAR("mapname", "host_mapname", "", 0);
 
-cvar_t ruleset_allow_playercount	= SCVAR("ruleset_allow_playercount", "1");
-cvar_t ruleset_allow_frj		= SCVAR("ruleset_allow_frj", "1");
-cvar_t ruleset_allow_semicheats		= SCVAR("ruleset_allow_semicheats", "1");
-cvar_t ruleset_allow_packet		= SCVAR("ruleset_allow_packet", "1");
-cvar_t ruleset_allow_particle_lightning	= SCVAR("ruleset_allow_particle_lightning", "1");
-cvar_t ruleset_allow_overlongsounds	= SCVAR("ruleset_allow_overlong_sounds", "1");
-cvar_t ruleset_allow_larger_models	= SCVAR("ruleset_allow_larger_models", "1");
+cvar_t	ruleset_allow_playercount	= SCVAR("ruleset_allow_playercount", "1");
+cvar_t	ruleset_allow_frj		= SCVAR("ruleset_allow_frj", "1");
+cvar_t	ruleset_allow_semicheats		= SCVAR("ruleset_allow_semicheats", "1");
+cvar_t	ruleset_allow_packet		= SCVAR("ruleset_allow_packet", "1");
+cvar_t	ruleset_allow_particle_lightning	= SCVAR("ruleset_allow_particle_lightning", "1");
+cvar_t	ruleset_allow_overlongsounds	= SCVAR("ruleset_allow_overlong_sounds", "1");
+cvar_t	ruleset_allow_larger_models	= SCVAR("ruleset_allow_larger_models", "1");
 
 extern cvar_t cl_hightrack;
 
@@ -2844,56 +2846,58 @@ void CL_Init (void)
 	//
 	// info mirrors
 	//
-	Cvar_Register (&name,	cl_controlgroup);
-	Cvar_Register (&password,	cl_controlgroup);
-	Cvar_Register (&spectator,	cl_controlgroup);
-	Cvar_Register (&skin,	cl_controlgroup);
-	Cvar_Register (&model,	cl_controlgroup);
-	Cvar_Register (&team,	cl_controlgroup);
-	Cvar_Register (&topcolor,	cl_controlgroup);
-	Cvar_Register (&bottomcolor,	cl_controlgroup);
-	Cvar_Register (&rate,	cl_controlgroup);
-	Cvar_Register (&drate,	cl_controlgroup);
-	Cvar_Register (&msg,	cl_controlgroup);
-	Cvar_Register (&noaim,	cl_controlgroup);
+	Cvar_Register (&name,								cl_controlgroup);
+	Cvar_Register (&password,							cl_controlgroup);
+	Cvar_Register (&spectator,							cl_controlgroup);
+	Cvar_Register (&skin,								cl_controlgroup);
+	Cvar_Register (&model,								cl_controlgroup);
+	Cvar_Register (&team,								cl_controlgroup);
+	Cvar_Register (&topcolor,							cl_controlgroup);
+	Cvar_Register (&bottomcolor,						cl_controlgroup);
+	Cvar_Register (&rate,								cl_controlgroup);
+	Cvar_Register (&drate,								cl_controlgroup);
+	Cvar_Register (&msg,								cl_controlgroup);
+	Cvar_Register (&noaim,								cl_controlgroup);
+	Cvar_Register (&b_switch,							cl_controlgroup);
+	Cvar_Register (&w_switch,							cl_controlgroup);
 
-	Cvar_Register (&cl_nofake,	cl_controlgroup);
-	Cvar_Register (&cl_chatsound,	cl_controlgroup);
-	Cvar_Register (&cl_enemychatsound,	cl_controlgroup);
-	Cvar_Register (&cl_teamchatsound,	cl_controlgroup);
+	Cvar_Register (&cl_nofake,							cl_controlgroup);
+	Cvar_Register (&cl_chatsound,						cl_controlgroup);
+	Cvar_Register (&cl_enemychatsound,					cl_controlgroup);
+	Cvar_Register (&cl_teamchatsound,					cl_controlgroup);
 
-	Cvar_Register (&requiredownloads,	cl_controlgroup);
-	Cvar_Register (&cl_standardchat,	cl_controlgroup);
-	Cvar_Register (&msg_filter,	cl_controlgroup);
-	Cvar_Register (&cl_standardmsg,		cl_controlgroup);
-	Cvar_Register (&cl_parsewhitetext,	cl_controlgroup);
-	Cvar_Register (&cl_nopext, cl_controlgroup);
-	Cvar_Register (&cl_splitscreen, cl_controlgroup);
+	Cvar_Register (&requiredownloads,					cl_controlgroup);
+	Cvar_Register (&cl_standardchat,					cl_controlgroup);
+	Cvar_Register (&msg_filter,							cl_controlgroup);
+	Cvar_Register (&cl_standardmsg,						cl_controlgroup);
+	Cvar_Register (&cl_parsewhitetext,					cl_controlgroup);
+	Cvar_Register (&cl_nopext,							cl_controlgroup);
+	Cvar_Register (&cl_splitscreen,						cl_controlgroup);
 
-	Cvar_Register (&host_mapname,		"Scripting");
+	Cvar_Register (&host_mapname,						"Scripting");
 
-	Cvar_Register (&cl_countpendingpl, cl_controlgroup);
-	Cvar_Register (&cl_indepphysics, cl_controlgroup);
-	Cvar_Register (&cl_antibunch, "evil hacks");
-	Cvar_Register (&hud_tracking_show, "statusbar");
+	Cvar_Register (&cl_countpendingpl,					cl_controlgroup);
+	Cvar_Register (&cl_indepphysics,					cl_controlgroup);
+	Cvar_Register (&cl_antibunch,						"evil hacks");
+	Cvar_Register (&hud_tracking_show,					"statusbar");
 
-	Cvar_Register (&cl_dlemptyterminate, cl_controlgroup);
+	Cvar_Register (&cl_dlemptyterminate,				cl_controlgroup);
 
-	Cvar_Register (&cl_gunx, cl_controlgroup);
-	Cvar_Register (&cl_guny, cl_controlgroup);
-	Cvar_Register (&cl_gunz, cl_controlgroup);
+	Cvar_Register (&cl_gunx,							cl_controlgroup);
+	Cvar_Register (&cl_guny,							cl_controlgroup);
+	Cvar_Register (&cl_gunz,							cl_controlgroup);
 
-	Cvar_Register (&cl_gunanglex, cl_controlgroup);
-	Cvar_Register (&cl_gunangley, cl_controlgroup);
-	Cvar_Register (&cl_gunanglez, cl_controlgroup);
+	Cvar_Register (&cl_gunanglex,						cl_controlgroup);
+	Cvar_Register (&cl_gunangley,						cl_controlgroup);
+	Cvar_Register (&cl_gunanglez,						cl_controlgroup);
 
-	Cvar_Register (&ruleset_allow_playercount, cl_controlgroup);
-	Cvar_Register (&ruleset_allow_frj, cl_controlgroup);
-	Cvar_Register (&ruleset_allow_semicheats, cl_controlgroup);
-	Cvar_Register (&ruleset_allow_packet, cl_controlgroup);
-	Cvar_Register (&ruleset_allow_particle_lightning, cl_controlgroup);
-	Cvar_Register (&ruleset_allow_overlongsounds, cl_controlgroup);
-	Cvar_Register (&ruleset_allow_larger_models, cl_controlgroup);
+	Cvar_Register (&ruleset_allow_playercount,			cl_controlgroup);
+	Cvar_Register (&ruleset_allow_frj,					cl_controlgroup);
+	Cvar_Register (&ruleset_allow_semicheats,			cl_controlgroup);
+	Cvar_Register (&ruleset_allow_packet,				cl_controlgroup);
+	Cvar_Register (&ruleset_allow_particle_lightning,	cl_controlgroup);
+	Cvar_Register (&ruleset_allow_overlongsounds,		cl_controlgroup);
+	Cvar_Register (&ruleset_allow_larger_models,		cl_controlgroup);
 #ifdef WEBCLIENT
 	Cmd_AddCommand ("ftp", CL_FTP_f);
 #endif

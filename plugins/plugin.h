@@ -188,6 +188,10 @@ void Sys_Errorf(char *format, ...);
 typedef unsigned char qbyte;
 void Q_strncpyz(char *d, const char *s, int n);
 
+//
+// qvm_api.c
+//
+int vsnprintf(char *buffer, int maxlen, char *format, va_list vargs);
 
 typedef struct {
 	char *name;

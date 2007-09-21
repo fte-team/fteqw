@@ -23,7 +23,7 @@ int ezScript_CvarUpdate(void)
 	vmcvar_t *v;
 	int i;
 	for (v = cvarlist[0],i=0; i < sizeof(cvarlist)/sizeof(cvarlist[0]); v++, i++)
-		v->modificationcount = Cvar_Update(v->handle, v->modificationcount, v->string, &v->value);
+		v->modificationcount = Cvar_Update(v->handle, &v->modificationcount, v->string, &v->value);
 	return 0;
 }
 
@@ -46,7 +46,6 @@ int Plug_ExecuteCommand(int *args)
 	else if (!strcmp("gl_loadlitfiles",		cmd))	cvar = "r_loadlit";
 	else if (!strcmp("gl_weather_rain",		cmd))	cvar = "r_part_rain";
 	else if (!strcmp("cl_bonusflash",		cmd))	cvar = "v_bonusflash";
-	else if (!strcmp("gl_gamma",			cmd))	cvar = "gamma";
 	else if (!strcmp("sw_gamma",			cmd))	cvar = "gamma";
 	else if (!strcmp("sw_contrast",			cmd))	cvar = "contrast";
 	else if (!strcmp("s_khz",				cmd))	cvar = "snd_khz";
@@ -74,8 +73,6 @@ int Plug_ExecuteCommand(int *args)
 	else if (!strcmp("r_floorcolor",		cmd))	cvar = "r_floorcolour";
 	else if (!strcmp("r_wallcolor",			cmd))	cvar = "r_wallcolour";
 	else if (!strcmp("r_farclip",			cmd))	cvar = "gl_maxdist";
-	else if (!strcmp("b_switch",			cmd))	cvar = "setinfo b_switch";
-	else if (!strcmp("w_switch",			cmd))	cvar = "setinfo w_switch";
 	else if (!strcmp("vid_colorbits",		cmd))	cvar = "vid_bpp";
 	else if (!strcmp("vid_customheight",	cmd))	cvar = "vid_height";
 	else if (!strcmp("vid_customwidth",		cmd))	cvar = "vid_width";
@@ -133,10 +130,7 @@ void ezScript_InitCommands(void) // not really needed actually
 	Cmd_AddCommand("cl_bonusflash");
 	Cmd_AddCommand("r_floorcolor");
 	Cmd_AddCommand("r_wallcolor");
-	Cmd_AddCommand("b_switch");
-	Cmd_AddCommand("w_switch");
 	//gamma
-	Cmd_AddCommand("gl_gamma");
 	Cmd_AddCommand("sw_gamma");
 	Cmd_AddCommand("sw_contrast");
 	//sound

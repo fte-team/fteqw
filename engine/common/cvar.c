@@ -743,7 +743,7 @@ qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, int flag)
 #ifndef _MSC_VER
 #warning set or forceset?
 #endif
-	Cvar_Set(var, value);
+	Cvar_ForceSet(var, value);
 
 	if (var->latched_string)
 	{	//something else latched it

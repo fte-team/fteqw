@@ -496,7 +496,7 @@ void SV_Map_f (void)
 		if (!COM_FCheckExists (expanded))
 		{
 			//doesn't exist, so try lowercase. Q3 does this.
-			for (i = 0; i < sizeof(level); i++)
+			for (i = 0; i < sizeof(level) && level[i]; i++)
 			{
 				if (level[i] >= 'A' && level[i] <= 'Z')
 					level[i] = level[i] - 'A' + 'a';

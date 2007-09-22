@@ -1813,9 +1813,9 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 				}
 			}
 		}
+#endif
 		else
 			SV_UnspawnServer();
-#endif
 	}
 #endif
 #ifdef PLUGINS

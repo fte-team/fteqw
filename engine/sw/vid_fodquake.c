@@ -47,12 +47,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define KP_ENTER K_KP_ENTER
 #define K_MENU K_APP
 
-/* FTE doesn't have cvar groups */
+/* CVar stuff */
+static void Fod_Cvar_Register(cvar_t *cvar)
+{
+	Cvar_Register(cvar, "Input Controls");
+}
+
 #define Cvar_SetCurrentGroup(x) do { } while(0)
 #define Cvar_ResetCurrentGroup() do { } while(0)
-#define Cvar_Register(x) do { } while(0)
-#define CVAR_GROUP_INPUT_MOUSE
-#define CVAR_GROUP_INPUT_KEYBOARD
+#define Cvar_Register Fod_Cvar_Register
 
 /* Some differences between Fodquake and FTE */
 #define Com_Printf Con_Printf

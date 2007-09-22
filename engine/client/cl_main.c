@@ -2686,7 +2686,7 @@ void CL_FinishDownload_f (void)
 	CL_ForceStopDownload(true);
 }
 
-#ifdef _WINDOWS
+#ifdef _WIN32
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN

@@ -605,8 +605,9 @@ void SV_ForwardStream(sv_t *qtv, void *buffer, int length)
 //		Net_TryFlushProxyBuffer(qtv->cluster, prox);
 //		Net_TryFlushProxyBuffer(qtv->cluster, prox);
 
-
-#warning This is not the place for this
+#ifndef _MSC_VER
+	#warning This is not the place for this
+#endif
 		if (prox->sock != INVALID_SOCKET)
 		{
 			Fwd_ParseCommands(qtv->cluster, prox);

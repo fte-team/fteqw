@@ -688,7 +688,9 @@ void SV_SayToViewers(sv_t *qtv, char *message)
 {
 	viewer_t *v;
 	Fwd_SayToDownstream(qtv, message);
+#ifndef _MSC_VER
 	#warning Send to viewers here too
+#endif
 }
 
 //This function 1: parses the 'don't delay' packets in the stream

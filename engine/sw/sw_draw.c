@@ -451,7 +451,7 @@ void SWDraw_Init (void)
 					src = image+i*8*16*16;
 					dest = draw_chars + i*16*8;
 					for (x = 0; x < 128; x++)
-						dest[x] = src[(x*2)*4]?15:0;//GetPalette(image[i*4], image[i*4+1], image[i*4+2]);
+						dest[x] = src[(x*2)*4]?15:0;//GetPaletteIndex(image[i*4], image[i*4+1], image[i*4+2]);
 				}
 
 //				COM_WriteFile("test2.dat", draw_chars, 128*128);
@@ -1920,7 +1920,7 @@ void SWDraw_ImageColours (float r, float g, float b, float a)	//like glcolour4f
 	case 1:
 		D_DereferenceRemap(ib_remap);
 		ib_remap = D_GetPaletteRemap(ri, gi, bi, false, true, TOP_DEFAULT, BOTTOM_DEFAULT);
-		ib_index = GetPalette(ri, gi, bi);
+		ib_index = GetPaletteIndex(ri, gi, bi);
 		return;
 	case 2:
 		ib_index = ((ri << 3) >> 10) | ((gi << 3) >> 5) | (bi << 3);
@@ -2577,7 +2577,7 @@ void SWDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b)
 	switch (r_pixbytes)
 	{
 	case 1:
-		c = GetPalette(r*255, g*255, b*255);
+		c = GetPaletteIndex(r*255, g*255, b*255);
 		SWDraw_Fill8(x, y, w, h, (unsigned char)c);
 		break;
 	case 2:

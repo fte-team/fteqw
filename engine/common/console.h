@@ -79,9 +79,9 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define S_COLOR_MAGENTA	"^6"
 #define S_COLOR_WHITE	"^7"
 
-#define S_WARNING "^&E0"
-#define S_ERROR   "^&C0"
-#define S_NOTICE  "^&-1"
+#define SP_WARNING "^&E0"
+#define SP_ERROR   "^&C0"
+#define SP_NOTICE  "^&-1"
 
 #define		CON_TEXTSIZE	16384
 

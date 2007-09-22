@@ -521,6 +521,11 @@ void Sys_ServerActivity(void)
 //from the OS. This will cause problems with framebuffer-only setups.
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {
+#ifdef __MACOSX__
+//this about sums up the problem with this function
+	return false;
+#else
+
 	Display *xtemp;
 	int scr;
 	
@@ -539,6 +544,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	XCloseDisplay(xtemp);
 
 	return true;
+#endif
 }
 
 #define SYS_CLIPBOARD_SIZE		256

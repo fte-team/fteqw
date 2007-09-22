@@ -467,7 +467,7 @@ void Renderer_Init(void);
 void R_RestartRenderer_f (void);//this goes here so we can save some stack when first initing the sw renderer.
 
 //used to live in glquake.h
-qbyte GetPalette(int red, int green, int blue);
+qbyte GetPaletteIndex(int red, int green, int blue);
 qbyte GetPaletteNoFB(int red, int green, int blue);
 extern	cvar_t	r_norefresh;
 extern	cvar_t	r_drawentities;

@@ -622,7 +622,7 @@ usepasv:
 				continue;
 			}
 			if (ret != 221)
-				Con_Printf(S_ERROR "FTP: %i %s\n", ret, msg);
+				Con_Printf(SP_ERROR "FTP: %i %s\n", ret, msg);
 			return true;
 		}
 

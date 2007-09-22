@@ -152,7 +152,7 @@ qbyte FindIndexFromRGBNoFB(int red, int green, int blue)
 }
 
 #define FindPalette(r,g,b) pal555to8[((r&0xF8)>>3)|((g&0xF8)<<2)|((b&0xF8)<<7)]
-qbyte GetPalette(int red, int green, int blue)
+qbyte GetPaletteIndex(int red, int green, int blue)
 {
 	if (pal555to8)	//fast precalculated method
 		return FindPalette(red,green,blue);
@@ -292,7 +292,7 @@ void BuildModulatedPalette(qbyte *indexes, int red, int green, int blue, qboolea
 				b = 255;
 
 			if (fullbrights) // relying on branch prediction here...
-				indexes[x] = GetPalette(r^invmask, g^invmask, b^invmask);
+				indexes[x] = GetPaletteIndex(r^invmask, g^invmask, b^invmask);
 			else
 				indexes[x] = GetPaletteNoFB(r^invmask, g^invmask, b^invmask);
 			rgb += 3;
@@ -323,7 +323,7 @@ void BuildModulatedPalette(qbyte *indexes, int red, int green, int blue, qboolea
 				b = 255;
 
 			if (fullbrights) // relying on branch prediction here...
-				indexes[x] = GetPalette(r^invmask, g^invmask, b^invmask);
+				indexes[x] = GetPaletteIndex(r^invmask, g^invmask, b^invmask);
 			else
 				indexes[x] = GetPaletteNoFB(r^invmask, g^invmask, b^invmask);
 			rgb += 3;

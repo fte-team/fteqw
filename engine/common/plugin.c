@@ -990,7 +990,7 @@ int VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const int *arg)
 
 	if (ret < 0)
 	{
-		Con_Printf (S_ERROR "*** TLS handshake failed (%i)\n", ret);
+		Con_Printf (SP_ERROR "*** TLS handshake failed (%i)\n", ret);
 		gnutls_perror (ret);
 
 		stream->type = STREAM_SOCKET;	//go back to regular socket

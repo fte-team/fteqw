@@ -78,7 +78,7 @@ qboolean	r_cache_thrash;	// set if thrashing the surface cache
 mpic_t		*draw_disc;	// also used on sbar
 
 #if !defined(SWQUAKE) && !defined(RGLQUAKE)
-qbyte GetPalette(int red, int green, int blue)
+qbyte GetPaletteIndex(int red, int green, int blue)
 {
 	//slow, horrible method.
 	{

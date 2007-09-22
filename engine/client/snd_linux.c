@@ -84,7 +84,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (sc->audio_fd < 0)
 	{
 		perror(snddev);
-		Con_Printf(S_ERROR "OSS: Could not open %s\n", snddev);
+		Con_Printf(SP_ERROR "OSS: Could not open %s\n", snddev);
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -94,7 +94,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (rc < 0)
 	{
 		perror(snddev);
-		Con_Printf(S_ERROR "OSS: Could not reset %s\n", snddev);
+		Con_Printf(SP_ERROR "OSS: Could not reset %s\n", snddev);
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -102,14 +102,14 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (ioctl(sc->audio_fd, SNDCTL_DSP_GETCAPS, &caps)==-1)
 	{
 		perror(snddev);
-		Con_Printf(S_ERROR "OSS: Sound driver too old\n");
+		Con_Printf(SP_ERROR "OSS: Sound driver too old\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}
 
 	if (!(caps & DSP_CAP_TRIGGER) || !(caps & DSP_CAP_MMAP))
 	{
-		Con_Printf(S_ERROR "OSS: Sorry but your soundcard can't do this\n");
+		Con_Printf(SP_ERROR "OSS: Sorry but your soundcard can't do this\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -117,7 +117,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (ioctl(sc->audio_fd, SNDCTL_DSP_GETOSPACE, &info)==-1)
 	{
 		perror("GETOSPACE");
-		Con_Printf(S_ERROR "OSS: Um, can't do GETOSPACE?\n");
+		Con_Printf(SP_ERROR "OSS: Um, can't do GETOSPACE?\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -129,7 +129,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		sc->sn.samplebits = 8;
 	else if (!(fmt & AFMT_U8))
 	{
-		Con_Printf(S_ERROR "OSS: No needed sample formats supported\n");
+		Con_Printf(SP_ERROR "OSS: No needed sample formats supported\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -142,7 +142,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		if (i == (sizeof(tryrates)/4))
 		{
 			perror(snddev);
-			Con_Printf(S_ERROR "OSS: Failed to obtain a suitable rate\n");
+			Con_Printf(SP_ERROR "OSS: Failed to obtain a suitable rate\n");
 			OSS_Shutdown(sc);
 			return 0;
 		}
@@ -162,7 +162,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (!sc->sn.buffer)
 	{
 		perror(snddev);
-		Con_Printf(S_ERROR "OSS: Could not mmap %s\n", snddev);
+		Con_Printf(SP_ERROR "OSS: Could not mmap %s\n", snddev);
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -176,7 +176,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (rc < 0)
 	{
 		perror(snddev);
-		Con_Printf(S_ERROR "OSS: Could not set %s to stereo=%d\n", snddev, sc->sn.numchannels);
+		Con_Printf(SP_ERROR "OSS: Could not set %s to stereo=%d\n", snddev, sc->sn.numchannels);
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -189,7 +189,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (rc < 0)
 	{
 		perror(snddev);
-		Con_Printf(S_ERROR "OSS: Could not set %s speed to %d\n", snddev, sc->sn.speed);
+		Con_Printf(SP_ERROR "OSS: Could not set %s speed to %d\n", snddev, sc->sn.speed);
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -201,7 +201,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		if (rc < 0)
 		{
 			perror(snddev);
-			Con_Printf(S_ERROR "OSS: Could not support 16-bit data.  Try 8-bit.\n");
+			Con_Printf(SP_ERROR "OSS: Could not support 16-bit data.  Try 8-bit.\n");
 			OSS_Shutdown(sc);
 			return 0;
 		}
@@ -213,7 +213,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		if (rc < 0)
 		{
 			perror(snddev);
-			Con_Printf(S_ERROR "OSS: Could not support 8-bit data.\n");
+			Con_Printf(SP_ERROR "OSS: Could not support 8-bit data.\n");
 			OSS_Shutdown(sc);
 			return 0;
 		}
@@ -221,7 +221,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	else
 	{
 		perror(snddev);
-		Con_Printf(S_ERROR "OSS: %d-bit sound not supported.\n", sc->sn.samplebits);
+		Con_Printf(SP_ERROR "OSS: %d-bit sound not supported.\n", sc->sn.samplebits);
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -233,7 +233,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (rc < 0)
 	{
 		perror(snddev);
-		Con_Printf(S_ERROR "OSS: Could not toggle.\n");
+		Con_Printf(SP_ERROR "OSS: Could not toggle.\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}
@@ -242,7 +242,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (rc < 0)
 	{
 		perror(snddev);
-		Con_Printf(S_ERROR "OSS: Could not toggle.\n");
+		Con_Printf(SP_ERROR "OSS: Could not toggle.\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}

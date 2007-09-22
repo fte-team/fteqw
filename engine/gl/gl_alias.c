@@ -24,7 +24,7 @@
 #if defined(ZYMOTICMODELS) || defined(MD5MODELS)
 #define SKELETALMODELS
 
-#include "malloc.h"
+#include <stdlib.h>
 #endif
 
 #define MAX_BONES 256

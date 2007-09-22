@@ -1532,11 +1532,11 @@ void P_LoadParticleSet(char *name, qboolean first)
 		}
 		else if (first)
 		{
-			Con_Printf(S_WARNING "Couldn't find particle description %s, using spikeset\n", name);
+			Con_Printf(SP_WARNING "Couldn't find particle description %s, using spikeset\n", name);
 			Cbuf_AddText(particle_set_spikeset, RESTRICT_LOCAL);
 		}
 		else
-			Con_Printf(S_WARNING "Couldn't find particle description %s\n", name);
+			Con_Printf(SP_WARNING "Couldn't find particle description %s\n", name);
 	}
 }
 
@@ -3791,7 +3791,7 @@ void SWD_DrawParticleSpark(particle_t *p, part_type_t *type)
 		b = 0;
 	else if (b > 255)
 		b = 255;
-	p->color = GetPalette(r, g, b);
+	p->color = GetPaletteIndex(r, g, b);
 
 	speed = Length(p->vel);
 	if ((speed) < 1)
@@ -3827,7 +3827,7 @@ void SWD_DrawParticleBlob(particle_t *p, part_type_t *type)
 		b = 0;
 	else if (b > 255)
 		b = 255;
-	p->color = GetPalette(r, g, b);
+	p->color = GetPaletteIndex(r, g, b);
 	D_DrawParticleTrans(p, type->blendmode);
 }
 void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
@@ -3863,7 +3863,7 @@ void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
 		b = 0;
 	else if (b > 255)
 		b = 255;
-	p->color = GetPalette(r, g, b);
+	p->color = GetPaletteIndex(r, g, b);
 	D_DrawSparkTrans(p, p->org, q->org, type->blendmode);
 }
 #endif

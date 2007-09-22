@@ -412,7 +412,7 @@ int SCR_StringToPalIndex (char *rgbstring, float rgbinputscale)
 		r = bound(0, r, 255);
 		g = bound(0, g, 255);
 		b = bound(0, b, 255);
-		i = GetPalette(r, g, b);
+		i = GetPaletteIndex(r, g, b);
 	}
 	else
 	{

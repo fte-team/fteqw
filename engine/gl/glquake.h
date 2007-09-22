@@ -39,7 +39,12 @@ qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2
 void ClearBounds (vec3_t mins, vec3_t maxs);
 
 #ifdef RGLQUAKE
-#include <GL/gl.h>
+	#ifdef __MACOSX__
+		//apple, you suck.
+		#include <AGL/agl.h>
+	#else
+		#include <GL/gl.h>
+	#endif
 //#include <GL/glu.h>
 #include "glsupp.h"
 
@@ -72,15 +77,41 @@ typedef GLboolean (APIENTRY *ISTEXFUNCPTR)(GLuint);
 typedef void (APIENTRY *PRIORTEXFUNCPTR)(GLsizei, const GLuint *,
                     const GLclampf *);
 typedef void (APIENTRY *TEXSUBIMAGEPTR)(int, int, int, int, int, int, int, int, void *);
+typedef void (APIENTRY *FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC)	(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid* data);
+typedef void (APIENTRY *FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC)	(GLenum target, GLint lod, const GLvoid* img);
+typedef void (APIENTRY *FTEPFNGLPNTRIANGLESIATIPROC)(GLenum pname, GLint param);
+typedef void (APIENTRY *FTEPFNGLPNTRIANGLESFATIPROC)(GLenum pname, GLfloat param);
+typedef void (APIENTRY *FTEPFNGLACTIVESTENCILFACEEXTPROC) (GLenum face);
+
+typedef GLhandleARB	(APIENTRYP FTEPFNGLCREATEPROGRAMOBJECTARBPROC)	(void);
+typedef void		(APIENTRYP FTEPFNGLDELETEOBJECTARBPROC)		(GLhandleARB obj);
+typedef void		(APIENTRYP FTEPFNGLUSEPROGRAMOBJECTARBPROC)	(GLhandleARB programObj);
+typedef GLhandleARB	(APIENTRYP FTEPFNGLCREATESHADEROBJECTARBPROC)	(GLenum shaderType);
+typedef void		(APIENTRYP FTEPFNGLSHADERSOURCEARBPROC)		(GLhandleARB shaderObj, GLsizei count, const GLcharARB* *string, const GLint *length);
+typedef void		(APIENTRYP FTEPFNGLCOMPILESHADERARBPROC)		(GLhandleARB shaderObj);
+typedef void        (APIENTRYP FTEPFNGLGETOBJECTPARAMETERIVARBPROC) (GLhandleARB obj, GLenum pname, GLint *params);
+typedef void		(APIENTRYP FTEPFNGLATTACHOBJECTARBPROC)		(GLhandleARB containerObj, GLhandleARB obj);
+typedef void		(APIENTRYP FTEPFNGLGETINFOLOGARBPROC)			(GLhandleARB obj, GLsizei maxLength, GLsizei *length, GLcharARB *infoLog);
+typedef void		(APIENTRYP FTEPFNGLLINKPROGRAMARBPROC)			(GLhandleARB programObj);
+typedef GLint		(APIENTRYP FTEPFNGLGETUNIFORMLOCATIONARBPROC)	(GLhandleARB programObj, const GLcharARB *name);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM4FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM4FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM3FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM3FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM1IARBPROC)			(GLint location, GLint v0);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM1FARBPROC)			(GLint location, GLfloat v0);
+
+typedef void (APIENTRY * FTEPFNGLLOCKARRAYSEXTPROC) (GLint first, GLsizei count);
+typedef void (APIENTRY * FTEPFNGLUNLOCKARRAYSEXTPROC) (void);
 
 extern	BINDTEXFUNCPTR bindTexFunc;
 extern	DELTEXFUNCPTR delTexFunc;
 extern	TEXSUBIMAGEPTR TexSubImage2DFunc;
 extern void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
-extern PFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
-extern PFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
-extern	PFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
-extern	PFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
+extern FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
+extern FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
+extern	FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
+extern	FTEPFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
 
 extern	int texture_extension_number;
 
@@ -248,7 +279,7 @@ extern lpMTexFUNC qglMTexCoord2fSGIS;
 extern lpSelTexFUNC qglSelectTextureSGIS;
 
 extern	int gl_canstencil;
-extern PFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
+extern FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 
 extern lpMTexFUNC qglMTexCoord2fSGIS;
 extern lpSelTexFUNC qglSelectTextureSGIS;
@@ -765,23 +796,23 @@ extern PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
 */
 
 //glslang - arb_shader_objects
-extern PFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;
-extern PFNGLDELETEOBJECTARBPROC			qglDeleteObjectARB;
-extern PFNGLUSEPROGRAMOBJECTARBPROC		qglUseProgramObjectARB;
-extern PFNGLCREATESHADEROBJECTARBPROC	qglCreateShaderObjectARB;
-extern PFNGLSHADERSOURCEARBPROC			qglShaderSourceARB;
-extern PFNGLCOMPILESHADERARBPROC		qglCompileShaderARB;
-extern PFNGLGETOBJECTPARAMETERIVARBPROC	qglGetObjectParameterivARB;
-extern PFNGLATTACHOBJECTARBPROC			qglAttachObjectARB;
-extern PFNGLGETINFOLOGARBPROC			qglGetInfoLogARB;
-extern PFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
-extern PFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
-extern PFNGLUNIFORM4FARBPROC			qglUniform4fARB;
-extern PFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
-extern PFNGLUNIFORM3FARBPROC			qglUniform3fARB;
-extern PFNGLUNIFORM3FVARBPROC			qglUniform3fvARB;
-extern PFNGLUNIFORM1IARBPROC			qglUniform1iARB;
-extern PFNGLUNIFORM1FARBPROC			qglUniform1fARB;
+extern FTEPFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;
+extern FTEPFNGLDELETEOBJECTARBPROC			qglDeleteObjectARB;
+extern FTEPFNGLUSEPROGRAMOBJECTARBPROC		qglUseProgramObjectARB;
+extern FTEPFNGLCREATESHADEROBJECTARBPROC	qglCreateShaderObjectARB;
+extern FTEPFNGLSHADERSOURCEARBPROC			qglShaderSourceARB;
+extern FTEPFNGLCOMPILESHADERARBPROC		qglCompileShaderARB;
+extern FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetObjectParameterivARB;
+extern FTEPFNGLATTACHOBJECTARBPROC			qglAttachObjectARB;
+extern FTEPFNGLGETINFOLOGARBPROC			qglGetInfoLogARB;
+extern FTEPFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
+extern FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
+extern FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
+extern FTEPFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
+extern FTEPFNGLUNIFORM3FARBPROC			qglUniform3fARB;
+extern FTEPFNGLUNIFORM3FVARBPROC			qglUniform3fvARB;
+extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
+extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
 
 //glslang helper api
 GLhandleARB GLSlang_CreateProgram (char *precompilerconstants, char *vert, char *frag);
@@ -792,14 +823,14 @@ GLint GLSlang_GetUniformLocation (int prog, char *name);
 #define GLSlang_DeleteObject(object) qglDeleteObjectARB(object);
 
 
-extern PFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
-extern PFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
+extern FTEPFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
+extern FTEPFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 
 void GL_Init(void *(*getglfunction) (char *name));
 
 #endif
 
-qbyte GetPalette(int red, int green, int blue);
+qbyte GetPaletteIndex(int red, int green, int blue);
 int Mod_ReadFlagsFromMD1(char *name, int md3version);
 
 

@@ -837,13 +837,13 @@ qboolean VID_AttachGL (rendererstate_t *info)
     baseRC = qwglCreateContext( maindc );
 	if (!baseRC)
 	{
-		Con_SafePrintf(S_ERROR "Could not initialize GL (wglCreateContext failed).\n\nMake sure you in are 65535 color mode, and try running -window.\n");	//green to make it show.
+		Con_SafePrintf(SP_ERROR "Could not initialize GL (wglCreateContext failed).\n\nMake sure you in are 65535 color mode, and try running -window.\n");	//green to make it show.
 		return false;
 	}
 	TRACE(("dbg: VID_AttachGL: qwglMakeCurrent\n"));
     if (!qwglMakeCurrent( maindc, baseRC ))
 	{
-		Con_SafePrintf(S_ERROR "wglMakeCurrent failed\n");	//green to make it show.
+		Con_SafePrintf(SP_ERROR "wglMakeCurrent failed\n");	//green to make it show.
 		return false;
 	}
 
@@ -1604,7 +1604,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
     if (!RegisterClass (&wc) )
 	{
-		Con_Printf(S_ERROR "Couldn't register window class\n");
+		Con_Printf(SP_ERROR "Couldn't register window class\n");
 		return false;
 	}
 

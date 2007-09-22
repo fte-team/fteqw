@@ -217,9 +217,9 @@ void Validation_CheckIfResponse(char *text)
 		resp = Security_Verify_Response(f_query_client, crc, cl.players[f_query_client].userinfo, cl.serverinfo);
 
 		if (resp && resp->size && *resp->buf)
-			Con_Printf(S_NOTICE "Authentication Successful.\n");
+			Con_Printf(SP_NOTICE "Authentication Successful.\n");
 		else// if (!resp)
-			Con_Printf(S_ERROR "AUTHENTICATION FAILED.\n");
+			Con_Printf(SP_ERROR "AUTHENTICATION FAILED.\n");
 	}
 }
 

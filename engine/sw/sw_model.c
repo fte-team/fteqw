@@ -415,7 +415,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 			break;
 
 		default:	//some telejano mods can do this
-			Con_Printf(S_WARNING "Unrecognized format %i\n", LittleLong(*(unsigned *)buf));
+			Con_Printf(SP_WARNING "Unrecognized format %i\n", LittleLong(*(unsigned *)buf));
 			continue;
 		}
 
@@ -433,7 +433,7 @@ couldntload:
 	if (crash)
 		Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 
-	Con_Printf(S_ERROR "Unable to load or replace %s\n", mod->name);
+	Con_Printf(SP_ERROR "Unable to load or replace %s\n", mod->name);
 	mod->type = mod_dummy;
 	mod->mins[0] = -16;
 	mod->mins[1] = -16;
@@ -515,7 +515,7 @@ qboolean SWMod_LoadTextures (lump_t *l)
 		
 		if ( (mt->width & 15) || (mt->height & 15) )
 		{
-			Con_Printf (S_ERROR "Texture %s is not 16 aligned\n", mt->name);
+			Con_Printf (SP_ERROR "Texture %s is not 16 aligned\n", mt->name);
 			return false;
 		}
 
@@ -672,7 +672,7 @@ qboolean SWMod_LoadTextures (lump_t *l)
 		}
 		else
 		{
-			Con_Printf (S_ERROR "Bad animating texture %s\n", tx->name);
+			Con_Printf (SP_ERROR "Bad animating texture %s\n", tx->name);
 			return false;
 		}
 
@@ -703,7 +703,7 @@ qboolean SWMod_LoadTextures (lump_t *l)
 			}
 			else
 			{
-				Con_Printf (S_ERROR "Bad animating texture %s\n", tx->name);
+				Con_Printf (SP_ERROR "Bad animating texture %s\n", tx->name);
 				return false;
 			}
 		}
@@ -715,7 +715,7 @@ qboolean SWMod_LoadTextures (lump_t *l)
 			tx2 = anims[j];
 			if (!tx2)
 			{
-				Con_Printf (S_ERROR "Missing frame %i of %s\n",j, tx->name);
+				Con_Printf (SP_ERROR "Missing frame %i of %s\n",j, tx->name);
 				return false;
 			}
 			tx2->anim_total = max * ANIM_CYCLE;
@@ -730,7 +730,7 @@ qboolean SWMod_LoadTextures (lump_t *l)
 			tx2 = altanims[j];
 			if (!tx2)
 			{
-				Con_Printf (S_ERROR "Missing frame %i of %s\n",j, tx->name);
+				Con_Printf (SP_ERROR "Missing frame %i of %s\n",j, tx->name);
 				return false;
 			}
 			tx2->anim_total = altmax * ANIM_CYCLE;
@@ -1018,7 +1018,7 @@ qboolean SWMod_LoadVertexes (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1059,7 +1059,7 @@ qboolean SWMod_LoadSubmodels (lump_t *l)
 		hexen2map = true;
 		if (l->filelen % sizeof(*inh))
 		{
-			Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 			return false;
 		}
 		count = l->filelen / sizeof(*inh);
@@ -1097,7 +1097,7 @@ qboolean SWMod_LoadSubmodels (lump_t *l)
 		hexen2map = false;
 		if (l->filelen % sizeof(*inq))
 		{
-			Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 			return false;
 		}
 		count = l->filelen / sizeof(*inq);
@@ -1147,7 +1147,7 @@ qboolean SWMod_LoadEdges (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1182,7 +1182,7 @@ qboolean SWMod_LoadTexinfo (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1328,7 +1328,7 @@ qboolean SWMod_LoadFaces (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1434,7 +1434,7 @@ qboolean SWMod_LoadNodes (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1486,7 +1486,7 @@ qboolean SWMod_LoadLeafs (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1591,7 +1591,7 @@ qboolean SWMod_LoadClipnodes (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
+		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1832,7 +1832,7 @@ qboolean SWMod_LoadMarksurfaces (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1846,7 +1846,7 @@ qboolean SWMod_LoadMarksurfaces (lump_t *l)
 		j = LittleShort(in[i]);
 		if (j >= loadmodel->numsurfaces)
 		{
-			Con_Printf (S_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
+			Con_Printf (SP_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
 			return false;
 		}
 		out[i] = loadmodel->surfaces + j;
@@ -1899,7 +1899,7 @@ qboolean SWMod_LoadPlanes (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (S_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1999,7 +1999,7 @@ qboolean SWMod_LoadBrushModel (model_t *mod, void *buffer)
 		loadmodel->fromgame = fg_halflife;
 	else
 	{
-		Con_Printf (S_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i should be %i)", mod->name, i, BSPVERSION);
+		Con_Printf (SP_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i should be %i)", mod->name, i, BSPVERSION);
 		return false;
 	}
 //	if (i != BSPVERSION)
@@ -2019,7 +2019,7 @@ qboolean SWMod_LoadBrushModel (model_t *mod, void *buffer)
 	{
 		if ((unsigned)header->lumps[i].fileofs + (unsigned)header->lumps[i].filelen > com_filesize)
 		{
-			Con_Printf (S_ERROR "Mod_LoadBrushModel: %s appears truncated\n", mod->name);
+			Con_Printf (SP_ERROR "Mod_LoadBrushModel: %s appears truncated\n", mod->name);
 			return false;
 		}
 		if (i == LUMP_ENTITIES)
@@ -2474,7 +2474,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 		qtest = true;
 	else if (version != ALIAS_VERSION)
 	{
-		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)\n",
+		Con_Printf (SP_ERROR "%s has wrong version number (%i should be %i)\n",
 				 mod->name, version, ALIAS_VERSION);
 		return false;
 	}
@@ -2511,7 +2511,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	if (pmodel->skinheight > MAX_LBM_HEIGHT)
 	{
 		// TODO: at least downsize the skin
-		Con_Printf (S_ERROR "model %s has a skin taller than %d\n", mod->name,
+		Con_Printf (SP_ERROR "model %s has a skin taller than %d\n", mod->name,
 				   MAX_LBM_HEIGHT);
 		Hunk_FreeToLowMark(start);
 		return false;
@@ -2521,14 +2521,14 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 
 	if (pmodel->numverts <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no vertices\n", mod->name);
+		Con_Printf (SP_ERROR "model %s has no vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
 
 	if (pmodel->numverts > MAXALIASVERTS)
 	{
-		Con_Printf (S_ERROR "model %s has too many vertices\n", mod->name);
+		Con_Printf (SP_ERROR "model %s has too many vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2537,7 +2537,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 
 	if (pmodel->numtris <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no triangles\n", mod->name);
+		Con_Printf (SP_ERROR "model %s has no triangles\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2562,7 +2562,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 
 	if (pmodel->skinwidth & 0x03)
 	{
-		Con_Printf (S_ERROR "Mod_LoadAliasModel: \"%s\" skinwidth not multiple of 4\n", loadmodel->name);
+		Con_Printf (SP_ERROR "Mod_LoadAliasModel: \"%s\" skinwidth not multiple of 4\n", loadmodel->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2576,7 +2576,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 
 	if (numskins < 1)
 	{
-		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, invalid # of skins: %d\n", loadmodel->name, numskins);
+		Con_Printf (SP_ERROR "Mod_LoadAliasModel: %s, invalid # of skins: %d\n", loadmodel->name, numskins);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2665,7 +2665,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 //
 	if (numframes < 1)
 	{
-		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, invalid # of frames: %d\n", mod->name, numframes);
+		Con_Printf (SP_ERROR "Mod_LoadAliasModel: %s, invalid # of frames: %d\n", mod->name, numframes);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2714,7 +2714,7 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 
 		if (pframetype == NULL)
 		{
-			Con_Printf (S_ERROR "SWMod_LoadAliasModel: %s, couldn't load frame data\n", mod->name);
+			Con_Printf (SP_ERROR "SWMod_LoadAliasModel: %s, couldn't load frame data\n", mod->name);
 			Hunk_FreeToLowMark(start);
 			return false;
 		}
@@ -2809,7 +2809,7 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 	version = LittleLong (pinmodel->version);
 	if (version != MD2ALIAS_VERSION)
 	{
-		Con_Printf (S_ERROR "%s has wrong version number (%i should be %i)\n",
+		Con_Printf (SP_ERROR "%s has wrong version number (%i should be %i)\n",
 				 mod->name, version, MD2ALIAS_VERSION);
 		return false;
 	}
@@ -2841,7 +2841,7 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 
 	if (pmodel->skinheight > MAX_LBM_HEIGHT)
 	{
-		Con_Printf (S_ERROR "model %s has a skin taller than %d\n", mod->name,
+		Con_Printf (SP_ERROR "model %s has a skin taller than %d\n", mod->name,
 				   MAX_LBM_HEIGHT);
 		Hunk_FreeToLowMark(start);
 		return false;
@@ -2852,14 +2852,14 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 
 	if (pmodel->numverts <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no vertices\n", mod->name);
+		Con_Printf (SP_ERROR "model %s has no vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
 
 	if (pmodel->numverts > MAXALIASVERTS)
 	{
-		Con_Printf (S_ERROR "model %s has too many vertices\n", mod->name);
+		Con_Printf (SP_ERROR "model %s has too many vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2868,7 +2868,7 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 
 	if (pmodel->numtris <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no triangles\n", mod->name);
+		Con_Printf (SP_ERROR "model %s has no triangles\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2890,7 +2890,7 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 
 	if (pmodel->skinwidth & 0x03)
 	{
-		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, skinwidth not multiple of 4\n", mod->name);
+		Con_Printf (SP_ERROR "Mod_LoadAliasModel: %s, skinwidth not multiple of 4\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -2936,7 +2936,7 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 //
 	if (numframes < 1)
 	{
-		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, Invalid # of frames: %d\n", mod->name, numframes);
+		Con_Printf (SP_ERROR "Mod_LoadAliasModel: %s, Invalid # of frames: %d\n", mod->name, numframes);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -3015,20 +3015,20 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 			buffer = COM_LoadTempFile(skinnames);
 			if (!buffer)
 			{
-				Con_Printf(S_WARNING "Skin %s not found\n", skinnames);
+				Con_Printf(SP_WARNING "Skin %s not found\n", skinnames);
 				continue;
 			}
 			texture = ReadPCXFile(buffer, com_filesize, &width, &height);
 //			BZ_Free(buffer);
 			if (!texture)
 			{
-				Con_Printf(S_WARNING "Skin %s not a pcx\n", skinnames);
+				Con_Printf(SP_WARNING "Skin %s not a pcx\n", skinnames);
 				continue;
 			}
 			if (width != pmodel->skinwidth || height != pmodel->skinheight)	//FIXME: scale
 			{
 				BZ_Free(texture);
-				Con_Printf(S_WARNING "Skin %s not same size as model specifies it should be\n", skinnames);
+				Con_Printf(SP_WARNING "Skin %s not same size as model specifies it should be\n", skinnames);
 				continue;
 			}
 
@@ -3261,7 +3261,7 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 	if (pmodel->skinheight > MAX_LBM_HEIGHT)
 	{
-		Con_Printf (S_ERROR "model %s has a skin taller than %d\n", mod->name,
+		Con_Printf (SP_ERROR "model %s has a skin taller than %d\n", mod->name,
 				   MAX_LBM_HEIGHT);
 		Hunk_FreeToLowMark(start);
 		return false;
@@ -3272,14 +3272,14 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 	if (surface->numVerts <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no vertices\n", mod->name);
+		Con_Printf (SP_ERROR "model %s has no vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
 
 	if (pmodel->numverts > MAXALIASVERTS)
 	{
-		Con_Printf (S_ERROR "model %s has too many vertices\n", mod->name);
+		Con_Printf (SP_ERROR "model %s has too many vertices\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -3288,7 +3288,7 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 	if (pmodel->numtris <= 0)
 	{
-		Con_Printf (S_ERROR "model %s has no triangles\n", mod->name);
+		Con_Printf (SP_ERROR "model %s has no triangles\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -3341,7 +3341,7 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 
 			if (!buffer)
 			{
-				Con_Printf(S_WARNING "Skin %s not found\n", pinskin->name);
+				Con_Printf(SP_WARNING "Skin %s not found\n", pinskin->name);
 				continue;
 			}
 			texture = ReadTargaFile(buffer, com_filesize, &width, &height, false);
@@ -3358,7 +3358,7 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 			BZ_Free(buffer);
 			if (!texture)
 			{
-				Con_Printf(S_WARNING "Skin %s filetype not recognised\n", pinskin->name);
+				Con_Printf(SP_WARNING "Skin %s filetype not recognised\n", pinskin->name);
 				continue;
 			}
 			if (!pmodel->numskins)	//this is the first skin.
@@ -3370,7 +3370,7 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 			if (width != pmodel->skinwidth || height != pmodel->skinheight)	//FIXME: scale
 			{
 				BZ_Free(texture);
-				Con_Printf(S_WARNING "Skin %s not same size as model specifies it should be\n", pinskin->name);
+				Con_Printf(SP_WARNING "Skin %s not same size as model specifies it should be\n", pinskin->name);
 				continue;
 			}
 
@@ -3402,11 +3402,11 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 	}
 
 	if (!pmodel->numskins)
-		Con_Printf(S_WARNING "model %s has no skins\n", loadmodel->name);
+		Con_Printf(SP_WARNING "model %s has no skins\n", loadmodel->name);
 
 	if (pmodel->skinwidth & 0x03)
 	{
-		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, skinwidth not multiple of 4\n", mod->name);
+		Con_Printf (SP_ERROR "Mod_LoadAliasModel: %s, skinwidth not multiple of 4\n", mod->name);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -3449,7 +3449,7 @@ qboolean SWMod_LoadAlias3Model (model_t *mod, void *buffer)
 //
 	if (numframes < 1)
 	{
-		Con_Printf (S_ERROR "Mod_LoadAliasModel: %s, Invalid # of frames: %d\n", mod->name, numframes);
+		Con_Printf (SP_ERROR "Mod_LoadAliasModel: %s, Invalid # of frames: %d\n", mod->name, numframes);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -3694,7 +3694,7 @@ void * SWMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int version)
 		*poutintervals = LittleFloat (pin_intervals->interval);
 		if (*poutintervals <= 0.0)
 		{
-			Con_Printf (S_ERROR "Mod_LoadSpriteGroup: interval<=0\n");
+			Con_Printf (SP_ERROR "Mod_LoadSpriteGroup: interval<=0\n");
 			return NULL;
 		}
 
@@ -3737,7 +3737,7 @@ qboolean SWMod_LoadSpriteModel (model_t *mod, void *buffer)
 	if (version != SPRITE32_VERSION)
 	if (version != SPRITE_VERSION)
 	{
-		Con_Printf (S_ERROR "%s has wrong version number "
+		Con_Printf (SP_ERROR "%s has wrong version number "
 				 "(%i should be %i)\n", mod->name, version, SPRITE_VERSION);
 		return false;
 	}
@@ -3767,7 +3767,7 @@ qboolean SWMod_LoadSpriteModel (model_t *mod, void *buffer)
 //
 	if (numframes < 1)
 	{
-		Con_Printf (S_ERROR "Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
+		Con_Printf (SP_ERROR "Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
 		return false;
 	}
 
@@ -3859,7 +3859,7 @@ qboolean SWMod_LoadSprite2Model (model_t *mod, void *buffer)
 //
 	if (numframes < 1)
 	{
-		Con_Printf (S_ERROR "Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
+		Con_Printf (SP_ERROR "Mod_LoadSpriteModel: Invalid # of frames: %d\n", numframes);
 		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}

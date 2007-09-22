@@ -50,6 +50,9 @@ ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 		ifeq ($(shell uname),Linux)
 			FTE_TARGET=linux
 		endif
+		ifeq ($(shell uname),Darwin)
+			FTE_TARGET=macosx
+		endif
 		ifeq ($(shell uname),FreeBSD)
 			FTE_TARGET=bsd
 		endif
@@ -563,7 +566,22 @@ endif
 	MINGL_EXE_NAME=../fteqw.mingl$(BITS)
 	MINGL_DIR=mingl_linux$(BITS)
 endif
+ifeq ($(FTE_TARGET),macosx)
+	SV_DIR=sv_macosx
+	GLB_DIR=gl_macosx
+	GLCL_DIR=glcl_macosx
+	MINGL_DIR=mingl_macosx
+	SWB_DIR=sw_macosx
+	SWCL_DIR=sw_macosx
 
+	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__
+	GL_LDFLAGS=-framework AGL -framework OpenGL
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidmac.o sys_linux.o cd_null.o
+
+	SW_CFLAGS=$(SWCFLAGS) -D__MACOSX__
+	SW_LDFLAGS=
+	SWCL_OBJS=$(SOFTWARE_OBJS) cd_null.o sys_linux.o
+endif
 ifeq ($(FTE_TARGET),morphos)
 
 	SV_DIR=sv_morphos

@@ -693,7 +693,7 @@ static void Shaderpass_Map ( shader_t *shader, shaderpass_t *pass, char **ptr )
 
 		if ( !pass->anim_frames[0] ) {
 			pass->anim_frames[0] = missing_texture;
-			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", shader->name, token );
+			Con_DPrintf (SP_WARNING "Shader %s has a stage with no image: %s.\n", shader->name, token );
 		}
     }
 }
@@ -722,7 +722,7 @@ static void Shaderpass_AnimMap ( shader_t *shader, shaderpass_t *pass, char **pt
 
 			if ( !image ) {
 				pass->anim_frames[pass->anim_numframes++] = missing_texture;
-				Con_DPrintf (S_WARNING "Shader %s has an animmap with no image: %s.\n", shader->name, token );
+				Con_DPrintf (SP_WARNING "Shader %s has an animmap with no image: %s.\n", shader->name, token );
 			} else {
 				pass->anim_frames[pass->anim_numframes++] = image;
 			}
@@ -746,7 +746,7 @@ static void Shaderpass_ClampMap ( shader_t *shader, shaderpass_t *pass, char **p
 
 	if ( !pass->anim_frames[0] ) {
 		pass->anim_frames[0] = missing_texture;
-		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", shader->name, token );
+		Con_DPrintf (SP_WARNING "Shader %s has a stage with no image: %s.\n", shader->name, token );
     }
 }
 
@@ -763,7 +763,7 @@ static void Shaderpass_VideoMap ( shader_t *shader, shaderpass_t *pass, char **p
 	if (!pass->cin)
 		pass->cin = Media_StartCin(va("video/%s.roq", token));
 	else
-		Con_DPrintf (S_WARNING "(shader %s) Couldn't load video %s\n", shader->name, token );
+		Con_DPrintf (SP_WARNING "(shader %s) Couldn't load video %s\n", shader->name, token );
 
 	pass->anim_frames[0] = texture_extension_number++;
 	pass->flags |= SHADER_PASS_VIDEOMAP;
@@ -2122,7 +2122,7 @@ void Shader_DefaultBSP(char *shortname, shader_t *s)
 		pass->flush = R_RenderMeshGeneric;
 
 		if ( !pass->anim_frames[0] ) {
-			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			Con_DPrintf (SP_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 			pass->anim_frames[0] = missing_texture;
 		}
 
@@ -2152,7 +2152,7 @@ void Shader_DefaultBSPVertex(char *shortname, shader_t *s)
 	pass->flush = R_RenderMeshGeneric;
 
 	if ( !pass->anim_frames[0] ) {
-		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		Con_DPrintf (SP_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 		pass->anim_frames[0] = missing_texture;
 	}
 
@@ -2183,7 +2183,7 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s)
 	pass->flush = R_RenderMeshGeneric;
 
 	if ( !pass->anim_frames[0] ) {
-		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		Con_DPrintf (SP_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 		pass->anim_frames[0] = missing_texture;
 	}
 
@@ -2220,7 +2220,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		pass->flush = R_RenderMeshGeneric;
 		if (!pass->anim_frames[0])
 		{
-			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			Con_DPrintf (SP_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 			pass->anim_frames[0] = missing_texture;
 		}
 	}
@@ -2242,7 +2242,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		pass->flush = R_RenderMeshGeneric;
 		if (!pass->anim_frames[0])
 		{
-			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			Con_DPrintf (SP_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 			pass->anim_frames[0] = missing_texture;
 		}
 	}
@@ -2264,7 +2264,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		pass->flush = R_RenderMeshGeneric;
 		if (!pass->anim_frames[0])
 		{
-			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			Con_DPrintf (SP_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 			pass->anim_frames[0] = missing_texture;
 		}
 	}
@@ -2286,7 +2286,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 		pass->flush = R_RenderMeshGeneric;
 		if (!pass->anim_frames[0])
 		{
-			Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname);
+			Con_DPrintf (SP_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname);
 			pass->anim_frames[0] = missing_texture;
 		}
 	}
@@ -2317,7 +2317,7 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s)
 	pass->flush = R_RenderMeshGeneric;
 
 	if ( !pass->anim_frames[0] ) {
-		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		Con_DPrintf (SP_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 		pass->anim_frames[0] = missing_texture;
 	}
 
@@ -2357,7 +2357,7 @@ void Shader_Default2D(char *shortname, shader_t *s)
 	pass->flush = R_RenderMeshGeneric;
 
 	if ( !pass->anim_frames[0] ) {
-		Con_DPrintf (S_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		Con_DPrintf (SP_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 		pass->anim_frames[0] = missing_texture;
 	}
 

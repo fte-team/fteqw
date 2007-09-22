@@ -656,7 +656,7 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 	buffer = COM_Parse(buffer);
 	if (strcmp(com_token, "terrain"))
 	{
-		Con_Printf(S_ERROR "%s wasn't terrain map\n", mod->name);	//shouldn't happen
+		Con_Printf(SP_ERROR "%s wasn't terrain map\n", mod->name);	//shouldn't happen
 		return false;
 	}
 
@@ -726,14 +726,14 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 		}
 		else
 		{
-			Con_Printf(S_ERROR "%s, unrecognised token in terrain map\n", mod->name);
+			Con_Printf(SP_ERROR "%s, unrecognised token in terrain map\n", mod->name);
 			return false;
 		}
 	}
 
 	if (numsegs > SECTIONS)
 	{
-		Con_Printf(S_ERROR "%s, heightmap uses too many sections max is %i\n", mod->name, SECTIONS);
+		Con_Printf(SP_ERROR "%s, heightmap uses too many sections max is %i\n", mod->name, SECTIONS);
 		return false;
 	}
 
@@ -745,7 +745,7 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 	size = sqrt(com_filesize/2);
 	if (size % numsegs)
 	{
-		Con_Printf(S_ERROR "%s, heightmap is not a multiple of %i\n", mod->name, numsegs);
+		Con_Printf(SP_ERROR "%s, heightmap is not a multiple of %i\n", mod->name, numsegs);
 		return false;
 	}
 

@@ -1728,7 +1728,7 @@ void CL_Packet_f (void)
 				adr.address.ip[2] = cls.netchan.remote_address.address.ip[2];
 				adr.address.ip[3] = cls.netchan.remote_address.address.ip[3];
 				adr.port = cls.netchan.remote_address.port;
-				Con_Printf (S_WARNING "Server is broken. Trying to send to server instead.\n");
+				Con_Printf (SP_WARNING "Server is broken. Trying to send to server instead.\n");
 
 			}
 
@@ -2640,7 +2640,7 @@ void CL_ForceStopDownload (qboolean finish)
 {
 	if (Cmd_IsInsecure())
 	{
-		Con_Printf(S_WARNING "Execution from server rejected for %s\n", Cmd_Argv(0));
+		Con_Printf(SP_WARNING "Execution from server rejected for %s\n", Cmd_Argv(0));
 		return;
 	}
 

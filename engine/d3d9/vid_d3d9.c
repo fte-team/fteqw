@@ -78,7 +78,7 @@ mpic_t		*draw_disc;	// also used on sbar
 int d3d9width, d3d9height;
 #if 0
 #if !defined(SWQUAKE) && !defined(RGLQUAKE)
-qbyte GetPalette(int red, int green, int blue)
+qbyte GetPaletteIndex(int red, int green, int blue)
 {
 	//slow, horrible method.
 	{

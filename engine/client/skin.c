@@ -226,7 +226,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	if (qrenderer == QR_SOFTWARE && r_pixbytes == 1 && cls.allow_fbskins<0.2)	//only time FB has to exist... (gl can be disabled)
 	{
 		for (x = 0; x < vid.fullbright; x++)
-			fbremap[x] = GetPalette(host_basepal[((x+256-vid.fullbright)*3)], host_basepal[((x+256-vid.fullbright)*3)+1], host_basepal[((x+256-vid.fullbright)*3)+2]);
+			fbremap[x] = GetPaletteIndex(host_basepal[((x+256-vid.fullbright)*3)], host_basepal[((x+256-vid.fullbright)*3)+1], host_basepal[((x+256-vid.fullbright)*3)+2]);
 	}
 	else
 #endif
@@ -251,7 +251,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		s = COM_Parse(s);
 		col[2] = atof(com_token);
 
-		bv = GetPalette(col[0], col[1], col[2]);
+		bv = GetPaletteIndex(col[0], col[1], col[2]);
 
 		skin->width = 320;
 		skin->height = 200;

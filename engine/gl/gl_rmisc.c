@@ -34,7 +34,7 @@ extern void R_InitBubble();
 //SW rendering has a faster method, which takes more memory and stuff.
 //We need this for minor things though, so we'll just use the slow accurate method.
 //this is unlikly to be called very often.			
-qbyte GetPalette(int red, int green, int blue)
+qbyte GetPaletteIndex(int red, int green, int blue)
 {
 	//slow, horrible method.
 	{
@@ -600,7 +600,7 @@ if (!data)
 			for (outmip=mip, y = 0; y < height; y+=yi)
 			for (x = 0; x < width; x+=xi)
 			{
-				*outmip++ = GetPalette(	data[(int)(x+y*width)*4+0],
+				*outmip++ = GetPaletteIndex(	data[(int)(x+y*width)*4+0],
 								data[(int)(x+y*width)*4+1],
 								data[(int)(x+y*width)*4+2]);
 			}
@@ -608,7 +608,7 @@ if (!data)
 			for (outmip=mip, y = 0; y < height; y+=yi*2)
 			for (x = 0; x < width; x+=xi*2)
 			{
-				*outmip++ = GetPalette(	data[(int)(x+y*width)*4+0],
+				*outmip++ = GetPaletteIndex(	data[(int)(x+y*width)*4+0],
 								data[(int)(x+y*width)*4+1],
 								data[(int)(x+y*width)*4+2]);				
 			}
@@ -616,7 +616,7 @@ if (!data)
 			for (outmip=mip, y = 0; y < height; y+=yi*4)
 			for (x = 0; x < width; x+=xi*4)
 			{
-				*outmip++ = GetPalette(	data[(int)(x+y*width)*4+0],
+				*outmip++ = GetPaletteIndex(	data[(int)(x+y*width)*4+0],
 								data[(int)(x+y*width)*4+1],
 								data[(int)(x+y*width)*4+2]);				
 			}
@@ -624,7 +624,7 @@ if (!data)
 			for (outmip=mip, y = 0; y < height; y+=yi*8)
 			for (x = 0; x < width; x+=xi*8)
 			{
-				*outmip++ = GetPalette(	data[(int)(x+y*width)*4+0],
+				*outmip++ = GetPaletteIndex(	data[(int)(x+y*width)*4+0],
 								data[(int)(x+y*width)*4+1],
 								data[(int)(x+y*width)*4+2]);
 			}

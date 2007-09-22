@@ -2156,7 +2156,7 @@ void AddOcranaLEDsIndexed (qbyte *image, int h, int w)
 		bd = (b - ledcolors[i*2+1][2]) / 8;
 		for (idx = 0; idx < 8; idx++)
 		{
-			tridx[idx] = GetPalette(r, g, b);
+			tridx[idx] = GetPaletteIndex(r, g, b);
 			r -= rd;
 			g -= gd;
 			b -= bd;

@@ -753,7 +753,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		vid_dpy = XOpenDisplay(NULL);
 	if (!vid_dpy)
 	{
-		Con_Printf(S_ERROR "Error: couldn't open the X display\n");
+		Con_Printf(SP_ERROR "Error: couldn't open the X display\n");
 		return false;
 	}
 

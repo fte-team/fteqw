@@ -310,7 +310,9 @@ void Validation_FlushFileList(void)
 
 static void Validation_Server(void)
 {
+#ifndef _MSC_VER
 	#warning is allowing the user to turn this off practical?..
+#endif
 	if (!allow_f_server.value)
 		return;
 	Cbuf_AddText(va("say server is %s\n", NET_AdrToString(cls.netchan.remote_address)), RESTRICT_LOCAL);
@@ -503,7 +505,9 @@ void Validation_Apply_Ruleset(void)
 	cvar_t *var;
 	int i;
 
-#warning fixme: the following line should not be needed. ensure this is the case
+#ifndef _MSC_VER
+	#warning fixme: the following line should not be needed. ensure this is the case
+#endif
 	Validation_DelatchRulesets();	//make sure there's no old one
 
 	if (!*ruleset.string || !strcmp(ruleset.string, "none"))

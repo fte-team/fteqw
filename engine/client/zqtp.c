@@ -937,7 +937,7 @@ static void CountNearbyPlayers(qboolean dead)
 static char *Macro_CountNearbyEnemyPlayers (void)
 {
 	if (!ruleset_allow_playercount.value)
-		return "banned by ruleset";
+		return " ";
 	CountNearbyPlayers(false);
 	sprintf(macro_buf, "\xffz%d\xff", vars.numenemies);
 	suppress = true;
@@ -948,7 +948,7 @@ static char *Macro_CountNearbyEnemyPlayers (void)
 static char *Macro_Count_Last_NearbyEnemyPlayers (void)
 {
 	if (!ruleset_allow_playercount.value)
-		return "banned by ruleset";
+		return " ";
 	if (vars.deathtrigger_time && realtime - vars.deathtrigger_time <= 5)
 	{
 		sprintf(macro_buf, "\xffz%d\xff", vars.last_numenemies);
@@ -966,7 +966,7 @@ static char *Macro_Count_Last_NearbyEnemyPlayers (void)
 static char *Macro_CountNearbyFriendlyPlayers (void)
 {
 	if (!ruleset_allow_playercount.value)
-		return "banned by ruleset";
+		return " ";
 	CountNearbyPlayers(false);
 	sprintf(macro_buf, "\xffz%d\xff", vars.numfriendlies);
 	suppress = true;
@@ -977,7 +977,7 @@ static char *Macro_CountNearbyFriendlyPlayers (void)
 static char *Macro_Count_Last_NearbyFriendlyPlayers (void)
 {
 	if (!ruleset_allow_playercount.value)
-		return "banned by ruleset";
+		return " ";
 	if (vars.deathtrigger_time && realtime - vars.deathtrigger_time <= 5)
 	{
 		sprintf(macro_buf, "\xffz%d\xff", vars.last_numfriendlies);

@@ -1245,23 +1245,6 @@ void	SWVID_Update (vrect_t *rects)
 
 }
 
-int Sys_OpenWindow(void)
-{
-	return 0;
-}
-
-void Sys_EraseWindow(int window)
-{
-}
-
-void Sys_DrawCircle(int window, int x, int y, int r)
-{
-}
-
-void Sys_DisplayWindow(int window)
-{
-}
-
 #ifdef RGLQUAKE
 void GLSys_SendKeyEvents(void);	//merged.
 #endif

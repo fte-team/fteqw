@@ -630,7 +630,7 @@ static qboolean SWimp_InitGraphics( rendererstate_t *info, qboolean fullscreen )
 	// free resources in use
 	SWimp_Shutdown ();
 
-	usingstretch = info->streach;
+	usingstretch = info->stretch;
 	if (fullscreen || usingstretch < 0.25)
 		usingstretch = 1;
 
@@ -896,7 +896,7 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 	if (info->height > MAXHEIGHT)
 		return false;
 
-	usingstretch = info->streach;
+	usingstretch = info->stretch;
 	if (usingstretch <= 0.25)
 		usingstretch = 1;
 

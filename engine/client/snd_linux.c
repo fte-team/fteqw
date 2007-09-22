@@ -151,7 +151,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 
 	if (sc->sn.samples > (info.fragstotal * info.fragsize * 4))
 	{
-		Con_Printf(S_NOTICE "OSS: Enabling bigfoot's mmap hack! Hope you know what you're doing!\n");
+		Con_Printf(SP_NOTICE "OSS: Enabling bigfoot's mmap hack! Hope you know what you're doing!\n");
 		sc->sn.samples = info.fragstotal * info.fragsize * 4;
 	}
 	sc->sn.samples = info.fragstotal * info.fragsize;

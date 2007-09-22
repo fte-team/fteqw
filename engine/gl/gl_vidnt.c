@@ -795,7 +795,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 
 			maindc = GetDC(mainwindow);
 
-			Con_Printf(S_NOTICE "OpenGL to Direct3D wrapper enabled\n");	//green to make it show.
+			Con_Printf(SP_NOTICE "OpenGL to Direct3D wrapper enabled\n");	//green to make it show.
 			break;
 		}
 #endif

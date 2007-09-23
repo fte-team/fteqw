@@ -8,12 +8,13 @@
 #include "glquake.h"
 #endif
 
-
-
-
 #include "com_mesh.h"
 
-
+#ifdef _WIN32
+#include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 
 extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models;
 extern cvar_t r_noaliasshadows;

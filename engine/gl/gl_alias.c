@@ -27,6 +27,12 @@
 #include <stdlib.h>
 #endif
 
+#ifdef _WIN32
+#include <malloc.h>
+#else
+#include <alloca.h>
+#endif
+
 #define MAX_BONES 256
 
 #ifndef SERVERONLY

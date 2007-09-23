@@ -83,6 +83,9 @@ void IN_ReInit(void)
 
 void IN_Init(void)
 {
+#ifdef IN_XFLIP
+	Cvar_Register (&in_xflip, "Input Controls");
+#endif
 }
 
 void IN_Shutdown(void)

@@ -220,7 +220,7 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 	GLSlang_UseProgram(0);
 
 	if (qglGetError())
-		Con_Printf(SP_ERROR "GL Error initing shader object\n");
+		Con_Printf(CON_ERROR "GL Error initing shader object\n");
 }
 
 void GL_InitSceneProcessingShaders_MenuTint(void)
@@ -267,7 +267,7 @@ void GL_InitSceneProcessingShaders_MenuTint(void)
 	GLSlang_UseProgram(0);
 
 	if (qglGetError())
-		Con_Printf(SP_ERROR "GL Error initing shader object\n");
+		Con_Printf(CON_ERROR "GL Error initing shader object\n");
 }
 
 void GL_InitSceneProcessingShaders (void)
@@ -1696,7 +1696,7 @@ void GLR_RenderView (void)
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 		if (qglGetError())
-			Con_Printf(SP_ERROR "GL Error after qglCopyTexImage2D\n");
+			Con_Printf(CON_ERROR "GL Error after qglCopyTexImage2D\n");
 
 		// Here we apply the shaders - currently just waterwarp
 		GLSlang_UseProgram(scenepp_ww_program);

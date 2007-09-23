@@ -584,7 +584,7 @@ static void Triangulate_AddLine(int v1, int v2)	//order makes a difference
 		{	//close up
 			if (polyregions[endof].numverts+1 >= MAX_POLYVERTS)
 			{
-				Con_Printf(SP_WARNING "WARNING: Map region is too large.\n");
+				Con_Printf(CON_WARNING "WARNING: Map region is too large.\n");
 				return;
 			}
 			polyregions[endof].vertex[polyregions[endof].numverts] = v2;
@@ -594,7 +594,7 @@ static void Triangulate_AddLine(int v1, int v2)	//order makes a difference
 		{
 			if (polyregions[endof].numverts+polyregions[beginingof].numverts >= MAX_POLYVERTS)
 			{
-				Con_Printf(SP_WARNING "WARNING: Map region is too large.\n");
+				Con_Printf(CON_WARNING "WARNING: Map region is too large.\n");
 				return;
 			}
 			memcpy(polyregions[endof].vertex + polyregions[endof].numverts,
@@ -608,7 +608,7 @@ static void Triangulate_AddLine(int v1, int v2)	//order makes a difference
 	{	//insert into
 		if (polyregions[beginingof].numverts+1 >= MAX_POLYVERTS)
 		{
-			Con_Printf(SP_WARNING "WARNING: Map region is too large.\n");
+			Con_Printf(CON_WARNING "WARNING: Map region is too large.\n");
 			return;
 		}
 
@@ -622,7 +622,7 @@ static void Triangulate_AddLine(int v1, int v2)	//order makes a difference
 	{	//stick outselves on the end
 		if (polyregions[endof].numverts+1 >= MAX_POLYVERTS)
 		{
-			Con_Printf(SP_WARNING "WARNING: Map region is too large.\n");
+			Con_Printf(CON_WARNING "WARNING: Map region is too large.\n");
 			return;
 		}
 		polyregions[endof].vertex[polyregions[endof].numverts] = v2;
@@ -635,7 +635,7 @@ static void Triangulate_AddLine(int v1, int v2)	//order makes a difference
 			freer = regions++;
 			if (regions > MAX_REGIONS)
 			{
-				Con_Printf(SP_WARNING "WARNING: Too many regions. Sector is too chaotic/complicated.\n");
+				Con_Printf(CON_WARNING "WARNING: Too many regions. Sector is too chaotic/complicated.\n");
 				freer = 0;
 				regions = 1;
 			}
@@ -704,7 +704,7 @@ static unsigned short *Triangulate_Finish(int *numtris, unsigned short *old, int
 		{	//build a triangle fan.
 			if (numindexes+3 > MAX_POLYVERTS)
 			{
-				Con_Printf(SP_WARNING "WARNING: Sector is too big for triangulation\n");
+				Con_Printf(CON_WARNING "WARNING: Sector is too big for triangulation\n");
 				break;
 			}
 			v3 = polyregions[r].vertex[v];
@@ -724,7 +724,7 @@ static unsigned short *Triangulate_Finish(int *numtris, unsigned short *old, int
 				f++;
 				if (f >= 1000)
 				{	//infinate loop - shouldn't happen. must have got the angle stuff wrong.
-					Con_Printf(SP_WARNING "WARNING: Failed to triangulate polygon\n");
+					Con_Printf(CON_WARNING "WARNING: Failed to triangulate polygon\n");
 					break;
 				}
 				continue;
@@ -746,7 +746,7 @@ static unsigned short *Triangulate_Finish(int *numtris, unsigned short *old, int
 
 	if (!numindexes)
 	{
-		Con_Printf(SP_WARNING "Warning: Sector is empty\n");
+		Con_Printf(CON_WARNING "Warning: Sector is empty\n");
 
 		*numtris = 0;
 		regions = 0;
@@ -1255,7 +1255,7 @@ static void MoveWorld(void)
 			return;	//doesn't need adjusting, live with it.
 
 	if (max[0]-min[0]>=8192 || max[1]-min[1]>=8192)
-		Con_Printf(SP_WARNING "Warning: Map is too large for the network protocol\n");
+		Con_Printf(CON_WARNING "Warning: Map is too large for the network protocol\n");
 
 	Con_Printf("Adjusting map\n");
 

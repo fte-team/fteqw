@@ -470,7 +470,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 #endif
 
 	default:
-		Con_Printf (SP_ERROR "Mod_NumForName: %s: format not recognised\n", mod->name);
+		Con_Printf (CON_ERROR "Mod_NumForName: %s: format not recognised\n", mod->name);
 couldntload:
 		if (crash)
 			SV_Error ("Load failed on critical model %s", mod->name);
@@ -786,7 +786,7 @@ qboolean Mod_LoadSubmodels (lump_t *l)
 		hexen2map = true;
 		if (l->filelen % sizeof(*inh))
 		{
-			Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 			return false;
 		}
 		count = l->filelen / sizeof(*inh);
@@ -824,7 +824,7 @@ qboolean Mod_LoadSubmodels (lump_t *l)
 		hexen2map = false;
 		if (l->filelen % sizeof(*inq))
 		{
-			Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 			return false;
 		}
 		count = l->filelen / sizeof(*inq);
@@ -1120,7 +1120,7 @@ qboolean Mod_LoadNodes (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1172,7 +1172,7 @@ qboolean Mod_LoadLeafs (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1224,7 +1224,7 @@ qboolean Mod_LoadClipnodes (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1438,7 +1438,7 @@ qboolean Mod_LoadPlanes (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1494,7 +1494,7 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 		loadmodel->fromgame = fg_halflife;
 	else
 	{
-		Con_Printf (SP_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i should be %i)\n", mod->name, i, BSPVERSION);
+		Con_Printf (CON_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i should be %i)\n", mod->name, i, BSPVERSION);
 		return false;
 	}
 
@@ -1514,7 +1514,7 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 	{
 		if ((unsigned)header->lumps[i].fileofs + (unsigned)header->lumps[i].filelen > com_filesize)
 		{
-			Con_Printf (SP_ERROR "Mod_LoadBrushModel: %s appears truncated\n", mod->name);
+			Con_Printf (CON_ERROR "Mod_LoadBrushModel: %s appears truncated\n", mod->name);
 			return false;
 		}
 

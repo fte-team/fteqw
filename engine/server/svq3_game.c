@@ -2870,7 +2870,7 @@ void SVQ3_ParseClientMessage(client_t *client)
 
 	if (msg_readcount != net_message.cursize)
 	{
-		Con_Printf(SP_WARNING "WARNING: Junk at end of packet for client %s\n", client->name );
+		Con_Printf(CON_WARNING "WARNING: Junk at end of packet for client %s\n", client->name );
 	}
 };
 void SVQ3_HandleClient(void)

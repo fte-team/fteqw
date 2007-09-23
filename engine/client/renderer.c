@@ -2062,7 +2062,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 		if (R_ApplyRenderer(&oldr))
 		{
 			TRACE(("dbg: R_RestartRenderer_f old restored\n"));
-			Con_Printf(SP_ERROR "Video mode switch failed. Old mode restored.\n");	//go back to the old mode, the new one failed.
+			Con_Printf(CON_ERROR "Video mode switch failed. Old mode restored.\n");	//go back to the old mode, the new one failed.
 		}
 		else
 		{
@@ -2070,7 +2070,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 
 			if (newr.rate != 0)
 			{
-				Con_Printf(SP_NOTICE "Trying default refresh rate\n");
+				Con_Printf(CON_NOTICE "Trying default refresh rate\n");
 				newr.rate = 0;
 				failed = !R_ApplyRenderer(&newr);
 			}
@@ -2081,7 +2081,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 				if (R_ApplyRenderer(&newr))
 				{
 					TRACE(("dbg: R_RestartRenderer_f going to dedicated\n"));
-					Con_Printf(SP_ERROR "Video mode switch failed. Old mode wasn't supported either. Console forced.\nChange vid_width, vid_height, vid_bpp, vid_displayfrequency to a compatable mode, and then use the setrenderer command.\n");
+					Con_Printf(CON_ERROR "Video mode switch failed. Old mode wasn't supported either. Console forced.\nChange vid_width, vid_height, vid_bpp, vid_displayfrequency to a compatable mode, and then use the setrenderer command.\n");
 				}
 				else
 					Sys_Error("Couldn't fall back to previous renderer\n");

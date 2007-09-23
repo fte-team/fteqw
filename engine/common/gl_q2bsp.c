@@ -727,7 +727,7 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 			{
 				if (numplanes == MAX_Q2MAP_PLANES)
 				{
-					Con_Printf (SP_ERROR "CM_CreateBrush: numplanes == MAX_CM_PLANES");
+					Con_Printf (CON_ERROR "CM_CreateBrush: numplanes == MAX_CM_PLANES");
 					return false;
 				}
 
@@ -737,7 +737,7 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 
 			if (numbrushsides == MAX_CM_BRUSHSIDES)
 			{
-				Con_Printf (SP_ERROR "CM_CreateBrush: numbrushsides == MAX_CM_BRUSHSIDES\n");
+				Con_Printf (CON_ERROR "CM_CreateBrush: numbrushsides == MAX_CM_BRUSHSIDES\n");
 				return false;
 			}
 
@@ -774,7 +774,7 @@ qboolean CM_CreatePatch ( q3cpatch_t *patch, int numverts, const vec3_t *verts, 
 
 	if ( size[0] * size[1] > MAX_CM_PATCH_VERTS ) 
 	{
-		Con_Printf (SP_ERROR "CM_CreatePatch: patch has too many vertices\n");
+		Con_Printf (CON_ERROR "CM_CreatePatch: patch has too many vertices\n");
 		return false;
 	}
 
@@ -803,7 +803,7 @@ qboolean CM_CreatePatch ( q3cpatch_t *patch, int numverts, const vec3_t *verts, 
 		{
 			if (numbrushes >= MAX_CM_BRUSHES)
 			{
-				Con_Printf (SP_ERROR "CM_CreatePatch: too many patch brushes\n");
+				Con_Printf (CON_ERROR "CM_CreatePatch: too many patch brushes\n");
 				return false;
 			}
 
@@ -889,7 +889,7 @@ qboolean CM_CreatePatchesForLeafs (void)
 
 			if ( numleafpatches >= MAX_CM_LEAFFACES )
 			{
-				Con_Printf (SP_ERROR "CM_CreatePatchesForLeafs: map has too many faces\n");
+				Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many faces\n");
 				return false;
 			}
 
@@ -903,7 +903,7 @@ qboolean CM_CreatePatchesForLeafs (void)
 			{
 				if (numpatches >= MAX_CM_PATCHES)
 				{
-					Con_Printf (SP_ERROR "CM_CreatePatchesForLeafs: map has too many patches\n");
+					Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many patches\n");
 					return false;
 				}
 
@@ -953,19 +953,19 @@ qboolean CMod_LoadSubmodels (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count < 1)
 	{
-		Con_Printf (SP_ERROR "Map with no models\n");
+		Con_Printf (CON_ERROR "Map with no models\n");
 		return false;
 	}
 	if (count > MAX_Q2MAP_MODELS)
 	{
-		Con_Printf (SP_ERROR "Map has too many models\n");
+		Con_Printf (CON_ERROR "Map has too many models\n");
 		return false;
 	}
 
@@ -1004,13 +1004,13 @@ qboolean CMod_LoadSurfaces (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 	if (count < 1)
 	{
-		Con_Printf (SP_ERROR "Map with no surfaces\n");
+		Con_Printf (CON_ERROR "Map with no surfaces\n");
 		return false;
 	}
 //	if (count > MAX_Q2MAP_TEXINFO)
@@ -1303,7 +1303,7 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 			{
 				out->texture = Hunk_Alloc(sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 
-				Con_Printf (SP_WARNING "Couldn't load %s\n", name);
+				Con_Printf (CON_WARNING "Couldn't load %s\n", name);
 				memcpy(out->texture, r_notexture_mip, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 	//			out->texture = r_notexture_mip; // texture not found
 	//			out->flags = 0;
@@ -1435,7 +1435,7 @@ qboolean CMod_LoadFaces (lump_t *l)
 		ti = LittleShort (in->texinfo);
 		if (ti < 0 || ti >= loadmodel->numtexinfo)
 		{
-			Con_Printf (SP_ERROR "MOD_LoadBmodel: bad texinfo number\n");
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: bad texinfo number\n");
 			return false;
 		}
 		out->texinfo = loadmodel->texinfo + ti;
@@ -1514,19 +1514,19 @@ qboolean CMod_LoadNodes (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count < 1)
 	{
-		Con_Printf (SP_ERROR "Map has no nodes\n");
+		Con_Printf (CON_ERROR "Map has no nodes\n");
 		return false;
 	}
 	if (count > MAX_MAP_NODES)
 	{
-		Con_Printf (SP_ERROR "Map has too many nodes\n");
+		Con_Printf (CON_ERROR "Map has too many nodes\n");
 		return false;
 	}
 
@@ -1582,14 +1582,14 @@ qboolean CMod_LoadBrushes (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count > MAX_Q2MAP_BRUSHES)
 	{
-		Con_Printf (SP_ERROR "Map has too many brushes");
+		Con_Printf (CON_ERROR "Map has too many brushes");
 		return false;
 	}
 
@@ -1622,20 +1622,20 @@ qboolean CMod_LoadLeafs (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count < 1)
 	{
-		Con_Printf (SP_ERROR "Map with no leafs\n");
+		Con_Printf (CON_ERROR "Map with no leafs\n");
 		return false;
 	}
 	// need to save space for box planes
 	if (count > MAX_Q2MAP_PLANES)
 	{
-		Con_Printf (SP_ERROR "Map has too many planes\n");
+		Con_Printf (CON_ERROR "Map has too many planes\n");
 		return false;
 	}
 
@@ -1672,7 +1672,7 @@ qboolean CMod_LoadLeafs (lump_t *l)
 
 	if (map_leafs[0].contents != Q2CONTENTS_SOLID)
 	{
-		Con_Printf (SP_ERROR "Map leaf 0 is not CONTENTS_SOLID\n");
+		Con_Printf (CON_ERROR "Map leaf 0 is not CONTENTS_SOLID\n");
 		return false;
 	}
 
@@ -1687,7 +1687,7 @@ qboolean CMod_LoadLeafs (lump_t *l)
 	}
 	if (emptyleaf == -1)
 	{
-		Con_Printf (SP_ERROR "Map does not have an empty leaf\n");
+		Con_Printf (CON_ERROR "Map does not have an empty leaf\n");
 		return false;
 	}
 	return true;
@@ -1709,20 +1709,20 @@ qboolean CMod_LoadPlanes (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count < 1)
 	{
-		Con_Printf (SP_ERROR "Map with no planes\n");
+		Con_Printf (CON_ERROR "Map with no planes\n");
 		return false;
 	}
 	// need to save space for box planes
 	if (count >= MAX_Q2MAP_PLANES)
 	{
-		Con_Printf (SP_ERROR "Map has too many planes\n");
+		Con_Printf (CON_ERROR "Map has too many planes\n");
 		return false;
 	}
 
@@ -1766,20 +1766,20 @@ qboolean CMod_LoadLeafBrushes (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count < 1)
 	{
-		Con_Printf (SP_ERROR "Map with no planes\n");
+		Con_Printf (CON_ERROR "Map with no planes\n");
 		return false;
 	}
 	// need to save space for box planes
 	if (count > MAX_Q2MAP_LEAFBRUSHES)
 	{
-		Con_Printf (SP_ERROR "Map has too many leafbrushes\n");
+		Con_Printf (CON_ERROR "Map has too many leafbrushes\n");
 		return false;
 	}
 
@@ -1808,7 +1808,7 @@ qboolean CMod_LoadBrushSides (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1816,7 +1816,7 @@ qboolean CMod_LoadBrushSides (lump_t *l)
 	// need to save space for box planes
 	if (count > MAX_Q2MAP_BRUSHSIDES)
 	{
-		Con_Printf (SP_ERROR "Map has too many planes\n");
+		Con_Printf (CON_ERROR "Map has too many planes\n");
 		return false;
 	}
 
@@ -1830,7 +1830,7 @@ qboolean CMod_LoadBrushSides (lump_t *l)
 		j = LittleShort (in->texinfo);
 		if (j >= numtexinfo)
 		{
-			Con_Printf (SP_ERROR "Bad brushside texinfo\n");
+			Con_Printf (CON_ERROR "Bad brushside texinfo\n");
 			return false;
 		}
 		out->surface = &map_surfaces[j];
@@ -1854,14 +1854,14 @@ qboolean CMod_LoadAreas (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count > MAX_Q2MAP_AREAS)
 	{
-		Con_Printf (SP_ERROR "Map has too many areas\n");
+		Con_Printf (CON_ERROR "Map has too many areas\n");
 		return false;
 	}
 
@@ -1894,14 +1894,14 @@ qboolean CMod_LoadAreaPortals (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count > MAX_Q2MAP_AREAS)
 	{
-		Con_Printf (SP_ERROR "Map has too many areas\n");
+		Con_Printf (CON_ERROR "Map has too many areas\n");
 		return false;
 	}
 
@@ -1929,7 +1929,7 @@ qboolean CMod_LoadVisibility (lump_t *l)
 	numvisibility = l->filelen;
 	if (l->filelen > MAX_Q2MAP_VISIBILITY)
 	{
-		Con_Printf (SP_ERROR "Map has too large visibility lump\n");
+		Con_Printf (CON_ERROR "Map has too large visibility lump\n");
 		return false;
 	}
 
@@ -1976,7 +1976,7 @@ qboolean CModQ3_LoadMarksurfaces (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "CModQ3_LoadMarksurfaces: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "CModQ3_LoadMarksurfaces: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -1990,7 +1990,7 @@ qboolean CModQ3_LoadMarksurfaces (lump_t *l)
 		j = LittleLong(in[i]);
 		if (j < 0 || j >= loadmodel->numsurfaces)
 		{
-			Con_Printf (SP_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
+			Con_Printf (CON_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
 			return false;
 		}
 		out[i] = loadmodel->surfaces + j;
@@ -2010,19 +2010,19 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count < 1)
 	{
-		Con_Printf (SP_ERROR "Map with no models\n");
+		Con_Printf (CON_ERROR "Map with no models\n");
 		return false;
 	}
 	if (count > MAX_Q2MAP_MODELS)
 	{
-		Con_Printf (SP_ERROR "Map has too many models\n");
+		Con_Printf (CON_ERROR "Map has too many models\n");
 		return false;
 	}
 
@@ -2082,14 +2082,14 @@ qboolean CModQ3_LoadShaders (lump_t *l, qboolean useshaders)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count < 1)
 	{
-		Con_Printf (SP_ERROR "Map with no shaders\n");
+		Con_Printf (CON_ERROR "Map with no shaders\n");
 		return false;
 	}
 //	else if (count > MAX_Q2MAP_TEXINFO)
@@ -2147,14 +2147,14 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "CMOD_LoadVertexes: funny lump size\n");
+		Con_Printf (CON_ERROR "CMOD_LoadVertexes: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count > MAX_Q3MAP_VERTEXES)
 	{
-		Con_Printf (SP_ERROR "Map has too many vertexes\n");
+		Con_Printf (CON_ERROR "Map has too many vertexes\n");
 		return false;
 	}
 
@@ -2203,14 +2203,14 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "CMOD_LoadVertexes: funny lump size\n");
+		Con_Printf (CON_ERROR "CMOD_LoadVertexes: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count > MAX_Q3MAP_VERTEXES)
 	{
-		Con_Printf (SP_ERROR "Map has too many vertexes\n");
+		Con_Printf (CON_ERROR "Map has too many vertexes\n");
 		return false;
 	}
 
@@ -2257,13 +2257,13 @@ qboolean CModQ3_LoadIndexes (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 	if (count < 1 || count >= MAX_Q3MAP_INDICES)
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: bad surfedges count in %s: %i\n",
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: bad surfedges count in %s: %i\n",
 		loadmodel->name, count);
 		return false;
 	}
@@ -2293,14 +2293,14 @@ qboolean CModQ3_LoadFaces (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count > MAX_MAP_FACES)
 	{
-		Con_Printf (SP_ERROR "Map has too many faces\n");
+		Con_Printf (CON_ERROR "Map has too many faces\n");
 		return false;
 	}
 
@@ -2334,14 +2334,14 @@ qboolean CModRBSP_LoadFaces (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count > MAX_MAP_FACES)
 	{
-		Con_Printf (SP_ERROR "Map has too many faces\n");
+		Con_Printf (CON_ERROR "Map has too many faces\n");
 		return false;
 	}
 
@@ -2384,7 +2384,7 @@ qboolean CModQ3_LoadFogs (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -2676,7 +2676,7 @@ qboolean CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -2758,7 +2758,7 @@ qboolean CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
 			numverts = LittleLong(in->num_vertices);
 			if (numindexes%3)
 			{
-				Con_Printf(SP_ERROR "mesh indexes should be multiples of 3\n");
+				Con_Printf(CON_ERROR "mesh indexes should be multiples of 3\n");
 				return false;
 			}
 
@@ -2829,7 +2829,7 @@ qboolean CModRBSP_LoadRFaces (lump_t *l, qboolean useshaders)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -2907,7 +2907,7 @@ qboolean CModRBSP_LoadRFaces (lump_t *l, qboolean useshaders)
 			numverts = LittleLong(in->num_vertices);
 			if (numindexes%3)
 			{
-				Con_Printf(SP_ERROR "mesh indexes should be multiples of 3\n");
+				Con_Printf(CON_ERROR "mesh indexes should be multiples of 3\n");
 				return false;
 			}
 
@@ -2963,14 +2963,14 @@ qboolean CModQ3_LoadLeafFaces (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count > MAX_Q2MAP_LEAFFACES)
 	{
-		Con_Printf (SP_ERROR "Map has too many leaffaces\n");
+		Con_Printf (CON_ERROR "Map has too many leaffaces\n");
 		return false;
 	}
 
@@ -2984,7 +2984,7 @@ qboolean CModQ3_LoadLeafFaces (lump_t *l)
 
 		if (j < 0 ||  j >= numfaces)
 		{
-			Con_Printf (SP_ERROR "CMod_LoadLeafFaces: bad surface number\n");
+			Con_Printf (CON_ERROR "CMod_LoadLeafFaces: bad surface number\n");
 			return false;
 		}
 
@@ -3004,7 +3004,7 @@ qboolean CModQ3_LoadNodes (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -3012,7 +3012,7 @@ qboolean CModQ3_LoadNodes (lump_t *l)
 
 	if (count > MAX_MAP_NODES)
 	{
-		Con_Printf (SP_ERROR "Too many nodes on map\n");
+		Con_Printf (CON_ERROR "Too many nodes on map\n");
 		return false;
 	}
 
@@ -3063,14 +3063,14 @@ qboolean CModQ3_LoadBrushes (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count > MAX_Q2MAP_BRUSHES)
 	{
-		Con_Printf (SP_ERROR "Map has too many brushes");
+		Con_Printf (CON_ERROR "Map has too many brushes");
 		return false;
 	}
 
@@ -3100,21 +3100,21 @@ qboolean CModQ3_LoadLeafs (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count < 1)
 	{
-		Con_Printf (SP_ERROR "Map with no leafs\n");
+		Con_Printf (CON_ERROR "Map with no leafs\n");
 		return false;
 	}
 	// need to save space for box planes
 
 	if (count > MAX_MAP_LEAFS)
 	{
-		Con_Printf (SP_ERROR "Too many leaves on map");
+		Con_Printf (CON_ERROR "Too many leaves on map");
 		return false;
 	}
 
@@ -3171,7 +3171,7 @@ qboolean CModQ3_LoadLeafs (lump_t *l)
 	if ( emptyleaf == -1 ) {
 		if (numleafs >= MAX_MAP_LEAFS-1)
 		{
-			Con_Printf (SP_ERROR "Map does not have an empty leaf\n");
+			Con_Printf (CON_ERROR "Map does not have an empty leaf\n");
 			return false;
 		}
 
@@ -3198,7 +3198,7 @@ qboolean CModQ3_LoadPlanes (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -3206,7 +3206,7 @@ qboolean CModQ3_LoadPlanes (lump_t *l)
 
 	if (count > MAX_MAP_PLANES)
 	{
-		Con_Printf (SP_ERROR "Too many planes on map\n");
+		Con_Printf (CON_ERROR "Too many planes on map\n");
 		return false;
 	}
 
@@ -3239,20 +3239,20 @@ qboolean CModQ3_LoadLeafBrushes (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
 
 	if (count < 1)
 	{
-		Con_Printf (SP_ERROR "Map with no leafbrushes\n");
+		Con_Printf (CON_ERROR "Map with no leafbrushes\n");
 		return false;
 	}
 	// need to save space for box planes
 	if (count > MAX_Q2MAP_LEAFBRUSHES)
 	{
-		Con_Printf (SP_ERROR "Map has too many leafbrushes\n");
+		Con_Printf (CON_ERROR "Map has too many leafbrushes\n");
 		return false;
 	}
 
@@ -3276,7 +3276,7 @@ qboolean CModQ3_LoadBrushSides (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -3284,7 +3284,7 @@ qboolean CModQ3_LoadBrushSides (lump_t *l)
 	// need to save space for box planes
 	if (count > MAX_Q2MAP_BRUSHSIDES)
 	{
-		Con_Printf (SP_ERROR "Map has too many planes\n");
+		Con_Printf (CON_ERROR "Map has too many planes\n");
 		return false;
 	}
 
@@ -3298,7 +3298,7 @@ qboolean CModQ3_LoadBrushSides (lump_t *l)
 		j = LittleLong (in->texinfo);
 		if (j >= numtexinfo)
 		{
-			Con_Printf (SP_ERROR "Bad brushside texinfo\n");
+			Con_Printf (CON_ERROR "Bad brushside texinfo\n");
 			return false;
 		}
 		out->surface = &map_surfaces[j];
@@ -3318,7 +3318,7 @@ qboolean CModRBSP_LoadBrushSides (lump_t *l)
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size\n");
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -3326,7 +3326,7 @@ qboolean CModRBSP_LoadBrushSides (lump_t *l)
 	// need to save space for box planes
 	if (count > MAX_Q2MAP_BRUSHSIDES)
 	{
-		Con_Printf (SP_ERROR "Map has too many planes\n");
+		Con_Printf (CON_ERROR "Map has too many planes\n");
 		return false;
 	}
 
@@ -3340,7 +3340,7 @@ qboolean CModRBSP_LoadBrushSides (lump_t *l)
 		j = LittleLong (in->texinfo);
 		if (j >= numtexinfo)
 		{
-			Con_Printf (SP_ERROR "Bad brushside texinfo\n");
+			Con_Printf (CON_ERROR "Bad brushside texinfo\n");
 			return false;
 		}
 		out->surface = &map_surfaces[j];
@@ -3371,7 +3371,7 @@ qboolean CModQ3_LoadVisibility (lump_t *l)
 		numvisibility = l->filelen;
 		if (l->filelen > MAX_Q2MAP_VISIBILITY)
 		{
-			Con_Printf (SP_ERROR "Map has too large visibility lump\n");
+			Con_Printf (CON_ERROR "Map has too large visibility lump\n");
 			return false;
 		}
 
@@ -3397,7 +3397,7 @@ qboolean CModQ3_LoadLightgrid (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
@@ -3429,7 +3429,7 @@ qboolean CModRBSP_LoadLightgrid (lump_t *elements, lump_t *indexes)
 	iin = (void *)(mod_base + indexes->fileofs);
 	if (indexes->filelen % sizeof(*iin) || elements->filelen % sizeof(*ein))
 	{
-		Con_Printf (SP_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
 	icount = indexes->filelen / sizeof(*iin);
@@ -3463,12 +3463,12 @@ int CM_GetQ2Palette (void)
 	char *f = (void *)COM_LoadMallocFile("pics/colormap.pcx");
 	if (!f)
 	{
-		Con_Printf (SP_WARNING "Couldn't find pics/colormap.pcx\n");
+		Con_Printf (CON_WARNING "Couldn't find pics/colormap.pcx\n");
 		return -1;
 	}
 	if (!ReadPCXPalette(f, com_filesize, d_q28to24table))
 	{
-		Con_Printf (SP_WARNING "Couldn't read pics/colormap.pcx\n");
+		Con_Printf (CON_WARNING "Couldn't read pics/colormap.pcx\n");
 		BZ_Free(f);
 		return -1;
 	}
@@ -3824,7 +3824,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	length = com_filesize;
 	if (!buf)
 	{
-		Con_Printf (SP_ERROR "Couldn't load %s\n", name);
+		Con_Printf (CON_ERROR "Couldn't load %s\n", name);
 		return NULL;
 	}
 
@@ -3841,7 +3841,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	switch(header.version)
 	{
 	default:
-		Con_Printf (SP_ERROR "Quake 2 or Quake 3 based BSP with unknown header (%i should be %i or %i)\n"
+		Con_Printf (CON_ERROR "Quake 2 or Quake 3 based BSP with unknown header (%i should be %i or %i)\n"
 			, name, header.version, Q2BSPVERSION, Q3BSPVERSION);
 		return NULL;
 		break;
@@ -4028,7 +4028,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #ifdef SERVERONLY
 			SV_Error("Cannot load q3bsps with the current renderer (only dedicated and opengl renderer)\n");
 #else
-			Con_Printf(SP_ERROR "Cannot load q3bsps with the current renderer (only dedicated and opengl renderer)\n");
+			Con_Printf(CON_ERROR "Cannot load q3bsps with the current renderer (only dedicated and opengl renderer)\n");
 			return NULL;
 #endif
 		}

@@ -210,7 +210,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	if (!Alsa_InitAlsa())
 	{
-		Con_Printf(SP_ERROR "Alsa does not appear to be installed or compatable\n");
+		Con_Printf(CON_ERROR "Alsa does not appear to be installed or compatable\n");
 		return 2;
 	}
 
@@ -240,14 +240,14 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 						  SND_PCM_NONBLOCK);
 	if (0 > err)
 	{
-		Con_Printf (SP_ERROR "Error: audio open error: %s\n", psnd_strerror (err));
+		Con_Printf (CON_ERROR "Error: audio open error: %s\n", psnd_strerror (err));
 		return 0;
 	}
 	Con_Printf ("ALSA: Using PCM %s.\n", pcmname);
 
 	err = psnd_pcm_hw_params_any (pcm, hw);
 	if (0 > err) {
-		Con_Printf (SP_ERROR "ALSA: error setting hw_params_any. %s\n",
+		Con_Printf (CON_ERROR "ALSA: error setting hw_params_any. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
@@ -255,7 +255,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	err = psnd_pcm_hw_params_set_access (pcm, hw,  SND_PCM_ACCESS_MMAP_INTERLEAVED);
 	if (0 > err) 
 	{
-		Con_Printf (SP_ERROR "ALSA: Failure to set noninterleaved PCM access. %s\n"
+		Con_Printf (CON_ERROR "ALSA: Failure to set noninterleaved PCM access. %s\n"
 					"Note: Interleaved is not supported\n",
 					psnd_strerror (err));
 		goto error;
@@ -280,7 +280,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 			}
 			else
 			{
-				Con_Printf (SP_ERROR "ALSA: no usable formats. %s\n", psnd_strerror (err));
+				Con_Printf (CON_ERROR "ALSA: no usable formats. %s\n", psnd_strerror (err));
 				goto error;
 			}
 			err = psnd_pcm_hw_params_set_format (pcm, hw, spft);
@@ -298,7 +298,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 			stereo = 1;
 		else
 		{
-			Con_Printf (SP_ERROR "ALSA: no usable number of channels. %s\n", psnd_strerror (err));
+			Con_Printf (CON_ERROR "ALSA: no usable number of channels. %s\n", psnd_strerror (err));
 			goto error;
 		}
 		err = psnd_pcm_hw_params_set_channels (pcm, hw, stereo);
@@ -321,7 +321,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 			rate = 800;
 		else
 		{
-			Con_Printf (SP_ERROR "ALSA: no usable rates. %s\n", psnd_strerror (err));
+			Con_Printf (CON_ERROR "ALSA: no usable rates. %s\n", psnd_strerror (err));
 			goto error;
 		}
 		err = psnd_pcm_hw_params_set_rate_near (pcm, hw, &rate, 0);
@@ -334,37 +334,37 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	err = psnd_pcm_hw_params_set_period_size_near (pcm, hw, &frag_size, 0);
 	if (0 > err) {
-		Con_Printf (SP_ERROR "ALSA: unable to set period size near %i. %s\n",
+		Con_Printf (CON_ERROR "ALSA: unable to set period size near %i. %s\n",
 					(int) frag_size, psnd_strerror (err));
 		goto error;
 	}
 	err = psnd_pcm_hw_params (pcm, hw);
 	if (0 > err) {
-		Con_Printf (SP_ERROR "ALSA: unable to install hw params: %s\n",
+		Con_Printf (CON_ERROR "ALSA: unable to install hw params: %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
 	err = psnd_pcm_sw_params_current (pcm, sw);
 	if (0 > err) {
-		Con_Printf (SP_ERROR "ALSA: unable to determine current sw params. %s\n",
+		Con_Printf (CON_ERROR "ALSA: unable to determine current sw params. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
 	err = psnd_pcm_sw_params_set_start_threshold (pcm, sw, ~0U);
 	if (0 > err) {
-		Con_Printf (SP_ERROR "ALSA: unable to set playback threshold. %s\n",
+		Con_Printf (CON_ERROR "ALSA: unable to set playback threshold. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
 	err = psnd_pcm_sw_params_set_stop_threshold (pcm, sw, ~0U);
 	if (0 > err) {
-		Con_Printf (SP_ERROR "ALSA: unable to set playback stop threshold. %s\n",
+		Con_Printf (CON_ERROR "ALSA: unable to set playback stop threshold. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
 	err = psnd_pcm_sw_params (pcm, sw);
 	if (0 > err) {
-		Con_Printf (SP_ERROR "ALSA: unable to install sw params. %s\n",
+		Con_Printf (CON_ERROR "ALSA: unable to install sw params. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
@@ -379,14 +379,14 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 		err = psnd_pcm_hw_params_set_buffer_size_near(pcm, hw, &buffer_size);
 		if (err < 0)
 		{
-			Con_Printf (SP_ERROR "ALSA: unable to set buffer size. %s\n", psnd_strerror (err));
+			Con_Printf (CON_ERROR "ALSA: unable to set buffer size. %s\n", psnd_strerror (err));
 			goto error;
 		}
 	}
 
 	err = psnd_pcm_hw_params_get_buffer_size (hw, &buffer_size);
 	if (0 > err) {
-		Con_Printf (SP_ERROR "ALSA: unable to get buffer size. %s\n",
+		Con_Printf (CON_ERROR "ALSA: unable to get buffer size. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}

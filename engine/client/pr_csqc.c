@@ -1043,7 +1043,7 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 		break;
 
 	case VF_CARTESIAN_ANGLES:
-		Con_Printf(SP_WARNING "WARNING: CARTESIAN ANGLES ARE NOT YET SUPPORTED!\n");
+		Con_Printf(CON_WARNING "WARNING: CARTESIAN ANGLES ARE NOT YET SUPPORTED!\n");
 		break;
 
 	case VF_VIEWPORT:

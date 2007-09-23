@@ -2077,7 +2077,7 @@ void GLDraw_FadeScreen (void)
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 		if (qglGetError())
-			Con_Printf(SP_ERROR "GL Error after qglCopyTexImage2D\n");
+			Con_Printf(CON_ERROR "GL Error after qglCopyTexImage2D\n");
 
 		GLSlang_UseProgram(scenepp_mt_program);
 		qglUniform3fvARB(scenepp_mt_parm_colorf, 1, fadecolor);
@@ -2087,7 +2087,7 @@ void GLDraw_FadeScreen (void)
 			qglUniform1iARB(scenepp_mt_parm_inverti, 0);
 
 		if (qglGetError())
-			Con_Printf(SP_ERROR "GL Error after GLSlang_UseProgram\n");
+			Con_Printf(CON_ERROR "GL Error after GLSlang_UseProgram\n");
 
 		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(scenepp_texture);
@@ -2114,7 +2114,7 @@ void GLDraw_FadeScreen (void)
 		qglPopMatrix();
 
 		if (qglGetError())
-			Con_Printf(SP_ERROR "GL Error after drawing with shaderobjects\n");
+			Con_Printf(CON_ERROR "GL Error after drawing with shaderobjects\n");
 	}
 	else
 	{
@@ -2301,7 +2301,7 @@ void GL_Font_Callback(struct cvar_s *var, char *oldvalue)
 			gl->texnum = char_texture;
 		}
 		else
-			Con_Printf(SP_ERROR "ERROR: Unable to update conchars texture!");
+			Con_Printf(CON_ERROR "ERROR: Unable to update conchars texture!");
 	}
 	
 	GL_Smoothfont_Callback(&gl_smoothfont, "");

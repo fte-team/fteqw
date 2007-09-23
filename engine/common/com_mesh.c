@@ -1090,7 +1090,7 @@ static void *QTest_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 			pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
 			break;
 		default:
-			Con_Printf(SP_ERROR "Bad frame type for QTest model in %s\n", loadmodel->name);
+			Con_Printf(CON_ERROR "Bad frame type for QTest model in %s\n", loadmodel->name);
 			return NULL;
 		}
 		frame++;
@@ -1214,7 +1214,7 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 			pframetype = (daliasframetype_t *)pinframe;
 			break;
 		default:
-			Con_Printf(SP_ERROR "Bad frame type in %s\n", loadmodel->name);
+			Con_Printf(CON_ERROR "Bad frame type in %s\n", loadmodel->name);
 			return NULL;
 		}
 		frame++;
@@ -1485,7 +1485,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		qtest = true;
 	else if (version != ALIAS_VERSION)
 	{
-		Con_Printf (SP_ERROR "%s has wrong version number (%i should be %i)\n",
+		Con_Printf (CON_ERROR "%s has wrong version number (%i should be %i)\n",
 				 mod->name, version, ALIAS_VERSION);
 		return false;
 	}
@@ -1507,7 +1507,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		pq1inmodel->skinheight < 1 ||
 		pq1inmodel->skinwidth < 1)
 	{
-		Con_Printf(SP_ERROR "Model %s has an invalid quantity\n", mod->name);
+		Con_Printf(CON_ERROR "Model %s has an invalid quantity\n", mod->name);
 		return false;
 	}
 
@@ -1802,7 +1802,7 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 	version = LittleLong (pq2inmodel->version);
 	if (version != MD2ALIAS_VERSION)
 	{
-		Con_Printf (SP_ERROR "%s has wrong version number (%i should be %i)\n",
+		Con_Printf (CON_ERROR "%s has wrong version number (%i should be %i)\n",
 				 mod->name, version, MD2ALIAS_VERSION);
 		return false;
 	}
@@ -1815,7 +1815,7 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 		LittleLong(pq2inmodel->skinheight) < 1 ||
 		LittleLong(pq2inmodel->skinwidth) < 1)
 	{
-		Con_Printf(SP_ERROR "Model %s has an invalid quantity\n", mod->name);
+		Con_Printf(CON_ERROR "Model %s has an invalid quantity\n", mod->name);
 		return false;
 	}
 
@@ -2380,7 +2380,7 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 	for (s = 0; s < LittleLong(header->numSurfaces); s++)
 	{
 		if (LittleLong(surf->ident) != MD3_IDENT)
-			Con_Printf(SP_WARNING "Warning: md3 sub-surface doesn't match ident\n");
+			Con_Printf(CON_WARNING "Warning: md3 sub-surface doesn't match ident\n");
 		size = sizeof(galiasinfo_t) + sizeof(galiasgroup_t)*LittleLong(header->numFrames);
 		galias = Hunk_Alloc(size);
 		galias->groupofs = sizeof(*galias);	//frame groups
@@ -2828,13 +2828,13 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 	}
 	if (intrans != (zymvertex_t *)((char*)header + header->lump_verts.start))
 	{
-		Con_Printf(SP_ERROR "%s, Vertex transforms list appears corrupt.\n", mod->name);
+		Con_Printf(CON_ERROR "%s, Vertex transforms list appears corrupt.\n", mod->name);
 		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
 	if (vertbonecounts != (int *)((char*)header + header->lump_vertbonecounts.start))
 	{
-		Con_Printf(SP_ERROR "%s, Vertex bone counts list appears corrupt.\n", mod->name);
+		Con_Printf(CON_ERROR "%s, Vertex bone counts list appears corrupt.\n", mod->name);
 		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
@@ -2870,7 +2870,7 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 	}
 	if (renderlist != (int*)((char*)header + header->lump_render.start + header->lump_render.length))
 	{
-		Con_Printf(SP_ERROR "%s, render list appears corrupt.\n", mod->name);
+		Con_Printf(CON_ERROR "%s, render list appears corrupt.\n", mod->name);
 		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
@@ -2937,7 +2937,7 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	if (inscene != (zymscene_t*)((char*)header + header->lump_scenes.start+header->lump_scenes.length))
 	{
-		Con_Printf(SP_ERROR "%s, scene list appears corrupt.\n", mod->name);
+		Con_Printf(CON_ERROR "%s, scene list appears corrupt.\n", mod->name);
 		Hunk_FreeToLowMark(hunkstart);
 		return false;
 	}
@@ -3121,13 +3121,13 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 	if (memcmp(header->id, "DARKPLACESMODEL\0", 16))
 	{
-		Con_Printf(SP_ERROR "Mod_LoadDarkPlacesModel: %s, doesn't appear to be a darkplaces model!\n", mod->name);
+		Con_Printf(CON_ERROR "Mod_LoadDarkPlacesModel: %s, doesn't appear to be a darkplaces model!\n", mod->name);
 		return false;
 	}
 
 	if (BigLong(header->type) != 2)
 	{
-		Con_Printf(SP_ERROR "Mod_LoadDarkPlacesModel: %s, only type 2 is supported\n", mod->name);
+		Con_Printf(CON_ERROR "Mod_LoadDarkPlacesModel: %s, only type 2 is supported\n", mod->name);
 		return false;
 	}
 
@@ -3136,17 +3136,17 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 	if (!header->num_bones)
 	{
-		Con_Printf(SP_ERROR "Mod_LoadDarkPlacesModel: %s, no bones\n", mod->name);
+		Con_Printf(CON_ERROR "Mod_LoadDarkPlacesModel: %s, no bones\n", mod->name);
 		return false;
 	}
 	if (!header->num_frames)
 	{
-		Con_Printf(SP_ERROR "Mod_LoadDarkPlacesModel: %s, no frames\n", mod->name);
+		Con_Printf(CON_ERROR "Mod_LoadDarkPlacesModel: %s, no frames\n", mod->name);
 		return false;
 	}
 	if (!header->num_meshs)
 	{
-		Con_Printf(SP_ERROR "Mod_LoadDarkPlacesModel: %s, no surfaces\n", mod->name);
+		Con_Printf(CON_ERROR "Mod_LoadDarkPlacesModel: %s, no surfaces\n", mod->name);
 		return false;
 	}
 
@@ -3235,7 +3235,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 		outbone[i].parent = BigLong(inbone[i].parent);
 		if (outbone[i].parent >= i || outbone[i].parent < -1)
 		{
-			Con_Printf(SP_ERROR "Mod_LoadDarkPlacesModel: bad bone index in %s\n", mod->name);
+			Con_Printf(CON_ERROR "Mod_LoadDarkPlacesModel: bad bone index in %s\n", mod->name);
 			Hunk_FreeToLowMark(hunkstart);
 			return false;
 		}
@@ -3422,8 +3422,8 @@ static void GenMatrix(float x, float y, float z, float qx, float qy, float qz, f
 
 galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 {
-#define MD5ERROR0PARAM(x) { Con_Printf(SP_ERROR x "\n"); return NULL; }
-#define MD5ERROR1PARAM(x, y) { Con_Printf(SP_ERROR x "\n", y); return NULL; }
+#define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return NULL; }
+#define MD5ERROR1PARAM(x, y) { Con_Printf(CON_ERROR x "\n", y); return NULL; }
 #define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) Sys_Error("MD5MESH: expected %s", x);
 	int numjoints = 0;
 	int nummeshes = 0;
@@ -3813,8 +3813,8 @@ qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer)
 
 qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, galiasgroup_t *gat)
 {
-#define MD5ERROR0PARAM(x) { Con_Printf(SP_ERROR x "\n"); return false; }
-#define MD5ERROR1PARAM(x, y) { Con_Printf(SP_ERROR x "\n", y); return false; }
+#define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return false; }
+#define MD5ERROR1PARAM(x, y) { Con_Printf(CON_ERROR x "\n", y); return false; }
 #define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) MD5ERROR1PARAM("MD5ANIM: expected %s", x);
 	unsigned int i, j;
 
@@ -4055,7 +4055,7 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 	buffer = COM_Parse(buffer);
 	if (strcmp(com_token, "EXTERNALANIM"))
 	{
-		Con_Printf (SP_ERROR "EXTERNALANIM: header is not compleate (%s)\n", mod->name);
+		Con_Printf (CON_ERROR "EXTERNALANIM: header is not compleate (%s)\n", mod->name);
 		return false;
 	}
 
@@ -4067,7 +4067,7 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 
 		if (!file)	//FIXME: make non fatal somehow..
 		{
-			Con_Printf(SP_ERROR "Couldn't open %s (from %s)\n", com_token, mod->name);
+			Con_Printf(CON_ERROR "Couldn't open %s (from %s)\n", com_token, mod->name);
 			Hunk_FreeToLowMark(hunkstart);
 			return false;
 		}
@@ -4092,7 +4092,7 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 	}
 	else
 	{
-		Con_Printf (SP_ERROR "EXTERNALANIM: model must be defined immediatly after the header\n");
+		Con_Printf (CON_ERROR "EXTERNALANIM: model must be defined immediatly after the header\n");
 		return false;
 	}
 
@@ -4123,19 +4123,19 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 		}
 		else if (!strcmp(com_token, "clampgroup"))
 		{
-			Con_Printf(SP_ERROR "EXTERNALANIM: clampgroup not yet supported (%s)\n", mod->name);
+			Con_Printf(CON_ERROR "EXTERNALANIM: clampgroup not yet supported (%s)\n", mod->name);
 			Hunk_FreeToLowMark(hunkstart);
 			return false;
 		}
 		else if (!strcmp(com_token, "frames"))
 		{
-			Con_Printf (SP_ERROR "EXTERNALANIM: frames not yet supported (%s)\n", mod->name);
+			Con_Printf (CON_ERROR "EXTERNALANIM: frames not yet supported (%s)\n", mod->name);
 			Hunk_FreeToLowMark(hunkstart);
 			return false;
 		}
 		else
 		{
-			Con_Printf(SP_ERROR "EXTERNALANIM: unrecognised token (%s)\n", mod->name);
+			Con_Printf(CON_ERROR "EXTERNALANIM: unrecognised token (%s)\n", mod->name);
 			Hunk_FreeToLowMark(hunkstart);
 			return false;
 		}

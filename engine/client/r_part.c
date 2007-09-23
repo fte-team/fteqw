@@ -1532,11 +1532,11 @@ void P_LoadParticleSet(char *name, qboolean first)
 		}
 		else if (first)
 		{
-			Con_Printf(SP_WARNING "Couldn't find particle description %s, using spikeset\n", name);
+			Con_Printf(CON_WARNING "Couldn't find particle description %s, using spikeset\n", name);
 			Cbuf_AddText(particle_set_spikeset, RESTRICT_LOCAL);
 		}
 		else
-			Con_Printf(SP_WARNING "Couldn't find particle description %s\n", name);
+			Con_Printf(CON_WARNING "Couldn't find particle description %s\n", name);
 	}
 }
 

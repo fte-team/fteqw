@@ -67,7 +67,7 @@ void Log_Dir_Callback (struct cvar_s *var, char *oldvalue)
 	// sanity check for directory
 	if (strstr(t, "..") || strstr(t, ":") || *t == '/' || *t == '\\')
 	{
-		Con_Printf(SP_NOTICE "%s forced to default due to invalid characters.\n", var->name);
+		Con_Printf(CON_NOTICE "%s forced to default due to invalid characters.\n", var->name);
 		// recursion is avoided by assuming the default value is sane
 		Cvar_ForceSet(var, var->defaultstr);
 	}
@@ -81,7 +81,7 @@ void Log_Name_Callback (struct cvar_s *var, char *oldvalue)
 	// sanity check for directory
 	if (strstr(t, "..") || strstr(t, ":") || strstr(t, "/") || strstr(t, "\\"))
 	{
-		Con_Printf(SP_NOTICE "%s forced to default due to invalid characters.\n", var->name);
+		Con_Printf(CON_NOTICE "%s forced to default due to invalid characters.\n", var->name);
 		// recursion is avoided by assuming the default value is sane
 		Cvar_ForceSet(var, var->defaultstr);
 	}

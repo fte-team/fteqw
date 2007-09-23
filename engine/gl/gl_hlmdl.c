@@ -128,7 +128,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 
 	if (header->version != 10)
 	{
-		Con_Printf(SP_ERROR "Cannot load model %s - unknown version %i\n", mod->name, header->version);
+		Con_Printf(CON_ERROR "Cannot load model %s - unknown version %i\n", mod->name, header->version);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}

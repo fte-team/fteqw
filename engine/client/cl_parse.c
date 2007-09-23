@@ -1235,7 +1235,7 @@ void CL_ParseDownload (void)
 
 	if (!*cls.downloadname)	//huh... that's not right...
 	{
-		Con_Printf(SP_WARNING "Warning: Server sending unknown file.\n");
+		Con_Printf(CON_WARNING "Warning: Server sending unknown file.\n");
 		strcpy(cls.downloadname, "unknown.txt");
 		strcpy(cls.downloadtempname, "unknown.tmp");
 	}
@@ -1313,7 +1313,7 @@ void CL_ParseDownload (void)
 
 	if (percent != 100 && size == 0 && cl_dlemptyterminate.value)
 	{
-		Con_Printf(SP_WARNING "WARNING: Client received empty svc_download, assuming EOF\n");
+		Con_Printf(CON_WARNING "WARNING: Client received empty svc_download, assuming EOF\n");
 		percent = 100;
 	}
 
@@ -2501,7 +2501,7 @@ void CLQ2_ParseConfigString (void)
 		{
 			// the Q2 client normally exits here, however for our purposes we might as well ignore it
 			if (map_checksum != serverchecksum)
-				Con_Printf(SP_WARNING "WARNING: Client checksum does not match server checksum (%i != %i)", map_checksum, serverchecksum);
+				Con_Printf(CON_WARNING "WARNING: Client checksum does not match server checksum (%i != %i)", map_checksum, serverchecksum);
 		}
 	}
 
@@ -4875,7 +4875,7 @@ void CLNQ_ParseServerMessage (void)
 				if (cl.playernum[0] >= MAX_CLIENTS)
 				{
 					cl.playernum[0] = 32;	//pretend it's an mvd (we have that spare slot)
-					Con_Printf(SP_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n");
+					Con_Printf(CON_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n");
 				}
 			}
 			else

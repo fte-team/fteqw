@@ -521,7 +521,7 @@ void Zone_Print_f(void)
 				{
 					if (sent[i] != sentinalkey)
 					{
-						Con_Printf(SP_ERROR "%i %i-%s\n", zone->size, i, (char *)(zone+1) + zone->size+ZONEDEBUG*2);
+						Con_Printf(CON_ERROR "%i %i-%s\n", zone->size, i, (char *)(zone+1) + zone->size+ZONEDEBUG*2);
 						break;
 					}
 				}
@@ -530,7 +530,7 @@ void Zone_Print_f(void)
 				{
 					if (sent[i] != sentinalkey)
 					{
-						Con_Printf(SP_ERROR "%i %i-%s\n", zone->size, i, (char *)(zone+1) + zone->size+ZONEDEBUG*2);
+						Con_Printf(CON_ERROR "%i %i-%s\n", zone->size, i, (char *)(zone+1) + zone->size+ZONEDEBUG*2);
 						break;
 					}
 				}
@@ -549,8 +549,8 @@ void Zone_Print_f(void)
 		overhead += sizeof(zone_t)+ZONEDEBUG*2;
 #endif
 	}
-	Con_Printf(SP_NOTICE "Zone:%i bytes in %i blocks\n", allocated, blocks);
-	Con_Printf(SP_NOTICE "Overhead %i bytes\n", overhead);
+	Con_Printf(CON_NOTICE "Zone:%i bytes in %i blocks\n", allocated, blocks);
+	Con_Printf(CON_NOTICE "Overhead %i bytes\n", overhead);
 }
 
 #else

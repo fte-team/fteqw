@@ -66,7 +66,6 @@ extern void (*Media_ShowFrame8bit)					(qbyte *framedata, int inwidth, int inhei
 
 extern qboolean	(*VID_Init)							(rendererstate_t *info, unsigned char *palette);
 extern void	(*VID_DeInit)							(void);
-extern void	(*VID_HandlePause)						(qboolean pause);
 extern void	(*VID_LockBuffer)						(void);
 extern void	(*VID_UnlockBuffer)						(void);
 extern void	(*D_BeginDirectRect)					(int x, int y, qbyte *pbitmap, int width, int height);
@@ -187,7 +186,6 @@ typedef struct {
 
 	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 	void	 (*VID_DeInit)				(void);
-	void	(*VID_HandlePause)			(qboolean pause);
 	void	(*VID_LockBuffer)			(void);
 	void	(*VID_UnlockBuffer)			(void);
 	void	(*D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height);

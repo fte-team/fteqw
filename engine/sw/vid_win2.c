@@ -990,18 +990,6 @@ void SWVID_SetCaption(char *text)
 	SetWindowText(mainwindow, text);
 }
 
-
-void SWVID_HandlePause (qboolean pause)	//release mouse
-{
-#ifdef MGL
-	if (usingmgl)
-	{
-		MGL_HandlePause(pause);
-		return;
-	}
-#endif
-}
-
 void SWVID_LockBuffer (void)	//ignored
 {
 #ifdef MGL

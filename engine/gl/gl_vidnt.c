@@ -268,10 +268,6 @@ qboolean GLInitialise (char *renderer)
 
 // direct draw software compatability stuff
 
-void GLVID_HandlePause (qboolean pause)
-{
-}
-
 void GLVID_ForceLockState (int lk)
 {
 }

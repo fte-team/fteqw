@@ -4146,7 +4146,6 @@ rendererinfo_t d3drendererinfo = {
 
 		D3DVID_Init,
 		GLVID_DeInit,
-		GLVID_HandlePause,
 		GLVID_LockBuffer,
 		GLVID_UnlockBuffer,
 		GLD_BeginDirectRect,

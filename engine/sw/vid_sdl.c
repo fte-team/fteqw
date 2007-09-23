@@ -154,10 +154,6 @@ void SWVID_Update(vrect_t *rects)
 	IN_UpdateGrabs();
 }
 
-void SWVID_HandlePause (qboolean pause)
-{
-}
-
 void SWD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height)
 {
 }

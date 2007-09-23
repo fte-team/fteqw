@@ -233,10 +233,6 @@ void SWVID_Update(vrect_t *rects)
 	}
 }
 
-void SWVID_HandlePause (qboolean pause)
-{
-}
-
 void SWVID_LockBuffer (void)
 {
 }

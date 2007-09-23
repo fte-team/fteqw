@@ -56,10 +56,6 @@ void SWVID_ForceLockState (int lk)
 {
 }
 
-void SWVID_HandlePause (qboolean pause)
-{
-}
-
 void SWVID_SetCaption(char *text)
 {
 }

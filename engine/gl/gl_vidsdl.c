@@ -151,12 +151,6 @@ void GL_EndRendering (void)
 
 
 
-
-
-void GLVID_HandlePause (qboolean pause)
-{
-}
-
 void GLVID_LockBuffer (void)
 {
 }

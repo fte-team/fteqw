@@ -100,9 +100,6 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette);
 // sets the mode; only used by the Quake engine for resetting to mode 0 (the
 // base mode) on memory allocation failures
 
-void GLVID_HandlePause (qboolean pause);
-// called only on Win32, when pause happens, so the mouse can be released
-
 void GLVID_LockBuffer (void);
 void GLVID_UnlockBuffer (void);
 
@@ -134,9 +131,6 @@ void	SWVID_Shutdown (void);
 
 void	SWVID_Update (vrect_t *rects);
 // flushes the given rectangles from the view buffer to the screen
-
-void SWVID_HandlePause (qboolean pause);
-// called only on Win32, when pause happens, so the mouse can be released
 
 void SWVID_LockBuffer (void);
 void SWVID_UnlockBuffer (void);

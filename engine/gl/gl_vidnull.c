@@ -65,10 +65,6 @@ void GLVID_ForceLockState (int lk)
 {
 }
 
-void GLVID_HandlePause (qboolean pause)
-{
-}
-
 void GLVID_SetCaption(char *text)
 {
 }

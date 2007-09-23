@@ -954,9 +954,6 @@ void	 (D3D9_VID_DeInit)				(void)
 		mainwindow = NULL;
 	}
 }
-void	(D3D9_VID_HandlePause)			(qboolean pause)
-{
-}
 void	(D3D9_VID_LockBuffer)			(void)
 {
 }
@@ -1420,7 +1417,6 @@ int (D3D9_Mod_SkinForName)				(struct model_s *model, char *name);
 
 qboolean (D3D9_VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (D3D9_VID_DeInit)				(void);
-void	(D3D9_VID_HandlePause)			(qboolean pause);
 void	(D3D9_VID_LockBuffer)			(void);
 void	(D3D9_VID_UnlockBuffer)			(void);
 void	(D3D9_D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height);
@@ -1515,7 +1511,6 @@ rendererinfo_t d3d9rendererinfo =
 
 	D3D9_VID_Init,
 	D3D9_VID_DeInit,
-	D3D9_VID_HandlePause,
 	D3D9_VID_LockBuffer,
 	D3D9_VID_UnlockBuffer,
 	D3D9_D_BeginDirectRect,

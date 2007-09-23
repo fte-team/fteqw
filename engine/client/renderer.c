@@ -770,7 +770,6 @@ int (*Mod_SkinForName)				(struct model_s *model, char *name);
 
 qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (*VID_DeInit)				(void);
-void	(*VID_HandlePause)			(qboolean pause);
 void	(*VID_LockBuffer)			(void);
 void	(*VID_UnlockBuffer)			(void);
 void	(*D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height);
@@ -879,7 +878,6 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL, //VID_Init,
 	NULL, //VID_DeInit,
-	NULL, //VID_HandlePause,
 	NULL, //VID_LockBuffer,
 	NULL, //VID_UnlockBuffer,
 	NULL, //D_BeginDirectRect,
@@ -972,7 +970,6 @@ rendererinfo_t softwarerendererinfo = {
 
 	SWVID_Init,
 	SWVID_Shutdown,
-	SWVID_HandlePause,
 	SWVID_LockBuffer,
 	SWVID_UnlockBuffer,
 	SWD_BeginDirectRect,
@@ -1069,7 +1066,6 @@ rendererinfo_t openglrendererinfo = {
 
 	GLVID_Init,
 	GLVID_DeInit,
-	GLVID_HandlePause,
 	GLVID_LockBuffer,
 	GLVID_UnlockBuffer,
 	GLD_BeginDirectRect,
@@ -1489,7 +1485,6 @@ void R_SetRenderer(int wanted)
 
 	VID_Init				= ri->VID_Init;
 	VID_DeInit				= ri->VID_DeInit;
-	VID_HandlePause			= ri->VID_HandlePause;
 	VID_LockBuffer			= ri->VID_LockBuffer;
 	VID_UnlockBuffer		= ri->VID_UnlockBuffer;
 	D_BeginDirectRect		= ri->D_BeginDirectRect;

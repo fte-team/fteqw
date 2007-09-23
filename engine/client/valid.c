@@ -448,9 +448,9 @@ void Validation_Ruleset(void)
 	*rsnames = '\0';
 
 #ifndef _MSC_VER
-#warning here's a question... Should we latch the ruleset unconditionally, or only when someone actually cares?
+#warning "here's a question... Should we latch the ruleset unconditionally, or only when someone actually cares?"
 #warning if we do it only when someone checks, we have a lot more checking, otherwise we have a freer tournament if the users choose to play that way
-#warning I'm going to do it the old-fashioned way
+#warning "I'm going to do it the old-fashioned way"
 #warning (yes, this is one for molgrum to resolve!)
 #endif
 	for (rs = rulesets; rs->rulesetname; rs++)

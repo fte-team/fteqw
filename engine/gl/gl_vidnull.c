@@ -1,7 +1,5 @@
 #include "quakedef.h"
 
-qbyte vid_curpal[768];
-
 #ifdef IN_XFLIP
 cvar_t in_xflip = {"in_xflip", "0"};
 #endif

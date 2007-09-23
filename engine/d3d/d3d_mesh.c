@@ -4,6 +4,12 @@
 
 #include "com_mesh.h"
 
+#ifdef _WIN32
+#include <malloc.h>
+#else
+#include <alloca.h>
+#endif
+
 extern cvar_t r_fullbrightSkins;
 extern cvar_t r_vertexdlights;
 

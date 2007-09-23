@@ -18,6 +18,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
+#ifndef __CLIENT_KEYS_H__
+#define __CLIENT_KEYS_H__
+
 //
 // these are the key numbers that should be passed to Key_Event
 //
@@ -175,4 +178,6 @@ void Key_SetBinding (int keynum, int modifier, char *binding, int cmdlevel);
 void Key_ClearStates (void);
 
 void Key_ConsoleDrawSelectionBox(void);
+
+#endif
 

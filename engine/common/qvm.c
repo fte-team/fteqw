@@ -154,6 +154,10 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 	sprintf(dllname, "%samd.so", name);
 #elif defined(_M_IX86) || defined(__i386__)
 	sprintf(dllname, "%sx86.so", name);
+#elif defined(__powerpc__)
+	sprintf(dllname, "%sppc.so", name);
+#elif defined(__ppc__)
+	sprintf(dllname, "%sppc.so", name);
 #else
 	sprintf(dllname, "%sunk.so", name);
 #endif

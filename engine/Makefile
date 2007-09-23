@@ -575,12 +575,25 @@ ifeq ($(FTE_TARGET),macosx)
 	SWCL_DIR=sw_macosx
 
 	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__
-	GL_LDFLAGS=-framework AGL -framework OpenGL
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidmac.o sys_linux.o cd_null.o
+	GL_LDFLAGS=-framework AGL -framework OpenGL -framework Cocoa -framework AudioUnit
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidcocoa.mo gl_vidmacos.o sys_linux.o in_macos.o cd_null.o snd_macos.o
 
 	SW_CFLAGS=$(SWCFLAGS) -D__MACOSX__
 	SW_LDFLAGS=
-	SWCL_OBJS=$(SOFTWARE_OBJS) cd_null.o sys_linux.o
+	SWCL_OBJS=$(SOFTWARE_OBJS) cd_null.o sys_linux.o vid_null.o
+
+	GL_EXE_NAME=../fteqw.gl
+	GLCL_EXE_NAME=../fteqwcl.gl
+	SW_EXE_NAME=../fteqw.sw
+	SWCL_EXE_NAME=../fteqwcl.sw
+	M_EXE_NAME=../fteqw
+	MCL_EXE_NAME=../fteqwcl
+	MINGL_EXE_NAME=../fteqw.mingl
+	MINGL_DIR=mingl_morphos
+
+
+	#seems, macosx has a more limited version of strip
+	STRIPFLAGS=
 endif
 ifeq ($(FTE_TARGET),morphos)
 
@@ -711,6 +724,13 @@ $(OUT_DIR)/%.oo $(OUT_DIR)/%.d : %.c
 	@set -e; rm -f $@.d; \
 	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	 sed 's,\($*\)\.oo[ :]*,\1.oo $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 rm -f $@.d.$$$$
+	$(DO_CC) -I$(OUT_DIR)
+
+$(OUT_DIR)/%.mo $(OUT_DIR)/%.d : %.m
+	@set -e; rm -f $@.d; \
+	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
+	 sed 's,\($*\)\.mo[ :]*,\1.mo $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	 rm -f $@.d.$$$$
 	$(DO_CC) -I$(OUT_DIR)
 

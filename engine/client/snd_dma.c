@@ -144,6 +144,7 @@ void S_RunCapture(void)
 sounddriver pDSOUND_InitCard;
 sounddriver pALSA_InitCard;
 sounddriver pOSS_InitCard;
+sounddriver pMacOS_InitCard;
 sounddriver pSDL_InitCard;
 sounddriver pWAV_InitCard;
 sounddriver pAHI_InitCard;
@@ -157,6 +158,7 @@ sdriver_t drivers[] = {
 	{"DSound", &pDSOUND_InitCard},
 	{"ALSA", &pALSA_InitCard},
 	{"OSS", &pOSS_InitCard},
+	{"MacOS", &pMacOS_InitCard},
 	{"SDL", &pSDL_InitCard},
 	{"WaveOut", &pWAV_InitCard},
 	{"AHI", &pAHI_InitCard},

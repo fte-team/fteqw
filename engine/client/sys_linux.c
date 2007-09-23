@@ -478,6 +478,25 @@ int main (int c, char **v)
 	oldtime = Sys_DoubleTime ();
 	while (1)
 	{
+#ifdef __MACOSX__
+		//wow, not even windows was this absurd.
+#ifdef RGLQUAKE
+		if (glcocoaRunLoop())
+		{
+			oldtime = Sys_DoubleTime ();
+			continue;
+		}
+#endif
+#ifdef SWQUAKE
+#warning don't worry if this causes linker errors - we don't have a macos sw renderer yet!
+		if (swcocoaRunLoop())
+		{
+			oldtime = Sys_DoubleTime ();
+			continue;
+		}
+#endif
+#endif
+
 // find time spent rendering last frame
 		newtime = Sys_DoubleTime ();
 		time = newtime - oldtime;

@@ -3,7 +3,7 @@ DO_CC=$(CC) -fPIC $(CFLAGS) -o $@ -c $<
 OBJECTS=ircclient.o plugin.o qvm_api.o
 HEADERS=../plugin.h
 all: $(OBJECTS)
-	gcc --shared -ldl $(OBJECTS) -o ../../quake/qw/plugins/ircx86.so
+	gcc --shared -ldl $(OBJECTS) -o ../ircx86.so
 
 ircclient.o: ircclient.c $(HEADERS)
 	$(DO_CC)

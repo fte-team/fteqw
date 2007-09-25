@@ -81,6 +81,7 @@ int Plug_ExecuteCommand(int *args)
 	else if (!strcmp("gl_lighting_vertex",	cmd))	cvar = "r_vertexlight";
 	else if (!strcmp("bgmvolume",			cmd))	cvar = "musicvolume";
 	else if (!strcmp("scr_menualpha",		cmd))	cvar = "scr_conalpha";
+	else if (!strcmp("cl_fakeshaft",		cmd))	cvar = "cl_truelightning";
 	else cvar = NULL;
 
 	if (cvar)
@@ -128,6 +129,7 @@ void ezScript_InitCommands(void) // not really needed actually
 	Cmd_AddCommand("scr_conback");
 	//misc
 	Cmd_AddCommand("cl_bonusflash");
+	Cmd_AddCommand("cl_fakeshaft");
 	Cmd_AddCommand("r_floorcolor");
 	Cmd_AddCommand("r_wallcolor");
 	//gamma

@@ -61,6 +61,9 @@ static void Fod_Cvar_Register(cvar_t *cvar)
 #define Com_Printf Con_Printf
 #define Q_Malloc Z_Malloc
 
+/* And some funny prototypes. Just because. */
+void Sys_Video_SetPalette(void *display, unsigned char *palette);
+
 #include "fod/vid_x11.c"
 #include "fod/in_x11.c"
 
@@ -80,41 +83,61 @@ static void *fod_display;
 static int fod_width;
 static int fod_height;
 
+static void *vid_surfcache;
+
 qboolean SWVID_Init(rendererstate_t *info, unsigned char *palette)
 {
-	fod_display = Sys_Video_Open(info->width, info->height, info->bpp, info->fullscreen, vid_curpal);
-	if (fod_display)
+	unsigned int surfcachesize;
+
+	surfcachesize = D_SurfaceCacheForRes(vid.width, vid.height, 0);
+	
+	d_pzbuffer = malloc(info->width * info->height * sizeof(*d_pzbuffer));
+	if (d_pzbuffer)
 	{
-		fod_width = info->width;
-		fod_height = info->height;
+		vid_surfcache = malloc(surfcachesize);
+		if (vid_surfcache)
+		{
+			D_InitCaches(vid_surfcache, surfcachesize);
 
-		vid.width = info->width;
-		vid.height = info->height;
+			fod_display = Sys_Video_Open(info->width, info->height, info->bpp, info->fullscreen, vid_curpal);
+			if (fod_display)
+			{
+				fod_width = info->width;
+				fod_height = info->height;
 
-		vid.maxwarpwidth = WARP_WIDTH;
-		vid.maxwarpheight = WARP_HEIGHT;
+				vid.width = info->width;
+				vid.height = info->height;
 
-		vid.numpages = Sys_Video_GetNumBuffers(fod_display);
-		vid.rowbytes = Sys_Video_GetBytesPerRow(fod_display);
-		vid.buffer = Sys_Video_GetBuffer(fod_display);
-		vid.colormap = host_colormap;
-		vid.direct = 0;
-		vid.aspect = ((float)vid.height / (float)vid.width) * (320.0 / 240.0);
+				vid.maxwarpwidth = WARP_WIDTH;
+				vid.maxwarpheight = WARP_HEIGHT;
 
-		vid.conbuffer = vid.buffer;
-		vid.conrowbytes = vid.rowbytes;
-		vid.conwidth = vid.width;
-		vid.conheight = vid.height;
+				vid.numpages = Sys_Video_GetNumBuffers(fod_display);
+				vid.rowbytes = Sys_Video_GetBytesPerRow(fod_display);
+				vid.buffer = Sys_Video_GetBuffer(fod_display);
+				vid.colormap = host_colormap;
+				vid.direct = 0;
+				vid.aspect = ((float)vid.height / (float)vid.width) * (320.0 / 240.0);
 
-		r_pixbytes = info->bpp/8;
+				vid.conbuffer = vid.buffer;
+				vid.conrowbytes = vid.rowbytes;
+				vid.conwidth = vid.width;
+				vid.conheight = vid.height;
 
-		VID_SetPalette(palette);
+				r_pixbytes = info->bpp/8;
 
-		Sys_Video_GrabMouse(fod_display, 1);
+				VID_SetPalette(palette);
 
-		S_Startup();
+				Sys_Video_GrabMouse(fod_display, 1);
 
-		return true;
+				S_Startup();
+
+				return true;
+			}
+
+			free(vid_surfcache);
+		}
+
+		free(d_pzbuffer);
 	}
 
 	return false;
@@ -134,6 +157,11 @@ void SWVID_Shutdown(void)
 {
 	if (fod_display)
 	{
+		D_FlushCaches();
+
+		free(vid_surfcache);
+		free(d_pzbuffer);
+
 		Sys_Video_Close(fod_display);
 
 		fod_display = 0;

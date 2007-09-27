@@ -1774,8 +1774,11 @@ void CL_Packet_f (void)
 	if (Cmd_FromGamecode())
 	{
 		//realip
-		Cmd_TokenizeString(in, false, false);
+		char *temp = Z_Malloc(strlen(in)+1);
+		strcpy(temp, in);
+		Cmd_TokenizeString(temp, false, false);
 		cls.realip_ident = atoi(Cmd_Argv(2));
+		Z_Free(temp);
 	}
 }
 

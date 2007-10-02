@@ -364,6 +364,39 @@ void Sys_Error (const char *error, ...)
 	Sys_Quit ();
 }
 
+/*
+================
+Sys_Milliseconds
+================
+*/
+unsigned int Sys_Milliseconds (void)
+{
+	static DWORD starttime;
+	static qboolean first = true;
+	DWORD now;
+//	double t;
+
+	now = timeGetTime();
+
+	if (first) {
+		first = false;
+		starttime = now;
+		return 0.0;
+	}
+	/*
+	if (now < starttime) // wrapped?
+	{
+		double r;
+		r = (now) + (LONG_MAX - starttime);
+		starttime = now;
+		return r;
+	}
+
+	if (now - starttime == 0)
+		return 0.0;
+*/
+	return (now - starttime);
+}
 
 /*
 ================

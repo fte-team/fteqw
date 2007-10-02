@@ -160,6 +160,28 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	}
 	return 1;
 }
+
+/*
+================
+Sys_Milliseconds
+================
+*/
+unsigned int Sys_Milliseconds (void)
+{
+	struct timeval tp;
+	struct timezone tzp;
+	int secbase;
+
+	gettimeofday(&tp, &tzp);
+
+	if (!secbase)
+	{
+		secbase = tp.tv_sec;
+		return tp.tv_usec/1000;
+	}
+	return (tp.tv_sec - secbase)*1000 + tp.tv_usec/1000;
+}
+
 /*
 ================
 Sys_DoubleTime

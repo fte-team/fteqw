@@ -2005,6 +2005,50 @@ qboolean SV_Physics (void)
 		return false;
 	}
 
+	if (/*sv.botsonthemap &&*/ progstype == PROG_QW)
+	{
+		//DP_QC_BOTCLIENT - make the bots move with qw physics.
+		//They only move when there arn't any players on the server, but they should move at the right kind of speed if there are... hopefully
+		//they might just be a bit lagged. they will at least be as smooth as other players are.
+
+		usercmd_t ucmd;
+		static int old_bot_time;	//I hate using floats for timers.
+		host_frametime = (Sys_Milliseconds() - old_bot_time) / 1000.0f;
+		client_t *oldhost;
+		if (1 || host_frametime >= 1 / 72.0f)
+		{
+			memset(&ucmd, 0, sizeof(ucmd));
+			old_bot_time = Sys_Milliseconds();
+			for (i = 1; i <= sv.allocated_client_slots; i++)
+			{
+				if (svs.clients[i-1].state && svs.clients[i-1].protocol == SCP_BAD)
+				{	//then this is a bot
+					ucmd.msec = host_frametime*1000;
+					ucmd.angles[0] = svs.clients[i-1].edict->v->angles[0] * (65535/360.0f);
+					ucmd.angles[1] = svs.clients[i-1].edict->v->angles[1] * (65535/360.0f);
+					ucmd.angles[2] = svs.clients[i-1].edict->v->angles[2] * (65535/360.0f);
+					ucmd.forwardmove = svs.clients[i-1].edict->xv->movement[0];
+					ucmd.sidemove = svs.clients[i-1].edict->xv->movement[1];
+					ucmd.upmove = svs.clients[i-1].edict->xv->movement[2];
+					ucmd.buttons = (svs.clients[i-1].edict->v->button0?1:0) | (ucmd.buttons = svs.clients[i-1].edict->v->button2?2:0);
+
+					svs.clients[i-1].lastcmd = ucmd;	//allow the other clients to predict this bot.
+
+					oldhost = host_client;
+					host_client = &svs.clients[i-1];
+					sv_player = host_client->edict;
+					SV_PreRunCmd();
+					SV_RunCmd(&ucmd, false);
+					SV_PostRunCmd();
+					
+					host_client = oldhost;
+					//sv_player = host_client->edict;
+				}
+			}
+			old_bot_time = Sys_Milliseconds();
+		}
+	}
+
 
 // don't bother running a frame if sys_ticrate seconds haven't passed
 	host_frametime = realtime - old_time;

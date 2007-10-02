@@ -24,9 +24,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t hud_tracking_show;
 
 cvar_t scr_scoreboard_drawtitle = SCVAR("scr_scoreboard_drawtitle", "1");
-cvar_t scr_scoreboard_showfrags = SCVAR("scr_scoreboard_showfrags", "0");
-cvar_t scr_scoreboard_titleseperator = SCVAR("scr_scoreboard_titleseperator", "1");
 cvar_t scr_scoreboard_forcecolors = SCVAR("scr_scoreboard_forcecolors", "0");	//damn americans
+cvar_t scr_scoreboard_newstyle = SCVAR("scr_scoreboard_newstyle", "1");	// New scoreboard style ported from Electro, by Molgrum
+cvar_t scr_scoreboard_showfrags = SCVAR("scr_scoreboard_showfrags", "0");
+cvar_t scr_scoreboard_teamscores = SCVAR("scr_scoreboard_teamscores", "1");
+cvar_t scr_scoreboard_titleseperator = SCVAR("scr_scoreboard_titleseperator", "1");
 
 //===========================================
 //rogue changed and added defines
@@ -788,6 +790,12 @@ Tab key down
 */
 void Sbar_ShowScores (void)
 {
+	if (scr_scoreboard_teamscores.value)
+	{
+		Sbar_ShowTeamScores();
+		return;
+	}
+
 	if (sb_showscores)
 		return;
 
@@ -809,6 +817,12 @@ Tab key up
 */
 void Sbar_DontShowScores (void)
 {
+	if (scr_scoreboard_teamscores.value)
+	{
+		Sbar_DontShowTeamScores();
+		return;
+	}
+
 	sb_showscores = false;
 	sb_updates = 0;
 
@@ -985,9 +999,11 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 void Sbar_Init (void)
 {
 	Cvar_Register(&scr_scoreboard_drawtitle, "Scoreboard settings");
-	Cvar_Register(&scr_scoreboard_showfrags, "Scoreboard settings");
-	Cvar_Register(&scr_scoreboard_titleseperator, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_forcecolors, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_newstyle, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_showfrags, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_teamscores, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_titleseperator, "Scoreboard settings");
 
 	Cmd_AddCommand ("+showscores", Sbar_ShowScores);
 	Cmd_AddCommand ("-showscores", Sbar_DontShowScores);
@@ -2093,11 +2109,6 @@ ping time frags name
 })
 #define COLUMN_FRAGS COLUMN(frags, 5*8,					\
 {														\
-	top = Sbar_TopColour(s);							\
-	bottom = Sbar_BottomColour(s);						\
-	top = Sbar_ColorForMap (top);						\
-	bottom = Sbar_ColorForMap (bottom);					\
-														\
 	if (s->spectator)									\
 	{													\
 		if (cl.teamplay)								\
@@ -2161,7 +2172,6 @@ void Sbar_DeathmatchOverlay (int start)
 {
 	mpic_t			*pic;
 	int				i, k, l;
-	int				top, bottom;
 	int				x, y, f;
 	char			num[12];
 	player_info_t	*s;
@@ -2169,7 +2179,7 @@ void Sbar_DeathmatchOverlay (int start)
 	int				minutes;
 	int				skip = 10;
 	int showcolumns;
-	int startx;
+	int startx, rank_width;
 
 	if (largegame)
 		skip = 8;
@@ -2199,7 +2209,7 @@ void Sbar_DeathmatchOverlay (int start)
 	}
 
 // scores
-	Sbar_SortFrags (true);
+	Sbar_SortFrags(true);
 
 // draw the text
 	l = scoreboardlines;
@@ -2209,12 +2219,17 @@ void Sbar_DeathmatchOverlay (int start)
 	else
 		y = 24;
 
+	if (scr_scoreboard_newstyle.value)
+	{
+		// Electro's scoreboard eyecandy: Increase to fit the new scoreboard
+		y += 8;
+	}
+
 	showcolumns = 0;
 
-//we use startx here as the total width
-	startx = 0;
+	rank_width = 0;
 
-#define COLUMN(title, cwidth, code) if (startx+(cwidth)+8 <= vid.width) {showcolumns |= (1<<COLUMN##title); startx += cwidth+8;}
+#define COLUMN(title, cwidth, code) if (rank_width+(cwidth)+8 <= vid.width) {showcolumns |= (1<<COLUMN##title); rank_width += cwidth+8;}
 //columns are listed here in priority order (if the screen is too narrow, later ones will be hidden)
 	COLUMN_NAME
 	COLUMN_PING
@@ -2244,26 +2259,62 @@ void Sbar_DeathmatchOverlay (int start)
 	}
 #undef COLUMN
 
-	startx = (vid.width-startx)/2;
+	startx = (vid.width-rank_width)/2;
+
+	if (scr_scoreboard_newstyle.value)
+	{
+		// Electro's scoreboard eyecandy: Draw top border
+		Draw_Fill(startx - 3, y - 1, rank_width - 1, 1, 0);
+
+		// Electro's scoreboard eyecandy: Draw the title row background
+		Draw_Fill(startx - 2, y, rank_width - 3, 9, 1);
+	}
 
 	x = startx;
 #define COLUMN(title, width, code) if (showcolumns & (1<<COLUMN##title)) {Draw_FunString(x, y, #title); x += width+8;}
 	ALLCOLUMNS
 #undef COLUMN
+
+
 	y += 8;
 
-	if (scr_scoreboard_titleseperator.value)
+	if (scr_scoreboard_titleseperator.value && !scr_scoreboard_newstyle.value)
 	{
 		x = startx;
-#define COLUMN(title, width, code) if (showcolumns & (1<<COLUMN##title)) {Draw_String(x, y, "\x1d"); for (i = 8; i < width-8; i+= 8) Draw_String(x+i, y, "\x1e"); Draw_String(x+i, y, "\x1f"); x += width+8;}
+#define COLUMN(title, width, code) \
+if (showcolumns & (1<<COLUMN##title)) \
+{ \
+	Draw_String(x, y, "\x1d"); \
+	for (i = 8; i < width-8; i+= 8) \
+		Draw_String(x+i, y, "\x1e"); \
+	Draw_String(x+i, y, "\x1f"); \
+	x += width+8; \
+}
 		ALLCOLUMNS
 #undef COLUMN
 		y += 8;
 	}
 
 	y -= skip;
+
+	if (scr_scoreboard_newstyle.value)
+	{
+		// Electro's scoreboard eyecandy: Draw top border (under header)
+		Draw_Fill (startx - 3, y + 11, rank_width - 1, 1, 0);
+		// Electro's scoreboard eyecandy: Don't go over the black border, move the rest down
+		y += 2;
+		// Electro's scoreboard eyecandy: Draw left border
+		Draw_Fill (startx - 3, y - 1, 1, 10, 0);
+		// Electro's scoreboard eyecandy: Draw right border
+		Draw_Fill (startx - 3 + rank_width - 2, y - 1, 1, 10, 0);
+	}
+
 	for (i = 0; i < scoreboardlines; i++)
 	{
+		char	team[5];
+		int		top, bottom;
+
+		// TODO: Sort players so that the leading teams are drawn first
 		k = fragsort[i];
 		s = &cl.players[k];
 		if (!s->name[0])
@@ -2273,11 +2324,51 @@ void Sbar_DeathmatchOverlay (int start)
 		if (y > vid.height-10)
 			break;
 
+		// Electro's scoreboard eyecandy: Moved this up here for usage with the row background color
+		top = Sbar_TopColour(s);
+		bottom = Sbar_BottomColour(s);
+		top = Sbar_ColorForMap (top);
+		bottom = Sbar_ColorForMap (bottom);
+
+		if (scr_scoreboard_newstyle.value)
+		{
+			// Electro's scoreboard eyecandy: Render the main background transparencies behind players row
+			// TODO: Alpha values on the background
+			if ((cl.teamplay) && (!s->spectator))
+			{
+				int background_color;
+				// Electro's scoreboard eyecandy: red vs blue are common teams, force the colours
+				Q_strncpyz (team, Info_ValueForKey(s->userinfo, "team"), sizeof(team));
+
+				if (!(strcmp("red", team)))
+					background_color = 72; // forced red
+				else if (!(strcmp("blue", team)))
+					background_color = 216; // forced blue
+				else
+					background_color = bottom - 1;
+
+				Draw_Fill (startx - 2, y, rank_width - 3, skip, background_color);
+			}
+			else
+				Draw_Fill (startx - 2, y, rank_width - 3, skip, 2);
+
+			Draw_Fill (startx - 3, y, 1, skip, 0); // Electro - Border - Left
+			Draw_Fill (startx - 3 + rank_width - 2, y, 1, skip, 0); // Electro - Border - Right
+		}
+
 		x = startx;
-#define COLUMN(title, width, code) if (showcolumns & (1<<COLUMN##title)) {code   x += width+8;}
+#define COLUMN(title, width, code) \
+if (showcolumns & (1<<COLUMN##title)) \
+{ \
+	code \
+	x += width+8; \
+}
 		ALLCOLUMNS
 #undef COLUMN
 	}
+
+	if (scr_scoreboard_newstyle.value)
+		Draw_Fill (startx - 3, y + 10, rank_width - 1, 1, 0); // Electro - Border - Bottom
 
 /*
 	if (cl.teamplay)

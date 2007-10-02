@@ -2013,8 +2013,8 @@ qboolean SV_Physics (void)
 
 		usercmd_t ucmd;
 		static int old_bot_time;	//I hate using floats for timers.
-		host_frametime = (Sys_Milliseconds() - old_bot_time) / 1000.0f;
 		client_t *oldhost;
+		host_frametime = (Sys_Milliseconds() - old_bot_time) / 1000.0f;
 		if (1 || host_frametime >= 1 / 72.0f)
 		{
 			memset(&ucmd, 0, sizeof(ucmd));

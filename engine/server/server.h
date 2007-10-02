@@ -1041,6 +1041,10 @@ void SV_UpdateToReliableMessages (void);
 void SV_DarkPlacesDownloadChunk(client_t *cl, sizebuf_t *msg);
 void SV_New_f (void);
 
+void SV_PreRunCmd(void);
+void SV_RunCmd (usercmd_t *ucmd, qboolean recurse);
+void SV_PostRunCmd(void);
+
 //sv_master.c
 void SVM_Think(int port);
 

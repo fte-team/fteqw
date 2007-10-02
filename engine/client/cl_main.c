@@ -2097,7 +2097,7 @@ void CL_ConnectionlessPacket (void)
 			cls.protocol = CP_QUAKEWORLD;
 		else
 		{
-			Con_Printf("\nChallange from another protocol, ignoring QW challange\n");
+			Con_Printf("\nChallenge from another protocol, ignoring QW challenge\n");
 			return;
 		}
 		cls.challenge = atoi(s);

@@ -54,15 +54,15 @@ static int chnskip[6][6] =
 
 void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 {
-	int 	startidx, out_idx;
-	int 	count;
-	int 	outlimit;
-	int 	*p;
-	int 	*skip;
-	int		*cskip;
-	int		val;
-	int		snd_vol;
-	short	*pbuf;
+	unsigned int 	startidx, out_idx;
+	unsigned int 	count;
+	unsigned int 	outlimit;
+	int 			*p;
+	int 			*skip;
+	int				*cskip;
+	int				val;
+	int				snd_vol;
+	short			*pbuf;
 
 	p = (int *) paintbuffer;
 	skip = paintskip[sc->sn.numchannels-1];

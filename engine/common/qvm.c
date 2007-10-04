@@ -38,7 +38,7 @@ Also, can efficiency be improved much?
 #ifdef VM_ANY
 
 #ifdef _MSC_VER	//fix this please
-#define inline _inline
+#define inline __forceinline
 #endif
 
 

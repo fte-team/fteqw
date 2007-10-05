@@ -1517,7 +1517,7 @@ void M_QuickConnect_PreDraw(menu_t *menu)
 			if (s->players == s->maxplayers)
 				continue;	//server is full already
 			if (s->special & SS_PROXY)
-				continue;	//don't quickconnect to a proxy. thier player counts are often wrong (especially with qtv)
+				continue;	//don't quickconnect to a proxy. their player counts are often wrong (especially with qtv)
 			if (s->ping < 50)	//don't like servers with too high a ping
 			{
 				if (s->players > 0)

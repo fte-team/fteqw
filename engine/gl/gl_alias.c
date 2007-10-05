@@ -139,7 +139,7 @@ typedef struct {
 //frame is an index into this
 typedef struct {
 #ifdef SKELETALMODELS
-	qboolean isheirachical;	//for models with transforms, states that bones need to be transformed from thier parent.
+	qboolean isheirachical;	//for models with transforms, states that bones need to be transformed from their parent.
 							//this is actually bad, and can result in bones shortening as they interpolate.
 #endif
 	qboolean loop;

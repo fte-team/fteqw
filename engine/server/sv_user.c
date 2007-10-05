@@ -4510,7 +4510,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		oldmsec = ucmd->msec;
 		cmd.msec = oldmsec/2;
 		SV_RunCmd (&cmd, true);
-		cmd.msec = oldmsec/2 + (oldmsec&1);	//give them back thier msec.
+		cmd.msec = oldmsec/2 + (oldmsec&1);	//give them back their msec.
 		cmd.impulse = 0;
 		SV_RunCmd (&cmd, true);
 		return;

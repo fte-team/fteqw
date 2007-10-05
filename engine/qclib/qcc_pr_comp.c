@@ -66,7 +66,7 @@ pbool keyword_union;	//you surly know what a union is!
 pbool keywords_coexist;		//don't disable a keyword simply because a var was made with the same name.
 pbool output_parms;			//emit some PARMX fields. confuses decompilers.
 pbool autoprototype;		//take two passes over the source code. First time round doesn't enter and functions or initialise variables.
-pbool pr_subscopedlocals;	//causes locals to be valid ONLY within thier statement block. (they simply can't be referenced by name outside of it)
+pbool pr_subscopedlocals;	//causes locals to be valid ONLY within their statement block. (they simply can't be referenced by name outside of it)
 pbool flag_ifstring;		//makes if (blah) equivelent to if (blah != "") which resolves some issues in multiprogs situations.
 pbool flag_acc;				//reacc like behaviour of src files (finds *.qc in start dir and compiles all in alphabetical order)
 pbool flag_caseinsensative;	//symbols will be matched to an insensative case if the specified case doesn't exist. This should b usable for any mod
@@ -3168,7 +3168,7 @@ void QCC_PR_EmitFieldsForMembers(QCC_type_t *clas)
 	unsigned int o;
 	QCC_type_t *mt, *ft;
 	QCC_def_t *f, *m;
-	if (clas->parentclass != type_entity)	//parents MUST have all thier fields set or inheritance would go crazy.
+	if (clas->parentclass != type_entity)	//parents MUST have all their fields set or inheritance would go crazy.
 		QCC_PR_EmitFieldsForMembers(clas->parentclass);
 
 	np = clas->num_parms;

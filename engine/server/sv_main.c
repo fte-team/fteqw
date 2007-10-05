@@ -2016,7 +2016,7 @@ client_t *SVC_DirectConnect(void)
 
 				SV_OutOfBandTPrintf (protocol == SCP_QUAKE2, adr, newcl->language, STL_FIRSTGREETING, newcl->name, (int)rs.timeonserver);
 			}
-			//else loaded players already have thier initial parms set
+			//else loaded players already have their initial parms set
 		}
 	}
 #else

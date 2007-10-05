@@ -627,7 +627,7 @@ void CL_CheckForResend (void)
 	Cvar_ForceSet(&cl_servername, cls.servername);
 
 #ifdef Q3CLIENT
-	//Q3 clients send thier cdkey to the q3 authorize server.
+	//Q3 clients send their cdkey to the q3 authorize server.
 	//they send this packet with the challenge.
 	//and the server will refuse the client if it hasn't sent it.
 	CLQ3_SendAuthPacket(adr);
@@ -2004,7 +2004,7 @@ void CL_ConnectionlessPacket (void)
 		{
 			//ack needs two parameters to work with realip properly.
 			//firstly it needs an auth message, so it can't be spoofed.
-			//secondly, it needs a copy of the realip ident, so you can't report a different player's client (you would need access to thier ip).
+			//secondly, it needs a copy of the realip ident, so you can't report a different player's client (you would need access to their ip).
 			data[5] = ' ';
 			sprintf(data+6, "%i %i", atoi(MSG_ReadString()), cls.realip_ident);
 		}
@@ -3520,7 +3520,7 @@ void Host_Init (quakeparms_t *parms)
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 
 
-	//assuming they didn't use any waits in thier config (fools)
+	//assuming they didn't use any waits in their config (fools)
 	//the configs should be fully loaded.
 	//so convert the backwards compable commandline parameters in cvar sets.
 

@@ -517,7 +517,7 @@ void MSG_WriteBits(sizebuf_t *msg, int value, int bits)
 
 ////////////////////////////////////////////////////////////////////////////////
 //q3 netchan
-//note that the sv and cl both have thier own wrappers, to handle encryption.
+//note that the sv and cl both have their own wrappers, to handle encryption.
 
 
 

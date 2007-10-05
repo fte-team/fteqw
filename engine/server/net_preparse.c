@@ -23,7 +23,7 @@ static qboolean ignoreprotocol;
 #define svc_clearviewflags 41	//hexen2.
 
 //these are present in the darkplaces engine.
-//I wanna knick thier mods.
+//I wanna knick their mods.
 #define svcdp_skybox	37
 
 #define	svcdp_showlmp			35		// [string] slotname [string] lmpfilename [short] x [short] y

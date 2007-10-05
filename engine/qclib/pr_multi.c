@@ -193,7 +193,7 @@ void QC_FlushProgsOffsets(progfuncs_t *progfuncs)
 //called if a global is defined as a field
 //returns offset.
 
-//vectors must be added before any of thier corresponding _x/y/z vars
+//vectors must be added before any of their corresponding _x/y/z vars
 //in this way, even screwed up progs work.
 
 //requestedpos is the offset the engine WILL put it at.

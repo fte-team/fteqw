@@ -826,7 +826,7 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
 				}
 					 */
-				for (i = 0; i < tmax; i++)	//q3 maps store thier light in a block fashion, q1/q2/hl store it in a linear fashion.
+				for (i = 0; i < tmax; i++)	//q3 maps store their light in a block fashion, q1/q2/hl store it in a linear fashion.
 				{
 					for (j = 0; j < smax; j++)
 					{
@@ -3219,7 +3219,7 @@ int GLAllocBlock (int w, int h, int *x, int *y)
 	return 0;
 }
 
-//quake3 maps have thier lightmaps in gl style already.
+//quake3 maps have their lightmaps in gl style already.
 //rather than forgetting that and redoing it, let's just keep the data.
 int GLFillBlock (int texnum, int w, int h, int x, int y)
 {

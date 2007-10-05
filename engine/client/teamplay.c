@@ -353,7 +353,7 @@ qboolean TP_SoundTrigger(char *message)	//if there is a trigger there, play it. 
 		if (*strip == '#')
 			filter++;
 		if (*strip == ':')
-			break;	//if someone says just one word, we can take any tidles in thier name to be a voice command
+			break;	//if someone says just one word, we can take any tidles in their name to be a voice command
 		if (*strip == '\n')
 			lineend = strip;
 		else if (*strip <= ' ')

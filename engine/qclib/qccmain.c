@@ -502,7 +502,7 @@ int WriteBodylessFuncs (int handle)
 	return ret;
 }
 
-//marshalled locals remaps all the functions to use the range MAX_REGS onwards for the offset to thier locals.
+//marshalled locals remaps all the functions to use the range MAX_REGS onwards for the offset to their locals.
 //this function remaps all the locals back into the function.
 void QCC_UnmarshalLocals(void)
 {

@@ -170,7 +170,7 @@ static void CSQC_FindGlobals(void)
 	fieldvector(velocity);	\
 	fieldfloat(alpha);		/*transparency*/	\
 	fieldfloat(scale);		/*model scale*/		\
-	fieldfloat(fatness);	/*expand models X units along thier normals.*/	\
+	fieldfloat(fatness);	/*expand models X units along their normals.*/	\
 	fieldfloat(skin);		\
 	fieldfloat(colormap);	\
 	fieldfloat(flags);		\

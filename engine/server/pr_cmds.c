@@ -6480,7 +6480,7 @@ lh_extension_t FTE_Protocol_Extensions[] =
 	{"FTE_PEXT_BULLETENS"},	//bulleten boards (scrolling text on walls)
 	{"FTE_PEXT_ZLIBDL"},		//supposed download optimisation (unimportant to qc)
 	{"FTE_PEXT_LIGHTUPDATES"},	//zap.mdl is sent as a nail packet.
-	{"FTE_PEXT_FATNESS"},		//entities may be expanded along thier vertex normals
+	{"FTE_PEXT_FATNESS"},		//entities may be expanded along their vertex normals
 	{"DP_HALFLIFE_MAP"},		//entitiy can visit a hl bsp
 	{"FTE_PEXT_TE_BULLET"},	//additional particle effect. Like TE_SPIKE and TE_SUPERSPIKE
 	{"FTE_PEXT_HULLSIZE"},	//means we can tell a client to go to crouching hull

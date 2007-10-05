@@ -214,7 +214,7 @@ void D3DR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap 
 					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
 				}
 					 */
-				for (i = 0; i < tmax; i++)	//q3 maps store thier light in a block fashion, q1/q2/hl store it in a linear fashion.
+				for (i = 0; i < tmax; i++)	//q3 maps store their light in a block fashion, q1/q2/hl store it in a linear fashion.
 				{
 					for (j = 0; j < smax; j++)
 					{

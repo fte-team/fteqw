@@ -45,7 +45,7 @@ qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette)
 	int flags;
 	Con_Printf("SDL SWVID_Init\n");
 
-	info->bpp = 8;	//I don't know thier card details I'm afraid.
+	info->bpp = 8;	//I don't know their card details I'm afraid.
 
 	SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
 

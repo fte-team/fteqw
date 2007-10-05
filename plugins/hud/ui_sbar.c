@@ -196,6 +196,7 @@ drawelementfnc_t Hud_Blackness;
 drawelementfnc_t Hud_TeamScore;
 drawelementfnc_t Hud_TeamName;
 drawelementfnc_t Hud_Tracking;
+drawelementfnc_t Hud_TeamOverlay;
 // TODO: more elements
 // - generalized graphic elements
 // - cvar controlled small and big numbers
@@ -242,7 +243,8 @@ drawelement_t drawelement[] =
 	{Hud_ScoreName,			"Scorename",	128,	8,		7, {"Player 0", "Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7"}},
 	{Hud_TeamScore,			"TeamScore",	32,		8,		7, {"Team 0", "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7"}},
 	{Hud_TeamName,			"TeamName",		128,	8,		7, {"Team 0", "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7"}},
-	{Hud_Tracking,			"Tracking",		128,	8,		0}
+	{Hud_Tracking,			"Tracking",		128,	8,		0},
+	{Hud_TeamOverlay,		"Team overlay",	256,	64,		0}
 };
 
 huddefaultelement_t hedefaulttype[] = {
@@ -444,6 +446,20 @@ int hoveritem;
 qboolean mousedown, shiftdown;
 float mouseofsx, mouseofsy;
 qboolean context;
+
+vec3_t player_location[32];
+int player_armor[32];
+int player_health[32];
+unsigned int player_items[32];
+char *player_nick[32] =
+{
+	"", "", "", "", "", "", "", "",
+	"", "", "", "", "", "", "", "",
+	"", "", "", "", "", "", "", "",
+	"", "", "", "", "", "", "", ""
+};
+
+void Hud_TeamOverlayUpdate(void);
 
 /*
 ==================
@@ -1166,6 +1182,128 @@ void Hud_TeamName(void)
 		}
 	}
 	Draw_Colour4f(1,1,1,1);
+}
+
+void Hud_TeamOverlay(void)
+{
+	static int current_player = -1;
+	char str[256];
+	int offset = 0;
+
+	if (hudedit)
+	{
+		UI_DrawString("UnnamedPlayer1: r999/999 rlg ra-mega", 0, 0);
+		UI_DrawString("UnnamedPlayer2: r999/999 rlg ra-mega", 0, 16);
+		UI_DrawString("UnnamedPlayer3: r999/999 rlg ra-mega", 0, 32);
+	}
+	else
+	{
+		unsigned int i;
+
+		// If the tracking has changed, flush the old teaminfo
+		if (current_player != players[trackedplayer].userid)
+		{
+			int j;
+
+			for (j = 0; j < 32; j++)
+				player_nick[j] = "";
+
+			current_player = players[trackedplayer].userid;
+
+			return;
+		}
+
+		for (i = 0; i < 32; i++)
+		{
+			// Empty nicknames are defined as not being printed
+			if (player_nick[i] != "")
+			{
+				char armortype = ' ';
+				char* bestweap = "    ";
+				char loc[256];
+
+				// More info about armortype
+				if (player_items[i] & IT_ARMOR3)
+					armortype = 'r';
+				else if (player_items[i] & IT_ARMOR2)
+					armortype = 'y';
+				else if (player_items[i] & IT_ARMOR1)
+					armortype = 'g';
+
+				// Only care about reporting weapons that have some meaning
+				if (player_items[i] & (IT_GUN6 | IT_GUN7))
+					bestweap = "rlg ";
+				else if (player_items[i] & IT_GUN7)
+					bestweap = "lg  ";
+				else if (player_items[i] & IT_GUN6)
+					bestweap = "rl  ";
+				else if (player_items[i] & IT_GUN5)
+					bestweap = "gl  ";
+				else if (player_items[i] & IT_GUN4)
+					bestweap = "sng ";
+				else if (player_items[i] & IT_GUN2)
+					bestweap = "ssg ";
+
+				GetLocationName(player_location[i], loc, sizeof(loc));
+
+				// TODO: Tabs for formatting. Translate $5 and similar macros in loc names.
+				snprintf(str, sizeof(str), "%s%c %c%d%c%d %s%c%s%c",
+					player_nick[i],		// player netname
+					':'+128,			// colored colon
+					armortype,			// armor type: r, y, g or none
+					player_armor[i],	// current armor
+					'/'+128,			// colored slash
+					player_health[i],	// current health
+					bestweap,			// best weapon
+					'\x10',				// left bracket
+					loc,				// player location
+					'\x11'				// right bracket
+					);
+
+				UI_DrawString(str, 0, offset);
+				offset += 16;
+			}
+		}
+	}
+}
+
+void Hud_TeamOverlayUpdate(void)
+{
+	int user;
+	char str[256];
+
+	// Number in the players[] array
+	Cmd_Argv(1, str, sizeof(str));
+	user = atoi(str);
+
+	// Position in the x-axis
+	Cmd_Argv(2, str, sizeof(str));
+	player_location[user][0] = atoi(str);
+
+	// Position in the y-axis
+	Cmd_Argv(3, str, sizeof(str));
+	player_location[user][1] = atoi(str);
+
+	// Position in the z-axis
+	Cmd_Argv(4, str, sizeof(str));
+	player_location[user][2] = atoi(str);
+
+	// Player health
+	Cmd_Argv(5, str, sizeof(str));
+	player_health[user] = atoi(str);
+
+	// Player armor
+	Cmd_Argv(6, str, sizeof(str));
+	player_armor[user] = atoi(str);
+
+	// Player item bitmask
+	Cmd_Argv(7, str, sizeof(str));
+	player_items[user] = atoi(str);
+
+	// Setting this nick will make this info print
+	player_nick[user] = players[user].name;
+
+	return;
 }
 
 //fixme: draw dark blobs
@@ -2100,6 +2238,12 @@ int Plug_ExecuteCommand(int *args)
 		// FIXME: add this command
 		return 1;
 	}
+	// Support for KTX team overlay
+	if (!strcmp("tinfo", cmd))
+	{
+		Hud_TeamOverlayUpdate();
+		return 1;
+	}
 	return 0;
 }
 
@@ -2144,6 +2288,9 @@ int Plug_Init(int *args)
 		// For modifying hud elements
 		Cmd_AddCommand("hud");
 		Cmd_AddCommand("sbar");
+
+		// Teamoverlay support
+		Cmd_AddCommand("tinfo");
 
 		UI_SbarInit();
 

@@ -1831,12 +1831,12 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 			datasize = pad;
 		qglCompressedTexImage2DARB(GL_TEXTURE_2D, mipnum, intfmt, fmtheader.dwWidth>>mipnum, fmtheader.dwHeight>>mipnum, 0, datasize, buffer);
 		if (qglGetError())
-			Con_Printf("Incompatable dds file (mip %i)\n", mipnum);
+			Con_Printf("Incompatible dds file (mip %i)\n", mipnum);
 		buffer += datasize;
 		datasize/=4;
 	}
 	if (qglGetError())
-		Con_Printf("Incompatable dds file\n");
+		Con_Printf("Incompatible dds file\n");
 
 
 	if (nummips>1)

@@ -3608,7 +3608,7 @@ reloop:
 			}
 			else
 			{
-				if (!QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))	//q1 compatable.
+				if (!QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))	//q1 compatible.
 				{	//you didn't see this, okay?
 					QCC_def_t *funcretr;
 					if (d->scope)

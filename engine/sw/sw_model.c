@@ -1559,7 +1559,7 @@ void SWMod_LoadCrouchHull(void)
 		return;
 
 	numsm = LittleLong(((int *)crouchhullfile)[2]);
-	if (numsm != loadmodel->numsubmodels)	//not compatable
+	if (numsm != loadmodel->numsubmodels)	//not compatible
 		return;
 
 	numsuplementryplanes = LittleLong(((int *)crouchhullfile)[3]);

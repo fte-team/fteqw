@@ -2053,7 +2053,7 @@ void CL_ConnectionlessPacket (void)
 					break;
 			}
 			if (*s2)
-			{//and if it's not, we're unlikly to be compatable with whatever it is that's talking at us.
+			{//and if it's not, we're unlikly to be compatible with whatever it is that's talking at us.
 #ifdef NQPROT
 				if (cls.protocol == CP_NETQUAKE || cls.protocol == CP_UNKNOWN)
 				{

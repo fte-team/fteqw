@@ -660,7 +660,7 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 	return line;
 }
 
-//compatable with Q1 (for savegames)
+//compatible with Q1 (for savegames)
 char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 {
 	static char	line[256];
@@ -1361,7 +1361,7 @@ add32:
 	return buffer;
 }
 
-char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buffer, pbool q1compatable)
+char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buffer, pbool q1compatible)
 {
 	fdef_t	*d;
 
@@ -1396,7 +1396,7 @@ char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buffer, pbool 
 
 		//add it to the file
 		AddS (qcva("\"%s\" ",name));
-		AddS (qcva("\"%s\"\n", (q1compatable?PR_UglyOldValueString:PR_UglyValueString)(progfuncs, d->type, (eval_t *)v)));
+		AddS (qcva("\"%s\"\n", (q1compatible?PR_UglyOldValueString:PR_UglyValueString)(progfuncs, d->type, (eval_t *)v)));
 	}
 
 	return buffer;
@@ -1508,7 +1508,7 @@ char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *len, int alldata)
 			if (pr_progstate[a].progs)
 				break;
 		}
-		if (!pr_progstate[0].progs || a != maxprogs)	//the state of the progs wasn't Q1 compatable.
+		if (!pr_progstate[0].progs || a != maxprogs)	//the state of the progs wasn't Q1 compatible.
 		{
 			memfree(os);
 			return NULL;
@@ -2359,7 +2359,7 @@ retry:
 		}
 /*		else
 		{
-			printf ("Progs extensions are not compatable\nTry recompiling with the FTE compiler\n");
+			printf ("Progs extensions are not compatible\nTry recompiling with the FTE compiler\n");
 			HunkFree(hmark);
 			pr_progs=NULL;
 			return false;
@@ -2555,7 +2555,7 @@ retry:
 					||	file[5] != pr_progs->numstatements
 					)
 				{
-					PRHunkFree(progfuncs, ohm);	//whoops: old progs or incompatable
+					PRHunkFree(progfuncs, ohm);	//whoops: old progs or incompatible
 				}
 				else
 					pr_linenums = file + 6;

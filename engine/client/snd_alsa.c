@@ -210,7 +210,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	if (!Alsa_InitAlsa())
 	{
-		Con_Printf(CON_ERROR "Alsa does not appear to be installed or compatable\n");
+		Con_Printf(CON_ERROR "Alsa does not appear to be installed or compatible\n");
 		return 2;
 	}
 

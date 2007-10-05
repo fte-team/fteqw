@@ -220,7 +220,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_ifstring,		FLAG_MIDCOMPILE,"ifstring",		"if(string) fix",		"Causes if(string) to behave identically to if(string!="") This is most useful with addons of course, but also has adverse effects with FRIK_FILE's fgets, where it becomes impossible to determin the end of the file. In such a case, you can still use asm {IF string 2;RETURN} to detect eof and leave the function."},		//correction for if(string) no-ifstring to get the standard behaviour.
 	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows ¦ as EOF. Whilst case insensativity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
 	{&flag_caseinsensative,	0,				"caseinsens",	"Case insensativity",	"Causes fteqcc to become case insensative whilst compiling names. It's generally not advised to use this as it compiles a little more slowly and provides little benefit. However, it is required for full reacc support."},	//symbols will be matched to an insensative case if the specified case doesn't exist. This should b usable for any mod
-	{&flag_laxcasts,		FLAG_MIDCOMPILE,"lax",			"Lax type checks",		"Disables many errors (generating warnings instead) when function calls or operations refer to two normally incompatable types. This is required for reacc support, and can also allow certain (evil) mods to compile that were originally written for frikqcc."},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
+	{&flag_laxcasts,		FLAG_MIDCOMPILE,"lax",			"Lax type checks",		"Disables many errors (generating warnings instead) when function calls or operations refer to two normally incompatible types. This is required for reacc support, and can also allow certain (evil) mods to compile that were originally written for frikqcc."},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
 	{&flag_hashonly,		FLAG_MIDCOMPILE,"hashonly",		"Hash-only constants", "Allows use of only #constant for precompiler constants, allows certain preqcc using mods to compile"},
 	{&opt_logicops,			FLAG_MIDCOMPILE,"lo",			"Logic ops",			"This changes the behaviour of your code. It generates additional if operations to early-out in if statements. With this flag, the line if (0 && somefunction()) will never call the function. It can thus be considered an optimisation. However, due to the change of behaviour, it is not considered so by fteqcc. Note that due to inprecisions with floats, this flag can cause runaway loop errors within the player walk and run functions. This code is advised:\nplayer_stand1:\n    if (self.velocity_x || self.velocity_y)\nplayer_run\n    if (!(self.velocity_x || self.velocity_y))"},
 	{&flag_fasttrackarrays,	FLAG_MIDCOMPILE|FLAG_ASDEFAULT,"fastarrays",	"fast arrays where possible",	"Generates extra instructions inside array handling functions to detect engine and use extension opcodes only in supporting engines.\nAdds a global which is set by the engine if the engine supports the extra opcodes. Note that this applies to all arrays or none."},		//correction for if(string) no-ifstring to get the standard behaviour.
@@ -577,7 +577,7 @@ void QCC_WriteData (int crc)
 		}
 		else if (qcc_targetformat == QCF_HEXEN2)
 		{
-			printf("Progs execution requires a Hexen2 compatable engine\n");
+			printf("Progs execution requires a Hexen2 compatible engine\n");
 			break;
 		}
 		else
@@ -621,7 +621,7 @@ void QCC_WriteData (int crc)
 		if (numpr_globals > 65530)
 			printf("Warning: Saving is not supported. Ensure all engine read fields and globals are defined early on.\n");
 
-		printf("A KK compatable executor will be required (FTE/KK)\n");
+		printf("A KK compatible executor will be required (FTE/KK)\n");
 		break;
 	}
 
@@ -817,7 +817,7 @@ strofs = (strofs+3)&~3;
 		for (i=0 ; i<numstatements ; i++)
 		{
 			if (statements[i].op >= OP_CALL1 && statements[i].op <= OP_CALL8)
-				QCC_Error(ERR_BADTARGETSWITCH, "Target switching produced incompatable instructions");
+				QCC_Error(ERR_BADTARGETSWITCH, "Target switching produced incompatible instructions");
 			else if (statements[i].op >= OP_CALL1H && statements[i].op <= OP_CALL8H)
 				statements[i].op = statements[i].op - OP_CALL1H + OP_CALL1;
 		}

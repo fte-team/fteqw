@@ -2081,7 +2081,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 				if (R_ApplyRenderer(&newr))
 				{
 					TRACE(("dbg: R_RestartRenderer_f going to dedicated\n"));
-					Con_Printf(CON_ERROR "Video mode switch failed. Old mode wasn't supported either. Console forced.\nChange vid_width, vid_height, vid_bpp, vid_displayfrequency to a compatable mode, and then use the setrenderer command.\n");
+					Con_Printf(CON_ERROR "Video mode switch failed. Old mode wasn't supported either. Console forced.\nChange vid_width, vid_height, vid_bpp, vid_displayfrequency to a compatible mode, and then use the setrenderer command.\n");
 				}
 				else
 					Sys_Error("Couldn't fall back to previous renderer\n");

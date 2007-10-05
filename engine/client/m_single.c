@@ -40,7 +40,7 @@ void M_ScanSaves (void)
 			version = atoi(line);
 			if (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX)
 			{
-				Q_strncpyz (m_filenames[i], "Incompatable version", sizeof(m_filenames[i]));			
+				Q_strncpyz (m_filenames[i], "Incompatible version", sizeof(m_filenames[i]));			
 				VFS_CLOSE (f);
 				continue;
 			}

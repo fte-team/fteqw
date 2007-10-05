@@ -182,7 +182,7 @@ cvar_t	sv_motd[]		={	SCVAR("sv_motd1",		""),
 							SCVAR("sv_motd3",		""),
 							SCVAR("sv_motd4",		"")	};
 
-cvar_t sv_compatablehulls = SCVAR("sv_compatablehulls", "1");
+cvar_t sv_compatiblehulls = SCVAR("sv_compatiblehulls", "1");
 
 cvar_t	hostname = SCVARF("hostname","unnamed", CVAR_SERVERINFO);
 
@@ -1500,7 +1500,7 @@ client_t *SVC_DirectConnect(void)
 		if (strcmp(Info_ValueForKey(userinfo[0], "protocol"), "darkplaces 3"))
 		{
 			SV_RejectMessage (SCP_BAD, "Server is "DISTRIBUTION" build %i.\n", build_number());
-			Con_Printf ("* rejected connect from incompatable client\n");
+			Con_Printf ("* rejected connect from incompatible client\n");
 			return NULL;
 		}
 		//it's a darkplaces client.
@@ -1721,24 +1721,24 @@ client_t *SVC_DirectConnect(void)
 		{
 			if (atof(Info_ValueForKey (temp.userinfo, "*FuhQuake")) < 0.3)
 			{
-				SV_RejectMessage (protocol, "The server is using a halflife level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatable client\n\nYou may need to enable an option\n\n");
-//				Con_Printf("player %s was dropped due to incompatable client\n", name);
+				SV_RejectMessage (protocol, "The server is using a halflife level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
+//				Con_Printf("player %s was dropped due to incompatible client\n", name);
 //				return;
 			}
 		}
 #ifdef PEXT_Q2BSP
 		else if (sv.worldmodel->fromgame == fg_quake2 && !(newcl->fteprotocolextensions & PEXT_Q2BSP))
 		{
-			SV_RejectMessage (protocol, "The server is using a quake 2 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatable client\n\nYou may need to enable an option\n\n");
-//			Con_Printf("player %s was dropped due to incompatable client\n", name);
+			SV_RejectMessage (protocol, "The server is using a quake 2 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
+//			Con_Printf("player %s was dropped due to incompatible client\n", name);
 //			return;
 		}
 #endif
 #ifdef PEXT_Q3BSP
 		else if (sv.worldmodel->fromgame == fg_quake3 && !(newcl->fteprotocolextensions & PEXT_Q3BSP))
 		{
-			SV_RejectMessage (protocol, "The server is using a quake 3 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatable client\n\nYou may need to enable an option\n\n");
-//			Con_Printf("player %s was dropped due to incompatable client\n", name);
+			SV_RejectMessage (protocol, "The server is using a quake 3 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
+//			Con_Printf("player %s was dropped due to incompatible client\n", name);
 //			return;
 		}
 #endif
@@ -3202,7 +3202,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&pm_walljump,			cvargroup_serverphysics);
 	Cvar_Register (&pm_stepheight,			cvargroup_serverphysics);
 
-	Cvar_Register (&sv_compatablehulls,		cvargroup_serverphysics);
+	Cvar_Register (&sv_compatiblehulls,		cvargroup_serverphysics);
 
 	for (i = 0; i < sizeof(sv_motd)/sizeof(sv_motd[0]); i++)
 		Cvar_Register(&sv_motd[i],	cvargroup_serverinfo);

@@ -1161,7 +1161,7 @@ static LONG CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 				}
 				break;
 			case IDI_O_TARGET:
-				MessageBox(hWnd, "Click here to compile a hexen2 compatable progs. Note that this uses the -Thexen2. There are other targets available.", "Help", MB_OK|MB_ICONINFORMATION);
+				MessageBox(hWnd, "Click here to compile a hexen2 compatible progs. Note that this uses the -Thexen2. There are other targets available.", "Help", MB_OK|MB_ICONINFORMATION);
 				break;
 			case IDI_O_SYNTAX_HIGHLIGHTING:
 				MessageBox(hWnd, "Should syntax be highlighted automatically when a file is opened?", "Help", MB_OK|MB_ICONINFORMATION);

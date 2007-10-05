@@ -29,7 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //m_media	- an mp3 player type thing. It was never really compleate.
 //			  It should perhaps either be fixed or removed.
 //m_plugin	- A QVM based or DLL based plugin.
-//m_menu_dat- A QC based version of m_plugin. This should be compatable with DP's menu.dat stuff.
+//m_menu_dat- A QC based version of m_plugin. This should be compatible with DP's menu.dat stuff.
 
 
 //the m_complex menu state is the most advanced, and drives the bulk of FTE's menus in an event driven way.

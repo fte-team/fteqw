@@ -553,14 +553,14 @@ static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_Printf("\n");
 
-	prinst->RunError(prinst, "\nBuiltin %i not implemented.\nCSQC is not compatable.", prinst->lastcalledbuiltinnumber);
+	prinst->RunError(prinst, "\nBuiltin %i not implemented.\nCSQC is not compatible.", prinst->lastcalledbuiltinnumber);
 	PR_BIError (prinst, "bulitin not implemented");
 }
 static void PF_NoCSQC (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_Printf("\n");
 
-	prinst->RunError(prinst, "\nBuiltin %i does not make sense in csqc.\nCSQC is not compatable.", prinst->lastcalledbuiltinnumber);
+	prinst->RunError(prinst, "\nBuiltin %i does not make sense in csqc.\nCSQC is not compatible.", prinst->lastcalledbuiltinnumber);
 	PR_BIError (prinst, "bulitin not implemented");
 }
 

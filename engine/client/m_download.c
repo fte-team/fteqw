@@ -81,7 +81,7 @@ static package_t *BuildPackageList(vfsfile_t *f, int flags, char *prefix)
 	version = atoi(Cmd_Argv(1));
 	if (version != 0 && version != 1)
 	{
-		Con_Printf("Packagelist is of a future or incompatable version\n");
+		Con_Printf("Packagelist is of a future or incompatible version\n");
 		return NULL;	//it's not the right version.
 	}
 

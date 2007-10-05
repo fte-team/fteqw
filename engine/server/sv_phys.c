@@ -1013,7 +1013,7 @@ void SV_CheckWaterTransition (edict_t *ent)
 
 	cont = SV_PointContents (ent->v->origin);
 
-	//needs to be q1 progs compatable
+	//needs to be q1 progs compatible
 	if (cont & FTECONTENTS_LAVA)
 		cont = Q1CONTENTS_LAVA;
 	else if (cont & FTECONTENTS_SLIME)

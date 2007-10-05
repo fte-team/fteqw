@@ -135,7 +135,7 @@ keyname_t keynames[] =
 	{"KP_STAR",		K_KP_STAR},
 	{"KP_EQUALS",	K_KP_EQUALS},
 
-	//fuhquake compatable.
+	//fuhquake compatible.
 	{"KP_0",		K_KP_INS},
 	{"KP_1",		K_KP_END},
 	{"KP_2",		K_KP_DOWNARROW},

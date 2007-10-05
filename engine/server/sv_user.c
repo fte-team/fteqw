@@ -5797,7 +5797,7 @@ void SV_AirMove (void)
 //	else
 //		scale = val->_float;
 
-	maxspeed=sv_player->xv->maxspeed;//FIXME: This isn't fully compatable code...
+	maxspeed=sv_player->xv->maxspeed;//FIXME: This isn't fully compatible code...
 	if (sv_player->xv->hasted)
 		maxspeed*=sv_player->xv->hasted;
 

@@ -2117,7 +2117,7 @@ void GLMod_LoadCrouchHull(void)
 	}
 
 	numsm = LittleLong(*data++);
-	if (numsm != loadmodel->numsubmodels)	//not compatable
+	if (numsm != loadmodel->numsubmodels)	//not compatible
 		return;
 
 	numsuplementryplanes = LittleLong(*data++);

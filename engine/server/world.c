@@ -30,7 +30,7 @@ line of sight checks trace->crosscontent, but bullets don't
 
 */
 
-extern cvar_t sv_compatablehulls;
+extern cvar_t sv_compatiblehulls;
 
 typedef struct
 {
@@ -1926,7 +1926,7 @@ trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, e
 
 	if (passedict && passedict->xv->hull)
 		hullnum = passedict->xv->hull;
-	else if (sv_compatablehulls.value)
+	else if (sv_compatiblehulls.value)
 		hullnum = 0;
 	else
 	{

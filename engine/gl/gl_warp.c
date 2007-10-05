@@ -103,7 +103,7 @@ void EmitWaterPolys (msurface_t *fa, float basealpha)
 	float a;
 	int l;
 	extern cvar_t r_waterlayers;
-	//the code prior to april 2005 gave a nicer result, but was incompatable with meshes and required poly lists instead
+	//the code prior to april 2005 gave a nicer result, but was incompatible with meshes and required poly lists instead
 	//the new code uses vertex arrays but sacrifises the warping. We're left only with scaling.
 	//The default settings still look nicer than original quake but not pre-april.
 	//in the plus side, you can never see the junction glitches of the old warping. :)

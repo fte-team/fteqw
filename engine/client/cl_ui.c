@@ -1496,7 +1496,7 @@ void UI_Start (void)
 		apiversion = VM_Call(uivm, UI_GETAPIVERSION, 6);
 		if (apiversion != 4 && apiversion != 6)	//make sure we can run the thing
 		{
-			Con_Printf("User-Interface VM uses incompatable API version (%i)\n", apiversion);
+			Con_Printf("User-Interface VM uses incompatible API version (%i)\n", apiversion);
 			VM_Destroy(uivm);
 			VM_fcloseall(0);
 			uivm = NULL;

@@ -15,7 +15,7 @@ typedef struct {
 	int			entityNum;	// entity the contacted surface is a part of
 } q3trace_t;
 
-//#define Q3_NOENCRYPT	//a debugging property, makes it incompatable with q3
+//#define Q3_NOENCRYPT	//a debugging property, makes it incompatible with q3
 
 #define	MAX_Q3_STATS				16
 #define	MAX_Q3_PERSISTANT			16

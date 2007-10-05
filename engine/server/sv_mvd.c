@@ -454,7 +454,7 @@ void SV_MVD_RunPendingConnections(void)
 					else if (!versiontouse)
 					{
 						e =	("QTVSV 1\n"
-							 "PERROR: Incompatable version (valid version is v1)\n\n");
+							 "PERROR: Incompatible version (valid version is v1)\n\n");
 					}
 					else if (raw)
 					{

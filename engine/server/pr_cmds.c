@@ -734,9 +734,9 @@ progsnum_t AddProgs(char *name)
 
 		fl = G_FLOAT(OFS_RETURN);
 		if (fl < 0)
-			SV_Error ("PR_LoadProgs: progs.dat is not compatable with EXE version");
+			SV_Error ("PR_LoadProgs: progs.dat is not compatible with EXE version");
 		else if ((int) (fl) != (int) (build_number()))
-			Con_DPrintf("Warning: Progs may not be fully compatable\n (%4.2f != %i)\n", fl, build_number());
+			Con_DPrintf("Warning: Progs may not be fully compatible\n (%4.2f != %i)\n", fl, build_number());
 	}
 
 	if ((f = PR_FindFunction (svprogfuncs, "FTE_init", num )))
@@ -5390,7 +5390,7 @@ qboolean printedheader = false;
 	if (progstype == PROG_QW)
 		prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMods designed for mvdsv may need pr_imitatemvdsv to be enabled.", prinst->lastcalledbuiltinnumber);
 	else
-		prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMod is not compatable.", prinst->lastcalledbuiltinnumber);
+		prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMod is not compatible.", prinst->lastcalledbuiltinnumber);
 	PR_BIError (prinst, "bulitin not implemented");
 }
 
@@ -6494,7 +6494,7 @@ lh_extension_t FTE_Protocol_Extensions[] =
 	{"DP_ENT_COLORMOD"},
 	{NULL},	//splitscreen - not queryable.
 	{"FTE_HEXEN2"},				//client can use hexen2 maps. server can use hexen2 progs
-	{"FTE_PEXT_SPAWNSTATIC"},	//means that static entities can have alpha/scale and anything else the engine supports on normal ents. (Added for >256 models, while still being compatable - previous system failed with -1 skins)
+	{"FTE_PEXT_SPAWNSTATIC"},	//means that static entities can have alpha/scale and anything else the engine supports on normal ents. (Added for >256 models, while still being compatible - previous system failed with -1 skins)
 	{"FTE_PEXT_CUSTOMTENTS",					2,	NULL, {"RegisterTempEnt", "CustomTempEnt"}},
 	{"FTE_PEXT_256PACKETENTITIES"},	//client is able to receive unlimited packet entities (server caps itself to 256 to prevent insanity).
 	{"FTE_PEXT_64PLAYERS"},

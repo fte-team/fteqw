@@ -2504,21 +2504,20 @@ void Cmd_WriteConfig_f(void)
 	if (!*filename)
 		filename = "fte";
 
-	{
-		if (strstr(filename, ".."))
-		{
-			Con_Printf ("Couldn't write config %s\n",filename);
-			return;
-		}
-
-		filename = va("configs/%s",filename);
-	}
-	COM_DefaultExtension(fname, ".cfg", sizeof(fname));
-	FS_CreatePath(filename, FS_CONFIGONLY);
-	f = FS_OpenVFS(filename, "wb", FS_CONFIGONLY);
-	if (!f)
+	if (strstr(filename, ".."))
 	{
 		Con_Printf ("Couldn't write config %s\n",filename);
+		return;
+	}
+
+	snprintf(fname, sizeof(fname), "configs/%s", filename);
+	COM_DefaultExtension(fname, ".cfg", sizeof(fname));
+
+	FS_CreatePath(fname, FS_CONFIGONLY);
+	f = FS_OpenVFS(fname, "wb", FS_CONFIGONLY);
+	if (!f)
+	{
+		Con_Printf ("Couldn't write config %s\n",fname);
 		return;
 	}
 	VFS_WRITE(f, "// FTE config file\n\n", 20);

@@ -172,7 +172,7 @@ extern cvar_t	host_mapname;
 
 static void TP_FindModelNumbers (void);
 static void TP_FindPoint (void);
-static char *TP_LocationName (vec3_t location);
+char *TP_LocationName (vec3_t location);
 
 
 #define MAX_LOC_NAME 48
@@ -1509,7 +1509,7 @@ static void TP_LoadLocFile_f (void)
 	TP_LoadLocFile (Cmd_Argv(1), false);
 }
 
-static char *TP_LocationName (vec3_t location)
+char *TP_LocationName (vec3_t location)
 {
 	int		i, minnum;
 	float	dist, mindist;

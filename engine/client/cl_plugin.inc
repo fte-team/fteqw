@@ -373,26 +373,29 @@ int VARGS Plug_GetPlayerInfo(void *offset, unsigned int mask, const int *arg)
 
 	i = VM_LONG(arg[0]);
 	out = VM_POINTER(arg[1]);
-	if (i == -1)
+	if (out)
 	{
-		i = cl.playernum[0];
-		if (i < 0)
+		if (i == -1)
 		{
-			memset(out, 0, sizeof(*out));
-			return 0;
-		}	
+			i = cl.playernum[0];
+			if (i < 0)
+			{
+				memset(out, 0, sizeof(*out));
+				return 0;
+			}	
+		}
+		out->bottomcolour = cl.players[i].rbottomcolor;
+		out->topcolour = cl.players[i].rtopcolor;
+		out->frags = cl.players[i].frags;
+		Q_strncpyz(out->name, cl.players[i].name, PLUGMAX_SCOREBOARDNAME);
+		out->ping = cl.players[i].ping;
+		out->pl = cl.players[i].pl;
+		out->starttime = cl.players[i].entertime;
+		out->userid = cl.players[i].userid;
+		out->spectator = cl.players[i].spectator;
+		Q_strncpyz(out->userinfo, cl.players[i].userinfo, sizeof(out->userinfo));
+		Q_strncpyz(out->team, cl.players[i].team, sizeof(out->team));
 	}
-	out->bottomcolour = cl.players[i].rbottomcolor;
-	out->topcolour = cl.players[i].rtopcolor;
-	out->frags = cl.players[i].frags;
-	Q_strncpyz(out->name, cl.players[i].name, PLUGMAX_SCOREBOARDNAME);
-	out->ping = cl.players[i].ping;
-	out->pl = cl.players[i].pl;
-	out->starttime = cl.players[i].entertime;
-	out->userid = cl.players[i].userid;
-	out->spectator = cl.players[i].spectator;
-	Q_strncpyz(out->userinfo, cl.players[i].userinfo, sizeof(out->userinfo));
-	Q_strncpyz(out->team, cl.players[i].team, sizeof(out->team));
 
 	pt = Cam_TrackNum(0);
 	if (pt < 0)
@@ -409,7 +412,7 @@ int VARGS Plug_LocalPlayerNumber(void *offset, unsigned int mask, const int *arg
 int VARGS Plug_GetServerInfo(void *offset, unsigned int mask, const int *arg)
 {
 	char *outptr = VM_POINTER(arg[0]);
-	int outlen = VM_LONG(arg[1]);
+	unsigned int outlen = VM_LONG(arg[1]);
 
 	if (VM_OOB(arg[0], outlen))
 		return false;
@@ -427,6 +430,21 @@ int VARGS Plug_SetUserInfo(void *offset, unsigned int mask, const int *arg)
 	CL_SetInfo(key, value);
 
 	return true;
+}
+
+int VARGS Plug_GetLocationName(void *offset, unsigned int mask, const int *arg)
+{
+	float *locpoint = VM_POINTER(arg[0]);
+	char *locname = VM_POINTER(arg[1]);
+	unsigned int locnamelen = VM_LONG(arg[2]);
+	char *result;
+
+	if (VM_OOB(arg[1], locnamelen))
+		return 0;
+
+	result = TP_LocationName(locpoint);
+	Q_strncpyz(locname, result, locnamelen);
+	return VM_LONG(arg[1]);
 }
 
 int VARGS Plug_Con_SubPrint(void *offset, unsigned int mask, const int *arg)
@@ -548,6 +566,7 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, PLUG_BIF_NEEDSRENDERER);
 
+	Plug_RegisterBuiltin("GetLocationName",			Plug_GetLocationName, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetPlayerInfo",			Plug_GetPlayerInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("LocalPlayerNumber",		Plug_LocalPlayerNumber, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetServerInfo",			Plug_GetServerInfo, PLUG_BIF_NEEDSRENDERER);

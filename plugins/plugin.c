@@ -129,6 +129,10 @@ BUILTIN(void, GetServerInfo, (char *info, int infolen));
 BUILTIN(void, SetUserInfo, (char *key, char *value));
 #undef ARGNAMES
 
+#define ARGNAMES ,pos,buffer,bufferlen
+BUILTIN(void, GetLocationName, (float *pos, char *buffer, int bufferlen))
+#undef ARGNAMES
+
 #define ARGNAMES ,soundname
 BUILTIN(void, LocalSound, (char *soundname));
 #undef ARGNAMES
@@ -325,6 +329,7 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(LocalSound);
 	CHECKBUILTIN(Menu_Control);
 	CHECKBUILTIN(Key_GetKeyCode);
+	CHECKBUILTIN(GetLocationName);
 
 	//drawing routines
 	CHECKBUILTIN(Draw_LoadImage);

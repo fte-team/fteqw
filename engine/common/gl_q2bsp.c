@@ -5489,7 +5489,9 @@ rotating entities
 ==================
 */
 #ifdef _MSC_VER
+#pragma warning(disable : 4748)
 #pragma optimize( "", off )
+#pragma warning(default : 4748)
 #endif
 
 

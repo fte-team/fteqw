@@ -1916,7 +1916,7 @@ void R_DrawGAliasModel (entity_t *e)
 						-scale_origin[1],
 						-scale_origin[2]);
 	}
-
+/*
 	if (!ruleset_allow_overlarge_models.value && clmodel->clampedsize)
 	{	//possibly this should be on a per-frame basis, but that's a real pain to do
 		float rad=0, axis;
@@ -1933,7 +1933,7 @@ void R_DrawGAliasModel (entity_t *e)
 			qglScalef(rad, rad, rad);
 		}
 	}
-
+*/
 	inf = GLMod_Extradata (clmodel);
 	if (qglPNTrianglesfATI && gl_ati_truform.value)
 		qglEnable(GL_PN_TRIANGLES_ATI);

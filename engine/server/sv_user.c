@@ -1449,7 +1449,6 @@ void SV_Begin_f (void)
 							pr_global_struct->time = sv.time;
 							pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
 							PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
-							printf("ClientConnected...\n");
 					
 							// actually spawn the player
 							pr_global_struct->time = sv.time;

@@ -3890,6 +3890,11 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 			{
 				Cmd_ExecuteString(stufftext+2, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded
 			}
+			else if (!strncmp(stufftext, "//tinfo ", 8))
+			{
+				Cmd_TokenizeString(stufftext+2, false, false);
+				Plug_Command_f();
+			}
 			else
 #ifdef CSQC_DAT
 				 if (!CSQC_StuffCmd(stufftext))

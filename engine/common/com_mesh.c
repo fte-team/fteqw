@@ -2,7 +2,7 @@
 #if defined(D3DQUAKE) || defined(RGLQUAKE) || defined(SERVERONLY)
 
 #ifdef D3DQUAKE
-//#include "d3dquake.h"
+#include "d3dquake.h"
 #endif
 #ifdef RGLQUAKE
 #include "glquake.h"

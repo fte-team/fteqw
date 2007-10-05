@@ -1917,6 +1917,23 @@ void R_DrawGAliasModel (entity_t *e)
 						-scale_origin[2]);
 	}
 
+	if (!ruleset_allow_overlarge_models.value && clmodel->clampedsize)
+	{	//possibly this should be on a per-frame basis, but that's a real pain to do
+		float rad=0, axis;
+		axis = (clmodel->maxs[0] - clmodel->mins[0]);
+		rad += axis*axis;
+		axis = (clmodel->maxs[1] - clmodel->mins[1]);
+		rad += axis*axis;
+		axis = (clmodel->maxs[2] - clmodel->mins[2]);
+		rad += axis*axis;
+		if (rad > clmodel->clampedsize)
+		{
+			rad = clmodel->clampedsize / rad;
+			Con_DPrintf("Rescaling %s by %f\n", clmodel->name, rad);
+			qglScalef(rad, rad, rad);
+		}
+	}
+
 	inf = GLMod_Extradata (clmodel);
 	if (qglPNTrianglesfATI && gl_ati_truform.value)
 		qglEnable(GL_PN_TRIANGLES_ATI);

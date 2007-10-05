@@ -442,6 +442,7 @@ void SV_DropClient (client_t *drop)
 					// this will set the body to a dead frame, among other things
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
 						PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+						printf("Disconnected...\n");
 					}
 					else if (SpectatorDisconnect)
 					{

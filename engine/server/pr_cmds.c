@@ -195,10 +195,12 @@ pbool ED_CanFree (edict_t *ed)
 	ed->v->nextthink = 0;
 	ed->v->solid = 0;
 
+
+	ed->v->classname = 0;
+
 	if (pr_imitatemvdsv.value) 
 	{
 		ed->v->health = 0;
-		ed->v->classname = 0;
 		ed->v->nextthink = -1;
 		ed->v->impulse = 0;	//this is not true imitation, but it seems we need this line to get out of some ktpro infinate loops.
 	}

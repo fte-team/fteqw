@@ -2014,6 +2014,8 @@ qboolean SV_Physics (void)
 		usercmd_t ucmd;
 		static int old_bot_time;	//I hate using floats for timers.
 		client_t *oldhost;
+		edict_t *oldplayer;
+		vec3_t oldmovement;
 		host_frametime = (Sys_Milliseconds() - old_bot_time) / 1000.0f;
 		if (1 || host_frametime >= 1 / 72.0f)
 		{
@@ -2023,26 +2025,36 @@ qboolean SV_Physics (void)
 			{
 				if (svs.clients[i-1].state && svs.clients[i-1].protocol == SCP_BAD)
 				{	//then this is a bot
+					oldhost = host_client;
+					oldplayer = sv_player;
+					host_client = &svs.clients[i-1];
+					sv_player = host_client->edict;
+
+					oldmovement[0] = sv_player->xv->movement[0];
+					oldmovement[1] = sv_player->xv->movement[1];
+					oldmovement[2] = sv_player->xv->movement[2];
+
 					ucmd.msec = host_frametime*1000;
-					ucmd.angles[0] = svs.clients[i-1].edict->v->angles[0] * (65535/360.0f);
-					ucmd.angles[1] = svs.clients[i-1].edict->v->angles[1] * (65535/360.0f);
-					ucmd.angles[2] = svs.clients[i-1].edict->v->angles[2] * (65535/360.0f);
-					ucmd.forwardmove = svs.clients[i-1].edict->xv->movement[0];
-					ucmd.sidemove = svs.clients[i-1].edict->xv->movement[1];
-					ucmd.upmove = svs.clients[i-1].edict->xv->movement[2];
-					ucmd.buttons = (svs.clients[i-1].edict->v->button0?1:0) | (ucmd.buttons = svs.clients[i-1].edict->v->button2?2:0);
+					ucmd.angles[0] = sv_player->v->angles[0] * (65535/360.0f);
+					ucmd.angles[1] = sv_player->v->angles[1] * (65535/360.0f);
+					ucmd.angles[2] = sv_player->v->angles[2] * (65535/360.0f);
+					ucmd.forwardmove = sv_player->xv->movement[0];
+					ucmd.sidemove = sv_player->xv->movement[1];
+					ucmd.upmove = sv_player->xv->movement[2];
+					ucmd.buttons = (sv_player->v->button0?1:0) | (sv_player->v->button2?2:0);
 
 					svs.clients[i-1].lastcmd = ucmd;	//allow the other clients to predict this bot.
 
-					oldhost = host_client;
-					host_client = &svs.clients[i-1];
-					sv_player = host_client->edict;
 					SV_PreRunCmd();
 					SV_RunCmd(&ucmd, false);
 					SV_PostRunCmd();
 					
+					sv_player->xv->movement[0] = oldmovement[0];
+					sv_player->xv->movement[1] = oldmovement[1];
+					sv_player->xv->movement[2] = oldmovement[2];
+					
 					host_client = oldhost;
-					//sv_player = host_client->edict;
+					sv_player = oldplayer;
 				}
 			}
 			old_bot_time = Sys_Milliseconds();

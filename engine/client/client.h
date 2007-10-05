@@ -935,27 +935,26 @@ void vectoangles(vec3_t vec, vec3_t ang);
 #define TPM_SPECTATOR  4
 #define TPM_FAKED     16
 
-qboolean TP_SoundTrigger(char *message);
-char *TP_PlayerName (void);
-char *TP_MapName (void);
-int	TP_CountPlayers (void);
-char *TP_PlayerTeam (void);
-char *TP_EnemyTeam (void);
-char *TP_EnemyName (void);
-void TP_StatChanged (int stat, int value);
-int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr);
-void TP_NewMap (void);
-qboolean TP_FilterMessage (char *s);
-qboolean TP_CheckSoundTrigger (char *str);
-void TP_SearchForMsgTriggers (char *s, int level);
-
-void TP_ExecTrigger (char *s);
-qboolean TP_SuppressMessage(char *buf);
-
-void TP_Init(void);
-void TP_CheckPickupSound(char *s, vec3_t org);
-void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info);
-void CL_Say (qboolean team, char *extra);
+void		CL_Say (qboolean team, char *extra);
+int			TP_CategorizeMessage (char *s, int *offset, player_info_t **plr);
+void		TP_CheckPickupSound(char *s, vec3_t org);
+qboolean	TP_CheckSoundTrigger (char *str);
+int			TP_CountPlayers (void);
+char*		TP_EnemyName (void);
+char*		TP_EnemyTeam (void);
+void		TP_ExecTrigger (char *s);
+qboolean	TP_FilterMessage (char *s);
+void		TP_Init(void);
+char*		TP_LocationName (vec3_t location);
+char*		TP_MapName (void);
+void		TP_NewMap (void);
+void		TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info);
+char*		TP_PlayerName (void);
+char*		TP_PlayerTeam (void);
+void		TP_SearchForMsgTriggers (char *s, int level);
+qboolean	TP_SoundTrigger(char *message);
+void		TP_StatChanged (int stat, int value);
+qboolean	TP_SuppressMessage(char *buf);
 
 //
 // skin.c

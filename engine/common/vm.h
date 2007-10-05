@@ -33,19 +33,18 @@ void *VM_MemoryBase(vm_t *vm);
 
 //plugin functions
 #ifdef PLUGINS
-qboolean Plug_Menu_Event(int eventtype, int param);
-qboolean Plugin_ExecuteString(void);
-void Plug_ResChanged(void);
-void Plug_Tick(void);
-void Plug_Init(void);
-
-void Plug_SBar(void);
-void Plug_DrawReloadImages(void);
-int Plug_ConnectionlessClientPacket(char *buffer, int size);
-
-qboolean Plug_ChatMessage(char *buffer, int talkernum, int tpflags);
-qboolean Plug_ServerMessage(char *buffer, int messagelevel);
-qboolean Plug_CenterPrintMessage(char *buffer, int clientnum);
+qboolean	Plug_CenterPrintMessage(char *buffer, int clientnum);
+qboolean	Plug_ChatMessage(char *buffer, int talkernum, int tpflags);
+void		Plug_Command_f(void);
+int			Plug_ConnectionlessClientPacket(char *buffer, int size);
+void		Plug_DrawReloadImages(void);
+void		Plug_Init(void);
+qboolean	Plug_Menu_Event(int eventtype, int param);
+void		Plug_ResChanged(void);
+void		Plug_SBar(void);
+qboolean	Plug_ServerMessage(char *buffer, int messagelevel);
+void		Plug_Tick(void);
+qboolean	Plugin_ExecuteString(void);
 #endif
 
 

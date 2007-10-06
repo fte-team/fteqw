@@ -5491,15 +5491,16 @@ rotating entities
 #ifdef _MSC_VER
 #pragma warning(disable : 4748)
 #pragma optimize( "", off )
-#pragma warning(default : 4748)
 #endif
-
 
 trace_t		CM_TransformedBoxTrace (model_t *mod, vec3_t start, vec3_t end,
 						  vec3_t mins, vec3_t maxs,
 						  int brushmask,
 						  vec3_t origin, vec3_t angles)
 {
+#ifdef _MSC_VER
+#pragma warning(default : 4748)
+#endif
 	trace_t		trace;
 	vec3_t		start_l, end_l;
 	vec3_t		a;

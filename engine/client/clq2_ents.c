@@ -1429,18 +1429,19 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			if (s1->modelindex == 255)
 			{	// use custom player skin
 				ent.skinnum = 0;
-				ent.model = NULL;
-
 
 				player = &cl.players[s1->skinnum%MAX_CLIENTS];
 				ent.model = player->model;
 				if (!ent.model || ent.model->needload)	//we need to do better than this
 				{
-					ent.model = Mod_ForName(va("players/%s/tris.md2", Info_ValueForKey(player->userinfo, "model")), false);
+					char *pmodel = Info_ValueForKey(player->userinfo, "model");
+					if (!*pmodel)
+						ent.model = Mod_ForName(va("players/%s/tris.md2", pmodel), false);
 					if (!ent.model || ent.model->needload)
 						ent.model = Mod_ForName("players/male/tris.md2", false);
 				}
 				ent.scoreboard = player;
+				player->model = ent.model;
 /*				ci = &cl.clientinfo[s1->skinnum & 0xff];
 //				ent.skin = ci->skin;
 				ent.model = ci->model;

@@ -52,45 +52,10 @@ extern	int nanmask;
 #define VectorNegate(a,b)		((b)[0]=-(a)[0],(b)[1]=-(a)[1],(b)[2]=-(a)[2])
 #define VectorLength(a)		Length(a)
 
-void VectorMA (vec3_t veca, float scale, vec3_t vecb, vec3_t vecc);
 
-vec_t _DotProduct (vec3_t v1, vec3_t v2);
-void _VectorSubtract (vec3_t veca, vec3_t vecb, vec3_t out);
-void _VectorAdd (vec3_t veca, vec3_t vecb, vec3_t out);
-void _VectorCopy (vec3_t in, vec3_t out);
-
-int VectorCompare (vec3_t v1, vec3_t v2);
-vec_t Length (vec3_t v);
-void CrossProduct (vec3_t v1, vec3_t v2, vec3_t cross);
-float VectorNormalize (vec3_t v);		// returns vector length
-vec_t VectorNormalize2 (vec3_t v, vec3_t out);
-void VectorInverse (vec3_t v);
-void VectorScale (vec3_t in, vec_t scale, vec3_t out);
-int Q_log2(int val);
-
-float ColorNormalize (vec3_t in, vec3_t out);
-void MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up);
 
 typedef float matrix3x4[3][4];
 typedef float matrix3x3[3][3];
-
-void R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3]);
-void R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4]);
-void R_ConcatTransforms (matrix3x4 in1, matrix3x4 in2, matrix3x4 out);
-void VectorTransform(const vec3_t in1, matrix3x4 in2, vec3_t out);
-
-void FloorDivMod (double numer, double denom, int *quotient,
-		int *rem);
-fixed16_t Invert24To16(fixed16_t val);
-fixed16_t Mul16_30(fixed16_t multiplier, fixed16_t multiplicand);
-int GreatestCommonDivisor (int i1, int i2);
-
-void VectorVectors(vec3_t forward, vec3_t right, vec3_t up);
-void AngleVectors (vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
-int VARGS BoxOnPlaneSide (vec3_t emins, vec3_t emaxs, struct mplane_s *plane);
-float	anglemod(float a);
-
-void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, float degrees );
 
 
 #define BOX_ON_PLANE_SIDE(emins, emaxs, p)	\
@@ -113,19 +78,52 @@ typedef struct {
 	float m[4][4];
 } matrix4x4_t;
 
+
+
+vec_t		_DotProduct (vec3_t v1, vec3_t v2);
+void		_VectorAdd (vec3_t veca, vec3_t vecb, vec3_t out);
+void		_VectorCopy (vec3_t in, vec3_t out);
+void		_VectorSubtract (vec3_t veca, vec3_t vecb, vec3_t out);
+void		AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
+float		anglemod (float a);
+void		AngleVectors (vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
+void VARGS	BOPS_Error (void);
+int VARGS	BoxOnPlaneSide (vec3_t emins, vec3_t emaxs, struct mplane_s *plane);
+void		ClearBounds (vec3_t mins, vec3_t maxs);
+float		ColorNormalize (vec3_t in, vec3_t out);
+void		CrossProduct (vec3_t v1, vec3_t v2, vec3_t cross);
+void		FloorDivMod (double numer, double denom, int *quotient, int *rem);
+int			GreatestCommonDivisor (int i1, int i2);
+fixed16_t	Invert24To16 (fixed16_t val);
+vec_t		Length (vec3_t v);
+void		MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up);
+
 //used for crosshair stuff.
-void Matrix4_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
-void Matrix4_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
-void Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
-void Matrix4_Multiply(float *a, float *b, float *out);
-void Matrix4_Transform3(float *matrix, float *vector, float *product);
-void Matrix4_Transform4(float *matrix, float *vector, float *product);
-void Matrix4_Invert_Simple (matrix4x4_t *out, const matrix4x4_t *in1);
-void Matrix4_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg);
-void Matrix4_Projection2(float *proj, float fovx, float fovy, float neard);
-void Matrix4_Orthographic(float *proj, float xmin, float xmax, float ymax, float ymin, float znear, float zfar);
-void Matrix4_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg);
+void		Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
+void		Matrix4_Identity(float *outm);
+void		Matrix4_Invert_Simple (matrix4x4_t *out, const matrix4x4_t *in1);
+void		Matrix4_ModelMatrixFromAxis (float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg);
+void		Matrix4_ModelViewMatrix (float *modelview, vec3_t viewangles, vec3_t vieworg);
+void		Matrix4_ModelViewMatrixFromAxis (float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg);
+void		Matrix4_Multiply (float *a, float *b, float *out);
+void		Matrix4_Orthographic (float *proj, float xmin, float xmax, float ymax, float ymin, float znear, float zfar);
+void		Matrix4_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
+void		Matrix4_Projection2 (float *proj, float fovx, float fovy, float neard);
+void		Matrix4_Transform3 (float *matrix, float *vector, float *product);
+void		Matrix4_Transform4 (float *matrix, float *vector, float *product);
+void		Matrix4_UnProject (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
 
-
-void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
-void ClearBounds (vec3_t mins, vec3_t maxs);
+fixed16_t	Mul16_30 (fixed16_t multiplier, fixed16_t multiplicand);
+int			Q_log2 (int val);
+void		R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3]);
+void		R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4]);
+void		R_ConcatTransforms (matrix3x4 in1, matrix3x4 in2, matrix3x4 out);
+void		RotatePointAroundVector (vec3_t dst, const vec3_t dir, const vec3_t point, float degrees);
+int			VectorCompare (vec3_t v1, vec3_t v2);
+void		VectorInverse (vec3_t v);
+void		VectorMA (vec3_t veca, float scale, vec3_t vecb, vec3_t vecc);
+float		VectorNormalize (vec3_t v);		// returns vector length
+vec_t		VectorNormalize2 (vec3_t v, vec3_t out);
+void		VectorScale (vec3_t in, vec_t scale, vec3_t out);
+void		VectorTransform (const vec3_t in1, matrix3x4 in2, vec3_t out);
+void		VectorVectors (vec3_t forward, vec3_t right, vec3_t up);

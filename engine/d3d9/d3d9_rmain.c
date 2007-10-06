@@ -2,6 +2,7 @@
 #ifdef D3DQUAKE
 #include "winquake.h"
 #include "d3d9quake.h"
+#include "glquake.h"
 #include "renderque.h"
 
 mleaf_t		*r_viewleaf, *r_oldviewleaf;

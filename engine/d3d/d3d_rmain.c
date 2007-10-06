@@ -1,6 +1,7 @@
 #include "quakedef.h"
 #ifdef D3DQUAKE
 #include "d3dquake.h"
+#include "glquake.h"
 
 extern mleaf_t		*r_viewleaf, *r_oldviewleaf;
 extern mleaf_t		*r_viewleaf2, *r_oldviewleaf2;

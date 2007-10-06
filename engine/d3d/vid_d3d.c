@@ -2,7 +2,7 @@
 #ifdef D3DQUAKE
 #include "winquake.h"
 #include "d3dquake.h"
-
+#include "glquake.h"
 
 #pragma comment(lib, "d3dx.lib")
 #pragma comment(lib, "ddraw.lib")

@@ -261,7 +261,7 @@ extern int image_width, image_height;
 int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
 int Mod_LoadBumpmapTexture(char *name, char *subpath);
 
-#if defined(RGLQUAKE)
+#ifdef RGLQUAKE
 void R_TranslatePlayerSkin (int playernum);
 void GL_Bind (int texnum);
 void GL_MBind( GLenum target, int texnum );
@@ -303,25 +303,28 @@ void R_DrawLightning(entity_t *e);
 void R_DrawBeam( entity_t *e );
 
 void P_FlushRenderer(void);
+#endif
 
 //
 // vid_gl*.c
 //
+#ifdef RGLQUAKE
 void GL_DoSwap (void);
+#endif
 
 //
 // gl_backend.c
 //
+#ifdef RGLQUAKE
 void R_BackendInit(void);
 void R_IBrokeTheArrays(void);
+#endif
 
 //
 // gl_warp.c
 //
 #ifdef RGLQUAKE
 void GL_DrawSkyBox (msurface_t *s);
-#endif
-
 void GL_SubdivideSurface (msurface_t *fa, float dividesize);
 void GL_EmitBothSkyLayers (msurface_t *fa);
 void EmitWaterPolys (msurface_t *fa, float basealpha);
@@ -333,16 +336,26 @@ void R_ClearSkyBox (void);
 void R_DrawSkyBox (msurface_t *s);
 void R_ForceSkyBox (void);
 void R_AddSkySurface (msurface_t *fa);
+#endif
+#ifdef D3DQUAKE
+void D3D7_DrawSkyChain (msurface_t *s);
+void D3D7_DrawSkySphere (msurface_t *fa);
+void D3D9_DrawSkyChain (msurface_t *s);
+void D3D9_DrawSkySphere (msurface_t *fa);
+#endif
 
 //
 // gl_draw.c
 //
+#ifdef RGLQUAKE
 int GL_LoadPicTexture (qpic_t *pic);
 void GL_Set2D (void);
+#endif
 
 //
 // gl_rmain.c
 //
+#ifdef RGLQUAKE
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 qboolean R_CullSphere (vec3_t origin, float radius);
 qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs);
@@ -350,8 +363,12 @@ void R_RotateForEntity (entity_t *e);
 
 void GL_InitSceneProcessingShaders (void);
 void GL_SetupSceneProcessingTextures (void);
+#endif
 
-//gl_alias.c
+//
+// gl_alias.c
+//
+#ifdef RGLQUAKE
 void R_DrawGAliasModel (entity_t *e);
 void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius);
 void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, float radius);
@@ -364,32 +381,43 @@ void R_DrawGroupModel (entity_t *ent);
 
 //typedef float m3by3_t[3][3];
 //int GetTag(model_t *mod, char *tagname, int frame, float **org, m3by3_t **ang);
+#endif
 
 //
 // gl_rlight.c
 //
+#ifdef RGLQUAKE
 void GLR_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
-void GLR_AnimateLight (void);
 void GLR_RenderDlights (void);
 int GLR_LightPoint (vec3_t p);
 
 void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+#endif
 
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
+void GLR_AnimateLight (void);
+#endif
 
-//gl_heightmap.c
+//
+// gl_heightmap.c
+//
+#ifdef RGLQUAKE
 void GL_DrawHeightmapModel (entity_t *e);
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
+#endif
 
 //gl_bloom.c
+#ifdef RGLQUAKE
 void R_BloomRegister(void);
 void R_BloomBlend(void);
 void R_InitBloomTextures(void);
-
+#endif
 
 //
 // gl_rsurf.c
 //
+#ifdef RGLQUAKE
 void R_DrawBrushModel (entity_t *e);
 void R_DrawWorld (void);
 void GL_BuildLightmaps (void);
@@ -415,12 +443,12 @@ typedef struct {
 } lightmapinfo_t;
 #endif
 
+#endif
+
 //gl_ppl.c
 void PPL_DrawWorld (void);
 qboolean PPL_ShouldDraw(void);
 void RotateLightVector(vec3_t *angles, vec3_t origin, vec3_t lightpoint, vec3_t result);
-
-#endif
 
 //
 // gl_refrag.c

@@ -627,7 +627,7 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 	heightmap_t *hm;
 	unsigned short *heightmap;
 	int size;
-	int x, y;
+	int x;
 
 	float skyrotate;
 	vec3_t skyaxis;
@@ -769,6 +769,8 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 
 	for (x = 0; x < numsegs; x++)
 	{
+		int y;
+
 		for (y = 0; y < numsegs; y++)
 		{
 			hm->textures[x+y*SECTIONS] = Mod_LoadHiResTexture(va("%s%02ix%02i%s", basetexname, x, y, exttexname), "", true, true, false);

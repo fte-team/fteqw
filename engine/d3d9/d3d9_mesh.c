@@ -2,8 +2,6 @@
 #ifdef D3DQUAKE
 #include "d3d9quake.h"
 
-#include "com_mesh.h"
-
 #ifdef _WIN32
 #include <malloc.h>
 #else

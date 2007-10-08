@@ -193,7 +193,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	mtexid0 = 0;
 	mtexid1 = 0;
 
-	//none of them bumpmapping possabilities.
+	//none of them bumpmapping possibilities.
 	gl_bumpmappingpossible = false;
 
 	//no GL_ATI_separate_stencil

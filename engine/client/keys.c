@@ -56,7 +56,7 @@ qboolean deltaused[K_MAX][KEY_MODIFIERSTATES];
 
 void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue);
 
-extern cvar_t con_displaypossabilities;
+extern cvar_t con_displaypossibilities;
 cvar_t con_selectioncolour = SCVARFC("con_selectioncolour", "0", CVAR_RENDERERCALLBACK, Con_Selectioncolour_Callback);
 extern cvar_t cl_chatmode;
 
@@ -285,7 +285,7 @@ void CompleteCommand (qboolean force)
 	if (*s == '\\' || *s == '/')
 		s++;
 
-	if (!force && con_displaypossabilities.value)
+	if (!force && con_displaypossibilities.value)
 	{
 		int x=0;
 		for (i = 1; ; i++)
@@ -1025,7 +1025,7 @@ void Key_SetBinding (int keynum, int modifier, char *binding, int level)
 	char	*newc;
 	int		l;
 
-	if (modifier == ~0)	//all of the possabilities.
+	if (modifier == ~0)	//all of the possibilities.
 	{
 		for (l = 0; l < KEY_MODIFIERSTATES; l++)
 			Key_SetBinding(keynum, l, binding, level);
@@ -1206,7 +1206,7 @@ void Key_WriteBindings (vfsfile_t *f)
 	char prefix[128];
 
 	for (i=0 ; i<K_MAX ; i++)	//we rebind the key with all modifiers to get the standard bind, then change the specific ones.
-	{						//this does two things, it normally allows us to skip 7 of the 8 possabilities
+	{						//this does two things, it normally allows us to skip 7 of the 8 possibilities
 		base = keybindings[i][0];	//plus we can use the config with other clients.
 		if (!base)
 			base = "";

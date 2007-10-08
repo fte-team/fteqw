@@ -49,7 +49,7 @@ void CheckMVDConsistancy(unsigned char *buffer, int pos, int size)
 			pos+=4;
 		length = (IN(pos+0)<<0) + (IN(pos+1)<<8) + (IN(pos+2)<<16) + (IN(pos+3)<<24);
 		pos+=4;
-		if (length > 1450)
+		if (length > MAX_MSGLEN)
 			printf("too big (%i)\n", length);
 		pos += length;
 	}

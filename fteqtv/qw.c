@@ -948,7 +948,7 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	memset(viewer, 0, sizeof(viewer_t));
 
 	Netchan_Setup (cluster->qwdsocket, &viewer->netchan, *addr, atoi(qport), false);
-	viewer->netchan.message.maxsize = 1400;
+	viewer->netchan.message.maxsize = 1450;
 
 	viewer->next = cluster->viewers;
 	cluster->viewers = viewer;

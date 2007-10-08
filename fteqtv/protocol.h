@@ -57,7 +57,7 @@
 //limits
 #define NQ_PACKETS_PER_SECOND 20
 #define MAX_NQMSGLEN 8000
-#define MAX_MSGLEN 1400
+#define MAX_MSGLEN 1450
 #define MAX_NQDATAGRAM 1024
 #define MAX_BACKBUF_SIZE 1000	//this is smaller so we don't loose entities when lagging
 

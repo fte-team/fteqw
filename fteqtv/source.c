@@ -686,7 +686,6 @@ int SV_SayToUpstream(sv_t *qtv, char *message)
 
 void SV_SayToViewers(sv_t *qtv, char *message)
 {
-	viewer_t *v;
 	Fwd_SayToDownstream(qtv, message);
 #ifndef _MSC_VER
 	#warning Send to viewers here too

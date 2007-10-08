@@ -301,7 +301,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		}
 		Info_SetValueForStarKey(tv->serverinfo, "hostname", text, sizeof(tv->serverinfo));
 
-		if (tv->controller && tv->controller->netchan.isnqprotocol == false))
+		if (tv->controller && (tv->controller->netchan.isnqprotocol == false))
 			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);
 		return;
 	}

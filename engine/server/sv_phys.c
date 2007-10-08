@@ -2030,9 +2030,11 @@ qboolean SV_Physics (void)
 					host_client = &svs.clients[i-1];
 					sv_player = host_client->edict;
 
-					oldmovement[0] = sv_player->xv->movement[0];
-					oldmovement[1] = sv_player->xv->movement[1];
-					oldmovement[2] = sv_player->xv->movement[2];
+					//oldmovement[0] = sv_player->xv->movement[0];
+					//oldmovement[1] = sv_player->xv->movement[1];
+					//oldmovement[2] = sv_player->xv->movement[2];
+
+					SV_PreRunCmd();
 
 					ucmd.msec = host_frametime*1000;
 					ucmd.angles[0] = (unsigned short)(sv_player->v->angles[0] * (65535/360.0f));
@@ -2045,13 +2047,12 @@ qboolean SV_Physics (void)
 
 					svs.clients[i-1].lastcmd = ucmd;	//allow the other clients to predict this bot.
 
-					SV_PreRunCmd();
 					SV_RunCmd(&ucmd, false);
 					SV_PostRunCmd();
 					
-					sv_player->xv->movement[0] = oldmovement[0];
-					sv_player->xv->movement[1] = oldmovement[1];
-					sv_player->xv->movement[2] = oldmovement[2];
+					//sv_player->xv->movement[0] = oldmovement[0];
+					//sv_player->xv->movement[1] = oldmovement[1];
+					//sv_player->xv->movement[2] = oldmovement[2];
 					
 					host_client = oldhost;
 					sv_player = oldplayer;

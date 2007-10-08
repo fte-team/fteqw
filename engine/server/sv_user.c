@@ -4612,9 +4612,12 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		sv_player->v->button0 = 0;
 	}
 
-	sv_player->xv->movement[0] = ucmd->forwardmove * host_frametime;
-	sv_player->xv->movement[1] = ucmd->sidemove * host_frametime;
-	sv_player->xv->movement[2] = ucmd->upmove * host_frametime;
+	if (host_client->state && host_client->protocol != SCP_BAD)
+	{
+		sv_player->xv->movement[0] = ucmd->forwardmove * host_frametime;
+		sv_player->xv->movement[1] = ucmd->sidemove * host_frametime;
+		sv_player->xv->movement[2] = ucmd->upmove * host_frametime;
+	}
 
 	SV_CheckVelocity(sv_player);
 
@@ -5920,9 +5923,12 @@ void SV_ClientThink (void)
 	cmd = host_client->lastcmd;
 	sv_player = host_client->edict;
 
-	sv_player->xv->movement[0] = cmd.forwardmove;
-	sv_player->xv->movement[1] = cmd.sidemove;
-	sv_player->xv->movement[2] = cmd.upmove;
+	if (host_client->state && host_client->protocol != SCP_BAD)
+	{
+		sv_player->xv->movement[0] = cmd.forwardmove;
+		sv_player->xv->movement[1] = cmd.sidemove;
+		sv_player->xv->movement[2] = cmd.upmove;
+	}
 
 	if (SV_PlayerPhysicsQC)
 	{

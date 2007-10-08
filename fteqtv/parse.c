@@ -174,6 +174,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 	memset(tv->staticsound, 0, sizeof(tv->staticsound));
 
 	memset(tv->players, 0, sizeof(tv->players));
+	memset(tv->entity, 0, sizeof(tv->entity));	//for the baselines
 
 
 	for (i = 0; i < MAX_ENTITY_FRAMES; i++)
@@ -223,6 +224,8 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			QW_SetMenu(tv->controller, MENU_MAIN);
 		tv->serverisproxy = true;	//FIXME: Detect this properly on qizmo
 	}
+	else if (!strncmp(text, "//I am a proxy", 14))
+		tv->serverisproxy = true;
 	else if (!strncmp(text, "//set prox_inmenu ", 18))
 	{
 		if (tv->controller)
@@ -266,13 +269,14 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		//copy over the server's serverinfo
 		strncpy(tv->serverinfo, text+16, sizeof(tv->serverinfo)-1);
 
-		Info_ValueForKey(tv->serverinfo, "*QTV", value, sizeof(value));
+		Info_ValueForKey(tv->serverinfo, "*qtv", value, sizeof(value));
 		if (*value)
+		{
 			fromproxy = true;
+			tv->serverisproxy = fromproxy;
+		}
 		else
 			fromproxy = false;
-
-		tv->serverisproxy = fromproxy;
 
 		//add on our extra infos
 		Info_SetValueForStarKey(tv->serverinfo, "*qtv", VERSION, sizeof(tv->serverinfo));
@@ -297,6 +301,8 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		}
 		Info_SetValueForStarKey(tv->serverinfo, "hostname", text, sizeof(tv->serverinfo));
 
+		if (tv->controller && tv->controller->netchan.isnqprotocol == false))
+			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);
 		return;
 	}
 	else if (!strncmp(text, "cmd ", 4))

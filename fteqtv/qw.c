@@ -1918,6 +1918,7 @@ viewer_t *GetCommentator(viewer_t *v)
 
 void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 {
+	bsp_t *bsp = (!tv || tv->controller == v ? NULL : tv->bsp);
 	viewer_t *cv;
 	packet_entities_t *e;
 	int i;
@@ -1946,7 +1947,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 			v->settime = tv->physicstime;
 		}
 
-		BSP_SetupForPosition(tv->bsp, v->origin[0], v->origin[1], v->origin[2]);
+		BSP_SetupForPosition(bsp, v->origin[0], v->origin[1], v->origin[2]);
 
 		lerp = ((tv->simtime - tv->oldpackettime)/1000.0f) / ((tv->nextpackettime - tv->oldpackettime)/1000.0f);
 		if (lerp < 0)
@@ -1995,7 +1996,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 				continue;
 
 			//bsp cull. currently tracked player is always visible
-			if (track != i && !BSP_Visible(tv->bsp, tv->players[i].leafcount, tv->players[i].leafs))
+			if (track != i && !BSP_Visible(bsp, tv->players[i].leafcount, tv->players[i].leafs))
 				continue;
 
 			flags = PF_COMMAND;
@@ -2117,7 +2118,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 			//pvs cull everything else
 			newstate = &topacket->ents[newindex];
 			newnum = topacket->entnums[newindex];
-			if (newstate->modelindex >= tv->numinlines && !BSP_Visible(tv->bsp, tv->entity[newnum].leafcount, tv->entity[newnum].leafs))
+			if (newstate->modelindex >= tv->numinlines && !BSP_Visible(bsp, tv->entity[newnum].leafcount, tv->entity[newnum].leafs))
 				continue;
 
 			e->entnum[e->numents] = newnum;
@@ -3124,6 +3125,13 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 
 		if (v->server)
 			SV_SayToUpstream(v->server, message);
+
+		// If the currect viewer is the player, pass on the say_team
+		if (qtv && qtv->controller == v)
+		{
+			SendClientCommand(qtv, "say_team %s", message);
+			return;
+		}
 
 		for (ov = cluster->viewers; ov; ov = ov->next)
 		{

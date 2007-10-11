@@ -458,6 +458,7 @@ char *player_nick[32] =
 	"", "", "", "", "", "", "", "",
 	"", "", "", "", "", "", "", ""
 };
+unsigned int player_nicklength;
 
 void Hud_TeamOverlayUpdate(void);
 
@@ -1187,7 +1188,6 @@ void Hud_TeamName(void)
 void Hud_TeamOverlay(void)
 {
 	static int current_player = -1;
-	char str[256];
 	int offset = 0;
 
 	if (hudedit)
@@ -1220,7 +1220,8 @@ void Hud_TeamOverlay(void)
 			{
 				char armortype = ' ';
 				char* bestweap = "    ";
-				char loc[256];
+				char loc[256], str[256], spacing[256];
+				unsigned int j;
 
 				// More info about armortype
 				if (player_items[i] & IT_ARMOR3)
@@ -1246,10 +1247,16 @@ void Hud_TeamOverlay(void)
 
 				GetLocationName(player_location[i], loc, sizeof(loc));
 
-				// TODO: Tabs for formatting. Translate $5 and similar macros in loc names.
-				snprintf(str, sizeof(str), "%s%c %c%d%c%d %s%c%s%c",
+				// Format spacing
+				for (j = 0; j < (player_nicklength - strlen(player_nick[i])) && j < sizeof(spacing); j++)
+					spacing[j] = ' ';
+				spacing[j] = '\0';
+
+				// TODO: Translate $5 and similar macros in loc names.
+				snprintf(str, sizeof(str), "%s%c%s%c%d%c%d %s%c%s%c",
 					player_nick[i],		// player netname
 					':'+128,			// colored colon
+					spacing,			// spacing
 					armortype,			// armor type: r, y, g or none
 					player_armor[i],	// current armor
 					'/'+128,			// colored slash
@@ -1302,6 +1309,10 @@ void Hud_TeamOverlayUpdate(void)
 
 	// Setting this nick will make this info print
 	player_nick[user] = players[user].name;
+
+	// Check who has the longest nick for a better overlay format
+	if (strlen(player_nick[user]) > player_nicklength)
+		player_nicklength = strlen(player_nick[user]);
 
 	return;
 }

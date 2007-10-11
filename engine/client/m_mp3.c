@@ -8,7 +8,7 @@
 
 
 
-#if !defined(__CYGWIN__) && !defined(NOMEDIA)
+#if !defined(NOMEDIA)
 
 
 #include "winquake.h"
@@ -1264,8 +1264,8 @@ qboolean Media_DecodeFrame(cin_t *cin, qboolean nosound)
 		}
 		break;
 
-#ifdef WINAVI
 	case MFT_AVI:
+#ifdef WINAVI
 		{
 			LPBITMAPINFOHEADER lpbi;									// Holds The Bitmap Header Information
 			float newframe;
@@ -1330,6 +1330,8 @@ qboolean Media_DecodeFrame(cin_t *cin, qboolean nosound)
 		}
 		return true;
 #endif
+	case MFT_NONE:
+		break;
 	}
 	return false;
 }
@@ -1506,7 +1508,7 @@ qboolean Media_PausedDemo (void)
 {
 	//capturedemo doesn't record any frames when the console is visible
 	//but that's okay, as we don't load any demo frames either.
-	if (cls.demoplayback && Media_Capturing() || capturepaused)
+	if ((cls.demoplayback && Media_Capturing()) || capturepaused)
 		if (scr_con_current > 0 || !cl.validsequence || capturepaused)
 			return true;
 
@@ -1565,8 +1567,8 @@ void Media_RecordFrame (void)
 
 	switch (capturetype)
 	{
-#if defined(WINAVI)
 	case CT_AVI:
+#if defined(WINAVI)
 		{
 			HRESULT hr;
 			char *framebuffer = capturevideomem;
@@ -1593,8 +1595,8 @@ void Media_RecordFrame (void)
 			hr = AVIStreamWrite(recordavi_video_stream, captureframe++, 1, framebuffer, glwidth*glheight * 3, ((captureframe%15) == 0)?AVIIF_KEYFRAME:0, NULL, NULL);
 			if (FAILED(hr)) Con_Printf("Recoring error\n");	
 		}
-		break;
 #endif /* WINAVI */
+		break;
 	case CT_SCREENSHOT:
 		{
 			char filename[MAX_OSPATH];
@@ -1655,7 +1657,6 @@ static void MSD_Submit(soundcardinfo_t *sc)
 	int lastpos;
 	int newpos;
 	int samplestosubmit;
-	int partialsamplestosubmit;
 	int offset;
 	int bytespersample;
 
@@ -1677,10 +1678,11 @@ static void MSD_Submit(soundcardinfo_t *sc)
 
 	switch (capturetype)
 	{
-#if defined(WINAVI)
 	case CT_AVI:
+#if defined(WINAVI)
 		if ((sc->snd_completed % (sc->sn.samples/sc->sn.numchannels)) < offset)
 		{
+			int partialsamplestosubmit;
 			//wraped, two chunks to send
 			partialsamplestosubmit = ((sc->sn.samples/sc->sn.numchannels)) - offset;
 			AVIStreamWrite(recordavi_uncompressed_audio_stream, recordavi_audio_frame_counter++, 1, sc->sn.buffer+offset*bytespersample, partialsamplestosubmit*bytespersample, AVIIF_KEYFRAME, NULL, NULL);
@@ -1688,8 +1690,12 @@ static void MSD_Submit(soundcardinfo_t *sc)
 			offset = 0;
 		}
 		AVIStreamWrite(recordavi_uncompressed_audio_stream, recordavi_audio_frame_counter++, 1, sc->sn.buffer+offset*bytespersample, samplestosubmit*bytespersample, AVIIF_KEYFRAME, NULL, NULL);
-		break;
 #endif /* WINAVI */
+		break;
+	case CT_NONE:
+		break;
+	case CT_SCREENSHOT:
+		break;
 	}
 }
 

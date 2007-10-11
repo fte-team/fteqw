@@ -217,9 +217,11 @@ static void Plug_RegisterBuiltinIndex(char *name, Plug_Builtin_t bi, int flags, 
 int VARGS Plug_FindBuiltin(void *offset, unsigned int mask, const int *args)
 {
 	int i;
+	char *p = (char *)VM_POINTER(args[0]);
+
 	for (i = 0; i < numplugbuiltins; i++)
 		if (plugbuiltins[i].name)
-			if (!strcmp(plugbuiltins[i].name, (char *)VM_POINTER(args[0])))
+			if (p && !strcmp(plugbuiltins[i].name, p))
 			{
 				if (offset && plugbuiltins[i].flags & PLUG_BIF_DLLONLY)
 					return 0;	//block it, if not native
@@ -1064,30 +1066,46 @@ int VARGS Plug_FS_Open(void *offset, unsigned int mask, const int *arg)
 
 int VARGS Plug_memset(void *offset, unsigned int mask, const int *arg)
 {
+	void *p = VM_POINTER(arg[0]);
+
 	if (VM_OOB(arg[0], arg[2]))
 		return false;
 
-	memset(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]));
+	if (p)
+		memset(p, VM_LONG(arg[1]), VM_LONG(arg[2]));
+
 	return arg[0];
 }
 int VARGS Plug_memcpy(void *offset, unsigned int mask, const int *arg)
 {
+	void *p1 = VM_POINTER(arg[0]);
+	void *p2 = VM_POINTER(arg[1]);
+
 	if (VM_OOB(arg[0], arg[2]))
 		return false;
+
 	if (VM_OOB(arg[1], arg[2]))
 		return false;
 
-	memcpy(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]));
+	if (p1 && p2)
+		memcpy(p1, p2, VM_LONG(arg[2]));
+
 	return arg[0];
 }
 int VARGS Plug_memmove(void *offset, unsigned int mask, const int *arg)
 {
+	void *p1 = VM_POINTER(arg[0]);
+	void *p2 = VM_POINTER(arg[1]);
+
 	if (VM_OOB(arg[0], arg[2]))
 		return false;
+
 	if (VM_OOB(arg[1], arg[2]))
 		return false;
 
-	memmove(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]));
+	if (p1 && p2)
+		memmove(p1, p2, VM_LONG(arg[2]));
+
 	return arg[0];
 }
 

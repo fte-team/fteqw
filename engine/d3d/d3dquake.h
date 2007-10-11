@@ -8,6 +8,7 @@
 #include    "ddraw.h"
 #include    "d3d.h"
 #include    "d3dx.h"
+#include    "glquake.h"
 
 void *D3D_LoadTexture_32(char *name, unsigned int *data, int width, int height, int flags);
 void *D3D_LoadTexture_8_Pal24(char *name, unsigned char *data, int width, int height, int flags, unsigned char *palette, int transparentpix);

@@ -3,6 +3,7 @@
 
 #include "d3d9.h"
 #include "com_mesh.h"
+#include "glquake.h"
 
 //
 // d3d9_draw.c

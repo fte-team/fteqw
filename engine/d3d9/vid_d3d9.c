@@ -2,7 +2,6 @@
 #ifdef D3DQUAKE
 #include "winquake.h"
 #include "d3d9quake.h"
-#include "glquake.h"
 
 //#include    "d3d9.h"
 

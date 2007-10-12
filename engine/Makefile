@@ -116,7 +116,11 @@ ifeq ($(FTE_TARGET),bsd)
 endif
 BASELDFLAGS ?= -lm -ldl -lpthread
 
-IMAGELDFLAGS=-lpng -ljpeg
+ifeq ($(FTE_TARGET),win32)
+	IMAGELDFLAGS=$(LIBS_DIR)/mingw-libs/libpng.a $(LIBS_DIR)/mingw-libs/libz.a $(LIBS_DIR)/mingw-libs/libjpeg.a
+else
+	IMAGELDFLAGS=-lpng -ljpeg
+endif
 
 #BASELDFLAGS=-lm  -lz
 GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext $(IMAGELDFLAGS)
@@ -157,7 +161,13 @@ CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
 DEBUG_CFLAGS=-ggdb -g
-RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+
+ifeq ($(FTE_TARGET),win32)
+	RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+else
+	RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+endif
+
 GLCFLAGS=-DGLQUAKE
 SWCFLAGS=-DSWQUAKE
 D3DCFLAGS=-DD3DQUAKE
@@ -437,7 +447,7 @@ else
 endif
 	GL_EXE_NAME=../fteglqw.exe
 	GLCL_EXE_NAME=../fteglqwcl.exe
-	GL_LDFLAGS=$(GLLDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
 	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
 	GLB_DIR=gl_mgw
 	GLCL_DIR=glcl_mgw
@@ -449,7 +459,7 @@ else
 endif
 	SW_EXE_NAME=../fteswqw.exe
 	SWCL_EXE_NAME=../fteswqwcl.exe
-	SW_LDFLAGS=$(SWLDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
+	SW_LDFLAGS=$(SWLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
 	SW_CFLAGS=$(SWCFLAGS) $(W32_CFLAGS)
 	SWB_DIR=sw_mgw
 	SWCL_DIR=swcl_mgw
@@ -461,7 +471,7 @@ else
 endif
 	M_EXE_NAME=../fteqw.exe
 	MCL_EXE_NAME=../fteqwcl.exe
-	M_LDFLAGS=$(GLLDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
+	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
 	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) $(W32_CFLAGS)
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw

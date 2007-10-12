@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -45,6 +45,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define AVAIL_OGGVORBIS
 	#endif
 	#define AVAIL_MASM
+
+#ifdef MINGW
+	#define AVAIL_PNGLIB
+	#define AVAIL_ZLIB
+	#define AVAIL_JPEGLIB
+#endif
 
 
 #ifdef NO_PNG
@@ -91,7 +97,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define CLIENTONLY
 #endif
 	#else
-
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
 		#define SP2MODELS		//quake2 sprite models
 		#define MD2MODELS		//quake2 alias models
@@ -145,10 +150,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 //fix things a little...
-
-#ifdef MINGW
-	#undef AVAIL_ZLIB
-#endif
 
 #ifndef _WIN32
 	#undef QTERM	//not supported - FIXME: move to native plugin
@@ -248,7 +249,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define DISTRIBUTION "FTE"
 	#define DISTRIBUTIONLONG "Forethought Entertainment"
 	#define FULLENGINENAME "FTE QuakeWorld"
-	#define ENGINEWEBSITE "http://fteqw.sourceforge.net/"
+	#define ENGINEWEBSITE "http://www.fteqw.com"
 #endif
 
 #ifndef PLATFORM

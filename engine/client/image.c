@@ -52,15 +52,15 @@ char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey
 
 	qbyte *pixels = BZ_Malloc(tgahead->width * tgahead->height * (asgrey?1:4));
 
-	if (tgahead->version!=1 
-		&& tgahead->version!=3) 
+	if (tgahead->version!=1
+		&& tgahead->version!=3)
 	{
 		Con_Printf("LoadGrayTGA: Only type 1 and 3 greyscale targa images are understood.\n");
 		BZ_Free(pixels);
 		return NULL;
 	}
 
-    if (tgahead->version==1 && tgahead->bpp != 8 && 
+    if (tgahead->version==1 && tgahead->bpp != 8 &&
 		tgahead->cm_size != 24 && tgahead->cm_len != 256)
 	{
 		Con_Printf("LoadGrayTGA: Strange palette type\n");
@@ -91,7 +91,7 @@ char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey
 					pixbuf = pixels + ((rows-1)-row)*columns;
 
 				for(column=0; column<columns; column++)
-					*pixbuf++= *data++;							
+					*pixbuf++= *data++;
 			}
 		}
 		else
@@ -128,7 +128,7 @@ char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey
 
 			pixbuf = pixels + row*columns;
 			for(column=0; column<columns; column++)
-				*pixbuf++= *data++;							
+				*pixbuf++= *data++;
 		}
 	}
 	else
@@ -194,12 +194,12 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 		if (!tgaheader.version == 1 && !tgaheader.version == 3)
 			return NULL;
 	}
-	if (tgaheader.version == 1 || tgaheader.version == 3) 
+	if (tgaheader.version == 1 || tgaheader.version == 3)
 	{
 		return ReadGreyTargaFile(data, length, &tgaheader, asgrey);
 	}
 	else if (tgaheader.version == 10 || tgaheader.version == 11)
-	{		
+	{
 #undef getc
 #define getc(x) *data++
 		unsigned row, rows=tgaheader.height, column, columns=tgaheader.width, packetHeader, packetSize, j;
@@ -235,7 +235,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 								red = ((inrow[1] & 0x7c)>>2) *8;					//red
 								green =	(((inrow[1] & 0x03)<<3) + ((inrow[0] & 0xe0)>>5))*8;	//green
 								blue = (inrow[0] & 0x1f)*8;					//blue
-								alphabyte = (int)(inrow[1]&0x80)*2-1;			//alpha?					
+								alphabyte = (int)(inrow[1]&0x80)*2-1;			//alpha?
 								break;
 						case 24:
 								blue = *data++;
@@ -256,7 +256,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 								alphabyte = 127;
 								break;
 					}
-	
+
 					if (!asgrey)	//keep colours
 					{
 						for(j=0;j<packetSize;j++)
@@ -298,7 +298,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 								else
 									pixbuf = targa_rgba + ((rows-1)-row)*columns*1;
 							}
-						}						
+						}
 					}
 				}
 				else
@@ -367,7 +367,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 									pixbuf = targa_rgba + row*columns*4;
 								else
 									pixbuf = targa_rgba + ((rows-1)-row)*columns*4;
-							}						
+							}
 						}
 					}
 					else	//convert to grey
@@ -421,24 +421,24 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 									pixbuf = targa_rgba + row*columns*1;
 								else
 									pixbuf = targa_rgba + ((rows-1)-row)*columns*1;
-							}						
+							}
 						}
 					}
 				}
 			}
 		}
-		breakOut:;		
+		breakOut:;
 
 		return targa_rgba;
 	}
 	else if (tgaheader.version == 2)
-	{		
+	{
 		qbyte *initbuf=BZ_Malloc(tgaheader.height*tgaheader.width* (asgrey?1:4));
 		qbyte *inrow, *outrow;
 		int x, y, mul;
 		qbyte blue, red, green;
 
-		if (tgaheader.bpp == 8) 
+		if (tgaheader.bpp == 8)
 			return NULL;
 
 		mul = tgaheader.bpp/8;
@@ -455,7 +455,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 				inrow = &data[(int)(y)*tgaheader.width*mul];
 
 			if (!asgrey)
-			{				
+			{
 				switch(mul)
 				{
 				case 2:
@@ -491,7 +491,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 				}
 			}
 			else
-			{				
+			{
 				switch(mul)
 				{
 				case 2:
@@ -528,7 +528,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 					break;
 				}
 			}
-		}		
+		}
 
 		return initbuf;
 	}
@@ -544,7 +544,8 @@ return NULL;
 
 	#ifndef PNG_SUCKS_WITH_SETJMP
 		#if defined(MINGW)
-			#error no pngs with mingw
+			#include "./mingw-libs/png.h"
+			#pragma comment(lib, "../libs/libpng.a")
 		#elif defined(_WIN32)
 			#include "png.h"
 			#pragma comment(lib, "../libs/libpng.lib")
@@ -562,7 +563,7 @@ int setjmp (jmp_buf jb)
 }
 #endif
 
-typedef struct {	
+typedef struct {
 	char *data;
 	int readposition;
 	int filelen;
@@ -605,7 +606,7 @@ qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, char *fname)
 	}
 
 	if (!(pnginfo = png_create_info_struct(png))) {
-		png_destroy_read_struct(&png, &pnginfo, NULL);		
+		png_destroy_read_struct(&png, &pnginfo, NULL);
 		return (png_rgba = NULL);
 	}
 
@@ -616,14 +617,14 @@ error:
 			BZ_Free(data);
 		if (rowpointers)
 			BZ_Free(rowpointers);
-        png_destroy_read_struct(&png, &pnginfo, NULL);		
+        png_destroy_read_struct(&png, &pnginfo, NULL);
         return (png_rgba = NULL);
     }
 
 	ri.data=buf;
 	ri.readposition=8;
 	ri.filelen=length;
-	png_set_read_fn(png, &ri, readpngdata);	
+	png_set_read_fn(png, &ri, readpngdata);
 
 	png_set_sig_bytes(png, 8);
 	png_read_info(png, pnginfo);
@@ -631,21 +632,21 @@ error:
 
 	if (colortype == PNG_COLOR_TYPE_PALETTE) {
 		png_set_palette_to_rgb(png);
-		png_set_filler(png, 255, PNG_FILLER_AFTER);			
+		png_set_filler(png, 255, PNG_FILLER_AFTER);
 	}
 
-	if (colortype == PNG_COLOR_TYPE_GRAY && bitdepth < 8) 
+	if (colortype == PNG_COLOR_TYPE_GRAY && bitdepth < 8)
 		png_set_gray_1_2_4_to_8(png);
-	
-	if (png_get_valid( png, pnginfo, PNG_INFO_tRNS ))		
-		png_set_tRNS_to_alpha(png); 
 
-	if (bitdepth >= 8 && colortype == PNG_COLOR_TYPE_RGB)	
+	if (png_get_valid( png, pnginfo, PNG_INFO_tRNS ))
+		png_set_tRNS_to_alpha(png);
+
+	if (bitdepth >= 8 && colortype == PNG_COLOR_TYPE_RGB)
 		png_set_filler(png, 255, PNG_FILLER_AFTER);
-	
+
 	if (colortype == PNG_COLOR_TYPE_GRAY || colortype == PNG_COLOR_TYPE_GRAY_ALPHA) {
 		png_set_gray_to_rgb( png );
-		png_set_filler(png, 255, PNG_FILLER_AFTER);			
+		png_set_filler(png, 255, PNG_FILLER_AFTER);
 	}
 
 	if (bitdepth < 8)
@@ -653,14 +654,14 @@ error:
 	else if (bitdepth == 16)
 		png_set_strip_16(png);
 
-	
+
 	png_read_update_info( png, pnginfo );
 	rowbytes = png_get_rowbytes( png, pnginfo );
 	bytesperpixel = png_get_channels( png, pnginfo );
 	bitdepth = png_get_bit_depth(png, pnginfo);
 
-	if (bitdepth != 8 || bytesperpixel != 4) {	
-		Con_Printf ("Bad PNG color depth and/or bpp (%s)\n", fname);		
+	if (bitdepth != 8 || bytesperpixel != 4) {
+		Con_Printf ("Bad PNG color depth and/or bpp (%s)\n", fname);
 		png_destroy_read_struct(&png, &pnginfo, NULL);
 		return (png_rgba = NULL);
 	}
@@ -678,7 +679,7 @@ error:
 	png_read_end(png, NULL);
 
 	png_destroy_read_struct(&png, &pnginfo, NULL);
-	BZ_Free(rowpointers);	
+	BZ_Free(rowpointers);
 	return (png_rgba = data);
 }
 
@@ -693,7 +694,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	png_infop info_ptr;
 	png_byte **row_pointers;
 	snprintf (name, sizeof(name)-1, "%s/%s", com_gamedir, filename);
-	
+
 	if (!(fp = fopen (name, "wb"))) {
 		COM_CreatePath (name);
 		if (!(fp = fopen (name, "wb")))
@@ -721,7 +722,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	compression = bound(0, compression, 100);
 	png_set_compression_level(png_ptr, Z_NO_COMPRESSION + (compression*(Z_BEST_COMPRESSION-Z_NO_COMPRESSION))/100);
 
-	png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);	
+	png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 	png_write_info(png_ptr, info_ptr);
 
 	row_pointers = BZ_Malloc (sizeof(png_byte *) * height);
@@ -741,21 +742,21 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 #ifdef AVAIL_JPEGLIB
 #define XMD_H	//fix for mingw
 
-#if defined(_WIN32)
-
+#if defined(MINGW)
+	#define JPEG_API VARGS
+	#include "./mingw-libs/jpeglib.h"
+	#include "./mingw-libs/jerror.h"
+	#pragma comment(lib, "../libs/jpeg.a")
+#elif defined(_WIN32)
 	#define JPEG_API VARGS
 	#include "jpeglib.h"
 	#include "jerror.h"
 	#pragma comment(lib, "../libs/jpeg.lib")
-
 #else
-
 //	#include <jinclude.h>
 	#include <jpeglib.h>
 	#include <jerror.h>
 #endif
-
-
 
 
 
@@ -826,7 +827,7 @@ fill_input_buffer (j_decompress_ptr cinfo)
 {
 	my_source_mgr *src = (my_source_mgr*) cinfo->src;
 	size_t nbytes;
-  
+
 	nbytes = src->maxlen - src->currentpos;
 	if (nbytes > INPUT_BUF_SIZE)
 		nbytes = INPUT_BUF_SIZE;
@@ -920,7 +921,7 @@ qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height)
    * struct, to avoid dangling-pointer problems.
    */
   struct my_error_mgr jerr;
-  /* More stuff */  
+  /* More stuff */
   JSAMPARRAY buffer;		/* Output row buffer */
   int size_stride;		/* physical row width in output buffer */
 
@@ -936,12 +937,12 @@ qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height)
 
 badjpeg:
 
-    jpeg_destroy_decompress(&cinfo);    
+    jpeg_destroy_decompress(&cinfo);
 
 	if (mem)
 		BZ_Free(mem);
     return 0;
-  }  
+  }
   jpeg_create_decompress(&cinfo);
 
   jpeg_mem_src(&cinfo, infile, length);
@@ -965,7 +966,7 @@ badjpeg:
    memset(out, 0, cinfo.output_height*cinfo.output_width*4);
 
   while (cinfo.output_scanline < cinfo.output_height) {
-    (void) jpeg_read_scanlines(&cinfo, buffer, 1);    
+    (void) jpeg_read_scanlines(&cinfo, buffer, 1);
 
 	in = buffer[0];
 	for (i = 0; i < cinfo.output_width; i++)
@@ -973,8 +974,8 @@ badjpeg:
 		*out++ = *in++;
 		*out++ = *in++;
 		*out++ = *in++;
-		*out++ = 255;	
-	}	
+		*out++ = 255;
+	}
   }
 
   (void) jpeg_finish_decompress(&cinfo);
@@ -990,7 +991,7 @@ badjpeg:
 
 
 #define OUTPUT_BUF_SIZE 4096
-typedef struct  {	
+typedef struct  {
   struct jpeg_error_mgr pub;
 
   jmp_buf setjmp_buffer;
@@ -1056,7 +1057,7 @@ void jpeg_mem_dest (j_compress_ptr cinfo, vfsfile_t *vfs)
 
 
 
-METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo) {	
+METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo) {
   longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
 void screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight)	//input is rgb NOT rgba
@@ -1090,9 +1091,9 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 	jpeg_create_compress(&cinfo);
 
 	buffer = screendata;
-	
+
 	jpeg_mem_dest(&cinfo, outfile);
-	cinfo.image_width = screenwidth; 	
+	cinfo.image_width = screenwidth;
 	cinfo.image_height = screenheight;
 	cinfo.input_components = 3;
 	cinfo.in_color_space = JCS_RGB;
@@ -1114,25 +1115,25 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 #endif
 
 
-/* 
-============== 
-WritePCXfile 
-============== 
-*/ 
+/*
+==============
+WritePCXfile
+==============
+*/
 void WritePCXfile (char *filename, qbyte *data, int width, int height,
 	int rowbytes, qbyte *palette, qboolean upload) //data is 8bit.
 {
 	int		i, j, length;
 	pcx_t	*pcx;
 	qbyte		*pack;
-	  
+
 	pcx = Hunk_TempAlloc (width*height*2+1000);
 	if (pcx == NULL)
 	{
 		Con_Printf("SCR_ScreenShot_f: not enough memory\n");
 		return;
-	} 
- 
+	}
+
 	pcx->manufacturer = 0x0a;	// PCX id
 	pcx->version = 5;			// 256 color
  	pcx->encoding = 1;		// uncompressed
@@ -1170,21 +1171,21 @@ void WritePCXfile (char *filename, qbyte *data, int width, int height,
 		data += rowbytes - width;
 		data -= rowbytes * 2;
 	}
-			
+
 // write the palette
 	*pack++ = 0x0c;	// palette ID qbyte
 	for (i=0 ; i<768 ; i++)
 		*pack++ = *palette++;
-		
-// write output file 
+
+// write output file
 	length = pack - (qbyte *)pcx;
 
 	if (upload)
 		CL_StartUpload((void *)pcx, length);
 	else
 		COM_WriteFile (filename, pcx, length);
-} 
- 
+}
+
 
 
 /*
@@ -1209,9 +1210,9 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 
 //
 // parse the PCX file
-//	
+//
 
-	pcx = (pcx_t *)buf; 
+	pcx = (pcx_t *)buf;
 
 	xmin = LittleShort(pcx->xmin);
 	ymin = LittleShort(pcx->ymin);
@@ -1224,7 +1225,7 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 		|| pcx->bits_per_pixel != 8
 		|| xmax >= 1024
 		|| ymax >= 1024)
-	{		
+	{
 		return NULL;
 	}
 
@@ -1290,7 +1291,7 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 
 //
 // parse the PCX file
-//	
+//
 
 	pcx = (pcx_t *)buf;
 
@@ -1303,7 +1304,7 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 		|| pcx->version != 5
 		|| pcx->encoding != 1
 		|| pcx->bits_per_pixel != 8)
-	{		
+	{
 		return NULL;
 	}
 
@@ -1353,7 +1354,7 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out)
 
 //
 // parse the PCX file
-//	
+//
 
 	pcx = (pcx_t *)buf;
 
@@ -1363,7 +1364,7 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out)
 		|| pcx->bits_per_pixel != 8
 		|| LittleShort(pcx->xmax) >= 1024
 		|| LittleShort(pcx->ymax) >= 1024)
-	{		
+	{
 		return NULL;
 	}
 
@@ -1486,7 +1487,7 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 			for (x = 0; x < h.Width/2; x++)
 			{
 				data32[i++] = pal[buf[x]>>4];
-				data32[i++] = pal[buf[x]&15];				
+				data32[i++] = pal[buf[x]&15];
 			}
 			buf += h.Width>>1;
 		}
@@ -1514,7 +1515,7 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 
 		return data;
 	}
-	else			
+	else
 		return NULL;
 
 	return NULL;
@@ -1530,7 +1531,7 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 	out = BZ_Malloc(sizeof(bmpheader_t)+width*3*height);
 
 
-	
+
 	*(short*)((qbyte *)h-2) = *(short*)"BM";
 	h->Size = LittleLong(in->Size);
 	h->Reserved1 = LittleShort(in->Reserved1);
@@ -1615,7 +1616,7 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 			for (x = 0; x < h.Width/2; x++)
 			{
 				data32[i++] = pal[buf[x]>>4];
-				data32[i++] = pal[buf[x]&15];				
+				data32[i++] = pal[buf[x]&15];
 			}
 			buf += h.Width>>1;
 		}
@@ -1643,7 +1644,7 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 
 		return data;
 	}
-	else			
+	else
 		return NULL;
 
 	return NULL;
@@ -1690,7 +1691,7 @@ void SaturateR8G8B8(qbyte *data, int size, float sat)
 				v = NTSC_SUM;
 			else
 				v *= v;
-			
+
 			data[i]   = r*v;
 			data[i+1] = g*v;
 			data[i+2] = b*v;
@@ -1865,7 +1866,7 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, char *fn
 		TRACE(("dbg: Read32BitImageFile: tga\n"));
 		return data;
 	}
-	
+
 #ifdef AVAIL_PNGLIB
 	if ((buf[0] == 137 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') && (data = ReadPNGFile(buf, com_filesize, width, height, fname)))
 	{
@@ -1907,7 +1908,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 	char *buf, *data;
 	int len;
 //	int h;
-	char fname[MAX_QPATH], nicename[MAX_QPATH];	
+	char fname[MAX_QPATH], nicename[MAX_QPATH];
 
 	static char *extensions[] = {//reverse order of preference - (match commas with optional file types)
 		".pcx",	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
@@ -2023,7 +2024,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 	data = W_GetTexture(name, &image_width, &image_height, &alphaed);
 	if (data)
 		return R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alphaed);
-	return 0;	
+	return 0;
 }
 int Mod_LoadReplacementTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust)
 {
@@ -2038,7 +2039,7 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 	char *buf, *data;
 	int len;
 //	int h;
-	char fname[MAX_QPATH], nicename[MAX_QPATH];	
+	char fname[MAX_QPATH], nicename[MAX_QPATH];
 
 	static char *extensions[] = {//reverse order of preference - (match commas with optional file types)
 		".tga",
@@ -2177,7 +2178,7 @@ void AddOcranaLEDsIndexed (qbyte *image, int h, int w)
 				r = rd - (x*2); r *= r;
 				g = gd - (y*2); g *= g;
 				idx = (r + g) / b;
-				
+
 				if (idx > 7)
 					*point++ = 0;
 				else

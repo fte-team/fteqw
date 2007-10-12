@@ -17,6 +17,10 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
+
+#ifndef GLQUAKE_H
+#define GLQUAKE_H
+
 // disable data conversion warnings
 #ifdef MSVCDISABLEWARNINGS
 #pragma warning(disable : 4244)     // MIPS
@@ -916,4 +920,6 @@ extern vec3_t	r_pright, r_pup, r_ppn;
 
 
 extern	float	xscaleshrink, yscaleshrink;
+#endif
+
 #endif

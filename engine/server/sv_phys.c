@@ -2007,7 +2007,7 @@ qboolean SV_Physics (void)
 
 	if (/*sv.botsonthemap &&*/ progstype == PROG_QW)
 	{
-		//DP_QC_BOTCLIENT - make the bots move with qw physics.
+		//DP_SV_BOTCLIENT - make the bots move with qw physics.
 		//They only move when there arn't any players on the server, but they should move at the right kind of speed if there are... hopefully
 		//they might just be a bit lagged. they will at least be as smooth as other players are.
 

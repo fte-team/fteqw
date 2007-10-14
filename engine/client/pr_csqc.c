@@ -3423,10 +3423,10 @@ PF_FindFlags,			// #449 entity(entity start, .entity fld, float match) findflags
 PF_findchainflags,		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
 PF_cs_gettagindex,		// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
 PF_cs_gettaginfo,		// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
-PF_NoCSQC,				// #453 void(entity player) dropclient (DP_QC_BOTCLIENT) (don't implement)
-PF_NoCSQC,				// #454	entity() spawnclient (DP_QC_BOTCLIENT) (don't implement)
+PF_NoCSQC,				// #453 void(entity player) dropclient (DP_SV_BOTCLIENT) (don't implement)
+PF_NoCSQC,				// #454	entity() spawnclient (DP_SV_BOTCLIENT) (don't implement)
 
-PF_NoCSQC,				// #455 float(entity client) clienttype (DP_QC_BOTCLIENT) (don't implement)
+PF_NoCSQC,				// #455 float(entity client) clienttype (DP_SV_BOTCLIENT) (don't implement)
 PF_Fixme,				// #456
 PF_Fixme,				// #457
 PF_Fixme,				// #458

@@ -3273,7 +3273,7 @@ void PF_dropclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-//DP_QC_BOTCLIENT
+//DP_SV_BOTCLIENT
 //entity() spawnclient = #454;
 void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3298,7 +3298,7 @@ void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_EDICT(prinst, sv.edicts);
 }
 
-//DP_QC_BOTCLIENT
+//DP_SV_BOTCLIENT
 //float(entity client) clienttype = #455;
 void PF_clienttype (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6356,7 +6356,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_MONSTERWALK"},
 	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
 	{"DP_MOVETYPEFOLLOW"},
-	{"DP_QC_BOTCLIENT",					2,	NULL, {"spawnclient", "clienttype"}},
+	{"DP_SV_BOTCLIENT",					2,	NULL, {"spawnclient", "clienttype"}},
 	{"DP_QC_CHANGEPITCH",				1,	NULL, {"changepitch"}},
 	{"DP_QC_COPYENTITY",				1,	NULL, {"copyentity"}},
 	{"DP_QC_CVAR_STRING",				1,	NULL, {"dp_cvar_string"}},	//448 builtin.
@@ -9778,7 +9778,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_MD3_TAGSINFO
 	{"gettagindex",		PF_gettagindex,		0,		0,		0,		451},// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
 	{"gettaginfo",		PF_gettaginfo,		0,		0,		0,		452},// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
-//DP_QC_BOTCLIENT
+//DP_SV_BOTCLIENT
 	{"dropclient",		PF_dropclient,		0,		0,		0,		453},// #453 void(entity player) dropclient
 
 	{"spawnclient",		PF_spawnclient,		0,		0,		0,		454},	//entity() spawnclient = #454;

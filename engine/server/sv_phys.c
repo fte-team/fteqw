@@ -2031,7 +2031,12 @@ qboolean SV_Physics (void)
 
 					SV_PreRunCmd();
 
+#ifdef SERVERONLY
 					ucmd.msec = host_frametime*1000;
+#else
+					// FIXME: Something very weird is going on here!
+					ucmd.msec = 0;
+#endif
 					ucmd.angles[0] = (int)(sv_player->v->angles[0] * (65535/360.0f));
 					ucmd.angles[1] = (int)(sv_player->v->angles[1] * (65535/360.0f));
 					ucmd.angles[2] = (int)(sv_player->v->angles[2] * (65535/360.0f));

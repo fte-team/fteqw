@@ -18,7 +18,7 @@ BASE_DIR=.
 ifeq ($(FTE_TARGET),win32)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
-		ifneq ($(shell i586-mingw32msvc-gcc -v 2>&1 | grep mingw),)
+		ifneq ($(shell which i586-mingw32msvc-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=i586-mingw32msvc-gcc
 #			BITS?=32

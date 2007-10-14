@@ -292,7 +292,7 @@ static char	macro_buf[MAX_MACRO_VALUE] = "";
 //}
 static void MacroBuf_strcat_with_separator (char *str) {
 	if (macro_buf[0])
-		strlcat (macro_buf, "/", sizeof(macro_buf));
+		strlcat (macro_buf, tp_name_separator.string, sizeof(macro_buf));
 	strlcat (macro_buf, str, sizeof(macro_buf));
 }
 
@@ -516,28 +516,18 @@ static char *Macro_Powerups (void)
 	macro_buf[0] = 0;
 
 	if (cl.stats[SP][STAT_ITEMS] & IT_QUAD)
-		strcpy(macro_buf, "quad");
+		MacroBuf_strcat_with_separator (tp_name_quad.string);
 
-	if (cl.stats[SP][STAT_ITEMS] & IT_INVULNERABILITY) {
-		if (macro_buf[0])
-			strcat(macro_buf, "/");
-		strcat(macro_buf, "pent");
-	}
+	if (cl.stats[SP][STAT_ITEMS] & IT_INVULNERABILITY)
+		MacroBuf_strcat_with_separator (tp_name_pent.string);
 
-	if (cl.stats[SP][STAT_ITEMS] & IT_INVISIBILITY) {
-		if (macro_buf[0])
-			strcat(macro_buf, "/");
-		strcat(macro_buf, "ring");
-	}
+	if (cl.stats[SP][STAT_ITEMS] & IT_INVISIBILITY)
+		MacroBuf_strcat_with_separator (tp_name_ring.string);
 
 	effects = cl.frames[cl.parsecount&UPDATE_MASK].playerstate[cl.playernum[SP]].effects;
 	if ( (effects & (QWEF_FLAG1|QWEF_FLAG2)) ||		// CTF
 		(cl.teamfortress && cl.stats[SP][STAT_ITEMS] & (IT_KEY1|IT_KEY2)) ) // TF
-	{
-		if (macro_buf[0])
-			strcat(macro_buf, "/");
-		strcat(macro_buf, "flag");
-	}
+		MacroBuf_strcat_with_separator (tp_name_flag.string);
 
 	return macro_buf;
 }

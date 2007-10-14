@@ -1321,15 +1321,15 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 			else
 			{
 				memset(&cmd, 0, sizeof(cmd));
-				cmd.angles[0] = ent->angles[0] * 65535/360.0f;
-				cmd.angles[1] = ent->angles[1] * 65535/360.0f;
-				cmd.angles[2] = ent->angles[2] * 65535/360.0f;
+				cmd.angles[0] = (int)(ent->angles[0] * 65535/360.0f);
+				cmd.angles[1] = (int)(ent->angles[1] * 65535/360.0f);
+				cmd.angles[2] = (int)(ent->angles[2] * 65535/360.0f);
 			}
 
 			if (ent->health <= 0)
 			{	// don't show the corpse looking around...
 				cmd.angles[0] = 0;
-				cmd.angles[1] = ent->angles[1]*65535/360;
+				cmd.angles[1] = (int)(ent->angles[1]*65535/360);
 				cmd.angles[2] = 0;
 			}
 

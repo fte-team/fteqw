@@ -2032,9 +2032,9 @@ qboolean SV_Physics (void)
 					SV_PreRunCmd();
 
 					ucmd.msec = host_frametime*1000;
-					ucmd.angles[0] = (unsigned short)(sv_player->v->angles[0] * (65535/360.0f));
-					ucmd.angles[1] = (unsigned short)(sv_player->v->angles[1] * (65535/360.0f));
-					ucmd.angles[2] = (unsigned short)(sv_player->v->angles[2] * (65535/360.0f));
+					ucmd.angles[0] = (int)(sv_player->v->angles[0] * (65535/360.0f));
+					ucmd.angles[1] = (int)(sv_player->v->angles[1] * (65535/360.0f));
+					ucmd.angles[2] = (int)(sv_player->v->angles[2] * (65535/360.0f));
 					ucmd.forwardmove = sv_player->xv->movement[0];
 					ucmd.sidemove = sv_player->xv->movement[1];
 					ucmd.upmove = sv_player->xv->movement[2];

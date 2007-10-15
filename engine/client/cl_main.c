@@ -2035,7 +2035,7 @@ void CL_ConnectionlessPacket (void)
 			}
 			else
 			{
-					Con_Printf("\nChallange from another protocol, ignoring Q3 challange\n");
+					Con_Printf("\nChallenge from another protocol, ignoring Q3 challenge\n");
 					return;
 			}
 			return;
@@ -2061,7 +2061,7 @@ void CL_ConnectionlessPacket (void)
 					CL_ConnectToDarkPlaces(s+9, net_from);
 				}
 				else
-					Con_Printf("\nChallange from another protocol, ignoring DP challange\n");
+					Con_Printf("\nChallenge from another protocol, ignoring DP challenge\n");
 #else
 				Con_Printf("\nUnable connect to DarkPlaces\n");
 #endif
@@ -2073,7 +2073,7 @@ void CL_ConnectionlessPacket (void)
 				cls.protocol = CP_QUAKE2;
 			else
 			{
-				Con_Printf("\nChallange from another protocol, ignoring Q2 challange\n");
+				Con_Printf("\nChallenge from another protocol, ignoring Q2 challenge\n");
 				return;
 			}
 #else

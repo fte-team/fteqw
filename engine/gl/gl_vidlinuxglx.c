@@ -64,6 +64,10 @@ int scrnum;
 
 static float old_windowed_mouse = 0;
 
+#ifdef USE_DGA
+static int dgamouse = 0;
+#endif
+
 #define KEY_MASK (KeyPressMask | KeyReleaseMask)
 #define MOUSE_MASK (ButtonPressMask | ButtonReleaseMask | \
 		    PointerMotionMask)

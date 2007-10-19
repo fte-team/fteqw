@@ -42,7 +42,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <errno.h>
+#ifndef __MACOSX__
 #include <X11/Xlib.h>
+#endif
 
 #include "quakedef.h"
 

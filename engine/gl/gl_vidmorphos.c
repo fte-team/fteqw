@@ -37,6 +37,26 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "gl_vidtinyglstubs.c"
 
+#ifndef SA_GammaControl
+#define SA_GammaControl (SA_Dummy + 123)
+#endif
+
+#ifndef SA_3DSupport
+#define SA_3DSupport (SA_Dummy + 127)
+#endif
+
+#ifndef SA_GammaRed
+#define SA_GammaRed (SA_Dummy + 124)
+#endif
+
+#ifndef SA_GammaBlue
+#define SA_GammaBlue (SA_Dummy + 125)
+#endif
+
+#ifndef SA_GammaGreen
+#define SA_GammaGreen (SA_Dummy + 126)
+#endif
+
 #define WARP_WIDTH              320
 #define WARP_HEIGHT             200
 

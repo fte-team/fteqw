@@ -529,6 +529,9 @@ endif
 	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) -I/usr/X11R6/include
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd
+
+	MINGL_EXE_NAME=../fteqw.mingl
+	MINGL_DIR=mingl_bsd
 endif
 ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 

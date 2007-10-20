@@ -492,7 +492,7 @@ ifeq ($(FTE_TARGET),bsd)
 	#oss, X, etc.
 
 	SV_DIR=sv_linux
-	SV_LDFLAGS=-lz
+	SV_LDFLAGS=-lz -ldl
 
 ifeq ($(USEASM),true)
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
@@ -501,7 +501,7 @@ else
 endif
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
-	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm
+	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm -lpthread
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include
 	GLB_DIR=gl_bsd
 	GLCL_DIR=glcl_bsd
@@ -513,7 +513,7 @@ else
 endif
 	SW_EXE_NAME=../fteqw.sw
 	SWCL_EXE_NAME=../fteqwcl.sw
-	SW_LDFLAGS=-L/usr/local/lib $(SWLDFLAGS) $(XLDFLAGS)
+	SW_LDFLAGS=-L/usr/local/lib $(SWLDFLAGS) $(XLDFLAGS) -lXxf86vm -lpthread
 	SW_CFLAGS=$(SWCFLAGS) -I/usr/local/include -I/usr/X11R6/include
 	SWB_DIR=sw_bsd
 	SWCL_DIR=swcl_bsd
@@ -525,7 +525,7 @@ else
 endif
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm -lpthread
 	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) -I/usr/X11R6/include
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd

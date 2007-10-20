@@ -599,7 +599,7 @@ ifeq ($(FTE_TARGET),macosx)
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
 	MINGL_EXE_NAME=../fteqw.mingl
-	MINGL_DIR=mingl_morphos
+	MINGL_DIR=mingl_maxosx
 
 
 	#seems, macosx has a more limited version of strip
@@ -613,7 +613,7 @@ ifeq ($(FTE_TARGET),morphos)
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
-	GL_LDFLAGS=$(GLLDFLAGS) -ldl -lsyscall $(IMAGELDFLAGS) -lz
+	GL_LDFLAGS=$(GLLDFLAGS) -ldl $(IMAGELDFLAGS) -lz
 	GL_CFLAGS=$(GLCFLAGS) -noixemul
 	GLB_DIR=gl_morphos
 	GLCL_DIR=glcl_morphos
@@ -621,7 +621,7 @@ ifeq ($(FTE_TARGET),morphos)
 	SWCL_OBJS=$(SOFTWARE_OBJS) vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	SW_EXE_NAME=../fteqw.sw
 	SWCL_EXE_NAME=../fteqwcl.sw
-	SW_LDFLAGS=$(SWLDFLAGS) -ldl -lsyscall
+	SW_LDFLAGS=$(SWLDFLAGS) -ldl $(IMAGELDFLAGS) -lz
 	SW_CFLAGS=$(SWCFLAGS) -noixemul
 	SWB_DIR=sw_morphos
 	SWCL_DIR=swcl_morphos

@@ -8,7 +8,7 @@
 
 	#include <proto/exec.h>
 	#include <proto/vorbisfile.h>
-	#else
+#else
 	#include <vorbis/vorbisfile.h>
 #endif
 

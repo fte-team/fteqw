@@ -149,18 +149,6 @@ typedef unsigned short UINT16;
 typedef unsigned int UINT16;
 #endif /* HAVE_UNSIGNED_SHORT */
 
-/* INT16 must hold at least the values -32768..32767. */
-
-#ifndef XMD_H			/* X11/xmd.h correctly defines INT16 */
-typedef short INT16;
-#endif
-
-/* INT32 must hold at least signed 32-bit values. */
-
-#ifndef XMD_H			/* X11/xmd.h correctly defines INT32 */
-typedef long INT32;
-#endif
-
 /* Datatype used for image dimensions.  The JPEG standard only supports
  * images up to 64K*64K due to 16-bit fields in SOF markers.  Therefore
  * "unsigned int" is sufficient on all machines.  However, if you need to
@@ -215,24 +203,9 @@ typedef unsigned int JDIMENSION;
 #define FAR
 #endif
 
-
-/*
- * On a few systems, type boolean and/or its values FALSE, TRUE may appear
- * in standard header files.  Or you may have conflicts with application-
- * specific header files that you want to include together with these files.
- * Defining HAVE_BOOLEAN before including jpeglib.h should make it work.
- */
-
-#ifndef HAVE_BOOLEAN
-typedef int boolean;
-#endif
-#ifndef FALSE			/* in case these macros already exist */
-#define FALSE	0		/* values of boolean */
-#endif
-#ifndef TRUE
-#define TRUE	1
-#endif
-
+typedef int JPEG_BOOL;
+#define JPEG_FALSE 0
+#define JPEG_TRUE  1
 
 /*
  * The remaining options affect code selection within the JPEG library,

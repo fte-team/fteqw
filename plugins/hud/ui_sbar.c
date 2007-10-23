@@ -1207,6 +1207,7 @@ void Hud_TeamOverlay(void)
 
 			for (j = 0; j < 32; j++)
 				player_nick[j] = "";
+			player_nicklength = 0;
 
 			current_player = players[trackedplayer].userid;
 
@@ -1220,7 +1221,7 @@ void Hud_TeamOverlay(void)
 			{
 				char armortype = ' ';
 				char* bestweap = "    ";
-				char loc[256], str[256], spacing[256];
+				char loc[256], str[256], spacing[64], spacing_a[64], spacing_h[64];
 				unsigned int j;
 
 				// More info about armortype
@@ -1232,35 +1233,55 @@ void Hud_TeamOverlay(void)
 					armortype = 'g';
 
 				// Only care about reporting weapons that have some meaning
-				if (player_items[i] & (IT_GUN6 | IT_GUN7))
+				if ((player_items[i] & (IT_GUN6 | IT_GUN7)) == (IT_GUN6 | IT_GUN7))
 					bestweap = "rlg ";
-				else if (player_items[i] & IT_GUN7)
+				else if ((player_items[i] & IT_GUN7) == IT_GUN7)
 					bestweap = "lg  ";
-				else if (player_items[i] & IT_GUN6)
+				else if ((player_items[i] & IT_GUN6) == IT_GUN6)
 					bestweap = "rl  ";
-				else if (player_items[i] & IT_GUN5)
+				else if ((player_items[i] & IT_GUN5) == IT_GUN5)
 					bestweap = "gl  ";
-				else if (player_items[i] & IT_GUN4)
+				else if ((player_items[i] & IT_GUN4) == IT_GUN4)
 					bestweap = "sng ";
-				else if (player_items[i] & IT_GUN2)
+				else if ((player_items[i] & IT_GUN2) == IT_GUN2)
 					bestweap = "ssg ";
 
 				GetLocationName(player_location[i], loc, sizeof(loc));
 
 				// Format spacing
-				for (j = 0; j < (player_nicklength - strlen(player_nick[i])) && j < sizeof(spacing); j++)
+
+				// Nicknames
+				for (j = 0; j < (player_nicklength - strlen(player_nick[i]) + 1) && j < sizeof(spacing); j++)
 					spacing[j] = ' ';
 				spacing[j] = '\0';
 
+				// Armor
+				if (player_armor[i] % 10 == player_armor[i])
+					strlcpy(spacing_a, "  ", sizeof(spacing_a));	// 0 - 9
+				else if (player_armor[i] % 100 == player_armor[i])
+					strlcpy(spacing_a, " ", sizeof(spacing_a));	// 10 - 99
+				else
+					strlcpy(spacing_a, "", sizeof(spacing_a));
+
+				// Health
+				if (player_health[i] % 10 == player_health[i])
+					strlcpy(spacing_h, "  ", sizeof(spacing_h));	// 0 - 9
+				else if (player_health[i] % 100 == player_health[i])
+					strlcpy(spacing_h, " ", sizeof(spacing_h));	// 10 - 99
+				else
+					strlcpy(spacing_h, "", sizeof(spacing_h));
+
 				// TODO: Translate $5 and similar macros in loc names.
-				snprintf(str, sizeof(str), "%s%c%s%c%d%c%d %s%c%s%c",
+				snprintf(str, sizeof(str), "%s%c%s%s%c%d%c%d %s%s%c%s%c",
 					player_nick[i],		// player netname
 					':'+128,			// colored colon
 					spacing,			// spacing
+					spacing_a,			// armor spacing
 					armortype,			// armor type: r, y, g or none
 					player_armor[i],	// current armor
 					'/'+128,			// colored slash
 					player_health[i],	// current health
+					spacing_h,			// health spacing
 					bestweap,			// best weapon
 					'\x10',				// left bracket
 					loc,				// player location

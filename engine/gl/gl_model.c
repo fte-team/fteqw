@@ -498,7 +498,7 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 		replstr = r_replacemodels.string;
 
 	// gl_load24bit 0 disables all replacements
-	if (gl_load24bit.value)
+	if (!gl_load24bit.value)
 		replstr = NULL;
 
 	COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));

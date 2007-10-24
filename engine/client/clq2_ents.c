@@ -1435,7 +1435,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				if (!ent.model || ent.model->needload)	//we need to do better than this
 				{
 					char *pmodel = Info_ValueForKey(player->userinfo, "model");
-					if (!*pmodel)
+					if (*pmodel)
 						ent.model = Mod_ForName(va("players/%s/tris.md2", pmodel), false);
 					if (!ent.model || ent.model->needload)
 						ent.model = Mod_ForName("players/male/tris.md2", false);

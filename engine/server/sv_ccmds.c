@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifndef CLIENTONLY
 
-#ifndef INVALID_SOCKET 
+#ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
 #endif
 
@@ -444,11 +444,15 @@ void SV_Map_f (void)
 	waschangelevel = !strcmp(Cmd_Argv(0), "changelevel");
 	wasspmap = !strcmp(Cmd_Argv(0), "spmap");
 
-	nextserver = strchr(level, '+');
-	if (nextserver)
+	snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level); // this function and the if statement below, is a quake bugfix which stopped a map called "dm6++.bsp" from loading because of the + sign, quake2 map syntax interprets + character as "intro.cin+base1.bsp", to play a cinematic then load a map after
+	if (!COM_FCheckExists (expanded))
 	{
-		*nextserver = '\0';
-		nextserver++;
+		nextserver = strchr(level, '+');
+		if (nextserver)
+		{
+			*nextserver = '\0';
+			nextserver++;
+		}
 	}
 
 	if (startspot)

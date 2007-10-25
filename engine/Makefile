@@ -1,4 +1,5 @@
 CC=gcc
+WINDRES=windres
 STRIP=strip
 
 STRIPFLAGS=--strip-unneeded --remove-section=.comment
@@ -425,6 +426,7 @@ SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 #specific targets override those defaults as needed.
 
 ifeq ($(FTE_TARGET),win32)
+	# The extra object file called resources.o is specific for MinGW to link the icon in
 
 	#cygwin's gcc requires an extra command to use mingw instead of cygwin (default paths, etc).
 	ifneq ($(shell $(CC) -v 2>&1 | grep cygwin),)
@@ -438,12 +440,12 @@ ifeq ($(FTE_TARGET),win32)
 	SV_EXE_NAME=../fteqwsv.exe
 	SV_LDFLAGS=libs/zlib.lib -lwsock32 -lwinmm
 	SV_DIR=sv_mingw
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS)
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) resources.o
 
 ifeq ($(USEASM),true)
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
 else
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
 endif
 	GL_EXE_NAME=../fteglqw.exe
 	GLCL_EXE_NAME=../fteglqwcl.exe
@@ -453,9 +455,9 @@ endif
 	GLCL_DIR=glcl_mgw
 
 ifeq ($(USEASM),true)
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
 else
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
 endif
 	SW_EXE_NAME=../fteswqw.exe
 	SWCL_EXE_NAME=../fteswqwcl.exe
@@ -465,9 +467,9 @@ endif
 	SWCL_DIR=swcl_mgw
 
 ifeq ($(USEASM),true)
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
 else
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
 endif
 	M_EXE_NAME=../fteqw.exe
 	MCL_EXE_NAME=../fteqwcl.exe
@@ -476,7 +478,7 @@ endif
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw
 
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
 	D3D_EXE_NAME=../fted3dqw.exe
 	D3DCL_EXE_NAME=../fted3dclqw.exe
 	D3D_LDFLAGS= -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
@@ -719,6 +721,10 @@ endif
 
 
 VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SW_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(SNDCODEC_DIR) : $(D3D7_DIR) : $(D3D9_DIR)
+
+# This is for linking the FTE icon to the MinGW target
+$(OUT_DIR)/resources.o : winquake.rc
+	$(WINDRES) -I$(CLIENT_DIR) -O coff $< $@
 
 #$(OUT_DIR)/%.d: %.c
 #	@set -e; rm -f $@; \

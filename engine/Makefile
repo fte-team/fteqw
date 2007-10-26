@@ -547,7 +547,7 @@ ifeq ($(USEASM),true)
 endif
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm -lXxf86dga
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
@@ -558,7 +558,7 @@ ifeq ($(USEASM),true)
 endif
 	SW_EXE_NAME=../fteqw.sw$(BITS)
 	SWCL_EXE_NAME=../fteqwcl.sw$(BITS)
-	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS) -lXxf86vm
+	SW_LDFLAGS=$(SWLDFLAGS) $(XLDFLAGS) -lXxf86vm -lXxf86dga
 	SW_CFLAGS=$(SWCFLAGS) -I/usr/X11R6/include
 	SWB_DIR=sw_linux$(BITS)
 	SWCL_DIR=swcl_linux$(BITS)
@@ -569,7 +569,7 @@ ifeq ($(USEASM),true)
 endif
 	M_EXE_NAME=../fteqw$(BITS)
 	MCL_EXE_NAME=../fteqwcl$(BITS)
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm -lXxf86dga
 	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) -I/usr/X11R6/include
 	MB_DIR=m_linux$(BITS)
 	MCL_DIR=mcl_linux$(BITS)

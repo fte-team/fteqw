@@ -22,6 +22,7 @@ ifeq ($(FTE_TARGET),win32)
 		ifneq ($(shell which i586-mingw32msvc-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=i586-mingw32msvc-gcc
+			WINDRES=i586-mingw32msvc-windres
 #			BITS?=32
 		endif
 	endif

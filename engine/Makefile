@@ -541,10 +541,9 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	SV_DIR=sv_linux$(BITS)
 	SV_LDFLAGS=-lz
 
-ifeq ($(USEASM),true)
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o sys_dosa.o
-else
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
+ifeq ($(USEASM),true)
+	GLCL_OBJS+= sys_dosa.o
 endif
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
@@ -553,10 +552,9 @@ endif
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
 
-ifeq ($(USEASM),true)
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o sys_dosa.o
-else
 	SWCL_OBJS=$(SOFTWARE_OBJS) vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
+ifeq ($(USEASM),true)
+	SWCL_OBJS+= sys_dosa.o
 endif
 	SW_EXE_NAME=../fteqw.sw$(BITS)
 	SWCL_EXE_NAME=../fteqwcl.sw$(BITS)
@@ -565,10 +563,9 @@ endif
 	SWB_DIR=sw_linux$(BITS)
 	SWCL_DIR=swcl_linux$(BITS)
 
-ifeq ($(USEASM),true)
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o sys_dosa.o
-else
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o vid_x.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
+ifeq ($(USEASM),true)
+	MCL_OBJS+= sys_dosa.o
 endif
 	M_EXE_NAME=../fteqw$(BITS)
 	MCL_EXE_NAME=../fteqwcl$(BITS)

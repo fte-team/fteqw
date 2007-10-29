@@ -420,9 +420,11 @@ void SV_DropClient (client_t *drop)
 	{
 	case GT_MAX:
 		break;
-#ifdef VM_Q1
 	case GT_Q1QVM:
+#ifdef VM_Q1
+		// FIXME: missing code here?
 #endif
+		break;
 	case GT_PROGS:
 		if (svprogfuncs)
 		{

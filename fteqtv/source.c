@@ -1753,14 +1753,14 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 			}
 			else if (!strcmp(start, "PERROR"))
 			{
-				Sys_Printf(qtv->cluster, "\nQTV server error: %s\n\n", colon);
+				Sys_Printf(qtv->cluster, "\nServer PERROR from %s: %s\n\n", qtv->server, colon);
 				qtv->drop = true;
 				qtv->buffersize = 0;
 				return;
 			}
 			else if (!strcmp(start, "TERROR") || !strcmp(start, "ERROR"))
 			{	//we don't support compression, we didn't ask for it.
-				Sys_Printf(qtv->cluster, "\nQTV server error: %s\n\n", colon);
+				Sys_Printf(qtv->cluster, "\nServer TERROR from %s: %s\n\n", qtv->server, colon);
 				qtv->buffersize = 0;
 
 				if (qtv->disconnectwhennooneiswatching)

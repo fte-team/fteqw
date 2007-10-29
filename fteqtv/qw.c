@@ -3100,7 +3100,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 	{
 		//this is execed on the 'active' server
 		if (qtv && (qtv->controller == v && !qtv->proxyisselected))
-			SendClientCommand(qtv, "say %s", message);
+			SendClientCommand(qtv, "say \"%s\"", message);
 		else
 			QTV_SayCommand(cluster, qtv, v, message+6);
 		return;
@@ -3112,7 +3112,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else
 		{
 			if (qtv && (qtv->controller == v && qtv->serverisproxy))
-				SendClientCommand(qtv, "say %s", message);
+				SendClientCommand(qtv, "say \"%s\"", message);
 			else
 				QTV_SayCommand(cluster, qtv, v, message+1);
 			return;
@@ -3129,7 +3129,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 	{
 		if (qtv->controller == v || !*v->name)
 		{
-			SendClientCommand(qtv, "say %s", message);
+			SendClientCommand(qtv, "say \"%s\"", message);
 
 			if (cluster->notalking)
 				return;
@@ -3138,7 +3138,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		{
 			if (cluster->notalking)
 				return;
-			SendClientCommand(qtv, "say [%s]: %s", v->name, message);
+			SendClientCommand(qtv, "say \"[%s]: %s\"", v->name, message);
 		}
 
 		//FIXME: we ought to broadcast this to everyone not watching that qtv.
@@ -3155,7 +3155,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		// If the currect viewer is the player, pass on the say_team
 		if (qtv && qtv->controller == v)
 		{
-			SendClientCommand(qtv, "say_team %s", message);
+			SendClientCommand(qtv, "say_team \"%s\"", message);
 			return;
 		}
 

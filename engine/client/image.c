@@ -954,7 +954,7 @@ badjpeg:
 
   if (cinfo.output_components!=3)
   {
-		Con_Printf("Bad number of componants in jpeg");
+		Con_Printf("Bad number of components in jpeg\n");
 		goto badjpeg;
   }
   size_stride = cinfo.output_width * cinfo.output_components;

@@ -180,7 +180,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q3SHADERS
 	#undef TERRAIN	//not supported
 #endif
-#ifdef CLIENTONLY	//remove optional server componants that make no sence on a client only build.
+#ifdef CLIENTONLY	//remove optional server components that make no sence on a client only build.
 	#undef Q2SERVER
 	#undef Q3SERVER
 	#undef WEBSERVER

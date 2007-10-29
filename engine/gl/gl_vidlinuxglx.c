@@ -876,7 +876,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		if (rampsize != 256)
 		{
 			originalapplied = false;
-			Con_Printf("Gamma ramps are not of 256 componants (but %i).\n", rampsize);
+			Con_Printf("Gamma ramps are not of 256 components (but %i).\n", rampsize);
 		}
 		else
 			originalapplied = XF86VidModeGetGammaRamp(vid_dpy, scrnum, 256, originalramps[0], originalramps[1], originalramps[2]);

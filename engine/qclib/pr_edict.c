@@ -1245,7 +1245,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 			if (!*name)
 				continue;
 			if (name[len-2] == '_' && (name[len-1] == 'x' || name[len-1] == 'y' || name[len-1] == 'z'))
-				continue;	// skip _x, _y, _z vars (vector componants, which are saved as one vector not 3 floats)
+				continue;	// skip _x, _y, _z vars (vector components, which are saved as one vector not 3 floats)
 
 			type = def16->type;
 
@@ -1307,7 +1307,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 			def32 = &pr_globaldefs32[i];
 			name = def32->s_name + progfuncs->stringtable;
 			if (name[strlen(name)-2] == '_')
-				continue;	// skip _x, _y, _z vars (vector componants, which are saved as one vector not 3 floats)
+				continue;	// skip _x, _y, _z vars (vector components, which are saved as one vector not 3 floats)
 
 			type = def32->type;
 

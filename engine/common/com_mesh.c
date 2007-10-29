@@ -3829,10 +3829,10 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 	galiasbone_t *bonelist;
 
 	unsigned char *boneflags;
-	unsigned int *firstanimatedcomponants;
+	unsigned int *firstanimatedcomponents;
 
-	float *animatedcomponants;
-	float *baseframe;	//6 componants.
+	float *animatedcomponents;
+	float *baseframe;	//6 components.
 	float *posedata;
 	float tx, ty, tz, qx, qy, qz;
 	int fac, flags;
@@ -3860,8 +3860,8 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 	buffer = COM_Parse(buffer);
 	numanimatedparts = atoi(com_token);
 
-	firstanimatedcomponants = BZ_Malloc(sizeof(int)*numjoints);
-	animatedcomponants = BZ_Malloc(sizeof(float)*numanimatedparts);
+	firstanimatedcomponents = BZ_Malloc(sizeof(int)*numjoints);
+	animatedcomponents = BZ_Malloc(sizeof(float)*numanimatedparts);
 	boneflags = BZ_Malloc(sizeof(unsigned char)*numjoints);
 	baseframe = BZ_Malloc(sizeof(float)*12*numjoints);
 
@@ -3905,7 +3905,7 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 		buffer = COM_Parse(buffer);
 		boneflags[i] = atoi(com_token);
 		buffer = COM_Parse(buffer);
-		firstanimatedcomponants[i] = atoi(com_token);
+		firstanimatedcomponents[i] = atoi(com_token);
 	}
 	EXPECT("}");
 
@@ -3963,37 +3963,37 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 		for (j = 0; j < numanimatedparts; j++)
 		{
 			buffer = COM_Parse(buffer);
-			animatedcomponants[j] = atof(com_token);
+			animatedcomponents[j] = atof(com_token);
 		}
 		EXPECT("}");
 
 		for (j = 0; j < numjoints; j++)
 		{
-			fac = firstanimatedcomponants[j];
+			fac = firstanimatedcomponents[j];
 			flags = boneflags[j];
 
 			if (flags&1)
-				tx = animatedcomponants[fac++];
+				tx = animatedcomponents[fac++];
 			else
 				tx = baseframe[j*6+0];
 			if (flags&2)
-				ty = animatedcomponants[fac++];
+				ty = animatedcomponents[fac++];
 			else
 				ty = baseframe[j*6+1];
 			if (flags&4)
-				tz = animatedcomponants[fac++];
+				tz = animatedcomponents[fac++];
 			else
 				tz = baseframe[j*6+2];
 			if (flags&8)
-				qx = animatedcomponants[fac++];
+				qx = animatedcomponents[fac++];
 			else
 				qx = baseframe[j*6+3];
 			if (flags&16)
-				qy = animatedcomponants[fac++];
+				qy = animatedcomponents[fac++];
 			else
 				qy = baseframe[j*6+4];
 			if (flags&32)
-				qz = animatedcomponants[fac++];
+				qz = animatedcomponents[fac++];
 			else
 				qz = baseframe[j*6+5];
 
@@ -4001,8 +4001,8 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 		}
 	}
 
-	BZ_Free(firstanimatedcomponants);
-	BZ_Free(animatedcomponants);
+	BZ_Free(firstanimatedcomponents);
+	BZ_Free(animatedcomponents);
 	BZ_Free(boneflags);
 	BZ_Free(baseframe);
 

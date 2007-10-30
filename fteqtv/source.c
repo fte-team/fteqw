@@ -798,6 +798,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 		if (!qtv->cluster->lateforward && !qtv->parsingqtvheader)	//qtv header being the auth part of the connection rather than the stream
 		{
 			int forwardable;
+			//this has the effect of not only parsing early packets, but also saying how much complete data there is.
 			forwardable = SV_EarlyParse(qtv, qtv->buffer+qtv->forwardpoint, qtv->buffersize - qtv->forwardpoint);
 			if (forwardable > 0)
 			{
@@ -1756,12 +1757,14 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 				Sys_Printf(qtv->cluster, "\nServer PERROR from %s: %s\n\n", qtv->server, colon);
 				qtv->drop = true;
 				qtv->buffersize = 0;
+				qtv->forwardpoint = 0;
 				return;
 			}
 			else if (!strcmp(start, "TERROR") || !strcmp(start, "ERROR"))
 			{	//we don't support compression, we didn't ask for it.
 				Sys_Printf(qtv->cluster, "\nServer TERROR from %s: %s\n\n", qtv->server, colon);
 				qtv->buffersize = 0;
+				qtv->forwardpoint = 0;
 
 				if (qtv->disconnectwhennooneiswatching)
 					qtv->drop = true;	//if its a user registered stream, drop it immediatly
@@ -1819,6 +1822,7 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 			Sys_Printf(qtv->cluster, "End of list\n");
 			qtv->drop = true;
 			qtv->buffersize = 0;
+			qtv->forwardpoint = 0;
 			return;
 		}
 		else if (*authmethod)
@@ -1831,6 +1835,7 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 			Sys_Printf(qtv->cluster, "QTV server sent no begin command - assuming incompatable\n\n");
 			qtv->drop = true;
 			qtv->buffersize = 0;
+			qtv->forwardpoint = 0;
 			return;
 		}
 
@@ -1914,6 +1919,7 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 				qtv->sourcesock = INVALID_SOCKET;
 			}
 			qtv->buffersize = 0;
+			qtv->forwardpoint = 0;
 			break;
 		}
 

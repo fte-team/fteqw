@@ -670,7 +670,10 @@ int SV_SayToUpstream(sv_t *qtv, char *message)
 
 	if (!qtv->upstreamacceptschat)
 	{
-		Sys_Printf(qtv->cluster, "not forwarding say\n"); 
+#ifndef _MSC_VER
+#warning This is incomplete!
+#endif
+		//Sys_Printf(qtv->cluster, "not forwarding say\n"); 
 		return 0;
 	}
 

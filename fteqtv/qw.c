@@ -3152,7 +3152,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		if (v->server)
 			SV_SayToUpstream(v->server, message);
 
-		// If the currect viewer is the player, pass on the say_team
+		// If the current viewer is the player, pass on the say_team
 		if (qtv && qtv->controller == v)
 		{
 			SendClientCommand(qtv, "say_team \"%s\"", message);

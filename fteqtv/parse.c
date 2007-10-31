@@ -1476,7 +1476,14 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			//in fte at least, the server does give the packet the correct length
 			//I hope mvdsv is the same
 			if (tv->sourcetype != SRC_DEMO)
-				tv->drop = true;
+			{
+#ifndef _MSC_VER
+	#warning QTV is meant to disconnect when servers tells it to.
+#endif
+				// FIXME: Servers are today sending the svc_disconnect in a non-standard way, which makes QTV drop when it shouldn't.
+				// Tell the server developers to fix the servers.
+				//tv->drop = true;
+			}
 			else
 			{
 				while(ReadByte(&buf))

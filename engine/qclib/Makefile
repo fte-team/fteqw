@@ -1,24 +1,33 @@
 QCC_OBJS=qccmain.o qcc_cmdlib.o qcc_pr_comp.o qcc_pr_lex.o comprout.o hash.o qcd_main.o
-GTKGUI_OBJS=qcc_gtk.o qccguistuff.c
+GTKGUI_OBJS=qcc_gtk.o qccguistuff.o
+WIN32GUI_OBJS=qccgui.o qccguistuff.o
 LIB_OBJS=
 
-CC=gcc -Wall -DQCCONLY
+CC=gcc -Wall
 
 DO_CC=$(CC) $(BASE_CFLAGS) -o $@ -c $< $(CFLAGS)
 
 all: qcc
 
-BASE_CFLAGS=-ggdb
-CFLAGS =
+USEGUI_CFLAGS=
+# set to -DUSEGUI when compiling the GUI
+BASE_CFLAGS=-ggdb -DQCCONLY $(USEGUI_CFLAGS)
 
 lib: 
 
-win_nocyg: $(QCC_OBJS) qccgui.c qccguistuff.c
-	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) -mno-cygwin -mwindows
-nocyg: $(QCC_OBJS) qccgui.c qccguistuff.c
-	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) -mno-cygwin
-win: $(QCC_OBJS) qccgui.c qccguistuff.c
-	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) -mwindows
+R_win_nocyg: $(QCC_OBJS) $(WIN32GUI_OBJS)
+	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) $(WIN32GUI_OBJS) -mno-cygwin -mwindows -lcomctl32
+R_nocyg: $(QCC_OBJS) $(WIN32GUI_OBJS)
+	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) $(WIN32GUI_OBJS) -mno-cygwin -lcomctl32
+R_win: $(QCC_OBJS) $(WIN32GUI_OBJS)
+	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) $(WIN32GUI_OBJS) -mwindows -lcomctl32
+win_nocyg:
+	$(MAKE) USEGUI_CFLAGS=-DUSEGUI R_win_nocyg
+nocyg:
+	$(MAKE) USEGUI_CFLAGS=-DUSEGUI R_nocyg
+win:
+	$(MAKE) USEGUI_CFLAGS=-DUSEGUI R_win
+
 qcc: $(QCC_OBJS)
 	$(CC) $(BASE_CFLAGS) -o fteqcc.bin -O3 -s $(QCC_OBJS)
 
@@ -49,5 +58,10 @@ qccguistuff.o: qccguistuff.c qcc.h
 qcc_gtk.o: qcc_gtk.c qcc.h
 	$(DO_CC) `pkg-config --cflags gtk+-2.0`
 
-gtkgui: $(QCC_OBJS) $(GTKGUI_OBJS)
+R_gtkgui: $(QCC_OBJS) $(GTKGUI_OBJS)
 	$(CC) $(BASE_CFLAGS) -DQCCONLY -DUSEGUI -o fteqccgui.bin -O3 $(GTKGUI_OBJS) $(QCC_OBJS) `pkg-config --libs gtk+-2.0`
+gtkgui:
+	$(MAKE) USEGUI_CFLAGS=-DUSEGUI R_gtkgui
+
+clean:
+	$(RM) fteqcc.bin fteqcc.exe $(QCC_OBJS) $(GTKGUI_OBJS) $(WIN32GUI_OBJS)

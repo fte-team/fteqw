@@ -27,6 +27,60 @@ ifeq ($(FTE_TARGET),win32)
 		endif
 	endif
 endif
+
+#crosscompile macosx from linux, default target ppc 32bit
+ifeq ($(FTE_TARGET),macosx)
+	ifeq ($(shell $(CC) -v 2>&1 | grep apple),)
+		ifneq ($(shell which powerpc-apple-darwin8-gcc 2> /dev/null),)
+			CC=powerpc-apple-darwin8-gcc
+			STRIP=powerpc-apple-darwin8-strip
+			#seems, macosx has a more limited version of strip
+			STRIPFLAGS=
+			BITS=32
+			EXTENSION=_ppc
+		endif
+	endif
+endif
+
+ifeq ($(FTE_TARGET),macosx_ppc64)
+	ifeq ($(shell $(CC) -v 2>&1 | grep apple),)
+		ifneq ($(shell which powerpc-apple-darwin8-gcc 2> /dev/null),)
+			FTE_TARGET=macosx
+			CC=powerpc-apple-darwin8-gcc -arch ppc64
+			STRIP=powerpc-apple-darwin8-strip
+			#seems, macosx has a more limited version of strip
+			STRIPFLAGS=
+			BITS=64
+			EXTENSION=_ppc
+		endif
+	endif
+endif
+
+ifeq ($(FTE_TARGET),macosx_x86)
+	ifeq ($(shell $(CC) -v 2>&1 | grep apple),)
+		ifneq ($(shell which i686-apple-darwin8-gcc 2> /dev/null),)
+			FTE_TARGET=macosx
+			# i686-apple-darwin8-gcc's default target is i386, powerpc-apple-darwin8-gcc -arch i386 just invokes i686-apple-darwin8-gcc anyway
+			CC=i686-apple-darwin8-gcc
+			STRIP=i686-apple-darwin8-strip
+			#seems, macosx has a more limited version of strip
+			STRIPFLAGS=
+			EXTENSION=_x86
+		endif
+	endif
+endif
+
+#crosscompile morphos from linux
+ifeq ($(FTE_TARGET),morphos)
+	ifeq ($(shell $(CC) -v 2>&1 | grep morphos),)
+		ifneq ($(shell which ppc-morphos-gcc 2> /dev/null),)
+			CC=ppc-morphos-gcc
+			#morphos strip has a 'feature', it strips permissions
+			STRIP=ppc-morphos-strip
+		endif
+	endif
+endif
+
 #if you have an x86, you can get gcc to build 32bit or 64bit specific builds, instead of builds for the native platform
 ifeq ($(FTE_TARGET),linux32)
 	FTE_TARGET=linux
@@ -579,13 +633,13 @@ endif
 	MINGL_EXE_NAME=../fteqw.mingl$(BITS)
 	MINGL_DIR=mingl_linux$(BITS)
 endif
-ifeq ($(FTE_TARGET),macosx)
-	SV_DIR=sv_macosx
-	GLB_DIR=gl_macosx
-	GLCL_DIR=glcl_macosx
-	MINGL_DIR=mingl_macosx
-	SWB_DIR=sw_macosx
-	SWCL_DIR=sw_macosx
+ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
+	SV_DIR=sv_macosx$(EXTENSION)$(BITS)
+	GLB_DIR=gl_macosx$(EXTENSION)$(BITS)
+	GLCL_DIR=glcl_macosx$(EXTENSION)$(BITS)
+	MINGL_DIR=mingl_macosx$(EXTENSION)$(BITS)
+	SWB_DIR=sw_macosx$(EXTENSION)$(BITS)
+	SWCL_DIR=sw_macosx$(EXTENSION)$(BITS)
 
 	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__
 	GL_LDFLAGS=-framework AGL -framework OpenGL -framework Cocoa -framework AudioUnit
@@ -595,15 +649,18 @@ ifeq ($(FTE_TARGET),macosx)
 	SW_LDFLAGS=
 	SWCL_OBJS=$(SOFTWARE_OBJS) cd_null.o sys_linux.o vid_null.o
 
-	GL_EXE_NAME=../fteqw.gl
-	GLCL_EXE_NAME=../fteqwcl.gl
-	SW_EXE_NAME=../fteqw.sw
-	SWCL_EXE_NAME=../fteqwcl.sw
-	M_EXE_NAME=../fteqw
-	MCL_EXE_NAME=../fteqwcl
-	MINGL_EXE_NAME=../fteqw.mingl
-	MINGL_DIR=mingl_maxosx
-
+	GL_EXE_NAME=../macosx_fteqw.gl$(EXTENSION)$(BITS)
+	GLCL_EXE_NAME=../macosx_fteqwcl.gl$(EXTENSION)$(BITS)
+	SW_EXE_NAME=../macosx_fteqw.sw$(EXTENSION)$(BITS)
+	SWCL_EXE_NAME=../macosx_fteqwcl.sw$(EXTENSION)$(BITS)
+	M_EXE_NAME=../macosx_fteqw$(EXTENSION)$(BITS)
+	MCL_EXE_NAME=../macosx_fteqwcl$(EXTENSION)$(BITS)
+	MINGL_EXE_NAME=../macosx_fteqw.mingl$(EXTENSION)$(BITS)
+	MINGL_DIR=mingl_macosx$(EXTENSION)$(BITS)
+	
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
+	SV_EXE_NAME=../macosx_fteqw.sv$(EXTENSION)$(BITS)
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	
 
 	#seems, macosx has a more limited version of strip
 	STRIPFLAGS=
@@ -614,31 +671,36 @@ ifeq ($(FTE_TARGET),morphos)
 	SV_LDFLAGS=-lz
 
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
-	GL_EXE_NAME=../fteqw.gl
-	GLCL_EXE_NAME=../fteqwcl.gl
+	GL_EXE_NAME=../morphos_fteqw.gl
+	GLCL_EXE_NAME=../morphos_fteqwcl.gl
 	GL_LDFLAGS=$(GLLDFLAGS) -ldl $(IMAGELDFLAGS) -lz
 	GL_CFLAGS=$(GLCFLAGS) -noixemul
 	GLB_DIR=gl_morphos
 	GLCL_DIR=glcl_morphos
 
 	SWCL_OBJS=$(SOFTWARE_OBJS) vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
-	SW_EXE_NAME=../fteqw.sw
-	SWCL_EXE_NAME=../fteqwcl.sw
+	SW_EXE_NAME=../morphos_fteqw.sw
+	SWCL_EXE_NAME=../morphos_fteqwcl.sw
 	SW_LDFLAGS=$(SWLDFLAGS) -ldl $(IMAGELDFLAGS) -lz
 	SW_CFLAGS=$(SWCFLAGS) -noixemul
 	SWB_DIR=sw_morphos
 	SWCL_DIR=swcl_morphos
 
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidmorphos.o vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
-	M_EXE_NAME=../fteqw
-	MCL_EXE_NAME=../fteqwcl
+	M_EXE_NAME=../morphos_fteqw
+	MCL_EXE_NAME=../morphos_fteqwcl
 	M_LDFLAGS=$(GLLDFLAGS)
 	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS)
 	MB_DIR=m_morphos
 	MCL_DIR=mcl_morphos
 
-	MINGL_EXE_NAME=../fteqw.mingl
+	MINGL_EXE_NAME=../morphos_fteqw.mingl
 	MINGL_DIR=mingl_morphos
+	
+	#morphos dedicated server doesnt compile: alloca.h: No such file or directory
+	#SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
+	#SV_EXE_NAME=../morphos_fteqw.sv$(BITS)
+	#SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	
 endif
 
 
@@ -898,6 +960,7 @@ help:
 	@-echo "gl"
 	@-echo "sw"
 	@-echo "m"
+	@-echo "mingl"
 	@-echo "d3d (for windows builds)"
 	@-echo "mcl (currently broken)"
 	@-echo "glcl (currently broken)"

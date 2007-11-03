@@ -55,7 +55,7 @@ char *Skin_FindName (player_info_t *sc)
 			Q_strncpyz(name, baseskin.string, sizeof(name));
 	}
 
-	if (cl.spectator && (tracknum = Cam_TrackNum(cl.playernum[0])) != -1)
+	if (cl.spectator && (tracknum = Cam_TrackNum(0)) != -1)
 		skinforcing_team = cl.players[tracknum].team;
 	else if (cl.spectator)
 		skinforcing_team = "spec";

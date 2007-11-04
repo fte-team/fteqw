@@ -162,7 +162,7 @@ void SV_MVD_RunPendingConnections(void)
 		if (p->nextdest->error)
 		{
 			np = p->nextdest->nextdest;
-			if (p->nextdest->socket != -1)
+			if (p->nextdest->socket != INVALID_SOCKET)
 				closesocket(p->nextdest->socket);
 			Z_Free(p->nextdest);
 			p->nextdest = np;
@@ -465,7 +465,7 @@ void SV_MVD_RunPendingConnections(void)
 						else
 						{
 							SV_MVD_Record(SV_InitStream(p->socket));
-							p->socket = -1;	//so it's not cleared wrongly.
+							p->socket = INVALID_SOCKET;	//so it's not cleared wrongly.
 						}
 						p->error = true;
 					}
@@ -482,7 +482,7 @@ void SV_MVD_RunPendingConnections(void)
 							dst = SV_InitStream(p->socket);
 							dst->droponmapchange = p->isreverse;
 							SV_MVD_Record(dst);
-							p->socket = -1;	//so it's not cleared wrongly.
+							p->socket = INVALID_SOCKET;	//so it's not cleared wrongly.
 						}
 						else
 						{
@@ -2089,27 +2089,27 @@ void SV_MVD_QTVReverse_f (void)
 	local.sin_addr.s_addr = INADDR_ANY;
 	local.sin_port = 0;
 
-	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 	{
 		Con_Printf ("qtvreverse: socket: %s\n", strerror(qerrno));
 		return;
 	}
 
-	if( bind (sock, (void *)&local, sizeof(local)) == -1)
+	if( bind (sock, (void *)&local, sizeof(local)) == INVALID_SOCKET)
 	{
 		closesocket(sock);
 		Con_Printf ("qtvreverse: bind: %s\n", strerror(qerrno));
 		return;
 	}
 
-	if (connect(sock, (void*)&remote, sizeof(remote)) == -1)
+	if (connect(sock, (void*)&remote, sizeof(remote)) == INVALID_SOCKET)
 	{
 		closesocket(sock);
 		Con_Printf ("qtvreverse: connect: %s\n", strerror(qerrno));
 		return;
 	}
 
-	if (ioctlsocket (sock, FIONBIO, &nonblocking) == -1)
+	if (ioctlsocket (sock, FIONBIO, &nonblocking) == INVALID_SOCKET)
 	{
 		closesocket(sock);
 		Con_Printf ("qtvreverse: ioctl FIONBIO: %s\n", strerror(qerrno));
@@ -2119,7 +2119,7 @@ void SV_MVD_QTVReverse_f (void)
 	data =	"QTV\n"
 			"REVERSE\n"
 			"\n";
-	if (send(sock, data, strlen(data), 0) == -1)
+	if (send(sock, data, strlen(data), 0) == INVALID_SOCKET)
 	{
 		closesocket(sock);
 		Con_Printf ("qtvreverse: send: %s\n", strerror(qerrno));
@@ -2357,17 +2357,17 @@ int MVD_StreamStartListening(int port)
 
 
 
-	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 	{
 		Sys_Error ("MVD_StreamStartListening: socket:", strerror(qerrno));
 	}
 
-	if (ioctlsocket (sock, FIONBIO, &nonblocking) == -1)
+	if (ioctlsocket (sock, FIONBIO, &nonblocking) == INVALID_SOCKET)
 	{
 		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
 	}
 
-	if( bind (sock, (void *)&address, sizeof(address)) == -1)
+	if( bind (sock, (void *)&address, sizeof(address)) == INVALID_SOCKET)
 	{
 		closesocket(sock);
 		return INVALID_SOCKET;

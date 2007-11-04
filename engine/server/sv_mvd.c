@@ -151,7 +151,7 @@ void SV_MVD_RunPendingConnections(void)
 	{
 		np = demo.pendingdest->nextdest;
 
-		if (demo.pendingdest->socket != -1)
+		if (demo.pendingdest->socket != INVALID_SOCKET)
 			closesocket(demo.pendingdest->socket);
 		Z_Free(demo.pendingdest);
 		demo.pendingdest = np;

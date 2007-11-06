@@ -2010,7 +2010,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 #elif defined(RGLQUAKE)
 		Cmd_ExecuteString("setrenderer gl\n", RESTRICT_LOCAL);
 #elif defined(D3DQUAKE)
-		Cmd_ExecuteString("setrenderer d3d\n", RESTRICT_LOCAL);
+		Cmd_ExecuteString("setrenderer d3d9\n", RESTRICT_LOCAL);
 #else
 		Cmd_ExecuteString("setrenderer sw\n", RESTRICT_LOCAL);
 #endif

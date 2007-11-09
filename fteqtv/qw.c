@@ -25,6 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static const filename_t ConnectionlessModelList[] = {{""}, {"maps/start.bsp"}, {"progs/player.mdl"}, {""}};
 static const filename_t ConnectionlessSoundList[] = {{""}, {""}};
 
+const intermission_t nullstreamspot = {{544, 288, 64}, {0, 90, 0}};
+
 void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean noupwards);
 
 void QTV_DefaultMovevars(movevars_t *vars)
@@ -3258,7 +3260,7 @@ void QW_PositionAtIntermission(sv_t *qtv, viewer_t *v)
 	if (qtv)
 		spot = BSP_IntermissionSpot(qtv->bsp);
 	else
-		spot = BSP_IntermissionSpot(NULL);
+		spot = &nullstreamspot;
 
 
 	v->origin[0] = spot->pos[0];

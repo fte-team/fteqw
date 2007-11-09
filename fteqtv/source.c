@@ -641,7 +641,7 @@ qboolean Net_WriteUpstream(sv_t *qtv)
 				if (qerrno)
 					Sys_Printf(qtv->cluster, "Error: source socket error %i\n", qerrno);
 				else
-					Sys_Printf(qtv->cluster, "Error: server disconnected\n");
+					Sys_Printf(qtv->cluster, "Error: server %s disconnected\n", qtv->server);
 				qtv->drop = true;
 			}
 			return false;
@@ -823,7 +823,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 			else if (read)
 				Sys_Printf(qtv->cluster, "Error: source socket error %i\n", qerrno);
 			else
-				Sys_Printf(qtv->cluster, "Error: server disconnected\n");
+				Sys_Printf(qtv->cluster, "Error: server %s disconnected\n", qtv->server);
 			if (qtv->sourcesock != INVALID_SOCKET)
 			{
 				closesocket(qtv->sourcesock);

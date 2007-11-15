@@ -13,7 +13,7 @@
 #define MAX_LIGHTSTYLES 64
 
 #define MAX_PROXY_INBUFFER 4096
-#define MAX_PROXY_BUFFER (1<<14)	//must be power-of-two
+#define MAX_PROXY_BUFFER (1<<17)	//must be power-of-two
 #define PREFERED_PROXY_BUFFER	4096 //the ammount of data we try to leave in our input buffer (must be large enough to contain any single mvd frame)
 
 #define ENTS_PER_FRAME 64 //max number of entities per frame (OUCH!).
@@ -56,10 +56,11 @@
 
 //limits
 #define NQ_PACKETS_PER_SECOND 20
-#define MAX_NQMSGLEN 8000
-#define MAX_MSGLEN 1450
-#define MAX_NQDATAGRAM 1024
-#define MAX_BACKBUF_SIZE 1000	//this is smaller so we don't loose entities when lagging
+#define MAX_MSGLEN 8000		//the biggest we can possibly allow
+#define MAX_NQMSGLEN 8000	//nq has large reliable packets for the connection data
+#define MAX_QWMSGLEN 1450	//qw is fully split into individual packets
+#define MAX_NQDATAGRAM 1024	//nq datagrams are only 1k
+#define MAX_BACKBUF_SIZE 1000	//this is smaller so we don't loose too many entities when lagging
 
 
 //NQ transport layer defines

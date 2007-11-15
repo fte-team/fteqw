@@ -367,12 +367,9 @@ void QW_ClearViewerState(viewer_t *viewer)
 void SendServerData(sv_t *tv, viewer_t *viewer)
 {
 	netmsg_t msg;
-	char buffer[MAX_NQMSGLEN];
+	char buffer[MAX_MSGLEN];
 
-	if (viewer->netchan.isnqprotocol)
-		InitNetMsg(&msg, buffer, sizeof(buffer));
-	else
-		InitNetMsg(&msg, buffer,1024);
+	InitNetMsg(&msg, buffer, viewer->netchan.maxreliablelen);
 
 	if (tv && (tv->controller == viewer || !tv->controller))
 		viewer->thisplayer = tv->thisplayer;
@@ -887,6 +884,8 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 
 	Netchan_Setup (cluster->qwdsocket, &viewer->netchan, *addr, 0, false);
 	viewer->netchan.isnqprotocol = true;
+	viewer->netchan.maxdatagramlen = MAX_NQDATAGRAM;
+	viewer->netchan.maxreliablelen = MAX_NQMSGLEN;
 
 	viewer->next = cluster->viewers;
 	cluster->viewers = viewer;
@@ -950,7 +949,9 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	memset(viewer, 0, sizeof(viewer_t));
 
 	Netchan_Setup (cluster->qwdsocket, &viewer->netchan, *addr, atoi(qport), false);
-	viewer->netchan.message.maxsize = MAX_MSGLEN;
+	viewer->netchan.message.maxsize = MAX_QWMSGLEN;
+	viewer->netchan.maxdatagramlen = MAX_QWMSGLEN;
+	viewer->netchan.maxreliablelen = MAX_QWMSGLEN;
 
 	viewer->next = cluster->viewers;
 	cluster->viewers = viewer;
@@ -1171,7 +1172,7 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 
 void ConnectionlessPacket(cluster_t *cluster, netadr_t *from, netmsg_t *m)
 {
-	char buffer[MAX_MSGLEN];
+	char buffer[MAX_QWMSGLEN];
 	int i;
 
 	ReadLong(m);
@@ -4502,7 +4503,7 @@ void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer)
 
 void SendViewerPackets(cluster_t *cluster, viewer_t *v)
 {
-	char buffer[MAX_MSGLEN*2];
+	char buffer[MAX_MSGLEN];
 	netmsg_t m;
 	int read;
 	sv_t *useserver;
@@ -4542,7 +4543,7 @@ void SendViewerPackets(cluster_t *cluster, viewer_t *v)
 		}
 
 		v->maysend = false;
-		InitNetMsg(&m, buffer, MAX_MSGLEN);
+		InitNetMsg(&m, buffer, v->netchan.maxdatagramlen);
 		m.cursize = 0;
 		if (v->thinksitsconnected)
 		{
@@ -4595,7 +4596,7 @@ void SendViewerPackets(cluster_t *cluster, viewer_t *v)
 }
 void QW_UpdateUDPStuff(cluster_t *cluster)
 {
-	char buffer[MAX_MSGLEN*2];
+	char buffer[MAX_MSGLEN];	//contains read info
 	char tempbuffer[256];
 	netadr_t from;
 	int fromsize = sizeof(from);
@@ -4620,7 +4621,8 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 		cluster->mastersendtime = cluster->curtime + 3*1000*60;	//3 minuites.
 	}
 
-	InitNetMsg(&m, buffer, MAX_MSGLEN);
+	/* initialised for reading */
+	InitNetMsg(&m, buffer, sizeof(buffer));
 
 	for (;;)
 	{

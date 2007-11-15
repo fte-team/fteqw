@@ -216,14 +216,17 @@ typedef struct {
 	unsigned int last_received;
 	unsigned int cleartime;
 
+	int maxdatagramlen;
+	int maxreliablelen;
+
 	int reliable_length;
 	qboolean drop;
 	qboolean isclient;
 	qboolean isnqprotocol;
 
 	netmsg_t message;
-	char message_buf[MAX_NQMSGLEN];	//reliable message being built
-	char reliable_buf[MAX_NQMSGLEN];	//reliable message that we're making sure arrives.
+	char message_buf[MAX_MSGLEN];	//reliable message being built
+	char reliable_buf[MAX_MSGLEN];	//reliable message that we're making sure arrives.
 	float rate;
 
 

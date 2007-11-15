@@ -794,7 +794,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						//start up a new stream
 
 						//FIXME: does this work?
-#if 1	//left disabled until properly tested
+#if 0	//left disabled until properly tested
 						qtv = QTV_NewServerConnection(cluster, "reverse"/*server*/, "", true, 2, false, 0);
 
 						Net_ProxySendString(cluster, pend, QTVSVHEADER);

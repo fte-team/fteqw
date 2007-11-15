@@ -267,8 +267,8 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 	//due to mvdsv sucking and stuff, we try using raw connections where possibleso that we don't end up expecting a header.
 	//at some point, this will be forced to 1
 	qtv->parsingqtvheader = true;//!!*qtv->connectpassword;
-
-
+	qtv->buffersize = 0;
+	qtv->forwardpoint = 0;
 
 	str =	"QTV\n";			Net_QueueUpstream(qtv, strlen(str), str);
 	str =	"VERSION: 1\n";		Net_QueueUpstream(qtv, strlen(str), str);
@@ -731,7 +731,7 @@ int SV_EarlyParse(sv_t *qtv, unsigned char *buffer, int remaining)
 			length = (buffer[lengthofs]<<0) + (buffer[lengthofs+1]<<8) + (buffer[lengthofs+2]<<16) + (buffer[lengthofs+3]<<24);
 
 			length += lengthofs+4;
-			if (length > 1500)
+			if (length > MAX_MSGLEN)
 				printf("Probably corrupt mvd (length %i)\n", length);
 		}
 		else

@@ -4347,9 +4347,10 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 			min+=20;
 			for (; sv && i < min; sv = sv->next, i++)
 			{
-				Info_ValueForKey(sv->serverinfo, "hostname", str, sizeof(str));
-				if (sv->parsingconnectiondata || !sv->modellist[1].name[0])
-					snprintf(str, sizeof(str), "%s", sv->server);
+				//Info_ValueForKey(sv->serverinfo, "hostname", str, sizeof(str));
+				//if (sv->parsingconnectiondata || !sv->modellist[1].name[0])
+				//	snprintf(str, sizeof(str), "%s", sv->server);
+				snprintf(str, sizeof(str), "%s", *sv->hostname?sv->hostname:sv->server);
 
 				if (i == viewer->menuop)
 					for (s = (unsigned char *)str; *s; s++)

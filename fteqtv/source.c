@@ -1859,7 +1859,7 @@ void QTV_Run(sv_t *qtv)
 			{
 				qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
 				if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-					QTV_Printf(qtv, "Not enough buffered\n");
+					QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
 			}
 			break;
 		}
@@ -1874,7 +1874,7 @@ void QTV_Run(sv_t *qtv)
 			{	//not enough stuff to play.
 				qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
 				if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-					QTV_Printf(qtv, "Not enough buffered\n");
+					QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
 				continue;
 			}
 			qtv->parsetime += buffer[0];	//well this was pointless

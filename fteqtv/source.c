@@ -1844,7 +1844,7 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 
 		qtv->parsetime = Sys_Milliseconds() + BUFFERTIME*1000;
 		if (!qtv->usequakeworldprotocols)
-			Sys_Printf(qtv->cluster, "Connection established, buffering for %i seconds\n", BUFFERTIME);
+			Sys_Printf(qtv->cluster, "Stream %i: Connection established, buffering for %i seconds\n", qtv->streamid, BUFFERTIME);
 
 		SV_ForwardStream(qtv, qtv->buffer, qtv->forwardpoint);
 	}

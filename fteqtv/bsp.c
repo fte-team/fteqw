@@ -292,7 +292,7 @@ bsp_t *BSP_LoadModel(cluster_t *cluster, char *gamedir, char *bspname)
 	if (size < sizeof(dheader_t) || data[0] != 29)
 	{
 		free(data);
-		Sys_Printf(cluster, "BSP not version 29\n", bspname, gamedir);
+		Sys_Printf(cluster, "BSP not version 29 (%s in %s)\n", bspname, gamedir);
 		return NULL;
 	}
 

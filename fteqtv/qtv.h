@@ -18,11 +18,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #ifdef __GNUC__
-#define LittleLong(x) ({ typeof(x) _x = (x); _x = (((unsigned char *)&_x)[0]|(((unsigned char *)&_x)[1]<<8)|(((unsigned char *)&_x)[2]<<16)|(((unsigned char *)&_x)[3]<<24)); _x; })
-#define LittleShort(x) ({ typeof(x) _x = (x); _x = (((unsigned char *)&_x)[0]|(((unsigned char *)&_x)[1]<<8)); _x; })
+	#define LittleLong(x) ({ typeof(x) _x = (x); _x = (((unsigned char *)&_x)[0]|(((unsigned char *)&_x)[1]<<8)|(((unsigned char *)&_x)[2]<<16)|(((unsigned char *)&_x)[3]<<24)); _x; })
+	#define LittleShort(x) ({ typeof(x) _x = (x); _x = (((unsigned char *)&_x)[0]|(((unsigned char *)&_x)[1]<<8)); _x; })
 #else
-#define LittleLong(x) (x)
-#define LittleShort(x) (x)
+	#define LittleLong(x) (x)
+	#define LittleShort(x) (x)
 #endif
 
 //this is for a future version
@@ -36,7 +36,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //this means that when a new proxy connects, we have to send initial state as well as a chunk of pending state, expect to need to send new data before the proxy even has all the init stuff. We may need to raise MAX_PROXY_BUFFER to be larger than on the server
 
-
+#ifdef __GNUC__
+	#define PRINTFWARNING(x) __attribute__((format(printf, x, (x+1))))
+#else
+	#define PRINTFWARNING(x) /*nothing*/
+#endif
 
 //how does multiple servers work
 //each proxy acts as a cluster of connections to servers
@@ -59,7 +63,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	//we assume other systems are designed with even a minor thought to security.
 	#if !defined(__MINGW32_VERSION)
 		#define unlink _unlink	//why do MS have to be so awkward?
-		int snprintf(char *buffer, int buffersize, char *format, ...);
+		int snprintf(char *buffer, int buffersize, char *format, ...) PRINTFWARNING(3);
 		#if !defined(_VC80_UPGRADE)
 			int vsnprintf(char *buffer, int buffersize, char *format, va_list argptr);
 		#endif
@@ -716,19 +720,19 @@ void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
 qboolean QTV_Connect(sv_t *qtv, char *serverurl);
 void QTV_Shutdown(sv_t *qtv);
 qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport);
-void QTV_Printf(sv_t *qtv, char *format, ...);
+void QTV_Printf(sv_t *qtv, char *format, ...) PRINTFWARNING(2);
 
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable);
-void QW_PrintfToViewer(viewer_t *v, char *format, ...);
-void QW_StuffcmdToViewer(viewer_t *v, char *format, ...);
+void QW_PrintfToViewer(viewer_t *v, char *format, ...) PRINTFWARNING(2);
+void QW_StuffcmdToViewer(viewer_t *v, char *format, ...) PRINTFWARNING(2);
 void QW_StreamPrint(cluster_t *cluster, sv_t *server, viewer_t *allbut, char *message);
-void QW_StreamStuffcmd(cluster_t *cluster, sv_t *server, char *fmt, ...);
+void QW_StreamStuffcmd(cluster_t *cluster, sv_t *server, char *fmt, ...) PRINTFWARNING(3);
 void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcommand);	//execute a command from a view
 
 void PM_PlayerMove (pmove_t *pmove);
 
 void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qboolean isclient);
-void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock, netadr_t adr, char *format, ...);
+void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock, netadr_t adr, char *format, ...) PRINTFWARNING(4);
 int Netchan_IsLocal (netadr_t adr);
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, netadr_t adr);
 qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);
@@ -754,7 +758,7 @@ void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv);
 unsigned short QCRC_Block (void *start, int count);
 unsigned short QCRC_Value(unsigned short crcvalue);
 void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move);
-void SendClientCommand(sv_t *qtv, char *fmt, ...);
+void SendClientCommand(sv_t *qtv, char *fmt, ...) PRINTFWARNING(2);
 void QTV_Run(sv_t *qtv);
 void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer);
 void QW_SetMenu(viewer_t *v, int menunum);
@@ -767,7 +771,7 @@ unsigned Com_BlockChecksum (void *buffer, int length);
 void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf);
 void Cluster_BuildAvailableDemoList(cluster_t *cluster);
 
-void Sys_Printf(cluster_t *cluster, char *fmt, ...);
+void Sys_Printf(cluster_t *cluster, char *fmt, ...) PRINTFWARNING(2);
 
 void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length);
 oproxy_t *Net_FileProxy(sv_t *qtv, char *filename);
@@ -796,3 +800,4 @@ void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata);
 #ifdef __cplusplus
 }
 #endif
+

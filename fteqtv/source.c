@@ -390,7 +390,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 
 	if (!NET_StringToAddr(ip, &qtv->serveraddress, 27500))
 	{
-		Sys_Printf(qtv->cluster, "Unable to resolve %s\n", ip);
+		Sys_Printf(qtv->cluster, "Stream %i: Unable to resolve %s\n", qtv->streamid, ip);
 		return false;
 	}
 	qtv->sourcesock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -435,7 +435,7 @@ qboolean Net_ConnectToUDPServer(sv_t *qtv, char *ip)
 
 	if (!NET_StringToAddr(ip, &qtv->serveraddress, 27500))
 	{
-		Sys_Printf(qtv->cluster, "Unable to resolve %s\n", ip);
+		Sys_Printf(qtv->cluster, "Stream %i: Unable to resolve %s\n", qtv->streamid, ip);
 		return false;
 	}
 	qtv->sourcesock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -590,7 +590,7 @@ qboolean Net_ConnectToServer(sv_t *qtv)
 			fseek(qtv->sourcefile, 0, SEEK_SET);
 			return true;
 		}
-		Sys_Printf(qtv->cluster, "Unable to open file %s\n", ip);
+		Sys_Printf(qtv->cluster, "Stream %i: Unable to open file %s\n", qtv->streamid, ip);
 		return false;
 
 
@@ -614,7 +614,7 @@ void Net_QueueUpstream(sv_t *qtv, int size, char *buffer)
 
 	if (qtv->upstreambuffersize + size > sizeof(qtv->upstreambuffer))
 	{
-		Sys_Printf(qtv->cluster, "Upstream queue overflowed for %s\n", qtv->server);
+		Sys_Printf(qtv->cluster, "Stream %i: Upstream queue overflowed for %s\n", qtv->streamid, qtv->server);
 		qtv->drop = true;
 		return;
 	}
@@ -639,9 +639,9 @@ qboolean Net_WriteUpstream(sv_t *qtv)
 				int err;
 				err = qerrno;
 				if (qerrno)
-					Sys_Printf(qtv->cluster, "Error: source socket error %i\n", qerrno);
+					Sys_Printf(qtv->cluster, "Stream %i: Error: source socket error %i\n", qtv->streamid, qerrno);
 				else
-					Sys_Printf(qtv->cluster, "Error: server %s disconnected\n", qtv->server);
+					Sys_Printf(qtv->cluster, "Stream %i: Error: server %s disconnected\n", qtv->streamid, qtv->server);
 				qtv->drop = true;
 			}
 			return false;
@@ -786,7 +786,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 		getsockopt(qtv->sourcesock, SOL_SOCKET, SO_ERROR, (char*)&err, &errsize);
 		if (err == ECONNREFUSED)
 		{
-			Sys_Printf(qtv->cluster, "Error: server %s refused connection\n", qtv->server);
+			Sys_Printf(qtv->cluster, "Stream %i: Error: server %s refused connection\n", qtv->streamid, qtv->server);
 			closesocket(qtv->sourcesock);
 			qtv->sourcesock = INVALID_SOCKET;
 			qtv->upstreambuffersize = 0;	//probably contains initial connection request info
@@ -819,11 +819,11 @@ qboolean Net_ReadStream(sv_t *qtv)
 		if (read == 0 || (err != EWOULDBLOCK && err != EAGAIN && err != ENOTCONN))	//ENOTCONN can be returned whilst waiting for a connect to finish.
 		{
 			if (qtv->sourcefile)
-				Sys_Printf(qtv->cluster, "Error: End of file\n");
+				Sys_Printf(qtv->cluster, "Stream %i: Error: End of file\n", qtv->streamid);
 			else if (read)
-				Sys_Printf(qtv->cluster, "Error: source socket error %i\n", qerrno);
+				Sys_Printf(qtv->cluster, "Stream %i: Error: source socket error %i\n", qtv->streamid, qerrno);
 			else
-				Sys_Printf(qtv->cluster, "Error: server %s disconnected\n", qtv->server);
+				Sys_Printf(qtv->cluster, "Stream %i: Error: server %s disconnected\n", qtv->streamid, qtv->server);
 			if (qtv->sourcesock != INVALID_SOCKET)
 			{
 				closesocket(qtv->sourcesock);
@@ -1018,14 +1018,14 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 	}
 	else if (!Net_ConnectToServer(qtv))
 	{
-		Sys_Printf(qtv->cluster, "Couldn't connect (%s)\n", qtv->server);
+		Sys_Printf(qtv->cluster, "Stream %i: Couldn't connect (%s)\n", qtv->streamid, qtv->server);
 		return false;
 	}
 
 	if (qtv->sourcesock == INVALID_SOCKET)
 	{
 		qtv->parsetime = Sys_Milliseconds();
-//		Sys_Printf(qtv->cluster, "Playing from file\n");
+//		Sys_Printf(qtv->cluster, "Stream %i: Playing from file\n", qtv->streamid);
 	}
 	else
 	{
@@ -1042,7 +1042,7 @@ void QTV_Shutdown(sv_t *qtv)
 	sv_t *peer;
 	cluster_t *cluster;
 	int i;
-	Sys_Printf(qtv->cluster, "Closing source %s\n", qtv->server);
+	Sys_Printf(qtv->cluster, "Stream %i: Closing source %s\n", qtv->streamid, qtv->server);
 
 	if (qtv->sourcesock != INVALID_SOCKET)
 	{
@@ -1320,10 +1320,10 @@ void QTV_ParseQWStream(sv_t *qtv)
 				qtv->isconnected = true;
 				qtv->timeout = qtv->curtime + UDPTIMEOUT_LENGTH;
 				SendClientCommand(qtv, "new");
-				Sys_Printf(qtv->cluster, "Connected!\n");
+				Sys_Printf(qtv->cluster, "Stream %i: Connected!\n", qtv->streamid);
 				continue;
 			}
-			Sys_Printf(qtv->cluster, "%s: unrecognised connectionless packet:\n%s\n", qtv->server, buffer+4);
+			Sys_Printf(qtv->cluster, "Stream %i: %s: unrecognised connectionless packet:\n%s\n", qtv->streamid, qtv->server, buffer+4);
 			continue;
 		}
 		memset(&msg, 0, sizeof(msg));
@@ -1456,7 +1456,7 @@ void QTV_Run(sv_t *qtv)
 
 	if (qtv->disconnectwhennooneiswatching == 1 && qtv->numviewers == 0 && qtv->proxies == NULL)
 	{
-		Sys_Printf(qtv->cluster, "Stream %s became inactive\n", qtv->server);
+		Sys_Printf(qtv->cluster, "Stream %i: %s became inactive\n", qtv->streamid, qtv->server);
 		qtv->drop = true;
 	}
 	if (qtv->drop)
@@ -1515,7 +1515,7 @@ void QTV_Run(sv_t *qtv)
 
 			if (qtv->curtime >= qtv->timeout || qtv->curtime < qtv->timeout - UDPTIMEOUT_LENGTH*2)
 			{
-				Sys_Printf(qtv->cluster, "Timeout\n");
+				Sys_Printf(qtv->cluster, "Stream %i: Timeout\n", qtv->streamid);
 				qtv->isconnected = false;
 				return;
 			}
@@ -1690,8 +1690,8 @@ void QTV_Run(sv_t *qtv)
 			length = 6;
 		if (ustrncmp(qtv->buffer, "QTVSV ", length))
 		{
-			Sys_Printf(qtv->cluster, "Server is not a QTV server (or is incompatable)\n");
-printf("%i, %s\n", qtv->buffersize, qtv->buffer);
+			Sys_Printf(qtv->cluster, "Stream %i: Server is not a QTV server (or is incompatable)\n", qtv->streamid);
+//printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 			qtv->drop = true;
 			return;
 		}
@@ -1711,7 +1711,7 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 		svversion = atof((char*)qtv->buffer + 6);
 		if ((int)svversion != 1)
 		{
-			Sys_Printf(qtv->cluster, "QTV server doesn't support a compatable protocol version (returned %i)\n", atoi((char*)qtv->buffer + 6));
+			Sys_Printf(qtv->cluster, "Stream %i: QTV server doesn't support a compatable protocol version (returned %i)\n", qtv->streamid, atoi((char*)qtv->buffer + 6));
 			qtv->drop = true;
 			return;
 		}
@@ -1751,13 +1751,13 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 				strcpy(challenge, colon);
 			else if (!strcmp(start, "COMPRESSION"))
 			{	//we don't support compression, we didn't ask for it.
-				Sys_Printf(qtv->cluster, "QTV server wrongly used compression\n");
+				Sys_Printf(qtv->cluster, "Stream %i: QTV server wrongly used compression\n", qtv->streamid);
 				qtv->drop = true;
 				return;
 			}
 			else if (!strcmp(start, "PERROR"))
 			{
-				Sys_Printf(qtv->cluster, "\nServer PERROR from %s: %s\n\n", qtv->server, colon);
+				Sys_Printf(qtv->cluster, "\nStream %i: Server PERROR from %s: %s\n\n", qtv->streamid, qtv->server, colon);
 				qtv->drop = true;
 				qtv->buffersize = 0;
 				qtv->forwardpoint = 0;
@@ -1765,7 +1765,7 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 			}
 			else if (!strcmp(start, "TERROR") || !strcmp(start, "ERROR"))
 			{	//we don't support compression, we didn't ask for it.
-				Sys_Printf(qtv->cluster, "\nServer TERROR from %s: %s\n\n", qtv->server, colon);
+				Sys_Printf(qtv->cluster, "\nStream %i: Server TERROR from %s: %s\n\n", qtv->streamid, qtv->server, colon);
 				qtv->buffersize = 0;
 				qtv->forwardpoint = 0;
 
@@ -1803,7 +1803,7 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 			}
 			else if (!strcmp(start, "PRINT"))
 			{
-				Sys_Printf(qtv->cluster, "QTV server: %s\n", colon);
+				Sys_Printf(qtv->cluster, "Stream %i: QTV server: %s\n", qtv->streamid, colon);
 			}
 			else if (!strcmp(start, "BEGIN"))
 			{
@@ -1835,7 +1835,7 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 		}
 		else if (qtv->parsingqtvheader)
 		{
-			Sys_Printf(qtv->cluster, "QTV server sent no begin command - assuming incompatable\n\n");
+			Sys_Printf(qtv->cluster, "Stream %i: QTV server sent no begin command - assuming incompatable\n\n", qtv->streamid);
 			qtv->drop = true;
 			qtv->buffersize = 0;
 			qtv->forwardpoint = 0;
@@ -1900,17 +1900,17 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 		if (qtv->buffersize < lengthofs+4)
 		{	//the size parameter doesn't fit.
 			if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-				QTV_Printf(qtv, "Not enough buffered\n");
+				QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
 			qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
 			break;
 		}
 
 
 		length = (buffer[lengthofs]<<0) + (buffer[lengthofs+1]<<8) + (buffer[lengthofs+2]<<16) + (buffer[lengthofs+3]<<24);
-		if (length > 1500)
+		if (length > MAX_MSGLEN)
 		{	//THIS SHOULDN'T HAPPEN!
 			//Blame the upstream proxy!
-			QTV_Printf(qtv, "Warning: corrupt input packet (%i bytes) too big! Flushing and reconnecting!\n", length);
+			Sys_Printf(qtv->cluster, "Stream %i: Warning: corrupt input packet (%i bytes) too big! Flushing and reconnecting!\n", qtv->streamid, length);
 			if (qtv->sourcefile)
 			{
 				fclose(qtv->sourcefile);
@@ -1929,7 +1929,7 @@ printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 		if (length+lengthofs+4 > qtv->buffersize)
 		{
 			if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-				QTV_Printf(qtv, "Not enough buffered\n");
+				QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
 			qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
 			break;	//can't parse it yet.
 		}

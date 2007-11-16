@@ -2815,7 +2815,7 @@ tuiadmin:
 		}
 		else
 		{
-			QW_PrintfToViewer(v, "Stream not recognised. Stream id is invalid or terminated.\n", args);
+			QW_PrintfToViewer(v, "Stream \"%s\" not recognised. Stream id is invalid or terminated.\n", args);
 		}
 	}
 	else if (!strcmp(command, "demo"))
@@ -2830,7 +2830,7 @@ tuiadmin:
 			QW_PrintfToViewer(v, "Streaming from %s\n", qtv->server);
 		}
 		else
-			QW_PrintfToViewer(v, "Demo does not exist on proxy\n", buf);
+			QW_PrintfToViewer(v, "Demo \"%s\" does not exist on proxy\n", buf);
 	}
 	else if (!strcmp(command, "disconnect"))
 	{
@@ -3010,7 +3010,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 			if (qtv)
 			{
 				QW_SetViewersServer(cluster, v, qtv);
-				QW_PrintfToViewer(v, "Connected\n", message);
+				QW_PrintfToViewer(v, "Connected to \"%s\"\n", message);
 			}
 			else
 				QW_PrintfToViewer(v, "Failed to connect to server \"%s\", connection aborted\n", message);
@@ -3038,7 +3038,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 			else
 			{
 				QW_SetViewersServer(cluster, v, qtv);
-				QW_PrintfToViewer(v, "Opened demo file.\n", message);
+				QW_PrintfToViewer(v, "Opened demo file \"%s\".\n", message);
 			}
 		}
 		
@@ -3051,7 +3051,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 			else
 			{
 				QW_SetViewersServer(cluster, v, qtv);
-				QW_PrintfToViewer(v, "Opened demo file.\n", message);
+				QW_PrintfToViewer(v, "Opened demo file \"%s\".\n", message);
 			}
 		}
 		else if (!strcmp(v->expectcommand, "setmvdport"))
@@ -3130,7 +3130,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 
 	if (qtv && qtv->usequakeworldprotocols && !noupwards)
 	{
-		if (qtv->controller == v || !*v->name)
+		if (qtv->controller == v)
 		{
 			SendClientCommand(qtv, "say \"%s\"", message);
 
@@ -3149,11 +3149,6 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 	else
 	{
 		viewer_t *ov;
-		if (cluster->notalking)
-			return;
-
-		if (v->server)
-			SV_SayToUpstream(v->server, message);
 
 		// If the current viewer is the player, pass on the say_team
 		if (qtv && qtv->controller == v)
@@ -3161,6 +3156,12 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 			SendClientCommand(qtv, "say_team \"%s\"", message);
 			return;
 		}
+
+		if (cluster->notalking)
+			return;
+
+		if (v->server)
+			SV_SayToUpstream(v->server, message);
 
 		for (ov = cluster->viewers; ov; ov = ov->next)
 		{

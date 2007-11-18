@@ -1323,7 +1323,7 @@ void QTV_ParseQWStream(sv_t *qtv)
 				Sys_Printf(qtv->cluster, "Stream %i: Connected!\n", qtv->streamid);
 				continue;
 			}
-			Sys_Printf(qtv->cluster, "Stream %i: %s: unrecognised connectionless packet:\n%s\n", qtv->streamid, qtv->server, buffer+4);
+			Sys_Printf(qtv->cluster, "Stream %i: %s: unrecognized connectionless packet:\n%s\n", qtv->streamid, qtv->server, buffer+4);
 			continue;
 		}
 		memset(&msg, 0, sizeof(msg));

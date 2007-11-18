@@ -161,7 +161,7 @@ void Fwd_ParseCommands(cluster_t *cluster, oproxy_t *prox)
 			
 				break;
 			default:
-				Sys_Printf(cluster, "Received unrecognised packet type from downstream proxy.\n");
+				Sys_Printf(cluster, "Received unrecognized packet type from downstream proxy.\n");
 				buf.readpos = buf.cursize;
 				break;
 			}
@@ -697,7 +697,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 			pend->drop = true;
 
 			pend->inbuffer[16] = 0;
-			Sys_Printf(cluster, "Connect for unrecognised protocol %s\n", pend->inbuffer);
+			Sys_Printf(cluster, "Stream %i: Connect for unrecognized protocol %s\n", qtv->streamid, pend->inbuffer);
 			return false;
 		}
 	}
@@ -869,7 +869,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						//part of the connection process, can be ignored if there's no password
 					}
 					else
-						printf("Unrecognised token in QTV connection request (%s)\n", s);
+						printf("Stream %i: Unrecognized token in QTV connection request (%s)\n", qtv->streamid, s);
 				}
 				else
 				{
@@ -927,7 +927,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						//part of the connection process, can be ignored if there's no password
 					}
 					else
-						printf("Unrecognised token in QTV connection request (%s)\n", s);
+						printf("Stream %i: Unrecognized token in QTV connection request (%s)\n", qtv->streamid, s);
 				}
 			}
 			s = e+1;

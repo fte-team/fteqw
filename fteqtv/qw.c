@@ -3404,7 +3404,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			else
 			{
 				QW_PrintfToViewer(v, "Command not recognised\n");
-				Sys_Printf(cluster, "NQ client sent unrecognised stringcmd %s\n", buf);
+				Sys_Printf(cluster, "NQ client sent unrecognized stringcmd %s\n", buf);
 			}
 			break;
 		case clc_disconnect:

@@ -47,6 +47,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //when a viewer connects, they are given a list of active server connections
 //if there's only one server connection, they are given that one automatically.
 
+#if defined(__APPLE__) && defined(__MACH__)
+#define MACOSX
+#endif
+
 #ifdef _WIN32
 	#include <conio.h>
 	#include <winsock.h>	//this includes windows.h and is the reason for much compiling slowness with windows builds.
@@ -94,7 +98,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define ioctlsocket ioctl
 	#define closesocket close
 
-#elif defined(linux) || defined(ixemul)
+#elif defined(linux) || defined(ixemul) || defined(MACOSX) // I hope by adding MACOSX here it doesnt stop it from being natively built on macosx
 	#include <sys/time.h>
 	#include <sys/types.h>
 	#include <sys/socket.h>

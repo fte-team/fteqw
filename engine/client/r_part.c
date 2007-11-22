@@ -1938,7 +1938,7 @@ int P_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, 
 		return 1;
 
 	// inwater check, switch only once
-	if (r_part_contentswitch.value && ptype->inwater >= 0)
+	if (r_part_contentswitch.value && ptype->inwater >= 0 && cl.worldmodel)
 	{
 		int cont;
 		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, org);

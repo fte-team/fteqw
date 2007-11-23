@@ -3006,8 +3006,14 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 	else
 		player->spectator = false;
 
+	// If it's us
 	if (slot == cl.playernum[0] && player->name[0])
+	{
 		cl.spectator = player->spectator;
+
+		// Update the rules since spectators can bypass everything but players can't
+		CL_CheckServerInfo();
+	}
 
 	player->model = NULL;
 

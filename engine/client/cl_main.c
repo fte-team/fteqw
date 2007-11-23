@@ -1368,7 +1368,7 @@ void CL_CheckServerInfo(void)
 	cls.allow_skyboxes=false;
 	cls.allow_mirrors=false;
 	cls.allow_shaders=false;
-	cls.allow_luma=true;
+	cls.allow_luma=false;
 	cls.allow_bump=false;
 #ifdef FISH
 	cls.allow_fish=false;
@@ -1376,32 +1376,32 @@ void CL_CheckServerInfo(void)
 	cls.allow_fbskins = 1;
 //	cls.allow_fbskins = 0;
 //	cls.allow_overbrightlight;
-	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "rearview")))
+	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "rearview")))
 		cls.allow_rearview=true;
 
-	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "watervis")))
+	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "watervis")))
 		cls.allow_watervis=true;
 
-	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_skybox")) || atoi(Info_ValueForKey(cl.serverinfo, "allow_skyboxes")))
+	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_skybox")) || atoi(Info_ValueForKey(cl.serverinfo, "allow_skyboxes")))
 		cls.allow_skyboxes=true;
 
-	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "mirrors")))
+	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "mirrors")))
 		cls.allow_mirrors=true;
 
-	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_shaders")))
+	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_shaders")))
 		cls.allow_shaders=true;
 
-	if (cls.demoplayback || !atoi(Info_ValueForKey(cl.serverinfo, "allow_luma")))
-		cls.allow_luma=false;
+	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_luma")))
+		cls.allow_luma=true;
 
-	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_lmgamma")))
+	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_lmgamma")))
 		cls.allow_lightmapgamma=true;
 
 	s = Info_ValueForKey(cl.serverinfo, "allow_bump");
-	if (cls.demoplayback || atoi(s) || !*s)	//admin doesn't care.
+	if (cl.spectator || cls.demoplayback || atoi(s) || !*s)	//admin doesn't care.
 		cls.allow_bump=true;
 #ifdef FISH
-	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_fish")))
+	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_fish")))
 		cls.allow_fish=true;
 #endif
 
@@ -1412,11 +1412,11 @@ void CL_CheckServerInfo(void)
 		cls.allow_fbskins = 0;
 
 	s = Info_ValueForKey(cl.serverinfo, "*cheats");
-	if (cls.demoplayback || !stricmp(s, "on"))
+	if (cl.spectator || cls.demoplayback || !stricmp(s, "on"))
 		cls.allow_cheats = true;
 
 	s = Info_ValueForKey(cl.serverinfo, "strict");
-	if ((!cls.demoplayback && *s && strcmp(s, "0")) || !ruleset_allow_semicheats.value)
+	if ((!cl.spectator && !cls.demoplayback && *s && strcmp(s, "0")) || !ruleset_allow_semicheats.value)
 	{
 		cls.allow_semicheats = false;
 		cls.allow_cheats	= false;
@@ -1424,7 +1424,7 @@ void CL_CheckServerInfo(void)
 
 	cls.allow_shaders = cls.allow_cheats;
 
-	if (cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_shaders")))
+	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_shaders")))
 		cls.allow_shaders=true;
 
 
@@ -1487,7 +1487,7 @@ void CL_CheckServerInfo(void)
 		cls.allow_anyparticles = false;
 
 
-	if (cls.demoplayback)
+	if (cl.spectator || cls.demoplayback)
 		cl.fpd = 0;
 	else
 		cl.fpd = atoi(Info_ValueForKey(cl.serverinfo, "fpd"));

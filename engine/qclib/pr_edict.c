@@ -606,10 +606,7 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "unions cannot yet be saved");
 		break;
 	case ev_string:
-		if ((unsigned)val->_int > (unsigned)addressableused)
-			_snprintf (line, sizeof(line), "CORRUPT STRING");
-		else
-			_snprintf (line, sizeof(line), "%s", PR_StringToNative(progfuncs, val->string));
+		_snprintf (line, sizeof(line), "%s", PR_StringToNative(progfuncs, val->string));
 		break;
 	case ev_entity:
 		sprintf (line, "%i", val->_int);

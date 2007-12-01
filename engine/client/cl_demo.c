@@ -30,6 +30,9 @@ int cls_lasttype;
 void CL_PlayDemo(char *demoname);
 char lastdemoname[256];
 
+extern cvar_t qtv_workaroundeztv;
+
+#define BUFFERTIME 0.1
 /*
 ==============================================================================
 
@@ -175,7 +178,7 @@ int demo_preparsedemo(unsigned char *buffer, int bytes)
 			if (ofs+4 > bytes)
 				break;
 			length = (buffer[ofs+0]<<0) + (buffer[ofs+1]<<8) + (buffer[ofs+2]<<16) + (buffer[ofs+3]<<24);
-			if (length > 1500)
+			if (length > MAX_OVERALLMSGLEN)
 				return parsed;
 			ofs+=4;
 		}
@@ -210,11 +213,14 @@ int demopreparsedbytes;
 int readdemobytes(int *readpos, void *data, int len)
 {
 	int i;
+	int trybytes;
 
 	if (demopreparsedbytes < 0)	//won't happen in normal running, but can still happen on corrupt data... if we don't disconnect first.
 		demopreparsedbytes = 0;
 
-	i = VFS_READ(cls.demofile, demobuffer+demobuffersize, sizeof(demobuffer)-demobuffersize);
+	trybytes = sizeof(demobuffer)-demobuffersize;
+
+	i = VFS_READ(cls.demofile, demobuffer+demobuffersize, trybytes);
 	if (i > 0)
 	{
 		demobuffersize += i;
@@ -222,14 +228,16 @@ int readdemobytes(int *readpos, void *data, int len)
 	}
 	else if (i < 0)
 	{	//0 means no data available yet
-		printf("VFS_READ failed: %i\n", i);
+		printf("VFS_READ failed\n");
+//		CL_StopPlayback();
+		return 0;
 	}
+
+
 
 	if (len > demobuffersize)
 	{
 		len = demobuffersize;
-
-		//CL_StopPlayback();
 	}
 	memcpy(data, demobuffer+*readpos, len);
 	*readpos += len;
@@ -445,7 +453,9 @@ readnext:
 			realtime = olddemotime - 1.0;
 
 		if (readdemobytes(&demopos, &msecsadded, sizeof(msecsadded)) != sizeof(msecsadded))
+		{
 			return 0;
+		}
 		demotime = olddemotime + msecsadded*(1.0f/1000);
 		nextdemotime = demotime;
 	}
@@ -491,7 +501,7 @@ readnext:
 
 	if (cls.demoplayback == DPB_MVD)
 	{
-		if (msecsadded)
+		if (msecsadded || cls.netchan.incoming_sequence < 2)
 		{
 			cls.netchan.incoming_sequence++;
 			cls.netchan.incoming_acknowledged++;
@@ -600,7 +610,9 @@ readit:
 			return 0;
 		}
 		if (readdemobytes (&demopos, net_message.data, msglength) != msglength)
+		{
 			return 0;
+		}
 		net_message.cursize = msglength;
 
 		if (cls.demoplayback == DPB_MVD)
@@ -666,7 +678,6 @@ readit:
 		CL_StopPlayback ();
 		return 0;
 	}
-
 	demo_flushbytes(demopos);
 
 	return 1;
@@ -1422,7 +1433,6 @@ void CL_PlayDemo(char *demoname)
 
 void CL_QTVPlay (vfsfile_t *newf)
 {
-#define BUFFERTIME 10
 	CL_Disconnect_f ();
 
 	cls.demofile = newf;
@@ -1438,7 +1448,6 @@ void CL_QTVPlay (vfsfile_t *newf)
 	realtime = -BUFFERTIME;
 	cl.gametime = -BUFFERTIME;
 	cl.gametimemark = realtime;
-
 	Con_Printf("Buffering for %i seconds\n", (int)-realtime);
 
 	cls.netchan.last_received=realtime;
@@ -1706,8 +1715,17 @@ void CL_QTVPlay_f (void)
 	else
 		host = NULL;
 
-	connrequest =	"QTV\n"
-					"VERSION: 1.1\n";
+	if (qtv_workaroundeztv.value)
+	{
+		connrequest =	"QTV\n"
+				"VERSION: 1.0\n";
+	}
+	else
+	{
+		connrequest =	"QTV\n"
+				"VERSION: 1.1\n";
+	}
+
 	VFS_WRITE(newf, connrequest, strlen(connrequest));
 	if (raw)
 	{
@@ -1756,8 +1774,16 @@ void CL_QTVList_f (void)
 		return;
 	}
 
-	connrequest =	"QTV\n"
-					"VERSION: 1.1\n";
+	if (qtv_workaroundeztv.value)
+	{
+		connrequest =	"QTV\n"
+				"VERSION: 1.0\n";
+	}
+	else
+	{
+		connrequest =	"QTV\n"
+				"VERSION: 1.1\n";
+	}
 	VFS_WRITE(newf, connrequest, strlen(connrequest));
 	connrequest =	"SOURCELIST\n";
 	VFS_WRITE(newf, connrequest, strlen(connrequest));

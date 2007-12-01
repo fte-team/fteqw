@@ -2180,20 +2180,37 @@ int VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	tcpfile_t *tf = (tcpfile_t*)file;
 	int len;
+	int trying;
 
 	if (tf->sock != INVALID_SOCKET)
 	{
-		len = recv(tf->sock, tf->readbuffer + tf->readbuffered, sizeof(tf->readbuffer) - tf->readbuffered, 0);
+		trying = sizeof(tf->readbuffer) - tf->readbuffered;
+		if (trying > 1500)
+			trying = 1500;
+		len = recv(tf->sock, tf->readbuffer + tf->readbuffered, trying, 0);
 		if (len == -1)
 		{
+			if (errno != EWOULDBLOCK)
+				printf("socket error\n");
 			//fixme: figure out wouldblock or error
 		}
-		else if (len == 0)
+		else if (len == 0 && trying != 0)
+		{
 			VFSTCP_Error(tf);
+		}
 		else
+		{
 			tf->readbuffered += len;
+		}
 	}
-	if (bytestoread <= tf->readbuffered)
+
+	//return a partially filled buffer.
+	if (bytestoread > tf->readbuffered)
+		bytestoread = tf->readbuffered;
+	if (bytestoread < 0)
+		Host_Error("VFSTCP_ReadBytes: negative size request\n");
+
+	if (bytestoread > 0)
 	{
 		memcpy(buffer, tf->readbuffer, bytestoread);
 		tf->readbuffered -= bytestoread;
@@ -2201,7 +2218,11 @@ int VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 		return bytestoread;
 	}
 	else
-		return 0;
+	{
+		if (tf->sock == INVALID_SOCKET)
+			return -1;	//signal an error
+		return 0;	//signal nothing available
+	}
 }
 int VFSTCP_WriteBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {

@@ -73,6 +73,7 @@ cvar_t	cl_predict_players2 = SCVAR("cl_predict_players2", "1");
 cvar_t	cl_solid_players = SCVAR("cl_solid_players", "1");
 cvar_t	cl_noblink = SCVAR("cl_noblink", "0");
 cvar_t	cl_servername = SCVAR("cl_servername", "none");
+cvar_t	qtv_workaroundeztv = SCVAR("qtv_workaroundeztv", "0");
 
 cvar_t cl_demospeed = FCVAR("cl_demospeed", "demo_setspeed", "1", 0);
 
@@ -2515,6 +2516,7 @@ void CL_ReadPackets (void)
 			{
 				MSG_BeginReading();
 				cls.netchan.last_received = realtime;
+				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
 			}
 			else if (!Netchan_Process(&cls.netchan))
 				continue;		// wasn't accepted for some reason
@@ -2901,6 +2903,8 @@ void CL_Init (void)
 	Cvar_Register (&ruleset_allow_particle_lightning,	cl_controlgroup);
 	Cvar_Register (&ruleset_allow_overlongsounds,		cl_controlgroup);
 	Cvar_Register (&ruleset_allow_larger_models,		cl_controlgroup);
+
+	Cvar_Register (&qtv_workaroundeztv, cl_controlgroup);
 #ifdef WEBCLIENT
 	Cmd_AddCommand ("ftp", CL_FTP_f);
 #endif

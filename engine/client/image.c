@@ -952,9 +952,18 @@ badjpeg:
   (void) jpeg_start_decompress(&cinfo);
 
 
+  if (cinfo.output_components == 0)
+  {
+  		#ifdef _DEBUG
+  		Con_Printf("No JPEG Components, not a JPEG.\n");
+  		#endif
+  		goto badjpeg;
+  }
   if (cinfo.output_components!=3)
   {
-		Con_Printf("Bad number of components in jpeg\n");
+		#ifdef _DEBUG
+		Con_Printf("Bad number of components in JPEG: '%d', should be '3'.\n",cinfo.output_components);
+		#endif
 		goto badjpeg;
   }
   size_stride = cinfo.output_width * cinfo.output_components;

@@ -2208,7 +2208,7 @@ int VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 	if (bytestoread > tf->readbuffered)
 		bytestoread = tf->readbuffered;
 	if (bytestoread < 0)
-		Host_Error("VFSTCP_ReadBytes: negative size request\n");
+		VFSTCP_Error(tf);
 
 	if (bytestoread > 0)
 	{

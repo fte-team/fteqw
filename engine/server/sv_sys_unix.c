@@ -170,7 +170,7 @@ unsigned int Sys_Milliseconds (void)
 {
 	struct timeval tp;
 	struct timezone tzp;
-	int secbase;
+	static int secbase;
 
 	gettimeofday(&tp, &tzp);
 

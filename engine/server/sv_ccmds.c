@@ -422,6 +422,8 @@ void SV_Map_f (void)
 	int i;
 	char *startspot;
 
+	nextserver = 0;
+
 #ifndef SERVERONLY
 	if (qrenderer == -1)
 	{

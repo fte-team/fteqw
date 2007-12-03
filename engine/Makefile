@@ -221,7 +221,8 @@ DEBUG_CFLAGS=-ggdb -g
 ifeq ($(FTE_TARGET),win32)
 	RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 else
-	RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+	RELEASE_CFLAGS=-O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
+	#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 endif
 
 GLCFLAGS=-DGLQUAKE

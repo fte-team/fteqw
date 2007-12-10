@@ -1,19 +1,19 @@
 
 
 //limitations of the protocol
-#define	MAX_SERVERINFO_STRING	1024	//standard quake has 512 here.
-#define MAX_USERINFO 192
+#define	MAX_SERVERINFO_STRING	1024	//standard quakeworld has 512 here.
+#define MAX_USERINFO 1024	//standard quakeworld has 192 here.
 #define MAX_CLIENTS 32
 #define MAX_LIST 256
 #define MAX_MODELS MAX_LIST
 #define MAX_SOUNDS MAX_LIST
 #define MAX_ENTITIES 512
-#define MAX_STATICSOUNDS 64
+#define MAX_STATICSOUNDS 256
 #define MAX_STATICENTITIES 128
 #define MAX_LIGHTSTYLES 64
 
-#define MAX_PROXY_INBUFFER 4096
-#define MAX_PROXY_BUFFER (1<<17)	//must be power-of-two
+#define MAX_PROXY_INBUFFER 4096		//max bytes from a downstream proxy.
+#define MAX_PROXY_BUFFER (1<<17)	//must be power-of-two (buffer sizes for downstream, both sv/cl)
 #define PREFERED_PROXY_BUFFER	4096 //the ammount of data we try to leave in our input buffer (must be large enough to contain any single mvd frame)
 
 #define ENTS_PER_FRAME 64 //max number of entities per frame (OUCH!).
@@ -56,7 +56,7 @@
 
 //limits
 #define NQ_PACKETS_PER_SECOND 20
-#define MAX_MSGLEN 8000		//the biggest we can possibly allow
+#define MAX_MSGLEN 8192		//the biggest datagram size we allow
 #define MAX_NQMSGLEN 8000	//nq has large reliable packets for the connection data
 #define MAX_QWMSGLEN 1450	//qw is fully split into individual packets
 #define MAX_NQDATAGRAM 1024	//nq datagrams are only 1k

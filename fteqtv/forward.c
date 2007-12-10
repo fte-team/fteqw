@@ -697,7 +697,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 			pend->drop = true;
 
 			pend->inbuffer[16] = 0;
-			Sys_Printf(cluster, "Stream %i: Connect for unrecognized protocol %s\n", qtv->streamid, pend->inbuffer);
+			Sys_Printf(cluster, "pending proxy: Connect for unrecognized protocol %s\n", pend->inbuffer);
 			return false;
 		}
 	}

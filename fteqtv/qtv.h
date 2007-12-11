@@ -91,7 +91,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#include <arpa/inet.h>
 	#include <stdarg.h>
 	#include <netdb.h>
-	#include <stdlib.h>
 	#include <sys/ioctl.h>
 	#include <unistd.h>
 
@@ -114,6 +113,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 	#define ioctlsocket ioctl
 	#define closesocket close
+#elif (defined(__MORPHOS__) && !defined(ixemul))
+	#include <stdlib.h>
+	#include <unistd.h>
+
+	#include <sys/socket.h>
+	#include <sys/ioctl.h>
+	#include <netinet/in.h>
+	#include <netdb.h>
+	#include <errno.h>
+
+	#define ioctlsocket IoctlSocket
+	#define closesocket CloseSocket
 #else
 #error "Please insert required headers here"
 //try the cygwin ones

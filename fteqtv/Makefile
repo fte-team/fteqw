@@ -1,5 +1,5 @@
-EXTRACFLAGS=-Wall -O2
-CC=gcc $(EXTRACFLAGS)
+CFLAGS+=-Wall -O2
+CC=gcc
 STRIP=strip
 
 STRIPFLAGS=--strip-unneeded --remove-section=.comment

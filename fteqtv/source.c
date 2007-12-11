@@ -21,12 +21,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //connection notes
 //The connection is like http.
 //The stream starts with a small header.
-//The header is a list of 'key: value' pairs, seperated by new lines.
+//The header is a list of 'key: value' pairs, separated by new lines.
 //The header ends with a totally blank line.
 //to record an mvd from telnet or somesuch, you would use:
 //"QTV\nRAW: 1\n\n"
 
-//VERSION: a list of the different qtv protocols supported. Multiple versions can be specified. The first is assumed to be the prefered version.
+//VERSION: a list of the different qtv protocols supported. Multiple versions can be specified. The first is assumed to be the preferred version.
 //RAW: if non-zero, send only a raw mvd with no additional markup anywhere (for telnet use). Doesn't work with challenge-based auth, so will only be accepted when proxy passwords are not required.
 //AUTH: specifies an auth method, the exact specs varies based on the method
 //		PLAIN: the password is sent as a PASSWORD line
@@ -486,14 +486,14 @@ qboolean DemoFilenameIsOkay(char *fname)
 	if (strchr(fname, '\\'))
 	{
 		char *s;
-		Con_Printf("Warning: \\ charactures in filename %s\n", fname);
+		Con_Printf("Warning: \\ characters in filename %s\n", fname);
 		while((s = strchr(fname, '\\')))
 			*s = '/';
 	}
 
 	if (strstr(fname, ".."))
 	{
-		Con_Printf("Error: '..' charactures in filename %s\n", fname);
+		Con_Printf("Error: '..' characters in filename %s\n", fname);
 	}
 	else if (fname[0] == '/')
 	{
@@ -765,8 +765,8 @@ qboolean Net_ReadStream(sv_t *qtv)
 
 	if (qtv->sourcefile)
 	{
-		if (maxreadable > PREFERED_PROXY_BUFFER-qtv->buffersize)
-			maxreadable = PREFERED_PROXY_BUFFER-qtv->buffersize;
+		if (maxreadable > PREFERRED_PROXY_BUFFER-qtv->buffersize)
+			maxreadable = PREFERRED_PROXY_BUFFER-qtv->buffersize;
 		if (maxreadable<=0)
 			return true;
 
@@ -1378,7 +1378,7 @@ void QTV_CollectCommentry(sv_t *qtv)
 
 	while(1)
 	{
-		//the protocol WILL be different. Don't add compatability for this code.
+		//the protocol WILL be different. Don't add compatibility for this code.
 		buffer[0] = 0;
 		buffer[1] = dem_audio;
 		buffer[2] = 255;
@@ -1690,7 +1690,7 @@ void QTV_Run(sv_t *qtv)
 			length = 6;
 		if (ustrncmp(qtv->buffer, "QTVSV ", length))
 		{
-			Sys_Printf(qtv->cluster, "Stream %i: Server is not a QTV server (or is incompatable)\n", qtv->streamid);
+			Sys_Printf(qtv->cluster, "Stream %i: Server is not a QTV server (or is incompatible)\n", qtv->streamid);
 //printf("%i, %s\n", qtv->buffersize, qtv->buffer);
 			qtv->drop = true;
 			return;
@@ -1711,7 +1711,7 @@ void QTV_Run(sv_t *qtv)
 		svversion = atof((char*)qtv->buffer + 6);
 		if ((int)svversion != 1)
 		{
-			Sys_Printf(qtv->cluster, "Stream %i: QTV server doesn't support a compatable protocol version (returned %i)\n", qtv->streamid, atoi((char*)qtv->buffer + 6));
+			Sys_Printf(qtv->cluster, "Stream %i: QTV server doesn't support a compatible protocol version (returned %i)\n", qtv->streamid, atoi((char*)qtv->buffer + 6));
 			qtv->drop = true;
 			return;
 		}
@@ -1835,7 +1835,7 @@ void QTV_Run(sv_t *qtv)
 		}
 		else if (qtv->parsingqtvheader)
 		{
-			Sys_Printf(qtv->cluster, "Stream %i: QTV server sent no begin command - assuming incompatable\n\n", qtv->streamid);
+			Sys_Printf(qtv->cluster, "Stream %i: QTV server sent no begin command - assuming incompatible\n\n", qtv->streamid);
 			qtv->drop = true;
 			qtv->buffersize = 0;
 			qtv->forwardpoint = 0;

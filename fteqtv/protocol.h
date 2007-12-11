@@ -14,7 +14,7 @@
 
 #define MAX_PROXY_INBUFFER 4096		//max bytes from a downstream proxy.
 #define MAX_PROXY_BUFFER (1<<17)	//must be power-of-two (buffer sizes for downstream, both sv/cl)
-#define PREFERED_PROXY_BUFFER	4096 //the ammount of data we try to leave in our input buffer (must be large enough to contain any single mvd frame)
+#define PREFERRED_PROXY_BUFFER	4096 //the ammount of data we try to leave in our input buffer (must be large enough to contain any single mvd frame)
 
 #define ENTS_PER_FRAME 64 //max number of entities per frame (OUCH!).
 #define ENTITY_FRAMES 64 //number of frames to remember for deltaing

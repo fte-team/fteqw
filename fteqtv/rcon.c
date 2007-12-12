@@ -351,7 +351,7 @@ void Cmd_Hostname(cmdctxt_t *ctx)
 	if (Cmd_Argc(ctx) < 2)
 	{
 		if (*ctx->cluster->hostname)
-			Cmd_Printf(ctx, "Current hostname is %s\n", ctx->cluster->hostname);
+			Cmd_Printf(ctx, "Current hostname is \"%s\"\n", ctx->cluster->hostname);
 		else
 			Cmd_Printf(ctx, "No master server is currently set.\n");
 	}
@@ -429,7 +429,7 @@ void Cmd_AdminPassword(cmdctxt_t *ctx)
 		if (*ctx->cluster->adminpassword)
 			Cmd_Printf(ctx, "An admin password is currently set\n");
 		else
-			Cmd_Printf(ctx, "No admin passsword is currently set\n");
+			Cmd_Printf(ctx, "No admin password is currently set\n");
 	}
 	else
 	{
@@ -472,6 +472,7 @@ void Cmd_QTVDemoList(cmdctxt_t *ctx)
 
 void Cmd_GenericConnect(cmdctxt_t *ctx, char *method)
 {
+	sv_t *sv;
 	char *address, *password;
 	if (Cmd_Argc(ctx) < 2)
 	{
@@ -488,10 +489,11 @@ void Cmd_GenericConnect(cmdctxt_t *ctx, char *method)
 	memmove(address+strlen(method), address, ARG_LEN-(1+strlen(method)));
 	strncpy(address, method, strlen(method));
 
-	if (!QTV_NewServerConnection(ctx->cluster, address, password, false, false, false, false))
+	sv = QTV_NewServerConnection(ctx->cluster, address, password, false, false, false, false);
+	if (!sv)
 		Cmd_Printf(ctx, "Failed to connect to \"%s\", connection aborted\n", address);
-
-	Cmd_Printf(ctx, "Source registered \"%s\"\n", address);
+	else
+		Cmd_Printf(ctx, "Source registered \"%s\" as stream %i\n", address, sv->streamid);
 }
 
 void Cmd_QTVConnect(cmdctxt_t *ctx)
@@ -591,11 +593,12 @@ void Cmd_Say(cmdctxt_t *ctx)
 
 void Cmd_Status(cmdctxt_t *ctx)
 {
-	Cmd_Printf(ctx, "%i sources\n", ctx->cluster->numservers);
-	Cmd_Printf(ctx, "%i viewers\n", ctx->cluster->numviewers);
-	Cmd_Printf(ctx, "%i proxies\n", ctx->cluster->numproxies);
+	Cmd_Printf(ctx, "QTV Status:\n");
+	Cmd_Printf(ctx, " %i sources\n", ctx->cluster->numservers);
+	Cmd_Printf(ctx, " %i viewers\n", ctx->cluster->numviewers);
+	Cmd_Printf(ctx, " %i proxies\n", ctx->cluster->numproxies);
 
-	Cmd_Printf(ctx, "Options:\n");
+	Cmd_Printf(ctx, "Common Options:\n");
 	Cmd_Printf(ctx, " Hostname %s\n", ctx->cluster->hostname);
 	
 	if (ctx->cluster->chokeonnotupdated)
@@ -622,41 +625,44 @@ void Cmd_Status(cmdctxt_t *ctx)
 	{
 		Cmd_Printf(ctx, "Selected server: %s\n", ctx->qtv->server);
 		if (ctx->qtv->sourcefile)
-			Cmd_Printf(ctx, "Playing from file\n");
+			Cmd_Printf(ctx, " Playing from file\n");
 		if (ctx->qtv->sourcesock != INVALID_SOCKET)
-			Cmd_Printf(ctx, "Connected\n");
+			Cmd_Printf(ctx, " Connected\n");
 		if (ctx->qtv->parsingqtvheader || ctx->qtv->parsingconnectiondata)
-			Cmd_Printf(ctx, "Waiting for gamestate\n");
+			Cmd_Printf(ctx, " Waiting for gamestate\n");
 		if (ctx->qtv->usequakeworldprotocols)
 		{
-			Cmd_Printf(ctx, "QuakeWorld protocols\n");
+			Cmd_Printf(ctx, " QuakeWorld protocols\n");
 			if (ctx->qtv->controller)
 			{
-				Cmd_Printf(ctx, "Controlled by %s\n", ctx->qtv->controller->name);
+				Cmd_Printf(ctx, " Controlled by %s\n", ctx->qtv->controller->name);
 			}
 		}
 		else if (ctx->qtv->sourcesock == INVALID_SOCKET && !ctx->qtv->sourcefile)
-			Cmd_Printf(ctx, "Connection not established\n");
+			Cmd_Printf(ctx, " Connection not established\n");
 
 		if (*ctx->qtv->modellist[1].name)
 		{
-			Cmd_Printf(ctx, "Map name %s\n", ctx->qtv->modellist[1].name);
+			Cmd_Printf(ctx, " Map name %s\n", ctx->qtv->modellist[1].name);
 		}
 		if (*ctx->qtv->connectpassword)
-			Cmd_Printf(ctx, "Using a password\n");
+			Cmd_Printf(ctx, " Using a password\n");
+
+		if (ctx->qtv->errored == ERR_DISABLED)
+			Cmd_Printf(ctx, " Stream is disabled\n");
 
 		if (ctx->qtv->disconnectwhennooneiswatching)
-			Cmd_Printf(ctx, "Stream is temporary\n");
+			Cmd_Printf(ctx, " Stream is temporary\n");
 
 /*		if (ctx->qtv->tcpsocket != INVALID_SOCKET)
 		{
-			Cmd_Printf(ctx, "Listening for proxies (%i)\n", ctx->qtv->tcplistenportnum);
+			Cmd_Printf(ctx, " Listening for proxies (%i)\n", ctx->qtv->tcplistenportnum);
 		}
 */
 
 		if (ctx->qtv->bsp)
 		{
-			Cmd_Printf(ctx, "BSP (%s) is loaded\n", ctx->qtv->mapname);
+			Cmd_Printf(ctx, " BSP (%s) is loaded\n", ctx->qtv->mapname);
 		}
 	}
 
@@ -826,11 +832,38 @@ void Cmd_Quit(cmdctxt_t *ctx)
 void Cmd_Streams(cmdctxt_t *ctx)
 {
 	sv_t *qtv;
+	char *status;
 	Cmd_Printf(ctx, "Streams:\n");
 
 	for (qtv = ctx->cluster->servers; qtv; qtv = qtv->next)
 	{
-		Cmd_Printf(ctx, "%i: %s\n", qtv->streamid, qtv->server);
+		switch (qtv->errored)
+		{
+		case ERR_NONE:
+			if (qtv->controller)
+				status = " (player controlled)";
+			else if (qtv->parsingconnectiondata)
+				status = " (connecting)";
+			else
+				status = "";
+			break;
+		case ERR_DISABLED:
+			status = " (disabled)";
+			break;
+		case ERR_DROP:	//a user should never normally see this, but there is a chance
+			status = " (dropping)";
+			break;
+		case ERR_RECONNECT:	//again, rare
+			status = " (reconnecting)";
+			break;
+		default:	//some other kind of error, transitioning
+			status = " (errored)";
+			break;
+		}
+		Cmd_Printf(ctx, "%i: %s%s\n", qtv->streamid, qtv->server, status);
+
+		if (qtv->upstreamacceptschat)
+			Cmd_Printf(ctx, "  (dbg) can chat!\n");
 	}
 }
 
@@ -853,6 +886,27 @@ void Cmd_Disconnect(cmdctxt_t *ctx)
 {
 	QTV_Shutdown(ctx->qtv);
 	Cmd_Printf(ctx, "Disconnected\n");
+}
+
+void Cmd_Halt(cmdctxt_t *ctx)
+{
+	if (ctx->qtv->errored == ERR_DISABLED || ctx->qtv->errored == ERR_PERMANENT)
+	{
+		Cmd_Printf(ctx, "Stream is already halted\n");
+	}
+	else
+	{
+		ctx->qtv->errored = ERR_PERMANENT;
+		Cmd_Printf(ctx, "Stream will disconnect\n");
+	}
+}
+void Cmd_Resume(cmdctxt_t *ctx)
+{
+	if (ctx->qtv->errored == ERR_NONE)
+		Cmd_Printf(ctx, "Stream is already functional\n");
+
+	ctx->qtv->errored = ERR_RECONNECT;
+	Cmd_Printf(ctx, "Stream will attempt to reconnect\n");
 }
 
 void Cmd_Record(cmdctxt_t *ctx)
@@ -1000,10 +1054,10 @@ void Cmd_MuteStream(cmdctxt_t *ctx)
 	if (*val)
 	{
 		ctx->qtv->silentstream = atoi(val);
-		Cmd_Printf(ctx, "Stream is now %smuted\n", ctx->qtv->silentstream?"un":"");
+		Cmd_Printf(ctx, "Stream is now %smuted\n", ctx->qtv->silentstream?"":"un");
 	}
 	else
-		Cmd_Printf(ctx, "Stream is currently %smuted\n", ctx->qtv->silentstream?"un":"");
+		Cmd_Printf(ctx, "Stream is currently %smuted\n", ctx->qtv->silentstream?"":"un");
 }
 
 #ifdef VIEWER
@@ -1028,71 +1082,91 @@ void Cmd_Watch(cmdctxt_t *ctx)
 #endif
 
 
-void Cmd_Commands(cmdctxt_t *ctx)
-{
-	Cmd_Printf(ctx, "fixme\n");
-}
 
 typedef struct rconcommands_s {
 	char *name;
 	qboolean serverspecific;	//works within a qtv context
 	qboolean clusterspecific;	//works without a qtv context (ignores context)
 	consolecommand_t func;
+	char *description;
 } rconcommands_t;
+
+extern const rconcommands_t rconcommands[];
+
+void Cmd_Commands(cmdctxt_t *ctx)
+{
+	rconcommands_t *cmd;
+	consolecommand_t lastfunc = NULL;
+
+	Cmd_Printf(ctx, "Commands:\n");
+	for (cmd = rconcommands; cmd->name; cmd = cmd++)
+	{
+		if (cmd->func == lastfunc)
+			continue;	//no spamming alternative command names
+
+		Cmd_Printf(ctx, "%s: %s\n", cmd->name, cmd->description?cmd->description:"no description available");
+		lastfunc = cmd->func;
+	}
+}
 
 const rconcommands_t rconcommands[] =
 {
-	{"exec",		1, 1, Cmd_Exec},
-	{"status",		1, 1, Cmd_Status},
-	{"say",			1, 1, Cmd_Say},
+	{"exec",		1, 1, Cmd_Exec,		"executes a config file"},
+	{"status",		1, 1, Cmd_Status,	"prints proxy/stream status" },
+	{"say",			1, 1, Cmd_Say,		"says to a stream"},
 
-	{"help",		0, 1, Cmd_Help},
-	{"commands",	0, 1, Cmd_Commands},
-	{"hostname",	0, 1, Cmd_Hostname},
-	{"master",		0, 1, Cmd_Master},
-	{"udpport",		0, 1, Cmd_UDPPort},
+	{"help",		0, 1, Cmd_Help,		"shows the brief intro help text"},
+	{"commands",		0, 1, Cmd_Commands,	"prints the list of commands"},
+	{"hostname",		0, 1, Cmd_Hostname,	"changes the hostname seen in server browsers"},
+	{"master",		0, 1, Cmd_Master,	"specifies which master server to use"},
+	{"udpport",		0, 1, Cmd_UDPPort,	"specifies to listen on a provided udp port for regular qw clients"},
 	 {"port",		0, 1, Cmd_UDPPort},
-	{"adminpassword",0, 1, Cmd_AdminPassword},
-	 {"rconpassword",0, 1, Cmd_AdminPassword},
-	{"qtvlist",		0, 1, Cmd_QTVList},
-	{"qtvdemolist",	0, 1, Cmd_QTVDemoList},
-	{"qtv",			0, 1, Cmd_QTVConnect},
-	 {"addserver",	0, 1, Cmd_QTVConnect},
-	 {"connect",	0, 1, Cmd_QTVConnect},
-	{"qw",			0, 1, Cmd_QWConnect},
-	 {"observe",	0, 1, Cmd_QWConnect},
-	{"demos",	0, 1, Cmd_DemoList},
-	{"demo",		0, 1, Cmd_MVDConnect},
-	 {"playdemo",	0, 1, Cmd_MVDConnect},
-	{"choke",		0, 1, Cmd_Choke},
-	{"late",		0, 1, Cmd_Late},
-	{"talking",		0, 1, Cmd_Talking},
-	{"nobsp",		0, 1, Cmd_NoBSP},
-	{"userconnects",	0, 1, Cmd_UserConnects},
-	{"maxviewers",	0, 1, Cmd_MaxViewers},
-	{"maxproxies",	0, 1, Cmd_MaxProxies},
-	{"demodir",	0, 1, Cmd_DemoDir},
-	{"basedir",	0, 1, Cmd_BaseDir},
-	{"ping",		0, 1, Cmd_Ping},
-	{"reconnect",	0, 1, Cmd_Reconnect},
-	{"echo",		0, 1, Cmd_Echo},
-	{"quit",		0, 1, Cmd_Quit},
+	{"adminpassword",	0, 1, Cmd_AdminPassword,"specifies the password for qtv administrators"},
+	 {"rconpassword",	0, 1, Cmd_AdminPassword},
+	{"qtvlist",		0, 1, Cmd_QTVList,	"queries a seperate proxy for a list of available streams"},
+	{"qtvdemolist",		0, 1, Cmd_QTVDemoList,	"queries a seperate proxy for a list of available demos"},
+	{"qtv",			0, 1, Cmd_QTVConnect,	"adds a new tcp/qtv stream"},
+	 {"addserver",		0, 1, Cmd_QTVConnect},
+	 {"connect",		0, 1, Cmd_QTVConnect},
+	{"qw",			0, 1, Cmd_QWConnect,	"adds a new udp/qw stream"},
+	 {"observe",		0, 1, Cmd_QWConnect},
+	{"demos",		0, 1, Cmd_DemoList,	"shows the list of demos available on this proxy"},
+	{"demo",		0, 1, Cmd_MVDConnect,	"adds a demo as a new stream"},
+	 {"playdemo",		0, 1, Cmd_MVDConnect},
+	{"choke",		0, 1, Cmd_Choke,	"chokes packets to the data rate in the stream, disables proxy-side interpolation"},
+	{"late",		0, 1, Cmd_Late,		"enforces a time delay on packets sent through this proxy"},
+	{"talking",		0, 1, Cmd_Talking,	"permits viewers to talk to each other"},
+	{"nobsp",		0, 1, Cmd_NoBSP,	"disables loading of bsp files"},
+	{"userconnects",	0, 1, Cmd_UserConnects,	"prevents users from creating thier own streams"},
+	{"maxviewers",		0, 1, Cmd_MaxViewers,	"sets a limit on udp/qw client connections"},
+	{"maxproxies",		0, 1, Cmd_MaxProxies,	"sets a limit on tcp/qtv client connections"},
+	{"demodir",		0, 1, Cmd_DemoDir,	"specifies where to get the demo list from"},
+	{"basedir",		0, 1, Cmd_BaseDir,	"specifies where to get any files required by the game. this is prefixed to the server-specified game dir."},
+	{"ping",		0, 1, Cmd_Ping,		"sends a udp ping to a qtv proxy or server"},
+	{"reconnect",		0, 1, Cmd_Reconnect,	"forces a stream to reconnect to its server (restarts demos)"},
+	{"echo",		0, 1, Cmd_Echo,		"a useless command that echos a string"},
+	{"quit",		0, 1, Cmd_Quit,		"closes the qtv"},
 	{"exit",		0, 1, Cmd_Quit},
-	{"streams",		0, 1, Cmd_Streams},
-	{"allownq",		0, 1, Cmd_AllowNQ},
+	{"streams",		0, 1, Cmd_Streams,	"shows a list of active streams"},
+	{"allownq",		0, 1, Cmd_AllowNQ,	"permits nq clients to connect. This can be disabled as this code is less tested than the rest"},
 
 
 
+	{"halt",		1, 0, Cmd_Halt,		"disables a stream, preventing it from reconnecting until someone tries watching it anew"},
+	{"disable",		1, 0, Cmd_Halt},
+	{"resume",		1, 0, Cmd_Resume,	"reactivates a stream, allowing it to reconnect"},
+	{"enable",		1, 0, Cmd_Resume},
+	{"mute",		1, 0, Cmd_MuteStream,	"hides prints that come from the game server"},
 	{"mutestream",		1, 0, Cmd_MuteStream},
-	{"disconnect",	1, 0, Cmd_Disconnect},
-	{"record",		1, 0, Cmd_Record},
-	{"stop",		1, 0, Cmd_Stop},
-	{"demospeed",		1, 0, Cmd_DemoSpeed},
-	{"tcpport",		0, 1, Cmd_MVDPort},
-	 {"mvdport",	0, 1, Cmd_MVDPort},
+	{"disconnect",		1, 0, Cmd_Disconnect,	"fully closes a stream"},
+	{"record",		1, 0, Cmd_Record,	"records a stream to a demo"},
+	{"stop",		1, 0, Cmd_Stop,		"stops recording of a demo"},
+	{"demospeed",		1, 0, Cmd_DemoSpeed,	"changes the rate the demo is played at"},
+	{"tcpport",		0, 1, Cmd_MVDPort,	"specifies which port to listen on for tcp/qtv connections"},
+	 {"mvdport",		0, 1, Cmd_MVDPort},
 
 #ifdef VIEWER
-	{"watch",		1, 0, Cmd_Watch},
+	{"watch",		1, 0, Cmd_Watch,	"specifies to watch that stream in the built-in viewer"},
 #endif
 	 
 	{NULL}
@@ -1137,6 +1211,7 @@ void Cmd_ExecuteNow(cmdctxt_t *ctx, char *command)
 
 	cmdname = Cmd_Argv(ctx, 0);
 
+	//if there's only one stream, set that as the selected stream
 	if (!ctx->qtv && ctx->cluster->numservers==1)
 		ctx->qtv = ctx->cluster->servers;
 

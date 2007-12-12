@@ -344,7 +344,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			SendClientCommand(tv, "new\n");
 			return;
 		}
-		tv->drop = true;	//this shouldn't ever happen
+		Sys_Printf(tv->cluster, "packet stuffcmd in an mvd\n");	//shouldn't ever happen, try ignoring it.
 		return;
 	}
 	else if (tv->usequakeworldprotocols && !strncmp(text, "setinfo ", 8))
@@ -1380,6 +1380,7 @@ void ParseNails(sv_t *tv, netmsg_t *m, qboolean nails2)
 
 void ParseDownload(sv_t *tv, netmsg_t *m)
 {
+#warning this needs looking at (controller downloads)
 	int size, b;
 	unsigned int percent;
 	char buffer[2048];
@@ -1393,7 +1394,7 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 		if (tv->downloadfile)
 			fclose(tv->downloadfile);
 		tv->downloadfile = NULL;
-		tv->drop = true;
+		tv->errored = ERR_PERMANENT;
 		QW_StreamPrint(tv->cluster, tv, NULL, "Map download failed\n");
 		return;
 	}
@@ -1404,7 +1405,7 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 	if (!tv->downloadfile)
 	{
 		Sys_Printf(tv->cluster, "Not downloading anything\n");
-		tv->drop = true;
+		tv->errored = ERR_PERMANENT;
 		return;
 	}
 	fwrite(buffer, 1, size, tv->downloadfile);
@@ -1423,7 +1424,7 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 		if (!tv->bsp)
 		{
 			Sys_Printf(tv->cluster, "Failed to read BSP\n");
-			tv->drop = true;
+			tv->errored = ERR_PERMANENT;
 		}
 		else
 		{

@@ -478,6 +478,14 @@ typedef enum {
 	SRC_TCP
 } sourcetype_t;
 
+typedef enum {
+	ERR_NONE,	//stream is fine
+	ERR_RECONNECT,	//stream needs to reconnect
+	ERR_PERMANENT,	//permanent error, transitioning to disabled next frame
+	ERR_DISABLED,	//stream is disabled, can be set to reconnect by admin
+	ERR_DROP	//stream _will_ be forgotten about next frame
+} errorstate_t;
+
 struct sv_s {	//details about a server connection (also known as stream)
 	char connectpassword[64];	//password given to server
 	netadr_t serveraddress;
@@ -580,7 +588,7 @@ struct sv_s {	//details about a server connection (also known as stream)
 
 
 
-	qboolean drop;
+	errorstate_t errored;
 	qboolean disconnectwhennooneiswatching;
 	unsigned int numviewers;
 

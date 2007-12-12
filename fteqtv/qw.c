@@ -3644,13 +3644,14 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 						{
 							if (!qtv->bsp)
 							{
-								QW_PrintfToViewer(v, "Proxy was unable to check your map version\n");
-								qtv->drop = true;
+							#warning do we still actually need to do this ourselves? Or can we just forward what the user stated?
+								QW_PrintfToViewer(v, "QTV doesn't have that map (%s), sorry.\n", qtv->modellist[1].name);
+								qtv->errored = ERR_DROP;
 							}
 							else if (crc != BSP_Checksum(qtv->bsp))
 							{
-								QW_PrintfToViewer(v, "Your map (%s) does not match the servers\n", qtv->modellist[1].name);
-								qtv->drop = true;
+								QW_PrintfToViewer(v, "QTV's map (%s) does not match the servers\n", qtv->modellist[1].name);
+								qtv->errored = ERR_DROP;
 							}
 						}
 					}
@@ -4484,7 +4485,7 @@ void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer)
 		if (viewer->server->controller == viewer)
 		{
 			if (viewer->server->disconnectwhennooneiswatching)
-				viewer->server->drop = true;
+				viewer->server->errored = ERR_DROP;
 			else
 				viewer->server->controller = NULL;
 		}

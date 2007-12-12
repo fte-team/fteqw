@@ -364,7 +364,7 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 				}
 				else
 				{
-					qtv->drop = true;
+					qtv->errored = ERR_PERMANENT;
 					qtv->upstreambuffersize = 0;
 					Sys_Printf(qtv->cluster, "Auth method %s was not usable\n", authmethod);
 					return;
@@ -423,6 +423,11 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 			return false;
 		}
 	}
+
+	//make sure the buffers are empty. we could have disconnected prematurly
+	qtv->upstreambuffersize = 0;
+	qtv->buffersize = 0;
+	qtv->forwardpoint = 0;
 
 	//read the notes at the start of this file for what these text strings mean
 	Net_SendQTVConnectionRequest(qtv, NULL, NULL);
@@ -615,7 +620,7 @@ void Net_QueueUpstream(sv_t *qtv, int size, char *buffer)
 	if (qtv->upstreambuffersize + size > sizeof(qtv->upstreambuffer))
 	{
 		Sys_Printf(qtv->cluster, "Stream %i: Upstream queue overflowed for %s\n", qtv->streamid, qtv->server);
-		qtv->drop = true;
+		qtv->errored = ERR_RECONNECT;
 		return;
 	}
 	memcpy(qtv->upstreambuffer + qtv->upstreambuffersize, buffer, size);
@@ -642,7 +647,7 @@ qboolean Net_WriteUpstream(sv_t *qtv)
 					Sys_Printf(qtv->cluster, "Stream %i: Error: source socket error %i\n", qtv->streamid, qerrno);
 				else
 					Sys_Printf(qtv->cluster, "Stream %i: Error: server %s disconnected\n", qtv->streamid, qtv->server);
-				qtv->drop = true;
+				qtv->errored = ERR_RECONNECT;	//if the server is down, we'll detect it on reconnect
 			}
 			return false;
 		}
@@ -1034,16 +1039,32 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 	return true;
 }
 
-void QTV_Shutdown(sv_t *qtv)
-{
-	oproxy_t *prox;
-	oproxy_t *old;
+void QTV_Cleanup(sv_t *qtv, qboolean leaveadmins)
+{	//disconnects the stream
 	viewer_t *v;
-	sv_t *peer;
 	cluster_t *cluster;
 	int i;
-	Sys_Printf(qtv->cluster, "Stream %i: Closing source %s\n", qtv->streamid, qtv->server);
+	oproxy_t *prox;
+	oproxy_t *old;
 
+	cluster = qtv->cluster;
+	
+	//set connected viewers to a different stream
+	if (cluster->viewserver == qtv)
+		cluster->viewserver = NULL;
+	for (v = cluster->viewers; v; v = v->next)
+	{
+	#warning fixme: honour leaveadmins
+		if (v->server == qtv)
+		{	//they were watching this one
+			QW_SetViewersServer(qtv->cluster, v, NULL);
+			QW_SetMenu(v, MENU_NONE);
+			QTV_SayCommand(cluster, v->server, v, "menu");
+			QW_PrintfToViewer(v, "Stream %s is closing\n", qtv->server);
+		}
+	}
+
+	// close the source handle
 	if (qtv->sourcesock != INVALID_SOCKET)
 	{
 		if (qtv->usequakeworldprotocols)
@@ -1061,17 +1082,57 @@ void QTV_Shutdown(sv_t *qtv)
 		fclose(qtv->sourcefile);
 		qtv->sourcefile = NULL;
 	}
+
+	//cancel downloads
 	if (qtv->downloadfile)
 	{
 		fclose(qtv->downloadfile);
 		qtv->downloadfile = NULL;
 		unlink(qtv->downloadname);
+		*qtv->downloadname = '\0';
 	}
-//	if (qtv->tcpsocket != INVALID_SOCKET)
-//		closesocket(qtv->tcpsocket);
+	//free the bsp
 	BSP_Free(qtv->bsp);
 	qtv->bsp = NULL;
 
+	//clean up entity state
+	for (i = 0; i < ENTITY_FRAMES; i++)
+	{
+		if (qtv->frame[i].ents)
+		{
+			free(qtv->frame[i].ents);
+			qtv->frame[i].ents = NULL;
+		}
+		if (qtv->frame[i].entnums)
+		{
+			free(qtv->frame[i].entnums);
+			qtv->frame[i].entnums = NULL;
+		}
+	}
+
+	//boot connected downstream proxies
+	for (prox = qtv->proxies; prox; )
+	{
+		if (prox->file)
+			fclose(prox->file);
+		if (prox->sock != INVALID_SOCKET)
+			closesocket(prox->sock);
+		old = prox;
+		prox = prox->next;
+		free(old);
+		cluster->numproxies--;
+	}
+}
+
+void QTV_Shutdown(sv_t *qtv)
+{
+	sv_t *peer;
+	cluster_t *cluster;
+	Sys_Printf(qtv->cluster, "Stream %i: Closing source %s\n", qtv->streamid, qtv->server);
+
+	QTV_Cleanup(qtv, false);
+
+	//unlink it
 	cluster = qtv->cluster;
 	if (cluster->servers == qtv)
 		cluster->servers = qtv->next;
@@ -1086,41 +1147,6 @@ void QTV_Shutdown(sv_t *qtv)
 			}
 		}
 	}
-
-	if (cluster->viewserver == qtv)
-		cluster->viewserver = NULL;
-
-	for (v = cluster->viewers; v; v = v->next)
-	{
-		if (v->server == qtv)
-		{
-			QW_SetViewersServer(qtv->cluster, v, NULL);
-			QW_SetMenu(v, MENU_NONE);
-			QTV_SayCommand(cluster, v->server, v, "menu");
-			QW_PrintfToViewer(v, "Stream %s is closing\n", qtv->server);
-		}
-	}
-
-	for (i = 0; i < ENTITY_FRAMES; i++)
-	{
-		if (qtv->frame[i].ents)
-			free(qtv->frame[i].ents);
-		if (qtv->frame[i].entnums)
-			free(qtv->frame[i].entnums);
-	}
-
-	for (prox = qtv->proxies; prox; )
-	{
-		if (prox->file)
-			fclose(prox->file);
-		if (prox->sock != INVALID_SOCKET)
-			closesocket(prox->sock);
-		old = prox;
-		prox = prox->next;
-		free(old);
-		cluster->numproxies--;
-	}
-
 
 	free(qtv);
 	cluster->numservers--;
@@ -1457,13 +1483,30 @@ void QTV_Run(sv_t *qtv)
 	if (qtv->disconnectwhennooneiswatching == 1 && qtv->numviewers == 0 && qtv->proxies == NULL)
 	{
 		Sys_Printf(qtv->cluster, "Stream %i: %s became inactive\n", qtv->streamid, qtv->server);
-		qtv->drop = true;
+		qtv->errored = ERR_DROP;
 	}
-	if (qtv->drop)
+	if (qtv->errored)
 	{
-		QTV_Shutdown(qtv);
-		return;
+		if (qtv->errored == ERR_DISABLED)
+		{
+			//this keeps any connected proxies ticking over.
+			//probably we should drop them instead - the connection will only be revived if one of them reconnects.
+			SV_ForwardStream(qtv, NULL, 0);
+			return;
+		}
+		else if (qtv->errored == ERR_PERMANENT)
+		{
+			QTV_Cleanup(qtv, false);	//frees various pieces of context
+			qtv->errored = ERR_DISABLED;
+			return;
+		}
+		else if (qtv->errored == ERR_DROP)
+		{
+			QTV_Shutdown(qtv);	//destroys the stream
+			return;
+		}
 	}
+
 
 
 //we will read out as many packets as we can until we're up to date
@@ -1488,6 +1531,11 @@ void QTV_Run(sv_t *qtv)
 	}
 
 
+	if (qtv->errored == ERR_RECONNECT)
+	{
+		qtv->errored = ERR_NONE;
+		qtv->nextconnectattempt = qtv->curtime;	//make the reconnect happen _now_
+	}
 
 
 	if (qtv->sourcetype == SRC_UDP)
@@ -1499,10 +1547,26 @@ void QTV_Run(sv_t *qtv)
 
 		if (!qtv->isconnected && (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - UDPRECONNECT_TIME*2))
 		{
-			strcpy(qtv->status, "Attemping challenge\n");
-			Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, 13, "getchallenge\n");
+			if (qtv->errored == ERR_DISABLED)
+			{
+				strcpy(qtv->status, "Given up connecting\n");
+			}
+			else
+			{
+				strcpy(qtv->status, "Attemping challenge\n");
+				if (qtv->sourcesock == INVALID_SOCKET && !qtv->sourcefile)
+				{
+					if (!QTV_Connect(qtv, qtv->server))	//reconnect it
+						qtv->errored = ERR_PERMANENT;
+				}
+				if (qtv->errored == ERR_NONE)
+					Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, 13, "getchallenge\n");
+			}
 			qtv->nextconnectattempt = qtv->curtime + UDPRECONNECT_TIME;
 		}
+		if (qtv->sourcesock == INVALID_SOCKET && !qtv->sourcefile)
+			return;
+
 		QTV_ParseQWStream(qtv);
 
 		if (qtv->isconnected)
@@ -1637,15 +1701,19 @@ void QTV_Run(sv_t *qtv)
 
 	if (qtv->sourcesock == INVALID_SOCKET && !qtv->sourcefile)
 	{
+		if (qtv->errored == ERR_DISABLED)
+			return;
+
 		if (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - RECONNECT_TIME*2)
 		{
-			if (qtv->disconnectwhennooneiswatching == 2)
+			if (qtv->disconnectwhennooneiswatching == 2)	//2 means a reverse connection
 			{
-				qtv->drop = true;
+				qtv->errored = ERR_DROP;
 				return;
 			}
-			if (!QTV_Connect(qtv, qtv->server))
+			if (!QTV_Connect(qtv, qtv->server))	//reconnect it
 			{
+				qtv->errored = ERR_PERMANENT;
 				return;
 			}
 		}
@@ -1692,7 +1760,7 @@ void QTV_Run(sv_t *qtv)
 		{
 			Sys_Printf(qtv->cluster, "Stream %i: Server is not a QTV server (or is incompatible)\n", qtv->streamid);
 //printf("%i, %s\n", qtv->buffersize, qtv->buffer);
-			qtv->drop = true;
+			qtv->errored = ERR_PERMANENT;
 			return;
 		}
 		if (length < 6)
@@ -1712,7 +1780,7 @@ void QTV_Run(sv_t *qtv)
 		if ((int)svversion != 1)
 		{
 			Sys_Printf(qtv->cluster, "Stream %i: QTV server doesn't support a compatible protocol version (returned %i)\n", qtv->streamid, atoi((char*)qtv->buffer + 6));
-			qtv->drop = true;
+			qtv->errored = ERR_PERMANENT;
 			return;
 		}
 
@@ -1752,13 +1820,13 @@ void QTV_Run(sv_t *qtv)
 			else if (!strcmp(start, "COMPRESSION"))
 			{	//we don't support compression, we didn't ask for it.
 				Sys_Printf(qtv->cluster, "Stream %i: QTV server wrongly used compression\n", qtv->streamid);
-				qtv->drop = true;
+				qtv->errored = ERR_PERMANENT;
 				return;
 			}
 			else if (!strcmp(start, "PERROR"))
 			{
 				Sys_Printf(qtv->cluster, "\nStream %i: Server PERROR from %s: %s\n\n", qtv->streamid, qtv->server, colon);
-				qtv->drop = true;
+				qtv->errored = ERR_PERMANENT;
 				qtv->buffersize = 0;
 				qtv->forwardpoint = 0;
 				return;
@@ -1770,7 +1838,7 @@ void QTV_Run(sv_t *qtv)
 				qtv->forwardpoint = 0;
 
 				if (qtv->disconnectwhennooneiswatching)
-					qtv->drop = true;	//if its a user registered stream, drop it immediatly
+					qtv->errored = ERR_DROP;	//if its a user registered stream, drop it immediatly
 				else
 				{	//otherwise close the socket (this will result in a timeout and reconnect)
 					if (qtv->sourcesock != INVALID_SOCKET)
@@ -1823,7 +1891,7 @@ void QTV_Run(sv_t *qtv)
 		if (qtv->serverquery)
 		{
 			Sys_Printf(qtv->cluster, "End of list\n");
-			qtv->drop = true;
+			qtv->errored = ERR_DROP;
 			qtv->buffersize = 0;
 			qtv->forwardpoint = 0;
 			return;
@@ -1836,7 +1904,7 @@ void QTV_Run(sv_t *qtv)
 		else if (qtv->parsingqtvheader)
 		{
 			Sys_Printf(qtv->cluster, "Stream %i: QTV server sent no begin command - assuming incompatible\n\n", qtv->streamid);
-			qtv->drop = true;
+			qtv->errored = ERR_PERMANENT;
 			qtv->buffersize = 0;
 			qtv->forwardpoint = 0;
 			return;
@@ -2008,7 +2076,15 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, 
 		for (qtv = cluster->servers; qtv; qtv = qtv->next)
 		{
 			if (!strcmp(qtv->server, server))
+			{	//if the stream detected some permanent/config error, try reconnecting again (of course this only happens when someone tries using the stream)
+#warning review this logic
+				if (qtv->errored == ERR_DISABLED)
+				{
+					if (!(!QTV_Connect(qtv, server) && !force))	//try and wake it up
+						qtv->errored = ERR_NONE;
+				}
 				return qtv;
+			}
 		}
 	}
 	if (autoclose)
@@ -2043,6 +2119,7 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, 
 	{
 		if (!QTV_Connect(qtv, server) && !force)
 		{
+			QTV_Cleanup(qtv, false);
 			free(qtv);
 			return NULL;
 		}

@@ -331,7 +331,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	MAX_NQMSGLEN	8000		// max length of a reliable message
 #define MAX_Q2MSGLEN	1400
 #define MAX_QWMSGLEN	1450
-#define MAX_OVERALLMSGLEN	MAX_NQMSGLEN
+#define MAX_OVERALLMSGLEN	8192	// mvdsv sends packets this big
 #define	MAX_DATAGRAM	1450		// max length of unreliable message
 #define MAX_Q2DATAGRAM	MAX_Q2MSGLEN
 #define	MAX_NQDATAGRAM	1024		// max length of unreliable message

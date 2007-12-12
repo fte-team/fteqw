@@ -216,7 +216,15 @@ int readdemobytes(int *readpos, void *data, int len)
 	int trybytes;
 
 	if (demopreparsedbytes < 0)	//won't happen in normal running, but can still happen on corrupt data... if we don't disconnect first.
+	{
+		Con_Printf("reset preparsed (underflow)\n");
 		demopreparsedbytes = 0;
+	}
+	if (demopreparsedbytes > demobuffersize)
+	{
+		Con_Printf("reset preparsed (overflow)\n");
+		demopreparsedbytes = 0;
+	}
 
 	trybytes = sizeof(demobuffer)-demobuffersize;
 
@@ -264,6 +272,7 @@ void demo_resetcache(int bytes, void *data)
 	demo_flushcache();
 
 	demobuffersize = bytes;
+	demopreparsedbytes = 0;
 	memcpy(demobuffer, data, bytes);
 
 	//preparse it now
@@ -1500,6 +1509,7 @@ void CL_QTVPoll (void)
 	}
 	if (!*s)
 		return;
+	s[1] = '\0';	//make sure its null terminated before the data payload
 	s = qtvrequestbuffer;
 	for (e = s; *e; )
 	{

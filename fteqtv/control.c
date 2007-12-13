@@ -473,7 +473,7 @@ void DoCommandLine(cluster_t *cluster, int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-	cluster_t cluster;
+	cluster_t *cluster;
 
 //	soundtest();
 
@@ -488,57 +488,63 @@ int main(int argc, char **argv)
 	}
 #endif
 
-	memset(&cluster, 0, sizeof(cluster));
-
-	cluster.qwdsocket = INVALID_SOCKET;
-	cluster.tcpsocket = INVALID_SOCKET;
-	cluster.qwlistenportnum = 0;
-	cluster.allownqclients = true;
-	strcpy(cluster.hostname, DEFAULT_HOSTNAME);
-	cluster.buildnumber = build_number();
-	cluster.maxproxies = -1;
-
-	strcpy(cluster.demodir, "qw/demos/");
-
-	Sys_Printf(&cluster, "QTV Build %i.\n", cluster.buildnumber);
-
-	DoCommandLine(&cluster, argc, argv);
-
-	if (!cluster.numservers)
-	{	//probably running on a home user's computer
-		if (cluster.qwdsocket == INVALID_SOCKET && !cluster.qwlistenportnum)
-		{
-			cluster.qwdsocket = QW_InitUDPSocket(cluster.qwlistenportnum = 27599);
-			if (cluster.qwdsocket != INVALID_SOCKET)
-				Sys_Printf(&cluster, "opened udp port %i\n", cluster.qwlistenportnum);
-		}
-		if (cluster.tcpsocket == INVALID_SOCKET && !cluster.tcplistenportnum)
-		{
-			cluster.tcpsocket = Net_MVDListen(cluster.tcplistenportnum = 27599);
-			if (cluster.tcpsocket != INVALID_SOCKET)
-				Sys_Printf(&cluster, "opened tcp port %i\n", cluster.tcplistenportnum);
-		}
-
-		Sys_Printf(&cluster, "\n"
-			"Welcome to FTEQTV\n"
-			"Please type\n"
-			"qtv server:port\n"
-			" to connect to a tcp server.\n"
-			"qw server:port\n"
-			" to connect to a regular qw server.\n"
-			"demo qw/example.mvd\n"
-			" to play a demo from an mvd.\n"
-			"\n");
-	}
-
-//	Cluster_BuildAvailableDemoList(&cluster);
-
-	while (!cluster.wanttoexit)
+	cluster = malloc(sizeof(*cluster));
+	if (cluster)
 	{
-		Cluster_Run(&cluster, true);
+		memset(cluster, 0, sizeof(*cluster));
+
+		cluster->qwdsocket = INVALID_SOCKET;
+		cluster->tcpsocket = INVALID_SOCKET;
+		cluster->qwlistenportnum = 0;
+		cluster->allownqclients = true;
+		strcpy(cluster->hostname, DEFAULT_HOSTNAME);
+		cluster->buildnumber = build_number();
+		cluster->maxproxies = -1;
+
+		strcpy(cluster->demodir, "qw/demos/");
+
+		Sys_Printf(cluster, "QTV Build %i.\n", cluster->buildnumber);
+
+		DoCommandLine(cluster, argc, argv);
+
+		if (!cluster->numservers)
+		{	//probably running on a home user's computer
+			if (cluster->qwdsocket == INVALID_SOCKET && !cluster->qwlistenportnum)
+			{
+				cluster->qwdsocket = QW_InitUDPSocket(cluster->qwlistenportnum = 27599);
+				if (cluster->qwdsocket != INVALID_SOCKET)
+					Sys_Printf(cluster, "opened udp port %i\n", cluster->qwlistenportnum);
+			}
+			if (cluster->tcpsocket == INVALID_SOCKET && !cluster->tcplistenportnum)
+			{
+				cluster->tcpsocket = Net_MVDListen(cluster->tcplistenportnum = 27599);
+				if (cluster->tcpsocket != INVALID_SOCKET)
+					Sys_Printf(cluster, "opened tcp port %i\n", cluster->tcplistenportnum);
+			}
+
+			Sys_Printf(cluster, "\n"
+				"Welcome to FTEQTV\n"
+				"Please type\n"
+				"qtv server:port\n"
+				" to connect to a tcp server.\n"
+				"qw server:port\n"
+				" to connect to a regular qw server.\n"
+				"demo qw/example.mvd\n"
+				" to play a demo from an mvd.\n"
+				"\n");
+		}
+
+//		Cluster_BuildAvailableDemoList(cluster);
+
+		while (!cluster->wanttoexit)
+		{
+			Cluster_Run(cluster, true);
 #ifdef VIEWER
-		DemoViewer_Update(cluster.viewserver);
+			DemoViewer_Update(cluster->viewserver);
 #endif
+		}
+
+		free(cluster);
 	}
 
 	return 0;

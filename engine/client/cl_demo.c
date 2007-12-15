@@ -30,7 +30,12 @@ int cls_lasttype;
 void CL_PlayDemo(char *demoname);
 char lastdemoname[256];
 
-extern cvar_t qtv_workaroundeztv;
+extern cvar_t qtvcl_forceversion1;
+
+unsigned char demobuffer[1024*16];
+int demobuffersize;
+int demopreparsedbytes;
+qboolean disablepreparse;
 
 #define BUFFERTIME 0.1
 /*
@@ -179,7 +184,11 @@ int demo_preparsedemo(unsigned char *buffer, int bytes)
 				break;
 			length = (buffer[ofs+0]<<0) + (buffer[ofs+1]<<8) + (buffer[ofs+2]<<16) + (buffer[ofs+3]<<24);
 			if (length > MAX_OVERALLMSGLEN)
+			{
+				disablepreparse = true;
+				Con_Printf("Error looking ahead at demo\n");
 				return parsed;
+			}
 			ofs+=4;
 		}
 		else
@@ -207,9 +216,6 @@ int demo_preparsedemo(unsigned char *buffer, int bytes)
 	return parsed;
 }
 
-unsigned char demobuffer[1024*16];
-int demobuffersize;
-int demopreparsedbytes;
 int readdemobytes(int *readpos, void *data, int len)
 {
 	int i;
@@ -232,7 +238,10 @@ int readdemobytes(int *readpos, void *data, int len)
 	if (i > 0)
 	{
 		demobuffersize += i;
-		demopreparsedbytes += demo_preparsedemo(demobuffer+demopreparsedbytes, demobuffersize-demopreparsedbytes);
+		if (disablepreparse)
+			demopreparsedbytes = demobuffersize;
+		else
+			demopreparsedbytes += demo_preparsedemo(demobuffer+demopreparsedbytes, demobuffersize-demopreparsedbytes);
 	}
 	else if (i < 0)
 	{	//0 means no data available yet
@@ -1473,6 +1482,7 @@ vfsfile_t *qtvrequest;
 void CL_QTVPoll (void)
 {
 	char *s, *e, *colon;
+	char *tail = NULL;
 	int len;
 	qboolean streamavailable = false;
 	qboolean saidheader = false;
@@ -1505,15 +1515,35 @@ void CL_QTVPoll (void)
 	for (s = qtvrequestbuffer; *s; s++)
 	{
 		if (s[0] == '\n' && s[1] == '\n')
+		{
+			tail = s+2;
 			break;
+		}
+		if (s[0] == '\r' && s[1] == '\n' && s[2] == '\r' && s[3] == '\n')
+		{
+			tail = s+4;
+			break;
+		}
+		if (s[0] == '\r' && s[1] == '\n' && s[2] == '\n')
+		{
+			tail = s+3;
+			break;
+		}
+		if (s[0] == '\n' && s[1] == '\r' && s[2] == '\n')
+		{
+			tail = s+3;
+			break;
+		}
 	}
-	if (!*s)
+	if (!tail)
 		return;
 	s[1] = '\0';	//make sure its null terminated before the data payload
 	s = qtvrequestbuffer;
 	for (e = s; *e; )
 	{
-		if (*e == '\n')
+		if (*e == '\r')
+			*e = '\0';
+		else if (*e == '\n')
 		{
 			*e = '\0';
 			colon = strchr(s, ':');
@@ -1610,7 +1640,7 @@ void CL_QTVPoll (void)
 	{
 		CL_QTVPlay(qtvrequest);
 		qtvrequest = NULL;
-		demo_resetcache(qtvrequestsize - (e-qtvrequestbuffer), e);
+		demo_resetcache(qtvrequestsize - (tail-qtvrequestbuffer), tail);
 		return;
 	}
 
@@ -1725,7 +1755,7 @@ void CL_QTVPlay_f (void)
 	else
 		host = NULL;
 
-	if (qtv_workaroundeztv.value)
+	if (qtvcl_forceversion1.value)
 	{
 		connrequest =	"QTV\n"
 				"VERSION: 1.0\n";
@@ -1784,7 +1814,7 @@ void CL_QTVList_f (void)
 		return;
 	}
 
-	if (qtv_workaroundeztv.value)
+	if (qtvcl_forceversion1.value)
 	{
 		connrequest =	"QTV\n"
 				"VERSION: 1.0\n";

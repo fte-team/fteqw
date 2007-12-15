@@ -1216,3 +1216,96 @@ typedef struct q1usercmd_s
 #define PFLAGS_NOSHADOW		1
 #define PFLAGS_CORONA		2
 #define PFLAGS_FULLDYNAMIC	128
+
+#define RENDER_STEP 1
+#define RENDER_GLOWTRAIL 2
+#define RENDER_VIEWMODEL 4
+#define RENDER_EXTERIORMODEL 8
+#define RENDER_LOWPRECISION 16 // send as low precision coordinates to save bandwidth
+#define RENDER_COLORMAPPED 32
+//#define RENDER_INDIRECT 64
+#define RENDER_SHADOW 65536 // cast shadow
+#define RENDER_LIGHT 131072 // receive light
+#define RENDER_TRANSPARENT 262144 // can't light during opaque stage
+
+//darkplaces protocols 5 to 7 use these
+// reset all entity fields (typically used if status changed)
+#define E5_FULLUPDATE (1<<0)
+// E5_ORIGIN32=0: short[3] = s->origin[0] * 8, s->origin[1] * 8, s->origin[2] * 8
+// E5_ORIGIN32=1: float[3] = s->origin[0], s->origin[1], s->origin[2]
+#define E5_ORIGIN (1<<1)
+// E5_ANGLES16=0: byte[3] = s->angle[0] * 256 / 360, s->angle[1] * 256 / 360, s->angle[2] * 256 / 360
+// E5_ANGLES16=1: short[3] = s->angle[0] * 65536 / 360, s->angle[1] * 65536 / 360, s->angle[2] * 65536 / 360
+#define E5_ANGLES (1<<2)
+// E5_MODEL16=0: byte = s->modelindex
+// E5_MODEL16=1: short = s->modelindex
+#define E5_MODEL (1<<3)
+// E5_FRAME16=0: byte = s->frame
+// E5_FRAME16=1: short = s->frame
+#define E5_FRAME (1<<4)
+// byte = s->skin
+#define E5_SKIN (1<<5)
+// E5_EFFECTS16=0 && E5_EFFECTS32=0: byte = s->effects
+// E5_EFFECTS16=1 && E5_EFFECTS32=0: short = s->effects
+// E5_EFFECTS16=0 && E5_EFFECTS32=1: int = s->effects
+// E5_EFFECTS16=1 && E5_EFFECTS32=1: int = s->effects
+#define E5_EFFECTS (1<<6)
+// bits >= (1<<8)
+#define E5_EXTEND1 (1<<7)
+
+// byte = s->renderflags
+#define E5_FLAGS (1<<8)
+// byte = bound(0, s->alpha * 255, 255)
+#define E5_ALPHA (1<<9)
+// byte = bound(0, s->scale * 16, 255)
+#define E5_SCALE (1<<10)
+// flag
+#define E5_ORIGIN32 (1<<11)
+// flag
+#define E5_ANGLES16 (1<<12)
+// flag
+#define E5_MODEL16 (1<<13)
+// byte = s->colormap
+#define E5_COLORMAP (1<<14)
+// bits >= (1<<16)
+#define E5_EXTEND2 (1<<15)
+
+// short = s->tagentity
+// byte = s->tagindex
+#define E5_ATTACHMENT (1<<16)
+// short[4] = s->light[0], s->light[1], s->light[2], s->light[3]
+// byte = s->lightstyle
+// byte = s->lightpflags
+#define E5_LIGHT (1<<17)
+// byte = s->glowsize
+// byte = s->glowcolor
+#define E5_GLOW (1<<18)
+// short = s->effects
+#define E5_EFFECTS16 (1<<19)
+// int = s->effects
+#define E5_EFFECTS32 (1<<20)
+// flag
+#define E5_FRAME16 (1<<21)
+// unused
+#define E5_COLORMOD (1<<22)
+// bits >= (1<<24)
+#define E5_EXTEND3 (1<<23)
+
+// unused
+#define E5_UNUSED24 (1<<24)
+// unused
+#define E5_UNUSED25 (1<<25)
+// unused
+#define E5_UNUSED26 (1<<26)
+// unused
+#define E5_UNUSED27 (1<<27)
+// unused
+#define E5_UNUSED28 (1<<28)
+// unused
+#define E5_UNUSED29 (1<<29)
+// unused
+#define E5_UNUSED30 (1<<30)
+// bits2 > 0
+#define E5_EXTEND4 (1<<31)
+
+#define E5_ALLUNUSED (E5_UNUSED24|E5_UNUSED25|E5_UNUSED26|E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)

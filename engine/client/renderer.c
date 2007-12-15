@@ -358,6 +358,7 @@ extern cvar_t r_waterlayers;
 #if defined(RGLQUAKE) || defined(D3DQUAKE)
 void GLD3DRenderer_Init(void)
 {
+	Cvar_Register (&gl_mindist, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_load24bit, GRAPHICALNICETIES);
 }
 #endif
@@ -407,7 +408,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_motionblurscale, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_mindist, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_multisample, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_fontinwardstep, GRAPHICALNICETIES);

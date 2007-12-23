@@ -133,7 +133,7 @@ void	Cvar_SetValue (cvar_t *var, float value);
 qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, int flag);
 
 void Cvar_ApplyLatches(int latchflag);
-//sets vars to thier latched values
+//sets vars to their latched values
 
 void Cvar_Hook(cvar_t *cvar, void (*callback) (struct cvar_s *var, char *oldvalue));
 //hook a cvar with a given callback function at runtime

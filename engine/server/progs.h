@@ -89,7 +89,7 @@ typedef struct edict_s
 
 	entity_state_t	baseline;
 
-	qbyte solidtype;	//relinks entities if thier solidity changed
+	qbyte solidtype;	//relinks entities if their solidity changed
 // other fields from progs come immediately after
 } edict_t;
   

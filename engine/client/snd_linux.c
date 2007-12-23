@@ -128,7 +128,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (!(fmt & AFMT_S16_LE) && sc->sn.samplebits > 8)
 		sc->sn.samplebits = 8;	// they asked for 16bit (the default) but their card does not support it
 	if (!(fmt & AFMT_U8) && sc->sn.samplebits == 8)
-	{	//thier card doesn't support 8bit which we're trying to use.
+	{	//their card doesn't support 8bit which we're trying to use.
 		Con_Printf(CON_ERROR "OSS: No needed sample formats supported\n");
 		OSS_Shutdown(sc);
 		return 0;

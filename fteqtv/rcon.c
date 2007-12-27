@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qtv.h"
 
+#include "bsd_string.h"
 
 #define MAX_INFO_KEY 64
 
@@ -222,14 +223,6 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 }
 
 
-void qstrncpyz(char *out, char *in, int length)
-{
-	if (length < 1)
-		return;
-	strncpy(out, in, length-1);
-	out[length-1] = 0;
-}
-
 
 
 #define DEFAULT_PUNCTUATION "(,{})(\':;=!><&|+"
@@ -357,7 +350,7 @@ void Cmd_Hostname(cmdctxt_t *ctx)
 	}
 	else
 	{
-		qstrncpyz(ctx->cluster->hostname, Cmd_Argv(ctx, 1), sizeof(ctx->cluster->hostname));
+		strlcpy(ctx->cluster->hostname, Cmd_Argv(ctx, 1), sizeof(ctx->cluster->hostname));
 
 		Cmd_Printf(ctx, "hostname set to \"%s\"\n", ctx->cluster->hostname);
 	}
@@ -379,7 +372,7 @@ void Cmd_Master(cmdctxt_t *ctx)
 
 	if (!strcmp(newval, "-"))
 	{
-		qstrncpyz(ctx->cluster->master, "", sizeof(ctx->cluster->master));
+		strlcpy(ctx->cluster->master, "", sizeof(ctx->cluster->master));
 		Cmd_Printf(ctx, "Master server cleared\n");
 		return;
 	}
@@ -390,7 +383,7 @@ void Cmd_Master(cmdctxt_t *ctx)
 		return;
 	}
 
-	qstrncpyz(ctx->cluster->master, newval, sizeof(ctx->cluster->master));
+	strlcpy(ctx->cluster->master, newval, sizeof(ctx->cluster->master));
 	ctx->cluster->mastersendtime = ctx->cluster->curtime;
 
 	if (ctx->cluster->qwdsocket != INVALID_SOCKET)
@@ -433,7 +426,7 @@ void Cmd_AdminPassword(cmdctxt_t *ctx)
 	}
 	else
 	{
-		qstrncpyz(ctx->cluster->adminpassword, Cmd_Argv(ctx, 1), sizeof(ctx->cluster->adminpassword));
+		strlcpy(ctx->cluster->adminpassword, Cmd_Argv(ctx, 1), sizeof(ctx->cluster->adminpassword));
 		Cmd_Printf(ctx, "Password changed.\n");
 	}
 }
@@ -451,6 +444,7 @@ void Cmd_GenericQuery(cmdctxt_t *ctx, int dataset)
 	address = Cmd_Argv(ctx, 1);
 	password = Cmd_Argv(ctx, 2);
 	//this is evil
+	/* Holy crap, Spike... Holy crap. */
 	memmove(address+strlen(method), address, ARG_LEN-(1+strlen(method)));
 	strncpy(address, method, strlen(method));
 
@@ -486,6 +480,7 @@ void Cmd_GenericConnect(cmdctxt_t *ctx, char *method)
 	address = Cmd_Argv(ctx, 1);
 	password = Cmd_Argv(ctx, 2);
 	//this is evil
+	/* Holy crap, Spike... Holy crap. */
 	memmove(address+strlen(method), address, ARG_LEN-(1+strlen(method)));
 	strncpy(address, method, strlen(method));
 
@@ -554,14 +549,14 @@ void Cmd_Exec(cmdctxt_t *ctx)
 
 void catbuffer(char *buffer, int bufsize, char *format, ...)
 {
-	va_list		argptr;
-	char		string[1024];
+	va_list argptr;
+	unsigned int buflen;
 
-	va_start (argptr, format);
-	vsnprintf (string,sizeof(string)-1, format,argptr);
-	va_end (argptr);
+	buflen = strlen(buffer);
 
-	Q_strncatz(buffer, string, bufsize);
+	va_start(argptr, format);
+	vsnprintf(buffer + buflen, bufsize - buflen, format, argptr);
+	va_end(argptr);
 }
 
 void Cmd_Say(cmdctxt_t *ctx)
@@ -1037,7 +1032,7 @@ void Cmd_DemoDir(cmdctxt_t *ctx)
 			Cmd_Printf(ctx, "Rejecting path\n");
 		else
 		{
-			qstrncpyz(ctx->cluster->demodir, val, sizeof(ctx->cluster->demodir));
+			strlcpy(ctx->cluster->demodir, val, sizeof(ctx->cluster->demodir));
 			Cmd_Printf(ctx, "Changed demo dir to \"%s\"\n", ctx->cluster->demodir);
 		}
 	}

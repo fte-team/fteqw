@@ -164,20 +164,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define ustrcmp(s1,s2) strcmp((char*)(s1),(char*)(s2))
 #define ustrncmp(s1,s2,l) strncmp((char*)(s1),(char*)(s2),l)
 
-//some systems have strlcat / strlcpy
-//we support windows and can't use those
-#define Q_strncatz(dest, src, sizeofdest)	\
-	do {	\
-		strncat(dest, src, sizeofdest - strlen(dest) - 1);	\
-		dest[sizeofdest - 1] = 0;	\
-	} while (0)
-#define Q_strncpyz(dest, src, sizeofdest)	\
-	do {	\
-		strncpy(dest, src, sizeofdest - 1);	\
-		dest[sizeofdest - 1] = 0;	\
-	} while (0)
-
-
 
 
 

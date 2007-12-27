@@ -54,6 +54,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qtv.h"
 
+#include "bsd_string.h"
+
 #ifndef _WIN32
 #include <signal.h>
 #endif
@@ -127,10 +129,9 @@ qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport)
 		if (port)
 		{
 			len = port - s;
-			if (len >= sizeof(dupbase))
-				len = sizeof(dupbase)-1;
-			strncpy(dupbase, s, len);
-			dupbase[len] = '\0';
+			if (len > sizeof(dupbase))
+				len = sizeof(dupbase);
+			strlcpy(dupbase, s, len);
 			error = getaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
 		}
 		else
@@ -1331,8 +1332,7 @@ void QTV_ParseQWStream(sv_t *qtv)
 			}
 			if (buffer[4] == 'n')
 			{
-				strncpy(qtv->status, buffer+5, sizeof(qtv->status));
-				qtv->status[sizeof(qtv->status)-1] = 0;
+				strlcpy(qtv->status, buffer+5, sizeof(qtv->status));
 				Sys_Printf(qtv->cluster, "%s: %s", qtv->server, buffer+5);
 				continue;
 			}

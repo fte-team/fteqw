@@ -17,6 +17,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+#ifdef _WIN32
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -70,4 +72,6 @@ int snprintf(char *buf, size_t buflen, const char *fmt, ...)
 
 	return ret;
 }
+
+#endif
 

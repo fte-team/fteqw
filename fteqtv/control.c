@@ -4,6 +4,7 @@ Contains the control routines that handle both incoming and outgoing stuff
 
 #include "qtv.h"
 #include <signal.h>
+#include "bsd_string.h"
 
 #ifndef _WIN32
 #include <sys/stat.h>
@@ -194,7 +195,7 @@ void Cluster_BuildAvailableDemoList(cluster_t *cluster)
 			{
 				if (cluster->availdemoscount == sizeof(cluster->availdemos)/sizeof(cluster->availdemos[0]))
 					break;
-				strncpy(cluster->availdemos[cluster->availdemoscount].name, ffd.cFileName, sizeof(cluster->availdemos[0].name));
+				strlcpy(cluster->availdemos[cluster->availdemoscount].name, ffd.cFileName, sizeof(cluster->availdemos[0].name));
 				cluster->availdemos[cluster->availdemoscount].size = ffd.nFileSizeLow;
 				cluster->availdemos[cluster->availdemoscount].time = ffd.ftLastWriteTime.dwHighDateTime;
 				cluster->availdemos[cluster->availdemoscount].smalltime = ffd.ftLastWriteTime.dwLowDateTime;
@@ -222,7 +223,7 @@ void Cluster_BuildAvailableDemoList(cluster_t *cluster)
 				snprintf(fullname, sizeof(fullname), "%s%s", cluster->demodir, ent->d_name);
 				if (stat(fullname, &sb))
 					continue;	//some kind of error
-				strncpy(cluster->availdemos[cluster->availdemoscount].name, ent->d_name, sizeof(cluster->availdemos[0].name));
+				strlcpy(cluster->availdemos[cluster->availdemoscount].name, ent->d_name, sizeof(cluster->availdemos[0].name));
 				cluster->availdemos[cluster->availdemoscount].size = sb.st_size;
 				cluster->availdemos[cluster->availdemoscount].time = sb.st_mtime;
 				cluster->availdemoscount++;

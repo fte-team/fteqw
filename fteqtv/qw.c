@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qtv.h"
 
+#include "bsd_string.h"
+
 #define CENTERTIME 1.5
 
 static const filename_t ConnectionlessModelList[] = {{""}, {"maps/start.bsp"}, {"progs/player.mdl"}, {""}};
@@ -818,7 +820,7 @@ void ParseUserInfo(cluster_t *cluster, viewer_t *viewer)
 		QW_StreamPrint(cluster, viewer->server, NULL, buf);
 	}
 
-	Q_strncpyz(viewer->name, temp, sizeof(viewer->name));
+	strlcpy(viewer->name, temp, sizeof(viewer->name));
 
 	Info_ValueForKey(viewer->userinfo, "rate", temp, sizeof(temp));
 	rate = atof(temp);
@@ -972,7 +974,7 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 
 	cluster->numviewers++;
 
-	strncpy(viewer->userinfo, infostring, sizeof(viewer->userinfo)-1);
+	strlcpy(viewer->userinfo, infostring, sizeof(viewer->userinfo));
 	ParseUserInfo(cluster, viewer);
 
 	Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *addr, "j");
@@ -2992,13 +2994,11 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		buf[sizeof(buf)-1] = '\0';
 		if (!strcmp(v->expectcommand, "hostname"))
 		{
-			strncpy(cluster->hostname, message, sizeof(cluster->hostname));
-			cluster->hostname[sizeof(cluster->hostname)-1] = '\0';
+			strlcpy(cluster->hostname, message, sizeof(cluster->hostname));
 		}
 		else if (!strcmp(v->expectcommand, "master"))
 		{
-			strncpy(cluster->master, message, sizeof(cluster->master));
-			cluster->master[sizeof(cluster->master)-1] = '\0';
+			strlcpy(cluster->master, message, sizeof(cluster->master));
 			if (!strcmp(cluster->master, "."))
 				*cluster->master = '\0';
 			cluster->mastersendtime = cluster->curtime;

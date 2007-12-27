@@ -1094,7 +1094,7 @@ void Cmd_Commands(cmdctxt_t *ctx)
 	consolecommand_t lastfunc = NULL;
 
 	Cmd_Printf(ctx, "Commands:\n");
-	for (cmd = rconcommands; cmd->name; cmd = cmd++)
+	for (cmd = rconcommands; cmd->name; cmd++)
 	{
 		if (cmd->func == lastfunc)
 			continue;	//no spamming alternative command names

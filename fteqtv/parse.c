@@ -20,6 +20,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qtv.h"
 
+#include "bsd_string.h"
+
 #define ParseError(m) (m)->cursize = (m)->cursize+1	//
 
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable)
@@ -267,7 +269,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		text[strlen(text)-1] = '\0';
 
 		//copy over the server's serverinfo
-		strncpy(tv->serverinfo, text+16, sizeof(tv->serverinfo)-1);
+		strlcpy(tv->serverinfo, text+16, sizeof(tv->serverinfo));
 
 		Info_ValueForKey(tv->serverinfo, "*qtv", value, sizeof(value));
 		if (*value)

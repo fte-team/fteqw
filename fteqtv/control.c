@@ -215,6 +215,8 @@ void Cluster_BuildAvailableDemoList(cluster_t *cluster)
 		{
 			for(;;)
 			{
+				if (cluster->availdemoscount == sizeof(cluster->availdemos)/sizeof(cluster->availdemos[0]))
+					break;
 				ent = readdir(dir);
 				if (!ent)
 					break;

@@ -33,7 +33,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define DDActive 0
 #endif
 
-
+#ifdef MULTITHREAD
+#include <process.h>
+#endif
 
 
 
@@ -1367,25 +1369,43 @@ DWORD WINAPI threadwrapper(void *args)
 	tw.args = ((threadwrap_t *)args)->args;
 
 	free(args);
-	tw.func(tw.args);
+	tw.func(tw.args);	
 
+#ifndef WIN32CRTDLL
+	_endthreadex(0);
+#endif
 	return 0;
 }
 
-qboolean Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
+void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 {
 	threadwrap_t *tw = (threadwrap_t *)malloc(sizeof(threadwrap_t));
+	HANDLE handle;
+	
+	if (!tw)
+		return NULL;
 
 	stacksize += 128; // wrapper overhead, also prevent default stack size
 	tw->func = func;
 	tw->args = args;
-	if (!CreateThread(NULL, stacksize, &threadwrapper, (void *)tw, 0, NULL))
+#ifdef WIN32CRTDLL
+	handle = (HANDLE)CreateThread(NULL, stacksize, &threadwrapper, (void *)tw, 0, NULL);
+#else
+	handle = (HANDLE)_beginthreadex(NULL, stacksize, &threadwrapper, (void *)tw, 0, NULL);
+#endif
+	if (!handle)
 	{
 		free(tw);
-		return FALSE;
+		return NULL;
 	}
 
-	return TRUE;
+	return (void *)handle;
+}
+
+void Sys_WaitOnThread(void *thread)
+{	
+	WaitForSingleObject((HANDLE)thread, INFINITE);
+	CloseHandle((HANDLE)thread);
 }
 
 /* Mutex calls */

@@ -866,17 +866,34 @@ void Sys_ServerActivity(void)
 /* Thread creation calls */
 typedef void *(*pfunction_t)(void *);
 
-qboolean Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
+void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 {
-	pthread_t thread;
+	pthread_t *thread;
 	pthread_attr_t attr;
-
+	
+	thread = (pthread_t *)malloc(sizeof(pthread_t));
+	if (!thread)
+		return NULL;
+	
 	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 	if (stacksize < PTHREAD_STACK_MIN)
 		stacksize = PTHREAD_STACK_MIN;
 	pthread_attr_setstacksize(&attr, stacksize);
+	if (pthread_create(thread, &attr, (pfunction_t)func, args))
+	{
+		free(thread);
+		thread = NULL;
+	}
+	pthread_attr_destroy(&attr);
 
-	return !pthread_create(&thread, &attr, (pfunction_t)func, args);
+	return (void *)thread;
+}
+
+void Sys_WaitOnThread(void *thread)
+{
+	pthread_join((pthread_t *)thread, NULL); 
+	free(thread);
 }
 
 /* Mutex calls */

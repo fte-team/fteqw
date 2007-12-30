@@ -352,11 +352,17 @@ void Sys_SaveClipboard(char *text)
 
 #ifdef MULTITHREAD
 /* Thread creation calls */
-qboolean Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
+void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 {
 	// SDL threads do not support setting thread stack size
-	return SDL_CreateThread(func, args) != NULL;
+	return (void *)SDL_CreateThread(func, args);
 }
+
+void Sys_WaitOnThread(void *thread)
+{
+	SDL_WaitThread((SDL_Thread *)thread, NULL);
+}
+
 
 /* Mutex calls */
 // SDL mutexes don't have try-locks for mutexes in the spec so we stick with 1-value semaphores

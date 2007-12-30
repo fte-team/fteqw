@@ -65,28 +65,28 @@ cvar_t bgmvolume = SCVARF("musicvolume", "0", CVAR_ARCHIVE);
 cvar_t volume = SCVARF("volume", "0.7", CVAR_ARCHIVE);
 
 cvar_t nosound = SCVAR("nosound", "0");
-cvar_t precache = SCVAR("precache", "1");
-cvar_t loadas8bit = SCVAR("loadas8bit", "0");
+cvar_t precache = FCVAR("s_precache", "precache", "1", 0);
+cvar_t loadas8bit = FCVAR("s_loadas8bit", "loadas8bit", "0", 0);
 cvar_t bgmbuffer = SCVAR("bgmbuffer", "4096");
-cvar_t ambient_level = SCVAR("ambient_level", "0.3");
-cvar_t ambient_fade = SCVAR("ambient_fade", "100");
-cvar_t snd_noextraupdate = SCVAR("snd_noextraupdate", "0");
-cvar_t snd_show = SCVAR("snd_show", "0");
-cvar_t snd_khz = SCVARF("snd_khz", "11", CVAR_ARCHIVE);
-cvar_t	snd_inactive = SCVAR("snd_inactive", "0");	//set if you want sound even when tabbed out.
-cvar_t _snd_mixahead = SCVARF("_snd_mixahead", "0.2", CVAR_ARCHIVE);
-cvar_t snd_leftisright = SCVARF("snd_leftisright", "0", CVAR_ARCHIVE);
-cvar_t snd_eax = SCVAR("snd_eax", "0");
-cvar_t snd_speakers = SCVAR("snd_numspeakers", "2");
-cvar_t snd_buffersize = SCVAR("snd_buffersize", "0");
-cvar_t snd_samplebits = SCVARF("snd_samplebits", "16", CVAR_ARCHIVE);
-cvar_t snd_playersoundvolume = SCVAR("snd_localvolume", "1");	//sugested by crunch
+cvar_t ambient_level = FCVAR("s_ambientlevel", "ambient_level", "0.3", 0);
+cvar_t ambient_fade = FCVAR("s_ambientfade", "ambient_fade", "100", 0);
+cvar_t snd_noextraupdate = FCVAR("s_noextraupdate", "snd_noextraupdate", "0", 0);
+cvar_t snd_show = FCVAR("s_show", "snd_show", "0", 0);
+cvar_t snd_khz = FCVAR("s_khz", "snd_khz", "11", CVAR_ARCHIVE);
+cvar_t	snd_inactive = FCVAR("s_inactive", "snd_inactive", "0", 0);	//set if you want sound even when tabbed out.
+cvar_t _snd_mixahead = FCVAR("s_mixahead", "_snd_mixahead", "0.2", CVAR_ARCHIVE);
+cvar_t snd_leftisright = FCVAR("s_swapstereo", "snd_leftisright", "0", CVAR_ARCHIVE);
+cvar_t snd_eax = FCVAR("s_eax", "snd_eax", "0", 0);
+cvar_t snd_speakers = FCVAR("s_numspeakers", "snd_numspeakers", "2", 0);
+cvar_t snd_buffersize = FCVAR("s_buffersize", "snd_buffersize", "0", 0);
+cvar_t snd_samplebits = FCVAR("s_bits", "snd_samplebits", "16", CVAR_ARCHIVE);
+cvar_t snd_playersoundvolume = FCVAR("s_localvolume", "snd_localvolume", "1", 0);	//sugested by crunch
 
-cvar_t snd_capture = SCVAR("snd_capture", "0");
-cvar_t snd_linearresample = SCVAR("snd_linearresample", "1");
-cvar_t snd_linearresample_stream = SCVAR("snd_linearresample_stream", "0");
+cvar_t snd_capture = FCVAR("s_capture", "snd_capture", "0", 0);
+cvar_t snd_linearresample = FCVAR("s_linearresample", "snd_linearresample", "1", 0);
+cvar_t snd_linearresample_stream = FCVAR("s_linearresample_stream", "snd_linearresample_stream", "0", 0);
 
-cvar_t snd_usemultipledevices = SCVAR("snd_multipledevices", "0");
+cvar_t snd_usemultipledevices = FCVAR("s_multipledevices", "snd_multipledevices", "0", 0);
 
 extern vfsfile_t *rawwritefile;
 

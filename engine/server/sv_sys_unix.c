@@ -862,3 +862,52 @@ void Sys_ServerActivity(void)
 {
 }
 
+#ifdef MULTITHREAD
+/* Thread creation calls */
+typedef void *(*pfunction_t)(void *);
+
+qboolean Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
+{
+	pthread_t thread;
+	pthread_attr_t attr;
+
+	pthread_attr_init(&attr);
+	if (stacksize < PTHREAD_STACK_MIN)
+		stacksize = PTHREAD_STACK_MIN;
+	pthread_attr_setstacksize(&attr, stacksize);
+
+	return !pthread_create(&thread, &attr, (pfunction_t)func, args);
+}
+
+/* Mutex calls */
+void *Sys_CreateMutex()
+{
+	pthread_mutex_t *mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	
+	if (mutex && !pthread_mutex_init(mutex, NULL))
+		return mutex;
+	return NULL;
+}
+
+qboolean Sys_TryLockMutex(void *mutex)
+{
+	return !pthread_mutex_trylock(mutex);
+}
+
+qboolean Sys_LockMutex(void *mutex)
+{
+	return !pthread_mutex_lock(mutex);
+}
+
+qboolean Sys_UnlockMutex(void *mutex)
+{
+	return !pthread_mutex_unlock(mutex);
+}
+
+void Sys_DestroyMutex(void *mutex)
+{
+	pthread_mutex_destroy(mutex);
+	free(mutex);
+}
+#endif
+

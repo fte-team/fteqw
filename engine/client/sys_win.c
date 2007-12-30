@@ -1350,3 +1350,67 @@ void MaskExceptions (void)
 {
 }
 #endif
+
+#ifdef MULTITHREAD
+/* Thread creation calls */
+typedef struct threadwrap_s
+{
+	void (*func)(void *);
+	void *args;
+} threadwrap_t;
+
+// the thread call is wrapped so we don't need WINAPI everywhere
+DWORD WINAPI threadwrapper(void *args)
+{
+	threadwrap_t tw;
+	tw.func = ((threadwrap_t *)args)->func;
+	tw.args = ((threadwrap_t *)args)->args;
+
+	free(args);
+	tw.func(tw.args);
+
+	return 0;
+}
+
+qboolean Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
+{
+	threadwrap_t *tw = (threadwrap_t *)malloc(sizeof(threadwrap_t));
+
+	stacksize += 128; // wrapper overhead, also prevent default stack size
+	tw->func = func;
+	tw->args = args;
+	if (!CreateThread(NULL, stacksize, &threadwrapper, (void *)tw, 0, NULL))
+	{
+		free(tw);
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
+/* Mutex calls */
+void *Sys_CreateMutex()
+{
+	return (void *)CreateMutex(NULL, 0, NULL);
+}
+
+qboolean Sys_TryLockMutex(void *mutex)
+{
+	return WaitForSingleObject(mutex, 0) == WAIT_OBJECT_0;
+}
+
+qboolean Sys_LockMutex(void *mutex)
+{
+	return WaitForSingleObject(mutex, INFINITE) == WAIT_OBJECT_0;
+}
+
+qboolean Sys_UnlockMutex(void *mutex)
+{
+	return !!ReleaseMutex(mutex);
+}
+
+void Sys_DestroyMutex(void *mutex)
+{
+	CloseHandle(mutex);
+}
+#endif

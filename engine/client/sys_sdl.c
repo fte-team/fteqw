@@ -1,6 +1,10 @@
 #include "quakedef.h"
 
 #include <SDL.h>
+#ifdef MULTITHREAD
+#include <SDL_thread.h>
+#endif
+
 
 #ifndef WIN32
 #include <fcntl.h>
@@ -345,3 +349,40 @@ void Sys_CloseClipboard(char *bf)
 void Sys_SaveClipboard(char *text)
 {
 }
+
+#ifdef MULTITHREAD
+/* Thread creation calls */
+qboolean Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
+{
+	// SDL threads do not support setting thread stack size
+	return SDL_CreateThread(func, args) != NULL;
+}
+
+/* Mutex calls */
+// SDL mutexes don't have try-locks for mutexes in the spec so we stick with 1-value semaphores
+void *Sys_CreateMutex()
+{
+	return (void *)SDL_CreateSemaphore(1);
+}
+
+qboolean Sys_TryLockMutex(void *mutex)
+{
+	return !SDL_SemTryWait(mutex);
+}
+
+qboolean Sys_LockMutex(void *mutex)
+{
+	return !SDL_SemWait(mutex);
+}
+
+qboolean Sys_UnlockMutex(void *mutex)
+{
+	return !SDL_SemPost(mutex);
+}
+
+void Sys_DestroyMutex(void *mutex)
+{
+	return SDL_DestroySemaphore(mutex);
+}
+#endif
+

@@ -694,6 +694,18 @@ void Con_PrintCon (console_t *con, char *txt)
 				continue;
 			}
 		}
+		if (c == '&' && txt[1] == 'c')
+		{
+			// ezQuake color codes
+
+			if (ishexcode(txt[2]) && ishexcode(txt[3]) && ishexcode(txt[4]))
+			{
+				// Just strip it for now
+				// TODO: Colorize the console properly
+				txt += 5;
+				continue;
+			}
+		}
 		if (c=='\t')
 			c = ' ';
 

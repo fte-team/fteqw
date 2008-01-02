@@ -22,7 +22,7 @@ libqtvc:
 libqtvc/libqtvc.a: libqtvc
 
 qtv: libqtvc/libqtvc.a $(OBJS) qtv.h
-	$(CC) $(SPIKEISALAZYBUGGERCFLAGS) $(CFLAGS) $(OBJS) $(LDFLAGS) -o $@.db -lm -l$(CLIBNAME) -L libqtvc -lqtvc
+	$(CC) $(SPIKEISALAZYBUGGERCFLAGS) $(CFLAGS) $(OBJS) $(LDFLAGS) -o $@.db -lm -l$(CLIBNAME) -Llibqtvc -lqtvc
 	$(STRIP) $(STRIPFLAGS) $@.db -o $@
 
 qtv.exe: *.c *.h

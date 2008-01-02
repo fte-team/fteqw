@@ -123,6 +123,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#include <netdb.h>
 	#include <errno.h>
 
+	#define qerrno Errno()
 	#define ioctlsocket IoctlSocket
 	#define closesocket CloseSocket
 #else

@@ -6,6 +6,9 @@ STRIP=$(TOOLPREFIX)strip
 SPIKEISALAZYBUGGERCFLAGS=-Wall -O2
 STRIPFLAGS=--strip-unneeded --remove-section=.comment
 
+# 'cause Microsoft suck.
+CLIBNAME = c
+
 OBJS = netchan.o parse.o msg.o qw.o source.o bsp.o rcon.o mdfour.o crc.o control.o forward.o pmove.o httpsv.o
 
 all: qtv
@@ -19,11 +22,11 @@ libqtvc:
 libqtvc/libqtvc.a: libqtvc
 
 qtv: libqtvc/libqtvc.a $(OBJS) qtv.h
-	$(CC) $(SPIKEISALAZYBUGGERCFLAGS) $(CFLAGS) $(OBJS) $(LDFLAGS) -o $@.db -lm -lc -L./libqtvc -lqtvc
+	$(CC) $(SPIKEISALAZYBUGGERCFLAGS) $(CFLAGS) $(OBJS) $(LDFLAGS) -o $@.db -lm -l$(CLIBNAME) -L libqtvc -lqtvc
 	$(STRIP) $(STRIPFLAGS) $@.db -o $@
 
 qtv.exe: *.c *.h
-	$(MAKE) qtv CFLAGS=-mno-cygwin LDFLAGS="-lwsock32 -lwinmm"
+	$(MAKE) qtv CFLAGS=-mno-cygwin LDFLAGS="-lwsock32 -lwinmm" CLIBNAME=msvcrt
 	mv qtv qtv.exe
 
 clean:

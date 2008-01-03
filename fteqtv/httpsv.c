@@ -95,6 +95,7 @@ static void HTMLprintf(char *outb, int outl, char *fmt, ...)
 		else
 		{
 			*outb++ = qfont_table[*(unsigned char*)inb];
+			outl -= 1;
 		}
 		inb++;
 	}

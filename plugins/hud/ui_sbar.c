@@ -2323,6 +2323,7 @@ int Plug_Init(int *args)
 
 		// Teamoverlay support
 		Cmd_AddCommand("tinfo");
+		Cmd_AddText("newalias ktx_infoset \"cmd info ti 1\"\n", false);
 
 		UI_SbarInit();
 

@@ -663,6 +663,10 @@ void Cmd_Alias_f (void)
 				Con_TPrintf (TL_ALIASRESTRICTIONLEVELERROR);
 				return;
 			}
+
+			if (!stricmp(Cmd_Argv(0), "newalias"))
+				return;	//newalias command only registers the alias if it is new, and does not change it if it already exists
+
 			Z_Free (a->value);
 			break;
 		}
@@ -1663,9 +1667,6 @@ void Cmd_ForwardToServer_f (void)
 		return;
 	}
 
-	if (cls.demoplayback)
-		return;		// not really connected
-
 	if (Cmd_Argc() > 1)
 		CL_SendClientCommand(true, "%s", Cmd_Args());
 }
@@ -2629,6 +2630,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("exec",Cmd_Exec_f);
 	Cmd_AddCommand ("echo",Cmd_Echo_f);
 	Cmd_AddCommand ("alias",Cmd_Alias_f);
+	Cmd_AddCommand ("newalias",Cmd_Alias_f);
 	Cmd_AddCommand ("wait", Cmd_Wait_f);
 #ifndef SERVERONLY
 	Cmd_AddCommand ("cmd", Cmd_ForwardToServer_f);

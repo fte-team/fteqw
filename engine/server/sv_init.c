@@ -990,10 +990,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	case GT_MAX:
 		break;
 	case GT_Q1QVM:
-#ifdef VM_Q1
-		// FIXME: missing code here?
-#endif
-		break;
 	case GT_PROGS:
 		ent = EDICT_NUM(svprogfuncs, 0);
 		ent->isfree = false;
@@ -1208,10 +1204,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		case GT_MAX:
 			break;
 		case GT_Q1QVM:
-#ifdef VM_Q1
-			// FIXME: missing code here?
-#endif
-			break;
 		case GT_PROGS:
 			pr_edict_size = PR_LoadEnts(svprogfuncs, file, spawnflagmask);
 			break;
@@ -1233,10 +1225,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		case GT_MAX:
 			break;
 		case GT_Q1QVM:
-#ifdef VM_Q1
-			// FIXME: missing code here?
-#endif
-			break;
 		case GT_PROGS:
 			pr_edict_size = PR_LoadEnts(svprogfuncs, sv.worldmodel->entities, spawnflagmask);
 			break;

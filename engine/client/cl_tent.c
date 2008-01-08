@@ -2616,7 +2616,7 @@ void CL_UpdateBeams (void)
 
 			ent->angles[0] = -pitch;
 			ent->angles[1] = yaw;
-			ent->angles[2] = (int)((cl.time*d*1000))%360;	//paused lightning too.
+			ent->angles[2] = rand()%360;
 			AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 			ent->angles[0] = pitch;
 

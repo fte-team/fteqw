@@ -1750,7 +1750,7 @@ client_t *SVC_DirectConnect(void)
 
 	if (!*name)
 	{
-		name = "Hidden";
+		name = "unnamed";
 	}
 	else if (!stricmp(name, "console"))
 		name = "Not Console";	//have fun dudes.
@@ -3723,7 +3723,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 		newname[0] = 0;
 
 	if (!newname[0] && cl->protocol != SCP_BAD)
-		strcpy(newname, "Hidden");
+		strcpy(newname, "unnamed");
 	else if (!stricmp(val, "console"))
 	{
 		strcpy(newname, "Not Console");

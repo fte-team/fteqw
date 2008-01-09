@@ -652,7 +652,11 @@ void GLV_CalcBlend (void)
 	{
 //		if (j != CSHIFT_SERVER)
 //		{
-			if (!gl_cshiftpercent.value || !gl_polyblend.value)
+			if (!gl_cshiftpercent.value
+#ifdef RGLQUAKE
+				|| !gl_polyblend.value
+#endif
+				)
 				continue;
 
 			a2 = ((cl.cshifts[j].percent * gl_cshiftpercent.value) / 100.0) / 255.0;

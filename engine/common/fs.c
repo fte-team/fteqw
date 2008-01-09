@@ -580,10 +580,15 @@ int VFSPAK_ReadBytes (struct vfsfile_s *vfs, void *buffer, int bytestoread)
 	vfspack_t *vfsp = (vfspack_t*)vfs;
 	int read;
 
+	if (bytestoread == 0)
+		return 0;
+
 	if (vfsp->currentpos - vfsp->startpos + bytestoread > vfsp->length)
 		bytestoread = vfsp->length - (vfsp->currentpos - vfsp->startpos);
 	if (bytestoread <= 0)
+	{
 		return -1;
+	}
 
 	if (vfsp->parentpak->filepos != vfsp->currentpos)
 		VFS_SEEK(vfsp->parentpak->handle, vfsp->currentpos);

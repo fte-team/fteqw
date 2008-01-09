@@ -31,13 +31,15 @@ void CL_PlayDemo(char *demoname);
 char lastdemoname[256];
 
 extern cvar_t qtvcl_forceversion1;
+extern cvar_t qtvcl_eztvextensions;
 
 unsigned char demobuffer[1024*16];
 int demobuffersize;
 int demopreparsedbytes;
 qboolean disablepreparse;
+qboolean endofdemo;
 
-#define BUFFERTIME 0.1
+#define BUFFERTIME 0.5
 /*
 ==============================================================================
 
@@ -161,7 +163,7 @@ int demo_preparsedemo(unsigned char *buffer, int bytes)
 	int ofs;
 	unsigned int length;
 #define dem_mask 7
-	if (cls.demoplayback != DPB_MVD)
+	if (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)
 		return bytes;	//no need if its not an mvd (this simplifies it a little)
 
 	while (bytes>2)
@@ -246,7 +248,7 @@ int readdemobytes(int *readpos, void *data, int len)
 	else if (i < 0)
 	{	//0 means no data available yet
 		printf("VFS_READ failed\n");
-//		CL_StopPlayback();
+		endofdemo = true;
 		return 0;
 	}
 
@@ -255,6 +257,7 @@ int readdemobytes(int *readpos, void *data, int len)
 	if (len > demobuffersize)
 	{
 		len = demobuffersize;
+		return 0;
 	}
 	memcpy(data, demobuffer+*readpos, len);
 	*readpos += len;
@@ -274,10 +277,14 @@ void demo_flushcache(void)
 {
 	demobuffersize = 0;
 	demopreparsedbytes = 0;
+
+	//no errors yet
+	disablepreparse = false;
 }
 
 void demo_resetcache(int bytes, void *data)
 {
+	endofdemo = false;
 	demo_flushcache();
 
 	demobuffersize = bytes;
@@ -373,6 +380,13 @@ qboolean CL_GetDemoMessage (void)
 	int demopos = 0;
 	int msglength;
 
+	if (endofdemo)
+	{
+		endofdemo = false;
+		CL_StopPlayback ();
+		return 0;
+	}
+
 #ifdef NQPROT
 	if (cls.demoplayback == DPB_NETQUAKE 
 #ifdef Q2CLIENT
@@ -451,6 +465,7 @@ qboolean CL_GetDemoMessage (void)
 		{
 			return 0;
 		}
+		demo_flushbytes(demopos);
 		net_message.cursize = msglength;
 	
 		return 1;
@@ -458,7 +473,7 @@ qboolean CL_GetDemoMessage (void)
 #endif
 readnext:
 	// read the time from the packet
-	if (cls.demoplayback == DPB_MVD)
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		if (realtime < 0)
 		{
@@ -517,7 +532,7 @@ readnext:
 	else
 		realtime = demotime; // we're warping
 
-	if (cls.demoplayback == DPB_MVD)
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		if (msecsadded || cls.netchan.incoming_sequence < 2)
 		{
@@ -633,7 +648,7 @@ readit:
 		}
 		net_message.cursize = msglength;
 
-		if (cls.demoplayback == DPB_MVD)
+		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		{
 			switch(cls_lasttype)
 			{
@@ -665,7 +680,7 @@ readit:
 		readdemobytes (&demopos, &i, 4);
 		cls.netchan.incoming_sequence = LittleLong(i);
 
-		if (cls.demoplayback == DPB_MVD)
+		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			cls.netchan.incoming_acknowledged = cls.netchan.incoming_sequence;
 		goto readnext;
 
@@ -1449,7 +1464,7 @@ void CL_PlayDemo(char *demoname)
 	TP_ExecTrigger ("f_demostart");
 }
 
-void CL_QTVPlay (vfsfile_t *newf)
+void CL_QTVPlay (vfsfile_t *newf, qboolean iseztv)
 {
 	CL_Disconnect_f ();
 
@@ -1457,7 +1472,11 @@ void CL_QTVPlay (vfsfile_t *newf)
 
 	demo_flushcache();	//just in case
 
-	cls.demoplayback = DPB_MVD;
+	if (iseztv)
+		cls.demoplayback = DPB_EZTV;
+	else
+		cls.demoplayback = DPB_MVD;
+
 	cls.findtrack = true;
 
 	cls.state = ca_demostart;
@@ -1466,12 +1485,25 @@ void CL_QTVPlay (vfsfile_t *newf)
 	realtime = -BUFFERTIME;
 	cl.gametime = -BUFFERTIME;
 	cl.gametimemark = realtime;
-	Con_Printf("Buffering for %i seconds\n", (int)-realtime);
+	if (realtime < -0.5)
+		Con_Printf("Buffering for %i seconds\n", (int)-realtime);
 
 	cls.netchan.last_received=realtime;
 
 	cls.protocol = CP_QUAKEWORLD;
 	TP_ExecTrigger ("f_demostart");
+}
+
+void CL_Demo_ClientCommand(char *commandtext)
+{
+	unsigned char b = 1;
+	unsigned short len = LittleShort(strlen(commandtext) + 4);
+#ifndef _MSC_VER
+#warning "this needs buffering safely"
+#endif
+	VFS_WRITE(cls.demofile, &len, sizeof(len));
+	VFS_WRITE(cls.demofile, &b, sizeof(b));
+	VFS_WRITE(cls.demofile, commandtext, strlen(commandtext)+1);
 }
 
 char qtvhostname[1024];
@@ -1494,6 +1526,7 @@ void CL_QTVPoll (void)
 	int numviewers = 0;
 	qboolean init_numplayers = false;
 	qboolean init_numviewers = false;
+	qboolean iseztv = false;
 	char srchost[256];
 
 
@@ -1548,88 +1581,98 @@ void CL_QTVPoll (void)
 			*e = '\0';
 			colon = strchr(s, ':');
 			if (colon)
-			{
 				*colon++ = '\0';
-				if (!strcmp(s, "PERROR"))
-				{	//printable error
-					Con_Printf("QTV Error:\n%s\n", colon);
-				}
-				else if (!strcmp(s, "PRINT"))
-				{	//printable error
-					Con_Printf("QTV:\n%s\n", colon);
-				}
-				else if (!strcmp(s, "TERROR"))
-				{	//printable error
-					Con_Printf("QTV Error:\n%s\n", colon);
-				}
-				else if (!strcmp(s, "ADEMO"))
-				{	//printable error
-					Con_Printf("Demo%s is available\n", colon);
-				}
-
-				//generic sourcelist responce
-				else if (!strcmp(s, "ASOURCE"))
-				{	//printable source
-					if (!saidheader)
-					{
-						saidheader=true;
-						Con_Printf("Available Sources:\n");
-					}
-					Con_Printf("%s\n", colon);
-					//we're too lazy to even try and parse this
-				}
-
-				//v1.1 sourcelist responce includes SRCSRV, SRCHOST, SRCPLYRS, SRCVIEWS, SRCID
-				else if (!strcmp(s, "SRCSRV"))
-				{
-					//the proxy's source string (beware of file:blah without file:blah@blah)
-				}
-				else if (!strcmp(s, "SRCHOST"))
-				{
-					//the hostname from the server the stream came from
-					Q_strncpyz(srchost, colon, sizeof(srchost));
-				}
-				else if (!strcmp(s, "SRCPLYRS"))
-				{
-					//number of active players actually playing on that stream
-					numplayers = atoi(colon);
-					init_numplayers = true;
-				}
-				else if (!strcmp(s, "SRCVIEWS"))
-				{
-					//number of people watching this stream on the proxy itself
-					numviewers = atoi(colon);
-					init_numviewers = true;
-				}
-				else if (!strcmp(s, "SRCID"))
-				{
-					streamid = atoi(colon);
-
-					//now put it on a menu
-					if (!sourcesmenu)
-					{
-						m_state = m_complex;
-						key_dest = key_menu;
-						sourcesmenu = M_CreateMenu(0);
-
-						MC_AddPicture(sourcesmenu, 16, 4, "gfx/qplaque.lmp");
-						MC_AddCenterPicture(sourcesmenu, 4, "gfx/p_option.lmp");
-					}
-					if (init_numplayers == true && init_numviewers == true)
-						MC_AddConsoleCommand(sourcesmenu, 42, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %i@%s\n", streamid, qtvhostname));
-					//else
-					//	FIXME: add error message here
-				}
-				//end of sourcelist entry
-
-				else if (!strcmp(s, "BEGIN"))
-					streamavailable = true;
-			}
 			else
-			{
-				if (!strcmp(s, "BEGIN"))
-					streamavailable = true;
+				colon = "";
+
+			if (!strcmp(s, "PERROR"))
+			{	//printable error
+				Con_Printf("QTV Error:\n%s\n", colon);
 			}
+			else if (!strcmp(s, "PRINT"))
+			{	//printable error
+				Con_Printf("QTV:\n%s\n", colon);
+			}
+			else if (!strcmp(s, "TERROR"))
+			{	//printable error
+				Con_Printf("QTV Error:\n%s\n", colon);
+			}
+			else if (!strcmp(s, "ADEMO"))
+			{	//printable error
+				Con_Printf("Demo%s is available\n", colon);
+			}
+
+			//generic sourcelist responce
+			else if (!strcmp(s, "ASOURCE"))
+			{	//printable source
+				if (!saidheader)
+				{
+					saidheader=true;
+					Con_Printf("Available Sources:\n");
+				}
+				Con_Printf("%s\n", colon);
+				//we're too lazy to even try and parse this
+			}
+
+			else if (!strcmp(s, "BEGIN"))
+			{
+				if (*colon)
+					Con_Printf("streaming \"%s\" from qtv\n", colon);
+				else
+					Con_Printf("qtv connection established\n", colon);
+				streamavailable = true;
+			}
+
+			//eztv extensions to v1.0
+			else if (!strcmp(s, "QTV_EZQUAKE_EXT"))
+			{
+				iseztv = true;
+				Con_Printf("Warning: eztv extensions %s\n", colon);
+			}
+
+			//v1.1 sourcelist response includes SRCSRV, SRCHOST, SRCPLYRS, SRCVIEWS, SRCID
+			else if (!strcmp(s, "SRCSRV"))
+			{
+				//the proxy's source string (beware of file:blah without file:blah@blah)
+			}
+			else if (!strcmp(s, "SRCHOST"))
+			{
+				//the hostname from the server the stream came from
+				Q_strncpyz(srchost, colon, sizeof(srchost));
+			}
+			else if (!strcmp(s, "SRCPLYRS"))
+			{
+				//number of active players actually playing on that stream
+				numplayers = atoi(colon);
+				init_numplayers = true;
+			}
+			else if (!strcmp(s, "SRCVIEWS"))
+			{
+				//number of people watching this stream on the proxy itself
+				numviewers = atoi(colon);
+				init_numviewers = true;
+			}
+			else if (!strcmp(s, "SRCID"))
+			{
+				streamid = atoi(colon);
+
+				//now put it on a menu
+				if (!sourcesmenu)
+				{
+					m_state = m_complex;
+					key_dest = key_menu;
+					sourcesmenu = M_CreateMenu(0);
+
+					MC_AddPicture(sourcesmenu, 16, 4, "gfx/qplaque.lmp");
+					MC_AddCenterPicture(sourcesmenu, 4, "gfx/p_option.lmp");
+				}
+				if (init_numplayers == true && init_numviewers == true)
+					MC_AddConsoleCommand(sourcesmenu, 42, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %i@%s\n", streamid, qtvhostname));
+				//else
+				//	FIXME: add error message here
+			}
+			//end of sourcelist entry
+
 			//from e to s, we have a line	
 			s = e+1;
 		}
@@ -1638,7 +1681,7 @@ void CL_QTVPoll (void)
 
 	if (streamavailable)
 	{
-		CL_QTVPlay(qtvrequest);
+		CL_QTVPlay(qtvrequest, iseztv);
 		qtvrequest = NULL;
 		demo_resetcache(qtvrequestsize - (tail-qtvrequestbuffer), tail);
 		return;
@@ -1767,7 +1810,13 @@ void CL_QTVPlay_f (void)
 	}
 
 	VFS_WRITE(newf, connrequest, strlen(connrequest));
-	if (raw)
+
+	if (qtvcl_eztvextensions.value)
+	{
+		connrequest =	"QTV_EZQUAKE_EXT: 3\n";
+		VFS_WRITE(newf, connrequest, strlen(connrequest));
+	}
+	else if (raw)
 	{
 		connrequest =	"RAW: 1\n";
 		VFS_WRITE(newf, connrequest, strlen(connrequest));
@@ -1791,7 +1840,7 @@ void CL_QTVPlay_f (void)
 
 	if (raw)
 	{
-		CL_QTVPlay(newf);
+		CL_QTVPlay(newf, false);
 	}
 	else
 	{

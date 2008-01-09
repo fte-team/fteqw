@@ -458,7 +458,7 @@ void CL_ParsePacketEntities (qboolean delta)
 //		Con_Printf("%i %i from %i\n", cls.netchan.outgoing_sequence, cls.netchan.incoming_sequence, from);
 
 		oldpacket = cl.frames[newpacket].delta_sequence;
-		if (cls.demoplayback == DPB_MVD)
+		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			from = oldpacket = cls.netchan.incoming_sequence - 1;
 
 		if (cls.netchan.outgoing_sequence - cls.netchan.incoming_sequence >= UPDATE_BACKUP - 1) {
@@ -1548,7 +1548,7 @@ void CL_LinkPacketEntities (void)
 	CL_CalcClientTime();
 	servertime = cl.servertime;
 
-	pack = CL_ProcessPacketEntities(&servertime, !!cl_nolerp.value && cls.demoplayback != DPB_MVD);
+	pack = CL_ProcessPacketEntities(&servertime, !!cl_nolerp.value && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && cls.demoplayback != DPB_NETQUAKE));
 	if (!pack)
 		return;
 
@@ -2317,7 +2317,7 @@ void CL_ParsePlayerinfo (void)
 	oldstate = &cl.frames[oldparsecountmod].playerstate[num];
 	state = &cl.frames[parsecountmod].playerstate[num];
 
-	if (cls.demoplayback == DPB_MVD)
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		player_state_t	*prevstate, dummy;
 		if (!cl.parsecount || info->prevcount > cl.parsecount || cl.parsecount - info->prevcount >= UPDATE_BACKUP - 1)

@@ -343,7 +343,7 @@ typedef struct
 // demo recording info must be here, because record is started before
 // entering a map (and clearing client_state_t)
 	qboolean	demorecording;
-	enum{DPB_NONE,DPB_QUAKEWORLD,DPB_MVD,
+	enum{DPB_NONE,DPB_QUAKEWORLD,DPB_MVD,DPB_EZTV,
 #ifdef NQPROT
 		DPB_NETQUAKE,
 #endif

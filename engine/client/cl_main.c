@@ -74,6 +74,7 @@ cvar_t	cl_solid_players = SCVAR("cl_solid_players", "1");
 cvar_t	cl_noblink = SCVAR("cl_noblink", "0");
 cvar_t	cl_servername = SCVAR("cl_servername", "none");
 cvar_t	qtvcl_forceversion1 = SCVAR("qtvcl_forceversion1", "0");
+cvar_t	qtvcl_eztvextensions = SCVAR("qtvcl_eztvextensions", "0");
 
 cvar_t cl_demospeed = FCVAR("cl_demospeed", "demo_setspeed", "1", 0);
 
@@ -2456,7 +2457,7 @@ void CL_ReadPackets (void)
 			continue;
 		}
 
-		if (net_message.cursize < 6 && cls.demoplayback != DPB_MVD) //MVDs don't have the whole sequence header thing going on
+		if (net_message.cursize < 6 && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) //MVDs don't have the whole sequence header thing going on
 		{
 			Con_TPrintf (TL_RUNTPACKET,NET_AdrToString(net_from));
 			continue;
@@ -2512,7 +2513,7 @@ void CL_ReadPackets (void)
 			break;
 			break;
 		case CP_QUAKEWORLD:
-			if (cls.demoplayback == DPB_MVD)
+			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			{
 				MSG_BeginReading();
 				cls.netchan.last_received = realtime;
@@ -2547,7 +2548,7 @@ void CL_ReadPackets (void)
 		return;
 	}
 
-	if (cls.demoplayback == DPB_MVD)
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		MVD_Interpolate();
 }
 
@@ -2905,6 +2906,7 @@ void CL_Init (void)
 	Cvar_Register (&ruleset_allow_larger_models,		cl_controlgroup);
 
 	Cvar_Register (&qtvcl_forceversion1, cl_controlgroup);
+	Cvar_Register (&qtvcl_eztvextensions, cl_controlgroup);
 #ifdef WEBCLIENT
 	Cmd_AddCommand ("ftp", CL_FTP_f);
 #endif

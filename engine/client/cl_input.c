@@ -902,7 +902,7 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 	char		string[2048];
 	clcmdbuf_t *buf, *prev;
 
-	if (cls.demoplayback)
+	if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
 		return;	//no point.
 
 	va_start (argptr, format);
@@ -1218,12 +1218,13 @@ void CL_SendCmd (double frametime)
 	int clientcount;
 
 	extern cvar_t cl_maxfps;
+	clcmdbuf_t *next;
 
 	CL_ProxyMenuHooks();
 
 	if (cls.demoplayback != DPB_NONE)
 	{
-		if (cls.demoplayback == DPB_MVD)
+		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		{
 			extern cvar_t cl_splitscreen;
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
@@ -1260,6 +1261,15 @@ void CL_SendCmd (double frametime)
 				Cam_FinishMove(plnum, cmd);
 			}
 
+			while (clientcmdlist)
+			{
+				next = clientcmdlist->next;
+				CL_Demo_ClientCommand(clientcmdlist->command);
+				Con_DPrintf("Sending stringcmd %s\n", clientcmdlist->command);
+				Z_Free(clientcmdlist);
+				clientcmdlist = next;
+			}
+
 			cls.netchan.outgoing_sequence++;
 		}
 
@@ -1270,25 +1280,24 @@ void CL_SendCmd (double frametime)
 	buf.cursize = 0;
 	buf.data = data;
 	CL_SendDownloadReq(&buf);
+
+
+	while (clientcmdlist)
 	{
-		clcmdbuf_t *next;
-		while (clientcmdlist)
+		next = clientcmdlist->next;
+		if (clientcmdlist->reliable)
 		{
-			next = clientcmdlist->next;
-			if (clientcmdlist->reliable)
-			{
-				MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-				MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
-			}
-			else
-			{
-				MSG_WriteByte (&buf, clc_stringcmd);
-				MSG_WriteString (&buf, clientcmdlist->command);
-			}
-			Con_DPrintf("Sending stringcmd %s\n", clientcmdlist->command);
-			Z_Free(clientcmdlist);
-			clientcmdlist = next;
+			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+			MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
 		}
+		else
+		{
+			MSG_WriteByte (&buf, clc_stringcmd);
+			MSG_WriteString (&buf, clientcmdlist->command);
+		}
+		Con_DPrintf("Sending stringcmd %s\n", clientcmdlist->command);
+		Z_Free(clientcmdlist);
+		clientcmdlist = next;
 	}
 
 	if (msecs>150)	//q2 has 200 slop.

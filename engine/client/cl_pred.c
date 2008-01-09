@@ -379,6 +379,14 @@ void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, user
 	VectorCopy (u->angles, pmove.angles);
 	VectorCopy (from->velocity, pmove.velocity);
 
+	if (!(pmove.velocity[0] == 0) && !(pmove.velocity[0] != 0))
+	{
+		Con_Printf("nan velocity!\n");
+		pmove.velocity[0] = 0;
+		pmove.velocity[1] = 0;
+		pmove.velocity[2] = 0;
+	}
+
 	pmove.jump_msec = (cls.z_ext & Z_EXT_PM_TYPE) ? 0 : from->jump_msec;
 	pmove.jump_held = from->jump_held;
 	pmove.waterjumptime = from->waterjumptime;
@@ -536,7 +544,7 @@ static void CL_LerpMove (int pnum, float msgtime)
 	int		i;
 	int		from, to;
 
-	if (cl_nolerp.value || cls.demoplayback == DPB_MVD)
+	if (cl_nolerp.value || cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV || cls.demoplayback == DPB_NETQUAKE)
 		return;
 
 	if (cls.netchan.outgoing_sequence < lastsequence) {
@@ -642,7 +650,7 @@ void CL_CalcClientTime(void)
 			cl.servertime = cl.oldgametime;
 	}
 
-	if (cls.protocol == CP_NETQUAKE || (cls.demoplayback && cls.demoplayback != DPB_MVD))
+	if (cls.protocol == CP_NETQUAKE || (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV))
 	{
 		float want;
 //		float off;
@@ -706,7 +714,7 @@ void CL_PredictMovePNum (int pnum)
 	if (cl_pushlatency.value > 0)
 		Cvar_Set (&cl_pushlatency, "0");
 
-	if (cl.paused && !cls.demoplayback!=DPB_MVD && (!cl.spectator || !autocam[pnum]))
+	if (cl.paused && !(cls.demoplayback!=DPB_MVD && cls.demoplayback!=DPB_EZTV) && (!cl.spectator || !autocam[pnum]))
 		return;
 
 	CL_CalcClientTime();
@@ -715,6 +723,11 @@ void CL_PredictMovePNum (int pnum)
 	{
 		cl.crouch[pnum] = 0;
 		return;
+	}
+
+	if (cls.demoplayback == DPB_NETQUAKE)
+	{
+		cl.ackedinputsequence = cls.netchan.outgoing_sequence;
 	}
 
 	if (!cl.ackedinputsequence)
@@ -787,7 +800,7 @@ void CL_PredictMovePNum (int pnum)
 		}
 */	}
 #endif
-	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD)|| cl.fixangle))
+	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| cl.fixangle))
 	{
 fixedorg:
 		VectorCopy (vel, cl.simvel[pnum]);
@@ -807,7 +820,7 @@ fixedorg:
 
 	to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
 
-	if (Cam_TrackNum(pnum)>=0 && !cl_nolerp.value && cls.demoplayback != DPB_MVD)
+	if (Cam_TrackNum(pnum)>=0 && !cl_nolerp.value && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && cls.demoplayback != DPB_NETQUAKE)
 	{
 		float f;
 

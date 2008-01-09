@@ -872,10 +872,19 @@ void Sound_NextDownload (void)
 	else
 #endif
 	{
-		if (CL_RemoveClientCommands("modellist"))
-			Con_Printf("Multiple modellists\n");
-//		CL_SendClientCommand ("modellist %i 0", cl.servercount);
-		CL_SendClientCommand (true, modellist_name, cl.servercount, 0);
+		if (cls.demoplayback == DPB_EZTV)
+		{
+			if (CL_RemoveClientCommands("qtvmodellist"))
+				Con_Printf("Multiple modellists\n");
+			CL_SendClientCommand (true, "qtvmodellist %i 0", cl.servercount);
+		}
+		else
+		{
+			if (CL_RemoveClientCommands("modellist"))
+				Con_Printf("Multiple modellists\n");
+//			CL_SendClientCommand ("modellist %i 0", cl.servercount);
+			CL_SendClientCommand (true, modellist_name, cl.servercount, 0);
+		}
 	}
 }
 
@@ -910,6 +919,11 @@ void CL_RequestNextDownload (void)
 			return;	//not yet
 
 		cl.sendprespawn = false;
+#ifdef _MSC_VER
+		//FIXME: timedemo timer should start here.
+#else
+#warning timedemo timer should start here
+#endif
 
 
 #ifdef Q2CLIENT
@@ -926,11 +940,21 @@ void CL_RequestNextDownload (void)
 				Con_Printf("\n\n-------------\nCouldn't download %s - cannot fully connect\n", cl.worldmodel->name);
 				return;
 			}
+
+			if (cls.demoplayback == DPB_EZTV)
+			{
+				if (CL_RemoveClientCommands("qtvspawn"))
+					Con_Printf("Multiple prespawns\n");
+				CL_SendClientCommand(true, "qtvspawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
+			}
+			else
+			{
 		// done with modellist, request first of static signon messages
-			if (CL_RemoveClientCommands("prespawn"))
-				Con_Printf("Multiple prespawns\n");
-	//		CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
-			CL_SendClientCommand(true, prespawn_name, cl.servercount, LittleLong(cl.worldmodel->checksum2));
+				if (CL_RemoveClientCommands("prespawn"))
+					Con_Printf("Multiple prespawns\n");
+	//			CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
+				CL_SendClientCommand(true, prespawn_name, cl.servercount, LittleLong(cl.worldmodel->checksum2));
+			}
 		}
 
 	}
@@ -1679,7 +1703,7 @@ void CL_ParseServerData (void)
 		T_FreeStrings();
 	}
 
-	if (cls.demoplayback == DPB_MVD)
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		int i;
 		extern float nextdemotime;
@@ -1762,11 +1786,20 @@ void CL_ParseServerData (void)
 	else
 #endif
 	{
-		if (CL_RemoveClientCommands("soundlist"))
-			Con_Printf("Multiple soundlists\n");
-		// ask for the sound list next
-//		CL_SendClientCommand ("soundlist %i 0", cl.servercount);
-		CL_SendClientCommand (true, soundlist_name, cl.servercount, 0);
+		if (cls.demoplayback == DPB_EZTV)
+		{
+			if (CL_RemoveClientCommands("qtvsoundlist"))
+				Con_Printf("Multiple soundlists\n");
+			CL_SendClientCommand (true, "qtvsoundlist %i 0", cl.servercount);
+		}
+		else
+		{
+			if (CL_RemoveClientCommands("soundlist"))
+				Con_Printf("Multiple soundlists\n");
+			// ask for the sound list next
+//			CL_SendClientCommand ("soundlist %i 0", cl.servercount);
+			CL_SendClientCommand (true, soundlist_name, cl.servercount, 0);
+		}
 	}
 
 	// now waiting for downloads, etc
@@ -2273,10 +2306,13 @@ void CL_ParseSoundlist (void)
 
 	if (n)
 	{
-		if (CL_RemoveClientCommands("soundlist"))
-			Con_Printf("Multiple soundlists\n");
-//		CL_SendClientCommand("soundlist %i %i", cl.servercount, n);
-		CL_SendClientCommand(true, soundlist_name, cl.servercount, n);
+		if (cls.demoplayback != DPB_EZTV)
+		{
+			if (CL_RemoveClientCommands("soundlist"))
+				Con_Printf("Multiple soundlists\n");
+//			CL_SendClientCommand("soundlist %i %i", cl.servercount, n);
+			CL_SendClientCommand(true, soundlist_name, cl.servercount, n);
+		}
 		return;
 	}
 
@@ -2344,10 +2380,13 @@ void CL_ParseModellist (qboolean lots)
 
 	if (n)
 	{
-		if (CL_RemoveClientCommands("modellist"))
-			Con_Printf("Multiple modellists\n");
-//		CL_SendClientCommand("modellist %i %i", cl.servercount, n);
-		CL_SendClientCommand(true, modellist_name, cl.servercount, (nummodels&0xff00) + n);
+		if (cls.demoplayback != DPB_EZTV)
+		{
+			if (CL_RemoveClientCommands("modellist"))
+				Con_Printf("Multiple modellists\n");
+//			CL_SendClientCommand("modellist %i %i", cl.servercount, n);
+			CL_SendClientCommand(true, modellist_name, cl.servercount, (nummodels&0xff00) + n);
+		}
 		return;
 	}
 
@@ -2885,13 +2924,13 @@ void CL_ParseClientdata (void)
 	oldparsecountmod = parsecountmod;
 
 	i = cls.netchan.incoming_acknowledged;
-	if (cls.demoplayback == DPB_MVD)
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		cl.oldparsecount = i - 1;
 	cl.parsecount = i;
 	i &= UPDATE_MASK;
 	parsecountmod = i;
 	frame = &cl.frames[i];
-	if (cls.demoplayback == DPB_MVD)
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		frame->senttime = realtime - host_frametime;
 	parsecounttime = cl.frames[i].senttime;
 
@@ -3110,21 +3149,9 @@ void CL_ServerInfo (void)
 CL_SetStat
 =====================
 */
-void CL_SetStat (int pnum, int stat, int value)
+static void CL_SetStat_Internal (int pnum, int stat, int value)
 {
 	int	j;
-	if (stat < 0 || stat >= MAX_CL_STATS)
-		return;
-//		Host_EndGame ("CL_SetStat: %i is invalid", stat);
-
-	if (cls.demoplayback == DPB_MVD)
-	{
-		extern int cls_lastto;
-		cl.players[cls_lastto].stats[stat]=value;
-		if ( spec_track[pnum] != cls_lastto )
-			return;
-	}
-
 	if (cl.stats[pnum][stat] != value)
 		Sbar_Changed ();
 
@@ -3137,15 +3164,6 @@ void CL_SetStat (int pnum, int stat, int value)
 
 	if (stat == STAT_VIEWHEIGHT && cls.z_ext & Z_EXT_VIEWHEIGHT)
 		cl.viewheight[pnum] = value;
-
-	if (stat == STAT_TIME && (cls.fteprotocolextensions & PEXT_ACCURATETIMINGS))
-	{
-		cl.oldgametime = cl.gametime;
-		cl.oldgametimemark = cl.gametimemark;
-
-		cl.gametime = value * 0.001;
-		cl.gametimemark = realtime;
-	}
 
 	if (stat == STAT_WEAPON)
 	{
@@ -3162,6 +3180,34 @@ void CL_SetStat (int pnum, int stat, int value)
 
 	if (pnum == 0)
 		TP_StatChanged(stat, value);
+}
+
+void CL_SetStat (int pnum, int stat, int value)
+{
+	if (stat < 0 || stat >= MAX_CL_STATS)
+		return;
+//		Host_EndGame ("CL_SetStat: %i is invalid", stat);
+
+	if (stat == STAT_TIME && (cls.fteprotocolextensions & PEXT_ACCURATETIMINGS))
+	{
+		cl.oldgametime = cl.gametime;
+		cl.oldgametimemark = cl.gametimemark;
+
+		cl.gametime = value * 0.001;
+		cl.gametimemark = realtime;
+	}
+
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	{
+		extern int cls_lastto;
+		cl.players[cls_lastto].stats[stat]=value;
+
+		for (pnum = 0; pnum < cl.splitclients; pnum++)
+			if (spec_track[pnum] == cls_lastto)
+				CL_SetStat_Internal(pnum, stat, value);
+	}
+	else
+		CL_SetStat_Internal(pnum, stat, value);
 }
 
 /*
@@ -4073,7 +4119,9 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_disconnect:
-			if (cls.state == ca_connected)
+			if (cls.demoplayback == DPB_EZTV)	//eztv fails to detect the end of demos.
+				MSG_ReadString();
+			else if (cls.state == ca_connected)
 			{
 				Host_EndGame ("Server disconnected\n"
 					"Server version may not be compatible");
@@ -4144,7 +4192,7 @@ void CL_ParseServerMessage (void)
 			break;
 #endif
 		case svc_setangle:
-			if (cls.demoplayback == DPB_MVD)
+			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			{
 				i = MSG_ReadByte();
 				if (i != spec_track[0] || !autocam[0])

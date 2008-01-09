@@ -163,7 +163,7 @@ void Cam_Lock(int pnum, int playernum)
 	
 	Skin_FlushPlayers();
 
-	if (cls.demoplayback == DPB_MVD)
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		memcpy(&cl.stats[pnum], cl.players[playernum].stats, sizeof(cl.stats[pnum]));
 	}
@@ -569,7 +569,7 @@ void Cam_FinishMove(int pnum, usercmd_t *cmd)
 	if (cls.state != ca_active)
 		return;
 
-	if (!cl.spectator && cls.demoplayback != DPB_MVD) // only in spectator mode
+	if (!cl.spectator && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) // only in spectator mode
 		return;
 
 	if (cmd->buttons & BUTTON_ATTACK) 

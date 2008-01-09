@@ -2471,7 +2471,7 @@ void CL_UpdateBeams (void)
 		{
 			for (j = 0; j < cl.splitclients; j++)
 			{
-				if (b->entity == (autocam[j]?spec_track[j]:(cl.playernum[j]+1)))
+				if (b->entity == (autocam[j]?spec_track[j]+1:(cl.playernum[j]+1)))
 				{
 					player_state_t	*pl;
 		//			VectorSubtract(cl.simorg, b->start, org);
@@ -2576,16 +2576,6 @@ void CL_UpdateBeams (void)
 				pitch += 360;
 		}
 
-
-/*		if (1)	//cool funky particle mode.
-		{
-			CL_LightningParticleBeam(b->start, b->end);
-			continue;
-		}
-*/
-//		if (part_type[rt_lightning1].loaded)
-//		if (!P_ParticleTrail(b->start, b->end, rt_lightning1, NULL))
-//			continue;
 		if (ruleset_allow_particle_lightning.value)
 			if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, &b->trailstate))
 				continue;

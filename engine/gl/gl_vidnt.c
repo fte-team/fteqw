@@ -145,6 +145,7 @@ extern cvar_t		_windowed_mouse;
 extern cvar_t		vid_hardwaregamma;
 extern cvar_t		vid_desktopgamma;
 extern cvar_t		gl_lateswap;
+extern cvar_t		vid_preservegamma;
 
 int			window_center_x, window_center_y, window_x, window_y, window_width, window_height;
 RECT		window_rect;
@@ -932,6 +933,20 @@ void GL_EndRendering (void)
 		GL_DoSwap();
 }
 
+void OblitterateOldGamma(void)
+{
+	int i;
+	if (vid_preservegamma.value)
+		return;
+
+	for (i = 0; i < 256; i++)
+	{
+		originalgammaramps[0][i] = (i<<8) + i;
+		originalgammaramps[1][i] = (i<<8) + i;
+		originalgammaramps[2][i] = (i<<8) + i;
+	}
+}
+
 void	GLVID_SetPalette (unsigned char *palette)
 {
 	qbyte	*pal;
@@ -1020,6 +1035,8 @@ void	GLVID_Shutdown (void)
 {
 	if (qSetDeviceGammaRamp)
 	{
+		OblitterateOldGamma();
+
 		if (vid_desktopgamma.value)
 		{
 			HDC hDC = GetDC(GetDesktopWindow());
@@ -1333,6 +1350,8 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 
 		if (qSetDeviceGammaRamp)
 		{
+			OblitterateOldGamma();
+
 			if (vid_desktopgamma.value)
 			{
 				HDC hDC = GetDC(GetDesktopWindow());

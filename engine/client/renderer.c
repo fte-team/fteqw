@@ -344,6 +344,7 @@ cvar_t r_shadows							= SCVARF ("r_shadows", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "1");
 
+cvar_t vid_preservegamma					= SCVAR ("vid_preservegamma", "1");
 cvar_t vid_hardwaregamma					= SCVARF ("vid_hardwaregamma", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_desktopgamma						= SCVARF ("vid_desktopgamma", "0",
@@ -370,6 +371,7 @@ void GLRenderer_Init(void)
 	//screen
 	Cvar_Register (&gl_triplebuffer, GLRENDEREROPTIONS);
 
+	Cvar_Register (&vid_preservegamma, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_hardwaregamma, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_desktopgamma, GLRENDEREROPTIONS);
 

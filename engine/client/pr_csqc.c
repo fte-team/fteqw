@@ -33,6 +33,11 @@ cvar_t	cl_csqcdebug = SCVAR("cl_csqcdebug", "0");	//prints entity numbers which 
 cvar_t  cl_nocsqc = SCVAR("cl_nocsqc", "0");
 cvar_t  pr_csqc_coreonerror = SCVAR("pr_csqc_coreonerror", "1");
 
+
+#define MASK_ENGINE 1
+#define MASK_ENGINEVIEWMODEL 2
+
+
 // standard effect cvars/sounds
 extern cvar_t r_explosionlight;
 extern sfx_t			*cl_sfx_wizhit;
@@ -63,7 +68,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalentity(self,					"self");				/*entity	Written before entering most qc functions*/	\
 	globalentity(other,					"other");				/*entity	Written before entering most qc functions*/	\
 	\
-	globalfloat(maxclients,				"maxclients");			/*float		*/	\
+	globalfloat(maxclients,				"maxclients");			/*float		max number of players allowed*/	\
 	\
 	globalvector(forward,				"v_forward");			/*vector	written by anglevectors*/	\
 	globalvector(right,					"v_right");				/*vector	written by anglevectors*/	\
@@ -81,34 +86,35 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfloat(trace_surfaceflags,		"trace_surfaceflags");	/*float		written by traceline*/	\
 	globalfloat(trace_endcontents,		"trace_endcontents");	/*float		written by traceline*/	\
 	\
-	globalfloat(clientcommandframe,		"clientcommandframe");	\
-	globalfloat(servercommandframe,		"servercommandframe");	\
+	globalfloat(clientcommandframe,		"clientcommandframe");	/*float		the next frame that will be sent*/ \
+	globalfloat(servercommandframe,		"servercommandframe");	/*float		the most recent frame received from the server*/ \
 	\
 	globalfloat(player_localentnum,		"player_localentnum");	/*float		the entity number of the local player*/	\
-	globalfloat(intermission,			"intermission");	/*float		the entity number of the local player*/	\
-	globalvector(view_angles,			"view_angles");		\
+	globalfloat(intermission,			"intermission");		/*float		set when the client receives svc_intermission*/	\
+	globalvector(view_angles,			"view_angles");			/*float		set to the view angles at the start of each new frame */ \
 	\
-	globalvector(pmove_org,				"pmove_org");			\
-	globalvector(pmove_vel,				"pmove_vel");			\
-	globalvector(pmove_mins,			"pmove_mins");			\
-	globalvector(pmove_maxs,			"pmove_maxs");			\
-	globalfloat(pmove_jump_held,		"pmove_jump_held");		\
-	globalfloat(pmove_waterjumptime,		"pmove_waterjumptime");	\
-	globalfloat(input_timelength,		"input_timelength");	\
-	globalvector(input_angles,			"input_angles");		\
-	globalvector(input_movevalues,		"input_movevalues");	\
-	globalfloat(input_buttons,			"input_buttons");		\
+	globalvector(pmove_org,				"pmove_org");			/*read/written by runplayerphysics*/ \
+	globalvector(pmove_vel,				"pmove_vel");			/*read/written by runplayerphysics*/ \
+	globalvector(pmove_mins,			"pmove_mins");			/*read/written by runplayerphysics*/ \
+	globalvector(pmove_maxs,			"pmove_maxs");			/*read/written by runplayerphysics*/ \
+	globalfloat(pmove_jump_held,		"pmove_jump_held");		/*read/written by runplayerphysics*/ \
+	globalfloat(pmove_waterjumptime,	"pmove_waterjumptime");	/*read/written by runplayerphysics*/ \
 	\
-	globalfloat(movevar_gravity,		"movevar_gravity");		\
-	globalfloat(movevar_stopspeed,		"movevar_stopspeed");	\
-	globalfloat(movevar_maxspeed,		"movevar_maxspeed");	\
-	globalfloat(movevar_spectatormaxspeed,"movevar_spectatormaxspeed");	\
-	globalfloat(movevar_accelerate,		"movevar_accelerate");		\
-	globalfloat(movevar_airaccelerate,	"movevar_airaccelerate");	\
-	globalfloat(movevar_wateraccelerate,"movevar_wateraccelerate");	\
-	globalfloat(movevar_friction,		"movevar_friction");		\
-	globalfloat(movevar_waterfriction,	"movevar_waterfriction");	\
-	globalfloat(movevar_entgravity,		"movevar_entgravity");		\
+	globalfloat(input_timelength,		"input_timelength");	/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalvector(input_angles,			"input_angles");		/*vector	filled by getinputstate, read by runplayerphysics*/ \
+	globalvector(input_movevalues,		"input_movevalues");	/*vector	filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat(input_buttons,			"input_buttons");		/*float		filled by getinputstate, read by runplayerphysics*/ \
+	\
+	globalfloat(movevar_gravity,		"movevar_gravity");		/*float		obtained from the server*/ \
+	globalfloat(movevar_stopspeed,		"movevar_stopspeed");	/*float		obtained from the server*/ \
+	globalfloat(movevar_maxspeed,		"movevar_maxspeed");	/*float		obtained from the server*/ \
+	globalfloat(movevar_spectatormaxspeed,"movevar_spectatormaxspeed");		/*float		obtained from the server*/ \
+	globalfloat(movevar_accelerate,		"movevar_accelerate");	/*float		obtained from the server*/ \
+	globalfloat(movevar_airaccelerate,	"movevar_airaccelerate");	/*float		obtained from the server*/ \
+	globalfloat(movevar_wateraccelerate,"movevar_wateraccelerate");	/*float		obtained from the server*/ \
+	globalfloat(movevar_friction,		"movevar_friction");	/*float		obtained from the server*/ \
+	globalfloat(movevar_waterfriction,	"movevar_waterfriction");	/*float		obtained from the server*/ \
+	globalfloat(movevar_entgravity,		"movevar_entgravity");	/*float		obtained from the server*/ \
 
 
 typedef struct {
@@ -819,7 +825,6 @@ static void PF_R_AddDynamicLight(progfuncs_t *prinst, struct globalvars_s *pr_gl
 	V_AddLight(org, radius, rgb[0]/5, rgb[1]/5, rgb[2]/5);
 }
 
-#define MASK_ENGINE 1
 static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int mask = G_FLOAT(OFS_PARM0);
@@ -841,7 +846,8 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	if (mask & MASK_ENGINE && cl.worldmodel)
 	{
-		CL_LinkViewModel ();
+		if (mask & MASK_ENGINEVIEWMODEL)
+			CL_LinkViewModel ();
 		CL_LinkPlayers ();
 		CL_LinkPacketEntities ();
 		CL_LinkProjectiles ();
@@ -950,8 +956,12 @@ static void PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	CL_SwapEntityLists();
 
-	view_frame = NULL;//&cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
-	view_message = NULL;//&view_frame->playerstate[cl.playernum[plnum]];
+	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+	view_message = &view_frame->playerstate[cl.playernum[plnum]];
+#ifdef NQPROT
+	if (cls.protocol == CP_NETQUAKE || !view_message->messagenum)
+		view_message->weaponframe = cl.stats[0][STAT_WEAPONFRAME];
+#endif
 	V_CalcRefdef(0);	//set up the defaults (for player 0)
 	/*
 	VectorCopy(cl.simangles[0], r_refdef.viewangles);

@@ -1427,11 +1427,13 @@ void Sbar_DrawInventory (int pnum)
 			{
 				if (cl.stats[pnum][STAT_ACTIVEWEAPON] == (RIT_LAVA_NAILGUN << i))
 				{
-					if (headsup) {
+					if (headsup)
+					{
 						if (sbar_rect.height>200)
 							Sbar_DrawSubPic ((hudswap) ? 0 : (sbar_rect.width-24),-68-(5-i)*16 , rsb_weapons[i],0,0,24,16);
 
-					} else
+					}
+					else
 						Sbar_DrawPic ((i+2)*24, -16, rsb_weapons[i]);
 				}
 			}
@@ -1467,6 +1469,7 @@ void Sbar_DrawInventory (int pnum)
 	flashon = 0;
 // items
 	for (i=0 ; i<6 ; i++)
+	{
 		if (cl.stats[pnum][STAT_ITEMS] & (1<<(17+i)))
 		{
 			time = cl.item_gettime[pnum][17+i];
@@ -1479,6 +1482,7 @@ void Sbar_DrawInventory (int pnum)
 			if (time &&	time > cl.time - 2)
 				sb_updates = 0;
 		}
+	}
 
 	if (sbar_rogue)
 	{
@@ -1507,6 +1511,7 @@ void Sbar_DrawInventory (int pnum)
 	{
 	// sigils
 		for (i=0 ; i<4 ; i++)
+		{
 			if (cl.stats[pnum][STAT_ITEMS] & (1<<(28+i)))
 			{
 				time = cl.item_gettime[pnum][28+i];
@@ -1519,6 +1524,7 @@ void Sbar_DrawInventory (int pnum)
 				if (time &&	time > cl.time - 2)
 					sb_updates = 0;
 			}
+		}
 	}
 }
 

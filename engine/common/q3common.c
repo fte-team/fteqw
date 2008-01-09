@@ -42,10 +42,6 @@ int VM_fopen (char *name, int *handle, int fmode, int owner)
 		return -1;
 	}
 
-	Q_strncpyz(vm_fopen_files[i].name, name, sizeof(vm_fopen_files[i].name));
-
-	vm_fopen_files[i].accessmode = fmode;
-	vm_fopen_files[i].owner = owner;
 	switch (fmode)
 	{
 	case VM_FS_READ:
@@ -75,6 +71,10 @@ int VM_fopen (char *name, int *handle, int fmode, int owner)
 	default: //bad
 		return -1;
 	}
+
+	Q_strncpyz(vm_fopen_files[i].name, name, sizeof(vm_fopen_files[i].name));
+	vm_fopen_files[i].accessmode = fmode;
+	vm_fopen_files[i].owner = owner;
 
 	*handle = i+1;
 	return vm_fopen_files[i].len;

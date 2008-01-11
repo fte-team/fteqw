@@ -2194,7 +2194,7 @@ void Sbar_DeathmatchOverlay (int start)
 	if (realtime - cl.last_ping_request > 2	&& cls.protocol == CP_QUAKEWORLD)
 	{
 		cl.last_ping_request = realtime;
-		CL_SendClientCommand(false, "pings");
+		CL_SendClientCommand(true, "pings");
 	}
 
 	scr_copyeverything = 1;
@@ -2511,7 +2511,7 @@ void Sbar_ChatModeOverlay(void)
 	if (realtime - cl.last_ping_request > 2 && cls.protocol == CP_QUAKEWORLD)
 	{
 		cl.last_ping_request = realtime;
-		CL_SendClientCommand(false, "pings");
+		CL_SendClientCommand(true, "pings");
 	}
 
 	scr_copyeverything = 1;

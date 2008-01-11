@@ -1801,7 +1801,7 @@ static void CheckSendPings(void)
 	if (realtime - cl.last_ping_request > 2)
 	{
 		cl.last_ping_request = realtime;
-		CL_SendClientCommand(false, "pings");
+		CL_SendClientCommand(true, "pings");
 	}
 }
 

@@ -335,7 +335,8 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 //for use outside the pmove code. lame, but works.
 trace_t PM_TraceLine (vec3_t start, vec3_t end)
 {
+	VectorClear(player_mins);
+	VectorClear(player_maxs);
 	pmove.hullnum = 0;
 	return PM_PlayerTrace(start, end);
 }
-

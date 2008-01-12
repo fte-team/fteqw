@@ -2153,7 +2153,7 @@ ping time frags name
 		Draw_FunStringLen(x, y, s->team, 4);			\
 	}													\
 })
-#define COLUMN_NAME COLUMN(name, 16*8,	{Draw_FunString(x, y, s->name);})
+#define COLUMN_NAME COLUMN(name, (cl.teamplay ? 12*8 : 16*8),	{Draw_FunString(x, y, s->name);})
 #define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetKills(k)));})
 #define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetTKills(k)));})
 #define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetDeaths(k)));})

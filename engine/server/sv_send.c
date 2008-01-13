@@ -1520,7 +1520,7 @@ SV_UpdateToReliableMessages
 */
 void SV_UpdateToReliableMessages (void)
 {
-	float newval;
+	volatile float newval; // needed to ensure 32/32-bit fp comparisons
 	int			i, j;
 	client_t *client, *sp;
 	edict_t *ent;

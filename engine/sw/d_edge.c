@@ -28,7 +28,7 @@ float		scale_for_mip;
 int			screenwidth;
 int			ubasestep, errorterm, erroradjustup, erroradjustdown;
 int			vstartscan;
-int r_wallindex, r_floorindex;
+int r_wallindex, r_floorindex, r_skycolorindex;
 
 // FIXME: should go away
 extern void			R_RotateBmodel (void);
@@ -214,6 +214,11 @@ void SWR_Wallcolour_Callback(struct cvar_s *var, char *oldvalue)
 	D_FlushCaches();
 }
 
+void SWR_Fastskycolour_Callback(struct cvar_s *var, char *oldvalue)
+{
+	r_skycolorindex = SCR_StringToPalIndex(var->string, 255);
+}
+
 /*
 ==============
 D_DrawSurfaces
@@ -264,7 +269,7 @@ void D_DrawSurfaces (void)
 			{
 				if (r_fastsky.value || r_worldentity.model->fromgame != fg_quake)
 				{
-					D_DrawSolidSurface (s, (int)r_fastskycolour.value & 0xFF);
+					D_DrawSolidSurface (s, r_skycolorindex & 0xFF);
 				}
 				else
 				{
@@ -292,7 +297,7 @@ void D_DrawSurfaces (void)
 					d_zistepv = 0;
 					d_ziorigin = -0.9;
 
-					D_DrawSolidSurface (s, (int)r_fastskycolour.value & 0xFF);
+					D_DrawSolidSurface (s, r_skycolorindex & 0xFF);
 					D_DrawZSpans (s->spans);
 					continue;
 				}

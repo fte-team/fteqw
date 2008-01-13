@@ -86,7 +86,8 @@ cvar_t r_drawviewmodelinvis					= SCVAR  ("r_drawviewmodelinvis", "0");
 cvar_t r_dynamic							= SCVARF ("r_dynamic", "1",
 												CVAR_ARCHIVE);
 cvar_t r_fastsky							= SCVAR  ("r_fastsky", "0");
-cvar_t r_fastskycolour						= SCVAR  ("r_fastskycolour", "0");
+cvar_t r_fastskycolour						= SCVARF ("r_fastskycolour", "0", 
+												CVAR_RENDERERCALLBACK);
 cvar_t r_fb_bmodels							= SCVARF("gl_fb_bmodels", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_fb_models							= FCVAR  ("r_fb_models", "gl_fb_models", "1",

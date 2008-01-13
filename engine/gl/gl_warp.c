@@ -59,6 +59,12 @@ extern cvar_t r_fastskycolour;
 char defaultskybox[MAX_QPATH];
 
 int skyboxtex[6];
+vec3_t glskycolor;
+
+void GLR_Fastskycolour_Callback(struct cvar_s *var, char *oldvalue)
+{
+	SCR_StringToRGB(var->string, glskycolor, 255);
+}
 
 void GL_DrawSkyBox (msurface_t *s);
 void BoundPoly (int numverts, float *verts, vec3_t mins, vec3_t maxs)
@@ -224,16 +230,8 @@ void GL_DrawSkyChain (msurface_t *s)
 
 	if (r_fastsky.value||(!solidskytexture&&!usingskybox))	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
 	{
-		int fc;
-		qbyte *pal;
-		fc = r_fastskycolour.value;
-		if (fc > 255)
-			fc = 255;
-		if (fc < 0)
-			fc = 0;
-		pal = host_basepal+fc*3;
 		qglDisable(GL_TEXTURE_2D);
-		qglColor3f(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f);
+		qglColor3f(glskycolor[0], glskycolor[1], glskycolor[2]);
 		qglDisableClientState( GL_COLOR_ARRAY );
 		for (fa=s ; fa ; fa=fa->texturechain)
 		{
@@ -1348,7 +1346,7 @@ void R_InitSky (texture_t *mt)
 	((qbyte *)&transpix)[2] = b/(128*128);
 	((qbyte *)&transpix)[3] = 0;
 
-	sprintf(name, "%s_solid", mt->name);
+	Q_snprintfz(name, sizeof(name), "%s_solid", mt->name);
 	Q_strlwr(name);
 	solidskytexture = Mod_LoadReplacementTexture(name, NULL, true, false, true);
 	if (!solidskytexture)
@@ -1373,7 +1371,7 @@ void R_InitSky (texture_t *mt)
 				trans[(i*128) + j] = d_8to24rgbtable[p] & alphamask;
 		}
 
-	sprintf(name, "%s_trans", mt->name);
+	Q_snprintfz(name, sizeof(name), "%s_trans", mt->name);
 	Q_strlwr(name);
 	alphaskytexture = Mod_LoadReplacementTexture(name, NULL, true, true, true);
 	if (!alphaskytexture)

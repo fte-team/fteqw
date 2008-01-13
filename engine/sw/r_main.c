@@ -206,7 +206,7 @@ void	SWR_InitTextures (void)
 
 // callback declares
 extern cvar_t crosshaircolor, r_skyboxname, r_menutint, v_contrast;
-extern cvar_t r_floorcolour, r_wallcolour, r_drawflat;
+extern cvar_t r_floorcolour, r_wallcolour, r_drawflat, r_fastskycolour;
 void SWCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue);
 void SWR_Skyboxname_Callback(struct cvar_s *var, char *oldvalue);
 void SWR_Menutint_Callback(struct cvar_s *var, char *oldvalue);
@@ -214,6 +214,7 @@ void SWV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 void SWR_Floorcolour_Callback(struct cvar_s *var, char *oldvalue);
 void SWR_Wallcolour_Callback(struct cvar_s *var, char *oldvalue);
 void SWR_Drawflat_Callback(struct cvar_s *var, char *oldvalue);
+void SWR_Fastskycolour_Callback(struct cvar_s *var, char *oldvalue);
 
 void SWR_DeInit (void)
 {
@@ -228,6 +229,7 @@ void SWR_DeInit (void)
 	Cvar_Unhook(&r_floorcolour);
 	Cvar_Unhook(&r_wallcolour);
 	Cvar_Unhook(&r_drawflat);
+	Cvar_Unhook(&r_fastskycolour);
 
 	SWDraw_Shutdown();
 	D_Shutdown();
@@ -257,6 +259,7 @@ void SWR_Init (void)
 	Cvar_Hook(&r_floorcolour, SWR_Floorcolour_Callback);
 	Cvar_Hook(&r_wallcolour, SWR_Wallcolour_Callback);
 	Cvar_Hook(&r_drawflat, SWR_Drawflat_Callback);
+	Cvar_Hook(&r_fastskycolour, SWR_Fastskycolour_Callback);
 
 	if (!r_maxedges.value)
 		Cvar_SetValue (&r_maxedges, (float)NUMSTACKEDGES);

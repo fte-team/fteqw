@@ -419,10 +419,10 @@ void CL_ProxyMenuHooks(void)
 
 //==========================================================================
 
-cvar_t	cl_upspeed = SCVAR("cl_upspeed","400");
+cvar_t	cl_upspeed = SCVARF("cl_upspeed","400", CVAR_ARCHIVE);
 cvar_t	cl_forwardspeed = SCVARF("cl_forwardspeed","400", CVAR_ARCHIVE);
 cvar_t	cl_backspeed = SCVARF("cl_backspeed","400", CVAR_ARCHIVE);
-cvar_t	cl_sidespeed = SCVAR("cl_sidespeed","400");
+cvar_t	cl_sidespeed = SCVARF("cl_sidespeed","400", CVAR_ARCHIVE);
 
 cvar_t	cl_movespeedkey = SCVAR("cl_movespeedkey","2.0");
 

@@ -63,9 +63,9 @@ cvar_t	sensitivity = SCVARF("sensitivity","10", CVAR_ARCHIVE);
 cvar_t cl_staticsounds = SCVAR("cl_staticsounds", "1");
 
 cvar_t	m_pitch = SCVARF("m_pitch","0.022", CVAR_ARCHIVE);
-cvar_t	m_yaw = SCVAR("m_yaw","0.022");
-cvar_t	m_forward = SCVAR("m_forward","1");
-cvar_t	m_side = SCVAR("m_side","0.8");
+cvar_t	m_yaw = SCVARF("m_yaw","0.022", CVAR_ARCHIVE);
+cvar_t	m_forward = SCVARF("m_forward","1", CVAR_ARCHIVE);
+cvar_t	m_side = SCVARF("m_side","0.8", CVAR_ARCHIVE);
 
 cvar_t	entlatency = SCVAR("entlatency", "20");
 cvar_t	cl_predict_players = SCVAR("cl_predict_players", "1");

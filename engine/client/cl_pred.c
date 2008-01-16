@@ -544,8 +544,13 @@ static void CL_LerpMove (int pnum, float msgtime)
 	int		i;
 	int		from, to;
 
-	if (cl_nolerp.value || cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV || cls.demoplayback == DPB_NETQUAKE)
+	if (cl_nolerp.value || cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		return;
+
+#ifdef NQPROT
+	if (cls.demoplayback == DPB_NETQUAKE)
+		return;
+#endif
 
 	if (cls.netchan.outgoing_sequence < lastsequence) {
 		// reset
@@ -725,10 +730,12 @@ void CL_PredictMovePNum (int pnum)
 		return;
 	}
 
+#ifdef NQPROT
 	if (cls.demoplayback == DPB_NETQUAKE)
 	{
 		cl.ackedinputsequence = cls.netchan.outgoing_sequence;
 	}
+#endif
 
 	if (!cl.ackedinputsequence)
 	{
@@ -820,7 +827,11 @@ fixedorg:
 
 	to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
 
+#ifdef NQPROT
 	if (Cam_TrackNum(pnum)>=0 && !cl_nolerp.value && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && cls.demoplayback != DPB_NETQUAKE)
+#else
+	if (Cam_TrackNum(pnum)>=0 && !cl_nolerp.value && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)
+#endif
 	{
 		float f;
 

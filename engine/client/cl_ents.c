@@ -1542,13 +1542,18 @@ void CL_LinkPacketEntities (void)
 	dlight_t			*dl;
 	vec3_t				angles;
 	int flicker;
+	qboolean nolerp;
 
 	float servertime;
 
 	CL_CalcClientTime();
 	servertime = cl.servertime;
 
-	pack = CL_ProcessPacketEntities(&servertime, !!cl_nolerp.value && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && cls.demoplayback != DPB_NETQUAKE));
+	nolerp = !!cl_nolerp.value && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
+#ifdef NQPROT
+	nolerp = nolerp && cls.demoplayback != DPB_NETQUAKE;
+#endif
+	pack = CL_ProcessPacketEntities(&servertime, nolerp);
 	if (!pack)
 		return;
 

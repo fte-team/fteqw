@@ -1527,7 +1527,7 @@ void QCC_PR_LexWhitespace (void)
 
 #define	MAX_FRAMES	8192
 char	pr_framemodelname[64];
-char	pr_framemacros[MAX_FRAMES][16];
+char	pr_framemacros[MAX_FRAMES][64];
 int		pr_framemacrovalue[MAX_FRAMES];
 int		pr_nummacros, pr_oldmacros;
 int		pr_macrovalue;
@@ -1627,11 +1627,16 @@ void QCC_PR_MacroFrame(char *name, int value)
 		}
 	}
 
-	strcpy (pr_framemacros[pr_nummacros], name);
-	pr_framemacrovalue[pr_nummacros] = value;
-	pr_nummacros++;
-	if (pr_nummacros >= MAX_FRAMES)
-		QCC_PR_ParseError(ERR_TOOMANYFRAMEMACROS, "Too many frame macros defined");
+	if (strlen(name)+1 > sizeof(pr_framemacros[0]))
+		QCC_PR_ParseWarning(ERR_TOOMANYFRAMEMACROS, "Name for frame macro %s is too long", name);
+	else
+	{
+		strcpy (pr_framemacros[pr_nummacros], name);
+		pr_framemacrovalue[pr_nummacros] = value;
+		pr_nummacros++;
+		if (pr_nummacros >= MAX_FRAMES)
+			QCC_PR_ParseError(ERR_TOOMANYFRAMEMACROS, "Too many frame macros defined");
+	}
 }
 
 void QCC_PR_ParseFrame (void)

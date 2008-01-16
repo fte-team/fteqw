@@ -206,7 +206,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	qbyte	*raw;
 	qbyte	*out, *pix;
 	pcx_t	*pcx;
-	int		x, y;
+	int		x, y, srcw, srch;
 	int		dataByte;
 	int		runLength;
 	int fbremap[256];
@@ -291,15 +291,14 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	pcx = (pcx_t *)raw;
 	raw = (qbyte *)(pcx+1);
 
+	//check format (sizes are checked later)
 	if (pcx->manufacturer != 0x0a
 		|| pcx->version != 5
 		|| pcx->encoding != 1
-		|| pcx->bits_per_pixel != 8
-		|| (unsigned short)LittleShort(pcx->xmax) >= 320
-		|| (unsigned short)LittleShort(pcx->ymax) >= 200)
+		|| pcx->bits_per_pixel != 8)
 	{
 		skin->failedload = true;
-		Con_Printf ("Bad skin %s\n", name);
+		Con_Printf ("Bad skin %s (unsupported format)\n", name);
 		return NULL;
 	}
 
@@ -307,28 +306,40 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 
 	pcx->xmax = (unsigned short)LittleShort(pcx->xmax);
 	pcx->ymax = (unsigned short)LittleShort(pcx->ymax);
+	pcx->xmin = (unsigned short)LittleShort(pcx->xmin);
+	pcx->ymin = (unsigned short)LittleShort(pcx->ymin);
 
-	if (qrenderer == QR_SOFTWARE)
+	srcw = pcx->xmax-pcx->xmin+1;
+	srch = pcx->ymax-pcx->ymin+1;
+
+	if (srcw < 1 || srch < 1 || srcw > 320 || srch > 200)
 	{
+		skin->failedload = true;
+		Con_Printf ("Bad skin %s (unsupported size)\n", name);
+		return NULL;
+	}
+	if (qrenderer == QR_SOFTWARE)
+	{//biggest size possible, by the way
 		skin->width = 320;
 		skin->height = 200;
 	}
 	else
 	{
-		skin->width = pcx->xmax+1;
-		skin->height = pcx->ymax;
+		skin->width = srcw;
+		skin->height = srch;
 	}
-	
+
 	out = Cache_Alloc (&skin->cache, skin->width*skin->height, skin->name);
 	if (!out)
 		Sys_Error ("Skin_Cache: couldn't allocate");
 
 	pix = out;
-	memset (out, 0, skin->width*skin->height);
+//	memset (out, 0, skin->width*skin->height);
 
-	for (y=0 ; y<pcx->ymax ; y++, pix += skin->width)
+	dataByte = 0;	//typically black (this is in case a 0*0 file is loaded... which won't happen anyway)
+	for (y=0 ; y < srch ; y++, pix += skin->width)
 	{
-		for (x=0 ; x<=pcx->xmax ; )
+		for (x=0 ; x < srcw ; )
 		{
 			if (raw - (qbyte*)pcx > com_filesize) 
 			{
@@ -370,7 +381,14 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 				pix[x++] = dataByte;
 		}
 
+		//pad the end of the scan line with the trailing pixel
+		for ( ; x < skin->width ; )
+			pix[x++] = dataByte;
 	}
+	//pad the bottom of the skin with that final pixel
+	for ( ; y < skin->height; y++, pix += skin->width)
+		for (x = 0; x < skin->width; )
+			pix[x++] = dataByte;
 
 	if ( raw - (qbyte *)pcx > com_filesize)
 	{

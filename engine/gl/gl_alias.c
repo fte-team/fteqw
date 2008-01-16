@@ -1159,6 +1159,32 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				scaled_width = gl_max_size.value < 512 ? gl_max_size.value : 512;
 				scaled_height = gl_max_size.value < 512 ? gl_max_size.value : 512;
 
+				//handle the case of an external skin being smaller than the texture that its meant to replace
+				//(to support the evil hackage of the padding on the outside of common qw skins)
+				if (tinwidth > inwidth)
+					tinwidth = inwidth;
+				if (tinheight > inheight)
+					tinheight = inheight;
+
+				//don't make scaled width any larger than it needs to be
+				for (i = 0; i < 10; i++)
+				{
+					scaled_width = (1<<i);
+					if (scaled_width >= tinwidth)
+						break;	//its covered
+				}
+				if (scaled_width > gl_max_size.value)
+					scaled_width = gl_max_size.value;	//whoops, we made it too big
+
+				for (i = 0; i < 10; i++)
+				{
+					scaled_height = (1<<i);
+					if (scaled_height >= tinheight)
+						break;	//its covered
+				}
+				if (scaled_height > gl_max_size.value)
+					scaled_height = gl_max_size.value;	//whoops, we made it too big
+
 				for (i=0 ; i<256 ; i++)
 					translate[i] = i;
 

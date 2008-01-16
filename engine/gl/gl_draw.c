@@ -1025,10 +1025,6 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 			char_tex2 = GL_LoadTexture ("charset", 128, 128, draw_chars, false, true);
 	}
 	
-	//make sure the sampling takes effect
-	GL_Smoothfont_Callback(&gl_smoothfont, "");
-
-
 	cs_texture = texture_extension_number++;
 
 	missing_texture = GL_LoadTexture("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], true, false);

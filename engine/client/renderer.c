@@ -307,7 +307,8 @@ cvar_t gl_skyboxdist						= SCVAR  ("gl_skyboxdist", "2300");
 cvar_t gl_smoothcrosshair					= SCVAR  ("gl_smoothcrosshair", "1");
 
 //gl blends. Set this to 1 to stop the outside of your conchars from being visible
-cvar_t gl_smoothfont						= SCVAR  ("gl_smoothfont", "1");
+cvar_t gl_smoothfont						= SCVARF  ("gl_smoothfont", "1",
+												CVAR_RENDERERCALLBACK);
 
 #ifdef SPECULAR
 cvar_t gl_specular							= SCVAR  ("gl_specular", "0");

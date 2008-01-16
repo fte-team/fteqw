@@ -702,6 +702,10 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue)
 	{
 		if (!glt->mipmap)
 		{
+			//texture2d sampling modes do not affect conchars, use gl_smoothfont for that.
+			if (glt->texnum == char_texture || glt->texnum == default_char_texture || glt->texnum == char_tex2)
+				continue;
+
 			GL_Bind (glt->texnum);
 			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
 			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
@@ -934,7 +938,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		custom_char_instep = default_char_instep = 0.5f/((image_width+image_height)/2);	//you're an idiot if you use non-square conchars
 	else
 		custom_char_instep = default_char_instep = 0.5f/(128);
-
+	
 	TRACE(("dbg: GLDraw_ReInit: loaded charset\n"));
 
 	TRACE(("dbg: GLDraw_ReInit: GL_BeginRendering\n"));
@@ -1020,6 +1024,10 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		else
 			char_tex2 = GL_LoadTexture ("charset", 128, 128, draw_chars, false, true);
 	}
+	
+	//make sure the sampling takes effect
+	GL_Smoothfont_Callback(&gl_smoothfont, "");
+
 
 	cs_texture = texture_extension_number++;
 

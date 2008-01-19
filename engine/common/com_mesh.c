@@ -51,7 +51,7 @@ clampedmodel_t clampedmodel[] = {
 	{"progs/g_nail.mdl", 2234},
 	{"progs/g_nail2.mdl", 3660},
 	{"progs/g_rock.mdl", 3441},
-	{"progs/g_rock2.mdl", 3442},
+	{"progs/g_rock2.mdl", 3660},
 	{"progs/g_light.mdl", 2698},
 	{"progs/invisibl.mdl", 196},
 	{"progs/quaddama.mdl", 2353},
@@ -63,8 +63,8 @@ clampedmodel_t clampedmodel[] = {
 	{"progs/s_spike.mdl", 112},
 	{"progs/backpack.mdl", 1117},
 	{"progs/armor.mdl", 2919},
-	{"progs/s_bubble.spr", 1},	//don't show the sprites if replaced with models
-	{"progs/s_explod.spr", 1},
+	{"progs/s_bubble.spr", 100},
+	{"progs/s_explod.spr", 1000},
 
 	//and now TF models
 #ifndef _MSC_VER
@@ -750,8 +750,8 @@ static void Mod_ClampModelSize(model_t *mod)
 			if (rad > clampedmodel[i].furthestallowedextremety)
 			{
 				axis = clampedmodel[i].furthestallowedextremety;
-				mod->clampscale = rad/(axis*axis*axis);
-				Con_Printf("\"%s\" will be clamped.\n", mod->name);
+				mod->clampscale = axis/rad;
+				Con_DPrintf("\"%s\" will be clamped.\n", mod->name);
 			}
 			return;
 		}

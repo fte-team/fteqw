@@ -750,6 +750,7 @@ typedef struct model_s
 //		
 	vec3_t		mins, maxs;
 	float		radius;
+	float		clampscale;
 
 //
 // solid volume for clipping 

@@ -692,6 +692,16 @@ int CL_LoadModels(int stage)
 	}
 #endif
 
+	if (atstage())
+	{
+		loadmodel = cl.worldmodel;
+
+		if (R_PreNewMap)
+			R_PreNewMap();
+
+		endstage();
+	}
+
 	if (cl.playernum[0] == -1)
 	{	//q2 cinematic - don't load the models.
 		cl.worldmodel = cl.model_precache[1] = Mod_ForName ("", false);
@@ -747,17 +757,6 @@ int CL_LoadModels(int stage)
 		endstage();
 	}
 
-	if (atstage())
-	{
-		loadmodel = cl.worldmodel;
-		if (!loadmodel || loadmodel->type == mod_dummy)
-			Host_EndGame("No worldmodel was loaded\n");
-
-		if (R_PreNewMap)
-			R_PreNewMap();
-
-		endstage();
-	}
 	if (atstage())
 	{
 		loadmodel = cl.worldmodel;

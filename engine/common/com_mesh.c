@@ -26,11 +26,56 @@ extern char loadname[];
 
 
 
+typedef struct
+{
+	char *name;
+	float furthestallowedextremety;	//this field is the combined max-min square, added together
+									//note that while this allows you to move models about a little, you cannot resize the visible part
+} clampedmodel_t;
 
+//these should be rounded up slightly.
+//really this is only to catch spiked models. This doesn't prevent more visible models, just bigger ones.
+clampedmodel_t clampedmodel[] = {
+	{"maps/b_bh100.bsp", 3440},
+	{"progs/player.mdl", 22497},
+	{"progs/eyes.mdl", 755},
+	{"progs/gib1.mdl", 374},
+	{"progs/gib2.mdl", 1779},
+	{"progs/gib3.mdl", 2066},
+	{"progs/bolt2.mdl", 1160},
+	{"progs/end1.mdl", 764},
+	{"progs/end2.mdl", 981},
+	{"progs/end3.mdl", 851},
+	{"progs/end4.mdl", 903},
+	{"progs/g_shot.mdl", 3444},
+	{"progs/g_nail.mdl", 2234},
+	{"progs/g_nail2.mdl", 3660},
+	{"progs/g_rock.mdl", 3441},
+	{"progs/g_rock2.mdl", 3442},
+	{"progs/g_light.mdl", 2698},
+	{"progs/invisibl.mdl", 196},
+	{"progs/quaddama.mdl", 2353},
+	{"progs/invulner.mdl", 2746},
+	{"progs/suit.mdl", 3057},
+	{"progs/missile.mdl", 416},
+	{"progs/grenade.mdl", 473},
+	{"progs/spike.mdl", 112},
+	{"progs/s_spike.mdl", 112},
+	{"progs/backpack.mdl", 1117},
+	{"progs/armor.mdl", 2919},
+	{"progs/s_bubble.spr", 1},	//don't show the sprites if replaced with models
+	{"progs/s_explod.spr", 1},
 
-
-
-
+	//and now TF models
+#ifndef _MSC_VER
+#warning FIXME: these are placeholders
+#endif
+	{"progs/disp.mdl", 3000},
+	{"progs/tf_flag.mdl", 3000},
+	{"progs/tf_stan.mdl", 3000},
+	{"progs/turrbase.mdl", 3000},
+	{"progs/turrgun.mdl", 3000}
+};
 
 #ifdef SKELETALMODELS
 
@@ -687,11 +732,32 @@ static void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 static void Mod_ClampModelSize(model_t *mod)
 {
 #ifndef SERVERONLY
-	if (ruleset_allow_larger_models.value)
-		return;
-	//otherwise clamp them
+	int i;
+
+	float rad=0, axis;
+	axis = (mod->maxs[0] - mod->mins[0]);
+	rad += axis*axis;
+	axis = (mod->maxs[1] - mod->mins[1]);
+	rad += axis*axis;
+	axis = (mod->maxs[2] - mod->mins[2]);
+	rad += axis*axis;
+
+	mod->clampscale = 1;
+	for (i = 0; i < sizeof(clampedmodel)/sizeof(clampedmodel[0]); i++)
+	{
+		if (!strcmp(mod->name, clampedmodel[i].name))
+		{
+			if (rad > clampedmodel[i].furthestallowedextremety)
+			{
+				axis = clampedmodel[i].furthestallowedextremety;
+				mod->clampscale = rad/(axis*axis*axis);
+				Con_Printf("\"%s\" will be clamped.\n", mod->name);
+			}
+			return;
+		}
+	}
 	
-	Con_Printf("Loading %s, but size clamping isn't implemented yet\n", mod->name);
+	Con_DPrintf("Don't know what size to clamp \"%s\" to (size:%f).\n", mod->name, rad);
 #endif
 }
 

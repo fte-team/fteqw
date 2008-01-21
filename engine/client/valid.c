@@ -400,20 +400,19 @@ rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_frj", "0"},
 	{"ruleset_allow_packet", "0"},
 	{"ruleset_allow_particle_lightning", "0"},
-	{"ruleset_allow_overlongsounds", "0"},
+	{"ruleset_allow_overlong_sounds", "0"},
 	{"ruleset_allow_larger_models", "0"},
 	{"tp_disputablemacros", "0"},
 	{"cl_instantrotate", "0"},
 	{NULL}
 };
 
-rulesetrule_t rulesetrules_nnql[] = {
+rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_larger_models", "0"},
 	{"ruleset_allow_overlong_sounds", "0"},
 	{"ruleset_allow_particle_lightning", "0"},
 	{"ruleset_allow_packet", "0"},
 	{"ruleset_allow_frj", "0"},
-	{"ruleset_allow_playercount", "0"},
 	{"gl_shadeq1", "0"},
 	{"gl_shadeq3", "0"},
 	{NULL}
@@ -422,7 +421,7 @@ rulesetrule_t rulesetrules_nnql[] = {
 static ruleset_t rulesets[] =
 {
 	{"strict", rulesetrules_strict},
-	{"nnql", rulesetrules_nnql},
+	{"nqr", rulesetrules_nqr},
 	{NULL}
 };
 
@@ -464,7 +463,10 @@ void Validation_Ruleset(void)
 				continue;
 
 			if (strcmp(var->string, rs->rule[i].rulevalue))
+			{
+				Con_DPrintf("ruleset \"%s\" requires \"%s\" to be \"%s\"\n", rs->rulesetname, rs->rule[i].rulename, rs->rule[i].rulevalue);
 				break;	//current settings don't match
+			}
 		}
 		if (!rs->rule[i].rulename)
 		{

@@ -31,9 +31,8 @@ cvar_t	cl_nodelta = SCVAR("cl_nodelta","0");
 
 cvar_t	cl_c2spps = SCVAR("cl_c2spps", "0");
 cvar_t	cl_c2sImpulseBackup = SCVAR("cl_c2sImpulseBackup","3");
-
 cvar_t	cl_netfps = SCVAR("cl_netfps", "0");
-
+cvar_t  cl_queueimpulses = SCVAR("cl_queueimpulses", "0");
 cvar_t	cl_smartjump = SCVAR("cl_smartjump", "1");
 
 cvar_t	cl_prydoncursor = SCVAR("cl_prydoncursor", "0");	//for dp protocol
@@ -325,8 +324,16 @@ void IN_Impulse (void)
 		return;
 	}
 
-	in_impulse[pnum][(in_nextimpulse[pnum]+in_impulsespending[pnum])%IN_IMPULSECACHE] = newimp;
-	in_impulsespending[pnum]++;
+	if (cl_queueimpulses.value)
+	{
+		in_impulse[pnum][(in_nextimpulse[pnum]+in_impulsespending[pnum])%IN_IMPULSECACHE] = newimp;
+		in_impulsespending[pnum]++;
+	}
+	else
+	{
+		in_impulse[pnum][(in_nextimpulse[pnum])%IN_IMPULSECACHE] = newimp;
+		in_impulsespending[pnum]=1;
+	}
 }
 
 void IN_Restart (void)
@@ -1761,6 +1768,7 @@ void CL_InitInput (void)
 
 	Cvar_Register (&cl_c2sImpulseBackup, inputnetworkcvargroup);
 	Cvar_Register (&cl_c2spps, inputnetworkcvargroup);
+	Cvar_Register (&cl_queueimpulses, inputnetworkcvargroup);
 	Cvar_Register (&cl_netfps, inputnetworkcvargroup);
 
 	Cvar_Register (&cl_smartjump, inputnetworkcvargroup);

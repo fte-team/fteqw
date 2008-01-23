@@ -997,7 +997,8 @@ void SV_SetMoveVars(void);
 // sv_send.c
 //
 qboolean SV_ChallengePasses(int challenge);
-void SV_QCStat(int type, char *name, int statnum);
+void SV_QCStatName(int type, char *name, int statnum);
+void SV_QCStatFieldIdx(int type, unsigned int fieldindex, int statnum);
 void SV_ClearQCStats(void);
 
 void SV_SendClientMessages (void);

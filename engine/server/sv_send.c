@@ -1179,7 +1179,7 @@ typedef struct {
 } qcstat_t;
 qcstat_t qcstats[MAX_CL_STATS-32];
 int numqcstats;
-void SV_QCStat(int type, char *name, int statnum)
+void SV_QCStatEval(int type, char *name, evalc_t *cache, int statnum)
 {
 	int i;
 	if (numqcstats == sizeof(qcstats)/sizeof(qcstats[0]))
@@ -1194,12 +1194,42 @@ void SV_QCStat(int type, char *name, int statnum)
 			break;
 	}
 	if (i == numqcstats)
+	{
+		if (i == sizeof(qcstats)/sizeof(qcstats[0]))
+		{
+			Con_Printf("Too many stats specified for csqc\n");
+			return;
+		}
 		numqcstats++;
+	}
 
 	qcstats[i].type = type;
 	qcstats[i].statnum = statnum;
 	Q_strncpyz(qcstats[i].name, name, sizeof(qcstats[i].name));
-	memset(&qcstats[i].evalc, 0, sizeof(evalc_t));
+	memcpy(&qcstats[i].evalc, cache, sizeof(evalc_t));
+}
+
+void SV_QCStatName(int type, char *name, int statnum)
+{
+	evalc_t cache;
+	if (!svprogfuncs->GetEdictFieldValue(svprogfuncs, NULL, name, &cache))
+		return;
+
+	SV_QCStatEval(type, name, &cache, statnum);
+}
+
+void SV_QCStatFieldIdx(int type, unsigned int fieldindex, int statnum)
+{
+	evalc_t cache;
+	char *name;
+	etype_t ftype;
+
+	if (!svprogfuncs->QueryField(svprogfuncs, fieldindex, &ftype, &name, &cache))
+	{
+		Con_Printf("invalid field for csqc stat\n");
+		return;
+	}
+	SV_QCStatEval(type, name, &cache, statnum);
 }
 
 void SV_ClearQCStats(void)
@@ -1216,6 +1246,8 @@ void SV_UpdateQCStats(edict_t	*ent, int *stats)
 	{
 		eval_t *eval;
 		eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, qcstats[i].name, &qcstats[i].evalc);
+		if (!eval)
+			continue;
 
 		switch(qcstats[i].type)
 		{

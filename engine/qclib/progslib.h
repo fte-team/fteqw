@@ -133,6 +133,8 @@ struct progfuncs_s {
 	string_t (*StringToProgs)			(progfuncs_t *prinst, char *str);
 	char *(*StringToNative)				(progfuncs_t *prinst, string_t str);
 	int stringtablesize;
+
+	int (*QueryField)		(progfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache);	//find info on a field definition at an offset
 };
 
 typedef struct progexterns_s {

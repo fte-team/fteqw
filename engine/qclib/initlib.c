@@ -292,6 +292,26 @@ char *PR_VarString (progfuncs_t *progfuncs, int	first)
 	return out;
 }
 
+int PR_QueryField (progfuncs_t *progfuncs, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache)
+{
+	fdef_t *var;
+	var = ED_FieldAtOfs(progfuncs, fieldoffset);
+	if (!var)
+		return false;
+
+	if (type)
+		*type = var->type & ~(DEF_SAVEGLOBAL|DEF_SHARED);
+	if (name)
+		*name = var->name;
+	if (fieldcache)
+	{
+		fieldcache->ofs32 = var;
+		fieldcache->varname = var->name;
+	}
+		
+	return true;
+}
+
 eval_t *GetEdictFieldValue(progfuncs_t *progfuncs, struct edict_s *ed, char *name, evalc_t *cache)
 {
 	fdef_t *var;
@@ -312,6 +332,9 @@ eval_t *GetEdictFieldValue(progfuncs_t *progfuncs, struct edict_s *ed, char *nam
 			return NULL;
 		}
 		cache->ofs32 = var;
+		cache->varname = var->name;
+		if (!ed)
+			return (void*)~0;	//something not null
 		return (eval_t *) &(((int*)(((edictrun_t*)ed)->fields))[var->ofs]);
 	}
 	if (cache->ofs32 == NULL)
@@ -545,7 +568,9 @@ progfuncs_t deffuncs = {
 	PR_AllocTempString,
 
 	PR_StringToProgs,
-	PR_StringToNative
+	PR_StringToNative,
+	0,
+	PR_QueryField
 };
 #undef printf
 

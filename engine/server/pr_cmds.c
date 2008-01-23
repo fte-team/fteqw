@@ -572,57 +572,57 @@ void PR_LoadGlabalStruct(void)
 
 	if (progstype == PROG_H2)
 	{
-		SV_QCStat(ev_float, "level", STAT_H2_LEVEL);
-		SV_QCStat(ev_float, "intelligence", STAT_H2_INTELLIGENCE);
-		SV_QCStat(ev_float, "wisdom", STAT_H2_WISDOM);
-		SV_QCStat(ev_float, "strength", STAT_H2_STRENGTH);
-		SV_QCStat(ev_float, "dexterity", STAT_H2_DEXTERITY);
-		SV_QCStat(ev_float, "bluemana", STAT_H2_BLUEMANA);
-		SV_QCStat(ev_float, "greenmana", STAT_H2_GREENMANA);
-		SV_QCStat(ev_float, "experience", STAT_H2_EXPERIENCE);
-		SV_QCStat(ev_float, "cnt_torch", STAT_H2_CNT_TORCH);
-		SV_QCStat(ev_float, "cnt_h_boost", STAT_H2_CNT_H_BOOST);
-		SV_QCStat(ev_float, "cnt_sh_boost", STAT_H2_CNT_SH_BOOST);
-		SV_QCStat(ev_float, "cnt_mana_boost", STAT_H2_CNT_MANA_BOOST);
-		SV_QCStat(ev_float, "cnt_teleport", STAT_H2_CNT_TELEPORT);
-		SV_QCStat(ev_float, "cnt_tome", STAT_H2_CNT_TOME);
-		SV_QCStat(ev_float, "cnt_summon", STAT_H2_CNT_SUMMON);
-		SV_QCStat(ev_float, "cnt_invisibility", STAT_H2_CNT_INVISIBILITY);
-		SV_QCStat(ev_float, "cnt_glyph", STAT_H2_CNT_GLYPH);
-		SV_QCStat(ev_float, "cnt_haste", STAT_H2_CNT_HASTE);
-		SV_QCStat(ev_float, "cnt_blast", STAT_H2_CNT_BLAST);
-		SV_QCStat(ev_float, "cnt_polymorph", STAT_H2_CNT_POLYMORPH);
-		SV_QCStat(ev_float, "cnt_flight", STAT_H2_CNT_FLIGHT);
-		SV_QCStat(ev_float, "cnt_cubeofforce", STAT_H2_CNT_CUBEOFFORCE);
-		SV_QCStat(ev_float, "cnt_invincibility", STAT_H2_CNT_INVINCIBILITY);
-		SV_QCStat(ev_float, "artifact_active", STAT_H2_ARTIFACT_ACTIVE);
-		SV_QCStat(ev_float, "artifact_low", STAT_H2_ARTIFACT_LOW);
-		SV_QCStat(ev_float, "movetype", STAT_H2_MOVETYPE);
-		SV_QCStat(ev_entity, "cameramode", STAT_H2_CAMERAMODE);
-		SV_QCStat(ev_float, "hasted", STAT_H2_HASTED);
-		SV_QCStat(ev_float, "inventory", STAT_H2_INVENTORY);
-		SV_QCStat(ev_float, "rings_active", STAT_H2_RINGS_ACTIVE);
+		SV_QCStatName(ev_float, "level", STAT_H2_LEVEL);
+		SV_QCStatName(ev_float, "intelligence", STAT_H2_INTELLIGENCE);
+		SV_QCStatName(ev_float, "wisdom", STAT_H2_WISDOM);
+		SV_QCStatName(ev_float, "strength", STAT_H2_STRENGTH);
+		SV_QCStatName(ev_float, "dexterity", STAT_H2_DEXTERITY);
+		SV_QCStatName(ev_float, "bluemana", STAT_H2_BLUEMANA);
+		SV_QCStatName(ev_float, "greenmana", STAT_H2_GREENMANA);
+		SV_QCStatName(ev_float, "experience", STAT_H2_EXPERIENCE);
+		SV_QCStatName(ev_float, "cnt_torch", STAT_H2_CNT_TORCH);
+		SV_QCStatName(ev_float, "cnt_h_boost", STAT_H2_CNT_H_BOOST);
+		SV_QCStatName(ev_float, "cnt_sh_boost", STAT_H2_CNT_SH_BOOST);
+		SV_QCStatName(ev_float, "cnt_mana_boost", STAT_H2_CNT_MANA_BOOST);
+		SV_QCStatName(ev_float, "cnt_teleport", STAT_H2_CNT_TELEPORT);
+		SV_QCStatName(ev_float, "cnt_tome", STAT_H2_CNT_TOME);
+		SV_QCStatName(ev_float, "cnt_summon", STAT_H2_CNT_SUMMON);
+		SV_QCStatName(ev_float, "cnt_invisibility", STAT_H2_CNT_INVISIBILITY);
+		SV_QCStatName(ev_float, "cnt_glyph", STAT_H2_CNT_GLYPH);
+		SV_QCStatName(ev_float, "cnt_haste", STAT_H2_CNT_HASTE);
+		SV_QCStatName(ev_float, "cnt_blast", STAT_H2_CNT_BLAST);
+		SV_QCStatName(ev_float, "cnt_polymorph", STAT_H2_CNT_POLYMORPH);
+		SV_QCStatName(ev_float, "cnt_flight", STAT_H2_CNT_FLIGHT);
+		SV_QCStatName(ev_float, "cnt_cubeofforce", STAT_H2_CNT_CUBEOFFORCE);
+		SV_QCStatName(ev_float, "cnt_invincibility", STAT_H2_CNT_INVINCIBILITY);
+		SV_QCStatName(ev_float, "artifact_active", STAT_H2_ARTIFACT_ACTIVE);
+		SV_QCStatName(ev_float, "artifact_low", STAT_H2_ARTIFACT_LOW);
+		SV_QCStatName(ev_float, "movetype", STAT_H2_MOVETYPE);
+		SV_QCStatName(ev_entity, "cameramode", STAT_H2_CAMERAMODE);
+		SV_QCStatName(ev_float, "hasted", STAT_H2_HASTED);
+		SV_QCStatName(ev_float, "inventory", STAT_H2_INVENTORY);
+		SV_QCStatName(ev_float, "rings_active", STAT_H2_RINGS_ACTIVE);
 
-		SV_QCStat(ev_float, "rings_low", STAT_H2_RINGS_LOW);
-		SV_QCStat(ev_float, "armor_amulet", STAT_H2_AMULET);
-		SV_QCStat(ev_float, "armor_bracer", STAT_H2_BRACER);
-		SV_QCStat(ev_float, "armor_breastplate", STAT_H2_BREASTPLATE);
-		SV_QCStat(ev_float, "armor_helmet", STAT_H2_HELMET);
-		SV_QCStat(ev_float, "ring_flight", STAT_H2_FLIGHT_T);
-		SV_QCStat(ev_float, "ring_water", STAT_H2_WATER_T);
-		SV_QCStat(ev_float, "ring_turning", STAT_H2_TURNING_T);
-		SV_QCStat(ev_float, "ring_regeneration", STAT_H2_REGEN_T);
-		SV_QCStat(ev_string, "puzzle_inv1", STAT_H2_PUZZLE1A);
-		SV_QCStat(ev_string, "puzzle_inv2", STAT_H2_PUZZLE2A);
-		SV_QCStat(ev_string, "puzzle_inv3", STAT_H2_PUZZLE3A);
-		SV_QCStat(ev_string, "puzzle_inv4", STAT_H2_PUZZLE4A);
-		SV_QCStat(ev_string, "puzzle_inv5", STAT_H2_PUZZLE5A);
-		SV_QCStat(ev_string, "puzzle_inv6", STAT_H2_PUZZLE6A);
-		SV_QCStat(ev_string, "puzzle_inv7", STAT_H2_PUZZLE7A);
-		SV_QCStat(ev_string, "puzzle_inv8", STAT_H2_PUZZLE8A);
-		SV_QCStat(ev_float, "max_health", STAT_H2_MAXHEALTH);
-		SV_QCStat(ev_float, "max_mana", STAT_H2_MAXMANA);
-		SV_QCStat(ev_float, "flags", STAT_H2_FLAGS);
+		SV_QCStatName(ev_float, "rings_low", STAT_H2_RINGS_LOW);
+		SV_QCStatName(ev_float, "armor_amulet", STAT_H2_AMULET);
+		SV_QCStatName(ev_float, "armor_bracer", STAT_H2_BRACER);
+		SV_QCStatName(ev_float, "armor_breastplate", STAT_H2_BREASTPLATE);
+		SV_QCStatName(ev_float, "armor_helmet", STAT_H2_HELMET);
+		SV_QCStatName(ev_float, "ring_flight", STAT_H2_FLIGHT_T);
+		SV_QCStatName(ev_float, "ring_water", STAT_H2_WATER_T);
+		SV_QCStatName(ev_float, "ring_turning", STAT_H2_TURNING_T);
+		SV_QCStatName(ev_float, "ring_regeneration", STAT_H2_REGEN_T);
+		SV_QCStatName(ev_string, "puzzle_inv1", STAT_H2_PUZZLE1A);
+		SV_QCStatName(ev_string, "puzzle_inv2", STAT_H2_PUZZLE2A);
+		SV_QCStatName(ev_string, "puzzle_inv3", STAT_H2_PUZZLE3A);
+		SV_QCStatName(ev_string, "puzzle_inv4", STAT_H2_PUZZLE4A);
+		SV_QCStatName(ev_string, "puzzle_inv5", STAT_H2_PUZZLE5A);
+		SV_QCStatName(ev_string, "puzzle_inv6", STAT_H2_PUZZLE6A);
+		SV_QCStatName(ev_string, "puzzle_inv7", STAT_H2_PUZZLE7A);
+		SV_QCStatName(ev_string, "puzzle_inv8", STAT_H2_PUZZLE8A);
+		SV_QCStatName(ev_float, "max_health", STAT_H2_MAXHEALTH);
+		SV_QCStatName(ev_float, "max_mana", STAT_H2_MAXMANA);
+		SV_QCStatName(ev_float, "flags", STAT_H2_FLAGS);
 	}
 }
 
@@ -9079,10 +9079,16 @@ void PF_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorCopy((result+8), axis[2]);
 }
 
+//the first implementation of this function was (float type, float num, string name)
+//it is now float num, float type, .field
 void PF_clientstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#if 0 //this is the old code
 	char *name = PF_VarString(prinst, 2, pr_globals);
-	SV_QCStat(G_FLOAT(OFS_PARM0), name, G_FLOAT(OFS_PARM1));
+	SV_QCStatName(G_FLOAT(OFS_PARM0), name, G_FLOAT(OFS_PARM1));
+#else
+	SV_QCStatFieldIdx(G_FLOAT(OFS_PARM1), G_INT(OFS_PARM2)+prinst->fieldadjust, G_FLOAT(OFS_PARM0));
+#endif
 }
 
 void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)

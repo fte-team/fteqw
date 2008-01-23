@@ -436,6 +436,7 @@ ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, prog
 ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum_t prnum);
 ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum_t prnum);
 fdef_t *ED_FindField (progfuncs_t *progfuncs, char *name);
+fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
 dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, char *name, progsnum_t *pnum, progsnum_t fromprogs);
 func_t PR_FindFunc(progfuncs_t *progfncs, char *funcname, progsnum_t pnum);
 void PR_Configure (progfuncs_t *progfncs, int addressable_size, int max_progs);

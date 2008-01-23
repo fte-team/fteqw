@@ -1215,7 +1215,7 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 
 	qbyte	*pcx_rgb;
 
-	unsigned short xmin, ymin, xmax, ymax;
+	unsigned short xmin, ymin, swidth, sheight;
 
 //
 // parse the PCX file
@@ -1225,21 +1225,21 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 
 	xmin = LittleShort(pcx->xmin);
 	ymin = LittleShort(pcx->ymin);
-	xmax = LittleShort(pcx->xmax);
-	ymax = LittleShort(pcx->ymax);
+	swidth = LittleShort(pcx->xmax)-xmin+1;
+	sheight = LittleShort(pcx->ymax)-ymin+1;
 
 	if (pcx->manufacturer != 0x0a
 		|| pcx->version != 5
 		|| pcx->encoding != 1
 		|| pcx->bits_per_pixel != 8
-		|| xmax >= 1024
-		|| ymax >= 1024)
+		|| swidth >= 1024
+		|| sheight >= 1024)
 	{
 		return NULL;
 	}
 
-	*width = xmax-xmin+1;
-	*height = ymax-ymin+1;
+	*width = swidth;
+	*height = sheight;
 
 	if (r_dodgypcxfiles.value)
 		palette = host_basepal;
@@ -1248,13 +1248,13 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 
 	data = (char *)(pcx+1);
 
-	count = (xmax+1) * (ymax+1);
+	count = (swidth) * (sheight);
 	pcx_rgb = BZ_Malloc( count * 4);
 
-	for (y=0 ; y<=ymax ; y++)
+	for (y=0 ; y<swidth ; y++)
 	{
-		pix = pcx_rgb + 4*y*(xmax+1);
-		for (x=0 ; x<=xmax ; )
+		pix = pcx_rgb + 4*y*(swidth);
+		for (x=0 ; x<sheight ; )
 		{
 			dataByte = *data;
 			data++;
@@ -1262,6 +1262,12 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 			if((dataByte & 0xC0) == 0xC0)
 			{
 				runLength = dataByte & 0x3F;
+				if (x+runLength>swidth)
+				{
+					Con_Printf("corrupt pcx\n");
+					BZ_Free(pcx_rgb);
+					return NULL;
+				}
 				dataByte = *data;
 				data++;
 			}
@@ -1296,7 +1302,7 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 	int		count;
 	qbyte *data;
 
-	unsigned short xmin, ymin, xmax, ymax;
+	unsigned short xmin, ymin, swidth, sheight;
 
 //
 // parse the PCX file
@@ -1306,8 +1312,8 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 
 	xmin = LittleShort(pcx->xmin);
 	ymin = LittleShort(pcx->ymin);
-	xmax = LittleShort(pcx->xmax);
-	ymax = LittleShort(pcx->ymax);
+	swidth = LittleShort(pcx->xmax)-xmin+1;
+	sheight = LittleShort(pcx->ymax)-ymin+1;
 
 	if (pcx->manufacturer != 0x0a
 		|| pcx->version != 5
@@ -1317,21 +1323,24 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 		return NULL;
 	}
 
-	if (width != xmax-xmin+1 ||
-		height > ymax-ymin+1)
-		return NULL;
+	if (width != swidth ||
+		height > sheight)
+	{
+		Con_Printf("unsupported pcx size\n");
+		return NULL;	//we can't feed the requester with enough info
+	}
 
 
 	palette = buf + length-768;
 
 	data = (char *)(pcx+1);
 
-	count = (xmax+1) * (ymax+1);
+	count = (swidth) * (sheight);
 
 	for (y=0 ; y<height ; y++)
 	{
-		pix = result + y*(xmax+1);
-		for (x=0 ; x<=xmax ; )
+		pix = result + y*swidth;
+		for (x=0 ; x<swidth ; )
 		{
 			dataByte = *data;
 			data++;
@@ -1339,6 +1348,11 @@ qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result)
 			if((dataByte & 0xC0) == 0xC0)
 			{
 				runLength = dataByte & 0x3F;
+				if (x+runLength>swidth)
+				{
+					Con_Printf("corrupt pcx\n");
+					return NULL;
+				}
 				dataByte = *data;
 				data++;
 			}

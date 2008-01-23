@@ -2471,7 +2471,7 @@ void CL_UpdateBeams (void)
 		{
 			for (j = 0; j < cl.splitclients; j++)
 			{
-				if (b->entity == (autocam[j]?spec_track[j]+1:(cl.playernum[j]+1)))
+				if (b->entity == ((cl.spectator&&autocam[j])?spec_track[j]+1:(cl.playernum[j]+1)))
 				{
 					player_state_t	*pl;
 		//			VectorSubtract(cl.simorg, b->start, org);

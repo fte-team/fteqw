@@ -2555,12 +2555,6 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 		}
 	}
 
-	QCC_FreeTemp(func);
-	QCC_LockActiveTemps();	//any temps before are likly to be used with the return value.
-	QCC_UnFreeTemp(func);
-
-	//any temps referenced to build the parameters don't need to be locked.
-
 // copy the arguments to the global parameter variables
 	arg = 0;
 	if (t->type == ev_variant)
@@ -2589,6 +2583,14 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	}
 	else
 		old = NULL;
+	
+	//we dont need to lock the local containing the function index because its thrown away after the call anyway
+	//(if a function is called in the argument list then it'll be locked as part of that call)
+	QCC_FreeTemp(func);
+	QCC_LockActiveTemps();	//any temps before are likly to be used with the return value.
+	QCC_UnFreeTemp(func);
+	
+	//any temps referenced to build the parameters don't need to be locked.
 
 	if (opt_vectorcalls && (t->num_parms == 1 && t->param->type == ev_vector))
 	{	//if we're using vectorcalls

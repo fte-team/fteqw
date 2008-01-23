@@ -2026,6 +2026,13 @@ int QCC_PR_CheakCompConst(void)
 				start = pr_file_p;
 				while(1)
 				{
+					// handle strings correctly by ignoring them
+					if (*pr_file_p == '\"')
+					{
+						do {
+							pr_file_p++;
+						} while( (pr_file_p[-1] == '\\' || pr_file_p[0] != '\"') && *pr_file_p && *pr_file_p != '\n' );
+					}
 					if (*pr_file_p == '(')
 						plevel++;
 					else if (!plevel && (*pr_file_p == ',' || *pr_file_p == ')'))
@@ -2042,6 +2049,8 @@ int QCC_PR_CheakCompConst(void)
 						pr_file_p++;
 						while(*pr_file_p == ' ' || *pr_file_p == '\t')
 							pr_file_p++;
+						// move back by one char because we move forward by one at the end of the loop
+						pr_file_p--;
 						if (param == MAXCONSTANTPARAMS)
 							QCC_PR_ParseError(ERR_TOOMANYPARAMS, "Too many parameters in macro call");
 					} else if (*pr_file_p == ')' )
@@ -2110,7 +2119,6 @@ int QCC_PR_CheakCompConst(void)
 
 					for (p = 0; p < param; p++)
 					{
-
 						if (!STRCMP(qcc_token, c->params[p]))
 						{
 							strcat(buffer, paramoffset[p]);

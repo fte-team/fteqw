@@ -1356,10 +1356,12 @@ void CL_CheckServerInfo(void)
 	char *s;
 	unsigned int allowed;
 	int oldstate;
+	int oldteamplay;
 	qboolean oldallowshaders;
 
 	oldallowshaders = cls.allow_shaders;
 
+	oldteamplay = cl.teamplay;
 	cl.teamplay = atoi(Info_ValueForKey(cl.serverinfo, "teamplay"));
 	cl.deathmatch = atoi(Info_ValueForKey(cl.serverinfo, "deathmatch"));
 
@@ -1511,6 +1513,8 @@ void CL_CheckServerInfo(void)
 
 	if (oldallowshaders != cls.allow_shaders)
 		Cache_Flush();	//this will cause all models to be reloaded.
+	if (oldteamplay != cl.teamplay)
+		Skin_FlushPlayers();
 }
 /*
 ==================

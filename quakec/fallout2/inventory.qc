@@ -91,6 +91,9 @@ float IID_EQUIP_SPRINTKIT = 377;
 float IID_EQUIP_HOVERBOOTS = 378;
 
 #define IsShootable(iid) (IsMelee(iid) || IsRanged(iid) || IsGrenade(iid))
+#define ToIID(it) floor(it/512)
+#define ToStatus(it) (it&511)
+#define SlotVal(iid,st) ((iid*512) | (st&511))
 
 float(float slotno, float iid) FitsInSlot;
 
@@ -98,6 +101,9 @@ float(float slotno, float iid) FitsInSlot;
 //slot3 is the armour slot.
 //the other slots are for misilaneous things.
 
+#define MAXSLOTS 16
+
+#ifndef CSQC
 .float          islot1;
 .float          islot2;
 .float          islot3;
@@ -114,40 +120,33 @@ float(float slotno, float iid) FitsInSlot;
 .float          islot14;
 .float          islot15;
 .float          islot16;
-#define MAXSLOTS 16
 
-void(float sttype, float stnum, string fieldname) clientstat = #232;
+void(float stnum, float sttype, .float fieldname) clientstatf = #232;
 void() SetupStats =
 {
 	//2 is ev_float
 	//32 is the first stat we are allowed to use
-	clientstat(2, 32, "islot1");
-	clientstat(2, 33, "islot2");
-	clientstat(2, 34, "islot3");
-	clientstat(2, 35, "islot4");
-	clientstat(2, 36, "islot5");
-	clientstat(2, 37, "islot6");
-	clientstat(2, 38, "islot7");
-	clientstat(2, 39, "islot8");
-	clientstat(2, 40, "islot9");
-	clientstat(2, 41, "islot10");
-	clientstat(2, 42, "islot11");
-	clientstat(2, 43, "islot12");
-	clientstat(2, 44, "islot13");
-	clientstat(2, 45, "islot14");
-	clientstat(2, 46, "islot15");
-	clientstat(2, 47, "islot16");
+	clientstatf(32, 2, islot1);
+	clientstatf(33, 2, islot2);
+	clientstatf(34, 2, islot3);
+	clientstatf(35, 2, islot4);
+	clientstatf(36, 2, islot5);
+	clientstatf(37, 2, islot6);
+	clientstatf(38, 2, islot7);
+	clientstatf(39, 2, islot8);
+	clientstatf(40, 2, islot9);
+	clientstatf(41, 2, islot10);
+	clientstatf(42, 2, islot11);
+	clientstatf(43, 2, islot12);
+	clientstatf(44, 2, islot13);
+	clientstatf(45, 2, islot14);
+	clientstatf(46, 2, islot15);
+	clientstatf(47, 2, islot16);
 
-	clientstat(2, 61, "current_slot");
-	clientstat(2, 62, "team");
-	clientstat(2, 63, "class");
+	clientstatf(61, 2, current_slot);
+	clientstatf(62, 2, team);
+	clientstatf(63, 2, class);
 };
-
-
-#define ToIID(it) floor(it/512)
-#define ToStatus(it) (it&511)
-#define SlotVal(iid,st) ((iid*512) | (st&511))
-
 
 float(entity e, float slotno) ItemInSlot =
 {
@@ -428,6 +427,7 @@ slot_t(float slot) SlotField =
 	bprint(PRINT_MEDIUM, "ERROR: Invalid slot number (", ftos(slot), ")\n");
 	return islot1;
 };
+#endif
 
 
 string(float iid) GetItemVModel =

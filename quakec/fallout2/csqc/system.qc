@@ -1,4 +1,6 @@
 //Don't modify this file
+
+#define CSQC	//so code sections can be compiled for either progs
 /*
 ==============================================================================
 

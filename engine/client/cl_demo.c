@@ -487,6 +487,8 @@ readnext:
 
 		if (readdemobytes(&demopos, &msecsadded, sizeof(msecsadded)) != sizeof(msecsadded))
 		{
+			Con_Printf("Not enough buffered\n");
+			olddemotime = realtime;	//if we ran out of buffered demo, delay the demo parsing a little
 			return 0;
 		}
 		demotime = olddemotime + msecsadded*(1.0f/1000);
@@ -495,7 +497,11 @@ readnext:
 	else
 	{
 		if (readdemobytes(&demopos, &demotime, sizeof(demotime)) != sizeof(demotime))
+		{
+			Con_Printf("Not enough buffered\n");
+			olddemotime = realtime;	//if we ran out of buffered demo, delay the demo parsing a little
 			return 0;
+		}
 		demotime = LittleFloat(demotime);
 	}
 
@@ -534,7 +540,7 @@ readnext:
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
-		if (msecsadded || cls.netchan.incoming_sequence < 2)
+		if ((msecsadded || cls.netchan.incoming_sequence < 2) && olddemotime != demotime)
 		{
 			cls.netchan.incoming_sequence++;
 			cls.netchan.incoming_acknowledged++;
@@ -543,14 +549,16 @@ readnext:
 		}
 	}
 
-	olddemotime = demotime;
-
 	if (cls.state < ca_demostart)
 		Host_Error ("CL_GetDemoMessage: cls.state != ca_active");
 	
 	// get the msg type
 	if (!readdemobytes (&demopos, &c, sizeof(c)))
+	{
+		Con_Printf("Not enough buffered\n");
+		olddemotime = realtime+1;
 		return 0;
+	}
 //	Con_Printf("demo packet %x\n", (int)c);
 	switch (c&7)
 	{
@@ -602,6 +610,8 @@ readnext:
 			r = readdemobytes (&demopos, &q1cmd, sizeof(q1cmd));
 			if (r != sizeof(q1cmd))
 			{
+				Con_Printf("Not enough buffered\n");
+				olddemotime = realtime+1;
 				CL_StopPlayback ();
 				return 0;
 			}
@@ -633,7 +643,11 @@ readnext:
 readit:
 		// get the next message
 		if (readdemobytes (&demopos, &msglength, 4) != 4)
+		{
+			Con_Printf("Not enough buffered\n");
+			olddemotime = realtime+1;
 			return 0;
+		}
 		msglength = LittleLong (msglength);
 	//Con_Printf("read: %ld bytes\n", msglength);
 		if ((unsigned int)msglength > MAX_OVERALLMSGLEN)
@@ -644,6 +658,8 @@ readit:
 		}
 		if (readdemobytes (&demopos, net_message.data, msglength) != msglength)
 		{
+			Con_Printf("Not enough buffered\n");
+			olddemotime = realtime+1;
 			return 0;
 		}
 		net_message.cursize = msglength;
@@ -686,7 +702,10 @@ readit:
 
 	case dem_multiple:
 		if (readdemobytes (&demopos, &i, sizeof(i)) != sizeof(i))
+		{
+			olddemotime = realtime;
 			return 0;
+		}
 		cls_lastto = LittleLong(i);
 		cls_lasttype = dem_multiple;
 		goto readit;
@@ -712,6 +731,8 @@ readit:
 		return 0;
 	}
 	demo_flushbytes(demopos);
+
+	olddemotime = demotime;
 
 	return 1;
 }
@@ -1497,7 +1518,7 @@ void CL_QTVPlay (vfsfile_t *newf, qboolean iseztv)
 void CL_Demo_ClientCommand(char *commandtext)
 {
 	unsigned char b = 1;
-	unsigned short len = LittleShort(strlen(commandtext) + 4);
+	unsigned short len = LittleShort((unsigned short)(strlen(commandtext) + 4));
 #ifndef _MSC_VER
 #warning "this needs buffering safely"
 #endif

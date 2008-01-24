@@ -92,6 +92,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define NOMEDIA			//NO playing of avis/cins/roqs
 
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
+		#define PLUGINS
 
 #ifndef SERVERONLY	//don't be stupid, stupid.
 		#define CLIENTONLY

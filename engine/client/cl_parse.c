@@ -3244,7 +3244,7 @@ void CL_MuzzleFlash (int destsplit)
 
 		if (s1->number == i)
 		{
-			dl = CL_AllocDlight (i);
+			dl = CL_AllocDlight (-i);
 			VectorCopy (s1->origin,  dl->origin);
 			break;
 		}
@@ -3253,13 +3253,9 @@ void CL_MuzzleFlash (int destsplit)
 	{	//that ent number doesn't exist, go for a player with that number
 		if ((unsigned)(i) <= MAX_CLIENTS && i > 0)
 		{
-			// don't draw our own muzzle flash in gl if flashblending
-			if (i-1 == cl.playernum[destsplit] && r_flashblend.value && qrenderer == QR_OPENGL)
-				return;
-
 			pl = &cl.frames[parsecountmod].playerstate[i-1];
 
-			dl = CL_AllocDlight (i);
+			dl = CL_AllocDlight (-i);
 			VectorCopy (pl->origin,  dl->origin);	//set it's origin
 
 			AngleVectors (pl->viewangles, fv, rv, uv);	//shift it up a little

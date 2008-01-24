@@ -1597,8 +1597,8 @@ void CL_LinkPacketEntities (void)
 
 		VectorCopy(le->origin, ent->origin)
 
-		//bots or powerup glows. Bots always glow, powerups can be disabled
-		if (state->modelindex != cl_playerindex && r_powerupglow.value)
+		//bots or powerup glows. items always glow, powerups can be disabled
+		if (state->modelindex != cl_playerindex || r_powerupglow.value)
 		{
 			flicker = r_lightflicker.value?(rand()&31):0;
 			// spawn light flashes, even ones coming from invisible objects
@@ -1900,8 +1900,8 @@ void CL_LinkPacketEntities (void)
 			ent->origin[i] = cl.lerpents[s1->number].origin[i] +
 			f * (s1->origin[i] - cl.lerpents[s1->number].origin[i]);
 
-		//bots or powerup glows. Bots always glow, powerups can be disabled
-		if (s1->modelindex != cl_playerindex && r_powerupglow.value)
+		//bots or powerup glows. items always glow, powerups can be disabled
+		if (s1->modelindex != cl_playerindex || r_powerupglow.value)
 		{
 			flicker = r_lightflicker.value?(rand()&31):0;
 			// spawn light flashes, even ones coming from invisible objects
@@ -2709,6 +2709,7 @@ void CL_LinkPlayers (void)
 	frame_t			*fromf;
 	int				oldphysent;
 	vec3_t			angles;
+	float			*org;
 
 	playertime = realtime - cls.latency + 0.02;
 	if (playertime > realtime)
@@ -2724,18 +2725,20 @@ void CL_LinkPlayers (void)
 			continue;	// not present this frame
 
 		// spawn light flashes, even ones coming from invisible objects
-		if ((!r_flashblend.value || j != cl.playernum[0]) && r_powerupglow.value)
+		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.playernum[0]))
 		{
+			org = (j == cl.playernum[0]) ? cl.simorg[0] : state->origin;
+
 			if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
-				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 3)->noppl = (j != cl.playernum[0]);
+				CL_NewDlight (j+1, org[0], org[1], org[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 3)->noppl = (j != cl.playernum[0]);
 			else if (state->effects & EF_BLUE)
-				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 1)->noppl = (j != cl.playernum[0]);
+				CL_NewDlight (j+1, org[0], org[1], org[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 1)->noppl = (j != cl.playernum[0]);
 			else if (state->effects & EF_RED)
-				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 2)->noppl = (j != cl.playernum[0]);
+				CL_NewDlight (j+1, org[0], org[1], org[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 2)->noppl = (j != cl.playernum[0]);
 			else if (state->effects & EF_BRIGHTLIGHT)
-				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2] + 16, 400 + (r_lightflicker.value?(rand()&31):0), 0.1, 0)->noppl = (j != cl.playernum[0]);
+				CL_NewDlight (j+1, org[0], org[1], org[2] + 16, 400 + (r_lightflicker.value?(rand()&31):0), 0.1, 0)->noppl = (j != cl.playernum[0]);
 			else if (state->effects & EF_DIMLIGHT)
-				CL_NewDlight (j+1, state->origin[0], state->origin[1], state->origin[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 0)->noppl = (j != cl.playernum[0]);
+				CL_NewDlight (j+1, org[0], org[1], org[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 0)->noppl = (j != cl.playernum[0]);
 		}
 
 		if (state->modelindex < 1)

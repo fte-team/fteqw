@@ -190,6 +190,12 @@ void GLR_RenderDlights (void)
 		if (!l->radius || l->noflash)
 			continue;
 
+		//dlights emitting from the local player are not visible as flashblends
+		if (l->key == cl.playernum[r_refdef.currentplayernum]+1)
+			continue;	//was a glow
+		if (l->key == -(cl.playernum[r_refdef.currentplayernum]+1))
+			continue;	//was a muzzleflash
+
 		if (r_flashblend.value == 2)
 		{
 			if (TraceLineN(r_refdef.vieworg, l->origin, waste1, waste2))

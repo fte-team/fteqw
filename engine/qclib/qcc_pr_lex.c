@@ -1924,16 +1924,22 @@ void QCC_PR_ConditionCompilation(void)
 		s++;
 	while(1)
 	{
-		if (*s == '\r' || *s == '\n' || *s == '\0')
+		if( *s == '\\' )
 		{
-			if (s[-1] == '\\')
+			// read over a newline if necessary
+			if( s[1] == '\n' || s[1] == '\r' )
 			{
+				s++;
+				*d++ = *s++;
+				if( s[-1] == '\r' && s[0] == '\n' )
+				{
+					*d++ = *s++;
+				}
 			}
-			else if (s[-2] == '\\' && s[-1] == '\r' && s[0] == '\n')
-			{
-			}
-			else
-				break;
+		} 
+		else if(*s == '\r' || *s == '\n' || *s == '\0')
+		{
+			break;
 		}
 
 		if (!quote && s[0]=='/'&&(s[1]=='/'||s[1]=='*'))
@@ -1960,6 +1966,8 @@ void QCC_PR_ConditionCompilation(void)
 		else
 			QCC_PR_ParseWarning(WARN_IDENTICALPRECOMPILER, "Identical precompiler definition of %s", pr_token);
 	}
+
+	pr_file_p = s;
 }
 
 int QCC_PR_CheakCompConst(void)
@@ -2107,7 +2115,7 @@ int QCC_PR_CheakCompConst(void)
 							{
 								strcat(buffer, "#");
 								strcat(buffer, qcc_token);
-								QCC_PR_ParseWarning(0, "Stingification ignored");
+								QCC_PR_ParseWarning(0, "Stringification ignored");
 							}
 							continue;	//already did this one
 						}

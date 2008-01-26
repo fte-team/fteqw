@@ -8673,10 +8673,14 @@ pbool	QCC_PR_CompileFile (char *string, char *filename)
 	pr_file_p = string;
 
 	pr_source_line = 0;
-	
-	QCC_PR_NewLine (false);
 
-	QCC_PR_Lex ();	// read first token
+	if( setjmp( pr_parse_abort ) ) {
+		// dont count it as error
+	} else {
+		QCC_PR_NewLine (false);
+
+		QCC_PR_Lex ();	// read first token
+	}
 
 	memcpy(&oldjb, &pr_parse_abort, sizeof(oldjb));
 	while (pr_token_type != tt_eof)

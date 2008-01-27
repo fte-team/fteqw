@@ -107,9 +107,10 @@ typedef struct qcc_includechunk_s {
 	char *filename;
 	char *currentdatapoint;
 	int currentlinenumber;
+	CompilerConstant_t *cnst;
 } qcc_includechunk_t;
 qcc_includechunk_t *currentchunk;
-void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename)
+void QCC_PR_IncludeChunkEx (char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst)
 {
 	qcc_includechunk_t *chunk = qccHunkAlloc(sizeof(qcc_includechunk_t));
 	chunk->prev = currentchunk;
@@ -117,6 +118,11 @@ void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename)
 
 	chunk->currentdatapoint = pr_file_p;
 	chunk->currentlinenumber = pr_source_line;
+	chunk->cnst = cnst;
+	if( cnst )
+	{
+		cnst->inside++;
+	}
 
 	if (duplicate)
 	{
@@ -126,11 +132,19 @@ void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename)
 	else
 		pr_file_p = data;
 }
+void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename)
+{
+	QCC_PR_IncludeChunkEx(data, duplicate, filename, NULL);
+}
 
 pbool QCC_PR_UnInclude(void)
 {
 	if (!currentchunk)
 		return false;
+
+	if( currentchunk->cnst )
+		currentchunk->cnst->inside--;
+
 	pr_file_p = currentchunk->currentdatapoint;
 	pr_source_line = currentchunk->currentlinenumber;
 
@@ -2115,7 +2129,7 @@ int QCC_PR_CheakCompConst(void)
 							{
 								strcat(buffer, "#");
 								strcat(buffer, qcc_token);
-								QCC_PR_ParseWarning(0, "Stringification ignored");
+								//QCC_PR_ParseWarning(0, "Stringification ignored");
 							}
 							continue;	//already did this one
 						}
@@ -2142,17 +2156,15 @@ int QCC_PR_CheakCompConst(void)
 				paramoffset[p][strlen(paramoffset[p])] = ')';
 
 				pr_file_p = oldpr_file_p;
-				QCC_PR_IncludeChunk(buffer, true, NULL);
+				QCC_PR_IncludeChunkEx(buffer, true, NULL, c);
 			}
 			else
 				QCC_PR_ParseError(ERR_TOOFEWPARAMS, "Macro without opening brace");
 		}
 		else
-			QCC_PR_IncludeChunk(c->value, false, NULL);
+			QCC_PR_IncludeChunkEx(c->value, false, NULL, c);
 
-		c->inside++;
 		QCC_PR_Lex();
-		c->inside--;
 		return true;
 	}
 

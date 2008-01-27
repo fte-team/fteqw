@@ -64,7 +64,7 @@ extern int	MAX_FUNCTIONS;
 
 extern int MAX_CONSTANTS;
 #define MAXCONSTANTLENGTH 64
-#define MAXCONSTANTVALUELENGTH 256
+#define MAXCONSTANTVALUELENGTH 1024
 #define MAXCONSTANTPARAMLENGTH 32
 #define MAXCONSTANTPARAMS 8
 
@@ -890,6 +890,7 @@ void inline QCC_PR_Expect (char *string)
 void editbadfile(char *fname, int line);
 char *TypeName(QCC_type_t *type);
 void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename);
+void QCC_PR_IncludeChunkEx(char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst);
 pbool QCC_PR_UnInclude(void);
 extern void *(*pHash_Get)(hashtable_t *table, char *name);
 extern void *(*pHash_GetNext)(hashtable_t *table, char *name, void *old);

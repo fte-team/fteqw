@@ -3542,7 +3542,7 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 			}
 			else
 			{
-				if (Com_BlockChecksum(file, com_filesize) == csqcchecksum)	//and the user wasn't trying to be cunning.
+				if (LittleLong(Com_BlockChecksum(file, com_filesize)) == csqcchecksum)	//and the user wasn't trying to be cunning.
 					return file;
 			}
 		}
@@ -3557,7 +3557,7 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 			}
 			else
 			{
-				if (Com_BlockChecksum(file, com_filesize) != csqcchecksum)
+				if (LittleLong(Com_BlockChecksum(file, com_filesize)) != csqcchecksum)
 					return NULL;	//not valid
 			}
 
@@ -3591,7 +3591,7 @@ int CSQC_PRFileSize (char *path)
 			}
 			else
 			{
-				if (Com_BlockChecksum(file, com_filesize) == csqcchecksum)	//and the user wasn't trying to be cunning.
+				if (LittleLong(Com_BlockChecksum(file, com_filesize)) == csqcchecksum)	//and the user wasn't trying to be cunning.
 					return com_filesize+1;
 			}
 		}
@@ -3606,7 +3606,7 @@ int CSQC_PRFileSize (char *path)
 			}
 			else
 			{
-				if (Com_BlockChecksum(file, com_filesize) != csqcchecksum)
+				if (LittleLong(Com_BlockChecksum(file, com_filesize)) != csqcchecksum)
 					return -1;	//not valid
 			}
 		}

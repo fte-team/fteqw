@@ -3044,6 +3044,8 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 	else
 		player->spectator = false;
 
+	player->model = NULL;
+
 	// If it's us
 	if (slot == cl.playernum[0] && player->name[0])
 	{
@@ -3051,11 +3053,10 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 
 		// Update the rules since spectators can bypass everything but players can't
 		CL_CheckServerInfo();
+
+		Skin_FlushPlayers();
 	}
-
-	player->model = NULL;
-
-	if (cls.state == ca_active)
+	else if (cls.state == ca_active)
 		Skin_Find (player);
 
 	Sbar_Changed ();

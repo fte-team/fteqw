@@ -1080,7 +1080,7 @@ void QCC_PR_LexString (void)
 				{
 					c = c * 10 + d - '0';
 					if (d < '0' || d > '9' || c > 255)
-						QCC_PR_ParseError(ERR_BADCHARACTURECODE, "Bad character code");
+						QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
 				}
 			}
 			else if (c == '<')
@@ -1102,7 +1102,7 @@ void QCC_PR_LexString (void)
 				else if (d >= 'a' && d <= 'f')
 					c += d - 'a' + 10;
 				else
-					QCC_PR_ParseError(ERR_BADCHARACTURECODE, "Bad character code");
+					QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
 
 				c *= 16;
 
@@ -1114,7 +1114,7 @@ void QCC_PR_LexString (void)
 				else if (d >= 'a' && d <= 'f')
 					c += d - 'a' + 10;
 				else
-					QCC_PR_ParseError(ERR_BADCHARACTURECODE, "Bad character code");
+					QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
 			}
 			else if (c == '\\')
 				c = '\\';

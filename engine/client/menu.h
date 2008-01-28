@@ -42,7 +42,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //mt_childwindow	- 
 //mt_button			- Executes a console command or callback on enter. Uses conchars.
-//mt_buttonbigfont	- Used by hexen2's menus. Uses gfx/menu/bigfont.lmp as it's charactures.
+//mt_buttonbigfont	- Used by hexen2's menus. Uses gfx/menu/bigfont.lmp as it's characters.
 //mt_box			- A 2d box. The same one as the quit dialog from q1, but resized.
 //mt_colouredbox	- Not used.
 //mt_line			- Not used.

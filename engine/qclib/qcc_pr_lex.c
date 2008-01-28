@@ -1358,7 +1358,7 @@ void QCC_PR_LexVector (void)
 	pr_file_p++;
 
 	if (*pr_file_p == '\\')
-	{//extended characture constant
+	{//extended character constant
 		pr_token_type = tt_immediate;
 		pr_immediate_type = type_float;
 		pr_file_p++;
@@ -1383,10 +1383,10 @@ void QCC_PR_LexVector (void)
 			pr_immediate._float = '\\';
 			break;
 		default:
-			QCC_PR_ParseError (ERR_INVALIDVECTORIMMEDIATE, "Bad characture constant");
+			QCC_PR_ParseError (ERR_INVALIDVECTORIMMEDIATE, "Bad character constant");
 		}
 		if (*pr_file_p != '\'')
-			QCC_PR_ParseError (ERR_INVALIDVECTORIMMEDIATE, "Bad characture constant");
+			QCC_PR_ParseError (ERR_INVALIDVECTORIMMEDIATE, "Bad character constant");
 		pr_file_p++;
 		return;
 	}

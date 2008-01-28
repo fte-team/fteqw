@@ -1006,7 +1006,7 @@ char *Key_KeynumToString (int keynum)
 			return kn->name;
 
 	{
-		if (keynum < 10)	//don't let it be a single characture
+		if (keynum < 10)	//don't let it be a single character
 			return va("0%i", keynum);
 		return va("%i", keynum);
 	}

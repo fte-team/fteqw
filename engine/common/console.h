@@ -101,7 +101,7 @@ typedef struct console_s
 	qboolean unseentext;
 	int		commandcompletion;	//allows tab completion of quake console commands
 	void	(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear.
-	void	(*redirect) (struct console_s *con, int key);	//if present, called every characture.
+	void	(*redirect) (struct console_s *con, int key);	//if present, called every character.
 	void	*userdata;
 	struct console_s *next;
 } console_t;

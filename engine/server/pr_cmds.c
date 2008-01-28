@@ -5641,7 +5641,7 @@ void PF_strstrofs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //FTE_STRINGS
-//returns characture at position X
+//returns character at position X
 void PF_str2chr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *instr = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -5657,7 +5657,7 @@ void PF_str2chr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //FTE_STRINGS
-//returns a string containing one characture per parameter (up to the qc max params of 8).
+//returns a string containing one character per parameter (up to the qc max params of 8).
 void PF_chr2str (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
@@ -5797,7 +5797,7 @@ void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //FTE_STRINGS
-//C style strncmp (compare first n charactures - case sensative. Note that there is no strcmp provided)
+//C style strncmp (compare first n characters - case sensative. Note that there is no strcmp provided)
 void PF_strncmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -5818,7 +5818,7 @@ void PF_strcasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //FTE_STRINGS
-//C style strncasecmp (compare first n charactures - case insensative)
+//C style strncasecmp (compare first n characters - case insensative)
 void PF_strncasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *a = PR_GetStringOfs(prinst, OFS_PARM0);

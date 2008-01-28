@@ -461,7 +461,7 @@ void SWDraw_Init (void)
 		}
 	}
 	if (!draw_chars)
-		Sys_Error("Failed to find suitable console charactures\n");
+		Sys_Error("Failed to find suitable console characters\n");
 
 	// add ocrana leds
 	if (con_ocranaleds.value)

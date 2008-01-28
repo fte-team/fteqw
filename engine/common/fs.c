@@ -1851,13 +1851,13 @@ qboolean Sys_PathProtection(char *pattern)
 	if (strchr(pattern, '\\'))
 	{
 		char *s;
-		Con_Printf("Warning: \\ charactures in filename %s\n", pattern);
+		Con_Printf("Warning: \\ characters in filename %s\n", pattern);
 		while((s = strchr(pattern, '\\')))
 			*s = '/';
 	}
 
 	if (strstr(pattern, ".."))
-		Con_Printf("Error: '..' charactures in filename %s\n", pattern);
+		Con_Printf("Error: '..' characters in filename %s\n", pattern);
 	else if (pattern[0] == '/')
 		Con_Printf("Error: absolute path in filename %s\n", pattern);
 	else if (strstr(pattern, ":")) //win32 drive seperator (or mac path seperator, but / works there and they're used to it)

@@ -25,7 +25,7 @@ dialog/barry.dlg:
 
 	#tag/number, condition (float(entity ent) cond;), text, options.
 	#if options has a function, that is called. Multiple options/funcs can be done with commas. No options will terminate. If a reply has multiple options, a random (non function) is picked.
-	#no distinction between characture speech and player options.
+	#no distinction between character speech and player options.
 	#char statements ignore condition.
 
 	#the first entry point

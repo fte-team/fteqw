@@ -532,7 +532,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			else
 				strcpy(buffer, cl->path);
 
-			if (*buffer)	//last characture should be a /
+			if (*buffer)	//last character should be a /
 				if (buffer[strlen(buffer)-1] != '/')
 					strcat(buffer, "/");
 

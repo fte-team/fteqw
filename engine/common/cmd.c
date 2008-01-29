@@ -981,7 +981,7 @@ typedef struct cmd_function_s
 static	int			cmd_argc;
 static	char		*cmd_argv[MAX_ARGS];
 static	char		*cmd_null_string = "";
-static	char		*cmd_args = NULL;
+static	char		*cmd_args = NULL, *cmd_args_buf;
 
 
 
@@ -1026,7 +1026,20 @@ char *VARGS Cmd_Args (void)
 
 void Cmd_Args_Set(char *newargs)
 {
-	cmd_args = newargs;
+	if (cmd_args_buf)
+		Z_Free(cmd_args_buf);
+
+	if (newargs)
+	{
+		cmd_args_buf = (char*)Z_Malloc (Q_strlen(newargs)+1);
+		Q_strcpy (cmd_args_buf, newargs);
+		cmd_args = cmd_args_buf;
+	}
+	else
+	{
+		cmd_args = NULL;
+		cmd_args_buf = NULL;
+	}
 }
 
 /*
@@ -1063,6 +1076,64 @@ void Cmd_ShiftArgs (int ammount, qboolean expandstring)
 	}
 }
 
+char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *len)
+{
+	char *ret = NULL, *end, *namestart;
+	char *fixup = NULL, fixval=0;
+	cvar_t	*var;
+	static char temp[12];
+
+	namestart = cvarname;
+	if (*cvarname == '{')
+	{
+		fixup = &cvarname[strlen(cvarname)-1];
+		if (*fixup != '}')
+			return NULL;
+		fixval = *fixup;
+		*fixup = 0;
+		cvarname++;
+	}
+	else
+	{
+		fixup = &cvarname[strlen(cvarname)];
+		fixval = *fixup;
+	}
+
+	strtol(cvarname, &end, 10);
+	if (fixval && *end == '\0') //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
+	{	//purely numerical
+		ret = Cmd_Argv(atoi(cvarname));
+	}
+	else if (!strcmp(cvarname, "*") || !stricmp(cvarname, "cmd_args"))
+	{
+		ret = Cmd_Args();
+	}
+	else if (!strnicmp(cvarname, "cmd_argv", 8))
+	{
+		ret = Cmd_Argv(atoi(cvarname+8));
+	}
+	else if (!stricmp(cvarname, "cmd_argc"))
+	{
+		Q_snprintfz(temp, sizeof(temp), "%u", Cmd_Argc());
+		ret = temp;
+	}
+	else if ( (var = Cvar_FindVar(cvarname)) != NULL )
+	{
+		if (var->restriction <= maxaccesslevel && !((var->flags & CVAR_NOUNSAFEEXPAND) && Cmd_IsInsecure()))
+		{
+			ret = var->string;
+		}
+	}
+	*fixup = fixval;
+	if (ret)
+	{
+		*len = fixup - namestart;
+		if (fixval)
+			(*len)++;
+	}
+	return ret;
+}
+
 /*
 ================
 Cmd_ExpandString
@@ -1077,11 +1148,10 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 	unsigned int	c;
 	char	buf[255];
 	int		i, len;
-	cvar_t	*var, *bestvar;
 	int		quotes = 0;
 	char	*str;
-	char	*bestmacro;
-	int		name_length, macro_length;
+	char	*bestmacro, *bestvar;
+	int		name_length, macro_length, var_length;
 	qboolean striptrailing;
 
 	len = 0;
@@ -1100,9 +1170,11 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 			// Copy the text after '$' to a temp buffer
 			i = 0;
 			buf[0] = 0;
+			buf[1] = 0;
 			bestvar = NULL;
 			bestmacro = NULL;
 			macro_length=0;
+			var_length = 0;
 			while ((c = *data) > 32)
 			{
 				if (c == '$')
@@ -1110,10 +1182,10 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 				data++;
 				buf[i++] = c;
 				buf[i] = 0;
-				if ( (var = Cvar_FindVar(buf+striptrailing)) != NULL )
+				if (!bestmacro)
 				{
-					if (var->restriction <= maxaccesslevel && !((var->flags & CVAR_NOUNSAFEEXPAND) && Cmd_IsInsecure()))
-						bestvar = var;
+					if ((str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, &var_length)))
+						bestvar = str;
 				}
 #ifndef SERVERONLY
 				if (expandmacros && (str = TP_MacroString (buf+striptrailing, &macro_length)))
@@ -1128,8 +1200,8 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 			}
 			else if (bestvar)
 			{
-				str = bestvar->string;
-				name_length = strlen(bestvar->name);
+				str = bestvar;
+				name_length = var_length;
 			}
 			else
 			{
@@ -1178,6 +1250,70 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 	return dest;
 }
 
+char *Cmd_ExpandStringArguments (char *data, char *dest, int destlen)
+{
+	char c;
+	int quotes = 0;
+	int len = 0;
+
+	char *str, *strend;
+	int old_len;
+	while ( (c = *data) != 0)
+	{
+		if (c == '"')
+			quotes++;
+
+		if (c == '%' && !(quotes&1))
+		{
+			if (data[1] == '%')
+			{
+				str = "%";
+				old_len = 2;
+			}
+			else if (data[1] == '*')
+			{
+				str = Cmd_Args();
+				old_len = 2;
+			}
+			else if (strtol(data+1, &strend, 10))
+			{
+				str = Cmd_Argv(atoi(data+1));
+				old_len = strend - data;
+			}
+			else
+			{
+				str = NULL;
+				old_len = 0;
+			}
+			
+			if (str)
+			{
+				// check buffer size
+				if (len + strlen(str) >= destlen-1)
+					break;
+
+				strcpy(&dest[len], str);
+				len += strlen(str);
+				dest[len] = 0;
+				data += old_len;
+
+				continue;
+			}
+		}
+
+		dest[len] = c;
+		data++;
+		len++;
+		dest[len] = 0;
+		if (len >= destlen-1)
+			break;
+	}
+
+	dest[len] = 0;
+
+	return dest;
+}
+
 /*
 ============
 Cmd_TokenizeString
@@ -1194,7 +1330,7 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 		Z_Free (cmd_argv[i]);
 
 	cmd_argc = 0;
-	cmd_args = NULL;
+	Cmd_Args_Set(NULL);
 
 	while (1)
 	{
@@ -1214,7 +1350,9 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 			return;
 
 		if (cmd_argc == 1)
-			 cmd_args = text;
+		{
+			Cmd_Args_Set(text);
+		}
 
 		text = COM_StringParse (text, expandmacros, qctokenize);
 		if (!text)
@@ -1689,7 +1827,7 @@ void	Cmd_ExecuteString (char *text, int level)
 	cmd_function_t	*cmd;
 	cmdalias_t		*a;
 
-	static char dest[8192];
+	char dest[8192];
 
 	Cmd_ExecLevel = level;
 
@@ -1737,7 +1875,6 @@ void	Cmd_ExecuteString (char *text, int level)
 	{
 		if (!Q_strcasecmp (cmd_argv[0], a->name))
 		{
-			int i;
 			int execlevel;
 
 #ifndef SERVERONLY	//an emergency escape mechansim, to avoid infinatly recursing aliases.
@@ -1761,23 +1898,16 @@ void	Cmd_ExecuteString (char *text, int level)
 
 			// if the alias value is a command or cvar and
 			// the alias is called with parameters, add them
-			if (Cmd_Argc() > 1 && !strchr(a->value, ' ') && !strchr(a->value, '\t')	&&
-				(Cvar_FindVar(a->value) || (Cmd_Exists(a->value) && a->value[0] != '+' && a->value[0] != '-'))
+			if (Cmd_Argc() > 1 && (!strncmp(a->value, "cmd ", 4) || (!strchr(a->value, ' ') && !strchr(a->value, '\t')	&&
+				(Cvar_FindVar(a->value) || (Cmd_Exists(a->value) && a->value[0] != '+' && a->value[0] != '-'))))
 			)
 			{
 				Cbuf_InsertText (Cmd_Args(), execlevel, false);
 				Cbuf_InsertText (" ", execlevel, false);
 			}
 
-			Cbuf_InsertText (a->value, execlevel, false);
-
-			if (execlevel>=RESTRICT_SERVER)
-				return;	//don't do the cmd_argc/cmd_argv stuff. When it's from the server, we had a tendancy to lock aliases, so don't set them anymore.
-
-			Cbuf_InsertText (va("set cmd_argc \"%i\"\n", cmd_argc), execlevel, false);
-
-			for (i = 0; i < cmd_argc; i++)
-				Cbuf_InsertText (va("set cmd_argv%i \"%s\"\n", i, cmd_argv[i]), execlevel, false);
+			Cmd_ExpandStringArguments (a->value, dest, sizeof(dest));
+			Cbuf_InsertText (dest, execlevel, false);
 			return;
 		}
 	}

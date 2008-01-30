@@ -731,7 +731,7 @@ void CL_PredictMovePNum (int pnum)
 	}
 
 #ifdef NQPROT
-	if (cls.demoplayback == DPB_NETQUAKE)
+	if (cls.protocol == CP_NETQUAKE)
 	{
 		cl.ackedinputsequence = cls.netchan.outgoing_sequence;
 	}

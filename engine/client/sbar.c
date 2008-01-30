@@ -2301,19 +2301,19 @@ if (showcolumns & (1<<COLUMN##title)) \
 		y += 8;
 	}
 
-	y -= skip;
-
 	if (scr_scoreboard_newstyle.value)
 	{
 		// Electro's scoreboard eyecandy: Draw top border (under header)
-		Draw_Fill (startx - 3, y + 11, rank_width - 1, 1, 0);
+		Draw_Fill (startx - 3, y + 1, rank_width - 1, 1, 0);
 		// Electro's scoreboard eyecandy: Don't go over the black border, move the rest down
 		y += 2;
 		// Electro's scoreboard eyecandy: Draw left border
-		Draw_Fill (startx - 3, y - 1, 1, 10, 0);
+		Draw_Fill (startx - 3, y - 10, 1, 9, 0);
 		// Electro's scoreboard eyecandy: Draw right border
-		Draw_Fill (startx - 3 + rank_width - 2, y - 1, 1, 10, 0);
+		Draw_Fill (startx - 3 + rank_width - 2, y - 10, 1, 9, 0);
 	}
+
+	y -= skip;
 
 	for (i = 0; i < scoreboardlines; i++)
 	{
@@ -2374,7 +2374,7 @@ if (showcolumns & (1<<COLUMN##title)) \
 	}
 
 	if (scr_scoreboard_newstyle.value)
-		Draw_Fill (startx - 3, y + 10, rank_width - 1, 1, 0); // Electro - Border - Bottom
+		Draw_Fill (startx - 3, y + skip, rank_width - 1, 1, 0); // Electro - Border - Bottom
 
 /*
 	if (cl.teamplay)

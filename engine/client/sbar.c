@@ -2191,7 +2191,7 @@ void Sbar_DeathmatchOverlay (int start)
 		skip = 8;
 
 // request new ping times every two second
-	if (realtime - cl.last_ping_request > 2	&& cls.protocol == CP_QUAKEWORLD)
+	if (realtime - cl.last_ping_request > 2	&& cls.protocol == CP_QUAKEWORLD && cls.demoplayback != DPB_EZTV)
 	{
 		cl.last_ping_request = realtime;
 		CL_SendClientCommand(true, "pings");
@@ -2508,7 +2508,7 @@ void Sbar_ChatModeOverlay(void)
 		skip = 8;
 
 // request new ping times every two second
-	if (realtime - cl.last_ping_request > 2 && cls.protocol == CP_QUAKEWORLD)
+	if (realtime - cl.last_ping_request > 2 && cls.protocol == CP_QUAKEWORLD && cls.demoplayback != DPB_EZTV)
 	{
 		cl.last_ping_request = realtime;
 		CL_SendClientCommand(true, "pings");

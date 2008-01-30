@@ -2585,7 +2585,7 @@ void CL_Download_f (void)
 		url += 5;
 	}
 
-	if (cls.state == ca_disconnected || cls.demoplayback)
+	if ((cls.state == ca_disconnected || cls.demoplayback) && cls.demoplayback != DPB_EZTV)
 	{
 		Con_TPrintf (TLC_CONNECTFIRST);
 		return;

@@ -292,7 +292,7 @@ qboolean CL_EnqueDownload(char *filename, char *localname, qboolean verbose, qbo
 		return false;
 	}
 
-	if (cls.demoplayback)
+	if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
 		return false;
 
 	if (!ignorefailedlist)
@@ -492,7 +492,7 @@ qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname)
 		return true;
 	}
 	//ZOID - can't download when playback
-	if (cls.demoplayback)
+	if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
 		return true;
 
 	SCR_EndLoadingPlaque();	//release console.
@@ -962,6 +962,9 @@ void CL_RequestNextDownload (void)
 int CL_RequestADownloadChunk(void);
 void CL_SendDownloadReq(sizebuf_t *msg)
 {
+	if (cls.demoplayback == DPB_EZTV)
+		return;	//tcp connection, so no need to constantly ask
+
 	if (cl.downloadlist && !cls.downloadmethod)
 	{
 		CL_RequestNextDownload();
@@ -1240,6 +1243,8 @@ void CL_ParseDownload (void)
 #ifdef PEXT_CHUNKEDDOWNLOADS
 	if (cls.fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 	{
+		if (cls.demoplayback == DPB_EZTV)
+			Host_EndGame("CL_ParseDownload: chunked download on qtv proxy.");
 		CL_ParseChunkedDownload();
 		return;
 	}
@@ -1249,7 +1254,7 @@ void CL_ParseDownload (void)
 	size = MSG_ReadShort ();
 	percent = MSG_ReadByte ();
 
-	if (cls.demoplayback)
+	if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
 	{
 		if (size > 0)
 			msg_readcount += size;
@@ -1705,8 +1710,7 @@ void CL_ParseServerData (void)
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		int i;
-		extern float nextdemotime;
-		cls.netchan.last_received = nextdemotime = /*olddemotime =*/ MSG_ReadFloat();
+		MSG_ReadFloat();
 		cl.playernum[0] = MAX_CLIENTS - 1;
 		cl.spectator = true;
 		for (i = 0; i < UPDATE_BACKUP; i++)
@@ -3938,8 +3942,17 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 			{
 				Cmd_ExecuteString(stufftext+2, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded
 			}
+			else if (!strncmp(stufftext, "//at ", 5))
+			{
+				Cam_SetAutoTrack(atoi(stufftext+5));
+			}
 #ifdef PLUGINS
 			else if (!strncmp(stufftext, "//tinfo ", 8))
+			{
+				Cmd_TokenizeString(stufftext+2, false, false);
+				Plug_Command_f();
+			}
+			else if (!strncmp(stufftext, "//sn ", 5))
 			{
 				Cmd_TokenizeString(stufftext+2, false, false);
 				Plug_Command_f();
@@ -3947,8 +3960,10 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 #endif
 			else
 #ifdef CSQC_DAT
-				 if (!CSQC_StuffCmd(stufftext))
+				 if (CSQC_StuffCmd(stufftext))
+				 {}
 #endif
+			else
 			{
 				Cbuf_AddText (stufftext, RESTRICT_SERVER+destsplit);
 				Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);

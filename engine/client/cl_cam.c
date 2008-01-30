@@ -526,6 +526,11 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 	cl.viewangles[pnum][0] = -cl.viewangles[pnum][0];
 }
 
+void Cam_SetAutoTrack(int userid)
+{	//this is a hint from the server about who to track
+
+}
+
 void Cam_TrackCrosshairedPlayer(int pnum)
 {
 	frame_t *frame;

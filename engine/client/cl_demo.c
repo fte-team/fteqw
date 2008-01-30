@@ -21,7 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 void CL_FinishTimeDemo (void);
-#define realtime demtime
 float demtime;
 
 int cls_lastto;
@@ -94,9 +93,9 @@ void CL_WriteDemoCmd (usercmd_t *pcmd)
 	qbyte	c;
 	q1usercmd_t cmd;
 
-//Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, realtime);
+//Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, demtime);
 
-	fl = LittleFloat((float)realtime);
+	fl = LittleFloat((float)demtime);
 	VFS_WRITE (cls.demofile, &fl, sizeof(fl));
 
 	c = dem_cmd;
@@ -139,12 +138,12 @@ void CL_WriteDemoMessage (sizebuf_t *msg)
 	float	fl;
 	qbyte	c;
 
-//Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, realtime);
+//Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, demtime);
 
 	if (!cls.demorecording)
 		return;
 
-	fl = LittleFloat((float)realtime);
+	fl = LittleFloat((float)demtime);
 	VFS_WRITE (cls.demofile, &fl, sizeof(fl));
 
 	c = dem_read;
@@ -254,7 +253,7 @@ int readdemobytes(int *readpos, void *data, int len)
 
 
 
-	if (len > demobuffersize)
+	if (*readpos+len > demobuffersize)
 	{
 		len = demobuffersize;
 		return 0;
@@ -303,16 +302,14 @@ void CL_ProgressDemoTime(void)
 
 	if (cl.parsecount && Media_PausedDemo())
 	{	//console visible whilst democapturing
-#undef realtime
 		cls.netchan.last_received = realtime;
-#define realtime demtime
 		return;
 	}
 
 	if (cl_demospeed.value >= 0)
-		realtime += host_frametime*cl_demospeed.value;
+		demtime += host_frametime*cl_demospeed.value;
 	else
-		realtime += host_frametime;
+		demtime += host_frametime;
 }
 
 void CL_DemoJump_f(void)
@@ -329,12 +326,12 @@ void CL_DemoJump_f(void)
 		if (colon)
 		{
 			colon++;
-			realtime += atoi(colon);
+			demtime += atoi(colon);
 
-			realtime += atoi(s)*60;
+			demtime += atoi(s)*60;
 		}
 		else
-			realtime += atoi(s);
+			demtime += atoi(s);
 	}
 	else
 	{
@@ -347,14 +344,14 @@ void CL_DemoJump_f(void)
 		else
 			newtime = atoi(s);
 
-		if (newtime >= realtime)
-			realtime = newtime;
+		if (newtime >= demtime)
+			demtime = newtime;
 		else
 		{
 			Con_Printf("Rewinding demo\n");
 			CL_PlayDemo(lastdemoname);
 
-			realtime = newtime;
+			demtime = newtime;
 		}
 	}
 }
@@ -402,23 +399,23 @@ qboolean CL_GetDemoMessage (void)
 #endif
 			if (cls.demoplayback == DPB_NETQUAKE && cls.signon == 4/*SIGNONS*/)
 		{
-			if (!realtime)
+			if (!demtime)
 			{
 				cl.gametime = 0;
-				cl.gametimemark = realtime;
+				cl.gametimemark = demtime;
 				olddemotime = 0;
 				return 0;
 			}
-			if (realtime<= cl.gametime && cl.gametime)// > dem_lasttime+realtime)
+			if (demtime<= cl.gametime && cl.gametime)// > dem_lasttime+demtime)
 			{
-				if (realtime <= cl.gametime-1||cls.timedemo)
+				if (demtime <= cl.gametime-1||cls.timedemo)
 				{
-					realtime = cl.gametime;
+					demtime = cl.gametime;
 					cls.netchan.last_received = realtime;
 				}
 
 				{
-					float f = (cl.gametime-realtime)/(cl.gametime-olddemotime);
+					float f = (cl.gametime-demtime)/(cl.gametime-olddemotime);
 					float a1;
 					float a2;
 
@@ -452,7 +449,7 @@ qboolean CL_GetDemoMessage (void)
 			VectorCopy (cl.viewangles[1], cl.viewangles[0]);
 		}
 
-		olddemotime = realtime;
+		olddemotime = demtime;
 
 		msglength = LittleLong (msglength);
 		if (msglength > MAX_NQMSGLEN)
@@ -475,31 +472,34 @@ readnext:
 	// read the time from the packet
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
-		if (realtime < 0)
+		if (demtime < 0)
 		{
-			readdemobytes(&demopos, NULL, 0);
+			readdemobytes(&demopos, NULL, 0);	//keep it feeding through
 			return 0;
 		}
-		if (olddemotime > realtime)
-			olddemotime = realtime;
-		if (realtime + 1.0 < olddemotime)
-			realtime = olddemotime - 1.0;
+		if (olddemotime > demtime)
+			olddemotime = demtime;
+		if (demtime + 1.0 < olddemotime)
+			demtime = olddemotime - 1.0;
 
 		if (readdemobytes(&demopos, &msecsadded, sizeof(msecsadded)) != sizeof(msecsadded))
 		{
-			Con_Printf("Not enough buffered\n");
-			olddemotime = realtime;	//if we ran out of buffered demo, delay the demo parsing a little
-			return 0;
+			Con_DPrintf("Not enoug buffered\n");
+			demotime = olddemotime;
+			nextdemotime = demotime;
 		}
-		demotime = olddemotime + msecsadded*(1.0f/1000);
-		nextdemotime = demotime;
+		else
+		{
+			demotime = olddemotime + msecsadded*(1.0f/1000);
+			nextdemotime = demotime;
+		}
 	}
 	else
 	{
 		if (readdemobytes(&demopos, &demotime, sizeof(demotime)) != sizeof(demotime))
 		{
-			Con_Printf("Not enough buffered\n");
-			olddemotime = realtime;	//if we ran out of buffered demo, delay the demo parsing a little
+			Con_DPrintf("Not enough buffered\n");
+			olddemotime = demtime;	//if we ran out of buffered demo, delay the demo parsing a little
 			return 0;
 		}
 		demotime = LittleFloat(demotime);
@@ -520,23 +520,23 @@ readnext:
 			cls.td_starttime = Sys_DoubleTime();
 			cls.td_startframe = host_framecount;
 		}
-		realtime = demotime; // warp
+		demtime = demotime; // warp
 	}
 	else if (!cl.paused && cls.state >= ca_onserver)
 	{	// always grab until fully connected
-		if (realtime + 1.0 < demotime)
+		if (demtime + 1.0 < demotime)
 		{
 			// too far back
-			realtime = demotime - 1.0;
+			demtime = demotime - 1.0;
 			return 0;
 		}
-		else if (realtime < demotime)
+		else if (demtime < demotime)
 		{
 			return 0;		// don't need another message yet
 		}
 	}
 	else
-		realtime = demotime; // we're warping
+		demtime = demotime; // we're warping
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
@@ -545,7 +545,7 @@ readnext:
 			cls.netchan.incoming_sequence++;
 			cls.netchan.incoming_acknowledged++;
 			cls.netchan.frame_latency = 0;
-			cls.netchan.last_received = demotime; // just to happy timeout check
+			cls.netchan.last_received = realtime; // just to happy timeout check
 		}
 	}
 
@@ -555,8 +555,8 @@ readnext:
 	// get the msg type
 	if (!readdemobytes (&demopos, &c, sizeof(c)))
 	{
-		Con_Printf("Not enough buffered\n");
-		olddemotime = realtime+1;
+		Con_DPrintf("Not enough buffered\n");
+		olddemotime = demtime+1;
 		return 0;
 	}
 //	Con_Printf("demo packet %x\n", (int)c);
@@ -610,8 +610,8 @@ readnext:
 			r = readdemobytes (&demopos, &q1cmd, sizeof(q1cmd));
 			if (r != sizeof(q1cmd))
 			{
-				Con_Printf("Not enough buffered\n");
-				olddemotime = realtime+1;
+				Con_DPrintf("Not enough buffered\n");
+				olddemotime = demtime+1;
 				CL_StopPlayback ();
 				return 0;
 			}
@@ -644,8 +644,8 @@ readit:
 		// get the next message
 		if (readdemobytes (&demopos, &msglength, 4) != 4)
 		{
-			Con_Printf("Not enough buffered\n");
-			olddemotime = realtime+1;
+			Con_DPrintf("Not enough buffered\n");
+			olddemotime = demtime+1;
 			return 0;
 		}
 		msglength = LittleLong (msglength);
@@ -658,8 +658,8 @@ readit:
 		}
 		if (readdemobytes (&demopos, net_message.data, msglength) != msglength)
 		{
-			Con_Printf("Not enough buffered\n");
-			olddemotime = realtime+1;
+			Con_DPrintf("Not enough buffered\n");
+			olddemotime = demtime+1;
 			return 0;
 		}
 		net_message.cursize = msglength;
@@ -673,18 +673,27 @@ readit:
 				if (!autocam[0])
 					tracknum = -1;
 				if (tracknum == -1 || !(cls_lastto & (1 << tracknum)))
-					goto readnext;	
+				{
+					olddemotime = demotime;
+					goto readnext;
+				}
 				break;
 			case dem_single:
 				tracknum = spec_track[0];
 				if (!autocam[0])
 					tracknum = -1;
 				if (tracknum == -1 || cls_lastto != tracknum)
+				{
+					olddemotime = demotime;
 					goto readnext;
+				}
 				break;
 			case dem_all:
 				if (c & ~dem_mask)
+				{
+					olddemotime = demotime;
 					goto readnext;
+				}
 				break;
 			}
 		}
@@ -703,7 +712,7 @@ readit:
 	case dem_multiple:
 		if (readdemobytes (&demopos, &i, sizeof(i)) != sizeof(i))
 		{
-			olddemotime = realtime;
+			olddemotime = demtime;
 			return 0;
 		}
 		cls_lastto = LittleLong(i);
@@ -806,12 +815,12 @@ void CL_WriteRecordDemoMessage (sizebuf_t *msg, int seq)
 	float	fl;
 	qbyte	c;
 
-//Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, realtime);
+//Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, demtime);
 
 	if (!cls.demorecording)
 		return;
 
-	fl = LittleFloat((float)realtime);
+	fl = LittleFloat((float)demtime);
 	VFS_WRITE (cls.demofile, &fl, sizeof(fl));
 
 	c = dem_read;
@@ -836,12 +845,12 @@ void CL_WriteSetDemoMessage (void)
 	float	fl;
 	qbyte	c;
 
-//Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, realtime);
+//Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, demtime);
 
 	if (!cls.demorecording)
 		return;
 
-	fl = LittleFloat((float)realtime);
+	fl = LittleFloat((float)demtime);
 	VFS_WRITE (cls.demofile, &fl, sizeof(fl));
 
 	c = dem_set;
@@ -1430,11 +1439,11 @@ void CL_PlayDemo(char *demoname)
 	cls.state = ca_demostart;
 	net_message.packing = SZ_RAWBYTES;
 	Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, 0);
-	realtime = 0;
+	demtime = 0;
 	cl.gametime = 0;
-	cl.gametimemark = realtime;
+	cl.gametimemark = demtime;
 
-	cls.netchan.last_received=realtime;
+	cls.netchan.last_received=demtime;
 
 
 	start = VFS_TELL(cls.demofile);
@@ -1503,11 +1512,11 @@ void CL_QTVPlay (vfsfile_t *newf, qboolean iseztv)
 	cls.state = ca_demostart;
 	net_message.packing = SZ_RAWBYTES;
 	Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, 0);
-	realtime = -BUFFERTIME;
+	demtime = -BUFFERTIME;
 	cl.gametime = -BUFFERTIME;
-	cl.gametimemark = realtime;
-	if (realtime < -0.5)
-		Con_Printf("Buffering for %i seconds\n", (int)-realtime);
+	cl.gametimemark = demtime;
+	if (demtime < -0.5)
+		Con_Printf("Buffering for %i seconds\n", (int)-demtime);
 
 	cls.netchan.last_received=realtime;
 
@@ -1835,6 +1844,8 @@ void CL_QTVPlay_f (void)
 	if (qtvcl_eztvextensions.value)
 	{
 		connrequest =	"QTV_EZQUAKE_EXT: 3\n";
+		VFS_WRITE(newf, connrequest, strlen(connrequest));
+		connrequest =	va("USERINFO: %s\n", cls.userinfo);
 		VFS_WRITE(newf, connrequest, strlen(connrequest));
 	}
 	else if (raw)

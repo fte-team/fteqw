@@ -3958,8 +3958,8 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 				Plug_Command_f();
 			}
 #endif
-			else
 #ifdef CSQC_DAT
+			else
 				 if (CSQC_StuffCmd(stufftext))
 				 {}
 #endif

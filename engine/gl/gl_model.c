@@ -479,8 +479,10 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 		!strcmp(mod->name, "models/stsunsf1.mdl") ||
 		!strcmp(mod->name, "models/stice.mdl"))
 		mod->engineflags |= MDLF_BOLT;
+	else if (!strcmp(mod->name, "progs/backpack.mdl"))
+		mod->engineflags |= MDLF_NOTREPLACEMENTS;
 	else if (!strcmp(mod->name, "progs/eyes.mdl"))
-		mod->engineflags |= MDLF_DOCRC;
+		mod->engineflags |= MDLF_NOTREPLACEMENTS|MDLF_DOCRC;
 
 	// call the apropriate loader
 	mod->needload = false;

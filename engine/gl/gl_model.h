@@ -732,6 +732,7 @@ typedef struct model_s
 {
 	char		name[MAX_QPATH];
 	qboolean	needload;		// bmodels and sprites don't cache normally
+	qboolean	tainted;
 
 	modtype_t	type;
 	fromgame_t	fromgame;
@@ -822,14 +823,15 @@ typedef struct model_s
 
 } model_t;
 
-#define MDLF_ENGULPHS        0x01 // particle effect engulphs model (don't draw)
-#define MDLF_NODEFAULTTRAIL  0x02
-#define MDLF_RGBLIGHTING     0x04
-#define MDLF_PLAYER          0x08 // players have specific lighting values
-#define MDLF_FLAME           0x10 // can be excluded with r_drawflame, fullbright render hack
-#define MDLF_DOCRC           0x20 // model needs CRC built
-#define MDLF_NEEDOVERBRIGHT  0x40 // only overbright these models with gl_overbright_all set
-#define MDLF_BOLT            0x80 // doesn't produce shadows
+#define MDLF_ENGULPHS        0x001 // particle effect engulphs model (don't draw)
+#define MDLF_NODEFAULTTRAIL  0x002
+#define MDLF_RGBLIGHTING     0x004
+#define MDLF_PLAYER          0x008 // players have specific lighting values
+#define MDLF_FLAME           0x010 // can be excluded with r_drawflame, fullbright render hack
+#define MDLF_DOCRC           0x020 // model needs CRC built
+#define MDLF_NEEDOVERBRIGHT  0x040 // only overbright these models with gl_overbright_all set
+#define MDLF_BOLT            0x080 // doesn't produce shadows
+#define	MDLF_NOTREPLACEMENTS 0x100 // can be considered a cheat, disable texture replacements
 
 //============================================================================
 /*

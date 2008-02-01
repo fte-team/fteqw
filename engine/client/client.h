@@ -643,6 +643,8 @@ extern cvar_t ruleset_allow_packet;
 extern cvar_t ruleset_allow_particle_lightning;
 extern cvar_t ruleset_allow_overlongsounds;
 extern cvar_t ruleset_allow_larger_models;
+extern cvar_t ruleset_allow_modified_eyes;
+extern cvar_t ruleset_allow_sensative_texture_replacements;
 
 #define	MAX_STATIC_ENTITIES	256			// torches, etc
 

@@ -236,6 +236,11 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 				(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 				(int)crc);
 		}
+
+		if (!(loadmodel->engineflags & MDLF_PLAYER))
+		{	//eyes
+			loadmodel->tainted = (crc != 6967);
+		}
 	}
 #endif
 }
@@ -1001,8 +1006,14 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 	int frame;
 
 	int tc, bc;
+	qboolean forced;
 
-	if (!gl_nocolors.value)
+	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && ruleset_allow_sensative_texture_replacements.value)
+		forced = true;
+	else
+		forced = false;
+
+	if (!gl_nocolors.value || forced)
 	{
 		if (e->scoreboard)
 		{
@@ -1017,7 +1028,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			bc = 1;
 		}
 
-		if (tc != 1 || bc != 1 || (e->scoreboard && e->scoreboard->skin))
+		if (forced || tc != 1 || bc != 1 || (e->scoreboard && e->scoreboard->skin))
 		{
 			int			inwidth, inheight;
 			int			tinwidth, tinheight;
@@ -1028,7 +1039,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			char hashname[512];
 			cc = (tc<<4)|bc;
 
-			if (e->scoreboard && e->scoreboard->skin && !gl_nocolors.value)
+			if (e->scoreboard && e->scoreboard->skin)
 			{
 				snprintf(hashname, sizeof(hashname), "%s$%s$%i", modelname, e->scoreboard->skin->name, surfnum);
 				skinname = hashname;
@@ -1617,6 +1628,12 @@ void R_DrawGAliasModel (entity_t *e)
 	}
 	else
 		clmodel = e->model;
+	}
+
+	if (clmodel->tainted)
+	{
+		if (!ruleset_allow_modified_eyes.value && !strcmp(clmodel->name, "progs/eyes.mdl"))
+			return;
 	}
 
 	if (!(e->flags & Q2RF_WEAPONMODEL))

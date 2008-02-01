@@ -402,6 +402,8 @@ rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_particle_lightning", "0"},
 	{"ruleset_allow_overlong_sounds", "0"},
 	{"ruleset_allow_larger_models", "0"},
+	{"ruleset_allow_modified_eyes", "0"},
+	{"ruleset_allow_sensative_texture_replacements", "0"},
 	{"tp_disputablemacros", "0"},
 	{"cl_instantrotate", "0"},
 	{NULL}
@@ -413,6 +415,8 @@ rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_particle_lightning", "0"},
 	{"ruleset_allow_packet", "0"},
 	{"ruleset_allow_frj", "0"},
+	{"ruleset_allow_modified_eyes", "0"},
+	{"ruleset_allow_sensative_texture_replacements", "0"},
 	{"gl_shadeq1", "0"},
 	{"gl_shadeq3", "0"},
 	{NULL}

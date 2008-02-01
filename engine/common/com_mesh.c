@@ -724,6 +724,11 @@ static void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 				(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 				(int)crc);
 		}
+
+		if (!(loadmodel->engineflags & MDLF_PLAYER))
+		{	//eyes
+			loadmodel->tainted = (crc != 6967);
+		}
 	}
 #endif
 }
@@ -741,6 +746,15 @@ static void Mod_ClampModelSize(model_t *mod)
 	rad += axis*axis;
 	axis = (mod->maxs[2] - mod->mins[2]);
 	rad += axis*axis;
+
+	if (loadmodel->engineflags & MDLF_DOCRC)
+	{
+		if (!strcmp(mod->name, "progs/eyes.mdl"))
+		{       //this is checked elsewhere to make sure the crc matches (this is to make sure the crc check was actually called)
+			if (mod->type != mod_alias || mod->fromgame != fg_quake)
+				mod->tainted = true;
+		}
+	}
 
 	mod->clampscale = 1;
 	for (i = 0; i < sizeof(clampedmodel)/sizeof(clampedmodel[0]); i++)

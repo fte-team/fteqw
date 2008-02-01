@@ -3644,7 +3644,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 						{
 							if (!qtv->bsp)
 							{
-							#warning do we still actually need to do this ourselves? Or can we just forward what the user stated?
+							//warning do we still actually need to do this ourselves? Or can we just forward what the user stated?
 								QW_PrintfToViewer(v, "QTV doesn't have that map (%s), sorry.\n", qtv->modellist[1].name);
 								qtv->errored = ERR_DROP;
 							}

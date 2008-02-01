@@ -1382,7 +1382,7 @@ void ParseNails(sv_t *tv, netmsg_t *m, qboolean nails2)
 
 void ParseDownload(sv_t *tv, netmsg_t *m)
 {
-#warning this needs looking at (controller downloads)
+//warning this needs looking at (controller downloads)
 	int size, b;
 	unsigned int percent;
 	char buffer[2048];

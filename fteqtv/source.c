@@ -1055,7 +1055,7 @@ void QTV_Cleanup(sv_t *qtv, qboolean leaveadmins)
 		cluster->viewserver = NULL;
 	for (v = cluster->viewers; v; v = v->next)
 	{
-	#warning fixme: honour leaveadmins
+	//warning fixme: honour leaveadmins
 		if (v->server == qtv)
 		{	//they were watching this one
 			QW_SetViewersServer(qtv->cluster, v, NULL);
@@ -2077,7 +2077,7 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, 
 		{
 			if (!strcmp(qtv->server, server))
 			{	//if the stream detected some permanent/config error, try reconnecting again (of course this only happens when someone tries using the stream)
-#warning review this logic
+//warning review this logic
 				if (qtv->errored == ERR_DISABLED)
 				{
 					if (!(!QTV_Connect(qtv, server) && !force))	//try and wake it up

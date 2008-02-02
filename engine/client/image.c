@@ -1251,10 +1251,10 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height)
 	count = (swidth) * (sheight);
 	pcx_rgb = BZ_Malloc( count * 4);
 
-	for (y=0 ; y<swidth ; y++)
+	for (y=0 ; y<sheight ; y++)
 	{
 		pix = pcx_rgb + 4*y*(swidth);
-		for (x=0 ; x<sheight ; )
+		for (x=0 ; x<swidth ; )
 		{
 			dataByte = *data;
 			data++;

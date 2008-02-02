@@ -57,8 +57,6 @@ int			r_clipflags;
 
 qbyte		*r_warpbuffer;
 
-qbyte		*r_stack_start;
-
 qboolean	r_fov_greater_than_90;
 
 entity_t	r_worldentity;
@@ -242,10 +240,10 @@ R_Init
 */
 void SWR_Init (void)
 {
-	int		dummy;
+	//int		dummy;
 	
 // get stack position so we can guess if we are going to overflow
-	r_stack_start = (qbyte *)&dummy;
+	//r_stack_start = (qbyte *)&dummy;
 	
 	R_InitTurb ();
 	
@@ -1302,7 +1300,7 @@ R_RenderView
 r_refdef must be set before the first call
 ================
 */
-void SWR_RenderView_ (void)
+void SWR_RenderView (void)
 {
 	qbyte	warpbuffer[WARP_WIDTH * WARP_HEIGHT];
 
@@ -1418,6 +1416,7 @@ SetVisibilityByPassages ();
 	Sys_HighFPPrecision ();
 }
 
+/*
 void SWR_RenderView (void)
 {
 	int		dummy;
@@ -1438,6 +1437,7 @@ void SWR_RenderView (void)
 
 	SWR_RenderView_ ();
 }
+*/
 
 /*
 ================

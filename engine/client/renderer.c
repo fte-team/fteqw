@@ -86,7 +86,7 @@ cvar_t r_drawviewmodelinvis					= SCVAR  ("r_drawviewmodelinvis", "0");
 cvar_t r_dynamic							= SCVARF ("r_dynamic", "1",
 												CVAR_ARCHIVE);
 cvar_t r_fastsky							= SCVAR  ("r_fastsky", "0");
-cvar_t r_fastskycolour						= SCVARF ("r_fastskycolour", "0",
+cvar_t r_fastskycolour						= SCVARF ("r_fastskycolour", "0", 
 												CVAR_RENDERERCALLBACK);
 cvar_t r_fb_bmodels							= SCVARF("gl_fb_bmodels", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
@@ -134,7 +134,7 @@ cvar_t r_wateralpha							= SCVAR  ("r_wateralpha", "1");
 cvar_t r_waterwarp							= SCVARF ("r_waterwarp", "1",
 												CVAR_ARCHIVE);
 
-cvar_t r_replacemodels						= SCVARF ("r_replacemodels", "md3 md2",
+cvar_t r_replacemodels						= SCVARF ("r_replacemodels", "md3 md2", 
 												CVAR_ARCHIVE);
 
 //otherwise it would defeat the point.
@@ -1280,8 +1280,8 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 		Cbuf_AddText("setrenderer d3d7\n", RESTRICT_LOCAL);
 		break;
 	case 3:
-		Cbuf_AddText("setrenderer d3d9\n", RESTRICT_LOCAL);
-		break;
+                Cbuf_AddText("setrenderer d3d7\n", RESTRICT_LOCAL);
+                break;
 	}
 	M_RemoveMenu(menu);
 	Cbuf_AddText("menu_video\n", RESTRICT_LOCAL);
@@ -1943,7 +1943,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 					"-----------------------------\n"
 					"OpenGL renderer initialized\n");
 		break;
-
+		
 	case QR_DIRECT3D:
 		Con_Printf(	"\n"
 					"-----------------------------\n"
@@ -2269,7 +2269,7 @@ void MYgluPerspective(double fovx, double fovy, double zNear, double zFar)
 	r_projection_matrix[6] = 0;
 	r_projection_matrix[10] = - (zFar+zNear)/(zFar-zNear);
 	r_projection_matrix[14] = - (2.0f*zFar*zNear)/(zFar-zNear);
-
+	
 	r_projection_matrix[3] = 0;
 	r_projection_matrix[7] = 0;
 	r_projection_matrix[11] = -1;
@@ -2304,7 +2304,7 @@ void GL_InfinatePerspective(double fovx, double fovy,
 	r_projection_matrix[6] = 0;
 	r_projection_matrix[10] = -1  * nudge;
 	r_projection_matrix[14] = -2*zNear * nudge;
-
+	
 	r_projection_matrix[3] = 0;
 	r_projection_matrix[7] = 0;
 	r_projection_matrix[11] = -1;
@@ -2328,7 +2328,7 @@ void GL_ParallelPerspective(double xmin, double xmax, double ymax, double ymin,
 	r_projection_matrix[6] = 0;
 	r_projection_matrix[10] = -2/(zfar-znear);
 	r_projection_matrix[14] = (zfar+znear)/(zfar-znear);
-
+	
 	r_projection_matrix[3] = 0;
 	r_projection_matrix[7] = 0;
 	r_projection_matrix[11] = 0;
@@ -2355,13 +2355,13 @@ texture_t *R_TextureAnimation (texture_t *base)
 		if (base->alternate_anims)
 			base = base->alternate_anims;
 	}
-
+	
 	if (!base->anim_total)
 		return base;
 
 	reletive = (int)(cl.time*10) % base->anim_total;
 
-	count = 0;
+	count = 0;	
 	while (base->anim_min > reletive || base->anim_max <= reletive)
 	{
 		base = base->anim_next;
@@ -2485,7 +2485,7 @@ void R_MarkLeaves (void)
 				((int *)fatvis)[i] |= ((int *)vis)[i];
 			vis = fatvis;
 		}
-
+		
 		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 		{
 			cluster = leaf->cluster;
@@ -2509,7 +2509,7 @@ void R_MarkLeaves (void)
 
 	if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.value) || r_novis.value == 2)
 		return;
-
+	
 //	if (mirror)
 //		return;
 
@@ -2536,7 +2536,7 @@ void R_MarkLeaves (void)
 	}
 	else
 		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
-
+		
 	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 	{
 		if (vis[i>>3] & (1<<(i&7)))
@@ -2690,7 +2690,7 @@ void R_SetFrustum (void)
 		return;
 
 	/*	removed - assumes fov_x == fov_y
-	if (r_refdef.fov_x == 90)
+	if (r_refdef.fov_x == 90) 
 	{
 		// front side is visible
 

@@ -1280,7 +1280,7 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 		Cbuf_AddText("setrenderer d3d7\n", RESTRICT_LOCAL);
 		break;
 	case 3:
-                Cbuf_AddText("setrenderer d3d7\n", RESTRICT_LOCAL);
+                Cbuf_AddText("setrenderer d3d9\n", RESTRICT_LOCAL);
                 break;
 	}
 	M_RemoveMenu(menu);

@@ -468,6 +468,11 @@ qboolean CL_GetDemoMessage (void)
 		return 1;
 	}
 #endif
+
+	//client is loading content, don't flood it with packets while its still got no map loaded
+	if (cl.sendprespawn)
+		return 0;
+
 readnext:
 	// read the time from the packet
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)

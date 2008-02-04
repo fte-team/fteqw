@@ -869,7 +869,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						//part of the connection process, can be ignored if there's no password
 					}
 					else
-						printf("Stream %i: Unrecognized token in QTV connection request (%s)\n", qtv->streamid, s);
+						printf("Unrecognized token in QTV connection request (%s)\n", s);
 				}
 				else
 				{
@@ -927,7 +927,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						//part of the connection process, can be ignored if there's no password
 					}
 					else
-						printf("Stream %i: Unrecognized token in QTV connection request (%s)\n", qtv->streamid, s);
+						printf("Unrecognized token in QTV connection request (%s)\n", s);
 				}
 			}
 			s = e+1;

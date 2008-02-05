@@ -246,7 +246,7 @@ void M_Menu_SinglePlayer_f (void)
 
 
 typedef struct demoitem_s {
-	char name[64];
+	char name[MAX_QPATH];
 	qboolean isdir;
 	int size;
 	struct demoitem_s *next;
@@ -387,7 +387,7 @@ static int DemoAddItem(char *filename, int size, void *parm)
 	demoitem_t *link, *newi;
 	int side;
 	qboolean isdir;
-	char tempfname[MAX_PATH];
+	char tempfname[MAX_QPATH];
 
 	char *i;
 

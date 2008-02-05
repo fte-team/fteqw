@@ -2446,7 +2446,7 @@ void SV_MVDStream_Poll(void)
 
 		if (count > qtv_maxstreams.value)
 		{	//sorry
-			char *goawaymessage = "QTVSV 1\nERROR: This server enforces a limit on the number of proxies connected at any one time. Please try again later\n\n";
+			char *goawaymessage = "QTVSV 1\nTERROR: This server enforces a limit on the number of proxies connected at any one time. Please try again later\n\n";
 
 			send(client, goawaymessage, strlen(goawaymessage), 0);
 			closesocket(client);

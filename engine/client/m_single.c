@@ -245,105 +245,154 @@ void M_Menu_SinglePlayer_f (void)
 }
 
 
+typedef struct demoitem_s {
+	char name[64];
+	qboolean isdir;
+	int size;
+	struct demoitem_s *next;
+	struct demoitem_s *prev;
+} demoitem_t;
 
 typedef struct {
 	menucustom_t *list;
-	int nummatches;
-	int selected;
-	int firstshown;
-	int maxmatches;
+	demoitem_t *selected;
+	demoitem_t *firstitem;
 	int pathlen;
 
 	char *command[64];	//these let the menu be used for nearly any sort of file browser.
 	char *ext[64];
 	int numext;
 
-	struct demofilelist_s{
-		char name[64];
-		int size;
-	} *options;
+	demoitem_t *items;
 } demomenu_t;
 
-void M_DemoDraw(int x, int y, menucustom_t *control, menu_t *menu)
+static void M_DemoDraw(int x, int y, menucustom_t *control, menu_t *menu)
 {
 	char *text;
-	int i;
 	demomenu_t *info = menu->data;
+	demoitem_t *item, *lostit;
+	int ty;
 
-	if (info->firstshown > info->selected)
-		info->firstshown = info->selected;
-	if ((vid.height - y)/8 < info->selected - info->firstshown+2)
-		info->firstshown = info->selected - (vid.height - y)/8+2;
-
-	i = info->firstshown;
-	while(i < info->nummatches)
+	ty = vid.height-24;
+	item = info->selected;
+	while(item)
 	{
-		if (info->options[i].size)
-			text = va("%-30s %6iKB", info->options[i].name+info->pathlen, info->options[i].size/1024);
+		if (info->firstitem == item)
+			break;
+		if (ty < y)
+		{
+			//we couldn't find it
+			for (lostit = info->firstitem; lostit; lostit = lostit->prev)
+			{
+				if (info->selected == lostit)
+				{
+					item = lostit;
+					break;
+				}
+			}
+			info->firstitem = item;
+			break;
+		}
+		item = item->prev;
+		ty-=8;
+	}
+	if (!item)
+		info->firstitem = info->items;
+
+
+	item = info->firstitem;
+	while(item)
+	{
+		if (y+8 >= vid.height)
+			return;
+		if (!item->isdir)
+			text = va("%-32.32s%6iKB", item->name+info->pathlen, item->size/1024);
 		else
-			text = info->options[i].name+info->pathlen;
-		if (i == info->selected)
-			Draw_Alt_String(x+8, y+8, text);
+			text = item->name+info->pathlen;
+		if (item == info->selected)
+			Draw_Alt_String(x, y+8, text);
 		else
-			Draw_String(x+8, y+8, text);
+			Draw_String(x, y+8, text);
 		y+=8;
-		i++;
+		item = item->next;
 	}
 }
-void ShowDemoMenu (menu_t *menu, char *path);
-qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
+static void ShowDemoMenu (menu_t *menu, char *path);
+static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 {
 	demomenu_t *info = menu->data;
-	if (!info->nummatches)
-		return false;
+	int i;
+
 	switch (key)
 	{
+	case K_MWHEELUP:
 	case K_UPARROW:
-		info->selected--;
-		if (info->selected < 0)
-			info->selected = 0;
+		if (info->selected && info->selected->prev)
+			info->selected = info->selected->prev;
 		return true;
+	case K_MWHEELDOWN:
 	case K_DOWNARROW:
-		info->selected++;
-		if (info->selected > info->nummatches-1)
-			info->selected = info->nummatches-1;
+		if (info->selected && info->selected->next)
+			info->selected = info->selected->next;
+		return true;
+	case K_HOME:
+		info->selected = info->items;
+		return true;
+	case K_END:
+		info->selected = info->items;
+		while(info->selected->next)
+			info->selected = info->selected->next;
 		return true;
 	case K_PGUP:
-		info->selected-=10;
-		if (info->selected < 0)
-			info->selected = 0;
+		for (i = 0; i < 10; i++)
+		{
+			if (info->selected && info->selected->prev)
+				info->selected = info->selected->prev;
+		}
 		return true;
 	case K_PGDN:
-		info->selected+=10;
-		if (info->selected > info->nummatches-1)
-			info->selected = info->nummatches-1;
+		for (i = 0; i < 10; i++)
+		{
+			if (info->selected && info->selected->next)
+				info->selected = info->selected->next;
+		}
 		return true;
 	case K_ENTER:
-		if (info->options[info->selected].name[strlen(info->options[info->selected].name)-1] == '/')	//last char is a slash
-			ShowDemoMenu(menu, va("%s", info->options[info->selected].name));
-		else
+		if (info->selected)
 		{
-			int extnum;
-			for (extnum = 0; extnum < info->numext; extnum++)
-				if (!stricmp(info->options[info->selected].name + strlen(info->options[info->selected].name)-4, info->ext[extnum]))
-					break;
+			if (info->selected->isdir)
+				ShowDemoMenu(menu, va("%s", info->selected->name));
+			else
+			{
+				int extnum;
+				for (extnum = 0; extnum < info->numext; extnum++)
+					if (!stricmp(info->selected->name + strlen(info->selected->name)-4, info->ext[extnum]))
+						break;
 
-			if (extnum == info->numext)	//wasn't on our list of extensions.
-				extnum = 0;
+				if (extnum == info->numext)	//wasn't on our list of extensions.
+					extnum = 0;
 
-			Cbuf_AddText(va("%s \"%s\"\n", info->command[extnum], info->options[info->selected].name), RESTRICT_LOCAL);
+				Cbuf_AddText(va("%s \"%s\"\n", info->command[extnum], info->selected->name), RESTRICT_LOCAL);
+			}
 		}
 		return true;
 	}
 	return false;
 }
 
-int DemoAddItem(char *filename, int size, void *parm)
+static int DemoAddItem(char *filename, int size, void *parm)
 {
-	int match;
 	int extnum;
 	demomenu_t *menu = parm;
-	if (filename[strlen(filename)-1] != '/')
+	demoitem_t *link, *newi;
+	int side;
+	qboolean isdir;
+	char tempfname[MAX_PATH];
+
+	char *i;
+
+	i = strchr(filename+menu->pathlen, '/');
+	if (i == NULL)
 	{
 		for (extnum = 0; extnum < menu->numext; extnum++)
 			if (!stricmp(filename + strlen(filename)-4, menu->ext[extnum]))
@@ -351,34 +400,132 @@ int DemoAddItem(char *filename, int size, void *parm)
 
 		if (extnum == menu->numext)	//wasn't on our list of extensions.
 			return true;
+		isdir = false;
 	}
 	else
 	{
-		//directory
+		i++;
+		if (i-filename > sizeof(tempfname)-2)
+			return true;	//too long to fit in our buffers anyway
+		strncpy(tempfname, filename, i-filename);
+		tempfname[i-filename] = 0;
+		filename = tempfname;
+
+		size = 0;
+		isdir = true;
 	}
-	if (menu->maxmatches < menu->nummatches+10)
+
+	if (!menu->items)
+		menu->items = newi = BZ_Malloc(sizeof(*newi));
+	else
 	{
-		menu->maxmatches = menu->nummatches+10;
-		menu->options = BZ_Realloc(menu->options, menu->maxmatches*sizeof(struct demofilelist_s));
+		link = menu->items;
+		for(;;)
+		{
+			if (link->isdir != isdir)	//bias directories, so they sink
+				side = (link->isdir > isdir)?1:-1;
+			else
+				side = stricmp(link->name, filename);
+			if (side == 0)
+				return true;	//already got this file
+			else if (side > 0)
+			{
+				if (!link->prev)
+				{
+					link->prev = newi = BZ_Malloc(sizeof(*newi));
+					break;
+				}
+				link = link->prev;
+			}
+			else
+			{
+				if (!link->next)
+				{
+					link->next = newi = BZ_Malloc(sizeof(*newi));
+					break;
+				}
+				link = link->next;
+			}
+		}
 	}
-	for (match = 0; match < menu->nummatches; match++)
-		if (!strcmp(menu->options[match].name, filename))
-			return true;	//already got that one
-	Q_strncpyz(menu->options[menu->nummatches].name, filename, sizeof(menu->options[menu->nummatches].name));
-	menu->options[menu->nummatches].size = size;
-	menu->nummatches++;
+	
+	Q_strncpyz(newi->name, filename, sizeof(newi->name));
+	newi->size = size;
+	newi->isdir = isdir;
+	newi->prev = NULL;
+	newi->next = NULL;
 
 	return true;
 }
 
-void M_Demo_Remove (menu_t *menu)
+//converts the binary tree into sorted linked list
+static void M_Demo_Flatten(demomenu_t *info)
 {
-	demomenu_t *info = menu->data;
-	if (info->options)
-		BZ_Free(info->options);
+	demoitem_t *btree = info->items, *item, *lastitem;
+	demoitem_t *listhead = NULL, *listlast = NULL;
+
+	while(btree)
+	{
+		if (!btree->prev)
+		{	//none on left side, descend down right removing head node
+			item = btree;
+			btree = btree->next;
+		}
+		else
+		{
+			item = btree;
+			lastitem = item;
+			for (;;)
+			{
+				if (!item->prev)
+				{
+					lastitem->prev = item->next;
+					break;
+				}
+				lastitem = item;
+				item = lastitem->prev;
+			}
+		}
+		if (listlast)
+		{
+			listlast->next = item;
+			item->prev = listlast;
+			listlast = item;
+		}
+		else
+		{
+			listhead = listlast = item;
+			item->prev = NULL;
+		}
+	}
+	if (listlast)
+		listlast->next = NULL;
+	info->items = listhead;
+	info->selected = listhead;
+	info->firstitem = listhead;
 }
 
-void ShowDemoMenu (menu_t *menu, char *path)
+static void M_Demo_Flush (demomenu_t *info)
+{
+	demoitem_t *item;
+	while (info->items)
+	{
+		item = info->items;
+		info->items = item->next;
+		BZ_Free(item);
+	}
+	info->items = NULL;
+	info->selected = NULL;
+	info->firstitem = NULL;
+}
+
+static void M_Demo_Remove (menu_t *menu)
+{
+	demomenu_t *info = menu->data;
+	M_Demo_Flush(info);
+}
+
+static void ShowDemoMenu (menu_t *menu, char *path)
 {
 	int c;
 	char *s;
@@ -399,11 +546,10 @@ void ShowDemoMenu (menu_t *menu, char *path)
 		if (c<2)
 			*path = '\0';
 	}
-	((demomenu_t*)menu->data)->nummatches = 0;
-	((demomenu_t*)menu->data)->firstshown = 0;
-	((demomenu_t*)menu->data)->selected = 0;
+	((demomenu_t*)menu->data)->selected = NULL;
 	((demomenu_t*)menu->data)->pathlen = strlen(path);
 
+	M_Demo_Flush(menu->data);
 	if (*path)
 	{
 		sprintf(match, "%s../", path);
@@ -412,6 +558,7 @@ void ShowDemoMenu (menu_t *menu, char *path)
 	sprintf(match, "%s*", path);
 
 	COM_EnumerateFiles(match, DemoAddItem, menu->data);
+	M_Demo_Flatten(menu->data);
 }
 
 void M_Menu_Demos_f (void)

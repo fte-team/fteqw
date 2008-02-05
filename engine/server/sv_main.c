@@ -1242,12 +1242,12 @@ void SVC_GetChallenge (void)
 			if (svs.fteprotocolextensions)
 			{
 				lng = LittleLong(PROTOCOL_VERSION_FTE);
-				memcpy(over, &lng, sizeof(int));
-				over+=4;
+				memcpy(over, &lng, sizeof(lng));
+				over+=sizeof(lng);
 
 				lng = LittleLong(svs.fteprotocolextensions);
-				memcpy(over, &lng, sizeof(long));
-				over+=4;
+				memcpy(over, &lng, sizeof(lng));
+				over+=sizeof(lng);
 			}
 #endif
 
@@ -1256,12 +1256,12 @@ void SVC_GetChallenge (void)
 			if (compressioncrc)
 			{
 				lng = LittleLong((('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24)));
-				memcpy(over, &lng, sizeof(int));
-				over+=4;
+				memcpy(over, &lng, sizeof(lng));
+				over+=sizeof(lng);
 
 				lng = LittleLong(compressioncrc);
-				memcpy(over, &lng, sizeof(long));
-				over+=4;
+				memcpy(over, &lng, sizeof(lng));
+				over+=sizeof(lng);
 			}
 #endif
 		}
@@ -1308,7 +1308,7 @@ void SV_GetNewSpawnParms(client_t *cl)
 void VARGS SV_OutOfBandPrintf (int q2, netadr_t adr, char *format, ...)
 {
 	va_list		argptr;
-	static char		string[8192];		// ??? why static?
+	char		string[8192];
 
 	va_start (argptr, format);
 	if (q2)
@@ -1330,7 +1330,7 @@ void VARGS SV_OutOfBandPrintf (int q2, netadr_t adr, char *format, ...)
 void VARGS SV_OutOfBandTPrintf (int q2, netadr_t adr, int language, translation_t text, ...)
 {
 	va_list		argptr;
-	static char		string[8192];		// ??? why static?
+	char		string[8192];
 	char *format = langtext(text, language);
 
 	va_start (argptr, text);

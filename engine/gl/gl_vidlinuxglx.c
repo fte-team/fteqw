@@ -374,6 +374,7 @@ static void GetEvent(void)
 	XEvent event;
 	int b;
 	qboolean wantwindowed;
+	qboolean x11violations = true;
 
 	if (!vid_dpy)
 		return;
@@ -421,17 +422,36 @@ static void GetEvent(void)
 	case ButtonPress:
 		b=-1;
 		if (event.xbutton.button == 1)
-			b = 0;
+			b = K_MOUSE1;
 		else if (event.xbutton.button == 2)
-			b = 2;
+			b = K_MOUSE3;
 		else if (event.xbutton.button == 3)
-			b = 1;
+			b = K_MOUSE2;
+		//note, the x11 protocol does not support a mousewheel
+		//we only support it because we follow convention. the actual protocol specifies 4+5 as regular buttons
 		else if (event.xbutton.button == 4)
-			b = 3;
+			b = x11violations?K_MWHEELUP:K_MOUSE4;
 		else if (event.xbutton.button == 5)
-			b = 4;
+			b = x11violations?K_MWHEELDOWN:K_MOUSE5;
+		//note, the x11 protocol does not support more than 5 mouse buttons
+		//which is a bit of a shame, but hey.
+		else if (event.xbutton.button == 6)
+			b = x11violations?K_MOUSE4:-1;
+		else if (event.xbutton.button == 7)
+			b = x11violations?K_MOUSE5:-1;
+		else if (event.xbutton.button == 8)
+			b = x11violations?K_MOUSE6:-1;
+		else if (event.xbutton.button == 9)
+			b = x11violations?K_MOUSE7:-1;
+		else if (event.xbutton.button == 10)
+			b = x11violations?K_MOUSE8:-1;
+		else if (event.xbutton.button == 11)
+			b = x11violations?K_MOUSE9:-1;
+		else if (event.xbutton.button == 12)
+			b = x11violations?K_MOUSE10:-1;
+
 		if (b>=0)
-			Key_Event(K_MOUSE1 + b, true);
+			Key_Event(b, true);
 #ifdef WITH_VMODE
 		if (vidmode_ext && vidmode_usemode>=0)
 		if (!ActiveApp)
@@ -445,21 +465,39 @@ static void GetEvent(void)
 	case ButtonRelease:
 		b=-1;
 		if (event.xbutton.button == 1)
-			b = 0;
+			b = K_MOUSE1;
 		else if (event.xbutton.button == 2)
-			b = 2;
+			b = K_MOUSE3;
 		else if (event.xbutton.button == 3)
-			b = 1;
+			b = K_MOUSE2;
+		//note, the x11 protocol does not support a mousewheel
+		//we only support it because we follow convention. the actual protocol specifies 4+5 as regular buttons
 		else if (event.xbutton.button == 4)
-			b = 3;
+			b = x11violations?K_MWHEELUP:K_MOUSE4;
 		else if (event.xbutton.button == 5)
-			b = 4;
+			b = x11violations?K_MWHEELDOWN:K_MOUSE5;
+		//note, the x11 protocol does not support more than 5 mouse buttons
+		//which is a bit of a shame, but hey.
+		else if (event.xbutton.button == 6)
+			b = x11violations?K_MOUSE4:-1;
+		else if (event.xbutton.button == 7)
+			b = x11violations?K_MOUSE5:-1;
+		else if (event.xbutton.button == 8)
+			b = x11violations?K_MOUSE6:-1;
+		else if (event.xbutton.button == 9)
+			b = x11violations?K_MOUSE7:-1;
+		else if (event.xbutton.button == 10)
+			b = x11violations?K_MOUSE8:-1;
+		else if (event.xbutton.button == 11)
+			b = x11violations?K_MOUSE9:-1;
+		else if (event.xbutton.button == 12)
+			b = x11violations?K_MOUSE10:-1;
+
 		if (b>=0)
-			Key_Event(K_MOUSE1 + b, false);
+			Key_Event(b, false);
 		break;
 
 	case FocusIn:
-		Cvar_ForceCallback(&v_gamma);
 		ActiveApp = true;
 #ifdef WITH_VMODE
 		if (vidmode_ext && vidmode_usemode>=0)
@@ -474,6 +512,7 @@ static void GetEvent(void)
 			XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
 		}
 #endif
+		Cvar_ForceCallback(&v_gamma);
 		break;
 	case FocusOut:
 #ifdef WITH_VMODE

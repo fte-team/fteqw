@@ -1008,7 +1008,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 	int tc, bc;
 	qboolean forced;
 
-	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && ruleset_allow_sensative_texture_replacements.value)
+	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && !ruleset_allow_sensative_texture_replacements.value)
 		forced = true;
 	else
 		forced = false;
@@ -1039,18 +1039,29 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			char hashname[512];
 			cc = (tc<<4)|bc;
 
-			if (e->scoreboard && e->scoreboard->skin)
+			if (forced)
 			{
-				snprintf(hashname, sizeof(hashname), "%s$%s$%i", modelname, e->scoreboard->skin->name, surfnum);
-				skinname = hashname;
-			}
-			else if (surfnum)
-			{
-				snprintf(hashname, sizeof(hashname), "%s$%i", modelname, surfnum);
+				if (e->scoreboard && e->scoreboard->skin)
+					snprintf(hashname, sizeof(hashname), "%s$%s$%i", modelname, e->scoreboard->skin->name, surfnum);
+				else
+					snprintf(hashname, sizeof(hashname), "%s$%i", modelname, surfnum);
 				skinname = hashname;
 			}
 			else
-				skinname = modelname;
+			{
+				if (e->scoreboard && e->scoreboard->skin)
+				{
+					snprintf(hashname, sizeof(hashname), "%s$%s$%i", modelname, e->scoreboard->skin->name, surfnum);
+					skinname = hashname;
+				}
+				else if (surfnum)
+				{
+					snprintf(hashname, sizeof(hashname), "%s$%i", modelname, surfnum);
+					skinname = hashname;
+				}
+				else
+					skinname = modelname;
+			}
 
 			if (!skincolourmapped.numbuckets)
 				Hash_InitTable(&skincolourmapped, 256, BZ_Malloc(Hash_BytesForBuckets(256)));

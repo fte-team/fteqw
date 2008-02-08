@@ -1394,7 +1394,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, qboolean alpha)
 			}
 
 //but only preload it if we have no replacement.
-			if (!texture)
+			if (!texture || (loadmodel->engineflags & MDLF_NOTREPLACEMENTS))
 			{
 				//we're not using 24bits
 				texnums = Hunk_Alloc(sizeof(*texnums)+s);
@@ -1404,17 +1404,20 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, qboolean alpha)
 				Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 
 //the extra underscore is to stop
-				snprintf(skinname, sizeof(skinname), "%s__%i", loadname, i);
-				texture = R_LoadTexture8(skinname, outskin->skinwidth, outskin->skinheight, saved, true, alpha);
-				if (r_fb_models.value)
+				if (!texture)
 				{
-					snprintf(skinname, sizeof(skinname), "%s__%i_luma", loadname, i);
-					fbtexture = R_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
-				}
-				if (gl_bump.value)
-				{
-					snprintf(skinname, sizeof(skinname), "%s__%i_bump", loadname, i);
-					bumptexture = R_LoadTexture8Bump(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
+					snprintf(skinname, sizeof(skinname), "%s__%i", loadname, i);
+					texture = R_LoadTexture8(skinname, outskin->skinwidth, outskin->skinheight, saved, true, alpha);
+					if (r_fb_models.value)
+					{
+						snprintf(skinname, sizeof(skinname), "%s__%i_luma", loadname, i);
+						fbtexture = R_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
+					}
+					if (gl_bump.value)
+					{
+						snprintf(skinname, sizeof(skinname), "%s__%i_bump", loadname, i);
+						bumptexture = R_LoadTexture8Bump(skinname, outskin->skinwidth, outskin->skinheight, saved, true, true);
+					}
 				}
 			}
 			else

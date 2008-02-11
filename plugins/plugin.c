@@ -130,7 +130,7 @@ BUILTIN(void, SetUserInfo, (char *key, char *value));
 #undef ARGNAMES
 
 #define ARGNAMES ,pos,buffer,bufferlen
-BUILTIN(void, GetLocationName, (float *pos, char *buffer, int bufferlen))
+BUILTIN(void, GetLocationName, (float *pos, char *buffer, int bufferlen));
 #undef ARGNAMES
 
 #define ARGNAMES ,soundname

@@ -829,6 +829,12 @@ void AssembleFile(struct assembler *w, int fnum, char *filename)
 	w->curseg = &w->segs[SEG_CODE];
 
 	f = fopen(filename, "rt");
+	if (!f)
+	{
+		_snprintf(linebuffer, sizeof(linebuffer)-1, "%s.asm", filename);
+		f = fopen(linebuffer, "rt");
+	}
+
 	if (f)
 	{
 		while(fgets(linebuffer, sizeof(linebuffer), f))
@@ -836,7 +842,10 @@ void AssembleFile(struct assembler *w, int fnum, char *filename)
 		fclose(f);
 	}
 	else
+	{
+		printf("couldn't open %s\n", filename);
 		w->errorcount++;
+	}
 
 	//reset the local symbol hash, so we don't find conflicting vars
 	memset(w->localsymboltablebuckets, 0, sizeof(w->localsymboltablebuckets));
@@ -1045,6 +1054,12 @@ void Assemble(struct workload *w)
 int ParseCommandList(struct workload *w, int numcmds, char **cmds)
 {
 	char **t;
+
+	FILE *f;
+	char *buffer, *pp, *pps;
+	unsigned int len, numextraargs;
+	char *suppargs[64];
+
 	while (numcmds)
 	{
 		if ((*cmds)[0] == '-')
@@ -1053,18 +1068,88 @@ int ParseCommandList(struct workload *w, int numcmds, char **cmds)
 			{
 				numcmds--;
 				cmds++;
-				
-				//todo: include a file
-				printf("-f directive not supported yet\n");
-				return 1;
+
+				f = fopen(*cmds, "rt");
+				if (!f)
+				{
+					char blah[256];
+					_snprintf(blah, sizeof(blah)-1, "%s.q3asm", *cmds);
+					f = fopen(blah, "rt");
+				}
+				if (f)
+				{
+					fseek(f, 0, SEEK_END);
+					len = ftell(f);
+					fseek(f, 0, SEEK_SET);
+					buffer = malloc((len+9));
+					if (buffer)
+					{
+						if (fread(buffer, 1, len, f) == len)
+						{
+							buffer[len] = 0;
+							numextraargs = 0;
+							pp = buffer;
+							do
+							{
+								if (numextraargs == sizeof(suppargs)/sizeof(suppargs[0]))
+									break;
+								while (*pp == ' ' || *pp == '\r' || *pp == '\n')
+								{
+									pp++;
+								}
+								if (*pp == '\"')
+								{
+									pp++;
+									pps = pp;
+									while (*pp && *pp != '\"')
+										pp++;
+								}
+								else
+								{
+									pps = pp;
+									while (*pp && !(*pp == ' ' || *pp == '\r' || *pp == '\n'))
+									{
+										pp++;
+									}
+								}
+								if (*pp)
+									*pp++ = 0;
+								suppargs[numextraargs] = pps;
+								numextraargs++;
+							} while (*pp);
+							ParseCommandList(w, numextraargs, suppargs);
+						}
+						else
+						{
+							printf("failure reading source file\n");
+						}
+						free(buffer);
+					}
+					else
+					{
+						printf("out of memory\n");
+					}
+					fclose(f);
+				}
+				else
+				{
+					printf("couldn't open \"%s\"\n", *cmds);
+				}
 			}
 			else if ((*cmds)[1] == 'o')
 			{
 				numcmds--;
 				cmds++;
 
-				strncpy(w->output, *cmds, sizeof(w->output)-1);
-				w->output[sizeof(w->output)-1] = 0;
+				if (!strchr(*cmds, '.'))
+				{
+					_snprintf(w->output, sizeof(w->output)-1, "%s.qvm", *cmds);
+				}
+				else
+				{
+					strncpy(w->output, *cmds, sizeof(w->output)-1);
+					w->output[sizeof(w->output)-1] = 0;
+				}
 			}
 			else if ((*cmds)[1] == 'v')
 				w->verbose = 1;

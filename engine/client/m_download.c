@@ -6,7 +6,7 @@
 
 #ifdef DOWNLOADMENU
 
-#define ROOTDOWNLOADABLESSOURCE "http://fteqw.sourceforge.net/downloadables.txt"
+#define ROOTDOWNLOADABLESSOURCE "http://fteqw.com/downloadables.txt"
 #define INSTALLEDFILES	"installed.lst"	//the file that resides in the quakedir (saying what's installed).
 
 #define DPF_HAVEAVERSION	1	//any old version
@@ -413,7 +413,7 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 			slash = strchr(path+prefixlen, '/');
 			if (slash)
 				*slash = '\0';
-			
+
 			for (mo = m->options; mo; mo = mo->common.next)
 				if (mo->common.type == mt_button)
 					if (!strcmp(mo->button.text, path + prefixlen))

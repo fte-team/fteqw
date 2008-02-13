@@ -1026,6 +1026,7 @@ of the list so they override previous pack files.
 static void *FSZIP_LoadZipFile (vfsfile_t *packhandle, char *desc)
 {
 	int i;
+	int nextfileziphandle;
 
 	zipfile_t *zip;
 	packfile_t		*newfiles;
@@ -1055,7 +1056,11 @@ static void *FSZIP_LoadZipFile (vfsfile_t *packhandle, char *desc)
 		Q_strlwr(newfiles[i].name);
 		newfiles[i].filelen = file_info.uncompressed_size;
 		newfiles[i].filepos = file_info.c_offset;
-		if (unzGoToNextFile (zip->handle) != UNZ_OK)
+
+		nextfileziphandle = unzGoToNextFile (zip->handle);
+		if (nextfileziphandle == UNZ_END_OF_LIST_OF_FILE)
+			break;
+		else if (nextfileziphandle != UNZ_OK)
 			Con_Printf("Zip Error\n");
 	}
 

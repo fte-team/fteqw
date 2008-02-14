@@ -545,7 +545,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 void GLVID_DeInit()
 {
-	printf("1\n");
 	if (glctx)
 	{
 		if (screen && !(TinyGLBase->lib_Version == 0 && TinyGLBase->lib_Revision < 4))
@@ -560,7 +559,6 @@ void GLVID_DeInit()
 		glctx = 0;
 	}
 
-	printf("2\n");
 	if (__tglContext)
 	{
 		GLClose(__tglContext);

@@ -48,16 +48,7 @@ int Plug_ExecuteCommand(int *args)
 	else if (!strcmp("cl_bonusflash",		cmd))	cvar = "v_bonusflash";
 	else if (!strcmp("sw_gamma",			cmd))	cvar = "gamma";
 	else if (!strcmp("sw_contrast",			cmd))	cvar = "contrast";
-	else if (!strcmp("s_khz",				cmd))	cvar = "snd_khz";
-	else if (!strcmp("s_loadas8bit",		cmd))	cvar = "loadas8bit";
-	else if (!strcmp("s_mixahead",			cmd))	cvar = "_snd_mixahead";
-	else if (!strcmp("s_noextraupdate",		cmd))	cvar = "snd_noextraupdate";
 	else if (!strcmp("s_nosound",			cmd))	cvar = "nosound";
-	else if (!strcmp("s_precache",			cmd))	cvar = "precache";
-	else if (!strcmp("s_show",				cmd))	cvar = "snd_show";
-	else if (!strcmp("s_swapstereo",		cmd))	cvar = "snd_leftisright";
-	else if (!strcmp("s_ambientlevel",		cmd))	cvar = "ambient_level";
-	else if (!strcmp("s_ambientfade",		cmd))	cvar = "ambient_fade";
 	else if (!strcmp("scr_conback",			cmd))	cvar = "gl_conback";
 	else if (!strcmp("sv_maxpitch",			cmd))	cvar = "serverinfo maxpitch";
 	else if (!strcmp("sv_minpitch",			cmd))	cvar = "serverinfo minpitch";
@@ -136,16 +127,7 @@ void ezScript_InitCommands(void) // not really needed actually
 	Cmd_AddCommand("sw_gamma");
 	Cmd_AddCommand("sw_contrast");
 	//sound
-	Cmd_AddCommand("s_khz");
-	Cmd_AddCommand("s_loadas8bit");
-	Cmd_AddCommand("s_mixahead");
-	Cmd_AddCommand("s_noextraupdate");
 	Cmd_AddCommand("s_nosound");
-	Cmd_AddCommand("s_precache");
-	Cmd_AddCommand("s_show");
-	Cmd_AddCommand("s_swapstereo");
-	Cmd_AddCommand("s_ambientlevel");
-	Cmd_AddCommand("s_ambientfade");
 	//teamplay
 	Cmd_AddCommand("tp_triggers");
 	Cmd_AddCommand("teamskin");

@@ -585,11 +585,11 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 	screenText_tcw = ((float)curView_width / (float)screen_texture_width);
 	screenText_tch = ((float)curView_height / (float)screen_texture_height);
 	if( scr_vrect.height > scr_vrect.width ) {
-		sampleText_tcw = ((float)scr_vrect.width / (float)scr_vrect.height);
+		sampleText_tcw = ((float)(scr_vrect.width+0.5) / (float)scr_vrect.height);
 		sampleText_tch = 1.0f;
 	} else {
 		sampleText_tcw = 1.0f;
-		sampleText_tch = ((float)scr_vrect.height / (float)scr_vrect.width);
+		sampleText_tch = ((float)(scr_vrect.height+0.5) / (float)scr_vrect.width);
 	}
 	sample_width = BLOOM_SIZE * sampleText_tcw;
 	sample_height = BLOOM_SIZE * sampleText_tch;

@@ -578,8 +578,11 @@ static qboolean CreateMainWindow(rendererstate_t *info)
 	{
 		TRACE(("dbg: GLVID_SetMode: VID_SetFullDIBMode\n"));
 		stat = VID_SetFullDIBMode(info);
-		IN_ActivateMouse ();
-		IN_HideMouse ();
+		if (stat)
+		{
+			IN_ActivateMouse ();
+			IN_HideMouse ();
+		}
 	}
 	return stat;
 }

@@ -1585,9 +1585,7 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 
 	R_SetRenderer(newr->renderer);
 
-	R_ApplyRenderer_Load(newr);
-
-	return true;
+	return R_ApplyRenderer_Load(newr);
 }
 qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 {
@@ -2084,11 +2082,24 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 
 			if (failed)
 			{
+				Con_Printf(CON_NOTICE "Trying 640*480\n");
+				newr.width = 640;
+				newr.height = 480;
+				failed = !R_ApplyRenderer(&newr);
+			}
+
+			if (failed)
+			{
 				newr.renderer = QR_NONE;
 				if (R_ApplyRenderer(&newr))
 				{
 					TRACE(("dbg: R_RestartRenderer_f going to dedicated\n"));
-					Con_Printf(CON_ERROR "Video mode switch failed. Old mode wasn't supported either. Console forced.\nChange vid_width, vid_height, vid_bpp, vid_displayfrequency to a compatible mode, and then use the setrenderer command.\n");
+					Con_Printf(CON_ERROR "Video mode switch failed. Old mode wasn't supported either. Console forced.\n\nChange the following vars to something useable, and then use the setrenderer command.\n");
+					Con_Printf("%s: %s\n", vid_width.name, vid_width.string);
+					Con_Printf("%s: %s\n", vid_height.name, vid_height.string);
+					Con_Printf("%s: %s\n", vid_bpp.name, vid_bpp.string);
+					Con_Printf("%s: %s\n", vid_refreshrate.name, vid_refreshrate.string);
+					Con_Printf("%s: %s\n", vid_renderer.name, vid_renderer.string);
 				}
 				else
 					Sys_Error("Couldn't fall back to previous renderer\n");

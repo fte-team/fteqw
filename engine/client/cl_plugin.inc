@@ -120,7 +120,7 @@ int VARGS Plug_Draw_LoadImage(void *offset, unsigned int mask, const int *arg)
 	}
 
 	if (pluginimagearray[i].pic)
-		return i;	//already loaded.
+		return i+1;	//already loaded.
 
 	if (qrenderer > 0)
 	{

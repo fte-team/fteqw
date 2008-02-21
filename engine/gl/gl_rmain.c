@@ -36,6 +36,8 @@ void R_RenderBrushPoly (msurface_t *fa);
 
 extern int		gl_canstencil;
 
+vrect_t gl_truescreenrect;
+
 FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
 FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 
@@ -737,6 +739,13 @@ void GLR_DrawEntitiesOnList (void)
 			}
 		}
 
+		if (currententity->model->engineflags & MDLF_NOTREPLACEMENTS)
+		{
+			if (currententity->model->fromgame != fg_quake || currententity->model->type != mod_halflife)
+				if (!ruleset_allow_sensative_texture_replacements.value)
+					continue;
+		}
+
 		switch (currententity->model->type)
 		{
 		case mod_alias:
@@ -1007,6 +1016,11 @@ void R_SetupGL (void)
 		x = y2 = 0;
 		w = h = 256;
 	}
+
+	gl_truescreenrect.x = x;
+	gl_truescreenrect.y = y;
+	gl_truescreenrect.width = w;
+	gl_truescreenrect.height = h;
 
 	qglViewport (glx + x, gly + y2, w, h);
 

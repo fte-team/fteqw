@@ -2257,6 +2257,14 @@ void PPL_BaseEntTextures(void)
 			}
 		}
 
+		if (currententity->model->engineflags & MDLF_NOTREPLACEMENTS)
+		{
+			if (currententity->model->fromgame != fg_quake || currententity->model->type != mod_halflife)
+				if (!ruleset_allow_sensative_texture_replacements.value)
+					continue;
+		}
+
+
 		switch (currententity->model->type)
 		{
 			//FIXME: We want to depth sort with particles, but we also want depth. :(
@@ -3115,6 +3123,13 @@ void PPL_DrawEntLighting(dlight_t *light, vec3_t colour)
 		}
 		if (!currententity->model)
 			continue;
+
+		if (currententity->model->engineflags & MDLF_NOTREPLACEMENTS)
+		{
+			if (currententity->model->fromgame != fg_quake || currententity->model->type != mod_halflife)
+				if (!ruleset_allow_sensative_texture_replacements.value)
+					continue;
+		}
 
 		switch (currententity->model->type)
 		{
@@ -4746,6 +4761,8 @@ qboolean PPL_AddLight(dlight_t *dl)
 	#ifdef _DEBUG
 		if (r_shadows.value == 666)	//testing (visible shadow volumes)
 		{
+			PPL_UpdateNodeShadowFrames(lvis);
+
 			if (qglGetError())
 				Con_Printf("GL Error on entities\n");
 			qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
@@ -4775,6 +4792,7 @@ qboolean PPL_AddLight(dlight_t *dl)
 
 			qglStencilOpSeparateATI(GL_BACK, GL_KEEP, sincrw, GL_KEEP);
 			qglStencilOpSeparateATI(GL_FRONT, GL_KEEP, sdecrw, GL_KEEP);
+
 			PPL_UpdateNodeShadowFrames(lvis);
 			PPL_RecursiveWorldNode(dl);
 			PPL_DrawShadowMeshes(dl);
@@ -4815,6 +4833,8 @@ qboolean PPL_AddLight(dlight_t *dl)
 			qglEnable(GL_CULL_FACE);
 
 			qglActiveStencilFaceEXT(GL_BACK);
+			qglStencilFunc( GL_ALWAYS, 0, ~0 );
+			qglActiveStencilFaceEXT(GL_FRONT);
 			qglStencilFunc( GL_EQUAL, 0, ~0 );
 		}
 		else //your graphics card sucks and lacks efficient stencil shadow techniques.
@@ -4850,8 +4870,9 @@ qboolean PPL_AddLight(dlight_t *dl)
 		qglCullFace(GL_FRONT);
 
 #if 0	//draw the stencil stuff to the red channel
-/*		{
-#pragma comment(lib, "opengl32.lib");
+/*
+		{
+#pragma comment(lib, "opengl32.lib")
 			static char buffer[1024*1024*8];
 			glReadPixels(0, 0, vid.width, vid.height, GL_STENCIL_INDEX, GL_UNSIGNED_BYTE, buffer);
 			glDrawPixels(vid.width, vid.height, GL_GREEN, GL_UNSIGNED_BYTE, buffer);
@@ -4864,13 +4885,21 @@ qboolean PPL_AddLight(dlight_t *dl)
 		qglPushMatrix();
 		GL_Set2D();
 
-		qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
-		qglStencilFunc( GL_GREATER, 1, ~0 );
-		Draw_ConsoleBackground(480);
+		{
+			extern cvar_t vid_conheight;
 
-		qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
-		qglStencilFunc( GL_LESS, 1, ~0 );
-		Draw_ConsoleBackground(480);
+			qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
+			qglStencilFunc(GL_GREATER, 1, ~0);
+			Draw_ConsoleBackground(vid_conheight.value);
+
+			qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
+			qglStencilFunc(GL_LESS, 1, ~0);
+			Draw_ConsoleBackground(vid_conheight.value);
+
+			qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
+			qglStencilFunc(GL_NEVER, 1, ~0);
+			Draw_ConsoleBackground(vid_conheight.value);
+		}
 
 		qglMatrixMode(GL_PROJECTION);
 		qglPopMatrix();

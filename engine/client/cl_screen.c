@@ -1252,9 +1252,9 @@ void SCR_DrawNet (void)
 void SCR_StringXY(char *str, float x, float y)
 {
 	if (x < 0)
-		x = vid.width - strlen(str)*8;
+		x = vid.width + x*strlen(str)*8;
 	if (y < 0)
-		y = vid.height - sb_lines - 8;
+		y = vid.height - sb_lines + y*8;
 
 	Draw_String(x, y, str);
 }

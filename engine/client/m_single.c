@@ -364,6 +364,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 				ShowDemoMenu(menu, va("%s", info->selected->name));
 			else
 			{
+				extern m_state_t m_state;
 				int extnum;
 				for (extnum = 0; extnum < info->numext; extnum++)
 					if (!stricmp(info->selected->name + strlen(info->selected->name)-4, info->ext[extnum]))
@@ -373,6 +374,8 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 					extnum = 0;
 
 				Cbuf_AddText(va("%s \"%s\"\n", info->command[extnum], info->selected->name), RESTRICT_LOCAL);
+				m_state = m_none;
+				
 			}
 		}
 		return true;

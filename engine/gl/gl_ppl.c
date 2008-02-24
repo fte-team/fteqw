@@ -2259,7 +2259,7 @@ void PPL_BaseEntTextures(void)
 
 		if (currententity->model->engineflags & MDLF_NOTREPLACEMENTS)
 		{
-			if (currententity->model->fromgame != fg_quake || currententity->model->type != mod_halflife)
+			if (currententity->model->fromgame != fg_quake || currententity->model->type != mod_alias)
 				if (!ruleset_allow_sensative_texture_replacements.value)
 					continue;
 		}
@@ -3126,7 +3126,7 @@ void PPL_DrawEntLighting(dlight_t *light, vec3_t colour)
 
 		if (currententity->model->engineflags & MDLF_NOTREPLACEMENTS)
 		{
-			if (currententity->model->fromgame != fg_quake || currententity->model->type != mod_halflife)
+			if (currententity->model->fromgame != fg_quake || currententity->model->type != mod_alias)
 				if (!ruleset_allow_sensative_texture_replacements.value)
 					continue;
 		}

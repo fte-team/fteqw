@@ -741,7 +741,7 @@ void GLR_DrawEntitiesOnList (void)
 
 		if (currententity->model->engineflags & MDLF_NOTREPLACEMENTS)
 		{
-			if (currententity->model->fromgame != fg_quake || currententity->model->type != mod_halflife)
+			if (currententity->model->fromgame != fg_quake || currententity->model->type != mod_alias)
 				if (!ruleset_allow_sensative_texture_replacements.value)
 					continue;
 		}

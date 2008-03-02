@@ -1061,7 +1061,7 @@ void S_ClearBuffer (soundcardinfo_t *sc)
 	buffer = sc->Lock(sc);
 	if (buffer)
 	{
-		Q_memset(sc->sn.buffer, clear, sc->sn.samples * sc->sn.samplebits/8);
+		Q_memset(buffer, clear, sc->sn.samples * sc->sn.samplebits/8);
 		sc->Unlock(sc, buffer);
 	}
 }

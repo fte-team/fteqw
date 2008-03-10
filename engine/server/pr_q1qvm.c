@@ -640,7 +640,7 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 		break;
 
 	case G_SPRINT:
-		if ((unsigned)VM_LONG(arg[0]) >= sv.allocated_client_slots)
+		if ((unsigned)VM_LONG(arg[0]) > sv.allocated_client_slots)
 			return 0;
 		SV_ClientPrintf(&svs.clients[VM_LONG(arg[0])-1], VM_LONG(arg[1]), "%s", VM_POINTER(arg[2]));
 		break;

@@ -297,13 +297,23 @@ void PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
 	mpic_t	*pic;
+	float fromwad;
 
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
+	if (*prinst->callargc > 1)
+		fromwad = G_FLOAT(OFS_PARM1);
+	else
+		fromwad = false;
 
-	if (cls.state && !sv.active)
-		CL_CheckOrEnqueDownloadFile(str, str);
+	if (fromwad)
+		pic = Draw_SafePicFromWad(str);
+	else
+	{
+		if (cls.state && !sv.active)
+			CL_CheckOrEnqueDownloadFile(str, str);
 
-	pic = Draw_SafeCachePic(str);
+		pic = Draw_SafeCachePic(str);
+	}
 
 	if (pic)
 		G_INT(OFS_RETURN) = G_INT(OFS_PARM0);

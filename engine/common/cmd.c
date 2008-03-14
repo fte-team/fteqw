@@ -440,7 +440,14 @@ void Cmd_StuffCmds (void)
 	{
 		if (!com_argv[i])
 			continue;		// NEXTSTEP nulls out -NXHost
-		Q_strcat (text,com_argv[i]);
+		if (strchr(com_argv[i], ' ') || strchr(com_argv[i], '\t'))
+		{
+			Q_strcat (text,"\"");
+			Q_strcat (text,com_argv[i]);
+			Q_strcat (text,"\"");
+		}
+		else
+			Q_strcat (text,com_argv[i]);
 		if (i != com_argc-1)
 			Q_strcat (text, " ");
 	}

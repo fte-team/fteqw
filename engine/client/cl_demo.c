@@ -1759,7 +1759,10 @@ void CL_QTVPlay_f (void)
 		FILE *f;
 		f = fopen(connrequest+1, "rt");
 		if (!f)
+		{
+			Con_Printf("Couldn't open QTV file: %s\n", connrequest+1);
 			return;
+		}
 		while (!feof(f))
 		{
 			fgets(buffer, sizeof(buffer)-1, f);

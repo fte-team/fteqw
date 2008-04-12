@@ -1033,7 +1033,7 @@ void CL_Record_f (void)
 		MSG_WriteLong (&buf, cls.fteprotocolextensions);
 	}
 #endif
-	MSG_WriteLong (&buf, PROTOCOL_VERSION);
+	MSG_WriteLong (&buf, PROTOCOL_VERSION_QW);
 	MSG_WriteLong (&buf, cl.servercount);
 	MSG_WriteString (&buf, gamedirfile);
 

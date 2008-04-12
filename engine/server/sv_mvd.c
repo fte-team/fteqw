@@ -1731,7 +1731,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 		MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE);
 		MSG_WriteLong (&buf, PEXT_FLOATCOORDS);
 	}
-	MSG_WriteLong (&buf, PROTOCOL_VERSION);
+	MSG_WriteLong (&buf, PROTOCOL_VERSION_QW);
 	MSG_WriteLong (&buf, svs.spawncount);
 	MSG_WriteString (&buf, gamedir);
 

@@ -227,7 +227,7 @@ void SV_New_f (void)
 			MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions);
 	}
 #endif
-	ClientReliableWrite_Long (host_client, ISQ2CLIENT(host_client)?PROTOCOL_VERSION_Q2:PROTOCOL_VERSION);
+	ClientReliableWrite_Long (host_client, ISQ2CLIENT(host_client)?PROTOCOL_VERSION_Q2:PROTOCOL_VERSION_QW);
 	ClientReliableWrite_Long (host_client, svs.spawncount);
 	if (ISQ2CLIENT(host_client))
 		ClientReliableWrite_Byte (host_client, 0);

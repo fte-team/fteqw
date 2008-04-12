@@ -85,9 +85,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PROTOCOL_VERSION_FTE			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))	//fte extensions.
 #define PROTOCOL_VERSION_HUFFMAN		(('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24))	//packet compression
 
-#define	PROTOCOL_VERSION	28
-#define	PROTOCOL_VERSION_Q2_MIN	31
-#define	PROTOCOL_VERSION_Q2	34
+#define	PROTOCOL_VERSION_QW 28
+#define	PROTOCOL_VERSION_Q2_MIN 31
+#define	PROTOCOL_VERSION_Q2 34
 
 //=========================================
 

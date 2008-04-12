@@ -1556,9 +1556,9 @@ client_t *SVC_DirectConnect(void)
 			numssclients = 1;
 			protocol = SCP_NETQUAKE;
 		}
-		else if (version != PROTOCOL_VERSION)
+		else if (version != PROTOCOL_VERSION_QW)
 		{
-			SV_RejectMessage (SCP_BAD, "Server is protocol version %i, received %i\n", PROTOCOL_VERSION, version);
+			SV_RejectMessage (SCP_BAD, "Server is protocol version %i, received %i\n", PROTOCOL_VERSION_QW, version);
 			Con_Printf ("* rejected connect from version %i\n", version);
 			return NULL;
 		}

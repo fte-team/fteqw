@@ -499,7 +499,7 @@ void CL_SendConnectPacket (
 		Q_strncatz(data, va(" %i", PROTOCOL_VERSION_Q2), sizeof(data));
 	else
 #endif
-		Q_strncatz(data, va(" %i", PROTOCOL_VERSION), sizeof(data));
+		Q_strncatz(data, va(" %i", PROTOCOL_VERSION_QW), sizeof(data));
 
 
 	Q_strncatz(data, va(" %i %i", cls.qport, cls.challenge), sizeof(data));

@@ -87,6 +87,17 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
 
+#ifdef MULTITHREAD
+void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize);
+void Sys_WaitOnThread(void *thread);
+
+void *Sys_CreateMutex();
+qboolean Sys_TryLockMutex(void *mutex);
+qboolean Sys_LockMutex(void *mutex);
+qboolean Sys_UnlockMutex(void *mutex);
+void Sys_DestroyMutex(void *mutex);
+#endif
+
 #ifdef _WIN32
 int StartLocalServer(int close);
 #endif

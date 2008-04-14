@@ -20,6 +20,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qwsvdef.h"
 
+#ifdef SQL
+#include "win_mysql.h"
+#endif
+
 #define G_PROG G_FLOAT
 #define Z_QC_TAG 2
 
@@ -81,6 +85,11 @@ void PR_ClearThreads(void);
 void PR_fclose_progs(progfuncs_t*);
 void PF_InitTempStrings(progfuncs_t *prinst);
 
+#ifdef SQL
+// SQL prototypes
+void SQL_Init();
+void SQL_DeInit();
+#endif
 
 typedef struct {
 	//for func finding and swapping.
@@ -1059,6 +1068,11 @@ void Q_InitProgs(void)
 	if (oldprnum < 0)
 		SV_Error("Couldn't open or compile progs\n");
 
+#ifdef SQL
+	// TODO: this REALLY needs better placement but this is for testing
+	SQL_DeInit();  
+	SQL_Init();
+#endif
 
 	f = PR_FindFunction (svprogfuncs, "AddAddonProgs", oldprnum);
 /*	if (num)
@@ -6308,7 +6322,485 @@ void PR_fclose_progs (progfuncs_t *prinst)
 	search_close_progs(prinst, true);
 }
 
+// FTE SQL functions
+#ifdef SQL
+typedef struct queryrequest_s
+{
+	int num; // query number reference
+	struct queryrequest_s *next; // next request in queue
+	int callback; // callback function reference
+	char query[1]; // query to run (struct hack)
+} queryrequest_t;
 
+typedef struct queryresult_s
+{
+	struct queryrequest_s *request; // corresponding request
+	struct queryresult_s *next; // next result in queue
+	int rows; // rows contained in single result set
+	int columns; // fields
+	MYSQL_RES *result; // result set from mysql
+	char **resultset; // stored result set from partial fetch
+	char error[1]; // error string, "" if none (struct hack)
+} queryresult_t;
+
+typedef struct sqlserver_s
+{
+	void *thread; // worker thread for server
+	MYSQL *mysql; // mysql server
+	qboolean active; // set to false to kill thread
+	void *requestlock; // mutex for linked list read/write
+	void *resultlock; // mutex for linked list read/write
+	int querynum; // next reference number for queries
+	queryrequest_t *requests; // query requests
+	queryresult_t *results; // query results link
+	queryresult_t *currentresult; // current called result
+	queryresult_t *serverresult; // server error results
+	char host[1]; // host (struct hack)
+} sqlserver_t;
+
+sqlserver_t **sqlservers;
+int sqlservercount;
+
+int sql_serverworker(void *sref)
+{
+	sqlserver_t *server = (sqlserver_t *)sref;
+	char *error = NULL;
+	my_bool reconnect = 1;
+
+	if (mysql_thread_init())
+		error = "MYSQL thread init failed";
+	else if (!(server->mysql = mysql_init(NULL)))
+		error = "MYSQL init failed";
+	else if (mysql_options(server->mysql, MYSQL_OPT_RECONNECT, &reconnect))
+		error = "MYSQL reconnect options set failed";
+	else if (!(server->mysql = mysql_real_connect(server->mysql, "localhost", "root", "ftetest6", NULL, 0, 0, 0)))
+		error = "MYSQL initial connect attempt failed";
+
+	if (error)
+		server->active = false;
+
+	while (server->active)
+	{
+		queryrequest_t *qreq = NULL;
+		
+		// replace this with a conditional
+		if (server->requests)
+		{
+			Sys_LockMutex(server->requestlock);
+			qreq = server->requests;
+			server->requests = qreq->next;
+			Sys_UnlockMutex(server->requestlock);
+		}
+
+		while (qreq)
+		{
+			queryresult_t *qres;
+			const char *qerror = NULL;
+			MYSQL_RES *mysqlres = NULL;
+			int rows = -1;
+			int columns = -1;
+			int qesize = 0;
+
+			if (mysql_query(server->mysql, qreq->query))
+				qerror = mysql_error(server->mysql);
+			else // query succeeded
+			{
+				mysqlres = mysql_store_result(server->mysql);
+				if (mysqlres) // result set returned
+				{
+					rows = mysql_num_rows(mysqlres);
+					columns = mysql_num_fields(mysqlres);
+				}
+				else if (mysql_field_count(server->mysql) == 0) // no result set
+				{
+					rows = mysql_affected_rows(server->mysql);
+					columns = 0;
+				}
+				else // error
+					qerror = mysql_error(server->mysql);
+			}
+
+			if (qerror)
+				qesize = Q_strlen(qerror);
+			qres = (queryresult_t *)Z_Malloc(sizeof(queryresult_t) + qesize);
+			if (qerror)
+				Q_strncpy(qres->error, qerror, qesize);
+			qres->result = mysqlres;
+			qres->rows = rows;
+			qres->columns = columns;
+			qres->request = qreq;
+			qreq->next = NULL;
+
+			Sys_LockMutex(server->resultlock);
+			qres->next = server->results;
+			server->results = qres;
+			Sys_UnlockMutex(server->resultlock);
+
+			Sys_LockMutex(server->requestlock);
+			qreq = server->requests;
+			if (qreq)
+				server->requests = qreq->next;
+			Sys_UnlockMutex(server->requestlock);
+		}
+
+	}
+
+	if (error)
+	{
+		int esize = Q_strlen(error);
+		queryresult_t *qres = (queryresult_t *)Z_Malloc(sizeof(queryresult_t) + esize);
+
+		qres->rows = qres->columns = -1;
+		Q_strncpy(qres->error, error, esize);
+
+		Sys_LockMutex(server->resultlock);
+		qres->next = server->results;
+		server->results = qres;
+		Sys_UnlockMutex(server->resultlock);
+
+	}
+
+	mysql_close(server->mysql);
+
+	mysql_thread_end();
+
+	return 0;
+}
+
+void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int serverref;
+	char *hoststr;
+	int hsize;
+	sqlserver_t *server;
+
+	if (sqlservers == NULL)
+	{
+		serverref = 0;
+		sqlservercount = 1;
+		sqlservers = (sqlserver_t **)BZ_Malloc(sizeof(sqlserver_t *));
+	}
+	else
+	{
+		serverref = sqlservercount;
+		sqlservercount++;
+		sqlservers = (sqlserver_t **)BZ_Realloc(sqlservers, sizeof(sqlserver_t *) * sqlservercount);
+	}
+
+	// TODO: need option logic for "default server" here
+	hoststr = PR_GetStringOfs(prinst, OFS_PARM0);
+	hsize = Q_strlen(hoststr);
+
+	server = (sqlserver_t *)Z_Malloc(sizeof(sqlserver_t) + hsize);
+	Q_strncpy(server->host, hoststr, hsize);
+
+	sqlservers[serverref] = server;
+
+	server->active = true;
+	server->requestlock = Sys_CreateMutex();
+	server->resultlock = Sys_CreateMutex();
+
+	server->thread = Sys_CreateThread(sql_serverworker, (void *)server, 1024);
+
+	G_FLOAT(OFS_RETURN) = serverref;
+}
+
+void PF_sqldisconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int serverref = G_FLOAT(OFS_PARM0);
+
+	if (serverref < 0 || serverref >= sqlservercount || sqlservers[serverref]->active == false)
+		return;
+
+	sqlservers[serverref]->active = false;
+
+	// TODO: conditional broadcast here
+}
+
+void PF_sqlopenquery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int serverref = G_FLOAT(OFS_PARM0);
+	int callfunc = G_INT(OFS_PARM2);
+	char *querystr = PR_GetStringOfs(prinst, OFS_PARM1);
+	int qsize = Q_strlen(querystr);
+	queryrequest_t *qreq = (queryrequest_t *)Z_Malloc(sizeof(queryrequest_t) + qsize);
+	int querynum;
+
+	if (serverref < 0 || serverref >= sqlservercount || sqlservers[serverref]->active == false)
+	{
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+
+	qreq->callback = callfunc;
+	querynum = qreq->num = sqlservers[serverref]->querynum;
+	sqlservers[serverref]->querynum++;
+	Q_strncpy(qreq->query, querystr, qsize);
+
+	// add into request queue
+	Sys_LockMutex(sqlservers[serverref]->requestlock);
+	qreq->next = sqlservers[serverref]->requests;
+	sqlservers[serverref]->requests = qreq;
+	Sys_UnlockMutex(sqlservers[serverref]->requestlock);
+
+	// TODO: conditional trip here
+
+	G_FLOAT(OFS_RETURN) = querynum;
+}
+
+void PF_sqlclosequery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int serverref = G_FLOAT(OFS_PARM0);
+	int queryref = G_FLOAT(OFS_PARM1);
+	
+	if (serverref < 0 ||
+		serverref >= sqlservercount || 
+		sqlservers[serverref]->active == false ||
+		!sqlservers[serverref]->currentresult ||
+		!sqlservers[serverref]->currentresult->request ||
+		sqlservers[serverref]->currentresult->request->num != queryref)
+		return;
+	// TODO: partial resultset logic not implemented yet
+
+	// deallocate current result
+	if (sqlservers[serverref]->currentresult->result)
+		mysql_free_result(sqlservers[serverref]->currentresult->result);
+
+	if (sqlservers[serverref]->currentresult->request)
+		Z_Free(sqlservers[serverref]->currentresult->request);
+	Z_Free(sqlservers[serverref]->currentresult);
+	sqlservers[serverref]->currentresult = NULL;
+}
+
+void PF_sqlreadfield (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int serverref = G_FLOAT(OFS_PARM0);
+	int queryref = G_FLOAT(OFS_PARM1);
+	int row = G_FLOAT(OFS_PARM2);
+	int col = G_FLOAT(OFS_PARM3);
+
+	if (serverref < 0 ||
+		serverref >= sqlservercount || 
+		sqlservers[serverref]->active == false ||
+		!sqlservers[serverref]->currentresult ||
+		!sqlservers[serverref]->currentresult->request ||
+		sqlservers[serverref]->currentresult->request->num != queryref)
+	{ // serverref/queryref validity, also this call must be in the scope of the query callback
+		G_INT(OFS_RETURN) = 0;		
+		return;
+	}
+
+	if (!sqlservers[serverref]->currentresult->result)
+	{ // TODO: partial resultset logic not implemented yet
+		G_INT(OFS_RETURN) = 0;		
+		return;
+	}
+	else
+	{ // store_result query
+		MYSQL_ROW sqlrow;
+
+		if (sqlservers[serverref]->currentresult->rows < row ||
+			sqlservers[serverref]->currentresult->columns < col)
+		{ // out of bounds
+			G_INT(OFS_RETURN) = 0;		
+			return;
+		}
+
+		mysql_data_seek(sqlservers[serverref]->currentresult->result, row);
+		sqlrow = mysql_fetch_row(sqlservers[serverref]->currentresult->result);
+		if (!sqlrow || !sqlrow[col])
+		{
+			G_INT(OFS_RETURN) = 0;		
+			return;
+		}
+		else
+			RETURN_TSTRING(sqlrow[col]);
+	}
+}
+
+void PF_sqlerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int serverref = G_FLOAT(OFS_PARM0);
+
+	if (serverref < 0 || serverref >= sqlservercount)
+	{
+		RETURN_TSTRING("");
+		return;
+	}
+
+	if (*svprogfuncs->callargc == 2)
+	{
+		int queryref = G_FLOAT(OFS_PARM1);
+
+		if (!sqlservers[serverref]->active || 
+			!sqlservers[serverref]->currentresult || 
+			!sqlservers[serverref]->currentresult->request ||
+			sqlservers[serverref]->currentresult->request->num != queryref)
+		{
+			RETURN_TSTRING("");
+			return;
+		}
+		
+		RETURN_TSTRING(sqlservers[serverref]->currentresult->error);
+	}
+	else
+	{
+		if (!sqlservers[serverref]->serverresult)
+		{
+			RETURN_TSTRING("");
+			return;
+		}
+		RETURN_TSTRING(sqlservers[serverref]->serverresult->error);
+	}
+}
+
+void PF_sqlescape (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int serverref = G_FLOAT(OFS_PARM0);
+	char *toescape;
+	char escaped[4096];
+
+	toescape = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	if (!*toescape || serverref < 0 || serverref >= sqlservercount || sqlservers[serverref]->active == false)
+	{
+		RETURN_TSTRING("");
+		return;
+	}
+
+	mysql_real_escape_string(sqlservers[serverref]->mysql, escaped, toescape, sizeof(escaped) / sizeof(*escaped));
+
+	RETURN_TSTRING(escaped);
+}
+
+void SQL_Cycle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i;
+
+	for (i = 0; i < sqlservercount; i++)
+	{
+		sqlserver_t *server = sqlservers[i];
+		queryresult_t *qres;
+
+		while (1)
+		{
+			Sys_LockMutex(server->resultlock);
+			qres = server->results;
+			if (!qres)
+			{
+				Sys_UnlockMutex(server->resultlock);
+				break;
+			}
+			server->results = qres->next;
+			Sys_UnlockMutex(server->resultlock);
+
+			qres->next = NULL;
+			if (qres->request && qres->request->callback)
+			{
+				if (server->active)
+				{ // only process results to callback if server is active
+					server->currentresult = qres;
+					G_FLOAT(OFS_PARM0) = i;
+					G_FLOAT(OFS_PARM1) = qres->request->num;
+					G_FLOAT(OFS_PARM2) = qres->rows;
+					G_FLOAT(OFS_PARM3) = qres->columns;
+
+					PR_ExecuteProgram(prinst, qres->request->callback);
+				}
+			}
+			else // error or server-only result
+			{
+				if (server->serverresult)
+					Z_Free(server->serverresult);
+				server->serverresult = qres;
+			}
+		}
+		server->currentresult = NULL;
+	}
+}
+
+void PR_SQLCycle()
+{
+	globalvars_t *pr_globals;
+
+	if (!svprogfuncs)
+		return;
+
+	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+
+	SQL_Cycle(svprogfuncs, pr_globals);
+}
+
+void SQL_Init()
+{
+#ifdef WIN32
+	if (!mysql_dll_init())
+	{
+		Con_Printf("mysqlclient.dll didn't load\n");
+		// TODO: disable extension here
+	}
+#endif
+
+	if (!mysql_thread_safe())
+	{
+		Con_Printf("MYSQL client is not thread safe!\n");
+		// TODO: disable extension here
+	}
+}
+
+void SQL_DeInit()
+{
+	int i;
+	for (i = 0; i < sqlservercount; i++)
+	{
+		sqlserver_t *server = sqlservers[i];
+		queryrequest_t *qreq, *oldqreq;
+		queryresult_t *qres, *oldqres;
+
+		server->active = false; // kill thread
+		Sys_WaitOnThread(server->thread);
+
+		// server resource deallocation (TODO: should this be done in the thread itself?)
+		Sys_DestroyMutex(server->requestlock);
+		Sys_DestroyMutex(server->resultlock);
+		
+		qreq = server->requests;
+		while (qreq)
+		{
+			oldqreq = qreq;
+			qreq = qreq->next;
+			Z_Free(qreq);
+		}
+
+		qres = server->results;
+		while (qres)
+		{
+			if (qres->result)
+				mysql_free_result(qres->result);
+
+			if (qres->request)
+				Z_Free(qres->request);
+
+			// TODO: resultset
+
+			oldqres = qres;
+			qres = qres->next;
+			Z_Free(qres);
+		}
+
+		if (server->serverresult)
+			Z_Free(server->serverresult);
+
+		Z_Free(server);
+	}
+	if (sqlservers)
+		Z_Free(sqlservers);
+	sqlservers = NULL;
+	sqlservercount = 0;
+
+	mysql_dll_close();
+}
+#endif
 
 
 
@@ -6439,6 +6931,10 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_TRACETRIGGER"},
 	{"FTE_SOLID_LADDER"},	//part of a worthy hl implementation. Allows a simple trigger to remove effects of gravity (solid 20)
 
+#ifdef SQL
+	// serverside SQL functions for managing an SQL database connection
+	{"FTE_SQL",							7, NULL, {"sqlconnect","sqldisconnect","sqlopenquery","sqlclosequery","sqlreadfield","sqlerror","sqlescape"}},
+#endif
 	//eperimental advanced strings functions.
 	//reuses the FRIK_FILE builtins (with substring extension)
 	{"FTE_STRINGS",						16, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
@@ -9679,6 +10175,16 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"sendpacket",		PF_SendPacket,		0,		0,		0,		242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
 #ifdef PEXT_BULLETENS
 	{"bulleten",		PF_bulleten,		0,		0,		0,		243},
+#endif
+
+#ifdef SQL
+	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250},	// #250 float([string server]) sqlconnect (FTE_SQL)
+	{"sqldisconnect",	PF_sqldisconnect,	0,		0,		0,		251},	// #251 void(float serveridx) sqldisconnect (FTE_SQL)
+	{"sqlopenquery",	PF_sqlopenquery,	0,		0,		0,		252},	// #252 float(float serveridx, string query, void(float serveridx, float queryidx, float rows, float columns) callback) sqlopenquery (FTE_SQL)
+	{"sqlclosequery",	PF_sqlclosequery,	0,		0,		0,		253},	// #253 void(float serveridx, float queryidx) sqlclosequery (FTE_SQL)
+	{"sqlreadfield",	PF_sqlreadfield,	0,		0,		0,		254},	// #254 string(float serveridx, float queryidx, float row, float column) sqlreadfield (FTE_SQL)
+	{"sqlerror",		PF_sqlerror,		0,		0,		0,		255},	// #255 string(float serveridx, [float queryidx]) sqlerror (FTE_SQL)
+	{"sqlescape",		PF_sqlescape,		0,		0,		0,		256},	// #256 string(float serveridx, string data) sqlescape (FTE_SQL)
 #endif
 
 //EXT_CSQC

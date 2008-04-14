@@ -203,6 +203,10 @@ void Master_Shutdown (void);
 void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
 bannedips_t *SV_BannedAddress (netadr_t *a);
 
+#ifdef SQL
+void PR_SQLCycle();
+#endif
+
 //============================================================================
 
 qboolean ServerPaused(void)
@@ -3044,6 +3048,10 @@ void SV_MVDStream_Poll(void);
 	{
 		PR_GameCodePausedTic(Sys_DoubleTime() - sv.pausedstart);
 	}
+
+#ifdef SQL
+	PR_SQLCycle();
+#endif
 
 	while(SV_ReadMVD());
 

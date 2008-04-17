@@ -6573,8 +6573,8 @@ void PF_sqldisconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_sqlopenquery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int serverref = G_FLOAT(OFS_PARM0);
-	int callfunc = G_INT(OFS_PARM2);
-	char *querystr = PR_GetStringOfs(prinst, OFS_PARM1);
+	int callfunc = G_INT(OFS_PARM1);
+	char *querystr = PF_VarString(prinst, 2, pr_globals);
 	int qsize = Q_strlen(querystr);
 	queryrequest_t *qreq = (queryrequest_t *)Z_Malloc(sizeof(queryrequest_t) + qsize);
 	int querynum;
@@ -6748,7 +6748,7 @@ void PF_sqlescape (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	mysql_real_escape_string(sqlservers[serverref]->mysql, escaped, toescape, sizeof(escaped) / sizeof(*escaped));
+	mysql_real_escape_string(sqlservers[serverref]->mysql, escaped, toescape, strlen(toescape));
 
 	RETURN_TSTRING(escaped);
 }
@@ -10285,7 +10285,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #ifdef SQL
 	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250},	// #250 float([string server]) sqlconnect (FTE_SQL)
 	{"sqldisconnect",	PF_sqldisconnect,	0,		0,		0,		251},	// #251 void(float serveridx) sqldisconnect (FTE_SQL)
-	{"sqlopenquery",	PF_sqlopenquery,	0,		0,		0,		252},	// #252 float(float serveridx, string query, void(float serveridx, float queryidx, float rows, float columns, float eof) callback) sqlopenquery (FTE_SQL)
+	{"sqlopenquery",	PF_sqlopenquery,	0,		0,		0,		252},	// #252 float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, string query...) sqlopenquery (FTE_SQL)
 	{"sqlclosequery",	PF_sqlclosequery,	0,		0,		0,		253},	// #253 void(float serveridx, float queryidx) sqlclosequery (FTE_SQL)
 	{"sqlreadfield",	PF_sqlreadfield,	0,		0,		0,		254},	// #254 string(float serveridx, float queryidx, float row, float column) sqlreadfield (FTE_SQL)
 	{"sqlerror",		PF_sqlerror,		0,		0,		0,		255},	// #255 string(float serveridx, [float queryidx]) sqlerror (FTE_SQL)

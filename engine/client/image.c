@@ -592,6 +592,7 @@ qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, char *fname)
 	int y, bitdepth, colortype, interlace, compression, filter, bytesperpixel;
 	unsigned long rowbytes;
 	pngreadinfo_t ri;
+	png_uint_32 pngwidth, pngheight;
 
 	memcpy(header, buf, 8);
 
@@ -628,7 +629,10 @@ error:
 
 	png_set_sig_bytes(png, 8);
 	png_read_info(png, pnginfo);
-	png_get_IHDR(png, pnginfo, (png_uint_32 *) width, (png_uint_32 *) height, &bitdepth, &colortype, &interlace, &compression, &filter);
+	png_get_IHDR(png, pnginfo, &pngwidth, &pngheight, &bitdepth, &colortype, &interlace, &compression, &filter);
+
+	*width = pngwidth;
+	*height = pngheight;
 
 	if (colortype == PNG_COLOR_TYPE_PALETTE) {
 		png_set_palette_to_rgb(png);
@@ -667,7 +671,7 @@ error:
 	}
 
 	data = BZF_Malloc(*height * rowbytes );
-	rowpointers = BZF_Malloc(*height * 4);
+	rowpointers = BZF_Malloc(*height * sizeof(*rowpointers));
 
 	if (!data || !rowpointers)
 		goto error;

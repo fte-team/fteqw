@@ -136,10 +136,13 @@ static qboolean Alsa_InitAlsa(void)
 
 	// Try alternative names of libasound, sometimes it is not linked correctly.
 	alsasharedobject = dlopen("libasound.so.2", RTLD_LAZY|RTLD_LOCAL);
-	alsasharedobject = dlopen("libasound.so", RTLD_LAZY|RTLD_LOCAL);
 	if (!alsasharedobject)
 	{
-		return false;
+		alsasharedobject = dlopen("libasound.so", RTLD_LAZY|RTLD_LOCAL);
+		if (!alsasharedobject)
+		{
+			return false;
+		}
 	}
 
 

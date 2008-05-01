@@ -933,17 +933,22 @@ int GetLittleLong(void)
 
 void FindNextChunk(char *name)
 {
+	unsigned int dataleft;
+
 	while (1)
 	{
-		data_p=last_chunk;
-		data_p += 4;
-		if (data_p >= iff_end)
+		dataleft = iff_end - last_chunk;
+		if (dataleft < 8)
 		{	// didn't find the chunk
 			data_p = NULL;
 			return;
 		}
+
+		data_p=last_chunk;
+		data_p += 4;
+		dataleft-= 8;
 		iff_chunk_len = GetLittleLong();
-		if (iff_chunk_len < 0)
+		if (iff_chunk_len < 0 || iff_chunk_len > dataleft)
 		{
 			data_p = NULL;
 			return;

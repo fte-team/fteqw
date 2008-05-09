@@ -2567,7 +2567,7 @@ qboolean CL_CheckBaselines (int size)
 	if (size < cl_baselines_count)
 		return true;
 
-	cl_baselines = BZ_Realloc(cl_baselines, sizeof(*cl_baselines)*size);
+	cl_baselines = BZ_Realloc(cl_baselines, sizeof(*cl_baselines)*size); 
 	for (i = cl_baselines_count; i < size; i++)
 	{
 		memcpy(cl_baselines + i, &nullentitystate, sizeof(*cl_baselines));

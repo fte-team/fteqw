@@ -3859,6 +3859,18 @@ qboolean CSQC_CenterPrint(char *cmd)
 
 //this protocol allows up to 32767 edicts.
 #ifdef PEXT_CSQC
+void CSQC_EntityCheck(int entnum)
+{
+	int newmax;
+
+	if (entnum >= maxcsqcentities)
+	{
+		newmax = entnum+64;
+		csqcent = BZ_Realloc(csqcent, sizeof(*csqcent)*newmax);
+		memset(csqcent + maxcsqcentities, 0, newmax - maxcsqcentities);
+		maxcsqcentities = newmax;
+	}
+}
 
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation)
 {
@@ -3868,11 +3880,7 @@ int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float 
 	if (!csqcprogs || !csqcg.serversound)
 		return false;
 
-	if (entnum >= maxcsqcentities)
-	{
-		maxcsqcentities = entnum+64;
-		csqcent = BZ_Realloc(csqcent, sizeof(*csqcent)*maxcsqcentities);
-	}
+	CSQC_EntityCheck(entnum);
 	ent = csqcent[entnum];
 	if (!ent)
 		return false;
@@ -3926,11 +3934,8 @@ void CSQC_ParseEntities(void)
 			if (!entnum)
 				Host_EndGame("CSQC cannot remove world!\n");
 
-			if (entnum >= maxcsqcentities)
-			{
-				maxcsqcentities = entnum+64;
-				csqcent = BZ_Realloc(csqcent, sizeof(*csqcent)*maxcsqcentities);
-			}
+			CSQC_EntityCheck(entnum);
+
 			if (cl_csqcdebug.value)
 				Con_Printf("Remove %i\n", entnum);
 
@@ -3946,11 +3951,7 @@ void CSQC_ParseEntities(void)
 		}
 		else
 		{
-			if (entnum >= maxcsqcentities)
-			{
-				maxcsqcentities = entnum+64;
-				csqcent = BZ_Realloc(csqcent, sizeof(*csqcent)*maxcsqcentities);
-			}
+			CSQC_EntityCheck(entnum);
 
 			if (cl.csqcdebug)
 			{

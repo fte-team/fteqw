@@ -84,31 +84,23 @@ Zone block
 */
 
 void Memory_Init (void *buf, int size);
+void Memory_DeInit(void);
 
 void VARGS Z_Free (void *ptr);
-int Z_MemSize(void *c);
-void *Z_Malloc (int size);			// returns 0 filled memory
-void *Z_MallocNamed (int size, char *, int);			// returns 0 filled memory
+void *Z_Malloc (int size); // returns 0 filled memory
+void *ZF_Malloc (int size); // allowed to fail
 //#define Z_Malloc(x) Z_MallocNamed2(x, __FILE__, __LINE__ )
 void *VARGS Z_TagMalloc (int size, int tag);
+void VARGS Z_TagFree(void *ptr);
 void VARGS Z_FreeTags(int tag);
-
-void Z_DumpHeap (void);
-void Z_CheckHeap (void);
-int Z_FreeMemory (void);
-
-int Z_Allocated(void);
-
-#ifdef _DEBUG
-#define NAMEDMALLOCS
-#endif
+//void *Z_Realloc (void *ptr, int size);
 
 //Big Zone: allowed to fail, doesn't clear. The expectation is a large file, rather than sensative data structures.
 //(this is a nicer name for malloc)
 void *BZ_Malloc(int size);
 void *BZF_Malloc(int size);
 void *BZ_Realloc(void *ptr, int size);
-void *BZ_NamedRealloc(void *ptr, int size, char *, int);
+void *BZF_Realloc(void *data, int newsize);
 void BZ_Free(void *ptr);
 
 #ifdef NAMEDMALLOCS

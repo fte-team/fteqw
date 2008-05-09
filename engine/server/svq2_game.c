@@ -675,7 +675,7 @@ qboolean SVQ2_InitGameProgs(void)
 	import.WriteAngle			= PFQ2_WriteAngle;
 
 	import.TagMalloc			= Z_TagMalloc;
-	import.TagFree				= Z_Free;
+	import.TagFree				= Z_TagFree;
 	import.FreeTags				= Z_FreeTags;
 
 	import.cvar					= Q2Cvar_Get;

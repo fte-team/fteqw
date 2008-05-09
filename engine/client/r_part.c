@@ -209,7 +209,6 @@ static part_type_t *P_GetParticleType(char *name)
 	ptype->cliptype = -1;
 	ptype->emit = -1;
 
-
 	if (oldlist)
 	{
 		part_run_list=NULL;
@@ -219,13 +218,10 @@ static part_type_t *P_GetParticleType(char *name)
 				part_type[i].nexttorun = (part_type_t*)((char*)part_type[i].nexttorun - (char*)oldlist + (char*)part_type);
 	}
 
-/*
-	Due to BZ_Realloc we can assume all of this anyway
 	ptype->loaded = 0;
 	ptype->ramp = NULL;
 	ptype->particles = NULL;
 	ptype->beams = NULL;
-*/
 	return ptype;
 }
 

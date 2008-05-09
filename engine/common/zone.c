@@ -64,10 +64,254 @@ void Cache_FreeHigh (int new_high_hunk);
 qbyte sentinalkey;
 #endif
 
+#define TAGLESS 1
+
+typedef struct memheader_s {
+	int size;
+	int tag;
+} memheader_t;
+
+typedef struct zone_s {
+	struct zone_s *next;
+	struct zone_s *pvdn; // down if first, previous if not
+	memheader_t mh;
+} zone_t;
+zone_t *zone_head;
+#ifdef MULTITHREAD
+void *zonelock;
+#endif
+
+void *VARGS Z_TagMalloc(int size, int tag)
+{
+	zone_t *zone;
+
+	zone = (zone_t *)malloc(size + sizeof(zone_t));
+	if (!zone)
+		Sys_Error("Z_Malloc: Failed on allocation of %i bytes", size);
+	Q_memset(zone, 0, size + sizeof(zone_t));
+	zone->mh.tag = tag;
+	zone->mh.size = size;
+
+#ifdef MULTITHREAD
+	if (zonelock)
+		Sys_LockMutex(zonelock);
+#endif
+	if (zone_head == NULL)
+		zone_head = zone;
+	else if (zone_head->mh.tag == tag)
+	{
+		zone->next = zone_head->next;
+		zone_head->next = zone;
+	}
+	else
+	{
+		zone_t *s = zone_head->pvdn;
+
+		while (s && s->mh.tag != tag)
+			s = s->pvdn;
+
+		if (s)
+		{ // tag match
+			zone->next = s->next;
+			s->next = zone;
+		}
+		else
+		{
+			zone->pvdn = zone_head;
+			zone_head = zone;
+		}
+	}
+#ifdef MULTITHREAD
+	if (zonelock)
+		Sys_UnlockMutex(zonelock);
+#endif
+
+	return (void *)(zone + 1);
+}
+
+void *ZF_Malloc(int size)
+{
+	return calloc(size, 1);
+}
+
+void *Z_Malloc(int size)
+{
+	void *mem = ZF_Malloc(size);
+	if (!mem)
+		Sys_Error("Z_Malloc: Failed on allocation of %i bytes", size);
+
+	return mem;
+}
+
+void VARGS Z_TagFree(void *mem)
+{
+	zone_t *zone = ((zone_t *)mem) - 1;
+
+#ifdef MULTITHREAD
+	if (zonelock)
+		Sys_LockMutex(zonelock);
+#endif
+	if (zone->next)
+		zone->next->pvdn = zone->pvdn;
+	if (zone->pvdn && zone->pvdn->mh.tag == zone->mh.tag)
+		zone->pvdn->next = zone->next;
+	else
+	{ // zone is first entry in a tag list 
+		zone_t *s = zone_head;
+
+		if (zone != s)
+		{ // traverse and update down list
+			while (s->pvdn != zone) 
+				s = s->next;
+
+			s->pvdn = zone->pvdn;
+		}
+	}
+
+	if (zone == zone_head)
+	{ // freeing head node so update head pointer
+		if (zone->next) // move to next, pvdn should be maintained properly
+			zone_head = zone->next;
+		else // no more entries with this tag so move head down
+			zone_head = zone->pvdn;
+	}
+#ifdef MULTITHREAD
+	if (zonelock)
+		Sys_UnlockMutex(zonelock);
+#endif
+
+	free(zone);
+}
+
+void VARGS Z_Free(void *mem)
+{
+	free(mem);
+}
+
+void VARGS Z_FreeTags(int tag)
+{
+	zone_t *taglist;
+	zone_t *t;
+
+#ifdef MULTITHREAD
+	if (zonelock)
+		Sys_LockMutex(zonelock);
+#endif
+	if (zone_head)
+	{
+		if (zone_head->mh.tag == tag)
+		{ // just pull off the head
+			taglist = zone_head;
+			zone_head = zone_head->pvdn;
+		}
+		else
+		{ // search for tag list and isolate it
+			zone_t *z;
+			z = zone_head;
+			while (z->next != NULL && z->next->mh.tag != tag)
+				z = z->next;
+
+			if (z->next == NULL)
+				taglist = NULL;
+			else
+			{
+				taglist = z->next;
+				z->next = z->next->next;
+			}
+		}
+	}
+	else
+		taglist = NULL;
+#ifdef MULTITHREAD
+	if (zonelock)
+		Sys_UnlockMutex(zonelock);
+#endif
+
+	// actually free list
+	while (taglist != NULL)
+	{
+		t = taglist->next;
+		free(taglist);
+		taglist = t;
+	}
+}
+
+/*
+void *Z_Realloc(void *data, int newsize)
+{
+	memheader_t *memref;
+
+	if (!data)
+		return Z_Malloc(newsize);
+
+	memref = ((memheader_t *)data) - 1;
+
+	if (memref[0].tag != TAGLESS)
+	{ // allocate a new block and copy since we need to maintain the lists
+		zone_t *zone = ((zone_t *)data) - 1;
+		int size = zone->mh.size;
+		if (size != newsize)
+		{
+			void *newdata = Z_Malloc(newsize);
+
+			if (size > newsize)
+				size = newsize;
+			memcpy(newdata, data, size);
+
+			Z_Free(data);
+			data = newdata;
+		}
+	}
+	else
+	{
+		int oldsize = memref[0].size;
+		memref = realloc(memref, newsize + sizeof(memheader_t));
+		memref->size = newsize;
+		if (newsize > oldsize)
+			memset((qbyte *)memref + sizeof(memheader_t) + oldsize, 0, newsize - oldsize);
+		data = ((memheader_t *)memref) + 1;
+	}
+
+	return data;
+}
+*/
+
+void *BZF_Malloc(int size)	//BZ_Malloc but allowed to fail - like straight malloc.
+{
+	return calloc(size, 1); // TODO: this should be malloc but some code still assumes this is an alias to Z_Malloc
+}
+
+void *BZ_Malloc(int size)	//Doesn't clear. The expectation is a large file, rather than sensative data structures.
+{
+	void *mem = BZF_Malloc(size);
+	if (!mem)
+		Sys_Error("BZ_Malloc: Failed on allocation of %i bytes", size);
+
+	return mem;
+}
+
+void *BZF_Realloc(void *data, int newsize)
+{
+	return realloc(data, newsize);
+}
+
+void *BZ_Realloc(void *data, int newsize)
+{
+	void *mem = BZF_Realloc(data, newsize);
+
+	if (!mem)
+		Sys_Error("BZ_Realloc: Failed on reallocation of %i bytes", newsize);
+
+	return mem;
+}
+
+void BZ_Free(void *data)
+{
+	free(data);
+}
 
 
-
-#ifdef NOZONE	//zone memory is for small dynamic things.
+#if 0 //NOZONE	//zone memory is for small dynamic things.
 /*
 void *Z_TagMalloc(int size, int tag)
 {
@@ -139,24 +383,6 @@ void Z_CheckSentinals(void)
 	}
 }*/
 
-int Z_Allocated(void)
-{
-	zone_t *zone;
-	int used = 0;
-	for(zone = zone_head; zone; zone=zone->next)
-	{
-		used += zone->size;
-	}
-
-	return used;
-}
-
-int Z_MemSize(void *c)
-{
-	zone_t *nz;
-	nz = ((zone_t *)((char*)c-ZONEDEBUG))-1;
-	return nz->size;
-}
 
 void VARGS Z_Free (void *c)
 {
@@ -553,7 +779,7 @@ void Zone_Print_f(void)
 	Con_Printf(CON_NOTICE "Overhead %i bytes\n", overhead);
 }
 
-#else
+#elif 0//#else
 
 
 
@@ -802,29 +1028,6 @@ void Z_Print (memzone_t *zone)
 			Con_Printf ("ERROR: next block doesn't have proper back link\n");
 		if (!block->tag && !block->next->tag)
 			Con_Printf ("ERROR: two consecutive free blocks\n");
-	}
-}
-
-
-/*
-========================
-Z_CheckHeap
-========================
-*/
-void Z_CheckHeap (void)
-{
-	memblock_t	*block;
-	
-	for (block = mainzone->blocklist.next ; ; block = block->next)
-	{
-		if (block->next == &mainzone->blocklist)
-			break;			// all blocks have been hit	
-		if ( (qbyte *)block + block->size != (qbyte *)block->next)
-			Sys_Error ("Z_CheckHeap: block size does not touch the next block\n");
-		if ( block->next->prev != block)
-			Sys_Error ("Z_CheckHeap: next block doesn't have proper back link\n");
-		if (!block->tag && !block->next->tag)
-			Sys_Error ("Z_CheckHeap: two consecutive free blocks\n");
 	}
 }
 
@@ -1456,7 +1659,6 @@ void Cache_Report (void)
 void Hunk_Print_f (void)
 {
 	cache_system_t *cs;
-	zone_t *zone;
 	int zoneblocks;
 	int cacheused;
 	int zoneused;
@@ -1469,19 +1671,27 @@ void Hunk_Print_f (void)
 	{
 		cacheused += cs->size;
 	}
-	for(zone = zone_head; zone; zone=zone->next)
-	{
-		zoneused += zone->size + sizeof(zone_t);
-		zoneblocks++;
-	}
 	Con_Printf("Cache: %iKB\n", cacheused/1024);
-	Con_Printf("Zone: %i containing %iKB\n", zoneblocks, zoneused/1024);
+#if 0
+	{
+		zone_t *zone;
+
+		for(zone = zone_head; zone; zone=zone->next)
+		{
+			zoneused += zone->size + sizeof(zone_t);
+			zoneblocks++;
+		}
+		Con_Printf("Zone: %i containing %iKB\n", zoneblocks, zoneused/1024);
+	}
+#endif
 }
 void Cache_Init(void)
 {
 	Cmd_AddCommand ("flush", Cache_Flush);
 	Cmd_AddCommand ("hunkprint", Hunk_Print_f);
+#if 0
 	Cmd_AddCommand ("zoneprint", Zone_Print_f);
+#endif
 #ifdef NAMEDMALLOCS
 	Cmd_AddCommand ("zonegroups", Zone_Groups_f);
 #endif
@@ -1938,7 +2148,7 @@ Memory_Init
 */
 void Memory_Init (void *buf, int size)
 {
-#ifndef NOZONE
+#if 0 //ndef NOZONE
 	int p;
 	int zonesize = DYNAMIC_SIZE;
 #endif
@@ -1955,7 +2165,12 @@ void Memory_Init (void *buf, int size)
 
 	Cache_Init ();
 
-#ifndef NOZONE
+#ifdef MULTITHREAD
+	if (!zonelock)
+		zonelock = Sys_CreateMutex(); // this can fail!
+#endif
+
+#if 0 //ndef NOZONE
 	p = COM_CheckParm ("-zone");
 	if (p)
 	{
@@ -1969,3 +2184,13 @@ void Memory_Init (void *buf, int size)
 #endif
 }
 
+void Memory_DeInit(void)
+{
+#ifdef MULTITHREAD
+	if (zonelock)
+	{
+		Sys_DestroyMutex(zonelock);
+		zonelock = NULL;
+	}
+#endif
+}

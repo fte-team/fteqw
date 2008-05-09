@@ -240,6 +240,8 @@ void SV_Shutdown (void)
 #ifdef IWEB_H__
 	IWebShutdown();
 #endif
+
+	Memory_DeInit();
 }
 
 /*

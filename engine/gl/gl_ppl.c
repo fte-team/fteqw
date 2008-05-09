@@ -5217,7 +5217,7 @@ void APIENTRY SH_End (void)
 		if (sh_maxindicies != i)
 		{
 			sh_maxindicies = i;
-			sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies));
+			sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies)); 
 		}
 		//add the extra triangles
 		for (i = 0; i < sh_vertnum; i+=4)

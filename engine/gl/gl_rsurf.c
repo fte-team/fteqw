@@ -3164,7 +3164,12 @@ int GLAllocBlock (int w, int h, int *x, int *y)
 	{
 		if (texnum == numlightmaps)	//allocate 4 more lightmap slots. not much memory usage, but we don't want any caps here.
 		{
-			lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(numlightmaps+4));
+			lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(numlightmaps+4)); 
+			lightmap[numlightmaps+0] = NULL;
+			lightmap[numlightmaps+1] = NULL;
+			lightmap[numlightmaps+2] = NULL;
+			lightmap[numlightmaps+3] = NULL;
+
 			lightmap_textures = BZ_Realloc(lightmap_textures, sizeof(*lightmap_textures)*(numlightmaps+4));
 			lightmap_textures[numlightmaps+0] = texture_extension_number++;
 			lightmap_textures[numlightmaps+1] = texture_extension_number++;
@@ -3226,14 +3231,19 @@ int GLFillBlock (int texnum, int w, int h, int x, int y)
 	int		i, l;
 	while (texnum >= numlightmaps)	//allocate 4 more lightmap slots. not much memory usage, but we don't want any caps here.
 	{
-		lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(numlightmaps+4));
-		lightmap_textures = BZ_Realloc(lightmap_textures, sizeof(*lightmap_textures)*(numlightmaps+4));
+		lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(numlightmaps+4)); 
+		lightmap[numlightmaps+0] = NULL;
+		lightmap[numlightmaps+1] = NULL;
+		lightmap[numlightmaps+2] = NULL;
+		lightmap[numlightmaps+3] = NULL;
+
+		lightmap_textures = BZ_Realloc(lightmap_textures, sizeof(*lightmap_textures)*(numlightmaps+4)); 
 		lightmap_textures[numlightmaps+0] = texture_extension_number++;
 		lightmap_textures[numlightmaps+1] = texture_extension_number++;
 		lightmap_textures[numlightmaps+2] = texture_extension_number++;
 		lightmap_textures[numlightmaps+3] = texture_extension_number++;
 
-		deluxmap_textures = BZ_Realloc(deluxmap_textures, sizeof(*deluxmap_textures)*(numlightmaps+4));
+		deluxmap_textures = BZ_Realloc(deluxmap_textures, sizeof(*deluxmap_textures)*(numlightmaps+4)); 
 		deluxmap_textures[numlightmaps+0] = texture_extension_number++;
 		deluxmap_textures[numlightmaps+1] = texture_extension_number++;
 		deluxmap_textures[numlightmaps+2] = texture_extension_number++;

@@ -3664,6 +3664,8 @@ void Host_Shutdown(void)
 
 	Cvar_Shutdown();
 	Validation_FlushFileList();
+
+	Memory_DeInit();
 }
 
 #ifdef CLIENTONLY

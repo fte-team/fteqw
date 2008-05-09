@@ -117,6 +117,7 @@ int VARGS Plug_Draw_LoadImage(void *offset, unsigned int mask, const int *arg)
 	{
 		pluginimagearraylen++;
 		pluginimagearray = BZ_Realloc(pluginimagearray, pluginimagearraylen*sizeof(pluginimagearray_t));
+		pluginimagearray[i].pic = NULL;
 	}
 
 	if (pluginimagearray[i].pic)

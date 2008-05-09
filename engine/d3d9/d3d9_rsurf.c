@@ -990,17 +990,22 @@ int D3D9_FillBlock (int texnum, int w, int h, int x, int y)
 	while (texnum >= numlightmaps)	//allocate 4 more lightmap slots. not much memory usage, but we don't want any caps here.
 	{
 		lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(numlightmaps+4));
+		lightmap[numlightmaps+0] = 0;
+		lightmap[numlightmaps+1] = 0;
+		lightmap[numlightmaps+2] = 0;
+		lightmap[numlightmaps+3] = 0;
+
 		lightmap_d3d9textures = BZ_Realloc(lightmap_d3d9textures, sizeof(*lightmap_d3d9textures)*(numlightmaps+4));
-//		lightmap_textures[numlightmaps+0] = texture_extension_number++;
-//		lightmap_textures[numlightmaps+1] = texture_extension_number++;
-//		lightmap_textures[numlightmaps+2] = texture_extension_number++;
-//		lightmap_textures[numlightmaps+3] = texture_extension_number++;
+		lightmap_d3d9textures[numlightmaps+0] = 0;
+		lightmap_d3d9textures[numlightmaps+1] = 0;
+		lightmap_d3d9textures[numlightmaps+2] = 0;
+		lightmap_d3d9textures[numlightmaps+3] = 0;
 
 		deluxmap_d3d9textures = BZ_Realloc(deluxmap_d3d9textures, sizeof(*deluxmap_d3d9textures)*(numlightmaps+4));
-//		deluxmap_textures[numlightmaps+0] = texture_extension_number++;
-//		deluxmap_textures[numlightmaps+1] = texture_extension_number++;
-//		deluxmap_textures[numlightmaps+2] = texture_extension_number++;
-//		deluxmap_textures[numlightmaps+3] = texture_extension_number++;
+		deluxmap_d3d9textures[numlightmaps+0] = 0;
+		deluxmap_d3d9textures[numlightmaps+1] = 0;
+		deluxmap_d3d9textures[numlightmaps+2] = 0;
+		deluxmap_d3d9textures[numlightmaps+3] = 0;
 		numlightmaps+=4;
 	}
 	for (i = texnum; i >= 0; i--)
@@ -1036,17 +1041,22 @@ int D3D9_AllocBlock (int w, int h, int *x, int *y)
 		if (texnum == numlightmaps)	//allocate 4 more lightmap slots. not much memory usage, but we don't want any caps here.
 		{
 			lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(numlightmaps+4));
+			lightmap[numlightmaps+0] = 0;
+			lightmap[numlightmaps+1] = 0;
+			lightmap[numlightmaps+2] = 0;
+			lightmap[numlightmaps+3] = 0;
+
 			lightmap_d3d9textures = BZ_Realloc(lightmap_d3d9textures, sizeof(*lightmap_d3d9textures)*(numlightmaps+4));
-//			lightmap_textures[numlightmaps+0] = texture_extension_number++;
-//			lightmap_textures[numlightmaps+1] = texture_extension_number++;
-//			lightmap_textures[numlightmaps+2] = texture_extension_number++;
-//			lightmap_textures[numlightmaps+3] = texture_extension_number++;
+			lightmap_d3d9textures[numlightmaps+0] = 0;
+			lightmap_d3d9textures[numlightmaps+1] = 0;
+			lightmap_d3d9textures[numlightmaps+2] = 0;
+			lightmap_d3d9textures[numlightmaps+3] = 0;
 
 			deluxmap_d3d9textures = BZ_Realloc(deluxmap_d3d9textures, sizeof(*deluxmap_d3d9textures)*(numlightmaps+4));
-//			deluxmap_textures[numlightmaps+0] = texture_extension_number++;
-//			deluxmap_textures[numlightmaps+1] = texture_extension_number++;
-//			deluxmap_textures[numlightmaps+2] = texture_extension_number++;
-//			deluxmap_textures[numlightmaps+3] = texture_extension_number++;
+			deluxmap_d3d9textures[numlightmaps+0] = 0;
+			deluxmap_d3d9textures[numlightmaps+1] = 0;
+			deluxmap_d3d9textures[numlightmaps+2] = 0;
+			deluxmap_d3d9textures[numlightmaps+3] = 0;
 			numlightmaps+=4;
 		}
 		if (!lightmap[texnum])

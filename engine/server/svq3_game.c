@@ -1653,13 +1653,19 @@ int BL_AvailableMemory(void)
 }
 void *BL_Malloc(int size)
 {
+	int *mem;
 	botlibmemoryavailable-=size;
-	return Z_TagMalloc(size, Z_TAG_BOTLIB);
+
+	mem = (int *)Z_TagMalloc(size+sizeof(int), Z_TAG_BOTLIB);
+	mem[0] = size;
+
+	return (void *)(mem + 1);
 }
 void BL_Free(void *mem)
 {
-	botlibmemoryavailable+=Z_MemSize(mem);
-	Z_Free(mem);
+	int *memref = ((int *)mem) - 1;
+	botlibmemoryavailable+=memref[0];
+	Z_Free(memref);
 }
 void *BL_HunkMalloc(int size)
 {

@@ -519,7 +519,7 @@ void CL_ParsePacketEntities (qboolean delta)
 				if (newindex >= newp->max_entities)
 				{
 					newp->max_entities = newindex+1;
-					newp->entities = BZ_Realloc(newp->entities, sizeof(entity_state_t)*newp->max_entities);
+					newp->entities = BZ_Realloc(newp->entities, sizeof(entity_state_t)*newp->max_entities); 
 				}
 				if (oldindex >= oldp->max_entities)
 					Host_EndGame("Old packet entity too big\n");
@@ -1425,8 +1425,10 @@ void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entities_t *
 
 		if (snew->number >= cl.maxlerpents)
 		{
-			cl.maxlerpents = snew->number+16;
-			cl.lerpents = BZ_Realloc(cl.lerpents, cl.maxlerpents*sizeof(lerpents_t));
+			int newmaxle = snew->number+16;
+			cl.lerpents = BZ_Realloc(cl.lerpents, newmaxle*sizeof(lerpents_t));
+			memset(cl.lerpents + cl.maxlerpents, 0, sizeof(lerpents_t)*(newmaxle - cl.maxlerpents));
+			cl.maxlerpents = newmaxle;
 		}
 		le = &cl.lerpents[snew->number];
 

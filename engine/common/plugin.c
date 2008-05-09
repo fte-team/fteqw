@@ -179,8 +179,10 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 
 	if (newnum >= numplugbuiltins)
 	{
-		numplugbuiltins = newnum+128;
-		plugbuiltins = BZ_Realloc(plugbuiltins, sizeof(Plug_Plugins_t)*numplugbuiltins);
+		int newbuiltins = newnum+128;
+		plugbuiltins = BZ_Realloc(plugbuiltins, sizeof(Plug_Plugins_t)*newbuiltins);
+		memset(plugbuiltins + numplugbuiltins, 0, sizeof(Plug_Plugins_t)*(newbuiltins - numplugbuiltins));
+		numplugbuiltins = newbuiltins;
 	}
 
 	//got an empty number.

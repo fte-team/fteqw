@@ -5477,7 +5477,7 @@ void PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 	((int *)s)[0] = 0xabcd1234;
-	Z_Free(s);
+	Z_TagFree(s);
 }
 void PF_strlen(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6348,7 +6348,7 @@ typedef struct sqlserver_s
 {
 	void *thread; // worker thread for server
 	MYSQL *mysql; // mysql server
-	qboolean active; // set to false to kill thread
+	volatile qboolean active; // set to false to kill thread
 	void *requestlock; // mutex for queue read/write
 	void *resultlock; // mutex for queue read/write
 	int querynum; // next reference number for queries
@@ -6377,14 +6377,12 @@ queryresult_t *SQL_PullResult(sqlserver_t *server)
 	queryresult_t *qres;
 	Sys_LockMutex(server->resultlock);
 	qres = server->results;
-	if (!qres)
+	if (qres)
 	{
-		Sys_UnlockMutex(server->resultlock);
-		return NULL;
+		server->results = qres->next;
+		if (!server->results)
+			server->resultslast = NULL;
 	}
-	server->results = qres->next;
-	if (!server->results)
-		server->resultslast = NULL;
 	Sys_UnlockMutex(server->resultlock);
 
 	return qres;
@@ -6406,14 +6404,12 @@ queryrequest_t *SQL_PullRequest(sqlserver_t *server)
 	queryrequest_t *qreq;
 	Sys_LockMutex(server->requestlock);
 	qreq = server->requests;
-	if (!qreq)
+	if (qreq)
 	{
-		Sys_UnlockMutex(server->requestlock);
-		return NULL;
+		server->requests = qreq->next;
+		if (!server->requests)
+			server->requestslast = NULL;
 	}
-	server->requests = qreq->next;
-	if (!server->requests)
-		server->requestslast = NULL;
 	Sys_UnlockMutex(server->requestlock);
 
 	return qreq;
@@ -6427,8 +6423,9 @@ int sql_serverworker(void *sref)
 	sqlserver_t *server = (sqlserver_t *)sref;
 	char *error = NULL;
 	my_bool reconnect = 1;
+	int tinit;
 
-	if (mysql_thread_init())
+	if (tinit = mysql_thread_init())
 		error = "MYSQL thread init failed";
 	else if (!(server->mysql = mysql_init(NULL)))
 		error = "MYSQL init failed";
@@ -6483,36 +6480,49 @@ int sql_serverworker(void *sref)
 
 			if (qerror)
 				qesize = Q_strlen(qerror);
-			qres = (queryresult_t *)Z_Malloc(sizeof(queryresult_t) + qesize);
-			if (qerror)
-				Q_strncpy(qres->error, qerror, qesize);
-			qres->result = mysqlres;
-			qres->rows = rows;
-			qres->columns = columns;
-			qres->request = qreq;
-			qres->eof = true; // store result has no more rows to read afterwards
-			qreq->next = NULL;
+			qres = (queryresult_t *)ZF_Malloc(sizeof(queryresult_t) + qesize);
+			if (qres)
+			{
+				if (qerror)
+					Q_strncpy(qres->error, qerror, qesize);
+				qres->result = mysqlres;
+				qres->rows = rows;
+				qres->columns = columns;
+				qres->request = qreq;
+				qres->eof = true; // store result has no more rows to read afterwards
+				qreq->next = NULL;
 
-			SQL_PushResult(server, qres);
+				SQL_PushResult(server, qres);
+			}
+			else // we're screwed here so bomb out
+			{
+				server->active = false;
+				error = "MALLOC ERROR! Unable to allocate query result!";
+				break;
+			}
 		}
 
 	}
+
+	if (server->mysql)
+		mysql_close(server->mysql);
 
 	// if we have a server error we still need to put it on the queue
 	if (error)
 	{ 
 		int esize = Q_strlen(error);
 		queryresult_t *qres = (queryresult_t *)Z_Malloc(sizeof(queryresult_t) + esize);
+		if (qres)
+		{ // hopefully the mysql_close gained us some memory otherwise we're pretty screwed
+			qres->rows = qres->columns = -1;
+			Q_strncpy(qres->error, error, esize);
 
-		qres->rows = qres->columns = -1;
-		Q_strncpy(qres->error, error, esize);
-
-		SQL_PushResult(server, qres);
+			SQL_PushResult(server, qres);
+		}
 	}
 
-	mysql_close(server->mysql);
-
-	mysql_thread_end();
+	if (!tinit)
+		mysql_thread_end();
 
 	return 0;
 }
@@ -6553,8 +6563,28 @@ void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	server->requestlock = Sys_CreateMutex();
 	server->resultlock = Sys_CreateMutex();
 
-	server->thread = Sys_CreateThread(sql_serverworker, (void *)server, 1024);
+	if (!server->requestlock || !server->resultlock)
+	{
+		if (server->requestlock)
+			Sys_DestroyMutex(server->requestlock);
+		if (server->resultlock)
+			Sys_DestroyMutex(server->resultlock);
+		Z_Free(server);
+		sqlservercount--;
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
 
+	server->thread = Sys_CreateThread(sql_serverworker, (void *)server, 1024);
+	
+	if (!server->thread)
+	{
+		Z_Free(server);
+		sqlservercount--;
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+	
 	G_FLOAT(OFS_RETURN) = serverref;
 }
 
@@ -6576,10 +6606,10 @@ void PF_sqlopenquery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int callfunc = G_INT(OFS_PARM1);
 	char *querystr = PF_VarString(prinst, 2, pr_globals);
 	int qsize = Q_strlen(querystr);
-	queryrequest_t *qreq = (queryrequest_t *)Z_Malloc(sizeof(queryrequest_t) + qsize);
+	queryrequest_t *qreq = (queryrequest_t *)ZF_Malloc(sizeof(queryrequest_t) + qsize);
 	int querynum;
 
-	if (serverref < 0 || serverref >= sqlservercount || sqlservers[serverref]->active == false)
+	if (!qreq || serverref < 0 || serverref >= sqlservercount || sqlservers[serverref]->active == false)
 	{
 		G_FLOAT(OFS_RETURN) = -1;
 		return;

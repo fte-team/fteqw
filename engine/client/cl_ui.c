@@ -212,7 +212,7 @@ int Script_LoadFile(char *filename)
 	if (i == maxscripts)
 	{
 		maxscripts++;
-		scripts = BZ_Realloc(scripts, sizeof(script_t)*maxscripts);
+		scripts = BZ_Realloc(scripts, sizeof(script_t)*maxscripts); 
 	}
 	
 	sc = scripts+i;

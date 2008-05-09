@@ -620,12 +620,6 @@ void Sys_Quit (void)
 		CloseHandle (qwclsemaphore);
 #endif
 
-/* Yeah, right, just wishful thinking.
-#ifdef _DEBUG
-	if (Z_Allocated())
-		MessageBox(0, "Some memory was left allocated", "Mem was left", 0);
-#endif
-*/
 
 
 	SetHookState(false);

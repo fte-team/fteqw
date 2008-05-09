@@ -409,22 +409,14 @@ void IWebShutdown(void)
 //replacement for Z_Malloc. It simply allocates up to a reserve ammount.
 void *IWebMalloc(int size)
 {
-	char *mem = Z_TagMalloc(size+32768, 15);
-	if (!mem)
-		return NULL;	//bother
-
-	Z_Free(mem);
-	return Z_Malloc(size);	//allocate the real ammount
+	void *mem = BZF_Malloc(size);
+	memset(mem, 0, size);
+	return mem;
 }
 
 void *IWebRealloc(void *old, int size)
 {
-	char *mem = Z_TagMalloc(size+32768, 15);
-	if (!mem)	//make sure there will be padding left
-		return NULL;	//bother
-
-	Z_Free(mem);
-	return BZ_Realloc(old, size);
+	return BZF_Realloc(old, size);
 }
 #endif
 

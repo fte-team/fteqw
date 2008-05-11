@@ -62,6 +62,8 @@ typedef struct {
 	char *mediaaswavdata;	
 	int mediaaswavpos;
 	int mediaaswavbuflen;
+	char *mediatemprecode;
+	int mediatemprecodelen;
 
 	OggVorbis_File vf;
 
@@ -105,8 +107,12 @@ sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 		if (buffer->mediaaswavdata)
 		{
 			BZ_Free(buffer->mediaaswavdata);
-
-			buffer->mediaaswavdata=NULL;
+			buffer->mediaaswavdata = NULL;
+		}
+		if (buffer->mediatemprecode)
+		{
+			BZ_Free(buffer->mediatemprecode);
+			buffer->mediatemprecode = NULL;
 		}
 		Z_Free(s->decoder);
 		s->decoder=NULL;
@@ -125,7 +131,7 @@ sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 int OV_DecodeSome(sfx_t *s, int minlength)
 {	
 	extern int snd_speed;
-	int i;
+	extern cvar_t snd_linearresample_stream;
 	int bigendianp = bigendian;
 	int current_section = 0;
 	sfxcache_t *sc;
@@ -159,33 +165,47 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 			return 0;
 		}
 
-		bytesread = p_ov_read(&dec->vf, dec->mediaaswavdata+dec->mediaaswavpos, dec->mediaaswavbuflen-dec->mediaaswavpos, bigendianp, 2, 1, &current_section);
-		if (bytesread <= 0)
+		if (snd_speed == dec->srcspeed)
 		{
-			if (bytesread != 0)	//0==eof
+			bytesread = p_ov_read(&dec->vf, dec->mediaaswavdata+dec->mediaaswavpos, dec->mediaaswavbuflen-dec->mediaaswavpos, bigendianp, 2, 1, &current_section);
+			if (bytesread <= 0)
 			{
-				Con_Printf("ogg decoding failed\n");
-				return 1;
+				if (bytesread != 0)	//0==eof
+				{
+					Con_Printf("ogg decoding failed\n");
+					return 1;
+				}
+				return 0;
 			}
-			return 0;
 		}
+		else
+		{
+			double scale = dec->srcspeed / (double)snd_speed;
+			int decodesize = ceil((dec->mediaaswavbuflen-dec->mediaaswavpos) * scale);
+			if (decodesize > dec->mediatemprecodelen)
+			{
+				dec->mediatemprecode = BZ_Realloc(dec->mediatemprecode, decodesize);
+				dec->mediatemprecodelen = decodesize;
+			}
 
-		if (snd_speed != dec->srcspeed)
-		{	//resample
-			if (dec->mediasc.numchannels==2)
-			{
-				int *data = (int*)(dec->mediaaswavdata+dec->mediaaswavpos);
-				float frac = (float)dec->srcspeed/snd_speed;
-				bytesread = (int)(bytesread/frac);
-				for(i = 0; i < bytesread/4; i++)
-					data[i] = data[(int)(i*frac)];
-			}
-			else
-			{
-			}
+			bytesread = p_ov_read(&dec->vf, dec->mediatemprecode, decodesize, bigendianp, 2, 1, &current_section);
+
+			SND_ResampleStream(dec->mediatemprecode, 
+				dec->srcspeed, 
+				2, 
+				dec->mediasc.numchannels, 
+				bytesread / (2 * dec->mediasc.numchannels),
+				dec->mediaaswavdata+dec->mediaaswavpos,
+				snd_speed,
+				2,
+				dec->mediasc.numchannels,
+				(int)snd_linearresample_stream.value);
+
+			bytesread = (int)floor(bytesread / scale) & ~0x1;
 		}
 
 		dec->mediaaswavpos += bytesread;
+
 		sc->length = (dec->mediaaswavpos-sizeof(sfxcache_t))/(2*(dec->mediasc.numchannels));
 		dec->mediasc.length = sc->length;
 
@@ -212,6 +232,12 @@ void OV_CancelDecoder(sfx_t *s)
 	dest = Cache_Alloc(&s->cache, dec->mediaaswavpos, s->name);
 	memcpy(dest, src, dec->mediaaswavpos);
 	BZ_Free(src);
+
+	if (dec->mediatemprecode)
+	{
+		BZ_Free(dec->mediatemprecode);
+		dec->mediatemprecode = NULL;
+	}
 
 	Z_Free(s->decoder);
 	s->decoder = NULL;
@@ -360,6 +386,8 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 	    (long)p_ov_pcm_total(&buffer->vf,-1));
     Con_Printf("Encoded by: %s\n\n",p_ov_comment(&buffer->vf,-1)->vendor);
 */  }
+	buffer->mediatemprecode = NULL;
+	buffer->mediatemprecodelen = 0;
 
 	buffer->start = BZ_Malloc(length);
 	memcpy(buffer->start, start, length);

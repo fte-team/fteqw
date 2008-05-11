@@ -173,7 +173,7 @@ void QC_InitShares(progfuncs_t *progfuncs)
 	if (!field)	//don't make it so we will just need to remalloc everything
 	{
 		maxfields = 64;
-		field = memalloc(sizeof(fdef_t) * maxfields);		
+		field = memalloc(sizeof(fdef_t) * maxfields);
 	}
 
 	numfields = 0;

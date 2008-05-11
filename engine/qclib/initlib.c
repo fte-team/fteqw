@@ -10,7 +10,7 @@ void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount)
 {
 	prmemb_t *mem;
 	ammount = sizeof(prmemb_t)+((ammount + 3)&~3);
-	mem = memalloc(ammount);
+	mem = memalloc(ammount); 
 	memset(mem, 0, ammount);
 	mem->prev = memb;
 	if (!memb)
@@ -380,8 +380,9 @@ string_t PR_StringToProgs			(progfuncs_t *progfuncs, char *str)
 	}
 
 	prinst->maxallocedstrings += 1024;
-	ntable = memalloc(sizeof(char*) * prinst->maxallocedstrings);
+	ntable = memalloc(sizeof(char*) * prinst->maxallocedstrings); 
 	memcpy(ntable, prinst->allocedstrings, sizeof(char*) * prinst->numallocedstrings);
+	memset(ntable + prinst->numallocedstrings, 0, sizeof(char*) * prinst->maxallocedstrings - prinst->numallocedstrings);
 	prinst->numallocedstrings = prinst->maxallocedstrings;
 	if (prinst->allocedstrings)
 		memfree(prinst->allocedstrings);

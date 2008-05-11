@@ -71,6 +71,19 @@ void ED_ClearEdict (progfuncs_t *progfuncs, edictrun_t *e)
 	e->entnum = num;
 }
 
+edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num)
+{
+	edictrun_t *e;
+
+	prinst->edicttable[num] = *(struct edict_s **)&e = (void*)memalloc(externs->edictsize);
+	memset(e, 0, externs->edictsize);
+	e->fields = PRAddressableAlloc(progfuncs, fields_size);
+	e->entnum = num;
+	ED_ClearEdict(progfuncs, e);
+
+	return e;
+}
+
 /*
 =================
 ED_Alloc
@@ -95,13 +108,9 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 		if (!e || (e->isfree && ( e->freetime < 2 || *externs->gametime - e->freetime > 0.5 ) ))
 		{
 			if (!e)
-			{
-				prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(externs->edictsize);
-				e->fields = PRAddressableAlloc(progfuncs, fields_size);
-				e->entnum = i;
-			}
-
-			ED_ClearEdict (progfuncs, e);
+				e = ED_AllocIntoTable(progfuncs, i);
+			else
+				ED_ClearEdict (progfuncs, e);
 
 			if (externs->entspawn)
 				externs->entspawn((struct edict_s *) e);
@@ -119,13 +128,9 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 			if (!e || (e->isfree))
 			{
 				if (!e)
-				{
-					prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(externs->edictsize);
-					e->fields = PRAddressableAlloc(progfuncs, fields_size);
-					e->entnum = i;
-				}
-
-				ED_ClearEdict (progfuncs, e);
+					e = ED_AllocIntoTable(progfuncs, i);
+				else
+					ED_ClearEdict (progfuncs, e);
 
 				if (externs->entspawn)
 					externs->entspawn((struct edict_s *) e);
@@ -152,13 +157,9 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 	e = (edictrun_t*)EDICT_NUM(progfuncs, i);
 
 	if (!e)
-	{
-		prinst->edicttable[i] = *(struct edict_s **)&e = (void*)memalloc(externs->edictsize);
-		e->fields = PRAddressableAlloc(progfuncs, fields_size);
-		e->entnum = i;
-	}
-
-	ED_ClearEdict (progfuncs, e);
+		e = ED_AllocIntoTable(progfuncs, i);
+	else
+		ED_ClearEdict (progfuncs, e);
 
 	if (externs->entspawn)
 		externs->entspawn((struct edict_s *) e);
@@ -1676,9 +1677,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 					if (!ed)
 					{
-						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
-						ed->fields = PRAddressableAlloc(progfuncs, fields_size);
-						ed->entnum = num;
+						ed = ED_AllocIntoTable(progfuncs, num);
 						ed->isfree = true;
 					}
 				}
@@ -1698,10 +1697,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				if (!ed)
 				{
 					Sys_Error("Edict was not allocated\n");
-					prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
-					ed->fields = PRAddressableAlloc(progfuncs, fields_size);
-					ED_ClearEdict(progfuncs, ed);
-					ed->entnum = num;
+					ed = ED_AllocIntoTable(progfuncs, num);
 				}
 			}
 			ed->isfree = false;
@@ -1792,10 +1788,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 					if (!ed)
 					{
-						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
-						ed->fields = PRAddressableAlloc(progfuncs, fields_size);
-						ED_ClearEdict(progfuncs, ed);
-						ed->entnum = num;
+						ed = ED_AllocIntoTable(progfuncs, num);
 						ed->isfree = true;
 					}
 				}
@@ -1951,13 +1944,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				{
 					ed = (edictrun_t *)EDICT_NUM(progfuncs, numents);
 					if (!ed)
-					{
-						prinst->edicttable[numents] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
-						ed->fields = PRAddressableAlloc(progfuncs, fields_size);
-						ED_ClearEdict(progfuncs, ed);
-						ed->entnum = numents;
-						ed->isfree = true;
-					}
+						ed = ED_AllocIntoTable(progfuncs, numents);
 
 					sv_num_edicts = numents;
 					ed->isfree = false;
@@ -1978,10 +1965,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 					if (!ed)
 					{
-						prinst->edicttable[num] = *(struct edict_s **)&ed = (void*)memalloc(externs->edictsize);
-						ed->fields = PRAddressableAlloc(progfuncs, fields_size);
-						ED_ClearEdict(progfuncs, ed);
-						ed->entnum = num;
+						ed = ED_AllocIntoTable(progfuncs, num);
 						ed->isfree = true;
 					}
 				}

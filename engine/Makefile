@@ -603,7 +603,7 @@ endif
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
 	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm -lXxf86dga
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include -DUSE_DGA
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
 

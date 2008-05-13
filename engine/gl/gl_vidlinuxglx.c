@@ -332,13 +332,20 @@ static void install_grabs(void)
 				 CurrentTime);
 
 #ifdef USE_DGA
-	XF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), XF86DGADirectMouse);
-	dgamouse = 1;
-#else
-	XWarpPointer(vid_dpy, None, vid_window,
-				 0, 0, 0, 0,
-				 vid.width / 2, vid.height / 2);
+	// TODO: make this into a cvar, like "in_dgamouse", instead of parameters
+	// TODO: inform the user when DGA is enabled
+	if (!COM_CheckParm("-nodga") && !COM_CheckParm("-nomdga"))
+	{
+		XF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), XF86DGADirectMouse);
+		dgamouse = 1;
+	}
+	else
 #endif
+	{
+		XWarpPointer(vid_dpy, None, vid_window,
+					 0, 0, 0, 0,
+					 vid.width / 2, vid.height / 2);
+	}
 
 //	XSync(vid_dpy, True);
 }
@@ -399,8 +406,8 @@ static void GetEvent(void)
 #ifdef USE_DGA
 		if (dgamouse && old_windowed_mouse)
 		{
-			mouse_x = event.xmotion.x_root;
-			mouse_y = event.xmotion.y_root;
+			mouse_x += event.xmotion.x_root;
+			mouse_y += event.xmotion.y_root;
 		}
 		else
 #endif

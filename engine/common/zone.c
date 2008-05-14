@@ -278,7 +278,7 @@ void *Z_Realloc(void *data, int newsize)
 
 void *BZF_Malloc(int size)	//BZ_Malloc but allowed to fail - like straight malloc.
 {
-	return malloc(size, 1); 
+	return calloc(size, 1); 
 }
 
 void *BZ_Malloc(int size)	//Doesn't clear. The expectation is a large file, rather than sensative data structures.
@@ -2194,3 +2194,4 @@ void Memory_DeInit(void)
 	}
 #endif
 }
+

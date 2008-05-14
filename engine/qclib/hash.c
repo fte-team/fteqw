@@ -8,6 +8,7 @@
 #endif
 #endif
 
+// hash init assumes we get clean memory
 void Hash_InitTable(hashtable_t *table, int numbucks, void *mem)
 {
 	table->numbuckets = numbucks;

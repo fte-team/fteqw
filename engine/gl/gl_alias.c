@@ -1064,7 +1064,11 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			}
 
 			if (!skincolourmapped.numbuckets)
-				Hash_InitTable(&skincolourmapped, 256, BZ_Malloc(Hash_BytesForBuckets(256)));
+			{
+				void *buckets = BZ_Malloc(Hash_BytesForBuckets(256));
+				memset(buckets, 0, Hash_BytesForBuckets(256));
+				Hash_InitTable(&skincolourmapped, 256, buckets);
+			}
 
 			for (cm = Hash_Get(&skincolourmapped, skinname); cm; cm = Hash_GetNext(&skincolourmapped, skinname, cm))
 			{
@@ -1097,6 +1101,9 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			cm->skinnum = e->skinnum;
 			cm->texnum.fullbright = 0;
 			cm->texnum.base = 0;
+#ifdef Q3SHADERS
+			cm->texnum.shader = NULL;
+#endif
 
 			if (!texnums)
 			{	//load just the skin
@@ -2808,3 +2815,4 @@ void GL_GenerateNormals(float *orgs, float *normals, int *indicies, int numtris,
 #endif
 
 #endif	// defined(RGLQUAKE) || defined(SERVERONLY)
+

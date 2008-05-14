@@ -172,7 +172,11 @@ static galiastexnum_t *D3D9_ChooseSkin(galiasinfo_t *inf, char *modelname, int s
 				skinname = modelname;
 
 			if (!skincolourmapped.numbuckets)
-				Hash_InitTable(&skincolourmapped, 256, BZ_Malloc(Hash_BytesForBuckets(256)));
+			{
+				void *buckets = BZ_Malloc(Hash_BytesForBuckets(256));
+				memset(buckets, 0, Hash_BytesForBuckets(256));
+				Hash_InitTable(&skincolourmapped, 256, buckets);
+			}
 
 			for (cm = Hash_Get(&skincolourmapped, skinname); cm; cm = Hash_GetNext(&skincolourmapped, skinname, cm))
 			{
@@ -211,6 +215,9 @@ static galiastexnum_t *D3D9_ChooseSkin(galiasinfo_t *inf, char *modelname, int s
 			cm->skinnum = e->skinnum;
 			cm->texnum.fullbright = 0;
 			cm->texnum.base = 0;
+#ifdef Q3SHADERS
+			cm->texnum.shader = NULL;
+#endif
 
 			if (!texnums)
 			{	//load just the skin (q2)

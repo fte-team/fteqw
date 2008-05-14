@@ -132,7 +132,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PPL				//per pixel lighting (stencil shadowing)
 		#define DDS				//a sort of image file format.
 
-//fixme: test this a bit		#define VM_Q1			//q1 qvm gamecode interface
+		#define VM_Q1			//q1 qvm gamecode interface
 
 		#define TCPCONNECT		//a tcpconnect command, that allows the player to connect to tcp-encapsulated qw protocols.
 

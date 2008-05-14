@@ -382,7 +382,7 @@ string_t PR_StringToProgs			(progfuncs_t *progfuncs, char *str)
 	prinst->maxallocedstrings += 1024;
 	ntable = memalloc(sizeof(char*) * prinst->maxallocedstrings); 
 	memcpy(ntable, prinst->allocedstrings, sizeof(char*) * prinst->numallocedstrings);
-	memset(ntable + prinst->numallocedstrings, 0, sizeof(char*) * prinst->maxallocedstrings - prinst->numallocedstrings);
+	memset(ntable + prinst->numallocedstrings, 0, sizeof(char*) * (prinst->maxallocedstrings - prinst->numallocedstrings));
 	prinst->numallocedstrings = prinst->maxallocedstrings;
 	if (prinst->allocedstrings)
 		memfree(prinst->allocedstrings);

@@ -3051,19 +3051,20 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 
 	if (!pspriteframe->gl_texturenum)
 	{	//the dp way
-		strcat(name, va("_%i", framenum));
+		COM_StripExtension(loadmodel->name, name, sizeof(name));
+		Q_strncatz(name, va("_%i", framenum), sizeof(name));
 		pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
 	}
 	if (!pspriteframe->gl_texturenum)
 	{	//the older fte way.
 		COM_StripExtension(loadmodel->name, name, sizeof(name));
-		strcat(name, va("_%i", framenum));
+		Q_strncatz(name, va("_%i", framenum), sizeof(name));
 		pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
 	}
 	if (!pspriteframe->gl_texturenum)
 	{	//the fuhquake way
 		COM_StripExtension(COM_SkipPath(loadmodel->name), name, sizeof(name));
-		strcat(name, va("_%i", framenum));
+		Q_strncatz(name, va("_%i", framenum), sizeof(name));
 		pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
 	}
 

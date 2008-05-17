@@ -416,7 +416,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	{
 		for (i = 0; i < cl.splitclients; i++)
 		{
-			if (ent == (autocam[i]?spec_track[i]:(cl.playernum[i]+1)))
+			if (ent == (autocam[i]?(spec_track[i]+1):(cl.playernum[i]+1)))
 			{
 				VectorCopy(end, playerbeam_end[i]);
 				break;

@@ -92,6 +92,8 @@ cvar_t r_fb_bmodels							= SCVARF("gl_fb_bmodels", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_fb_models							= FCVAR  ("r_fb_models", "gl_fb_models", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
+												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
 												CVAR_ARCHIVE);
 cvar_t r_floorcolour						= SCVARF ("r_floorcolour", "255 255 255",
@@ -537,7 +539,7 @@ void	R_InitTextures (void)
 	qbyte	*dest;
 
 // create a simple checkerboard texture for the default
-	r_notexture_mip = BZ_Malloc (sizeof(texture_t) + 16*16+8*8+4*4+2*2);
+	r_notexture_mip = Z_Malloc (sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 
 	r_notexture_mip->pixbytes = 1;
 	r_notexture_mip->width = r_notexture_mip->height = 16;

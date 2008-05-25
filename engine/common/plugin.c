@@ -359,31 +359,33 @@ int VARGS Plug_Sys_Milliseconds(void *offset, unsigned int mask, const int *arg)
 int VARGS Plug_ExportToEngine(void *offset, unsigned int mask, const int *arg)
 {
 	char *name = (char*)VM_POINTER(arg[0]);
+	unsigned int functionid = VM_LONG(arg[1]);
+
 	if (!strcmp(name, "Tick"))
-		currentplug->tick = arg[1];
+		currentplug->tick = functionid;
 	else if (!strcmp(name, "ExecuteCommand"))
-		currentplug->executestring = arg[1];
+		currentplug->executestring = functionid;
 #ifndef SERVERONLY
 	else if (!strcmp(name, "ConExecuteCommand"))
-		currentplug->conexecutecommand = arg[1];
+		currentplug->conexecutecommand = functionid;
 	else if (!strcmp(name, "MenuEvent"))
-		currentplug->menufunction = arg[1];
+		currentplug->menufunction = functionid;
 	else if (!strcmp(name, "UpdateVideo"))
-		currentplug->reschange = arg[1];
+		currentplug->reschange = functionid;
 	else if (!strcmp(name, "SbarBase"))			//basic SBAR.
-		currentplug->sbarlevel[0] = arg[1];
+		currentplug->sbarlevel[0] = functionid;
 	else if (!strcmp(name, "SbarSupplement"))	//supplementry stuff - teamplay
-		currentplug->sbarlevel[1] = arg[1];
+		currentplug->sbarlevel[1] = functionid;
 	else if (!strcmp(name, "SbarOverlay"))		//overlay - scoreboard type stuff.
-		currentplug->sbarlevel[2] = arg[1];
+		currentplug->sbarlevel[2] = functionid;
 	else if (!strcmp(name, "ConnectionlessClientPacket"))
-		currentplug->connectionlessclientpacket = arg[1];
+		currentplug->connectionlessclientpacket = functionid;
 	else if (!strcmp(name, "ServerMessageEvent"))
-		currentplug->svmsgfunction = arg[1];
+		currentplug->svmsgfunction = functionid;
 	else if (!strcmp(name, "ChatMessageEvent"))
-		currentplug->chatmsgfunction = arg[1];
+		currentplug->chatmsgfunction = functionid;
 	else if (!strcmp(name, "CenterPrintMessage"))
-		currentplug->centerprintfunction = arg[1];
+		currentplug->centerprintfunction = functionid;
 #endif
 	else
 		return 0;

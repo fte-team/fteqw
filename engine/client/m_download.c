@@ -345,7 +345,7 @@ qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int key)
 			{	//if we don't want it but we have it anyway:
 				if (*p->gamedir)
 				{
-					char *fname = va("%s", p->gamedir, p->dest);
+					char *fname = va("%s/%s", p->gamedir, p->dest);
 					FS_Remove(fname, FS_BASE);
 				}
 				else

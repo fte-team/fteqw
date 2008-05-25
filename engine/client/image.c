@@ -606,7 +606,8 @@ qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, char *fname)
 		return (png_rgba = NULL);
 	}
 
-	if (!(pnginfo = png_create_info_struct(png))) {
+	if (!(pnginfo = png_create_info_struct(png)))
+	{
 		png_destroy_read_struct(&png, &pnginfo, NULL);
 		return (png_rgba = NULL);
 	}
@@ -634,7 +635,8 @@ error:
 	*width = pngwidth;
 	*height = pngheight;
 
-	if (colortype == PNG_COLOR_TYPE_PALETTE) {
+	if (colortype == PNG_COLOR_TYPE_PALETTE)
+	{
 		png_set_palette_to_rgb(png);
 		png_set_filler(png, 255, PNG_FILLER_AFTER);
 	}
@@ -642,13 +644,14 @@ error:
 	if (colortype == PNG_COLOR_TYPE_GRAY && bitdepth < 8)
 		png_set_gray_1_2_4_to_8(png);
 
-	if (png_get_valid( png, pnginfo, PNG_INFO_tRNS ))
+	if (png_get_valid( png, pnginfo, PNG_INFO_tRNS))
 		png_set_tRNS_to_alpha(png);
 
 	if (bitdepth >= 8 && colortype == PNG_COLOR_TYPE_RGB)
 		png_set_filler(png, 255, PNG_FILLER_AFTER);
 
-	if (colortype == PNG_COLOR_TYPE_GRAY || colortype == PNG_COLOR_TYPE_GRAY_ALPHA) {
+	if (colortype == PNG_COLOR_TYPE_GRAY || colortype == PNG_COLOR_TYPE_GRAY_ALPHA)
+	{
 		png_set_gray_to_rgb( png );
 		png_set_filler(png, 255, PNG_FILLER_AFTER);
 	}
@@ -659,18 +662,19 @@ error:
 		png_set_strip_16(png);
 
 
-	png_read_update_info( png, pnginfo );
-	rowbytes = png_get_rowbytes( png, pnginfo );
-	bytesperpixel = png_get_channels( png, pnginfo );
+	png_read_update_info(png, pnginfo);
+	rowbytes = png_get_rowbytes(png, pnginfo);
+	bytesperpixel = png_get_channels(png, pnginfo);
 	bitdepth = png_get_bit_depth(png, pnginfo);
 
-	if (bitdepth != 8 || bytesperpixel != 4) {
+	if (bitdepth != 8 || bytesperpixel != 4)
+	{
 		Con_Printf ("Bad PNG color depth and/or bpp (%s)\n", fname);
 		png_destroy_read_struct(&png, &pnginfo, NULL);
 		return (png_rgba = NULL);
 	}
 
-	data = BZF_Malloc(*height * rowbytes );
+	data = BZF_Malloc(*height * rowbytes);
 	rowpointers = BZF_Malloc(*height * sizeof(*rowpointers));
 
 	if (!data || !rowpointers)
@@ -690,7 +694,8 @@ error:
 
 
 
-int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, int height) {
+int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, int height)
+{
 	char name[MAX_OSPATH];
 	int i;
 	FILE *fp;
@@ -699,24 +704,32 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	png_byte **row_pointers;
 	snprintf (name, sizeof(name)-1, "%s/%s", com_gamedir, filename);
 
-	if (!(fp = fopen (name, "wb"))) {
+	if (Sys_PathProtection(filename) )
+		return false;
+
+
+	if (!(fp = fopen (name, "wb")))
+	{
 		COM_CreatePath (name);
 		if (!(fp = fopen (name, "wb")))
 			return false;
 	}
 
-    if (!(png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL))) {
+    if (!(png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL)))
+	{
 		fclose(fp);
 			return false;
 	}
 
-    if (!(info_ptr = png_create_info_struct(png_ptr))) {
+    if (!(info_ptr = png_create_info_struct(png_ptr)))
+	{
 		png_destroy_write_struct(&png_ptr, (png_infopp) NULL);
 		fclose(fp);
 		return false;
     }
 
-	if (setjmp(png_ptr->jmpbuf)) {
+	if (setjmp(png_ptr->jmpbuf))
+	{
         png_destroy_write_struct(&png_ptr, &info_ptr);
         fclose(fp);
 		return false;

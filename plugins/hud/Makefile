@@ -2,12 +2,15 @@ DO_CC=$(CC) -ggdb -fPIC -Wall $(CFLAGS) -o $@ -c $<
 OBJECTS=ui_sbar.o plugin.o qvm_api.o
 HEADERS=../plugin.h
 OUTFILE=../hudx86.so
+ASM=q3asm
+#ASM=q3asm -vq3 #Uncomment this if you are using Icculus q3asm
+LCC=q3lcc
 LCC_FLAGS=-DQ3_VM -S -Wf-target=bytecode -Wf-g
 all: $(OBJECTS)
 	$(CC) -ggdb -fPIC -shared $(OBJECTS) -o $(OUTFILE)
 
 qvm: 
-	lcc $(LCC_FLAGS) ui_sbar.c; lcc $(LCC_FLAGS) ../plugin.c; lcc $(LCC_FLAGS) ../qvm_api.c; q3asm -f qwui
+	$(LCC) $(LCC_FLAGS) ui_sbar.c; $(LCC) $(LCC_FLAGS) ../plugin.c; $(LCC) $(LCC_FLAGS) ../qvm_api.c; $(ASM) -f qwui
 clean:
 	rm -rf $(OBJECTS) $(OUTFILE) *.qvm *.asm
 

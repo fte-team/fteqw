@@ -1866,6 +1866,18 @@ void UI_KeyPress(int key, int mx, int my)
 			currentitem = numelements;
 			numelements++;
 
+			if (typetoinsert == 12)
+			{
+				int j;
+
+				// Blackness should be sent to the back
+				for (j = numelements; j > 0; j--)
+				{
+					element[j] = element[j-1];
+				}
+
+				currentitem = 0;
+			}
 			element[currentitem].type = typetoinsert;
 			element[currentitem].alpha = 1;
 			element[currentitem].scalex = 1;

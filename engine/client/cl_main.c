@@ -505,7 +505,10 @@ void CL_SendConnectPacket (
 	Q_strncatz(data, va(" %i %i", cls.qport, cls.challenge), sizeof(data));
 
 	//userinfo 0 + zquake extension info.
-	Q_strncatz(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo, SUPPORTED_Z_EXTENSIONS), sizeof(data));
+	if (cls.protocol == CP_QUAKEWORLD)
+		Q_strncatz(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo, SUPPORTED_Z_EXTENSIONS), sizeof(data));
+	else
+		Q_strncatz(data, va(" \"%s\"", cls.userinfo), sizeof(data));
 	for (c = 1; c < clients; c++)
 	{
 		Info_SetValueForStarKey (playerinfo2, "name", va("%s%i", name.string, c+1), MAX_INFO_STRING);
@@ -2060,7 +2063,7 @@ void CL_ConnectionlessPacket (void)
 				if ((*s2 < '0' || *s2 > '9') && *s2 != '-')
 					break;
 			}
-			if (*s2)
+			if (*s2 && *s2 != ' ')
 			{//and if it's not, we're unlikly to be compatible with whatever it is that's talking at us.
 #ifdef NQPROT
 				if (cls.protocol == CP_NETQUAKE || cls.protocol == CP_UNKNOWN)
@@ -2139,6 +2142,7 @@ void CL_ConnectionlessPacket (void)
 		if (nl)
 		{
 			msg_readcount = c + nl-s + 1;
+			msg_badread = false;
 			*nl = '\0';
 		}
 

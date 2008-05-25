@@ -18,7 +18,51 @@
 	#endif
 	#ifdef IPPROTO_IPV6
 		#include <ws2tcpip.h>
+	#else
+		#define	IPPROTO_IPV6
+		#define EAI_NONAME 8
+		struct ip6_scope_id
+		{
+			union
+			{
+				struct
+				{
+					u_long  Zone : 28;
+					u_long  Level : 4;
+				};
+				u_long  Value;
+			};
+		};
+		struct in6_addr
+		{
+			u_char	s6_addr[16];	/* IPv6 address */
+		};
+		typedef struct sockaddr_in6
+		{
+			short  sin6_family;
+			u_short  sin6_port;
+			u_long  sin6_flowinfo;
+			struct in6_addr  sin6_addr;
+			union
+			{
+				u_long  sin6_scope_id;
+				struct ip6_scope_id  sin6_scope_struct; 
+			};
+		};
+
+		struct addrinfo
+		{
+		  int ai_flags;
+		  int ai_family;
+		  int ai_socktype;
+		  int ai_protocol;
+		  size_t ai_addrlen;
+		  char* ai_canonname;
+		  struct sockaddr * ai_addr;
+		  struct addrinfo * ai_next;
+		};
 	#endif
+
 #else
 	#include <sys/types.h>
 	#include <sys/socket.h>

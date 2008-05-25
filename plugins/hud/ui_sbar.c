@@ -226,25 +226,25 @@ typedef struct {
 } drawelement_t;
 drawelement_t drawelement[] =
 {
-	{Hud_SBar,				"Status bar",	320,	24,		0},
-	{Hud_StatSmall,			"Stat (small)",	8*3,	8,		6, {"Health", "Armour", "Ammo", "Shells", "Nails", "Rockets", "Cells"}}, // equal to sizeof(statsremap)/sizeof(statsremap[0])-1
-	{Hud_StatBig,			"Stat (big)",	24*3,	24,		6, {"Health", "Armour", "Ammo", "Shells", "Nails", "Rockets", "Cells"}}, // equal to sizeof(statsremap)/sizeof(statsremap[0])-1
-	{Hud_ArmourPic,			"Armor pic",	24,		24,		0},
-	{Hud_HealthPic,			"Health pic",	24,		24,		0},
-	{Hud_CurrentAmmoPic,	"Ammo pic",		24,		24,		0},
-	{Hud_IBar,				"Info bar",		320,	24,		0},
-	{Hud_Weapon,			"Weapon pic",	24,		16,		6, {"Shotgun", "Super Shotgun", "Nailgun", "Super Nailgun", "Grenade Launcher", "Rocket Launcher", "Thunderbolt"}},
-	{Hud_W_Lightning,		"Shaft pic",	24,		16,		0},
-	{Hud_Powerup,			"Powerup pic",	16,		16,		5, {"Key 1", "Key 2", "Ring of Invis", "Pentagram", "Biosuit", "Quad"}},
-	{Hud_Rune,				"Rune pic",		8,		16,		3, {"Rune 1", "Rune 2", "Rune 3", "Rune 4"}},
-	{Hud_Ammo,				"Ammo display",	42,		11,		3, {"Shells", "Spikes", "Rockets", "Cells"}},
-	{Hud_Blackness,			"Blackness",	16,		16,		9, {"10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"}},
-	{Hud_ScoreCard,			"Scorecard",	32,		8,		15, {"Player 0", "Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7", "Player 8", "Player 9", "Player 10", "Player 11", "Player 12", "Player 13", "Player 14", "Player 15"}},
-	{Hud_ScoreName,			"Scorename",	128,	8,		7, {"Player 0", "Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7"}},
-	{Hud_TeamScore,			"TeamScore",	32,		8,		7, {"Team 0", "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7"}},
-	{Hud_TeamName,			"TeamName",		128,	8,		7, {"Team 0", "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7"}},
-	{Hud_Tracking,			"Tracking",		128,	8,		0},
-	{Hud_TeamOverlay,		"Team overlay",	256,	64,		0}
+	{Hud_SBar,		"Status bar",	320,	24,	0},
+	{Hud_StatSmall,		"Stat (small)",	8*3,	8,	6, {"Health", "Armour", "Ammo", "Shells", "Nails", "Rockets", "Cells"}}, // equal to sizeof(statsremap)/sizeof(statsremap[0])-1
+	{Hud_StatBig,		"Stat (big)",	24*3,	24,	6, {"Health", "Armour", "Ammo", "Shells", "Nails", "Rockets", "Cells"}}, // equal to sizeof(statsremap)/sizeof(statsremap[0])-1
+	{Hud_ArmourPic,		"Armor pic",	24,	24,	0},
+	{Hud_HealthPic,		"Health pic",	24,	24,	0},
+	{Hud_CurrentAmmoPic,	"Ammo pic",	24,	24,	0},
+	{Hud_IBar,		"Info bar",	320,	24,	0},
+	{Hud_Weapon,		"Weapon pic",	24,	16,	6, {"Shotgun", "Super Shotgun", "Nailgun", "Super Nailgun", "Grenade Launcher", "Rocket Launcher", "Thunderbolt"}},
+	{Hud_W_Lightning,	"Shaft pic",	24,	16,	0},
+	{Hud_Powerup,		"Powerup pic",	16,	16,	5, {"Key 1", "Key 2", "Ring of Invis", "Pentagram", "Biosuit", "Quad"}},
+	{Hud_Rune,		"Rune pic",	8,	16,	3, {"Rune 1", "Rune 2", "Rune 3", "Rune 4"}},
+	{Hud_Ammo,		"Ammo display",	42,	11,	3, {"Shells", "Spikes", "Rockets", "Cells"}},
+	{Hud_Blackness,		"Blackness",	16,	16,	9, {"10%", "20%", "30%", "40%", "50%", "60%", "70%", "80%", "90%", "100%"}},
+	{Hud_ScoreCard,		"Scorecard",	32,	8,	15, {"Player 0", "Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7", "Player 8", "Player 9", "Player 10", "Player 11", "Player 12", "Player 13", "Player 14", "Player 15"}},
+	{Hud_ScoreName,		"Scorename",	128,	8,	7, {"Player 0", "Player 1", "Player 2", "Player 3", "Player 4", "Player 5", "Player 6", "Player 7"}},
+	{Hud_TeamScore,		"TeamScore",	32,	8,	7, {"Team 0", "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7"}},
+	{Hud_TeamName,		"TeamName",	128,	8,	7, {"Team 0", "Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7"}},
+	{Hud_Tracking,		"Tracking",	128,	8,	0},
+	{Hud_TeamOverlay,	"Team overlay",	256,	64,	0}
 };
 
 huddefaultelement_t hedefaulttype[] = {

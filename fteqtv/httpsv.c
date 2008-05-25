@@ -563,7 +563,9 @@ static void HTTPSV_GenerateDownload(cluster_t *cluster, oproxy_t *dest, char *fi
 {
 #ifdef ALLOWDOWNLOADS
 	char fname[256];
-	char *s;
+	char link[512];
+	char *s, *suppliedname;
+	int len;
 
 	if (cluster->allowdownloads)
 #endif
@@ -576,7 +578,7 @@ static void HTTPSV_GenerateDownload(cluster_t *cluster, oproxy_t *dest, char *fi
 		return;
 	}
 #ifdef ALLOWDOWNLOADS
-	s = fname;
+	suppliedname = s = fname + strlcpy(fname, cluster->downloaddir, sizeof(fname));
 	while (*filename > ' ')
 	{
 		if (s > fname + sizeof(fname)-4)	//4 cos I'm too lazy to work out what the actual number should be
@@ -612,6 +614,37 @@ static void HTTPSV_GenerateDownload(cluster_t *cluster, oproxy_t *dest, char *fi
 			*s++ = *filename++;
 	}
 	*s = 0;
+
+	if (*suppliedname == '\\' || *suppliedname == '/' || strstr(suppliedname, "..") || suppliedname[1] == ':')
+	{
+		HTTPSV_SendHTTPHeader(cluster, dest, "403", "text/html", true);
+		HTTPSV_SendHTMLHeader(cluster, dest, "Permission denied");
+		HTMLPRINT("<h1>403: Forbidden</h1>");
+		
+		HTMLPRINT("<p>");
+		HTMLprintf(link, sizeof(link), "The filename '%s' names an absolute path.", suppliedname);
+		Net_ProxySend(cluster, dest, link, strlen(link));
+		HTMLPRINT("</p>");
+		return;
+	}
+	len = strlen(fname);
+	if (len > 4)
+	{
+		if (!stricmp(link+len-4, ".pak"))
+		{
+			HTTPSV_SendHTTPHeader(cluster, dest, "403", "text/html", true);
+			HTTPSV_SendHTMLHeader(cluster, dest, "Permission denied");
+			HTMLPRINT("<h1>403: Forbidden</h1>");
+		
+			HTMLPRINT("<p>");
+			HTMLprintf(link, sizeof(link), "Pak files may not be downloaded.", suppliedname);
+			Net_ProxySend(cluster, dest, link, strlen(link));
+			HTMLPRINT("</p>");
+			return;
+		}		
+	}
+
+
 	dest->srcfile = fopen(fname, "rb");
 
 	if (dest->srcfile)
@@ -623,6 +656,12 @@ static void HTTPSV_GenerateDownload(cluster_t *cluster, oproxy_t *dest, char *fi
 		HTTPSV_SendHTTPHeader(cluster, dest, "404", "text/html", true);
 		HTTPSV_SendHTMLHeader(cluster, dest, "File not found");
 		HTMLPRINT("<h1>404: File not found</h1>");
+
+		HTMLPRINT("<p>");
+		HTMLprintf(link, sizeof(link), "The file '%s' could not be found on this server", fname);
+		Net_ProxySend(cluster, dest, link, strlen(link));
+		HTMLPRINT("</p>");
+
 		HTTPSV_SendHTMLFooter(cluster, dest);
 	}
 #endif

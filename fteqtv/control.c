@@ -504,6 +504,7 @@ int main(int argc, char **argv)
 		cluster->buildnumber = build_number();
 		cluster->maxproxies = -1;
 
+		strcpy(cluster->downloaddir, "id1/");
 		strcpy(cluster->demodir, "qw/demos/");
 
 		Sys_Printf(cluster, "QTV Build %i.\n", cluster->buildnumber);

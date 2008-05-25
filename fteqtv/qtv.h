@@ -629,12 +629,15 @@ struct cluster_s {
 	char hostname[256];
 	char master[MAX_QPATH];
 	char demodir[MAX_QPATH];
+	char downloaddir[MAX_QPATH];	//must be slash terminated, or empty.
 	qboolean chokeonnotupdated;
 	qboolean lateforward;
 	qboolean notalking;
 	qboolean nobsp;
 	qboolean allownqclients;	//nq clients require no challenge
 	qboolean nouserconnects;	//prohibit users from connecting to new streams.
+
+	qboolean allowdownloads;
 
 	int maxviewers;
 

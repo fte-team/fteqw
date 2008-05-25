@@ -132,7 +132,7 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		return sizeof(struct sockaddr_in6);
 
 	case NA_IPV6:
-		memset (s, 0, sizeof(struct sockaddr_in));
+		memset (s, 0, sizeof(struct sockaddr_in6));
 		((struct sockaddr_in6*)s)->sin6_family = AF_INET6;
 
 		memcpy(&((struct sockaddr_in6*)s)->sin6_addr, a->address.ip6, sizeof(struct in6_addr));
@@ -269,9 +269,60 @@ qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b)
 	return false;
 }
 
+qboolean NET_AddressSmellsFunny(netadr_t a)
+{
+	int i;
+
+	//rejects certain blacklisted addresses
+	switch(a.type)
+	{
+	case NA_BROADCAST_IP:
+	case NA_IP:
+		//reject localhost
+		if (a.address.ip[0] == 127)// && a.address.ip[1] == 0   && a.address.ip[2] == 0   && a.address.ip[3] == 1  )
+			return true;
+		//'this' network (not an issue, but lets reject it anyway)
+		if (a.address.ip[0] == 0   && a.address.ip[1] == 0   && a.address.ip[2] == 0   && a.address.ip[3] == 0  )
+			return true;
+		//reject any broadcasts
+		if (a.address.ip[0] == 255 && a.address.ip[1] == 255 && a.address.ip[2] == 255 && a.address.ip[3] == 0  )
+			return true;
+		//not much else I can reject
+		return false;
+
+#ifdef IPPROTO_IPV6
+	case NA_BROADCAST_IP6:
+	case NA_IPV6:
+		//reject [::XXXX] (this includes obsolete ipv4-compatible (not ipv4 mapped), and localhost)
+		for (i = 0; i < 12; i++)
+			if (a.address.ip6[i])
+				break;
+		if (i == 12)
+			return true;
+		return false;
+#endif
+
+#ifdef USEIPX
+	//no idea how this protocol's addresses work
+	case NA_BROADCAST_IPX:
+	case NA_IPX:
+		return false;
+#endif
+		
+	case NA_LOOPBACK:
+		return false;
+
+	default:
+		return true;
+	}
+}
+
 char	*NET_AdrToString (netadr_t a)
 {
+	qboolean doneblank;
+	char *p;
 	static	char	s[64];
+	int i;
 
 	switch(a.type)
 	{
@@ -287,23 +338,47 @@ char	*NET_AdrToString (netadr_t a)
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
-		sprintf (s, "[%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x]:%i", 
-			a.address.ip6[0], 
-			a.address.ip6[1], 
-			a.address.ip6[2], 
-			a.address.ip6[3], 
-			a.address.ip6[4], 
-			a.address.ip6[5],
-			a.address.ip6[6],
-			a.address.ip6[7],
-			a.address.ip6[8],
-			a.address.ip6[9],
-			a.address.ip6[10],
-			a.address.ip6[11],
-			a.address.ip6[12],
-			a.address.ip6[13],
-			a.address.ip6[14],
-			a.address.ip6[15],
+		doneblank = false;
+		p = s;
+		sprintf (s, "[");
+		p += strlen(p);
+
+		for (i = 0; i < 16; i+=2)
+		{
+			if (doneblank!=true && a.address.ip6[i] == 0 && a.address.ip6[i+1] == 0)
+			{
+				if (!doneblank)
+				{
+					sprintf (p, "::");
+					p += strlen(p);
+					doneblank = 2;
+				}
+			}
+			else
+			{
+				if (doneblank==2)
+					doneblank = true;
+				else if (i != 0)
+				{
+					sprintf (p, ":");
+					p += strlen(p);
+				}
+				if (a.address.ip6[i+0])
+				{
+					sprintf (p, "%x%02x",
+						a.address.ip6[i+0],
+						a.address.ip6[i+1]);
+				}
+				else
+				{
+					sprintf (p, "%x",
+						a.address.ip6[i+1]);
+				}
+				p += strlen(p);
+			}
+		}
+
+		sprintf (p, "]:%i", 
 			ntohs(a.port));
 		break;
 #endif
@@ -337,7 +412,9 @@ char	*NET_AdrToString (netadr_t a)
 
 char	*NET_BaseAdrToString (netadr_t a)
 {
+	int i, doneblank;
 	static	char	s[64];
+	char *p;
 
 	switch(a.type)
 	{
@@ -352,23 +429,42 @@ char	*NET_BaseAdrToString (netadr_t a)
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
-		sprintf (s, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x", 
-			a.address.ip6[0],
-			a.address.ip6[1],
-			a.address.ip6[2],
-			a.address.ip6[3],
-			a.address.ip6[4],
-			a.address.ip6[5],
-			a.address.ip6[6], 
-			a.address.ip6[7],
-			a.address.ip6[8],
-			a.address.ip6[9],
-			a.address.ip6[10],
-			a.address.ip6[11],
-			a.address.ip6[12],
-			a.address.ip6[13],
-			a.address.ip6[14],
-			a.address.ip6[15]);
+		doneblank = false;
+		p = s;
+		for (i = 0; i < 16; i+=2)
+		{
+			if (doneblank!=true && a.address.ip6[i] == 0 && a.address.ip6[i+1] == 0)
+			{
+				if (!doneblank)
+				{
+					sprintf (p, "::");
+					p += strlen(p);
+					doneblank = 2;
+				}
+			}
+			else
+			{
+				if (doneblank==2)
+					doneblank = true;
+				else if (i != 0)
+				{
+					sprintf (p, ":");
+					p += strlen(p);
+				}
+				if (a.address.ip6[i+0])
+				{
+					sprintf (p, "%x%02x",
+						a.address.ip6[i+0],
+						a.address.ip6[i+1]);
+				}
+				else
+				{
+					sprintf (p, "%x",
+						a.address.ip6[i+1]);
+				}
+				p += strlen(p);
+			}
+		}
 		break;
 #endif
 #ifdef USEIPX
@@ -785,13 +881,55 @@ qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask)
 {
 	int i;
 
-	// check to make sure all types match
-	if (a.type != b.type || a.type != mask.type)
+	//make sure the address being checked against matches the mask
+	if (b.type != mask.type)
 		return false;
 
 	// check port if both are non-zero
 	if (a.port && b.port && a.port != b.port)
 		return false;
+
+	// check to make sure all types match
+	if (a.type != b.type)
+	{
+		if (a.type == NA_IP && b.type == NA_IPV6)
+		{
+#ifndef _MSC_VER
+#warning code me
+#endif
+			//okay, comparing an ipv4 address against an ipv4-as-6
+		/*	for (i = 0; i < 10; i++)
+				if (mask.address.ip[i] != 0)
+					return false;
+
+			for (; i < 12; i++)
+			{
+				if (mask.address.ip[i] != 0xff)
+			}
+			if (i == 12)
+			{
+
+			}*/
+		}
+		if (a.type == NA_IPV6 && b.type == NA_IP)
+		{
+			for (i = 0; i < 10; i++)
+				if (a.address.ip[i] != 0)
+					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
+
+			for (; i < 12; i++)
+				if (a.address.ip[i] != 0xff && a.address.ip[i] != 0x00)	//0x00 is depricated
+					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
+
+			for (i = 0; i < 4; i++)
+			{
+				if ((a.address.ip6[12+i] & mask.address.ip[i]) != (b.address.ip[i] & mask.address.ip[i]))
+					return false;	//mask doesn't match
+			}
+			return true;	//its an ipv4 address in there, the mask matched the whole way through
+		}
+		return false;
+	}
 
 	// match on protocol type and compare address
 	switch (a.type)
@@ -1949,8 +2087,11 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 	}
 
 	SockadrToNetadr(&address, out);
-	if (!*(int*)out->address.ip)	//socket was set to auto
-		*(int *)out->address.ip = *(int *)adr.address.ip;	//change it to what the machine says it is, rather than the socket.
+	if (out->type == NA_IP)
+	{
+		if (!*(int*)out->address.ip)	//socket was set to auto
+			*(int *)out->address.ip = *(int *)adr.address.ip;	//change it to what the machine says it is, rather than the socket.
+	}
 
 	if (notvalid)
 		Con_Printf("Couldn't detect local ip\n");

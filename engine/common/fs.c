@@ -1633,7 +1633,7 @@ void FS_RebuildFSHash(void)
 	if (!filesystemhash.numbuckets)
 	{
 		filesystemhash.numbuckets = 1024;
-		filesystemhash.bucket = (bucket_t**)BZ_Malloc(Hash_BytesForBuckets(filesystemhash.numbuckets));
+		filesystemhash.bucket = (bucket_t**)Z_Malloc(Hash_BytesForBuckets(filesystemhash.numbuckets));
 	}
 	else
 	{

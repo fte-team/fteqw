@@ -18,4 +18,8 @@ make (will be compiled in the same directory, move it somewhere Linux can see it
 
 With these 4 binaries built from the Quake3 source, should be able to now go to each Plugin's directory and type "make qvm"... if it works out you should have a "pluginname.qvm".
 
+NOTE: If you are using the Icculus q3asm tool, you must specify "-vq3" before building.
+NOTE2: FTE now has its own q3asm tool called "q3asm2" which you can find in the SVN repository.
+
 ~ Moodles (any questions about this guide ask me)
+

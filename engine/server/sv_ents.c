@@ -115,6 +115,8 @@ extern	int sv_lightningmodel;
 static edict_t *csqcent[MAX_EDICTS];
 static int csqcnuments;
 
+static edict_t *ssqcent[MAX_EDICTS];
+
 qboolean SV_AddNailUpdate (edict_t *ent)
 {
 	if (ent->v->modelindex != sv_nailmodel
@@ -348,7 +350,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 				if (client->protocol != SCP_QUAKEWORLD)
 					MSG_WriteByte(msg, svcdp_csqcentities);
 				else
-					MSG_WriteByte(msg, svc_csqcentities);
+					MSG_WriteByte(msg, svcfte_csqcentities);
 			}
 			MSG_WriteShort(msg, ent->entnum);
 			if (sv.csqcdebug)	//optional extra.
@@ -362,12 +364,12 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 
 //			Con_Printf("Sending update packet %i\n", ent->entnum);
 		}
-		else if (sv.csqcentversion[ent->entnum])
+		else if (sv.csqcentversion[ent->entnum] && !((int)ent->xv->pvsflags & PVSF_NOREMOVE))
 		{	//Don't want to send.
 			if (!writtenheader)
 			{
 				writtenheader=true;
-				MSG_WriteByte(msg, svc_csqcentities);
+				MSG_WriteByte(msg, svcfte_csqcentities);
 			}
 
 			mask = (unsigned)ent->entnum | 0x8000;
@@ -379,9 +381,9 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 	}
 	for (en = 1; en < sv.num_edicts; en++)
 	{
-		if (client->csqcentversions[en] > 0 && (client->csqcentversions[en] != sv.csqcentversion[en]))
+		ent = EDICT_NUM(svprogfuncs, en);
+		if (client->csqcentversions[en] > 0 && (client->csqcentversions[en] != sv.csqcentversion[en]) && !((int)ent->xv->pvsflags & PVSF_NOREMOVE))
 		{
-			ent = EDICT_NUM(svprogfuncs, en);
 		//	if (!ent->isfree)
 		//		continue;
 
@@ -393,7 +395,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 				if (!writtenheader)
 				{
 					writtenheader=true;
-					MSG_WriteByte(msg, svc_csqcentities);
+					MSG_WriteByte(msg, svcfte_csqcentities);
 				}
 
 //				Con_Printf("Sending remove packet %i\n", en);
@@ -2163,6 +2165,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	edict_t	*clent;
 	client_frame_t	*frame;
 	entity_state_t	*state;
+	int pvsflags;
 
 	client_t *split;
 
@@ -2184,33 +2187,6 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 #endif
 		for (split = client->controlled; split; split = split->controlled)
 			sv.worldmodel->funcs.FatPVS(sv.worldmodel, split->edict->v->origin, true);
-/*
-		if (sv.worldmodel->fromgame == fg_doom)
-		{
-		}
-		else
-#ifdef Q2BSPS
-			if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
-		{
-			leafnum = CM_PointLeafnum (org);
-			clientarea = CM_LeafArea (leafnum);
-			clientcluster = CM_LeafCluster (leafnum);
-
-			SV_Q2BSP_FatPVS (org);
-		}
-		else
-#endif
-		{
-			SV_Q1BSP_FatPVS (org);
-
-#ifdef PEXT_VIEW2
-			if (clent->xv->view2)
-				SV_Q1BSP_AddToFatPVS (PROG_TO_EDICT(svprogfuncs, clent->xv->view2)->v->origin, sv.worldmodel->nodes);	//add a little more...
-#endif
-			for (split = client->controlled; split; split = split->controlled)
-				SV_Q1BSP_AddToFatPVS (split->edict->v->origin, sv.worldmodel->nodes);	//add a little more...
-		}
-*/
 	}
 	else
 		clent = NULL;
@@ -2369,6 +2345,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		if (!ent->xv->SendEntity && (!ent->v->modelindex || !*PR_GetString(svprogfuncs, ent->v->model)) && !((int)ent->xv->pflags & PFLAGS_FULLDYNAMIC))
 			continue;
 
+		pvsflags = ent->xv->pvsflags;
 		if (progstype != PROG_QW)
 		{
 //			if (progstype == PROG_H2)
@@ -2388,26 +2365,43 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 		if (!ignorepvs && ent != clent)
 		{
-			//branch out to the pvs testing.
-			if (ent->xv->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+			if ((pvsflags & PVSF_MODE_MASK) < PVSF_USEPHS)
 			{
-				//unconditional
-			}
-			else if (ent->xv->tag_entity)
-			{
-				edict_t *p = ent;
-				int c = 10;
-				while(p->xv->tag_entity&&c-->0)
+				//branch out to the pvs testing.
+				if (ent->xv->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, client->edict))
 				{
-					p = EDICT_NUM(svprogfuncs, p->xv->tag_entity);
+					//unconditional
 				}
-				if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, p))
-					continue;
+				else if (ent->xv->tag_entity)
+				{
+					edict_t *p = ent;
+					int c = 10;
+					while(p->xv->tag_entity&&c-->0)
+					{
+						p = EDICT_NUM(svprogfuncs, p->xv->tag_entity);
+					}
+					if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, p))
+						continue;
+				}
+				else
+				{
+					if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent))
+						continue;
+				}
 			}
-			else
+			else if ((pvsflags & PVSF_MODE_MASK) == PVSF_USEPHS && sv.worldmodel->fromgame == fg_quake)
 			{
-				if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent))
+				int leafnum;
+				unsigned char *mask;
+				leafnum = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, host_client->edict->v->origin);
+				mask = sv.phs + leafnum * 4*((sv.worldmodel->numleafs+31)>>5);
+
+				leafnum = sv.worldmodel->funcs.LeafnumForPoint (sv.worldmodel, ent->v->origin)-1;
+				if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
+				{
+					Con_Printf ("PHS supressed entity\n");
 					continue;
+				}
 			}
 		}
 
@@ -2444,7 +2438,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				continue;	//not in this dimension - sorry...
 
 
-		if (!ignorepvs && ent != clent)
+		if (!ignorepvs && ent != clent && (pvsflags & PVSF_MODE_MASK)==PVSF_NORMALPVS)
 		{	//more expensive culling
 			if ((e <= sv.allocated_client_slots && sv_cullplayers_trace.value) || sv_cullentities_trace.value)
 				if (Cull_Traceline(clent, ent))

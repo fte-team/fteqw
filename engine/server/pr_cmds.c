@@ -2001,7 +2001,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 
 				if (sv.state != ss_loading)
 				{
-					MSG_WriteByte(&sv.reliable_datagram, svc_precache);
+					MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
 					MSG_WriteShort(&sv.reliable_datagram, i);
 					MSG_WriteString(&sv.reliable_datagram, m);
 #ifdef NQPROT
@@ -2264,7 +2264,7 @@ void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 		sp = cl->controller;
 
-		ClientReliableWrite_Begin (sp, svc_choosesplitclient, 4 + slen);
+		ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, 4 + slen);
 		ClientReliableWrite_Byte (sp, pnum);
 		ClientReliableWrite_Byte (sp, svc_centerprint);
 		ClientReliableWrite_String (sp, s);
@@ -2620,7 +2620,7 @@ static void PF_particle2 (progfuncs_t *prinst, globalvars_t *pr_globals)
 	effect = G_FLOAT(OFS_PARM4);
 	count = G_FLOAT(OFS_PARM5);
 
-	MSG_WriteByte (&sv.multicast, svc_particle2);
+	MSG_WriteByte (&sv.multicast, svcfte_particle2);
 	MSG_WriteCoord (&sv.multicast, org[0]);
 	MSG_WriteCoord (&sv.multicast, org[1]);
 	MSG_WriteCoord (&sv.multicast, org[2]);
@@ -2659,7 +2659,7 @@ static void PF_particle3 (progfuncs_t *prinst, globalvars_t *pr_globals)
 	effect = G_FLOAT(OFS_PARM3);
 	count = G_FLOAT(OFS_PARM4);
 
-	MSG_WriteByte (&sv.multicast, svc_particle3);
+	MSG_WriteByte (&sv.multicast, svcfte_particle3);
 	MSG_WriteCoord (&sv.multicast, org[0]);
 	MSG_WriteCoord (&sv.multicast, org[1]);
 	MSG_WriteCoord (&sv.multicast, org[2]);
@@ -2695,7 +2695,7 @@ static void PF_particle4 (progfuncs_t *prinst, globalvars_t *pr_globals)
 	effect = G_FLOAT(OFS_PARM3);
 	count = G_FLOAT(OFS_PARM4);
 
-	MSG_WriteByte (&sv.multicast, svc_particle4);
+	MSG_WriteByte (&sv.multicast, svcfte_particle4);
 	MSG_WriteCoord (&sv.multicast, org[0]);
 	MSG_WriteCoord (&sv.multicast, org[1]);
 	MSG_WriteCoord (&sv.multicast, org[2]);
@@ -3247,7 +3247,7 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 		sp = cl->controller;
 
-		ClientReliableWrite_Begin (sp, svc_choosesplitclient, 4 + slen);
+		ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, 4 + slen);
 		ClientReliableWrite_Byte (sp, pnum);
 		ClientReliableWrite_Byte (sp, svc_stufftext);
 		ClientReliableWrite_String (sp, str);
@@ -3744,7 +3744,7 @@ void PF_precache_sound_Internal (progfuncs_t *prinst, char *s)
 
 			if (sv.state != ss_loading)
 			{
-				MSG_WriteByte(&sv.reliable_datagram, svc_precache);
+				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
 				MSG_WriteShort(&sv.reliable_datagram, i+32768);
 				MSG_WriteString(&sv.reliable_datagram, s);
 #ifdef NQPROT
@@ -3802,7 +3802,7 @@ void PF_precache_model_Internal (progfuncs_t *prinst, char *s)
 
 			if (sv.state != ss_loading)
 			{
-				MSG_WriteByte(&sv.reliable_datagram, svc_precache);
+				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
 				MSG_WriteShort(&sv.reliable_datagram, i);
 				MSG_WriteString(&sv.reliable_datagram, s);
 #ifdef NQPROT
@@ -4049,7 +4049,7 @@ void PF_applylightstyle(int style, char *val, int col)
 #ifdef PEXT_LIGHTSTYLECOL
 			if ((client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && col!=7)
 			{
-				ClientReliableWrite_Begin (client, svc_lightstylecol, strlen(val)+4);
+				ClientReliableWrite_Begin (client, svcfte_lightstylecol, strlen(val)+4);
 				ClientReliableWrite_Byte (client, style);
 				ClientReliableWrite_Char (client, col);
 				ClientReliableWrite_String (client, val);
@@ -5537,7 +5537,7 @@ void PF_bulleten (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (client->fteprotocolextensions & PEXT_BULLETENS)
 		{
 			ClientReliableCheckBlock(client, msglen+1);
-			ClientReliableWrite_Byte(client, svc_bulletentext);
+			ClientReliableWrite_Byte(client, svcfte_bulletentext);
 			ClientReliableWrite_Byte(client, board);
 			ClientReliableWrite_String(client, msg);
 		}
@@ -8501,7 +8501,7 @@ void PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (type < 0 || type >= 255)
 		return;
 
-	MSG_WriteByte(&sv.multicast, svc_customtempent);
+	MSG_WriteByte(&sv.multicast, svcfte_customtempent);
 	MSG_WriteByte(&sv.multicast, type);
 	MSG_WriteCoord(&sv.multicast, org[0]);
 	MSG_WriteCoord(&sv.multicast, org[1]);
@@ -9148,7 +9148,7 @@ static void PF_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (startframe>255 || index>255)
 	{
-		MSG_WriteByte (&sv.multicast, svcqw_effect2);
+		MSG_WriteByte (&sv.multicast, svcfte_effect2);
 		MSG_WriteCoord (&sv.multicast, org[0]);
 		MSG_WriteCoord (&sv.multicast, org[1]);
 		MSG_WriteCoord (&sv.multicast, org[2]);
@@ -9170,7 +9170,7 @@ static void PF_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 	else
 	{
-		MSG_WriteByte (&sv.multicast, svcqw_effect);
+		MSG_WriteByte (&sv.multicast, svcfte_effect);
 		MSG_WriteCoord (&sv.multicast, org[0]);
 		MSG_WriteCoord (&sv.multicast, org[1]);
 		MSG_WriteCoord (&sv.multicast, org[2]);
@@ -9314,7 +9314,7 @@ static client_t *DirectSplit(client_t *cl, int svc, int svclen)
 		}
 		sp = cl->controller;
 
-		ClientReliableWrite_Begin (sp, svc_choosesplitclient, 2+svclen);
+		ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, 2+svclen);
 		ClientReliableWrite_Byte (sp, pnum);
 		ClientReliableWrite_Byte (sp, svc);
 		return sp;
@@ -9362,7 +9362,7 @@ void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-		cl = DirectSplit(&svs.clients[entnum], svc_showpic, 8 + strlen(slot)+strlen(picname));
+		cl = DirectSplit(&svs.clients[entnum], svcfte_showpic, 8 + strlen(slot)+strlen(picname));
 		ClientReliableWrite_Byte(cl, zone);
 		ClientReliableWrite_String(cl, slot);
 		ClientReliableWrite_String(cl, picname);
@@ -9395,7 +9395,7 @@ void PF_HidePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-		cl = DirectSplit(&svs.clients[entnum], svc_hidepic, 2 + strlen(slot));
+		cl = DirectSplit(&svs.clients[entnum], svcfte_hidepic, 2 + strlen(slot));
 		ClientReliableWrite_String(cl, slot);
 	}
 	else
@@ -9430,7 +9430,7 @@ void PF_MovePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-		cl = DirectSplit(&svs.clients[entnum], svc_movepic, 6 + strlen(slot));
+		cl = DirectSplit(&svs.clients[entnum], svcfte_movepic, 6 + strlen(slot));
 		ClientReliableWrite_String(cl, slot);
 		ClientReliableWrite_Byte(cl, zone);
 		ClientReliableWrite_Short(cl, x);
@@ -9463,7 +9463,7 @@ void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-		cl = DirectSplit(&svs.clients[entnum], svc_updatepic, 3 + strlen(slot)+strlen(newpic));
+		cl = DirectSplit(&svs.clients[entnum], svcfte_updatepic, 3 + strlen(slot)+strlen(newpic));
 		ClientReliableWrite_String(cl, slot);
 		ClientReliableWrite_String(cl, newpic);
 	}
@@ -10766,6 +10766,7 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 
 	fieldxfunction(SendEntity);
 	fieldxfloat(Version);
+	fieldxfloat(pvsflags);
 
 	//Tell the qc library to split the entity fields each side.
 	//the fields above become < 0, the remaining fields specified by the qc stay where the mod specified, as far as possible (with addons at least).

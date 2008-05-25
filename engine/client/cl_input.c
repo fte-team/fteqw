@@ -1381,6 +1381,9 @@ void CL_SendCmd (double frametime)
 		cl.frames[i].senttime = realtime;
 		cl.frames[i].receivedtime = 0;	// nq doesn't allow us to find our own packetloss
 
+#ifdef CSQC_DAT
+		CSQC_Input_Frame(cmd);
+#endif
 		CLNQ_SendCmd ();
 		memset(&independantphysics[0], 0, sizeof(independantphysics[plnum]));
 		return;
@@ -1422,7 +1425,6 @@ void CL_SendCmd (double frametime)
 				cls.resendinfo = false;
 			}
 
-
 			MSG_WriteByte (&buf, clcq2_move);
 
 			// save the position for a checksum qbyte
@@ -1461,6 +1463,12 @@ void CL_SendCmd (double frametime)
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 			cmd = &cl.frames[i].cmd[plnum];
 			*cmd = independantphysics[plnum];
+			
+			cmd->lightlevel = lightlev;
+#ifdef CSQC_DAT
+			CSQC_Input_Frame(cmd);
+#endif
+
 			cl.frames[i].senttime = realtime;
 			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 			memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
@@ -1475,7 +1483,6 @@ void CL_SendCmd (double frametime)
 
 			i = (cls.netchan.outgoing_sequence-2) & UPDATE_MASK;
 			cmd = &cl.frames[i].cmd[plnum];
-			cmd->lightlevel = lightlev;
 			if (cl_c2sImpulseBackup.value >= 2)
 				dontdrop = dontdrop || cmd->impulse;
 			MSG_WriteDeltaUsercmd (&buf, &nullcmd, cmd);
@@ -1485,7 +1492,6 @@ void CL_SendCmd (double frametime)
 			if (cl_c2sImpulseBackup.value >= 3)
 				dontdrop = dontdrop || cmd->impulse;
 			cmd = &cl.frames[i].cmd[plnum];
-			cmd->lightlevel = lightlev;
 			MSG_WriteDeltaUsercmd (&buf, oldcmd, cmd);
 			oldcmd = cmd;
 
@@ -1493,7 +1499,6 @@ void CL_SendCmd (double frametime)
 			if (cl_c2sImpulseBackup.value >= 1)
 				dontdrop = dontdrop || cmd->impulse;
 			cmd = &cl.frames[i].cmd[plnum];
-			cmd->lightlevel = lightlev;
 			MSG_WriteDeltaUsercmd (&buf, oldcmd, cmd);
 
 			if (!firstsize)
@@ -1576,6 +1581,8 @@ void CL_SendCmd (double frametime)
 		dropcount = 0;
 	}
 
+	if (cl.sendprespawn)
+		buf.cursize = 0;	//tastyspleen.net is alergic.
 //
 // deliver the message
 //

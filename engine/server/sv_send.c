@@ -938,7 +938,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 		other = PROG_TO_EDICT(svprogfuncs, ent->v->dmg_inflictor);
 		if (pnum)
 		{
-			MSG_WriteByte(msg, svc_choosesplitclient);
+			MSG_WriteByte(msg, svcfte_choosesplitclient);
 			MSG_WriteByte(msg, pnum);
 		}
 		MSG_WriteByte (msg, svc_damage);
@@ -956,7 +956,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	{
 		if (pnum)
 		{
-			MSG_WriteByte(msg, svc_choosesplitclient);
+			MSG_WriteByte(msg, svcfte_choosesplitclient);
 			MSG_WriteByte(msg, pnum);
 		}
 		MSG_WriteByte (msg, svc_setangle);
@@ -1237,7 +1237,7 @@ void SV_ClearQCStats(void)
 	numqcstats = 0;
 }
 
-void SV_UpdateQCStats(edict_t	*ent, int *stats)
+void SV_UpdateQCStats(edict_t	*ent, int *statsi, char **statss, float *statsf)
 {
 	char *s;
 	int i;
@@ -1252,20 +1252,21 @@ void SV_UpdateQCStats(edict_t	*ent, int *stats)
 		switch(qcstats[i].type)
 		{
 		case ev_float:
-			stats[qcstats[i].statnum] = eval->_float;
+			statsf[qcstats[i].statnum] = eval->_float;
 			break;
 		case ev_integer:
-			stats[qcstats[i].statnum] = eval->_int;
+			statsi[qcstats[i].statnum] = eval->_int;
 			break;
 		case ev_entity:
-			stats[qcstats[i].statnum] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, eval->edict));
+			statsi[qcstats[i].statnum] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, eval->edict));
 			break;
 		case ev_string:
 			s = PR_GetString(svprogfuncs, eval->string);
-			stats[qcstats[i].statnum+0] = LittleLong(((int*)s)[0]);	//so the network is sent out correctly as a string.
-			stats[qcstats[i].statnum+1] = LittleLong(((int*)s)[1]);
-			stats[qcstats[i].statnum+2] = LittleLong(((int*)s)[2]);
-			stats[qcstats[i].statnum+3] = LittleLong(((int*)s)[3]);
+			statss[qcstats[i].statnum] = s;
+//			statsi[qcstats[i].statnum+0] = LittleLong(((int*)s)[0]);	//so the network is sent out correctly as a string.
+//			statsi[qcstats[i].statnum+1] = LittleLong(((int*)s)[1]);
+//			statsi[qcstats[i].statnum+2] = LittleLong(((int*)s)[2]);
+//			statsi[qcstats[i].statnum+3] = LittleLong(((int*)s)[3]);
 			break;
 		}
 	}
@@ -1282,88 +1283,92 @@ when a reliable message can be delivered this frame.
 void SV_UpdateClientStats (client_t *client, int pnum)
 {
 	edict_t	*ent;
-	int		stats[MAX_CL_STATS];
+	int		statsi[MAX_CL_STATS];
+	float	statsf[MAX_CL_STATS];
+	char	*statss[MAX_CL_STATS];
 	int		i, m;
 	globalvars_t *pr_globals;
 	extern qboolean pr_items2;
 
 	ent = client->edict;
-	memset (stats, 0, sizeof(stats));
+	memset (statsi, 0, sizeof(statsi));
+	memset (statsf, 0, sizeof(statsf));
+	memset (statss, 0, sizeof(statss));
 
 	// if we are a spectator and we are tracking a player, we get his stats
 	// so our status bar reflects his
 	if (client->spectator && client->spec_track > 0)
 		ent = svs.clients[client->spec_track - 1].edict;
 
-	stats[STAT_HEALTH] = ent->v->health;
-	stats[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
+	statsf[STAT_HEALTH] = ent->v->health;	//sorry, but mneh
+	statsi[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
 	if (host_client->fteprotocolextensions & PEXT_MODELDBL)
 	{
-		if ((unsigned)stats[STAT_WEAPON] >= 512)
-			stats[STAT_WEAPON] = 0;
+		if ((unsigned)statsi[STAT_WEAPON] >= 512)
+			statsi[STAT_WEAPON] = 0;
 	}
 	else
 	{
-		if ((unsigned)stats[STAT_WEAPON] >= 256)
-			stats[STAT_WEAPON] = 0;
+		if ((unsigned)statsi[STAT_WEAPON] >= 256)
+			statsi[STAT_WEAPON] = 0;
 	}
-	stats[STAT_AMMO] = ent->v->currentammo;
-	stats[STAT_ARMOR] = ent->v->armorvalue;
-	stats[STAT_SHELLS] = ent->v->ammo_shells;
-	stats[STAT_NAILS] = ent->v->ammo_nails;
-	stats[STAT_ROCKETS] = ent->v->ammo_rockets;
-	stats[STAT_CELLS] = ent->v->ammo_cells;
+	statsf[STAT_AMMO] = ent->v->currentammo;
+	statsf[STAT_ARMOR] = ent->v->armorvalue;
+	statsf[STAT_SHELLS] = ent->v->ammo_shells;
+	statsf[STAT_NAILS] = ent->v->ammo_nails;
+	statsf[STAT_ROCKETS] = ent->v->ammo_rockets;
+	statsf[STAT_CELLS] = ent->v->ammo_cells;
 	if (!client->spectator)
 	{
-		stats[STAT_ACTIVEWEAPON] = ent->v->weapon;
+		statsi[STAT_ACTIVEWEAPON] = ent->v->weapon;
 		if (client->csqcactive)
-			stats[STAT_WEAPONFRAME] = ent->v->weaponframe;
+			statsi[STAT_WEAPONFRAME] = ent->v->weaponframe;
 	}
 
 	// stuff the sigil bits into the high bits of items for sbar
 	if (pr_items2)
-		stats[STAT_ITEMS] = (int)ent->v->items | ((int)ent->xv->items2 << 23);
+		statsi[STAT_ITEMS] = (int)ent->v->items | ((int)ent->xv->items2 << 23);
 	else
-		stats[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
+		statsi[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
 
-	stats[STAT_VIEWHEIGHT] = ent->v->view_ofs[2];
+	statsf[STAT_VIEWHEIGHT] = ent->v->view_ofs[2];
 #ifdef PEXT_VIEW2
 	if (ent->xv->view2)
-		stats[STAT_VIEW2] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, ent->xv->view2));
+		statsi[STAT_VIEW2] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, ent->xv->view2));
 	else
-		stats[STAT_VIEW2] = 0;
+		statsi[STAT_VIEW2] = 0;
 #endif
 
 	if (!ent->xv->viewzoom)
-		stats[STAT_VIEWZOOM] = 255;
+		statsf[STAT_VIEWZOOM] = 255;
 	else
-		stats[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
+		statsf[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
 
 	if (host_client->protocol == SCP_DARKPLACES7)
 	{
-		float *statsf = (float*)stats;
-//		statsf[STAT_MOVEVARS_WALLFRICTION] = sv_wall
-		statsf[STAT_MOVEVARS_FRICTION] = sv_friction.value;
-		statsf[STAT_MOVEVARS_WATERFRICTION] = sv_waterfriction.value;
-		statsf[STAT_MOVEVARS_TICRATE] = 72;
-		statsf[STAT_MOVEVARS_TIMESCALE] = sv_gamespeed.value;
-		statsf[STAT_MOVEVARS_GRAVITY] = sv_gravity.value;
-		statsf[STAT_MOVEVARS_STOPSPEED] = sv_stopspeed.value;
-		statsf[STAT_MOVEVARS_MAXSPEED] = host_client->maxspeed;
-		statsf[STAT_MOVEVARS_SPECTATORMAXSPEED] = sv_spectatormaxspeed.value;
-		statsf[STAT_MOVEVARS_ACCELERATE] = sv_accelerate.value;
-		statsf[STAT_MOVEVARS_AIRACCELERATE] = sv_airaccelerate.value;
-		statsf[STAT_MOVEVARS_WATERACCELERATE] = sv_wateraccelerate.value;
-		statsf[STAT_MOVEVARS_ENTGRAVITY] = host_client->entgravity;
-		statsf[STAT_MOVEVARS_JUMPVELOCITY] = 280;//sv_jumpvelocity.value;	//bah
-		statsf[STAT_MOVEVARS_EDGEFRICTION] = sv_edgefriction.value;
-		statsf[STAT_MOVEVARS_MAXAIRSPEED] = host_client->maxspeed;
-		statsf[STAT_MOVEVARS_STEPHEIGHT] = 18;
-		statsf[STAT_MOVEVARS_AIRACCEL_QW] = 1;
-		statsf[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION] = sv_gravity.value;
+		float	*statsfi = (float*)statsi;
+//		statsfi[STAT_MOVEVARS_WALLFRICTION] = sv_wall
+		statsfi[STAT_MOVEVARS_FRICTION] = sv_friction.value;
+		statsfi[STAT_MOVEVARS_WATERFRICTION] = sv_waterfriction.value;
+		statsfi[STAT_MOVEVARS_TICRATE] = 72;
+		statsfi[STAT_MOVEVARS_TIMESCALE] = sv_gamespeed.value;
+		statsfi[STAT_MOVEVARS_GRAVITY] = sv_gravity.value;
+		statsfi[STAT_MOVEVARS_STOPSPEED] = sv_stopspeed.value;
+		statsfi[STAT_MOVEVARS_MAXSPEED] = host_client->maxspeed;
+		statsfi[STAT_MOVEVARS_SPECTATORMAXSPEED] = sv_spectatormaxspeed.value;
+		statsfi[STAT_MOVEVARS_ACCELERATE] = sv_accelerate.value;
+		statsfi[STAT_MOVEVARS_AIRACCELERATE] = sv_airaccelerate.value;
+		statsfi[STAT_MOVEVARS_WATERACCELERATE] = sv_wateraccelerate.value;
+		statsfi[STAT_MOVEVARS_ENTGRAVITY] = host_client->entgravity;
+		statsfi[STAT_MOVEVARS_JUMPVELOCITY] = 280;//sv_jumpvelocity.value;	//bah
+		statsfi[STAT_MOVEVARS_EDGEFRICTION] = sv_edgefriction.value;
+		statsfi[STAT_MOVEVARS_MAXAIRSPEED] = host_client->maxspeed;
+		statsfi[STAT_MOVEVARS_STEPHEIGHT] = 18;
+		statsfi[STAT_MOVEVARS_AIRACCEL_QW] = 1;
+		statsfi[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION] = sv_gravity.value;
 	}
 
-	SV_UpdateQCStats(ent, stats);
+	SV_UpdateQCStats(ent, statsi, statss, statsf);
 
 	//dmw tweek for stats
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
@@ -1378,70 +1383,105 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		//dmw tweek for stats
 		if (getplayerstati[i])
 		{
-			G_INT(OFS_PARM0) = stats[i];
+			G_INT(OFS_PARM0) = statsf[i];
 			PR_ExecuteProgram(svprogfuncs, getplayerstati[i]);
-			stats[i] = G_INT(OFS_RETURN);
+			statsf[i] = G_INT(OFS_RETURN);
 		}
 		else if (getplayerstat[i])
 		{
-			G_FLOAT(OFS_PARM0) = stats[i];
+			G_FLOAT(OFS_PARM0) = statsf[i];
 			PR_ExecuteProgram(svprogfuncs, getplayerstat[i]);
-			stats[i] = G_FLOAT(OFS_RETURN);
+			statsf[i] = G_FLOAT(OFS_RETURN);
 		}
 		if (sv.demofile)
 		{
 			if (!client->spec_track)
 			{
-				stats[i] = 0;
+				statsf[i] = 0;
 				if (i == STAT_HEALTH)
-					stats[i] = 100;
+					statsf[i] = 100;
 			}
 			else
-				stats[i] = sv.recordedplayer[client->spec_track - 1].stats[i];
-		}
-		if (stats[i] != client->stats[i])
-		{
-			client->stats[i] = stats[i];
-#ifdef NQPROT
-			if (!ISQWCLIENT(client))
 			{
+				statsf[i] = sv.recordedplayer[client->spec_track - 1].stats[i];
+				statsi[i] = sv.recordedplayer[client->spec_track - 1].stats[i];
+			}
+		}
+		if (!ISQWCLIENT(client))
+		{
+			if (!statsi[i])
+				statsi[i] = *(int*)&statsf[i];
+			if (statsi[i] != client->statsi[i])
+			{
+				client->statsi[i] = statsi[i];
 				ClientReliableWrite_Begin(client, svc_updatestat, 3);
 				ClientReliableWrite_Byte(client, i);
-				ClientReliableWrite_Long(client, stats[i]);
+				ClientReliableWrite_Long(client, statsi[i]);
 			}
-			else
-#endif
-
-			if (pnum)
+		}
+		else
+		{
+			if ((client->fteprotocolextensions & PEXT_CSQC) && sv.csqcchecksum)
 			{
-				if (stats[i] >=0 && stats[i] <= 255)
+				if (statsf[i] && statsf[i] - (float)(int)statsf[i] == 0)
 				{
-					ClientReliableWrite_Begin(client->controller, svc_choosesplitclient, 5);
+					statsi[i] = statsf[i];
+					statsf[i] = 0;
+				}
+				else if (statsf[i] != client->statsf[i])
+				{
+					client->statsf[i] = statsf[i];
+//					client->statsi[i] = statsi[i];
+					if (pnum)
+					{
+						ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
+						ClientReliableWrite_Byte(client->controller, pnum);
+					}
+					ClientReliableWrite_Begin(client, svcfte_updatestatfloat, 6);
+					ClientReliableWrite_Byte(client, i);
+					ClientReliableWrite_Float(client, statsf[i]);
+				}
+
+				if (statss[i] || client->statss[i])
+				if (strcmp(statss[i]?statss[i]:"", client->statss[i]?client->statss[i]:""))
+				{
+					client->statss[i] = statss[i];
+					if (pnum)
+					{
+						ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 5+strlen(statss[i]));
+						ClientReliableWrite_Byte(client->controller, pnum);
+						ClientReliableWrite_Byte(client->controller, svcfte_updatestatstring);
+					}
+					else
+						ClientReliableWrite_Begin(client, svcfte_updatestatstring, 3+strlen(statss[i]));
+					ClientReliableWrite_Byte(client, i);
+					ClientReliableWrite_String(client, statss[i]);
+				}
+			}
+			else if (!statsi[i])
+				statsi[i] = statsf[i];
+			if (statsi[i] != client->statsi[i])
+			{
+				client->statsi[i] = statsi[i];
+				client->statsf[i] = 0;
+
+				if (pnum)
+				{
+					ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
 					ClientReliableWrite_Byte(client->controller, pnum);
-					ClientReliableWrite_Byte(client->controller, svc_updatestat);
-					ClientReliableWrite_Byte(client->controller, i);
-					ClientReliableWrite_Byte(client->controller, stats[i]);
+				}
+				if (statsi[i] >=0 && statsi[i] <= 255)
+				{
+					ClientReliableWrite_Begin(client, svc_updatestat, 3);
+					ClientReliableWrite_Byte(client, i);
+					ClientReliableWrite_Byte(client, statsi[i]);
 				}
 				else
 				{
-					ClientReliableWrite_Begin(client->controller, svc_choosesplitclient, 8);
-					ClientReliableWrite_Byte(client->controller, pnum);
-					ClientReliableWrite_Byte(client->controller, svc_updatestatlong);
-					ClientReliableWrite_Byte(client->controller, i);
-					ClientReliableWrite_Long(client->controller, stats[i]);
+					ClientReliableWrite_Begin(client, svc_updatestatlong, 6);
+					ClientReliableWrite_Byte(client, i);
+					ClientReliableWrite_Long(client, statsi[i]);
 				}
-			}
-			else if (stats[i] >=0 && stats[i] <= 255)
-			{
-				ClientReliableWrite_Begin(client, svc_updatestat, 3);
-				ClientReliableWrite_Byte(client, i);
-				ClientReliableWrite_Byte(client, stats[i]);
-			}
-			else
-			{
-				ClientReliableWrite_Begin(client, svc_updatestatlong, 6);
-				ClientReliableWrite_Byte(client, i);
-				ClientReliableWrite_Long(client, stats[i]);
 			}
 		}
 	}
@@ -1534,7 +1574,7 @@ client_t *SV_SplitClientDest(client_t *client, qbyte first, int size)
 		}
 		sp = client->controller;
 
-		ClientReliableWrite_Begin (sp, svc_choosesplitclient, size+2);
+		ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, size+2);
 		ClientReliableWrite_Byte (sp, pnum);
 		ClientReliableWrite_Byte (sp, first);
 		return sp;
@@ -1711,7 +1751,7 @@ void SV_UpdateToReliableMessages (void)
 							}
 							sp = host_client->controller;
 
-							ClientReliableWrite_Begin (sp, svc_choosesplitclient, 7);
+							ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, 7);
 							ClientReliableWrite_Byte (sp, pnum);
 							ClientReliableWrite_Byte (sp, svc_maxspeed);
 							ClientReliableWrite_Float(sp, newval);

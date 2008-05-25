@@ -1150,7 +1150,7 @@ If not SERVERONLY, also expands $macro expressions
 Note: dest must point to a 1024 byte buffer
 ================
 */
-char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel, qboolean expandmacros)
+char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel, qboolean expandcvars, qboolean expandmacros)
 {
 	unsigned int	c;
 	char	buf[255];
@@ -1341,7 +1341,7 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 
 	while (1)
 	{
-// skip whitespace up to a /n
+// skip whitespace up to a \n
 		while (*text && (unsigned)*text <= ' ' && *text != '\n')
 		{
 			text++;
@@ -1838,7 +1838,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 	Cmd_ExecLevel = level;
 
-	text = Cmd_ExpandString(text, dest, sizeof(dest), level, !Cmd_IsInsecure()?true:false);
+	text = Cmd_ExpandString(text, dest, sizeof(dest), level, !Cmd_IsInsecure()?true:false, true);
 	Cmd_TokenizeString (text, level == RESTRICT_LOCAL?true:false, false);
 
 // execute the command line

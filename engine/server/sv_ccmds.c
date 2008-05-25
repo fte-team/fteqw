@@ -701,13 +701,59 @@ void SV_BanName_f (void)
 		Con_TPrintf (STL_USERDOESNTEXIST, Cmd_Argv(1));
 }
 
+void SV_KickBanIP(netadr_t banadr, netadr_t banmask, char *reason)
+{
+	qboolean shouldkick;
+	client_t *cl;
+	int i;
+	unsigned int reasonsize;
+	bannedips_t *nb;
+
+	if (reason)
+		reasonsize = strlen(reason);
+	else
+		reasonsize = 0;
+
+	// loop through clients and kick the ones that match
+	for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
+	{
+		if (cl->state<=cs_zombie)
+			continue;
+
+		shouldkick = false;
+
+		if (NET_CompareAdrMasked(cl->netchan.remote_address, banadr, banmask))
+			shouldkick = true;
+		else if (cl->realip_status >= 1)
+			if (NET_CompareAdrMasked(cl->realip, banadr, banmask))
+				shouldkick = true;
+
+		if (shouldkick)
+		{
+			// match, so kick
+			SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTWASBANNED, cl->name);
+			// print directly, because the dropped client won't get the
+			// SV_BroadcastPrintf message
+			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREBANNED);
+			SV_LogPlayer(cl, "banned ip");
+			SV_DropClient (cl);
+		}
+	}
+
+	// add IP and mask to ban list
+	nb = Z_Malloc(sizeof(bannedips_t)+reasonsize);
+	nb->next = svs.bannedips;
+	nb->adr = banadr;
+	nb->adrmask = banmask;
+	svs.bannedips = nb;
+	if (reasonsize)
+		Q_strcpy(nb->reason, reason);
+}
+
 void SV_BanIP_f (void)
 {
 	netadr_t banadr;
 	netadr_t banmask;
-	int i;
-	client_t	*cl;
-	bannedips_t *nb;
 	char *reason = NULL;
 	int reasonsize = 0;
 
@@ -730,37 +776,39 @@ void SV_BanIP_f (void)
 	}
 
 	if (Cmd_Argc() > 2)
-	{
 		reason = Cmd_Argv(2);
-		reasonsize = strlen(reason);
-	}
 
-	// loop through clients and kick the ones that match
-	for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
+	SV_KickBanIP(banadr, banmask, reason);
+}
+
+void SV_BanClientIP_f (void)
+{
+	netadr_t banmask;
+	client_t	*cl;
+	char *reason = NULL;
+	int clnum=-1;
+
+	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
-		if (cl->state<=cs_zombie)
-			continue;
-
-		if (NET_CompareAdrMasked(cl->netchan.remote_address, banadr, banmask))
+		if (NET_IsLoopBackAddress(cl->netchan.remote_address))
 		{
-			// match, so kick
-			SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTWASBANNED, cl->name);
-			// print directly, because the dropped client won't get the
-			// SV_BroadcastPrintf message
-			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREBANNED);
-			SV_LogPlayer(cl, "banned ip");
-			SV_DropClient (cl);
+			Con_Printf("You're not allowed to ban loopback!\n");
+			continue;
+		}
+
+		if (cl->realip_status>0)
+		{
+			memset(&banmask.address, 0xff, sizeof(banmask.address));
+			banmask.type = cl->netchan.remote_address.type;
+			SV_KickBanIP(cl->realip, banmask, reason);
+		}
+		else
+		{
+			memset(&banmask.address, 0xff, sizeof(banmask.address));
+			banmask.type = cl->netchan.remote_address.type;
+			SV_KickBanIP(cl->netchan.remote_address, banmask, reason);
 		}
 	}
-
-	// add IP and mask to ban list
-	nb = Z_Malloc(sizeof(bannedips_t)+reasonsize);
-	nb->next = svs.bannedips;
-	nb->adr = banadr;
-	nb->adrmask = banmask;
-	svs.bannedips = nb;
-	if (reasonsize)
-		Q_strcpy(nb->reason, reason);
 }
 
 void SV_FilterIP_f (void)
@@ -1245,6 +1293,8 @@ void SV_Status_f (void)
 	{
 		if (net_local_sv_ipadr.type != NA_LOOPBACK)
 			Con_Printf ("ip address       : %s\n",NET_AdrToString (net_local_sv_ipadr));
+		if (net_local_sv_ip6adr.type != NA_LOOPBACK)
+			Con_Printf ("ipv6 address       : %s\n",NET_AdrToString (net_local_sv_ip6adr));
 
 		Con_Printf("Server is not running\n");
 		return;
@@ -1262,7 +1312,7 @@ void SV_Status_f (void)
 	if (svs.socketip != INVALID_SOCKET && net_local_sv_ipadr.type != NA_LOOPBACK)
 	{
 		extern cvar_t pr_imitatemvdsv;
-		if (pr_imitatemvdsv.value)
+		if (pr_imitatemvdsv.value)	//ktpro requires 'net address' for some reason that I don't remember
 			Con_Printf ("net address      : %s\n",NET_AdrToString (net_local_sv_ipadr));
 		else
 			Con_Printf ("ip address       : %s\n",NET_AdrToString (net_local_sv_ipadr));
@@ -1973,6 +2023,7 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("banname", SV_BanName_f);
 	Cmd_AddCommand ("banlist", SV_BanList_f);
 	Cmd_AddCommand ("banip", SV_BanIP_f);
+	Cmd_AddCommand ("ban", SV_BanClientIP_f);
 	Cmd_AddCommand ("unban", SV_Unban_f);
 //	Cmd_AddCommand ("ban", SV_BanName_f);
 	Cmd_AddCommand ("status", SV_Status_f);

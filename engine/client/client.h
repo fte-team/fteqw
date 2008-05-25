@@ -164,6 +164,7 @@ typedef struct player_info_s
 	int prevcount;
 
 	int stats[MAX_CL_STATS];
+	int statsf[MAX_CL_STATS];
 } player_info_t;
 
 
@@ -456,6 +457,8 @@ typedef struct
 
 // information for local display
 	int			stats[MAX_SPLITS][MAX_CL_STATS];	// health, etc
+	float		statsf[MAX_SPLITS][MAX_CL_STATS];	// health, etc
+	char		*statsstr[MAX_SPLITS][MAX_CL_STATS];	// health, etc
 	float		item_gettime[MAX_SPLITS][32];	// cl.time of aquiring item, for blinking
 	float		faceanimtime[MAX_SPLITS];		// use anim frame if cl.time < this
 

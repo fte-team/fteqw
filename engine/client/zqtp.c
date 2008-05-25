@@ -1526,7 +1526,7 @@ char *TP_LocationName (vec3_t location)
 	}
 
 	recursive = true;
-	Cmd_ExpandString (locdata[minnum].name, buf, sizeof(buf), Cmd_ExecLevel, false);
+	Cmd_ExpandString (locdata[minnum].name, buf, sizeof(buf), Cmd_ExecLevel, true, false);
 	recursive = false;
 
 	return buf;
@@ -3217,7 +3217,7 @@ void CL_Say (qboolean team, char *extra)
 		!strchr(s, '\x0d') /* explicit $\ in message overrides cl_fakename */)
 	{
 		char buf[1024];
-		Cmd_ExpandString (cl_fakename.string, buf, sizeof(buf), Cmd_ExecLevel, true);
+		Cmd_ExpandString (cl_fakename.string, buf, sizeof(buf), Cmd_ExecLevel, true, true);
 		strcpy (buf, TP_ParseMacroString (buf));
 		Q_snprintfz (sendtext, sizeof(sendtext), "\x0d%s: ", TP_ParseFunChars(buf, true));
 	}

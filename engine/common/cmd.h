@@ -141,7 +141,7 @@ void Cmd_MessageTrigger (char *message, int type);
 
 void Cmd_ShiftArgs (int ammount, qboolean expandstring);
 
-char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel, qboolean expandmacros);
+char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel, qboolean expandcvars, qboolean expandmacros);
 
 extern cvar_t rcon_level;
 

@@ -136,13 +136,13 @@ void NPP_NQFlush(void)
 		break;
 	case svcdp_hidelmp:
 		requireextension = PEXT_SHOWPIC;
-		buffer[0] = svc_hidepic;
+		buffer[0] = svcfte_hidepic;
 		break;
 	case svcdp_showlmp:
 		requireextension = PEXT_SHOWPIC;
 		memmove(buffer+2, buffer+1, bufferlen-1);
 		bufferlen++;
-		buffer[0] = svc_showpic;
+		buffer[0] = svcfte_showpic;
 		buffer[1] = 0;	//top left
 		//pad the bytes to shorts.
 		buffer[bufferlen] = buffer[bufferlen-1];

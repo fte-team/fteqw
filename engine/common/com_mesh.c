@@ -18,6 +18,7 @@
 
 extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models;
 extern cvar_t r_noaliasshadows;
+extern cvar_t r_skin_overlays;
 extern cvar_t mod_md3flags;
 
 
@@ -1097,6 +1098,10 @@ void Mod_LoadSkinFile(galiastexnum_t *texnum, char *surfacename, int skinnumber,
 #endif
 
 	texnum->base = Mod_LoadHiResTexture(shadername, "models", true, true, true);
+
+	//13/4/08 IMPLEMENTME
+	texnum->loweroverlay = 0;
+	texnum->upperoverlay = 0;
 }
 #endif
 
@@ -1439,6 +1444,18 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, qboolean alpha)
 			texnums->fullbright = fbtexture;
 			texnums->bump = bumptexture;
 
+			//13/4/08 IMPLEMENTME
+			if (r_skin_overlays.value)
+			{
+				snprintf(skinname, sizeof(skinname), "%s_%i", loadname, i);
+				texture = R_LoadTexture8(skinname, outskin->skinwidth, outskin->skinheight, saved, true, alpha);
+			}
+			else
+			{
+				texnums->loweroverlay = 0;
+				texnums->upperoverlay = 0;
+			}
+
 			pskintype = (daliasskintype_t *)((char *)(pskintype+1)+s);
 			break;
 
@@ -1524,6 +1541,10 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, qboolean alpha)
 
 				texnums->base = texture;
 				texnums->fullbright = fbtexture;
+
+				//13/4/08 IMPLEMENTME
+				texnums->loweroverlay = 0;
+				texnums->upperoverlay = 0;
 			}
 			pskintype = (daliasskintype_t *)data;
 			break;
@@ -2652,6 +2673,10 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 					}
 				}
 #endif
+
+				//13/4/08 IMPLEMENTME
+				texnum->loweroverlay = 0;
+				texnum->upperoverlay = 0;
 
 				inshader++;
 				skin++;

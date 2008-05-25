@@ -137,6 +137,10 @@ typedef enum
 	G_MAKEVECTORS,
 	G_NEXTCLIENT,
 
+	G_PRECAHCE_VWEP_MODEL,
+	G_SETPAUSE,
+	G_SETUSERINFO,
+
 
 	G_MAX
 } gameImport_t;
@@ -496,6 +500,7 @@ void PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_ExecuteCommand  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 
 int PF_checkclient_Internal (progfuncs_t *prinst);
@@ -1086,11 +1091,20 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 /*
 	case G_Remove_Bot:
 		break;
-	case G_SetBotUserInfo:
-		break;
 	case G_SetBotCMD:
 		break;
 */
+	case G_SETUSERINFO:
+		{
+			char *key = VM_POINTER(arg[1]);
+			if (*key == '*' && (VM_LONG(arg[3])&1))
+				return -1;	//denied!
+		}
+		//fallthrough
+	case G_SetBotUserInfo:
+		WrapQCBuiltin(PF_ForceInfoKey, offset, mask, arg, "ess");
+		return 0;
+
 	case G_strftime:
 		{
 			char *out = VM_POINTER(arg[0]);
@@ -1193,14 +1207,16 @@ static int EXPORT_FN syscallnative (int arg, ...)
 void Q1QVM_Shutdown(void)
 {
 	int i;
-	for (i = 0; i < MAX_CLIENTS; i++)
-	{
-		if (svs.clients[i].name)
-			Q_strncpyz(svs.clients[i].namebuf, svs.clients[i].name, sizeof(svs.clients[i].namebuf));
-		svs.clients[i].name = svs.clients[i].namebuf;
-	}
 	if (q1qvm)
+	{
+		for (i = 0; i < MAX_CLIENTS; i++)
+		{
+			if (svs.clients[i].name)
+				Q_strncpyz(svs.clients[i].namebuf, svs.clients[i].name, sizeof(svs.clients[i].namebuf));
+			svs.clients[i].name = svs.clients[i].namebuf;
+		}
 		VM_Destroy(q1qvm);
+	}
 	q1qvm = NULL;
 	VM_fcloseall(VMFSID_Q1QVM);
 	if (svprogfuncs == &q1qvmprogfuncs)
@@ -1480,4 +1496,3 @@ void Q1QVM_EndFrame(void)
 }
 
 #endif
-

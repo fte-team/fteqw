@@ -1222,6 +1222,7 @@ BOOL bSetupPixelFormat(HDC hDC)
 			if (SetPixelFormat(hDC, pixelformat, &pfd))
 			{
 				TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
+				DescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd); 
 				FixPaletteInDescriptor(hDC, &pfd);
 				gl_canstencil = pfd.cStencilBits;
 				return TRUE;

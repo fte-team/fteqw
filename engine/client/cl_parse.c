@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLNQ_ParseDarkPlaces5Entities(void);
-void CL_SetStat (int pnum, int stat, int value);
+void CL_SetStatInt (int pnum, int stat, int value);
 
 int nq_dp_protocol;
 int msgflags;
@@ -725,6 +725,21 @@ int CL_LoadModels(int stage)
 		}
 	}
 
+
+
+	if (atstage())
+	{
+		cl.worldmodel = cl.model_precache[1];
+		if (!cl.worldmodel || cl.worldmodel->type == mod_dummy)
+			Host_EndGame("Worldmodel wasn't sent\n");
+
+		R_CheckSky();
+
+		CSQC_WorldLoaded();
+
+		endstage();
+	}
+
 	for (i=1 ; i<MAX_CSQCMODELS ; i++)
 	{
 		if (!cl.model_csqcname[i][0])
@@ -740,16 +755,6 @@ int CL_LoadModels(int stage)
 		}
 	}
 
-	if (atstage())
-	{
-		cl.worldmodel = cl.model_precache[1];
-		if (!cl.worldmodel || cl.worldmodel->type == mod_dummy)
-			Host_EndGame("Worldmodel wasn't sent\n");
-
-		R_CheckSky();
-
-		endstage();
-	}
 	if (atstage())
 	{
 		Wad_NextDownload();
@@ -2180,9 +2185,9 @@ void CLNQ_ParseClientdata (void)
 		bits |= (MSG_ReadByte() << 24);
 
 	if (bits & SU_VIEWHEIGHT)
-		CL_SetStat(0, STAT_VIEWHEIGHT, MSG_ReadChar ());
+		CL_SetStatInt(0, STAT_VIEWHEIGHT, MSG_ReadChar ());
 	else if (nq_dp_protocol < 6)
-		CL_SetStat(0, STAT_VIEWHEIGHT, DEFAULT_VIEWHEIGHT);
+		CL_SetStatInt(0, STAT_VIEWHEIGHT, DEFAULT_VIEWHEIGHT);
 
 	if (bits & SU_IDEALPITCH)
 		/*cl.idealpitch =*/ MSG_ReadChar ();
@@ -2216,7 +2221,7 @@ void CLNQ_ParseClientdata (void)
 	}
 
 	if (bits & SU_ITEMS)
-		CL_SetStat(0, STAT_ITEMS, MSG_ReadLong());
+		CL_SetStatInt(0, STAT_ITEMS, MSG_ReadLong());
 
 //	cl.onground = (bits & SU_ONGROUND) != 0;
 //	cl.inwater = (bits & SU_INWATER) != 0;
@@ -2226,37 +2231,37 @@ void CLNQ_ParseClientdata (void)
 	}
 	else if (nq_dp_protocol == 5)
 	{
-		CL_SetStat(0, STAT_WEAPONFRAME, (bits & SU_WEAPONFRAME)?(unsigned short)MSG_ReadShort():0);
-		CL_SetStat(0, STAT_ARMOR, (bits & SU_ARMOR)?MSG_ReadShort():0);
-		CL_SetStat(0, STAT_WEAPON, (bits & SU_WEAPON)?MSG_ReadShort():0);
+		CL_SetStatInt(0, STAT_WEAPONFRAME, (bits & SU_WEAPONFRAME)?(unsigned short)MSG_ReadShort():0);
+		CL_SetStatInt(0, STAT_ARMOR, (bits & SU_ARMOR)?MSG_ReadShort():0);
+		CL_SetStatInt(0, STAT_WEAPON, (bits & SU_WEAPON)?MSG_ReadShort():0);
 
-		CL_SetStat(0, STAT_HEALTH, MSG_ReadShort());
+		CL_SetStatInt(0, STAT_HEALTH, MSG_ReadShort());
 
-		CL_SetStat(0, STAT_AMMO, MSG_ReadShort());
+		CL_SetStatInt(0, STAT_AMMO, MSG_ReadShort());
 
-		CL_SetStat(0, STAT_SHELLS, MSG_ReadShort());
-		CL_SetStat(0, STAT_NAILS, MSG_ReadShort());
-		CL_SetStat(0, STAT_ROCKETS, MSG_ReadShort());
-		CL_SetStat(0, STAT_CELLS, MSG_ReadShort());
+		CL_SetStatInt(0, STAT_SHELLS, MSG_ReadShort());
+		CL_SetStatInt(0, STAT_NAILS, MSG_ReadShort());
+		CL_SetStatInt(0, STAT_ROCKETS, MSG_ReadShort());
+		CL_SetStatInt(0, STAT_CELLS, MSG_ReadShort());
 
-		CL_SetStat(0, STAT_ACTIVEWEAPON, (unsigned short)MSG_ReadShort());
+		CL_SetStatInt(0, STAT_ACTIVEWEAPON, (unsigned short)MSG_ReadShort());
 	}
 	else
 	{
-		CL_SetStat(0, STAT_WEAPONFRAME, (bits & SU_WEAPONFRAME)?(unsigned char)MSG_ReadByte():0);
-		CL_SetStat(0, STAT_ARMOR, (bits & SU_ARMOR)?MSG_ReadByte():0);
-		CL_SetStat(0, STAT_WEAPON, (bits & SU_WEAPON)?MSG_ReadByte():0);
+		CL_SetStatInt(0, STAT_WEAPONFRAME, (bits & SU_WEAPONFRAME)?(unsigned char)MSG_ReadByte():0);
+		CL_SetStatInt(0, STAT_ARMOR, (bits & SU_ARMOR)?MSG_ReadByte():0);
+		CL_SetStatInt(0, STAT_WEAPON, (bits & SU_WEAPON)?MSG_ReadByte():0);
 
-		CL_SetStat(0, STAT_HEALTH, MSG_ReadShort());
+		CL_SetStatInt(0, STAT_HEALTH, MSG_ReadShort());
 
-		CL_SetStat(0, STAT_AMMO, MSG_ReadByte());
+		CL_SetStatInt(0, STAT_AMMO, MSG_ReadByte());
 
-		CL_SetStat(0, STAT_SHELLS, MSG_ReadByte());
-		CL_SetStat(0, STAT_NAILS, MSG_ReadByte());
-		CL_SetStat(0, STAT_ROCKETS, MSG_ReadByte());
-		CL_SetStat(0, STAT_CELLS, MSG_ReadByte());
+		CL_SetStatInt(0, STAT_SHELLS, MSG_ReadByte());
+		CL_SetStatInt(0, STAT_NAILS, MSG_ReadByte());
+		CL_SetStatInt(0, STAT_ROCKETS, MSG_ReadByte());
+		CL_SetStatInt(0, STAT_CELLS, MSG_ReadByte());
 
-		CL_SetStat(0, STAT_ACTIVEWEAPON, MSG_ReadByte());
+		CL_SetStatInt(0, STAT_ACTIVEWEAPON, MSG_ReadByte());
 	}
 
 	if (bits & DPSU_VIEWZOOM)
@@ -2267,10 +2272,10 @@ void CLNQ_ParseClientdata (void)
 			i = MSG_ReadByte();
 		if (i < 2)
 			i = 2;
-		CL_SetStat(0, STAT_VIEWZOOM, i);
+		CL_SetStatInt(0, STAT_VIEWZOOM, i);
 	}
 	else if (nq_dp_protocol < 6)
-		CL_SetStat(0, STAT_VIEWZOOM, 255);
+		CL_SetStatInt(0, STAT_VIEWZOOM, 255);
 }
 #endif
 /*
@@ -2613,11 +2618,10 @@ void CL_ParseBaseline2 (void)
 void CLQ2_Precache_f (void)
 {
 	cl.sendprespawn = true;
+	Sound_NextDownload();
 #ifdef VM_CG
 	CG_Start();
 #endif
-
-	CL_RequestNextDownload();
 }
 
 
@@ -3186,7 +3190,7 @@ static void CL_SetStat_Internal (int pnum, int stat, int value)
 		TP_StatChanged(stat, value);
 }
 
-void CL_SetStat (int pnum, int stat, int value)
+void CL_SetStatInt (int pnum, int stat, int value)
 {
 	if (stat < 0 || stat >= MAX_CL_STATS)
 		return;
@@ -3213,7 +3217,46 @@ void CL_SetStat (int pnum, int stat, int value)
 	else
 		CL_SetStat_Internal(pnum, stat, value);
 }
+void CL_SetStatFloat (int pnum, int stat, float value)
+{
+	if (stat < 0 || stat >= MAX_CL_STATS)
+		return;
+//		Host_EndGame ("CL_SetStat: %i is invalid", stat);
 
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	{
+		extern int cls_lastto;
+		cl.players[cls_lastto].statsf[stat]=value;
+
+		for (pnum = 0; pnum < cl.splitclients; pnum++)
+			if (spec_track[pnum] == cls_lastto)
+				cl.statsf[pnum][stat] = value;
+	}
+	else
+		cl.statsf[pnum][stat] = value;
+}
+void CL_SetStatString (int pnum, int stat, char *value)
+{
+	if (stat < 0 || stat >= MAX_CL_STATS)
+		return;
+//		Host_EndGame ("CL_SetStat: %i is invalid", stat);
+
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	{
+/*		extern int cls_lastto;
+		cl.players[cls_lastto].statsstr[stat]=value;
+
+		for (pnum = 0; pnum < cl.splitclients; pnum++)
+			if (spec_track[pnum] == cls_lastto)
+				cl.statsstr[pnum][stat] = value;*/
+	}
+	else
+	{
+		if (cl.statsstr[pnum][stat])
+			Z_Free(cl.statsstr[pnum][stat]);
+		cl.statsstr[pnum][stat] = Z_Malloc(strlen(value));
+	}
+}
 /*
 ==============
 CL_MuzzleFlash
@@ -4059,6 +4102,7 @@ void CL_ParseServerMessage (void)
 	char		*s;
 	int			i, j;
 	int			destsplit;
+	float f;
 
 	received_framecount = host_framecount;
 	cl.last_servermessage = realtime;
@@ -4092,7 +4136,7 @@ void CL_ParseServerMessage (void)
 
 		cmd = MSG_ReadByte ();
 
-		if (cmd == svc_choosesplitclient)
+		if (cmd == svcfte_choosesplitclient)
 		{
 			SHOWNET(svc_strings[cmd]);
 
@@ -4234,7 +4278,7 @@ void CL_ParseServerMessage (void)
 			cl_lightstyle[i].length = Q_strlen(cl_lightstyle[i].map);
 			break;
 #ifdef PEXT_LIGHTSTYLECOL
-		case svc_lightstylecol:
+		case svcfte_lightstylecol:
 			if (!(cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL))
 				Host_EndGame("PEXT_LIGHTSTYLECOL is meant to be disabled\n");
 			i = MSG_ReadByte ();
@@ -4291,7 +4335,7 @@ void CL_ParseServerMessage (void)
 				Host_EndGame("CL_ParseServerMessage: svc_spawnbaseline failed with size %i", i);
 			CL_ParseBaseline (cl_baselines + i);
 			break;
-		case svc_spawnbaseline2:
+		case svcfte_spawnbaseline2:
 			CL_ParseBaseline2 ();
 			break;
 		case svc_spawnstatic:
@@ -4307,20 +4351,20 @@ void CL_ParseServerMessage (void)
 			CL_ParseTEnt ();
 #endif
 			break;
-		case svc_customtempent:
+		case svcfte_customtempent:
 			CL_ParseCustomTEnt();
 			break;
 
 		case svc_particle:
 			CLNQ_ParseParticleEffect ();
 			break;
-		case svc_particle2:
+		case svcfte_particle2:
 			CL_ParseParticleEffect2 ();
 			break;
-		case svc_particle3:
+		case svcfte_particle3:
 			CL_ParseParticleEffect3 ();
 			break;
-		case svc_particle4:
+		case svcfte_particle4:
 			CL_ParseParticleEffect4 ();
 			break;
 
@@ -4335,12 +4379,26 @@ void CL_ParseServerMessage (void)
 		case svc_updatestat:
 			i = MSG_ReadByte ();
 			j = MSG_ReadByte ();
-			CL_SetStat (destsplit, i, j);
+			CL_SetStatInt (destsplit, i, j);
+			CL_SetStatFloat (destsplit, i, j);
 			break;
 		case svc_updatestatlong:
 			i = MSG_ReadByte ();
 			j = MSG_ReadLong ();	//make qbyte if nq compatability?
-			CL_SetStat (destsplit, i, j);
+			CL_SetStatInt (destsplit, i, j);
+			CL_SetStatFloat (destsplit, i, j);
+			break;
+
+		case svcfte_updatestatstring:
+			i = MSG_ReadByte();
+			s = MSG_ReadString();
+			CL_SetStatString (destsplit, i, s);
+			break;
+		case svcfte_updatestatfloat:
+			i = MSG_ReadByte();
+			f = MSG_ReadFloat();
+			CL_SetStatInt (destsplit, i, f);
+			CL_SetStatFloat (destsplit, i, f);
 			break;
 
 		case svc_spawnstaticsound:
@@ -4427,7 +4485,7 @@ void CL_ParseServerMessage (void)
 		case svc_modellist:
 			CL_ParseModellist (false);
 			break;
-		case svc_modellistshort:
+		case svcfte_modellistshort:
 			CL_ParseModellist (true);
 			break;
 
@@ -4462,7 +4520,7 @@ void CL_ParseServerMessage (void)
 			break;
 
 #ifdef PEXT_BULLETENS
-		case svc_bulletentext:
+		case svcfte_bulletentext:
 			if (!(cls.fteprotocolextensions & PEXT_BULLETENS))
 				Host_EndGame("PEXT_BULLETENS is meant to be disabled\n");
 			Bul_ParseMessage();
@@ -4489,32 +4547,32 @@ void CL_ParseServerMessage (void)
 			break;
 #endif
 
-		case svc_showpic:
+		case svcfte_showpic:
 			SCR_ShowPic_Create();
 			break;
-		case svc_hidepic:
+		case svcfte_hidepic:
 			SCR_ShowPic_Hide();
 			break;
-		case svc_movepic:
+		case svcfte_movepic:
 			SCR_ShowPic_Move();
 			break;
-		case svc_updatepic:
+		case svcfte_updatepic:
 			SCR_ShowPic_Update();
 			break;
 
-		case svcqw_effect:
+		case svcfte_effect:
 			CL_ParseEffect(false);
 			break;
-		case svcqw_effect2:
+		case svcfte_effect2:
 			CL_ParseEffect(true);
 			break;
 
 #ifdef PEXT_CSQC
-		case svc_csqcentities:
+		case svcfte_csqcentities:
 			CSQC_ParseEntities();
 			break;
 #endif
-		case svc_precache:
+		case svcfte_precache:
 			CL_ParsePrecache();
 			break;
 		}
@@ -5062,12 +5120,14 @@ void CLNQ_ParseServerMessage (void)
 		case svc_updatestat:
 			i = MSG_ReadByte ();
 			j = MSG_ReadLong ();
-			CL_SetStat (0, i, j);
+			CL_SetStatInt (0, i, j);
+			CL_SetStatFloat (0, i, j);
 			break;
 		case svcdp_updatestatbyte:
 			i = MSG_ReadByte ();
 			j = MSG_ReadByte ();
-			CL_SetStat (0, i, j);
+			CL_SetStatInt (0, i, j);
+			CL_SetStatFloat (0, i, j);
 			break;
 		case svc_setangle:
 			for (i=0 ; i<3 ; i++)

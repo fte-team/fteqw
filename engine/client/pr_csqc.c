@@ -1,5 +1,19 @@
 #include "quakedef.h"
 
+/*
+
+  EXT_CSQC is the 'root' extension
+  EXT_CSQC_1 are a collection of additional features to cover omissions in the original spec
+
+
+  note the CHEAT_PARANOID define disables certain EXT_CSQC_1 features,
+  in an attempt to prevent the player from finding out where he/she is, thus preventing aimbots.
+  This is specifically targetted towards deathmatch mods where each player is a single player.
+  In reality, this paranoia provides nothing which could not be done with a cheat proxy.
+  Seeing as the client ensures hashes match in the first place, this paranoia gives nothing in the long run.
+  Unfortunatly EXT_CSQC was designed around this paranoia.
+*/
+
 #ifdef CSQC_DAT
 
 #ifdef RGLQUAKE
@@ -7,7 +21,11 @@
 #include "shader.h"
 #endif
 
+//#define CHEAT_PARANOID
+
 #include "pr_common.h"
+
+#define ANGLE2SHORT(x) ((x/360.0)*65535)
 
 static progfuncs_t *csqcprogs;
 
@@ -34,8 +52,8 @@ cvar_t  cl_nocsqc = SCVAR("cl_nocsqc", "0");
 cvar_t  pr_csqc_coreonerror = SCVAR("pr_csqc_coreonerror", "1");
 
 
-#define MASK_ENGINE 1
-#define MASK_ENGINEVIEWMODEL 2
+#define MASK_DELTA 1
+#define MASK_STDVIEWMODEL 2
 
 
 // standard effect cvars/sounds
@@ -51,20 +69,25 @@ extern sfx_t			*cl_sfx_r_exp3;
 //If I do it like this, I'll never forget to register something...
 #define csqcglobals	\
 	globalfunction(init_function,		"CSQC_Init");	\
+	globalfunction(worldloaded,			"CSQC_WorldLoaded");	\
 	globalfunction(shutdown_function,	"CSQC_Shutdown");	\
 	globalfunction(draw_function,		"CSQC_UpdateView");	\
 	globalfunction(parse_stuffcmd,		"CSQC_Parse_StuffCmd");	\
 	globalfunction(parse_centerprint,	"CSQC_Parse_CenterPrint");	\
 	globalfunction(input_event,			"CSQC_InputEvent");	\
+	globalfunction(input_frame,			"CSQC_Input_Frame");/*EXT_CSQC_1*/	\
 	globalfunction(console_command,		"CSQC_ConsoleCommand");	\
 	\
 	globalfunction(ent_update,			"CSQC_Ent_Update");	\
 	globalfunction(ent_remove,			"CSQC_Ent_Remove");	\
+	globalfunction(delta_update,		"CSQC_Delta_Update");/*EXT_CSQC_1*/	\
+	globalfunction(delta_remove,		"CSQC_Delta_Remove");/*EXT_CSQC_1*/	\
 	\
 	globalfunction(serversound,			"CSQC_ServerSound");	\
 	\
 	/*These are pointers to the csqc's globals.*/	\
 	globalfloat(time,					"time");				/*float		Written before entering most qc functions*/	\
+	globalfloat(simtime,				"simtime");				/*float		Written before entering most qc functions*/	\
 	globalentity(self,					"self");				/*entity	Written before entering most qc functions*/	\
 	globalentity(other,					"other");				/*entity	Written before entering most qc functions*/	\
 	\
@@ -84,14 +107,15 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfloat(trace_plane_dist,		"trace_plane_dist");	/*float		written by traceline*/	\
 	globalentity(trace_ent,				"trace_ent");			/*entity	written by traceline*/	\
 	globalfloat(trace_surfaceflags,		"trace_surfaceflags");	/*float		written by traceline*/	\
-	globalfloat(trace_endcontents,		"trace_endcontents");	/*float		written by traceline*/	\
+	globalfloat(trace_endcontents,		"trace_endcontents");	/*float		written by traceline EXT_CSQC_1*/	\
 	\
 	globalfloat(clientcommandframe,		"clientcommandframe");	/*float		the next frame that will be sent*/ \
 	globalfloat(servercommandframe,		"servercommandframe");	/*float		the most recent frame received from the server*/ \
 	\
 	globalfloat(player_localentnum,		"player_localentnum");	/*float		the entity number of the local player*/	\
+	globalfloat(player_localnum,		"player_localnum");		/*float		the entity number of the local player*/	\
 	globalfloat(intermission,			"intermission");		/*float		set when the client receives svc_intermission*/	\
-	globalvector(view_angles,			"view_angles");			/*float		set to the view angles at the start of each new frame */ \
+	globalvector(view_angles,			"view_angles");			/*float		set to the view angles at the start of each new frame (EXT_CSQC_1)*/ \
 	\
 	globalvector(pmove_org,				"pmove_org");			/*read/written by runplayerphysics*/ \
 	globalvector(pmove_vel,				"pmove_vel");			/*read/written by runplayerphysics*/ \
@@ -104,6 +128,10 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalvector(input_angles,			"input_angles");		/*vector	filled by getinputstate, read by runplayerphysics*/ \
 	globalvector(input_movevalues,		"input_movevalues");	/*vector	filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat(input_buttons,			"input_buttons");		/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat(input_impulse,			"input_impulse");		/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat(input_lightlevel,		"input_lightlevel");	/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat(input_weapon,			"input_weapon");		/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat(input_servertime,		"input_servertime");	/*float		filled by getinputstate, read by runplayerphysics*/ \
 	\
 	globalfloat(movevar_gravity,		"movevar_gravity");		/*float		obtained from the server*/ \
 	globalfloat(movevar_stopspeed,		"movevar_stopspeed");	/*float		obtained from the server*/ \
@@ -156,9 +184,13 @@ static void CSQC_FindGlobals(void)
 
 	if (csqcg.time)
 		*csqcg.time = Sys_DoubleTime();
+	if (csqcg.simtime)
+		*csqcg.simtime = cl.servertime;
 
 	if (csqcg.player_localentnum)
 		*csqcg.player_localentnum = cl.playernum[plnum]+1;
+	if (csqcg.player_localnum)
+		*csqcg.player_localnum = cl.playernum[plnum];
 
 	if (csqcg.maxclients)
 		*csqcg.maxclients = MAX_CLIENTS;
@@ -181,12 +213,12 @@ static void CSQC_FindGlobals(void)
 	fieldfloat(colormap);	\
 	fieldfloat(flags);		\
 	fieldfloat(frame);		\
-	fieldfloat(frame2);		\
-	fieldfloat(frame1time);	\
-	fieldfloat(frame2time);	\
-	fieldfloat(lerpfrac);	\
+	fieldfloat(frame2);		/*EXT_CSQC_1*/\
+	fieldfloat(frame1time);	/*EXT_CSQC_1*/\
+	fieldfloat(frame2time);	/*EXT_CSQC_1*/\
+	fieldfloat(lerpfrac);	/*EXT_CSQC_1*/\
 	fieldfloat(renderflags);\
-	fieldfloat(forceshader);\
+	fieldfloat(forceshader);/*FTE_CSQC_SHADERS*/\
 	fieldfloat(dimension_hit);	\
 	fieldfloat(dimension_solid);	\
 							\
@@ -263,6 +295,9 @@ static csqcedict_t **csqcent;
 static int maxcsqcentities;
 
 static int csqcentsize;
+
+static char *csqcmapentitydata;
+static qboolean csqcmapentitydataloaded;
 
 static model_t *CSQC_GetModelForIndex(int index);
 static void CS_LinkEdict(csqcedict_t *ent, qboolean touchtriggers);
@@ -844,14 +879,19 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 		}
 	}
 
-	if (mask & MASK_ENGINE && cl.worldmodel)
+	if (cl.worldmodel)
 	{
-		if (mask & MASK_ENGINEVIEWMODEL)
+		if (mask & MASK_STDVIEWMODEL)
+		{
 			CL_LinkViewModel ();
-		CL_LinkPlayers ();
-		CL_LinkPacketEntities ();
-		CL_LinkProjectiles ();
-		CL_UpdateTEnts ();
+		}
+		if (mask & MASK_DELTA)
+		{
+			CL_LinkPlayers ();
+			CL_LinkPacketEntities ();
+			CL_LinkProjectiles ();
+			CL_UpdateTEnts ();
+		}
 	}
 }
 
@@ -1103,6 +1143,108 @@ static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 	default:
 		Con_DPrintf("SetViewFlag: %i not recognised\n", parametertype);
 		G_FLOAT(OFS_RETURN) = 0;
+		break;
+	}
+}
+
+static void PF_R_GetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	viewflags parametertype = G_FLOAT(OFS_PARM0);
+	float *r = G_VECTOR(OFS_RETURN);
+
+	r[0] = 0;
+	r[1] = 0;
+	r[2] = 0;
+
+	switch(parametertype)
+	{
+	case VF_FOV:
+		r[0] = r_refdef.fov_x;
+		r[1] = r_refdef.fov_y;
+		break;
+
+	case VF_FOVX:
+		*r = r_refdef.fov_x;
+		break;
+
+	case VF_FOVY:
+		*r = r_refdef.fov_y;
+		break;
+
+	case VF_ORIGIN:
+#ifdef CHEAT_PARANOID
+		VectorClear(r);
+#else
+		VectorCopy(r_refdef.vieworg, r);
+#endif
+		break;
+
+	case VF_ORIGIN_Z:
+	case VF_ORIGIN_X:
+	case VF_ORIGIN_Y:
+#ifdef CHEAT_PARANOID
+		*r = 0;
+#else
+		*r = r_refdef.vieworg[parametertype-VF_ORIGIN_X];
+#endif
+		break;
+
+	case VF_ANGLES:
+		VectorCopy(r_refdef.viewangles, r);
+		break;
+	case VF_ANGLES_X:
+	case VF_ANGLES_Y:
+	case VF_ANGLES_Z:
+		*r = r_refdef.viewangles[parametertype-VF_ANGLES_X];
+		break;
+
+	case VF_CARTESIAN_ANGLES:
+		Con_Printf(CON_WARNING "WARNING: CARTESIAN ANGLES ARE NOT YET SUPPORTED!\n");
+		break;
+
+	case VF_VIEWPORT:
+		r[0] = r_refdef.vrect.width;
+		r[1] = r_refdef.vrect.height;
+		break;
+
+	case VF_SIZE_X:
+		*r = r_refdef.vrect.width;
+		break;
+	case VF_SIZE_Y:
+		*r = r_refdef.vrect.height;
+		break;
+	case VF_SIZE:
+		r[0] = r_refdef.vrect.width;
+		r[1] = r_refdef.vrect.height;
+		break;
+
+	case VF_MIN_X:
+		*r = r_refdef.vrect.x;
+		break;
+	case VF_MIN_Y:
+		*r = r_refdef.vrect.y;
+		break;
+	case VF_MIN:
+		r[0] = r_refdef.vrect.x;
+		r[1] = r_refdef.vrect.y;
+		break;
+
+	case VF_DRAWWORLD:
+		*r = !(r_refdef.flags&Q2RDF_NOWORLDMODEL);;
+		break;
+	case VF_ENGINESBAR:
+		*r = csqc_drawsbar;
+		break;
+	case VF_DRAWCROSSHAIR:
+		*r = csqc_addcrosshair;
+		break;
+
+	case VF_PERSPECTIVE:
+		*r = r_refdef.useperspective;
+		break;
+
+	default:
+		Con_DPrintf("GetViewFlag: %i not recognised\n", parametertype);
 		break;
 	}
 }
@@ -1441,11 +1583,17 @@ static void csqc_setmodel(progfuncs_t *prinst, csqcedict_t *ent, int modelindex)
 	ent->v->modelindex = modelindex;
 	if (modelindex < 0)
 	{
+		if (modelindex <= -MAX_MODELS)
+			return;
 		ent->v->model = PR_SetString(prinst, cl.model_csqcname[-modelindex]);
+		if (!cl.model_csqcprecache[-modelindex])
+			cl.model_csqcprecache[-modelindex] = Mod_ForName(cl.model_csqcname[-modelindex], false);
 		model = cl.model_csqcprecache[-modelindex];
 	}
 	else
 	{
+		if (modelindex >= MAX_MODELS)
+			return;
 		ent->v->model = PR_SetString(prinst, cl.model_name[modelindex]);
 		model = cl.model_precache[modelindex];
 	}
@@ -1476,7 +1624,7 @@ static void PF_cs_SetModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		Q_strncpyz(cl.model_csqcname[-freei], modelname, sizeof(cl.model_csqcname[-freei]));	//allocate a slot now
 		modelindex = freei;
 
-		cl.model_csqcprecache[-freei] = Mod_ForName(cl.model_csqcname[-freei], false);
+		cl.model_csqcprecache[-freei] = NULL;
 	}
 
 	csqc_setmodel(prinst, ent, modelindex);
@@ -1514,7 +1662,8 @@ static void PF_cs_PrecacheModel(progfuncs_t *prinst, struct globalvars_s *pr_glo
 		Q_strncpyz(cl.model_csqcname[-freei], modelname, sizeof(cl.model_csqcname[-freei]));	//allocate a slot now
 		modelindex = freei;
 
-		cl.model_csqcprecache[-freei] = Mod_ForName(cl.model_csqcname[-freei], false);
+		CL_CheckOrEnqueDownloadFile(modelname, modelname);
+		cl.model_csqcprecache[-freei] = NULL;
 	}
 
 	G_FLOAT(OFS_RETURN) = modelindex;
@@ -1548,6 +1697,20 @@ static void PF_ReadChar(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 static void PF_ReadShort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = MSG_ReadShort();
+}
+
+static void PF_ReadEntityNum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned short val;
+	val = MSG_ReadShort();
+	if (val & 0x8000)
+	{	//our protocol only supports 15bits of revelent entity number (16th bit is used as 'remove').
+		//so warn with badly coded mods.
+		Con_Printf("ReadEntityNumber read bad entity number\n");
+		G_FLOAT(OFS_RETURN)	= 0;
+	}
+	else
+		G_FLOAT(OFS_RETURN) = val;
 }
 
 static void PF_ReadLong(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1645,6 +1808,64 @@ static void PF_cs_particlesloaded (progfuncs_t *prinst, struct globalvars_s *pr_
 	G_FLOAT(OFS_RETURN) = P_DescriptionIsLoaded(effectname);
 }
 
+static void cs_set_input_state (usercmd_t *cmd)
+{
+	if (csqcg.input_timelength)
+		*csqcg.input_timelength = cmd->msec/1000.0f;
+	if (csqcg.input_angles)
+	{
+		csqcg.input_angles[0] = SHORT2ANGLE(cmd->angles[0]+0.5);
+		csqcg.input_angles[1] = SHORT2ANGLE(cmd->angles[1]+0.5);
+		csqcg.input_angles[2] = SHORT2ANGLE(cmd->angles[2]+0.5);
+	}
+	if (csqcg.input_movevalues)
+	{
+		csqcg.input_movevalues[0] = cmd->forwardmove;
+		csqcg.input_movevalues[1] = cmd->sidemove;
+		csqcg.input_movevalues[2] = cmd->upmove;
+	}
+	if (csqcg.input_buttons)
+		*csqcg.input_buttons = cmd->buttons;
+
+	if (csqcg.input_impulse)
+		*csqcg.input_impulse = cmd->impulse;
+	if (csqcg.input_lightlevel)
+		*csqcg.input_lightlevel = cmd->lightlevel;
+	if (csqcg.input_weapon)
+		*csqcg.input_weapon = cmd->weapon;
+	if (csqcg.input_servertime)
+		*csqcg.input_servertime = cmd->servertime/1000.0f;
+}
+
+static void cs_get_input_state (usercmd_t *cmd)
+{
+	if (csqcg.input_timelength)
+		cmd->msec = *csqcg.input_timelength*1000;
+	if (csqcg.input_angles)
+	{
+		cmd->angles[0] = ANGLE2SHORT(csqcg.input_angles[0]);
+		cmd->angles[1] = ANGLE2SHORT(csqcg.input_angles[1]);
+		cmd->angles[2] = ANGLE2SHORT(csqcg.input_angles[2]);
+	}
+	if (csqcg.input_movevalues)
+	{
+		cmd->forwardmove = csqcg.input_movevalues[0];
+		cmd->sidemove = csqcg.input_movevalues[1];
+		cmd->upmove = csqcg.input_movevalues[2];
+	}
+	if (csqcg.input_buttons)
+		cmd->buttons = *csqcg.input_buttons;
+
+	if (csqcg.input_impulse)
+		cmd->impulse = *csqcg.input_impulse;
+	if (csqcg.input_lightlevel)
+		cmd->lightlevel = *csqcg.input_lightlevel;
+	if (csqcg.input_weapon)
+		cmd->weapon = *csqcg.input_weapon;
+	if (csqcg.input_servertime)
+		cmd->servertime = *csqcg.input_servertime*1000;
+}
+
 //get the input commands, and stuff them into some globals.
 static void PF_cs_getinputstate (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1666,26 +1887,11 @@ static void PF_cs_getinputstate (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	// save this command off for prediction
 	cmd = &cl.frames[f&UPDATE_MASK].cmd[plnum];
 
-	if (csqcg.input_timelength)
-		*csqcg.input_timelength = cmd->msec/1000.0f;
-	if (csqcg.input_angles)
-	{
-		csqcg.input_angles[0] = SHORT2ANGLE(cmd->angles[0]+0.5);
-		csqcg.input_angles[1] = SHORT2ANGLE(cmd->angles[1]+0.5);
-		csqcg.input_angles[2] = SHORT2ANGLE(cmd->angles[2]+0.5);
-	}
-	if (csqcg.input_movevalues)
-	{
-		csqcg.input_movevalues[0] = cmd->forwardmove;
-		csqcg.input_movevalues[1] = cmd->sidemove;
-		csqcg.input_movevalues[2] = cmd->upmove;
-	}
-	if (csqcg.input_buttons)
-		*csqcg.input_buttons = cmd->buttons;
+	cs_set_input_state(cmd);
 
 	G_FLOAT(OFS_RETURN) = true;
 }
-#define ANGLE2SHORT(x) ((x/360.0)*65535)
+
 //read lots of globals, run the default player physics, write lots of globals.
 static void PF_cs_runplayerphysics (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1794,6 +2000,20 @@ typedef struct {
 		*csqcg.pmove_waterjumptime = pmove.waterjumptime;
 	VectorCopy(pmove.origin, csqcg.pmove_org);
 	VectorCopy(pmove.velocity, csqcg.pmove_vel);
+}
+
+static void PF_cs_getentitytoken (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (!csqcmapentitydata)
+	{
+		//nothing more to parse
+		G_INT(OFS_RETURN) = 0;
+	}
+	else
+	{
+		csqcmapentitydata = COM_ParseToken(csqcmapentitydata, "{}()\'\":,");
+		RETURN_TSTRING(com_token);
+	}
 }
 
 static void CheckSendPings(void)
@@ -2991,6 +3211,188 @@ static void PF_cs_setlistener (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	S_Update(origin, forward, right, up);
 }
 
+typedef struct oldcsqcpack_s
+{
+	unsigned int numents;
+	unsigned int maxents;
+	unsigned short *entnum;
+	csqcedict_t **entptr;
+} oldcsqcpack_t;
+static oldcsqcpack_t loadedcsqcpack[2];
+static int loadedcsqcpacknum;
+
+#define RSES_NOLERP 1
+#define RSES_AUTOROTATE 2
+packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp);
+static void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//read the arguments the csqc gave us
+	unsigned int flags = G_FLOAT(OFS_PARM0);
+	float servertime = G_FLOAT(OFS_PARM1);
+
+	//locals
+	packet_entities_t *pack;
+	csqcedict_t *ent;
+	entity_state_t *src;
+	unsigned int i;
+	lerpents_t		*le;
+	csqcedict_t *oldent;
+	oldcsqcpack_t *oldlist, *newlist;
+	int oldidx = 0, newidx = 0;
+	model_t *model;
+
+	//setup
+	servertime += cl.servertime;
+	pack = CL_ProcessPacketEntities(&servertime, (flags & RSES_NOLERP)); 
+	if (!pack)
+		return;	//can't do anything, just don't update
+
+	oldlist = &loadedcsqcpack[loadedcsqcpacknum];
+	loadedcsqcpacknum ^= 1;
+	newlist = &loadedcsqcpack[loadedcsqcpacknum];
+	newlist->numents = 0;
+
+	for (i = 0; i < pack->num_entities; i++)
+	{
+		src = &pack->entities[i];
+// CL_LinkPacketEntities
+
+#ifndef _MSC_VER
+#warning what to do here?
+#endif
+//		if (csqcent[src->number])
+//			continue;	//don't add the entity if we have one sent specially via csqc protocols.
+
+		if (oldidx == oldlist->numents)
+		{	//reached the end of the old frame's ents
+			oldent = NULL;
+		}
+		else
+		{
+			while (oldidx < oldlist->numents && oldlist->entnum[oldidx] < src->number)
+			{
+				//this entity is stale, remove it.
+				oldent = oldlist->entptr[oldidx];
+				*csqcg.self = EDICT_TO_PROG(prinst, (void*)oldent);
+				PR_ExecuteProgram(prinst, csqcg.delta_remove);
+				oldidx++;
+			}
+
+			if (src->number < oldlist->entnum[oldidx])
+				oldent = NULL;
+			else
+			{
+				oldent = oldlist->entptr[oldidx];
+				oldidx++;
+			}
+		}
+
+		//note: we don't delta the state here. we just replace the old.
+		//its already lerped
+
+		if (oldent)
+			ent = oldent;
+		else
+			ent = (csqcedict_t *)ED_Alloc(prinst);
+
+		le = &cl.lerpents[src->number];
+
+		//frames needs special handling
+		ent->v->frame = src->frame;
+		ent->v->frame2 = le->frame;
+		if (le->framechange == le->oldframechange)
+			ent->v->lerpfrac = 0;
+		else
+		{
+			ent->v->lerpfrac = 1-(servertime - le->framechange) / (le->framechange - le->oldframechange);
+			if (ent->v->lerpfrac > 1)
+				ent->v->lerpfrac = 1;
+			else if (ent->v->lerpfrac < 0)
+			{
+				ent->v->lerpfrac = 0;
+			}
+		}
+
+
+		ent->v->entnum = src->number;
+		ent->v->modelindex = src->modelindex;
+		model = cl.model_precache[src->modelindex];
+//		ent->v->bitmask = src->bitmask;
+		ent->v->flags = src->flags;
+//		ent->v->effects = src->effects;
+		ent->v->origin[0] = src->origin[0];
+		ent->v->origin[1] = src->origin[1];
+		ent->v->origin[2] = src->origin[2];
+		ent->v->angles[0] = src->angles[0];
+		ent->v->angles[1] = src->angles[1];
+		ent->v->angles[2] = src->angles[2];
+
+	//we ignore the q2 state fields
+
+		ent->v->colormap = src->colormap;
+		ent->v->skin = src->skinnum;
+//		ent->v->glowsize = src->glowsize;
+//		ent->v->glowcolor = src->glowcolour;
+		ent->v->scale = src->scale/16.0f;
+		ent->v->fatness = src->fatness/16.0f;
+//		ent->v->hexen2flags = src->hexen2flags;
+//		ent->v->abslight = src->abslight;
+//		ent->v->dpflags = src->dpflags;
+//		ent->v->colormod[0] = (src->colormod[0]/255.0f)*8;
+//		ent->v->colormod[1] = (src->colormod[1]/255.0f)*8;
+//		ent->v->colormod[2] = (src->colormod[2]/255.0f)*8;
+		ent->v->alpha = src->trans/255.0f;
+//		ent->v->lightstyle = src->lightstyle;
+//		ent->v->lightpflags = src->lightpflags;
+//		ent->v->solid = src->solid;
+//		ent->v->light[0] = src->light[0];
+//		ent->v->light[1] = src->light[1];
+//		ent->v->light[2] = src->light[2];
+//		ent->v->light[3] = src->light[3];
+//		ent->v->tagentity = src->tagentity;
+//		ent->v->tagindex = src->tagindex;
+
+		if (model)
+		{
+			if (model->flags & EF_ROTATE)
+			{
+				ent->v->angles[0] = 0;
+				ent->v->angles[1] = 100*servertime;
+				ent->v->angles[2] = 0;
+			}
+		}
+
+		if (csqcg.delta_update)
+		{
+			*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
+			G_FLOAT(OFS_PARM0) = !oldent;
+			PR_ExecuteProgram(prinst, csqcg.delta_update);
+		}
+
+		if (newlist->maxents <= newidx)
+		{
+			newlist->maxents = newidx + 64;
+			newlist->entptr = BZ_Realloc(newlist->entptr, sizeof(*newlist->entptr)*newlist->maxents);
+			newlist->entnum = BZ_Realloc(newlist->entnum, sizeof(*newlist->entnum)*newlist->maxents);
+		}
+		newlist->entptr[newidx] = ent;
+		newlist->entnum[newidx] = src->number;
+		newidx++;
+
+	}
+
+	//remove any unreferenced ents stuck on the end
+	while (oldidx < oldlist->numents)
+	{
+		oldent = oldlist->entptr[oldidx];
+		*csqcg.self = EDICT_TO_PROG(prinst, (void*)oldent);
+		PR_ExecuteProgram(prinst, csqcg.delta_remove);
+		oldidx++;
+	}
+
+	newlist->numents = newidx;
+}
+
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
 
 //prefixes:
@@ -3271,7 +3673,7 @@ PF_R_PolygonBegin,				// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_
 PF_R_PolygonVertex,				// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
 PF_R_PolygonEnd,				// #308 void() R_EndPolygon (EXT_CSQC_???)
 
-PF_Fixme,						// #309
+PF_R_GetViewFlag,				// #309 vector/float(float property) getproperty (EXT_CSQC_1)
 
 //310
 //maths stuff that uses the current view settings.
@@ -3339,7 +3741,7 @@ PF_cs_registercommand,			// #352 void(string cmdname) registercommand (EXT_CSQC)
 PF_WasFreed,					// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
 
 PF_cs_serverkey,				// #354 string(string key) serverkey;
-PF_Fixme,						// #355
+PF_cs_getentitytoken,			// #355 string() getentitytoken;
 PF_Fixme,						// #356
 PF_Fixme,						// #357
 PF_Fixme,						// #358
@@ -3357,8 +3759,8 @@ PF_ReadAngle,					// #365 float() readangle (EXT_CSQC)
 PF_ReadString,					// #366 string() readstring (EXT_CSQC)
 PF_ReadFloat,					// #367 string() readfloat (EXT_CSQC)
 
-PF_Fixme,						// #368
-PF_Fixme,						// #369
+PF_ReadEntityNum,				// #368 float() readentitynum (EXT_CSQC)
+PF_ReadServerEntityState,		// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)
 
 //370
 PF_FixTen,
@@ -3622,6 +4024,8 @@ int CSQC_PRFileSize (char *path)
 double  csqctime;
 qboolean CSQC_Init (unsigned int checksum)
 {
+	int i;
+	csqcedict_t *worldent;
 	csqcchecksum = checksum;
 
 	CSQC_Shutdown();
@@ -3677,6 +4081,7 @@ qboolean CSQC_Init (unsigned int checksum)
 	if (!csqcprogs)
 	{
 		in_sensitivityscale = 1;
+		csqcmapentitydataloaded = true;
 		csqcprogs = InitProgs(&csqcprogparms);
 		PR_Configure(csqcprogs, -1, 16);
 
@@ -3707,16 +4112,50 @@ qboolean CSQC_Init (unsigned int checksum)
 
 		ED_Alloc(csqcprogs);	//we need a word entity.
 		//world edict becomes readonly
-		EDICT_NUM(csqcprogs, 0)->readonly = true;
-		EDICT_NUM(csqcprogs, 0)->isfree = false;
+		worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
+
+		worldent->readonly = true;
+		worldent->isfree = false;
+		worldent->v->model = PR_SetString(csqcprogs, cl.model_name[1]);
+		for (i = 0; i < 2; i++)
+		{
+			loadedcsqcpack[i].numents = 0;
+			loadedcsqcpack[i].maxents = 0;
+			Z_Free(loadedcsqcpack[i].entptr);
+			loadedcsqcpack[i].entptr = NULL;
+			Z_Free(loadedcsqcpack[i].entnum);
+			loadedcsqcpack[i].entnum = NULL;
+		}
+
+		csqcmapentitydata = NULL;
+		csqcmapentitydataloaded = false;
 
 		if (csqcg.init_function)
+		{
+			void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+			G_FLOAT(OFS_PARM0) = 1.0;	//api version
+			(((string_t *)pr_globals)[OFS_PARM1] = PR_TempString(csqcprogs, FULLENGINENAME));
+			G_FLOAT(OFS_PARM2) = build_number();
 			PR_ExecuteProgram(csqcprogs, csqcg.init_function);
+		}
 
 		Con_Printf("Loaded csqc\n");
 	}
 
 	return true; //success!
+}
+
+void CSQC_WorldLoaded(void)
+{
+	if (!csqcprogs)
+		return;
+	if (csqcmapentitydataloaded)
+		return;
+	csqcmapentitydataloaded = true;
+	csqcmapentitydata = cl.worldmodel->entities;
+	if (csqcg.worldloaded)
+		PR_ExecuteProgram(csqcprogs, csqcg.worldloaded);
+	csqcmapentitydata = NULL;
 }
 
 void CSQC_CoreDump(void)
@@ -3781,6 +4220,13 @@ qboolean CSQC_DrawView(void)
 
 	CSQC_RunThreads();	//wake up any qc threads
 
+	//EXT_CSQC_1
+	{
+		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+		G_FLOAT(OFS_PARM0) = vid.width;
+		G_FLOAT(OFS_PARM1) = vid.height;
+	}
+	//end EXT_CSQC_1
 	PR_ExecuteProgram(csqcprogs, csqcg.draw_function);
 
 	return true;
@@ -3857,6 +4303,21 @@ qboolean CSQC_CenterPrint(char *cmd)
 	return G_FLOAT(OFS_RETURN);
 }
 
+void CSQC_Input_Frame(usercmd_t *cmd)
+{
+	if (!csqcprogs || !csqcg.input_frame)
+		return;
+
+	if (csqcg.time)
+		*csqcg.time = Sys_DoubleTime();
+	if (csqcg.clientcommandframe)
+		*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
+
+	cs_set_input_state(cmd);
+	PR_ExecuteProgram (csqcprogs, csqcg.input_frame);
+	cs_get_input_state(cmd);
+}
+
 //this protocol allows up to 32767 edicts.
 #ifdef PEXT_CSQC
 void CSQC_EntityCheck(int entnum)
@@ -3867,7 +4328,7 @@ void CSQC_EntityCheck(int entnum)
 	{
 		newmax = entnum+64;
 		csqcent = BZ_Realloc(csqcent, sizeof(*csqcent)*newmax);
-		memset(csqcent + maxcsqcentities, 0, newmax - maxcsqcentities);
+		memset(csqcent + maxcsqcentities, 0, (newmax - maxcsqcentities)*sizeof(csqcent));
 		maxcsqcentities = newmax;
 	}
 }

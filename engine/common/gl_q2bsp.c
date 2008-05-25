@@ -1046,6 +1046,9 @@ void *Mod_LoadWall(char *name)
 
 	COM_FileBase(name, ln, sizeof(ln));
 
+	if (!CL_CheckOrEnqueDownloadFile(name, NULL))
+		return NULL;
+
 	wal = (void *)COM_LoadMallocFile (name);
 	if (!wal)
 		return NULL;

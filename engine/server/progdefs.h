@@ -237,6 +237,7 @@ typedef struct extentvars_s
 	//csqc stuph.
 	func_t	SendEntity;
 	float	Version;
+	float	pvsflags;
 
 #ifdef VM_Q1
 } extentvars_t;

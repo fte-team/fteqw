@@ -82,6 +82,12 @@ extern cvar_t	pm_airstep;
 extern cvar_t	pm_walljump;
 cvar_t sv_pushplayers = SCVAR("sv_pushplayers", "0");
 
+//yes, realip cvars need to be fully initialised or realip will be disabled
+cvar_t sv_getrealip = SCVAR("sv_getrealip", "0");
+cvar_t sv_realiphostname_ipv4 = SCVAR("sv_realiphostname_ipv4", "");
+cvar_t sv_realiphostname_ipv6 = SCVAR("sv_realiphostname_ipv4", "");
+cvar_t sv_realip_timeout = SCVAR("sv_realip_timeout", "10");
+
 char sv_votinggroup[] = "server voting";
 
 
@@ -108,16 +114,13 @@ host_client and sv_player will be valid.
 ============================================================
 */
 
-qboolean SV_CheakRealIP(client_t *client, qboolean force)
+qboolean SV_CheckRealIP(client_t *client, qboolean force)
 {
 	//returns true if they have a real ip
-	cvar_t *sv_getrealip;
 	char *serverip;
 	char *msg;
 
-	sv_getrealip = Cvar_Get("sv_getrealip", "0", 0, "Experimental cvars");
-
-	if (!sv_getrealip || !sv_getrealip->value)
+	if (!sv_getrealip.value)
 		return true;
 
 	if (client->netchan.remote_address.type == NA_LOOPBACK)
@@ -128,7 +131,6 @@ qboolean SV_CheakRealIP(client_t *client, qboolean force)
 	if (client->realip_status == 2)
 	{
 		ClientReliableWrite_Begin(client, svc_print, 256);
-		ClientReliableWrite_Byte(client, svc_print);
 		ClientReliableWrite_Byte(client, PRINT_HIGH);
 		ClientReliableWrite_String(client, "Couldn't verify your real ip\n");
 		return true;	//client doesn't support certainty.
@@ -136,13 +138,17 @@ qboolean SV_CheakRealIP(client_t *client, qboolean force)
 	if (client->realip_status == -1)
 		return true;	//can't get a better answer
 
-	if (realtime - host_client->connection_started > 10)
+	if (realtime - host_client->connection_started > sv_realip_timeout.value)
 	{
 		client->realip_status = -1;
 		ClientReliableWrite_Begin(client, svc_print, 256);
-		ClientReliableWrite_Byte(client, svc_print);
 		ClientReliableWrite_Byte(client, PRINT_HIGH);
 		ClientReliableWrite_String(client, "Couldn't determine your real ip\n");
+		if (sv_getrealip.value == 2)
+		{
+			SV_DropClient(client);
+			return false;
+		}
 		return true;
 	}
 
@@ -154,9 +160,25 @@ qboolean SV_CheakRealIP(client_t *client, qboolean force)
 	}
 	else
 	{
-		serverip = NET_AdrToString (net_local_sv_ipadr);
+		if (client->netchan.remote_address.type == NA_IPV6)
+		{
+			serverip = sv_realiphostname_ipv6.string;
+//			serverip = NET_AdrToString (net_local_sv_ip6adr);
+		}
+		else
+		{
+			serverip = sv_realiphostname_ipv4.string;
+//			serverip = NET_AdrToString (net_local_sv_ipadr);
+		}
 
-		ClientReliableWrite_Byte(client, svc_stufftext);
+		if (!*serverip)
+		{
+			Con_Printf("realip not fully configured\n");
+			client->realip_status = -2;
+			return true;
+		}
+
+		ClientReliableWrite_Begin(client, svc_stufftext, 256);
 		ClientReliableWrite_String(client, va("packet %s \"realip %i %i\"\n", serverip, client-svs.clients, client->realip_num));
 	}
 	return false;
@@ -179,8 +201,6 @@ void SV_New_f (void)
 
 	if (host_client->state == cs_spawned)
 		return;
-
-	SV_CheakRealIP(host_client, false);
 
 /*	splitt delay
 	host_client->state = cs_connected;
@@ -264,6 +284,7 @@ void SV_New_f (void)
 	#endif
 		splitnum++;
 	}
+
 	if (host_client->fteprotocolextensions & PEXT_SPLITSCREEN)
 		ClientReliableWrite_Byte (host_client, 128);
 
@@ -318,6 +339,9 @@ void SV_New_f (void)
 	}
 
 	host_client->csqcactive = false;
+
+	host_client->realip_num = rand()+(host_client->challenge<<16);
+	SV_CheckRealIP(host_client, false);
 
 	// send music
 	ClientReliableCheckBlock(host_client, 2);
@@ -873,7 +897,7 @@ void SV_Modellist_f (void)
 
 	if (n >= 255)
 	{
-		MSG_WriteByte (&host_client->netchan.message, svc_modellistshort);
+		MSG_WriteByte (&host_client->netchan.message, svcfte_modellistshort);
 		MSG_WriteShort (&host_client->netchan.message, n);
 	}
 	else
@@ -1062,7 +1086,7 @@ void SV_PreSpawn_f (void)
 			}
 			else if (host_client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
 			{
-				MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline2);
+				MSG_WriteByte(&host_client->netchan.message, svcfte_spawnbaseline2);
 				SV_WriteDelta(&from, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
 			}
 			else if (state->modelindex < 256)
@@ -1101,7 +1125,7 @@ void SV_PreSpawn_f (void)
 
 			if (host_client->fteprotocolextensions & PEXT_CUSTOMTEMPEFFECTS)
 			{
-				MSG_WriteByte(&host_client->netchan.message, svc_customtempent);
+				MSG_WriteByte(&host_client->netchan.message, svcfte_customtempent);
 				MSG_WriteByte(&host_client->netchan.message, 255);
 				MSG_WriteByte(&host_client->netchan.message, i);
 				MSG_WriteByte(&host_client->netchan.message, ctent->netstyle);
@@ -1219,7 +1243,7 @@ void SV_Spawn_f (void)
 #ifdef PEXT_LIGHTSTYLECOL
 			if ((host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && sv.strings.lightstylecolours[i]!=7)
 			{
-				ClientReliableWrite_Begin (host_client, svc_lightstylecol,
+				ClientReliableWrite_Begin (host_client, svcfte_lightstylecol,
 					3 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));
 				ClientReliableWrite_Byte (host_client, (char)i);
 				ClientReliableWrite_Char (host_client, sv.strings.lightstylecolours[i]);
@@ -1254,7 +1278,9 @@ void SV_Spawn_f (void)
 	//
 	// force stats to be updated
 	//
-		memset (host_client->stats, 0, sizeof(host_client->stats));
+		memset (host_client->statsi, 0, sizeof(host_client->statsi));
+		memset (host_client->statsf, 0, sizeof(host_client->statsf));
+		memset (host_client->statss, 0, sizeof(host_client->statss));
 	}
 
 	ClientReliableWrite_Begin (host_client, svc_updatestatlong, 6);
@@ -1322,7 +1348,7 @@ void SV_Begin_f (void)
 	int		i;
 	qboolean sendangles=false;
 
-	if (!SV_CheakRealIP(host_client, true))
+	if (!SV_CheckRealIP(host_client, true))
 	{
 		if (host_client->protocol == SCP_QUAKE2)
 			ClientReliableWrite_Begin (host_client, svcq2_stufftext, 13+strlen(Cmd_Args()));
@@ -3749,7 +3775,9 @@ void SVNQ_Spawn_f (void)
 //
 // force stats to be updated
 //
-	memset (host_client->stats, 0, sizeof(host_client->stats));
+	memset (host_client->statsi, 0, sizeof(host_client->statsi));
+	memset (host_client->statsf, 0, sizeof(host_client->statsf));
+	memset (host_client->statss, 0, sizeof(host_client->statss));
 
 	ClientReliableWrite_Begin (host_client, svc_updatestat, 6);
 	ClientReliableWrite_Byte (host_client, STAT_TOTALSECRETS);
@@ -5582,6 +5610,11 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_cheatpc, cvargroup_servercontrol);
 	Cvar_Register (&sv_cheatspeedchecktime, cvargroup_servercontrol);
 	Cvar_Register (&sv_playermodelchecks, cvargroup_servercontrol);
+
+	Cvar_Register (&sv_getrealip, cvargroup_servercontrol);
+	Cvar_Register (&sv_realiphostname_ipv4, cvargroup_servercontrol);
+	Cvar_Register (&sv_realiphostname_ipv6, cvargroup_servercontrol);
+	Cvar_Register (&sv_realip_timeout, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_pushplayers, cvargroup_servercontrol);
 

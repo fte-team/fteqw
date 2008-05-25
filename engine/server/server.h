@@ -110,6 +110,7 @@ typedef struct
 
 	float		gamespeed;	//time progression multiplier, fixed per-level.
 	qboolean	csqcdebug;
+	unsigned int csqcchecksum;
 	qboolean	mapchangelocked;
 
 	double		time;
@@ -405,7 +406,9 @@ typedef struct client_s
 // client known data for deltas
 	int				old_frags;
 
-	int				stats[MAX_CL_STATS];
+	int				statsi[MAX_CL_STATS];
+	float			statsf[MAX_CL_STATS];
+	char			*statss[MAX_CL_STATS];
 
 	union{	//save space
 		client_frame_t	*frames;	// updates can be deltad from here
@@ -820,6 +823,13 @@ typedef struct
 
 #define FF_CROUCHING			1	//fte flags. seperate from flags
 #define FF_LADDER				2	//fte flags. seperate from flags
+
+#define PVSF_NORMALPVS		0x0
+#define PVSF_NOTRACECHECK	0x1
+#define PVSF_USEPHS			0x2
+#define PVSF_IGNOREPVS		0x3
+#define PVSF_MODE_MASK		0x3
+#define PVSF_NOREMOVE		0x80
 
 // entity effects
 

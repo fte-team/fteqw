@@ -15,29 +15,23 @@
 
 #include "quakedef.h"
 #ifdef RGLQUAKE
-#include "glquake.h"
+	#include "glquake.h"
 #endif
 #if defined(RGLQUAKE) || defined(SERVERONLY)
-#include "shader.h"
-#include "hash.h"
-
-#if defined(ZYMOTICMODELS) || defined(MD5MODELS)
-#define SKELETALMODELS
-
-#include <stdlib.h>
-#endif
 
 #ifdef _WIN32
-#include <malloc.h>
+	#include <malloc.h>
 #else
-#include <alloca.h>
+	#include <alloca.h>
 #endif
 
 #define MAX_BONES 256
 
 #ifndef SERVERONLY
-static model_t *loadmodel;
+	static model_t *loadmodel;
 #endif
+
+#include "com_mesh.h"
 
 //FIXME
 typedef struct
@@ -97,113 +91,7 @@ vec3_t *tempNormals;
 extern cvar_t gl_ati_truform;
 extern cvar_t r_vertexdlights;
 extern cvar_t mod_md3flags;
-
-typedef struct {
-	int ofs_indexes;
-	int numindexes;
-
-	int ofs_trineighbours;
-
-	int numskins;
-#ifndef SERVERONLY
-	int ofsskins;
-#endif
-
-	qboolean sharesverts;	//used with models with two shaders using the same vertex - use last mesh's verts
-	qboolean sharesbones;	//use last mesh's bones (please, never set this on the first mesh!)
-
-	int numverts;
-
-#ifndef SERVERONLY
-	int ofs_st_array;
-#endif
-
-	int groups;
-	int groupofs;
-
-	int nextsurf;
-
-#ifdef SKELETALMODELS
-	int numbones;
-	int ofsbones;
-	int numtransforms;
-	int ofstransforms;
-#endif
-
-//these exist only in the root mesh.
-	int numtagframes;
-	int numtags;
-	int ofstags;
-} galiasinfo_t;
-
-//frame is an index into this
-typedef struct {
-#ifdef SKELETALMODELS
-	qboolean isheirachical;	//for models with transforms, states that bones need to be transformed from their parent.
-							//this is actually bad, and can result in bones shortening as they interpolate.
-#endif
-	qboolean loop;
-	int numposes;
-	float rate;
-	int poseofs;
-	char name[64];
-} galiasgroup_t;
-
-typedef struct {
-	int ofsverts;
-#ifndef SERVERONLY
-	int ofsnormals;
-#endif
-
-	vec3_t		scale;
-	vec3_t		scale_origin;
-} galiaspose_t;
-
-#ifdef SKELETALMODELS
-typedef struct {
-	char name[32];
-	int parent;
-} galiasbone_t;
-
-typedef struct {
-	//skeletal poses refer to this.
-	int vertexindex;
-	int boneindex;
-	vec4_t org;
-} galisskeletaltransforms_t;
-#endif
-
-//we can't be bothered with animating skins.
-//We'll load up to four of them but after that you're on your own
-#ifndef SERVERONLY
-typedef struct {
-	int skinwidth;
-	int skinheight;
-	int ofstexels;	//this is 8bit for frame 0 only. only valid in q1 models without replacement textures, used for colourising player skins.
-	float skinspeed;
-	int texnums;
-	int ofstexnums;
-	char name [MAX_QPATH];
-} galiasskin_t;
-
-typedef struct {
-	int base;
-	int bump;
-	int fullbright;
-
-#ifdef Q3SHADERS
-	shader_t *shader;
-#endif
-} galiastexnum_t;
-
-typedef struct {
-	char name[MAX_QPATH];
-	galiastexnum_t texnum;
-	int colour;
-	int skinnum;
-	bucket_t bucket;
-} galiascolourmapped_t;
-#endif
+extern cvar_t r_skin_overlays;
 
 #ifdef SKELETALMODELS
 static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, float bonepose[MAX_BONES][12]);
@@ -1039,7 +927,9 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			char hashname[512];
 			cc = (tc<<4)|bc;
 
-			if (forced)
+//			if (e->scoreboard->skin->cachedbpp 
+
+	/*		if (cls.protocol == CP_QUAKE2)
 			{
 				if (e->scoreboard && e->scoreboard->skin)
 					snprintf(hashname, sizeof(hashname), "%s$%s$%i", modelname, e->scoreboard->skin->name, surfnum);
@@ -1047,7 +937,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 					snprintf(hashname, sizeof(hashname), "%s$%i", modelname, surfnum);
 				skinname = hashname;
 			}
-			else
+			else */
 			{
 				if (e->scoreboard && e->scoreboard->skin)
 				{
@@ -2090,6 +1980,20 @@ void R_DrawGAliasModel (entity_t *e)
 //			else
 				GL_DrawAliasMesh(&mesh, skin->base);
 
+			if (skin->loweroverlay && r_skin_overlays.value)
+			{
+				qglEnable(GL_BLEND);
+				qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->shaderRGBAf[3]);
+				c_alias_polys += mesh.numindexes/3;
+				GL_DrawAliasMesh(&mesh, skin->loweroverlay);
+			}
+			if (skin->upperoverlay && r_skin_overlays.value)
+			{
+				qglEnable(GL_BLEND);
+				qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->shaderRGBAf[3]);
+				c_alias_polys += mesh.numindexes/3;
+				GL_DrawAliasMesh(&mesh, skin->upperoverlay);
+			}
 			if (skin->fullbright && r_fb_models.value && cls.allow_luma)
 			{
 				mesh.colors_array = NULL;

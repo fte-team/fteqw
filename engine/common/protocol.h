@@ -207,49 +207,52 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //FTE extended svcs
 #ifdef PEXT_VIEW2
-#define svc_view2			56
+//#define svcfte_view2			56
 #endif
 #ifdef PEXT_LIGHTSTYLECOL
-#define svc_lightstylecol	57
+#define svcfte_lightstylecol	57
 #endif
 
 #ifdef PEXT_BULLETENS
-#define svc_bulletentext	58
+#define svcfte_bulletentext	58
 #endif
 
 #ifdef PEXT_LIGHTUPDATES
-#define	svc_lightnings		59
+#define	svcfte_lightnings		59
 #endif
 
 #ifdef PEXT_MODELDBL
-#define	svc_modellistshort	60		// [strings]
+#define	svcfte_modellistshort	60		// [strings]
 #endif
 
 #define svc_ftesetclientpersist	61	//ushort DATA
 
 #define svc_setportalstate 62
 
-#define	svc_particle2		63
-#define	svc_particle3		64
-#define	svc_particle4		65
-#define svc_spawnbaseline2	66
+#define	svcfte_particle2		63
+#define	svcfte_particle3		64
+#define	svcfte_particle4		65
+#define svcfte_spawnbaseline2	66
 
-#define	svc_customtempent	67
+#define	svcfte_customtempent	67
 
-#define svc_choosesplitclient 68
-#define svc_showpic			69
-#define svc_hidepic			70
-#define svc_movepic			71
-#define svc_updatepic		72
+#define svcfte_choosesplitclient 68
+#define svcfte_showpic			69
+#define svcfte_hidepic			70
+#define svcfte_movepic			71
+#define svcfte_updatepic		72
 
-#define svcqw_effect			74		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
-#define svcqw_effect2			75		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
+#define svcfte_effect			74		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
+#define svcfte_effect2			75		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
 
 #ifdef PEXT_CSQC
-#define svc_csqcentities	76	//entity lump for csqc
+#define svcfte_csqcentities	76	//entity lump for csqc
 #endif
 
-#define svc_precache		77
+#define svcfte_precache		77
+
+#define svcfte_updatestatstring 78
+#define svcfte_updatestatfloat 79
 
 
 //DP extended svcs

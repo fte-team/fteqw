@@ -102,6 +102,8 @@ typedef struct {
 	int base;
 	int bump;
 	int fullbright;
+	int upperoverlay;
+	int loweroverlay;
 
 #ifdef Q3SHADERS
 	shader_t *shader;

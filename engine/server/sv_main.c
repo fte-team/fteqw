@@ -2279,6 +2279,8 @@ void SVC_RealIP (void)
 {
 	unsigned int slotnum;
 	int cookie;
+	bannedips_t *banip;
+
 	slotnum = atoi(Cmd_Argv(1));
 	cookie = atoi(Cmd_Argv(2));
 
@@ -2298,6 +2300,24 @@ void SVC_RealIP (void)
 	if (svs.clients[slotnum].realip_status)
 		return;
 
+	if (NET_AddressSmellsFunny(net_from))
+	{
+		Con_Printf("funny realip address: %s, ", NET_AdrToString(net_from));
+		Con_Printf("proxy address: %s\n", NET_AdrToString(svs.clients[slotnum].netchan.remote_address));
+		return;
+	}
+
+	banip = SV_BannedAddress(&net_from);
+	if (banip)
+	{
+		Con_Printf("%s has a banned realip\n", svs.clients[slotnum].name);
+		if (banip->reason)
+			SV_ClientPrintf(&svs.clients[slotnum], PRINT_CHAT, "You were banned.\nReason: %s\n", banip->reason);
+		else
+			SV_ClientPrintf(&svs.clients[slotnum], PRINT_CHAT, "You were banned.\n");
+		SV_DropClient(&svs.clients[slotnum]);
+		return;
+	}
 
 	svs.clients[slotnum].realip_status = 1;
 	svs.clients[slotnum].realip = net_from;

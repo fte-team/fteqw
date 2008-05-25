@@ -162,6 +162,13 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 	while (Q1_HullPointContents (hull, hull->firstclipnode, mid)
 	== Q1CONTENTS_SOLID)
 	{ // shouldn't really happen, but does occasionally
+		if (!(frac < 10000000) && !(frac > -10000000))
+		{
+			trace->fraction = 0;
+			VectorClear (trace->endpos);
+			Con_Printf ("nan in traceline\n");
+			return false;
+		}
 		frac -= 0.1;
 		if (frac < 0)
 		{

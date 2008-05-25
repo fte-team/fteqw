@@ -1871,7 +1871,7 @@ void UI_KeyPress(int key, int mx, int my)
 				int j;
 
 				// Blackness should be sent to the back
-				for (j = numelements; j > 0; j--)
+				for (j = currentitem; j > 0; j--)
 				{
 					element[j] = element[j-1];
 				}

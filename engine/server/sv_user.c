@@ -2930,7 +2930,7 @@ void VoteCheckTimes(void)
 {
 	voteinfo_t *vote, *prev;
 	prev = NULL;
-	for (vote = voteinfo; vote; vote = vote->next)
+	for (vote = voteinfo; vote; )
 	{
 		if (vote->timeout < realtime)
 		{
@@ -2940,9 +2940,16 @@ void VoteCheckTimes(void)
 				voteinfo = vote->next;
 
 			Z_Free(vote);
+
+			if (prev)
+				vote = prev;
+			else
+				vote = voteinfo;
 		}
 		else
 			prev = vote;
+
+		vote = vote->next;
 	}
 }
 

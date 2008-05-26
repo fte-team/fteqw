@@ -1677,7 +1677,6 @@ client_t *SVC_DirectConnect(void)
 	newcl->userid = nextuserid;
 	newcl->fteprotocolextensions = protextsupported;
 	newcl->protocol = protocol;
-	newcl->realip_ping = rand();
 
 	if (sv.msgfromdemo)
 		newcl->wasrecorded = true;
@@ -1940,6 +1939,8 @@ client_t *SVC_DirectConnect(void)
 
 	// spectator mode can ONLY be set at join time
 	newcl->spectator = spectator;
+
+	newcl->realip_ping = (((rand()^(rand()<<8) ^ *(int*)&realtime)&0xffffff)<<8) | (newcl-svs.clients);
 
 	// parse some info from the info strings
 	SV_ExtractFromUserinfo (newcl);

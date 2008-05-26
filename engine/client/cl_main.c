@@ -1998,6 +1998,7 @@ void CL_ConnectionlessPacket (void)
 	if (c == A2A_PING)
 	{
 		char	data[256];
+		int len;
 
 		data[0] = 0xff;
 		data[1] = 0xff;
@@ -2010,6 +2011,7 @@ void CL_ConnectionlessPacket (void)
 		{
 			Con_TPrintf (TL_ST_COLON, NET_AdrToString (net_from));
 			Con_TPrintf (TLC_A2A_PING);
+			len = 6;
 		}
 		else
 		{
@@ -2018,9 +2020,10 @@ void CL_ConnectionlessPacket (void)
 			//secondly, it needs a copy of the realip ident, so you can't report a different player's client (you would need access to their ip).
 			data[5] = ' ';
 			sprintf(data+6, "%i %i", atoi(MSG_ReadString()), cls.realip_ident);
+			len = strlen(data);
 		}
 
-		NET_SendPacket (NS_CLIENT, 6, &data, net_from);
+		NET_SendPacket (NS_CLIENT, len, &data, net_from);
 		return;
 	}
 

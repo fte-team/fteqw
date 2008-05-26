@@ -1677,6 +1677,7 @@ client_t *SVC_DirectConnect(void)
 	newcl->userid = nextuserid;
 	newcl->fteprotocolextensions = protextsupported;
 	newcl->protocol = protocol;
+	newcl->realip_ping = rand();
 
 	if (sv.msgfromdemo)
 		newcl->wasrecorded = true;

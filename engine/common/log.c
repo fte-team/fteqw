@@ -273,7 +273,7 @@ void SV_LogPlayer(client_t *cl, char *msg)
 	snprintf(line, sizeof(line),
 			"%s\\%s\\%i\\%s\\%s\\%i%s\n", 
 			msg, cl->name, cl->userid, 
-			NET_BaseAdrToString(cl->netchan.remote_address), "??",
+			NET_BaseAdrToString(cl->netchan.remote_address), (cl->realip_status > 0 ? NET_BaseAdrToString(cl->realip) : "??"),
 			cl->netchan.remote_address.port, cl->userinfo);
 
 	Log_String(LOG_PLAYER, line);

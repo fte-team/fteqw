@@ -85,7 +85,7 @@ cvar_t sv_pushplayers = SCVAR("sv_pushplayers", "0");
 //yes, realip cvars need to be fully initialised or realip will be disabled
 cvar_t sv_getrealip = SCVAR("sv_getrealip", "0");
 cvar_t sv_realiphostname_ipv4 = SCVAR("sv_realiphostname_ipv4", "");
-cvar_t sv_realiphostname_ipv6 = SCVAR("sv_realiphostname_ipv4", "");
+cvar_t sv_realiphostname_ipv6 = SCVAR("sv_realiphostname_ipv6", "");
 cvar_t sv_realip_timeout = SCVAR("sv_realip_timeout", "10");
 
 char sv_votinggroup[] = "server voting";

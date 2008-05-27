@@ -84,6 +84,7 @@ cvar_t sv_pushplayers = SCVAR("sv_pushplayers", "0");
 
 //yes, realip cvars need to be fully initialised or realip will be disabled
 cvar_t sv_getrealip = SCVAR("sv_getrealip", "0");
+cvar_t sv_realip_kick = SCVAR("sv_realip_kick", "0");
 cvar_t sv_realiphostname_ipv4 = SCVAR("sv_realiphostname_ipv4", "");
 cvar_t sv_realiphostname_ipv6 = SCVAR("sv_realiphostname_ipv6", "");
 cvar_t sv_realip_timeout = SCVAR("sv_realip_timeout", "10");
@@ -120,7 +121,7 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 	char *serverip;
 	char *msg;
 
-	if (!sv_getrealip.value)
+	if (sv_getrealip.value < client->realip_status || sv_getrealip.value > 3)
 		return true;
 
 	if (client->netchan.remote_address.type == NA_LOOPBACK)
@@ -136,15 +137,19 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 		return true;	//client doesn't support certainty.
 	}
 	if (client->realip_status == -1)
-		return true;	//can't get a better answer
+		return true;	//this client timed out.
 
-	if (realtime - host_client->connection_started > sv_realip_timeout.value)
+	if (realtime - client->connection_started > sv_realip_timeout.value)
 	{
-		client->realip_status = -1;
+		if (!client->realip_status)
+			client->realip_status = -1;
 		ClientReliableWrite_Begin(client, svc_print, 256);
 		ClientReliableWrite_Byte(client, PRINT_HIGH);
-		ClientReliableWrite_String(client, "Couldn't determine your real ip\n");
-		if (sv_getrealip.value == 2)
+		if (client->realip_status > 0)
+			ClientReliableWrite_String(client, "Couldn't verify your real ip\n");
+		else
+			ClientReliableWrite_String(client, "Couldn't determine your real ip\n");
+		if (sv_realip_kick.value > host_client->realip_status)
 		{
 			SV_DropClient(client);
 			return false;
@@ -174,7 +179,7 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 		if (!*serverip)
 		{
 			Con_Printf("realip not fully configured\n");
-			client->realip_status = -2;
+			client->realip_status = -1;
 			return true;
 		}
 
@@ -5619,6 +5624,7 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_playermodelchecks, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_getrealip, cvargroup_servercontrol);
+	Cvar_Register (&sv_realip_kick, cvargroup_servercontrol);
 	Cvar_Register (&sv_realiphostname_ipv4, cvargroup_servercontrol);
 	Cvar_Register (&sv_realiphostname_ipv6, cvargroup_servercontrol);
 	Cvar_Register (&sv_realip_timeout, cvargroup_servercontrol);

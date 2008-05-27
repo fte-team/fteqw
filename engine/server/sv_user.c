@@ -141,8 +141,6 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 
 	if (realtime - client->connection_started > sv_realip_timeout.value)
 	{
-		if (!client->realip_status)
-			client->realip_status = -1;
 		ClientReliableWrite_Begin(client, svc_print, 256);
 		ClientReliableWrite_Byte(client, PRINT_HIGH);
 		if (client->realip_status > 0)
@@ -154,6 +152,8 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 			SV_DropClient(client);
 			return false;
 		}
+		if (!client->realip_status)
+			client->realip_status = -1;
 		return true;
 	}
 

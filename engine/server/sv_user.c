@@ -121,7 +121,7 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 	char *serverip;
 	char *msg;
 
-	if (sv_getrealip.value < client->realip_status || sv_getrealip.value > 3)
+	if (sv_getrealip.value <= client->realip_status || sv_getrealip.value > 3)
 		return true;
 
 	if (client->netchan.remote_address.type == NA_LOOPBACK)

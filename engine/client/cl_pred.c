@@ -644,6 +644,7 @@ void CL_CalcClientTime(void)
 
 	{
 		float want;
+		float oldst = cl.servertime;
 
 		want = cl.oldgametime + (realtime - cl.gametimemark);
 		if (want>cl.servertime)
@@ -653,6 +654,15 @@ void CL_CalcClientTime(void)
 			cl.servertime = cl.gametime;
 		if (cl.servertime < cl.oldgametime)
 			cl.servertime = cl.oldgametime;
+
+		if (oldst == 0)
+		{
+			int i;
+			for (i = 0; i < MAX_CLIENTS; i++)
+			{
+				cl.players[i].entertime += cl.servertime;
+			}
+		}
 	}
 
 	if (cls.protocol == CP_NETQUAKE || (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV))

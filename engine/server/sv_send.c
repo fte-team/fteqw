@@ -1212,6 +1212,7 @@ void SV_QCStatEval(int type, char *name, evalc_t *cache, int statnum)
 void SV_QCStatName(int type, char *name, int statnum)
 {
 	evalc_t cache;
+	memset(&cache, 0, sizeof(cache));
 	if (!svprogfuncs->GetEdictFieldValue(svprogfuncs, NULL, name, &cache))
 		return;
 
@@ -1421,7 +1422,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		}
 		else
 		{
-			if ((client->fteprotocolextensions & PEXT_CSQC) && sv.csqcchecksum)
+			if ((client->fteprotocolextensions & PEXT_CSQC) && (sv.csqcchecksum || progstype == PROG_H2))
 			{
 				if (statsf[i] && statsf[i] - (float)(int)statsf[i] == 0)
 				{

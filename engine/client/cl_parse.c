@@ -3254,7 +3254,8 @@ void CL_SetStatString (int pnum, int stat, char *value)
 	{
 		if (cl.statsstr[pnum][stat])
 			Z_Free(cl.statsstr[pnum][stat]);
-		cl.statsstr[pnum][stat] = Z_Malloc(strlen(value));
+		cl.statsstr[pnum][stat] = Z_Malloc(strlen(value)+1);
+		strcpy(cl.statsstr[pnum][stat], value);
 	}
 }
 /*

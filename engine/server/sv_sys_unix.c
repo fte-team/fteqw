@@ -901,7 +901,7 @@ void Sys_WaitOnThread(void *thread)
 }
 
 /* Mutex calls */
-void *Sys_CreateMutex()
+void *Sys_CreateMutex(void)
 {
 	pthread_mutex_t *mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	
@@ -929,6 +929,86 @@ void Sys_DestroyMutex(void *mutex)
 {
 	pthread_mutex_destroy(mutex);
 	free(mutex);
+}
+
+/* Conditional wait calls */
+typedef struct condvar_s
+{
+	pthread_mutex_t *mutex;
+	pthread_cond_t *cond;
+} condvar_t;
+
+void *Sys_CreateConditional(void)
+{
+	condvar_t *condv;
+	pthread_mutex_t *mutex;
+	pthread_cond_t *cond;
+	
+	condv = (condvar_t *)malloc(sizeof(condvar_t));
+	if (!condv)
+		return NULL;
+	
+	mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+	if (!mutex)
+		return NULL;
+		
+	cond = (pthread_cond_t *)malloc(sizeof(pthread_cond_t));
+	if (!cond)
+		return NULL;
+		
+	if (!pthread_mutex_init(mutex, NULL))
+	{
+		if (!pthread_cond_init(cond, NULL))
+		{
+			condv->cond = cond;
+			condv->mutex = mutex;
+			
+			return (void *)condv;
+		}
+		else
+			pthread_mutex_destroy(mutex);
+	}
+	
+	free(cond);
+	free(mutex);
+	free(condv);
+	return NULL;	
+}
+
+qboolean Sys_LockConditional(void *condv)
+{
+	return !pthread_mutex_lock(((condvar_t *)condv)->mutex);
+}
+
+qboolean Sys_UnlockConditional(void *condv)
+{
+	return !pthread_mutex_unlock(((condvar_t *)condv)->mutex);
+}
+
+qboolean Sys_ConditionWait(void *condv)
+{
+	return !pthread_cond_wait(((condvar_t *)condv)->cond, ((condvar_t *)condv)->mutex);
+}
+
+qboolean Sys_ConditionSignal(void *condv)
+{
+	return !pthread_cond_signal(((condvar_t *)condv)->cond);
+}
+
+qboolean Sys_ConditionBroadcast(void *condv)
+{
+	return !pthread_cond_broadcast(((condvar_t *)condv)->cond);
+}
+
+void Sys_DestroyConditional(void *condv)
+{
+	condvar_t *cv = (condvar_t *)condv;
+	
+	pthread_cond_destroy(cv->cond);
+	pthread_mutex_destroy(cv->mutex);
+	free(cv->cond);
+	free(cv->mutex);
+	free(cv);
 }
 #endif
 

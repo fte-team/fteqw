@@ -1274,7 +1274,7 @@ void Sys_WaitOnThread(void *thread)
 }
 
 /* Mutex calls */
-void *Sys_CreateMutex()
+void *Sys_CreateMutex(void)
 {
 	return (void *)CreateMutex(NULL, 0, NULL);
 }
@@ -1297,6 +1297,156 @@ qboolean Sys_UnlockMutex(void *mutex)
 void Sys_DestroyMutex(void *mutex)
 {
 	CloseHandle(mutex);
+}
+
+/* Conditional wait calls */
+/*
+TODO: Windows Vista has condition variables as documented here:
+http://msdn.microsoft.com/en-us/library/ms682052(VS.85).aspx
+Note this uses Slim Reader/Writer locks (Vista+ exclusive)
+or critical sections.
+
+The condition variable implementation is based on the libSDL implementation.
+This code could probably be made more efficient with the use of events or
+different mechanisms but for now the main concern is a correct and
+complete solution.
+*/
+typedef struct condvar_s
+{
+    int waiting;
+    int signals;
+    CRITICAL_SECTION countlock;
+	CRITICAL_SECTION mainlock;
+    HANDLE wait_sem;
+    HANDLE wait_done;
+} condvar_t;
+
+void *Sys_CreateConditional(void) 
+{ 
+	condvar_t *cv;
+
+	cv = (condvar_t *)malloc(sizeof(condvar_t));
+	if (!cv)
+		return NULL;
+
+	cv->waiting = 0;
+	cv->signals = 0;
+	InitializeCriticalSection (&cv->mainlock);
+	InitializeCriticalSection (&cv->countlock);
+	cv->wait_sem = CreateSemaphore (NULL, 0, 0x7fffffff, NULL);
+	cv->wait_done = CreateSemaphore (NULL, 0, 0x7fffffff, NULL);
+
+	if (cv->wait_sem && cv->wait_done)
+		return (void *)cv;
+
+	// something failed so deallocate everything
+	if (cv->wait_done)
+		CloseHandle(cv->wait_done);
+	if (cv->wait_sem)
+		CloseHandle(cv->wait_sem);
+	DeleteCriticalSection(&cv->countlock);
+	DeleteCriticalSection(&cv->mainlock);
+	free(cv);
+
+	return NULL;
+}
+
+qboolean Sys_LockConditional(void *condv) 
+{ 
+	EnterCriticalSection(&((condvar_t *)condv)->mainlock);
+	return true; 
+}
+
+qboolean Sys_UnlockConditional(void *condv) 
+{ 
+	LeaveCriticalSection(&((condvar_t *)condv)->mainlock);
+	return true; 
+}
+
+qboolean Sys_ConditionWait(void *condv)
+{
+	condvar_t *cv = (condvar_t *)condv;
+	qboolean success;
+
+	// increase count for non-signaled waiting threads
+	EnterCriticalSection(&cv->countlock);
+	cv->waiting++;
+	LeaveCriticalSection(&cv->countlock);
+
+	LeaveCriticalSection(&cv->mainlock); // unlock as per condition variable definition
+
+	// wait on a signal
+	success = (WaitForSingleObject(cv->wait_sem, INFINITE) != WAIT_FAILED);
+
+	// update waiting count and alert signaling thread that we're done to avoid the deadlock condition
+	EnterCriticalSection(&cv->countlock);
+	if (cv->signals > 0) 
+	{
+		ReleaseSemaphore(cv->wait_done, cv->signals, NULL);
+		cv->signals = 0;
+	}
+	cv->waiting--;
+	LeaveCriticalSection(&cv->countlock);
+
+	EnterCriticalSection(&cv->mainlock); // lock as per condition variable definition
+
+	return success;
+}
+
+qboolean Sys_ConditionSignal(void *condv) 
+{
+	condvar_t *cv = (condvar_t *)condv;
+
+	// if there are non-signaled waiting threads, we signal one and wait on the response
+	EnterCriticalSection(&cv->countlock);
+	if (cv->waiting > cv->signals)
+	{
+		cv->signals++;
+		ReleaseSemaphore(cv->wait_sem, 1, NULL);
+		LeaveCriticalSection(&cv->countlock);
+		WaitForSingleObject(cv->wait_done, INFINITE);
+	}
+	else
+		LeaveCriticalSection(&cv->countlock);
+
+    return true;
+}
+
+qboolean Sys_ConditionBroadcast(void *condv) 
+{
+	condvar_t *cv = (condvar_t *)condv;
+
+	// if there are non-signaled waiting threads, we signal all of them and wait on all the responses back
+	EnterCriticalSection(&cv->countlock);
+	if (cv->waiting > cv->signals) 
+	{
+		int i, num_waiting;
+
+		num_waiting = (cv->waiting - cv->signals);
+		cv->signals = cv->waiting;
+		
+		ReleaseSemaphore(cv->wait_sem, num_waiting, NULL);
+		LeaveCriticalSection(&cv->countlock);
+		// there's no call to wait for the same object multiple times so we need to loop through
+		// and burn up the semaphore count
+		for (i = 0; i < num_waiting; i++) 
+			WaitForSingleObject(cv->wait_done, INFINITE);
+	}
+	else
+		LeaveCriticalSection(&cv->countlock);
+
+	return true;
+}
+
+void Sys_DestroyConditional(void *condv)
+{
+	condvar_t *cv = (condvar_t *)condv;
+
+	CloseHandle(cv->wait_done);
+	CloseHandle(cv->wait_sem);
+	DeleteCriticalSection(&cv->countlock);
+	DeleteCriticalSection(&cv->mainlock);
+	free(cv);
 }
 #endif
 

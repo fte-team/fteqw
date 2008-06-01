@@ -1360,7 +1360,7 @@ void SCR_DrawClock(void)
 void SCR_DrawGameClock(void)
 {
 	float showtime;
-	int minuites;
+	int minutes;
 	int seconds;
 	char str[16];
 	int flags;
@@ -1380,17 +1380,17 @@ void SCR_DrawGameClock(void)
 	if (showtime < 0)
 	{
 		showtime *= -1;
-		minuites = showtime/60;
-		seconds = (int)showtime - (minuites*60);
-		minuites *= -1;
+		minutes = showtime/60;
+		seconds = (int)showtime - (minutes*60);
+		minutes *= -1;
 	}
 	else
 	{
-		minuites = showtime/60;
-		seconds = (int)showtime - (minuites*60);
+		minutes = showtime/60;
+		seconds = (int)showtime - (minutes*60);
 	}
 
-	sprintf(str, " %02i:%02i", minuites, seconds);
+	sprintf(str, " %02i:%02i", minutes, seconds);
 
 	SCR_StringXY(str, show_gameclock_x.value, show_gameclock_y.value);
 }

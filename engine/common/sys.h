@@ -91,11 +91,20 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize);
 void Sys_WaitOnThread(void *thread);
 
-void *Sys_CreateMutex();
+void *Sys_CreateMutex(void);
 qboolean Sys_TryLockMutex(void *mutex);
 qboolean Sys_LockMutex(void *mutex);
 qboolean Sys_UnlockMutex(void *mutex);
 void Sys_DestroyMutex(void *mutex);
+
+/* Conditional wait calls */
+void *Sys_CreateConditional(void);
+qboolean Sys_LockConditional(void *condv);
+qboolean Sys_UnlockConditional(void *condv);
+qboolean Sys_ConditionWait(void *condv);
+qboolean Sys_ConditionSignal(void *condv);
+qboolean Sys_ConditionBroadcast(void *condv);
+void Sys_DestroyConditional(void *condv);
 #endif
 
 #ifdef _WIN32

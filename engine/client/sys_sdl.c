@@ -366,7 +366,7 @@ void Sys_WaitOnThread(void *thread)
 
 /* Mutex calls */
 // SDL mutexes don't have try-locks for mutexes in the spec so we stick with 1-value semaphores
-void *Sys_CreateMutex()
+void *Sys_CreateMutex(void)
 {
 	return (void *)SDL_CreateSemaphore(1);
 }
@@ -388,7 +388,78 @@ qboolean Sys_UnlockMutex(void *mutex)
 
 void Sys_DestroyMutex(void *mutex)
 {
-	return SDL_DestroySemaphore(mutex);
+	SDL_DestroySemaphore(mutex);
+}
+
+/* Conditional wait calls */
+typedef struct condvar_s
+{
+	SDL_mutex *mutex;
+	SDL_cond *cond;
+} condvar_t;
+
+void *Sys_CreateConditional(void)
+{
+	condvar_t *condv;
+	SDL_mutex *mutex;
+	SDL_cond *cond;
+	
+	condv = (condvar_t *)malloc(sizeof(condvar_t));
+	if (!condv)
+		return NULL;
+		
+	mutex = SDL_CreateMutex();
+	cond = SDL_CreateCond();
+	
+	if (mutex)
+	{
+		if (cond)
+		{
+			condv->cond = cond;
+			condv->mutex = mutex;
+		
+			return (void *)condv;
+		}
+		else
+			SDL_DestroyMutex(mutex);
+	}
+	
+	free(condv);
+	return NULL;	
+}
+
+qboolean Sys_LockConditional(void *condv)
+{
+	return !SDL_mutexP(((condvar_t *)condv)->mutex);
+}
+
+qboolean Sys_UnlockConditional(void *condv)
+{
+	return !SDL_mutexV(((condvar_t *)condv)->mutex);
+}
+
+qboolean Sys_ConditionWait(void *condv)
+{
+	return !SDL_CondWait(((condvar_t *)condv)->cond, ((condvar_t *)condv)->mutex);
+}
+
+qboolean Sys_ConditionSignal(void *condv)
+{
+	return !SDL_CondSignal(((condvar_t *)condv)->cond);
+}
+
+qboolean Sys_ConditionBroadcast(void *condv)
+{
+	return !SDL_CondBroadcast(((condvar_t *)condv)->cond);
+}
+
+void Sys_DestroyConditional(void *condv)
+{
+	condvar_t *cv = (condvar_t *)condv;
+	
+	SDL_DestroyCond(cv->cond);
+	SDL_DestroyMutex(cv->mutex);
+	free(cv);
 }
 #endif
 

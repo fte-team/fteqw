@@ -440,9 +440,17 @@ void Sys_LowFPPrecision (void)
 void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize) { return NULL; }
 void Sys_WaitOnThread(void *thread) {}
 /* Mutex calls */
-void *Sys_CreateMutex() { return NULL; }
-qboolean Sys_TryLockMutex(void *mutex) { return FALSE; }
-qboolean Sys_LockMutex(void *mutex) { return FALSE; }
-qboolean Sys_UnlockMutex(void *mutex) { return FALSE; }
+void *Sys_CreateMutex(void) { return NULL; }
+qboolean Sys_TryLockMutex(void *mutex) { return false; }
+qboolean Sys_LockMutex(void *mutex) { return false; }
+qboolean Sys_UnlockMutex(void *mutex) { return false; }
 void Sys_DestroyMutex(void *mutex) {}
+/* Conditional wait calls */
+void *Sys_CreateConditional(void) { return NULL; }
+qboolean Sys_LockConditional(void *condv) { return false; }
+qboolean Sys_UnlockConditional(void *condv) { return false; }
+qboolean Sys_ConditionWait(void *condv) { return false; }
+qboolean Sys_ConditionSignal(void *condv) { return false; }
+qboolean Sys_ConditionBroadcast(void *condv) { return false; }
+void Sys_DestroyConditional(void *condv) {}
 #endif

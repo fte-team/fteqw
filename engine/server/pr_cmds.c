@@ -6349,7 +6349,7 @@ typedef struct sqlserver_s
 	void *thread; // worker thread for server
 	MYSQL *mysql; // mysql server
 	volatile qboolean active; // set to false to kill thread
-	void *requestlock; // mutex for queue read/write
+	void *requestcondv; // lock and conditional variable for queue read/write
 	void *resultlock; // mutex for queue read/write
 	int querynum; // next reference number for queries
 	queryrequest_t *requests; // query requests queue
@@ -6390,19 +6390,20 @@ queryresult_t *SQL_PullResult(sqlserver_t *server)
 
 void SQL_PushRequest(sqlserver_t *server, queryrequest_t *qreq)
 {
-	Sys_LockMutex(server->requestlock);
+	Sys_LockConditional(server->requestcondv);
 	qreq->next = NULL;
 	if (!server->requestslast)
 		server->requests = server->requestslast = qreq;
 	else
 		server->requestslast = server->requestslast->next = qreq;
-	Sys_UnlockMutex(server->requestlock);
+	Sys_UnlockConditional(server->requestcondv);
 }
 
-queryrequest_t *SQL_PullRequest(sqlserver_t *server)
+queryrequest_t *SQL_PullRequest(sqlserver_t *server, qboolean lock)
 {
 	queryrequest_t *qreq;
-	Sys_LockMutex(server->requestlock);
+	if (lock)
+		Sys_LockConditional(server->requestcondv);
 	qreq = server->requests;
 	if (qreq)
 	{
@@ -6410,7 +6411,7 @@ queryrequest_t *SQL_PullRequest(sqlserver_t *server)
 		if (!server->requests)
 			server->requestslast = NULL;
 	}
-	Sys_UnlockMutex(server->requestlock);
+	Sys_UnlockConditional(server->requestcondv);
 
 	return qreq;
 }
@@ -6424,6 +6425,7 @@ int sql_serverworker(void *sref)
 	char *error = NULL;
 	my_bool reconnect = 1;
 	int tinit;
+	qboolean needlock = false;
 
 	if (tinit = mysql_thread_init())
 		error = "MYSQL thread init failed";
@@ -6439,9 +6441,9 @@ int sql_serverworker(void *sref)
 
 	while (server->active)
 	{	
-		// TODO: replace this with a conditional
-		if (!server->requests)
-			continue;
+		Sys_LockConditional(server->requestcondv);
+		Sys_ConditionWait(server->requestcondv);
+		needlock = false; // so we don't try to relock first round
 
 		while (1)
 		{
@@ -6453,8 +6455,12 @@ int sql_serverworker(void *sref)
 			int columns = -1;
 			int qesize = 0;
 
-			if (!(qreq = SQL_PullRequest(server)))
+			if (!(qreq = SQL_PullRequest(server, needlock)))
 				break;
+
+			// pullrequest makes sure our condition is unlocked but we'll need
+			// a lock next round
+			needlock = true;
 
 			// perform the query and fill out the result structure
 			if (mysql_query(server->mysql, qreq->query))
@@ -6501,7 +6507,6 @@ int sql_serverworker(void *sref)
 				break;
 			}
 		}
-
 	}
 
 	if (server->mysql)
@@ -6560,13 +6565,13 @@ void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	sqlservers[serverref] = server;
 
 	server->active = true;
-	server->requestlock = Sys_CreateMutex();
+	server->requestcondv = Sys_CreateConditional();
 	server->resultlock = Sys_CreateMutex();
 
-	if (!server->requestlock || !server->resultlock)
+	if (!server->requestcondv || !server->resultlock)
 	{
-		if (server->requestlock)
-			Sys_DestroyMutex(server->requestlock);
+		if (server->requestcondv)
+			Sys_DestroyConditional(server->requestcondv);
 		if (server->resultlock)
 			Sys_DestroyMutex(server->resultlock);
 		Z_Free(server);
@@ -6597,7 +6602,8 @@ void PF_sqldisconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	sqlservers[serverref]->active = false;
 
-	// TODO: conditional broadcast here
+	// force the threads to reiterate requests and hopefully terminate
+	Sys_ConditionBroadcast(sqlservers[serverref]->requestcondv);
 }
 
 void PF_sqlopenquery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6624,8 +6630,7 @@ void PF_sqlopenquery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Q_strncpy(qreq->query, querystr, qsize);
 
 	SQL_PushRequest(sqlservers[serverref], qreq);
-
-	// TODO: conditional trip here
+	Sys_ConditionSignal(sqlservers[serverref]->requestcondv);
 
 	G_FLOAT(OFS_RETURN) = querynum;
 }
@@ -6892,7 +6897,7 @@ void SQL_DeInit()
 		Sys_WaitOnThread(server->thread);
 
 		// server resource deallocation (TODO: should this be done in the thread itself?)
-		Sys_DestroyMutex(server->requestlock);
+		Sys_DestroyConditional(server->requestcondv);
 		Sys_DestroyMutex(server->resultlock);
 		
 		qreq = server->requests;

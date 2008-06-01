@@ -584,7 +584,7 @@ typedef struct
 	qboolean sendprespawn;
 	int contentstage;
 
-	float ktprogametime;
+	double ktprogametime;
 	enum {
 		KTPRO_DONTKNOW,
 		KTPRO_COUNTDOWN,

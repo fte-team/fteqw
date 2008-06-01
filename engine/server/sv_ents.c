@@ -2011,7 +2011,7 @@ typedef struct gibfilter_s {
 	int maxframe;
 } gibfilter_t;
 gibfilter_t *gibfilter;
-void SV_GibFilterAdd(char *modelname, int min, int max)
+void SV_GibFilterAdd(char *modelname, int min, int max, qboolean allowwarn)
 {
 	int i;
 	gibfilter_t *gf;
@@ -2021,7 +2021,8 @@ void SV_GibFilterAdd(char *modelname, int min, int max)
 			break;
 	if (!sv.strings.model_precache[i])
 	{
-		Con_Printf("Filtered model \"%s\" was not precached\n", modelname);
+		if (allowwarn)
+			Con_Printf("Filtered model \"%s\" was not precached\n", modelname);
 		return;	//model not in use.
 	}
 
@@ -2053,10 +2054,10 @@ void SV_GibFilterInit(void)
 	if (!file)
 	{
 		Con_DPrintf("gibfiltr.cfg file was not found. Using defaults\n");
-		SV_GibFilterAdd("progs/gib1.mdl", -1, -1);
-		SV_GibFilterAdd("progs/gib2.mdl", -1, -1);
-		SV_GibFilterAdd("progs/gib3.mdl", -1, -1);
-		SV_GibFilterAdd("progs/h_player.mdl", -1, -1);
+		SV_GibFilterAdd("progs/gib1.mdl", -1, -1, false);
+		SV_GibFilterAdd("progs/gib2.mdl", -1, -1, false);
+		SV_GibFilterAdd("progs/gib3.mdl", -1, -1, false);
+		SV_GibFilterAdd("progs/h_player.mdl", -1, -1, false);
 		return;
 	}
 	while(file)
@@ -2075,7 +2076,7 @@ void SV_GibFilterInit(void)
 			Con_Printf("Sudden ending to gibfiltr.cfg\n");
 			return;
 		}
-		SV_GibFilterAdd(com_token, min, max);
+		SV_GibFilterAdd(com_token, min, max, true);
 	}
 }
 qboolean SV_GibFilter(edict_t	*ent)
@@ -2438,7 +2439,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				continue;	//not in this dimension - sorry...
 
 
-		if (!ignorepvs && ent != clent && (pvsflags & PVSF_MODE_MASK)==PVSF_NORMALPVS)
+		if (!ignorepvs && ent != clent && (pvsflags & PVSF_MODE_MASK)==PVSF_NORMALPVS && !((unsigned int)ent->v->effects & (EF_DIMLIGHT|EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_BRIGHTFIELD)))
 		{	//more expensive culling
 			if ((e <= sv.allocated_client_slots && sv_cullplayers_trace.value) || sv_cullentities_trace.value)
 				if (Cull_Traceline(clent, ent))

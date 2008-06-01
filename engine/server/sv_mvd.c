@@ -644,25 +644,27 @@ typedef struct
 	int		size;
 	int		numfiles;
 	int		numdirs;
+
+	int		maxfiles;
 } dir_t;
 
 #define SORT_NO 0
 #define SORT_BY_DATE 1
 
 #ifdef _WIN32
-dir_t Sys_listdir (char *path, char *ext, qboolean usesorting)
+dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
 {
-	static file_t	list[MAX_DIRFILES];
-	dir_t	dir;
+	unsigned int maxfiles = MAX_DIRFILES;
+	dir_t *dir = malloc(sizeof(*dir) + sizeof(*dir->files)*maxfiles);
 	HANDLE	h;
 	WIN32_FIND_DATA fd;
 	int		i, pos, size;
 	char	name[MAX_MVD_NAME], *s;
 
-	memset(list, 0, sizeof(list));
-	memset(&dir, 0, sizeof(dir));
+	memset(dir, 0, sizeof(*dir));
 
-	dir.files = list;
+	dir->files = (file_t*)(dir+1);
+	dir->maxfiles = maxfiles;
 
 	h = FindFirstFile (va("%s/*.*", path), &fd);
 	if (h == INVALID_HANDLE_VALUE)
@@ -674,13 +676,13 @@ dir_t Sys_listdir (char *path, char *ext, qboolean usesorting)
 	{
 		if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
 		{
-			dir.numdirs++;
+			dir->numdirs++;
 			continue;
 		}
 
 		size = fd.nFileSizeLow;
 		Q_strncpyz (name, fd.cFileName, MAX_MVD_NAME);
-		dir.size += size;
+		dir->size += size;
 
 		for (s = fd.cFileName + strlen(fd.cFileName); s > fd.cFileName; s--)
 		{
@@ -700,36 +702,43 @@ dir_t Sys_listdir (char *path, char *ext, qboolean usesorting)
 		}
 		#endif
 
-		i = dir.numfiles;
+		i = dir->numfiles;
 		pos = i;
-		dir.numfiles++;
-		for (i=dir.numfiles-1 ; i>pos ; i--)
-			list[i] = list[i-1];
+		dir->numfiles++;
+		for (i=dir->numfiles-1 ; i>pos ; i--)
+			dir->files[i] = dir->files[i-1];
 
-		strcpy (list[i].name, name);
-		list[i].size = size;
-		if (dir.numfiles == MAX_DIRFILES)
+		strcpy (dir->files[i].name, name);
+		dir->files[i].size = size;
+		if (dir->numfiles == dir->maxfiles)
 			break;
 	} while ( FindNextFile(h, &fd) );
 	FindClose (h);
 
 	return dir;
 }
+
+void Sys_freedir(dir_t *dir)
+{
+	free(dir);
+}
+
 #else
 #include <dirent.h>
-dir_t Sys_listdir (char *path, char *ext, qboolean usesorting)
+dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
 {
-	static file_t list[MAX_DIRFILES];
-	dir_t	d;
+	unsigned int maxfiles = MAX_DIRFILES;
+	dir_t *d = malloc(sizeof(*d) + sizeof(*d->files)*maxfiles);
+
 	int		i, extsize;
 	DIR		*dir;
     struct dirent *oneentry;
 	char	pathname[MAX_OSPATH];
 	qboolean all;
 
-	memset(list, 0, sizeof(list));
-	memset(&d, 0, sizeof(d));
-	d.files = list;
+	memset(d, 0, sizeof(*d));
+	d->files = (file_t*)(d+1);
+	d->maxfiles = maxfiles;
 	extsize = strlen(ext);
 	all = !strcmp(ext, ".*");
 
@@ -754,23 +763,27 @@ dir_t Sys_listdir (char *path, char *ext, qboolean usesorting)
 #endif
 
 		sprintf(pathname, "%s/%s", path, oneentry->d_name);
-		list[d.numfiles].size = COM_FileSize(pathname);
-		d.size += list[d.numfiles].size;
+		list[d->numfiles].size = COM_FileSize(pathname);
+		d->size += list[d->numfiles].size;
 
 		i = strlen(oneentry->d_name);
 		if (!all && (i < extsize || (Q_strcasecmp(oneentry->d_name+i-extsize, ext))))
 			continue;
 
-		Q_strncpyz(list[d.numfiles].name, oneentry->d_name, MAX_MVD_NAME);
+		Q_strncpyz(list[d->numfiles].name, oneentry->d_name, MAX_MVD_NAME);
+		d->numfiles++;
 
-
-		if (++d.numfiles == MAX_DIRFILES)
+		if (d->numfiles == d->maxfiles)
 			break;
 	}
 
 	closedir(dir);
 
 	return d;
+}
+void Sys_freedir(dir_t *dir)
+{
+	free(dir);
 }
 #endif
 
@@ -2011,7 +2024,7 @@ void SV_MVD_Record_f (void)
 	int		c;
 	char	name[MAX_OSPATH+MAX_MVD_NAME];
 	char	newname[MAX_MVD_NAME];
-	dir_t	dir;
+	dir_t	*dir;
 
 	c = Cmd_Argc();
 	if (c != 2)
@@ -2026,11 +2039,14 @@ void SV_MVD_Record_f (void)
 	}
 
 	dir = Sys_listdir(va("%s/%s", com_gamedir, sv_demoDir.string), ".*", SORT_NO);
-	if (sv_demoMaxDirSize.value && dir.size > sv_demoMaxDirSize.value*1024)
+	if (sv_demoMaxDirSize.value && dir->size > sv_demoMaxDirSize.value*1024)
 	{
 		Con_Printf("insufficient directory space, increase sv_demoMaxDirSize\n");
+		Sys_freedir(dir);
 		return;
 	}
+	Sys_freedir(dir);
+	dir = NULL;
 
 	Q_strncpyz(newname, va("%s%s", sv_demoPrefix.string, SV_CleanName(Cmd_Argv(1))),
 			sizeof(newname) - strlen(sv_demoSuffix.string) - 5);
@@ -2252,7 +2268,7 @@ int	Dem_CountTeamPlayers (char *t)
 void SV_MVDEasyRecord_f (void)
 {
 	int		c;
-	dir_t	dir;
+	dir_t	*dir;
 	char	name[1024];
 	char	name2[MAX_OSPATH*7]; // scream
 	//char	name2[MAX_OSPATH*2];
@@ -2273,11 +2289,13 @@ void SV_MVDEasyRecord_f (void)
 	}
 
 	dir = Sys_listdir(va("%s/%s", com_gamedir,sv_demoDir.string), ".*", SORT_NO);
-	if (sv_demoMaxDirSize.value && dir.size > sv_demoMaxDirSize.value*1024)
+	if (sv_demoMaxDirSize.value && dir->size > sv_demoMaxDirSize.value*1024)
 	{
 		Con_Printf("insufficient directory space, increase sv_demoMaxDirSize\n");
+		Sys_freedir(dir);
 		return;
 	}
+	Sys_freedir(dir);
 
 	if (c == 2)
 		Q_strncpyz (name, Cmd_Argv(1), sizeof(name));
@@ -2466,14 +2484,14 @@ void SV_MVDStream_Poll(void)
 void SV_MVDList_f (void)
 {
 	mvddest_t *d;
-	dir_t	dir;
+	dir_t	*dir;
 	file_t	*list;
 	float	f;
 	int		i,j,show;
 
 	Con_Printf("content of %s/%s/*.mvd\n", com_gamedir,sv_demoDir.string);
 	dir = Sys_listdir(va("%s/%s", com_gamedir,sv_demoDir.string), ".mvd", SORT_BY_DATE);
-	list = dir.files;
+	list = dir->files;
 	if (!list->name[0])
 	{
 		Con_Printf("no demos\n");
@@ -2499,37 +2517,102 @@ void SV_MVDList_f (void)
 	}
 
 	for (d = demo.dest; d; d = d->nextdest)
-		dir.size += d->totalsize;
+		dir->size += d->totalsize;
 
-	Con_Printf("\ndirectory size: %.1fMB\n",(float)dir.size/(1024*1024));
+	Con_Printf("\ndirectory size: %.1fMB\n",(float)dir->size/(1024*1024));
 	if (sv_demoMaxDirSize.value)
 	{
-		f = (sv_demoMaxDirSize.value*1024 - dir.size)/(1024*1024);
+		f = (sv_demoMaxDirSize.value*1024 - dir->size)/(1024*1024);
 		if ( f < 0)
 			f = 0;
 		Con_Printf("space available: %.1fMB\n", f);
 	}
+
+	Sys_freedir(dir);
 }
 
-char *SV_MVDNum(int num)
+void SV_UserCmdMVDList_f (void)
+{
+	mvddest_t *d;
+	dir_t	*dir;
+	file_t	*list;
+	float	f;
+	int		i,j,show;
+
+	int first;
+
+	first = Cmd_Argv(0);
+
+	Con_Printf("available demos\n");
+	dir = Sys_listdir(va("%s/%s", com_gamedir,sv_demoDir.string), ".mvd", SORT_BY_DATE);
+	list = dir->files;
+	if (!list->name[0])
+	{
+		Con_Printf("no demos\n");
+	}
+
+	for (i = 1; list->name[0]; i++, list++)
+	{
+		for (j = 1; j < Cmd_Argc(); j++)
+			if (strstr(list->name, Cmd_Argv(j)) == NULL)
+				break;
+		show = Cmd_Argc() == j;
+
+		if (show)
+		{
+			for (d = demo.dest; d; d = d->nextdest)
+			{
+				if (!strcmp(list->name, d->name))
+					Con_Printf("*%d: %s %dk\n", i, list->name, d->totalsize/1024);
+			}
+			if (!d)
+				Con_Printf("%d: %s %dk\n", i, list->name, list->size/1024);
+		}
+	}
+	
+	for (d = demo.dest; d; d = d->nextdest)
+		dir->size += d->totalsize;
+
+	Con_Printf("\ndirectory size: %.1fMB\n",(float)dir->size/(1024*1024));
+	if (sv_demoMaxDirSize.value)
+	{
+		f = (sv_demoMaxDirSize.value*1024 - dir->size)/(1024*1024);
+		if ( f < 0)
+			f = 0;
+		Con_Printf("space available: %.1fMB\n", f);
+	}
+
+	Sys_freedir(dir);
+}
+
+char *SV_MVDNum(char *buffer, int bufferlen, int num)
 {
 	file_t	*list;
-	dir_t	dir;
+	dir_t	*dir;
 
 	dir = Sys_listdir(va("%s/%s", com_gamedir, sv_demoDir.string), ".mvd", SORT_BY_DATE);
-	list = dir.files;
+	list = dir->files;
 
 	if (num <= 0)
+	{
+		Sys_freedir(dir);
 		return NULL;
+	}
 
 	num--;
 
 	while (list->name[0] && num) {list++; num--;};
 
 	if (list->name[0])
+	{
+		Q_strncpyz(buffer, list->name, bufferlen);
 		return list->name;
+	}
+	else
+		buffer = NULL;
 
-	return NULL;
+	Sys_freedir(dir);
+	return buffer;
 }
 
 char *SV_MVDName2Txt(char *name)
@@ -2549,9 +2632,9 @@ char *SV_MVDName2Txt(char *name)
 	return va("%s", s);
 }
 
-char *SV_MVDTxTNum(int num)
+char *SV_MVDTxTNum(char *buffer, int bufferlen, int num)
 {
-	return SV_MVDName2Txt(SV_MVDNum(num));
+	return SV_MVDName2Txt(SV_MVDNum(buffer, bufferlen, num));
 }
 
 void SV_MVDRemove_f (void)
@@ -2569,14 +2652,14 @@ void SV_MVDRemove_f (void)
 	ptr = Cmd_Argv(1);
 	if (*ptr == '*')
 	{
-		dir_t dir;
+		dir_t *dir;
 		file_t *list;
 
 		// remove all demos with specified token
 		ptr++;
 
 		dir = Sys_listdir(va("%s/%s", com_gamedir, sv_demoDir.string), ".mvd", SORT_BY_DATE);
-		list = dir.files;
+		list = dir->files;
 		for (i = 0;list->name[0]; list++)
 		{
 			if (strstr(list->name, ptr))
@@ -2595,6 +2678,7 @@ void SV_MVDRemove_f (void)
 				Sys_remove(SV_MVDName2Txt(path));
 			}
 		}
+		Sys_freedir(dir);
 
 		if (i)
 		{
@@ -2629,6 +2713,7 @@ void SV_MVDRemove_f (void)
 void SV_MVDRemoveNum_f (void)
 {
 	int		num;
+	char namebuf[MAX_QPATH];
 	char	*val, *name;
 	char path[MAX_OSPATH];
 
@@ -2645,7 +2730,7 @@ void SV_MVDRemoveNum_f (void)
 		return;
 	}
 
-	name = SV_MVDNum(num);
+	name = SV_MVDNum(namebuf, sizeof(namebuf), num);
 
 	if (name != NULL)
 	{
@@ -2668,6 +2753,7 @@ void SV_MVDRemoveNum_f (void)
 
 void SV_MVDInfoAdd_f (void)
 {
+	char namebuf[MAX_QPATH];
 	char *name, *args, path[MAX_OSPATH];
 	FILE *f;
 
@@ -2688,7 +2774,7 @@ void SV_MVDInfoAdd_f (void)
 	}
 	else
 	{
-		name = SV_MVDTxTNum(atoi(Cmd_Argv(1)));
+		name = SV_MVDTxTNum(namebuf, sizeof(namebuf), atoi(Cmd_Argv(1)));
 
 		if (!name)
 		{
@@ -2718,6 +2804,7 @@ void SV_MVDInfoAdd_f (void)
 
 void SV_MVDInfoRemove_f (void)
 {
+	char namebuf[MAX_QPATH];
 	char *name, path[MAX_OSPATH];
 
 	if (Cmd_Argc() < 2)
@@ -2738,7 +2825,7 @@ void SV_MVDInfoRemove_f (void)
 	}
 	else
 	{
-		name = SV_MVDTxTNum(atoi(Cmd_Argv(1)));
+		name = SV_MVDTxTNum(namebuf, sizeof(namebuf), atoi(Cmd_Argv(1)));
 
 		if (!name)
 		{
@@ -2756,6 +2843,7 @@ void SV_MVDInfoRemove_f (void)
 
 void SV_MVDInfo_f (void)
 {
+	int len;
 	char buf[64];
 	FILE *f = NULL;
 	char *name, path[MAX_OSPATH];
@@ -2778,7 +2866,7 @@ void SV_MVDInfo_f (void)
 	}
 	else
 	{
-		name = SV_MVDTxTNum(atoi(Cmd_Argv(1)));
+		name = SV_MVDTxTNum(buf, sizeof(buf), atoi(Cmd_Argv(1)));
 
 		if (!name)
 		{
@@ -2795,9 +2883,12 @@ void SV_MVDInfo_f (void)
 		return;
 	}
 
-	while (!feof(f))
+	for(;;)
 	{
-		buf[fread (buf, 1, sizeof(buf)-1, f)] = 0;
+		len = fread (buf, 1, sizeof(buf)-1, f);
+		if (len < 0)
+			break;
+		buf[len] = 0;
 		Con_Printf("%s", buf);
 	}
 
@@ -2813,6 +2904,7 @@ void SV_MVDInfo_f (void)
 
 void SV_MVDPlayNum_f(void)
 {
+	char namebuf[MAX_QPATH];
 	char *name;
 	int		num;
 	char	*val;
@@ -2830,7 +2922,7 @@ void SV_MVDPlayNum_f(void)
 		return;
 	}
 
-	name = SV_MVDNum(atoi(val));
+	name = SV_MVDNum(namebuf, sizeof(namebuf), atoi(val));
 
 	if (name)
 		Cbuf_AddText(va("mvdplay %s\n", name), Cmd_ExecLevel);

@@ -145,10 +145,20 @@ typedef enum {
 	CG_CEIL,
 	CG_TESTPRINTINT,
 	CG_TESTPRINTFLOAT,
-	CG_ACOS
+	CG_ACOS,
+
+	CG_FTE_FINDPARTICLEEFFECT = 200,
+	CG_FTE_SPAWNPARTICLEEFFECT,
+	CG_FTE_SPAWNPARTICLETRAIL,
+	CG_FTE_FREEPARTICLESTATE
 } cgameImport_t;
 
-
+/*
+int CG_FTE_FINDPARTICLEEFFECT(char *particleeffectname) = #200;
+int CG_FTE_SPAWNPARTICLEEFFECT(vec3_t pos, vec3_t dir, float count, int effectnum, void *pstate) = #201;
+int CG_FTE_SPAWNPARTICLETRAIL(vec3_t start, vec3_t end, int effectnum, void *pstate) = #202;
+void CG_FTE_FREEPARTICLESTATE(void *pstate) = #203;
+*/
 
 /*
 ==================================================================
@@ -1018,6 +1028,16 @@ vec3_t		listener_up;
 	case CG_R_REGISTERFONT:
 		VALIDATEPOINTER(arg[2], sizeof(fontInfo_t));
 		UI_RegisterFont(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]));
+		break;
+
+	case CG_FTE_FINDPARTICLEEFFECT:
+		return P_FindParticleType(VM_POINTER(arg[0]));
+	case CG_FTE_SPAWNPARTICLEEFFECT:
+		return P_RunParticleEffectState(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]), VM_LONG(arg[3]), VM_POINTER(arg[4]));
+	case CG_FTE_SPAWNPARTICLETRAIL:
+		return P_ParticleTrail(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), VM_POINTER(arg[3]));
+	case CG_FTE_FREEPARTICLESTATE:
+		P_DelinkTrailstate(VM_POINTER(arg[0]));
 		break;
 	default:
 		Con_Printf("Q3CG: Bad system trap: %d\n", fn);

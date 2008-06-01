@@ -653,6 +653,11 @@ void SWDraw_Character (int x, int y, unsigned int num)
 	}
 }
 
+void SWDraw_TinyCharacter (int x, int y, unsigned int num)
+{
+	SWDraw_Character (x, y, num);
+}
+
 /*
 #define drawpal(r,g,b) pal555to8[(r|(g<<5)|(b<<10)) & consolecolours[colour].rgbmask]
 #define draw(p) drawpal(host_basepal[p*3]>>3,host_basepal[p*3+1]>>3,host_basepal[p*3+2]>>3)

@@ -80,7 +80,7 @@ mpic_t		*draw_disc;
 mpic_t		*draw_backtile;
 
 int			translate_texture;
-int			char_texture, char_tex2, default_char_texture;
+int			char_texture, char_tex2, default_char_texture, char_texturetiny;
 int			missing_texture;	//texture used when one is missing.
 int			cs_texture; // crosshair texture
 extern int detailtexture;
@@ -976,6 +976,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	gl->th = 1;
 	glmenu_numcachepics++;
 
+	char_texturetiny = 0;
 	TRACE(("dbg: GLDraw_ReInit: W_SafeGetLumpName\n"));
 	tinyfont = W_SafeGetLumpName ("tinyfont");
 	if (tinyfont)
@@ -987,7 +988,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		glmenu_cachepics[glmenu_numcachepics].pic.width = 128;
 		glmenu_cachepics[glmenu_numcachepics].pic.height = 32;
 		gl = (glpic_t *)&glmenu_cachepics[glmenu_numcachepics].pic.data;
-		gl->texnum = GL_LoadTexture ("tinyfont", 128, 32, tinyfont, false, true);
+		char_texturetiny = gl->texnum = GL_LoadTexture ("tinyfont", 128, 32, tinyfont, false, true);
 		gl->sl = 0;
 		gl->tl = 0;
 		gl->sh = 1;
@@ -1008,6 +1009,8 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		glmenu_cachepics[glmenu_numcachepics].pic.height = bigfont->height;
 		gl = (glpic_t *)&glmenu_cachepics[glmenu_numcachepics].pic.data;
 		gl->texnum = GL_LoadTexture ("gfx/menu/bigfont.lmp", bigfont->width, bigfont->height, data, false, true);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		gl->sl = 0;
 		gl->tl = 0;
 		gl->sh = 1;
@@ -1219,6 +1222,58 @@ void GL_DrawMesh(mesh_t *msh, int texturenum)
 }
 
 
+void GLDraw_TinyCharacter (int x, int y, unsigned int num)
+{
+	int				row, col;
+	float			frow, fcol, sizex, sizey;
+
+	if (y <= -6)
+		return;			// totally off screen
+
+	num &= 127;
+
+	if(num <= 32)
+		return;
+	else if(num >= 'a' && num <= 'z')
+		num -= 64;
+	else if(num > '_')
+		return;
+	else
+		num -= 32;
+
+	row = num>>4;
+	col = num&15;
+
+	sizex = 0.0625;
+	sizey = 0.25;
+	frow = row*sizey;
+	fcol = col*sizex;
+	draw_mesh_xyz[0][0] = x;
+	draw_mesh_xyz[0][1] = y;
+	draw_mesh_st[0][0] = fcol;
+	draw_mesh_st[0][1] = frow;
+
+	draw_mesh_xyz[1][0] = x+8;
+	draw_mesh_xyz[1][1] = y;
+	draw_mesh_st[1][0] = fcol+sizex;
+	draw_mesh_st[1][1] = frow;
+
+	draw_mesh_xyz[2][0] = x+8;
+	draw_mesh_xyz[2][1] = y+8;
+	draw_mesh_st[2][0] = fcol+sizex;
+	draw_mesh_st[2][1] = frow+sizey;
+
+	draw_mesh_xyz[3][0] = x;
+	draw_mesh_xyz[3][1] = y+8;
+	draw_mesh_st[3][0] = fcol;
+	draw_mesh_st[3][1] = frow+sizey;
+
+	qglEnable(GL_BLEND);
+	qglDisable(GL_ALPHA_TEST);
+
+	GL_DrawMesh(&draw_mesh, char_texturetiny);
+}
+
 /*
 ================
 Draw_Character
@@ -1240,8 +1295,6 @@ void GLDraw_Character (int x, int y, unsigned int num)
 
 	if (num == 32)
 		return;		// space
-
-	num &= 255;
 
 	row = num>>4;
 	col = num&15;
@@ -1977,23 +2030,26 @@ Draw_Fill
 Fills a box of pixels with a single color
 =============
 */
-void GLDraw_Fill (int x, int y, int w, int h, int c)
+void GLDraw_Fill (int x, int y, int w, int h, unsigned int c)
 {
+	unsigned int r, g, b;
 	extern qboolean gammaworks;
-	if (gammaworks)
+
+	r = host_basepal[c*3];
+	g = host_basepal[c*3+1];
+	b = host_basepal[c*3+2];
+
+	if (!gammaworks)
 	{
-		GLDraw_FillRGB (x, y, w, h,
-			host_basepal[c*3]/255.0,
-			host_basepal[c*3+1]/255.0,
-			host_basepal[c*3+2]/255.0);
+		r = gammatable[r];
+		g = gammatable[r];
+		b = gammatable[r];
 	}
-	else
-	{
-		GLDraw_FillRGB (x, y, w, h,
-			gammatable[host_basepal[c*3]]/255.0,
-			gammatable[host_basepal[c*3+1]]/255.0,
-			gammatable[host_basepal[c*3+2]]/255.0);
-	}
+
+	GLDraw_FillRGB (x, y, w, h,
+		r/255.0,
+		g/255.0,
+		b/255.0);
 }
 //=============================================================================
 

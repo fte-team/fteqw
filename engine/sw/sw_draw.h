@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void SWDraw_Init (void);
 void SWDraw_Shutdown(void);
 void SWDraw_Character (int x, int y, unsigned int num);
+void SWDraw_TinyCharacter (int x, int y, unsigned int num);
 void SWDraw_ImageColours (float r, float g, float b, float a);
 void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, float s2, float t2, mpic_t *pic);
 void SWDraw_ColouredCharacter (int x, int y, unsigned int num);

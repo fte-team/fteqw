@@ -1772,50 +1772,65 @@ char *TP_MapName (void)
 =============================================================================
 */
 
-int		cl_teamtopcolor = -1;
-int		cl_teambottomcolor = -1;
-int		cl_enemytopcolor = -1;
-int		cl_enemybottomcolor = -1;
+unsigned int		cl_teamtopcolor = ~0;
+unsigned int		cl_teambottomcolor = ~0;
+unsigned int		cl_enemytopcolor = ~0;
+unsigned int		cl_enemybottomcolor = ~0;
+
+static unsigned int TP_ForceColour(char *col)
+{
+	float rgb[3];
+	unsigned int bitval;
+	if (!strcmp(col, "off"))
+		return ~0;
+	if (!strncmp(col, "0x", 2))
+	{
+		bitval = 0x01000000 | strtoul(col+2, NULL, 16);
+		if (bitval == ~0)
+			bitval = 0x01ffffff;
+		return bitval;
+	}
+	if (strchr(col, ' '))
+	{
+		SCR_StringToRGB(col, rgb, 1);
+		bitval = ((unsigned char)rgb[0]<<0) | ((unsigned char)rgb[1]<<8) | ((unsigned char)rgb[2]<<16) | (0xff<<24);
+		if (bitval == ~0)
+			bitval = 0x01ffffff;
+		return bitval;
+	}
+	return atoi(col);
+}
 
 static void TP_TeamColor_f (void)
 {
-	int	top, bottom;
+	unsigned int	top, bottom;
 	int	i;
 
 	if (Cmd_Argc() == 1)
 	{
-		if (cl_teamtopcolor < 0)
-			Com_Printf ("\"teamcolor\" is \"off\"\n");
+
+		Com_Printf ("\"teamcolor\" is \"");
+		if (cl_teamtopcolor == ~0)
+			Com_Printf ("off");
 		else
-			Com_Printf ("\"teamcolor\" is \"%i %i\"\n", 
-				cl_teamtopcolor,
-				cl_teambottomcolor);
+			Com_Printf (cl_teamtopcolor>=16?"0x%06x":"%i", cl_teamtopcolor&0x00ffffff);
+		if (cl_teamtopcolor != cl_teambottomcolor)
+		{
+			if (cl_teambottomcolor == ~0)
+				Com_Printf (" off");
+			else
+				Com_Printf (cl_teambottomcolor>=16?" 0x%06x":" %i", cl_teambottomcolor&0x00ffffff);
+		}
+		Com_Printf ("\"\n");
 		return;
 	}
 
-	if (!strcmp(Cmd_Argv(1), "off"))
-	{
-		cl_teamtopcolor = -1;
-		cl_teambottomcolor = -1;
-		if (qrenderer>QR_NONE)	//make sure we have the renderer initialised...
-			for (i = 0; i < MAX_CLIENTS; i++)
-				CL_NewTranslation(i);
-		return;
-	}
-
+	top = TP_ForceColour(Cmd_Argv(1));
 	if (Cmd_Argc() == 2)
-		top = bottom = atoi(Cmd_Argv(1));
+		bottom = top;
 	else {
-		top = atoi(Cmd_Argv(1));
-		bottom = atoi(Cmd_Argv(2));
+		bottom = TP_ForceColour(Cmd_Argv(2));
 	}
-	
-	top &= 15;
-	if (top > 13)
-		top = 13;
-	bottom &= 15;
-	if (bottom > 13)
-		bottom = 13;
 	
 //	if (top != cl_teamtopcolor || bottom != cl_teambottomcolor)
 	{
@@ -1830,43 +1845,33 @@ static void TP_TeamColor_f (void)
 
 static void TP_EnemyColor_f (void)
 {
-	int	top, bottom;
+	unsigned int	top, bottom;
 	int	i;
 
 	if (Cmd_Argc() == 1)
 	{
-		if (cl_enemytopcolor < 0)
-			Com_Printf ("\"enemycolor\" is \"off\"\n");
+		Com_Printf ("\"teamcolor\" is \"");
+		if (cl_enemytopcolor == ~0)
+			Com_Printf ("off");
 		else
-			Com_Printf ("\"enemycolor\" is \"%i %i\"\n", 
-				cl_enemytopcolor,
-				cl_enemybottomcolor);
+			Com_Printf (cl_enemytopcolor>=16?"0x%06x":"%i", cl_enemytopcolor&0x00ffffff);
+		if (cl_enemytopcolor != cl_enemybottomcolor)
+		{
+			if (cl_enemybottomcolor == ~0)
+				Com_Printf (" off");
+			else
+				Com_Printf (cl_enemybottomcolor>=16?" 0x%06x":" %i", cl_enemybottomcolor&0x00ffffff);
+		}
+		Com_Printf ("\"\n");
 		return;
 	}
 
-	if (!strcmp(Cmd_Argv(1), "off"))
-	{
-		cl_enemytopcolor = -1;
-		cl_enemybottomcolor = -1;
-		if (qrenderer>QR_NONE)	//make sure we have the renderer initialised...
-			for (i = 0; i < MAX_CLIENTS; i++)
-				CL_NewTranslation(i);
-		return;
-	}
-
+	top = TP_ForceColour(Cmd_Argv(1));
 	if (Cmd_Argc() == 2)
-		top = bottom = atoi(Cmd_Argv(1));
+		bottom = top;
 	else {
-		top = atoi(Cmd_Argv(1));
-		bottom = atoi(Cmd_Argv(2));
+		bottom = TP_ForceColour(Cmd_Argv(2));
 	}
-	
-	top &= 15;
-	if (top > 13)
-		top = 13;
-	bottom &= 15;
-	if (bottom > 13)
-		bottom = 13;
 
 //	if (top != cl_enemytopcolor || bottom != cl_enemybottomcolor)
 	{

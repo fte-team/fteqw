@@ -3313,10 +3313,15 @@ static void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *p
 			}
 		}
 
+		model = cl.model_precache[src->modelindex];
+		if (oldent && model->particletrail >= 0)
+		{
+			if (P_ParticleTrail (ent->v->origin, src->origin, model->particletrail, &(le->trailstate)))
+				P_ParticleTrailIndex(ent->v->origin, src->origin, model->traildefaultindex, 0, &(le->trailstate));
+		}
 
 		ent->v->entnum = src->number;
 		ent->v->modelindex = src->modelindex;
-		model = cl.model_precache[src->modelindex];
 //		ent->v->bitmask = src->bitmask;
 		ent->v->flags = src->flags;
 //		ent->v->effects = src->effects;
@@ -3354,7 +3359,7 @@ static void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *p
 
 		if (model)
 		{
-			if (model->flags & EF_ROTATE)
+			if ((flags & RSES_AUTOROTATE) && (model->flags & EF_ROTATE))
 			{
 				ent->v->angles[0] = 0;
 				ent->v->angles[1] = 100*servertime;

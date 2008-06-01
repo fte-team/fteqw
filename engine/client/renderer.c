@@ -719,6 +719,7 @@ void	(*Draw_ReInit)				(void);
 void	(*Draw_Character)			(int x, int y, unsigned int num);
 void	(*Draw_ColouredCharacter)	(int x, int y, unsigned int num);
 void	(*Draw_String)				(int x, int y, const qbyte *str);
+void	(*Draw_TinyCharacter)		(int x, int y, unsigned int num);
 void	(*Draw_Alt_String)			(int x, int y, const qbyte *str);
 void	(*Draw_Crosshair)			(void);
 void	(*Draw_DebugChar)			(qbyte num);
@@ -730,7 +731,7 @@ void	(*Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *image, qbyte 
 void	(*Draw_ConsoleBackground)	(int lines);
 void	(*Draw_EditorBackground)	(int lines);
 void	(*Draw_TileClear)			(int x, int y, int w, int h);
-void	(*Draw_Fill)				(int x, int y, int w, int h, int c);
+void	(*Draw_Fill)				(int x, int y, int w, int h, unsigned int c);
 void    (*Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b);
 void	(*Draw_FadeScreen)			(void);
 void	(*Draw_BeginDisc)			(void);
@@ -812,6 +813,7 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,	//Draw_Init;
 	NULL,	//Draw_Character;
 	NULL,	//Draw_ColouredCharacter;
+	NULL,	//Draw_TinyCharacter;
 	NULL,	//Draw_String;
 	NULL,	//Draw_Alt_String;
 	NULL,	//Draw_Crosshair;
@@ -919,6 +921,7 @@ rendererinfo_t softwarerendererinfo = {
 	SWDraw_Init,
 	SWDraw_Character,
 	SWDraw_ColouredCharacter,
+	SWDraw_TinyCharacter,
 	SWDraw_String,
 	SWDraw_Alt_String,
 	SWDraw_Crosshair,
@@ -1012,6 +1015,7 @@ rendererinfo_t openglrendererinfo = {
 	GLDraw_ReInit,
 	GLDraw_Character,
 	GLDraw_ColouredCharacter,
+	GLDraw_TinyCharacter,
 	GLDraw_String,
 	GLDraw_Alt_String,
 	GLDraw_Crosshair,
@@ -1459,6 +1463,7 @@ void R_SetRenderer(int wanted)
 	Draw_Character			= ri->Draw_Character;
 	Draw_ColouredCharacter	= ri->Draw_ColouredCharacter;
 	Draw_String				= ri->Draw_String;
+	Draw_TinyCharacter		= ri->Draw_TinyCharacter;
 	Draw_Alt_String			= ri->Draw_Alt_String;
 	Draw_Crosshair			= ri->Draw_Crosshair;
 	Draw_DebugChar			= ri->Draw_DebugChar;

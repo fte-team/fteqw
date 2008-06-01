@@ -1330,6 +1330,8 @@ void SV_Status_f (void)
 	Con_Printf ("avg response time: %i ms\n",(int)avg);
 	Con_Printf ("packets/frame    : %5.2f\n", pak);	//not relevent as a limit.
 
+	Con_Printf ("current map      : %s\n", sv.mapname);
+
 // min fps lat drp
 	if (columns < 80)
 	{

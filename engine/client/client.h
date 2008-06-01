@@ -144,11 +144,11 @@ typedef struct player_info_s
 	qboolean ignored;
 
 	// skin information
-	int		rtopcolor;	//real, according to their userinfo
-	int		rbottomcolor;
+	unsigned int		rtopcolor;	//real, according to their userinfo
+	unsigned int		rbottomcolor;
 
-	int		ttopcolor;	//team, according to colour forcing
-	int		tbottomcolor;
+	unsigned int		ttopcolor;	//team, according to colour forcing
+	unsigned int		tbottomcolor;
 
 #ifdef SWQUAKE
 	struct palremap_s *palremap;
@@ -308,6 +308,7 @@ typedef struct
 	int framecount;
 
 	int realip_ident;
+	netadr_t realserverip;
 
 // network stuff
 	netchan_t	netchan;
@@ -580,6 +581,7 @@ typedef struct
 	int deathmatch;
 
 	qboolean teamfortress;	//*sigh*. This is used for teamplay stuff. This sucks.
+	qboolean hexen2pickups;
 
 	qboolean sendprespawn;
 	int contentstage;
@@ -592,10 +594,10 @@ typedef struct
 	} ktprostate;
 } client_state_t;
 
-extern int		cl_teamtopcolor;
-extern int		cl_teambottomcolor;
-extern int		cl_enemytopcolor;
-extern int		cl_enemybottomcolor;
+extern unsigned int		cl_teamtopcolor;
+extern unsigned int		cl_teambottomcolor;
+extern unsigned int		cl_enemytopcolor;
+extern unsigned int		cl_enemybottomcolor;
 
 //FPD values
 //(commented out ones are ones that we don't support)

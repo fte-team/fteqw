@@ -148,7 +148,7 @@ typedef struct progexterns_s {
 	void (VARGS *Abort) (char *, ...);
 	int edictsize;	//size of edict_t
 
-	void (*entspawn) (struct edict_s *ent);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
+	void (*entspawn) (struct edict_s *ent, int loading);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
 	pbool (*entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed
 	void (*stateop) (progfuncs_t *prinst, float var, func_t func);	//what to do on qc's state opcode.
 	void (*cstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);		//a hexen2 opcode.

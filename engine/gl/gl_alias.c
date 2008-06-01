@@ -893,7 +893,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 	galiastexnum_t *texnums;
 	int frame;
 
-	int tc, bc;
+	unsigned int tc, bc;
 	qboolean forced;
 
 	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && !ruleset_allow_sensative_texture_replacements.value)
@@ -922,10 +922,8 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			int			tinwidth, tinheight;
 			char *skinname;
 			qbyte	*original;
-			int cc;
 			galiascolourmapped_t *cm;
 			char hashname[512];
-			cc = (tc<<4)|bc;
 
 //			if (e->scoreboard->skin->cachedbpp 
 
@@ -962,7 +960,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 
 			for (cm = Hash_Get(&skincolourmapped, skinname); cm; cm = Hash_GetNext(&skincolourmapped, skinname, cm))
 			{
-				if (cm->colour == cc && cm->skinnum == e->skinnum)
+				if (cm->tcolour == tc && cm->bcolour == bc && cm->skinnum == e->skinnum)
 				{
 					return &cm->texnum;
 				}
@@ -987,7 +985,8 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			cm = BZ_Malloc(sizeof(*cm));
 			Q_strncpyz(cm->name, skinname, sizeof(cm->name));
 			Hash_Add(&skincolourmapped, cm->name, cm, &cm->bucket);
-			cm->colour = cc;
+			cm->tcolour = tc;
+			cm->bcolour = bc;
 			cm->skinnum = e->skinnum;
 			cm->texnum.fullbright = 0;
 			cm->texnum.base = 0;
@@ -1061,7 +1060,6 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			if (original)
 			{
 				int i, j;
-				qbyte	translate[256];
 				unsigned translate32[256];
 				static unsigned	pixels[512*512];
 				unsigned	*out;
@@ -1104,28 +1102,43 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				if (scaled_height > gl_max_size.value)
 					scaled_height = gl_max_size.value;	//whoops, we made it too big
 
-				for (i=0 ; i<256 ; i++)
-					translate[i] = i;
-
-				tc<<=4;
-				bc<<=4;
-
-				for (i=0 ; i<16 ; i++)
 				{
-					if (tc < 128)	// the artists made some backwards ranges.  sigh.
-						translate[TOP_RANGE+i] = tc+i;
-					else
-						translate[TOP_RANGE+i] = tc+15-i;
+					for (i=0 ; i<256 ; i++)
+						translate32[i] = d_8to24rgbtable[i];
 
-					if (bc < 128)
-						translate[BOTTOM_RANGE+i] = bc+i;
-					else
-						translate[BOTTOM_RANGE+i] = bc+15-i;
+					for (i = 0; i < 16; i++)
+					{
+						if (tc >= 16)
+						{
+							//assumption: row 0 is pure white.
+							translate32[TOP_RANGE+i] = 0xff000000|
+								(((((tc&0x0000ff)>> 0)*((d_8to24rgbtable[i]&0x0000ff)>> 0))>>8)) |
+								(((((tc&0x00ff00)>> 8)*((d_8to24rgbtable[i]&0x00ff00)>> 8))>>8)<<8) |
+								(((((tc&0xff0000)>>16)*((d_8to24rgbtable[i]&0xff0000)>>16))>>8)<<16);
+						}
+						else
+						{
+							if (tc < 8)
+								translate32[TOP_RANGE+i] = d_8to24rgbtable[(tc<<4)+i];
+							else
+								translate32[BOTTOM_RANGE+i] = d_8to24rgbtable[(tc<<4)+15-i];
+						}
+						if (bc >= 16)
+						{
+							translate32[BOTTOM_RANGE+i] = 0xff000000|
+								(((((bc&0x0000ff)>> 0)*((d_8to24rgbtable[i]&0x0000ff)>> 0))>>8)) |
+								(((((bc&0x00ff00)>> 8)*((d_8to24rgbtable[i]&0x00ff00)>> 8))>>8)<<8) |
+								(((((bc&0xff0000)>>16)*((d_8to24rgbtable[i]&0xff0000)>>16))>>8)<<16);
+						}
+						else
+						{
+							if (bc < 8)
+								translate32[BOTTOM_RANGE+i] = d_8to24rgbtable[(bc<<4)+i];
+							else
+								translate32[BOTTOM_RANGE+i] = d_8to24rgbtable[(bc<<4)+15-i];
+						}
+					}
 				}
-
-
-				for (i=0 ; i<256 ; i++)
-					translate32[i] = d_8to24rgbtable[translate[i]];
 
 				out = pixels;
 				fracstep = tinwidth*0x10000/scaled_width;
@@ -1662,6 +1675,11 @@ void R_DrawGAliasModel (entity_t *e)
 		}
 	}
 
+	if ((e->model->flags & EF_ROTATE) && cl.hexen2pickups)
+	{
+		shadelight[0] = shadelight[1] = shadelight[2] = 
+		ambientlight[0] = ambientlight[1] = ambientlight[2] = 128+sin(cl.time*4)*64;
+	}
 	if ((e->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
 	{
 		shadelight[0] = shadelight[1] = shadelight[2] = e->abslight;

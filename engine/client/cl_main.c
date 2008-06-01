@@ -1191,6 +1191,7 @@ void CL_Disconnect (void)
 	cls.protocol = CP_UNKNOWN;
 	cl.servercount = 0;
 	cls.findtrack = false;
+	cls.realserverip.type = NA_INVALID;
 
 	Validation_DelatchRulesets();
 
@@ -1740,9 +1741,9 @@ void CL_Packet_f (void)
 				adr.address.ip[3] = cls.netchan.remote_address.address.ip[3];
 				adr.port = cls.netchan.remote_address.port;
 				Con_Printf (CON_WARNING "Server is broken. Trying to send to server instead.\n");
-
 			}
 
+		cls.realserverip = adr;
 		Con_DPrintf ("Sending realip packet\n");
 	}
 	else if (!ruleset_allow_packet.value)
@@ -2000,6 +2001,12 @@ void CL_ConnectionlessPacket (void)
 		char	data[256];
 		int len;
 
+		if (cls.realserverip.type == NA_INVALID)
+			return;	//not done a realip yet
+
+		if (NET_CompareBaseAdr(cls.realserverip, net_from) == false)
+			return;	//only reply if it came from the real server's ip.
+
 		data[0] = 0xff;
 		data[1] = 0xff;
 		data[2] = 0xff;
@@ -2007,21 +2014,12 @@ void CL_ConnectionlessPacket (void)
 		data[4] = A2A_ACK;
 		data[5] = 0;
 
-		if (!cls.state || !NET_CompareAdr(cls.netchan.remote_address, net_from))
-		{
-			Con_TPrintf (TL_ST_COLON, NET_AdrToString (net_from));
-			Con_TPrintf (TLC_A2A_PING);
-			len = 6;
-		}
-		else
-		{
-			//ack needs two parameters to work with realip properly.
-			//firstly it needs an auth message, so it can't be spoofed.
-			//secondly, it needs a copy of the realip ident, so you can't report a different player's client (you would need access to their ip).
-			data[5] = ' ';
-			sprintf(data+6, "%i %i", atoi(MSG_ReadString()), cls.realip_ident);
-			len = strlen(data);
-		}
+		//ack needs two parameters to work with realip properly.
+		//firstly it needs an auth message, so it can't be spoofed.
+		//secondly, it needs a copy of the realip ident, so you can't report a different player's client (you would need access to their ip).
+		data[5] = ' ';
+		sprintf(data+6, "%i %i", atoi(MSG_ReadString()), cls.realip_ident);
+		len = strlen(data);
 
 		NET_SendPacket (NS_CLIENT, len, &data, net_from);
 		return;

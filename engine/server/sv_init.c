@@ -1092,7 +1092,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		ent->v->solid = SOLID_BSP;
 		ent->v->movetype = MOVETYPE_PUSH;
 
-		ED_Spawned(ent);
+		ED_Spawned(ent, false);
 
 		if (progstype == PROG_QW && pr_imitatemvdsv.value>0)
 		{

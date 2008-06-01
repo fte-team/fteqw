@@ -20,6 +20,7 @@ extern mpic_t	*(*Draw_SafeCachePic)				(char *path);
 extern void	(*Draw_Init)							(void);
 extern void	(*Draw_ReInit)							(void);
 extern void	(*Draw_Character)						(int x, int y, unsigned int num);
+extern void	(*Draw_TinyCharacter)					(int x, int y, unsigned int num);
 extern void	(*Draw_ColouredCharacter)				(int x, int y, unsigned int num);
 extern void	(*Draw_String)							(int x, int y, const qbyte *str);
 extern void	(*Draw_Alt_String)						(int x, int y, const qbyte *str);
@@ -33,7 +34,7 @@ extern void	(*Draw_TransPicTranslate)				(int x, int y, int width, int height, q
 extern void	(*Draw_ConsoleBackground)				(int lines);
 extern void	(*Draw_EditorBackground)				(int lines);
 extern void	(*Draw_TileClear)						(int x, int y, int w, int h);
-extern void	(*Draw_Fill)							(int x, int y, int w, int h, int c);
+extern void	(*Draw_Fill)							(int x, int y, int w, int h, unsigned int c);
 extern void	(*Draw_FillRGB)							(int x, int y, int w, int h, float r, float g, float b);
 extern void	(*Draw_FadeScreen)						(void);
 extern void	(*Draw_BeginDisc)						(void);
@@ -129,6 +130,7 @@ typedef struct {
 	void	(*Draw_ReInit)				(void);
 	void	(*Draw_Character)			(int x, int y, unsigned int num);
 	void	(*Draw_ColouredCharacter)	(int x, int y, unsigned int num);
+	void	(*Draw_TinyCharacter)		(int x, int y, unsigned int num);
 	void	(*Draw_String)				(int x, int y, const qbyte *str);
 	void	(*Draw_Alt_String)			(int x, int y, const qbyte *str);
 	void	(*Draw_Crosshair)			(void);
@@ -141,7 +143,7 @@ typedef struct {
 	void	(*Draw_ConsoleBackground)	(int lines);
 	void	(*Draw_EditorBackground)	(int lines);
 	void	(*Draw_TileClear)			(int x, int y, int w, int h);
-	void	(*Draw_Fill)				(int x, int y, int w, int h, int c);
+	void	(*Draw_Fill)				(int x, int y, int w, int h, unsigned int c);
 	void	(*Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b);
 	void	(*Draw_FadeScreen)			(void);
 	void	(*Draw_BeginDisc)			(void);

@@ -46,4 +46,4 @@ void Sbar_SortFrags (qboolean includespec);
 
 void Sbar_Start (void);
 void Sbar_Flush (void);
-int	Sbar_ColorForMap (int m);
+unsigned int	Sbar_ColorForMap (unsigned int m);

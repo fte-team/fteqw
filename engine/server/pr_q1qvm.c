@@ -398,7 +398,7 @@ static edict_t *Q1QVMPF_EntAlloc(progfuncs_t *pf)
 		{
 			Q1QVMED_ClearEdict (e, true);
 
-			ED_Spawned((struct edict_s *) e);
+			ED_Spawned((struct edict_s *) e, false);
 			return (struct edict_s *)e;
 		}
 	}
@@ -414,7 +414,7 @@ static edict_t *Q1QVMPF_EntAlloc(progfuncs_t *pf)
 			{
 				Q1QVMED_ClearEdict (e, true);
 
-				ED_Spawned((struct edict_s *) e);
+				ED_Spawned((struct edict_s *) e, false);
 				return (struct edict_s *)e;
 			}
 		}
@@ -431,7 +431,7 @@ static edict_t *Q1QVMPF_EntAlloc(progfuncs_t *pf)
 // new ents come ready wiped
 //	Q1QVMED_ClearEdict (e, false);
 
-	ED_Spawned((struct edict_s *) e);
+	ED_Spawned((struct edict_s *) e, false);
 
 	return (struct edict_s *)e;
 }

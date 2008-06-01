@@ -113,7 +113,8 @@ typedef struct {
 typedef struct {
 	char name[MAX_QPATH];
 	galiastexnum_t texnum;
-	int colour;
+	unsigned int tcolour;
+	unsigned int bcolour;
 	int skinnum;
 	bucket_t bucket;
 } galiascolourmapped_t;

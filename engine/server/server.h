@@ -1277,7 +1277,7 @@ extern cvar_t	sv_demoMaxSize;
 extern cvar_t	sv_demoMaxDirSize;
 
 void SV_MVDInit(void);
-char *SV_MVDNum(int num);	//filename for demonum
+char *SV_MVDNum(char *buffer, int bufferlen, int num);
 void SV_SendMVDMessage(void);
 qboolean SV_ReadMVD (void);
 void SV_FlushDemoSignon (void);

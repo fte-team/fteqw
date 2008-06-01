@@ -283,6 +283,7 @@ int r_dlighttexture;
 void R_FetchTopColour(int *retred, int *retgreen, int *retblue)
 {
 	int i;
+
 	if (currententity->scoreboard)
 	{
 		i = currententity->scoreboard->ttopcolor;
@@ -312,6 +313,7 @@ void R_FetchTopColour(int *retred, int *retgreen, int *retblue)
 void R_FetchBottomColour(int *retred, int *retgreen, int *retblue)
 {
 	int i;
+
 	if (currententity->scoreboard)
 	{
 		i = currententity->scoreboard->tbottomcolor;

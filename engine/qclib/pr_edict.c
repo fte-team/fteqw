@@ -113,7 +113,7 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 				ED_ClearEdict (progfuncs, e);
 
 			if (externs->entspawn)
-				externs->entspawn((struct edict_s *) e);
+				externs->entspawn((struct edict_s *) e, false);
 			return (struct edict_s *)e;
 		}
 	}
@@ -133,7 +133,7 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 					ED_ClearEdict (progfuncs, e);
 
 				if (externs->entspawn)
-					externs->entspawn((struct edict_s *) e);
+					externs->entspawn((struct edict_s *) e, false);
 				return (struct edict_s *)e;
 			}
 		}
@@ -162,7 +162,7 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 		ED_ClearEdict (progfuncs, e);
 
 	if (externs->entspawn)
-		externs->entspawn((struct edict_s *) e);
+		externs->entspawn((struct edict_s *) e, false);
 
 	return (struct edict_s *)e;
 }
@@ -1679,6 +1679,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					{
 						ed = ED_AllocIntoTable(progfuncs, num);
 						ed->isfree = true;
+						if (externs->entspawn)
+							externs->entspawn((struct edict_s *) ed, true);
 					}
 				}
 			}
@@ -1701,6 +1703,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				}
 			}
 			ed->isfree = false;
+			if (externs->entspawn)
+				externs->entspawn((struct edict_s *) ed, true);
 			file = ED_ParseEdict(progfuncs, file, ed);
 
 			if (killonspawnflags)
@@ -1791,6 +1795,9 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 						ed = ED_AllocIntoTable(progfuncs, num);
 						ed->isfree = true;
 					}
+
+					if (externs->entspawn)
+						externs->entspawn((struct edict_s *) ed, true);
 				}
 			}
 
@@ -1946,6 +1953,9 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					if (!ed)
 						ed = ED_AllocIntoTable(progfuncs, numents);
 
+					if (externs->entspawn)
+						externs->entspawn((struct edict_s *) ed, true);
+
 					sv_num_edicts = numents;
 					ed->isfree = false;
 					file = ED_ParseEdict (progfuncs, file, ed);
@@ -1976,6 +1986,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 			else
 				ed = (edictrun_t *)ED_Alloc(progfuncs);
 			ed->isfree = false;
+			if (externs->entspawn)
+				externs->entspawn((struct edict_s *) ed, true);
 			file = ED_ParseEdict(progfuncs, file, ed);
 
 			if (killonspawnflags)
@@ -2137,6 +2149,9 @@ struct edict_s *RestoreEnt (progfuncs_t *progfuncs, char *buf, int *size, struct
 	else
 		ent = (edictrun_t *)ed;
 	ent->isfree = false;
+
+	if (externs->entspawn)
+		externs->entspawn((struct edict_s *) ent, false);
 
 	buf = ED_ParseEdict(progfuncs, buf, ent);
 

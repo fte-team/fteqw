@@ -733,6 +733,9 @@ int CL_LoadModels(int stage)
 		if (!cl.worldmodel || cl.worldmodel->type == mod_dummy)
 			Host_EndGame("Worldmodel wasn't sent\n");
 
+		if (cl.worldmodel->fromgame == fg_quake)
+			cl.hexen2pickups = cl.worldmodel->hulls[MAX_MAP_HULLSDH2-1].available;
+
 		R_CheckSky();
 
 		CSQC_WorldLoaded();
@@ -2999,25 +3002,25 @@ void CL_NewTranslation (int slot)
 			local = cl.playernum[0];
 		if (cl.teamplay && !strcmp(player->team, cl.players[local].team))
 		{
-			if (cl_teamtopcolor>=0)
+			if (cl_teamtopcolor != ~0)
 				top = cl_teamtopcolor;
-			if (cl_teambottomcolor>=0)
+			if (cl_teambottomcolor != ~0)
 				bottom = cl_teambottomcolor;
 		}
 		else
 		{
-			if (cl_enemytopcolor>=0)
+			if (cl_enemytopcolor != ~0)
 				top = cl_enemytopcolor;
-			if (cl_enemybottomcolor>=0)
+			if (cl_enemybottomcolor != ~0)
 				bottom = cl_enemybottomcolor;
 		}
 	}
-
+/*
 	if (top > 13 || top < 0)
 		top = 13;
 	if (bottom > 13 || bottom < 0)
 		bottom = 13;
-
+*/
 #ifdef SWQUAKE
 	if (qrenderer == QR_SOFTWARE)
 	{
@@ -3043,15 +3046,32 @@ CL_UpdateUserinfo
 */
 void CL_ProcessUserInfo (int slot, player_info_t *player)
 {
+	char *col;
 	Q_strncpyz (player->name, Info_ValueForKey (player->userinfo, "name"), sizeof(player->name));
 	Q_strncpyz (player->team, Info_ValueForKey (player->userinfo, "team"), sizeof(player->team));
-	player->rtopcolor = atoi(Info_ValueForKey (player->userinfo, "topcolor"));
-	player->rbottomcolor = atoi(Info_ValueForKey (player->userinfo, "bottomcolor"));
+
+	col = Info_ValueForKey (player->userinfo, "topcolor");
+	if (!strncmp(col, "0x", 2))
+		player->rtopcolor = 0xff000000|strtoul(col+2, NULL, 16);
+	else
+		player->rtopcolor = atoi(col);
+
+	col = Info_ValueForKey (player->userinfo, "bottomcolor");
+	if (!strncmp(col, "0x", 2))
+		player->rbottomcolor = 0xff000000|strtoul(col+2, NULL, 16);
+	else
+		player->rbottomcolor = atoi(col);
+
 	if (atoi(Info_ValueForKey (player->userinfo, "*spectator")))
 		player->spectator = true;
 	else
 		player->spectator = false;
-
+/*
+	if (player->rtopcolor > 13)
+		player->rtopcolor = 13;
+	if (player->rbottomcolor > 13)
+		player->rbottomcolor = 13;
+*/
 	player->model = NULL;
 
 	// If it's us

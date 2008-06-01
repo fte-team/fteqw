@@ -682,6 +682,8 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 		svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf));
 		svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf));
+
+		svs.clients[i].playerclass = ent->xv->playerclass;
 	}
 
 	if (!ignoreplayers)

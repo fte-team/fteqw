@@ -70,6 +70,9 @@ cvar_t scr_scoreboard_titleseperator = SCVAR("scr_scoreboard_titleseperator", "1
 
 
 int			sb_updates;		// if >= vid.numpages, no update needed
+int			sb_hexen2_cur_item;//hexen2 hud
+qboolean	sb_hexen2_extra_info;//show the extra stuff
+float		sb_hexen2_item_time;
 
 #define STAT_MINUS		10	// num frame for '-' stats digit
 mpic_t		*sb_nums[2][11];
@@ -808,6 +811,35 @@ void Sbar_ShowScores (void)
 	sb_updates = 0;
 }
 
+void Sbar_Hexen2InvLeft_f(void)
+{
+	sb_hexen2_item_time = realtime;
+	sb_hexen2_cur_item--;
+	if (sb_hexen2_cur_item < 0)
+		sb_hexen2_cur_item = 14;
+}
+void Sbar_Hexen2InvRight_f(void)
+{
+	sb_hexen2_item_time = realtime;
+	sb_hexen2_cur_item++;
+	if (sb_hexen2_cur_item > 14)
+		sb_hexen2_cur_item = 0;
+}
+void Sbar_Hexen2InvUse_f(void)
+{
+	Cbuf_AddText(va("impulse %d\n", 100+sb_hexen2_cur_item), Cmd_ExecLevel);
+}
+
+void Sbar_Hexen2ShowInfo_f(void)
+{
+	sb_hexen2_extra_info = true;
+}
+
+void Sbar_Hexen2DontShowInfo_f(void)
+{
+	sb_hexen2_extra_info = false;
+}
+
 /*
 ===============
 Sbar_DontShowScores
@@ -888,6 +920,9 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 		sb_nums[0][i] = Sbar_PicFromWad (va("num_%i",i));
 		sb_nums[1][i] = Sbar_PicFromWad (va("anum_%i",i));
 	}
+
+	if (sb_nums[0][0] && sb_nums[0][0]->width < 13)
+		sbar_hexen2 = true;
 
 	sb_nums[0][10] = Sbar_PicFromWad ("num_minus");
 	sb_nums[1][10] = Sbar_PicFromWad ("anum_minus");
@@ -1010,6 +1045,15 @@ void Sbar_Init (void)
 
 	Cmd_AddCommand ("+showteamscores", Sbar_ShowTeamScores);
 	Cmd_AddCommand ("-showteamscores", Sbar_DontShowTeamScores);
+
+	//stuff to get hexen2 working out-of-the-box
+	Cmd_AddCommand ("invleft", Sbar_Hexen2InvLeft_f);
+	Cmd_AddCommand ("invright", Sbar_Hexen2InvRight_f);
+	Cmd_AddCommand ("invuse", Sbar_Hexen2InvUse_f);
+	Cmd_AddCommand ("+showinfo", Sbar_Hexen2ShowInfo_f);
+	Cmd_AddCommand ("-showinfo", Sbar_Hexen2DontShowInfo_f);
+	Cbuf_AddText("alias +crouch \"impulse 22\"\n", RESTRICT_LOCAL);
+	Cbuf_AddText("alias -crouch \"impulse 22\"\n", RESTRICT_LOCAL);
 }
 
 
@@ -1075,6 +1119,56 @@ void Sbar_DrawFunString (int x, int y, char *str)
 {
 	Draw_FunString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
 }
+
+void Draw_TinyString (int x, int y, const qbyte *str)
+{
+	float xstart = x;
+	while (*str)
+	{
+		if (*str == '\n')
+		{
+			x = xstart;
+			y += 6;
+			str++;
+			continue;
+		}
+		if (Draw_TinyCharacter)
+		Draw_TinyCharacter (x, y, *str);
+//		Draw_Character (x, y, *str);
+		str++;
+		x += 6;
+	}
+}
+void Sbar_DrawTinyString (int x, int y, char *str)
+{
+	Draw_TinyString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
+}
+
+void Sbar_FillPC (int x, int y, int w, int h, unsigned int pcolour)
+{
+	if (pcolour >= 16)
+	{
+		Draw_FillRGB (x, y, w, h, (pcolour&0xff)/255.0f, ((pcolour&0xff00)>>8)/255.0f, ((pcolour&0xff0000)>>16)/255.0f);
+	}
+	else
+	{
+		pcolour = Sbar_ColorForMap(pcolour);
+		Draw_Fill (x, y, w, h, pcolour);
+	}
+}
+static void Sbar_FillPCDark (int x, int y, int w, int h, unsigned int pcolour)
+{
+	if (pcolour >= 16)
+	{
+		Draw_FillRGB (x, y, w, h, (pcolour&0xff)/1024.0f, ((pcolour&0xff00)>>8)/1024.0f, ((pcolour&0xff0000)>>17)/1024.0f);
+	}
+	else
+	{
+		pcolour = Sbar_ColorForMap(pcolour)-1;
+		Draw_Fill (x, y, w, h, pcolour);
+	}
+}
+
 
 /*
 =============
@@ -1160,6 +1254,34 @@ void Sbar_DrawNum (int x, int y, int num, int digits, int color)
 
 		Sbar_DrawTransPic (x,y,sb_nums[color][frame]);
 		x += 24;
+		ptr++;
+	}
+}
+
+void Sbar_Hexen2DrawNum (int x, int y, int num, int digits)
+{
+	char			str[12];
+	char			*ptr;
+	int				l, frame;
+
+	l = Sbar_itoa (num, str);
+	ptr = str;
+	if (l > digits)
+		ptr += (l-digits);
+
+	//hexen2 hud has it centered
+	if (l < digits)
+		x += ((digits-l)*13)/2;
+
+	while (*ptr)
+	{
+		if (*ptr == '-')
+			frame = STAT_MINUS;
+		else
+			frame = *ptr -'0';
+
+		Sbar_DrawTransPic (x,y,sb_nums[0][frame]);
+		x += 13;
 		ptr++;
 	}
 }
@@ -1291,8 +1413,11 @@ void Sbar_SortTeams (void)
 			}
 }
 
-int	Sbar_ColorForMap (int m)
+unsigned int	Sbar_ColorForMap (unsigned int m)
 {
+	if (m >= 16)
+		return m;
+
 	m = (m < 0) ? 0 : ((m > 13) ? 13 : m);
 
 	m *= 16;
@@ -1567,16 +1692,12 @@ void Sbar_DrawFrags (void)
 	// draw background
 		top = Sbar_TopColour(s);
 		bottom = Sbar_BottomColour(s);
-		top = (top < 0) ? 0 : ((top > 13) ? 13 : top);
-		bottom = (bottom < 0) ? 0 : ((bottom > 13) ? 13 : bottom);
 
-		top = Sbar_ColorForMap (top);
-		bottom = Sbar_ColorForMap (bottom);
 
 //		Draw_Fill (xofs + x*8 + 10, y, 28, 4, top);
 //		Draw_Fill (xofs + x*8 + 10, y+4, 28, 3, bottom);
-		Draw_Fill (sbar_rect.x+x*8 + 10, sbar_rect.y+y, 28, 4, top);
-		Draw_Fill (sbar_rect.x+x*8 + 10, sbar_rect.y+y+4, 28, 3, bottom);
+		Sbar_FillPC (sbar_rect.x+x*8 + 10, sbar_rect.y+y, 28, 4, top);
+		Sbar_FillPC (sbar_rect.x+x*8 + 10, sbar_rect.y+y+4, 28, 3, bottom);
 
 	// draw number
 		f = s->frags;
@@ -1790,6 +1911,199 @@ void Sbar_DrawScoreboard (void)
 	sb_updates = 0;
 }
 
+
+void Sbar_Hexen2DrawItem(int pnum, int x, int y, int itemnum)
+{
+	int num;
+	Sbar_DrawPic(x, y, Draw_CachePic(va("gfx/arti%02d.lmp", itemnum)));
+
+	num = cl.stats[pnum][STAT_H2_CNT_TORCH+itemnum];
+	if(num > 0)
+	{
+		if (num >= 10)
+			Sbar_DrawPic(x+20, y+21, Draw_CachePic(va("gfx/artinum%d.lmp", num/10)));
+		Sbar_DrawPic(x+20+4, y+21, Draw_CachePic(va("gfx/artinum%d.lmp", num%10)));
+	}
+}
+
+void Sbar_Hexen2DrawInventory(int pnum)
+{
+	int i;
+	int x, y=-37;
+
+	if (sb_hexen2_item_time+3 < realtime)
+		return;
+
+#if 1
+	for (i = 0, x=320/2-114; i < 7; i++, x+=33)
+	{
+		if ((sb_hexen2_cur_item-3+i+30)%15 == sb_hexen2_cur_item)
+			Sbar_DrawTransPic(x+9, y-12, Draw_CachePic("gfx/artisel.lmp"));
+		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item-3+i+30)%15);
+	}
+#else
+	for (i = 0, x=320/2; i < 3; i++, x+=33)
+	{
+		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item+1+i)%15);
+	}
+	for (i = 0, x=320/2-33; i < 3; i++, x-=33)
+	{
+		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item-1-i+45)%15);
+	}
+#endif
+}
+
+void Sbar_Hexen2DrawExtra (int pnum)
+{
+	unsigned int i, slot;
+	unsigned int pclass;
+	int ringpos[] = {6, 44, 81, 119};
+	char *ringimages[] = {"gfx/ring_f.lmp", "gfx/ring_w.lmp", "gfx/ring_t.lmp", "gfx/ring_r.lmp"};
+	float val;
+	char *pclassname[] = {
+		"Unknown",
+		"Barbarian",
+		"Crusader",
+		"Paladin",
+		"Assasin"
+	};
+
+	if (!sb_hexen2_extra_info)
+	{
+		sbar_rect.y -= 46-SBAR_HEIGHT;
+		return;
+	}
+
+	pclass = cl.stats[pnum][STAT_H2_PLAYERCLASS];
+	if (pclass >= sizeof(pclassname)/sizeof(pclassname[0]))
+		pclass = sizeof(pclassname)/sizeof(pclassname[0]) - 1;
+
+
+	//adjust it so there's space
+	sbar_rect.y -= 46+98-SBAR_HEIGHT;
+
+	Sbar_DrawPic(0, 46, Draw_SafeCachePic("gfx/btmbar1.lmp"));
+	Sbar_DrawPic(160, 46, Draw_SafeCachePic("gfx/btmbar2.lmp"));
+
+	Sbar_DrawTinyString (11, 48, pclassname[pclass]);
+
+	Sbar_DrawTinyString (11, 58, va("int"));
+	Sbar_DrawTinyString (33, 58, va("%02d", cl.stats[pnum][STAT_H2_INTELLIGENCE]));
+
+	Sbar_DrawTinyString (11, 64, va("wis"));
+	Sbar_DrawTinyString (33, 64, va("%02d", cl.stats[pnum][STAT_H2_WISDOM]));
+
+	Sbar_DrawTinyString (11, 70, va("dex"));
+	Sbar_DrawTinyString (33, 70, va("%02d", cl.stats[pnum][STAT_H2_DEXTERITY]));
+
+	
+	Sbar_DrawTinyString (58, 58, va("str"));
+	Sbar_DrawTinyString (80, 58, va("%02d", cl.stats[pnum][STAT_H2_STRENGTH]));
+
+	Sbar_DrawTinyString (58, 64, va("lvl"));
+	Sbar_DrawTinyString (80, 64, va("%02d", cl.stats[pnum][STAT_H2_LEVEL]));
+
+	Sbar_DrawTinyString (58, 70, va("exp"));
+	Sbar_DrawTinyString (80, 70, va("%06d", cl.stats[pnum][STAT_H2_EXPERIENCE]));
+
+	Sbar_DrawTinyString (11, 79, va("abilities"));
+	if (cl.stats[pnum][STAT_H2_FLAGS] & (1<<22))
+		Sbar_DrawTinyString (8, 89, va("ability 1"));
+	if (cl.stats[pnum][STAT_H2_FLAGS] & (1<<23))
+		Sbar_DrawTinyString (8, 96, va("ability 2"));
+
+	for (i = 0; i < 4; i++)
+	{
+		if (cl.stats[pnum][STAT_H2_ARMOUR1+i] > 0)
+		{
+			Sbar_DrawPic (164+i*40, 115, Draw_SafeCachePic(va("gfx/armor%d.lmp", i+1)));
+			Sbar_DrawTinyString (168+i*40, 136, va("+%d", cl.stats[pnum][STAT_H2_ARMOUR1+i]));
+		}
+	}
+	for (i = 0; i < 4; i++)
+	{
+		if (cl.stats[pnum][STAT_H2_FLIGHT_T+i] > 0)
+		{
+			Sbar_DrawPic (ringpos[i], 119, Draw_SafeCachePic(va("gfx/ring_f.lmp", i+1)));
+			val = cl.stats[pnum][STAT_H2_FLIGHT_T+i];
+			if (val > 100)
+				val = 100;
+			if (val < 0)
+				val = 0;
+			Sbar_DrawPic(ringpos[i]+29 - (int)(26 * (val/(float)100)),142,Draw_CachePic("gfx/ringhlth.lmp"));
+			Sbar_DrawPic(ringpos[i]+29, 142, Draw_CachePic("gfx/rhlthcvr.lmp"));
+		}
+	}
+
+	slot = 0;
+	for (i = 0; i < 8; i++)
+	{
+		if (cl.statsstr[pnum][STAT_H2_PUZZLE1+i])
+		{
+			Sbar_DrawPic (194+(slot%4)*31, slot<4?51:82, Draw_SafeCachePic(va("gfx/puzzle/%s.lmp", cl.statsstr[pnum][STAT_H2_PUZZLE1+i])));
+			slot++;
+		}
+	}
+
+	Sbar_DrawPic(134, 50, Draw_CachePic(va("gfx/cport%d.lmp", pclass)));
+}
+
+void Sbar_Hexen2DrawBasic(int pnum)
+{
+	int chainpos;
+	int val, maxval;
+	Sbar_DrawPic(0, 0, Draw_CachePic("gfx/topbar1.lmp"));
+	Sbar_DrawPic(160, 0, Draw_CachePic("gfx/topbar2.lmp"));
+	Sbar_DrawTransPic(0, -23, Draw_CachePic("gfx/topbumpl.lmp"));
+	Sbar_DrawTransPic(138, -8, Draw_CachePic("gfx/topbumpm.lmp"));
+	Sbar_DrawTransPic(269, -23, Draw_CachePic("gfx/topbumpr.lmp"));
+
+	//mana1
+	maxval = cl.stats[pnum][STAT_H2_MAXMANA];
+	val = cl.stats[pnum][STAT_H2_BLUEMANA];
+	val = bound(0, val, maxval);
+	Sbar_DrawTinyString(201, 22, va("%03d", val));
+	if(val)
+	{
+		Sbar_DrawPic(190, 26-(int)((val*18.0)/(float)maxval+0.5), Draw_CachePic("gfx/bmana.lmp"));
+		Sbar_DrawPic(190, 27, Draw_CachePic("gfx/bmanacov.lmp"));
+	}
+
+	//mana2
+	maxval = cl.stats[pnum][STAT_H2_MAXMANA];
+	val = cl.stats[pnum][STAT_H2_GREENMANA];
+	val = bound(0, val, maxval);
+	Sbar_DrawTinyString(243, 22, va("%03d", val));
+	if(val)
+	{
+		Sbar_DrawPic(232, 26-(int)((val*18.0)/(float)maxval+0.5), Draw_CachePic("gfx/gmana.lmp"));
+		Sbar_DrawPic(232, 27, Draw_CachePic("gfx/gmanacov.lmp"));
+	}
+
+
+	//health
+	val = cl.stats[pnum][STAT_HEALTH];
+	if (val < -99)
+		val = -99;
+	Sbar_Hexen2DrawNum(58, 14, val, 3);
+
+	//armour
+	val = 0;
+	Sbar_Hexen2DrawNum(105, 14, val, 2);
+
+//	SetChainPosition(cl.v.health, cl.v.max_health);
+	chainpos = (195.0f*cl.stats[pnum][STAT_HEALTH]) / cl.stats[pnum][STAT_H2_MAXHEALTH];
+	if (chainpos < 0)
+		chainpos = 0;
+	Sbar_DrawPic(45+((int)chainpos&7), 38, Draw_CachePic("gfx/hpchain.lmp"));
+	Sbar_DrawPic(45+(int)chainpos, 36,	Draw_CachePic("gfx/hpgem.lmp"));
+	Sbar_DrawPic(43, 36, Draw_CachePic("gfx/chnlcov.lmp"));
+	Sbar_DrawPic(267, 36, Draw_CachePic("gfx/chnrcov.lmp"));
+
+
+	Sbar_Hexen2DrawItem(pnum, 144, 3, sb_hexen2_cur_item);
+}
+
 /*
 ===============
 Sbar_Draw
@@ -1847,6 +2161,17 @@ void Sbar_Draw (void)
 				sbar_rect.x = (vid.width - 320)/2;
 				sbar_rect.width -= sbar_rect.x;
 			}
+		}
+
+		if (sbar_hexen2)
+		{
+			Sbar_Hexen2DrawExtra(pnum);
+			Sbar_Hexen2DrawBasic(pnum);
+			Sbar_Hexen2DrawInventory(pnum);
+
+			if (cl.deathmatch)
+				Sbar_MiniDeathmatchOverlay ();
+			continue;
 		}
 
 		if (sbarfailed)	//files failed to load.
@@ -1939,7 +2264,7 @@ void Sbar_Draw (void)
 
 
 
-	if (sb_lines > 0)
+	if (sb_lines > 0 && cl.deathmatch)
 		Sbar_MiniDeathmatchOverlay ();
 
 	{
@@ -2125,10 +2450,10 @@ ping time frags name
 	else												\
 	{													\
 		if (largegame)									\
-			Draw_Fill ( x, y+1, 40, 3, top);			\
+			Sbar_FillPC ( x, y+1, 40, 3, top);			\
 		else											\
-			Draw_Fill ( x, y, 40, 4, top);				\
-		Draw_Fill ( x, y+4, 40, 4, bottom);				\
+			Sbar_FillPC ( x, y, 40, 4, top);				\
+		Sbar_FillPC ( x, y+4, 40, 4, bottom);				\
 														\
 		f = s->frags;									\
 		sprintf (num, "%3i",f);							\
@@ -2318,7 +2643,7 @@ if (showcolumns & (1<<COLUMN##title)) \
 	for (i = 0; i < scoreboardlines; i++)
 	{
 		char	team[5];
-		int		top, bottom;
+		unsigned int		top, bottom;
 
 		// TODO: Sort players so that the leading teams are drawn first
 		k = fragsort[i];
@@ -2333,8 +2658,6 @@ if (showcolumns & (1<<COLUMN##title)) \
 		// Electro's scoreboard eyecandy: Moved this up here for usage with the row background color
 		top = Sbar_TopColour(s);
 		bottom = Sbar_BottomColour(s);
-		top = Sbar_ColorForMap (top);
-		bottom = Sbar_ColorForMap (bottom);
 
 		if (scr_scoreboard_newstyle.value)
 		{
@@ -2347,13 +2670,13 @@ if (showcolumns & (1<<COLUMN##title)) \
 				Q_strncpyz (team, Info_ValueForKey(s->userinfo, "team"), sizeof(team));
 
 				if (!(strcmp("red", team)))
-					background_color = 72; // forced red
+					background_color = 4; // forced red
 				else if (!(strcmp("blue", team)))
-					background_color = 216; // forced blue
+					background_color = 13; // forced blue
 				else
-					background_color = bottom - 1;
+					background_color = bottom;
 
-				Draw_Fill (startx - 2, y, rank_width - 3, skip, background_color);
+				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, background_color);
 			}
 			else
 				Draw_Fill (startx - 2, y, rank_width - 3, skip, 2);
@@ -2552,14 +2875,12 @@ void Sbar_ChatModeOverlay(void)
 		// draw background
 		top = Sbar_TopColour(s);
 		bottom = Sbar_BottomColour(s);
-		top = Sbar_ColorForMap (top);
-		bottom = Sbar_ColorForMap (bottom);
 
 		if (largegame)
-			Draw_Fill ( x, y+1, 8*4, 3, top);
+			Sbar_FillPC ( x, y+1, 8*4, 3, top);
 		else
-			Draw_Fill ( x, y, 8*4, 4, top);
-		Draw_Fill ( x, y+4, 8*4, 4, bottom);
+			Sbar_FillPC ( x, y, 8*4, 4, top);
+		Sbar_FillPC ( x, y+4, 8*4, 4, bottom);
 
 		if (cl.spectator && k == Cam_TrackNum(0))
 		{
@@ -2662,11 +2983,9 @@ void Sbar_MiniDeathmatchOverlay (void)
 	// draw ping
 		top = Sbar_TopColour(s);
 		bottom = Sbar_BottomColour(s);
-		top = Sbar_ColorForMap (top);
-		bottom = Sbar_ColorForMap (bottom);
 
-		Draw_Fill ( x, y+1, 40, 3, top);
-		Draw_Fill ( x, y+4, 40, 4, bottom);
+		Sbar_FillPC ( x, y+1, 40, 3, top);
+		Sbar_FillPC ( x, y+4, 40, 4, bottom);
 
 	// draw number
 		f = s->frags;

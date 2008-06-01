@@ -157,19 +157,23 @@ pbool QC_WriteFile(char *name, void *data, int len)
 	return true;
 }
 
-void ED_Spawned (struct edict_s *ent)
+void ED_Spawned (struct edict_s *ent, int loading)
 {
 #ifdef VM_Q1
 	if (!ent->xv)
 		ent->xv = (extentvars_t *)(ent->v+1);
 #endif
-	ent->xv->dimension_see = 255;
-	ent->xv->dimension_seen = 255;
-	ent->xv->dimension_ghost = 0;
-	ent->xv->dimension_solid = 255;
-	ent->xv->dimension_hit = 255;
 
-	ent->xv->Version = sv.csqcentversion[ent->entnum]+1;
+	if (!loading || !ent->xv->Version)
+	{
+		ent->xv->dimension_see = 255;
+		ent->xv->dimension_seen = 255;
+		ent->xv->dimension_ghost = 0;
+		ent->xv->dimension_solid = 255;
+		ent->xv->dimension_hit = 255;
+
+		ent->xv->Version = sv.csqcentversion[ent->entnum]+1;
+	}
 }
 
 pbool ED_CanFree (edict_t *ed)
@@ -613,25 +617,26 @@ void PR_LoadGlabalStruct(void)
 		SV_QCStatName(ev_float, "rings_active", STAT_H2_RINGS_ACTIVE);
 
 		SV_QCStatName(ev_float, "rings_low", STAT_H2_RINGS_LOW);
-		SV_QCStatName(ev_float, "armor_amulet", STAT_H2_AMULET);
-		SV_QCStatName(ev_float, "armor_bracer", STAT_H2_BRACER);
-		SV_QCStatName(ev_float, "armor_breastplate", STAT_H2_BREASTPLATE);
-		SV_QCStatName(ev_float, "armor_helmet", STAT_H2_HELMET);
+		SV_QCStatName(ev_float, "armor_amulet", STAT_H2_ARMOUR2);
+		SV_QCStatName(ev_float, "armor_bracer", STAT_H2_ARMOUR4);
+		SV_QCStatName(ev_float, "armor_breastplate", STAT_H2_ARMOUR3);
+		SV_QCStatName(ev_float, "armor_helmet", STAT_H2_ARMOUR1);
 		SV_QCStatName(ev_float, "ring_flight", STAT_H2_FLIGHT_T);
 		SV_QCStatName(ev_float, "ring_water", STAT_H2_WATER_T);
 		SV_QCStatName(ev_float, "ring_turning", STAT_H2_TURNING_T);
 		SV_QCStatName(ev_float, "ring_regeneration", STAT_H2_REGEN_T);
-		SV_QCStatName(ev_string, "puzzle_inv1", STAT_H2_PUZZLE1A);
-		SV_QCStatName(ev_string, "puzzle_inv2", STAT_H2_PUZZLE2A);
-		SV_QCStatName(ev_string, "puzzle_inv3", STAT_H2_PUZZLE3A);
-		SV_QCStatName(ev_string, "puzzle_inv4", STAT_H2_PUZZLE4A);
-		SV_QCStatName(ev_string, "puzzle_inv5", STAT_H2_PUZZLE5A);
-		SV_QCStatName(ev_string, "puzzle_inv6", STAT_H2_PUZZLE6A);
-		SV_QCStatName(ev_string, "puzzle_inv7", STAT_H2_PUZZLE7A);
-		SV_QCStatName(ev_string, "puzzle_inv8", STAT_H2_PUZZLE8A);
+		SV_QCStatName(ev_string, "puzzle_inv1", STAT_H2_PUZZLE1);
+		SV_QCStatName(ev_string, "puzzle_inv2", STAT_H2_PUZZLE2);
+		SV_QCStatName(ev_string, "puzzle_inv3", STAT_H2_PUZZLE3);
+		SV_QCStatName(ev_string, "puzzle_inv4", STAT_H2_PUZZLE4);
+		SV_QCStatName(ev_string, "puzzle_inv5", STAT_H2_PUZZLE5);
+		SV_QCStatName(ev_string, "puzzle_inv6", STAT_H2_PUZZLE6);
+		SV_QCStatName(ev_string, "puzzle_inv7", STAT_H2_PUZZLE7);
+		SV_QCStatName(ev_string, "puzzle_inv8", STAT_H2_PUZZLE8);
 		SV_QCStatName(ev_float, "max_health", STAT_H2_MAXHEALTH);
 		SV_QCStatName(ev_float, "max_mana", STAT_H2_MAXMANA);
 		SV_QCStatName(ev_float, "flags", STAT_H2_FLAGS);
+		SV_QCStatName(ev_float, "playerclass", STAT_H2_PLAYERCLASS);
 	}
 }
 
@@ -996,7 +1001,9 @@ void Q_InitProgs(void)
 	svs.numprogs=0;
 
 	d1 = COM_FDepthFile("progs.dat", true);
-	d2 = COM_FDepthFile("qwprogs.dat", true) + (!deathmatch.value * 3);
+	d2 = COM_FDepthFile("qwprogs.dat", true);
+	if (d2 != 0x7fffffff)
+		d2 += (!deathmatch.value * 3);
 	if (d1 < d2)	//progs.dat is closer to the gamedir
 		strcpy(addons, "progs.dat");
 	else if (d1 > d2)	//qwprogs.dat is closest
@@ -2116,13 +2123,14 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_set_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//qc/hc lacks string manipulation.
+	edict_t	*e;
 	char *shortname;
 	char fullname[MAX_QPATH];
+	e = G_EDICT(prinst, OFS_PARM0);
 	shortname = PR_GetStringOfs(prinst, OFS_PARM1);
+
 	snprintf(fullname, sizeof(fullname)-1, "models/puzzle/%s.mdl", shortname);
-	G_INT(OFS_PARM1) = (int)(fullname - prinst->stringtable);
-	PF_setmodel (prinst, pr_globals);
-	G_INT(OFS_PARM1) = (int)(shortname - prinst->stringtable);	//piece of mind.
+	PF_setmodel_Internal(prinst, e, fullname);
 }
 
 /*
@@ -3838,9 +3846,8 @@ void PF_precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	char fullname[MAX_QPATH];
 	shortname = PR_GetStringOfs(prinst, OFS_PARM0);
 	snprintf(fullname, sizeof(fullname)-1, "models/puzzle/%s.mdl", shortname);
-	G_INT(OFS_PARM0) = (int)(fullname - prinst->stringtable);
-	PF_precache_model (prinst, pr_globals);
-	G_INT(OFS_PARM0) = (int)(shortname - prinst->stringtable);	//piece of mind.
+
+	PF_precache_model_Internal(prinst, fullname);
 }
 
 void PF_WeapIndex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -10742,7 +10749,10 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 
 	fieldxvector(colormod);
 
-	fieldxvector(color);
+//	if (progstype == PROG_H2)
+	{
+		fieldxvector(color);
+	}
 	fieldxfloat(light_lev);
 	fieldxfloat(style);
 	fieldxfloat(pflags);

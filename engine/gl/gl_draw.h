@@ -27,6 +27,7 @@ void GLDraw_DeInit (void);
 void GLSurf_DeInit (void);
 void GLDraw_Character (int x, int y, unsigned int num);
 void GLDraw_ColouredCharacter (int x, int y, unsigned int num);
+void GLDraw_TinyCharacter (int x, int y, unsigned int num);
 void GLDraw_DebugChar (qbyte num);
 void GLDraw_SubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
 void GLDraw_Pic (int x, int y, mpic_t *pic);

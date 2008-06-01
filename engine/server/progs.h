@@ -32,7 +32,7 @@ void PR_LoadGlabalStruct(void);
 void Q_InitProgs(void);
 void PR_RegisterFields(void);
 void PR_Init(void);
-void ED_Spawned (struct edict_s *ent);
+void ED_Spawned (struct edict_s *ent, int loading);
 qboolean PR_KrimzonParseCommand(char *s);
 qboolean PR_UserCmd(char *cmd);
 qboolean PR_ConsoleCmd(void);

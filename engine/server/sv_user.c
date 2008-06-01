@@ -1377,7 +1377,7 @@ void SV_Begin_f (void)
 		return;
 	}
 
-	if (progstype == PROG_H2)
+	if (progstype == PROG_H2 && host_client->playerclass)
 		host_client->edict->xv->playerclass = host_client->playerclass;	//make sure it's set the same as the userinfo
 
 	for (split = host_client; split; split = split->controlled)
@@ -1939,7 +1939,8 @@ void SV_BeginDownload_f(void)
 	// MVD hacked junk
 	if (!strncmp(name, "demonum/", 8))
 	{
-		char *mvdname = SV_MVDNum(atoi(name+8));
+		char mvdnamebuffer[MAX_QPATH];
+		char *mvdname = SV_MVDNum(mvdnamebuffer, sizeof(mvdnamebuffer), atoi(name+8));
 
 		if (!mvdname)
 		{
@@ -3242,7 +3243,7 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 			ED_ClearEdict(svprogfuncs, ent);
 		ent->v->netname = PR_SetString(svprogfuncs, cl->name);
 	}
-	ED_Spawned(ent);
+	ED_Spawned(ent, false);
 	ent->isfree = false;
 
 	ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
@@ -3773,7 +3774,7 @@ void SVNQ_Spawn_f (void)
 	else
 	{
 		memset (ent->v, 0, pr_edict_size);
-		ED_Spawned(ent);
+		ED_Spawned(ent, false);
 
 		ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
 		ent->v->team = 0;	// FIXME

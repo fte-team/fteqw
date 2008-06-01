@@ -1640,11 +1640,11 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	else
 		skinstart = (daliasskintype_t *)(pq1inmodel+1);
 	if( mod->flags & EF_HOLEY )
-		skintranstype = 3;
+		skintranstype = 3;	//hexen2
 	else if( mod->flags & EF_TRANSPARENT )
-		skintranstype = 2;
+		skintranstype = 2;	//hexen2
 	else if( mod->flags & EF_SPECIAL_TRANS )
-		skintranstype = 4;
+		skintranstype = 4;	//hexen2
 	else
 		skintranstype = 0;
 

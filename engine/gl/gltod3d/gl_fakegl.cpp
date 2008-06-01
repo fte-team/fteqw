@@ -4086,6 +4086,7 @@ rendererinfo_t d3drendererinfo = {
 		GLDraw_ReInit,
 		GLDraw_Character,
 		GLDraw_ColouredCharacter,
+		GLDraw_TinyCharacter,
 		GLDraw_String,
 		GLDraw_Alt_String,
 		GLDraw_Crosshair,

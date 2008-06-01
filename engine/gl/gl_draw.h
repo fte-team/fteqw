@@ -40,7 +40,7 @@ void GLDraw_BeginDisc (void);
 void GLDraw_EndDisc (void);
 void GLDraw_TileClear (int x, int y, int w, int h);
 void GLDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b);
-void GLDraw_Fill (int x, int y, int w, int h, int c);
+void GLDraw_Fill (int x, int y, int w, int h, unsigned int c);
 void GLDraw_FadeScreen (void);
 void GLDraw_String (int x, int y, const qbyte *str);
 void GLDraw_Alt_String (int x, int y, const qbyte *str);

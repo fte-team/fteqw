@@ -153,10 +153,8 @@ static galiastexnum_t *D3D_ChooseSkin(galiasinfo_t *inf, char *modelname, int su
 			int			tinwidth, tinheight;
 			char *skinname;
 			qbyte	*original;
-			int cc;
 			galiascolourmapped_t *cm;
 			char hashname[512];
-			cc = (tc<<4)|bc;
 
 			if (e->scoreboard && e->scoreboard->skin && !gl_nocolors.value)
 			{
@@ -180,7 +178,7 @@ static galiastexnum_t *D3D_ChooseSkin(galiasinfo_t *inf, char *modelname, int su
 
 			for (cm = Hash_Get(&skincolourmapped, skinname); cm; cm = Hash_GetNext(&skincolourmapped, skinname, cm))
 			{
-				if (cm->colour == cc && cm->skinnum == e->skinnum)
+				if (cm->tcolour == tc && cm->bcolour == bc && cm->skinnum == e->skinnum)
 				{
 					return &cm->texnum;
 				}
@@ -211,7 +209,8 @@ static galiastexnum_t *D3D_ChooseSkin(galiasinfo_t *inf, char *modelname, int su
 			cm = BZ_Malloc(sizeof(*cm));
 			Q_strncpyz(cm->name, skinname, sizeof(cm->name));
 			Hash_Add(&skincolourmapped, cm->name, cm, &cm->bucket);
-			cm->colour = cc;
+			cm->tcolour = tc;
+			cm->bcolour = bc;
 			cm->skinnum = e->skinnum;
 			cm->texnum.fullbright = 0;
 			cm->texnum.base = 0;

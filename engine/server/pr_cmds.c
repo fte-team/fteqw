@@ -88,6 +88,7 @@ void PF_InitTempStrings(progfuncs_t *prinst);
 #ifdef SQL
 // SQL prototypes
 void SQL_Init();
+void SQL_KillServers();
 void SQL_DeInit();
 #endif
 
@@ -444,6 +445,8 @@ void Q_SetProgsParms(qboolean forcompiler)
 
 void PR_Deinit(void)
 {
+	SQL_DeInit();
+
 	PR_ClearThreads();
 	if (svprogfuncs)
 	{
@@ -974,6 +977,8 @@ void PR_Init(void)
 	Cvar_Register (&sv_gameplayfix_honest_tracelines, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_noairborncorpse, cvargroup_progs);
+
+	SQL_Init();
 }
 
 void Q_InitProgs(void)
@@ -1075,11 +1080,7 @@ void Q_InitProgs(void)
 	if (oldprnum < 0)
 		SV_Error("Couldn't open or compile progs\n");
 
-#ifdef SQL
-	// TODO: this REALLY needs better placement but this is for testing
-	SQL_DeInit();  
-	SQL_Init();
-#endif
+	SQL_KillServers(); // TODO: is this the best placement for this?
 
 	f = PR_FindFunction (svprogfuncs, "AddAddonProgs", oldprnum);
 /*	if (num)
@@ -6425,6 +6426,7 @@ queryrequest_t *SQL_PullRequest(sqlserver_t *server, qboolean lock)
 
 sqlserver_t **sqlservers;
 int sqlservercount;
+qboolean sqlavailable;
 
 int sql_serverworker(void *sref)
 {
@@ -6546,6 +6548,12 @@ void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int hsize;
 	sqlserver_t *server;
 
+	if (!sqlavailable)
+	{
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+
 	// alloc or realloc sql servers array
 	if (sqlservers == NULL)
 	{
@@ -6604,7 +6612,7 @@ void PF_sqldisconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int serverref = G_FLOAT(OFS_PARM0);
 
-	if (serverref < 0 || serverref >= sqlservercount || sqlservers[serverref]->active == false)
+	if (!sqlavailable || serverref < 0 || serverref >= sqlservercount || sqlservers[serverref]->active == false)
 		return;
 
 	sqlservers[serverref]->active = false;
@@ -6622,7 +6630,7 @@ void PF_sqlopenquery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	queryrequest_t *qreq = (queryrequest_t *)ZF_Malloc(sizeof(queryrequest_t) + qsize);
 	int querynum;
 
-	if (!qreq || serverref < 0 || serverref >= sqlservercount || sqlservers[serverref]->active == false)
+	if (!sqlavailable || !qreq || serverref < 0 || serverref >= sqlservercount || sqlservers[serverref]->active == false)
 	{
 		G_FLOAT(OFS_RETURN) = -1;
 		return;
@@ -6662,7 +6670,8 @@ void PF_sqlclosequery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int serverref = G_FLOAT(OFS_PARM0);
 	int queryref = G_FLOAT(OFS_PARM1);
 	
-	if (serverref < 0 ||
+	if (!sqlavailable ||
+		serverref < 0 ||
 		serverref >= sqlservercount || 
 		sqlservers[serverref]->active == false ||
 		!sqlservers[serverref]->currentresult ||
@@ -6683,7 +6692,8 @@ void PF_sqlreadfield (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int row = G_FLOAT(OFS_PARM2);
 	int col = G_FLOAT(OFS_PARM3);
 
-	if (serverref < 0 ||
+	if (!sqlavailable ||
+		serverref < 0 ||
 		serverref >= sqlservercount || 
 		sqlservers[serverref]->active == false ||
 		!sqlservers[serverref]->currentresult ||
@@ -6744,7 +6754,7 @@ void PF_sqlerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int serverref = G_FLOAT(OFS_PARM0);
 
-	if (serverref < 0 || serverref >= sqlservercount)
+	if (!sqlavailable || serverref < 0 || serverref >= sqlservercount)
 	{ // invalid server reference
 		RETURN_TSTRING("");
 		return;
@@ -6784,7 +6794,12 @@ void PF_sqlescape (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	toescape = PR_GetStringOfs(prinst, OFS_PARM1);
 
-	if (!toescape || !*toescape || serverref < 0 || serverref >= sqlservercount || sqlservers[serverref]->active == false)
+	if (!toescape || 
+		!*toescape || 
+		!sqlavailable ||
+		serverref < 0 || 
+		serverref >= sqlservercount || 
+		sqlservers[serverref]->active == false)
 	{ // invalid string or server reference
 		RETURN_TSTRING("");
 		return;
@@ -6799,7 +6814,10 @@ void PF_sqlversion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int serverref = G_FLOAT(OFS_PARM0);
 
-	if (serverref < 0 || serverref >= sqlservercount || sqlservers[serverref]->active == false)
+	if (!sqlavailable || 
+		serverref < 0 || 
+		serverref >= sqlservercount || 
+		sqlservers[serverref]->active == false)
 	{ // invalid string or server reference
 		RETURN_TSTRING("");
 		return;
@@ -6860,7 +6878,7 @@ void PR_SQLCycle()
 {
 	globalvars_t *pr_globals;
 
-	if (!svprogfuncs)
+	if (!sqlavailable || !svprogfuncs)
 		return;
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
@@ -6874,24 +6892,29 @@ void SQL_Init()
 	if (!mysql_dll_init())
 	{
 		Con_Printf("mysqlclient.dll didn't load\n");
-		// TODO: disable extension here
+		return;
 	}
 #endif
 
-	if (!mysql_thread_safe())
+	if (mysql_thread_safe())
 	{
+		if (mysql_library_init(0, NULL, NULL))
+		{
+			Con_Printf("MYSQL backend loaded\n");
+			sqlavailable = true;
+			return;
+		}
+		else
+			Con_Printf("MYSQL library init failed!\n");
+	}
+	else
 		Con_Printf("MYSQL client is not thread safe!\n");
-		// TODO: disable extension here
-	}
 
-	if (!mysql_library_init(0, NULL, NULL))
-	{
-		Con_Printf("MYSQL library init failed!\n");
-		// TODO: disable extension here
-	}
+	mysql_dll_close();
+	sqlavailable = false;
 }
 
-void SQL_DeInit()
+void SQL_KillServers()
 {
 	int i;
 	for (i = 0; i < sqlservercount; i++)
@@ -6900,8 +6923,9 @@ void SQL_DeInit()
 		queryrequest_t *qreq, *oldqreq;
 		queryresult_t *qres, *oldqres;
 
-		server->active = false; // kill thread
-		Sys_WaitOnThread(server->thread);
+		server->active = false; // set thread to kill itself
+		Sys_ConditionBroadcast(server->requestcondv); // force condition check
+		Sys_WaitOnThread(server->thread); // wait on thread to die
 
 		// server resource deallocation (TODO: should this be done in the thread itself?)
 		Sys_DestroyConditional(server->requestcondv);
@@ -6942,11 +6966,22 @@ void SQL_DeInit()
 		Z_Free(sqlservers);
 	sqlservers = NULL;
 	sqlservercount = 0;
+}
+
+void SQL_DeInit()
+{
+	sqlavailable = false;
+
+	SQL_KillServers();
 
 	mysql_library_end();
 
 	mysql_dll_close();
 }
+#else
+void SQL_Init() {}
+void SQL_KillServers() {}
+void SQL_DeInit() {}
 #endif
 
 

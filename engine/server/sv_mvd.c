@@ -757,20 +757,20 @@ dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
 #ifndef __CYGWIN__
 		if (oneentry->d_type == DT_DIR || oneentry->d_type == DT_LNK)
 		{
-			d.numdirs++;
+			d->numdirs++;
 			continue;
 		}
 #endif
 
 		sprintf(pathname, "%s/%s", path, oneentry->d_name);
-		list[d->numfiles].size = COM_FileSize(pathname);
-		d->size += list[d->numfiles].size;
+		d->files[d->numfiles].size = COM_FileSize(pathname);
+		d->size += d->files[d->numfiles].size;
 
 		i = strlen(oneentry->d_name);
 		if (!all && (i < extsize || (Q_strcasecmp(oneentry->d_name+i-extsize, ext))))
 			continue;
 
-		Q_strncpyz(list[d->numfiles].name, oneentry->d_name, MAX_MVD_NAME);
+		Q_strncpyz(d->files[d->numfiles].name, oneentry->d_name, MAX_MVD_NAME);
 		d->numfiles++;
 
 		if (d->numfiles == d->maxfiles)

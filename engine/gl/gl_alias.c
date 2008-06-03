@@ -1111,10 +1111,10 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 						if (tc >= 16)
 						{
 							//assumption: row 0 is pure white.
-							translate32[TOP_RANGE+i] = 0xff000000|
-								(((((tc&0x0000ff)>> 0)*((d_8to24rgbtable[i]&0x0000ff)>> 0))>>8)) |
-								(((((tc&0x00ff00)>> 8)*((d_8to24rgbtable[i]&0x00ff00)>> 8))>>8)<<8) |
-								(((((tc&0xff0000)>>16)*((d_8to24rgbtable[i]&0xff0000)>>16))>>8)<<16);
+							*((unsigned char*)&translate32[TOP_RANGE+i]+0) = (((tc&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[i]+0))>>8;
+							*((unsigned char*)&translate32[TOP_RANGE+i]+1) = (((tc&0x00ff00)>> 8)**((unsigned char*)&d_8to24rgbtable[i]+1))>>8;
+							*((unsigned char*)&translate32[TOP_RANGE+i]+2) = (((tc&0x0000ff)>> 0)**((unsigned char*)&d_8to24rgbtable[i]+2))>>8;
+							*((unsigned char*)&translate32[TOP_RANGE+i]+3) = 0xff;
 						}
 						else
 						{
@@ -1125,10 +1125,10 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 						}
 						if (bc >= 16)
 						{
-							translate32[BOTTOM_RANGE+i] = 0xff000000|
-								(((((bc&0x0000ff)>> 0)*((d_8to24rgbtable[i]&0x0000ff)>> 0))>>8)) |
-								(((((bc&0x00ff00)>> 8)*((d_8to24rgbtable[i]&0x00ff00)>> 8))>>8)<<8) |
-								(((((bc&0xff0000)>>16)*((d_8to24rgbtable[i]&0xff0000)>>16))>>8)<<16);
+							*((unsigned char*)&translate32[BOTTOM_RANGE+i]+0) = (((bc&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[i]+0))>>8;
+							*((unsigned char*)&translate32[BOTTOM_RANGE+i]+1) = (((bc&0x00ff00)>> 8)**((unsigned char*)&d_8to24rgbtable[i]+1))>>8;
+							*((unsigned char*)&translate32[BOTTOM_RANGE+i]+2) = (((bc&0x0000ff)>> 0)**((unsigned char*)&d_8to24rgbtable[i]+2))>>8;
+							*((unsigned char*)&translate32[BOTTOM_RANGE+i]+3) = 0xff;
 						}
 						else
 						{

@@ -77,6 +77,16 @@ extern cvar_t sv_gameplayfix_noairborncorpse;
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
 
+#ifdef SQL
+cvar_t sql_driver = SCVARF("sv_sql_driver", "mysql", CVAR_NOUNSAFEEXPAND);
+cvar_t sql_host = SCVARF("sv_sql_host", "127.0.0.1", CVAR_NOUNSAFEEXPAND);
+cvar_t sql_username = SCVARF("sv_sql_username", "", CVAR_NOUNSAFEEXPAND);
+cvar_t sql_password = SCVARF("sv_sql_password", "", CVAR_NOUNSAFEEXPAND);
+cvar_t sql_defaultdb = SCVARF("sv_sql_defaultdb", "", CVAR_NOUNSAFEEXPAND);
+
+#define SQLCVAROPTIONS "SQL Defaults"
+#endif
+
 evalc_t evalc_idealpitch, evalc_pitch_speed;
 
 int pr_teamfield;
@@ -6332,6 +6342,16 @@ void PR_fclose_progs (progfuncs_t *prinst)
 
 // FTE SQL functions
 #ifdef SQL
+#define SQL_CONNECT_STRUCTPARAMS 2
+#define SQL_CONNECT_PARAMS 4
+
+typedef enum 
+{
+	SQLDRV_MYSQL,
+//	SQLDRV_SQLITE, NOT IN YET
+	SQLDRV_INVALID
+} sqldrv_t;
+
 typedef struct queryrequest_s
 {
 	int num; // query number reference
@@ -6366,7 +6386,7 @@ typedef struct sqlserver_s
 	queryresult_t *resultslast; // query results queue last link
 	queryresult_t *currentresult; // current called result
 	queryresult_t *serverresult; // server error results
-	char host[1]; // host (struct hack)
+	char **connectparams; // connect parameters (0 = host, 1 = user, 2 = pass, 3 = defaultdb)
 } sqlserver_t;
 
 void SQL_PushResult(sqlserver_t *server, queryresult_t *qres)
@@ -6433,7 +6453,7 @@ int sql_serverworker(void *sref)
 	sqlserver_t *server = (sqlserver_t *)sref;
 	char *error = NULL;
 	my_bool reconnect = 1;
-	int tinit;
+	int tinit, i;
 	qboolean needlock = false;
 
 	if (tinit = mysql_thread_init())
@@ -6442,8 +6462,29 @@ int sql_serverworker(void *sref)
 		error = "MYSQL init failed";
 	else if (mysql_options(server->mysql, MYSQL_OPT_RECONNECT, &reconnect))
 		error = "MYSQL reconnect options set failed";
-	else if (!(server->mysql = mysql_real_connect(server->mysql, "localhost", "root", "ftetest6", NULL, 0, 0, 0)))
-		error = "MYSQL initial connect attempt failed";
+	else
+	{	
+		int port = 0;
+		char *colon;
+
+		colon = strchr(server->connectparams[0], ':');
+		if (colon)
+		{
+			*colon = '\0';
+			port = atoi(colon + 1);
+		}
+
+		if (!(server->mysql = mysql_real_connect(server->mysql, server->connectparams[0], server->connectparams[1], server->connectparams[2], server->connectparams[3], port, 0, 0)))
+			error = "MYSQL initial connect attempt failed";
+
+		if (colon)
+			*colon = ':';
+	}
+
+	for (i = SQL_CONNECT_STRUCTPARAMS; i < SQL_CONNECT_PARAMS; i++)
+		Z_Free(server->connectparams[i]);
+
+	BZ_Realloc(server->connectparams, sizeof(char *) * SQL_CONNECT_STRUCTPARAMS);
 
 	if (error)
 		server->active = false;
@@ -6451,7 +6492,8 @@ int sql_serverworker(void *sref)
 	while (server->active)
 	{	
 		Sys_LockConditional(server->requestcondv);
-		Sys_ConditionWait(server->requestcondv);
+		if (!server->requests) // this is needed for thread startup and to catch any "lost" changes
+			Sys_ConditionWait(server->requestcondv);
 		needlock = false; // so we don't try to relock first round
 
 		while (1)
@@ -6544,12 +6586,53 @@ int sql_serverworker(void *sref)
 void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int serverref;
-	char *hoststr;
-	int hsize;
+	char *paramstr[SQL_CONNECT_PARAMS];
+	int paramsize[SQL_CONNECT_PARAMS];
 	sqlserver_t *server;
+	int i, tsize;
+	char *driver;
+	int drvchoice;
 
 	if (!sqlavailable)
 	{
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+
+	// check and fit connection parameters
+	for (i = 0; i < SQL_CONNECT_PARAMS; i++)
+	{
+		if (*svprogfuncs->callargc <= (i + 1))
+			paramstr[i] = "";
+		else
+			paramstr[i] = PR_GetStringOfs(prinst, OFS_PARM0+i*3);
+	}
+
+	if (!paramstr[0][0])
+		paramstr[0] = sql_host.string;
+	if (!paramstr[1][0])
+		paramstr[1] = sql_username.string;
+	if (!paramstr[2][0])
+		paramstr[2] = sql_password.string;
+	if (!paramstr[3][0])
+		paramstr[3] = sql_defaultdb.string;
+
+	for (i = 0; i < SQL_CONNECT_PARAMS; i++)
+		paramsize[i] = Q_strlen(paramstr[i]);
+
+	// verify/switch driver choice
+	if (*svprogfuncs->callargc > (SQL_CONNECT_PARAMS + 1))
+		driver = PR_GetStringOfs(prinst, OFS_PARM0 + SQL_CONNECT_PARAMS * 3);
+	else
+		driver = "";
+
+	if (!driver[0])
+		driver = sql_driver.string;
+
+	if (Q_strcasecmp(driver, "mysql") == 0)
+		drvchoice = SQLDRV_MYSQL;
+	else // invalid driver choice so we bomb out
+	{ 
 		G_FLOAT(OFS_RETURN) = -1;
 		return;
 	}
@@ -6568,14 +6651,28 @@ void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		sqlservers = (sqlserver_t **)BZ_Realloc(sqlservers, sizeof(sqlserver_t *) * sqlservercount);
 	}
 
-	// TODO: need option logic for "default server" here
-
 	// assemble server structure
-	hoststr = PR_GetStringOfs(prinst, OFS_PARM0);
-	hsize = Q_strlen(hoststr);
+	tsize = 0;
+	for (i = 0; i < SQL_CONNECT_STRUCTPARAMS; i++)
+		tsize += paramsize[i] + 1;	// allocate extra space for host and user only
 
-	server = (sqlserver_t *)Z_Malloc(sizeof(sqlserver_t) + hsize);
-	Q_strncpy(server->host, hoststr, hsize);
+	server = (sqlserver_t *)Z_Malloc(sizeof(sqlserver_t) + tsize);
+	server->connectparams = BZ_Malloc(sizeof(char *) * SQL_CONNECT_PARAMS);
+	
+	tsize = 0;
+	for (i = 0; i < SQL_CONNECT_STRUCTPARAMS; i++)
+	{
+		server->connectparams[i] = ((char *)(server + 1)) + tsize;
+		Q_strncpy(server->connectparams[i], paramstr[i], paramsize[i]);
+		// string should be null-terminated due to Z_Malloc
+		tsize += paramsize[i] + 1;
+	}
+	for (i = SQL_CONNECT_STRUCTPARAMS; i < SQL_CONNECT_PARAMS; i++)
+	{
+		server->connectparams[i] = Z_Malloc(sizeof(char) * (paramsize[i] + 1));
+		Q_strncpy(server->connectparams[i], paramstr[i], paramsize[i]);
+		// string should be null-terminated due to Z_Malloc
+	}
 
 	sqlservers[serverref] = server;
 
@@ -6827,6 +6924,97 @@ void PF_sqlversion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_TSTRING(va("mysql: %s", mysql_get_client_info()));
 }
 
+// SQL related commands
+void SQL_Status_f(void)
+{
+	int i;
+
+	Con_Printf("%i connections\n", sqlservercount);
+	for (i = 0; i < sqlservercount; i++)
+	{
+		int reqnum = 0;
+		int resnum = 0;
+		queryrequest_t *qreq;
+		queryresult_t *qres;
+
+		sqlserver_t *server = sqlservers[i];
+
+		Sys_LockMutex(server->resultlock);
+		Sys_LockConditional(server->requestcondv);
+		for (qreq = server->requests; qreq; qreq = qreq->next)
+			reqnum++;
+		for (qres = server->results; qres; qres = qres->next)
+			resnum++;
+
+		Con_Printf("#%i %s@%s: %s\n",
+			i,
+			server->connectparams[1],
+			server->connectparams[0],
+			server->active ? "active" : "inactive");
+
+		if (reqnum)
+		{
+			Con_Printf ("- %i requests\n");
+			for (qreq = server->requests; qreq; qreq = qreq->next)
+			{
+				Con_Printf ("  query #%i: %s\n",
+					qreq->num,
+					qreq->query);
+				// TODO: function lookup?
+			}
+		}
+
+		if (resnum)
+		{
+			Con_Printf ("- %i results\n");
+			for (qres = server->results; qres; qres = qres->next)
+			{
+				Con_Printf ("  * %i rows, %i columns", 
+					qres->rows,
+					qres->columns);
+				if (qres->error[0])
+					Con_Printf(", error %s\n", qres->error);
+				else
+					Con_Printf("\n");
+				// TODO: request info?
+			}
+		}
+
+		if (server->serverresult)
+			Con_Printf ("server result: error %s\n", server->serverresult->error);
+
+		// TODO: list all requests, results here
+		Sys_UnlockMutex(server->resultlock);
+		Sys_UnlockConditional(server->requestcondv);
+	}
+}
+
+void SQL_Kill_f (void)
+{
+	int sid;
+
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf ("Syntax: %s serverid\n", Cmd_Argv(0));
+		return;
+	}
+
+	sid = atoi(Cmd_Argv(1));
+
+	if (sid >= 0 && sid < sqlservercount)
+	{
+		sqlservers[sid]->active = false;
+		Sys_ConditionBroadcast(sqlservers[sid]->requestcondv);
+		return;
+	}
+}
+
+void SQL_Killall_f (void)
+{
+	SQL_KillServers();
+}
+
+// SQL cycle logic
 void SQL_Cycle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
@@ -6874,7 +7062,7 @@ void SQL_Cycle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
-void PR_SQLCycle()
+void PR_SQLCycle(void)
 {
 	globalvars_t *pr_globals;
 
@@ -6886,7 +7074,7 @@ void PR_SQLCycle()
 	SQL_Cycle(svprogfuncs, pr_globals);
 }
 
-void SQL_Init()
+void SQL_MYSQLInit(void)
 {
 #ifdef WIN32
 	if (!mysql_dll_init())
@@ -6898,7 +7086,7 @@ void SQL_Init()
 
 	if (mysql_thread_safe())
 	{
-		if (mysql_library_init(0, NULL, NULL))
+		if (!mysql_library_init(0, NULL, NULL))
 		{
 			Con_Printf("MYSQL backend loaded\n");
 			sqlavailable = true;
@@ -6914,7 +7102,22 @@ void SQL_Init()
 	sqlavailable = false;
 }
 
-void SQL_KillServers()
+void SQL_Init(void)
+{
+	Cmd_AddCommand ("sqlstatus", SQL_Status_f);
+	Cmd_AddCommand ("sqlkill", SQL_Kill_f);
+	Cmd_AddCommand ("sqlkillall", SQL_Killall_f);
+
+	Cvar_Register(&sql_driver, SQLCVAROPTIONS);
+	Cvar_Register(&sql_host, SQLCVAROPTIONS);
+	Cvar_Register(&sql_username, SQLCVAROPTIONS);
+	Cvar_Register(&sql_password, SQLCVAROPTIONS);
+	Cvar_Register(&sql_defaultdb, SQLCVAROPTIONS);
+
+	SQL_MYSQLInit();
+}
+
+void SQL_KillServers(void)
 {
 	int i;
 	for (i = 0; i < sqlservercount; i++)
@@ -6960,6 +7163,10 @@ void SQL_KillServers()
 		if (server->serverresult)
 			Z_Free(server->serverresult);
 
+		// the alloc'ed connect params should get deallocated by the thread
+		if (server->connectparams)
+			BZ_Free(server->connectparams);
+
 		Z_Free(server);
 	}
 	if (sqlservers)
@@ -6968,7 +7175,7 @@ void SQL_KillServers()
 	sqlservercount = 0;
 }
 
-void SQL_DeInit()
+void SQL_DeInit(void)
 {
 	sqlavailable = false;
 
@@ -6979,9 +7186,9 @@ void SQL_DeInit()
 	mysql_dll_close();
 }
 #else
-void SQL_Init() {}
-void SQL_KillServers() {}
-void SQL_DeInit() {}
+void SQL_Init(void) {}
+void SQL_KillServers(void) {}
+void SQL_DeInit(void) {}
 #endif
 
 
@@ -10360,7 +10567,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #endif
 
 #ifdef SQL
-	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250},	// #250 float([string server]) sqlconnect (FTE_SQL)
+	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250},	// #250 float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)
 	{"sqldisconnect",	PF_sqldisconnect,	0,		0,		0,		251},	// #251 void(float serveridx) sqldisconnect (FTE_SQL)
 	{"sqlopenquery",	PF_sqlopenquery,	0,		0,		0,		252},	// #252 float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, string query...) sqlopenquery (FTE_SQL)
 	{"sqlclosequery",	PF_sqlclosequery,	0,		0,		0,		253},	// #253 void(float serveridx, float queryidx) sqlclosequery (FTE_SQL)

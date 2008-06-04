@@ -1850,7 +1850,7 @@ static void TP_EnemyColor_f (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		Com_Printf ("\"teamcolor\" is \"");
+		Com_Printf ("\"enemycolor\" is \"");
 		if (cl_enemytopcolor == ~0)
 			Com_Printf ("off");
 		else

@@ -126,6 +126,14 @@ typedef struct
 } q2player_state_t;
 #endif
 
+typedef struct colourised_s {
+	char name[64];
+	unsigned int topcolour;
+	unsigned int bottomcolour;
+	char skin[64];
+	struct colourised_s *next;
+} colourised_t;
+
 #define	MAX_SCOREBOARDNAME	64
 #define MAX_DISPLAYEDNAME	16
 typedef struct player_info_s
@@ -142,6 +150,8 @@ typedef struct player_info_s
 	qbyte	pl;
 
 	qboolean ignored;
+
+	colourised_t *colourised;
 
 	// skin information
 	unsigned int		rtopcolor;	//real, according to their userinfo
@@ -389,6 +399,8 @@ typedef struct
 	int signon;
 #endif
 	translation_t language;
+
+	colourised_t *colourised;
 } client_static_t;
 
 extern client_static_t	cls;

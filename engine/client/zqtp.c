@@ -1785,7 +1785,29 @@ static unsigned int TP_ForceColour(char *col)
 		return ~0;
 	if (!strncmp(col, "0x", 2))
 	{
-		bitval = 0x01000000 | strtoul(col+2, NULL, 16);
+		if (strlen(col+2) == 3)
+		{
+			bitval = strtoul(col+2, NULL, 16);
+			bitval = ((bitval & 0xf00)<<12) | ((bitval & 0x0f0)<<8) | ((bitval & 0x00f)<<4);
+			bitval |= 0x01000000;
+		}
+		else
+			bitval = 0x01000000 | strtoul(col+2, NULL, 16);
+		if (bitval == ~0)
+			bitval = 0x01ffffff;
+		return bitval;
+	}
+	if (!strncmp(col, "x", 1))
+	{
+		if (strlen(col+1) == 3)
+		{
+			bitval = strtoul(col+1, NULL, 16);
+			bitval = ((bitval & 0xf00)<<12) | ((bitval & 0x0f0)<<8) | ((bitval & 0x00f)<<4)
+				   | ((bitval & 0xf00)<< 8) | ((bitval & 0x0f0)<<4) | ((bitval & 0x00f)<<0);
+			bitval |= 0x01000000;
+		}
+		else
+			bitval = 0x01000000 | strtoul(col+1, NULL, 16);
 		if (bitval == ~0)
 			bitval = 0x01ffffff;
 		return bitval;
@@ -1799,6 +1821,81 @@ static unsigned int TP_ForceColour(char *col)
 		return bitval;
 	}
 	return atoi(col);
+}
+
+colourised_t *TP_FindColours(char *name)
+{
+	colourised_t  *col;
+	for (col = cls.colourised; col; col = col->next)
+	{
+		if (!strncmp(col->name, name, sizeof(col->name)-1))
+		{
+			return col;
+		}
+	}
+	return NULL;
+}
+
+static void TP_Colourise_f (void)
+{
+	int i;
+	unsigned char *topstr, *botstr;
+	colourised_t *col, *last;
+	if (Cmd_Argc() == 1)
+	{
+		return;
+	}
+
+	col = TP_FindColours(Cmd_Argv(1));
+
+	if (Cmd_Argc() == 2)
+	{
+		if (col)
+		{
+			if (col == cls.colourised)
+				cls.colourised = col->next;
+			else
+			{
+				for (last = cls.colourised; last; last = last->next)
+				{
+					if (last->next == col)
+					{
+						last->next = col->next;
+						break;
+					}
+				}
+			}
+			Z_Free(col);
+		}
+	}
+	else
+	{
+		if (!col)
+		{
+			col = Z_Malloc(sizeof(*col));
+			col->next = cls.colourised;
+			cls.colourised = col;
+			Q_strncpyz(col->name, Cmd_Argv(1), sizeof(col->skin));
+		}
+
+		topstr = Cmd_Argv(2);
+		botstr = strchr(topstr, '.');
+		if (botstr)
+			*botstr++ = '\0';
+		else
+			botstr = topstr;
+
+		col->topcolour = TP_ForceColour(topstr);
+		col->bottomcolour = TP_ForceColour(botstr);
+		Q_strncpyz(col->skin, Cmd_Argv(3), sizeof(col->skin));
+	}
+
+	Skin_FlushPlayers();
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		cl.players[i].colourised = TP_FindColours(cl.players[i].name);
+		CL_NewTranslation(i);
+	}
 }
 
 static void TP_TeamColor_f (void)
@@ -3169,6 +3266,10 @@ void TP_Init (void)
 	Cmd_AddCommand ("tp_took", TP_Took_f);
 	Cmd_AddCommand ("tp_pickup", TP_Pickup_f);
 	Cmd_AddCommand ("tp_point", TP_Point_f);
+
+	Cmd_AddCommand ("colourise", TP_Colourise_f);	//uk
+	Cmd_AddCommand ("colorize", TP_Colourise_f);	//us
+	//Cmd_AddCommand ("colorise", TP_Colourise_f);	//piss off both.
 
 	TP_InitMacros();
 }

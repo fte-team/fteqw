@@ -3006,6 +3006,14 @@ void CL_NewTranslation (int slot)
 				top = cl_teamtopcolor;
 			if (cl_teambottomcolor != ~0)
 				bottom = cl_teambottomcolor;
+
+			if (player->colourised)
+			{
+				if (player->colourised->topcolour != ~0)
+					top = player->colourised->topcolour;
+				if (player->colourised->bottomcolour != ~0)
+					bottom = player->colourised->bottomcolour;
+			}
 		}
 		else
 		{
@@ -3073,6 +3081,8 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 		player->rbottomcolor = 13;
 */
 	player->model = NULL;
+
+	player->colourised = TP_FindColours(player->name);
 
 	// If it's us
 	if (slot == cl.playernum[0] && player->name[0])

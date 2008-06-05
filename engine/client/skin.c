@@ -92,6 +92,11 @@ char *Skin_FindName (player_info_t *sc)
 */
 		if (!skinname || !skinname[0])
 			skinname = teammate ? cl_teamskin.string : cl_enemyskin.string;
+
+		//per-player skin forcing
+		if (teammate && sc->colourised && *sc->colourised->skin)
+			skinname = sc->colourised->skin;
+
 		if (skinname[0] && !strchr(skinname, '/'))	// a '/' in a skin name is deemed as a model name, so we ignore it.
 			Q_strncpyz(name, skinname, sizeof(name));
 	}

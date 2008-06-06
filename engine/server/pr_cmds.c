@@ -455,7 +455,9 @@ void Q_SetProgsParms(qboolean forcompiler)
 
 void PR_Deinit(void)
 {
+#ifdef SQL
 	SQL_DeInit();
+#endif
 
 	PR_ClearThreads();
 	if (svprogfuncs)
@@ -988,7 +990,9 @@ void PR_Init(void)
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_noairborncorpse, cvargroup_progs);
 
+#ifdef SQL
 	SQL_Init();
+#endif
 }
 
 void Q_InitProgs(void)
@@ -1090,7 +1094,9 @@ void Q_InitProgs(void)
 	if (oldprnum < 0)
 		SV_Error("Couldn't open or compile progs\n");
 
+#ifdef SQL
 	SQL_KillServers(); // TODO: is this the best placement for this?
+#endif
 
 	f = PR_FindFunction (svprogfuncs, "AddAddonProgs", oldprnum);
 /*	if (num)
@@ -7185,10 +7191,6 @@ void SQL_DeInit(void)
 
 	mysql_dll_close();
 }
-#else
-void SQL_Init(void) {}
-void SQL_KillServers(void) {}
-void SQL_DeInit(void) {}
 #endif
 
 

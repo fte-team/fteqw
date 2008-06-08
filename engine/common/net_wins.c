@@ -317,11 +317,10 @@ qboolean NET_AddressSmellsFunny(netadr_t a)
 	}
 }
 
-char	*NET_AdrToString (netadr_t a)
+char	*NET_AdrToString (char *s, int len, netadr_t a)
 {
 	qboolean doneblank;
 	char *p;
-	static	char	s[64];
 	int i;
 
 	switch(a.type)
@@ -410,10 +409,9 @@ char	*NET_AdrToString (netadr_t a)
 	return s;
 }
 
-char	*NET_BaseAdrToString (netadr_t a)
+char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 {
 	int i, doneblank;
-	static	char	s[64];
 	char *p;
 
 	switch(a.type)
@@ -1080,23 +1078,17 @@ int UniformMaskedBits(netadr_t mask)
 	return bits; // all checks passed
 }
 
-char	*NET_AdrToStringMasked (netadr_t a, netadr_t amask)
+char *NET_AdrToStringMasked (char *s, int len, netadr_t a, netadr_t amask)
 {
-	static	char	s[128];
 	int i;
+	char adr[MAX_ADR_SIZE], mask[MAX_ADR_SIZE];
 
 	i = UniformMaskedBits(amask);
 
 	if (i >= 0)
-		sprintf(s, "%s/%i", NET_AdrToString(a), i);
+		sprintf(s, "%s/%i", NET_AdrToString(adr, sizeof(adr), a), i);
 	else
-	{
-		// has to be done this way due to NET_AdrToString returning a
-		// static address
-		Q_strncatz(s, NET_AdrToString(a), sizeof(s));
-		Q_strncatz(s, "/", sizeof(s));
-		Q_strncatz(s, NET_AdrToString(amask), sizeof(s));
-	}
+		sprintf(s, "%s/%s", NET_AdrToString(adr, sizeof(adr), a), NET_AdrToString(mask, sizeof(mask), amask));
 
 	return s;
 }
@@ -1303,6 +1295,7 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 	int i;
 	int		socket;
 	int err;
+	char		adr[MAX_ADR_SIZE];
 
 	if (NET_GetLoopPacket(netsrc, &net_from, &net_message))
 		return true;
@@ -1353,7 +1346,7 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 			{
 				SockadrToNetadr (&from, &net_from);
 				Con_TPrintf (TL_OVERSIZEPACKETFROM,
-					NET_AdrToString (net_from));
+					NET_AdrToString (adr, sizeof(adr), net_from));
 				continue;
 			}
 			if (err == ECONNABORTED || err == ECONNRESET)
@@ -1383,7 +1376,7 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 		net_message.cursize = ret;
 		if (net_message.cursize == sizeof(net_message_buffer) )
 		{
-			Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (net_from));
+			Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
 			continue;
 		}
 
@@ -1440,7 +1433,7 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 			{
 				closesocket(cls.sockettcp);
 				cls.sockettcp = INVALID_SOCKET;
-				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (net_from));
+				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
 				return false;
 			}
 			if (net_message.cursize+2 > cls.tcpinlen)
@@ -1538,7 +1531,7 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 			net_message.cursize = BigShort(*(short*)st->inbuffer);
 			if (net_message.cursize >= sizeof(net_message_buffer) )
 			{
-				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (net_from));
+				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
 				goto closesvstream;
 			}
 			if (net_message.cursize+2 > st->inlen)
@@ -2065,6 +2058,7 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 void NET_GetLocalAddress (int socket, netadr_t *out)
 {
 	char	buff[512];
+	char	adrbuf[MAX_ADR_SIZE];
 	struct sockaddr_qstorage	address;
 	int		namelen;
 	netadr_t adr = {0};
@@ -2096,7 +2090,7 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 	if (notvalid)
 		Con_Printf("Couldn't detect local ip\n");
 	else
-		Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (*out) );
+		Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (adrbuf, sizeof(adrbuf), *out) );
 }
 
 /*

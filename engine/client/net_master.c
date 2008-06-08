@@ -447,6 +447,8 @@ float Master_ReadKeyFloat(serverinfo_t *server, int keynum)
 
 char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 {
+	char adr[MAX_ADR_SIZE];
+
 	if (keynum < SLKEY_CUSTOM)
 	{
 		switch(keynum)
@@ -456,7 +458,7 @@ char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 		case SLKEY_NAME:
 			return server->name;
 		case SLKEY_ADDRESS:
-			return NET_AdrToString(server->adr);
+			return NET_AdrToString(adr, sizeof(adr), server->adr);
 		case SLKEY_GAMEDIR:
 			return server->gamedir;
 
@@ -772,6 +774,8 @@ int NET_CheckPollSockets(void)
 	extern qbyte		net_message_buffer[MAX_UDP_PACKET];
 	int sock;
 	SOCKET usesocket;
+	char adr[MAX_ADR_SIZE];
+
 	for (sock = 0; sock < POLLUDPSOCKETS+POLLIPXSOCKETS; sock++)
 	{
 		int 	ret;
@@ -798,7 +802,7 @@ int NET_CheckPollSockets(void)
 			{
 				SockadrToNetadr (&from, &net_from);
 				Con_Printf ("Warning:  Oversize packet from %s\n",
-					NET_AdrToString (net_from));
+					NET_AdrToString (adr, sizeof(adr), net_from));
 				continue;
 			}
 			if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
@@ -816,7 +820,7 @@ int NET_CheckPollSockets(void)
 		net_message.cursize = ret;
 		if (ret == sizeof(net_message_buffer) )
 		{
-			Con_Printf ("Oversize packet from %s\n", NET_AdrToString (net_from));
+			Con_Printf ("Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), net_from));
 			continue;
 		}
 
@@ -989,6 +993,8 @@ void MasterInfo_ProcessHTTP(char *name, qboolean success, int type)
 	char *s;
 	char *el;
 	serverinfo_t *info;
+	char adrbuf[MAX_ADR_SIZE];
+
 	if (!success)
 		return;
 
@@ -1026,7 +1032,7 @@ void MasterInfo_ProcessHTTP(char *name, qboolean success, int type)
 			info->special = type;
 			info->refreshtime = 0;
 
-			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(info->adr));
+			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adrbuf, sizeof(adrbuf), info->adr));
 
 			info->next = firstserver;
 			firstserver = info;
@@ -1134,6 +1140,7 @@ void MasterInfo_WriteServers(void)
 	master_t *mast;
 	serverinfo_t *server;
 	FILE *mf, *qws;
+	char adr[MAX_ADR_SIZE];
 	
 	mf = fopen("masters.txt", "wt");
 	if (!mf)
@@ -1197,7 +1204,7 @@ void MasterInfo_WriteServers(void)
 		if (mast->address)
 			fprintf(mf, "%s\t%s\t%s\n", mast->address , typename, mast->name);
 		else
-			fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(mast->adr), typename, mast->name);
+			fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), mast->adr), typename, mast->name);
 	}
 	
 	if (slist_writeserverstxt.value)
@@ -1212,15 +1219,15 @@ void MasterInfo_WriteServers(void)
 		if (server->special & SS_FAVORITE)
 		{
 			if (server->special & SS_QUAKE3)
-				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(server->adr), "favorite:q3", server->name);
+				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:q3", server->name);
 			else if (server->special & SS_QUAKE2)
-				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(server->adr), "favorite:q2", server->name);
+				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:q2", server->name);
 			else if (server->special & SS_NETQUAKE)
-				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(server->adr), "favorite:nq", server->name);
+				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:nq", server->name);
 			else if (qws)	//servers.txt doesn't support the extra info.
-				fprintf(qws, "%s\t%s\n", NET_AdrToString(server->adr), server->name);
+				fprintf(qws, "%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), server->name);
 			else	//read only? damn them!
-				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(server->adr), "favorite:qw", server->name);
+				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:qw", server->name);
 		}
 	}
 	
@@ -1478,6 +1485,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 	int ping;
 	int len;
 	serverinfo_t *info;
+	char adr[MAX_ADR_SIZE];
 
 	info = Master_InfoForServer(net_from);
 
@@ -1492,7 +1500,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 
 		info->adr = net_from;
 
-		snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(info->adr));
+		snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adr, sizeof(adr), info->adr));
 
 		info->next = firstserver;
 		firstserver = info;
@@ -1692,6 +1700,8 @@ void CL_MasterListParse(int type, qboolean slashpad)
 	serverinfo_t *last, *old;
 
 	int p1, p2;
+	char adr[MAX_ADR_SIZE];
+
 	MSG_ReadByte ();
 
 	last = firstserver;
@@ -1730,7 +1740,7 @@ void CL_MasterListParse(int type, qboolean slashpad)
 			info->special = type;
 			info->refreshtime = 0;
 
-			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(info->adr));
+			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adr, sizeof(adr), info->adr));
 
 			info->next = last;
 			last = info;

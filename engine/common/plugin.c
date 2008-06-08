@@ -829,6 +829,7 @@ int VARGS Plug_Net_Accept(void *offset, unsigned int mask, const int *arg)
 	int addrlen;
 	int sock;
 	int _true = 1;
+	char adr[MAX_ADR_SIZE];
 
 	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug || pluginstreamarray[handle].type != STREAM_SOCKET)
 		return -2;
@@ -851,7 +852,7 @@ int VARGS Plug_Net_Accept(void *offset, unsigned int mask, const int *arg)
 		netadr_t a;
 		char *s;
 		SockadrToNetadr((struct sockaddr_qstorage *)&address, &a);
-		s = NET_AdrToString(a);
+		s = NET_AdrToString(adr, sizeof(adr), a);
 		Q_strncpyz(VM_POINTER(arg[1]), s, addrlen);
 	}
 

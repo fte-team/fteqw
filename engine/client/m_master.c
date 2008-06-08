@@ -299,6 +299,8 @@ void M_DrawServerList(void)
 	int x;
 	int y = 8*3;
 
+	char adr[MAX_ADR_SIZE];
+
 	CL_QueryServers();
 	
 	slist_numoptions = 0;
@@ -435,7 +437,7 @@ void M_DrawServerList(void)
 			if (sb_showping.value)
 				x = M_AddColumn(x, y, va("%i", server->ping),			4, colour, highlight);	//frag limit
 			if (sb_showaddress.value)
-				x = M_AddColumn(x, y, NET_AdrToString(server->adr),	21, colour, highlight);
+				x = M_AddColumn(x, y, NET_AdrToString(adr, sizeof(adr), server->adr),	21, colour, highlight);
 			x = M_AddColumn(x, y, server->name,		x/8-1, colour, highlight);
 		}
 
@@ -705,6 +707,7 @@ master_t *M_FindCurrentMaster(void)
 {
 	master_t *mast;
 	int op = slist_option;
+
 	for (mast = master; mast; mast = mast->next)
 	{
 		if (M_MasterIsFiltered(mast))
@@ -717,6 +720,8 @@ master_t *M_FindCurrentMaster(void)
 
 void M_SListKey(int key)
 {
+	char adr[MAX_ADR_SIZE];
+
 	if (key == K_ESCAPE)
 	{
 //		if (selectedserver.inuse)
@@ -812,7 +817,7 @@ void M_SListKey(int key)
 	}
 	else if (key == 'c')
 	{
-		Sys_SaveClipboard(NET_AdrToString(selectedserver.adr));
+		Sys_SaveClipboard(NET_AdrToString(adr, sizeof(adr), selectedserver.adr));
 	}
 	else if (key == 'f')
 	{
@@ -857,9 +862,9 @@ void M_SListKey(int key)
 				Cbuf_AddText("spectator 0\n", RESTRICT_LOCAL);
 
 			if (server->special & SS_NETQUAKE)
-				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), server->adr)), RESTRICT_LOCAL);
 			else
-				Cbuf_AddText(va("connect %s\n", NET_AdrToString(server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("connect %s\n", NET_AdrToString(adr, sizeof(adr), server->adr)), RESTRICT_LOCAL);
 
 			M_ToggleMenu_f();
 			M_ToggleMenu_f();
@@ -1050,6 +1055,8 @@ void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 	serverinfo_t *si;
 	int thisone = (int)ths->data + info->scrollpos;
 	servertypes_t stype;
+	char adr[MAX_ADR_SIZE];
+
 	si = Master_SortedServer(thisone);
 	if (si)
 	{
@@ -1084,7 +1091,7 @@ void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		if (sb_showmap.value)		{Draw_FunStringLen((x-8)*8, y, si->map, 8); x-=9;}
 		if (sb_showgamedir.value)	{Draw_FunStringLen((x-8)*8, y, si->gamedir, 8); x-=9;}
 		if (sb_showping.value)		{Draw_FunStringLen((x-3)*8, y, va("%i", si->ping), 3); x-=4;}
-		if (sb_showaddress.value)	{Draw_FunStringLen((x-21)*8, y, NET_AdrToString(si->adr), 21); x-=22;}
+		if (sb_showaddress.value)	{Draw_FunStringLen((x-21)*8, y, NET_AdrToString(adr, sizeof(adr), si->adr), 21); x-=22;}
 		Draw_FunStringLen(0, y, si->name, x);
 	}
 }
@@ -1096,6 +1103,8 @@ qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 	extern int mousecursor_x, mousecursor_y;
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	serverinfo_t *server;
+	char adr[MAX_ADR_SIZE];
+
 	if (key == K_MOUSE1)
 	{
 		oldselection = info->selectedpos;
@@ -1151,9 +1160,9 @@ joinserver:
 			}
 
 			if (server->special & SS_NETQUAKE)
-				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), server->adr)), RESTRICT_LOCAL);
 			else
-				Cbuf_AddText(va("connect %s\n", NET_AdrToString(server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("connect %s\n", NET_AdrToString(adr, sizeof(adr), server->adr)), RESTRICT_LOCAL);
 
 			M_RemoveAllMenus();
 		}
@@ -1505,6 +1514,8 @@ void M_QuickConnect_PreDraw(menu_t *menu)
 {
 	serverinfo_t *best = NULL;
 	serverinfo_t *s;
+	char adr[MAX_ADR_SIZE];
+
 	NET_CheckPollSockets();	//see if we were told something important.
 	CL_QueryServers();
 
@@ -1535,9 +1546,9 @@ void M_QuickConnect_PreDraw(menu_t *menu)
 			Con_Printf("Quick connect found %s (gamedir %s, players %i/%i, ping %ims)\n", best->name, best->gamedir, best->players, best->maxplayers, best->ping);
 
 			if (best->special & SS_NETQUAKE)
-				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(best->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), best->adr)), RESTRICT_LOCAL);
 			else
-				Cbuf_AddText(va("join %s\n", NET_AdrToString(best->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("join %s\n", NET_AdrToString(adr, sizeof(adr), best->adr)), RESTRICT_LOCAL);
 
 			M_ToggleMenu_f();
 			return;

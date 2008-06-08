@@ -2684,6 +2684,7 @@ char *COM_GetPathInfo (int i, int *crc)
 
 	searchpath_t	*s;
 	static char name[MAX_OSPATH];
+	char			adr[MAX_ADR_SIZE];
 	char			*protocol;
 
 	for (s=com_searchpaths ; s ; s=s->next)
@@ -2697,7 +2698,7 @@ char *COM_GetPathInfo (int i, int *crc)
 
 #ifdef WEBSERVER
 	if (httpserver.value)
-		protocol = va("http://%s/", NET_AdrToString (net_local_sv_ipadr));
+		protocol = va("http://%s/", NET_AdrToString(adr, sizeof(adr), net_local_sv_ipadr));
 	else
 #endif
 		protocol = "qw://";

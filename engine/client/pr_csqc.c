@@ -2029,9 +2029,10 @@ static void PF_cs_serverkey (progfuncs_t *prinst, struct globalvars_s *pr_global
 {
 	char *keyname = PF_VarString(prinst, 0, pr_globals);
 	char *ret;
+	char adr[MAX_ADR_SIZE];
 
 	if (!strcmp(keyname, "ip"))
-		ret = NET_AdrToString(cls.netchan.remote_address);
+		ret = NET_AdrToString(adr, sizeof(adr), cls.netchan.remote_address);
 	else if (!strcmp(keyname, "protocol"))
 	{	//using this is pretty acedemic, really. Not particuarly portable.
 		switch (cls.protocol)

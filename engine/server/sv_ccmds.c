@@ -860,13 +860,14 @@ void SV_BanList_f (void)
 {
 	int bancount = 0;
 	bannedips_t *nb = svs.bannedips;
+	char adr[MAX_ADR_SIZE];
 
 	while (nb)
 	{
 		if (nb->reason[0])
-			Con_Printf("%s, %s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask), nb->reason);
+			Con_Printf("%s, %s\n", NET_AdrToStringMasked(adr, sizeof(adr), nb->adr, nb->adrmask), nb->reason);
 		else
-			Con_Printf("%s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask));
+			Con_Printf("%s\n", NET_AdrToStringMasked(adr, sizeof(adr), nb->adr, nb->adrmask));
 		bancount++;
 		nb = nb->next;
 	}
@@ -878,10 +879,11 @@ void SV_FilterList_f (void)
 {
 	int filtercount = 0;
 	filteredips_t *nb = svs.filteredips;
+	char adr[MAX_ADR_SIZE];
 
 	while (nb)
 	{
-		Con_Printf("%s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask));
+		Con_Printf("%s\n", NET_AdrToStringMasked(adr, sizeof(adr), nb->adr, nb->adrmask));
 		filtercount++;
 		nb = nb->next;
 	}
@@ -896,6 +898,7 @@ void SV_Unban_f (void)
 	bannedips_t *nbnext;
 	netadr_t unbanadr = {0};
 	netadr_t unbanmask = {0};
+	char adr[MAX_ADR_SIZE];
 
 	if (Cmd_Argc() < 2)
 	{
@@ -917,7 +920,7 @@ void SV_Unban_f (void)
 		if (all || (NET_CompareAdr(nb->adr, unbanadr) && NET_CompareAdr(nb->adrmask, unbanmask)))
 		{
 			if (!all)
-				Con_Printf("unbanned %s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask));
+				Con_Printf("unbanned %s\n", NET_AdrToStringMasked(adr, sizeof(adr), nb->adr, nb->adrmask));
 			if (svs.bannedips == nb)
 				svs.bannedips = nbnext;
 			Z_Free(nb);
@@ -935,6 +938,7 @@ void SV_Unfilter_f (void)
 	filteredips_t *nbnext;
 	netadr_t unbanadr = {0};
 	netadr_t unbanmask = {0};
+	char adr[MAX_ADR_SIZE];
 
 	if (Cmd_Argc() < 2)
 	{
@@ -956,7 +960,7 @@ void SV_Unfilter_f (void)
 		if (all || (NET_CompareAdr(nb->adr, unbanadr) && NET_CompareAdr(nb->adrmask, unbanmask)))
 		{
 			if (!all)
-				Con_Printf("unfiltered %s\n", NET_AdrToStringMasked(nb->adr, nb->adrmask));
+				Con_Printf("unfiltered %s\n", NET_AdrToStringMasked(adr, sizeof(adr), nb->adr, nb->adrmask));
 			if (svs.filteredips == nb)
 				svs.filteredips = nbnext;
 			Z_Free(nb);
@@ -974,6 +978,7 @@ void SV_WriteIP_f (void)
 	bannedips_t *bi;
 	filteredips_t *fi;
 	char *s;
+	char adr[MAX_ADR_SIZE];
 
 	strcpy (name, "listip.cfg");
 
@@ -993,9 +998,9 @@ void SV_WriteIP_f (void)
 	while (bi)
 	{
 		if (bi->reason[0])
-			s = va("banip %s \"%s\"\n", NET_AdrToStringMasked(bi->adr, bi->adrmask), bi->reason);
+			s = va("banip %s \"%s\"\n", NET_AdrToStringMasked(adr, sizeof(adr), bi->adr, bi->adrmask), bi->reason);
 		else
-			s = va("banip %s\n", NET_AdrToStringMasked(bi->adr, bi->adrmask));
+			s = va("banip %s\n", NET_AdrToStringMasked(adr, sizeof(adr), bi->adr, bi->adrmask));
 		VFS_WRITE(f, s, strlen(s));
 		bi = bi->next;
 	}
@@ -1006,7 +1011,7 @@ void SV_WriteIP_f (void)
 	fi = svs.filteredips;
 	while (fi)
 	{
-		s = va("addip %s\n", NET_AdrToStringMasked(fi->adr, fi->adrmask));
+		s = va("addip %s\n", NET_AdrToStringMasked(adr, sizeof(adr), fi->adr, fi->adrmask));
 		VFS_WRITE(f, s, strlen(s));
 		fi = fi->next;
 	}
@@ -1279,6 +1284,7 @@ void SV_Status_f (void)
 	client_t	*cl;
 	float		cpu, avg, pak;
 	char		*s;
+	char		adr[MAX_ADR_SIZE];
 
 	int columns = 80;
 
@@ -1292,9 +1298,9 @@ void SV_Status_f (void)
 	if (!sv.state)
 	{
 		if (net_local_sv_ipadr.type != NA_LOOPBACK)
-			Con_Printf ("ip address       : %s\n",NET_AdrToString (net_local_sv_ipadr));
+			Con_Printf ("ip address       : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ipadr));
 		if (net_local_sv_ip6adr.type != NA_LOOPBACK)
-			Con_Printf ("ipv6 address       : %s\n",NET_AdrToString (net_local_sv_ip6adr));
+			Con_Printf ("ipv6 address       : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ip6adr));
 
 		Con_Printf("Server is not running\n");
 		return;
@@ -1313,17 +1319,17 @@ void SV_Status_f (void)
 	{
 		extern cvar_t pr_imitatemvdsv;
 		if (pr_imitatemvdsv.value)	//ktpro requires 'net address' for some reason that I don't remember
-			Con_Printf ("net address      : %s\n",NET_AdrToString (net_local_sv_ipadr));
+			Con_Printf ("net address      : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ipadr));
 		else
-			Con_Printf ("ip address       : %s\n",NET_AdrToString (net_local_sv_ipadr));
+			Con_Printf ("ip address       : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ipadr));
 	}
 	if (svs.socketip6 != INVALID_SOCKET && net_local_sv_ip6adr.type != NA_LOOPBACK)
-		Con_Printf ("ipv6 address     : %s\n",NET_AdrToString (net_local_sv_ip6adr));
+		Con_Printf ("ipv6 address     : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ip6adr));
 	if (svs.socketipx != INVALID_SOCKET && net_local_sv_ipxadr.type != NA_LOOPBACK)
-		Con_Printf ("ipx address      : %s\n",NET_AdrToString (net_local_sv_ipxadr));
+		Con_Printf ("ipx address      : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ipxadr));
 #ifdef TCPCONNECT
 	if (svs.sockettcp != INVALID_SOCKET && net_local_sv_tcpipadr.type != NA_LOOPBACK)
-		Con_Printf ("tcp address      : %s\n",NET_AdrToString (net_local_sv_tcpipadr));
+		Con_Printf ("tcp address      : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_tcpipadr));
 #endif
 
 	Con_Printf ("cpu utilization  : %3i%%\n",(int)cpu);
@@ -1358,7 +1364,7 @@ void SV_Status_f (void)
 			else if (cl->protocol == SCP_BAD)
 				s = "bot";
 			else
-				s = NET_BaseAdrToString ( cl->netchan.remote_address);
+				s = NET_BaseAdrToString (adr, sizeof(adr), cl->netchan.remote_address);
 			Con_Printf ("  %-16.16s", s);
 			if (cl->state == cs_connected)
 			{
@@ -1391,7 +1397,7 @@ void SV_Status_f (void)
 			else if (cl->protocol == SCP_BAD)
 				s = "bot";
 			else
-				s = NET_BaseAdrToString ( cl->netchan.remote_address);
+				s = NET_BaseAdrToString (adr, sizeof(adr), cl->netchan.remote_address);
 			Con_Printf ("%s", s);
 			l = 16 - strlen(s);
 			for (j=0 ; j<l ; j++)

@@ -1408,6 +1408,7 @@ qboolean PR_GameCodePacket(char *s)
 	globalvars_t *pr_globals;
 	int i;
 	client_t *cl;
+	char adr[MAX_ADR_SIZE];
 
 	if (!SV_ParseConnectionlessPacket)
 		return false;
@@ -1431,7 +1432,7 @@ qboolean PR_GameCodePacket(char *s)
 
 
 
-	G_INT(OFS_PARM0) = PR_SetString(svprogfuncs, NET_AdrToString (net_from));
+	G_INT(OFS_PARM0) = PR_SetString(svprogfuncs, NET_AdrToString (adr, sizeof(adr), net_from));
 
 	G_INT(OFS_PARM1) = PR_SetString(svprogfuncs, s);
 	PR_ExecuteProgram (svprogfuncs, SV_ParseConnectionlessPacket);
@@ -5288,7 +5289,7 @@ char *PF_infokey_Internal (int entnum, char *key)
 {
 	char	*value;
 	char ov[256];
-
+	char adr[MAX_ADR_SIZE];
 
 	if (entnum == 0)
 	{
@@ -5304,7 +5305,7 @@ char *PF_infokey_Internal (int entnum, char *key)
 	{
 		value = ov;
 		if (!strcmp(key, "ip") || !strcmp(key, "realip"))	//note: FTE doesn't support mvdsv's realip stuff, so pretend that we do if the mod asks
-			value = strcpy(ov, NET_BaseAdrToString (svs.clients[entnum-1].netchan.remote_address));
+			value = strcpy(ov, NET_BaseAdrToString (adr, sizeof(adr), svs.clients[entnum-1].netchan.remote_address));
 		else if (!strcmp(key, "ping"))
 			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1]));
 		else if (!strcmp(key, "*userid"))

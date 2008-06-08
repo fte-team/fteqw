@@ -535,6 +535,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	qboolean	fragment;
 	int			fragmentStart;
 	int			fragmentLength;
+	char		adr[MAX_ADR_SIZE];
 
 	// Get sequence number
 	MSG_BeginReading();
@@ -589,7 +590,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 
 	if (chan->drop_count > 0)// && (net_showdrop->integer || net_showpackets->integer))
 	{
-		Con_DPrintf("%s:Dropped %i packets at %i\n", NET_AdrToString(chan->remote_address), chan->drop_count, sequence);
+		Con_DPrintf("%s:Dropped %i packets at %i\n", NET_AdrToString(adr, sizeof(adr), chan->remote_address), chan->drop_count, sequence);
 	}
 
 	if (!fragment)
@@ -611,7 +612,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	{
 //		if(net_showdrop->integer || net_showpackets->integer)
 		{
-			Con_Printf("%s:Dropped a message fragment\n", NET_AdrToString(chan->remote_address));
+			Con_Printf("%s:Dropped a message fragment\n", NET_AdrToString(adr, sizeof(adr), chan->remote_address));
 		}
 		return false;
 	}
@@ -638,7 +639,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	// Check if assembled message fits in buffer
 	if (chan->in_fragment_length > net_message.maxsize)
 	{
-		Con_Printf("%s:fragmentLength %i > net_message.maxsize\n", NET_AdrToString(chan->remote_address), chan->in_fragment_length);
+		Con_Printf("%s:fragmentLength %i > net_message.maxsize\n", NET_AdrToString(adr, sizeof(adr), chan->remote_address), chan->in_fragment_length);
 		return false;
 	}
 
@@ -737,11 +738,12 @@ void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data )
 	int i;
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_OVERALLMSGLEN+6];
+	char		adr[MAX_ADR_SIZE];
 	
 	// Check for message overflow
 	if( length > MAX_OVERALLMSGLEN )
 	{
-		Con_Printf( "%s: outgoing message overflow\n", NET_AdrToString( chan->remote_address ) );
+		Con_Printf( "%s: outgoing message overflow\n", NET_AdrToString( adr, sizeof(adr), chan->remote_address ) );
 		return;
 	}
 
@@ -756,7 +758,7 @@ void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data )
 		Netchan_TransmitNextFragment( chan );
 		if( chan->reliable_length )
 		{
-			Con_Printf( "%s: unsent fragments\n", NET_AdrToString( chan->remote_address ) );
+			Con_Printf( "%s: unsent fragments\n", NET_AdrToString( adr, sizeof(adr), chan->remote_address ) );
 			return;
 		}
 	}

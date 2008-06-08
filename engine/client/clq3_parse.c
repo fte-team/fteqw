@@ -1016,6 +1016,7 @@ void CLQ3_SendAuthPacket(netadr_t gameserver)
 void CLQ3_SendConnectPacket(netadr_t to)
 {
 	char data[2048];
+	char adrbuf[MAX_ADR_SIZE];
 	sizebuf_t msg;
 
 	memset(&ccs, 0, sizeof(ccs));
@@ -1027,7 +1028,7 @@ void CLQ3_SendConnectPacket(netadr_t to)
 	msg.overflowed = msg.allowoverflow = 0;
 	msg.maxsize = sizeof(data);
 	MSG_WriteLong(&msg, -1);
-	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", cls.challenge, cls.qport, PROTOCOL_VERSION_Q3, NET_AdrToString (net_local_cl_ipadr), cls.userinfo));
+	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", cls.challenge, cls.qport, PROTOCOL_VERSION_Q3, NET_AdrToString (adrbuf, sizeof(adrbuf), net_local_cl_ipadr), cls.userinfo));
 	Huff_EncryptPacket(&msg, 12);
 	Huff_PreferedCompressionCRC();
 	NET_SendPacket (NS_CLIENT, msg.cursize, msg.data, to);

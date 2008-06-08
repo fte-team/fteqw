@@ -79,8 +79,8 @@ void		NET_SendPacket (netsrc_t socket, int length, void *data, netadr_t to);
 
 qboolean	NET_CompareAdr (netadr_t a, netadr_t b);
 qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b);
-char		*NET_AdrToString (netadr_t a);
-char		*NET_BaseAdrToString (netadr_t a);
+char		*NET_AdrToString (char *s, int len, netadr_t a);
+char		*NET_BaseAdrToString (char *s, int len, netadr_t a);
 qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr);
 qboolean	NET_StringToAdr (char *s, netadr_t *a);
 qboolean NET_IsClientLegal(netadr_t *adr);
@@ -88,7 +88,7 @@ qboolean NET_IsClientLegal(netadr_t *adr);
 qboolean	NET_IsLoopBackAddress (netadr_t adr);
 
 qboolean NET_StringToAdrMasked (char *s, netadr_t *a, netadr_t *amask);
-char	*NET_AdrToStringMasked (netadr_t a, netadr_t amask);
+char	*NET_AdrToStringMasked (char *s, int len, netadr_t a, netadr_t amask);
 void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits);
 qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask);
 
@@ -97,6 +97,7 @@ qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask);
 #define	OLD_AVG		0.99		// total = oldtotal*OLD_AVG + new*(1-OLD_AVG)
 
 #define	MAX_LATENT	32
+#define MAX_ADR_SIZE	64
 
 typedef struct
 {

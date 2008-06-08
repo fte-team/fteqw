@@ -2924,6 +2924,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	int challenge;
 	int qport;
 	bannedips_t *banip;
+	char adr[MAX_ADR_SIZE];
 
 	if (net_message.cursize < 13)
 		return;
@@ -2970,7 +2971,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 				cls.challenge = challenge = 500;
 #endif
 			Q_strncpyz(cl->userinfo, userinfo, sizeof(cl->userinfo));
-			reason = NET_AdrToString(net_from);
+			reason = NET_AdrToString(adr, sizeof(adr), net_from);
 			Info_SetValueForStarKey(cl->userinfo, "ip", reason, sizeof(cl->userinfo));
 
 			ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, (int)(cl-svs.clients), false, false);

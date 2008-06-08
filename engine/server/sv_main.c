@@ -1110,6 +1110,7 @@ void SVC_Log (void)
 {
 	int		seq;
 	char	data[MAX_DATAGRAM+64];
+	char	adr[MAX_ADR_SIZE];
 
 	if (Cmd_Argc() == 2)
 		seq = atoi(Cmd_Argv(1));
@@ -1123,7 +1124,7 @@ void SVC_Log (void)
 		return;
 	}
 
-	Con_DPrintf ("sending log %i to %s\n", svs.logsequence-1, NET_AdrToString(net_from));
+	Con_DPrintf ("sending log %i to %s\n", svs.logsequence-1, NET_AdrToString(adr, sizeof(adr), net_from));
 
 	sprintf (data, "stdlog %i\n", svs.logsequence-1);
 	strcat (data, (char *)svs.log_buf[((svs.logsequence-1)&1)]);
@@ -1498,6 +1499,7 @@ client_t *SVC_DirectConnect(void)
 
 
 	char *name;
+	char adrbuf[MAX_ADR_SIZE];
 
 	if (*(Cmd_Argv(0)+7) == '\\')
 	{
@@ -1641,7 +1643,7 @@ client_t *SVC_DirectConnect(void)
 				stricmp(spectator_password.string, "none") &&
 				strcmp(spectator_password.string, s) )
 			{	// failed
-				Con_Printf ("%s:spectator password failed\n", NET_AdrToString (net_from));
+				Con_Printf ("%s:spectator password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), net_from));
 				SV_RejectMessage (protocol, "requires a spectator password\n\n");
 				return NULL;
 			}
@@ -1656,7 +1658,7 @@ client_t *SVC_DirectConnect(void)
 				stricmp(password.string, "none") &&
 				strcmp(password.string, s) )
 			{
-				Con_Printf ("%s:password failed\n", NET_AdrToString (net_from));
+				Con_Printf ("%s:password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), net_from));
 				SV_RejectMessage (protocol, "server requires a password\n\n");
 				return NULL;
 			}
@@ -1707,14 +1709,14 @@ client_t *SVC_DirectConnect(void)
 			if (cl->state == cs_connected)
 			{
 				if (cl->protocol != protocol)
-					Con_Printf("%s: diff prot connect\n", NET_AdrToString (adr));
+					Con_Printf("%s: diff prot connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
 				else
-					Con_Printf("%s:dup connect\n", NET_AdrToString (adr));
+					Con_Printf("%s:dup connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
 				nextuserid--;
 				return NULL;
 			}
 			{
-				Con_Printf ("%s:reconnect\n", NET_AdrToString (adr));
+				Con_Printf ("%s:reconnect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
 //				SV_DropClient (cl);
 			}
 			break;
@@ -1803,7 +1805,7 @@ client_t *SVC_DirectConnect(void)
 			|| (!spectator && clients >= (int)maxclients.value)
 			|| (clients + spectators >= sv.allocated_client_slots) ))
 		{
-			Con_Printf ("%s:full connect\n", NET_AdrToString (adr));
+			Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
 			SV_RejectMessage (protocol, "\nserver is full\n\n");
 			return NULL;
 		}
@@ -1823,7 +1825,7 @@ client_t *SVC_DirectConnect(void)
 				Con_Printf ("WARNING: miscounted available clients\n");
 			else
 			{
-				Con_Printf ("%s:full connect\n", NET_AdrToString (adr));
+				Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
 				SV_RejectMessage (protocol, "server is full\n\n");
 			}
 			return NULL;
@@ -2169,12 +2171,13 @@ void SVC_RemoteCommand (void)
 {
 	int		i;
 	char	remaining[1024];
+	char	adr[MAX_ADR_SIZE];
 
 	{
 		bannedips_t *banip = SV_BannedAddress(&net_from);
 		if (banip)
 		{
-			Con_Printf ("Rcon from banned ip %s\n", NET_AdrToString (net_from));
+			Con_Printf ("Rcon from banned ip %s\n", NET_AdrToString (adr, sizeof(adr), net_from));
 			return;
 		}
 	}
@@ -2209,7 +2212,7 @@ void SVC_RemoteCommand (void)
 
 
 					Con_Printf ("Rcon from %s:\n%s\n"
-						, NET_AdrToString (net_from), net_message.data+4);
+						, NET_AdrToString (adr, sizeof(adr), net_from), net_message.data+4);
 
 					SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
 
@@ -2222,7 +2225,7 @@ void SVC_RemoteCommand (void)
 							Con_Printf("Rcon was too long\n");
 							SV_EndRedirect ();
 							Con_Printf ("Rcon from %s:\n%s\n"
-								, NET_AdrToString (net_from), "Was too long - possible buffer overflow attempt");
+								, NET_AdrToString (adr, sizeof(adr), net_from), "Was too long - possible buffer overflow attempt");
 							return;
 						}
 						strcat (remaining, Cmd_Argv(i) );
@@ -2239,7 +2242,7 @@ void SVC_RemoteCommand (void)
 #endif
 
 		Con_Printf ("Bad rcon from %s:\n%s\n"
-			, NET_AdrToString (net_from), net_message.data+4);
+			, NET_AdrToString (adr, sizeof(adr), net_from), net_message.data+4);
 
 		SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
 
@@ -2250,7 +2253,7 @@ void SVC_RemoteCommand (void)
 	{
 
 		Con_Printf ("Rcon from %s:\n%s\n"
-			, NET_AdrToString (net_from), net_message.data+4);
+			, NET_AdrToString (adr, sizeof(adr), net_from), net_message.data+4);
 
 		SV_BeginRedirect (RD_PACKET, LANGDEFAULT);
 
@@ -2263,7 +2266,7 @@ void SVC_RemoteCommand (void)
 				Con_Printf("Rcon was too long\n");
 				SV_EndRedirect ();
 				Con_Printf ("Rcon from %s:\n%s\n"
-					, NET_AdrToString (net_from), "Was too long - possible buffer overflow attempt");
+					, NET_AdrToString (adr, sizeof(adr), net_from), "Was too long - possible buffer overflow attempt");
 				return;
 			}
 			strcat (remaining, Cmd_Argv(i) );
@@ -2282,6 +2285,7 @@ void SVC_RealIP (void)
 	unsigned int slotnum;
 	int cookie;
 	bannedips_t *banip;
+	char adr[MAX_ADR_SIZE];
 
 	slotnum = atoi(Cmd_Argv(1));
 	cookie = atoi(Cmd_Argv(2));
@@ -2304,8 +2308,8 @@ void SVC_RealIP (void)
 
 	if (NET_AddressSmellsFunny(net_from))
 	{
-		Con_Printf("funny realip address: %s, ", NET_AdrToString(net_from));
-		Con_Printf("proxy address: %s\n", NET_AdrToString(svs.clients[slotnum].netchan.remote_address));
+		Con_Printf("funny realip address: %s, ", NET_AdrToString(adr, sizeof(adr), net_from));
+		Con_Printf("proxy address: %s\n", NET_AdrToString(adr, sizeof(adr), svs.clients[slotnum].netchan.remote_address));
 		return;
 	}
 
@@ -2328,6 +2332,8 @@ void SVC_RealIP (void)
 void SVC_ACK (void)
 {
 	int slotnum;
+	char adr[MAX_ADR_SIZE];
+
 	for (slotnum = 0; slotnum < MAX_CLIENTS; slotnum++)
 	{
 		if (svs.clients[slotnum].state)
@@ -2349,7 +2355,7 @@ void SVC_ACK (void)
 			}
 		}
 	}
-	Con_Printf ("A2A_ACK from %s\n", NET_AdrToString (net_from));
+	Con_Printf ("A2A_ACK from %s\n", NET_AdrToString (adr, sizeof(adr), net_from));
 }
 
 /*
@@ -2366,12 +2372,13 @@ qboolean SV_ConnectionlessPacket (void)
 {
 	char	*s;
 	char	*c;
+	char	adr[MAX_ADR_SIZE];
 
 	MSG_BeginReading ();
 
 	if (net_message.cursize >= MAX_QWMSGLEN)	//add a null term in message space
 	{
-		Con_Printf("Oversized packet from %s\n", NET_AdrToString (net_from));
+		Con_Printf("Oversized packet from %s\n", NET_AdrToString (adr, sizeof(adr), net_from));
 		net_message.cursize=MAX_QWMSGLEN-1;
 	}
 	net_message.data[net_message.cursize] = '\0';	//terminate it properly. Just in case.
@@ -2432,7 +2439,7 @@ qboolean SV_ConnectionlessPacket (void)
 		SVC_RealIP ();
 	else if (!PR_GameCodePacket(net_message.data+4))
 		Con_Printf ("bad connectionless packet from %s:\n%s\n"
-		, NET_AdrToString (net_from), s);
+		, NET_AdrToString (adr, sizeof(adr), net_from), s);
 
 	return false;
 }
@@ -3512,6 +3519,7 @@ void Master_Heartbeat (void)
 	int			active;
 	int			i, j;
 	qboolean	madeqwstring = false;
+	char		adr[MAX_ADR_SIZE];
 
 	if (!sv_public.value)
 		return;
@@ -3547,7 +3555,7 @@ void Master_Heartbeat (void)
 				}
 
 				if (sv_reportheartbeats.value)
-					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
+					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr));
 
 				NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
 				break;
@@ -3555,7 +3563,7 @@ void Master_Heartbeat (void)
 				if (sv_listen_dp.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
 					if (sv_reportheartbeats.value)
-						Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
+						Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr));
 
 					{
 						char *str = "\377\377\377\377heartbeat DarkPlaces\x0A";
@@ -3608,6 +3616,7 @@ Informs all masters that this server is going down
 void Master_Shutdown (void)
 {
 	char		string[2048];
+	char		adr[MAX_ADR_SIZE];
 	int			i;
 
 	sprintf (string, "%c\n", S2M_SHUTDOWN);
@@ -3620,7 +3629,7 @@ void Master_Shutdown (void)
 			{
 			case false:
 				if (sv_reportheartbeats.value)
-					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (sv_masterlist[i].adr));
+					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr));
 
 				NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
 				break;

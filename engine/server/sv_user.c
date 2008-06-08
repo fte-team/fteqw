@@ -3619,6 +3619,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 {
 	ucmd_t	*u;
 	client_t *oldhost = host_client;
+	char adr[MAX_ADR_SIZE];
 
 	Con_DPrintf("Client command: %s\n", s);
 
@@ -3708,7 +3709,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 					host_client = oldhost;
 					SV_EndRedirect ();
 					Con_Printf ("cmd from %s:\n%s\n"
-						, NET_AdrToString (net_from), "Was too long - possible buffer overflow attempt");
+						, NET_AdrToString (adr, sizeof(adr), net_from), "Was too long - possible buffer overflow attempt");
 					return;
 				}
 				strcat (remaining, Cmd_Argv(i) );
@@ -4505,7 +4506,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	int			oldmsec;
 	double  tmp_time;
 	qboolean jumpable;
-
+	char adr[MAX_ADR_SIZE];
 
 	// DMW copied this KK hack copied from QuakeForge anti-cheat
 	// (also extra inside parm on all SV_RunCmds that follow)
@@ -4530,7 +4531,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 				{
 					SV_BroadcastTPrintf(PRINT_HIGH,
 							STL_SPEEDCHEATKICKED,
-								host_client->name, NET_AdrToString(host_client->netchan.remote_address));
+								host_client->name, NET_AdrToString(adr, sizeof(adr), host_client->netchan.remote_address));
 					host_client->drop = true;	//drop later
 				}
 		    }

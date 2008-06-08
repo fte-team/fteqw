@@ -310,12 +310,14 @@ void Validation_FlushFileList(void)
 
 static void Validation_Server(void)
 {
+	char adr[MAX_ADR_SIZE];
+
 #ifndef _MSC_VER
 	#warning is allowing the user to turn this off practical?..
 #endif
 	if (!allow_f_server.value)
 		return;
-	Cbuf_AddText(va("say server is %s\n", NET_AdrToString(cls.netchan.remote_address)), RESTRICT_LOCAL);
+	Cbuf_AddText(va("say server is %s\n", NET_AdrToString(adr, sizeof(adr), cls.netchan.remote_address)), RESTRICT_LOCAL);
 }
 
 static void Validation_Skins(void)
@@ -404,6 +406,7 @@ rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_larger_models", "0"},
 	{"ruleset_allow_modified_eyes", "0"},
 	{"ruleset_allow_sensative_texture_replacements", "0"},
+	{"ruleset_allow_localvolume", "0"},
 	{"tp_disputablemacros", "0"},
 	{"cl_instantrotate", "0"},
 	{NULL}
@@ -417,6 +420,7 @@ rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_frj", "0"},
 	{"ruleset_allow_modified_eyes", "0"},
 	{"ruleset_allow_sensative_texture_replacements", "0"},
+	{"ruleset_allow_localvolume", "0"},
 	{"gl_shadeq1", "0"},
 	{"gl_shadeq3", "0"},
 	{NULL}

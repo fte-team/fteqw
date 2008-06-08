@@ -2410,6 +2410,7 @@ void SV_MVDStream_Poll(void)
 	qboolean wanted;
 	mvddest_t *dest;
 	char *ip;
+	char adrbuf[MAX_ADR_SIZE];
 
 	if (!sv.state || !qtv_streamport.value)
 		wanted = false;
@@ -2473,7 +2474,7 @@ void SV_MVDStream_Poll(void)
 	}
 
 	SockadrToNetadr(&addr, &na);
-	ip = NET_AdrToString(na);
+	ip = NET_AdrToString(adrbuf, sizeof(adrbuf), na);
 	Con_Printf("MVD streaming client attempting to connect from %s\n", ip);
 
 	SV_MVD_InitPendingStream(client, ip);

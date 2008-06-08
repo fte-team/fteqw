@@ -835,7 +835,7 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	{
 		for (i = 0; i < sc->sn.numchannels; i++)
 		{
-			ch->vol[i] = ch->master_vol * snd_playersoundvolume.value;
+			ch->vol[i] = ch->master_vol * (ruleset_allow_localvolume.value ? snd_playersoundvolume.value : 1);
 			ch->delay[i] = 0;
 		}
 		return;

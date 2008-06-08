@@ -613,6 +613,7 @@ static
 int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 {
 	int ret=0;
+	char adrbuf[MAX_ADR_SIZE];
 
 	//Remember to range check pointers.
 	//The QVM must not be allowed to write to anything outside it's memory.
@@ -963,7 +964,7 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 			serverinfo_t *info = Master_InfoForServer(ui_pings[VM_LONG(arg[0])]);
 			if (info)
 			{
-				adr = NET_AdrToString(info->adr);
+				adr = NET_AdrToString(adrbuf, sizeof(adrbuf), info->adr);
 				if (strlen(adr) < VM_LONG(arg[2]))
 				{
 					strcpy(buf, adr);
@@ -1058,7 +1059,7 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 			serverinfo_t *info = Master_InfoForNum(VM_LONG(arg[1]));
 			if (info)
 			{
-				adr = NET_AdrToString(info->adr);
+				adr = NET_AdrToString(adrbuf, sizeof(adrbuf), info->adr);
 				if (strlen(adr) < VM_LONG(arg[3]))
 				{
 					strcpy(buf, adr);

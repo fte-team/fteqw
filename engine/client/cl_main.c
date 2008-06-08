@@ -155,6 +155,7 @@ cvar_t	ruleset_allow_overlongsounds	= SCVAR("ruleset_allow_overlong_sounds", "1"
 cvar_t	ruleset_allow_larger_models	= SCVAR("ruleset_allow_larger_models", "1");
 cvar_t	ruleset_allow_modified_eyes = SCVAR("ruleset_allow_modified_eyes", "0");
 cvar_t	ruleset_allow_sensative_texture_replacements = SCVAR("ruleset_allow_sensative_texture_replacements", "1");
+cvar_t	ruleset_allow_localvolume	= SCVAR("ruleset_allow_localvolume", "1");
 
 extern cvar_t cl_hightrack;
 
@@ -1978,6 +1979,8 @@ void CL_ConnectionlessPacket (void)
 {
 	char	*s;
 	int		c;
+	char	adr[MAX_ADR_SIZE];
+
     MSG_BeginReading ();
     MSG_ReadLong ();        // skip the -1
 
@@ -2026,7 +2029,7 @@ void CL_ConnectionlessPacket (void)
 	}
 
 	if (cls.demoplayback == DPB_NONE)
-		Con_TPrintf (TL_ST_COLON, NET_AdrToString (net_from));
+		Con_TPrintf (TL_ST_COLON, NET_AdrToString (adr, sizeof(adr), net_from));
 //	Con_DPrintf ("%s", net_message.data + 4);
 
 	if (c == S2C_CHALLENGE)
@@ -2400,6 +2403,8 @@ CL_ReadPackets
 */
 void CL_ReadPackets (void)
 {
+	char	adr[MAX_ADR_SIZE];
+
 //	while (NET_GetPacket ())
 	for(;;)
 	{
@@ -2470,7 +2475,7 @@ void CL_ReadPackets (void)
 
 		if (net_message.cursize < 6 && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) //MVDs don't have the whole sequence header thing going on
 		{
-			Con_TPrintf (TL_RUNTPACKET,NET_AdrToString(net_from));
+			Con_TPrintf (TL_RUNTPACKET,NET_AdrToString(adr, sizeof(adr), net_from));
 			continue;
 		}
 
@@ -2489,7 +2494,7 @@ void CL_ReadPackets (void)
 			!NET_CompareAdr (net_from, cls.netchan.remote_address))
 		{
 			Con_DPrintf ("%s:sequenced packet from wrong server\n"
-				,NET_AdrToString(net_from));
+				,NET_AdrToString(adr, sizeof(adr), net_from));
 			continue;
 		}
 
@@ -2917,6 +2922,7 @@ void CL_Init (void)
 	Cvar_Register (&ruleset_allow_larger_models,			cl_controlgroup);
 	Cvar_Register (&ruleset_allow_modified_eyes,			cl_controlgroup);
 	Cvar_Register (&ruleset_allow_sensative_texture_replacements,	cl_controlgroup);
+	Cvar_Register (&ruleset_allow_localvolume,			cl_controlgroup);
 
 	Cvar_Register (&qtvcl_forceversion1,				cl_controlgroup);
 	Cvar_Register (&qtvcl_eztvextensions,				cl_controlgroup);

@@ -346,6 +346,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_OVERALLMSGLEN + PACKET_HEADER];
 	qboolean	send_reliable;
+	char		remote_adr[MAX_ADR_SIZE];
 	unsigned	w1, w2;
 	int			i;
 
@@ -422,7 +423,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	{
 		chan->fatal_error = true;
 		Con_TPrintf (TL_OUTMESSAGEOVERFLOW
-			, NET_AdrToString (chan->remote_address));
+			, NET_AdrToString (remote_adr, sizeof(remote_adr), chan->remote_address));
 		return;
 	}
 
@@ -527,6 +528,7 @@ qboolean Netchan_Process (netchan_t *chan)
 {
 	unsigned		sequence, sequence_ack;
 	unsigned		reliable_ack, reliable_message;
+	char			adr[MAX_ADR_SIZE];
 #ifndef CLIENTONLY
 	int			qport;
 #endif
@@ -600,7 +602,7 @@ qboolean Netchan_Process (netchan_t *chan)
 	{
 		if (showdrop.value)
 			Con_TPrintf (TL_OUTOFORDERPACKET
-				, NET_AdrToString (chan->remote_address)
+				, NET_AdrToString (adr, sizeof(adr), chan->remote_address)
 				,  sequence
 				, chan->incoming_sequence);
 		return false;
@@ -616,7 +618,7 @@ qboolean Netchan_Process (netchan_t *chan)
 
 		if (showdrop.value)
 			Con_TPrintf (TL_DROPPEDPACKETCOUNT
-			, NET_AdrToString (chan->remote_address)
+			, NET_AdrToString (adr, sizeof(adr), chan->remote_address)
 			, sequence-(chan->incoming_sequence+1)
 			, sequence);
 	}

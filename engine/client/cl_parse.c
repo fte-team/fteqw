@@ -738,7 +738,9 @@ int CL_LoadModels(int stage)
 
 		R_CheckSky();
 
+#ifdef CSQC_DAT
 		CSQC_WorldLoaded();
+#endif
 
 		endstage();
 	}

@@ -337,6 +337,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
+		*s = 0;
 		doneblank = false;
 		p = s;
 		snprintf (s, len-strlen(s), "[");
@@ -427,6 +428,7 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
+		*s = 0;
 		doneblank = false;
 		p = s;
 		for (i = 0; i < 16; i+=2)

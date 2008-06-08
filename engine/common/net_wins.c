@@ -327,7 +327,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 	{
 	case NA_BROADCAST_IP:
 	case NA_IP:
-		sprintf (s, "%i.%i.%i.%i:%i", 
+		snprintf (s, len, "%i.%i.%i.%i:%i", 
 			a.address.ip[0], 
 			a.address.ip[1], 
 			a.address.ip[2], 
@@ -339,7 +339,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 	case NA_IPV6:
 		doneblank = false;
 		p = s;
-		sprintf (s, "[");
+		snprintf (s, len-strlen(s), "[");
 		p += strlen(p);
 
 		for (i = 0; i < 16; i+=2)
@@ -348,7 +348,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 			{
 				if (!doneblank)
 				{
-					sprintf (p, "::");
+					snprintf (p, len-strlen(s), "::");
 					p += strlen(p);
 					doneblank = 2;
 				}
@@ -359,32 +359,32 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 					doneblank = true;
 				else if (i != 0)
 				{
-					sprintf (p, ":");
+					snprintf (p, len-strlen(s), ":");
 					p += strlen(p);
 				}
 				if (a.address.ip6[i+0])
 				{
-					sprintf (p, "%x%02x",
+					snprintf (p, len-strlen(s), "%x%02x",
 						a.address.ip6[i+0],
 						a.address.ip6[i+1]);
 				}
 				else
 				{
-					sprintf (p, "%x",
+					snprintf (p, len-strlen(s), "%x",
 						a.address.ip6[i+1]);
 				}
 				p += strlen(p);
 			}
 		}
 
-		sprintf (p, "]:%i", 
+		snprintf (p, len-strlen(s), "]:%i", 
 			ntohs(a.port));
 		break;
 #endif
 #ifdef USEIPX
 	case NA_BROADCAST_IPX:
 	case NA_IPX:
-		sprintf (s, "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x:%i",
+		snprintf (s, len, "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x:%i",
 			a.address.ipx[0],
 			a.address.ipx[1],
 			a.address.ipx[2],
@@ -399,10 +399,10 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 		break;
 #endif
 	case NA_LOOPBACK:
-		sprintf (s, "LocalHost");
+		snprintf (s, len, "LocalHost");
 		break;
 	default:
-		sprintf (s, "invalid netadr_t type");
+		snprintf (s, len, "invalid netadr_t type");
 //		Sys_Error("NET_AdrToString: Bad netadr_t type");
 	}
 
@@ -418,7 +418,7 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 	{
 	case NA_BROADCAST_IP:
 	case NA_IP:
-		sprintf (s, "%i.%i.%i.%i", 
+		snprintf (s, len, "%i.%i.%i.%i", 
 			a.address.ip[0], 
 			a.address.ip[1],
 			a.address.ip[2],
@@ -435,7 +435,7 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 			{
 				if (!doneblank)
 				{
-					sprintf (p, "::");
+					snprintf (p, len-strlen(s), "::");
 					p += strlen(p);
 					doneblank = 2;
 				}
@@ -446,18 +446,18 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 					doneblank = true;
 				else if (i != 0)
 				{
-					sprintf (p, ":");
+					snprintf (p, len-strlen(s), ":");
 					p += strlen(p);
 				}
 				if (a.address.ip6[i+0])
 				{
-					sprintf (p, "%x%02x",
+					snprintf (p, len-strlen(s), "%x%02x",
 						a.address.ip6[i+0],
 						a.address.ip6[i+1]);
 				}
 				else
 				{
-					sprintf (p, "%x",
+					snprintf (p, len-strlen(s), "%x",
 						a.address.ip6[i+1]);
 				}
 				p += strlen(p);
@@ -468,7 +468,7 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 #ifdef USEIPX
 	case NA_BROADCAST_IPX:
 	case NA_IPX:
-		sprintf (s, "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x", 
+		snprintf (s, len, "%02x%02x%02x%02x:%02x%02x%02x%02x%02x%02x", 
 			a.address.ipx[0],
 			a.address.ipx[1],
 			a.address.ipx[2],
@@ -482,7 +482,7 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 		break;
 #endif
 	case NA_LOOPBACK:
-		sprintf (s, "LocalHost");
+		snprintf (s, len, "LocalHost");
 		break;
 	default:
 		Sys_Error("NET_BaseAdrToString: Bad netadr_t type");
@@ -1086,9 +1086,9 @@ char *NET_AdrToStringMasked (char *s, int len, netadr_t a, netadr_t amask)
 	i = UniformMaskedBits(amask);
 
 	if (i >= 0)
-		sprintf(s, "%s/%i", NET_AdrToString(adr, sizeof(adr), a), i);
+		snprintf(s, len, "%s/%i", NET_AdrToString(adr, sizeof(adr), a), i);
 	else
-		sprintf(s, "%s/%s", NET_AdrToString(adr, sizeof(adr), a), NET_AdrToString(mask, sizeof(mask), amask));
+		snprintf(s, len, "%s/%s", NET_AdrToString(adr, sizeof(adr), a), NET_AdrToString(mask, sizeof(mask), amask));
 
 	return s;
 }

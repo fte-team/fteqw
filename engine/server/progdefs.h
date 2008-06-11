@@ -239,6 +239,8 @@ typedef struct extentvars_s
 	float	Version;
 	float	pvsflags;
 
+	//FTE_ENT_UNIQUESPAWNID
+	float	uniquespawnid;
 #ifdef VM_Q1
 } extentvars_t;
 #else

@@ -1187,7 +1187,10 @@ void CL_Disconnect (void)
 #ifndef CLIENTONLY
 	if (!isDedicated)
 #endif
+	{
 		SCR_EndLoadingPlaque();
+		V_ClearCShifts();
+	}
 
 	cls.protocol = CP_UNKNOWN;
 	cl.servercount = 0;

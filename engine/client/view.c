@@ -370,7 +370,7 @@ void SWV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
 	BuildGammaTable (v_gamma.value, v_contrast.value);
 	vid.recalc_refdef = 1; // force a surface cache flush
-	SWV_UpdatePalette (true);
+	SWV_UpdatePalette (true, 0);
 }
 #endif
 
@@ -379,7 +379,7 @@ void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
 	BuildGammaTable (v_gamma.value, v_contrast.value);
 	vid.recalc_refdef = 1; // force a surface cache flush
-	GLV_UpdatePalette (true);
+	GLV_UpdatePalette (true, 0);
 }
 #endif
 
@@ -691,7 +691,7 @@ void GLV_CalcBlend (void)
 V_UpdatePalette
 =============
 */
-void GLV_UpdatePalette (qboolean force)
+void GLV_UpdatePalette (qboolean force, double ftime)
 {
 //	qboolean ogw;
 	int		i, j;
@@ -704,16 +704,6 @@ void GLV_UpdatePalette (qboolean force)
 	RSpeedMark();
 
 	V_CalcPowerupCshift ();
-
-// drop the damage value
-	cl.cshifts[CSHIFT_DAMAGE].percent -= host_frametime*150;
-	if (cl.cshifts[CSHIFT_DAMAGE].percent <= 0)
-		cl.cshifts[CSHIFT_DAMAGE].percent = 0;
-
-// drop the bonus value
-	cl.cshifts[CSHIFT_BONUS].percent -= host_frametime*100;
-	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
-		cl.cshifts[CSHIFT_BONUS].percent = 0;
 
 	update = false;
 
@@ -731,6 +721,16 @@ void GLV_UpdatePalette (qboolean force)
 				cl.prev_cshifts[i].destcolor[j] = cl.cshifts[i].destcolor[j];
 			}
 	}
+
+// drop the damage value
+	cl.cshifts[CSHIFT_DAMAGE].percent -= ftime*150;
+	if (cl.cshifts[CSHIFT_DAMAGE].percent <= 0)
+		cl.cshifts[CSHIFT_DAMAGE].percent = 0;
+
+// drop the bonus value
+	cl.cshifts[CSHIFT_BONUS].percent -= ftime*100;
+	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
+		cl.cshifts[CSHIFT_BONUS].percent = 0;
 
 	if (update || force)
 	{
@@ -776,7 +776,7 @@ V_UpdatePalette
 =============
 */
 #ifdef SWQUAKE
-void SWV_UpdatePalette (qboolean force)
+void SWV_UpdatePalette (qboolean force, double ftime)
 {
 	int		i, j;
 	qboolean	update;
@@ -806,12 +806,12 @@ void SWV_UpdatePalette (qboolean force)
 	}
 	
 // drop the damage value
-	cl.cshifts[CSHIFT_DAMAGE].percent -= host_frametime*150;
+	cl.cshifts[CSHIFT_DAMAGE].percent -= ftime*150;
 	if (cl.cshifts[CSHIFT_DAMAGE].percent <= 0)
 		cl.cshifts[CSHIFT_DAMAGE].percent = 0;
 
 // drop the bonus value
-	cl.cshifts[CSHIFT_BONUS].percent -= host_frametime*100;
+	cl.cshifts[CSHIFT_BONUS].percent -= ftime*100;
 	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
 		cl.cshifts[CSHIFT_BONUS].percent = 0;
 
@@ -870,6 +870,14 @@ void SWV_UpdatePalette (qboolean force)
 }
 
 #endif	// SWQUAKE
+
+void V_ClearCShifts (void)
+{
+	int i;
+
+	for (i = 0; i < NUM_CSHIFTS; i++)
+		cl.cshifts[i].percent = 0;
+}
 
 /* 
 ============================================================================== 

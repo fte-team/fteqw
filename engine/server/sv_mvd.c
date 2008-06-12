@@ -2540,10 +2540,6 @@ void SV_UserCmdMVDList_f (void)
 	float	f;
 	int		i,j,show;
 
-	int first;
-
-	first = Cmd_Argv(0);
-
 	Con_Printf("available demos\n");
 	dir = Sys_listdir(va("%s/%s", com_gamedir,sv_demoDir.string), ".mvd", SORT_BY_DATE);
 	list = dir->files;

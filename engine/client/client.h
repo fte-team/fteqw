@@ -829,7 +829,6 @@ void V_StartPitchDrift (int pnum);
 void V_StopPitchDrift (int pnum);
 
 void V_RenderView (void);
-void V_UpdatePalette (void);
 void V_Register (void);
 void V_ParseDamage (int pnum);
 void V_SetContentsColor (int contents);

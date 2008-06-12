@@ -27,11 +27,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 float in_sensitivityscale = 1;
 
+void CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue);
+
 cvar_t	cl_nodelta = SCVAR("cl_nodelta","0");
 
 cvar_t	cl_c2spps = SCVAR("cl_c2spps", "0");
 cvar_t	cl_c2sImpulseBackup = SCVAR("cl_c2sImpulseBackup","3");
 cvar_t	cl_netfps = SCVAR("cl_netfps", "0");
+cvar_t	cl_sparemsec = SCVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
 cvar_t  cl_queueimpulses = SCVAR("cl_queueimpulses", "0");
 cvar_t	cl_smartjump = SCVAR("cl_smartjump", "1");
 
@@ -735,7 +738,7 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 }
 
 #ifdef NQPROT
-void CLNQ_SendMove (usercmd_t		*cmd, int pnum, sizebuf_t *buf)
+void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 {
 	int bits;
 	int i;
@@ -824,18 +827,9 @@ void Name_Callback(struct cvar_s *var, char *oldvalue)
 	CL_SendClientCommand(true, "name \"%s\"\n", var->string);
 }
 
-void CLNQ_SendCmd(void)
+void CLNQ_SendCmd(sizebuf_t *buf)
 {
 	extern int cl_latestframenum, nq_dp_protocol;
-	sizebuf_t unrel;
-	char unrel_buf[256];
-
-	if (cls.state <= ca_connected)
-		return;
-
-	memset(&unrel, 0, sizeof(unrel));
-	unrel.data = unrel_buf;
-	unrel.maxsize = sizeof(unrel_buf);
 
 	if (cls.signon == 4)
 	{
@@ -843,7 +837,7 @@ void CLNQ_SendCmd(void)
 		if (independantphysics[0].impulse && !cls.netchan.message.cursize)
 			CLNQ_SendMove (&independantphysics[0], 0, &cls.netchan.message);
 		else
-			CLNQ_SendMove (&independantphysics[0], 0, &unrel);
+			CLNQ_SendMove (&independantphysics[0], 0, buf);
 	}
 
 	if (nq_dp_protocol > 0 && cls.signon == 4)
@@ -851,8 +845,6 @@ void CLNQ_SendCmd(void)
 		MSG_WriteByte(&cls.netchan.message, 50);
 		MSG_WriteLong(&cls.netchan.message, cl_latestframenum);
 	}
-
-	Netchan_Transmit(&cls.netchan, unrel.cursize, unrel.data, 2500);
 
 	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
 	cl.allowsendpacket = false;
@@ -1195,34 +1187,219 @@ void CL_UseIndepPhysics(qboolean allow)
 }
 #endif
 
+void CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue)
+{
+	if (var->value > 50)
+	{
+		Cvar_ForceSet(var, "50");
+		return;
+	}
+	else if (var->value < 0)
+	{
+		Cvar_ForceSet(var, "0");
+		return;
+	}
+}
+
+
 /*
 =================
 CL_SendCmd
 =================
 */
 vec3_t accum[MAX_SPLITS];
+qboolean CL_WriteDeltas (int plnum, sizebuf_t *buf)
+{
+	int i;
+	usercmd_t *cmd, *oldcmd;
+	qboolean dontdrop = false;
+
+
+	i = (cls.netchan.outgoing_sequence-2) & UPDATE_MASK;
+	cmd = &cl.frames[i].cmd[plnum];
+	if (cl_c2sImpulseBackup.value >= 2)
+		dontdrop = dontdrop || cmd->impulse;
+	MSG_WriteDeltaUsercmd (buf, &nullcmd, cmd);
+	oldcmd = cmd;
+
+	i = (cls.netchan.outgoing_sequence-1) & UPDATE_MASK;
+	if (cl_c2sImpulseBackup.value >= 3)
+		dontdrop = dontdrop || cmd->impulse;
+	cmd = &cl.frames[i].cmd[plnum];
+	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
+	oldcmd = cmd;
+
+	i = (cls.netchan.outgoing_sequence) & UPDATE_MASK;
+	if (cl_c2sImpulseBackup.value >= 1)
+		dontdrop = dontdrop || cmd->impulse;
+	cmd = &cl.frames[i].cmd[plnum];
+	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
+
+	return dontdrop;
+}
+
+qboolean CL_SendCmdQ2 (sizebuf_t *buf)
+{
+	int seq_hash;
+	qboolean dontdrop;
+	usercmd_t *cmd;
+	int checksumIndex, i;
+	qbyte lightlev;
+
+	seq_hash = cls.netchan.outgoing_sequence;
+
+// send this and the previous cmds in the message, so
+// if the last packet was dropped, it can be recovered
+	i = cls.netchan.outgoing_sequence & UPDATE_MASK;
+	cmd = &cl.frames[i].cmd[0];
+
+	if (cls.resendinfo)
+	{
+		MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
+		MSG_WriteString (&cls.netchan.message, cls.userinfo);
+
+		cls.resendinfo = false;
+	}
+
+	MSG_WriteByte (buf, clcq2_move);
+
+	// save the position for a checksum qbyte
+	checksumIndex = buf->cursize;
+	MSG_WriteByte (buf, 0);
+
+	if (!cl.q2frame.valid || cl_nodelta.value)
+		MSG_WriteLong (buf, -1);	// no compression
+	else
+		MSG_WriteLong (buf, cl.q2frame.serverframe);
+
+	if (R_LightPoint)
+		lightlev = R_LightPoint(cl.simorg[0]);
+	else
+		lightlev = 255;
+
+//	msecs = msecs - (double)msecstouse;
+
+	i = cls.netchan.outgoing_sequence & UPDATE_MASK;
+	cmd = &cl.frames[i].cmd[0];
+	*cmd = independantphysics[0];
+	
+	cmd->lightlevel = lightlev;
+
+	cl.frames[i].senttime = realtime;
+	cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
+	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
+
+	if (cmd->buttons)
+		cmd->buttons |= 128;	//fixme: this isn't really what's meant by the anykey.
+
+// calculate a checksum over the move commands
+	dontdrop = CL_WriteDeltas(0, buf);
+
+	buf->data[checksumIndex] = Q2COM_BlockSequenceCRCByte(
+		buf->data + checksumIndex + 1, buf->cursize - checksumIndex - 1,
+		seq_hash);
+
+	cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = -1;
+
+	if (cl.sendprespawn)
+		buf->cursize = 0;	//tastyspleen.net is alergic.
+
+	return dontdrop;
+}
+
+qboolean CL_SendCmdQW (sizebuf_t *buf)
+{
+	int seq_hash;
+	qboolean dontdrop = false;
+	usercmd_t *cmd;
+	int checksumIndex, firstsize, i, plnum;
+	int clientcount, lost;
+
+	seq_hash = cls.netchan.outgoing_sequence;
+
+// send this and the previous cmds in the message, so
+// if the last packet was dropped, it can be recovered
+	clientcount = cl.splitclients;
+
+	if (!clientcount)
+		clientcount = 1;
+
+	MSG_WriteByte (buf, clc_move);
+
+	// save the position for a checksum qbyte
+	checksumIndex = buf->cursize;
+	MSG_WriteByte (buf, 0);
+
+	// write our lossage percentage
+	lost = CL_CalcNet();
+	MSG_WriteByte (buf, (qbyte)lost);
+
+	firstsize=0;
+	for (plnum = 0; plnum<clientcount; plnum++)
+	{
+		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
+		cmd = &cl.frames[i].cmd[plnum];
+		*cmd = independantphysics[plnum];
+		
+		cmd->lightlevel = 0;
+#ifdef CSQC_DAT
+		CSQC_Input_Frame(cmd);
+#endif
+
+		cl.frames[i].senttime = realtime;
+		cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
+		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
+
+		if (plnum)
+			MSG_WriteByte (buf, clc_move);
+
+		dontdrop = dontdrop || CL_WriteDeltas(plnum, buf);
+
+		if (!firstsize)
+			firstsize = buf->cursize;
+	}
+
+// calculate a checksum over the move commands
+
+	buf->data[checksumIndex] = COM_BlockSequenceCRCByte(
+		buf->data + checksumIndex + 1, firstsize - checksumIndex - 1,
+		seq_hash);
+
+	// request delta compression of entities
+	if (cls.netchan.outgoing_sequence - cl.validsequence >= UPDATE_BACKUP-1)
+		cl.validsequence = 0;
+
+	if (cl.validsequence && !cl_nodelta.value && cls.state == ca_active && !cls.demorecording)
+	{
+		cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = cl.validsequence;
+		MSG_WriteByte (buf, clc_delta);
+//		Con_Printf("%i\n", cl.validsequence);
+		MSG_WriteByte (buf, cl.validsequence&255);
+	}
+	else
+		cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = -1;
+
+	if (cl.sendprespawn)
+		buf->cursize = 0;	//tastyspleen.net is alergic.
+
+	return dontdrop;
+}
+
 void CL_SendCmd (double frametime)
 {
 	extern cvar_t cl_indepphysics;
 	sizebuf_t	buf;
 	qbyte		data[512];
 	int			i, plnum;
-	usercmd_t	*cmd, *oldcmd;
-	int			checksumIndex;
-	int			lost;
-	int			seq_hash;
-	int firstsize;
+	usercmd_t	*cmd;
 	float wantfps;
-
-	qbyte lightlev;
+	qboolean fullsend;
 
 	static float	pps_balance = 0;
 	static int	dropcount = 0;
 	static double msecs;
 	int msecstouse;
 	qboolean	dontdrop=false;
-
-	int clientcount;
 
 	extern cvar_t cl_maxfps;
 	clcmdbuf_t *next;
@@ -1286,8 +1463,96 @@ void CL_SendCmd (double frametime)
 	buf.maxsize = sizeof(data);
 	buf.cursize = 0;
 	buf.data = data;
-	CL_SendDownloadReq(&buf);
 
+	if (msecs>150)	//q2 has 200 slop.
+		msecs=150;
+
+	msecs += frametime*1000;
+//	Con_Printf("%f\n", msecs);
+
+	if (msecs<0)
+		msecs=0;	//erm.
+
+	msecstouse = (int)msecs; //casts round down.
+	if (msecstouse > 200) // cap at 200 to avoid servers splitting movement more than four times
+		msecstouse = 200;
+
+	// align msecstouse to avoid servers wasting our msecs
+	if (msecstouse > 100)
+		msecstouse &= ~3; // align to 4
+	else if (msecstouse > 50)
+		msecstouse &= ~1; // align to 2
+
+	wantfps = cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value;
+	if (wantfps < cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff)
+		wantfps = cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff;
+
+	fullsend = true;
+
+	if (!cl_indepphysics.value)
+	{
+		// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
+		if (cls.state < ca_active && CL_FilterTime(msecstouse, 12.5) == false)
+			fullsend = false; 
+		else if (cl_netfps.value > 0)
+		{
+			int spare;
+			spare = CL_FilterTime(msecstouse, cl_netfps.value);
+			if (!spare && msecstouse < 200)
+				fullsend = false;
+			if (spare > cl_sparemsec.value)
+				spare = cl_sparemsec.value;
+			if (spare > 0)
+				msecstouse -= spare;
+		}
+	}
+	if (cl_netfps.value > 0 && !cl_indepphysics.value)
+	{//this chunk of code is here to stop the client from using too few msecs per packet
+		int spare;
+		// due to the mvdsv input problem we can't just fire off packets during an incomplete connection
+		// or the mod will think we're speed cheating
+		spare = CL_FilterTime(msecstouse, cl_netfps.value);
+		if (!spare && msecstouse < 200)
+			fullsend = false;
+		if (spare > cl_sparemsec.value)
+			spare = cl_sparemsec.value;
+		if (spare > 0)
+			msecstouse -= spare;
+	}
+
+	for (plnum = 0; plnum < cl.splitclients; plnum++)
+	{
+//		CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
+		CL_AdjustAngles (plnum);
+		IN_Move (&independantphysics[plnum], plnum);
+		
+		for (i=0 ; i<3 ; i++)
+			independantphysics[plnum].angles[i] = ((int)(cl.viewangles[plnum][i]*65536.0/360)&65535);
+
+		if (!independantphysics[plnum].msec)
+		{
+			CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
+			CL_FinishMove(&independantphysics[plnum], msecstouse, plnum);
+		}
+
+		// if we are spectator, try autocam
+	//	if (cl.spectator)
+		Cam_Track(plnum, &independantphysics[plnum]);
+		Cam_FinishMove(plnum, &independantphysics[plnum]);
+		independantphysics[plnum].msec = msecstouse;
+	}
+
+//	if (skipcmd)
+//		return;
+#ifdef NQPROT
+	if ((!cl.allowsendpacket || cls.state <= ca_connected) && cls.protocol == CP_NETQUAKE)
+		return;
+#endif
+
+	if (!fullsend && cls.state == ca_active)
+		return; // when we're actually playing we try to match netfps exactly to avoid gameplay problems
+
+	CL_SendDownloadReq(&buf);
 
 	while (clientcmdlist)
 	{
@@ -1307,239 +1572,51 @@ void CL_SendCmd (double frametime)
 		clientcmdlist = next;
 	}
 
-	if (msecs>150)	//q2 has 200 slop.
-		msecs=150;
+	// if we're not doing clc_moves and etc, don't continue unless we wrote something previous
+	// or we have something on the reliable buffer (or we're loopback and don't care about flooding)
+	if (!fullsend && cls.netchan.remote_address.type != NA_LOOPBACK && buf.cursize < 1 && cls.netchan.message.cursize < 1)
+		return; 
 
-	msecs += frametime*1000;
-//	Con_Printf("%f\n", msecs);
-
-	if (msecs<0)
-		msecs=0;	//erm.
-
-
-//	if (cls.state < ca_active)
-//		msecs = 0;
-
-	msecstouse = (int)msecs;	//casts round down.
-	if (msecstouse > 255)
-		msecstouse = 255;
-
-	wantfps = cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value;
-	if (wantfps < cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff)
-		wantfps = cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff;
-
-	for (plnum = 0; plnum < cl.splitclients; plnum++)
+	if (fullsend)
 	{
-//		CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
-		CL_AdjustAngles (plnum);
-		IN_Move (&independantphysics[plnum], plnum);
-		
-		for (i=0 ; i<3 ; i++)
-			independantphysics[plnum].angles[i] = ((int)(cl.viewangles[plnum][i]*65536.0/360)&65535);
-
-		if (!independantphysics[plnum].msec)
+		switch (cls.protocol)
 		{
-			CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
-			CL_FinishMove(&independantphysics[plnum], msecstouse, plnum);
-		}
-
-		// if we are spectator, try autocam
-	//	if (cl.spectator)
-			Cam_Track(plnum, &independantphysics[plnum]);
-		Cam_FinishMove(plnum, &independantphysics[plnum]);
-		independantphysics[plnum].msec = msecstouse;
-	}
-
-	if (cl_netfps.value && !cl_indepphysics.value)
-	{//this chunk of code is here to stop the client from using too few msecs per packet
-		int spare;
-		spare = CL_FilterTime(msecstouse, cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value);
-		if (!spare && msecstouse<255 && cls.state == ca_active)
-		{
-			return;
-		}
-		if (spare > 10)
-			spare = 10;
-		if (spare > 0)
-		{
-			msecstouse -= spare;
-			for (plnum = 0; plnum < cl.splitclients; plnum++)
-				independantphysics[plnum].msec = msecstouse;
-		}
-	}
-
 #ifdef NQPROT
-	if (cls.protocol == CP_NETQUAKE)
-	{
-		if (!cl.allowsendpacket)
-			return;
-		msecs -= msecstouse;
-
-		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-		cmd = &cl.frames[i].cmd[0];
-		*cmd = independantphysics[0];
-		cl.frames[i].senttime = realtime;
-		cl.frames[i].receivedtime = 0;	// nq doesn't allow us to find our own packetloss
-
-#ifdef CSQC_DAT
-		CSQC_Input_Frame(cmd);
-#endif
-		CLNQ_SendCmd ();
-		memset(&independantphysics[0], 0, sizeof(independantphysics[plnum]));
-		return;
-	}
-#endif
-
-#ifdef Q3CLIENT
-	if (cls.protocol == CP_QUAKE3)
-	{
-		CLQ3_SendCmd(&independantphysics[0]);
-		memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
-		return;
-	}
-#endif
-
-//	Con_Printf("sending %i msecs\n", msecstouse);
-
-	seq_hash = cls.netchan.outgoing_sequence;
-
-// send this and the previous cmds in the message, so
-// if the last packet was dropped, it can be recovered
-	clientcount = cl.splitclients;
-
-	if (!clientcount)
-		clientcount = 1;
-	if (1)	//wait for server data before sending clc_move stuff? nope, mvdsv doesn't like that.
-	{
-#ifdef Q2CLIENT
-		if (cls.protocol == CP_QUAKE2)
-		{
+		case CP_NETQUAKE:
+			msecs -= (double)msecstouse;
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-			cmd = &cl.frames[i].cmd[plnum];
+			cmd = &cl.frames[i].cmd[0];
+			*cmd = independantphysics[0];
+			cl.frames[i].senttime = realtime;
+			cl.frames[i].receivedtime = 0;	// nq doesn't allow us to find our own packetloss
 
-			if (cls.resendinfo)
-			{
-				MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
-				MSG_WriteString (&cls.netchan.message, cls.userinfo);
-
-				cls.resendinfo = false;
-			}
-
-			MSG_WriteByte (&buf, clcq2_move);
-
-			// save the position for a checksum qbyte
-			checksumIndex = buf.cursize;
-			MSG_WriteByte (&buf, 0);
-
-			if (!cl.q2frame.valid || cl_nodelta.value)
-				MSG_WriteLong (&buf, -1);	// no compression
-			else
-				MSG_WriteLong (&buf, cl.q2frame.serverframe);
-
-			if (R_LightPoint)
-				lightlev = R_LightPoint(cl.simorg[0]);
-			else
-				lightlev = 255;
-		}
-		else
-#endif
-		{
-			MSG_WriteByte (&buf, clc_move);
-
-			// save the position for a checksum qbyte
-			checksumIndex = buf.cursize;
-			MSG_WriteByte (&buf, 0);
-
-			// write our lossage percentage
-			lost = CL_CalcNet();
-			MSG_WriteByte (&buf, (qbyte)lost);
-
-			lightlev = 0;
-		}
-		msecs = msecs - (double)msecstouse;
-		firstsize=0;
-		for (plnum = 0; plnum<clientcount; plnum++)
-		{
-			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-			cmd = &cl.frames[i].cmd[plnum];
-			*cmd = independantphysics[plnum];
-			
-			cmd->lightlevel = lightlev;
 #ifdef CSQC_DAT
 			CSQC_Input_Frame(cmd);
 #endif
-
-			cl.frames[i].senttime = realtime;
-			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
-			memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
-
-#ifdef Q2CLIENT
-			if (cls.protocol == CP_QUAKE2 && cmd->buttons)
-				cmd->buttons |= 128;	//fixme: this isn't really what's meant by the anykey.
+			CLNQ_SendCmd (&buf);
+			break;
 #endif
-
-			if (plnum)
-				MSG_WriteByte (&buf, clc_move);
-
-			i = (cls.netchan.outgoing_sequence-2) & UPDATE_MASK;
-			cmd = &cl.frames[i].cmd[plnum];
-			if (cl_c2sImpulseBackup.value >= 2)
-				dontdrop = dontdrop || cmd->impulse;
-			MSG_WriteDeltaUsercmd (&buf, &nullcmd, cmd);
-			oldcmd = cmd;
-
-			i = (cls.netchan.outgoing_sequence-1) & UPDATE_MASK;
-			if (cl_c2sImpulseBackup.value >= 3)
-				dontdrop = dontdrop || cmd->impulse;
-			cmd = &cl.frames[i].cmd[plnum];
-			MSG_WriteDeltaUsercmd (&buf, oldcmd, cmd);
-			oldcmd = cmd;
-
-			i = (cls.netchan.outgoing_sequence) & UPDATE_MASK;
-			if (cl_c2sImpulseBackup.value >= 1)
-				dontdrop = dontdrop || cmd->impulse;
-			cmd = &cl.frames[i].cmd[plnum];
-			MSG_WriteDeltaUsercmd (&buf, oldcmd, cmd);
-
-			if (!firstsize)
-				firstsize = buf.cursize;
+		case CP_QUAKEWORLD:
+			msecs -= (double)msecstouse;
+			dontdrop = CL_SendCmdQW (&buf);
+			break;
+#ifdef Q2CLIENT
+		case CP_QUAKE2:
+			msecs -= (double)msecstouse;
+			dontdrop = CL_SendCmdQ2 (&buf);
+			break;
+#endif
+#ifdef Q3CLIENT
+		case CP_QUAKE3:
+			CLQ3_SendCmd(&independantphysics[0]);
+			memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
+			return; // Q3 does it's own thing
+#endif
+		default:
+			Host_Error("Invalid protocol in CL_SendCmd: %i", cls.protocol);
+			return;
 		}
-
-	// calculate a checksum over the move commands
-
-#ifdef Q2CLIENT
-		if (cls.protocol == CP_QUAKE2)
-			buf.data[checksumIndex] = Q2COM_BlockSequenceCRCByte(
-				buf.data + checksumIndex + 1, firstsize - checksumIndex - 1,
-				seq_hash);
-		else
-#endif
-			buf.data[checksumIndex] = COM_BlockSequenceCRCByte(
-				buf.data + checksumIndex + 1, firstsize - checksumIndex - 1,
-				seq_hash);
 	}
-
-	// request delta compression of entities
-#ifdef Q2CLIENT
-	if (cls.protocol == CP_QUAKEWORLD)
-#endif
-		if (cls.netchan.outgoing_sequence - cl.validsequence >= UPDATE_BACKUP-1)
-			cl.validsequence = 0;
-
-	if (
-#ifdef Q2CLIENT
-		cls.protocol == CP_QUAKEWORLD && 
-#endif
-		cl.validsequence && !cl_nodelta.value && cls.state == ca_active &&
-		!cls.demorecording)
-	{
-		cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = cl.validsequence;
-		MSG_WriteByte (&buf, clc_delta);
-//		Con_Printf("%i\n", cl.validsequence);
-		MSG_WriteByte (&buf, cl.validsequence&255);
-	}
-	else
-		cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = -1;
 
 	i = (cls.netchan.outgoing_sequence) & UPDATE_MASK;
 	cmd = &cl.frames[i].cmd[0];
@@ -1581,8 +1658,6 @@ void CL_SendCmd (double frametime)
 		dropcount = 0;
 	}
 
-	if (cl.sendprespawn)
-		buf.cursize = 0;	//tastyspleen.net is alergic.
 //
 // deliver the message
 //
@@ -1777,6 +1852,7 @@ void CL_InitInput (void)
 	Cvar_Register (&cl_c2spps, inputnetworkcvargroup);
 	Cvar_Register (&cl_queueimpulses, inputnetworkcvargroup);
 	Cvar_Register (&cl_netfps, inputnetworkcvargroup);
+	Cvar_Register (&cl_sparemsec, inputnetworkcvargroup);
 
 	Cvar_Register (&cl_smartjump, inputnetworkcvargroup);
 

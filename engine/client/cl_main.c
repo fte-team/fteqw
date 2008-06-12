@@ -3151,6 +3151,8 @@ Runs all active servers
 ==================
 */
 extern cvar_t cl_netfps;
+extern cvar_t cl_sparemsec;
+
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
 float CL_FilterTime (double time, float wantfps);
@@ -3231,8 +3233,8 @@ void Host_Frame (double time)
 			return;
 		if (spare < 0 || cls.state < ca_onserver)
 			spare = 0;	//uncapped.
-		if (spare > 10)
-			spare = 10;
+		if (spare > cl_sparemsec.value)
+			spare = cl_sparemsec.value;
 
 		realtime -= spare/1000;	//don't use it all!
 	}

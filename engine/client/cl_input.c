@@ -1238,6 +1238,7 @@ qboolean CL_WriteDeltas (int plnum, sizebuf_t *buf)
 	return dontdrop;
 }
 
+#ifdef Q2CLIENT
 qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 {
 	int seq_hash;
@@ -1306,6 +1307,7 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 
 	return dontdrop;
 }
+#endif
 
 qboolean CL_SendCmdQW (sizebuf_t *buf)
 {

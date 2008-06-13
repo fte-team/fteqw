@@ -3132,11 +3132,11 @@ void COM_InitFilesystem (void)
 #ifdef _WIN32
 	{	//win32 sucks.
 		HMODULE shfolder = LoadLibrary("shfolder.dll");
+		HMODULE advapi32;
 		DWORD winver = (DWORD)LOBYTE(LOWORD(GetVersion()));
 
 		if (shfolder)
 		{
-			// 
 			HRESULT (WINAPI *dSHGetFolderPath) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath);
 			dSHGetFolderPath = (void *)GetProcAddress(shfolder, "SHGetFolderPathA");
 			if (dSHGetFolderPath)
@@ -3153,37 +3153,49 @@ void COM_InitFilesystem (void)
 			usehome = true; // always use home directory by default, as Vista+ mimics this behavior anyway
 		else if (winver >= 0x5) // Windows 2000/XP/2003
 		{
-			// on XP systems, only use a home directory by default if we're a limited user or if we're on a network			
-			BOOL isadmin, isonnetwork;
-			SID_IDENTIFIER_AUTHORITY ntauth = SECURITY_NT_AUTHORITY;
-			PSID adminSID, networkSID;
+			advapi32 = LoadLibrary("advapi32.dll");
 
-			isadmin = AllocateAndInitializeSid(&ntauth,
-				2,
-				SECURITY_BUILTIN_DOMAIN_RID,
-				DOMAIN_ALIAS_RID_ADMINS,
-				0, 0, 0, 0, 0, 0,
-				&adminSID); 
+			if (advapi32)
+			{ 
+				BOOL (WINAPI *dCheckTokenMembership) (HANDLE TokenHandle, PSID SidToCheck, PBOOL IsMember);
+				dCheckTokenMembership = (void *)GetProcAddress(advapi32, "CheckTokenMembership");
 
-			// just checking the network rid should be close enough to matching domain logins
-			isonnetwork = AllocateAndInitializeSid(&ntauth,
-				1,
-				SECURITY_NETWORK_RID,
-				0, 0, 0, 0, 0, 0, 0,
-				&networkSID);
+				if (dCheckTokenMembership)
+				{
+					// on XP systems, only use a home directory by default if we're a limited user or if we're on a network			
+					BOOL isadmin, isonnetwork;
+					SID_IDENTIFIER_AUTHORITY ntauth = SECURITY_NT_AUTHORITY;
+					PSID adminSID, networkSID;
 
-			if (isadmin && !CheckTokenMembership(0, adminSID, &isadmin))
-				isadmin = 0;
+					isadmin = AllocateAndInitializeSid(&ntauth,
+						2,
+						SECURITY_BUILTIN_DOMAIN_RID,
+						DOMAIN_ALIAS_RID_ADMINS,
+						0, 0, 0, 0, 0, 0,
+						&adminSID); 
 
-			if (isonnetwork && !CheckTokenMembership(0, networkSID, &isonnetwork))
-				isonnetwork = 0;
+					// just checking the network rid should be close enough to matching domain logins
+					isonnetwork = AllocateAndInitializeSid(&ntauth,
+						1,
+						SECURITY_NETWORK_RID,
+						0, 0, 0, 0, 0, 0, 0,
+						&networkSID);
 
-			usehome = isonnetwork || !isadmin;
+					if (isadmin && !dCheckTokenMembership(0, adminSID, &isadmin))
+						isadmin = 0;
 
-			FreeSid(networkSID);
-			FreeSid(adminSID);
+					if (isonnetwork && !dCheckTokenMembership(0, networkSID, &isonnetwork))
+						isonnetwork = 0;
+
+					usehome = isonnetwork || !isadmin;
+
+					FreeSid(networkSID);
+					FreeSid(adminSID);
+				}
+
+				FreeLibrary(advapi32);
+			}
 		}
-
 
 		if (!*com_homedir)
 		{

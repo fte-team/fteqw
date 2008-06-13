@@ -3058,7 +3058,7 @@ void COM_InitFilesystem (void)
 	int		i;
 
 	char *ev;
-
+	qboolean usehome;
 
 	int gamenum=-1;
 
@@ -3127,40 +3127,91 @@ void COM_InitFilesystem (void)
 	if (gamemode_info[gamenum].customexec)
 		Cbuf_AddText(gamemode_info[gamenum].customexec, RESTRICT_LOCAL);
 
+	usehome = false;
 
 #ifdef _WIN32
 	{	//win32 sucks.
-		ev = getenv("HOMEDRIVE");
-		if (ev)
-			strcpy(com_homedir, ev);
-		else
-			strcpy(com_homedir, "");
-		ev = getenv("HOMEPATH");
-		if (ev)
-			strcat(com_homedir, ev);
-		else
-			strcat(com_homedir, "/");
+		HMODULE shfolder = LoadLibrary("shfolder.dll");
+		DWORD winver = (DWORD)LOBYTE(LOWORD(GetVersion()));
+
+		if (shfolder)
+		{
+			// 
+			HRESULT (WINAPI *dSHGetFolderPath) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath);
+			dSHGetFolderPath = (void *)GetProcAddress(shfolder, "SHGetFolderPathA");
+			if (dSHGetFolderPath)
+			{
+				char folder[MAX_PATH];
+				// 0x5 == CSIDL_PERSONAL
+				if (dSHGetFolderPath(NULL, 0x5, NULL, 0, folder) == S_OK)
+					Q_snprintfz(com_homedir, sizeof(com_homedir), "%s/My Games/%s/", folder, FULLENGINENAME);
+			}
+			FreeLibrary(shfolder);
+		}
+
+		if (winver >= 0x6) // Windows Vista and above
+			usehome = true; // always use home directory by default, as Vista+ mimics this behavior anyway
+		else if (winver >= 0x5) // Windows 2000/XP/2003
+		{
+			// on XP systems, only use a home directory by default if we're a limited user or if we're on a network			
+			BOOL isadmin, isonnetwork;
+			SID_IDENTIFIER_AUTHORITY ntauth = SECURITY_NT_AUTHORITY;
+			PSID adminSID, networkSID;
+
+			isadmin = AllocateAndInitializeSid(&ntauth,
+				2,
+				SECURITY_BUILTIN_DOMAIN_RID,
+				DOMAIN_ALIAS_RID_ADMINS,
+				0, 0, 0, 0, 0, 0,
+				&adminSID); 
+
+			// just checking the network rid should be close enough to matching domain logins
+			isonnetwork = AllocateAndInitializeSid(&ntauth,
+				1,
+				SECURITY_NETWORK_RID,
+				0, 0, 0, 0, 0, 0, 0,
+				&networkSID);
+
+			if (isadmin && !CheckTokenMembership(0, adminSID, &isadmin))
+				isadmin = 0;
+
+			if (isonnetwork && !CheckTokenMembership(0, networkSID, &isonnetwork))
+				isonnetwork = 0;
+
+			usehome = isonnetwork || !isadmin;
+
+			FreeSid(networkSID);
+			FreeSid(adminSID);
+		}
+
+
+		if (!*com_homedir)
+		{
+			ev = getenv("USERPROFILE");
+			if (ev)
+				Q_snprintfz(com_homedir, sizeof(com_homedir), "%s/My Documents/My Games/%s/", ev, FULLENGINENAME);
+		}
 	}
 #else
 	//yay for unix!.
 	ev = getenv("HOME");
 	if (ev)
-		Q_strncpyz(com_homedir, ev, sizeof(com_homedir));
+	{
+		Q_snprintfz(com_homedir, sizeof(com_homedir), "%s/.fte/", ev);
+		usehome = true; // always use home on unix unless told not to
+	}
 	else
 		*com_homedir = '\0';
 #endif
 
-	if (!COM_CheckParm("-usehome"))
+	if (!usehome && !COM_CheckParm("-usehome"))
 		*com_homedir = '\0';
 
 	if (COM_CheckParm("-nohome"))
 		*com_homedir = '\0';
 
 	if (*com_homedir)
-	{
-		strcat(com_homedir, "/.fte/");
 		Con_Printf("Using home directory \"%s\"\n", com_homedir);
-	}
 
 //
 // start up with id1 by default

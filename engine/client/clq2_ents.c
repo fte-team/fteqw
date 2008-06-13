@@ -1646,12 +1646,14 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		{
 			if (s1->modelindex2 == 255)
 			{	// custom weapon
-				char *modelname = "male";
+				char *modelname;
 				char *skin;
 				ent.model=NULL;
 
 				player = &cl.players[(s1->skinnum&0xff)%MAX_CLIENTS];
 				modelname = Info_ValueForKey(player->userinfo, "skin");
+				if (!modelname[0])
+					modelname = "male";
 				skin = strchr(modelname, '/');
 				if (skin) *skin = '\0';
 

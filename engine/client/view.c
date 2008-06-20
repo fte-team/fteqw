@@ -1124,7 +1124,6 @@ void V_CalcRefdef (int pnum)
 	VectorCopy (cl.simorg[pnum], r_refdef.vieworg);
 
 	r_refdef.useperspective = true;
-	r_refdef.vieworg[2] += bob;
 
 // never let it sit exactly on a node line, because a water plane can
 // dissapear when viewed with the eye exactly on it.
@@ -1151,7 +1150,11 @@ void V_CalcRefdef (int pnum)
 		if (!cl.spectator || !cl_chasecam.value)
 			r_refdef.viewangles[ROLL] = 80;	// dead view angle
 	}
-
+	else
+	{
+		// v_viewheight only affects the view if the player is alive
+		r_refdef.vieworg[2] += bob;
+	}
 
 // offsets
 	AngleVectors (cl.simangles[pnum], forward, right, up);

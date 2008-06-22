@@ -1508,19 +1508,6 @@ void CL_SendCmd (double frametime)
 				msecstouse -= spare;
 		}
 	}
-	if (cl_netfps.value > 0 && !cl_indepphysics.value)
-	{//this chunk of code is here to stop the client from using too few msecs per packet
-		int spare;
-		// due to the mvdsv input problem we can't just fire off packets during an incomplete connection
-		// or the mod will think we're speed cheating
-		spare = CL_FilterTime(msecstouse, cl_netfps.value);
-		if (!spare && msecstouse < 200)
-			fullsend = false;
-		if (spare > cl_sparemsec.value)
-			spare = cl_sparemsec.value;
-		if (spare > 0)
-			msecstouse -= spare;
-	}
 
 	for (plnum = 0; plnum < cl.splitclients; plnum++)
 	{

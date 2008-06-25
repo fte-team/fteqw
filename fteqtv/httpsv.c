@@ -48,6 +48,7 @@ static void HTMLprintf(char *outb, int outl, char *fmt, ...)
 	va_list val;
 	char qfmt[8192*4];
 	char *inb = qfmt;
+	unsigned char inchar;
 
 	va_start(val, fmt);
 	vsnprintf(qfmt, sizeof(qfmt), fmt, val);
@@ -58,7 +59,8 @@ static void HTMLprintf(char *outb, int outl, char *fmt, ...)
 	outl -= 5;
 	while (outl > 0 && *inb)
 	{
-		if (*inb == '<')
+		inchar = qfont_table[*(unsigned char*)inb];
+		if (inchar == '<')
 		{
 			*outb++ = '&';
 			*outb++ = 'l';
@@ -66,7 +68,7 @@ static void HTMLprintf(char *outb, int outl, char *fmt, ...)
 			*outb++ = ';';
 			outl -= 4;
 		}
-		else if (*inb == '>')
+		else if (inchar == '>')
 		{
 			*outb++ = '&';
 			*outb++ = 'g';
@@ -74,7 +76,7 @@ static void HTMLprintf(char *outb, int outl, char *fmt, ...)
 			*outb++ = ';';
 			outl -= 4;
 		}
-		else if (*inb == '\n')
+		else if (inchar == '\n')
 		{
 			*outb++ = '<';
 			*outb++ = 'b';
@@ -83,7 +85,7 @@ static void HTMLprintf(char *outb, int outl, char *fmt, ...)
 			*outb++ = '>';
 			outl -= 5;
 		}
-		else if (*inb == '&')
+		else if (inchar == '&')
 		{
 			*outb++ = '&';
 			*outb++ = 'a';
@@ -94,7 +96,7 @@ static void HTMLprintf(char *outb, int outl, char *fmt, ...)
 		}
 		else
 		{
-			*outb++ = qfont_table[*(unsigned char*)inb];
+			*outb++ = inchar;
 			outl -= 1;
 		}
 		inb++;
@@ -258,6 +260,7 @@ static qboolean HTTPSV_GetHeaderField(char *s, char *field, char *buffer, int bu
 		{
 			*e = '\0';
 			colon = strchr(s, ':');
+			*e = '\n';
 			if (!colon)
 			{
 				if (!strncmp(field, s, fieldnamelen))
@@ -279,7 +282,7 @@ static qboolean HTTPSV_GetHeaderField(char *s, char *field, char *buffer, int bu
 							colon++;
 						while (buffersize > 2)
 						{
-							if (*colon == '\r' || *colon == '\n')
+							if (!*colon || *colon == '\r' || *colon == '\n')
 								break;
 							*buffer++ = *colon++;
 							buffersize--;
@@ -375,6 +378,62 @@ static void HTTPSV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *str
 					"", 
 					//5, 		256, 		64.	snprintf is not required, but paranoia is a wonderful thing.
 					streamtype, streamid, hostname);
+
+
+	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
+}
+
+static void HTTPSV_GenerateQWSVStub(cluster_t *cluster, oproxy_t *dest, char *method, char *streamid)
+{
+	char *s;
+	char buffer[1024];
+
+
+	char fname[256];
+	s = fname;
+	while (*streamid > ' ')
+	{
+		if (s > fname + sizeof(fname)-4)	//4 cos I'm too lazy to work out what the actual number should be
+			break;
+		if (*streamid == '%')
+		{
+			*s = 0;
+			streamid++;
+			if (*streamid <= ' ')
+				break;
+			else if (*streamid >= 'a' && *streamid <= 'f')
+				*s += 10 + *streamid-'a';
+			else if (*streamid >= 'A' && *streamid <= 'F')
+				*s += 10 + *streamid-'A';
+			else if (*streamid >= '0' && *streamid <= '9')
+				*s += *streamid-'0';
+
+			*s <<= 4;
+
+			streamid++;
+			if (*streamid <= ' ')
+				break;
+			else if (*streamid >= 'a' && *streamid <= 'f')
+				*s += 10 + *streamid-'a';
+			else if (*streamid >= 'A' && *streamid <= 'F')
+				*s += 10 + *streamid-'A';
+			else if (*streamid >= '0' && *streamid <= '9')
+				*s += *streamid-'0';
+
+			s++;
+		}
+		else
+			*s++ = *streamid++;
+	}
+	*s = 0;
+	streamid = fname;
+
+	HTTPSV_SendHTTPHeader(cluster, dest, "200", "text/x-quaketvident", false);
+
+	snprintf(buffer, sizeof(buffer), "[QTV]\r\n"
+					"%s: %s\r\n"
+					"", 
+					method, streamid);
 
 
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
@@ -746,6 +805,14 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 	else if (!strncmp((char*)pend->inbuffer+4, "/watch.qtv?demo=", 16))
 	{
 		HTTPSV_GenerateQTVStub(cluster, pend, "file:", (char*)pend->inbuffer+20);
+	}
+	else if (!strncmp((char*)pend->inbuffer+4, "/watch.qtv?join=", 16))
+	{
+		HTTPSV_GenerateQWSVStub(cluster, pend, "Join", (char*)pend->inbuffer+16);
+	}
+	else if (!strncmp((char*)pend->inbuffer+4, "/watch.qtv?obsv=", 16))
+	{
+		HTTPSV_GenerateQWSVStub(cluster, pend, "Observe", (char*)pend->inbuffer+16);
 	}
 //	else if (!strncmp((char*)pend->inbuffer+4, "/demo/", 6))
 //	{	//fixme: make this send the demo as an http download

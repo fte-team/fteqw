@@ -155,7 +155,7 @@ static void HTTPSV_SendHTMLFooter(cluster_t *cluster, oproxy_t *dest)
 	char *s;
 	char buffer[2048];
 
-	sprintf(buffer, "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\">www.fteqw.com</a><br />", cluster->buildnumber);
+	snprintf(buffer, sizeof(buffer), "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\">www.fteqw.com</a><br />", cluster->buildnumber);
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 
 	s = "</body>\n"
@@ -188,7 +188,7 @@ static void HTTPSV_GenerateNowPlaying(cluster_t *cluster, oproxy_t *dest)
 		HTMLPRINT("<dt>");
 		HTMLprintf(buffer, sizeof(buffer), "%s (%s: %s)", streams->server, streams->gamedir, streams->mapname);
 		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
-		sprintf(buffer, "<span class=\"qtvfile\"> [ <a href=\"/watch.qtv?sid=%i\">Watch Now</a> ]</span>", streams->streamid);
+		snprintf(buffer, sizeof(buffer), "<span class=\"qtvfile\"> [ <a href=\"/watch.qtv?sid=%i\">Watch Now</a> ]</span>", streams->streamid);
 		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 		HTMLPRINT("</dt><dd><ul class=\"playerslist\">");
 
@@ -277,11 +277,12 @@ static qboolean HTTPSV_GetHeaderField(char *s, char *field, char *buffer, int bu
 						colon++;
 						while (*colon == ' ')
 							colon++;
-						while (buffersize > 1)
+						while (buffersize > 2)
 						{
 							if (*colon == '\r' || *colon == '\n')
 								break;
 							*buffer++ = *colon++;
+							buffersize--;
 						}
 						*buffer = 0;
 						return true;
@@ -335,7 +336,16 @@ static void HTTPSV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *str
 			else if (*streamid >= '0' && *streamid <= '9')
 				*s += *streamid-'0';
 
+			//don't let hackers try adding extra commands to it.
+			if (*s == '$' || *s == ';' || *s == '\r' || *s == '\n')
+				continue;
+
 			s++;
+		}
+		else if (*streamid == '$' || *streamid == ';' || *streamid == '\r' || *streamid == '\n')
+		{
+			//don't let hackers try adding extra commands to it.
+			streamid++;
 		}
 		else
 			*s++ = *streamid++;
@@ -360,9 +370,10 @@ static void HTTPSV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *str
 
 	HTTPSV_SendHTTPHeader(cluster, dest, "200", "text/x-quaketvident", false);
 
-	sprintf(buffer, "[QTV]\r\n"
+	snprintf(buffer, sizeof(buffer), "[QTV]\r\n"
 					"Stream: %s%s@%s\r\n"
 					"", 
+					//5, 		256, 		64.	snprintf is not required, but paranoia is a wonderful thing.
 					streamtype, streamid, hostname);
 
 
@@ -553,7 +564,7 @@ static void HTTPSV_GenerateDemoListing(cluster_t *cluster, oproxy_t *dest)
 		Net_ProxySend(cluster, dest, link, strlen(link));
 	}
 
-	sprintf(link, "<P>Total: %i demos</P>", cluster->availdemoscount);
+	snprintf(link, sizeof(link), "<P>Total: %i demos</P>", cluster->availdemoscount);
 	Net_ProxySend(cluster, dest, link, strlen(link));
 
 	HTTPSV_SendHTMLFooter(cluster, dest);

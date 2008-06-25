@@ -704,7 +704,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	//make sure there's a double \n somewhere
 
-	for (s = pend->inbuffer; *s; s++)
+	for (s = pend->inbuffer; s<pend->inbuffer+pend->inbuffersize; s++)
 	{
 		if (s[0] == '\n' && (s[1] == '\n' || (s[1] == '\r' && s[2] == '\n')))
 			break;

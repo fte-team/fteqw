@@ -140,6 +140,7 @@ typedef enum
 	G_PRECAHCE_VWEP_MODEL,
 	G_SETPAUSE,
 	G_SETUSERINFO,
+	G_MOVETOGOAL,
 
 
 	G_MAX
@@ -1101,6 +1102,10 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 				return -1;	//denied!
 		}
 		//fallthrough
+
+	case G_MOVETOGOAL:
+		return !!WrapQCBuiltin(SV_MoveToGoal, offset, mask, arg, "f");
+
 	case G_SetBotUserInfo:
 		WrapQCBuiltin(PF_ForceInfoKey, offset, mask, arg, "ess");
 		return 0;

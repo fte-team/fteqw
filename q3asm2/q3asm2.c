@@ -166,6 +166,10 @@ enum segs {
 #define USEDATBLOCK 64
 #define STACKSIZE 0x10000
 
+#ifdef WIN32
+#define snprintf _snprintf
+#endif
+
 struct usedat {
 	struct usedat *next;
 	int count;
@@ -831,7 +835,7 @@ void AssembleFile(struct assembler *w, int fnum, char *filename)
 	f = fopen(filename, "rt");
 	if (!f)
 	{
-		_snprintf(linebuffer, sizeof(linebuffer)-1, "%s.asm", filename);
+		snprintf(linebuffer, sizeof(linebuffer)-1, "%s.asm", filename);
 		f = fopen(linebuffer, "rt");
 	}
 
@@ -1073,7 +1077,7 @@ int ParseCommandList(struct workload *w, int numcmds, char **cmds)
 				if (!f)
 				{
 					char blah[256];
-					_snprintf(blah, sizeof(blah)-1, "%s.q3asm", *cmds);
+					snprintf(blah, sizeof(blah)-1, "%s.q3asm", *cmds);
 					f = fopen(blah, "rt");
 				}
 				if (f)
@@ -1143,7 +1147,7 @@ int ParseCommandList(struct workload *w, int numcmds, char **cmds)
 
 				if (!strchr(*cmds, '.'))
 				{
-					_snprintf(w->output, sizeof(w->output)-1, "%s.qvm", *cmds);
+					snprintf(w->output, sizeof(w->output)-1, "%s.qvm", *cmds);
 				}
 				else
 				{

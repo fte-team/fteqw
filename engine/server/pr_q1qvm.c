@@ -735,7 +735,7 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 			trace_t		trace;
 			extern cvar_t pr_droptofloorunits;
 
-			ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->self);
+			ent = EDICT_NUM(svprogfuncs, arg[0]);
 
 			VectorCopy (ent->v->origin, end);
 			if (pr_droptofloorunits.value > 0)

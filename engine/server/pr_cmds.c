@@ -97,9 +97,9 @@ void PF_InitTempStrings(progfuncs_t *prinst);
 
 #ifdef SQL
 // SQL prototypes
-void SQL_Init();
-void SQL_KillServers();
-void SQL_DeInit();
+void SQL_Init(void);
+void SQL_KillServers(void);
+void SQL_DeInit(void);
 #endif
 
 typedef struct {
@@ -6270,7 +6270,7 @@ void PF_search_begin (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //	qboolean quiet = G_FLOAT(OFS_PARM2);
 	prvmsearch_t *s;
 
-	s = BZ_Malloc(sizeof(*s));
+	s = Z_Malloc(sizeof(*s));
 	s->fromprogs = prinst;
 	s->handle = prvm_nextsearchhandle++;
 
@@ -6489,7 +6489,7 @@ int sql_serverworker(void *sref)
 		}
 
 		if (!(server->mysql = mysql_real_connect(server->mysql, server->connectparams[0], server->connectparams[1], server->connectparams[2], server->connectparams[3], port, 0, 0)))
-			error = "MYSQL initial connect attempt failed";
+		error = "MYSQL initial connect attempt failed";
 
 		if (colon)
 			*colon = ':';
@@ -6507,7 +6507,7 @@ int sql_serverworker(void *sref)
 	{	
 		Sys_LockConditional(server->requestcondv);
 		if (!server->requests) // this is needed for thread startup and to catch any "lost" changes
-			Sys_ConditionWait(server->requestcondv);
+		Sys_ConditionWait(server->requestcondv);
 		needlock = false; // so we don't try to relock first round
 
 		while (1)
@@ -6696,7 +6696,7 @@ void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	server = (sqlserver_t *)Z_Malloc(sizeof(sqlserver_t) + tsize);
 	server->connectparams = BZ_Malloc(sizeof(char *) * SQL_CONNECT_PARAMS);
-	
+
 	tsize = 0;
 	for (i = 0; i < SQL_CONNECT_STRUCTPARAMS; i++)
 	{

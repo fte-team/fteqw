@@ -318,31 +318,32 @@ static void HTTPSV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *str
 		{
 			*s = 0;
 			streamid++;
-			if (*streamid <= ' ')
-				break;
-			else if (*streamid >= 'a' && *streamid <= 'f')
+			if (*streamid >= 'a' && *streamid <= 'f')
 				*s += 10 + *streamid-'a';
 			else if (*streamid >= 'A' && *streamid <= 'F')
 				*s += 10 + *streamid-'A';
 			else if (*streamid >= '0' && *streamid <= '9')
 				*s += *streamid-'0';
+			else
+				break;
 
 			*s <<= 4;
 
 			streamid++;
-			if (*streamid <= ' ')
-				break;
-			else if (*streamid >= 'a' && *streamid <= 'f')
+			if (*streamid >= 'a' && *streamid <= 'f')
 				*s += 10 + *streamid-'a';
 			else if (*streamid >= 'A' && *streamid <= 'F')
 				*s += 10 + *streamid-'A';
 			else if (*streamid >= '0' && *streamid <= '9')
 				*s += *streamid-'0';
+			else
+				break;
 
 			//don't let hackers try adding extra commands to it.
 			if (*s == '$' || *s == ';' || *s == '\r' || *s == '\n')
 				continue;
 
+			streamid++;
 			s++;
 		}
 		else if (*streamid == '$' || *streamid == ';' || *streamid == '\r' || *streamid == '\n')
@@ -399,14 +400,14 @@ static void HTTPSV_GenerateQWSVStub(cluster_t *cluster, oproxy_t *dest, char *me
 		{
 			*s = 0;
 			streamid++;
-			if (*streamid <= ' ')
-				break;
-			else if (*streamid >= 'a' && *streamid <= 'f')
+			if (*streamid >= 'a' && *streamid <= 'f')
 				*s += 10 + *streamid-'a';
 			else if (*streamid >= 'A' && *streamid <= 'F')
 				*s += 10 + *streamid-'A';
 			else if (*streamid >= '0' && *streamid <= '9')
 				*s += *streamid-'0';
+			else
+				break;
 
 			*s <<= 4;
 
@@ -419,7 +420,10 @@ static void HTTPSV_GenerateQWSVStub(cluster_t *cluster, oproxy_t *dest, char *me
 				*s += 10 + *streamid-'A';
 			else if (*streamid >= '0' && *streamid <= '9')
 				*s += *streamid-'0';
+			else
+				break;
 
+			streamid++;
 			s++;
 		}
 		else

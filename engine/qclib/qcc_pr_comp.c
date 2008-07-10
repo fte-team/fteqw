@@ -506,6 +506,52 @@ QCC_opcode_t pr_opcodes[] =
  {0, NULL}
 };
 
+
+pbool OpAssignsToC(unsigned int op)
+{
+	// calls, switches and cases DON'T
+	if(pr_opcodes[op].type_c == &type_void)
+		return false;
+	if(op >= OP_SWITCH_F && op <= OP_CALL8H)
+		return false;
+	if(op >= OP_RAND0 && op <= OP_RANDV2)
+		return false;
+	// they use a and b, but have 3 types
+	// safety
+	if(op >= OP_BITSET && op <= OP_BITCLRP)
+		return false;
+	/*if(op >= OP_STORE_I && op <= OP_STORE_FI)
+	  return false; <- add STOREP_*?*/
+	if(op == OP_STOREP_C || op == OP_LOADP_C)
+		return false;
+	if(op >= OP_MULSTORE_F && op <= OP_SUBSTOREP_V)
+		return false;
+	return true;
+}
+pbool OpAssignsToB(unsigned int op)
+{
+	if(op >= OP_BITSET && op <= OP_BITCLRP)
+		return true;
+	if(op >= OP_STORE_I && op <= OP_STORE_FI)
+		return true;
+	if(op == OP_STOREP_C || op == OP_LOADP_C)
+		return true;
+	if(op >= OP_MULSTORE_F && op <= OP_SUBSTOREP_V)
+		return true;
+	if(op >= OP_STORE_F && op <= OP_STOREP_FNC)
+		return true;
+	return false;
+}
+pbool OpAssignedTo(QCC_def_t *v, unsigned int op)
+{
+	if(OpAssignsToC(op))
+	{
+	} else if(OpAssignsToB(op))
+	{
+	}
+	return false;
+}
+
 #undef ASSOC_RIGHT_RESULT
 
 #define	TOP_PRIORITY	7
@@ -1455,7 +1501,11 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 		}
 		else if (((unsigned) ((op - pr_opcodes) - OP_STORE_F) < 6))
 		{
-			if (opt_assignments && var_a && var_a->ofs == statements[numstatements-1].c)// && var_a->ofs >RESERVED_OFS)
+			// remove assignments if what should be assigned is the 3rd operand of the previous statement?
+			// don't if it's a call, callH, switch or case
+			// && var_a->ofs >RESERVED_OFS)
+			if (OpAssignsToC(statements[numstatements-1].op) &&
+			    opt_assignments && var_a && var_a->ofs == statements[numstatements-1].c)
 			{
 				if (var_a->type->type == var_b->type->type)
 				{

@@ -494,7 +494,7 @@ extern	cvar_t	gl_cull;
 extern	cvar_t	gl_poly;
 extern	cvar_t	gl_smoothmodels;
 extern	cvar_t	gl_affinemodels;
-extern	cvar_t	gl_polyblend;
+extern	cvar_t	gl_nohwblend;
 extern	cvar_t	gl_keeptjunctions;
 extern	cvar_t	gl_reporttjunctions;
 extern	cvar_t	r_flashblend;

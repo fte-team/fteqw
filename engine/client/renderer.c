@@ -302,7 +302,7 @@ cvar_t gl_overbright_all					= SCVARF ("gl_overbright_all", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_picmip							= SCVAR  ("gl_picmip", "0");
 cvar_t gl_picmip2d							= SCVAR  ("gl_picmip2d", "0");
-cvar_t gl_polyblend							= SCVAR  ("gl_polyblend","1");
+cvar_t gl_nohwblend							= SCVAR  ("gl_nohwblend","1");
 cvar_t gl_savecompressedtex					= SCVAR  ("gl_savecompressedtex", "0");
 cvar_t gl_schematics						= SCVAR  ("gl_schematics", "0");
 cvar_t gl_skyboxdist						= SCVAR  ("gl_skyboxdist", "2300");
@@ -389,7 +389,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_cull, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_smoothmodels, GRAPHICALNICETIES);
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_polyblend, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_nohwblend, GLRENDEREROPTIONS);
 	Cvar_Register (&r_flashblend, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_playermip, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nocolors, GLRENDEREROPTIONS);

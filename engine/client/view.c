@@ -84,6 +84,7 @@ cvar_t	crosshairimage = SCVARF("crosshairimage", "", CVAR_RENDERERCALLBACK);
 cvar_t	crosshairalpha = SCVAR("crosshairalpha", "1");
 
 cvar_t	gl_cshiftpercent = SCVAR("gl_cshiftpercent", "100");
+cvar_t	gl_cshiftenabled = SCVAR("gl_polyblend", "1");
 
 cvar_t	v_bonusflash = SCVAR("v_bonusflash", "1");
 
@@ -652,11 +653,7 @@ void GLV_CalcBlend (void)
 	{
 //		if (j != CSHIFT_SERVER)
 //		{
-			if (!gl_cshiftpercent.value
-#ifdef RGLQUAKE
-				|| !gl_polyblend.value
-#endif
-				)
+			if (!gl_cshiftpercent.value || !gl_cshiftenabled.value)
 				continue;
 
 			a2 = ((cl.cshifts[j].percent * gl_cshiftpercent.value) / 100.0) / 255.0;
@@ -709,17 +706,28 @@ void GLV_UpdatePalette (qboolean force, double ftime)
 
 	for (i=0 ; i<CSHIFT_SERVER ; i++)
 	{
-		if (cl.cshifts[i].percent != cl.prev_cshifts[i].percent)
+		if (gl_nohwblend.value || !gl_cshiftenabled.value)
 		{
-			update = true;
-			cl.prev_cshifts[i].percent = cl.cshifts[i].percent;
-		}
-		for (j=0 ; j<3 ; j++)
-			if (cl.cshifts[i].destcolor[j] != cl.prev_cshifts[i].destcolor[j])
+			if (0 != cl.prev_cshifts[i].percent)
 			{
 				update = true;
-				cl.prev_cshifts[i].destcolor[j] = cl.cshifts[i].destcolor[j];
+				cl.prev_cshifts[i].percent = 0;
 			}
+		}
+		else
+		{
+			if (cl.cshifts[i].percent != cl.prev_cshifts[i].percent)
+			{
+				update = true;
+				cl.prev_cshifts[i].percent = cl.cshifts[i].percent;
+			}
+			for (j=0 ; j<3 ; j++)
+				if (cl.cshifts[i].destcolor[j] != cl.prev_cshifts[i].destcolor[j])
+				{
+					update = true;
+					cl.prev_cshifts[i].destcolor[j] = cl.cshifts[i].destcolor[j];
+				}
+		}
 	}
 
 // drop the damage value
@@ -737,6 +745,8 @@ void GLV_UpdatePalette (qboolean force, double ftime)
 		GLV_CalcBlend ();
 
 		a = v_blend[3];
+		if (gl_nohwblend.value)
+			a = 0;
 		r = 255*v_blend[0]*a;
 		g = 255*v_blend[1]*a;
 		b = 255*v_blend[2]*a;
@@ -1656,6 +1666,7 @@ void V_Init (void)
 	Cvar_Register (&cl_crossx, VIEWVARS);
 	Cvar_Register (&cl_crossy, VIEWVARS);
 	Cvar_Register (&gl_cshiftpercent, VIEWVARS);
+	Cvar_Register (&gl_cshiftenabled, VIEWVARS);
 
 	Cvar_Register (&cl_rollspeed, VIEWVARS);
 	Cvar_Register (&cl_rollangle, VIEWVARS);

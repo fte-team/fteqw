@@ -790,7 +790,7 @@ void R_PolyBlend (void)
 {
 	float shift[4];
 	extern qboolean gammaworks;
-	if ((!v_blend[3] || gammaworks) && !cl.cshifts[CSHIFT_SERVER].percent)
+	if ((!v_blend[3] || !gl_nohwblend.value) && !cl.cshifts[CSHIFT_SERVER].percent)
 		return;
 
 	GLV_CalcBlendServer(shift);	//figure out the shift we need (normally just the server specified one)

@@ -6841,12 +6841,13 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 		QCC_PR_Statement(pr_opcodes+OP_IFNOT, fasttrackpossible, NULL, &st);
 		//fetch_gbl takes: (float size, variant array[]), float index, variant pos
 		//note that the array size is coded into the globals, one index before the array.
-//		def->ofs--;
+
 		if (def->type->size >= 3)
 			QCC_PR_Statement3(&pr_opcodes[OP_FETCH_GBL_V], def, index, &def_ret, true);
 		else
 			QCC_PR_Statement3(&pr_opcodes[OP_FETCH_GBL_F], def, index, &def_ret, true);
-//		def->ofs++;
+
+		QCC_PR_Statement(&pr_opcodes[OP_RETURN], &def_ret, NULL, NULL);
 
 		//finish the jump
 		st->b = &statements[numstatements] - st;
@@ -7007,6 +7008,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 			QCC_PR_Statement3(&pr_opcodes[OP_STOREP_V], value, index, NULL, true);	//*b = a
 		else
 			QCC_PR_Statement3(&pr_opcodes[OP_STOREP_F], value, index, NULL, true);
+		QCC_PR_Statement(&pr_opcodes[OP_RETURN], value, NULL, NULL);
 
 		//finish the jump
 		st->b = &statements[numstatements] - st;

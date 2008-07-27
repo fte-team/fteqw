@@ -2070,7 +2070,10 @@ int QCC_PR_CheakCompConst(void)
 						*pr_file_p = '\0';
 						pr_file_p++;
 						while(*pr_file_p == ' ' || *pr_file_p == '\t')
+						{
 							pr_file_p++;
+							start++;
+						}
 						// move back by one char because we move forward by one at the end of the loop
 						pr_file_p--;
 						if (param == MAXCONSTANTPARAMS)
@@ -2078,9 +2081,10 @@ int QCC_PR_CheakCompConst(void)
 					} else if (*pr_file_p == ')' )
 						plevel--;
 
+					// see that *pr_file_p = '\0' up there? Must ++ BEFORE checking for !*pr_file_p
+					pr_file_p++;
 					if (!*pr_file_p)
 						QCC_PR_ParseError(ERR_EOF, "EOF on macro call");
-					pr_file_p++;
 				}
 				if (param < c->numparams)
 					QCC_PR_ParseError(ERR_TOOFEWPARAMS, "Not enough macro parameters");
@@ -2101,7 +2105,19 @@ int QCC_PR_CheakCompConst(void)
 					}
 					buffer[p] = 0;
 
-					if (*pr_file_p == '#')	//if you ask for #a##b you will be shot. use #a #b instead, or chain macros.
+					if(*pr_file_p == '\"')
+					{
+						do
+						{
+							buffer[p++] = *pr_file_p;
+							++pr_file_p;
+						} while( (pr_file_p[-1] == '\\' || pr_file_p[0] != '\"') && *pr_file_p && *pr_file_p != '\n' );
+						buffer[p++] = *pr_file_p; // copy the end-quote too
+						buffer[p] = 0;
+						++pr_file_p; // and skip it
+						continue;
+					}
+					else if (*pr_file_p == '#')	//if you ask for #a##b you will be shot. use #a #b instead, or chain macros.
 					{
 						if (pr_file_p[1] == '#')
 						{	//concatinate (srip out whitespace)
@@ -3311,4 +3327,6 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 }
 
 #endif
+
+
 

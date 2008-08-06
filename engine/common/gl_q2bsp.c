@@ -1660,14 +1660,14 @@ qboolean CMod_LoadLeafs (lump_t *l)
 		}
 
 		out->contents = LittleLong (in->contents);
-		out->cluster = LittleShort (in->cluster);
+		out->cluster = (unsigned short)LittleShort (in->cluster);
 		out->area = LittleShort (in->area);
-		out->firstleafbrush = LittleShort (in->firstleafbrush);
-		out->numleafbrushes = LittleShort (in->numleafbrushes);
+		out->firstleafbrush = (unsigned short)LittleShort (in->firstleafbrush);
+		out->numleafbrushes = (unsigned short)LittleShort (in->numleafbrushes);
 
 		out->firstmarksurface = loadmodel->marksurfaces +
-			LittleShort(in->firstleafface);
-		out->nummarksurfaces = LittleShort(in->numleaffaces);
+			(unsigned short)LittleShort(in->firstleafface);
+		out->nummarksurfaces = (unsigned short)LittleShort(in->numleaffaces);
 
 		if (out->cluster >= numclusters)
 			numclusters = out->cluster + 1;

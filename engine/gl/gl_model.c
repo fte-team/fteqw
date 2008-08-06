@@ -2032,8 +2032,8 @@ qboolean GLMod_LoadLeafs (lump_t *l)
 		out->contents = p;
 
 		out->firstmarksurface = loadmodel->marksurfaces +
-			LittleShort(in->firstmarksurface);
-		out->nummarksurfaces = LittleShort(in->nummarksurfaces);
+			(unsigned short)LittleShort(in->firstmarksurface);
+		out->nummarksurfaces = (unsigned short)LittleShort(in->nummarksurfaces);
 		
 		p = LittleLong(in->visofs);
 		if (p == -1)
@@ -2416,8 +2416,8 @@ qboolean GLMod_LoadMarksurfaces (lump_t *l)
 
 	for ( i=0 ; i<count ; i++)
 	{
-		j = LittleShort(in[i]);
-		if (j < 0 || j >= loadmodel->numsurfaces)
+		j = (unsigned short)LittleShort(in[i]);
+		if (j >= loadmodel->numsurfaces)
 		{
 			Con_Printf (CON_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
 			return false;

@@ -480,7 +480,7 @@ void Rank_AddUser_f (void)
 		return;
 	}
 
-	SV_FixupName(name, name);
+	SV_FixupName(name, name, sizeof(name));
 
 	if (!Rank_OpenRankings())
 	{
@@ -563,7 +563,7 @@ void Rank_SetPass_f (void)
 		return;
 	}
 
-	SV_FixupName(name, name);
+	SV_FixupName(name, name, sizeof(name));
 
 	id = rankfileheader.leader;
 	while(id)
@@ -592,7 +592,7 @@ int Rank_GetPass (char *name)
 		return 0;
 	}
 
-	SV_FixupName(name, name);
+	SV_FixupName(name, name, sizeof(name));
 
 	id = rankfileheader.leader;
 	while(id)

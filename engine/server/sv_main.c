@@ -197,7 +197,7 @@ char cvargroup_servercontrol[] = "server control variables";
 
 vfsfile_t	*sv_fraglogfile;
 
-void SV_FixupName(char *in, char *out);
+void SV_FixupName(char *in, char *out, unsigned int outlen);
 void SV_AcceptClient (netadr_t adr, int userid, char *userinfo);
 void Master_Shutdown (void);
 void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
@@ -1754,7 +1754,7 @@ client_t *SVC_DirectConnect(void)
 #endif
 	}
 
-	SV_FixupName(name, name);
+	SV_FixupName(name, name, sizeof(name));
 
 	if (!*name)
 	{
@@ -3642,14 +3642,20 @@ void Master_Shutdown (void)
 #define iswhite(c) (c == ' ' || c == INVIS_CHAR1 || c == INVIS_CHAR2 || c == INVIS_CHAR3)
 #define isinvalid(c) (c == '\r' || c == '\n')
 //is allowed to shorten, out must be as long as in and min of "unnamed"+1
-void SV_FixupName(char *in, char *out)
+void SV_FixupName(char *in, char *out, unsigned int outlen)
 {
 	char *s, *p;
+	unsigned int len;
+
+	if (outlen == 0)
+		return;
+
+	len = outlen;
 
 	s = out;
 	while(iswhite(*in) || isinvalid(*in))
 		in++;
-	while(*in)
+	while(*in && len > 0)
 	{
 		if (isinvalid(*in))
 		{
@@ -3657,13 +3663,15 @@ void SV_FixupName(char *in, char *out)
 			continue;
 		}
 		*s++ = *in++;
+		len--;
 	}
 	*s = '\0';
 
 	if (!*out)
 	{	//reached end and it was all whitespace
 		//white space only
-		strcpy(out, "unnamed");
+		strncpy(out, "unnamed", outlen);
+		out[outlen-1] = 0;
 		p = out;
 	}
 
@@ -3756,7 +3764,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 
 	if (cl->protocol != SCP_BAD || *val)
 	{
-		SV_FixupName(val, newname);
+		SV_FixupName(val, newname, sizeof(newname));
 		if (strlen(newname) > 40)
 			newname[40] = 0;
 	}

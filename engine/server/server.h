@@ -952,7 +952,7 @@ void SV_SaveInfos(vfsfile_t *f);
 void Master_Heartbeat (void);
 void Master_Packet (void);
 
-void SV_FixupName(char *in, char *out);
+void SV_FixupName(char *in, char *out, unsigned int outlen);
 
 //
 // sv_init.c

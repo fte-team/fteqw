@@ -521,7 +521,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if ( (to->effects&0xff00) != (fromeffects&0xff00) )
 		evenmorebits |= U_EFFECTS16;
 
-//	if ( to->modelindex != from->modelindex )
+	if ( to->modelindex != from->modelindex )
 	{
 		bits |= U_MODEL;
 		if (to->modelindex > 255)

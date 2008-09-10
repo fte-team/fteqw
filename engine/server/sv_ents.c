@@ -487,7 +487,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	for (i=0 ; i<3 ; i++)
 	{
 		miss = to->origin[i] - from->origin[i];
-//		if ( miss < -0.1 || miss > 0.1 )
+		if ( miss < -0.1 || miss > 0.1 )
 		{
 			bits |= U_ORIGIN1<<i;
 		}

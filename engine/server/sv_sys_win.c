@@ -1046,7 +1046,7 @@ void WINAPI StartQuakeServerService	(DWORD argc, LPTSTR *argv)
 	}
 
 
-	RegOpenKey(HKEY_LOCAL_MACHINE, "SOFTWARE\\FTE", &hk);
+	RegOpenKey(HKEY_LOCAL_MACHINE, "Software\\"DISTRIBUTIONLONG"\\"FULLENGINENAME, &hk);
 	RegQueryValueEx(hk, "servicepath", 0, &type, NULL, &pathlen);
 	if (type == REG_SZ && pathlen < sizeof(path))
 		RegQueryValueEx(hk, "servicepath", 0, NULL, path, &pathlen);
@@ -1184,8 +1184,8 @@ void CreateSampleService(qboolean create)
 	else
 	{
 		HKEY hk;
-		RegOpenKey(HKEY_LOCAL_MACHINE, "SOFTWARE\\"DISTRIBUTION, &hk);
-		if (!hk)RegCreateKey(HKEY_LOCAL_MACHINE, "SOFTWARE\\"DISTRIBUTION, &hk);
+		RegOpenKey(HKEY_LOCAL_MACHINE, "Software\\"DISTRIBUTIONLONG"\\"FULLENGINENAME, &hk);
+		if (!hk)RegCreateKey(HKEY_LOCAL_MACHINE, "Software\\"DISTRIBUTIONLONG"\\"FULLENGINENAME, &hk);
 		RegSetValueEx(hk, "servicepath", 0, REG_SZ, path, strlen(path));
 		RegCloseKey(hk);
 

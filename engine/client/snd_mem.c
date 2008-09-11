@@ -580,9 +580,10 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 
 //=============================================================================
 #ifdef DOOMWADS
-// needs fine tuning.. educated guesses
-#define DSPK_RATE 128
-#define DSPK_FREQ 31
+#define DSPK_RATE 140
+#define DSPK_BASE 170.0
+#define DSPK_EXP 0.0433
+
 
 sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
@@ -590,9 +591,10 @@ sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int snds
 
 	// format data from Unofficial Doom Specs v1.6
 	unsigned short *dataus;
-	int samples, len, timeraccum, inrate, inaccum;
+	int samples, len, inrate, inaccum;
 	qbyte *outdata;
 	qbyte towrite;
+	double timeraccum, timerfreq;
 
 	if (datalen < 4)
 		return NULL;
@@ -629,20 +631,24 @@ sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int snds
 	towrite = 0x40;
 	inrate = (int)((double)snd_speed / DSPK_RATE);
 	inaccum = inrate;
+	if (*data)
+		timerfreq = DSPK_BASE * pow((double)2.0, DSPK_EXP * (*data));
 
 	while (len > 0)
 	{
-		timeraccum += *data * DSPK_FREQ;
-		if (timeraccum > snd_speed)
+		timeraccum += timerfreq;
+		if (timeraccum > (float)snd_speed)
 		{
 			towrite ^= 0xFF; // swap speaker component
-			timeraccum -= snd_speed;
+			timeraccum -= (float)snd_speed;
 		}
 
 		inaccum--;
 		if (!inaccum)
 		{
 			data++;
+			if (*data)
+				timerfreq = DSPK_BASE * pow((double)2.0, DSPK_EXP * (*data));
 			inaccum = inrate;
 		}
 		*outdata = towrite;

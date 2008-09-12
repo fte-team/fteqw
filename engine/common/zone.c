@@ -81,6 +81,42 @@ zone_t *zone_head;
 void *zonelock;
 #endif
 
+static void Z_DumpTree()
+{
+	zone_t *zone;
+	zone_t *nextlist;
+	zone_t *t;
+	zone_t *prev;
+
+	zone = zone_head;
+	while(zone)
+	{
+		nextlist = zone->pvdn;
+
+		fprintf(stderr, " +-+ %016x (tag: %08x)\n", zone, zone->mh.tag);
+
+		prev = zone;
+		t = zone->next;
+		while(t)
+		{
+			if (t->pvdn != prev)
+				fprintf(stderr, "Previous link failure\n");
+
+			prev = t;
+			t = t->next;
+		}
+
+		while(zone)
+		{
+			fprintf(stderr, "   +-- %016x\n", zone);
+
+			zone = zone->next;
+		}
+
+		zone = nextlist;
+	}
+}
+
 void *VARGS Z_TagMalloc(int size, int tag)
 {
 	zone_t *zone;
@@ -96,16 +132,18 @@ void *VARGS Z_TagMalloc(int size, int tag)
 	if (zonelock)
 		Sys_LockMutex(zonelock);
 #endif
+
+#if 0
+	fprintf(stderr, "Before alloc:\n");
+	Z_DumpTree();
+	fprintf(stderr, "\n");
+#endif
+
 	if (zone_head == NULL)
 		zone_head = zone;
-	else if (zone_head->mh.tag == tag)
-	{
-		zone->next = zone_head->next;
-		zone_head->next = zone;
-	}
 	else
 	{
-		zone_t *s = zone_head->pvdn;
+		zone_t *s = zone_head;
 
 		while (s && s->mh.tag != tag)
 			s = s->pvdn;
@@ -113,14 +151,26 @@ void *VARGS Z_TagMalloc(int size, int tag)
 		if (s)
 		{ // tag match
 			zone->next = s->next;
+			if (s->next)
+				s->next->pvdn = zone;
+			zone->pvdn = s;
 			s->next = zone;
 		}
 		else
 		{
 			zone->pvdn = zone_head;
+			if (s->next)
+				s->next->pvdn = zone;
 			zone_head = zone;
 		}
 	}
+
+#if 0
+	fprintf(stderr, "After alloc:\n");
+	Z_DumpTree();
+	fprintf(stderr, "\n");
+#endif
+
 #ifdef MULTITHREAD
 	if (zonelock)
 		Sys_UnlockMutex(zonelock);
@@ -147,12 +197,19 @@ void VARGS Z_TagFree(void *mem)
 {
 	zone_t *zone = ((zone_t *)mem) - 1;
 
+#if 0
+	fprintf(stderr, "Before free:\n");
+	Z_DumpTree();
+	fprintf(stderr, "\n");
+#endif
+
 #ifdef MULTITHREAD
 	if (zonelock)
 		Sys_LockMutex(zonelock);
 #endif
 	if (zone->next)
 		zone->next->pvdn = zone->pvdn;
+
 	if (zone->pvdn && zone->pvdn->mh.tag == zone->mh.tag)
 		zone->pvdn->next = zone->next;
 	else
@@ -162,9 +219,12 @@ void VARGS Z_TagFree(void *mem)
 		if (zone != s)
 		{ // traverse and update down list
 			while (s->pvdn != zone) 
-				s = s->next;
+				s = s->pvdn;
 
-			s->pvdn = zone->pvdn;
+			if (zone->next)
+				s->pvdn = zone->next;
+			else
+				s->pvdn = zone->pvdn;
 		}
 	}
 
@@ -175,6 +235,13 @@ void VARGS Z_TagFree(void *mem)
 		else // no more entries with this tag so move head down
 			zone_head = zone->pvdn;
 	}
+
+#if 0
+	fprintf(stderr, "After free:\n");
+	Z_DumpTree();
+	fprintf(stderr, "\n");
+#endif
+
 #ifdef MULTITHREAD
 	if (zonelock)
 		Sys_UnlockMutex(zonelock);

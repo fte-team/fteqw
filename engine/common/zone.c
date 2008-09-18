@@ -275,15 +275,15 @@ void VARGS Z_FreeTags(int tag)
 		{ // search for tag list and isolate it
 			zone_t *z;
 			z = zone_head;
-			while (z->next != NULL && z->next->mh.tag != tag)
-				z = z->next;
+			while (z->pvdn != NULL && z->pvdn->mh.tag != tag)
+				z = z->pvdn;
 
 			if (z->next == NULL)
 				taglist = NULL;
 			else
 			{
-				taglist = z->next;
-				z->next = z->next->next;
+				taglist = z->pvdn;
+				z->pvdn = z->pvdn->pvdn;
 			}
 		}
 	}

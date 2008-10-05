@@ -3169,7 +3169,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 			fieldtype = QCC_PR_NewType(newparm->name, ev_field);
 			fieldtype->aux_type = newparm;
 			fieldtype->size = newparm->size;
-			QCC_PR_GetDef(fieldtype, membername, pr_scope, 2, 1);
+			QCC_PR_GetDef(fieldtype, membername, pr_scope, 2, 1, false);
 
 
 			newparm->ofs = 0;//newt->size;

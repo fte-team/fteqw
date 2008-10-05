@@ -1,3 +1,6 @@
+
+#ifndef PROGSLIB_H
+#define PROGSLIB_H
 /*#define true 1
 #define false 0
 
@@ -303,3 +306,5 @@ typedef union eval_s
 
 #undef edict_t
 #undef globalvars_t
+
+#endif //PROGSLIB_H

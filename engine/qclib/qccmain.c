@@ -626,11 +626,11 @@ void QCC_WriteData (int crc)
 	}
 
 	//part of how compilation works. This def is always present, and never used.
-	def = QCC_PR_GetDef(NULL, "end_sys_globals", NULL, false, 0);
+	def = QCC_PR_GetDef(NULL, "end_sys_globals", NULL, false, 0, false);
 	if (def)
 		def->references++;
 
-	def = QCC_PR_GetDef(NULL, "end_sys_fields", NULL, false, 0);
+	def = QCC_PR_GetDef(NULL, "end_sys_fields", NULL, false, 0, false);
 	if (def)
 		def->references++;
 
@@ -639,11 +639,11 @@ void QCC_WriteData (int crc)
 		if (def->type->type == ev_vector || (def->type->type == ev_field && def->type->aux_type->type == ev_vector))
 		{	//do the references, so we don't get loadsa not referenced VEC_HULL_MINS_x
 			sprintf(element, "%s_x", def->name);
-			comp_x = QCC_PR_GetDef(NULL, element, def->scope, false, 0);
+			comp_x = QCC_PR_GetDef(NULL, element, def->scope, false, 0, false);
 			sprintf(element, "%s_y", def->name);
-			comp_y = QCC_PR_GetDef(NULL, element, def->scope, false, 0);
+			comp_y = QCC_PR_GetDef(NULL, element, def->scope, false, 0, false);
 			sprintf(element, "%s_z", def->name);
-			comp_z = QCC_PR_GetDef(NULL, element, def->scope, false, 0);
+			comp_z = QCC_PR_GetDef(NULL, element, def->scope, false, 0, false);
 
 			h = def->references;
 			if (comp_x && comp_y && comp_z)
@@ -1468,11 +1468,11 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	if (output_parms)
 	{	//this tends to confuse the brains out of decompilers. :)
 		numpr_globals = 1;
-		QCC_PR_GetDef(type_vector, "RETURN", NULL, true, 1)->references++;
+		QCC_PR_GetDef(type_vector, "RETURN", NULL, true, 1, false)->references++;
 		for (i = 0; i < MAX_PARMS; i++)
 		{
 			sprintf(name, "PARM%i", i);
-			QCC_PR_GetDef(type_vector, name, NULL, true, 1)->references++;
+			QCC_PR_GetDef(type_vector, name, NULL, true, 1, false)->references++;
 		}
 	}
 	else

@@ -36,7 +36,7 @@ void GoToDefinition(char *name)
 	}
 
 
-	def = QCC_PR_GetDef(NULL, name, NULL, false, 0);
+	def = QCC_PR_GetDef(NULL, name, NULL, false, 0, false);
 
 	if (def)
 	{

@@ -138,7 +138,6 @@ typedef struct edictrun_s
 
 // other fields from progs come immediately after
 } edictrun_t;
-#define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,edictrun_t,area)
 
 
 int Comp_Begin(progfuncs_t *progfuncs, int nump, char **parms);
@@ -417,9 +416,9 @@ var(unsigned int, max_fields_size);
 //initlib.c
 var(char *, addressablehunk);
 #define addressablehunk prinst->addressablehunk
-var(int, addressableused);
+var(unsigned int, addressableused);
 #define addressableused prinst->addressableused
-var(int, addressablesize);
+var(unsigned int, addressablesize);
 #define addressablesize prinst->addressablesize
 
 

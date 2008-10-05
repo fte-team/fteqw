@@ -757,7 +757,7 @@ extern	QCC_def_t	*pr_scope;
 extern	int		pr_error_count, pr_warning_count;
 
 void QCC_PR_NewLine (pbool incomment);
-QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool allocate, int arraysize);
+QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool allocate, int arraysize, pbool saved);
 
 void QCC_PR_PrintDefs (void);
 

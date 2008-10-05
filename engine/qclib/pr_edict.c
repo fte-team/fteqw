@@ -2006,6 +2006,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 			if (!resethunk)
 			{
+				char *eclassname;
 				func_t f;
 				if (!CheckSpawn)
 					CheckSpawn = PR_FindFunc(progfuncs, "CheckSpawn", -2);
@@ -2037,7 +2038,11 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					selfvar = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
 					selfvar->edict = EDICT_TO_PROG(progfuncs, ed);
 
-					f = PR_FindFunc(progfuncs, PR_StringToNative(progfuncs, var->string), PR_ANYBACK);
+					//DP_SV_SPAWNFUNC_PREFIX support
+					eclassname = PR_StringToNative(progfuncs, var->string);
+					f = PR_FindFunc(progfuncs, va("spawnfunc_%s", eclassname), PR_ANYBACK);
+					if (!f)
+						f = PR_FindFunc(progfuncs, eclassname, PR_ANYBACK);
 					if (f)
 					{
 						if (CheckSpawn)

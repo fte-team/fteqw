@@ -1770,22 +1770,22 @@ void CL_QTVPlay_f (void)
 			{
 				for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
 				{
-					if (*s == '\r' || *s == '\n')
+					if (*s == '\r' || *s == '\n' || *s == ';')
 						*s = 0;
 					else
 						break;
 				}
-				s = buffer+8;
+				s = buffer+7;
 				while(*s && *s <= ' ')
 					s++;
 				Cbuf_AddText(va("qtvplay \"%s\"\n", s), Cmd_ExecLevel);
 				break;
 			}
-			if (!strncmp(buffer, "Join=", 7) || !strncmp(buffer, "Join:", 7))
+			if (!strncmp(buffer, "Connect=", 8) || !strncmp(buffer, "Connect:", 8))
 			{
 				for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
 				{
-					if (*s == '\r' || *s == '\n')
+					if (*s == '\r' || *s == '\n' || *s == ';')
 						*s = 0;
 					else
 						break;
@@ -1793,14 +1793,29 @@ void CL_QTVPlay_f (void)
 				s = buffer+8;
 				while(*s && *s <= ' ')
 					s++;
-				Cbuf_AddText(va("join \"%s\"\n", s), Cmd_ExecLevel);
+				Cbuf_AddText(va("connect \"%s\"\n", s), Cmd_ExecLevel);
 				break;
 			}
-			if (!strncmp(buffer, "Observe=", 7) || !strncmp(buffer, "Observe:", 7))
+			if (!strncmp(buffer, "Join=", 5) || !strncmp(buffer, "Join:", 5))
 			{
 				for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
 				{
-					if (*s == '\r' || *s == '\n')
+					if (*s == '\r' || *s == '\n' || *s == ';')
+						*s = 0;
+					else
+						break;
+				}
+				s = buffer+5;
+				while(*s && *s <= ' ')
+					s++;
+				Cbuf_AddText(va("join \"%s\"\n", s), Cmd_ExecLevel);
+				break;
+			}
+			if (!strncmp(buffer, "Observe=", 8) || !strncmp(buffer, "Observe:", 8))
+			{
+				for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
+				{
+					if (*s == '\r' || *s == '\n' || *s == ';')
 						*s = 0;
 					else
 						break;

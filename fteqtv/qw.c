@@ -889,6 +889,8 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 	viewer->netchan.maxdatagramlen = MAX_NQDATAGRAM;
 	viewer->netchan.maxreliablelen = MAX_NQMSGLEN;
 
+	viewer->firstconnect = true;
+
 	viewer->next = cluster->viewers;
 	cluster->viewers = viewer;
 	for (i = 0; i < ENTITY_FRAMES; i++)
@@ -954,6 +956,8 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	viewer->netchan.message.maxsize = MAX_QWMSGLEN;
 	viewer->netchan.maxdatagramlen = MAX_QWMSGLEN;
 	viewer->netchan.maxreliablelen = MAX_QWMSGLEN;
+
+	viewer->firstconnect = true;
 
 	viewer->next = cluster->viewers;
 	cluster->viewers = viewer;
@@ -3717,6 +3721,11 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					v->commentator = NULL;
 					QW_SetCommentator(cluster, v, com);
 
+					if (v->firstconnect)
+					{
+						QW_StuffcmdToViewer(v, "f_qtv\n");
+						v->firstconnect = false;
+					}
 
 					if (!v->server)
 						QTV_Say(cluster, v->server, v, ".menu", false);

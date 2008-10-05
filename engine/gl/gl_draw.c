@@ -2224,8 +2224,8 @@ void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float 
 
 	if (w == 0 && h == 0)
 	{
-		w = 64;
-		h = 64;
+		w = pic->width;
+		h = pic->height;
 	}
 
 	if (scrap_dirty)

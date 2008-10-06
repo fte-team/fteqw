@@ -394,6 +394,7 @@ typedef struct viewer_s {
 	int menunum;
 	int menuop;
 	int fwdval;	//for scrolling up/down the menu using +forward/+back :)
+	int firstconnect;
 } viewer_t;
 
 //'other proxy', these are mvd stream clients.

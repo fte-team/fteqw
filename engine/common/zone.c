@@ -278,7 +278,7 @@ void VARGS Z_FreeTags(int tag)
 			while (z->pvdn != NULL && z->pvdn->mh.tag != tag)
 				z = z->pvdn;
 
-			if (z->next == NULL)
+			if (z->pvdn == NULL)
 				taglist = NULL;
 			else
 			{

@@ -2040,7 +2040,13 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 					//DP_SV_SPAWNFUNC_PREFIX support
 					eclassname = PR_StringToNative(progfuncs, var->string);
-					f = PR_FindFunc(progfuncs, va("spawnfunc_%s", eclassname), PR_ANYBACK);
+#ifdef _WIN32
+					_snprintf(filename, sizeof(filename), "spawnfunc_%s", eclassname);
+					filename[sizeof(filename)-1] = 0;
+#else
+					snprintf(filename, sizeof(filename), "spawnfunc_%s", eclassname);
+#endif
+					f = PR_FindFunc(progfuncs, filename, PR_ANYBACK);
 					if (!f)
 						f = PR_FindFunc(progfuncs, eclassname, PR_ANYBACK);
 					if (f)

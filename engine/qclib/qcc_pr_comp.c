@@ -2867,7 +2867,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	}
 
 	if (strchr(func->name, ':') && laststatement && statements[laststatement-1].op == OP_LOAD_FNC && statements[laststatement-1].c == func->ofs)
-	{	//we're entering C++ code with a different self.
+	{	//we're entering OO code with a different self.
 
 		//FIXME: problems could occur with hexen2 calling conventions when parm0/1 is 'self'
 		//thiscall. copy the right ent into 'self' (if it's not the same offset)
@@ -3620,6 +3620,7 @@ reloop:
 					qcc_usefulstatement = true;
 
 					nd = &def_ret;
+					def_ret.temp->used = true;
 					d=nd;
 					d->type = newtype;
 					return d;
@@ -3695,6 +3696,7 @@ reloop:
 					}
 
 					nd = &def_ret;
+					def_ret.temp->used = true;
 					d=nd;
 					d->type = newtype;
 					return d;
@@ -8159,7 +8161,7 @@ void QCC_PR_ParseDefs (char *classname)
 				continue;
 			}
 
-			if (pr_token_type == tt_name)
+				if (pr_token_type == tt_name)
 			{
 				unsigned int i;
 

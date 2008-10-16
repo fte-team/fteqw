@@ -758,6 +758,219 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 	case QCF_FTE:
 	case QCF_FTEDEBUG:
 		return true;
+	case QCF_DARKPLACES:
+		//all id opcodes.
+		if (num < OP_MULSTORE_F)
+			return true;
+		//extended opcodes.
+		//DPFIXME: this is a list of the extended opcodes. I was conservative regarding supported ones.
+		//         at the time of writing, these are the ones that look like they'll work just fine in Blub\0's patch.
+		//         the ones that looked too permissive with bounds checks, or would give false positives are disabled.
+		//         if the DP guys want I can change them as desired.
+		switch(num)
+		{
+		//maths and conditionals (simple opcodes that read from specific globals and write to a global)
+		case OP_ADD_I:
+		case OP_ADD_IF:
+		case OP_ADD_FI:
+		case OP_SUB_I:
+		case OP_SUB_IF:
+		case OP_SUB_FI:
+		case OP_MUL_I:
+		case OP_MUL_IF:
+		case OP_MUL_FI:
+		case OP_MUL_VI:
+		case OP_DIV_VF:
+		case OP_DIV_I:
+		case OP_DIV_IF:
+		case OP_DIV_FI:
+		case OP_BITAND_I:
+		case OP_BITOR_I:
+		case OP_BITAND_IF:
+		case OP_BITOR_IF:
+		case OP_BITAND_FI:
+		case OP_BITOR_FI:
+		case OP_GE_I:
+		case OP_LE_I:
+		case OP_GT_I:
+		case OP_LT_I:
+		case OP_AND_I:
+		case OP_OR_I:
+		case OP_GE_IF:
+		case OP_LE_IF:
+		case OP_GT_IF:
+		case OP_LT_IF:
+		case OP_AND_IF:
+		case OP_OR_IF:
+		case OP_GE_FI:
+		case OP_LE_FI:
+		case OP_GT_FI:
+		case OP_LT_FI:
+		case OP_AND_FI:
+		case OP_OR_FI:
+		case OP_NOT_I:
+		case OP_EQ_I:
+		case OP_EQ_IF:
+		case OP_EQ_FI:
+		case OP_NE_I:
+		case OP_NE_IF:
+		case OP_NE_FI:
+			return true;
+
+		//stores into a pointer (generated from 'ent.field=XXX')
+		case OP_STOREP_I:	//no worse than the other OP_STOREP_X functions
+		//reads from an entity field
+		case OP_LOAD_I:		//no worse than the other OP_LOAD_X functions.
+			return true;
+
+		//stores into the globals array.
+		//they can change any global dynamically, but thats no security risk.
+		//fteqcc will not automatically generate these.
+		//fteqw does not support them either.
+		case OP_GSTOREP_I:
+		case OP_GSTOREP_F:
+		case OP_GSTOREP_ENT:
+		case OP_GSTOREP_FLD:
+		case OP_GSTOREP_S:
+		case OP_GSTOREP_FNC:
+		case OP_GSTOREP_V:
+			return true;
+
+		//this opcode looks weird
+		case OP_GADDRESS://floatc = globals[inta + floatb] (fte does not support)
+			return true;
+
+		//fteqcc will not automatically generate these
+		//fteqw does not support them either, for that matter.
+		case OP_GLOAD_I://c = globals[inta]
+		case OP_GLOAD_F://note: fte does not support these
+		case OP_GLOAD_FLD:
+		case OP_GLOAD_ENT:
+		case OP_GLOAD_S:
+		case OP_GLOAD_FNC:
+			return true;
+		case OP_GLOAD_V:
+			return false;	//DPFIXME: this is commented out in the patch I was given a link to... because the opcode wasn't defined.
+
+		//these are reportedly functional.
+		case OP_CALL8H:
+		case OP_CALL7H:
+		case OP_CALL6H:
+		case OP_CALL5H:
+		case OP_CALL4H:
+		case OP_CALL3H:
+		case OP_CALL2H:
+		case OP_CALL1H:
+			return true;
+
+		case OP_RAND0:
+		case OP_RAND1:
+		case OP_RAND2:
+		case OP_RANDV0:
+		case OP_RANDV1:
+		case OP_RANDV2:
+			return true;
+
+		case OP_BITSET: // b |= a
+		case OP_BITCLR: // b &= ~a
+		case OP_BITSETP: // *b |= a
+		case OP_BITCLRP: // *b &= ~a
+			return false;	//FIXME: I do not fully follow the controversy over these.
+
+		case OP_SWITCH_F:
+		case OP_SWITCH_V:
+		case OP_SWITCH_S:
+		case OP_SWITCH_E:
+		case OP_SWITCH_FNC:
+		case OP_CASE:
+		case OP_CASERANGE:
+			return true;
+
+		//assuming the pointers here are fine, the return values are a little strange.
+		//but its fine
+		case OP_ADDSTORE_F:
+		case OP_ADDSTORE_V:
+		case OP_ADDSTOREP_F: // e.f += f
+		case OP_ADDSTOREP_V: // e.v += v
+		case OP_SUBSTORE_F:
+		case OP_SUBSTORE_V:
+		case OP_SUBSTOREP_F: // e.f += f
+		case OP_SUBSTOREP_V: // e.v += v
+			return true;
+
+		case OP_LOADA_I:
+		case OP_LOADA_F:
+		case OP_LOADA_FLD:
+		case OP_LOADA_ENT:
+		case OP_LOADA_S:
+		case OP_LOADA_FNC:
+		case OP_LOADA_V:
+			return false;	//DPFIXME: DP does not bounds check these properly. I won't generate them.
+			
+		case OP_CONV_ITOF:
+		case OP_CONV_FTOI:
+			return true;	//these look fine.
+
+		case OP_STOREP_C: // store a char in a string
+			return false; //DPFIXME: dp's bounds check may give false positives with expected uses.
+
+		case OP_MULSTORE_F:
+		case OP_MULSTORE_V:
+		case OP_MULSTOREP_F:
+		case OP_MULSTOREP_V: // e.v *= f
+		case OP_DIVSTORE_F:
+		case OP_DIVSTOREP_F:
+		case OP_STORE_IF:
+		case OP_STORE_FI:
+		case OP_STOREP_IF: // store a value to a pointer
+		case OP_STOREP_FI:
+		case OP_IFNOTS:
+		case OP_IFS:
+			return true;
+
+		case OP_CP_ITOF:
+		case OP_CP_FTOI:
+			return false;	//DPFIXME: These are not bounds checked at all.
+		case OP_GLOBALADDRESS:
+			return false;	//DPFIXME: DP will reject these pointers if they are ever used.
+		case OP_POINTER_ADD:
+			return true;	//just maths.
+
+		case OP_ADD_SF: //(char*)c = (char*)a + (float)b
+		case OP_SUB_S:  //(float)c = (char*)a - (char*)b
+			return true;
+		case OP_LOADP_C:        //load character from a string
+			return false;	//DPFIXME: DP looks like it'll reject these or wrongly allow.
+
+		case OP_LOADP_I:
+		case OP_LOADP_F:
+		case OP_LOADP_FLD:
+		case OP_LOADP_ENT:
+		case OP_LOADP_S:
+		case OP_LOADP_FNC:
+		case OP_LOADP_V:
+			return true;
+
+		case OP_POWER_I:
+		case OP_RSHIFT_I:
+		case OP_LSHIFT_I:
+			return true;
+
+		case OP_FETCH_GBL_F:
+		case OP_FETCH_GBL_S:
+		case OP_FETCH_GBL_E:
+		case OP_FETCH_GBL_FNC:
+		case OP_FETCH_GBL_V:
+			return false;	//DPFIXME: DP will not bounds check this properly, it is too permissive.
+		case OP_CSTATE:
+		case OP_CWSTATE:
+			return false;	//DP does not support this hexenc opcode.
+		case OP_THINKTIME:
+			return true;	//but it does support this one.
+
+		default:			//anything I forgot to mention is new.
+			return false;
+		}
 	}
 	return false;
 }
@@ -4220,7 +4433,7 @@ QCC_def_t *QCC_PR_Term (void)
 		
 		if (QCC_PR_CheckToken ("("))
 		{
-			if (keyword_float && QCC_PR_CheckToken("float"))	//check for type casts
+			if (QCC_PR_CheckKeyword(keyword_float, "float"))	//check for type casts
 			{
 				QCC_PR_Expect (")");
 				e = QCC_PR_Term();
@@ -8105,7 +8318,7 @@ void QCC_PR_ParseDefs (char *classname)
 			continue;
 		}
 
-		if (type->type == ev_field && QCC_PR_CheckToken ("alias"))
+		if (type->type == ev_field && QCC_PR_CheckName ("alias"))
 		{
 			QCC_PR_ParseError(ERR_INTERNAL, "FTEQCC does not support this variant of decompiled hexenc\nPlease obtain the original version released by Raven Software instead.");
 			name = QCC_PR_ParseName();
@@ -8161,6 +8374,34 @@ void QCC_PR_ParseDefs (char *classname)
 				continue;
 			}
 
+#pragma message("this is experimental")
+			if (pr_scope)
+			{
+				d = QCC_PR_Expression(TOP_PRIORITY, false);
+				if (d->constant)
+				{
+					for (i = 0; i < d->type->size; i++)
+						G_INT(def->ofs) = G_INT(d->ofs);
+					def->constant = !isvar;
+					def->initialized = 1;
+					continue;
+				}
+				else if (def->type->size >= 3)
+				{
+					QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_V], d, def, NULL));
+					def->constant = false;
+					def->initialized = false;
+					continue;
+				}
+				else
+				{
+					QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], d, def, NULL));
+					def->constant = false;
+					def->initialized = false;
+					continue;
+				}
+			}
+			else
 				if (pr_token_type == tt_name)
 			{
 				unsigned int i;
@@ -8193,7 +8434,7 @@ void QCC_PR_ParseDefs (char *classname)
 					def->constant = false;
 				else
 					def->constant = true;
-				if (QCC_PR_CheckToken("0"))
+				if (QCC_PR_CheckImmediate("0"))
 				{
 					def->constant = 0;
 					def->initialized = 1;	//fake function
@@ -8222,7 +8463,7 @@ void QCC_PR_ParseDefs (char *classname)
 					i = 0;
 					do
 					{
-						if (QCC_PR_CheckToken("0"))
+						if (QCC_PR_CheckImmediate("0"))
 							G_FUNCTION(def->ofs+i) = 0;
 						else
 						{

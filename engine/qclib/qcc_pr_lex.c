@@ -222,6 +222,71 @@ void	QCC_AddFile (char *filename);
 void QCC_PR_LexString (void);
 pbool QCC_PR_SimpleGetToken (void);
 
+int ParsePrecompilerIf(void)
+{
+	CompilerConstant_t *c;
+	int eval;
+	char *start = pr_file_p;
+	if (!QCC_PR_SimpleGetToken())
+	{	
+		if (*pr_file_p == '(')
+		{
+			eval = ParsePrecompilerIf();
+			while (*pr_file_p == ' ' || *pr_file_p == '\t')
+				pr_file_p++;
+			if (*pr_file_p != ')')
+				QCC_PR_ParseError(ERR_EXPECTED, "unclosed bracket condition\n");
+		}
+		else
+			QCC_PR_ParseError(ERR_EXPECTED, "expected bracket or constant\n");
+	}
+	else if (!strcmp(pr_token, "defined"))
+	{
+		while (*pr_file_p == ' ' || *pr_file_p == '\t')
+			pr_file_p++;
+		if (*pr_file_p != '(')
+			QCC_PR_ParseError(ERR_EXPECTED, "no opening bracket after defined\n");
+		else
+		{
+			pr_file_p++;
+
+			QCC_PR_SimpleGetToken();
+			eval = !!QCC_PR_CheckCompConstDefined(pr_token);
+
+			while (*pr_file_p == ' ' || *pr_file_p == '\t')
+				pr_file_p++;
+			if (*pr_file_p != ')')
+				QCC_PR_ParseError(ERR_EXPECTED, "unclosed defined condition\n");
+			pr_file_p++;
+		}
+	}
+	else
+	{
+		c = QCC_PR_CheckCompConstDefined(pr_token);
+		if (!c)
+			eval = false;
+		else
+			eval = atoi(c->value);
+	}
+
+	QCC_PR_SimpleGetToken();
+	if (!strcmp(pr_token, "||"))
+		eval = ParsePrecompilerIf()||eval;
+	else if (!strcmp(pr_token, "&&"))
+		eval = ParsePrecompilerIf()&&eval;
+	else if (!strcmp(pr_token, "<="))
+		eval = eval <= ParsePrecompilerIf();
+	else if (!strcmp(pr_token, ">="))
+		eval = eval >= ParsePrecompilerIf();
+	else if (!strcmp(pr_token, "<"))
+		eval = eval < ParsePrecompilerIf();
+	else if (!strcmp(pr_token, ">"))
+		eval = eval > ParsePrecompilerIf();
+	else if (!strcmp(pr_token, "!="))
+		eval = eval != ParsePrecompilerIf();
+
+	return eval;
+}
 /*
 ==============
 QCC_PR_Precompiler
@@ -293,23 +358,19 @@ pbool QCC_PR_Precompiler(void)
 				//QCC_PR_ParseError("bad \"#if\" type");
 			}
 
-			QCC_PR_SimpleGetToken ();
-			level = 1;
-
-			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
-			{
-				pr_file_p++;
-			}
-	//		pr_file_p++;
-	//		pr_source_line++;
-
 			if (ifmode == 2)
 			{
-				if (atof(pr_token))
-					eval = true;
+				eval = ParsePrecompilerIf();
+
+				if(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+				{
+					QCC_PR_ParseError (ERR_NOENDIF, "junk on the end of #if line");
+				}
 			}
 			else
 			{
+				QCC_PR_SimpleGetToken ();
+
 	//			if (!STRCMP(pr_token, "COOP_MODE"))
 	//				eval = false;
 				if (QCC_PR_CheckCompConstDefined(pr_token))
@@ -318,6 +379,12 @@ pbool QCC_PR_Precompiler(void)
 				if (ifmode == 1)
 					eval = eval?false:true;		
 			}
+
+			while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+			{
+				pr_file_p++;
+			}
+			level = 1;
 
 			if (eval)
 				ifs+=1;
@@ -753,6 +820,8 @@ pbool QCC_PR_Precompiler(void)
 				}
 				else if (!QC_strcasecmp(msg, "KK7"))
 					qcc_targetformat = QCF_KK7;
+				else if (!QC_strcasecmp(msg, "DP") || !QC_strcasecmp(msg, "DARKPLACES"))
+					qcc_targetformat = QCF_DARKPLACES;
 				else if (!QC_strcasecmp(msg, "FTEDEBUG"))
 					qcc_targetformat = QCF_FTEDEBUG;
 				else if (!QC_strcasecmp(msg, "FTE"))
@@ -1595,6 +1664,8 @@ pbool QCC_PR_SimpleGetToken (void)
 {
 	int		c;
 	int		i;
+
+	pr_token[0] = 0;
 
 // skip whitespace
 	while ( (c = *pr_file_p) <= ' ')
@@ -2572,6 +2643,21 @@ Returns false and does nothing otherwise
 #ifndef COMMONINLINES
 pbool QCC_PR_CheckToken (char *string)
 {
+	if (pr_token_type != tt_punct)
+		return false;
+
+	if (STRCMP (string, pr_token))
+		return false;
+	
+	QCC_PR_Lex ();
+	return true;
+}
+
+pbool QCC_PR_CheckImmediate (char *string)
+{
+	if (pr_token_type != tt_immediate)
+		return false;
+
 	if (STRCMP (string, pr_token))
 		return false;
 	
@@ -2581,6 +2667,8 @@ pbool QCC_PR_CheckToken (char *string)
 
 pbool QCC_PR_CheckName(char *string)
 {
+	if (pr_token_type != tt_name)
+		return false;
 	if (flag_caseinsensative) 
 	{
 		if (stricmp (string, pr_token))
@@ -2972,13 +3060,13 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 					break;
 				}
 
-				if (QCC_PR_CheckToken("arg"))
+				if (QCC_PR_CheckName("arg"))
 				{
 					sprintf(argname, "arg%i", ftype->num_parms);
 					name = argname;
 					nptype = QCC_PR_NewType("Variant", ev_variant);
 				}
-				else if (QCC_PR_CheckToken("vect"))	//this can only be of vector sizes, so...
+				else if (QCC_PR_CheckName("vect"))	//this can only be of vector sizes, so...
 				{
 					sprintf(argname, "arg%i", ftype->num_parms);
 					name = argname;

@@ -308,6 +308,9 @@ enum {
 	OP_PUSH,	//push 4octets onto the local-stack (which is ALWAYS poped on function return). Returns a pointer.
 	OP_POP,		//pop those ones that were pushed (don't over do it). Needs assembler.
 
+	OP_SWITCH_I,//hmm.
+	OP_GLOAD_V,
+
 	OP_NUMOPS
 };
 

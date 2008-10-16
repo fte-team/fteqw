@@ -68,7 +68,7 @@ extern int MAX_CONSTANTS;
 #define MAXCONSTANTPARAMLENGTH 32
 #define MAXCONSTANTPARAMS 8
 
-typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_FTE, QCF_FTEDEBUG, QCF_KK7} qcc_targetformat_t;
+typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_DARKPLACES, QCF_FTE, QCF_FTEDEBUG, QCF_KK7} qcc_targetformat_t;
 extern qcc_targetformat_t qcc_targetformat;
 
 
@@ -872,6 +872,9 @@ extern qcc_cachedsourcefile_t *qcc_sourcefile;
 #ifdef COMMONINLINES
 bool inline QCC_PR_CheckToken (char *string)
 {
+	if (pr_token_type != tt_punct)
+		return false;
+
 	if (STRCMP (string, pr_token))
 		return false;
 

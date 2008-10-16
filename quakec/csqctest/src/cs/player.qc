@@ -365,7 +365,6 @@ void() RemovePlayer =
 {
 	if (self.haddied)
 	{
-		print("removeressed\n");
 		JustRessed();
 		self.haddied = false;
 	}
@@ -405,7 +404,6 @@ void(float isnew) RefreshPlayer =
 
 	if (isnew)
 	{
-print("new player!\n");
 		if (self.entnum == player_localentnum)
 		{
 			player_local = self;
@@ -422,28 +420,12 @@ print("new player!\n");
 	newskin = cvar_string("cg_forceskin");
 	if (newskin == "")
 		newskin = getplayerkeyvalue(self.entnum-1, "skin");
-/*	if (newskin == "")
-	{
-		if (self.oldskin != "")
-			newskin = strcat(self.oldskin);
-		else if (random() < 0.33)
-			newskin = "angelyss/neko";
-		else if (random() < 0.5)
-			newskin = "arachna/red";
-		else
-			newskin = "ayumi/jenna";
-	}
-*/
 	if (newskin != self.oldskin)
 	{
-print("changing to new model\n");
 		strunzone(self.oldskin);
 		self.oldskin = strzone(newskin);
 		if (!Anim_SetModel(self.oldskin))
-		{
-			if (self.oldskin!="")
-				print("couldn't set skin\n");
-			Anim_UnsetModel();
+		{			Anim_UnsetModel();
 		}
 /*
 		switch(Anim_GetGender())

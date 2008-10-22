@@ -15,6 +15,10 @@
 #define CSQC 1
 #endif
 
+#ifndef WORKINDP
+#pragma TARGET FTE
+#endif
+
 /*
 ==============================================================================
 

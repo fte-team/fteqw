@@ -2032,7 +2032,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 						for (nl = spawndata; *nl; nl++)
 							if (*nl == '\n')
 								*nl = '\t';
-						fulldata->string = spawndata - progfuncs->stringtable;
+						fulldata->string = PR_StringToProgs(progfuncs, spawndata);
 					}
 
 					selfvar = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));

@@ -1697,6 +1697,43 @@ pbool QCC_PR_SimpleGetToken (void)
 	return i!=0;
 }
 
+pbool QCC_PR_LexMacroName(void)
+{
+	int		c;
+	int		i;
+
+	pr_token[0] = 0;
+
+// skip whitespace
+	while ( (c = *pr_file_p) <= ' ')
+	{
+		if (c=='\n' || c == 0)
+			return false;
+		pr_file_p++;
+	}
+	if (pr_file_p[0] == '/')
+	{
+		if (pr_file_p[1] == '/')
+		{	//comment alert
+			while(*pr_file_p && *pr_file_p != '\n')
+				pr_file_p++;
+			return false;
+		}
+		if (pr_file_p[1] == '*')
+			return false;
+	}
+
+	i = 0;
+	while ( (c = *pr_file_p) > ' ' && c != ',' && c != ';' && c != ')' && c != '(' && c != ']' && !(pr_file_p[0] == '.' && pr_file_p[1] == '.'))
+	{
+		pr_token[i] = c;
+		i++;
+		pr_file_p++;
+	}
+	pr_token[i] = 0;
+	return i!=0;
+}
+
 void QCC_PR_MacroFrame(char *name, int value)
 {
 	int i;
@@ -1726,7 +1763,7 @@ void QCC_PR_MacroFrame(char *name, int value)
 
 void QCC_PR_ParseFrame (void)
 {
-	while (QCC_PR_SimpleGetToken ())
+	while (QCC_PR_LexMacroName ())
 	{
 		QCC_PR_MacroFrame(pr_token, pr_macrovalue++);
 	}
@@ -1746,7 +1783,7 @@ void QCC_PR_LexGrab (void)
 //		QCC_PR_ParseError ("hanging $");
 	if (*pr_file_p <= ' ')
 		QCC_PR_ParseError (ERR_BADFRAMEMACRO, "hanging $");
-	QCC_PR_SimpleGetToken();
+	QCC_PR_LexMacroName();
 	if (!*pr_token)
 		QCC_PR_ParseError (ERR_BADFRAMEMACRO, "hanging $");
 	
@@ -1764,27 +1801,27 @@ void QCC_PR_LexGrab (void)
 	|| !STRCMP (pr_token, "scale")
 	|| !STRCMP (pr_token, "skin") )
 	{	// skip to end of line
-		while (QCC_PR_SimpleGetToken ())
+		while (QCC_PR_LexMacroName ())
 		;
 		QCC_PR_Lex ();
 	}
 	else if (!STRCMP (pr_token, "flush"))
 	{
 		QCC_PR_ClearGrabMacros();
-		while (QCC_PR_SimpleGetToken ())
+		while (QCC_PR_LexMacroName ())
 		;
 		QCC_PR_Lex ();
 	}
 	else if (!STRCMP (pr_token, "framevalue"))
 	{
-		QCC_PR_SimpleGetToken ();
+		QCC_PR_LexMacroName ();
 		pr_macrovalue = atoi(pr_token);
 		
 		QCC_PR_Lex ();
 	}
 	else if (!STRCMP (pr_token, "framerestore"))
 	{
-		QCC_PR_SimpleGetToken ();
+		QCC_PR_LexMacroName ();
 		QCC_PR_ExpandMacro();
 		pr_macrovalue = (int)pr_immediate._float;
 		
@@ -1793,7 +1830,7 @@ void QCC_PR_LexGrab (void)
 	else if (!STRCMP (pr_token, "modelname"))
 	{
 		int i;
-		QCC_PR_SimpleGetToken ();
+		QCC_PR_LexMacroName ();
 
 		if (*pr_framemodelname)
 			QCC_PR_MacroFrame(pr_framemodelname, pr_macrovalue);

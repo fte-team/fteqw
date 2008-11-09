@@ -1683,6 +1683,18 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 						break;
 					tv->numinlines = j;
 				}
+
+				tv->modelindex_player = 0;
+				tv->modelindex_spike = 0;
+				for (j = 2; j < 256; j++)
+				{
+					if (!*tv->modellist[j].name)
+						break;
+					if (!strcmp(tv->modellist[j].name, "progs/player.mdl"))
+						tv->modelindex_player = j;
+					if (!strcmp(tv->modellist[j].name, "progs/spike.mdl"))
+						tv->modelindex_spike = j;
+				}
 				strcpy(tv->status, "Prespawning\n");
 			}
 			ConnectionData(tv, (void*)((char*)buf.data+buf.startpos), buf.readpos - buf.startpos, to, mask, QW);

@@ -291,4 +291,4 @@ void(float damage) spawn_touchblood =
 	vel = vel + 2*trace_plane_normal;
 	vel = vel * 0.4;
 	SpawnBlood (self.origin + vel, damage);
-};
+}; 

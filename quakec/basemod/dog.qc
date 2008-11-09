@@ -253,7 +253,7 @@ CheckDogMelee
 Returns TRUE if a melee attack would hit right now
 ==============
 */
-float(float enemy_range)	CheckDogMelee =
+BOOL(float enemy_range)	CheckDogMelee =
 {
 	if (enemy_range == RANGE_MELEE)
 	{	// FIXME: check canreach
@@ -269,7 +269,7 @@ CheckDogJump
 
 ==============
 */
-float()	CheckDogJump =
+BOOL()	CheckDogJump =
 {
 	local	vector	dist;
 	local	float	d;
@@ -296,7 +296,7 @@ float()	CheckDogJump =
 	return TRUE;
 };
 
-float(float enemy_range)	DogCheckAttack =
+BOOL(float enemy_range)	DogCheckAttack =
 {
 // if close enough for slashing, go for it
 	if (CheckDogMelee (enemy_range))
@@ -354,3 +354,4 @@ void() monster_dog =
 
 	walkmonster_start();
 };
+ 

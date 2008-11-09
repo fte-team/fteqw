@@ -1280,7 +1280,7 @@ ClientObituary
 called when a player dies
 ============
 */
-float(entity targ, entity attacker) OnSameTeam;
+BOOL(entity targ, entity attacker) OnSameTeam;
 
 void(entity targ, entity attacker, INTEGER mod) ClientObituary =
 {
@@ -1319,3 +1319,4 @@ void(entity targ, entity attacker, INTEGER mod) ClientObituary =
 	}
 };
 
+ 

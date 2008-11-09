@@ -230,7 +230,7 @@ CheckDemonMelee
 Returns TRUE if a melee attack would hit right now
 ==============
 */
-float(float enemy_range) CheckDemonMelee =
+BOOL(float enemy_range) CheckDemonMelee =
 {
 	if (enemy_range == RANGE_MELEE)
 	{	// FIXME: check canreach
@@ -246,7 +246,7 @@ CheckDemonJump
 
 ==============
 */
-float()	CheckDemonJump =
+BOOL()	CheckDemonJump =
 {
 	local	vector	dist;
 	local	float	d;
@@ -276,7 +276,7 @@ float()	CheckDemonJump =
 	return TRUE;
 };
 
-float(float enemy_range) DemonCheckAttack =
+BOOL(float enemy_range) DemonCheckAttack =
 {
 // if close enough for slashing, go for it
 	if (CheckDemonMelee (enemy_range))
@@ -354,3 +354,4 @@ void()	Demon_JumpTouch =
 	self.nextthink = time + 0.1;
 };
 
+ 

@@ -1,13 +1,15 @@
-
-#define FALSE 0
-#define TRUE 1
-
 #ifdef FTE
 // use real int if using FTE type progs
 #define INTEGER int
 #else
 #define INTEGER float
 #endif
+
+#define BOOL INTEGER
+
+
+#define FALSE ((BOOL)0)
+#define TRUE ((BOOL)1)
 
 /*
 ==============================================================================
@@ -425,7 +427,6 @@ float   EF_FLAG2                = 32;
 // float   movedist;
 
 string  string_null;    // null string, nothing should be held here
-float   empty_float;
 
 entity  activator;              // the entity that activated a trigger or brush
 
@@ -480,8 +481,8 @@ entity shub; // boss entity
 .INTEGER ammo_cells_real;	// real cells count
 
 // Zoid Additions
-.float		maxspeed;		// Used to set Maxspeed on a player
-.float		gravity;		// Gravity Multiplier (0 to 1.0)
+noref .float		maxspeed;		// Used to set Maxspeed on a player
+noref .float		gravity;		// Gravity Multiplier (0 to 1.0)
 
 .float          attack_finished; // used with lots of stuff...
 .float          pain_finished; // used with monsters/players
@@ -556,10 +557,9 @@ enum {
 };
 
 // unions
-// DO NOT MIX UNION TYPES LIKE I AM DOING
+//floats (includes vectors)
 .union {
 	struct { // fields used with world object
-		string wad;
 		float worldtype; 	// world type, 0=medieval 1=metal 2=base
 	};
 	struct { // fields used with triggers/doors/plats
@@ -567,7 +567,6 @@ enum {
 		float wait;			// time from firing to restarting
 		float t_length;		// override length to move sideways
 		float t_width; 		// override length to move upwards/downwards
-		void() think1;		// used with SUB_CalcMove
 		vector finaldest;		// used with SUB_CalcMove
 		vector finalangle;	// used with SUB_CalcMove
 		float count;		// for counting triggers
@@ -578,14 +577,11 @@ enum {
 		vector pos1;		// top position (doors/buttons/plats)
 		vector pos2;		// bottom position (doors/buttons/plats)
 		float height;		// height (plats/trigger_monsterjump)
-		string noise4;		// extra sound (doors)
-		entity trigger_field;	// used with linking (doors)
 		vector dest1;		// passed to CalcMove (doors)
 		vector dest2;		// passed to CalcMove (doors)
 	};
 	struct { // fields used with players
 		float weaponframe_time;		// weapon frame advance time
-		INTEGER weaponstate;		// firing state of current weapon
 		float suicide_time;     	// time to allow suicide after spawn
 		float healdecay; 			// time when health will decay
 		float show_hostile;		// used to alert monsters
@@ -604,32 +600,18 @@ enum {
 		float swim_flag;			// swim sound playback
 		float air_finished;		// when time > air_finished, start drowning
 		float waterdmg;			// damage water will deal when drowning
-		INTEGER walkframe;		// used with walking animation
 		float jump_flag;			// last z velocity used for falling damage
-		INTEGER ammo_type;		// ammo type in use
-	};
-	struct { // fields used with bubbles spawned from drowning
-		INTEGER bubble_count;   // keeps track of the number of bubbles
-		INTEGER bubble_state;	// associated with bubble progression
 	};
 	struct { // fields used with items
 		float healamount;	// amount healed with health item
-		INTEGER healtype;	// type of health with health item
-		string mdl;		// model used with SUB_regen
 		float ammo_count;	// ammo amount 
 	};
 	struct { // fields used with generic projectiles
 		float damage_direct;		// damage done with a direct hit
 		float damage_exp; 		// damage done from radius damage
 		float radius_exp;  		// radius of radius damage
-		INTEGER mod_direct;		// mod type for direct hit
-		INTEGER mod_exp; 			// mod type for radius damage
 		float expire_time;		// time when projectile dies
-		void() proj_think;		// extra think function used with projectile
 		float proj_think_time;		// interval between thinks
-		INTEGER proj_effect;		// effect used with projectile
-		INTEGER voided;			// projectile has been voided
-		float() proj_touch;		// extra touch function used with projectile
 	};
 	struct { // fields used with lights
 		float light_lev;	// not used by game, but parsed by light util
@@ -638,13 +620,6 @@ enum {
 	struct { // fields used with monsters
 		float search_time;	// search time intervals
 		float attack_state;	// current AI attack state
-		void() th_stand;		// standing animation
-		void() th_walk;		// walking animation
-		void() th_run;		// running animation
-		void() th_missile;	// ranged animation
-		void() th_melee;		// melee animation
-		entity oldenemy;		// old enemy
-		entity movetarget;	// target entity to move to
 		float pausetime;		// time to pause for monsters
 		float hknightattack;	// hell knight attack pattern
 		float lefty;		// ai slide move
@@ -661,6 +636,77 @@ enum {
 	};
 	*/
 };
+
+//integers
+.union {
+
+	struct { // fields used with players
+		INTEGER weaponstate;		// firing state of current weapon
+		INTEGER walkframe;		// used with walking animation
+		INTEGER ammo_type;		// ammo type in use
+	};
+	struct { // fields used with bubbles spawned from drowning
+		INTEGER bubble_count;   // keeps track of the number of bubbles
+		INTEGER bubble_state;	// associated with bubble progression
+	};
+	struct { // fields used with items
+		INTEGER healtype;	// type of health with health item
+	};
+	struct { // fields used with generic projectiles
+		INTEGER mod_direct;		// mod type for direct hit
+		INTEGER mod_exp; 			// mod type for radius damage
+		INTEGER proj_effect;		// effect used with projectile
+		INTEGER voided;			// projectile has been voided
+	};
+};
+
+//functions
+.union {
+	struct { // fields used with triggers/doors/plats
+		void() think1;		// used with SUB_CalcMove
+	};
+	struct { // fields used with generic projectiles
+		void() proj_think;		// extra think function used with projectile
+		float() proj_touch;		// extra touch function used with projectile
+	};
+	struct { // fields used with monsters
+		void() th_stand;		// standing animation
+		void() th_walk;		// walking animation
+		void() th_run;		// running animation
+		void() th_missile;	// ranged animation
+		void() th_melee;		// melee animation
+	};
+};
+
+
+//entities
+.union {
+	struct { // fields used with triggers/doors/plats
+		entity trigger_field;	// used with linking (doors)
+	};
+
+	struct { // fields used with monsters
+		entity oldenemy;		// old enemy
+		entity movetarget;	// target entity to move to
+	};
+};
+
+//strings
+.union {
+	struct { // fields used with world object
+		string wad; //mute it
+	};
+	struct { // fields used with triggers/doors/plats
+		string noise4;		// extra sound (doors)
+	};
+	struct { // fields used with items
+		string mdl;		// model used with SUB_regen
+	};
+};
+
+//mute those warnings (unions/structs do not support noref mid-struct, but a later def will propogate the noref flag)
+noref .string wad;
+noref .float light_lev;
 
 //===========================================================================
 	
@@ -789,5 +835,6 @@ void(entity targ, entity inflictor, entity attacker, float damage, INTEGER mod) 
 
 float (entity e, float healamount, float ignore) T_Heal; // health function
 
-float(entity targ, entity inflictor) CanDamage;
+BOOL(entity targ, entity inflictor) CanDamage;
 
+ 

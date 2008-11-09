@@ -287,7 +287,7 @@ entity(vector fmins, vector fmaxs) spawn_field =
 };
 
 
-float (entity e1, entity e2) EntitiesTouching =
+BOOL (entity e1, entity e2) EntitiesTouching =
 {
 	if (e1.mins_x > e2.maxs_x)
 		return FALSE;
@@ -767,4 +767,4 @@ void () func_door_secret =
 	self.oldorigin = self.origin;
 	if (!self.wait)
 		self.wait = 5;          // 5 seconds before closing
-};
+}; 

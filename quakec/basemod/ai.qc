@@ -158,7 +158,7 @@ visible
 returns 1 if the entity is visible to self, even if not infront ()
 =============
 */
-float (entity targ) visible =
+BOOL (entity targ) visible =
 {
 	local vector	spot1, spot2;
 	
@@ -182,7 +182,7 @@ infront
 returns 1 if the entity is in front (in sight) of self
 =============
 */
-float(entity targ) infront =
+BOOL(entity targ) infront =
 {
 	local vector	vec;
 	local float		dot;
@@ -350,7 +350,7 @@ checked each frame.  This means multi player games will have slightly
 slower noticing monsters.
 ============
 */
-float() FindTarget =
+BOOL() FindTarget =
 {
 	local entity	client;
 	local float		r;
@@ -570,7 +570,7 @@ FacingIdeal
 
 ============
 */
-float() FacingIdeal =
+BOOL() FacingIdeal =
 {
 	local	float	delta;
 	
@@ -582,11 +582,11 @@ float() FacingIdeal =
 
 
 //=============================================================================
-float(float enemy_range) DogCheckAttack;
-float(float enemy_range) WizardCheckAttack;
-float(float enemy_range) DemonCheckAttack;
+BOOL(float enemy_range) DogCheckAttack;
+BOOL(float enemy_range) WizardCheckAttack;
+BOOL(float enemy_range) DemonCheckAttack;
 
-float(float enemy_range) CheckAnyAttack =
+BOOL(float enemy_range) CheckAnyAttack =
 {
 
 	switch (self.classname)
@@ -748,3 +748,4 @@ void(float dist) ai_run =
 	movetogoal (dist);		// done in C code...
 };
 
+ 

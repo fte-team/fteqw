@@ -382,7 +382,7 @@ void() bubble_bob;
 testing air bubbles
 */
 
-var void() air_bubbles = SUB_Remove;
+noref var void() air_bubbles = SUB_Remove;
 
 void() make_bubbles =
 {
@@ -471,7 +471,7 @@ local float             rnd1, rnd2, rnd3;
 Just for the debugging level.  Don't use
 */
 
-var void() viewthing = SUB_Remove;
+noref var void() viewthing = SUB_Remove;
 
 /*
 ==============================================================================
@@ -609,3 +609,4 @@ void() ambient_swamp2 =
 	precache_sound ("ambience/swamp2.wav");
 	ambientsound (self.origin, "ambience/swamp2.wav", 0.5, ATTN_STATIC);
 };
+ 

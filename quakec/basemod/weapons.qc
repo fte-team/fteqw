@@ -548,7 +548,7 @@ PLAYER WEAPON USE
 ===============================================================================
 */
 // different from W_CheckNoAmmo due to SSG/SNG being able to fire 1 shot instead of 2...
-float(float wep) W_HasAmmo =
+BOOL(float wep) W_HasAmmo =
 {
 	switch (wep)
 	{
@@ -673,7 +673,7 @@ float() W_BestWeapon =
 	}
 };
 
-float() W_CheckNoAmmo =
+BOOL() W_CheckNoAmmo =
 {
 	if (self.currentammo > 0)
 		return TRUE;
@@ -1222,3 +1222,4 @@ void() testfunction =
 		return;
 };
 */
+ 

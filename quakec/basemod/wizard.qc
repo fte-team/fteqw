@@ -43,7 +43,7 @@ void() wiz_side1;
 WizardCheckAttack
 =================
 */
-float(float enemy_range) WizardCheckAttack =
+BOOL(float enemy_range) WizardCheckAttack =
 {
 	local vector	spot1, spot2;	
 	local entity	targ;
@@ -317,3 +317,4 @@ void() monster_wizard =
 		
 	flymonster_start ();
 };
+ 

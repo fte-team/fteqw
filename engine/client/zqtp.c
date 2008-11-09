@@ -76,6 +76,7 @@ void TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
 	TP_CVAR(cl_parseSay,		"1");	\
 	TP_CVAR(cl_parseFunChars,		"1");	\
 	TP_CVAR(cl_triggers,		"1");	\
+	TP_CVAR(tp_autostatus,		"$name $location");	/* things which will not always change, but are useful */ \
 	TP_CVAR(tp_forceTriggers,		"0");	\
 	TP_CVAR(tp_loadlocs,		"1");	\
 	TP_CVARC(cl_teamskin,		"", TP_SkinCvar_Callback);	\
@@ -170,6 +171,7 @@ TP_CVARS;
 
 extern cvar_t	host_mapname;
 
+void TP_UpdateAutoStatus(void);
 static void TP_FindModelNumbers (void);
 static void TP_FindPoint (void);
 char *TP_LocationName (vec3_t location);
@@ -179,6 +181,9 @@ char *TP_LocationName (vec3_t location);
 
 // this structure is cleared after entering a new map
 typedef struct tvars_s {
+	char	autoteamstatus[256];
+	float	autoteamstatus_time;
+
 	int		health;
 	int		items;
 	int		olditems;
@@ -1084,7 +1089,7 @@ char *Macro_CombinedHealth(void)
 	//work out the max useful armour
 	//this will under-exagurate, due to usage of ceil based on damage
 	m = h/(1-t);
-	if (a > m)
+	if (a > m && m > 0)
 		a = m;
 
 	h = h + a;
@@ -2006,6 +2011,7 @@ void TP_NewMap (void)
 			strlcpy (last_map, "", sizeof(last_map));
 	}
 
+	TP_UpdateAutoStatus();
 	TP_ExecTrigger ("f_newmap");
 }
 
@@ -2061,14 +2067,28 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 			*plr = player;
 		}
 		// check messagemode2
-		else if (s[0] == '(' && len+4 <= msglen && !cl.spectator &&
+		else if (s[0] == '(' && len+4 <= msglen &&
 			!strncmp(s+len+1, "): ", 3) &&
 			!strncmp(name, s+1, len))
 		{
 			// no team messages in teamplay 0, except for our own
-			if (i == cl.playernum[SP] || ( cl.teamplay &&
-				!strcmp(cl.players[cl.playernum[SP]].team, player->team)) )
-				flags |= TPM_TEAM;
+			if (cl.spectator)
+			{	
+				unsigned int track = Cam_TrackNum(0);
+				if (i == track || ( cl.teamplay &&
+					!strcmp(cl.players[track].team, player->team)) )
+				{
+					flags |= TPM_OBSERVEDTEAM;
+				}
+			}
+			else
+			{
+				if (i == cl.playernum[SP] || ( cl.teamplay &&
+					!strcmp(cl.players[cl.playernum[SP]].team, player->team)) )
+				{
+					flags |= TPM_TEAM;
+				}
+			}
 
 			*offset = len + 4;
 			*plr = player;
@@ -2997,6 +3017,43 @@ nothing:
 }
 
 
+void TP_UpdateAutoStatus(void)
+{
+	char newstatusbuf[sizeof(vars.autoteamstatus)];
+	char *newstatus;
+
+	if (vars.autoteamstatus_time < realtime)
+		return;
+
+	newstatus = Cmd_ExpandString(tp_autostatus.string, newstatusbuf, sizeof(newstatusbuf), tp_autostatus.restriction, true, true);
+	newstatus = TP_ParseMacroString(newstatus);
+
+	if (!strcmp(newstatus, vars.autoteamstatus))
+		return;
+	if (!*vars.autoteamstatus && !vars.health)
+	{
+		if (cls.state != ca_active)
+			strcpy(vars.autoteamstatus, newstatus);
+		return;	//don't start it with a death (stops spamming of locations when we originally connect, before spawning)
+	}
+	strcpy(vars.autoteamstatus, newstatus);
+
+	if (strchr(tp_autostatus.string, ';'))
+		return;	//don't take risks
+
+	if (tp_autostatus.latched_string)
+		return;
+
+	if (cl.spectator)	//don't spam as spectators, that's just silly
+		return;
+	if (!cl.teamplay)	//don't spam in deathmatch, that's just pointless
+		return;
+
+	//the tp code will reexpand it as part of the say team
+	Cbuf_AddText(va("say_team $\\%s\n", tp_autostatus.string), RESTRICT_LOCAL);
+	vars.autoteamstatus_time = realtime + 3;
+}
+
 void TP_StatChanged (int stat, int value)
 {
 	int		i;
@@ -3013,10 +3070,8 @@ void TP_StatChanged (int stat, int value)
 				if (!cl.spectator && CountTeammates())
 					TP_ExecTrigger ("f_respawn");
 			}
-			vars.health = value;
-			return;
 		}
-		if (vars.health > 0)
+		else if (vars.health > 0)
 		{		// We have just died
 
 			vars.droppedweapon = cl.stats[SP][STAT_ACTIVEWEAPON];
@@ -3068,6 +3123,8 @@ void TP_StatChanged (int stat, int value)
 	}
 
 	vars.stat_framecounts[stat] = cls.framecount;
+
+	TP_UpdateAutoStatus();
 }
 
 
@@ -3430,6 +3487,7 @@ void CL_SayMe_f (void)
 
 void CL_SayTeam_f (void)
 {
+	vars.autoteamstatus_time = realtime + 3;
 	CL_Say (true, NULL);
 }
 #endif

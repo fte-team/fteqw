@@ -240,7 +240,16 @@ skipwhite:
 		do
 		{
 			c = *data++;
-			if (c=='\"'||c=='\0')
+			if (c=='\\' && *data == '\"')
+				c = *data++;	//allow C-style string escapes
+			else if (c=='\\' && *data == '\\')
+				c = *data++;	// \ is now a special character so it needs to be marked up using itself
+			else if (c=='\\' && *data == 'n')
+			{					// and do new lines while we're at it.
+				c = '\n';
+				data++;
+			}
+			else if (c=='\"'||c=='\0')
 			{
 				qcc_token[len] = 0;
 				return data;
@@ -266,7 +275,7 @@ skipwhite:
 		data++;
 		len++;
 		c = *data;
-	if (c=='{' || c=='}'|| c==')'|| c=='(' || c=='\'' || c==':' || c=='\"' || c==',')
+		if (c=='{' || c=='}'|| c==')'|| c=='(' || c=='\'' || c==':' || c=='\"' || c==',')
 			break;
 	} while (c>32);
 	
@@ -314,11 +323,16 @@ skipwhite:
 		do
 		{
 			c = *data++;
-			if (c=='\"'||c=='\0')
-			{
-				qcc_token[len] = 0;
-				return data;
+			if (c=='\\' && *data == '\"')
+				c = *data++;	//allow C-style string escapes
+			else if (c=='\\' && *data == '\\')
+				c = *data++;	// \ is now a special character so it needs to be marked up using itself
+			else if (c=='\\' && *data == 'n')
+			{					// and do new lines while we're at it.
+				c = '\n';
+				data++;
 			}
+			else if (c=='\"'||c=='\0')
 			qcc_token[len] = c;
 			len++;
 		} while (1);
@@ -440,6 +454,7 @@ For abnormal program terminations
 */
 void VARGS QCC_Error (int errortype, const char *error, ...)
 {
+	extern int numsourcefiles;
 	va_list argptr;
 	char msg[2048];	
 
@@ -451,6 +466,8 @@ void VARGS QCC_Error (int errortype, const char *error, ...)
 
 
 	editbadfile(strings+s_file, pr_source_line);
+
+	numsourcefiles = 0;
 
 #ifndef QCC
 	longjmp(qcccompileerror, 1);	

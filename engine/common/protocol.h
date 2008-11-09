@@ -254,6 +254,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_updatestatstring 78
 #define svcfte_updatestatfloat 79
 
+#define svcfte_trailparticles	80		// [short] entnum [short] effectnum [vector] start [vector] end
+#define svcfte_pointparticles	81		// [short] effectnum [vector] start [vector] velocity [short] count
+#define svcfte_pointparticles1	82		// [short] effectnum [vector] start, same as svc_pointparticles except velocity is zero and count is 1
+
+
 
 //DP extended svcs
 #define svcdp_downloaddata	50
@@ -264,6 +269,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcdp_spawnbaseline2	55
 #define svcdp_entities		57
 #define svcdp_csqcentities 58
+#define	svcdp_spawnstaticsound2	59	// [coord3] [short] samp [byte] vol [byte] aten
+#define svcdp_trailparticles	60		// [short] entnum [short] effectnum [vector] start [vector] end
+#define svcdp_pointparticles	61		// [short] effectnum [vector] start [vector] velocity [short] count
+#define svcdp_pointparticles1	62		// [short] effectnum [vector] start, same as svc_pointparticles except velocity is zero and count is 1
 
 
 
@@ -323,6 +332,7 @@ enum clcq2_ops_e
 #define clc_tmove		6		// teleport request, spectator only
 #define clc_upload		7		// teleport request, spectator only
 
+#define clcdp_ackframe	50
 #define clcdp_ackdownloaddata 51
 
 
@@ -349,11 +359,10 @@ enum clcq2_ops_e
 						 (1<<13))
 
 
+#ifdef PEXT_HULLSIZE
+#define	PF_HULLSIZE_Z		(1<<14)
+#endif
 #define PF_EXTRA_PFS	(1<<15)
-
-//FIXME: Resolve this.
-
-// bits 11..13 are player move type bits
 
 #ifdef PEXT_SCALE
 #define	PF_SCALE_Z			(1<<16)
@@ -363,9 +372,6 @@ enum clcq2_ops_e
 #endif
 #ifdef PEXT_FATNESS
 #define	PF_FATNESS_Z		(1<<18)
-#endif
-#ifdef PEXT_HULLSIZE
-#define	PF_HULLSIZE_Z		(1<<14)
 #endif
 
 #define	PF_COLOURMOD		(1<<19)
@@ -761,6 +767,8 @@ typedef struct usercmd_s
 	//freestyle
 	qbyte weapon;
 	int servertime;
+	float fservertime;
+	float fclienttime;
 } usercmd_t;
 
 typedef struct q2usercmd_s

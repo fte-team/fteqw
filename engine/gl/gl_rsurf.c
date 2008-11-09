@@ -754,6 +754,9 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 #endif
 	int stride = LMBLOCK_WIDTH*lightmap_bytes;
 
+	if (!surf->samples)
+		return;
+
 	shift += 7; // increase to base value
 	surf->cached_dlight = (surf->dlightframe == r_framecount);
 
@@ -3186,6 +3189,7 @@ int GLAllocBlock (int w, int h, int *x, int *y)
 		if (!lightmap[texnum])
 		{
 			lightmap[texnum] = Z_Malloc(sizeof(*lightmap[texnum]));
+			lightmap[texnum]->modified = true;
 			// reset stainmap since it now starts at 255
 			memset(lightmap[texnum]->stainmaps, 255, sizeof(lightmap[texnum]->stainmaps));
 		}
@@ -3255,6 +3259,7 @@ int GLFillBlock (int texnum, int w, int h, int x, int y)
 		if (!lightmap[i])
 		{
 			lightmap[i] = BZ_Malloc(sizeof(*lightmap[i]));
+			lightmap[i]->modified = true;
 			for (l=0 ; l<LMBLOCK_HEIGHT ; l++)
 			{
 				lightmap[i]->allocated[l] = LMBLOCK_HEIGHT;
@@ -3263,7 +3268,16 @@ int GLFillBlock (int texnum, int w, int h, int x, int y)
 			//maybe someone screwed with my lightmap...
 			memset(lightmap[i]->lightmaps, 255, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
 			if (cl.worldmodel->lightdata)
+			{
 				memcpy(lightmap[i]->lightmaps, cl.worldmodel->lightdata+3*LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
+			}
+			else
+			{
+				char basename[MAX_QPATH];
+				COM_StripExtension(cl.worldmodel->name, basename, sizeof(basename));
+				lightmap_textures[i] = Mod_LoadHiResTexture(va("%s/lm_%04i", basename, i), NULL, true, false, false);
+				lightmap[i]->modified = false;
+			}
 
 		}
 		else
@@ -3522,6 +3536,7 @@ void GL_CreateSurfaceLightmap (msurface_t *surf, int shift)
 void GLSurf_DeInit(void)
 {
 	int i;
+	qglDeleteTextures(numlightmaps, lightmap_textures);
 	for (i = 0; i < numlightmaps; i++)
 	{
 		if (!lightmap[i])
@@ -3658,11 +3673,13 @@ void GL_BuildLightmaps (void)
 	{
 		if (!lightmap[i])
 			break;		// no more used
-		lightmap[i]->modified = false;
 		lightmap[i]->rectchange.l = LMBLOCK_WIDTH;
 		lightmap[i]->rectchange.t = LMBLOCK_HEIGHT;
 		lightmap[i]->rectchange.w = 0;
 		lightmap[i]->rectchange.h = 0;
+		if (!lightmap[i]->modified)
+			continue;
+		lightmap[i]->modified = false;
 		GL_Bind(lightmap_textures[i]);
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

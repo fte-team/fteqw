@@ -915,10 +915,13 @@ void GL_DoSwap (void)
 		}
 		else
 		{
-			if ((key_dest == key_game||mouseusedforgui) && !mouseactive && ActiveApp)
+			if ((key_dest == key_game||(mouseusedforgui && key_dest != key_console)) && ActiveApp)
 			{
-				IN_ActivateMouse ();
-				IN_HideMouse ();
+				if (!mouseactive)
+				{
+					IN_ActivateMouse ();
+					IN_HideMouse ();
+				}
 			}
 			else if (mouseactive && key_dest == key_console)
 			{//!(key_dest == key_game || mouseusedforgui)) {

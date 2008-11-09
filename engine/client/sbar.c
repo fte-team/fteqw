@@ -29,6 +29,7 @@ cvar_t scr_scoreboard_newstyle = SCVAR("scr_scoreboard_newstyle", "1");	// New s
 cvar_t scr_scoreboard_showfrags = SCVAR("scr_scoreboard_showfrags", "0");
 cvar_t scr_scoreboard_teamscores = SCVAR("scr_scoreboard_teamscores", "1");
 cvar_t scr_scoreboard_titleseperator = SCVAR("scr_scoreboard_titleseperator", "1");
+cvar_t sbar_teamstatus = SCVAR("sbar_teamstatus", "1");
 
 //===========================================
 //rogue changed and added defines
@@ -73,6 +74,8 @@ int			sb_updates;		// if >= vid.numpages, no update needed
 int			sb_hexen2_cur_item;//hexen2 hud
 qboolean	sb_hexen2_extra_info;//show the extra stuff
 float		sb_hexen2_item_time;
+
+qboolean	sbar_parsingteamstatuses;	//so we don't eat it if its not displayed
 
 #define STAT_MINUS		10	// num frame for '-' stats digit
 mpic_t		*sb_nums[2][11];
@@ -235,6 +238,17 @@ void Draw_FunString(int x, int y, unsigned char *str)
 			}
 			x += 8;
 			continue;
+		}
+		if (*str == '&' && str[1] == 'c')
+		{
+			// ezQuake color codes
+			if (ishexcode(str[2]) && ishexcode(str[3]) && ishexcode(str[4]))
+			{
+				// Just strip it for now
+				// TODO: Colorize the console properly
+				str += 5;
+				continue;
+			}
 		}
 messedup:
 		Draw_ColouredCharacter (x, y, (*str++) | ext);
@@ -1039,6 +1053,8 @@ void Sbar_Init (void)
 	Cvar_Register(&scr_scoreboard_showfrags, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_teamscores, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_titleseperator, "Scoreboard settings");
+
+	Cvar_Register(&sbar_teamstatus, "Status bar settings");
 
 	Cmd_AddCommand ("+showscores", Sbar_ShowScores);
 	Cmd_AddCommand ("-showscores", Sbar_DontShowScores);
@@ -1962,10 +1978,11 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	float val;
 	char *pclassname[] = {
 		"Unknown",
-		"Barbarian",
-		"Crusader",
 		"Paladin",
-		"Assasin"
+		"Crusader",	
+		"Necromancer",
+		"Assasin",
+		"Demoness"
 	};
 
 	if (!sb_hexen2_extra_info)
@@ -2045,7 +2062,7 @@ void Sbar_Hexen2DrawExtra (int pnum)
 		}
 	}
 
-	Sbar_DrawPic(134, 50, Draw_CachePic(va("gfx/cport%d.lmp", pclass)));
+	Sbar_DrawPic(134, 50, Draw_SafeCachePic(va("gfx/cport%d.lmp", pclass)));
 }
 
 void Sbar_Hexen2DrawBasic(int pnum)
@@ -2104,6 +2121,121 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	Sbar_Hexen2DrawItem(pnum, 144, 3, sb_hexen2_cur_item);
 }
 
+
+
+void Sbar_DrawTeamStatus(void)
+{
+	int p;
+	int y;
+	int track;
+
+	if (!sbar_teamstatus.value)
+		return;
+	y = -32;
+
+	track = Cam_TrackNum(0);
+	if (track == -1 || !cl.spectator)
+		track = cl.playernum[0];
+
+	for (p = 0; p < MAX_CLIENTS; p++)
+	{
+		if (cl.playernum[0] == p)	//self is not shown
+			continue;
+		if (track == p)	//nor is the person you are tracking
+			continue;
+
+		if (!*cl.players[p].teamstatus)	//only show them if they have something. no blank lines thanks
+			continue;
+		if (strcmp(cl.players[p].team, cl.players[track].team))
+			continue;
+
+		if (*cl.players[p].name)
+		{
+			Sbar_DrawFunString (0, y, cl.players[p].teamstatus);
+			y-=8;
+		}
+	}
+	sbar_parsingteamstatuses = true;
+}
+
+qboolean Sbar_UpdateTeamStatus(player_info_t *player, char *status)
+{
+	qboolean aswhite = false;
+	char *outb;
+	int outlen;
+	char *msgstart;
+	char *ledstatus;
+
+	if (*status != '\r')// && !(strchr(status, 0x86) || strchr(status, 0x87) || strchr(status, 0x88) || strchr(status, 0x89)))
+	{
+		if (*status != 'x' || status[1] != '\r')
+			return false;
+		status++;
+	}
+
+	if (*status == '\r')
+	{
+		while (*status == ' ' || *status == '\r')
+			status++;
+		ledstatus = status;
+		if (*(unsigned char*)ledstatus >= 0x86 && *(unsigned char*)ledstatus <= 0x89)
+		{
+			msgstart = strchr(status, ':');
+			if (!status)
+				return false;
+			if (msgstart)
+				status = msgstart+1;
+			else
+				ledstatus = NULL;
+		}
+		else
+				ledstatus = NULL;
+	}
+	else
+		ledstatus = NULL;
+
+	while (*status == ' ' || *status == '\r')
+		status++;
+
+	//fixme: handle { and } stuff (assume red?)
+	outb = player->teamstatus;
+	outlen = sizeof(player->teamstatus)-1;
+	if (ledstatus)
+	{
+		*outb++ = *ledstatus;
+		outlen--;
+	}
+
+	while(outlen>0 && *status)
+	{
+		if (*status == '{')
+		{
+			aswhite=true;
+			status++;
+			continue;
+		}
+		if (aswhite)
+		{
+			if (*status == '}')
+			{
+				aswhite = false;
+				status++;
+				continue;
+			}
+			*outb++ = *status++;
+		}
+		else
+			*outb++ = *status++|128;
+		outlen--;
+	}
+
+	*outb = '\0';
+
+	if (sbar_teamstatus.value == 2)
+		return sbar_parsingteamstatuses;
+	return false;
+}
+
 /*
 ===============
 Sbar_Draw
@@ -2120,6 +2252,8 @@ void Sbar_Draw (void)
 	headsup = !(cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1));
 	if ((sb_updates >= vid.numpages) && !headsup)
 		return;
+
+	sbar_parsingteamstatuses = false;
 
 
 #ifdef Q2CLIENT
@@ -2263,6 +2397,8 @@ void Sbar_Draw (void)
 #endif
 
 
+	if (sb_lines > 0)
+		Sbar_DrawTeamStatus();
 
 	if (sb_lines > 0 && cl.deathmatch)
 		Sbar_MiniDeathmatchOverlay ();

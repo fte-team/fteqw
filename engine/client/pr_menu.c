@@ -248,7 +248,11 @@ void PF_nonfatalobjerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //float	isserver(void)  = #60;
 void PF_isserver (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifdef CLIENTONLY
+	G_FLOAT(OFS_RETURN) = false;
+#else
 	G_FLOAT(OFS_RETURN) = sv.state != ss_dead;
+#endif
 }
 
 //float	clientstate(void)  = #62;
@@ -309,8 +313,12 @@ void PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pic = Draw_SafePicFromWad(str);
 	else
 	{
-		if (cls.state && !sv.active)
-			CL_CheckOrEnqueDownloadFile(str, str);
+		if (cls.state
+#ifndef CLIENTONLY
+			&& !sv.active
+#endif
+			)
+			CL_CheckOrEnqueDownloadFile(str, str, 0);
 
 		pic = Draw_SafeCachePic(str);
 	}
@@ -397,6 +405,18 @@ void PF_CL_drawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pos[0] += size[0];
 	}
 }
+
+void PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	PF_strlen(prinst, pr_globals);
+//	G_FLOAT(OFS_RETURN)*=8;
+}
+
+#define DRAWFLAG_NORMAL 0
+#define DRAWFLAG_ADD 1
+#define DRAWFLAG_MODULATE 2
+#define DRAWFLAG_MODULATE2 3
+
 #ifdef Q3SHADERS
 void GLDraw_ShaderPic (int x, int y, int width, int height, shader_t *pic, float r, float g, float b, float a);
 #endif
@@ -451,6 +471,67 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	G_FLOAT(OFS_RETURN) = 1;
 }
+
+void PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	float *size = G_VECTOR(OFS_PARM1);
+	char *picname = PR_GetStringOfs(prinst, OFS_PARM2);
+	float *srcPos = G_VECTOR(OFS_PARM3);
+	float *srcSize = G_VECTOR(OFS_PARM4);
+	float *rgb = G_VECTOR(OFS_PARM5);
+	float alpha = G_FLOAT(OFS_PARM6);
+	int flag = (int) G_FLOAT(OFS_PARM7);
+
+	mpic_t *p;
+
+	if(pos[2] || size[2])
+		Con_Printf("VM_drawsubpic: z value%s from %s discarded\n",(pos[2] && size[2]) ? "s" : " ",((pos[2] && size[2]) ? "pos and size" : (pos[2] ? "pos" : "size")));
+
+#ifdef RGLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+#ifdef Q3SHADERS
+		shader_t *s;
+
+		s = R_RegisterCustom(picname, NULL);
+		if (s)
+		{
+			GLDraw_ShaderPic(pos[0], pos[1], size[0], size[1], s, rgb[0], rgb[1], rgb[2], alpha);
+			return;
+		}
+#endif
+
+		if (flag == 1)	//add
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
+		else if(flag == 2)	//modulate
+			qglBlendFunc(GL_DST_COLOR, GL_ZERO);
+		else if(flag == 3)	//modulate*2
+			qglBlendFunc(GL_DST_COLOR,GL_SRC_COLOR);
+		else	//blend
+			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	}
+#endif
+
+	p = Draw_SafeCachePic(picname);
+
+	if (Draw_ImageColours)
+		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	if (Draw_Image)
+		Draw_Image(	pos[0], pos[1],
+					size[0], size[1],
+					srcPos[0], srcPos[1],
+					srcPos[0]+srcSize[0], srcPos[1]+srcSize[1],
+					p);
+
+#ifdef RGLQUAKE
+	if (qrenderer == QR_OPENGL)
+		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+#endif
+
+	G_FLOAT(OFS_RETURN) = 1;
+}
+
 //float	drawfill(vector position, vector size, vector rgb, float alpha, float flag) = #457;
 void PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -582,7 +663,8 @@ void PF_cl_setkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		break;
 	case 2:
 		// key_menu
-		key_dest = key_menu;
+		if (key_dest != key_console)
+			key_dest = key_menu;
 		m_state = m_menu_dat;
 		break;
 	case 1:
@@ -737,6 +819,8 @@ void PF_M_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_global
 	switch(hcg)
 	{
 	case SLIST_HOSTCACHEVIEWCOUNT:
+		CL_QueryServers();
+		NET_CheckPollSockets();
 		G_FLOAT(OFS_RETURN) = Master_NumSorted();
 		return;
 	case SLIST_HOSTCACHETOTALCOUNT:
@@ -791,6 +875,7 @@ void PF_M_sethostcachemasknumber(progfuncs_t *prinst, struct globalvars_s *pr_gl
 //void 	resorthostcache(void) = #618;
 void PF_M_resorthostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	Master_SortServers();
 }
 //void	sethostcachesort(float fld, float descending) = #619;
 void PF_M_sethostcachesort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1250,11 +1335,51 @@ builtin_t menu_builtins[] = {
 //100
 	skip100
 //200
-	skip100
+	skip10
+	skip10
+//220
+	skip1
+	PF_strstrofs,						// #221 float(string str, string sub[, float startpos]) strstrofs (FTE_STRINGS)
+	PF_str2chr,						// #222 float(string str, float ofs) str2chr (FTE_STRINGS)
+	PF_chr2str,						// #223 string(float c, ...) chr2str (FTE_STRINGS)
+	PF_strconv,						// #224 string(float ccase, float calpha, float cnum, string s, ...) strconv (FTE_STRINGS)
+	PF_strpad,						// #225 string(float chars, string s, ...) strpad (FTE_STRINGS)
+	PF_infoadd,						// #226 string(string info, string key, string value, ...) infoadd (FTE_STRINGS)
+	PF_infoget,						// #227 string(string info, string key) infoget (FTE_STRINGS)
+	PF_strncmp,							// #228 float(string s1, string s2, float len) strncmp (FTE_STRINGS)
+	PF_strncasecmp,					// #229 float(string s1, string s2) strcasecmp (FTE_STRINGS)
+//230
+	PF_strncasecmp,					// #230 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+	skip1
+//240
+	skip10
+	skip50
 //300
 	skip100
 //400
-	skip50
+	skip10
+	skip10
+	skip10
+	skip10
+//440
+	PF_buf_create,					// #440 float() buf_create (DP_QC_STRINGBUFFERS)
+	PF_buf_del,						// #441 void(float bufhandle) buf_del (DP_QC_STRINGBUFFERS)
+	PF_buf_getsize,					// #442 float(float bufhandle) buf_getsize (DP_QC_STRINGBUFFERS)
+	PF_buf_copy,					// #443 void(float bufhandle_from, float bufhandle_to) buf_copy (DP_QC_STRINGBUFFERS)
+	PF_buf_sort,					// #444 void(float bufhandle, float sortpower, float backward) buf_sort (DP_QC_STRINGBUFFERS)
+	PF_buf_implode,					// #445 string(float bufhandle, string glue) buf_implode (DP_QC_STRINGBUFFERS)
+	PF_bufstr_get,					// #446 string(float bufhandle, float string_index) bufstr_get (DP_QC_STRINGBUFFERS)
+	PF_bufstr_set,					// #447 void(float bufhandle, float string_index, string str) bufstr_set (DP_QC_STRINGBUFFERS)
+	PF_bufstr_add,					// #448 float(float bufhandle, string str, float order) bufstr_add (DP_QC_STRINGBUFFERS)
+	PF_bufstr_free,					// #449 void(float bufhandle, float string_index) bufstr_free (DP_QC_STRINGBUFFERS)
 //450
 	PF_Fixme,//0
 	PF_CL_is_cached_pic,//1
@@ -1268,24 +1393,82 @@ builtin_t menu_builtins[] = {
 	PF_CL_drawresetcliparea,//9
 
 //460
-	PF_CL_drawgetimagesize,//10
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
-	skip1
+	PF_CL_drawgetimagesize,//460
+	PF_cin_open,						// #461
+	PF_cin_close,						// #462
+	PF_cin_setstate,					// #463
+	PF_cin_getstate,					// #464
+	PF_cin_restart, 					// #465
+	PF_drawline,						// #466
+	PF_drawcolorcodedstring,		// #467
+	PF_CL_stringwidth,					// #468
+	PF_CL_drawsubpic,						// #469
+	
 //470
-	skip10
+	skip1					// #470
+	PF_asin,				// #471
+	PF_acos,					// #472
+	PF_atan,						// #473
+	PF_atan2,									// #474
+	PF_tan,									// #475
+	PF_strlennocol,									// #476
+	PF_strdecolorize,									// #477
+	PF_strftime,									// #478
+	PF_tokenizebyseparator,									// #479
+
 //480
-	skip10
+	PF_strtolower,						// #480 string(string s) VM_strtolower : DRESK - Return string as lowercase
+	PF_strtoupper,						// #481 string(string s) VM_strtoupper : DRESK - Return string as uppercase
+	skip1									// #482
+	skip1									// #483
+	PF_strreplace,						// #484 string(string search, string replace, string subject) strreplace (DP_QC_STRREPLACE)
+	PF_strireplace,					// #485 string(string search, string replace, string subject) strireplace (DP_QC_STRREPLACE)
+	skip1									// #486
+	PF_gecko_create,					// #487 float gecko_create( string name )
+	PF_gecko_destroy,					// #488 void gecko_destroy( string name )
+	PF_gecko_navigate,				// #489 void gecko_navigate( string name, string URI )
+
 //490
-	skip10
+	PF_gecko_keyevent,				// #490 float gecko_keyevent( string name, float key, float eventtype )
+	PF_gecko_movemouse,				// #491 void gecko_mousemove( string name, float x, float y )
+	PF_gecko_resize,					// #492 void gecko_resize( string name, float w, float h )
+	PF_gecko_get_texture_extent,	// #493 vector gecko_get_texture_extent( string name )
+	PF_crc16,						// #494 float(float caseinsensitive, string s, ...) crc16 = #494 (DP_QC_CRC16)
+	PF_cvar_type,					// #495 float(string name) cvar_type = #495; (DP_QC_CVAR_TYPE)
+	skip1									// #496
+	skip1									// #497
+	skip1									// #498
+	skip1									// #499
+
 //500
-	skip100
+	skip1									// #500
+	skip1									// #501
+	skip1									// #502
+	PF_whichpack,					// #503 string(string) whichpack = #503;
+	skip1									// #504
+	skip1									// #505
+	skip1									// #506
+	skip1									// #507
+	skip1									// #508
+	skip1									// #509
+
+//510
+	PF_uri_escape,					// #510 string(string in) uri_escape = #510;
+	PF_uri_unescape,				// #511 string(string in) uri_unescape = #511;
+	PF_etof,					// #512 float(entity ent) num_for_edict = #512 (DP_QC_NUM_FOR_EDICT)
+	PF_uri_get,						// #513 float(string uril, float id) uri_get = #513; (DP_QC_URI_GET)
+	skip1									// #514
+	skip1									// #515
+	skip1									// #516
+	skip1									// #517
+	skip1									// #518
+	skip1									// #519
+
+//520
+	skip10
+	skip10
+	skip10
+	skip50
 //600
 	skip1
 	PF_cl_setkeydest,
@@ -1458,7 +1641,7 @@ void MP_Init (void)
 
 	menuprogparms.gametime = &menutime;
 
-	menuprogparms.sv_edicts = (edict_t **)&menu_edicts;
+	menuprogparms.sv_edicts = (struct edict_s **)&menu_edicts;
 	menuprogparms.sv_num_edicts = &num_menu_edicts;
 
 	menuprogparms.useeditor = NULL;//sorry... QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
@@ -1539,6 +1722,8 @@ void MP_Reload_f(void)
 
 void MP_RegisterCvarsAndCmds(void)
 {
+	PF_Common_RegisterCvars();
+
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
 	Cmd_AddCommand("menu_restart", MP_Reload_f);
 

@@ -80,6 +80,19 @@ typedef struct nqglobalvars_s
 	func_t	*SetChangeParms;
 	float *cycle_wrapped;
 	float *dimension_send;
+
+
+	float *clientcommandframe;
+	float *input_timelength;
+	float *input_angles;
+	vec3_t *input_movevalues;
+	float *input_buttons;
+	float *pmove_jump_held;
+	float *pmove_waterjumptime;
+	vec3_t *pmove_org;
+	vec3_t *pmove_vel;
+	vec3_t *pmove_mins;
+	vec3_t *pmove_maxs;
 } nqglobalvars_t;
 
 #define P_VEC(v) (pr_global_struct->V_##v)
@@ -236,11 +249,14 @@ typedef struct extentvars_s
 
 	//csqc stuph.
 	func_t	SendEntity;
+	float	SendFlags;
 	float	Version;
 	float	pvsflags;
 
 	//FTE_ENT_UNIQUESPAWNID
 	float	uniquespawnid;
+
+	func_t customizeentityforclient;
 #ifdef VM_Q1
 } extentvars_t;
 #else

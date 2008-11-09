@@ -1,6 +1,7 @@
 #include "quakedef.h"
 #include "shader.h"
 
+
 //urm, yeah, this is more than just parse.
 
 #ifdef Q3CLIENT
@@ -536,7 +537,7 @@ void CLQ3_ParseGameState(void)
 
 		if(msg_badread)
 		{
-			Host_EndGame("CL_ParseGameState: read past end of server message");
+			Host_EndGame("CLQ3_ParseGameState: read past end of server message");
 		}
 
 		if(c == svcq3_eom)
@@ -549,17 +550,17 @@ void CLQ3_ParseGameState(void)
 		switch(c)
 		{
 		default:
-			Host_EndGame("CL_ParseGameState: bad command byte");
+			Host_EndGame("CLQ3_ParseGameState: bad command byte");
 			break;
 
 		case svcq3_configstring:
-			index = MSG_ReadShort();
+			index = MSG_ReadBits(16);
 			if (index < 0 || index >= MAX_Q3_CONFIGSTRINGS)
 			{
-				Host_EndGame("CL_ParseGameState: configString index %i out of range", index);
+				Host_EndGame("CLQ3_ParseGameState: configString index %i out of range", index);
 			}
 			configString = MSG_ReadString();
-			if (index == 1)
+			if (index == CFGSTR_SYSINFO)
 			{
 				//check some things.
 				cl.servercount = atoi(Info_ValueForKey(configString, "sv_serverid"));
@@ -572,7 +573,7 @@ void CLQ3_ParseGameState(void)
 			index = MSG_ReadBits(GENTITYNUM_BITS);
 			if (index < 0 || index >= MAX_GENTITIES)
 			{
-				Host_EndGame("CL_ParseGameState: baseline index %i out of range", index);
+				Host_EndGame("CLQ3_ParseGameState: baseline index %i out of range", index);
 			}
 			MSG_Q3_ReadDeltaEntity(NULL, &ccs.baselines[index], index);
 			break;
@@ -582,7 +583,7 @@ void CLQ3_ParseGameState(void)
 	cl.playernum[0] = MSG_ReadLong();
 	ccs.fs_key = MSG_ReadLong();
 
-	if (!CLQ3_SystemInfoChanged(CG_GetConfigString(1)))
+	if (!CLQ3_SystemInfoChanged(CG_GetConfigString(CFGSTR_SYSINFO)))
 		return;
 
 	CG_Restart_f();

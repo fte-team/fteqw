@@ -229,7 +229,7 @@ float Q_atof (char *str);
 
 extern	char		com_token[1024];
 
-typedef enum {TTP_UNKNOWN, TTP_STRING} com_tokentype_t;
+typedef enum {TTP_UNKNOWN, TTP_STRING, TTP_LINEENDING} com_tokentype_t;
 extern com_tokentype_t com_tokentype;
 
 extern	qboolean	com_eof;
@@ -289,11 +289,15 @@ typedef struct {
 	int				offset;
 	int				len;
 } flocation_t;
+struct vfsfile_s;
 
 typedef enum {FSLFRT_IFFOUND, FSLFRT_LENGTH, FSLFRT_DEPTH_OSONLY, FSLFRT_DEPTH_ANYPATH} FSLF_ReturnType_e;
 //if loc is valid, loc->search is always filled in, the others are filled on success.
 //returns -1 if couldn't find.
 int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *loc);
+struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
+char *FS_WhichPackForLocation(flocation_t *loc);
+
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
 char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly);
 
@@ -373,6 +377,10 @@ void COM_EnumerateFiles (char *match, int (*func)(char *, int, void *), void *pa
 
 extern	struct cvar_s	registered;
 extern qboolean standard_quake;	//fixme: remove
+
+void COM_Effectinfo_Reset(void);
+unsigned int COM_Effectinfo_ForName(char *efname);
+char *COM_Effectinfo_ForNumber(unsigned int efnum);
 
 #define	MAX_INFO_KEY	64
 char *Info_ValueForKey (char *s, const char *key);

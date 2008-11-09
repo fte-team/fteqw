@@ -1753,7 +1753,7 @@ void SV_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 		if (touch == clip->passedict)
 			continue;
 		if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
-			SV_Error ("Trigger in clipping list");
+			SV_Error ("Trigger (%s) in clipping list", PR_StringToNative(svprogfuncs, touch->v->classname));
 
 		if (clip->type & MOVE_NOMONSTERS && touch->v->solid != SOLID_BSP)
 			continue;

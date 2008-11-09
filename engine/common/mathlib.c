@@ -355,7 +355,7 @@ int VectorCompare (vec3_t v1, vec3_t v2)
 	return 1;
 }
 
-void VectorMA (vec3_t veca, float scale, vec3_t vecb, vec3_t vecc)
+void VectorMA (const vec3_t veca, const float scale, const vec3_t vecb, vec3_t vecc)
 {
 	vecc[0] = veca[0] + scale*vecb[0];
 	vecc[1] = veca[1] + scale*vecb[1];
@@ -409,6 +409,23 @@ vec_t Length(vec3_t v)
 	return length;
 }
 
+float Q_rsqrt(float number)
+{
+	int i;
+	float x2, y;
+	const float threehalfs = 1.5F;
+
+	x2 = number * 0.5F;
+	y  = number;
+	i  = * (int *) &y;						// evil floating point bit level hacking
+	i  = 0x5f3759df - (i >> 1);               // what the fuck?
+	y  = * (float *) &i;
+	y  = y * (threehalfs - (x2 * y * y));   // 1st iteration
+//	y  = y * (threehalfs - (x2 * y * y));   // 2nd iteration, this can be removed
+
+	return y;
+}
+
 float VectorNormalize (vec3_t v)
 {
 	float	length, ilength;
@@ -425,7 +442,17 @@ float VectorNormalize (vec3_t v)
 	}
 		
 	return length;
+}
 
+void VectorNormalizeFast(vec3_t v)
+{
+	float ilength;
+
+	ilength = Q_rsqrt(DotProduct(v, v));
+
+	v[0] *= ilength;
+	v[1] *= ilength;
+	v[2] *= ilength;
 }
 
 void VectorInverse (vec3_t v)
@@ -861,6 +888,12 @@ void Matrix4_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg
 
 	Matrix4_Multiply(tempmat, Matrix4_NewTranslation(-vieworg[0],  -vieworg[1],  -vieworg[2]), modelview);	    // put Z going up
 }
+
+void		Matrix4x4_CreateTranslate (matrix4x4_t *out, float x, float y, float z)
+{
+	memcpy(out, Matrix4_NewTranslation(x, y, z), sizeof(*out));
+}
+
 void Matrix4_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg)
 {
 	float tempmat[16];

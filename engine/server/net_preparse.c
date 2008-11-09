@@ -290,6 +290,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svcdp_showlmp:
 		case svcdp_hidelmp:
 			break;
+		case svc_sound:
 		case svc_temp_entity:
 			break;
 		case svc_setangle:
@@ -358,6 +359,24 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 	{
 		switch(majortype)
 		{
+		case svc_sound:
+#define	NQSND_VOLUME		(1<<0)		// a qbyte
+#define	NQSND_ATTENUATION	(1<<1)		// a qbyte
+#define DPSND_LOOPING		(1<<2)		// a long, supposedly
+#define DPSND_LARGEENTITY	(1<<3)
+#define DPSND_LARGESOUND	(1<<4)
+			protocollen = 5+sizeofcoord*3;
+			if (data & NQSND_VOLUME)
+				protocollen++;
+			if (data & NQSND_ATTENUATION)
+				protocollen++;
+			if (data & DPSND_LARGEENTITY)
+				protocollen++;
+			if (data & DPSND_LARGESOUND)
+				protocollen++;
+#pragma message("NPP_NQWriteByte: this ignores SVC_SOUND from nq mods (nexuiz)")
+			ignoreprotocol = true;
+			break;
 		case svc_temp_entity:
 			switch(data)
 			{

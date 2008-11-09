@@ -842,8 +842,8 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 
 	if (nq_dp_protocol > 0 && cls.signon == 4)
 	{
-		MSG_WriteByte(&cls.netchan.message, 50);
-		MSG_WriteLong(&cls.netchan.message, cl_latestframenum);
+		MSG_WriteByte(buf, clcdp_ackframe);
+		MSG_WriteLong(buf, cl_latestframenum);
 	}
 
 	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
@@ -872,7 +872,11 @@ float CL_FilterTime (double time, float wantfps)	//now returns the extra time no
 	else
 	{
 		fpscap = cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff;
-	
+#ifdef IRCCONNECT
+		if (cls.netchan.remote_address.type == NA_IRC)
+			fps = bound (0.1, wantfps, fpscap);	//if we're connected via irc, allow a greatly reduced minimum cap
+		else
+#endif
 		if (wantfps < 1)
 			fps = fpscap;
 		else
@@ -1466,6 +1470,9 @@ void CL_SendCmd (double frametime)
 	buf.cursize = 0;
 	buf.data = data;
 
+#ifdef IRCCONNECT
+	if (cls.netchan.remote_address.type != NA_IRC)
+#endif
 	if (msecs>150)	//q2 has 200 slop.
 		msecs=150;
 
@@ -1476,6 +1483,9 @@ void CL_SendCmd (double frametime)
 		msecs=0;	//erm.
 
 	msecstouse = (int)msecs; //casts round down.
+#ifdef IRCCONNECT
+	if (cls.netchan.remote_address.type != NA_IRC)
+#endif
 	if (msecstouse > 200) // cap at 200 to avoid servers splitting movement more than four times
 		msecstouse = 200;
 
@@ -1494,13 +1504,21 @@ void CL_SendCmd (double frametime)
 	if (!cl_indepphysics.value)
 	{
 		// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
-		if (cls.state < ca_active && CL_FilterTime(msecstouse, 12.5) == false)
+		if (cls.state < ca_active && CL_FilterTime(msecstouse, 
+#ifdef IRCCONNECT	//don't spam irc.
+			cls.netchan.remote_address.type == NA_IRC?0.5:
+#endif
+			12.5) == false)
 			fullsend = false; 
 		else if (cl_netfps.value > 0)
 		{
 			int spare;
 			spare = CL_FilterTime(msecstouse, cl_netfps.value);
-			if (!spare && msecstouse < 200)
+			if (!spare && (msecstouse < 200
+#ifdef IRCCONNECT
+				|| cls.netchan.remote_address.type == NA_IRC
+#endif
+				))
 				fullsend = false;
 			if (spare > cl_sparemsec.value)
 				spare = cl_sparemsec.value;
@@ -1548,13 +1566,18 @@ void CL_SendCmd (double frametime)
 		next = clientcmdlist->next;
 		if (clientcmdlist->reliable)
 		{
+			if (cls.netchan.message.cursize + 2+strlen(clientcmdlist->command) > cls.netchan.message.maxsize)
+				break;
 			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
 			MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
 		}
 		else
 		{
-			MSG_WriteByte (&buf, clc_stringcmd);
-			MSG_WriteString (&buf, clientcmdlist->command);
+			if (buf.cursize + 2+strlen(clientcmdlist->command) <= buf.maxsize)
+			{
+				MSG_WriteByte (&buf, clc_stringcmd);
+				MSG_WriteString (&buf, clientcmdlist->command);
+			}
 		}
 		Con_DPrintf("Sending stringcmd %s\n", clientcmdlist->command);
 		Z_Free(clientcmdlist);
@@ -1613,8 +1636,27 @@ void CL_SendCmd (double frametime)
 	if (cls.demorecording)
 		CL_WriteDemoCmd(cmd);
 
-//shamelessly stolen from fuhquake
-	if (cl_c2spps.value>0)
+#ifdef IRCCONNECT
+	if (cls.netchan.remote_address.type == NA_IRC)
+	{
+		if (dropcount >= 2)
+		{
+			dropcount = 0;
+		}
+		else
+		{
+			// don't count this message when calculating PL
+			cl.frames[i].receivedtime = -3;
+			// drop this message
+			cls.netchan.outgoing_sequence++;
+			dropcount++;
+			return;
+		}
+	}
+	else
+#endif
+	//shamelessly stolen from fuhquake
+		if (cl_c2spps.value>0)
 	{
 		pps_balance += frametime;
 		// never drop more than 2 messages in a row -- that'll cause PL

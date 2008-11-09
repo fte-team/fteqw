@@ -129,14 +129,15 @@ cvar_t  cl_gunanglex = SCVAR("cl_gunanglex", "0");
 cvar_t  cl_gunangley = SCVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez = SCVAR("cl_gunanglez", "0");
 
-cvar_t	allow_download_csprogs = SCVAR("allow_download_csprogs", "0");
+cvar_t	allow_download_csprogs = SCVARF("allow_download_csprogs", "0", CVAR_NOTFROMSERVER);
+cvar_t	allow_download_redirection = SCVARF("allow_download_redirection", "0", CVAR_NOTFROMSERVER);
+cvar_t	requiredownloads = SCVARF("requiredownloads","1", CVAR_ARCHIVE);
 
 cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
 
 cvar_t	cl_item_bobbing = SCVAR("cl_model_bobbing", "0");
 cvar_t	cl_countpendingpl = SCVAR("cl_countpendingpl", "0");
 
-cvar_t	requiredownloads = SCVARF("requiredownloads","1", CVAR_ARCHIVE);
 cvar_t	cl_standardchat = SCVARF("cl_standardchat", "0", CVAR_ARCHIVE);
 cvar_t	msg_filter = SCVAR("msg_filter", "0");	//0 for neither, 1 for mm1, 2 for mm2, 3 for both
 cvar_t  cl_standardmsg = SCVARF("cl_standardmsg", "0", CVAR_ARCHIVE);
@@ -396,6 +397,7 @@ void CL_SendConnectPacket (
 						   int compressioncrc
 						  /*, ...*/)	//dmw new parms
 {
+	extern cvar_t qport;
 	netadr_t	adr;
 	char	data[2048];
 	char playerinfo2[MAX_INFO_STRING];
@@ -456,7 +458,8 @@ void CL_SendConnectPacket (
 
 	connect_time = realtime+t2-t1;	// for retransmit requests
 
-	cls.qport = Cvar_VariableValue("qport");
+	cls.qport = qport.value;
+	Cvar_SetValue(&qport, (cls.qport+1)&0xffff);
 
 //	Info_SetValueForStarKey (cls.userinfo, "*ip", NET_AdrToString(adr), MAX_INFO_STRING);
 
@@ -641,6 +644,9 @@ void CL_CheckForResend (void)
 	CLQ3_SendAuthPacket(adr);
 #endif
 
+	if (connect_tries == 0)
+		NET_EnsureRoute(cls.sockets, "conn", cls.servername);
+
 #ifdef NQPROT
 	if (connect_type || ((connect_tries&3)==3))
 	{
@@ -796,72 +802,28 @@ void CLNQ_Connect_f (void)
 }
 #endif
 
+#ifdef IRCCONNECT
+struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboolean isserver, char *address);
+void CL_IRCConnect_f (void)
+{
+	CL_Disconnect_f ();
+
+	if (FTENET_AddToCollection(cls.sockets, "TCP", Cmd_Argv(2), FTENET_IRCConnect_EstablishConnection))
+	{
+		char *server;
+		server = Cmd_Argv (1);
+
+		strcpy(cls.servername, "irc://");
+		Q_strncpyz (cls.servername+6, server, sizeof(cls.servername)-6);
+		CL_BeginServerConnect();
+	}
+}
+#endif
+
 #ifdef TCPCONNECT
 void CL_TCPConnect_f (void)
 {
-	char buffer[6];
-	int newsocket;
-	int len;
-	int _true = true;
-
-	float giveuptime;
-
-	char	*server;
-
-	if (Cmd_Argc() != 2)
-	{
-		Con_TPrintf (TLC_SYNTAX_CONNECT);
-		return;
-	}
-
-	server = Cmd_Argv (1);
-
-	CL_Disconnect_f ();
-
-	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-
-	NET_StringToAdr(cls.servername, &cls.sockettcpdest);
-
-	if (cls.sockettcp != INVALID_SOCKET)
-		closesocket (cls.sockettcp);
-	cls.sockettcp = INVALID_SOCKET;
-	cls.tcpinlen = 0;
-
-	newsocket = TCP_OpenStream(cls.sockettcpdest);
-	if (newsocket == INVALID_SOCKET)
-	{
-		//failed
-		Con_Printf("Failed to connect, server is either down, firewalled, or on a different port\n");
-		return;
-	}
-
-	Con_Printf("Waiting for confirmation of server (10 secs)\n");
-
-	giveuptime = Sys_DoubleTime() + 10;
-
-	while(giveuptime > Sys_DoubleTime())
-	{
-		len = recv(newsocket, buffer, sizeof(buffer), 0);
-		if (!strncmp(buffer, "qizmo\n", 6))
-		{
-			cls.sockettcp = newsocket;
-			break;
-		}
-		SCR_UpdateScreen();
-	}
-
-	if (cls.sockettcp == INVALID_SOCKET)
-	{
-		Con_Printf("Timeout - wrong server type\n");
-		closesocket(newsocket);
-		return;
-	}
-	Con_Printf("Confirmed\n");
-
-	send(cls.sockettcp, buffer, sizeof(buffer), 0);
-	setsockopt(cls.sockettcp, IPPROTO_TCP, TCP_NODELAY, (char *)&_true, sizeof(_true));
-
-	CL_BeginServerConnect();
+	Cbuf_InsertText(va("connect tcp://%s", Cmd_Argv(1)), Cmd_ExecLevel, true);
 }
 #endif
 
@@ -990,7 +952,10 @@ void CL_ClearState (void)
 	for (i = 0; i < UPDATE_BACKUP; i++)
 	{
 		if (cl.frames[i].packet_entities.entities)
+		{
 			Z_Free(cl.frames[i].packet_entities.entities);
+			cl.frames[i].packet_entities.entities = NULL;
+		}
 	}
 
 	if (cl.lerpents)
@@ -1049,6 +1014,8 @@ void CL_ClearState (void)
 	cl.oldgametime = 0;
 	cl.gametime = 0;
 	cl.gametimemark = 0;
+
+	CL_RegisterParticles();
 }
 
 /*
@@ -1124,6 +1091,7 @@ void CL_Disconnect (void)
 		}
 
 		cls.state = ca_disconnected;
+		cls.protocol = CP_UNKNOWN;
 
 		cls.demoplayback = DPB_NONE;
 		cls.demorecording = cls.timedemo = false;
@@ -1192,7 +1160,6 @@ void CL_Disconnect (void)
 		V_ClearCShifts();
 	}
 
-	cls.protocol = CP_UNKNOWN;
 	cl.servercount = 0;
 	cls.findtrack = false;
 	cls.realserverip.type = NA_INVALID;
@@ -1200,14 +1167,9 @@ void CL_Disconnect (void)
 	Validation_DelatchRulesets();
 
 #ifdef TCPCONNECT
-	if (cls.sockettcp != INVALID_SOCKET)
-	{
-		closesocket(cls.sockettcp);
-		cls.sockettcp = INVALID_SOCKET;
-	}
+	//disconnects it, without disconnecting the others.
+	FTENET_AddToCollection(cls.sockets, "TCP", NULL, NULL);
 #endif
-
-	cls.qport++;	//a hack I picked up from qizmo
 
 	Cvar_ForceSet(&cl_servername, "none");
 }
@@ -1401,9 +1363,6 @@ void CL_CheckServerInfo(void)
 
 	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "mirrors")))
 		cls.allow_mirrors=true;
-
-	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_shaders")))
-		cls.allow_shaders=true;
 
 	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_luma")))
 		cls.allow_luma=true;
@@ -1774,18 +1733,7 @@ void CL_Packet_f (void)
 	}
 	*out = 0;
 
-#ifdef TCPCONNECT
-	{
-		int tcpsock;	//extra code to stop the packet command from sending to the server via tcp
-		tcpsock = cls.sockettcp;
-		cls.sockettcp = -1;
-		NET_SendPacket (NS_CLIENT, out-send, send, adr);
-		cls.sockettcp = tcpsock;
-	}
-#else
 	NET_SendPacket (NS_CLIENT, out-send, send, adr);
-#endif
-
 
 	if (Cmd_FromGamecode())
 	{
@@ -1925,8 +1873,13 @@ void CL_Changing_f (void)
 
 	S_StopAllSounds (true);
 	cl.intermission = 0;
-	cls.state = ca_connected;	// not active anymore, but not disconnected
-	Con_TPrintf (TLC_CHANGINGMAP);
+	if (cls.state)
+	{
+		cls.state = ca_connected;	// not active anymore, but not disconnected
+		Con_TPrintf (TLC_CHANGINGMAP);
+	}
+	else
+		Con_Printf("Changing while not connected\n");
 
 #ifdef NQPROT
 	cls.signon=0;
@@ -2029,6 +1982,30 @@ void CL_ConnectionlessPacket (void)
 
 		NET_SendPacket (NS_CLIENT, len, &data, net_from);
 		return;
+	}
+
+	if (c == A2C_PRINT)
+	{
+		if (!strncmp(net_message.data+msg_readcount, "\\chunk", 6))
+		{
+			if (NET_CompareBaseAdr(cls.netchan.remote_address, net_from) == false)
+				if (cls.realserverip.type == NA_INVALID || NET_CompareBaseAdr(cls.realserverip, net_from) == false)
+					return;	//only use it if it came from the real server's ip (this breaks on proxies).
+
+			MSG_ReadLong();
+			MSG_ReadChar();
+			MSG_ReadChar();
+
+			if (CL_ParseOOBDownload())
+			{
+				if (msg_readcount != net_message.cursize)
+				{
+					Con_Printf ("junk on the end of the packet\n");
+					CL_Disconnect_f();
+				}
+			}
+			return;
+		}
 	}
 
 	if (cls.demoplayback == DPB_NONE)
@@ -2626,38 +2603,62 @@ void CL_Download_f (void)
 			return;
 		}
 
-		CL_CheckOrEnqueDownloadFile(url, url);
+		CL_CheckOrEnqueDownloadFile(url, url, DLLF_REQUIRED|DLLF_VERBOSE);
 		return;
 	}
 
-	CL_EnqueDownload(url, url, true, true);
+	CL_EnqueDownload(url, url, DLLF_REQUIRED|DLLF_OVERWRITE|DLLF_VERBOSE);
+}
 
-	/*
-	strcpy(cls.downloadname, url);
+void CL_DownloadSize_f(void)
+{
+	downloadlist_t *dl;
+	char *name;
+	char *size;
+	char *redirection;
 
-	_snprintf (cls.downloadname, sizeof(cls.downloadname), "%s/%s", com_gamedir, url);
+	//if this is a demo.. urm?
+	//ignore it. This saves any spam.
+	if (cls.demoplayback)
+		return;
 
-	p = cls.downloadname;
-	for (;;)
+	name = Cmd_Argv(1);
+	size = Cmd_Argv(2);
+	if (!strcmp(size, "e"))
 	{
-		if ((q = strchr(p, '/')) != NULL)
-		{
-			*q = 0;
-			Sys_mkdir(cls.downloadname);
-			*q = '/';
-			p = q + 1;
-		} else
-			break;
+		Con_Printf("Download of \"%s\" failed. Not found.\n", name);
+		CL_DownloadFailed(name);
 	}
+	else if (!strcmp(size, "p"))
+	{
+		Con_Printf("Download of \"%s\" failed. Not allowed.\n", name);
+		CL_DownloadFailed(name);
+	}
+	else if (!strcmp(size, "r"))
+	{
+		redirection = Cmd_Argv(3);
 
-	COM_StripExtension(cls.downloadname, cls.downloadtempname);
-	COM_DefaultExtension(cls.downloadtempname, ".tmp");
-	if (cls.down
-//	cls.downloadqw = fopen (cls.downloadname, "wb");
-	cls.downloadmethod = DL_QWPENDING;
+		dl = CL_DownloadFailed(name);
 
-
-	CL_SendClientCommand("download %s\n",url);*/
+		if (allow_download_redirection.value)
+		{
+			Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", name, redirection);
+			CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
+		}
+		else
+			Con_Printf("Download of \"%s\" redirected to \"%s\". Prevented by allow_download_redirection.\n", name, redirection);
+	}
+	else
+	{
+		for (dl = cl.downloadlist; dl; dl = dl->next)
+		{
+			if (!strcmp(dl->name, name))
+			{
+				dl->size = strtoul(size, NULL, 0);
+				return;
+			}
+		}
+	}
 }
 
 void CL_FinishDownload(char *filename, char *tempname);
@@ -2676,9 +2677,10 @@ void CL_ForceStopDownload (qboolean finish)
 	}
 
 	VFS_CLOSE (cls.downloadqw);
+	cls.downloadqw = NULL;
 
 	if (finish)
-		CL_FinishDownload(cls.downloadname, cls.downloadtempname);
+		CL_DownloadFinished(cls.downloadname, cls.downloadtempname);
 	else
 	{
 		char *tempname;
@@ -2694,7 +2696,6 @@ void CL_ForceStopDownload (qboolean finish)
 			FS_Remove(tempname+6, FS_SKINS);
 	}
 	*cls.downloadname = '\0';
-	cls.downloadqw = NULL;
 	cls.downloadpercent = 0;
 
 	// get another file if needed
@@ -2962,6 +2963,9 @@ void CL_Init (void)
 #ifdef TCPCONNECT
 	Cmd_AddCommand ("tcpconnect", CL_TCPConnect_f);
 #endif
+#ifdef IRCCONNECT
+	Cmd_AddCommand ("ircconnect", CL_IRCConnect_f);
+#endif
 #ifdef NQPROT
 	Cmd_AddCommand ("nqconnect", CLNQ_Connect_f);
 #endif
@@ -2980,6 +2984,7 @@ void CL_Init (void)
 
 	Cmd_AddCommand ("color", CL_Color_f);
 	Cmd_AddCommand ("download", CL_Download_f);
+	Cmd_AddCommand ("dlsize", CL_DownloadSize_f);
 
 	Cmd_AddCommand ("nextul", CL_NextUpload);
 	Cmd_AddCommand ("stopul", CL_StopUpload);
@@ -3373,6 +3378,8 @@ void Host_Frame (double time)
 
 
 	CL_QTVPoll();
+
+	TP_UpdateAutoStatus();
 }
 
 static void simple_crypt(char *buf, int len)

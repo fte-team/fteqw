@@ -1354,15 +1354,15 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 			// set frame
 		if (effects & Q2EF_ANIM01)
-			ent.frame = autoanim & 1;
+			ent.frame1 = autoanim & 1;
 		else if (effects & Q2EF_ANIM23)
-			ent.frame = 2 + (autoanim & 1);
+			ent.frame1 = 2 + (autoanim & 1);
 		else if (effects & Q2EF_ANIM_ALL)
-			ent.frame = autoanim;
+			ent.frame1 = autoanim;
 		else if (effects & Q2EF_ANIM_ALLFAST)
-			ent.frame = cl.time / 100;
+			ent.frame1 = cl.time / 100;
 		else
-			ent.frame = s1->frame;
+			ent.frame1 = s1->frame;
 
 		// quad and pent can do different things on client
 		if (effects & Q2EF_PENT)
@@ -1395,7 +1395,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		}
 // pmm
 //======
-		ent.oldframe = cent->prev.frame;
+		ent.frame2 = cent->prev.frame;
 		ent.lerpfrac = cl.lerpfrac;
 
 		if (renderfx & (Q2RF_FRAMELERP|Q2RF_BEAM))
@@ -1719,7 +1719,8 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		{
 			if (effects & Q2EF_ROCKET)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_rocket, &cent->trailstate))
+					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xdc, 4, &cent->trailstate);
 
 				V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
@@ -1736,7 +1737,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				}
 				else
 				{
-					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_blastertrail, &cent->trailstate))
+					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe0, 1, &cent->trailstate);
 					V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
 				}
@@ -1751,13 +1752,15 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 			else if (effects & Q2EF_GIB)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_gib, &cent->trailstate))
-					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe8, 8, &cent->trailstate);
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_gib, &cent->trailstate))
+					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_blood, &cent->trailstate))
+						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe8, 8, &cent->trailstate);
 			}
 			else if (effects & Q2EF_GRENADE)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_grenade, &cent->trailstate))
-					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 4, 8, &cent->trailstate);
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_grenade, &cent->trailstate))
+					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_grenade, &cent->trailstate))
+						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 4, 8, &cent->trailstate);
 			}
 			else if (effects & Q2EF_FLIES)
 			{
@@ -1854,7 +1857,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (effects & Q2EF_ANIM_ALLFAST)
 				{
-					P_ParticleTrail(cent->lerp_origin, ent.origin, rt_blastertrail, &cent->trailstate);
+					P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, &cent->trailstate);
 				}
 				V_AddLight (ent.origin, 130, 0.2, 0.1, 0.1);
 			}
@@ -1925,11 +1928,11 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	gun.angles[1] = cl_gunangley.value;
 	gun.angles[2] = cl_gunanglez.value;
 
-	gun.frame = ps->gunframe;
-	if (gun.frame == 0)
-		gun.oldframe = 0;	// just changed weapons, don't lerp from old
+	gun.frame1 = ps->gunframe;
+	if (gun.frame1 == 0)
+		gun.frame2 = 0;	// just changed weapons, don't lerp from old
 	else
-		gun.oldframe = ops->gunframe;
+		gun.frame2 = ops->gunframe;
 
 	gun.flags = Q2RF_MINLIGHT | Q2RF_DEPTHHACK | Q2RF_WEAPONMODEL;
 	gun.lerpfrac = 1-cl.lerpfrac;

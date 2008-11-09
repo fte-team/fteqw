@@ -124,7 +124,7 @@ qboolean R_AliasCheckBBox (void)
 	R_AliasSetUpTransform (0);
 
 // construct the base bounding box for this frame
-	nframe = currententity->frame;
+	nframe = currententity->frame1;
 // TODO: don't repeat this check when drawing?
 	if ((nframe >= pmdl->numframes) || (nframe < 0))
 	{
@@ -134,7 +134,7 @@ qboolean R_AliasCheckBBox (void)
 	}
 
 // construct the base bounding box for this frame
-	oframe = currententity->oldframe;
+	oframe = currententity->frame2;
 // TODO: don't repeat this check when drawing?
 	if ((oframe >= pmdl->numframes) || (oframe < 0))
 	{
@@ -771,13 +771,13 @@ void R_AliasSetupFrame (void)
 //	vec3_t max1, max2;
 	float fl, bl;
 
-	frame = currententity->frame;
+	frame = currententity->frame1;
 	if ((frame >= pmdl->numframes) || (frame < 0))
 	{
 		Con_DPrintf ("R_AliasSetupFrame: no such frame %d\n", frame);
 		frame = 0;
 	}
-	oframe = currententity->oldframe;
+	oframe = currententity->frame2;
 	if ((oframe >= pmdl->numframes) || (oframe < 0))
 	{
 //		Con_DPrintf ("R_AliasSetupFrame: no such frame %d\n", oframe);	//pointless
@@ -785,6 +785,10 @@ void R_AliasSetupFrame (void)
 	}
 
 	bl = currententity->lerpfrac;
+	if (bl < 0)
+		bl = 0;
+	else if (bl > 1)
+		bl = 1;
 	fl = 1.0 - bl;
 
 	for (i = 0; i < 3; i++)

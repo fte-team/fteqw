@@ -26,6 +26,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern	int			sb_lines;			// scan lines to draw
 
 void Sbar_Init (void);
+struct player_info_s;
+qboolean Sbar_UpdateTeamStatus(struct player_info_s *player, char *status);
 #ifdef RGLQUAKE
 void Sbar_ReInit (void);
 #endif

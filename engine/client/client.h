@@ -140,6 +140,7 @@ typedef struct player_info_s
 {
 	int		userid;
 	char	userinfo[EXTENDED_INFO_STRING];
+	char	teamstatus[128];
 
 	// scoreboard information
 	char	name[MAX_SCOREBOARDNAME];
@@ -330,16 +331,8 @@ typedef struct
 	char		servername[MAX_OSPATH];	// name of server from original connect
 
 	int			qport;
-	int socketip;
-	int socketip6;
-	int socketipx;
 
-#ifdef TCPCONNECT
-	int sockettcp;
-	netadr_t sockettcpdest;
-	unsigned char tcpinbuffer[1500];
-	int tcpinlen;
-#endif
+	struct ftenet_connections_s *sockets;
 
 	enum {DL_NONE, DL_QW, DL_QWCHUNKS, DL_Q3, DL_DARKPLACES, DL_QWPENDING, DL_HTTP, DL_FTP} downloadmethod;
 	vfsfile_t		*downloadqw;		// file transfer from server
@@ -410,6 +403,13 @@ extern int nq_dp_protocol;
 typedef struct downloadlist_s {
 	char name[128];
 	char localname[128];
+	unsigned int size;
+	unsigned int flags;
+#define DLLF_VERBOSE 1 //tell the user that its downloading
+#define DLLF_REQUIRED 2	//means that it won't load models etc until its downloaded (ie: requiredownloads 0 makes no difference)
+#define DLLF_OVERWRITE 4 //overwrite it even if it already exists
+#define DLLF_SIZEUNKNOWN 8
+#define DLLF_IGNOREFAILED 16
 	struct downloadlist_s *next;
 } downloadlist_t;
 
@@ -723,6 +723,7 @@ extern	entity_t		cl_visedicts_list[2][MAX_VISEDICTS];
 extern char emodel_name[], pmodel_name[], prespawn_name[], modellist_name[], soundlist_name[];
 
 qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
+qboolean Q2TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 
 //
 // cl_input
@@ -810,8 +811,9 @@ void CLNQ_ParseServerMessage (void);
 void CLQ2_ParseServerMessage (void);
 #endif
 void CL_NewTranslation (int slot);
-qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname);
-qboolean CL_EnqueDownload(char *filename, char *localname, qboolean verbose, qboolean ignorefailedlist);
+qboolean CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned int flags);
+qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags);
+downloadlist_t *CL_DownloadFailed(char *name);
 qboolean CL_IsUploading(void);
 void CL_NextUpload(void);
 void CL_StartUpload (qbyte *data, int size);
@@ -843,6 +845,7 @@ void DropPunchAngle (int pnum);
 //
 // cl_tent
 //
+void CL_RegisterParticles(void);
 void CL_InitTEnts (void);
 void CL_ClearTEnts (void);
 void CL_ClearCustomTEnts(void);
@@ -853,6 +856,9 @@ void CLNQ_ParseParticleEffect (void);
 void CL_ParseParticleEffect2 (void);
 void CL_ParseParticleEffect3 (void);
 void CL_ParseParticleEffect4 (void);
+
+void CLDP_ParseTrailParticles(void);
+void CLDP_ParsePointParticles(qboolean compact);
 
 //
 // cl_ents.c
@@ -901,7 +907,11 @@ void CSQC_RegisterCvarsAndThings(void);
 qboolean CSQC_DrawView(void);
 void CSQC_Shutdown(void);
 qboolean CSQC_StuffCmd(char *cmd);
+qboolean CSQC_LoadResource(char *resname, char *restype);
 qboolean CSQC_CenterPrint(char *cmd);
+void CSQC_Input_Frame(usercmd_t *cmd);
+void CSQC_WorldLoaded(void);
+qboolean CSQC_ParseTempEntity(unsigned char firstbyte);
 qboolean CSQC_ConsoleCommand(char *cmd);
 qboolean CSQC_KeyPress(int key, qboolean down);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation);
@@ -953,6 +963,7 @@ void vectoangles(vec3_t vec, vec3_t ang);
 #define TPM_TEAM       2
 #define TPM_SPECTATOR  4
 #define TPM_FAKED     16
+#define TPM_OBSERVEDTEAM  32
 
 void		CL_Say (qboolean team, char *extra);
 int			TP_CategorizeMessage (char *s, int *offset, player_info_t **plr);
@@ -974,6 +985,7 @@ void		TP_SearchForMsgTriggers (char *s, int level);
 qboolean	TP_SoundTrigger(char *message);
 void		TP_StatChanged (int stat, int value);
 qboolean	TP_SuppressMessage(char *buf);
+colourised_t *TP_FindColours(char *name);
 
 //
 // skin.c
@@ -1080,6 +1092,14 @@ typedef struct cin_s cin_t;
 struct cin_s *Media_StartCin(char *name);
 int Media_UpdateForShader(int texnum, cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
+
+//these accept NULL for cin to mean the current fullscreen video
+void Media_Gecko_KeyPress (struct cin_s *cin, int code, int event);
+void Media_Send_Command(cin_t *cin, char *command);
+void Media_Send_MouseMove(cin_t *cin, float x, float y);
+void Media_Send_Resize(cin_t *cin, int x, int y);
+void Media_Send_GetSize(cin_t *cin, int *x, int *y);
+void Media_Send_KeyEvent(cin_t *cin, int button, int event);
 
 void MVD_Interpolate(void);
 

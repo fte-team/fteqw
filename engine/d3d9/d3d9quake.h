@@ -1,5 +1,8 @@
 //#include    "ddraw.h"
 
+#ifndef D3D9QUAKE_H
+#define D3D9QUAKE_H
+
 
 #include "d3d9.h"
 #include "com_mesh.h"
@@ -61,11 +64,13 @@ static void				LotsOfLightDirectionHacks (entity_t *e, model_t *m, vec3_t lighta
 // d3d9_rmain.c
 //
 void					D3D9_BaseBModelTextures (entity_t *e);
+/*
 void					D3D9_DrawParticleBeam (beamseg_t *b, part_type_t *type);
 void					D3D9_DrawParticleBeamUT (beamseg_t *b, part_type_t *type);
 void					D3D9_DrawParticleBlob (particle_t *p, part_type_t *type);
-void					D3D9_DrawParticles (float ptime);
 void					D3D9_DrawParticleSpark (particle_t *p, part_type_t *type);
+*/
+void					D3D9_DrawParticles (float ptime);
 static void				D3D9_DrawSpriteModel (entity_t *e);
 void					D3D9_DrawTextureChains (void);
 void					D3D9_DrawWorld (void);
@@ -194,4 +199,6 @@ extern index_t dummyindex;
 	#define D3DFMT_QINDEX D3DFMT_INDEX16
 #else
 	#define D3DFMT_QINDEX D3DFMT_INDEX32
+#endif
+
 #endif

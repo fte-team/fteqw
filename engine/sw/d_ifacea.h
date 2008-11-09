@@ -46,8 +46,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // particle_t structure
 // !!! if this is changed, it must be changed in d_iface.h too !!!
 // driver-usable fields
-#define pt_org				8
-#define pt_color			20
+//#define pt_org				8
+//#define pt_color			20
 // drivers never touch the following fields
 /*#define pt_next				16
 #define pt_vel				20

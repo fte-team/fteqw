@@ -145,37 +145,6 @@ cvar_t r_detailtextures = SCVAR("r_detailtextures", "1");
 cvar_t r_showtris = SCVAR("r_showtris", "1");
 cvar_t r_shownormals = SCVAR("r_shownormals", "1");
 
-float Q_rsqrt( float number )
-{
-	int i;
-	float x2, y;
-	const float threehalfs = 1.5F;
-
-	x2 = number * 0.5F;
-	y  = number;
-	i  = * ( int * ) &y;						// evil floating point bit level hacking
-	i  = 0x5f3759df - ( i >> 1 );               // what the fuck?
-	y  = * ( float * ) &i;
-	y  = y * ( threehalfs - ( x2 * y * y ) );   // 1st iteration
-//	y  = y * ( threehalfs - ( x2 * y * y ) );   // 2nd iteration, this can be removed
-
-	return y;
-}
-
-void VectorNormalizeFast( vec3_t v )
-{
-	float ilength;
-
-	ilength = Q_rsqrt( DotProduct( v, v ) );
-
-	v[0] *= ilength;
-	v[1] *= ilength;
-	v[2] *= ilength;
-}
-
-
-
-
 mat3_t axisDefault={{1, 0, 0},
 					{0, 1, 0},
 					{0, 0, 1}};
@@ -1874,49 +1843,46 @@ void R_RenderMeshCombined ( meshbuffer_t *mb, shaderpass_t *pass )
 	{
 		GL_SelectTexture( mtexid0 + i );
 
-		if ( pass->blendmode )
+
+		switch ( pass->blendmode )
 		{
-			switch ( pass->blendmode )
-			{
-			case GL_DOT3_RGB_ARB:
-				GL_TexEnv (GL_COMBINE_EXT);
-				qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
-				qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
-				qglTexEnvi (GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, pass->blendmode);
-				break;
+		case GL_DOT3_RGB_ARB:
+			GL_TexEnv (GL_COMBINE_EXT);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, pass->blendmode);
+			break;
 
-			case GL_REPLACE:
-			case GL_MODULATE:
-			case GL_ADD:
-				// these modes are best set with TexEnv, Combine4 would need much more setup
-				GL_TexEnv (pass->blendmode);
-				break;
+		case GL_REPLACE:
+		case GL_MODULATE:
+		case GL_ADD:
+			// these modes are best set with TexEnv, Combine4 would need much more setup
+			GL_TexEnv (pass->blendmode);
+			break;
 
-			case GL_DECAL:
-				// mimics Alpha-Blending in upper texture stage, but instead of multiplying the alpha-channel, theyre added
-				// this way it can be possible to use GL_DECAL in both texture-units, while still looking good
-				// normal mutlitexturing would multiply the alpha-channel which looks ugly
-				GL_TexEnv (GL_COMBINE_EXT);
-				qglTexEnvi (GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_INTERPOLATE_EXT);
-				qglTexEnvi (GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_ADD);
+		case GL_DECAL:
+			// mimics Alpha-Blending in upper texture stage, but instead of multiplying the alpha-channel, theyre added
+			// this way it can be possible to use GL_DECAL in both texture-units, while still looking good
+			// normal mutlitexturing would multiply the alpha-channel which looks ugly
+			GL_TexEnv (GL_COMBINE_EXT);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_INTERPOLATE_EXT);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_ADD);
 
-				qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
-				qglTexEnvi (GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
-				qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_TEXTURE);
-				qglTexEnvi (GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
-							
-				qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PREVIOUS_EXT);
-				qglTexEnvi (GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
-				qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_PREVIOUS_EXT);
-				qglTexEnvi (GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE0_RGB_EXT, GL_TEXTURE);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_OPERAND0_RGB_EXT, GL_SRC_COLOR);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE0_ALPHA_EXT, GL_TEXTURE);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_OPERAND0_ALPHA_EXT, GL_SRC_ALPHA);
+						
+			qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE1_RGB_EXT, GL_PREVIOUS_EXT);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_OPERAND1_RGB_EXT, GL_SRC_COLOR);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE1_ALPHA_EXT, GL_PREVIOUS_EXT);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_OPERAND1_ALPHA_EXT, GL_SRC_ALPHA);
 
-				qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_TEXTURE);
-				qglTexEnvi (GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_ALPHA);
-				break;
-			}
-		}
-		else
-		{
+			qglTexEnvi (GL_TEXTURE_ENV, GL_SOURCE2_RGB_EXT, GL_TEXTURE);
+			qglTexEnvi (GL_TEXTURE_ENV, GL_OPERAND2_RGB_EXT, GL_SRC_ALPHA);
+			break;
+
+		default:
 			GL_TexEnv (GL_COMBINE4_NV);
 			qglTexEnvi (GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, GL_ADD);
 			qglTexEnvi (GL_TEXTURE_ENV, GL_COMBINE_ALPHA_EXT, GL_ADD);
@@ -2034,6 +2000,7 @@ void R_RenderMeshCombined ( meshbuffer_t *mb, shaderpass_t *pass )
 					qglTexEnvi (GL_TEXTURE_ENV, GL_OPERAND3_ALPHA_NV, GL_ONE_MINUS_SRC_ALPHA);
 					break;
 			}
+			break;
 		}
 
 		R_ModifyTextureCoords ( pass, i );

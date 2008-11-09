@@ -55,6 +55,14 @@ void VARGS Sys_Printf (char *fmt, ...);
 
 void Sys_Quit (void);
 
+typedef struct {
+	void **funcptr;
+	char *name;
+} dllfunction_t;
+typedef void *dllhandle_t;
+dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs);
+void Sys_CloseLibrary(dllhandle_t *lib);
+
 unsigned int Sys_Milliseconds (void);
 double Sys_DoubleTime (void);
 

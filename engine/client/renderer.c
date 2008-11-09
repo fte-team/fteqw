@@ -705,7 +705,7 @@ void Renderer_Init(void)
 
 	Cmd_AddCommand("bul_make",	R_BulletenForce_f);
 
-	P_InitParticles();
+	P_InitParticleSystem();
 	R_InitTextures();
 	RQ_Init();
 }
@@ -2216,7 +2216,7 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 	float			*pintervals, fullinterval, targettime, time;
 
 	psprite = currententity->model->cache.data;
-	frame = currententity->frame;
+	frame = currententity->frame1;
 
 	if ((frame >= psprite->numframes) || (frame < 0))
 	{
@@ -2368,7 +2368,7 @@ texture_t *R_TextureAnimation (texture_t *base)
 	int		reletive;
 	int		count;
 
-	if (currententity->frame)
+	if (currententity->frame1)
 	{
 		if (base->alternate_anims)
 			base = base->alternate_anims;

@@ -1439,6 +1439,8 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, qboolean alpha)
 			}
 #endif
 
+			texnums->loweroverlay = 0;
+			texnums->upperoverlay = 0;
 
 			texnums->base = texture;
 			texnums->fullbright = fbtexture;
@@ -1447,13 +1449,11 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, qboolean alpha)
 			//13/4/08 IMPLEMENTME
 			if (r_skin_overlays.value)
 			{
-				snprintf(skinname, sizeof(skinname), "%s_%i", loadname, i);
-				texture = R_LoadTexture8(skinname, outskin->skinwidth, outskin->skinheight, saved, true, alpha);
-			}
-			else
-			{
-				texnums->loweroverlay = 0;
-				texnums->upperoverlay = 0;
+				snprintf(skinname, sizeof(skinname), "%s_%i_pants", loadname, i);
+				texnums->loweroverlay = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
+			
+				snprintf(skinname, sizeof(skinname), "%s_%i_shirt", loadname, i);
+				texnums->upperoverlay = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
 			}
 
 			pskintype = (daliasskintype_t *)((char *)(pskintype+1)+s);
@@ -1639,11 +1639,11 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		skinstart = (daliasskintype_t *)((char *)buffer + sizeof(dmdl_t) - sizeof(int)*2);
 	else
 		skinstart = (daliasskintype_t *)(pq1inmodel+1);
-	if( mod->flags & EF_HOLEY )
+	if( mod->flags & EFH2_HOLEY )
 		skintranstype = 3;	//hexen2
-	else if( mod->flags & EF_TRANSPARENT )
+	else if( mod->flags & EFH2_TRANSPARENT )
 		skintranstype = 2;	//hexen2
-	else if( mod->flags & EF_SPECIAL_TRANS )
+	else if( mod->flags & EFH2_SPECIAL_TRANS )
 		skintranstype = 4;	//hexen2
 	else
 		skintranstype = 0;
@@ -2286,6 +2286,11 @@ qboolean Mod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2
 			result[10]	= t1->ang[2][2]*f1ness	+ t2->ang[2][2]*f2ness;
 			result[11]	= t1->org[2]*f1ness		+ t2->org[2]*f2ness;
 		}
+
+		VectorNormalize(result);
+		VectorNormalize(result+4);
+		VectorNormalize(result+8);
+
 		return true;
 	}
 	return false;

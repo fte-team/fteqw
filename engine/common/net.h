@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	PORT_ANY	-1
 
-typedef enum {NA_INVALID, NA_LOOPBACK, NA_IP, NA_IPV6, NA_IPX, NA_BROADCAST_IP, NA_BROADCAST_IP6, NA_BROADCAST_IPX} netadrtype_t;
+typedef enum {NA_INVALID, NA_LOOPBACK, NA_IP, NA_IPV6, NA_IPX, NA_BROADCAST_IP, NA_BROADCAST_IP6, NA_BROADCAST_IPX, NA_TCP, NA_TCPV6, NA_IRC} netadrtype_t;
 
 typedef enum {NS_CLIENT, NS_SERVER} netsrc_t;
 
@@ -35,9 +35,16 @@ typedef struct
 		qbyte	ip[4];
 		qbyte	ip6[16];
 		qbyte	ipx[10];
+#ifdef IRCCONNECT
+		struct {
+			char user[32];
+			char channel[12];
+		} irc;
+#endif
 	} address;
 
 	unsigned short	port;
+	unsigned short	connum;
 } netadr_t;
 
 struct sockaddr_qstorage
@@ -53,10 +60,6 @@ struct sockaddr_qstorage
 };
 
 
-extern	netadr_t	net_local_sv_ipadr;
-extern	netadr_t	net_local_sv_ip6adr;
-extern	netadr_t	net_local_sv_ipxadr;
-extern	netadr_t	net_local_sv_tcpipadr;
 extern	netadr_t	net_local_cl_ipadr;
 extern	netadr_t	net_from;		// address of who sent the packet
 extern	sizebuf_t	net_message;
@@ -68,6 +71,7 @@ extern	cvar_t	hostname;
 
 int TCP_OpenStream (netadr_t remoteaddr);	//makes things easier
 
+struct ftenet_connections_s;
 void		NET_Init (void);
 void		NET_InitClient (void);
 void		NET_InitServer (void);
@@ -76,6 +80,10 @@ void UDP_CloseSocket (int socket);
 void		NET_Shutdown (void);
 qboolean	NET_GetPacket (netsrc_t socket);
 void		NET_SendPacket (netsrc_t socket, int length, void *data, netadr_t to);
+int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
+void		NET_PrintAddresses(struct ftenet_connections_s *collection);
+qboolean	NET_AddressSmellsFunny(netadr_t a);
+void		NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host);
 
 qboolean	NET_CompareAdr (netadr_t a, netadr_t b);
 qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b);

@@ -190,6 +190,16 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 
 			bytesread = p_ov_read(&dec->vf, dec->mediatemprecode, decodesize, bigendianp, 2, 1, &current_section);
 
+			if (bytesread <= 0)
+			{
+				if (bytesread != 0)	//0==eof
+				{
+					Con_Printf("ogg decoding failed\n");
+					return 1;
+				}
+				return 0;
+			}
+
 			SND_ResampleStream(dec->mediatemprecode, 
 				dec->srcspeed, 
 				2, 

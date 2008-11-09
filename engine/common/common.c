@@ -45,6 +45,7 @@ static char	*safeargvs[NUM_SAFE_ARGVS] =
 	{"-stdvid", "-nolan", "-nosound", "-nocdaudio", "-nojoy", "-nomouse"};
 
 cvar_t	registered = SCVAR("registered","0");
+cvar_t	gameversion = SCVAR("gameversion","0");
 cvar_t	com_gamename = SCVAR("com_gamename", "");
 
 qboolean	com_modified;	// set true if using non-id files
@@ -2247,7 +2248,7 @@ char *COM_ParseToken (const char *data, const char *punctuation)
 
 // skip whitespace
 skipwhite:
-	while ( (c = *(unsigned char*)data) <= ' ')
+	while ( (c = *(unsigned char*)data) <= ' ' && c != '\r' && c != '\n')
 	{
 		if (c == 0)
 		{
@@ -2255,6 +2256,19 @@ skipwhite:
 			return NULL;			// end of file;
 		}
 		data++;
+	}
+
+	//if windows, ignore the \r.
+	if (c == '\r' && data[1] == '\n')
+		c = *(unsigned char*)data++;
+
+	if (c == '\r' || c == '\n')
+	{
+		com_tokentype = TTP_LINEENDING;
+		com_token[0] = '\n';
+		com_token[1] = '\0';
+		data++;
+		return (char*)data;
 	}
 
 // skip // comments
@@ -2271,11 +2285,13 @@ skipwhite:
 			data+=2;
 			while (*data && (*data != '*' || data[1] != '/'))
 				data++;
-			data+=2;
+			if (*data)
+				data++;
+			if (*data)
+				data++;
 			goto skipwhite;
 		}
 	}
-
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -2667,6 +2683,7 @@ void COM_Init (void)
 		registered.string = "0";
 
 	Cvar_Register (&registered, "Copy protection");
+	Cvar_Register (&gameversion, "Gamecode");
 
 
 
@@ -2718,8 +2735,92 @@ int	memsearch (qbyte *start, int count, int search)
 	return -1;
 }
 
+struct effectinfo_s
+{
+	struct effectinfo_s *next;
+	int index;
 
+	char name[1];
+};
+struct effectinfo_s *effectinfo;
 
+void COM_Effectinfo_Reset(void)
+{
+	int fidx = 0;
+	char *f;
+	struct effectinfo_s *n;
+
+	while(effectinfo)
+	{
+		n = effectinfo->next;
+		Z_Free(effectinfo);
+		effectinfo = n;
+	}
+
+	f = COM_LoadMallocFile("effectinfo.txt");
+	if (!f)
+		return;
+	while (*f)
+	{
+		f = COM_ParseToken(f, NULL);
+		if (strcmp(com_token, "\n"))
+		{
+			if (!strcmp(com_token, "effect"))
+			{
+				f = COM_ParseToken(f, NULL);
+				//don't count duplicates
+				for (n = effectinfo; n; n = n->next)
+				{
+					if (!strcmp(com_token, n->name))
+						break;
+				}
+				if (!n)
+				{
+					n = Z_Malloc(sizeof(*n) + strlen(com_token));
+					n->next = effectinfo;
+					n->index = ++fidx;
+					effectinfo = n;
+					strcpy(n->name, com_token);
+				}
+			}
+
+			do
+			{
+				f = COM_ParseToken(f, NULL);
+			} while(*f && strcmp(com_token, "\n"));
+		}
+	}
+}
+
+unsigned int COM_Effectinfo_ForName(char *efname)
+{
+	struct effectinfo_s *e;
+
+	if (!effectinfo)
+		COM_Effectinfo_Reset();
+
+	for (e = effectinfo; e; e = e->next)
+	{
+		if (!strcmp(efname, e->name))
+			return e->index;
+	}
+	return 0;
+}
+
+char *COM_Effectinfo_ForNumber(unsigned int efnum)
+{
+	struct effectinfo_s *e;
+
+	if (!effectinfo)
+		COM_Effectinfo_Reset();
+
+	for (e = effectinfo; e; e = e->next)
+	{
+		if (e->index == efnum)
+			return e->name;
+	}
+	return "";
+}
 
 
 /*

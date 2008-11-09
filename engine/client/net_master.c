@@ -49,7 +49,7 @@ static serverinfo_t **visibleservers;
 static int numvisibleservers;
 static int maxvisibleservers;
 
-static qboolean needsort;
+static double nextsort;
 
 static hostcachekey_t sortfield;
 static qboolean decreasingorder;
@@ -241,12 +241,21 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 			res = Master_CompareInteger(a->maxplayers, visrules[i].operandi, visrules[i].compareop);
 			break;
 		case SLKEY_FREEPLAYERS:
-			res = Master_CompareInteger(a->maxplayers-a->players, visrules[i].operandi, visrules[i].compareop);
+			res = Master_CompareInteger(a->freeslots, visrules[i].operandi, visrules[i].compareop);
+			break;
+		case SLKEY_NUMBOTS:
+			res = Master_CompareInteger(a->numbots, visrules[i].operandi, visrules[i].compareop);
+			break;
+		case SLKEY_NUMHUMANS:
+			res = Master_CompareInteger(a->numhumans, visrules[i].operandi, visrules[i].compareop);
 			break;
 		case SLKEY_TIMELIMIT:
 			res = Master_CompareInteger(a->tl, visrules[i].operandi, visrules[i].compareop);
 			break;
 		case SLKEY_FRAGLIMIT:
+			res = Master_CompareInteger(a->fl, visrules[i].operandi, visrules[i].compareop);
+			break;
+		case SLKEY_PROTOCOL:
 			res = Master_CompareInteger(a->fl, visrules[i].operandi, visrules[i].compareop);
 			break;
 
@@ -262,6 +271,12 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 
 		case SLKEY_BASEGAME:
 			res = Master_CompareInteger(a->special, visrules[i].operandi, visrules[i].compareop);
+			break;
+		case SLKEY_MOD:
+			res = Master_CompareString(a->modname, visrules[i].operands, visrules[i].compareop);
+			break;
+		case SLKEY_QCSTATUS:
+			res = Master_CompareString(a->qcstatus, visrules[i].operands, visrules[i].compareop);
 			break;
 		default:
 			continue;
@@ -285,6 +300,7 @@ void Master_SetMaskString(qboolean or, hostcachekey_t field, char *param, slist_
 	if (numvisrules == MAX_VISRULES)
 		return;	//just don't add it.
 
+	nextsort = 0;
 	visrules[numvisrules].fieldindex = field;
 	visrules[numvisrules].compareop = testop;
 	visrules[numvisrules].operands = param;
@@ -296,6 +312,7 @@ void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_t
 	if (numvisrules == MAX_VISRULES)
 		return;	//just don't add it.
 
+	nextsort = 0;
 	visrules[numvisrules].fieldindex = field;
 	visrules[numvisrules].compareop = testop;
 	visrules[numvisrules].operandi = param;
@@ -304,6 +321,7 @@ void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_t
 }
 void Master_SetSortField(hostcachekey_t field, qboolean descending)
 {
+	nextsort = 0;
 	sortfield = field;
 	decreasingorder = descending;
 }
@@ -388,13 +406,13 @@ void Master_SortServers(void)
 		Master_ResortServer(server);
 	}
 
-	needsort = false;
+	nextsort = Sys_DoubleTime() + 8;
 }
 
 serverinfo_t *Master_SortedServer(int idx)
 {
-	if (needsort)
-		Master_SortServers();
+//	if (nextsort < Sys_DoubleTime())
+//		Master_SortServers();
 
 	if (idx < 0 || idx >= numvisibleservers)
 		return NULL;
@@ -404,7 +422,7 @@ serverinfo_t *Master_SortedServer(int idx)
 
 int Master_NumSorted(void)
 {
-//	if (needsort)
+	if (nextsort < Sys_DoubleTime())
 		Master_SortServers();
 
 	return numvisibleservers;
@@ -434,6 +452,14 @@ float Master_ReadKeyFloat(serverinfo_t *server, int keynum)
 			return server->tl;
 		case SLKEY_FRAGLIMIT:
 			return server->fl;
+		case SLKEY_PROTOCOL:
+			return server->protocol;
+		case SLKEY_NUMBOTS:
+			return server->numbots;
+		case SLKEY_NUMHUMANS:
+			return server->numhumans;
+		case SLKEY_ISFAVORITE:
+			return !!(server->special & SS_FAVORITE);
 
 		default:
 			return atof(Master_ReadKeyString(server, keynum));
@@ -461,6 +487,11 @@ char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 			return NET_AdrToString(adr, sizeof(adr), server->adr);
 		case SLKEY_GAMEDIR:
 			return server->gamedir;
+
+		case SLKEY_MOD:
+			return server->modname;
+		case SLKEY_QCSTATUS:
+			return server->qcstatus;
 
 		default:
 			{
@@ -491,12 +522,24 @@ int Master_KeyForName(char *keyname)
 		return SLKEY_MAXPLAYERS;
 	else if (!strcmp(keyname, "numplayers"))
 		return SLKEY_NUMPLAYERS;
-	else if (!strcmp(keyname, "freeplayers"))
+	else if (!strcmp(keyname, "freeplayers") || !strcmp(keyname, "freeslots"))
 		return SLKEY_FREEPLAYERS;
-	else if (!strcmp(keyname, "gamedir") || !strcmp(keyname, "game") || !strcmp(keyname, "*gamedir") || !strcmp(keyname, "mod"))
+	else if (!strcmp(keyname, "gamedir") || !strcmp(keyname, "game") || !strcmp(keyname, "*gamedir"))
 		return SLKEY_GAMEDIR;
 	else if (!strcmp(keyname, "special"))
 		return SLKEY_BASEGAME;
+	else if (!strcmp(keyname, "mod"))
+		return SLKEY_MOD;
+	else if (!strcmp(keyname, "protocol"))
+		return SLKEY_PROTOCOL;
+	else if (!strcmp(keyname, "numbots"))
+		return SLKEY_NUMBOTS;
+	else if (!strcmp(keyname, "numhumans"))
+		return SLKEY_NUMHUMANS;
+	else if (!strcmp(keyname, "qcstatus"))
+		return SLKEY_QCSTATUS;
+	else if (!strcmp(keyname, "isfavorite"))
+		return SLKEY_ISFAVORITE;
 
 	else if (slist_customkeys == SLIST_MAXKEYS)
 		return SLKEY_TOOMANY;
@@ -528,6 +571,13 @@ void Master_AddMaster (char *address, int type, char *description)
 	if (!NET_StringToAdr(address, &adr))
 	{
 		Con_Printf("Failed to resolve address \"%s\"\n", address);
+		return;
+	}
+
+#pragma message("Master_AddMaster: add ipv6. don't care about tcp/irc.")
+	if (adr.type != NA_IP && adr.type != NA_IPX)
+	{
+		Con_Printf("Fixme: unable to poll address family\n", address);
 		return;
 	}
 
@@ -726,6 +776,8 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 	int ret;
 	struct sockaddr_qstorage	addr;
 
+#pragma message("NET_SendPollPacket: no support for ipv6")
+
 	NetadrToSockadr (&to, &addr);
 #ifdef USEIPX
 	if (((struct sockaddr*)&addr)->sa_family == AF_IPX)
@@ -741,6 +793,7 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 	}
 	else
 #endif
+		if (((struct sockaddr*)&addr)->sa_family == AF_INET)
 	{
 		lastpollsockUDP++;
 		if (lastpollsockUDP>=POLLUDPSOCKETS)
@@ -751,6 +804,8 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 			return;	//bother
 		ret = sendto (pollsocketsUDP[lastpollsockUDP], data, len, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in) );
 	}
+	else
+		return;
 
 	if (ret == -1)
 	{
@@ -1036,6 +1091,8 @@ void MasterInfo_ProcessHTTP(char *name, qboolean success, int type)
 
 			info->next = firstserver;
 			firstserver = info;
+
+			Master_ResortServer(info);
 		}
 	}
 
@@ -1572,6 +1629,15 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 		Q_strncpyz(info->gamedir,	Info_ValueForKey(msg, "*gamedir"),	sizeof(info->gamedir));
 		Q_strncpyz(info->map,		Info_ValueForKey(msg, "map"),		sizeof(info->map));
 	}
+	Q_strncpyz(info->qcstatus,		Info_ValueForKey(msg, "qcstatus"),	sizeof(info->qcstatus));
+	Q_strncpyz(info->modname,		Info_ValueForKey(msg, "modname"),	sizeof(info->modname));
+
+	info->protocol = atoi(Info_ValueForKey(msg, "protocol"));
+	info->gameversion = atoi(Info_ValueForKey(msg, "gameversion"));
+
+	info->numbots = atoi(Info_ValueForKey(msg, "bots"));
+	info->numhumans = info->players - info->numbots;
+	info->freeslots = info->maxplayers - info->players;
 
 	strcpy(details.info, msg);
 	msg = msg+strlen(msg)+1;
@@ -1744,6 +1810,8 @@ void CL_MasterListParse(int type, qboolean slashpad)
 
 			info->next = last;
 			last = info;
+
+			Master_ResortServer(info);
 		}		
 	}
 

@@ -59,7 +59,7 @@ int VARGS Plug_SCR_CenterPrint(void *offset, unsigned int mask, const int *arg)
 	if (qrenderer <= 0)
 		return 0;
 
-	SCR_CenterPrint(0, VM_POINTER(arg[0]));
+	SCR_CenterPrint(0, VM_POINTER(arg[0]), true);
 	return 0;
 }
 int VARGS Plug_Media_ShowFrameRGBA_32(void *offset, unsigned int mask, const int *arg)

@@ -1725,6 +1725,36 @@ void SV_WalkMove (edict_t *ent)
 }
 #endif
 
+void SV_MoveChain(edict_t *ent, edict_t *movechain, float *initial_origin, float *initial_angle)
+{
+	qboolean callfunc;
+	if ((callfunc=DotProduct(ent->v->origin, initial_origin)) || DotProduct(ent->v->angles, initial_angle))
+	{
+		vec3_t moveang, moveorg;
+		int i;
+		VectorSubtract(ent->v->angles, initial_angle, moveang)
+		VectorSubtract(ent->v->origin, initial_origin, moveorg)
+
+		for(i=16;i && movechain != sv.edicts && !movechain->isfree;i--, movechain = PROG_TO_EDICT(svprogfuncs, movechain->xv->movechain))
+		{
+			if ((int)movechain->v->flags & FL_MOVECHAIN_ANGLE)
+				VectorAdd(movechain->v->angles, moveang, movechain->v->angles);
+			VectorAdd(movechain->v->origin, moveorg, movechain->v->origin);
+
+			if (movechain->xv->chainmoved && callfunc)
+			{
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, movechain);
+				pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
+#ifdef VM_Q1
+				if (svs.gametype == GT_Q1QVM)
+					Q1QVM_ChainMoved();
+				else
+#endif
+					PR_ExecuteProgram(svprogfuncs, movechain->xv->chainmoved);
+			}
+		}
+	}
+}
 
 #define FL_JUMPRELEASED 4096
 /*
@@ -1836,33 +1866,7 @@ void SV_RunEntity (edict_t *ent)
 
 	if (movechain != sv.edicts)
 	{
-		qboolean callfunc;
-		if ((callfunc=DotProduct(ent->v->origin, initial_origin)) || DotProduct(ent->v->angles, initial_angle))
-		{
-			vec3_t moveang, moveorg;
-			int i;
-			VectorSubtract(ent->v->angles, initial_angle, moveang)
-			VectorSubtract(ent->v->origin, initial_origin, moveorg)
-
-			for(i=16;i && movechain != sv.edicts && !movechain->isfree;i--, movechain = PROG_TO_EDICT(svprogfuncs, movechain->xv->movechain))
-			{
-				if ((int)movechain->v->flags & FL_MOVECHAIN_ANGLE)
-					VectorAdd(movechain->v->angles, moveang, movechain->v->angles);
-				VectorAdd(movechain->v->origin, moveorg, movechain->v->origin);
-
-				if (movechain->xv->chainmoved && callfunc)
-				{
-					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, movechain);
-					pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
-#ifdef VM_Q1
-					if (svs.gametype == GT_Q1QVM)
-						Q1QVM_ChainMoved();
-					else
-#endif
-						PR_ExecuteProgram(svprogfuncs, movechain->xv->chainmoved);
-				}
-			}
-		}
+		SV_MoveChain(ent, movechain, initial_origin, initial_angle);
 	}
 
 	if (ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots)

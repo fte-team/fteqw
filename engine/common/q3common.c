@@ -1656,6 +1656,7 @@ void MSG_Q3_ReadDeltaUsercmd(int key, const usercmd_t *from, usercmd_t *to)
 		to->servertime = MSG_ReadBits(8) + from->servertime;
 	else
 		to->servertime = MSG_ReadBits(32);
+	to->msec = to->servertime - from->servertime;
 
 	if (!MSG_ReadBits(1))
 	{
@@ -1674,9 +1675,10 @@ void MSG_Q3_ReadDeltaUsercmd(int key, const usercmd_t *from, usercmd_t *to)
 		to->angles[0]	= MSG_ReadDeltaKey(key, from->angles[0],	16);
 		to->angles[1]	= MSG_ReadDeltaKey(key, from->angles[1],	16);
 		to->angles[2]	= MSG_ReadDeltaKey(key, from->angles[2],	16);
-		to->forwardmove	= MSG_ReadDeltaKey(key, from->forwardmove,	8);
-		to->sidemove	= MSG_ReadDeltaKey(key, from->sidemove,		8);
-		to->upmove		= MSG_ReadDeltaKey(key, from->upmove,		8);
+		//yeah, this is messy
+		to->forwardmove	= (signed char)(unsigned char)MSG_ReadDeltaKey(key, (unsigned char)(signed char)from->forwardmove,	8);
+		to->sidemove	= (signed char)(unsigned char)MSG_ReadDeltaKey(key, (unsigned char)(signed char)from->sidemove,		8);
+		to->upmove	= (signed char)(unsigned char)MSG_ReadDeltaKey(key, (unsigned char)(signed char)from->upmove,		8);
 		to->buttons		= MSG_ReadDeltaKey(key, from->buttons,		16);
 		to->weapon		= MSG_ReadDeltaKey(key, from->weapon,		8);
 	}

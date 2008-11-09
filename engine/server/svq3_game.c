@@ -4,7 +4,6 @@
 //requires qvm implementation and existing q3 client stuff (or at least the overlapping stuff in q3common.c).
 
 #ifdef Q3SERVER
-
 float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 
 
@@ -249,6 +248,7 @@ static qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_
 
 void SVQ3_CreateBaseline(void);
 void SVQ3_ClientThink(client_t *cl);
+void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3);
 
 char *mapentspointer;
 
@@ -791,8 +791,8 @@ qboolean SVQ3_GetUserCmd(int clientnumber, q3usercmd_t *ucmd)
 	ucmd->angles[0] = cmd->angles[0];
 	ucmd->angles[1] = cmd->angles[1];
 	ucmd->angles[2] = cmd->angles[2];
-	ucmd->serverTime = cmd->servertime;
-	ucmd->forwardmove = cmd->forwardmove;
+	ucmd->serverTime = (signed char)cmd->servertime;
+	ucmd->forwardmove = (signed char)cmd->forwardmove;
 	ucmd->rightmove = cmd->sidemove;
 	ucmd->upmove = cmd->upmove;
 	ucmd->buttons = cmd->buttons;
@@ -1115,7 +1115,7 @@ int Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 		{
 			void *dst = VM_POINTER(arg[0]);
 			void *src = VM_POINTER(arg[1]);
-			Q_strncpyS(src, dst, arg[2]);
+			Q_strncpyS(dst, src, arg[2]);
 		}
 		break;
 	case G_SIN:
@@ -1665,7 +1665,7 @@ void BL_Free(void *mem)
 {
 	int *memref = ((int *)mem) - 1;
 	botlibmemoryavailable+=memref[0];
-	Z_Free(memref);
+	Z_TagFree(memref);
 }
 void *BL_HunkMalloc(int size)
 {
@@ -1848,7 +1848,7 @@ qboolean SVQ3_InitGame(void)
 	}
 	else
 	{
-		if (sv.worldmodel->fromgame == fg_quake || sv.worldmodel->fromgame == fg_quake2)
+		if (sv.worldmodel->fromgame == fg_quake || sv.worldmodel->fromgame == fg_halflife || sv.worldmodel->fromgame == fg_quake2)
 			return false;	//always fail on q1bsp
 	}
 
@@ -1996,7 +1996,7 @@ void SVQ3_CreateBaseline(void)
 //Writes the entities to the clients
 void SVQ3_EmitPacketEntities(client_t *client, q3client_frame_t *from, q3client_frame_t *to, sizebuf_t *msg)
 {
-	q3entityState_t	*oldent = {0}, *newent = {0};
+	q3entityState_t	*oldent, *newent;
 	int				oldindex, newindex;
 	int				oldnum, newnum;
 	int				from_num_entities;
@@ -2050,7 +2050,16 @@ void SVQ3_EmitPacketEntities(client_t *client, q3client_frame_t *from, q3client_
 		if(newnum < oldnum)
 		{
 			// this is a new entity, send it from the baseline
+			if (svs.gametype == GT_QUAKE3)
 			MSGQ3_WriteDeltaEntity( msg, &q3_baselines[newnum], newent, true );
+			else
+			{
+				q3entityState_t q3base;
+				edict_t *e;
+				e = EDICT_NUM(svprogfuncs, newnum);
+				SVQ3Q1_ConvertEntStateQ1ToQ3(&e->baseline, &q3base);
+				MSGQ3_WriteDeltaEntity( msg, &q3base, newent, true );
+			}
 			newindex++;
 			continue;
 		}
@@ -2074,7 +2083,7 @@ void SVQ3_WriteSnapshotToClient(client_t *client, sizebuf_t *msg)
 	int				delta;
 	int				i;
 
-	// this is a frame we are creating
+	// this is the frame we are transmitting
 	snap = &client->frameunion.q3frames[client->netchan.outgoing_sequence & Q3UPDATE_MASK];
 
 	if(client->state < cs_spawned)
@@ -2149,15 +2158,18 @@ int clientarea;
 qbyte *areabits;
 qbyte		*bitvector;
 
-static int VARGS SVQ3_QsortEntityStates( const void *arg1, const void *arg2 ) {
+static int VARGS SVQ3_QsortEntityStates( const void *arg1, const void *arg2 )
+{
 	const q3entityState_t *s1 = *(const q3entityState_t **)arg1;
 	const q3entityState_t *s2 = *(const q3entityState_t **)arg2;
 
-	if( s1->number > s2->number ) {
+	if( s1->number > s2->number )
+	{
 		return 1;
 	}
 
-	if( s1->number < s2->number ) {
+	if( s1->number < s2->number )
+	{
 		return -1;
 	}
 
@@ -2167,44 +2179,55 @@ static int VARGS SVQ3_QsortEntityStates( const void *arg1, const void *arg2 ) {
 	
 }
 
-static qboolean SVQ3_EntityIsVisible( q3sharedEntity_t *ent ) {
+static qboolean SVQ3_EntityIsVisible( q3sharedEntity_t *ent )
+{
 	q3serverEntity_t *sent;
 	int i;
 	int l;
 
-	if( !ent->r.linked ) {
+	if (!ent->r.linked)
+	{
 		return false; // not active entity
 	}
 
-	if( ent->r.svFlags & SVF_NOCLIENT ) {
+	if (ent->r.svFlags & SVF_NOCLIENT )
+	{
 		return false; // set to invisible
 	}
 
-	if( ent->r.svFlags & SVF_CLIENTMASK ) {
-		if( clientNum > 32 ) {
+	if (ent->r.svFlags & SVF_CLIENTMASK)
+	{
+		if (clientNum > 32)
+		{
 			SV_Error("SVF_CLIENTMASK: clientNum > 32" );
 		}
-		if( ent->r.singleClient & (1 << (clientNum & 7)) ) {
+		if (ent->r.singleClient & (1 << (clientNum & 7)))
+		{
 			return true;
 		}
 		return false;
 	}
 
-	if( ent->r.svFlags & SVF_SINGLECLIENT ) {
-		if( ent->r.singleClient == clientNum ) {
+	if (ent->r.svFlags & SVF_SINGLECLIENT)
+	{
+		if ( ent->r.singleClient == clientNum)
+		{
 			return true;
 		}
 		return false;
 	}
 
-	if( ent->r.svFlags & SVF_NOTSINGLECLIENT ) {
-		if( ent->r.singleClient == clientNum ) {
+	if (ent->r.svFlags & SVF_NOTSINGLECLIENT)
+	{
+		if (ent->r.singleClient == clientNum)
+		{
 			return false;
 		}
 		// FIXME: fall through
 	}
 
-	if( ent->r.svFlags & SVF_BROADCAST ) {
+	if (ent->r.svFlags & SVF_BROADCAST)
+	{
 		return true;
 	}
 
@@ -2214,45 +2237,107 @@ static qboolean SVQ3_EntityIsVisible( q3sharedEntity_t *ent ) {
 	sent = SENTITY_FOR_GENTITY( ent );
 	
 	// check area
-	if( sent->areanum < 0 || !(areabits[sent->areanum >> 3] & (1 << (sent->areanum & 7))) ) {
+	if (sent->areanum < 0 || !(areabits[sent->areanum >> 3] & (1 << (sent->areanum & 7))))
+	{
 		// doors can legally straddle two areas, so
 		// we may need to check another one
-		if( sent->areanum2 < 0 || !(areabits[sent->areanum2 >> 3] & (1 << (sent->areanum2 & 7))) ) {
+		if (sent->areanum2 < 0 || !(areabits[sent->areanum2 >> 3] & (1 << (sent->areanum2 & 7))))
+		{
 			return false;		// blocked by a door
 		}
 	}
 
 /*
 	// check area
-	if( !CM_AreasConnected( clientarea, sent->areanum ) ) {
+	if( !CM_AreasConnected( clientarea, sent->areanum ) )
+	{
 		// doors can legally straddle two areas, so
 		// we may need to check another one
-		if( !CM_AreasConnected( clientarea, sent->areanum2 ) ) {
+		if( !CM_AreasConnected( clientarea, sent->areanum2 ) )
+		{
 			return false;		// blocked by a door
 		}
 	}
 */
 
 			
-	if( sent->num_clusters == -1 ) {
+	if (sent->num_clusters == -1)
+	{
 		// too many leafs for individual check, go by headnode
-		if( !CM_HeadnodeVisible(sv.worldmodel, sent->headnode, bitvector ) ) {
+		if (!CM_HeadnodeVisible(sv.worldmodel, sent->headnode, bitvector))
+		{
 			return false;
 		}
-	} else {
+	}
+	else
+	{
 		// check individual leafs
-		for( i=0 ; i < sent->num_clusters ; i++ ) {
+		for (i=0; i < sent->num_clusters; i++)
+		{
 			l = sent->clusternums[i];
-			if( bitvector[l >> 3] & (1 << (l & 7) ) ) {
+			if (bitvector[l >> 3] & (1 << (l & 7)))
+			{
 				break;
 			}
 		}
-		if( i == sent->num_clusters ) {
+		if (i == sent->num_clusters)
+		{
 			return false;		// not visible
 		}
 	}
 	
 	return true;
+}
+
+q3playerState_t *SVQ3Q1_BuildPlayerState(client_t *client)
+{
+	static q3playerState_t state;
+	extern cvar_t sv_gravity;
+
+	memset(&state, 0, sizeof(state));
+
+#pragma message("qwoverq3: other things will need to be packed into here.")
+
+	state.commandTime = client->lastcmd.servertime;
+
+	state.pm_type = client->edict->v->movetype;
+	state.origin[0] = client->edict->v->origin[0];
+	state.origin[1] = client->edict->v->origin[1];
+	state.origin[2] = client->edict->v->origin[2];
+	state.velocity[0] = client->edict->v->velocity[0];
+	state.velocity[1] = client->edict->v->velocity[1];
+	state.velocity[2] = client->edict->v->velocity[2];
+
+	client->maxspeed = client->edict->xv->maxspeed;
+	if (!client->maxspeed)
+		client->maxspeed = sv_maxspeed.value;
+	client->entgravity = client->edict->xv->gravity * sv_gravity.value;
+	if (!client->entgravity)
+		client->entgravity = sv_gravity.value;
+	if (client->edict->xv->hasted)
+		client->maxspeed *= client->edict->xv->hasted;
+	state.speed = client->maxspeed;
+	state.gravity = client->entgravity;
+
+	state.viewangles[0] = client->edict->v->angles[0];
+	state.viewangles[1] = client->edict->v->angles[1];
+	state.viewangles[2] = client->edict->v->angles[2];
+
+	state.clientNum = client - svs.clients;
+	state.weapon = client->edict->v->weapon;
+
+	state.stats[0] = client->edict->v->health;
+	state.stats[2] = (int)client->edict->v->items&1023;
+	state.stats[3] = client->edict->v->armorvalue;
+	state.stats[4] = client->edict->v->angles[1];
+	state.stats[6] = client->edict->v->max_health;
+	state.persistant[0] = client->edict->v->frags;
+	state.ammo[0] = client->edict->v->currentammo;
+	state.ammo[1] = client->edict->v->ammo_shells;
+	state.ammo[2] = client->edict->v->ammo_nails;
+	state.ammo[3] = client->edict->v->ammo_rockets;
+	state.ammo[4] = client->edict->v->ammo_cells;
+	return &state;
 }
 
 void SVQ3_BuildClientSnapshot( client_t *client )
@@ -2267,9 +2352,24 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	int					portalarea;
 	int					i;
 
+	if (!q3_snapshot_entities)
+	{
+		q3_num_snapshot_entities = 32 * Q3UPDATE_BACKUP * 32;
+		q3_next_snapshot_entities = 0;
+		q3_snapshot_entities = BZ_Malloc(sizeof( q3entityState_t ) * q3_num_snapshot_entities);
+	}
+
 	clientNum = client - svs.clients;
+	if (svs.gametype == GT_QUAKE3)
+	{
 	clent = GENTITY_FOR_NUM( clientNum );
 	ps = PS_FOR_NUM( clientNum );
+	}
+	else
+	{
+		clent = NULL;
+		ps = SVQ3Q1_BuildPlayerState(client);
+	}
 
 	// this is the frame we are creating
 	snap = &client->frameunion.q3frames[client->netchan.outgoing_sequence & Q3UPDATE_MASK];
@@ -2315,25 +2415,19 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	snap->num_entities = 0;
 	snap->first_entity = q3_next_snapshot_entities;
 
+	if (svs.gametype == GT_QUAKE3)
+	{
 	// check for SVF_PORTAL entities first
 	for( i=0 ; i<numq3entities ; i++ )
 	{
 		ent = GENTITY_FOR_NUM( i );
 
 		if( ent == clent )
-		{
 			continue;
-		}
-
 		if( !(ent->r.svFlags & SVF_PORTAL) )
-		{
 			continue;
-		}
-
 		if( !SVQ3_EntityIsVisible( ent ) )
-		{
 			continue;
-		}
 
 		// merge PVS if portal 
 		portalarea = CM_PointLeafnum(sv.worldmodel, ent->s.origin2);
@@ -2349,16 +2443,13 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	{
 		ent = GENTITY_FOR_NUM( i );
 
-		if( ent == clent ) {
+			if (ent == clent)
 			continue;
-		}
-
 		if( !SVQ3_EntityIsVisible( ent ) )
-		{
 			continue;
-		}
 		
-		if( ent->s.number != i ) {
+			if (ent->s.number != i)
+			{
 			Con_DPrintf( "FIXING ENT->S.NUMBER!!!\n" );
 			ent->s.number = i;
 		}
@@ -2370,7 +2461,22 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 			Con_DPrintf( "MAX_ENTITIES_IN_SNAPSHOT\n" );
 			break;
 		}
-	
+	}
+	}
+	else
+	{	//our q1->q3 converter
+		packet_entities_t pack;
+		entity_state_t packentities[64];
+		q3entityState_t q3packentities[64];
+		pack.entities = packentities;
+		pack.max_entities = sizeof(packentities)/sizeof(packentities[0]);
+		//get the q1 code to generate a packet
+		SVQ3Q1_BuildEntityPacket(client, &pack);
+		for (i = 0; i < pack.num_entities; i++)
+		{	//map the packet fields to q3.
+			SVQ3Q1_ConvertEntStateQ1ToQ3(&pack.entities[i], &q3packentities[i]);
+			entityStates[snap->num_entities++] = &q3packentities[i];
+		}
 	}
 
 	if( q3_next_snapshot_entities + snap->num_entities >= 0x7FFFFFFE )
@@ -2399,6 +2505,165 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	
 }
 
+void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3)
+{
+#pragma message("qwoverq3: This _WILL_ need extending")
+	q3->number = q1->number;
+
+	q3->pos.trTime = 0;
+	q3->pos.trBase[0] = 0;
+	q3->pos.trBase[1] = 0;
+	q3->pos.trDelta[0] = 0;
+	q3->pos.trDelta[1] = 0;
+	q3->pos.trBase[2] = 0;
+	q3->apos.trBase[1] = 0;
+	q3->pos.trDelta[2] = 0;
+	q3->apos.trBase[0] = 0;
+	q3->event = q1->event;
+	q3->angles2[1] = 0;
+	q3->eType = 0;
+	q3->torsoAnim = q1->skinnum;
+	q3->eventParm = 0;
+	q3->legsAnim = 0;
+	q3->groundEntityNum = 0;
+	q3->pos.trType = 0;
+	q3->eFlags = q1->flags;
+	q3->otherEntityNum = 0;
+	q3->weapon = 0;
+	q3->clientNum = q1->colormap;
+	q3->angles[1] = q1->angles[0];
+	q3->pos.trDuration = 0;
+	q3->apos.trType = 0;
+	q3->origin[0] = q1->origin[0];
+	q3->origin[1] = q1->origin[1];
+	q3->origin[2] = q1->origin[2];
+	q3->solid = q1->solid;
+	q3->powerups = q1->effects;
+	q3->modelindex = q1->modelindex;
+	q3->otherEntityNum2 = 0;
+	q3->loopSound = q1->sound;
+	q3->generic1 = q1->trans;
+	q3->origin2[2] = q1->old_origin[2];
+	q3->origin2[0] = q1->old_origin[0];
+	q3->origin2[1] = q1->old_origin[1];
+	q3->modelindex2 = q1->modelindex2;
+	q3->angles[0] = q1->angles[0];
+	q3->time = 0;
+	q3->apos.trTime = 0;
+	q3->apos.trDuration = 0;
+	q3->apos.trBase[2] = 0;
+	q3->apos.trDelta[0] = 0;
+	q3->apos.trDelta[1] = 0;
+	q3->apos.trDelta[2] = 0;
+	q3->time2 = 0;
+	q3->angles[2] = q1->angles[2];
+	q3->angles2[0] = 0;
+	q3->angles2[2] = 0;
+	q3->constantLight = q1->abslight;
+	q3->frame = q1->frame;
+
+#if 0
+
+//these are the things I've not packed in to the above structure yet.
+#if defined(Q2CLIENT) || defined(Q2SERVER)
+	int             renderfx;               //q2
+	qbyte           modelindex3;    //q2
+	qbyte           modelindex4;    //q2
+#endif
+	qbyte glowsize;
+	qbyte glowcolour;
+	qbyte   scale;
+	char    fatness;
+	qbyte   hexen2flags;
+	qbyte   dpflags;
+	qbyte   colormod[3];//multiply this by 8 to read as 0 to 1...
+	qbyte lightstyle;
+	qbyte lightpflags;
+	unsigned short light[4];
+	unsigned short tagentity;
+	unsigned short tagindex;
+#endif
+}
+
+void SVQ3Q1_SendGamestateConfigstrings(sizebuf_t *msg)
+{
+	const int cs_models = 32;
+	const int cs_sounds = cs_models + 256;
+	const int cs_players = cs_sounds + 256;
+
+	int i, j;
+
+	char *str;
+	char sysinfo[MAX_SERVERINFO_STRING];
+	char *cfgstr[MAX_CONFIGSTRINGS];
+
+	//an empty crc string means we let the client use any
+	//but then it doesn't download our qwoverq3 thing.
+	char *refpackcrcs = "";//"-1309355180 0 0 0 0 0 0 0 0 0";
+	char *refpacknames = "baseq3/pak0 baseq3/pak1 baseq3/pak2 baseq3/pak3 baseq3/pak4 baseq3/pak5 baseq3/pak6 baseq3/pak7 baseq3/pak8 fte/qwoverq3";
+
+	memset(cfgstr, 0, sizeof(cfgstr));
+
+	sysinfo[0] = 0;
+	Info_SetValueForKey(sysinfo, "sv_serverid", va("%i", svs.spawncount), sizeof(sysinfo)); 
+	
+	str = refpackcrcs;//FS_GetPackHashes(buffer, sizeof(buffer), false);
+	Info_SetValueForKey(sysinfo, "sv_paks", str, sizeof(sysinfo));
+
+	str = refpacknames;//FS_GetPackNames(buffer, sizeof(buffer), false);
+	Info_SetValueForKey(sysinfo, "sv_pakNames", str, sizeof(sysinfo));
+	
+	str = refpackcrcs;//FS_GetPackHashes(buffer, sizeof(buffer), true);
+	Info_SetValueForKey(sysinfo, "sv_referencedPaks", str, sizeof(sysinfo));
+	
+	str = refpacknames;//FS_GetPackNames(buffer, sizeof(buffer), true);
+	Info_SetValueForKey(sysinfo, "sv_referencedPakNames", str, sizeof(sysinfo));
+
+Con_Printf("Sysinfo: %s\n", sysinfo);
+	str = "0";
+	Info_SetValueForKey(sysinfo, "sv_pure", str, sizeof(sysinfo));
+	
+	str = "qwoverq3";
+	Info_SetValueForKey(sysinfo, "fs_game", str, sizeof(sysinfo));
+
+	cfgstr[0] = svs.info;
+	cfgstr[1] = sysinfo;
+
+	cfgstr[2] = NULL;//sv.cdtrack;
+	cfgstr[3] = sv.mapname;
+	cfgstr[20] = "QuakeWorld-Over-Q3";	//you can get the gamedir out of the serverinfo
+
+	//add in 32 clients
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		cfgstr[cs_players+i] = svs.clients[i].userinfo;
+	}
+
+	//fill up the last half with sound/model names
+	//note that we're limited to only 256 models/sounds
+	for (i = 2; i < 256; i++)
+	{
+		cfgstr[cs_models+i] = sv.strings.model_precache[i];
+	}
+	for (i = 0; i < 256; i++)
+	{
+		cfgstr[cs_sounds+i] = sv.strings.sound_precache[i];
+	}
+
+	// write configstrings
+	for (i = 0; i < MAX_CONFIGSTRINGS; i++)
+	{
+		str = cfgstr[i];
+		if (!str || !*str)
+			continue;
+
+		MSG_WriteBits(msg, svcq3_configstring, 8);
+		MSG_WriteBits(msg, i, 16);
+		for (j = 0; str[j]; j++)
+			MSG_WriteBits(msg, str[j], 8);
+		MSG_WriteBits(msg, 0, 8);
+	}
+}
 
 //writes initial gamestate
 void SVQ3_SendGameState(client_t *client)
@@ -2422,6 +2687,9 @@ void SVQ3_SendGameState(client_t *client)
 	MSG_WriteBits(&msg, svcq3_gamestate, 8 );
 	MSG_WriteBits(&msg, client->num_client_commands, 32);
 
+	switch (svs.gametype)
+	{
+	case GT_QUAKE3:
 	// write configstrings
 	for( i=0; i<MAX_CONFIGSTRINGS; i++ )
 	{
@@ -2439,11 +2707,29 @@ void SVQ3_SendGameState(client_t *client)
 	// write baselines
 	for( i=0; i<MAX_GENTITIES; i++ )
 	{
-		if(i && !q3_baselines[i].number)
-			continue; // FIXME: is this correct?
+			if (!q3_baselines[i].number)
+				continue;
 
 		MSG_WriteBits(&msg, svcq3_baseline, 8);
 		MSGQ3_WriteDeltaEntity( &msg, NULL, &q3_baselines[i], true );
+	}
+		break;
+	case GT_PROGS:
+	case GT_Q1QVM:
+		SVQ3Q1_SendGamestateConfigstrings(&msg);
+
+		for (i = sv.allocated_client_slots+1; i < sv.num_edicts; i++)
+		{
+			edict_t *e = EDICT_NUM(svprogfuncs, i);
+			if (e->baseline.modelindex)
+			{
+				q3entityState_t q3base;
+				SVQ3Q1_ConvertEntStateQ1ToQ3(&e->baseline, &q3base);
+				MSG_WriteBits(&msg, svcq3_baseline, 8);
+				MSGQ3_WriteDeltaEntity(&msg, NULL, &q3base, true);
+			}
+		}
+		break;
 	}
 
 	// write svc_eom command
@@ -2670,6 +2956,7 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 
 	// read delta sequenced usercmds
 	from = &nullcmd;
+	from->servertime = client->lastcmd.servertime;
 	for(i=0, to=commands; i<cmdCount; i++, to++)
 	{
 		MSG_Q3_ReadDeltaUsercmd(key, from, to);
@@ -2681,19 +2968,49 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 	case cs_connected:
 		// transition from CS_PRIMED to CS_ACTIVE
 		memcpy(&client->lastcmd, &commands[cmdCount-1], sizeof(client->lastcmd));
-		SVQ3_ClientBegin(client);
+		if (svs.gametype == GT_QUAKE3)
+			SVQ3_ClientBegin(client);
+		else
+		{
+			sv_player = host_client->edict;
+			SV_Begin_Core(client);
+		}
 		client->state = cs_spawned;
 		break;
 	case cs_spawned:
 		// run G_ClientThink() on each usercmd
+		if (svs.gametype != GT_QUAKE3)
+		{
+			sv_player = host_client->edict;
+			SV_PreRunCmd();
+		}
 		for(i=0,to=commands; i<cmdCount; i++, to++)
 		{
-//			if(to->servertime <= client->lastcmd.servertime )
-//				continue;
+			if(to->servertime <= client->lastcmd.servertime )
+				continue;
 
 			memcpy( &client->lastcmd, to, sizeof(client->lastcmd));
+			if (svs.gametype == GT_QUAKE3)
 			SVQ3_ClientThink(client);
+			else
+			{
+				usercmd_t temp;
+				temp = client->lastcmd;
+#pragma message("qwoverq3: you need to be aware of this if you're making a compatible cgame")
+				//if you read the q3 code, you'll see that the speed value used is 64 for walking, and 127 for running (full speed).
+				//so we map full to full here.
+				temp.sidemove *= client->maxspeed/127.0f;
+				temp.forwardmove *= client->maxspeed/127.0f;
+				temp.upmove *= client->maxspeed/127.0f;
+
+				temp.buttons &= ~2;
+				if (temp.buttons & 64)
+					temp.buttons |= 2;
+				SV_RunCmd(&temp, false);
 		}
+		}
+		if (svs.gametype != GT_QUAKE3)
+			SV_PostRunCmd();
 		break;
 	default:
 		break; // outdated usercmd packet
@@ -2707,6 +3024,7 @@ void SVQ3_UpdateUserinfo_f(client_t *cl)
 
 	SV_ExtractFromUserinfo (cl);
 
+	if (svs.gametype == GT_QUAKE3)
 	VM_Call(q3gamevm, GAME_CLIENT_USERINFO_CHANGED, (int)(cl-svs.clients));
 }
 
@@ -2784,6 +3102,7 @@ void SVQ3_ParseClientCommand(client_t *client)
 
 	// TODO - flood protection
 
+	if (svs.gametype == GT_QUAKE3)
 	if(!u->name && sv.state == ss_active)
 		SVQ3_ClientCommand(client);
 }
@@ -2822,7 +3141,9 @@ void SVQ3_ParseClientMessage(client_t *client)
 		if(client->gamestatesequence>=0)
 		{
 			if( client->last_sequence - client->gamestatesequence < 100 )
+			{
 				return; // don't resend gameState too frequently
+			}
 
 			Con_DPrintf( "%s : dropped gamestate, resending\n", client->name );
 		}
@@ -2917,6 +3238,7 @@ void SVQ3_HandleClient(void)
 bannedips_t *SV_BannedAddress (netadr_t *a);
 void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and let the gamecode know of it.
 {
+	//this is only called when running q3 gamecode
 	char *reason;
 	client_t *cl;
 	char *userinfo = NULL;

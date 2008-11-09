@@ -211,6 +211,7 @@ typedef struct frame_s {
 #define TEXTCMD_MASK		(TEXTCMD_BACKUP-1)
 
 #define MAX_Q3_CONFIGSTRINGS 1024
+#define CFGSTR_SYSINFO 1
 
 #define GENTITYNUM_BITS 10
 #define	MAX_GENTITIES		(1<<GENTITYNUM_BITS)

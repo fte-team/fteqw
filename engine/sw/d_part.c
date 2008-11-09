@@ -46,14 +46,14 @@ void D_StartParticles (void)
 // not used by software driver
 }
 
-#if	!id386
-
 /*
 ==============
 D_DrawParticle
 ==============
 */
-void D_DrawParticle (particle_t *pparticle)
+#if	!id386
+
+void D_DrawParticleC (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
 {
 	vec3_t	local, transformed;
 	float	zi;
@@ -62,7 +62,7 @@ void D_DrawParticle (particle_t *pparticle)
 	int		i, izi, pix, count, u, v;
 
 // transform point
-	VectorSubtract (pparticle->org, r_origin, local);
+	VectorSubtract (porg, r_origin, local);
 
 	transformed[0] = DotProduct(local, r_pright);
 	transformed[1] = DotProduct(local, r_pup);
@@ -90,7 +90,7 @@ void D_DrawParticle (particle_t *pparticle)
 	izi = (int)(zi * PARTICLEFACTOR);
 
 	pix = izi >> d_pix_shift;
-	pix *= pparticle->scale;
+	pix *= pscale;
 
 	if (pix < d_pix_min)
 		pix = d_pix_min;
@@ -107,7 +107,7 @@ void D_DrawParticle (particle_t *pparticle)
 			if (pz[0] <= izi)
 			{
 //				pz[0] = izi;
-				pdest[0] = pparticle->color;
+				pdest[0] = pcolour;
 			}
 		}
 		break;
@@ -120,13 +120,13 @@ void D_DrawParticle (particle_t *pparticle)
 			if (pz[0] <= izi)
 			{
 //				pz[0] = izi;
-				pdest[0] = pparticle->color;
+				pdest[0] = pcolour;
 			}
 
 			if (pz[1] <= izi)
 			{
 //				pz[1] = izi;
-				pdest[1] = pparticle->color;
+				pdest[1] = pcolour;
 			}
 		}
 		break;
@@ -139,19 +139,19 @@ void D_DrawParticle (particle_t *pparticle)
 			if (pz[0] <= izi)
 			{
 //				pz[0] = izi;
-				pdest[0] = pparticle->color;
+				pdest[0] = pcolour;
 			}
 
 			if (pz[1] <= izi)
 			{
 //				pz[1] = izi;
-				pdest[1] = pparticle->color;
+				pdest[1] = pcolour;
 			}
 
 			if (pz[2] <= izi)
 			{
 //				pz[2] = izi;
-				pdest[2] = pparticle->color;
+				pdest[2] = pcolour;
 			}
 		}
 		break;
@@ -164,25 +164,25 @@ void D_DrawParticle (particle_t *pparticle)
 			if (pz[0] <= izi)
 			{
 //				pz[0] = izi;
-				pdest[0] = pparticle->color;
+				pdest[0] = pcolour;
 			}
 
 			if (pz[1] <= izi)
 			{
 //				pz[1] = izi;
-				pdest[1] = pparticle->color;
+				pdest[1] = pcolour;
 			}
 
 			if (pz[2] <= izi)
 			{
 //				pz[2] = izi;
-				pdest[2] = pparticle->color;
+				pdest[2] = pcolour;
 			}
 
 			if (pz[3] <= izi)
 			{
 //				pz[3] = izi;
-				pdest[3] = pparticle->color;
+				pdest[3] = pcolour;
 			}
 		}
 		break;
@@ -197,7 +197,7 @@ void D_DrawParticle (particle_t *pparticle)
 				if (pz[i] <= izi)
 				{
 //					pz[i] = izi;
-					pdest[i] = pparticle->color;
+					pdest[i] = pcolour;
 				}
 			}
 		}
@@ -207,7 +207,7 @@ void D_DrawParticle (particle_t *pparticle)
 
 #endif	// !id386
 
-void D_DrawParticle16 (particle_t *pparticle)
+void D_DrawParticle16 (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
 {
 	vec3_t	local, transformed;
 	float	zi;
@@ -216,11 +216,11 @@ void D_DrawParticle16 (particle_t *pparticle)
 	short	*pz;
 	int		i, izi, pix, count, u, v;
 
-	if (pparticle->alpha <= 0.2)
+	if (palpha <= 0.2)
 		return;
 
 // transform point
-	VectorSubtract (pparticle->org, r_origin, local);
+	VectorSubtract (porg, r_origin, local);
 
 	transformed[0] = DotProduct(local, r_pright);
 	transformed[1] = DotProduct(local, r_pup);
@@ -246,7 +246,7 @@ void D_DrawParticle16 (particle_t *pparticle)
 	pz = d_pzbuffer + (d_zwidth * v) + u;	
 	izi = (int)(zi * PARTICLEFACTOR);
 
-	pix = ((int)(izi*pparticle->scale));	
+	pix = ((int)(izi*pscale));	
 
 	if (pix < d_pix_min)
 		pix = d_pix_min;
@@ -259,7 +259,7 @@ void D_DrawParticle16 (particle_t *pparticle)
 	if (v < 0) v = 0;
 	pdest = (unsigned short	*)d_viewbuffer + ((d_scantable[v] + u));
 
-	a = 255*pparticle->alpha;
+	a = 255*palpha;
 
 	switch (pix)
 	{
@@ -273,7 +273,7 @@ void D_DrawParticle16 (particle_t *pparticle)
 				if (pz[i] <= izi)
 				{
 //					pz[i] = izi;
-					pdest[i] = d_8to16table[(int)pparticle->color];
+					pdest[i] = d_8to16table[pcolour];
 				}
 			}
 		}
@@ -281,7 +281,7 @@ void D_DrawParticle16 (particle_t *pparticle)
 	}
 }
 
-void D_DrawParticle32 (particle_t *pparticle)
+void D_DrawParticle32 (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
 {
 	vec3_t	local, transformed;
 	float	zi;
@@ -291,11 +291,11 @@ void D_DrawParticle32 (particle_t *pparticle)
 	short	*pz;
 	int		i, izi, pix, count, u, v;
 
-	if (pparticle->alpha <= 0.0)
+	if (palpha <= 0.0)
 		return;
 
 // transform point
-	VectorSubtract (pparticle->org, r_origin, local);
+	VectorSubtract (porg, r_origin, local);
 
 	transformed[0] = DotProduct(local, r_pright);
 	transformed[1] = DotProduct(local, r_pup);
@@ -321,7 +321,7 @@ void D_DrawParticle32 (particle_t *pparticle)
 	pz = d_pzbuffer + (d_zwidth * v) + u;	
 	izi = (int)(zi * PARTICLEFACTOR);
 
-	pix = ((int)(izi*pparticle->scale)) >> d_pix_shift;	
+	pix = ((int)(izi*pscale)) >> d_pix_shift;	
 
 	if (pix < d_pix_min)
 		pix = d_pix_min;
@@ -333,9 +333,9 @@ void D_DrawParticle32 (particle_t *pparticle)
 	if (u < 0) u = 0;
 	if (v < 0) v = 0;
 	pdest = d_viewbuffer + ((d_scantable[v] + u)<<2);
-	pal = (qbyte *)&d_8to32table[(int)pparticle->color];
+	pal = (qbyte *)&d_8to32table[pcolour];
 
-	a = 255*pparticle->alpha;
+	a = 255*palpha;
 
 	switch (pix)
 	{
@@ -361,41 +361,38 @@ void D_DrawParticle32 (particle_t *pparticle)
 
 #define draw(x, y) x=Trans(x,y)
 #define addblend(x, y) x=AddBlend(x,y)
-void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
+void D_DrawParticleTrans (vec3_t porg, float palpha, float pscale, unsigned int pcolour, blendmode_t blendmode)
 {
 	vec3_t	local, transformed;
 	float	zi;
 	qbyte	*pdest;
-	qbyte	pcolor;
 	short	*pz;
 	int		i, izi, pix, count, u, v;
 
 	if (r_pixbytes == 4)
 	{
-		D_DrawParticle32(pparticle);
+		D_DrawParticle32(porg, palpha, pscale, pcolour);
 		return;
 	}
 	if (r_pixbytes == 2)
 	{
-		D_DrawParticle16(pparticle);
+		D_DrawParticle16(porg, palpha, pscale, pcolour);
 		return;
 	}
 
-	if (pparticle->alpha < TRANS_LOWER_CAP)
+	if (palpha < TRANS_LOWER_CAP)
 		return;
 
-	if (pparticle->alpha > TRANS_UPPER_CAP && blendmode == BM_BLEND)
+	if (palpha > TRANS_UPPER_CAP && blendmode == BM_BLEND)
 	{
-		D_DrawParticle(pparticle);
+		D_DrawParticle(porg, palpha, pscale, pcolour);
 		return;
 	}
 
-	D_SetTransLevel(pparticle->alpha, blendmode);
-
-	pcolor = pparticle->color;
+	D_SetTransLevel(palpha, blendmode);
 
 // transform point
-	VectorSubtract (pparticle->org, r_origin, local);
+	VectorSubtract (porg, r_origin, local);
 
 	transformed[0] = DotProduct(local, r_pright);
 	transformed[1] = DotProduct(local, r_pup);
@@ -421,7 +418,7 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 	pz = d_pzbuffer + (d_zwidth * v) + u;	
 	izi = (int)(zi * PARTICLEFACTOR);
 
-	pix = ((int)(izi*pparticle->scale)) >> d_pix_shift;	
+	pix = ((int)(izi*pscale)) >> d_pix_shift;	
 
 	if (pix < d_pix_min)
 		pix = d_pix_min;
@@ -446,7 +443,7 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 				if (pz[0] <= izi)
 				{
 	//				pz[0] = izi;
-					addblend(pdest[0], pcolor);
+					addblend(pdest[0], pcolour);
 				}
 			}
 			break;
@@ -459,13 +456,13 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 				if (pz[0] <= izi)
 				{
 	//				pz[0] = izi;
-					addblend(pdest[0], pcolor);
+					addblend(pdest[0], pcolour);
 				}
 
 				if (pz[1] <= izi)
 				{
 	//				pz[1] = izi;
-					addblend(pdest[1], pcolor);
+					addblend(pdest[1], pcolour);
 				}
 			}
 			break;
@@ -478,19 +475,19 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 				if (pz[0] <= izi)
 				{
 	//				pz[0] = izi;
-					addblend(pdest[0], pcolor);
+					addblend(pdest[0], pcolour);
 				}
 
 				if (pz[1] <= izi)
 				{
 	//				pz[1] = izi;
-					addblend(pdest[1], pcolor);
+					addblend(pdest[1], pcolour);
 				}
 
 				if (pz[2] <= izi)
 				{
 	//				pz[2] = izi;
-					addblend(pdest[2], pcolor);
+					addblend(pdest[2], pcolour);
 				}
 			}
 			break;
@@ -503,25 +500,25 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 				if (pz[0] <= izi)
 				{
 	//				pz[0] = izi;
-					addblend(pdest[0], pcolor);
+					addblend(pdest[0], pcolour);
 				}
 
 				if (pz[1] <= izi)
 				{
 	//				pz[1] = izi;
-					addblend(pdest[1], pcolor);
+					addblend(pdest[1], pcolour);
 				}
 
 				if (pz[2] <= izi)
 				{
 	//				pz[2] = izi;
-					addblend(pdest[2], pcolor);
+					addblend(pdest[2], pcolour);
 				}
 
 				if (pz[3] <= izi)
 				{
 	//				pz[3] = izi;
-					addblend(pdest[3], pcolor);
+					addblend(pdest[3], pcolour);
 				}
 			}
 			break;
@@ -536,7 +533,7 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 					if (pz[i] <= izi)
 					{
 	//					pz[i] = izi;
-						addblend(pdest[i], pcolor);
+						addblend(pdest[i], pcolour);
 					}
 				}
 			}
@@ -555,7 +552,7 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 				if (pz[0] <= izi)
 				{
 	//				pz[0] = izi;
-					draw(pdest[0], pcolor);
+					draw(pdest[0], pcolour);
 				}
 			}
 			break;
@@ -568,13 +565,13 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 				if (pz[0] <= izi)
 				{
 	//				pz[0] = izi;
-					draw(pdest[0], pcolor);
+					draw(pdest[0], pcolour);
 				}
 
 				if (pz[1] <= izi)
 				{
 	//				pz[1] = izi;
-					draw(pdest[1], pcolor);
+					draw(pdest[1], pcolour);
 				}
 			}
 			break;
@@ -587,19 +584,19 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 				if (pz[0] <= izi)
 				{
 	//				pz[0] = izi;
-					draw(pdest[0], pcolor);
+					draw(pdest[0], pcolour);
 				}
 
 				if (pz[1] <= izi)
 				{
 	//				pz[1] = izi;
-					draw(pdest[1], pcolor);
+					draw(pdest[1], pcolour);
 				}
 
 				if (pz[2] <= izi)
 				{
 	//				pz[2] = izi;
-					draw(pdest[2], pcolor);
+					draw(pdest[2], pcolour);
 				}
 			}
 			break;
@@ -612,25 +609,25 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 				if (pz[0] <= izi)
 				{
 	//				pz[0] = izi;
-					draw(pdest[0], pcolor);
+					draw(pdest[0], pcolour);
 				}
 
 				if (pz[1] <= izi)
 				{
 	//				pz[1] = izi;
-					draw(pdest[1], pcolor);
+					draw(pdest[1], pcolour);
 				}
 
 				if (pz[2] <= izi)
 				{
 	//				pz[2] = izi;
-					draw(pdest[2], pcolor);
+					draw(pdest[2], pcolour);
 				}
 
 				if (pz[3] <= izi)
 				{
 	//				pz[3] = izi;
-					draw(pdest[3], pcolor);
+					draw(pdest[3], pcolour);
 				}
 			}
 			break;
@@ -645,7 +642,7 @@ void D_DrawParticleTrans (particle_t *pparticle, blendmode_t blendmode)
 					if (pz[i] <= izi)
 					{
 	//					pz[i] = izi;
-						draw(pdest[i], pcolor);
+						draw(pdest[i], pcolour);
 					}
 				}
 			}
@@ -687,7 +684,7 @@ vec_t VI2Length(int x, int y)
 	length = sqrt (length);
 	return length;
 }
-void D_DrawSparkTrans32 (particle_t *pparticle, vec3_t src, vec3_t dest)	//draw a line in 3d space
+void D_DrawSparkTrans32 (vec3_t src, vec3_t dest, float palpha, unsigned int pcolour)	//draw a line in 3d space
 {
 	/*
 	Finds 2d coords for the points, then draws a line between them with an appropriate alpha
@@ -700,7 +697,7 @@ void D_DrawSparkTrans32 (particle_t *pparticle, vec3_t src, vec3_t dest)	//draw 
 
 	int du, dv, dz, da;
 
-	if (pparticle->alpha <= 0.0)
+	if (palpha <= 0.0)
 		return;
 
 	D_2dPos(src, &u1, &v1, &z1);
@@ -721,8 +718,8 @@ void D_DrawSparkTrans32 (particle_t *pparticle, vec3_t src, vec3_t dest)	//draw 
 	{
 		return;
 	}	
-pal = (qbyte *)(d_8to32table + (int)pparticle->color);
-	a1 = 255 * pparticle->alpha;
+	pal = (qbyte *)(d_8to32table + pcolour);
+	a1 = 255 * palpha;
 
 	du = u2 - u1;
 	dv = v2 - v1;
@@ -775,7 +772,7 @@ pal = (qbyte *)(d_8to32table + (int)pparticle->color);
 	} while (count--);
 }
 
-void D_DrawSparkTrans16 (particle_t *pparticle, vec3_t src, vec3_t dest)	//draw a line in 3d space, 8bpp
+void D_DrawSparkTrans16 (vec3_t src, vec3_t dest, float palpha, unsigned int pcolour)	//draw a line in 3d space, 8bpp
 {
 	unsigned short	*pdest;
 	short	*pz;
@@ -784,7 +781,7 @@ void D_DrawSparkTrans16 (particle_t *pparticle, vec3_t src, vec3_t dest)	//draw 
 
 	int du, dv, dz;
 
-	if (pparticle->alpha <= 0.0)
+	if (palpha <= 0.0)
 		return;
 
 	D_2dPos(src, &u1, &v1, &z1);
@@ -839,7 +836,7 @@ void D_DrawSparkTrans16 (particle_t *pparticle, vec3_t src, vec3_t dest)	//draw 
 //			*pz = z1>>16;
 
 			pdest = (unsigned short*)d_viewbuffer + d_scantable[v1>>16] + (u1>>16);
-			*pdest = d_8to16table[(int)pparticle->color];
+			*pdest = d_8to16table[pcolour];
 		}
 
 		u1 += du;
@@ -848,7 +845,7 @@ void D_DrawSparkTrans16 (particle_t *pparticle, vec3_t src, vec3_t dest)	//draw 
 	} while (count--);
 }
 
-void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest, blendmode_t blendmode)	//draw a line in 3d space, 8bpp
+void D_DrawSparkTrans (vec3_t src, vec3_t dest, float palpha, unsigned int pcolour, blendmode_t blendmode)	//draw a line in 3d space, 8bpp
 {
 	qbyte	*pdest;
 	short	*pz;
@@ -862,16 +859,16 @@ void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest, blendmode
 */
 	if (r_pixbytes == 4)
 	{
-		D_DrawSparkTrans32(pparticle, src, dest);
+		D_DrawSparkTrans32(src, dest, palpha, pcolour);
 		return;
 	}
 	if (r_pixbytes == 2)
 	{
-		D_DrawSparkTrans16(pparticle, src, dest);
+		D_DrawSparkTrans16(src, dest, palpha, pcolour);
 		return;
 	}
 
-	D_SetTransLevel(pparticle->alpha, blendmode);
+	D_SetTransLevel(palpha, blendmode);
 
 	D_2dPos(src, &u1, &v1, &z1);
 	D_2dPos(dest, &u2, &v2, &z2);
@@ -925,7 +922,7 @@ void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest, blendmode
 			{
 	//				*pz = z1>>16;
 				pdest = d_viewbuffer + d_scantable[v1>>16] + (u1>>16);
-				addblend(*pdest, (qbyte)pparticle->color);
+				addblend(*pdest, (qbyte)pcolour);
 			}
 
 			u1 += du;
@@ -943,7 +940,7 @@ void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest, blendmode
 			{
 	//				*pz = z1>>16;
 				pdest = d_viewbuffer + d_scantable[v1>>16] + (u1>>16);
-				draw(*pdest, (qbyte)pparticle->color);
+				draw(*pdest, (qbyte)pcolour);
 			}
 
 			u1 += du;

@@ -91,6 +91,17 @@ unsigned short QCRC_Block (qbyte *start, int count)
 	return crc;
 }
 
+unsigned short QCRC_Block_AsLower (qbyte *start, int count)
+{
+	unsigned short	crc;
+
+	QCRC_Init (&crc);
+	while (count--)
+		crc = (crc << 8) ^ crctable[(crc >> 8) ^ tolower(*start++)];
+
+	return crc;
+}
+
 void QCRC_AddBlock (unsigned short *crcvalue, qbyte *start, int count)
 {
     while (count--)

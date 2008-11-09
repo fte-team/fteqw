@@ -96,7 +96,7 @@ void d3d_GAliasFlushSkinCache(void)
 	skincolourmapped.numbuckets = 0;
 }
 
-static galiastexnum_t *D3D_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum, entity_t *e)
+static galiastexnum_t *D3D7_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum, entity_t *e)
 {
 	galiasskin_t *skins;
 	galiastexnum_t *texnums;
@@ -346,7 +346,7 @@ static galiastexnum_t *D3D_ChooseSkin(galiasinfo_t *inf, char *modelname, int su
 						frac += fracstep;
 					}
 				}
-				texnums->base = D3D_LoadTexture_32 ("", pixels, scaled_width, scaled_height, 0);
+				texnums->base = D3D7_LoadTexture_32 ("", pixels, scaled_width, scaled_height, 0);
 /*				texnums->base = texture_extension_number++;
 				GL_Bind(texnums->base);
 				qglTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
@@ -603,7 +603,7 @@ static void LotsOfLightDirectionHacks(entity_t *e, model_t *m, vec3_t lightaxis[
 
 qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int frame2, float lerp, float alpha, float fg1time, float fg2time, qboolean nolightdir);
 //draws currententity
-void D3D_DrawAliasModel(void)
+void D3D7_DrawAliasModel(void)
 {
 	mesh_t mesh;
 	extern entity_t *currententity;
@@ -676,9 +676,9 @@ if (e->flags & Q2RF_DEPTHHACK)
 
 	for(i = 0;; i++)
 	{
-		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->shaderRGBAf[3], e->frame1time, e->frame2time, 0);
+		R_GAliasBuildMesh(&mesh, inf, e->frame1, e->frame2, e->lerpfrac, e->shaderRGBAf[3], e->frame1time, e->frame2time, 0);
 
-		skin = D3D_ChooseSkin(inf, m->name, e->skinnum, e);
+		skin = D3D7_ChooseSkin(inf, m->name, e->skinnum, e);
 		if (!skin)
 			pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, NULL);
 		else

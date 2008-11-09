@@ -6,8 +6,6 @@
 #include "glquake.h"//fixme
 #endif
 
-
-
 #if !defined(NOMEDIA)
 
 
@@ -785,7 +783,10 @@ char *Media_NextTrack(void)
 #undef	lTime
 
 
-
+#ifdef OFFSCREENGECKO
+#include "offscreengecko/embedding.h"
+#include "offscreengecko/browser.h"
+#endif
 
 
 ///temporary residence for media handling
@@ -809,18 +810,38 @@ typedef enum {
 	MFT_STATIC,	//non-moving, PCX, no sound
 	MFT_ROQ,
 	MFT_AVI,
-	MFT_CIN
+	MFT_CIN,
+	MFT_OFSGECKO
 } media_filmtype_t;
+
+typedef enum {
+	MOT_NONE,
+	MOT_PALETTE,
+	MOT_RGBA,
+	MOT_BGRA,
+	MOT_BGR_FLIP
+} media_outputtype_t;
 
 struct cin_s {
 
 	//these are the outputs (not always power of two!)
-	int outtype;
+	media_outputtype_t outtype;
 	int outwidth;
 	int outheight;
 	qbyte *outdata;
 	qbyte *outpalette;
 	int outunchanged;
+
+	qboolean (*decodeframe)(cin_t *cin, qboolean nosound);
+	void (*doneframe)(cin_t *cin);
+	void (*shutdown)(cin_t *cin);	//warning: don't free cin_t
+	//these are any interactivity functions you might want...
+	void (*cursormove) (struct cin_s *cin, float posx, float posy);	//pos is 0-1
+	void (*key) (struct cin_s *cin, int code, int event);
+	qboolean (*setsize) (struct cin_s *cin, int width, int height);
+	void (*getsize) (struct cin_s *cin, int *width, int *height);
+	void (*changestream) (struct cin_s *cin, char *streamname);
+
 
 	//
 
@@ -836,7 +857,22 @@ struct cin_s {
 
 		LPWAVEFORMAT pWaveFormat;
 		HWND capturewindow;
+
+		//sound stuff
+		int soundpos;
+
+		//source info
+		float filmfps;
+		int num_frames;
 	} avi;
+#endif
+
+#ifdef OFFSCREENGECKO
+	struct {
+		OSGK_Browser *gbrowser;
+		int bwidth;
+		int bheight;
+	} gecko;
 #endif
 
 	struct {
@@ -864,97 +900,358 @@ struct cin_s {
 
 	int currentframe;	//last frame in buffer
 	qbyte *framedata;	//Z_Malloced buffer
-
-	//sound stuff
-	int soundpos;
-
-	//source sizes
-	int filmwidth;
-	int filmheight;
-
-	//source info
-	float filmfps;
-	int num_frames;
 };
 
 cin_t *fullscreenvid;
 
-qboolean Media_PlayingFullScreen(void)
+//////////////////////////////////////////////////////////////////////////////////
+//AVI Support (windows)
+#ifdef WINAVI
+void Media_WINAVI_Shutdown(struct cin_s *cin)
 {
-	return fullscreenvid!=NULL;
+	AVIStreamGetFrameClose(cin->avi.pgf);
+	AVIStreamEndStreaming(cin->avi.pavivideo);
+	AVIStreamRelease(cin->avi.pavivideo);
+	//we don't need to free the file (we freed it immediatly after getting the stream handles)
 }
-
-void Media_ShutdownCin(cin_t *cin)
+qboolean Media_WinAvi_DecodeFrame(cin_t *cin, qboolean nosound)
 {
-	soundcardinfo_t *sc;
-	sfx_t *s;
+	LPBITMAPINFOHEADER lpbi;									// Holds The Bitmap Header Information
+	float newframe;
+	int newframei;
 
-	if (!cin)
-		return;
+	float curtime = Sys_DoubleTime();
 
-	for (sc = sndcardinfo; sc; sc=sc->next)
+	newframe = (curtime - cin->filmstarttime)*cin->avi.filmfps;
+	newframei = newframe;
+
+	if (newframe == cin->currentframe)
 	{
-		s = sc->channel[NUM_AMBIENTS].sfx;
-		if (s && s == &cin->mediaaudio)
-		{
-			sc->channel[NUM_AMBIENTS].pos = 0;
-			sc->channel[NUM_AMBIENTS].end = 0;
-			sc->channel[NUM_AMBIENTS].sfx = NULL;
-		}
+		cin->outunchanged = true;
+		return true;
 	}
 
-	switch(cin->filmtype)	//shut down the old media.
+	if (cin->currentframe < newframei-1)
+		Con_DPrintf("Dropped %i frame(s)\n", (newframei - cin->currentframe)-1);
+
+	cin->currentframe = newframei;
+	Con_DPrintf("%i\n", newframei);
+
+	if (cin->currentframe>=cin->avi.num_frames)
 	{
-	case MFT_ROQ:
-		roq_close(cin->roq.roqfilm);
-		cin->roq.roqfilm=NULL;
-		break;
+		return false;
+	}
 
-	case MFT_STATIC:
-		BZ_Free(cin->image.filmimage);
-		cin->image.filmimage = NULL;
-		break;
+	lpbi = (LPBITMAPINFOHEADER)AVIStreamGetFrame(cin->avi.pgf, cin->currentframe);	// Grab Data From The AVI Stream
+	cin->currentframe++;
+	if (!lpbi || lpbi->biBitCount != 24)//oops
+	{		
+		SCR_SetUpToDrawConsole();
+#ifdef SWQUAKE
+		D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
+#endif
+		Draw_ConsoleBackground(vid.height);
+		Draw_String(0, 0, "Video stream is corrupt\n");			
+	}
+	else
+	{
+		cin->outtype = MOT_BGR_FLIP;
+		cin->outwidth = lpbi->biWidth;
+		cin->outheight = lpbi->biHeight;
+		cin->outdata = (char*)lpbi+lpbi->biSize;
+	}
 
-#ifdef WINAVI
-	case MFT_AVI:
-		AVIStreamGetFrameClose(cin->avi.pgf);
-		AVIStreamEndStreaming(cin->avi.pavivideo);
-		AVIStreamRelease(cin->avi.pavivideo);
-		//we don't need to free the file (we freed it immediatly after getting the stream handles)
-		break;
+	if (cin->avi.pavisound)
+	{
+		LONG lSize;
+		LPBYTE pBuffer;
+		LONG samples;
+
+		AVIStreamRead(cin->avi.pavisound, 0, AVISTREAMREAD_CONVENIENT,
+		   NULL, 0, &lSize, &samples);
+
+		cin->avi.soundpos+=samples;
+
+		pBuffer = cin->framedata;
+
+		AVIStreamRead(cin->avi.pavisound, cin->avi.soundpos, AVISTREAMREAD_CONVENIENT, pBuffer, lSize, NULL, &samples);
+
+		S_RawAudio(-1, pBuffer, cin->avi.pWaveFormat->nSamplesPerSec, samples, cin->avi.pWaveFormat->nChannels, 2);			
+	}
+	return true;
+}
+cin_t *Media_WinAvi_TryLoad(char *name)
+{
+	cin_t *cin;
+	PAVIFILE			pavi;
+
+	if (!aviinited)
+	{
+		aviinited=true;
+		AVIFileInit();
+	}
+	if (!AVIFileOpen(&pavi, name, OF_READ, NULL))//!AVIStreamOpenFromFile(&pavi, name, streamtypeVIDEO, 0, OF_READ, NULL))
+	{
+		int filmwidth;
+		int filmheight;
+
+		cin = Z_Malloc(sizeof(cin_t));
+		cin->filmtype = MFT_AVI;
+		cin->avi.pavi = pavi;
+
+		if (AVIFileGetStream(cin->avi.pavi, &cin->avi.pavivideo, streamtypeVIDEO, 0))	//retrieve video stream
+		{
+			AVIFileRelease(pavi);
+			Con_Printf("%s contains no video stream\n", name);
+			return NULL;
+		}
+		if (AVIFileGetStream(cin->avi.pavi, &cin->avi.pavisound, streamtypeAUDIO, 0))	//retrieve audio stream
+		{
+			Con_DPrintf("%s contains no audio stream\n", name);
+			cin->avi.pavisound=NULL;
+		}
+		AVIFileRelease(cin->avi.pavi);
+
+//play with video
+		AVIStreamInfo(cin->avi.pavivideo, &cin->avi.psi, sizeof(cin->avi.psi));
+		filmwidth=cin->avi.psi.rcFrame.right-cin->avi.psi.rcFrame.left;					// Width Is Right Side Of Frame Minus Left
+		filmheight=cin->avi.psi.rcFrame.bottom-cin->avi.psi.rcFrame.top;					// Height Is Bottom Of Frame Minus Top
+		cin->framedata = BZ_Malloc(filmwidth*filmheight*4);
+
+		cin->avi.num_frames=AVIStreamLength(cin->avi.pavivideo);							// The Last Frame Of The Stream
+		cin->avi.filmfps=1000.0f*(float)cin->avi.num_frames/(float)AVIStreamSampleToTime(cin->avi.pavivideo,cin->avi.num_frames);		// Calculate Rough Milliseconds Per Frame
+
+
+		AVIStreamBeginStreaming(cin->avi.pavivideo, 0, cin->avi.num_frames, 100);
+
+		cin->avi.pgf=AVIStreamGetFrameOpen(cin->avi.pavivideo, NULL);
+
+		cin->currentframe=0;
+		cin->filmstarttime = Sys_DoubleTime();
+
+		cin->avi.soundpos=0;
+
+
+//play with sound
+		if (cin->avi.pavisound)
+		{
+			LONG lSize;
+			LPBYTE pChunk;
+			AVIStreamRead(cin->avi.pavisound, 0, AVISTREAMREAD_CONVENIENT, NULL, 0, &lSize, NULL);
+
+			if (!lSize)
+				cin->avi.pWaveFormat = NULL;
+			else
+			{
+
+				pChunk = BZ_Malloc(sizeof(qbyte)*lSize);
+
+
+				if(AVIStreamReadFormat(cin->avi.pavisound, AVIStreamStart(cin->avi.pavisound), pChunk, &lSize))
+				{
+				   // error
+					Con_Printf("Failiure reading sound info\n");
+				}
+				cin->avi.pWaveFormat = (LPWAVEFORMAT)pChunk;
+			}
+
+			if (!cin->avi.pWaveFormat)
+			{
+				Con_Printf("VFW is broken\n");
+				AVIStreamRelease(cin->avi.pavisound);
+				cin->avi.pavisound=NULL;
+			}
+			else if (cin->avi.pWaveFormat->wFormatTag != 1)
+			{
+				Con_Printf("Audio stream is not PCM\n");	//FIXME: so that it no longer is...
+				AVIStreamRelease(cin->avi.pavisound);
+				cin->avi.pavisound=NULL;
+			}
+
+		}
+
+		cin->filmtype = MFT_AVI;
+		cin->decodeframe = Media_WinAvi_DecodeFrame;
+		cin->shutdown = Media_WINAVI_Shutdown;
+		return cin;
+	}
+	return NULL;
+}
+
 #else
-	case MFT_AVI:
-		break;
+cin_t *Media_WinAvi_TryLoad(char *name)
+{
+	return NULL;
+}
 #endif
 
+//AVI Support (windows)
+//////////////////////////////////////////////////////////////////////////////////
+//Quake3 RoQ Support
 
-	case MFT_CIN:
-		CIN_FinishCinematic();
-		break;
-
-	case MFT_NONE:
-		break;
-	}
-
-	if (cin->framedata)
-	{
-		BZ_Free(cin->framedata);
-		cin->framedata = NULL;
-	}
-
-	Z_Free(cin);
+void Media_Roq_Shutdown(struct cin_s *cin)
+{
+	roq_close(cin->roq.roqfilm);
+	cin->roq.roqfilm=NULL;
 }
 
-
-cin_t *Media_StartCin(char *name)
+qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound)
 {
-	cin_t *cin = NULL;
-	char *dot;
+	float curtime = Sys_DoubleTime();
 
-	if (!name || !*name)	//clear only.
-		return NULL;
+	if ((int)(cin->filmlasttime*30) == (int)((float)realtime*30))
+	{
+		cin->outunchanged = !!cin->outtype;
+		return true;
+	}
+	else if (curtime<cin->nextframetime || roq_read_frame(cin->roq.roqfilm)==1)	 //0 if end, -1 if error, 1 if success
+	{			
+	//#define LIMIT(x) ((x)<0xFFFF)?(x)>>16:0xFF;
+#define LIMIT(x) ((((x) > 0xffffff) ? 0xff0000 : (((x) <= 0xffff) ? 0 : (x) & 0xff0000)) >> 16)
+		unsigned char *pa=cin->roq.roqfilm->y[0];
+		unsigned char *pb=cin->roq.roqfilm->u[0];
+		unsigned char *pc=cin->roq.roqfilm->v[0];
+		int pix=0;
+		int num_columns=(cin->roq.roqfilm->width)>>1;
+		int num_rows=cin->roq.roqfilm->height;
+		int y;
+		int x;
 
-	dot = strchr(name, '.');	//q2 cinematics work like this.
+		qbyte *framedata;
+
+		cin->filmlasttime = (float)realtime;
+
+		if (!(curtime<cin->nextframetime))	//roq file was read properly
+		{
+			cin->nextframetime += 1/30.0;	//add a little bit of extra speed so we cover up a little bit of glitchy sound... :o)
+
+			if (cin->nextframetime < curtime)
+				cin->nextframetime = curtime;
+
+			framedata = cin->framedata;
+
+			for(y = 0; y < num_rows; ++y)	//roq playing doesn't give nice data. It's still fairly raw.
+			{										//convert it properly.
+				for(x = 0; x < num_columns; ++x)
+				{
+					
+					int r, g, b, y1, y2, u, v, t;
+					y1 = *(pa++); y2 = *(pa++);
+					u = pb[x] - 128;
+					v = pc[x] - 128;
+
+					y1 <<= 16;
+					y2 <<= 16;
+					r = 91881 * v;
+					g = -22554 * u + -46802 * v;
+					b = 116130 * u;
+
+					t=r+y1;
+					framedata[pix] =(unsigned char) LIMIT(t);
+					t=g+y1;
+					framedata[pix+1] =(unsigned char) LIMIT(t);
+					t=b+y1;
+					framedata[pix+2] =(unsigned char) LIMIT(t);
+
+					t=r+y2;
+					framedata[pix+4] =(unsigned char) LIMIT(t);
+					t=g+y2;
+					framedata[pix+5] =(unsigned char) LIMIT(t);
+					t=b+y2;
+					framedata[pix+6] =(unsigned char) LIMIT(t);
+					pix+=8;
+
+				}
+				if(y & 0x01) { pb += num_columns; pc += num_columns; }
+			}	
+		}
+
+		cin->outunchanged = false;
+		cin->outtype = MOT_RGBA;
+		cin->outwidth = cin->roq.roqfilm->width;
+		cin->outheight = cin->roq.roqfilm->height;
+		cin->outdata = cin->framedata;
+
+		if (!nosound)
+		if (cin->roq.roqfilm->audio_channels && sndcardinfo && cin->roq.roqfilm->aud_pos < cin->roq.roqfilm->vid_pos)
+		if (roq_read_audio(cin->roq.roqfilm)>0)
+		{
+/*				FILE *f;
+			char wav[] = "\x52\x49\x46\x46\xea\x5f\x04\x00\x57\x41\x56\x45\x66\x6d\x74\x20\x12\x00\x00\x00\x01\x00\x02\x00\x22\x56\x00\x00\x88\x58\x01\x00\x04\x00\x10\x00\x00\x00\x66\x61\x63\x74\x04\x00\x00\x00\xee\x17\x01\x00\x64\x61\x74\x61\xb8\x5f\x04\x00";
+			int size;
+
+			f = fopen("d:/quake/id1/sound/raw.wav", "r+b");
+			if (!f)
+				f = fopen("d:/quake/id1/sound/raw.wav", "w+b");
+			fseek(f, 0, SEEK_SET);
+			fwrite(&wav, sizeof(wav), 1, f);
+			fseek(f, 0, SEEK_END);
+			fwrite(roqfilm->audio, roqfilm->audio_size, 2, f);
+			size = ftell(f) - sizeof(wav);
+			fseek(f, 54, SEEK_SET);
+			fwrite(&size, sizeof(size), 1, f);
+			fclose(f);
+*/
+			S_RawAudio(-1, cin->roq.roqfilm->audio, 22050, cin->roq.roqfilm->audio_size/cin->roq.roqfilm->audio_channels, cin->roq.roqfilm->audio_channels, 2);
+		}
+
+		return true;
+	}
+	else
+	{
+		cin->roq.roqfilm->frame_num = 0;
+		cin->roq.roqfilm->aud_pos = cin->roq.roqfilm->roq_start;
+		cin->roq.roqfilm->vid_pos = cin->roq.roqfilm->roq_start;
+	}
+
+	return false;
+}
+
+cin_t *Media_RoQ_TryLoad(char *name)
+{
+	cin_t *cin;
+	roq_info *roqfilm;
+	if ((roqfilm = roq_open(name)))
+	{
+		cin = Z_Malloc(sizeof(cin_t));
+		cin->filmtype = MFT_ROQ;
+		cin->decodeframe = Media_Roq_DecodeFrame;
+		cin->shutdown = Media_Roq_Shutdown;
+
+		cin->roq.roqfilm = roqfilm;
+		cin->nextframetime = Sys_DoubleTime();
+
+		cin->framedata = BZ_Malloc(roqfilm->width*roqfilm->height*4);
+		return cin;
+	}
+	return NULL;
+}
+
+//Quake3 RoQ Support
+//////////////////////////////////////////////////////////////////////////////////
+//Static Image Support
+
+void Media_Static_Shutdown(struct cin_s *cin)
+{
+	BZ_Free(cin->image.filmimage);
+	cin->image.filmimage = NULL;
+}
+
+qboolean Media_Static_DecodeFrame(cin_t *cin, qboolean nosound)
+{
+	cin->outunchanged = cin->outtype==MOT_RGBA?true:false;//handy
+	cin->outtype = MOT_RGBA;
+	cin->outwidth = cin->image.imagewidth;
+	cin->outheight = cin->image.imageheight;
+	cin->outdata = cin->image.filmimage;
+	return true;
+}
+
+cin_t *Media_Static_TryLoad(char *name)
+{
+	cin_t *cin;
+	char *dot = strrchr(name, '.');
+
 	if (dot && (!strcmp(dot, ".pcx") || !strcmp(dot, ".tga") || !strcmp(dot, ".png") || !strcmp(dot, ".jpg")))
 	{
 		qbyte *staticfilmimage;
@@ -999,13 +1296,42 @@ cin_t *Media_StartCin(char *name)
 
 		cin = Z_Malloc(sizeof(cin_t));
 		cin->filmtype = MFT_STATIC;
+		cin->decodeframe = Media_Static_DecodeFrame;
+		cin->shutdown = Media_Static_Shutdown;
+
 		cin->image.filmimage = staticfilmimage;
 		cin->image.imagewidth = imagewidth;
 		cin->image.imageheight = imageheight;
 
 		return cin;
 	}
+	return NULL;
+}
 
+//Static Image Support
+//////////////////////////////////////////////////////////////////////////////////
+//Quake2 CIN Support
+
+void Media_Cin_Shutdown(struct cin_s *cin)
+{
+	CIN_FinishCinematic();
+}
+
+qboolean Media_Cin_DecodeFrame(cin_t *cin, qboolean nosound)
+{
+	//FIXME!
+	if (CIN_RunCinematic())
+	{
+		CIN_DrawCinematic();
+		return true;
+	}
+	return false;
+}
+
+cin_t *Media_Cin_TryLoad(char *name)
+{
+	cin_t *cin;
+	char *dot = strrchr(name, '.');
 
 	if (dot && (!strcmp(dot, ".cin")))
 	{
@@ -1013,330 +1339,361 @@ cin_t *Media_StartCin(char *name)
 		{
 			cin = Z_Malloc(sizeof(cin_t));
 			cin->filmtype = MFT_CIN;
-		}
-		return cin;
-	}
-
-	{
-		roq_info *roqfilm;
-		if ((roqfilm = roq_open(name)))
-		{
-			cin = Z_Malloc(sizeof(cin_t));
-			cin->filmtype = MFT_ROQ;
-			cin->roq.roqfilm = roqfilm;
-			cin->nextframetime = Sys_DoubleTime();
-
-			cin->framedata = BZ_Malloc(roqfilm->width*roqfilm->height*4);
+			cin->decodeframe = Media_Cin_DecodeFrame;
+			cin->shutdown = Media_Cin_Shutdown;
 			return cin;
 		}
 	}
-
-
-
-
-
-
-
-
-
-#ifdef WINAVI
-	{
-		PAVIFILE			pavi;
-
-		if (!aviinited)
-		{
-			aviinited=true;
-			AVIFileInit();
-		}
-		if (!AVIFileOpen(&pavi, name, OF_READ, NULL))//!AVIStreamOpenFromFile(&pavi, name, streamtypeVIDEO, 0, OF_READ, NULL))
-		{
-			cin = Z_Malloc(sizeof(cin_t));
-			cin->filmtype = MFT_AVI;
-			cin->avi.pavi = pavi;
-
-			if (AVIFileGetStream(cin->avi.pavi, &cin->avi.pavivideo, streamtypeVIDEO, 0))	//retrieve video stream
-			{
-				AVIFileRelease(pavi);
-				Con_Printf("%s contains no video stream\n", name);
-				return NULL;
-			}
-			if (AVIFileGetStream(cin->avi.pavi, &cin->avi.pavisound, streamtypeAUDIO, 0))	//retrieve audio stream
-			{
-				Con_DPrintf("%s contains no audio stream\n", name);
-				cin->avi.pavisound=NULL;
-			}
-			AVIFileRelease(cin->avi.pavi);
-
-	//play with video
-			AVIStreamInfo(cin->avi.pavivideo, &cin->avi.psi, sizeof(cin->avi.psi));
-			cin->filmwidth=cin->avi.psi.rcFrame.right-cin->avi.psi.rcFrame.left;					// Width Is Right Side Of Frame Minus Left
-			cin->filmheight=cin->avi.psi.rcFrame.bottom-cin->avi.psi.rcFrame.top;					// Height Is Bottom Of Frame Minus Top
-			cin->framedata = BZ_Malloc(cin->filmwidth*cin->filmheight*4);
-
-			cin->num_frames=AVIStreamLength(cin->avi.pavivideo);							// The Last Frame Of The Stream
-			cin->filmfps=1000.0f*(float)cin->num_frames/(float)AVIStreamSampleToTime(cin->avi.pavivideo,cin->num_frames);		// Calculate Rough Milliseconds Per Frame
-
-
-			AVIStreamBeginStreaming(cin->avi.pavivideo, 0, cin->num_frames, 100);
-
-			cin->avi.pgf=AVIStreamGetFrameOpen(cin->avi.pavivideo, NULL);
-
-			cin->currentframe=0;
-			cin->filmstarttime = Sys_DoubleTime();
-
-			cin->soundpos=0;
-
-
-	//play with sound
-			if (cin->avi.pavisound)
-			{
-				LONG lSize;
-				LPBYTE pChunk;
-				AVIStreamRead(cin->avi.pavisound, 0, AVISTREAMREAD_CONVENIENT, NULL, 0, &lSize, NULL);
-
-				if (!lSize)
-					cin->avi.pWaveFormat = NULL;
-				else
-				{
-
-					pChunk = BZ_Malloc(sizeof(qbyte)*lSize);
-
-
-					if(AVIStreamReadFormat(cin->avi.pavisound, AVIStreamStart(cin->avi.pavisound), pChunk, &lSize))
-					{
-					   // error
-						Con_Printf("Failiure reading sound info\n");
-					}
-					cin->avi.pWaveFormat = (LPWAVEFORMAT)pChunk;
-				}
-
-				if (!cin->avi.pWaveFormat)
-				{
-					Con_Printf("VFW is broken\n");
-					AVIStreamRelease(cin->avi.pavisound);
-					cin->avi.pavisound=NULL;
-				}
-				else if (cin->avi.pWaveFormat->wFormatTag != 1)
-				{
-					Con_Printf("Audio stream is not PCM\n");	//FIXME: so that it no longer is...
-					AVIStreamRelease(cin->avi.pavisound);
-					cin->avi.pavisound=NULL;
-				}
-
-			}
-
-			cin->filmtype = MFT_AVI;
-			return cin;
-		}
-	}
-#endif
 
 	return NULL;
 }
 
-qboolean Media_DecodeFrame(cin_t *cin, qboolean nosound)
+//Quake2 CIN Support
+//////////////////////////////////////////////////////////////////////////////////
+//Gecko Support
+
+#ifdef OFFSCREENGECKO
+
+int (*posgk_release) (OSGK_BaseObject* obj);
+
+OSGK_Browser* (*posgk_browser_create) (OSGK_Embedding* embedding, int width, int height);
+void (*posgk_browser_resize) (OSGK_Browser* browser, int width, int height);
+void (*posgk_browser_navigate) (OSGK_Browser* browser, const char* uri);
+const unsigned char* (*posgk_browser_lock_data) (OSGK_Browser* browser, int* isDirty);
+void (*posgk_browser_unlock_data) (OSGK_Browser* browser, const unsigned char* data);
+
+void (*posgk_browser_event_mouse_move) (OSGK_Browser* browser, int x, int y);
+void (*posgk_browser_event_mouse_button) (OSGK_Browser* browser, OSGK_MouseButton button, OSGK_MouseButtonEventType eventType);
+int (*posgk_browser_event_key) (OSGK_Browser* browser, unsigned int key, OSGK_KeyboardEventType eventType);
+
+OSGK_EmbeddingOptions* (*posgk_embedding_options_create) (void);
+OSGK_Embedding* (*posgk_embedding_create2) (unsigned int apiVer, OSGK_EmbeddingOptions* options, OSGK_GeckoResult* geckoResult);
+void (*posgk_embedding_options_set_profile_dir) (OSGK_EmbeddingOptions* options, const char* profileDir, const char* localProfileDir);
+void (*posgk_embedding_options_add_search_path) (OSGK_EmbeddingOptions* options, const char* path);
+
+dllhandle_t geckodll;
+dllfunction_t gecko_functions[] =
 {
-	float curtime = Sys_DoubleTime();
+	{(void**)&posgk_release, "osgk_release"},
 
-	switch (cin->filmtype)
-	{
-	case MFT_ROQ:
-		if ((int)(cin->filmlasttime*30) == (int)((float)realtime*30))
-		{
-			cin->outunchanged = !!cin->outtype;
-			return true;
-		}
-		else if (curtime<cin->nextframetime || roq_read_frame(cin->roq.roqfilm)==1)	 //0 if end, -1 if error, 1 if success
-		{			
-		//#define LIMIT(x) ((x)<0xFFFF)?(x)>>16:0xFF;
-#define LIMIT(x) ((((x) > 0xffffff) ? 0xff0000 : (((x) <= 0xffff) ? 0 : (x) & 0xff0000)) >> 16)
-			unsigned char *pa=cin->roq.roqfilm->y[0];
-			unsigned char *pb=cin->roq.roqfilm->u[0];
-			unsigned char *pc=cin->roq.roqfilm->v[0];
-			int pix=0;
-			int num_columns=(cin->roq.roqfilm->width)>>1;
-			int num_rows=cin->roq.roqfilm->height;
-			int y;
-			int x;
+	{(void**)&posgk_browser_create, "osgk_browser_create"},
+	{(void**)&posgk_browser_resize, "osgk_browser_resize"},
+	{(void**)&posgk_browser_navigate, "osgk_browser_navigate"},
+	{(void**)&posgk_browser_lock_data, "osgk_browser_lock_data"},
+	{(void**)&posgk_browser_unlock_data, "osgk_browser_unlock_data"},
 
-			qbyte *framedata;
+	{(void**)&posgk_browser_event_mouse_move, "osgk_browser_event_mouse_move"},
+	{(void**)&posgk_browser_event_mouse_move, "osgk_browser_event_mouse_move"},
+	{(void**)&posgk_browser_event_mouse_button, "osgk_browser_event_mouse_button"},
+	{(void**)&posgk_browser_event_key, "osgk_browser_event_key"},
 
-			cin->filmlasttime = (float)realtime;
+	{(void**)&posgk_embedding_options_create, "osgk_embedding_options_create"},
+	{(void**)&posgk_embedding_create2, "osgk_embedding_create2"},
+	{(void**)&posgk_embedding_options_set_profile_dir, "osgk_embedding_options_set_profile_dir"},
+	{(void**)&posgk_embedding_options_add_search_path, "osgk_embedding_options_add_search_path"},
+	{NULL}
+};
+OSGK_Embedding *gecko_embedding;
 
-			if (!(curtime<cin->nextframetime))	//roq file was read properly
-			{
-				cin->nextframetime += 1/30.0;	//add a little bit of extra speed so we cover up a little bit of glitchy sound... :o)
-
-				if (cin->nextframetime < curtime)
-					cin->nextframetime = curtime;
-
-				framedata = cin->framedata;
-
-				for(y = 0; y < num_rows; ++y)	//roq playing doesn't give nice data. It's still fairly raw.
-				{										//convert it properly.
-					for(x = 0; x < num_columns; ++x)
-					{
-						
-						int r, g, b, y1, y2, u, v, t;
-						y1 = *(pa++); y2 = *(pa++);
-						u = pb[x] - 128;
-						v = pc[x] - 128;
-
-						y1 <<= 16;
-						y2 <<= 16;
-						r = 91881 * v;
-						g = -22554 * u + -46802 * v;
-						b = 116130 * u;
-
-						t=r+y1;
-						framedata[pix] =(unsigned char) LIMIT(t);
-						t=g+y1;
-						framedata[pix+1] =(unsigned char) LIMIT(t);
-						t=b+y1;
-						framedata[pix+2] =(unsigned char) LIMIT(t);
-
-						t=r+y2;
-						framedata[pix+4] =(unsigned char) LIMIT(t);
-						t=g+y2;
-						framedata[pix+5] =(unsigned char) LIMIT(t);
-						t=b+y2;
-						framedata[pix+6] =(unsigned char) LIMIT(t);
-						pix+=8;
-
-					}
-					if(y & 0x01) { pb += num_columns; pc += num_columns; }
-				}	
-			}
-
-			cin->outunchanged = false;
-			cin->outtype = 1;
-			cin->outwidth = cin->roq.roqfilm->width;
-			cin->outheight = cin->roq.roqfilm->height;
-			cin->outdata = cin->framedata;
-
-			if (!nosound)
-			if (cin->roq.roqfilm->audio_channels && sndcardinfo && cin->roq.roqfilm->aud_pos < cin->roq.roqfilm->vid_pos)
-			if (roq_read_audio(cin->roq.roqfilm)>0)
-			{
-/*				FILE *f;
-				char wav[] = "\x52\x49\x46\x46\xea\x5f\x04\x00\x57\x41\x56\x45\x66\x6d\x74\x20\x12\x00\x00\x00\x01\x00\x02\x00\x22\x56\x00\x00\x88\x58\x01\x00\x04\x00\x10\x00\x00\x00\x66\x61\x63\x74\x04\x00\x00\x00\xee\x17\x01\x00\x64\x61\x74\x61\xb8\x5f\x04\x00";
-				int size;
-
-				f = fopen("d:/quake/id1/sound/raw.wav", "r+b");
-				if (!f)
-					f = fopen("d:/quake/id1/sound/raw.wav", "w+b");
-				fseek(f, 0, SEEK_SET);
-				fwrite(&wav, sizeof(wav), 1, f);
-				fseek(f, 0, SEEK_END);
-				fwrite(roqfilm->audio, roqfilm->audio_size, 2, f);
-				size = ftell(f) - sizeof(wav);
-				fseek(f, 54, SEEK_SET);
-				fwrite(&size, sizeof(size), 1, f);
-				fclose(f);
-*/
-				S_RawAudio(-1, cin->roq.roqfilm->audio, 22050, cin->roq.roqfilm->audio_size/cin->roq.roqfilm->audio_channels, cin->roq.roqfilm->audio_channels, 2);
-			}
-
-			return true;
-		}
-		else
-		{
-			cin->roq.roqfilm->frame_num = 0;
-			cin->roq.roqfilm->aud_pos = cin->roq.roqfilm->roq_start;
-			cin->roq.roqfilm->vid_pos = cin->roq.roqfilm->roq_start;
-		}
-		break;
-
-	case MFT_STATIC:
-		cin->outunchanged = cin->outtype;//handy
-		cin->outtype = 1;
-		cin->outwidth = cin->image.imagewidth;
-		cin->outheight = cin->image.imageheight;
-		cin->outdata = cin->image.filmimage;
-		return true;
-
-	case MFT_CIN:
-		//FIXME!
-		if (CIN_RunCinematic())
-		{
-			CIN_DrawCinematic();
-			return true;
-		}
-		break;
-
-	case MFT_AVI:
-#ifdef WINAVI
-		{
-			LPBITMAPINFOHEADER lpbi;									// Holds The Bitmap Header Information
-			float newframe;
-			int newframei;
-
-			newframe = (curtime - cin->filmstarttime)*cin->filmfps;
-			newframei = newframe;
-
-			if (newframe == cin->currentframe)
-			{
-				cin->outunchanged = true;
-				return true;
-			}
-
-			if (cin->currentframe < newframei-1)
-				Con_DPrintf("Dropped %i frame(s)\n", (newframei - cin->currentframe)-1);
-
-			cin->currentframe = newframei;
-			Con_DPrintf("%i\n", newframei);
-
-			if (cin->currentframe>=cin->num_frames)
-			{
-				return false;
-			}
-
-			lpbi = (LPBITMAPINFOHEADER)AVIStreamGetFrame(cin->avi.pgf, cin->currentframe);	// Grab Data From The AVI Stream
-			cin->currentframe++;
-			if (!lpbi || lpbi->biBitCount != 24)//oops
-			{		
-				SCR_SetUpToDrawConsole();
-#ifdef SWQUAKE
-				D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
-#endif
-				Draw_ConsoleBackground(vid.height);
-				Draw_String(0, 0, "Video stream is corrupt\n");			
-			}
-			else
-			{
-				cin->outtype = 3;
-				cin->outwidth = lpbi->biWidth;
-				cin->outheight = lpbi->biHeight;
-				cin->outdata = (char*)lpbi+lpbi->biSize;
-			}
-
-			if (cin->avi.pavisound)
-			{
-				LONG lSize;
-				LPBYTE pBuffer;
-				LONG samples;
-
-				AVIStreamRead(cin->avi.pavisound, 0, AVISTREAMREAD_CONVENIENT,
-				   NULL, 0, &lSize, &samples);
-
-				cin->soundpos+=samples;
-
-				pBuffer = cin->framedata;
-
-				AVIStreamRead(cin->avi.pavisound, cin->soundpos, AVISTREAMREAD_CONVENIENT, pBuffer, lSize, NULL, &samples);
-
-				S_RawAudio(-1, pBuffer, cin->avi.pWaveFormat->nSamplesPerSec, samples, cin->avi.pWaveFormat->nChannels, 2);			
-			}
-		}
-		return true;
-#endif
-	case MFT_NONE:
-		break;
-	}
-	return false;
+void Media_Gecko_Shutdown(struct cin_s *cin)
+{
+	posgk_release(&cin->gecko.gbrowser->baseobj);
 }
 
+qboolean Media_Gecko_DecodeFrame(cin_t *cin, qboolean nosound)
+{
+	cin->outdata = (char*)posgk_browser_lock_data(cin->gecko.gbrowser, &cin->outunchanged);
+	cin->outwidth = cin->gecko.bwidth;
+	cin->outheight = cin->gecko.bheight;
+	cin->outtype = MOT_BGRA;
+	return !!cin->gecko.gbrowser;
+}
 
+void Media_Gecko_DoneFrame(cin_t *cin)
+{
+	posgk_browser_unlock_data(cin->gecko.gbrowser, cin->outdata);
+	cin->outdata = NULL;
+}
+
+void Media_Gecko_MoveCursor (struct cin_s *cin, float posx, float posy)
+{
+	posgk_browser_event_mouse_move(cin->gecko.gbrowser, posx*cin->gecko.bwidth, posy*cin->gecko.bheight);
+}
+
+void Media_Gecko_KeyPress (struct cin_s *cin, int code, int event)
+{
+	if (code >= K_MOUSE1 && code < K_MOUSE10)
+	{
+		posgk_browser_event_mouse_button(cin->gecko.gbrowser, code - K_MOUSE1, (event==3)?2:event);
+	}
+	else
+	{
+		switch(code)
+		{
+		case K_BACKSPACE:
+			code = OSGKKey_Backspace;
+			break;
+		case K_TAB:
+			code = OSGKKey_Tab;
+			break;
+		case K_ENTER:
+			code = OSGKKey_Return;
+			break;
+		case K_SHIFT:
+			code = OSGKKey_Shift;
+			break;
+		case K_CTRL:
+			code = OSGKKey_Control;
+			break;
+		case K_ALT:
+			code = OSGKKey_Alt;
+			break;
+		case K_CAPSLOCK:
+			code = OSGKKey_CapsLock;
+			break;
+		case K_ESCAPE:
+			code = OSGKKey_Escape;
+			break;
+		case K_SPACE:
+			code = OSGKKey_Space;
+			break;
+		case K_PGUP:
+			code = OSGKKey_PageUp;
+			break;
+		case K_PGDN:
+			code = OSGKKey_PageDown;
+			break;
+		case K_END:
+			code = OSGKKey_End;
+			break;
+		case K_HOME:
+			code = OSGKKey_Home;
+			break;
+		case K_LEFTARROW:
+			code = OSGKKey_Left;
+			break;
+		case K_UPARROW:
+			code = OSGKKey_Up;
+			break;
+		case K_RIGHTARROW:
+			code = OSGKKey_Right;
+			break;
+		case K_DOWNARROW:
+			code = OSGKKey_Down;
+			break;
+		case K_INS:
+			code = OSGKKey_Insert;
+			break;
+		case K_DEL:
+			code = OSGKKey_Delete;
+			break;
+		case K_F1:
+			code = OSGKKey_F1;
+			break;
+		case K_F2:
+			code = OSGKKey_F2;
+			break;
+		case K_F3:
+			code = OSGKKey_F3;
+			break;
+		case K_F4:
+			code = OSGKKey_F4;
+			break;
+		case K_F5:
+			code = OSGKKey_F5;
+			break;
+		case K_F6:
+			code = OSGKKey_F6;
+			break;
+		case K_F7:
+			code = OSGKKey_F7;
+			break;
+		case K_F8:
+			code = OSGKKey_F8;
+			break;
+		case K_F9:
+			code = OSGKKey_F9;
+			break;
+		case K_F10:
+			code = OSGKKey_F10;
+			break;
+		case K_F11:
+			code = OSGKKey_F11;
+			break;
+		case K_F12:
+			code = OSGKKey_F12;
+			break;
+		case K_KP_NUMLOCK:
+			code = OSGKKey_NumLock;
+			break;
+		case K_SCRLCK:
+			code = OSGKKey_ScrollLock;
+			break;
+		case K_LWIN:
+			code = OSGKKey_Meta;
+			break;
+		}
+		Con_Printf("Sending %c\n", code);
+		posgk_browser_event_key(cin->gecko.gbrowser, code, kePress);
+		//posgk_browser_event_key(cin->gecko.gbrowser, code, event);
+	}
+}
+
+qboolean Media_Gecko_SetSize (struct cin_s *cin, int width, int height)
+{
+	if (width < 4 || height < 4)
+		return false;
+
+	posgk_browser_resize(cin->gecko.gbrowser, width, height);
+	cin->gecko.bwidth = width;
+	cin->gecko.bheight = height;
+	return true;
+}
+
+void Media_Gecko_GetSize (struct cin_s *cin, int *width, int *height)
+{
+	*width = cin->gecko.bwidth;
+	*height = cin->gecko.bheight;
+}
+
+void Media_Gecko_ChangeStream (struct cin_s *cin, char *streamname)
+{
+	posgk_browser_navigate(cin->gecko.gbrowser, streamname);
+}
+
+cin_t *Media_Gecko_TryLoad(char *name)
+{
+	cin_t *cin;
+
+	if (!strncmp(name, "http://", 7))
+	{
+		OSGK_GeckoResult result;
+
+		OSGK_EmbeddingOptions *opts;
+
+		if (!gecko_embedding)
+		{
+			geckodll = Sys_LoadLibrary("OffscreenGecko", gecko_functions);
+			if (!geckodll)
+			{
+				Con_Printf("OffscreenGecko not installed\n");
+				return NULL;
+			}
+
+			opts = posgk_embedding_options_create();
+			if (!opts)
+				return NULL;
+
+			posgk_embedding_options_add_search_path(opts, "./xulrunner/");
+			posgk_embedding_options_set_profile_dir(opts, va("%s/xulrunner_profile/", com_gamedir), 0);
+
+			gecko_embedding = posgk_embedding_create2(OSGK_API_VERSION, opts, &result);
+			posgk_release(&opts->baseobj);
+			if (!gecko_embedding)
+				return NULL;
+		}
+
+		cin = Z_Malloc(sizeof(cin_t));
+		cin->filmtype = MFT_OFSGECKO;
+		cin->decodeframe = Media_Gecko_DecodeFrame;
+		cin->doneframe = Media_Gecko_DoneFrame;
+		cin->shutdown = Media_Gecko_Shutdown;
+
+		cin->cursormove = Media_Gecko_MoveCursor;
+		cin->key = Media_Gecko_KeyPress;
+		cin->setsize = Media_Gecko_SetSize;
+		cin->getsize = Media_Gecko_GetSize;
+		cin->changestream = Media_Gecko_ChangeStream;
+
+		cin->gecko.bwidth = 1024;
+		cin->gecko.bheight = 1024;
+
+		cin->gecko.gbrowser = posgk_browser_create(gecko_embedding, cin->gecko.bwidth, cin->gecko.bheight);
+		if (!cin->gecko.gbrowser)
+		{
+			Z_Free(cin);
+			return NULL;
+		}
+		posgk_browser_navigate(cin->gecko.gbrowser, name);
+		return cin;
+	}
+	return NULL;
+}
+#else
+cin_t *Media_Gecko_TryLoad(char *name)
+{
+	return NULL;
+}
+#endif
+
+//Gecko Support
+//////////////////////////////////////////////////////////////////////////////////
+
+qboolean Media_PlayingFullScreen(void)
+{
+	return fullscreenvid!=NULL;
+}
+
+void Media_ShutdownCin(cin_t *cin)
+{
+	soundcardinfo_t *sc;
+	sfx_t *s;
+
+	if (!cin)
+		return;
+
+	for (sc = sndcardinfo; sc; sc=sc->next)
+	{
+		s = sc->channel[NUM_AMBIENTS].sfx;
+		if (s && s == &cin->mediaaudio)
+		{
+			sc->channel[NUM_AMBIENTS].pos = 0;
+			sc->channel[NUM_AMBIENTS].end = 0;
+			sc->channel[NUM_AMBIENTS].sfx = NULL;
+		}
+	}
+
+	if (cin->shutdown)
+		cin->shutdown(cin);
+
+	if (cin->framedata)
+	{
+		BZ_Free(cin->framedata);
+		cin->framedata = NULL;
+	}
+
+	Z_Free(cin);
+}
+
+cin_t *Media_StartCin(char *name)
+{
+	cin_t *cin = NULL;
+
+	if (!name || !*name)	//clear only.
+		return NULL;
+
+	if (!cin)
+		cin = Media_Gecko_TryLoad(name);
+
+	if (!cin)
+		cin = Media_Static_TryLoad(name);
+
+	if (!cin)
+		cin = Media_Cin_TryLoad(name);
+
+	if (!cin)
+		cin = Media_RoQ_TryLoad(name);
+
+	if (!cin)
+		cin = Media_WinAvi_TryLoad(name);
+
+	return cin;
+}
+
+qboolean Media_DecodeFrame(cin_t *cin, qboolean nosound)
+{
+	return cin->decodeframe(cin, nosound);
+}
 
 qboolean Media_PlayFilm(char *name)
 {
@@ -1371,16 +1728,24 @@ qboolean Media_ShowFilm(void)
 
 	switch(fullscreenvid->outtype)
 	{
-	case 1:
+	case MOT_RGBA:
 		Media_ShowFrameRGBA_32(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
 		break;
-	case 2:
+	case MOT_PALETTE:
 		Media_ShowFrame8bit(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight, fullscreenvid->outpalette);
 		break;
-	case 3:
+	case MOT_BGR_FLIP:
 		Media_ShowFrameBGR_24_Flip(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
 		break;
+	case MOT_BGRA:
+#pragma message("Media_ShowFilm: BGRA comes out as RGBA")
+//		Media_ShowFrameBGRA_32
+		Media_ShowFrameRGBA_32(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
+		break;
 	}
+
+	if (fullscreenvid->doneframe)
+		fullscreenvid->doneframe(fullscreenvid);
 
 	return true;
 }
@@ -1400,22 +1765,65 @@ int Media_UpdateForShader(int texnum, cin_t *cin)
 		GL_Bind(texnum);
 		switch(cin->outtype)
 		{
-		case 1:
+		case MOT_RGBA:
 			GL_Upload32("cin", (unsigned int*)cin->outdata, cin->outwidth, cin->outheight, false, false);
 			break;
-		case 2:
+		case MOT_PALETTE:
 			GL_Upload8("cin", cin->outdata, cin->outwidth, cin->outheight, false, false);
 			break;
-		case 3:
+		case MOT_BGR_FLIP:
 			GL_Upload24BGR_Flip ("cin", cin->outdata, cin->outwidth, cin->outheight, false, false);
+			break;
+		case MOT_BGRA:
+			GL_Upload32_BGRA("cin", (unsigned int*)cin->outdata, cin->outwidth, cin->outheight, false, false);
 			break;
 		}
 	}
+
+	if (cin->doneframe)
+		cin->doneframe(cin);
 
 
 	return texnum;
 }
 #endif
+
+void Media_Send_Command(cin_t *cin, char *command)
+{
+	if (!cin)
+		cin = fullscreenvid;
+	if (!cin || !cin->key)
+		return;
+	cin->changestream(cin, command);
+}
+void Media_Send_KeyEvent(cin_t *cin, int button, int event)
+{
+	if (!cin)
+		cin = fullscreenvid;
+	if (!cin || !cin->key)
+		return;
+	cin->key(cin, button, event);
+}
+void Media_Send_MouseMove(cin_t *cin, float x, float y)
+{
+	if (!cin)
+		cin = fullscreenvid;
+	if (!cin || !cin->key)
+		return;
+	cin->cursormove(cin, x, y);
+}
+void Media_Send_Resize(cin_t *cin, int x, int y)
+{
+	cin->setsize(cin, x, y);
+}
+void Media_Send_GetSize(cin_t *cin, int *x, int *y)
+{
+	if (!cin)
+		cin = fullscreenvid;
+	if (!cin || !cin->key)
+		return;
+	cin->getsize(cin, x, y);
+}
 
 
 

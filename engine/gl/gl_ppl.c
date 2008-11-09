@@ -417,6 +417,8 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 	{
 		if (!s->mesh)	//urm.
 			continue;
+		if (s->mesh->numvertexes <= 1)
+			continue;
 		if (vi != s->lightmaptexturenum)
 		{
 			if (vi<0)
@@ -1948,7 +1950,7 @@ void R_DrawLightning(entity_t *e)
 
 	vec3_t points[4];
 	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-	int indexarray[6] = {0, 1, 2, 0, 2, 3};
+	index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
 
 	mesh_t mesh;
 	meshbuffer_t mb;
@@ -2016,7 +2018,7 @@ void R_DrawRailCore(entity_t *e)
 	meshbuffer_t mb;
 	vec3_t points[4];
 	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-	int indexarray[6] = {0, 1, 2, 0, 2, 3};
+	index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
 	int colors[4];
 	qbyte colorsb[4];
 
@@ -2114,7 +2116,7 @@ void R_DrawBeam( entity_t *e )
 
 	scale = e->scale;
 	if (!scale)
-		scale = e->frame;
+		scale = e->frame1;
 	if (!scale)
 		scale = 6;
 	VectorScale( perpvec, scale / 2, perpvec );
@@ -2129,7 +2131,7 @@ void R_DrawBeam( entity_t *e )
 #ifdef Q3SHADERS
 	if (e->forcedshader)
 	{
-		int indexarray[NUM_BEAM_SEGS*6];
+		index_t indexarray[NUM_BEAM_SEGS*6];
 		vec2_t texcoords[NUM_BEAM_SEGS*2];
 		mesh_t mesh;
 		meshbuffer_t mb;

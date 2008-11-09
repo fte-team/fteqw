@@ -1382,6 +1382,8 @@ void	(D3D9_R_RenderView)				(void)
 
 
 #include "particles.h"
+#define TYPESONLY
+#include "p_script.c"
 
 #define APPLYD3D9BLEND(bm)	\
 		switch (bm)												\
@@ -1857,7 +1859,7 @@ void D3D9_DrawParticles(float ptime)
 	IDirect3DDevice9_SetSamplerState(pD3DDev9, 0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
 
 	lastd3dtype = NULL;
-	DrawParticleTypes(D3D9_DrawParticleBlob, D3D9_DrawParticleSpark, D3D9_DrawParticleSpark, D3D9_DrawParticleSpark, D3D9_DrawParticleBeam, D3D9_DrawParticleBeamUT, NULL);
+	PScript_DrawParticleTypes(D3D9_DrawParticleBlob, D3D9_DrawParticleSpark, D3D9_DrawParticleSpark, D3D9_DrawParticleSpark, D3D9_DrawParticleBeam, D3D9_DrawParticleBeamUT, NULL);
 
 	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ZWRITEENABLE, FALSE );
 	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ALPHATESTENABLE, FALSE );

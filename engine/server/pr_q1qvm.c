@@ -725,7 +725,11 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 		}
 
 	case G_WALKMOVE:
-		return WrapQCBuiltin(PF_cvar_set, offset, mask, arg, "ff");
+		return 0;//FIXME WrapQCBuiltin(PF_cvar_set, offset, mask, arg, "ff");
+#ifdef _MSC_VER
+#pragma message("G_WALKMOVE not implemented")
+#elif defined(GCC)
+#endif
 
 	case G_DROPTOFLOOR:
 		{
@@ -1283,10 +1287,10 @@ qboolean PR_LoadQ1QVM(void)
 
 	//when running native64, we need to convert these to real types, so we can use em below
 	gd = &gdm;
-	gd->ents = gd32->ents;
+	gd->ents = (struct edict_s *)gd32->ents;
 	gd->sizeofent = gd32->sizeofent;
-	gd->global = gd32->global;
-	gd->fields = gd32->fields;
+	gd->global = (q1qvmglobalvars_t *)gd32->global;
+	gd->fields = (field_t *)gd32->fields;
 	gd->APIversion = gd32->APIversion;
 
 	pr_edict_size = gd->sizeofent;

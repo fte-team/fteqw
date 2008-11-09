@@ -352,15 +352,15 @@ char Ignore_Check_Flood(char *s, int flags, int offset) {
 	char name[MAX_INFO_STRING];
 
 	if ( !(  
-	 ( (ignore_flood.value == 1 && (flags == 1 || flags == 4)) ||
+	 ( (ignore_flood.value == 1 && (flags & TPM_NORMAL || flags & TPM_SPECTATOR)) ||
 	 (ignore_flood.value == 2 && flags != 0) )
 	   )  )
 		return NO_IGNORE_NO_ADD;
 
-	if (flags == 1 || flags == 4) {
+	if (flags == 1 || flags == TPM_SPECTATOR) {
 		p = 0;
 		q = offset - 3;
-	} else if (flags == 2) {
+	} else if (flags == TPM_TEAM) {
 		p = 1;
 		q = offset - 4;
 	} else if (flags == 8) {

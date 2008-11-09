@@ -54,6 +54,7 @@ typedef enum {
 	RT_MAX_REF_ENTITY_TYPE
 } refEntityType_t;
 
+#define MAX_BONE_CONTROLLERS 5
 typedef struct entity_s
 {
 	int						keynum;			// for matching entities in different frames
@@ -68,13 +69,9 @@ typedef struct entity_s
 	vec3_t					oldangles;
 	
 	struct model_s			*model;			// NULL = no model
-	int						frame;
 	int						skinnum;		// for Alias models
 
 	struct player_info_s	*scoreboard;	// identify player
-
-	float					frame1time;
-	float					frame2time;
 
 	struct efrag_s			*efrag;			// linked list of efrags (FIXME)
 	int						visframe;		// last frame this entity was
@@ -90,7 +87,24 @@ typedef struct entity_s
 											//  that splits bmodel, or NULL if
 											//  not split
 
-	float	bonecontrols[4];
+	int						frame1;
+	int						frame2;
+	float					frame1time;
+	float					frame2time;
+	float					lerpfrac;
+
+#ifdef HALFLIFEMODELS
+	float					subblendfrac;	//hl models are weird
+	float					bonecontrols[MAX_BONE_CONTROLLERS];	//hl special bone controllers
+	float					basesubblendfrac;//hl models are weird
+#endif
+
+	int						baseframe1;	//used to control legs animations
+	int						baseframe2;
+	float					baseframe1time;
+	float					baseframe2time;
+	float					baselerpfrac;//
+	int						basebone;	//the base frame fills bones up to this one (thus if 0, base sequence is not used).
 
 	int flags;
 
@@ -114,8 +128,6 @@ typedef struct entity_s
 #ifdef SWQUAKE
 	struct palremap_s		*palremap;
 #endif
-	float lerpfrac;
-	int oldframe;
 } entity_t;
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!

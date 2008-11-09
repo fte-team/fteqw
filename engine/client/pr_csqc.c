@@ -44,6 +44,7 @@ qboolean csqc_resortfrags;
 qboolean csqc_drawsbar;
 qboolean csqc_addcrosshair;
 static int num_csqc_edicts;
+static int csqc_fakereadbyte;
 
 #define CSQCPROGSGROUP "CSQC progs control"
 cvar_t	pr_csmaxedicts = SCVAR("pr_csmaxedicts", "3072");
@@ -83,7 +84,10 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(delta_update,		"CSQC_Delta_Update");/*EXT_CSQC_1*/	\
 	globalfunction(delta_remove,		"CSQC_Delta_Remove");/*EXT_CSQC_1*/	\
 	\
-	globalfunction(serversound,			"CSQC_ServerSound");	\
+	globalfunction(event_sound,			"CSQC_Event_Sound");	\
+	globalfunction(serversound,			"CSQC_ServerSound");/*obsolete, use event_sound*/	\
+	globalfunction(loadresource,		"CSQC_LoadResource");/*EXT_CSQC_1*/	\
+	globalfunction(parse_tempentity,	"CSQC_Parse_TempEntity");/*EXT_CSQC_ABSOLUTLY_VILE*/	\
 	\
 	/*These are pointers to the csqc's globals.*/	\
 	globalfloat(time,					"time");				/*float		Written before entering most qc functions*/	\
@@ -116,6 +120,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfloat(player_localnum,		"player_localnum");		/*float		the entity number of the local player*/	\
 	globalfloat(intermission,			"intermission");		/*float		set when the client receives svc_intermission*/	\
 	globalvector(view_angles,			"view_angles");			/*float		set to the view angles at the start of each new frame (EXT_CSQC_1)*/ \
+	globalfloat(dpcompat_sbshowscores,	"sb_showscores");		/*float		ask darkplaces people, its not part of the csqc standard */	\
 	\
 	globalvector(pmove_org,				"pmove_org");			/*read/written by runplayerphysics*/ \
 	globalvector(pmove_vel,				"pmove_vel");			/*read/written by runplayerphysics*/ \
@@ -132,6 +137,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfloat(input_lightlevel,		"input_lightlevel");	/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat(input_weapon,			"input_weapon");		/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat(input_servertime,		"input_servertime");	/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat(input_clienttime,		"input_clienttime");	/*float		filled by getinputstate, read by runplayerphysics*/ \
 	\
 	globalfloat(movevar_gravity,		"movevar_gravity");		/*float		obtained from the server*/ \
 	globalfloat(movevar_stopspeed,		"movevar_stopspeed");	/*float		obtained from the server*/ \
@@ -221,6 +227,21 @@ static void CSQC_FindGlobals(void)
 	fieldfloat(forceshader);/*FTE_CSQC_SHADERS*/\
 	fieldfloat(dimension_hit);	\
 	fieldfloat(dimension_solid);	\
+							\
+	fieldfloat(baseframe);	/*FTE_CSQC_BASEFRAME*/\
+	fieldfloat(baseframe2);	/*FTE_CSQC_BASEFRAME*/\
+	fieldfloat(baseframe1time);	/*FTE_CSQC_BASEFRAME*/\
+	fieldfloat(baseframe2time);	/*FTE_CSQC_BASEFRAME*/\
+	fieldfloat(baselerpfrac);	/*FTE_CSQC_BASEFRAME*/\
+	fieldfloat(basebone);	/*FTE_CSQC_BASEFRAME*/\
+							\
+  	fieldfloat(bonecontrol1);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	fieldfloat(bonecontrol2);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	fieldfloat(bonecontrol3);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	fieldfloat(bonecontrol4);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	fieldfloat(bonecontrol5);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	fieldfloat(subblendfrac);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	fieldfloat(basesubblendfrac);	/*FTE_CSQC_HALFLIFE_MODELS*/\
 							\
 	fieldfloat(drawmask);	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
 	fieldfunction(predraw);	/*If present, is called just before it's drawn.*/	\
@@ -367,7 +388,7 @@ void CS_ClearWorld (void)
 		CS_LinkEdict((csqcedict_t*)EDICT_NUM(csqcprogs, i), false);
 }
 
-void CS_UnlinkEdict (csqcedict_t *ent)
+static void CS_UnlinkEdict (csqcedict_t *ent)
 {
 	if (!ent->area.prev)
 		return;		// not linked in anywhere
@@ -443,7 +464,8 @@ typedef struct {
 	vec3_t maxs;
 	csqcedict_t *passedict;
 } moveclip_t;
-void CS_ClipToLinks ( areanode_t *node, moveclip_t *clip )
+#define	CSEDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,csqcedict_t,area)
+static void CS_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 {
 	model_t		*model;
 	trace_t		tr;
@@ -454,7 +476,7 @@ void CS_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
 	{
 		next = l->next;
-		touch = (csqcedict_t*)EDICT_FROM_AREA(l);
+		touch = (csqcedict_t*)CSEDICT_FROM_AREA(l);
 		if (touch->v->solid == SOLID_NOT)
 			continue;
 		if (touch == clip->passedict)
@@ -552,7 +574,7 @@ static trace_t CS_Move(vec3_t v1, vec3_t mins, vec3_t maxs, vec3_t v2, float nom
 	return clip.trace;
 }
 
-void CS_CheckVelocity(csqcedict_t *ent)
+static void CS_CheckVelocity(csqcedict_t *ent)
 {
 }
 
@@ -569,7 +591,7 @@ static void PF_cs_remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	P_DelinkTrailstate(&ed->trailstate);
+	pe->DelinkTrailstate(&ed->trailstate);
 	CS_UnlinkEdict(ed);
 	ED_Free (prinst, (void*)ed);
 }
@@ -608,7 +630,7 @@ static void PF_NoCSQC (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 static void PF_cl_cprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *str = PF_VarString(prinst, 0, pr_globals);
-	SCR_CenterPrint(0, str);
+	SCR_CenterPrint(0, str, true);
 }
 
 static void PF_cs_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -684,6 +706,7 @@ void EularToQuaternian(vec3_t angles, float *quat)
 #define CSQCRF_ADDITIVE			8 //add instead of blend
 #define CSQCRF_USEAXIS			16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
 #define CSQCRF_NOSHADOW			32 //don't cast shadows upon other entities (can still be self shadowing, if the engine wishes, and not additive)
+#define CSQCRF_FRAMETIMESARESTARTTIMES 64 //EXT_CSQC_1: frame times should be read as (time-frametime).
 
 static model_t *CSQC_GetModelForIndex(int index)
 {
@@ -701,42 +724,85 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 {
 	int i;
 	model_t *model;
+	int rflags;
 
 	i = in->v->modelindex;
 	model = CSQC_GetModelForIndex(in->v->modelindex);
 	if (!model)
 		return false; //there might be other ent types later as an extension that stop this.
 
-	if (!model)
-	{
-		Con_Printf("CopyCSQCEdictToEntity: model wasn't precached!\n");
-		return false;
-	}
-
 	memset(out, 0, sizeof(*out));
 	out->model = model;
 
 	if (in->v->renderflags)
 	{
-		i = in->v->renderflags;
-		if (i & CSQCRF_VIEWMODEL)
+		rflags = in->v->renderflags;
+		if (rflags & CSQCRF_VIEWMODEL)
 			out->flags |= Q2RF_DEPTHHACK|Q2RF_WEAPONMODEL;
-		if (i & CSQCRF_EXTERNALMODEL)
+		if (rflags & CSQCRF_EXTERNALMODEL)
 			out->flags |= Q2RF_EXTERNALMODEL;
-		if (i & CSQCRF_DEPTHHACK)
+		if (rflags & CSQCRF_DEPTHHACK)
 			out->flags |= Q2RF_DEPTHHACK;
-		if (i & CSQCRF_ADDITIVE)
+		if (rflags & CSQCRF_ADDITIVE)
 			out->flags |= Q2RF_ADDATIVE;
 		//CSQCRF_USEAXIS is below
-		if (i & CSQCRF_NOSHADOW)
+		if (rflags & CSQCRF_NOSHADOW)
 			out->flags |= RF_NOSHADOW;
+		//CSQCRF_FRAMETIMESARESTARTTIMES is below
+	}
+	else
+		rflags = 0;
+
+//From here.
+
+	//FTE_CSQC_HALFLIFE_MODELS
+#ifdef HALFLIFEMODELS
+	out->bonecontrols[0] = in->v->bonecontrol1;
+	out->bonecontrols[1] = in->v->bonecontrol2;
+	out->bonecontrols[2] = in->v->bonecontrol3;
+	out->bonecontrols[3] = in->v->bonecontrol4;
+	out->bonecontrols[4] = in->v->bonecontrol5;
+	out->subblendfrac = in->v->subblendfrac;
+	out->basesubblendfrac = in->v->basesubblendfrac;
+#endif
+
+	//FTE_CSQC_BASEFRAME
+	out->basebone = in->v->basebone;
+	if (out->basebone)
+	{	//small optimisation.
+		out->baseframe1 = in->v->baseframe;
+		out->baseframe2 = in->v->baseframe2;
+		if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
+		{
+			out->baseframe1time = *csqcg.time - in->v->baseframe1time;
+			out->baseframe2time = *csqcg.time - in->v->baseframe2time;
+		}
+		else
+		{
+			out->baseframe1time = in->v->baseframe1time;
+			out->baseframe2time = in->v->baseframe2time;
+		}
+		out->baselerpfrac = in->v->baselerpfrac;
 	}
 
-	out->frame = in->v->frame;
-	out->oldframe = in->v->frame2;
+	//and the normal frames.
+	out->frame1 = in->v->frame;
+	out->frame2 = in->v->frame2;
 	out->lerpfrac = in->v->lerpfrac;
+	if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
+	{
+		out->frame1time = *csqcg.time - in->v->frame1time;
+		out->frame2time = *csqcg.time - in->v->frame2time;
+	}
+	else
+	{
+		out->frame1time = in->v->frame1time;
+		out->frame2time = in->v->frame2time;
+	}
+//to here... We read only frames and frame times... Yeah... Q1 originally had only a frame field. :D
+
 	VectorCopy(in->v->origin, out->origin);
-	if ((int)in->v->renderflags & CSQCRF_USEAXIS)
+	if (rflags & CSQCRF_USEAXIS)
 	{
 		VectorCopy(csqcg.forward, out->axis[0]);
 		VectorNegate(csqcg.right, out->axis[1]);
@@ -755,9 +821,6 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		else
 			out->scale = in->v->scale;
 	}
-
-	out->frame1time = in->v->frame1time;
-	out->frame2time = in->v->frame2time;
 
 	if (in->v->colormap > 0 && in->v->colormap <= MAX_CLIENTS)
 	{
@@ -817,17 +880,6 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
 	entity_t ent;
 
-	if (in->v->predraw)
-	{
-		int oldself = *csqcg.self;
-		*csqcg.self = EDICT_TO_PROG(prinst, (void*)in);
-		PR_ExecuteProgram(prinst, in->v->predraw);
-		*csqcg.self = oldself;
-
-		if (in->isfree)
-			return;	//bummer...
-	}
-
 	if (CopyCSQCEdictToEntity(in, &ent))
 		V_AddAxisEntity(&ent);
 
@@ -864,8 +916,10 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	int mask = G_FLOAT(OFS_PARM0);
 	csqcedict_t *ent;
+	entity_t rent;
 	int e;
 
+	int oldself = *csqcg.self;
 	for (e=1; e < *prinst->parms->sv_num_edicts; e++)
 	{
 		ent = (void*)EDICT_NUM(prinst, e);
@@ -874,10 +928,20 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 
 		if ((int)ent->v->drawmask & mask)
 		{
-			G_INT(OFS_PARM0) = EDICT_TO_PROG(prinst, (void*)ent);
-			PF_R_AddEntity(prinst, pr_globals);
+			if (ent->v->predraw)
+			{
+				*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
+				PR_ExecuteProgram(prinst, ent->v->predraw);
+
+				if (ent->isfree)
+					continue;	//bummer...
+			}
+
+			if (CopyCSQCEdictToEntity(ent, &rent))
+				V_AddAxisEntity(&rent);
 		}
 	}
+	*csqcg.self = oldself;
 
 	if (cl.worldmodel)
 	{
@@ -1514,7 +1578,7 @@ static void PF_cs_tracetoss (progfuncs_t *prinst, struct globalvars_s *pr_global
 	*csqcg.trace_inopen = trace.inopen;
 	VectorCopy (trace.endpos, csqcg.trace_endpos);
 	VectorCopy (trace.plane.normal, csqcg.trace_plane_normal);
-	pr_global_struct->trace_plane_dist =  trace.plane.dist;
+	*csqcg.trace_plane_dist =  trace.plane.dist;
 	if (trace.ent)
 		*csqcg.trace_ent = EDICT_TO_PROG(prinst, trace.ent);
 	else
@@ -1662,7 +1726,7 @@ static void PF_cs_PrecacheModel(progfuncs_t *prinst, struct globalvars_s *pr_glo
 		Q_strncpyz(cl.model_csqcname[-freei], modelname, sizeof(cl.model_csqcname[-freei]));	//allocate a slot now
 		modelindex = freei;
 
-		CL_CheckOrEnqueDownloadFile(modelname, modelname);
+		CL_CheckOrEnqueDownloadFile(modelname, modelname, 0);
 		cl.model_csqcprecache[-freei] = NULL;
 	}
 
@@ -1686,7 +1750,15 @@ static void PF_cs_ModelnameForIndex(progfuncs_t *prinst, struct globalvars_s *pr
 
 static void PF_ReadByte(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_FLOAT(OFS_RETURN) = MSG_ReadByte();
+	if (csqc_fakereadbyte != -1)
+	{
+		G_FLOAT(OFS_RETURN) = csqc_fakereadbyte;
+		csqc_fakereadbyte = -1;
+	}
+	else
+	{
+		G_FLOAT(OFS_RETURN) = MSG_ReadByte();
+	}
 }
 
 static void PF_ReadChar(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1744,11 +1816,11 @@ static void PF_ReadAngle(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 static void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
-	edict_t	*ed;
+	struct edict_s	*ed;
 
 	s = PF_VarString(prinst, 0, pr_globals);
 /*	Con_Printf ("======OBJECT ERROR in %s:\n%s\n", PR_GetString(pr_xfunction->s_name),s);
-*/	ed = PROG_TO_EDICT(prinst, pr_global_struct->self);
+*/	ed = PROG_TO_EDICT(prinst, *csqcg.self);
 /*	ED_Print (ed);
 */
 	ED_Print(prinst, ed);
@@ -1763,9 +1835,6 @@ static void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		prinst->AbortStack(prinst);
 
 		PR_BIError (prinst, "Program error: %s", s);
-
-		if (sv.time > 10)
-			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
 	}
 }
 
@@ -1797,15 +1866,15 @@ static void PF_cs_trailparticles (progfuncs_t *prinst, struct globalvars_s *pr_g
 	float *end = G_VECTOR(OFS_PARM3);
 
 	if (!ent->entnum)	//world trails are non-state-based.
-		P_ParticleTrail(start, end, efnum, NULL);
+		pe->ParticleTrail(start, end, efnum, NULL);
 	else
-		P_ParticleTrail(start, end, efnum, &ent->trailstate);
+		pe->ParticleTrail(start, end, efnum, &ent->trailstate);
 }
 
 static void PF_cs_particlesloaded (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *effectname = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = P_DescriptionIsLoaded(effectname);
+	G_FLOAT(OFS_RETURN) = pe->FindParticleType(effectname)+1;
 }
 
 static void cs_set_input_state (usercmd_t *cmd)
@@ -1814,9 +1883,9 @@ static void cs_set_input_state (usercmd_t *cmd)
 		*csqcg.input_timelength = cmd->msec/1000.0f;
 	if (csqcg.input_angles)
 	{
-		csqcg.input_angles[0] = SHORT2ANGLE(cmd->angles[0]+0.5);
-		csqcg.input_angles[1] = SHORT2ANGLE(cmd->angles[1]+0.5);
-		csqcg.input_angles[2] = SHORT2ANGLE(cmd->angles[2]+0.5);
+		csqcg.input_angles[0] = SHORT2ANGLE(cmd->angles[0]);
+		csqcg.input_angles[1] = SHORT2ANGLE(cmd->angles[1]);
+		csqcg.input_angles[2] = SHORT2ANGLE(cmd->angles[2]);
 	}
 	if (csqcg.input_movevalues)
 	{
@@ -1835,6 +1904,8 @@ static void cs_set_input_state (usercmd_t *cmd)
 		*csqcg.input_weapon = cmd->weapon;
 	if (csqcg.input_servertime)
 		*csqcg.input_servertime = cmd->servertime/1000.0f;
+	if (csqcg.input_clienttime)
+		*csqcg.input_clienttime = cmd->fclienttime/1000.0f;
 }
 
 static void cs_get_input_state (usercmd_t *cmd)
@@ -2000,6 +2071,10 @@ typedef struct {
 		*csqcg.pmove_waterjumptime = pmove.waterjumptime;
 	VectorCopy(pmove.origin, csqcg.pmove_org);
 	VectorCopy(pmove.velocity, csqcg.pmove_vel);
+
+	pmove.origin[0] = ((int)(pmove.origin[0]*8))/8.0f;
+	pmove.origin[1] = ((int)(pmove.origin[1]*8))/8.0f;
+	pmove.origin[2] = ((int)(pmove.origin[2]*8))/8.0f;
 }
 
 static void PF_cs_getentitytoken (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2011,7 +2086,11 @@ static void PF_cs_getentitytoken (progfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 	else
 	{
-		csqcmapentitydata = COM_ParseToken(csqcmapentitydata, "{}()\'\":,");
+		com_tokentype = TTP_LINEENDING;
+		while(com_tokentype == TTP_LINEENDING)
+		{
+			csqcmapentitydata = COM_ParseToken(csqcmapentitydata, "{}()\'\":,");
+		}
 		RETURN_TSTRING(com_token);
 	}
 }
@@ -2149,17 +2228,29 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 		G_INT(OFS_RETURN) = 0;
 }
 
-#define lh_extension_t void
-lh_extension_t *checkfteextensionsv(char *name);
-lh_extension_t *checkextension(char *name);
-
 static void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *extname = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = checkextension(extname) || checkfteextensionsv(extname);
+	int i;
+	for (i = 0; i < QSG_Extensions_count; i++)
+	{
+		if (!QSG_Extensions[i].name)
+			continue;
+
+		if (i < 32 && cls.protocol == CP_QUAKEWORLD)
+			if (!(cls.fteprotocolextensions & (1<<i)))
+				continue;
+
+		if (!strcmp(QSG_Extensions[i].name, extname))
+		{
+			G_FLOAT(OFS_RETURN) = true;
+			return;
+		}
+	}
+	G_FLOAT(OFS_RETURN) = false;
 }
 
-void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char		*sample;
 	int			channel;
@@ -2180,6 +2271,25 @@ void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation);
 };
 
+void PF_cs_pointsound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *sample;
+	float *origin;
+	float volume;
+	float attenuation;
+
+	sfx_t *sfx;
+
+	origin = G_VECTOR(OFS_PARM0);
+	sample = PR_GetStringOfs(prinst, OFS_PARM1);
+	volume = G_FLOAT(OFS_PARM2);
+	attenuation = G_FLOAT(OFS_PARM3);
+
+	sfx = S_PrecacheSound(sample);
+	if (sfx)
+		S_StartSound(0, 0, sfx, origin, volume, attenuation);
+}
+
 static void PF_cs_particle(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
@@ -2187,7 +2297,7 @@ static void PF_cs_particle(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float colour = G_FLOAT(OFS_PARM2);
 	float count = G_FLOAT(OFS_PARM2);
 
-	P_RunParticleEffect(org, dir, colour, count);
+	pe->RunParticleEffect(org, dir, colour, count);
 }
 static void PF_cs_particle2(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2203,7 +2313,7 @@ static void PF_cs_particle2(progfuncs_t *prinst, struct globalvars_s *pr_globals
 	effect = G_FLOAT(OFS_PARM4);
 	count = G_FLOAT(OFS_PARM5);
 
-	P_RunParticleEffect2 (org, dmin, dmax, colour, effect, count);
+	pe->RunParticleEffect2 (org, dmin, dmax, colour, effect, count);
 }
 
 static void PF_cs_particle3(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2219,7 +2329,7 @@ static void PF_cs_particle3(progfuncs_t *prinst, struct globalvars_s *pr_globals
 	effect = G_FLOAT(OFS_PARM3);
 	count = G_FLOAT(OFS_PARM4);
 
-	P_RunParticleEffect3(org, box, colour, effect, count);
+	pe->RunParticleEffect3(org, box, colour, effect, count);
 }
 
 static void PF_cs_particle4(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2236,7 +2346,7 @@ static void PF_cs_particle4(progfuncs_t *prinst, struct globalvars_s *pr_globals
 	effect = G_FLOAT(OFS_PARM3);
 	count = G_FLOAT(OFS_PARM4);
 
-	P_RunParticleEffect4(org, radius, colour, effect, count);
+	pe->RunParticleEffect4(org, radius, colour, effect, count);
 }
 
 
@@ -2294,7 +2404,7 @@ static void PF_cs_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	cl_lightstyle[stnum].length = Q_strlen(cl_lightstyle[stnum].map);
 }
 
-void PF_cs_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t		*ent;
 	float		ideal, current, move, speed;
@@ -2330,7 +2440,7 @@ void PF_cs_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	ent->v->angles[1] = anglemod (current + move);
 }
-void PF_cs_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t		*ent;
 	float		ideal, current, move, speed;
@@ -2375,18 +2485,18 @@ static void PF_cs_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	vec3_t	eorg;
 	int		i, j;
 
-	chain = (csqcedict_t *)sv.edicts;
+	chain = (csqcedict_t *)*prinst->parms->sv_edicts;
 
 	org = G_VECTOR(OFS_PARM0);
 	rad = G_FLOAT(OFS_PARM1);
 
-	for (i=1 ; i<sv.num_edicts ; i++)
+	for (i=1 ; i<*prinst->parms->sv_num_edicts ; i++)
 	{
 		ent = (void*)EDICT_NUM(prinst, i);
 		if (ent->isfree)
 			continue;
-		if (ent->v->solid == SOLID_NOT)
-			continue;
+//		if (ent->v->solid == SOLID_NOT && !sv_gameplayfix_blowupfallenzombies.value)
+//			continue;
 		for (j=0 ; j<3 ; j++)
 			eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);
 		if (Length(eorg) > rad)
@@ -2414,8 +2524,9 @@ static void PF_cl_te_bloodqw (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	float scaler = 1;
 	if (*prinst->callargc >= 2)	//fte is a quakeworld engine
 		scaler = G_FLOAT(OFS_PARM1);
-	if (P_RunParticleEffectType(pos, NULL, scaler, pt_blood))
-		P_RunParticleEffect (pos, vec3_origin, 73, 20*scaler);
+	if (P_RunParticleEffectType(pos, NULL, scaler, ptqw_blood))
+		if (P_RunParticleEffectType(pos, NULL, scaler, ptdp_blood))
+			P_RunParticleEffect (pos, vec3_origin, 73, 20*scaler);
 }
 static void PF_cl_te_blooddp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2423,13 +2534,14 @@ static void PF_cl_te_blooddp (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	float *dir = G_VECTOR(OFS_PARM1);
 	float scaler = G_FLOAT(OFS_PARM2);
 
-	if (P_RunParticleEffectType(pos, dir, scaler, pt_blood))
-		P_RunParticleEffect (pos, dir, 73, 20*scaler);
+	if (P_RunParticleEffectType(pos, dir, scaler, ptdp_blood))
+		if (P_RunParticleEffectType(pos, dir, scaler, ptqw_blood))
+			P_RunParticleEffect (pos, dir, 73, 20*scaler);
 }
 static void PF_cl_te_lightningblood (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
-	if (P_RunParticleEffectType(pos, NULL, 1, pt_lightningblood))
+	if (P_RunParticleEffectType(pos, NULL, 1, ptqw_lightningblood))
 		P_RunParticleEffect (pos, vec3_origin, 225, 50);
 }
 static void PF_cl_te_spike (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2479,7 +2591,7 @@ static void PF_cl_te_explosion (progfuncs_t *prinst, struct globalvars_s *pr_glo
 static void PF_cl_te_tarexplosion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
-	P_BlobExplosion (pos);
+	P_RunParticleEffectType(pos, NULL, 1, pt_tarexplosion);
 
 	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 }
@@ -2502,7 +2614,7 @@ static void PF_cl_te_knightspike (progfuncs_t *prinst, struct globalvars_s *pr_g
 static void PF_cl_te_lavasplash (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
-	P_LavaSplash (pos);
+	P_RunParticleEffectType(pos, NULL, 1, pt_lavasplash);
 }
 static void PF_cl_te_teleport (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2741,7 +2853,121 @@ static void PF_cs_OpenPortal (progfuncs_t *prinst, struct globalvars_s *pr_globa
 #endif
 }
 
-void PF_cs_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+// #487 float(string name) gecko_create( string name )
+static void PF_cs_gecko_create (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	cin_t *cin;
+#ifdef Q3SHADERS
+	cin = R_ShaderGetCinematic(shader);
+#else
+	cin = NULL;
+#endif
+
+	if (!cin)
+		G_FLOAT(OFS_RETURN) = 0;
+	else
+		G_FLOAT(OFS_RETURN) = 1;
+}
+// #488 void(string name) gecko_destroy( string name )
+static void PF_cs_gecko_destroy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+// #489 void(string name) gecko_navigate( string name, string URI )
+static void PF_cs_gecko_navigate (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *command = PR_GetStringOfs(prinst, OFS_PARM1);
+	cin_t *cin;
+#ifdef Q3SHADERS
+	cin = R_ShaderGetCinematic(shader);
+#else
+	cin = NULL;
+#endif
+
+	if (!cin)
+		return;
+
+	Media_Send_Command(cin, command);
+}
+// #490 float(string name) gecko_keyevent( string name, float key, float eventtype )
+static void PF_cs_gecko_keyevent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	int key = G_FLOAT(OFS_PARM1);
+	int eventtype = G_FLOAT(OFS_PARM2);
+	cin_t *cin;
+#ifdef Q3SHADERS
+	cin = R_ShaderGetCinematic(shader);
+#else
+	cin = NULL;
+#endif
+
+	if (!cin)
+		return;
+	Media_Send_KeyEvent(cin, MP_TranslateDPtoFTECodes(key), eventtype);
+}
+// #491 void gecko_mousemove( string name, float x, float y )
+static void PF_cs_gecko_mousemove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	float posx = G_FLOAT(OFS_PARM1);
+	float posy = G_FLOAT(OFS_PARM2);
+	cin_t *cin;
+#ifdef Q3SHADERS
+	cin = R_ShaderGetCinematic(shader);
+#else
+	cin = NULL;
+#endif
+
+	if (!cin)
+		return;
+	Media_Send_MouseMove(cin, posx, posy);
+}
+// #492 void gecko_resize( string name, float w, float h )
+static void PF_cs_gecko_resize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	float sizex = G_FLOAT(OFS_PARM1);
+	float sizey = G_FLOAT(OFS_PARM2);
+	cin_t *cin;
+#ifdef Q3SHADERS
+	cin = R_ShaderGetCinematic(shader);
+#else
+	cin = NULL;
+#endif
+	if (!cin)
+		return;
+	Media_Send_Resize(cin, sizex, sizey);
+}
+// #493 vector gecko_get_texture_extent( string name )
+static void PF_cs_gecko_get_texture_extent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	float *ret = G_VECTOR(OFS_RETURN);
+	int sx, sy;
+	cin_t *cin;
+#ifdef Q3SHADERS
+	cin = R_ShaderGetCinematic(shader);
+#else
+	cin = NULL;
+#endif
+
+	if (cin)
+	{
+		Media_Send_GetSize(cin, &sx, &sy);
+	}
+	else
+	{
+		sx = 0;
+		sy = 0;
+	}
+	ret[0] = sx;
+	ret[1] = sy;
+	ret[2] = 0;
+}
+
+static void PF_cs_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t		*ent;
 	vec3_t		end;
@@ -2787,7 +3013,11 @@ static void PF_cl_playingdemo (progfuncs_t *prinst, struct globalvars_s *pr_glob
 
 static void PF_cl_runningserver (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifdef CLIENTONLY
+	G_FLOAT(OFS_RETURN) = false;
+#else
 	G_FLOAT(OFS_RETURN) = !!sv.active;
+#endif
 }
 
 static void PF_cl_getlight (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2804,7 +3034,7 @@ static void PF_Stub (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 */
 
-void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 	int tagnum = G_FLOAT(OFS_PARM1);
@@ -2865,6 +3095,54 @@ void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	}
 
 	VectorCopy(srcorg, retorg);
+}
+
+static void EdictToTransform(csqcedict_t *ed, float *trans)
+{
+	AngleVectors(ed->v->angles, trans+0, trans+4, trans+8);
+	VectorInverse(trans+4);
+
+	trans[3] = ed->v->origin[0];
+	trans[7] = ed->v->origin[1];
+	trans[11] = ed->v->origin[2];
+}
+
+static void PF_cs_gettaginfo (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	int tagnum = G_FLOAT(OFS_PARM1);
+
+	float *origin = G_VECTOR(OFS_RETURN);
+
+	int modelindex = ent->v->modelindex;
+	int frame1 = ent->v->frame;
+	int frame2 = ent->v->frame2;
+	float lerp = ent->v->lerpfrac;
+	float frame1time = ent->v->frame1time;
+	float frame2time = ent->v->frame2time;
+
+	model_t *mod = CSQC_GetModelForIndex(modelindex);
+
+	float transent[12];
+	float transforms[12];
+	float result[12];
+
+#pragma message("PF_cs_gettaginfo: This function doesn't honour attachments (but setattachment isn't implemented yet anyway)")
+	if (!Mod_GetTag(mod, tagnum, frame1, frame2, lerp, frame1time, frame2time, transforms))
+	{
+		memset(transforms, 0, sizeof(transforms));
+	}
+
+	EdictToTransform(ent, transent);
+	R_ConcatTransforms((void*)transent, (void*)transforms, (void*)result);
+
+	origin[0] = result[3];
+	origin[1] = result[7];
+	origin[2] = result[11];
+	VectorCopy((result+0), csqcg.forward);
+	VectorCopy((result+4), csqcg.right);
+	VectorCopy((result+8), csqcg.up);
+
 }
 static void PF_cs_gettagindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2938,7 +3216,7 @@ static void PF_shaderforname (progfuncs_t *prinst, struct globalvars_s *pr_globa
 #endif
 }
 
-qboolean CS_CheckBottom (csqcedict_t *ent)
+static qboolean CS_CheckBottom (csqcedict_t *ent)
 {
 	int savedhull;
 	vec3_t	mins, maxs, start, stop;
@@ -3023,7 +3301,7 @@ static void PF_cs_break (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #endif
 }
 
-qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qboolean noenemy, qboolean set_trace)
+static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qboolean noenemy, qboolean set_trace)
 {
 	float		dz;
 	vec3_t		oldorg, neworg, end;
@@ -3183,12 +3461,15 @@ static void PF_cs_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals
 static void CS_ConsoleCommand_f(void)
 {	//FIXME: unregister them.
 	char cmd[2048];
-	sprintf(cmd, "%s %s", Cmd_Argv(0), Cmd_Args());
+	Q_snprintfz(cmd, sizeof(cmd), "%s %s", Cmd_Argv(0), Cmd_Args());
 	CSQC_ConsoleCommand(cmd);
 }
 static void PF_cs_registercommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *str = PF_VarString(prinst, 0, pr_globals);
+	if (!strcmp(str, "+showscores") || !strcmp(str, "-showscores") ||
+		!strcmp(str, "+showteamscores") || !strcmp(str, "-showteamscores"))
+		return;
 	Cmd_AddRemCommand(str, CS_ConsoleCommand_f);
 }
 
@@ -3221,11 +3502,15 @@ typedef struct oldcsqcpack_s
 } oldcsqcpack_t;
 static oldcsqcpack_t loadedcsqcpack[2];
 static int loadedcsqcpacknum;
+static csqcedict_t *deltaedplayerents[MAX_CLIENTS];
 
 #define RSES_NOLERP 1
-#define RSES_AUTOROTATE 2
+#define RSES_NOROTATE 2
+#define RSES_NOTRAILS 4
+#define RSES_NOLIGHTS 8
+
 packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp);
-static void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	//read the arguments the csqc gave us
 	unsigned int flags = G_FLOAT(OFS_PARM0);
@@ -3241,12 +3526,84 @@ static void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *p
 	oldcsqcpack_t *oldlist, *newlist;
 	int oldidx = 0, newidx = 0;
 	model_t *model;
+	player_state_t *srcp;
 
 	//setup
 	servertime += cl.servertime;
 	pack = CL_ProcessPacketEntities(&servertime, (flags & RSES_NOLERP)); 
 	if (!pack)
-		return;	//can't do anything, just don't update
+		return;	//we're lagging. can't do anything, just don't update
+
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		srcp = &cl.frames[cl.validsequence&UPDATE_MASK].playerstate[i];
+		ent = deltaedplayerents[i];
+		if (srcp->messagenum == cl.validsequence && (i+1 >= maxcsqcentities || !csqcent[i+1]))
+		{
+			if (!ent)
+			{
+				ent = (csqcedict_t *)ED_Alloc(prinst);
+				deltaedplayerents[i] = ent;
+				G_FLOAT(OFS_PARM0) = true;
+			}
+			else
+			{
+				G_FLOAT(OFS_PARM0) = false;
+			}
+
+			ent->v->entnum = i+1;
+
+			if (cl.spectator && !Cam_DrawPlayer(0, i))
+			{
+				ent->v->modelindex = 0;
+			}
+			else
+				ent->v->modelindex = srcp->modelindex;
+			ent->v->skin = srcp->skinnum;
+
+			ent->v->frame1time = cl.time - cl.lerpplayers[i].framechange;
+			ent->v->frame2time = cl.time - cl.lerpplayers[i].oldframechange;
+
+			if (ent->v->frame != cl.lerpplayers[i].frame)
+			{
+				ent->v->frame2 = ent->v->frame;
+				ent->v->frame = cl.lerpplayers[i].frame;
+			}
+
+			ent->v->lerpfrac = 1-(cl.time - cl.lerpplayers[i].framechange)*10;
+			if (ent->v->lerpfrac > 1)
+				ent->v->lerpfrac = 1;
+			else if (ent->v->lerpfrac < 0)
+			{
+				ent->v->lerpfrac = 0;
+			}
+			VectorCopy(srcp->origin, ent->v->origin);
+			VectorCopy(srcp->velocity, ent->v->velocity);
+			VectorCopy(srcp->viewangles, ent->v->angles);
+			ent->v->angles[0] *= -0.333;
+			ent->v->colormap = i+1;
+			ent->v->scale = srcp->scale/16.0f;
+			//ent->v->fatness = srcp->fatness;
+			ent->v->alpha = srcp->alpha/255.0f;
+
+//			ent->v->colormod[0] = (srcp->colormod[0]/255.0f)*8;
+//			ent->v->colormod[1] = (srcp->colormod[1]/255.0f)*8;
+//			ent->v->colormod[2] = (srcp->colormod[2]/255.0f)*8;
+//			ent->v->effects = srcp->effects;
+
+			if (csqcg.delta_update)
+			{
+				*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
+				PR_ExecuteProgram(prinst, csqcg.delta_update);
+			}
+		}
+		else if (ent)
+		{
+			*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
+			PR_ExecuteProgram(prinst, csqcg.delta_remove);
+			deltaedplayerents[i] = NULL;
+		}
+	}
 
 	oldlist = &loadedcsqcpack[loadedcsqcpacknum];
 	loadedcsqcpacknum ^= 1;
@@ -3288,6 +3645,17 @@ static void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *p
 			}
 		}
 
+		if (src->number < maxcsqcentities && csqcent[src->number])
+		{
+			//in the csqc list
+			if (oldent)
+			{
+				*csqcg.self = EDICT_TO_PROG(prinst, (void*)oldent);
+				PR_ExecuteProgram(prinst, csqcg.delta_remove);
+			}
+			continue;
+		}
+
 		//note: we don't delta the state here. we just replace the old.
 		//its already lerped
 
@@ -3315,10 +3683,13 @@ static void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *p
 		}
 
 		model = cl.model_precache[src->modelindex];
-		if (oldent && model->particletrail >= 0)
+		if (!(flags & RSES_NOTRAILS))
 		{
-			if (P_ParticleTrail (ent->v->origin, src->origin, model->particletrail, &(le->trailstate)))
-				P_ParticleTrailIndex(ent->v->origin, src->origin, model->traildefaultindex, 0, &(le->trailstate));
+			if (oldent && model->particletrail >= 0)
+			{
+				if (pe->ParticleTrail (ent->v->origin, src->origin, model->particletrail, &(le->trailstate)))
+					pe->ParticleTrailIndex(ent->v->origin, src->origin, model->traildefaultindex, 0, &(le->trailstate));
+			}
 		}
 
 		ent->v->entnum = src->number;
@@ -3360,7 +3731,7 @@ static void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *p
 
 		if (model)
 		{
-			if ((flags & RSES_AUTOROTATE) && (model->flags & EF_ROTATE))
+			if (!(flags & RSES_NOROTATE) && (model->flags & EF_ROTATE))
 			{
 				ent->v->angles[0] = 0;
 				ent->v->angles[1] = 100*servertime;
@@ -3407,7 +3778,6 @@ static void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *p
 //PF_cl_ - works in csqc and menu (if needed...)
 
 //these are the builtins that still need to be added.
-#define PF_cs_gettaginfo		PF_Fixme
 #define PS_cs_setattachment		PF_Fixme
 
 #define PF_R_PolygonBegin		PF_Fixme			// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
@@ -3415,455 +3785,472 @@ static void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *p
 #define PF_R_PolygonEnd			PF_Fixme			// #308 void() R_EndPolygon (EXT_CSQC_???)
 
 //warning: functions that depend on globals are bad, mkay?
-static builtin_t csqc_builtins[] = {
+static struct {
+	char *name;
+	builtin_t bifunc;
+	int ebfsnum;
+}  BuiltinList[] = {
 //0
-PF_Fixme,				// #0
-PF_cs_makevectors,		// #1 void() makevectors (QUAKE)
-PF_cs_SetOrigin,		// #2 void(entity e, vector org) setorigin (QUAKE)
-PF_cs_SetModel,			// #3 void(entity e, string modl) setmodel (QUAKE)
-PF_cs_SetSize,			// #4 void(entity e, vector mins, vector maxs) setsize (QUAKE)
-PF_Fixme,				// #5
-PF_cs_break,			// #6 void() debugbreak (QUAKE)
-PF_random,				// #7 float() random (QUAKE)
-PF_cs_sound,			// #8 void(entity e, float chan, string samp, float vol, float atten) sound (QUAKE)
-PF_normalize,			// #9 vector(vector in) normalize (QUAKE)
+	{"makevectors",	PF_cs_makevectors, 1},		// #1 void() makevectors (QUAKE)
+	{"setorigin",	PF_cs_SetOrigin, 2},		// #2 void(entity e, vector org) setorigin (QUAKE)
+	{"setmodel",	PF_cs_SetModel, 3},			// #3 void(entity e, string modl) setmodel (QUAKE)
+	{"setsize",	PF_cs_SetSize, 4},			// #4 void(entity e, vector mins, vector maxs) setsize (QUAKE)
+//5
+	{"debugbreak",	PF_cs_break, 6},			// #6 void() debugbreak (QUAKE)
+	{"random",	PF_random,	7},				// #7 float() random (QUAKE)
+	{"sound",	PF_cs_sound,	8},			// #8 void(entity e, float chan, string samp, float vol, float atten) sound (QUAKE)
+	{"normalize",	PF_normalize,	9},			// #9 vector(vector in) normalize (QUAKE)
 //10
-PF_error,				// #10 void(string errortext) error (QUAKE)
-PF_objerror,			// #11 void(string errortext) onjerror (QUAKE)
-PF_vlen,				// #12 float(vector v) vlen (QUAKE)
-PF_vectoyaw,			// #13 float(vector v) vectoyaw (QUAKE)
-PF_Spawn,				// #14 entity() spawn (QUAKE)
-PF_cs_remove,			// #15 void(entity e) remove (QUAKE)
-PF_cs_traceline,		// #16 void(vector v1, vector v2, float nomonst, entity forent) traceline (QUAKE)
-PF_NoCSQC,				// #17 entity() checkclient (QUAKE) (don't support)
-PF_FindString,			// #18 entity(entity start, .string fld, string match) findstring (QUAKE)
-PF_cs_PrecacheSound,	// #19 void(string str) precache_sound (QUAKE)
+	{"error",	PF_error,	10},				// #10 void(string errortext) error (QUAKE)
+	{"objerror",	PF_objerror,	11},			// #11 void(string errortext) onjerror (QUAKE)
+	{"vlen",	PF_vlen,	12},				// #12 float(vector v) vlen (QUAKE)
+	{"vectoyaw",	PF_vectoyaw,	13},			// #13 float(vector v) vectoyaw (QUAKE)
+	{"spawn",	PF_Spawn,	14},				// #14 entity() spawn (QUAKE)
+	{"remove",	PF_cs_remove,	15},			// #15 void(entity e) remove (QUAKE)
+	{"traceline",	PF_cs_traceline,	16},		// #16 void(vector v1, vector v2, float nomonst, entity forent) traceline (QUAKE)
+	{"checkclient",	PF_NoCSQC,	17},				// #17 entity() checkclient (QUAKE) (don't support)
+	{"findstring",	PF_FindString,	18},			// #18 entity(entity start, .string fld, string match) findstring (QUAKE)
+	{"precache_sound",	PF_cs_PrecacheSound,	19},	// #19 void(string str) precache_sound (QUAKE)
 //20
-PF_cs_PrecacheModel,	// #20 void(string str) precache_model (QUAKE)
-PF_NoCSQC,				// #21 void(entity client, string s) stuffcmd (QUAKE) (don't support)
-PF_cs_findradius,		// #22 entity(vector org, float rad) findradius (QUAKE)
-PF_NoCSQC,				// #23 void(string s, ...) bprint (QUAKE) (don't support)
-PF_NoCSQC,				// #24 void(entity e, string s, ...) sprint (QUAKE) (don't support)
-PF_dprint,				// #25 void(string s, ...) dprint (QUAKE)
-PF_ftos,				// #26 string(float f) ftos (QUAKE)
-PF_vtos,				// #27 string(vector f) vtos (QUAKE)
-PF_coredump,			// #28 void(void) coredump (QUAKE)
-PF_traceon,				// #29 void() traceon (QUAKE)
+	{"precache_model",	PF_cs_PrecacheModel,	20},	// #20 void(string str) precache_model (QUAKE)
+	{"stuffcmd",	PF_NoCSQC,	21},		// #21 void(entity client, string s) stuffcmd (QUAKE) (don't support)
+	{"findradius",	PF_cs_findradius,	22},		// #22 entity(vector org, float rad) findradius (QUAKE)
+	{"bprint",	PF_NoCSQC,	23},				// #23 void(string s, ...) bprint (QUAKE) (don't support)
+	{"sprint",	PF_NoCSQC,	24},				// #24 void(entity e, string s, ...) sprint (QUAKE) (don't support)
+	{"dprint",	PF_dprint,	25},				// #25 void(string s, ...) dprint (QUAKE)
+	{"ftos",	PF_ftos,	26},				// #26 string(float f) ftos (QUAKE)
+	{"vtos",	PF_vtos,	27},				// #27 string(vector f) vtos (QUAKE)
+	{"coredump",	PF_coredump,	28},			// #28 void(void) coredump (QUAKE)
+	{"traceon",	PF_traceon,	29},				// #29 void() traceon (QUAKE)
 //30
-PF_traceoff,			// #30 void() traceoff (QUAKE)
-PF_eprint,				// #31 void(entity e) eprint (QUAKE)
-PF_cs_walkmove,			// #32 float(float yaw, float dist) walkmove (QUAKE)
-PF_Fixme,				// #33
-PF_cs_droptofloor,		// #34
-PF_cs_lightstyle,		// #35 void(float lightstyle, string stylestring) lightstyle (QUAKE)
-PF_rint,				// #36 float(float f) rint (QUAKE)
-PF_floor,				// #37 float(float f) floor (QUAKE)
-PF_ceil,				// #38 float(float f) ceil (QUAKE)
-PF_Fixme,				// #39
+	{"traceoff",	PF_traceoff,	30},			// #30 void() traceoff (QUAKE)
+	{"eprint",	PF_eprint,	31},				// #31 void(entity e) eprint (QUAKE)
+	{"walkmove",	PF_cs_walkmove,	32},			// #32 float(float yaw, float dist) walkmove (QUAKE)
+	{"?",	PF_Fixme,	33},				// #33
+	{"droptofloor",	PF_cs_droptofloor,	34},		// #34
+	{"lightstyle",	PF_cs_lightstyle,	35},		// #35 void(float lightstyle, string stylestring) lightstyle (QUAKE)
+	{"rint",	PF_rint,	36},				// #36 float(float f) rint (QUAKE)
+	{"floor",	PF_floor,	37},				// #37 float(float f) floor (QUAKE)
+	{"ceil",	PF_ceil,	38},				// #38 float(float f) ceil (QUAKE)
+//	{"?",	PF_Fixme,	39},				// #39
 //40
-PF_cs_checkbottom,		// #40 float(entity e) checkbottom (QUAKE)
-PF_cs_pointcontents,	// #41 float(vector org) pointcontents (QUAKE)
-PF_Fixme,				// #42
-PF_fabs,				// #43 float(float f) fabs (QUAKE)
-PF_NoCSQC,				// #44 vector(entity e, float speed) aim (QUAKE) (don't support)
-PF_cvar,				// #45 float(string cvarname) cvar (QUAKE)
-PF_localcmd,			// #46 void(string str) localcmd (QUAKE)
-PF_nextent,				// #47 entity(entity e) nextent (QUAKE)
-PF_cs_particle,			// #48 void(vector org, vector dir, float colour, float count) particle (QUAKE)
-PF_cs_changeyaw,		// #49 void() changeyaw (QUAKE)
+	{"checkbottom",	PF_cs_checkbottom,	40},	// #40 float(entity e) checkbottom (QUAKE)
+	{"pointcontents",	PF_cs_pointcontents,	41},	// #41 float(vector org) pointcontents (QUAKE)
+//	{"?",	PF_Fixme,	42},				// #42
+	{"fabs",	PF_fabs,	43},				// #43 float(float f) fabs (QUAKE)
+	{"aim",	PF_NoCSQC,	44},				// #44 vector(entity e, float speed) aim (QUAKE) (don't support)
+	{"cvar",	PF_cvar,	45},				// #45 float(string cvarname) cvar (QUAKE)
+	{"localcmd",	PF_localcmd,	46},			// #46 void(string str) localcmd (QUAKE)
+	{"nextent",	PF_nextent,	47},				// #47 entity(entity e) nextent (QUAKE)
+	{"particle",	PF_cs_particle,	48},		// #48 void(vector org, vector dir, float colour, float count) particle (QUAKE)
+	{"changeyaw",	PF_cs_changeyaw,	49},		// #49 void() changeyaw (QUAKE)
 //50
-PF_Fixme,				// #50
-PF_vectoangles,			// #51 vector(vector v) vectoangles (QUAKE)
-PF_Fixme,				// #52 void(float to, float f) WriteByte (QUAKE)
-PF_Fixme,				// #53 void(float to, float f) WriteChar (QUAKE)
-PF_Fixme,				// #54 void(float to, float f) WriteShort (QUAKE)
+//	{"?",	PF_Fixme,	50},				// #50
+	{"vectoangles",	PF_vectoangles,	51},			// #51 vector(vector v) vectoangles (QUAKE)
+//	{"WriteByte",	PF_Fixme,	52},				// #52 void(float to, float f) WriteByte (QUAKE)
+//	{"WriteChar",	PF_Fixme,	53},				// #53 void(float to, float f) WriteChar (QUAKE)
+//	{"WriteShort",	PF_Fixme,	54},				// #54 void(float to, float f) WriteShort (QUAKE)
 
-PF_Fixme,				// #55 void(float to, float f) WriteLong (QUAKE)
-PF_Fixme,				// #56 void(float to, float f) WriteCoord (QUAKE)
-PF_Fixme,				// #57 void(float to, float f) WriteAngle (QUAKE)
-PF_Fixme,				// #58 void(float to, float f) WriteString (QUAKE)
-PF_Fixme,				// #59 void(float to, float f) WriteEntity (QUAKE)
+//	{"WriteLong",	PF_Fixme,	55},				// #55 void(float to, float f) WriteLong (QUAKE)
+//	{"WriteCoord",	PF_Fixme,	56},				// #56 void(float to, float f) WriteCoord (QUAKE)
+//	{"WriteAngle",	PF_Fixme,	57},				// #57 void(float to, float f) WriteAngle (QUAKE)
+//	{"WriteString",	PF_Fixme,	58},				// #58 void(float to, float f) WriteString (QUAKE)
+//	{"WriteEntity",	PF_Fixme,	59},				// #59 void(float to, float f) WriteEntity (QUAKE)
 
 //60
-PF_Sin,					// #60 float(float angle) sin (DP_QC_SINCOSSQRTPOW)
-PF_Cos,					// #61 float(float angle) cos (DP_QC_SINCOSSQRTPOW)
-PF_Sqrt,				// #62 float(float value) sqrt (DP_QC_SINCOSSQRTPOW)
-PF_cs_changepitch,		// #63 void(entity ent) changepitch (DP_QC_CHANGEPITCH)
-PF_cs_tracetoss,		// #64 void(entity ent, entity ignore) tracetoss (DP_QC_TRACETOSS)
+	{"sin",	PF_Sin,	60},					// #60 float(float angle) sin (DP_QC_SINCOSSQRTPOW)
+	{"cos",	PF_Cos,	61},					// #61 float(float angle) cos (DP_QC_SINCOSSQRTPOW)
+	{"sqrt",	PF_Sqrt,	62},				// #62 float(float value) sqrt (DP_QC_SINCOSSQRTPOW)
+	{"changepitch",	PF_cs_changepitch,	63},		// #63 void(entity ent) changepitch (DP_QC_CHANGEPITCH)
+	{"tracetoss",	PF_cs_tracetoss,	64},		// #64 void(entity ent, entity ignore) tracetoss (DP_QC_TRACETOSS)
 
-PF_etos,				// #65 string(entity ent) etos (DP_QC_ETOS)
-PF_Fixme,				// #66
-PF_Fixme,				// #67 void(float step) movetogoal (QUAKE)
-PF_NoCSQC,				// #68 void(string s) precache_file (QUAKE) (don't support)
-PF_cs_makestatic,		// #69 void(entity e) makestatic (QUAKE)
+	{"etos",	PF_etos,	65},				// #65 string(entity ent) etos (DP_QC_ETOS)
+	{"?",	PF_Fixme,	66},				// #66
+//	{"movetogoal",	PF_Fixme,	67},				// #67 void(float step) movetogoal (QUAKE)
+	{"precache_file",	PF_NoCSQC,	68},				// #68 void(string s) precache_file (QUAKE) (don't support)
+	{"makestatic",	PF_cs_makestatic,	69},		// #69 void(entity e) makestatic (QUAKE)
 //70
-PF_NoCSQC,				// #70 void(string mapname) changelevel (QUAKE) (don't support)
-PF_Fixme,				// #71
-PF_cvar_set,			// #72 void(string cvarname, string valuetoset) cvar_set (QUAKE)
-PF_NoCSQC,				// #73 void(entity ent, string text) centerprint (QUAKE) (don't support - cprint is supported instead)
-PF_cl_ambientsound,		// #74 void (vector pos, string samp, float vol, float atten) ambientsound (QUAKE)
+	{"changelevel",	PF_NoCSQC,	70},				// #70 void(string mapname) changelevel (QUAKE) (don't support)
+//	{"?",	PF_Fixme,	71},				// #71
+	{"cvar_set",	PF_cvar_set,	72},			// #72 void(string cvarname, string valuetoset) cvar_set (QUAKE)
+	{"centerprint",	PF_NoCSQC,	73},				// #73 void(entity ent, string text) centerprint (QUAKE) (don't support - cprint is supported instead)
+	{"ambientsound",	PF_cl_ambientsound,	74},		// #74 void (vector pos, string samp, float vol, float atten) ambientsound (QUAKE)
 
-PF_cs_PrecacheModel,	// #75 void(string str) precache_model2 (QUAKE)
-PF_cs_PrecacheSound,	// #76 void(string str) precache_sound2 (QUAKE)
-PF_NoCSQC,				// #77 void(string str) precache_file2 (QUAKE)
-PF_NoCSQC,				// #78 void() setspawnparms (QUAKE) (don't support)
-PF_NoCSQC,				// #79 void(entity killer, entity killee) logfrag (QW_ENGINE) (don't support)
+	{"precache_model2",	PF_cs_PrecacheModel,	80},	// #75 void(string str) precache_model2 (QUAKE)
+	{"precache_sound2",	PF_cs_PrecacheSound,	76},	// #76 void(string str) precache_sound2 (QUAKE)
+	{"precache_file2",	PF_NoCSQC,	77},				// #77 void(string str) precache_file2 (QUAKE)
+	{"setspawnparms",	PF_NoCSQC,	78},				// #78 void() setspawnparms (QUAKE) (don't support)
+	{"logfrag",	PF_NoCSQC,	79},				// #79 void(entity killer, entity killee) logfrag (QW_ENGINE) (don't support)
 
 //80
-PF_NoCSQC,				// #80 string(entity e, string keyname) infokey (QW_ENGINE) (don't support)
-PF_stof,				// #81 float(string s) stof (FRIK_FILE or QW_ENGINE)
-PF_NoCSQC,				// #82 void(vector where, float set) multicast (QW_ENGINE) (don't support)
-PF_Fixme,
-PF_Fixme,
+	{"infokey",	PF_NoCSQC,	80},				// #80 string(entity e, string keyname) infokey (QW_ENGINE) (don't support)
+	{"stof",	PF_stof,	81},				// #81 float(string s) stof (FRIK_FILE or QW_ENGINE)
+	{"multicast",	PF_NoCSQC,	82},				// #82 void(vector where, float set) multicast (QW_ENGINE) (don't support)
 
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
 
 //90
-PF_cs_tracebox,
-PF_randomvector,		// #91 vector() randomvec (DP_QC_RANDOMVEC)
-PF_cl_getlight,			// #92 vector(vector org) getlight (DP_QC_GETLIGHT)
-PF_registercvar,		// #93 void(string cvarname, string defaultvalue) registercvar (DP_QC_REGISTERCVAR)
-PF_min,					// #94 float(float a, floats) min (DP_QC_MINMAXBOUND)
+	{"tracebox",	PF_cs_tracebox,	90},
+	{"randomvec",	PF_randomvector,	91},		// #91 vector() randomvec (DP_QC_RANDOMVEC)
+	{"getlight",	PF_cl_getlight,	92},			// #92 vector(vector org) getlight (DP_QC_GETLIGHT)
+	{"registercvar",	PF_registercvar,	93},		// #93 void(string cvarname, string defaultvalue) registercvar (DP_QC_REGISTERCVAR)
+	{"min",	PF_min,	94},				// #94 float(float a, floats) min (DP_QC_MINMAXBOUND)
 
-PF_max,					// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
-PF_bound,				// #96 float(float minimum, float val, float maximum) bound (DP_QC_MINMAXBOUND)
-PF_pow,					// #97 float(float value) pow (DP_QC_SINCOSSQRTPOW)
-PF_FindFloat,			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
-PF_checkextension,		// #99 float(string extname) checkextension (EXT_CSQC)
-
-//100
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
+	{"max",	PF_max,	95},					// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
+	{"bound",	PF_bound,	96},				// #96 float(float minimum, float val, float maximum) bound (DP_QC_MINMAXBOUND)
+	{"pow",	PF_pow,	97},					// #97 float(float value) pow (DP_QC_SINCOSSQRTPOW)
+	{"findfloat",	PF_FindFloat,	98},			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
+	{"checkextension",	PF_checkextension,	99},		// #99 float(string extname) checkextension (EXT_CSQC)
 
 //110
-PF_fopen,				// #110 float(string strname, float accessmode) fopen (FRIK_FILE)
-PF_fclose,				// #111 void(float fnum) fclose (FRIK_FILE)
-PF_fgets,				// #112 string(float fnum) fgets (FRIK_FILE)
-PF_fputs,				// #113 void(float fnum, string str) fputs (FRIK_FILE)
-PF_strlen,				// #114 float(string str) strlen (FRIK_FILE)
+	{"fopen",	PF_fopen,	110},				// #110 float(string strname, float accessmode) fopen (FRIK_FILE)
+	{"fclose",	PF_fclose,	111},				// #111 void(float fnum) fclose (FRIK_FILE)
+	{"fgets",	PF_fgets,	112},				// #112 string(float fnum) fgets (FRIK_FILE)
+	{"fputs",	PF_fputs,	113},				// #113 void(float fnum, string str) fputs (FRIK_FILE)
+	{"strlen",	PF_strlen,	114},				// #114 float(string str) strlen (FRIK_FILE)
 
-PF_strcat,				// #115 string(string str1, string str2, ...) strcat (FRIK_FILE)
-PF_substring,			// #116 string(string str, float start, float length) substring (FRIK_FILE)
-PF_stov,				// #117 vector(string str) stov (FRIK_FILE)
-PF_dupstring,			// #118 string(string str) dupstring (FRIK_FILE)
-PF_forgetstring,		// #119 void(string str) freestring (FRIK_FILE)
-
-//120
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-PF_Fixme,
-
-//130
-PF_FixTen,
-
-//140
-PF_FixTen,
-
-//150
-PF_FixTen,
-
-//160
-PF_FixTen,
-
-//170
-PF_FixTen,
-
-//180
-PF_FixTen,
-
-//190
-PF_FixTen,
+	{"strcat",	PF_strcat,	115},				// #115 string(string str1, string str2, ...) strcat (FRIK_FILE)
+	{"substring",	PF_substring,	116},			// #116 string(string str, float start, float length) substring (FRIK_FILE)
+	{"stov",	PF_stov,	117},				// #117 vector(string str) stov (FRIK_FILE)
+	{"strzone",	PF_dupstring,	118},			// #118 string(string str) dupstring (FRIK_FILE)
+	{"strunzone",	PF_forgetstring,	119},		// #119 void(string str) freestring (FRIK_FILE)
 
 //200
-PF_cs_PrecacheModel,
-PF_externcall,
-PF_cs_addprogs,
-PF_externvalue,
-PF_externset,
+	{"precachemodel",	PF_cs_PrecacheModel,	200},
+	{"eterncall",	PF_externcall,	201},
+	{"addprogs",	PF_cs_addprogs,	202},
+	{"externvalue",	PF_externvalue,	203},
+	{"externset",	PF_externset,	204},
 
-PF_externrefcall,
-PF_instr,
-	PF_cs_OpenPortal,	//q2bsps
-	PF_NoCSQC,//{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208},
-	PF_NoCSQC,//{"CustomTempEnt",	PF_CustomTEnt,		0,		0,		0,		209},
+	{"externrefcall",	PF_externrefcall,	205},
+	{"instr",	PF_instr,	206},
+	{"openportal",	PF_cs_OpenPortal,	207},	//q2bsps
+	{"registertempent",	PF_NoCSQC,	208},//{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208},
+	{"customtempent",	PF_NoCSQC,	209},//{"CustomTempEnt",	PF_CustomTEnt,		0,		0,		0,		209},
 //210
-	PF_Fixme,//{"fork",			PF_Fork,			0,		0,		0,		210},
-	PF_Abort, //#211 void() abort (FTE_MULTITHREADED)
-	PF_Fixme,//{"sleep",			PF_Sleep,			0,		0,		0,		212},
-	PF_NoCSQC,//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
-	PF_NoCSQC,//{"chat",			PF_chat,			0,		0,		0,		214},// #214 void(string filename, float starttag, entity edict) SV_Chat (FTE_NPCCHAT)
+//	{"fork",	PF_Fixme,	210},//{"fork",			PF_Fork,			0,		0,		0,		210},
+	{"abort",	PF_Abort,	211}, //#211 void() abort (FTE_MULTITHREADED)
+//	{"sleep",	PF_Fixme,	212},//{"sleep",			PF_Sleep,			0,		0,		0,		212},
+	{"forceinfokey",	PF_NoCSQC,	213},//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
+	{"chat",	PF_NoCSQC,	214},//{"chat",			PF_chat,			0,		0,		0,		214},// #214 void(string filename, float starttag, entity edict) SV_Chat (FTE_NPCCHAT)
 
-	PF_cs_particle2, //215 (FTE_PEXT_HEXEN2)
-	PF_cs_particle3, //216 (FTE_PEXT_HEXEN2)
-	PF_cs_particle4, //217 (FTE_PEXT_HEXEN2)
+	{"particle2",	PF_cs_particle2,	215}, //215 (FTE_PEXT_HEXEN2)
+	{"particle3",	PF_cs_particle3,	216}, //216 (FTE_PEXT_HEXEN2)
+	{"particle4",	PF_cs_particle4,	217}, //217 (FTE_PEXT_HEXEN2)
 
 //EXT_DIMENSION_PLANES
-	PF_bitshift,		//#218 bitshift (EXT_DIMENSION_PLANES)
-	PF_cl_te_lightningblood,// #219 te_lightningblood void(vector org) (FTE_TE_STANDARDEFFECTBUILTINS)
+	{"bitshift",	PF_bitshift,	218},		//#218 bitshift (EXT_DIMENSION_PLANES)
+	{"te_lightningblood",	PF_cl_te_lightningblood,	219},// #219 te_lightningblood void(vector org) (FTE_TE_STANDARDEFFECTBUILTINS)
 
 //220
-	PF_Fixme, //{"map_builtin",		PF_builtinsupported,0,		0,		0,		220},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
-PF_strstrofs,	// #221 float(string s1, string sub) strstrofs (FTE_STRINGS)
-PF_str2chr,		// #222 float(string str, float index) str2chr (FTE_STRINGS)
-PF_chr2str,		// #223 string(float chr, ...) chr2str (FTE_STRINGS)
-PF_strconv,		// #224 string(float ccase, float redalpha, float redchars, string str, ...) strconv (FTE_STRINGS)
+//	{"map_builtin",		PF_Fixme,	220},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
+	{"strstrofs",	PF_strstrofs,	221},	// #221 float(string s1, string sub) strstrofs (FTE_STRINGS)
+	{"str2chr",	PF_str2chr,	222},		// #222 float(string str, float index) str2chr (FTE_STRINGS)
+	{"chr2str",	PF_chr2str,	223},		// #223 string(float chr, ...) chr2str (FTE_STRINGS)
+	{"strconv",	PF_strconv,	224},		// #224 string(float ccase, float redalpha, float redchars, string str, ...) strconv (FTE_STRINGS)
 
-PF_strpad,		// #225 string strpad(float pad, string str1, ...) strpad (FTE_STRINGS)
-PF_infoadd,		// #226 string(string old, string key, string value) infoadd
-PF_infoget,		// #227 string(string info, string key) infoget
-PF_strncmp,		// #228 float(string s1, string s2, float len) strncmp (FTE_STRINGS)
-PF_strcasecmp,	// #229 float(string s1, string s2) strcasecmp (FTE_STRINGS)
+	{"strpad",	PF_strpad,	225},		// #225 string strpad(float pad, string str1, ...) strpad (FTE_STRINGS)
+	{"infoadd",	PF_infoadd,	226},		// #226 string(string old, string key, string value) infoadd
+	{"infoget",	PF_infoget,	227},		// #227 string(string info, string key) infoget
+	{"strncmp",	PF_strncmp,	228},		// #228 float(string s1, string s2, float len) strncmp (FTE_STRINGS)
+	{"strcasecmp",	PF_strcasecmp,	229},	// #229 float(string s1, string s2) strcasecmp (FTE_STRINGS)
 
 //230
-PF_strncasecmp,	// #230 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
-PF_Fixme,		// #231 clientstat
-PF_Fixme,		// #232 runclientphys
-PF_Fixme,		// #233 float(entity ent) isbackbuffered
-PF_rotatevectorsbytag,	// #234
+	{"strncasecmp",	PF_strncasecmp,	230},	// #230 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
+	{"clientstat",	PF_NoCSQC,	231},		// #231 clientstat
+	{"runclientphys",	PF_NoCSQC,	232},		// #232 runclientphys
+	{"isbackbuffered",	PF_NoCSQC,	233},		// #233 float(entity ent) isbackbuffered
+	{"rotatevectorsbytag",	PF_rotatevectorsbytag,	234},	// #234
 
-PF_rotatevectorsbyangles, // #235
-PF_rotatevectorsbymatrix, // #236
-PF_skinforname,		// #237
-PF_shaderforname,	// #238
-PF_cl_te_bloodqw,	// #239 void te_bloodqw(vector org[, float count]) (FTE_TE_STANDARDEFFECTBUILTINS)
+	{"rotatevectorsbyangle",	PF_rotatevectorsbyangles,	235}, // #235
+	{"rotatevectorsbymatrix",	PF_rotatevectorsbymatrix,	236}, // #236
+	{"skinforname",	PF_skinforname,	237},		// #237
+	{"shaderforname",	PF_shaderforname,	238},	// #238
+	{"te_bloodqw",	PF_cl_te_bloodqw,	239},	// #239 void te_bloodqw(vector org[, float count]) (FTE_TE_STANDARDEFFECTBUILTINS)
 
-//240
-PF_FixTen,
-
-//250
-PF_FixTen,
-
-//260
-PF_FixTen,
-
-//270
-PF_FixTen,
-
-//280
-PF_FixTen,
-
-//290
-PF_FixTen,
+	{"stoi",			PF_stoi,			259},
+	{"itos",			PF_itos,			260},
+	{"stoh",			PF_stoh,			261},
+	{"htos",			PF_htos,			262},
 
 //300
-PF_R_ClearScene,				// #300 void() clearscene (EXT_CSQC)
-PF_R_AddEntityMask,				// #301 void(float mask) addentities (EXT_CSQC)
-PF_R_AddEntity,					// #302 void(entity ent) addentity (EXT_CSQC)
-PF_R_SetViewFlag,				// #303 float(float property, ...) setproperty (EXT_CSQC)
-PF_R_RenderScene,				// #304 void() renderscene (EXT_CSQC)
+	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
+	{"addentities",	PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
+	{"addentity",	PF_R_AddEntity,	302},					// #302 void(entity ent) addentity (EXT_CSQC)
+	{"setproperty",	PF_R_SetViewFlag,	303},				// #303 float(float property, ...) setproperty (EXT_CSQC)
+	{"renderscene",	PF_R_RenderScene,	304},				// #304 void() renderscene (EXT_CSQC)
 
-PF_R_AddDynamicLight,			// #305 void(vector org, float radius, vector lightcolours) adddynamiclight (EXT_CSQC)
+	{"adddynamiclight",	PF_R_AddDynamicLight,	305},			// #305 void(vector org, float radius, vector lightcolours) adddynamiclight (EXT_CSQC)
 
-PF_R_PolygonBegin,				// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
-PF_R_PolygonVertex,				// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
-PF_R_PolygonEnd,				// #308 void() R_EndPolygon (EXT_CSQC_???)
+	{"R_BeginPolygon",	PF_R_PolygonBegin,	306},				// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
+	{"R_PolygonVertex",	PF_R_PolygonVertex,	307},				// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
+	{"R_EndPolygon",	PF_R_PolygonEnd,	308},				// #308 void() R_EndPolygon (EXT_CSQC_???)
 
-PF_R_GetViewFlag,				// #309 vector/float(float property) getproperty (EXT_CSQC_1)
+	{"getproperty",	PF_R_GetViewFlag,	309},				// #309 vector/float(float property) getproperty (EXT_CSQC_1)
 
 //310
 //maths stuff that uses the current view settings.
-PF_cs_unproject,				// #310 vector (vector v) unproject (EXT_CSQC)
-PF_cs_project,					// #311 vector (vector v) project (EXT_CSQC)
+	{"unproject",	PF_cs_unproject,	310},				// #310 vector (vector v) unproject (EXT_CSQC)
+	{"project",	PF_cs_project,		311},				// #311 vector (vector v) project (EXT_CSQC)
 
-PF_Fixme,						// #312
-PF_Fixme,						// #313
-PF_Fixme,						// #314
+//	{"?",	PF_Fixme,			312},				// #312
+//	{"?",	PF_Fixme,		313},					// #313
+//	{"?",	PF_Fixme,			314},				// #314
 
 //2d (immediate) operations
-PF_CL_drawline,					// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
-PF_CL_is_cached_pic,			// #316 float(string name) iscachedpic (EXT_CSQC)
-PF_CL_precache_pic,				// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
-PF_CL_drawgetimagesize,			// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
-PF_CL_free_pic,					// #319 void(string name) freepic (EXT_CSQC)
+	{"drawline",	PF_CL_drawline,			315},			// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
+	{"iscachedpic",	PF_CL_is_cached_pic,		316},		// #316 float(string name) iscachedpic (EXT_CSQC)
+	{"precache_pic",	PF_CL_precache_pic,			317},		// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
+	{"draw_getimagesize",	PF_CL_drawgetimagesize,		318},		// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
+	{"freepic",	PF_CL_free_pic,				319},		// #319 void(string name) freepic (EXT_CSQC)
 //320
-PF_CL_drawcharacter,			// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
-PF_CL_drawstring,				// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])
-PF_CL_drawpic,					// #322 float(vector position, string pic, vector size, vector rgb, float alpha [, float flag]) drawpic (EXT_CSQC, [EXT_CSQC_???])
-PF_CL_drawfill,					// #323 float(vector position, vector size, vector rgb, float alpha [, float flag]) drawfill (EXT_CSQC, [EXT_CSQC_???])
-PF_CL_drawsetcliparea,			// #324 void(float x, float y, float width, float height) drawsetcliparea (EXT_CSQC_???)
-PF_CL_drawresetcliparea,		// #325 void(void) drawresetcliparea (EXT_CSQC_???)
+	{"drawcharacter",	PF_CL_drawcharacter,		320},		// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
+	{"drawstring",	PF_CL_drawstring,				321},	// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])
+	{"drawpic",	PF_CL_drawpic,				322},		// #322 float(vector position, string pic, vector size, vector rgb, float alpha [, float flag]) drawpic (EXT_CSQC, [EXT_CSQC_???])
+	{"drawfill",	PF_CL_drawfill,				323},		// #323 float(vector position, vector size, vector rgb, float alpha [, float flag]) drawfill (EXT_CSQC, [EXT_CSQC_???])
+	{"drawsetcliparea",	PF_CL_drawsetcliparea,			324},	// #324 void(float x, float y, float width, float height) drawsetcliparea (EXT_CSQC_???)
+	{"drawresetcliparea",	PF_CL_drawresetcliparea,	325},		// #325 void(void) drawresetcliparea (EXT_CSQC_???)
 
-PF_Fixme,						// #326
-PF_Fixme,						// #327
-PF_Fixme,						// #328
-PF_Fixme,						// #329
+	{"drawcolorcodedstring",	PF_CL_drawstring,						326},	// #326
+	{"stringwidth",	PF_CL_stringwidth,					327},	// #327 EXT_CSQC_'DARKPLACES'
+	{"drawsubpic",	PF_CL_drawsubpic,						328},	// #328 EXT_CSQC_'DARKPLACES'
+//	{"?",	PF_Fixme,						329},	// #329 EXT_CSQC_'DARKPLACES'
 
 //330
-PF_cs_getstatf,					// #330 float(float stnum) getstatf (EXT_CSQC)
-PF_cs_getstati,					// #331 float(float stnum) getstati (EXT_CSQC)
-PF_cs_getstats,					// #332 string(float firststnum) getstats (EXT_CSQC)
-PF_cs_SetModelIndex,			// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
-PF_cs_ModelnameForIndex,		// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
+	{"getstatf",	PF_cs_getstatf,					330},	// #330 float(float stnum) getstatf (EXT_CSQC)
+	{"getstati",	PF_cs_getstati,					331},	// #331 float(float stnum) getstati (EXT_CSQC)
+	{"getstats",	PF_cs_getstats,					332},	// #332 string(float firststnum) getstats (EXT_CSQC)
+	{"setmodelindex",	PF_cs_SetModelIndex,			333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
+	{"modelnameforindex",	PF_cs_ModelnameForIndex,		334},	// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
 
-PF_cs_particlesloaded,			// #335 float(string effectname) particleeffectnum (EXT_CSQC)
-PF_cs_trailparticles,			// #336 void(entity ent, float effectnum, vector start, vector end) trailparticles (EXT_CSQC),
-PF_cs_pointparticles,			// #337 void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
+	{"particleeffectnum",	PF_cs_particlesloaded,			335},	// #335 float(string effectname) particleeffectnum (EXT_CSQC)
+	{"trailparticles",	PF_cs_trailparticles,			336},	// #336 void(entity ent, float effectnum, vector start, vector end) trailparticles (EXT_CSQC),
+	{"pointparticles",	PF_cs_pointparticles,			337},	// #337 void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
 
-PF_cl_cprint,					// #338 void(string s) cprint (EXT_CSQC)
-PF_print,						// #339 void(string s) print (EXT_CSQC)
+	{"cprint",	PF_cl_cprint,					338},	// #338 void(string s) cprint (EXT_CSQC)
+	{"print",	PF_print,						339},	// #339 void(string s) print (EXT_CSQC)
 
 //340
-PF_cl_keynumtostring,			// #340 string(float keynum) keynumtostring (EXT_CSQC)
-PF_cl_stringtokeynum,			// #341 float(string keyname) stringtokeynum (EXT_CSQC)
-PF_cl_getkeybind,				// #342 string(float keynum) getkeybind (EXT_CSQC)
+	{"keynumtostring",	PF_cl_keynumtostring,			340},	// #340 string(float keynum) keynumtostring (EXT_CSQC)
+	{"stringtokeynum",	PF_cl_stringtokeynum,			341},	// #341 float(string keyname) stringtokeynum (EXT_CSQC)
+	{"getkeybind",	PF_cl_getkeybind,				342},	// #342 string(float keynum) getkeybind (EXT_CSQC)
 
-PF_Fixme,						// #343
-PF_Fixme,						// #344
+//	{"?",	PF_Fixme,						343},	// #343
+//	{"?",	PF_Fixme,						344},	// #344
 
-PF_cs_getinputstate,			// #345 float(float framenum) getinputstate (EXT_CSQC)
-PF_cs_setsensativityscaler, 	// #346 void(float sens) setsensitivityscaler (EXT_CSQC)
+	{"getinputstate",	PF_cs_getinputstate,			345},	// #345 float(float framenum) getinputstate (EXT_CSQC)
+	{"setsensitivityscaler",	PF_cs_setsensativityscaler, 	346},	// #346 void(float sens) setsensitivityscaler (EXT_CSQC)
 
-PF_cs_runplayerphysics,			// #347 void() runstandardplayerphysics (EXT_CSQC)
+	{"runstandardplayerphysics",	PF_cs_runplayerphysics,			347},	// #347 void() runstandardplayerphysics (EXT_CSQC)
 
-PF_cs_getplayerkey,				// #348 string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
+	{"getplayerkeyvalue",	PF_cs_getplayerkey,				348},	// #348 string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
 
-PF_cl_playingdemo,				// #349 float() isdemo (EXT_CSQC)
+	{"isdemo",	PF_cl_playingdemo,				349},	// #349 float() isdemo (EXT_CSQC)
 //350
-PF_cl_runningserver,			// #350 float() isserver (EXT_CSQC)
+	{"isserver",	PF_cl_runningserver,			350},	// #350 float() isserver (EXT_CSQC)
 
-PF_cs_setlistener, 				// #351 void(vector origin, vector forward, vector right, vector up) SetListener (EXT_CSQC)
-PF_cs_registercommand,			// #352 void(string cmdname) registercommand (EXT_CSQC)
-PF_WasFreed,					// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
+	{"SetListener",	PF_cs_setlistener, 				351},	// #351 void(vector origin, vector forward, vector right, vector up) SetListener (EXT_CSQC)
+	{"registercommand",	PF_cs_registercommand,			352},	// #352 void(string cmdname) registercommand (EXT_CSQC)
+	{"wasfreed",	PF_WasFreed,					353},	// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
 
-PF_cs_serverkey,				// #354 string(string key) serverkey;
-PF_cs_getentitytoken,			// #355 string() getentitytoken;
-PF_Fixme,						// #356
-PF_Fixme,						// #357
-PF_Fixme,						// #358
-PF_Fixme,						// #359
+	{"serverkey",	PF_cs_serverkey,				354},	// #354 string(string key) serverkey;
+	{"getentitytoken",	PF_cs_getentitytoken,			355},	// #355 string() getentitytoken;
+//	{"?",	PF_Fixme,						356},	// #356
+//	{"?",	PF_Fixme,						357},	// #357
+//	{"?",	PF_Fixme,						358},	// #358
+//	{"?",	PF_Fixme,						359},	// #359
 
 //360
 //note that 'ReadEntity' is pretty hard to implement reliably. Modders should use a combination of ReadShort, and findfloat, and remember that it might not be known clientside (pvs culled or other reason)
-PF_ReadByte,					// #360 float() readbyte (EXT_CSQC)
-PF_ReadChar,					// #361 float() readchar (EXT_CSQC)
-PF_ReadShort,					// #362 float() readshort (EXT_CSQC)
-PF_ReadLong,					// #363 float() readlong (EXT_CSQC)
-PF_ReadCoord,					// #364 float() readcoord (EXT_CSQC)
+	{"readbyte",	PF_ReadByte,					360},	// #360 float() readbyte (EXT_CSQC)
+	{"readchar",	PF_ReadChar,					361},	// #361 float() readchar (EXT_CSQC)
+	{"readshort",	PF_ReadShort,					362},	// #362 float() readshort (EXT_CSQC)
+	{"readlong",	PF_ReadLong,					363},	// #363 float() readlong (EXT_CSQC)
+	{"readcoord",	PF_ReadCoord,					364},	// #364 float() readcoord (EXT_CSQC)
 
-PF_ReadAngle,					// #365 float() readangle (EXT_CSQC)
-PF_ReadString,					// #366 string() readstring (EXT_CSQC)
-PF_ReadFloat,					// #367 string() readfloat (EXT_CSQC)
+	{"readangle",	PF_ReadAngle,					365},	// #365 float() readangle (EXT_CSQC)
+	{"readstring",	PF_ReadString,					366},	// #366 string() readstring (EXT_CSQC)
+	{"readfloat",	PF_ReadFloat,					367},	// #367 string() readfloat (EXT_CSQC)
 
-PF_ReadEntityNum,				// #368 float() readentitynum (EXT_CSQC)
-PF_ReadServerEntityState,		// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)
-
-//370
-PF_FixTen,
-
-//380
-PF_FixTen,
-
-//390
-PF_FixTen,
+	{"readentitynum",	PF_ReadEntityNum,				368},	// #368 float() readentitynum (EXT_CSQC)
+	{"readserverentitystate",	PF_ReadServerEntityState,		369},	// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)
 
 //400
-PF_cs_copyentity,		// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
-PF_NoCSQC,				// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
-PF_findchain,			// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
-PF_findchainfloat,		// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
-PF_cl_effect,			// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
+	{"copyentity",	PF_cs_copyentity,		400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
+	{"setcolors",	PF_NoCSQC,				401},	// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
+	{"findchain",	PF_findchain,			402},	// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
+	{"findchainfloat",	PF_findchainfloat,		403},	// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
+	{"effect",	PF_cl_effect,		404},		// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
 
-PF_cl_te_blooddp,		// #405 void(vector org, vector velocity, float howmany) te_blood (DP_TE_BLOOD)
-PF_cl_te_bloodshower,	// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
-PF_cl_te_explosionrgb,	// #407 void(vector org, vector color) te_explosionrgb (DP_TE_EXPLOSIONRGB)
-PF_cl_te_particlecube,	// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
-PF_cl_te_particlerain,	// #409 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain (DP_TE_PARTICLERAIN)
+	{"te_blood",	PF_cl_te_blooddp,		405},	// #405 void(vector org, vector velocity, float howmany) te_blood (DP_TE_BLOOD)
+	{"te_bloodshower",	PF_cl_te_bloodshower,406},		// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
+	{"te_explosionrgb",	PF_cl_te_explosionrgb,	407},	// #407 void(vector org, vector color) te_explosionrgb (DP_TE_EXPLOSIONRGB)
+	{"te_particlecube",	PF_cl_te_particlecube,408},		// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
+	{"te_particlerain",	PF_cl_te_particlerain,	409},	// #409 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain (DP_TE_PARTICLERAIN)
 
-PF_cl_te_particlesnow,	// #410 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow (DP_TE_PARTICLESNOW)
-PF_cl_te_spark,			// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
-PF_cl_te_gunshotquad,	// #412 void(vector org) te_gunshotquad (DP_TE_QUADEFFECTS1)
-PF_cl_te_spikequad,		// #413 void(vector org) te_spikequad (DP_TE_QUADEFFECTS1)
-PF_cl_te_superspikequad,// #414 void(vector org) te_superspikequad (DP_TE_QUADEFFECTS1)
+	{"te_particlesnow",	PF_cl_te_particlesnow,410},		// #410 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow (DP_TE_PARTICLESNOW)
+	{"te_spark",	PF_cl_te_spark,		411},		// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
+	{"te_gunshotquad",	PF_cl_te_gunshotquad,	412},	// #412 void(vector org) te_gunshotquad (DP_TE_QUADEFFECTS1)
+	{"te_spikequad",	PF_cl_te_spikequad,	413},		// #413 void(vector org) te_spikequad (DP_TE_QUADEFFECTS1)
+	{"te_superspikequad",	PF_cl_te_superspikequad,414},	// #414 void(vector org) te_superspikequad (DP_TE_QUADEFFECTS1)
 
-PF_cl_te_explosionquad,	// #415 void(vector org) te_explosionquad (DP_TE_QUADEFFECTS1)
-PF_cl_te_smallflash,	// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
-PF_cl_te_customflash,	// #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
-PF_cl_te_gunshot,		// #418 void(vector org) te_gunshot (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_spike,			// #419 void(vector org) te_spike (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_explosionquad",	PF_cl_te_explosionquad,	415},	// #415 void(vector org) te_explosionquad (DP_TE_QUADEFFECTS1)
+	{"te_smallflash",	PF_cl_te_smallflash,	416},	// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
+	{"te_customflash",	PF_cl_te_customflash,	417},	// #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
+	{"te_gunshot",	PF_cl_te_gunshot,	418},		// #418 void(vector org) te_gunshot (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_spike",	PF_cl_te_spike,		419},		// #419 void(vector org) te_spike (DP_TE_STANDARDEFFECTBUILTINS)
 
-PF_cl_te_superspike,	// #420 void(vector org) te_superspike (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_explosion,		// #421 void(vector org) te_explosion (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_tarexplosion,	// #422 void(vector org) te_tarexplosion (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_wizspike,		// #423 void(vector org) te_wizspike (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_knightspike,	// #424 void(vector org) te_knightspike (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_superspike",	PF_cl_te_superspike,420},		// #420 void(vector org) te_superspike (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_explosion",	PF_cl_te_explosion,	421},		// #421 void(vector org) te_explosion (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_tarexplosion",	PF_cl_te_tarexplosion,422},		// #422 void(vector org) te_tarexplosion (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_wizspike",	PF_cl_te_wizspike,	423},		// #423 void(vector org) te_wizspike (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_knightspike",	PF_cl_te_knightspike,424},		// #424 void(vector org) te_knightspike (DP_TE_STANDARDEFFECTBUILTINS)
 
-PF_cl_te_lavasplash,	// #425 void(vector org) te_lavasplash  (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_teleport,		// #426 void(vector org) te_teleport (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_explosion2,	// #427 void(vector org, float color, float colorlength) te_explosion2 (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_lightning1,	// #428 void(entity own, vector start, vector end) te_lightning1 (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_lightning2,	// #429 void(entity own, vector start, vector end) te_lightning2 (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_lavasplash",	PF_cl_te_lavasplash,425},		// #425 void(vector org) te_lavasplash  (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_teleport",	PF_cl_te_teleport,	426},		// #426 void(vector org) te_teleport (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_explosion2",	PF_cl_te_explosion2,427},		// #427 void(vector org, float color, float colorlength) te_explosion2 (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_lightning1",	PF_cl_te_lightning1,	428},	// #428 void(entity own, vector start, vector end) te_lightning1 (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_lightning2",	PF_cl_te_lightning2,429},		// #429 void(entity own, vector start, vector end) te_lightning2 (DP_TE_STANDARDEFFECTBUILTINS)
 
-PF_cl_te_lightning3,	// #430 void(entity own, vector start, vector end) te_lightning3 (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cl_te_beam,			// #431 void(entity own, vector start, vector end) te_beam (DP_TE_STANDARDEFFECTBUILTINS)
-PF_cs_vectorvectors,	// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
-PF_cl_te_plasmaburn,	// #433 void(vector org) te_plasmaburn (DP_TE_PLASMABURN)
-PF_Fixme,				// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
+	{"te_lightning3",	PF_cl_te_lightning3,430},		// #430 void(entity own, vector start, vector end) te_lightning3 (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_beam",	PF_cl_te_beam,		431},		// #431 void(entity own, vector start, vector end) te_beam (DP_TE_STANDARDEFFECTBUILTINS)
+	{"vectorvectors",	PF_cs_vectorvectors,432},		// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
+	{"te_plasmaburn",	PF_cl_te_plasmaburn,433},		// #433 void(vector org) te_plasmaburn (DP_TE_PLASMABURN)
+//	{"getsurfacenumpoints",	PF_Fixme,					434},		// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
 
-PF_Fixme,				// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
-PF_Fixme,				// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
-PF_Fixme,				// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
-PF_Fixme,				// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
-PF_Fixme,				// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
+//	{"getsurfacepoint",	PF_Fixme,					435},		// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
+//	{"getsurfacenormal",	PF_Fixme,					436},		// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
+//	{"getsurfacetexture",	PF_Fixme,				437},			// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
+//	{"getsurfacenearpoint",	PF_Fixme,					438},		// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
+//	{"getsurfaceclippedpoint",	PF_Fixme,				439},			// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
 
-PF_NoCSQC,				// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND) (don't implement)
-PF_Tokenize,			// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
-PF_ArgV,				// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND)
-PS_cs_setattachment,	// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
-PF_search_begin,		// #444 float	search_begin(string pattern, float caseinsensitive, float quiet) (DP_QC_FS_SEARCH)
+	{"clientcommand",	PF_NoCSQC,			440},		// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND) (don't implement)
+	{"tokenize",	PF_Tokenize,		441},		// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
+	{"argv",	PF_ArgV,			442},		// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND)
+	{"setattachment",	PS_cs_setattachment,443},		// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
+	{"search_begin",	PF_search_begin,	444},		// #444 float	search_begin(string pattern, float caseinsensitive, float quiet) (DP_QC_FS_SEARCH)
 
-PF_search_end,			// #445 void	search_end(float handle) (DP_QC_FS_SEARCH)
-PF_search_getsize,		// #446 float	search_getsize(float handle) (DP_QC_FS_SEARCH)
-PF_search_getfilename,	// #447 string	search_getfilename(float handle, float num) (DP_QC_FS_SEARCH)
-PF_cvar_string,			// #448 string(float n) cvar_string (DP_QC_CVAR_STRING)
-PF_FindFlags,			// #449 entity(entity start, .entity fld, float match) findflags (DP_QC_FINDFLAGS)
+	{"search_end",	PF_search_end,			445},	// #445 void	search_end(float handle) (DP_QC_FS_SEARCH)
+	{"search_getsize",	PF_search_getsize,	446},		// #446 float	search_getsize(float handle) (DP_QC_FS_SEARCH)
+	{"search_getfilename",	PF_search_getfilename,447},		// #447 string	search_getfilename(float handle, float num) (DP_QC_FS_SEARCH)
+	{"dp_cvar_string",	PF_cvar_string,		448},		// #448 string(float n) cvar_string (DP_QC_CVAR_STRING)
+	{"findflags",	PF_FindFlags,		449},		// #449 entity(entity start, .entity fld, float match) findflags (DP_QC_FINDFLAGS)
 
-PF_findchainflags,		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
-PF_cs_gettagindex,		// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
-PF_cs_gettaginfo,		// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
-PF_NoCSQC,				// #453 void(entity player) dropclient (DP_SV_BOTCLIENT) (don't implement)
-PF_NoCSQC,				// #454	entity() spawnclient (DP_SV_BOTCLIENT) (don't implement)
+	{"findchainflags",	PF_findchainflags,	450},		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
+	{"gettagindex",	PF_cs_gettagindex,	451},		// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
+	{"gettaginfo",	PF_cs_gettaginfo,	452},		// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
+	{"dropclient",	PF_NoCSQC,			453},		// #453 void(entity player) dropclient (DP_SV_BOTCLIENT) (don't implement)
+	{"spawnclient",	PF_NoCSQC,			454},		// #454	entity() spawnclient (DP_SV_BOTCLIENT) (don't implement)
 
-PF_NoCSQC,				// #455 float(entity client) clienttype (DP_SV_BOTCLIENT) (don't implement)
-PF_Fixme,				// #456
-PF_Fixme,				// #457
-PF_Fixme,				// #458
-PF_Fixme,				// #459
+	{"clienttype",	PF_NoCSQC,			455},		// #455 float(entity client) clienttype (DP_SV_BOTCLIENT) (don't implement)
 
-//460
-PF_FixTen,
+	
+//	{"WriteUnterminatedString",PF_WriteString2,		456},	//writestring but without the null terminator. makes things a little nicer.
 
-//470
-PF_FixTen,
-//480
-PF_FixTen,
-//490
-PF_FixTen,
-//500
-PF_FixTen,
+//DP_TE_FLAMEJET
+//	{"te_flamejet",		PF_te_flamejet,			457},	// #457 void(vector org, vector vel, float howmany) te_flamejet
+
+	//no 458 documented.
+
+//DP_QC_EDICT_NUM
+	{"edict_num",		PF_edict_for_num,		459},	// #459 entity(float entnum) edict_num
+
+//DP_QC_STRINGBUFFERS
+	{"buf_create",		PF_buf_create,		460},	// #460 float() buf_create
+	{"buf_del",			PF_buf_del,				461},	// #461 void(float bufhandle) buf_del
+	{"buf_getsize",		PF_buf_getsize,		462},	// #462 float(float bufhandle) buf_getsize
+	{"buf_copy",		PF_buf_copy,		463},	// #463 void(float bufhandle_from, float bufhandle_to) buf_copy
+	{"buf_sort",		PF_buf_sort,		464},	// #464 void(float bufhandle, float sortpower, float backward) buf_sort
+	{"buf_implode",		PF_buf_implode,		465},	// #465 string(float bufhandle, string glue) buf_implode
+	{"bufstr_get",		PF_bufstr_get,		466},	// #466 string(float bufhandle, float string_index) bufstr_get
+	{"bufstr_set",		PF_bufstr_set,		467},	// #467 void(float bufhandle, float string_index, string str) bufstr_set
+	{"bufstr_add",		PF_bufstr_add,		468},	// #468 float(float bufhandle, string str, float order) bufstr_add
+	{"bufstr_free",		PF_bufstr_free,			469},	// #469 void(float bufhandle, float string_index) bufstr_free
+
+	//no 470 documented
+
+//DP_QC_ASINACOSATANATAN2TAN
+	{"asin",			PF_asin,			471},	// #471 float(float s) asin
+	{"acos",			PF_acos,			472},	// #472 float(float c) acos
+	{"atan",			PF_atan,			473},	// #473 float(float t) atan
+	{"atan2",			PF_atan2,			474},	// #474 float(float c, float s) atan2
+	{"tan",				PF_tan,				475},	// #475 float(float a) tan
+
+
+////DP_QC_STRINGCOLORFUNCTIONS
+	{"strlennocol",		PF_strlennocol,		476},	// #476 float(string s) strlennocol
+	{"strdecolorize",	PF_strdecolorize,	477},	// #477 string(string s) strdecolorize
+
+//DP_QC_STRFTIME
+	{"strftime",		PF_strftime,		478},	// #478 string(float uselocaltime, string format, ...) strftime
+
+//DP_QC_TOKENIZEBYSEPARATOR
+	{"tokenizebyseparator",PF_tokenizebyseparator,	479},	// #479 float(string s, string separator1, ...) tokenizebyseparator
+
+//DP_QC_STRING_CASE_FUNCTIONS
+	{"strtolower",		PF_strtolower,		480},	// #476 string(string s) strtolower
+	{"strtoupper",		PF_strtoupper,		481},	// #476 string(string s) strlennocol
+
+//DP_QC_CVAR_DEFSTRING
+	{"cvar_defstring",	PF_cvar_defstring,	482},	// #482 string(string s) cvar_defstring
+
+//DP_SV_POINTSOUND
+	{"pointsound",		PF_cs_pointsound,		483},	// #483 void(vector origin, string sample, float volume, float attenuation) pointsound
+
+//DP_QC_STRREPLACE
+	{"strreplace",		PF_strreplace,		484},	// #484 string(string search, string replace, string subject) strreplace
+	{"strireplace",		PF_strireplace,		485},	// #485 string(string search, string replace, string subject) strireplace
+
+
+//DP_QC_GETSURFACEPOINTATTRIBUTE
+	{"getsurfacepointattribute",PF_getsurfacepointattribute,	486},	// #486vector(entity e, float s, float n, float a) getsurfacepointattribute
+
+//DP_GECKO_SUPPORT
+	{"gecko_create",	PF_cs_gecko_create,		487},	// #487 float(string name) gecko_create( string name )
+	{"gecko_destroy",	PF_cs_gecko_destroy,	488},	// #488 void(string name) gecko_destroy( string name )
+	{"gecko_navigate",	PF_cs_gecko_navigate,	489},	// #489 void(string name) gecko_navigate( string name, string URI )
+	{"gecko_keyevent",	PF_cs_gecko_keyevent,	490},	// #490 float(string name) gecko_keyevent( string name, float key, float eventtype )
+	{"gecko_mousemove",	PF_cs_gecko_mousemove,	491},	// #491 void gecko_mousemove( string name, float x, float y )
+	{"gecko_resize",	PF_cs_gecko_resize,	492},	// #492 void gecko_resize( string name, float w, float h )
+	{"gecko_get_texture_extent",PF_cs_gecko_get_texture_extent,	493},	// #493 vector gecko_get_texture_extent( string name )
+
+//DP_QC_CRC16
+	{"crc16",			PF_crc16,				494},	// #494 float(float caseinsensitive, string s, ...) crc16
+
+//DP_QC_CVAR_TYPE
+	{"cvar_type",		PF_cvar_type,		495},	// #495 float(string name) cvar_type
+
+//DP_QC_ENTITYDATA
+	{"numentityfields",	PF_numentityfields,			496},	// #496 float() numentityfields
+	{"entityfieldname",	PF_entityfieldname,			497},	// #497 string(float fieldnum) entityfieldname
+	{"entityfieldtype",	PF_entityfieldtype,		498},	// #498 float(float fieldnum) entityfieldtype
+	{"getentityfieldstring",PF_getentityfieldstring,		499},	// #499 string(float fieldnum, entity ent) getentityfieldstring
+	{"putentityfieldstring",PF_putentityfieldstring,	500},	// #500 float(float fieldnum, entity ent, string s) putentityfieldstring
+
+//DP_SV_WRITEPICTURE
+	{"WritePicture",	PF_ReadPicture,		501},	// #501 void(float to, string s, float sz) WritePicture
+
+	//no 502 documented
+
+//DP_QC_WHICHPACK
+	{"whichpack",		PF_whichpack,			503},	// #503 string(string filename) whichpack
+
+//DP_QC_URI_ESCAPE
+	{"uri_escape",		PF_uri_escape,				510},	// #510 string(string in) uri_escape
+	{"uri_unescape",	PF_uri_unescape,	511},	// #511 string(string in) uri_unescape = #511;
+
+//DP_QC_NUM_FOR_EDICT
+	{"num_for_edict",	PF_num_for_edict,		512},	// #512 float(entity ent) num_for_edict
+
+//DP_QC_URI_GET
+	{"uri_get",			PF_uri_get,			513},	// #513 float(string uril, float id) uri_get
+
+	{"keynumtostring",			PF_cl_keynumtostring,			520},	// #520
+	{"findkeysforcommand",			PF_cl_findkeysforcommand,			521},	// #521
+
+	{NULL}
 };
-static int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);
 
+static builtin_t pr_builtin[550];
 
 
 
@@ -3871,11 +4258,6 @@ static int csqc_numbuiltins = sizeof(csqc_builtins)/sizeof(csqc_builtins[0]);
 static jmp_buf csqc_abort;
 static progparms_t csqcprogparms;
 
-
-
-pbool QC_WriteFile(char *name, void *data, int len);
-void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the library reliably, so there should be no need to track them ourselves.
-void VARGS PR_CB_Free(void *mem);
 
 //Any menu builtin error or anything like that will come here.
 void VARGS CSQC_Abort (char *format, ...)	//an error occured.
@@ -3940,37 +4322,43 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 		char newname[MAX_QPATH];
 		snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csqcchecksum);
 
-		file = COM_LoadStackFile(newname, buffer, bufsize);
-		if (file)
+		if (csqcchecksum)
 		{
-			if (cls.protocol == CP_NETQUAKE)
+			file = COM_LoadStackFile(newname, buffer, bufsize);
+			if (file)
 			{
-				if (QCRC_Block(file, com_filesize) == csqcchecksum)
-					return file;
-			}
-			else
-			{
-				if (LittleLong(Com_BlockChecksum(file, com_filesize)) == csqcchecksum)	//and the user wasn't trying to be cunning.
-					return file;
+				if (cls.protocol == CP_NETQUAKE)
+				{
+					if (QCRC_Block(file, com_filesize) == csqcchecksum)
+						return file;
+				}
+				else
+				{
+					if (LittleLong(Com_BlockChecksum(file, com_filesize)) == csqcchecksum)	//and the user wasn't trying to be cunning.
+						return file;
+				}
 			}
 		}
 
 		file = COM_LoadStackFile(path, buffer, bufsize);
 		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
 		{
-			if (cls.protocol == CP_NETQUAKE)
+			if (csqcchecksum)
 			{
-				if (QCRC_Block(file, com_filesize) != csqcchecksum)
-					return NULL;
-			}
-			else
-			{
-				if (LittleLong(Com_BlockChecksum(file, com_filesize)) != csqcchecksum)
-					return NULL;	//not valid
-			}
+				if (cls.protocol == CP_NETQUAKE)
+				{
+					if (QCRC_Block(file, com_filesize) != csqcchecksum)
+						return NULL;
+				}
+				else
+				{
+					if (LittleLong(Com_BlockChecksum(file, com_filesize)) != csqcchecksum)
+						return NULL;	//not valid
+				}
 
-			//back it up
-			COM_WriteFile(newname, file, com_filesize);
+				//back it up
+				COM_WriteFile(newname, file, com_filesize);
+			}
 		}
 
 		return file;
@@ -3989,33 +4377,39 @@ int CSQC_PRFileSize (char *path)
 		char newname[MAX_QPATH];
 		snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csqcchecksum);
 
-		file = COM_LoadTempFile (newname);
-		if (file)
+		if (csqcchecksum)
 		{
-			if (cls.protocol == CP_NETQUAKE)
+			file = COM_LoadTempFile (newname);
+			if (file)
 			{
-				if (QCRC_Block(file, com_filesize) == csqcchecksum)
-					return com_filesize+1;
-			}
-			else
-			{
-				if (LittleLong(Com_BlockChecksum(file, com_filesize)) == csqcchecksum)	//and the user wasn't trying to be cunning.
-					return com_filesize+1;
+				if (cls.protocol == CP_NETQUAKE)
+				{
+					if (QCRC_Block(file, com_filesize) == csqcchecksum)
+						return com_filesize+1;
+				}
+				else
+				{
+					if (LittleLong(Com_BlockChecksum(file, com_filesize)) == csqcchecksum)	//and the user wasn't trying to be cunning.
+						return com_filesize+1;
+				}
 			}
 		}
 
 		file = COM_LoadTempFile(path);
 		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
 		{
-			if (cls.protocol == CP_NETQUAKE)
+			if (csqcchecksum)
 			{
-				if (QCRC_Block(file, com_filesize) != csqcchecksum)
-					return -1;	//not valid
-			}
-			else
-			{
-				if (LittleLong(Com_BlockChecksum(file, com_filesize)) != csqcchecksum)
-					return -1;	//not valid
+				if (cls.protocol == CP_NETQUAKE)
+				{
+					if (QCRC_Block(file, com_filesize) != csqcchecksum)
+						return -1;	//not valid
+				}
+				else
+				{
+					if (LittleLong(Com_BlockChecksum(file, com_filesize)) != csqcchecksum)
+						return -1;	//not valid
+				}
 			}
 		}
 		if (!file)
@@ -4034,7 +4428,9 @@ qboolean CSQC_Init (unsigned int checksum)
 	csqcedict_t *worldent;
 	csqcchecksum = checksum;
 
-	CSQC_Shutdown();
+	//its already running...
+	if (csqcprogs)
+		return false;
 
 	if (!qrenderer)
 	{
@@ -4043,6 +4439,14 @@ qboolean CSQC_Init (unsigned int checksum)
 
 	if (cl_nocsqc.value)
 		return false;
+
+	for (i = 0; i < sizeof(pr_builtin)/sizeof(pr_builtin[0]); i++)
+		pr_builtin[i] = PF_Fixme;
+	for (i = 0; BuiltinList[i].bifunc; i++)
+	{
+		if (BuiltinList[i].ebfsnum)
+			pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
+	}
 
 	memset(cl.model_csqcname, 0, sizeof(cl.model_csqcname));
 	memset(cl.model_csqcprecache, 0, sizeof(cl.model_csqcprecache));
@@ -4071,14 +4475,14 @@ qboolean CSQC_Init (unsigned int checksum)
 	csqcprogparms.memfree = PR_CB_Free;//void (*memfree) (void * mem);
 
 
-	csqcprogparms.globalbuiltins = csqc_builtins;//builtin_t *globalbuiltins;	//these are available to all progs
-	csqcprogparms.numglobalbuiltins = csqc_numbuiltins;
+	csqcprogparms.globalbuiltins = pr_builtin;//builtin_t *globalbuiltins;	//these are available to all progs
+	csqcprogparms.numglobalbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 
 	csqcprogparms.autocompile = PR_NOCOMPILE;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
 
 	csqcprogparms.gametime = &csqctime;
 
-	csqcprogparms.sv_edicts = (edict_t **)&csqc_edicts;
+	csqcprogparms.sv_edicts = (struct edict_s **)&csqc_edicts;
 	csqcprogparms.sv_num_edicts = &num_csqc_edicts;
 
 	csqcprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
@@ -4110,6 +4514,7 @@ qboolean CSQC_Init (unsigned int checksum)
 
 		PF_InitTempStrings(csqcprogs);
 
+		csqc_fakereadbyte = -1;
 		memset(csqcent, 0, sizeof(*csqcent)*maxcsqcentities);	//clear the server->csqc entity translations.
 
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csmaxedicts.value);
@@ -4133,6 +4538,7 @@ qboolean CSQC_Init (unsigned int checksum)
 			loadedcsqcpack[i].entnum = NULL;
 		}
 
+		memset(deltaedplayerents, 0, sizeof(deltaedplayerents));
 		csqcmapentitydata = NULL;
 		csqcmapentitydataloaded = false;
 
@@ -4182,9 +4588,124 @@ void CSQC_CoreDump(void)
 
 }
 
+void PR_CSExtensionList_f(void)
+{
+	int i;
+	int ebi;
+	int bi;
+	lh_extension_t *extlist;
+
+#define SHOW_ACTIVEEXT 1
+#define SHOW_ACTIVEBI 2
+#define SHOW_NOTSUPPORTEDEXT 4
+#define SHOW_NOTACTIVEEXT 8
+#define SHOW_NOTACTIVEBI 16
+
+	int showflags = atoi(Cmd_Argv(1));
+	if (!showflags)
+		showflags = SHOW_ACTIVEEXT|SHOW_NOTACTIVEEXT;
+
+	//make sure the info is valid
+	if (!pr_builtin[0])
+	{
+		for (i = 0; i < sizeof(pr_builtin)/sizeof(pr_builtin[0]); i++)
+			pr_builtin[i] = PF_Fixme;
+		for (i = 0; BuiltinList[i].bifunc; i++)
+		{
+			if (BuiltinList[i].ebfsnum)
+				pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
+		}
+	}
+
+
+	if (showflags & (SHOW_ACTIVEBI|SHOW_NOTACTIVEBI))
+	for (i = 0; BuiltinList[i].name; i++)
+	{
+		if (!BuiltinList[i].ebfsnum)
+			continue;	//a reserved builtin.
+		if (BuiltinList[i].bifunc == PF_Fixme)
+			Con_Printf("^1%s:%i needs to be added\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
+		else if (pr_builtin[BuiltinList[i].ebfsnum] == BuiltinList[i].bifunc)
+		{
+			if (showflags & SHOW_ACTIVEBI)
+				Con_Printf("%s is active on %i\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
+		}
+		else
+		{
+			if (showflags & SHOW_NOTACTIVEBI)
+				Con_Printf("^4%s is NOT active (%i)\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
+		}
+	}
+
+	if (showflags & (SHOW_NOTSUPPORTEDEXT|SHOW_NOTACTIVEEXT|SHOW_ACTIVEEXT))
+	{
+		extlist = QSG_Extensions;
+
+		for (i = 0; i < QSG_Extensions_count; i++)
+		{
+			if (!extlist[i].name)
+				continue;
+
+			if (i < 32)
+			{
+				if (!(cls.fteprotocolextensions & (1<<i)))
+				{
+					if (showflags & SHOW_NOTSUPPORTEDEXT)
+						Con_Printf("^4protocol %s is not supported\n", extlist[i].name);
+					continue;
+				}
+			}
+
+			for (ebi = 0; ebi < extlist[i].numbuiltins; ebi++)
+			{
+				for (bi = 0; BuiltinList[bi].name; bi++)
+				{
+					if (!strcmp(BuiltinList[bi].name, extlist[i].builtinnames[ebi]))
+						break;
+				}
+
+				if (!BuiltinList[bi].name)
+				{
+					if (showflags & SHOW_NOTSUPPORTEDEXT)
+						Con_Printf("^4%s is not supported\n", extlist[i].name);
+					break;
+				}
+				if (pr_builtin[BuiltinList[bi].ebfsnum] != BuiltinList[bi].bifunc)
+				{
+					if (pr_builtin[BuiltinList[bi].ebfsnum] == PF_Fixme)
+					{
+						if (showflags & SHOW_NOTACTIVEEXT)
+							Con_Printf("^4%s is not currently active (builtin: %s#%i)\n", extlist[i].name, BuiltinList[bi].name, BuiltinList[bi].ebfsnum);
+					}
+					else
+					{
+						if (showflags & SHOW_NOTACTIVEEXT)
+							Con_Printf("^4%s was overridden (builtin: %s#%i)\n", extlist[i].name, BuiltinList[bi].name, BuiltinList[bi].ebfsnum);
+					}
+					break;
+				}
+			}
+			if (ebi == extlist[i].numbuiltins)
+			{
+				if (showflags & SHOW_ACTIVEEXT)
+				{
+					if (!extlist[i].numbuiltins)
+						Con_Printf("%s is supported\n", extlist[i].name);
+					else
+						Con_Printf("%s is currently active\n", extlist[i].name);
+				}
+			}
+		}
+	}
+}
+
 void CSQC_RegisterCvarsAndThings(void)
 {
+	PF_Common_RegisterCvars();
+
 	Cmd_AddCommand("coredump_csqc", CSQC_CoreDump);
+	Cmd_AddCommand ("extensionlist_csqc", PR_CSExtensionList_f);
+
 
 	Cvar_Register(&pr_csmaxedicts, CSQCPROGSGROUP);
 	Cvar_Register(&cl_csqcdebug, CSQCPROGSGROUP);
@@ -4221,6 +4742,12 @@ qboolean CSQC_DrawView(void)
 		csqcg.view_angles[2] = cl.viewangles[0][2];
 	}
 
+/*	if (csqcg.dpcompat_sbshowscores)
+	{
+		extern qboolean sb_showscores;
+		*csqcg.dpcompat_sbshowscores = sb_showscores;
+	}
+*/
 	if (csqcg.time)
 		*csqcg.time = Sys_DoubleTime();
 
@@ -4231,6 +4758,7 @@ qboolean CSQC_DrawView(void)
 		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = vid.width;
 		G_FLOAT(OFS_PARM1) = vid.height;
+		G_FLOAT(OFS_PARM2) = !m_state;
 	}
 	//end EXT_CSQC_1
 	PR_ExecuteProgram(csqcprogs, csqcg.draw_function);
@@ -4284,6 +4812,35 @@ qboolean CSQC_ConsoleCommand(char *cmd)
 	return G_FLOAT(OFS_RETURN);
 }
 
+#pragma message("do we really need the firstbyte parameter here?")
+qboolean CSQC_ParseTempEntity(unsigned char firstbyte)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.parse_tempentity)
+		return false;
+
+	csqc_fakereadbyte = firstbyte;
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	PR_ExecuteProgram (csqcprogs, csqcg.parse_tempentity);
+	csqc_fakereadbyte = -1;
+	return !!G_FLOAT(OFS_RETURN);
+}
+
+qboolean CSQC_LoadResource(char *resname, char *restype)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.loadresource)
+		return true;
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, resname));
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, restype));
+
+	PR_ExecuteProgram (csqcprogs, csqcg.loadresource);
+
+	return !!G_FLOAT(OFS_RETURN);
+}
+
 qboolean CSQC_StuffCmd(char *cmd)
 {
 	void *pr_globals;
@@ -4326,7 +4883,7 @@ void CSQC_Input_Frame(usercmd_t *cmd)
 
 //this protocol allows up to 32767 edicts.
 #ifdef PEXT_CSQC
-void CSQC_EntityCheck(int entnum)
+static void CSQC_EntityCheck(int entnum)
 {
 	int newmax;
 
@@ -4344,25 +4901,44 @@ int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float 
 	void *pr_globals;
 	csqcedict_t *ent;
 
-	if (!csqcprogs || !csqcg.serversound)
+	if (!csqcprogs)
 		return false;
+	if (csqcg.event_sound)
+	{
+		pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 
-	CSQC_EntityCheck(entnum);
-	ent = csqcent[entnum];
-	if (!ent)
-		return false;
+		G_FLOAT(OFS_PARM0) = entnum;
+		G_FLOAT(OFS_PARM1) = channel;
+		G_INT(OFS_PARM2) = PR_TempString(csqcprogs, soundname);
+		G_FLOAT(OFS_PARM3) = vol;
+		G_FLOAT(OFS_PARM4) = attenuation;
+		VectorCopy(pos, G_VECTOR(OFS_PARM5));
 
-	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+		PR_ExecuteProgram(csqcprogs, csqcg.event_sound);
 
-	*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
-	G_FLOAT(OFS_PARM0) = channel;
-	G_INT(OFS_PARM1) = PR_TempString(csqcprogs, soundname);
-	VectorCopy(pos, G_VECTOR(OFS_PARM2));
-	G_FLOAT(OFS_PARM3) = vol;
-	G_FLOAT(OFS_PARM4) = attenuation;
+		return G_FLOAT(OFS_RETURN);
+	}
+	else if (csqcg.serversound)
+	{
+		CSQC_EntityCheck(entnum);
+		ent = csqcent[entnum];
+		if (!ent)
+			return false;
 
-	PR_ExecuteProgram(csqcprogs, csqcg.serversound);
-	return G_FLOAT(OFS_RETURN);
+		pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+
+		*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
+		G_FLOAT(OFS_PARM0) = channel;
+		G_INT(OFS_PARM1) = PR_TempString(csqcprogs, soundname);
+		VectorCopy(pos, G_VECTOR(OFS_PARM2));
+		G_FLOAT(OFS_PARM3) = vol;
+		G_FLOAT(OFS_PARM4) = attenuation;
+
+		PR_ExecuteProgram(csqcprogs, csqcg.serversound);
+
+		return G_FLOAT(OFS_RETURN);
+	}
+	return false;
 }
 
 void CSQC_ParseEntities(void)

@@ -703,22 +703,22 @@ typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom} from
 #define	EF_TRACER3	128			// purple trail
 
 //hexen2.
-#define  EF_FIREBALL		 256			// Yellow transparent trail in all directions
-#define  EF_ICE				 512			// Blue-white transparent trail, with gravity
-#define  EF_MIP_MAP			1024			// This model has mip-maps
-#define  EF_SPIT			2048			// Black transparent trail with negative light
-#define  EF_TRANSPARENT		4096			// Transparent sprite
-#define  EF_SPELL           8192			// Vertical spray of particles
-#define  EF_HOLEY		   16384			// Solid model with color 0
-#define  EF_SPECIAL_TRANS  32768			// Translucency through the particle table
-#define  EF_FACE_VIEW	   65536			// Poly Model always faces you
-#define  EF_VORP_MISSILE  131072			// leave a trail at top and bottom of model
-#define  EF_SET_STAFF     262144			// slowly move up and left/right
-#define  EF_MAGICMISSILE  524288            // a trickle of blue/white particles with gravity
-#define  EF_BONESHARD    1048576           // a trickle of brown particles with gravity
-#define  EF_SCARAB       2097152           // white transparent particles with little gravity
-#define  EF_ACIDBALL	 4194304			// Green drippy acid shit
-#define  EF_BLOODSHOT	 8388608			// Blood rain shot trail
+#define  EFH2_FIREBALL		 256			// Yellow transparent trail in all directions
+#define  EFH2_ICE				 512			// Blue-white transparent trail, with gravity
+#define  EFH2_MIP_MAP			1024			// This model has mip-maps
+#define  EFH2_SPIT			2048			// Black transparent trail with negative light
+#define  EFH2_TRANSPARENT		4096			// Transparent sprite
+#define  EFH2_SPELL           8192			// Vertical spray of particles
+#define  EFH2_HOLEY		   16384			// Solid model with color 0
+#define  EFH2_SPECIAL_TRANS  32768			// Translucency through the particle table
+#define  EFH2_FACE_VIEW	   65536			// Poly Model always faces you
+#define  EFH2_VORP_MISSILE  131072			// leave a trail at top and bottom of model
+#define  EFH2_SET_STAFF     262144			// slowly move up and left/right
+#define  EFH2_MAGICMISSILE  524288            // a trickle of blue/white particles with gravity
+#define  EFH2_BONESHARD    1048576           // a trickle of brown particles with gravity
+#define  EFH2_SCARAB       2097152           // white transparent particles with little gravity
+#define  EFH2_ACIDBALL	 4194304			// Green drippy acid shit
+#define  EFH2_BLOODSHOT	 8388608			// Blood rain shot trail
 
 typedef union {
 	struct {

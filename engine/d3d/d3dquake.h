@@ -10,9 +10,9 @@
 #include    "d3dx.h"
 #include    "glquake.h"
 
-void *D3D_LoadTexture_32(char *name, unsigned int *data, int width, int height, int flags);
-void *D3D_LoadTexture_8_Pal24(char *name, unsigned char *data, int width, int height, int flags, unsigned char *palette, int transparentpix);
-void *D3D_LoadTexture_8_Pal32(char *name, unsigned char *data, int width, int height, int flags, unsigned char *palette);
+void *D3D7_LoadTexture_32(char *name, unsigned int *data, int width, int height, int flags);
+void *D3D7_LoadTexture_8_Pal24(char *name, unsigned char *data, int width, int height, int flags, unsigned char *palette, int transparentpix);
+void *D3D7_LoadTexture_8_Pal32(char *name, unsigned char *data, int width, int height, int flags, unsigned char *palette);
 /*
 #define D3D9_LoadTexture8Pal32(skinname,width,height,data,palette,usemips,alpha) (int)D3D9_LoadTexture_8_Pal32(skinname, data, width, height, (usemips?TF_MIPMAP:TF_NOMIPMAP) | (alpha?TF_ALPHA:TF_NOALPHA) | TF_NOTBUMPMAP, host_basepal)
 #define D3D9_LoadTexture(skinname,width,height,data,usemips,alpha) (int)D3D9_LoadTexture_8_Pal24(skinname, data, width, height, (usemips?TF_MIPMAP:TF_NOMIPMAP) | (alpha?TF_ALPHA:TF_NOALPHA) | TF_NOTBUMPMAP, host_basepal, 255)
@@ -30,10 +30,10 @@ void *D3D9_LoadTexture_8_Pal24(char *name, unsigned char *data, int width, int h
 void *D3D9_LoadTexture_8_Pal32(char *name, unsigned char *data, int width, int height, int flags, unsigned char *palette);
 
 
-#define D3D_LoadTexture8Pal32(skinname,width,height,data,palette,usemips,alpha) (int)(pD3DDev?D3D_LoadTexture_8_Pal32:D3D9_LoadTexture_8_Pal32)(skinname, data, width, height, (usemips?TF_MIPMAP:TF_NOMIPMAP) | (alpha?TF_ALPHA:TF_NOALPHA) | TF_NOTBUMPMAP, palette)
-#define D3D_LoadTexture8Pal24(skinname,width,height,data,palette,usemips,alpha) (int)(pD3DDev?D3D_LoadTexture_8_Pal24:D3D9_LoadTexture_8_Pal24)(skinname, data, width, height, (usemips?TF_MIPMAP:TF_NOMIPMAP) | (alpha?TF_ALPHA:TF_NOALPHA) | TF_NOTBUMPMAP, palette, 255)
-#define D3D_LoadTexture(skinname,width,height,data,usemips,alpha) (int)(pD3DDev?D3D_LoadTexture_8_Pal24:D3D9_LoadTexture_8_Pal24)(skinname, data, width, height, (usemips?TF_MIPMAP:TF_NOMIPMAP) | (alpha?TF_ALPHA:TF_NOALPHA) | TF_NOTBUMPMAP, host_basepal, 255)
-#define D3D_LoadTexture32(skinname,width,height,data,usemips,alpha) (int)(pD3DDev?D3D_LoadTexture_32:D3D9_LoadTexture_32)(skinname, data, width, height, (usemips?TF_MIPMAP:TF_NOMIPMAP) | (alpha?TF_ALPHA:TF_NOALPHA) | TF_NOTBUMPMAP)
+#define D3D_LoadTexture8Pal32(skinname,width,height,data,palette,usemips,alpha) (int)(pD3DDev?D3D7_LoadTexture_8_Pal32:D3D9_LoadTexture_8_Pal32)(skinname, data, width, height, (usemips?TF_MIPMAP:TF_NOMIPMAP) | (alpha?TF_ALPHA:TF_NOALPHA) | TF_NOTBUMPMAP, palette)
+#define D3D_LoadTexture8Pal24(skinname,width,height,data,palette,usemips,alpha) (int)(pD3DDev?D3D7_LoadTexture_8_Pal24:D3D9_LoadTexture_8_Pal24)(skinname, data, width, height, (usemips?TF_MIPMAP:TF_NOMIPMAP) | (alpha?TF_ALPHA:TF_NOALPHA) | TF_NOTBUMPMAP, palette, 255)
+#define D3D_LoadTexture(skinname,width,height,data,usemips,alpha) (int)(pD3DDev?D3D7_LoadTexture_8_Pal24:D3D9_LoadTexture_8_Pal24)(skinname, data, width, height, (usemips?TF_MIPMAP:TF_NOMIPMAP) | (alpha?TF_ALPHA:TF_NOALPHA) | TF_NOTBUMPMAP, host_basepal, 255)
+#define D3D_LoadTexture32(skinname,width,height,data,usemips,alpha) (int)(pD3DDev?D3D7_LoadTexture_32:D3D9_LoadTexture_32)(skinname, data, width, height, (usemips?TF_MIPMAP:TF_NOMIPMAP) | (alpha?TF_ALPHA:TF_NOALPHA) | TF_NOTBUMPMAP)
 #define D3D_LoadTextureFB(skinname,width,height,data,usemips,alpha) 0
 #define D3D_LoadTexture8Bump(skinname,width,height,data,usemips,alpha) 0
 

@@ -375,7 +375,7 @@ void SVNQ_New_f (void)
 #endif
 	MSG_WriteString (&host_client->netchan.message,message);
 
-	if (host_client->protocol == SCP_DARKPLACES7)
+	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
 	{
 		extern cvar_t allow_download;
 		char *f;
@@ -749,9 +749,11 @@ void SV_PK3List_f (void)
 //spawns.  These functions are written to not overflow
 	if (host_client->num_backbuf)
 	{
-		Con_Printf("WARNING %s: [SV_Soundlist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize);
-		host_client->num_backbuf = 0;
-		SZ_Clear(&host_client->netchan.message);
+		char *msg = va("cmd pk3list %s %s\n", Cmd_Argv(1), Cmd_Argv(2));
+		Con_TPrintf(STL_BACKBUFSET, host_client->name, host_client->netchan.message.cursize);
+		ClientReliableWrite_Begin(host_client, svc_stufftext, 2+strlen(msg));
+		ClientReliableWrite_String(&host_client->netchan.message, msg);
+		return;
 	}
 	if (i < 0)
 	{
@@ -814,10 +816,13 @@ void SV_Soundlist_f (void)
 
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow
-	if (host_client->num_backbuf) {
-		Con_Printf("WARNING %s: [SV_Soundlist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize);
-		host_client->num_backbuf = 0;
-		SZ_Clear(&host_client->netchan.message);
+	if (host_client->num_backbuf)
+	{
+		char *msg = va("cmd soundlist %s %s\n", Cmd_Argv(1), Cmd_Argv(2));
+		Con_TPrintf(STL_BACKBUFSET, host_client->name, host_client->netchan.message.cursize);
+		ClientReliableWrite_Begin(host_client, svc_stufftext, 1+strlen(msg));
+		ClientReliableWrite_String(host_client, msg);
+		return;
 	}
 
 	if (n >= MAX_SOUNDS)
@@ -886,10 +891,13 @@ void SV_Modellist_f (void)
 
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow
-	if (host_client->num_backbuf) {
-		Con_Printf("WARNING %s: [SV_Modellist] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize);
-		host_client->num_backbuf = 0;
-		SZ_Clear(&host_client->netchan.message);
+	if (host_client->num_backbuf)
+	{
+		char *msg = va("cmd modellist %s %s\n", Cmd_Argv(1), Cmd_Argv(2));
+		Con_TPrintf(STL_BACKBUFSET, host_client->name, host_client->netchan.message.cursize);
+		ClientReliableWrite_Begin(host_client, svc_stufftext, 1+strlen(msg));
+		ClientReliableWrite_String(host_client, msg);
+		return;
 	}
 
 	if (n >= MAX_MODELS)
@@ -1013,10 +1021,13 @@ void SV_PreSpawn_f (void)
 
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow
-	if (host_client->num_backbuf) {
-		Con_Printf("WARNING %s: [SV_PreSpawn] Back buffered (%d), clearing", host_client->name, host_client->netchan.message.cursize);
-		host_client->num_backbuf = 0;
-		SZ_Clear(&host_client->netchan.message);
+	if (host_client->num_backbuf)
+	{
+		char *msg = va("cmd prespawn %s %s %s\n", Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3));
+		Con_TPrintf(STL_BACKBUFSET, host_client->name, host_client->netchan.message.cursize);
+		ClientReliableWrite_Begin(host_client, svc_stufftext, 1+strlen(msg));
+		ClientReliableWrite_String(host_client, msg);
+		return;
 	}
 
 	if (buf >= bufs && !sv.democausesreconnect)
@@ -1341,47 +1352,13 @@ void SV_SpawnSpectator (void)
 
 }
 
-/*
-==================
-SV_Begin_f
-==================
-*/
-void SV_Begin_f (void)
-{
-	client_t	*split, *oh;
-	unsigned pmodel = 0, emodel = 0;
+void SV_Begin_Core(client_t *split)
+{	//this is the client-protocol-independant core, for q1/q2 gamecode
+
+	client_t	*oh;
 	int		i;
-	qboolean sendangles=false;
-
-	if (!SV_CheckRealIP(host_client, true))
-	{
-		if (host_client->protocol == SCP_QUAKE2)
-			ClientReliableWrite_Begin (host_client, svcq2_stufftext, 13+strlen(Cmd_Args()));
-		else
-			ClientReliableWrite_Begin (host_client, svc_stufftext, 13+strlen(Cmd_Args()));
-		ClientReliableWrite_String (host_client, va("cmd begin %s\n", Cmd_Args()));
-		return;
-	}
-
-	if (host_client->state == cs_spawned)
-		return; // don't begin again
-
-	for (split = host_client; split; split = split->controlled)
-		split->state = cs_spawned;
-
-	// handle the case of a level changing while a client was connecting
-	if ( atoi(Cmd_Argv(1)) != svs.spawncount && !sv.msgfromdemo)
-	{
-		Con_Printf ("SV_Begin_f from different level\n");
-		SV_New_f ();
-		return;
-	}
-
 	if (progstype == PROG_H2 && host_client->playerclass)
 		host_client->edict->xv->playerclass = host_client->playerclass;	//make sure it's set the same as the userinfo
-
-	for (split = host_client; split; split = split->controlled)
-	{
 #ifdef Q2SERVER
 		if (ge)
 		{
@@ -1393,7 +1370,6 @@ void SV_Begin_f (void)
 		if (split->istobeloaded)
 		{
 			func_t f;
-			sendangles = true;
 			split->istobeloaded = false;
 
 			f = PR_FindFunction(svprogfuncs, "RestoreGame", PR_ANY);
@@ -1488,6 +1464,8 @@ void SV_Begin_f (void)
 						}
 
 						oh = host_client;
+					host_client = split;
+					sv_player = host_client->edict;
 						SV_PreRunCmd();
 						{
 							usercmd_t cmd;
@@ -1501,10 +1479,55 @@ void SV_Begin_f (void)
 						}
 						SV_PostRunCmd();
 						host_client = oh;
+					sv_player = host_client->edict;
 					}
 				}
 			}
 		}
+	}
+
+/*
+==================
+SV_Begin_f
+==================
+*/
+void SV_Begin_f (void)
+{
+	client_t	*split;
+	unsigned pmodel = 0, emodel = 0;
+	qboolean sendangles=false;
+
+	if (!SV_CheckRealIP(host_client, true))
+	{
+		if (host_client->protocol == SCP_QUAKE2)
+			ClientReliableWrite_Begin (host_client, svcq2_stufftext, 13+strlen(Cmd_Args()));
+		else
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 13+strlen(Cmd_Args()));
+		ClientReliableWrite_String (host_client, va("cmd begin %s\n", Cmd_Args()));
+		return;
+	}
+
+	if (host_client->state == cs_spawned)
+		return; // don't begin again
+
+	for (split = host_client; split; split = split->controlled)
+		split->state = cs_spawned;
+
+	// handle the case of a level changing while a client was connecting
+	if ( atoi(Cmd_Argv(1)) != svs.spawncount && !sv.msgfromdemo)
+	{
+		Con_Printf ("SV_Begin_f from different level\n");
+		SV_New_f ();
+		return;
+	}
+
+	if (host_client->istobeloaded)
+		sendangles = true;
+
+
+	for (split = host_client; split; split = split->controlled)
+	{	//tell the gamecode they're ready
+		SV_Begin_Core(split);
 	}
 
 	// clear the net statistics, because connecting gives a bogus picture
@@ -1655,28 +1678,93 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 	}
 }
 
-void SV_NextChunkedDownload(int chunknum)
+void SV_NextChunkedDownload(int chunknum, int ezpercent, int ezfilenum)
 {
 #define CHUNKSIZE 1024
 	char buffer[CHUNKSIZE];
+	qbyte oobdata[1+ (sizeof("\\chunk")-1) + 4 + 1 + 4 + CHUNKSIZE];
+	sizebuf_t *msg, msg_oob;
 	int i;
+	qboolean error = false;
+
+	msg = &host_client->datagram;
+
+	if (chunknum < 0 || (chunknum*CHUNKSIZE > host_client->downloadsize))
+	{
+		Con_Printf ("Invalid file chunk requested %i to %i of .\n", chunknum*CHUNKSIZE, (chunknum+1)*CHUNKSIZE, host_client->downloadsize);
+		error = true;
+	}
+
+	if (!error && VFS_SEEK (host_client->download, chunknum*CHUNKSIZE) == false)
+		error = true;
+	else
+	{
+		if (host_client->downloadcount < chunknum*CHUNKSIZE)
+			host_client->downloadcount = chunknum*CHUNKSIZE;
+	}
 
 	if (host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize)
-		return;	//choked!
+	{
+		//would overflow the packet.
+		msg = &msg_oob;
 
-	if (VFS_SEEK (host_client->download, chunknum*CHUNKSIZE) == false)
-		return;
+		if (!ezfilenum)
+			return;
 
-	i = VFS_READ (host_client->download, buffer, CHUNKSIZE);
+		if (!Netchan_CanPacket(&host_client->netchan, SV_RateForClient(host_client)))
+			return;
+	}
+
+	if (error)
+		i = 0;
+	else
+		i = VFS_READ (host_client->download, buffer, CHUNKSIZE);
 
 	if (i > 0)
 	{
+		if (msg == &msg_oob)//host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize)
+		{
+			msg = &msg_oob;
+			msg->cursize = 0;
+			msg->maxsize = sizeof(oobdata);
+			msg->currentbit = 0;
+			msg->packing = SZ_RAWBYTES;
+			msg->allowoverflow = 0;
+			msg->overflowed = 0;
+			msg->data = oobdata;
+			MSG_WriteByte(msg, A2C_PRINT);
+			SZ_Write(msg, "\\chunk", 6);
+			MSG_WriteLong(msg, ezfilenum);
+		}
+
 		if (i != CHUNKSIZE)
 			memset(buffer+i, 0, CHUNKSIZE-i);
 
-		MSG_WriteByte(&host_client->datagram, svc_download);
-		MSG_WriteLong(&host_client->datagram, chunknum);
-		SZ_Write(&host_client->datagram, buffer, CHUNKSIZE);
+		MSG_WriteByte(msg, svc_download);
+		MSG_WriteLong(msg, chunknum);
+		SZ_Write(msg, buffer, CHUNKSIZE);
+
+		if (msg == &msg_oob)
+		{
+			Netchan_OutOfBand(NS_SERVER, host_client->netchan.remote_address, msg_oob.cursize, msg_oob.data);
+			Netchan_Block(&host_client->netchan, msg_oob.cursize, SV_RateForClient(host_client));
+		}
+	}
+	else if (i < 0)
+		error = true;
+
+	if (error)
+	{
+		VFS_CLOSE (host_client->download);
+		host_client->download = NULL;
+
+		ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(host_client->downloadfn));
+		ClientReliableWrite_Long (host_client, -1);
+		ClientReliableWrite_Long (host_client, -3);
+		ClientReliableWrite_String (host_client, host_client->downloadfn);
+
+
+		host_client->downloadstarted = false;
 	}
 }
 
@@ -1698,7 +1786,7 @@ void SV_NextDownload_f (void)
 #ifdef PEXT_CHUNKEDDOWNLOADS
 	if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 	{
-		SV_NextChunkedDownload(atoi(Cmd_Argv(1)));
+		SV_NextChunkedDownload(atoi(Cmd_Argv(1)), atoi(Cmd_Argv(2)), atoi(Cmd_Argv(3)));
 		return;
 	}
 #endif
@@ -1912,13 +2000,166 @@ qboolean SV_AllowDownload (char *name)
 	//root of gamedir
 	if (!strchr(name, '/') && !allow_download_root.value)
 	{
-		if (strcmp(name, "csprogs.dat"))	//we always allow csprogs.dat to be downloaded.
+		if (strcmp(name, "csprogs.dat"))	//we always allow csprogs.dat to be downloaded (if downloads are permitted).
 			return false;
 	}
 
 	//any other subdirs are allowed
 	return true;
 }
+
+static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementname, qboolean redirectpaks)
+{
+	extern	cvar_t	allow_download_anymap, allow_download_pakcontents;
+	extern cvar_t sv_demoDir;
+	qboolean protectedpak;
+	qboolean found;
+
+	if (replacementname)
+		*replacementname = NULL;
+
+	//mangle the name by making it lower case.
+	{
+		char *p;
+
+		for (p = name; *p; p++)
+			*p = (char)tolower(*p);
+	}
+
+	if (!SV_AllowDownload(name))
+		return -2;	//not permitted (even if it exists).
+
+	//mvdsv demo downloading support demonum/ -> demos/XXXX (sets up the client paths)
+	if (!strncmp(name, "demonum/", 8))
+	{
+		if (replacementname)
+		{
+			char mvdnamebuffer[MAX_QPATH];
+			char *mvdname = SV_MVDNum(mvdnamebuffer, sizeof(mvdnamebuffer), atoi(name+8));
+			if (!mvdname)
+			{
+				SV_ClientPrintf (host_client, PRINT_HIGH, "%s is an invalid MVD demonum.\n", name+8);
+				Sys_Printf ("%s requested invalid demonum %s\n", host_client->name, name+8);
+				return -1;	//not found
+			}
+			*replacementname = va("demos/%s\n", mvdname);
+			return -4;	//redirect
+		}
+	}
+
+	//mvdsv demo downloading support. demos/ -> demodir (sets up the server paths)
+	if (!strncmp(name, "demos/", 6))
+		name = va("%s/%s", sv_demoDir.string, name+6);
+
+	found = FS_FLocateFile(name, FSLFRT_IFFOUND, loc);
+
+	//nexuiz names certain files as .wav but they're really .ogg on disk.
+	if (!found && replacementname)
+	{
+		if (!strcmp(COM_FileExtension(name), "wav"))
+		{
+			char tryogg[MAX_QPATH];
+			COM_StripExtension(name, tryogg, sizeof(tryogg));
+			COM_DefaultExtension(tryogg, ".ogg", sizeof(tryogg));
+
+			found = FS_FLocateFile(tryogg, FSLFRT_IFFOUND, loc);
+			if (found)
+			{
+				name = *replacementname = va("%s", tryogg);
+			}
+		}
+	}
+	//nexuiz also names files with absolute paths (yet sounds are meant to have an extra prefix)
+	//this results in clients asking for sound/sound/blah.wav (or sound/sound/blah.ogg for nexuiz)
+	if (!found && replacementname)
+	{
+		if (!strncmp(name, "sound/", 6))
+		{
+			int result;
+			result = SV_LocateDownload(name+6, loc, replacementname, redirectpaks);
+			if (!result)
+			{	//if that was successful... redirect to it.
+				result = -4;
+				*replacementname = name+6;
+			}
+			return result;
+		}
+	}
+
+	if (found)
+	{
+		protectedpak = com_file_copyprotected;
+
+		// special check for maps, if it came from a pak file, don't allow download
+		if (protectedpak)
+		{
+			if (!allow_download_anymap.value && !strncmp(name, "maps/", 5))
+				return -2;
+		}
+
+		if (replacementname)
+		{
+			char *pakname = FS_WhichPackForLocation(loc);
+			if (pakname && SV_AllowDownload(pakname))
+			{
+				//return loc of the pak instead.
+				if (FS_FLocateFile(name, FSLFRT_IFFOUND, loc))
+				{
+					//its inside a pak file, return the name of this file instead
+					*replacementname = pakname;
+					return -4;	//redirect
+				}
+				else
+					Con_Printf("Failed to read %s\n", pakname);
+			}
+		}
+		
+		if (protectedpak)
+		{	//if its in a pak file, don't allow downloads if we don't allow the contents of paks to be sent.
+			if (!allow_download_pakcontents.value)
+				return -2;
+		}
+
+		if (replacementname && *replacementname)
+			return -4;
+		return 0;
+	}
+	return -1;	//not found
+}
+
+//this function is only meaningful for nq/qw
+void SV_DownloadSize_f(void)
+{
+	flocation_t loc;
+	char *name = Cmd_Argv(1);
+	char *redirected = "";
+
+	switch(SV_LocateDownload(name, &loc, &redirected, true))
+	{
+	case -4:
+		name = va("dlsize \"%s\" r \"%s\"\n", name, redirected);
+		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+		ClientReliableWrite_String (host_client, name);
+		break;
+	default:
+	case -1:
+		name = va("dlsize \"%s\" e\n", name);
+		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+		ClientReliableWrite_String (host_client, name);
+		break;
+	case -2:
+		name = va("dlsize \"%s\" p\n", name);
+		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+		ClientReliableWrite_String (host_client, name);
+		break;
+	case 0:
+		name = va("dlsize \"%s\" %u\n", name, loc.len);
+		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
+		ClientReliableWrite_String (host_client, name);
+		break;
+	}
+}
+
 /*
 ==================
 SV_BeginDownload_f
@@ -1927,8 +2168,11 @@ SV_BeginDownload_f
 void SV_BeginDownload_f(void)
 {
 	char *name = Cmd_Argv(1);
+	char *redirection = NULL;
 	extern	cvar_t	allow_download_anymap, allow_download_pakcontents;
 	extern cvar_t sv_demoDir;
+	flocation_t loc;
+	int result;
 
 	if (ISNQCLIENT(host_client) && host_client->protocol != SCP_DARKPLACES7)
 	{
@@ -1936,65 +2180,47 @@ void SV_BeginDownload_f(void)
 		return;
 	}
 
-	// MVD hacked junk
-	if (!strncmp(name, "demonum/", 8))
+	result = SV_LocateDownload(name, &loc, &redirection, false);
+
+	*host_client->downloadfn = 0;
+	if (host_client->download)
 	{
-		char mvdnamebuffer[MAX_QPATH];
-		char *mvdname = SV_MVDNum(mvdnamebuffer, sizeof(mvdnamebuffer), atoi(name+8));
-
-		if (!mvdname)
-		{
-			SV_ClientPrintf (host_client, PRINT_HIGH, "%s is an invalid MVD demonum.\n", name+8);
-			Sys_Printf ("%s requested invalid demonum %s\n", host_client->name, name+8);
-		}
-		else if (ISQ2CLIENT(host_client))
-		{
-			Sys_Printf ("Rejected MVD download of %s to %s (Q2 client)\n", mvdname, host_client->name);
-			ClientReliableWrite_Begin (host_client, svcq2_download, 4);
-			ClientReliableWrite_Short (host_client, -1);
-			ClientReliableWrite_Byte (host_client, 0);
-			return;
-		}
-		else
-			SV_ClientPrintf (host_client, PRINT_HIGH, "Sending demo %s...\n", mvdname);
-
-		// this is needed to cancel the current download
-		if (ISNQCLIENT(host_client))
-		{
-			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+12);
-			ClientReliableWrite_String (host_client, "\nstopdownload\n");
-		}
-		else
-#ifdef PEXT_CHUNKEDDOWNLOADS
-		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
-		{
-			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
-			ClientReliableWrite_Long (host_client, -1);
-			ClientReliableWrite_Long (host_client, -1);
-			ClientReliableWrite_String (host_client, name);
-		}
-		else
-#endif
-		{
-			ClientReliableWrite_Begin (host_client, svc_download, 4);
-			ClientReliableWrite_Short (host_client, -1);
-			ClientReliableWrite_Byte (host_client, 0);
-		}
-
-		if (mvdname)
-		{
-			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+15+strlen(mvdname)); 
-			ClientReliableWrite_String (host_client, va("\ndownload demos/%s\n", mvdname));
-		}
-		return;
+		VFS_CLOSE (host_client->download);
+		host_client->download = NULL;
 	}
 
-// hacked by zoid to allow more conrol over download
-	if (!SV_AllowDownload(name))
+	//redirection protocol-specific code goes here.
+	if (result == -4)
+	{
+	}
+
+	if (result == 0)
+	{	//if we are allowed and could find it
+		host_client->download = FS_OpenReadLocation(&loc);
+		if (!host_client->download)
+			result = -1;	//this isn't likely, but hey.
+	}
+
+	//handle errors
+	if (result != 0)
 	{	// don't allow anything with .. path
+		char *error;
+		switch(result)
+		{
+		default:
+			error = "Download could not be found\n";
+			break;
+		case -2:
+			error = "Download permission denied\n";
+			break;
+		case -4:
+			result = -1;
+			error = "";
+			break;
+		}
 		if (ISNQCLIENT(host_client))
 		{
-			SV_PrintToClient(host_client, PRINT_HIGH, "Download rejected by server settings\n");
+			SV_PrintToClient(host_client, PRINT_HIGH, error);
 
 			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+12);
 			ClientReliableWrite_String (host_client, "\nstopdownload\n");
@@ -2004,75 +2230,32 @@ void SV_BeginDownload_f(void)
 		{
 			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
 			ClientReliableWrite_Long (host_client, -1);
-			ClientReliableWrite_Long (host_client, -2);
+			ClientReliableWrite_Long (host_client, result);
 			ClientReliableWrite_String (host_client, name);
 		}
 		else
 #endif
 		{
+			SV_PrintToClient(host_client, PRINT_HIGH, error);
+
 			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 4);
 			ClientReliableWrite_Short (host_client, -1);
 			ClientReliableWrite_Byte (host_client, 0);
 		}
+
+		//it errored because it was a redirection.
+		//ask the client to grab the alternate file instead.
+		if (redirection)
+		{
+			//tell the client to download the new one.
+			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_stufftext:svc_stufftext, 2+strlen(redirection)); 
+			ClientReliableWrite_String (host_client, va("\ndownload \"%s\"\n", redirection));
+		}
 		return;
 	}
 
-	if (host_client->download)
-	{
-		VFS_CLOSE (host_client->download);
-		host_client->download = NULL;
-	}
-
-	// lowercase name (needed for casesen file systems)
-	{
-		char *p;
-
-		for (p = name; *p; p++)
-			*p = (char)tolower(*p);
-	}
-
-	// yet another hack for MVD junk
-	if (!strncmp(name, "demos/", 6))
-		host_client->download = FS_OpenVFS(va("%s/%s", sv_demoDir.string, name+6), "rb", FS_GAME);
-	else
-		host_client->download = FS_OpenVFS(name, "rb", FS_GAME);
+	Q_strncpyz(host_client->downloadfn, name, sizeof(host_client->downloadfn));
 	host_client->downloadcount = 0;
-
-	if (!host_client->download
-		// special check for maps, if it came from a pak file, don't allow
-		// download  ZOID
-		|| ((!allow_download_pakcontents.value || (!allow_download_anymap.value && strncmp(name, "maps/", 5) == 0)) && com_file_copyprotected))
-	{
-		if (host_client->download)
-		{
-			VFS_CLOSE(host_client->download);
-			host_client->download = NULL;
-		}
-
-		Sys_Printf ("Couldn't download %s to %s\n", name, host_client->name);
-		if (ISNQCLIENT(host_client))
-		{
-			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+12);
-			ClientReliableWrite_String (host_client, "\nstopdownload\n");
-		}
-		else
-#ifdef PEXT_CHUNKEDDOWNLOADS
-		if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
-		{
-			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
-			ClientReliableWrite_Long (host_client, -1);
-			ClientReliableWrite_Long (host_client, -1);
-			ClientReliableWrite_String (host_client, name);
-		}
-		else
-#endif
-		{
-			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 4);
-			ClientReliableWrite_Short (host_client, -1);
-			ClientReliableWrite_Byte (host_client, 0);
-		}
-		return;
-	}
 
 	host_client->downloadsize = VFS_GETLEN(host_client->download);
 
@@ -2101,16 +2284,17 @@ void SV_BeginDownload_f(void)
 			host_client->download = tmp;
 		}
 
-		ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
+		ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(host_client->downloadfn));
 		ClientReliableWrite_Long (host_client, -1);
 		ClientReliableWrite_Long (host_client, host_client->downloadsize);
-		ClientReliableWrite_String (host_client, name);
+		ClientReliableWrite_String (host_client, host_client->downloadfn);
 	}
+	else
 #endif
 
 	if (ISNQCLIENT(host_client))
 	{
-		char *s = va("\ncl_downloadbegin %i %s\n", host_client->downloadsize, name);
+		char *s = va("\ncl_downloadbegin %i %s\n", host_client->downloadsize, host_client->downloadfn);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(s));
 		ClientReliableWrite_String (host_client, s);
 	}
@@ -2118,7 +2302,7 @@ void SV_BeginDownload_f(void)
 		SV_NextDownload_f ();
 
 	SV_EndRedirect();
-	Con_Printf ("Downloading %s to %s\n", name, host_client->name);
+	Con_Printf ("Downloading %s to %s\n", host_client->downloadfn, host_client->name);
 }
 
 void SV_StopDownload_f(void)
@@ -3129,12 +3313,12 @@ void Cmd_Give_f (void)
 			break;
 		}
 	}
-	else if (host_client->netchan.remote_address.type == NA_LOOPBACK)	//we don't want clients doing nasty things... like setting movetype 3123
+	else if (developer.value || host_client->netchan.remote_address.type == NA_LOOPBACK)	//we don't want clients doing nasty things... like setting movetype 3123
 	{
 		int oldself;
 		oldself = pr_global_struct->self;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-		Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
+		SV_ClientPrintf(host_client, PRINT_HIGH, "Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
 		pr_global_struct->self = oldself;
 	}
 
@@ -3550,6 +3734,7 @@ ucmd_t ucmds[] =
 
 	{"serverinfo", SV_ShowServerinfo_f},
 
+	{"dlsize", SV_DownloadSize_f},
 	{"download", SV_BeginDownload_f},
 	{"nextdl", SV_NextDownload_f},
 
@@ -3665,11 +3850,11 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 					host_client = oldhost;
 					return;
 				}
-			SV_BeginRedirect (RD_CLIENT, host_client->language);
+//			SV_BeginRedirect (RD_CLIENT, host_client->language);
 			if (u->func)
 				u->func ();
 			host_client = oldhost;
-			SV_EndRedirect ();
+//			SV_EndRedirect ();
 			return;
 		}
 
@@ -4083,13 +4268,13 @@ void SVNQ_Ping_f(void)
 	int i;
 	client_t *cl;
 
-	Con_Printf ("Ping times:\n");
+	SV_PrintToClient(host_client, PRINT_HIGH, "Client ping times:\n");
 	for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
 	{
 		if (!cl->state)
 			continue;
 
-		Con_Printf ("%3i %s\n", SV_CalcPing (cl), cl->name);
+		SV_PrintToClient(host_client, PRINT_HIGH, va("%3i %s\n", SV_CalcPing (cl), cl->name));
 	}
 }
 
@@ -4276,7 +4461,7 @@ AddLinksToPmove
 
 ====================
 */
-void AddLinksToPmove ( areanode_t *node )
+void AddLinksToPmove ( edict_t *player, areanode_t *node )
 {
 	int Q1_HullPointContents (hull_t *hull, int num, vec3_t p);
 	link_t		*l, *next;
@@ -4287,7 +4472,7 @@ void AddLinksToPmove ( areanode_t *node )
 
 	model_t *model;
 
-	pl = EDICT_TO_PROG(svprogfuncs, sv_player);
+	pl = EDICT_TO_PROG(svprogfuncs, player);
 
 	// touch linked edicts
 	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
@@ -4301,7 +4486,7 @@ void AddLinksToPmove ( areanode_t *node )
 			|| check->v->solid == SOLID_BBOX
 			|| check->v->solid == SOLID_SLIDEBOX)
 		{
-			if (check == sv_player)
+			if (check == player)
 				continue;
 
 			for (i=0 ; i<3 ; i++)
@@ -4314,8 +4499,8 @@ void AddLinksToPmove ( areanode_t *node )
 			if (pmove.numphysent == MAX_PHYSENTS)
 				break;
 			pe = &pmove.physents[pmove.numphysent];
-			pe->notouch = !((int)sv_player->xv->dimension_solid & (int)check->xv->dimension_hit);
-			if (!((int)sv_player->xv->dimension_hit & (int)check->xv->dimension_solid))
+			pe->notouch = !((int)player->xv->dimension_solid & (int)check->xv->dimension_hit);
+			if (!((int)player->xv->dimension_hit & (int)check->xv->dimension_solid))
 				continue;
 			pmove.numphysent++;
 
@@ -4337,7 +4522,7 @@ void AddLinksToPmove ( areanode_t *node )
 			}
 		}
 	}
-	if (sv_player->v->mins[2] != 24)	//crouching/dead
+	if (player->v->mins[2] != 24)	//crouching/dead
 	for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
 	{
 		next = l->next;
@@ -4354,14 +4539,14 @@ void AddLinksToPmove ( areanode_t *node )
 			if (i != 3)
 				continue;
 
-			if (!((int)sv_player->xv->dimension_hit & (int)check->xv->dimension_solid))
+			if (!((int)player->xv->dimension_hit & (int)check->xv->dimension_solid))
 				continue;
 
 			model = sv.models[(int)check->v->modelindex];
 			if (model)
 	// test the point
-			if ( model->funcs.PointContents (model, sv_player->v->origin) == FTECONTENTS_SOLID )
-				sv_player->xv->fteflags = (int)sv_player->xv->fteflags | FF_LADDER;	//touch that ladder!
+			if (model->funcs.PointContents (model, player->v->origin) == FTECONTENTS_SOLID)
+				player->xv->fteflags = (int)player->xv->fteflags | FF_LADDER;	//touch that ladder!
 		}
 	}
 
@@ -4369,10 +4554,10 @@ void AddLinksToPmove ( areanode_t *node )
 	if (node->axis == -1)
 		return;
 
-	if ( pmove_maxs[node->axis] > node->dist )
-		AddLinksToPmove ( node->children[0] );
-	if ( pmove_mins[node->axis] < node->dist )
-		AddLinksToPmove ( node->children[1] );
+	if (pmove_maxs[node->axis] > node->dist)
+		AddLinksToPmove (player, node->children[0]);
+	if (pmove_mins[node->axis] < node->dist)
+		AddLinksToPmove (player, node->children[1]);
 }
 
 
@@ -4758,7 +4943,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.worldmodel;
 	pmove.cmd = *ucmd;
-	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
+	if (sv.worldmodel->fromgame == fg_quake)
 		pmove.hullnum = ((int)sv_player->xv->fteflags&FF_CROUCHING)?3:1;
 	else
 		pmove.hullnum = SV_HullNumForPlayer(sv_player->xv->hull, sv_player->v->mins, sv_player->v->maxs);
@@ -4782,7 +4967,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	}
 	sv_player->xv->fteflags = (int)sv_player->xv->fteflags & ~FF_LADDER;	//assume not touching ladder trigger
 #if 1
-	AddLinksToPmove ( sv_areanodes );
+	AddLinksToPmove ( sv_player, sv_areanodes );
 #else
 	AddAllEntsToPmove ();
 #endif
@@ -5421,6 +5606,8 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	int		i;
 	int		bits;
 	client_frame_t	*frame;
+	float timesincelast;
+	float cltime;
 
 	frame = &host_client->frameunion.frames[host_client->netchan.incoming_acknowledged & UPDATE_MASK];
 
@@ -5428,7 +5615,18 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 		host_client->last_sequence = MSG_ReadLong ();
 	else
 		host_client->last_sequence = 0;
-	frame->ping_time = sv.time - MSG_ReadFloat ();
+	cltime = MSG_ReadFloat ();
+	if (cltime > sv.time)
+		cltime = sv.time;
+	if (cltime < sv.time - 2)	//if you do lag more than this, you won't get your free time.
+		cltime = sv.time - 2;
+	if (cltime < move->fservertime)
+		cltime = move->fservertime;
+	timesincelast = cltime - move->fservertime;
+	move->fservertime = cltime;
+	move->servertime = move->fservertime;
+
+	frame->ping_time = sv.time - cltime;
 
 
 // read current angles
@@ -5444,7 +5642,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	move->sidemove = MSG_ReadShort ();
 	move->upmove = MSG_ReadShort ();
 
-	move->msec=(1/72.0f)*1000;//MSG_ReadFloat;
+	move->msec=timesincelast*1000;//MSG_ReadFloat;
 
 // read buttons
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
@@ -5519,7 +5717,13 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	host_client->edict->xv->button8 = ((bits >> 7) & 1);
 
 	if (host_client->last_sequence)
+	{
+		host_frametime = timesincelast;
 		SV_RunEntity(host_client->edict);
+		host_client->isindependant = true;
+	}
+	else
+		host_client->isindependant = false;
 }
 
 void SVNQ_ExecuteClientMessage (client_t *cl)
@@ -5599,6 +5803,9 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			sv_player = cl->edict;
 			break;
 
+		case 50:
+			MSG_ReadLong();
+			break;
 		case clcdp_ackdownloaddata:
 			SV_DarkPlacesDownloadAck(host_client);
 			break;

@@ -47,12 +47,14 @@ int			host_hunklevel;
 // callbacks
 void SV_Masterlist_Callback(struct cvar_s *var, char *oldvalue);
 void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue);
+void SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue);
 void SV_Port_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue);
 
 typedef struct {
-	qboolean	isdp;
+	enum {
+	} isdp;
 	cvar_t		cv;
 	netadr_t	adr;
 } sv_masterlist_t;
@@ -66,9 +68,9 @@ sv_masterlist_t sv_masterlist[] = {
 	{false, SCVARC("sv_master7", "", SV_Masterlist_Callback)},
 	{false, SCVARC("sv_master8", "", SV_Masterlist_Callback)},
 
-	{true, SCVARC("sv_masterextra1", "ghdigital.com", SV_Masterlist_Callback)}, //69.59.212.88
-	{true, SCVARC("sv_masterextra2", "dpmaster.deathmask.net", SV_Masterlist_Callback)}, //209.164.24.243
-	{true, SCVARC("sv_masterextra3", "12.166.196.192", SV_Masterlist_Callback)}, //blaze.mindphukd.org (doesn't resolve currently but works as an ip)
+	{true, SCVARC("sv_masterextra1", "ghdigital.com", SV_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
+	{true, SCVARC("sv_masterextra2", "dpmaster.deathmask.net", SV_Masterlist_Callback)}, //209.164.24.243 (admin: Willis)
+	{true, SCVARC("sv_masterextra3", "dpmaster.tchr.no", SV_Masterlist_Callback)}, // (admin: tChr)
 	{false, SCVAR(NULL, NULL)}
 };
 
@@ -117,6 +119,7 @@ cvar_t sv_public = SCVAR("sv_public", "0");
 cvar_t sv_listen_qw = FCVAR("sv_listen_qw", "sv_listen", "1", 0);
 cvar_t sv_listen_nq = SCVAR("sv_listen_nq", "0");
 cvar_t sv_listen_dp = SCVAR("sv_listen_dp", "1");
+cvar_t sv_listen_q3 = SCVAR("sv_listen_q3", "0");
 cvar_t sv_reportheartbeats = SCVAR("sv_reportheartbeats", "1");
 cvar_t sv_highchars = SCVAR("sv_highchars", "1");
 cvar_t sv_loadentfiles = SCVAR("sv_loadentfiles", "1");
@@ -138,7 +141,10 @@ cvar_t	sv_voicechat = SCVAR("sv_voicechat", "0");	//still development.
 cvar_t	sv_gamespeed = SCVAR("sv_gamespeed", "1");
 cvar_t	sv_csqcdebug = SCVAR("sv_csqcdebug", "0");
 #ifdef TCPCONNECT
-cvar_t	sv_port_tcp = SCVARC("sv_port_tcp", "0", SV_Tcpport_Callback);
+cvar_t	sv_port_tcp = SCVARC("sv_port_tcp", "", SV_Tcpport_Callback);
+#ifdef IPPROTO_IPV6
+cvar_t	sv_port_tcp6 = SCVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
+#endif
 #endif
 cvar_t  sv_port = SCVARC("sv_port", "27500", SV_Port_Callback);
 #ifdef IPPROTO_IPV6
@@ -359,29 +365,27 @@ or crashing.
 void SV_DropClient (client_t *drop)
 {
 	laggedpacket_t *lp;
-	if (drop->controller)
+	if (!drop->controller)
 	{
-		SV_DropClient(drop->controller);
-		return;
-	}
-	// add the disconnect
-	if (drop->state != cs_zombie)
-	{
-		switch (drop->protocol)
+		// add the disconnect
+		if (drop->state != cs_zombie)
 		{
-		case SCP_QUAKE2:
-			MSG_WriteByte (&drop->netchan.message, svcq2_disconnect);
-			break;
-		case SCP_QUAKEWORLD:
-		case SCP_NETQUAKE:
-		case SCP_DARKPLACES6:
-		case SCP_DARKPLACES7:
-			MSG_WriteByte (&drop->netchan.message, svc_disconnect);
-			break;
-		case SCP_BAD:
-			break;
-		case SCP_QUAKE3:
-			break;
+			switch (drop->protocol)
+			{
+			case SCP_QUAKE2:
+				MSG_WriteByte (&drop->netchan.message, svcq2_disconnect);
+				break;
+			case SCP_QUAKEWORLD:
+			case SCP_NETQUAKE:
+			case SCP_DARKPLACES6:
+			case SCP_DARKPLACES7:
+				MSG_WriteByte (&drop->netchan.message, svc_disconnect);
+				break;
+			case SCP_BAD:
+				break;
+			case SCP_QUAKE3:
+				break;
+			}
 		}
 	}
 
@@ -459,6 +463,9 @@ void SV_DropClient (client_t *drop)
 						PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
 					}
 				}
+
+				if (progstype == PROG_NQ)
+					ED_ClearEdict(svprogfuncs, drop->edict);
 			}
 
 			if (drop->spawninfo)
@@ -782,7 +789,7 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 		MSG_WriteByte (buf, i);
 		MSG_WriteFloat (buf, 0);
 
-		strcpy (info, sv.recordedplayer[i].userinfo);
+		Q_strncpyz (info, sv.recordedplayer[i].userinfo, sizeof(info));
 		Info_RemoveKey(info, "password");		//main password key
 		Info_RemoveKey(info, "*ip");		//don't broadcast this in playback
 		Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
@@ -812,10 +819,11 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 	MSG_WriteByte (buf, i);
 	MSG_WriteFloat (buf, realtime - client->connection_started);
 
+#pragma message("this is a bug: it can be broadcast to all qw clients")
 	if (ftepext & PEXT_BIGUSERINFOS)
-		strcpy (info, client->userinfo);
+		Q_strncpyz (info, client->userinfo, sizeof(info));
 	else
-		strcpy (info, client->userinfobasic);
+		Q_strncpyz (info, client->userinfobasic, sizeof(info));
 	Info_RemoveKey(info, "password");		//main password key
 	Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
 
@@ -1198,6 +1206,9 @@ void SVC_GetChallenge (void)
 	int		oldest;
 	int		oldestTime;
 
+	if (!sv_listen_qw.value && !sv_listen_dp.value && !sv_listen_q3.value)
+		return;
+
 	oldest = 0;
 	oldestTime = 0x7fffffff;
 
@@ -1281,6 +1292,16 @@ void SVC_GetChallenge (void)
 			buf = va("challenge "DISTRIBUTION"%i", svs.challenges[i].challenge);
 			Netchan_OutOfBand(NS_SERVER, net_from, strlen(buf)+1, buf);
 		}
+#ifdef Q3SERVER
+		if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
+		{
+			if (sv_listen_q3.value)
+			{
+				buf = va("challengeResponse %i", svs.challenges[i].challenge);
+				Netchan_OutOfBand(NS_SERVER, net_from, strlen(buf), buf);
+	}
+		}
+#endif
 	}
 
 //	Netchan_OutOfBandPrint (net_from, "%c%i", S2C_CHALLENGE,
@@ -1398,6 +1419,7 @@ void VARGS SV_RejectMessage(int protocol, char *format, ...)
 #endif
 
 	case SCP_QUAKE2:
+	case SCP_QUAKE3:
 	default:
 		strcpy(string, "print\n");
 		vsnprintf (string+6,sizeof(string)-1-6, format,argptr);
@@ -1421,6 +1443,9 @@ void SV_AcceptMessage(int protocol)
 	char		string[8192];
 	sizebuf_t	sb;
 	int len;
+#ifdef NQPROT
+	netadr_t localaddr;
+#endif
 
 	memset(&sb, 0, sizeof(sb));
 	sb.maxsize = sizeof(string);
@@ -1433,7 +1458,8 @@ void SV_AcceptMessage(int protocol)
 		SZ_Clear(&sb);
 		MSG_WriteLong(&sb, 0);
 		MSG_WriteByte(&sb, CCREP_ACCEPT);
-		MSG_WriteLong(&sb, ShortSwap(net_local_sv_ipadr.port));
+		NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0);
+		MSG_WriteLong(&sb, ShortSwap(localaddr.port));
 		*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 		return;
@@ -1444,6 +1470,10 @@ void SV_AcceptMessage(int protocol)
 		break;
 #endif
 
+	case SCP_QUAKE3:
+		strcpy(string, "connectResponse");
+		len = strlen(string);
+		break;
 	case SCP_QUAKE2:
 	default:
 		strcpy(string, "client_connect\n");
@@ -1501,8 +1531,41 @@ client_t *SVC_DirectConnect(void)
 	char *name;
 	char adrbuf[MAX_ADR_SIZE];
 
-	if (*(Cmd_Argv(0)+7) == '\\')
+	if (*Cmd_Argv(1) == '\\')
+	{	//connect "\key\val"
+
+		//this is used by q3 (note, we already decrypted the huffman connection packet in a hack)
+		if (!sv_listen_q3.value)
+			return NULL;
+		numssclients = 1;
+		protocol = SCP_QUAKE3;
+
+		Q_strncpyz (userinfo[0], Cmd_Argv(1), sizeof(userinfo[0])-1);
+
+		switch (atoi(Info_ValueForKey(userinfo[0], "protocol")))
 	{
+		case 68:	//regular q3 1.32
+			break;
+//		case 43:	//q3 1.11 (most 'recent' demo)
+//			break;
+		default:
+			SV_RejectMessage (SCP_BAD, "Server is "DISTRIBUTION" build %i.\n", build_number());
+			Con_Printf ("* rejected connect from incompatable client\n");
+			return NULL;
+		}
+
+		s = Info_ValueForKey(userinfo[0], "challenge");
+		challenge = atoi(s);
+
+		s = Info_ValueForKey(userinfo[0], "qport");
+		qport = atoi(s);
+		
+		s = Info_ValueForKey(userinfo[0], "name");
+		if (!*s)
+			Info_SetValueForKey(userinfo[0], "name", "UnnamedQ3", sizeof(userinfo[0]));
+	}
+	else if (*(Cmd_Argv(0)+7) == '\\')
+	{	//DP has the userinfo attached directly to the end of the connect command
 		if (!sv_listen_dp.value)
 			return NULL;
 		Q_strncpyz (userinfo[0], net_message.data + 11, sizeof(userinfo[0])-1);
@@ -1534,6 +1597,10 @@ client_t *SVC_DirectConnect(void)
 		else
 			challenge = atoi(s);
 
+		Info_RemoveKey(userinfo[0], "protocol");
+		Info_RemoveKey(userinfo[0], "protocols");
+		Info_RemoveKey(userinfo[0], "challenge");
+
 		s = Info_ValueForKey(userinfo[0], "name");
 		if (!*s)
 			Info_SetValueForKey(userinfo[0], "name", "CONNECTING", sizeof(userinfo[0]));
@@ -1562,7 +1629,7 @@ client_t *SVC_DirectConnect(void)
 		else if (version == 3)
 		{
 			numssclients = 1;
-			protocol = SCP_NETQUAKE;
+			protocol = SCP_NETQUAKE; //because we can
 		}
 		else if (version != PROTOCOL_VERSION_QW)
 		{
@@ -1712,9 +1779,19 @@ client_t *SVC_DirectConnect(void)
 					Con_Printf("%s: diff prot connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
 				else
 					Con_Printf("%s:dup connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
+
+				SV_DropClient(cl);
+				/*
 				nextuserid--;
 				return NULL;
+				*/
 			}
+			else if (cl->state == cs_zombie)
+			{
+				Con_Printf ("%s:reconnect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
+				SV_DropClient (cl);
+			}
+			else
 			{
 				Con_Printf ("%s:reconnect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
 //				SV_DropClient (cl);
@@ -1762,6 +1839,15 @@ client_t *SVC_DirectConnect(void)
 	}
 	else if (!stricmp(name, "console"))
 		name = "Not Console";	//have fun dudes.
+	else
+	{
+		char *t = name;
+		//work around an ezquake bug that has been there since the beginning in one form or another.
+		while (*(unsigned char*)t == 0xff)
+			t++;
+		if (!*t)
+			name = "invisible";
+	}
 
 	// count up the clients and spectators
 	clients = 0;
@@ -1864,16 +1950,29 @@ client_t *SVC_DirectConnect(void)
 
 		// build a new connection
 		// accept the new client
-		// this is the only place a client_t is ever initialized
-		temp.frameunion.frames = newcl->frameunion.frames;	//don't touch these.
-		if (temp.frameunion.frames)
-			Z_Free(temp.frameunion.frames);
-
-		temp.frameunion.frames = Z_Malloc((sizeof(client_frame_t)+sizeof(entity_state_t)*maxpacketentities)*UPDATE_BACKUP);
-		for (i = 0; i < UPDATE_BACKUP; i++)
+		// this is the only place a client_t is ever initialized, for q1 mods at least
+#ifdef Q3SERVER
+		if (ISQ3CLIENT(newcl))
 		{
-			temp.frameunion.frames[i].entities.max_entities = maxpacketentities;
-			temp.frameunion.frames[i].entities.entities = (entity_state_t*)(temp.frameunion.frames+UPDATE_BACKUP) + i*temp.frameunion.frames[i].entities.max_entities;
+			Huff_PreferedCompressionCRC();
+			temp.frameunion.q3frames = BZ_Malloc(Q3UPDATE_BACKUP*sizeof(*temp.frameunion.q3frames));
+		}
+		else
+#endif
+		{
+			temp.frameunion.frames = newcl->frameunion.frames;	//don't touch these.
+			if (temp.frameunion.frames)
+			{
+				Con_Printf("Debug: frames were set?\n");
+				Z_Free(temp.frameunion.frames);
+			}
+
+			temp.frameunion.frames = Z_Malloc((sizeof(client_frame_t)+sizeof(entity_state_t)*maxpacketentities)*UPDATE_BACKUP);
+			for (i = 0; i < UPDATE_BACKUP; i++)
+			{
+				temp.frameunion.frames[i].entities.max_entities = maxpacketentities;
+				temp.frameunion.frames[i].entities.entities = (entity_state_t*)(temp.frameunion.frames+UPDATE_BACKUP) + i*temp.frameunion.frames[i].entities.max_entities;
+			}
 		}
 		break;
 
@@ -1913,13 +2012,12 @@ client_t *SVC_DirectConnect(void)
 		newcl->team = t;
 	}
 
+	newcl->challenge = challenge;
 	newcl->zquake_extensions = atoi(Info_ValueForKey(newcl->userinfo, "*z_ext"));
 	if (*Info_ValueForKey(newcl->userinfo, "*fuhquake"))	//fuhquake doesn't claim to support z_ext but does look at our z_ext serverinfo key.
 	{														//so switch on the bits that it should be sending.
 		newcl->zquake_extensions |= Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW;
 	}
-
-	//dmw - delayed - Netchan_OutOfBandPrint (adr, "%c", S2C_CONNECTION );
 
 	Netchan_Setup (NS_SERVER, &newcl->netchan , adr, qport);
 
@@ -1935,6 +2033,9 @@ client_t *SVC_DirectConnect(void)
 
 	newcl->state = cs_connected;
 
+#ifdef Q3SERVER
+	newcl->gamestatesequence = -1;
+#endif
 	newcl->datagram.allowoverflow = true;
 	newcl->datagram.data = newcl->datagram_buf;
 	newcl->datagram.maxsize = sizeof(newcl->datagram_buf);
@@ -2411,10 +2512,24 @@ qboolean SV_ConnectionlessPacket (void)
 			SVQ3_DirectConnect();
 			return true;
 		}
-		else
+
+		if (sv_listen_q3.value)
+		{
+			if (!strstr(s, "\\name\\"))
+			{	//if name isn't in the string, assume they're q3
+				//this isn't quite true though, hence the listen check. but users shouldn't be connecting with an empty name anyway. more fool them.
+				Huff_DecryptPacket(&net_message, 12);
+				MSG_BeginReading();
+				MSG_ReadLong();
+				s = MSG_ReadStringLine();
+				Cmd_TokenizeString(s, false, false);
+			}
+		}
 #endif
 			if (secure.value)	//FIXME: possible problem for nq clients when enabled
+		{
 			Netchan_OutOfBandPrint (NS_SERVER, net_from, "%c\nThis server requires client validation.\nPlease use the "DISTRIBUTION" validation program\n", A2C_PRINT);
+		}
 		else
 		{
 			SVC_DirectConnect ();
@@ -2687,6 +2802,19 @@ void SV_ReadPackets (void)
 				break;
 			}
 #endif
+
+#ifdef Q3SERVER
+			if (ISQ3CLIENT(cl))
+			{
+#pragma message("qwoverq3: fixme: this will block qw+q3 clients from the same ip")
+				if (cl->state != cs_zombie)
+				{
+					SVQ3_HandleClient();
+				}
+				break;
+			}
+#endif
+
 			if (cl->netchan.qport != qport)
 				continue;
 			if (cl->netchan.remote_address.port != net_from.port)
@@ -3256,11 +3384,16 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_listen_qw,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen_nq,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen_dp,	cvargroup_servercontrol);
+	Cvar_Register (&sv_listen_q3,	cvargroup_servercontrol);
 	sv_listen_qw.restriction = RESTRICT_MAX;
 
 #ifdef TCPCONNECT
 	Cvar_Register (&sv_port_tcp,	cvargroup_servercontrol);
 	sv_port_tcp.restriction = RESTRICT_MAX;
+#ifdef IPPROTO_IPV6
+	Cvar_Register (&sv_port_tcp6,	cvargroup_servercontrol);
+	sv_port_tcp6.restriction = RESTRICT_MAX;
+#endif
 #endif
 #ifdef IPPROTO_IPV6
 	Cvar_Register (&sv_port_ipv6,	cvargroup_servercontrol);
@@ -3936,6 +4069,10 @@ void SV_InitNet (void)
 //	NET_StringToAdr ("192.246.40.70:27000", &idmaster_adr);
 }
 
+void SV_IgnoreCommand_f(void)
+{
+}
+
 
 /*
 ====================
@@ -3946,6 +4083,7 @@ SV_Init
 void SV_Demo_Init(void);
 void SV_Init (quakeparms_t *parms)
 {
+	int i;
 #ifndef SERVERONLY
 	if (isDedicated)
 #endif
@@ -4007,6 +4145,8 @@ void SV_Init (quakeparms_t *parms)
 
 		host_initialized = true;
 
+		//get rid of the worst of the spam
+		Cmd_AddRemCommand("bind", SV_IgnoreCommand_f);
 
 		Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 		Con_TPrintf (TL_HEAPSIZE,parms->memsize/ (1024*1024.0));
@@ -4018,7 +4158,14 @@ void SV_Init (quakeparms_t *parms)
 
 		Con_TPrintf (STL_INITED);
 
-		Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
+		i = COM_CheckParm("+gamedir");
+		if (i)
+			COM_Gamedir(com_argv[i+1]);
+
+		if (COM_FileSize("server.cfg") != -1)
+			Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
+		else
+			Cbuf_InsertText ("exec quake.rc\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
 
 	// process command line arguments
 		Cbuf_Execute ();
@@ -4026,6 +4173,9 @@ void SV_Init (quakeparms_t *parms)
 		Cmd_StuffCmds();
 
 		Cbuf_Execute ();
+
+		//and warn about any future times this is used.
+		Cmd_RemoveCommand("bind");
 
 	// if a map wasn't specified on the command line, spawn start.map
 		if (sv.state == ss_dead)

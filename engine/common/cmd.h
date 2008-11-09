@@ -107,6 +107,7 @@ void Alias_WipeStuffedAliaes(void);
 
 void Cmd_AddMacro(char *s, char *(*f)(void), int disputableintentions);
 
+void Cmd_TokenizePunctation (char *text, char *punctuation);
 void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize);
 // Takes a null terminated string.  Does not need to be /n terminated.
 // breaks the string up into arg tokens.

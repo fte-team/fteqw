@@ -361,7 +361,9 @@ void Con_ToggleConsole_f (void)
 
 	if (key_dest == key_console)
 	{
-		if (cls.state == ca_active || Media_PlayingFullScreen()
+		if (m_state)
+			key_dest = key_menu;
+		else if (cls.state == ca_active || Media_PlayingFullScreen()
 #ifdef VM_UI
 				 	|| UI_MenuState()
 #endif
@@ -1325,8 +1327,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 	char *txt;
 	int				row;
 	unsigned char			dlbar[1024];
+	unsigned char	progresspercenttext[128];
 	char *progresstext;
-	float progresspercent;
+	int progresspercent;
 
 #ifdef RUNTIMELIGHTING
 	extern model_t *lightmodel;
@@ -1411,14 +1414,32 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 	progresstext = NULL;
 	progresspercent = 0;
+	*progresspercenttext = 0;
 	
 	// draw the download bar
 	// figure out width
 	if (cls.downloadmethod)
 	{
+		unsigned int count, total;
+		qboolean extra;
 		progresstext = cls.downloadname;
 		progresspercent = cls.downloadpercent;
 
+		if ((int)(realtime/2)&1)
+			sprintf(progresspercenttext, " %02d%% (%ukbps)", progresspercent, CL_DownloadRate()/1000);
+		else
+		{
+			CL_GetDownloadSizes(&count, &total, &extra);
+			if (total == 0)
+			{
+				//just show progress
+				sprintf(progresspercenttext, " %02d%%", progresspercent);
+			}
+			else
+			{
+				sprintf(progresspercenttext, " %02d%% (%u%skb)", progresspercent, total/1024, extra?"+":"");
+			}
+		}
 	}
 #ifdef RUNTIMELIGHTING
 	else if (lightmodel)
@@ -1426,7 +1447,8 @@ void Con_DrawConsole (int lines, qboolean noback)
 		if (relitsurface < lightmodel->numsurfaces)
 		{
 			progresstext = "light";
-			progresspercent = (relitsurface*100.0f) / lightmodel->numsurfaces;
+			progresspercent = (int)((relitsurface*100.0f) / lightmodel->numsurfaces);
+			sprintf(progresspercenttext, " %02d%%", progresspercent);
 		}
 	}
 #endif
@@ -1438,17 +1460,18 @@ void Con_DrawConsole (int lines, qboolean noback)
 		else
 			txt = progresstext;
 
-		x = curcon->linewidth - ((curcon->linewidth * 7) / 40);
-		y = x - strlen(txt) - 8;
+		x = curcon->linewidth;// - ((curcon->linewidth * 7) / 40);
+		y = x - strlen(txt) - 4;
 		i = curcon->linewidth/3;
 		if (strlen(txt) > i)
 		{
-			y = x - i - 11;
+			y = x - i - 7;
 			Q_strncpyN(dlbar, txt, i);
 			strcat(dlbar, "...");
 		}
 		else
 			strcpy(dlbar, txt);
+		y -= strlen(progresspercenttext);
 		strcat(dlbar, ": ");
 		i = strlen(dlbar);
 		dlbar[i++] = '\x80';
@@ -1469,7 +1492,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		dlbar[i++] = '\x82';
 		dlbar[i] = 0;
 
-		sprintf(dlbar + strlen(dlbar), " %02d%%", (int)progresspercent);
+		strcpy(dlbar + strlen(dlbar), progresspercenttext);
 
 		// draw it
 		y = curcon->vislines-22 + 8;

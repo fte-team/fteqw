@@ -38,6 +38,11 @@ int *qcc_tempofs;
 int tempsstart;
 int numtemps;
 
+#define MAXSOURCEFILESLIST 8
+char sourcefileslist[MAXSOURCEFILESLIST][1024];
+int currentsourcefile;
+int numsourcefiles;
+
 void QCC_PR_ResetErrorScope(void);
 
 pbool	compressoutput;
@@ -543,7 +548,7 @@ void QCC_UnmarshalLocals(void)
 }
 
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
-void QCC_WriteData (int crc)
+pbool QCC_WriteData (int crc)
 {
 	char element[MAX_NAME];
 	QCC_def_t		*def, *comp_x, *comp_y, *comp_z;
@@ -554,6 +559,12 @@ void QCC_WriteData (int crc)
 	pbool debugtarget = false;
 	pbool types = false;
 	int outputsize = 16;
+
+	if (numstatements==1 && numfunctions==1 && numglobaldefs==1 && numfielddefs==1)
+	{
+		printf("nothing to write\n");
+		return false;
+	}
 
 	progs.blockscompressed=0;
 
@@ -747,7 +758,9 @@ void QCC_WriteData (int crc)
 //		&& def->type->type != ev_function
 		&& def->type->type != ev_field
 		&& def->scope == NULL))
+		{
 			dd->type |= DEF_SAVEGLOBAL;
+		}
 #endif
 		if (def->shared)
 			dd->type |= DEF_SHARED;
@@ -760,6 +773,52 @@ void QCC_WriteData (int crc)
 		else
 			dd->s_name = QCC_CopyString (def->name);
 		dd->ofs = def->ofs;
+	}
+
+	for (i = 0; i < numglobaldefs; i++)
+	{
+		dd = &qcc_globals[i];
+		if (!(dd->type & DEF_SAVEGLOBAL))	//only warn about saved ones.
+			continue;
+
+		for (h = 0; h < numglobaldefs; h++)
+		{
+			if (i == h)
+				continue;
+			if (dd->ofs == qcc_globals[h].ofs)
+			{
+				if (dd->type != qcc_globals[h].type)
+				{
+					if (dd->type != ev_vector && qcc_globals[h].type != ev_float)
+						QCC_PR_Warning(0, NULL, 0, "Mismatched union global types (%s and %s)", strings+dd->s_name, strings+qcc_globals[h].s_name);
+				}
+				//remove the saveglobal flag on the duplicate globals.
+				qcc_globals[h].type &= ~DEF_SAVEGLOBAL;
+			}
+		}
+	}
+	for (i = 1; i < numfielddefs; i++)
+	{
+		dd = &fields[i];
+
+		if (dd->type == ev_vector)	//just ignore vectors.
+			continue;
+
+		for (h = 1; h < numfielddefs; h++)
+		{
+			if (i == h)
+				continue;
+			if (dd->ofs == fields[h].ofs)
+			{
+				if (dd->type != fields[h].type)
+				{
+					if (fields[h].type != ev_vector)
+					{
+						QCC_PR_Warning(0, NULL, 0, "Mismatched union field types (%s and %s)", strings+dd->s_name, strings+fields[h].s_name);
+					}
+				}
+			}
+		}
 	}
 
 	if (numglobaldefs > MAX_GLOBALS)
@@ -1161,6 +1220,8 @@ strofs = (strofs+3)&~3;
 			SafeClose (h);
 		}
 	}
+
+	return true;
 }
 
 
@@ -1465,10 +1526,10 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 
 	//type_field->aux_type = type_float;
 
-	if (keyword_int)
-		QCC_PR_NewType("int", ev_integer);
 	if (keyword_integer)
-		QCC_PR_NewType("integer", ev_integer);
+		type_integer = QCC_PR_NewType("integer", ev_integer);
+	if (keyword_int)
+		type_integer = QCC_PR_NewType("int", ev_integer);
 	
 
 
@@ -2388,6 +2449,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				qccwarningdisabled[WARN_UNDEFNOTDEFINED] = true;
 				qccwarningdisabled[WARN_FIXEDRETURNVALUECONFLICT] = true;
 				qccwarningdisabled[WARN_EXTRAPRECACHE] = true;
+				qccwarningdisabled[WARN_CORRECTEDRETURNTYPE] = true;
 			}
 			else
 			{
@@ -2856,17 +2918,37 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 	}
 	else
 	{
-		p = QCC_CheckParm ("-qc");
-		if (!p || p >= argc-1 || argv[p+1][0] == '-')
-			p = QCC_CheckParm ("-srcfile");
-		if (p && p < argc-1 )
-			sprintf (qccmprogsdat, "%s%s", qccmsourcedir, argv[p+1]);		
-		else
-		{	//look for a preprogs.src... :o)
-			sprintf (qccmprogsdat, "%spreprogs.src", qccmsourcedir);
-			if (externs->FileSize(qccmprogsdat) <= 0)
-				sprintf (qccmprogsdat, "%sprogs.src", qccmsourcedir);
+		if (!numsourcefiles)
+		{
+			p = QCC_CheckParm ("-qc");
+			if (!p || p >= argc-1 || argv[p+1][0] == '-')
+				p = QCC_CheckParm ("-srcfile");
+			if (p && p < argc-1 )
+				sprintf (qccmprogsdat, "%s%s", qccmsourcedir, argv[p+1]);		
+			else
+			{	//look for a preprogs.src... :o)
+				sprintf (qccmprogsdat, "%spreprogs.src", qccmsourcedir);
+				if (externs->FileSize(qccmprogsdat) <= 0)
+					sprintf (qccmprogsdat, "%sprogs.src", qccmsourcedir);
+			}
+
+			numsourcefiles = 0;
+			strcpy(sourcefileslist[numsourcefiles++], qccmprogsdat);
+			currentsourcefile = 0;
 		}
+		else if (currentsourcefile == numsourcefiles)
+		{
+			//no more.
+			qcc_compileactive = false;
+			numsourcefiles = 0;
+			currentsourcefile = 0;
+			return;
+		}
+
+		if (currentsourcefile)
+			printf("-------------------------------------\n");
+
+		strcpy(qccmprogsdat, sourcefileslist[currentsourcefile++]);
 
 		printf ("Source file: %s\n", qccmprogsdat);
 
@@ -2996,6 +3078,11 @@ void QCC_ContinueCompile(void)
 			return;
 		}
 		QCC_FinishCompile();
+
+		PostCompile();
+		if (!PreCompile())
+			return;
+		QCC_main(myargc, myargv);
 		return;
 	}
 	s = qcc_token;
@@ -3038,6 +3125,7 @@ void QCC_ContinueCompile(void)
 }
 void QCC_FinishCompile(void)
 {	
+	pbool donesomething;
 	int crc;
 //	int p;
 	currentchunk = NULL;
@@ -3077,7 +3165,7 @@ void QCC_FinishCompile(void)
 	crc = QCC_PR_WriteProgdefs ("progdefs.h");
 	
 // write data file
-	QCC_WriteData (crc);
+	donesomething = QCC_WriteData (crc);
 	
 // regenerate bmodels if -bspmodels
 	QCC_BspModels ();
@@ -3085,58 +3173,61 @@ void QCC_FinishCompile(void)
 // report / copy the data files
 	QCC_CopyFiles ();
 
-	printf ("Compile Complete\n\n");
+	if (donesomething)
+	{
+		printf ("Compile Complete\n\n");
 
-	if (optres_shortenifnots)
-		printf("optres_shortenifnots %i\n", optres_shortenifnots);
-	if (optres_overlaptemps)
-		printf("optres_overlaptemps %i\n", optres_overlaptemps);
-	if (optres_noduplicatestrings)
-		printf("optres_noduplicatestrings %i\n", optres_noduplicatestrings);
-	if (optres_constantarithmatic)
-		printf("optres_constantarithmatic %i\n", optres_constantarithmatic);
-	if (optres_nonvec_parms)
-		printf("optres_nonvec_parms %i\n", optres_nonvec_parms);
-	if (optres_constant_names)
-		printf("optres_constant_names %i\n", optres_constant_names);
-	if (optres_constant_names_strings)
-		printf("optres_constant_names_strings %i\n", optres_constant_names_strings);
-	if (optres_precache_file)
-		printf("optres_precache_file %i\n", optres_precache_file);
-	if (optres_filenames)
-		printf("optres_filenames %i\n", optres_filenames);
-	if (optres_assignments)
-		printf("optres_assignments %i\n", optres_assignments);
-	if (optres_unreferenced)
-		printf("optres_unreferenced %i\n", optres_unreferenced);
-	if (optres_locals)
-		printf("optres_locals %i\n", optres_locals);
-	if (optres_function_names)
-		printf("optres_function_names %i\n", optres_function_names);
-	if (optres_dupconstdefs)
-		printf("optres_dupconstdefs %i\n", optres_dupconstdefs);
-	if (optres_return_only)
-		printf("optres_return_only %i\n", optres_return_only);
-	if (optres_compound_jumps)
-		printf("optres_compound_jumps %i\n", optres_compound_jumps);
-//	if (optres_comexprremoval)
-//		printf("optres_comexprremoval %i\n", optres_comexprremoval);
-	if (optres_stripfunctions)
-		printf("optres_stripfunctions %i\n", optres_stripfunctions);
-	if (optres_locals_marshalling)
-		printf("optres_locals_marshalling %i\n", optres_locals_marshalling);
-	if (optres_logicops)
-		printf("optres_logicops %i\n", optres_logicops);
+		if (optres_shortenifnots)
+			printf("optres_shortenifnots %i\n", optres_shortenifnots);
+		if (optres_overlaptemps)
+			printf("optres_overlaptemps %i\n", optres_overlaptemps);
+		if (optres_noduplicatestrings)
+			printf("optres_noduplicatestrings %i\n", optres_noduplicatestrings);
+		if (optres_constantarithmatic)
+			printf("optres_constantarithmatic %i\n", optres_constantarithmatic);
+		if (optres_nonvec_parms)
+			printf("optres_nonvec_parms %i\n", optres_nonvec_parms);
+		if (optres_constant_names)
+			printf("optres_constant_names %i\n", optres_constant_names);
+		if (optres_constant_names_strings)
+			printf("optres_constant_names_strings %i\n", optres_constant_names_strings);
+		if (optres_precache_file)
+			printf("optres_precache_file %i\n", optres_precache_file);
+		if (optres_filenames)
+			printf("optres_filenames %i\n", optres_filenames);
+		if (optres_assignments)
+			printf("optres_assignments %i\n", optres_assignments);
+		if (optres_unreferenced)
+			printf("optres_unreferenced %i\n", optres_unreferenced);
+		if (optres_locals)
+			printf("optres_locals %i\n", optres_locals);
+		if (optres_function_names)
+			printf("optres_function_names %i\n", optres_function_names);
+		if (optres_dupconstdefs)
+			printf("optres_dupconstdefs %i\n", optres_dupconstdefs);
+		if (optres_return_only)
+			printf("optres_return_only %i\n", optres_return_only);
+		if (optres_compound_jumps)
+			printf("optres_compound_jumps %i\n", optres_compound_jumps);
+	//	if (optres_comexprremoval)
+	//		printf("optres_comexprremoval %i\n", optres_comexprremoval);
+		if (optres_stripfunctions)
+			printf("optres_stripfunctions %i\n", optres_stripfunctions);
+		if (optres_locals_marshalling)
+			printf("optres_locals_marshalling %i\n", optres_locals_marshalling);
+		if (optres_logicops)
+			printf("optres_logicops %i\n", optres_logicops);
 
 
-	if (optres_test1)
-		printf("optres_test1 %i\n", optres_test1);
-	if (optres_test2)
-		printf("optres_test2 %i\n", optres_test2);
-	
-	printf("numtemps %i\n", numtemps);
+		if (optres_test1)
+			printf("optres_test1 %i\n", optres_test1);
+		if (optres_test2)
+			printf("optres_test2 %i\n", optres_test2);
+		
+		printf("numtemps %i\n", numtemps);
 
-	printf("%i warnings\n", pr_warning_count);
+		printf("%i warnings\n", pr_warning_count);
+	}
 
 	qcc_compileactive = false;
 }
@@ -3162,6 +3253,9 @@ void StartNewStyleCompile(void)
 	{
 		if (++pr_error_count > MAX_ERRORS)
 			return;
+		if (setjmp(pr_parse_abort))
+			return;
+
 		QCC_PR_SkipToSemicolon ();
 		if (pr_token_type == tt_eof)
 			return;
@@ -3200,6 +3294,11 @@ void new_QCC_ContinueCompile(void)
 		if (pr_error_count)
 			QCC_Error (ERR_PARSEERRORS, "Errors have occured");
 		QCC_FinishCompile();
+
+		PostCompile();
+		if (!PreCompile())
+			return;
+		QCC_main(myargc, myargv);
 		return;
 	}
 

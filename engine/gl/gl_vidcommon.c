@@ -97,6 +97,8 @@ void (APIENTRY *qglFogf) (GLenum pname, GLfloat param);
 void (APIENTRY *qglFogi) (GLenum pname, GLint param);
 void (APIENTRY *qglFogfv) (GLenum pname, const GLfloat *params);
 
+void (APIENTRY *qglDeleteTextures) (GLsizei n, const GLuint *textures);
+
 /*
 PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
 PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
@@ -540,6 +542,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglViewport			= (void *)getglcore("glViewport");
 
 	qglGetError			= (void *)getglcore("glGetError");
+	qglDeleteTextures	= (void *)getglcore("glDeleteTextures");
 
 	//various vertex array stuff.
 	qglDrawElements			= (void *)getglcore("glDrawElements");

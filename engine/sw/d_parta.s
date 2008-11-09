@@ -41,7 +41,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 	.text
 
-#define P	12+4
+#define P0 12+4
+#define P1 12+8
+#define P2 12+12
+#define P3 12+16
+
+//void D_DrawParticle (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
 
 	.align 4
 .globl C(D_DrawParticle)
@@ -50,17 +55,17 @@ C(D_DrawParticle):
 	pushl	%edi				// preserve register variables
 	pushl	%ebx
 
-	movl	P(%esp),%edi
+	movl	P0(%esp),%edi
 
 // FIXME: better FP overlap in general here
 
 // transform point
 //	VectorSubtract (p->org, r_origin, local);
 	flds	C(r_origin)
-	fsubrs	pt_org(%edi)
-	flds	pt_org+4(%edi)
+	fsubrs	0(%edi)
+	flds	4(%edi)
 	fsubs	C(r_origin)+4
-	flds	pt_org+8(%edi)
+	flds	8(%edi)
 	fsubs	C(r_origin)+8
 	fxch	%st(2)			// local[0] | local[1] | local[2]
 
@@ -167,9 +172,12 @@ C(D_DrawParticle):
 	cmpl	%ecx,%eax
 	jl		LPop1AndDone
 
-	flds	pt_color(%edi)	// color | 1/z * 0x8000
+	movl	P3(%esp),%edi
+	movl	%edi,DP_Color
+
+//	flds	P3(%esp)	// color | 1/z * 0x8000
 // FIXME: use Terje's fast fp->int trick?
-	fistpl	DP_Color		// 1/z * 0x8000
+//	fistpl	DP_Color		// 1/z * 0x8000
 
 	movl	C(d_viewbuffer),%ebx
 

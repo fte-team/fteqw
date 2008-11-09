@@ -98,7 +98,7 @@ static void Upload_Texture_32(LPDIRECTDRAWSURFACE7 surf, unsigned int *data, int
 	surf->lpVtbl->Unlock(surf, NULL);
 }
 
-void D3D_MipMap (qbyte *out, qbyte *in, int width, int height)
+void D3D7_MipMap (qbyte *out, qbyte *in, int width, int height)
 {
 	int		i, j;
 
@@ -117,7 +117,7 @@ void D3D_MipMap (qbyte *out, qbyte *in, int width, int height)
 }
 
 //create a basic shader from a 32bit image
-void *D3D_LoadTexture_32(char *name, unsigned int *data, int width, int height, int flags)
+void *D3D7_LoadTexture_32(char *name, unsigned int *data, int width, int height, int flags)
 {
 	static unsigned char mipdata[(MAX_WIDTH/2)*(MAX_HEIGHT/2)][4];
 
@@ -159,7 +159,7 @@ void *D3D_LoadTexture_32(char *name, unsigned int *data, int width, int height, 
 		newsurf->lpVtbl->GetAttachedSurface(newsurf, &caps, &miptex);
 		while (miptex)
 		{
-			D3D_MipMap(mipdata, data, width, height);
+			D3D7_MipMap(mipdata, data, width, height);
 			data = mipdata;
 			width/=2;
 			height/=2;
@@ -176,7 +176,7 @@ void *D3D_LoadTexture_32(char *name, unsigned int *data, int width, int height, 
 }
 
 //create a basic shader from an 8bit image with 24bit palette
-void *D3D_LoadTexture_8_Pal24(char *name, unsigned char *data, int width, int height, int flags, unsigned char *palette, int transparentpix)
+void *D3D7_LoadTexture_8_Pal24(char *name, unsigned char *data, int width, int height, int flags, unsigned char *palette, int transparentpix)
 {
 	//just expands it to 32bpp and passes it on
 	static unsigned char out[MAX_WIDTH*MAX_HEIGHT][4];
@@ -197,10 +197,10 @@ void *D3D_LoadTexture_8_Pal24(char *name, unsigned char *data, int width, int he
 	}
 
 
-	return D3D_LoadTexture_32(name, (unsigned int*)out, width, height, flags);
+	return D3D7_LoadTexture_32(name, (unsigned int*)out, width, height, flags);
 }
 
-void *D3D_LoadTexture_8_Pal32(char *name, unsigned char *data, int width, int height, int flags, unsigned char *palette)
+void *D3D7_LoadTexture_8_Pal32(char *name, unsigned char *data, int width, int height, int flags, unsigned char *palette)
 {
 	//just expands it to 32bpp and passes it on
 	static unsigned char out[MAX_WIDTH*MAX_HEIGHT][4];
@@ -218,11 +218,11 @@ void *D3D_LoadTexture_8_Pal32(char *name, unsigned char *data, int width, int he
 	}
 
 
-	return D3D_LoadTexture_32(name, (unsigned int*)out, width, height, flags);
+	return D3D7_LoadTexture_32(name, (unsigned int*)out, width, height, flags);
 }
 
 
-void D3D_UnloadTexture(LPDIRECTDRAWSURFACE7 tex)
+void D3D7_UnloadTexture(LPDIRECTDRAWSURFACE7 tex)
 {
 	tex->lpVtbl->Release(tex);
 }
@@ -253,7 +253,7 @@ static qbyte	exptexture[16][16] =
 	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 };
-void D3D_InitParticleTexture (void)
+void D3D7_InitParticleTexture (void)
 {
 #define PARTICLETEXTURESIZE 64
 	int		x,y;
@@ -273,7 +273,7 @@ void D3D_InitParticleTexture (void)
 			data[y*16+x][3] = exptexture[x][y]*255/9.0;
 		}
 	}
-	d3dexplosiontexture = D3D_LoadTexture_32("", (unsigned int*)data, 16, 16, TF_ALPHA|TF_NOTBUMPMAP|TF_NOMIPMAP);
+	d3dexplosiontexture = D3D7_LoadTexture_32("", (unsigned int*)data, 16, 16, TF_ALPHA|TF_NOTBUMPMAP|TF_NOMIPMAP);
 		
 	memset(data, 255, sizeof(data));
 	for (y = 0;y < PARTICLETEXTURESIZE;y++)
@@ -288,7 +288,7 @@ void D3D_InitParticleTexture (void)
 		}
 	}
 
-	d3dballtexture = D3D_LoadTexture_32("", (unsigned int*)data, PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, TF_ALPHA|TF_NOTBUMPMAP|TF_NOMIPMAP);
+	d3dballtexture = D3D7_LoadTexture_32("", (unsigned int*)data, PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, TF_ALPHA|TF_NOTBUMPMAP|TF_NOMIPMAP);
 }
 
 
@@ -299,7 +299,7 @@ void D3D_InitParticleTexture (void)
 
 
 
-mpic_t	*(D3D_Draw_SafePicFromWad)			(char *name)
+mpic_t	*(D3D7_Draw_SafePicFromWad)			(char *name)
 {
 	LPDIRECTDRAWSURFACE7 *p;
 	d3dcachepic_t *pic;
@@ -333,13 +333,13 @@ mpic_t	*(D3D_Draw_SafePicFromWad)			(char *name)
 	{
 		*p = Mod_LoadReplacementTexture(pic->name, "wad", false, true, true);
 		if (!*p)
-			*p = D3D_LoadTexture_8_Pal24(name, (unsigned char*)(qpic+1), qpic->width, qpic->height, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP, host_basepal, 255);
+			*p = D3D7_LoadTexture_8_Pal24(name, (unsigned char*)(qpic+1), qpic->width, qpic->height, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP, host_basepal, 255);
 	}
 
 //	Con_Printf("Fixme: D3D_Draw_SafePicFromWad\n");
 	return &pic->pic;
 }
-mpic_t	*(D3D_Draw_SafeCachePic)		(char *path)
+mpic_t	*(D3D7_Draw_SafeCachePic)		(char *path)
 {
 	LPDIRECTDRAWSURFACE7 *p;
 	d3dcachepic_t *pic;
@@ -370,20 +370,20 @@ mpic_t	*(D3D_Draw_SafeCachePic)		(char *path)
 	p = (LPDIRECTDRAWSURFACE7*)&pic->pic.data;
 	*p = Mod_LoadReplacementTexture(pic->name, "gfx", false, true, true);
 	if (!*p)
-		*p = D3D_LoadTexture_8_Pal24(path, (unsigned char*)(qpic+1), qpic->width, qpic->height, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP, host_basepal, 255);
+		*p = D3D7_LoadTexture_8_Pal24(path, (unsigned char*)(qpic+1), qpic->width, qpic->height, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP, host_basepal, 255);
 
 //	Con_Printf("Fixme: D3D_Draw_SafeCachePic\n");
 	return &pic->pic;
 }
-mpic_t	*(D3D_Draw_CachePic)			(char *path)
+mpic_t	*(D3D7_Draw_CachePic)			(char *path)
 {
 	mpic_t	*pic;
-	pic = D3D_Draw_SafeCachePic(path);
+	pic = D3D7_Draw_SafeCachePic(path);
 	if (!pic)
 		Sys_Error("Couldn't load picture %s", path);
 	return pic;
 }
-void	(D3D_Draw_ReInit)				(void)
+void	(D3D7_Draw_ReInit)				(void)
 {
 	d3dmenu_numcachepics = 0;
 
@@ -391,7 +391,7 @@ void	(D3D_Draw_ReInit)				(void)
 
 	draw_chars_tex = Mod_LoadReplacementTexture("conchars", "gfx", false, true, true);
 	if (!draw_chars_tex)
-		draw_chars_tex = D3D_LoadTexture_8_Pal24("conchars", draw_chars, 128, 128, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP, host_basepal, 0);
+		draw_chars_tex = D3D7_LoadTexture_8_Pal24("conchars", draw_chars, 128, 128, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP, host_basepal, 0);
 
 
 	//now emit the conchars picture as if from a wad.
@@ -402,17 +402,17 @@ void	(D3D_Draw_ReInit)				(void)
 	d3dmenu_numcachepics++;
 
 
-	conback_tex = D3D_Draw_SafeCachePic("gfx/conback.lmp");
+	conback_tex = D3D7_Draw_SafeCachePic("gfx/conback.lmp");
 
 
 	Plug_DrawReloadImages();
-	D3D_InitParticleTexture();
+	D3D7_InitParticleTexture();
 }
-void	(D3D_Draw_Init)				(void)
+void	(D3D7_Draw_Init)				(void)
 {
-	D3D_Draw_ReInit();
+	D3D7_Draw_ReInit();
 }
-void	(D3D_Draw_Character)			(int x, int y, unsigned int num)
+void	(D3D7_Draw_Character)			(int x, int y, unsigned int num)
 {
 	int row;
 	int col;
@@ -468,7 +468,7 @@ void	(D3D_Draw_Character)			(int x, int y, unsigned int num)
 	pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dquadvert, 4, d3dquadindexes, 6, 0);
 }
 
-void	(D3D_Draw_ColouredCharacter)	(int x, int y, unsigned int num)
+void	(D3D7_Draw_ColouredCharacter)	(int x, int y, unsigned int num)
 {
 	int row;
 	int col;
@@ -533,39 +533,39 @@ void	(D3D_Draw_ColouredCharacter)	(int x, int y, unsigned int num)
 
 	pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dquadvert, 4, d3dquadindexes, 6, 0);
 }
-void	(D3D_Draw_String)				(int x, int y, const qbyte *str)
+void	(D3D7_Draw_String)				(int x, int y, const qbyte *str)
 {
 	while(*str)
 	{
-		D3D_Draw_Character(x, y, *str++);
+		D3D7_Draw_Character(x, y, *str++);
 		x+=8;
 	}
 }
-void	(D3D_Draw_Alt_String)			(int x, int y, const qbyte *str)
+void	(D3D7_Draw_Alt_String)			(int x, int y, const qbyte *str)
 {
 	while(*str)
 	{
-		D3D_Draw_Character(x, y, *str++ | 128);
+		D3D7_Draw_Character(x, y, *str++ | 128);
 		x+=8;
 	}
 }
-void	(D3D_Draw_Crosshair)			(void)
+void	(D3D7_Draw_Crosshair)			(void)
 {
-	D3D_Draw_Character(vid.width/2 - 4, vid.height/2 - 4, '+');
+	D3D7_Draw_Character(vid.width/2 - 4, vid.height/2 - 4, '+');
 }
-void	(D3D_Draw_DebugChar)			(qbyte num)
+void	(D3D7_Draw_DebugChar)			(qbyte num)
 {
 	Sys_Error("D3D function not implemented\n");
 }
-void	(D3D_Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation)
+void	(D3D7_Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation)
 {
 //	Sys_Error("D3D function not implemented\n");
 }
-void	(D3D_Draw_TileClear)			(int x, int y, int w, int h)
+void	(D3D7_Draw_TileClear)			(int x, int y, int w, int h)
 {
 //	Sys_Error("D3D function not implemented\n");
 }
-void	(D3D_Draw_Fill_I)				(int x, int y, int w, int h, unsigned int imgcolour)
+void	(D3D7_Draw_Fill_I)				(int x, int y, int w, int h, unsigned int imgcolour)
 {
 	d3dquadvert[0].x = x;
 	d3dquadvert[0].y = y;
@@ -618,7 +618,7 @@ void	(D3D_Draw_Fill_I)				(int x, int y, int w, int h, unsigned int imgcolour)
 	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 }
 
-void	(D3D_Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b)
+void	(D3D7_Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b)
 {
 	char colours[4];
 	colours[0] = b*255;
@@ -626,34 +626,34 @@ void	(D3D_Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float 
 	colours[2] = r*255;
 	colours[3] = 255;
 
-	D3D_Draw_Fill_I(x, y, w, h, *(unsigned int*)colours);
+	D3D7_Draw_Fill_I(x, y, w, h, *(unsigned int*)colours);
 }
 
-void	(D3D_Draw_Fill)				(int x, int y, int w, int h, int c)
+void	(D3D7_Draw_Fill)				(int x, int y, int w, int h, unsigned int c)
 {
-	D3D_Draw_FillRGB(x, y, w, h, host_basepal[c*3+0]/255.0f, host_basepal[c*3+1]/255.0f, host_basepal[c*3+2]/255.0f);
+	D3D7_Draw_FillRGB(x, y, w, h, host_basepal[c*3+0]/255.0f, host_basepal[c*3+1]/255.0f, host_basepal[c*3+2]/255.0f);
 }
-void	(D3D_Draw_FadeScreen)			(void)
-{
-//	Sys_Error("D3D function not implemented\n");
-}
-void	(D3D_Draw_BeginDisc)			(void)
+void	(D3D7_Draw_FadeScreen)			(void)
 {
 //	Sys_Error("D3D function not implemented\n");
 }
-void	(D3D_Draw_EndDisc)				(void)
+void	(D3D7_Draw_BeginDisc)			(void)
+{
+//	Sys_Error("D3D function not implemented\n");
+}
+void	(D3D7_Draw_EndDisc)				(void)
 {
 //	Sys_Error("D3D function not implemented\n");
 }
 
 static int imgcolour;
 
-void	(D3D_Draw_Fill_Colours)				(int x, int y, int w, int h)
+void	(D3D7_Draw_Fill_Colours)				(int x, int y, int w, int h)
 {
-	D3D_Draw_Fill_I(x, y, w, h, imgcolour);
+	D3D7_Draw_Fill_I(x, y, w, h, imgcolour);
 }
 
-void	(D3D_Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic)
+void	(D3D7_Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic)
 {
 	LPDIRECTDRAWSURFACE7 *p;
 	if (!conback_tex)
@@ -700,11 +700,11 @@ void	(D3D_Draw_Image)				(float x, float y, float w, float h, float s1, float t1
 	pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dquadvert, 4, d3dquadindexes, 6, 0);
 }
 
-void	(D3D_Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic)
+void	(D3D7_Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic)
 {
-	D3D_Draw_Image(x, y, width, height, 0, 0, 1, 1, pic);
+	D3D7_Draw_Image(x, y, width, height, 0, 0, 1, 1, pic);
 }
-void	(D3D_Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height)
+void	(D3D7_Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height)
 {
 	float s, t;
 	float sw, tw;
@@ -715,21 +715,21 @@ void	(D3D_Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int wi
 	t = (float)srcy/pic->height;
 	sw = (float)width/pic->width;
 	tw = (float)height/pic->height;
-	D3D_Draw_Image(x, y, width, height, s, t, s+sw, t+tw, pic);
+	D3D7_Draw_Image(x, y, width, height, s, t, s+sw, t+tw, pic);
 }
-void	(D3D_Draw_TransPic)			(int x, int y, mpic_t *pic)
+void	(D3D7_Draw_TransPic)			(int x, int y, mpic_t *pic)
 {
 	if (!pic)
 		return;
-	D3D_Draw_Image(x, y, pic->width, pic->height, 0, 0, 1, 1, pic);
+	D3D7_Draw_Image(x, y, pic->width, pic->height, 0, 0, 1, 1, pic);
 }
-void	(D3D_Draw_Pic)					(int x, int y, mpic_t *pic)
+void	(D3D7_Draw_Pic)					(int x, int y, mpic_t *pic)
 {
 	if (!pic)
 		return;
-	D3D_Draw_Image(x, y, pic->width, pic->height, 0, 0, 1, 1, pic);
+	D3D7_Draw_Image(x, y, pic->width, pic->height, 0, 0, 1, 1, pic);
 }
-void	(D3D_Draw_ImageColours)		(float r, float g, float b, float a)
+void	(D3D7_Draw_ImageColours)		(float r, float g, float b, float a)
 {
 	unsigned char *c = (unsigned char *)&imgcolour;
 	
@@ -739,35 +739,35 @@ void	(D3D_Draw_ImageColours)		(float r, float g, float b, float a)
 	c[3] = a*255;
 }
 
-void	(D3D_Draw_ConsoleBackground)	(int lines)
+void	(D3D7_Draw_ConsoleBackground)	(int lines)
 {
-	D3D_Draw_ImageColours(1,1,1,1);
-	D3D_Draw_Image(0, 0, vid.width, lines, 0, 1 - (float)lines/vid.height, 1, 1, conback_tex);
+	D3D7_Draw_ImageColours(1,1,1,1);
+	D3D7_Draw_Image(0, 0, vid.width, lines, 0, 1 - (float)lines/vid.height, 1, 1, conback_tex);
 }
-void	(D3D_Draw_EditorBackground)	(int lines)
+void	(D3D7_Draw_EditorBackground)	(int lines)
 {
-	D3D_Draw_ConsoleBackground(lines);
+	D3D7_Draw_ConsoleBackground(lines);
 }
 
 
 
 
-void (D3D_Media_ShowFrameBGR_24_Flip)	(qbyte *framedata, int inwidth, int inheight)
+void (D3D7_Media_ShowFrameBGR_24_Flip)	(qbyte *framedata, int inwidth, int inheight)
 {
 	mpic_t pic;
 	LPDIRECTDRAWSURFACE7 *p;
 	p = (LPDIRECTDRAWSURFACE7*)&pic.data;
-	*p = D3D_LoadTexture_32("", (unsigned int*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP);
+	*p = D3D7_LoadTexture_32("", (unsigned int*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP);
 
-	D3D_Set2D ();
-	D3D_Draw_ImageColours(1,1,1,1);
+	D3D7_Set2D ();
+	D3D7_Draw_ImageColours(1,1,1,1);
 	pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHATESTENABLE, FALSE );
-	D3D_Draw_Image(0, 0, vid.width, vid.height, 0, 1, 1, 0, &pic);
+	D3D7_Draw_Image(0, 0, vid.width, vid.height, 0, 1, 1, 0, &pic);
 	pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHATESTENABLE, TRUE );
 
-	D3D_UnloadTexture(*p);
+	D3D7_UnloadTexture(*p);
 }	//input is bottom up...
-void (D3D_Media_ShowFrameRGBA_32)		(qbyte *framedata, int inwidth, int inheight)
+void (D3D7_Media_ShowFrameRGBA_32)		(qbyte *framedata, int inwidth, int inheight)
 {
 	mpic_t pic;
 	LPDIRECTDRAWSURFACE7 *p;
@@ -776,29 +776,29 @@ void (D3D_Media_ShowFrameRGBA_32)		(qbyte *framedata, int inwidth, int inheight)
 	pic.height = inheight;
 	pic.flags = 0;
 	p = (LPDIRECTDRAWSURFACE7*)&pic.data;
-	*p = D3D_LoadTexture_32("", (unsigned int*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP);
+	*p = D3D7_LoadTexture_32("", (unsigned int*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP);
 
-	D3D_Set2D ();
-	D3D_Draw_ImageColours(1,1,1,1);
+	D3D7_Set2D ();
+	D3D7_Draw_ImageColours(1,1,1,1);
 	pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHATESTENABLE, FALSE );
-	D3D_Draw_Image(0, 0, vid.width, vid.height, 0, 0, 1, 1, &pic);
+	D3D7_Draw_Image(0, 0, vid.width, vid.height, 0, 0, 1, 1, &pic);
 	pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHATESTENABLE, TRUE );
 
-	D3D_UnloadTexture(*p);
+	D3D7_UnloadTexture(*p);
 }	//top down
-void (D3D_Media_ShowFrame8bit)			(qbyte *framedata, int inwidth, int inheight, qbyte *palette)
+void (D3D7_Media_ShowFrame8bit)			(qbyte *framedata, int inwidth, int inheight, qbyte *palette)
 {
 	mpic_t pic;
 	LPDIRECTDRAWSURFACE7 *p;
 	p = (LPDIRECTDRAWSURFACE7*)&pic.data;
-	*p = D3D_LoadTexture_8_Pal24("", (unsigned char*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP, palette, 256);
+	*p = D3D7_LoadTexture_8_Pal24("", (unsigned char*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP, palette, 256);
 
-	D3D_Set2D ();
-	D3D_Draw_ImageColours(1,1,1,1);
+	D3D7_Set2D ();
+	D3D7_Draw_ImageColours(1,1,1,1);
 	pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHATESTENABLE, FALSE );
-	D3D_Draw_Image(0, 0, vid.width, vid.height, 0, 1, 1, 0, &pic);
+	D3D7_Draw_Image(0, 0, vid.width, vid.height, 0, 1, 1, 0, &pic);
 	pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHATESTENABLE, TRUE );
 
-	D3D_UnloadTexture(*p);
+	D3D7_UnloadTexture(*p);
 }	//paletted topdown (framedata is 8bit indexes into palette)
 #endif

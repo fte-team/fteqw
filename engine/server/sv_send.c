@@ -565,6 +565,9 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			default:
 				SV_Error("Multicast: Client is using a bad protocl");
 
+			case SCP_QUAKE3:
+				Con_Printf("Skipping multicast for q3 client\n");
+				break;
 #ifdef NQPROT
 			case SCP_NETQUAKE:
 			case SCP_DARKPLACES6:
@@ -653,15 +656,16 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				continue;
 			}
 
+			if (svprogfuncs)
+				if (!((int)client->edict->xv->dimension_see & dimension_mask))
+					continue;
+
 			if (to == MULTICAST_PHS_R || to == MULTICAST_PHS) {
 				vec3_t delta;
 				VectorSubtract(origin, client->edict->v->origin, delta);
 				if (Length(delta) <= 1024)
 					goto inrange;
 			}
-			else if (svprogfuncs)
-				if (!((int)client->edict->xv->dimension_see & dimension_mask))
-					continue;
 
 			// -1 is because pvs rows are 1 based, not 0 based like leafs
 			if (mask != sv.pvs)
@@ -681,6 +685,10 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				continue;	//a bot.
 			default:
 				SV_Error("multicast: Client is using a bad protocol");
+
+			case SCP_QUAKE3:
+				Con_Printf("Skipping multicast for q3 client\n");
+				break;
 
 #ifdef NQPROT
 			case SCP_NETQUAKE:
@@ -1172,14 +1180,17 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 }
 
 typedef struct {
-	int type;
+	int type;	//negative means a global.
 	char name[64];
-	evalc_t evalc;
+	union {
+		evalc_t c;
+		eval_t *g;	//just store a pointer to it.
+	} eval;
 	int statnum;
 } qcstat_t;
 qcstat_t qcstats[MAX_CL_STATS-32];
 int numqcstats;
-void SV_QCStatEval(int type, char *name, evalc_t *cache, int statnum)
+void SV_QCStatEval(int type, char *name, evalc_t *field, eval_t *global, int statnum)
 {
 	int i;
 	if (numqcstats == sizeof(qcstats)/sizeof(qcstats[0]))
@@ -1206,17 +1217,36 @@ void SV_QCStatEval(int type, char *name, evalc_t *cache, int statnum)
 	qcstats[i].type = type;
 	qcstats[i].statnum = statnum;
 	Q_strncpyz(qcstats[i].name, name, sizeof(qcstats[i].name));
-	memcpy(&qcstats[i].evalc, cache, sizeof(evalc_t));
+	if (type < 0)
+		qcstats[i].eval.g = global;
+	else
+		memcpy(&qcstats[i].eval.c, field, sizeof(evalc_t));
+}
+
+void SV_QCStatGlobal(int type, char *globalname, int statnum)
+{
+	eval_t *glob;
+
+	glob = svprogfuncs->FindGlobal(svprogfuncs, globalname, PR_ANY);
+	if (!glob)
+	{
+		Con_Printf("couldn't find named global for csqc stat (%s)\n", globalname);
+		return;
+	}
+	SV_QCStatEval(type, globalname, NULL, glob, statnum);
 }
 
 void SV_QCStatName(int type, char *name, int statnum)
 {
 	evalc_t cache;
+	if (type < 0)
+		return;
+
 	memset(&cache, 0, sizeof(cache));
 	if (!svprogfuncs->GetEdictFieldValue(svprogfuncs, NULL, name, &cache))
 		return;
 
-	SV_QCStatEval(type, name, &cache, statnum);
+	SV_QCStatEval(type, name, &cache, NULL, statnum);
 }
 
 void SV_QCStatFieldIdx(int type, unsigned int fieldindex, int statnum)
@@ -1225,12 +1255,15 @@ void SV_QCStatFieldIdx(int type, unsigned int fieldindex, int statnum)
 	char *name;
 	etype_t ftype;
 
+	if (type < 0)
+		return;
+
 	if (!svprogfuncs->QueryField(svprogfuncs, fieldindex, &ftype, &name, &cache))
 	{
 		Con_Printf("invalid field for csqc stat\n");
 		return;
 	}
-	SV_QCStatEval(type, name, &cache, statnum);
+	SV_QCStatEval(type, name, &cache, NULL, statnum);
 }
 
 void SV_ClearQCStats(void)
@@ -1242,15 +1275,25 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char **statss, float *statsf)
 {
 	char *s;
 	int i;
+	int t;
 
 	for (i = 0; i < numqcstats; i++)
 	{
 		eval_t *eval;
-		eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, qcstats[i].name, &qcstats[i].evalc);
+		t = qcstats[i].type;
+		if (t < 0)
+		{
+			t = -t;
+			eval = qcstats[i].eval.g;
+		}
+		else
+		{
+			eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, qcstats[i].name, &qcstats[i].eval.c);
+		}
 		if (!eval)
 			continue;
 
-		switch(qcstats[i].type)
+		switch(t)
 		{
 		case ev_float:
 			statsf[qcstats[i].statnum] = eval->_float;
@@ -1341,9 +1384,9 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 #endif
 
 	if (!ent->xv->viewzoom)
-		statsf[STAT_VIEWZOOM] = 255;
+		statsi[STAT_VIEWZOOM] = 255;
 	else
-		statsf[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
+		statsi[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
 
 	if (host_client->protocol == SCP_DARKPLACES7)
 	{
@@ -1411,11 +1454,11 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		if (!ISQWCLIENT(client))
 		{
 			if (!statsi[i])
-				statsi[i] = *(int*)&statsf[i];
+				statsi[i] = statsf[i];
 			if (statsi[i] != client->statsi[i])
 			{
 				client->statsi[i] = statsi[i];
-				ClientReliableWrite_Begin(client, svc_updatestat, 3);
+				ClientReliableWrite_Begin(client, svc_updatestat, 6);
 				ClientReliableWrite_Byte(client, i);
 				ClientReliableWrite_Long(client, statsi[i]);
 			}
@@ -1779,7 +1822,7 @@ void SV_UpdateToReliableMessages (void)
 		SZ_Clear (&sv.datagram);
 
 #ifdef NQPROT
-	if (sv.nqdatagram.overflowed)
+//	if (sv.nqdatagram.overflowed)
 		SZ_Clear (&sv.nqdatagram);
 #endif
 #ifdef Q2SERVER
@@ -1925,6 +1968,16 @@ void SV_SendClientMessages (void)
 			c->datagram.cursize = 0;
 			continue;
 		}
+
+#ifdef Q3SERVER
+		if (ISQ3CLIENT(c))
+		{	//q3 protocols bypass backbuffering and pretty much everything else
+			if (c->state <= cs_zombie)
+				continue;
+			SVQ3_SendMessage(c);
+			continue;
+		}
+#endif
 
 		// check to see if we have a backbuf to stick in the reliable
 		if (c->num_backbuf)

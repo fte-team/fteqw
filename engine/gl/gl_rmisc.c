@@ -122,9 +122,10 @@ static qbyte	exptexture[16][16] =
 	{0,1,1,1,7,8,1,6,7,5,4,7,1,0,0,0},
 	{0,1,2,1,1,5,1,3,4,3,1,1,0,0,0,0},
 	{0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0},
-	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0},
 	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 };
+
 void R_InitParticleTexture (void)
 {
 #define PARTICLETEXTURESIZE 64
@@ -154,6 +155,38 @@ void R_InitParticleTexture (void)
 
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+
+	//
+	// particle triangle texture
+	//
+	particlecqtexture = texture_extension_number++;
+    GL_Bind(particlecqtexture);
+
+	// clear to transparent white
+	for (x = 0; x < 32 * 32; x++)
+	{
+			data[x][0] = 255;
+			data[x][1] = 255;
+			data[x][2] = 255;
+			data[x][3] = 0;
+	}
+	//draw a circle in the top left.
+	for (x=0 ; x<16 ; x++)
+	{
+		for (y=0 ; y<16 ; y++)
+		{
+			if ((x - 7.5) * (x - 7.5) + (y - 7.5) * (y - 7.5) <= 8 * 8)
+				data[y*32+x][3] = 255;
+		}
+	}
+	qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 32, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
 
 
 
@@ -1064,7 +1097,9 @@ void GLR_NewMap (void)
 // FIXME: is this one short?
 	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 		cl.worldmodel->leafs[i].efrags = NULL;
-		 	
+
+	GLSurf_DeInit();
+
 	r_viewleaf = NULL;
 	r_viewcluster = -1;
 	r_oldviewcluster = 0;

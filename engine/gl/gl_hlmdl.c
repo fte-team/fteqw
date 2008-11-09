@@ -133,6 +133,13 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 		return false;
 	}
 
+	if (header->numcontrollers > MAX_BONE_CONTROLLERS)
+	{
+		Con_Printf(CON_ERROR "Cannot load model %s - too many controllers %i\n", mod->name, header->numcontrollers);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
+
     tex = (hlmdl_tex_t *) ((qbyte *) header + header->textures);
     bones = (hlmdl_bone_t *) ((qbyte *) header + header->boneindex);
     bonectls = (hlmdl_bonecontroller_t *) ((qbyte *) header + header->controllerindex);
@@ -183,105 +190,17 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 
 /*
  =======================================================================================================================
-    HL_CurSequence - return the current sequence
- =======================================================================================================================
- */
-int HL_CurSequence(hlmodel_t model)
-{
-    return model.sequence;
-}
-
-/*
- =======================================================================================================================
-    HL_NewSequence - animation control (just some range checking really)
- =======================================================================================================================
- */
-int HL_NewSequence(hlmodel_t *model, int _inew)
-{
-    if(_inew < 0)
-        _inew = model->header->numseq - 1;
-    else if(_inew >= model->header->numseq)
-        _inew = 0;
-
-    model->sequence = _inew;
-    model->frame = 0;
-    {
-        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-        hlmdl_sequencelist_t	*pseqdesc;
-        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-        if(_inew == 0)
-        {
-            pseqdesc = (hlmdl_sequencelist_t *) ((qbyte *) model->header + model->header->seqindex) + model->sequence;
-        }
-        else
-        {
-            pseqdesc = (hlmdl_sequencelist_t *) ((qbyte *) model->header + model->header->seqindex) + model->sequence;
-        }
-
-        Sys_Printf("Current Sequence: %s\n", pseqdesc->name);
-    }
-
-    return model->sequence;
-}
-
-/*
- =======================================================================================================================
-    HL_SetController - control where the model is facing (upper body usually)
- =======================================================================================================================
- */
-void HL_SetController(hlmodel_t *model, int num, float value)
-{
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-    int						real, limit;
-    hlmdl_bonecontroller_t	*control = (hlmdl_bonecontroller_t *)
-                                      ((qbyte *) model->header + model->header->controllerindex);
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-    if(num >= model->header->numcontrollers) return;
-
-    if(num == 4)
-    {
-        limit = 64;
-    }
-    else
-    {
-        limit = 255;
-    }
-
-    if(control->type & (0x0008 | 0x0010 | 0x0020))
-    {
-        if(control->end < control->start) value = -value;
-
-        if(control->start + 359.0 >= control->end)
-        {
-            if(value > ((control->start + control->end) / 2.0) + 180) value = value - 360;
-            if(value < ((control->start + control->end) / 2.0) - 180) value = value + 360;
-        }
-        else
-        {
-            if(value > 360)
-                value = value - (int) (value / 360.0) * 360.0;
-            else if(value < 0)
-                value = value + (int) ((value / -360.0) + 1) * 360.0;
-        }
-    }
-
-    real = limit * (value - control[num].start) / (control[num].end - control[num].start);
-    if(real < 0) real = 0;
-    if(real > limit) real = limit;
-    model->controller[num] = real;
-}
-
-/*
- =======================================================================================================================
     HL_CalculateBones - calculate bone positions - quaternion+vector in one function
  =======================================================================================================================
+
+  note, while ender may be proud of this function, it lacks the fact that interpolating eular angles is not as acurate as interpolating quaternions.
+  it is faster though.
  */
 void HL_CalculateBones
 (
     int				offset,
     int				frame,
+	float			lerpfrac,
     vec4_t			adjust,
     hlmdl_bone_t	*bone,
     hlmdl_anim_t	*animation,
@@ -291,6 +210,8 @@ void HL_CalculateBones
     /*~~~~~~~~~~*/
     int		i;
     vec3_t	angle;
+	float lerpifrac = 1-lerpfrac;
+	float t;
     /*~~~~~~~~~~*/
 
     /* For each vector */
@@ -318,18 +239,21 @@ void HL_CalculateBones
             if(animvalue->num.valid > tempframe)
             {
                 if(animvalue->num.valid > (tempframe + 1))
-                    angle[i] += animvalue[tempframe + 1].value * 1; // + 0 * animvalue[tempframe + 2].value * bone->scale[o];
+				{
+					//we can lerp that
+                    t = animvalue[tempframe + 1].value * lerpifrac + lerpfrac * animvalue[tempframe + 2].value;
+				}
                 else
-                    angle[i] = animvalue[animvalue->num.valid].value;
-                angle[i] = bone->value[o] + angle[i] * bone->scale[o];
+                    t = animvalue[animvalue->num.valid].value;
+                angle[i] = bone->value[o] + t * bone->scale[o];
             }
             else
             {
-                if(animvalue->num.total <= tempframe + 1)
+                if(animvalue->num.total < tempframe + 1)
                 {
                     angle[i] +=
-                        (animvalue[animvalue->num.valid].value * 1 +
-                         0 * animvalue[animvalue->num.valid + 2].value) *
+                        (animvalue[animvalue->num.valid].value * lerpifrac +
+                         lerpfrac * animvalue[animvalue->num.valid + 2].value) *
                         bone->scale[o];
                 }
                 else
@@ -339,7 +263,8 @@ void HL_CalculateBones
             }
         }
 
-        if(bone->bonecontroller[o] != -1) {	/* Add the programmable offset. */
+        if(bone->bonecontroller[o] != -1)
+		{	/* Add the programmable offset. */
             angle[i] += adjust[bone->bonecontroller[o]];
         }
     }
@@ -380,7 +305,7 @@ void HL_CalcBoneAdj(hlmodel_t *model)
         }
         else
         {
-            value = model->controller[j];
+            value = (model->controller[j]+1)*0.5;	//shifted to give a valid range between -1 and 1, with 0 being mid-range.
             if(value < 0)
                 value = 0;
             else if(value > 1.0)
@@ -401,15 +326,20 @@ void HL_CalcBoneAdj(hlmodel_t *model)
     HL_SetupBones - determine where vertex should be using bone movements
  =======================================================================================================================
  */
-void HL_SetupBones(hlmodel_t *model)
+void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt );
+void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, float subblendfrac)
 {
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     int						i;
     float					matrix[3][4];
-    static vec3_t			positions[128];
-    static vec4_t			quaternions[128];
+    static vec3_t			positions[2];
+    static vec4_t			quaternions[2], blended;
+
+	float frametime;
+	int frame;
+
     hlmdl_sequencelist_t	*sequence = (hlmdl_sequencelist_t *) ((qbyte *) model->header + model->header->seqindex) +
-                                     model->sequence;
+										 ((unsigned int)seqnum>=model->header->numseq?0:seqnum);
     hlmdl_sequencedata_t	*sequencedata = (hlmdl_sequencedata_t *)
                                          ((qbyte *) model->header + model->header->seqgroups) +
                                          sequence->seqindex;
@@ -417,40 +347,119 @@ void HL_SetupBones(hlmodel_t *model)
                                 ((qbyte *) model->header + sequencedata->data + sequence->index);
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+	frametime = (cl.time - cl.lerpents[currententity->keynum].framechange)*sequence->timing;
+	frame = (int)frametime;
+	frametime -= frame;
+
+	if (!sequence->numframes)
+		return;
+    if(frame >= sequence->numframes)
+	{
+		if (sequence->motiontype&1)
+			frame = sequence->numframes-1;
+		else
+			frame %= sequence->numframes;
+	}
+
+	if (lastbone > model->header->numbones)
+		lastbone = model->header->numbones;
+
+
+
     HL_CalcBoneAdj(model);	/* Deal with programmable controllers */
 
-    if(sequence->motiontype & 0x0001) positions[sequence->motionbone][0] = 0.0;
-    if(sequence->motiontype & 0x0002) positions[sequence->motionbone][1] = 0.0;
-    if(sequence->motiontype & 0x0004) positions[sequence->motionbone][2] = 0.0;
+	/*FIXME:this is useless*/
+	/*
+    if(sequence->motiontype & 0x0001)
+		positions[sequence->motionbone][0] = 0.0;
+    if(sequence->motiontype & 0x0002)
+		positions[sequence->motionbone][1] = 0.0;
+    if(sequence->motiontype & 0x0004)
+		positions[sequence->motionbone][2] = 0.0;
+		*/
 
-    /* Sys_Printf("Frame: %i\n", model->frame); */
-    for(i = 0; i < model->header->numbones; i++)
-    {
-        /*
-         * There are two vector offsets in the structure. The first seems to be the
-         * positions of the bones, the second the quats of the bone matrix itself. We
-         * convert it inside the routine - Inconsistant, but hey.. so's the whole model
-         * format.
-         */
-        HL_CalculateBones(0, model->frame, model->adjust, model->bones + i, animation + i, positions[i]);
-        HL_CalculateBones(3, model->frame, model->adjust, model->bones + i, animation + i, quaternions[i]);
+	/*
+	this is hellish.
+	a hl model blends:
+		4 controllers (on a player, it seems each one of them twists a separate bone in the chest)
+		a mouth (not used on players)
+		its a sequence (to be smooth we need to blend between two frames in the sequence)
+		up to four source animations (ironically used to pitch up/down)
+		alternate sequence (walking+firing)
+		frame2 (quake expectations.)
 
-        /* FIXME: Blend the bones and make them cry :) */
-        QuaternionGLMatrix(quaternions[i][0], quaternions[i][1], quaternions[i][2], quaternions[i][3], matrix);
-        matrix[0][3] = positions[i][0];
-        matrix[1][3] = positions[i][1];
-        matrix[2][3] = positions[i][2];
+		this is madness, quite frankly.
 
-        /* If we have a parent, take the addition. Otherwise just copy the values */
-        if(model->bones[i].parent>=0)
-        {
-            R_ConcatTransforms(transform_matrix[model->bones[i].parent], matrix, transform_matrix[i]);
-        }
-        else
-        {
-            memcpy(transform_matrix[i], matrix, 12 * sizeof(float));
-        }
-    }
+		luckily...
+		controllers and mouth control the entire thing. they should be interpolated outside, and have no affect on blending here
+		alternate sequences replace. we can just call this function twice (so long as bone ranges are incremental).
+		autoanimating sequence is handled inside HL_CalculateBones (sequences are weird and it has to be handled there anyway)
+
+		this means we only have sources and alternate frames left to cope with.
+
+		FIXME: we don't handle frame2.
+	*/
+
+	if (sequence->hasblendseq>1)
+	{
+		if (subblendfrac < 0)
+			subblendfrac = 0;
+		if (subblendfrac > 1)
+			subblendfrac = 1;
+		for(i = firstbone; i < lastbone; i++)
+		{
+			HL_CalculateBones(0, frame, frametime, model->adjust, model->bones + i, animation + i, positions[0]);
+			HL_CalculateBones(3, frame, frametime, model->adjust, model->bones + i, animation + i, quaternions[0]);
+			
+			HL_CalculateBones(3, frame, frametime, model->adjust, model->bones + i, animation + i + model->header->numbones, quaternions[1]);
+
+			QuaternionSlerp(quaternions[0], quaternions[1], subblendfrac, blended);
+			QuaternionGLMatrix(blended[0], blended[1], blended[2], blended[3], matrix);
+			matrix[0][3] = positions[0][0];
+			matrix[1][3] = positions[0][1];
+			matrix[2][3] = positions[0][2];
+
+			/* If we have a parent, take the addition. Otherwise just copy the values */
+			if(model->bones[i].parent>=0)
+			{
+				R_ConcatTransforms(transform_matrix[model->bones[i].parent], matrix, transform_matrix[i]);
+			}
+			else
+			{
+				memcpy(transform_matrix[i], matrix, 12 * sizeof(float));
+			}
+		}
+
+	}
+	else
+	{
+		for(i = firstbone; i < lastbone; i++)
+		{
+			/*
+			 * There are two vector offsets in the structure. The first seems to be the
+			 * positions of the bones, the second the quats of the bone matrix itself. We
+			 * convert it inside the routine - Inconsistant, but hey.. so's the whole model
+			 * format.
+			 */
+			HL_CalculateBones(0, frame, frametime, model->adjust, model->bones + i, animation + i, positions[0]);
+			HL_CalculateBones(3, frame, frametime, model->adjust, model->bones + i, animation + i, quaternions[0]);
+
+			QuaternionGLMatrix(quaternions[0][0], quaternions[0][1], quaternions[0][2], quaternions[0][3], matrix);
+			matrix[0][3] = positions[0][0];
+			matrix[1][3] = positions[0][1];
+			matrix[2][3] = positions[0][2];
+
+			/* If we have a parent, take the addition. Otherwise just copy the values */
+			if(model->bones[i].parent>=0)
+			{
+				R_ConcatTransforms(transform_matrix[model->bones[i].parent], matrix, transform_matrix[i]);
+			}
+			else
+			{
+				memcpy(transform_matrix[i], matrix, 12 * sizeof(float));
+			}
+		}
+	}
 }
 
 /*
@@ -465,7 +474,6 @@ void R_DrawHLModel(entity_t	*curent)
 	hlmodel_t model;
     int						b, m, v;
     short					*skins;
-    hlmdl_sequencelist_t	*sequence;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 	//general model
@@ -474,38 +482,10 @@ void R_DrawHLModel(entity_t	*curent)
 	model.bones		= (hlmdl_bone_t *)				((char *)modelc + modelc->bones);
 	model.bonectls	= (hlmdl_bonecontroller_t *)	((char *)modelc + modelc->bonectls);
 
-	//specific to entity
-	model.sequence	= curent->frame;
-	model.frame		= 0;
-	model.frametime	= 0;
-
-	HL_NewSequence(&model, curent->frame);
-
     skins = (short *) ((qbyte *) model.header + model.header->skins);
-    sequence = (hlmdl_sequencelist_t *) ((qbyte *) model.header + model.header->seqindex) +
-                                     model.sequence;
 
-	model.controller[0] = curent->bonecontrols[0];
-	model.controller[1] = curent->bonecontrols[1];
-	model.controller[2] = curent->bonecontrols[2];
-	model.controller[3] = curent->bonecontrols[3];
-	model.controller[4] = 0;//sin(cl.time)*127+127;
-
-	model.frametime += (cl.time - cl.lerpents[curent->keynum].framechange)*sequence->timing;
-
-	if (model.frametime>=1)
-	{
-		model.frame += (int) model.frametime;
-		model.frametime -= (int)model.frametime;
-	}
-
-	if (!sequence->numframes)
-		return;
-    if(model.frame >= sequence->numframes)
-		model.frame %= sequence->numframes;
-
-	if (sequence->motiontype)
-		model.frame = sequence->numframes-1;
+	for (b = 0; b < MAX_BONE_CONTROLLERS; b++)
+		model.controller[b] = curent->bonecontrols[b];
 
 	GL_TexEnv(GL_MODULATE);
 
@@ -531,7 +511,8 @@ void R_DrawHLModel(entity_t	*curent)
 
     R_RotateForEntity (curent);
 
-    HL_SetupBones(&model);	/* Setup the bones */
+    HL_SetupBones(&model, curent->baseframe1, 0, curent->basebone, (curent->basesubblendfrac+1)*0.5);	/* Setup the bones */
+	HL_SetupBones(&model, curent->frame1, curent->basebone, model.header->numbones, (curent->subblendfrac+1)*0.5);	/* Setup the bones */
 
     /* Manipulate each mesh directly */
     for(b = 0; b < model.header->numbodyparts; b++)

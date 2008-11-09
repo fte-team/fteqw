@@ -1372,7 +1372,52 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 			cmd_argc++;
 		}
 	}
+}
 
+void Cmd_TokenizePunctation (char *text, char *punctuation)
+{
+	int		i;
+
+// clear the args from the last string
+	for (i=0 ; i<cmd_argc ; i++)
+		Z_Free (cmd_argv[i]);
+
+	cmd_argc = 0;
+	Cmd_Args_Set(NULL);
+
+	while (1)
+	{
+// skip whitespace up to a \n
+		while (*text && (unsigned)*text <= ' ' && *text != '\n')
+		{
+			text++;
+		}
+
+		if (*text == '\n')
+		{	// a newline seperates commands in the buffer
+			text++;
+			break;
+		}
+
+		if (!*text)
+			return;
+
+		if (cmd_argc == 1)
+		{
+			Cmd_Args_Set(text);
+		}
+
+		text = COM_ParseToken (text, punctuation);
+		if (!text)
+			return;
+
+		if (cmd_argc < MAX_ARGS)
+		{
+			cmd_argv[cmd_argc] = (char*)Z_Malloc (Q_strlen(com_token)+1);
+			Q_strcpy (cmd_argv[cmd_argc], com_token);
+			cmd_argc++;
+		}
+	}
 }
 
 
@@ -2547,6 +2592,24 @@ void Cmd_set_f(void)
 		text = Cmd_Args();
 		if (*text == '\"')	//if it's already quoted, dequote it, and ignore trailing stuff, for q2/q3 compatability
 			text = Cmd_Argv(1);
+		else
+		{
+			end = strstr(text, "//");
+			if (end)
+			{
+				*end--;
+				while (end >= text)
+				{
+					if (*end == ' ')
+						end--;
+					else
+						break;
+				}
+				end++;
+				*(char*)end = 0;
+
+			}
+		}
 		forceflags = 0;
 	}
 

@@ -222,6 +222,10 @@ SOURCE=.\gui.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\pr_comp.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\qcc.h
 # End Source File
 # End Group

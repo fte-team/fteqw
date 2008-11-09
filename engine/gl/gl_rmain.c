@@ -63,6 +63,7 @@ int			c_brush_polys, c_alias_polys;
 qboolean	envmap;				// true during envmap command capture 
 
 int			particletexture;	// little dot for particles
+int			particlecqtexture;	// little dot for particles
 int			explosiontexture;
 int			balltexture;
 int			playertextures;		// up to 16 color translated skins
@@ -793,6 +794,9 @@ void R_PolyBlend (void)
 	if ((!v_blend[3] || !gl_nohwblend.value) && !cl.cshifts[CSHIFT_SERVER].percent)
 		return;
 
+	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
+		return;
+
 	GLV_CalcBlendServer(shift);	//figure out the shift we need (normally just the server specified one)
 
 //Con_Printf("R_PolyBlend(): %4.2f %4.2f %4.2f %4.2f\n",shift[0], shift[1],	shift[2],	shift[3]);
@@ -833,6 +837,9 @@ void GLR_BrightenScreen (void)
 	RSpeedMark();
 
 	if (gl_contrast.value <= 1.0)
+		return;
+
+	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
 
 	f = gl_contrast.value;
@@ -1660,6 +1667,9 @@ void GLR_RenderView (void)
 
 	if (qglGetError())
 		Con_Printf("GL Error drawing scene\n");
+
+	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
+		return;
 
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp

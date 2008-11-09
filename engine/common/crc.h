@@ -24,3 +24,4 @@ void QCRC_AddBlock (unsigned short *crcvalue, qbyte *start, int count);
 void QCRC_ProcessByte(unsigned short *crcvalue, qbyte data);
 unsigned short QCRC_Value(unsigned short crcvalue);
 unsigned short QCRC_Block (qbyte *start, int count);
+unsigned short QCRC_Block_AsLower (qbyte *start, int count);

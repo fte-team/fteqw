@@ -18,6 +18,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 // r_local.h -- private refresh defs
+#ifndef R_LOCAL_H
+#define R_LOCAL_H
 
 #ifdef SWQUAKE
 
@@ -314,9 +316,10 @@ void SWR_NetGraph (void);
 
 qbyte *SWMod_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer);
 
-void D_DrawSparkTrans (particle_t *pparticle, vec3_t src, vec3_t dest, int blendmode);
+void D_DrawSparkTrans (struct particle_s *pparticle, vec3_t src, vec3_t dest, int blendmode);
 
 
 void D_Shutdown (void);
 
 #endif //def SWQUAKE
+#endif

@@ -144,6 +144,7 @@ extern gl_config_t gl_config;
 extern	float	gldepthmin, gldepthmax;
 
 void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean mipmap, qboolean alpha);	//name was added for texture compression output
+void GL_Upload32_BGRA (char *name, unsigned *data, int width, int height,  qboolean mipmap, qboolean alpha);	//name was added for texture compression output
 void GL_Upload8 (char *name, qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
 void GL_Upload24BGR_Flip (char *name, qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
 void GL_Upload24BGR (char *name, qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
@@ -230,6 +231,7 @@ extern	int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 extern	qboolean	envmap;
 extern	int	particletexture;
+extern	int particlecqtexture;
 extern	int explosiontexture;
 extern	int balltexture;
 extern	int	netgraphtexture;	// netgraph texture
@@ -306,7 +308,6 @@ void R_DrawRailCore(entity_t *e);
 void R_DrawLightning(entity_t *e);
 void R_DrawBeam( entity_t *e );
 
-void P_FlushRenderer(void);
 #endif
 
 //

@@ -1242,10 +1242,10 @@ qboolean Mod_LoadClipnodes (lump_t *l)
 		hull->planes = loadmodel->planes;
 		hull->clip_mins[0] = -16;
 		hull->clip_mins[1] = -16;
-		hull->clip_mins[2] = -36;
+		hull->clip_mins[2] = -32;//-36 is correct here, but we'll just copy mvdsv instead.
 		hull->clip_maxs[0] = 16;
 		hull->clip_maxs[1] = 16;
-		hull->clip_maxs[2] = 36;
+		hull->clip_maxs[2] = hull->clip_mins[2]+72;
 		hull->available = true;
 
 		hull = &loadmodel->hulls[2];
@@ -1258,7 +1258,7 @@ qboolean Mod_LoadClipnodes (lump_t *l)
 		hull->clip_mins[2] = -32;
 		hull->clip_maxs[0] = 32;
 		hull->clip_maxs[1] = 32;
-		hull->clip_maxs[2] = 32;
+		hull->clip_maxs[2] = hull->clip_mins[2]+64;
 		hull->available = true;
 
 		hull = &loadmodel->hulls[3];
@@ -1271,7 +1271,7 @@ qboolean Mod_LoadClipnodes (lump_t *l)
 		hull->clip_mins[2] = -18;
 		hull->clip_maxs[0] = 16;
 		hull->clip_maxs[1] = 16;
-		hull->clip_maxs[2] = 18;
+		hull->clip_maxs[2] = hull->clip_mins[2]+36;
 		hull->available = true;
 	}
 	else

@@ -49,7 +49,10 @@ void GoToDefinition(char *name)
 				return;
 			}
 		}
-		EditFile(def->s_file+strings, def->s_line-1);
+		if (!def->s_file)
+			GUI_DialogPrint("Not found", "Global definition of var was not specified.");
+		else
+			EditFile(def->s_file+strings, def->s_line-1);
 	}
 	else
 		GUI_DialogPrint("Not found", "Global instance of var was not found.");

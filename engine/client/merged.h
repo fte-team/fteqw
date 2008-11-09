@@ -86,7 +86,7 @@ extern void SCR_EndLoadingPlaque					(void);
 extern void SCR_DrawConsole							(qboolean noback);
 extern void SCR_SetUpToDrawConsole					(void);
 extern void SCR_EraseCenterString					(void);
-extern void SCR_CenterPrint							(int pnum, char *str);
+extern void SCR_CenterPrint							(int pnum, char *str, qboolean fromgamecode);
 
 #endif
 

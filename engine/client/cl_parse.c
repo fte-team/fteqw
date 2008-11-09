@@ -29,6 +29,7 @@ void CL_SetStatInt (int pnum, int stat, int value);
 int nq_dp_protocol;
 int msgflags;
 
+char cl_dp_csqc_progsname[128];
 int cl_dp_csqc_progssize;
 int cl_dp_csqc_progscrc;
 
@@ -185,15 +186,18 @@ char *svc_nqstrings[] =
 	"NEW PROTOCOL",
 	"NEW PROTOCOL",
 	"dpsvc_downloaddata",		//50
-	"dpsvc_updatestatubyte",
-	"dpsvc_effect",
-	"dpsvc_effect2",
-	"dp6svc_precache/dp5svc_sound2",
-	"dpsvc_spawnbaseline2",
-	"dpsvc_spawnstatic2",
-	"dpsvc_entities",
-	"NEW PROTOCOL",
-	"dpsvc_spawnstaticsound2"
+	"dpsvc_updatestatubyte",	//51
+	"dpsvc_effect",				//52
+	"dpsvc_effect2",			//53
+	"dp6svc_precache/dp5svc_sound2",	//54
+	"dpsvc_spawnbaseline2",		//55
+	"dpsvc_spawnstatic2",	//56 obsolete
+	"dpsvc_entities",		//57
+	"NEW PROTOCOL",			//58
+	"dpsvc_spawnstaticsound2",	//59
+	"dpsvc_trailparticles",	//60
+	"dpsvc_pointparticles",	//61
+	"dpsvc_pointparticles1"	//62
 };
 
 extern cvar_t requiredownloads, cl_standardchat, msg_filter, cl_countpendingpl;
@@ -280,7 +284,7 @@ int CL_CalcNet (void)
 
 //note: this will overwrite existing files.
 //returns true if the download is going to be downloaded after the call.
-qboolean CL_EnqueDownload(char *filename, char *localname, qboolean verbose, qboolean ignorefailedlist)
+qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 {
 	downloadlist_t *dl;
 	if (!localname)
@@ -295,13 +299,13 @@ qboolean CL_EnqueDownload(char *filename, char *localname, qboolean verbose, qbo
 	if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
 		return false;
 
-	if (!ignorefailedlist)
+	if (!(flags & DLLF_IGNOREFAILED))
 	{
 		for (dl = cl.faileddownloads; dl; dl = dl->next)	//yeah, so it failed... Ignore it.
 		{
 			if (!strcmp(dl->name, filename))
 			{
-				if (verbose)
+				if (flags & DLLF_VERBOSE)
 					Con_Printf("We've failed to download \"%s\" already\n", filename);
 				return false;
 			}
@@ -312,7 +316,7 @@ qboolean CL_EnqueDownload(char *filename, char *localname, qboolean verbose, qbo
 	{
 		if (!strcmp(dl->name, filename))
 		{
-			if (verbose)
+			if (flags & DLLF_VERBOSE)
 				Con_Printf("Already waiting for \"%s\"\n", filename);
 			return true;
 		}
@@ -320,8 +324,14 @@ qboolean CL_EnqueDownload(char *filename, char *localname, qboolean verbose, qbo
 
 	if (!strcmp(cls.downloadname, filename))
 	{
-		if (verbose)
+		if (flags & DLLF_VERBOSE)
 			Con_Printf("Already downloading \"%s\"\n", filename);
+		return true;
+	}
+
+	if (!*filename)
+	{
+		Con_Printf("Download \"\"? Huh?\n");
 		return true;
 	}
 
@@ -330,11 +340,46 @@ qboolean CL_EnqueDownload(char *filename, char *localname, qboolean verbose, qbo
 	Q_strncpyz(dl->localname, localname, sizeof(dl->localname));
 	dl->next = cl.downloadlist;
 	cl.downloadlist = dl;
+	dl->size = 0;
+	dl->flags = flags | DLLF_SIZEUNKNOWN;
 
-	if (verbose)
+	if (cls.fteprotocolextensions & (PEXT_CHUNKEDDOWNLOADS
+#ifdef PEXT_PK3DOWNLOADS
+		| PEXT_PK3DOWNLOADS
+#endif
+		))
+		CL_SendClientCommand(true, "dlsize \"%s\"", dl->name);
+
+	if (flags & DLLF_VERBOSE)
 		Con_Printf("Enqued download of \"%s\"\n", filename);
 
 	return true;
+}
+
+#pragma message("fix this")
+int downloadsize;
+void CL_GetDownloadSizes(unsigned int *filecount, unsigned int *totalsize, qboolean *somesizesunknown)
+{
+	downloadlist_t *dl;
+	*filecount = 0;
+	*totalsize = 0;
+	*somesizesunknown = false;
+	for(dl = cl.downloadlist; dl; dl = dl->next)
+	{
+		*filecount++;
+		if (dl->flags & DLLF_SIZEUNKNOWN)
+			*somesizesunknown = true;
+		else
+			*totalsize += dl->size;
+	}
+
+	if (cls.downloadmethod == DL_QW)
+	{
+		*totalsize += downloadsize;
+		*somesizesunknown = true;
+	}
+	if (cls.downloadmethod == DL_QWCHUNKS)
+		*totalsize += downloadsize;
 }
 
 void CL_DisenqueDownload(char *filename)
@@ -385,10 +430,11 @@ void CL_SendDownloadRequest(char *filename, char *localname)
 }
 
 //Do any reloading for the file that just reloaded.
-void CL_FinishDownload(char *filename, char *tempname)
+void CL_DownloadFinished(char *filename, char *tempname)
 {
 	int i;
 	extern int mod_numknown;
+	char *ext;
 	extern model_t	mod_known[];
 
 	COM_RefreshFSCache_f();
@@ -413,28 +459,38 @@ void CL_FinishDownload(char *filename, char *tempname)
 		}
 	}
 
-	if (!strcmp(filename, "gfx/palette.lmp"))
+	ext = COM_FileExtension(filename);
+
+	
+
+	if (!strcmp(ext, "pk3") || !strcmp(ext, "pak"))
+		FS_ReloadPackFiles();
+	else if (!strcmp(filename, "gfx/palette.lmp"))
 	{
 		Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
 	}
 	else
 	{
-		for (i = 0; i < mod_numknown; i++)	//go and load this model now.
+		CL_CheckModelResources();
+		if (!cl.sendprespawn)
 		{
-			if (!strcmp(mod_known[i].name, filename))
+			for (i = 0; i < mod_numknown; i++)	//go and load this model now.
 			{
-				Mod_ForName(mod_known[i].name, false);	//throw away result.
-				break;
+				if (!strcmp(mod_known[i].name, filename))
+				{
+					Mod_ForName(mod_known[i].name, false);	//throw away result.
+					break;
+				}
 			}
-		}
-		for (i = 0; i < MAX_MODELS; i++)	//go and load this model now.
-		{
-			if (!strcmp(cl.model_name[i], filename))
+			for (i = 0; i < MAX_MODELS; i++)	//go and load this model now.
 			{
-				cl.model_precache[i] = Mod_ForName(cl.model_name[i], false);	//throw away result.
-				if (i == 1)
-					cl.worldmodel = cl.model_precache[i];
-				break;
+				if (!strcmp(cl.model_name[i], filename))
+				{
+					cl.model_precache[i] = Mod_ForName(cl.model_name[i], false);	//throw away result.
+					if (i == 1)
+						cl.worldmodel = cl.model_precache[i];
+					break;
+				}
 			}
 		}
 		S_ResetFailedLoad();	//okay, so this can still get a little spammy in bad places...
@@ -477,12 +533,12 @@ to start a download from the server.
 ===============
 */
 
-qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname)
+qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned int flags)
 {	//returns false if we don't have the file yet.
 	if (!localname)
 		localname = filename;
 
-	if (CL_CheckFile(localname))
+	if (!(flags & DLLF_OVERWRITE) && CL_CheckFile(localname))
 		return true;
 
 	//ZOID - can't download when recording
@@ -506,56 +562,163 @@ qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname)
 		HTTP_CL_Get(va("http://maps.quakeworld.nu/%s/download/", base), filename, MapDownload);
 	}
 */
-	CL_EnqueDownload(filename, localname, false, false);
+	CL_EnqueDownload(filename, localname, flags);
+
+
+	if (!(flags & DLLF_IGNOREFAILED))
+	{
+		downloadlist_t *dl;
+		for (dl = cl.faileddownloads; dl; dl = dl->next)
+		{
+			if (!strcmp(dl->name, filename))
+			{
+				//if its on the failed list, don't block waiting for it to download
+				return true;
+			}
+		}
+	}
 	return false;
 }
 
-qboolean CL_CheckMD2Skins (char *name)
+
+
+static qboolean CL_CheckMD2Skins (qbyte *precache_model)
 {
+	qboolean ret = false;
 	md2_t *pheader;
-	qbyte *precache_model;
-	int precache_model_skin = 1;
+	int skin = 1;
 	char *str;
 
-	// checking for skins in the model
-	precache_model = COM_LoadMallocFile (name);
-	if (!precache_model) {
-		precache_model_skin = 0;
-		return false; // couldn't load it
-	}
-	if (LittleLong(*(unsigned *)precache_model) != MD2IDALIASHEADER) {
-		// not an alias model
-		BZ_Free(precache_model);
-		precache_model = 0;
-		precache_model_skin = 0;
-		return false;
-	}
 	pheader = (md2_t *)precache_model;
-	if (LittleLong (pheader->version) != MD2ALIAS_VERSION) {
-		BZ_Free(precache_model);
-		precache_model = 0;
-		precache_model_skin = 0;
+	if (LittleLong (pheader->version) != MD2ALIAS_VERSION)
+	{
+		//bad version.
 		return false;
 	}
 
 	pheader = (md2_t *)precache_model;
-
-	while (precache_model_skin - 1 < LittleLong(pheader->num_skins))
+	for (skin = 0; skin < LittleLong(pheader->num_skins); skin++)
 	{
 		str = (char *)precache_model +
 			LittleLong(pheader->ofs_skins) +
-			(precache_model_skin - 1)*MD2MAX_SKINNAME;
+			skin*MD2MAX_SKINNAME;
 		COM_CleanUpPath(str);
-		CL_CheckOrEnqueDownloadFile(str, str);
-		precache_model_skin++;
+		if (!CL_CheckOrEnqueDownloadFile(str, str, 0))
+			ret = true;
 	}
-	if (precache_model) {
-		BZ_Free(precache_model);
-		precache_model=NULL;
-	}
-	precache_model_skin = 0;
+	return ret;
+}
 
+qboolean CL_CheckHLBspWads(char *file)
+{
+	lump_t lump;
+	dheader_t *dh;
+	char *s;
+	char *w;
+	char key[256];
+	char wads[4096];
+	dh = (dheader_t *)file;
+
+	lump.fileofs = LittleLong(dh->lumps[LUMP_ENTITIES].fileofs);
+	lump.filelen = LittleLong(dh->lumps[LUMP_ENTITIES].filelen);
+	
+	s = file + lump.fileofs;
+
+	s = COM_Parse(s);
+	if (strcmp(com_token, "{"))
+		return false;
+
+	while (*s)
+	{
+		s = COM_ParseOut(s, key, sizeof(key));
+		if (!strcmp(key, "}"))
+			break;
+
+		s = COM_ParseOut(s, wads, sizeof(wads));
+
+		if (!strcmp(key, "wad"))
+		{
+			s = wads;
+			while (s = COM_ParseToken(s, ";"))
+			{
+				if (!strcmp(com_token, ";"))
+					continue;
+				while (w = strchr(com_token, '\\'))
+					*w = '/';
+				w = COM_SkipPath(com_token);
+				Con_Printf("wads: %s\n", w);
+				if (!CL_CheckFile(w))
+					CL_CheckOrEnqueDownloadFile(va("textures/%s", w), NULL, DLLF_REQUIRED);
+			}
+			return false;
+		}
+	}
 	return false;
+}
+
+qboolean CL_CheckQ2BspWals(char *file)
+{
+	qboolean gotone = false;
+
+	q2dheader_t *dh;
+	lump_t lump;
+	q2texinfo_t *tinf;
+	unsigned int i, j, count;
+
+	dh = (q2dheader_t*)file;
+	if (LittleLong(dh->version) != Q2BSPVERSION)
+	{
+		//quake3? unknown?
+		return false;
+	}
+	lump.fileofs = LittleLong(dh->lumps[Q2LUMP_TEXINFO].fileofs);
+	lump.filelen = LittleLong(dh->lumps[Q2LUMP_TEXINFO].filelen);
+
+	count = lump.filelen / sizeof(*tinf);
+	if (lump.filelen != count*sizeof(*tinf))
+		return false;
+
+	tinf = (q2texinfo_t*)(file + lump.fileofs);
+	for (i = 0; i < count; i++)
+	{
+		//ignore duplicate files (to save filesystem hits)
+		for (j = 0; j < i; j++)
+			if (!strcmp(tinf[i].texture, tinf[j].texture))
+				break;
+
+		if (i == j)
+			if (!CL_CheckOrEnqueDownloadFile(tinf[i].texture, NULL, 0))
+				gotone = true;
+	}
+	return gotone;
+}
+
+qboolean CL_CheckModelResources (char *name)
+{
+	//returns true if we triggered a download
+	qboolean ret;
+	qbyte *file;
+
+	if (!(strstr(name, ".md2") || strstr(name, ".bsp")))
+		return false;
+
+	// checking for skins in the model
+	file = COM_LoadMallocFile (name);
+	if (!file)
+	{
+		return false; // couldn't load it
+	}
+	if (LittleLong(*(unsigned *)file) == MD2IDALIASHEADER)
+		ret = CL_CheckMD2Skins(file);
+	else if (LittleLong(*(unsigned *)file) == BSPVERSIONHL)
+		ret = CL_CheckHLBspWads(file);
+	else if (LittleLong(*(unsigned *)file) == IDBSPHEADER)
+		ret = CL_CheckQ2BspWals(file);
+	else
+		ret = false;
+	BZ_Free(file);
+
+	return ret;
 }
 
 /*
@@ -591,7 +754,7 @@ void Model_NextDownload (void)
 			if (!*cl.image_name[i])
 				continue;
 			sprintf(picname, "pics/%s.pcx", cl.image_name[i]);
-			CL_CheckOrEnqueDownloadFile(picname, picname);
+			CL_CheckOrEnqueDownloadFile(picname, picname, 0);
 		}
 		if (!CLQ2_RegisterTEntModels())
 			return;
@@ -612,11 +775,8 @@ void Model_NextDownload (void)
 			continue;
 #endif
 
-		CL_CheckOrEnqueDownloadFile(s, s);	//world is required to be loaded.
-
-		if (strstr(s, ".md2"))
-			if (CL_CheckMD2Skins(s))
-				return;
+		CL_CheckOrEnqueDownloadFile(s, s, (i==1)?DLLF_REQUIRED:0);	//world is required to be loaded.
+		CL_CheckModelResources(s);
 	}
 
 	CL_AllowIndependantSendCmd(false);	//stop it now, the indep stuff *could* require model tracing.
@@ -652,7 +812,8 @@ int CL_LoadModels(int stage)
 				if (allow_download_csprogs.value)
 				{
 					char *str = va("csprogsvers/%x.dat", chksum);
-					CL_CheckOrEnqueDownloadFile("csprogs.dat", str);
+					if (CL_CheckOrEnqueDownloadFile("csprogs.dat", str, DLLF_REQUIRED))
+						return stage;	//its kinda required
 				}
 				else
 				{
@@ -667,25 +828,24 @@ int CL_LoadModels(int stage)
 #ifdef PEXT_CSQC
 	if (atstage())
 	{
-		if (cls.fteprotocolextensions & PEXT_CSQC)
+		char *s;
+		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
+#ifndef FTE_DEBUG
+		if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
+#endif
 		{
-			char *s;
-			s = Info_ValueForKey(cl.serverinfo, "*csprogs");
-			if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
+			unsigned int chksum = strtoul(s, NULL, 0);
+			if (CSQC_Init(chksum))
 			{
-				unsigned int chksum = strtoul(s, NULL, 0);
-				if (CSQC_Init(chksum))
-				{
-					CL_SendClientCommand(true, "enablecsqc");
-				}
-				else
-				{
-					CL_SendClientCommand(true, "disablecsqc");
-					Sbar_Start();	//try and start this before we're actually on the server,
-									//this'll stop the mod from sending so much stuffed data at us, whilst we're frozen while trying to load.
-									//hopefully this'll make it more robust.
-									//csqc is expected to use it's own huds, or to run on decent servers. :p
-				}
+				CL_SendClientCommand(true, "enablecsqc");
+			}
+			else
+			{
+				CL_SendClientCommand(true, "disablecsqc");
+				Sbar_Start();	//try and start this before we're actually on the server,
+								//this'll stop the mod from sending so much stuffed data at us, whilst we're frozen while trying to load.
+								//hopefully this'll make it more robust.
+								//csqc is expected to use it's own huds, or to run on decent servers. :p
 			}
 		}
 		endstage();
@@ -715,6 +875,13 @@ int CL_LoadModels(int stage)
 
 			if (atstage())
 			{
+#ifdef CSQC_DAT
+				if (i == 1)
+					CSQC_LoadResource(cl.model_name[i], "map");
+				else
+					CSQC_LoadResource(cl.model_name[i], "model");
+#endif
+
 				cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
 				Hunk_Check();
 
@@ -731,7 +898,12 @@ int CL_LoadModels(int stage)
 	{
 		cl.worldmodel = cl.model_precache[1];
 		if (!cl.worldmodel || cl.worldmodel->type == mod_dummy)
-			Host_EndGame("Worldmodel wasn't sent\n");
+		{
+			if (!cl.model_name[1][0])
+				Host_EndGame("Worldmodel name wasn't sent\n");
+			else
+				Host_EndGame("Worldmodel wasn't loaded\n");
+		}
 
 		if (cl.worldmodel->fromgame == fg_quake)
 			cl.hexen2pickups = cl.worldmodel->hulls[MAX_MAP_HULLSDH2-1].available;
@@ -751,6 +923,12 @@ int CL_LoadModels(int stage)
 			continue;
 		if (atstage())
 		{
+#ifdef CSQC_DAT
+			if (i == 1)
+				CSQC_LoadResource(cl.model_csqcname[i], "map");
+			else
+				CSQC_LoadResource(cl.model_csqcname[i], "model");
+#endif
 			cl.model_csqcprecache[i] = Mod_ForName (cl.model_csqcname[i], false);
 			Hunk_Check();
 
@@ -794,6 +972,33 @@ int CL_LoadModels(int stage)
 	return stage;
 }
 
+int CL_LoadSounds(int stage)
+{
+	int i;
+	float giveuptime = Sys_DoubleTime()+0.1;	//small things get padded into a single frame
+
+#define atstage() ((cl.contentstage == stage++)?++cl.contentstage:false)
+#define endstage() if (giveuptime<Sys_DoubleTime()) return -1;
+
+	for (i=1 ; i<MAX_SOUNDS ; i++)
+	{
+		if (!cl.sound_name[i][0])
+			break;
+
+		if (atstage())
+		{
+#ifdef CSQC_DAT
+			CSQC_LoadResource(cl.sound_name[i], "sound");
+#endif
+			cl.sound_precache[i] = S_PrecacheSound (cl.sound_name[i]);
+
+			S_ExtraUpdate();
+			endstage();
+		}
+	}
+	return stage;
+}
+
 /*
 =================
 Sound_NextDownload
@@ -819,7 +1024,7 @@ void Sound_NextDownload (void)
 			if (allow_download_csprogs.value)
 			{
 				char *str = va("csprogsvers/%x.dat", chksum);
-				CL_CheckOrEnqueDownloadFile("csprogs.dat", str);
+				CL_CheckOrEnqueDownloadFile("csprogs.dat", str, DLLF_REQUIRED);
 			}
 			else
 			{
@@ -835,6 +1040,18 @@ void Sound_NextDownload (void)
 		s = cl.sound_name[i];
 		if (*s == '*')
 			continue;
+
+		//check without the sound/ prefix
+		if (CL_CheckFile(s))
+			continue;	//we have it already
+
+		//the things I do for nexuiz... *sigh*
+		COM_StripExtension(s, mangled, sizeof(mangled));
+		COM_DefaultExtension(mangled, ".ogg", sizeof(mangled));
+		if (CL_CheckFile(mangled))
+			continue;
+
+		//check with the sound/ prefix
 		s = va("sound/%s",s);
 
 		if (CL_CheckFile(s))
@@ -847,16 +1064,7 @@ void Sound_NextDownload (void)
 			continue;
 
 		//download the one the server said.
-		CL_CheckOrEnqueDownloadFile(s, NULL);
-	}
-
-	for (i=1 ; i<MAX_SOUNDS ; i++)
-	{
-		if (!cl.sound_name[i][0])
-			break;
-		cl.sound_precache[i] = S_PrecacheSound (cl.sound_name[i]);
-
-		S_ExtraUpdate();
+		CL_CheckOrEnqueDownloadFile(s, NULL, 0);
 	}
 
 	// done with sounds, request models now
@@ -904,28 +1112,48 @@ CL_RequestNextDownload
 */
 void CL_RequestNextDownload (void)
 {
+	
+	int stage;
 	if (cls.downloadmethod)
 		return;
 
 	if (cl.sendprespawn || cls.state == ca_active)
 		if (cl.downloadlist)
 		{
-			if (!COM_FCheckExists (cl.downloadlist->localname))
-				CL_SendDownloadRequest(cl.downloadlist->name, cl.downloadlist->localname);
+			downloadlist_t *dl;
+			for (dl = cl.downloadlist; dl; dl = dl->next)
+			{
+				if (dl->flags & DLLF_REQUIRED)
+					break;
+			}
+			if (!dl)
+				dl = cl.downloadlist;
+
+			if ((dl->flags & DLLF_OVERWRITE) || !COM_FCheckExists (dl->localname))
+				CL_SendDownloadRequest(dl->name, dl->localname);
 			else
 			{
-				Con_Printf("Already have %s\n", cl.downloadlist->localname);
-				CL_DisenqueDownload(cl.downloadlist->name);
+				Con_Printf("Already have %s\n", dl->localname);
+				CL_DisenqueDownload(dl->name);
+
+				//recurse a bit.
+				CL_RequestNextDownload();
+				return;
 			}
-			if (requiredownloads.value || !cl.worldmodel)
+
+			if (requiredownloads.value || (dl->flags & DLLF_REQUIRED))
 				return;
 		}
 
 	if (cl.sendprespawn)
 	{	// get next signon phase
-
-		if (CL_LoadModels(0) < 0)
+		stage = 0;
+		stage = CL_LoadModels(stage);
+		if (stage < 0)
 			return;	//not yet
+		stage = CL_LoadSounds(stage);
+		if (stage < 0)
+			return;
 
 		cl.sendprespawn = false;
 #ifdef _MSC_VER
@@ -984,14 +1212,15 @@ void CL_SendDownloadReq(sizebuf_t *msg)
 #ifdef PEXT_CHUNKEDDOWNLOADS
 	if (cls.downloadmethod == DL_QWCHUNKS)
 	{
-		int i = CL_RequestADownloadChunk();
-		if (i < 0)
+		extern int download_file_number;
+		int p;
+		for (p = 0; p < 8; p++)
 		{
-			//we can stop downloading now.
-		}
-		else
-		{
-			CL_SendClientCommand(false, "nextdl %i\n", i);
+			int i = CL_RequestADownloadChunk();
+			if (i >= 0)
+				CL_SendClientCommand(false, "nextdl %i - %i\n", i, download_file_number);
+			else
+				break;//we can stop downloading now.
 		}
 		return;
 	}
@@ -1044,16 +1273,44 @@ char *ZLibDownloadDecode(int *messagesize, char *input, int finalsize)
 }
 #endif
 
-void CL_DownloadFailed(char *name)
+downloadlist_t *CL_DownloadFailed(char *name)
 {
 	//add this to our failed list. (so we don't try downloading it again...)
-	downloadlist_t *failed;
+	downloadlist_t *failed, **link, *dl;
 	failed = Z_Malloc(sizeof(downloadlist_t));
 	failed->next = cl.faileddownloads;
 	cl.faileddownloads = failed;
 	Q_strncpyz(failed->name, name, sizeof(failed->name));
 
-	cls.downloadmethod = DL_NONE;
+	//if this is what we're currently downloading, close it up now.
+	if (!stricmp(cls.downloadname, name) || !*name)
+	{
+		cls.downloadmethod = DL_NONE;
+
+		if (cls.downloadqw)
+		{
+			VFS_CLOSE(cls.downloadqw);
+			cls.downloadqw = NULL;
+			CL_SendClientCommand(true, "stopdownload");
+		}
+		*cls.downloadname = 0;
+	}
+
+	link = &cl.downloadlist;
+	while(*link)
+	{
+		dl = *link;
+		if (!strcmp(dl->name, name))
+		{
+			*link = dl->next;
+			failed->flags |= dl->flags;
+			Z_Free(dl);
+		}
+		else
+			link = &(*link)->next;
+	}
+
+	return failed;
 }
 
 float downloadstarttime;
@@ -1065,6 +1322,13 @@ int receivedbytes;
 int recievedblock[MAXBLOCKS];
 int firstblock;
 int blockcycle;
+int download_file_number;
+
+int CL_DownloadRate(void)
+{
+	return receivedbytes/(Sys_DoubleTime() - downloadstarttime);
+}
+
 void CL_ParseChunkedDownload(void)
 {
 	qbyte	*svname;
@@ -1081,12 +1345,26 @@ void CL_ParseChunkedDownload(void)
 		if (cls.demoplayback)
 			return;
 
+		if (!*svname)
+		{
+			//stupid mvdsv.
+			/*if (totalsize < 0)
+				svname = cls.downloadname;
+			else*/
+			{
+				Con_Printf("ignoring nameless download\n");
+				return;
+			}
+		}
+
 		if (totalsize < 0)
 		{
-			if (totalsize == -2)
-				Con_Printf("Server permissions deny downloading file %s\n", svname);
+			if (totalsize == -3)
+				Con_Printf("Server reported an error when downloading file \"%s\"\n", svname);
+			else if (totalsize == -2)
+				Con_Printf("Server permissions deny downloading file \"%s\"\n", svname);
 			else
-				Con_Printf("Couldn't find file %s on the server\n", svname);
+				Con_Printf("Couldn't find file \"%s\" on the server\n", svname);
 
 			CL_DownloadFailed(svname);
 
@@ -1132,6 +1410,7 @@ void CL_ParseChunkedDownload(void)
 			return;
 		}
 
+		download_file_number++;
 		firstblock = 0;
 		receivedbytes = 0;
 		blockcycle = -1;	//so it requests 0 first. :)
@@ -1203,7 +1482,7 @@ int CL_RequestADownloadChunk(void)
 	if (cls.downloadmethod != DL_QWCHUNKS)
 	{
 		Con_Printf("download not initiated\n");
-		return 0;
+		return -1;
 	}
 
 	blockcycle++;
@@ -1223,13 +1502,14 @@ int CL_RequestADownloadChunk(void)
 //	Con_Printf("^1 EOF?\n");
 
 	VFS_CLOSE(cls.downloadqw);
+	cls.downloadqw = NULL;
+
 	CL_SendClientCommand(true, "stopdownload");
-	CL_FinishDownload(cls.downloadname, cls.downloadtempname);
+	CL_DownloadFinished(cls.downloadname, cls.downloadtempname);
 
 	Con_Printf("Download took %i seconds (%i more)\n", (int)(Sys_DoubleTime() - downloadstarttime), CL_CountQueuedDownloads());
 
 	*cls.downloadname = '\0';
-	cls.downloadqw = NULL;
 	cls.downloadpercent = 0;
 
 	return -1;
@@ -1326,6 +1606,7 @@ void CL_ParseDownload (void)
 		}
 
 		downloadstarttime = Sys_DoubleTime();
+		receivedbytes = 0;
 		SCR_EndLoadingPlaque();
 	}
 #ifdef PEXT_ZLIBDL
@@ -1345,6 +1626,10 @@ void CL_ParseDownload (void)
 		VFS_WRITE (cls.downloadqw, net_message.data + msg_readcount, size);
 		msg_readcount += size;
 	}
+
+	receivedbytes += size;
+	if (cls.downloadpercent != percent)	//try and guess the size (its most acurate when the percent value changes)
+		downloadsize = ((float)receivedbytes*100)/percent;
 
 	if (cls.downloadmethod == DL_QWPENDING)
 		cls.downloadmethod = DL_QW;
@@ -1367,7 +1652,7 @@ void CL_ParseDownload (void)
 	{
 		VFS_CLOSE (cls.downloadqw);
 
-		CL_FinishDownload(cls.downloadname, cls.downloadtempname);
+		CL_DownloadFinished(cls.downloadname, cls.downloadtempname);
 		*cls.downloadname = '\0';
 		cls.downloadqw = NULL;
 		cls.downloadpercent = 0;
@@ -1378,6 +1663,18 @@ void CL_ParseDownload (void)
 
 		CL_RequestNextDownload ();
 	}
+}
+
+qboolean CL_ParseOOBDownload(void)
+{
+	if (MSG_ReadLong() != download_file_number)
+		return false;
+
+	if (MSG_ReadChar() != svc_download)
+		return false;
+
+	CL_ParseDownload();
+	return true;
 }
 
 void CLDP_ParseDownloadData(void)
@@ -1486,7 +1783,7 @@ void CLDP_ParseDownloadFinished(char *s)
 		return;
 	}
 
-	CL_FinishDownload(cls.downloadname, cls.downloadtempname);
+	CL_DownloadFinished(cls.downloadname, cls.downloadtempname);
 	*cls.downloadname = '\0';
 	cls.downloadqw = NULL;
 	cls.downloadpercent = 0;
@@ -1700,7 +1997,7 @@ void CL_ParseServerData (void)
 	}
 
 	CL_ClearState ();
-	Cvar_ForceCallback(&r_particlesdesc);
+	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 	Stats_NewMap();
 	cl.servercount = svcnt;
 
@@ -1914,7 +2211,7 @@ void CLQ2_ParseServerData (void)
 		//cl.refresh_prepped = false;
 	}
 
-	Cvar_ForceCallback(&r_particlesdesc);
+	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 
 	if (R_PreNewMap)
 		R_PreNewMap();
@@ -1927,16 +2224,15 @@ void CLQ2_ParseServerData (void)
 void CL_KeepaliveMessage(void){}
 void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 {
-	int	nummodels, numsounds, i;
+	int	nummodels, numsounds;
 	char	*str;
+	int gametype;
 	int protover;
 	if (developer.value)
 		Con_TPrintf (TLC_GOTSVDATAPACKET);
 	CL_ClearState ();
 	Stats_NewMap();
-	Cvar_ForceCallback(&r_particlesdesc);
-
-	Info_SetValueForStarKey(cl.serverinfo, "*csprogs", va("%i", cl_dp_csqc_progscrc), sizeof(cl.serverinfo));
+	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 
 	protover = MSG_ReadLong ();
 
@@ -1996,7 +2292,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	cl.splitclients = 1;
 	CL_RegisterSplitCommands();
 
-	/*cl.gametype =*/ MSG_ReadByte ();
+	gametype = MSG_ReadByte ();
 
 	str = MSG_ReadString ();
 	Q_strncpyz (cl.levelname, str, sizeof(cl.levelname));
@@ -2022,9 +2318,8 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 			return;
 		}
 		strcpy (cl.model_name[nummodels], str);
+		CL_CheckOrEnqueDownloadFile(str, NULL, 0);
 		Mod_TouchModel (str);
-
-//		cl.model_precache[nummodels] = Mod_ForName (cl.model_name[nummodels], false);
 	}
 
 	memset (cl.sound_name, 0, sizeof(cl.sound_name));
@@ -2040,47 +2335,34 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		}
 		strcpy (cl.sound_name[numsounds], str);
 		S_TouchSound (str);
-
-//		cl.sound_precache[numsounds] = S_PrecacheSound (cl.sound_name[numsounds]);
 	}
 
-//
-// now we try to load everything else until a cache allocation fails
-//
+	cls.signon = 0;
+	cls.state = ca_onserver;
 
-	for (i=1 ; i<nummodels ; i++)
-	{
-		cl.model_precache[i] = Mod_ForName (cl.model_name[i], i==1);
-//		if (!ignorenonprecached.value || i == 1)	//need world
-		{
-			if (cl.model_precache[i] == NULL)
-			{
-				Host_EndGame("Model %s not found\n", cl.model_name[i]);
-			}
-		}
-		CL_KeepaliveMessage ();
-	}
 
-	S_BeginPrecaching ();
-	for (i=1 ; i<numsounds ; i++)
-	{
-		cl.sound_precache[i] = S_PrecacheSound (cl.sound_name[i]);
-		CL_KeepaliveMessage ();
-	}
-	S_EndPrecaching ();
+	//fill in the csqc stuff
+	Info_SetValueForStarKey(cl.serverinfo, "*csprogs", va("%i", cl_dp_csqc_progscrc), sizeof(cl.serverinfo));
+	Info_SetValueForStarKey(cl.serverinfo, "*csprogssize", va("%i", cl_dp_csqc_progssize), sizeof(cl.serverinfo));
+	Info_SetValueForStarKey(cl.serverinfo, "*csprogsname", va("%i", cl_dp_csqc_progsname), sizeof(cl.serverinfo));
 
-	cl.worldmodel = cl.model_precache[1];
+	//update gamemode
+	if (gametype == 1)
+		Info_SetValueForStarKey(cl.serverinfo, "deathmatch", "1", sizeof(cl.serverinfo));
+	else
+		Info_SetValueForStarKey(cl.serverinfo, "deathmatch", "0", sizeof(cl.serverinfo));
+	Info_SetValueForStarKey(cl.serverinfo, "teamplay", "0", sizeof(cl.serverinfo));
 
-	R_NewMap ();
+	//allow shaders
+	Info_SetValueForStarKey(cl.serverinfo, "allow_shaders", "1", sizeof(cl.serverinfo));
 
+	//pretend it came from the server, and update cheat/permissions/etc
+	CL_CheckServerInfo();
+
+
+	CSQC_Shutdown();
 	if (cls.demoplayback)
 		CSQC_Init(0);
-
-	SCR_EndLoadingPlaque();
-
-	Hunk_Check ();		// make sure nothing is hurt
-
-	cls.state = ca_onserver;
 }
 void CLNQ_SignonReply (void)
 {
@@ -2096,7 +2378,6 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 	{
 	case 1:
 		cl.sendprespawn = true;
-//		CL_SendClientCommand(true, "prespawn");
 		break;
 
 	case 2:
@@ -2660,7 +2941,7 @@ void CL_ParseStatic (int version)
 			if (cl_static_entities[i].keynum == es.number)
 			{
 				R_RemoveEfrags (&cl_static_entities[i]);
-				P_DelinkTrailstate (&cl_static_emit[i]);
+				pe->DelinkTrailstate (&cl_static_emit[i]);
 				break;
 			}
 
@@ -2682,7 +2963,7 @@ void CL_ParseStatic (int version)
 
 // copy it to the current state
 	ent->model = cl.model_precache[es.modelindex];
-	ent->oldframe = ent->frame = es.frame;
+	ent->frame2 = ent->frame1 = es.frame;
 #ifdef SWQUAKE
 	ent->palremap = D_IdentityRemap();
 #endif
@@ -2877,6 +3158,9 @@ void CLQ2_ParseStartSoundPacket(void)
 #ifdef NQPROT
 #define	NQSND_VOLUME		(1<<0)		// a qbyte
 #define	NQSND_ATTENUATION	(1<<1)		// a qbyte
+#define DPSND_LOOPING		(1<<2)		// a long, supposedly
+#define DPSND_LARGEENTITY	(1<<3)
+#define DPSND_LARGESOUND	(1<<4)
 void CLNQ_ParseStartSoundPacket(void)
 {
     vec3_t  pos;
@@ -2899,11 +3183,22 @@ void CLNQ_ParseStartSoundPacket(void)
 	else
 		attenuation = DEFAULT_SOUND_PACKET_ATTENUATION;
 
-	channel = MSG_ReadShort ();
-	sound_num = MSG_ReadByte ();
+	if (field_mask & DPSND_LARGEENTITY)
+	{
+		ent = (unsigned short)MSG_ReadShort();
+		channel = MSG_ReadByte();
+	}
+	else
+	{	//regular
+		channel = MSG_ReadShort ();
+		ent = channel >> 3;
+		channel &= 7;
+	}
 
-	ent = channel >> 3;
-	channel &= 7;
+	if (field_mask & DPSND_LARGESOUND)
+		sound_num = (unsigned short)MSG_ReadShort();
+	else
+		sound_num = MSG_ReadByte ();
 
 	if (ent > MAX_EDICTS)
 		Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
@@ -3612,8 +3907,12 @@ char *CL_ParseChat(char *text, player_info_t **player)
 			return NULL;
 #endif
 
-		if (flags == 2 && !TP_FilterMessage(text + offset))
+		if (flags & (TPM_TEAM|TPM_OBSERVEDTEAM) && !TP_FilterMessage(text + offset))
 			return NULL;
+
+		if (flags & (TPM_TEAM|TPM_OBSERVEDTEAM) && Sbar_UpdateTeamStatus(*player, text+offset))
+			return NULL;
+
 
 		if ((int)msg_filter.value & flags)
 			return NULL;	//filter chat
@@ -3643,7 +3942,7 @@ char *CL_ParseChat(char *text, player_info_t **player)
 
 	if (!suppress_talksound)
 	{
-		if (flags == 2 && cl.teamplay)
+		if (flags & (TPM_OBSERVEDTEAM|TPM_TEAM) && cl.teamplay)
 			S_LocalSound (cl_teamchatsound.string);
 		else
 			S_LocalSound (cl_enemychatsound.string);
@@ -3815,7 +4114,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 		if (plrflags & TPM_SPECTATOR) // is an observer
 		{
 			// TODO: we don't even check for this yet...
-			if (plrflags & TPM_TEAM) // is on team
+			if (plrflags & (TPM_TEAM | TPM_OBSERVEDTEAM)) // is on team
 				c = 0; // blacken () on observers
 			else
 			{
@@ -3846,7 +4145,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 				Con_Printf ("* ");
 		}
 
-		if (plrflags & TPM_TEAM) // for team chat don't highlight the name, just the brackets
+		if (plrflags & (TPM_TEAM|TPM_OBSERVEDTEAM)) // for team chat don't highlight the name, just the brackets
 		{
 			// color is reset every printf so we're safe here
 			con_ormask = name_ormask;
@@ -3877,7 +4176,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 
 	// print message
 	con_ormask = CON_HIGHCHARSMASK;
-	if (cl_parsewhitetext.value && (cl_parsewhitetext.value == 1 || (plrflags & TPM_TEAM)))
+	if (cl_parsewhitetext.value && (cl_parsewhitetext.value == 1 || (plrflags & (TPM_TEAM|TPM_OBSERVEDTEAM))))
 	{
 		char *t, *u;
 
@@ -4060,7 +4359,7 @@ void CL_ParsePrecache(void)
 		if (i >= 1 && i < MAX_MODELS)
 		{
 			model_t *model;
-			CL_CheckOrEnqueDownloadFile(s, s);
+			CL_CheckOrEnqueDownloadFile(s, s, 0);
 			model = Mod_ForName(s, i == 1);
 			if (!model)
 				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
@@ -4076,7 +4375,7 @@ void CL_ParsePrecache(void)
 		if (i >= 1 && i < MAX_SOUNDS)
 		{
 			sfx_t *sfx;
-			CL_CheckOrEnqueDownloadFile(va("sound/%s", s), NULL);
+			CL_CheckOrEnqueDownloadFile(va("sound/%s", s), NULL, 0);
 			sfx = S_PrecacheSound (s);
 			if (!sfx)
 				Con_Printf("svc_precache: S_PrecacheSound(\"%s\") failed\n", s);
@@ -4111,7 +4410,7 @@ void CL_DumpPacket(void)
 		{
 			if (pos >= net_message.cursize)
 				Con_Printf("X");
-			else if (packet[pos] == 0)
+			else if (packet[pos] == 0 || packet[pos] == '\n')
 				Con_Printf(".");
 			else
 				Con_Printf("%c", (unsigned char)packet[pos]);
@@ -4254,7 +4553,7 @@ void CL_ParseServerMessage (void)
 #ifdef PLUGINS
 			if (Plug_CenterPrintMessage(s, destsplit))
 #endif
-				SCR_CenterPrint (destsplit, s);
+				SCR_CenterPrint (destsplit, s, false);
 			break;
 
 		case svc_stufftext:
@@ -4275,8 +4574,10 @@ void CL_ParseServerMessage (void)
 #ifdef PEXT_SETVIEW
 		case svc_setview:
 			if (!(cls.fteprotocolextensions & PEXT_SETVIEW))
-				Host_EndGame("PEXT_SETVIEW is meant to be disabled\n");
+				Con_Printf("^1PEXT_SETVIEW is meant to be disabled\n");
 			cl.viewentity[destsplit]=MSG_ReadShort();
+			if (cl.viewentity[destsplit] == cl.playernum[destsplit]+1)
+				cl.viewentity[destsplit] = 0;
 			break;
 #endif
 		case svc_setangle:
@@ -4464,7 +4765,7 @@ void CL_ParseServerMessage (void)
 			cl.intermission = 2;
 			cl.completed_time = cl.servertime;
 			vid.recalc_refdef = true;	// go to full screen
-			SCR_CenterPrint (destsplit, MSG_ReadString ());
+			SCR_CenterPrint (destsplit, MSG_ReadString (), false);
 			break;
 
 		case svc_sellscreen:
@@ -4607,6 +4908,16 @@ void CL_ParseServerMessage (void)
 #endif
 		case svcfte_precache:
 			CL_ParsePrecache();
+			break;
+
+		case svcfte_trailparticles:
+			CLDP_ParseTrailParticles(true);
+			break;
+		case svcfte_pointparticles:
+			CLDP_ParsePointParticles(false);
+			break;
+		case svcfte_pointparticles1:
+			CLDP_ParsePointParticles(true);
 			break;
 		}
 	}
@@ -4757,7 +5068,7 @@ void CLQ2_ParseServerMessage (void)
 #ifdef PLUGINS
 			if (Plug_CenterPrintMessage(s, 0))
 #endif
-				SCR_CenterPrint (0, s);
+				SCR_CenterPrint (0, s, false);
 			break;
 		case svcq2_download:		//16		// [short] size [size bytes]
 			CL_ParseDownload();
@@ -4979,7 +5290,7 @@ void CLNQ_ParseServerMessage (void)
 #ifdef PLUGINS
 			if (Plug_CenterPrintMessage(s, 0))
 #endif
-				SCR_CenterPrint (0, s);
+				SCR_CenterPrint (0, s, false);
 			break;
 
 		case svc_stufftext:
@@ -5000,9 +5311,7 @@ void CLNQ_ParseServerMessage (void)
 				else if (!strncmp(s, "\ncl_downloadfinished ", 17))
 					CLDP_ParseDownloadFinished(s);
 				else if (!strncmp(s, "csqc_progname ", 14))
-				{
-//					Info_SetValueForStarKey(cl.serverinfo, "*cspname", s+14, sizeof(cl.serverinfo));
-				}
+					COM_ParseOut(s+14, cl_dp_csqc_progsname, sizeof(cl_dp_csqc_progsname));
 				else if (!strncmp(s, "csqc_progsize ", 14))
 					cl_dp_csqc_progssize = atoi(s+14);
 				else if (!strncmp(s, "csqc_progcrc ", 13))
@@ -5204,14 +5513,14 @@ void CLNQ_ParseServerMessage (void)
 			cl.intermission = 2;
 			cl.completed_time = cl.servertime;
 			vid.recalc_refdef = true;	// go to full screen
-			SCR_CenterPrint (0, MSG_ReadString ());
+			SCR_CenterPrint (0, MSG_ReadString (), false);
 			break;
 
 		case svc_cutscene:
 			cl.intermission = 3;
 			cl.completed_time = cl.servertime;
 			vid.recalc_refdef = true;	// go to full screen
-			SCR_CenterPrint (0, MSG_ReadString ());
+			SCR_CenterPrint (0, MSG_ReadString (), false);
 			break;
 
 		case svc_sellscreen:	//pantsie
@@ -5245,6 +5554,16 @@ void CLNQ_ParseServerMessage (void)
 
 		case svcdp_downloaddata:
 			CLDP_ParseDownloadData();
+			break;
+
+		case svcdp_trailparticles:
+			CLDP_ParseTrailParticles();
+			break;
+		case svcdp_pointparticles:
+			CLDP_ParsePointParticles(false);
+			break;
+		case svcdp_pointparticles1:
+			CLDP_ParsePointParticles(true);
 			break;
 		}
 

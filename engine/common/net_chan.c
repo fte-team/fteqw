@@ -210,6 +210,14 @@ qboolean Netchan_CanPacket (netchan_t *chan, int rate)
 	return false;
 }
 
+void Netchan_Block (netchan_t *chan, int bytes, int rate)
+{
+	if (chan->cleartime < realtime-0.25)	//0.25 allows it to be a little bursty.
+		chan->cleartime = realtime + bytes/(float)rate;
+	else
+		chan->cleartime += bytes/(float)rate;
+}
+
 
 /*
 ===============
@@ -389,10 +397,8 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				*(int*)send_buf = BigLong(NETFLAG_DATA | send.cursize);
 			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
 
-			if (chan->cleartime < realtime)
-				chan->cleartime = realtime + send.cursize/(float)rate;
-			else
-				chan->cleartime += send.cursize/(float)rate;
+			Netchan_Block(chan, send.cursize, rate);
+			send.cursize = 0;
 		}
 
 		//send out the unreliable (if still unsent)
@@ -407,11 +413,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			*(int*)send_buf = BigLong(NETFLAG_UNRELIABLE | send.cursize);
 			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
 
-			if (chan->cleartime < realtime)
-				chan->cleartime = realtime + send.cursize/(float)rate;
-			else
-				chan->cleartime += send.cursize/(float)rate;
-
+			Netchan_Block(chan, send.cursize, rate);
 			send.cursize = 0;
 		}
 		return;
@@ -447,6 +449,8 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 // write the packet header
 	send.data = send_buf;
 	send.maxsize = MAX_QWMSGLEN + PACKET_HEADER;	//dmw: wasn't quite true.
+	if (chan->sock == NS_CLIENT)
+		send.maxsize += 2;
 	send.cursize = 0;
 
 	w1 = chan->outgoing_sequence | (send_reliable<<31);
@@ -497,10 +501,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
 	}
 
-	if (chan->cleartime < realtime)
-		chan->cleartime = realtime + send.cursize/(float)rate;
-	else
-		chan->cleartime += send.cursize/(float)rate;
+	Netchan_Block(chan, send.cursize, rate);
 #ifdef SERVERONLY
 	if (ServerPaused())
 		chan->cleartime = realtime;

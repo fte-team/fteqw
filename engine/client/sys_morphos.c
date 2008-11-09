@@ -348,6 +348,34 @@ void Sys_UnloadGame(void)
 	}
 }
 
+void Sys_CloseLibrary(dllhandle_t *lib)
+{
+	dlclose((void*)lib)
+}
+dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
+{
+	int i;
+	HMODULE lib;
+
+	lib = dlopen (name, RTLD_LAZY);
+	if (!lib)
+		return NULL;
+
+	for (i = 0; funcs[i].name; i++)
+	{
+		*funcs[i].funcptr = dlsym(lib, funcs[i].name);
+		if (!*funcs[i].funcptr)
+			break;
+	}
+	if (funcs[i].name)
+	{
+		Sys_CloseLibrary((dllhandle_t*)lib);
+		lib = NULL;
+	}
+
+	return (dllhandle_t*)lib;
+}
+
 int main(int argc, char **argv)
 {
 	double oldtime, newtime;

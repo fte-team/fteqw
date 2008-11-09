@@ -866,7 +866,11 @@ restart:	//jumped to when the progs might have changed.
 		while (pr_trace)
 		{
 			#define DEBUGABLE
-			#include "execloop16d.h"
+			#ifdef SEPARATEINCLUDES
+				#include "execloop16d.h"
+			#else
+				#include "execloop.h"
+			#endif
 			#undef DEBUGABLE
 		}
 		
@@ -884,13 +888,21 @@ restart:	//jumped to when the progs might have changed.
 		while (pr_trace)
 		{
 			#define DEBUGABLE
-			#include "execloop32d.h"
+			#ifdef SEPARATEINCLUDES
+				#include "execloop32d.h"
+			#else
+				#include "execloop.h"
+			#endif
 			#undef DEBUGABLE
 		}
 		
 		while(1)
 		{
-			#include "execloop32.h"
+			#ifdef SEPARATEINCLUDES
+				#include "execloop32.h"
+			#else
+				#include "execloop.h"
+			#endif
 		}
 #undef INTSIZE	
 		Sys_Error("PR_ExecuteProgram - should be unreachable");

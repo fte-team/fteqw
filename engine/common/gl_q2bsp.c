@@ -1046,12 +1046,13 @@ void *Mod_LoadWall(char *name)
 
 	COM_FileBase(name, ln, sizeof(ln));
 
-	if (!CL_CheckOrEnqueDownloadFile(name, NULL))
-		return NULL;
-
 	wal = (void *)COM_LoadMallocFile (name);
 	if (!wal)
+	{
+		//they will download eventually...
+		CL_CheckOrEnqueDownloadFile(name, NULL, 0);
 		return NULL;
+	}
 
 	wal->width = LittleLong(wal->width);
 	wal->height = LittleLong(wal->height);

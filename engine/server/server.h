@@ -420,6 +420,7 @@ typedef struct client_s
 #endif
 	} frameunion;
 
+	char			downloadfn[MAX_QPATH];
 	vfsfile_t		*download;			// file being downloaded
 	int				downloadsize;		// total bytes
 	int				downloadcount;		// bytes sent
@@ -541,7 +542,9 @@ typedef struct client_s
 
 #define ISQWCLIENT(cl) ((cl)->protocol == SCP_QUAKEWORLD)
 #define ISQ2CLIENT(cl) ((cl)->protocol == SCP_QUAKE2)
+#define ISQ3CLIENT(cl) ((cl)->protocol == SCP_QUAKE3)
 #define ISNQCLIENT(cl) ((cl)->protocol >= SCP_NETQUAKE)
+#define ISDPCLIENT(cl) ((cl)->protocol >= SCP_DARKPLACES6)
 
 // a client can leave the server in one of four ways:
 // dropping properly by quiting or disconnecting
@@ -718,14 +721,7 @@ typedef struct
 									// used to check late spawns
 	int framenum;	//physics frame number for out-of-sequence thinks (fix for slow rockets)
 
-	int socketip;
-	int socketip6;
-	int socketipx;
-
-#ifdef TCPCONNECT
-	int sockettcp;
-	svtcpstream_t *tcpstreams;
-#endif
+	struct ftenet_connections_s *sockets;
 
 	client_t	clients[MAX_CLIENTS];
 	int			serverflags;		// episode completion information
@@ -793,11 +789,6 @@ typedef struct
 #define	SOLID_PHASEH2			5
 #define	SOLID_CORPSE			5
 #define SOLID_LADDER			20		//dmw. touch on edge, not blocking. Touching players have different physics. Otherwise a SOLID_TRIGGER
-
-// edict->deadflag values
-#define	DEAD_NO					0
-#define	DEAD_DYING				1
-#define	DEAD_DEAD				2
 
 #define	DAMAGE_NO				0
 #define	DAMAGE_YES				1
@@ -1009,6 +1000,7 @@ void SV_SetMoveVars(void);
 qboolean SV_ChallengePasses(int challenge);
 void SV_QCStatName(int type, char *name, int statnum);
 void SV_QCStatFieldIdx(int type, unsigned int fieldindex, int statnum);
+void SV_QCStatGlobal(int type, char *globalname, int statnum);
 void SV_ClearQCStats(void);
 
 void SV_SendClientMessages (void);

@@ -5,6 +5,8 @@
 #include <SDL_thread.h>
 #endif
 
+#include <SDL_loadso.h>
+
 
 #ifndef WIN32
 #include <fcntl.h>
@@ -149,6 +151,33 @@ void *Sys_GetGameAPI (void *parms)
 }
 
 
+void Sys_CloseLibrary(dllhandle_t *lib)
+{
+	SDL_UnloadObject((void*)lib)
+}
+dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
+{
+	int i;
+	void *lib;
+
+	lib = SDL_LoadObject(name);
+	if (!lib)
+		return NULL;
+
+	for (i = 0; funcs[i].name; i++)
+	{
+		*funcs[i].funcptr = SDL_LoadFunction(lib, funcs[i].name);
+		if (!*funcs[i].funcptr)
+			break;
+	}
+	if (funcs[i].name)
+	{
+		Sys_CloseLibrary((dllhandle_t*)lib);
+		lib = NULL;
+	}
+
+	return (dllhandle_t*)lib;
+}
 
 
 //used to see if a file exists or not.

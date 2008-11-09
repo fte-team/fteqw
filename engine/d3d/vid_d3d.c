@@ -107,7 +107,7 @@ qbyte GetPaletteIndex(int red, int green, int blue)
 #endif
 
 void BuildGammaTable (float g, float c);
-void	D3D_VID_GenPaletteTables (unsigned char *palette)
+void	D3D7_VID_GenPaletteTables (unsigned char *palette)
 {
 	qbyte	*pal;
 	unsigned r,g,b;
@@ -489,7 +489,7 @@ static LRESULT WINAPI D3D7_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 
 
 
-qboolean D3D_VID_Init(rendererstate_t *info, unsigned char *palette)
+qboolean D3D7_VID_Init(rendererstate_t *info, unsigned char *palette)
 {
 	DWORD width = info->width;
 	DWORD height = info->height;
@@ -650,7 +650,7 @@ qboolean D3D_VID_Init(rendererstate_t *info, unsigned char *palette)
 	GetWindowRect(mainwindow, &window_rect);
 
 
-	D3D_VID_GenPaletteTables(palette);
+	D3D7_VID_GenPaletteTables(palette);
 
 
 
@@ -669,21 +669,21 @@ qboolean D3D_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 
 
-qboolean	(D3D_R_CheckSky)			(void)
+qboolean	(D3D7_R_CheckSky)			(void)
 {
 	return false;
 }
-void	(D3D_R_SetSky)					(char *name, float rotate, vec3_t axis)
+void	(D3D7_R_SetSky)					(char *name, float rotate, vec3_t axis)
 {
 }
 
-void	(D3D_R_NewMap)					(void)
+void	(D3D7_R_NewMap)					(void)
 {
 	extern int skytexturenum;
 	int i;
 	r_worldentity.model = cl.worldmodel;
 	GLR_AnimateLight();
-	D3D_BuildLightmaps();
+	D3D7_BuildLightmaps();
 
 	P_ClearParticles();
 
@@ -703,70 +703,70 @@ void	(D3D_R_NewMap)					(void)
 
 mleaf_t		*r_viewleaf, *r_oldviewleaf;
 mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
-void	(D3D_R_PreNewMap)				(void)
+void	(D3D7_R_PreNewMap)				(void)
 {
 	r_viewleaf = NULL;
 	r_oldviewleaf = NULL;
 	r_viewleaf2 = NULL;
 	r_oldviewleaf2 = NULL;
 }
-int		(D3D_R_LightPoint)				(vec3_t point)
+int		(D3D7_R_LightPoint)				(vec3_t point)
 {
 	return 0;
 }
 
-void	(D3D_R_PushDlights)			(void)
+void	(D3D7_R_PushDlights)			(void)
 {
 }
-void	(D3D_R_AddStain)				(vec3_t org, float red, float green, float blue, float radius)
+void	(D3D7_R_AddStain)				(vec3_t org, float red, float green, float blue, float radius)
 {
 }
-void	(D3D_R_LessenStains)			(void)
+void	(D3D7_R_LessenStains)			(void)
 {
 }
 
-void	(D3D_Mod_Init)					(void)
+void	(D3D7_Mod_Init)					(void)
 {
 }
-void	(D3D_Mod_ClearAll)				(void)
+void	(D3D7_Mod_ClearAll)				(void)
 {
 }
-struct model_s *(D3D_Mod_ForName)		(char *name, qboolean crash)
-{
-	return NULL;
-}
-struct model_s *(D3D_Mod_FindName)		(char *name)
+struct model_s *(D3D7_Mod_ForName)		(char *name, qboolean crash)
 {
 	return NULL;
 }
-void	*(D3D_Mod_Extradata)			(struct model_s *mod)
+struct model_s *(D3D7_Mod_FindName)		(char *name)
+{
+	return NULL;
+}
+void	*(D3D7_Mod_Extradata)			(struct model_s *mod)
 {
 	return NULL;
 }	// handles caching
-void	(D3D_Mod_TouchModel)			(char *name)
+void	(D3D7_Mod_TouchModel)			(char *name)
 {
 }
 
-void	(D3D_Mod_NowLoadExternal)		(void)
+void	(D3D7_Mod_NowLoadExternal)		(void)
 {
 }
-void	(D3D_Mod_Think)				(void)
+void	(D3D7_Mod_Think)				(void)
 {
 }
-qboolean(D3D_Mod_GetTag)				(struct model_s *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result)
+qboolean(D3D7_Mod_GetTag)				(struct model_s *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result)
 {
 	return false;
 }
-int (D3D_Mod_TagNumForName)			(struct model_s *model, char *name)
+int (D3D7_Mod_TagNumForName)			(struct model_s *model, char *name)
 {
 	return 0;
 }
-int (D3D_Mod_SkinForName)				(struct model_s *model, char *name)
+int (D3D7_Mod_SkinForName)				(struct model_s *model, char *name)
 {
 	return 0;
 }
 
-void	 (D3D_VID_DeInit)				(void)
+void	 (D3D7_VID_DeInit)				(void)
 {
 	if (pPrimary)
 	{
@@ -799,39 +799,39 @@ void	 (D3D_VID_DeInit)				(void)
 		mainwindow = NULL;
 	}
 }
-void	(D3D_VID_LockBuffer)			(void)
+void	(D3D7_VID_LockBuffer)			(void)
 {
 }
-void	(D3D_VID_UnlockBuffer)			(void)
+void	(D3D7_VID_UnlockBuffer)			(void)
 {
 }
-void	(D3D_D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height)
+void	(D3D7_D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height)
 {
 }
-void	(D3D_D_EndDirectRect)			(int x, int y, int width, int height)
+void	(D3D7_D_EndDirectRect)			(int x, int y, int width, int height)
 {
 }
-void	(D3D_VID_ForceLockState)		(int lk)
+void	(D3D7_VID_ForceLockState)		(int lk)
 {
 }
-int		(D3D_VID_ForceUnlockedAndReturnState) (void)
+int		(D3D7_VID_ForceUnlockedAndReturnState) (void)
 {
 	return 0;
 }
 
-void	(D3D_VID_SetPalette)			(unsigned char *palette)
+void	(D3D7_VID_SetPalette)			(unsigned char *palette)
 {
-	D3D_VID_GenPaletteTables(palette);
+	D3D7_VID_GenPaletteTables(palette);
 }
-void	(D3D_VID_ShiftPalette)			(unsigned char *palette)
+void	(D3D7_VID_ShiftPalette)			(unsigned char *palette)
 {
-	D3D_VID_GenPaletteTables(palette);
+	D3D7_VID_GenPaletteTables(palette);
 }
-char	*(D3D_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight)
+char	*(D3D7_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight)
 {
 	return NULL;
 }
-void	(D3D_VID_SetWindowCaption)		(char *msg)
+void	(D3D7_VID_SetWindowCaption)		(char *msg)
 {
 	SetWindowText(mainwindow, msg);
 }
@@ -841,7 +841,7 @@ void d3d7_ortho(float *m)
 	D3DXMatrixOrthoOffCenter((D3DXMATRIX*)m, 0, vid.width, vid.height, 0, -100, 100);
 }
 
-void D3D_Set2D (void)
+void D3D7_Set2D (void)
 {
 	int r;
 	float m[16];
@@ -881,13 +881,13 @@ void D3D_Set2D (void)
 //	pD3DDev->lpVtbl->BeginScene(pD3DDev);
 }
 
-void D3D_GetBufferSize(int *width, int *height)
+void D3D7_GetBufferSize(int *width, int *height)
 {
 	pD3DX->lpVtbl->GetBufferSize((void*)pD3DX, width, height);
 }
 
 
-void	(D3D_SCR_UpdateScreen)			(void)
+void	(D3D7_SCR_UpdateScreen)			(void)
 {
 	extern cvar_t vid_conheight;
 	int uimenu;
@@ -952,7 +952,7 @@ void	(D3D_SCR_UpdateScreen)			(void)
 #endif
 
 	pD3DDev->lpVtbl->BeginScene(pD3DDev);
-	D3D_Set2D ();
+	D3D7_Set2D ();
 /*
 #ifdef TEXTEDITOR
 	if (editormodal)
@@ -1023,7 +1023,7 @@ void	(D3D_SCR_UpdateScreen)			(void)
 		}
 
 
-	D3D_Set2D ();
+	D3D7_Set2D ();
 
 //	GLR_BrightenScreen();
 
@@ -1087,82 +1087,82 @@ void	(D3D_SCR_UpdateScreen)			(void)
 
 
 
-mpic_t	*(D3D_Draw_SafePicFromWad)			(char *name);
-mpic_t	*(D3D_Draw_CachePic)			(char *path);
-mpic_t	*(D3D_Draw_SafeCachePic)		(char *path);
-void	(D3D_Draw_Init)				(void);
-void	(D3D_Draw_ReInit)				(void);
-void	(D3D_Draw_Character)			(int x, int y, unsigned int num);
-void	(D3D_Draw_ColouredCharacter)	(int x, int y, unsigned int num);
-void	(D3D_Draw_String)				(int x, int y, const qbyte *str);
-void	(D3D_Draw_Alt_String)			(int x, int y, const qbyte *str);
-void	(D3D_Draw_Crosshair)			(void);
-void	(D3D_Draw_DebugChar)			(qbyte num);
-void	(D3D_Draw_Pic)					(int x, int y, mpic_t *pic);
-void	(D3D_Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic);
-void	(D3D_Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
-void	(D3D_Draw_TransPic)			(int x, int y, mpic_t *pic);
-void	(D3D_Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation);
-void	(D3D_Draw_ConsoleBackground)	(int lines);
-void	(D3D_Draw_EditorBackground)	(int lines);
-void	(D3D_Draw_TileClear)			(int x, int y, int w, int h);
-void	(D3D_Draw_Fill)				(int x, int y, int w, int h, int c);
-void	(D3D_Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b);
-void	(D3D_Draw_FadeScreen)			(void);
-void	(D3D_Draw_BeginDisc)			(void);
-void	(D3D_Draw_EndDisc)				(void);
+mpic_t	*(D3D7_Draw_SafePicFromWad)			(char *name);
+mpic_t	*(D3D7_Draw_CachePic)			(char *path);
+mpic_t	*(D3D7_Draw_SafeCachePic)		(char *path);
+void	(D3D7_Draw_Init)				(void);
+void	(D3D7_Draw_ReInit)				(void);
+void	(D3D7_Draw_Character)			(int x, int y, unsigned int num);
+void	(D3D7_Draw_ColouredCharacter)	(int x, int y, unsigned int num);
+void	(D3D7_Draw_String)				(int x, int y, const qbyte *str);
+void	(D3D7_Draw_Alt_String)			(int x, int y, const qbyte *str);
+void	(D3D7_Draw_Crosshair)			(void);
+void	(D3D7_Draw_DebugChar)			(qbyte num);
+void	(D3D7_Draw_Pic)					(int x, int y, mpic_t *pic);
+void	(D3D7_Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic);
+void	(D3D7_Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
+void	(D3D7_Draw_TransPic)			(int x, int y, mpic_t *pic);
+void	(D3D7_Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation);
+void	(D3D7_Draw_ConsoleBackground)	(int lines);
+void	(D3D7_Draw_EditorBackground)	(int lines);
+void	(D3D7_Draw_TileClear)			(int x, int y, int w, int h);
+void	(D3D7_Draw_Fill)				(int x, int y, int w, int h, int c);
+void	(D3D7_Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b);
+void	(D3D7_Draw_FadeScreen)			(void);
+void	(D3D7_Draw_BeginDisc)			(void);
+void	(D3D7_Draw_EndDisc)				(void);
 
-void	(D3D_Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
-void	(D3D_Draw_ImageColours)		(float r, float g, float b, float a);
+void	(D3D7_Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
+void	(D3D7_Draw_ImageColours)		(float r, float g, float b, float a);
 
-void	(D3D_R_Init)					(void);
-void	(D3D_R_DeInit)					(void);
-void	(D3D_R_ReInit)					(void);
-void	(D3D_R_RenderView)				(void);		// must set r_refdef first
+void	(D3D7_R_Init)					(void);
+void	(D3D7_R_DeInit)					(void);
+void	(D3D7_R_ReInit)					(void);
+void	(D3D7_R_RenderView)				(void);		// must set r_refdef first
 
-qboolean	(D3D_R_CheckSky)			(void);
-void	(D3D_R_SetSky)					(char *name, float rotate, vec3_t axis);
+qboolean	(D3D7_R_CheckSky)			(void);
+void	(D3D7_R_SetSky)					(char *name, float rotate, vec3_t axis);
 
-void	(D3D_R_NewMap)					(void);
-void	(D3D_R_PreNewMap)				(void);
-int		(D3D_R_LightPoint)				(vec3_t point);
+void	(D3D7_R_NewMap)					(void);
+void	(D3D7_R_PreNewMap)				(void);
+int		(D3D7_R_LightPoint)				(vec3_t point);
 
-void	(D3D_R_PushDlights)			(void);
-void	(D3D_R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
-void	(D3D_R_LessenStains)			(void);
+void	(D3D7_R_PushDlights)			(void);
+void	(D3D7_R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
+void	(D3D7_R_LessenStains)			(void);
 
-void (D3D_Media_ShowFrameBGR_24_Flip)	(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
-void (D3D_Media_ShowFrameRGBA_32)		(qbyte *framedata, int inwidth, int inheight);	//top down
-void (D3D_Media_ShowFrame8bit)			(qbyte *framedata, int inwidth, int inheight, qbyte *palette);	//paletted topdown (framedata is 8bit indexes into palette)
+void (D3D7_Media_ShowFrameBGR_24_Flip)	(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
+void (D3D7_Media_ShowFrameRGBA_32)		(qbyte *framedata, int inwidth, int inheight);	//top down
+void (D3D7_Media_ShowFrame8bit)			(qbyte *framedata, int inwidth, int inheight, qbyte *palette);	//paletted topdown (framedata is 8bit indexes into palette)
 
-void	(D3D_Mod_Init)					(void);
-void	(D3D_Mod_ClearAll)				(void);
-struct model_s *(D3D_Mod_ForName)		(char *name, qboolean crash);
-struct model_s *(D3D_Mod_FindName)		(char *name);
-void	*(D3D_Mod_Extradata)			(struct model_s *mod);	// handles caching
-void	(D3D_Mod_TouchModel)			(char *name);
+void	(D3D7_Mod_Init)					(void);
+void	(D3D7_Mod_ClearAll)				(void);
+struct model_s *(D3D7_Mod_ForName)		(char *name, qboolean crash);
+struct model_s *(D3D7_Mod_FindName)		(char *name);
+void	*(D3D7_Mod_Extradata)			(struct model_s *mod);	// handles caching
+void	(D3D7_Mod_TouchModel)			(char *name);
 
-void	(D3D_Mod_NowLoadExternal)		(void);
-void	(D3D_Mod_Think)				(void);
-qboolean(D3D_Mod_GetTag)				(struct model_s *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result);
-int (D3D_Mod_TagNumForName)			(struct model_s *model, char *name);
-int (D3D_Mod_SkinForName)				(struct model_s *model, char *name);
+void	(D3D7_Mod_NowLoadExternal)		(void);
+void	(D3D7_Mod_Think)				(void);
+qboolean(D3D7_Mod_GetTag)				(struct model_s *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result);
+int (D3D7_Mod_TagNumForName)			(struct model_s *model, char *name);
+int (D3D7_Mod_SkinForName)				(struct model_s *model, char *name);
 
 
-qboolean (D3D_VID_Init)				(rendererstate_t *info, unsigned char *palette);
-void	 (D3D_VID_DeInit)				(void);
-void	(D3D_VID_LockBuffer)			(void);
-void	(D3D_VID_UnlockBuffer)			(void);
-void	(D3D_D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height);
-void	(D3D_D_EndDirectRect)			(int x, int y, int width, int height);
-void	(D3D_VID_ForceLockState)		(int lk);
-int		(D3D_VID_ForceUnlockedAndReturnState) (void);
-void	(D3D_VID_SetPalette)			(unsigned char *palette);
-void	(D3D_VID_ShiftPalette)			(unsigned char *palette);
-char	*(D3D_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
-void	(D3D_VID_SetWindowCaption)		(char *msg);
+qboolean (D3D7_VID_Init)				(rendererstate_t *info, unsigned char *palette);
+void	 (D3D7_VID_DeInit)				(void);
+void	(D3D7_VID_LockBuffer)			(void);
+void	(D3D7_VID_UnlockBuffer)			(void);
+void	(D3D7_D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height);
+void	(D3D7_D_EndDirectRect)			(int x, int y, int width, int height);
+void	(D3D7_VID_ForceLockState)		(int lk);
+int		(D3D7_VID_ForceUnlockedAndReturnState) (void);
+void	(D3D7_VID_SetPalette)			(unsigned char *palette);
+void	(D3D7_VID_ShiftPalette)			(unsigned char *palette);
+char	*(D3D7_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
+void	(D3D7_VID_SetWindowCaption)		(char *msg);
 
-void	(D3D_SCR_UpdateScreen)			(void);
+void	(D3D7_SCR_UpdateScreen)			(void);
 
 
 
@@ -1178,53 +1178,54 @@ rendererinfo_t d3d7rendererinfo =
 	},
 	QR_DIRECT3D,
 
-	D3D_Draw_SafePicFromWad,
-	D3D_Draw_CachePic,
-	D3D_Draw_SafeCachePic,
-	D3D_Draw_Init,
-	D3D_Draw_ReInit,
-	D3D_Draw_Character,
-	D3D_Draw_ColouredCharacter,
-	D3D_Draw_String,
-	D3D_Draw_Alt_String,
-	D3D_Draw_Crosshair,
-	D3D_Draw_DebugChar,
-	D3D_Draw_Pic,
-	D3D_Draw_ScalePic,
-	D3D_Draw_SubPic,
-	D3D_Draw_TransPic,
-	D3D_Draw_TransPicTranslate,
-	D3D_Draw_ConsoleBackground,
-	D3D_Draw_EditorBackground,
-	D3D_Draw_TileClear,
-	D3D_Draw_Fill,
-	D3D_Draw_FillRGB,
-	D3D_Draw_FadeScreen,
-	D3D_Draw_BeginDisc,
-	D3D_Draw_EndDisc,
+	D3D7_Draw_SafePicFromWad,
+	D3D7_Draw_CachePic,
+	D3D7_Draw_SafeCachePic,
+	D3D7_Draw_Init,
+	D3D7_Draw_ReInit,
+	D3D7_Draw_Character,
+	D3D7_Draw_ColouredCharacter,
+	NULL,
+	D3D7_Draw_String,
+	D3D7_Draw_Alt_String,
+	D3D7_Draw_Crosshair,
+	D3D7_Draw_DebugChar,
+	D3D7_Draw_Pic,
+	D3D7_Draw_ScalePic,
+	D3D7_Draw_SubPic,
+	D3D7_Draw_TransPic,
+	D3D7_Draw_TransPicTranslate,
+	D3D7_Draw_ConsoleBackground,
+	D3D7_Draw_EditorBackground,
+	D3D7_Draw_TileClear,
+	D3D7_Draw_Fill,
+	D3D7_Draw_FillRGB,
+	D3D7_Draw_FadeScreen,
+	D3D7_Draw_BeginDisc,
+	D3D7_Draw_EndDisc,
 
-	D3D_Draw_Image,
-	D3D_Draw_ImageColours,
+	D3D7_Draw_Image,
+	D3D7_Draw_ImageColours,
 
-	D3D_R_Init,
-	D3D_R_DeInit,
-	D3D_R_ReInit,
-	D3D_R_RenderView,
+	D3D7_R_Init,
+	D3D7_R_DeInit,
+	D3D7_R_ReInit,
+	D3D7_R_RenderView,
 
-	D3D_R_CheckSky,
-	D3D_R_SetSky,
+	D3D7_R_CheckSky,
+	D3D7_R_SetSky,
 
-	D3D_R_NewMap,
-	D3D_R_PreNewMap,
-	D3D_R_LightPoint,
+	D3D7_R_NewMap,
+	D3D7_R_PreNewMap,
+	D3D7_R_LightPoint,
 
-	D3D_R_PushDlights,
-	D3D_R_AddStain,
-	D3D_R_LessenStains,
+	D3D7_R_PushDlights,
+	D3D7_R_AddStain,
+	D3D7_R_LessenStains,
 
-	D3D_Media_ShowFrameBGR_24_Flip,
-	D3D_Media_ShowFrameRGBA_32,
-	D3D_Media_ShowFrame8bit,
+	D3D7_Media_ShowFrameBGR_24_Flip,
+	D3D7_Media_ShowFrameRGBA_32,
+	D3D7_Media_ShowFrame8bit,
 
 	GLMod_Init,
 	GLMod_ClearAll,
@@ -1235,25 +1236,25 @@ rendererinfo_t d3d7rendererinfo =
 
 	GLMod_NowLoadExternal,
 	GLMod_Think,
-	D3D_Mod_GetTag,
-	D3D_Mod_TagNumForName,
-	D3D_Mod_SkinForName,
+	D3D7_Mod_GetTag,
+	D3D7_Mod_TagNumForName,
+	D3D7_Mod_SkinForName,
 
 
-	D3D_VID_Init,
-	D3D_VID_DeInit,
-	D3D_VID_LockBuffer,
-	D3D_VID_UnlockBuffer,
-	D3D_D_BeginDirectRect,
-	D3D_D_EndDirectRect,
-	D3D_VID_ForceLockState,
-	D3D_VID_ForceUnlockedAndReturnState,
-	D3D_VID_SetPalette,
-	D3D_VID_ShiftPalette,
-	D3D_VID_GetRGBInfo,
-	D3D_VID_SetWindowCaption,
+	D3D7_VID_Init,
+	D3D7_VID_DeInit,
+	D3D7_VID_LockBuffer,
+	D3D7_VID_UnlockBuffer,
+	D3D7_D_BeginDirectRect,
+	D3D7_D_EndDirectRect,
+	D3D7_VID_ForceLockState,
+	D3D7_VID_ForceUnlockedAndReturnState,
+	D3D7_VID_SetPalette,
+	D3D7_VID_ShiftPalette,
+	D3D7_VID_GetRGBInfo,
+	D3D7_VID_SetWindowCaption,
 
-	D3D_SCR_UpdateScreen
+	D3D7_SCR_UpdateScreen
 
 };
 #endif

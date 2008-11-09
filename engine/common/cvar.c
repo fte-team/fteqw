@@ -1180,8 +1180,9 @@ void Cvar_Unhook(cvar_t *cvar)
 
 void Cvar_ForceCallback(cvar_t *var)
 {
-	if (var->callback)
-		var->callback(var, var->string);
+	if (var)
+		if (var->callback)
+			var->callback(var, var->string);
 }
 
 void Cvar_ApplyCallbacks(int callbackflag)

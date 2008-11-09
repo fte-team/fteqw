@@ -268,6 +268,8 @@ shader_t *R_RegisterShader_Flare (char *name);
 shader_t *R_RegisterSkin (char *name);
 shader_t *R_RegisterCustom (char *name, void(*defaultgen)(char *name, shader_t*));
 
+cin_t *R_ShaderGetCinematic(char *name);
+
 void Shader_DefaultSkinShell(char *shortname, shader_t *s);
 
 

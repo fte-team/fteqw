@@ -38,6 +38,34 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
+void Sys_CloseLibrary(dllhandle_t *lib)
+{
+	FreeLibrary((HMODULE)lib);
+}
+dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
+{
+	int i;
+	HMODULE lib;
+
+	lib = LoadLibrary(name);
+	if (!lib)
+		return NULL;
+
+	for (i = 0; funcs[i].name; i++)
+	{
+		*funcs[i].funcptr = GetProcAddress(lib, funcs[i].name);
+		if (!*funcs[i].funcptr)
+			break;
+	}
+	if (funcs[i].name)
+	{
+		Sys_CloseLibrary((dllhandle_t*)lib);
+		lib = NULL;
+	}
+
+	return (dllhandle_t*)lib;
+}
+
 
 static HINSTANCE	game_library;
 
@@ -457,7 +485,7 @@ void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length)
 	DWORD  flOldProtect;
 
 //@@@ copy on write or just read-write?
-	if (!VirtualProtect((LPVOID)startaddr, length, PAGE_READWRITE, &flOldProtect))
+	if (!VirtualProtect((LPVOID)startaddr, length, PAGE_EXECUTE_READWRITE, &flOldProtect))
 	{
 		char str[1024];
 

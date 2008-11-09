@@ -490,10 +490,10 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 	// get string used for replacement tokens
 	ext = COM_FileExtension(mod->name);
 	if (!Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "sp2"))
-		replstr = NULL; // sprite
+		replstr = ""; // sprite
 	else if (!Q_strcasecmp(ext, "dsp")) // doom sprite
 	{
-		replstr = NULL;
+		replstr = "";
 		doomsprite = true;
 	}
 	else // assume models
@@ -501,20 +501,17 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 
 	// gl_load24bit 0 disables all replacements
 	if (!gl_load24bit.value)
-		replstr = NULL;
+		replstr = "";
 
 	COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
 
-	while (1)
+	while (replstr)
 	{
-		for (replstr = COM_ParseStringSet(replstr); com_token[0] && !buf; replstr = COM_ParseStringSet(replstr))
+		replstr = COM_ParseStringSet(replstr);
+		if (replstr)
 			buf = (unsigned *)COM_LoadStackFile (va("%s.%s", mdlbase, com_token), stackbuf, sizeof(stackbuf));
-
-		if (!buf)
+		else
 		{
-			if (lastload) // only load unreplaced file once
-				break;
-			lastload = true;
 			buf = (unsigned *)COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
 			if (!buf)
 			{
@@ -530,6 +527,8 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 				break; // failed to load unreplaced file and nothing left
 			}
 		}
+		if (!buf)
+			continue;
 	
 //
 // allocate a new model
@@ -2234,6 +2233,9 @@ qboolean GLMod_LoadClipnodes (lump_t *l)
 		hull->clip_maxs[1] = 48;
 		hull->clip_maxs[2] = 50;
 		hull->available = true;
+
+		//6 isn't used.
+		//7 isn't used.
 	}
 	else if (loadmodel->fromgame == fg_halflife)
 	{
@@ -2244,10 +2246,10 @@ qboolean GLMod_LoadClipnodes (lump_t *l)
 		hull->planes = loadmodel->planes;
 		hull->clip_mins[0] = -16;
 		hull->clip_mins[1] = -16;
-		hull->clip_mins[2] = -36;
+		hull->clip_mins[2] = -32;//-36 is correct here, but we'll just copy mvdsv instead.
 		hull->clip_maxs[0] = 16;
 		hull->clip_maxs[1] = 16;
-		hull->clip_maxs[2] = 36;
+		hull->clip_maxs[2] = hull->clip_mins[2]+72;
 		hull->available = true;
 
 		hull = &loadmodel->hulls[2];
@@ -2260,7 +2262,7 @@ qboolean GLMod_LoadClipnodes (lump_t *l)
 		hull->clip_mins[2] = -32;
 		hull->clip_maxs[0] = 32;
 		hull->clip_maxs[1] = 32;
-		hull->clip_maxs[2] = 32;
+		hull->clip_maxs[2] = hull->clip_mins[2]+64;
 		hull->available = true;
 
 		hull = &loadmodel->hulls[3];
@@ -2273,7 +2275,7 @@ qboolean GLMod_LoadClipnodes (lump_t *l)
 		hull->clip_mins[2] = -18;
 		hull->clip_maxs[0] = 16;
 		hull->clip_maxs[1] = 16;
-		hull->clip_maxs[2] = 18;
+		hull->clip_maxs[2] = hull->clip_mins[2]+36;
 		hull->available = true;
 	}
 	else

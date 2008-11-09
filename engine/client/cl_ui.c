@@ -347,9 +347,12 @@ typedef struct q3refEntity_s {
 #define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
 
 
+#define Q3RF_MINLIGHT			1
 #define	Q3RF_THIRD_PERSON		2		// don't draw through eyes, only mirrors (player bodies, chat sprites)
 #define	Q3RF_FIRST_PERSON		4		// only draw through eyes (view weapon, damage blood blob)
 #define	Q3RF_DEPTHHACK			8		// for view weapon Z crunching
+#define Q3RF_NOSHADOW			64
+#define Q3RF_LIGHTING_ORIGIN	128
 
 #define MAX_VMQ3_CACHED_STRINGS 1024
 char *stringcache[1024];
@@ -394,8 +397,8 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 		cl_visedicts = cl_visedicts_list[0];
 	memset(&ent, 0, sizeof(ent));
 	ent.model = VM_FROMMHANDLE(q3->hModel);
-	ent.frame = q3->frame;
-	ent.oldframe = q3->oldframe;
+	ent.frame1 = q3->frame;
+	ent.frame2 = q3->oldframe;
 	memcpy(ent.axis, q3->axis, sizeof(q3->axis));
 	ent.lerpfrac = q3->backlerp;
 	ent.scale = q3->radius;
@@ -409,6 +412,10 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.shaderRGBAf[1] = q3->shaderRGBA[1]/255.0f;
 	ent.shaderRGBAf[2] = q3->shaderRGBA[2]/255.0f;
 	ent.shaderRGBAf[3] = q3->shaderRGBA[3]/255.0f;
+
+//	if (ent.shaderRGBAf[3] <= 0)
+//		return;
+
 #ifdef Q3SHADERS
 	ent.forcedshader = VM_FROMSHANDLE(q3->customShader);
 	ent.shaderTime = q3->shaderTime;

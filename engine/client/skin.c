@@ -160,8 +160,8 @@ void Skin_Find (player_info_t *sc)
 			model = Mod_ForName(va("players/%s/tris.mdl", name), false);
 		else
 #endif
-			model = Mod_ForName(va("models/players/%s.mdl", name), false);
-		if (model->type == mod_dummy)
+			model = NULL;//Mod_ForName(va("models/players/%s.mdl", name), false);
+		if (model && model->type == mod_dummy)
 			model = NULL;
 		*s = '/';
 	}
@@ -533,7 +533,7 @@ void Skin_NextDownload (void)
 		if (strchr(sc->skin->name, ' '))	//skip over skins using a space
 			continue;
 
-		CL_CheckOrEnqueDownloadFile(va("skins/%s.pcx", sc->skin->name), NULL);
+		CL_CheckOrEnqueDownloadFile(va("skins/%s.pcx", sc->skin->name), NULL, 0);
 	}
 
 	// now load them in for real

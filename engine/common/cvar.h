@@ -79,6 +79,7 @@ typedef struct cvar_s
 #define SCVARF(ConsoleName,Value, Flags) FCVAR(ConsoleName, NULL, Value, Flags)
 #define SCVARC(ConsoleName,Value,Callback) FCVARC(ConsoleName, NULL, Value, 0, Callback)
 #define SCVAR(ConsoleName,Value) FCVAR(ConsoleName, NULL, Value, 0)
+#define CVARDP4(Flags,ConsoleName,Value,Description) FCVAR(ConsoleName, NULL, Value, Flags)
 
 typedef struct cvar_group_s
 {
@@ -112,6 +113,9 @@ typedef struct cvar_group_s
 
 #define CVAR_LATCHMASK		(CVAR_LATCH|CVAR_RENDERERLATCH|CVAR_SERVEROVERRIDE|CVAR_CHEAT|CVAR_SEMICHEAT)	//you're only allowed one of these.
 #define CVAR_NEEDDEFAULT	CVAR_CHEAT
+
+//an alias
+#define CVAR_SAVE CVAR_ARCHIVE
 
 cvar_t *Cvar_Get (const char *var_name, const char *value, int flags, const char *groupname);
 

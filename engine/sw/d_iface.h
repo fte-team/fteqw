@@ -143,7 +143,7 @@ void D_PolysetDraw16 (void);
 void D_PolysetDraw32 (void);
 void D_PolysetDrawFinalVerts (finalvert_t *fv, int numverts);
 void D_PolysetDrawFinalVerts32Trans (finalvert_t *fv, int numverts);
-void D_DrawParticle (particle_t *pparticle);
+void D_DrawParticle (vec3_t porg, float palpha, float pscale, unsigned int pcolour);
 void D_DrawPoly (void);
 void D_DrawSprite (void);
 void D_DrawSurfaces (void);

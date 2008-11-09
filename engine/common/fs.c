@@ -1324,6 +1324,7 @@ typedef struct searchpath_s
 	qboolean istemporary;
 	void *handle;
 
+	char purepath[256];	//server tracks the path used to load them so it can tell the client
 	int crc_check;	//client sorts packs according to this checksum
 	int crc_reply;	//client sends a different crc back to the server, for the paks it's actually loaded.
 
@@ -1335,9 +1336,9 @@ searchpath_t	*com_searchpaths;
 searchpath_t	*com_purepaths;
 searchpath_t	*com_base_searchpaths;	// without gamedirs
 
-static void COM_AddDataFiles(char *pathto, searchpath_t *search, char *extension, searchpathfuncs_t *funcs);
+static void COM_AddDataFiles(char *purepath, char *pathto, searchpath_t *search, char *extension, searchpathfuncs_t *funcs);
 
-searchpath_t *COM_AddPathHandle(char *probablepath, searchpathfuncs_t *funcs, void *handle, qboolean copyprotect, qboolean istemporary, unsigned int loadstuff)
+searchpath_t *COM_AddPathHandle(char *purepath, char *probablepath, searchpathfuncs_t *funcs, void *handle, qboolean copyprotect, qboolean istemporary, unsigned int loadstuff)
 {
 	searchpath_t *search;
 
@@ -1346,6 +1347,7 @@ searchpath_t *COM_AddPathHandle(char *probablepath, searchpathfuncs_t *funcs, vo
 	search->istemporary = istemporary;
 	search->handle = handle;
 	search->funcs = funcs;
+	Q_strncpyz(search->purepath, purepath, sizeof(search->purepath));
 
 	search->next = com_searchpaths;
 	com_searchpaths = search;
@@ -1355,19 +1357,19 @@ searchpath_t *COM_AddPathHandle(char *probablepath, searchpathfuncs_t *funcs, vo
 
 	//add any data files too
 	if (loadstuff & 2)
-		COM_AddDataFiles(probablepath, search, "pak", &packfilefuncs);//q1/hl/h2/q2
+		COM_AddDataFiles(purepath, probablepath, search, "pak", &packfilefuncs);//q1/hl/h2/q2
 	//pk2s never existed.
 #ifdef AVAIL_ZLIB
 	if (loadstuff & 4)
-		COM_AddDataFiles(probablepath, search, "pk3", &zipfilefuncs);	//q3 + offspring
+		COM_AddDataFiles(purepath, probablepath, search, "pk3", &zipfilefuncs);	//q3 + offspring
 	if (loadstuff & 8)
-		COM_AddDataFiles(probablepath, search, "pk4", &zipfilefuncs);	//q4
+		COM_AddDataFiles(purepath, probablepath, search, "pk4", &zipfilefuncs);	//q4
 	//we could easily add zip, but it's friendlier not to
 #endif
 
 #ifdef DOOMWADS
 	if (loadstuff & 16)
-		COM_AddDataFiles(probablepath, search, "wad", &doomwadfilefuncs);	//q4
+		COM_AddDataFiles(purepath, probablepath, search, "wad", &doomwadfilefuncs);	//q4
 #endif
 
 	return search;
@@ -1703,6 +1705,7 @@ int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *lo
 				}
 				else
 					len = 0;
+				com_file_copyprotected = search->copyprotected;
 				goto out;
 			}
 			depth += (search->funcs != &osfilefuncs || returntype == FSLFRT_DEPTH_ANYPATH);
@@ -1723,6 +1726,7 @@ int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *lo
 			}
 			else
 				len = 1;
+			com_file_copyprotected = search->copyprotected;
 			goto out;
 		}
 		depth += (search->funcs != &osfilefuncs || returntype == FSLFRT_DEPTH_ANYPATH);
@@ -1750,6 +1754,21 @@ out:
 		return len;
 	else
 		return depth;
+}
+
+char *FS_WhichPackForLocation(flocation_t *loc)
+{
+	char *ret;
+	if (!loc->search)
+		return NULL;	//huh? not a valid location.
+
+	ret = strchr(loc->search->purepath, '/');
+	if (!ret)
+		return NULL;
+	ret++;
+	if (strchr(ret, '/'))
+		return NULL;
+	return ret;
 }
 
 
@@ -1783,7 +1802,31 @@ char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly)
 }
 char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
 {
-	return "";
+	searchpath_t	*search;
+	buffersize--;
+	*buffer = 0;
+	
+	if (com_purepaths)
+	{
+		for (search = com_purepaths ; search ; search = search->nextpure)
+		{
+			Q_strncatz(buffer, va("%s ", search->purepath), buffersize);
+		}
+		return buffer;
+	}
+	else
+	{
+		for (search = com_searchpaths ; search ; search = search->next)
+		{
+			if (!search->crc_check && search->funcs->GeneratePureCRC)
+				search->crc_check = search->funcs->GeneratePureCRC(search->handle, 0, 0);
+			if (search->crc_check)
+			{
+				Q_strncatz(buffer, va("%s ", search->purepath), buffersize);
+			}
+		}
+		return buffer;
+	}
 }
 
 
@@ -2067,6 +2110,7 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 			if (strcmp(mode, "ab"))
 				return NULL; //urm, unable to write/append
 
+	//if there can only be one file (eg: write access) find out where it is.
 	switch (relativeto)
 	{
 	case FS_GAMEONLY:	//OS access only, no paks
@@ -2127,6 +2171,16 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 	//if we're meant to be writing, best write to it.
 	if (strchr(mode , 'w') || strchr(mode , 'a'))
 		return VFSOS_Open(fullname, mode);
+	return NULL;
+}
+
+vfsfile_t *FS_OpenReadLocation(flocation_t *location)
+{
+	if (location->search)
+	{
+		com_file_copyprotected = location->search->copyprotected;
+		return VFS_Filter(NULL, location->search->funcs->OpenVFS(location->search->handle, location, "rb"));
+	}
 	return NULL;
 }
 
@@ -2534,6 +2588,7 @@ typedef struct {
 	searchpathfuncs_t *funcs;
 	searchpath_t *parentpath;
 	char *parentdesc;
+	char *puredesc;
 } wildpaks_t;
 
 static int COM_AddWildDataFiles (char *descriptor, int size, void *vparam)
@@ -2544,6 +2599,7 @@ static int COM_AddWildDataFiles (char *descriptor, int size, void *vparam)
 	searchpath_t	*search;
 	pack_t			*pak;
 	char			pakfile[MAX_OSPATH];
+	char			purefile[MAX_OSPATH];
 	flocation_t loc;
 
 	sprintf (pakfile, "%s%s", param->parentdesc, descriptor);
@@ -2566,22 +2622,28 @@ static int COM_AddWildDataFiles (char *descriptor, int size, void *vparam)
 		return true;
 
 	sprintf (pakfile, "%s%s/", param->parentdesc, descriptor);
-	COM_AddPathHandle(pakfile, funcs, pak, true, false, (unsigned int)-1);
+	if (*param->puredesc)
+		snprintf (purefile, sizeof(purefile), "%s/%s", param->puredesc, descriptor);
+	else
+		Q_strncpyz(purefile, descriptor, sizeof(purefile));
+	COM_AddPathHandle(purefile, pakfile, funcs, pak, true, false, (unsigned int)-1);
 
 	return true;
 }
 
 
-static void COM_AddDataFiles(char *pathto, searchpath_t *search, char *extension, searchpathfuncs_t *funcs)
+static void COM_AddDataFiles(char *purepath, char *pathto, searchpath_t *search, char *extension, searchpathfuncs_t *funcs)
 {
 	//search is the parent
 	int				i;
 	void			*handle;
 	char			pakfile[MAX_OSPATH];
+	char			purefile[MAX_OSPATH];
 	vfsfile_t *vfs;
 	flocation_t loc;
 	wildpaks_t wp;
 
+	//first load all the numbered pak files
 	for (i=0 ; ; i++)
 	{
 		snprintf (pakfile, sizeof(pakfile), "pak%i.%s", i, extension);
@@ -2596,13 +2658,16 @@ static void COM_AddDataFiles(char *pathto, searchpath_t *search, char *extension
 		if (!handle)
 			break;
 		snprintf (pakfile, sizeof(pakfile), "%spak%i.%s/", pathto, i, extension);
-		COM_AddPathHandle(pakfile, funcs, handle, true, false, (unsigned int)-1);
+		snprintf (purefile, sizeof(pakfile), "%spak%i.%s", purepath, i, extension);
+		COM_AddPathHandle(purefile, pakfile, funcs, handle, true, false, (unsigned int)-1);
 	}
 
+	//now load the random ones
 	sprintf (pakfile, "*.%s", extension);
 	wp.funcs = funcs;
 	wp.parentdesc = pathto;
 	wp.parentpath = search;
+	wp.puredesc = purepath;
 	search->funcs->EnumerateFiles(search->handle, pakfile, COM_AddWildDataFiles, &wp);
 }
 
@@ -2624,7 +2689,7 @@ Sets com_gamedir, adds the directory to the head of the path,
 then loads and adds pak1.pak pak2.pak ...
 ================
 */
-void COM_AddGameDirectory (char *dir, unsigned int loadstuff)
+void COM_AddGameDirectory (char *puredir, char *dir, unsigned int loadstuff)
 {
 	searchpath_t	*search;
 
@@ -2650,7 +2715,7 @@ void COM_AddGameDirectory (char *dir, unsigned int loadstuff)
 
 	p = Z_Malloc(strlen(dir)+1);
 	strcpy(p, dir);
-	COM_AddPathHandle(va("%s/", dir), &osfilefuncs, p, false, false, loadstuff);
+	COM_AddPathHandle((*dir?puredir:""), va("%s/", dir), &osfilefuncs, p, false, false, loadstuff);
 }
 
 char *COM_NextPath (char *prevpath)
@@ -2684,7 +2749,7 @@ char *COM_GetPathInfo (int i, int *crc)
 
 	searchpath_t	*s;
 	static char name[MAX_OSPATH];
-	char			adr[MAX_ADR_SIZE];
+//	char			adr[MAX_ADR_SIZE];
 	char			*protocol;
 
 	for (s=com_searchpaths ; s ; s=s->next)
@@ -2696,11 +2761,13 @@ char *COM_GetPathInfo (int i, int *crc)
 	if (i)	//too high.
 		return NULL;
 
+/*
 #ifdef WEBSERVER
 	if (httpserver.value)
 		protocol = va("http://%s/", NET_AdrToString(adr, sizeof(adr), net_local_sv_ipadr));
 	else
 #endif
+		*/
 		protocol = "qw://";
 
 	*crc = 0;//s->crc;
@@ -2767,12 +2834,13 @@ void COM_Gamedir (char *dir)
 	//
 	Cache_Flush ();
 
-	COM_AddGameDirectory(va("%s%s", com_quakedir, dir), (unsigned int)-1);
+	COM_AddGameDirectory(dir, va("%s%s", com_quakedir, dir), (unsigned int)-1);
 	if (*com_homedir)
-		COM_AddGameDirectory(va("%s%s", com_homedir, dir), (unsigned int)-1);
+		COM_AddGameDirectory(dir, va("%s%s", com_homedir, dir), (unsigned int)-1);
 
 
 #ifndef SERVERONLY
+	if (!isDedicated)
 	{
 		char	fn[MAX_OSPATH];
 		FILE *f;
@@ -2798,6 +2866,8 @@ void COM_Gamedir (char *dir)
 		Shader_Init();	//FIXME!
 	}
 #endif
+
+	COM_Effectinfo_Reset();
 
 	Validation_FlushFileList();	//prevent previous hacks from making a difference.
 
@@ -2983,7 +3053,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 
 	//a lame way to fix pure paks
 #ifndef SERVERONLY
-	if (cls.state)
+	if (cls.state && com_purepaths)
 	{
 		CL_Disconnect_f();
 		CL_Reconnect_f();
@@ -3018,7 +3088,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			com_base_searchpaths = com_searchpaths;
 
 		if (oldpaths->funcs == &osfilefuncs)
-			COM_AddGameDirectory(oldpaths->handle, reloadflags);
+			COM_AddGameDirectory(oldpaths->purepath, oldpaths->handle, reloadflags);
 
 		oldpaths->funcs->ClosePath(oldpaths->handle);
 		Z_Free(oldpaths);
@@ -3233,7 +3303,7 @@ void COM_InitFilesystem (void)
 	{
 		do	//use multiple -basegames
 		{
-			COM_AddGameDirectory (va("%s%s", com_quakedir, com_argv[i+1]), (unsigned int)-1);
+			COM_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), (unsigned int)-1);
 
 			i = COM_CheckNextParm ("-basegame", i);
 		}
@@ -3242,17 +3312,17 @@ void COM_InitFilesystem (void)
 	else
 	{
 		if (gamemode_info[gamenum].dir1)
-			COM_AddGameDirectory (va("%s%s", com_quakedir, gamemode_info[gamenum].dir1), (unsigned int)-1);
+			COM_AddGameDirectory (gamemode_info[gamenum].dir1, va("%s%s", com_quakedir, gamemode_info[gamenum].dir1), (unsigned int)-1);
 		if (gamemode_info[gamenum].dir2)
-			COM_AddGameDirectory (va("%s%s", com_quakedir, gamemode_info[gamenum].dir2), (unsigned int)-1);
+			COM_AddGameDirectory (gamemode_info[gamenum].dir2, va("%s%s", com_quakedir, gamemode_info[gamenum].dir2), (unsigned int)-1);
 		if (gamemode_info[gamenum].dir3)
-			COM_AddGameDirectory (va("%s%s", com_quakedir, gamemode_info[gamenum].dir3), (unsigned int)-1);
+			COM_AddGameDirectory (gamemode_info[gamenum].dir3, va("%s%s", com_quakedir, gamemode_info[gamenum].dir3), (unsigned int)-1);
 		if (gamemode_info[gamenum].dir4)
-			COM_AddGameDirectory (va("%s%s", com_quakedir, gamemode_info[gamenum].dir4), (unsigned int)-1);
+			COM_AddGameDirectory (gamemode_info[gamenum].dir4, va("%s%s", com_quakedir, gamemode_info[gamenum].dir4), (unsigned int)-1);
 	}
 
 	if (*com_homedir)
-		COM_AddGameDirectory (va("%sfte", com_homedir), (unsigned int)-1);
+		COM_AddGameDirectory ("fte", va("%sfte", com_homedir), (unsigned int)-1);
 
 	// any set gamedirs will be freed up to here
 	com_base_searchpaths = com_searchpaths;
@@ -3260,7 +3330,7 @@ void COM_InitFilesystem (void)
 	i = COM_CheckParm ("-game");	//effectivly replace with +gamedir x (But overridable)
 	if (i && i < com_argc-1)
 	{
-		COM_AddGameDirectory (va("%s%s", com_quakedir, com_argv[i+1]), (unsigned int)-1);
+		COM_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), (unsigned int)-1);
 
 #ifndef CLIENTONLY
 		Info_SetValueForStarKey (svs.info, "*gamedir", com_argv[i+1], MAX_SERVERINFO_STRING);

@@ -3095,7 +3095,7 @@ void GL_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
 GL_Upload32
 ===============
 */
-void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean mipmap, qboolean alpha)
+void GL_Upload32_Int (char *name, unsigned *data, int width, int height,  qboolean mipmap, qboolean alpha, GLenum glcolormode)
 {
 	int		miplevel=0;
 	int			samples;
@@ -3107,6 +3107,20 @@ void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean m
 	scaled_width = width;
 	scaled_height = height;
 	GL_RoundDimensions(&scaled_width, &scaled_height, mipmap);
+
+	if (alpha)
+	{	//make sure it does actually have those alpha pixels
+		int i;
+		alpha = false;
+		for (i = 3; i < width*height*4; i+=4)
+		{
+			if (((unsigned char*)data)[i] < 255)
+			{
+				alpha = true;
+				break;
+			}
+		}
+	}
 
 	TRACE(("dbg: GL_Upload32: %i %i\n", scaled_width, scaled_height));
 
@@ -3130,7 +3144,7 @@ texels += scaled_width * scaled_height;
 		if (!mipmap||gl_config.sgis_generate_mipmap)	//gotta love this with NPOT textures... :)
 		{
 			TRACE(("dbg: GL_Upload32: non-mipmapped/unscaled\n"));
-			qglTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			qglTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
 			goto done;
 		}
 		memcpy (scaled, data, width*height*4);
@@ -3139,7 +3153,7 @@ texels += scaled_width * scaled_height;
 		GL_ResampleTexture (data, width, height, scaled, scaled_width, scaled_height);
 
 	TRACE(("dbg: GL_Upload32: recaled\n"));
-	qglTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaled);
+	qglTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
 	if (mipmap && !gl_config.sgis_generate_mipmap)
 	{
 		miplevel = 0;
@@ -3226,6 +3240,15 @@ done:
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
+}
+
+void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean mipmap, qboolean alpha)
+{
+	GL_Upload32_Int(name, data, width, height, mipmap, alpha, GL_RGBA);
+}
+void GL_Upload32_BGRA (char *name, unsigned *data, int width, int height,  qboolean mipmap, qboolean alpha)
+{
+	GL_Upload32_Int(name, data, width, height, mipmap, alpha, GL_BGRA_EXT);
 }
 
 void GL_Upload24BGR (char *name, qbyte *framedata, int inwidth, int inheight,  qboolean mipmap, qboolean alpha)

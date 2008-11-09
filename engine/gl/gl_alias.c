@@ -1753,7 +1753,7 @@ void R_DrawGAliasModel (entity_t *e)
 		qglEnable (GL_BLEND);
 		qglBlendFunc(GL_ONE, GL_ONE);
 	}
-	else if ((e->model->flags & EF_SPECIAL_TRANS))	//hexen2 flags.
+	else if ((e->model->flags & EFH2_SPECIAL_TRANS))	//hexen2 flags.
 	{
 		qglEnable (GL_BLEND);
 		qglBlendFunc (GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
@@ -1766,12 +1766,12 @@ void R_DrawGAliasModel (entity_t *e)
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		e->shaderRGBAf[3] = r_wateralpha.value;
 	}
-	else if ((e->model->flags & EF_TRANSPARENT))
+	else if ((e->model->flags & EFH2_TRANSPARENT))
 	{
 		qglEnable (GL_BLEND);
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
-	else if ((e->model->flags & EF_HOLEY))
+	else if ((e->model->flags & EFH2_HOLEY))
 	{
 		qglEnable (GL_ALPHA_TEST);
 //		qglEnable (GL_BLEND);
@@ -1911,7 +1911,7 @@ void R_DrawGAliasModel (entity_t *e)
 	memset(&mesh, 0, sizeof(mesh));
 	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
 	{
-		needrecolour = R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->shaderRGBAf[3], e->frame1time, e->frame2time, nolightdir);
+		needrecolour = R_GAliasBuildMesh(&mesh, inf, e->frame1, e->frame2, e->lerpfrac, e->shaderRGBAf[3], e->frame1time, e->frame2time, nolightdir);
 
 		c_alias_polys += mesh.numindexes/3;
 
@@ -2001,14 +2001,36 @@ void R_DrawGAliasModel (entity_t *e)
 			if (skin->loweroverlay && r_skin_overlays.value)
 			{
 				qglEnable(GL_BLEND);
-				qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->shaderRGBAf[3]);
+				qglBlendFunc (GL_SRC_ALPHA, GL_ONE);
+				mesh.colors_array = NULL;
+				if (e->scoreboard)
+				{
+					int c = e->scoreboard->tbottomcolor;
+					if (c >= 16)
+						qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->shaderRGBAf[3]);
+					else if (c >= 8)
+						qglColor4f(host_basepal[c*16*3]/255.0f, host_basepal[c*16*3+1]/255.0f, host_basepal[c*16*3+2]/255.0f, e->shaderRGBAf[3]);
+					else
+						qglColor4f(host_basepal[15+c*16*3]/255.0f, host_basepal[15+c*16*3+1]/255.0f, host_basepal[15+c*16*3+2]/255.0f, e->shaderRGBAf[3]);
+				}
 				c_alias_polys += mesh.numindexes/3;
 				GL_DrawAliasMesh(&mesh, skin->loweroverlay);
 			}
 			if (skin->upperoverlay && r_skin_overlays.value)
 			{
 				qglEnable(GL_BLEND);
-				qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->shaderRGBAf[3]);
+				qglBlendFunc (GL_SRC_ALPHA, GL_ONE);
+				mesh.colors_array = NULL;
+				if (e->scoreboard)
+				{
+					int c = e->scoreboard->ttopcolor;
+					if (c >= 16)
+						qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->shaderRGBAf[3]);
+					else if (c >= 8)
+						qglColor4f(host_basepal[c*16*3]/255.0f, host_basepal[c*16*3+1]/255.0f, host_basepal[c*16*3+2]/255.0f, e->shaderRGBAf[3]);
+					else
+						qglColor4f(host_basepal[15+c*16*3]/255.0f, host_basepal[15+c*16*3+1]/255.0f, host_basepal[15+c*16*3+2]/255.0f, e->shaderRGBAf[3]);
+				}
 				c_alias_polys += mesh.numindexes/3;
 				GL_DrawAliasMesh(&mesh, skin->upperoverlay);
 			}
@@ -2101,9 +2123,9 @@ qglColor3f(0,0,1);
 	if (e->flags & Q2RF_DEPTHHACK)
 		qglDepthRange (gldepthmin, gldepthmax);
 
-	if ((currententity->model->flags & EF_SPECIAL_TRANS) && gl_cull.value)
+	if ((currententity->model->flags & EFH2_SPECIAL_TRANS) && gl_cull.value)
 		qglEnable( GL_CULL_FACE );
-	if ((currententity->model->flags & EF_HOLEY))
+	if ((currententity->model->flags & EFH2_HOLEY))
 		qglDisable( GL_ALPHA_TEST );
 
 #ifdef SHOWLIGHTDIR	//testing
@@ -2596,7 +2618,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	{
 		if (inf->ofs_trineighbours)
 		{
-			R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, 1, e->frame1time, e->frame2time, true);
+			R_GAliasBuildMesh(&mesh, inf, e->frame1, e->frame2, e->lerpfrac, 1, e->frame1time, e->frame2time, true);
 			R_CalcFacing(&mesh, lightorg);
 			R_ProjectShadowVolume(&mesh, lightorg);
 			R_DrawShadowVolume(&mesh);

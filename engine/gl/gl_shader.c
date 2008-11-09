@@ -2495,6 +2495,38 @@ int R_LoadShader ( char *name, void(*defaultgen)(char *name, shader_t*))
 	return -1;
 }
 
+cin_t *R_ShaderGetCinematic(char *name)
+{
+	int i, j;
+		char shortname[MAX_QPATH];
+	shader_t *s;
+
+	COM_StripExtension ( name, shortname, sizeof(shortname));
+
+	COM_CleanUpPath(shortname);
+
+	//try and find it
+	for (i = 0; i < MAX_SHADERS; i++)
+	{
+		if (!r_shaders[i].registration_sequence)
+			continue;
+
+		if (!Q_stricmp (shortname, r_shaders[i].name) )
+			break;
+	}
+	if (i == MAX_SHADERS)
+		return NULL;
+
+	//we have a currently-loaded shader.
+	s = &r_shaders[i];
+	for (j = 0; j < s->numpasses; j++)
+		if (s->passes[j].cin)
+			return s->passes[j].cin;
+
+	//but it has no cinematic passes.
+	return NULL;
+}
+
 shader_t *R_RegisterPic (char *name) 
 {
 	return &r_shaders[R_LoadShader (name, Shader_Default2D)];

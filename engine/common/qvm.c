@@ -236,6 +236,7 @@ void Sys_UnloadDLL(void *handle)
 
 // ------------------------- * QVM files * -------------------------
 #define	VM_MAGIC	0x12721444
+#define	VM_MAGIC2	0x12721445
 #define LL(x)			x = LittleLong(x)
 
 #pragma pack(push,1)
@@ -252,6 +253,9 @@ typedef struct vmHeader_s
 	int dataLength;	// should be byteswapped on load
 	int litLength;	// copy as is
 	int bssLength;	// zero filled memory appended to datalength
+
+	//valid only in V2.
+	int		jtrgLength;			// number of jump table targets
 } vmHeader_t;
 #pragma pack(pop)
 
@@ -418,8 +422,15 @@ qvm_t *QVM_Load(const char *name, sys_callqvm_t syscall)
 	LL(header->litLength);
 	LL(header->bssLength);
 
+	if (header->vmMagic==VM_MAGIC2)
+	{	//version2 cotains a jump table of sorts
+		//it is redundant information and can be ignored
+		//its also more useful for jit rather than bytecode
+		LL(header->jtrgLength);
+	}
+
 // check file
-	if(header->vmMagic!=VM_MAGIC || header->instructionCount<=0 || header->codeLength<=0)
+	if(header->vmMagic!=VM_MAGIC && header->vmMagic!=VM_MAGIC2 || header->instructionCount<=0 || header->codeLength<=0)
 	{
 		Con_Printf("%s: invalid qvm file\n", name);
 		BZ_Free(raw);

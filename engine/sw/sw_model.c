@@ -338,31 +338,46 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 
 	// get string used for replacement tokens
 	ext = COM_FileExtension(mod->name);
-	if (isDedicated)
-		replstr = NULL;
-	else if (!Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "sp2"))
-		replstr = NULL; // sprite
+	if (!Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "sp2"))
+		replstr = ""; // sprite
 	else if (!Q_strcasecmp(ext, "dsp")) // doom sprite
-		replstr = NULL;
+	{
+		replstr = "";
+//		doomsprite = true;
+	}
 	else // assume models
 		replstr = r_replacemodels.string;
 
+	// gl_load24bit 0 disables all replacements
+//	if (!gl_load24bit.value)
+//		replstr = "";
+
 	COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
 
-	while (1)
+	while (replstr)
 	{
-		for (replstr = COM_ParseStringSet(replstr); com_token[0] && !buf; replstr = COM_ParseStringSet(replstr))
+		replstr = COM_ParseStringSet(replstr);
+		if (replstr)
 			buf = (unsigned *)COM_LoadStackFile (va("%s.%s", mdlbase, com_token), stackbuf, sizeof(stackbuf));
-
-		if (!buf)
+		else
 		{
-			if (lastload) // only load unreplaced file once
-				break;
-			lastload = true;
 			buf = (unsigned *)COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
-			if (!buf) // we would attempt Doom sprites here, but SW doesn't support them
+			if (!buf)
+			{
+#ifdef DOOMWADS
+				if (doomsprite) // special case needed for doom sprites
+				{
+					mod->needload = false;
+					GLMod_LoadDoomSprite(mod);
+					P_DefaultTrail(mod);
+					return mod;
+				}
+#endif
 				break; // failed to load unreplaced file and nothing left
+			}
 		}
+		if (!buf)
+			continue;
 	
 //
 // allocate a new model
@@ -1679,10 +1694,10 @@ qboolean SWMod_LoadClipnodes (lump_t *l)
 		hull->planes = loadmodel->planes;
 		hull->clip_mins[0] = -16;
 		hull->clip_mins[1] = -16;
-		hull->clip_mins[2] = -36;
+		hull->clip_mins[2] = -32;	//I dont know what is correct here, but we'll just copy mvdsv for now
 		hull->clip_maxs[0] = 16;
 		hull->clip_maxs[1] = 16;
-		hull->clip_maxs[2] = 36;
+		hull->clip_maxs[2] = 32;
 		hull->available = true;
 
 		hull = &loadmodel->hulls[2];

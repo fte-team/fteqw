@@ -972,6 +972,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 		{
 			pack->max_entities = pack->num_entities+1;
 			pack->entities = BZ_Realloc(pack->entities, sizeof(entity_state_t)*pack->max_entities);
+			memset(pack->entities + pack->num_entities, 0, sizeof(entity_state_t));
 		}
 		lasttime = realtime;
 		state = &pack->entities[pack->num_entities++];
@@ -1166,8 +1167,16 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 
 	int model = 0;	//these two are only initialised because msvc sucks at detecting usage.
 	int frame = 0;
-	int frame2 = cl.lerpents[tagent].frame;
+	int frame2;
 	float frame2ness;
+
+	if (tagent > cl.maxlerpents)
+	{
+		Con_Printf("tag entity out of range!\n");
+		return;
+	}
+
+	frame2 = cl.lerpents[tagent].frame;
 
 	ent->keynum = tagent;
 
@@ -1684,8 +1693,8 @@ void CL_LinkPacketEntities (void)
 		ent->drawflags = state->hexen2flags;
 
 		// set frame
-		ent->frame = state->frame;
-		ent->oldframe = le->frame;
+		ent->frame1 = state->frame;
+		ent->frame2 = le->frame;
 
 		ent->frame1time = cl.servertime - le->framechange;
 		ent->frame2time = cl.servertime - le->oldframechange;
@@ -1759,8 +1768,8 @@ void CL_LinkPacketEntities (void)
 		}
 		if (i == cl_oldnumvisedicts)
 		{
-			P_DelinkTrailstate(&(cl.lerpents[state->number].trailstate));
-			P_DelinkTrailstate(&(cl.lerpents[state->number].emitstate));
+			pe->DelinkTrailstate(&(cl.lerpents[state->number].trailstate));
+			pe->DelinkTrailstate(&(cl.lerpents[state->number].emitstate));
 			continue;		// not in last message
 		}
 
@@ -1775,8 +1784,8 @@ void CL_LinkPacketEntities (void)
 
 		if (model->particletrail >= 0)
 		{
-			if (P_ParticleTrail (old_origin, ent->origin, model->particletrail, &(le->trailstate)))
-				P_ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &(le->trailstate));
+			if (pe->ParticleTrail (old_origin, ent->origin, model->particletrail, &(le->trailstate)))
+				pe->ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &(le->trailstate));
 		}
 
 		{
@@ -1805,15 +1814,15 @@ void CL_LinkPacketEntities (void)
 					dclr[2] = 0.05;
 				}
 			}
-			else if (model->flags & EF_FIREBALL)
+			else if (model->flags & EFH2_FIREBALL)
 			{
 				rad = 120 - (rand() % 20);
 			}
-			else if (model->flags & EF_ACIDBALL)
+			else if (model->flags & EFH2_ACIDBALL)
 			{
 				rad = 120 - (rand() % 20);
 			}
-			else if (model->flags & EF_SPIT)
+			else if (model->flags & EFH2_SPIT)
 			{
 				// as far as I can tell this effect inverses the light...
 				dclr[0] = -dclr[0];
@@ -2235,7 +2244,7 @@ void CL_LinkProjectiles (void)
 #endif
 		ent->model = cl.model_precache[pr->modelindex];
 		ent->skinnum = 0;
-		ent->frame = 0;
+		ent->frame1 = 0;
 		ent->flags = 0;
 #ifdef SWQUAKE
 		ent->palremap = D_IdentityRemap();
@@ -2493,7 +2502,7 @@ void CL_ParsePlayerinfo (void)
 	else
 		state->weaponframe = 0;
 
-	if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife))
+	if (cl.worldmodel && cl.worldmodel->fromgame == fg_quake)
 		state->hullnum = 1;
 	else
 		state->hullnum = 56;
@@ -2629,27 +2638,27 @@ void CL_AddFlagModels (entity_t *ent, int team)
 		return;
 
 	f = 14;
-	if (ent->frame >= 29 && ent->frame <= 40) {
-		if (ent->frame >= 29 && ent->frame <= 34) { //axpain
-			if      (ent->frame == 29) f = f + 2;
-			else if (ent->frame == 30) f = f + 8;
-			else if (ent->frame == 31) f = f + 12;
-			else if (ent->frame == 32) f = f + 11;
-			else if (ent->frame == 33) f = f + 10;
-			else if (ent->frame == 34) f = f + 4;
-		} else if (ent->frame >= 35 && ent->frame <= 40) { // pain
-			if      (ent->frame == 35) f = f + 2;
-			else if (ent->frame == 36) f = f + 10;
-			else if (ent->frame == 37) f = f + 10;
-			else if (ent->frame == 38) f = f + 8;
-			else if (ent->frame == 39) f = f + 4;
-			else if (ent->frame == 40) f = f + 2;
+	if (ent->frame1 >= 29 && ent->frame1 <= 40) {
+		if (ent->frame1 >= 29 && ent->frame1 <= 34) { //axpain
+			if      (ent->frame1 == 29) f = f + 2;
+			else if (ent->frame1 == 30) f = f + 8;
+			else if (ent->frame1 == 31) f = f + 12;
+			else if (ent->frame1 == 32) f = f + 11;
+			else if (ent->frame1 == 33) f = f + 10;
+			else if (ent->frame1 == 34) f = f + 4;
+		} else if (ent->frame1 >= 35 && ent->frame1 <= 40) { // pain
+			if      (ent->frame1 == 35) f = f + 2;
+			else if (ent->frame1 == 36) f = f + 10;
+			else if (ent->frame1 == 37) f = f + 10;
+			else if (ent->frame1 == 38) f = f + 8;
+			else if (ent->frame1 == 39) f = f + 4;
+			else if (ent->frame1 == 40) f = f + 2;
 		}
-	} else if (ent->frame >= 103 && ent->frame <= 118) {
-		if      (ent->frame >= 103 && ent->frame <= 104) f = f + 6;  //nailattack
-		else if (ent->frame >= 105 && ent->frame <= 106) f = f + 6;  //light
-		else if (ent->frame >= 107 && ent->frame <= 112) f = f + 7;  //rocketattack
-		else if (ent->frame >= 112 && ent->frame <= 118) f = f + 7;  //shotattack
+	} else if (ent->frame1 >= 103 && ent->frame1 <= 118) {
+		if      (ent->frame1 >= 103 && ent->frame1 <= 104) f = f + 6;  //nailattack
+		else if (ent->frame1 >= 105 && ent->frame1 <= 106) f = f + 6;  //light
+		else if (ent->frame1 >= 107 && ent->frame1 <= 112) f = f + 7;  //rocketattack
+		else if (ent->frame1 >= 112 && ent->frame1 <= 118) f = f + 7;  //shotattack
 	}
 
 	newent = CL_NewTempEntity ();
@@ -2681,7 +2690,7 @@ void CL_AddVWeapModel(entity_t *player, int model)
 	VectorCopy(player->angles, newent->angles);
 	newent->skinnum = player->skinnum;
 	newent->model = cl.model_precache[model];
-	newent->frame = player->frame;
+	newent->frame1 = player->frame1;
 
 	VectorCopy(newent->angles, angles);
 	angles[0]*=-1;
@@ -2770,10 +2779,10 @@ void CL_LinkPlayers (void)
 		ent->frame1time = cl.time - cl.lerpplayers[j].framechange;
 		ent->frame2time = cl.time - cl.lerpplayers[j].oldframechange;
 
-		if (ent->frame != cl.lerpplayers[j].frame)
+		if (ent->frame1 != cl.lerpplayers[j].frame)
 		{
-			ent->oldframe = ent->frame;
-			ent->frame = cl.lerpplayers[j].frame;
+			ent->frame2 = ent->frame1;
+			ent->frame1 = cl.lerpplayers[j].frame;
 		}
 
 		ent->lerpfrac = 1-(realtime - cl.lerpplayers[j].framechange)*10;
@@ -2880,8 +2889,6 @@ void CL_LinkPlayers (void)
 			pmove.numphysent = oldphysent;
 			VectorCopy (exact.origin, ent->origin);
 		}
-		if (cl.worldmodel->fromgame == fg_halflife)
-			ent->origin[2]-=12;
 
 		if (state->effects & QWEF_FLAG1)
 			CL_AddFlagModels (ent, 0);
@@ -2973,20 +2980,20 @@ void CL_LinkViewModel(void)
 	ent.shaderRGBAf[2] = 1;
 	ent.shaderRGBAf[3] = alpha;
 
-	ent.frame = cl.viewent[r_refdef.currentplayernum].frame;
-	ent.oldframe = oldframe[r_refdef.currentplayernum];
+	ent.frame1 = cl.viewent[r_refdef.currentplayernum].frame1;
+	ent.frame2 = oldframe[r_refdef.currentplayernum];
 
-	if (ent.frame != prevframe[r_refdef.currentplayernum])
+	if (ent.frame1 != prevframe[r_refdef.currentplayernum])
 	{
-		oldframe[r_refdef.currentplayernum] = ent.oldframe = prevframe[r_refdef.currentplayernum];
+		oldframe[r_refdef.currentplayernum] = ent.frame2 = prevframe[r_refdef.currentplayernum];
 		lerptime[r_refdef.currentplayernum] = realtime;
 	}
-	prevframe[r_refdef.currentplayernum] = ent.frame;
+	prevframe[r_refdef.currentplayernum] = ent.frame1;
 
 	if (ent.model != oldmodel[r_refdef.currentplayernum])
 	{
 		oldmodel[r_refdef.currentplayernum] = ent.model;
-		oldframe[r_refdef.currentplayernum] = ent.oldframe = ent.frame;
+		oldframe[r_refdef.currentplayernum] = ent.frame2 = ent.frame1;
 		lerptime[r_refdef.currentplayernum] = realtime;
 	}
 	ent.lerpfrac = 1-(realtime-lerptime[r_refdef.currentplayernum])*10;

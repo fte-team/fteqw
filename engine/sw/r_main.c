@@ -678,19 +678,17 @@ void SWR_MarkLeaves (void)
 //temporary
 void SWR_DrawBeam(entity_t *e)
 {
-	particle_t p;
 	vec3_t o1, o2;
 	vec3_t dir;
 	int len;
 	VectorSubtract(e->origin, e->oldorigin, dir);
 	VectorCopy(e->oldorigin, o1);
 	len = VectorNormalize(dir);
-	p.alpha = 1;
-	p.color = 15;
+//	p.color = 15;
 	for (; len>=0; len--)
 	{
 		VectorAdd(o1, dir, o2);
-		D_DrawSparkTrans (&p, o1, o2, 0);
+		D_DrawSparkTrans (o1, o2, 1, 0);
 		VectorCopy(o2, o1);
 	}
 }

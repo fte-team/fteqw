@@ -157,10 +157,11 @@ void M_Menu_SinglePlayer_f (void)
 		cvar_t *pc;
 		static char *classlist[] = {
 			"Random",
-			"Barbarian",
-			"Crusader",
 			"Paladin",
+			"Crusader",
+			"Necromancer",
 			"Assasin",
+			"Demoness",
 			NULL
 		};
 		static char *classvalues[] = {
@@ -169,6 +170,7 @@ void M_Menu_SinglePlayer_f (void)
 			"2",
 			"3",
 			"4",
+			"5",
 			NULL
 		};
 		menu = M_CreateMenu(0);

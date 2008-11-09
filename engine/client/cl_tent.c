@@ -25,6 +25,64 @@ entity_state_t *CL_FindPacketEntity(int num);
 
 #define R_AddDecals(a)	//disabled for now
 
+int 
+	pt_gunshot=P_INVALID,
+	ptdp_gunshotquad=P_INVALID,
+	pt_spike=P_INVALID,
+	ptdp_spikequad=P_INVALID,
+	pt_superspike=P_INVALID,
+	ptdp_superspikequad=P_INVALID,
+	pt_wizspike=P_INVALID,
+	pt_knightspike=P_INVALID,
+	pt_explosion=P_INVALID,
+	ptdp_explosionquad=P_INVALID,
+	pt_tarexplosion=P_INVALID,
+	pt_teleportsplash=P_INVALID,
+	pt_lavasplash=P_INVALID,
+	ptdp_smallflash=P_INVALID,
+	ptdp_flamejet=P_INVALID,
+	ptdp_flame=P_INVALID,
+	ptdp_blood=P_INVALID,
+	ptdp_spark=P_INVALID,
+	ptdp_plasmaburn=P_INVALID,
+	ptdp_tei_g3=P_INVALID,
+	ptdp_tei_smoke=P_INVALID,
+	ptdp_tei_bigexplosion=P_INVALID,
+	ptdp_tei_plasmahit=P_INVALID,
+	ptdp_stardust=P_INVALID,
+	rt_rocket=P_INVALID,
+	rt_grenade=P_INVALID,
+	rt_blood=P_INVALID,
+	rt_wizspike=P_INVALID,
+	rt_slightblood=P_INVALID,
+	rt_knightspike=P_INVALID,
+	rt_vorespike=P_INVALID,
+	rtdp_neharasmoke=P_INVALID,
+	rtdp_nexuizplasma=P_INVALID,
+	rtdp_glowtrail=P_INVALID,
+
+	ptqw_blood=P_INVALID,
+	ptqw_lightningblood=P_INVALID,
+	
+	ptq2_blood=P_INVALID,
+	rtq2_railtrail=P_INVALID,
+	rtq2_blastertrail=P_INVALID,
+	ptq2_blasterparticles=P_INVALID,
+	rtq2_bubbletrail=P_INVALID,
+	rtq2_gib=P_INVALID,
+	rtq2_rocket=P_INVALID,
+	rtq2_grenade=P_INVALID,
+
+	rtqw_railtrail=P_INVALID,
+	rtfte_lightning1=P_INVALID,
+	ptfte_lightning1_end=P_INVALID,
+	rtfte_lightning2=P_INVALID,
+	ptfte_lightning2_end=P_INVALID,
+	rtfte_lightning3=P_INVALID,
+	ptfte_lightning3_end=P_INVALID,
+	ptfte_bullet=P_INVALID,
+	ptfte_superbullet=P_INVALID;
+
 #ifdef Q2CLIENT
 typedef enum
 {
@@ -219,6 +277,67 @@ void CL_InitTEnts (void)
 	Cvar_Register (&r_explosionlight, "Temporary entity control");
 }
 
+void CL_RegisterParticles(void)
+{
+	pt_gunshot				= P_ParticleTypeForName("TE_GUNSHOT");	/*shotgun*/
+	ptdp_gunshotquad		= P_ParticleTypeForName("TE_GUNSHOTQUAD");	/*DP: quadded shotgun*/
+	pt_spike				= P_ParticleTypeForName("TE_SPIKE");	/*nailgun*/
+	ptdp_spikequad			= P_ParticleTypeForName("TE_SPIKEQUAD");	/*DP: quadded nailgun*/
+	pt_superspike			= P_ParticleTypeForName("TE_SUPERSPIKE");	/*nailgun*/
+	ptdp_superspikequad		= P_ParticleTypeForName("TE_SUPERSPIKEQUAD");	/*DP: quadded nailgun*/
+	pt_wizspike				= P_ParticleTypeForName("TE_WIZSPIKE");	//scrag missile impact
+	pt_knightspike			= P_ParticleTypeForName("TE_KNIGHTSPIKE"); //hellknight missile impact
+	pt_explosion			= P_ParticleTypeForName("TE_EXPLOSION");/*rocket/grenade launcher impacts/far too many things*/
+	ptdp_explosionquad		= P_ParticleTypeForName("TE_EXPLOSIONQUAD");	/*nailgun*/
+	pt_tarexplosion			= P_ParticleTypeForName("TE_TAREXPLOSION");//tarbaby/spawn dying.
+	pt_teleportsplash		= P_ParticleTypeForName("TE_TELEPORT");/*teleporters*/
+	pt_lavasplash			= P_ParticleTypeForName("TE_LAVASPLASH");	//e1m7 boss dying.
+	ptdp_smallflash			= P_ParticleTypeForName("TE_SMALLFLASH");	//DP:
+	ptdp_flamejet			= P_ParticleTypeForName("TE_FLAMEJET");	//DP:
+	ptdp_flame				= P_ParticleTypeForName("EF_FLAME");	//DP:
+	ptdp_blood				= P_ParticleTypeForName("TE_BLOOD"); /*when you hit something with the shotgun/axe/nailgun - nq uses the general particle builtin*/
+	ptdp_spark				= P_ParticleTypeForName("TE_SPARK");//DPTE_SPARK
+	ptdp_plasmaburn			= P_ParticleTypeForName("TE_PLASMABURN");
+	ptdp_tei_g3				= P_ParticleTypeForName("TE_TEI_G3");
+	ptdp_tei_smoke			= P_ParticleTypeForName("TE_TEI_SMOKE");
+	ptdp_tei_bigexplosion	= P_ParticleTypeForName("TE_TEI_BIGEXPLOSION");
+	ptdp_tei_plasmahit		= P_ParticleTypeForName("TE_TEI_PLASMAHIT");
+	ptdp_stardust			= P_ParticleTypeForName("EF_STARDUST");
+	rt_rocket				= P_ParticleTypeForName("TR_ROCKET");	/*rocket trail*/
+	rt_grenade				= P_ParticleTypeForName("TR_GRENADE");	/*grenade trail*/
+	rt_blood				= P_ParticleTypeForName("TR_BLOOD");	/*blood trail*/
+	rt_wizspike				= P_ParticleTypeForName("TR_WIZSPIKE");
+	rt_slightblood			= P_ParticleTypeForName("TR_SLIGHTBLOOD");
+	rt_knightspike			= P_ParticleTypeForName("TR_KNIGHTSPIKE");
+	rt_vorespike			= P_ParticleTypeForName("TR_VORESPIKE");
+	rtdp_neharasmoke		= P_ParticleTypeForName("TR_NEHAHRASMOKE");
+	rtdp_nexuizplasma		= P_ParticleTypeForName("TR_NEXUIZPLASMA");
+	rtdp_glowtrail			= P_ParticleTypeForName("TR_GLOWTRAIL");
+	/*internal to psystem*/   P_ParticleTypeForName("SVC_PARTICLE");
+
+	ptqw_blood				= P_ParticleTypeForName("TE_BLOOD");
+	ptqw_lightningblood		= P_ParticleTypeForName("TE_LIGHTNINGBLOOD");
+	
+	ptq2_blood				= P_ParticleTypeForName("TE_BLOOD");
+	rtq2_railtrail			= P_ParticleTypeForName("TR_RAILTRAIL");
+	rtq2_blastertrail		= P_ParticleTypeForName("TR_BLASTERTRAIL");
+	ptq2_blasterparticles	= P_ParticleTypeForName("TE_BLASTERPARTICLES");
+	rtq2_bubbletrail		= P_ParticleTypeForName("TE_BUBBLETRAIL");
+	rtq2_gib				= P_ParticleTypeForName("TR_GIB");
+	rtq2_rocket				= P_ParticleTypeForName("TR_ROCKET");
+	rtq2_grenade			= P_ParticleTypeForName("TR_GRENADE");
+
+	rtqw_railtrail			= P_ParticleTypeForName("TE_RAILTRAIL");
+	rtfte_lightning1		= P_ParticleTypeForName("TE_LIGHTNING1");
+	ptfte_lightning1_end	= P_ParticleTypeForName("TE_LIGHTNING1_END");
+	rtfte_lightning2		= P_ParticleTypeForName("TE_LIGHTNING2");
+	ptfte_lightning2_end	= P_ParticleTypeForName("TE_LIGHTNING2_END");
+	rtfte_lightning3		= P_ParticleTypeForName("TE_LIGHTNING3");
+	ptfte_lightning3_end	= P_ParticleTypeForName("TE_LIGHTNING3_END");
+	ptfte_bullet			= P_ParticleTypeForName("TE_BULLET");
+	ptfte_superbullet		= P_ParticleTypeForName("TE_SUPERBULLET");
+}
+
 #ifdef Q2CLIENT
 enum {
 	q2cl_mod_explode,
@@ -368,14 +487,14 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		if (ent < 0 && ent >= -512)	//a zquake concept. ent between -1 and -maxplayers is to be taken to be a railtrail from a particular player instead of a beam.
 		{
 			// TODO: add support for those finnicky colored railtrails...
-			if (P_ParticleTrail(start, end, rt_railtrail, NULL))
+			if (P_ParticleTrail(start, end, rtqw_railtrail, NULL))
 				P_ParticleTrailIndex(start, end, 208, 8, NULL);
 			return;
 		}
 	default:
 		m = Mod_ForName("progs/bolt.mdl", false);
-		btype = rt_lightning1;
-		etype = pt_lightning1_end;
+		btype = rtfte_lightning1;
+		etype = ptfte_lightning1_end;
 		break;
 	case 1:
 		if (ent < 0 && ent >= -MAX_CLIENTS)	//based on the railgun concept - this adds a rogue style TE_BEAM effect.
@@ -388,14 +507,14 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		else
 		{
 			m = Mod_ForName("progs/bolt2.mdl", false);
-			btype = rt_lightning2;
-			etype = pt_lightning2_end;
+			btype = rtfte_lightning2;
+			etype = ptfte_lightning2_end;
 		}
 		break;
 	case 2:
 		m = Mod_ForName("progs/bolt3.mdl", false);
-		btype = rt_lightning3;
-		etype = pt_lightning3_end;
+		btype = rtfte_lightning3;
+		etype = ptfte_lightning3_end;
 		break;
 #ifdef Q2CLIENT
 	case 3:
@@ -424,7 +543,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		}
 	}
 
-	if (etype >= 0 && cls.state == ca_active && P_TypeIsLoaded(etype))
+	if (etype >= 0 && cls.state == ca_active && etype != P_INVALID)
 	{
 		if (cl_beam_trace.value)
 		{
@@ -530,12 +649,12 @@ void CL_ParseStream (int type)
 	case TE_STREAM_ICECHUNKS:
 		b->model = 	Mod_ForName("models/stice.mdl", true);
 		b->flags |= 2;
-		b->particleeffect = P_AllocateParticleType("te_stream_icechunks");
+		b->particleeffect = P_FindParticleType("te_stream_icechunks");
 		R_AddStain(end, -10, -10, 0, 20);
 		break;
 	case TE_STREAM_SUNSTAFF1:
 		b->model = Mod_ForName("models/stsunsf1.mdl", true);
-		b->particleeffect = P_AllocateParticleType("te_stream_sunstaff1");
+		b->particleeffect = P_FindParticleType("te_stream_sunstaff1");
 		if (b->particleeffect < 0)
 		{
 			b2 = CL_NewBeam(ent, tag+128);
@@ -549,7 +668,7 @@ void CL_ParseStream (int type)
 		break;
 	case TE_STREAM_SUNSTAFF2:
 		b->model = 	Mod_ForName("models/stsunsf1.mdl", true);
-		b->particleeffect = P_AllocateParticleType("te_stream_sunstaff2");
+		b->particleeffect = P_FindParticleType("te_stream_sunstaff2");
 		R_AddStain(end, -10, -10, -10, 20);
 		break;
 	}
@@ -578,6 +697,17 @@ void CL_ParseTEnt (void)
 	int		cnt, colour;
 
 	type = MSG_ReadByte ();
+
+#ifdef CSQC_DAT
+	if (type != TE_GUNSHOT)
+	{
+		//I know I'm going to regret this.
+		if (CSQC_ParseTempEntity((unsigned char)type))
+			return;
+	}
+#endif
+
+
 	switch (type)
 	{
 	case TE_WIZSPIKE:			// spike hitting wall
@@ -614,7 +744,7 @@ void CL_ParseTEnt (void)
 		R_AddStain(pos, -10, -10, -10, 20);
 		R_AddDecals(pos);
 
-		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_spikequad"))
+		if (P_RunParticleEffectType(pos, NULL, 1, ptdp_spikequad))
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_spike))
 				if (P_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
 					P_RunParticleEffect (pos, vec3_origin, 0, 10);
@@ -665,7 +795,7 @@ void CL_ParseTEnt (void)
 		R_AddStain(pos, -10, -10, -10, 20);
 		R_AddDecals(pos);
 
-		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_superspikequad"))
+		if (P_RunParticleEffectType(pos, NULL, 1, ptdp_superspikequad))
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_superspike))
 				if (P_RunParticleEffectType(pos, NULL, 2, pt_spike))
 					if (P_RunParticleEffectType(pos, NULL, 20, pt_gunshot))
@@ -722,7 +852,7 @@ void CL_ParseTEnt (void)
 		R_AddStain(pos, -10, -10, -10, 20);
 		R_AddDecals(pos);
 
-		if (P_RunParticleEffectType(pos, NULL, 1, pt_bullet))
+		if (P_RunParticleEffectType(pos, NULL, 1, ptfte_bullet))
 			if (P_RunParticleEffectType(pos, NULL, 10, pt_gunshot))
 				P_RunParticleEffect (pos, vec3_origin, 0, 10);
 
@@ -747,8 +877,8 @@ void CL_ParseTEnt (void)
 		R_AddStain(pos, -10, -10, -10, 20);
 		R_AddDecals(pos);
 
-		if (P_RunParticleEffectType(pos, NULL, 1, pt_superbullet))
-			if (P_RunParticleEffectType(pos, NULL, 2, pt_bullet))
+		if (P_RunParticleEffectType(pos, NULL, 1, ptfte_superbullet))
+			if (P_RunParticleEffectType(pos, NULL, 2, ptfte_bullet))
 				if (P_RunParticleEffectType(pos, NULL, 20, pt_gunshot))
 					P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
@@ -772,7 +902,7 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_explosionquad"))
+		if (P_RunParticleEffectType(pos, NULL, 1, ptdp_explosionquad))
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 				P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
@@ -883,7 +1013,7 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_tei_bigexplosion"))
+		if (P_RunParticleEffectType(pos, NULL, 1, ptdp_tei_bigexplosion))
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
 				P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
@@ -914,7 +1044,7 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		P_BlobExplosion (pos);
+		P_RunParticleEffectType(pos, NULL, 1, pt_tarexplosion);
 
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 		break;
@@ -931,7 +1061,7 @@ void CL_ParseTEnt (void)
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
-		P_LavaSplash (pos);
+		P_RunParticleEffectType(pos, NULL, 1, pt_lavasplash);
 		break;
 	
 	case TE_TELEPORT:
@@ -948,7 +1078,7 @@ void CL_ParseTEnt (void)
 
 		R_AddStain(pos, -10, -10, -10, 20);
 
-		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_gunshotquad"))
+		if (P_RunParticleEffectType(pos, NULL, 1, ptdp_gunshotquad))
 			if (P_RunParticleEffectType(pos, NULL, 1, pt_gunshot))
 				P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
@@ -977,8 +1107,9 @@ void CL_ParseTEnt (void)
 
 		R_AddStain(pos, 0, -10, -10, 40);
 
-		if (P_RunParticleEffectType(pos, NULL, cnt, pt_blood))
-			P_RunParticleEffect (pos, vec3_origin, 73, 20*cnt);
+		if (P_RunParticleEffectType(pos, NULL, cnt, ptqw_blood))
+			if (P_RunParticleEffectType(pos, NULL, cnt, ptdp_blood))
+				P_RunParticleEffect (pos, vec3_origin, 73, 20*cnt);
 
 		break;
 
@@ -989,7 +1120,7 @@ void CL_ParseTEnt (void)
 
 		R_AddStain(pos, 1, -10, -10, 20);
 
-		if (P_RunParticleEffectType(pos, NULL, 1, pt_lightningblood))
+		if (P_RunParticleEffectType(pos, NULL, 1, ptqw_lightningblood))
 			P_RunParticleEffect (pos, vec3_origin, 225, 50);
 
 		break;
@@ -1003,8 +1134,9 @@ void CL_ParseTEnt (void)
 		pos2[1] = MSG_ReadCoord ();
 		pos2[2] = MSG_ReadCoord ();
 
-		if (P_ParticleTrail(pos, pos2, rt_railtrail, NULL))
-			P_ParticleTrailIndex(pos, pos2, 208, 8, NULL);
+		if (P_ParticleTrail(pos, pos2, rtqw_railtrail, NULL))
+			if (P_ParticleTrail(pos, pos2, rtq2_railtrail, NULL))
+				P_ParticleTrailIndex(pos, pos2, 208, 8, NULL);
 		break;
 
 	case TE_STREAM_CHAIN:
@@ -1029,7 +1161,7 @@ void CL_ParseTEnt (void)
 
 		cnt = MSG_ReadByte ();
 
-		P_RunParticleEffectType(pos, pos2, cnt, pt_blood);
+		P_RunParticleEffectType(pos, pos2, cnt, ptdp_blood);
 		break;
 
 	case DPTE_SPARK:
@@ -1043,8 +1175,7 @@ void CL_ParseTEnt (void)
 
 		cnt = MSG_ReadByte ();
 		{
-			extern int pt_spark;
-			P_RunParticleEffectType(pos, pos2, cnt, pt_spark);
+			P_RunParticleEffectType(pos, pos2, cnt, ptdp_spark);
 		}
 		break;
 
@@ -1118,7 +1249,7 @@ void CL_ParseTEnt (void)
 		// count
 		cnt = MSG_ReadByte ();
 
-		if (P_RunParticleEffectTypeString(pos, pos2, cnt, "te_flamejet"))
+		if (P_RunParticleEffectType(pos, pos2, cnt, ptdp_flamejet))
 			P_RunParticleEffect (pos, pos2, 232, cnt);
 		break;
 
@@ -1177,8 +1308,7 @@ void CL_ParseTEnt (void)
 		//count
 		cnt = MSG_ReadByte ();
 		{
-			extern int pt_smoke;
-			P_RunParticleEffectType(pos, pos2, cnt, pt_smoke);
+			P_RunParticleEffectType(pos, pos2, cnt, ptdp_tei_smoke);
 		}
 		break;
 
@@ -1194,8 +1324,7 @@ void CL_ParseTEnt (void)
 		cnt = MSG_ReadByte ();
 
 		{
-			extern int pt_plasma;
-			P_RunParticleEffectType(pos, pos2, cnt, pt_plasma);
+			P_RunParticleEffectType(pos, pos2, cnt, ptdp_tei_plasmahit);
 		}
 		break;
 
@@ -1324,7 +1453,7 @@ void CL_ParseCustomTEnt(void)
 
 		t->netstyle = MSG_ReadByte();
 		str = MSG_ReadString();
-		t->particleeffecttype = P_AllocateParticleType(str);
+		t->particleeffecttype = P_ParticleTypeForName(str);
 
 		if (t->netstyle & CTE_STAINS)
 		{
@@ -1429,6 +1558,60 @@ void CL_ClearCustomTEnts(void)
 	int i;
 	for (i = 0; i < sizeof(customtenttype)/sizeof(customtenttype[0]); i++)
 		customtenttype[i].particleeffecttype = -1;
+}
+
+void CLDP_ParseTrailParticles(void)
+{
+	int entityindex;
+	int effectindex;
+	vec3_t start, end;
+	trailstate_t **ts;
+
+	entityindex = (unsigned short)MSG_ReadShort();
+	effectindex = (unsigned short)MSG_ReadShort();
+
+	start[0] = MSG_ReadCoord();
+	start[1] = MSG_ReadCoord();
+	start[2] = MSG_ReadCoord();
+	end[0] = MSG_ReadCoord();
+	end[1] = MSG_ReadCoord();
+	end[2] = MSG_ReadCoord();
+
+	if (entityindex && (unsigned int)entityindex < MAX_EDICTS)
+		ts = &cl.lerpents[entityindex].trailstate;
+	else
+		ts = NULL;
+
+	effectindex = P_ParticleTypeForName(COM_Effectinfo_ForNumber(effectindex));
+	if (P_ParticleTrail(start, end, effectindex, ts))
+		P_ParticleTrail(start, end, rt_blood, ts);
+}
+
+void CLDP_ParsePointParticles(qboolean compact)
+{
+	vec3_t		org, dir;
+	unsigned int count, effectindex;
+
+	effectindex = (unsigned short)MSG_ReadShort();
+	org[0] = MSG_ReadCoord();
+	org[1] = MSG_ReadCoord();
+	org[2] = MSG_ReadCoord();
+	if (compact)
+	{
+		dir[0] = dir[1] = dir[2] = 0;
+		count = 1;
+	}
+	else
+	{
+		dir[0] = MSG_ReadCoord();
+		dir[1] = MSG_ReadCoord();
+		dir[2] = MSG_ReadCoord();
+		count = (unsigned short)MSG_ReadShort();
+	}
+
+	effectindex = P_ParticleTypeForName(COM_Effectinfo_ForNumber(effectindex));
+	if (P_RunParticleEffectType(org, dir, count, effectindex))
+		P_RunParticleEffect (org, dir, 15, 15);
 }
 
 void CLNQ_ParseParticleEffect (void)
@@ -1612,8 +1795,9 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BLOOD:			// bullet hitting flesh
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
-		if (P_RunParticleEffectType(pos, dir, 1, pt_blood))
-			P_RunParticleEffect(pos, dir, 0xe8, 60);
+		if (P_RunParticleEffectType(pos, dir, 1, ptq2_blood))
+			if (P_RunParticleEffectType(pos, dir, 1, ptqw_blood))
+				P_RunParticleEffect(pos, dir, 0xe8, 60);
 		R_AddStain(pos, 0, -10, -10, 40);
 		break;
 
@@ -1707,7 +1891,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BLUEHYPERBLASTER:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (dir);
-		if (P_RunParticleEffectType(pos, dir, 1, pt_blasterparticles))
+		if (P_RunParticleEffectType(pos, dir, 1, ptq2_blasterparticles))
 			P_RunParticleEffect (pos, dir, 0xe0, 40);
 		break;
 
@@ -1715,7 +1899,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 
-		if (P_RunParticleEffectType(pos, dir, 1, pt_blasterparticles))
+		if (P_RunParticleEffectType(pos, dir, 1, ptq2_blasterparticles))
 			P_RunParticleEffect (pos, dir, 0xe0, 40);
 
 		R_AddStain(pos, 0, -5, -10, 20);
@@ -1764,7 +1948,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_RAILTRAIL:			// railgun effect
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, rt_railtrail, NULL))
+		if (P_ParticleTrail(pos, pos2, rtq2_railtrail, NULL))
 			P_ParticleTrailIndex(pos, pos2, 0x74, 8, NULL);
 		Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("weapons/railgf1a.wav"), 1, ATTN_NORM, 0);
 		break;
@@ -1971,7 +2155,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BUBBLETRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, rt_bubbletrail, NULL))
+		if (P_ParticleTrail(pos, pos2, rtq2_bubbletrail, NULL))
 			P_ParticleTrailIndex(pos, pos2, 4, 8, NULL);
 		break;
 
@@ -2042,7 +2226,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadDir (dir);
 
 		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_blaster2"))
-			if (P_RunParticleEffectType(pos, dir, 1, pt_blasterparticles))
+			if (P_RunParticleEffectType(pos, dir, 1, ptq2_blasterparticles))
 				P_RunParticleEffect (pos, dir, 0xd0, 40);
 
 		R_AddStain(pos, -10, 0, -10, 20);
@@ -2092,7 +2276,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadDir (dir);
 
 		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_blaster2"))
-			if (P_RunParticleEffectType(pos, dir, 1, pt_blasterparticles))
+			if (P_RunParticleEffectType(pos, dir, 1, ptq2_blasterparticles))
 				P_RunParticleEffect (pos, dir, 0x6f, 40);
 
 		R_AddStain(pos, -10, -2, 0, 20);
@@ -2146,7 +2330,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_DEBUGTRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, P_AllocateParticleType("te_debugtrail"), NULL))
+		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_debugtrail"), NULL))
 			P_ParticleTrailIndex(pos, pos2, 116, 8, NULL);
 		break;
 
@@ -2251,7 +2435,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_moreblood"))
-			if (P_RunParticleEffectType(pos, dir, 4, pt_blood))
+			if (P_RunParticleEffectType(pos, dir, 4, ptqw_blood))
 				P_RunParticleEffect(pos, dir, 0xe8, 250);
 		break;
 /*
@@ -2673,8 +2857,8 @@ void CL_UpdateExplosions (void)
 		AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 		ent->model = ex->model;
-		ent->frame = (int)f+firstframe;
-		ent->oldframe = of+firstframe;
+		ent->frame1 = (int)f+firstframe;
+		ent->frame2 = of+firstframe;
 		ent->lerpfrac = 1-(f - (int)f);
 		ent->shaderRGBAf[3] = 1.0 - f/(numframes);
 		ent->flags = ex->flags;

@@ -94,6 +94,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
 		#define PLUGINS
 
+		#define PSET_CLASSIC
+
+#pragma message("temp")
+#define CSQC_DAT
+#define MENU_DAT
+
 #ifndef SERVERONLY	//don't be stupid, stupid.
 		#define CLIENTONLY
 #endif
@@ -135,13 +141,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define VM_Q1			//q1 qvm gamecode interface
 
 		#define TCPCONNECT		//a tcpconnect command, that allows the player to connect to tcp-encapsulated qw protocols.
+		#define IRCCONNECT		//an ircconnect command, that allows the player to connect to irc-encapsulated qw protocols... yeah, really.
 
 		#define PLUGINS
+
+#ifdef _DEBUG
+//		#define OFFSCREENGECKO
+#endif
 
 		#define CSQC_DAT	//support for csqc
 		#define MENU_DAT	//support for menu.dat
 
 		#define Q3SHADERS
+
+		#define PSET_SCRIPT
+		#define PSET_CLASSIC
+		//#define PSET_DARKPLACES
 
 //		#define VOICECHAT	//not added yet.
 
@@ -180,6 +195,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef RUNTIMELIGHTING
 	#undef Q3SHADERS
 	#undef TERRAIN	//not supported
+
+	#undef PSET_SCRIPT
+	#undef PSET_CLASSIC
+	#undef PSET_DARKPLACES
 #endif
 #ifdef CLIENTONLY	//remove optional server components that make no sence on a client only build.
 	#undef Q2SERVER
@@ -217,7 +236,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #endif
 
-#if !defined(GLQUAKE)
+#if !defined(GLQUAKE) && !defined(SERVERONLY)
 	#undef Q3BSPS
 #endif
 #if !defined(Q3BSPS)

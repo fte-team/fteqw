@@ -38,17 +38,19 @@ int		pr_warning_count;
 
 CompilerConstant_t *CompilerConstant;
 int numCompilerConstants;
+extern pbool expandedemptymacro;
 
 
 
 char	*pr_punctuation[] =
 // longer symbols must be before a shorter partial match
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "|=", "(-)", "++", "--", "->", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "^", ":", NULL};
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "|=", "&~=", "++", "--", "->", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "^", ":", NULL};
 
 char *pr_punctuationremap[] =	//a nice bit of evilness.
-//|= -> (+)
+//(+) -> |=
 //-> -> .
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "|=", "(-)", "++", "--", ".", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "^", ":", NULL};
+//(-) -> &~=
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "++", "--", ".", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "^", ":", NULL};
 
 // simple types.  function types are dynamically allocated
 QCC_type_t	*type_void;// = {ev_void/*, &def_void*/};
@@ -792,8 +794,8 @@ pbool QCC_PR_Precompiler(void)
 
 					if (*pr_file_p == '\n')
 					{
-						QCC_PR_NewLine(false);
 						pr_file_p++;
+						QCC_PR_NewLine(false);
 					}
 				}
 			}
@@ -803,9 +805,28 @@ pbool QCC_PR_Precompiler(void)
 					QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
 				strncpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
 			}
-			else if (!strncmp(directive, "forcecrc", 8))
+			else if (!strncmp(qcc_token, "forcecrc", 8))
 			{
 				ForcedCRC = atoi(msg);
+			}
+			else if (!strncmp(qcc_token, "sourcefile", 10))
+			{
+	#define MAXSOURCEFILESLIST 8
+	extern char sourcefileslist[MAXSOURCEFILESLIST][1024];
+	extern int currentsourcefile;
+	extern int numsourcefiles;
+
+				int i;
+
+				QCC_COM_Parse(msg);
+
+				for (i = 0; i < numsourcefiles; i++)
+				{
+					if (!strcmp(sourcefileslist[i], qcc_token))
+						break;
+				}
+				if (i == numsourcefiles)
+					strcpy(sourcefileslist[numsourcefiles++], qcc_token);
 			}
 			else if (!QC_strcasecmp(qcc_token, "TARGET"))
 			{
@@ -971,16 +992,6 @@ Call at start of file and when *pr_file_p == '\n'
 */
 void QCC_PR_NewLine (pbool incomment)
 {
-	pbool	m;
-	
-	if (*pr_file_p == '\n')
-	{
-		pr_file_p++;
-		m = true;
-	}
-	else
-		m = false;
-
 	pr_source_line++;
 	pr_line_start = pr_file_p;
 	while(*pr_file_p==' ' || *pr_file_p == '\t')
@@ -994,8 +1005,6 @@ void QCC_PR_NewLine (pbool incomment)
 
 //	if (pr_dumpasm)
 //		PR_PrintNextLine ();
-	if (m)
-		pr_file_p--;
 }
 
 /*
@@ -1213,8 +1222,12 @@ void QCC_PR_LexString (void)
 			while(*pr_file_p && *pr_file_p <= ' ')
 			{
 				if (*pr_file_p == '\n')
+				{
+					pr_file_p++;
 					QCC_PR_NewLine(false);
-				pr_file_p++;
+				}
+				else
+					pr_file_p++;
 			}
 			if (*pr_file_p == '\"')	//have annother go
 			{
@@ -1565,13 +1578,17 @@ void QCC_PR_LexWhitespace (void)
 		{
 			if (c=='\n')
 			{
+				pr_file_p++;
 				QCC_PR_NewLine (false);
 				if (!pr_file_p)
 					return;
 			}
-			if (c == 0)
-				return;		// end of file
-			pr_file_p++;
+			else
+			{
+				if (c == 0)
+					return;		// end of file
+				pr_file_p++;
+			}
 		}
 		
 	// skip // comments
@@ -1579,8 +1596,10 @@ void QCC_PR_LexWhitespace (void)
 		{
 			while (*pr_file_p && *pr_file_p != '\n')
 				pr_file_p++;
+
+			if (*pr_file_p == '\n')
+				pr_file_p++;	//don't break on eof.
 			QCC_PR_NewLine(false);
-			pr_file_p++;
 			continue;
 		}
 		
@@ -1591,7 +1610,10 @@ void QCC_PR_LexWhitespace (void)
 			{
 				pr_file_p++;
 				if (pr_file_p[0]=='\n')
+				{
+					pr_file_p++;
 					QCC_PR_NewLine(true);
+				}
 				if (pr_file_p[1] == 0)
 				{
 					pr_file_p++;
@@ -1724,7 +1746,7 @@ pbool QCC_PR_LexMacroName(void)
 	}
 
 	i = 0;
-	while ( (c = *pr_file_p) > ' ' && c != ',' && c != ';' && c != ')' && c != '(' && c != ']' && !(pr_file_p[0] == '.' && pr_file_p[1] == '.'))
+	while ( (c = *pr_file_p) > ' ' && c != '\n' && c != ',' && c != ';' && c != ')' && c != '(' && c != ']' && !(pr_file_p[0] == '.' && pr_file_p[1] == '.'))
 	{
 		pr_token[i] = c;
 		i++;
@@ -2018,21 +2040,21 @@ void QCC_PR_ConditionCompilation(void)
 		{
 			if (*pr_file_p == ',')
 			{
+				if (cnst->numparams >= MAXCONSTANTPARAMS)
+					QCC_PR_ParseError(ERR_MACROTOOMANYPARMS, "May not have more than %i parameters to a macro", MAXCONSTANTPARAMS);
 				strncpy(cnst->params[cnst->numparams], s, pr_file_p-s);
 				cnst->params[cnst->numparams][pr_file_p-s] = '\0';
 				cnst->numparams++;
-				if (cnst->numparams > MAXCONSTANTPARAMS)
-					QCC_PR_ParseError(ERR_MACROTOOMANYPARMS, "May not have more than %i parameters to a macro", MAXCONSTANTPARAMS);
 				pr_file_p++;
 				s = pr_file_p;
 			}
 			if (*pr_file_p == ')')
 			{
+				if (cnst->numparams >= MAXCONSTANTPARAMS)
+					QCC_PR_ParseError(ERR_MACROTOOMANYPARMS, "May not have more than %i parameters to a macro", MAXCONSTANTPARAMS);
 				strncpy(cnst->params[cnst->numparams], s, pr_file_p-s);
 				cnst->params[cnst->numparams][pr_file_p-s] = '\0';
 				cnst->numparams++;
-				if (cnst->numparams > MAXCONSTANTPARAMS)
-					QCC_PR_ParseError(ERR_MACROTOOMANYPARMS, "May not have more than %i parameters to a macro", MAXCONSTANTPARAMS);
 				pr_file_p++;
 				break;
 			}
@@ -2280,13 +2302,19 @@ int QCC_PR_CheakCompConst(void)
 				paramoffset[p][strlen(paramoffset[p])] = ')';
 
 				pr_file_p = oldpr_file_p;
+				if (!*buffer)
+					expandedemptymacro = true;
 				QCC_PR_IncludeChunkEx(buffer, true, NULL, c);
 			}
 			else
 				QCC_PR_ParseError(ERR_TOOFEWPARAMS, "Macro without opening brace");
 		}
 		else
+		{
+			if (!*c->value)
+				expandedemptymacro = true;
 			QCC_PR_IncludeChunkEx(c->value, false, NULL, c);
+		}
 
 		QCC_PR_Lex();
 		return true;

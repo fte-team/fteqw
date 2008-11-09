@@ -584,7 +584,7 @@ qboolean Wad_NextDownload (void)
 					if (wadname[9])
 					{
 						if (COM_FCheckExists(wadname+9))	//wad is in root dir, so we don't need to try textures.
-							CL_CheckOrEnqueDownloadFile(wadname, wadname);
+							CL_CheckOrEnqueDownloadFile(wadname, wadname, DLLF_REQUIRED);	//don't skip this one, or the world is white.
 					}
 					wads[i] = k;
 					

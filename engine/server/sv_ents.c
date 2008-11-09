@@ -304,8 +304,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 	edict_t *ent;
 	qboolean writtenheader = false;
 
-//	if (!csqcnuments)
-//		return;
+	//we don't check that we got some already - because this is delta compressed!
 
 	if (!(client->csqcactive))
 		return;
@@ -319,6 +318,12 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 	for (en = 0; en < csqcnuments; en++)
 	{
 		ent = csqcent[en];
+
+		if (ent->xv->SendFlags)
+		{
+			ent->xv->SendFlags = 0;
+			ent->xv->Version+=1;
+		}
 
 		//prevent mishaps with entities being respawned and things.
 		if ((int)ent->xv->Version < sv.csqcentversion[ent->entnum])
@@ -334,6 +339,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 		csqcmsgbuffer.currentbit = 0;
 		//Ask CSQC to write a buffer for it.
 		G_INT(OFS_PARM0) = EDICT_TO_PROG(svprogfuncs, client->edict);
+		G_INT(OFS_PARM0) = 0xffffff;	//psudo compatibility with SendFlags (fte doesn't support properly)
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 		PR_ExecuteProgram(svprogfuncs, ent->xv->SendEntity);
 		if (G_INT(OFS_RETURN))	//0 means not to tell the client about it.
@@ -365,7 +371,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 //			Con_Printf("Sending update packet %i\n", ent->entnum);
 		}
 		else if (sv.csqcentversion[ent->entnum] && !((int)ent->xv->pvsflags & PVSF_NOREMOVE))
-		{	//Don't want to send.
+		{	//Don't want to send, but they have it already
 			if (!writtenheader)
 			{
 				writtenheader=true;
@@ -379,6 +385,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 		client->csqcentversions[ent->entnum] = sv.csqcentversion[ent->entnum];
 		client->csqcentsequence[ent->entnum] = currentsequence;
 	}
+	//now remove any out dated ones
 	for (en = 1; en < sv.num_edicts; en++)
 	{
 		ent = EDICT_NUM(svprogfuncs, en);
@@ -516,16 +523,21 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 		fromeffects = 0;	//force is true if we're going from baseline
 	else					//old quakeworld protocols do not include effects in the baseline
 		fromeffects = from->effects;	//so old clients will see the effects baseline as 0
-	if ( (to->effects&0x00ff) != (fromeffects&0x00ff) )
+	if ((to->effects&0x00ff) != (fromeffects&0x00ff))
 		bits |= U_EFFECTS;
-	if ( (to->effects&0xff00) != (fromeffects&0xff00) )
+	if ((to->effects&0xff00) != (fromeffects&0xff00) && protext & PEXT_DPFLAGS)
 		evenmorebits |= U_EFFECTS16;
 
-	if ( to->modelindex != from->modelindex )
+	if (to->modelindex != from->modelindex)
 	{
 		bits |= U_MODEL;
 		if (to->modelindex > 255)
-			evenmorebits |= U_MODELDBL;
+		{
+			if (protext & PEXT_DPFLAGS)
+				evenmorebits |= U_MODELDBL;
+			else
+				return;
+		}
 	}
 
 #ifdef PROTOCOLEXTENSIONS
@@ -854,12 +866,11 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 // bits2 > 0
 #define E5_EXTEND4 (1<<31)
 
-void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean isnew)
+void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean isnew)
 {
 	int bits;
 	if (!isnew && !memcmp(from, to, sizeof(entity_state_t)))
 	{
-		to->bitmask = 0;
 		return;	//didn't change
 	}
 
@@ -867,7 +878,6 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 	if (isnew)
 	{
 		bits |= E5_FULLUPDATE;
-		to->bitmask = 0;	//no point...
 	}
 
 	if (!VectorCompare(from->origin, to->origin))
@@ -914,15 +924,13 @@ void SVDP_EmitEntity(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, q
 		else if (to->effects >= 256)
 			bits |= E5_EFFECTS16;
 	}
+
 	if (bits >= 256)
 		bits |= E5_EXTEND1;
 	if (bits >= 65536)
 		bits |= E5_EXTEND2;
 	if (bits >= 16777216)
 		bits |= E5_EXTEND3;
-
-	bits |= to->bitmask;
-	to->bitmask = bits;
 
 	if (!bits)
 		return;
@@ -1065,7 +1073,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 		if (newnum == oldnum)
 		{	// delta update from old position
 //Con_Printf ("delta %i\n", newnum);
-			SVDP_EmitEntity (&from->entities[oldindex], &to->entities[newindex], msg, false);
+			SVDP_EmitEntityDelta (&from->entities[oldindex], &to->entities[newindex], msg, false);
 			oldindex++;
 			newindex++;
 			continue;
@@ -1075,14 +1083,14 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 		{	// this is a new entity, send it from the baseline... as far as dp understands it...
 			ent = EDICT_NUM(svprogfuncs, newnum);
 //Con_Printf ("baseline %i\n", newnum);
-			SVDP_EmitEntity (&defaultstate, &to->entities[newindex], msg, true);
+			SVDP_EmitEntityDelta (&defaultstate, &to->entities[newindex], msg, true);
 			newindex++;
 			continue;
 		}
 
 		if (newnum > oldnum)
 		{	// the old entity isn't present in the new message
-//Con_Printf ("remove %i\n", oldnum);
+Con_Printf ("remove %i\n", oldnum);
 			MSG_WriteShort(msg, oldnum | 0x8000);
 			oldindex++;
 			continue;
@@ -1101,7 +1109,7 @@ int SV_HullNumForPlayer(int h2hull, float *mins, float *maxs)
 	int best;
 	int hullnum, i;
 
-	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
+	if (sv.worldmodel->fromgame != fg_quake)
 	{
 		VectorSubtract (maxs, mins, size);
 		return size[2];	//clients are expected to decide themselves.
@@ -1823,8 +1831,9 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 }
 
 
-void SVNQ_EmitEntity(sizebuf_t *msg, edict_t *ent, int entnum)
+void SVNQ_EmitEntityState(sizebuf_t *msg, entity_state_t *ent)
 {
+	entity_state_t *baseline = &EDICT_NUM(svprogfuncs, ent->number)->baseline;
 #define	NQU_MOREBITS	(1<<0)
 #define	NQU_ORIGIN1	(1<<1)
 #define	NQU_ORIGIN2	(1<<2)
@@ -1873,50 +1882,51 @@ int glowsize=0, glowcolor=0, colourmod=0;
 
 	for (i=0 ; i<3 ; i++)
 	{
-		miss = ent->v->origin[i] - ent->baseline.origin[i];
+		miss = ent->origin[i] - baseline->origin[i];
 		if ( miss < -0.1 || miss > 0.1 )
 			bits |= NQU_ORIGIN1<<i;
 	}
 
-	if (ent->v->angles[0] != ent->baseline.angles[0] )
+	if (ent->angles[0] != baseline->angles[0] )
 		bits |= NQU_ANGLE1;
 
-	if (ent->v->angles[1] != ent->baseline.angles[1] )
+	if (ent->angles[1] != baseline->angles[1] )
 		bits |= NQU_ANGLE2;
 
-	if (ent->v->angles[2] != ent->baseline.angles[2] )
+	if (ent->angles[2] != baseline->angles[2] )
 		bits |= NQU_ANGLE3;
 
-	if ((ent->v->movetype == MOVETYPE_STEP || (ent->v->movetype == MOVETYPE_PUSH)) && (bits & (U_ANGLE1|U_ANGLE2|U_ANGLE3)))
-		bits |= NQU_NOLERP;	// don't mess up the step animation
+//	if ((ent->movetype == MOVETYPE_STEP || (ent->movetype == MOVETYPE_PUSH)) && (bits & (U_ANGLE1|U_ANGLE2|U_ANGLE3)))
+//		bits |= NQU_NOLERP;	// don't mess up the step animation
 
-	if (ent->baseline.colormap != ent->v->colormap && ent->v->colormap>=0)
+	if (baseline->colormap != ent->colormap && ent->colormap>=0)
 		bits |= NQU_COLORMAP;
 
-	if (ent->baseline.skinnum != ent->v->skin)
+	if (baseline->skinnum != ent->skinnum)
 		bits |= NQU_SKIN;
 
-	if (ent->baseline.frame != ent->v->frame)
+	if (baseline->frame != ent->frame)
 		bits |= NQU_FRAME;
 
-	eff = ent->v->effects;
+	eff = ent->effects;
 
-	if ((ent->baseline.effects & 0x00ff) != ((int)eff & 0x00ff))
+	if ((baseline->effects & 0x00ff) != ((int)eff & 0x00ff))
 		bits |= NQU_EFFECTS;
 
-	if (ent->baseline.modelindex != ent->v->modelindex)
+	if (baseline->modelindex != ent->modelindex)
 		bits |= NQU_MODEL;
 
-	if (entnum >= 256)
+	if (ent->number >= 256)
 		bits |= NQU_LONGENTITY;
 
 
 	if (0)
 	{
-		if (ent->baseline.trans != ent->xv->alpha)
-			if (!(ent->baseline.trans == 1 && !ent->xv->alpha))
+#if 0
+		if (baseline.trans != ent->xv->alpha)
+			if (!(baseline.trans == 1 && !ent->xv->alpha))
 				bits |= DPU_ALPHA;
-		if (ent->baseline.scale != ent->xv->scale)
+		if (baseline.scale != ent->xv->scale)
 		{
 			if (ent->xv->scale != 0 || ent->baseline.scale != 1)
 				bits |= DPU_SCALE;
@@ -1925,7 +1935,7 @@ int glowsize=0, glowcolor=0, colourmod=0;
 		if (ent->v->modelindex >= 256)	//as much as protocols can handle
 			bits |= DPU_MODEL2;
 
-		if ((ent->baseline.effects&0xff00) != ((int)eff & 0xff00))
+		if ((baseline.effects&0xff00) != ((int)eff & 0xff00))
 			bits |= DPU_EFFECTS2;
 
 		if (ent->xv->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, host_client->edict))
@@ -1946,12 +1956,13 @@ int glowsize=0, glowcolor=0, colourmod=0;
 
 		if (0 != colourmod)
 			bits |= DPU_COLORMOD;
+#endif
 	}
 	else
 	{
-		if (ent->v->modelindex >= 256)	//as much as protocols can handle
+		if (ent->modelindex >= 256)	//as much as protocols can handle
 			return;
-		if (entnum >= 600)		//too many for a conventional nq client.
+		if (ent->number >= 600)		//too many for a conventional nq client.
 			return;
 	}
 
@@ -1978,30 +1989,30 @@ int glowsize=0, glowcolor=0, colourmod=0;
 	if (bits & DPU_EXTEND2)		MSG_WriteByte (msg, bits>>24);
 
 	if (bits & NQU_LONGENTITY)
-		MSG_WriteShort (msg,entnum);
+		MSG_WriteShort (msg,ent->number);
 	else
-		MSG_WriteByte (msg,entnum);
+		MSG_WriteByte (msg,ent->number);
 
-	if (bits & NQU_MODEL)		MSG_WriteByte (msg,	ent->v->modelindex);
-	if (bits & NQU_FRAME)		MSG_WriteByte (msg, ent->v->frame);
-	if (bits & NQU_COLORMAP)	MSG_WriteByte (msg, ent->v->colormap);
-	if (bits & NQU_SKIN)		MSG_WriteByte (msg, ent->v->skin);
+	if (bits & NQU_MODEL)		MSG_WriteByte (msg,	ent->modelindex);
+	if (bits & NQU_FRAME)		MSG_WriteByte (msg, ent->frame);
+	if (bits & NQU_COLORMAP)	MSG_WriteByte (msg, ent->colormap);
+	if (bits & NQU_SKIN)		MSG_WriteByte (msg, ent->skinnum);
 	if (bits & NQU_EFFECTS)		MSG_WriteByte (msg, eff & 0x00ff);
-	if (bits & NQU_ORIGIN1)		MSG_WriteCoord (msg, ent->v->origin[0]);
-	if (bits & NQU_ANGLE1)		MSG_WriteAngle(msg, ent->v->angles[0]);
-	if (bits & NQU_ORIGIN2)		MSG_WriteCoord (msg, ent->v->origin[1]);
-	if (bits & NQU_ANGLE2)		MSG_WriteAngle(msg, ent->v->angles[1]);
-	if (bits & NQU_ORIGIN3)		MSG_WriteCoord (msg, ent->v->origin[2]);
-	if (bits & NQU_ANGLE3)		MSG_WriteAngle(msg, ent->v->angles[2]);
+	if (bits & NQU_ORIGIN1)		MSG_WriteCoord (msg, ent->origin[0]);
+	if (bits & NQU_ANGLE1)		MSG_WriteAngle(msg, ent->angles[0]);
+	if (bits & NQU_ORIGIN2)		MSG_WriteCoord (msg, ent->origin[1]);
+	if (bits & NQU_ANGLE2)		MSG_WriteAngle(msg, ent->angles[1]);
+	if (bits & NQU_ORIGIN3)		MSG_WriteCoord (msg, ent->origin[2]);
+	if (bits & NQU_ANGLE3)		MSG_WriteAngle(msg, ent->angles[2]);
 
-	if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->xv->alpha*255);
-	if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->xv->scale*16);
+	if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->trans*255);
+	if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->scale*16);
 	if (bits & DPU_EFFECTS2)	MSG_WriteByte(msg, eff >> 8);
 	if (bits & DPU_GLOWSIZE)	MSG_WriteByte(msg, glowsize);
 	if (bits & DPU_GLOWCOLOR)	MSG_WriteByte(msg, glowcolor);
 	if (bits & DPU_COLORMOD)	MSG_WriteByte(msg, colourmod);
-	if (bits & DPU_FRAME2)		MSG_WriteByte(msg, (int)ent->v->frame >> 8);
-	if (bits & DPU_MODEL2)		MSG_WriteByte(msg, (int)ent->v->modelindex >> 8);
+	if (bits & DPU_FRAME2)		MSG_WriteByte(msg, (int)ent->frame >> 8);
+	if (bits & DPU_MODEL2)		MSG_WriteByte(msg, (int)ent->modelindex >> 8);
 }
 
 typedef struct gibfilter_s {
@@ -2139,77 +2150,11 @@ qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent)
 }
 #endif
 
-/*
-=============
-SV_WriteEntitiesToClient
-
-Encodes the current state of the world as
-a svc_packetentities messages and possibly
-a svc_nails message and
-svc_playerinfo messages
-=============
-*/
-void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignorepvs)
+void SV_Snapshot_Build_Playback(client_t *client, packet_entities_t *pack)
 {
-#define DEPTHOPTIMISE
-#ifdef DEPTHOPTIMISE
-	float distances[MAX_EXTENDED_PACKET_ENTITIES];
-	float dist;
-#endif
-
-	int		e, i;
-	qbyte	*pvs;
-	vec3_t	org;
-	edict_t	*ent;
-	packet_entities_t	*pack;
-	mvdentity_state_t *dement;
-	edict_t	*clent;
-	client_frame_t	*frame;
+	int e;
 	entity_state_t	*state;
-	int pvsflags;
-
-	client_t *split;
-
-	// this is the frame we are creating
-	frame = &client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK];
-
-	// find the client's PVS
-
-	if (!ignorepvs)
-	{
-		clent = client->edict;
-		VectorAdd (clent->v->origin, clent->v->view_ofs, org);
-
-		sv.worldmodel->funcs.FatPVS(sv.worldmodel, org, false);
-
-#ifdef PEXT_VIEW2
-		if (clent->xv->view2)
-			sv.worldmodel->funcs.FatPVS(sv.worldmodel, PROG_TO_EDICT(svprogfuncs, clent->xv->view2)->v->origin, true);
-#endif
-		for (split = client->controlled; split; split = split->controlled)
-			sv.worldmodel->funcs.FatPVS(sv.worldmodel, split->edict->v->origin, true);
-	}
-	else
-		clent = NULL;
-
-	pvs = fatpvs;
-
-	host_client = client;
-
-	// send over the players in the PVS
-	SV_WritePlayersToClient (client, clent, pvs, msg);
-
-	// put other visible entities into either a packet_entities or a nails message
-	pack = &frame->entities;
-	pack->num_entities = 0;
-
-	numnails = 0;
-#ifdef PEXT_LIGHTUPDATES
-	numlight = 0;
-#endif
-
-	if (sv.demostatevalid)	//generate info from demo stats
-	{
+	mvdentity_state_t *dement;
 		for (e=1, dement=&sv.demostate[e] ; e<=sv.demomaxents ; e++, dement++)
 		{
 			if (!dement->modelindex)
@@ -2261,78 +2206,224 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			if (SV_DemoNailUpdate (e))
 				continue;
 		}
+}
 
-		// encode the packet entities as a delta from the
-		// last packetentities acknowledged by the client
-		SV_EmitPacketEntities (client, pack, msg);
+void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *client)
+{
+//builds an entity_state from an entity
+//note that client can be null, for building baselines.
 
-		// now add the specialized nail update
-		SV_EmitNailUpdate (msg, ignorepvs);
+	int i;
 
-		return;
+//FIXME: move these
+// these are bits for the 'flags' field of the entity_state_t
+#define RENDER_STEP 1
+#define RENDER_GLOWTRAIL 2
+#define RENDER_VIEWMODEL 4
+#define RENDER_EXTERIORMODEL 8
+#define RENDER_LOWPRECISION 16 // send as low precision coordinates to save bandwidth
+#define RENDER_COLORMAPPED 32
+
+#ifdef Q2SERVER
+	state->modelindex2 = 0;
+	state->modelindex3 = 0;
+	state->modelindex4 = 0;
+	state->event = 0;
+	state->solid = 0;
+	state->sound = 0;
+	state->renderfx = 0;
+	state->old_origin[0] = 0;
+	state->old_origin[1] = 0;
+	state->old_origin[2] = 0;
+#endif
+
+	state->dpflags = 0;
+	if (ent->xv->viewmodelforclient)
+	{	//this ent would have been filtered out by now if its not ours
+		//if ent->viewmodelforclient == client then:
+		state->dpflags |= RENDER_VIEWMODEL;
 	}
+	if (ent->xv->exteriormodeltoclient && client)
+	{
+		if (ent->xv->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+			state->dpflags |= RENDER_EXTERIORMODEL;
+		//everyone else sees it normally.
+	}
+
+	state->number = NUM_FOR_EDICT(svprogfuncs, ent);
+	state->flags = 0;
+	VectorCopy (ent->v->origin, state->origin);
+	VectorCopy (ent->v->angles, state->angles);
+	state->modelindex = ent->v->modelindex;
+	state->frame = ent->v->frame;
+	state->colormap = ent->v->colormap;
+	state->skinnum = ent->v->skin;
+	state->effects = ent->v->effects;
+	state->hexen2flags = ent->xv->drawflags;
+	state->abslight = (int)(ent->xv->abslight*255) & 255;
+	state->tagentity = ent->xv->tag_entity;
+	state->tagindex = ent->xv->tag_index;
+
+	state->light[0] = ent->xv->color[0]*255;
+	state->light[1] = ent->xv->color[1]*255;
+	state->light[2] = ent->xv->color[2]*255;
+	state->light[3] = ent->xv->light_lev;
+	state->lightstyle = ent->xv->style;
+	state->lightpflags = ent->xv->pflags;
+
+	if ((int)ent->v->flags & FL_CLASS_DEPENDENT && client->playerclass)	//hexen2 wierdness.
+	{
+		char modname[MAX_QPATH];
+		Q_strncpyz(modname, sv.strings.model_precache[state->modelindex], sizeof(modname));
+		if (strlen(modname)>5)
+		{
+			modname[strlen(modname)-5] = client->playerclass+'0';
+			state->modelindex = SV_ModelIndex(modname);
+		}
+	}
+
+	if (state->effects & 0x00400000)	//DP's EF_LOWPRECISION
+		state->effects &= ~0x00400000;	//we don't support it, nor does dp any more. strip it.
+
+	if (state->effects & EF_FULLBRIGHT)	//wrap the field for fte clients (this is horrible)
+	{
+		state->hexen2flags |= MLS_FULLBRIGHT;
+	}
+
+	if (progstype != PROG_QW && state->effects && client && ISQWCLIENT(client))	//don't send extra nq effects to a qw client.
+	{
+		//EF_NODRAW doesn't draw the model.
+		//The client still needs to know about it though, as it might have other effects on it.
+		if (progstype == PROG_H2)
+		{
+			if (state->effects == H2EF_NODRAW)
+			{
+				//actually, H2 is pretty lame about this
+				state->effects = 0;
+				state->modelindex = 0;
+				state->frame = 0;
+				state->colormap = 0;
+				state->abslight = 0;
+				state->skinnum = 0;
+				state->hexen2flags = 0;
+			}
+		}
+		else
+		{
+			if (state->effects & NQEF_NODRAW)
+				state->modelindex = 0;
+		}
+
+		if (state->number <= sv.allocated_client_slots) // clear only client ents
+			state->effects &= ~ (QWEF_FLAG1|QWEF_FLAG2);
+	}
+
+	if (!ent->xv->colormod[0] && !ent->xv->colormod[1] && !ent->xv->colormod[2])
+	{
+		state->colormod[0] = (256)/8;
+		state->colormod[1] = (256)/8;
+		state->colormod[2] = (256)/8;
+	}
+	else
+	{
+		i = ent->xv->colormod[0]*(256/8); state->colormod[0] = bound(0, i, 255);
+		i = ent->xv->colormod[1]*(256/8); state->colormod[1] = bound(0, i, 255);
+		i = ent->xv->colormod[2]*(256/8); state->colormod[2] = bound(0, i, 255);
+	}
+	state->glowsize = ent->xv->glow_size*0.25;
+	state->glowcolour = ent->xv->glow_color;
+	if (ent->xv->glow_trail)
+		state->dpflags |= RENDER_GLOWTRAIL;
+
+
+#ifdef PEXT_SCALE
+	state->scale = ent->xv->scale*16;
+	if (!ent->xv->scale)
+		state->scale = 1*16;
+#endif
+#ifdef PEXT_TRANS
+	state->trans = ent->xv->alpha*255;
+	if (!ent->xv->alpha)
+		state->trans = 255;
+
+	//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
+	if (client && client->edict)
+	{
+		if (((int)client->edict->xv->dimension_see & (int)ent->xv->dimension_ghost))
+			if (!((int)client->edict->xv->dimension_see & ((int)ent->xv->dimension_seen & ~(int)ent->xv->dimension_ghost)) )
+			{
+				if (ent->xv->dimension_ghost_alpha)
+					state->trans *= ent->xv->dimension_ghost_alpha;
+				else
+					state->trans *= 0.5;
+			}
+	}
+#endif
+#ifdef PEXT_FATNESS
+	state->fatness = ent->xv->fatness*2;
+#endif
+}
+
+void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, edict_t *clent, qboolean ignorepvs)
+{
+//pvs and clent can be null, but only if the other is also null
+	int e, i;
+	edict_t *ent;
+	entity_state_t	*state;
+#define DEPTHOPTIMISE
+#ifdef DEPTHOPTIMISE
+	vec3_t org;
+	float distances[MAX_EXTENDED_PACKET_ENTITIES];
+	float dist;
+#endif
+	globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+	int pvsflags;
 
 	if (client->viewent
  #ifdef NQPROT
   && ISQWCLIENT(client)
   #endif
-  )	//this entity is watching from outside themselves. The client is tricked into thinking that they themselves are in the view ent, and a new dummy ent (the old them) must be spawned.
+		)	//this entity is watching from outside themselves. The client is tricked into thinking that they themselves are in the view ent, and a new dummy ent (the old them) must be spawned.
 	{
+
+//FIXME: this hack needs cleaning up
+#ifdef DEPTHOPTIMISE
 		distances[0] = 0;
+#endif
 		state = &pack->entities[pack->num_entities];
 		pack->num_entities++;
 
+		SV_Snapshot_BuildStateQ1(state, clent, client);
+
 		state->number = client - svs.clients + 1;
-		state->flags = 0;
-		VectorCopy (clent->v->origin, state->origin);
-		VectorCopy (clent->v->angles, state->angles);
-		state->modelindex = clent->v->modelindex;
-		state->frame = clent->v->frame;
-		state->colormap = clent->v->colormap;
-		state->skinnum = clent->v->skin;
-		state->effects = clent->v->effects;
-		state->hexen2flags = clent->xv->drawflags;
-		state->abslight = clent->xv->abslight;
 
-#ifdef PEXT_SCALE
-		state->scale = clent->xv->scale*16;
-		if (!state->scale)
-			state->scale = 1*16;
-#endif
-#ifdef PEXT_TRANS
-		state->trans = clent->xv->alpha*255;
-		if (!state->trans)
-			state->trans = 255;
-#endif
-#ifdef PEXT_FATNESS
-		state->fatness = clent->xv->fatness*2;
-#endif
-
+		//yeah, I doubt anyone will need this
 		if (progstype == PROG_QW)
 		{
-			if (state->effects & QWEF_FLAG1)
+			if ((int)clent->v->effects & QWEF_FLAG1)
 			{
 				memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
 				state = &pack->entities[pack->num_entities];
 				pack->num_entities++;
 				state->modelindex = SV_ModelIndex("progs/flag.mdl");
 				state->frame = 0;
-				state->number++;
+				state->number++;	//yeek
 				state->skinnum = 0;
 			}
-			else if (state->effects & QWEF_FLAG2)
+			else if ((int)clent->v->effects & QWEF_FLAG2)
 			{
 				memcpy(&pack->entities[pack->num_entities], state, sizeof(*state));
 				state = &pack->entities[pack->num_entities];
 				pack->num_entities++;
 				state->modelindex = SV_ModelIndex("progs/flag.mdl");
 				state->frame = 0;
-				state->number++;
+				state->number++;	//yeek
 				state->skinnum = 1;
 			}
 		}
-		state->effects &= ~(QWEF_FLAG1 | QWEF_FLAG2);
 	}
+
+
 
 #ifdef NQPROT
 	for (e=(ISQWCLIENT(client)?sv.allocated_client_slots+1:1) ; e<sv.num_edicts ; e++)
@@ -2342,84 +2433,104 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	{
 		ent = EDICT_NUM(svprogfuncs, e);
 
-		// ignore ents without visible models
-		if (!ent->xv->SendEntity && (!ent->v->modelindex || !*PR_GetString(svprogfuncs, ent->v->model)) && !((int)ent->xv->pflags & PFLAGS_FULLDYNAMIC))
-			continue;
-
-		pvsflags = ent->xv->pvsflags;
-		if (progstype != PROG_QW)
+		if (ent->xv->customizeentityforclient)
 		{
-//			if (progstype == PROG_H2)
-//				if (ent->v->effects == H2EF_NODRAW)
-//					continue;
-			if ((int)ent->v->effects & EF_MUZZLEFLASH)
-			{
-				if (needcleanup < e)
-				{
-					needcleanup = e;
-					MSG_WriteByte(&sv.multicast, svc_muzzleflash);
-					MSG_WriteShort(&sv.multicast, e);
-					SV_Multicast(ent->v->origin, MULTICAST_PVS);
-				}
-			}
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
+			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, clent);
+			PR_ExecuteProgram(svprogfuncs, ent->xv->customizeentityforclient);
+			if(!G_FLOAT(OFS_RETURN))
+				continue;
 		}
 
-		if (!ignorepvs && ent != clent)
+		if (ent == clent)
 		{
-			if ((pvsflags & PVSF_MODE_MASK) < PVSF_USEPHS)
+			pvsflags = PVSF_IGNOREPVS;
+		}
+		else
+		{
+
+			// ignore ents without visible models
+			if (!ent->xv->SendEntity && (!ent->v->modelindex || !*PR_GetString(svprogfuncs, ent->v->model)) && !((int)ent->xv->pflags & PFLAGS_FULLDYNAMIC))
+				continue;
+
+			pvsflags = ent->xv->pvsflags;
+			if (progstype != PROG_QW)
 			{
-				//branch out to the pvs testing.
-				if (ent->xv->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+	//			if (progstype == PROG_H2)
+	//				if (ent->v->effects == H2EF_NODRAW)
+	//					continue;
+				if ((int)ent->v->effects & EF_MUZZLEFLASH)
 				{
-					//unconditional
-				}
-				else if (ent->xv->tag_entity)
-				{
-					edict_t *p = ent;
-					int c = 10;
-					while(p->xv->tag_entity&&c-->0)
+					if (needcleanup < e)
 					{
-						p = EDICT_NUM(svprogfuncs, p->xv->tag_entity);
+						needcleanup = e;
+						MSG_WriteByte(&sv.multicast, svc_muzzleflash);
+						MSG_WriteShort(&sv.multicast, e);
+						SV_Multicast(ent->v->origin, MULTICAST_PVS);
 					}
-					if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, p))
-						continue;
-				}
-				else
-				{
-					if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent))
-						continue;
 				}
 			}
-			else if ((pvsflags & PVSF_MODE_MASK) == PVSF_USEPHS && sv.worldmodel->fromgame == fg_quake)
-			{
-				int leafnum;
-				unsigned char *mask;
-				leafnum = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, host_client->edict->v->origin);
-				mask = sv.phs + leafnum * 4*((sv.worldmodel->numleafs+31)>>5);
 
-				leafnum = sv.worldmodel->funcs.LeafnumForPoint (sv.worldmodel, ent->v->origin)-1;
-				if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
+			if (pvs && ent != clent)	//self doesn't get a pvs test, to cover teleporters
+			{
+				if ((int)ent->v->effects & EF_NODEPTHTEST)
 				{
-					Con_Printf ("PHS supressed entity\n");
-					continue;
 				}
+				else if ((pvsflags & PVSF_MODE_MASK) < PVSF_USEPHS)
+				{
+					//branch out to the pvs testing.
+					if (ent->xv->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, clent))
+					{
+						//unconditional
+					}
+					else if (ent->xv->tag_entity)
+					{
+						edict_t *p = ent;
+						int c = 10;
+						while(p->xv->tag_entity&&c-->0)
+						{
+							p = EDICT_NUM(svprogfuncs, p->xv->tag_entity);
+						}
+						if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, p))
+							continue;
+					}
+					else
+					{
+						if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent))
+							continue;
+					}
+				}
+				else if ((pvsflags & PVSF_MODE_MASK) == PVSF_USEPHS && sv.worldmodel->fromgame == fg_quake)
+				{
+					int leafnum;
+					unsigned char *mask;
+					leafnum = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, host_client->edict->v->origin);
+					mask = sv.phs + leafnum * 4*((sv.worldmodel->numleafs+31)>>5);
+
+					leafnum = sv.worldmodel->funcs.LeafnumForPoint (sv.worldmodel, ent->v->origin)-1;
+					if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
+					{
+						Con_Printf ("PHS supressed entity\n");
+						continue;
+					}
+				}
+
+				if (client->gibfilter && SV_GibFilter(ent))
+					continue;
 			}
 		}
 
 
-
-
-
-		if (client->gibfilter && SV_GibFilter(ent))
-			continue;
-
-//		if (strstr(sv.model_precache[(int)ent->v->modelindex], "gib"))
-//			continue;
-
-
+		//fte's gib filters
+		//DP_SV_NODRAWONLYTOCLIENT
 		if (ent->xv->nodrawtoclient)	//DP extension.
 			if (ent->xv->nodrawtoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
 				continue;
+		//DP_ENT_VIEWMODEL
+		if (ent->xv->viewmodelforclient)	//only the one set sees it
+			if (ent->xv->viewmodelforclient != EDICT_TO_PROG(svprogfuncs, client->edict))
+				continue;
+		//DP_SV_DRAWONLYTOCLIENT
 		if (ent->xv->drawonlytoclient)
 			if (ent->xv->drawonlytoclient != EDICT_TO_PROG(svprogfuncs, client->edict))
 			{
@@ -2439,60 +2550,58 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				continue;	//not in this dimension - sorry...
 
 
-		if (!ignorepvs && ent != clent && (pvsflags & PVSF_MODE_MASK)==PVSF_NORMALPVS && !((unsigned int)ent->v->effects & (EF_DIMLIGHT|EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_BRIGHTFIELD)))
+		if (!ignorepvs && ent != clent && (pvsflags & PVSF_MODE_MASK)==PVSF_NORMALPVS && !((unsigned int)ent->v->effects & (EF_DIMLIGHT|EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_BRIGHTFIELD|EF_NODEPTHTEST)))
 		{	//more expensive culling
 			if ((e <= sv.allocated_client_slots && sv_cullplayers_trace.value) || sv_cullentities_trace.value)
 				if (Cull_Traceline(clent, ent))
 					continue;
 		}
 
+		//EXT_CSQC
 		if (SV_AddCSQCUpdate(client, ent))	//csqc took it.
 			continue;
 
-#ifdef NQPROT
-		if (client->protocol == SCP_NETQUAKE)
-		{
-			if (msg->cursize + 32 > msg->maxsize)
-				break;
-			SVNQ_EmitEntity(msg, ent, e);
-			continue;
-		}
-#endif
 		if (ISQWCLIENT(client))
+		{
 			if (SV_AddNailUpdate (ent))
 				continue;	// added to the special update list
 #ifdef PEXT_LIGHTUPDATES
-		if (client->fteprotocolextensions & PEXT_LIGHTUPDATES)
-			if (SV_AddLightUpdate (ent))
-				continue;
+			if (client->fteprotocolextensions & PEXT_LIGHTUPDATES)
+				if (SV_AddLightUpdate (ent))
+					continue;
 #endif
+		}
 
 		//the entity would mess up the client and possibly disconnect them.
 		//FIXME: add an option to drop clients... entity fog could be killed in this way.
-		if (e >= 512)
+		if (!ISDPCLIENT(client))
 		{
-			if (!(client->fteprotocolextensions & PEXT_ENTITYDBL))
+			if (e >= 512)
 			{
+				if (!(client->fteprotocolextensions & PEXT_ENTITYDBL))
+				{
+					continue;
+				}
+				else if (e >= 1024)
+				{
+					if (!(client->fteprotocolextensions & PEXT_ENTITYDBL2))
+						continue;
+					else if (e >= 2048)
+						continue;
+				}
+			}
+			if (ent->v->modelindex >= 256 && !(client->fteprotocolextensions & PEXT_MODELDBL))
 				continue;
-			}
-			else if (e >= 1024)
-			{
-				if (!(client->fteprotocolextensions & PEXT_ENTITYDBL2))
-					continue;
-				else if (e >= 2048)
-					continue;
-			}
 		}
-		if (ent->v->modelindex >= 256 && !(client->fteprotocolextensions & PEXT_MODELDBL))
-			continue;
 
 #ifdef DEPTHOPTIMISE
 		if (clent)
 		{
 			//find distance based upon absolute mins/maxs so bsps are treated fairly.
+			//org = clentorg + -0.5*(max+min)
 			VectorAdd(ent->v->absmin, ent->v->absmax, org);
 			VectorMA(clent->v->origin, -0.5, org, org);
-			dist = Length(org);
+			dist = DotProduct(org, org);	//Length
 
 			// add to the packetentities
 			if (pack->num_entities == pack->max_entities)
@@ -2541,145 +2650,110 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			}
 		}
 
-// these are bits for the 'flags' field of the entity_state_t
-#define RENDER_STEP 1
-#define RENDER_GLOWTRAIL 2
-#define RENDER_VIEWMODEL 4
-#define RENDER_EXTERIORMODEL 8
-#define RENDER_LOWPRECISION 16 // send as low precision coordinates to save bandwidth
-#define RENDER_COLORMAPPED 32
+		//its not a nail or anything, pack it up and ship it on
+		SV_Snapshot_BuildStateQ1(state, ent, client);
+	}
+}
 
-		state->dpflags = 0;
-		if (ent->xv->viewmodelforclient)
-		{
-			if (ent->xv->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, client->edict))
-				state->dpflags |= RENDER_VIEWMODEL;
-			else
-			{	//noone else sees it.
-				pack->num_entities--;
-				continue;
-			}
-		}
-		if (ent->xv->exteriormodeltoclient)
-		{
-			if (ent->xv->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
-				state->dpflags |= RENDER_EXTERIORMODEL;
-			//everyone else sees it normally.
-		}
-		
-		state->number = e;
-		state->flags = 0;
-		VectorCopy (ent->v->origin, state->origin);
-		VectorCopy (ent->v->angles, state->angles);
-		state->modelindex = ent->v->modelindex;
-		state->frame = ent->v->frame;
-		state->colormap = ent->v->colormap;
-		state->skinnum = ent->v->skin;
-		state->effects = ent->v->effects;
-		state->hexen2flags = ent->xv->drawflags;
-		state->abslight = (int)(ent->xv->abslight*255) & 255;
-		state->tagentity = ent->xv->tag_entity;
-		state->tagindex = ent->xv->tag_index;
+qbyte *SV_Snapshot_SetupPVS(client_t *client)
+{
+//fixme: fatpvs is still a global.
+	vec3_t org;
+	int leavepvs = false;
 
-		state->light[0] = ent->xv->color[0]*255;
-		state->light[1] = ent->xv->color[1]*255;
-		state->light[2] = ent->xv->color[2]*255;
-		state->light[3] = ent->xv->light_lev;
-		state->lightstyle = ent->xv->style;
-		state->lightpflags = ent->xv->pflags;
+	for (; client; client = client->controlled)
+	{
+		VectorAdd (client->edict->v->origin, client->edict->v->view_ofs, org);
+		sv.worldmodel->funcs.FatPVS(sv.worldmodel, org, leavepvs);
+		leavepvs = true;
 
-		if ((int)ent->v->flags & FL_CLASS_DEPENDENT && client->playerclass)	//hexen2 wierdness.
-		{
-			char modname[MAX_QPATH];
-			Q_strncpyz(modname, sv.strings.model_precache[state->modelindex], sizeof(modname));
-			if (strlen(modname)>5)
-			{
-				modname[strlen(modname)-5] = client->playerclass+'0';
-				state->modelindex = SV_ModelIndex(modname);
-			}
-		}
-
-		if (state->effects & 0x32)
-			state->effects |= 0;
-
-		if (state->effects & 0x00400000)
-			state->effects &= ~0x00400000;
-
-		if (state->effects & EF_FULLBRIGHT)
-		{
-			state->hexen2flags |= MLS_FULLBRIGHT;
-		}
-		if (progstype != PROG_QW && state->effects && ISQWCLIENT(client))	//don't send extra nq effects to a qw client.
-		{
-			//EF_NODRAW doesn't draw the model.
-			//The client still needs to know about it though, as it might have other effects on it.
-			if (progstype == PROG_H2)
-			{
-				if (state->effects == H2EF_NODRAW)
-				{
-					//actually, H2 is pretty lame about this
-					state->effects = 0;
-					state->modelindex = 0;
-					state->frame = 0;
-					state->colormap = 0;
-					state->abslight = 0;
-					state->skinnum = 0;
-					state->hexen2flags = 0;
-				}
-			}
-			else
-			{
-				if (state->effects & NQEF_NODRAW)
-					state->modelindex = 0;
-			}
-
-			if (e <= sv.allocated_client_slots) // clear only client ents
-				state->effects &= ~ (QWEF_FLAG1|QWEF_FLAG2);
-		}
-
-		if (!ent->xv->colormod[0] && !ent->xv->colormod[1] && !ent->xv->colormod[2])
-		{
-			state->colormod[0] = (256)/8;
-			state->colormod[1] = (256)/8;
-			state->colormod[2] = (256)/8;
-		}
-		else
-		{
-			i = ent->xv->colormod[0]*(256/8); state->colormod[0] = bound(0, i, 255);
-			i = ent->xv->colormod[1]*(256/8); state->colormod[1] = bound(0, i, 255);
-			i = ent->xv->colormod[2]*(256/8); state->colormod[2] = bound(0, i, 255);
-		}
-		state->glowsize = ent->xv->glow_size*0.25;
-		state->glowcolour = ent->xv->glow_color;
-		if (ent->xv->glow_trail)
-			state->dpflags |= RENDER_GLOWTRAIL;
-
-
-#ifdef PEXT_SCALE
-		state->scale = ent->xv->scale*16;
-		if (!ent->xv->scale)
-			state->scale = 1*16;
-#endif
-#ifdef PEXT_TRANS
-		state->trans = ent->xv->alpha*255;
-		if (!ent->xv->alpha)
-			state->trans = 255;
-
-		//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
-		if (client->edict)
-			if (((int)client->edict->xv->dimension_see & (int)ent->xv->dimension_ghost))
-				if (!((int)client->edict->xv->dimension_see & ((int)ent->xv->dimension_seen & ~(int)ent->xv->dimension_ghost)) )
-				{
-					if (ent->xv->dimension_ghost_alpha)
-						state->trans *= ent->xv->dimension_ghost_alpha;
-					else
-						state->trans *= 0.5;
-				}
-#endif
-#ifdef PEXT_FATNESS
-		state->fatness = ent->xv->fatness*2;
+#ifdef PEXT_VIEW2
+		if (client->edict->xv->view2)	//add a second view point to the pvs
+			sv.worldmodel->funcs.FatPVS(sv.worldmodel, PROG_TO_EDICT(svprogfuncs, client->edict->xv->view2)->v->origin, leavepvs);
 #endif
 	}
+
+	return fatpvs;
+}
+
+void SV_Snapshot_Clear(packet_entities_t *pack)
+{
+	pack->num_entities = 0;
+
+	csqcnuments = 0;
+	numnails = 0;
+#ifdef PEXT_LIGHTUPDATES
+	numlight = 0;
+#endif
+}
+		
+/*
+=============
+SVQ3Q1_BuildEntityPacket
+
+Builds a temporary q1 style entity packet for a q3 client
+=============
+*/
+void SVQ3Q1_BuildEntityPacket(client_t *client, packet_entities_t *pack)
+{
+	qbyte *pvs;
+	SV_Snapshot_Clear(pack);
+	pvs = SV_Snapshot_SetupPVS(client);
+	SV_Snapshot_BuildQ1(client, pack, pvs, client->edict, false);
+}
+
+/*
+=============
+SV_WriteEntitiesToClient
+
+Encodes the current state of the world as
+a svc_packetentities messages and possibly
+a svc_nails message and
+svc_playerinfo messages
+=============
+*/
+void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignorepvs)
+{
+	int		e;
+	qbyte	*pvs;
+	packet_entities_t	*pack;
+	edict_t	*clent;
+	client_frame_t	*frame;
+
+
+	// this is the frame we are creating
+	frame = &client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK];
+
+	// find the client's PVS
+	if (ignorepvs)
+	{
+		clent = NULL;
+		pvs = NULL;
+	}
+	else
+	{
+		clent = client->edict;
+		pvs = SV_Snapshot_SetupPVS(client);
+	}
+
+	host_client = client;
+	pack = &frame->entities;
+	SV_Snapshot_Clear(pack);
+
+	// send over the players in the PVS
+	SV_WritePlayersToClient (client, clent, pvs, msg);
+
+	// put other visible entities into either a packet_entities or a nails message
+
+	if (sv.demostatevalid)	//generate info from demo stats
+	{
+		SV_Snapshot_Build_Playback(client, pack);
+	}
+	else
+	{
+		SV_Snapshot_BuildQ1(client, pack, pvs, clent, ignorepvs);
+	}
+
 #ifdef NQPROT
 	if (ISNQCLIENT(client))
 	{
@@ -2691,6 +2765,12 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		}
 		else
 		{
+			for (e = 0; e < pack->num_entities; e++)
+			{
+				if (msg->cursize + 32 > msg->maxsize)
+					break;
+				SVNQ_EmitEntityState(msg, &pack->entities[e]);
+			}
 			client->netchan.incoming_sequence++;
 			return;
 		}

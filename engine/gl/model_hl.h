@@ -174,8 +174,8 @@ typedef struct
     int		motionbone;
     vec3_t	unknown3;
     int		unknown4[2];
-    vec3_t	unknown5[2];
-    int		unknown6;
+    vec3_t	bbox[2];
+    int		hasblendseq;
     int		index;
     int		unknown7[2];
     float	unknown[4];
@@ -203,9 +203,6 @@ typedef struct
  */
 typedef struct
 {
-    int		sequence;
-    int		frame;					/* Current animation sequence and frame */
-    float	frametime;				/* Time of last frame drawn */
     float	controller[4];				/* Position of bone controllers */
     float	adjust[4];
 
@@ -231,7 +228,4 @@ void	QuaternionGLMatrix(float x, float y, float z, float w, vec4_t *GLM);
 
 /* HL drawing */
 qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
-int	HL_CurSequence(hlmodel_t model);
-int	HL_NewSequence(hlmodel_t * model, int _inew);
-void	HL_SetController(hlmodel_t *model, int num, float value);
 void	R_Draw_HL_AliasModel(hlmodel_t *model);

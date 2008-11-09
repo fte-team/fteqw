@@ -65,8 +65,8 @@ static void Validation_Version(void)
 {
 	char sr[256];
 	char *s = sr;
-	char *auth = "";
 	char authbuf[256];
+	char *auth = authbuf;
 
 	extern cvar_t r_shadow_realtime_world, r_drawflat;
 

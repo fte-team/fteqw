@@ -113,7 +113,7 @@ static galiastexnum_t *D3D9_ChooseSkin(galiasinfo_t *inf, char *modelname, int s
 				Skin_Find(e->scoreboard);
 			tc = e->scoreboard->ttopcolor;
 			bc = e->scoreboard->tbottomcolor;
-
+/*
 			//colour forcing
 			if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
 			{
@@ -139,7 +139,7 @@ static galiastexnum_t *D3D9_ChooseSkin(galiasinfo_t *inf, char *modelname, int s
 					if (cl_enemybottomcolor>=0)
 						bc = cl_enemybottomcolor;
 				}
-			}
+			}*/
 		}
 		else
 		{
@@ -305,6 +305,45 @@ static galiastexnum_t *D3D9_ChooseSkin(galiasinfo_t *inf, char *modelname, int s
 				scaled_width = gl_max_size.value < 512 ? gl_max_size.value : 512;
 				scaled_height = gl_max_size.value < 512 ? gl_max_size.value : 512;
 
+#if 1
+				{
+					for (i=0 ; i<256 ; i++)
+						translate32[i] = d_8to24rgbtable[i];
+
+					for (i = 0; i < 16; i++)
+					{
+						if (tc >= 16)
+						{
+							//assumption: row 0 is pure white.
+							*((unsigned char*)&translate32[TOP_RANGE+i]+0) = (((tc&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[i]+0))>>8;
+							*((unsigned char*)&translate32[TOP_RANGE+i]+1) = (((tc&0x00ff00)>> 8)**((unsigned char*)&d_8to24rgbtable[i]+1))>>8;
+							*((unsigned char*)&translate32[TOP_RANGE+i]+2) = (((tc&0x0000ff)>> 0)**((unsigned char*)&d_8to24rgbtable[i]+2))>>8;
+							*((unsigned char*)&translate32[TOP_RANGE+i]+3) = 0xff;
+						}
+						else
+						{
+							if (tc < 8)
+								translate32[TOP_RANGE+i] = d_8to24rgbtable[(tc<<4)+i];
+							else
+								translate32[BOTTOM_RANGE+i] = d_8to24rgbtable[(tc<<4)+15-i];
+						}
+						if (bc >= 16)
+						{
+							*((unsigned char*)&translate32[BOTTOM_RANGE+i]+0) = (((bc&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[i]+0))>>8;
+							*((unsigned char*)&translate32[BOTTOM_RANGE+i]+1) = (((bc&0x00ff00)>> 8)**((unsigned char*)&d_8to24rgbtable[i]+1))>>8;
+							*((unsigned char*)&translate32[BOTTOM_RANGE+i]+2) = (((bc&0x0000ff)>> 0)**((unsigned char*)&d_8to24rgbtable[i]+2))>>8;
+							*((unsigned char*)&translate32[BOTTOM_RANGE+i]+3) = 0xff;
+						}
+						else
+						{
+							if (bc < 8)
+								translate32[BOTTOM_RANGE+i] = d_8to24rgbtable[(bc<<4)+i];
+							else
+								translate32[BOTTOM_RANGE+i] = d_8to24rgbtable[(bc<<4)+15-i];
+						}
+					}
+				}
+#else
 				for (i=0 ; i<256 ; i++)
 					translate[i] = i;
 
@@ -327,6 +366,7 @@ static galiastexnum_t *D3D9_ChooseSkin(galiasinfo_t *inf, char *modelname, int s
 
 				for (i=0 ; i<256 ; i++)
 					translate32[i] = d_8to24rgbtable[translate[i]];
+#endif
 
 				out = pixels;
 				fracstep = tinwidth*0x10000/scaled_width;
@@ -680,7 +720,7 @@ if (e->flags & Q2RF_DEPTHHACK)
 
 	for(i = 0;; i++)
 	{
-		R_GAliasBuildMesh(&mesh, inf, e->frame, e->oldframe, e->lerpfrac, e->shaderRGBAf[3], e->frame1time, e->frame2time, 0);
+		R_GAliasBuildMesh(&mesh, inf, e->frame1, e->frame2, e->lerpfrac, e->shaderRGBAf[3], e->frame1time, e->frame2time, 0);
 
 		skin = D3D9_ChooseSkin(inf, m->name, e->skinnum, e);
 		if (!skin)

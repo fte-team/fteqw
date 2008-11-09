@@ -325,13 +325,17 @@ void SV_Give_f (void)
 		return;
 	}
 
-	if (!SV_SetPlayer ())
+	if (developer.value)
 	{
 		int oldself;
 		oldself = pr_global_struct->self;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
 		Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
 		pr_global_struct->self = oldself;
+	}
+
+	if (!SV_SetPlayer ())
+	{
 		return;
 	}
 
@@ -343,7 +347,7 @@ void SV_Give_f (void)
 	t = Cmd_Argv(2);
 	v = atoi (Cmd_Argv(3));
 
-	switch (t[0])
+	switch ((t[1]==0)?t[0]:0)
 	{
 	case '2':
 	case '3':
@@ -376,6 +380,7 @@ void SV_Give_f (void)
 			int oldself;
 			oldself = pr_global_struct->self;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+			Cmd_ShiftArgs(1, false);
 			Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
 			pr_global_struct->self = oldself;
 		}
@@ -598,6 +603,9 @@ void SV_Map_f (void)
 			continue;
 		if (host_client->state>=cs_connected)
 		{
+			if (host_client->protocol == SCP_QUAKE3)
+				continue;
+
 			if (ISNQCLIENT(host_client))
 				SVNQ_New_f();
 			else
@@ -1297,11 +1305,6 @@ void SV_Status_f (void)
 
 	if (!sv.state)
 	{
-		if (net_local_sv_ipadr.type != NA_LOOPBACK)
-			Con_Printf ("ip address       : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ipadr));
-		if (net_local_sv_ip6adr.type != NA_LOOPBACK)
-			Con_Printf ("ipv6 address       : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ip6adr));
-
 		Con_Printf("Server is not running\n");
 		return;
 	}
@@ -1315,22 +1318,7 @@ void SV_Status_f (void)
 	avg = 1000*svs.stats.latched_active / STATFRAMES;
 	pak = (float)svs.stats.latched_packets/ STATFRAMES;
 
-	if (svs.socketip != INVALID_SOCKET && net_local_sv_ipadr.type != NA_LOOPBACK)
-	{
-		extern cvar_t pr_imitatemvdsv;
-		if (pr_imitatemvdsv.value)	//ktpro requires 'net address' for some reason that I don't remember
-			Con_Printf ("net address      : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ipadr));
-		else
-			Con_Printf ("ip address       : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ipadr));
-	}
-	if (svs.socketip6 != INVALID_SOCKET && net_local_sv_ip6adr.type != NA_LOOPBACK)
-		Con_Printf ("ipv6 address     : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ip6adr));
-	if (svs.socketipx != INVALID_SOCKET && net_local_sv_ipxadr.type != NA_LOOPBACK)
-		Con_Printf ("ipx address      : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_ipxadr));
-#ifdef TCPCONNECT
-	if (svs.sockettcp != INVALID_SOCKET && net_local_sv_tcpipadr.type != NA_LOOPBACK)
-		Con_Printf ("tcp address      : %s\n",NET_AdrToString (adr, sizeof(adr), net_local_sv_tcpipadr));
-#endif
+	NET_PrintAddresses(svs.sockets);
 
 	Con_Printf ("cpu utilization  : %3i%%\n",(int)cpu);
 	Con_Printf ("avg response time: %i ms\n",(int)avg);

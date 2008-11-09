@@ -81,7 +81,7 @@ zone_t *zone_head;
 void *zonelock;
 #endif
 
-static void Z_DumpTree()
+static void Z_DumpTree(void)
 {
 	zone_t *zone;
 	zone_t *nextlist;

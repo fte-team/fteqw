@@ -431,12 +431,15 @@ Called for important messages that should stay in the center of the screen
 for a few moments
 ==============
 */
-void SCR_CenterPrint (int pnum, char *str)
+void SCR_CenterPrint (int pnum, char *str, qboolean fromgamecode)
 {
+	if (!fromgamecode)
+	{
 #ifdef CSQC_DAT
-	if (CSQC_CenterPrint(str))	//csqc nabbed it.
-		return;
+		if (CSQC_CenterPrint(str))	//csqc nabbed it.
+			return;
 #endif
+	}
 
 	if (Cmd_AliasExist("f_centerprint", RESTRICT_LOCAL))
 	{
@@ -808,7 +811,7 @@ void SCR_ShowPic_Create(void)
 	sp->x = MSG_ReadShort();
 	sp->y = MSG_ReadShort();
 
-	CL_CheckOrEnqueDownloadFile(sp->picname, sp->picname);
+	CL_CheckOrEnqueDownloadFile(sp->picname, sp->picname, 0);
 }
 
 void SCR_ShowPic_Hide(void)
@@ -856,7 +859,7 @@ void SCR_ShowPic_Update(void)
 	sp->picname = Z_Malloc(strlen(s)+1);
 	strcpy(sp->picname, s);
 
-	CL_CheckOrEnqueDownloadFile(sp->picname, sp->picname);
+	CL_CheckOrEnqueDownloadFile(sp->picname, sp->picname, 0);
 }
 
 void SCR_ShowPic_Script_f(void)
@@ -1442,7 +1445,11 @@ void SCR_DrawLoading (void)
 	{
 		if(Draw_ScalePic)
 			Draw_ScalePic(0, 0, vid.width, vid.height, Draw_SafeCachePic (levelshotname));
+		else
+			Draw_ConsoleBackground(vid.height);
 	}
+	else
+		Draw_ConsoleBackground(vid.height);
 
 	if (COM_FDepthFile("gfx/loading.lmp", true) < COM_FDepthFile("gfx/menu/loading.lmp", true))
 	{	//quake files

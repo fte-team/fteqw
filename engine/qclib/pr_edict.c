@@ -607,19 +607,53 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "unions cannot yet be saved");
 		break;
 	case ev_string:
-		_snprintf (line, sizeof(line), "%s", PR_StringToNative(progfuncs, val->string));
+		{
+			char *outs = line;
+			int outb = sizeof(line)-2;
+			char *ins = PR_StringToNative(progfuncs, val->string);
+			//markup the output string.
+			while(*ins && outb > 0)
+			{
+				switch(*ins)
+				{
+				case '\n':
+					*outs++ = '\\';
+					*outs++ = 'n';
+					ins++;
+					outb-=2;
+					break;
+				case '\"':
+					*outs++ = '\\';
+					*outs++ = '"';
+					ins++;
+					outb-=2;
+					break;
+				case '\\':
+					*outs++ = '\\';
+					*outs++ = '\\';
+					ins++;
+					outb-=2;
+					break;
+				default:
+					*outs++ = *ins++;
+					outb--;
+					break;
+				}
+			}
+			*outs = 0;
+		}
 		break;
 	case ev_entity:
 		sprintf (line, "%i", val->_int);
 		break;
 	case ev_function:
 		i = (val->function & 0xff000000)>>24;	//progs number
-		if ((unsigned)i > maxprogs || !pr_progstate[(unsigned)i].progs)
+		if ((unsigned)i >= maxprogs || !pr_progstate[(unsigned)i].progs)
 			sprintf (line, "BAD FUNCTION INDEX: %i", val->function);
 		else
 		{
 			j = (val->function & ~0xff000000);	//function number
-			if ((unsigned)j > pr_progstate[(unsigned)i].progs->numfunctions)
+			if ((unsigned)j >= pr_progstate[(unsigned)i].progs->numfunctions)
 				sprintf(line, "%i:%s", i, "CORRUPT FUNCTION POINTER");
 			else
 			{
@@ -1143,9 +1177,13 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 		if (qcc_token[0] == '}')
 			break;
 		if (!data)
-			Sys_Error ("ED_ParseEntity: EOF without closing brace");
+		{
+			printf ("ED_ParseEntity: EOF without closing brace");
+			return NULL;
+		}
 
-		strcpy (keyname, qcc_token);
+		strncpy (keyname, qcc_token, sizeof(keyname)-1);
+		keyname[sizeof(keyname)-1] = 0;
 
 		// another hack to fix heynames with trailing spaces
 		n = strlen(keyname);
@@ -1158,10 +1196,16 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 	// parse value
 		data = QCC_COM_Parse (data);
 		if (!data)
-			Sys_Error ("ED_ParseEntity: EOF without closing brace");
+		{
+			printf ("ED_ParseEntity: EOF without closing brace");
+			return NULL; 
+		}
 
 		if (qcc_token[0] == '}')
-			Sys_Error ("ED_ParseEntity: closing brace without data");
+		{
+			printf ("ED_ParseEntity: closing brace without data");
+			return NULL;
+		}
 
 		init = true;
 

@@ -33,7 +33,8 @@ char *VMQ3_StringFromHandle(int handle);
 int VMQ3_StringToHandle(char *str);
 
 extern model_t mod_known[];
-#define VM_FROMMHANDLE(a) (a?mod_known+a-1:NULL)
+extern int mod_numknown;
+#define VM_FROMMHANDLE(a) ((a&&((unsigned int)a)<=mod_numknown)?mod_known+a-1:NULL)
 #define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
 
 extern shader_t r_shaders[];
@@ -1031,13 +1032,13 @@ vec3_t		listener_up;
 		break;
 
 	case CG_FTE_FINDPARTICLEEFFECT:
-		return P_FindParticleType(VM_POINTER(arg[0]));
+		return pe->FindParticleType(VM_POINTER(arg[0]));
 	case CG_FTE_SPAWNPARTICLEEFFECT:
-		return P_RunParticleEffectState(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]), VM_LONG(arg[3]), VM_POINTER(arg[4]));
+		return pe->RunParticleEffectState(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]), VM_LONG(arg[3]), VM_POINTER(arg[4]));
 	case CG_FTE_SPAWNPARTICLETRAIL:
-		return P_ParticleTrail(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), VM_POINTER(arg[3]));
+		return pe->ParticleTrail(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), VM_POINTER(arg[3]));
 	case CG_FTE_FREEPARTICLESTATE:
-		P_DelinkTrailstate(VM_POINTER(arg[0]));
+		pe->DelinkTrailstate(VM_POINTER(arg[0]));
 		break;
 	default:
 		Con_Printf("Q3CG: Bad system trap: %d\n", fn);

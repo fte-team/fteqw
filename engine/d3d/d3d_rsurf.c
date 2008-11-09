@@ -15,7 +15,7 @@ lightmapinfo_t **lightmap;
 
 
 
-void D3D_BuildSurfaceDisplayList (msurface_t *fa)
+void D3D7_BuildSurfaceDisplayList (msurface_t *fa)
 {
 	int			i, lindex, lnumverts;
 	medge_t		*pedges, *r_pedge;
@@ -121,7 +121,7 @@ unsigned		blocklights[MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
 unsigned		greenblklights[MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
 unsigned		blueblklights[MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
 
-void D3DR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift)
+void D3D7R_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift)
 {
 	int			smax, tmax;
 	int			t;
@@ -983,7 +983,7 @@ store:
 
 
 
-int D3DFillBlock (int texnum, int w, int h, int x, int y)
+int D3D7FillBlock (int texnum, int w, int h, int x, int y)
 {
 	int		i, l;
 	while (texnum >= numlightmaps)	//allocate 4 more lightmap slots. not much memory usage, but we don't want any caps here.
@@ -1100,7 +1100,7 @@ int D3D7_AllocBlock (int w, int h, int *x, int *y)
 }
 
 
-void D3D_CreateSurfaceLightmap (msurface_t *surf, int shift)
+void D3D7_CreateSurfaceLightmap (msurface_t *surf, int shift)
 {
 	int		smax, tmax;
 	qbyte	*base, *luxbase; stmap *stainbase;
@@ -1122,7 +1122,7 @@ void D3D_CreateSurfaceLightmap (msurface_t *surf, int shift)
 	}
 
 	if (currentmodel->fromgame == fg_quake3)
-		D3DFillBlock(surf->lightmaptexturenum, smax, tmax, surf->light_s, surf->light_t);
+		D3D7FillBlock(surf->lightmaptexturenum, smax, tmax, surf->light_s, surf->light_t);
 	else
 		surf->lightmaptexturenum = D3D7_AllocBlock (smax, tmax, &surf->light_s, &surf->light_t);
 	base = lightmap[surf->lightmaptexturenum]->lightmaps;
@@ -1134,7 +1134,7 @@ void D3D_CreateSurfaceLightmap (msurface_t *surf, int shift)
 	stainbase = lightmap[surf->lightmaptexturenum]->stainmaps;
 	stainbase += (surf->light_t * LMBLOCK_WIDTH + surf->light_s) * 3;
 	
-	D3DR_BuildLightMap (surf, base, luxbase, stainbase, shift);
+	D3D7R_BuildLightMap (surf, base, luxbase, stainbase, shift);
 }
 
 
@@ -1237,7 +1237,7 @@ dynamic:
 		luxbase += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
 		stainbase = lightmap[fa->lightmaptexturenum]->stainmaps;
 		stainbase += (fa->light_t * LMBLOCK_WIDTH + fa->light_s) * 3;
-		D3DR_BuildLightMap (fa, base, luxbase, stainbase, shift);
+		D3D7R_BuildLightMap (fa, base, luxbase, stainbase, shift);
 
 		RSpeedEnd(RSPEED_DYNAMIC);
 	}
@@ -1245,7 +1245,7 @@ dynamic:
 
 
 
-LPDIRECTDRAWSURFACE7 D3D_NewLightmap(void)
+LPDIRECTDRAWSURFACE7 D3D7_NewLightmap(void)
 {
 	DWORD tflags = D3DX_TEXTURE_NOMIPMAP;	//for now
 	DWORD twidth = LMBLOCK_WIDTH;
@@ -1261,7 +1261,7 @@ LPDIRECTDRAWSURFACE7 D3D_NewLightmap(void)
 	return newsurf;
 }
 
-void D3D_BuildLightmaps (void)
+void D3D7_BuildLightmaps (void)
 {
 	DDSURFACEDESC2 desc;
 
@@ -1321,11 +1321,11 @@ void D3D_BuildLightmaps (void)
 
 		for (i=0 ; i<m->numsurfaces ; i++)
 		{
-			D3D_CreateSurfaceLightmap (m->surfaces + i, shift);
+			D3D7_CreateSurfaceLightmap (m->surfaces + i, shift);
 			P_EmitSkyEffectTris(m, &m->surfaces[i]);
 			if (m->surfaces[i].mesh)	//there are some surfaces that have a display list already (the subdivided ones)
 				continue;
-			D3D_BuildSurfaceDisplayList (m->surfaces + i);
+			D3D7_BuildSurfaceDisplayList (m->surfaces + i);
 		}
 	}
 
@@ -1344,7 +1344,7 @@ void D3D_BuildLightmaps (void)
 
 		if (!lightmap_d3dtextures[i])
 		{
-			lightmap_d3dtextures[i] = D3D_NewLightmap();
+			lightmap_d3dtextures[i] = D3D7_NewLightmap();
 
 			if (!lightmap_d3dtextures[i])
 			{

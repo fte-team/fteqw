@@ -59,14 +59,10 @@ cvar_t	progs = SCVARF("progs", "", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROM
 cvar_t	qc_nonetaccess = SCVAR("qc_nonetaccess", "0");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 
 cvar_t pr_overridebuiltins = SCVAR("pr_overridebuiltins", "1");
-cvar_t pr_brokenfloatconvert = SCVAR("pr_brokenfloatconvert", "0");
 
 cvar_t pr_compatabilitytest = SCVARF("pr_compatabilitytest", "0", CVAR_LATCH);
 
 cvar_t pr_ssqc_coreonerror = SCVAR("pr_coreonerror", "1");
-
-cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "");//"16");
-cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
 
 cvar_t pr_droptofloorunits = SCVAR("pr_droptofloorunits", "");
 
@@ -114,6 +110,8 @@ typedef struct {
 	int qwnum;		//standard qw.
 	int h2num;		//standard hexen2
 	int ebfsnum;	//extra functions, these exist ONLY after being checked for.
+
+	qboolean obsolete;
 } BuiltinList_t;
 builtin_t pr_builtin[1024];
 extern BuiltinList_t BuiltinList[];
@@ -159,14 +157,6 @@ char *QC_ProgsNameForEnt(edict_t *ent)
 
 
 int pr_edict_size;
-
-pbool QC_WriteFile(char *name, void *data, int len)
-{
-	char buffer[256];
-	sprintf(buffer, "%s", name);
-	COM_WriteFile(buffer, data, len);
-	return true;
-}
 
 void ED_Spawned (struct edict_s *ent, int loading)
 {
@@ -346,7 +336,6 @@ void VARGS PR_CB_Free(void *mem)
 {
 	BZ_Free(mem);
 }
-void PF_break (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 int QCLibEditor(progfuncs_t *prinst, char *filename, int line, int nump, char **parms);
 int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **parms)
 {
@@ -915,6 +904,8 @@ void PR_SSCoreDump_f(void)
 	}
 }
 
+void PR_SVExtensionList_f(void);
+
 /*
 #ifdef _DEBUG
 void QCLibTest(void)
@@ -934,11 +925,17 @@ char32 sv_addonname[MAXADDONS];
 void PR_Init(void)
 {
 	int i;
+
+	PF_Common_RegisterCvars();
+
 	Cmd_AddCommand ("breakpoint", PR_BreakPoint_f);
 	Cmd_AddCommand ("decompile", PR_Decompile_f);
 	Cmd_AddCommand ("compile", PR_Compile_f);
 	Cmd_AddCommand ("applycompile", PR_ApplyCompilation_f);
 	Cmd_AddCommand ("coredump_ssqc", PR_SSCoreDump_f);
+
+	Cmd_AddCommand ("extensionlist_ssqc", PR_SVExtensionList_f);
+
 /*
 #ifdef _DEBUG
 	Cmd_AddCommand ("svtestprogs", QCLibTest);
@@ -980,12 +977,7 @@ void PR_Init(void)
 
 	Cvar_Register (&pr_ssqc_coreonerror, cvargroup_progs);
 
-	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
-	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
-
 	Cvar_Register (&pr_droptofloorunits, cvargroup_progs);
-
-	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 
 	Cvar_Register (&sv_gameplayfix_honest_tracelines, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
@@ -1164,7 +1156,7 @@ void Q_InitProgs(void)
 					if (f)
 					{
 						pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-						G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, as);
+						G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, as);
 						PR_ExecuteProgram (svprogfuncs, f);
 					}
 					else
@@ -1282,7 +1274,7 @@ void Q_InitProgs(void)
 					if (f)
 					{
 						pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-						G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, as);
+						G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, as);
 						PR_ExecuteProgram (svprogfuncs, f);
 					}
 					else
@@ -1324,7 +1316,7 @@ void Q_InitProgs(void)
 				if (f)
 				{
 					pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-					G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, sv_addon[i2].string);
+					G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, sv_addon[i2].string);
 					PR_ExecuteProgram (svprogfuncs, f);
 				}
 				else
@@ -1433,9 +1425,9 @@ qboolean PR_GameCodePacket(char *s)
 
 
 
-	G_INT(OFS_PARM0) = PR_SetString(svprogfuncs, NET_AdrToString (adr, sizeof(adr), net_from));
+	G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, NET_AdrToString (adr, sizeof(adr), net_from));
 
-	G_INT(OFS_PARM1) = PR_SetString(svprogfuncs, s);
+	G_INT(OFS_PARM1) = PR_TempString(svprogfuncs, s);
 	PR_ExecuteProgram (svprogfuncs, SV_ParseConnectionlessPacket);
 	return G_FLOAT(OFS_RETURN);
 }
@@ -1458,7 +1450,7 @@ qboolean PR_KrimzonParseCommand(char *s)
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
-		G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, s);
+		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
 		PR_ExecuteProgram (svprogfuncs, SV_ParseClientCommand);
 		return true;
 	}
@@ -1487,7 +1479,7 @@ qboolean PR_UserCmd(char *s)
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
-		G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, s);
+		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
 		PR_ExecuteProgram (svprogfuncs, SV_ParseClientCommand);
 		return true;
 	}
@@ -1519,7 +1511,7 @@ qboolean PR_UserCmd(char *s)
 		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
-		G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, s);
+		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
 		PR_ExecuteProgram (svprogfuncs, mod_UserCmd);
 		return !!G_FLOAT(OFS_RETURN);
 	}
@@ -1601,32 +1593,6 @@ void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue)
 	}
 }
 
-void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...)
-{
-	va_list		argptr;
-	static char		string[2048];
-
-	va_start (argptr, format);
-	vsnprintf (string,sizeof(string)-1, format,argptr);
-	va_end (argptr);
-
-	if (developer.value)
-	{
-		globalvars_t *pr_globals = PR_globals(progfuncs, PR_CURRENT);
-		Con_Printf("%s\n", string);
-		*progfuncs->pr_trace = 1;
-		G_INT(OFS_RETURN)=0;	//just in case it was a float and should be an ent...
-		G_INT(OFS_RETURN+1)=0;
-		G_INT(OFS_RETURN+2)=0;
-	}
-	else
-	{
-		PR_StackTrace(progfuncs);
-		PR_AbortStack(progfuncs);
-		progfuncs->parms->Abort ("%s", string);
-	}
-}
-
 void QC_Clear(void)
 {
 }
@@ -1654,33 +1620,6 @@ qbyte *PR_OpenFile(char *filename, qbyte *buffer)
 
 char *Translate(char *message);
 
-char *PF_VarString (progfuncs_t *prinst, int	first, globalvars_t *pr_globals)
-{
-	int		i;
-	static char buffer[2][4096];
-	static int bufnum;
-	char *s, *out;
-
-	out = buffer[(bufnum++)&1];
-
-	out[0] = 0;
-	for (i=first ; i<*prinst->callargc ; i++)
-	{
-//		if (G_INT(OFS_PARM0+i*3) < 0 || G_INT(OFS_PARM0+i*3) >= 1024*1024);
-//			break;
-
-		s = PR_GetStringOfs(prinst, OFS_PARM0+i*3);
-		if (s)
-		{
-			s = Translate(s);
-			if (strlen(out)+strlen(s)+1 >= sizeof(buffer[0]))
-				SV_Error("VarString (builtin call ending with strings) exceeded maximum string length of %i chars", sizeof(buffer[0]));
-
-			strcat (out, s);
-		}
-	}
-	return out;
-}
 
 
 //#define	RETURN_EDICT(pf, e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(pf, e))
@@ -1704,57 +1643,7 @@ char *PF_VarString (progfuncs_t *prinst, int	first, globalvars_t *pr_globals)
 
 int externcallsdepth;
 void PR_MoveParms(int progs1, int progs2);	//from 2 to 1
-void PF_externcall (progfuncs_t *prinst, globalvars_t *pr_globals)	//this func calls a function in annother progs (by name)
-{
-	int progsnum;
-	char *funcname;
-	int i;
-	string_t failedst = G_INT(OFS_PARM1);
-	func_t f;
 
-	progsnum = G_PROG(OFS_PARM0);
-	funcname = PR_GetStringOfs(prinst, OFS_PARM1);
-
-	f = PR_FindFunction(prinst, funcname, progsnum);
-	if (f)
-	{
-		for (i = OFS_PARM0; i < OFS_PARM5; i+=3)
-			VectorCopy(G_VECTOR(i+(2*3)), G_VECTOR(i));
-
-		(*prinst->pr_trace)++;	//continue debugging
-		PR_ExecuteProgram(prinst, f);
-	}
-	else if (!f)
-	{
-		f = PR_FindFunction(prinst, "MissingFunc", progsnum);
-		if (!f)
-		{
-			PR_BIError(prinst, "Couldn't find function %s", funcname);
-			return;
-		}
-
-		for (i = OFS_PARM0; i < OFS_PARM6; i+=3)
-			VectorCopy(G_VECTOR(i+(1*3)), G_VECTOR(i));
-		G_INT(OFS_PARM0) = failedst;
-
-		(*prinst->pr_trace)++;	//continue debugging
-		PR_ExecuteProgram(prinst, f);
-	}
-}
-
-//this func calls a function in annother progs
-//it works in the same way as the above func, except that it calls by reference to a function, as opposed to by it's name
-//used for entity function variables - not actually needed anymore
-void PF_externrefcall (progfuncs_t *prinst, globalvars_t *pr_globals)
-{
-	int progsnum;
-	func_t f;
-	progsnum = G_PROG(OFS_PARM0);
-	f = G_INT(OFS_PARM1);
-
-	(*prinst->pr_trace)++;	//continue debugging.
-	PR_ExecuteProgram(prinst, f);
-}
 
 float PR_LoadAditionalProgs(char *s);
 void PF_addprogs(progfuncs_t *prinst, globalvars_t *pr_globals)
@@ -1768,59 +1657,7 @@ void PF_addprogs(progfuncs_t *prinst, globalvars_t *pr_globals)
 	G_PROG(OFS_RETURN) = AddProgs(s);
 }
 
-void PF_externvalue (progfuncs_t *prinst, globalvars_t *pr_globals)	//return a value in annother progs
-{
-	int n = G_PROG(OFS_PARM0);
-	char *varname = PF_VarString(prinst, 1, pr_globals);
-	eval_t *var;
 
-	var = prinst->FindGlobal(prinst, varname, n);
-
-	if (var)
-	{
-		G_INT(OFS_RETURN+0) = ((int*)&var->_int)[0];
-		G_INT(OFS_RETURN+1) = ((int*)&var->_int)[1];
-		G_INT(OFS_RETURN+2) = ((int*)&var->_int)[2];
-	}
-	else
-		G_INT(OFS_RETURN) = 0;
-}
-
-void PF_externset (progfuncs_t *prinst, globalvars_t *pr_globals)	//set a value in annother progs
-{
-	int n = G_PROG(OFS_PARM0);
-	int v = G_INT(OFS_PARM1);
-	char *varname = PF_VarString(prinst, 2, pr_globals);
-	eval_t *var;
-
-	var = prinst->FindGlobal(prinst, varname, n);
-
-	if (var)
-		var->_int = v;
-}
-
-void PF_instr (progfuncs_t *prinst, globalvars_t *pr_globals)
-{
-	char *sub;
-	char *s1;
-	char *s2;
-
-	s1 = PR_GetStringOfs(prinst, OFS_PARM0);
-	s2 = PF_VarString(prinst, 1, pr_globals);
-
-	if (!s1 || !s2)
-	{
-		PR_BIError(prinst, "Null string in \"instr\"\n");
-		return;
-	}
-
-	sub = strstr(s1, s2);
-
-	if (sub == NULL)
-		G_INT(OFS_RETURN) = 0;
-	else
-		RETURN_SSTRING(sub);	//last as long as the original string
-}
 
 
 
@@ -1839,44 +1676,6 @@ char *PF_VarString (int	first)
 	return out;
 }
 */
-
-/*
-=================
-PF_errror
-
-This is a TERMINAL error, which will kill off the entire server.
-Dumps self.
-
-error(value)
-=================
-*/
-void PF_break (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char	*s;
-
-	s = PF_VarString(prinst, 0, pr_globals);
-/*	Con_Printf ("======SERVER ERROR in %s:\n%s\n", PR_GetString(pr_xfunction->s_name) ,s);
-	ed = PROG_TO_EDICT(pr_global_struct->self);
-	ED_Print (ed);
-*/
-
-	PR_StackTrace(prinst);
-
-	Con_Printf("%s\n", s);
-
-	if (developer.value)
-	{
-//		SV_Error ("Program error: %s", s);
-		PF_break(prinst, pr_globals);
-		(*prinst->pr_trace) = 2;
-	}
-	else
-	{
-		PR_AbortStack(prinst);
-		PR_BIError (prinst, "Program error: %s", s);
-	}
-}
 
 /*
 =================
@@ -2310,61 +2109,9 @@ void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
-
 /*
 =================
-PF_normalize
-
-vector normalize(vector)
-=================
-*/
-void PF_normalize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float	*value1;
-	vec3_t	newvalue;
-	float	newf;
-
-	value1 = G_VECTOR(OFS_PARM0);
-
-	newf = value1[0] * value1[0] + value1[1] * value1[1] + value1[2]*value1[2];
-	newf = sqrt(newf);
-
-	if (newf == 0)
-		newvalue[0] = newvalue[1] = newvalue[2] = 0;
-	else
-	{
-		newf = 1/newf;
-		newvalue[0] = value1[0] * newf;
-		newvalue[1] = value1[1] * newf;
-		newvalue[2] = value1[2] * newf;
-	}
-
-	VectorCopy (newvalue, G_VECTOR(OFS_RETURN));
-}
-
-/*
-=================
-PF_vlen
-
-scalar vlen(vector)
-=================
-*/
-void PF_vlen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float	*value1;
-	float	newv;
-
-	value1 = G_VECTOR(OFS_PARM0);
-
-	newv = value1[0] * value1[0] + value1[1] * value1[1] + value1[2]*value1[2];
-	newv = sqrt(newv);
-
-	G_FLOAT(OFS_RETURN) = newv;
-}
-
-/*
-=================
-PF_vlen
+PF_vhlen
 
 scalar vhlen(vector)
 =================
@@ -2382,32 +2129,6 @@ void PF_vhlen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = newv;
 }
 
-/*
-=================
-PF_vectoyaw
-
-float vectoyaw(vector)
-=================
-*/
-void PF_vectoyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float	*value1;
-	float	yaw;
-
-	value1 = G_VECTOR(OFS_PARM0);
-
-	if (value1[1] == 0 && value1[0] == 0)
-		yaw = 0;
-	else
-	{
-		yaw = (int) (atan2(value1[1], value1[0]) * 180 / M_PI);
-		if (yaw < 0)
-			yaw += 360;
-	}
-
-	G_FLOAT(OFS_RETURN) = yaw;
-}
-
 void PF_anglemod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float v = G_FLOAT(OFS_PARM0);
@@ -2418,86 +2139,6 @@ void PF_anglemod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		v = v + 360;
 
 	G_FLOAT(OFS_RETURN) = v;
-}
-
-
-/*
-=================
-PF_vectoangles
-
-vector vectoangles(vector)
-=================
-*/
-void PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float	*value1;
-	float	forward;
-	float	yaw, pitch;
-
-	value1 = G_VECTOR(OFS_PARM0);
-
-	if (value1[1] == 0 && value1[0] == 0)
-	{
-		yaw = 0;
-		if (value1[2] > 0)
-			pitch = 90;
-		else
-			pitch = 270;
-	}
-	else
-	{
-		yaw = /*(int)*/ (atan2(value1[1], value1[0]) * 180 / M_PI);
-		if (yaw < 0)
-			yaw += 360;
-
-		forward = sqrt (value1[0]*value1[0] + value1[1]*value1[1]);
-		pitch = /*(int)*/ (atan2(value1[2], forward) * 180 / M_PI);
-		if (pitch < 0)
-			pitch += 360;
-	}
-
-	G_FLOAT(OFS_RETURN+0) = pitch;
-	G_FLOAT(OFS_RETURN+1) = yaw;
-	G_FLOAT(OFS_RETURN+2) = 0;
-}
-
-
-static	long	predictablerandx = 1;
-
-void predictablesrand(unsigned int x)
-{
-	predictablerandx = x;
-}
-int predictablerandgetseed(void)
-{
-	return predictablerandx;
-}
-
-
-int predictablerand(void)
-{
-	return(((predictablerandx = predictablerandx*1103515245 + 12345)>>16) & 077777);
-}
-
-/*
-=================
-PF_Random
-
-Returns a number from 0<= num < 1
-
-random()
-=================
-*/
-void PF_random (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float		num;
-
-	if (svs.demorecording || svs.demoplayback)
-		num = (predictablerand ()&0x7fff) / ((float)0x7fff);
-	else
-		num = (rand ()&0x7fff) / ((float)0x7fff);
-
-	G_FLOAT(OFS_RETURN) = num;
 }
 
 /*
@@ -2735,7 +2376,7 @@ static void PF_particle4 (progfuncs_t *prinst, globalvars_t *pr_globals)
 	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_HEXEN2, 0);
 }
 
-void PF_particleexplosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2particleexplosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org;
 	int color,radius,counter;
@@ -2854,47 +2495,6 @@ void PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 #endif
 };
-
-/*
-=================
-PF_break
-
-break()
-=================
-*/
-void PF_break (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-#ifdef SERVERONLY	//new break code
-	char *s;
-
-	//I would like some sort of network activity here,
-	//but I don't want to mess up the sequence and stuff
-	//It should be possible, but would mean that I would
-	//need to alter the client, or rewrite a bit of the server..
-
-	if (pr_globals)
-		Con_TPrintf(STL_BREAKSTATEMENT);
-	else if (developer.value!=2)
-		return;	//non developers cann't step.
-	for(;;)
-	{
-		s=Sys_ConsoleInput();
-		if (s)
-		{
-			if (!*s)
-				break;
-			else
-				Con_Printf("%s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, s));
-		}
-	}
-#elif defined(TEXTEDITOR)
-	(*prinst->pr_trace)++;
-#else	//old break code
-Con_Printf ("break statement\n");
-*(int *)-4 = 0;	// dump to debugger
-//	PR_RunError ("break statement");
-#endif
-}
 
 /*
 =================
@@ -3363,26 +2963,6 @@ void PF_clienttype (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 /*
 =================
-PF_localcmd
-
-Sends text over to the client's execution buffer
-
-localcmd (string)
-=================
-*/
-void PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char	*str;
-
-	str = PF_VarString(prinst, 0, pr_globals);
-	if (!strcmp(str, "host_framerate 0\n"))
-		Cbuf_AddText ("sv_mintic 0\n", RESTRICT_INSECURE);	//hmm... do this better...
-	else
-		Cbuf_AddText (str, RESTRICT_INSECURE);
-}
-
-/*
-=================
 PF_cvar
 
 float cvar (string)
@@ -3411,81 +2991,6 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			Con_Printf("Creating cvar %s\n", str);
 		}
 		G_FLOAT(OFS_RETURN) = cv->value;
-	}
-}
-
-void PF_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
-	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
-	RETURN_CSTRING(cv->string);
-}
-
-/*
-=================
-PF_cvar_set
-
-float cvar (string)
-=================
-*/
-void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char	*var_name, *val;
-	cvar_t *var;
-
-	var_name = PR_GetStringOfs(prinst, OFS_PARM0);
-	val = PR_GetStringOfs(prinst, OFS_PARM1);
-
-	var = Cvar_Get(var_name, val, 0, "QC variables");
-	if (!var)
-		return;
-	Cvar_Set (var, val);
-}
-
-void PF_cvar_setf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char	*var_name;
-	float	val;
-	cvar_t *var;
-
-	var_name = PR_GetStringOfs(prinst, OFS_PARM0);
-	val = G_FLOAT(OFS_PARM1);
-
-	var = Cvar_FindVar(var_name);
-	if (!var)
-		Con_Printf("PF_cvar_set: variable %s not found\n", var_name);
-	else
-		Cvar_SetValue (var, val);
-}
-
-/*
-=================
-PF_registercvar
-
-float registercvar (string name, string value)
-=================
-*/
-void PF_registercvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *name, *value;
-	value = PR_GetStringOfs(prinst, OFS_PARM0);
-
-	if (Cvar_FindVar(value))
-		G_FLOAT(OFS_RETURN) = 0;
-	else
-	{
-		name = BZ_Malloc(strlen(value)+1);
-		strcpy(name, value);
-		if (*prinst->callargc > 1)
-			value = PR_GetStringOfs(prinst, OFS_PARM1);
-		else
-			value = "";
-
-	// archive?
-		if (Cvar_Get(name, value, CVAR_USERCREATED, "QC created vars"))
-			G_FLOAT(OFS_RETURN) = 1;
-		else
-			G_FLOAT(OFS_RETURN) = 0;
 	}
 }
 
@@ -3549,27 +3054,6 @@ void PF_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_EDICT(prinst, chain);
 }
 
-
-/*
-=========
-PF_dprint
-=========
-*/
-void PF_dprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	Con_DPrintf ("%s",PF_VarString(prinst, 0, pr_globals));
-}
-
-/*
-=========
-PF_print
-=========
-*/
-void PF_print (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	Con_Printf ("%s",PF_VarString(prinst, 0, pr_globals));
-}
-
 /*
 =========
 PF_conprint
@@ -3605,78 +3089,6 @@ void PF_printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Con_Printf (PR_GetStringOfs(prinst, OFS_PARM0),temp);
 }
 
-#define MAX_TEMPSTRS	((int)pr_tempstringcount.value)
-#define MAXTEMPBUFFERLEN	((int)pr_tempstringsize.value)
-string_t PR_TempString(progfuncs_t *prinst, char *str)
-{
-	char *tmp;
-	if (!prinst->tempstringbase)
-		return prinst->TempString(prinst, str);
-
-	if (!str || !*str)
-		return 0;
-
-	if (prinst->tempstringnum == MAX_TEMPSTRS)
-		prinst->tempstringnum = 0;
-	tmp = prinst->tempstringbase + (prinst->tempstringnum++)*MAXTEMPBUFFERLEN;
-
-	Q_strncpyz(tmp, str, MAXTEMPBUFFERLEN);
-	return tmp - prinst->stringtable;
-}
-
-void PF_InitTempStrings(progfuncs_t *prinst)
-{
-	if (pr_tempstringcount.value > 0 && pr_tempstringcount.value < 2)
-		pr_tempstringcount.value = 2;
-	if (pr_tempstringsize.value < 256)
-		pr_tempstringsize.value = 256;
-	pr_tempstringcount.flags |= CVAR_NOSET;
-	pr_tempstringsize.flags |= CVAR_NOSET;
-
-	if (pr_tempstringcount.value >= 2)
-		prinst->tempstringbase = prinst->AddString(prinst, "", MAXTEMPBUFFERLEN*MAX_TEMPSTRS);
-	else
-		prinst->tempstringbase = 0;
-	prinst->tempstringnum = 0;
-}
-
-void PF_ftos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float	v;
-	char pr_string_temp[64];
-	v = G_FLOAT(OFS_PARM0);
-
-	if (v == (int)v)
-		sprintf (pr_string_temp, "%d",(int)v);
-	else if (pr_brokenfloatconvert.value)
-		sprintf (pr_string_temp, "%5.1f",v);
-	else
-		Q_ftoa (pr_string_temp, v);
-	RETURN_TSTRING(pr_string_temp);
-}
-
-void PF_fabs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float	v;
-	v = G_FLOAT(OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = fabs(v);
-}
-
-void PF_vtos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char pr_string_temp[64];
-	sprintf (pr_string_temp, "'%5.1f %5.1f %5.1f'", G_VECTOR(OFS_PARM0)[0], G_VECTOR(OFS_PARM0)[1], G_VECTOR(OFS_PARM0)[2]);
-	PR_TempString(prinst, pr_string_temp);
-	RETURN_TSTRING(pr_string_temp);
-}
-
-void PF_Spawn (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	struct edict_s	*ed;
-	ed = ED_Alloc(prinst);
-	RETURN_EDICT(prinst, ed);
-}
-
 void PF_spawn_temp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ed;
@@ -3705,41 +3117,7 @@ void PF_Remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-// entity (entity start, .string field, string match) find = #5;
-void PF_FindString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int		e;
-	int		f;
-	char	*s;
-	string_t t;
-	edict_t	*ed;
 
-	e = G_EDICTNUM(prinst, OFS_PARM0);
-	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
-	s = PR_GetStringOfs(prinst, OFS_PARM2);
-	if (!s)
-	{
-		PR_BIError (prinst, "PF_FindString: bad search string");
-		return;
-	}
-
-	for (e++ ; e < *prinst->parms->sv_num_edicts ; e++)
-	{
-		ed = EDICT_NUM(prinst, e);
-		if (ed->isfree)
-			continue;
-		t = ((string_t *)ed->v)[f];
-		if (!t)
-			continue;
-		if (!strcmp(PR_GetString(prinst, t),s))
-		{
-			RETURN_EDICT(prinst, ed);
-			return;
-		}
-	}
-
-	RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
-}
 /*
 void PR_CheckEmptyString (char *s)
 {
@@ -3911,32 +3289,12 @@ void PF_WeapIndex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-void PF_coredump (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_svcoredump (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int size = 1024*1024*8;
 	char *buffer = BZ_Malloc(size);
 	prinst->save_ents(prinst, buffer, &size, 3);
 	COM_WriteFile("ssqccore.txt", buffer, size);
-	BZ_Free(buffer);
-}
-
-void PF_traceon (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	(*prinst->pr_trace) = true;
-}
-
-void PF_traceoff (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	(*prinst->pr_trace) = false;
-}
-
-void PF_eprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int size = 1024*1024;
-	char *buffer = BZ_Malloc(size);
-	char *buf;
-	buf = prinst->saveent(prinst, buffer, &size, G_EDICT(prinst, OFS_PARM0));
-	Con_Printf("Entity %i:\n%s\n", G_EDICTNUM(prinst, OFS_PARM0), buf);
 	BZ_Free(buffer);
 }
 
@@ -4170,25 +3528,6 @@ void PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PF_applylightstyle(style, val, col);
 }
 
-void PF_rint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float	f;
-	f = G_FLOAT(OFS_PARM0);
-	if (f > 0)
-		G_FLOAT(OFS_RETURN) = (int)(f + 0.5);
-	else
-		G_FLOAT(OFS_RETURN) = (int)(f - 0.5);
-}
-void PF_floor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_FLOAT(OFS_RETURN) = floor(G_FLOAT(OFS_PARM0));
-}
-void PF_ceil (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_FLOAT(OFS_RETURN) = ceil(G_FLOAT(OFS_PARM0));
-}
-
-
 /*
 =============
 PF_checkbottom
@@ -4229,41 +3568,6 @@ void PF_pointcontents (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_WATER;
 	else
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_EMPTY;
-}
-
-/*
-=============
-PF_nextent
-
-entity nextent(entity)
-=============
-*/
-void PF_nextent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int		i;
-	edict_t	*ent;
-
-	i = G_EDICTNUM(prinst, OFS_PARM0);
-	while (1)
-	{
-		i++;
-		if (i == *prinst->parms->sv_num_edicts)
-		{
-			RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
-			return;
-		}
-/*		if (i <= MAX_CLIENTS)
-		{
-			if (!svs.clients[i-1].state)
-				continue;
-		}*/
-		ent = EDICT_NUM(prinst, i);
-		if (!ent->isfree)
-		{
-			RETURN_EDICT(prinst, ent);
-			return;
-		}
-	}
 }
 
 /*
@@ -5351,40 +4655,6 @@ void PF_infokey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT(OFS_RETURN) = PR_TempString(prinst, value);
 }
 
-/*
-==============
-PF_stof
-
-float(string s) stof
-==============
-*/
-void PF_stof (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char	*s;
-
-	s = PR_GetStringOfs(prinst, OFS_PARM0);
-
-	G_FLOAT(OFS_RETURN) = atof(s);
-}
-
-void PF_Sin (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_FLOAT(OFS_RETURN) = sin(G_FLOAT(OFS_PARM0));
-}
-void PF_Cos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_FLOAT(OFS_RETURN) = cos(G_FLOAT(OFS_PARM0));
-}
-void PF_Sqrt (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_FLOAT(OFS_RETURN) = sqrt(G_FLOAT(OFS_PARM0));
-}
-void PF_pow (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_FLOAT(OFS_RETURN) = pow(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
-}
-
-
 
 /*
 ==============
@@ -5418,7 +4688,10 @@ qboolean printedheader = false;
 		{
 			if (!printedheader)
 			{
-				Con_Printf("\nMod forgot to ensure support for builtin %i\nPossible builtins:\n", prinst->lastcalledbuiltinnumber);
+				Con_Printf( "\n"
+							"Mod forgot to ensure support for builtin %i\n"
+							"Please consult the extensionlist_ssqc command.\n"
+							"Possible builtins:\n", prinst->lastcalledbuiltinnumber);
 				printedheader = true;
 			}
 			Con_Printf("%s\n", BuiltinList[i].name);
@@ -5431,7 +4704,7 @@ qboolean printedheader = false;
 		prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMods designed for mvdsv may need pr_imitatemvdsv to be enabled.", prinst->lastcalledbuiltinnumber);
 	else
 		prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMod is not compatible.", prinst->lastcalledbuiltinnumber);
-	PR_BIError (prinst, "bulitin not implemented");
+	PR_BIError (prinst, "builtin not implemented");
 }
 
 void PF_Ignore(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5476,38 +4749,6 @@ void PF_newstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)	//mvdsv
 	strcpy(s+8, in);
 
 	RETURN_SSTRING(s+8);
-}
-void PF_dupstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)	//frik_file
-{
-	char *s, *in;
-	int len;
-	in = PF_VarString(prinst, 0, pr_globals);
-	len = strlen(in)+1;
-	s = Z_TagMalloc(len+8, Z_QC_TAG);
-	((int *)s)[0] = PRSTR;
-	((int *)s)[1] = len;
-	strcpy(s+8, in);
-	RETURN_SSTRING(s+8);
-}
-
-void PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *s=PR_GetStringOfs(prinst, OFS_PARM0);
-	s-=8;
-	if (((int *)s)[0] != PRSTR)
-	{
-		Con_Printf("QC tried to free a non allocated string: ");
-		Con_Printf("%s\n", s+8);	//two prints, so that logged prints ensure the first is written.
-		(*prinst->pr_trace) = 1;
-		PR_StackTrace(prinst);
-		return;
-	}
-	((int *)s)[0] = 0xabcd1234;
-	Z_TagFree(s);
-}
-void PF_strlen(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_FLOAT(OFS_RETURN) = strlen(PR_GetStringOfs(prinst, OFS_PARM0));
 }
 
 void PF_strcatp(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5587,766 +4828,16 @@ void PF_chat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-//FRIK_FILE extensions.
 
 
 
-//returns a section of a string as a tempstring
-void PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i, start, length;
-	char *s;
-	char string[4096];
 
-	s = PR_GetStringOfs(prinst, OFS_PARM0);
-	start = G_FLOAT(OFS_PARM1);
-	length = G_FLOAT(OFS_PARM2);
 
-	if (start < 0)
-		start = strlen(s)-start;
-	if (length < 0)
-		length = strlen(s)-start+(length+1);
 
-	if (start >= strlen(s) || length<=0 || !*s)
-	{
-		RETURN_TSTRING("");
-		return;
-	}
 
-	if (length >= MAXTEMPBUFFERLEN)
-		length = MAXTEMPBUFFERLEN-1;
 
-	for (i = 0; i < start && *s; i++, s++)
-		;
 
-	for (i = 0; *s && i < length; i++, s++)
-		string[i] = *s;
-	string[i] = 0;
 
-	RETURN_TSTRING(string);
-}
-
-
-//vector(string s) stov = #117
-//returns vector value from a string
-void PF_stov (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i;
-	char *s;
-	float *out;
-
-	s = PF_VarString(prinst, 0, pr_globals);
-	out = G_VECTOR(OFS_RETURN);
-	out[0] = out[1] = out[2] = 0;
-
-	if (*s == '\'')
-		s++;
-
-	for (i = 0; i < 3; i++)
-	{
-		while (*s == ' ' || *s == '\t')
-			s++;
-		out[i] = atof (s);
-		if (!out[i] && *s != '-' && *s != '+' && (*s < '0' || *s > '9'))
-			break; // not a number
-		while (*s && *s != ' ' && *s !='\t' && *s != '\'')
-			s++;
-		if (*s == '\'')
-			break;
-	}
-}
-
-
-
-//FTE_STRINGS
-//strstr, without generating a new string. Use in conjunction with FRIK_FILE's substring for more similar strstr.
-void PF_strstrofs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *instr = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *match = PR_GetStringOfs(prinst, OFS_PARM1);
-
-	int firstofs = (*prinst->callargc>2)?G_FLOAT(OFS_PARM2):0;
-
-	if (firstofs && (firstofs < 0 || firstofs > strlen(instr)))
-	{
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-
-	match = strstr(instr+firstofs, match);
-	if (!match)
-		G_FLOAT(OFS_RETURN) = -1;
-	else
-		G_FLOAT(OFS_RETURN) = match - instr;
-}
-
-//FTE_STRINGS
-//returns character at position X
-void PF_str2chr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *instr = PR_GetStringOfs(prinst, OFS_PARM0);
-	int ofs = (*prinst->callargc>1)?G_FLOAT(OFS_PARM1):0;
-
-	if (ofs < 0)
-		ofs = strlen(instr)+ofs;
-
-	if (ofs && (ofs < 0 || ofs > strlen(instr)))
-		G_FLOAT(OFS_RETURN) = '\0';
-	else
-		G_FLOAT(OFS_RETURN) = instr[ofs];
-}
-
-//FTE_STRINGS
-//returns a string containing one character per parameter (up to the qc max params of 8).
-void PF_chr2str (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i;
-
-	char string[16];
-	for (i = 0; i < *prinst->callargc; i++)
-		string[i] = G_FLOAT(OFS_PARM0 + i*3);
-	string[i] = '\0';
-	RETURN_TSTRING(string);
-}
-static int chrconv_number(int i, int base, int conv)
-{
-	i -= base;
-	switch (conv)
-	{
-	default:
-	case 5:
-	case 6:
-	case 0:
-		break;
-	case 1:
-		base = '0';
-		break;
-	case 2:
-		base = '0'+128;
-		break;
-	case 3:
-		base = '0'-30;
-		break;
-	case 4:
-		base = '0'+128-30;
-		break;
-	}
-	return i + base;
-}
-static int chrconv_punct(int i, int base, int conv)
-{
-	i -= base;
-	switch (conv)
-	{
-	default:
-	case 0:
-		break;
-	case 1:
-		base = 0;
-		break;
-	case 2:
-		base = 128;
-		break;
-	}
-	return i + base;
-}
-
-static int chrchar_alpha(int i, int basec, int baset, int convc, int convt, int charnum)
-{
-	//convert case and colour seperatly...
-
-	i -= baset + basec;
-	switch (convt)
-	{
-	default:
-	case 0:
-		break;
-	case 1:
-		baset = 0;
-		break;
-	case 2:
-		baset = 128;
-		break;
-
-	case 5:
-	case 6:
-		baset = 128*((charnum&1) == (convt-5));
-		break;
-	}
-
-	switch (convc)
-	{
-	default:
-	case 0:
-		break;
-	case 1:
-		basec = 'a';
-		break;
-	case 2:
-		basec = 'A';
-		break;
-	}
-	return i + basec + baset;
-}
-//FTE_STRINGS
-//bulk convert a string. change case or colouring.
-void PF_strconv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int ccase = G_FLOAT(OFS_PARM0);		//0 same, 1 lower, 2 upper
-	int redalpha = G_FLOAT(OFS_PARM1);	//0 same, 1 white, 2 red,  5 alternate, 6 alternate-alternate
-	int rednum = G_FLOAT(OFS_PARM2);	//0 same, 1 white, 2 red, 3 redspecial, 4 whitespecial, 5 alternate, 6 alternate-alternate
-	unsigned char *string = PF_VarString(prinst, 3, pr_globals);
-	int len = strlen(string);
-	int i;
-	unsigned char resbuf[8192];
-	unsigned char *result = resbuf;
-
-	if (len >= MAXTEMPBUFFERLEN)
-		len = MAXTEMPBUFFERLEN-1;
-
-	for (i = 0; i < len; i++, string++, result++)	//should this be done backwards?
-	{
-		if (*string >= '0' && *string <= '9')	//normal numbers...
-			*result = chrconv_number(*string, '0', rednum);
-		else if (*string >= '0'+128 && *string <= '9'+128)
-			*result = chrconv_number(*string, '0'+128, rednum);
-		else if (*string >= '0'+128-30 && *string <= '9'+128-30)
-			*result = chrconv_number(*string, '0'+128-30, rednum);
-		else if (*string >= '0'-30 && *string <= '9'-30)
-			*result = chrconv_number(*string, '0'-30, rednum);
-
-		else if (*string >= 'a' && *string <= 'z')	//normal numbers...
-			*result = chrchar_alpha(*string, 'a', 0, ccase, redalpha, i);
-		else if (*string >= 'A' && *string <= 'Z')	//normal numbers...
-			*result = chrchar_alpha(*string, 'A', 0, ccase, redalpha, i);
-		else if (*string >= 'a'+128 && *string <= 'z'+128)	//normal numbers...
-			*result = chrchar_alpha(*string, 'a', 128, ccase, redalpha, i);
-		else if (*string >= 'A'+128 && *string <= 'Z'+128)	//normal numbers...
-			*result = chrchar_alpha(*string, 'A', 128, ccase, redalpha, i);
-
-		else if ((*string & 127) < 16 || !redalpha)	//special chars..
-			*result = *string;
-		else if (*string < 128)
-			*result = chrconv_punct(*string, 0, redalpha);
-		else
-			*result = chrconv_punct(*string, 128, redalpha);
-	}
-	*result = '\0';
-
-	RETURN_TSTRING(((char*)resbuf));
-}
-
-//FTE_STRINGS
-//C style strncmp (compare first n characters - case sensative. Note that there is no strcmp provided)
-void PF_strncmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
-	float len = G_FLOAT(OFS_PARM2);
-
-	G_FLOAT(OFS_RETURN) = strncmp(a, b, len);
-}
-
-//FTE_STRINGS
-//C style strcasecmp (case insensative string compare)
-void PF_strcasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
-
-	G_FLOAT(OFS_RETURN) = stricmp(a, b);
-}
-
-//FTE_STRINGS
-//C style strncasecmp (compare first n characters - case insensative)
-void PF_strncasecmp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *a = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *b = PR_GetStringOfs(prinst, OFS_PARM1);
-	float len = G_FLOAT(OFS_PARM2);
-
-	G_FLOAT(OFS_RETURN) = strnicmp(a, b, len);
-}
-
-//uses qw style \key\value strings
-void PF_infoadd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *info = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *key = PR_GetStringOfs(prinst, OFS_PARM1);
-	char *value = PF_VarString(prinst, 2, pr_globals);
-	char temp[8192];
-
-	Q_strncpyz(temp, info, MAXTEMPBUFFERLEN);
-
-	Info_SetValueForStarKey(temp, key, value, MAXTEMPBUFFERLEN);
-
-	RETURN_TSTRING(temp);
-}
-
-//uses qw style \key\value strings
-void PF_infoget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *info = PR_GetStringOfs(prinst, OFS_PARM0);
-	char *key = PR_GetStringOfs(prinst, OFS_PARM1);
-
-	key = Info_ValueForKey(info, key);
-
-	RETURN_TSTRING(key);
-}
-
-//DP_QC_STRINGCOLORFUNCTIONS
-// #476 float(string s) strlennocol - returns how many characters are in a string, minus color codes
-void PF_strlennocol (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = COM_FunStringLength(in);
-}
-
-//DP_QC_STRINGCOLORFUNCTIONS
-// string (string s) strdecolorize - returns the passed in string with color codes stripped
-void PF_strdecolorize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
-	char result[8192];
-	unsigned long flagged[8192];
-	COM_ParseFunString(in, flagged, sizeof(flagged)/sizeof(flagged[0]));
-	COM_DeFunString(flagged, result, sizeof(result), true);
-
-	RETURN_TSTRING(result);
-}
-
-
-//back to frik_file support.
-
-
-
-#define MAX_QC_FILES 8
-
-#define FIRST_QC_FILE_INDEX 1000
-
-typedef struct {
-	char name[256];
-	char *data;
-	int bufferlen;
-	int len;
-	int ofs;
-	int accessmode;
-	progfuncs_t *prinst;
-} pf_fopen_files_t;
-pf_fopen_files_t pf_fopen_files[MAX_QC_FILES];
-
-void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *name = PR_GetStringOfs(prinst, OFS_PARM0);
-	int fmode = G_FLOAT(OFS_PARM1);
-	int i;
-
-	for (i = 0; i < MAX_QC_FILES; i++)
-		if (!pf_fopen_files[i].data)
-			break;
-
-	if (i == MAX_QC_FILES)	//too many already open
-	{
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-
-	if (name[1] == ':' ||	//dos filename absolute path specified - reject.
-		strchr(name, '\\') || *name == '/' ||	//absolute path was given - reject
-		strstr(name, ".."))	//someone tried to be cleaver.
-	{
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-
-	Q_strncpyz(pf_fopen_files[i].name, va("data/%s", name), sizeof(pf_fopen_files[i].name));
-
-	pf_fopen_files[i].accessmode = fmode;
-	switch (fmode)
-	{
-	case 0:	//read
-		pf_fopen_files[i].data = COM_LoadMallocFile(pf_fopen_files[i].name);
-		if (!pf_fopen_files[i].data)
-		{
-			Q_strncpyz(pf_fopen_files[i].name, name, sizeof(pf_fopen_files[i].name));
-			pf_fopen_files[i].data = COM_LoadMallocFile(pf_fopen_files[i].name);
-		}
-
-		if (pf_fopen_files[i].data)
-		{
-			G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
-			pf_fopen_files[i].prinst = prinst;
-		}
-		else
-			G_FLOAT(OFS_RETURN) = -1;
-
-		pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
-		pf_fopen_files[i].ofs = 0;
-		break;
-	case 1:	//append
-		pf_fopen_files[i].data = COM_LoadMallocFile(pf_fopen_files[i].name);
-		pf_fopen_files[i].ofs = pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
-		if (pf_fopen_files[i].data)
-		{
-			G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
-			pf_fopen_files[i].prinst = prinst;
-			break;
-		}
-		//file didn't exist - fall through
-	case 2:	//write
-		pf_fopen_files[i].bufferlen = 8192;
-		pf_fopen_files[i].data = BZ_Malloc(pf_fopen_files[i].bufferlen);
-		pf_fopen_files[i].len = 0;
-		pf_fopen_files[i].ofs = 0;
-		G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
-		pf_fopen_files[i].prinst = prinst;
-		break;
-	default: //bad
-		G_FLOAT(OFS_RETURN) = -1;
-		break;
-	}
-}
-
-void PF_fclose_i (int fnum)
-{
-	if (fnum < 0 || fnum >= MAX_QC_FILES)
-	{
-		Con_Printf("PF_fclose: File out of range\n");
-		return;	//out of range
-	}
-
-	if (!pf_fopen_files[fnum].data)
-	{
-		Con_Printf("PF_fclose: File is not open\n");
-		return;	//not open
-	}
-
-	switch(pf_fopen_files[fnum].accessmode)
-	{
-	case 0:
-		BZ_Free(pf_fopen_files[fnum].data);
-		break;
-	case 1:
-	case 2:
-		COM_WriteFile(pf_fopen_files[fnum].name, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
-		BZ_Free(pf_fopen_files[fnum].data);
-		break;
-	}
-	pf_fopen_files[fnum].data = NULL;
-	pf_fopen_files[fnum].prinst = NULL;
-}
-
-void PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int fnum = G_FLOAT(OFS_PARM0)-FIRST_QC_FILE_INDEX;
-
-	if (fnum < 0 || fnum >= MAX_QC_FILES)
-	{
-		Con_Printf("PF_fclose: File out of range\n");
-		return;	//out of range
-	}
-
-	if (pf_fopen_files[fnum].prinst != prinst)
-	{
-		Con_Printf("PF_fclose: File is from wrong instance\n");
-		return;	//this just isn't ours.
-	}
-
-	PF_fclose_i(fnum);
-}
-
-void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char c, *s, *o, *max;
-	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	char pr_string_temp[4096];
-
-	*pr_string_temp = '\0';
-	G_INT(OFS_RETURN) = 0;	//EOF
-	if (fnum < 0 || fnum >= MAX_QC_FILES)
-	{
-		PR_BIError(prinst, "PF_fgets: File out of range\n");
-		return;	//out of range
-	}
-
-	if (!pf_fopen_files[fnum].data)
-	{
-		PR_BIError(prinst, "PF_fgets: File is not open\n");
-		return;	//not open
-	}
-
-	if (pf_fopen_files[fnum].prinst != prinst)
-	{
-		PR_BIError(prinst, "PF_fgets: File is from wrong instance\n");
-		return;	//this just isn't ours.
-	}
-
-	//read up to the next \n, ignoring any \rs.
-	o = pr_string_temp;
-	max = o + MAXTEMPBUFFERLEN-1;
-	s = pf_fopen_files[fnum].data+pf_fopen_files[fnum].ofs;
-	while(*s)
-	{
-		c = *s++;
-		if (c == '\n')
-			break;
-		if (c == '\r')
-			continue;
-
-		if (o == max)
-			break;
-		*o++ = c;
-	}
-	*o = '\0';
-
-	pf_fopen_files[fnum].ofs = s - pf_fopen_files[fnum].data;
-
-	if (!pr_string_temp[0] && !*s)
-		G_INT(OFS_RETURN) = 0;	//EOF
-	else
-		RETURN_TSTRING(pr_string_temp);
-}
-
-void PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	char *msg = PF_VarString(prinst, 1, pr_globals);
-	int len = strlen(msg);
-	if (fnum < 0 || fnum >= MAX_QC_FILES)
-	{
-		Con_Printf("PF_fgets: File out of range\n");
-		return;	//out of range
-	}
-
-	if (!pf_fopen_files[fnum].data)
-	{
-		Con_Printf("PF_fgets: File is not open\n");
-		return;	//not open
-	}
-
-	if (pf_fopen_files[fnum].prinst != prinst)
-	{
-		Con_Printf("PF_fgets: File is from wrong instance\n");
-		return;	//this just isn't ours.
-	}
-
-	if (pf_fopen_files[fnum].bufferlen < pf_fopen_files[fnum].ofs + len)
-	{
-		char *newbuf;
-		pf_fopen_files[fnum].bufferlen = pf_fopen_files[fnum].bufferlen*2 + len;
-		newbuf = BZF_Malloc(pf_fopen_files[fnum].bufferlen);
-		memcpy(newbuf, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
-		BZ_Free(pf_fopen_files[fnum].data);
-		pf_fopen_files[fnum].data = newbuf;
-	}
-
-	memcpy(pf_fopen_files[fnum].data + pf_fopen_files[fnum].ofs, msg, len);
-	if (pf_fopen_files[fnum].len < pf_fopen_files[fnum].ofs + len)
-		pf_fopen_files[fnum].len = pf_fopen_files[fnum].ofs + len;
-	pf_fopen_files[fnum].ofs+=len;
-}
-
-void PF_fcloseall (progfuncs_t *prinst)
-{
-	int i;
-	for (i = 0; i < MAX_QC_FILES; i++)
-	{
-		if (pf_fopen_files[i].prinst != prinst)
-			continue;
-		PF_fclose_i(i);
-	}
-}
-
-
-
-typedef struct prvmsearch_s {
-	int handle;
-	progfuncs_t *fromprogs;	//share across menu/server
-	int entries;
-	char **names;
-	int *sizes;
-
-	struct prvmsearch_s *next;
-} prvmsearch_t;
-prvmsearch_t *prvmsearches;
-int prvm_nextsearchhandle;
-
-void search_close (progfuncs_t *prinst, int handle)
-{
-	int i;
-	prvmsearch_t *prev, *s;
-
-	prev = NULL;
-	for (s = prvmsearches; s; )
-	{
-		if (s->handle == handle)
-		{	//close it down.
-			if (s->fromprogs != prinst)
-			{
-				Con_Printf("Handle wasn't valid with that progs\n");
-				return;
-			}
-			if (prev)
-				prev->next = s->next;
-			else
-				prvmsearches = s->next;
-
-			for (i = 0; i < s->entries; i++)
-			{
-				BZ_Free(s->names[i]);
-			}
-			BZ_Free(s->names);
-			BZ_Free(s->sizes);
-			BZ_Free(s);
-
-			return;
-		}
-
-		prev = s;
-		s = s->next;
-	}
-}
-//a progs was closed... hunt down it's searches, and warn about any searches left open.
-void search_close_progs(progfuncs_t *prinst, qboolean complain)
-{
-	int i;
-	prvmsearch_t *prev, *s;
-
-	prev = NULL;
-	for (s = prvmsearches; s; )
-	{
-		if (s->fromprogs == prinst)
-		{	//close it down.
-
-			if (complain)
-				Con_Printf("Warning: Progs search was still active\n");
-			if (prev)
-				prev->next = s->next;
-			else
-				prvmsearches = s->next;
-
-			for (i = 0; i < s->entries; i++)
-			{
-				BZ_Free(s->names[i]);
-			}
-			BZ_Free(s->names);
-			BZ_Free(s->sizes);
-			BZ_Free(s);
-
-			if (prev)
-				s = prev->next;
-			else
-				s = prvmsearches;
-			continue;
-		}
-
-		prev = s;
-		s = s->next;
-	}
-
-	if (!prvmsearches)
-		prvm_nextsearchhandle = 0;	//might as well.
-}
-
-int search_enumerate(char *name, int fsize, void *parm)
-{
-	prvmsearch_t *s = parm;
-
-	s->names = BZ_Realloc(s->names, ((s->entries+64)&~63) * sizeof(char*));
-	s->sizes = BZ_Realloc(s->sizes, ((s->entries+64)&~63) * sizeof(int));
-	s->names[s->entries] = BZ_Malloc(strlen(name)+1);
-	strcpy(s->names[s->entries], name);
-	s->sizes[s->entries] = fsize;
-
-	s->entries++;
-	return true;
-}
-
-//float	search_begin(string pattern, float caseinsensitive, float quiet) = #74;
-void PF_search_begin (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{	//< 0 for error, > 0 for handle.
-	char *pattern = PR_GetStringOfs(prinst, OFS_PARM0);
-//	qboolean caseinsensative = G_FLOAT(OFS_PARM1);
-//	qboolean quiet = G_FLOAT(OFS_PARM2);
-	prvmsearch_t *s;
-
-	s = Z_Malloc(sizeof(*s));
-	s->fromprogs = prinst;
-	s->handle = prvm_nextsearchhandle++;
-
-	COM_EnumerateFiles(pattern, search_enumerate, s);
-
-	if (s->entries==0)
-	{
-		BZ_Free(s);
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-	s->next = prvmsearches;
-	prvmsearches = s;
-	G_FLOAT(OFS_RETURN) = s->handle;
-}
-//void	search_end(float handle) = #75;
-void PF_search_end (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int handle = G_FLOAT(OFS_PARM0);
-	search_close(prinst, handle);
-}
-//float	search_getsize(float handle) = #76;
-void PF_search_getsize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int handle = G_FLOAT(OFS_PARM0);
-	prvmsearch_t *s;
-	G_FLOAT(OFS_RETURN) = -1;
-	for (s = prvmsearches; s; s = s->next)
-	{
-		if (s->handle == handle)
-		{	//close it down.
-			if (s->fromprogs != prinst)
-			{
-				Con_Printf("Handle wasn't valid with that progs\n");
-				return;
-			}
-
-			G_FLOAT(OFS_RETURN) = s->entries;
-			return;
-		}
-	}
-}
-//string	search_getfilename(float handle, float num) = #77;
-void PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int handle = G_FLOAT(OFS_PARM0);
-	int num = G_FLOAT(OFS_PARM1);
-	prvmsearch_t *s;
-	G_INT(OFS_RETURN) = 0;
-
-	for (s = prvmsearches; s; s = s->next)
-	{
-		if (s->handle == handle)
-		{	//close it down.
-			if (s->fromprogs != prinst)
-			{
-				Con_Printf("Search handle wasn't valid with that progs\n");
-				return;
-			}
-
-			if (num < 0 || num >= s->entries)
-				return;
-			RETURN_TSTRING(s->names[num]);
-			return;
-		}
-	}
-
-	Con_Printf("Search handle wasn't valid\n");
-}
-
-//closes filesystem type stuff for when a progs has stopped needing it.
-void PR_fclose_progs (progfuncs_t *prinst)
-{
-	PF_fcloseall(prinst);
-	search_close_progs(prinst, true);
-}
 
 // FTE SQL functions
 #ifdef SQL
@@ -7356,203 +5847,6 @@ void SQL_DeInit(void)
 
 
 
-
-
-
-
-
-//the lh extension system asks for a name for the extension.
-//the ebfs version is a function that returns a builtin number.
-//thus lh's system requires various builtins to exist at specific numbers.
-typedef struct lh_extension_s {
-	char *name;
-	int numbuiltins;
-	qboolean *enabled;
-	char *builtins[18];	//extend freely
-} lh_extension_t;
-
-
-
-lh_extension_t QSG_Extensions[] = {
-	{"BX_COLOREDTEXT"},
-	{"DP_CON_SET"},
-#ifndef SERVERONLY
-	{"DP_CON_SETA"},		//because the server doesn't write configs.
-#endif
-	{"DP_EF_BLUE"},						//hah!! This is QuakeWorld!!!
-	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
-	{"DP_EF_NODRAW"},					//implemented by sending it with no modelindex
-	{"DP_EF_RED"},
-	{"DP_ENT_COLORMOD"},
-	{"DP_ENT_EXTERIORMODELTOCLIENT"},
-	//only in dp6 currently {"DP_ENT_GLOW"},
-	{"DP_ENT_VIEWMODEL"},
-	{"DP_GFX_QUAKE3MODELTAGS"},
-	{"DP_GFX_SKINFILES"},
-	{"DP_GFX_SKYBOX"},	//according to the spec. :)
-	{"DP_HALFLIFE_MAP_CVAR"},
-	//to an extend {"DP_HALFLIFE_SPRITE"},
-	{"DP_INPUTBUTTONS"},
-	{"DP_LITSUPPORT"},
-	{"DP_MONSTERWALK"},
-	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
-	{"DP_MOVETYPEFOLLOW"},
-	{"DP_SV_BOTCLIENT",					2,	NULL, {"spawnclient", "clienttype"}},
-	{"DP_QC_CHANGEPITCH",				1,	NULL, {"changepitch"}},
-	{"DP_QC_COPYENTITY",				1,	NULL, {"copyentity"}},
-	{"DP_QC_CVAR_STRING",				1,	NULL, {"dp_cvar_string"}},	//448 builtin.
-	{"DP_QC_ETOS",						1,	NULL, {"etos"}},
-	{"DP_QC_FINDCHAIN",					1,	NULL, {"findchain"}},
-	{"DP_QC_FINDCHAINFLOAT",			1,	NULL, {"findchainfloat"}},
-	{"DP_QC_FINDFLAGS",				1,	NULL, {"findflags"}},
-	{"DP_QC_FINDCHAINFLAGS",			1,	NULL, {"findchainflags"}},
-	{"DP_QC_FINDFLOAT",					1,	NULL, {"findfloat"}},
-	{"DP_QC_FS_SEARCH",					4,	NULL, {"search_begin", "search_end", "search_getsize", "search_getfilename"}},
-	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
-	{"DP_QC_MULTIPLETEMPSTRINGS"},
-	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
-	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
-	{"DP_QC_STRINGCOLORFUNCTIONS",		2,	NULL, {"strlennocol", "strdecolorize"}},
-	{"DP_QC_UNLIMITEDTEMPSTRINGS"},
-	{"DP_QC_TRACEBOX",					1,	NULL, {"tracebox"}},
-	{"DP_QC_TRACETOSS"},
-	{"DP_QC_TRACE_MOVETYPE_HITMODEL"},
-	{"DP_QC_TRACE_MOVETYPE_WORLDONLY"},
-	{"DP_QC_TRACE_MOVETYPES"},		//this one is just a lame excuse to add annother extension...
-	{"DP_QC_VECTORVECTORS",				1,	NULL, {"vectorvectors"}},
-	{"DP_QUAKE2_MODEL"},
-	{"DP_QUAKE2_SPRITE"},
-	{"DP_QUAKE3_MODEL"},
-	{"DP_REGISTERCVAR",					1,	NULL, {"registercvar"}},
-	{"DP_SND_STEREOWAV"},
-	{"DP_SND_OGGVORBIS"},
-	{"DP_SOLIDCORPSE"},
-	{"DP_SPRITE32"},				//hmm... is it legal to advertise this one?
-	{"DP_SV_CLIENTCOLORS"},
-	{"DP_SV_CLIENTNAME"},
-	{"DP_SV_DRAWONLYTOCLIENT"},
-	{"DP_SV_DROPCLIENT",					1,	NULL, {"dropclient"}},
-	{"DP_SV_EFFECT",					1,	NULL, {"effect"}},
-	{"DP_SV_EXTERIORMODELFORCLIENT"},
-	{"DP_SV_NODRAWTOCLIENT"},		//I prefer my older system. Guess I might as well remove that older system at some point.
-	{"DP_SV_PLAYERPHYSICS"},
-	{"DP_SV_PRECACHEANYTIME"},
-	{"DP_SV_SETCOLOR"},
-	{"DP_SV_WRITEUNTERMINATEDSTRING",	1,	NULL, {"WriteUnterminatedString"}},
-	{"DP_TE_BLOOD",						1,	NULL, {"te_blood"}},
-	{"DP_TE_BLOODSHOWER",				1,	NULL, {"te_bloodshower"}},
-	{"DP_TE_CUSTOMFLASH",				1,	NULL, {"te_customflash"}},
-	{"DP_TE_EXPLOSIONRGB"},
-	//flamejet
-	{"DP_TE_PARTICLECUBE",				1,	NULL, {"te_particlecube"}},
-	//particlerain
-	//particlesnow
-	{"DP_TE_PLASMABURN",				1,	NULL, {"te_plasmaburn"}},
-	{"DP_TE_QUADEFFECTS1"},
-	{"DP_TE_SMALLFLASH",				1,	NULL, {"te_smallflash"}},
-	{"DP_TE_SPARK",						1,	NULL, {"te_spark"}},
-	{"DP_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash", "te_teleport", "te_explosion2", "te_lightning1", "te_lightning2", "te_lightning3", "te_beam"}},
-	{"DP_VIEWZOOM"},
-	{"EXT_BITSHIFT",					1,	NULL, {"bitshift"}},
-	{"EXT_DIMENSION_VISIBILITY"},
-	{"EXT_DIMENSION_PHYSICS"},
-	{"EXT_DIMENSION_GHOST"},
-	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
-	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
-	{"FTE_ENT_UNIQUESPAWNID"},
-	{"FTE_EXTENDEDTEXTCODES"},
-	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
-	{"FTE_GFX_QUAKE3SHADERS"},
-	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}},
-#ifndef NOMEDIA
-	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
-	{"FTE_MEDIA_CIN"},	//playfilm command supports q2 cin files.
-	{"FTE_MEDIA_ROQ"},	//playfilm command supports q3 roq files
-#endif
-	{"FTE_MULTIPROGS"},	//multiprogs functions are available.
-	{"FTE_MULTITHREADED",				3,	NULL, {"sleep", "fork", "abort"}},
-	{"FTE_MVD_PLAYBACK"},
-#ifdef SVCHAT
-	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
-#endif
-	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
-	{"FTE_QC_MATCHCLIENTNAME",				1,	NULL, {"matchclientname"}},
-	{"FTE_QC_PAUSED"},
-	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}},
-	{"FTE_QC_TRACETRIGGER"},
-	{"FTE_SOLID_LADDER"},	//part of a worthy hl implementation. Allows a simple trigger to remove effects of gravity (solid 20)
-
-#ifdef SQL
-	// serverside SQL functions for managing an SQL database connection
-	{"FTE_SQL",							9, NULL, {"sqlconnect","sqldisconnect","sqlopenquery","sqlclosequery","sqlreadfield","sqlerror","sqlescape","sqlversion",
-												  "sqlreadfloat"}},
-#endif
-	//eperimental advanced strings functions.
-	//reuses the FRIK_FILE builtins (with substring extension)
-	{"FTE_STRINGS",						16, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
-												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp"}},
-	{"FTE_SV_REENTER"},
-	{"FTE_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
-												   "te_teleport", "te_lightning1", "te_lightning2", "te_lightning3", "te_lightningblood", "te_bloodqw"}},
-
-	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}},	//very very similar to the mvdsv system.
-	{"NEH_CMD_PLAY2"},
-	{"NEH_RESTOREGAME"},
-	//{"PRYDON_CLIENTCURSOR"},
-	{"QSG_CVARSTRING",					1,	NULL, {"cvar_string"}},
-	{"QW_ENGINE",						1,	NULL, {"infokey", "stof", "logfrag"}},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
-	{"QWE_MVD_RECORD"},	//Quakeworld extended get the credit for this one. (mvdsv)
-	{"TEI_MD3_MODEL"},
-//	{"TQ_RAILTRAIL"},	//treat this as the ZQ style railtrails which the client already supports, okay so the preparse stuff needs strengthening.
-	{"ZQ_MOVETYPE_FLY"},
-	{"ZQ_MOVETYPE_NOCLIP"},
-	{"ZQ_MOVETYPE_NONE"},
-//	{"ZQ_QC_PARTICLE"},	//particle builtin works in QW ( we don't mimic ZQ fully though)
-
-
-	{"ZQ_QC_STRINGS",					7, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone"}}	//a trimmed down FRIK_FILE.
-};
-
-//some of these are overkill yes, but they are all derived from the fteextensions flags and document the underlaying protocol available.
-//(which is why there are two lists of extensions here)
-//note: not all of these are actually supported. This list mearly reflects the values of the PEXT_ constants.
-//Check protocol.h to make sure that the related PEXT is enabled. The engine will only accept if they are actually supported.
-lh_extension_t FTE_Protocol_Extensions[] =
-{
-	{"FTE_PEXT_SETVIEW"},		//nq setview works.
-	{"DP_ENT_SCALE"},			//entities may be rescaled
-	{"FTE_PEXT_LIGHTSTYLECOL"},	//lightstyles may have colours.
-	{"DP_ENT_ALPHA"},			//transparent entites
-	{"FTE_PEXT_VIEW2"},		//secondary view.
-	{"FTE_PEXT_BULLETENS"},	//bulleten boards (scrolling text on walls)
-	{"FTE_PEXT_ZLIBDL"},		//supposed download optimisation (unimportant to qc)
-	{"FTE_PEXT_LIGHTUPDATES"},	//zap.mdl is sent as a nail packet.
-	{"FTE_PEXT_FATNESS"},		//entities may be expanded along their vertex normals
-	{"DP_HALFLIFE_MAP"},		//entitiy can visit a hl bsp
-	{"FTE_PEXT_TE_BULLET"},	//additional particle effect. Like TE_SPIKE and TE_SUPERSPIKE
-	{"FTE_PEXT_HULLSIZE"},	//means we can tell a client to go to crouching hull
-	{"FTE_PEXT_MODELDBL"},	//max of 512 models
-	{"FTE_PEXT_ENTITYDBL"},	//max of 1024 ents
-	{"FTE_PEXT_ENTITYDBL2"},	//max of 2048 ents
-	{"FTE_PEXT_ORIGINDBL"},	//-8k to +8k map size.
-	{"FTE_PEXT_VWEAP"},
-	{"FTE_PEXT_Q2BSP"},		//supports q2 maps. No bugs are apparent.
-	{"FTE_PEXT_Q3BSP"},		//quake3 bsp support. dp probably has an equivelent, but this is queryable per client.
-	{"DP_ENT_COLORMOD"},
-	{NULL},	//splitscreen - not queryable.
-	{"FTE_HEXEN2"},				//client can use hexen2 maps. server can use hexen2 progs
-	{"FTE_PEXT_SPAWNSTATIC"},	//means that static entities can have alpha/scale and anything else the engine supports on normal ents. (Added for >256 models, while still being compatible - previous system failed with -1 skins)
-	{"FTE_PEXT_CUSTOMTENTS",					2,	NULL, {"RegisterTempEnt", "CustomTempEnt"}},
-	{"FTE_PEXT_256PACKETENTITIES"},	//client is able to receive unlimited packet entities (server caps itself to 256 to prevent insanity).
-	{"FTE_PEXT_64PLAYERS"},
-	{"TEI_SHOWLMP2",					6,	NULL, {"showpic", "hidepic", "movepic", "changepic", "showpicent", "hidepicent"}},	//telejano doesn't actually export the moveent/changeent (we don't want to either cos it would stop frik_file stuff being autoregistered)
-	{"DP_GFX_QUAKE3MODELTAGS",			1,	NULL, {"setattachment"}},
-	{"FTE_PK3DOWNLOADS"},
-	{"PEXT_CHUNKEDDOWNLOADS"},
-	{"EXT_CSQC"}
-};
-
-
 int PR_EnableEBFSBuiltin(char *name, int binum)
 {
 	int i;
@@ -7587,13 +5881,13 @@ int PR_EnableEBFSBuiltin(char *name, int binum)
 lh_extension_t *checkfteextensioncl(int mask, char *name)	//true if the cient extension mask matches an extension name
 {
 	int i;
-	for (i = 0; i < sizeof(FTE_Protocol_Extensions)/sizeof(lh_extension_t); i++)
+	for (i = 0; i < 32; i++)
 	{
 		if (mask & (1<<i))	//suported
 		{
-			if (FTE_Protocol_Extensions[i].name)	//some were removed
-				if (!stricmp(name, FTE_Protocol_Extensions[i].name))	//name matches
-					return &FTE_Protocol_Extensions[i];
+			if (QSG_Extensions[i].name)	//some were removed
+				if (!stricmp(name, QSG_Extensions[i].name))	//name matches
+					return &QSG_Extensions[i];
 		}
 	}
 	return NULL;
@@ -7603,13 +5897,13 @@ lh_extension_t *checkfteextensionsv(char *name)	//true if the server supports an
 {
 	int i;
 
-	for (i = 0; i < sizeof(FTE_Protocol_Extensions)/sizeof(lh_extension_t); i++)
+	for (i = 0; i < 32; i++)
 	{
 		if (svs.fteprotocolextensions & (1<<i))
 		{
-			if (FTE_Protocol_Extensions[i].name)	//some were removed
-				if (!stricmp(name, FTE_Protocol_Extensions[i].name))	//name matches
-					return &FTE_Protocol_Extensions[i];
+			if (QSG_Extensions[i].name)	//some were removed
+				if (!stricmp(name, QSG_Extensions[i].name))	//name matches
+					return &QSG_Extensions[i];
 		}
 	}
 	return NULL;
@@ -7618,7 +5912,7 @@ lh_extension_t *checkfteextensionsv(char *name)	//true if the server supports an
 lh_extension_t *checkextension(char *name)
 {
 	int i;
-	for (i = 0; i < sizeof(QSG_Extensions)/sizeof(lh_extension_t); i++)
+	for (i = 32; i < QSG_Extensions_count; i++)
 	{
 		if (!QSG_Extensions[i].name)
 			continue;
@@ -7672,9 +5966,9 @@ void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_RETURN) = false;
 		for (i = 0; i < ext->numbuiltins; i++)
 		{
-			if (!PR_EnableEBFSBuiltin(ext->builtins[i], 0))
+			if (!PR_EnableEBFSBuiltin(ext->builtinnames[i], 0))
 			{
-				Con_Printf("Failed to initialise builtin \"%s\" for extension \"%s\"", ext->builtins[i], s);
+				Con_Printf("Failed to initialise builtin \"%s\" for extension \"%s\"", ext->builtinnames[i], s);
 				return;	//whoops, we failed.
 			}
 		}
@@ -7712,28 +6006,6 @@ void PF_ExecuteCommand  (progfuncs_t *prinst, struct globalvars_s *pr_globals)	/
 
 	pr_global_struct->self = old_self;
 	pr_global_struct->other = old_other;
-}
-void PF_ArgC  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//85			//float() argc;
-{
-	G_FLOAT(OFS_RETURN) = Cmd_Argc();
-}
-
-//KRIMZON_SV_PARSECLIENTCOMMAND added these two.
-void PF_Tokenize  (progfuncs_t *prinst, struct globalvars_s *pr_globals)			//84			//void(string str) tokanize;
-{
-	Cmd_TokenizeString(PR_GetStringOfs(prinst, OFS_PARM0), false, true);
-	G_FLOAT(OFS_RETURN) = Cmd_Argc();
-}
-void PF_ArgV  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//86			//string(float num) argv;
-{
-	int i = G_FLOAT(OFS_PARM0);
-	if (i < 0)
-	{
-		PR_BIError(prinst, "pr_argv with i < 0");
-		G_INT(OFS_RETURN) = 0;
-		return;
-	}
-	RETURN_TSTRING(Cmd_Argv(i));
 }
 
 /*
@@ -7788,70 +6060,7 @@ void PF_substr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_TSTRING(dest);
 }
 
-/*
-=================
-PF_strcat
 
-string strcat(string str1, string str2)
-=================
-*/
-
-void PF_strcat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char dest[4096];
-	char *src = PF_VarString(prinst, 0, pr_globals);
-	Q_strncpyz(dest, src, MAXTEMPBUFFERLEN);
-	RETURN_TSTRING(dest);
-}
-
-/*
-=================
-PF_strpad
-
-string strpad(float pad, string str1, ...)
-=================
-*/
-
-void PF_strpad (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char destbuf[4096];
-	char *dest = destbuf;
-	int pad = G_FLOAT(OFS_PARM0);
-	char *src = PF_VarString(prinst, 1, pr_globals);
-
-	if (pad < 0)
-	{	//pad left
-		pad = -pad - strlen(src);
-		if (pad>=MAXTEMPBUFFERLEN)
-			pad = MAXTEMPBUFFERLEN-1;
-		if (pad < 0)
-			pad = 0;
-
-		Q_strncpyz(dest+pad, src, MAXTEMPBUFFERLEN-pad);
-		while(pad--)
-		{
-			pad--;
-			dest[pad] = ' ';
-		}
-	}
-	else
-	{	//pad right
-		if (pad>=MAXTEMPBUFFERLEN)
-			pad = MAXTEMPBUFFERLEN-1;
-		pad -= strlen(src);
-		if (pad < 0)
-			pad = 0;
-
-		Q_strncpyz(dest, src, MAXTEMPBUFFERLEN);
-		dest+=strlen(dest);
-
-		while(pad-->0)
-			*dest++ = ' ';
-		*dest = '\0';
-	}
-
-	RETURN_TSTRING(destbuf);
-}
 
 /*
 =================
@@ -8175,16 +6384,6 @@ static void PF_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_LinkEdict(out, false);
 }
 
-//EXTENSION: DP_QC_ETOS
-
-//string(entity ent) etos = #65
-void PF_etos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char s[64];
-	snprintf (s, sizeof(s), "entity %i", G_EDICTNUM(prinst, OFS_PARM0));
-	RETURN_TSTRING(s);
-}
-
 
 //EXTENSION: DP_QC_FINDCHAIN
 
@@ -8280,85 +6479,6 @@ void PF_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_EDICT(prinst, chain);
 }
 
-//EXTENSION: DP_QC_FINDFLOAT
-
-//entity(entity start, float fld, float match) findfloat = #98
-void PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int e, f;
-	int s;
-	edict_t *ed;
-
-	if (*prinst->callargc != 3)	//I can hate mvdsv if I want to.
-	{
-		PR_BIError(prinst, "PF_FindFloat (#98): callargc != 3\nDid you mean to set pr_imitatemvdsv to 1?");
-		return;
-	}
-
-	e = G_EDICTNUM(prinst, OFS_PARM0);
-	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
-	s = G_INT(OFS_PARM2);
-
-	for (e++; e < *prinst->parms->sv_num_edicts; e++)
-	{
-		ed = EDICT_NUM(prinst, e);
-		if (ed->isfree)
-			continue;
-		if (((int *)ed->v)[f] == s)
-		{
-			RETURN_EDICT(prinst, ed);
-			return;
-		}
-	}
-
-	RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
-}
-
-//EXTENSION: DP_QC_FINDFLAGS
-
-//entity(entity start, float fld, float match) findflags = #449
-void PF_FindFlags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int e, f;
-	int s;
-	edict_t *ed;
-
-	e = G_EDICTNUM(prinst, OFS_PARM0);
-	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
-	s = G_FLOAT(OFS_PARM2);
-
-	for (e++; e < *prinst->parms->sv_num_edicts; e++)
-	{
-		ed = EDICT_NUM(prinst, e);
-		if (ed->isfree)
-			continue;
-		if ((int)((float *)ed->v)[f] & s)
-		{
-			RETURN_EDICT(prinst, ed);
-			return;
-		}
-	}
-
-	RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
-}
-
-
-
-//EXTENSION: DP_QC_RANDOMVEC
-
-//vector() randomvec = #91
-void PF_randomvector (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	vec3_t temp;
-	do
-	{
-		temp[0] = (rand() & 32767) * (2.0 / 32767.0) - 1.0;
-		temp[1] = (rand() & 32767) * (2.0 / 32767.0) - 1.0;
-		temp[2] = (rand() & 32767) * (2.0 / 32767.0) - 1.0;
-	} while (DotProduct(temp, temp) >= 1);
-	VectorCopy (temp, G_VECTOR(OFS_RETURN));
-}
-
 //EXTENSION: DP_QC_VECTORVECTORS
 
 //void(vector dir) vectorvectors = #432
@@ -8368,69 +6488,6 @@ static void PF_vectorvectors (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	VectorCopy(G_VECTOR(OFS_PARM0), P_VEC(v_forward));
 	VectorNormalize(P_VEC(v_forward));
 	VectorVectors(P_VEC(v_forward), P_VEC(v_right), P_VEC(v_up));
-}
-
-
-//EXTENSION: DP_QC_MINMAXBOUND
-
-//float(float a, floats) min = #94
-void PF_min (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i;
-	float f;
-
-	if (*prinst->callargc == 2)
-	{
-		G_FLOAT(OFS_RETURN) = min(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
-	}
-	else if (*prinst->callargc >= 3)
-	{
-		f = G_FLOAT(OFS_PARM0);
-		for (i = 1; i < *prinst->callargc; i++)
-		{
-			if (G_FLOAT((OFS_PARM0 + i * 3)) < f)
-				f = G_FLOAT((OFS_PARM0 + i * 3));
-		}
-		G_FLOAT(OFS_RETURN) = f;
-	}
-	else
-		PR_BIError(prinst, "PF_min: must supply at least 2 floats\n");
-}
-
-//float(float a, floats) max = #95
-void PF_max (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i;
-	float f;
-
-	if (*prinst->callargc == 2)
-	{
-		G_FLOAT(OFS_RETURN) = max(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
-	}
-	else if (*prinst->callargc >= 3)
-	{
-		f = G_FLOAT(OFS_PARM0);
-		for (i = 1; i < *prinst->callargc; i++) {
-			if (G_FLOAT((OFS_PARM0 + i * 3)) > f)
-				f = G_FLOAT((OFS_PARM0 + i * 3));
-		}
-		G_FLOAT(OFS_RETURN) = f;
-	}
-	else
-	{
-		PR_BIError(prinst, "PF_min: must supply at least 2 floats\n");
-	}
-}
-
-//float(float minimum, float val, float maximum) bound = #96
-void PF_bound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	if (G_FLOAT(OFS_PARM1) > G_FLOAT(OFS_PARM2))
-		G_FLOAT(OFS_RETURN) = G_FLOAT(OFS_PARM2);
-	else if (G_FLOAT(OFS_PARM1) < G_FLOAT(OFS_PARM0))
-		G_FLOAT(OFS_RETURN) = G_FLOAT(OFS_PARM0);
-	else
-		G_FLOAT(OFS_RETURN) = G_FLOAT(OFS_PARM1);
 }
 
 //EXTENSION: KRIMZON_SV_PARSECLIENTCOMMAND
@@ -8951,10 +7008,94 @@ void PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
 }
 
-void PF_Abort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+//float(string effectname) particleeffectnum (EXT_CSQC)
+void PF_sv_particleeffectnum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	prinst->AbortStack(prinst);
+#pragma message("PF_sv_particleeffectnum: which effect index values to use?")
+	char *efname = PR_GetStringOfs(prinst, OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(efname);
 }
+//void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),
+void PF_sv_trailparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#pragma message("PF_sv_trailparticles: first two parameters differ from dp, but comply with spec")
+	int efnum = G_FLOAT(OFS_PARM0);
+	int ednum = G_EDICTNUM(prinst, OFS_PARM1);
+	float *start = G_VECTOR(OFS_PARM2);
+	float *end = G_VECTOR(OFS_PARM3);
+
+	MSG_WriteByte(&sv.multicast, svcfte_trailparticles);
+	MSG_WriteShort(&sv.multicast, ednum);
+	MSG_WriteShort(&sv.multicast, efnum);
+	MSG_WriteCoord(&sv.multicast, start[0]);
+	MSG_WriteCoord(&sv.multicast, start[1]);
+	MSG_WriteCoord(&sv.multicast, start[2]);
+	MSG_WriteCoord(&sv.multicast, end[0]);
+	MSG_WriteCoord(&sv.multicast, end[1]);
+	MSG_WriteCoord(&sv.multicast, end[2]);
+
+	MSG_WriteByte(&sv.nqmulticast, svcdp_trailparticles);
+	MSG_WriteShort(&sv.nqmulticast, ednum);
+	MSG_WriteShort(&sv.nqmulticast, efnum);
+	MSG_WriteCoord(&sv.nqmulticast, start[0]);
+	MSG_WriteCoord(&sv.nqmulticast, start[1]);
+	MSG_WriteCoord(&sv.nqmulticast, start[2]);
+	MSG_WriteCoord(&sv.nqmulticast, end[0]);
+	MSG_WriteCoord(&sv.nqmulticast, end[1]);
+	MSG_WriteCoord(&sv.nqmulticast, end[2]);
+
+	SV_MulticastProtExt(start, MULTICAST_PHS, ~0, PEXT_CSQC, 0);
+}
+//void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
+void PF_sv_pointparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int efnum = G_FLOAT(OFS_PARM0);
+	float *org = G_VECTOR(OFS_PARM1);
+	float *vel = G_VECTOR(OFS_PARM2);
+	int count = G_FLOAT(OFS_PARM3);
+
+	if (count > 65535)
+		count = 65535;
+
+	if (count == 1 && DotProduct(org, org) == 0)
+	{
+		MSG_WriteByte(&sv.multicast, svcfte_pointparticles1);
+		MSG_WriteShort(&sv.multicast, efnum);
+		MSG_WriteCoord(&sv.multicast, org[0]);
+		MSG_WriteCoord(&sv.multicast, org[1]);
+		MSG_WriteCoord(&sv.multicast, org[2]);
+
+		MSG_WriteByte(&sv.nqmulticast, svcdp_pointparticles1);
+		MSG_WriteShort(&sv.nqmulticast, efnum);
+		MSG_WriteCoord(&sv.nqmulticast, org[0]);
+		MSG_WriteCoord(&sv.nqmulticast, org[1]);
+		MSG_WriteCoord(&sv.nqmulticast, org[2]);
+	}
+	else
+	{
+		MSG_WriteByte(&sv.multicast, svcfte_pointparticles);
+		MSG_WriteShort(&sv.multicast, efnum);
+		MSG_WriteCoord(&sv.multicast, org[0]);
+		MSG_WriteCoord(&sv.multicast, org[1]);
+		MSG_WriteCoord(&sv.multicast, org[2]);
+		MSG_WriteCoord(&sv.multicast, vel[0]);
+		MSG_WriteCoord(&sv.multicast, vel[1]);
+		MSG_WriteCoord(&sv.multicast, vel[2]);
+		MSG_WriteShort(&sv.multicast, count);
+
+		MSG_WriteByte(&sv.nqmulticast, svcdp_pointparticles);
+		MSG_WriteShort(&sv.nqmulticast, efnum);
+		MSG_WriteCoord(&sv.nqmulticast, org[0]);
+		MSG_WriteCoord(&sv.nqmulticast, org[1]);
+		MSG_WriteCoord(&sv.nqmulticast, org[2]);
+		MSG_WriteCoord(&sv.nqmulticast, vel[0]);
+		MSG_WriteCoord(&sv.nqmulticast, vel[1]);
+		MSG_WriteCoord(&sv.nqmulticast, vel[2]);
+		MSG_WriteShort(&sv.nqmulticast, count);
+	}
+	SV_MulticastProtExt(org, MULTICAST_PHS, ~0, PEXT_CSQC, 0);
+}
+
 
 typedef struct qcstate_s {
 	float resumetime;
@@ -9053,26 +7194,6 @@ void PF_Fork(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PR_RunThreads();
 
 	G_FLOAT(OFS_RETURN) = 0;
-}
-
-
-//QSG_DIMENSION_PLANES
-//helper function
-//float(float number, float quantity) bitshift = #218;
-void PF_bitshift(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int bitmask;
-	int shift;
-
-	bitmask = G_FLOAT(OFS_PARM0);
-	shift = G_FLOAT(OFS_PARM1);
-
-	if (shift < 0)
-		bitmask >>= shift;
-	else
-		bitmask <<= shift;
-
-	G_FLOAT(OFS_RETURN) = bitmask;
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
@@ -10083,16 +8204,18 @@ void PF_gettagindex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = tagidx;
 }
 
-void EdictToTransform(edict_t *ed, float *trans)
+static void EdictToTransform(edict_t *ed, float *trans)
 {
 	AngleVectors(ed->v->angles, trans+0, trans+4, trans+8);
+	VectorInverse(trans+4);
+
 	trans[3] = ed->v->origin[0];
 	trans[7] = ed->v->origin[1];
 	trans[11] = ed->v->origin[2];
 }
 
 // #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
-void PF_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float transtag[12];
 	float transent[12];
@@ -10115,6 +8238,7 @@ void PF_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
+#pragma message("This function doesn't honour attachments")
 	EdictToTransform(ent, transent);
 	R_ConcatTransforms((void*)transent, (void*)transtag, (void*)result);
 
@@ -10137,15 +8261,69 @@ void PF_clientstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_QCStatFieldIdx(G_FLOAT(OFS_PARM1), G_INT(OFS_PARM2)+prinst->fieldadjust, G_FLOAT(OFS_PARM0));
 #endif
 }
+void PF_globalstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *name = PF_VarString(prinst, 2, pr_globals);
+#if 0 //this is the old code
+	SV_QCStatName(G_FLOAT(OFS_PARM0), name, G_FLOAT(OFS_PARM1));
+#else
+	SV_QCStatGlobal(G_FLOAT(OFS_PARM1), name, G_FLOAT(OFS_PARM0));
+#endif
+}
 
 void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
+{	
+	extern vec3_t player_maxs, player_mins;
+	float msecs;
+	pmove.sequence = *pr_nqglobal_struct->clientcommandframe;
+	pmove.pm_type = PM_NORMAL;
+
+	pmove.jump_msec = 0;//(cls.z_ext & Z_EXT_PM_TYPE) ? 0 : from->jump_msec;
+	if (pr_nqglobal_struct->pmove_jump_held)
+		pmove.jump_held = *pr_nqglobal_struct->pmove_jump_held;
+	if (pr_nqglobal_struct->pmove_waterjumptime)
+		pmove.waterjumptime = *pr_nqglobal_struct->pmove_waterjumptime;
+
+//set up the movement command
+	msecs = *pr_nqglobal_struct->input_timelength*1000 + 0.5f;
+	//precision inaccuracies. :(
+#define ANGLE2SHORT(x) (x) * (65536/360.0)
+	pmove.cmd.angles[0] = ANGLE2SHORT(pr_nqglobal_struct->input_angles[0]);
+	pmove.cmd.angles[1] = ANGLE2SHORT(pr_nqglobal_struct->input_angles[1]);
+	pmove.cmd.angles[2] = ANGLE2SHORT(pr_nqglobal_struct->input_angles[2]);
+	VectorCopy(pr_nqglobal_struct->input_angles, pmove.angles);
+
+	pmove.cmd.forwardmove = (*pr_nqglobal_struct->input_movevalues)[0];
+	pmove.cmd.sidemove = (*pr_nqglobal_struct->input_movevalues)[1];
+	pmove.cmd.upmove = (*pr_nqglobal_struct->input_movevalues)[2];
+	pmove.cmd.buttons = *pr_nqglobal_struct->input_buttons;
+
+	VectorCopy(*pr_nqglobal_struct->pmove_org, pmove.origin);
+	VectorCopy(*pr_nqglobal_struct->pmove_vel, pmove.velocity);
+	VectorCopy(*pr_nqglobal_struct->pmove_maxs, player_maxs);
+	VectorCopy(*pr_nqglobal_struct->pmove_mins, player_mins);
+	pmove.hullnum = 1;
+
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.worldmodel;
-//	AddLinksToPmove ( sv_areanodes );
+	AddLinksToPmove ( PROG_TO_EDICT(svprogfuncs, pr_global_struct->self), sv_areanodes );
 
 
-	PM_PlayerMove(sv.gamespeed);
+	while(msecs)	//break up longer commands
+	{
+		pmove.cmd.msec = msecs;
+		if (pmove.cmd.msec > 50)
+			pmove.cmd.msec = 50;
+		msecs -= pmove.cmd.msec;
+		PM_PlayerMove(1);
+	}
+
+	if (pr_nqglobal_struct->pmove_jump_held)
+		*pr_nqglobal_struct->pmove_jump_held = pmove.jump_held;
+	if (pr_nqglobal_struct->pmove_waterjumptime)
+		*pr_nqglobal_struct->pmove_waterjumptime = pmove.waterjumptime;
+	VectorCopy(pmove.origin, *pr_nqglobal_struct->pmove_org);
+	VectorCopy(pmove.velocity, *pr_nqglobal_struct->pmove_vel);
 }
 
 //DP_QC_GETSURFACE
@@ -10408,13 +8586,6 @@ void PF_SendPacket(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	NET_SendPacket(NS_SERVER, strlen(contents), contents, to);
 }
 
-void PF_WasFreed (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	edict_t	*ent;
-	ent = (edict_t*)G_EDICT(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = ent->isfree;
-}
-
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0},
 	{"ignore",			PF_Ignore,			0,		0,		0},
@@ -10512,7 +8683,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"AdvanceFrame",	PF_AdvanceFrame,	0,		0,		63,		0},
 	{"printvec",		PF_printv,			0,		0,		64,		0},	//64
 	{"RewindFrame",		PF_RewindFrame,		0,		0,		65,		0},
-	{"particleexplosion",PF_particleexplosion,0,	0,		81,		0},
+	{"particleexplosion",PF_h2particleexplosion,0,	0,		81,		0},
 	{"movestep",		PF_movestep,		0,		0,		82,		0},
 	{"advanceweaponframe",PF_advanceweaponframe,0,	0,		83,		0},
 
@@ -10540,26 +8711,26 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"setspawnparms",	PF_setspawnparms,	78,		78,		78},	//78
 	{"plaque_draw",		PF_plaque_draw,		0,		0,		79},	//79
-	{"logfrag",			PF_logfrag,			0,		79,		0},	//79
+	{"logfrag",			PF_logfrag,			0,		79,		0,		79},	//79
 
 // Tomaz - QuakeC String Manipulation Begin
-	{"tq_zone",			PF_dupstring,		0,		0,		0,		79},	//79
-	{"tq_unzone",		PF_forgetstring,	0,		0,		0,		80},	//80
-	//stof
-	{"tq_strcat",		PF_strcat,			0,		0,		0,		82},	//82
-	{"tq_substring",	PF_substring,		0,		0,		0,		83},	//83
-	{"tq_stof",			PF_stof,			0,		0,		0,		84},	//84
-	{"tq_stov",			PF_stov,			0,		0,		0,		85},	//85
+	{"tq_zone",			PF_dupstring,		0,		0,		0,		79, true},	//79
+	{"tq_unzone",		PF_forgetstring,	0,		0,		0,		80, true},	//80
+	{"tq_stof",			PF_stof,			0,		0,		0,		81, true},	//81
+	{"tq_strcat",		PF_strcat,			0,		0,		0,		82, true},	//82
+	{"tq_substring",	PF_substring,		0,		0,		0,		83, true},	//83
+	{"tq_stof",			PF_stof,			0,		0,		0,		84, true},	//84
+	{"tq_stov",			PF_stov,			0,		0,		0,		85, true},	//85
 // Tomaz - QuakeC String Manipulation End
 
 // Tomaz - QuakeC File System Begin (new mods use frik_file instead)
-	{"tq_fopen",		PF_fopen,			0,		0,		0,		86},// #86 float(string filename, float mode) fopen (QSG_FILE)
-	{"tq_fclose",		PF_fclose,			0,		0,		0,		87},// #87 void(float fhandle) fclose (QSG_FILE)
-	{"tq_fgets",		PF_fgets,			0,		0,		0,		88},// #88 string(float fhandle) fgets (QSG_FILE)
-	{"tq_fputs",		PF_fputs,			0,		0,		0,		89},// #89 void(float fhandle, string s) fputs (QSG_FILE)
+	{"tq_fopen",		PF_fopen,			0,		0,		0,		86, true},// #86 float(string filename, float mode) fopen (QSG_FILE)
+	{"tq_fclose",		PF_fclose,			0,		0,		0,		87, true},// #87 void(float fhandle) fclose (QSG_FILE)
+	{"tq_fgets",		PF_fgets,			0,		0,		0,		88, true},// #88 string(float fhandle) fgets (QSG_FILE)
+	{"tq_fputs",		PF_fputs,			0,		0,		0,		89, true},// #89 void(float fhandle, string s) fputs (QSG_FILE)
 // Tomaz - QuakeC File System End
 
-	{"rain_go",			PF_rain_go,			0,		0,		80},	//80
+	{"rain_go",			PF_rain_go,			0,		0,		80,		0},	//80
 
 	{"infokey",			PF_infokey,			0,		80,		0,		80},	//80
 	{"stof",			PF_stof,			0,		81,		0,		81},	//81
@@ -10568,32 +8739,32 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 
 //mvdsv (don't require ebfs usage in qw)
-	{"executecommand",	PF_ExecuteCommand,	0,		83,		0,		83},	//83		//void() exec;   please don't use.
-	{"mvdtokenize",		PF_Tokenize, 		0,		84,		0,		84},	//84			//void(string str) tokanize;
-	{"mvdargc",			PF_ArgC,			0,		85,		0,		85},	//85			//float() argc;
-	{"mvdargv",			PF_ArgV,			0,		86,		0,		86},	//86			//string(float num) argv;
+	{"executecommand",	PF_ExecuteCommand,	0,		0,		0,		83, true},	//83		//void() exec;   please don't use.
+	{"mvdtokenize",		PF_Tokenize, 		0,		0,		0,		84, true},	//84			//void(string str) tokanize;
+	{"mvdargc",			PF_ArgC,			0,		0,		0,		85, true},	//85			//float() argc;
+	{"mvdargv",			PF_ArgV,			0,		0,		0,		86, true},	//86			//string(float num) argv;
 
 //mvd commands
 //some of these are a little iffy.
 //we support them for mvdsv compatability but some of them look very hacky.
 //these ones are not honoured with numbers, but can be used via the proper means.
-	{"teamfield",		PF_teamfield,		0,		0,		0,		0},
-	{"substr",			PF_substr,			0,		0,		0,		0},
-	{"mvdstrcat",		PF_strcat,			0,		0,		0,		0},
-	{"mvdstrlen",		PF_strlen,			0,		0,		0,		0},
-	{"str2byte",		PF_str2byte,		0,		0,		0,		0},
-	{"str2short",		PF_str2short,		0,		0,		0,		0},
-	{"mvdnewstr",		PF_newstring,		0,		0,		0,		0},
-	{"mvdfreestr",		PF_forgetstring,	0,		0,		0,		0},
-	{"conprint",		PF_conprint,		0,		0,		0,		0},
-	{"readcmd",			PF_readcmd,			0,		0,		0,		0},
-	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		0},
-	{"strstr",			PF_strstr,			0,		0,		0,		0},
-	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		0},
-	{"log",				PF_log,				0,		0,		0,		0},
-//	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101},
-	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102},
-	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103},
+	{"teamfield",		PF_teamfield,		0,		0,		0,		87, true},
+	{"substr",			PF_substr,			0,		0,		0,		88, true},
+	{"mvdstrcat",		PF_strcat,			0,		0,		0,		89, true},
+	{"mvdstrlen",		PF_strlen,			0,		0,		0,		90, true},
+	{"str2byte",		PF_str2byte,		0,		0,		0,		91, true},
+	{"str2short",		PF_str2short,		0,		0,		0,		92, true},
+	{"mvdnewstr",		PF_newstring,		0,		0,		0,		93, true},
+	{"mvdfreestr",		PF_forgetstring,	0,		0,		0,		94, true},
+	{"conprint",		PF_conprint,		0,		0,		0,		95, true},
+	{"readcmd",			PF_readcmd,			0,		0,		0,		96, true},
+	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		97, true},
+	{"strstr",			PF_strstr,			0,		0,		0,		98, true},
+	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		99, true},
+	{"log",				PF_log,				0,		0,		0,		100, true},
+//	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101, true},
+	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102, true},
+	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, true},
 //end of mvdsv
 
 	{"setpuzzlemodel",	PF_set_puzzle_model,0,		0,		87,		0},
@@ -10628,14 +8799,14 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"max",				PF_max,				0,		0,		0,		95},	// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
 	{"bound",			PF_bound,			0,		0,		0,		96},	// #96 float(float minimum, float val, float maximum) bound (DP_QC_MINMAXBOUND)
 	{"pow",				PF_pow,				0,		0,		0,		97},
-	{"tj_cvar_string",	PF_cvar_string,		0,		0,		0,		97},	//telejano
+	{"tj_cvar_string",	PF_cvar_string,		0,		0,		0,		97, true},	//telejano
 //DP_QC_FINDFLOAT
 	{"findfloat",		PF_FindFloat,		0,		0,		0,		98},	// #98 entity(entity start, float fld, float match) findfloat (DP_QC_FINDFLOAT)
 
 	{"checkextension",	PF_checkextension,	99,		99,		0,		99},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
 	{"builtin_find",	PF_builtinsupported,100,	100,	0,		100},	// #100	//per builtin system.
 	{"anglemod",		PF_anglemod,		0,		0,		0,		102},
-	{"cvar_string",		PF_cvar_string,		0,		0,		0,		103},
+	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103},
 
 //TEI_SHOWLMP2
 	{"showpic",			PF_ShowPic,			0,		0,		0,		104},
@@ -10739,17 +8910,21 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"sqlversion",		PF_sqlversion,		0,		0,		0,		257},	// #257 string(float serveridx) sqlversion (FTE_SQL)
 	{"sqlreadfloat",	PF_sqlreadfloat,	0,		0,		0,		258},	// #258 float(float serveridx, float queryidx, float row, float column) sqlreadfloat (FTE_SQL)
 #endif
+	{"stoi",			PF_stoi,			0,		0,		0,		259},
+	{"itos",			PF_itos,			0,		0,		0,		260},
+	{"stoh",			PF_stoh,			0,		0,		0,		261},
+	{"htos",			PF_htos,			0,		0,		0,		262},
 
 //EXT_CSQC
 //	{"setmodelindex",	PF_sv_SetModelIndex,0,		0,		0,		333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
 //	{"modelnameforindex",PF_sv_ModelnameForIndex,0,	0,		0,		334},	// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
 
-//	{"particleeffectnum",PF_sv_particlesloaded,0,	0,		0,		335},	// #335 float(string effectname) particleeffectnum (EXT_CSQC)
-//	{"trailparticles",	PF_sv_trailparticles,0,		0,		0,		336},	// #336 void(entity ent, float effectnum, vector start, vector end) trailparticles (EXT_CSQC),
-//	{"pointparticles",	PF_sv_pointparticles,0,		0,		0,		337},	// #337 void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
+	{"particleeffectnum",PF_sv_particleeffectnum,0,	0,		0,		335},	// #335 float(string effectname) particleeffectnum (EXT_CSQC)
+	{"trailparticles",	PF_sv_trailparticles,0,		0,		0,		336},	// #336 void(entity ent, float effectnum, vector start, vector end) trailparticles (EXT_CSQC),
+	{"pointparticles",	PF_sv_pointparticles,0,		0,		0,		337},	// #337 void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
 
 //	{"cprint",			PF_sv_cprint,		0,		0,		0,		338},	// #338 void(string s) cprint (EXT_CSQC)
-//	{"print",			PF_sv_print,		0,		0,		0,		339},	// #339 void(string s) print (EXT_CSQC)
+	{"print",			PF_print,		0,		0,		0,		339},	// #339 void(string s) print (EXT_CSQC)
 
 //	{"runningserver",	PF_sv_runningserver,0,		0,		0,		350},	// #350 float() isserver (EXT_CSQC)
 //	{"registercommand",	PF_sv_registercommand,0,	0,		0,		352},	// #352 void(string cmdname) registercommand (EXT_CSQC)
@@ -10760,6 +8935,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //end fte extras
 
 //DP extras
+
 //DP_QC_COPYENTITY
 	{"copyentity",		PF_copyentity,		0,		0,		0,		400},// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
 //DP_SV_SETCOLOR
@@ -10842,7 +9018,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findchainflags",	PF_findchainflags,	0,		0,		0,		450},// #450 entity(.float fld, float match) findchainflags
 //DP_MD3_TAGSINFO
 	{"gettagindex",		PF_gettagindex,		0,		0,		0,		451},// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
-	{"gettaginfo",		PF_gettaginfo,		0,		0,		0,		452},// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
+	{"gettaginfo",		PF_sv_gettaginfo,		0,		0,		0,		452},// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
 //DP_SV_BOTCLIENT
 	{"dropclient",		PF_dropclient,		0,		0,		0,		453},// #453 void(entity player) dropclient
 
@@ -10851,10 +9027,106 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"WriteUnterminatedString",PF_WriteString2,0,	0,		0,		456},	//writestring but without the null terminator. makes things a little nicer.
 
+//DP_TE_FLAMEJET
+//	{"te_flamejet",		PF_te_flamejet,		0,		0,		0,		457},	// #457 void(vector org, vector vel, float howmany) te_flamejet
+
+	//no 458 documented.
+
+//DP_QC_EDICT_NUM
+	{"edict_num",		PF_edict_for_num,	0,		0,		0,		459},	// #459 entity(float entnum) edict_num
+
+//DP_QC_STRINGBUFFERS
+	{"buf_create",		PF_buf_create,		0,		0,		0,		460},	// #460 float() buf_create
+	{"buf_del",			PF_buf_del,			0,		0,		0,		461},	// #461 void(float bufhandle) buf_del
+	{"buf_getsize",		PF_buf_getsize,		0,		0,		0,		462},	// #462 float(float bufhandle) buf_getsize
+	{"buf_copy",		PF_buf_copy,		0,		0,		0,		463},	// #463 void(float bufhandle_from, float bufhandle_to) buf_copy
+	{"buf_sort",		PF_buf_sort,		0,		0,		0,		464},	// #464 void(float bufhandle, float sortpower, float backward) buf_sort
+	{"buf_implode",		PF_buf_implode,		0,		0,		0,		465},	// #465 string(float bufhandle, string glue) buf_implode
+	{"bufstr_get",		PF_bufstr_get,		0,		0,		0,		466},	// #466 string(float bufhandle, float string_index) bufstr_get
+	{"bufstr_set",		PF_bufstr_set,		0,		0,		0,		467},	// #467 void(float bufhandle, float string_index, string str) bufstr_set
+	{"bufstr_add",		PF_bufstr_add,		0,		0,		0,		468},	// #468 float(float bufhandle, string str, float order) bufstr_add
+	{"bufstr_free",		PF_bufstr_free,		0,		0,		0,		469},	// #469 void(float bufhandle, float string_index) bufstr_free
+
+	//no 470 documented
+
+//DP_QC_ASINACOSATANATAN2TAN
+	{"asin",			PF_asin,			0,		0,		0,		471},	// #471 float(float s) asin
+	{"acos",			PF_acos,			0,		0,		0,		472},	// #472 float(float c) acos
+	{"atan",			PF_atan,			0,		0,		0,		473},	// #473 float(float t) atan
+	{"atan2",			PF_atan2,			0,		0,		0,		474},	// #474 float(float c, float s) atan2
+	{"tan",				PF_tan,				0,		0,		0,		475},	// #475 float(float a) tan
+
+
+//DP_QC_STRINGCOLORFUNCTIONS
 	{"strlennocol",		PF_strlennocol,		0,		0,		0,		476},	// #476 float(string s) strlennocol
 	{"strdecolorize",	PF_strdecolorize,	0,		0,		0,		477},	// #477 string(string s) strdecolorize
 
-//end other peoples extras
+//DP_QC_STRFTIME
+	{"strftime",		PF_strftime,		0,		0,		0,		478},	// #478 string(float uselocaltime, string format, ...) strftime
+
+//DP_QC_TOKENIZEBYSEPARATOR
+	{"tokenizebyseparator",PF_tokenizebyseparator,0,0,		0,		479},	// #479 float(string s, string separator1, ...) tokenizebyseparator
+
+//DP_QC_STRING_CASE_FUNCTIONS
+	{"strtolower",		PF_strtolower,		0,		0,		0,		480},	// #476 string(string s) strtolower
+	{"strtoupper",		PF_strtoupper,		0,		0,		0,		481},	// #476 string(string s) strlennocol
+
+//DP_QC_CVAR_DEFSTRING
+	{"cvar_defstring",	PF_cvar_defstring,	0,		0,		0,		482},	// #482 string(string s) cvar_defstring
+
+//DP_SV_POINTSOUND
+	{"pointsound",		PF_pointsound,		0,		0,		0,		483},	// #483 void(vector origin, string sample, float volume, float attenuation) pointsound
+
+//DP_QC_STRREPLACE
+	{"strreplace",		PF_strreplace,		0,		0,		0,		484},	// #484 string(string search, string replace, string subject) strreplace
+	{"strireplace",		PF_strireplace,		0,		0,		0,		485},	// #485 string(string search, string replace, string subject) strireplace
+
+
+//DP_QC_GETSURFACEPOINTATTRIBUTE
+	{"getsurfacepointattribute",PF_getsurfacepointattribute,0,0,0,	486},	// #486vector(entity e, float s, float n, float a) getsurfacepointattribute
+
+//DP_GECKO_SUPPORT
+	{"gecko_create",	PF_gecko_create,	0,		0,		0,		487},	// #487 float(string name) gecko_create( string name )
+	{"gecko_destroy",	PF_gecko_destroy,	0,		0,		0,		488},	// #488 void(string name) gecko_destroy( string name )
+	{"gecko_navigate",	PF_gecko_navigate,	0,		0,		0,		489},	// #489 void(string name) gecko_navigate( string name, string URI )
+	{"gecko_keyevent",	PF_gecko_keyevent,	0,		0,		0,		490},	// #490 float(string name) gecko_keyevent( string name, float key, float eventtype )
+	{"gecko_mousemove",	PF_gecko_mousemove,	0,		0,		0,		491},	// #491 void gecko_mousemove( string name, float x, float y )
+	{"gecko_resize",	PF_gecko_resize,	0,		0,		0,		492},	// #492 void gecko_resize( string name, float w, float h )
+	{"gecko_get_texture_extent",PF_gecko_get_texture_extent,0,0,0,	493},	// #493 vector gecko_get_texture_extent( string name )
+
+//DP_QC_CRC16
+	{"crc16",			PF_crc16,			0,		0,		0,		494},	// #494 float(float caseinsensitive, string s, ...) crc16
+
+//DP_QC_CVAR_TYPE
+	{"cvar_type",		PF_cvar_type,		0,		0,		0,		495},	// #495 float(string name) cvar_type
+
+//DP_QC_ENTITYDATA
+	{"numentityfields",	PF_numentityfields,	0,		0,		0,		496},	// #496 float() numentityfields
+	{"entityfieldname",	PF_entityfieldname,	0,		0,		0,		497},	// #497 string(float fieldnum) entityfieldname
+	{"entityfieldtype",	PF_entityfieldtype,	0,		0,		0,		498},	// #498 float(float fieldnum) entityfieldtype
+	{"getentityfieldstring",PF_getentityfieldstring,0,0,	0,		499},	// #499 string(float fieldnum, entity ent) getentityfieldstring
+	{"putentityfieldstring",PF_putentityfieldstring,0,0,	0,		500},	// #500 float(float fieldnum, entity ent, string s) putentityfieldstring
+
+//DP_SV_WRITEPICTURE
+	{"WritePicture",	PF_WritePicture,	0,		0,		0,		501},	// #501 void(float to, string s, float sz) WritePicture
+
+	//no 502 documented
+
+//DP_QC_WHICHPACK
+	{"whichpack",		PF_whichpack,		0,		0,		0,		503},	// #503 string(string filename) whichpack
+
+//DP_QC_URI_ESCAPE
+	{"uri_escape",		PF_uri_escape,		0,		0,		0,		510},	// #510 string(string in) uri_escape
+	{"uri_unescape",	PF_uri_unescape,	0,		0,		0,		511},	// #511 string(string in) uri_unescape = #511;
+
+//DP_QC_NUM_FOR_EDICT
+	{"num_for_edict",	PF_num_for_edict,	0,		0,		0,		512},	// #512 float(entity ent) num_for_edict
+
+//DP_QC_URI_GET
+	{"uri_get",			PF_uri_get,			0,		0,		0,		513},	// #513 float(string uril, float id) uri_get
+
+	//no 504
+//end dp extras
 
 	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin
 
@@ -10943,13 +9215,14 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 	{
 		for (i = 0; BuiltinList[i].name; i++)
 		{
-			builtincount[BuiltinList[i].ebfsnum]++;
+			if (BuiltinList[i].ebfsnum && !BuiltinList[i].obsolete)
+				builtincount[BuiltinList[i].ebfsnum]++;
 		}
 		for (i = 0; BuiltinList[i].name; i++)
 		{
 			if (BuiltinList[i].ebfsnum)
 			{
-				if (pr_builtin[BuiltinList[i].ebfsnum] == PF_Fixme && builtincount[BuiltinList[i].ebfsnum] == 1)
+				if (pr_builtin[BuiltinList[i].ebfsnum] == PF_Fixme && builtincount[BuiltinList[i].ebfsnum] == (BuiltinList[i].obsolete?0:1))
 				{
 					pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
 					Con_DPrintf("Enabled %s\n", BuiltinList[i].name);
@@ -10986,7 +9259,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 	}
 
 
-	for (i = 0; i < sizeof(QSG_Extensions)/sizeof(QSG_Extensions[0]); i++)
+	for (i = 0; i < QSG_Extensions_count; i++)
 	{
 		if (QSG_Extensions[i].enabled)
 			*QSG_Extensions[i].enabled = false;
@@ -11014,6 +9287,104 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 			Con_Printf("Failed to register all MVDSV builtins\n");
 		else
 			Con_Printf("Be aware that MVDSV does not follow standards. Please encourage mod developers to not require pr_imitatemvdsv to be set.\n");
+	}
+}
+
+void PR_SVExtensionList_f(void)
+{
+	int i;
+	int ebi;
+	int bi;
+	lh_extension_t *extlist;
+
+#define SHOW_ACTIVEEXT 1
+#define SHOW_ACTIVEBI 2
+#define SHOW_NOTSUPPORTEDEXT 4
+#define SHOW_NOTACTIVEEXT 8
+#define SHOW_NOTACTIVEBI 16
+
+	int showflags = atoi(Cmd_Argv(1));
+	if (!showflags)
+		showflags = SHOW_ACTIVEEXT|SHOW_NOTACTIVEEXT;
+
+	if (showflags & (SHOW_ACTIVEBI|SHOW_NOTACTIVEBI))
+	for (i = 0; BuiltinList[i].name; i++)
+	{
+		if (!BuiltinList[i].ebfsnum)
+			continue;	//a reserved builtin.
+		if (BuiltinList[i].bifunc == PF_Fixme)
+			Con_Printf("^1%s:%i needs to be added\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
+		else if (pr_builtin[BuiltinList[i].ebfsnum] == BuiltinList[i].bifunc)
+		{
+			if (showflags & SHOW_ACTIVEBI)
+				Con_Printf("%s is active on %i\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
+		}
+		else
+		{
+			if (showflags & SHOW_NOTACTIVEBI)
+				Con_Printf("^4%s is NOT active (%i)\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
+		}
+	}
+
+	if (showflags & (SHOW_NOTSUPPORTEDEXT|SHOW_NOTACTIVEEXT|SHOW_ACTIVEEXT))
+	{
+		extlist = QSG_Extensions;
+
+		for (i = 0; i < QSG_Extensions_count; i++)
+		{
+			if (!extlist[i].name)
+				continue;
+
+			if (i < 32)
+			{
+				if (!(svs.fteprotocolextensions & (1<<i)))
+				{
+					if (showflags & SHOW_NOTSUPPORTEDEXT)
+						Con_Printf("^4protocol %s is not supported\n", extlist[i].name);
+					continue;
+				}
+			}
+
+			for (ebi = 0; ebi < extlist[i].numbuiltins; ebi++)
+			{
+				for (bi = 0; BuiltinList[bi].name; bi++)
+				{
+					if (!strcmp(BuiltinList[bi].name, extlist[i].builtinnames[ebi]))
+						break;
+				}
+
+				if (!BuiltinList[bi].name)
+				{
+					if (showflags & SHOW_NOTSUPPORTEDEXT)
+						Con_Printf("^4%s is not supported\n", extlist[i].name);
+					break;
+				}
+				if (pr_builtin[BuiltinList[bi].ebfsnum] != BuiltinList[bi].bifunc)
+				{
+					if (pr_builtin[BuiltinList[bi].ebfsnum] == PF_Fixme)
+					{
+						if (showflags & SHOW_NOTACTIVEEXT)
+							Con_Printf("^4%s is not currently active (builtin: %s#%i)\n", extlist[i].name, BuiltinList[bi].name, BuiltinList[bi].ebfsnum);
+					}
+					else
+					{
+						if (showflags & SHOW_NOTACTIVEEXT)
+							Con_Printf("^4%s was overridden (builtin: %s#%i)\n", extlist[i].name, BuiltinList[bi].name, BuiltinList[bi].ebfsnum);
+					}
+					break;
+				}
+			}
+			if (ebi == extlist[i].numbuiltins)
+			{
+				if (showflags & SHOW_ACTIVEEXT)
+				{
+					if (!extlist[i].numbuiltins)
+						Con_Printf("%s is supported\n", extlist[i].name);
+					else
+						Con_Printf("%s is currently active\n", extlist[i].name);
+				}
+			}
+		}
 	}
 }
 
@@ -11184,12 +9555,16 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldxfloat(dimension_hit);
 
 
+	// EXT_CSQC
 	fieldxfunction(SendEntity);
+	fieldxfloat(SendFlags);
 	fieldxfloat(Version);
 	fieldxfloat(pvsflags);
 
 	// FTE_ENT_UNIQUESPAWNID
 	fieldxfloat(uniquespawnid);
+
+	fieldxfunction(customizeentityforclient);
 
 	//Tell the qc library to split the entity fields each side.
 	//the fields above become < 0, the remaining fields specified by the qc stay where the mod specified, as far as possible (with addons at least).

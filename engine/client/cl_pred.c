@@ -400,7 +400,7 @@ void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, user
 	pmove.onladder = false;
 	pmove.hullnum = from->hullnum;
 
-	if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3 || pmove.hullnum > MAX_MAP_HULLSM)
+	if (cl.worldmodel->fromgame != fg_quake)
 	{
 		player_mins[0] = -16;
 		player_mins[1] = -16;
@@ -418,7 +418,7 @@ void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, user
 		VectorCopy(cl.worldmodel->hulls[pmove.hullnum].clip_maxs, player_maxs);
 	}
 	if (DEFAULT_VIEWHEIGHT > player_maxs[2])
-	{
+	{	//this hack is for hexen2.
 		player_maxs[2] -= player_mins[2];
 		player_mins[2] = 0;
 	}

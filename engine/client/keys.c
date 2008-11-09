@@ -58,6 +58,7 @@ void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue);
 
 extern cvar_t con_displaypossibilities;
 cvar_t con_selectioncolour = SCVARFC("con_selectioncolour", "0", CVAR_RENDERERCALLBACK, Con_Selectioncolour_Callback);
+cvar_t con_echochat = SCVAR("con_echochat", "0");
 extern cvar_t cl_chatmode;
 
 static int KeyModifier (qboolean shift, qboolean alt, qboolean ctrl)
@@ -359,6 +360,8 @@ void CompleteCommand (qboolean force)
 //lines typed at the main console enter here
 void Con_ExecuteLine(console_t *con, char *line)
 {
+	qboolean waschat = false;
+
 	con_commandmatch=1;
 	if (line[0] == '\\' || line[0] == '/')
 		Cbuf_AddText (line+1, RESTRICT_LOCAL);	// skip the >
@@ -368,7 +371,7 @@ void Con_ExecuteLine(console_t *con, char *line)
 	else if (cls.protocol == CP_QUAKE2)
 		Cbuf_AddText (line, RESTRICT_LOCAL);	// send the command to the server via console, and let the server convert to chat
 #endif
-	else
+	else if (*line)
 	{	// convert to a chat message
 		if (cl_chatmode.value == 1 || ((cls.state >= ca_connected && cl_chatmode.value == 2) && (strncmp(line, "say ", 4))))
 		{
@@ -376,12 +379,14 @@ void Con_ExecuteLine(console_t *con, char *line)
 				Cbuf_AddText ("say_team ", RESTRICT_LOCAL);
 			else
 				Cbuf_AddText ("say ", RESTRICT_LOCAL);
+			waschat = true;
 		}
 		Cbuf_AddText (line, RESTRICT_LOCAL);	// skip the >
 	}
 
 	Cbuf_AddText ("\n", RESTRICT_LOCAL);
-	Con_Printf ("]%s\n",line);
+	if (!waschat || con_echochat.value)
+		Con_Printf ("]%s\n",line);
 	if (cls.state == ca_disconnected)
 		SCR_UpdateScreen ();	// force an update, because the command
 									// may take some time
@@ -1337,6 +1342,7 @@ void Key_Init (void)
 	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
 
 	Cvar_Register (&con_selectioncolour, "Console variables");
+	Cvar_Register (&con_echochat, "Console variables");
 }
 
 qboolean Key_MouseShouldBeFree(void)
@@ -1493,6 +1499,16 @@ void Key_Event (int key, qboolean down)
 	if (key == K_SHIFT)
 		shift_down = down;
 
+	if (key == K_ESCAPE)
+		if (shift_down)
+		{
+			if (down)
+			{
+				Con_ToggleConsole_f();
+				return;
+			}
+		}
+
 	//yes, csqc is allowed to steal the escape key.
 	if (key != '`' && key != '~')
 	if (key_dest == key_game)
@@ -1555,6 +1571,14 @@ void Key_Event (int key, qboolean down)
 		}
 		return;
 	}
+
+#ifndef NOMEDIA
+	if (key_dest == key_game && Media_PlayingFullScreen())
+	{
+		Media_Send_KeyEvent(NULL, key, down?0:1);
+		return;
+	}
+#endif
 
 //
 // key up events only generate commands if the game key binding is

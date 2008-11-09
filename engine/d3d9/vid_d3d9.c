@@ -1454,6 +1454,7 @@ rendererinfo_t d3d9rendererinfo =
 	D3D9_Draw_ReInit,
 	D3D9_Draw_Character,
 	D3D9_Draw_ColouredCharacter,
+	NULL,
 	D3D9_Draw_String,
 	D3D9_Draw_Alt_String,
 	D3D9_Draw_Crosshair,

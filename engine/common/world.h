@@ -85,8 +85,6 @@ typedef struct q2trace_s
 	struct edict_s	*ent;		// not set by CM_*() functions
 } q2trace_t;
 
-#ifndef CLIENTONLY
-
 #define	MOVE_NORMAL		0
 #define	MOVE_NOMONSTERS	1
 #define	MOVE_MISSILE	2
@@ -107,6 +105,7 @@ typedef struct areanode_s
 #define	AREA_DEPTH	4
 #define	AREA_NODES	32 //pow(2, AREA_DEPTH+1)
 
+#ifndef CLIENTONLY
 extern	areanode_t	sv_areanodes[AREA_NODES];
 
 

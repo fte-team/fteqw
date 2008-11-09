@@ -691,7 +691,7 @@ void	D3D9_Draw_FillRGB				(int x, int y, int w, int h, float r, float g, float b
 	D3D9_Draw_Fill_I(x, y, w, h, *(unsigned int*)colours);
 }
 
-void	D3D9_Draw_Fill				(int x, int y, int w, int h, int c)
+void	D3D9_Draw_Fill				(int x, int y, int w, int h, unsigned int c)
 {
 	D3D9_Draw_FillRGB(x, y, w, h, host_basepal[c*3+0]/255.0f, host_basepal[c*3+1]/255.0f, host_basepal[c*3+2]/255.0f);
 }

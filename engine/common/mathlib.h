@@ -97,11 +97,13 @@ int			GreatestCommonDivisor (int i1, int i2);
 fixed16_t	Invert24To16 (fixed16_t val);
 vec_t		Length (vec3_t v);
 void		MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up);
+float		Q_rsqrt(float number);
 
 //used for crosshair stuff.
 void		Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
 void		Matrix4_Identity(float *outm);
 void		Matrix4_Invert_Simple (matrix4x4_t *out, const matrix4x4_t *in1);
+void		Matrix4x4_CreateTranslate (matrix4x4_t *out, float x, float y, float z);
 void		Matrix4_ModelMatrixFromAxis (float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg);
 void		Matrix4_ModelViewMatrix (float *modelview, vec3_t viewangles, vec3_t vieworg);
 void		Matrix4_ModelViewMatrixFromAxis (float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg);
@@ -121,9 +123,10 @@ void		R_ConcatTransforms (matrix3x4 in1, matrix3x4 in2, matrix3x4 out);
 void		RotatePointAroundVector (vec3_t dst, const vec3_t dir, const vec3_t point, float degrees);
 int			VectorCompare (vec3_t v1, vec3_t v2);
 void		VectorInverse (vec3_t v);
-void		VectorMA (vec3_t veca, float scale, vec3_t vecb, vec3_t vecc);
+void		VectorMA (const vec3_t veca, const float scale, const vec3_t vecb, vec3_t vecc);
 float		VectorNormalize (vec3_t v);		// returns vector length
 vec_t		VectorNormalize2 (vec3_t v, vec3_t out);
+void		VectorNormalizeFast(vec3_t v);
 void		VectorScale (vec3_t in, vec_t scale, vec3_t out);
 void		VectorTransform (const vec3_t in1, matrix3x4 in2, vec3_t out);
 void		VectorVectors (vec3_t forward, vec3_t right, vec3_t up);

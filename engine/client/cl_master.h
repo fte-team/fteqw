@@ -45,6 +45,15 @@ typedef enum{
 	SLKEY_TIMELIMIT,
 	SLKEY_FRAGLIMIT,
 
+	SLKEY_MOD,
+	SLKEY_PROTOCOL,
+	SLKEY_NUMBOTS,
+	SLKEY_NUMHUMANS,
+	SLKEY_QCSTATUS,
+//	SLKEY_PLAYERS,	//eep!
+	SLKEY_ISFAVORITE,//eep!
+
+
 	SLKEY_TOOMANY,
 	SLKEY_CUSTOM
 } hostcachekey_t;
@@ -90,12 +99,22 @@ typedef struct serverinfo_s {
 	qbyte sends;
 	qbyte insortedlist;
 
+	qbyte numhumans;
+	qbyte numbots;
+	qbyte freeslots;
+	qbyte protocol;
+
+	char modname[8+1];
+	char qcstatus[8+1];
+
+	char gamedir[8+1];
+	char map[16];
+
+	unsigned short gameversion;
 	unsigned short ping;
 
 	short tl;
 	short fl;
-	char gamedir[8+1];
-	char map[16];
 
 	float refreshtime;
 
@@ -153,6 +172,7 @@ int Master_KeyForName(char *keyname);
 float Master_ReadKeyFloat(serverinfo_t *server, int keynum);
 char *Master_ReadKeyString(serverinfo_t *server, int keynum);
 
+void Master_SortServers(void);
 void Master_SetSortField(hostcachekey_t field, qboolean descending);
 hostcachekey_t Master_GetSortField(void);
 qboolean Master_GetSortDescending(void);

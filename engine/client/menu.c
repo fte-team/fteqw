@@ -217,6 +217,12 @@ M_ToggleMenu_f
 */
 void M_ToggleMenu_f (void)
 {
+	if (m_state)
+	{
+		key_dest = key_menu;
+		return;
+	}
+
 #ifdef MENU_DAT
 	if (MP_Toggle())
 		return;

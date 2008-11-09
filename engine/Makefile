@@ -266,6 +266,9 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	net_master.o	\
 	r_bulleten.o	\
 	r_part.o	\
+	p_script.o	\
+	p_null.o	\
+	p_classic.o	\
 	r_partset.o	\
 	r_efrag.o	\
 	renderer.o	\

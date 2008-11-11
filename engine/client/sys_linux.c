@@ -409,7 +409,7 @@ void Sys_CloseLibrary(dllhandle_t *lib)
 dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
 {
 	int i;
-	HMODULE lib;
+	dllhandle_t lib;
 
 	lib = dlopen (name, RTLD_LAZY);
 	if (!lib)

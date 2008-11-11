@@ -404,7 +404,7 @@ void *Sys_GetGameAPI(void *parms)
 
 void Sys_CloseLibrary(dllhandle_t *lib)
 {
-	dlclose((void*)lib)
+	dlclose((void*)lib);
 }
 dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
 {

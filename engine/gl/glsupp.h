@@ -32,6 +32,17 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 #define GL_CLAMP_TO_EDGE                  0x812F
 //#endif
 
+// Added to make morphos and mingw32 crosscompilers to work
+/*
+./gl/gl_draw.c: In function `GL_Upload32_BGRA':
+./gl/gl_draw.c:3251: error: `GL_BGRA_EXT' undeclared (first use in this function)
+./gl/gl_draw.c:3251: error: (Each undeclared identifier is reported only once
+./gl/gl_draw.c:3251: error: for each function it appears in.)
+*/
+#ifndef GL_EXT_bgra
+#define GL_BGR_EXT                        0x80E0
+#define GL_BGRA_EXT                       0x80E1
+#endif
 
 #ifndef GL_ARB_multitexture
 #define GL_ARB_multitexture 1

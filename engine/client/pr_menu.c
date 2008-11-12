@@ -1326,10 +1326,10 @@ builtin_t menu_builtins[] = {
 	PF_altstr_get, //string  altstr_get(string str, float num) = #84;
 	PF_altstr_set, //string  altstr_set(string str, float num, string set) = #85
 
-	skip1
-	skip1
-	skip1
-	skip1
+	skip1	//altstr_ins
+	skip1	//findflags
+	skip1	//findchainflags
+	PF_cvar_defstring,
 //90
 	skip10
 //100

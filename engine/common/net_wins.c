@@ -216,12 +216,14 @@ qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
 	}
 #endif
 
+#ifdef USEIPX
 	if (a.type == NA_IPX || a.type == NA_BROADCAST_IPX)
 	{
 		if ((memcmp(a.address.ipx, b.address.ipx, sizeof(a.address.ipx)) == 0) && a.port == b.port)
 			return true;
 		return false;
 	}
+#endif
 
 #ifdef IRCCONNECT
 	if (a.type == NA_IRC)
@@ -265,12 +267,14 @@ qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b)
 		return false;
 	}
 #endif
+#ifdef USEIPX
 	if (a.type == NA_IPX)
 	{
 		if ((memcmp(a.address.ipx, b.address.ipx, 10) == 0))
 			return true;
 		return false;
 	}
+#endif
 #ifdef IRCCONNECT
 	if (a.type == NA_IRC)
 	{
@@ -832,9 +836,9 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 		}
 #endif
 		break;
+#ifdef USEIPX
 	case NA_IPX:
 	case NA_BROADCAST_IPX:
-#ifdef USEIPX
 		n = amask->address.ipx;
 		if (i > 80)
 			i = 80;
@@ -1617,8 +1621,10 @@ qboolean	NET_PortToAdr (int adrfamily, char *s, netadr_t *a)
 			a->type = NA_IP;
 		else if (adrfamily == AF_INET6)
 			a->type = NA_IPV6;
+#ifdef USEIPX
 		else if (adrfamily == AF_IPX)
 			a->type = NA_IPX;
+#endif
 		else
 		{
 			a->type = NA_INVALID;
@@ -1713,10 +1719,12 @@ ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean isserver, 
 {
 	return FTENET_Generic_EstablishConnection(AF_INET, IPPROTO_UDP, isserver, address);
 }
+#ifdef USEIPX
 ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, char *address)
 {
 	return FTENET_Generic_EstablishConnection(AF_IPX, NSPROTO_IPX, isserver, address);
 }
+#endif
 
 #ifdef TCPCONNECT
 typedef struct ftenet_tcpconnect_stream_s {
@@ -3236,7 +3244,9 @@ void NET_InitClient(void)
 //	FTENET_AddToCollection(cls.sockets, "CLTCP4", port, FTENET_TCP4Connect_EstablishConnection);
 	FTENET_AddToCollection(cls.sockets, "CLUDP4", port, FTENET_UDP4_EstablishConnection);
 	FTENET_AddToCollection(cls.sockets, "CLUDP6", port, FTENET_UDP6_EstablishConnection);
+#ifdef USEIPX
 	FTENET_AddToCollection(cls.sockets, "CLIPX", port, FTENET_IPX_EstablishConnection);
+#endif
 
 	//
 	// init the message buffer

@@ -2175,7 +2175,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 			s++;
 		if (!strncmp(s, "PRIVMSG ", 8))
 		{
-			char *dest;
+			unsigned char *dest;
 
 			s+=8;
 			while(*s == ' ')
@@ -3209,7 +3209,7 @@ void NET_Init (void)
 	Con_TPrintf(TL_UDPINITED);
 }
 #define STRINGIFY2(s) #s
-#define STRINGIFY(s) STRINGIFY2(##s)
+#define STRINGIFY(s) STRINGIFY2(s)
 #ifndef SERVERONLY
 void NET_InitClient(void)
 {

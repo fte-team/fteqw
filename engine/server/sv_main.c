@@ -53,8 +53,7 @@ void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue);
 
 typedef struct {
-	enum {
-	} isdp;
+	int isdp;
 	cvar_t		cv;
 	netadr_t	adr;
 } sv_masterlist_t;

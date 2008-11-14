@@ -4912,6 +4912,7 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svcfte_trailparticles:
+#error CLDP_ParseTrailParticles() doesn't take any arguments.
 			CLDP_ParseTrailParticles(true);
 			break;
 		case svcfte_pointparticles:

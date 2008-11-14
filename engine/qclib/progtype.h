@@ -1,3 +1,6 @@
+#ifndef QCLIB_PROGTYPE_H
+#define QCLIB_PROGTYPE_H
+
 #ifndef DLL_PROG
 
 #else
@@ -15,4 +18,6 @@ typedef int pbool;
 typedef int progsnum_t;
 typedef int func_t;
 typedef int string_t;
+
+#endif /* QCLIB_PROGTYPE_H */
 

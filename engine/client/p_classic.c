@@ -157,6 +157,7 @@ static void PClassic_InitParticles (void)
 		r_numparticles = DEFAULT_NUM_PARTICLES;
 	}
 
+#error BZ_Malloc() only takes one argument, but SMVC doesn't care.
 	particles = (cparticle_t *) BZ_Malloc (r_numparticles * sizeof(cparticle_t), "classic:particles");
 
 	CL_RegisterParticles();

@@ -2258,7 +2258,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 				}
 				if (*s == '$')
 				{
-					char *nstart = s;
+					unsigned char *nstart = s;
 					while (*s != '\r' && *s != '\n' && *s != '#' && *s != ' ' && *s != ':')
 						s++;
 					if (*s == '#')

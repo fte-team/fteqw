@@ -4,6 +4,8 @@
 
 #include "pr_common.h"
 
+#include <ctype.h>
+
 //fixme
 #define Z_QC_TAG 2
 #define PRSTR	0xa6ffb3d7
@@ -13,6 +15,34 @@ static char *cvargroup_progs = "Progs variables";
 cvar_t pr_brokenfloatconvert = SCVAR("pr_brokenfloatconvert", "0");
 cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "");//"16");
 cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
+
+static char *strupr(char *s)
+{
+	char *p;
+
+	p = s;
+	while(*p)
+	{
+		*p = toupper(*p);
+		p++;
+	}
+
+	return s;
+}
+
+static char *strlwr(char *s)
+{
+	char *p;
+
+	p = s;
+	while(*p)
+	{
+		*p = tolower(*p);
+		p++;
+	}
+
+	return s;
+}
 
 void PF_Common_RegisterCvars(void)
 {

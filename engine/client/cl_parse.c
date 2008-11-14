@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLNQ_ParseDarkPlaces5Entities(void);
 void CL_SetStatInt (int pnum, int stat, int value);
+static qboolean CL_CheckModelResources (char *name);
 
 int nq_dp_protocol;
 int msgflags;
@@ -693,7 +694,7 @@ qboolean CL_CheckQ2BspWals(char *file)
 	return gotone;
 }
 
-qboolean CL_CheckModelResources (char *name)
+static qboolean CL_CheckModelResources (char *name)
 {
 	//returns true if we triggered a download
 	qboolean ret;

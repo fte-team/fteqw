@@ -16,7 +16,7 @@ cvar_t pr_brokenfloatconvert = SCVAR("pr_brokenfloatconvert", "0");
 cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "");//"16");
 cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
 
-static char *strupr(char *s)
+static char *strtoupper(char *s)
 {
 	char *p;
 
@@ -30,7 +30,7 @@ static char *strupr(char *s)
 	return s;
 }
 
-static char *strlwr(char *s)
+static char *strtolower(char *s)
 {
 	char *p;
 
@@ -1502,7 +1502,7 @@ void PF_strtolower (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char result[8192];
 
 	Q_strncpyz(result, in, sizeof(result));
-	strlwr(result);
+	strtolower(result);
 
 	RETURN_TSTRING(result);
 }
@@ -1514,7 +1514,7 @@ void PF_strtoupper (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char result[8192];
 
 	Q_strncpyz(result, in, sizeof(result));
-	strupr(result);
+	strtoupper(result);
 
 	RETURN_TSTRING(result);
 }
@@ -1536,7 +1536,7 @@ void PF_strftime (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		tm = gmtime(&ctime);
 	strftime(result, sizeof(result), in, tm);
 	Q_strncpyz(result, in, sizeof(result));
-	strupr(result);
+	strtoupper(result);
 
 	RETURN_TSTRING(result);
 }

@@ -23,6 +23,7 @@ ifeq ($(FTE_TARGET),win32)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=i586-mingw32msvc-gcc
 			WINDRES=i586-mingw32msvc-windres
+			STRIP=i586-mingw32msvc-strip
 #			BITS?=32
 		endif
 	endif

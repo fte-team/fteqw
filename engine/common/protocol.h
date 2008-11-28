@@ -28,7 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #define PEXT_BULLETENS			0x00000020
 #define PEXT_ACCURATETIMINGS	0x00000040
-//#define PEXT_LIGHTUPDATES		0x00000080	//send progs/zap.mdl in the same mannor as a nail.
+#define PEXT_SOUNDDBL			0x00000080	//revised startsound protocol
 #define PEXT_FATNESS			0x00000100	//GL only (or servers)
 #define PEXT_HLBSP				0x00000200
 #define PEXT_TE_BULLET			0x00000400
@@ -37,7 +37,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_ENTITYDBL			0x00002000	//max of 1024 ents instead of 512
 #define PEXT_ENTITYDBL2			0x00004000	//max of 1024 ents instead of 512
 #define PEXT_FLOATCOORDS		0x00008000	//supports floating point origins.
-#define PEXT_VWEAP				0x00010000	//cause an extra qbyte to be sent, and an extra list of models for vweaps.
+//#define PEXT_VWEAP				0x00010000	//cause an extra qbyte to be sent, and an extra list of models for vweaps.
 #ifdef Q2BSPS
 #define PEXT_Q2BSP				0x00020000
 #endif
@@ -206,8 +206,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svc_nails2			54		//qwe - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
 
 //FTE extended svcs
-#ifdef PEXT_VIEW2
-//#define svcfte_view2			56
+#ifdef PEXT_SOUNDDBL
+#define svcfte_soundextended			55
+#define svcfte_soundlistshort			56
 #endif
 #ifdef PEXT_LIGHTSTYLECOL
 #define svcfte_lightstylecol	57
@@ -217,9 +218,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_bulletentext	58
 #endif
 
-#ifdef PEXT_LIGHTUPDATES
-#define	svcfte_lightnings		59
-#endif
+//#define	svcfte_svcremoved		59
 
 #ifdef PEXT_MODELDBL
 #define	svcfte_modellistshort	60		// [strings]
@@ -523,9 +522,15 @@ enum clcq2_ops_e
 //==============================================
 
 // a sound with no channel is a local only sound
-// the sound field has bits 0-2: channel, 3-12: entity
+// the sound field has bits 0-2: channel, 3-12: entity, 13: unused, 14-15: flags
 #define	SND_VOLUME		(1<<15)		// a qbyte
 #define	SND_ATTENUATION	(1<<14)		// a qbyte
+
+#define	NQSND_VOLUME		(1<<0)		// a qbyte
+#define	NQSND_ATTENUATION	(1<<1)		// a qbyte
+#define DPSND_LOOPING		(1<<2)		// a long, supposedly
+#define DPSND_LARGEENTITY	(1<<3)
+#define DPSND_LARGESOUND	(1<<4)
 
 #define DEFAULT_SOUND_PACKET_VOLUME 255
 #define DEFAULT_SOUND_PACKET_ATTENUATION 1.0

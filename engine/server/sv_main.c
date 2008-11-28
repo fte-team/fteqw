@@ -1674,6 +1674,43 @@ client_t *SVC_DirectConnect(void)
 			}
 		}
 		msg_badread=false;
+
+		if (developer.value && protextsupported)
+		{
+#define printext(e) Con_Printf("Pext: " #e ": %s\n", (protextsupported & e)?"yes":"no")
+			printext(PEXT_SETVIEW);
+			printext(PEXT_SCALE);
+			printext(PEXT_LIGHTSTYLECOL);
+			printext(PEXT_TRANS);
+			printext(PEXT_VIEW2);
+			printext(PEXT_BULLETENS);
+			printext(PEXT_ACCURATETIMINGS);
+			printext(PEXT_SOUNDDBL);
+			printext(PEXT_FATNESS);
+			printext(PEXT_HLBSP);
+			printext(PEXT_TE_BULLET);
+			printext(PEXT_HULLSIZE);
+			printext(PEXT_MODELDBL);
+			printext(PEXT_ENTITYDBL);
+			printext(PEXT_ENTITYDBL2);
+			printext(PEXT_FLOATCOORDS);
+			printext(PEXT_VWEAP);
+			printext(PEXT_Q2BSP);
+			printext(PEXT_Q3BSP);
+			printext(PEXT_COLOURMOD);
+			printext(PEXT_SPLITSCREEN);
+			printext(PEXT_HEXEN2);
+			printext(PEXT_SPAWNSTATIC2);
+			printext(PEXT_CUSTOMTEMPEFFECTS);
+			printext(PEXT_256PACKETENTITIES);
+//			printext(PEXT_64PLAYERS);
+			printext(PEXT_SHOWPIC);
+			printext(PEXT_SETATTACHMENT);
+//			printext(PEXT_PK3DOWNLOADS);
+			printext(PEXT_CHUNKEDDOWNLOADS);
+			printext(PEXT_CSQC);
+			printext(PEXT_DPFLAGS);
+		}
 	}
 
 	if (protextsupported & PEXT_256PACKETENTITIES)
@@ -3486,9 +3523,6 @@ void SV_InitLocal (void)
 #ifdef PEXT_ZLIBDL
 	svs.fteprotocolextensions |= PEXT_ZLIBDL;
 #endif
-#ifdef PEXT_LIGHTUPDATES
-	svs.fteprotocolextensions |= PEXT_LIGHTUPDATES;
-#endif
 #ifdef PEXT_FATNESS
 	svs.fteprotocolextensions |= PEXT_FATNESS;
 #endif
@@ -3512,6 +3546,9 @@ void SV_InitLocal (void)
 #endif
 #ifdef PEXT_MODELDBL
 	svs.fteprotocolextensions |= PEXT_MODELDBL;
+#endif
+#ifdef PEXT_SOUNDDBL
+	svs.fteprotocolextensions |= PEXT_SOUNDDBL;
 #endif
 #ifdef PEXT_FLOATCOORDS
 	svs.fteprotocolextensions |= PEXT_FLOATCOORDS;

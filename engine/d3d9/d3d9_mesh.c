@@ -103,7 +103,6 @@ static galiastexnum_t *D3D9_ChooseSkin(galiasinfo_t *inf, char *modelname, int s
 	int frame;
 
 	int tc, bc;
-	int local;
 
 	if (!gl_nocolors.value)
 	{
@@ -113,33 +112,6 @@ static galiastexnum_t *D3D9_ChooseSkin(galiasinfo_t *inf, char *modelname, int s
 				Skin_Find(e->scoreboard);
 			tc = e->scoreboard->ttopcolor;
 			bc = e->scoreboard->tbottomcolor;
-/*
-			//colour forcing
-			if (cl.splitclients<2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
-			{
-				if (cl.teamplay && cl.spectator)
-				{
-					local = Cam_TrackNum(0);
-					if (local < 0)
-						local = cl.playernum[0];
-				}
-				else
-					local = cl.playernum[0];
-				if (cl.teamplay && !strcmp(e->scoreboard->team, cl.players[local].team))
-				{
-					if (cl_teamtopcolor>=0)
-						tc = cl_teamtopcolor;
-					if (cl_teambottomcolor>=0)
-						bc = cl_teambottomcolor;
-				}
-				else
-				{
-					if (cl_enemytopcolor>=0)
-						tc = cl_enemytopcolor;
-					if (cl_enemybottomcolor>=0)
-						bc = cl_enemybottomcolor;
-				}
-			}*/
 		}
 		else
 		{

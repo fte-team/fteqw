@@ -2681,6 +2681,7 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 	{
 #ifdef CLIENTONLY
 		Sys_Error("NET_GetPacket: Bad netsrc");
+		return;
 #else
 		collection = svs.sockets;
 #endif
@@ -2689,6 +2690,7 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 	{
 #ifdef SERVERONLY
 		Sys_Error("NET_GetPacket: Bad netsrc");
+		return;
 #else
 		collection = cls.sockets;
 #endif

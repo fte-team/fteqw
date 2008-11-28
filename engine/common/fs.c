@@ -2867,7 +2867,7 @@ void COM_Gamedir (char *dir)
 	}
 #endif
 
-	COM_Effectinfo_Reset();
+	COM_Effectinfo_Clear();
 
 	Validation_FlushFileList();	//prevent previous hacks from making a difference.
 

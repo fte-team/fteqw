@@ -22,7 +22,7 @@ void					D3D9_Draw_DebugChar (qbyte num);
 void					D3D9_Draw_EditorBackground (int lines);
 void					D3D9_Draw_EndDisc (void);
 void					D3D9_Draw_FadeScreen (void);
-void					D3D9_Draw_Fill (int x, int y, int w, int h, int c);
+void					D3D9_Draw_Fill (int x, int y, int w, int h, unsigned int c);
 void					D3D9_Draw_Fill_Colours (int x, int y, int w, int h);
 void					D3D9_Draw_Fill_I (int x, int y, int w, int h, unsigned int imgcolour);
 void					D3D9_Draw_FillRGB (int x, int y, int w, int h, float r, float g, float b);

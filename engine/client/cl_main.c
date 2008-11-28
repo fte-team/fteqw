@@ -49,6 +49,7 @@ cvar_t	cl_sbar		= SCVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= SCVARF("cl_hudswap", "0", CVAR_ARCHIVE);
 cvar_t	cl_maxfps	= SCVARF("cl_maxfps", "1000", CVAR_ARCHIVE);
 cvar_t	cl_nopext	= SCVARF("cl_nopext", "0", CVAR_ARCHIVE);
+cvar_t	cl_pext_mask = SCVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= SCVAR("cl_nolerp", "1");
 cvar_t	hud_tracking_show = SCVAR("hud_tracking_show", "1");
 
@@ -323,9 +324,6 @@ unsigned int CL_SupportedFTEExtensions(void)
 #ifdef PEXT_ZLIBDL
 	fteprotextsupported |= PEXT_ZLIBDL;
 #endif
-#ifdef PEXT_LIGHTUPDATES
-	fteprotextsupported |= PEXT_LIGHTUPDATES;
-#endif
 #ifdef PEXT_FATNESS
 	fteprotextsupported |= PEXT_FATNESS;
 #endif
@@ -351,6 +349,9 @@ unsigned int CL_SupportedFTEExtensions(void)
 #endif
 #ifdef PEXT_MODELDBL
 	fteprotextsupported |= PEXT_MODELDBL;
+#endif
+#ifdef PEXT_SOUNDDBL
+	fteprotextsupported |= PEXT_SOUNDDBL;
 #endif
 #ifdef PEXT_VWEAP
 	fteprotextsupported |= PEXT_VWEAP;
@@ -378,6 +379,11 @@ unsigned int CL_SupportedFTEExtensions(void)
 #ifdef PEXT_DPFLAGS
 	fteprotextsupported |= PEXT_DPFLAGS;
 #endif
+
+	fteprotextsupported &= strtoul(cl_pext_mask.string, NULL, 16);
+
+	if (cl_nopext.value)
+		fteprotextsupported = 0;
 
 	return fteprotextsupported;
 }
@@ -417,7 +423,6 @@ void CL_SendConnectPacket (
 
 	if (cl_nopext.value)	//imagine it's an unenhanced server
 	{
-		ftepext = 0;
 		compressioncrc = 0;
 	}
 
@@ -2898,6 +2903,8 @@ void CL_Init (void)
 	Cvar_Register (&cl_standardmsg,					cl_controlgroup);
 	Cvar_Register (&cl_parsewhitetext,				cl_controlgroup);
 	Cvar_Register (&cl_nopext,					cl_controlgroup);
+	Cvar_Register (&cl_pext_mask,					cl_controlgroup);
+
 	Cvar_Register (&cl_splitscreen,					cl_controlgroup);
 
 	Cvar_Register (&host_mapname,					"Scripting");

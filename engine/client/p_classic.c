@@ -157,8 +157,7 @@ static void PClassic_InitParticles (void)
 		r_numparticles = DEFAULT_NUM_PARTICLES;
 	}
 
-#error BZ_Malloc() only takes one argument, but SMVC doesn't care.
-	particles = (cparticle_t *) BZ_Malloc (r_numparticles * sizeof(cparticle_t), "classic:particles");
+	particles = (cparticle_t *) BZ_Malloc (r_numparticles * sizeof(cparticle_t));
 
 	CL_RegisterParticles();
 }
@@ -198,7 +197,7 @@ static void PClassic_DrawParticles(void)
 #ifdef RGLQUAKE
 	unsigned char *at, theAlpha;
 	vec3_t up, right;
-	float dist, scale, r_partscale;
+	float dist, scale, r_partscale=0;
 #endif
 
 	if (!active_particles)

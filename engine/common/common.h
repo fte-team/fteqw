@@ -378,7 +378,7 @@ void COM_EnumerateFiles (char *match, int (*func)(char *, int, void *), void *pa
 extern	struct cvar_s	registered;
 extern qboolean standard_quake;	//fixme: remove
 
-void COM_Effectinfo_Reset(void);
+void COM_Effectinfo_Clear(void);
 unsigned int COM_Effectinfo_ForName(char *efname);
 char *COM_Effectinfo_ForNumber(unsigned int efnum);
 

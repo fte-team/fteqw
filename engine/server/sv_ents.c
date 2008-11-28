@@ -106,12 +106,6 @@ extern	int	sv_nailmodel, sv_supernailmodel, sv_playermodel;
 
 qboolean demonails;
 
-#ifdef PEXT_LIGHTUPDATES
-edict_t	*light[MAX_NAILS];
-int		numlight;
-extern	int sv_lightningmodel;
-#endif
-
 static edict_t *csqcent[MAX_EDICTS];
 static int csqcnuments;
 
@@ -146,19 +140,6 @@ qboolean SV_DemoNailUpdate (int i)
 	return true;
 }
 
-#ifdef PEXT_LIGHTUPDATES
-qboolean SV_AddLightUpdate (edict_t *ent)
-{
-	if (ent->v->modelindex != sv_lightningmodel)
-		return false;
-	if (numlight == MAX_NAILS)
-		return true;
-	light[numnails] = ent;
-	numlight++;
-	return true;
-}
-#endif
-
 void SV_EmitNailUpdate (sizebuf_t *msg, qboolean recorder)
 {
 	qbyte	bits[6];	// [48 bits] xyzpy 12 12 12 4 8
@@ -166,33 +147,6 @@ void SV_EmitNailUpdate (sizebuf_t *msg, qboolean recorder)
 	edict_t	*ent;
 	int		x, y, z, p, yaw;
 
-#ifdef PEXT_LIGHTUPDATES
-	if (numlight)
-	{
-		MSG_WriteByte (msg, svc_lightnings);
-		MSG_WriteByte (msg, numlight);
-
-		for (n=0 ; n<numlight ; n++)
-		{
-			ent = light[n];
-			x = (int)(ent->v->origin[0]+4096)>>1;
-			y = (int)(ent->v->origin[1]+4096)>>1;
-			z = (int)(ent->v->origin[2]+4096)>>1;
-			p = (int)(16*ent->v->angles[0]/360)&15;
-			yaw = (int)(256*ent->v->angles[1]/360)&255;
-
-			bits[0] = x;
-			bits[1] = (x>>8) | (y<<4);
-			bits[2] = (y>>4);
-			bits[3] = z;
-			bits[4] = (z>>8) | (p<<4);
-			bits[5] = yaw;
-
-			for (i=0 ; i<6 ; i++)
-				MSG_WriteByte (msg, bits[i]);
-		}
-	}
-#endif
 	if (!numnails)
 		return;
 
@@ -2565,11 +2519,6 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 		{
 			if (SV_AddNailUpdate (ent))
 				continue;	// added to the special update list
-#ifdef PEXT_LIGHTUPDATES
-			if (client->fteprotocolextensions & PEXT_LIGHTUPDATES)
-				if (SV_AddLightUpdate (ent))
-					continue;
-#endif
 		}
 
 		//the entity would mess up the client and possibly disconnect them.
@@ -2682,9 +2631,6 @@ void SV_Snapshot_Clear(packet_entities_t *pack)
 
 	csqcnuments = 0;
 	numnails = 0;
-#ifdef PEXT_LIGHTUPDATES
-	numlight = 0;
-#endif
 }
 		
 /*

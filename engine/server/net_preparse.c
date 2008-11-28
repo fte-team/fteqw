@@ -360,11 +360,6 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		switch(majortype)
 		{
 		case svc_sound:
-#define	NQSND_VOLUME		(1<<0)		// a qbyte
-#define	NQSND_ATTENUATION	(1<<1)		// a qbyte
-#define DPSND_LOOPING		(1<<2)		// a long, supposedly
-#define DPSND_LARGEENTITY	(1<<3)
-#define DPSND_LARGESOUND	(1<<4)
 			protocollen = 5+sizeofcoord*3;
 			if (data & NQSND_VOLUME)
 				protocollen++;

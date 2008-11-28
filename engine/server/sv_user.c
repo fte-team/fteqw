@@ -794,9 +794,10 @@ SV_Soundlist_f
 */
 void SV_Soundlist_f (void)
 {
-	int i;
+	unsigned int i;
 	//char		**s;
-	unsigned n;
+	unsigned int n;
+	unsigned int maxclientsupportedsounds;
 
 	if (host_client->state != cs_connected)
 	{
@@ -833,8 +834,25 @@ void SV_Soundlist_f (void)
 		return;
 	}
 
-	MSG_WriteByte (&host_client->netchan.message, svc_soundlist);
-	MSG_WriteByte (&host_client->netchan.message, n);
+#ifdef PEXT_SOUNDDBL
+	if (n > 255)
+	{
+		MSG_WriteByte (&host_client->netchan.message, svcfte_soundlistshort);
+		MSG_WriteShort (&host_client->netchan.message, n);
+	}
+	else
+#endif
+	{
+		MSG_WriteByte (&host_client->netchan.message, svc_soundlist);
+		MSG_WriteByte (&host_client->netchan.message, n);
+	}
+
+	maxclientsupportedsounds = 256;
+#ifdef PEXT_SOUNDDBL
+	if (host_client->fteprotocolextensions & PEXT_SOUNDDBL)
+		maxclientsupportedsounds *= 2;
+#endif
+
 	if (sv.democausesreconnect)	//read the list from somewhere else
 	{
 		for (i = 1+n;
@@ -849,9 +867,13 @@ void SV_Soundlist_f (void)
 	else
 	{
 		for (i = 1+n;
-			*sv.strings.sound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);
+			i < maxclientsupportedsounds && *sv.strings.sound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);
 			i++, n++)
+		{
 			MSG_WriteString (&host_client->netchan.message, sv.strings.sound_precache[i]);
+			if (((n&255)==255) && n != i-1)
+				break;
+		}
 
 		if (!*sv.strings.sound_precache[i])
 			n = 0;
@@ -869,9 +891,9 @@ SV_Modellist_f
 */
 void SV_Modellist_f (void)
 {
-	int i;
-	unsigned n;
-	int maxclientsupportedmodels;
+	unsigned int i;
+	unsigned int n;
+	unsigned int maxclientsupportedmodels;
 
 	if (host_client->state != cs_connected)
 	{
@@ -908,20 +930,24 @@ void SV_Modellist_f (void)
 		return;
 	}
 
-	if (n >= 255)
+#ifdef PEXT_MODELDBL
+	if (n > 255)
 	{
 		MSG_WriteByte (&host_client->netchan.message, svcfte_modellistshort);
 		MSG_WriteShort (&host_client->netchan.message, n);
 	}
 	else
+#endif
 	{
 		MSG_WriteByte (&host_client->netchan.message, svc_modellist);
 		MSG_WriteByte (&host_client->netchan.message, n);
 	}
 
 	maxclientsupportedmodels = 256;
+#ifdef PEXT_MODELDBL
 	if (host_client->fteprotocolextensions & PEXT_MODELDBL)
 		maxclientsupportedmodels *= 2;
+#endif
 
 	if (sv.democausesreconnect)	//read the list from somewhere else
 	{

@@ -208,10 +208,6 @@ double	parsecounttime;
 
 int		cl_spikeindex, cl_playerindex, cl_h_playerindex, cl_flagindex, cl_rocketindex, cl_grenadeindex, cl_gib1index, cl_gib2index, cl_gib3index;
 
-#ifdef PEXT_LIGHTUPDATES
-int		cl_lightningindex;
-#endif
-
 //=============================================================================
 
 int packet_latency[NET_TIMINGS];
@@ -472,7 +468,7 @@ void CL_DownloadFinished(char *filename, char *tempname)
 	}
 	else
 	{
-		CL_CheckModelResources();
+		CL_CheckModelResources(filename);
 		if (!cl.sendprespawn)
 		{
 			for (i = 0; i < mod_numknown; i++)	//go and load this model now.
@@ -1079,9 +1075,6 @@ void Sound_NextDownload (void)
 	cl_gib1index = -1;
 	cl_gib2index = -1;
 	cl_gib3index = -1;
-#ifdef PEXT_LIGHTUPDATES
-	cl_lightningindex = -1;
-#endif
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
@@ -2570,7 +2563,7 @@ void CLNQ_ParseClientdata (void)
 CL_ParseSoundlist
 ==================
 */
-void CL_ParseSoundlist (void)
+void CL_ParseSoundlist (qboolean lots)
 {
 	int	numsounds;
 	char	*str;
@@ -2579,7 +2572,10 @@ void CL_ParseSoundlist (void)
 // precache sounds
 //	memset (cl.sound_precache, 0, sizeof(cl.sound_precache));
 
-	numsounds = MSG_ReadByte();
+	if (lots)
+		numsounds = MSG_ReadShort();
+	else
+		numsounds = MSG_ReadByte();
 
 	for (;;)
 	{
@@ -2606,7 +2602,7 @@ void CL_ParseSoundlist (void)
 			if (CL_RemoveClientCommands("soundlist"))
 				Con_Printf("Multiple soundlists\n");
 //			CL_SendClientCommand("soundlist %i %i", cl.servercount, n);
-			CL_SendClientCommand(true, soundlist_name, cl.servercount, n);
+			CL_SendClientCommand(true, soundlist_name, cl.servercount, (numsounds&0xff00) + n);
 		}
 		return;
 	}
@@ -2643,10 +2639,6 @@ void CL_ParseModellist (qboolean lots)
 
 		if (!strcmp(cl.model_name[nummodels],"progs/spike.mdl"))
 			cl_spikeindex = nummodels;
-#ifdef PEXT_LIGHTUPDATES
-		if (!strcmp(cl.model_name[nummodels], "progs/zap.mdl"))
-			cl_lightningindex = nummodels;
-#endif
 		if (!strcmp(cl.model_name[nummodels],"progs/player.mdl"))
 			cl_playerindex = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/h_player.mdl"))
@@ -4336,7 +4328,7 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 #endif
 #ifdef CSQC_DAT
 			else
-				 if (CSQC_StuffCmd(stufftext))
+				 if (CSQC_StuffCmd(destsplit, stufftext))
 				 {}
 #endif
 			else
@@ -4628,6 +4620,11 @@ void CL_ParseServerMessage (void)
 		case svc_sound:
 			CL_ParseStartSoundPacket();
 			break;
+#ifdef PEXT_SOUNDDBL
+		case svcfte_soundextended:
+			CLNQ_ParseStartSoundPacket();
+			break;
+#endif
 
 		case svc_stopsound:
 			i = MSG_ReadShort();
@@ -4825,8 +4822,13 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_soundlist:
-			CL_ParseSoundlist ();
+			CL_ParseSoundlist (false);
 			break;
+#ifdef PEXT_SOUNDDBL
+		case svcfte_soundlistshort:
+			CL_ParseSoundlist (true);
+			break;
+#endif
 
 		case svc_packetentities:
 			CL_ParsePacketEntities (false);
@@ -4859,13 +4861,6 @@ void CL_ParseServerMessage (void)
 			if (!(cls.fteprotocolextensions & PEXT_BULLETENS))
 				Host_EndGame("PEXT_BULLETENS is meant to be disabled\n");
 			Bul_ParseMessage();
-			break;
-#endif
-#ifdef PEXT_LIGHTUPDATES
-		case svc_lightnings:
-			if (!(cls.fteprotocolextensions & PEXT_LIGHTUPDATES))
-				Host_EndGame("PEXT_LIGHTUPDATES is meant to be disabled\n");
-			CL_ParseProjectiles (cl_lightningindex);
 			break;
 #endif
 
@@ -4912,8 +4907,7 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svcfte_trailparticles:
-#error CLDP_ParseTrailParticles() doesn't take any arguments.
-			CLDP_ParseTrailParticles(true);
+			CLDP_ParseTrailParticles();
 			break;
 		case svcfte_pointparticles:
 			CLDP_ParsePointParticles(false);

@@ -1349,7 +1349,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 		
 		cmd->lightlevel = 0;
 #ifdef CSQC_DAT
-		CSQC_Input_Frame(cmd);
+		CSQC_Input_Frame(plnum, cmd);
 #endif
 
 		cl.frames[i].senttime = realtime;
@@ -1603,7 +1603,7 @@ void CL_SendCmd (double frametime)
 			cl.frames[i].receivedtime = 0;	// nq doesn't allow us to find our own packetloss
 
 #ifdef CSQC_DAT
-			CSQC_Input_Frame(cmd);
+			CSQC_Input_Frame(0, cmd);
 #endif
 			CLNQ_SendCmd (&buf);
 			break;

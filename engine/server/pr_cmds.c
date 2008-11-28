@@ -2987,8 +2987,15 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		cvar_t *cv = Cvar_FindVar(str);
 		if (!cv)
 		{
-			cv = Cvar_Get(str, "", 0, "QC variables");
-			Con_Printf("Creating cvar %s\n", str);
+			//this little chunk is so cvars dp creates are created with meaningful values
+			char *def = "";
+			if (!strcmp(str, "sv_maxairspeed"))
+				def = "30";
+			else
+				def = "";
+
+			cv = Cvar_Get(str, def, 0, "QC variables");
+			Con_Printf("^3Creating cvar %s\n", str);
 		}
 		G_FLOAT(OFS_RETURN) = cv->value;
 	}

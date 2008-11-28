@@ -436,7 +436,7 @@ void SCR_CenterPrint (int pnum, char *str, qboolean fromgamecode)
 	if (!fromgamecode)
 	{
 #ifdef CSQC_DAT
-		if (CSQC_CenterPrint(str))	//csqc nabbed it.
+		if (CSQC_CenterPrint(pnum, str))	//csqc nabbed it.
 			return;
 #endif
 	}

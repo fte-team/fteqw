@@ -2742,20 +2742,89 @@ struct effectinfo_s
 
 	char name[1];
 };
-struct effectinfo_s *effectinfo;
+static struct effectinfo_s *effectinfo;
+static unsigned int lasteffectinfoid;
 
-void COM_Effectinfo_Reset(void)
+void COM_Effectinfo_Clear(void)
 {
-	int fidx = 0;
-	char *f;
 	struct effectinfo_s *n;
-
 	while(effectinfo)
 	{
 		n = effectinfo->next;
 		Z_Free(effectinfo);
 		effectinfo = n;
 	}
+	lasteffectinfoid = 0;
+}
+
+int COM_Effectinfo_Add(const char *effectname)
+{
+	struct effectinfo_s *n;
+	for (n = effectinfo; n; n = n->next)
+	{
+		if (!strcmp(effectname, n->name))
+			return 0;	//already known
+	}
+
+
+	n = Z_Malloc(sizeof(*n) + strlen(effectname));
+	n->next = effectinfo;
+	n->index = ++lasteffectinfoid;
+	effectinfo = n;
+	strcpy(n->name, effectname);
+
+	return n->index;
+}
+
+void COM_Effectinfo_Reload(void)
+{
+	int i;
+	char *f;
+	static const char *dpnames[] =
+	{
+		"TE_GUNSHOT",
+		"TE_GUNSHOTQUAD",
+		"TE_SPIKE",
+		"TE_SPIKEQUAD",
+		"TE_SUPERSPIKE",
+		"TE_SUPERSPIKEQUAD",
+		"TE_WIZSPIKE",
+		"TE_KNIGHTSPIKE",
+		"TE_EXPLOSION",
+		"TE_EXPLOSIONQUAD",
+		"TE_TAREXPLOSION",
+		"TE_TELEPORT",
+		"TE_LAVASPLASH",
+		"TE_SMALLFLASH",
+		"TE_FLAMEJET",
+		"EF_FLAME",
+		"TE_BLOOD",
+		"TE_SPARK",
+		"TE_PLASMABURN",
+		"TE_TEI_G3",
+		"TE_TEI_SMOKE",
+		"TE_TEI_BIGEXPLOSION",
+		"TE_TEI_PLASMAHIT",
+		"EF_STARDUST",
+		"TR_ROCKET",
+		"TR_GRENADE",
+		"TR_BLOOD",
+		"TR_WIZSPIKE",
+		"TR_SLIGHTBLOOD",
+		"TR_KNIGHTSPIKE",
+		"TR_VORESPIKE",
+		"TR_NEHAHRASMOKE",
+		"TR_NEXUIZPLASMA",
+		"TR_GLOWTRAIL",
+		"SVC_PARTICLE",
+		NULL
+	};
+
+	COM_Effectinfo_Clear();
+
+	for (i = 0; dpnames[i]; i++)
+		COM_Effectinfo_Add(dpnames[i]);
+
 
 	f = COM_LoadMallocFile("effectinfo.txt");
 	if (!f)
@@ -2768,20 +2837,8 @@ void COM_Effectinfo_Reset(void)
 			if (!strcmp(com_token, "effect"))
 			{
 				f = COM_ParseToken(f, NULL);
-				//don't count duplicates
-				for (n = effectinfo; n; n = n->next)
-				{
-					if (!strcmp(com_token, n->name))
-						break;
-				}
-				if (!n)
-				{
-					n = Z_Malloc(sizeof(*n) + strlen(com_token));
-					n->next = effectinfo;
-					n->index = ++fidx;
-					effectinfo = n;
-					strcpy(n->name, com_token);
-				}
+
+				COM_Effectinfo_Add(com_token);
 			}
 
 			do
@@ -2797,14 +2854,14 @@ unsigned int COM_Effectinfo_ForName(char *efname)
 	struct effectinfo_s *e;
 
 	if (!effectinfo)
-		COM_Effectinfo_Reset();
+		COM_Effectinfo_Reload();
 
 	for (e = effectinfo; e; e = e->next)
 	{
 		if (!strcmp(efname, e->name))
 			return e->index;
 	}
-	return 0;
+	return COM_Effectinfo_Add(efname);
 }
 
 char *COM_Effectinfo_ForNumber(unsigned int efnum)
@@ -2812,7 +2869,7 @@ char *COM_Effectinfo_ForNumber(unsigned int efnum)
 	struct effectinfo_s *e;
 
 	if (!effectinfo)
-		COM_Effectinfo_Reset();
+		COM_Effectinfo_Reload();
 
 	for (e = effectinfo; e; e = e->next)
 	{

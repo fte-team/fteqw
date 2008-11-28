@@ -175,7 +175,7 @@ void	D3D9_VID_GenPaletteTables (unsigned char *palette)
 	}
 
 	if (pD3DDev9)
-		IDirect3DDevice9_SetGammaRamp(pD3DDev9, 0, D3DSGR_NO_CALIBRATION, ramps);
+		IDirect3DDevice9_SetGammaRamp(pD3DDev9, 0, D3DSGR_NO_CALIBRATION, (D3DGAMMARAMP *)ramps);
 }
 #if 0
 #if !defined(SWQUAKE) && !defined(GLQUAKE)
@@ -1372,7 +1372,7 @@ void	(D3D9_Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyt
 void	(D3D9_Draw_ConsoleBackground)	(int lines);
 void	(D3D9_Draw_EditorBackground)	(int lines);
 void	(D3D9_Draw_TileClear)			(int x, int y, int w, int h);
-void	(D3D9_Draw_Fill)				(int x, int y, int w, int h, int c);
+void	(D3D9_Draw_Fill)				(int x, int y, int w, int h, unsigned int c);
 void	(D3D9_Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b);
 void	(D3D9_Draw_FadeScreen)			(void);
 void	(D3D9_Draw_BeginDisc)			(void);

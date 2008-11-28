@@ -530,15 +530,18 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			if (client->state != cs_spawned)
 				continue;
 
-			if (client->fteprotocolextensions & without)
+			if (client->protocol == SCP_QUAKEWORLD)
 			{
-	//			Con_Printf ("Version supressed multicast - without pext\n");
-				continue;
-			}
-			if (!(~client->fteprotocolextensions & ~with))
-			{
-	//			Con_Printf ("Version supressed multicast - with pext\n");
-				continue;
+				if (client->fteprotocolextensions & without)
+				{
+		//			Con_Printf ("Version supressed multicast - without pext\n");
+					continue;
+				}
+				if (!(~client->fteprotocolextensions & ~with))
+				{
+		//			Con_Printf ("Version supressed multicast - with pext\n");
+					continue;
+				}
 			}
 
 			if (mask)
@@ -645,15 +648,18 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			if (client->controller)
 				continue;	//FIXME: send if at least one of the players is near enough.
 
-			if (client->fteprotocolextensions & without)
+			if (client->protocol == SCP_QUAKEWORLD)
 			{
-	//			Con_Printf ("Version supressed multicast - without pext\n");
-				continue;
-			}
-			if (!(client->fteprotocolextensions & with) && with)
-			{
-	//			Con_Printf ("Version supressed multicast - with pext\n");
-				continue;
+				if (client->fteprotocolextensions & without)
+				{
+		//			Con_Printf ("Version supressed multicast - without pext\n");
+					continue;
+				}
+				if (!(client->fteprotocolextensions & with) && with)
+				{
+		//			Con_Printf ("Version supressed multicast - with pext\n");
+					continue;
+				}
 			}
 
 			if (svprogfuncs)
@@ -771,14 +777,9 @@ Larger attenuations will drop off.  (max 4 attenuation)
 void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
     float attenuation)
 {
-#define	NQSND_VOLUME		(1<<0)		// a qbyte
-#define	NQSND_ATTENUATION	(1<<1)		// a qbyte
-
     int         sound_num;
-#ifdef NQPROT
-    int			field_mask;
-	int nqchan;
-#endif
+    int			extfield_mask;
+	int			qwflags;
     int			i;
 	int			ent;
 	vec3_t		origin;
@@ -828,26 +829,7 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 	else
 		use_phs = true;
 
-//	if (channel == CHAN_BODY || channel == CHAN_VOICE)
-//		reliable = true;
-
-	channel = (ent<<3) | channel;
-
-#ifdef NQPROT
-	field_mask = 0;
-	if (volume != DEFAULT_SOUND_PACKET_VOLUME)
-		field_mask |= NQSND_VOLUME;
-	if (attenuation != DEFAULT_SOUND_PACKET_ATTENUATION)
-		field_mask |= NQSND_ATTENUATION;
-
-	nqchan = channel;
-#endif
-	if (volume != DEFAULT_SOUND_PACKET_VOLUME)
-		channel |= SND_VOLUME;
-	if (attenuation != DEFAULT_SOUND_PACKET_ATTENUATION)
-		channel |= SND_ATTENUATION;
-
-	// use the entity origin unless it is a bmodel
+	// use the entity origin unless it is a bmodel, in which case use its bbox middle
 	if (entity->v->solid == SOLID_BSP)
 	{
 		for (i=0 ; i<3 ; i++)
@@ -858,30 +840,93 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 		VectorCopy (entity->v->origin, origin);
 	}
 
-	MSG_WriteByte (&sv.multicast, svc_sound);
-	MSG_WriteShort (&sv.multicast, channel);
-	if (channel & SND_VOLUME)
-		MSG_WriteByte (&sv.multicast, volume);
-	if (channel & SND_ATTENUATION)
-		MSG_WriteByte (&sv.multicast, attenuation*64);
-	MSG_WriteByte (&sv.multicast, sound_num);
-	for (i=0 ; i<3 ; i++)
-		MSG_WriteCoord (&sv.multicast, origin[i]);
+//	if (channel == CHAN_BODY || channel == CHAN_VOICE)
+//		reliable = true;
 
-	if (ent > 512)
-		requiredextensions |= PEXT_ENTITYDBL;
-	if (ent > 1024)
-		requiredextensions |= PEXT_ENTITYDBL2;
+	extfield_mask = 0;
+	if (volume != DEFAULT_SOUND_PACKET_VOLUME)
+		extfield_mask |= NQSND_VOLUME;
+	if (attenuation != DEFAULT_SOUND_PACKET_ATTENUATION)
+		extfield_mask |= NQSND_ATTENUATION;
+	if (ent >= 8192 || channel >= 8)
+		extfield_mask |= DPSND_LARGEENTITY;
+	if (sound_num > 0xff)
+		extfield_mask |= DPSND_LARGESOUND;
+
+#ifdef PEXT_SOUNDDBL
+	if (channel >= 8 || ent >= 2048 || sound_num > 0xff)
+	{
+		//if any of the above conditions evaluates to true, then we can't use standard qw protocols
+		MSG_WriteByte (&sv.multicast, svcfte_soundextended);
+		MSG_WriteByte (&sv.multicast, extfield_mask);
+		if (extfield_mask & NQSND_VOLUME)
+			MSG_WriteByte (&sv.multicast, volume);
+		if (extfield_mask & NQSND_ATTENUATION)
+			MSG_WriteByte (&sv.multicast, attenuation*64);
+		if (extfield_mask & DPSND_LARGEENTITY)
+		{
+			MSG_WriteShort (&sv.multicast, ent);
+			MSG_WriteByte (&sv.multicast, channel);
+		}
+		else
+			MSG_WriteShort (&sv.multicast, (ent<<3) | channel);
+		if (extfield_mask & DPSND_LARGESOUND)
+			MSG_WriteShort (&sv.multicast, sound_num);
+		else
+			MSG_WriteByte (&sv.multicast, sound_num);
+		for (i=0 ; i<3 ; i++)
+			MSG_WriteCoord (&sv.multicast, origin[i]);
+
+		requiredextensions |= PEXT_SOUNDDBL;
+		if (ent > 512)
+			requiredextensions |= PEXT_ENTITYDBL;
+		if (ent > 1024)
+			requiredextensions |= PEXT_ENTITYDBL2;
+	}
+	else
+#endif
+	{
+		qwflags = (ent<<3) | channel;
+
+		if (volume != DEFAULT_SOUND_PACKET_VOLUME)
+			qwflags |= SND_VOLUME;
+		if (attenuation != DEFAULT_SOUND_PACKET_ATTENUATION)
+			qwflags |= SND_ATTENUATION;
+
+		MSG_WriteByte (&sv.multicast, svc_sound);
+		MSG_WriteShort (&sv.multicast, qwflags);
+		if (qwflags & SND_VOLUME)
+			MSG_WriteByte (&sv.multicast, volume);
+		if (qwflags & SND_ATTENUATION)
+			MSG_WriteByte (&sv.multicast, attenuation*64);
+		MSG_WriteByte (&sv.multicast, sound_num);
+		for (i=0 ; i<3 ; i++)
+			MSG_WriteCoord (&sv.multicast, origin[i]);
+
+		if (ent > 512)
+			requiredextensions |= PEXT_ENTITYDBL;
+		if (ent > 1024)
+			requiredextensions |= PEXT_ENTITYDBL2;
+	}
 
 #ifdef NQPROT
 	MSG_WriteByte (&sv.nqmulticast, svc_sound);
-	MSG_WriteByte (&sv.nqmulticast, field_mask);
-	if (field_mask & NQSND_VOLUME)
+	MSG_WriteByte (&sv.nqmulticast, extfield_mask);
+	if (extfield_mask & NQSND_VOLUME)
 		MSG_WriteByte (&sv.nqmulticast, volume);
-	if (field_mask & NQSND_ATTENUATION)
+	if (extfield_mask & NQSND_ATTENUATION)
 		MSG_WriteByte (&sv.nqmulticast, attenuation*64);
-	MSG_WriteShort (&sv.nqmulticast, nqchan);
-	MSG_WriteByte (&sv.nqmulticast, sound_num);
+	if (extfield_mask & DPSND_LARGEENTITY)
+	{
+		MSG_WriteShort (&sv.nqmulticast, ent);
+		MSG_WriteByte (&sv.nqmulticast, channel);
+	}
+	else
+		MSG_WriteShort (&sv.nqmulticast, (ent<<3) | channel);
+	if (extfield_mask & DPSND_LARGESOUND)
+		MSG_WriteShort (&sv.nqmulticast, sound_num);
+	else
+		MSG_WriteByte (&sv.nqmulticast, sound_num);
 	for (i=0 ; i<3 ; i++)
 		MSG_WriteCoord (&sv.nqmulticast, origin[i]);
 #endif
@@ -900,9 +945,6 @@ FRAME UPDATES
 */
 
 int		sv_nailmodel, sv_supernailmodel, sv_playermodel;
-#ifdef PEXT_LIGHTUPDATES
-int		sv_lightningmodel;
-#endif
 
 void SV_FindModelNumbers (void)
 {
@@ -911,9 +953,6 @@ void SV_FindModelNumbers (void)
 	sv_nailmodel = -1;
 	sv_supernailmodel = -1;
 	sv_playermodel = -1;
-#ifdef PEXT_LIGHTUPDATES
-	sv_lightningmodel = -1;
-#endif
 
 	for (i=0 ; i<MAX_MODELS ; i++)
 	{
@@ -923,10 +962,6 @@ void SV_FindModelNumbers (void)
 			sv_nailmodel = i;
 		if (!strcmp(sv.strings.model_precache[i],"progs/s_spike.mdl"))
 			sv_supernailmodel = i;
-#ifdef PEXT_LIGHTUPDATES
-		if (!strcmp(sv.strings.model_precache[i],"progs/zap.mdl"))
-			sv_lightningmodel = i;
-#endif
 		if (!strcmp(sv.strings.model_precache[i],"progs/player.mdl"))
 			sv_playermodel = i;
 	}
@@ -1480,10 +1515,16 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 					{
 						ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
 						ClientReliableWrite_Byte(client->controller, pnum);
+						ClientReliableWrite_Byte(client->controller, svcfte_updatestatfloat);
+						ClientReliableWrite_Byte(client->controller, i);
+						ClientReliableWrite_Float(client->controller, statsf[i]);
 					}
-					ClientReliableWrite_Begin(client, svcfte_updatestatfloat, 6);
-					ClientReliableWrite_Byte(client, i);
-					ClientReliableWrite_Float(client, statsf[i]);
+					else
+					{
+						ClientReliableWrite_Begin(client, svcfte_updatestatfloat, 6);
+						ClientReliableWrite_Byte(client, i);
+						ClientReliableWrite_Float(client, statsf[i]);
+					}
 				}
 
 				if (statss[i] || client->statss[i])
@@ -1495,11 +1536,15 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 						ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 5+strlen(statss[i]));
 						ClientReliableWrite_Byte(client->controller, pnum);
 						ClientReliableWrite_Byte(client->controller, svcfte_updatestatstring);
+						ClientReliableWrite_Byte(client->controller, i);
+						ClientReliableWrite_String(client->controller, statss[i]);
 					}
 					else
+					{
 						ClientReliableWrite_Begin(client, svcfte_updatestatstring, 3+strlen(statss[i]));
-					ClientReliableWrite_Byte(client, i);
-					ClientReliableWrite_String(client, statss[i]);
+						ClientReliableWrite_Byte(client, i);
+						ClientReliableWrite_String(client, statss[i]);
+					}
 				}
 			}
 			else if (!statsi[i])
@@ -1509,22 +1554,39 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 				client->statsi[i] = statsi[i];
 				client->statsf[i] = 0;
 
-				if (pnum)
-				{
-					ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
-					ClientReliableWrite_Byte(client->controller, pnum);
-				}
 				if (statsi[i] >=0 && statsi[i] <= 255)
 				{
-					ClientReliableWrite_Begin(client, svc_updatestat, 3);
-					ClientReliableWrite_Byte(client, i);
-					ClientReliableWrite_Byte(client, statsi[i]);
+					if (pnum)
+					{
+						ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 5);
+						ClientReliableWrite_Byte(client->controller, pnum);
+						ClientReliableWrite_Byte(client->controller, svc_updatestat);
+						ClientReliableWrite_Byte(client->controller, i);
+						ClientReliableWrite_Byte(client->controller, statsi[i]);
+					}
+					else
+					{
+						ClientReliableWrite_Begin(client, svc_updatestat, 3);
+						ClientReliableWrite_Byte(client, i);
+						ClientReliableWrite_Byte(client, statsi[i]);
+					}
 				}
 				else
 				{
-					ClientReliableWrite_Begin(client, svc_updatestatlong, 6);
-					ClientReliableWrite_Byte(client, i);
-					ClientReliableWrite_Long(client, statsi[i]);
+					if (pnum)
+					{
+						ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
+						ClientReliableWrite_Byte(client->controller, pnum);
+						ClientReliableWrite_Byte(client->controller, svc_updatestatlong);
+						ClientReliableWrite_Byte(client->controller, i);
+						ClientReliableWrite_Long(client->controller, statsi[i]);
+					}
+					else
+					{
+						ClientReliableWrite_Begin(client, svc_updatestatlong, 6);
+						ClientReliableWrite_Byte(client, i);
+						ClientReliableWrite_Long(client, statsi[i]);
+					}
 				}
 			}
 		}

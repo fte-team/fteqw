@@ -693,6 +693,7 @@ void PF_fcloseall (progfuncs_t *prinst)
 	{
 		if (pf_fopen_files[i].prinst != prinst)
 			continue;
+		Con_Printf("qc file %s was still open\n", pf_fopen_files[i].name);
 		PF_fclose_i(i);
 	}
 }
@@ -2339,13 +2340,13 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_ENT_ALPHA"},			//transparent entites
 	{"FTE_PEXT_VIEW2"},		//secondary view.
 	{"FTE_PEXT_BULLETENS"},	//bulleten boards (scrolling text on walls)
-	{"FTE_PEXT_ZLIBDL"},		//supposed download optimisation (unimportant to qc)
-	{"FTE_PEXT_LIGHTUPDATES"},	//zap.mdl is sent as a nail packet.
+	{"FTE_PEXT_ACURATETIMINGS"},		//allows full interpolation
+	{"FTE_PEXT_SOUNDDBL"},	//twice the sound indexes
 	{"FTE_PEXT_FATNESS"},		//entities may be expanded along their vertex normals
 	{"DP_HALFLIFE_MAP"},		//entitiy can visit a hl bsp
 	{"FTE_PEXT_TE_BULLET"},	//additional particle effect. Like TE_SPIKE and TE_SUPERSPIKE
 	{"FTE_PEXT_HULLSIZE"},	//means we can tell a client to go to crouching hull
-	{"FTE_PEXT_MODELDBL"},	//max of 512 models
+	{"FTE_PEXT_MODELDBL"},	//max of 512 models/sounds
 	{"FTE_PEXT_ENTITYDBL"},	//max of 1024 ents
 	{"FTE_PEXT_ENTITYDBL2"},	//max of 2048 ents
 	{"FTE_PEXT_ORIGINDBL"},	//-8k to +8k map size.

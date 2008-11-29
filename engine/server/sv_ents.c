@@ -1768,11 +1768,13 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 //FIXME: Name flags
 		//player is visible, now would be a good time to update what the player is like.
 		pflags = 0;
+#ifdef PEXT_VWEAP
 		if (client->fteprotocolextensions & PEXT_VWEAP && client->otherclientsknown[j].vweap != ent->xv->vweapmodelindex)
 		{
 			pflags |= 1;
 			client->otherclientsknown[j].vweap = ent->xv->vweapmodelindex;
 		}
+#endif
 		if (pflags)
 		{
 			ClientReliableWrite_Begin(client, svc_ftesetclientpersist, 10);

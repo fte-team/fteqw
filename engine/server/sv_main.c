@@ -1694,7 +1694,7 @@ client_t *SVC_DirectConnect(void)
 			printext(PEXT_ENTITYDBL);
 			printext(PEXT_ENTITYDBL2);
 			printext(PEXT_FLOATCOORDS);
-			printext(PEXT_VWEAP);
+//			printext(PEXT_VWEAP);
 			printext(PEXT_Q2BSP);
 			printext(PEXT_Q3BSP);
 			printext(PEXT_COLOURMOD);

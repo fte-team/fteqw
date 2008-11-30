@@ -46,11 +46,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define P2 12+12
 #define P3 12+16
 
-//void D_DrawParticle (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
+//void D_DrawParticle8S (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
 
 	.align 4
-.globl C(D_DrawParticle)
-C(D_DrawParticle):
+.globl C(D_DrawParticle8S)
+C(D_DrawParticle8S):
 	pushl	%ebp				// preserve caller's stack frame
 	pushl	%edi				// preserve register variables
 	pushl	%ebx

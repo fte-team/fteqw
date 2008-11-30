@@ -53,7 +53,7 @@ D_DrawParticle
 */
 #if	!id386
 
-void D_DrawParticleC (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
+void D_DrawParticle8S (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
 {
 	vec3_t	local, transformed;
 	float	zi;
@@ -207,7 +207,7 @@ void D_DrawParticleC (vec3_t porg, float palpha, float pscale, unsigned int pcol
 
 #endif	// !id386
 
-void D_DrawParticle16 (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
+void D_DrawParticle16S (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
 {
 	vec3_t	local, transformed;
 	float	zi;
@@ -281,7 +281,11 @@ void D_DrawParticle16 (vec3_t porg, float palpha, float pscale, unsigned int pco
 	}
 }
 
-void D_DrawParticle32 (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
+#pragma message("fixme: D_DrawParticle16T is not implemented")
+#define D_DrawParticle16T D_DrawParticle16S
+
+
+void D_DrawParticle32T (vec3_t porg, float palpha, float pscale, unsigned int pcolour)
 {
 	vec3_t	local, transformed;
 	float	zi;
@@ -359,8 +363,8 @@ void D_DrawParticle32 (vec3_t porg, float palpha, float pscale, unsigned int pco
 	}
 }
 
-#define draw(x, y) x=Trans(x,y)
-#define addblend(x, y) x=AddBlend(x,y)
+#define draw(x, y) x=Trans((qbyte)x,(qbyte)y)
+#define addblend(x, y) x=AddBlend((qbyte)x,(qbyte)y)
 void D_DrawParticleTrans (vec3_t porg, float palpha, float pscale, unsigned int pcolour, blendmode_t blendmode)
 {
 	vec3_t	local, transformed;
@@ -371,12 +375,12 @@ void D_DrawParticleTrans (vec3_t porg, float palpha, float pscale, unsigned int 
 
 	if (r_pixbytes == 4)
 	{
-		D_DrawParticle32(porg, palpha, pscale, pcolour);
+		D_DrawParticle32T(porg, palpha, pscale, pcolour);
 		return;
 	}
 	if (r_pixbytes == 2)
 	{
-		D_DrawParticle16(porg, palpha, pscale, pcolour);
+		D_DrawParticle16T(porg, palpha, pscale, pcolour);
 		return;
 	}
 
@@ -385,7 +389,7 @@ void D_DrawParticleTrans (vec3_t porg, float palpha, float pscale, unsigned int 
 
 	if (palpha > TRANS_UPPER_CAP && blendmode == BM_BLEND)
 	{
-		D_DrawParticle(porg, palpha, pscale, pcolour);
+		D_DrawParticle8S(porg, palpha, pscale, pcolour);
 		return;
 	}
 
@@ -684,7 +688,7 @@ vec_t VI2Length(int x, int y)
 	length = sqrt (length);
 	return length;
 }
-void D_DrawSparkTrans32 (vec3_t src, vec3_t dest, float palpha, unsigned int pcolour)	//draw a line in 3d space
+void D_DrawSpark32T (vec3_t src, vec3_t dest, float palpha, unsigned int pcolour)	//draw a line in 3d space
 {
 	/*
 	Finds 2d coords for the points, then draws a line between them with an appropriate alpha
@@ -772,7 +776,7 @@ void D_DrawSparkTrans32 (vec3_t src, vec3_t dest, float palpha, unsigned int pco
 	} while (count--);
 }
 
-void D_DrawSparkTrans16 (vec3_t src, vec3_t dest, float palpha, unsigned int pcolour)	//draw a line in 3d space, 8bpp
+void D_DrawSpark16S (vec3_t src, vec3_t dest, float palpha, unsigned int pcolour)	//draw a line in 3d space, 8bpp
 {
 	unsigned short	*pdest;
 	short	*pz;
@@ -844,6 +848,8 @@ void D_DrawSparkTrans16 (vec3_t src, vec3_t dest, float palpha, unsigned int pco
 		z1 += dz;
 	} while (count--);
 }
+#pragma message("fixme: D_DrawSpark16T is not implemented")
+#define D_DrawSpark16T D_DrawSpark16S
 
 void D_DrawSparkTrans (vec3_t src, vec3_t dest, float palpha, unsigned int pcolour, blendmode_t blendmode)	//draw a line in 3d space, 8bpp
 {
@@ -853,18 +859,15 @@ void D_DrawSparkTrans (vec3_t src, vec3_t dest, float palpha, unsigned int pcolo
 	int u2, v2, z2;
 
 	int du, dv, dz;
-/*
-	D_DrawParticleTrans(pparticle);
-	return;
-*/
+
 	if (r_pixbytes == 4)
 	{
-		D_DrawSparkTrans32(src, dest, palpha, pcolour);
+		D_DrawSpark32T(src, dest, palpha, pcolour);
 		return;
 	}
 	if (r_pixbytes == 2)
 	{
-		D_DrawSparkTrans16(src, dest, palpha, pcolour);
+		D_DrawSpark16T(src, dest, palpha, pcolour);
 		return;
 	}
 

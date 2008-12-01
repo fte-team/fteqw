@@ -1460,6 +1460,7 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 						*out = adr;
 				}
 			}
+#ifdef IPPROTO_IPV6
 			else if(h && h->h_addrtype == AF_INET6)
 			{
 				for (b = 0; h->h_addr_list[b]; b++)
@@ -1470,6 +1471,7 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 						*out = adr;
 				}
 			}
+#endif
 
 			if (b == 0)
 			{
@@ -1619,8 +1621,10 @@ qboolean	NET_PortToAdr (int adrfamily, char *s, netadr_t *a)
 		a->port = htons((unsigned short)port);
 		if (adrfamily == AF_INET)
 			a->type = NA_IP;
+#ifdef IPPROTO_IPV6
 		else if (adrfamily == AF_INET6)
 			a->type = NA_IPV6;
+#endif
 #ifdef USEIPX
 		else if (adrfamily == AF_IPX)
 			a->type = NA_IPX;
@@ -1711,10 +1715,12 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	}
 }
 
+#ifdef IPPROTO_IPV6
 ftenet_generic_connection_t *FTENET_UDP6_EstablishConnection(qboolean isserver, char *address)
 {
 	return FTENET_Generic_EstablishConnection(AF_INET6, IPPROTO_UDP, isserver, address);
 }
+#endif
 ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean isserver, char *address)
 {
 	return FTENET_Generic_EstablishConnection(AF_INET, IPPROTO_UDP, isserver, address);
@@ -3245,7 +3251,9 @@ void NET_InitClient(void)
 //	FTENET_AddToCollection(cls.sockets, "CLTCP6", port, FTENET_TCP6Connect_EstablishConnection);
 //	FTENET_AddToCollection(cls.sockets, "CLTCP4", port, FTENET_TCP4Connect_EstablishConnection);
 	FTENET_AddToCollection(cls.sockets, "CLUDP4", port, FTENET_UDP4_EstablishConnection);
+#ifdef IPPROTO_IPV6
 	FTENET_AddToCollection(cls.sockets, "CLUDP6", port, FTENET_UDP6_EstablishConnection);
+#endif
 #ifdef USEIPX
 	FTENET_AddToCollection(cls.sockets, "CLIPX", port, FTENET_IPX_EstablishConnection);
 #endif

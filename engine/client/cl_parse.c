@@ -3148,7 +3148,7 @@ void CLQ2_ParseStartSoundPacket(void)
 }
 #endif
 
-#ifdef NQPROT
+#if defined(NQPROT) || defined(PEXT_SOUNDDBL)
 #define	NQSND_VOLUME		(1<<0)		// a qbyte
 #define	NQSND_ATTENUATION	(1<<1)		// a qbyte
 #define DPSND_LOOPING		(1<<2)		// a long, supposedly

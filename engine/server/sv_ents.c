@@ -487,7 +487,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 		bits |= U_MODEL;
 		if (to->modelindex > 255)
 		{
-			if (protext & PEXT_DPFLAGS)
+			if (protext & PEXT_MODELDBL)
 				evenmorebits |= U_MODELDBL;
 			else
 				return;
@@ -2541,8 +2541,10 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 						continue;
 				}
 			}
+#ifdef PEXT_MODELDBL
 			if (ent->v->modelindex >= 256 && !(client->fteprotocolextensions & PEXT_MODELDBL))
 				continue;
+#endif
 		}
 
 #ifdef DEPTHOPTIMISE

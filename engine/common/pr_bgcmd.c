@@ -2346,7 +2346,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_HALFLIFE_MAP"},		//entitiy can visit a hl bsp
 	{"FTE_PEXT_TE_BULLET"},	//additional particle effect. Like TE_SPIKE and TE_SUPERSPIKE
 	{"FTE_PEXT_HULLSIZE"},	//means we can tell a client to go to crouching hull
-	{"FTE_PEXT_MODELDBL"},	//max of 512 models/sounds
+	{"FTE_PEXT_MODELDBL"},	//max of 512 models
 	{"FTE_PEXT_ENTITYDBL"},	//max of 1024 ents
 	{"FTE_PEXT_ENTITYDBL2"},	//max of 2048 ents
 	{"FTE_PEXT_ORIGINDBL"},	//-8k to +8k map size.
@@ -2489,7 +2489,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
 	{"FTE_CSQC_HALFLIFE_MODELS"},		//hl-specific skeletal model control
-//implementme	{"FTE_CSQC_BASEFRAME"},				//control for all skeletal models
+	{"FTE_CSQC_BASEFRAME"},				//control for all skeletal models
 	{"FTE_ENT_UNIQUESPAWNID"},
 	{"FTE_EXTENDEDTEXTCODES"},
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},

@@ -94,7 +94,7 @@ extern cvar_t mod_md3flags;
 extern cvar_t r_skin_overlays;
 
 #ifdef SKELETALMODELS
-static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, float bonepose[MAX_BONES][12]);
+static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bones, int startingbone, int bonecount, float bonepose[MAX_BONES][12]);
 static void R_TransformVerticies(float bonepose[MAX_BONES][12], galisskeletaltransforms_t *weights, int numweights, float *xyzout);
 #endif
 
@@ -157,6 +157,7 @@ qboolean GLMod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 
 	while(mod)
 	{
+#pragma message("this just uses frame 0")
 		indexes = (int*)((char*)mod + mod->ofs_indexes);
 		group = (galiasgroup_t*)((char*)mod + mod->groupofs);
 		pose = (galiaspose_t*)((char*)&group[0] + group[0].poseofs);
@@ -170,7 +171,7 @@ qboolean GLMod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 			if (group->isheirachical)
 			{
 				if (!mod->sharesbones)
-					R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), mod->numbones, bonepose);
+					R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), 0, mod->numbones, bonepose);
 				R_TransformVerticies(bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
 			}
 			else
@@ -364,31 +365,53 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 }
 #endif
 #ifdef SKELETALMODELS
-static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, float bonepose[MAX_BONES][12])
+static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bones, int startingbone, int bonecount, float bonepose[MAX_BONES][12])
 {
 	int i, k, b;
-	float *matrix, m[12];
+	float *matrix, *matrix2, m[12];
 
 	if (poses == 1)
 	{
 		// vertex weighted skeletal
 		// interpolate matrices and concatenate them to their parents
-		for (i = 0;i < bonecount;i++)
+		matrix = pose[0] + startingbone*12;
+		for (i = startingbone;i < bonecount;i++)
 		{
-			matrix = pose[0] + i*12;
-
 			if (bones[i].parent >= 0)
 				R_ConcatTransforms((void*)bonepose[bones[i].parent], (void*)matrix, (void*)bonepose[i]);
 			else
 				for (k = 0;k < 12;k++)	//parentless
 					bonepose[i][k] = matrix[k];
+			
+			matrix += 12;
+		}
+	}
+	else if (poses == 2)
+	{
+		// vertex weighted skeletal
+		// interpolate matrices and concatenate them to their parents
+		matrix = pose[0] + startingbone*12;
+		matrix2 = pose[1] + startingbone*12;
+		for (i = startingbone;i < bonecount;i++)
+		{
+			//only two poses, blend the matricies to generate a temp matrix
+			for (k = 0;k < 12;k++)
+				m[k] = (matrix[k] * plerp[0]) + (matrix2[k] * plerp[1]);
+			matrix += 12;
+			matrix2 += 12;
+
+			if (bones[i].parent >= 0)
+				R_ConcatTransforms((void*)bonepose[bones[i].parent], (void*)m, (void*)bonepose[i]);
+			else
+				for (k = 0;k < 12;k++)	//parentless
+					bonepose[i][k] = m[k];
 		}
 	}
 	else
 	{
 		// vertex weighted skeletal
 		// interpolate matrices and concatenate them to their parents
-		for (i = 0;i < bonecount;i++)
+		for (i = startingbone;i < bonecount;i++)
 		{
 			for (k = 0;k < 12;k++)
 				m[k] = 0;
@@ -423,33 +446,150 @@ static void R_TransformVerticies(float bonepose[MAX_BONES][12], galisskeletaltra
 		out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
 	}
 }
-#ifndef SERVERONLY
-static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, galisskeletaltransforms_t *weights, int numweights, qboolean usehierarchy)
+
+static int R_BuildSkeletonLerps(float plerp[4], float *pose[4], int numbones, galiasgroup_t *g1, galiasgroup_t *g2, float lerpfrac, float fg1time, float fg2time)
 {
-	float bonepose[MAX_BONES][12];
-
-	int i, k, l;
-
-	if (usehierarchy)
-		R_LerpBones(plerp, pose, poses, bones, bonecount, bonepose);
+	int frame1;
+	int frame2;
+	float mlerp;	//minor lerp, poses within a group.
+	int l = 0;
+	
+	mlerp = (fg1time)*g1->rate;
+	frame1=mlerp;
+	frame2=frame1+1;
+	mlerp-=frame1;
+	if (g1->loop)
+	{
+		frame1=frame1%g1->numposes;
+		frame2=frame2%g1->numposes;
+	}
 	else
 	{
-		if (poses == 1)
-			memcpy(bonepose, pose[0], sizeof(float)*12*bonecount);
-		else if (poses == 2)
+		frame1=(frame1>g1->numposes-1)?g1->numposes-1:frame1;
+		frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
+	}
+
+	plerp[l] = (1-mlerp)*(1-lerpfrac);
+	if (plerp[l]>0)
+		pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*numbones*12*frame1);
+	plerp[l] = (mlerp)*(1-lerpfrac);
+	if (plerp[l]>0)
+		pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*numbones*12*frame2);
+
+	if (lerpfrac)
+	{
+		mlerp = (fg2time)*g2->rate;
+		frame1=mlerp;
+		frame2=frame1+1;
+		mlerp-=frame1;
+		if (g2->loop)
 		{
-			for (i = 0; i < bonecount*12; i++)
+			frame1=frame1%g2->numposes;
+			frame2=frame2%g2->numposes;
+		}
+		else
+		{
+			frame1=(frame1>g2->numposes-1)?g2->numposes-1:frame1;
+			frame2=(frame2>g2->numposes-1)?g2->numposes-1:frame2;
+		}
+
+		plerp[l] = (1-mlerp)*(lerpfrac);
+		if (plerp[l]>0)
+			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*numbones*12*frame1);
+		plerp[l] = (mlerp)*(lerpfrac);
+		if (plerp[l]>0)
+			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*numbones*12*frame2);
+	}
+
+	return l;
+}
+
+//writes into bonepose
+static void R_BuildSkeleton(galiasinfo_t *inf, entity_t *e, float bonepose[MAX_BONES][12])
+{
+	int i, k;
+
+	int l=0;
+	float plerp[4];
+	float *pose[4];
+	float baseplerp[4];
+	float *basepose[4];
+	qboolean hirachy;
+
+	int numposes, basenumposes;
+	int basebone = e->basebone;
+	int frame1 = e->frame1;
+	int frame2 = e->frame2;
+	float lerpfrac = e->lerpfrac;
+	float baselerpfrac = e->baselerpfrac;
+
+	galiasgroup_t *g1, *g2, *bg1, *bg2;
+
+	galiasbone_t *bones = (galiasbone_t *)((char*)inf+inf->ofsbones);
+
+	g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
+	g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
+
+	if (basebone < 0)
+		basebone = 0;
+	if (basebone > inf->numbones)
+		basebone = inf->numbones;
+
+	if (basebone)
+	{
+		bg1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*e->baseframe1);
+		bg2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*e->baseframe2);
+
+		if (!bg1->isheirachical || !g1->isheirachical)
+		{
+			//mixing not supported
+			basebone = 0;
+			bg1 = g1;
+			bg2 = g2;
+		}
+	}
+	else
+	{
+		bg1 = g1;
+		bg2 = g2;
+	}
+
+	if (g1->isheirachical != g2->isheirachical || lerpfrac < 0)
+		lerpfrac = 0;
+	hirachy = g1->isheirachical;
+
+
+	numposes = R_BuildSkeletonLerps(plerp, pose, inf->numbones, g1, g2, lerpfrac, e->frame1time, e->frame2time);
+
+	if (hirachy)
+	{
+		if (basebone)
+		{
+			basenumposes = R_BuildSkeletonLerps(baseplerp, basepose, inf->numbones, bg1, bg2, baselerpfrac, e->baseframe1time, e->baseframe2time);
+			R_LerpBones(baseplerp, basepose, basenumposes, bones, 0, basebone, bonepose);
+		}
+		R_LerpBones(plerp, pose, numposes, bones, basebone, inf->numbones, bonepose);
+	}
+	else
+	{
+		//this is not hierachal, using base frames is not a good idea.
+		//just blend the poses here
+		if (numposes == 1)
+			memcpy(bonepose, pose[0], sizeof(float)*12*inf->numbones);
+		else if (numposes == 2)
+		{
+			for (i = 0; i < inf->numbones*12; i++)
 			{
 				((float*)bonepose)[i] = pose[0][i]*plerp[0] + pose[1][i]*plerp[1];
 			}
 		}
 		else
 		{
-			for (i = 0; i < bonecount; i++)
+			for (i = 0; i < inf->numbones; i++)
 			{
 				for (l = 0; l < 12; l++)
 					bonepose[i][l] = 0;
-				for (k = 0; k < poses; k++)
+				for (k = 0; k < numposes; k++)
 				{
 					for (l = 0; l < 12; l++)
 						bonepose[i][l] += pose[k][i*12+l] * plerp[k];
@@ -457,6 +597,13 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 			}
 		}
 	}
+}
+
+#ifndef SERVERONLY
+static void R_BuildSkeletalMesh(mesh_t *mesh, float bonepose[MAX_BONES][12], galisskeletaltransforms_t *weights, int numweights)
+{
+	int i;
+
 
 	// blend the vertex bone weights
 //	memset(outhead, 0, mesh->numvertexes * sizeof(mesh->xyz_array[0]));
@@ -687,9 +834,17 @@ static void R_GAliasApplyLighting(mesh_t *mesh, vec3_t org, vec3_t angles, float
 	}
 }
 
-static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int frame2, float lerp, float alpha, float fg1time, float fg2time, qboolean nolightdir)
+static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, 
+									entity_t *e,
+								  float alpha, qboolean nolightdir)
 {
 	galiasgroup_t *g1, *g2;
+
+	int frame1 = e->frame1;
+	int frame2 = e->frame2;
+	float lerp = e->lerpfrac;
+	float fg1time = e->frame1time;
+	float fg2time = e->frame2time;
 
 	if (!inf->groups)
 	{
@@ -769,71 +924,9 @@ static qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, i
 #ifdef SKELETALMODELS
 	if (inf->numbones)
 	{
-		int l=0;
-		float plerp[4];
-		float *pose[4];
-		float mlerp;	//minor lerp, poses within a group.
-		qboolean hirachy;
-
-		if (g1->isheirachical != g2->isheirachical || lerp < 0)
-			lerp = 0;
-		hirachy = g1->isheirachical;
-
-		mlerp = (fg1time)*g1->rate;
-		frame1=mlerp;
-		frame2=frame1+1;
-		mlerp-=frame1;
-		if (g1->loop)
-		{
-			frame1=frame1%g1->numposes;
-			frame2=frame2%g1->numposes;
-		}
-		else
-		{
-			frame1=(frame1>g1->numposes-1)?g1->numposes-1:frame1;
-			frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
-		}
-
-		plerp[l] = (1-mlerp)*(1-lerp);
-		if (plerp[l]>0)
-			pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame1);
-		plerp[l] = (mlerp)*(1-lerp);
-		if (plerp[l]>0)
-			pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame2);
-
-		if (lerp)
-		{
-			mlerp = (fg2time)*g2->rate;
-			frame1=mlerp;
-			frame2=frame1+1;
-			mlerp-=frame1;
-			if (g2->loop)
-			{
-				frame1=frame1%g2->numposes;
-				frame2=frame2%g2->numposes;
-			}
-			else
-			{
-				frame1=(frame1>g2->numposes-1)?g2->numposes-1:frame1;
-				frame2=(frame2>g2->numposes-1)?g2->numposes-1:frame2;
-			}
-
-			plerp[l] = (1-mlerp)*(lerp);
-			if (plerp[l]>0)
-				pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame1);
-			plerp[l] = (mlerp)*(lerp);
-			if (plerp[l]>0)
-				pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame2);
-		}
-/*
-		pose[0] = (float *)((char *)g1 + g1->poseofs);
-		plerp[0] = 1;
-		plerp[1] = 0;
-		plerp[3] = 0;
-		plerp[4] = 0;
-		l = 1;
-*/
-		R_BuildSkeletalMesh(mesh, plerp, pose, l, (galiasbone_t *)((char*)inf+inf->ofsbones), inf->numbones, (galisskeletaltransforms_t *)((char*)inf+inf->ofstransforms), inf->numtransforms, hirachy);
+		float bonepose[MAX_BONES][12];
+		R_BuildSkeleton(inf, e, bonepose);
+		R_BuildSkeletalMesh(mesh, bonepose, (galisskeletaltransforms_t *)((char*)inf+inf->ofstransforms), inf->numtransforms);
 		return false;
 	}
 #endif
@@ -1911,7 +2004,7 @@ void R_DrawGAliasModel (entity_t *e)
 	memset(&mesh, 0, sizeof(mesh));
 	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
 	{
-		needrecolour = R_GAliasBuildMesh(&mesh, inf, e->frame1, e->frame2, e->lerpfrac, e->shaderRGBAf[3], e->frame1time, e->frame2time, nolightdir);
+		needrecolour = R_GAliasBuildMesh(&mesh, inf, e, e->shaderRGBAf[3], nolightdir);
 
 		c_alias_polys += mesh.numindexes/3;
 
@@ -2618,7 +2711,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	{
 		if (inf->ofs_trineighbours)
 		{
-			R_GAliasBuildMesh(&mesh, inf, e->frame1, e->frame2, e->lerpfrac, 1, e->frame1time, e->frame2time, true);
+			R_GAliasBuildMesh(&mesh, inf, e, 1, true);
 			R_CalcFacing(&mesh, lightorg);
 			R_ProjectShadowVolume(&mesh, lightorg);
 			R_DrawShadowVolume(&mesh);

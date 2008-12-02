@@ -1132,7 +1132,7 @@ trace_t SV_ClipMoveToEntity (edict_t *ent, vec3_t start, vec3_t mins, vec3_t max
 	{
 		model = sv.models[(int)ent->v->modelindex];
 		if (!model || (model->type != mod_brush && model->type != mod_heightmap))
-			SV_Error("SOLID_BSP with non bsp model (classname: %s)", svprogfuncs->stringtable + ent->v->classname);
+			SV_Error("SOLID_BSP with non bsp model (classname: %s)", PR_GetString(svprogfuncs, ent->v->classname));
 	}
 	else
 	{

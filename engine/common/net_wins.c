@@ -443,7 +443,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 #ifdef IRCCONNECT
 	case NA_IRC:
 		if (*a.address.irc.channel)
-			snprintf (s, len, "irc://%s@", a.address.irc.user, a.address.irc.channel);
+			snprintf (s, len, "irc://%s@%s", a.address.irc.user, a.address.irc.channel);
 		else
 			snprintf (s, len, "irc://%s", a.address.irc.user);
 		break;
@@ -2043,10 +2043,12 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 	}
 }
 
+#ifdef IPPROTO_IPV6
 ftenet_generic_connection_t *FTENET_TCP6Connect_EstablishConnection(qboolean isserver, char *address)
 {
 	return FTENET_TCPConnect_EstablishConnection(AF_INET6, isserver, address);
 }
+#endif
 
 ftenet_generic_connection_t *FTENET_TCP4Connect_EstablishConnection(qboolean isserver, char *address)
 {
@@ -2742,9 +2744,11 @@ void NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *ho
 	case NA_TCP:
 		FTENET_AddToCollection(collection, routename, host, FTENET_TCP4Connect_EstablishConnection);
 		break;
+#ifdef IPPROTO_IPV6
 	case NA_TCPV6:
 		FTENET_AddToCollection(collection, routename, host, FTENET_TCP6Connect_EstablishConnection);
 		break;
+#endif
 #endif
 #ifdef IRCCONNECT
 	case NA_IRC:
@@ -3186,9 +3190,11 @@ void SVNET_AddPort(void)
 	case NA_TCP:
 		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_TCP4Connect_EstablishConnection);
 		break;
+#ifdef IPPROTO_IPV6
 	case NA_TCPV6:
 		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_TCP6Connect_EstablishConnection);
 		break;
+#endif
 #endif
 	}
 }
@@ -3256,8 +3262,6 @@ void NET_InitClient(void)
 #ifndef CLIENTONLY
 	FTENET_AddToCollection(cls.sockets, "CLLoopback", port, FTENET_Loop_EstablishConnection);
 #endif
-//	FTENET_AddToCollection(cls.sockets, "CLTCP6", port, FTENET_TCP6Connect_EstablishConnection);
-//	FTENET_AddToCollection(cls.sockets, "CLTCP4", port, FTENET_TCP4Connect_EstablishConnection);
 	FTENET_AddToCollection(cls.sockets, "CLUDP4", port, FTENET_UDP4_EstablishConnection);
 #ifdef IPPROTO_IPV6
 	FTENET_AddToCollection(cls.sockets, "CLUDP6", port, FTENET_UDP6_EstablishConnection);

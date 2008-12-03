@@ -544,7 +544,7 @@ static void CL_LerpMove (int pnum, float msgtime)
 	int		i;
 	int		from, to;
 
-	if (cl_nolerp.value || cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (!CL_MayLerp() || cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		return;
 
 #ifdef NQPROT
@@ -837,11 +837,7 @@ fixedorg:
 
 	to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
 
-#ifdef NQPROT
-	if (Cam_TrackNum(pnum)>=0 && !cl_nolerp.value && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && cls.demoplayback != DPB_NETQUAKE)
-#else
-	if (Cam_TrackNum(pnum)>=0 && !cl_nolerp.value && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)
-#endif
+	if (Cam_TrackNum(pnum)>=0 && CL_MayLerp())
 	{
 		float f;
 

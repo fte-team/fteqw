@@ -33,6 +33,7 @@ int msgflags;
 char cl_dp_csqc_progsname[128];
 int cl_dp_csqc_progssize;
 int cl_dp_csqc_progscrc;
+int cl_dp_serverextension_download;
 
 
 char *svc_strings[] =
@@ -298,6 +299,12 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 
 	if (!(flags & DLLF_IGNOREFAILED))
 	{
+#ifdef NQPROT
+		if (cls.protocol == CP_NETQUAKE)
+			if (!cl_dp_serverextension_download)
+				return false;
+#endif
+
 		for (dl = cl.faileddownloads; dl; dl = dl->next)	//yeah, so it failed... Ignore it.
 		{
 			if (!strcmp(dl->name, filename))
@@ -2213,6 +2220,15 @@ void CLQ2_ParseServerData (void)
 
 
 
+void CL_ParseEstablished(void)
+{
+#ifdef NQPROT
+	cl_dp_serverextension_download = false;
+	cl_dp_csqc_progscrc = 0;
+	cl_dp_csqc_progssize = 0;
+#endif
+}
+
 #ifdef NQPROT
 //FIXME: move to header
 void CL_KeepaliveMessage(void){}
@@ -2312,7 +2328,8 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 			return;
 		}
 		strcpy (cl.model_name[nummodels], str);
-		CL_CheckOrEnqueDownloadFile(str, NULL, 0);
+		if (*str != '*')	//not inline models!
+			CL_CheckOrEnqueDownloadFile(str, NULL, 0);
 		Mod_TouchModel (str);
 	}
 
@@ -2328,6 +2345,10 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 			return;
 		}
 		strcpy (cl.sound_name[numsounds], str);
+
+#pragma message("the logic that we should have here is rather long")
+		//CL_CheckOrEnqueDownloadFile(str, NULL, 0);
+
 		S_TouchSound (str);
 	}
 
@@ -5301,6 +5322,7 @@ void CLNQ_ParseServerMessage (void)
 				Con_DPrintf ("stufftext: %s\n", s);
 				if (!strncmp(s, "cl_serverextension_download ", 14))
 				{
+					cl_dp_serverextension_download = true;
 				}
 				else if (!strncmp(s, "\ncl_downloadbegin ", 17))
 					CLDP_ParseDownloadBegin(s);

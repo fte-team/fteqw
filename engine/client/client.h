@@ -806,6 +806,7 @@ extern int	packet_latency[NET_TIMINGS];
 int CL_CalcNet (void);
 void CL_ParseServerMessage (void);
 void CL_DumpPacket(void);
+void CL_ParseEstablished(void);
 void CLNQ_ParseServerMessage (void);
 #ifdef Q2CLIENT
 void CLQ2_ParseServerMessage (void);
@@ -878,6 +879,7 @@ void CL_LinkViewModel(void);
 void CL_LinkPlayers (void);
 void CL_LinkPacketEntities (void);
 void CL_LinkProjectiles (void);
+qboolean CL_MayLerp(void);
 
 //
 //clq3_parse.c

@@ -33,6 +33,7 @@ extern	cvar_t	cl_r2g;
 extern	cvar_t	r_powerupglow;
 extern	cvar_t	v_powerupshell;
 extern	cvar_t	cl_nolerp;
+extern	cvar_t	cl_nolerp_netquake;
 
 extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
@@ -1538,6 +1539,21 @@ packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp)
 	return packnew;
 }
 
+qboolean CL_MayLerp(void)
+{
+	//force lerping when playing low-framerate demos.
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		return true;
+#ifdef NQPROT
+	if (cls.demoplayback == DPB_NETQUAKE)
+		return true;
+
+	if (cls.protocol == CP_NETQUAKE)	//this includes DP protocols.
+		return !cl_nolerp_netquake.value;
+#endif
+	return !cl_nolerp.value;
+}
+
 void CL_LinkPacketEntities (void)
 {
 	entity_t			*ent;
@@ -1560,7 +1576,7 @@ void CL_LinkPacketEntities (void)
 	CL_CalcClientTime();
 	servertime = cl.servertime;
 
-	nolerp = !!cl_nolerp.value && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
+	nolerp = !CL_MayLerp() && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
 #ifdef NQPROT
 	nolerp = nolerp && cls.demoplayback != DPB_NETQUAKE;
 #endif
@@ -1882,9 +1898,7 @@ void CL_LinkPacketEntities (void)
 		ent->forcedshader = NULL;
 #endif
 
-		if (cl_nolerp.value)
-			f = 1;
-		else
+		if (CL_MayLerp())
 		{
 			//figure out the lerp factor
 			if (cl.lerpents[s1->number].lerprate<=0)
@@ -1896,6 +1910,8 @@ void CL_LinkPacketEntities (void)
 			if (f>1)
 				f=1;
 		}
+		else
+			f = 1;
 
 		ent->lerpfrac = 1-(cl.servertime-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
 		if (ent->lerpfrac<0)

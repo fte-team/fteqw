@@ -51,6 +51,7 @@ cvar_t	cl_maxfps	= SCVARF("cl_maxfps", "1000", CVAR_ARCHIVE);
 cvar_t	cl_nopext	= SCVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = SCVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= SCVAR("cl_nolerp", "1");
+cvar_t	cl_nolerp_netquake = SCVAR("cl_nolerp_netquake", "0");
 cvar_t	hud_tracking_show = SCVAR("hud_tracking_show", "1");
 
 cvar_t	cfg_save_name = SCVARF("cfg_save_name", "fte", CVAR_ARCHIVE);
@@ -2180,6 +2181,7 @@ void CL_ConnectionlessPacket (void)
 			Con_Printf ("accept\n");
 			Validation_Apply_Ruleset();
 			Netchan_Setup(NS_CLIENT, &cls.netchan, net_from, cls.qport);
+			CL_ParseEstablished();
 			Con_DPrintf ("CL_EstablishConnection: connected to %s\n", cls.servername);
 
 
@@ -2222,6 +2224,7 @@ client_connect:	//fixme: make function
 		}
 		compress = cls.netchan.compress;
 		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
+		CL_ParseEstablished();
 		cls.netchan.compress = compress;
 #ifdef Q3CLIENT
 		if (cls.protocol != CP_QUAKE3)
@@ -2339,6 +2342,7 @@ void CLNQ_ConnectionlessPacket(void)
 				Con_TPrintf (TLC_DUPCONNECTION);
 			return;
 		}
+		//this is the port that we're meant to respond to.
 		net_from.port = htons((short)MSG_ReadLong());
 
 		if (MSG_ReadByte() == 1)	//a proquake server adds a little extra info
@@ -2348,6 +2352,7 @@ void CLNQ_ConnectionlessPacket(void)
 
 			if (MSG_ReadByte() == 1)
 			{
+				//its a 'pure' server.
 				Con_Printf("ProQuake sucks\nGo play on a decent server.\n");
 				return;
 			}
@@ -2356,6 +2361,7 @@ void CLNQ_ConnectionlessPacket(void)
 		Validation_Apply_Ruleset();
 
 		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
+		CL_ParseEstablished();
 		cls.netchan.isnqprotocol = true;
 		cls.netchan.compress = 0;
 		cls.protocol = CP_NETQUAKE;
@@ -2869,6 +2875,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_deadbodyfilter, "Item effects");
 
 	Cvar_Register (&cl_nolerp, "Item effects");
+	Cvar_Register (&cl_nolerp_netquake, "Item effects");
 
 	Cvar_Register (&r_drawflame, "Item effects");
 

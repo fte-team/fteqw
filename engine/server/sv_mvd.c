@@ -2498,7 +2498,7 @@ void SV_MVDList_f (void)
 		Con_Printf("no demos\n");
 	}
 
-	for (i = 1; list->name[0]; i++, list++)
+	for (i = 1; i <= dir->numfiles; i++, list++)
 	{
 		for (j = 1; j < Cmd_Argc(); j++)
 			if (strstr(list->name, Cmd_Argv(j)) == NULL)
@@ -2548,7 +2548,7 @@ void SV_UserCmdMVDList_f (void)
 		Con_Printf("no demos\n");
 	}
 
-	for (i = 1; list->name[0]; i++, list++)
+	for (i = 1; i <= dir->numfiles; i++, list++)
 	{
 		for (j = 1; j < Cmd_Argc(); j++)
 			if (strstr(list->name, Cmd_Argv(j)) == NULL)
@@ -2590,24 +2590,16 @@ char *SV_MVDNum(char *buffer, int bufferlen, int num)
 	dir = Sys_listdir(va("%s/%s", com_gamedir, sv_demoDir.string), ".mvd", SORT_BY_DATE);
 	list = dir->files;
 
-	if (num <= 0)
+	if (num > dir->numfiles || num <= 0)
 	{
 		Sys_freedir(dir);
 		return NULL;
 	}
-
 	num--;
 
-	while (list->name[0] && num) {list++; num--;};
+	list += num;
 
-	if (list->name[0])
-	{
-		Q_strncpyz(buffer, list->name, bufferlen);
-		return list->name;
-	}
-	else
-		buffer = NULL;
-
+	Q_strncpyz(buffer, list->name, bufferlen);
 	Sys_freedir(dir);
 	return buffer;
 }
@@ -2657,7 +2649,7 @@ void SV_MVDRemove_f (void)
 
 		dir = Sys_listdir(va("%s/%s", com_gamedir, sv_demoDir.string), ".mvd", SORT_BY_DATE);
 		list = dir->files;
-		for (i = 0;list->name[0]; list++)
+		for (i = 0;i < dir->numfiles; list++)
 		{
 			if (strstr(list->name, ptr))
 			{

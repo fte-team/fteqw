@@ -3295,10 +3295,12 @@ void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, "SVTCP4", var->string, FTENET_TCP4Connect_EstablishConnection);
 }
+#ifdef IPPROTO_IPV6
 void SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, "SVTCP6", var->string, FTENET_TCP6Connect_EstablishConnection);
 }
+#endif
 
 void SV_Port_Callback(struct cvar_s *var, char *oldvalue)
 {

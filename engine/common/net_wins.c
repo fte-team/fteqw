@@ -1368,6 +1368,8 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, char *name, char *add
 void FTENET_CloseCollection(ftenet_connections_t *col)
 {
 	int i;
+	if (!col)
+		return;
 	for (i = 0; i < MAX_CONNECTIONS; i++)
 	{
 		if (col->conn[i])

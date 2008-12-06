@@ -273,6 +273,9 @@ void SV_LogPlayer(client_t *cl, char *msg)
 	char remote_adr[MAX_ADR_SIZE];
 	char realip_adr[MAX_ADR_SIZE];
 
+	if (cl->protocol == SCP_BAD)
+		return;	//don't log botclients
+
 	snprintf(line, sizeof(line),
 			"%s\\%s\\%i\\%s\\%s\\%i%s\n", 
 			msg, cl->name, cl->userid, 

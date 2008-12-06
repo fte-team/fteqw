@@ -1214,7 +1214,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 							if (tc < 8)
 								translate32[TOP_RANGE+i] = d_8to24rgbtable[(tc<<4)+i];
 							else
-								translate32[BOTTOM_RANGE+i] = d_8to24rgbtable[(tc<<4)+15-i];
+								translate32[TOP_RANGE+i] = d_8to24rgbtable[(tc<<4)+15-i];
 						}
 						if (bc >= 16)
 						{

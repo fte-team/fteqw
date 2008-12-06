@@ -52,7 +52,7 @@ cvar_t cmd_allowaccess = SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd 
 cvar_t cmd_gamecodelevel = SCVAR("cmd_gamecodelevel", "50");	//execution level which gamecode is told about (for unrecognised commands)
 
 cvar_t	sv_nomsec = SCVAR("sv_nomsec", "0");
-cvar_t	sv_edgefriction = SCVAR("sv_edgefriction", "2");
+cvar_t	sv_edgefriction = FCVAR("sv_edgefriction", "edgefriction", "2", 0);
 
 cvar_t	sv_brokenmovetypes = SCVAR("sv_brokenmovetypes", "0");
 

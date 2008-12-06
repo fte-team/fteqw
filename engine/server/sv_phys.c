@@ -1776,6 +1776,9 @@ void SV_RunEntity (edict_t *ent)
 			return;		// unconnected slot
 
 
+		if (svs.clients[ent->entnum-1].protocol == SCP_BAD)
+			svs.clients[ent->entnum-1].edict->v->fixangle = 0;	//bots never get fixangle cleared otherwise
+
 		host_client = &svs.clients[ent->entnum-1];
 		SV_ClientThink();
 

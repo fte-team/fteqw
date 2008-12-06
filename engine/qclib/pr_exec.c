@@ -96,6 +96,7 @@ void PR_StackTrace (progfuncs_t *progfuncs)
 #endif
 
 	pr_stack[pr_depth].f = pr_xfunction;
+	pr_stack[pr_depth].s = pr_xstatement;
 	for (i=pr_depth ; i>0 ; i--)
 	{
 		f = pr_stack[i].f;
@@ -115,7 +116,12 @@ void PR_StackTrace (progfuncs_t *progfuncs)
 			if (!f->s_file)
 				printf ("stripped     : %s\n", f->s_name+progfuncs->stringtable);
 			else
-				printf ("%12s : %s\n", f->s_file+progfuncs->stringtable, f->s_name+progfuncs->stringtable);
+			{
+				if (pr_progstate[progs].linenums)
+					printf ("%12s %i : %s\n", f->s_file+progfuncs->stringtable, pr_progstate[progs].linenums[pr_stack[i].s], f->s_name+progfuncs->stringtable);
+				else
+					printf ("%12s : %s\n", f->s_file+progfuncs->stringtable, f->s_name+progfuncs->stringtable);
+			}
 
 #ifdef STACKTRACE
 

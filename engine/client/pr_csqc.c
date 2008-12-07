@@ -1462,7 +1462,11 @@ static void PF_cs_getstati(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 static void PF_cs_getstats(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int stnum = G_FLOAT(OFS_PARM0);
-	char out[8];
+
+	RETURN_TSTRING(cl.statsstr[csqc_lplayernum][stnum]);
+
+	/*
+	char out[17];
 
 	//the network protocol byteswaps
 
@@ -1472,7 +1476,7 @@ static void PF_cs_getstats(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	((unsigned int*)out)[3] = LittleLong(cl.stats[csqc_lplayernum][stnum+3]);
 	((unsigned int*)out)[4] = 0;	//make sure it's null terminated
 
-	RETURN_TSTRING(out);
+	RETURN_TSTRING(out);*/
 }
 
 static void PF_cs_SetOrigin(progfuncs_t *prinst, struct globalvars_s *pr_globals)

@@ -641,7 +641,7 @@ void R_RenderFace (msurface_t *fa, int clipflags)
 	medge_t		*pedges, tedge;
 	clipplane_t	*pclip;
 
-	if (fa->texinfo->texture && (*fa->texinfo->texture->name == '{' || fa->texinfo->flags & (SURF_TRANS33|SURF_TRANS66)))
+	if (fa->texinfo->texture && (fa->texinfo->flags & (SURF_ALPHATEST|SURF_TRANS33|SURF_TRANS66)))
 	{
 		if (fa->nextalphasurface)
 			return;
@@ -873,7 +873,7 @@ void R_RenderBmodelFace (bedge_t *pedges, msurface_t *psurf)
 		return;
 	}
 
-	if (*psurf->texinfo->texture->name == '{' || psurf->texinfo->flags & (SURF_TRANS33|SURF_TRANS66))
+	if (psurf->texinfo->flags & (SURF_TRANS33|SURF_TRANS66|SURF_ALPHATEST))
 	{
 		if (psurf->nextalphasurface)
 			return;

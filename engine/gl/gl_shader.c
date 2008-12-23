@@ -603,7 +603,22 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	{
 		parmtype = SP_TIME;
 	}
-
+	else if (!Q_stricmp(token, "eyepos"))
+	{
+		parmtype = SP_EYEPOS;
+	}
+	else if (!Q_stricmp(token, "colours") || !Q_stricmp(token, "colors"))
+	{
+		parmtype = SP_ENTCOLOURS;
+	}
+	else if (!Q_stricmp(token, "upper"))
+	{
+		parmtype = SP_TOPCOLOURS;
+	}
+	else if (!Q_stricmp(token, "lower"))
+	{
+		parmtype = SP_BOTTOMCOLOURS;
+	}
 
 	if (!shader->programhandle)
 	{

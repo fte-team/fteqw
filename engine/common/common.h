@@ -348,7 +348,7 @@ void FS_ReloadPackFiles(void);
 char *FS_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
 enum {
 	FS_GAME,
-	FS_BASE,
+	FS_ROOT,
 	FS_GAMEONLY,
 	FS_CONFIGONLY,
 	FS_SKINS

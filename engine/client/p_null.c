@@ -47,9 +47,7 @@ static void PNULL_DrawParticles(void)
 
 	RSpeedRemark();
 #ifdef GLQUAKE
-	qglBegin(GL_QUADS);
 	RQ_RenderDistAndClear();
-	qglEnd();
 #endif
 	RSpeedEnd(RSPEED_PARTICLESDRAW);
 }

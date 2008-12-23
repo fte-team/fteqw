@@ -1030,7 +1030,7 @@ texture_t *SWR_TextureAnimation (texture_t *base)
 	int		reletive;
 	int		count;
 
-	if (currententity->frame1)
+	if (currententity->framestate.g[FS_REG].frame[0])
 	{
 		if (base->alternate_anims)
 			base = base->alternate_anims;

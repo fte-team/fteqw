@@ -22,6 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "d_local.h"
 
+vec3_t			r_pright, r_pup, r_ppn;
+
 //Spike: Particles are depth sorted. So why depth write? They are the last to be drawn anyway.
 #define PARTICLEFACTOR 0x8000 // Change DP_Partfac in ASM to match this
 

@@ -25,6 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "r_local.h"
 
+#include "com_mesh.h"
+
 model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
 
@@ -388,6 +390,7 @@ model_t *SWMod_LoadModel (model_t *mod, qboolean crash)
 //
 // fill it in
 //
+		Mod_DoCRC(mod, (char*)buf, com_filesize);
 			
 		switch (LittleLong(*(unsigned *)buf))
 		{
@@ -1256,9 +1259,9 @@ qboolean SWMod_LoadTexinfo (lump_t *l)
 			{
 				out->flags |= SURF_TRANS66;
 			}
-			else if (*out->texture->name == '{')	//halflife levels
+			else if (*out->texture->name == '~')	//halflife levels
 			{
-//				out->flags |= SURF_TRANS66;
+				out->flags |= SURF_ALPHATEST;
 			}
 			else if (*out->texture->name == '!')	//halflife levels
 			{
@@ -2457,30 +2460,6 @@ qboolean SWMod_LoadAliasModel (model_t *mod, void *buffer)
 	int					skinsize;
 	int					start, end, total;
 	qboolean qtest = false;
-	
-	if (loadmodel->engineflags & MDLF_DOCRC)
-	{
-		unsigned short crc;
-		qbyte *p;
-		int len;
-		char st[40];
-
-		QCRC_Init(&crc);
-		for (len = com_filesize, p = buffer; len; len--, p++)
-			QCRC_ProcessByte(&crc, *p);
-	
-		sprintf(st, "%d", (int) crc);
-		Info_SetValueForKey (cls.userinfo, 
-			(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-			st, MAX_INFO_STRING);
-
-		if (cls.state >= ca_connected)
-		{
-			CL_SendClientCommand(true, "setinfo %s %d", 
-				(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-				(int)crc);
-		}
-	}
 
 	start = Hunk_LowMark ();
 
@@ -2793,31 +2772,6 @@ qboolean SWMod_LoadAlias2Model (model_t *mod, void *buffer)
 	dtrivertx_t			*frameverts;
 
 	vec3_t				mins, maxs;
-
-
-	if (loadmodel->engineflags & MDLF_DOCRC)
-	{
-		unsigned short crc;
-		qbyte *p;
-		int len;
-		char st[40];
-
-		QCRC_Init(&crc);
-		for (len = com_filesize, p = buffer; len; len--, p++)
-			QCRC_ProcessByte(&crc, *p);
-	
-		sprintf(st, "%d", (int) crc);
-		Info_SetValueForKey (cls.userinfo, 
-			(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-			st, MAX_INFO_STRING);
-
-		if (cls.state >= ca_connected)
-		{
-			CL_SendClientCommand(true, "setinfo %s %d", 
-				(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-				(int)crc);
-		}
-	}
 
 	start = Hunk_LowMark ();
 

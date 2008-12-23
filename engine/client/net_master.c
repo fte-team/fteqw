@@ -644,7 +644,7 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 		return false;
 	depth--;
 
-	f = FS_OpenVFS(filename, "rb", FS_BASE);
+	f = FS_OpenVFS(filename, "rb", FS_ROOT);
 	if (!f)
 		return false;
 

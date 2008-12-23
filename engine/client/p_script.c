@@ -118,6 +118,21 @@ typedef struct skytris_s {
 	struct msurface_s *face;
 } skytris_t;
 
+//these are the details of each particle which are exposed at render time - things that are static
+typedef struct {
+	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_DECAL} type;
+
+	blendmode_t blendmode;
+
+	int texturenum;
+#ifdef D3DQUAKE
+	void *d3dtexture;
+#endif
+
+	float scalefactor;
+	float invscalefactor;
+} plooks_t;
+
 //these could be deltas or absolutes depending on ramping mode.
 typedef struct {
 	vec3_t rgb;
@@ -130,14 +145,15 @@ typedef struct part_type_s {
 	char name[MAX_QPATH];
 	char texname[MAX_QPATH];
 	vec3_t rgb;
+	float alpha;
 	vec3_t rgbchange;
+	float alphachange;
 	vec3_t rgbrand;
 	int colorindex;
 	int colorrand;
 	float rgbchangetime;
 	vec3_t rgbrandsync;
-	float scale, alpha;
-	float alphachange;
+	float scale;
 	float die, randdie;
 	float randomvel, veladd;
 	float orgadd;
@@ -146,11 +162,10 @@ typedef struct part_type_s {
 	float randomvelvert;
 	float randscale;
 
+	plooks_t looks;
+
 	float spawntime;
 	float spawnchance;
-
-	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_DECAL} type;
-	blendmode_t blendmode;
 
 	float rotationstartmin, rotationstartrand;
 	float rotationmin, rotationrand;
@@ -158,10 +173,7 @@ typedef struct part_type_s {
 	float scaledelta;
 	float count;
 	float countrand;
-	int texturenum;
-#ifdef D3DQUAKE
-	void *d3dtexture;
-#endif
+
 	int assoc;
 	int cliptype;
 	int inwater;
@@ -173,8 +185,6 @@ typedef struct part_type_s {
 
 	float areaspread;
 	float areaspreadvert;
-	float scalefactor;
-	float invscalefactor;
 
 	float spawnparam1;
 	float spawnparam2;
@@ -225,7 +235,7 @@ typedef struct part_type_s {
 #define PS_INRUNLIST 0x1 // particle type is currently in execution list
 } part_type_t;
 
-void PScript_DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), void (*sparklineparticles)(particle_t*,part_type_t*), void (*sparkfanparticles)(particle_t*,part_type_t*), void (*sparktexturedparticles)(particle_t*,part_type_t*), void (*beamparticlest)(beamseg_t*,part_type_t*), void (*beamparticlesut)(beamseg_t*,part_type_t*), void (*drawdecalparticles)(clippeddecal_t*,part_type_t*));
+void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticlest)(int count, beamseg_t**,plooks_t*), void (*beamparticlesut)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*));
 
 #ifndef TYPESONLY
 
@@ -265,8 +275,6 @@ int			r_numdecals;
 trailstate_t *trailstates;
 int			ts_cycle; // current cyclic index of trailstates
 int			r_numtrailstates;
-
-vec3_t			r_pright, r_pup, r_ppn;
 
 extern cvar_t r_bouncysparks;
 extern cvar_t r_part_rain;
@@ -458,42 +466,42 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 	case QR_OPENGL:
 		if (*ptype->texname && strcmp(ptype->texname, "default"))
 		{
-			ptype->texturenum = Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
+			ptype->looks.texturenum = Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
 
-			if (!ptype->texturenum)
+			if (!ptype->looks.texturenum)
 			{
 				if (warn)
 					Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
 
 				if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball"))
-					ptype->texturenum = balltexture;
+					ptype->looks.texturenum = balltexture;
 				else
-					ptype->texturenum = explosiontexture;
+					ptype->looks.texturenum = explosiontexture;
 			}
 		}
 		else
-			ptype->texturenum = explosiontexture;
+			ptype->looks.texturenum = explosiontexture;
 		break;
 #endif
 #ifdef D3DQUAKE
 	case QR_DIRECT3D:
 		if (*ptype->texname && strcmp(ptype->texname, "default"))
 		{
-			ptype->d3dtexture = NULL;//Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
+			ptype->looks.d3dtexture = NULL;//Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
 
-			if (!ptype->d3dtexture)
+			if (!ptype->looks.d3dtexture)
 			{
 				if (warn)
 					Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
 
 				if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball"))
-					ptype->d3dtexture = d3dballtexture;
+					ptype->looks.d3dtexture = d3dballtexture;
 				else
-					ptype->d3dtexture = d3dexplosiontexture;
+					ptype->looks.d3dtexture = d3dexplosiontexture;
 			}
 		}
 		else
-			ptype->d3dtexture = d3dexplosiontexture;
+			ptype->looks.d3dtexture = d3dexplosiontexture;
 		break;
 #endif
 	default:
@@ -658,7 +666,7 @@ static void P_ParticleEffect_f(void)
 			ptype->randscale = atof(value);
 
 		else if (!strcmp(var, "scalefactor"))
-			ptype->scalefactor = atof(value);
+			ptype->looks.scalefactor = atof(value);
 		else if (!strcmp(var, "scaledelta"))
 			ptype->scaledelta = atof(value);
 
@@ -834,13 +842,13 @@ static void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "blend"))
 		{
 			if (!strcmp(value, "add"))
-				ptype->blendmode = BM_ADD;
+				ptype->looks.blendmode = BM_ADD;
 			else if (!strcmp(value, "subtract"))
-				ptype->blendmode = BM_SUBTRACT;
+				ptype->looks.blendmode = BM_SUBTRACT;
 			else if (!strcmp(value, "blendcolour") || !strcmp(value, "blendcolor"))
-				ptype->blendmode = BM_BLENDCOLOUR;
+				ptype->looks.blendmode = BM_BLENDCOLOUR;
 			else
-				ptype->blendmode = BM_BLEND;
+				ptype->looks.blendmode = BM_BLEND;
 		}
 		else if (!strcmp(var, "spawnmode"))
 		{
@@ -875,23 +883,23 @@ static void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "type"))
 		{
 			if (!strcmp(value, "beam"))
-				ptype->type = PT_BEAM;
+				ptype->looks.type = PT_BEAM;
 			else if (!strcmp(value, "spark"))
-				ptype->type = PT_SPARK;
+				ptype->looks.type = PT_SPARK;
 			else if (!strcmp(value, "sparkfan") || !strcmp(value, "trianglefan"))
-				ptype->type = PT_SPARKFAN;
+				ptype->looks.type = PT_SPARKFAN;
 			else if (!strcmp(value, "texturedspark"))
-				ptype->type = PT_TEXTUREDSPARK;
+				ptype->looks.type = PT_TEXTUREDSPARK;
 			else if (!strcmp(value, "decal"))
-				ptype->type = PT_DECAL;
+				ptype->looks.type = PT_DECAL;
 			else
-				ptype->type = PT_NORMAL;
+				ptype->looks.type = PT_NORMAL;
 			settype = true;
 		}
 		else if (!strcmp(var, "isbeam"))
 		{
 			Con_DPrintf("isbeam is deprechiated, use type beam\n");
-			ptype->type = PT_BEAM;
+			ptype->looks.type = PT_BEAM;
 		}
 		else if (!strcmp(var, "spawntime"))
 			ptype->spawntime = atof(value);
@@ -1071,7 +1079,7 @@ static void P_ParticleEffect_f(void)
 		else
 			Con_DPrintf("%s is not a recognised particle type field (in %s)\n", var, ptype->name);
 	}
-	ptype->invscalefactor = 1-ptype->scalefactor;
+	ptype->looks.invscalefactor = 1-ptype->looks.scalefactor;
 	ptype->loaded = 1;
 	if (ptype->clipcount < 1)
 		ptype->clipcount = 1;
@@ -1085,18 +1093,18 @@ static void P_ParticleEffect_f(void)
 
 	if (!settype)
 	{
-		if (ptype->type == PT_NORMAL && !*ptype->texname)
-			ptype->type = PT_SPARK;
-		if (ptype->type == PT_SPARK)
+		if (ptype->looks.type == PT_NORMAL && !*ptype->texname)
+			ptype->looks.type = PT_SPARK;
+		if (ptype->looks.type == PT_SPARK)
 		{
 			if (*ptype->texname)
-				ptype->type = PT_TEXTUREDSPARK;
+				ptype->looks.type = PT_TEXTUREDSPARK;
 			if (ptype->scale)
-				ptype->type = PT_SPARKFAN;
+				ptype->looks.type = PT_SPARKFAN;
 		}
 	}
 
-	if (ptype->type == PT_BEAM && !setbeamlen)
+	if (ptype->looks.type == PT_BEAM && !setbeamlen)
 		ptype->rotationstartmin = 1/128.0;
 
 	// use old behavior if not using alphadelta
@@ -1889,7 +1897,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 	else
 		ts = NULL;
 
-	if (ptype->type == PT_DECAL)
+	if (ptype->looks.type == PT_DECAL)
 	{
 		clippeddecal_t *d;
 		int decalcount;
@@ -2025,7 +2033,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		{
 		case SM_UNICIRCLE:
 			m = pcount;
-			if (ptype->type == PT_BEAM)
+			if (ptype->looks.type == PT_BEAM)
 				m--;
 
 			if (m < 1)
@@ -2091,7 +2099,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			if (!free_particles)
 				break;
 			p = free_particles;
-			if (ptype->type == PT_BEAM)
+			if (ptype->looks.type == PT_BEAM)
 			{
 				if (!free_beams)
 					break;
@@ -2319,7 +2327,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		}
 
 		// update beam list
-		if (ptype->type == PT_BEAM)
+		if (ptype->looks.type == PT_BEAM)
 		{
 			if (b)
 			{
@@ -2770,7 +2778,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		}
 
 		p = free_particles;
-		if (ptype->type == PT_BEAM)
+		if (ptype->looks.type == PT_BEAM)
 		{
 			if (!free_beams)
 			{
@@ -3009,7 +3017,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		ts->state1.lastdist = len;
 
 		// update beamseg list
-		if (ptype->type == PT_BEAM)
+		if (ptype->looks.type == PT_BEAM)
 		{
 			if (b)
 			{
@@ -3045,7 +3053,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 			}
 		}
 	}
-	else if (ptype->type == PT_BEAM)
+	else if (ptype->looks.type == PT_BEAM)
 	{
 		if (b)
 		{
@@ -3097,265 +3105,275 @@ static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int
 	P_ParticleTrail(start, end, pe_defaulttrail, tsk);
 }
 
-
-static part_type_t *lastgltype;
 vec3_t pright, pup;
 static float pframetime;
 #ifdef RGLQUAKE
-static void GL_DrawTexturedParticle(particle_t *p, part_type_t *type)
+static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *type)
 {
+	particle_t *p;
 	float x,y;
 	float scale;
 
-	if (lastgltype != type)
+
+	qglEnable(GL_TEXTURE_2D);
+	GL_Bind(type->texturenum);
+	APPLYBLEND(type->blendmode);
+	qglShadeModel(GL_FLAT);
+	qglBegin(GL_QUADS);
+
+
+	while (count--)
 	{
-		if (!lastgltype || lastgltype->type != type->type || lastgltype->texturenum != type->texturenum || lastgltype->blendmode != type->blendmode)
+		p = *plist++;
+
+		scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
+			+ (p->org[2] - r_origin[2])*vpn[2];
+		scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
+		if (scale < 20)
+			scale = 0.25;
+		else
+			scale = 0.25 + scale * 0.001;
+
+		qglColor4f (p->rgb[0],
+					p->rgb[1],
+					p->rgb[2],
+					p->alpha);
+
+		if (p->angle)
 		{
-			qglEnd();
-			qglEnable(GL_TEXTURE_2D);
-			GL_Bind(type->texturenum);
-			APPLYBLEND(type->blendmode);
-			qglShadeModel(GL_FLAT);
-			qglBegin(GL_QUADS);
+			x = sin(p->angle)*scale;
+			y = cos(p->angle)*scale;
 		}
-		lastgltype = type;
+		else
+		{
+			x = 0;
+			y = scale;
+		}
+		qglTexCoord2f(0,0);
+		qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
+		qglTexCoord2f(0,1);
+		qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
+		qglTexCoord2f(1,1);
+		qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
+		qglTexCoord2f(1,0);
+		qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
 	}
-
-	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
-		+ (p->org[2] - r_origin[2])*vpn[2];
-	scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
-	if (scale < 20)
-		scale = 0.25;
-	else
-		scale = 0.25 + scale * 0.001;
-
-	qglColor4f (p->rgb[0],
-				p->rgb[1],
-				p->rgb[2],
-				p->alpha);
-
-	if (p->angle)
-	{
-		x = sin(p->angle)*scale;
-		y = cos(p->angle)*scale;
-	}
-	else
-	{
-		x = 0;
-		y = scale;
-	}
-	qglTexCoord2f(0,0);
-	qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-	qglTexCoord2f(0,1);
-	qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
-	qglTexCoord2f(1,1);
-	qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-	qglTexCoord2f(1,0);
-	qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
+	qglEnd();
 }
 
 
-static void GL_DrawSketchParticle(particle_t *p, part_type_t *type)
+static void GL_DrawSketchParticle(int count, particle_t **plist, plooks_t *type)
 {
+	particle_t *p;
 	float x,y;
 	float scale;
 
 	int quant;
 
-	if (lastgltype != type)
+	qglDisable(GL_TEXTURE_2D);
+	GL_Bind(type->texturenum);
+//	if (type->blendmode == BM_ADD)		//addative
+//		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+//	else if (type->blendmode == BM_SUBTRACT)	//subtractive
+//		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//	else
+		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	qglShadeModel(GL_SMOOTH);
+	qglBegin(GL_LINES);
+
+	while (count--)
 	{
-		lastgltype = type;
-		qglEnd();
-		qglDisable(GL_TEXTURE_2D);
-		GL_Bind(type->texturenum);
-//		if (type->blendmode == BM_ADD)		//addative
-//			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//		else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-//		else
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		qglShadeModel(GL_SMOOTH);
-		qglBegin(GL_LINES);
+		p = *plist++;
+
+		scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
+			+ (p->org[2] - r_origin[2])*vpn[2];
+		scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
+		if (scale < 20)
+			scale = 0.25;
+		else
+			scale = 0.25 + scale * 0.001;
+
+		qglColor4f (p->rgb[0]/2,
+					p->rgb[1]/2,
+					p->rgb[2]/2,
+					p->alpha*2);
+
+		quant = scale;
+
+		if (p->angle)
+		{
+			x = sin(p->angle)*scale;
+			y = cos(p->angle)*scale;
+		}
+		else
+		{
+			x = 0;
+			y = scale;
+		}
+		qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
+		qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
+		qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
+		qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
 	}
-
-	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
-		+ (p->org[2] - r_origin[2])*vpn[2];
-	scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
-	if (scale < 20)
-		scale = 0.25;
-	else
-		scale = 0.25 + scale * 0.001;
-
-	qglColor4f (p->rgb[0]/2,
-				p->rgb[1]/2,
-				p->rgb[2]/2,
-				p->alpha*2);
-
-	quant = scale;
-
-	if (p->angle)
-	{
-		x = sin(p->angle)*scale;
-		y = cos(p->angle)*scale;
-	}
-	else
-	{
-		x = 0;
-		y = scale;
-	}
-	qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-	qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-	qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
-	qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
+	qglEnd();
 }
 
-static void GL_DrawTrifanParticle(particle_t *p, part_type_t *type)
+static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 {
+	particle_t *p;
 	int i;
 	vec3_t v;
 	float scale;
 
+	qglDisable(GL_TEXTURE_2D);
+	APPLYBLEND(type->blendmode);
+	qglShadeModel(GL_SMOOTH);
+
+	while (count--)
+	{
+		p = *plist++;
+
+		scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
+			+ (p->org[2] - r_origin[2])*vpn[2];
+		scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
+		if (scale < 20)
+			scale = 0.05;
+		else
+			scale = 0.05 + scale * 0.0001;
+	/*
+		if ((p->vel[0]*p->vel[0]+p->vel[1]*p->vel[1]+p->vel[2]*p->vel[2])*2*scale > 30*30)
+			scale = 1+1/30/Length(p->vel)*2;*/
+
+		qglBegin (GL_TRIANGLE_FAN);
+		qglColor4f (p->rgb[0],
+					p->rgb[1],
+					p->rgb[2],
+					p->alpha);
+		qglVertex3fv (p->org);
+		qglColor4f (p->rgb[0]/2,
+					p->rgb[1]/2,
+					p->rgb[2]/2,
+					0);
+		for (i=7 ; i>=0 ; i--)
+		{
+			v[0] = p->org[0] - p->vel[0]*scale + vright[0]*cost[i%7]*p->scale + vup[0]*sint[i%7]*p->scale;
+			v[1] = p->org[1] - p->vel[1]*scale + vright[1]*cost[i%7]*p->scale + vup[1]*sint[i%7]*p->scale;
+			v[2] = p->org[2] - p->vel[2]*scale + vright[2]*cost[i%7]*p->scale + vup[2]*sint[i%7]*p->scale;
+			qglVertex3fv (v);
+		}
+		qglEnd ();
+	}
+}
+
+static void GL_DrawLineSparkParticle(int count, particle_t **plist, plooks_t *type)
+{
+	particle_t *p;
+
+	qglDisable(GL_TEXTURE_2D);
+	GL_Bind(type->texturenum);
+	APPLYBLEND(type->blendmode);
+	qglShadeModel(GL_SMOOTH);
+	qglBegin(GL_LINES);
+	
+	while (count--)
+	{
+		p = *plist++;
+
+		qglColor4f (p->rgb[0],
+					p->rgb[1],
+					p->rgb[2],
+					p->alpha);
+		qglVertex3f (p->org[0], p->org[1], p->org[2]);
+
+		qglColor4f (p->rgb[0],
+					p->rgb[1],
+					p->rgb[2],
+					0);
+		qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
+	}
 	qglEnd();
-
-	if (lastgltype != type)
-	{
-		lastgltype = type;
-		qglDisable(GL_TEXTURE_2D);
-		APPLYBLEND(type->blendmode);
-		qglShadeModel(GL_SMOOTH);
-	}
-
-	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
-		+ (p->org[2] - r_origin[2])*vpn[2];
-	scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
-	if (scale < 20)
-		scale = 0.05;
-	else
-		scale = 0.05 + scale * 0.0001;
-/*
-	if ((p->vel[0]*p->vel[0]+p->vel[1]*p->vel[1]+p->vel[2]*p->vel[2])*2*scale > 30*30)
-		scale = 1+1/30/Length(p->vel)*2;*/
-
-	qglBegin (GL_TRIANGLE_FAN);
-	qglColor4f (p->rgb[0],
-				p->rgb[1],
-				p->rgb[2],
-				p->alpha);
-	qglVertex3fv (p->org);
-	qglColor4f (p->rgb[0]/2,
-				p->rgb[1]/2,
-				p->rgb[2]/2,
-				0);
-	for (i=7 ; i>=0 ; i--)
-	{
-		v[0] = p->org[0] - p->vel[0]*scale + vright[0]*cost[i%7]*p->scale + vup[0]*sint[i%7]*p->scale;
-		v[1] = p->org[1] - p->vel[1]*scale + vright[1]*cost[i%7]*p->scale + vup[1]*sint[i%7]*p->scale;
-		v[2] = p->org[2] - p->vel[2]*scale + vright[2]*cost[i%7]*p->scale + vup[2]*sint[i%7]*p->scale;
-		qglVertex3fv (v);
-	}
-	qglEnd ();
-	qglBegin (GL_TRIANGLES);
 }
 
-static void GL_DrawLineSparkParticle(particle_t *p, part_type_t *type)
+static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t *type)
 {
-	if (lastgltype != type)
-	{
-		lastgltype = type;
-		qglEnd();
-		qglDisable(GL_TEXTURE_2D);
-		GL_Bind(type->texturenum);
-		APPLYBLEND(type->blendmode);
-		qglShadeModel(GL_SMOOTH);
-		qglBegin(GL_LINES);
-	}
-
-	qglColor4f (p->rgb[0],
-				p->rgb[1],
-				p->rgb[2],
-				p->alpha);
-	qglVertex3f (p->org[0], p->org[1], p->org[2]);
-
-	qglColor4f (p->rgb[0],
-				p->rgb[1],
-				p->rgb[2],
-				0);
-	qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
-}
-
-static void GL_DrawTexturedSparkParticle(particle_t *p, part_type_t *type)
-{
+	particle_t *p;
 	vec3_t v, cr, o2, point;
-	if (lastgltype != type)
+
+	qglEnable(GL_TEXTURE_2D);
+	GL_Bind(type->texturenum);
+	APPLYBLEND(type->blendmode);
+	qglShadeModel(GL_SMOOTH);
+	qglBegin(GL_QUADS);
+
+
+	while(count--)
 	{
-		lastgltype = type;
-		qglEnd();
-		qglEnable(GL_TEXTURE_2D);
-		GL_Bind(type->texturenum);
-		APPLYBLEND(type->blendmode);
-		qglShadeModel(GL_SMOOTH);
-		qglBegin(GL_QUADS);
+		p = *plist++;
+
+		qglColor4f (p->rgb[0],
+					p->rgb[1],
+					p->rgb[2],
+					p->alpha);
+
+		VectorSubtract(r_refdef.vieworg, p->org, v);
+		CrossProduct(v, p->vel, cr);
+		VectorNormalize(cr);
+
+		VectorMA(p->org, -p->scale/2, cr, point);
+		qglTexCoord2f(0, 0);
+		qglVertex3fv(point);
+		VectorMA(p->org, p->scale/2, cr, point);
+		qglTexCoord2f(0, 1);
+		qglVertex3fv(point);
+
+
+		VectorMA(p->org, 0.1, p->vel, o2);
+
+		VectorSubtract(r_refdef.vieworg, o2, v);
+		CrossProduct(v, p->vel, cr);
+		VectorNormalize(cr);
+
+		VectorMA(o2, p->scale/2, cr, point);
+		qglTexCoord2f(1, 1);
+		qglVertex3fv(point);
+		VectorMA(o2, -p->scale/2, cr, point);
+		qglTexCoord2f(1, 0);
+		qglVertex3fv(point);
 	}
-
-	qglColor4f (p->rgb[0],
-				p->rgb[1],
-				p->rgb[2],
-				p->alpha);
-
-	VectorSubtract(r_refdef.vieworg, p->org, v);
-	CrossProduct(v, p->vel, cr);
-	VectorNormalize(cr);
-
-	VectorMA(p->org, -p->scale/2, cr, point);
-	qglTexCoord2f(0, 0);
-	qglVertex3fv(point);
-	VectorMA(p->org, p->scale/2, cr, point);
-	qglTexCoord2f(0, 1);
-	qglVertex3fv(point);
-
-
-	VectorMA(p->org, 0.1, p->vel, o2);
-
-	VectorSubtract(r_refdef.vieworg, o2, v);
-	CrossProduct(v, p->vel, cr);
-	VectorNormalize(cr);
-
-	VectorMA(o2, p->scale/2, cr, point);
-	qglTexCoord2f(1, 1);
-	qglVertex3fv(point);
-	VectorMA(o2, -p->scale/2, cr, point);
-	qglTexCoord2f(1, 0);
-	qglVertex3fv(point);
+	qglEnd();
 }
 
-static void GL_DrawSketchSparkParticle(particle_t *p, part_type_t *type)
+static void GL_DrawSketchSparkParticle(int count, particle_t **plist, plooks_t *type)
 {
-	if (lastgltype != type)
+	particle_t *p;
+
+	qglDisable(GL_TEXTURE_2D);
+	GL_Bind(type->texturenum);
+	APPLYBLEND(type->blendmode);
+	qglShadeModel(GL_SMOOTH);
+	qglBegin(GL_LINES);
+
+	while(count--)
 	{
-		lastgltype = type;
-		qglEnd();
-		qglDisable(GL_TEXTURE_2D);
-		GL_Bind(type->texturenum);
-		APPLYBLEND(type->blendmode);
-		qglShadeModel(GL_SMOOTH);
-		qglBegin(GL_LINES);
+		p = *plist++;
+		qglColor4f (p->rgb[0],
+					p->rgb[1],
+					p->rgb[2],
+					p->alpha);
+		qglVertex3f (p->org[0], p->org[1], p->org[2]);
+
+		qglColor4f (p->rgb[0],
+					p->rgb[1],
+					p->rgb[2],
+					0);
+		qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
 	}
-
-	qglColor4f (p->rgb[0],
-				p->rgb[1],
-				p->rgb[2],
-				p->alpha);
-	qglVertex3f (p->org[0], p->org[1], p->org[2]);
-
-	qglColor4f (p->rgb[0],
-				p->rgb[1],
-				p->rgb[2],
-				0);
-	qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
+	qglEnd();
 }
 
-static void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
+static void GL_DrawParticleBeam_Textured(int count, beamseg_t **blist, plooks_t *type)
 {
+	beamseg_t *b;
 	vec3_t v, point;
 	vec3_t cr;
 	beamseg_t *c;
@@ -3363,267 +3381,280 @@ static void GL_DrawParticleBeam_Textured(beamseg_t *b, part_type_t *type)
 	particle_t *q;
 	float ts;
 
-//	if (!b->next)
-//		return;
-
-	c = b->next;
-
-	q = c->p;
-//	if (!q)
-//		return;
-
-	p = b->p;
-//	if (!p)
-//		return;
-
-	if (lastgltype != type)
+	qglEnable(GL_TEXTURE_2D);
+	GL_Bind(type->texturenum);
+	APPLYBLEND(type->blendmode);
+	qglShadeModel(GL_SMOOTH);
+	qglBegin(GL_QUADS);
+	
+	while(count--)
 	{
-		lastgltype = type;
-		qglEnd();
-		qglEnable(GL_TEXTURE_2D);
-		GL_Bind(type->texturenum);
-		APPLYBLEND(type->blendmode);
-		qglShadeModel(GL_SMOOTH);
-		qglBegin(GL_QUADS);
+		b = *blist++;
+
+		c = b->next;
+
+		q = c->p;
+//		if (!q)
+//			continue;
+
+		p = b->p;
+//		if (!p)
+//			continue;
+
+		qglColor4f(q->rgb[0],
+				  q->rgb[1],
+				  q->rgb[2],
+				  q->alpha);
+	//	qglBegin(GL_LINE_LOOP);
+		VectorSubtract(r_refdef.vieworg, q->org, v);
+		VectorNormalize(v);
+		CrossProduct(c->dir, v, cr);
+		ts = c->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+
+		VectorMA(q->org, -q->scale, cr, point);
+		qglTexCoord2f(ts, 0);
+		qglVertex3fv(point);
+		VectorMA(q->org, q->scale, cr, point);
+		qglTexCoord2f(ts, 1);
+		qglVertex3fv(point);
+
+		qglColor4f(p->rgb[0],
+				  p->rgb[1],
+				  p->rgb[2],
+				  p->alpha);
+
+		VectorSubtract(r_refdef.vieworg, p->org, v);
+		VectorNormalize(v);
+		CrossProduct(b->dir, v, cr); // replace with old p->dir?
+		ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+
+		VectorMA(p->org, p->scale, cr, point);
+		qglTexCoord2f(ts, 1);
+		qglVertex3fv(point);
+		VectorMA(p->org, -p->scale, cr, point);
+		qglTexCoord2f(ts, 0);
+		qglVertex3fv(point);
 	}
-	qglColor4f(q->rgb[0],
-			  q->rgb[1],
-			  q->rgb[2],
-			  q->alpha);
-//	qglBegin(GL_LINE_LOOP);
-	VectorSubtract(r_refdef.vieworg, q->org, v);
-	VectorNormalize(v);
-	CrossProduct(c->dir, v, cr);
-	ts = c->texture_s*type->rotationstartmin + particletime*type->rotationmin;
-
-	VectorMA(q->org, -q->scale, cr, point);
-	qglTexCoord2f(ts, 0);
-	qglVertex3fv(point);
-	VectorMA(q->org, q->scale, cr, point);
-	qglTexCoord2f(ts, 1);
-	qglVertex3fv(point);
-
-	qglColor4f(p->rgb[0],
-			  p->rgb[1],
-			  p->rgb[2],
-			  p->alpha);
-
-	VectorSubtract(r_refdef.vieworg, p->org, v);
-	VectorNormalize(v);
-	CrossProduct(b->dir, v, cr); // replace with old p->dir?
-	ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
-
-	VectorMA(p->org, p->scale, cr, point);
-	qglTexCoord2f(ts, 1);
-	qglVertex3fv(point);
-	VectorMA(p->org, -p->scale, cr, point);
-	qglTexCoord2f(ts, 0);
-	qglVertex3fv(point);
-//	qglEnd();
+	qglEnd();
 }
 
-static void GL_DrawParticleBeam_Untextured(beamseg_t *b, part_type_t *type)
+static void GL_DrawParticleBeam_Untextured(int count, beamseg_t **blist, plooks_t *type)
 {
 	vec3_t v;
 	vec3_t cr;
 	beamseg_t *c;
 	particle_t *p;
 	particle_t *q;
+	beamseg_t *b;
 
 	vec3_t point[4];
 
-//	if (!b->next)
-//		return;
 
-	c = b->next;
+	qglDisable(GL_TEXTURE_2D);
+	GL_Bind(type->texturenum);
+	APPLYBLEND(type->blendmode);
+	qglShadeModel(GL_SMOOTH);
+	qglBegin(GL_QUADS);
 
-	q = c->p;
-//	if (!q)
-//		return;
-
-	p = b->p;
-//	if (!p)
-//		return;
-
-	if (lastgltype != type)
+	while(count--)
 	{
-		lastgltype = type;
-		qglEnd();
-		qglDisable(GL_TEXTURE_2D);
-		GL_Bind(type->texturenum);
-		APPLYBLEND(type->blendmode);
-		qglShadeModel(GL_SMOOTH);
-		qglBegin(GL_QUADS);
+		b = *blist++;
+
+		c = b->next;
+
+		q = c->p;
+	//	if (!q)
+	//		continue;
+
+		p = b->p;
+	//	if (!p)
+	//		continue;
+
+		VectorSubtract(r_refdef.vieworg, q->org, v);
+		VectorNormalize(v);
+		CrossProduct(c->dir, v, cr);
+
+		VectorMA(q->org, -q->scale, cr, point[0]);
+		VectorMA(q->org, q->scale, cr, point[1]);
+
+
+		VectorSubtract(r_refdef.vieworg, p->org, v);
+		VectorNormalize(v);
+		CrossProduct(b->dir, v, cr); // replace with old p->dir?
+
+		VectorMA(p->org, p->scale, cr, point[2]);
+		VectorMA(p->org, -p->scale, cr, point[3]);
+
+
+		//one half
+		//back out
+		//back in
+		//front in
+		//front out
+		qglColor4f(q->rgb[0],
+			  q->rgb[1],
+			  q->rgb[2],
+			  0);
+		qglVertex3fv(point[0]);
+		qglColor4f(q->rgb[0],
+			  q->rgb[1],
+			  q->rgb[2],
+			  q->alpha);
+		qglVertex3fv(q->org);
+
+		qglColor4f(p->rgb[0],
+			  p->rgb[1],
+			  p->rgb[2],
+			  p->alpha);
+		qglVertex3fv(p->org);
+		qglColor4f(p->rgb[0],
+			  p->rgb[1],
+			  p->rgb[2],
+			  0);
+		qglVertex3fv(point[3]);
+
+		//front out
+		//front in
+		//back in
+		//back out
+		qglColor4f(p->rgb[0],
+			  p->rgb[1],
+			  p->rgb[2],
+			  0);
+		qglVertex3fv(point[2]);
+		qglColor4f(p->rgb[0],
+			  p->rgb[1],
+			  p->rgb[2],
+			  p->alpha);
+		qglVertex3fv(p->org);
+
+		qglColor4f(q->rgb[0],
+			  q->rgb[1],
+			  q->rgb[2],
+			  q->alpha);
+		qglVertex3fv(q->org);
+		qglColor4f(q->rgb[0],
+			  q->rgb[1],
+			  q->rgb[2],
+			  0);
+		qglVertex3fv(point[1]);
 	}
-
-//	qglBegin(GL_LINE_LOOP);
-	VectorSubtract(r_refdef.vieworg, q->org, v);
-	VectorNormalize(v);
-	CrossProduct(c->dir, v, cr);
-
-	VectorMA(q->org, -q->scale, cr, point[0]);
-	VectorMA(q->org, q->scale, cr, point[1]);
-
-
-	VectorSubtract(r_refdef.vieworg, p->org, v);
-	VectorNormalize(v);
-	CrossProduct(b->dir, v, cr); // replace with old p->dir?
-
-	VectorMA(p->org, p->scale, cr, point[2]);
-	VectorMA(p->org, -p->scale, cr, point[3]);
-
-
-	//one half
-	//back out
-	//back in
-	//front in
-	//front out
-	qglColor4f(q->rgb[0],
-		  q->rgb[1],
-		  q->rgb[2],
-		  0);
-	qglVertex3fv(point[0]);
-	qglColor4f(q->rgb[0],
-		  q->rgb[1],
-		  q->rgb[2],
-		  q->alpha);
-	qglVertex3fv(q->org);
-
-	qglColor4f(p->rgb[0],
-		  p->rgb[1],
-		  p->rgb[2],
-		  p->alpha);
-	qglVertex3fv(p->org);
-	qglColor4f(p->rgb[0],
-		  p->rgb[1],
-		  p->rgb[2],
-		  0);
-	qglVertex3fv(point[3]);
-
-	//front out
-	//front in
-	//back in
-	//back out
-	qglColor4f(p->rgb[0],
-		  p->rgb[1],
-		  p->rgb[2],
-		  0);
-	qglVertex3fv(point[2]);
-	qglColor4f(p->rgb[0],
-		  p->rgb[1],
-		  p->rgb[2],
-		  p->alpha);
-	qglVertex3fv(p->org);
-
-	qglColor4f(q->rgb[0],
-		  q->rgb[1],
-		  q->rgb[2],
-		  q->alpha);
-	qglVertex3fv(q->org);
-	qglColor4f(q->rgb[0],
-		  q->rgb[1],
-		  q->rgb[2],
-		  0);
-	qglVertex3fv(point[1]);
-
-//	qglEnd();
+	qglEnd();
 }
 
-static void GL_DrawClippedDecal(clippeddecal_t *d, part_type_t *type)
+static void GL_DrawClippedDecal(int count, clippeddecal_t **dlist, plooks_t *type)
 {
-	if (lastgltype != type)
+	clippeddecal_t *d;
+
+	qglEnable(GL_TEXTURE_2D);
+	GL_Bind(type->texturenum);
+	APPLYBLEND(type->blendmode);
+	qglShadeModel(GL_SMOOTH);
+
+//	qglDisable(GL_TEXTURE_2D);
+//	qglBegin(GL_LINE_LOOP);
+
+	qglBegin(GL_TRIANGLES);
+
+	while (count--)
 	{
-		lastgltype = type;
-		qglEnd();
-		qglEnable(GL_TEXTURE_2D);
-		GL_Bind(type->texturenum);
-		APPLYBLEND(type->blendmode);
-		qglShadeModel(GL_SMOOTH);
+		d = *dlist++;
 
-//		qglDisable(GL_TEXTURE_2D);
-//		qglBegin(GL_LINE_LOOP);
+		qglColor4f(d->rgb[0],
+			  d->rgb[1],
+			  d->rgb[2],
+			  d->alpha);
 
-		qglBegin(GL_TRIANGLES);
+		qglTexCoord2fv(d->texcoords[0]);
+		qglVertex3fv(d->vertex[0]);
+		qglTexCoord2fv(d->texcoords[1]);
+		qglVertex3fv(d->vertex[1]);
+		qglTexCoord2fv(d->texcoords[2]);
+		qglVertex3fv(d->vertex[2]);
 	}
-
-	qglColor4f(d->rgb[0],
-		  d->rgb[1],
-		  d->rgb[2],
-		  d->alpha);
-
-	qglTexCoord2fv(d->texcoords[0]);
-	qglVertex3fv(d->vertex[0]);
-	qglTexCoord2fv(d->texcoords[1]);
-	qglVertex3fv(d->vertex[1]);
-	qglTexCoord2fv(d->texcoords[2]);
-	qglVertex3fv(d->vertex[2]);
+	qglEnd();
 }
 
 #endif
 #ifdef SWQUAKE
-static void SWD_DrawParticleSpark(particle_t *p, part_type_t *type)
+static void SWD_DrawParticleSpark(int count, particle_t **plist, plooks_t *type)
 {
 	float speed;
 	vec3_t src, dest;
+	particle_t *p;
 
 	int r,g,b;	//if you have a cpu with mmx, good for you...
-	r = p->rgb[0]*255;
-	if (r < 0)
-		r = 0;
-	else if (r > 255)
-		r = 255;
-	g = p->rgb[1]*255;
-	if (g < 0)
-		g = 0;
-	else if (g > 255)
-		g = 255;
-	b = p->rgb[2]*255;
-	if (b < 0)
-		b = 0;
-	else if (b > 255)
-		b = 255;
-	p->color = GetPaletteIndex(r, g, b);
 
-	speed = Length(p->vel);
-	if ((speed) < 1)
+	while (count--)
 	{
-		VectorCopy(p->org, src);
-		VectorCopy(p->org, dest);
-	}
-	else
-	{	//causes flickers with lower vels (due to bouncing in physics)
-		if (speed < 50)
-			speed *= 50/speed;
-		VectorMA(p->org, 2.5/(speed), p->vel, src);
-		VectorMA(p->org, -2.5/(speed), p->vel, dest);
-	}
+		p = *plist++;
 
-	D_DrawSparkTrans(p, src, dest, type->blendmode);
+		r = p->rgb[0]*255;
+		if (r < 0)
+			r = 0;
+		else if (r > 255)
+			r = 255;
+		g = p->rgb[1]*255;
+		if (g < 0)
+			g = 0;
+		else if (g > 255)
+			g = 255;
+		b = p->rgb[2]*255;
+		if (b < 0)
+			b = 0;
+		else if (b > 255)
+			b = 255;
+		p->color = GetPaletteIndex(r, g, b);
+
+		speed = Length(p->vel);
+		if ((speed) < 1)
+		{
+			VectorCopy(p->org, src);
+			VectorCopy(p->org, dest);
+		}
+		else
+		{	//causes flickers with lower vels (due to bouncing in physics)
+			if (speed < 50)
+				speed *= 50/speed;
+			VectorMA(p->org, 2.5/(speed), p->vel, src);
+			VectorMA(p->org, -2.5/(speed), p->vel, dest);
+		}
+
+		D_DrawSparkTrans(p, src, dest, type->blendmode);
+	}
 }
-static void SWD_DrawParticleBlob(particle_t *p, part_type_t *type)
+static void SWD_DrawParticleBlob(int count, particle_t **plist, plooks_t *type)
 {
+	particle_t *p;
 	int r,g,b;	//This really shouldn't be like this. Pitty the 32 bit renderer...
-	r = p->rgb[0]*255;
-	if (r < 0)
-		r = 0;
-	else if (r > 255)
-		r = 255;
-	g = p->rgb[1]*255;
-	if (g < 0)
-		g = 0;
-	else if (g > 255)
-		g = 255;
-	b = p->rgb[2]*255;
-	if (b < 0)
-		b = 0;
-	else if (b > 255)
-		b = 255;
-	p->color = GetPaletteIndex(r, g, b);
-	D_DrawParticleTrans(p->org, p->alpha, p->scale, p->color, type->blendmode);
+
+	while(count--)
+	{
+		p = *plist++;
+
+		r = p->rgb[0]*255;
+		if (r < 0)
+			r = 0;
+		else if (r > 255)
+			r = 255;
+		g = p->rgb[1]*255;
+		if (g < 0)
+			g = 0;
+		else if (g > 255)
+			g = 255;
+		b = p->rgb[2]*255;
+		if (b < 0)
+			b = 0;
+		else if (b > 255)
+			b = 255;
+		p->color = GetPaletteIndex(r, g, b);
+		D_DrawParticleTrans(p->org, p->alpha, p->scale, p->color, type->blendmode);
+	}
 }
-static void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
+static void SWD_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 {
 	int r,g,b;	//if you have a cpu with mmx, good for you...
+	beamseg_t *beam;
 	beamseg_t *c;
 	particle_t *p;
 	particle_t *q;
@@ -3631,35 +3662,40 @@ static void SWD_DrawParticleBeam(beamseg_t *beam, part_type_t *type)
 //	if (!b->next)
 //		return;
 
-	c = beam->next;
+	while(count--)
+	{
+		beam = *blist++;
 
-	q = c->p;
-//	if (!q)
-//		return;
+		c = beam->next;
 
-	p = beam->p;
+		q = c->p;
+	//	if (!q)
+	//		return;
 
-	r = p->rgb[0]*255;
-	if (r < 0)
-		r = 0;
-	else if (r > 255)
-		r = 255;
-	g = p->rgb[1]*255;
-	if (g < 0)
-		g = 0;
-	else if (g > 255)
-		g = 255;
-	b = p->rgb[2]*255;
-	if (b < 0)
-		b = 0;
-	else if (b > 255)
-		b = 255;
-	p->color = GetPaletteIndex(r, g, b);
-	D_DrawSparkTrans(p, p->org, q->org, type->blendmode);
+		p = beam->p;
+
+		r = p->rgb[0]*255;
+		if (r < 0)
+			r = 0;
+		else if (r > 255)
+			r = 255;
+		g = p->rgb[1]*255;
+		if (g < 0)
+			g = 0;
+		else if (g > 255)
+			g = 255;
+		b = p->rgb[2]*255;
+		if (b < 0)
+			b = 0;
+		else if (b > 255)
+			b = 255;
+		p->color = GetPaletteIndex(r, g, b);
+		D_DrawSparkTrans(p, p->org, q->org, type->blendmode);
+	}
 }
 #endif
 
-void PScript_DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type_t*), void (*sparklineparticles)(particle_t*,part_type_t*), void (*sparkfanparticles)(particle_t*,part_type_t*), void (*sparktexturedparticles)(particle_t*,part_type_t*), void (*beamparticlest)(beamseg_t*,part_type_t*), void (*beamparticlesut)(beamseg_t*,part_type_t*), void (*drawdecalparticles)(clippeddecal_t*,part_type_t*))
+void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticlest)(int count, beamseg_t**,plooks_t*), void (*beamparticlesut)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*))
 {
 	RSpeedMark();
 
@@ -3682,8 +3718,6 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type
 
 	int traces=r_particle_tracelimit.value;
 	int rampind;
-
-	lastgltype = NULL;
 
 	pframetime = host_frametime;
 	if (cl.paused || r_secondaryview)
@@ -3804,7 +3838,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type
 					d->alpha += pframetime*type->alphachange;
 				}
 
-				drawdecalparticles(d, type);
+				drawdecalparticles(1, &d, &type->looks);
 			}
 		}
 
@@ -3813,7 +3847,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type
 
 		// set drawing methods by type and cvars and hope branch
 		// prediction takes care of the rest
-		switch(type->type)
+		switch(type->looks.type)
 		{
 		case PT_BEAM:
 			if (*type->texname)
@@ -4078,7 +4112,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(particle_t *,part_type
 						p->vel[1] *= type->clipbounce;
 						p->vel[2] *= type->clipbounce;
 
-						if (!*type->texname && Length(p->vel)<1000*pframetime && type->type == PT_NORMAL)
+						if (!*type->texname && Length(p->vel)<1000*pframetime && type->looks.type == PT_NORMAL)
 							p->die = -1;
 					}
 					else
@@ -4221,7 +4255,6 @@ static void PScript_FlushRenderer(void)
 	qglEnable (GL_BLEND);
 	GL_TexEnv(GL_MODULATE);
 	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	lastgltype = NULL;
 #endif
 }
 
@@ -4251,21 +4284,16 @@ static void PScript_DrawParticles (void)
 		qglDepthFunc(gldepthfunc);
 
 		qglDisable(GL_ALPHA_TEST);
-		qglBegin(GL_QUADS);
 		if (r_drawflat.value == 2)
 			PScript_DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
 		else
 			PScript_DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawLineSparkParticle, GL_DrawTrifanParticle, GL_DrawTexturedSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
-		qglEnd();
 		qglDisable(GL_POLYGON_OFFSET_FILL);
 
 
 
 		RSpeedRemark();
-		lastgltype = NULL;
-		qglBegin(GL_QUADS);
-		RQ_RenderDistAndClear();
-		qglEnd();
+		RQ_RenderBatchClear();
 		RSpeedEnd(RSPEED_PARTICLESDRAW);
 
 		qglEnable(GL_TEXTURE_2D);
@@ -4280,7 +4308,6 @@ static void PScript_DrawParticles (void)
 #ifdef SWQUAKE
 	if (qrenderer == QR_SOFTWARE)
 	{
-		lastgltype = NULL;
 		PScript_DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleBeam, SWD_DrawParticleBeam, NULL);
 
 		RSpeedRemark();

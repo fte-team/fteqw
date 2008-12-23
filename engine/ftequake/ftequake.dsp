@@ -588,8 +588,6 @@ SOURCE=..\server\svq3_game.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
-# PROP Exclude_From_Build 1
-
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
 # PROP Exclude_From_Build 1
@@ -2017,6 +2015,45 @@ SOURCE=..\client\p_classic.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\client\p_darkplaces.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
 SOURCE=..\client\p_null.c
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
@@ -2336,7 +2373,6 @@ SOURCE=..\client\r_partset.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
 
-# PROP Exclude_From_Build 1
 # SUBTRACT CPP /YX /Yc /Yu
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
@@ -3281,6 +3317,8 @@ SOURCE=..\gl\gl_alias.c
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 

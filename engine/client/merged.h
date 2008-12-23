@@ -3,6 +3,39 @@ struct progfuncs_s;
 struct globalvars_s;
 struct texture_s;
 
+
+
+#ifdef HALFLIFEMODELS
+	#define MAX_BONE_CONTROLLERS 5
+#endif
+
+#define FST_BASE 0	//base frames
+#define FS_REG 1	//regular frames
+#define FS_COUNT 2	//regular frames
+typedef struct {
+	struct {
+		int frame[2];
+		float frametime[2];
+		float lerpfrac;
+
+#ifdef HALFLIFEMODELS
+		float subblendfrac;	//hl models are weird
+#endif
+
+		int endbone;
+	} g[2];
+
+	float *bonestate;
+	int bonecount;
+
+#ifdef HALFLIFEMODELS
+	float bonecontrols[MAX_BONE_CONTROLLERS];	//hl special bone controllers
+#endif
+} framestate_t;
+
+
+
+
 //function prototypes
 
 #if defined(SERVERONLY)
@@ -12,7 +45,6 @@ struct texture_s;
 #define FNC(n) (*n)
 extern r_qrenderer_t qrenderer;
 extern char *q_renderername;
-
 
 extern mpic_t	*(*Draw_SafePicFromWad)				(char *name);
 extern mpic_t	*(*Draw_CachePic)					(char *path);
@@ -104,8 +136,13 @@ extern int FNC(Mod_SkinForName)						(struct model_s *model, char *name);
 
 #undef FNC
 
-extern qboolean	Mod_GetTag						(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
+extern qboolean	Mod_GetTag						(struct model_s *model, int tagnum, framestate_t *framestate, float *transforms);
 extern int Mod_TagNumForName					(struct model_s *model, char *name);
+
+int Mod_GetNumBones(struct model_s *model, qboolean allowtags);
+int Mod_GetBoneRelations(struct model_s *model, int numbones, framestate_t *fstate, float *result);
+int Mod_GetBoneParent(struct model_s *model, int bonenum);
+char *Mod_GetBoneName(struct model_s *model, int bonenum);
 
 void Draw_FunString(int x, int y, unsigned char *str);
 void Draw_FunStringLen(int x, int y, unsigned char *str, int len);
@@ -181,7 +218,7 @@ typedef struct {
 
 	void	(*Mod_NowLoadExternal)		(void);
 	void	(*Mod_Think)				(void);
-	qboolean(*Mod_GetTag)				(struct model_s *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result);
+	qboolean (*Mod_GetTag)				(struct model_s *model, int tagnum, framestate_t *fstate, float *result);
 	int (*Mod_TagNumForName)			(struct model_s *model, char *name);
 	int (*Mod_SkinForName)				(struct model_s *model, char *name);
 

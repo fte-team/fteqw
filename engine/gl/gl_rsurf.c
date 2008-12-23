@@ -754,7 +754,7 @@ void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *
 #endif
 	int stride = LMBLOCK_WIDTH*lightmap_bytes;
 
-	if (!surf->samples)
+	if (!surf->samples && currentmodel->lightdata)
 		return;
 
 	shift += 7; // increase to base value
@@ -2171,7 +2171,7 @@ void GLR_DrawAlphaSurfaces (void)
 	
 	qglEnable(GL_ALPHA_TEST);
 	qglDisable(GL_BLEND);
-	if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake2))
+//	if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake2))
 	{	//this is a mahoosive hack.
 		qglDepthMask(0);	//this makes no difference to the cheating.
 
@@ -2187,7 +2187,7 @@ void GLR_DrawAlphaSurfaces (void)
 			break;
 		}
 		s->flags |= 0x80000;
-		if (*s->texinfo->texture->name == '{')
+		if (s->texinfo->flags & SURF_ALPHATEST)
 		{	//simple alpha testing.
 
 			if (s->ownerent != currententity)
@@ -2197,7 +2197,6 @@ void GLR_DrawAlphaSurfaces (void)
 				qglPushMatrix();
 				R_RotateForEntity(currententity);
 			}
-			Sys_Error("GLR_DrawAlphaSurfaces needs work");
 /*
 			if (gl_mtexable)
 			{
@@ -2230,9 +2229,9 @@ void GLR_DrawAlphaSurfaces (void)
 			else
 */
 			{
-				if (s->samples)	//could do true vertex lighting... ?
-					qglColor4ub (*s->samples,*s->samples,*s->samples,255);
-				else
+//				if (s->samples)	//could do true vertex lighting... ?
+//					qglColor4ub (*s->samples,*s->samples,*s->samples,255);
+//				else
 					qglColor4f (1,1,1,1);
 				DrawGLPoly (s->mesh);
 				qglColor4f (1,1,1,1);
@@ -2289,7 +2288,6 @@ matrixInvert(GLfloat in[16], GLfloat out[16])
 }
 #endif
 
-void VectorVectors(vec3_t forward, vec3_t right, vec3_t up);
 /*
 ================
 DrawTextureChains

@@ -179,7 +179,7 @@ void MakeVideoPalette(void)
 	// pal555to8 = Hunk_AllocName(PAL555_SIZE, "RGB data");
 
 	// load in previously created table
-	if ((f = FS_OpenVFS("pal555.pal", "rb", FS_BASE)))
+	if ((f = FS_OpenVFS("pal555.pal", "rb", FS_GAME)))
 	{
 		VFS_READ(f, pal555to8, PAL555_SIZE);
 		VFS_CLOSE(f);

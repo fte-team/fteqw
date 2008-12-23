@@ -4187,6 +4187,45 @@ int GL_LoadTexture32 (char *identifier, int width, int height, unsigned *data, q
 	return texture_extension_number-1;
 }
 
+int GL_LoadTexture32_BGRA (char *identifier, int width, int height, unsigned *data, qboolean mipmap, qboolean alpha)
+{
+//	qboolean	noalpha;
+//	int			p, s;
+	gltexture_t	*glt;
+
+	// see if the texture is already present
+	if (identifier[0])
+	{
+		glt = GL_MatchTexture(identifier, 32, width, height);
+		if (glt)
+			return glt->texnum;
+	}
+
+	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
+	glt->next = gltextures;
+	gltextures = glt;
+
+	strcpy (glt->identifier, identifier);
+	glt->texnum = texture_extension_number;
+	glt->width = width;
+	glt->height = height;
+	glt->bpp = 32;
+	glt->mipmap = mipmap;
+
+	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
+
+//	if (!isDedicated)
+	{
+		GL_Bind(texture_extension_number );
+
+		GL_Upload32_BGRA (identifier, data, width, height, mipmap, alpha);
+	}
+
+	texture_extension_number++;
+
+	return texture_extension_number-1;
+}
+
 int GL_LoadCompressed(char *name)
 {
 	qbyte *COM_LoadFile (char *path, int usehunk);

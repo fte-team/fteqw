@@ -124,7 +124,7 @@ qboolean R_AliasCheckBBox (void)
 	R_AliasSetUpTransform (0);
 
 // construct the base bounding box for this frame
-	nframe = currententity->frame1;
+	nframe = currententity->framestate.g[FS_REG].frame[0];
 // TODO: don't repeat this check when drawing?
 	if ((nframe >= pmdl->numframes) || (nframe < 0))
 	{
@@ -134,7 +134,7 @@ qboolean R_AliasCheckBBox (void)
 	}
 
 // construct the base bounding box for this frame
-	oframe = currententity->frame2;
+	oframe = currententity->framestate.g[FS_REG].frame[1];
 // TODO: don't repeat this check when drawing?
 	if ((oframe >= pmdl->numframes) || (oframe < 0))
 	{
@@ -771,20 +771,20 @@ void R_AliasSetupFrame (void)
 //	vec3_t max1, max2;
 	float fl, bl;
 
-	frame = currententity->frame1;
+	frame = currententity->framestate.g[FS_REG].frame[0];
 	if ((frame >= pmdl->numframes) || (frame < 0))
 	{
 		Con_DPrintf ("R_AliasSetupFrame: no such frame %d\n", frame);
 		frame = 0;
 	}
-	oframe = currententity->frame2;
+	oframe = currententity->framestate.g[FS_REG].frame[1];
 	if ((oframe >= pmdl->numframes) || (oframe < 0))
 	{
 //		Con_DPrintf ("R_AliasSetupFrame: no such frame %d\n", oframe);	//pointless
 		oframe = 0;
 	}
 
-	bl = currententity->lerpfrac;
+	bl = currententity->framestate.g[FS_REG].lerpfrac;
 	if (bl < 0)
 		bl = 0;
 	else if (bl > 1)
@@ -811,7 +811,7 @@ void R_AliasSetupFrame (void)
 		numframes = paliasgroup->numframes;
 		fullinterval = pintervals[numframes-1];
 
-		time = currententity->frame1time;
+		time = currententity->framestate.g[FS_REG].frametime[0];
 
 	//
 	// when loading in Mod_LoadAliasGroup, we guaranteed all interval values
@@ -842,7 +842,7 @@ void R_AliasSetupFrame (void)
 		numframes = paliasgroup->numframes;
 		fullinterval = pintervals[numframes-1];
 
-		time = currententity->frame1time;
+		time = currententity->framestate.g[FS_REG].frametime[1];
 
 	//
 	// when loading in Mod_LoadAliasGroup, we guaranteed all interval values

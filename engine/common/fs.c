@@ -2135,7 +2135,7 @@ vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto)
 		else
 			snprintf(fullname, sizeof(fullname), "%sqw/skins/%s", com_quakedir, filename);
 		break;
-	case FS_BASE:
+	case FS_ROOT:
 		if (*com_homedir)
 		{
 			snprintf(fullname, sizeof(fullname), "%s%s", com_homedir, filename);
@@ -2203,7 +2203,7 @@ int FS_Rename2(char *oldf, char *newf, int oldrelativeto, int newrelativeto)
 		else
 			snprintf(oldfullname, sizeof(oldfullname), "%sqw/skins/", com_quakedir);
 		break;
-	case FS_BASE:
+	case FS_ROOT:
 		if (*com_homedir)
 			snprintf(oldfullname, sizeof(oldfullname), "%s", com_homedir);
 		else
@@ -2227,7 +2227,7 @@ int FS_Rename2(char *oldf, char *newf, int oldrelativeto, int newrelativeto)
 		else
 			snprintf(newfullname, sizeof(newfullname), "%sqw/skins/", com_quakedir);
 		break;
-	case FS_BASE:
+	case FS_ROOT:
 		if (*com_homedir)
 			snprintf(newfullname, sizeof(newfullname), "%s", com_homedir);
 		else
@@ -2262,7 +2262,7 @@ int FS_Rename(char *oldf, char *newf, int relativeto)
 		else
 			snprintf(oldfullname, sizeof(oldfullname), "%sqw/skins/", com_quakedir);
 		break;
-	case FS_BASE:
+	case FS_ROOT:
 		if (*com_homedir)
 			snprintf(oldfullname, sizeof(oldfullname), "%s", com_homedir);
 		else
@@ -2296,7 +2296,7 @@ int FS_Remove(char *fname, int relativeto)
 		else
 			snprintf(fullname, sizeof(fullname), "%sqw/skins/%s", com_quakedir, fname);
 		break;
-	case FS_BASE:
+	case FS_ROOT:
 		if (*com_homedir)
 			snprintf(fullname, sizeof(fullname), "%s%s", com_homedir, fname);
 		else
@@ -2317,7 +2317,7 @@ void FS_CreatePath(char *pname, int relativeto)
 	case FS_GAME:
 		snprintf(fullname, sizeof(fullname), "%s/%s", com_gamedir, pname);
 		break;
-	case FS_BASE:
+	case FS_ROOT:
 		if (*com_homedir)
 			snprintf(fullname, sizeof(fullname), "%s%s", com_homedir, pname);
 		else

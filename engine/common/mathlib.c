@@ -312,7 +312,7 @@ void VVPerpendicularVector(vec3_t dst, const vec3_t src)
 		VectorNormalize(dst);
 	}
 }
-void VectorVectors(vec3_t forward, vec3_t right, vec3_t up)
+void VectorVectors(const vec3_t forward, vec3_t right, vec3_t up)
 {
 	VVPerpendicularVector(right, forward);
 	CrossProduct(right, forward, up);
@@ -389,7 +389,7 @@ void _VectorCopy (vec3_t in, vec3_t out)
 	out[2] = in[2];
 }
 
-void CrossProduct (vec3_t v1, vec3_t v2, vec3_t cross)
+void CrossProduct (const vec3_t v1, const vec3_t v2, vec3_t cross)
 {
 	cross[0] = v1[1]*v2[2] - v1[2]*v2[1];
 	cross[1] = v1[2]*v2[0] - v1[0]*v2[2];

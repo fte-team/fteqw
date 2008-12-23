@@ -371,9 +371,7 @@ static void PClassic_DrawParticles(void)
 //please don't make me do so.
 #ifdef RGLQUAKE
 	RSpeedRemark();
-	qglBegin(GL_QUADS);
 	RQ_RenderDistAndClear();
-	qglEnd();
 	RSpeedEnd(RSPEED_PARTICLESDRAW);
 #endif
 }

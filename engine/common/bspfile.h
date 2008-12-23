@@ -506,6 +506,8 @@ typedef struct
 
 #define	SURF_NODRAW		0x80	// don't bother referencing the texture
 
+#define	SURF_ALPHATEST	0x100
+
 #define Q3SURF_LADDER	0x8		//wee
 
 // content masks

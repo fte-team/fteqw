@@ -120,4 +120,23 @@ typedef struct {
 } galiascolourmapped_t;
 #endif
 
+float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize);
+void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, float *xyzout);
 
+void Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
+
+qboolean Mod_LoadQ1Model (model_t *mod, void *buffer);
+#ifdef MD2MODELS
+	qboolean Mod_LoadQ2Model (model_t *mod, void *buffer);
+#endif
+#ifdef MD3MODELS
+	qboolean Mod_LoadQ3Model(model_t *mod, void *buffer);
+#endif
+#ifdef ZYMOTICMODELS
+	qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer);
+	qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer);
+#endif
+#ifdef MD5MODELS
+	qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer);
+	qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer);
+#endif

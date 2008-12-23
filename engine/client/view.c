@@ -1198,7 +1198,7 @@ void V_CalcRefdef (int pnum)
  		view->model = NULL;
  	else
 		view->model = cl.model_precache[cl.stats[pnum][STAT_WEAPON]];
-	view->frame1 = view_message?view_message->weaponframe:0;
+	view->framestate.g[FS_REG].frame[0] = view_message?view_message->weaponframe:0;
 #ifdef SWQUAKE
 	view->palremap = D_IdentityRemap();
 #endif

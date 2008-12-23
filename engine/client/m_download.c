@@ -162,7 +162,7 @@ static void WriteInstalledPackages(void)
 {
 	char *s;
 	package_t *p;
-	vfsfile_t *f = FS_OpenVFS(INSTALLEDFILES, "wb", FS_BASE);
+	vfsfile_t *f = FS_OpenVFS(INSTALLEDFILES, "wb", FS_ROOT);
 	if (!f)
 	{
 		Con_Printf("menu_download: Can't update installed list\n");
@@ -346,7 +346,7 @@ qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int key)
 				if (*p->gamedir)
 				{
 					char *fname = va("%s/%s", p->gamedir, p->dest);
-					FS_Remove(fname, FS_BASE);
+					FS_Remove(fname, FS_ROOT);
 				}
 				else
 					FS_Remove(p->dest, FS_GAME);
@@ -629,9 +629,9 @@ static void Menu_Download_Got(char *fname, qboolean successful)
 			else
 				destname = va("%s", p->dest);
 
-			if (!FS_Remove(destname, *p->gamedir?FS_BASE:FS_GAME))
+			if (!FS_Remove(destname, *p->gamedir?FS_ROOT:FS_GAME))
 				Con_Printf("Deleted old %s\n", destname);
-			if (FS_Rename2(diskname, destname, FS_GAME, *p->gamedir?FS_BASE:FS_GAME))
+			if (FS_Rename2(diskname, destname, FS_GAME, *p->gamedir?FS_ROOT:FS_GAME))
 			{
 				Con_Printf("Couldn't rename %s to %s. Removed instead.\n", diskname, destname);
 				FS_Remove (diskname, FS_GAME);
@@ -775,7 +775,7 @@ void Menu_DownloadStuff_f (void)
 
 	{
 		static qboolean loadedinstalled;
-		vfsfile_t *f = loadedinstalled?NULL:FS_OpenVFS(INSTALLEDFILES, "rb", FS_BASE);
+		vfsfile_t *f = loadedinstalled?NULL:FS_OpenVFS(INSTALLEDFILES, "rb", FS_ROOT);
 		loadedinstalled = true;
 		if (f)
 		{

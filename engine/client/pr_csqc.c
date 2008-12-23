@@ -69,6 +69,57 @@ extern sfx_t			*cl_sfx_ric2;
 extern sfx_t			*cl_sfx_ric3;
 extern sfx_t			*cl_sfx_r_exp3;
 
+
+//shared constants
+typedef enum
+{
+	VF_MIN = 1,
+	VF_MIN_X = 2,
+	VF_MIN_Y = 3,
+	VF_SIZE = 4,
+	VF_SIZE_X = 5,
+	VF_SIZE_Y = 6,
+	VF_VIEWPORT = 7,
+	VF_FOV = 8,
+	VF_FOVX = 9,
+	VF_FOVY = 10,
+	VF_ORIGIN = 11,
+	VF_ORIGIN_X = 12,
+	VF_ORIGIN_Y = 13,
+	VF_ORIGIN_Z = 14,
+	VF_ANGLES = 15,
+	VF_ANGLES_X = 16,
+	VF_ANGLES_Y = 17,
+	VF_ANGLES_Z = 18,
+	VF_DRAWWORLD = 19,
+	VF_ENGINESBAR = 20,
+	VF_DRAWCROSSHAIR = 21,
+	VF_CARTESIAN_ANGLES = 22,
+
+	//this is a DP-compatibility hack.
+	VF_CL_VIEWANGLES_V = 33,
+	VF_CL_VIEWANGLES_X = 34,
+	VF_CL_VIEWANGLES_Y = 35,
+	VF_CL_VIEWANGLES_Z = 36,
+
+#pragma message("FIXME: add cshift")
+
+	//33-36 used by DP...
+	VF_PERSPECTIVE = 200,
+	//201 used by DP... WTF? CLEARSCREEN
+	VF_LPLAYER = 202,
+	VF_AFOV = 203,	//aproximate fov (match what the engine would normally use for the fov cvar). p0=fov, p1=zoom
+} viewflags;
+
+#define CSQCRF_VIEWMODEL		1 //Not drawn in mirrors
+#define CSQCRF_EXTERNALMODEL	2 //drawn ONLY in mirrors
+#define CSQCRF_DEPTHHACK		4 //fun depthhack
+#define CSQCRF_ADDITIVE			8 //add instead of blend
+#define CSQCRF_USEAXIS			16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
+#define CSQCRF_NOSHADOW			32 //don't cast shadows upon other entities (can still be self shadowing, if the engine wishes, and not additive)
+#define CSQCRF_FRAMETIMESARESTARTTIMES 64 //EXT_CSQC_1: frame times should be read as (time-frametime).
+
+
 //If I do it like this, I'll never forget to register something...
 #define csqcglobals	\
 	globalfunction(init_function,		"CSQC_Init");	\
@@ -254,7 +305,9 @@ static void CSQC_FindGlobals(void)
 	fieldfloat(bonecontrol4);	/*FTE_CSQC_HALFLIFE_MODELS*/\
 	fieldfloat(bonecontrol5);	/*FTE_CSQC_HALFLIFE_MODELS*/\
 	fieldfloat(subblendfrac);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	fieldfloat(basesubblendfrac);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	fieldfloat(basesubblendfrac);	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/\
+							\
+	fieldfloat(skeletonindex);		/*FTE_CSQC_SKELETONOBJECTS*/\
 							\
 	fieldfloat(drawmask);	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
 	fieldfunction(predraw);	/*If present, is called just before it's drawn.*/	\
@@ -332,6 +385,29 @@ static int csqcentsize;
 
 static char *csqcmapentitydata;
 static qboolean csqcmapentitydataloaded;
+
+
+
+#define MAX_SKEL_OBJECTS 1024
+
+typedef struct {
+	int inuse;
+
+	model_t *model;
+	qboolean absolute;
+
+	int numbones;
+	float *bonematrix;
+} skelobject_t;
+
+skelobject_t skelobjects[MAX_SKEL_OBJECTS];
+int numskelobjectsused;
+
+skelobject_t *skel_get(progfuncs_t *prinst, int skelidx, int bonecount);
+void skel_dodelete(void);
+
+
+
 
 static model_t *CSQC_GetModelForIndex(int index);
 static void CS_LinkEdict(csqcedict_t *ent, qboolean touchtriggers);
@@ -592,6 +668,75 @@ static void CS_CheckVelocity(csqcedict_t *ent)
 }
 
 
+
+
+
+
+
+
+
+static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t *out)
+{
+	//FTE_CSQC_HALFLIFE_MODELS
+#ifdef HALFLIFEMODELS
+	out->bonecontrols[0] = in->v->bonecontrol1;
+	out->bonecontrols[1] = in->v->bonecontrol2;
+	out->bonecontrols[2] = in->v->bonecontrol3;
+	out->bonecontrols[3] = in->v->bonecontrol4;
+	out->bonecontrols[4] = in->v->bonecontrol5;
+	out->g[FS_REG].subblendfrac = in->v->subblendfrac;
+	out->g[FST_BASE].subblendfrac = in->v->subblendfrac;
+#endif
+
+	//FTE_CSQC_BASEFRAME
+	out->g[FST_BASE].endbone = in->v->basebone;
+	if (out->g[FST_BASE].endbone)
+	{	//small optimisation.
+		out->g[FST_BASE].frame[0] = in->v->baseframe;
+		out->g[FST_BASE].frame[1] = in->v->baseframe2;
+		if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
+		{
+			out->g[FST_BASE].frametime[0] = *csqcg.svtime - in->v->baseframe1time;
+			out->g[FST_BASE].frametime[1] = *csqcg.svtime - in->v->baseframe2time;
+		}
+		else
+		{
+			out->g[FST_BASE].frametime[0] = in->v->baseframe1time;
+			out->g[FST_BASE].frametime[1] = in->v->baseframe2time;
+		}
+		out->g[FST_BASE].lerpfrac = in->v->baselerpfrac;
+	}
+
+	//and the normal frames.
+	out->g[FS_REG].frame[0] = in->v->frame;
+	out->g[FS_REG].frame[1] = in->v->frame2;
+	out->g[FS_REG].lerpfrac = in->v->lerpfrac;
+	if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
+	{
+		out->g[FS_REG].frametime[0] = *csqcg.svtime - in->v->frame1time;
+		out->g[FS_REG].frametime[1] = *csqcg.svtime - in->v->frame2time;
+	}
+	else
+	{
+		out->g[FS_REG].frametime[0] = in->v->frame1time;
+		out->g[FS_REG].frametime[1] = in->v->frame2time;
+	}
+
+	out->bonecount = 0;
+	out->bonestate = NULL;
+	if (in->v->skeletonindex)
+	{
+		skelobject_t *so;
+		so = skel_get(csqcprogs, in->v->skeletonindex, 0);
+		if (so && so->inuse == 1)
+		{
+			out->bonecount = so->numbones;
+			out->bonestate = so->bonematrix;
+		}
+	}
+}
+
+
 static void PF_cs_remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ed;
@@ -713,13 +858,6 @@ void EularToQuaternian(vec3_t angles, float *quat)
   quaternion_multiply(t, z, quat);
 }
 */
-#define CSQCRF_VIEWMODEL		1 //Not drawn in mirrors
-#define CSQCRF_EXTERNALMODEL	2 //drawn ONLY in mirrors
-#define CSQCRF_DEPTHHACK		4 //fun depthhack
-#define CSQCRF_ADDITIVE			8 //add instead of blend
-#define CSQCRF_USEAXIS			16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
-#define CSQCRF_NOSHADOW			32 //don't cast shadows upon other entities (can still be self shadowing, if the engine wishes, and not additive)
-#define CSQCRF_FRAMETIMESARESTARTTIMES 64 //EXT_CSQC_1: frame times should be read as (time-frametime).
 
 static model_t *CSQC_GetModelForIndex(int index)
 {
@@ -737,7 +875,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 {
 	int i;
 	model_t *model;
-	int rflags;
+	unsigned int rflags;
 
 	i = in->v->modelindex;
 	model = CSQC_GetModelForIndex(in->v->modelindex);
@@ -766,53 +904,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	else
 		rflags = 0;
 
-//From here.
-
-	//FTE_CSQC_HALFLIFE_MODELS
-#ifdef HALFLIFEMODELS
-	out->bonecontrols[0] = in->v->bonecontrol1;
-	out->bonecontrols[1] = in->v->bonecontrol2;
-	out->bonecontrols[2] = in->v->bonecontrol3;
-	out->bonecontrols[3] = in->v->bonecontrol4;
-	out->bonecontrols[4] = in->v->bonecontrol5;
-	out->subblendfrac = in->v->subblendfrac;
-	out->basesubblendfrac = in->v->basesubblendfrac;
-#endif
-
-	//FTE_CSQC_BASEFRAME
-	out->basebone = in->v->basebone;
-	if (out->basebone)
-	{	//small optimisation.
-		out->baseframe1 = in->v->baseframe;
-		out->baseframe2 = in->v->baseframe2;
-		if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
-		{
-			out->baseframe1time = *csqcg.svtime - in->v->baseframe1time;
-			out->baseframe2time = *csqcg.svtime - in->v->baseframe2time;
-		}
-		else
-		{
-			out->baseframe1time = in->v->baseframe1time;
-			out->baseframe2time = in->v->baseframe2time;
-		}
-		out->baselerpfrac = in->v->baselerpfrac;
-	}
-
-	//and the normal frames.
-	out->frame1 = in->v->frame;
-	out->frame2 = in->v->frame2;
-	out->lerpfrac = in->v->lerpfrac;
-	if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
-	{
-		out->frame1time = *csqcg.svtime - in->v->frame1time;
-		out->frame2time = *csqcg.svtime - in->v->frame2time;
-	}
-	else
-	{
-		out->frame1time = in->v->frame1time;
-		out->frame2time = in->v->frame2time;
-	}
-//to here... We read only frames and frame times... Yeah... Q1 originally had only a frame field. :D
+	cs_getframestate(in, rflags, &out->framestate);
 
 	VectorCopy(in->v->origin, out->origin);
 	if (rflags & CSQCRF_USEAXIS)
@@ -1074,6 +1166,7 @@ static void PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_global
 		CL_SetUpPlayerPrediction(true);
 	}
 
+	skel_dodelete();
 	CL_SwapEntityLists();
 
 	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
@@ -1100,46 +1193,6 @@ static void PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_global
 	csqc_addcrosshair = false;
 	csqc_drawsbar = false;
 }
-
-typedef enum
-{
-	VF_MIN = 1,
-	VF_MIN_X = 2,
-	VF_MIN_Y = 3,
-	VF_SIZE = 4,
-	VF_SIZE_X = 5,
-	VF_SIZE_Y = 6,
-	VF_VIEWPORT = 7,
-	VF_FOV = 8,
-	VF_FOVX = 9,
-	VF_FOVY = 10,
-	VF_ORIGIN = 11,
-	VF_ORIGIN_X = 12,
-	VF_ORIGIN_Y = 13,
-	VF_ORIGIN_Z = 14,
-	VF_ANGLES = 15,
-	VF_ANGLES_X = 16,
-	VF_ANGLES_Y = 17,
-	VF_ANGLES_Z = 18,
-	VF_DRAWWORLD = 19,
-	VF_ENGINESBAR = 20,
-	VF_DRAWCROSSHAIR = 21,
-	VF_CARTESIAN_ANGLES = 22,
-
-	//this is a DP-compatibility hack.
-	VF_CL_VIEWANGLES_V = 33,
-	VF_CL_VIEWANGLES_X = 34,
-	VF_CL_VIEWANGLES_Y = 35,
-	VF_CL_VIEWANGLES_Z = 36,
-
-#pragma message("FIXME: add cshift")
-
-	//33-36 used by DP...
-	VF_PERSPECTIVE = 200,
-	//201 used by DP... WTF? CLEARSCREEN
-	VF_LPLAYER = 202,
-	VF_AFOV = 203,	//aproximate fov (match what the engine would normally use for the fov cvar). p0=fov, p1=zoom
-} viewflags;
 
 static void PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3116,11 +3169,6 @@ static void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_
 
 	float *srcorg = ent->v->origin;
 	int modelindex = ent->v->modelindex;
-	int frame1 = ent->v->frame;
-	int frame2 = ent->v->frame2;
-	float lerp = ent->v->lerpfrac;
-	float frame1time = ent->v->frame1time;
-	float frame2time = ent->v->frame2time;
 
 	float *retorg = G_VECTOR(OFS_RETURN);
 
@@ -3129,11 +3177,11 @@ static void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_
 	float src[12];
 	float dest[12];
 	int i;
+	framestate_t fstate;
 
-	if (lerp < 0) lerp = 0;
-	if (lerp > 1) lerp = 1;
+	cs_getframestate(ent, ent->v->renderflags, &fstate);
 
-	if (Mod_GetTag(mod, tagnum, frame1, frame2, lerp, frame1time, frame2time, transforms))
+	if (Mod_GetTag(mod, tagnum, &fstate, transforms))
 	{
 		VectorCopy(csqcg.forward, src+0);
 		src[3] = 0;
@@ -3190,11 +3238,6 @@ static void PF_cs_gettaginfo (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	float *origin = G_VECTOR(OFS_RETURN);
 
 	int modelindex = ent->v->modelindex;
-	int frame1 = ent->v->frame;
-	int frame2 = ent->v->frame2;
-	float lerp = ent->v->lerpfrac;
-	float frame1time = ent->v->frame1time;
-	float frame2time = ent->v->frame2time;
 
 	model_t *mod = CSQC_GetModelForIndex(modelindex);
 
@@ -3202,8 +3245,12 @@ static void PF_cs_gettaginfo (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	float transforms[12];
 	float result[12];
 
+	framestate_t fstate;
+
+	cs_getframestate(ent, ent->v->renderflags, &fstate);
+
 #pragma message("PF_cs_gettaginfo: This function doesn't honour attachments (but setattachment isn't implemented yet anyway)")
-	if (!Mod_GetTag(mod, tagnum, frame1, frame2, lerp, frame1time, frame2time, transforms))
+	if (!Mod_GetTag(mod, tagnum, &fstate, transforms))
 	{
 		memset(transforms, 0, sizeof(transforms));
 	}
@@ -3290,6 +3337,314 @@ static void PF_shaderforname (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	G_FLOAT(OFS_RETURN) = 0;
 #endif
 }
+
+void skel_reset(void)
+{
+	numskelobjectsused = 0;
+}
+
+void skel_dodelete(void)
+{
+	int skelidx;
+	for (skelidx = 0; skelidx < numskelobjectsused; skelidx++)
+	{
+		if (skelobjects[skelidx].inuse == 2)
+			skelobjects[skelidx].inuse = 0;
+	}
+}
+
+skelobject_t *skel_get(progfuncs_t *prinst, int skelidx, int bonecount)
+{
+	if (skelidx == 0)
+	{
+		//allocation
+		if (!bonecount)
+			return NULL;
+
+		for (skelidx = 0; skelidx < numskelobjectsused; skelidx++)
+		{
+			if (!skelobjects[skelidx].inuse && skelobjects[skelidx].numbones == bonecount)
+				return &skelobjects[skelidx];
+		}
+
+		for (skelidx = 0; skelidx <= numskelobjectsused; skelidx++)
+		{
+			if (!skelobjects[skelidx].inuse && !skelobjects[skelidx].numbones)
+			{
+				skelobjects[skelidx].numbones = bonecount;
+				skelobjects[skelidx].bonematrix = (float*)PR_AddString(prinst, "", sizeof(float)*12*bonecount);
+				if (skelidx < numskelobjectsused)
+				{
+					numskelobjectsused = skelidx + 1;
+					skelobjects[skelidx].model = NULL;
+					skelobjects[skelidx].inuse = 1;
+				}
+				return &skelobjects[skelidx];
+			}
+		}
+			
+		return NULL;
+	}
+	else
+	{
+		skelidx--;
+		if ((unsigned int)skelidx >= numskelobjectsused)
+			return NULL;
+		if (skelobjects[skelidx].inuse != 1)
+			return NULL;
+		if (bonecount && skelobjects[skelidx].numbones != bonecount)
+			return NULL;
+		return &skelobjects[skelidx];
+	}
+}
+
+//#263 float(entity ent) skel_buildrel (FTE_CSQC_SKELETONOBJECTS)
+//#263 float(entity ent, float skel) skel_updaterel (FTE_CSQC_SKELETONOBJECTS)
+static void PF_skel_buildrel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	int skelidx;
+	int numbones;
+	framestate_t fstate;
+	skelobject_t *skelobj;
+	qboolean isabs;
+	model_t *model;
+	if (*prinst->callargc > 1)
+		skelidx = G_FLOAT(OFS_PARM1);
+	else
+		skelidx = 0;
+
+	//default to failure
+	G_FLOAT(OFS_RETURN) = 0;
+
+	model = CSQC_GetModelForIndex(ent->v->modelindex);
+	if (!model)
+		return; //no model set, can't get a skeleton
+
+	cs_getframestate(ent, ent->v->renderflags, &fstate);
+
+	//heh... don't copy.
+	fstate.bonecount = 0;
+	fstate.bonestate = NULL;
+
+	isabs = false;
+	numbones = Mod_GetNumBones(model, isabs);
+	if (!numbones)
+	{
+//		isabs = true;
+//		numbones = Mod_GetNumBones(model, isabs);
+//		if (!numbones)
+			return;	//this isn't a skeletal model.
+	}
+
+	skelobj = skel_get(prinst, skelidx, numbones);
+	if (!skelobj)
+		return;	//couldn't get one, ran out of memory or something?
+
+	if (isabs || skelobj->numbones != Mod_GetBoneRelations(model, skelobj->numbones, &fstate, skelobj->bonematrix))
+	{
+		isabs = true;
+//		float *ab;
+//		ab = Alias_GetBonePositions(model, &fstate, skelobj->bonematrix, skelobj->numbones);
+//		if (ab != skelobj->bonematrix)
+//			memcpy(skelobj->bonematrix, ab, skelobj->numbones*12*sizeof(float));
+	}
+
+	skelobj->model = model;
+	skelobj->absolute = isabs;
+
+	G_FLOAT(OFS_RETURN) = (skelobj - skelobjects) + 1;
+}
+
+//#264 float(float skel) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
+static void PF_skel_get_numbones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	skelobject_t *skelobj;
+
+	skelobj = skel_get(prinst, skelidx, 0);
+
+	if (!skelobj)
+		G_FLOAT(OFS_RETURN) = 0;
+	else
+		G_FLOAT(OFS_RETURN) = skelobj->numbones;
+}
+
+//#265 string(float skel, float bonenum) skel_get_bonename (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+static void PF_skel_get_bonename (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	int boneidx = G_FLOAT(OFS_PARM1);
+	skelobject_t *skelobj;
+
+	skelobj = skel_get(prinst, skelidx, 0);
+
+	if (!skelobj)
+		G_INT(OFS_RETURN) = 0;
+	else
+	{
+		RETURN_TSTRING(Mod_GetBoneName(skelobj->model, boneidx));
+	}
+}
+
+//#266 float(float skel, float bonenum) skel_get_boneparent (FTE_CSQC_SKELETONOBJECTS)
+static void PF_skel_get_boneparent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	int boneidx = G_FLOAT(OFS_PARM1);
+	skelobject_t *skelobj;
+
+	skelobj = skel_get(prinst, skelidx, 0);
+
+	if (!skelobj)
+		G_FLOAT(OFS_RETURN) = 0;
+	else
+		G_FLOAT(OFS_RETURN) = Mod_GetBoneParent(skelobj->model, boneidx);
+}
+
+//#267 float(float skel, string tagname) gettagindex (DP_MD3_TAGSINFO)
+static void PF_skel_find_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	char *bname = PR_GetStringOfs(prinst, OFS_PARM1);
+	skelobject_t *skelobj;
+
+	skelobj = skel_get(prinst, skelidx, 0);
+	if (!skelobj)
+		G_FLOAT(OFS_RETURN) = 0;
+	else
+		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(skelobj->model, bname);
+}
+
+//#268 vector(float skel, float bonenum) skel_get_bonerel (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+static void PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	int boneidx = G_FLOAT(OFS_PARM1)-1;
+	float *matrix[4];
+	skelobject_t *skelobj;
+	matrix[0] = csqcg.forward;
+	matrix[1] = csqcg.right;
+	matrix[2] = csqcg.up;
+	matrix[3] = G_VECTOR(OFS_RETURN);
+
+	skelobj = skel_get(prinst, skelidx, 0);
+	if (!skelobj || skelobj->absolute || (unsigned int)boneidx >= skelobj->numbones)
+	{
+		matrix[0][0] = 1;
+		matrix[0][1] = 0;
+		matrix[0][2] = 0;
+
+		matrix[1][0] = 0;
+		matrix[1][1] = 1;
+		matrix[1][2] = 0;
+
+		matrix[2][0] = 0;
+		matrix[2][1] = 0;
+		matrix[2][2] = 1;
+
+		matrix[3][0] = 0;
+		matrix[3][1] = 0;
+		matrix[3][2] = 0;
+	}
+	else
+	{
+		memcpy(matrix[0], skelobj->bonematrix + boneidx*12 + 0, sizeof(vec3_t));
+		memcpy(matrix[1], skelobj->bonematrix + boneidx*12 + 3, sizeof(vec3_t));
+		memcpy(matrix[2], skelobj->bonematrix + boneidx*12 + 6, sizeof(vec3_t));
+		memcpy(matrix[3], skelobj->bonematrix + boneidx*12 + 9, sizeof(vec3_t));
+	}
+}
+
+//#269 vector(float skel, float bonenum) skel_get_boneabs (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+static void PF_skel_get_boneabs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	int boneidx = G_FLOAT(OFS_PARM1)-1;
+	float *matrix[4];
+	skelobject_t *skelobj;
+	matrix[0] = csqcg.forward;
+	matrix[1] = csqcg.right;
+	matrix[2] = csqcg.up;
+	matrix[3] = G_VECTOR(OFS_RETURN);
+
+	skelobj = skel_get(prinst, skelidx, 0);
+
+	//codeme
+}
+
+//#270 void(float skel, float bonenum, vector org) skel_set_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+static void PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	int boneidx = G_FLOAT(OFS_PARM1)-1;
+	float *matrix[4];
+	skelobject_t *skelobj;
+	matrix[0] = csqcg.forward;
+	matrix[1] = csqcg.right;
+	matrix[2] = csqcg.up;
+	matrix[3] = G_VECTOR(OFS_PARM2);
+
+	skelobj = skel_get(prinst, skelidx, 0);
+
+	//codeme
+}
+
+//#271 void(float skel, float bonenum, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+static void PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	int boneidx = G_FLOAT(OFS_PARM1)-1;
+	float *matrix[4];
+	matrix[0] = csqcg.forward;
+	matrix[1] = csqcg.right;
+	matrix[2] = csqcg.up;
+	matrix[3] = G_VECTOR(OFS_PARM2);
+
+	//codeme
+}
+
+//#272 void(float skel, float startbone, float endbone, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+static void PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	int startbone = G_FLOAT(OFS_PARM1)-1;
+	int endbone = G_FLOAT(OFS_PARM2)-1;
+	float *matrix[4];
+	matrix[0] = csqcg.forward;
+	matrix[1] = csqcg.right;
+	matrix[2] = csqcg.up;
+	matrix[3] = G_VECTOR(OFS_PARM3);
+
+	//codeme
+}
+
+//#273 void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones (FTE_CSQC_SKELETONOBJECTS)
+static void PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skeldst = G_FLOAT(OFS_PARM0);
+	int skelsrc = G_FLOAT(OFS_PARM1);
+	int startbone = G_FLOAT(OFS_PARM2)-1;
+	int endbone = G_FLOAT(OFS_PARM3)-1;
+
+	//codeme
+}
+
+//#274 void(float skel) skel_delete (FTE_CSQC_SKELETONOBJECTS)
+static void PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	skelobject_t *skelobj;
+
+	skelobj = skel_get(prinst, skelidx, 0);
+	if (skelobj)
+		skelobj->inuse = 2;	//2 means don't reuse yet.
+}
+
+
+
+
+
 
 static qboolean CS_CheckBottom (csqcedict_t *ent)
 {
@@ -4047,6 +4402,19 @@ static struct {
 	{"stoh",			PF_stoh,			261},
 	{"htos",			PF_htos,			262},
 
+	{"skel_buildrel",		PF_skel_buildrel,		263},//float(entity ent) skel_buildrel (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_numbones",	PF_skel_get_numbones,	264},//float(float skel) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonename",	PF_skel_get_bonename,	265},//string(float skel, float bonenum) skel_get_bonename (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+	{"skel_get_boneparent",	PF_skel_get_boneparent,	266},//float(float skel, float bonenum) skel_get_boneparent (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_find_bone",		PF_skel_find_bone,		267},//float(float skel, string tagname) gettagindex (DP_MD3_TAGSINFO)
+	{"skel_get_bonerel",	PF_skel_get_bonerel,	268},//vector(float skel, float bonenum) skel_get_bonerel (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_get_boneabs",	PF_skel_get_boneabs,	269},//vector(float skel, float bonenum) skel_get_boneabs (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_set_bone",		PF_skel_set_bone,		270},//void(float skel, float bonenum, vector org) skel_set_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bone",		PF_skel_mul_bone,		271},//void(float skel, float bonenum, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bones",		PF_skel_mul_bones,		272},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_copybones",		PF_skel_copybones,		273},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_delete",			PF_skel_delete,			274},//void(float skel) skel_delete (FTE_CSQC_SKELETONOBJECTS)
+
 //300
 	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",	PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
@@ -4523,6 +4891,7 @@ qboolean CSQC_Init (unsigned int checksum)
 			pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
 	}
 
+	skel_reset();
 	memset(cl.model_csqcname, 0, sizeof(cl.model_csqcname));
 	memset(cl.model_csqcprecache, 0, sizeof(cl.model_csqcprecache));
 

@@ -15,14 +15,14 @@ int rqmaxgrad, rqmingrad;
 
 int rquesize = 0x2000;
 
-void RQ_AddDistReorder(void (*render) (void *, void *), void *data1, void *data2, float *pos)
+void RQ_AddDistReorder(void (*render) (int count, void **objects, void *objtype), void *object, void *objtype, float *pos)
 {
 	int dist;
 	vec3_t delta;
 	renderque_t *rq;
 	if (!freerque)
 	{
-		render(data1, data2);
+		render(1, &object, objtype);
 		return;
 	}
 
@@ -50,8 +50,8 @@ void RQ_AddDistReorder(void (*render) (void *, void *), void *data1, void *data2
 	distlastarque[dist] = rq;
 
 	rq->render = render;
-	rq->data1 = data1;
-	rq->data2 = data2;
+	rq->data1 = object;
+	rq->data2 = objtype;
 
 	if (!distrque[dist])
 		distrque[dist] = rq;
@@ -66,7 +66,7 @@ void RQ_RenderDistAndClear(void)
 	{
 		for (rq = distrque[i]; rq; rq=rq->next)	
 		{
-			rq->render(rq->data1, rq->data2);
+			rq->render(1, &rq->data1, rq->data2);
 		}
 		if (distlastarque[i])
 		{
@@ -76,6 +76,45 @@ void RQ_RenderDistAndClear(void)
 			distlastarque[i] = NULL;
 		}
 	}
+	rqmaxgrad=0;
+	rqmingrad = NUMGRADUATIONS-1;
+}
+void RQ_RenderBatchClear(void)
+{
+#define SLOTS 512
+	void *slot[SLOTS];
+	void *typeptr = NULL;
+	int maxslot = SLOTS;
+	void (*lr) (int count, void **objects, void *objtype) = NULL;
+	int i;
+	renderque_t *rq;
+
+	for (i = rqmaxgrad; i>=rqmingrad; i--)
+//	for (i = rqmingrad; i<=rqmaxgrad; i++)
+	{
+		for (rq = distrque[i]; rq; rq=rq->next)	
+		{
+			if (!maxslot || rq->render != lr || typeptr != rq->data2)
+			{
+				if (maxslot != SLOTS)
+					lr(SLOTS - maxslot, &slot[maxslot], typeptr);
+				maxslot = SLOTS;
+			}
+			
+			slot[--maxslot] = rq->data1;
+			typeptr = rq->data2;
+			lr  = rq->render;
+		}
+		if (distlastarque[i])
+		{
+			distlastarque[i]->next = freerque;
+			freerque = distrque[i];
+			distrque[i] = NULL;
+			distlastarque[i] = NULL;
+		}
+	}
+	if (maxslot != SLOTS)
+		lr(SLOTS - maxslot, &slot[maxslot], typeptr);
 	rqmaxgrad=0;
 	rqmingrad = NUMGRADUATIONS-1;
 }

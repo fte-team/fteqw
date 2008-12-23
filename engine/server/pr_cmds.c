@@ -793,15 +793,36 @@ void PR_Compile_f(void)
 	double time = Sys_DoubleTime();
 	char *argv[64] = {"", "-src", "src", "-srcfile", "qwprogs.src"};
 
-	if (Cmd_Argc() == 2)
-	{
-		argv[4] = Cmd_Argv(1);
-		argc = 5;
-	}
-	else if (Cmd_Argc()>2)
+	if (Cmd_Argc()>2)
 	{
 		for (argc = 0; argc < Cmd_Argc(); argc++)
 			argv[argc] = Cmd_Argv(argc);
+	}
+	else
+	{
+		//override the source name
+		if (Cmd_Argc() == 2)
+		{
+			argv[4] = Cmd_Argv(1);
+			argc = 5;
+		}
+		if (!FS_FLocateFile(va("%s/%s", argv[2], argv[4]), FSLFRT_IFFOUND, NULL))
+		{
+			//try the qc path
+			argv[2] = "qc";
+		}
+		if (!FS_FLocateFile(va("%s/%s", argv[2], argv[4]), FSLFRT_IFFOUND, NULL))
+		{
+			//try the progs path (yeah... gah)
+			argv[2] = "progs";
+		}
+		if (!FS_FLocateFile(va("%s/%s", argv[2], argv[4]), FSLFRT_IFFOUND, NULL))
+		{
+			//try the gamedir path
+			argv[1] = argv[3];
+			argv[2] = argv[4];
+			argc -= 2;
+		}
 	}
 
 	if (!svprogfuncs)
@@ -8224,6 +8245,7 @@ static void EdictToTransform(edict_t *ed, float *trans)
 // #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
 void PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	framestate_t fstate;
 	float transtag[12];
 	float transent[12];
 	float result[12];
@@ -8240,7 +8262,10 @@ void PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (!model)
 		model = Mod_FindName(sv.strings.model_precache[(int)ent->v->modelindex]);
 
-	if (!Mod_GetTag(model, tagnum, ent->v->frame, ent->v->frame, 0, 0, 0, transtag))
+	memset(&fstate, 0, sizeof(fstate));
+	fstate.g[FS_REG].frame[0] = fstate.g[FS_REG].frame[0] = ent->v->frame;
+
+	if (!Mod_GetTag(model, tagnum, &fstate, transtag))
 	{
 		return;
 	}

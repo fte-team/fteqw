@@ -2041,6 +2041,9 @@ void R_RenderMeshProgram ( meshbuffer_t *mb, shaderpass_t *pass )
 	{
 		switch(s->progparm[i].type)
 		{
+		case SP_EYEPOS:
+			qglUniform3fvARB(s->progparm[i].handle, 1, r_origin);
+			break;
 		case SP_TIME:
 			qglUniform1fARB(s->progparm[i].handle, r_localShaderTime);
 			break;

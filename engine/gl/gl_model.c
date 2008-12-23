@@ -35,9 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "d3dquake.h"
 #endif
 
-#ifdef Q3SHADERS
-#include "shader.h"
-#endif
+#include "com_mesh.h"
 
 extern cvar_t r_shadow_bumpscale_basetexture;
 extern cvar_t r_replacemodels;
@@ -55,7 +53,6 @@ extern char	loadname[32];	// for hunk tags
 
 void CM_Init(void);
 
-qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer);
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer);
 qboolean GLMod_LoadSprite2Model (model_t *mod, void *buffer);
@@ -64,25 +61,10 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer);
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 #endif
 qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
-#ifdef ZYMOTICMODELS
-qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer);
-qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer);
-#endif
-#ifdef MD5MODELS
-qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer);
-#endif
 model_t *GLMod_LoadModel (model_t *mod, qboolean crash);
 
 #ifdef DOOMWADS
 qboolean Mod_LoadDoomLevel(model_t *mod);
-#endif
-
-qboolean Mod_LoadQ1Model (model_t *mod, void *buffer);
-#ifdef MD2MODELS
-qboolean Mod_LoadQ2Model (model_t *mod, void *buffer);
-#endif
-#ifdef MD3MODELS
-qboolean Mod_LoadQ3Model (model_t *mod, void *buffer);
 #endif
 
 #ifdef DOOMWADS
@@ -538,6 +520,7 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 //
 // fill it in
 //
+		Mod_DoCRC(mod, (char*)buf, com_filesize);
 		
 		switch (LittleLong(*(unsigned *)buf))
 		{
@@ -1910,8 +1893,14 @@ qboolean GLMod_LoadFaces (lump_t *l)
 			continue;
 		}
 
+		/*if (*out->texinfo->texture->name == '~')
+		{
+			out->texinfo->flags |= SURF_BLENDED;
+			continue;
+		}*/
 		if (!Q_strncmp(out->texinfo->texture->name,"{",1))		// alpha
 		{
+			out->texinfo->flags |= SURF_ALPHATEST;
 			out->flags |= (SURF_DRAWALPHA);
 			continue;
 		}

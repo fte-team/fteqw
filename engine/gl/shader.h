@@ -192,10 +192,12 @@ typedef struct
 typedef struct {
 	enum shaderprogparmtype_e {
 		SP_BAD,
+
 		SP_ENTCOLOURS,
 		SP_TOPCOLOURS,
 		SP_BOTTOMCOLOURS,
 		SP_TIME,
+		SP_EYEPOS,
 
 		//things that are set immediatly
 		SP_FIRSTIMMEDIATE,	//never set

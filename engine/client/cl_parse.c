@@ -1219,7 +1219,11 @@ void CL_SendDownloadReq(sizebuf_t *msg)
 		{
 			int i = CL_RequestADownloadChunk();
 			if (i >= 0)
-				CL_SendClientCommand(false, "nextdl %i - %i\n", i, download_file_number);
+			{
+				char *cmd = va("nextdl %i - %i\n", i, download_file_number);
+				CL_RemoveClientCommands(cmd);
+				CL_SendClientCommand(false, "%s", cmd);
+			}
 			else
 				break;//we can stop downloading now.
 		}
@@ -1396,8 +1400,8 @@ void CL_ParseChunkedDownload(void)
 
 		if (!strncmp(cls.downloadtempname,"skins/",6))
 		{
-			FS_CreatePath (va("qw/%s", cls.downloadtempname), FS_BASE);
-			cls.downloadqw = FS_OpenVFS (va("qw/%s", cls.downloadtempname), "wb", FS_BASE);
+			FS_CreatePath (va("qw/%s", cls.downloadtempname), FS_ROOT);
+			cls.downloadqw = FS_OpenVFS (va("qw/%s", cls.downloadtempname), "wb", FS_ROOT);
 		}
 		else
 		{
@@ -1897,7 +1901,7 @@ qboolean CL_StartUploadFile(char *filename)
 
 	CL_StopUpload();
 
-	upload_file = FS_OpenVFS(filename, "rb", FS_BASE);
+	upload_file = FS_OpenVFS(filename, "rb", FS_ROOT);
 	upload_size = VFS_GETLEN(upload_file);
 	upload_pos = 0;
 
@@ -2977,7 +2981,7 @@ void CL_ParseStatic (int version)
 
 // copy it to the current state
 	ent->model = cl.model_precache[es.modelindex];
-	ent->frame2 = ent->frame1 = es.frame;
+	ent->framestate.g[FS_REG].frame[0] = ent->framestate.g[FS_REG].frame[1] = es.frame;
 #ifdef SWQUAKE
 	ent->palremap = D_IdentityRemap();
 #endif

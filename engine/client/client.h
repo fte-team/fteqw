@@ -689,6 +689,7 @@ extern float	server_version;	// version of server we connected to
 // cl_main
 //
 dlight_t *CL_AllocDlight (int key);
+dlight_t *CL_NewDlight (int key, float x, float y, float z, float radius, float time, int type);
 void	CL_DecayLights (void);
 void CL_ParseDelta (struct entity_state_s *from, struct entity_state_s *to, int bits, qboolean);
 

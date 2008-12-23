@@ -241,7 +241,7 @@ static int VMEnumMods(char *match, int size, void *args)
 		return true;	//we only count directories with a pk3 file
 
 	Q_strncpyz(desc, match, sizeof(desc));
-	f = FS_OpenVFS(va("%s/description.txt", match), "rb", FS_BASE);
+	f = FS_OpenVFS(va("%s/description.txt", match), "rb", FS_ROOT);
 	if (f)
 	{
 		VFS_GETS(f, desc, sizeof(desc));

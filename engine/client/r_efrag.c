@@ -278,8 +278,8 @@ void R_StoreEfrags (efrag_t **ppefrag)
 			if ((pent->visframe != r_framecount) &&
 				(cl_numvisedicts < MAX_VISEDICTS))
 			{
-				pent->frame1time = cl.time;
-				pent->frame2time = cl.time;
+				pent->framestate.g[FS_REG].frametime[0] = cl.time;
+				pent->framestate.g[FS_REG].frametime[1] = cl.time;
 				cl_visedicts[cl_numvisedicts++] = *pent;
 
 			// mark that we've recorded this entity for this frame

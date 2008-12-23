@@ -1,4 +1,48 @@
 #include "quakedef.h"
+
+#include "com_mesh.h"
+
+extern model_t *loadmodel;
+extern char loadname[];
+
+//Common loader function.
+void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
+{
+#ifndef SERVERONLY
+	//we've got to have this bit
+	if (loadmodel->engineflags & MDLF_DOCRC)
+	{
+		unsigned short crc;
+		qbyte *p;
+		int len;
+		char st[40];
+
+		QCRC_Init(&crc);
+		for (len = buffersize, p = buffer; len; len--, p++)
+			QCRC_ProcessByte(&crc, *p);
+
+		sprintf(st, "%d", (int) crc);
+		Info_SetValueForKey (cls.userinfo,
+			(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
+			st, MAX_INFO_STRING);
+
+		if (cls.state >= ca_connected)
+		{
+			CL_SendClientCommand(true, "setinfo %s %d",
+				(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
+				(int)crc);
+		}
+
+		if (!(loadmodel->engineflags & MDLF_PLAYER))
+		{	//eyes
+			loadmodel->tainted = (crc != 6967);
+		}
+	}
+#endif
+}
+
+
+
 #if defined(D3DQUAKE) || defined(RGLQUAKE) || defined(SERVERONLY)
 
 #ifdef D3DQUAKE
@@ -7,8 +51,6 @@
 #ifdef RGLQUAKE
 #include "glquake.h"
 #endif
-
-#include "com_mesh.h"
 
 #ifdef _WIN32
 #include <malloc.h>
@@ -20,10 +62,6 @@ extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models;
 extern cvar_t r_noaliasshadows;
 extern cvar_t r_skin_overlays;
 extern cvar_t mod_md3flags;
-
-
-extern model_t *loadmodel;
-extern char loadname[];
 
 
 
@@ -80,6 +118,280 @@ clampedmodel_t clampedmodel[] = {
 
 #ifdef SKELETALMODELS
 
+
+void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, float *xyzout)
+{
+	int i;
+	float *out, *matrix;
+
+	galisskeletaltransforms_t *v = weights;
+	for (i = 0;i < numweights;i++, v++)
+	{
+		out = xyzout + v->vertexindex * 3;
+		matrix = bonepose+v->boneindex*12;
+		// FIXME: this can very easily be optimized with SSE or 3DNow
+		out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
+		out[1] += v->org[0] * matrix[4] + v->org[1] * matrix[5] + v->org[2] * matrix[ 6] + v->org[3] * matrix[ 7];
+		out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
+	}
+}
+
+static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galiasgroup_t *g1, galiasgroup_t *g2, float lerpfrac, float fg1time, float fg2time)
+{
+	int frame1;
+	int frame2;
+	float mlerp;	//minor lerp, poses within a group.
+	int l = 0;
+	
+	mlerp = (fg1time)*g1->rate;
+	frame1=mlerp;
+	frame2=frame1+1;
+	mlerp-=frame1;
+	if (g1->loop)
+	{
+		frame1=frame1%g1->numposes;
+		frame2=frame2%g1->numposes;
+	}
+	else
+	{
+		frame1=(frame1>g1->numposes-1)?g1->numposes-1:frame1;
+		frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
+	}
+
+	plerp[l] = (1-mlerp)*(1-lerpfrac);
+	if (plerp[l]>0)
+		pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*numbones*12*frame1);
+	plerp[l] = (mlerp)*(1-lerpfrac);
+	if (plerp[l]>0)
+		pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*numbones*12*frame2);
+
+	if (lerpfrac)
+	{
+		mlerp = (fg2time)*g2->rate;
+		frame1=mlerp;
+		frame2=frame1+1;
+		mlerp-=frame1;
+		if (g2->loop)
+		{
+			frame1=frame1%g2->numposes;
+			frame2=frame2%g2->numposes;
+		}
+		else
+		{
+			frame1=(frame1>g2->numposes-1)?g2->numposes-1:frame1;
+			frame2=(frame2>g2->numposes-1)?g2->numposes-1:frame2;
+		}
+
+		plerp[l] = (1-mlerp)*(lerpfrac);
+		if (plerp[l]>0)
+			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*numbones*12*frame1);
+		plerp[l] = (mlerp)*(lerpfrac);
+		if (plerp[l]>0)
+			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*numbones*12*frame2);
+	}
+
+	return l;
+}
+
+//
+int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *result, int numbones)
+{
+#ifdef SKELETALMODELS
+	if (inf->numbones)
+	{
+		galiasbone_t *bone;
+		galiasgroup_t *g1, *g2;
+
+		float *matrix;	//the matrix for a single bone in a single pose.
+		int b, k;	//counters
+
+		float *pose[4];	//the per-bone matricies (one for each pose)
+		float plerp[4];	//the ammount of that pose to use (must combine to 1)
+		int numposes = 0;
+
+		int frame1, frame2;
+		float f1time, f2time;
+		float f2ness;
+
+		int bonegroup;
+		int cbone = 0;
+		int lastbone;
+
+		if (numbones > inf->numbones)
+			numbones = inf->numbones;
+		if (!numbones)
+			return 0;
+
+		for (bonegroup = 0; bonegroup < FS_COUNT; bonegroup++)
+		{
+			lastbone = fstate->g[bonegroup].endbone;
+			if (bonegroup == FS_COUNT-1 || lastbone > numbones)
+				lastbone = numbones;
+
+			if (lastbone == cbone)
+				continue;
+
+			frame1 = fstate->g[bonegroup].frame[0];
+			frame2 = fstate->g[bonegroup].frame[1];
+			f1time = fstate->g[bonegroup].frametime[0];
+			f2time = fstate->g[bonegroup].frametime[1];
+			f2ness = fstate->g[bonegroup].lerpfrac;
+
+			if (frame1 < 0 || frame1 >= inf->groups)
+				continue;	//invalid, try ignoring this group
+			if (frame2 < 0 || frame2 >= inf->groups)
+			{
+				f2ness = 0;
+				frame2 = frame1;
+			}
+
+			bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
+	//the higher level merges old/new anims, but we still need to blend between automated frame-groups.
+			g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
+			g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
+
+			if (!g1->isheirachical)
+				return 0;
+			if (!g2->isheirachical)
+				g2 = g1;
+
+			numposes = Alias_BuildLerps(plerp, pose, inf->numbones, g1, g2, f2ness, f1time, f2time);
+
+			if (numposes == 1)
+			{
+				memcpy(result, pose[0]+cbone*12, (lastbone-cbone)*12*sizeof(float));
+				result += (lastbone-cbone)*12;
+				cbone = lastbone;
+			}
+			else
+			{
+				//set up the identity matrix
+				for (; cbone < lastbone; cbone++)
+				{
+					//set up the per-bone transform matrix
+					for (k = 0;k < 12;k++)
+						result[k] = 0;
+					for (b = 0;b < numposes;b++)
+					{
+						matrix = pose[b] + cbone*12;
+
+						for (k = 0;k < 12;k++)
+							result[k] += matrix[k] * plerp[b];
+					}
+					result += 12;
+				}
+			}
+		}
+		return cbone;
+	}
+#endif
+	return 0;
+}
+
+//_may_ into bonepose, return value is the real result
+float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize)
+{
+	float relationsbuf[MAX_BONES][12];
+	float *relations = NULL;
+	galiasbone_t *bones = (galiasbone_t *)((char*)inf+inf->ofsbones);
+	int numbones;
+
+	if (buffersize < inf->numbones)
+		numbones = 0;
+	else if (fstate->bonestate && fstate->bonecount >= inf->numbones)
+	{
+		relations = fstate->bonestate;
+		numbones = inf->numbones;
+	}
+	else
+	{
+		numbones = Alias_GetBoneRelations(inf, fstate, (float*)relationsbuf, inf->numbones);
+		if (numbones == inf->numbones)
+			relations = (float*)relationsbuf;
+	}
+	if (relations)
+	{
+		int i, k;
+
+		for (i = 0; i < numbones; i++)
+		{
+			if (bones[i].parent >= 0)
+				R_ConcatTransforms((void*)(buffer + bones[i].parent*12), (void*)((float*)relations+i*12), (void*)(buffer+i*12));
+			else
+				for (k = 0;k < 12;k++)	//parentless
+					buffer[i*12+k] = ((float*)relations)[i*12+k];
+		}
+		return buffer;
+	}
+	else
+	{
+		int i, k;
+
+		int l=0;
+		float plerp[4];
+		float *pose[4];
+
+		int numposes;
+		int f;
+		float lerpfrac = fstate->g[FS_REG].lerpfrac;
+
+		galiasgroup_t *g1, *g2;
+
+		galiasbone_t *bones = (galiasbone_t *)((char*)inf+inf->ofsbones);
+
+		if (buffersize < inf->numbones)
+			return NULL;
+
+		f = fstate->g[FS_REG].frame[0];
+		g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*bound(0, f, inf->groups-1));
+		f = fstate->g[FS_REG].frame[1];
+		g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*bound(0, f, inf->groups-1));
+
+		if (g2->isheirachical)
+			g2 = g1;
+
+
+		numposes = Alias_BuildLerps(plerp, pose, inf->numbones, g1, g2, lerpfrac, fstate->g[FS_REG].frametime[0], fstate->g[FS_REG].frametime[1]);
+
+		{
+			//this is not hierachal, using base frames is not a good idea.
+			//just blend the poses here
+			if (numposes == 1)
+				return pose[0];
+			else if (numposes == 2)
+			{
+				for (i = 0; i < inf->numbones*12; i++)
+				{
+					((float*)buffer)[i] = pose[0][i]*plerp[0] + pose[1][i]*plerp[1];
+				}
+			}
+			else
+			{
+				for (i = 0; i < inf->numbones; i++)
+				{
+					for (l = 0; l < 12; l++)
+						buffer[i*12+l] = 0;
+					for (k = 0; k < numposes; k++)
+					{
+						for (l = 0; l < 12; l++)
+							buffer[i*12+l] += pose[k][i*12+l] * plerp[k];
+					}
+				}
+			}
+		}
+		return buffer;
+	}
+}
+
+
+
+
+
+
+
+
+
+
 static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, float bonepose[MAX_BONES][12])
 {
 	int i, k, b;
@@ -123,22 +435,7 @@ static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bon
 		}
 	}
 }
-static void R_TransformVerticies(float bonepose[MAX_BONES][12], galisskeletaltransforms_t *weights, int numweights, float *xyzout)
-{
-	int i;
-	float *out, *matrix;
 
-	galisskeletaltransforms_t *v = weights;
-	for (i = 0;i < numweights;i++, v++)
-	{
-		out = xyzout + v->vertexindex * 3;
-		matrix = bonepose[v->boneindex];
-		// FIXME: this can very easily be optimized with SSE or 3DNow
-		out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
-		out[1] += v->org[0] * matrix[4] + v->org[1] * matrix[5] + v->org[2] * matrix[ 6] + v->org[3] * matrix[ 7];
-		out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
-	}
-}
 #ifndef SERVERONLY
 static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, galisskeletaltransforms_t *weights, int numweights, qboolean usehierarchy)
 {
@@ -198,7 +495,7 @@ static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int po
 	mesh->colors_array = NULL;
 
 	memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vec3_t));
-	R_TransformVerticies(bonepose, weights, numweights, (float*)mesh->xyz_array);
+	Alias_TransformVerticies((float*)bonepose, weights, numweights, (float*)mesh->xyz_array);
 
 
 
@@ -629,10 +926,10 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, ve
 			{
 				if (!mod->sharesbones)
 					R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), mod->numbones, bonepose);
-				R_TransformVerticies(bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
+				Alias_TransformVerticies((float*)bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
 			}
 			else
-				R_TransformVerticies((void*)posedata, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
+				Alias_TransformVerticies((float*)posedata, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
 		}
 #endif
 
@@ -693,45 +990,6 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, ve
 	trace->allsolid = false;
 
 	return trace->fraction != 1;
-}
-
-
-
-
-//Common loader function.
-static void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
-{
-#ifndef SERVERONLY
-	//we've got to have this bit
-	if (loadmodel->engineflags & MDLF_DOCRC)
-	{
-		unsigned short crc;
-		qbyte *p;
-		int len;
-		char st[40];
-
-		QCRC_Init(&crc);
-		for (len = buffersize, p = buffer; len; len--, p++)
-			QCRC_ProcessByte(&crc, *p);
-
-		sprintf(st, "%d", (int) crc);
-		Info_SetValueForKey (cls.userinfo,
-			(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-			st, MAX_INFO_STRING);
-
-		if (cls.state >= ca_connected)
-		{
-			CL_SendClientCommand(true, "setinfo %s %d",
-				(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-				(int)crc);
-		}
-
-		if (!(loadmodel->engineflags & MDLF_PLAYER))
-		{	//eyes
-			loadmodel->tainted = (crc != 6967);
-		}
-	}
-#endif
 }
 
 
@@ -1577,8 +1835,6 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 	loadmodel=mod;
 
-	Mod_DoCRC(loadmodel, buffer, com_filesize);
-
 	hunkstart = Hunk_LowMark ();
 
 	pq1inmodel = (dmdl_t *)buffer;
@@ -1898,8 +2154,6 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 
 	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
 
-	Mod_DoCRC(mod, buffer, com_filesize);
-
 	hunkstart = Hunk_LowMark ();
 
 	pq2inmodel = (md2_t *)buffer;
@@ -2121,9 +2375,76 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 
 
 
+int Mod_GetNumBones(model_t *model, qboolean allowtags)
+{
+	galiasinfo_t *inf;
 
 
+	if (!model || model->type != mod_alias)
+		return 0;
 
+	inf = Mod_Extradata(model);
+
+#ifdef SKELETALMODELS
+	if (inf->numbones)
+		return inf->numbones;
+	else
+#endif
+		if (allowtags)
+		return inf->numtags;
+	else
+		return 0;
+}
+
+int Mod_GetBoneRelations(model_t *model, int numbones, framestate_t *fstate, float *result)
+{
+	galiasinfo_t *inf;
+
+
+	if (!model || model->type != mod_alias)
+		return false;
+
+	inf = Mod_Extradata(model);
+	return Alias_GetBoneRelations(inf, fstate, result, numbones);
+}
+
+int Mod_GetBoneParent(model_t *model, int bonenum)
+{
+	galiasbone_t *bone;
+	galiasinfo_t *inf;
+
+
+	if (!model || model->type != mod_alias)
+		return 0;
+
+	inf = Mod_Extradata(model);
+
+
+	bonenum--;
+	if ((unsigned int)bonenum >= inf->numbones)
+		return 0;	//no parent
+	bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
+	return bone[bonenum].parent+1;
+}
+
+char *Mod_GetBoneName(model_t *model, int bonenum)
+{
+	galiasbone_t *bone;
+	galiasinfo_t *inf;
+
+
+	if (!model || model->type != mod_alias)
+		return 0;
+
+	inf = Mod_Extradata(model);
+
+
+	bonenum--;
+	if ((unsigned int)bonenum >= inf->numbones)
+		return 0;	//no parent
+	bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
+	return bone[bonenum].name;
+}
 
 
 typedef struct {
@@ -2132,9 +2453,7 @@ typedef struct {
 	float ang[3][3];
 } md3tag_t;
 
-
-
-qboolean Mod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result)
+qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *result)
 {
 	galiasinfo_t *inf;
 
@@ -2157,6 +2476,17 @@ qboolean Mod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2
 		float *pose[4];	//the per-bone matricies (one for each pose)
 		float plerp[4];	//the ammount of that pose to use (must combine to 1)
 		int numposes = 0;
+
+		int frame1, frame2;
+		float f1time, f2time;
+		float f2ness;
+
+#pragma message("fixme")
+		frame1 = fstate->g[FS_REG].frame[0];
+		frame2 = fstate->g[FS_REG].frame[1];
+		f1time = fstate->g[FS_REG].frametime[0];
+		f2time = fstate->g[FS_REG].frametime[1];
+		f2ness = fstate->g[FS_REG].lerpfrac;
 
 		if (tagnum <= 0 || tagnum > inf->numbones)
 			return false;
@@ -2236,6 +2566,16 @@ qboolean Mod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2
 	if (inf->numtags)
 	{
 		md3tag_t *t1, *t2;
+
+		int frame1, frame2;
+		float f1time, f2time;
+		float f2ness;
+
+		frame1 = fstate->g[FS_REG].frame[0];
+		frame2 = fstate->g[FS_REG].frame[1];
+		f1time = fstate->g[FS_REG].frametime[0];
+		f2time = fstate->g[FS_REG].frametime[1];
+		f2ness = fstate->g[FS_REG].lerpfrac;
 
 		if (tagnum <= 0 || tagnum > inf->numtags)
 			return false;
@@ -2464,8 +2804,6 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 
 
 	loadmodel=mod;
-
-	Mod_DoCRC(mod, buffer, com_filesize);
 
 	hunkstart = Hunk_LowMark ();
 
@@ -2871,8 +3209,6 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	loadmodel=mod;
 
-	Mod_DoCRC(mod, buffer, com_filesize);
-
 	hunkstart = Hunk_LowMark ();
 
 	header = buffer;
@@ -3226,8 +3562,6 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 
 	loadmodel=mod;
-
-	Mod_DoCRC(mod, buffer, com_filesize);
 
 	hunkstart = Hunk_LowMark ();
 
@@ -3887,8 +4221,6 @@ qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer)
 
 	loadmodel=mod;
 
-	Mod_DoCRC(mod, buffer, com_filesize);
-
 	hunkstart = Hunk_LowMark ();
 
 
@@ -4159,8 +4491,6 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 
 	loadmodel=mod;
 
-	Mod_DoCRC(mod, buffer, com_filesize);
-
 	hunkstart = Hunk_LowMark ();
 
 
@@ -4304,8 +4634,25 @@ int Mod_TagNumForName(model_t *model, char *name)
 {
 	return 0;
 }
-qboolean Mod_GetTag(model_t *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result)
+qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *framestate, float *result)
 {
 	return false;
+}
+
+int Mod_GetNumBones(struct model_s *model, qboolean allowtags)
+{
+	return 0;
+}
+int Mod_GetBoneRelations(struct model_s *model, int numbones, framestate_t *fstate, float *result)
+{
+	return 0;
+}
+int Mod_GetBoneParent(struct model_s *model, int bonenum)
+{
+	return 0;
+}
+char *Mod_GetBoneName(struct model_s *model, int bonenum)
+{
+	return "";
 }
 #endif //#if defined(D3DQUAKE) || defined(RGLQUAKE)

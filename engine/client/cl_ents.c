@@ -159,7 +159,7 @@ dlight_t *CL_NewDlight (int key, float x, float y, float z, float radius, float 
 
 	return dl;
 }
-void CL_NewDlightRGB (int key, float x, float y, float z, float radius, float time,
+dlight_t *CL_NewDlightRGB (int key, float x, float y, float z, float radius, float time,
 				   float r, float g, float b)
 {
 	dlight_t	*dl;
@@ -173,6 +173,8 @@ void CL_NewDlightRGB (int key, float x, float y, float z, float radius, float ti
 	dl->color[0] = r;
 	dl->color[1] = g;
 	dl->color[2] = b;
+
+	return dl;
 }
 
 
@@ -1166,10 +1168,8 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 	vec3_t axis[3];
 	float transform[12], parent[12], result[12], old[12], temp[12];
 
-	int model = 0;	//these two are only initialised because msvc sucks at detecting usage.
-	int frame = 0;
-	int frame2;
-	float frame2ness;
+	int model;
+	framestate_t fstate;
 
 	if (tagent > cl.maxlerpents)
 	{
@@ -1177,7 +1177,9 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 		return;
 	}
 
-	frame2 = cl.lerpents[tagent].frame;
+	memset(&fstate, 0, sizeof(fstate));
+
+	fstate.g[FS_REG].frame[1] = cl.lerpents[tagent].frame;
 
 	ent->keynum = tagent;
 
@@ -1190,7 +1192,7 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 		org = ps->origin;
 		ang = ps->angles;
 		model = ps->modelindex;
-		frame = ps->frame;
+		fstate.g[FS_REG].frame[0] = ps->frame;
 	}
 	else
 	{
@@ -1209,7 +1211,7 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 				ang = cl.frames[parsecountmod].playerstate[tagent-1].viewangles;
 			}
 			model = cl.frames[parsecountmod].playerstate[tagent-1].modelindex;
-			frame = cl.frames[parsecountmod].playerstate[tagent-1].frame;
+			fstate.g[FS_REG].frame[0] = cl.frames[parsecountmod].playerstate[tagent-1].frame;
 		}
 	}
 
@@ -1220,8 +1222,10 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 		ang[0]*=-1;
 		VectorInverse(axis[1]);
 
-		frame2ness = CL_EntLerpFactor(tagent);
-		if (Mod_GetTag(cl.model_precache[model], tagnum, frame, frame2, frame2ness, cl.time - cl.lerpents[tagent].framechange, cl.time - cl.lerpents[tagent].oldframechange, transform))
+		fstate.g[FS_REG].lerpfrac = CL_EntLerpFactor(tagent);
+		fstate.g[FS_REG].frametime[0] = cl.time - cl.lerpents[tagent].framechange;
+		fstate.g[FS_REG].frametime[1] = cl.time - cl.lerpents[tagent].oldframechange;
+		if (Mod_GetTag(cl.model_precache[model], tagnum, &fstate, transform))
 		{
 			old[0] = ent->axis[0][0];
 			old[1] = ent->axis[1][0];
@@ -1345,7 +1349,7 @@ void V_AddEntity(entity_t *in)
 	ent->angles[0]*=-1;
 }
 
-void V_AddLerpEntity(entity_t *in)	//a convienience function
+void VQ2_AddLerpEntity(entity_t *in)	//a convienience function
 {
 	entity_t *ent;
 	float fwds, back;
@@ -1358,14 +1362,14 @@ void V_AddLerpEntity(entity_t *in)	//a convienience function
 
 	*ent = *in;
 
-	fwds = ent->lerpfrac;
-	back = 1 - ent->lerpfrac;
+	fwds = ent->framestate.g[FS_REG].lerpfrac;
+	back = 1 - ent->framestate.g[FS_REG].lerpfrac;
 	for (i = 0; i < 3; i++)
 	{
 		ent->origin[i] = in->origin[i]*fwds + in->oldorigin[i]*back;
 	}
 
-	ent->lerpfrac = 1 - ent->lerpfrac;
+	ent->framestate.g[FS_REG].lerpfrac = back;
 
 	ent->angles[0]*=-1;
 	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
@@ -1607,16 +1611,18 @@ void CL_LinkPacketEntities (void)
 
 		le = &cl.lerpents[state->number];
 
+		memset(&ent->framestate, 0, sizeof(ent->framestate));
+
 		if (le->framechange == le->oldframechange)
-			ent->lerpfrac = 0;
+			ent->framestate.g[FS_REG].lerpfrac = 0;
 		else
 		{
-			ent->lerpfrac = 1-(servertime - le->framechange) / (le->framechange - le->oldframechange);
-			if (ent->lerpfrac > 1)
-				ent->lerpfrac = 1;
-			else if (ent->lerpfrac < 0)
+			ent->framestate.g[FS_REG].lerpfrac = 1-(servertime - le->framechange) / (le->framechange - le->oldframechange);
+			if (ent->framestate.g[FS_REG].lerpfrac > 1)
+				ent->framestate.g[FS_REG].lerpfrac = 1;
+			else if (ent->framestate.g[FS_REG].lerpfrac < 0)
 			{
-				ent->lerpfrac = 0;
+				ent->framestate.g[FS_REG].lerpfrac = 0;
 				//le->oldframechange = le->framechange;
 			}
 		}
@@ -1709,11 +1715,11 @@ void CL_LinkPacketEntities (void)
 		ent->drawflags = state->hexen2flags;
 
 		// set frame
-		ent->frame1 = state->frame;
-		ent->frame2 = le->frame;
+		ent->framestate.g[FS_REG].frame[0] = state->frame;
+		ent->framestate.g[FS_REG].frame[1] = le->frame;
 
-		ent->frame1time = cl.servertime - le->framechange;
-		ent->frame2time = cl.servertime - le->oldframechange;
+		ent->framestate.g[FS_REG].frametime[0] = cl.servertime - le->framechange;
+		ent->framestate.g[FS_REG].frametime[1] = cl.servertime - le->oldframechange;
 
 //		f = (sin(realtime)+1)/2;
 
@@ -2260,7 +2266,7 @@ void CL_LinkProjectiles (void)
 #endif
 		ent->model = cl.model_precache[pr->modelindex];
 		ent->skinnum = 0;
-		ent->frame1 = 0;
+		memset(&ent->framestate, 0, sizeof(ent->framestate));
 		ent->flags = 0;
 #ifdef SWQUAKE
 		ent->palremap = D_IdentityRemap();
@@ -2649,32 +2655,38 @@ void CL_AddFlagModels (entity_t *ent, int team)
 	vec3_t	v_forward, v_right, v_up;
 	entity_t	*newent;
 	vec3_t	angles;
+	float offs;
 
 	if (cl_flagindex == -1)
 		return;
 
-	f = 14;
-	if (ent->frame1 >= 29 && ent->frame1 <= 40) {
-		if (ent->frame1 >= 29 && ent->frame1 <= 34) { //axpain
-			if      (ent->frame1 == 29) f = f + 2;
-			else if (ent->frame1 == 30) f = f + 8;
-			else if (ent->frame1 == 31) f = f + 12;
-			else if (ent->frame1 == 32) f = f + 11;
-			else if (ent->frame1 == 33) f = f + 10;
-			else if (ent->frame1 == 34) f = f + 4;
-		} else if (ent->frame1 >= 35 && ent->frame1 <= 40) { // pain
-			if      (ent->frame1 == 35) f = f + 2;
-			else if (ent->frame1 == 36) f = f + 10;
-			else if (ent->frame1 == 37) f = f + 10;
-			else if (ent->frame1 == 38) f = f + 8;
-			else if (ent->frame1 == 39) f = f + 4;
-			else if (ent->frame1 == 40) f = f + 2;
+	for (i = 0; i < 2; i++)
+	{
+		f = 14;
+		if (ent->framestate.g[FS_REG].frame[i] >= 29 && ent->framestate.g[FS_REG].frame[i] <= 40) {
+			if (ent->framestate.g[FS_REG].frame[i] >= 29 && ent->framestate.g[FS_REG].frame[i] <= 34) { //axpain
+				if      (ent->framestate.g[FS_REG].frame[i] == 29) f = f + 2;
+				else if (ent->framestate.g[FS_REG].frame[i] == 30) f = f + 8;
+				else if (ent->framestate.g[FS_REG].frame[i] == 31) f = f + 12;
+				else if (ent->framestate.g[FS_REG].frame[i] == 32) f = f + 11;
+				else if (ent->framestate.g[FS_REG].frame[i] == 33) f = f + 10;
+				else if (ent->framestate.g[FS_REG].frame[i] == 34) f = f + 4;
+			} else if (ent->framestate.g[FS_REG].frame[i] >= 35 && ent->framestate.g[FS_REG].frame[i] <= 40) { // pain
+				if      (ent->framestate.g[FS_REG].frame[i] == 35) f = f + 2;
+				else if (ent->framestate.g[FS_REG].frame[i] == 36) f = f + 10;
+				else if (ent->framestate.g[FS_REG].frame[i] == 37) f = f + 10;
+				else if (ent->framestate.g[FS_REG].frame[i] == 38) f = f + 8;
+				else if (ent->framestate.g[FS_REG].frame[i] == 39) f = f + 4;
+				else if (ent->framestate.g[FS_REG].frame[i] == 40) f = f + 2;
+			}
+		} else if (ent->framestate.g[FS_REG].frame[i] >= 103 && ent->framestate.g[FS_REG].frame[i] <= 118) {
+			if      (ent->framestate.g[FS_REG].frame[i] >= 103 && ent->framestate.g[FS_REG].frame[i] <= 104) f = f + 6;  //nailattack
+			else if (ent->framestate.g[FS_REG].frame[i] >= 105 && ent->framestate.g[FS_REG].frame[i] <= 106) f = f + 6;  //light
+			else if (ent->framestate.g[FS_REG].frame[i] >= 107 && ent->framestate.g[FS_REG].frame[i] <= 112) f = f + 7;  //rocketattack
+			else if (ent->framestate.g[FS_REG].frame[i] >= 112 && ent->framestate.g[FS_REG].frame[i] <= 118) f = f + 7;  //shotattack
 		}
-	} else if (ent->frame1 >= 103 && ent->frame1 <= 118) {
-		if      (ent->frame1 >= 103 && ent->frame1 <= 104) f = f + 6;  //nailattack
-		else if (ent->frame1 >= 105 && ent->frame1 <= 106) f = f + 6;  //light
-		else if (ent->frame1 >= 107 && ent->frame1 <= 112) f = f + 7;  //rocketattack
-		else if (ent->frame1 >= 112 && ent->frame1 <= 118) f = f + 7;  //shotattack
+
+		offs += f + ((i==0)?(ent->framestate.g[FS_REG].lerpfrac):(1-ent->framestate.g[FS_REG].lerpfrac));
 	}
 
 	newent = CL_NewTempEntity ();
@@ -2684,7 +2696,7 @@ void CL_AddFlagModels (entity_t *ent, int team)
 	AngleVectors (ent->angles, v_forward, v_right, v_up);
 	v_forward[2] = -v_forward[2]; // reverse z component
 	for (i=0 ; i<3 ; i++)
-		newent->origin[i] = ent->origin[i] - f*v_forward[i] + 22*v_right[i];
+		newent->origin[i] = ent->origin[i] - offs*v_forward[i] + 22*v_right[i];
 	newent->origin[2] -= 16;
 
 	VectorCopy (ent->angles, newent->angles)
@@ -2706,7 +2718,7 @@ void CL_AddVWeapModel(entity_t *player, int model)
 	VectorCopy(player->angles, newent->angles);
 	newent->skinnum = player->skinnum;
 	newent->model = cl.model_precache[model];
-	newent->frame1 = player->frame1;
+	newent->framestate = player->framestate;
 
 	VectorCopy(newent->angles, angles);
 	angles[0]*=-1;
@@ -2792,21 +2804,21 @@ void CL_LinkPlayers (void)
 		ent->model = cl.model_precache[state->modelindex];
 		ent->skinnum = state->skinnum;
 
-		ent->frame1time = cl.time - cl.lerpplayers[j].framechange;
-		ent->frame2time = cl.time - cl.lerpplayers[j].oldframechange;
+		ent->framestate.g[FS_REG].frametime[0] = cl.time - cl.lerpplayers[j].framechange;
+		ent->framestate.g[FS_REG].frametime[1] = cl.time - cl.lerpplayers[j].oldframechange;
 
-		if (ent->frame1 != cl.lerpplayers[j].frame)
+		if (ent->framestate.g[FS_REG].frame[0] != cl.lerpplayers[j].frame)
 		{
-			ent->frame2 = ent->frame1;
-			ent->frame1 = cl.lerpplayers[j].frame;
+			ent->framestate.g[FS_REG].frame[1] = ent->framestate.g[FS_REG].frame[0];
+			ent->framestate.g[FS_REG].frame[0] = cl.lerpplayers[j].frame;
 		}
 
-		ent->lerpfrac = 1-(realtime - cl.lerpplayers[j].framechange)*10;
-		if (ent->lerpfrac > 1)
-			ent->lerpfrac = 1;
-		else if (ent->lerpfrac < 0)
+		ent->framestate.g[FS_REG].lerpfrac = 1-(realtime - cl.lerpplayers[j].framechange)*10;
+		if (ent->framestate.g[FS_REG].lerpfrac > 1)
+			ent->framestate.g[FS_REG].lerpfrac = 1;
+		else if (ent->framestate.g[FS_REG].lerpfrac < 0)
 		{
-			ent->lerpfrac = 0;
+			ent->framestate.g[FS_REG].lerpfrac = 0;
 			//state->lerpstarttime = 0;
 		}
 
@@ -2996,24 +3008,24 @@ void CL_LinkViewModel(void)
 	ent.shaderRGBAf[2] = 1;
 	ent.shaderRGBAf[3] = alpha;
 
-	ent.frame1 = cl.viewent[r_refdef.currentplayernum].frame1;
-	ent.frame2 = oldframe[r_refdef.currentplayernum];
+	ent.framestate.g[FS_REG].frame[0] = cl.viewent[r_refdef.currentplayernum].framestate.g[FS_REG].frame[0];
+	ent.framestate.g[FS_REG].frame[1] = oldframe[r_refdef.currentplayernum];
 
-	if (ent.frame1 != prevframe[r_refdef.currentplayernum])
+	if (ent.framestate.g[FS_REG].frame[0] != prevframe[r_refdef.currentplayernum])
 	{
-		oldframe[r_refdef.currentplayernum] = ent.frame2 = prevframe[r_refdef.currentplayernum];
+		oldframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[1] = prevframe[r_refdef.currentplayernum];
 		lerptime[r_refdef.currentplayernum] = realtime;
 	}
-	prevframe[r_refdef.currentplayernum] = ent.frame1;
+	prevframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[0];
 
 	if (ent.model != oldmodel[r_refdef.currentplayernum])
 	{
 		oldmodel[r_refdef.currentplayernum] = ent.model;
-		oldframe[r_refdef.currentplayernum] = ent.frame2 = ent.frame1;
+		oldframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[1] = ent.framestate.g[FS_REG].frame[0];
 		lerptime[r_refdef.currentplayernum] = realtime;
 	}
-	ent.lerpfrac = 1-(realtime-lerptime[r_refdef.currentplayernum])*10;
-	ent.lerpfrac = bound(0, ent.lerpfrac, 1);
+	ent.framestate.g[FS_REG].lerpfrac = 1-(realtime-lerptime[r_refdef.currentplayernum])*10;
+	ent.framestate.g[FS_REG].lerpfrac = bound(0, ent.framestate.g[FS_REG].lerpfrac, 1);
 
 #define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
 #define	Q2RF_WEAPONMODEL		4		// only draw through eyes

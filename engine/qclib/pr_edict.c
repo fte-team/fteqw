@@ -3049,11 +3049,16 @@ retry:
 			{
 				d16 = ED_FindGlobal16(progfuncs, s);
 				if (!d16)
-					Sys_Error("Progs requires \"%s\" the external function \"%s\", but the definition was stripped", filename, s);
+				{
+					printf("Progs requires \"%s\" the external function \"%s\", but the definition was stripped", filename, s);
+					PRHunkFree(progfuncs, hmark);
+					pr_progs=NULL;
+					return false;
+				}
 
 				((int *)glob)[d16->ofs] = PR_FindFunc(progfuncs, s, PR_ANY);
 				if (!((int *)glob)[d16->ofs])
-					Sys_Error("Runtime-linked function %s was not found in primary progs (loading %s)", s, filename);
+					printf("Warning: Runtime-linked function %s was not found in primary progs (loading %s)", s, filename);
 				/*
 				d2 = ED_FindGlobalOfsFromProgs(progfuncs, s, 0, ev_function);
 				if (!d2)
@@ -3075,9 +3080,14 @@ retry:
 				d32 = ED_FindGlobal32(progfuncs, s);
 				d2 = ED_FindGlobalOfsFromProgs(progfuncs, s, 0, ev_function);
 				if (!d2)
-					Sys_Error("Runtime-linked function %s was not found in existing progs", s);
+					printf("Warning: Runtime-linked function %s was not found in existing progs", s);
 				if (!d32)
-					Sys_Error("Couldn't find def for \"%s\"", s);
+				{
+					printf("Couldn't find def for \"%s\"", s);
+					PRHunkFree(progfuncs, hmark);
+					pr_progs=NULL;
+					return false;
+				}
 				((int *)glob)[d32->ofs] = (*(func_t *)&pr_progstate[0].globals[*d2]);
 
 				s+=strlen(s)+1;

@@ -62,11 +62,11 @@ void QuaternionGLAngle(const vec3_t angles, vec4_t quaternion)
     quaternion[3] = cosr * cosp * cosy + sinr * sinp * siny;
 }
 
+#define MAX_BONES 128
 
 
 
-
-matrix3x4 transform_matrix[128];	/* Vertex transformation matrix */
+matrix3x4 transform_matrix[MAX_BONES];	/* Vertex transformation matrix */
 
 void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float tex_h);
 
@@ -136,6 +136,12 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 	if (header->numcontrollers > MAX_BONE_CONTROLLERS)
 	{
 		Con_Printf(CON_ERROR "Cannot load model %s - too many controllers %i\n", mod->name, header->numcontrollers);
+		Hunk_FreeToLowMark(start);
+		return false;
+	}
+	if (header->numbones > MAX_BONES)
+	{
+		Con_Printf(CON_ERROR "Cannot load model %s - too many bones %i\n", mod->name, header->numbones);
 		Hunk_FreeToLowMark(start);
 		return false;
 	}
@@ -474,6 +480,7 @@ void R_DrawHLModel(entity_t	*curent)
 	hlmodel_t model;
     int						b, m, v;
     short					*skins;
+	int bgroup, cbone, lastbone;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 	//general model
@@ -485,7 +492,7 @@ void R_DrawHLModel(entity_t	*curent)
     skins = (short *) ((qbyte *) model.header + model.header->skins);
 
 	for (b = 0; b < MAX_BONE_CONTROLLERS; b++)
-		model.controller[b] = curent->bonecontrols[b];
+		model.controller[b] = curent->framestate.bonecontrols[b];
 
 	GL_TexEnv(GL_MODULATE);
 
@@ -511,8 +518,16 @@ void R_DrawHLModel(entity_t	*curent)
 
     R_RotateForEntity (curent);
 
-    HL_SetupBones(&model, curent->baseframe1, 0, curent->basebone, (curent->basesubblendfrac+1)*0.5);	/* Setup the bones */
-	HL_SetupBones(&model, curent->frame1, curent->basebone, model.header->numbones, (curent->subblendfrac+1)*0.5);	/* Setup the bones */
+	cbone = 0;
+	for (bgroup = 0; bgroup < FS_COUNT; bgroup++)
+	{
+		lastbone = curent->framestate.g[bgroup].endbone;
+		if (bgroup == FS_COUNT)
+			lastbone = model.header->numbones;
+		if (cbone >= lastbone)
+			continue;
+		HL_SetupBones(&model, curent->framestate.g[bgroup].frame[0], cbone, lastbone, (curent->framestate.g[bgroup].subblendfrac+1)*0.5);	/* Setup the bones */
+	}
 
     /* Manipulate each mesh directly */
     for(b = 0; b < model.header->numbodyparts; b++)

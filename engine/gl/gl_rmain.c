@@ -665,17 +665,15 @@ void R_DrawSpriteModel (entity_t *e)
 
 //==================================================================================
 
-void GLR_DrawSprite(void *e, void *parm)
+void GLR_DrawSprite(int count, void **e, void *parm)
 {
-	qglEnd();
-	currententity = e;
-	qglEnable(GL_TEXTURE_2D);
+	while(count--)
+	{
+		currententity = *e++;
+		qglEnable(GL_TEXTURE_2D);
 
-	R_DrawSpriteModel (currententity);
-
-	P_FlushRenderer();
-
-	qglBegin(GL_QUADS);
+		R_DrawSpriteModel (currententity);
+	}
 }
 /*
 =============

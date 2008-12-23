@@ -411,23 +411,35 @@ char *PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 		{
 			int i = str & ~0x80000000;
 			if (i >= prinst->numallocedstrings)
+			{
+				pr_trace = 1;
 				return "";
+			}
 			if (prinst->allocedstrings[i])
 				return prinst->allocedstrings[i];
 			else
+			{
+				pr_trace = 1;
 				return "";	//urm, was freed...
+			}
 		}
 		if ((unsigned int)str & 0x40000000)
 		{
 			int i = str & ~0x40000000;
 			if (i >= prinst->numtempstrings)
+			{
+				pr_trace = 1;
 				return "";
+			}
 			return prinst->tempstrings[i];
 		}
 	}
 
 	if (str >= progfuncs->stringtablesize)
+	{
+		pr_trace = 1;
 		return "";
+	}
 	return progfuncs->stringtable + str;
 }
 

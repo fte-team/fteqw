@@ -397,8 +397,8 @@ void CLQ3_ParseDownload(void)
 			return;
 		}
 
-		COM_CreatePath(cls.downloadtempname);
-		cls.downloadqw = FS_OpenVFS(cls.downloadtempname, "wb", FS_BASE);
+		FS_CreatePath(cls.downloadtempname, FS_ROOT);
+		cls.downloadqw = FS_OpenVFS(cls.downloadtempname, "wb", FS_ROOT);
 		if (!cls.downloadqw)
 		{
 			Con_Printf("Couldn't write to temporary file %s - stopping download\n", cls.downloadtempname);
@@ -414,7 +414,7 @@ void CLQ3_ParseDownload(void)
 	{
 		VFS_CLOSE(cls.downloadqw);
 		cls.downloadqw = NULL;
-		FS_Rename(cls.downloadtempname, cls.downloadname, FS_BASE);	// ->
+		FS_Rename(cls.downloadtempname, cls.downloadname, FS_ROOT);	// ->
 		*cls.downloadtempname = *cls.downloadname = 0;
 		cls.downloadmethod = DL_NONE;
 
@@ -485,7 +485,7 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 			if (!strchr(com_token, '/'))	//don't let some muppet tell us to download quake3.exe
 				break;
 
-			f = FS_OpenVFS(va("%s.pk3", com_token), "rb", FS_BASE);
+			f = FS_OpenVFS(va("%s.pk3", com_token), "rb", FS_ROOT);
 			if (f)
 				VFS_CLOSE(f);
 			else

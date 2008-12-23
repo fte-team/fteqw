@@ -652,7 +652,7 @@ void CLQ2_AddProjectiles (void)
 		V_AddLight (pr->origin, 200, 0.2, 0.2, 0);
 
 		VectorCopy (pr->angles, ent.angles);
-		V_AddLerpEntity (&ent);
+		VQ2_AddLerpEntity (&ent);
 	}
 }
 #endif
@@ -1354,15 +1354,15 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 			// set frame
 		if (effects & Q2EF_ANIM01)
-			ent.frame1 = autoanim & 1;
+			ent.framestate.g[FS_REG].frame[0] = autoanim & 1;
 		else if (effects & Q2EF_ANIM23)
-			ent.frame1 = 2 + (autoanim & 1);
+			ent.framestate.g[FS_REG].frame[0] = 2 + (autoanim & 1);
 		else if (effects & Q2EF_ANIM_ALL)
-			ent.frame1 = autoanim;
+			ent.framestate.g[FS_REG].frame[0] = autoanim;
 		else if (effects & Q2EF_ANIM_ALLFAST)
-			ent.frame1 = cl.time / 100;
+			ent.framestate.g[FS_REG].frame[0] = cl.time / 100;
 		else
-			ent.frame1 = s1->frame;
+			ent.framestate.g[FS_REG].frame[0] = s1->frame;
 
 		// quad and pent can do different things on client
 		if (effects & Q2EF_PENT)
@@ -1395,8 +1395,8 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		}
 // pmm
 //======
-		ent.frame2 = cent->prev.frame;
-		ent.lerpfrac = cl.lerpfrac;
+		ent.framestate.g[FS_REG].frame[1] = cent->prev.frame;
+		ent.framestate.g[FS_REG].lerpfrac = cl.lerpfrac;
 
 		if (renderfx & (Q2RF_FRAMELERP|Q2RF_BEAM))
 		{	// step origin discretely, because the frames
@@ -1421,7 +1421,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.shaderRGBAf[3] = 0.30;
 			ent.skinnum = (s1->skinnum >> ((rand() % 4)*8)) & 0xff;
 			ent.model = NULL;
-			ent.lerpfrac = 1;
+			ent.framestate.g[FS_REG].lerpfrac = 1;
 		}
 		else
 		{
@@ -1573,7 +1573,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 //pmm
 
 		// add to refresh list
-		V_AddLerpEntity (&ent);
+		VQ2_AddLerpEntity (&ent);
 
 
 		// color shells generate a seperate entity for the main model
@@ -1630,7 +1630,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell);
 			}
 #endif
-			V_AddLerpEntity (&ent);
+			VQ2_AddLerpEntity (&ent);
 		}
 #ifdef Q3SHADERS
 		ent.forcedshader = NULL;
@@ -1686,7 +1686,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 */			// pmm
 
-			V_AddLerpEntity (&ent);
+			VQ2_AddLerpEntity (&ent);
 
 			//PGM - make sure these get reset.
 			ent.flags = 0;
@@ -1696,12 +1696,12 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		if (s1->modelindex3)
 		{
 			ent.model = cl.model_precache[s1->modelindex3];
-			V_AddLerpEntity (&ent);
+			VQ2_AddLerpEntity (&ent);
 		}
 		if (s1->modelindex4)
 		{
 			ent.model = cl.model_precache[s1->modelindex4];
-			V_AddLerpEntity (&ent);
+			VQ2_AddLerpEntity (&ent);
 		}
 
 		if ( effects & Q2EF_POWERSCREEN )
@@ -1711,7 +1711,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.frame = 0;
 			ent.flags |= (Q2RF_TRANSLUCENT | Q2RF_SHELL_GREEN);
 			ent.alpha = 0.30;
-			V_AddLerpEntity (&ent);
+			VQ2_AddLerpEntity (&ent);
 */		}
 
 		// add automatic particle trails
@@ -1928,14 +1928,14 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	gun.angles[1] = cl_gunangley.value;
 	gun.angles[2] = cl_gunanglez.value;
 
-	gun.frame1 = ps->gunframe;
-	if (gun.frame1 == 0)
-		gun.frame2 = 0;	// just changed weapons, don't lerp from old
+	gun.framestate.g[FS_REG].frame[0] = ps->gunframe;
+	if (gun.framestate.g[FS_REG].frame[0] == 0)
+		gun.framestate.g[FS_REG].frame[1] = 0;	// just changed weapons, don't lerp from old
 	else
-		gun.frame2 = ops->gunframe;
+		gun.framestate.g[FS_REG].frame[1] = ops->gunframe;
 
 	gun.flags = Q2RF_MINLIGHT | Q2RF_DEPTHHACK | Q2RF_WEAPONMODEL;
-	gun.lerpfrac = 1-cl.lerpfrac;
+	gun.framestate.g[FS_REG].lerpfrac = 1-cl.lerpfrac;
 	VectorCopy (gun.origin, gun.oldorigin);	// don't lerp at all
 	V_AddEntity (&gun);
 }

@@ -424,7 +424,16 @@ reeval:
 	//get a pointer to a field var
 	case OP_ADDRESS:
 		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
+		{
+#ifndef DEBUGABLE
+			pr_trace++;
+			printf("OP_ADDRESS references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			st--;
+			goto cont;
+#else
 			PR_RunError (progfuncs, "OP_ADDRESS references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
+#endif
+		}
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
@@ -432,7 +441,15 @@ reeval:
 		if (!ed || ed->readonly)
 		{
 			pr_xstatement = st-pr_statements;
+#ifndef DEBUGABLE
+			//boot it over to the debugger
+			pr_trace++;
+			printf("assignment to read-only entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			st--;
+			goto cont;
+#else
 			PR_RunError (progfuncs, "assignment to read-only entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
+#endif
 		}
 
 //Whilst the next block would technically be correct, we don't use it as it breaks too many quake mods.

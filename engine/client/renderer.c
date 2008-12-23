@@ -2216,7 +2216,7 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 	float			*pintervals, fullinterval, targettime, time;
 
 	psprite = currententity->model->cache.data;
-	frame = currententity->frame1;
+	frame = currententity->framestate.g[FS_REG].frame[0];
 
 	if ((frame >= psprite->numframes) || (frame < 0))
 	{
@@ -2240,7 +2240,7 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 		numframes = pspritegroup->numframes;
 		fullinterval = pintervals[numframes-1];
 
-		time = currententity->frame1time;
+		time = currententity->framestate.g[FS_REG].frametime[0];
 
 	// when loading in Mod_LoadSpriteGroup, we guaranteed all interval values
 	// are positive, so we don't have to worry about division by 0
@@ -2368,7 +2368,7 @@ texture_t *R_TextureAnimation (texture_t *base)
 	int		reletive;
 	int		count;
 
-	if (currententity->frame1)
+	if (currententity->framestate.g[FS_REG].frame[0])
 	{
 		if (base->alternate_anims)
 			base = base->alternate_anims;

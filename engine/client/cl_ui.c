@@ -1,12 +1,12 @@
 #include "quakedef.h"
 #ifdef VM_UI
+#include "clq3defs.h"
 #include "ui_public.h"
 #include "cl_master.h"
 #include "shader.h"
 
 int keycatcher;
 
-#include "clq3defs.h"
 
 void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s2, float t2, struct shader_s *pic);
 
@@ -397,10 +397,10 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 		cl_visedicts = cl_visedicts_list[0];
 	memset(&ent, 0, sizeof(ent));
 	ent.model = VM_FROMMHANDLE(q3->hModel);
-	ent.frame1 = q3->frame;
-	ent.frame2 = q3->oldframe;
+	ent.framestate.g[FS_REG].frame[0] = q3->frame;
+	ent.framestate.g[FS_REG].frame[1] = q3->oldframe;
 	memcpy(ent.axis, q3->axis, sizeof(q3->axis));
-	ent.lerpfrac = q3->backlerp;
+	ent.framestate.g[FS_REG].lerpfrac = q3->backlerp;
 	ent.scale = q3->radius;
 	ent.rtype = q3->reType;
 	ent.rotation = q3->rotation;

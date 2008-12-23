@@ -6,6 +6,7 @@
 #ifdef RGLQUAKE
 #include "glquake.h"
 #include "shader.h"
+#include "renderque.h"
 
 #define qglGetError() 0
 
@@ -384,8 +385,17 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 
 	if (tex->alphaed || currententity->shaderRGBAf[3]<1)
 	{
-		qglEnable(GL_BLEND);
-		GL_TexEnv(GL_MODULATE);
+		if (*tex->name == '{')
+		{
+			qglEnable(GL_ALPHA_TEST);
+			qglDisable(GL_BLEND);
+			GL_TexEnv(GL_REPLACE);
+		}
+		else
+		{
+			qglEnable(GL_BLEND);
+			GL_TexEnv(GL_MODULATE);
+		}
 	}
 	else
 	{
@@ -403,6 +413,12 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 	GL_TexEnv(GL_MODULATE);
 
 
+/*	if (currententity->shaderRGBAf[3]<1)
+	{
+		s->lightmaptexturenum = -1;
+		qglBlendFunc(GL_SRC_COLOR, GL_ONE);
+	}
+*/
 	if (overbright != 1)
 	{
 		GL_TexEnv(GL_COMBINE_ARB);
@@ -466,6 +482,9 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 
 	GL_SelectTexture(GL_TEXTURE0_ARB);
 	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	if (tex->alphaed)
+		qglDisable(GL_ALPHA_TEST);
 }
 
 /*
@@ -1910,7 +1929,7 @@ void PPL_BaseBModelTextures(entity_t *e)
 
 	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
 	{
-		if (s->texinfo->flags & SURF_TRANS33 || s->texinfo->flags & SURF_TRANS66)
+		if (s->texinfo->flags & (SURF_TRANS33 | SURF_TRANS66))
 		{
 			s->ownerent = currententity;
 			s->nextalphasurface = r_alpha_surfaces;
@@ -2116,7 +2135,7 @@ void R_DrawBeam( entity_t *e )
 
 	scale = e->scale;
 	if (!scale)
-		scale = e->frame1;
+		scale = e->framestate.g[FS_REG].frame[0];
 	if (!scale)
 		scale = 6;
 	VectorScale( perpvec, scale / 2, perpvec );
@@ -2224,6 +2243,19 @@ void PPL_DrawEnt(entity_t *e, void *parm)
 	qglBegin(GL_QUADS);
 }
 
+void PPL_DelayBaseBModelTextures(int count, void **e, void *parm)
+{
+	while(count--)
+	{
+		currententity = *e++;
+
+		qglDepthFunc ( gldepthfunc );
+		qglEnable(GL_DEPTH_TEST);
+		qglDepthMask(1);
+		PPL_BaseBModelTextures (currententity);
+	}
+}
+
 void PPL_BaseEntTextures(void)
 {
 	extern model_t *currentmodel;
@@ -2280,10 +2312,15 @@ void PPL_BaseEntTextures(void)
 			break;
 
 		case mod_brush:
-			qglDepthFunc ( gldepthfunc );
-			qglEnable(GL_DEPTH_TEST);
-			qglDepthMask(1);
-			PPL_BaseBModelTextures (currententity);
+			if (currententity->shaderRGBAf[3] < 1)
+				RQ_AddDistReorder(PPL_DelayBaseBModelTextures, currententity, NULL, currententity->origin);
+			else
+			{
+				qglDepthFunc ( gldepthfunc );
+				qglEnable(GL_DEPTH_TEST);
+				qglDepthMask(1);
+				PPL_BaseBModelTextures (currententity);
+			}
 			break;
 
 		default:
@@ -4645,8 +4682,6 @@ qboolean PPL_ScissorForBox(vec3_t mins, vec3_t maxs)
 }
 #endif
 
-void CL_NewDlight (int key, float x, float y, float z, float radius, float time,
-				   int type);
 //generates stencil shadows of the world geometry.
 //redraws world geometry
 qboolean PPL_AddLight(dlight_t *dl)

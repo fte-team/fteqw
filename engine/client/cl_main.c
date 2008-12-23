@@ -2618,7 +2618,7 @@ void CL_Download_f (void)
 		return;
 	}
 
-	CL_EnqueDownload(url, url, DLLF_REQUIRED|DLLF_OVERWRITE|DLLF_VERBOSE);
+	CL_EnqueDownload(url, url, DLLF_IGNOREFAILED|DLLF_REQUIRED|DLLF_OVERWRITE|DLLF_VERBOSE);
 }
 
 void CL_DownloadSize_f(void)

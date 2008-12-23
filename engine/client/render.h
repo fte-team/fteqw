@@ -54,7 +54,6 @@ typedef enum {
 	RT_MAX_REF_ENTITY_TYPE
 } refEntityType_t;
 
-#define MAX_BONE_CONTROLLERS 5
 typedef struct entity_s
 {
 	int						keynum;			// for matching entities in different frames
@@ -87,24 +86,7 @@ typedef struct entity_s
 											//  that splits bmodel, or NULL if
 											//  not split
 
-	int						frame1;
-	int						frame2;
-	float					frame1time;
-	float					frame2time;
-	float					lerpfrac;
-
-#ifdef HALFLIFEMODELS
-	float					subblendfrac;	//hl models are weird
-	float					bonecontrols[MAX_BONE_CONTROLLERS];	//hl special bone controllers
-	float					basesubblendfrac;//hl models are weird
-#endif
-
-	int						baseframe1;	//used to control legs animations
-	int						baseframe2;
-	float					baseframe1time;
-	float					baseframe2time;
-	float					baselerpfrac;//
-	int						basebone;	//the base frame fills bones up to this one (thus if 0, base sequence is not used).
+	framestate_t			framestate;
 
 	int flags;
 
@@ -399,7 +381,6 @@ void GL_InfinatePerspective(double fovx, double fovy, double zNear);
 #if defined(RGLQUAKE) || defined(D3DQUAKE)
 
 void	GLMod_Init (void);
-qboolean Mod_GetTag(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *result);
 int Mod_TagNumForName(struct model_s *model, char *name);
 int Mod_SkinNumForName(struct model_s *model, char *name);
 
@@ -471,9 +452,6 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 void BoostGamma(qbyte *rgba, int width, int height);
 void SaturateR8G8B8(qbyte *data, int size, float sat);
 void AddOcranaLEDsIndexed (qbyte *image, int h, int w);
-
-void CL_NewDlightRGB (int key, float x, float y, float z, float radius, float time,
-				   float r, float g, float b);
 
 void Renderer_Init(void);
 void R_RestartRenderer_f (void);//this goes here so we can save some stack when first initing the sw renderer.

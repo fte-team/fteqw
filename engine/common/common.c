@@ -1469,6 +1469,26 @@ void COM_StripExtension (char *in, char *out, int outlen)
 	}
 }
 
+void COM_StripAllExtensions (char *in, char *out, int outlen)
+{
+	char *s;
+
+	if (out != in)
+		Q_strncpyz(out, in, outlen);
+
+	s = out+strlen(out);
+
+	while(*s != '/' && s != out)
+	{
+		if (*s == '.')
+		{
+			*s = 0;
+		}
+
+		s--;
+	}
+}
+
 /*
 ============
 COM_FileExtension

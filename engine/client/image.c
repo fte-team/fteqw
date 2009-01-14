@@ -1973,7 +1973,7 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 
 	int i, e;
 
-	COM_StripExtension(name, nicename, sizeof(nicename));
+	COM_StripAllExtensions(name, nicename, sizeof(nicename));
 
 	while((data = strchr(nicename, '*')))
 	{

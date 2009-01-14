@@ -75,6 +75,7 @@ cvar_t	cl_predict_players2 = SCVAR("cl_predict_players2", "1");
 cvar_t	cl_solid_players = SCVAR("cl_solid_players", "1");
 cvar_t	cl_noblink = SCVAR("cl_noblink", "0");
 cvar_t	cl_servername = SCVAR("cl_servername", "none");
+cvar_t	cl_serveraddress = SCVAR("cl_serveraddress", "none");
 cvar_t	qtvcl_forceversion1 = SCVAR("qtvcl_forceversion1", "0");
 cvar_t	qtvcl_eztvextensions = SCVAR("qtvcl_eztvextensions", "0");
 
@@ -448,6 +449,9 @@ void CL_SendConnectPacket (
 		connect_time = -1;
 		return;
 	}
+
+	NET_AdrToString(data, sizeof(data), adr);
+	Cvar_ForceSet(&cl_serveraddress, data);
 
 	if (!NET_IsClientLegal(&adr))
 	{
@@ -2821,6 +2825,7 @@ void CL_Init (void)
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
 	Cvar_Register (&cl_servername, cl_controlgroup);
+	Cvar_Register (&cl_serveraddress, cl_controlgroup);
 	Cvar_Register (&cl_demospeed, "Demo playback");
 	Cvar_Register (&cl_warncmd, "Warnings");
 	Cvar_Register (&cl_upspeed, cl_inputgroup);

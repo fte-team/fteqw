@@ -38,7 +38,7 @@ void SWDraw_EditorBackground (int lines);
 void SWDraw_BeginDisc (void);
 void SWDraw_EndDisc (void);
 void SWDraw_TileClear (int x, int y, int w, int h);
-void SWDraw_Fill (int x, int y, int w, int h, int c);
+void SWDraw_Fill (int x, int y, int w, int h, unsigned int c);
 void SWDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b);
 void SWDraw_FadeScreen (void);
 void SWDraw_String (int x, int y, const qbyte *str);

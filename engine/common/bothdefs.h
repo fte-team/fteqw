@@ -21,11 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __BOTHDEFS_H
 #define __BOTHDEFS_H
 
-#ifdef D3DQUAKE
-#pragma message("d3dquake is temporarily disabled!")
-#undef D3DQUAKE
-#endif
-
 #if defined(__APPLE__) && defined(__MACH__)
 #define MACOSX
 #endif
@@ -170,10 +165,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #endif
 
-#ifdef PSET_SCRIPT
-#pragma message("fte particles are temporarily disabled!")
-#undef PSET_SCRIPT
-#endif
+//temporarily disable stuff here, so as to not break any custom configs
+
 
 //fix things a little...
 

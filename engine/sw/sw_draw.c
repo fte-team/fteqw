@@ -2543,7 +2543,7 @@ void SWDraw_Fill8 (int x, int y, int w, int h, unsigned char c)
 			dest[u] = c;
 }
 
-void SWDraw_Fill (int x, int y, int w, int h, int c)
+void SWDraw_Fill (int x, int y, int w, int h, unsigned int c)
 {
 	if (x < 0 || x + w > vid.width ||
 		y < 0 || y + h > vid.height) {

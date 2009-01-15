@@ -3409,7 +3409,7 @@ static void GL_DrawParticleBeam_Textured(int count, beamseg_t **blist, plooks_t 
 		VectorSubtract(r_refdef.vieworg, q->org, v);
 		VectorNormalize(v);
 		CrossProduct(c->dir, v, cr);
-		ts = c->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+		ts = c->texture_s*q->angle + particletime*q->rotationspeed;
 
 		VectorMA(q->org, -q->scale, cr, point);
 		qglTexCoord2f(ts, 0);
@@ -3426,7 +3426,7 @@ static void GL_DrawParticleBeam_Textured(int count, beamseg_t **blist, plooks_t 
 		VectorSubtract(r_refdef.vieworg, p->org, v);
 		VectorNormalize(v);
 		CrossProduct(b->dir, v, cr); // replace with old p->dir?
-		ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
+		ts = b->texture_s*p->angle + particletime*p->rotationspeed;
 
 		VectorMA(p->org, p->scale, cr, point);
 		qglTexCoord2f(ts, 1);
@@ -3876,7 +3876,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 			while ((p=type->particles))
 			{
 				if (pdraw)
-					RQ_AddDistReorder(pdraw, p, type, p->org);
+					RQ_AddDistReorder(pdraw, p, &type->looks, p->org);
 
 				// make sure emitter runs at least once
 				if (type->emit >= 0 && type->emitstart <= 0)
@@ -3930,7 +3930,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 						VectorAdd(stop, oldorg, stop);
 						VectorScale(stop, 0.5, stop);
 
-						RQ_AddDistReorder(bdraw, b, type, stop);
+						RQ_AddDistReorder(bdraw, b, &type->looks, stop);
 					}
 				}
 
@@ -4139,7 +4139,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 			}
 
 			if (pdraw)
-				RQ_AddDistReorder((void*)pdraw, p, type, p->org);
+				RQ_AddDistReorder((void*)pdraw, p, &type->looks, p->org);
 		}
 
 		// beams are dealt with here
@@ -4199,7 +4199,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 								VectorAdd(stop, oldorg, stop);
 								VectorScale(stop, 0.5, stop);
 
-								RQ_AddDistReorder(bdraw, b, type, stop);
+								RQ_AddDistReorder(bdraw, b, &type->looks, stop);
 							}
 						}
 

@@ -122,6 +122,9 @@ typedef struct {
 
 float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize);
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, float *xyzout);
+qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, 
+									entity_t *e,
+								  float alpha, qboolean nolightdir);
 
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
 

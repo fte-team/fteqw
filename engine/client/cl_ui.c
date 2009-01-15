@@ -439,12 +439,18 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 
 	float tr[12];
 	qboolean found;
+	framestate_t fstate;
 
 	org = (float*)out;
 	ang = ((float*)out+3);
 
+	memset(&fstate, 0, sizeof(fstate));
+	fstate.g[FS_REG].frame[0] = f1;
+	fstate.g[FS_REG].frame[1] = f2;
+	fstate.g[FS_REG].lerpfrac = l2;
+
 	tagnum = Mod_TagNumForName(model, tagname);
-	found = Mod_GetTag(model, tagnum, f1, f2, l2, 0, 0, tr);
+	found = Mod_GetTag(model, tagnum, &fstate, tr);
 
 	if (found)
 	{

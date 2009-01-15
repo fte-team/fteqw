@@ -676,7 +676,7 @@ if (e->flags & Q2RF_DEPTHHACK)
 
 	for(i = 0;; i++)
 	{
-		R_GAliasBuildMesh(&mesh, inf, e->frame1, e->frame2, e->lerpfrac, e->shaderRGBAf[3], e->frame1time, e->frame2time, 0);
+		Alias_GAliasBuildMesh(&mesh, inf, e, e->shaderRGBAf[3], false);
 
 		skin = D3D7_ChooseSkin(inf, m->name, e->skinnum, e);
 		if (!skin)

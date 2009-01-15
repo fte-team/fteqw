@@ -269,7 +269,7 @@ static void Shader_ParseVector ( char **ptr, vec3_t v )
 	}
 }
 
-static void Shader_ParseSkySides ( char **ptr, int *images )
+static void Shader_ParseSkySides ( shader_t *shader, char **ptr, int *images )
 {
 	int i;
 	char *token;
@@ -285,7 +285,10 @@ static void Shader_ParseSkySides ( char **ptr, int *images )
 			Com_sprintf ( path, sizeof(path), "%s_%s", token, suf[i] );
 			images[i] = Mod_LoadHiResTexture ( path, NULL, true, false, true);//|IT_SKY );
 			if (!images[i])
+			{
+				Con_Printf("Shader \"%s\" missing texture: %s\n", shader->name, path);
 				images[i] = missing_texture;
+			}
 		}
 	}
 }
@@ -449,14 +452,14 @@ static void Shader_SkyParms ( shader_t *shader, shaderpass_t *pass, char **ptr )
 	skydome = (skydome_t *)Z_Malloc ( sizeof(skydome_t) );
 	shader->skydome = skydome;
 
-	Shader_ParseSkySides ( ptr, skydome->farbox_textures );
+	Shader_ParseSkySides ( shader, ptr, skydome->farbox_textures );
 
 	skyheight = Shader_ParseFloat ( ptr );
 	if ( !skyheight ) {
 		skyheight = 512.0f;
 	}
 
-	Shader_ParseSkySides ( ptr, skydome->nearbox_textures );
+	Shader_ParseSkySides ( shader, ptr, skydome->nearbox_textures );
 
 //	R_CreateSkydome ( shader, skyheight );
 
@@ -1708,7 +1711,10 @@ void Shader_Finish ( shader_t *s )
 		pass->tcgen = TC_GEN_BASE;
 		pass->anim_frames[0] = Mod_LoadHiResTexture(s->name, NULL, true, false, true);//GL_FindImage (shortname, 0);
 		if (!pass->anim_frames[0])
+		{
+			Con_Printf("Shader %s failed to load default texture\n", s->name);
 			pass->anim_frames[0] = missing_texture;
+		}
 		pass->depthfunc = GL_LEQUAL;
 		pass->flags = SHADER_PASS_DEPTHWRITE;
 		pass->rgbgen = RGB_GEN_VERTEX;
@@ -2156,8 +2162,6 @@ void Shader_DefaultBSPVertex(char *shortname, shader_t *s)
 	pass = &s->passes[0];
 	pass->tcgen = TC_GEN_BASE;
 	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, false, true);//GL_FindImage (shortname, 0);
-	if (!pass->anim_frames[0])
-		pass->anim_frames[0] = missing_texture;
 	pass->depthfunc = GL_LEQUAL;
 	pass->flags = SHADER_PASS_DEPTHWRITE;
 	pass->rgbgen = RGB_GEN_VERTEX;
@@ -2187,8 +2191,6 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s)
 	pass->blenddst = GL_ONE;
 	pass->blendmode = GL_MODULATE;
 	pass->anim_frames[0] = Mod_LoadHiResTexture(shortname, NULL, true, true, true);//GL_FindImage (shortname, 0);
-	if (!pass->anim_frames[0])
-		pass->anim_frames[0] = missing_texture;
 	pass->depthfunc = GL_LEQUAL;
 	pass->rgbgen = RGB_GEN_VERTEX;
 	pass->alphagen = ALPHA_GEN_IDENTITY;
@@ -2239,7 +2241,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 			pass->anim_frames[0] = missing_texture;
 		}
 	}
-
+/*
 	tex = Mod_LoadHiResTexture(va("%s_shirt", shortname), NULL, true, true, true);
 	if (tex)
 	{
@@ -2283,7 +2285,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 			pass->anim_frames[0] = missing_texture;
 		}
 	}
-
+*/
 	tex = Mod_LoadHiResTexture(va("%s_glow", shortname), NULL, true, true, true);
 	if (tex)
 	{

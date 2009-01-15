@@ -85,7 +85,7 @@ static void				D3D9_RecursiveWorldNode (mnode_t *node);
 void					D3D9_SetupFrame (void);
 void					D3D9_SetupViewPort (void);
 qboolean				D3D9_ShouldDraw (void);
-void					D3D9R_DrawSprite (void *e, void *parm);
+void					D3D9R_DrawSprite(int count, void **e, void *parm);
 void					IDirect3DDevice9_DrawIndexedPrimitive7 (LPDIRECT3DDEVICE9 pD3DDev9, int mode, int fvf, void *verts, int numverts, index_t *indicies, int numindicies, int wasted);
 
 //

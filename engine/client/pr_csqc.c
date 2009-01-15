@@ -396,7 +396,7 @@ typedef struct {
 	model_t *model;
 	qboolean absolute;
 
-	int numbones;
+	unsigned int numbones;
 	float *bonematrix;
 } skelobject_t;
 
@@ -3577,7 +3577,7 @@ static void PF_skel_get_boneabs (progfuncs_t *prinst, struct globalvars_s *pr_gl
 static void PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
-	int boneidx = G_FLOAT(OFS_PARM1)-1;
+	unsigned int boneidx = G_FLOAT(OFS_PARM1)-1;
 	float *matrix[4];
 	skelobject_t *skelobj;
 	matrix[0] = csqcg.forward;
@@ -3586,8 +3586,13 @@ static void PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	matrix[3] = G_VECTOR(OFS_PARM2);
 
 	skelobj = skel_get(prinst, skelidx, 0);
-
-	//codeme
+	if (!skelobj || boneidx >= skelobj->numbones)
+		return;
+//testme
+	VectorCopy(matrix[0], skelobj->bonematrix+12*boneidx+0);
+	VectorCopy(matrix[1], skelobj->bonematrix+12*boneidx+3);
+	VectorCopy(matrix[2], skelobj->bonematrix+12*boneidx+6);
+	VectorCopy(matrix[3], skelobj->bonematrix+12*boneidx+9);
 }
 
 //#271 void(float skel, float bonenum, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
@@ -3596,27 +3601,54 @@ static void PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	int skelidx = G_FLOAT(OFS_PARM0);
 	int boneidx = G_FLOAT(OFS_PARM1)-1;
 	float *matrix[4];
-	matrix[0] = csqcg.forward;
-	matrix[1] = csqcg.right;
-	matrix[2] = csqcg.up;
-	matrix[3] = G_VECTOR(OFS_PARM2);
+	float temp[3][4];
+	float mult[3][4];
+	skelobject_t *skelobj;
+	VectorCopy(csqcg.forward, mult[0]);
+	VectorCopy(csqcg.right, mult[1]);
+	VectorCopy(csqcg.up, mult[2]);
+	VectorCopy(G_VECTOR(OFS_PARM2), mult[3]);
 
-	//codeme
+	skelobj = skel_get(prinst, skelidx, 0);
+	if (!skelobj || boneidx >= skelobj->numbones)
+		return;
+//testme
+	VectorCopy(skelobj->bonematrix+12*boneidx+0, temp[0]);
+	VectorCopy(skelobj->bonematrix+12*boneidx+3, temp[1]);
+	VectorCopy(skelobj->bonematrix+12*boneidx+6, temp[2]);
+	VectorCopy(skelobj->bonematrix+12*boneidx+9, temp[3]);
+	R_ConcatTransforms(mult, temp, (float(*)[4])(skelobj->bonematrix+12*boneidx));
 }
 
 //#272 void(float skel, float startbone, float endbone, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
 static void PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
-	int startbone = G_FLOAT(OFS_PARM1)-1;
-	int endbone = G_FLOAT(OFS_PARM2)-1;
-	float *matrix[4];
-	matrix[0] = csqcg.forward;
-	matrix[1] = csqcg.right;
-	matrix[2] = csqcg.up;
-	matrix[3] = G_VECTOR(OFS_PARM3);
+	unsigned int startbone = G_FLOAT(OFS_PARM1)-1;
+	unsigned int endbone = G_FLOAT(OFS_PARM2)-1;
+	float temp[3][4];
+	float mult[3][4];
+	skelobject_t *skelobj;
+	VectorCopy(csqcg.forward, mult[0]);
+	VectorCopy(csqcg.right, mult[1]);
+	VectorCopy(csqcg.up, mult[2]);
+	VectorCopy(G_VECTOR(OFS_PARM2), mult[3]);
 
-	//codeme
+	skelobj = skel_get(prinst, skelidx, 0);
+	if (!skelobj)
+		return;
+
+	if (startbone == -1)
+		startbone = 0;
+//testme
+	while(startbone < endbone && startbone < skelobj->numbones)
+	{
+		VectorCopy(skelobj->bonematrix+12*startbone+0, temp[0]);
+		VectorCopy(skelobj->bonematrix+12*startbone+3, temp[1]);
+		VectorCopy(skelobj->bonematrix+12*startbone+6, temp[2]);
+		VectorCopy(skelobj->bonematrix+12*startbone+9, temp[3]);
+		R_ConcatTransforms(mult, temp, (float(*)[4])(skelobj->bonematrix+12*startbone));
+	}
 }
 
 //#273 void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones (FTE_CSQC_SKELETONOBJECTS)
@@ -3627,7 +3659,24 @@ static void PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	int startbone = G_FLOAT(OFS_PARM2)-1;
 	int endbone = G_FLOAT(OFS_PARM3)-1;
 
-	//codeme
+	skelobject_t *skelobjdst;
+	skelobject_t *skelobjsrc;
+
+	skelobjdst = skel_get(prinst, skeldst, 0);
+	skelobjsrc = skel_get(prinst, skelsrc, 0);
+	if (!skelobjdst || !skelobjsrc)
+		return;
+
+	if (startbone == -1)
+		startbone = 0;
+//testme
+	while(startbone < endbone && startbone < skelobjdst->numbones && startbone < skelobjsrc->numbones)
+	{
+		VectorCopy(skelobjsrc->bonematrix+12*startbone+0, skelobjdst->bonematrix+12*startbone+0);
+		VectorCopy(skelobjsrc->bonematrix+12*startbone+3, skelobjdst->bonematrix+12*startbone+3);
+		VectorCopy(skelobjsrc->bonematrix+12*startbone+6, skelobjdst->bonematrix+12*startbone+6);
+		VectorCopy(skelobjsrc->bonematrix+12*startbone+9, skelobjdst->bonematrix+12*startbone+9);
+	}
 }
 
 //#274 void(float skel) skel_delete (FTE_CSQC_SKELETONOBJECTS)

@@ -7,9 +7,6 @@ int numlightmaps;
 
 mvertex_t *r_pcurrentvertbase;
 
-#define LMBLOCK_WIDTH 128
-#define LMBLOCK_HEIGHT LMBLOCK_WIDTH
-
 LPDIRECT3DTEXTURE9 *lightmap_d3d9textures;
 LPDIRECT3DTEXTURE9 *deluxmap_d3d9textures;
 lightmapinfo_t **lightmap;

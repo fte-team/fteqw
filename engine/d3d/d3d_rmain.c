@@ -742,15 +742,15 @@ static void D3D7_DrawSpriteModel (entity_t *e)
 
 //==================================================================================
 
-void D3D7R_DrawSprite(void *e, void *parm)
+void D3D7R_DrawSprite(int count, void **e, void *parm)
 {
-	currententity = e;
+	while(count--)
+	{
+		currententity = *e++;
 
-	D3D7_DrawSpriteModel (currententity);
-
-//	P_FlushRenderer();
+		D3D7_DrawSpriteModel (currententity);
+	}
 }
-
 
 
 qboolean D3D7_ShouldDraw(void)
@@ -996,7 +996,6 @@ void	(D3D7_R_RenderView)				(void)
 		}
 
 
-static part_type_t *lastgltype;
 extern vec3_t pright, pup;
 static float particletime;
 
@@ -1019,177 +1018,185 @@ static unsigned short d3dparticlevertindexes[] =
 	0, 2, 3
 };
 
-static void D3D_DrawParticleBlob(particle_t *p, part_type_t *type)
+static void D3D_DrawParticleBlob(int count, particle_t **plist, plooks_t *type)
 {
 	float scale;
 	float x;
 	float y;
 	unsigned int colour;
 	int cb, cg, cr, ca;
-	if (lastgltype != type)
+	particle_t *p;
+
+	pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, type->d3dtexture);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+
+	APPLYD3DBLEND(type->blendmode);
+	
+	while(count--)
 	{
-		lastgltype = type;
-		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, type->d3dtexture);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		p = *plist++;
 
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+		scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
+			+ (p->org[2] - r_origin[2])*vpn[2];
+		scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
+		if (scale < 20)
+			scale = 0.25;
+		else
+			scale = 0.25 + scale * 0.001;
 
-		APPLYD3DBLEND(type->blendmode);
+		cr = p->rgb[0]*255;
+		if (cr < 0) cr = 0;
+		if (cr > 255) cr = 255;
+
+		cg = p->rgb[1]*255;
+		if (cg < 0) cg = 0;
+		if (cg > 255) cg = 255;
+
+		cb = p->rgb[2]*255;
+		if (cb < 0) cb = 0;
+		if (cb > 255) cb = 255;
+
+		ca = p->alpha*255;
+		if (ca < 0) ca = 0;
+		if (ca > 255) ca = 255;
+
+		colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+		if (p->angle)
+		{
+			x = sin(p->angle)*scale;
+			y = cos(p->angle)*scale;
+		}
+		else
+		{
+			x = 0;
+			y = scale;
+		}
+		d3dparticlevert[0].s = 0;
+		d3dparticlevert[0].t = 0;
+		d3dparticlevert[0].colour = colour;
+		d3dparticlevert[0].org[0] = p->org[0] - x*pright[0] - y*pup[0];
+		d3dparticlevert[0].org[1] = p->org[1] - x*pright[1] - y*pup[1];
+		d3dparticlevert[0].org[2] = p->org[2] - x*pright[2] - y*pup[2];
+
+		d3dparticlevert[1].s = 0;
+		d3dparticlevert[1].t = 1;
+		d3dparticlevert[1].colour = colour;
+		d3dparticlevert[1].org[0] = p->org[0] - y*pright[0] + x*pup[0];
+		d3dparticlevert[1].org[1] = p->org[1] - y*pright[1] + x*pup[1];
+		d3dparticlevert[1].org[2] = p->org[2] - y*pright[2] + x*pup[2];
+
+		d3dparticlevert[2].s = 1;
+		d3dparticlevert[2].t = 1;
+		d3dparticlevert[2].colour = colour;
+		d3dparticlevert[2].org[0] = p->org[0] + x*pright[0] + y*pup[0];
+		d3dparticlevert[2].org[1] = p->org[1] + x*pright[1] + y*pup[1];
+		d3dparticlevert[2].org[2] = p->org[2] + x*pright[2] + y*pup[2];
+
+		d3dparticlevert[3].s = 1;
+		d3dparticlevert[3].t = 0;
+		d3dparticlevert[3].colour = colour;
+		d3dparticlevert[3].org[0] = p->org[0] + y*pright[0] - x*pup[0];
+		d3dparticlevert[3].org[1] = p->org[1] + y*pright[1] - x*pup[1];
+		d3dparticlevert[3].org[2] = p->org[2] + y*pright[2] - x*pup[2];
+
+		//FIXME: batch properly
+		pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dparticlevert, 4, d3dparticlevertindexes, 6, 0);
 	}
-
-	scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
-		+ (p->org[2] - r_origin[2])*vpn[2];
-	scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
-	if (scale < 20)
-		scale = 0.25;
-	else
-		scale = 0.25 + scale * 0.001;
-
-	cr = p->rgb[0]*255;
-	if (cr < 0) cr = 0;
-	if (cr > 255) cr = 255;
-
-	cg = p->rgb[1]*255;
-	if (cg < 0) cg = 0;
-	if (cg > 255) cg = 255;
-
-	cb = p->rgb[2]*255;
-	if (cb < 0) cb = 0;
-	if (cb > 255) cb = 255;
-
-	ca = p->alpha*255;
-	if (ca < 0) ca = 0;
-	if (ca > 255) ca = 255;
-
-	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
-
-	if (p->angle)
-	{
-		x = sin(p->angle)*scale;
-		y = cos(p->angle)*scale;
-	}
-	else
-	{
-		x = 0;
-		y = scale;
-	}
-	d3dparticlevert[0].s = 0;
-	d3dparticlevert[0].t = 0;
-	d3dparticlevert[0].colour = colour;
-	d3dparticlevert[0].org[0] = p->org[0] - x*pright[0] - y*pup[0];
-	d3dparticlevert[0].org[1] = p->org[1] - x*pright[1] - y*pup[1];
-	d3dparticlevert[0].org[2] = p->org[2] - x*pright[2] - y*pup[2];
-
-	d3dparticlevert[1].s = 0;
-	d3dparticlevert[1].t = 1;
-	d3dparticlevert[1].colour = colour;
-	d3dparticlevert[1].org[0] = p->org[0] - y*pright[0] + x*pup[0];
-	d3dparticlevert[1].org[1] = p->org[1] - y*pright[1] + x*pup[1];
-	d3dparticlevert[1].org[2] = p->org[2] - y*pright[2] + x*pup[2];
-
-	d3dparticlevert[2].s = 1;
-	d3dparticlevert[2].t = 1;
-	d3dparticlevert[2].colour = colour;
-	d3dparticlevert[2].org[0] = p->org[0] + x*pright[0] + y*pup[0];
-	d3dparticlevert[2].org[1] = p->org[1] + x*pright[1] + y*pup[1];
-	d3dparticlevert[2].org[2] = p->org[2] + x*pright[2] + y*pup[2];
-
-	d3dparticlevert[3].s = 1;
-	d3dparticlevert[3].t = 0;
-	d3dparticlevert[3].colour = colour;
-	d3dparticlevert[3].org[0] = p->org[0] + y*pright[0] - x*pup[0];
-	d3dparticlevert[3].org[1] = p->org[1] + y*pright[1] - x*pup[1];
-	d3dparticlevert[3].org[2] = p->org[2] + y*pright[2] - x*pup[2];
-
-	pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dparticlevert, 4, d3dparticlevertindexes, 6, 0);
 }
-static void D3D_DrawParticleSpark(particle_t *p, part_type_t *type)
+static void D3D_DrawParticleSpark(int count, particle_t **plist, plooks_t *type)
 {
 	vec3_t v, crv, o2;
 
 	unsigned int colour;
 	int cb, cg, cr, ca;
+	particle_t *p;
 
-	if (lastgltype != type)
+
+	pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, type->d3dtexture);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+
+	APPLYD3DBLEND(type->blendmode);
+	
+
+	while(count--)
 	{
-		lastgltype = type;
-		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, type->d3dtexture);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		p = *plist++;
 
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 
-		APPLYD3DBLEND(type->blendmode);
+		cr = p->rgb[0]*255;
+		if (cr < 0) cr = 0;
+		if (cr > 255) cr = 255;
+
+		cg = p->rgb[1]*255;
+		if (cg < 0) cg = 0;
+		if (cg > 255) cg = 255;
+
+		cb = p->rgb[2]*255;
+		if (cb < 0) cb = 0;
+		if (cb > 255) cb = 255;
+
+		ca = p->alpha*255;
+		if (ca < 0) ca = 0;
+		if (ca > 255) ca = 255;
+
+		colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+
+
+
+		VectorSubtract(r_refdef.vieworg, p->org, v);
+		CrossProduct(v, p->vel, crv);
+		VectorNormalize(crv);
+
+		VectorMA(p->org, -p->scale/2, crv, d3dparticlevert[0].org);
+		d3dparticlevert[0].s = 0;
+		d3dparticlevert[0].t = 0;
+		d3dparticlevert[0].colour = colour;
+
+		VectorMA(p->org, p->scale/2, crv, d3dparticlevert[1].org);
+		d3dparticlevert[1].s = 0;
+		d3dparticlevert[1].t = 1;
+		d3dparticlevert[1].colour = colour;
+
+
+		VectorMA(p->org, 0.1, p->vel, o2);
+
+		VectorSubtract(r_refdef.vieworg, o2, v);
+		CrossProduct(v, p->vel, crv);
+		VectorNormalize(crv);
+
+		VectorMA(o2, p->scale/2, crv, d3dparticlevert[2].org);
+		d3dparticlevert[2].s = 1;
+		d3dparticlevert[2].t = 1;
+		d3dparticlevert[2].colour = colour;
+
+		VectorMA(o2, -p->scale/2, crv, d3dparticlevert[3].org);
+		d3dparticlevert[3].s = 1;
+		d3dparticlevert[3].t = 0;
+		d3dparticlevert[3].colour = colour;
+
+
+		pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dparticlevert, 4, d3dparticlevertindexes, 6, 0);
 	}
-
-
-	cr = p->rgb[0]*255;
-	if (cr < 0) cr = 0;
-	if (cr > 255) cr = 255;
-
-	cg = p->rgb[1]*255;
-	if (cg < 0) cg = 0;
-	if (cg > 255) cg = 255;
-
-	cb = p->rgb[2]*255;
-	if (cb < 0) cb = 0;
-	if (cb > 255) cb = 255;
-
-	ca = p->alpha*255;
-	if (ca < 0) ca = 0;
-	if (ca > 255) ca = 255;
-
-	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
-
-
-
-
-	VectorSubtract(r_refdef.vieworg, p->org, v);
-	CrossProduct(v, p->vel, crv);
-	VectorNormalize(crv);
-
-	VectorMA(p->org, -p->scale/2, crv, d3dparticlevert[0].org);
-	d3dparticlevert[0].s = 0;
-	d3dparticlevert[0].t = 0;
-	d3dparticlevert[0].colour = colour;
-
-	VectorMA(p->org, p->scale/2, crv, d3dparticlevert[1].org);
-	d3dparticlevert[1].s = 0;
-	d3dparticlevert[1].t = 1;
-	d3dparticlevert[1].colour = colour;
-
-
-	VectorMA(p->org, 0.1, p->vel, o2);
-
-	VectorSubtract(r_refdef.vieworg, o2, v);
-	CrossProduct(v, p->vel, crv);
-	VectorNormalize(crv);
-
-	VectorMA(o2, p->scale/2, crv, d3dparticlevert[2].org);
-	d3dparticlevert[2].s = 1;
-	d3dparticlevert[2].t = 1;
-	d3dparticlevert[2].colour = colour;
-
-	VectorMA(o2, -p->scale/2, crv, d3dparticlevert[3].org);
-	d3dparticlevert[3].s = 1;
-	d3dparticlevert[3].t = 0;
-	d3dparticlevert[3].colour = colour;
-
-
-	pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dparticlevert, 4, d3dparticlevertindexes, 6, 0);
 }
-static void D3D_DrawParticleBeam(beamseg_t *b, part_type_t *type)
+static void D3D_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 {
 	vec3_t v;
 	vec3_t crv;
-	beamseg_t *c;
+	beamseg_t *b, *c;
 	particle_t *p;
 	particle_t *q;
 	float ts;
@@ -1198,116 +1205,115 @@ static void D3D_DrawParticleBeam(beamseg_t *b, part_type_t *type)
 	unsigned int colour;
 	int cb, cg, cr, ca;
 
-	if (lastgltype != type)
+	pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, type->d3dtexture);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+
+	APPLYD3DBLEND(type->blendmode);
+
+
+
+	while(count--)
 	{
-		lastgltype = type;
-		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, type->d3dtexture);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		b = *blist++;
+		c = b->next;
+		q = c->p;
+		p = b->p;
 
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 
-		APPLYD3DBLEND(type->blendmode);
+		cr = q->rgb[0]*255;
+		if (cr < 0) cr = 0;
+		if (cr > 255) cr = 255;
+
+		cg = q->rgb[1]*255;
+		if (cg < 0) cg = 0;
+		if (cg > 255) cg = 255;
+
+		cb = q->rgb[2]*255;
+		if (cb < 0) cb = 0;
+		if (cb > 255) cb = 255;
+
+		ca = q->alpha*255;
+		if (ca < 0) ca = 0;
+		if (ca > 255) ca = 255;
+
+		colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+
+
+
+
+		c = b->next;
+
+		q = c->p;
+
+		p = b->p;
+
+		VectorSubtract(r_refdef.vieworg, q->org, v);
+		VectorNormalize(v);
+		CrossProduct(c->dir, v, crv);
+		ts = c->texture_s*q->angle + particletime*q->rotationspeed;
+
+		VectorMA(q->org, -q->scale, crv, d3dparticlevert[0].org);
+		d3dparticlevert[0].s = ts;
+		d3dparticlevert[0].t = 0;
+		d3dparticlevert[0].colour = colour;
+		
+		VectorMA(q->org, q->scale, crv, d3dparticlevert[1].org);
+		d3dparticlevert[1].s = ts;
+		d3dparticlevert[1].t = 1;
+		d3dparticlevert[1].colour = colour;
+		
+
+		cr = p->rgb[0]*255;
+		if (cr < 0) cr = 0;
+		if (cr > 255) cr = 255;
+
+		cg = p->rgb[1]*255;
+		if (cg < 0) cg = 0;
+		if (cg > 255) cg = 255;
+
+		cb = p->rgb[2]*255;
+		if (cb < 0) cb = 0;
+		if (cb > 255) cb = 255;
+
+		ca = p->alpha*255;
+		if (ca < 0) ca = 0;
+		if (ca > 255) ca = 255;
+
+		colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+
+		VectorSubtract(r_refdef.vieworg, p->org, v);
+		VectorNormalize(v);
+		CrossProduct(b->dir, v, crv); // replace with old p->dir?
+		ts = b->texture_s*p->angle + particletime*p->rotationspeed;
+
+		VectorMA(p->org, p->scale, crv, d3dparticlevert[2].org);
+		d3dparticlevert[2].s = ts;
+		d3dparticlevert[2].t = 1;
+		d3dparticlevert[2].colour = colour;
+		
+		VectorMA(p->org, -p->scale, crv, d3dparticlevert[3].org);
+		d3dparticlevert[3].s = ts;
+		d3dparticlevert[3].t = 0;
+		d3dparticlevert[3].colour = colour;
+		
+
+		pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dparticlevert, 4, d3dparticlevertindexes, 6, 0);
 	}
-
-
-
-
-	c = b->next;
-	q = c->p;
-	p = b->p;
-
-
-	cr = q->rgb[0]*255;
-	if (cr < 0) cr = 0;
-	if (cr > 255) cr = 255;
-
-	cg = q->rgb[1]*255;
-	if (cg < 0) cg = 0;
-	if (cg > 255) cg = 255;
-
-	cb = q->rgb[2]*255;
-	if (cb < 0) cb = 0;
-	if (cb > 255) cb = 255;
-
-	ca = q->alpha*255;
-	if (ca < 0) ca = 0;
-	if (ca > 255) ca = 255;
-
-	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
-
-
-
-
-
-	c = b->next;
-
-	q = c->p;
-
-	p = b->p;
-
-	VectorSubtract(r_refdef.vieworg, q->org, v);
-	VectorNormalize(v);
-	CrossProduct(c->dir, v, crv);
-	ts = c->texture_s*type->rotationstartmin + particletime*type->rotationmin;
-
-	VectorMA(q->org, -q->scale, crv, d3dparticlevert[0].org);
-	d3dparticlevert[0].s = ts;
-	d3dparticlevert[0].t = 0;
-	d3dparticlevert[0].colour = colour;
-	
-	VectorMA(q->org, q->scale, crv, d3dparticlevert[1].org);
-	d3dparticlevert[1].s = ts;
-	d3dparticlevert[1].t = 1;
-	d3dparticlevert[1].colour = colour;
-	
-
-	cr = p->rgb[0]*255;
-	if (cr < 0) cr = 0;
-	if (cr > 255) cr = 255;
-
-	cg = p->rgb[1]*255;
-	if (cg < 0) cg = 0;
-	if (cg > 255) cg = 255;
-
-	cb = p->rgb[2]*255;
-	if (cb < 0) cb = 0;
-	if (cb > 255) cb = 255;
-
-	ca = p->alpha*255;
-	if (ca < 0) ca = 0;
-	if (ca > 255) ca = 255;
-
-	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
-
-
-	VectorSubtract(r_refdef.vieworg, p->org, v);
-	VectorNormalize(v);
-	CrossProduct(b->dir, v, crv); // replace with old p->dir?
-	ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
-
-	VectorMA(p->org, p->scale, crv, d3dparticlevert[2].org);
-	d3dparticlevert[2].s = ts;
-	d3dparticlevert[2].t = 1;
-	d3dparticlevert[2].colour = colour;
-	
-	VectorMA(p->org, -p->scale, crv, d3dparticlevert[3].org);
-	d3dparticlevert[3].s = ts;
-	d3dparticlevert[3].t = 0;
-	d3dparticlevert[3].colour = colour;
-	
-
-	pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE|D3DFVF_TEX1, d3dparticlevert, 4, d3dparticlevertindexes, 6, 0);
 }
 
-static void D3D_DrawParticleBeamUT(beamseg_t *b, part_type_t *type)
+static void D3D_DrawParticleBeamUT(int count, beamseg_t **blist, plooks_t *type)
 {
 	vec3_t v;
 	vec3_t crv;
-	beamseg_t *c;
+	beamseg_t *b, *c;
 	particle_t *p;
 	particle_t *q;
 	float ts;
@@ -1319,100 +1325,99 @@ static void D3D_DrawParticleBeamUT(beamseg_t *b, part_type_t *type)
 //	D3D_DrawParticleBeam(b, type);
 //	return;
 
-	if (lastgltype != type)
+	pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, NULL);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_SELECTARG2);
+
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG2);
+
+
+	APPLYD3DBLEND(type->blendmode);
+
+
+	while (count--)
 	{
-		lastgltype = type;
-		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, NULL);
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_SELECTARG2);
+		b = *blist++;
 
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG2);
+		c = b->next;
+		q = c->p;
+		p = b->p;
 
 
-		APPLYD3DBLEND(type->blendmode);
+		cr = q->rgb[0]*255;
+		if (cr < 0) cr = 0;
+		if (cr > 255) cr = 255;
+
+		cg = q->rgb[1]*255;
+		if (cg < 0) cg = 0;
+		if (cg > 255) cg = 255;
+
+		cb = q->rgb[2]*255;
+		if (cb < 0) cb = 0;
+		if (cb > 255) cb = 255;
+
+		ca = q->alpha*255;
+		if (ca < 0) ca = 0;
+		if (ca > 255) ca = 255;
+
+		colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+
+
+
+
+		c = b->next;
+
+		q = c->p;
+
+		p = b->p;
+
+		VectorSubtract(r_refdef.vieworg, q->org, v);
+		VectorNormalize(v);
+		CrossProduct(c->dir, v, crv);
+		ts = c->texture_s*q->angle + particletime*q->rotationspeed;
+
+		VectorMA(q->org, -q->scale, crv, d3dparticlevertut[0].org);
+		d3dparticlevertut[0].colour = colour;
+		
+		VectorMA(q->org, q->scale, crv, d3dparticlevertut[1].org);
+		d3dparticlevertut[1].colour = colour;
+		
+
+		cr = p->rgb[0]*255;
+		if (cr < 0) cr = 0;
+		if (cr > 255) cr = 255;
+
+		cg = p->rgb[1]*255;
+		if (cg < 0) cg = 0;
+		if (cg > 255) cg = 255;
+
+		cb = p->rgb[2]*255;
+		if (cb < 0) cb = 0;
+		if (cb > 255) cb = 255;
+
+		ca = p->alpha*255;
+		if (ca < 0) ca = 0;
+		if (ca > 255) ca = 255;
+
+		colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
+
+
+		VectorSubtract(r_refdef.vieworg, p->org, v);
+		VectorNormalize(v);
+		CrossProduct(b->dir, v, crv); // replace with old p->dir?
+		ts = b->texture_s*p->angle + particletime*p->rotationspeed;
+
+		VectorMA(p->org, p->scale, crv, d3dparticlevertut[2].org);
+		d3dparticlevertut[2].colour = colour;
+		
+		VectorMA(p->org, -p->scale, crv, d3dparticlevertut[3].org);
+		d3dparticlevertut[3].colour = colour;
+		
+
+		pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE, d3dparticlevertut, 4, d3dparticlevertindexes, 6, 0);
 	}
-
-
-
-
-	c = b->next;
-	q = c->p;
-	p = b->p;
-
-
-	cr = q->rgb[0]*255;
-	if (cr < 0) cr = 0;
-	if (cr > 255) cr = 255;
-
-	cg = q->rgb[1]*255;
-	if (cg < 0) cg = 0;
-	if (cg > 255) cg = 255;
-
-	cb = q->rgb[2]*255;
-	if (cb < 0) cb = 0;
-	if (cb > 255) cb = 255;
-
-	ca = q->alpha*255;
-	if (ca < 0) ca = 0;
-	if (ca > 255) ca = 255;
-
-	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
-
-
-
-
-
-	c = b->next;
-
-	q = c->p;
-
-	p = b->p;
-
-	VectorSubtract(r_refdef.vieworg, q->org, v);
-	VectorNormalize(v);
-	CrossProduct(c->dir, v, crv);
-	ts = c->texture_s*type->rotationstartmin + particletime*type->rotationmin;
-
-	VectorMA(q->org, -q->scale, crv, d3dparticlevertut[0].org);
-	d3dparticlevertut[0].colour = colour;
-	
-	VectorMA(q->org, q->scale, crv, d3dparticlevertut[1].org);
-	d3dparticlevertut[1].colour = colour;
-	
-
-	cr = p->rgb[0]*255;
-	if (cr < 0) cr = 0;
-	if (cr > 255) cr = 255;
-
-	cg = p->rgb[1]*255;
-	if (cg < 0) cg = 0;
-	if (cg > 255) cg = 255;
-
-	cb = p->rgb[2]*255;
-	if (cb < 0) cb = 0;
-	if (cb > 255) cb = 255;
-
-	ca = p->alpha*255;
-	if (ca < 0) ca = 0;
-	if (ca > 255) ca = 255;
-
-	colour = (cb) | (cg<<8) | (cr << 16) | (ca << 24);
-
-
-	VectorSubtract(r_refdef.vieworg, p->org, v);
-	VectorNormalize(v);
-	CrossProduct(b->dir, v, crv); // replace with old p->dir?
-	ts = b->texture_s*type->rotationstartmin + particletime*type->rotationmin;
-
-	VectorMA(p->org, p->scale, crv, d3dparticlevertut[2].org);
-	d3dparticlevertut[2].colour = colour;
-	
-	VectorMA(p->org, -p->scale, crv, d3dparticlevertut[3].org);
-	d3dparticlevertut[3].colour = colour;
-	
-
-	pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_DIFFUSE, d3dparticlevertut, 4, d3dparticlevertindexes, 6, 0);
 }
 
 qboolean D3D7_DrawParticles(float ptime)
@@ -1424,7 +1429,6 @@ qboolean D3D7_DrawParticles(float ptime)
 
 	particletime = ptime;
 
-	lastgltype = NULL;
 	PScript_DrawParticleTypes(D3D_DrawParticleBlob, D3D_DrawParticleSpark, D3D_DrawParticleSpark, D3D_DrawParticleSpark, D3D_DrawParticleBeam, D3D_DrawParticleBeamUT, NULL);
 
 	pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ZWRITEENABLE, FALSE );

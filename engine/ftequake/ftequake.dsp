@@ -420,7 +420,7 @@ LINK32=link.exe
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # SUBTRACT BASE CPP /X
-# ADD CPP /nologo /G5 /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../d3d" /D "_DEBUG" /D "D3DQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\D3DDebug/" /Fp".\D3DDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\D3DDebug/" /Fd".\D3DDebug/" /FD /c
+# ADD CPP /nologo /G5 /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../d3d" /I "../libs/dxsdk9/include" /D "_DEBUG" /D "D3DQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\D3DDebug/" /Fp".\D3DDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\D3DDebug/" /Fd".\D3DDebug/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -2015,45 +2015,6 @@ SOURCE=..\client\p_classic.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\client\p_darkplaces.c
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
 SOURCE=..\client\p_null.c
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
@@ -2104,8 +2065,6 @@ SOURCE=..\client\p_script.c
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
 
@@ -6320,7 +6279,7 @@ SOURCE=..\qclib\execloop.h
 !IF  "$(CFG)" == "ftequake - Win32 Release"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6342,7 +6301,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6364,7 +6323,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6386,7 +6345,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6408,7 +6367,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6430,7 +6389,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6452,7 +6411,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6474,7 +6433,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6496,7 +6455,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6518,7 +6477,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6540,7 +6499,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6562,7 +6521,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6584,7 +6543,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6606,7 +6565,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
 
 # Begin Custom Build
-InputDir=\ftesvn - Copy\engine\qclib
+InputDir=\ftetgcvs\svn\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -10498,8 +10457,8 @@ SOURCE=..\client\winquake.rc
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
 
-# ADD BASE RSC /l 0x809 /i "\ftesvn - Copy\engine\client" /i "\ftesvn\engine\client" /i "\ftetgcvs\svnd3d\engine\client" /i "\ftetgcvs\svn\engine\client" /i "\ftetgcvs\engine\client" /i "\Projects\fteqw\engine\client" /i "\windows\J\ftetgcvs\engine\client" /i "\ftetgcvs\source\client" /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client"
-# ADD RSC /l 0x809 /i "\ftesvn - Copy\engine\client" /i "\ftesvn\engine\client" /i "\ftetgcvs\svnd3d\engine\client" /i "\ftetgcvs\svn\engine\client" /i "\ftetgcvs\engine\client" /i "\Projects\fteqw\engine\client" /i "\windows\J\ftetgcvs\engine\client" /i "\ftetgcvs\source\client" /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client" /d "MINIMAL"
+# ADD BASE RSC /l 0x809 /i "\ftetgcvs\svn\engine\client" /i "\ftesvn - Copy\engine\client" /i "\ftesvn\engine\client" /i "\ftetgcvs\svnd3d\engine\client" /i "\ftetgcvs\engine\client" /i "\Projects\fteqw\engine\client" /i "\windows\J\ftetgcvs\engine\client" /i "\ftetgcvs\source\client" /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client"
+# ADD RSC /l 0x809 /i "\ftetgcvs\svn\engine\client" /i "\ftesvn - Copy\engine\client" /i "\ftesvn\engine\client" /i "\ftetgcvs\svnd3d\engine\client" /i "\ftetgcvs\engine\client" /i "\Projects\fteqw\engine\client" /i "\windows\J\ftetgcvs\engine\client" /i "\ftetgcvs\source\client" /i "\ftetgcvs\temp\client" /i "\ftetgcvs\fte\QW\client" /d "MINIMAL"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
 

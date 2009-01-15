@@ -435,120 +435,6 @@ static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bon
 		}
 	}
 }
-
-#ifndef SERVERONLY
-static void R_BuildSkeletalMesh(mesh_t *mesh, float *plerp, float **pose, int poses, galiasbone_t *bones, int bonecount, galisskeletaltransforms_t *weights, int numweights, qboolean usehierarchy)
-{
-	float bonepose[MAX_BONES][12];
-
-	int i, k, l;
-
-	if (usehierarchy)
-		R_LerpBones(plerp, pose, poses, bones, bonecount, bonepose);
-	else
-	{
-		if (poses == 1)
-			memcpy(bonepose, pose[0], sizeof(float)*12*bonecount);
-		else if (poses == 2)
-		{
-			for (i = 0; i < bonecount*12; i++)
-			{
-				((float*)bonepose)[i] = pose[0][i]*plerp[0] + pose[1][i]*plerp[1];
-			}
-		}
-		else
-		{
-			for (i = 0; i < bonecount; i++)
-			{
-				for (l = 0; l < 12; l++)
-					bonepose[i][l] = 0;
-				for (k = 0; k < poses; k++)
-				{
-					for (l = 0; l < 12; l++)
-						bonepose[i][l] += pose[k][i*12+l] * plerp[k];
-				}
-			}
-		}
-	}
-
-	// blend the vertex bone weights
-//	memset(outhead, 0, mesh->numvertexes * sizeof(mesh->xyz_array[0]));
-
-	for (i = 0; i < mesh->numvertexes; i++)
-	{
-		mesh->normals_array[i][0] = 0;
-		mesh->normals_array[i][1] = 0;
-		mesh->normals_array[i][2] = 1;
-/*
-		mesh->colors_array[i][0] = ambientlight[0];
-		mesh->colors_array[i][1] = ambientlight[1];
-		mesh->colors_array[i][2] = ambientlight[2];
-		mesh->colors_array[i][3] = 255;//alpha;
-*/
-/*
-		mesh->xyz_array[i][0] = 0;
-		mesh->xyz_array[i][1] = 0;
-		mesh->xyz_array[i][2] = 0;
-		mesh->xyz_array[i][3] = 1;
-		*/
-	}
-	mesh->colors_array = NULL;
-
-	memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vec3_t));
-	Alias_TransformVerticies((float*)bonepose, weights, numweights, (float*)mesh->xyz_array);
-
-
-
-
-#if 0	//draws the bones
-	qglColor3f(1, 0, 0);
-	{
-		int i;
-		int p;
-		vec3_t org, dest;
-
-		qglBegin(GL_LINES);
-		for (i = 0; i < bonecount; i++)
-		{
-			p = bones[i].parent;
-			if (p < 0)
-				p = 0;
-			qglVertex3f(bonepose[i][3], bonepose[i][7], bonepose[i][11]);
-			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
-		}
-		qglEnd();
-		qglBegin(GL_LINES);
-		for (i = 0; i < bonecount; i++)
-		{
-			p = bones[i].parent;
-			if (p < 0)
-				p = 0;
-			org[0] = bonepose[i][3]; org[1] = bonepose[i][7]; org[2] = bonepose[i][11];
-			qglVertex3fv(org);
-			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
-			dest[0] = org[0]+bonepose[i][0];dest[1] = org[1]+bonepose[i][1];dest[2] = org[2]+bonepose[i][2];
-			qglVertex3fv(org);
-			qglVertex3fv(dest);
-			qglVertex3fv(dest);
-			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
-			dest[0] = org[0]+bonepose[i][4];dest[1] = org[1]+bonepose[i][5];dest[2] = org[2]+bonepose[i][6];
-			qglVertex3fv(org);
-			qglVertex3fv(dest);
-			qglVertex3fv(dest);
-			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
-			dest[0] = org[0]+bonepose[i][8];dest[1] = org[1]+bonepose[i][9];dest[2] = org[2]+bonepose[i][10];
-			qglVertex3fv(org);
-			qglVertex3fv(dest);
-			qglVertex3fv(dest);
-			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
-		}
-		qglEnd();
-
-//		mesh->numindexes = 0;	//don't draw this mesh, as that would obscure the bones. :(
-	}
-#endif
-}
-#endif
 #endif
 
 
@@ -570,6 +456,33 @@ vec3_t *tempNormals;
 vec3_t shadevector;
 vec3_t ambientlight;
 vec3_t shadelight;
+
+void R_LightArrays(byte_vec4_t *colours, int vertcount, vec3_t *normals)
+{
+	int i;
+	float l;
+	int temp;
+
+	for (i = vertcount-1; i >= 0; i--)
+	{
+		l = DotProduct(normals[i], shadevector);
+
+		temp = l*ambientlight[0]+shadelight[0];
+		if (temp < 0) temp = 0;
+		else if (temp > 255) temp = 255;
+		colours[i][0] = temp;
+
+		temp = l*ambientlight[1]+shadelight[1];
+		if (temp < 0) temp = 0;
+		else if (temp > 255) temp = 255;
+		colours[i][1] = temp;
+
+		temp = l*ambientlight[2]+shadelight[2];
+		if (temp < 0) temp = 0;
+		else if (temp > 255) temp = 255;
+		colours[i][2] = temp;
+	}
+}
 
 static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float lerp, qbyte alpha, float expand, qboolean nolightdir)
 {
@@ -692,40 +605,110 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	}
 }
 
-qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int frame2, float lerp, float alpha, float fg1time, float fg2time, qboolean nolightdir)
+#ifdef SKELETALMODELS
+#ifndef SERVERONLY
+static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galisskeletaltransforms_t *weights, int numweights)
+{
+	int i;
+
+
+	// blend the vertex bone weights
+//	memset(outhead, 0, mesh->numvertexes * sizeof(mesh->xyz_array[0]));
+
+	for (i = 0; i < mesh->numvertexes; i++)
+	{
+		mesh->normals_array[i][0] = 0;
+		mesh->normals_array[i][1] = 0;
+		mesh->normals_array[i][2] = 1;
+/*
+		mesh->colors_array[i][0] = ambientlight[0];
+		mesh->colors_array[i][1] = ambientlight[1];
+		mesh->colors_array[i][2] = ambientlight[2];
+		mesh->colors_array[i][3] = 255;//alpha;
+*/
+/*
+		mesh->xyz_array[i][0] = 0;
+		mesh->xyz_array[i][1] = 0;
+		mesh->xyz_array[i][2] = 0;
+		mesh->xyz_array[i][3] = 1;
+		*/
+	}
+	mesh->colors_array = NULL;
+
+	memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vec3_t));
+	Alias_TransformVerticies(bonepose, weights, numweights, (float*)mesh->xyz_array);
+
+
+
+
+#if 0	//draws the bones
+	qglColor3f(1, 0, 0);
+	{
+		int i;
+		int p;
+		vec3_t org, dest;
+
+		qglBegin(GL_LINES);
+		for (i = 0; i < bonecount; i++)
+		{
+			p = bones[i].parent;
+			if (p < 0)
+				p = 0;
+			qglVertex3f(bonepose[i][3], bonepose[i][7], bonepose[i][11]);
+			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+		}
+		qglEnd();
+		qglBegin(GL_LINES);
+		for (i = 0; i < bonecount; i++)
+		{
+			p = bones[i].parent;
+			if (p < 0)
+				p = 0;
+			org[0] = bonepose[i][3]; org[1] = bonepose[i][7]; org[2] = bonepose[i][11];
+			qglVertex3fv(org);
+			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+			dest[0] = org[0]+bonepose[i][0];dest[1] = org[1]+bonepose[i][1];dest[2] = org[2]+bonepose[i][2];
+			qglVertex3fv(org);
+			qglVertex3fv(dest);
+			qglVertex3fv(dest);
+			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+			dest[0] = org[0]+bonepose[i][4];dest[1] = org[1]+bonepose[i][5];dest[2] = org[2]+bonepose[i][6];
+			qglVertex3fv(org);
+			qglVertex3fv(dest);
+			qglVertex3fv(dest);
+			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+			dest[0] = org[0]+bonepose[i][8];dest[1] = org[1]+bonepose[i][9];dest[2] = org[2]+bonepose[i][10];
+			qglVertex3fv(org);
+			qglVertex3fv(dest);
+			qglVertex3fv(dest);
+			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+		}
+		qglEnd();
+
+//		mesh->numindexes = 0;	//don't draw this mesh, as that would obscure the bones. :(
+	}
+#endif
+}
+#endif
+#endif
+
+qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, 
+									entity_t *e,
+								  float alpha, qboolean nolightdir)
 {
 	galiasgroup_t *g1, *g2;
+
+	int frame1;
+	int frame2;
+	float lerp;
+	float fg1time;
+	float fg2time;
 
 	if (!inf->groups)
 	{
 		Con_DPrintf("Model with no frames (%s)\n", currententity->model->name);
 		return false;
 	}
-	if (frame1 < 0)
-	{
-		Con_DPrintf("Negative frame (%s)\n", currententity->model->name);
-		frame1 = 0;
-	}
-	if (frame2 < 0)
-	{
-		Con_DPrintf("Negative frame (%s)\n", currententity->model->name);
-		frame2 = frame1;
-	}
-	if (frame1 >= inf->groups)
-	{
-		Con_DPrintf("Too high frame %i (%s)\n", frame1, currententity->model->name);
-		frame1 %= inf->groups;
-	}
-	if (frame2 >= inf->groups)
-	{
-		Con_DPrintf("Too high frame %i (%s)\n", frame2, currententity->model->name);
-		frame2 = frame1;
-	}
-
-	if (lerp <= 0)
-		frame2 = frame1;
-	else  if (lerp >= 1)
-		frame1 = frame2;
 
 	if (numTempColours < inf->numverts)
 	{
@@ -765,83 +748,54 @@ qboolean R_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int frame1, int fram
 #endif
 	mesh->xyz_array = tempVertexCoords;
 
-	g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
-	g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
-
 //we don't support meshes with one pose skeletal and annother not.
 //we don't support meshes with one group skeletal and annother not.
 
 #ifdef SKELETALMODELS
 	if (inf->numbones)
 	{
-		int l=0;
-		float plerp[4];
-		float *pose[4];
-		float mlerp;	//minor lerp, poses within a group.
-		qboolean hirachy;
-
-		if (g1->isheirachical != g2->isheirachical || lerp < 0)
-			lerp = 0;
-		hirachy = g1->isheirachical;
-
-		mlerp = (fg1time)*g1->rate;
-		frame1=mlerp;
-		frame2=frame1+1;
-		mlerp-=frame1;
-		if (g1->loop)
-		{
-			frame1=frame1%g1->numposes;
-			frame2=frame2%g1->numposes;
-		}
-		else
-		{
-			frame1=(frame1>g1->numposes-1)?g1->numposes-1:frame1;
-			frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
-		}
-
-		plerp[l] = (1-mlerp)*(1-lerp);
-		if (plerp[l]>0)
-			pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame1);
-		plerp[l] = (mlerp)*(1-lerp);
-		if (plerp[l]>0)
-			pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*inf->numbones*12*frame2);
-
-		if (lerp)
-		{
-			mlerp = (fg2time)*g2->rate;
-			frame1=mlerp;
-			frame2=frame1+1;
-			mlerp-=frame1;
-			if (g2->loop)
-			{
-				frame1=frame1%g2->numposes;
-				frame2=frame2%g2->numposes;
-			}
-			else
-			{
-				frame1=(frame1>g2->numposes-1)?g2->numposes-1:frame1;
-				frame2=(frame2>g2->numposes-1)?g2->numposes-1:frame2;
-			}
-
-			plerp[l] = (1-mlerp)*(lerp);
-			if (plerp[l]>0)
-				pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame1);
-			plerp[l] = (mlerp)*(lerp);
-			if (plerp[l]>0)
-				pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*inf->numbones*12*frame2);
-		}
-/*
-		pose[0] = (float *)((char *)g1 + g1->poseofs);
-		plerp[0] = 1;
-		plerp[1] = 0;
-		plerp[3] = 0;
-		plerp[4] = 0;
-		l = 1;
-*/
-		R_BuildSkeletalMesh(mesh, plerp, pose, l, (galiasbone_t *)((char*)inf+inf->ofsbones), inf->numbones, (galisskeletaltransforms_t *)((char*)inf+inf->ofstransforms), inf->numtransforms, hirachy);
+		float bonepose[MAX_BONES][12];
+		float *usebonepose;
+		usebonepose = Alias_GetBonePositions(inf, &e->framestate, (float*)bonepose, MAX_BONES);
+		Alias_BuildSkeletalMesh(mesh, usebonepose, (galisskeletaltransforms_t *)((char*)inf+inf->ofstransforms), inf->numtransforms);
 		return false;
 	}
 #endif
+
+	frame1 = e->framestate.g[FS_REG].frame[0];
+	frame2 = e->framestate.g[FS_REG].frame[1];
+	lerp = e->framestate.g[FS_REG].lerpfrac;
+	fg1time = e->framestate.g[FS_REG].frametime[0];
+	fg2time = e->framestate.g[FS_REG].frametime[1];
+
+	if (frame1 < 0)
+	{
+		Con_DPrintf("Negative frame (%s)\n", currententity->model->name);
+		frame1 = 0;
+	}
+	if (frame2 < 0)
+	{
+		Con_DPrintf("Negative frame (%s)\n", currententity->model->name);
+		frame2 = frame1;
+	}
+	if (frame1 >= inf->groups)
+	{
+		Con_DPrintf("Too high frame %i (%s)\n", frame1, currententity->model->name);
+		frame1 %= inf->groups;
+	}
+	if (frame2 >= inf->groups)
+	{
+		Con_DPrintf("Too high frame %i (%s)\n", frame2, currententity->model->name);
+		frame2 = frame1;
+	}
+
+	if (lerp <= 0)
+		frame2 = frame1;
+	else  if (lerp >= 1)
+		frame1 = frame2;
+
+	g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
+	g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
 
 	if (g1 == g2)	//lerping within group is only done if not changing group
 	{

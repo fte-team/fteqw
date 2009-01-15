@@ -331,7 +331,7 @@ mpic_t	*(D3D7_Draw_SafePicFromWad)			(char *name)
 		*p = draw_chars_tex;
 	else
 	{
-		*p = Mod_LoadReplacementTexture(pic->name, "wad", false, true, true);
+		*p = (LPDIRECTDRAWSURFACE7)Mod_LoadReplacementTexture(pic->name, "wad", false, true, true);
 		if (!*p)
 			*p = D3D7_LoadTexture_8_Pal24(name, (unsigned char*)(qpic+1), qpic->width, qpic->height, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP, host_basepal, 255);
 	}
@@ -368,7 +368,7 @@ mpic_t	*(D3D7_Draw_SafeCachePic)		(char *path)
 	pic->pic.width = qpic->width;
 	pic->pic.height = qpic->height;
 	p = (LPDIRECTDRAWSURFACE7*)&pic->pic.data;
-	*p = Mod_LoadReplacementTexture(pic->name, "gfx", false, true, true);
+	*p = (LPDIRECTDRAWSURFACE7)Mod_LoadReplacementTexture(pic->name, "gfx", false, true, true);
 	if (!*p)
 		*p = D3D7_LoadTexture_8_Pal24(path, (unsigned char*)(qpic+1), qpic->width, qpic->height, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP, host_basepal, 255);
 
@@ -389,16 +389,40 @@ void	(D3D7_Draw_ReInit)				(void)
 
 	draw_chars = W_SafeGetLumpName ("conchars");
 
-	draw_chars_tex = Mod_LoadReplacementTexture("conchars", "gfx", false, true, true);
+	draw_chars_tex = (LPDIRECTDRAWSURFACE7)Mod_LoadReplacementTexture("conchars", "gfx", false, true, true);
 	if (!draw_chars_tex)
-		draw_chars_tex = D3D7_LoadTexture_8_Pal24("conchars", draw_chars, 128, 128, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP, host_basepal, 0);
+	{			
+		if (draw_chars)
+			draw_chars_tex = D3D7_LoadTexture_8_Pal24("conchars", draw_chars, 128, 128, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP, host_basepal, 0);
+		if (!draw_chars_tex)
+			draw_chars_tex = (LPDIRECTDRAWSURFACE7)Mod_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, false, true, false);	//try q3 path
+		if (!draw_chars_tex)
+			draw_chars_tex = (LPDIRECTDRAWSURFACE7)Mod_LoadHiResTexture("pics/conchars.pcx", NULL, false, true, false);	//try low res q2 path
+		if (!draw_chars_tex)
+		{
+			extern qbyte default_conchar[11356];
+			int width, height;
+			int i;
+			qbyte *image;
+
+			image = ReadTargaFile(default_conchar, sizeof(default_conchar), &width, &height, false);
+			for (i = 0; i < width*height; i++)
+			{
+				image[i*4+3] = image[i*4];
+				image[i*4+0] = 255;
+				image[i*4+1] = 255;
+				image[i*4+2] = 255;
+			}
+			draw_chars_tex = D3D7_LoadTexture_32("charset", (void*)image, width, height, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP);
+		}
+	}
 
 
 	//now emit the conchars picture as if from a wad.
 	strcpy(d3dmenu_cachepics[d3dmenu_numcachepics].name, "conchars");
 	d3dmenu_cachepics[d3dmenu_numcachepics].pic.width = 128;
 	d3dmenu_cachepics[d3dmenu_numcachepics].pic.height = 128;
-	*(int *)&d3dmenu_cachepics[d3dmenu_numcachepics].pic.data = draw_chars_tex;
+	*(int *)&d3dmenu_cachepics[d3dmenu_numcachepics].pic.data = (int)draw_chars_tex;
 	d3dmenu_numcachepics++;
 
 

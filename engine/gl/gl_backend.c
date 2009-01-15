@@ -1265,16 +1265,22 @@ void R_ModifyTextureCoords ( shaderpass_t *pass, int unit )
 	float *tcArray, *buffer;
 	tcmod_t	*tcmod;
 
-	r_texNums[unit] = R_ShaderpassTex ( pass );
+	r_texNums[unit] = R_ShaderpassTex(pass);
 
 	// we're smart enough not to copy data and simply switch the pointer
-	if ( !pass->numtcmods ) {
-		if ( pass->tcgen == TC_GEN_BASE ) {
-			qglTexCoordPointer( 2, GL_FLOAT, 0, coordsArray );
-		} else if ( pass->tcgen == TC_GEN_LIGHTMAP ) {
-			qglTexCoordPointer( 2, GL_FLOAT, 0, lightmapCoordsArray );
-		} else {
-			qglTexCoordPointer( 2, GL_FLOAT, 0, R_VertexTCBase (pass->tcgen, unit));
+	if (!pass->numtcmods)
+	{
+		if (pass->tcgen == TC_GEN_BASE)
+		{
+			qglTexCoordPointer(2, GL_FLOAT, 0, coordsArray);
+		}
+		else if (pass->tcgen == TC_GEN_LIGHTMAP)
+		{
+			qglTexCoordPointer(2, GL_FLOAT, 0, lightmapCoordsArray);
+		}
+		else
+		{
+			qglTexCoordPointer(2, GL_FLOAT, 0, R_VertexTCBase(pass->tcgen, unit));
 		}
 		return;
 	}
@@ -1290,10 +1296,11 @@ void R_ModifyTextureCoords ( shaderpass_t *pass, int unit )
 		{
 			case SHADER_TCMOD_ROTATE:
 				cost = tcmod->args[0] * r_localShaderTime;
-				sint = R_FastSin( cost );
-				cost = R_FastSin( cost + 0.25 );
+				sint = R_FastSin(cost);
+				cost = R_FastSin(cost + 0.25);
 
-				for ( j = 0; j < numVerts; j++, tcArray += 2 ) {
+				for (j = 0; j < numVerts; j++, tcArray += 2)
+				{
 					t1 = cost * (tcArray[0] - 0.5f) - sint * (tcArray[1] - 0.5f) + 0.5f;
 					t2 = cost * (tcArray[1] - 0.5f) + sint * (tcArray[0] - 0.5f) + 0.5f;
 					tcArray[0] = t1;
@@ -1305,7 +1312,8 @@ void R_ModifyTextureCoords ( shaderpass_t *pass, int unit )
 				t1 = tcmod->args[0];
 				t2 = tcmod->args[1];
 
-				for ( j = 0; j < numVerts; j++, tcArray += 2 ) {
+				for (j = 0; j < numVerts; j++, tcArray += 2)
+				{
 					tcArray[0] = tcArray[0] * t1;
 					tcArray[1] = tcArray[1] * t2;
 				}
@@ -1315,20 +1323,22 @@ void R_ModifyTextureCoords ( shaderpass_t *pass, int unit )
 				t1 = tcmod->args[2] + r_localShaderTime * tcmod->args[3];
 				t2 = tcmod->args[1];
 
-				for ( j = 0; j < numVerts; j++, tcArray += 2 ) {
+				for (j = 0; j < numVerts; j++, tcArray += 2)
+				{
 					tcArray[0] = tcArray[0] + R_FastSin (tcArray[0]*t2+t1) * t2;
 					tcArray[1] = tcArray[1] + R_FastSin (tcArray[1]*t2+t1) * t2;
 				}
 				break;
 			
 			case SHADER_TCMOD_STRETCH:
-				table = R_TableForFunc ( tcmod->args[0] );
+				table = R_TableForFunc(tcmod->args[0]);
 				t2 = tcmod->args[3] + r_localShaderTime * tcmod->args[4];
-				t1 = FTABLE_EVALUATE ( table, t2 ) * tcmod->args[2] + tcmod->args[1];
+				t1 = FTABLE_EVALUATE(table, t2) * tcmod->args[2] + tcmod->args[1];
 				t1 = t1 ? 1.0f / t1 : 1.0f;
 				t2 = 0.5f - 0.5f * t1;
 
-				for ( j = 0; j < numVerts; j++, tcArray += 2 ) {
+				for (j = 0; j < numVerts; j++, tcArray += 2)
+				{
 					tcArray[0] = tcArray[0] * t1 + t2;
 					tcArray[1] = tcArray[1] * t1 + t2;
 				}
@@ -1338,14 +1348,16 @@ void R_ModifyTextureCoords ( shaderpass_t *pass, int unit )
 				t1 = tcmod->args[0] * r_localShaderTime;
 				t2 = tcmod->args[1] * r_localShaderTime;
 
-				for ( j = 0; j < numVerts; j++, tcArray += 2 ) {
+				for (j = 0; j < numVerts; j++, tcArray += 2)
+				{
 					tcArray[0] = tcArray[0] + t1;
 					tcArray[1] = tcArray[1] + t2;
 				}
 				break;
 					
 			case SHADER_TCMOD_TRANSFORM:
-				for ( j = 0; j < numVerts; j++, tcArray += 2 ) {
+				for (j = 0; j < numVerts; j++, tcArray += 2)
+				{
 					t1 = tcArray[0];
 					t2 = tcArray[1];
 					tcArray[0] = t1 * tcmod->args[0] + t2 * tcmod->args[2] + tcmod->args[4];
@@ -1386,9 +1398,12 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 	rgbgenfunc = &pass->rgbgen_func;
 	alphagenfunc = &pass->alphagen_func;
 
-	if ( noArray ) {
+	if (noArray)
+	{
 		numColors = 1;
-	} else {
+	}
+	else
+	{
 		numColors = numVerts;
 	}
 
@@ -1397,6 +1412,7 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 
 	switch (pass->rgbgen)
 	{
+		default:
 		case RGB_GEN_IDENTITY:
 			memset ( bArray, 255, sizeof(byte_vec4_t)*numColors );
 			break;
@@ -1414,10 +1430,10 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			break;
 
 		case RGB_GEN_WAVE:
-			table = R_TableForFunc ( rgbgenfunc->type );
+			table = R_TableForFunc(rgbgenfunc->type);
 			c = rgbgenfunc->args[2] + r_localShaderTime * rgbgenfunc->args[3];
-			c = FTABLE_EVALUATE ( table, c ) * rgbgenfunc->args[1] + rgbgenfunc->args[0];
-			clamp ( c, 0.0f, 1.0f );
+			c = FTABLE_EVALUATE(table, c) * rgbgenfunc->args[1] + rgbgenfunc->args[0];
+			clamp(c, 0.0f, 1.0f);
 
 			memset ( bArray, FloatToByte (c), sizeof(byte_vec4_t)*numColors );
 			break;
@@ -1427,7 +1443,7 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			((qbyte*)&b)[1] = currententity->shaderRGBAf[1];
 			((qbyte*)&b)[2] = currententity->shaderRGBAf[2];
 			((qbyte*)&b)[3] = currententity->shaderRGBAf[3];
-			for ( i = 0; i < numColors; i++, bArray += 4 )
+			for (i = 0; i < numColors; i++, bArray += 4)
 			{
 				*(int *)bArray = b;
 			}
@@ -1438,7 +1454,7 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			((qbyte*)&b)[1] = 255-currententity->shaderRGBAf[1];
 			((qbyte*)&b)[2] = 255-currententity->shaderRGBAf[2];
 			((qbyte*)&b)[3] = 255-currententity->shaderRGBAf[3];
-			for ( i = 0; i < numColors; i++, bArray += 4 )
+			for (i = 0; i < numColors; i++, bArray += 4)
 			{
 				*(int *)bArray = b;
 			}
@@ -1446,14 +1462,18 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 
 		case RGB_GEN_VERTEX:
 		case RGB_GEN_EXACT_VERTEX:
-			memcpy ( bArray, vArray, sizeof(byte_vec4_t)*numColors );
+			memcpy (bArray, vArray, sizeof(byte_vec4_t)*numColors);
 			break;
 			
 		case RGB_GEN_TOPCOLOR:	//multiply vertex by topcolor (for player models)
 		{
 			int rc, gc, bc;
 			R_FetchTopColour(&rc, &gc, &bc);
-			for ( i = 0; i < numColors; i++, bArray += 4, vArray += 4 ) {
+
+			R_LightArrays((byte_vec4_t*)vArray, numColors, normalsArray);
+
+			for (i = 0; i < numColors; i++, bArray += 4, vArray += 4)
+			{
 				bArray[0] = (vArray[0]*rc)>>8;
 				bArray[1] = (vArray[1]*gc)>>8;
 				bArray[2] = (vArray[2]*bc)>>8;
@@ -1465,7 +1485,11 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 		{
 			int rc, gc, bc;
 			R_FetchBottomColour(&rc, &gc, &bc);
-			for ( i = 0; i < numColors; i++, bArray += 4, vArray += 4 ) {
+
+			R_LightArrays((byte_vec4_t*)vArray, numColors, normalsArray);
+
+			for (i = 0; i < numColors; i++, bArray += 4, vArray += 4)
+			{
 				bArray[0] = (vArray[0]*rc)>>8;
 				bArray[1] = (vArray[1]*gc)>>8;
 				bArray[2] = (vArray[2]*bc)>>8;
@@ -1475,7 +1499,8 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 		
 
 		case RGB_GEN_ONE_MINUS_VERTEX:
-			for ( i = 0; i < numColors; i++, bArray += 4, vArray += 4 ) {
+			for (i = 0; i < numColors; i++, bArray += 4, vArray += 4)
+			{
 				bArray[0] = 255 - vArray[0];
 				bArray[1] = 255 - vArray[1];
 				bArray[2] = 255 - vArray[2];
@@ -1483,17 +1508,14 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			break;
 
 		case RGB_GEN_LIGHTING_DIFFUSE:
-			if ( !currententity )
+			if (!currententity)
 			{
-				memset ( bArray, 255, sizeof(byte_vec4_t)*numColors );
+				memset (bArray, 255, sizeof(byte_vec4_t)*numColors);
 			}
 			else
 			{
 				R_LightArrays((byte_vec4_t*)bArray, numColors, normalsArray);
 			}
-			break;
-
-		default:
 			break;
 	}
 
@@ -1502,8 +1524,10 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 
 	switch (pass->alphagen)
 	{
+	default:
 		case ALPHA_GEN_IDENTITY:
-			for ( i = 0; i < numColors; i++, bArray += 4 ) {
+			for (i = 0; i < numColors; i++, bArray += 4)
+			{
 				bArray[3] = 255;
 			}
 			break;
@@ -1511,7 +1535,8 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 		case ALPHA_GEN_CONST:
 			b = FloatToByte ( alphagenfunc->args[0] );
 
-			for ( i = 0; i < numColors; i++, bArray += 4 ) {
+			for (i = 0; i < numColors; i++, bArray += 4)
+			{
 				bArray[3] = b;
 			}
 			break;
@@ -1522,25 +1547,28 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			a = FTABLE_EVALUATE ( table, a ) * alphagenfunc->args[1] + alphagenfunc->args[0];
 			b = FloatToByte ( bound (0.0f, a, 1.0f) );
 
-			for ( i = 0; i < numColors; i++, bArray += 4 ) {
+			for (i = 0; i < numColors; i++, bArray += 4)
+			{
 				bArray[3] = b;
 			}
 			break;
 
 		case ALPHA_GEN_PORTAL:
-			VectorAdd ( vertexArray[0], currententity->origin, v );
-			VectorSubtract ( r_origin, v, t );
+			VectorAdd(vertexArray[0], currententity->origin, v);
+			VectorSubtract(r_origin, v, t);
 			a = VectorLength ( t ) * (1.0 / 255.0);
 			clamp ( a, 0.0f, 1.0f );
 			b = FloatToByte ( a );
 
-			for ( i = 0; i < numColors; i++, bArray += 4 ) {
+			for (i = 0; i < numColors; i++, bArray += 4)
+			{
 				bArray[3] = b;
 			}
 			break;
 
 		case ALPHA_GEN_VERTEX:
-			for ( i = 0; i < numColors; i++, bArray += 4, vArray += 4 ) {
+			for (i = 0; i < numColors; i++, bArray += 4, vArray += 4)
+			{
 				bArray[3] = vArray[3];
 			}
 			break;
@@ -1561,20 +1589,24 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 			{
 				mat3_t axis;
 				AngleVectors(currententity->angles, axis[0], axis[1], axis[2]);
-			VectorSubtract ( r_origin, currententity->origin, t );
+				VectorSubtract(r_origin, currententity->origin, t);
 
-			if ( !Matrix3_Compare (axis, axisDefault) ) {
-				Matrix3_Multiply_Vec3 ( axis, t, v );
-			} else {
-				VectorCopy ( t, v );
-			}
+				if (!Matrix3_Compare(axis, axisDefault))
+				{
+					Matrix3_Multiply_Vec3(axis, t, v );
+				}
+				else
+				{
+					VectorCopy(t, v);
+				}
 
-			for ( i = 0; i < numColors; i++, bArray += 4 ) {
-				VectorSubtract ( v, vertexArray[i], t );
-				a = DotProduct( t, normalsArray[i] ) * Q_rsqrt ( DotProduct(t,t) );
-				a = a * a * a * a * a;
-				bArray[3] = FloatToByte ( bound (0.0f, a, 1.0f) );
-			}
+				for (i = 0; i < numColors; i++, bArray += 4)
+				{
+					VectorSubtract(v, vertexArray[i], t);
+					a = DotProduct(t, normalsArray[i] ) * Q_rsqrt(DotProduct(t,t));
+					a = a * a * a * a * a;
+					bArray[3] = FloatToByte(bound (0.0f, a, 1.0f));
+				}
 			}
 			break;
 
@@ -1617,26 +1649,33 @@ void R_ModifyColor ( meshbuffer_t *mb, shaderpass_t *pass )
 
 				c = DotProduct ( diff, fog_vpn );
 				a = (1.0f - bound ( 0, c, 1.0f )) * (1.0 / 255.0);
-			} else {
+			}
+			else
+			{
 				vdist = PlaneDiff ( diff, fogplane );
 
-				if ( vdist < 0 ) {
+				if ( vdist < 0 )
+				{
 					VectorSubtract ( diff, r_origin, diff );
 
 					c = vdist / ( vdist - dist );
 					c *= DotProduct ( diff, fog_vpn );
 					a = (1.0f - bound ( 0, c, 1.0f )) * (1.0 / 255.0);
-				} else {
+				}
+				else
+				{
 					a = 1.0 / 255.0;
 				}
 			}
 
-			if ( pass->blendmode == GL_ADD || 
+			if (pass->blendmode == GL_ADD || 
 				((pass->blendsrc == GL_ZERO) && (pass->blenddst == GL_ONE_MINUS_SRC_COLOR)) ) {
 				bArray[0] = FloatToByte ( (float)bArray[0]*a );
 				bArray[1] = FloatToByte ( (float)bArray[1]*a );
 				bArray[2] = FloatToByte ( (float)bArray[2]*a );
-			} else {
+			}
+			else
+			{
 				bArray[3] = FloatToByte ( (float)bArray[3]*a );
 			}
 		}

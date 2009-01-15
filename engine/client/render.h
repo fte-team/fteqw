@@ -347,7 +347,7 @@ int R_LoadTexture(char *name, int width, int height, void *data, void *palette, 
 	#define R_LoadTexture8(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture(skinname, width, height, data, usemips, alpha):GL_LoadTexture(skinname, width, height, data, usemips, alpha))
 	#define R_LoadTexture32(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture32(skinname, width, height, data, usemips, alpha):GL_LoadTexture32(skinname, width, height, data, usemips, alpha))
 	#define R_LoadTextureFB(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTextureFB(skinname, width, height, data, usemips, alpha):GL_LoadTextureFB(skinname, width, height, data, usemips, alpha))
-	#define R_LoadTexture8Bump(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?/*D3D_LoadTexture8Bump(skinname, width, height, data, usemips, alpha)*/NULL:GL_LoadTexture8Bump(skinname, width, height, data, usemips, alpha))
+	#define R_LoadTexture8Bump(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture8Bump(skinname, width, height, data, usemips, alpha):GL_LoadTexture8Bump(skinname, width, height, data, usemips, alpha))
 
 	#define R_FindTexture(name)  ((qrenderer == QR_DIRECT3D)?D3D_FindTexture(name):GL_FindTexture(name))
 	#define R_LoadCompressed(name)  ((qrenderer == QR_DIRECT3D)?D3D_LoadCompressed(name):GL_LoadCompressed(name))

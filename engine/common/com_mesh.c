@@ -291,6 +291,7 @@ int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *resul
 //_may_ into bonepose, return value is the real result
 float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize)
 {
+#ifdef SKELETALMODELS
 	float relationsbuf[MAX_BONES][12];
 	float *relations = NULL;
 	galiasbone_t *bones = (galiasbone_t *)((char*)inf+inf->ofsbones);
@@ -381,6 +382,8 @@ float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *bu
 		}
 		return buffer;
 	}
+#endif
+	return 0;
 }
 
 
@@ -2352,6 +2355,7 @@ int Mod_GetNumBones(model_t *model, qboolean allowtags)
 
 int Mod_GetBoneRelations(model_t *model, int numbones, framestate_t *fstate, float *result)
 {
+#ifdef SKELETALMODELS
 	galiasinfo_t *inf;
 
 
@@ -2360,10 +2364,13 @@ int Mod_GetBoneRelations(model_t *model, int numbones, framestate_t *fstate, flo
 
 	inf = Mod_Extradata(model);
 	return Alias_GetBoneRelations(inf, fstate, result, numbones);
+#endif
+	return 0;
 }
 
 int Mod_GetBoneParent(model_t *model, int bonenum)
 {
+#ifdef SKELETALMODELS
 	galiasbone_t *bone;
 	galiasinfo_t *inf;
 
@@ -2379,10 +2386,13 @@ int Mod_GetBoneParent(model_t *model, int bonenum)
 		return 0;	//no parent
 	bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
 	return bone[bonenum].parent+1;
+#endif
+	return 0;
 }
 
 char *Mod_GetBoneName(model_t *model, int bonenum)
 {
+#ifdef SKELETALMODELS
 	galiasbone_t *bone;
 	galiasinfo_t *inf;
 
@@ -2398,6 +2408,8 @@ char *Mod_GetBoneName(model_t *model, int bonenum)
 		return 0;	//no parent
 	bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
 	return bone[bonenum].name;
+#endif
+	return 0;
 }
 
 

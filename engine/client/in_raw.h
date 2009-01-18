@@ -73,7 +73,7 @@ typedef struct tagRAWMOUSE {
 			USHORT usButtonFlags;
 			USHORT usButtonData;
 		};
-	} buttondata;
+	};
 	ULONG ulRawButtons;
 	LONG lLastX;
 	LONG lLastY;

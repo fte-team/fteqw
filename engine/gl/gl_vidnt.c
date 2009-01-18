@@ -37,14 +37,26 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #ifndef MK_XBUTTON1
    #define MK_XBUTTON1         0x0020
+#endif
+#ifndef MK_XBUTTON2
    #define MK_XBUTTON2         0x0040
+#endif
 // copied from DarkPlaces in an attempt to grab more buttons
+#ifndef MK_XBUTTON3
    #define MK_XBUTTON3         0x0080
+#endif
+#ifndef MK_XBUTTON4
    #define MK_XBUTTON4         0x0100
+#endif
+#ifndef MK_XBUTTON5
    #define MK_XBUTTON5         0x0200
+#endif
+#ifndef MK_XBUTTON6
    #define MK_XBUTTON6         0x0400
+#endif
+#ifndef MK_XBUTTON7
    #define MK_XBUTTON7         0x0800
-#endif 
+#endif
 
 #ifndef WM_INPUT
 	#define WM_INPUT 255

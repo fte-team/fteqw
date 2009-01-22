@@ -3034,10 +3034,10 @@ void SV_SetInfo_f (void)
 			{
 				if (basic || (client->fteprotocolextensions & PEXT_BIGUSERINFOS))
 				{
-					MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-					MSG_WriteByte (&sv.reliable_datagram, i);
-					MSG_WriteString (&sv.reliable_datagram, key);
-					MSG_WriteString (&sv.reliable_datagram, val);
+					ClientReliableWrite_Begin(client, svc_setinfo, 1+1+strlen(key)+1+strlen(val)+1);
+					ClientReliableWrite_Char(client, i);
+					ClientReliableWrite_String(client, key);
+					ClientReliableWrite_String(client, val);
 				}
 			}
 		}

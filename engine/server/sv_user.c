@@ -245,11 +245,11 @@ void SV_New_f (void)
 #ifdef PROTOCOL_VERSION_FTE
 	if (host_client->fteprotocolextensions)//let the client know
 	{
-		MSG_WriteLong (&host_client->netchan.message, PROTOCOL_VERSION_FTE);
+		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_FTE);
 		if (sizeofcoord == 2)	//we're not using float orgs on this level.
-			MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions&~PEXT_FLOATCOORDS);
+			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions&~PEXT_FLOATCOORDS);
 		else
-			MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions);
+			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions);
 	}
 #endif
 	ClientReliableWrite_Long (host_client, ISQ2CLIENT(host_client)?PROTOCOL_VERSION_Q2:PROTOCOL_VERSION_QW);

@@ -180,14 +180,3 @@ void Cvar_Shutdown(void);
 void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats);	//locks/unlocks cheat cvars depending on weather we are allowed them.
 
 //extern cvar_t	*cvar_vars;
-
-// cvar const cache, used for removing fairly common default cvar values
-#define CC_CACHE_ENTRIES 8
-
-#define CC_CACHE_SIZE 2048
-#define CC_CACHE_STEP 2048
-
-typedef struct cvar_const_cache_s {
-	char *cached[CC_CACHE_ENTRIES];
-	const_block_t *cb;
-} cvar_const_cache_t;

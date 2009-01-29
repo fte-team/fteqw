@@ -149,20 +149,3 @@ void *Cache_Alloc (cache_user_t *c, int size, char *name);
 
 void Cache_Report (void);
 
-// Constant Block memory functions
-// - Constant blocks are used for loads of strings/etc that
-// are allocated once and change very little during the rest
-// of run time, such as cvar names and default values
-typedef struct const_block_s {
-	int curleft; // current bytes left in block
-	int cursize; // current maximum size of block
-	int memstep; // bytes to step per realloc
-	char *point; // current block point
-	char *block; // memory block
-} const_block_t;
-
-const_block_t *CB_Malloc (int size, int step);
-//char *CB_Slice (const_block_t *cb, int size);
-char *CB_Copy (const_block_t *cb, char *data, int size);
-void CB_Free (const_block_t *cb);
-

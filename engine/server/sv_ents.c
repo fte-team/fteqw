@@ -430,21 +430,6 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 // send an update
 	bits = 0;
 
-	if (to->number >= 512)
-	{
-		if (to->number >= 1024)
-		{
-			if (to->number >= 1024+512)
-				evenmorebits |= U_ENTITYDBL;
-
-			evenmorebits |= U_ENTITYDBL2;
-			if (to->number >= 2048)
-				SV_Error ("Entity number >= 2048");
-		}
-		else
-			evenmorebits |= U_ENTITYDBL;
-	}
-
 	for (i=0 ; i<3 ; i++)
 	{
 		miss = to->origin[i] - from->origin[i];
@@ -527,13 +512,6 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 
 	if ((to->light[0] != from->light[0] || to->light[1] != from->light[1] || to->light[2] != from->light[2] || to->light[3] != from->light[3] || to->lightstyle != from->lightstyle || to->lightpflags != from->lightstyle) && protext & PEXT_DPFLAGS)
 		evenmorebits |= U_LIGHT;
-
-	if (evenmorebits&0xff00)
-		evenmorebits |= U_YETMORE;
-	if (evenmorebits&0x00ff)
-		bits |= U_EVENMORE;
-	if (bits & 511)
-		bits |= U_MOREBITS;
 #endif
 
 	if (to->flags & U_SOLID)
@@ -551,8 +529,33 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if (!to->number)
 		SV_Error ("Unset entity number");
 
-	if (!bits && !force)
+	if (!bits && !evenmorebits && !force)
 		return;		// nothing to send!
+
+#ifdef PROTOCOLEXTENSIONS
+	if (to->number >= 512)
+	{
+		if (to->number >= 1024)
+		{
+			if (to->number >= 1024+512)
+				evenmorebits |= U_ENTITYDBL;
+
+			evenmorebits |= U_ENTITYDBL2;
+			if (to->number >= 2048)
+				SV_Error ("Entity number >= 2048");
+		}
+		else
+			evenmorebits |= U_ENTITYDBL;
+	}
+
+	if (evenmorebits&0xff00)
+		evenmorebits |= U_YETMORE;
+	if (evenmorebits&0x00ff)
+		bits |= U_EVENMORE;
+	if (bits & 511)
+		bits |= U_MOREBITS;
+#endif
+
 	i = (to->number&511) | (bits&~511);
 	if (i & U_REMOVE)
 		Sys_Error ("U_REMOVE");
@@ -711,7 +714,7 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 		if (newnum > oldnum)
 		{	// the old entity isn't present in the new message
 //Con_Printf ("remove %i\n", oldnum);
-			if (oldnum > 512)
+			if (oldnum >= 512)
 			{
 				//yup, this is expensive.
 				MSG_WriteShort (msg, oldnum | U_REMOVE|U_MOREBITS);
@@ -719,9 +722,9 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 				if (oldnum >= 1024)
 				{
 					if (oldnum >= 1024+512)
-						MSG_WriteByte (msg, U_ENTITYDBL2);
-					else
 						MSG_WriteByte (msg, U_ENTITYDBL|U_ENTITYDBL2);
+					else
+						MSG_WriteByte (msg, U_ENTITYDBL2);
 				}
 				else
 					MSG_WriteByte (msg, U_ENTITYDBL);
@@ -1044,7 +1047,6 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 
 		if (newnum > oldnum)
 		{	// the old entity isn't present in the new message
-Con_Printf ("remove %i\n", oldnum);
 			MSG_WriteShort(msg, oldnum | 0x8000);
 			oldindex++;
 			continue;

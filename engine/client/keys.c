@@ -362,6 +362,17 @@ void Con_ExecuteLine(console_t *con, char *line)
 {
 	qboolean waschat = false;
 
+	if (cls.state >= ca_connected && cl_chatmode.value == 2)
+	{
+		waschat = true;
+		if (keydown[K_CTRL])
+			Cbuf_AddText ("say_team ", RESTRICT_LOCAL);
+		else if (keydown[K_SHIFT])
+			Cbuf_AddText ("say ", RESTRICT_LOCAL);
+		else
+			waschat = false;
+	}
+
 	con_commandmatch=1;
 	if (line[0] == '\\' || line[0] == '/')
 		Cbuf_AddText (line+1, RESTRICT_LOCAL);	// skip the >
@@ -373,7 +384,7 @@ void Con_ExecuteLine(console_t *con, char *line)
 #endif
 	else if (*line)
 	{	// convert to a chat message
-		if (cl_chatmode.value == 1 || ((cls.state >= ca_connected && cl_chatmode.value == 2) && (strncmp(line, "say ", 4))))
+		if (!waschat && (cl_chatmode.value == 1 || ((cls.state >= ca_connected && cl_chatmode.value == 2) && (strncmp(line, "say ", 4)))))
 		{
 			if (keydown[K_CTRL])
 				Cbuf_AddText ("say_team ", RESTRICT_LOCAL);

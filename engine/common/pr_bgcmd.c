@@ -2021,7 +2021,6 @@ void PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (value1[1] == 0 && value1[0] == 0)
 	{
-		yaw = 0;
 		if (value1[2] > 0)
 		{
 			pitch = 90;
@@ -2037,7 +2036,7 @@ void PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else
 	{
 		yaw = atan2(value1[1], value1[0]);
-		pitch = atan2(value1[2], sqrt (value1[0]*value1[0] + value1[1]*value1[1]));
+		pitch = -atan2(value1[2], sqrt (value1[0]*value1[0] + value1[1]*value1[1]));
 
 		if (up)
 		{
@@ -2056,7 +2055,7 @@ void PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			roll = 0;
 	}
 
-	pitch *= 180 / M_PI;
+	pitch *= -180 / M_PI;
 	yaw *= 180 / M_PI;
 	roll *= 180 / M_PI;
 	if (pitch < 0)

@@ -713,19 +713,19 @@ progsnum_t AddProgs(char *name)
 			switch(progstype)
 			{
 			case PROG_QW:
-				Con_Printf("Using QW progs\n");
+				Con_DPrintf("Using QW progs\n");
 				break;
 			case PROG_NQ:
-				Con_Printf("Using NQ progs\n");
+				Con_DPrintf("Using NQ progs\n");
 				break;
 			case PROG_H2:
-				Con_Printf("Using H2 progs\n");
+				Con_DPrintf("Using H2 progs\n");
 				break;
 			case PROG_PREREL:
-				Con_Printf("Using prerelease progs\n");
+				Con_DPrintf("Using prerelease progs\n");
 				break;
 			default:
-				Con_Printf("Using unknown progs, assuming NQ\n");
+				Con_DPrintf("Using unknown progs, assuming NQ\n");
 				break;
 			}
 		}
@@ -2600,6 +2600,10 @@ static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
 	ent->xv->hull = savedhull;
 
+	if (trace.startsolid)
+		if (!sv_gameplayfix_honest_tracelines.value)
+			trace.fraction = 1;
+
 	pr_global_struct->trace_allsolid = trace.allsolid;
 	pr_global_struct->trace_startsolid = trace.startsolid;
 	pr_global_struct->trace_fraction = trace.fraction;
@@ -2635,6 +2639,10 @@ static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent->xv->hull = 0;
 	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
 	ent->xv->hull = savedhull;
+
+	if (trace.startsolid)
+		if (!sv_gameplayfix_honest_tracelines.value)
+			trace.fraction = 1;
 
 	pr_global_struct->trace_allsolid = trace.allsolid;
 	pr_global_struct->trace_startsolid = trace.startsolid;

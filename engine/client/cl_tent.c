@@ -2662,7 +2662,7 @@ void CL_UpdateBeams (void)
 		//			VectorAdd(b->end, org, b->end);		//move the end point by simorg-start
 
 					pl = &cl.frames[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
-					if (pl->messagenum == cl.parsecount)
+					if (pl->messagenum == cl.parsecount || cls.protocol == CP_NETQUAKE)
 					{
 						vec3_t	fwd, org, ang;
 						float	delta, f, len;

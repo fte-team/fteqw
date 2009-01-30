@@ -769,37 +769,16 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	MSG_WriteShort (buf, cmd->sidemove);
 	MSG_WriteShort (buf, cmd->upmove);
 
-//
-// send button bits
-//
-	bits = 0;
-
-	if (in_attack.state[pnum] & 3 )	bits |=   1; in_attack.state[pnum]	&= ~2;
-	if (in_jump.state[pnum] & 3)	bits |=   2; in_jump.state[pnum]	&= ~2;
-	if (in_use.state[pnum] & 3)		bits |=   4; in_use.state[pnum]		&= ~2;
-	if (in_button3.state[pnum] & 3)	bits |=   4; in_button3.state[pnum] &= ~2;	//yup, flag 4 twice.
-	if (in_button4.state[pnum] & 3)	bits |=   8; in_button4.state[pnum] &= ~2;
-	if (in_button5.state[pnum] & 3)	bits |=  16; in_button5.state[pnum] &= ~2;
-	if (in_button6.state[pnum] & 3)	bits |=  32; in_button6.state[pnum] &= ~2;
-	if (in_button7.state[pnum] & 3)	bits |=  64; in_button7.state[pnum] &= ~2;
-	if (in_button8.state[pnum] & 3)	bits |= 128; in_button8.state[pnum] &= ~2;
-
 	if (nq_dp_protocol >= 6)
 	{
 		CL_UpdatePrydonCursor(cmd, cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
-		MSG_WriteLong (buf, bits);
+		MSG_WriteLong (buf, cmd->buttons);
 	}
 	else
-		MSG_WriteByte (buf, bits);
+		MSG_WriteByte (buf, cmd->buttons);
 
-	if (in_impulsespending[pnum])
-	{
-		in_nextimpulse[pnum]++;
-		in_impulsespending[pnum]--;
-		MSG_WriteByte(buf, in_impulse[pnum][(in_nextimpulse[pnum]-1)%IN_IMPULSECACHE]);
-	}
-	else
-		MSG_WriteByte (buf, 0);
+
+	MSG_WriteByte (buf, cmd->impulse);
 
 
 	if (nq_dp_protocol >= 6)

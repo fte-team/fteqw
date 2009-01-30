@@ -1884,7 +1884,7 @@ void SV_UpdateToReliableMessages (void)
 		SZ_Clear (&sv.datagram);
 
 #ifdef NQPROT
-//	if (sv.nqdatagram.overflowed)
+	if (sv.nqdatagram.overflowed)
 		SZ_Clear (&sv.nqdatagram);
 #endif
 #ifdef Q2SERVER

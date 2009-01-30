@@ -358,6 +358,7 @@ static part_type_t *P_GetParticleType(char *name)
 	}
 	part_type = BZ_Realloc(part_type, sizeof(part_type_t)*(numparticletypes+1));
 	ptype = &part_type[numparticletypes++];
+	memset(ptype, 0, sizeof(*ptype));
 	strcpy(ptype->name, name);
 	ptype->assoc=P_INVALID;
 	ptype->cliptype = P_INVALID;

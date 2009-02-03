@@ -3277,9 +3277,12 @@ void COM_InitFilesystem (void)
 #else
 	//yay for unix!.
 	ev = getenv("HOME");
-	if (ev)
+	if (ev && *ev)
 	{
-		Q_snprintfz(com_homedir, sizeof(com_homedir), "%s/.fte/", ev);
+		if (ev[strlen(ev)-1] == '/')
+			Q_snprintfz(com_homedir, sizeof(com_homedir), "%s.fte/", ev);
+		else
+			Q_snprintfz(com_homedir, sizeof(com_homedir), "%s/.fte/", ev);
 		usehome = true; // always use home on unix unless told not to
 	}
 	else

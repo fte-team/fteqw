@@ -1002,7 +1002,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 	if (bits & NQU_COLORMAP)
 		state->colormap = MSG_ReadByte();
 	else
-		state->colormap = 0;
+		state->colormap = base->colormap;
 
 	if (bits & NQU_SKIN)
 		state->skinnum = MSG_ReadByte();
@@ -1213,6 +1213,8 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 			model = cl.frames[parsecountmod].playerstate[tagent-1].modelindex;
 			fstate.g[FS_REG].frame[0] = cl.frames[parsecountmod].playerstate[tagent-1].frame;
 		}
+		else
+			model = 0;
 	}
 
 	if (ang)
@@ -2655,7 +2657,7 @@ void CL_AddFlagModels (entity_t *ent, int team)
 	vec3_t	v_forward, v_right, v_up;
 	entity_t	*newent;
 	vec3_t	angles;
-	float offs;
+	float offs = 0;
 
 	if (cl_flagindex == -1)
 		return;

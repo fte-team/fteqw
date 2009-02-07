@@ -406,7 +406,7 @@ char keyconv[] =
 	0,
 	K_SHIFT,
 	K_SHIFT,
-	0,
+	K_CAPSLOCK,
 	K_CTRL,
 	K_ALT, /* 100 */
 	K_ALT,

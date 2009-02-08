@@ -316,7 +316,7 @@ void SWR_NetGraph (void);
 
 qbyte *SWMod_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer);
 
-void D_DrawSparkTrans (vec3_t src, vec3_t dest, float palpha, unsigned int pcolour, blendmode_t blendmode);
+void D_DrawSparkTrans (struct particle_s *pparticle, vec3_t src, vec3_t dest, int blendmode);
 
 
 void D_Shutdown (void);

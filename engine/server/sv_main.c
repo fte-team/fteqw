@@ -53,24 +53,30 @@ void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue);
 
 typedef struct {
-	int isdp;
+	enum {
+		MP_NONE,
+		MP_QUAKEWORLD,
+		MP_DARKPLACES,
+	} protocol;
 	cvar_t		cv;
+
+	qboolean	needsresolve;	//set any time the cvar is modified
 	netadr_t	adr;
 } sv_masterlist_t;
 sv_masterlist_t sv_masterlist[] = {
-	{false, SCVARC("sv_master1", "", SV_Masterlist_Callback)},
-	{false, SCVARC("sv_master2", "", SV_Masterlist_Callback)},
-	{false, SCVARC("sv_master3", "", SV_Masterlist_Callback)},
-	{false, SCVARC("sv_master4", "", SV_Masterlist_Callback)},
-	{false, SCVARC("sv_master5", "", SV_Masterlist_Callback)},
-	{false, SCVARC("sv_master6", "", SV_Masterlist_Callback)},
-	{false, SCVARC("sv_master7", "", SV_Masterlist_Callback)},
-	{false, SCVARC("sv_master8", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, SCVARC("sv_master1", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, SCVARC("sv_master2", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, SCVARC("sv_master3", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, SCVARC("sv_master4", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, SCVARC("sv_master5", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, SCVARC("sv_master6", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, SCVARC("sv_master7", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, SCVARC("sv_master8", "", SV_Masterlist_Callback)},
 
-	{true, SCVARC("sv_masterextra1", "ghdigital.com", SV_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
-	{true, SCVARC("sv_masterextra2", "dpmaster.deathmask.net", SV_Masterlist_Callback)}, //209.164.24.243 (admin: Willis)
-	{true, SCVARC("sv_masterextra3", "dpmaster.tchr.no", SV_Masterlist_Callback)}, // (admin: tChr)
-	{false, SCVAR(NULL, NULL)}
+	{MP_DARKPLACES, SCVARC("sv_masterextra1", "ghdigital.com", SV_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
+	{MP_DARKPLACES, SCVARC("sv_masterextra2", "dpmaster.deathmask.net", SV_Masterlist_Callback)}, //209.164.24.243 (admin: Willis)
+	{MP_DARKPLACES, SCVARC("sv_masterextra3", "dpmaster.tchr.no", SV_Masterlist_Callback)}, // (admin: tChr)
+	{MP_NONE, SCVAR(NULL, NULL)}
 };
 
 client_t	*host_client;			// current client
@@ -3594,7 +3600,6 @@ void SV_InitLocal (void)
 void SV_Masterlist_Callback(struct cvar_s *var, char *oldvalue)
 {
 	int i;
-	char	data[2];
 
 	for (i = 0; sv_masterlist[i].cv.name; i++)
 	{
@@ -3611,29 +3616,7 @@ void SV_Masterlist_Callback(struct cvar_s *var, char *oldvalue)
 		return;
 	}
 
-	if (!NET_StringToAdr(var->string, &sv_masterlist[i].adr))
-	{
-		sv_masterlist[i].adr.port = 0;
-		Con_Printf ("Couldn't resolve master \"%s\"\n", var->string);
-	}
-	else
-	{
-		if (sv_masterlist[i].isdp)
-		{
-			if (sv_masterlist[i].adr.port == 0)
-				sv_masterlist[i].adr.port = BigShort (27950);
-		}
-		else
-		{
-			if (sv_masterlist[i].adr.port == 0)
-				sv_masterlist[i].adr.port = BigShort (27000);
-
-			data[0] = A2A_PING;
-			data[1] = 0;
-			if (sv.state)
-				NET_SendPacket (NS_SERVER, 2, data, sv_masterlist[i].adr);
-		}
-	}
+	sv_masterlist[i].needsresolve = true;
 }
 
 /*
@@ -3656,42 +3639,79 @@ void Master_Heartbeat (void)
 	if (!sv_public.value)
 		return;
 
-	if (realtime - svs.last_heartbeat < HEARTBEAT_SECONDS)
+	if (realtime-HEARTBEAT_SECONDS - svs.last_heartbeat < HEARTBEAT_SECONDS)
 		return;		// not time to send yet
 
-	svs.last_heartbeat = realtime;
+	svs.last_heartbeat = realtime-HEARTBEAT_SECONDS;
 
 	svs.heartbeat_sequence++;
 
 	// send to group master
 	for (i = 0; sv_masterlist[i].cv.name; i++)
 	{
+		if (sv_masterlist[i].needsresolve)
+		{
+			if (!*sv_masterlist[i].cv.string)
+				sv_masterlist[i].adr.port = 0;
+			else if (!NET_StringToAdr(sv_masterlist[i].cv.string, &sv_masterlist[i].adr))
+			{
+				sv_masterlist[i].adr.port = 0;
+				Con_Printf ("Couldn't resolve master \"%s\"\n", sv_masterlist[i].cv.string);
+			}
+			else
+			{
+				//choose default port
+				switch (sv_masterlist[i].protocol)
+				{
+				case MP_DARKPLACES:
+					if (sv_masterlist[i].adr.port == 0)
+						sv_masterlist[i].adr.port = BigShort (27950);
+					break;
+				case MP_QUAKEWORLD:
+					if (sv_masterlist[i].adr.port == 0)
+						sv_masterlist[i].adr.port = BigShort (27000);
+
+					//qw does this for some reason, keep the behaviour even though its unreliable thus pointless
+					string[0] = A2A_PING;
+					string[1] = 0;
+					if (sv.state)
+						NET_SendPacket (NS_SERVER, 2, string, sv_masterlist[i].adr);
+					break;
+				default:
+					break;
+				}
+			}
+		}
+
 		if (sv_masterlist[i].adr.port)
 		{
-			switch(sv_masterlist[i].isdp)
+			switch(sv_masterlist[i].protocol)
 			{
-			case false:
-				if (!madeqwstring)
+			case MP_QUAKEWORLD:
+				if (sv_listen_qw.value)
 				{
-					// count active users
-					active = 0;
-					for (j=0 ; j<MAX_CLIENTS ; j++)
-						if (svs.clients[j].state == cs_connected ||
-						svs.clients[j].state == cs_spawned )
-							active++;
+					if (!madeqwstring)
+					{
+						// count active users
+						active = 0;
+						for (j=0 ; j<MAX_CLIENTS ; j++)
+							if (svs.clients[j].state == cs_connected ||
+							svs.clients[j].state == cs_spawned )
+								active++;
 
-					sprintf (string, "%c\n%i\n%i\n", S2M_HEARTBEAT,
-						svs.heartbeat_sequence, active);
+						sprintf (string, "%c\n%i\n%i\n", S2M_HEARTBEAT,
+							svs.heartbeat_sequence, active);
 
-					madeqwstring = true;
+						madeqwstring = true;
+					}
+
+					if (sv_reportheartbeats.value)
+						Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr));
+
+					NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
 				}
-
-				if (sv_reportheartbeats.value)
-					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr));
-
-				NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
 				break;
-			case true:
+			case MP_DARKPLACES:
 				if (sv_listen_dp.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
 					if (sv_reportheartbeats.value)
@@ -3702,6 +3722,8 @@ void Master_Heartbeat (void)
 						NET_SendPacket (NS_SERVER, strlen(str), str, sv_masterlist[i].adr);
 					}
 				}
+				break;
+			default:
 				break;
 			}
 		}
@@ -3755,20 +3777,23 @@ void Master_Shutdown (void)
 
 	// send to group master
 	for (i = 0; sv_masterlist[i].cv.name; i++)
+	{
 		if (sv_masterlist[i].adr.port)
 		{
-			switch(sv_masterlist[i].isdp)
+			switch(sv_masterlist[i].protocol)
 			{
-			case false:
+			case MP_QUAKEWORLD:
 				if (sv_reportheartbeats.value)
 					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr));
 
 				NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
 				break;
-			case true:
+			//dp has no shutdown
+			default:
 				break;
 			}
 		}
+	}
 }
 
 #define iswhite(c) (c == ' ' || c == INVIS_CHAR1 || c == INVIS_CHAR2 || c == INVIS_CHAR3)

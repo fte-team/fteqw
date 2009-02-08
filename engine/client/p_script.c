@@ -3621,7 +3621,7 @@ static void SWD_DrawParticleSpark(int count, particle_t **plist, plooks_t *type)
 			VectorMA(p->org, -2.5/(speed), p->vel, dest);
 		}
 
-		D_DrawSparkTrans(p, src, dest, type->blendmode);
+		D_DrawSparkTrans(src, dest, p->alpha, p->color, type->blendmode);
 	}
 }
 static void SWD_DrawParticleBlob(int count, particle_t **plist, plooks_t *type)
@@ -3691,7 +3691,7 @@ static void SWD_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 		else if (b > 255)
 			b = 255;
 		p->color = GetPaletteIndex(r, g, b);
-		D_DrawSparkTrans(p, p->org, q->org, type->blendmode);
+		D_DrawSparkTrans(p->org, q->org, p->alpha, p->color, type->blendmode);
 	}
 }
 #endif

@@ -362,6 +362,7 @@ void Con_ExecuteLine(console_t *con, char *line)
 {
 	qboolean waschat = false;
 
+	con_commandmatch=1;
 	if (cls.state >= ca_connected && cl_chatmode.value == 2)
 	{
 		waschat = true;
@@ -372,27 +373,30 @@ void Con_ExecuteLine(console_t *con, char *line)
 		else
 			waschat = false;
 	}
-
-	con_commandmatch=1;
-	if (line[0] == '\\' || line[0] == '/')
-		Cbuf_AddText (line+1, RESTRICT_LOCAL);	// skip the >
-	else if (cl_chatmode.value == 2 && Cmd_IsCommand(line))
-		Cbuf_AddText (line, RESTRICT_LOCAL);	// valid command
-#ifdef Q2CLIENT
-	else if (cls.protocol == CP_QUAKE2)
-		Cbuf_AddText (line, RESTRICT_LOCAL);	// send the command to the server via console, and let the server convert to chat
-#endif
-	else if (*line)
-	{	// convert to a chat message
-		if (!waschat && (cl_chatmode.value == 1 || ((cls.state >= ca_connected && cl_chatmode.value == 2) && (strncmp(line, "say ", 4)))))
-		{
-			if (keydown[K_CTRL])
-				Cbuf_AddText ("say_team ", RESTRICT_LOCAL);
-			else
-				Cbuf_AddText ("say ", RESTRICT_LOCAL);
-			waschat = true;
+	if (waschat)
+		Cbuf_AddText (line, RESTRICT_LOCAL);
+	else
+	{
+		if (line[0] == '\\' || line[0] == '/')
+			Cbuf_AddText (line+1, RESTRICT_LOCAL);	// skip the >
+		else if (cl_chatmode.value == 2 && Cmd_IsCommand(line))
+			Cbuf_AddText (line, RESTRICT_LOCAL);	// valid command
+	#ifdef Q2CLIENT
+		else if (cls.protocol == CP_QUAKE2)
+			Cbuf_AddText (line, RESTRICT_LOCAL);	// send the command to the server via console, and let the server convert to chat
+	#endif
+		else if (*line)
+		{	// convert to a chat message
+			if ((cl_chatmode.value == 1 || ((cls.state >= ca_connected && cl_chatmode.value == 2) && (strncmp(line, "say ", 4)))))
+			{
+				if (keydown[K_CTRL])
+					Cbuf_AddText ("say_team ", RESTRICT_LOCAL);
+				else
+					Cbuf_AddText ("say ", RESTRICT_LOCAL);
+				waschat = true;
+			}
+			Cbuf_AddText (line, RESTRICT_LOCAL);	// skip the >
 		}
-		Cbuf_AddText (line, RESTRICT_LOCAL);	// skip the >
 	}
 
 	Cbuf_AddText ("\n", RESTRICT_LOCAL);

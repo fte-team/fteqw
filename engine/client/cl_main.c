@@ -81,6 +81,8 @@ cvar_t	qtvcl_eztvextensions = SCVAR("qtvcl_eztvextensions", "0");
 
 cvar_t cl_demospeed = FCVAR("cl_demospeed", "demo_setspeed", "1", 0);
 
+cvar_t cl_loopbackprotocol = SCVAR("cl_loopbackprotocol", "qw");
+
 
 cvar_t	cl_indepphysics = SCVAR("cl_indepphysics", "0");
 
@@ -586,13 +588,36 @@ void CL_CheckForResend (void)
 			break;
 #endif
 		default:
-			cls.protocol = CP_QUAKEWORLD;
+			if (!strcmp(cl_loopbackprotocol.string, "qw"))
+				cls.protocol = CP_QUAKEWORLD;
+			else if (!strcmp(cl_loopbackprotocol.string, "nq"))
+				cls.protocol = CP_NETQUAKE;
+			else if (!strcmp(cl_loopbackprotocol.string, "q3"))
+				cls.protocol = CP_QUAKE3;
+			else if (progstype == PROG_QW)
+				cls.protocol = CP_QUAKEWORLD;
+			else
+				cls.protocol = CP_NETQUAKE;
 			break;
 		}
 
 		CL_FlushClientCommands();	//clear away all client->server clientcommands.
 
-		CL_SendConnectPacket (svs.fteprotocolextensions, false);
+		if (cls.protocol == CP_NETQUAKE)
+		{
+			if (!NET_StringToAdr (cls.servername, &adr))
+			{
+				Con_TPrintf (TLC_BADSERVERADDRESS);
+				connect_time = -1;
+				return;
+			}
+			NET_AdrToString(data, sizeof(data), adr);
+
+			//by NQ, we mean to try using the DP protocol extensions to the underlying NQ protocol
+			CL_ConnectToDarkPlaces("", adr);
+		}
+		else
+			CL_SendConnectPacket (svs.fteprotocolextensions, false);
 		return;
 	}
 #endif
@@ -1236,7 +1261,10 @@ void CL_User_f (void)
 		if (cl.players[i].userid == uid
 		|| !strcmp(cl.players[i].name, Cmd_Argv(1)) )
 		{
-			Info_Print (cl.players[i].userinfo);
+			if (cls.protocol == CP_NETQUAKE)
+				Con_Printf("name: %s\ncolour %i %i\nping: %i\n", cl.players[i].name, cl.players[i].rbottomcolor, cl.players[i].rtopcolor, cl.players[i].ping);
+			else
+				Info_Print (cl.players[i].userinfo);
 			return;
 		}
 	}
@@ -2921,6 +2949,9 @@ void CL_Init (void)
 
 	Cvar_Register (&host_mapname,					"Scripting");
 
+#ifndef SERVERONLY
+	Cvar_Register (&cl_loopbackprotocol,				cl_controlgroup);
+#endif
 	Cvar_Register (&cl_countpendingpl,				cl_controlgroup);
 	Cvar_Register (&cl_indepphysics,				cl_controlgroup);
 	Cvar_Register (&cl_antibunch,					"evil hacks");

@@ -659,6 +659,9 @@ void R_DrawSpriteModel (entity_t *e)
 	qglDisable (GL_ALPHA_TEST);
 	qglEnable(GL_DEPTH_TEST);
 
+	qglEnable(GL_CULL_FACE);
+	qglEnable(GL_BLEND);
+
 	if (e->flags & Q2RF_ADDATIVE)	//back to regular blending for us!
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }

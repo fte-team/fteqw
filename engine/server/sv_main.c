@@ -3651,6 +3651,8 @@ void Master_Heartbeat (void)
 	{
 		if (sv_masterlist[i].needsresolve)
 		{
+			sv_masterlist[i].needsresolve = false;
+
 			if (!*sv_masterlist[i].cv.string)
 				sv_masterlist[i].adr.port = 0;
 			else if (!NET_StringToAdr(sv_masterlist[i].cv.string, &sv_masterlist[i].adr))

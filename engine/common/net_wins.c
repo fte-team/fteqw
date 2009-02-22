@@ -713,6 +713,8 @@ qboolean	NET_StringToAdr (char *s, netadr_t *a)
 {
 	struct sockaddr_qstorage sadr;
 
+	Con_DPrintf("Resolving address: %s\n", s);
+
 #ifdef TCPCONNECT
 	if (!strncmp (s, "tcp://", 6))
 	{

@@ -203,11 +203,12 @@ typedef struct
  */
 typedef struct
 {
-    float	controller[4];				/* Position of bone controllers */
-    float	adjust[4];
+    float	controller[5];				/* Position of bone controllers */
+    float	adjust[5];
 
     /* Static pointers */
     hlmdl_header_t			*header;
+	hlmdl_header_t			*texheader;
     hlmdl_tex_t				*textures;
     hlmdl_bone_t			*bones;
     hlmdl_bonecontroller_t		*bonectls;
@@ -216,6 +217,7 @@ typedef struct
 typedef struct	//this is stored as the cache. an hlmodel_t is generated when drawing
 {
     int header;
+	int texheader;
     int textures;
     int bones;
     int bonectls;
@@ -229,3 +231,6 @@ void	QuaternionGLMatrix(float x, float y, float z, float w, vec4_t *GLM);
 /* HL drawing */
 qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
 void	R_Draw_HL_AliasModel(hlmodel_t *model);
+
+/* physics stuff */
+void *Mod_GetHalfLifeModelData(model_t *mod);

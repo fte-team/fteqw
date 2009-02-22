@@ -83,6 +83,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 	
 	hlmodelcache_t *model;
 	hlmdl_header_t *header;
+	hlmdl_header_t *texheader;
 	hlmdl_tex_t	*tex;
 	hlmdl_bone_t	*bones;
 	hlmdl_bonecontroller_t	*bonectls;
@@ -126,6 +127,13 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 	header = Hunk_Alloc(com_filesize);
 	memcpy(header, buffer, com_filesize);
 
+#if defined(HLSERVER) && (defined(__powerpc__) || defined(__ppc__))
+//this is to let bigfoot know when he comes to port it all... And I'm lazy.
+#warning "-----------------------------------------"
+#warning "FIXME: No byteswapping on halflife models"
+#warning "-----------------------------------------"
+#endif
+
 	if (header->version != 10)
 	{
 		Con_Printf(CON_ERROR "Cannot load model %s - unknown version %i\n", mod->name, header->version);
@@ -146,7 +154,26 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 		return false;
 	}
 
-    tex = (hlmdl_tex_t *) ((qbyte *) header + header->textures);
+	texheader = NULL;
+	if (!header->numtextures)
+	{
+		char texmodelname[MAX_QPATH];
+		COM_StripExtension(mod->name, texmodelname, sizeof(texmodelname));
+		//no textures? eesh. They must be stored externally.
+		texheader = (hlmdl_header_t*)COM_LoadHunkFile(va("%st.mdl", texmodelname));
+		if (texheader)
+		{
+			if (texheader->version != 10)
+				texheader = NULL;
+		}
+	}
+
+	if (!texheader)
+		texheader = header;
+	else
+		header->numtextures = texheader->numtextures;
+	
+	tex = (hlmdl_tex_t *) ((qbyte *) texheader + texheader->textures);
     bones = (hlmdl_bone_t *) ((qbyte *) header + header->boneindex);
     bonectls = (hlmdl_bonecontroller_t *) ((qbyte *) header + header->controllerindex);
 
@@ -167,13 +194,14 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 */
 
 	model->header = (char *)header - (char *)model;
+	model->texheader = (char *)texheader - (char *)model;
 	model->textures = (char *)tex - (char *)model;
 	model->bones = (char *)bones - (char *)model;
 	model->bonectls = (char *)bonectls - (char *)model;
 
-    for(i = 0; i < header->numtextures; i++)
+    for(i = 0; i < texheader->numtextures; i++)
     {
-        tex[i].i = GL_LoadTexture8Pal24("", tex[i].w, tex[i].h, (qbyte *) header + tex[i].i, (qbyte *) header + tex[i].w * tex[i].h + tex[i].i, true, false);
+        tex[i].i = GL_LoadTexture8Pal24("", tex[i].w, tex[i].h, (qbyte *) texheader + tex[i].i, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].i, true, false);
     }
 
 
@@ -185,7 +213,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 
 	mod->type = mod_halflife;
 	
-	Cache_Alloc (&mod->cache, total, loadname);
+	Cache_Alloc (&mod->cache, total, mod->name);
 	if (!mod->cache.data)
 		return false;
 	memcpy (mod->cache.data, model, total);
@@ -193,6 +221,18 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 	Hunk_FreeToLowMark (start);
 	return true;
 }
+
+#ifdef HLSERVER
+void *Mod_GetHalfLifeModelData(model_t *mod)
+{
+	hlmodelcache_t *mc;
+	if (!mod || mod->type != mod_halflife)
+		return NULL;	//halflife models only, please
+
+	mc = Mod_Extradata(mod);
+	return (void*)((char*)mc + mc->header);
+}
+#endif
 
 /*
  =======================================================================================================================
@@ -333,7 +373,7 @@ void HL_CalcBoneAdj(hlmodel_t *model)
  =======================================================================================================================
  */
 void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt );
-void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, float subblendfrac)
+void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, float subblendfrac, float frametime)
 {
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
     int						i;
@@ -341,7 +381,6 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
     static vec3_t			positions[2];
     static vec4_t			quaternions[2], blended;
 
-	float frametime;
 	int frame;
 
     hlmdl_sequencelist_t	*sequence = (hlmdl_sequencelist_t *) ((qbyte *) model->header + model->header->seqindex) +
@@ -353,7 +392,7 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
                                 ((qbyte *) model->header + sequencedata->data + sequence->index);
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-	frametime = (cl.time - cl.lerpents[currententity->keynum].framechange)*sequence->timing;
+	frametime *= sequence->timing;
 	frame = (int)frametime;
 	frametime -= frame;
 
@@ -485,11 +524,18 @@ void R_DrawHLModel(entity_t	*curent)
 
 	//general model
 	model.header	= (hlmdl_header_t *)			((char *)modelc + modelc->header);
+	model.texheader	= (hlmdl_header_t *)			((char *)modelc + modelc->texheader);
 	model.textures	= (hlmdl_tex_t *)				((char *)modelc + modelc->textures);
 	model.bones		= (hlmdl_bone_t *)				((char *)modelc + modelc->bones);
 	model.bonectls	= (hlmdl_bonecontroller_t *)	((char *)modelc + modelc->bonectls);
 
-    skins = (short *) ((qbyte *) model.header + model.header->skins);
+    skins = (short *) ((qbyte *) model.texheader + model.texheader->skins);
+
+	if (!model.texheader->numtextures)
+	{
+		Con_DPrintf("model with no textures: %s\n", curent->model->name);
+		return;
+	}
 
 	for (b = 0; b < MAX_BONE_CONTROLLERS; b++)
 		model.controller[b] = curent->framestate.bonecontrols[b];
@@ -522,11 +568,11 @@ void R_DrawHLModel(entity_t	*curent)
 	for (bgroup = 0; bgroup < FS_COUNT; bgroup++)
 	{
 		lastbone = curent->framestate.g[bgroup].endbone;
-		if (bgroup == FS_COUNT)
+		if (bgroup == FS_COUNT-1)
 			lastbone = model.header->numbones;
 		if (cbone >= lastbone)
 			continue;
-		HL_SetupBones(&model, curent->framestate.g[bgroup].frame[0], cbone, lastbone, (curent->framestate.g[bgroup].subblendfrac+1)*0.5);	/* Setup the bones */
+		HL_SetupBones(&model, curent->framestate.g[bgroup].frame[0], cbone, lastbone, (curent->framestate.g[bgroup].subblendfrac+1)*0.5, curent->framestate.g[bgroup].frametime[0]);	/* Setup the bones */
 	}
 
     /* Manipulate each mesh directly */
@@ -579,11 +625,16 @@ void R_DrawHLModel(entity_t	*curent)
         {
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
             hlmdl_mesh_t	*mesh = (hlmdl_mesh_t *) ((qbyte *) model.header + amodel->meshindex) + m;
-            float			tex_w = 1.0f / model.textures[skins[mesh->skinindex]].w;
-            float			tex_h = 1.0f / model.textures[skins[mesh->skinindex]].h;
+            float			tex_w;
+            float			tex_h;
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-            GL_Bind(model.textures[skins[mesh->skinindex]].i);
+			{
+				tex_w = 1.0f / model.textures[skins[mesh->skinindex]].w;
+				tex_h = 1.0f / model.textures[skins[mesh->skinindex]].h;
+				GL_Bind(model.textures[skins[mesh->skinindex]].i);
+			}
+
             GL_Draw_HL_AliasFrame((short *) ((qbyte *) model.header + mesh->index), transformed, tex_w, tex_h);
         }
     }

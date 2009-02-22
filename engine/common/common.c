@@ -2658,6 +2658,24 @@ void COM_AddParm (char *parm)
 	largv[com_argc++] = parm;
 }
 
+/*
+=======================
+COM_Version_f
+======================
+*/
+void COM_Version_f (void)
+{
+	Con_TPrintf (TLC_VERSIONST, DISTRIBUTION, build_number());
+
+	Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
+
+#ifdef CLIENTONLY
+	Con_Printf("client-only build\n");
+#endif
+#ifdef SERVERONLY
+	Con_Printf("dedicated server build\n");
+#endif
+}
 
 /*
 ================
@@ -2693,6 +2711,7 @@ void COM_Init (void)
 	Cmd_AddCommand ("path", COM_Path_f);		//prints a list of current search paths.
 	Cmd_AddCommand ("dir", COM_Dir_f);			//q3 like
 	Cmd_AddCommand ("flocate", COM_Locate_f);	//prints the pak or whatever where this file can be found.
+	Cmd_AddCommand ("version", COM_Version_f);	//prints the pak or whatever where this file can be found.
 
 	COM_InitFilesystem ();
 

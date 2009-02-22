@@ -274,18 +274,6 @@ void CL_Quit_f (void)
 	Sys_Quit ();
 }
 
-/*
-=======================
-CL_Version_f
-======================
-*/
-void CL_Version_f (void)
-{
-	Con_TPrintf (TLC_VERSIONST, DISTRIBUTION, build_number());
-
-	Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
-}
-
 void CL_ConnectToDarkPlaces(char *challenge, netadr_t adr)
 {
 	char	data[2048];
@@ -2983,8 +2971,6 @@ void CL_Init (void)
 #ifdef WEBCLIENT
 	Cmd_AddCommand ("ftp", CL_FTP_f);
 #endif
-
-	Cmd_AddCommand ("version", CL_Version_f);
 
 	Cmd_AddCommand ("changing", CL_Changing_f);
 	Cmd_AddCommand ("disconnect", CL_Disconnect_f);

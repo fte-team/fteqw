@@ -3194,7 +3194,7 @@ qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 	mod->mins[2] = -psprite->maxheight/2;
 	mod->maxs[2] = psprite->maxheight/2;
 
-	if (pin->version == SPRITEHL_VERSION)
+	if (version == SPRITEHL_VERSION)
 	{
 		int i;
 		short *numi = (short*)(pin+1);

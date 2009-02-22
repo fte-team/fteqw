@@ -769,6 +769,7 @@ void GLDraw_ReInit (void)
 	qpic_t	*bigfont;
 	int start;
 	qbyte    *ncdata;
+	qbyte	*pal;
 	qbyte *tinyfont;
 	extern int		solidskytexture;
 	extern int		alphaskytexture;
@@ -1085,15 +1086,24 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 				}
 			}
 		}
+		pal = NULL;
 #else
 		conback->width = cb->width;
 		conback->height = cb->height;
 		ncdata = cb->data;
+
+		if (com_filesize == cb->width*cb->height+10 + 256*3)
+		{
+			pal = ncdata + cb->width*cb->height + 2;
+		}
+		else
+			pal = NULL;
 #endif
 	}
 	else
 	{
 		ncdata = NULL;
+		pal = 0;
 	}
 
 	TRACE(("dbg: GLDraw_ReInit: conback loaded\n"));
@@ -1115,7 +1125,10 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		}
 		else
 		{
-			gl->texnum = GL_LoadTexture ("conback", conback->width, conback->height, ncdata, false, false);
+			if (pal)
+				gl->texnum = GL_LoadTexture8Pal24("conback", conback->width, conback->height, ncdata, pal, false, false);
+			else
+				gl->texnum = GL_LoadTexture ("conback", conback->width, conback->height, ncdata, false, false);
 		}
 	}
 	gl->sl = 0;

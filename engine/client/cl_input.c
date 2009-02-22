@@ -740,7 +740,6 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 #ifdef NQPROT
 void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 {
-	int bits;
 	int i;
 
 	vec3_t cursor_start, cursor_impact;

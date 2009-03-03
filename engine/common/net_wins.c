@@ -721,7 +721,10 @@ qboolean	NET_StringToAdr (char *s, netadr_t *a)
 		//make sure that the rest of the address is a valid ip address (4 or 6)
 
 		if (!NET_StringToSockaddr (s+6, &sadr))
+		{
+			a->type = NA_INVALID;
 			return false;
+		}
 
 		SockadrToNetadr (&sadr, a);
 
@@ -771,7 +774,10 @@ qboolean	NET_StringToAdr (char *s, netadr_t *a)
 	}
 
 	if (!NET_StringToSockaddr (s, &sadr))
+	{
+		a->type = NA_INVALID;
 		return false;
+	}
 
 	SockadrToNetadr (&sadr, a);
 
@@ -1648,6 +1654,7 @@ qboolean	NET_PortToAdr (int adrfamily, char *s, netadr_t *a)
 		}
 		return true;
 	}
+	a->type = NA_INVALID;
 	return false;
 }
 

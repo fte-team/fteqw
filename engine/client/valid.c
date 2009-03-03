@@ -444,7 +444,11 @@ void Validation_DelatchRulesets(void)
 	Con_DPrintf("Ruleset deactivated\n");
 }
 
-void Validation_Ruleset(void)
+void Validation_AllChecks(void)
+{
+}
+
+void Validation_OldRuleset(void)
 {	//this code is more complex than it needs to be
 	//this allows for the ruleset code to print a ruleset name that is applied via the cvars, but not directly named by the user
 	cvar_t *var;
@@ -611,7 +615,10 @@ void Validation_Auto_Response(int playernum, char *s)
 	}
 	else if (!strncmp(s, "f_ruleset", 9) && rulesetresponsetime < Sys_DoubleTime())
 	{
-		Validation_Ruleset();
+		if (1)
+			Validation_AllChecks();
+		else
+			Validation_OldRuleset();
 		rulesetresponsetime = Sys_DoubleTime() + 5;
 	}
 }

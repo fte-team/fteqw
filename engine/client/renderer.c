@@ -165,9 +165,9 @@ cvar_t scr_viewsize							= SCVARFC("viewsize", "100",
 
 cvar_t vid_conautoscale						= SCVARF ("vid_conautoscale", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
-cvar_t vid_conheight						= SCVARF ("vid_conheight", "480",
+cvar_t vid_conheight						= SCVARF ("vid_conheight", "0",
 												CVAR_ARCHIVE);
-cvar_t vid_conwidth							= SCVARF ("vid_conwidth", "640",
+cvar_t vid_conwidth							= SCVARF ("vid_conwidth", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
 //see R_RestartRenderer_f for the effective default 'if (newr.renderer == -1)'.
 cvar_t vid_renderer							= SCVARF ("vid_renderer", "",
@@ -2407,71 +2407,75 @@ mleaf_t		*r_vischain;		// linked list of visible leafs
 R_MarkLeaves
 ===============
 */
+#ifdef Q3BSPS
+void R_MarkLeaves_Q3 (void)
+{
+	qbyte	*vis;
+	int		i;
 
-void R_MarkLeaves (void)
+	int cluster;
+	mleaf_t	*leaf;
+
+	if (r_oldviewcluster == r_viewcluster && !r_novis.value && r_viewcluster != -1)
+		return;
+
+	// development aid to let you run around and see exactly where
+	// the pvs ends
+//		if (r_lockpvs->value)
+//			return;
+
+	r_vischain = NULL;
+	r_visframecount++;
+	r_oldviewcluster = r_viewcluster;
+
+	if (r_novis.value || r_viewcluster == -1 || !cl.worldmodel->vis )
+	{
+		// mark everything
+		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
+		{
+			if (!leaf->nummarksurfaces)
+			{
+				continue;
+			}
+
+			leaf->visframe = r_visframecount;
+			leaf->vischain = r_vischain;
+			r_vischain = leaf;
+		}
+	}
+	else
+	{
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL);//, cl.worldmodel);
+		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
+		{
+			cluster = leaf->cluster;
+			if (cluster == -1 || !leaf->nummarksurfaces)
+			{
+				continue;
+			}
+			if (vis[cluster>>3] & (1<<(cluster&7)))
+			{
+				leaf->visframe = r_visframecount;
+				leaf->vischain = r_vischain;
+				r_vischain = leaf;
+			}
+		}
+	}
+}
+#endif
+
+#ifdef Q2BSPS
+void R_MarkLeaves_Q2 (void)
 {
 	qbyte	fatvis[MAX_MAP_LEAFS/8];
 	qbyte	*vis;
 	mnode_t	*node;
 	int		i;
-	qbyte	solid[4096];
-#ifdef Q3BSPS
-	if (cl.worldmodel->fromgame == fg_quake3)
-	{
-		int cluster;
-		mleaf_t	*leaf;
 
-		if (r_oldviewcluster == r_viewcluster && !r_novis.value && r_viewcluster != -1)
-			return;
+	int cluster;
+	mleaf_t	*leaf;
 
-		// development aid to let you run around and see exactly where
-		// the pvs ends
-//		if (r_lockpvs->value)
-//			return;
-
-		r_vischain = NULL;
-		r_visframecount++;
-		r_oldviewcluster = r_viewcluster;
-
-		if (r_novis.value || r_viewcluster == -1 || !cl.worldmodel->vis )
-		{
-			// mark everything
-			for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
-			{
-				if ( !leaf->nummarksurfaces ) {
-					continue;
-				}
-
-				leaf->visframe = r_visframecount;
-				leaf->vischain = r_vischain;
-				r_vischain = leaf;
-			}
-			return;
-		}
-
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL);//, cl.worldmodel);
-		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
-		{
-			cluster = leaf->cluster;
-			if ( cluster == -1 || !leaf->nummarksurfaces ) {
-				continue;
-			}
-			if ( vis[cluster>>3] & (1<<(cluster&7)) ) {
-				leaf->visframe = r_visframecount;
-				leaf->vischain = r_vischain;
-				r_vischain = leaf;
-			}
-		}
-		return;
-	}
-#endif
-
-#ifdef Q2BSPS
-	if (cl.worldmodel->fromgame == fg_quake2)
-	{
 		int c;
-		mleaf_t	*leaf;
-		int		cluster;
 
 		if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
 			return;
@@ -2525,6 +2529,14 @@ void R_MarkLeaves (void)
 	}
 #endif
 
+void R_MarkLeaves_Q1 (void)
+{
+	qbyte	fatvis[MAX_MAP_LEAFS/8];
+	qbyte	*vis;
+	mnode_t	*node;
+	int		i;
+	qbyte	solid[4096];
+
 	if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.value) || r_novis.value == 2)
 		return;
 	
@@ -2541,7 +2553,7 @@ void R_MarkLeaves (void)
 		vis = solid;
 		memset (solid, 0xff, (cl.worldmodel->numleafs+7)>>3);
 	}
-	else if (r_viewleaf2)
+	else if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
 	{
 		int c;
 		Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis);
@@ -2570,7 +2582,6 @@ void R_MarkLeaves (void)
 		}
 	}
 }
-
 
 
 mplane_t	frustum[4];

@@ -2771,6 +2771,80 @@ e->angles[0] = -e->angles[0];	// stupid quake bug
 =============================================================
 */
 
+
+#if 0
+void R_MarkLeafSurfaces_Q1 (void)
+{
+	static qbyte	fatvis[MAX_MAP_LEAFS/8];
+	static qbyte	*vis;
+	mleaf_t	*leaf;
+	int		i, j;
+	qbyte	solid[4096];
+	msurface_t *surf;
+	int shift;
+
+	r_visframecount++;
+	if (1)//r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2)
+	{
+	}
+	else
+	{
+		r_oldviewleaf = r_viewleaf;
+		r_oldviewleaf2 = r_viewleaf2;
+
+		if ((int)r_novis.value&1)
+		{
+			vis = solid;
+			memset (solid, 0xff, (cl.worldmodel->numleafs+7)>>3);
+		}
+		else if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
+		{
+			int c;
+			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis);
+			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
+			c = (cl.worldmodel->numleafs+31)/32;
+			for (i=0 ; i<c ; i++)
+				((int *)fatvis)[i] |= ((int *)vis)[i];
+
+			vis = fatvis;
+		}
+		else
+			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
+	}
+
+
+	shift = GLR_LightmapShift(cl.worldmodel);
+		
+	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+	{
+		if (vis[i>>3] & (1<<(i&7)))
+		{
+			leaf = (mleaf_t *)&cl.worldmodel->leafs[i+1];
+
+			if (R_CullBox (leaf->minmaxs, leaf->minmaxs+3))
+				continue;
+			leaf->visframe = r_visframecount;
+
+			for (j = 0; j < leaf->nummarksurfaces; j++)
+			{
+				surf = leaf->firstmarksurface[j];
+				if (surf->visframe == r_visframecount)
+					continue;
+				surf->visframe = r_visframecount;
+
+				R_RenderDynamicLightmaps (surf, shift);
+				surf->texturechain = surf->texinfo->texture->texturechain;
+				surf->texinfo->texture->texturechain = surf;
+			}
+
+			//deal with static ents.
+			if (leaf->efrags)
+				R_StoreEfrags (&leaf->efrags);
+		}
+	}
+}
+#else
+
 /*
 ================
 R_RecursiveWorldNode
@@ -2890,6 +2964,7 @@ start:
 	node = node->children[!side];
 	goto start;
 }
+#endif
 
 #ifdef Q2BSPS
 static void GLR_RecursiveQ2WorldNode (mnode_t *node)
@@ -3118,15 +3193,26 @@ void R_DrawWorld (void)
 #ifdef Q3BSPS
 			if (ent.model->fromgame == fg_quake3)
 			{
+				R_MarkLeaves_Q3 ();
 				GLR_LeafWorldNode ();
 			}
 			else
 #endif
+			{
+				R_MarkLeaves_Q2 ();
 				GLR_RecursiveQ2WorldNode (cl.worldmodel->nodes);
+			}
 		}
 		else
 #endif
+		{
+#if 0
+			R_MarkLeafSurfaces_Q1();
+#else
+			R_MarkLeaves_Q1 ();
 			GLR_RecursiveWorldNode (cl.worldmodel->nodes);
+#endif
+		}
 
 		RSpeedEnd(RSPEED_WORLDNODE);
 		TRACE(("dbg: calling PPL_DrawWorld\n"));

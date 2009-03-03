@@ -541,6 +541,9 @@ void SV_UnspawnServer (void)	//terminate the running server.
 #ifdef Q2SERVER
 		SVQ2_ShutdownGameProgs();
 #endif
+#ifdef HLSERVER
+		SVHL_ShutdownGame();
+#endif
 		sv.worldmodel = NULL;
 		sv.state = ss_dead;
 		*sv.name = '\0';
@@ -863,6 +866,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	sv.state = ss_loading;
 
 	newgametype = svs.gametype;
+#ifdef HLSERVER
+	if (SVHL_InitGame())
+		newgametype = GT_HALFLIFE;
+	else
+#endif
 #ifdef Q3SERVER
 	if (SVQ3_InitGame())
 		newgametype = GT_QUAKE3;
@@ -897,6 +905,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	}
 	svs.gametype = newgametype;
 
+#ifdef HLSERVER
+	if (newgametype != GT_HALFLIFE)
+		SVHL_ShutdownGame();
+#endif
 #ifdef Q3SERVER
 	if (newgametype != GT_QUAKE3)
 		SVQ3_ShutdownGame();
@@ -1053,6 +1065,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	case GT_QUAKE3:
 #ifdef Q3SERVER
 		sv.allocated_client_slots = 32;
+#endif
+		break;
+	case GT_HALFLIFE:
+#ifdef HLSERVER
+		SVHL_SetupGame();
 #endif
 		break;
 	}
@@ -1218,6 +1235,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			break;
 		case GT_QUAKE3:
 			break;
+		case GT_HALFLIFE:
+#ifdef HLSERVER
+			SVHL_SpawnEntities(file);
+#endif
+			break;
 		}
 		BZ_Free(file);
 	}
@@ -1238,6 +1260,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 			break;
 		case GT_QUAKE3:
+			break;
+		case GT_HALFLIFE:
+#ifdef HLSERVER
+			SVHL_SpawnEntities(sv.worldmodel->entities);
+#endif
 			break;
 		}
 	}
@@ -1365,12 +1392,12 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				sv_player->xv->clientcolors = atoi(Info_ValueForKey(host_client->userinfo, "topcolor"))*16 + atoi(Info_ValueForKey(host_client->userinfo, "bottomcolor"));
 
 				// call the spawn function
-				pr_global_struct->time = sv.time;
+				pr_global_struct->time = sv.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 
 				// actually spawn the player
-				pr_global_struct->time = sv.time;
+				pr_global_struct->time = sv.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 

@@ -129,7 +129,62 @@ int PM_PointContents (vec3_t p)
 		pe = &pmove.physents[num];
 		pm = pe->model;
 		if (pm)
-			pc |= PM_TransformedModelPointContents(pm, p, pe->origin, pe->angles);
+		{
+			if (pe->forcecontentsmask)
+			{
+				if (PM_TransformedModelPointContents(pm, p, pe->origin, pe->angles))
+					pc |= pe->forcecontentsmask;
+			}
+			else
+			{
+				if (pe->nonsolid)
+					continue;
+				pc |= PM_TransformedModelPointContents(pm, p, pe->origin, pe->angles);
+			}
+		}
+		else if (pe->forcecontentsmask)
+		{
+			if (p[0] >= pe->mins[0] && p[0] <= pe->maxs[0] && 
+				p[1] >= pe->mins[1] && p[1] <= pe->maxs[1] &&
+				p[2] >= pe->mins[2] && p[2] <= pe->maxs[2])
+				pc |= pe->forcecontentsmask;
+		}
+	}
+
+	return pc;
+}
+
+int PM_ExtraBoxContents (vec3_t p)
+{
+	int			num;
+
+	int pc = 0;
+	physent_t *pe;
+	model_t *pm;
+	trace_t tr;
+
+	for (num = 1; num < pmove.numphysent; num++)
+	{
+		pe = &pmove.physents[num];
+		if (!pe->nonsolid)
+			continue;
+		pm = pe->model;
+		if (pm)
+		{
+			if (pe->forcecontentsmask)
+			{
+				PM_TransformedHullCheck(pm, p, p, &tr, pe->origin, pe->angles);
+				if (tr.startsolid)
+					pc |= pe->forcecontentsmask;
+			}
+		}
+		else if (pe->forcecontentsmask)
+		{
+			if (p[0]+player_maxs[0] >= pe->mins[0] && p[0]+player_mins[0] <= pe->maxs[0] && 
+				p[1]+player_maxs[1] >= pe->mins[1] && p[1]+player_mins[1] <= pe->maxs[1] &&
+				p[2]+player_maxs[2] >= pe->mins[2] && p[2]+player_mins[2] <= pe->maxs[2])
+				pc |= pe->forcecontentsmask;
+		}
 	}
 
 	return pc;
@@ -185,7 +240,7 @@ qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, trac
 	}
 	// sweep the box through the model
 
-	if (model)
+	if (model && model->funcs.Trace)
 		result = model->funcs.Trace(model, 0, 0, start_l, end_l, player_mins, player_maxs, trace);
 	else
 	{
@@ -241,6 +296,9 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 	for (i=0 ; i< pmove.numphysent ; i++)
 	{
 		pe = &pmove.physents[i];
+
+		if (pe->nonsolid)
+			continue;
 
 	// get the clipping hull
 		if (pe->model)
@@ -298,6 +356,9 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 	for (i=0 ; i< pmove.numphysent ; i++)
 	{
 		pe = &pmove.physents[i];
+
+		if (pe->nonsolid)
+			continue;
 
 		if (!pe->model)
 		{

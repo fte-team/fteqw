@@ -41,6 +41,7 @@ typedef struct
 	unsigned short	info;		// for client or server to identify
 	qbyte		nonsolid;
 	qbyte		notouch;
+	unsigned int forcecontentsmask;
 } physent_t;
 
 typedef struct
@@ -51,6 +52,7 @@ typedef struct
 	vec3_t		origin;
 	vec3_t		angles;
 	vec3_t		velocity;
+	vec3_t		basevelocity;
 	qboolean		jump_held;
 	int			jump_msec;	// msec since last jump
 	float		waterjumptime;

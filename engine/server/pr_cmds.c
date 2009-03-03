@@ -116,26 +116,30 @@ typedef struct {
 builtin_t pr_builtin[1024];
 extern BuiltinList_t BuiltinList[];
 
+struct {
+	func_t ChatMessage;
+
+	func_t getplayerstat[MAX_CL_STATS];
+	func_t getplayerstati[MAX_CL_STATS];
+
+	func_t UserCmd, ParseClientCommand, ParseConnectionlessPacket;
+	func_t ConsoleCmd;
+	func_t UserInfo_Changed;
+	func_t localinfoChanged;
+
+	func_t PausedTic;
+	func_t ShouldPause;
+
+	func_t ClassChangeWeapon;
+} gfuncs;
+func_t getplayerstat[MAX_CL_STATS];
+func_t getplayerstati[MAX_CL_STATS];
 func_t SpectatorConnect;
 func_t SpectatorThink;
 func_t SpectatorDisconnect;
 
-func_t ChatMessage;
-
-func_t getplayerstat[MAX_CL_STATS];
-func_t getplayerstati[MAX_CL_STATS];
-
-func_t mod_UserCmd, SV_ParseClientCommand, SV_ParseConnectionlessPacket;
-func_t mod_ConsoleCmd;
-func_t UserInfo_Changed;
-func_t localinfoChanged;
-
-func_t pr_SV_PausedTic;
-func_t pr_SV_ShouldPause;
-
 func_t SV_PlayerPhysicsQC;	//DP's DP_SV_PLAYERPHYSICS extension
 func_t EndFrameQC;
-func_t pr_ClassChangeWeapon;
 
 qboolean pr_items2;
 
@@ -459,6 +463,14 @@ void PR_Deinit(void)
 		Z_FreeTags(Z_QC_TAG);
 	}
 	svprogfuncs=NULL;
+
+	//clear out function pointers (so changing game modes cannot lead to confusions)
+	memset(&gfuncs, 0, sizeof(gfuncs));
+	memset(&getplayerstat, 0, sizeof(getplayerstat));
+	memset(&getplayerstati, 0, sizeof(getplayerstati));
+	SpectatorConnect = 0;
+	SpectatorThink = 0;
+	SpectatorDisconnect = 0;
 }
 
 
@@ -560,18 +572,18 @@ void PR_LoadGlabalStruct(void)
 		getplayerstati[i] = PR_FindFunction(svprogfuncs, va("SetPlayerStat%ii", i), PR_ANY);
 	}
 
-	SV_ParseClientCommand = PR_FindFunction(svprogfuncs, "SV_ParseClientCommand", PR_ANY);
-	SV_ParseConnectionlessPacket = PR_FindFunction(svprogfuncs, "SV_ParseConnectionlessPacket", PR_ANY);
+	gfuncs.ParseClientCommand = PR_FindFunction(svprogfuncs, "SV_ParseClientCommand", PR_ANY);
+	gfuncs.ParseConnectionlessPacket = PR_FindFunction(svprogfuncs, "SV_ParseConnectionlessPacket", PR_ANY);
 
-	UserInfo_Changed = PR_FindFunction(svprogfuncs, "UserInfo_Changed", PR_ANY);
-	localinfoChanged = PR_FindFunction(svprogfuncs, "localinfoChanged", PR_ANY);
-	ChatMessage = PR_FindFunction(svprogfuncs, "ChatMessage", PR_ANY);
-	mod_UserCmd = PR_FindFunction(svprogfuncs, "UserCmd", PR_ANY);
-	mod_ConsoleCmd = PR_FindFunction(svprogfuncs, "ConsoleCmd", PR_ANY);
+	gfuncs.UserInfo_Changed = PR_FindFunction(svprogfuncs, "UserInfo_Changed", PR_ANY);
+	gfuncs.localinfoChanged = PR_FindFunction(svprogfuncs, "localinfoChanged", PR_ANY);
+	gfuncs.ChatMessage = PR_FindFunction(svprogfuncs, "ChatMessage", PR_ANY);
+	gfuncs.UserCmd = PR_FindFunction(svprogfuncs, "UserCmd", PR_ANY);
+	gfuncs.ConsoleCmd = PR_FindFunction(svprogfuncs, "ConsoleCmd", PR_ANY);
 
-	pr_SV_PausedTic = PR_FindFunction(svprogfuncs, "SV_PausedTic", PR_ANY);
-	pr_SV_ShouldPause = PR_FindFunction(svprogfuncs, "SV_ShouldPause", PR_ANY);
-	pr_ClassChangeWeapon = PR_FindFunction(svprogfuncs, "ClassChangeWeapon", PR_ANY);
+	gfuncs.PausedTic = PR_FindFunction(svprogfuncs, "SV_PausedTic", PR_ANY);
+	gfuncs.ShouldPause = PR_FindFunction(svprogfuncs, "SV_ShouldPause", PR_ANY);
+	gfuncs.ClassChangeWeapon = PR_FindFunction(svprogfuncs, "ClassChangeWeapon", PR_ANY);
 
 	if (pr_no_playerphysics.value)
 		SV_PlayerPhysicsQC = 0;
@@ -859,7 +871,7 @@ void PR_ApplyCompilation_f (void)
 
 	PR_LoadGlabalStruct();
 
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 
 
 	SV_ClearWorld ();
@@ -1368,14 +1380,16 @@ void Q_InitProgs(void)
 
 qboolean PR_QCChat(char *text, int say_type)
 {
-	globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+	globalvars_t *pr_globals;
 
-	if (!ChatMessage || pr_imitatemvdsv.value >= 0)
+	if (!gfuncs.ChatMessage || pr_imitatemvdsv.value >= 0)
 		return false;
+
+	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
 	G_INT(OFS_PARM0) = (int)PR_SetString(svprogfuncs, text);
 	G_FLOAT(OFS_PARM1) = say_type;
-	PR_ExecuteProgram (svprogfuncs, ChatMessage);
+	PR_ExecuteProgram (svprogfuncs, gfuncs.ChatMessage);
 
 	if (G_FLOAT(OFS_RETURN))
 		return true;
@@ -1386,13 +1400,13 @@ qboolean PR_GameCodePausedTic(float pausedtime)
 {	//notications to the gamecode that the server is paused.
 	globalvars_t *pr_globals;
 
-	if (!svprogfuncs || !pr_SV_ShouldPause)
+	if (!svprogfuncs || !gfuncs.ShouldPause)
 		return false;
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
 	G_FLOAT(OFS_PARM0) = pausedtime;
-	PR_ExecuteProgram (svprogfuncs, pr_SV_PausedTic);
+	PR_ExecuteProgram (svprogfuncs, gfuncs.PausedTic);
 
 	if (G_FLOAT(OFS_RETURN))
 		return true;
@@ -1402,7 +1416,7 @@ qboolean PR_ShouldTogglePause(client_t *initiator, qboolean newpaused)
 {
 	globalvars_t *pr_globals;
 
-	if (!svprogfuncs || !pr_SV_ShouldPause)
+	if (!svprogfuncs || !gfuncs.ShouldPause)
 		return true;
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
@@ -1412,7 +1426,7 @@ qboolean PR_ShouldTogglePause(client_t *initiator, qboolean newpaused)
 	else
 		pr_global_struct->self = 0;
 	G_FLOAT(OFS_PARM0) = newpaused;
-	PR_ExecuteProgram (svprogfuncs, pr_SV_ShouldPause);
+	PR_ExecuteProgram (svprogfuncs, gfuncs.ShouldPause);
 
 	return G_FLOAT(OFS_RETURN);
 }
@@ -1424,13 +1438,13 @@ qboolean PR_GameCodePacket(char *s)
 	client_t *cl;
 	char adr[MAX_ADR_SIZE];
 
-	if (!SV_ParseConnectionlessPacket)
+	if (!gfuncs.ParseConnectionlessPacket)
 		return false;
 	if (!svprogfuncs)
 		return false;
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 
 	// check for packets from connected clients
 	pr_global_struct->self = 0;
@@ -1449,7 +1463,7 @@ qboolean PR_GameCodePacket(char *s)
 	G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, NET_AdrToString (adr, sizeof(adr), net_from));
 
 	G_INT(OFS_PARM1) = PR_TempString(svprogfuncs, s);
-	PR_ExecuteProgram (svprogfuncs, SV_ParseConnectionlessPacket);
+	PR_ExecuteProgram (svprogfuncs, gfuncs.ParseConnectionlessPacket);
 	return G_FLOAT(OFS_RETURN);
 }
 
@@ -1464,15 +1478,15 @@ qboolean PR_KrimzonParseCommand(char *s)
 	if (!svprogfuncs)
 		return false;
 
-	if (SV_ParseClientCommand)
+	if (gfuncs.ParseClientCommand)
 	{	//the QC is expected to send it back to use via a builtin.
 
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
-		PR_ExecuteProgram (svprogfuncs, SV_ParseClientCommand);
+		PR_ExecuteProgram (svprogfuncs, gfuncs.ParseClientCommand);
 		return true;
 	}
 
@@ -1493,29 +1507,29 @@ qboolean PR_UserCmd(char *s)
 	if (!svprogfuncs)
 		return false;
 
-	if (SV_ParseClientCommand)
+	if (gfuncs.ParseClientCommand)
 	{	//the QC is expected to send it back to use via a builtin.
 
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
-		PR_ExecuteProgram (svprogfuncs, SV_ParseClientCommand);
+		PR_ExecuteProgram (svprogfuncs, gfuncs.ParseClientCommand);
 		return true;
 	}
 
 #ifdef VM_Q1
 	if (svs.gametype == GT_Q1QVM)
 	{
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		Q1QVM_ClientCommand();
 		return true;	//qvm can print something if it wants
 	}
 #endif
 
-	if (mod_UserCmd && pr_imitatemvdsv.value >= 0)
+	if (gfuncs.UserCmd && pr_imitatemvdsv.value >= 0)
 	{	//we didn't recognise it. see if the mod does.
 
 		//ktpro bug warning:
@@ -1529,11 +1543,11 @@ qboolean PR_UserCmd(char *s)
 		}
 
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
-		PR_ExecuteProgram (svprogfuncs, mod_UserCmd);
+		PR_ExecuteProgram (svprogfuncs, gfuncs.UserCmd);
 		return !!G_FLOAT(OFS_RETURN);
 	}
 
@@ -1562,15 +1576,15 @@ qboolean PR_ConsoleCmd(void)
 	if (svprogfuncs)
 	{
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		if (mod_ConsoleCmd && pr_imitatemvdsv.value >= 0)
+		if (gfuncs.ConsoleCmd && pr_imitatemvdsv.value >= 0)
 		{
 			if (sv_redirected != RD_OBLIVION)
 			{
-				pr_global_struct->time = sv.time;
+				pr_global_struct->time = sv.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
 			}
 
-			PR_ExecuteProgram (svprogfuncs, mod_ConsoleCmd);
+			PR_ExecuteProgram (svprogfuncs, gfuncs.ConsoleCmd);
 			return (int) G_FLOAT(OFS_RETURN);
 		}
 	}
@@ -1580,37 +1594,37 @@ qboolean PR_ConsoleCmd(void)
 
 void PR_ClientUserInfoChanged(char *name, char *oldivalue, char *newvalue)
 {
-	if (UserInfo_Changed && pr_imitatemvdsv.value >= 0)
+	if (gfuncs.UserInfo_Changed && pr_imitatemvdsv.value >= 0)
 	{
 		globalvars_t *pr_globals;
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, name);
 		G_INT(OFS_PARM1) = PR_TempString(svprogfuncs, oldivalue);
 		G_INT(OFS_PARM2) = PR_TempString(svprogfuncs, newvalue);
 
-		PR_ExecuteProgram (svprogfuncs, UserInfo_Changed);
+		PR_ExecuteProgram (svprogfuncs, gfuncs.UserInfo_Changed);
 	}
 }
 
 void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue)
 {
-	if (localinfoChanged && sv.state && pr_imitatemvdsv.value >= 0)
+	if (gfuncs.localinfoChanged && sv.state && pr_imitatemvdsv.value >= 0)
 	{
 		globalvars_t *pr_globals;
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
 
 		G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, name);
 		G_INT(OFS_PARM1) = PR_TempString(svprogfuncs, oldivalue);
 		G_INT(OFS_PARM2) = PR_TempString(svprogfuncs, newvalue);
 
-		PR_ExecuteProgram (svprogfuncs, localinfoChanged);
+		PR_ExecuteProgram (svprogfuncs, gfuncs.localinfoChanged);
 	}
 }
 
@@ -1944,7 +1958,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 					SV_LinkEdict (e, false);
 				}
 			}
-			//qw was fixed - it never sets the size of an alias model.
+			//qw was fixed - it never sets the size of an alias model, mostly because it doesn't know it.
 		}
 	}
 }
@@ -2496,7 +2510,7 @@ void PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (volume > 255)
 		volume = 255;
 
-	SV_StartSound (entity, channel, sample, volume, attenuation);
+	SVQ1_StartSound (entity, channel, sample, volume, attenuation);
 }
 
 //an evil one from telejano.
@@ -3648,8 +3662,8 @@ void PF_aim (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorCopy (P_VEC(v_forward), dir);
 	VectorMA (start, 2048, dir, end);
 	tr = SV_Move (start, vec3_origin, vec3_origin, end, false, ent);
-	if (tr.ent && tr.ent->v->takedamage == DAMAGE_AIM
-	&& (!teamplay.value || ent->v->team <=0 || ent->v->team != tr.ent->v->team) )
+	if (tr.ent && ((edict_t *)tr.ent)->v->takedamage == DAMAGE_AIM
+	&& (!teamplay.value || ent->v->team <=0 || ent->v->team != ((edict_t *)tr.ent)->v->team) )
 	{
 		VectorCopy (P_VEC(v_forward), G_VECTOR(OFS_RETURN));
 		return;
@@ -6696,10 +6710,10 @@ void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
 		if (!fromqc)
 		{
 			cl->sendinfo = true;
-			if (cl->state == cs_spawned && pr_ClassChangeWeapon)
+			if (cl->state == cs_spawned && gfuncs.ClassChangeWeapon)
 			{
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
-				PR_ExecuteProgram (svprogfuncs, pr_ClassChangeWeapon);
+				PR_ExecuteProgram (svprogfuncs, gfuncs.ClassChangeWeapon);
 			}
 		}
 	}
@@ -8542,14 +8556,14 @@ void PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 				if (surf->flags & SURF_PLANEBACK)
 				{
-					VectorSubtract(v1->position, v2->position, edgedir)
+					VectorSubtract(v1->position, v2->position, edgedir);
 					CrossProduct(edgedir, surf->plane->normal, edgenormal);
 					if (DotProduct(edgenormal, v1->position) > DotProduct(edgenormal, point))
 						break;
 				}
 				else
 				{
-					VectorSubtract(v1->position, v2->position, edgedir)
+					VectorSubtract(v1->position, v2->position, edgedir);
 					CrossProduct(edgedir, surf->plane->normal, edgenormal);
 					if (DotProduct(edgenormal, v1->position) < DotProduct(edgenormal, point))
 						break;

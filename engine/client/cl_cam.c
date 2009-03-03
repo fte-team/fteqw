@@ -180,6 +180,7 @@ trace_t Cam_DoTrace(vec3_t vec1, vec3_t vec2)
 	memset(&pmove, 0, sizeof(pmove));
 
 	pmove.numphysent = 1;
+	memset(&pmove.physents[0], 0, sizeof(physent_t));
 	VectorClear (pmove.physents[0].origin);
 	pmove.physents[0].model = cl.worldmodel;
 #endif

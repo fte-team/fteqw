@@ -915,16 +915,23 @@ void D3D7_DrawWorld(void)
 #ifdef Q3BSPS
 			if (ent.model->fromgame == fg_quake3)
 			{
+				R_MarkLeaves_Q3 ();
 				D3D7_LeafWorldNode ();
 			}
 			else
 #endif
+			{
+				R_MarkLeaves_Q2 ();
 				D3D7_RecursiveQ2WorldNode (cl.worldmodel->nodes);
+			}
 		}
 		else
 #endif
 */
+		{
+			R_MarkLeaves_Q1 ();
 			D3D7_RecursiveWorldNode (cl.worldmodel->nodes);
+		}
 
 		RSpeedEnd(RSPEED_WORLDNODE);
 		TRACE(("dbg: calling PPL_DrawWorld\n"));
@@ -947,7 +954,6 @@ void D3D7_R_RenderScene(void)
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
-		R_MarkLeaves ();	// done here so we know if we're in water
 		D3D7_DrawWorld ();		// adds static entities to the list
 	}
 

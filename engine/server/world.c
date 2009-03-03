@@ -273,7 +273,7 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, touch);
 		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 #ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 			Q1QVM_Touch();
@@ -299,7 +299,7 @@ void SV_TouchLinks ( edict_t *ent, areanode_t *node )
 }
 
 #ifdef Q2BSPS
-void Q2BSP_FindTouchedLeafs(model_t *model, edict_t *ent)
+void Q2BSP_FindTouchedLeafs(model_t *model, edict_t *ent, float *mins, float *maxs)
 {
 #define MAX_TOTAL_ENT_LEAFS		128
 	int			leafs[MAX_TOTAL_ENT_LEAFS];
@@ -315,7 +315,7 @@ void Q2BSP_FindTouchedLeafs(model_t *model, edict_t *ent)
 	ent->areanum2 = 0;
 
 	//get all leafs, including solids
-	num_leafs = CM_BoxLeafnums (model, ent->v->absmin, ent->v->absmax,
+	num_leafs = CM_BoxLeafnums (model, mins, maxs,
 		leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
 
 	// set areas
@@ -462,8 +462,10 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 	{
 		ent->v->absmin[0] -= 15;
 		ent->v->absmin[1] -= 15;
+		ent->v->absmin[2] -= 1;
 		ent->v->absmax[0] += 15;
 		ent->v->absmax[1] += 15;
+		ent->v->absmax[2] += 1;
 	}
 	else
 	{	// because movement is clipped an epsilon away from an actual edge,
@@ -477,7 +479,7 @@ void SV_LinkEdict (edict_t *ent, qboolean touch_triggers)
 	}
 	
 // link to PVS leafs
-	sv.worldmodel->funcs.FindTouchedLeafs_Q1(sv.worldmodel, ent);
+	sv.worldmodel->funcs.FindTouchedLeafs_Q1(sv.worldmodel, ent, ent->v->absmin, ent->v->absmax);
 /*
 #ifdef Q2BSPS
 	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)

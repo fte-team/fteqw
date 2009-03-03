@@ -489,6 +489,11 @@ void SV_DropClient (client_t *drop)
 		SVQ3_DropClient(drop);
 #endif
 		break;
+	case GT_HALFLIFE:
+#ifdef HLSERVER
+		SVHL_DropClient(drop);
+#endif
+		break;
 	}
 
 	if (drop->spectator)
@@ -1935,9 +1940,26 @@ client_t *SVC_DirectConnect(void)
 		}
 	}
 
+	//set up the gamecode for this player, optionally drop them here
 	edictnum = (newcl-svs.clients)+1;
 	switch (svs.gametype)
 	{
+#ifdef HLSERVER
+		//fallthrough
+	case GT_HALFLIFE:
+		{
+			char reject[128];
+			if (!SVHL_ClientConnect(newcl, adr, reject))
+			{
+				SV_RejectMessage(protocol, "%s", reject);
+				return NULL;
+			}
+		}
+
+		break;
+#endif
+
+
 #ifdef VM_Q1
 	case GT_Q1QVM:
 #endif
@@ -1948,37 +1970,6 @@ client_t *SVC_DirectConnect(void)
 #endif
 		temp.edict = ent;
 
-
-
-
-
-
-		// build a new connection
-		// accept the new client
-		// this is the only place a client_t is ever initialized, for q1 mods at least
-#ifdef Q3SERVER
-		if (ISQ3CLIENT(newcl))
-		{
-			Huff_PreferedCompressionCRC();
-			temp.frameunion.q3frames = BZ_Malloc(Q3UPDATE_BACKUP*sizeof(*temp.frameunion.q3frames));
-		}
-		else
-#endif
-		{
-			temp.frameunion.frames = newcl->frameunion.frames;	//don't touch these.
-			if (temp.frameunion.frames)
-			{
-				Con_Printf("Debug: frames were set?\n");
-				Z_Free(temp.frameunion.frames);
-			}
-
-			temp.frameunion.frames = Z_Malloc((sizeof(client_frame_t)+sizeof(entity_state_t)*maxpacketentities)*UPDATE_BACKUP);
-			for (i = 0; i < UPDATE_BACKUP; i++)
-			{
-				temp.frameunion.frames[i].entities.max_entities = maxpacketentities;
-				temp.frameunion.frames[i].entities.entities = (entity_state_t*)(temp.frameunion.frames+UPDATE_BACKUP) + i*temp.frameunion.frames[i].entities.max_entities;
-			}
-		}
 		break;
 
 #ifdef Q2SERVER
@@ -1992,6 +1983,25 @@ client_t *SVC_DirectConnect(void)
 
 		ge->ClientUserinfoChanged(q2ent, temp.userinfo);
 
+
+		break;
+#endif
+	default:
+		Sys_Error("Bad svs.gametype in SVC_DirectConnect");
+		break;
+	}
+
+	//initialise the client's frames, based on that client's protocol
+	switch(newcl->protocol)
+	{
+	case CP_QUAKE3:
+		Huff_PreferedCompressionCRC();
+		if (temp.frameunion.q3frames)
+			Z_Free(temp.frameunion.q3frames);
+		temp.frameunion.q3frames = Z_Malloc(Q3UPDATE_BACKUP*sizeof(*temp.frameunion.q3frames));
+		break;
+
+	case CP_QUAKE2:
 		// build a new connection
 		// accept the new client
 		// this is the only place a client_t is ever initialized
@@ -2001,9 +2011,21 @@ client_t *SVC_DirectConnect(void)
 
 		temp.frameunion.q2frames = Z_Malloc(sizeof(q2client_frame_t)*Q2UPDATE_BACKUP);
 		break;
-#endif
+
 	default:
-		Sys_Error("Bad svs.gametype in SVC_DirectConnect");
+		temp.frameunion.frames = newcl->frameunion.frames;	//don't touch these.
+		if (temp.frameunion.frames)
+		{
+			Con_Printf("Debug: frames were set?\n");
+			Z_Free(temp.frameunion.frames);
+		}
+
+		temp.frameunion.frames = Z_Malloc((sizeof(client_frame_t)+sizeof(entity_state_t)*maxpacketentities)*UPDATE_BACKUP);
+		for (i = 0; i < UPDATE_BACKUP; i++)
+		{
+			temp.frameunion.frames[i].entities.max_entities = maxpacketentities;
+			temp.frameunion.frames[i].entities.entities = (entity_state_t*)(temp.frameunion.frames+UPDATE_BACKUP) + i*temp.frameunion.frames[i].entities.max_entities;
+		}
 		break;
 	}
 
@@ -3063,7 +3085,7 @@ void SV_Impulse_f (void)
 	if (!svprogfuncs)
 		return;
 
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 
 	svs.clients[i].state = cs_connected;
 
@@ -3074,7 +3096,7 @@ void SV_Impulse_f (void)
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 
@@ -3708,7 +3730,7 @@ void Master_Heartbeat (void)
 					}
 
 					if (sv_reportheartbeats.value)
-						Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr));
+						Con_Printf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr), sv_masterlist[i].cv.string);
 
 					NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
 				}
@@ -3717,7 +3739,7 @@ void Master_Heartbeat (void)
 				if (sv_listen_dp.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
 					if (sv_reportheartbeats.value)
-						Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr));
+						Con_Printf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr), sv_masterlist[i].cv.string);
 
 					{
 						char *str = "\377\377\377\377heartbeat DarkPlaces\x0A";

@@ -151,7 +151,8 @@ int fs_hash_files;
 
 
 
-int COM_FileOpenRead (char *path, FILE **hndl);
+static int COM_FileOpenRead (char *path, FILE **hndl);
+qboolean Sys_PathProtection(char *pattern);
 
 
 
@@ -273,6 +274,9 @@ vfsfile_t *VFSOS_Open(char *osname, char *mode)
 vfsfile_t *FSOS_OpenVFS(void *handle, flocation_t *loc, char *mode)
 {
 	char diskname[MAX_OSPATH];
+
+	if (Sys_PathProtection(loc->rawname))
+		return NULL;
 
 	snprintf(diskname, sizeof(diskname), "%s/%s", (char*)handle, loc->rawname);
 
@@ -455,7 +459,7 @@ qboolean FSPAK_FLocate(void *handle, flocation_t *loc, char *filename, void *has
 		if (loc)
 		{
 			loc->index = pf - pak->files;
-			snprintf(loc->rawname, sizeof(loc->rawname), "%s/%s", pak->descname, filename);
+			snprintf(loc->rawname, sizeof(loc->rawname), "%s", pak->descname);
 			loc->offset = pf->filepos;
 			loc->len = pf->filelen;
 		}
@@ -1392,7 +1396,8 @@ int COM_filelength (FILE *f)
 
 	return end;
 }
-int COM_FileOpenRead (char *path, FILE **hndl)
+/*
+static int COM_FileOpenRead (char *path, FILE **hndl)
 {
 	FILE	*f;
 
@@ -1406,6 +1411,7 @@ int COM_FileOpenRead (char *path, FILE **hndl)
 
 	return COM_filelength(f);
 }
+*/
 
 int COM_FileSize(char *path)
 {
@@ -1575,7 +1581,8 @@ Copies a file over from the net to the local cache, creating any directories
 needed.  This is for the convenience of developers using ISDN from home.
 ===========
 */
-void COM_CopyFile (char *netpath, char *cachepath)
+/*
+static void COM_CopyFile (char *netpath, char *cachepath)
 {
 	FILE	*in, *out;
 	int		remaining, count;
@@ -1601,6 +1608,7 @@ void COM_CopyFile (char *netpath, char *cachepath)
 	fclose (in);
 	fclose (out);
 }
+//*/
 
 int fs_hash_dups;
 int fs_hash_files;
@@ -1680,6 +1688,12 @@ int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *lo
 
 	void *pf;
 //Con_Printf("Finding %s: ", filename);
+
+	if (Sys_PathProtection(filename))
+	{
+		pf = NULL;
+		goto fail;
+	}
 
 	if (com_fs_cache.value)
 	{
@@ -1896,22 +1910,39 @@ int COM_FOpenWriteFile(char *filename, FILE **file)
 //true if protection kicks in
 qboolean Sys_PathProtection(char *pattern)
 {
+	char *s;
 	if (strchr(pattern, '\\'))
 	{
-		char *s;
 		Con_Printf("Warning: \\ characters in filename %s\n", pattern);
 		while((s = strchr(pattern, '\\')))
 			*s = '/';
+	}
+
+	if (strstr(pattern, "//"))
+	{
+		//amiga uses // as equivelent to /../
+		Con_Printf("Warning: // characters in filename %s\n", pattern);
+		while (s=strstr(pattern, "//"))
+		{
+			s++;
+			while (*s)
+			{
+				*s = *(s+1);
+				s++;
+			}
+		}
 	}
 
 	if (strstr(pattern, ".."))
 		Con_Printf("Error: '..' characters in filename %s\n", pattern);
 	else if (pattern[0] == '/')
 		Con_Printf("Error: absolute path in filename %s\n", pattern);
-	else if (strstr(pattern, ":")) //win32 drive seperator (or mac path seperator, but / works there and they're used to it)
+	else if (strstr(pattern, ":")) //win32 drive seperator (or mac path seperator, but / works there and they're used to it) (or amiga device separator)
 		Con_Printf("Error: absolute path in filename %s\n", pattern);
 	else
+	{
 		return false;
+	}
 	return true;
 }
 
@@ -2475,6 +2506,18 @@ qbyte *COM_LoadStackFile (char *path, void *buffer, int bufsize)
 
 
 
+int FS_LoadFile(char *name, void **file)
+{
+	*file = COM_LoadMallocFile(name);
+	return com_filesize;
+}
+void FS_FreeFile(void *file)
+{
+	BZ_Free(file);
+}
+
+
+
 void COM_EnumerateFiles (char *match, int (*func)(char *, int, void *), void *parm)
 {
 	searchpath_t    *search;
@@ -2924,6 +2967,8 @@ gamemode_info_t gamemode_info[] = {
 
 	{"FTE-JK2",				"jk2",			"-jk2",			"base/assets0.pk3",	NULL,	"base",							"fte"},
 
+	{"FTE-HalfLife",		"hl",			"-hl",			"valve/liblist.gam",NULL,	"valve",						"fte"},
+
 	{NULL}
 };
 
@@ -3117,6 +3162,125 @@ void FS_ReloadPackFiles_f(void)
 		FS_ReloadPackFilesFlags((unsigned int)-1);
 }
 
+#ifdef _WIN32
+#include <windows.h>
+qboolean Sys_FindGameData(char *gamename, char *basepath, int basepathlen)
+{
+	if (!strcmp(gamename, "q1"))
+	{
+		//try and find it via steam
+		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam\InstallPath
+		//append SteamApps\common\quake
+		//use it if we find winquake.exe there
+		FILE *f;
+		DWORD resultlen;
+		HKEY key = NULL;
+		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		{
+			resultlen = basepathlen;
+			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
+			RegCloseKey(key);
+			Q_strncatz(basepath, "/SteamApps/common/quake", basepathlen);
+			if (f = fopen(va("%s/Winquake.exe", basepath), "rb"))
+			{
+				fclose(f);
+				return true;
+			}
+		}
+		//well, okay, so they don't have quake installed from steam.
+
+		//quite a lot of people have it in c:\quake, as that's the default install location from the quake cd.
+		if (f = fopen("c:/quake/quake.exe", "rb"))
+		{
+			//HAHAHA! Found it!
+			fclose(f);
+			Q_strncpyz(basepath, "c:/quake", basepathlen);
+			return true;
+		}
+	}
+
+	if (!strcmp(gamename, "q2"))
+	{
+		//try and find it via steam
+		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam\InstallPath
+		//append SteamApps\common\quake 2
+		//use it if we find quake2.exe there
+		FILE *f;
+		DWORD resultlen;
+		HKEY key = NULL;
+		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		{
+			resultlen = basepathlen;
+			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
+			RegCloseKey(key);
+			Q_strncatz(basepath, "/SteamApps/common/quake 2", basepathlen);
+			if (f = fopen(va("%s/quake2.exe", basepath), "rb"))
+			{
+				fclose(f);
+				return true;
+			}
+		}
+		//well, okay, so they don't have quake2 installed from steam.
+
+		//look for HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Quake2_exe\Path
+		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Quake2_exe", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		{
+			resultlen = basepathlen;
+			RegQueryValueEx(key, "Path", NULL, NULL, basepath, &resultlen);
+			RegCloseKey(key);
+			if (f = fopen(va("%s/quake2.exe", basepath), "rb"))
+			{
+				fclose(f);
+				return true;
+			}
+		}
+	}
+
+	if (!strcmp(gamename, "q3"))
+	{
+		DWORD resultlen;
+		HKEY key = NULL;
+		//reads HKEY_LOCAL_MACHINE\SOFTWARE\id\Quake III Arena\InstallPath
+		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Quake III Arena", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		{
+			resultlen = basepathlen;
+			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
+			RegCloseKey(key);
+			return true;
+		}
+	}
+/*
+	if (!strcmp(gamename, "d3"))
+	{
+		DWORD resultlen;
+		HKEY key = NULL;
+		//reads HKEY_LOCAL_MACHINE\SOFTWARE\id\Doom 3\InstallPath
+		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Doom 3", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		{
+			resultlen = basepathlen;
+			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
+			RegCloseKey(key);
+			return true;
+		}
+	}
+*/
+
+	if (!strcmp(gamename, "h3"))
+	{
+		//try and find it via steam
+		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam\InstallPath
+		//append SteamApps\common\hexen 2
+	}
+
+	return false;
+}
+#else
+qboolean Sys_FindGameData(char *gamename, char *basepath, int basepathlen)
+{
+	return false;
+}
+#endif
+
 /*
 ================
 COM_InitFilesystem
@@ -3181,9 +3345,40 @@ void COM_InitFilesystem (void)
 	for (i = 0; gamemode_info[i].gamename; i++)
 	{
 		if (COM_CheckParm(gamemode_info[i].argname))
+		{
 			gamenum = i;
+
+			if (gamemode_info[gamenum].auniquefile)
+			{
+				f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile), "rb");
+				if (f)
+				{
+					//we found it, its all okay
+					fclose(f);
+					break;
+				}
+#ifdef _WIN32
+				if (Sys_FindGameData(gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
+				{
+					if (com_quakedir[strlen(com_quakedir)-1] == '\\')
+						com_quakedir[strlen(com_quakedir)-1] = '/';
+					else if (com_quakedir[strlen(com_quakedir)-1] != '/')
+					{
+						com_quakedir[strlen(com_quakedir)+1] = '\0';
+						com_quakedir[strlen(com_quakedir)] = '/';
+					}
+				}
+				else
+#endif
+				{
+					Con_Printf("Couldn't find the gamedata for this game mode!\n");
+				}
+			}
+			break;
+		}
 	}
 
+	//still failed? find quake and use that one by default
 	if (gamenum<0)
 	{
 		for (i = 0; gamemode_info[i].gamename; i++)
@@ -3192,6 +3387,7 @@ void COM_InitFilesystem (void)
 				gamenum = i;
 		}
 	}
+
 	Cvar_Set(&com_gamename, gamemode_info[gamenum].gamename);
 
 	if (gamemode_info[gamenum].customexec)

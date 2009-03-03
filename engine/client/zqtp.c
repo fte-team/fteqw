@@ -2101,6 +2101,9 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 		{
 			*offset = (name - s) + 2;
 			flags = TPM_FAKED;
+
+			if (msglen > 4 && *s == '(' && s[-1] == ')')
+				flags |= TPM_TEAM;
 		}
 	}
 
@@ -3022,8 +3025,9 @@ void TP_UpdateAutoStatus(void)
 	char newstatusbuf[sizeof(vars.autoteamstatus)];
 	char *newstatus;
 
-	if (vars.autoteamstatus_time < realtime)
+	if (vars.autoteamstatus_time > realtime)
 		return;
+	vars.autoteamstatus_time = realtime + 3;
 
 	newstatus = Cmd_ExpandString(tp_autostatus.string, newstatusbuf, sizeof(newstatusbuf), tp_autostatus.restriction, true, true);
 	newstatus = TP_ParseMacroString(newstatus);
@@ -3051,7 +3055,6 @@ void TP_UpdateAutoStatus(void)
 
 	//the tp code will reexpand it as part of the say team
 	Cbuf_AddText(va("say_team $\\%s\n", tp_autostatus.string), RESTRICT_LOCAL);
-	vars.autoteamstatus_time = realtime + 3;
 }
 
 void TP_StatChanged (int stat, int value)

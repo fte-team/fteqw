@@ -66,6 +66,63 @@ dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
 	return (dllhandle_t*)lib;
 }
 
+void *Sys_GetAddressForName(dllhandle_t *module, char *exportname)
+{
+	if (!module)
+		return NULL;
+	return GetProcAddress((HINSTANCE)module, exportname);
+}
+#ifdef HLSERVER
+char *Sys_GetNameForAddress(dllhandle_t *module, void *address)
+{
+	//windows doesn't provide a function to do this, so we have to do it ourselves.
+	//this isn't the fastest way...
+	//halflife needs this function.
+	char *base = (char *)module;
+
+	IMAGE_DATA_DIRECTORY *datadir;
+	IMAGE_EXPORT_DIRECTORY *block;
+	IMAGE_NT_HEADERS *ntheader;
+	IMAGE_DOS_HEADER *dosheader = (void*)base;
+
+	int i, j;
+	DWORD *funclist;
+	DWORD *namelist;
+	SHORT *ordilist;
+
+	if (!dosheader || dosheader->e_magic != IMAGE_DOS_SIGNATURE)
+		return NULL; //yeah, that wasn't an exe
+
+	ntheader = (void*)(base + dosheader->e_lfanew);
+	if (!dosheader->e_lfanew || ntheader->Signature != IMAGE_NT_SIGNATURE)
+		return NULL;	//urm, wait, a 16bit dos exe?
+
+
+	datadir = &ntheader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+	
+	block = (IMAGE_EXPORT_DIRECTORY *)(base + datadir->VirtualAddress);
+	funclist = (DWORD*)(base+block->AddressOfFunctions);
+	namelist = (DWORD*)(base+block->AddressOfNames);
+	ordilist = (SHORT*)(base+block->AddressOfNameOrdinals);
+	for (i = 0; i < block->NumberOfFunctions; i++)
+	{
+		if (base+funclist[i] == address)
+		{
+			for (j = 0; j < block->NumberOfNames; j++)
+			{
+				if (ordilist[j] == i)
+				{
+					return base+namelist[i];
+				}
+			}
+			//it has no name. huh?
+			return NULL;
+		}
+	}
+	return NULL;
+}
+#endif
+
 
 static HINSTANCE	game_library;
 

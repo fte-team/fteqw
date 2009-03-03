@@ -1319,8 +1319,6 @@ void MasterInfo_Begin(void)
 			Master_AddMaster("qwmaster.ocrana.de:27000",	MT_MASTERQW, "Ocrana2 master server.");
 			Master_AddMaster("213.221.174.165:27000",		MT_MASTERQW, "unknown1 master server.");
 			Master_AddMaster("195.74.0.8",					MT_MASTERQW, "unknown2 master server.");
-			Master_AddMaster("192.246.40.37",				MT_MASTERQW, "unknown3 master server.");
-			Master_AddMaster("192.246.40.37:27006",			MT_MASTERQW, "unknown4 master server.");
 			Master_AddMaster("204.182.161.2",				MT_MASTERQW, "unknown5 master server.");
 
 			Master_AddMaster("255.255.255.255:27500",		MT_BCASTQW, "Nearby QuakeWorld UDP servers.");

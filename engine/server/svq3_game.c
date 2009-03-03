@@ -2051,7 +2051,7 @@ void SVQ3_EmitPacketEntities(client_t *client, q3client_frame_t *from, q3client_
 		{
 			// this is a new entity, send it from the baseline
 			if (svs.gametype == GT_QUAKE3)
-			MSGQ3_WriteDeltaEntity( msg, &q3_baselines[newnum], newent, true );
+				MSGQ3_WriteDeltaEntity( msg, &q3_baselines[newnum], newent, true );
 			else
 			{
 				q3entityState_t q3base;
@@ -2128,7 +2128,7 @@ void SVQ3_WriteSnapshotToClient(client_t *client, sizebuf_t *msg)
 	
 	// write snapshot header
 	MSG_WriteBits(msg, svcq3_snapshot, 8);
-	MSG_WriteBits(msg, (int)(sv.time*1000), 32);
+	MSG_WriteBits(msg, snap->serverTime, 32);
 	MSG_WriteBits(msg, delta, 8); // what we are delta'ing from
 	
 	// write snapFlags
@@ -2362,8 +2362,8 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	clientNum = client - svs.clients;
 	if (svs.gametype == GT_QUAKE3)
 	{
-	clent = GENTITY_FOR_NUM( clientNum );
-	ps = PS_FOR_NUM( clientNum );
+		clent = GENTITY_FOR_NUM( clientNum );
+		ps = PS_FOR_NUM( clientNum );
 	}
 	else
 	{
@@ -2374,7 +2374,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	// this is the frame we are creating
 	snap = &client->frameunion.q3frames[client->netchan.outgoing_sequence & Q3UPDATE_MASK];
 
-	snap->serverTime = Sys_DoubleTime()*1000;//svs.levelTime; // save it for ping calc later
+	snap->serverTime = sv.time*1000;//svs.levelTime; // save it for ping calc later
 	snap->flags = 0;
 
 	if( client->state < cs_spawned )
@@ -2418,50 +2418,50 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	if (svs.gametype == GT_QUAKE3)
 	{
 	// check for SVF_PORTAL entities first
-	for( i=0 ; i<numq3entities ; i++ )
-	{
-		ent = GENTITY_FOR_NUM( i );
-
-		if( ent == clent )
-			continue;
-		if( !(ent->r.svFlags & SVF_PORTAL) )
-			continue;
-		if( !SVQ3_EntityIsVisible( ent ) )
-			continue;
-
-		// merge PVS if portal 
-		portalarea = CM_PointLeafnum(sv.worldmodel, ent->s.origin2);
-		portalarea = CM_LeafArea(sv.worldmodel, portalarea);
-
-//		CM_MergePVS ( ent->s.origin2 );
-
-//		CM_MergeAreaBits( snap->areabits, portalarea );
-	}
-
-	// add all visible entities
-	for( i=0 ; i<numq3entities ; i++ )
-	{
-		ent = GENTITY_FOR_NUM( i );
-
-			if (ent == clent)
-			continue;
-		if( !SVQ3_EntityIsVisible( ent ) )
-			continue;
-		
-			if (ent->s.number != i)
-			{
-			Con_DPrintf( "FIXING ENT->S.NUMBER!!!\n" );
-			ent->s.number = i;
-		}
-
-		entityStates[snap->num_entities++] = &ent->s;
-
-		if( snap->num_entities >= MAX_ENTITIES_IN_SNAPSHOT )
+		for( i=0 ; i<numq3entities ; i++ )
 		{
-			Con_DPrintf( "MAX_ENTITIES_IN_SNAPSHOT\n" );
-			break;
+			ent = GENTITY_FOR_NUM( i );
+
+			if( ent == clent )
+				continue;
+			if( !(ent->r.svFlags & SVF_PORTAL) )
+				continue;
+			if( !SVQ3_EntityIsVisible( ent ) )
+				continue;
+
+			// merge PVS if portal 
+			portalarea = CM_PointLeafnum(sv.worldmodel, ent->s.origin2);
+			portalarea = CM_LeafArea(sv.worldmodel, portalarea);
+
+	//		CM_MergePVS ( ent->s.origin2 );
+
+	//		CM_MergeAreaBits( snap->areabits, portalarea );
 		}
-	}
+
+		// add all visible entities
+		for( i=0 ; i<numq3entities ; i++ )
+		{
+			ent = GENTITY_FOR_NUM( i );
+
+				if (ent == clent)
+				continue;
+			if( !SVQ3_EntityIsVisible( ent ) )
+				continue;
+			
+				if (ent->s.number != i)
+				{
+				Con_DPrintf( "FIXING ENT->S.NUMBER!!!\n" );
+				ent->s.number = i;
+			}
+
+			entityStates[snap->num_entities++] = &ent->s;
+
+			if( snap->num_entities >= MAX_ENTITIES_IN_SNAPSHOT )
+			{
+				Con_DPrintf( "MAX_ENTITIES_IN_SNAPSHOT\n" );
+				break;
+			}
+		}
 	}
 	else
 	{	//our q1->q3 converter
@@ -2690,29 +2690,29 @@ void SVQ3_SendGameState(client_t *client)
 	switch (svs.gametype)
 	{
 	case GT_QUAKE3:
-	// write configstrings
-	for( i=0; i<MAX_CONFIGSTRINGS; i++ )
-	{
-		configString = svq3_configstrings[i];
-		if( !configString )
-			continue;
-
-		MSG_WriteBits( &msg, svcq3_configstring, 8);
-		MSG_WriteBits( &msg, i, 16 );
-		for (j = 0; configString[j]; j++)
-			MSG_WriteBits(&msg, configString[j], 8);
-		MSG_WriteBits(&msg, 0, 8);
-	}
-
-	// write baselines
-	for( i=0; i<MAX_GENTITIES; i++ )
-	{
-			if (!q3_baselines[i].number)
+		// write configstrings
+		for( i=0; i<MAX_CONFIGSTRINGS; i++ )
+		{
+			configString = svq3_configstrings[i];
+			if( !configString )
 				continue;
 
-		MSG_WriteBits(&msg, svcq3_baseline, 8);
-		MSGQ3_WriteDeltaEntity( &msg, NULL, &q3_baselines[i], true );
-	}
+			MSG_WriteBits( &msg, svcq3_configstring, 8);
+			MSG_WriteBits( &msg, i, 16 );
+			for (j = 0; configString[j]; j++)
+				MSG_WriteBits(&msg, configString[j], 8);
+			MSG_WriteBits(&msg, 0, 8);
+		}
+
+		// write baselines
+		for( i=0; i<MAX_GENTITIES; i++ )
+		{
+				if (!q3_baselines[i].number)
+					continue;
+
+			MSG_WriteBits(&msg, svcq3_baseline, 8);
+			MSGQ3_WriteDeltaEntity( &msg, NULL, &q3_baselines[i], true );
+		}
 		break;
 	case GT_PROGS:
 	case GT_Q1QVM:
@@ -2976,6 +2976,8 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 			SV_Begin_Core(client);
 		}
 		client->state = cs_spawned;
+
+		client->lastcmd.servertime = sv.time*1000;
 		break;
 	case cs_spawned:
 		// run G_ClientThink() on each usercmd
@@ -2991,7 +2993,7 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 
 			memcpy( &client->lastcmd, to, sizeof(client->lastcmd));
 			if (svs.gametype == GT_QUAKE3)
-			SVQ3_ClientThink(client);
+				SVQ3_ClientThink(client);
 			else
 			{
 				usercmd_t temp;
@@ -3007,7 +3009,7 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 				if (temp.buttons & 64)
 					temp.buttons |= 2;
 				SV_RunCmd(&temp, false);
-		}
+			}
 		}
 		if (svs.gametype != GT_QUAKE3)
 			SV_PostRunCmd();
@@ -3025,7 +3027,7 @@ void SVQ3_UpdateUserinfo_f(client_t *cl)
 	SV_ExtractFromUserinfo (cl);
 
 	if (svs.gametype == GT_QUAKE3)
-	VM_Call(q3gamevm, GAME_CLIENT_USERINFO_CHANGED, (int)(cl-svs.clients));
+		VM_Call(q3gamevm, GAME_CLIENT_USERINFO_CHANGED, (int)(cl-svs.clients));
 }
 
 void SVQ3_Drop_f(client_t *cl)

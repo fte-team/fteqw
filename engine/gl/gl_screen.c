@@ -40,15 +40,58 @@ extern qboolean        scr_drawloading;
 
 extern int scr_chatmode;
 extern cvar_t scr_chatmodecvar;
+extern cvar_t vid_conautoscale;
 
 
 // console size manipulation callbacks
 void GLVID_Console_Resize(void)
 {
 	extern cvar_t vid_conwidth, vid_conheight;
+	int cwidth, cheight;
+	float xratio;
+	float yratio=0;
+	cwidth = vid_conwidth.value;
+	cheight = vid_conheight.value;
 
-	vid.width = vid.conwidth = vid_conwidth.value;
-	vid.height = vid.conheight = vid_conheight.value;
+	xratio = vid_conautoscale.value;
+	if (xratio > 0)
+	{
+		char *s = strchr(vid_conautoscale.string, ' ');
+		if (s)
+			yratio = atof(s + 1);
+		
+		if (yratio <= 0)
+			yratio = xratio;
+
+		xratio = 1 / xratio;
+		yratio = 1 / yratio;
+
+		//autoscale overrides conwidth/height (without actually changing them)
+		cwidth = glwidth;
+		cheight = glheight;
+	}
+	else
+	{
+		xratio = 1;
+		yratio = 1;
+	}
+
+
+	if (!cwidth)
+		cwidth = glwidth;
+	if (!cheight)
+		cheight = glheight;
+
+	cwidth*=xratio;
+	cheight*=yratio;
+
+	if (cwidth < 320)
+		cwidth = 320;
+	if (cheight < 200)
+		cheight = 200;
+
+	vid.width = vid.conwidth = cwidth;
+	vid.height = vid.conheight = cheight;
 
 	vid.recalc_refdef = true;
 	Con_CheckResize();
@@ -65,7 +108,7 @@ void GLVID_Conheight_Callback(struct cvar_s *var, char *oldvalue)
 		Cvar_ForceSet(var, "1536");
 		return;
 	}
-	if (var->value < 200)	//lower would be wrong
+	if (var->value < 200 && var->value)	//lower would be wrong
 	{
 		Cvar_ForceSet(var, "200");
 		return;
@@ -82,7 +125,7 @@ void GLVID_Conwidth_Callback(struct cvar_s *var, char *oldvalue)
 		Cvar_ForceSet(var, "2048");
 		return;
 	}
-	if (var->value < 320)	//lower would be wrong
+	if (var->value < 320 && var->value)	//lower would be wrong
 	{
 		Cvar_ForceSet(var, "320");
 		return;
@@ -93,26 +136,7 @@ void GLVID_Conwidth_Callback(struct cvar_s *var, char *oldvalue)
 
 void GLVID_Conautoscale_Callback(struct cvar_s *var, char *oldvalue)
 {
-	extern cvar_t vid_conwidth, vid_conheight;
-
-	float xratio, yratio = 0;
-
-	xratio = var->value;
-	if (xratio > 0)
-	{
-		char *s = strchr(var->string, ' ');
-		if (s)
-			yratio = atof(s + 1);
-		
-		if (yratio <= 0)
-			yratio = xratio;
-
-		xratio = 1 / xratio;
-		yratio = 1 / yratio;
-
-		Cvar_SetValue(&vid_conwidth, glwidth * xratio);
-		Cvar_SetValue(&vid_conheight, glheight * yratio);
-	}
+	GLVID_Console_Resize();
 }
 
 /*

@@ -1324,7 +1324,22 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	}
 
 	r_refdef.fov_x = scr_fov.value;
-	r_refdef.fov_y = CalcFov(r_refdef.fov_x, vrect->width, vrect->height);
+	if (cl.stats[pnum][STAT_VIEWZOOM])
+		r_refdef.fov_x *= cl.stats[pnum][STAT_VIEWZOOM]/255.0f;
+
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL && vrect->width < (vrect->height*640)/432)
+	{
+		extern int glwidth, glheight;
+		r_refdef.fov_y = CalcFov(r_refdef.fov_x, (vrect->width*glwidth)/vid.width, (vrect->height*glheight)/vid.height);
+//		r_refdef.fov_x = CalcFov(r_refdef.fov_y, 432, 640);
+	}
+	else
+#endif
+	{
+		r_refdef.fov_y = CalcFov(r_refdef.fov_x, 640, 432);
+		r_refdef.fov_x = CalcFov(r_refdef.fov_y, vrect->height, vrect->width);
+	}
 }
 
 void R_DrawNameTags(void)

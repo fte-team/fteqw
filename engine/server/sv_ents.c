@@ -254,14 +254,16 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 	int en;
 	int currentsequence = client->netchan.outgoing_sequence;
 	unsigned short mask;
-	globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+	globalvars_t *pr_globals;
 	edict_t *ent;
 	qboolean writtenheader = false;
 
 	//we don't check that we got some already - because this is delta compressed!
 
-	if (!(client->csqcactive))
+	if (!(client->csqcactive) || !svprogfuncs)
 		return;
+
+	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
 	//FIXME: prioritise the list of csqc ents somehow
 
@@ -700,7 +702,10 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 
 		if (newnum < oldnum)
 		{	// this is a new entity, send it from the baseline
-			ent = EDICT_NUM(svprogfuncs, newnum);
+			if (svprogfuncs)
+				ent = EDICT_NUM(svprogfuncs, newnum);
+			else
+				ent = NULL;
 //Con_Printf ("baseline %i\n", newnum);
 #ifdef PROTOCOLEXTENSIONS
 			SV_WriteDelta (&ent->baseline, &to->entities[newindex], msg, true, client->fteprotocolextensions);
@@ -2685,7 +2690,12 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	else
 	{
 		clent = client->edict;
-		pvs = SV_Snapshot_SetupPVS(client);
+#ifdef HLSERVER
+		if (svs.gametype == GT_HALFLIFE)
+			pvs = SVHL_Snapshot_SetupPVS(client);
+		else
+#endif
+			pvs = SV_Snapshot_SetupPVS(client);
 	}
 
 	host_client = client;
@@ -2693,7 +2703,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	SV_Snapshot_Clear(pack);
 
 	// send over the players in the PVS
-	SV_WritePlayersToClient (client, clent, pvs, msg);
+	if (svs.gametype != GT_HALFLIFE)
+		SV_WritePlayersToClient (client, clent, pvs, msg);
 
 	// put other visible entities into either a packet_entities or a nails message
 
@@ -2703,7 +2714,12 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	}
 	else
 	{
-		SV_Snapshot_BuildQ1(client, pack, pvs, clent, ignorepvs);
+#ifdef HLSERVER
+		if (svs.gametype == GT_HALFLIFE)
+			SVHL_Snapshot_Build(client, pack, pvs, clent, ignorepvs);
+		else
+#endif
+			SV_Snapshot_BuildQ1(client, pack, pvs, clent, ignorepvs);
 	}
 
 #ifdef NQPROT

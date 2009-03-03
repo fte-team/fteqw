@@ -393,6 +393,9 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 	frametime *= sequence->timing;
+	if (frametime < 0)
+		frametime = 0;
+
 	frame = (int)frametime;
 	frametime -= frame;
 

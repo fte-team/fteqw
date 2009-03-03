@@ -201,7 +201,10 @@ static void PClassic_DrawParticles(void)
 #endif
 
 	if (!active_particles)
+	{
+		RQ_RenderDistAndClear();
 		return;
+	}
 
 	switch(qrenderer)
 	{
@@ -229,6 +232,7 @@ static void PClassic_DrawParticles(void)
 		break;
 #endif
 	default:
+		RQ_RenderDistAndClear();
 		return;
 	}
 
@@ -367,13 +371,9 @@ static void PClassic_DrawParticles(void)
 
 
 
-//this... is hard to explain.
-//please don't make me do so.
-#ifdef RGLQUAKE
 	RSpeedRemark();
 	RQ_RenderDistAndClear();
 	RSpeedEnd(RSPEED_PARTICLESDRAW);
-#endif
 }
 
 //called to set up the rendering state (opengl)

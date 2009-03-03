@@ -110,6 +110,7 @@ extern progparms_t svprogparms;
 extern progsnum_t svmainprogs;
 extern progsnum_t clmainprogs;
 #define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,edict_t,area)
+#define	HLEDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,hledict_t,area)
 #define	Q2EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,q2edict_t,area)
 #define	Q3EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,q3serverEntity_t,area)
 

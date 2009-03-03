@@ -261,12 +261,21 @@ void SV_New_f (void)
 	splitnum = 0;
 	for (split = host_client; split; split = split->controlled)
 	{
-#ifdef Q2SERVER
-		if (!svprogfuncs)
-			playernum = Q2NUM_FOR_EDICT(split->q2edict)-1;
-		else
+		switch(svs.gametype)
+		{
+#ifdef HLSERVER
+		case GT_HALFLIFE:
+			playernum = split - svs.clients;
+			break;
 #endif
+#ifdef Q2SERVER
+		case GT_QUAKE2:
+			playernum = Q2NUM_FOR_EDICT(split->q2edict)-1;
+			break;
+#endif
+		default:
 			playernum = NUM_FOR_EDICT(svprogfuncs, split->edict)-1;
+		}
 		if (sv.demostate)
 		{
 			playernum = (MAX_CLIENTS-1-splitnum)|128;
@@ -1241,6 +1250,8 @@ void SV_Spawn_f (void)
 	client_t	*client, *split;
 	edict_t	*ent;
 
+	int secret_total, secret_found, monsters_total, monsters_found;
+
 	if (host_client->state != cs_connected)
 	{
 		Con_Printf ("Spawn not valid -- already spawned\n");
@@ -1302,45 +1313,66 @@ void SV_Spawn_f (void)
 		}
 	}
 
-	// set up the edict
-	for (split = host_client; split; split = split->controlled)
+#ifdef HLSERVER
+	if (svs.gametype == GT_HALFLIFE)
 	{
-		ent = split->edict;
-
-		if (split->istobeloaded)	//minimal setup
+		for (split = host_client; split; split = split->controlled)
 		{
-			split->entgravity = ent->xv->gravity;
-			split->maxspeed = ent->xv->maxspeed;
-		}
-		else
-		{
-			SV_SetUpClientEdict(split, ent);
+			split->entgravity = 1;
+			split->maxspeed = 320;
 		}
 
-	//
-	// force stats to be updated
-	//
-		memset (host_client->statsi, 0, sizeof(host_client->statsi));
-		memset (host_client->statsf, 0, sizeof(host_client->statsf));
-		memset (host_client->statss, 0, sizeof(host_client->statss));
+		secret_total = 0;
+		secret_found = 0;
+		monsters_total = 0;
+		monsters_found = 0;
 	}
+	else
+#endif
+	{
+		// set up the edict
+		for (split = host_client; split; split = split->controlled)
+		{
+			ent = split->edict;
 
+			if (split->istobeloaded)	//minimal setup
+			{
+				split->entgravity = ent->xv->gravity;
+				split->maxspeed = ent->xv->maxspeed;
+			}
+			else
+			{
+				SV_SetUpClientEdict(split, ent);
+			}
+
+		//
+		// force stats to be updated
+		//
+			memset (host_client->statsi, 0, sizeof(host_client->statsi));
+			memset (host_client->statsf, 0, sizeof(host_client->statsf));
+			memset (host_client->statss, 0, sizeof(host_client->statss));
+		}
+
+		secret_total = pr_global_struct->total_secrets;
+		secret_found = pr_global_struct->found_secrets;
+		monsters_total = pr_global_struct->total_monsters;
+		monsters_found = pr_global_struct->killed_monsters;
+	}
 	ClientReliableWrite_Begin (host_client, svc_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_TOTALSECRETS);
-	ClientReliableWrite_Long (host_client, pr_global_struct->total_secrets);
+	ClientReliableWrite_Long (host_client, secret_total);
 
 	ClientReliableWrite_Begin (host_client, svc_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_TOTALMONSTERS);
-	ClientReliableWrite_Long (host_client, pr_global_struct->total_monsters);
+	ClientReliableWrite_Long (host_client, monsters_total);
 
 	ClientReliableWrite_Begin (host_client, svc_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_SECRETS);
-	ClientReliableWrite_Long (host_client, pr_global_struct->found_secrets);
+	ClientReliableWrite_Long (host_client, secret_found);
 
 	ClientReliableWrite_Begin (host_client, svc_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_MONSTERS);
-	ClientReliableWrite_Long (host_client, pr_global_struct->killed_monsters);
-
+	ClientReliableWrite_Long (host_client, monsters_found);
 	// get the client to check and download skins
 	// when that is completed, a begin command will be issued
 	ClientReliableWrite_Begin (host_client, svc_stufftext, 8);
@@ -1385,42 +1417,94 @@ void SV_Begin_Core(client_t *split)
 	int		i;
 	if (progstype == PROG_H2 && host_client->playerclass)
 		host_client->edict->xv->playerclass = host_client->playerclass;	//make sure it's set the same as the userinfo
-#ifdef Q2SERVER
-		if (ge)
-		{
-			ge->ClientBegin(split->q2edict);
-			split->istobeloaded = false;
-		}
-		else
-#endif
-		if (split->istobeloaded)
-		{
-			func_t f;
-			split->istobeloaded = false;
 
-			f = PR_FindFunction(svprogfuncs, "RestoreGame", PR_ANY);
-			if (f)
+#ifdef Q2SERVER
+	if (ge)
+	{
+		ge->ClientBegin(split->q2edict);
+		split->istobeloaded = false;
+	}
+	else
+#endif
+	if (split->istobeloaded)
+	{
+		func_t f;
+		split->istobeloaded = false;
+
+		f = PR_FindFunction(svprogfuncs, "RestoreGame", PR_ANY);
+		if (f)
+		{
+			pr_global_struct->time = sv.physicstime;
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
+			PR_ExecuteProgram (svprogfuncs, f);
+		}
+	}
+	else
+	{
+		if (split->spectator)
+		{
+			SV_SpawnSpectator ();
+
+			if (SpectatorConnect)
 			{
-				pr_global_struct->time = sv.time;
+				//keep the spectator tracking the player from the previous map
+				if (split->spec_track > 0)
+					split->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, svs.clients[split->spec_track-1].edict);
+				else
+					split->edict->v->goalentity = 0;
+
+
+				// copy spawn parms out of the client_t
+				for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
+				{
+					if (spawnparamglobals[i])
+						*spawnparamglobals[i] = split->spawn_parms[i];
+				}
+
+				// call the spawn function
+				pr_global_struct->time = sv.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
-				PR_ExecuteProgram (svprogfuncs, f);
+				PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
 			}
 		}
 		else
 		{
-			if (split->spectator)
+#ifdef HLSERVER
+			if (svs.gametype == GT_HALFLIFE)
 			{
-				SV_SpawnSpectator ();
-
-				if (SpectatorConnect)
+				SVHL_PutClientInServer(split);
+			}
+			else
+#endif
+			if (svprogfuncs)
+			{
+				eval_t *eval, *eval2;
+				eval = PR_FindGlobal(svprogfuncs, "ClientReEnter", 0);
+				if (eval && split->spawninfo)
 				{
-					//keep the spectator tracking the player from the previous map
-					if (split->spec_track > 0)
-						split->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, svs.clients[split->spec_track-1].edict);
-					else
-						split->edict->v->goalentity = 0;
+					globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+					int j;
+					edict_t *ent;
+					ent = split->edict;
+					j = strlen(split->spawninfo);
+					SV_UnlinkEdict(ent);
+					svprogfuncs->restoreent(svprogfuncs, split->spawninfo, &j, ent);
 
-
+					eval2 = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "stats_restored", NULL);
+					if (eval2)
+						eval2->_float = 1;
+					for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
+					{
+						if (spawnparamglobals[j])
+							*spawnparamglobals[j] = split->spawn_parms[j];
+					}
+					pr_global_struct->time = sv.physicstime;
+					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
+					G_FLOAT(OFS_PARM0) = sv.time - split->spawninfotime;
+					PR_ExecuteProgram(svprogfuncs, eval->function);
+				}
+				else
+				{
 					// copy spawn parms out of the client_t
 					for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
 					{
@@ -1429,88 +1513,44 @@ void SV_Begin_Core(client_t *split)
 					}
 
 					// call the spawn function
-					pr_global_struct->time = sv.time;
-					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
-					PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
-				}
-			}
-			else
-			{
-				if (svprogfuncs)
-				{
-					eval_t *eval, *eval2;
-					eval = PR_FindGlobal(svprogfuncs, "ClientReEnter", 0);
-					if (eval && split->spawninfo)
-					{
-						globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-						int j;
-						edict_t *ent;
-						ent = split->edict;
-						j = strlen(split->spawninfo);
-						SV_UnlinkEdict(ent);
-						svprogfuncs->restoreent(svprogfuncs, split->spawninfo, &j, ent);
-
-						eval2 = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "stats_restored", NULL);
-						if (eval2)
-							eval2->_float = 1;
-						for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
-						{
-							if (spawnparamglobals[j])
-								*spawnparamglobals[j] = split->spawn_parms[j];
-						}
-						pr_global_struct->time = sv.time;
-						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-						G_FLOAT(OFS_PARM0) = sv.time - split->spawninfotime;
-						PR_ExecuteProgram(svprogfuncs, eval->function);
-					}
-					else
-					{
-						// copy spawn parms out of the client_t
-						for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-						{
-							if (spawnparamglobals[i])
-								*spawnparamglobals[i] = split->spawn_parms[i];
-						}
-
-						// call the spawn function
 #ifdef VM_Q1
-						if (svs.gametype == GT_Q1QVM)
-							Q1QVM_ClientConnect(split);
-						else
+					if (svs.gametype == GT_Q1QVM)
+						Q1QVM_ClientConnect(split);
+					else
 #endif
-						{
-							pr_global_struct->time = sv.time;
-							pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
-							PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
-					
-							// actually spawn the player
-							pr_global_struct->time = sv.time;
-							pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
-							PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
-						}
-
-						oh = host_client;
-					host_client = split;
-					sv_player = host_client->edict;
-						SV_PreRunCmd();
-						{
-							usercmd_t cmd;
-							memset(&cmd, 0, sizeof(cmd));
-							cmd.msec = 0;
-#define ANGLE2SHORT(x) (x) * (65536/360.0)
-							cmd.angles[0] = ANGLE2SHORT(split->edict->v->v_angle[0]);
-							cmd.angles[1] = ANGLE2SHORT(split->edict->v->v_angle[1]);
-							cmd.angles[2] = ANGLE2SHORT(split->edict->v->v_angle[2]);
-							SV_RunCmd(&cmd, false);
-						}
-						SV_PostRunCmd();
-						host_client = oh;
-					sv_player = host_client->edict;
+					{
+						pr_global_struct->time = sv.physicstime;
+						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
+						PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+				
+						// actually spawn the player
+						pr_global_struct->time = sv.physicstime;
+						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
+						PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 					}
+
+					oh = host_client;
+				host_client = split;
+				sv_player = host_client->edict;
+					SV_PreRunCmd();
+					{
+						usercmd_t cmd;
+						memset(&cmd, 0, sizeof(cmd));
+						cmd.msec = 0;
+#define ANGLE2SHORT(x) (x) * (65536/360.0)
+						cmd.angles[0] = ANGLE2SHORT(split->edict->v->v_angle[0]);
+						cmd.angles[1] = ANGLE2SHORT(split->edict->v->v_angle[1]);
+						cmd.angles[2] = ANGLE2SHORT(split->edict->v->v_angle[2]);
+						SV_RunCmd(&cmd, false);
+					}
+					SV_PostRunCmd();
+					host_client = oh;
+				sv_player = host_client->edict;
 				}
 			}
 		}
 	}
+}
 
 /*
 ==================
@@ -2722,16 +2762,26 @@ SV_Kill_f
 void SV_Kill_f (void)
 {
 	float floodtime;
+	
+#ifdef HLSERVER
+	if (svs.gametype == GT_HALFLIFE)
+	{
+		HLSV_ClientCommand(host_client);
+		return;
+	}
+#endif
 
 #ifdef VM_Q1
 	if (svs.gametype == GT_Q1QVM)
 	{
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		Q1QVM_ClientCommand();
 		return;
 	}
 #endif
+	if (svs.gametype != GT_PROGS)
+		return;
 
 	if (sv_player->v->health <= 0)
 	{
@@ -2749,7 +2799,7 @@ void SV_Kill_f (void)
 		SV_PushFloodProt(host_client);
 	}
 
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientKill);
@@ -3553,12 +3603,12 @@ void Cmd_Join_f (void)
 	}
 
 	// call the spawn function
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 
 	// actually spawn the player
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 
@@ -3648,7 +3698,7 @@ void Cmd_Observe_f (void)
 	// call the spawn function
 	if (SpectatorConnect)
 	{
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
 	}
@@ -3886,6 +3936,14 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 
 	if (!u->name)
 	{
+#ifdef HLSERVER
+		if (HLSV_ClientCommand(host_client))
+		{
+			host_client = oldhost;
+			return;
+		}
+#endif
+
 		if (!fromQC)
 			if (PR_UserCmd(s))			//Q2 and MVDSV command handling only happens if the engine didn't recognise it.
 			{
@@ -4062,7 +4120,7 @@ void SVNQ_Begin_f (void)
 				}
 
 				// call the spawn function
-				pr_global_struct->time = sv.time;
+				pr_global_struct->time = sv.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 				PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
 			}
@@ -4077,12 +4135,12 @@ void SVNQ_Begin_f (void)
 			}
 
 			// call the spawn function
-			pr_global_struct->time = sv.time;
+			pr_global_struct->time = sv.physicstime;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 
 			// actually spawn the player
-			pr_global_struct->time = sv.time;
+			pr_global_struct->time = sv.physicstime;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 		}
@@ -5344,7 +5402,13 @@ haveannothergo:
 						newcmd.upmove = 0;
 					}
 
-
+#ifdef HLSERVER
+					if (svs.gametype == GT_HALFLIFE)
+					{
+						SVHL_RunPlayerCommand(cl, &oldest, &oldcmd, &newcmd);
+					}
+					else
+#endif
 					if (!sv.paused)
 					{
 						if (sv_nomsec.value)
@@ -6213,7 +6277,7 @@ void SV_ClientThink (void)
 
 	if (SV_PlayerPhysicsQC)
 	{
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		PR_ExecuteProgram (svprogfuncs, SV_PlayerPhysicsQC);
 		return;

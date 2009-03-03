@@ -1165,8 +1165,6 @@ void R_RenderScene (void)
 		if (!GLR_DoomWorld ())
 #endif
 		{
-			TRACE(("dbg: calling GLR_MarkLeaves\n"));
-			R_MarkLeaves ();	// done here so we know if we're in water
 			TRACE(("dbg: calling R_DrawWorld\n"));
 			R_DrawWorld ();		// adds static entities to the list
 		}

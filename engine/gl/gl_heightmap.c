@@ -595,7 +595,7 @@ qboolean Heightmap_EdictInFatPVS	(model_t *mod, edict_t *edict)
 	return true;
 }
 
-void Heightmap_FindTouchedLeafs	(model_t *mod, edict_t *ent)
+void Heightmap_FindTouchedLeafs	(model_t *mod, edict_t *ent, float *mins, float *maxs)
 {
 }
 #endif

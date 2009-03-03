@@ -817,6 +817,19 @@ void CL_PredictMovePNum (int pnum)
 		}
 */	}
 #endif
+	if (!from->playerstate[cl.playernum[pnum]].messagenum)
+	{
+		//no player states?? put the view on an ent
+		if (cl.playernum[pnum] < cl.maxlerpents)
+		{
+//			Con_Printf("Using lerped pos\n");
+			org = cl.lerpents[cl.playernum[pnum]+1].origin;
+			vel = vec3_origin;
+			goto fixedorg;
+		}
+	}
+
+
 	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| cl.fixangle))
 	{
 fixedorg:

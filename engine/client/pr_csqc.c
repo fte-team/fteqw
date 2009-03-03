@@ -3600,7 +3600,6 @@ static void PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_globa
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
 	int boneidx = G_FLOAT(OFS_PARM1)-1;
-	float *matrix[4];
 	float temp[3][4];
 	float mult[3][4];
 	skelobject_t *skelobj;

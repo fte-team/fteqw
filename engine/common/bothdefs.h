@@ -123,6 +123,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define Q2CLIENT		//client can connect to q2 servers
 		#define Q3CLIENT
 		#define Q3SERVER
+//		#define HLSERVER
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
 		#define FISH			//sw rendering only
 		#define ZLIB			//zip/pk3 support

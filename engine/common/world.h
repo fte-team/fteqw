@@ -66,7 +66,7 @@ typedef struct trace_s
 	cplane_t	plane;		// surface normal at impact
 	q2csurface_t	*surface;	// surface hit
 	int			contents;	// contents on other side of surface hit
-	struct edict_s	*ent;		// not set by CM_*() functions
+	void		*ent;		// not set by CM_*() functions
 //AND THIS LINE
 	int entnum;
 

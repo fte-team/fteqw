@@ -45,16 +45,6 @@ cvar_t r_vertexlight = SCVAR("r_vertexlight", "0");
 #define Com_sprintf snprintf
 #define clamp(v,min, max) (v) = (((v)<(min))?(min):(((v)>(max))?(max):(v)));
 
-int FS_LoadFile(char *name, void **file)
-{
-	*file = COM_LoadMallocFile(name);
-	return com_filesize;
-}
-void FS_FreeFile(void *file)
-{
-	BZ_Free(file);
-}
-
 typedef union {
 	float			f;
 	unsigned int	i;

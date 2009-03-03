@@ -3778,7 +3778,7 @@ void SWR_Q2BSP_StainNode (mnode_t *node, float *parms)
 #ifndef CLIENTONLY
 void Q2BSP_FatPVS (model_t *mod, vec3_t org, qboolean add);
 qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent);
-void Q2BSP_FindTouchedLeafs(model_t *mod, edict_t *ent);
+void Q2BSP_FindTouchedLeafs(model_t *mod, edict_t *ent, float *mins, float *maxs);
 #endif
 void GLQ2BSP_LightPointValues(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 void SWQ2BSP_LightPointValues(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);

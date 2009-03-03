@@ -123,6 +123,8 @@ int PM_SlideMove (void)
 
 	time_left = frametime;
 
+//	VectorAdd(pmove.velocity, pmove.basevelocity, pmove.velocity);
+
 	for (bumpcount=0 ; bumpcount<numbumps ; bumpcount++)
 	{
 		for (i=0 ; i<3 ; i++)
@@ -540,7 +542,7 @@ void PM_WaterMove (void)
 
 /*
 */
-void PM_FlyMove ()
+void PM_FlyMove (void)
 {
 	int		i;
 	vec3_t	wishvel;
@@ -580,11 +582,11 @@ void PM_LadderMove (void)
 	for (i=0 ; i<3 ; i++)
 		wishvel[i] = forward[i]*pmove.cmd.forwardmove + right[i]*pmove.cmd.sidemove + up[i]*pmove.cmd.upmove;
 
-	if (wishvel[2] > 100 || wishvel[2] < -100)	//large up/down move
+	if (wishvel[2] >= 100 || wishvel[2] <= -100)	//large up/down move
 		wishvel[2]*=10;
 
 	if (pmove.cmd.buttons & 2)
-		wishvel[2]+=100;
+		wishvel[2]+=movevars.maxspeed;
 
 	VectorCopy (wishvel, wishdir);
 	wishspeed = VectorNormalize(wishdir);
@@ -762,6 +764,11 @@ void PM_CategorizePosition (void)
 		}
 	}
 
+	if (cont & FTECONTENTS_LADDER)
+		pmove.onladder = true;
+	else
+		pmove.onladder = false;
+
 	//are we on a ladder?
 #ifdef Q2BSPS
 	if (pmove.physents[0].model->fromgame == fg_quake3)
@@ -807,6 +814,14 @@ void PM_CategorizePosition (void)
 		}
 	}
 #endif
+
+	//bsp objects marked as ladders mark regions to stand in to be classed as on a ladder.
+	cont = PM_ExtraBoxContents(pmove.origin);
+	if (cont & FTECONTENTS_LADDER)
+	{
+		pmove.onladder = true;
+		pmove.onground = false;	// too steep
+	}
 
 	if (pmove.onground && pmove.pm_type != PM_FLY && pmove.waterlevel < 2)
 	{

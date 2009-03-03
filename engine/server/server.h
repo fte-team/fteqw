@@ -115,7 +115,7 @@ typedef struct
 
 	double		time;
 	double		starttime;
-	float	physicstime;	//nq clients do so much better with times sent with physics than real.
+	double	physicstime;	//This is the time at which the physics were last run.
 	int framenum;
 
 	int			lastcheck;			// used by PF_checkclient
@@ -370,8 +370,12 @@ typedef struct client_s
 	int viewent;	//fake the entity positioning.
 
 	edict_t			*edict;				// EDICT_NUM(clientnum+1)
+//additional game modes use additional edict pointers. this ensures that references are crashes.
 #ifdef Q2SERVER
 	q2edict_t		*q2edict;				// EDICT_NUM(clientnum+1)
+#endif
+#ifdef HLSERVER
+	struct hledict_s	*hledict;
 #endif
 
 	int				playercolor;
@@ -691,6 +695,7 @@ typedef struct filteredip_s {
 typedef enum {
 	GT_PROGS,	//q1, qw, h2 are similar enough that we consider it only one game mode. (We don't support the h2 protocol)
 	GT_Q1QVM,
+	GT_HALFLIFE,
 	GT_QUAKE2,	//q2 servers run from a q2 game dll
 	GT_QUAKE3,	//q3 servers run off the q3 qvm api
 	GT_MAX
@@ -1009,8 +1014,8 @@ void VARGS SV_Multicast (vec3_t origin, multicast_t to);
 #define FULLDIMENSIONMASK 0xffffffff
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);
 
-void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
-    float attenuation);
+void SV_StartSound (int entnum, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation);
+void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, float attenuation);
 void SV_PrintToClient(client_t *cl, int level, char *string);
 void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...);
 void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);

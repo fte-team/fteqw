@@ -1448,7 +1448,7 @@ void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entities_t *
 		}
 		le = &cl.lerpents[snew->number];
 
-		VectorSubtract(snew->origin, sold->origin, move)
+		VectorSubtract(snew->origin, sold->origin, move);
 		if (DotProduct(move, move) > 200*200 || snew->modelindex != sold->modelindex)
 		{
 			sold = snew;	//teleported?
@@ -1630,7 +1630,7 @@ void CL_LinkPacketEntities (void)
 		}
 
 
-		VectorCopy(le->origin, ent->origin)
+		VectorCopy(le->origin, ent->origin);
 
 		//bots or powerup glows. items always glow, powerups can be disabled
 		if (state->modelindex != cl_playerindex || r_powerupglow.value)
@@ -2701,7 +2701,7 @@ void CL_AddFlagModels (entity_t *ent, int team)
 		newent->origin[i] = ent->origin[i] - offs*v_forward[i] + 22*v_right[i];
 	newent->origin[2] -= 16;
 
-	VectorCopy (ent->angles, newent->angles)
+	VectorCopy (ent->angles, newent->angles);
 	newent->angles[2] -= 45;
 
 	VectorCopy(newent->angles, angles);
@@ -3102,6 +3102,7 @@ void CL_SetSolidEntities (void)
 	packet_entities_t	*pak;
 	entity_state_t		*state;
 
+	memset(&pmove.physents[0], 0, sizeof(physent_t));
 	pmove.physents[0].model = cl.worldmodel;
 	VectorClear (pmove.physents[0].origin);
 	pmove.physents[0].info = 0;
@@ -3122,6 +3123,7 @@ void CL_SetSolidEntities (void)
 		if ( cl.model_precache[state->modelindex]->hulls[1].firstclipnode
 			|| cl.model_precache[state->modelindex]->clipbox )
 		{
+			memset(&pmove.physents[pmove.numphysent], 0, sizeof(physent_t));
 			pmove.physents[pmove.numphysent].model = cl.model_precache[state->modelindex];
 			VectorCopy (state->origin, pmove.physents[pmove.numphysent].origin);
 			VectorCopy (state->angles, pmove.physents[pmove.numphysent].angles);
@@ -3271,9 +3273,8 @@ void CL_SetSolidPlayers (int playernum)
 		if (pplayer->flags & PF_DEAD)
 			continue; // dead players aren't solid
 
-		pent->model = 0;
+		memset(pent, 0, sizeof(physent_t));
 		VectorCopy(pplayer->origin, pent->origin);
-		pent->angles[0] = pent->angles[1] = pent->angles[2] = 0;	//don't bother rotating - only useful with bsps
 		VectorCopy(player_mins, pent->mins);
 		VectorCopy(player_maxs, pent->maxs);
 		if (++pmove.numphysent == MAX_PHYSENTS)	//we just hit 88 miles per hour.

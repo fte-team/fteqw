@@ -663,24 +663,27 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			}
 
 			if (svprogfuncs)
+			{
 				if (!((int)client->edict->xv->dimension_see & dimension_mask))
 					continue;
 
-			if (to == MULTICAST_PHS_R || to == MULTICAST_PHS) {
-				vec3_t delta;
-				VectorSubtract(origin, client->edict->v->origin, delta);
-				if (Length(delta) <= 1024)
-					goto inrange;
-			}
-
-			// -1 is because pvs rows are 1 based, not 0 based like leafs
-			if (mask != sv.pvs)
-			{
-				leafnum = sv.worldmodel->funcs.LeafnumForPoint (sv.worldmodel, client->edict->v->origin)-1;
-				if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
+				if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
 				{
-	//				Con_Printf ("PVS supressed multicast\n");
-					continue;
+					vec3_t delta;
+					VectorSubtract(origin, client->edict->v->origin, delta);
+					if (Length(delta) <= 1024)
+						goto inrange;
+				}
+
+				// -1 is because pvs rows are 1 based, not 0 based like leafs
+				if (mask != sv.pvs)
+				{
+					leafnum = sv.worldmodel->funcs.LeafnumForPoint (sv.worldmodel, client->edict->v->origin)-1;
+					if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
+					{
+		//				Con_Printf ("PVS supressed multicast\n");
+						continue;
+					}
 				}
 			}
 
@@ -774,15 +777,12 @@ Larger attenuations will drop off.  (max 4 attenuation)
 
 ==================
 */
-void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
-    float attenuation)
+void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation)
 {
     int         sound_num;
     int			extfield_mask;
 	int			qwflags;
     int			i;
-	int			ent;
-	vec3_t		origin;
 	qboolean	use_phs;
 	qboolean	reliable = false;
 	int requiredextensions = 0;
@@ -817,8 +817,6 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
         return;
     }
 
-	ent = NUM_FOR_EDICT(svprogfuncs, entity);
-
 	if ((channel & 8) || !sv_phs.value)	// no PHS flag
 	{
 		if (channel & 8)
@@ -828,17 +826,6 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 	}
 	else
 		use_phs = true;
-
-	// use the entity origin unless it is a bmodel, in which case use its bbox middle
-	if (entity->v->solid == SOLID_BSP)
-	{
-		for (i=0 ; i<3 ; i++)
-			origin[i] = entity->v->origin[i]+0.5*(entity->v->mins[i]+entity->v->maxs[i]);
-	}
-	else
-	{
-		VectorCopy (entity->v->origin, origin);
-	}
 
 //	if (channel == CHAN_BODY || channel == CHAN_VOICE)
 //		reliable = true;
@@ -931,9 +918,26 @@ void SV_StartSound (edict_t *entity, int channel, char *sample, int volume,
 		MSG_WriteCoord (&sv.nqmulticast, origin[i]);
 #endif
 	if (use_phs)
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, entity->xv->dimension_seen, requiredextensions, 0);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, seenmask, requiredextensions, 0);
 	else
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, entity->xv->dimension_seen, requiredextensions, 0);
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, requiredextensions, 0);
+}
+
+void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, float attenuation)
+{
+	int i;
+	vec3_t origin;
+	if (entity->v->solid == SOLID_BSP)
+	{
+		for (i=0 ; i<3 ; i++)
+			origin[i] = entity->v->origin[i]+0.5*(entity->v->mins[i]+entity->v->maxs[i]);
+	}
+	else
+	{
+		VectorCopy (entity->v->origin, origin);
+	}
+
+	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, entity->xv->dimension_seen, channel, sample, volume, attenuation);
 }
 
 /*
@@ -974,6 +978,9 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	int i;
 
 	ent = client->edict;
+
+	if (!ent)
+		return;
 
 	// send a damage message if the player got hit this frame
 	if (ent->v->dmg_take || ent->v->dmg_save)
@@ -1379,80 +1386,90 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 	if (client->spectator && client->spec_track > 0)
 		ent = svs.clients[client->spec_track - 1].edict;
 
-	statsf[STAT_HEALTH] = ent->v->health;	//sorry, but mneh
-	statsi[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
-	if (host_client->fteprotocolextensions & PEXT_MODELDBL)
+#ifdef HLSERVER
+	if (svs.gametype == GT_HALFLIFE)
 	{
-		if ((unsigned)statsi[STAT_WEAPON] >= 512)
-			statsi[STAT_WEAPON] = 0;
-	}
-	else
-	{
-		if ((unsigned)statsi[STAT_WEAPON] >= 256)
-			statsi[STAT_WEAPON] = 0;
-	}
-	statsf[STAT_AMMO] = ent->v->currentammo;
-	statsf[STAT_ARMOR] = ent->v->armorvalue;
-	statsf[STAT_SHELLS] = ent->v->ammo_shells;
-	statsf[STAT_NAILS] = ent->v->ammo_nails;
-	statsf[STAT_ROCKETS] = ent->v->ammo_rockets;
-	statsf[STAT_CELLS] = ent->v->ammo_cells;
-	if (!client->spectator)
-	{
-		statsi[STAT_ACTIVEWEAPON] = ent->v->weapon;
-		if (client->csqcactive)
-			statsi[STAT_WEAPONFRAME] = ent->v->weaponframe;
-	}
+		SVHL_BuildStats(client, statsi, statsf, statss);
 
-	// stuff the sigil bits into the high bits of items for sbar
-	if (pr_items2)
-		statsi[STAT_ITEMS] = (int)ent->v->items | ((int)ent->xv->items2 << 23);
+		pr_globals = NULL;
+	}
 	else
-		statsi[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
-
-	statsf[STAT_VIEWHEIGHT] = ent->v->view_ofs[2];
-#ifdef PEXT_VIEW2
-	if (ent->xv->view2)
-		statsi[STAT_VIEW2] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, ent->xv->view2));
-	else
-		statsi[STAT_VIEW2] = 0;
 #endif
-
-	if (!ent->xv->viewzoom)
-		statsi[STAT_VIEWZOOM] = 255;
-	else
-		statsi[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
-
-	if (host_client->protocol == SCP_DARKPLACES7)
 	{
-		float	*statsfi = (float*)statsi;
-//		statsfi[STAT_MOVEVARS_WALLFRICTION] = sv_wall
-		statsfi[STAT_MOVEVARS_FRICTION] = sv_friction.value;
-		statsfi[STAT_MOVEVARS_WATERFRICTION] = sv_waterfriction.value;
-		statsfi[STAT_MOVEVARS_TICRATE] = 72;
-		statsfi[STAT_MOVEVARS_TIMESCALE] = sv_gamespeed.value;
-		statsfi[STAT_MOVEVARS_GRAVITY] = sv_gravity.value;
-		statsfi[STAT_MOVEVARS_STOPSPEED] = sv_stopspeed.value;
-		statsfi[STAT_MOVEVARS_MAXSPEED] = host_client->maxspeed;
-		statsfi[STAT_MOVEVARS_SPECTATORMAXSPEED] = sv_spectatormaxspeed.value;
-		statsfi[STAT_MOVEVARS_ACCELERATE] = sv_accelerate.value;
-		statsfi[STAT_MOVEVARS_AIRACCELERATE] = sv_airaccelerate.value;
-		statsfi[STAT_MOVEVARS_WATERACCELERATE] = sv_wateraccelerate.value;
-		statsfi[STAT_MOVEVARS_ENTGRAVITY] = host_client->entgravity;
-		statsfi[STAT_MOVEVARS_JUMPVELOCITY] = 280;//sv_jumpvelocity.value;	//bah
-		statsfi[STAT_MOVEVARS_EDGEFRICTION] = sv_edgefriction.value;
-		statsfi[STAT_MOVEVARS_MAXAIRSPEED] = host_client->maxspeed;
-		statsfi[STAT_MOVEVARS_STEPHEIGHT] = 18;
-		statsfi[STAT_MOVEVARS_AIRACCEL_QW] = 1;
-		statsfi[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION] = sv_gravity.value;
+		statsf[STAT_HEALTH] = ent->v->health;	//sorry, but mneh
+		statsi[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
+		if (host_client->fteprotocolextensions & PEXT_MODELDBL)
+		{
+			if ((unsigned)statsi[STAT_WEAPON] >= 512)
+				statsi[STAT_WEAPON] = 0;
+		}
+		else
+		{
+			if ((unsigned)statsi[STAT_WEAPON] >= 256)
+				statsi[STAT_WEAPON] = 0;
+		}
+		statsf[STAT_AMMO] = ent->v->currentammo;
+		statsf[STAT_ARMOR] = ent->v->armorvalue;
+		statsf[STAT_SHELLS] = ent->v->ammo_shells;
+		statsf[STAT_NAILS] = ent->v->ammo_nails;
+		statsf[STAT_ROCKETS] = ent->v->ammo_rockets;
+		statsf[STAT_CELLS] = ent->v->ammo_cells;
+		if (!client->spectator)
+		{
+			statsi[STAT_ACTIVEWEAPON] = ent->v->weapon;
+			if (client->csqcactive)
+				statsi[STAT_WEAPONFRAME] = ent->v->weaponframe;
+		}
+
+		// stuff the sigil bits into the high bits of items for sbar
+		if (pr_items2)
+			statsi[STAT_ITEMS] = (int)ent->v->items | ((int)ent->xv->items2 << 23);
+		else
+			statsi[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
+
+		statsf[STAT_VIEWHEIGHT] = ent->v->view_ofs[2];
+	#ifdef PEXT_VIEW2
+		if (ent->xv->view2)
+			statsi[STAT_VIEW2] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, ent->xv->view2));
+		else
+			statsi[STAT_VIEW2] = 0;
+	#endif
+
+		if (!ent->xv->viewzoom)
+			statsi[STAT_VIEWZOOM] = 255;
+		else
+			statsi[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
+
+		if (host_client->protocol == SCP_DARKPLACES7)
+		{
+			float	*statsfi = (float*)statsi;
+	//		statsfi[STAT_MOVEVARS_WALLFRICTION] = sv_wall
+			statsfi[STAT_MOVEVARS_FRICTION] = sv_friction.value;
+			statsfi[STAT_MOVEVARS_WATERFRICTION] = sv_waterfriction.value;
+			statsfi[STAT_MOVEVARS_TICRATE] = 72;
+			statsfi[STAT_MOVEVARS_TIMESCALE] = sv_gamespeed.value;
+			statsfi[STAT_MOVEVARS_GRAVITY] = sv_gravity.value;
+			statsfi[STAT_MOVEVARS_STOPSPEED] = sv_stopspeed.value;
+			statsfi[STAT_MOVEVARS_MAXSPEED] = host_client->maxspeed;
+			statsfi[STAT_MOVEVARS_SPECTATORMAXSPEED] = sv_spectatormaxspeed.value;
+			statsfi[STAT_MOVEVARS_ACCELERATE] = sv_accelerate.value;
+			statsfi[STAT_MOVEVARS_AIRACCELERATE] = sv_airaccelerate.value;
+			statsfi[STAT_MOVEVARS_WATERACCELERATE] = sv_wateraccelerate.value;
+			statsfi[STAT_MOVEVARS_ENTGRAVITY] = host_client->entgravity;
+			statsfi[STAT_MOVEVARS_JUMPVELOCITY] = 280;//sv_jumpvelocity.value;	//bah
+			statsfi[STAT_MOVEVARS_EDGEFRICTION] = sv_edgefriction.value;
+			statsfi[STAT_MOVEVARS_MAXAIRSPEED] = host_client->maxspeed;
+			statsfi[STAT_MOVEVARS_STEPHEIGHT] = 18;
+			statsfi[STAT_MOVEVARS_AIRACCEL_QW] = 1;
+			statsfi[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION] = sv_gravity.value;
+		}
+
+		SV_UpdateQCStats(ent, statsi, statss, statsf);
+
+		//dmw tweek for stats
+		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 	}
-
-	SV_UpdateQCStats(ent, statsi, statss, statsf);
-
-	//dmw tweek for stats
-	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-
 	m = MAX_QW_STATS;
 	if (client->fteprotocolextensions & PEXT_HEXEN2)
 		m = MAX_CL_STATS;
@@ -1698,11 +1715,14 @@ SV_UpdateToReliableMessages
 */
 void SV_UpdateToReliableMessages (void)
 {
-	volatile float newval; // needed to ensure 32/32-bit fp comparisons
 	int			i, j;
 	client_t *client, *sp;
 	edict_t *ent;
 	char *name;
+
+	float curgrav;
+	float curspeed;
+	int curfrags;
 
 // check for changes to be sent over the reliable streams to all clients
 	for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
@@ -1777,6 +1797,34 @@ void SV_UpdateToReliableMessages (void)
 			}
 			continue;
 		}
+		if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
+		{
+			ent = host_client->edict;
+
+			curfrags = host_client->edict->v->frags;
+			curgrav = ent->xv->gravity*sv_gravity.value;
+			curspeed = ent->xv->maxspeed;
+			if (progstype != PROG_QW)
+			{
+				if (!curgrav)
+					curgrav = 1;
+				if (!curspeed)
+					curspeed = sv_maxspeed.value;
+			}
+			if (ent->xv->hasted)
+				curspeed*=ent->xv->hasted;
+		}
+		else
+		{
+			curgrav = sv_gravity.value;
+			curspeed = sv_maxspeed.value;
+			curfrags = 0;
+		}
+#ifdef SVCHAT	//enforce a no moving time when chatting. Prevent client prediction going mad.
+		if (host_client->chat.active)
+			curspeed = 0;
+#endif
+
 		if (!ISQ2CLIENT(host_client))
 		{
 			if (host_client->sendinfo)
@@ -1784,7 +1832,7 @@ void SV_UpdateToReliableMessages (void)
 				host_client->sendinfo = false;
 				SV_FullClientUpdate (host_client, &sv.reliable_datagram, host_client->fteprotocolextensions);
 			}
-			if (host_client->old_frags != (int)host_client->edict->v->frags)
+			if (host_client->old_frags != curfrags)
 			{
 				for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
 				{
@@ -1794,7 +1842,7 @@ void SV_UpdateToReliableMessages (void)
 						continue;
 					ClientReliableWrite_Begin(client, svc_updatefrags, 4);
 					ClientReliableWrite_Byte(client, i);
-					ClientReliableWrite_Short(client, host_client->edict->v->frags);
+					ClientReliableWrite_Short(client, curfrags);
 				}
 
 				if (sv.mvdrecording)
@@ -1802,45 +1850,24 @@ void SV_UpdateToReliableMessages (void)
 					MVDWrite_Begin(dem_all, 0, 4);
 					MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatefrags);
 					MSG_WriteByte((sizebuf_t*)demo.dbuf, i);
-					MSG_WriteShort((sizebuf_t*)demo.dbuf, host_client->edict->v->frags);
+					MSG_WriteShort((sizebuf_t*)demo.dbuf, curfrags);
 				}
 
-				host_client->old_frags = host_client->edict->v->frags;
+				host_client->old_frags = curfrags;
 			}
 
 			{
-				// maxspeed/entgravity changes
-				ent = host_client->edict;
-
-				newval = ent->xv->gravity*sv_gravity.value;
-				if (progstype != PROG_QW)
-				{
-					if (!newval)
-						newval = 1;
-				}
-
-				if (host_client->entgravity != newval)
+				if (host_client->entgravity != curgrav)
 				{
 					if (ISQWCLIENT(host_client))
 					{
 						sp = SV_SplitClientDest(host_client, svc_entgravity, 5);
-						ClientReliableWrite_Float(sp, newval/movevars.gravity);	//lie to the client in a cunning way
+						ClientReliableWrite_Float(sp, curgrav/movevars.gravity);	//lie to the client in a cunning way
 					}
-					host_client->entgravity = newval;
+					host_client->entgravity = curgrav;
 				}
-				newval = ent->xv->maxspeed;
-				if (progstype != PROG_QW)
-				{
-					if (!newval)
-						newval = sv_maxspeed.value;
-				}
-				if (ent->xv->hasted)
-					newval*=ent->xv->hasted;
-		#ifdef SVCHAT	//enforce a no moving time when chatting. Prevent client prediction going mad.
-				if (host_client->chat.active)
-					newval = 0;
-		#endif
-				if (host_client->maxspeed != newval)
+
+				if (host_client->maxspeed != curspeed)
 				{	//MSVC can really suck at times (optimiser bug)
 					if (ISQWCLIENT(host_client))
 					{
@@ -1860,15 +1887,15 @@ void SV_UpdateToReliableMessages (void)
 							ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, 7);
 							ClientReliableWrite_Byte (sp, pnum);
 							ClientReliableWrite_Byte (sp, svc_maxspeed);
-							ClientReliableWrite_Float(sp, newval);
+							ClientReliableWrite_Float(sp, curspeed);
 						}
 						else
 						{
 							ClientReliableWrite_Begin(host_client, svc_maxspeed, 5);
-							ClientReliableWrite_Float(host_client, newval);
+							ClientReliableWrite_Float(host_client, curspeed);
 						}
 					}
-					host_client->maxspeed = newval;
+					host_client->maxspeed = curspeed;
 				}
 			}
 		}

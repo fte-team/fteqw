@@ -37,6 +37,8 @@ int	Sys_FileTime (char *path);
 void Sys_mkdir (char *path);
 qboolean Sys_remove (char *path);
 
+qboolean Sys_FindGameData(char *gamename, char *basepath, int basepathlen);
+
 //
 // memory protection
 //
@@ -62,6 +64,8 @@ typedef struct {
 typedef void *dllhandle_t;
 dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs);
 void Sys_CloseLibrary(dllhandle_t *lib);
+void *Sys_GetAddressForName(dllhandle_t *module, char *exportname);
+char *Sys_GetNameForAddress(dllhandle_t *module, void *address);
 
 unsigned int Sys_Milliseconds (void);
 double Sys_DoubleTime (void);

@@ -66,90 +66,31 @@ struct vm_s {
 	int (VARGS *vmMain)(int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);
 };
 
-
-#ifdef _WIN32
-#include "winquake.h"
-void *Sys_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
-{
-	void (VARGS *dllEntry)(sys_calldll_t syscall);
-	char dllname[MAX_OSPATH];
-	HINSTANCE hVM;
-
-	sprintf(dllname, "%sx86.dll", name);
-
-	hVM=NULL;
-	{
-		char name[MAX_OSPATH];
-		char *gpath;
-		// run through the search paths
-		gpath = NULL;
-		while (1)
-		{
-			gpath = COM_NextPath (gpath);
-			if (!gpath)
-				return NULL;		// couldn't find one anywhere
-			snprintf (name, sizeof(name), "%s/%s", gpath, dllname);
-			hVM = LoadLibrary (name);
-			if (hVM)
-			{
-				Con_DPrintf ("LoadLibrary (%s)\n",name);
-				break;
-			}
-		}
-	}
-
-	if(!hVM) return NULL;
-
-	dllEntry=(void *)GetProcAddress(hVM, "dllEntry");
-	if(!dllEntry)
-	{
-		Con_Printf ("Sys_LoadDLL: %s lacks a dllEntry function\n",name);
-		FreeLibrary(hVM);
-		return NULL;
-	}
-
-	dllEntry(syscall);
-
-	*vmMain=(void *)GetProcAddress(hVM, "vmMain");
-	if(!*vmMain)
-	{
-		Con_Printf ("Sys_LoadDLL: %s lacks a vmMain function\n",name);
-		FreeLibrary(hVM);
-		return NULL;
-	}
-	return hVM;
-}
-
-/*
-** Sys_UnloadDLL
-*/
-void Sys_UnloadDLL(void *handle)
-{
-	if(handle)
-	{
-		if(!FreeLibrary((HMODULE)handle))
-			Sys_Error("Sys_UnloadDLL FreeLibrary failed");
-	}
-}
-#else
 #if defined(__MORPHOS__) && I_AM_BIGFOOT
 #include <proto/dynload.h>
-#else
-#include <dlfcn.h>
 #endif
 
-void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int arg, ... ))
+dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int arg, ... ))
 {
 	void (*dllEntry)(int (EXPORT_FN *syscall)(int arg, ... ));
 	char dllname[MAX_OSPATH];
-	void *hVM;
+	dllhandle_t *hVM;
+
+	dllfunction_t funcs[] =
+	{
+		{(void*)&dllEntry, "dllEntry"},
+		{(void*)vmMain, "vmMain"},
+		{NULL, NULL},
+	};
 
 #if defined(__MORPHOS__) && I_AM_BIGFOOT
 	if (DynLoadBase == 0)
 		return 0;
 #endif
 
-#if defined(__amd64__)
+#ifdef _WIN32
+	sprintf(dllname, "%sx86.dll", name);
+#elif defined(__amd64__)
 	return 0;	//give up early, don't even try going there
 	sprintf(dllname, "%samd.so", name);
 #elif defined(_M_IX86) || defined(__i386__)
@@ -173,41 +114,20 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 			gpath = COM_NextPath (gpath);
 			if (!gpath)
 				return NULL;		// couldn't find one anywhere
-			_snprintf (name, sizeof(name), "%s/%s", gpath, dllname);
+			snprintf (name, sizeof(name), "%s/%s", gpath, dllname);
 
 			Con_Printf("Loading native: %s\n", name);
-			hVM = dlopen (name, RTLD_NOW);
+			hVM = Sys_LoadLibrary(name, funcs);
 			if (hVM)
 			{
-				Con_DPrintf ("Sys_LoadDLL: dlopen (%s)\n",name);
 				break;
-			}
-			else
-			{
-				Con_DPrintf("Sys_LoadDLL: dlerror()=\"%s\"", dlerror());
 			}
 		}
 	}
 
 	if(!hVM) return NULL;
 
-	dllEntry=(void *)dlsym(hVM, "dllEntry");
-	if(!dllEntry)
-	{
-		Con_Printf("Sys_LoadDLL: %s does not have a dllEntry function\n");
-		dlclose(hVM);
-		return NULL;
-	}
-
 	(*dllEntry)(syscall);
-
-	*vmMain=(void *)dlsym(hVM, "vmMain");
-	if(!*vmMain)
-	{
-		Con_Printf("Sys_LoadDLL: %s does not have a vmMain function\n");
-		dlclose(hVM);
-		return NULL;
-	}
 
 	return hVM;
 }
@@ -215,15 +135,13 @@ void *Sys_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int 
 /*
 ** Sys_UnloadDLL
 */
-void Sys_UnloadDLL(void *handle)
+void QVM_UnloadDLL(dllhandle_t *handle)
 {
 	if(handle)
 	{
-		if(dlclose(handle))
-			Sys_Error("Sys_UnloadDLL FreeLibrary failed");
+		Sys_CloseLibrary(handle);
 	}
 }
-#endif
 
 
 
@@ -292,9 +210,9 @@ typedef struct qvm_s
 	sys_callqvm_t syscall;
 } qvm_t;
 
-qvm_t *QVM_Load(const char *name, sys_callqvm_t syscall);
-void QVM_UnLoad(qvm_t *qvm);
-int QVM_Exec(qvm_t *qvm, int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7);
+qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall);
+void QVM_UnLoadVM(qvm_t *qvm);
+int QVM_ExecVM(qvm_t *qvm, int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7);
 
 
 // ------------------------- * OP.CODES * -------------------------
@@ -397,7 +315,7 @@ typedef enum qvm_op_e
 /*
 ** QVM_Load
 */
-qvm_t *QVM_Load(const char *name, sys_callqvm_t syscall)
+qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 {
 	char path[MAX_QPATH];
 	vmHeader_t *header;
@@ -547,7 +465,7 @@ qvm_t *QVM_Load(const char *name, sys_callqvm_t syscall)
 /*
 ** QVM_UnLoad
 */
-void QVM_UnLoad(qvm_t *qvm)
+void QVM_UnLoadVM(qvm_t *qvm)
 {
 	Z_Free(qvm->mem_ptr);
 	Z_Free(qvm);
@@ -648,7 +566,7 @@ static void inline QVM_Return(qvm_t *vm, int size)
 /*
 ** VM_Exec
 */
-int QVM_Exec(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7)
+int QVM_ExecVM(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7)
 {
 //remember that the stack is backwards. push takes 1.
 
@@ -1026,7 +944,7 @@ vm_t *VM_Create(vm_t *vm, const char *name, sys_calldll_t syscalldll, sys_callqv
 	{
 		if (!COM_CheckParm("-nodlls") && !COM_CheckParm("-nosos"))	//:)
 		{
-			if((vm->hInst=Sys_LoadDLL(name, (void**)&vm->vmMain, syscalldll)))
+			if((vm->hInst=QVM_LoadDLL(name, (void**)&vm->vmMain, syscalldll)))
 			{
 				Con_DPrintf("Creating native machine \"%s\"\n", name);
 				vm->type=VM_NATIVE;
@@ -1038,7 +956,7 @@ vm_t *VM_Create(vm_t *vm, const char *name, sys_calldll_t syscalldll, sys_callqv
 
 	if (syscallqvm)
 	{
-		if((vm->hInst=QVM_Load(name, syscallqvm)))
+		if((vm->hInst=QVM_LoadVM(name, syscallqvm)))
 		{
 			Con_DPrintf("Creating virtual machine \"%s\"\n", name);
 			vm->type=VM_BYTECODE;
@@ -1060,11 +978,11 @@ void VM_Destroy(vm_t *vm)
 	switch(vm->type)
 	{
 	case VM_NATIVE:
-		if(vm->hInst) Sys_UnloadDLL(vm->hInst);
+		if(vm->hInst) QVM_UnloadDLL(vm->hInst);
 		break;
 
 	case VM_BYTECODE:
-		if(vm->hInst) QVM_UnLoad(vm->hInst);
+		if(vm->hInst) QVM_UnLoadVM(vm->hInst);
 		break;
 
 	case VM_NONE:
@@ -1094,11 +1012,11 @@ qboolean VM_Restart(vm_t *vm)
 	switch(vm->type)
 	{
 	case VM_NATIVE:
-		if(vm->hInst) Sys_UnloadDLL(vm->hInst);
+		if(vm->hInst) QVM_UnloadDLL(vm->hInst);
 		break;
 
 	case VM_BYTECODE:
-		if(vm->hInst) QVM_UnLoad(vm->hInst);
+		if(vm->hInst) QVM_UnLoadVM(vm->hInst);
 		break;
 
 	case VM_NONE:
@@ -1148,7 +1066,7 @@ int VARGS VM_Call(vm_t *vm, int instruction, ...)
 		return vm->vmMain(instruction, arg0, arg1, arg2, arg3, arg4, arg5, arg6);
 
 	case VM_BYTECODE:
-		return QVM_Exec(vm->hInst, instruction, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+		return QVM_ExecVM(vm->hInst, instruction, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 
 	case VM_NONE:
 		return 0;

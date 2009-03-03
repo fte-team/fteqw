@@ -146,11 +146,11 @@ qboolean SV_RunThink (edict_t *ent)
 	if (sv_nomsec.value>=2)	//try and imitate nq as closeley as possible
 	{
 		thinktime = ent->v->nextthink;
-		if (thinktime <= 0 || thinktime > sv.time + host_frametime)
+		if (thinktime <= 0 || thinktime > sv.physicstime + host_frametime)
 			return true;
 
-		if (thinktime < sv.time)
-			thinktime = sv.time;	// don't let things stay in the past.
+		if (thinktime < sv.physicstime)
+			thinktime = sv.physicstime;	// don't let things stay in the past.
 									// it is possible to start that way
 									// by a trigger with a local time.
 		ent->v->nextthink = 0;
@@ -171,11 +171,11 @@ qboolean SV_RunThink (edict_t *ent)
 		thinktime = ent->v->nextthink;
 		if (thinktime <= 0)
 			return true;
-		if (thinktime > sv.time + host_frametime)
+		if (thinktime > sv.physicstime + host_frametime)
 			return true;
 
-		if (thinktime < sv.time)
-			thinktime = sv.time;	// don't let things stay in the past.
+		if (thinktime < sv.physicstime)
+			thinktime = sv.physicstime;	// don't let things stay in the past.
 									// it is possible to start that way
 									// by a trigger with a local time.
 		ent->v->nextthink = 0;
@@ -214,7 +214,7 @@ void SV_Impact (edict_t *e1, edict_t *e2)
 	old_self = pr_global_struct->self;
 	old_other = pr_global_struct->other;
 
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 	if (e1->v->touch && e1->v->solid != SOLID_NOT)
 	{
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, e1);
@@ -338,7 +338,7 @@ int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 		if (trace.plane.normal[2] > 0.7)
 		{
 			blocked |= 1;		// floor
-			if (trace.ent->v->solid == SOLID_BSP)
+			if (((edict_t *)trace.ent)->v->solid == SOLID_BSP)
 			{
 				ent->v->flags =	(int)ent->v->flags | FL_ONGROUND;
 				ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, trace.ent);
@@ -903,7 +903,7 @@ float	l;
 VectorCopy (ent->v->origin, oldorg);
 VectorCopy (ent->v->angles, oldang);
 		ent->v->nextthink = 0;
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
 #ifdef VM_Q1
@@ -1034,7 +1034,7 @@ void SV_CheckWaterTransition (edict_t *ent)
 	{
 		if (ent->v->watertype == Q1CONTENTS_EMPTY)
 		{	// just crossed into water
-			SV_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1);
+			SVQ1_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1);
 		}
 		ent->v->watertype = cont;
 		ent->v->waterlevel = 1;
@@ -1043,7 +1043,7 @@ void SV_CheckWaterTransition (edict_t *ent)
 	{
 		if (ent->v->watertype != Q1CONTENTS_EMPTY)
 		{	// just crossed into open
-			SV_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1);
+			SVQ1_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1);
 		}
 		ent->v->watertype = Q1CONTENTS_EMPTY;
 		ent->v->waterlevel = cont;
@@ -1183,9 +1183,9 @@ void SV_Physics_Step (edict_t *ent)
 			if (hitsound)
 			{
 				if (progstype == PROG_H2)
-					SV_StartSound (ent, 0, "fx/thngland.wav", 255, 1);
+					SVQ1_StartSound (ent, 0, "fx/thngland.wav", 255, 1);
 				else
-					SV_StartSound (ent, 0, "demon/dland2.wav", 255, 1);
+					SVQ1_StartSound (ent, 0, "demon/dland2.wav", 255, 1);
 			}
 		}
 	}
@@ -1204,7 +1204,7 @@ void SV_ProgStartFrame (void)
 // let the progs know that a new frame has started
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
 	pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 #ifdef VM_Q1
 	if (svs.gametype == GT_Q1QVM)
 		Q1QVM_StartFrame();
@@ -1732,8 +1732,8 @@ void SV_MoveChain(edict_t *ent, edict_t *movechain, float *initial_origin, float
 	{
 		vec3_t moveang, moveorg;
 		int i;
-		VectorSubtract(ent->v->angles, initial_angle, moveang)
-		VectorSubtract(ent->v->origin, initial_origin, moveorg)
+		VectorSubtract(ent->v->angles, initial_angle, moveang);
+		VectorSubtract(ent->v->origin, initial_origin, moveorg);
 
 		for(i=16;i && movechain != sv.edicts && !movechain->isfree;i--, movechain = PROG_TO_EDICT(svprogfuncs, movechain->xv->movechain))
 		{
@@ -1791,7 +1791,7 @@ void SV_RunEntity (edict_t *ent)
 	//
 	// call standard client pre-think
 	//
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 #ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
@@ -1876,7 +1876,7 @@ void SV_RunEntity (edict_t *ent)
 	{
 		SV_LinkEdict (ent, true);
 
-		pr_global_struct->time = sv.time;
+		pr_global_struct->time = sv.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 #ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
@@ -1970,16 +1970,15 @@ qboolean SV_Physics (void)
 	int		i;
 	qboolean retouch;
 	edict_t	*ent;
-	static double	old_time;
 
 
-	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)	//make tics multiples of sv_maxtic (defaults to 0.1)
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM && svs.gametype != GT_HALFLIFE)	//make tics multiples of sv_maxtic (defaults to 0.1)
 	{
-		host_frametime = sv.time - old_time;
+		host_frametime = sv.time - sv.physicstime;
 		if (host_frametime<0)
 		{
 			if (host_frametime < -1)
-				old_time = sv.time;
+				sv.physicstime = sv.time;
 			host_frametime = 0;
 		}
 		if (svs.gametype != GT_QUAKE3)
@@ -1990,7 +1989,7 @@ qboolean SV_Physics (void)
 		}
 		if (host_frametime > sv_maxtic.value)
 			host_frametime = sv_maxtic.value;
-		old_time = sv.time;
+		sv.physicstime = sv.time;
 
 
 		sv.framenum++;
@@ -2012,7 +2011,7 @@ qboolean SV_Physics (void)
 		return false;
 	}
 
-	if (/*sv.botsonthemap &&*/ progstype == PROG_QW)
+	if (svs.gametype != GT_HALFLIFE && /*sv.botsonthemap &&*/ progstype == PROG_QW)
 	{
 		//DP_SV_BOTCLIENT - make the bots move with qw physics.
 		//They only move when there arn't any players on the server, but they should move at the right kind of speed if there are... hopefully
@@ -2065,84 +2064,105 @@ qboolean SV_Physics (void)
 		}
 	}
 
-
 // don't bother running a frame if sys_ticrate seconds haven't passed
-	host_frametime = realtime - old_time;
-	if (host_frametime < -1)
-		old_time = 0;
-	if (host_frametime < sv_mintic.value)
-		return false;
-	if (host_frametime > sv_maxtic.value)
-		host_frametime = sv_maxtic.value;
-	old_time = realtime;
-
-	sv.physicstime = sv.time;
-
-	pr_global_struct->frametime = host_frametime;
-
-	SV_ProgStartFrame ();
-
-	PR_RunThreads();
-
-
-	retouch = (pr_nqglobal_struct->force_retouch && *pr_nqglobal_struct->force_retouch);
-
-//
-// treat each object in turn
-// even the world gets a chance to think
-//
-	for (i=0 ; i<sv.num_edicts ; i++)
+	while (1)
 	{
-		ent = EDICT_NUM(svprogfuncs, i);
-		if (ent->isfree)
+		host_frametime = sv.time - sv.physicstime;
+		if (host_frametime < 0)
+		{
+			sv.physicstime = sv.time;
+			break;
+		}
+		if (host_frametime <= 0 || host_frametime < sv_mintic.value)
+			break;
+		if (host_frametime > ((/*sv_captic.value<=*/0)?1:sv_maxtic.value*5))
+		{
+			//cap the distance to run physics
+			host_frametime = sv_maxtic.value;
+			sv.physicstime = sv.time;
+		}
+		else
+		{
+			if (host_frametime > sv_maxtic.value)
+				host_frametime = sv_maxtic.value;
+			sv.physicstime += host_frametime;
+		}
+
+#ifdef HLSERVER
+		if (svs.gametype == GT_HALFLIFE)
+		{
+			SVHL_RunFrame();
 			continue;
-
-		if (ent->solidtype != ent->v->solid)
-		{
-//			Con_Printf("Entity \"%s\" improperly changed solid type\n", svprogfuncs->stringtable+ent->v->classname);
-			SV_LinkEdict (ent, true);	// a change of solidity should always relink the edict. someone messed up.
 		}
-		else if (retouch)
-			SV_LinkEdict (ent, true);	// force retouch even for stationary
+#endif
 
-		if (i > 0 && i <= sv.allocated_client_slots)
+		pr_global_struct->frametime = host_frametime;
+
+		SV_ProgStartFrame ();
+
+		PR_RunThreads();
+
+
+		retouch = (pr_nqglobal_struct->force_retouch && *pr_nqglobal_struct->force_retouch);
+
+	//
+	// treat each object in turn
+	// even the world gets a chance to think
+	//
+		for (i=0 ; i<sv.num_edicts ; i++)
 		{
-			if (!svs.clients[i-1].isindependant)
+			ent = EDICT_NUM(svprogfuncs, i);
+			if (ent->isfree)
+				continue;
+
+			if (ent->solidtype != ent->v->solid)
 			{
-				SV_RunEntity(ent);
-				SV_RunNewmis ();
+	//			Con_Printf("Entity \"%s\" improperly changed solid type\n", svprogfuncs->stringtable+ent->v->classname);
+				SV_LinkEdict (ent, true);	// a change of solidity should always relink the edict. someone messed up.
 			}
-			else
-				SV_LinkEdict(ent, true);
-			continue;		// clients are run directly from packets
+			else if (retouch)
+				SV_LinkEdict (ent, true);	// force retouch even for stationary
+
+			if (i > 0 && i <= sv.allocated_client_slots)
+			{
+				if (!svs.clients[i-1].isindependant)
+				{
+					SV_RunEntity(ent);
+					SV_RunNewmis ();
+				}
+				else
+					SV_LinkEdict(ent, true);
+				continue;		// clients are run directly from packets
+			}
+
+			SV_RunEntity (ent);
+			SV_RunNewmis ();
 		}
 
-		SV_RunEntity (ent);
-		SV_RunNewmis ();
-	}
-
-	if (retouch)
-		pr_global_struct->force_retouch-=1;
+		if (retouch)
+			pr_global_struct->force_retouch-=1;
 
 #ifdef VM_Q1
-	if (svs.gametype == GT_Q1QVM)
-	{
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
-		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
-		pr_global_struct->time = sv.time;
-		Q1QVM_EndFrame();
-	}
-	else
+		if (svs.gametype == GT_Q1QVM)
+		{
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+			pr_global_struct->time = sv.physicstime;
+			Q1QVM_EndFrame();
+		}
+		else
 #endif
-		if (EndFrameQC)
-	{
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
-		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
-		pr_global_struct->time = sv.time;
-		PR_ExecuteProgram (svprogfuncs, EndFrameQC);
-	}
+			if (EndFrameQC)
+		{
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+			pr_global_struct->time = sv.physicstime;
+			PR_ExecuteProgram (svprogfuncs, EndFrameQC);
+		}
 
-	NPP_Flush();	//flush it just in case there was an error and we stopped preparsing. This is only really needed while debugging.
+		NPP_Flush();	//flush it just in case there was an error and we stopped preparsing. This is only really needed while debugging.
+
+	}
 	return false;
 }
 

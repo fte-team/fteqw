@@ -71,6 +71,10 @@ typedef struct cvar_s
 
 	char		*defaultstr;	//default
 	qbyte		restriction;
+
+#ifdef HLSERVER
+	struct hlcvar_s	*hlcvar;
+#endif
 } cvar_t;
 
 #define FCVARC(ConsoleName,ConsoleName2,Value,Flags,Callback) {ConsoleName, Value, NULL, Flags, 0, 0, 0, ConsoleName2, Callback}

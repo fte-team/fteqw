@@ -423,7 +423,9 @@ double Media_TweekCaptureFrameTime(double time);
 
 void MYgluPerspective(double fovx, double fovy, double zNear, double zFar);
 
-void R_MarkLeaves (void);
+void R_MarkLeaves_Q1 (void);
+void R_MarkLeaves_Q2 (void);
+void R_MarkLeaves_Q3 (void);
 void R_SetFrustum (void);
 void R_SetRenderer(int wanted);
 void RQ_Init(void);

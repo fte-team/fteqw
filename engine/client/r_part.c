@@ -167,6 +167,8 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 	for (i=0 ; i< pmove.numphysent ; i++)
 	{
 		pe = &pmove.physents[i];
+		if (pe->nonsolid)
+			continue;
 		if (pe->model)
 		{
 			VectorSubtract(start, pe->origin, ts);

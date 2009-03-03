@@ -419,11 +419,15 @@ typedef struct {
 	float framechange;	//marks time of last frame change - for halflife model sequencing.
 	float oldframechange;
 	float lerprate;	//inverse rate...
-	vec3_t origin;
+	vec3_t origin;	//current render position
 	vec3_t angles;
+	vec3_t forigin;	//when the frame changed
+	vec3_t fangles;
+	vec3_t foldorigin;//
+	vec3_t foldangles;
 	trailstate_t *trailstate;	//when to next throw out a trail
 	trailstate_t *emitstate;    //when to next emit
-	unsigned short frame;
+	unsigned short frame, oldframe;
 } lerpents_t;
 //
 // the client_state_t structure is wiped completely at every
@@ -538,6 +542,8 @@ typedef struct
 
 	char				model_csqcname[MAX_CSQCMODELS][MAX_QPATH];
 	struct model_s		*model_csqcprecache[MAX_CSQCMODELS];
+
+	qboolean			model_precaches_added;
 
 	//used for q2 sky/configstrings
 	char skyname[MAX_QPATH];
@@ -690,6 +696,7 @@ extern float	server_version;	// version of server we connected to
 //
 dlight_t *CL_AllocDlight (int key);
 dlight_t *CL_NewDlight (int key, float x, float y, float z, float radius, float time, int type);
+dlight_t *CL_NewDlightRGB (int key, float x, float y, float z, float radius, float time, float r, float g, float b);
 void	CL_DecayLights (void);
 void CL_ParseDelta (struct entity_state_s *from, struct entity_state_s *to, int bits, qboolean);
 

@@ -280,9 +280,13 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	raw = COM_LoadTempFile (name);
 	if (!raw)
 	{
-		Con_Printf ("Couldn't load skin %s\n", name);
-		sprintf (name, "skins/%s.pcx", baseskin.string);
-		raw = COM_LoadTempFile (name);
+		if (strcmp(skin->name, baseskin.string))
+		{
+			//if its not already the base skin, try the base (and warn if anything not base couldn't load).
+			Con_Printf ("Couldn't load skin %s\n", name);
+			sprintf (name, "skins/%s.pcx", baseskin.string);
+			raw = COM_LoadTempFile (name);
+		}
 		if (!raw)
 		{
 			skin->failedload = true;
@@ -519,7 +523,7 @@ void Skin_NextDownload (void)
 	player_info_t	*sc;
 	int			i;
 
-	Con_Printf ("Checking skins...\n");
+	//Con_Printf ("Checking skins...\n");
 
 	for (i = 0; i != MAX_CLIENTS; i++)
 	{

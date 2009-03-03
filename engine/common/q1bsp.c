@@ -934,7 +934,7 @@ SV_FindTouchedLeafs
 Links the edict to the right leafs so we can get it's potential visability.
 ===============
 */
-void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node)
+void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node, float *mins, float *maxs)
 {
 	mplane_t	*splitplane;
 	mleaf_t		*leaf;
@@ -965,20 +965,20 @@ void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node)
 // NODE_MIXED
 
 	splitplane = node->plane;
-	sides = BOX_ON_PLANE_SIDE(ent->v->absmin, ent->v->absmax, splitplane);
+	sides = BOX_ON_PLANE_SIDE(mins, maxs, splitplane);
 
 // recurse down the contacted sides
 	if (sides & 1)
-		Q1BSP_RFindTouchedLeafs (ent, node->children[0]);
+		Q1BSP_RFindTouchedLeafs (ent, node->children[0], mins, maxs);
 
 	if (sides & 2)
-		Q1BSP_RFindTouchedLeafs (ent, node->children[1]);
+		Q1BSP_RFindTouchedLeafs (ent, node->children[1], mins, maxs);
 }
-void Q1BSP_FindTouchedLeafs(model_t *mod, edict_t *ent)
+void Q1BSP_FindTouchedLeafs(model_t *mod, edict_t *ent, float *mins, float *maxs)
 {
 	ent->num_leafs = 0;
 	if (ent->v->modelindex)
-		Q1BSP_RFindTouchedLeafs (ent, mod->nodes);
+		Q1BSP_RFindTouchedLeafs (ent, mod->nodes, mins, maxs);
 }
 
 #endif

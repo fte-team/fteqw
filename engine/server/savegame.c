@@ -37,6 +37,13 @@ void SV_SavegameComment (char *text)
 	}
 	else
 #endif
+#ifdef HLSERVER
+	if (svs.gametype == GT_HALFLIFE)
+	{
+		sprintf (kills,"kills:moo");
+	}
+	else
+#endif
 		sprintf (kills,"kills:%3i/%3i", (int)pr_global_struct->killed_monsters, (int)pr_global_struct->total_monsters);
 	memcpy (text+22, kills, strlen(kills));
 // convert space to _ to make stdio happy
@@ -404,8 +411,7 @@ void SV_Loadgame_f(void)
 
 	sv.time = time;
 
-	pr_global_struct->time = sv.time;
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 
 	fclose (f);
 
@@ -663,7 +669,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	PR_LoadGlabalStruct();
 
-	pr_global_struct->time = sv.time = time;
+	pr_global_struct->time = sv.time = sv.physicstime = time;
 	sv.starttime = Sys_DoubleTime() - sv.time;
 
 	VFS_SEEK(f, modelpos);
@@ -710,7 +716,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 					if (spawnparamglobals[j])
 						*spawnparamglobals[j] = host_client->spawn_parms[j];
 				}
-				pr_global_struct->time = sv.time;
+				pr_global_struct->time = sv.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 				ent->area.next = ent->area.prev = NULL;
 				G_FLOAT(OFS_PARM0) = sv.time-host_client->spawninfotime;
@@ -783,6 +789,14 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 		path[COM_SkipPath(name)-name] = '\0';
 		Sys_mkdir(path);
 		ge->WriteLevel(name);
+		return;
+	}
+#endif
+
+#ifdef HLSERVER
+	if (svs.gametype == GT_HALFLIFE)
+	{
+		SVHL_SaveLevelCache(name);
 		return;
 	}
 #endif

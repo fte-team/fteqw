@@ -592,6 +592,7 @@ void CLQ3_ParseGameState(void)
 	if (!cl.worldmodel)
 		Host_EndGame("CGame didn't set a map.\n");
 
+	cl.model_precaches_added = false;
 	R_NewMap ();
 
 	SCR_EndLoadingPlaque();
@@ -943,7 +944,8 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	// begin a client move command, if any
 	if( cmdcount )
 	{
-		if(!ccs.snap.valid ||
+		extern cvar_t cl_nodelta;
+		if(cl_nodelta.value || !ccs.snap.valid ||
 				ccs.snap.serverMessageNum != ccs.serverMessageNum)
 			MSG_WriteBits(&msg, clcq3_nodeltaMove, 8); // no compression
 		else

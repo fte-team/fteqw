@@ -545,6 +545,11 @@ qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned 
 	if (!(flags & DLLF_OVERWRITE) && CL_CheckFile(localname))
 		return true;
 
+#ifndef CLIENTONLY
+	if (sv.state)
+		return true;
+#endif
+
 	//ZOID - can't download when recording
 	if (cls.demorecording)
 	{
@@ -738,7 +743,7 @@ void Model_NextDownload (void)
 	int		i;
 //	extern	char gamedirfile[];
 
-	Con_TPrintf (TLC_CHECKINGMODELS);
+//	Con_TPrintf (TLC_CHECKINGMODELS);
 
 /*	if (cls.downloadnumber == 0)
 	{
@@ -905,12 +910,15 @@ int CL_LoadModels(int stage)
 		{
 			if (!cl.model_name[1][0])
 				Host_EndGame("Worldmodel name wasn't sent\n");
-			else
-				Host_EndGame("Worldmodel wasn't loaded\n");
+//			else
+//				return stage;
+//				Host_EndGame("Worldmodel wasn't loaded\n");
 		}
 
-		if (cl.worldmodel->fromgame == fg_quake)
+		if (cl.worldmodel && cl.worldmodel->fromgame == fg_quake)
 			cl.hexen2pickups = cl.worldmodel->hulls[MAX_MAP_HULLSDH2-1].available;
+		else
+			cl.hexen2pickups = false;
 
 		R_CheckSky();
 
@@ -952,8 +960,8 @@ int CL_LoadModels(int stage)
 	if (atstage())
 	{
 		loadmodel = cl.worldmodel;
-		if (!loadmodel || loadmodel->type == mod_dummy)
-			Host_EndGame("No worldmodel was loaded\n");
+//		if (!loadmodel || loadmodel->type == mod_dummy)
+//			Host_EndGame("No worldmodel was loaded\n");
 		Mod_NowLoadExternal();
 
 		endstage();
@@ -964,8 +972,9 @@ int CL_LoadModels(int stage)
 	if (atstage())
 	{
 		loadmodel = cl.worldmodel;
-		if (!loadmodel || loadmodel->type == mod_dummy)
-			Host_EndGame("No worldmodel was loaded\n");
+//		if (!loadmodel || loadmodel->type == mod_dummy)
+//			Host_EndGame("No worldmodel was loaded\n");
+		cl.model_precaches_added = false;
 		R_NewMap ();
 
 		pmove.physents[0].model = cl.worldmodel;
@@ -1015,7 +1024,7 @@ void Sound_NextDownload (void)
 	int		i;
 
 
-	Con_TPrintf (TLC_CHECKINGSOUNDS);
+//	Con_TPrintf (TLC_CHECKINGSOUNDS);
 
 #ifdef CSQC_DAT
 	if (cls.fteprotocolextensions & PEXT_CSQC)
@@ -1955,7 +1964,8 @@ void CL_ParseServerData (void)
 		if (protover == PROTOCOL_VERSION_FTE)
 		{
 			cls.fteprotocolextensions =  MSG_ReadLong();
-			Con_TPrintf (TL_FTEEXTENSIONS, cls.fteprotocolextensions);
+			if (developer.value || cl_shownet.value)
+				Con_TPrintf (TL_FTEEXTENSIONS, cls.fteprotocolextensions);
 			continue;
 		}
 		if (protover == PROTOCOL_VERSION_QW)	//this ends the version info
@@ -2361,9 +2371,18 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 
 	//fill in the csqc stuff
-	Info_SetValueForStarKey(cl.serverinfo, "*csprogs", va("%i", cl_dp_csqc_progscrc), sizeof(cl.serverinfo));
-	Info_SetValueForStarKey(cl.serverinfo, "*csprogssize", va("%i", cl_dp_csqc_progssize), sizeof(cl.serverinfo));
-	Info_SetValueForStarKey(cl.serverinfo, "*csprogsname", va("%i", cl_dp_csqc_progsname), sizeof(cl.serverinfo));
+	if (!cl_dp_csqc_progscrc)
+	{
+		Info_RemoveKey(cl.serverinfo, "*csprogs");
+		Info_RemoveKey(cl.serverinfo, "*csprogssize");
+		Info_RemoveKey(cl.serverinfo, "*csprogsname");
+	}
+	else
+	{
+		Info_SetValueForStarKey(cl.serverinfo, "*csprogs", va("%i", cl_dp_csqc_progscrc), sizeof(cl.serverinfo));
+		Info_SetValueForStarKey(cl.serverinfo, "*csprogssize", va("%i", cl_dp_csqc_progssize), sizeof(cl.serverinfo));
+		Info_SetValueForStarKey(cl.serverinfo, "*csprogsname", va("%i", cl_dp_csqc_progsname), sizeof(cl.serverinfo));
+	}
 
 	//update gamemode
 	if (gametype == 1)
@@ -2873,7 +2892,7 @@ qboolean CL_CheckBaselines (int size)
 		return false;
 
 	size = (size + 64) & ~63; // round up to next 64
-	if (size < cl_baselines_count)
+	if (size <= cl_baselines_count)
 		return true;
 
 	cl_baselines = BZ_Realloc(cl_baselines, sizeof(*cl_baselines)*size); 
@@ -4383,6 +4402,8 @@ void CL_ParsePrecache(void)
 				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
 			cl.model_precache[i] = model;
 			strcpy (cl.model_name[i], s);
+
+			cl.model_precaches_added = true;
 		}
 		else
 			Con_Printf("svc_precache: model index %i outside range %i...%i\n", i, 1, MAX_MODELS);
@@ -5338,6 +5359,10 @@ void CLNQ_ParseServerMessage (void)
 					cl_dp_csqc_progssize = atoi(s+14);
 				else if (!strncmp(s, "csqc_progcrc ", 13))
 					cl_dp_csqc_progscrc = atoi(s+13);
+				else if (!strncmp(s, "cl_fullpitch ", 13) || !strncmp(s, "pq_fullpitch ", 13))
+				{
+					//
+				}
 				else
 				{
 					Cbuf_AddText (s, RESTRICT_SERVER);	//no cheating here...
@@ -5435,7 +5460,11 @@ void CLNQ_ParseServerMessage (void)
 			if (i >= MAX_CLIENTS)
 				MSG_ReadString();
 			else
+			{
 				strcpy(cl.players[i].name, MSG_ReadString());
+				if (*cl.players[i].name)
+					cl.players[i].userid = i+1;
+			}
 			break;
 
 		case svc_updatefrags:
@@ -5448,22 +5477,22 @@ void CLNQ_ParseServerMessage (void)
 			break;
 		case svc_updatecolors:
 			{
-			int a;
-			Sbar_Changed ();
-			i = MSG_ReadByte ();
-			a = MSG_ReadByte ();
-			if (i >= MAX_CLIENTS)
-				break;
-			//FIXME:!!!!
+				int a;
+				i = MSG_ReadByte ();
+				a = MSG_ReadByte ();
+				if (i < MAX_CLIENTS)
+				{
+					cl.players[i].rtopcolor = a&0x0f;
+					cl.players[i].rbottomcolor = (a&0xf0)>>4;
 
-			cl.players[i].rtopcolor = a&0x0f;
-			cl.players[i].rbottomcolor = (a&0xf0)>>4;
+					sprintf(cl.players[i].team, "%2d", cl.players[i].rbottomcolor);
 
-			if (cls.state == ca_active)
-				Skin_Find (&cl.players[i]);
+					if (cls.state == ca_active)
+						Skin_Find (&cl.players[i]);
 
-			Sbar_Changed ();
-			CL_NewTranslation (i);
+					Sbar_Changed ();
+					CL_NewTranslation (i);
+				}
 			}
 			break;
 		case svc_lightstyle:

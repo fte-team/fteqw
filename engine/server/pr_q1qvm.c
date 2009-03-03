@@ -661,7 +661,7 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 
 	case G_SOUND:
 //		( int edn, int channel, char *samp, float vol, float att )
-		SV_StartSound (Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]));
+		SVQ1_StartSound (Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]));
 		break;
 
 	case G_TRACELINE:
@@ -1380,12 +1380,12 @@ void Q1QVM_ClientConnect(client_t *cl)
 		strcpy(cl->name, cl->namebuf);
 	}
 	// call the spawn function
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
 	VM_Call(q1qvm, GAME_CLIENT_CONNECT, cl->spectator);
 
 	// actually spawn the player
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
 	VM_Call(q1qvm, GAME_PUT_CLIENT_IN_SERVER, cl->spectator);
 }
@@ -1399,7 +1399,7 @@ qboolean Q1QVM_GameConsoleCommand(void)
 	//FIXME: if an rcon command from someone on the server, mvdsv sets self to match the ip of that player
 	//this is not required (broken by proxies anyway) but is a nice handy feature
 	
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 	oldself = pr_global_struct->self;	//these are usually useless
 	oldother = pr_global_struct->other;	//but its possible that someone makes a mod that depends on the 'mod' command working via redirectcmd+co
 						//this at least matches mvdsv
@@ -1421,7 +1421,7 @@ qboolean Q1QVM_ClientSay(edict_t *player, qboolean team)
 
 	SV_EndRedirect();
 
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 	pr_global_struct->self = Q1QVMPF_EdictToProgs(svprogfuncs, player);
 	washandled = VM_Call(q1qvm, GAME_CLIENT_SAY, team);
 
@@ -1435,7 +1435,7 @@ qboolean Q1QVM_UserInfoChanged(edict_t *player)
 	if (!q1qvm)
 		return false;
 
-	pr_global_struct->time = sv.time;
+	pr_global_struct->time = sv.physicstime;
 	pr_global_struct->self = Q1QVMPF_EdictToProgs(svprogfuncs, player);
 	return VM_Call(q1qvm, GAME_CLIENT_USERINFO_CHANGED);
 }

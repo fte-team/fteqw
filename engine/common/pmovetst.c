@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include "quakedef.h"
 
+qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, trace_t *trace, vec3_t origin, vec3_t angles);
 int Q1BSP_HullPointContents(hull_t *hull, vec3_t p);
 static	hull_t		box_hull;
 static	dclipnode_t	box_clipnodes[6];

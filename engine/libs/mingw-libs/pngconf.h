@@ -1,9 +1,9 @@
 
 /* pngconf.h - machine configurable file for libpng
  *
- * libpng version 1.2.22 - October 13, 2007
+ * libpng version 1.2.35 - February 14, 2009
  * For conditions of distribution and use, see copyright notice in png.h
- * Copyright (c) 1998-2007 Glenn Randers-Pehrson
+ * Copyright (c) 1998-2009 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
  */
@@ -233,6 +233,8 @@
 #  include <windows.h>
    /* Console I/O functions are not supported on WindowsCE */
 #  define PNG_NO_CONSOLE_IO
+   /* abort() may not be supported on some/all Windows CE platforms */
+#  define PNG_ABORT() exit(-1)
 #  ifdef PNG_DEBUG
 #    undef PNG_DEBUG
 #  endif
@@ -323,7 +325,7 @@
      /* If you encounter a compiler error here, see the explanation
       * near the end of INSTALL.
       */
-         __png.h__ already includes setjmp.h;
+         __pngconf.h__ already includes setjmp.h;
          __dont__ include it again.;
 #    endif
 #  endif /* __linux__ */
@@ -333,7 +335,9 @@
 
 #  ifdef __linux__
 #    ifdef PNG_SAVE_BSD_SOURCE
-#      define _BSD_SOURCE
+#      ifndef _BSD_SOURCE
+#        define _BSD_SOURCE
+#      endif
 #      undef PNG_SAVE_BSD_SOURCE
 #    endif
 #  endif /* __linux__ */
@@ -796,6 +800,12 @@
 #  define PNG_USER_HEIGHT_MAX 1000000L
 #endif
 
+
+/* Added at libpng-1.2.34 and 1.4.0 */
+#ifndef PNG_STRING_NEWLINE
+#define PNG_STRING_NEWLINE "\n"
+#endif
+
 /* These are currently experimental features, define them if you want */
 
 /* very little testing */
@@ -1121,10 +1131,10 @@ typedef unsigned char png_byte;
    change (I'm not sure if you will or not, so I thought I'd be safe) */
 #ifdef PNG_SIZE_T
    typedef PNG_SIZE_T png_size_t;
-#  define png_sizeof(x) png_convert_size(sizeof (x))
+#  define png_sizeof(x) png_convert_size(sizeof(x))
 #else
    typedef size_t png_size_t;
-#  define png_sizeof(x) sizeof (x)
+#  define png_sizeof(x) sizeof(x)
 #endif
 
 /* The following is needed for medium model support.  It cannot be in the
@@ -1430,8 +1440,6 @@ typedef z_stream FAR *  png_zstreamp;
 #  define CVT_PTR(ptr) (png_far_to_near(png_ptr,ptr,CHECK))
 #  define CVT_PTR_NOCHECK(ptr) (png_far_to_near(png_ptr,ptr,NOCHECK))
 #  define png_snprintf _fsnprintf   /* Added to v 1.2.19 */
-#  define png_strcpy  _fstrcpy
-#  define png_strncpy _fstrncpy   /* Added to v 1.2.6 */
 #  define png_strlen  _fstrlen
 #  define png_memcmp  _fmemcmp    /* SJT: added */
 #  define png_memcpy  _fmemcpy
@@ -1460,8 +1468,6 @@ typedef z_stream FAR *  png_zstreamp;
 #    define png_snprintf6(s1,n,fmt,x1,x2,x3,x4,x5,x6) \
         sprintf(s1,fmt,x1,x2,x3,x4,x5,x6)
 #  endif
-#  define png_strcpy  strcpy
-#  define png_strncpy strncpy     /* Added to v 1.2.6 */
 #  define png_strlen  strlen
 #  define png_memcmp  memcmp      /* SJT: added */
 #  define png_memcpy  memcpy

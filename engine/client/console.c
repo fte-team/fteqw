@@ -145,7 +145,7 @@ console_t *Con_FindConsole(char *name)
 console_t *Con_Create(char *name)
 {
 	console_t *con;
-	con = BZ_Malloc(sizeof(console_t));
+	con = Z_Malloc(sizeof(console_t));
 	Q_strncpyz(con->name, name, sizeof(con->name));
 
 	Con_ResizeCon(con);

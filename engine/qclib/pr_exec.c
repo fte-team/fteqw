@@ -493,7 +493,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		switch (type&~DEF_SAVEGLOBAL)
 		{
 		case ev_string:
-			*(string_t *)val = ED_NewString (progfuncs, assignment, 0)-progfuncs->stringtable;
+			*(string_t *)val = PR_StringToProgs(progfuncs, ED_NewString (progfuncs, assignment, 0));
 			break;
 			
 		case ev_float:

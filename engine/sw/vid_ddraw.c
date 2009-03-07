@@ -2,7 +2,7 @@
 #include "winquake.h"
 
 qboolean vid_palettized;
-#ifndef NODIRECTX
+#ifdef AVAIL_DDRAW
 
 HMODULE hinstDDRAW;
 LPDIRECTDRAW2 lpDirectDraw;

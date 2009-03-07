@@ -29,7 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <io.h>
 #include <direct.h>
 
-#ifdef NODIRECTX
+#ifndef AVAIL_DDRAW
 #define DDActive 0
 #endif
 
@@ -160,7 +160,7 @@ void *Sys_GetGameAPI (void *parms)
 	const char *debugdir = "debug";
 #endif
 
-#elif defined __amd64__
+#elif defined(__amd64__) || defined(__AMD64__) || defined(_AMD64_)
 	const char *gamename = "gameamd.dll";
 
 #ifdef NDEBUG
@@ -1414,7 +1414,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 }
 
 
-#ifdef NOASM //these couldn't be found... (it is a masm thing, right?)
+#if !id386 //these couldn't be found... (it is a masm thing, right?)
 void Sys_HighFPPrecision (void)
 {
 }

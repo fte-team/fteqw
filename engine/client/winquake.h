@@ -47,7 +47,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WM_MWHOOK (WM_USER + 1)
 
 #ifndef SERVERONLY
-#ifndef NODIRECTX
+#ifdef AVAIL_DDRAW
 #include <ddraw.h>
 #endif
 #ifdef SWQUAKE
@@ -69,7 +69,7 @@ LONG CDAudio_MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 #endif
 
 
-#ifndef NODIRECTX
+#ifdef AVAIL_DDRAW
 extern qboolean			DDActive;
 extern LPDIRECTDRAW		lpDD;
 extern LPDIRECTDRAWSURFACE	lpPrimary;
@@ -93,7 +93,7 @@ struct soundcardinfo_s {
 	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);
 	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);
 
-#ifndef NODIRECTX
+#ifdef AVAIL_DSOUND
 	LPDIRECTSOUND pDS;
 	LPDIRECTSOUNDBUFFER pDSBuf;
 	LPDIRECTSOUNDBUFFER pDSPBuf;
@@ -127,7 +127,7 @@ struct soundcardinfo_s {
 channel_t   channel[MAX_CHANNELS];
 int			total_chans;
 
-#ifndef NODIRECTX
+#ifdef AVAIL_DSOUND
 #ifdef _IKsPropertySet_
 	LPKSPROPERTYSET	EaxKsPropertiesSet;
 #endif

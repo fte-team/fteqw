@@ -30,7 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "in_raw.h"
 #endif
 
-#ifndef NODIRECTX
+#ifdef AVAIL_DINPUT
 
 #ifdef _MSC_VER
 #pragma comment (lib, "dxguid.lib")
@@ -171,7 +171,7 @@ int			joy_id;
 DWORD		joy_flags;
 DWORD		joy_numbuttons;
 
-#ifndef NODIRECTX
+#ifdef AVAIL_DINPUT
 // devices
 LPDIRECTINPUT		g_pdi;
 LPDIRECTINPUTDEVICE	g_pMouse;
@@ -440,7 +440,7 @@ void IN_ActivateMouse (void)
 
 	if (mouseinitialized)
 	{
-#ifndef NODIRECTX
+#ifdef AVAIL_DINPUT
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 		if (dinput >= DINPUT_VERSION_DX7)
 		{
@@ -528,7 +528,7 @@ void IN_DeactivateMouse (void)
 
 	if (mouseinitialized)
 	{
-#ifndef NODIRECTX
+#ifdef AVAIL_DINPUT
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 		if (dinput >= DINPUT_VERSION_DX7)
 		{
@@ -599,7 +599,7 @@ void IN_RestoreOriginalMouseState (void)
 	ShowCursor (FALSE);
 }
 
-#ifndef NODIRECTX
+#ifdef AVAIL_DINPUT
 BOOL CALLBACK IN_EnumerateDevices(LPCDIDEVICEINSTANCE inst, LPVOID parm)
 {
 	Con_DPrintf("EnumerateDevices found: %s\n", inst->tszProductName);
@@ -1112,7 +1112,7 @@ void IN_StartupMouse (void)
 
 	mouseinitialized = true;
 
-#ifndef NODIRECTX
+#ifdef AVAIL_DINPUT
 	if (in_dinput.value)
 	{
 		dinput = IN_InitDInput ();
@@ -1297,7 +1297,7 @@ void IN_Shutdown (void)
 
 	mouseparmsvalid = false;
 
-#ifndef NODIRECTX
+#ifdef AVAIL_DINPUT
 	IN_CloseDInput();
 #endif
 #ifdef USINGRAWINPUT
@@ -1536,7 +1536,7 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 		return;
 	}
 
-#ifndef NODIRECTX
+#ifdef AVAIL_DINPUT
 	if (dinput)
 	{
 		DIDEVICEOBJECTDATA	od;

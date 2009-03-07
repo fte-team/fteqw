@@ -19,8 +19,8 @@
 	<Configurations>
 		<Configuration
 			Name="MinGLDebug|Win32"
-			OutputDirectory=".\ftequake___Win32_MinGLDebug"
-			IntermediateDirectory=".\ftequake___Win32_MinGLDebug"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -87,7 +87,6 @@
 				IgnoreDefaultLibraryNames="libc.lib"
 				GenerateDebugInformation="true"
 				GenerateMapFile="true"
-				MapFileName=".\ftequake___Win32_MinGLDebug/fteminglqw_dbg.map"
 				SubSystem="2"
 				TargetMachine="1"
 			/>
@@ -120,7 +119,7 @@
 		</Configuration>
 		<Configuration
 			Name="MinGLDebug|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -181,7 +180,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
-				OutputFile="../../fteminglqw_dbg.exe"
+				OutputFile="../../fteminglqw_dbg64.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -221,8 +220,8 @@
 		</Configuration>
 		<Configuration
 			Name="D3DDebug|Win32"
-			OutputDirectory=".\D3DDebug"
-			IntermediateDirectory=".\D3DDebug"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -288,7 +287,6 @@
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				IgnoreDefaultLibraryNames="libc.lib"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile=".\D3DDebug/fted3dqw_dbg.pdb"
 				GenerateMapFile="true"
 				MapFileName=".\D3DDebug/fted3dqw_dbg.map"
 				SubSystem="2"
@@ -323,7 +321,7 @@
 		</Configuration>
 		<Configuration
 			Name="D3DDebug|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -384,7 +382,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
-				OutputFile="../../fted3dqw_dbg.exe"
+				OutputFile="../../fted3dqw_dbg64.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -425,8 +423,8 @@
 		</Configuration>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory=".\Debug"
-			IntermediateDirectory=".\Debug"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -493,7 +491,6 @@
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				IgnoreDefaultLibraryNames="libc.lib"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile=".\Debug/fteswqw_dbg.pdb"
 				GenerateMapFile="true"
 				MapFileName=".\Debug/fteswqw_dbg.map"
 				SubSystem="2"
@@ -528,7 +525,7 @@
 		</Configuration>
 		<Configuration
 			Name="Debug|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -590,7 +587,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
-				OutputFile="../../fteswqw_dbg.exe"
+				OutputFile="../../fteswqw_dbg64.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -631,8 +628,8 @@
 		</Configuration>
 		<Configuration
 			Name="MinSW|Win32"
-			OutputDirectory=".\ftequake___Win32_MinSW"
-			IntermediateDirectory=".\ftequake___Win32_MinSW"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -700,7 +697,6 @@
 				IgnoreDefaultLibraryNames="libc.lib"
 				GenerateDebugInformation="true"
 				GenerateMapFile="true"
-				MapFileName=".\ftequake___Win32_MinSW/fteswqw_dbg.map"
 				SubSystem="2"
 				TargetMachine="1"
 			/>
@@ -733,7 +729,7 @@
 		</Configuration>
 		<Configuration
 			Name="MinSW|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -795,7 +791,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
-				OutputFile="../../fteswqw_dbg.exe"
+				OutputFile="../../fteswqw_dbg64.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -835,8 +831,8 @@
 		</Configuration>
 		<Configuration
 			Name="MinGLRelease|Win32"
-			OutputDirectory=".\ftequake___Win32_MinGLRelease"
-			IntermediateDirectory=".\ftequake___Win32_MinGLRelease"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -906,7 +902,6 @@
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				IgnoreDefaultLibraryNames="libc.lib"
 				GenerateMapFile="true"
-				MapFileName=".\ftequake___Win32_MinGLRelease/fteminglqw.map"
 				SubSystem="2"
 				TargetMachine="1"
 			/>
@@ -939,7 +934,7 @@
 		</Configuration>
 		<Configuration
 			Name="MinGLRelease|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -1004,7 +999,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="wsock32.lib winmm.lib"
-				OutputFile="../../fteminglqw.exe"
+				OutputFile="../../fteminglqw64.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -1043,8 +1038,8 @@
 		</Configuration>
 		<Configuration
 			Name="GLDebug|Win32"
-			OutputDirectory=".\GLDebug"
-			IntermediateDirectory=".\GLDebug"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -1110,9 +1105,7 @@
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				IgnoreDefaultLibraryNames="libc.lib"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile=".\GLDebug/fteglqw_dbg.pdb"
 				GenerateMapFile="true"
-				MapFileName=".\GLDebug/fteglqw_dbg.map"
 				SubSystem="2"
 				TargetMachine="1"
 			/>
@@ -1146,7 +1139,7 @@
 		</Configuration>
 		<Configuration
 			Name="GLDebug|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -1207,7 +1200,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
-				OutputFile="../../fteglqw_dbg.exe"
+				OutputFile="../../fteglqw_dbg64.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -1249,8 +1242,8 @@
 		</Configuration>
 		<Configuration
 			Name="Release Dedicated Server|Win32"
-			OutputDirectory=".\ftequake___Win32_Release_Dedicated_Server"
-			IntermediateDirectory=".\ftequake___Win32_Release_Dedicated_Server"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -1351,7 +1344,7 @@
 		</Configuration>
 		<Configuration
 			Name="Release Dedicated Server|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -1414,7 +1407,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="winmm.lib wsock32.lib Advapi32.lib"
-				OutputFile="../../fteqwsv.exe"
+				OutputFile="../../fteqwsv64.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -1453,8 +1446,8 @@
 		</Configuration>
 		<Configuration
 			Name="MRelease|Win32"
-			OutputDirectory=".\MRelease"
-			IntermediateDirectory=".\MRelease"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -1556,7 +1549,7 @@
 		</Configuration>
 		<Configuration
 			Name="MRelease|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -1620,7 +1613,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
-				OutputFile="../../fteqw.exe"
+				OutputFile="../../fteqw64.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -1659,8 +1652,8 @@
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
-			OutputDirectory=".\Release"
-			IntermediateDirectory=".\Release"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -1762,7 +1755,7 @@
 		</Configuration>
 		<Configuration
 			Name="Release|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -1826,7 +1819,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
-				OutputFile="../../fteswqw.exe"
+				OutputFile="../../fteswqw64.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -1865,8 +1858,8 @@
 		</Configuration>
 		<Configuration
 			Name="Debug Dedicated Server|Win32"
-			OutputDirectory=".\DebugServer"
-			IntermediateDirectory=".\DebugServer"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -1933,9 +1926,7 @@
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				IgnoreDefaultLibraryNames="libc.lib"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile=".\DebugServer/fteqwsv.pdb"
 				GenerateMapFile="true"
-				MapFileName=".\DebugServer/fteqwsv.map"
 				SubSystem="1"
 				TargetMachine="1"
 			/>
@@ -1968,7 +1959,7 @@
 		</Configuration>
 		<Configuration
 			Name="Debug Dedicated Server|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -2030,7 +2021,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
-				OutputFile="../../fteqwsv.exe"
+				OutputFile="../../fteqwsv64.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -2071,8 +2062,8 @@
 		</Configuration>
 		<Configuration
 			Name="MDebug|Win32"
-			OutputDirectory=".\MDebug"
-			IntermediateDirectory=".\MDebug"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -2139,9 +2130,7 @@
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				IgnoreDefaultLibraryNames="libc.lib"
 				GenerateDebugInformation="true"
-				ProgramDatabaseFile=".\MDebug/fteqw_dbg.pdb"
 				GenerateMapFile="true"
-				MapFileName=".\MDebug/fteqw_dbg.map"
 				SubSystem="2"
 				TargetMachine="1"
 			/>
@@ -2174,7 +2163,7 @@
 		</Configuration>
 		<Configuration
 			Name="MDebug|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -2236,7 +2225,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
-				OutputFile="../../fteqw_dbg.exe"
+				OutputFile="../../fteqw_dbg64.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -2277,8 +2266,8 @@
 		</Configuration>
 		<Configuration
 			Name="GLRelease|Win32"
-			OutputDirectory=".\ftequake___Win32_GLRelease"
-			IntermediateDirectory=".\ftequake___Win32_GLRelease"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -2348,7 +2337,6 @@
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				IgnoreDefaultLibraryNames="libc.lib"
 				GenerateMapFile="true"
-				MapFileName=".\ftequake___Win32_GLRelease/fteglqw.map"
 				SubSystem="2"
 				TargetMachine="1"
 			/>
@@ -2381,7 +2369,7 @@
 		</Configuration>
 		<Configuration
 			Name="GLRelease|x64"
-			OutputDirectory="$(PlatformName)\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
@@ -2446,7 +2434,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
-				OutputFile="../../fteglqw.exe"
+				OutputFile="../../fteglqw64.exe"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -7313,7 +7301,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -14584,48 +14571,6 @@
 					RelativePath="..\client\p_classic.c"
 					>
 					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinSW|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -14634,36 +14579,8 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
 						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -14674,48 +14591,6 @@
 					RelativePath="..\client\p_null.c"
 					>
 					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinSW|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -14724,36 +14599,8 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
 						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -14764,48 +14611,6 @@
 					RelativePath="..\client\p_script.c"
 					>
 					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinSW|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -14814,36 +14619,8 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
 						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -40674,6 +40451,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -40692,6 +40470,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -40758,6 +40537,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -40776,6 +40556,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -40810,6 +40591,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -40880,6 +40662,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -40898,6 +40681,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -40964,6 +40748,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -40982,6 +40767,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41016,6 +40802,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41086,6 +40873,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41104,6 +40892,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41170,6 +40959,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41188,6 +40978,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41222,6 +41013,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41292,6 +41084,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41310,6 +41103,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41376,6 +41170,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41394,6 +41189,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41428,6 +41224,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41498,6 +41295,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41516,6 +41314,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41582,6 +41381,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41600,6 +41400,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41634,6 +41435,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41704,6 +41506,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41722,6 +41525,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41788,6 +41592,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41806,6 +41611,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41840,6 +41646,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41910,6 +41717,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41928,6 +41736,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -41994,6 +41803,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42012,6 +41822,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42046,6 +41857,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42084,6 +41896,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42102,6 +41915,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="D3DDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42120,6 +41934,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42138,6 +41953,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42156,6 +41972,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42174,6 +41991,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42192,6 +42010,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42210,6 +42029,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42228,6 +42048,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42246,6 +42067,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42264,6 +42086,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42282,6 +42105,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42336,6 +42160,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42354,6 +42179,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42420,6 +42246,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42438,6 +42265,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42472,6 +42300,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42542,6 +42371,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42560,6 +42390,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42626,6 +42457,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42644,6 +42476,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42678,6 +42511,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42748,6 +42582,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42766,6 +42601,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42832,6 +42668,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42850,6 +42687,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42884,6 +42722,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42954,6 +42793,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -42972,6 +42812,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43038,6 +42879,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43056,6 +42898,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43090,6 +42933,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43160,6 +43004,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43178,6 +43023,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43244,6 +43090,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43262,6 +43109,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43296,6 +43144,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43334,6 +43183,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43352,6 +43202,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="D3DDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43370,6 +43221,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43388,6 +43240,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43406,6 +43259,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43424,6 +43278,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43458,6 +43313,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43476,6 +43332,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43510,6 +43367,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43528,6 +43386,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43582,6 +43441,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43600,6 +43460,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43666,6 +43527,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43684,6 +43546,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43718,6 +43581,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43788,6 +43652,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43806,6 +43671,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43872,6 +43738,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43890,6 +43757,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43924,6 +43792,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43962,6 +43831,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43980,6 +43850,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="D3DDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -43998,6 +43869,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44016,6 +43888,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44034,6 +43907,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44052,6 +43926,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44086,6 +43961,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44104,6 +43980,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44138,6 +44015,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44156,6 +44034,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44178,6 +44057,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44196,6 +44076,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="D3DDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44214,6 +44095,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44232,6 +44114,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinSW|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44250,6 +44133,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44268,6 +44152,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44286,6 +44171,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44304,6 +44190,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44322,6 +44209,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44340,6 +44228,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44358,6 +44247,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"
@@ -44376,6 +44266,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCustomBuildTool"

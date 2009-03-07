@@ -36,6 +36,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#include "config.h"
 #else
 
+	#ifdef NO_LIBRARIES
+		#define NO_DIRECTX
+		#define NO_PNG
+		#define NO_JPEG
+		#define NO_ZLIB
+		#define NO_OGG
+	#endif
+
 	//#define AVAIL_OGGVORBIS
 	#if !defined(__CYGWIN__) && !defined(MINGW) && !defined(MACOSX)
 		#define AVAIL_PNGLIB
@@ -52,6 +60,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define AVAIL_JPEGLIB
 #endif
 
+#if !defined(NO_DIRECTX) && !defined(NODIRECTX)
+	#define AVAIL_DINPUT
+	#define AVAIL_DDRAW
+	#define AVAIL_DSOUND
+	#define AVAIL_D3D
+#endif
 
 #ifdef NO_PNG
 	#undef AVAIL_PNGLIB
@@ -184,7 +198,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
-#if defined(NODIRECTX) || (!defined(GLQUAKE) && !defined(RGLQUAKE))
+#if !defined(AVAIL_D3D) || (!defined(GLQUAKE) && !defined(RGLQUAKE))
 	#undef USE_D3D
 #endif
 
@@ -305,7 +319,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
-#if (defined(_M_IX86) || defined(__i386__)) && !defined(id386) && !defined(__amd64__)
+#if (defined(_M_IX86) || defined(__i386__)) && !defined(id386) && !defined(__amd64__) && !defined(_AMD64_)
 #define id386	1
 #else
 #define id386	0

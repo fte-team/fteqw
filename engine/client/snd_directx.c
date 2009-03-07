@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define SND_LOADED 1
 #define SND_NOMORE 2	//like error, but doesn't try the next card.
 
-#ifndef NODIRECTX
+#ifdef AVAIL_DSOUND
 
 #define iDirectSoundCreate(a,b,c)	pDirectSoundCreate(a,b,c)
 #define iDirectSoundEnumerate(a,b,c)	pDirectSoundEnumerate(a,b)
@@ -879,7 +879,7 @@ int (*pDSOUND_InitCard) (soundcardinfo_t *sc, int cardnum) = &DSOUND_InitCard;
 
 
 
-#if defined(VOICECHAT) && !defined(NODIRECTX) && !defined(__MINGW32__)
+#if defined(VOICECHAT) && defined(AVAIL_DSOUND) && !defined(__MINGW32__)
 
 
 

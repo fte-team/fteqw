@@ -25,6 +25,12 @@
 
 #include "pr_common.h"
 
+#ifdef CLIENTONLY
+//client only builds don't have a qc debugger
+#define QCEditor NULL
+#endif
+
+
 #define ANGLE2SHORT(x) ((x/360.0)*65535)
 
 static progfuncs_t *csqcprogs;
@@ -797,6 +803,7 @@ static void PF_cs_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_glob
 		Host_EndGame("PF_makevectors: one of v_forward, v_right or v_up was not defined\n");
 	AngleVectors (G_VECTOR(OFS_PARM0), csqcg.forward, csqcg.right, csqcg.up);
 }
+
 /*
 void QuaternainToAngleMatrix(float *quat, vec3_t *mat)
 {
@@ -2637,6 +2644,94 @@ static void PF_cs_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	RETURN_EDICT(prinst, (void*)chain);
 }
 
+//entity(string field, float match) findchainflags = #450
+//chained search for float, int, and entity reference fields
+void PF_cs_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i, f;
+	int s;
+	csqcedict_t	*ent, *chain;
+
+	chain = (csqcedict_t *) *prinst->parms->sv_edicts;
+
+	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	s = G_FLOAT(OFS_PARM1);
+
+	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	{
+		ent = (csqcedict_t*)EDICT_NUM(prinst, i);
+		if (ent->isfree)
+			continue;
+		if (!((int)((float *)ent->v)[f] & s))
+			continue;
+
+		ent->v->chain = EDICT_TO_PROG(prinst, (edict_t*)chain);
+		chain = ent;
+	}
+
+	RETURN_EDICT(prinst, (edict_t*)chain);
+}
+
+//entity(string field, float match) findchainfloat = #403
+void PF_cs_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i, f;
+	float s;
+	csqcedict_t	*ent, *chain;
+
+	chain = (csqcedict_t *) *prinst->parms->sv_edicts;
+
+	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	s = G_FLOAT(OFS_PARM1);
+
+	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	{
+		ent = (csqcedict_t*)EDICT_NUM(prinst, i);
+		if (ent->isfree)
+			continue;
+		if (((float *)ent->v)[f] != s)
+			continue;
+
+		ent->v->chain = EDICT_TO_PROG(prinst, (edict_t*)chain);
+		chain = ent;
+	}
+
+	RETURN_EDICT(prinst, (edict_t*)chain);
+}
+
+
+//entity(string field, string match) findchain = #402
+//chained search for strings in entity fields
+void PF_cs_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i, f;
+	char *s;
+	string_t t;
+	csqcedict_t *ent, *chain;
+
+	chain = (csqcedict_t *) *prinst->parms->sv_edicts;
+
+	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	s = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
+	{
+		ent = (csqcedict_t*)EDICT_NUM(prinst, i);
+		if (ent->isfree)
+			continue;
+		t = *(string_t *)&((float*)ent->v)[f];
+		if (!t)
+			continue;
+		if (strcmp(PR_GetString(prinst, t), s))
+			continue;
+
+		ent->v->chain = EDICT_TO_PROG(prinst, (edict_t*)chain);
+		chain = ent;
+	}
+
+	RETURN_EDICT(prinst, (edict_t*)chain);
+}
+
 static void PF_cl_te_gunshot (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
@@ -2981,6 +3076,8 @@ static void PF_cs_OpenPortal (progfuncs_t *prinst, struct globalvars_s *pr_globa
 #endif
 }
 
+#ifndef NOMEDIA
+
 // #487 float(string name) gecko_create( string name )
 static void PF_cs_gecko_create (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3094,6 +3191,7 @@ static void PF_cs_gecko_get_texture_extent (progfuncs_t *prinst, struct globalva
 	ret[1] = sy;
 	ret[2] = 0;
 }
+#endif
 
 static void PF_cs_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4568,8 +4666,8 @@ static struct {
 //400
 	{"copyentity",	PF_cs_copyentity,		400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
 	{"setcolors",	PF_NoCSQC,				401},	// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
-	{"findchain",	PF_findchain,			402},	// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
-	{"findchainfloat",	PF_findchainfloat,		403},	// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
+	{"findchain",	PF_cs_findchain,			402},	// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
+	{"findchainfloat",	PF_cs_findchainfloat,		403},	// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
 	{"effect",	PF_cl_effect,		404},		// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
 
 	{"te_blood",	PF_cl_te_blooddp,		405},	// #405 void(vector org, vector velocity, float howmany) te_blood (DP_TE_BLOOD)
@@ -4626,7 +4724,7 @@ static struct {
 	{"dp_cvar_string",	PF_cvar_string,		448},		// #448 string(float n) cvar_string (DP_QC_CVAR_STRING)
 	{"findflags",	PF_FindFlags,		449},		// #449 entity(entity start, .entity fld, float match) findflags (DP_QC_FINDFLAGS)
 
-	{"findchainflags",	PF_findchainflags,	450},		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
+	{"findchainflags",	PF_cs_findchainflags,	450},		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
 	{"gettagindex",	PF_cs_gettagindex,	451},		// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
 	{"gettaginfo",	PF_cs_gettaginfo,	452},		// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
 	{"dropclient",	PF_NoCSQC,			453},		// #453 void(entity player) dropclient (DP_SV_BOTCLIENT) (don't implement)
@@ -4695,6 +4793,7 @@ static struct {
 //DP_QC_GETSURFACEPOINTATTRIBUTE
 	{"getsurfacepointattribute",PF_getsurfacepointattribute,	486},	// #486vector(entity e, float s, float n, float a) getsurfacepointattribute
 
+#ifndef NOMEDIA
 //DP_GECKO_SUPPORT
 	{"gecko_create",	PF_cs_gecko_create,		487},	// #487 float(string name) gecko_create( string name )
 	{"gecko_destroy",	PF_cs_gecko_destroy,	488},	// #488 void(string name) gecko_destroy( string name )
@@ -4703,6 +4802,7 @@ static struct {
 	{"gecko_mousemove",	PF_cs_gecko_mousemove,	491},	// #491 void gecko_mousemove( string name, float x, float y )
 	{"gecko_resize",	PF_cs_gecko_resize,	492},	// #492 void gecko_resize( string name, float w, float h )
 	{"gecko_get_texture_extent",PF_cs_gecko_get_texture_extent,	493},	// #493 vector gecko_get_texture_extent( string name )
+#endif
 
 //DP_QC_CRC16
 	{"crc16",			PF_crc16,				494},	// #494 float(float caseinsensitive, string s, ...) crc16

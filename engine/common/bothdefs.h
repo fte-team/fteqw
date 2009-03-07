@@ -110,10 +110,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define PSET_CLASSIC
 
-#pragma message("temp")
-#define CSQC_DAT
-#define MENU_DAT
-
 #ifndef SERVERONLY	//don't be stupid, stupid.
 		#define CLIENTONLY
 #endif
@@ -206,6 +202,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef SERVERONLY	//remove options that don't make sense on only a server
 	#undef Q2CLIENT
 	#undef Q3CLIENT
+	#undef HLCLIENT
 	#undef VM_UI
 	#undef VM_CG
 	#undef WEBCLIENT
@@ -221,12 +218,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef CLIENTONLY	//remove optional server components that make no sence on a client only build.
 	#undef Q2SERVER
 	#undef Q3SERVER
+	#undef HLSERVER
 	#undef WEBSERVER
 	#undef VM_Q1
-
-	//this is regretable, but the csqc/ssqc needs a cleanup to move common builtins to a common c file.
-	#undef CSQC_DAT
-	#undef MENU_DAT
 #endif
 
 //remove any options that depend upon GL.

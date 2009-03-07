@@ -103,7 +103,7 @@ cvar_t plug_loaddefault = SCVAR("plug_loaddefault", "1");
 #endif
 
 //custom plugin builtins.
-typedef int (VARGS *Plug_Builtin_t)(void *offset, unsigned int mask, const int *arg);
+typedef int (EXPORT_FN *Plug_Builtin_t)(void *offset, unsigned int mask, const int *arg);
 void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags);
 #define PLUG_BIF_DLLONLY	1
 #define PLUG_BIF_QVMONLY	2

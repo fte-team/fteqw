@@ -51,20 +51,6 @@ cvar_t sys_linebuffer = SCVARC("sys_linebuffer", "1", Sys_Linebuffer_Callback);
 
 qboolean	stdin_ready;
 
-// This is for remapping the Q3 color codes to character masks, including ^9
-conchar_t q3codemasks[MAXQ3COLOURS] = {
-	0x00000000, // 0, black
-	0x0c000000, // 1, red
-	0x0a000000, // 2, green
-	0x0e000000, // 3, yellow
-	0x09000000, // 4, blue
-	0x0b000000, // 5, cyan
-	0x0d000000, // 6, magenta
-	0x0f000000, // 7, white
-	0x0f100000, // 8, half-alpha white (BX_COLOREDTEXT)
-	0x07000000  // 9, "half-intensity" (BX_COLOREDTEXT)
-};
-
 struct termios orig, changes;
 
 /*
@@ -816,6 +802,38 @@ int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void 
 
 	return true;
 }
+
+
+
+void Sys_CloseLibrary(dllhandle_t *lib)
+{
+	dlclose((void*)lib);
+}
+dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
+{
+	int i;
+	dllhandle_t lib;
+
+	lib = dlopen (name, RTLD_LAZY);
+	if (!lib)
+		return NULL;
+
+	for (i = 0; funcs[i].name; i++)
+	{
+		*funcs[i].funcptr = dlsym(lib, funcs[i].name);
+		if (!*funcs[i].funcptr)
+			break;
+	}
+	if (funcs[i].name)
+	{
+		Sys_CloseLibrary((dllhandle_t*)lib);
+		lib = NULL;
+	}
+
+	return (dllhandle_t*)lib;
+}
+
+
 
 static void *game_library;
 

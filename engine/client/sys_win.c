@@ -123,7 +123,7 @@ char *Sys_GetNameForAddress(dllhandle_t *module, void *address)
 }
 #endif
 
-
+#ifdef Q2SERVER
 static HINSTANCE	game_library;
 
 /*
@@ -235,10 +235,7 @@ void *Sys_GetGameAPI (void *parms)
 
 	return GetGameAPI (parms);
 }
-
-
-
-
+#endif
 
 
 #define MINIMUM_WIN_MEMORY	0x0800000
@@ -310,6 +307,7 @@ int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 int *debug;
 
 
+#ifndef SERVERONLY
 
 #if (_WIN32_WINNT < 0x0400)
 	#define LLKHF_ALTDOWN        0x00000020
@@ -394,6 +392,7 @@ void SetHookState(qboolean state)
 		llkeyboardhook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, GetModuleHandle(NULL), 0);
 }
 
+#endif
 
 /*
 ===============================================================================
@@ -427,8 +426,10 @@ int	Sys_FileTime (char *path)
 	FILE	*f;
 	int		t=0, retval;
 
+#ifndef SERVERONLY
 	if (qrenderer)
 		t = VID_ForceUnlockedAndReturnState ();
+#endif
 	
 	f = fopen(path, "rb");
 	
@@ -442,8 +443,10 @@ int	Sys_FileTime (char *path)
 		retval = -1;
 	}
 
+#ifndef SERVERONLY
 	if (qrenderer)
 		VID_ForceLockState (t);
+#endif
 	return retval;
 }
 
@@ -569,10 +572,10 @@ void Sys_Init (void)
 //	unsigned int	lowpart, highpart;
 	OSVERSIONINFO	vinfo;
 
+#ifndef SERVERONLY
 	Cvar_Register(&sys_disableWinKeys, "System vars");
 	Cvar_Register(&sys_disableTaskSwitch, "System vars");
 
-#ifndef SERVERONLY
 #ifndef CLIENTONLY
 	if (!isDedicated && !COM_CheckParm("-nomutex"))
 #else
@@ -600,8 +603,10 @@ void Sys_Init (void)
 #endif
 
 
+#ifndef SERVERONLY
 	MaskExceptions ();
 	Sys_SetFPCW ();
+#endif
 
 #if 0
 	if (!QueryPerformanceFrequency (&PerformanceFreq))
@@ -659,16 +664,20 @@ void VARGS Sys_Error (const char *error, ...)
 	vsnprintf (text, sizeof(text), error, argptr);
 	va_end (argptr);
 
+#ifndef SERVERONLY
 	SetHookState(false);
 	Host_Shutdown ();
+#else
+	SV_Shutdown();
+#endif
 
 	MessageBox(NULL, text, "Error", 0);
 
 #ifndef SERVERONLY
 	CloseHandle (qwclsemaphore);
+	SetHookState(false);
 #endif
 
-	SetHookState(false);
 	exit (1);
 }
 
@@ -690,24 +699,25 @@ void VARGS Sys_Printf (char *fmt, ...)
 
 void Sys_Quit (void)
 {
+#ifndef SERVERONLY
 	if (VID_ForceUnlockedAndReturnState)
 		VID_ForceUnlockedAndReturnState ();
 
 	SetHookState(false);
 
-	Host_Shutdown();
+	Host_Shutdown ();
 
-#ifndef SERVERONLY
 	if (tevent)
 		CloseHandle (tevent);
 
 	if (qwclsemaphore)
 		CloseHandle (qwclsemaphore);
-#endif
-
-
 
 	SetHookState(false);
+#else
+	SV_Shutdown();
+#endif
+
 	exit (0);
 }
 
@@ -1037,6 +1047,12 @@ qboolean Sys_InitTerminal (void)
 {
 	if (!AllocConsole())
 		return false;
+
+	//if we still have the splash screen, kill it
+	if (hwnd_dialog)
+		DestroyWindow(hwnd_dialog);
+	hwnd_dialog = NULL;
+
 	SetConsoleCtrlHandler (HandlerRoutine, TRUE);
 	SetConsoleTitle (FULLENGINENAME " dedicated server");
 	hinput = GetStdHandle (STD_INPUT_HANDLE);
@@ -1089,7 +1105,9 @@ void Sys_SendKeyEvents (void)
 
 void Sys_ServerActivity(void)
 {
+#ifndef SERVERONLY
 	FlashWindow(mainwindow, true);
+#endif
 }
 
 /*
@@ -1122,7 +1140,7 @@ char		*argv[MAX_NUM_ARGVS];
 static char	exename[256];
 HWND		hwnd_dialog;
 
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && !defined(SERVERONLY)
 qboolean isDedicated = false;
 #endif
 /*
@@ -1248,17 +1266,21 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	parms.argc = com_argc;
 	parms.argv = com_argv;
 
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && !defined(SERVERONLY)
 	if (COM_CheckParm ("-dedicated"))
-	{
 		isDedicated = true;
+#endif
+
+	if (isDedicated)
+	{
+#if !defined(CLIENTONLY)
 		hwnd_dialog=NULL;
 		
 		if (!Sys_InitTerminal())
 			Sys_Error ("Couldn't allocate dedicated server console");
+#endif
 	}
 	else
-#endif
 		hwnd_dialog = CreateDialog(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), NULL, NULL);
 
 	if (hwnd_dialog)
@@ -1336,8 +1358,13 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	if (!tevent)
 		Sys_Error ("Couldn't create event");
 
+#ifdef SERVERONLY
+	Sys_Printf ("SV_Init\n");
+	SV_Init(&parms);
+#else
 	Sys_Printf ("Host_Init\n");
 	Host_Init (&parms);
+#endif
 
 	oldtime = Sys_DoubleTime ();
 
@@ -1350,9 +1377,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     /* main window message loop */
 	while (1)
 	{
-#ifndef CLIENTONLY
 		if (isDedicated)
 		{
+#ifndef CLIENTONLY
 			NET_Sleep(50, false);
 
 		// find time passed since last cycle
@@ -1361,10 +1388,13 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			oldtime = newtime;
 			
 			SV_Frame ();
+#else
+			Sys_Error("wut?");
+#endif
 		}
 		else
-#endif
 		{
+#ifndef SERVERONLY
 	// yield the CPU for a little while when paused, minimized, or not the focus
 			if (((cl.paused && (!ActiveApp && !DDActive)) || Minimized || block_drawing) && !Media_PlayingFullScreen())
 			{
@@ -1384,11 +1414,20 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			SetHookState(sys_disableWinKeys.value);
 
 //			Sleep(0);
+#else
+			Sys_Error("wut?");
+#endif
 		}
 	}
 
     /* return success of application */
     return TRUE;
+}
+
+int __cdecl main(void)
+{
+	FreeConsole();
+	return WinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_NORMAL);
 }
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)

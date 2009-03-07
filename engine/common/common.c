@@ -1628,7 +1628,39 @@ void COM_DefaultExtension (char *path, char *extension, int maxlen)
 
 ///=====================================
 
+// This is the standard RGBI palette used in CGA text mode
+consolecolours_t consolecolours[MAXCONCOLOURS] = {
+	{0,    0,    0   }, // black
+	{0,    0,    0.67}, // blue
+	{0,    0.67, 0   }, // green
+	{0,    0.67, 0.67}, // cyan
+	{0.67, 0,    0   }, // red
+	{0.67, 0,    0.67}, // magenta
+	{0.67, 0.33, 0   }, // brown
+	{0.67, 0.67, 0.67}, // light gray
+	{0.33, 0.33, 0.33}, // dark gray
+	{0.33, 0.33, 1   }, // light blue
+	{0.33, 1,    0.33}, // light green
+	{0.33, 1,    1   }, // light cyan
+	{1,    0.33, 0.33}, // light red
+	{1,    0.33, 1   }, // light magenta
+	{1,    1,    0.33}, // yellow
+	{1,    1,    1   }  // white
+};
 
+// This is for remapping the Q3 color codes to character masks, including ^9
+conchar_t q3codemasks[MAXQ3COLOURS] = {
+	0x00000000, // 0, black
+	0x0c000000, // 1, red
+	0x0a000000, // 2, green
+	0x0e000000, // 3, yellow
+	0x09000000, // 4, blue
+	0x0b000000, // 5, cyan
+	0x0d000000, // 6, magenta
+	0x0f000000, // 7, white
+	0x0f100000, // 8, half-alpha white (BX_COLOREDTEXT)
+	0x07000000  // 9, "half-intensity" (BX_COLOREDTEXT)
+};
 
 
 //Strips out the flags 

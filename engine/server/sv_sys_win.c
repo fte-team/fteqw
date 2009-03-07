@@ -35,21 +35,99 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #define SERVICENAME	DISTRIBUTION"SV"
 
-// This is for remapping the Q3 color codes to character masks, including ^9
-conchar_t q3codemasks[MAXQ3COLOURS] = {
-	0x00000000, // 0, black
-	0x0c000000, // 1, red
-	0x0a000000, // 2, green
-	0x0e000000, // 3, yellow
-	0x09000000, // 4, blue
-	0x0b000000, // 5, cyan
-	0x0d000000, // 6, magenta
-	0x0f000000, // 7, white
-	0x0f100000, // 8, half-alpha white (BX_COLOREDTEXT)
-	0x07000000  // 9, "half-intensity" (BX_COLOREDTEXT)
-};
 
 static HANDLE hconsoleout;
+
+
+
+
+void Sys_CloseLibrary(dllhandle_t *lib)
+{
+	FreeLibrary((HMODULE)lib);
+}
+dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
+{
+	int i;
+	HMODULE lib;
+
+	lib = LoadLibrary(name);
+	if (!lib)
+		return NULL;
+
+	for (i = 0; funcs[i].name; i++)
+	{
+		*funcs[i].funcptr = GetProcAddress(lib, funcs[i].name);
+		if (!*funcs[i].funcptr)
+			break;
+	}
+	if (funcs[i].name)
+	{
+		Sys_CloseLibrary((dllhandle_t*)lib);
+		lib = NULL;
+	}
+
+	return (dllhandle_t*)lib;
+}
+
+void *Sys_GetAddressForName(dllhandle_t *module, char *exportname)
+{
+	if (!module)
+		return NULL;
+	return GetProcAddress((HINSTANCE)module, exportname);
+}
+#ifdef HLSERVER
+char *Sys_GetNameForAddress(dllhandle_t *module, void *address)
+{
+	//windows doesn't provide a function to do this, so we have to do it ourselves.
+	//this isn't the fastest way...
+	//halflife needs this function.
+	char *base = (char *)module;
+
+	IMAGE_DATA_DIRECTORY *datadir;
+	IMAGE_EXPORT_DIRECTORY *block;
+	IMAGE_NT_HEADERS *ntheader;
+	IMAGE_DOS_HEADER *dosheader = (void*)base;
+
+	int i, j;
+	DWORD *funclist;
+	DWORD *namelist;
+	SHORT *ordilist;
+
+	if (!dosheader || dosheader->e_magic != IMAGE_DOS_SIGNATURE)
+		return NULL; //yeah, that wasn't an exe
+
+	ntheader = (void*)(base + dosheader->e_lfanew);
+	if (!dosheader->e_lfanew || ntheader->Signature != IMAGE_NT_SIGNATURE)
+		return NULL;	//urm, wait, a 16bit dos exe?
+
+
+	datadir = &ntheader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+	
+	block = (IMAGE_EXPORT_DIRECTORY *)(base + datadir->VirtualAddress);
+	funclist = (DWORD*)(base+block->AddressOfFunctions);
+	namelist = (DWORD*)(base+block->AddressOfNames);
+	ordilist = (SHORT*)(base+block->AddressOfNameOrdinals);
+	for (i = 0; i < block->NumberOfFunctions; i++)
+	{
+		if (base+funclist[i] == address)
+		{
+			for (j = 0; j < block->NumberOfNames; j++)
+			{
+				if (ordilist[j] == i)
+				{
+					return base+namelist[i];
+				}
+			}
+			//it has no name. huh?
+			return NULL;
+		}
+	}
+	return NULL;
+}
+#endif
+
+
+#ifdef Q2SERVER
 static HINSTANCE	game_library;
 
 /*
@@ -162,6 +240,7 @@ void *Sys_GetGameAPI (void *parms)
 
 	return GetGameAPI (parms);
 }
+#endif
 
 
 

@@ -331,15 +331,6 @@ void QC_Clear(void);
 builtin_t pr_builtin[];
 extern int pr_numbuiltins;
 
-//a little loop so we can keep track of used mem
-void *VARGS PR_CB_Malloc(int size)
-{
-	return BZ_Malloc(size);//Z_TagMalloc (size, 100);
-}
-void VARGS PR_CB_Free(void *mem)
-{
-	BZ_Free(mem);
-}
 int QCLibEditor(progfuncs_t *prinst, char *filename, int line, int nump, char **parms);
 int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **parms)
 {
@@ -6439,7 +6430,7 @@ static void PF_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //entity(string field, string match) findchain = #402
 //chained search for strings in entity fields
-void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_sv_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	char *s;
@@ -6473,7 +6464,7 @@ void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //entity(string field, float match) findchainfloat = #403
 //chained search for float, int, and entity reference fields
-void PF_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_sv_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	float s;
@@ -6503,7 +6494,7 @@ void PF_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //entity(string field, float match) findchainflags = #450
 //chained search for float, int, and entity reference fields
-void PF_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_sv_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	int s;
@@ -8995,9 +8986,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_SV_SETCOLOR
 	{"setcolors",		PF_setcolors,		0,		0,		0,		401},// #401 void(entity from, entity to) setcolors
 //DP_QC_FINDCHAIN
-	{"findchain",		PF_findchain,		0,		0,		0,		402},// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
+	{"findchain",		PF_sv_findchain,		0,		0,		0,		402},// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
 //DP_QC_FINDCHAINFLOAT
-	{"findchainfloat",	PF_findchainfloat,	0,		0,		0,		403},// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
+	{"findchainfloat",	PF_sv_findchainfloat,	0,		0,		0,		403},// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
 //DP_SV_EFFECT
 	{"effect",			PF_effect,			0,		0,		0,		404},// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
 //DP_TE_BLOOD
@@ -9069,7 +9060,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_FINDFLAGS
 	{"findflags",		PF_FindFlags,		0,		0,		0,		449},// #449 entity(entity start, .entity fld, float match) findflags
 //DP_QC_FINDCHAINFLAGS
-	{"findchainflags",	PF_findchainflags,	0,		0,		0,		450},// #450 entity(.float fld, float match) findchainflags
+	{"findchainflags",	PF_sv_findchainflags,	0,		0,		0,		450},// #450 entity(.float fld, float match) findchainflags
 //DP_MD3_TAGSINFO
 	{"gettagindex",		PF_gettagindex,		0,		0,		0,		451},// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
 	{"gettaginfo",		PF_sv_gettaginfo,		0,		0,		0,		452},// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)

@@ -164,6 +164,15 @@ pbool QC_WriteFile(char *name, void *data, int len)
 	return true;
 }
 
+//a little loop so we can keep track of used mem
+void *VARGS PR_CB_Malloc(int size)
+{
+	return BZ_Malloc(size);//Z_TagMalloc (size, 100);
+}
+void VARGS PR_CB_Free(void *mem)
+{
+	BZ_Free(mem);
+}
 
 ////////////////////////////////////////////////////
 //Finding
@@ -197,33 +206,6 @@ void PF_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_EDICT(prinst, chain);
 }
 */
-
-//EXTENSION: DP_QC_FINDFLAGS
-//entity(entity start, float fld, float match) findflags = #449
-void PF_FindFlags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int e, f;
-	int s;
-	edict_t *ed;
-
-	e = G_EDICTNUM(prinst, OFS_PARM0);
-	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
-	s = G_FLOAT(OFS_PARM2);
-
-	for (e++; e < *prinst->parms->sv_num_edicts; e++)
-	{
-		ed = EDICT_NUM(prinst, e);
-		if (ed->isfree)
-			continue;
-		if ((int)((float *)ed->v)[f] & s)
-		{
-			RETURN_EDICT(prinst, ed);
-			return;
-		}
-	}
-
-	RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
-}
 
 /*
 //entity(string field, float match) findchainfloat = #403
@@ -287,6 +269,33 @@ void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_EDICT(prinst, chain);
 }
 */
+
+//EXTENSION: DP_QC_FINDFLAGS
+//entity(entity start, float fld, float match) findflags = #449
+void PF_FindFlags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int e, f;
+	int s;
+	edict_t *ed;
+
+	e = G_EDICTNUM(prinst, OFS_PARM0);
+	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
+	s = G_FLOAT(OFS_PARM2);
+
+	for (e++; e < *prinst->parms->sv_num_edicts; e++)
+	{
+		ed = EDICT_NUM(prinst, e);
+		if (ed->isfree)
+			continue;
+		if ((int)((float *)ed->v)[f] & s)
+		{
+			RETURN_EDICT(prinst, ed);
+			return;
+		}
+	}
+
+	RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
+}
 
 //entity(entity start, float fld, float match) findfloat = #98
 void PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2294,33 +2303,6 @@ void PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-
-/*
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_findchainflags
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_findchainfloat
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_findchain
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_cl_getkeybind
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_cl_stringtokeynum
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_cl_keynumtostring
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_CL_drawresetcliparea
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_CL_drawsetcliparea
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_CL_drawfill
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_CL_drawpic
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_CL_drawstring
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_CL_drawcharacter
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_CL_free_pic
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_CL_drawgetimagesize
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_CL_precache_pic
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_CL_is_cached_pic
-pr_csqc.obj : error LNK2001: unresolved external symbol _PF_CL_drawline
-pr_csqc.obj : error LNK2001: unresolved external symbol _checkfteextensionsv
-pr_csqc.obj : error LNK2001: unresolved external symbol _checkextension
-pr_csqc.obj : error LNK2001: unresolved external symbol _QCEditor
-pr_csqc.obj : error LNK2001: unresolved external symbol _PR_CB_Free
-pr_csqc.obj : error LNK2001: unresolved external symbol _PR_CB_Malloc
-pr_csqc.obj : error LNK2001: unresolved external symbol _QC_WriteFile
-pr_csqc.obj : error LNK2001: unresolved external symbol _MP_TranslateFTEtoDPCodes
-*/
 
 
 

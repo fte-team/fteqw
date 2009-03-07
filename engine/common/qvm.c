@@ -63,7 +63,7 @@ struct vm_s {
 	void *hInst;
 
 // native
-	int (VARGS *vmMain)(int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);
+	int (EXPORT_FN *vmMain)(int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);
 };
 
 #if defined(__MORPHOS__) && I_AM_BIGFOOT
@@ -72,7 +72,7 @@ struct vm_s {
 
 dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int arg, ... ))
 {
-	void (*dllEntry)(int (EXPORT_FN *syscall)(int arg, ... ));
+	void (EXPORT_FN *dllEntry)(int (EXPORT_FN *syscall)(int arg, ... ));
 	char dllname[MAX_OSPATH];
 	dllhandle_t *hVM;
 

@@ -905,7 +905,8 @@ float CalcFov (float fov_x, float width, float height)
             Sys_Error ("Bad fov: %f", fov_x);
 
 	x = fov_x/360*M_PI;
-    x = width/tan(x);
+	x = tan(x);
+    x = width/x;
 
     a = atan (height/x);
 

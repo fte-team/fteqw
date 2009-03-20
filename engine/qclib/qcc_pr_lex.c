@@ -2074,6 +2074,7 @@ void QCC_PR_ConditionCompilation(void)
 			if( s[1] == '\n' || s[1] == '\r' )
 			{
 				s++;
+				QCC_PR_NewLine(false);
 				*d++ = *s++;
 				if( s[-1] == '\r' && s[0] == '\n' )
 				{
@@ -2210,6 +2211,8 @@ int QCC_PR_CheakCompConst(void)
 							QCC_PR_ParseError(ERR_TOOMANYPARAMS, "Too many parameters in macro call");
 					} else if (*pr_file_p == ')' )
 						plevel--;
+					else if(*pr_file_p == '\n')
+						QCC_PR_NewLine(false);
 
 					// see that *pr_file_p = '\0' up there? Must ++ BEFORE checking for !*pr_file_p
 					pr_file_p++;

@@ -7619,6 +7619,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 	QCC_def_t		*def;
 //	char element[MAX_NAME];
 	unsigned int i;
+	QCC_def_t *foundstatic = NULL;
 
 	if (scope)
 	{
@@ -7654,6 +7655,13 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 	{
 		if ( def->scope && def->scope != scope)
 		{
+			def = Hash_GetNext(&globalstable, name, def);
+			continue;		// in a different function
+		}
+
+		if (def->isstatic && def->s_file != s_file)
+		{	//warn? or would that be pointless?
+			foundstatic = def;
 			def = Hash_GetNext(&globalstable, name, def);
 			continue;		// in a different function
 		}
@@ -7721,6 +7729,13 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 				continue;		// in a different function
 			}
 
+			if (def->isstatic && def->s_file != s_file)
+			{	//warn? or would that be pointless?
+				foundstatic = def;
+				def = Hash_GetNext(&globalstable, name, def);
+				continue;		// in a different function
+			}
+
 			if (type && typecmp(def->type, type))
 			{
 				if (!pr_scope)
@@ -7745,8 +7760,15 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 		}
 	}
 
+	if (foundstatic && !allocate)
+	{
+		QCC_PR_ParseWarning (WARN_DUPLICATEDEFINITION, "%s defined static", name);
+		QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, foundstatic);
+	}
+
 	if (!allocate)
 		return NULL;
+
 	if (arraysize < 1)
 	{
 		QCC_PR_ParseError (ERR_ARRAYNEEDSSIZE, "First declaration of array %s with no size",name);
@@ -7945,7 +7967,9 @@ void QCC_PR_ParseDefs (char *classname)
 	QCC_function_t	*f;
 	QCC_dfunction_t	*df;
 	int			i;
+	extern pbool defaultstatic;
 	pbool shared=false;
+	pbool isstatic=defaultstatic;
 	pbool externfnc=false;
 	pbool isconstant = false;
 	pbool isvar = false;
@@ -8184,7 +8208,6 @@ void QCC_PR_ParseDefs (char *classname)
 		char *oldp;
 		if (QCC_PR_CheckKeyword (keyword_codesys, "CodeSys"))	//reacc support.
 		{
-			extern int ForcedCRC;
 			if (ForcedCRC)
 				QCC_PR_ParseError(ERR_BADEXTENSION, "progs crc was already specified - only one is allowed");
 			ForcedCRC = (int)pr_immediate._float;
@@ -8328,6 +8351,10 @@ void QCC_PR_ParseDefs (char *classname)
 			isconstant = true;
 		else if (QCC_PR_CheckKeyword(keyword_var, "var"))
 			isvar = true;
+		else if (!pr_scope && QCC_PR_CheckKeyword(keyword_var, "static"))
+			isstatic = true;
+		else if (!pr_scope && QCC_PR_CheckKeyword(keyword_var, "nonstatic"))
+			isstatic = false;
 		else if (QCC_PR_CheckKeyword(keyword_noref, "noref"))
 			noref=true;
 		else if (QCC_PR_CheckKeyword(keyword_nosave, "nosave"))
@@ -8402,6 +8429,7 @@ void QCC_PR_ParseDefs (char *classname)
 		f = QCC_PR_ParseImmediateStatements (type);
 		pr_scope = NULL;
 		def->initialized = 1;
+		def->isstatic = isstatic;
 		G_FUNCTION(def->ofs) = numfunctions;
 		f->def = def;
 //				if (pr_dumpasm)
@@ -8591,6 +8619,14 @@ void QCC_PR_ParseDefs (char *classname)
 		}
 		if (externfnc)
 			def->initialized = 2;
+
+		if (isstatic)
+		{
+			if (def->s_file == s_file)
+				def->isstatic = isstatic;
+			else //if (type->type != ev_function && defaultstatic)	//functions don't quite consitiute a definition
+				QCC_PR_ParseErrorPrintDef (ERR_REDECLARATION, def, "can't redefine non-static as static");
+		}
 
 // check for an initialization
 		if (type->type == ev_function && (pr_scope))

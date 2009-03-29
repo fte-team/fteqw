@@ -346,6 +346,7 @@ typedef struct QCC_def_s
 	int arraysize;
 	pbool shared;
 	pbool saved;
+	pbool isstatic;
 
 	temp_t *temp;
 } QCC_def_t;
@@ -824,6 +825,9 @@ extern int			numfielddefs;
 extern QCC_type_t *qcc_typeinfo;
 extern int numtypeinfos;
 extern int maxtypeinfos;
+
+extern int ForcedCRC;
+extern pbool defaultstatic;
 
 extern int *qcc_tempofs;
 extern int max_temps;

@@ -218,6 +218,7 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 	QCC_Include(fullname);
 }
 
+pbool defaultstatic;
 int ForcedCRC;
 int QCC_PR_LexInteger (void);
 void	QCC_AddFile (char *filename);
@@ -808,6 +809,10 @@ pbool QCC_PR_Precompiler(void)
 			else if (!strncmp(qcc_token, "forcecrc", 8))
 			{
 				ForcedCRC = atoi(msg);
+			}
+			else if (!strncmp(qcc_token, "defaultstatic", 13))
+			{
+				defaultstatic = atoi(msg);
 			}
 			else if (!strncmp(qcc_token, "sourcefile", 10))
 			{

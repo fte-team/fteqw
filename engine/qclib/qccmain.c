@@ -1731,7 +1731,6 @@ void inline Add3(char *p, unsigned short *crc, char *file)
 
 unsigned short QCC_PR_WriteProgdefs (char *filename)
 {
-	extern int ForcedCRC;
 #define ADD2(p) strncat(file, p, PROGDEFS_MAX_SIZE-1 - strlen(file))	//no crc (later changes)
 	char file[PROGDEFS_MAX_SIZE];
 	QCC_def_t	*d;
@@ -2501,13 +2500,13 @@ void SetEndian(void);
 
 void QCC_SetDefaultProperties (void)
 {
-	extern int ForcedCRC;
 	int level;
 	int i;
 
 	Hash_InitTable(&compconstantstable, MAX_CONSTANTS, qccHunkAlloc(Hash_BytesForBuckets(MAX_CONSTANTS)));
 
 	ForcedCRC = 0;
+	defaultstatic = 0;
 
 	QCC_PR_DefineName("FTEQCC");
 

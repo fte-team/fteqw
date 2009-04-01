@@ -469,7 +469,7 @@ void PF_registercvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 ////////////////////////////////////////////////////
 //File access
 
-#define MAX_QC_FILES 8
+#define MAX_QC_FILES 256
 
 #define FIRST_QC_FILE_INDEX 1000
 
@@ -496,6 +496,7 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (i == MAX_QC_FILES)	//too many already open
 	{
+		Con_Printf("qcfopen: too many files open (trying %s)\n", name);
 		G_FLOAT(OFS_RETURN) = -1;
 		return;
 	}
@@ -550,6 +551,14 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
 		pf_fopen_files[i].prinst = prinst;
 		break;
+	case 3:
+		pf_fopen_files[i].bufferlen = 0;
+		pf_fopen_files[i].data = "";
+		pf_fopen_files[i].len = 0;
+		pf_fopen_files[i].ofs = 0;
+		G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
+		pf_fopen_files[i].prinst = prinst;
+		break;
 	default: //bad
 		G_FLOAT(OFS_RETURN) = -1;
 		break;
@@ -580,6 +589,8 @@ void PF_fclose_i (int fnum)
 		COM_WriteFile(pf_fopen_files[fnum].name, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
 		BZ_Free(pf_fopen_files[fnum].data);
 		break;
+	case 3:
+		break;
 	}
 	pf_fopen_files[fnum].data = NULL;
 	pf_fopen_files[fnum].prinst = NULL;
@@ -606,7 +617,7 @@ void PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char c, *s, *o, *max;
+	char c, *s, *o, *max, *eof;
 	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
 	char pr_string_temp[4096];
 
@@ -632,9 +643,10 @@ void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	//read up to the next \n, ignoring any \rs.
 	o = pr_string_temp;
-	max = o + MAXTEMPBUFFERLEN-1;
+	max = o + sizeof(pr_string_temp)-1;
 	s = pf_fopen_files[fnum].data+pf_fopen_files[fnum].ofs;
-	while(*s)
+	eof = pf_fopen_files[fnum].data+pf_fopen_files[fnum].len;
+	while(s < eof)
 	{
 		c = *s++;
 		if (c == '\n')
@@ -650,7 +662,7 @@ void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	pf_fopen_files[fnum].ofs = s - pf_fopen_files[fnum].data;
 
-	if (!pr_string_temp[0] && !*s)
+	if (!pr_string_temp[0] && s == eof)
 		G_INT(OFS_RETURN) = 0;	//EOF
 	else
 		RETURN_TSTRING(pr_string_temp);
@@ -679,20 +691,28 @@ void PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;	//this just isn't ours.
 	}
 
-	if (pf_fopen_files[fnum].bufferlen < pf_fopen_files[fnum].ofs + len)
+	switch(pf_fopen_files[fnum].accessmode)
 	{
-		char *newbuf;
-		pf_fopen_files[fnum].bufferlen = pf_fopen_files[fnum].bufferlen*2 + len;
-		newbuf = BZF_Malloc(pf_fopen_files[fnum].bufferlen);
-		memcpy(newbuf, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
-		BZ_Free(pf_fopen_files[fnum].data);
-		pf_fopen_files[fnum].data = newbuf;
-	}
+	default:
+		break;
+	case 1:
+	case 2:
+		if (pf_fopen_files[fnum].bufferlen < pf_fopen_files[fnum].ofs + len)
+		{
+			char *newbuf;
+			pf_fopen_files[fnum].bufferlen = pf_fopen_files[fnum].bufferlen*2 + len;
+			newbuf = BZF_Malloc(pf_fopen_files[fnum].bufferlen);
+			memcpy(newbuf, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
+			BZ_Free(pf_fopen_files[fnum].data);
+			pf_fopen_files[fnum].data = newbuf;
+		}
 
-	memcpy(pf_fopen_files[fnum].data + pf_fopen_files[fnum].ofs, msg, len);
-	if (pf_fopen_files[fnum].len < pf_fopen_files[fnum].ofs + len)
-		pf_fopen_files[fnum].len = pf_fopen_files[fnum].ofs + len;
-	pf_fopen_files[fnum].ofs+=len;
+		memcpy(pf_fopen_files[fnum].data + pf_fopen_files[fnum].ofs, msg, len);
+		if (pf_fopen_files[fnum].len < pf_fopen_files[fnum].ofs + len)
+			pf_fopen_files[fnum].len = pf_fopen_files[fnum].ofs + len;
+		pf_fopen_files[fnum].ofs+=len;
+		break;
+	}
 }
 
 void PF_fcloseall (progfuncs_t *prinst)
@@ -815,7 +835,7 @@ void search_close_progs(progfuncs_t *prinst, qboolean complain)
 		prvm_nextsearchhandle = 0;	//might as well.
 }
 
-int search_enumerate(char *name, int fsize, void *parm)
+int search_enumerate(const char *name, int fsize, void *parm)
 {
 	prvmsearch_t *s = parm;
 

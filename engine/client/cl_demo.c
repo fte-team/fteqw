@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "fs.h"
 
 void CL_FinishTimeDemo (void);
 float demtime;
@@ -883,7 +884,6 @@ void CL_Record_f (void)
 {
 	int		c;
 	char	name[MAX_OSPATH];
-	int namelen = sizeof(name);
 	sizebuf_t	buf;
 	char	buf_data[MAX_QWMSGLEN];
 	int n, i, j;
@@ -910,7 +910,6 @@ void CL_Record_f (void)
 	if (cls.demorecording)
 		CL_Stop_f();
   
-	namelen -= strlen(com_gamedir)+1;
 	if (c == 2)	//user supplied a name
 	{
 		fname = Cmd_Argv(1);
@@ -1651,6 +1650,8 @@ void CL_QTVPoll (void)
 
 			else if (!strcmp(s, "BEGIN"))
 			{
+				while (*colon && *(unsigned char*)colon <= ' ')
+					colon++;
 				if (*colon)
 					Con_Printf("streaming \"%s\" from qtv\n", colon);
 				else
@@ -1737,6 +1738,171 @@ char *strchrrev(char *str, char chr)
 	return NULL;
 }
 
+void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result)
+{
+	char buffer[2048];
+	char *s;
+	memset(result, 0, sizeof(*result));
+	if (!f)
+	{
+		Con_Printf("Couldn't open QTV file: %s\n", name);
+		return;
+	}
+	if (!VFS_GETS(f, buffer, sizeof(buffer)-1))
+	{
+		Con_Printf("Empty QTV file: %s\n", name);
+		VFS_CLOSE(f);
+		return;
+	}
+	s = buffer;
+	while (*s == ' ' || *s == '\t')
+		s++;
+	if (*s != '[')
+	{
+		Con_Printf("Bad QTV file: %s\n", name);
+		VFS_CLOSE(f);
+		return;
+	}
+	s++;
+	while (*s == ' ' || *s == '\t')
+		s++;
+	if (strnicmp(s, "QTV", 3))
+	{
+		Con_Printf("Bad QTV file: %s\n", name);
+		VFS_CLOSE(f);
+		return;
+	}
+	s+=3;
+	while (*s == ' ' || *s == '\t')
+		s++;
+	if (*s != ']')
+	{
+		Con_Printf("Bad QTV file: %s\n", name);
+		VFS_CLOSE(f);
+		return;
+	}
+	s++;
+	while (*s == ' ' || *s == '\t' || *s == '\r')
+		s++;
+	if (*s)
+	{
+		Con_Printf("Bad QTV file: %s\n", name);
+		VFS_CLOSE(f);
+		return;
+	}
+
+	while (VFS_GETS(f, buffer, sizeof(buffer)-1))
+	{
+		s = COM_ParseToken(buffer, ":=");
+		if (*s != '=' && *s != ':')
+			s = "";
+		else
+			s++;
+
+		if (!stricmp(com_token, "stream"))
+		{
+			result->connectiontype = QTVCT_STREAM;
+			s = COM_ParseOut(s, result->server, sizeof(result->server));
+		}
+		else if (!stricmp(com_token, "connect"))
+		{
+			result->connectiontype = QTVCT_CONNECT;
+			s = COM_ParseOut(s, result->server, sizeof(result->server));
+		}
+		else if (!stricmp(com_token, "join"))
+		{
+			result->connectiontype = QTVCT_JOIN;
+			s = COM_ParseOut(s, result->server, sizeof(result->server));
+		}
+		else if (!stricmp(com_token, "observe"))
+		{
+			result->connectiontype = QTVCT_OBSERVE;
+			s = COM_ParseOut(s, result->server, sizeof(result->server));
+		}
+		else if (!stricmp(com_token, "splash"))
+		{
+			s = COM_ParseOut(s, result->splashscreen, sizeof(result->server));
+		}
+	}
+	VFS_CLOSE(f);
+}
+
+void CL_ParseQTVDescriptor(vfsfile_t *f, const char *name)
+{
+	char buffer[1024];
+	char *s;
+
+	if (!f)
+	{
+		Con_Printf("Couldn't open QTV file: %s\n", name);
+		return;
+	}
+	while (VFS_GETS(f, buffer, sizeof(buffer)-1))
+	{
+		if (!strncmp(buffer, "Stream=", 7) || !strncmp(buffer, "Stream:", 7))
+		{
+			for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
+			{
+				if (*s == '\r' || *s == '\n' || *s == ';')
+					*s = 0;
+				else
+					break;
+			}
+			s = buffer+7;
+			while(*s && *s <= ' ')
+				s++;
+			Cbuf_AddText(va("qtvplay \"%s\"\n", s), Cmd_ExecLevel);
+			break;
+		}
+		if (!strncmp(buffer, "Connect=", 8) || !strncmp(buffer, "Connect:", 8))
+		{
+			for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
+			{
+				if (*s == '\r' || *s == '\n' || *s == ';')
+					*s = 0;
+				else
+					break;
+			}
+			s = buffer+8;
+			while(*s && *s <= ' ')
+				s++;
+			Cbuf_AddText(va("connect \"%s\"\n", s), Cmd_ExecLevel);
+			break;
+		}
+		if (!strncmp(buffer, "Join=", 5) || !strncmp(buffer, "Join:", 5))
+		{
+			for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
+			{
+				if (*s == '\r' || *s == '\n' || *s == ';')
+					*s = 0;
+				else
+					break;
+			}
+			s = buffer+5;
+			while(*s && *s <= ' ')
+				s++;
+			Cbuf_AddText(va("join \"%s\"\n", s), Cmd_ExecLevel);
+			break;
+		}
+		if (!strncmp(buffer, "Observe=", 8) || !strncmp(buffer, "Observe:", 8))
+		{
+			for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
+			{
+				if (*s == '\r' || *s == '\n' || *s == ';')
+					*s = 0;
+				else
+					break;
+			}
+			s = buffer+8;
+			while(*s && *s <= ' ')
+				s++;
+			Cbuf_AddText(va("observe \"%s\"\n", s), Cmd_ExecLevel);
+			break;
+		}
+	}
+	VFS_CLOSE(f);
+}
+
 void CL_QTVPlay_f (void)
 {
 	qboolean raw=0;
@@ -1754,80 +1920,8 @@ void CL_QTVPlay_f (void)
 
 	if (*connrequest == '#')
 	{
-		char buffer[1024];
-		char *s;
-		FILE *f;
-		f = fopen(connrequest+1, "rt");
-		if (!f)
-		{
-			Con_Printf("Couldn't open QTV file: %s\n", connrequest+1);
-			return;
-		}
-		while (!feof(f))
-		{
-			fgets(buffer, sizeof(buffer)-1, f);
-			if (!strncmp(buffer, "Stream=", 7) || !strncmp(buffer, "Stream:", 7))
-			{
-				for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
-				{
-					if (*s == '\r' || *s == '\n' || *s == ';')
-						*s = 0;
-					else
-						break;
-				}
-				s = buffer+7;
-				while(*s && *s <= ' ')
-					s++;
-				Cbuf_AddText(va("qtvplay \"%s\"\n", s), Cmd_ExecLevel);
-				break;
-			}
-			if (!strncmp(buffer, "Connect=", 8) || !strncmp(buffer, "Connect:", 8))
-			{
-				for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
-				{
-					if (*s == '\r' || *s == '\n' || *s == ';')
-						*s = 0;
-					else
-						break;
-				}
-				s = buffer+8;
-				while(*s && *s <= ' ')
-					s++;
-				Cbuf_AddText(va("connect \"%s\"\n", s), Cmd_ExecLevel);
-				break;
-			}
-			if (!strncmp(buffer, "Join=", 5) || !strncmp(buffer, "Join:", 5))
-			{
-				for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
-				{
-					if (*s == '\r' || *s == '\n' || *s == ';')
-						*s = 0;
-					else
-						break;
-				}
-				s = buffer+5;
-				while(*s && *s <= ' ')
-					s++;
-				Cbuf_AddText(va("join \"%s\"\n", s), Cmd_ExecLevel);
-				break;
-			}
-			if (!strncmp(buffer, "Observe=", 8) || !strncmp(buffer, "Observe:", 8))
-			{
-				for (s = buffer + strlen(buffer)-1; s >= buffer; s--)
-				{
-					if (*s == '\r' || *s == '\n' || *s == ';')
-						*s = 0;
-					else
-						break;
-				}
-				s = buffer+8;
-				while(*s && *s <= ' ')
-					s++;
-				Cbuf_AddText(va("observe \"%s\"\n", s), Cmd_ExecLevel);
-				break;
-			}
-		}
-		fclose(f);
+		//#FILENAME is a local system path
+		CL_ParseQTVDescriptor(VFSOS_Open(connrequest+1, "rt"), connrequest+1);
 		return;
 	}
 

@@ -997,7 +997,7 @@ static void D3D9_DrawSpriteModel (entity_t *e)
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ALPHABLENDENABLE, TRUE);
 
 		if (pic)
-			IDirect3DDevice9_SetTexture(pD3DDev9, 0, *(LPDIRECT3DBASETEXTURE9*)&pic->data);
+			IDirect3DDevice9_SetTexture(pD3DDev9, 0, *(LPDIRECT3DBASETEXTURE9*)&pic->d);
 		else
 			IDirect3DDevice9_SetTexture(pD3DDev9, 0, NULL);
 
@@ -1085,7 +1085,7 @@ static void D3D9_DrawSpriteModel (entity_t *e)
 	right[1]*=e->scale;
 	right[2]*=e->scale;
 
-	IDirect3DDevice9_SetTexture(pD3DDev9, 0, (void*)frame->gl_texturenum);
+	IDirect3DDevice9_SetTexture(pD3DDev9, 0, *(void**)&frame->p.d);
 
 /*	{
 		extern int gldepthfunc;

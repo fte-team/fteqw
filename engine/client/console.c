@@ -894,6 +894,9 @@ The input line scrolls horizontally if typing goes beyond the right edge
 */
 void Con_DrawInput (void)
 {
+#ifdef _WIN32
+	extern qboolean ActiveApp;
+#endif
 	int		y;
 	int		i;
 	int p;
@@ -999,6 +1002,9 @@ void Con_DrawInput (void)
 		}
 	}
 
+#ifdef _WIN32
+	if (ActiveApp)
+#endif
 	if (((int)(realtime*con_cursorspeed)&1))
 	{
 		maskedtext[key_linepos] = 11|CON_WHITEMASK;	//make it blink

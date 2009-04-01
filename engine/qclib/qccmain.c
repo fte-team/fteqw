@@ -615,6 +615,10 @@ pbool QCC_WriteData (int crc)
 			outputsize = 32;
 		}
 
+		if (qcc_targetformat == QCF_DARKPLACES)
+			compressoutput = 0;
+
+
 		//compression of blocks?
 		if (compressoutput)		progs.blockscompressed |=1;		//statements
 		if (compressoutput)		progs.blockscompressed |=2;		//defs
@@ -1881,13 +1885,38 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 		printf("Recognised progs as QuakeWorld\n");
 		break;
 	case 5927:
-		printf("Recognised progs as regular Quake\n");
+		printf("Recognised progs as NetQuake server gamecode\n");
 		break;
+
+	case 26940:
+		printf("Recognised progs as Quake pre-release...\n");
+		break;
+
 	case 38488:
 		printf("Recognised progs as original Hexen2\n");
 		break;
 	case 26905:
 		printf("Recognised progs as Hexen2 Mission Pack\n");
+		break;
+	case 14046:
+		printf("Recognised progs as Hexen2 (demo)\n");
+		break;
+
+	case 32199:
+		printf("Recognised progs as a CSQC module\n");
+		break;
+	case 52195:
+		printf("Recognised progs as outdated CSQC module\n");
+		break;
+	case 10020:
+		printf("Recognised progs as a DP/FTE Menu module\n");
+		break;
+
+	case 32401:
+		printf("Warning: please update your tenebrae system defs.\n");
+		break;
+	default:
+		printf("Warning: progs CRC not recognised from quake nor clones\n");
 		break;
 	}
 

@@ -257,6 +257,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_pointparticles	81		// [short] effectnum [vector] start [vector] velocity [short] count
 #define svcfte_pointparticles1	82		// [short] effectnum [vector] start, same as svc_pointparticles except velocity is zero and count is 1
 
+#define svcfte_cgamepacket	83
 
 
 //DP extended svcs

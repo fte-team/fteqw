@@ -112,6 +112,7 @@ typedef struct {
 	menuedit_t *nameedit;
 	menuedit_t *teamedit;
 	menuedit_t *skinedit;
+	menucombo_t *modeledit;
 	int topcolour;
 	int lowercolour;
 
@@ -175,6 +176,93 @@ qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int ke
 	}
 	return false;
 }
+
+
+typedef struct {
+	char **names;
+	int entries;
+	int match;
+} q2skinsearch_t;
+
+int q2skin_enumerate(const char *name, int fsize, void *parm)
+{
+	char blah[MAX_QPATH];
+	q2skinsearch_t *s = parm;
+
+	COM_StripExtension(name+8, blah, sizeof(blah));
+	if (strlen(blah) < 2)
+		return false;	//this should never happen
+	blah[strlen(blah)-2] = 0;
+
+	s->names = BZ_Realloc(s->names, ((s->entries+64)&~63) * sizeof(char*));
+	s->names[s->entries] = BZ_Malloc(strlen(blah)+1);
+	strcpy(s->names[s->entries], blah);
+
+	if (!strcmp(blah, skin.string))
+		s->match = s->entries;
+
+	s->entries++;
+	return true;
+}
+void q2skin_destroy(q2skinsearch_t *s)
+{
+	int i;
+	for (i = 0; i < s->entries; i++)
+	{
+		BZ_Free(s->names[i]);
+	}
+	BZ_Free(s);
+}
+
+qboolean MSetupQ2_ChangeSkin (struct menucustom_s *option,struct menu_s *menu, int key)
+{
+	setupmenu_t *info = menu->data;
+	q2skinsearch_t *s = Z_Malloc(sizeof(*s));
+	COM_EnumerateFiles(va("players/%s/*_i.*", info->modeledit->values[info->modeledit->selectedoption]), q2skin_enumerate, s);
+	if (key == K_ENTER || key == K_RIGHTARROW)
+	{
+		s->match ++;
+		if (s->match>=s->entries)
+			s->match=0;
+	}
+	else if (key == K_LEFTARROW)
+	{
+		s->match --;
+		if (s->match<=0)
+			s->match=s->entries-1;
+	}
+	else
+	{
+		q2skin_destroy(s);
+		return false;
+	}
+	if (s->entries)
+		Cvar_Set(&skin, s->names[s->match]);
+	S_LocalSound ("misc/menu2.wav");
+	q2skin_destroy(s);
+	return true;
+}
+void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
+{
+	setupmenu_t *info = menu->data;
+	mpic_t	*p;
+
+
+	p = Draw_SafeCachePic (va("players/%s_i", skin.string));
+	if (!p)
+	{
+		q2skinsearch_t *s = Z_Malloc(sizeof(*s));
+		COM_EnumerateFiles(va("players/%s/*_i.*", info->modeledit->values[info->modeledit->selectedoption]), q2skin_enumerate, s);
+		if (s->entries)
+			Cvar_Set(&skin, s->names[rand()%s->entries]);
+		q2skin_destroy(s);
+
+		p = Draw_SafeCachePic (va("players/%s_i", skin.string));
+	}
+	if (p)
+		Draw_TransPic (x-12, y-8, p);
+}
+
 void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 {
 	extern qbyte translationTable[256];
@@ -209,8 +297,71 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 
 void M_Menu_Setup_f (void)
 {
+	int mgt;
 	setupmenu_t *info;
 	menu_t *menu;	
+
+	mgt = M_GameType();
+	if (mgt == MGT_QUAKE2)	//quake2 main menu.
+	{
+		if (Draw_SafeCachePic("pics/m_banner_plauer_setup"))
+		{
+			char *modeloptions[] =
+			{
+				"male",
+				"female",
+				NULL
+			};
+			mpic_t *p;
+			menucustom_t *cu;
+			m_state = m_complex;
+			key_dest = key_menu;
+
+			menu = M_CreateMenu(sizeof(setupmenu_t));
+			info = menu->data;
+//			menu->key = MC_Main_Key;	
+
+			MC_AddPicture(menu, 0, 4, "pics/m_main_plaque");
+			p = Draw_SafeCachePic("pics/m_main_logo");
+			if (!p)
+				return;
+			MC_AddPicture(menu, 0, 173, "pics/m_main_logo");
+
+			menu->selecteditem = (menuoption_t*)
+			(info->nameedit = MC_AddEdit(menu, 64, 40, "Your name", name.string));
+			(info->modeledit = MC_AddCvarCombo(menu, 64, 72, "model", &skin, modeloptions, modeloptions));
+			info->modeledit->selectedoption = !strncmp(skin.string, "female", 6);
+			cu = MC_AddCustom(menu, 172-16, 88+16, NULL);
+			cu->draw = MSetupQ2_TransDraw;
+			cu->key = MSetupQ2_ChangeSkin;
+
+/*			MC_AddSelectablePicture(mainm, 68, 13, "pics/m_main_game");
+			MC_AddSelectablePicture(mainm, 68, 53, "pics/m_main_multiplayer");
+			MC_AddSelectablePicture(mainm, 68, 93, "pics/m_main_options");
+			MC_AddSelectablePicture(mainm, 68, 133, "pics/m_main_video");
+			MC_AddSelectablePicture(mainm, 68, 173, "pics/m_main_quit");
+
+			b = MC_AddConsoleCommand	(mainm, 68, 13,	"", "menu_single\n");
+			mainm->selecteditem = (menuoption_t *)b;
+			b->common.width = 12*20;
+			b->common.height = 20;
+			b = MC_AddConsoleCommand	(mainm, 68, 53,	"", "menu_multi\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
+			b = MC_AddConsoleCommand	(mainm, 68, 93,	"", "menu_options\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
+			b = MC_AddConsoleCommand	(mainm, 68, 133,	"", "menu_video\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
+			b = MC_AddConsoleCommand	(mainm, 68, 173,	"", "menu_quit\n");
+			b->common.width = 12*20;
+			b->common.height = 20;
+*/
+			menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 32, NULL, false);
+		}
+		return;
+	}
 
 	key_dest = key_menu;
 	m_state = m_complex;

@@ -73,9 +73,15 @@ sv_masterlist_t sv_masterlist[] = {
 	{MP_QUAKEWORLD, SCVARC("sv_master7", "", SV_Masterlist_Callback)},
 	{MP_QUAKEWORLD, SCVARC("sv_master8", "", SV_Masterlist_Callback)},
 
-	{MP_DARKPLACES, SCVARC("sv_masterextra1", "ghdigital.com", SV_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
-	{MP_DARKPLACES, SCVARC("sv_masterextra2", "dpmaster.deathmask.net", SV_Masterlist_Callback)}, //209.164.24.243 (admin: Willis)
-	{MP_DARKPLACES, SCVARC("sv_masterextra3", "dpmaster.tchr.no", SV_Masterlist_Callback)}, // (admin: tChr)
+	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra1", "master.quakeservers.net:27000", SV_Masterlist_Callback)},	//european. admin: raz0?
+	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra2", "asgaard.morphos-team.net:27000", SV_Masterlist_Callback)},	//admin bigfoot
+	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra3", "qwmaster.ocrana.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
+	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra4", "masterserver.exhale.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
+	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra5", "kubus.rulez.pl:27000", SV_Masterlist_Callback)},	//poland. admin unknown
+
+	{MP_DARKPLACES, SCVARC("sv_masterextra1", "ghdigital.com:27950", SV_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
+	{MP_DARKPLACES, SCVARC("sv_masterextra2", "dpmaster.deathmask.net:27950", SV_Masterlist_Callback)}, //209.164.24.243 (admin: Willis)
+	{MP_DARKPLACES, SCVARC("sv_masterextra3", "dpmaster.tchr.no:27950", SV_Masterlist_Callback)}, // (admin: tChr)
 	{MP_NONE, SCVAR(NULL, NULL)}
 };
 
@@ -1017,17 +1023,17 @@ void SVC_Status (void)
 }
 
 #ifdef NQPROT
-void SVC_GetInfo (char *challenge)
+void SVC_GetInfo (char *challenge, int fullstatus)
 {
 	//dpmaster support
+	char response[MAX_UDP_PACKET];
 
 	client_t	*cl;
 	int numclients = 0;
 	int i;
 	char *resp;
-
-	if (!*challenge)
-		challenge = NULL;
+	char *gamestatus;
+	eval_t *v;
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
@@ -1036,24 +1042,93 @@ void SVC_GetInfo (char *challenge)
 			numclients++;
 	}
 
+	if (svprogfuncs)
+	{
+		v = PR_FindGlobal(svprogfuncs, "worldstatus", PR_ANY);
+		if (v)
+			gamestatus = PR_GetString(svprogfuncs, v->string);
+		else
+			gamestatus = "";
+	}
+	else
+		gamestatus = "";
 
-	resp = va("\377\377\377\377infoResponse\x0A"
-						"\\gamename\\%s"
-						"\\protocol\\%i"
-						"\\clients\\%d"
-						"\\sv_maxclients\\%s\\mapname\\%s"
-						"%s"
-						"%s%s",
-						com_gamename.string,
-						NET_PROTOCOL_VERSION,
-						numclients,
-						maxclients.string, Info_ValueForKey(svs.info, "map"),
-						svs.info,
-						challenge ? "\\challenge\\" : "", challenge ? challenge : "");
-	Info_RemoveKey(resp + 17, "maxclients");
-	Info_RemoveKey(resp + 17, "map");
 
-	NET_SendPacket (NS_SERVER, strlen(resp), resp, net_from);
+	resp = response;
+
+	//response packet header
+	*resp++ = 0xff;
+	*resp++ = 0xff;
+	*resp++ = 0xff;
+	*resp++ = 0xff;
+	if (fullstatus)
+		Q_strncpyz(resp, "statusResponse", sizeof(response) - (resp-response) - 1);
+	else
+		Q_strncpyz(resp, "infoResponse", sizeof(response) - (resp-response) - 1);
+	resp += strlen(resp);
+	*resp++ = '\n';
+
+	//first line is the serverinfo
+	Q_strncpyz(resp, svs.info, sizeof(response) - (resp-response));
+	//this is a DP protocol, so some QW fields are not needed
+	Info_RemoveKey(resp, "maxclients");
+	Info_RemoveKey(resp, "map");
+	Info_SetValueForKey(resp, "gamename", com_gamename.string, sizeof(response) - (resp-response));
+	Info_SetValueForKey(resp, "modname", com_modname.string, sizeof(response) - (resp-response));
+	Info_SetValueForKey(resp, "protocol", va("%d", NET_PROTOCOL_VERSION), sizeof(response) - (resp-response));
+	Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(response) - (resp-response));
+	Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(response) - (resp-response));
+	Info_SetValueForKey(resp, "mapname", Info_ValueForKey(svs.info, "map"), sizeof(response) - (resp-response));
+	Info_SetValueForKey(resp, "qcstatus", gamestatus, sizeof(response) - (resp-response));
+	Info_SetValueForKey(resp, "challenge", challenge, sizeof(response) - (resp-response));
+	resp += strlen(resp);
+
+	*resp++ = 0;	//there's already a null, but hey
+
+	if (fullstatus)
+	{
+		client_t *cl;
+		char *start = resp;
+
+		if (resp != response+sizeof(response))
+		{
+			resp[-1] = '\n';	//replace the null terminator that we already wrote
+
+			//on the following lines we have an entry for each client
+			for (i=0 ; i<MAX_CLIENTS ; i++)
+			{
+				cl = &svs.clients[i];
+				if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && !cl->spectator)
+				{
+					Q_strncpyz(resp, va(
+									"%d %d \"%s\" \"%s\"\n"
+									,
+									cl->old_frags,
+									SV_CalcPing(cl),
+									cl->team,
+									cl->name
+									), sizeof(response) - (resp-response));
+					resp += strlen(resp);
+				}
+			}
+
+			*resp++ = 0;	//this might not be a null
+			if (resp == response+sizeof(response))
+			{
+				//we're at the end of the buffer, it's full. bummer
+				//replace 12 bytes with infoResponse
+				memcpy(response+4, "infoResponse", 12);
+				//move down by len(statusResponse)-len(infoResponse) bytes
+				memmove(response+4+12, response+4+14, resp-response-(4+14));
+				start -= 14-12; //fix this pointer
+
+				resp = start;
+				resp[-1] = 0;	//reset the \n
+			}
+		}
+	}
+
+	NET_SendPacket (NS_SERVER, resp-response, response, net_from);
 }
 #endif
 
@@ -1994,12 +2069,14 @@ client_t *SVC_DirectConnect(void)
 	//initialise the client's frames, based on that client's protocol
 	switch(newcl->protocol)
 	{
+#ifdef Q3SERVER
 	case CP_QUAKE3:
 		Huff_PreferedCompressionCRC();
 		if (temp.frameunion.q3frames)
 			Z_Free(temp.frameunion.q3frames);
 		temp.frameunion.q3frames = Z_Malloc(Q3UPDATE_BACKUP*sizeof(*temp.frameunion.q3frames));
 		break;
+#endif
 
 	case CP_QUAKE2:
 		// build a new connection
@@ -2572,8 +2649,10 @@ qboolean SV_ConnectionlessPacket (void)
 		SVC_GetChallenge ();
 	}
 #ifdef NQPROT
+	else if (!strcmp(c, "getstatus"))
+		SVC_GetInfo(Cmd_Args(), true);
 	else if (!strcmp(c, "getinfo"))
-		SVC_GetInfo(Cmd_Args());
+		SVC_GetInfo(Cmd_Args(), false);
 #endif
 	else if (!strcmp(c, "rcon"))
 		SVC_RemoteCommand ();
@@ -3775,6 +3854,15 @@ void Master_Add(char *stringadr)
 	svs.last_heartbeat = -99999;
 }
 
+void Master_ReResolve(void)
+{
+	int i;
+	for (i = 0; sv_masterlist[i].cv.name; i++)
+	{
+		sv_masterlist[i].needsresolve = true;
+	}
+}
+
 void Master_ClearAll(void)
 {
 	int i;
@@ -3797,6 +3885,10 @@ void Master_Shutdown (void)
 	char		adr[MAX_ADR_SIZE];
 	int			i;
 
+	//note that if a master server actually blindly listens to this then its exploitable.
+	//we send it out anyway as for us its all good.
+	//master servers ought to try and check up on the status of the server first, if they listen to this.
+
 	sprintf (string, "%c\n", S2M_SHUTDOWN);
 
 	// send to group master
@@ -3808,7 +3900,7 @@ void Master_Shutdown (void)
 			{
 			case MP_QUAKEWORLD:
 				if (sv_reportheartbeats.value)
-					Con_Printf ("Sending heartbeat to %s\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr));
+					Con_Printf ("Sending shutdown to %s\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr));
 
 				NET_SendPacket (NS_SERVER, strlen(string), string, sv_masterlist[i].adr);
 				break;
@@ -4226,19 +4318,35 @@ void SV_Init (quakeparms_t *parms)
 		Cmd_RemoveCommand("bind");
 
 	// if a map wasn't specified on the command line, spawn start.map
-		if (sv.state == ss_dead)
-			Cmd_ExecuteString ("map start", RESTRICT_LOCAL);
-		if (sv.state == ss_dead)
+		if (sv.state == ss_dead && Cmd_AliasExist("startmap_dm", RESTRICT_LOCAL))
 		{
-			cvar_t *ml;
-			ml = Cvar_Get("g_maplist", "dm1 dm2 dm3 dm4 dm5 dm6", 0, "");
-			Cmd_TokenizeString(ml->string, false, false);
-			if (Cmd_Argc())
-				Cmd_ExecuteString(va("map %s", Cmd_Argv(rand()%Cmd_Argc())), RESTRICT_LOCAL);
+			Cbuf_AddText("startmap_dm", RESTRICT_LOCAL);	//DP extension
+			Cbuf_Execute();
 		}
+		if (sv.state == ss_dead && Cmd_AliasExist("startmap_sp", RESTRICT_LOCAL))
+		{
+			Cbuf_AddText("startmap_sp", RESTRICT_LOCAL);	//DP extension
+			Cbuf_Execute();
+		}
+		if (sv.state == ss_dead && COM_FCheckExists("maps/start.bsp")) 
+			Cmd_ExecuteString ("map start", RESTRICT_LOCAL);	//regular q1
+		if (sv.state == ss_dead && COM_FCheckExists("maps/demo1.bsp")) 
+			Cmd_ExecuteString ("map demo1", RESTRICT_LOCAL);	//regular h2 sp
+#ifdef Q2SERVER
+		if (sv.state == ss_dead && COM_FCheckExists("maps/base1.bsp")) 
+			Cmd_ExecuteString ("map base1", RESTRICT_LOCAL);	//regular q2 sp
+#endif
+#ifdef Q3SERVER
+		if (sv.state == ss_dead && COM_FCheckExists("maps/q3dm1.bsp")) 
+			Cmd_ExecuteString ("map q3dm1", RESTRICT_LOCAL);	//regular q3 'sp'
+#endif
+#ifdef HLSERVER
+		if (sv.state == ss_dead && COM_FCheckExists("maps/c0a0.bsp"))
+			Cmd_ExecuteString ("map c0a0", RESTRICT_LOCAL);	//regular hl sp
+#endif
+
 		if (sv.state == ss_dead)
 			SV_Error ("Couldn't spawn a server");
-
 	}
 }
 

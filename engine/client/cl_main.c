@@ -1504,7 +1504,7 @@ void CL_CheckServerInfo(void)
 		cl.ktprogametime = 0;
 
 	Cvar_ForceCheatVars(cls.allow_semicheats, cls.allow_cheats);
-
+	Validation_Apply_Ruleset();
 
 	if (oldallowshaders != cls.allow_shaders)
 		Cache_Flush();	//this will cause all models to be reloaded.
@@ -2774,7 +2774,7 @@ void CL_ServerInfo_f(void)
 {
 	if (!sv.state && cls.state)
 	{
-		if (cls.demoplayback)
+		if (cls.demoplayback || cls.protocol != CP_QUAKEWORLD)
 		{
 			Info_Print (cl.serverinfo);
 		}
@@ -3385,10 +3385,10 @@ void Host_Frame (double time)
 		if (cls.protocol == CP_QUAKE3)
 			S_ExtraUpdate();
 		else
-			S_Update (r_origin, vpn, vright, vup);
+			S_UpdateListener (r_origin, vpn, vright, vup, false);
 	}
 	else
-		S_Update (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
+		S_UpdateListener (vec3_origin, vec3_origin, vec3_origin, vec3_origin, false);
 
 	CDAudio_Update();
 
@@ -3420,6 +3420,8 @@ void Host_Frame (double time)
 
 static void simple_crypt(char *buf, int len)
 {
+	if (!(*buf & 128))
+		return;
 	while (len--)
 		*buf++ ^= 0xff;
 }
@@ -3626,6 +3628,7 @@ void Host_Init (quakeparms_t *parms)
 
 	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
 
+#ifndef NPQTV
 //-1 means 'never set'
 	if (qrenderer == -1 && *vid_renderer.string)
 	{
@@ -3641,6 +3644,7 @@ void Host_Init (quakeparms_t *parms)
 
 	if (qrenderer == QR_NONE)
 		Con_Printf("Use the setrenderer command to use a gui\n");
+#endif
 
 #ifdef VM_UI
 	UI_Init();
@@ -3695,14 +3699,12 @@ to run quit through here before the final handoff to the sys code.
 */
 void Host_Shutdown(void)
 {
-	static qboolean isdown = false;
-
-	if (isdown)
+	if (!host_initialized)
 	{
 		Sys_Printf ("recursive shutdown\n");
 		return;
 	}
-	isdown = true;
+	host_initialized = false;
 
 #ifdef VM_UI
 	UI_Stop();
@@ -3713,6 +3715,7 @@ void Host_Shutdown(void)
 	CDAudio_Shutdown ();
 	S_Shutdown();
 	IN_Shutdown ();
+	R_ShutdownRenderer();
 	if (VID_DeInit)
 		VID_DeInit();
 #ifndef CLIENTONLY
@@ -3720,11 +3723,16 @@ void Host_Shutdown(void)
 #else
 	NET_Shutdown ();
 #endif
+	FS_Shutdown();
 
 	Cvar_Shutdown();
 	Validation_FlushFileList();
 
+	Cmd_Shutdown();
 	Memory_DeInit();
+
+	memset(&sv, 0, sizeof(sv));
+	memset(&svs, 0, sizeof(svs));
 }
 
 #ifdef CLIENTONLY

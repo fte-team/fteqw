@@ -1048,9 +1048,9 @@ void D_DrawSprite (void)
 	if (ymin >= ymax)
 		return;		// doesn't cross any scans at all
 
-	cachewidth = r_spritedesc.pspriteframe->width;
-	sprite_height = r_spritedesc.pspriteframe->height;
-	cacheblock = (qbyte *)&r_spritedesc.pspriteframe->pixels[0];
+	cachewidth = r_spritedesc.pspriteframe->p.width;
+	sprite_height = r_spritedesc.pspriteframe->p.height;
+	cacheblock = (qbyte *)&r_spritedesc.pspriteframe->p.d.data[0];
 
 // copy the first vertex to the last vertex, so we don't have to deal with
 // wrapping

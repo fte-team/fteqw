@@ -167,7 +167,8 @@ typedef struct
 {
     char	name[32];
     float	timing;
-    int		unknown1[5];
+	int		loop;
+    int		unknown1[4];
     int		numframes;
     int		unknown2[2];
     int		motiontype;

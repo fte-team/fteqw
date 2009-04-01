@@ -324,7 +324,7 @@ qboolean Sys_remove (char *path)
 	return true;
 }
 
-int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void *), void *parm)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;	

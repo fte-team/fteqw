@@ -3531,8 +3531,8 @@ void * SWMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int version)
 	Q_memset (pspriteframe, 0, sizeof (mspriteframe_t) + size);
 	*ppframe = pspriteframe;
 
-	pspriteframe->width = width;
-	pspriteframe->height = height;
+	pspriteframe->p.width = width;
+	pspriteframe->p.height = height;
 	origin[0] = LittleLong (pinframe->origin[0]);
 	origin[1] = LittleLong (pinframe->origin[1]);
 
@@ -3549,7 +3549,7 @@ void * SWMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int version)
 		{	//downgrade quality
 
 			ppixin = (unsigned char *)(pinframe + 1);
-			ppixout = (unsigned char *)&pspriteframe->pixels[0];
+			ppixout = (unsigned char *)&pspriteframe->p.d.data[0];
 
 			for (i=0 ; i<size ; i++)
 			{
@@ -3561,7 +3561,7 @@ void * SWMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int version)
 			size *= 4;
 		}
 		else
-			Q_memcpy (&pspriteframe->pixels[0], (qbyte *)(pinframe + 1), size);
+			Q_memcpy (&pspriteframe->p.d.data[0], (qbyte *)(pinframe + 1), size);
 	}
 	else if (r_pixbytes == 2)
 	{
@@ -3571,7 +3571,7 @@ void * SWMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int version)
 		{	//downgrade quality
 
 			ppixin = (unsigned char *)(pinframe + 1);
-			p16out = (unsigned short *)&pspriteframe->pixels[0];
+			p16out = (unsigned short *)&pspriteframe->p.d.data[0];
 
 			for (i=0 ; i<size ; i++)
 			{
@@ -3585,7 +3585,7 @@ void * SWMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int version)
 		else
 		{
 			ppixin = (unsigned char *)(pinframe + 1);
-			p16out = (unsigned short *)&pspriteframe->pixels[0];
+			p16out = (unsigned short *)&pspriteframe->p.d.data[0];
 			for (i=0 ; i<size ; i++)
 			{
 				if (ppixin[i] == 255)
@@ -3602,7 +3602,7 @@ void * SWMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int version)
 		{	//copy accross
 			unsigned int	*p32in;
 			p32in = (unsigned int *)(pinframe + 1);
-			p32out = (unsigned int *)&pspriteframe->pixels[0];
+			p32out = (unsigned int *)&pspriteframe->p.d.data[0];
 
 			for (i=0 ; i<size ; i++)
 				p32out[i] = p32in[i];
@@ -3613,7 +3613,7 @@ void * SWMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int version)
 		{	//upgrade
 			qbyte	*ppixin;
 			ppixin = (qbyte *)(pinframe + 1);
-			p32out = (unsigned int *)&pspriteframe->pixels[0];
+			p32out = (unsigned int *)&pspriteframe->p.d.data[0];
 
 			for (i=0 ; i<size ; i++)
 				p32out[i] = d_8to32table[ppixin[i]];
@@ -3861,24 +3861,24 @@ qboolean SWMod_LoadSprite2Model (model_t *mod, void *buffer)
 
 		frame = psprite->frames[mod->numframes].frameptr = Hunk_AllocName(sizeof(mspriteframe_t)+width*r_pixbytes*height, loadname);
 
-		frame->width = width;
-		frame->height = height;
+		frame->p.width = width;
+		frame->p.height = height;
 		origin[0] = LittleLong (pframetype->origin_x);
 		origin[1] = LittleLong (pframetype->origin_y);
 
 		frame->up = -origin[1];
-		frame->down = frame->height - origin[1];
+		frame->down = frame->p.height - origin[1];
 		frame->left = -origin[0];
-		frame->right = frame->width - origin[0];
+		frame->right = frame->p.width - origin[0];
 
 		if (r_pixbytes == 4)
 		{
 			for (j = 0; j < width*height; j++)
 			{
-				frame->pixels[j*4+0] = framedata[j*4+2];
-				frame->pixels[j*4+1] = framedata[j*4+1];
-				frame->pixels[j*4+2] = framedata[j*4+0];
-				frame->pixels[j*4+3] = framedata[j*4+3];
+				frame->p.d.data[j*4+0] = framedata[j*4+2];
+				frame->p.d.data[j*4+1] = framedata[j*4+1];
+				frame->p.d.data[j*4+2] = framedata[j*4+0];
+				frame->p.d.data[j*4+3] = framedata[j*4+3];
 			}
 		}
 		else
@@ -3886,9 +3886,9 @@ qboolean SWMod_LoadSprite2Model (model_t *mod, void *buffer)
 			for (j = 0; j < width*height; j++)
 			{
 				if (!framedata[j*4+3])	//make sure
-					frame->pixels[j] = 255;
+					frame->p.d.data[j] = 255;
 				else
-					frame->pixels[j] = GetPaletteNoFB(framedata[j*4+0], framedata[j*4+1], framedata[j*4+2]);
+					frame->p.d.data[j] = GetPaletteNoFB(framedata[j*4+0], framedata[j*4+1], framedata[j*4+2]);
 			}
 		}
 		BZ_Free(framedata);

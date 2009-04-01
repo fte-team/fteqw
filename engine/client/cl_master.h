@@ -1,4 +1,5 @@
 
+#define SS_GENERICQUAKEWORLD	0
 #define SS_FTESERVER	1	//hehehe...
 #define SS_QUAKE2		2	//useful (and cool). Could be blamed for swamping.
 #define SS_NETQUAKE		4

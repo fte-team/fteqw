@@ -116,7 +116,7 @@ dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscal
 				return NULL;		// couldn't find one anywhere
 			snprintf (name, sizeof(name), "%s/%s", gpath, dllname);
 
-			Con_Printf("Loading native: %s\n", name);
+			Con_DPrintf("Loading native: %s\n", name);
 			hVM = Sys_LoadLibrary(name, funcs);
 			if (hVM)
 			{

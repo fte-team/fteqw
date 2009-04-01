@@ -416,13 +416,16 @@ SPRITE MODELS
 // FIXME: shorten these?
 typedef struct mspriteframe_s
 {
+	float	up, down, left, right;
+/*
 	int		width;
 	int		height;
-	float	up, down, left, right;
 	int		gl_texturenum;
 #ifdef SWQUAKE
 	qbyte	pixels[4];
 #endif
+	*/
+	mpic_t p;
 } mspriteframe_t;
 
 mspriteframe_t *R_GetSpriteFrame (entity_t *currententity);

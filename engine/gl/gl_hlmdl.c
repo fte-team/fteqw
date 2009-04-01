@@ -234,6 +234,50 @@ void *Mod_GetHalfLifeModelData(model_t *mod)
 }
 #endif
 
+int HLMod_FrameForName(model_t *mod, char *name)
+{
+	int i;
+	hlmdl_header_t *h;
+	hlmdl_sequencelist_t *seqs;
+	hlmodelcache_t *mc;
+	if (!mod || mod->type != mod_halflife)
+		return -1;	//halflife models only, please
+
+	mc = Mod_Extradata(mod);
+
+	h = (hlmdl_header_t *)((char *)mc + mc->header);
+	seqs = (hlmdl_sequencelist_t*)((char*)h+h->seqindex);
+
+	for (i = 0; i < h->numseq; i++)
+	{
+		if (!strcmp(seqs[i].name, name))
+			return i;
+	}
+	return -1;
+}
+
+int HLMod_BoneForName(model_t *mod, char *name)
+{
+	int i;
+	hlmdl_header_t *h;
+	hlmdl_bone_t *bones;
+	hlmodelcache_t *mc;
+	if (!mod || mod->type != mod_halflife)
+		return -1;	//halflife models only, please
+
+	mc = Mod_Extradata(mod);
+
+	h = (hlmdl_header_t *)((char *)mc + mc->header);
+	bones = (hlmdl_bone_t*)((char*)h+h->boneindex);
+
+	for (i = 0; i < h->numbones; i++)
+	{
+		if (!strcmp(bones[i].name, name))
+			return i+1;
+	}
+	return 0;
+}
+
 /*
  =======================================================================================================================
     HL_CalculateBones - calculate bone positions - quaternion+vector in one function
@@ -403,10 +447,10 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 		return;
     if(frame >= sequence->numframes)
 	{
-		if (sequence->motiontype&1)
-			frame = sequence->numframes-1;
-		else
+		if (sequence->loop)
 			frame %= sequence->numframes;
+		else
+			frame = sequence->numframes-1;
 	}
 
 	if (lastbone > model->header->numbones)
@@ -576,6 +620,7 @@ void R_DrawHLModel(entity_t	*curent)
 		if (cbone >= lastbone)
 			continue;
 		HL_SetupBones(&model, curent->framestate.g[bgroup].frame[0], cbone, lastbone, (curent->framestate.g[bgroup].subblendfrac+1)*0.5, curent->framestate.g[bgroup].frametime[0]);	/* Setup the bones */
+		cbone = lastbone;
 	}
 
     /* Manipulate each mesh directly */

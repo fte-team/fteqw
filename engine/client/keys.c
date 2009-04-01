@@ -402,6 +402,7 @@ void Con_ExecuteLine(console_t *con, char *line)
 	Cbuf_AddText ("\n", RESTRICT_LOCAL);
 	if (!waschat || con_echochat.value)
 		Con_Printf ("]%s\n",line);
+
 	if (cls.state == ca_disconnected)
 		SCR_UpdateScreen ();	// force an update, because the command
 									// may take some time
@@ -1372,7 +1373,7 @@ qboolean Key_MouseShouldBeFree(void)
 
 	if (key_dest == key_menu)
 	{
-		if (m_state == m_complex || m_state == m_plugin)
+		if (m_state == m_complex || m_state == m_plugin || m_state == m_menu_dat)
 			return true;
 	}
 	if (key_dest == key_console)

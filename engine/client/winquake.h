@@ -62,6 +62,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern	HINSTANCE	global_hInstance;
 extern	int			global_nCmdShow;
 
+extern HWND sys_hijackwindow;
+
 #ifndef SERVERONLY
 
 #ifdef _WIN32
@@ -151,10 +153,7 @@ extern qboolean		ActiveApp, Minimized;
 
 extern qboolean	WinNT;
 
-void IN_ShowMouse (void);
-void IN_DeactivateMouse (void);
-void IN_HideMouse (void);
-void IN_ActivateMouse (void);
+void IN_UpdateGrabs(int fullscreen, int activeapp);
 void IN_RestoreOriginalMouseState (void);
 void IN_SetQuakeMouseState (void);
 void IN_MouseEvent (int mstate);

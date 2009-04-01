@@ -1317,6 +1317,12 @@ void SCR_DrawFPS (void)
 		lastfps = 1/host_frametime;
 		lastframetime = t;
 		break;
+#ifdef RGLQUAKE
+	case 5:
+		if (qrenderer == QR_OPENGL)
+			GLR_FrameTimeGraph((int)(1000.0*host_frametime));
+		break;
+#endif
 	}
 
 	if (usemsecs)
@@ -1742,8 +1748,6 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 #endif
 void WriteBMPFile(char *filename, qbyte *in, int width, int height);
 
-void WritePCXfile (char *filename, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
-
 /*
 Find closest color in the palette for named color
 */
@@ -1870,7 +1874,6 @@ SCR_ScreenShot_f
 void SCR_ScreenShot_f (void)
 {
 	char            pcxname[80];
-	char            checkname[MAX_OSPATH];
 	int                     i;
 	vfsfile_t *vfs;
 
@@ -1903,7 +1906,7 @@ void SCR_ScreenShot_f (void)
 			pcxname[17] = (i%1000)/100 + '0';
 			pcxname[18] = (i%100)/10 + '0';
 			pcxname[19] = (i%10) + '0';
-			sprintf (checkname, "%s/%s", com_gamedir, pcxname);
+
 			if (!(vfs = FS_OpenVFS(pcxname, "rb", FS_GAMEONLY)))
 				break;  // file doesn't exist
 			VFS_CLOSE(vfs);

@@ -552,6 +552,7 @@ typedef struct
 
 	char		levelname[40];	// for display on solo scoreboard
 	int			playernum[MAX_SPLITS];
+	qboolean	nolocalplayer[MAX_SPLITS];
 	int			splitclients;	//we are running this many clients split screen.
 
 // refresh related state
@@ -804,6 +805,28 @@ void CL_QTVDemos_f (void);
 void CL_DemoJump_f(void);
 void CL_ProgressDemoTime(void);
 void CL_TimeDemo_f (void);
+typedef struct 
+{
+	enum
+	{
+		QTVCT_NONE,
+		QTVCT_STREAM,
+		QTVCT_CONNECT,
+		QTVCT_JOIN,
+		QTVCT_OBSERVE,
+	} connectiontype;
+	enum
+	{
+		QTVCT_NETQUAKE,
+		QTVCT_QUAKEWORLD,
+		QTVCT_QUAKE2,
+		QTVCT_QUAKE3
+	} protocol;
+	char server[256];
+	char splashscreen[256];
+	//char *datafiles;
+} qtvfile_t;
+void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result);
 
 //
 // cl_parse.c

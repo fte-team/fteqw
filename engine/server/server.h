@@ -1240,7 +1240,7 @@ typedef struct mvddest_s {
 	enum {DEST_NONE, DEST_FILE, DEST_BUFFEREDFILE, DEST_STREAM} desttype;
 
 	int socket;
-	FILE *file;
+	vfsfile_t *file;
 
 	char name[MAX_QPATH];
 	char path[MAX_QPATH];

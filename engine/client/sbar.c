@@ -1164,7 +1164,7 @@ void Sbar_FillPC (int x, int y, int w, int h, unsigned int pcolour)
 {
 	if (pcolour >= 16)
 	{
-		Draw_FillRGB (x, y, w, h, (pcolour&0xff)/255.0f, ((pcolour&0xff00)>>8)/255.0f, ((pcolour&0xff0000)>>16)/255.0f);
+		Draw_FillRGB (x, y, w, h, ((pcolour&0xff0000)>>16)/255.0f, ((pcolour&0xff00)>>8)/255.0f, (pcolour&0xff)/255.0f);
 	}
 	else
 	{
@@ -2255,6 +2255,10 @@ void Sbar_Draw (void)
 
 	sbar_parsingteamstatuses = false;
 
+#ifdef HLCLIENT
+	if (CLHL_DrawHud())
+		return;
+#endif
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)

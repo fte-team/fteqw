@@ -563,7 +563,7 @@ any form of ipv6, including port number.
 	sscanf (copy, "%x", &val);	\
 	((struct sockaddr_ipx *)sadr)->dest = val
 
-qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
+qboolean	NET_StringToSockaddr (const char *s, struct sockaddr_qstorage *sadr)
 {
 	struct hostent	*h;
 	char	*colon;
@@ -619,9 +619,12 @@ qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr)
 				error = EAI_NONAME;
 			else
 			{
-				*port = 0;
-				error = pgetaddrinfo(s+1, port+2, &udp6hint, &addrinfo);
-				*port = ']';
+				len = port - (s+1);
+				if (len >= sizeof(dupbase))
+					len = sizeof(dupbase)-1;
+				strncpy(dupbase, s+1, len);
+				dupbase[len] = '\0';
+				error = pgetaddrinfo(dupbase, port+2, &udp6hint, &addrinfo);
 			}
 		}
 		else
@@ -709,7 +712,7 @@ dblbreak:
 accepts anything that NET_StringToSockaddr accepts plus certain url schemes
 including: tcp, irc
 */
-qboolean	NET_StringToAdr (char *s, netadr_t *a)
+qboolean	NET_StringToAdr (const char *s, netadr_t *a)
 {
 	struct sockaddr_qstorage sadr;
 
@@ -872,9 +875,9 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 
 // ParsePartialIPv4: check string to see if it is a partial IPv4 address and
 // return bits to mask and set netadr_t or 0 if not an address
-int ParsePartialIPv4(char *s, netadr_t *a)
+int ParsePartialIPv4(const char *s, netadr_t *a)
 {
-	char *colon = NULL;
+	const char *colon = NULL;
 	char *address = a->address.ip;
 	int bits = 8;
 
@@ -920,7 +923,7 @@ int ParsePartialIPv4(char *s, netadr_t *a)
 
 // NET_StringToAdrMasked: extension to NET_StringToAdr to handle IP addresses
 // with masks or integers representing the bit masks
-qboolean NET_StringToAdrMasked (char *s, netadr_t *a, netadr_t *amask)
+qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask)
 {
 	char t[64];
 	char *spoint;
@@ -1300,10 +1303,10 @@ void NET_SendLoopPacket (netsrc_t sock, int length, void *data, netadr_t to)
 
 #define FTENET_ADDRTYPES 2
 typedef struct ftenet_generic_connection_s {
-	char *name;
+	const char *name;
 
 	int (*GetLocalAddress)(struct ftenet_generic_connection_s *con, netadr_t *local, int adridx);
-	qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, char *newaddress);
+	qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, const char *newaddress);
 	qboolean (*GetPacket)(struct ftenet_generic_connection_s *con);
 	qboolean (*SendPacket)(struct ftenet_generic_connection_s *con, int length, void *data, netadr_t to);
 	void (*Close)(struct ftenet_generic_connection_s *con);
@@ -1327,7 +1330,7 @@ ftenet_connections_t *FTENET_CreateCollection(qboolean listen)
 	return col;
 }
 
-qboolean FTENET_AddToCollection(ftenet_connections_t *col, char *name, char *address, ftenet_generic_connection_t *(*establish)(qboolean isserver, char *address))
+qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, const char *address, ftenet_generic_connection_t *(*establish)(qboolean isserver, const char *address))
 {
 	int i;
 	if (!col)
@@ -1423,7 +1426,7 @@ qboolean FTENET_Loop_SendPacket(ftenet_generic_connection_t *con, int length, vo
 	return false;
 }
 
-ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean isserver, char *address)
+ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean isserver, const char *address)
 {
 	ftenet_generic_connection_t *newcon;
 	newcon = Z_Malloc(sizeof(*newcon));
@@ -1626,7 +1629,7 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 	return true;
 }
 
-qboolean	NET_PortToAdr (int adrfamily, char *s, netadr_t *a)
+qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a)
 {
 	char *e;
 	int port;
@@ -1658,7 +1661,7 @@ qboolean	NET_PortToAdr (int adrfamily, char *s, netadr_t *a)
 	return false;
 }
 
-ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, int protocol, qboolean isserver, char *address)
+ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, int protocol, qboolean isserver, const char *address)
 {
 	//this is written to support either ipv4 or ipv6, depending on the remote addr.
 	ftenet_generic_connection_t *newcon;
@@ -1735,17 +1738,17 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 }
 
 #ifdef IPPROTO_IPV6
-ftenet_generic_connection_t *FTENET_UDP6_EstablishConnection(qboolean isserver, char *address)
+ftenet_generic_connection_t *FTENET_UDP6_EstablishConnection(qboolean isserver, const char *address)
 {
 	return FTENET_Generic_EstablishConnection(AF_INET6, IPPROTO_UDP, isserver, address);
 }
 #endif
-ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean isserver, char *address)
+ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean isserver, const char *address)
 {
 	return FTENET_Generic_EstablishConnection(AF_INET, IPPROTO_UDP, isserver, address);
 }
 #ifdef USEIPX
-ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, char *address)
+ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, const char *address)
 {
 	return FTENET_Generic_EstablishConnection(AF_IPX, NSPROTO_IPX, isserver, address);
 }
@@ -1946,7 +1949,7 @@ void FTENET_TCPConnect_Close(ftenet_generic_connection_t *gcon)
 	FTENET_Generic_Close(gcon);
 }
 
-ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily, qboolean isserver, char *address)
+ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily, qboolean isserver, const char *address)
 {
 	//this is written to support either ipv4 or ipv6, depending on the remote addr.
 	ftenet_tcpconnect_connection_t *newcon;
@@ -2055,13 +2058,13 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 }
 
 #ifdef IPPROTO_IPV6
-ftenet_generic_connection_t *FTENET_TCP6Connect_EstablishConnection(qboolean isserver, char *address)
+ftenet_generic_connection_t *FTENET_TCP6Connect_EstablishConnection(qboolean isserver, const char *address)
 {
 	return FTENET_TCPConnect_EstablishConnection(AF_INET6, isserver, address);
 }
 #endif
 
-ftenet_generic_connection_t *FTENET_TCP4Connect_EstablishConnection(qboolean isserver, char *address)
+ftenet_generic_connection_t *FTENET_TCP4Connect_EstablishConnection(qboolean isserver, const char *address)
 {
 	return FTENET_TCPConnect_EstablishConnection(AF_INET, isserver, address);
 }
@@ -2606,7 +2609,7 @@ void FTENET_IRCConnect_Close(ftenet_generic_connection_t *gcon)
 	FTENET_Generic_Close(gcon);
 }
 
-ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(qboolean isserver, char *address)
+ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address)
 {
 	//this is written to support either ipv4 or ipv6, depending on the remote addr.
 	ftenet_ircconnect_connection_t *newcon;
@@ -3254,7 +3257,7 @@ void NET_Init (void)
 #ifndef SERVERONLY
 void NET_InitClient(void)
 {
-	char *port;
+	const char *port;
 	int p;
 	port = STRINGIFY(PORT_CLIENT);
 
@@ -3474,7 +3477,7 @@ int VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 		return 0;	//signal nothing available
 	}
 }
-int VFSTCP_WriteBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+int VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
 {
 	tcpfile_t *tf = (tcpfile_t*)file;
 	int len;
@@ -3510,7 +3513,7 @@ void VFSTCP_Close (struct vfsfile_s *file)
 	Z_Free(file);
 }
 
-vfsfile_t *FS_OpenTCP(char *name)
+vfsfile_t *FS_OpenTCP(const char *name)
 {
 	tcpfile_t *newf;
 	int sock;

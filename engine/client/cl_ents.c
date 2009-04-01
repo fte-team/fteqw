@@ -1595,6 +1595,8 @@ void CL_LinkPacketEntities (void)
 
 	autorotate = anglemod(100*servertime);
 
+	CLCSQC_DeltaStart();
+
 	for (newpnum=0 ; newpnum<pack->num_entities ; newpnum++)
 	{
 		state = &pack->entities[newpnum];
@@ -1606,6 +1608,10 @@ void CL_LinkPacketEntities (void)
 			Con_Printf("Too many visible entities\n");
 			break;
 		}
+
+		if (CLCSQC_DeltaUpdate(state))
+			continue;
+
 		ent = &cl_visedicts[cl_numvisedicts];
 #ifdef Q3SHADERS
 		ent->forcedshader = NULL;
@@ -1762,12 +1768,11 @@ void CL_LinkPacketEntities (void)
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 
-		if (ent->keynum <= MAX_CLIENTS
-#ifdef NQPROT
-			&& cls.protocol == CP_QUAKEWORLD
-#endif
-			)
-			ent->keynum += MAX_EDICTS;
+		if (ent->keynum <= MAX_CLIENTS)
+		{
+			if (!cl.nolocalplayer[0])
+				ent->keynum += MAX_EDICTS;
+		}
 
 		if (state->tagentity)
 		{	//ent is attached to a tag, rotate this ent accordingly.
@@ -1869,6 +1874,7 @@ void CL_LinkPacketEntities (void)
 
 		}
 	}
+	CLCSQC_DeltaEnd();
 }
 #else
 
@@ -2752,6 +2758,9 @@ void CL_LinkPlayers (void)
 	vec3_t			angles;
 	float			*org;
 
+	if (!cl.worldmodel || cl.worldmodel->needload)
+		return;
+
 	playertime = realtime - cls.latency + 0.02;
 	if (playertime > realtime)
 		playertime = realtime;
@@ -2763,7 +2772,13 @@ void CL_LinkPlayers (void)
 		; j++, info++, state++)
 	{
 		if (state->messagenum != cl.validsequence)
+		{
+			CLCSQC_DeltaPlayer(j, NULL);
 			continue;	// not present this frame
+		}
+
+		if (CLCSQC_DeltaPlayer(j, state))
+			continue;
 
 		// spawn light flashes, even ones coming from invisible objects
 		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.playernum[0]))
@@ -3010,25 +3025,29 @@ void CL_LinkViewModel(void)
 	ent.shaderRGBAf[2] = 1;
 	ent.shaderRGBAf[3] = alpha;
 
-	ent.framestate.g[FS_REG].frame[0] = cl.viewent[r_refdef.currentplayernum].framestate.g[FS_REG].frame[0];
-	ent.framestate.g[FS_REG].frame[1] = oldframe[r_refdef.currentplayernum];
-
-	if (ent.framestate.g[FS_REG].frame[0] != prevframe[r_refdef.currentplayernum])
+#ifdef HLCLIENT
+	if (!CLHL_AnimateViewEntity(&ent))
+#endif
 	{
-		oldframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[1] = prevframe[r_refdef.currentplayernum];
-		lerptime[r_refdef.currentplayernum] = realtime;
-	}
-	prevframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[0];
+		ent.framestate.g[FS_REG].frame[0] = cl.viewent[r_refdef.currentplayernum].framestate.g[FS_REG].frame[0];
+		ent.framestate.g[FS_REG].frame[1] = oldframe[r_refdef.currentplayernum];
 
-	if (ent.model != oldmodel[r_refdef.currentplayernum])
-	{
-		oldmodel[r_refdef.currentplayernum] = ent.model;
-		oldframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[1] = ent.framestate.g[FS_REG].frame[0];
-		lerptime[r_refdef.currentplayernum] = realtime;
-	}
-	ent.framestate.g[FS_REG].lerpfrac = 1-(realtime-lerptime[r_refdef.currentplayernum])*10;
-	ent.framestate.g[FS_REG].lerpfrac = bound(0, ent.framestate.g[FS_REG].lerpfrac, 1);
+		if (ent.framestate.g[FS_REG].frame[0] != prevframe[r_refdef.currentplayernum])
+		{
+			oldframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[1] = prevframe[r_refdef.currentplayernum];
+			lerptime[r_refdef.currentplayernum] = realtime;
+		}
+		prevframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[0];
 
+		if (ent.model != oldmodel[r_refdef.currentplayernum])
+		{
+			oldmodel[r_refdef.currentplayernum] = ent.model;
+			oldframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[1] = ent.framestate.g[FS_REG].frame[0];
+			lerptime[r_refdef.currentplayernum] = realtime;
+		}
+		ent.framestate.g[FS_REG].lerpfrac = 1-(realtime-lerptime[r_refdef.currentplayernum])*10;
+		ent.framestate.g[FS_REG].lerpfrac = bound(0, ent.framestate.g[FS_REG].lerpfrac, 1);
+	}
 #define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
 #define	Q2RF_WEAPONMODEL		4		// only draw through eyes
 #define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching

@@ -186,7 +186,7 @@ typedef struct {
 	int bufferleft;
 	int skip;
 } vmsearch_t;
-static int VMEnum(char *match, int size, void *args)
+static int VMEnum(const char *match, int size, void *args)
 {
 	char *check;
 	int newlen;
@@ -210,13 +210,13 @@ static int VMEnum(char *match, int size, void *args)
 	return true;
 }
 
-static int IfFound(char *match, int size, void *args)
+static int IfFound(const char *match, int size, void *args)
 {
 	*(qboolean*)args = true;
 	return true;
 }
 
-static int VMEnumMods(char *match, int size, void *args)
+static int VMEnumMods(const char *match, int size, void *args)
 {
 	char *check;
 	char desc[1024];
@@ -227,21 +227,23 @@ static int VMEnumMods(char *match, int size, void *args)
 
 	newlen = strlen(match)+1;
 
-	if (*match && match[newlen-2] != '/')
+	if (newlen <= 2)
 		return true;
-	match[newlen-2] = '\0';
-	newlen--;
 
-	if (!stricmp(match, "baseq3"))
+	//make sure match is a directory
+	if (match[newlen-2] != '/')
+		return true;
+
+	if (!stricmp(match, "baseq3/"))
 		return true;	//we don't want baseq3
 
 	foundone = false;
-	Sys_EnumerateFiles(va("%s/%s/", ((vmsearch_t *)args)->dir, match), "*.pk3", IfFound, &foundone);
+	Sys_EnumerateFiles(va("%s%s/", ((vmsearch_t *)args)->dir, match), "*.pk3", IfFound, &foundone);
 	if (foundone == false)
 		return true;	//we only count directories with a pk3 file
 
 	Q_strncpyz(desc, match, sizeof(desc));
-	f = FS_OpenVFS(va("%s/description.txt", match), "rb", FS_ROOT);
+	f = FS_OpenVFS(va("%sdescription.txt", match), "rb", FS_ROOT);
 	if (f)
 	{
 		VFS_GETS(f, desc, sizeof(desc));

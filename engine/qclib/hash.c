@@ -15,7 +15,7 @@ void Hash_InitTable(hashtable_t *table, int numbucks, void *mem)
 	table->bucket = (bucket_t **)mem;
 }
 
-int Hash_Key(char *name, int modulus)
+int Hash_Key(const char *name, int modulus)
 {	//fixme: optimize.
 	unsigned int key;
 	for (key=0;*name; name++)
@@ -23,7 +23,7 @@ int Hash_Key(char *name, int modulus)
 		
 	return (int)(key%modulus);
 }
-int Hash_KeyInsensative(char *name, int modulus)
+int Hash_KeyInsensative(const char *name, int modulus)
 {	//fixme: optimize.
 	unsigned int key;
 	for (key=0;*name; name++)
@@ -37,7 +37,7 @@ int Hash_KeyInsensative(char *name, int modulus)
 	return (int)(key%modulus);
 }
 
-void *Hash_Get(hashtable_t *table, char *name)
+void *Hash_Get(hashtable_t *table, const char *name)
 {
 	int bucknum = Hash_Key(name, table->numbuckets);
 	bucket_t *buck;
@@ -53,7 +53,7 @@ void *Hash_Get(hashtable_t *table, char *name)
 	}
 	return NULL;
 }
-void *Hash_GetInsensative(hashtable_t *table, char *name)
+void *Hash_GetInsensative(hashtable_t *table, const char *name)
 {
 	int bucknum = Hash_KeyInsensative(name, table->numbuckets);
 	bucket_t *buck;

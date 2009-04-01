@@ -1505,6 +1505,9 @@ void CL_SendCmd (double frametime)
 		}
 	}
 
+#ifdef HLCLIENT
+	if (!CLHL_BuildUserInput(msecstouse, &independantphysics[0]))
+#endif
 	for (plnum = 0; plnum < cl.splitclients; plnum++)
 	{
 //		CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);

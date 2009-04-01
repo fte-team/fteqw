@@ -65,7 +65,7 @@ the qc code:
 	}
 */
 
-#ifdef SVCHAT
+#if defined(SVCHAT) && !defined(CLIENTONLY)
 
 #define SENDDELAY 1
 

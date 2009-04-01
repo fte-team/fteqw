@@ -1126,10 +1126,10 @@ void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 #endif
 
 //additional skin loading
-char **skinfilelist;
+char ** skinfilelist;
 int skinfilecount;
 
-static qboolean VARGS Mod_TryAddSkin(char *skinname, ...)
+static qboolean VARGS Mod_TryAddSkin(const char *skinname, ...)
 {
 	va_list		argptr;
 	char		string[MAX_QPATH];
@@ -1159,7 +1159,7 @@ static qboolean VARGS Mod_TryAddSkin(char *skinname, ...)
 	return true;
 }
 
-int Mod_EnumerateSkins(char *name, int size, void *param)
+int Mod_EnumerateSkins(const char *name, int size, void *param)
 {
 	Mod_TryAddSkin(name);
 	return true;
@@ -2330,8 +2330,6 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 
 
 
-
-
 int Mod_GetNumBones(model_t *model, qboolean allowtags)
 {
 	galiasinfo_t *inf;
@@ -2608,7 +2606,13 @@ int Mod_TagNumForName(model_t *model, char *name)
 	galiasinfo_t *inf;
 	md3tag_t *t;
 
-	if (!model || model->type != mod_alias)
+	if (!model)
+		return 0;
+#ifdef HALFLIFEMODELS
+	if (model->type == mod_halflife)
+		return HLMod_BoneForName(model, name);
+#endif
+	if (model->type != mod_alias)
 		return 0;
 	inf = Mod_Extradata(model);
 
@@ -2634,6 +2638,32 @@ int Mod_TagNumForName(model_t *model, char *name)
 	return 0;
 }
 #ifndef SERVERONLY
+int Mod_FrameNumForName(model_t *model, char *name)
+{
+	galiasgroup_t *group;
+	galiasinfo_t *inf;
+	int i;
+
+	if (!model)
+		return -1;
+#ifdef HALFLIFEMODELS
+	if (model->type == mod_halflife)
+		return HLMod_FrameForName(model, name);
+#endif
+	if (model->type != mod_alias)
+		return 0;
+
+	inf = Mod_Extradata(model);
+
+	for (i = 0; i < model->numframes; i++)
+	{
+		group = (galiasgroup_t*)((char*)inf + inf->groupofs);
+		if (!strcmp(group->name, name))
+			return i;
+	}
+	return -1;
+}
+
 int Mod_SkinNumForName(model_t *model, char *name)
 {
 	int i;

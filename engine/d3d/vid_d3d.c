@@ -255,65 +255,16 @@ qboolean D3DAppActivate(BOOL fActive, BOOL minimize)
 		sound_active = true;
 	}
 
+	IN_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
+
 	if (fActive)
 	{
-/*		if (modestate != MS_WINDOWED)
-		{
-			IN_ActivateMouse ();
-			IN_HideMouse ();
-//			if (vid_canalttab && vid_wassuspended)
-			{
-//				vid_wassuspended = false;
-//				ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN);
-				ShowWindow(mainwindow, SW_SHOWNORMAL);
-
-								// Fix for alt-tab bug in NVidia drivers
-//				MoveWindow (mainwindow, 0, 0, gdevmode.dmPelsWidth, gdevmode.dmPelsHeight, false);
-			}
-		}
-		else if ((modestate == MS_WINDOWED) && _windowed_mouse.value && (key_dest == key_game || key_dest == key_menu))
-		{
-			IN_ActivateMouse ();
-			IN_HideMouse ();
-		}
-*/
 		Cvar_ForceCallback(&v_gamma);
 	}
 
 	if (!fActive)
 	{
-/*		if (modestate != MS_WINDOWED)
-		{
-			IN_DeactivateMouse ();
-			IN_ShowMouse ();
-//			if (vid_canalttab)
-//			{ 
-//				ChangeDisplaySettings (NULL, 0);
-//				vid_wassuspended = true;
-//			}
-		}
-		else if ((modestate == MS_WINDOWED) && _windowed_mouse.value)
-		{
-			IN_DeactivateMouse ();
-			IN_ShowMouse ();
-		}
-*/
 		Cvar_ForceCallback(&v_gamma);	//wham bam thanks.
-/*
-		if (qSetDeviceGammaRamp)
-		{
-			if (vid_desktopgamma.value)
-			{
-				HDC hDC = GetDC(GetDesktopWindow());
-				qSetDeviceGammaRamp (hDC, originalgammaramps);
-				ReleaseDC(GetDesktopWindow(), hDC);
-			}
-			else
-			{
-				qSetDeviceGammaRamp(maindc, originalgammaramps);
-			}
-		}
-		*/
 	}
 
 	return true;
@@ -950,6 +901,14 @@ void	(D3D7_SCR_UpdateScreen)			(void)
 		extern cvar_t vid_conwidth, vid_conheight;
 		vid.conwidth = vid_conwidth.value;
 		vid.conheight = vid_conheight.value;
+		{
+			DWORD w, h;
+			pD3DX->lpVtbl->GetBufferSize((void*)pD3DX, &w, &h);
+			if (vid.conwidth <= 0)
+				vid.conwidth = w;
+			if (vid.conheight <= 0)
+				vid.conheight = h;
+		}
 		if (vid.width != vid.conwidth || vid.height != vid.conheight)
 			vid.recalc_refdef = true;
 		vid.width = vid.conwidth;
@@ -1067,32 +1026,7 @@ void	(D3D7_SCR_UpdateScreen)			(void)
 
 
 
-	if (modestate == MS_WINDOWED)
-	{
-		extern int mouseusedforgui;
-		extern qboolean	mouseactive;
-		if (!_windowed_mouse.value)
-		{
-			if (mouseactive)
-			{
-				IN_DeactivateMouse ();
-				IN_ShowMouse ();
-			}
-		}
-		else
-		{
-			if ((key_dest == key_game||mouseusedforgui) && !mouseactive && ActiveApp)
-			{
-				IN_ActivateMouse ();
-				IN_HideMouse ();
-			}
-			else if (mouseactive && key_dest == key_console)
-			{//!(key_dest == key_game || mouseusedforgui)) {
-				IN_DeactivateMouse ();
-				IN_ShowMouse ();
-			}
-		}
-	}
+	IN_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
 }
 
 

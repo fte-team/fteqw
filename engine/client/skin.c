@@ -563,6 +563,9 @@ void Skin_FlushPlayers(void)
 	int i;
 	for (i = 0; i < MAX_CLIENTS; i++)
 		cl.players[i].skin = NULL;
+
+	for (i = 0; i < MAX_CLIENTS; i++)
+		CL_NewTranslation(i);
 }
 
 /*

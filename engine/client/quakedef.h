@@ -131,17 +131,19 @@ extern "C" {
 #include "sys.h"
 #include "zone.h"
 #include "mathlib.h"
-#include "wad.h"
 #include "cvar.h"
-#include "screen.h"
 #include "net.h"
 #include "protocol.h"
 #include "cmd.h"
+#if 1//ndef SERVERONLY
+#include "wad.h"
+#include "screen.h"
 #include "sbar.h"
 #include "sound.h"
 #include "merged.h"
 #include "render.h"
 #include "client.h"
+#endif
 
 #include "vm.h"
 
@@ -173,10 +175,8 @@ extern "C" {
 #include "progs.h"
 #endif
 #include "world.h"
-#ifndef CLIENTONLY
-//#ifdef Q2SERVER
 #include "q2game.h"
-//#endif
+#ifndef CLIENTONLY
 #include "server.h"
 #endif
 
@@ -218,7 +218,7 @@ typedef struct quakeparms_s
 {
 	char	*basedir;
 	int		argc;
-	char	**argv;
+	const char	**argv;
 	void	*membase;
 	unsigned int		memsize;
 } quakeparms_t;
@@ -238,6 +238,7 @@ extern qboolean noclip_anglehack;
 extern	quakeparms_t host_parms;
 
 extern	cvar_t		com_gamename;
+extern	cvar_t		com_modname;
 extern	cvar_t		sys_ticrate;
 extern	cvar_t		sys_nostdout;
 extern	cvar_t		developer;

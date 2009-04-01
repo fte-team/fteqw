@@ -618,7 +618,7 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 
 
 
-#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to ui trap %i passes invalid pointer\n", fn);	//out of bounds.
+#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to ui trap %i passes invalid pointer\n", fn);	//out of bounds.
 
 #ifndef _DEBUG
 static

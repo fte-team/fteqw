@@ -74,12 +74,22 @@ static int macro_count = 0;
 
 void Cmd_AddMacro(char *s, char *(*f)(void), int disputableintentions)
 {
-	if (macro_count == MAX_MACROS)
+	int i;
+	for (i = 0; i < macro_count; i++)
+	{
+		if (!strcmp(macro_commands[i].name, s))
+			break;
+	}
+
+	if (i == MAX_MACROS)
 		Sys_Error("Cmd_AddMacro: macro_count == MAX_MACROS");
+
 	Q_strncpyz(macro_commands[macro_count].name, s, sizeof(macro_commands[macro_count].name));
 	macro_commands[macro_count].func = f;
 	macro_commands[macro_count].disputableintentions = disputableintentions;
-	macro_count++;
+
+	if (i == macro_count)
+		macro_count++;
 }
 
 char *TP_MacroString (char *s, int *len)
@@ -1482,7 +1492,10 @@ qboolean Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
 			if (cmd->function == function)	//happens a lot with q3
 				Con_DPrintf ("Cmd_AddCommand: %s already defined\n", cmd_name);
 			else
+			{
 				Con_Printf ("Cmd_AddCommand: %s already defined\n", cmd_name);
+				break;
+			}
 			return false;
 		}
 	}
@@ -2811,6 +2824,17 @@ void Cmd_Condump_f(void)
 	Con_Printf ("Dumped console to %s\n",filename);
 }
 #endif
+
+void Cmd_Shutdown(void)
+{
+	//make sure we get no other execution
+	int level;
+	for (level = 0; level < sizeof(cmd_text)/sizeof(cmd_text[0]); level++)
+		SZ_Clear (&cmd_text[level].buf);
+
+	cmd_functions = NULL;
+	cmd_alias = NULL;
+}
 
 /*
 ============

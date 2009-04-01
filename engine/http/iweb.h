@@ -71,7 +71,7 @@ struct sockaddr;
 struct sockaddr_qstorage;
 int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
 
-qboolean SV_AllowDownload (char *name);
+qboolean SV_AllowDownload (const char *name);
 
 
 typedef qboolean iwboolean;
@@ -108,11 +108,11 @@ vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength);
 
 
 
-char *COM_ParseOut (char *data, char *out, int outlen);
-void COM_EnumerateFiles (char *match, int (*func)(char *, int, void *), void *parm);
+char *COM_ParseOut (const char *data, char *out, int outlen);
+void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *), void *parm);
 
 
-char *Q_strcpyline(char *out, char *in, int maxlen);
+char *Q_strcpyline(char *out, const char *in, int maxlen);
 
 
 

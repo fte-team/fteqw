@@ -387,7 +387,7 @@ void SV_Give_f (void)
 	}
 }
 
-int ShowMapList (char *name, int flags, void *parm)
+int ShowMapList (const char *name, int flags, void *parm)
 {
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
@@ -451,14 +451,17 @@ void SV_Map_f (void)
 	waschangelevel = !strcmp(Cmd_Argv(0), "changelevel");
 	wasspmap = !strcmp(Cmd_Argv(0), "spmap");
 
-	snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level); // this function and the if statement below, is a quake bugfix which stopped a map called "dm6++.bsp" from loading because of the + sign, quake2 map syntax interprets + character as "intro.cin+base1.bsp", to play a cinematic then load a map after
-	if (!COM_FCheckExists (expanded))
+	if (strcmp(level, "."))	//restart current
 	{
-		nextserver = strchr(level, '+');
-		if (nextserver)
+		snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level); // this function and the if statement below, is a quake bugfix which stopped a map called "dm6++.bsp" from loading because of the + sign, quake2 map syntax interprets + character as "intro.cin+base1.bsp", to play a cinematic then load a map after
+		if (!COM_FCheckExists (expanded))
 		{
-			*nextserver = '\0';
-			nextserver++;
+			nextserver = strchr(level, '+');
+			if (nextserver)
+			{
+				*nextserver = '\0';
+				nextserver++;
+			}
 		}
 	}
 
@@ -478,9 +481,14 @@ void SV_Map_f (void)
 
 	if (!strcmp(level, "."))	//restart current
 	{
+		//grab the current map name
 		COM_StripExtension(COM_SkipPath(sv.modelname), level, sizeof(level));
 		issamelevel = true;
 
+		if (!*level)
+			Q_strncpyz(level, "start", sizeof(level));
+
+		//override the startspot
 		Q_strncpyz(spot, Info_ValueForKey(svs.info, "*startspot"), sizeof(spot));
 		startspot = spot;
 	}
@@ -1281,6 +1289,37 @@ void SV_StuffToClient_f(void)
 		Z_Free(key);
 }
 
+char *ShowTime(unsigned int seconds)
+{
+	char buf[1024];
+	char *b = buf;
+	*b = 0;
+
+	if (seconds > 60)
+	{
+		if (seconds > 60*60)
+		{
+			if (seconds > 24*60*60)
+			{
+				strcpy(b, va("%id ", seconds/(24*60*60)));
+				b += strlen(b);
+				seconds %= 24*60*60;
+			}
+
+			strcpy(b, va("%ih ", seconds/(60*60)));
+			b += strlen(b);
+			seconds %= 60*60;
+		}
+		strcpy(b, va("%im ", seconds/60));
+		b += strlen(b);
+		seconds %= 60;
+	}
+	strcpy(b, va("%is", seconds));
+	b += strlen(b);
+
+	return va("%s", buf);
+}
+
 /*
 ================
 SV_Status_f
@@ -1324,7 +1363,17 @@ void SV_Status_f (void)
 	Con_Printf ("avg response time: %i ms\n",(int)avg);
 	Con_Printf ("packets/frame    : %5.2f\n", pak);	//not relevent as a limit.
 
-	Con_Printf ("current map      : %s\n", sv.mapname);
+	//show the current map+name (but hide name if its too long or would be ugly)
+	if (columns >= 80 && *sv.mapname && strlen(sv.mapname) < 45 && !strchr(sv.mapname, '\n'))
+		Con_Printf ("current map      : %s (%s)\n", sv.name, sv.mapname);
+	else
+		Con_Printf ("current map      : %s\n", sv.name);
+
+	Con_Printf("map uptime       : %s\n", ShowTime(sv.physicstime));
+	Con_Printf("server uptime    : %s\n", ShowTime(realtime));
+	if (sv.csqcdebug)
+		Con_Printf("csqc debug       : true\n");
+	Con_Printf("public           : %s\n", sv_public.value?"yes":"no");
 
 // min fps lat drp
 	if (columns < 80)
@@ -1506,6 +1555,7 @@ SV_Heartbeat_f
 */
 void SV_Heartbeat_f (void)
 {
+	Master_ReResolve();
 	svs.last_heartbeat = -9999;
 }
 
@@ -1737,7 +1787,7 @@ void SV_Gamedir_f (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		Con_TPrintf (STL_CURRENTGAMEDIR, com_gamedir);
+		Con_TPrintf (STL_CURRENTGAMEDIR, FS_GetGamedir());
 		return;
 	}
 

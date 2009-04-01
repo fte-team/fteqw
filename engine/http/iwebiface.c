@@ -512,7 +512,7 @@ iwboolean	FTP_StringToAdr (const char *s, qbyte ip[4], qbyte port[2])
 	return true;
 }
 
-char *Q_strcpyline(char *out, char *in, int maxlen)
+char *Q_strcpyline(char *out, const char *in, int maxlen)
 {
 	char *w = out;
 	while (*in && maxlen > 0)

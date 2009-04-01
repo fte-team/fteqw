@@ -263,65 +263,15 @@ qboolean D3D9AppActivate(BOOL fActive, BOOL minimize)
 		sound_active = true;
 	}
 
+	IN_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
+
 	if (fActive)
 	{
-/*		if (modestate != MS_WINDOWED)
-		{
-			IN_ActivateMouse ();
-			IN_HideMouse ();
-//			if (vid_canalttab && vid_wassuspended)
-			{
-//				vid_wassuspended = false;
-//				ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN);
-				ShowWindow(mainwindow, SW_SHOWNORMAL);
-
-								// Fix for alt-tab bug in NVidia drivers
-//				MoveWindow (mainwindow, 0, 0, gdevmode.dmPelsWidth, gdevmode.dmPelsHeight, false);
-			}
-		}
-		else if ((modestate == MS_WINDOWED) && _windowed_mouse.value && (key_dest == key_game || key_dest == key_menu))
-		{
-			IN_ActivateMouse ();
-			IN_HideMouse ();
-		}
-*/
 		Cvar_ForceCallback(&v_gamma);
 	}
-
 	if (!fActive)
 	{
-/*		if (modestate != MS_WINDOWED)
-		{
-			IN_DeactivateMouse ();
-			IN_ShowMouse ();
-//			if (vid_canalttab)
-//			{ 
-//				ChangeDisplaySettings (NULL, 0);
-//				vid_wassuspended = true;
-//			}
-		}
-		else if ((modestate == MS_WINDOWED) && _windowed_mouse.value)
-		{
-			IN_DeactivateMouse ();
-			IN_ShowMouse ();
-		}
-*/
 		Cvar_ForceCallback(&v_gamma);	//wham bam thanks.
-/*
-		if (qSetDeviceGammaRamp)
-		{
-			if (vid_desktopgamma.value)
-			{
-				HDC hDC = GetDC(GetDesktopWindow());
-				qSetDeviceGammaRamp (hDC, originalgammaramps);
-				ReleaseDC(GetDesktopWindow(), hDC);
-			}
-			else
-			{
-				qSetDeviceGammaRamp(maindc, originalgammaramps);
-			}
-		}
-		*/
 	}
 
 	return true;
@@ -1335,28 +1285,7 @@ void	(D3D9_SCR_UpdateScreen)			(void)
 	window_center_y = (window_rect.top + window_rect.bottom)/2;
 
 
-
-	if (modestate == MS_WINDOWED)
-	{
-		extern int mouseusedforgui;
-		extern qboolean	mouseactive;
-		qboolean wantactive;
-
-		wantactive = _windowed_mouse.value && (key_dest == key_game||mouseusedforgui) && ActiveApp;
-		if (wantactive != mouseactive)
-		{
-			if (!mouseactive)
-			{
-				IN_ActivateMouse ();
-				IN_HideMouse ();
-			}
-			else
-			{
-				IN_DeactivateMouse ();
-				IN_ShowMouse ();
-			}
-		}
-	}
+	IN_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
 
 	VID_ShiftPalette (NULL);
 }

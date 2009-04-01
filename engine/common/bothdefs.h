@@ -198,11 +198,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef USE_D3D
 #endif
 
+#ifdef NPQTV
+	#undef TEXTEDITOR
+	#undef WEBCLIENT
+	#undef WEBSERVER
+#endif
 
 #ifdef SERVERONLY	//remove options that don't make sense on only a server
 	#undef Q2CLIENT
 	#undef Q3CLIENT
 	#undef HLCLIENT
+	#undef HALFLIFEMODELS
 	#undef VM_UI
 	#undef VM_CG
 	#undef WEBCLIENT

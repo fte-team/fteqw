@@ -715,6 +715,9 @@ void CL_PredictMovePNum (int pnum)
 	//these are to make svc_viewentity work better
 	float *vel;
 	float *org;
+
+	cl.nolocalplayer[pnum] = false;
+
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
@@ -775,6 +778,7 @@ void CL_PredictMovePNum (int pnum)
 	{
 		if (cl.viewentity[pnum] < cl.maxlerpents)
 		{
+			cl.nolocalplayer[pnum] = true;
 //			Con_Printf("Using lerped pos\n");
 			org = cl.lerpents[cl.viewentity[pnum]].origin;
 			vel = vec3_origin;
@@ -822,6 +826,7 @@ void CL_PredictMovePNum (int pnum)
 		//no player states?? put the view on an ent
 		if (cl.playernum[pnum] < cl.maxlerpents)
 		{
+			cl.nolocalplayer[pnum] = true;
 //			Con_Printf("Using lerped pos\n");
 			org = cl.lerpents[cl.playernum[pnum]+1].origin;
 			vel = vec3_origin;

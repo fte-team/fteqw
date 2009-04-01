@@ -444,17 +444,13 @@ void Validation_DelatchRulesets(void)
 	Con_DPrintf("Ruleset deactivated\n");
 }
 
-void Validation_AllChecks(void)
-{
-}
-
-void Validation_OldRuleset(void)
+qboolean Validation_GetCurrentRulesetName(char *rsnames, int resultbuflen, qboolean enforcechosenrulesets)
 {	//this code is more complex than it needs to be
 	//this allows for the ruleset code to print a ruleset name that is applied via the cvars, but not directly named by the user
 	cvar_t *var;
 	ruleset_t *rs;
 	int i;
-	char rsnames[1024];
+
 	rs = rulesets;
 	*rsnames = '\0';
 
@@ -484,32 +480,73 @@ void Validation_OldRuleset(void)
 		{
 			if (*rsnames)
 			{
-				Q_strncatz(rsnames, ", ", sizeof(rsnames));
+				Q_strncatz(rsnames, ", ", resultbuflen);
 			}
-			Q_strncatz(rsnames, rs->rulesetname, sizeof(rsnames));
+			Q_strncatz(rsnames, rs->rulesetname, resultbuflen);
 			rs->flagged = true;
 		}
 	}
 	if (*rsnames)
 	{
-		Cbuf_AddText(va("say Ruleset: %s\n", rsnames), RESTRICT_LOCAL);
-
-		//now we've told the other players what rules we're playing by, we'd best stick to them
-		for (rs = rulesets; rs->rulesetname; rs++)
+		//as we'll be telling the other players what rules we're playing by, we'd best stick to them
+		if (enforcechosenrulesets)
 		{
-			if (!rs->flagged)
-				continue;
-			for (i = 0; rs->rule[i].rulename; i++)
+			for (rs = rulesets; rs->rulesetname; rs++)
 			{
-				var = Cvar_FindVar(rs->rule[i].rulename);
-				if (!var)
+				if (!rs->flagged)
 					continue;
-				RulesetLatch(var);	//set the latched flag
+				for (i = 0; rs->rule[i].rulename; i++)
+				{
+					var = Cvar_FindVar(rs->rule[i].rulename);
+					if (!var)
+						continue;
+					RulesetLatch(var);	//set the latched flag
+				}
 			}
 		}
+		return true;
 	}
 	else
+		return false;
+}
+
+void Validation_OldRuleset(void)
+{
+	char rsnames[1024];
+
+	if (Validation_GetCurrentRulesetName(rsnames, sizeof(rsnames), true))
+		Cbuf_AddText(va("say Ruleset: %s\n", rsnames), RESTRICT_LOCAL);
+	else
 		Cbuf_AddText("say No specific ruleset\n", RESTRICT_LOCAL);
+}
+
+void Validation_AllChecks(void)
+{
+	char servername[22];
+	char playername[16];
+	char *enginebuild = va(DISTRIBUTION "%i", build_number());
+	char localpnamelen = strlen(cl.players[cl.playernum[0]].name);
+	char ruleset[1024];
+
+	//figure out the padding for the player's name.
+	if (localpnamelen >= 15)
+		playername[0] = 0;
+	else
+	{
+		memset(playername, ' ', 15-localpnamelen-1);
+		playername[15-localpnamelen] = 0;
+	}
+
+	//get the current server address
+	NET_AdrToString(servername, sizeof(servername), cls.netchan.remote_address);
+
+	//get the ruleset names
+	if (!Validation_GetCurrentRulesetName(ruleset, sizeof(ruleset), true))
+		Q_strncpyz(ruleset, "no ruleset", sizeof(ruleset));
+
+	//now send it
+	CL_SendClientCommand(true, "say \"%s%21s " "%16s %s\"", playername, servername, enginebuild, ruleset);
+
 }
 
 void Validation_Apply_Ruleset(void)

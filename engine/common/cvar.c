@@ -26,15 +26,18 @@ cvar_group_t *cvar_groups;
 //cvar_t	*cvar_vars;
 static char	*cvar_null_string = "";
 static char *cvar_zero_string = "0";
+static char *cvar_one_string = "1";
 
 char *Cvar_DefaultAlloc(char *str)
 {
 	char *c;
-	
+
 	if (str[0] == '\0')
 		return cvar_null_string;
 	if (str[0] == '0' && str[1] == '\0')
 		return cvar_zero_string;
+	if (str[0] == '1' && str[1] == '\0')
+		return cvar_one_string;
 
 	c = (char *)Z_Malloc(strlen(str)+1);
 	Q_strcpy(c, str);
@@ -47,6 +50,8 @@ void Cvar_DefaultFree(char *str)
 	if (str == cvar_null_string)
 		return;
 	else if (str == cvar_zero_string)
+		return;
+	else if (str == cvar_one_string)
 		return;
 	else
 		Z_Free(str);
@@ -868,7 +873,8 @@ void Cvar_Free(cvar_t *tbf)
 	}
 unlinked:
 	Z_Free(tbf->string);
-	Cvar_DefaultFree(tbf->defaultstr);
+	if (tbf->flags & CVAR_FREEDEFAULT)
+		Cvar_DefaultFree(tbf->defaultstr);
 	if (tbf->latched_string)
 		Z_Free(tbf->latched_string);
 	Z_Free(tbf);
@@ -886,10 +892,12 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 {
 	cvar_t *old;
 	cvar_group_t *group;
-	char	value[512];
+	char *initial;
 
-// copy the value off, because future sets will Z_Free it
-	strcpy (value, variable->string);
+	if (variable->defaultstr)
+		initial = variable->defaultstr;
+	else
+		initial = variable->string;
 
 // check to see if it has already been defined
 	old = Cvar_FindVar (variable->name);
@@ -900,7 +908,7 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 			group = Cvar_GetGroup(groupname);
 
 			variable->modified = old->modified;
-			variable->flags |= old->flags & CVAR_ARCHIVE;
+			variable->flags |= (old->flags & CVAR_ARCHIVE);
 
 // link the variable in
 			variable->next = group->cvars;
@@ -911,7 +919,10 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 			variable->string = (char*)Z_Malloc (1);
 
 //cheat prevention - engine set default is the one that stays.
-			variable->defaultstr = Cvar_DefaultAlloc(value);	//give it it's default (for server controlled vars and things)
+			if (variable->flags & CVAR_FREEDEFAULT)
+				variable->defaultstr = Cvar_DefaultAlloc(initial);
+			else
+				variable->defaultstr = initial;
 
 // set it through the function to be consistant
 			if (old->latched_string)
@@ -943,19 +954,17 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 
 	variable->string = (char*)Z_Malloc (1);
 
-	variable->defaultstr = Cvar_DefaultAlloc(value);	//give it it's default (for server controlled vars and things)
+	if (variable->flags & CVAR_FREEDEFAULT)
+		variable->defaultstr = Cvar_DefaultAlloc(initial);
+	else
+		variable->defaultstr = initial;
 
 // set it through the function to be consistant
-	Cvar_SetCore (variable, value, true);
+	Cvar_SetCore (variable, initial, true);
 
 	return true;
 }
-/*
-void Cvar_RegisterVariable (cvar_t *variable)
-{
-	Cvar_Register(variable, NULL);
-}
-*/
+
 cvar_t *Cvar_Get(const char *name, const char *defaultvalue, int flags, const char *group)
 {
 	cvar_t *var;
@@ -979,7 +988,7 @@ cvar_t *Cvar_Get(const char *name, const char *defaultvalue, int flags, const ch
 	var->name = (char *)(var+1);
 	strcpy(var->name, name);
 	var->string = (char*)defaultvalue;
-	var->flags = flags|CVAR_POINTER|CVAR_USERCREATED;
+	var->flags = flags|CVAR_POINTER|CVAR_FREEDEFAULT|CVAR_USERCREATED;
 
 	if (!Cvar_Register(var, group))
 		return NULL;
@@ -1203,9 +1212,16 @@ void Cvar_Shutdown(void)
 			var = cvar_groups->cvars;
 			cvar_groups->cvars = var->next;
 
+			if (var->flags & CVAR_FREEDEFAULT)
+			{
+				Cvar_DefaultFree(var->defaultstr);
+				var->defaultstr = NULL;
+			}
 			Z_Free(var->string);
 			if (var->flags & CVAR_POINTER)
 				Z_Free(var);
+			else
+				var->string = NULL;
 		}
 
 		grp = cvar_groups;

@@ -103,17 +103,18 @@ typedef struct cvar_group_s
 
 //freestyle
 #define CVAR_POINTER		(1<<5)	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
-#define CVAR_NOTFROMSERVER	(1<<6)	// the console will ignore changes to cvars if set at from the server or any gamecode. This is to protect against security flaws - like qterm
-#define CVAR_USERCREATED	(1<<7)	//write a 'set' or 'seta' in front of the var name.
-#define CVAR_CHEAT		(1<<8)	//latch to the default, unless cheats are enabled.
-#define CVAR_SEMICHEAT		(1<<9)	//if strict ruleset, force to 0/blank.
-#define CVAR_RENDERERLATCH	(1<<10)	//requires a vid_restart to reapply.
-#define CVAR_SERVEROVERRIDE	(1<<11)	//the server has overridden out local value - should probably be called SERVERLATCH
-#define CVAR_RENDERERCALLBACK	(1<<12) //force callback for cvars on renderer change
-#define CVAR_NOUNSAFEEXPAND	(1<<13) // do not expand cvar value when command is from gamecode
-#define CVAR_RULESETLATCH	(1<<14)	//latched by the ruleset	
+#define CVAR_FREEDEFAULT	(1<<6)	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
+#define CVAR_NOTFROMSERVER	(1<<7)	// the console will ignore changes to cvars if set at from the server or any gamecode. This is to protect against security flaws - like qterm
+#define CVAR_USERCREATED	(1<<8)	//write a 'set' or 'seta' in front of the var name.
+#define CVAR_CHEAT		(1<<9)	//latch to the default, unless cheats are enabled.
+#define CVAR_SEMICHEAT		(1<<10)	//if strict ruleset, force to 0/blank.
+#define CVAR_RENDERERLATCH	(1<<11)	//requires a vid_restart to reapply.
+#define CVAR_SERVEROVERRIDE	(1<<12)	//the server has overridden out local value - should probably be called SERVERLATCH
+#define CVAR_RENDERERCALLBACK	(1<<13) //force callback for cvars on renderer change
+#define CVAR_NOUNSAFEEXPAND	(1<<14) // do not expand cvar value when command is from gamecode
+#define CVAR_RULESETLATCH	(1<<15)	//latched by the ruleset
 
-#define CVAR_LASTFLAG CVAR_NOUNSAFEEXPAND
+#define CVAR_LASTFLAG CVAR_RULESETLATCH
 
 #define CVAR_LATCHMASK		(CVAR_LATCH|CVAR_RENDERERLATCH|CVAR_SERVEROVERRIDE|CVAR_CHEAT|CVAR_SEMICHEAT)	//you're only allowed one of these.
 #define CVAR_NEEDDEFAULT	CVAR_CHEAT
@@ -128,8 +129,6 @@ void Cvar_LockFromServer(cvar_t *var, const char *str);
 qboolean 	Cvar_Register (cvar_t *variable, const char *cvargroup);
 // registers a cvar that already has the name, string, and optionally the
 // archive elements set.
-
-//#define Cvar_RegisterVariable(x) Cvar_Register(x,__FILE__);
 
 cvar_t	*Cvar_ForceSet (cvar_t *var, const char *value);
 cvar_t 	*Cvar_Set (cvar_t *var, const char *value);

@@ -326,7 +326,7 @@ mpic_t	*(D3D7_Draw_SafePicFromWad)			(char *name)
 
 	pic->pic.width = qpic->width;
 	pic->pic.height = qpic->height;
-	p = (LPDIRECTDRAWSURFACE7*)&pic->pic.data;
+	p = (LPDIRECTDRAWSURFACE7*)&pic->pic.d.data;
 	if (!strcmp(name, "conchars"))
 		*p = draw_chars_tex;
 	else
@@ -367,7 +367,7 @@ mpic_t	*(D3D7_Draw_SafeCachePic)		(char *path)
 
 	pic->pic.width = qpic->width;
 	pic->pic.height = qpic->height;
-	p = (LPDIRECTDRAWSURFACE7*)&pic->pic.data;
+	p = (LPDIRECTDRAWSURFACE7*)&pic->pic.d.data;
 	*p = (LPDIRECTDRAWSURFACE7)Mod_LoadReplacementTexture(pic->name, "gfx", false, true, true);
 	if (!*p)
 		*p = D3D7_LoadTexture_8_Pal24(path, (unsigned char*)(qpic+1), qpic->width, qpic->height, TF_NOMIPMAP|TF_ALPHA|TF_NOTBUMPMAP, host_basepal, 255);
@@ -422,7 +422,7 @@ void	(D3D7_Draw_ReInit)				(void)
 	strcpy(d3dmenu_cachepics[d3dmenu_numcachepics].name, "conchars");
 	d3dmenu_cachepics[d3dmenu_numcachepics].pic.width = 128;
 	d3dmenu_cachepics[d3dmenu_numcachepics].pic.height = 128;
-	*(int *)&d3dmenu_cachepics[d3dmenu_numcachepics].pic.data = (int)draw_chars_tex;
+	*(int *)&d3dmenu_cachepics[d3dmenu_numcachepics].pic.d.data = (int)draw_chars_tex;
 	d3dmenu_numcachepics++;
 
 
@@ -713,7 +713,7 @@ void	(D3D7_Draw_Image)				(float x, float y, float w, float h, float s1, float t
 	d3dquadvert[3].s = s1;// - 3.0/pic->width;
 	d3dquadvert[3].t = t2;
 
-	p = (LPDIRECTDRAWSURFACE7*)&pic->data;
+	p = (LPDIRECTDRAWSURFACE7*)&pic->d.data;
 	pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, *p);
 
 	pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
@@ -780,7 +780,7 @@ void (D3D7_Media_ShowFrameBGR_24_Flip)	(qbyte *framedata, int inwidth, int inhei
 {
 	mpic_t pic;
 	LPDIRECTDRAWSURFACE7 *p;
-	p = (LPDIRECTDRAWSURFACE7*)&pic.data;
+	p = (LPDIRECTDRAWSURFACE7*)&pic.d.data;
 	*p = D3D7_LoadTexture_32("", (unsigned int*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP);
 
 	D3D7_Set2D ();
@@ -799,7 +799,7 @@ void (D3D7_Media_ShowFrameRGBA_32)		(qbyte *framedata, int inwidth, int inheight
 	pic.width = inwidth;
 	pic.height = inheight;
 	pic.flags = 0;
-	p = (LPDIRECTDRAWSURFACE7*)&pic.data;
+	p = (LPDIRECTDRAWSURFACE7*)&pic.d.data;
 	*p = D3D7_LoadTexture_32("", (unsigned int*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP);
 
 	D3D7_Set2D ();
@@ -814,7 +814,7 @@ void (D3D7_Media_ShowFrame8bit)			(qbyte *framedata, int inwidth, int inheight, 
 {
 	mpic_t pic;
 	LPDIRECTDRAWSURFACE7 *p;
-	p = (LPDIRECTDRAWSURFACE7*)&pic.data;
+	p = (LPDIRECTDRAWSURFACE7*)&pic.d.data;
 	*p = D3D7_LoadTexture_8_Pal24("", (unsigned char*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP, palette, 256);
 
 	D3D7_Set2D ();

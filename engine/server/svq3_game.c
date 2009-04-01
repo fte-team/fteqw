@@ -1,4 +1,4 @@
-#include "quakedef.h"
+#include "qwsvdef.h"
 
 //An implementation of a Q3 server...
 //requires qvm implementation and existing q3 client stuff (or at least the overlapping stuff in q3common.c).

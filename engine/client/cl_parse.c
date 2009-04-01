@@ -452,12 +452,10 @@ void CL_DownloadFinished(char *filename, char *tempname)
 		{
 			if (strncmp(tempname,"skins/",6))
 			{
-				FS_CreatePath(filename, FS_GAME);
 				FS_Rename(tempname, filename, FS_GAME);
 			}
 			else
 			{
-				FS_CreatePath(filename+6, FS_SKINS);
 				FS_Rename(tempname+6, filename+6, FS_SKINS);
 			}
 		}
@@ -834,6 +832,14 @@ int CL_LoadModels(int stage)
 	}
 #endif
 
+#ifdef HLCLIENT
+	if (atstage())
+	{
+		CLHL_LoadClientGame();
+		endstage();
+	}
+#endif
+
 #ifdef PEXT_CSQC
 	if (atstage())
 	{
@@ -890,8 +896,12 @@ int CL_LoadModels(int stage)
 				else
 					CSQC_LoadResource(cl.model_name[i], "model");
 #endif
-
-				cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
+#ifdef Q2CLIENT
+				if (cls.protocol == CP_QUAKE2 && *cl.model_name[i] == '#')
+					cl.model_precache[i] = NULL;
+				else
+#endif
+					cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
 				Hunk_Check();
 
 				S_ExtraUpdate();
@@ -3334,7 +3344,7 @@ void CL_NewTranslation (int slot)
 		}
 		else
 			local = cl.playernum[0];
-		if (cl.teamplay && !strcmp(player->team, cl.players[local].team))
+		if ((cl.teamplay || cls.protocol == CP_NETQUAKE) && !strcmp(player->team, cl.players[local].team))
 		{
 			if (cl_teamtopcolor != ~0)
 				top = cl_teamtopcolor;
@@ -4961,6 +4971,18 @@ void CL_ParseServerMessage (void)
 		case svcfte_pointparticles1:
 			CLDP_ParsePointParticles(true);
 			break;
+
+		case svcfte_cgamepacket:
+#ifdef HLCLIENT
+			if (CLHL_ParseGamePacket());
+				break;
+#endif
+#ifdef CSQC_DAT
+			if (CSQC_ParseGamePacket());
+				break;
+#endif
+			Con_Printf("Unable to parse gamecode packet\n");
+			break;
 		}
 	}
 }
@@ -4995,7 +5017,6 @@ void CLQ2_ParseServerMessage (void)
 	{
 		if (msg_badread)
 		{
-			SV_UnspawnServer();
 			Host_EndGame ("CLQ2_ParseServerMessage: Bad server message");
 			break;
 		}
@@ -5490,6 +5511,8 @@ void CLNQ_ParseServerMessage (void)
 					if (cls.state == ca_active)
 						Skin_Find (&cl.players[i]);
 
+					if (i == cl.playernum[0])
+						Skin_FlushPlayers();
 					Sbar_Changed ();
 					CL_NewTranslation (i);
 				}

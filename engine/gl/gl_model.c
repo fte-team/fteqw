@@ -404,7 +404,6 @@ Mod_LoadModel
 Loads a model into the cache
 ==================
 */
-char *COM_FileExtension (char *in);
 model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 {
 	void	*d;
@@ -2064,7 +2063,6 @@ void *suplementryclipnodes;
 void *suplementryplanes;
 void *crouchhullfile;
 
-qbyte *COM_LoadMallocFile (char *path);
 void GLMod_LoadCrouchHull(void)
 {
 	int i, h;
@@ -2235,7 +2233,7 @@ qboolean GLMod_LoadClipnodes (lump_t *l)
 		hull->planes = loadmodel->planes;
 		hull->clip_mins[0] = -16;
 		hull->clip_mins[1] = -16;
-		hull->clip_mins[2] = -32;//-36 is correct here, but we'll just copy mvdsv instead.
+		hull->clip_mins[2] = -36;//-36 is correct here, but mvdsv uses -32 instead. This breaks prediction between the two
 		hull->clip_maxs[0] = 16;
 		hull->clip_maxs[1] = 16;
 		hull->clip_maxs[2] = hull->clip_mins[2]+72;
@@ -3028,8 +3026,8 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 
 	*ppframe = pspriteframe;
 
-	pspriteframe->width = width;
-	pspriteframe->height = height;
+	pspriteframe->p.width = width;
+	pspriteframe->p.height = height;
 	origin[0] = LittleLong (pinframe->origin[0]);
 	origin[1] = LittleLong (pinframe->origin[1]);
 
@@ -3038,42 +3036,46 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 	pspriteframe->left = origin[0];
 	pspriteframe->right = width + origin[0];
 
-	pspriteframe->gl_texturenum = 0;
+	pspriteframe->p.d.gl.texnum = 0;
+	pspriteframe->p.d.gl.sl = 0;
+	pspriteframe->p.d.gl.sh = 1;
+	pspriteframe->p.d.gl.tl = 0;
+	pspriteframe->p.d.gl.th = 1;
 
-	if (!pspriteframe->gl_texturenum)
+	if (!pspriteframe->p.d.gl.texnum)
 	{	//the dp way
 		COM_StripExtension(loadmodel->name, name, sizeof(name));
 		Q_strncatz(name, va("_%i", framenum), sizeof(name));
-		pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
+		pspriteframe->p.d.gl.texnum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
 	}
-	if (!pspriteframe->gl_texturenum)
+	if (!pspriteframe->p.d.gl.texnum)
 	{	//the older fte way.
 		COM_StripExtension(loadmodel->name, name, sizeof(name));
 		Q_strncatz(name, va("_%i", framenum), sizeof(name));
-		pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
+		pspriteframe->p.d.gl.texnum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
 	}
-	if (!pspriteframe->gl_texturenum)
+	if (!pspriteframe->p.d.gl.texnum)
 	{	//the fuhquake way
 		COM_StripExtension(COM_SkipPath(loadmodel->name), name, sizeof(name));
 		Q_strncatz(name, va("_%i", framenum), sizeof(name));
-		pspriteframe->gl_texturenum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
+		pspriteframe->p.d.gl.texnum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
 	}
 
 	if (version == SPRITE32_VERSION)
 	{
 		size *= 4;
-		if (!pspriteframe->gl_texturenum)
-			pspriteframe->gl_texturenum = R_LoadTexture32 (name, width, height, (unsigned *)(pinframe + 1), true, true);
+		if (!pspriteframe->p.d.gl.texnum)
+			pspriteframe->p.d.gl.texnum = R_LoadTexture32 (name, width, height, (unsigned *)(pinframe + 1), true, true);
 	}
 	else if (version == SPRITEHL_VERSION)
 	{
-		if (!pspriteframe->gl_texturenum)
-			pspriteframe->gl_texturenum = R_LoadTexture8Pal32 (name, width, height, (qbyte *)(pinframe + 1), (qbyte*)palette, true, true);
+		if (!pspriteframe->p.d.gl.texnum)
+			pspriteframe->p.d.gl.texnum = R_LoadTexture8Pal32 (name, width, height, (qbyte *)(pinframe + 1), (qbyte*)palette, true, true);
 	}
 	else
 	{
-		if (!pspriteframe->gl_texturenum)
-			pspriteframe->gl_texturenum = R_LoadTexture8 (name, width, height, (qbyte *)(pinframe + 1), true, true);
+		if (!pspriteframe->p.d.gl.texnum)
+			pspriteframe->p.d.gl.texnum = R_LoadTexture8 (name, width, height, (qbyte *)(pinframe + 1), true, true);
 	}
 
 	return (void *)((qbyte *)(pinframe+1) + size);
@@ -3330,17 +3332,17 @@ qboolean GLMod_LoadSprite2Model (model_t *mod, void *buffer)
 
 		frame = psprite->frames[i].frameptr = Hunk_AllocName(sizeof(mspriteframe_t), loadname);
 
-		frame->gl_texturenum = Mod_LoadHiResTexture(pframetype->name, NULL, true, true, true);
+		frame->p.d.gl.texnum = Mod_LoadHiResTexture(pframetype->name, NULL, true, true, true);
 
-		frame->width = LittleLong(pframetype->width);
-		frame->height = LittleLong(pframetype->height);
+		frame->p.width = LittleLong(pframetype->width);
+		frame->p.height = LittleLong(pframetype->height);
 		origin[0] = LittleLong (pframetype->origin_x);
 		origin[1] = LittleLong (pframetype->origin_y);
 
 		frame->up = -origin[1];
-		frame->down = frame->height - origin[1];
+		frame->down = frame->p.height - origin[1];
 		frame->left = -origin[0];
-		frame->right = frame->width - origin[0];
+		frame->right = frame->p.width - origin[0];
 
 		pframetype++;
 	}

@@ -1140,7 +1140,7 @@ static shaderkey_t shaderpasskeys[] =
 
 // ===============================================================
 
-int Shader_InitCallback (char *name, int size, void *param)
+int Shader_InitCallback (const char *name, int size, void *param)
 {
 	strcpy(shaderbuf+shaderbuflen, name);
 	Shader_MakeCache(shaderbuf+shaderbuflen);
@@ -2350,7 +2350,7 @@ void Shader_Default2D(char *shortname, shader_t *s)
 	{
 		mp = Draw_SafeCachePic(va("%s.lmp", shortname));
 		if (mp)
-			pass->anim_frames[0] = *(int*)mp->data;
+			pass->anim_frames[0] = mp->d.gl.texnum;
 
 		if (!pass->anim_frames[0])
 			pass->anim_frames[0] = missing_texture;

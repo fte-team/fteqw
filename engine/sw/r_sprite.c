@@ -297,8 +297,8 @@ void R_DrawSprite (void)
 
 	r_spritedesc.pspriteframe = R_GetSpriteFrame (currententity);
 
-	sprite_width = r_spritedesc.pspriteframe->width;
-	sprite_height = r_spritedesc.pspriteframe->height;
+	sprite_width = r_spritedesc.pspriteframe->p.width;
+	sprite_height = r_spritedesc.pspriteframe->p.height;
 
 // TODO: make this caller-selectable
 	if (psprite->type == SPR_FACING_UPRIGHT)

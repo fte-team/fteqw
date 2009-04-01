@@ -329,10 +329,10 @@ plugin_t *Plug_Load(char *file)
 	return newplug;
 }
 
-int Plug_Emumerated (char *name, int size, void *param)
+int Plug_Emumerated (const char *name, int size, void *param)
 {
 	char vmname[MAX_QPATH];
-	strcpy(vmname, name);
+	Q_strncpyz(vmname, name, sizeof(vmname));
 	vmname[strlen(vmname) - strlen(param)] = '\0';
 	if (!Plug_Load(vmname))
 		Con_Printf("Couldn't load plugin %s\n", vmname);

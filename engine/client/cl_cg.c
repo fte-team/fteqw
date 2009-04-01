@@ -633,7 +633,16 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 			if (!angles)
 				angles = vec3_origin;
 			if (mod)
+#ifndef CLIENTONLY
 				TransformedNativeTrace(mod, 0, 0, start, end, mins, maxs, brushmask, &tr, origin, angles);
+#else
+			{
+#pragma message("FIXME: G3 CGame requires TransformedNativeTrace!")
+								memset(&tr, 0, sizeof(tr));
+				tr.allsolid = tr.startsolid = true;
+				tr.contents = 1;
+			}
+#endif
 			else
 			{
 				memset(&tr, 0, sizeof(tr));
@@ -859,7 +868,7 @@ vec3_t		listener_up;
 			VectorCopy(axis+3, listener_right);
 			VectorCopy(axis+6, listener_up);
 
-//			S_Update(origin, axis[0], axis[1], axis[2], false);
+			S_UpdateListener(org, axis[0], axis[1], axis[2], false);
 		}
 		break;
 

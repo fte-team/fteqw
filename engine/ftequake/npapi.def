@@ -1,0 +1,5 @@
+EXPORTS
+	NP_GetEntryPoints
+	NP_GetMIMEDescription
+	NP_Initialize
+	NP_Shutdown

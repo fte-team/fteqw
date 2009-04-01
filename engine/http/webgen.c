@@ -347,7 +347,7 @@ int VFSGen_ReadBytes(vfsfile_t *f, void *buffer, int bytes)
 	return bytes;
 }
 
-int VFSGen_WriteBytes(vfsfile_t *f, void *buffer, int bytes)
+int VFSGen_WriteBytes(vfsfile_t *f, const void *buffer, int bytes)
 {
 	Sys_Error("VFSGen_WriteBytes: Readonly\n");
 	return 0;

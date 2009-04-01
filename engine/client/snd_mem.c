@@ -843,15 +843,21 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	// load it in
 
 		data = NULL;
-		if (*name == '*')
+		if (*name == '*')	//q2 sexed sounds
 		{
+			//clq2_parsestartsound detects this also
+			//here we just precache the male sound name, which provides us with our default
 			Q_strcpy(namebuffer, "players/male/");	//q2
 			Q_strcat(namebuffer, name+1);	//q2
 		}
 		else if (name[0] == '.' && name[1] == '.' && name[2] == '/')
+		{
+			//not relative to sound/
 			Q_strcpy(namebuffer, name+3);
+		}
 		else
 		{
+			//q1 behaviour, relative to sound/
 			Q_strcpy(namebuffer, "sound/");
 			Q_strcat(namebuffer, name);
 			data = COM_LoadStackFile(name, stackbuf, sizeof(stackbuf));
@@ -874,7 +880,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 	if (!data)
 	{
-		//FIXME: check to see if qued for download.
+		//FIXME: check to see if queued for download.
 		Con_DPrintf ("Couldn't load %s\n", namebuffer);
 		s->failedload = true;
 		return NULL;

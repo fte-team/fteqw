@@ -223,10 +223,10 @@ void M_Menu_SinglePlayer_f (void)
 	else
 	{
 #ifdef CLIENTONLY
-	MC_AddBox (menu, 60, 10*8, 23, 4);
-
 	MC_AddWhiteText(menu, 92, 12*8, "QuakeWorld is for", false);
 	MC_AddWhiteText(menu, 92, 13*8, "Internet play only", false);
+
+	MC_AddBox (menu, 60, 10*8, 23, 4);
 #else
 	MC_AddPicture(menu, 72, 32, "gfx/sp_menu.lmp");
 	
@@ -384,7 +384,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 	return false;
 }
 
-static int DemoAddItem(char *filename, int size, void *parm)
+static int DemoAddItem(const char *filename, int size, void *parm)
 {
 	int extnum;
 	demomenu_t *menu = parm;

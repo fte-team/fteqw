@@ -1643,17 +1643,24 @@ void M_Menu_Main_f (void)
 			if (!p)
 				return;
 			MC_AddPicture(mainm, 0, 173, "pics/m_main_logo");
+#ifndef CLIENTONLY
 			MC_AddSelectablePicture(mainm, 68, 13, "pics/m_main_game");
+#endif
 			MC_AddSelectablePicture(mainm, 68, 53, "pics/m_main_multiplayer");
 			MC_AddSelectablePicture(mainm, 68, 93, "pics/m_main_options");
 			MC_AddSelectablePicture(mainm, 68, 133, "pics/m_main_video");
 			MC_AddSelectablePicture(mainm, 68, 173, "pics/m_main_quit");
 
+#ifndef CLIENTONLY
 			b = MC_AddConsoleCommand	(mainm, 68, 13,	"", "menu_single\n");
 			mainm->selecteditem = (menuoption_t *)b;
 			b->common.width = 12*20;
 			b->common.height = 20;
+#endif
 			b = MC_AddConsoleCommand	(mainm, 68, 53,	"", "menu_multi\n");
+#ifdef CLIENTONLY
+			mainm->selecteditem = (menuoption_t *)b;
+#endif
 			b->common.width = 12*20;
 			b->common.height = 20;
 			b = MC_AddConsoleCommand	(mainm, 68, 93,	"", "menu_options\n");
@@ -1666,7 +1673,7 @@ void M_Menu_Main_f (void)
 			b->common.width = 12*20;
 			b->common.height = 20;
 
-			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 42, 13);
+			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 42, mainm->selecteditem->common.posy);
 		}
 		return;
 	}

@@ -122,6 +122,7 @@ void inline WRITEHEADER(void)
 
 qboolean Rank_OpenRankings(void)
 {
+	char syspath[MAX_OSPATH];
 	qboolean created;
 	if (!rankfile)
 	{
@@ -130,13 +131,13 @@ qboolean Rank_OpenRankings(void)
 			return false;
 		}
 
-		if (strstr(rank_filename.string, ".."))
+		if (!FS_NativePath(rank_filename.string, FS_GAMEONLY, syspath, sizeof(syspath)))
 			return false;
 
-		rankfile = fopen(va("%s/%s", com_gamedir, rank_filename.string), "r+b");
+		rankfile = fopen(syspath, "r+b");
 		if (!rankfile)	//hmm... try creating
 		{
-			rankfile = fopen(va("%s/%s", com_gamedir, rank_filename.string), "w+b");
+			rankfile = fopen(syspath, "w+b");
 			created = true;
 		}
 		else

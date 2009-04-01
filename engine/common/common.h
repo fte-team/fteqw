@@ -170,11 +170,11 @@ void MSG_ReadData (void *data, int len);
 
 //============================================================================
 
-char *Q_strcpyline(char *out, char *in, int maxlen);	//stops at '\n' (and '\r')
+char *Q_strcpyline(char *out, const char *in, int maxlen);	//stops at '\n' (and '\r')
 
 void Q_ftoa(char *str, float in);
 char *Q_strlwr(char *str);
-int wildcmp(char *wild, char *string);	//1 if match
+int wildcmp(const char *wild, const char *string);	//1 if match
 
 #define Q_memset(d, f, c) memset((d), (f), (c))
 #define Q_memcpy(d, s, c) memcpy((d), (s), (c))
@@ -220,8 +220,8 @@ void Q_strncpyz(char*d, const char*s, int n);
 
 #endif
 
-int	Q_atoi (char *str);
-float Q_atof (char *str);
+int	Q_atoi (const char *str);
+float Q_atof (const char *str);
 
 
 
@@ -234,34 +234,37 @@ extern com_tokentype_t com_tokentype;
 
 extern	qboolean	com_eof;
 
-char *COM_Parse (char *data);
-char *COM_ParseStringSet (char *data);
-char *COM_ParseCString (char *data);
-char *COM_StringParse (char *data, qboolean expandmacros, qboolean qctokenize);
+//these cast away the const for the return value.
+//char *COM_Parse (const char *data);
+#define COM_Parse(d) COM_ParseOut(d,com_token, sizeof(com_token))
+char *COM_ParseOut (const char *data, char *out, int outlen);
+char *COM_ParseStringSet (const char *data);
+char *COM_ParseCString (const char *data);
+char *COM_StringParse (const char *data, qboolean expandmacros, qboolean qctokenize);
 char *COM_ParseToken (const char *data, const char *punctuation);
 char *COM_TrimString(char *str);
 
 
 extern	int		com_argc;
-extern	char	**com_argv;
+extern	const char	**com_argv;
 
-int COM_CheckParm (char *parm);
-int COM_CheckNextParm (char *parm, int last);
-void COM_AddParm (char *parm);
+int COM_CheckParm (const char *parm);
+int COM_CheckNextParm (const char *parm, int last);
+void COM_AddParm (const char *parm);
 
 void COM_Init (void);
-void COM_InitArgv (int argc, char **argv);
+void COM_InitArgv (int argc, const char **argv);
 void COM_ParsePlusSets (void);
 
-char *COM_SkipPath (char *pathname);
-void COM_StripExtension (char *in, char *out, int outlen);
-void COM_FileBase (char *in, char *out, int outlen);
-int COM_FileSize(char *path);
+char *COM_SkipPath (const char *pathname);
+void COM_StripExtension (const char *in, char *out, int outlen);
+void COM_FileBase (const char *in, char *out, int outlen);
+int COM_FileSize(const char *path);
 void COM_DefaultExtension (char *path, char *extension, int maxlen);
 void COM_DeFunString(unsigned long *str, char *out, int outsize, qboolean ignoreflags);
 void COM_ParseFunString(char *str, unsigned long *out, int outsize);
 int COM_FunStringLength(unsigned char *str);
-char *COM_FileExtension (char *in);
+char *COM_FileExtension (const char *in);
 void COM_CleanUpPath(char *str);
 
 char	*VARGS va(char *format, ...);
@@ -273,7 +276,6 @@ extern qboolean com_file_copyprotected;
 extern int com_filesize;
 struct cache_user_s;
 
-extern	char	com_gamedir[MAX_OSPATH];
 extern char	com_quakedir[MAX_OSPATH];
 extern char	com_homedir[MAX_OSPATH];
 extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
@@ -294,15 +296,15 @@ struct vfsfile_s;
 typedef enum {FSLFRT_IFFOUND, FSLFRT_LENGTH, FSLFRT_DEPTH_OSONLY, FSLFRT_DEPTH_ANYPATH} FSLF_ReturnType_e;
 //if loc is valid, loc->search is always filled in, the others are filled on success.
 //returns -1 if couldn't find.
-int FS_FLocateFile(char *filename, FSLF_ReturnType_e returntype, flocation_t *loc);
+int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation_t *loc);
 struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
 char *FS_WhichPackForLocation(flocation_t *loc);
 
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
 char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly);
 
-int COM_FOpenFile (char *filename, FILE **file);
-int COM_FOpenWriteFile (char *filename, FILE **file);
+int COM_FOpenFile (const char *filename, FILE **file);
+int COM_FOpenWriteFile (const char *filename, FILE **file);
 
 //#ifdef _MSC_VER	//this is enough to annoy me, without conflicting with other (more bizzare) platforms.
 //#define fopen dont_use_fopen
@@ -316,7 +318,7 @@ void COM_CloseFile (FILE *h);
 
 typedef struct vfsfile_s {
 	int (*ReadBytes) (struct vfsfile_s *file, void *buffer, int bytestoread);
-	int (*WriteBytes) (struct vfsfile_s *file, void *buffer, int bytestoread);
+	int (*WriteBytes) (struct vfsfile_s *file, const void *buffer, int bytestoread);
 	qboolean (*Seek) (struct vfsfile_s *file, unsigned long pos);	//returns false for error
 	unsigned long (*Tell) (struct vfsfile_s *file);
 	unsigned long (*GetLen) (struct vfsfile_s *file);	//could give some lag
@@ -332,54 +334,58 @@ typedef struct vfsfile_s {
 #define VFS_READ(vf,buffer,buflen) (vf->ReadBytes(vf,buffer,buflen))
 #define VFS_WRITE(vf,buffer,buflen) (vf->WriteBytes(vf,buffer,buflen))
 #define VFS_FLUSH(vf) do{if(vf->Flush)vf->Flush(vf);}while(0)
+#define VFS_PUTS(vf,s) do{const char *t=s;vf->WriteBytes(vf,t,strlen(t));}while(0)
 char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen);
+void VFS_PRINTF(vfsfile_t *vf, char *fmt, ...);
+
+enum fs_relative{
+	FS_GAME,		//standard search (not generally valid for save/rename/delete/etc)
+	FS_ROOT,		//./
+	FS_GAMEONLY,	//$gamedir/
+	FS_CONFIGONLY,	//fte/ (should still be part of the game path)
+	FS_SKINS		//qw/skins/
+};
 
 void FS_FlushFSHash(void);
-void FS_CreatePath(char *pname, int relativeto);
-int FS_Rename(char *oldf, char *newf, int relativeto);	//0 on success, non-0 on error
-int FS_Rename2(char *oldf, char *newf, int oldrelativeto, int newrelativeto);
-int FS_Remove(char *fname, int relativeto);	//0 on success, non-0 on error
-qboolean FS_WriteFile (char *filename, void *data, int len, int relativeto);
-vfsfile_t *FS_OpenVFS(char *filename, char *mode, int relativeto);
+void FS_CreatePath(const char *pname, enum fs_relative relativeto);
+int FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto);	//0 on success, non-0 on error
+int FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrelativeto, enum fs_relative newrelativeto);
+int FS_Remove(const char *fname, int relativeto);	//0 on success, non-0 on error
+qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//if you really need to fopen yourself
+qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_relative relativeto);
+vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto);
 vfsfile_t *FS_OpenTemp(void);
-vfsfile_t *FS_OpenTCP(char *name);
+vfsfile_t *FS_OpenTCP(const char *name);
 void FS_UnloadPackFiles(void);
 void FS_ReloadPackFiles(void);
-char *FS_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
-enum {
-	FS_GAME,
-	FS_ROOT,
-	FS_GAMEONLY,
-	FS_CONFIGONLY,
-	FS_SKINS
-};
+char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
 
 
 int COM_filelength (FILE *f);
-qbyte *COM_LoadStackFile (char *path, void *buffer, int bufsize);
-qbyte *COM_LoadTempFile (char *path);
-qbyte *COM_LoadTempFile2 (char *path);	//allocates a little bit more without freeing old temp
-qbyte *COM_LoadHunkFile (char *path);
-qbyte *COM_LoadMallocFile (char *path);
-void COM_LoadCacheFile (char *path, struct cache_user_s *cu);
+qbyte *COM_LoadStackFile (const char *path, void *buffer, int bufsize);
+qbyte *COM_LoadTempFile (const char *path);
+qbyte *COM_LoadTempFile2 (const char *path);	//allocates a little bit more without freeing old temp
+qbyte *COM_LoadHunkFile (const char *path);
+qbyte *COM_LoadMallocFile (const char *path);
+void COM_LoadCacheFile (const char *path, struct cache_user_s *cu);
 void COM_CreatePath (char *path);
-void COM_Gamedir (char *dir);
-void FS_ForceToPure(char *str, char *crcs, int seed);
+void COM_Gamedir (const char *dir);
+void FS_ForceToPure(const char *str, const char *crcs, int seed);
 char *COM_GetPathInfo (int i, int *crc);
 char *COM_NextPath (char *prevpath);
 void COM_FlushFSCache(void);	//a file was written using fopen
 void COM_RefreshFSCache_f(void);
 
-qboolean COM_LoadMapPackFile(char *name, int offset);
+qboolean COM_LoadMapPackFile(const char *name, int offset);
 void COM_FlushTempoaryPacks(void);
 
-void COM_EnumerateFiles (char *match, int (*func)(char *, int, void *), void *parm);
+void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *), void *parm);
 
 extern	struct cvar_s	registered;
 extern qboolean standard_quake;	//fixme: remove
 
 void COM_Effectinfo_Clear(void);
-unsigned int COM_Effectinfo_ForName(char *efname);
+unsigned int COM_Effectinfo_ForName(const char *efname);
 char *COM_Effectinfo_ForNumber(unsigned int efnum);
 
 #define	MAX_INFO_KEY	64

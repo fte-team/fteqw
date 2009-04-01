@@ -584,7 +584,7 @@ void VARGS readpngdata(png_structp png_ptr,png_bytep data,png_size_t len)
 }
 
 qbyte *png_rgba;
-qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, char *fname)
+qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *fname)
 {
 	qbyte header[8], **rowpointers = NULL, *data = NULL;
 	png_structp png;
@@ -702,11 +702,9 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	png_structp png_ptr;
 	png_infop info_ptr;
 	png_byte **row_pointers;
-	snprintf (name, sizeof(name)-1, "%s/%s", com_gamedir, filename);
 
-	if (Sys_PathProtection(filename) )
+	if (!FS_NativePath(filename, FS_GAMEONLY, name, sizeof(name)))
 		return false;
-
 
 	if (!(fp = fopen (name, "wb")))
 	{
@@ -1146,7 +1144,7 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 WritePCXfile
 ==============
 */
-void WritePCXfile (char *filename, qbyte *data, int width, int height,
+void WritePCXfile (const char *filename, qbyte *data, int width, int height,
 	int rowbytes, qbyte *palette, qboolean upload) //data is 8bit.
 {
 	int		i, j, length;

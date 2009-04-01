@@ -120,7 +120,6 @@ void WinAmp_Think(void)
 #endif
 void Media_Seek (float time)
 {	
-	soundcardinfo_t *sc;
 #ifdef WINAMP
 	if (media_hijackwinamp.value)
 	{
@@ -135,18 +134,7 @@ void Media_Seek (float time)
 		}
 	}
 #endif
-	for (sc = sndcardinfo; sc; sc=sc->next)
-	{
-		sc->channel[NUM_AMBIENTS].pos += sc->sn.speed*time;
-		sc->channel[NUM_AMBIENTS].end += sc->sn.speed*time;
-
-		if (sc->channel[NUM_AMBIENTS].pos < 0)
-		{
-			sc->channel[NUM_AMBIENTS].end -= sc->channel[NUM_AMBIENTS].pos;
-			sc->channel[NUM_AMBIENTS].pos=0;
-		}
-		//if we seek over the end, ignore it. The sound playing code will spot that.
-	}
+	S_Music_Seek(time);
 }
 
 void Media_FForward_f(void)
@@ -226,29 +214,19 @@ qboolean Media_EvaluateNextTrack(void)
 //flushes music channel on all soundcards, and the tracks that arn't decoded yet.
 void Media_Clear (void)
 {
-	sfx_t *s;
-	soundcardinfo_t *sc;
-	for (sc = sndcardinfo; sc; sc=sc->next)
-	{
-		sc->channel[NUM_AMBIENTS].end = 0;
-		s = sc->channel[NUM_AMBIENTS].sfx;
-		sc->channel[NUM_AMBIENTS].sfx = NULL;
-
-		if (s)
-		if (s->decoder)
-		if (!S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
-		{
-			s->decoder->abort(s);
-			if (s->cache.data)
-				Cache_Free(&s->cache);
-		}
-	}
+	S_Music_Clear(NULL);
 }
 
 qboolean fakecdactive;
 void Media_FakeTrack(int i, qboolean loop)
 {
 	char trackname[512];
+
+	if (i > 999 || i < 0)
+	{
+		fakecdactive = false;
+		return;
+	}
 
 	sprintf(trackname, "sound/cdtracks/track%03i.ogg", i);
 	if (COM_FCheckExists(trackname))
@@ -259,6 +237,8 @@ void Media_FakeTrack(int i, qboolean loop)
 		fakecdactive = true;
 		media_playing = true;
 	}
+	else
+		fakecdactive = false;
 }
 
 //actually, this func just flushes and states that it should be playing. the ambientsound func actually changes the track.
@@ -414,11 +394,11 @@ void M_Media_Draw (void)
 char compleatenamepath[MAX_OSPATH];
 char compleatenamename[MAX_OSPATH];
 qboolean compleatenamemultiple;
-int Com_CompleatenameCallback(char *name, int size, void *data)
+int Com_CompleatenameCallback(const char *name, int size, void *data)
 {
 	if (*compleatenamename)
 		compleatenamemultiple = true;
-	strcpy(compleatenamename, name);	
+	Q_strncpyz(compleatenamename, name, sizeof(compleatenamename));	
 
 	return true;
 }
@@ -727,7 +707,7 @@ void Media_LoadTrackNames (char *listname)
 }
 
 //safeprints only.
-char *Media_NextTrack(void)
+char *Media_NextTrack(int musicchannelnum)
 {
 #ifdef WINAMP
 	if (media_hijackwinamp.value)
@@ -884,15 +864,6 @@ struct cin_s {
 	struct {
 		roq_info *roqfilm;
 	} roq;
-
-	sfxcache_t *moviesoundbuffer;
-	sfx_t mediaaudio;
-/*		= {
-		"movieaudio",
-		{NULL, true},
-		NULL
-	};
-*/
 
 	float filmstarttime;
 	float nextframetime;
@@ -1173,7 +1144,7 @@ qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound)
 		cin->outdata = cin->framedata;
 
 		if (!nosound)
-		if (cin->roq.roqfilm->audio_channels && sndcardinfo && cin->roq.roqfilm->aud_pos < cin->roq.roqfilm->vid_pos)
+		if (cin->roq.roqfilm->audio_channels && S_HaveOutput() && cin->roq.roqfilm->aud_pos < cin->roq.roqfilm->vid_pos)
 		if (roq_read_audio(cin->roq.roqfilm)>0)
 		{
 /*				FILE *f;
@@ -1260,10 +1231,6 @@ cin_t *Media_Static_TryLoad(char *name)
 
 		char fullname[MAX_QPATH];
 		qbyte *file;
-		qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
-		qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey);
-		qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
-		qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, char *fname);
 
 		sprintf(fullname, "%s", name);
 		file = COM_LoadMallocFile(fullname);	//read file
@@ -1563,6 +1530,7 @@ void Media_Gecko_ChangeStream (struct cin_s *cin, char *streamname)
 
 cin_t *Media_Gecko_TryLoad(char *name)
 {
+	char xulprofiledir[MAX_OSPATH];
 	cin_t *cin;
 
 	if (!strncmp(name, "http://", 7))
@@ -1585,7 +1553,8 @@ cin_t *Media_Gecko_TryLoad(char *name)
 				return NULL;
 
 			posgk_embedding_options_add_search_path(opts, "./xulrunner/");
-			posgk_embedding_options_set_profile_dir(opts, va("%s/xulrunner_profile/", com_gamedir), 0);
+			if (FS_NativePath("xulrunner_profile/", FS_GAMEONLY, xulprofiledir, sizeof(xulprofiledir));
+				posgk_embedding_options_set_profile_dir(opts, xulprofiledir, 0);
 
 			gecko_embedding = posgk_embedding_create2(OSGK_API_VERSION, opts, &result);
 			posgk_release(&opts->baseobj);
@@ -1636,22 +1605,8 @@ qboolean Media_PlayingFullScreen(void)
 
 void Media_ShutdownCin(cin_t *cin)
 {
-	soundcardinfo_t *sc;
-	sfx_t *s;
-
 	if (!cin)
 		return;
-
-	for (sc = sndcardinfo; sc; sc=sc->next)
-	{
-		s = sc->channel[NUM_AMBIENTS].sfx;
-		if (s && s == &cin->mediaaudio)
-		{
-			sc->channel[NUM_AMBIENTS].pos = 0;
-			sc->channel[NUM_AMBIENTS].end = 0;
-			sc->channel[NUM_AMBIENTS].sfx = NULL;
-		}
-	}
 
 	if (cin->shutdown)
 		cin->shutdown(cin);

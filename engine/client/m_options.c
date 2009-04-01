@@ -165,6 +165,7 @@ void M_Audio_StartSound (struct menu_s *menu)
 	vec3_t org;
 	audiomenuinfo_t *info = menu->data;
 	soundcardinfo_t *sc;
+	vec3_t mat[4];
 
 	static float lasttime;
 
@@ -189,10 +190,12 @@ void M_Audio_StartSound (struct menu_s *menu)
 
 	if (lasttime+0.5 < Sys_DoubleTime())
 	{
+		S_GetListenerInfo(mat[0], mat[1], mat[2], mat[3]);
+
 		lasttime = Sys_DoubleTime();
-		org[0] = listener_origin[0] + 2*(listener_right[0]*(info->testsoundsource->common.posx-320/2) + listener_forward[0]*(info->testsoundsource->common.posy-200/2));
-		org[1] = listener_origin[1] + 2*(listener_right[1]*(info->testsoundsource->common.posx-320/2) + listener_forward[1]*(info->testsoundsource->common.posy-200/2));
-		org[2] = listener_origin[2] + 2*(listener_right[2]*(info->testsoundsource->common.posx-320/2) + listener_forward[2]*(info->testsoundsource->common.posy-200/2));
+		org[0] = mat[0][0] + 2*(mat[1][0]*(info->testsoundsource->common.posx-320/2) + mat[1][0]*(info->testsoundsource->common.posy-200/2));
+		org[1] = mat[0][1] + 2*(mat[1][1]*(info->testsoundsource->common.posx-320/2) + mat[1][1]*(info->testsoundsource->common.posy-200/2));
+		org[2] = mat[0][2] + 2*(mat[1][2]*(info->testsoundsource->common.posx-320/2) + mat[1][2]*(info->testsoundsource->common.posy-200/2));
 		S_StartSound(-2, 0, S_PrecacheSound("player/pain3.wav"), org, 1, 4);
 	}
 }

@@ -130,10 +130,10 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 					if (image[i*4+3] < 64) // 25% threshhold
 					{
 						((mpic_t*)dat)->flags |= MPIC_ALPHA;
-						dat->data[i] = 255;
+						dat->d.data[i] = 255;
 					}
 					else
-						dat->data[i] = GetPaletteNoFB(image[i*4], image[i*4+1], image[i*4+2]);
+						dat->d.data[i] = GetPaletteNoFB(image[i*4], image[i*4+1], image[i*4+2]);
 				}
 
 				BZ_Free(image);
@@ -165,10 +165,10 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 					if (image[i*4+3] < 64) // 25% threshhold
 					{
 						((mpic_t*)dat)->flags |= MPIC_ALPHA;
-						dat->data[i] = 255;
+						dat->d.data[i] = 255;
 					}
 					else
-						dat->data[i] = GetPaletteNoFB(image[i*4], image[i*4+1], image[i*4+2]);
+						dat->d.data[i] = GetPaletteNoFB(image[i*4], image[i*4+1], image[i*4+2]);
 				}
 
 				BZ_Free(image);
@@ -200,10 +200,10 @@ mpic_t	*SWDraw_SafeCachePic (char *extpath)
 					if (image[i*4+3] < 64) // 25% threshhold
 					{
 						((mpic_t*)dat)->flags |= MPIC_ALPHA;
-						dat->data[i] = 255;
+						dat->d.data[i] = 255;
 					}
 					else
-						dat->data[i] = GetPaletteNoFB(image[i*4], image[i*4+1], image[i*4+2]);
+						dat->d.data[i] = GetPaletteNoFB(image[i*4], image[i*4+1], image[i*4+2]);
 				}
 
 				BZ_Free(image);
@@ -377,7 +377,7 @@ void SWDraw_Init (void)
 		pic = (mpic_t *)SWDraw_MallocPic("pics/conchars.pcx");	//safe from host_hunkmarks...
 		if (pic)
 		{
-			draw_chars = pic->data;
+			draw_chars = pic->d.data;
 
 			s = pic->width*pic->height;
 			for (i = 0; i < s; i++)	//convert 255s to 0, q1's transparent colour
@@ -483,7 +483,7 @@ void SWDraw_Init (void)
 		int j;
 
 		for (j = 0; j < 128*128; j++)
-			dat->data[j] = (draw_chars[j] == 255 || !draw_chars[j]) ? draw_chars[j] ^ 255 : draw_chars[j];
+			dat->d.data[j] = (draw_chars[j] == 255 || !draw_chars[j]) ? draw_chars[j] ^ 255 : draw_chars[j];
 
 		dat->width = dat->height = 128;
 		dat->flags = 1;
@@ -504,7 +504,7 @@ void SWDraw_Init (void)
 		}
 		r_rectdesc.width = draw_backtile->width;
 		r_rectdesc.height = draw_backtile->height;
-		r_rectdesc.ptexbytes = draw_backtile->data;
+		r_rectdesc.ptexbytes = draw_backtile->d.data;
 		r_rectdesc.rowbytes = draw_backtile->width;
 	}
 
@@ -1071,7 +1071,7 @@ void SWDraw_Pic (int x, int y, mpic_t *pic)
 		return;//Sys_Error ("Draw_Pic: bad coordinates");
 	}
 
-	source = pic->data;
+	source = pic->d.data;
 
 	if (r_pixbytes == 1)
 	{
@@ -1131,7 +1131,7 @@ void SWDraw_TransSubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width
 		Sys_Error ("Draw_Pic: bad coordinates");
 	}
 
-	source = pic->data + srcy * pic->width + srcx;
+	source = pic->d.data + srcy * pic->width + srcx;
 
 	if (r_pixbytes == 1)
 	{
@@ -1229,7 +1229,7 @@ void SWDraw_SubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int
 		Sys_Error ("Draw_Pic: bad coordinates");
 	}
 
-	source = pic->data + srcy * pic->width + srcx;
+	source = pic->d.data + srcy * pic->width + srcx;
 
 	if (r_pixbytes == 1)
 	{
@@ -1290,7 +1290,7 @@ void SWDraw_TransPic (int x, int y, mpic_t *pic)
 		Sys_Error ("Draw_TransPic: bad coordinates");
 	}
 		
-	source = pic->data;
+	source = pic->d.data;
 
 	if (r_pixbytes == 1)
 	{
@@ -2000,15 +2000,15 @@ void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, f
 // draw the pic
 	if (r_pixbytes == 1)
 	{
-		SWDraw_SubImage8(xp, yp, wp, hp, s1, t1, s2, t2, pic->width, pic->height, pic->data);
+		SWDraw_SubImage8(xp, yp, wp, hp, s1, t1, s2, t2, pic->width, pic->height, pic->d.data);
 	}
 	else if (r_pixbytes == 2)
 	{
-		SWDraw_SubImage16(xp, yp, wp, hp, s1, t1, s2, t2, pic->width, pic->height, pic->data);
+		SWDraw_SubImage16(xp, yp, wp, hp, s1, t1, s2, t2, pic->width, pic->height, pic->d.data);
 	}
 	else
 	{	
-		SWDraw_SubImage32(xp, yp, wp, hp, s1, t1, s2, t2, pic->width, pic->height, pic->data);
+		SWDraw_SubImage32(xp, yp, wp, hp, s1, t1, s2, t2, pic->width, pic->height, pic->d.data);
 	}
 }
 
@@ -2062,7 +2062,7 @@ void SWDraw_ConsoleBackground (int lines)
 	//sprintf (ver, "start commands with a \\ character %4.2f", VERSION);
 
 	sprintf (ver, "%i", build_number());
-	dest = conback->data + w + w*186 - 11 - 8*strlen(ver);
+	dest = conback->d.data + w + w*186 - 11 - 8*strlen(ver);
 
 //	memcpy(saveback, conback->data + w*186, w*8);
 	for (x=0 ; x<strlen(ver) ; x++)
@@ -2080,7 +2080,7 @@ void SWDraw_ConsoleBackground (int lines)
 			for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
 			{
 				v = (vid.conheight - lines + y)*h/vid.conheight;
-				src = conback->data + v*w;
+				src = conback->d.data + v*w;
 				f = 0;
 				fstep = w*0x10000/vid.conwidth;
 				for (x=0 ; x<vid.conwidth ; x+=4)
@@ -2102,7 +2102,7 @@ void SWDraw_ConsoleBackground (int lines)
 			{
 
 				v = (vid.conheight - lines + y)*h/vid.conheight;
-				src = conback->data + v*w;
+				src = conback->d.data + v*w;
 				if (vid.conwidth == w)
 					memcpy (dest, src, vid.conwidth);
 				else
@@ -2133,7 +2133,7 @@ void SWDraw_ConsoleBackground (int lines)
 		{
 
 			v = (vid.conheight - lines + y)*h/vid.conheight;
-			src = conback->data + v*w;
+			src = conback->d.data + v*w;
 //			if (vid.conwidth == w)
 //				memcpy (dest16, src, vid.conwidth);
 //			else
@@ -2175,9 +2175,9 @@ void SWDraw_ConsoleBackground (int lines)
 			for (y=0 ; y<lines ; y++, dest += (vid.conrowbytes<<2))
 			{
 				v = (vid.conheight - lines + y)*(h-1)/vid.conheight;
-				src = conback->data + v*w;
+				src = conback->d.data + v*w;
 				v = (vid.conheight - lines + y)*(h-1)/vid.conheight+1;
-				src2 = conback->data + v*w;
+				src2 = conback->d.data + v*w;
 
 				v = (vid.conheight - lines + y)*(h-1)/vid.conheight;
 				vf = (((vid.conheight - lines + y)*(h-1.0)/vid.conheight) - v) * 255;
@@ -2217,7 +2217,7 @@ void SWDraw_ConsoleBackground (int lines)
 			for (y=0 ; y<lines ; y++, dest += (vid.conrowbytes<<2))
 			{
 				v = (vid.conheight - lines + y)*h/vid.conheight;
-				src = conback->data + v*w;
+				src = conback->d.data + v*w;
 
 				f = 0;
 				fstep = w*0x10000/vid.conwidth;
@@ -2236,7 +2236,7 @@ void SWDraw_ConsoleBackground (int lines)
 			for (y=0 ; y<lines ; y++, p24dest += vid.conrowbytes)
 			{
 				v = (vid.conheight - lines + y)*h/vid.conheight;
-				src = conback->data + v*w;
+				src = conback->d.data + v*w;
 
 				f = 0;
 				fstep = w*0x10000/vid.conwidth;
@@ -2674,7 +2674,7 @@ Call before beginning any disc IO.
 void SWDraw_BeginDisc (void)
 {
 	if (draw_disc)
-		D_BeginDirectRect (vid.width - 24, 0, draw_disc->data, 24, 24);
+		D_BeginDirectRect (vid.width - 24, 0, draw_disc->d.data, 24, 24);
 }
 
 

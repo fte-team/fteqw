@@ -14,8 +14,6 @@
 
 int ftpfilelistsocket;
 
-char *COM_ParseOut (char *data, char *out, int outlen);
-
 static iwboolean ftpserverinitied = false;
 iwboolean ftpserverfailed = false;
 static int	ftpserversocket;
@@ -103,22 +101,26 @@ void FTP_ServerShutdown(void)
 	IWebPrintf("FTP server is deactivated\n");
 }
 
-static int SendFileNameTo(char *fname, int size, void *param)
+static int SendFileNameTo(const char *rawname, int size, void *param)
 {
 	int socket = ftpfilelistsocket;	//64->32... this is safe due to where it's called from. It's just not so portable.
 //	int i;
 	char buffer[256+1];
 	char *slash;
-	int isdir = fname[strlen(fname)-1] == '/';
+	char nondirname[MAX_QPATH];
+	int isdir = rawname[strlen(rawname)-1] == '/';
+	char *fname;
 
 #ifndef WEBSVONLY	//copy protection of the like that QWSV normally has.
 	if (!isdir)
-		if (!SV_AllowDownload(fname))	//don't advertise if we're going to disallow it
+		if (!SV_AllowDownload(rawname))	//don't advertise if we're going to disallow it
 			return true;
 #endif
 
+	Q_strncpyz(nondirname, rawname, sizeof(nondirname));
 	if (isdir)
-		fname[strlen(fname)-1] = '\0';
+		nondirname[strlen(nondirname)-1] = '\0';
+	fname = nondirname;
 
 	while((slash = strchr(fname, '/')))
 		fname = slash+1;

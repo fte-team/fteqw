@@ -1320,6 +1320,8 @@ void SV_Spawn_f (void)
 		{
 			split->entgravity = 1;
 			split->maxspeed = 320;
+
+			SVHL_PutClientInServer(split);
 		}
 
 		secret_total = 0;
@@ -1421,6 +1423,9 @@ void SV_Begin_Core(client_t *split)
 #ifdef Q2SERVER
 	if (ge)
 	{
+		ge->ClientUserinfoChanged (split->q2edict, split->userinfo);	//tell the gamecode
+		SV_ExtractFromUserinfo(split);	//let the server routines know
+
 		ge->ClientBegin(split->q2edict);
 		split->istobeloaded = false;
 	}
@@ -1469,13 +1474,6 @@ void SV_Begin_Core(client_t *split)
 		}
 		else
 		{
-#ifdef HLSERVER
-			if (svs.gametype == GT_HALFLIFE)
-			{
-				SVHL_PutClientInServer(split);
-			}
-			else
-#endif
 			if (svprogfuncs)
 			{
 				eval_t *eval, *eval2;
@@ -2000,7 +1998,7 @@ void SV_NextUpload (void)
 //Use of this function is on name only.
 //Be aware that the maps directory should be restricted based on weather the file was from a pack file
 //this is to preserve copyright - please do not breach due to a bug.
-qboolean SV_AllowDownload (char *name)
+qboolean SV_AllowDownload (const char *name)
 {
 	extern	cvar_t	allow_download;
 	extern	cvar_t	allow_download_skins;
@@ -3346,6 +3344,14 @@ void Cmd_Give_f (void)
 {
 	char *t;
 	int v;
+
+#ifdef HLSERVER
+	if (svs.gametype == GT_HALFLIFE)
+	{
+		HLSV_ClientCommand(host_client);
+		return;
+	}
+#endif
 
 	if (!sv_allow_cheats)
 	{

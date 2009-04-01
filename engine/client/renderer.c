@@ -179,8 +179,15 @@ static cvar_t vid_bpp						= SCVARF ("vid_bpp", "32",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 static cvar_t vid_desktopsettings			= SCVARF ("vid_desktopsettings", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+#ifdef NPQTV
+static cvar_t vid_fullscreen_npqtv			= SCVARF ("vid_fullscreen", "1",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+static cvar_t vid_fullscreen				= SCVARF ("vid_fullscreen_embedded", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+#else
 static cvar_t vid_fullscreen				= SCVARF ("vid_fullscreen", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+#endif
 static cvar_t vid_height					= SCVARF ("vid_height", "480",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 static cvar_t vid_multisample				= SCVARF ("vid_multisample", "0",
@@ -571,6 +578,7 @@ void Renderer_Init(void)
 	currentrendererstate.bpp = -1;	//no previous.
 
 	currentrendererstate.renderer = -1;
+	qrenderer = -1;
 
 	Cmd_AddCommand("setrenderer", R_SetRenderer_f);
 	Cmd_AddCommand("vid_restart", R_RestartRenderer_f);
@@ -593,6 +601,9 @@ void Renderer_Init(void)
 	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
 
+#ifdef NPQTV
+	Cvar_Register (&vid_fullscreen_npqtv, VIDCOMMANDGROUP);
+#endif
 	Cvar_Register (&vid_fullscreen, VIDCOMMANDGROUP);
 //	Cvar_Register (&vid_stretch, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_bpp, VIDCOMMANDGROUP);
@@ -772,6 +783,7 @@ void	(*Mod_Think)				(void);
 //qboolean	(*Mod_GetTag)			(struct model_s *model, int tagnum, int frame, int frame2, float f2ness, float f1time, float f2time, float *transforms);
 //int (*Mod_TagNumForName)			(struct model_s *model, char *name);
 int (*Mod_SkinForName)				(struct model_s *model, char *name);
+int (*Mod_FrameForName)				(struct model_s *model, char *name);
 
 
 
@@ -790,7 +802,7 @@ void	(*VID_SetWindowCaption)		(char *msg);
 
 void	(*SCR_UpdateScreen)			(void);
 
-r_qrenderer_t qrenderer=-1;
+r_qrenderer_t qrenderer;
 char *q_renderername = "Non-Selected renderer";
 
 
@@ -882,6 +894,7 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL, //Mod_GetTag
 	NULL, //fixme: server will need this one at some point.
+	NULL,
 	NULL,
 
 	NULL, //VID_Init,
@@ -975,6 +988,7 @@ rendererinfo_t softwarerendererinfo = {
 
 	NULL,	//Mod_GetTag
 	NULL,	//Mod_TagForName
+	NULL,
 	NULL,
 
 	SWVID_Init,
@@ -1073,6 +1087,7 @@ rendererinfo_t openglrendererinfo = {
 	Mod_GetTag,
 	Mod_TagNumForName,
 	Mod_SkinNumForName,
+	Mod_FrameNumForName,
 
 	GLVID_Init,
 	GLVID_DeInit,
@@ -1108,7 +1123,9 @@ rendererinfo_t *pd3d9rendererinfo = &d3d9rendererinfo;
 
 rendererinfo_t **rendererinfo[] =
 {
+#ifndef NPQTV
 	&pdedicatedrendererinfo,
+#endif
 #ifdef SWQUAKE
 	&psoftwarerendererinfo,
 #endif
@@ -1554,10 +1571,8 @@ void D3DSucks(void)
 		Sys_Error("Failed to reload content after mode switch\n");
 }
 
-qboolean R_ApplyRenderer (rendererstate_t *newr)
+void R_ShutdownRenderer(void)
 {
-	if (newr->bpp == -1)
-		return false;
 
 	CL_AllowIndependantSendCmd(false);	//FIXME: figure out exactly which parts are going to affect the model loading.
 
@@ -1581,6 +1596,14 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	COM_FlushTempoaryPacks();
 
 	S_Shutdown();
+}
+
+qboolean R_ApplyRenderer (rendererstate_t *newr)
+{
+	if (newr->bpp == -1)
+		return false;
+
+	R_ShutdownRenderer();
 
 	if (qrenderer == QR_NONE || qrenderer==-1)
 	{

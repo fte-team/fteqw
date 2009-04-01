@@ -172,6 +172,26 @@ struct entvars_s *PR_entvars (progfuncs_t *progfuncs, struct edict_s *ed)
 	return (struct entvars_s *)edvars(ed);
 }
 
+int PR_GetFuncArgCount(progfuncs_t *progfuncs, func_t func)
+{
+	unsigned int pnum;
+	unsigned int fnum;
+	dfunction_t *f;
+
+	pnum = (func & 0xff000000)>>24;
+	fnum = (func & 0x00ffffff);
+
+	if (pnum >= (unsigned)maxprogs || !pr_progstate[pnum].functions)
+		return -1;
+	else if (fnum >= pr_progstate[pnum].progs->numfunctions)
+		return -1;
+	else
+	{
+		f = pr_progstate[pnum].functions + fnum;
+		return f->numparms;
+	}
+}
+
 func_t PR_FindFunc(progfuncs_t *progfuncs, char *funcname, progsnum_t pnum)
 {
 	dfunction_t *f=NULL;

@@ -38,15 +38,16 @@ usercmd_t nullcmd; // guarenteed to be zero
 
 entity_state_t nullentitystate;	//this is the default state
 
-static char	*largv[MAX_NUM_ARGVS + NUM_SAFE_ARGVS + 1];
+static const char	*largv[MAX_NUM_ARGVS + NUM_SAFE_ARGVS + 1];
 static char	*argvdummy = " ";
 
 static char	*safeargvs[NUM_SAFE_ARGVS] =
 	{"-stdvid", "-nolan", "-nosound", "-nocdaudio", "-nojoy", "-nomouse"};
 
 cvar_t	registered = SCVAR("registered","0");
-cvar_t	gameversion = SCVAR("gameversion","0");
+cvar_t	gameversion = SCVARF("gameversion","", CVAR_SERVERINFO);
 cvar_t	com_gamename = SCVAR("com_gamename", "");
+cvar_t	com_modname = SCVAR("com_modname", "");
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -342,9 +343,9 @@ char *Q_strlwr(char *s)
 	return ret;
 }
 
-int wildcmp(char *wild, char *string)
+int wildcmp(const char *wild, const char *string)
 {
-	char *cp=NULL, *mp=NULL;
+	const char *cp=NULL, *mp=NULL;
 
 	while ((*string) && (*wild != '*'))
 	{
@@ -434,7 +435,7 @@ void Q_ftoa(char *str, float in)
 	}
 }
 
-int Q_atoi (char *str)
+int Q_atoi (const char *str)
 {
 	int		val;
 	int		sign;
@@ -493,7 +494,7 @@ int Q_atoi (char *str)
 }
 
 
-float Q_atof (char *str)
+float Q_atof (const char *str)
 {
 	double	val;
 	int		sign;
@@ -1429,9 +1430,9 @@ void SZ_Print (sizebuf_t *buf, const char *data)
 COM_SkipPath
 ============
 */
-char *COM_SkipPath (char *pathname)
+char *COM_SkipPath (const char *pathname)
 {
-	char	*last;
+	const char	*last;
 
 	last = pathname;
 	while (*pathname)
@@ -1440,7 +1441,7 @@ char *COM_SkipPath (char *pathname)
 			last = pathname+1;
 		pathname++;
 	}
-	return last;
+	return (char *)last;
 }
 
 /*
@@ -1448,11 +1449,11 @@ char *COM_SkipPath (char *pathname)
 COM_StripExtension
 ============
 */
-void COM_StripExtension (char *in, char *out, int outlen)
+void COM_StripExtension (const char *in, char *out, int outlen)
 {
 	char *s;
 
-	if (out != in)
+	if (out != in)	//optimisation, most calls use the same buffer
 		Q_strncpyz(out, in, outlen);
 
 	s = out+strlen(out);
@@ -1494,7 +1495,7 @@ void COM_StripAllExtensions (char *in, char *out, int outlen)
 COM_FileExtension
 ============
 */
-char *COM_FileExtension (char *in)
+char *COM_FileExtension (const char *in)
 {
 	static char exten[8];
 	int		i;
@@ -1565,9 +1566,9 @@ void COM_CleanUpPath(char *str)
 COM_FileBase
 ============
 */
-void COM_FileBase (char *in, char *out, int outlen)
+void COM_FileBase (const char *in, char *out, int outlen)
 {
-	char *s, *s2;
+	const char *s, *s2;
 
 	s = in + strlen(in) - 1;
 
@@ -1901,7 +1902,7 @@ messedup:
 #define TOKENSIZE sizeof(com_token)
 char		com_token[TOKENSIZE];
 int		com_argc;
-char	**com_argv;
+const char	**com_argv;
 
 com_tokentype_t com_tokentype;
 
@@ -1913,7 +1914,8 @@ COM_Parse
 Parse a token out of a string
 ==============
 */
-char *COM_Parse (char *data)
+#ifndef COM_Parse
+char *COM_Parse (const char *data)
 {
 	int		c;
 	int		len;
@@ -1952,13 +1954,13 @@ skipwhite:
 		while (1)
 		{
 			if (len >= TOKENSIZE-1)
-				return data;
+				return (char*)data;
 
 			c = *data++;
 			if (c=='\"' || !c)
 			{
 				com_token[len] = 0;
-				return data;
+				return (char*)data;
 			}
 			com_token[len] = c;
 			len++;
@@ -1969,7 +1971,7 @@ skipwhite:
 	do
 	{
 		if (len >= TOKENSIZE-1)
-			return data;
+			return (char*)data;
 
 		com_token[len] = c;
 		data++;
@@ -1978,10 +1980,11 @@ skipwhite:
 	} while (c>32);
 
 	com_token[len] = 0;
-	return data;
+	return (char*)data;
 }
+#endif
 
-char *COM_ParseStringSet (char *data)
+char *COM_ParseStringSet (const char *data)
 {
 	int	c;
 	int	len;
@@ -2004,7 +2007,10 @@ char *COM_ParseStringSet (char *data)
 	do
 	{
 		if (len >= TOKENSIZE-1)
-			return data;
+		{
+			com_token[len] = 0;
+			return (char*)data;
+		}
 
 		com_token[len] = c;
 		data++;
@@ -2013,11 +2019,11 @@ char *COM_ParseStringSet (char *data)
 	} while (c>32 && c != ';');
 
 	com_token[len] = 0;
-	return data;
+	return (char*)data;
 }
 
 
-char *COM_ParseOut (char *data, char *out, int outlen)
+char *COM_ParseOut (const char *data, char *out, int outlen)
 {
 	int		c;
 	int		len;
@@ -2056,13 +2062,16 @@ skipwhite:
 		while (1)
 		{
 			if (len >= outlen-1)
-				return data;
+			{
+				out[len] = 0;
+				return (char*)data;
+			}
 
 			c = *data++;
 			if (c=='\"' || !c)
 			{
 				out[len] = 0;
-				return data;
+				return (char*)data;
 			}
 			out[len] = c;
 			len++;
@@ -2073,7 +2082,10 @@ skipwhite:
 	do
 	{
 		if (len >= outlen-1)
-			return data;
+		{
+			out[len] = 0;
+			return (char*)data;
+		}
 
 		out[len] = c;
 		data++;
@@ -2082,11 +2094,11 @@ skipwhite:
 	} while (c>32);
 
 	out[len] = 0;
-	return data;
+	return (char*)data;
 }
 
 //same as COM_Parse, but parses two quotes next to each other as a single quote as part of the string
-char *COM_StringParse (char *data, qboolean expandmacros, qboolean qctokenize)
+char *COM_StringParse (const char *data, qboolean expandmacros, qboolean qctokenize)
 {
 	int		c;
 	int		len;
@@ -2144,7 +2156,7 @@ skipwhite:
 			if (len >= TOKENSIZE-1)
 			{
 				com_token[len] = '\0';
-				return data;
+				return (char*)data;
 			}
 
 
@@ -2155,7 +2167,7 @@ skipwhite:
 				if (c!='\"')
 				{
 					com_token[len] = 0;
-					return data;
+					return (char*)data;
 				}
 				while (c=='\"')
 				{
@@ -2168,7 +2180,7 @@ skipwhite:
 			if (!c)
 			{
 				com_token[len] = 0;
-				return data;
+				return (char*)data;
 			}
 			com_token[len] = c;
 			len++;
@@ -2184,7 +2196,7 @@ skipwhite:
 			if (len >= TOKENSIZE-1)
 			{
 				com_token[len] = '\0';
-				return data;
+				return (char*)data;
 			}
 
 
@@ -2195,7 +2207,7 @@ skipwhite:
 				if (c!='\'')
 				{
 					com_token[len] = 0;
-					return data;
+					return (char*)data;
 				}
 				while (c=='\'')
 				{
@@ -2208,7 +2220,7 @@ skipwhite:
 			if (!c)
 			{
 				com_token[len] = 0;
-				return data;
+				return (char*)data;
 			}
 			com_token[len] = c;
 			len++;
@@ -2220,7 +2232,7 @@ skipwhite:
 		// single character
 		com_token[len++] = c;
 		com_token[len] = 0;
-		return data+1;
+		return (char*)data+1;
 	}
 
 // parse a regular word
@@ -2229,7 +2241,7 @@ skipwhite:
 		if (len >= TOKENSIZE-1)
 		{
 			com_token[len] = '\0';
-			return data;
+			return (char*)data;
 		}
 
 		com_token[len] = c;
@@ -2241,7 +2253,7 @@ skipwhite:
 	com_token[len] = 0;
 
 	if (!expandmacros)
-		return data;
+		return (char*)data;
 
 	//now we check for macros.
 	for (s = com_token, c= 0; c < len; c++, s++)	//this isn't a quoted token by the way.
@@ -2267,7 +2279,7 @@ skipwhite:
 				if (len+strlen(macro->string)-(i+1) >= TOKENSIZE-1)	//give up.
 				{
 					com_token[len] = '\0';
-					return data;
+					return (char*)data;
 				}
 				memmove(s+strlen(macro->string), s+i+1, len-c-i);
 				memcpy(s, macro->string, strlen(macro->string));
@@ -2277,7 +2289,7 @@ skipwhite:
 		}
 	}
 
-	return data;
+	return (char*)data;
 }
 
 #define DEFAULT_PUNCTUATION "(,{})(\':;=!><&|+"
@@ -2396,7 +2408,7 @@ skipwhite:
 	return (char*)data;
 }
 
-char *COM_ParseCString (char *data)
+char *COM_ParseCString (const char *data)
 {
 	int		c;
 	int		len;
@@ -2437,14 +2449,14 @@ skipwhite:
 			if (len >= TOKENSIZE-2)
 			{
 				com_token[len] = '\0';
-				return data;
+				return (char*)data;
 			}
 
 			c = *data++;
 			if (!c)
 			{
 				com_token[len] = 0;
-				return data;
+				return (char*)data;
 			}
 			if (c == '\\')
 			{
@@ -2464,13 +2476,13 @@ skipwhite:
 					continue;
 				default:
 					com_token[len] = 0;
-					return data;
+					return (char*)data;
 				}
 			}
 			if (c=='\"' || !c)
 			{
 				com_token[len] = 0;
-				return data;
+				return (char*)data;
 			}
 			com_token[len] = c;
 			len++;
@@ -2489,7 +2501,7 @@ skipwhite:
 	} while (c>32);
 
 	com_token[len] = 0;
-	return data;
+	return (char*)data;
 }
 
 
@@ -2502,7 +2514,7 @@ where the given parameter apears, or 0 if not present
 ================
 */
 
-int COM_CheckNextParm (char *parm, int last)
+int COM_CheckNextParm (const char *parm, int last)
 {
 	int i = last+1;
 
@@ -2517,7 +2529,7 @@ int COM_CheckNextParm (char *parm, int last)
 	return 0;
 }
 
-int COM_CheckParm (char *parm)
+int COM_CheckParm (const char *parm)
 {
 	return COM_CheckNextParm(parm, 0);
 }
@@ -2607,7 +2619,7 @@ void COM_CheckRegistered (void)
 COM_InitArgv
 ================
 */
-void COM_InitArgv (int argc, char **argv)	//not allowed to tprint
+void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 {
 	qboolean	safe;
 	int			i;
@@ -2685,7 +2697,7 @@ COM_AddParm
 Adds the given string at the end of the current argument list
 ================
 */
-void COM_AddParm (char *parm)
+void COM_AddParm (const char *parm)
 {
 	largv[com_argc++] = parm;
 }
@@ -2920,7 +2932,7 @@ void COM_Effectinfo_Reload(void)
 	}
 }
 
-unsigned int COM_Effectinfo_ForName(char *efname)
+unsigned int COM_Effectinfo_ForName(const char *efname)
 {
 	struct effectinfo_s *e;
 

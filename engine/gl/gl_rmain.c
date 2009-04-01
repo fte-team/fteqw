@@ -598,7 +598,7 @@ void R_DrawSpriteModel (entity_t *e)
 
 	GL_DisableMultitexture();
 
-    GL_Bind(frame->gl_texturenum);
+    GL_Bind(frame->p.d.gl.texnum);
 
 	{
 		extern int gldepthfunc;

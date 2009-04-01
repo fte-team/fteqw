@@ -89,13 +89,13 @@ qboolean	NET_CompareAdr (netadr_t a, netadr_t b);
 qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b);
 char		*NET_AdrToString (char *s, int len, netadr_t a);
 char		*NET_BaseAdrToString (char *s, int len, netadr_t a);
-qboolean	NET_StringToSockaddr (char *s, struct sockaddr_qstorage *sadr);
-qboolean	NET_StringToAdr (char *s, netadr_t *a);
+qboolean	NET_StringToSockaddr (const char *s, struct sockaddr_qstorage *sadr);
+qboolean	NET_StringToAdr (const char *s, netadr_t *a);
 qboolean NET_IsClientLegal(netadr_t *adr);
 
 qboolean	NET_IsLoopBackAddress (netadr_t adr);
 
-qboolean NET_StringToAdrMasked (char *s, netadr_t *a, netadr_t *amask);
+qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask);
 char	*NET_AdrToStringMasked (char *s, int len, netadr_t a, netadr_t amask);
 void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits);
 qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask);

@@ -43,6 +43,14 @@ typedef struct
 	qbyte		data[4];			// variably sized
 } qpic_t;
 
+#ifdef RGLQUAKE
+typedef struct
+{
+	int		texnum;
+	float	sl, tl, sh, th;
+} glpic_t;
+#endif
+
 //this is what's actually used.
 #define MPIC_ALPHA 1
 typedef struct	//use this so we don't have to go slow over pics, and don't have to shift too much data around.
@@ -51,7 +59,16 @@ typedef struct	//use this so we don't have to go slow over pics, and don't have 
 	unsigned short	height;
 	qbyte flags;
 	qbyte pad;
-	qbyte		data[4];			// variably sized
+
+	union {
+		int dummy;
+#ifdef RGLQUAKE
+		glpic_t gl;
+#endif
+#ifdef SWQUAKE
+		qbyte		data[4];			// variably sized
+#endif
+	} d;
 } mpic_t;
 
 

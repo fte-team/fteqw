@@ -946,8 +946,7 @@ void	SWVID_Shutdown (void)
 		return;
 	}
 #endif
-	IN_DeactivateMouse();
-	IN_ShowMouse();
+	IN_UpdateGrabs(false, false);
 	SWimp_Shutdown();
 }
 
@@ -964,37 +963,7 @@ void	SWVID_Update (vrect_t *rects)	//end frame...
 #endif
 	SWimp_EndFrame();
 
-	// handle the mouse state when windowed if that's changed
-	if (!vid_isfullscreen)
-	{
-		mouse = false;
-		if (_windowed_mouse.value)
-			if (key_dest == key_game)// || key_dest == key_menu)
-				mouse = true;
-	}
-	else
-	{
-		if (key_dest == key_menu)
-			mouse = false;
-		else
-			mouse = true;
-	}
-	if (!ActiveApp)
-		mouse = false;	//nope can't have it.
-	if (mouse != mouseactive)
-	{
-		if (mouse)
-		{
-			IN_ActivateMouse();
-			IN_HideMouse();
-			IN_UpdateClipCursor();
-		}
-		else
-		{
-			IN_DeactivateMouse();
-			IN_ShowMouse();
-		}
-	}
+	IN_UpdateGrabs(vid_isfullscreen, ActiveApp);
 }
 
 void SWVID_SetCaption(char *text)

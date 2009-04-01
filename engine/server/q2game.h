@@ -32,32 +32,11 @@ typedef enum multicast_e
 
 extern float	pm_q2stepheight;
 
-#ifdef Q2SERVER
+#if defined(Q2SERVER) || defined(Q2CLIENT)
 
 struct trace_s;
 struct q2trace_s;
 struct q2pmove_s;
-
-
-
-
-#define	Q2GAME_API_VERSION	3
-
-// edict->svflags
-
-#define	SVF_NOCLIENT			0x00000001	// don't send entity to clients, even if it has effects
-#define	SVF_DEADMONSTER			0x00000002	// treat as CONTENTS_DEADMONSTER for collision
-#define	SVF_MONSTER				0x00000004	// treat as CONTENTS_MONSTER for collision
-
-// edict->solid values
-
-typedef enum
-{
-Q2SOLID_NOT,			// no interaction with other objects
-Q2SOLID_TRIGGER,		// only touch when inside, after moving
-Q2SOLID_BBOX,			// touch on edge
-Q2SOLID_BSP			// bsp clip, touch on edge
-} q2solid_t;
 
 
 #define	MAXTOUCH	32
@@ -89,6 +68,28 @@ typedef struct q2pmove_s
 } q2pmove_t;
 
 void VARGS Q2_Pmove (q2pmove_t *pmove);
+
+#endif
+#ifdef Q2SERVER
+
+#define	Q2GAME_API_VERSION	3
+
+// edict->svflags
+
+#define	SVF_NOCLIENT			0x00000001	// don't send entity to clients, even if it has effects
+#define	SVF_DEADMONSTER			0x00000002	// treat as CONTENTS_DEADMONSTER for collision
+#define	SVF_MONSTER				0x00000004	// treat as CONTENTS_MONSTER for collision
+
+// edict->solid values
+
+typedef enum
+{
+Q2SOLID_NOT,			// no interaction with other objects
+Q2SOLID_TRIGGER,		// only touch when inside, after moving
+Q2SOLID_BBOX,			// touch on edge
+Q2SOLID_BSP			// bsp clip, touch on edge
+} q2solid_t;
+
 
 //===============================================================
 

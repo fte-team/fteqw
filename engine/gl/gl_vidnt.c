@@ -26,6 +26,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "resource.h"
 #include <commctrl.h>
 
+#ifndef SetWindowLongPtr	//yes its a define, for unicode support
+#define SetWindowLongPtr SetWindowLong
+#endif
 
 #ifndef CDS_FULLSCREEN
 	#define CDS_FULLSCREEN 4
@@ -65,7 +68,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t vid_conwidth, vid_conautoscale;
 
 
-#define WINDOW_CLASS_NAME "WinQuake"
+#define WINDOW_CLASS_NAME "FTEGLQuake"
 
 #define MAX_MODE_LIST	128
 #define VID_ROW_SIZE	3
@@ -349,11 +352,20 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	DIBWidth = info->width;
 	DIBHeight = info->height;
 
-	WindowStyle = WS_OVERLAPPED | WS_BORDER | WS_CAPTION | WS_SYSMENU |
-				  WS_MINIMIZEBOX;
-	ExWindowStyle = 0;
+	if (sys_hijackwindow)
+	{
+		SetWindowLong(sys_hijackwindow, GWL_STYLE, GetWindowLong(sys_hijackwindow, GWL_STYLE)|WS_OVERLAPPED);
+		WindowStyle = WS_CHILDWINDOW|WS_OVERLAPPED;
+		ExWindowStyle = 0;
+	}
+	else
+	{
+		WindowStyle = WS_OVERLAPPED | WS_BORDER | WS_CAPTION | WS_SYSMENU |
+					  WS_MINIMIZEBOX;
+		ExWindowStyle = 0;
 
-	WindowStyle |= WS_SIZEBOX | WS_MAXIMIZEBOX;
+		WindowStyle |= WS_SIZEBOX | WS_MAXIMIZEBOX;
+	}
 
 	rect = WindowRect;
 	AdjustWindowRectEx(&rect, WindowStyle, FALSE, 0);
@@ -370,7 +382,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		 rect.left, rect.top,
 		 wwidth,
 		 wheight,
-		 NULL,
+		 sys_hijackwindow,
 		 NULL,
 		 global_hInstance,
 		 NULL);
@@ -381,9 +393,14 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		return false;
 	}
 
-	// Center and show the DIB window
-	CenterWindow(dibwindow, WindowRect.right - WindowRect.left,
-				 WindowRect.bottom - WindowRect.top, false);
+	if (!sys_hijackwindow)
+	{
+		// Center and show the DIB window
+		CenterWindow(dibwindow, WindowRect.right - WindowRect.left,
+					 WindowRect.bottom - WindowRect.top, false);
+	}
+	else
+		SetFocus(dibwindow);
 
 //	ShowWindow (dibwindow, SW_SHOWDEFAULT);
 //	UpdateWindow (dibwindow);
@@ -575,13 +592,9 @@ static qboolean CreateMainWindow(rendererstate_t *info)
 		{
 			TRACE(("dbg: GLVID_SetMode: VID_SetWindowedMode\n"));
 			stat = VID_SetWindowedMode(info);
-			IN_ActivateMouse ();
-			IN_HideMouse ();
 		}
 		else
 		{
-			IN_DeactivateMouse ();
-			IN_ShowMouse ();
 			TRACE(("dbg: GLVID_SetMode: VID_SetWindowedMode 2\n"));
 			stat = VID_SetWindowedMode(info);
 		}
@@ -590,12 +603,10 @@ static qboolean CreateMainWindow(rendererstate_t *info)
 	{
 		TRACE(("dbg: GLVID_SetMode: VID_SetFullDIBMode\n"));
 		stat = VID_SetFullDIBMode(info);
-		if (stat)
-		{
-			IN_ActivateMouse ();
-			IN_HideMouse ();
-		}
 	}
+
+	IN_UpdateGrabs(info->fullscreen, ActiveApp);
+
 	return stat;
 }
 BOOL CheckForcePixelFormat(rendererstate_t *info);
@@ -604,7 +615,9 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 {
 	int				temp;
 	qboolean		stat;
+#ifndef NPQTV
     MSG				msg;
+#endif
 //	HDC				hdc;
 
 	TRACE(("dbg: GLVID_SetMode\n"));
@@ -676,12 +689,13 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	SetForegroundWindow (mainwindow);
 	VID_SetPalette (palette);
 
-	while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE))
+#ifndef NPQTV
+	while (PeekMessage (&msg, mainwindow, 0, 0, PM_REMOVE))
 	{
       	TranslateMessage (&msg);
       	DispatchMessage (&msg);
 	}
-
+#endif
 	Sleep (100);
 
 	SetWindowPos (mainwindow, HWND_TOP, 0, 0, 0, 0,
@@ -750,7 +764,9 @@ void VID_UnSetMode (void)
 	if (mainwindow)
 	{
 		dibwindow=NULL;
-//		SendMessage(mainwindow, WM_CLOSE, 0, 0);
+	//	ShowWindow(mainwindow, SW_HIDE);
+	//	SetWindowLongPtr(mainwindow, GWL_WNDPROC, DefWindowProc);
+	//	PostMessage(mainwindow, WM_CLOSE, 0, 0);
 		DestroyWindow(mainwindow);
 		mainwindow = NULL;
 	}
@@ -915,33 +931,8 @@ void GL_DoSwap (void)
 		qSwapBuffers(maindc);
 
 // handle the mouse state when windowed if that's changed
-	if (modestate == MS_WINDOWED)
-	{
-		if (!_windowed_mouse.value)
-		{
-			if (mouseactive)
-			{
-				IN_DeactivateMouse ();
-				IN_ShowMouse ();
-			}
-		}
-		else
-		{
-			if ((key_dest == key_game||(mouseusedforgui && key_dest != key_console)) && ActiveApp)
-			{
-				if (!mouseactive)
-				{
-					IN_ActivateMouse ();
-					IN_HideMouse ();
-				}
-			}
-			else if (mouseactive && key_dest == key_console)
-			{//!(key_dest == key_game || mouseusedforgui)) {
-				IN_DeactivateMouse ();
-				IN_ShowMouse ();
-			}
-		}
-	}
+
+	IN_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
 }
 
 void GL_EndRendering (void)
@@ -1041,13 +1032,6 @@ void	GLVID_ShiftPalette (unsigned char *palette)
 		}
 	}
 }
-
-
-void VID_SetDefaultMode (void)
-{
-	IN_DeactivateMouse ();
-}
-
 
 void	GLVID_Shutdown (void)
 {
@@ -1324,12 +1308,12 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 		sound_active = true;
 	}
 
+	IN_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
+
 	if (fActive)
 	{
 		if (modestate != MS_WINDOWED)
 		{
-			IN_ActivateMouse ();
-			IN_HideMouse ();
 			if (vid_canalttab && vid_wassuspended) {
 				vid_wassuspended = false;
 				ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN);
@@ -1339,11 +1323,6 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 				MoveWindow (mainwindow, 0, 0, gdevmode.dmPelsWidth, gdevmode.dmPelsHeight, false);
 			}
 		}
-		else if ((modestate == MS_WINDOWED) && _windowed_mouse.value && (key_dest == key_game || key_dest == key_menu))
-		{
-			IN_ActivateMouse ();
-			IN_HideMouse ();
-		}
 
 		Cvar_ForceCallback(&v_gamma);
 	}
@@ -1352,17 +1331,10 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 	{
 		if (modestate != MS_WINDOWED)
 		{
-			IN_DeactivateMouse ();
-			IN_ShowMouse ();
 			if (vid_canalttab) { 
 				ChangeDisplaySettings (NULL, 0);
 				vid_wassuspended = true;
 			}
-		}
-		else if ((modestate == MS_WINDOWED) && _windowed_mouse.value)
-		{
-			IN_DeactivateMouse ();
-			IN_ShowMouse ();
 		}
 
 		Cvar_ForceCallback(&v_gamma);	//wham bam thanks.
@@ -1405,16 +1377,33 @@ LONG WINAPI GLMainWndProc (
     switch (uMsg)
     {
 		case WM_KILLFOCUS:
+			GLAppActivate(FALSE, Minimized);
 			if (modestate == MS_FULLDIB)
 				ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
+			ClearAllStates ();
+			break;
+		case WM_SETFOCUS:
+			if (!GLAppActivate(TRUE, Minimized))
+				break;
+			ClearAllStates ();
 			break;
 
 		case WM_CREATE:
 			break;
 
 		case WM_MOVE:
-			window_x = (int) LOWORD(lParam);
-			window_y = (int) HIWORD(lParam);
+			{
+				RECT r;
+//				window_x = (int) LOWORD(lParam);
+//				window_y = (int) HIWORD(lParam);
+				GetWindowRect(hWnd, &r);
+				window_x = r.left;
+				window_y = r.top;
+				window_width = r.right - r.left;
+				window_height = r.bottom - r.top;
+				glwidth = window_width;
+				glheight = window_height;
+			}
 			VID_UpdateWindowStatus ();
 			break;
 
@@ -1448,7 +1437,12 @@ LONG WINAPI GLMainWndProc (
 			temp = 0;
 
 			if (wParam & MK_LBUTTON)
+			{
 				temp |= 1;
+#ifdef NPQTV
+				SetFocus(hWnd);
+#endif
+			}
 
 			if (wParam & MK_RBUTTON)
 				temp |= 2;
@@ -1606,6 +1600,7 @@ void VID_Init8bitPalette()
 void GLVID_DeInit (void)
 {
 	GLVID_Shutdown();
+	ActiveApp = false;
 
 	Cvar_Unhook(&_vid_wait_override);
 
@@ -1636,11 +1631,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
     wc.lpszMenuName  = 0;
     wc.lpszClassName = WINDOW_CLASS_NAME;
 
-    if (!RegisterClass (&wc) )
-	{
-		Con_Printf(CON_ERROR "Couldn't register window class\n");
-		return false;
-	}
+	if (!RegisterClass (&wc))	//this isn't really fatal, we'll let the CreateWindow fail instead.
+		MessageBox(NULL, "RegisterClass failed", "GAH", 0);
 
 	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON2));
 

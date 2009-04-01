@@ -37,7 +37,7 @@ typedef int SOCKET;
 cvar_t slist_cacheinfo = SCVAR("slist_cacheinfo", "0");	//this proves dangerous, memory wise.
 cvar_t slist_writeserverstxt = SCVAR("slist_writeservers", "0");
 
-void CL_MasterListParse(int type, qboolean slashpad);
+void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad);
 void CL_QueryServers(void);
 int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite);
 
@@ -83,27 +83,34 @@ int slist_customkeys;
 #endif
 
 
-#define POLLUDPSOCKETS 64	//it's big so we can have lots of messages when behind a firewall. Basically if a firewall only allows replys, and only remembers 3 servers per socket, we need this big cos it can take a while for a packet to find a fast optimised route and we might be waiting for a few secs for a reply the first time around.
-SOCKET pollsocketsUDP[POLLUDPSOCKETS];
-int lastpollsockUDP;
+#define POLLUDP4SOCKETS 64	//it's big so we can have lots of messages when behind a firewall. Basically if a firewall only allows replys, and only remembers 3 servers per socket, we need this big cos it can take a while for a packet to find a fast optimised route and we might be waiting for a few secs for a reply the first time around.
+int lastpollsockUDP4;
+
+#ifdef IPPROTO_IPV6
+#define POLLUDP6SOCKETS 4	//it's non-zero so we can have lots of messages when behind a firewall. Basically if a firewall only allows replys, and only remembers 3 servers per socket, we need this big cos it can take a while for a packet to find a fast optimised route and we might be waiting for a few secs for a reply the first time around.
+int lastpollsockUDP6;
+#else
+#define POLLUDP6SOCKETS 0
+#endif
 
 #ifdef USEIPX
-#define POLLIPXSOCKETS	2	//ipx isn't used as much. In fact, we only expect local servers to be using it. I'm not sure why I implemented it anyway.
-SOCKET pollsocketsIPX[POLLIPXSOCKETS];
+#define POLLIPXSOCKETS	2	//ipx isn't used as much. In fact, we only expect local servers to be using it. I'm not sure why I implemented it anyway. You might see a q2 server using it. Rarely.
 int lastpollsockIPX;
 #else
 #define POLLIPXSOCKETS 0
 #endif
 
+#define FIRSTIPXSOCKET (0)
+#define FIRSTUDP4SOCKET (FIRSTIPXSOCKET+POLLIPXSOCKETS)
+#define FIRSTUDP6SOCKET (FIRSTUDP4SOCKET+POLLUDP4SOCKETS)
+#define POLLTOTALSOCKETS (FIRSTUDP6SOCKET+POLLUDP6SOCKETS)
+SOCKET pollsocketsList[POLLTOTALSOCKETS];
+
 void Master_SetupSockets(void)
 {
 	int i;
-	for (i = 0; i < POLLUDPSOCKETS; i++)
-		pollsocketsUDP[i] = INVALID_SOCKET;
-#ifdef USEIPX
-	for (i = 0; i < POLLIPXSOCKETS; i++)
-		pollsocketsIPX[i] = INVALID_SOCKET;
-#endif
+	for (i = 0; i < POLLTOTALSOCKETS; i++)
+		pollsocketsList[i] = INVALID_SOCKET;
 }
 
 void Master_HideServer(serverinfo_t *server)
@@ -587,6 +594,8 @@ void Master_AddMaster (char *address, int type, char *description)
 			adr.type = NA_BROADCAST_IP;
 		if (adr.type == NA_IPX)
 			adr.type = NA_BROADCAST_IPX;
+		if (adr.type == NA_IPV6)
+			adr.type = NA_BROADCAST_IP6;
 	}
 
 	for (mast = master; mast; mast = mast->next)
@@ -785,24 +794,38 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 		lastpollsockIPX++;
 		if (lastpollsockIPX>=POLLIPXSOCKETS)
 			lastpollsockIPX=0;
-		if (pollsocketsIPX[lastpollsockIPX]==INVALID_SOCKET)
-			pollsocketsIPX[lastpollsockIPX] = IPX_OpenSocket(PORT_ANY, true);
-		if (pollsocketsIPX[lastpollsockIPX]==INVALID_SOCKET)
+		if (pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX]==INVALID_SOCKET)
+			pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX] = IPX_OpenSocket(PORT_ANY, true);
+		if (pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX]==INVALID_SOCKET)
 			return;	//bother
-		ret = sendto (pollsocketsIPX[lastpollsockIPX], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
+		ret = sendto (pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
+	}
+	else
+#endif
+#ifdef IPPROTO_IPV6
+	if (((struct sockaddr*)&addr)->sa_family == AF_INET6)
+	{
+		lastpollsockUDP6++;
+		if (lastpollsockUDP6>=POLLUDP6SOCKETS)
+			lastpollsockUDP6=0;
+		if (pollsocketsList[FIRSTUDP6SOCKET+lastpollsockUDP6]==INVALID_SOCKET)
+			pollsocketsList[FIRSTUDP6SOCKET+lastpollsockUDP6] = UDP6_OpenSocket(PORT_ANY, true);
+		if (pollsocketsList[FIRSTUDP6SOCKET+lastpollsockUDP6]==INVALID_SOCKET)
+			return;	//bother
+		ret = sendto (pollsocketsList[FIRSTUDP6SOCKET+lastpollsockUDP6], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
 	}
 	else
 #endif
 		if (((struct sockaddr*)&addr)->sa_family == AF_INET)
 	{
-		lastpollsockUDP++;
-		if (lastpollsockUDP>=POLLUDPSOCKETS)
-			lastpollsockUDP=0;
-		if (pollsocketsUDP[lastpollsockUDP]==INVALID_SOCKET)
-			pollsocketsUDP[lastpollsockUDP] = UDP_OpenSocket(PORT_ANY, true);
-		if (pollsocketsUDP[lastpollsockUDP]==INVALID_SOCKET)
+		lastpollsockUDP4++;
+		if (lastpollsockUDP4>=POLLUDP4SOCKETS)
+			lastpollsockUDP4=0;
+		if (pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4]==INVALID_SOCKET)
+			pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4] = UDP_OpenSocket(PORT_ANY, true);
+		if (pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4]==INVALID_SOCKET)
 			return;	//bother
-		ret = sendto (pollsocketsUDP[lastpollsockUDP], data, len, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in) );
+		ret = sendto (pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4], data, len, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in) );
 	}
 	else
 		return;
@@ -831,18 +854,13 @@ int NET_CheckPollSockets(void)
 	SOCKET usesocket;
 	char adr[MAX_ADR_SIZE];
 
-	for (sock = 0; sock < POLLUDPSOCKETS+POLLIPXSOCKETS; sock++)
+	for (sock = 0; sock < POLLTOTALSOCKETS; sock++)
 	{
 		int 	ret;
 		struct sockaddr_qstorage	from;
 		int		fromlen;
 
-#ifdef USEIPX
-		if (sock >= POLLUDPSOCKETS)
-			usesocket = pollsocketsIPX[sock-POLLUDPSOCKETS];
-		else
-#endif
-			usesocket = pollsocketsUDP[sock];
+		usesocket = pollsocketsList[sock];
 
 		if (usesocket == INVALID_SOCKET)
 			continue;
@@ -900,10 +918,18 @@ int NET_CheckPollSockets(void)
 				CL_ReadServerInfo(MSG_ReadString(), MT_SINGLEQ2, false);
 				continue;
 			}
-			if (!strncmp(s, "servers", 6))	//parse a bit more...
+#ifdef IPPROTO_IPV6
+			if (!strncmp(s, "server6", 7))	//parse a bit more...
 			{
 				msg_readcount = c+7;
-				CL_MasterListParse(SS_QUAKE2, false);
+				CL_MasterListParse(NA_IPV6, SS_QUAKE2, false);
+				continue;
+			}
+#endif
+			if (!strncmp(s, "servers", 7))	//parse a bit more...
+			{
+				msg_readcount = c+7;
+				CL_MasterListParse(NA_IP, SS_QUAKE2, false);
 				continue;
 			}
 #endif
@@ -915,10 +941,18 @@ int NET_CheckPollSockets(void)
 			}
 #endif
 
+#ifdef IPPROTO_IPV6
+			if (!strncmp(s, "getserversResponse6\\", 20))	//parse a bit more...
+			{
+				msg_readcount = c+19-1;
+				CL_MasterListParse(NA_IPV6, SS_DARKPLACES, true);
+				continue;
+			}
+#endif
 			if (!strncmp(s, "getserversResponse\\", 19))	//parse a bit more...
 			{
 				msg_readcount = c+18-1;
-				CL_MasterListParse(SS_DARKPLACES, true);
+				CL_MasterListParse(NA_IP, SS_DARKPLACES, true);
 				continue;
 			}
 			if (!strcmp(s, "infoResponse"))	//parse a bit more...
@@ -926,6 +960,16 @@ int NET_CheckPollSockets(void)
 				CL_ReadServerInfo(MSG_ReadString(), MT_SINGLEDP, false);
 				continue;
 			}
+
+#ifdef IPPROTO_IPV6
+			if (!strncmp(s, "qw_slist6\\", 10))	//parse a bit more...
+			{
+				msg_readcount = c+9-1;
+				CL_MasterListParse(NA_IPV6, SS_GENERICQUAKEWORLD, false);
+				continue;
+			}
+#endif
+
 			msg_readcount = c;
 
 			c = MSG_ReadByte ();
@@ -938,7 +982,7 @@ int NET_CheckPollSockets(void)
 
 			if (c == M2C_MASTER_REPLY)	//qw master reply.
 			{		
-				CL_MasterListParse(false, false);
+				CL_MasterListParse(NA_IP, SS_GENERICQUAKEWORLD, false);
 				continue;
 			}
 		}
@@ -976,7 +1020,7 @@ int NET_CheckPollSockets(void)
 //				Q_strcat(name, name);
 			}
 
-			CL_ReadServerInfo(va("\\hostname\\%s\\map\\%s\\maxclients\\%i", name, map, maxusers), MT_SINGLENQ, false);
+			CL_ReadServerInfo(va("\\hostname\\%s\\map\\%s\\maxclients\\%i\\clients\\%i", name, map, maxusers, users), MT_SINGLENQ, false);
 		}
 #endif
 		continue;		
@@ -1196,10 +1240,10 @@ void MasterInfo_WriteServers(void)
 	char *typename;
 	master_t *mast;
 	serverinfo_t *server;
-	FILE *mf, *qws;
+	vfsfile_t *mf, *qws;
 	char adr[MAX_ADR_SIZE];
 	
-	mf = fopen("masters.txt", "wt");
+	mf = FS_OpenVFS("masters.txt", "wt", FS_ROOT);
 	if (!mf)
 	{
 		Con_Printf("Couldn't write masters.txt");
@@ -1259,40 +1303,40 @@ void MasterInfo_WriteServers(void)
 			typename = "writeerror";
 		}
 		if (mast->address)
-			fprintf(mf, "%s\t%s\t%s\n", mast->address , typename, mast->name);
+			VFS_PUTS(mf, va("%s\t%s\t%s\n", mast->address , typename, mast->name));
 		else
-			fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), mast->adr), typename, mast->name);
+			VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), mast->adr), typename, mast->name));
 	}
 	
 	if (slist_writeserverstxt.value)
-		qws = fopen("servers.txt", "wt");
+		qws = FS_OpenVFS("servers.txt", "wt", FS_ROOT);
 	else
 		qws = NULL;
 	if (qws)
-		fprintf(mf, "\n%s\t%s\t%s\n\n", "file servers.txt", "favorite:qw", "personal server list");
+		VFS_PUTS(mf, va("\n%s\t%s\t%s\n\n", "file servers.txt", "favorite:qw", "personal server list"));
 		
 	for (server = firstserver; server; server = server->next)
 	{
 		if (server->special & SS_FAVORITE)
 		{
 			if (server->special & SS_QUAKE3)
-				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:q3", server->name);
+				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:q3", server->name));
 			else if (server->special & SS_QUAKE2)
-				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:q2", server->name);
+				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:q2", server->name));
 			else if (server->special & SS_NETQUAKE)
-				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:nq", server->name);
+				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:nq", server->name));
 			else if (qws)	//servers.txt doesn't support the extra info.
-				fprintf(qws, "%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), server->name);
+				VFS_PUTS(qws, va("%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), server->name));
 			else	//read only? damn them!
-				fprintf(mf, "%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:qw", server->name);
+				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:qw", server->name));
 		}
 	}
 	
 	if (qws)
-		fclose(qws);
+		VFS_CLOSE(qws);
 	
 	
-	fclose(mf);
+	VFS_CLOSE(mf);
 }
 
 //poll master servers for server lists.
@@ -1758,19 +1802,36 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 }
 
 //rewrite to scan for existing server instead of wiping all.
-void CL_MasterListParse(int type, qboolean slashpad)
+void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 {
 	serverinfo_t *info;
 	serverinfo_t *last, *old;
+	int adrlen;
 
 	int p1, p2;
 	char adr[MAX_ADR_SIZE];
+	int i;
+
+	switch(adrtype)
+	{
+	case NA_IP:
+		adrlen = 4;
+		break;
+	case NA_IPV6:
+		adrlen = 16;
+		break;
+	case NA_IPX:
+		adrlen = 10;
+		break;
+	default:
+		return;
+	}
 
 	MSG_ReadByte ();
 
 	last = firstserver;
 
-	while(msg_readcount+6 < net_message.cursize)
+	while(msg_readcount+adrlen+2 < net_message.cursize)
 	{
 		if (slashpad)
 		{
@@ -1779,11 +1840,17 @@ void CL_MasterListParse(int type, qboolean slashpad)
 		}
 
 		info = Z_Malloc(sizeof(serverinfo_t));
-		info->adr.type = NA_IP;
-		info->adr.address.ip[0] = MSG_ReadByte();
-		info->adr.address.ip[1] = MSG_ReadByte();
-		info->adr.address.ip[2] = MSG_ReadByte();
-		info->adr.address.ip[3] = MSG_ReadByte();
+		info->adr.type = adrtype;
+		switch(adrtype)
+		{
+		case NA_IP:
+		case NA_IPV6:
+		case NA_IPX:
+			//generic fixed-length addresses
+			for (i = 0; i < adrlen; i++)
+				((qbyte *)&info->adr.address)[i] = MSG_ReadByte();
+			break;
+		}
 
 		p1 = MSG_ReadByte();
 		p2 = MSG_ReadByte();

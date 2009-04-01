@@ -37,6 +37,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <process.h>
 #endif
 
+#if !defined(CLIENTONLY) && !defined(SERVERONLY)
+qboolean isDedicated = false;
+#endif
+
+HWND sys_hijackwindow;
 
 void Sys_CloseLibrary(dllhandle_t *lib)
 {
@@ -51,16 +56,19 @@ dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
 	if (!lib)
 		return NULL;
 
-	for (i = 0; funcs[i].name; i++)
+	if (funcs)
 	{
-		*funcs[i].funcptr = GetProcAddress(lib, funcs[i].name);
-		if (!*funcs[i].funcptr)
-			break;
-	}
-	if (funcs[i].name)
-	{
-		Sys_CloseLibrary((dllhandle_t*)lib);
-		lib = NULL;
+		for (i = 0; funcs[i].name; i++)
+		{
+			*funcs[i].funcptr = GetProcAddress(lib, funcs[i].name);
+			if (!*funcs[i].funcptr)
+				break;
+		}
+		if (funcs[i].name)
+		{
+			Sys_CloseLibrary((dllhandle_t*)lib);
+			lib = NULL;
+		}
 	}
 
 	return (dllhandle_t*)lib;
@@ -462,7 +470,7 @@ qboolean Sys_remove (char *path)
 	return true;
 }
 
-int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void *), void *parm)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;	
@@ -718,7 +726,14 @@ void Sys_Quit (void)
 	SV_Shutdown();
 #endif
 
+#ifdef NPQTV
+	{
+		extern jmp_buf 	host_abort;
+		longjmp (host_abort, 1);
+	}
+#else
 	exit (0);
+#endif
 }
 
 
@@ -1076,9 +1091,9 @@ void Sys_Sleep (void)
 {
 }
 
-
 void Sys_SendKeyEvents (void)
 {
+#ifndef NPQTV
     MSG        msg;
 
 	if (isDedicated)
@@ -1100,6 +1115,7 @@ void Sys_SendKeyEvents (void)
       	TranslateMessage (&msg);
       	DispatchMessage (&msg);
 	}
+#endif
 }
 
 
@@ -1129,6 +1145,128 @@ void SleepUntilInput (int time)
 	MsgWaitForMultipleObjects(1, &tevent, FALSE, time, QS_ALLINPUT);
 }
 
+
+
+
+
+
+
+
+qboolean Sys_Startup_CheckMem(quakeparms_t *parms)
+{
+	int t;
+	MEMORYSTATUS	lpBuffer;
+	lpBuffer.dwLength = sizeof(MEMORYSTATUS);
+	GlobalMemoryStatus (&lpBuffer);
+
+// take the greater of all the available memory or half the total memory,
+// but at least 8 Mb and no more than 16 Mb, unless they explicitly
+// request otherwise
+	parms->memsize = lpBuffer.dwAvailPhys;
+
+	if (parms->memsize < MINIMUM_WIN_MEMORY)
+		parms->memsize = MINIMUM_WIN_MEMORY;
+
+	if (parms->memsize < (lpBuffer.dwTotalPhys >> 1))
+		parms->memsize = lpBuffer.dwTotalPhys >> 1;
+
+	if (parms->memsize > MAXIMUM_WIN_MEMORY)
+		parms->memsize = MAXIMUM_WIN_MEMORY;
+
+	if (COM_CheckParm ("-heapsize"))
+	{
+		t = COM_CheckParm("-heapsize") + 1;
+
+		if (t < com_argc)
+			parms->memsize = Q_atoi (com_argv[t]) * 1024;
+	}
+	else if (COM_CheckParm ("-mem"))
+	{
+		t = COM_CheckParm("-mem") + 1;
+
+		if (t < com_argc)
+			parms->memsize = Q_atoi (com_argv[t]) * 1024*1024;
+	}
+
+	parms->membase = VirtualAlloc (NULL, parms->memsize, MEM_RESERVE, PAGE_NOACCESS);
+//	parms->membase = malloc (parms.memsize);
+
+	if (!parms->membase)
+		return false;
+	return true;
+}
+
+#ifdef NPQTV
+static quakeparms_t	parms;
+double lastlooptime;
+qboolean NPQTV_Sys_Startup(int argc, char *argv[])
+{
+	if (!host_initialized)
+	{
+		TL_InitLanguages();
+
+		parms.argc = argc;
+		parms.argv = argv;
+		parms.basedir = argv[0];
+		COM_InitArgv (parms.argc, parms.argv);
+
+		if (!Sys_Startup_CheckMem(&parms))
+			return false;
+
+		Host_Init (&parms);
+	}
+
+	lastlooptime = Sys_DoubleTime ();
+
+	return true;
+}
+
+void NPQTV_Sys_MainLoop(void)
+{
+	double duratrion, newtime;
+
+	if (isDedicated)
+	{
+#ifndef CLIENTONLY
+		NET_Sleep(50, false);
+
+	// find time passed since last cycle
+		newtime = Sys_DoubleTime ();
+		duratrion = newtime - lastlooptime;
+		lastlooptime = newtime;
+		
+		SV_Frame ();
+#else
+		Sys_Error("wut?");
+#endif
+	}
+	else
+	{
+#ifndef SERVERONLY
+		newtime = Sys_DoubleTime ();
+		duratrion = newtime - lastlooptime;
+		Host_Frame (duratrion);
+		lastlooptime = newtime;
+
+		SetHookState(sys_disableWinKeys.value);
+
+//			Sleep(0);
+#else
+		Sys_Error("wut?");
+#endif
+	}
+}
+
+void NPQTV_Sys_Shutdown(void)
+{
+	//disconnect server/client/etc
+	CL_Disconnect_f();
+	R_ShutdownRenderer();
+
+	Host_Shutdown();
+}
+
+#else
 /*
 ==================
 WinMain
@@ -1140,9 +1278,6 @@ char		*argv[MAX_NUM_ARGVS];
 static char	exename[256];
 HWND		hwnd_dialog;
 
-#if !defined(CLIENTONLY) && !defined(SERVERONLY)
-qboolean isDedicated = false;
-#endif
 /*
 #ifdef _MSC_VER
 #include <signal.h>
@@ -1160,11 +1295,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 //    MSG				msg;
 	quakeparms_t	parms;
 	double			time, oldtime, newtime;
-	MEMORYSTATUS	lpBuffer;
 	char	cwd[1024];
-	int				t;
 	RECT			rect;
-	char *qtvfile = NULL;
+	const char *qtvfile = NULL;
 	
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
@@ -1180,9 +1313,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 */
 	global_hInstance = hInstance;
 	global_nCmdShow = nCmdShow;
-
-	lpBuffer.dwLength = sizeof(MEMORYSTATUS);
-	GlobalMemoryStatus (&lpBuffer);
 
 	parms.argc = 1;
 	argv[0] = exename;
@@ -1301,40 +1431,10 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		SetForegroundWindow (hwnd_dialog);
 	}
 
-// take the greater of all the available memory or half the total memory,
-// but at least 8 Mb and no more than 16 Mb, unless they explicitly
-// request otherwise
-	parms.memsize = lpBuffer.dwAvailPhys;
 
-	if (parms.memsize < MINIMUM_WIN_MEMORY)
-		parms.memsize = MINIMUM_WIN_MEMORY;
-
-	if (parms.memsize < (lpBuffer.dwTotalPhys >> 1))
-		parms.memsize = lpBuffer.dwTotalPhys >> 1;
-
-	if (parms.memsize > MAXIMUM_WIN_MEMORY)
-		parms.memsize = MAXIMUM_WIN_MEMORY;
-
-	if (COM_CheckParm ("-heapsize"))
-	{
-		t = COM_CheckParm("-heapsize") + 1;
-
-		if (t < com_argc)
-			parms.memsize = Q_atoi (com_argv[t]) * 1024;
-	}
-	else if (COM_CheckParm ("-mem"))
-	{
-		t = COM_CheckParm("-mem") + 1;
-
-		if (t < com_argc)
-			parms.memsize = Q_atoi (com_argv[t]) * 1024*1024;
-	}
-
-	parms.membase = VirtualAlloc (NULL, parms.memsize, MEM_RESERVE, PAGE_NOACCESS);
-//	parms.membase = malloc (parms.memsize);
-
-	if (!parms.membase)
+	if (!Sys_Startup_CheckMem(&parms))
 		Sys_Error ("Not enough memory free; check disk space\n");
+
 
 #ifndef CLIENTONLY
 	if (isDedicated)	//compleate denial to switch to anything else - many of the client structures are not initialized.
@@ -1429,6 +1529,7 @@ int __cdecl main(void)
 	FreeConsole();
 	return WinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_NORMAL);
 }
+#endif
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {

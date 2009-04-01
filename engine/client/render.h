@@ -383,6 +383,7 @@ void GL_InfinatePerspective(double fovx, double fovy, double zNear);
 void	GLMod_Init (void);
 int Mod_TagNumForName(struct model_s *model, char *name);
 int Mod_SkinNumForName(struct model_s *model, char *name);
+int Mod_FrameNumForName(struct model_s *model, char *name);
 
 void	GLMod_ClearAll (void);
 struct model_s *GLMod_ForName (char *name, qboolean crash);
@@ -444,11 +445,11 @@ void CLQ2_FlyEffect(struct q2centity_s *ent, vec3_t org);
 void CLQ2_DiminishingTrail(vec3_t oldorg, vec3_t neworg, struct q2centity_s *ent, unsigned int effects);
 void CLQ2_BlasterTrail2(vec3_t oldorg, vec3_t neworg);
 
-void WritePCXfile (char *filename, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
+void WritePCXfile (const char *filename, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
 qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey);
 qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
-qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, char *name);
+qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *name);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 
 void BoostGamma(qbyte *rgba, int width, int height);

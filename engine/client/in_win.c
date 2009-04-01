@@ -401,7 +401,7 @@ void IN_UpdateClipCursor (void)
 IN_ShowMouse
 ===========
 */
-void IN_ShowMouse (void)
+static void IN_ShowMouse (void)
 {
 
 	if (!mouseshowtoggle)
@@ -417,7 +417,7 @@ void IN_ShowMouse (void)
 IN_HideMouse
 ===========
 */
-void IN_HideMouse (void)
+static void IN_HideMouse (void)
 {
 
 	if (mouseshowtoggle)
@@ -433,12 +433,12 @@ void IN_HideMouse (void)
 IN_ActivateMouse
 ===========
 */
-void IN_ActivateMouse (void)
+static void IN_ActivateMouse (void)
 {
 
 	mouseactivatetoggle = true;
 
-	if (mouseinitialized)
+	if (mouseinitialized && !mouseactive)
 	{
 #ifdef AVAIL_DINPUT
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
@@ -504,29 +504,15 @@ void IN_ActivateMouse (void)
 
 /*
 ===========
-IN_SetQuakeMouseState
-===========
-*/
-void IN_SetQuakeMouseState (void)
-{
-	if (mouseactivatetoggle)
-		IN_ActivateMouse ();
-	else
-		IN_DeactivateMouse();
-}
-
-
-/*
-===========
 IN_DeactivateMouse
 ===========
 */
-void IN_DeactivateMouse (void)
+static void IN_DeactivateMouse (void)
 {
 
 	mouseactivatetoggle = false;
 
-	if (mouseinitialized)
+	if (mouseinitialized && mouseactive)
 	{
 #ifdef AVAIL_DINPUT
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
@@ -579,6 +565,18 @@ void IN_DeactivateMouse (void)
 	}
 }
 
+/*
+===========
+IN_SetQuakeMouseState
+===========
+*/
+void IN_SetQuakeMouseState (void)
+{
+	if (mouseactivatetoggle)
+		IN_ActivateMouse ();
+	else
+		IN_DeactivateMouse();
+}
 
 /*
 ===========
@@ -598,6 +596,60 @@ void IN_RestoreOriginalMouseState (void)
 	ShowCursor (TRUE);
 	ShowCursor (FALSE);
 }
+
+
+
+
+void IN_UpdateGrabs(int fullscreen, int activeapp)
+{
+	int grabmouse;
+
+	if (fullscreen)
+		grabmouse = true;
+	else if (activeapp && _windowed_mouse.value)
+	{
+		if (!Key_MouseShouldBeFree())
+			grabmouse = true;
+		else
+			grabmouse = false;
+	}
+	else
+		grabmouse = false;
+
+	//visiblity
+	if (grabmouse)
+		IN_HideMouse();
+	else
+		IN_ShowMouse();
+
+#ifdef HLCLIENT
+	//halflife gamecode does its own mouse control... yes this is vile.
+	if (grabmouse)
+	{
+		if (CLHL_GamecodeDoesMouse())
+			grabmouse = 2;
+	}
+
+	if (grabmouse == 2)
+	{
+		IN_DeactivateMouse();
+		CLHL_SetMouseActive(true);
+		return;
+	}
+
+	CLHL_SetMouseActive(false);
+#endif
+
+	if (grabmouse)
+		IN_ActivateMouse();
+	else
+		IN_DeactivateMouse();
+}
+
+
+
+
+
 
 #ifdef AVAIL_DINPUT
 BOOL CALLBACK IN_EnumerateDevices(LPCDIDEVICEINSTANCE inst, LPVOID parm)
@@ -1315,7 +1367,15 @@ void IN_MouseEvent (int mstate)
 {
 	int		i;
 
-	if ((mouseactive || (key_dest != key_game)) && !dinput)
+	if (dinput)
+		return;
+
+#ifdef HLCLIENT
+	if (CLHL_MouseEvent(mstate))
+		return;
+#endif
+
+	if (mouseactive || (key_dest != key_game))
 	{
 	// perform button actions
 		for (i=0 ; i<sysmouse.numbuttons ; i++)
@@ -1367,18 +1427,21 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 	if (m_forcewheel.value)
 	{
 		mfwt = (int)m_forcewheel_threshold.value;
-		while(mouse->wheeldelta <= -mfwt)
+		if (mfwt)
 		{
-			Key_Event (K_MWHEELUP, true);
-			Key_Event (K_MWHEELUP, false);
-			mouse->wheeldelta += mfwt;
-		}
+			while(mouse->wheeldelta <= -mfwt)
+			{
+				Key_Event (K_MWHEELUP, true);
+				Key_Event (K_MWHEELUP, false);
+				mouse->wheeldelta += mfwt;
+			}
 
-		while(mouse->wheeldelta >= mfwt)
-		{
-			Key_Event (K_MWHEELDOWN, true);
-			Key_Event (K_MWHEELDOWN, false);
-			mouse->wheeldelta -= mfwt;
+			while(mouse->wheeldelta >= mfwt)
+			{
+				Key_Event (K_MWHEELDOWN, true);
+				Key_Event (K_MWHEELDOWN, false);
+				mouse->wheeldelta -= mfwt;
+			}
 		}
 
 		if (m_forcewheel.value < 2)
@@ -1460,10 +1523,6 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 
 	if (!cmd)
 	{
-		if (mx || my)
-		{
-			SetCursorPos (window_center_x, window_center_y);
-		}
 		return;
 	}
 

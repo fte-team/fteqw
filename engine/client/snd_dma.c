@@ -102,6 +102,11 @@ void S_AmbientOn (void)
 	snd_ambient = true;
 }
 
+qboolean S_HaveOutput(void)
+{
+	return sound_started && sndcardinfo;
+}
+
 
 void S_SoundInfo_f(void)
 {
@@ -361,7 +366,7 @@ void S_Startup (void)
 			break;
 	}
 
-	sound_started = 1;
+	sound_started = !!sndcardinfo;
 
 	S_ClearRaw();
 }
@@ -540,11 +545,6 @@ void S_Init (void)
 {
 	int p;
 
-	if (snd_initialized)	//whoops
-	{
-		Con_Printf("Sound is already initialized\n");
-		return;
-	}
 	Con_DPrintf("\nSound Initialization\n");
 
 	Cmd_AddCommand("play", S_Play);
@@ -1115,6 +1115,58 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 
 //=============================================================================
 
+void S_Music_Clear(sfx_t *onlyifsample)
+{
+	//stops the current BGM music
+	//calling this will trigger Media_NextTrack later
+	sfx_t *s;
+	soundcardinfo_t *sc;
+	int i;
+	for (i = NUM_AMBIENTS; i < NUM_AMBIENTS + NUM_MUSICS; i++)
+	{
+		for (sc = sndcardinfo; sc; sc=sc->next)
+		{
+			s = sc->channel[i].sfx;
+			if (!s)
+				continue;
+			if (onlyifsample && s != onlyifsample)
+				continue;
+
+			sc->channel[i].end = 0;
+			sc->channel[i].sfx = NULL;
+
+			if (s)
+			if (s->decoder)
+			if (!S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
+			{
+				s->decoder->abort(s);
+				if (s->cache.data)
+					Cache_Free(&s->cache);
+			}
+		}
+	}
+}
+void S_Music_Seek(float time)
+{
+	soundcardinfo_t *sc;
+	int i;
+	for (i = NUM_AMBIENTS; i < NUM_AMBIENTS + NUM_MUSICS; i++)
+	{
+		for (sc = sndcardinfo; sc; sc=sc->next)
+		{
+			sc->channel[i].pos += sc->sn.speed*time;
+			sc->channel[i].end += sc->sn.speed*time;
+
+			if (sc->channel[i].pos < 0)
+			{	//clamp to the start of the track
+				sc->channel[i].end -= sc->channel[i].pos;
+				sc->channel[i].pos=0;
+			}
+			//if we seek over the end, ignore it. The sound playing code will spot that.
+		}
+	}
+}
+
 /*
 ===================
 S_UpdateAmbientSounds
@@ -1138,7 +1190,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 		chan = &sc->channel[i];
 		if (!chan->sfx)
 		{
-			char *nexttrack = Media_NextTrack();
+			char *nexttrack = Media_NextTrack(i-NUM_AMBIENTS);
 			sfxcache_t *scache;
 			sfx_t *newmusic;
 
@@ -1210,7 +1262,7 @@ S_Update
 Called once each time through the main loop
 ============
 */
-void S_Update(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
+void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, qboolean dontmix)
 {
 	soundcardinfo_t *sc;
 
@@ -1219,12 +1271,24 @@ void S_Update(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
 	VectorCopy(right, listener_right);
 	VectorCopy(up, listener_up);
 
-	S_RunCapture();
+	if (dontmix)
+	{
+		S_RunCapture();
 
-	for (sc = sndcardinfo; sc; sc = sc->next)
-		S_UpdateCard(sc);
+		for (sc = sndcardinfo; sc; sc = sc->next)
+			S_UpdateCard(sc);
+	}
 
 }
+
+void S_GetListenerInfo(float *origin, float *forward, float *right, float *up)
+{
+	VectorCopy(listener_origin, origin);
+	VectorCopy(listener_forward, forward);
+	VectorCopy(listener_right, right);
+	VectorCopy(listener_up, up);
+}
+
 void S_UpdateCard(soundcardinfo_t *sc)
 {
 	int			i, j;

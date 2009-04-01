@@ -159,8 +159,8 @@ void *VARGS Z_TagMalloc(int size, int tag)
 		else
 		{
 			zone->pvdn = zone_head;
-			if (s->next)
-				s->next->pvdn = zone;
+		//	if (s->next)
+		//		s->next->pvdn = zone;
 			zone_head = zone;
 		}
 	}
@@ -2166,6 +2166,9 @@ void Memory_Init (void *buf, int size)
 
 void Memory_DeInit(void)
 {
+	Hunk_TempFree();
+	Cache_Flush();
+
 #ifdef MULTITHREAD
 	if (zonelock)
 	{

@@ -718,6 +718,8 @@ void PF_cl_setmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //float	getmousetarget(void)	  = #604;
 void PF_cl_getmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	extern int mouseusedforgui;
+	G_FLOAT(OFS_RETURN) = mouseusedforgui?1:2;
 }
 
 int MP_TranslateDPtoFTECodes(int code);
@@ -760,6 +762,7 @@ void PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *ret = G_VECTOR(OFS_RETURN);
 	extern int mousemove_x, mousemove_y;
+	extern int mousecursor_x, mousecursor_y;
 
 	ret[0] = mousemove_x;
 	ret[1] = mousemove_y;
@@ -767,8 +770,8 @@ void PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	mousemove_x=0;
 	mousemove_y=0;
 
-/*	ret[0] = mousecursor_x;
-	ret[1] = mousecursor_y;*/
+	ret[0] = mousecursor_x;
+	ret[1] = mousecursor_y;
 	ret[2] = 0;
 }
 
@@ -1637,7 +1640,7 @@ void MP_Init (void)
 	menuprogparms.globalbuiltins = menu_builtins;//builtin_t *globalbuiltins;	//these are available to all progs
 	menuprogparms.numglobalbuiltins = menu_numbuiltins;
 
-	menuprogparms.autocompile = PR_COMPILEEXISTANDCHANGED;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
+	menuprogparms.autocompile = PR_COMPILEIGNORE;//PR_COMPILEEXISTANDCHANGED;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
 
 	menuprogparms.gametime = &menutime;
 

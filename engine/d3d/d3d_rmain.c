@@ -672,7 +672,7 @@ static void D3D7_DrawSpriteModel (entity_t *e)
 	right[1]*=e->scale;
 	right[2]*=e->scale;
 
-	pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, (LPDIRECTDRAWSURFACE7)frame->gl_texturenum);
+	pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, *(LPDIRECTDRAWSURFACE7*)frame->p.d.data);
 
 /*	{
 		extern int gldepthfunc;

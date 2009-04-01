@@ -53,6 +53,7 @@ static int num_csqc_edicts;
 static int csqc_fakereadbyte;
 
 static int csqc_lplayernum;
+static qboolean csqc_isdarkplaces;
 
 #define CSQCPROGSGROUP "CSQC progs control"
 cvar_t	pr_csmaxedicts = SCVAR("pr_csmaxedicts", "3072");
@@ -140,8 +141,6 @@ typedef enum
 	\
 	globalfunction(ent_update,			"CSQC_Ent_Update");	\
 	globalfunction(ent_remove,			"CSQC_Ent_Remove");	\
-	globalfunction(delta_update,		"CSQC_Delta_Update");/*EXT_CSQC_1*/	\
-	globalfunction(delta_remove,		"CSQC_Delta_Remove");/*EXT_CSQC_1*/	\
 	\
 	globalfunction(event_sound,			"CSQC_Event_Sound");	\
 	globalfunction(serversound,			"CSQC_ServerSound");/*obsolete, use event_sound*/	\
@@ -698,8 +697,11 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 	out->g[FST_BASE].endbone = in->v->basebone;
 	if (out->g[FST_BASE].endbone)
 	{	//small optimisation.
+		out->g[FST_BASE].endbone -= 1;
+
 		out->g[FST_BASE].frame[0] = in->v->baseframe;
 		out->g[FST_BASE].frame[1] = in->v->baseframe2;
+		out->g[FST_BASE].lerpfrac = in->v->baselerpfrac;
 		if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
 		{
 			out->g[FST_BASE].frametime[0] = *csqcg.svtime - in->v->baseframe1time;
@@ -710,7 +712,6 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 			out->g[FST_BASE].frametime[0] = in->v->baseframe1time;
 			out->g[FST_BASE].frametime[1] = in->v->baseframe2time;
 		}
-		out->g[FST_BASE].lerpfrac = in->v->baselerpfrac;
 	}
 
 	//and the normal frames.
@@ -928,10 +929,15 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		AngleVectors(out->angles, out->axis[0], out->axis[1], out->axis[2]);
 		VectorInverse(out->axis[1]);
 
-		if (!in->v->scale)
+		if (!in->v->scale || in->v->scale == 1.0f)
 			out->scale = 1;
 		else
+		{
+			VectorScale(out->axis[0], in->v->scale, out->axis[0]);
+			VectorScale(out->axis[1], in->v->scale, out->axis[1]);
+			VectorScale(out->axis[2], in->v->scale, out->axis[2]);
 			out->scale = in->v->scale;
+		}
 	}
 
 	if (in->v->colormap > 0 && in->v->colormap <= MAX_CLIENTS)
@@ -1032,6 +1038,16 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 	int e;
 
 	int oldself = *csqcg.self;
+
+	if (cl.worldmodel)
+	{
+		if (mask & MASK_DELTA)
+		{
+			CL_LinkPlayers ();
+			CL_LinkPacketEntities ();
+		}
+	}
+
 	for (e=1; e < *prinst->parms->sv_num_edicts; e++)
 	{
 		ent = (void*)EDICT_NUM(prinst, e);
@@ -1061,13 +1077,8 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 		{
 			CL_LinkViewModel ();
 		}
-		if (mask & MASK_DELTA)
-		{
-			CL_LinkPlayers ();
-			CL_LinkPacketEntities ();
-			CL_LinkProjectiles ();
-			CL_UpdateTEnts ();
-		}
+		CL_LinkProjectiles ();
+		CL_UpdateTEnts ();
 	}
 }
 
@@ -1990,10 +2001,21 @@ static void PF_cs_pointparticles (progfuncs_t *prinst, struct globalvars_s *pr_g
 
 static void PF_cs_trailparticles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int efnum = G_FLOAT(OFS_PARM0)-1;
-	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
+	int efnum;
+	csqcedict_t *ent;
 	float *start = G_VECTOR(OFS_PARM2);
 	float *end = G_VECTOR(OFS_PARM3);
+
+	if (csqc_isdarkplaces)
+	{
+		efnum = G_FLOAT(OFS_PARM1)-1;
+		ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	}
+	else
+	{
+		efnum = G_FLOAT(OFS_PARM0)-1;
+		ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
+	}
 
 	if (!ent->entnum)	//world trails are non-state-based.
 		pe->ParticleTrail(start, end, efnum, NULL);
@@ -3071,7 +3093,7 @@ static void PF_cs_addprogs (progfuncs_t *prinst, struct globalvars_s *pr_globals
 static void PF_cs_OpenPortal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifdef Q2BSPS
-	if (sv.worldmodel->fromgame == fg_quake2)
+	if (cl.worldmodel->fromgame == fg_quake2)
 		CMQ2_SetAreaPortalState(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
 #endif
 }
@@ -3409,6 +3431,17 @@ static void PF_rotatevectorsbymatrix (progfuncs_t *prinst, struct globalvars_s *
 	VectorNegate(res[1], csqcg.right);
 	VectorCopy(res[2], csqcg.up);
 }
+static void PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int modelindex = G_FLOAT(OFS_PARM0);
+	char *str = PF_VarString(prinst, 1, pr_globals);
+	model_t *mod = CSQC_GetModelForIndex(modelindex);
+
+	if (mod && Mod_FrameForName)
+		G_FLOAT(OFS_RETURN) = Mod_FrameForName(mod, str);
+	else
+		G_FLOAT(OFS_RETURN) = -1;
+}
 static void PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int modelindex = G_FLOAT(OFS_PARM0);
@@ -3416,7 +3449,7 @@ static void PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	model_t *mod = CSQC_GetModelForIndex(modelindex);
 
 
-	if (Mod_SkinForName)
+	if (mod && Mod_SkinForName)
 		G_FLOAT(OFS_RETURN) = Mod_SkinForName(mod, str);
 	else
 		G_FLOAT(OFS_RETURN) = -1;
@@ -4066,24 +4099,355 @@ static void PF_cs_setlistener (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	float *right = G_VECTOR(OFS_PARM2);
 	float *up = G_VECTOR(OFS_PARM3);
 	csqc_usinglistener = true;
-	S_Update(origin, forward, right, up);
+	S_UpdateListener(origin, forward, right, up, false);
 }
-
-typedef struct oldcsqcpack_s
-{
-	unsigned int numents;
-	unsigned int maxents;
-	unsigned short *entnum;
-	csqcedict_t **entptr;
-} oldcsqcpack_t;
-static oldcsqcpack_t loadedcsqcpack[2];
-static int loadedcsqcpacknum;
-static csqcedict_t *deltaedplayerents[MAX_CLIENTS];
 
 #define RSES_NOLERP 1
 #define RSES_NOROTATE 2
 #define RSES_NOTRAILS 4
 #define RSES_NOLIGHTS 8
+
+void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src, csqcedict_t *ent)
+{
+	model_t *model;
+	lerpents_t		*le;
+
+	le = &cl.lerpents[src->number];
+
+	//frames needs special handling
+	ent->v->frame = src->frame;
+	ent->v->frame2 = le->frame;
+	if (le->framechange == le->oldframechange)
+		ent->v->lerpfrac = 0;
+	else
+	{
+		ent->v->lerpfrac = 1-(lerptime - le->framechange) / (le->framechange - le->oldframechange);
+		if (ent->v->lerpfrac > 1)
+			ent->v->lerpfrac = 1;
+		else if (ent->v->lerpfrac < 0)
+		{
+			ent->v->lerpfrac = 0;
+		}
+	}
+
+	model = cl.model_precache[src->modelindex];
+	if (!(flags & RSES_NOTRAILS))
+	{
+		//use entnum as a test to see if its new (if the old origin isn't usable)
+		if (ent->v->entnum && model->particletrail >= 0)
+		{
+			if (pe->ParticleTrail (ent->v->origin, src->origin, model->particletrail, &(le->trailstate)))
+				pe->ParticleTrailIndex(ent->v->origin, src->origin, model->traildefaultindex, 0, &(le->trailstate));
+		}
+	}
+
+	ent->v->entnum = src->number;
+	ent->v->modelindex = src->modelindex;
+//	ent->v->bitmask = src->bitmask;
+	ent->v->flags = src->flags;
+//	ent->v->effects = src->effects;
+	ent->v->origin[0] = src->origin[0];
+	ent->v->origin[1] = src->origin[1];
+	ent->v->origin[2] = src->origin[2];
+	ent->v->angles[0] = src->angles[0];
+	ent->v->angles[1] = src->angles[1];
+	ent->v->angles[2] = src->angles[2];
+
+//we ignore the q2 state fields
+
+	ent->v->colormap = src->colormap;
+	ent->v->skin = src->skinnum;
+//	ent->v->glowsize = src->glowsize;
+//	ent->v->glowcolor = src->glowcolour;
+	ent->v->scale = src->scale/16.0f;
+	ent->v->fatness = src->fatness/16.0f;
+//	ent->v->hexen2flags = src->hexen2flags;
+//	ent->v->abslight = src->abslight;
+//	ent->v->dpflags = src->dpflags;
+//	ent->v->colormod[0] = (src->colormod[0]/255.0f)*8;
+//	ent->v->colormod[1] = (src->colormod[1]/255.0f)*8;
+//	ent->v->colormod[2] = (src->colormod[2]/255.0f)*8;
+	ent->v->alpha = src->trans/255.0f;
+//	ent->v->lightstyle = src->lightstyle;
+//	ent->v->lightpflags = src->lightpflags;
+//	ent->v->solid = src->solid;
+//	ent->v->light[0] = src->light[0];
+//	ent->v->light[1] = src->light[1];
+//	ent->v->light[2] = src->light[2];
+//	ent->v->light[3] = src->light[3];
+//	ent->v->tagentity = src->tagentity;
+//	ent->v->tagindex = src->tagindex;
+
+	if (model)
+	{
+		if (!(flags & RSES_NOROTATE) && (model->flags & EF_ROTATE))
+		{
+			ent->v->angles[0] = 0;
+			ent->v->angles[1] = 100*lerptime;
+			ent->v->angles[2] = 0;
+		}
+	}
+}
+void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
+{
+	ent->v->entnum = pnum+1;
+
+	if (cl.spectator && !Cam_DrawPlayer(0, pnum))
+	{
+		ent->v->modelindex = 0;
+	}
+	else
+		ent->v->modelindex = srcp->modelindex;
+	ent->v->skin = srcp->skinnum;
+
+	ent->v->frame1time = cl.time - cl.lerpplayers[pnum].framechange;
+	ent->v->frame2time = cl.time - cl.lerpplayers[pnum].oldframechange;
+
+	if (ent->v->frame != cl.lerpplayers[pnum].frame)
+	{
+		ent->v->frame2 = ent->v->frame;
+		ent->v->frame = cl.lerpplayers[pnum].frame;
+	}
+
+	ent->v->lerpfrac = 1-(realtime - cl.lerpplayers[pnum].framechange)*10;
+	if (ent->v->lerpfrac > 1)
+		ent->v->lerpfrac = 1;
+	else if (ent->v->lerpfrac < 0)
+	{
+		ent->v->lerpfrac = 0;
+	}
+	VectorCopy(srcp->origin, ent->v->origin);
+	VectorCopy(srcp->velocity, ent->v->velocity);
+	VectorCopy(srcp->viewangles, ent->v->angles);
+	ent->v->angles[0] *= -0.333;
+	ent->v->colormap = pnum+1;
+	ent->v->scale = srcp->scale/16.0f;
+	//ent->v->fatness = srcp->fatness;
+	ent->v->alpha = srcp->alpha/255.0f;
+
+//	ent->v->colormod[0] = (srcp->colormod[0]/255.0f)*8;
+//	ent->v->colormod[1] = (srcp->colormod[1]/255.0f)*8;
+//	ent->v->colormod[2] = (srcp->colormod[2]/255.0f)*8;
+//	ent->v->effects = srcp->effects;
+}
+
+unsigned int deltaflags[MAX_MODELS];
+func_t deltafunction[MAX_MODELS];
+
+typedef struct
+{
+	unsigned int readpos;	//pos
+	unsigned int numents;	//present
+	unsigned int maxents;	//buffer size
+	struct
+	{
+		unsigned short n;	//don't rely on the ent->v->entnum
+		csqcedict_t *e;	//the csqc ent
+	} *e;
+} csqcdelta_pack_t;
+static csqcdelta_pack_t csqcdelta_pack_new;
+static csqcdelta_pack_t csqcdelta_pack_old;
+float csqcdelta_time;
+
+static csqcedict_t *csqcdelta_playerents[MAX_CLIENTS];
+
+
+qboolean CLCSQC_DeltaPlayer(int playernum, player_state_t *state)
+{
+	func_t func;
+
+	if (!state || !state->modelindex)
+	{
+		if (csqcdelta_playerents[playernum])
+		{
+			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)csqcdelta_playerents[playernum]);
+			PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
+			csqcdelta_playerents[playernum] = NULL;
+		}
+		return false;
+	}
+
+	func = deltafunction[state->modelindex];
+	if (func)
+	{
+		void *pr_globals;
+		csqcedict_t *ent;
+
+		ent = csqcdelta_playerents[playernum];
+		if (!ent)
+			ent = (csqcedict_t *)ED_Alloc(csqcprogs);
+
+		CSQC_PlayerStateToCSQC(playernum, state, ent);
+		ent->v->drawmask = MASK_DELTA;
+
+		*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
+		pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+		G_FLOAT(OFS_PARM0) = !csqcdelta_playerents[playernum];
+		PR_ExecuteProgram(csqcprogs, func);
+
+		csqcdelta_playerents[playernum] = ent;
+
+		return true;
+	}
+	else if (csqcdelta_playerents[playernum])
+	{
+		*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)csqcdelta_playerents[playernum]);
+		PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
+		csqcdelta_playerents[playernum] = NULL;
+	}
+	return false;
+}
+
+void CLCSQC_DeltaStart(float time)
+{
+	csqcdelta_pack_t tmp;
+	csqcdelta_time = time;
+
+	tmp = csqcdelta_pack_new;
+	csqcdelta_pack_new = csqcdelta_pack_old;
+	csqcdelta_pack_old = tmp;
+
+	csqcdelta_pack_new.numents = 0;
+
+	csqcdelta_pack_new.readpos = 0;
+	csqcdelta_pack_old.readpos = 0;
+}
+qboolean CLCSQC_DeltaUpdate(entity_state_t *src)
+{
+	//FTE ensures that this function is called with increasing ent numbers each time
+	func_t func;
+	func = deltafunction[src->modelindex];
+	if (func)
+	{
+		void *pr_globals;
+		csqcedict_t *ent, *oldent;
+
+
+
+
+		if (csqcdelta_pack_old.readpos == csqcdelta_pack_old.numents)
+		{	//reached the end of the old frame's ents
+			oldent = NULL;
+		}
+		else
+		{
+			while (csqcdelta_pack_old.readpos < csqcdelta_pack_old.numents && csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].n < src->number)
+			{
+				//this entity is stale, remove it.
+				oldent = csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].e;
+				*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)oldent);
+				PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
+				csqcdelta_pack_old.readpos++;
+			}
+
+			if (src->number < csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].n)
+				oldent = NULL;
+			else
+			{
+				oldent = csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].e;
+				csqcdelta_pack_old.readpos++;
+			}
+		}
+
+		if (src->number < maxcsqcentities && csqcent[src->number])
+		{
+			//in the csqc list (don't permit in the delta list too)
+			if (oldent)
+			{
+				*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)oldent);
+				PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
+			}
+			return false;
+		}
+
+
+
+
+		if (oldent)
+			ent = oldent;
+		else
+			ent = (csqcedict_t *)ED_Alloc(csqcprogs);
+
+		CSQC_EntStateToCSQC(deltaflags[src->modelindex], csqcdelta_time, src, ent);
+		ent->v->drawmask = MASK_DELTA;
+
+	
+		*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
+		pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+		G_FLOAT(OFS_PARM0) = !oldent;
+		PR_ExecuteProgram(csqcprogs, func);
+
+
+		if (csqcdelta_pack_new.maxents <= csqcdelta_pack_new.numents)
+		{
+			csqcdelta_pack_new.maxents = csqcdelta_pack_new.numents + 64;
+			csqcdelta_pack_new.e = BZ_Realloc(csqcdelta_pack_new.e, sizeof(*csqcdelta_pack_new.e)*csqcdelta_pack_new.maxents);
+		}
+		csqcdelta_pack_new.e[csqcdelta_pack_new.numents].e = ent;
+		csqcdelta_pack_new.e[csqcdelta_pack_new.numents].n = src->number;
+		csqcdelta_pack_new.numents++;
+
+		return G_FLOAT(OFS_RETURN);
+	}
+	return false;
+}
+
+void CLCSQC_DeltaEnd(void)
+{
+	//remove any unreferenced ents stuck on the end
+	while (csqcdelta_pack_old.readpos < csqcdelta_pack_old.numents)
+	{
+		*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].e);
+		PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
+		csqcdelta_pack_old.readpos++;
+	}
+}
+
+void PF_DeltaListen(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i;
+	char *mname = PR_GetStringOfs(prinst, OFS_PARM0);
+	func_t func = G_INT(OFS_PARM1);
+	unsigned int flags = G_FLOAT(OFS_PARM2);
+
+	if (PR_GetFuncArgCount(prinst, func) < 0)
+	{
+		Con_Printf("PF_DeltaListen: Bad function index\n");
+		return;
+	}
+
+	if (!strcmp(mname, "*"))
+	{
+		//yes, even things that are not allocated yet
+		for (i = 0; i < MAX_MODELS; i++)
+		{
+			deltafunction[i] = func;
+			deltaflags[i] = flags;
+		}
+	}
+	else
+	{
+		for (i = 1; i < MAX_MODELS; i++)
+		{
+			if (!*cl.model_name[i])
+				break;
+			if (!strcmp(cl.model_name[i], mname))
+			{
+				deltafunction[i] = func;
+				deltaflags[i] = flags;
+				break;
+			}
+		}
+	}
+}
+
+
+
+#if 1
+void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+#else
 
 packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp);
 void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4127,45 +4491,7 @@ void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globa
 				G_FLOAT(OFS_PARM0) = false;
 			}
 
-			ent->v->entnum = i+1;
-
-			if (cl.spectator && !Cam_DrawPlayer(0, i))
-			{
-				ent->v->modelindex = 0;
-			}
-			else
-				ent->v->modelindex = srcp->modelindex;
-			ent->v->skin = srcp->skinnum;
-
-			ent->v->frame1time = cl.time - cl.lerpplayers[i].framechange;
-			ent->v->frame2time = cl.time - cl.lerpplayers[i].oldframechange;
-
-			if (ent->v->frame != cl.lerpplayers[i].frame)
-			{
-				ent->v->frame2 = ent->v->frame;
-				ent->v->frame = cl.lerpplayers[i].frame;
-			}
-
-			ent->v->lerpfrac = 1-(cl.time - cl.lerpplayers[i].framechange)*10;
-			if (ent->v->lerpfrac > 1)
-				ent->v->lerpfrac = 1;
-			else if (ent->v->lerpfrac < 0)
-			{
-				ent->v->lerpfrac = 0;
-			}
-			VectorCopy(srcp->origin, ent->v->origin);
-			VectorCopy(srcp->velocity, ent->v->velocity);
-			VectorCopy(srcp->viewangles, ent->v->angles);
-			ent->v->angles[0] *= -0.333;
-			ent->v->colormap = i+1;
-			ent->v->scale = srcp->scale/16.0f;
-			//ent->v->fatness = srcp->fatness;
-			ent->v->alpha = srcp->alpha/255.0f;
-
-//			ent->v->colormod[0] = (srcp->colormod[0]/255.0f)*8;
-//			ent->v->colormod[1] = (srcp->colormod[1]/255.0f)*8;
-//			ent->v->colormod[2] = (srcp->colormod[2]/255.0f)*8;
-//			ent->v->effects = srcp->effects;
+			CSQC_PlayerStateToCSQC(i, srcp, ent);
 
 			if (csqcg.delta_update)
 			{
@@ -4240,81 +4566,8 @@ void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globa
 		else
 			ent = (csqcedict_t *)ED_Alloc(prinst);
 
-		le = &cl.lerpents[src->number];
-
-		//frames needs special handling
-		ent->v->frame = src->frame;
-		ent->v->frame2 = le->frame;
-		if (le->framechange == le->oldframechange)
-			ent->v->lerpfrac = 0;
-		else
-		{
-			ent->v->lerpfrac = 1-(servertime - le->framechange) / (le->framechange - le->oldframechange);
-			if (ent->v->lerpfrac > 1)
-				ent->v->lerpfrac = 1;
-			else if (ent->v->lerpfrac < 0)
-			{
-				ent->v->lerpfrac = 0;
-			}
-		}
-
-		model = cl.model_precache[src->modelindex];
-		if (!(flags & RSES_NOTRAILS))
-		{
-			if (oldent && model->particletrail >= 0)
-			{
-				if (pe->ParticleTrail (ent->v->origin, src->origin, model->particletrail, &(le->trailstate)))
-					pe->ParticleTrailIndex(ent->v->origin, src->origin, model->traildefaultindex, 0, &(le->trailstate));
-			}
-		}
-
-		ent->v->entnum = src->number;
-		ent->v->modelindex = src->modelindex;
-//		ent->v->bitmask = src->bitmask;
-		ent->v->flags = src->flags;
-//		ent->v->effects = src->effects;
-		ent->v->origin[0] = src->origin[0];
-		ent->v->origin[1] = src->origin[1];
-		ent->v->origin[2] = src->origin[2];
-		ent->v->angles[0] = src->angles[0];
-		ent->v->angles[1] = src->angles[1];
-		ent->v->angles[2] = src->angles[2];
-
-	//we ignore the q2 state fields
-
-		ent->v->colormap = src->colormap;
-		ent->v->skin = src->skinnum;
-//		ent->v->glowsize = src->glowsize;
-//		ent->v->glowcolor = src->glowcolour;
-		ent->v->scale = src->scale/16.0f;
-		ent->v->fatness = src->fatness/16.0f;
-//		ent->v->hexen2flags = src->hexen2flags;
-//		ent->v->abslight = src->abslight;
-//		ent->v->dpflags = src->dpflags;
-//		ent->v->colormod[0] = (src->colormod[0]/255.0f)*8;
-//		ent->v->colormod[1] = (src->colormod[1]/255.0f)*8;
-//		ent->v->colormod[2] = (src->colormod[2]/255.0f)*8;
-		ent->v->alpha = src->trans/255.0f;
-//		ent->v->lightstyle = src->lightstyle;
-//		ent->v->lightpflags = src->lightpflags;
-//		ent->v->solid = src->solid;
-//		ent->v->light[0] = src->light[0];
-//		ent->v->light[1] = src->light[1];
-//		ent->v->light[2] = src->light[2];
-//		ent->v->light[3] = src->light[3];
-//		ent->v->tagentity = src->tagentity;
-//		ent->v->tagindex = src->tagindex;
-
-		if (model)
-		{
-			if (!(flags & RSES_NOROTATE) && (model->flags & EF_ROTATE))
-			{
-				ent->v->angles[0] = 0;
-				ent->v->angles[1] = 100*servertime;
-				ent->v->angles[2] = 0;
-			}
-		}
-
+		CSQC_EntStateToCSQC(flags, servertime, src, ent);
+		
 		if (csqcg.delta_update)
 		{
 			*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
@@ -4345,6 +4598,7 @@ void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	newlist->numents = newidx;
 }
+#endif
 
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
 
@@ -4560,6 +4814,7 @@ static struct {
 	{"skel_mul_bones",		PF_skel_mul_bones,		272},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
 	{"skel_copybones",		PF_skel_copybones,		273},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_delete",			PF_skel_delete,			274},//void(float skel) skel_delete (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforname",		PF_frameforname,		275},		// #275
 
 //300
 	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
@@ -4659,9 +4914,11 @@ static struct {
 	{"readangle",	PF_ReadAngle,					365},	// #365 float() readangle (EXT_CSQC)
 	{"readstring",	PF_ReadString,					366},	// #366 string() readstring (EXT_CSQC)
 	{"readfloat",	PF_ReadFloat,					367},	// #367 string() readfloat (EXT_CSQC)
-
 	{"readentitynum",	PF_ReadEntityNum,				368},	// #368 float() readentitynum (EXT_CSQC)
+
 	{"readserverentitystate",	PF_ReadServerEntityState,		369},	// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)
+//	{"readsingleentitystate",	PF_ReadSingleEntityState,		370},
+	{"deltalisten",	PF_DeltaListen,					371},		// #371 float(string modelname, float flags) deltalisten  (EXT_CSQC_1)
 
 //400
 	{"copyentity",	PF_cs_copyentity,		400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
@@ -4901,6 +5158,8 @@ void CSQC_Shutdown(void)
 	csqcprogs = NULL;
 
 	in_sensitivityscale = 1;
+
+	csqc_usinglistener = false;
 }
 
 //when the qclib needs a file, it calls out to this function.
@@ -5019,6 +5278,8 @@ qboolean CSQC_Init (unsigned int checksum)
 	csqcedict_t *worldent;
 	csqcchecksum = checksum;
 
+	csqc_usinglistener = false;
+
 	//its already running...
 	if (csqcprogs)
 		return false;
@@ -5070,7 +5331,7 @@ qboolean CSQC_Init (unsigned int checksum)
 	csqcprogparms.globalbuiltins = pr_builtin;//builtin_t *globalbuiltins;	//these are available to all progs
 	csqcprogparms.numglobalbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 
-	csqcprogparms.autocompile = PR_NOCOMPILE;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
+	csqcprogparms.autocompile = PR_COMPILEIGNORE;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
 
 	csqcprogparms.gametime = &csqctime;
 
@@ -5089,11 +5350,16 @@ qboolean CSQC_Init (unsigned int checksum)
 
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
 
-		if (PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0) < 0) //no per-progs builtins.
+		csqc_isdarkplaces = false;
+		if (PR_LoadProgs(csqcprogs, "csprogs.dat", 32199, NULL, 0) < 0) //no per-progs builtins.
 		{
-			CSQC_Shutdown();
-			//failed to load or something
-			return false;
+			if (PR_LoadProgs(csqcprogs, "csprogs.dat", 52195, NULL, 0) < 0) //no per-progs builtins.
+			{
+				CSQC_Shutdown();
+				//failed to load or something
+				return false;
+			}
+			csqc_isdarkplaces = true;
 		}
 		if (setjmp(csqc_abort))
 		{
@@ -5120,17 +5386,16 @@ qboolean CSQC_Init (unsigned int checksum)
 		worldent->readonly = true;
 		worldent->isfree = false;
 		worldent->v->model = PR_SetString(csqcprogs, cl.model_name[1]);
-		for (i = 0; i < 2; i++)
-		{
-			loadedcsqcpack[i].numents = 0;
-			loadedcsqcpack[i].maxents = 0;
-			Z_Free(loadedcsqcpack[i].entptr);
-			loadedcsqcpack[i].entptr = NULL;
-			Z_Free(loadedcsqcpack[i].entnum);
-			loadedcsqcpack[i].entnum = NULL;
-		}
 
-		memset(deltaedplayerents, 0, sizeof(deltaedplayerents));
+		Z_Free(csqcdelta_pack_new.e);
+		memset(&csqcdelta_pack_new, 0, sizeof(csqcdelta_pack_new));
+		Z_Free(csqcdelta_pack_old.e);
+		memset(&csqcdelta_pack_old, 0, sizeof(csqcdelta_pack_old));
+
+		memset(&deltafunction, 0, sizeof(deltafunction));
+
+		memset(csqcdelta_playerents, 0, sizeof(csqcdelta_playerents));
+
 		csqcmapentitydata = NULL;
 		csqcmapentitydataloaded = false;
 
@@ -5413,6 +5678,11 @@ qboolean CSQC_ParseTempEntity(unsigned char firstbyte)
 	PR_ExecuteProgram (csqcprogs, csqcg.parse_tempentity);
 	csqc_fakereadbyte = -1;
 	return !!G_FLOAT(OFS_RETURN);
+}
+
+qboolean CSQC_ParseGamePacket(void)
+{
+	return false;
 }
 
 qboolean CSQC_LoadResource(char *resname, char *restype)

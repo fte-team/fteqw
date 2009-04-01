@@ -343,7 +343,7 @@ mpic_t	*D3D9_Draw_SafePicFromWad			(char *name)
 
 	Q_strncpyz (pic->name, name, sizeof(pic->name));
 
-	p = (LPDIRECT3DBASETEXTURE9*)&pic->pic.data;
+	p = (LPDIRECT3DBASETEXTURE9*)&pic->pic.d.data;
 	if (!strcmp(name, "conchars"))
 	{
 		pic->pic.width = 256;
@@ -396,7 +396,7 @@ mpic_t	*D3D9_Draw_SafeCachePic		(char *path)
 
 	Q_strncpyz (pic->name, path, sizeof(pic->name));
 
-	p = (LPDIRECT3DBASETEXTURE9*)&pic->pic.data;
+	p = (LPDIRECT3DBASETEXTURE9*)&pic->pic.d.data;
 
 	if (qpic)
 	{
@@ -453,7 +453,7 @@ void	D3D9_Draw_ReInit				(void)
 	strcpy(d3dmenu_cachepics[d3dmenu_numcachepics].name, "conchars");
 	d3dmenu_cachepics[d3dmenu_numcachepics].pic.width = 128;
 	d3dmenu_cachepics[d3dmenu_numcachepics].pic.height = 128;
-	*(int *)&d3dmenu_cachepics[d3dmenu_numcachepics].pic.data = (int)d3d9chars_tex;
+	*(int *)&d3dmenu_cachepics[d3dmenu_numcachepics].pic.d.data = (int)d3d9chars_tex;
 	d3dmenu_numcachepics++;
 
 
@@ -751,7 +751,7 @@ void	D3D9_Draw_Image					(float x, float y, float w, float h, float s1, float t1
 	d3d9quadvert[3].s = s1;// - 3.0/pic->width;
 	d3d9quadvert[3].t = t2;
 
-	p = (LPDIRECT3DBASETEXTURE9*)&pic->data;
+	p = (LPDIRECT3DBASETEXTURE9*)&pic->d.data;
 	IDirect3DDevice9_SetTexture(pD3DDev9, 0, *p);
 
 	IDirect3DDevice9_SetTextureStageState(pD3DDev9, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
@@ -820,7 +820,7 @@ void D3D9_Media_ShowFrameBGR_24_Flip	(qbyte *framedata, int inwidth, int inheigh
 {
 	mpic_t pic;
 	LPDIRECT3DBASETEXTURE9 *p;
-	p = (LPDIRECT3DBASETEXTURE9*)&pic.data;
+	p = (LPDIRECT3DBASETEXTURE9*)&pic.d.data;
 	*p = D3D9_LoadTexture_32("", (unsigned int*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP);
 
 	D3D9_Set2D ();
@@ -839,7 +839,7 @@ void D3D9_Media_ShowFrameRGBA_32		(qbyte *framedata, int inwidth, int inheight)
 	pic.width = inwidth;
 	pic.height = inheight;
 	pic.flags = 0;
-	p = (LPDIRECT3DBASETEXTURE9*)&pic.data;
+	p = (LPDIRECT3DBASETEXTURE9*)&pic.d;
 	*p = D3D9_LoadTexture_32("", (unsigned int*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP);
 
 	D3D9_Set2D ();
@@ -854,7 +854,7 @@ void (D3D9_Media_ShowFrame8bit)			(qbyte *framedata, int inwidth, int inheight, 
 {
 	mpic_t pic;
 	LPDIRECT3DBASETEXTURE9 *p;
-	p = (LPDIRECT3DBASETEXTURE9*)&pic.data;
+	p = (LPDIRECT3DBASETEXTURE9*)&pic.d;
 	*p = D3D9_LoadTexture_8_Pal24("", (unsigned char*)framedata, inwidth, inheight, TF_NOMIPMAP|TF_NOALPHA|TF_NOTBUMPMAP, palette, 256);
 
 	D3D9_Set2D ();

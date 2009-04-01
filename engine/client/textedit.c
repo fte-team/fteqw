@@ -312,7 +312,7 @@ void EditorOpenFile(char *name)
 		memcpy(firstblock->data, line, len);
 		if (editprogfuncs)
 		{
-			if (editprogfuncs->ToggleBreak(editprogfuncs, OpenEditorFile+strlen(com_gamedir)+1, i, 3))
+			if (editprogfuncs->ToggleBreak(editprogfuncs, OpenEditorFile, i, 3))
 			{
 				firstblock->flags |= FB_BREAK;
 			}
@@ -321,7 +321,7 @@ void EditorOpenFile(char *name)
 		{
 			if (svprogfuncs)
 			{
-				if (svprogfuncs->ToggleBreak(svprogfuncs, OpenEditorFile+strlen(com_gamedir)+1, i, 3))
+				if (svprogfuncs->ToggleBreak(svprogfuncs, OpenEditorFile, i, 3))
 				{
 					firstblock->flags |= FB_BREAK;
 				}

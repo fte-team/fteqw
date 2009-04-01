@@ -843,26 +843,31 @@ void M_Menu_Quit_f (void)
 {
 	int		i;
 
+	if (1)
+	{
 		CL_Disconnect ();
 		Sys_Quit ();
+	}
+	else
+	{
+		key_dest = key_menu;
+		m_state = m_complex;
 
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	M_RemoveMenu(&quitmenu);
-	memset(&quitmenu, 0, sizeof(quitmenu));
-	M_AddMenuFront(&quitmenu);
-	quitmenu.exclusive = false;
-	quitmenu.key = MC_Quit_Key;
+		M_RemoveMenu(&quitmenu);
+		memset(&quitmenu, 0, sizeof(quitmenu));
+		M_AddMenuFront(&quitmenu);
+		quitmenu.exclusive = false;
+		quitmenu.key = MC_Quit_Key;
 
 
-	i = rand()&7;
+		i = rand()&7;
 
-	MC_AddWhiteText(&quitmenu, 64, 84, quitMessage[i*4+0], false);
-	MC_AddWhiteText(&quitmenu, 64, 92, quitMessage[i*4+1], false);
-	MC_AddWhiteText(&quitmenu, 64, 100, quitMessage[i*4+2], false);
-	MC_AddWhiteText(&quitmenu, 64, 108, quitMessage[i*4+3], false);
-	MC_AddBox (&quitmenu, 56, 76, 24, 4);
+		MC_AddWhiteText(&quitmenu, 64, 84, quitMessage[i*4+0], false);
+		MC_AddWhiteText(&quitmenu, 64, 92, quitMessage[i*4+1], false);
+		MC_AddWhiteText(&quitmenu, 64, 100, quitMessage[i*4+2], false);
+		MC_AddWhiteText(&quitmenu, 64, 108, quitMessage[i*4+3], false);
+		MC_AddBox (&quitmenu, 56, 76, 24, 4);
+	}
 }
 
 //=============================================================================

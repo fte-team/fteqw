@@ -142,4 +142,64 @@ void GLR_NetGraph (void)
 	qglEnd ();
 }
 
+void GLR_FrameTimeGraph (int frametime)
+{
+	int		a, x, i, y;
+	int lost;
+	char st[80];
+	unsigned	ngraph_pixels[NET_GRAPHHEIGHT][NET_TIMINGS];
+
+	static int timehistory[NET_TIMINGS];
+	static int findex;
+
+	timehistory[findex++&NET_TIMINGSMASK] = frametime;
+
+	x = 0;
+	lost = CL_CalcNet();
+	for (a=0 ; a<NET_TIMINGS ; a++)
+	{
+		i = (findex-a) & NET_TIMINGSMASK;
+		R_LineGraph (NET_TIMINGS-1-a, timehistory[i]);
+	}
+
+	// now load the netgraph texture into gl and draw it
+	for (y = 0; y < NET_GRAPHHEIGHT; y++)
+		for (x = 0; x < NET_TIMINGS; x++)
+			ngraph_pixels[y][x] = d_8to24rgbtable[ngraph_texels[y][x]];
+
+	x =	((vid.width - 320)>>1);
+	x=-x;
+	y = vid.height - sb_lines - 24 - NET_GRAPHHEIGHT - 1;
+
+	M_DrawTextBox (x, y, NET_TIMINGS/8, NET_GRAPHHEIGHT/8 + 1);
+	y += 8;
+
+	sprintf(st, "%3i%% packet loss", lost);
+	Draw_String(8, y, st);
+	y += 8;
+	
+    GL_Bind(netgraphtexture);
+
+	qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 
+		NET_TIMINGS, NET_GRAPHHEIGHT, 0, GL_RGBA, 
+		GL_UNSIGNED_BYTE, ngraph_pixels);
+
+	GL_TexEnv(GL_MODULATE);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	x = 8;
+	qglColor3f (1,1,1);
+	qglBegin (GL_QUADS);
+	qglTexCoord2f (0, 0);
+	qglVertex2f (x, y);
+	qglTexCoord2f (1, 0);
+	qglVertex2f (x+NET_TIMINGS, y);
+	qglTexCoord2f (1, 1);
+	qglVertex2f (x+NET_TIMINGS, y+NET_GRAPHHEIGHT);
+	qglTexCoord2f (0, 1);
+	qglVertex2f (x, y+NET_GRAPHHEIGHT);
+	qglEnd ();
+}
+
 #endif

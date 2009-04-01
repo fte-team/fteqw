@@ -2061,8 +2061,10 @@ void GLR_DrawWaterSurfaces (void)
 }
 
 
-static void GLR_DrawAlphaSurface(msurface_t	*s)
+static void GLR_DrawAlphaSurface(int count, msurface_t	**surfs, void *type)
 {
+	msurface_t *s = (*surfs);
+
 	qglPushMatrix();
 	R_RotateForEntity(s->ownerent);
 #ifdef Q3SHADERS
@@ -3620,7 +3622,6 @@ void GL_CreateSurfaceLightmap (msurface_t *surf, int shift)
 void GLSurf_DeInit(void)
 {
 	int i;
-	qglDeleteTextures(numlightmaps, lightmap_textures);
 	for (i = 0; i < numlightmaps; i++)
 	{
 		if (!lightmap[i])
@@ -3630,7 +3631,10 @@ void GLSurf_DeInit(void)
 	}
 
 	if (lightmap_textures)
+	{
+		qglDeleteTextures(numlightmaps, lightmap_textures);
 		BZ_Free(lightmap_textures);
+	}
 	if (lightmap)
 		BZ_Free(lightmap);
 
@@ -3650,7 +3654,7 @@ with all the surfaces from all brush models
 */
 void GL_BuildLightmaps (void)
 {
-	int		i, j;
+	int		i, j, t;
 	model_t	*m;
 	int shift;
 
@@ -3740,13 +3744,19 @@ void GL_BuildLightmaps (void)
 		currentmodel = m;
 		shift = GLR_LightmapShift(currentmodel);
 
-		for (i=0 ; i<m->numsurfaces ; i++)
+		for (t = 0; t < m->numtextures; t++)
 		{
-			GL_CreateSurfaceLightmap (m->surfaces + i, shift);
-			P_EmitSkyEffectTris(m, &m->surfaces[i]);
-			if (m->surfaces[i].mesh)	//there are some surfaces that have a display list already (the subdivided ones)
-				continue;
-			GL_BuildSurfaceDisplayList (m->surfaces + i);
+			for (i=0 ; i<m->numsurfaces ; i++)
+			{//extra surface loop so we get slightly less texture switches
+				if (m->surfaces[i].texinfo->texture == m->textures[t])
+				{
+					GL_CreateSurfaceLightmap (m->surfaces + i, shift);
+					P_EmitSkyEffectTris(m, &m->surfaces[i]);
+					if (m->surfaces[i].mesh)	//there are some surfaces that have a display list already (the subdivided ones)
+						continue;
+					GL_BuildSurfaceDisplayList (m->surfaces + i);
+				}
+			}
 		}
 	}
 

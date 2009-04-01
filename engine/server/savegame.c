@@ -548,6 +548,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 #ifdef Q2SERVER
 	if (gametype == GT_QUAKE2)
 	{
+		char syspath[MAX_OSPATH];
 		SV_SpawnServer (level, startspot, false, false);
 
 		SV_ClearWorld();
@@ -557,7 +558,10 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 			return false;
 		}
 
-		ge->ReadLevel(va("%s/%s", com_gamedir, name));
+		if (!FS_NativePath(name, FS_GAMEONLY, syspath, sizeof(syspath)))
+			return false;
+
+		ge->ReadLevel(syspath);
 
 		for (i=0 ; i<100 ; i++)	//run for 10 secs to iron out a few bugs.
 			ge->RunFrame ();
@@ -745,7 +749,7 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 	int clnum;
 
 	char	name[256];
-	FILE	*f;
+	vfsfile_t	*f;
 	int		i;
 	char	comment[SAVEGAME_COMMENT_LENGTH+1];
 
@@ -773,10 +777,10 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 	}
 
 
-	sprintf (name, "%s/saves/%s", com_gamedir, cache->mapname);
+	sprintf (name, "saves/%s", cache->mapname);
 	COM_DefaultExtension (name, ".lvc", sizeof(name));
 
-	COM_CreatePath(name);
+	FS_CreatePath(name, FS_GAMEONLY);
 
 	if (!dontharmgame)	//save game in progress
 		Con_TPrintf (STL_SAVEGAMETO, name);
@@ -784,11 +788,11 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 #ifdef Q2SERVER
 	if (ge)
 	{
-		char	path[256];
-		strcpy(path, name);
-		path[COM_SkipPath(name)-name] = '\0';
-		Sys_mkdir(path);
-		ge->WriteLevel(name);
+		char	syspath[256];
+
+		if (!FS_NativePath(name, FS_GAMEONLY, syspath, sizeof(syspath)))
+			return;
+		ge->WriteLevel(syspath);
 		return;
 	}
 #endif
@@ -801,16 +805,16 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 	}
 #endif
 
-	f = fopen (name, "wb");
+	f = FS_OpenVFS (name, "wb", FS_GAME);
 	if (!f)
 	{
 		Con_TPrintf (STL_ERRORCOULDNTOPEN);
 		return;
 	}
 
-	fprintf (f, "%i\n", CACHEGAME_VERSION);
+	VFS_PRINTF (f, "%i\n", CACHEGAME_VERSION);
 	SV_SavegameComment (comment);
-	fprintf (f, "%s\n", comment);
+	VFS_PRINTF (f, "%s\n", comment);
 	for (cl = svs.clients, clnum=0; clnum < MAX_CLIENTS; cl++,clnum++)//fake dropping
 	{
 		if ((cl->state < cs_spawned && !cl->istobeloaded) || dontharmgame)	//don't drop if they are still connecting
@@ -832,47 +836,47 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 			PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
 		}
 	}
-	fprintf (f, "%d\n", progstype);
-	fprintf (f, "%f\n", skill.value);
-	fprintf (f, "%f\n", deathmatch.value);
-	fprintf (f, "%f\n", coop.value);
-	fprintf (f, "%f\n", teamplay.value);
-	fprintf (f, "%s\n", sv.name);
-	fprintf (f, "%f\n",sv.time);
+	VFS_PRINTF (f, "%d\n", progstype);
+	VFS_PRINTF (f, "%f\n", skill.value);
+	VFS_PRINTF (f, "%f\n", deathmatch.value);
+	VFS_PRINTF (f, "%f\n", coop.value);
+	VFS_PRINTF (f, "%f\n", teamplay.value);
+	VFS_PRINTF (f, "%s\n", sv.name);
+	VFS_PRINTF (f, "%f\n",sv.time);
 
 // write the light styles
 
-	fprintf (f, "%i\n",MAX_LIGHTSTYLES);
+	VFS_PRINTF (f, "%i\n",MAX_LIGHTSTYLES);
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
 		if (sv.strings.lightstyles[i])
-			fprintf (f, "%s\n", sv.strings.lightstyles[i]);
+			VFS_PRINTF (f, "%s\n", sv.strings.lightstyles[i]);
 		else
-			fprintf (f, "\n", sv.strings.lightstyles[i]);
+			VFS_PRINTF (f, "\n", sv.strings.lightstyles[i]);
 	}
 
 	for (i=1 ; i<MAX_MODELS ; i++)
 	{
 		if (sv.strings.model_precache[i])
-			fprintf (f, "%s\n", sv.strings.model_precache[i]);
+			VFS_PRINTF (f, "%s\n", sv.strings.model_precache[i]);
 		else
 			break;
 	}
-	fprintf (f,"\n");
+	VFS_PRINTF (f,"\n");
 	for (i=1 ; i<MAX_SOUNDS ; i++)
 	{
 		if (*sv.strings.sound_precache[i])
-			fprintf (f, "%s\n", sv.strings.sound_precache[i]);
+			VFS_PRINTF (f, "%s\n", sv.strings.sound_precache[i]);
 		else
 			break;
 	}
-	fprintf (f,"\n");
+	VFS_PRINTF (f,"\n");
 
 	s = PR_SaveEnts(svprogfuncs, NULL, &len, 1);
-	fprintf(f, "%s\n", s);
+	VFS_PRINTF(f, "%s\n", s);
 	svprogfuncs->parms->memfree(s);
 
-	fclose (f);
+	VFS_CLOSE (f);
 }
 
 #ifdef NEWSAVEFORMAT
@@ -901,11 +905,8 @@ void SV_Savegame_f (void)
 	client_t *cl;
 	int clnum;
 	char	comment[SAVEGAME_COMMENT_LENGTH+1];
-	FILE *f, *f2;
-	char filename[MAX_OSPATH];
+	vfsfile_t *f;
 	int len;
-	char *buffer=NULL;
-	int buflen=0;
 	char *savename;
 	levelcache_t *cache;
 	char str[MAX_LOCALINFO_STRING+1];
@@ -921,111 +922,81 @@ void SV_Savegame_f (void)
 	if (!*savename || strstr(savename, ".."))
 		savename = "quicksav";
 
-	sprintf (filename, "%s/saves/%s/info.fsv", com_gamedir, savename);
-	COM_CreatePath(filename);
-	f = fopen(filename, "wt");
+	f = FS_OpenVFS(va("saves/%s/info.fsv", savename), "wt", FS_GAMEONLY);
 	if (!f)
 	{
-		Con_Printf("Couldn't open file %s\n", filename);
+		Con_Printf("Couldn't open file saves/%s/info.fsv\n", savename);
 		return;
 	}
 	SV_SavegameComment(comment);
-	fprintf (f, "%d\n", FTESAVEGAME_VERSION+svs.gametype);
-	fprintf (f, "%s\n", comment);
+	VFS_PRINTF (f, "%d\n", FTESAVEGAME_VERSION+svs.gametype);
+	VFS_PRINTF (f, "%s\n", comment);
 
-	fprintf(f, "%i\n", sv.allocated_client_slots);
+	VFS_PRINTF(f, "%i\n", sv.allocated_client_slots);
 	for (cl = svs.clients, clnum=0; clnum < sv.allocated_client_slots; cl++,clnum++)
 	{
 		if (cl->state < cs_spawned && !cl->istobeloaded)	//don't save if they are still connecting
 		{
-			fprintf(f, "\n");
+			VFS_PRINTF(f, "\n");
 			continue;
 		}
-		fprintf(f, "%s\n", cl->name);
+		VFS_PRINTF(f, "%s\n", cl->name);
 
 		if (*cl->name)
 			for (len = 0; len < NUM_SPAWN_PARMS; len++)
-				fprintf(f, "%i (%f)\n", *(int*)&cl->spawn_parms[len], cl->spawn_parms[len]);	//write ints as not everyone passes a float in the parms.
+				VFS_PRINTF(f, "%i (%f)\n", *(int*)&cl->spawn_parms[len], cl->spawn_parms[len]);	//write ints as not everyone passes a float in the parms.
 																					//write floats too so you can use it to debug.
 	}
 
 	Q_strncpyz(str, svs.info, sizeof(str));
 	Info_RemovePrefixedKeys(str, '*');
-	fprintf (f, "%s\"\n",	str);
+	VFS_PRINTF (f, "%s\"\n",	str);
 
 	Q_strncpyz(str, localinfo, sizeof(str));
 	Info_RemovePrefixedKeys(str, '*');
-	fprintf (f, "%s\n",	str);
+	VFS_PRINTF (f, "%s\n",	str);
 
-	fprintf (f, "{\n");	//all game vars. FIXME: Should save the ones that have been retrieved/set by progs.
-	fprintf (f, "skill			\"%s\"\n",	skill.string);
-	fprintf (f, "deathmatch		\"%s\"\n",	deathmatch.string);
-	fprintf (f, "coop			\"%s\"\n",	coop.string);
-	fprintf (f, "teamplay		\"%s\"\n",	teamplay.string);
+	VFS_PRINTF (f, "{\n");	//all game vars. FIXME: Should save the ones that have been retrieved/set by progs.
+	VFS_PRINTF (f, "skill			\"%s\"\n",	skill.string);
+	VFS_PRINTF (f, "deathmatch		\"%s\"\n",	deathmatch.string);
+	VFS_PRINTF (f, "coop			\"%s\"\n",	coop.string);
+	VFS_PRINTF (f, "teamplay		\"%s\"\n",	teamplay.string);
 
-	fprintf (f, "nomonsters		\"%s\"\n",	nomonsters.string);
-	fprintf (f, "gamecfg\t		\"%s\"\n",	gamecfg.string);
-	fprintf (f, "scratch1		\"%s\"\n",	scratch1.string);
-	fprintf (f, "scratch2		\"%s\"\n",	scratch2.string);
-	fprintf (f, "scratch3		\"%s\"\n",	scratch3.string);
-	fprintf (f, "scratch4		\"%s\"\n",	scratch4.string);
-	fprintf (f, "savedgamecfg\t	\"%s\"\n",	savedgamecfg.string);
-	fprintf (f, "saved1			\"%s\"\n",	saved1.string);
-	fprintf (f, "saved2			\"%s\"\n",	saved2.string);
-	fprintf (f, "saved3			\"%s\"\n",	saved3.string);
-	fprintf (f, "saved4			\"%s\"\n",	saved4.string);
-	fprintf (f, "temp1			\"%s\"\n",	temp1.string);
-	fprintf (f, "noexit			\"%s\"\n",	noexit.string);
-	fprintf (f, "pr_maxedicts\t	\"%s\"\n",	pr_maxedicts.string);
-	fprintf (f, "progs			\"%s\"\n",	progs.string);
-	fprintf (f, "set nextserver		\"%s\"\n",	Cvar_Get("nextserver", "", 0, "")->string);
-	fprintf (f, "}\n");
+	VFS_PRINTF (f, "nomonsters		\"%s\"\n",	nomonsters.string);
+	VFS_PRINTF (f, "gamecfg\t		\"%s\"\n",	gamecfg.string);
+	VFS_PRINTF (f, "scratch1		\"%s\"\n",	scratch1.string);
+	VFS_PRINTF (f, "scratch2		\"%s\"\n",	scratch2.string);
+	VFS_PRINTF (f, "scratch3		\"%s\"\n",	scratch3.string);
+	VFS_PRINTF (f, "scratch4		\"%s\"\n",	scratch4.string);
+	VFS_PRINTF (f, "savedgamecfg\t	\"%s\"\n",	savedgamecfg.string);
+	VFS_PRINTF (f, "saved1			\"%s\"\n",	saved1.string);
+	VFS_PRINTF (f, "saved2			\"%s\"\n",	saved2.string);
+	VFS_PRINTF (f, "saved3			\"%s\"\n",	saved3.string);
+	VFS_PRINTF (f, "saved4			\"%s\"\n",	saved4.string);
+	VFS_PRINTF (f, "temp1			\"%s\"\n",	temp1.string);
+	VFS_PRINTF (f, "noexit			\"%s\"\n",	noexit.string);
+	VFS_PRINTF (f, "pr_maxedicts\t	\"%s\"\n",	pr_maxedicts.string);
+	VFS_PRINTF (f, "progs			\"%s\"\n",	progs.string);
+	VFS_PRINTF (f, "set nextserver		\"%s\"\n",	Cvar_Get("nextserver", "", 0, "")->string);
+	VFS_PRINTF (f, "}\n");
 
 	SV_SaveLevelCache(true);	//add the current level. Note that this can cause reentry problems.
 
 	cache = svs.levcache;	//state from previous levels - just copy it all accross.
-	fprintf(f, "{\n");
+	VFS_PRINTF(f, "{\n");
 	while(cache)
 	{
-		fprintf(f, "%s\n", cache->mapname);
+		VFS_PRINTF(f, "%s\n", cache->mapname);
 
-		sprintf (filename, "%s/saves/%s.lvc", com_gamedir, cache->mapname);
-		f2 = fopen(filename, "rb");
-		if (!f2)
-			break;
-		fseek(f2, 0, SEEK_END);
-		len = ftell(f2);
-		if (!len)
-		{
-			Con_Printf("WARNING: %s was empty\n");
-			fclose(f2);
-			cache = cache->next;
-			continue;
-		}
-		fseek(f2, 0, SEEK_SET);
-		if (!buffer || buflen < len)
-		{
-			if (buffer) BZ_Free(buffer);
-			buffer = BZ_Malloc(len);
-			buflen = len;
-		}
-		fread(buffer, len, 1, f2);
-		fclose(f2);
-
-		sprintf (filename, "%s/saves/%s/%s.lvc", com_gamedir, savename, cache->mapname);
-		f2 = fopen(filename, "wb");
-		if (!f2)
-			break;
-		fwrite(buffer, len, 1, f2);
-		fclose(f2);
+		FS_Copy(va("saves/%s.lvc", cache->mapname), va("saves/%s/%s.lvc", savename, cache->mapname), FS_GAME);
 
 		cache = cache->next;
 	}
-	fprintf(f, "}\n");
+	VFS_PRINTF(f, "}\n");
 
-	fprintf (f, "%s\n", sv.name);
+	VFS_PRINTF (f, "%s\n", sv.name);
 
-	fclose(f);
+	VFS_CLOSE(f);
 }
 
 void SV_Loadgame_f (void)
@@ -1033,7 +1004,7 @@ void SV_Loadgame_f (void)
 	levelcache_t *cache;
 	char str[MAX_LOCALINFO_STRING+1], *trim;
 	char savename[MAX_QPATH];
-	FILE *f,	*fi,	*fo;
+	vfsfile_t *f;
 	char filename[MAX_OSPATH];
 	int version;
 	int clnum;
@@ -1041,32 +1012,31 @@ void SV_Loadgame_f (void)
 	client_t *cl;
 	gametype_e gametype;
 
-	int len, buflen=0;
-	char *buffer=NULL;
+	int len;
 
 	Q_strncpyz(savename, Cmd_Argv(1), sizeof(savename));
 
 	if (!*savename || strstr(savename, ".."))
 		strcpy(savename, "quicksav");
 
-	sprintf (filename, "%s/saves/%s/info.fsv", com_gamedir, savename);
-	f = fopen (filename, "rt");
+	sprintf (filename, "saves/%s/info.fsv", savename);
+	f = FS_OpenVFS (filename, "rt", FS_GAME);
 	if (!f)
 	{
 		Con_TPrintf (STL_ERRORCOULDNTOPEN);
 		return;
 	}
 
-	fgets(str, sizeof(str)-1, f);
+	VFS_GETS(f, str, sizeof(str)-1);
 	version = atoi(str);
 	if (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX)
 	{
-		fclose (f);
+		VFS_CLOSE (f);
 		Con_TPrintf (STL_BADSAVEVERSION, version, FTESAVEGAME_VERSION);
 		return;
 	}
 	gametype = version - FTESAVEGAME_VERSION;
-	fgets(str, sizeof(str)-1, f);
+	VFS_GETS(f, str, sizeof(str)-1);
 #ifndef SERVERONLY
 	if (!cls.state)
 #endif
@@ -1089,14 +1059,14 @@ void SV_Loadgame_f (void)
 
 	SV_SendMessagesToAll();
 
-	fgets(str, sizeof(str)-1, f);
+	VFS_GETS(f, str, sizeof(str)-1);
 	slots = atoi(str);
 	for (cl = svs.clients, clnum=0; clnum < slots; cl++,clnum++)
 	{
 		if (cl->state > cs_zombie)
 			SV_DropClient(cl);
 
-		fgets(str, sizeof(str)-1, f);
+		VFS_GETS(f, str, sizeof(str)-1);
 		str[sizeof(cl->namebuf)-1] = '\0';
 		for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 			*trim='\0';
@@ -1113,7 +1083,7 @@ void SV_Loadgame_f (void)
 
 			for (len = 0; len < NUM_SPAWN_PARMS; len++)
 			{
-				fgets(str, sizeof(str)-1, f);
+				VFS_GETS(f, str, sizeof(str)-1);
 				for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 					*trim='\0';
 				for (trim = str; *trim <= ' ' && *trim; trim++)
@@ -1130,7 +1100,7 @@ void SV_Loadgame_f (void)
 	}
 
 
-	fgets(str, sizeof(str)-1, f);
+	VFS_GETS(f, str, sizeof(str)-1);
 	for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 		*trim='\0';
 	for (trim = str; *trim <= ' ' && *trim; trim++)
@@ -1140,7 +1110,7 @@ void SV_Loadgame_f (void)
 	len = strlen(svs.info);
 	Q_strncpyz(svs.info+len, str, sizeof(svs.info)-len);
 
-	fgets(str, sizeof(str)-1, f);
+	VFS_GETS(f, str, sizeof(str)-1);
 	for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 		*trim='\0';
 	for (trim = str; *trim <= ' ' && *trim; trim++)
@@ -1150,7 +1120,7 @@ void SV_Loadgame_f (void)
 	len = strlen(localinfo);
 	Q_strncpyz(localinfo+len, str, sizeof(localinfo)-len);
 
-	fgets(str, sizeof(str)-1, f);
+	VFS_GETS(f, str, sizeof(str)-1);
 	for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 		*trim='\0';
 	for (trim = str; *trim <= ' ' && *trim; trim++)
@@ -1159,7 +1129,7 @@ void SV_Loadgame_f (void)
 		SV_Error("Corrupt saved game\n");
 	while(1)
 	{
-		if (!fgets(str, sizeof(str)-1, f))
+		if (!VFS_GETS(f, str, sizeof(str)-1))
 			SV_Error("Corrupt saved game\n");
 		for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 			*trim='\0';
@@ -1173,7 +1143,7 @@ void SV_Loadgame_f (void)
 
 	SV_FlushLevelCache();
 
-	fgets(str, sizeof(str)-1, f);
+	VFS_GETS(f, str, sizeof(str)-1);
 	for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 		*trim='\0';
 	for (trim = str; *trim <= ' ' && *trim; trim++)
@@ -1182,7 +1152,7 @@ void SV_Loadgame_f (void)
 		SV_Error("Corrupt saved game\n");
 	while(1)
 	{
-		if (!fgets(str, sizeof(str)-1, f))
+		if (!VFS_GETS(f, str, sizeof(str)-1))
 			SV_Error("Corrupt saved game\n");
 		for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 			*trim='\0';
@@ -1201,50 +1171,18 @@ void SV_Loadgame_f (void)
 		cache->next = svs.levcache;
 
 
-
-
-
-		sprintf (filename, "%s/saves/%s/%s.lvc", com_gamedir, savename, cache->mapname);
-		fi = fopen(filename, "rb");
-		if (!fi)
-		{
-			Z_Free(cache);
-			continue;
-		}
-		fseek(fi, 0, SEEK_END);
-		len = ftell(fi);
-		fseek(fi, 0, SEEK_SET);
-		if (!buffer || buflen < len)
-		{
-			if (buffer) BZ_Free(buffer);
-			buffer = BZ_Malloc(len);
-			buflen = len;
-		}
-		fread(buffer, len, 1, fi);
-		fclose(fi);
-
-		sprintf (filename, "%s/saves/%s.lvc", com_gamedir, cache->mapname);
-		fo = fopen(filename, "wb");
-		if (!fo)
-		{
-			Z_Free(cache);
-			continue;
-		}
-		fwrite(buffer, len, 1, fo);
-		fclose(fo);
+		FS_Copy(va("saves/%s/%s.lvc", savename, cache->mapname), va("saves/%s.lvc", cache->mapname), FS_GAME, FS_GAMEONLY);
 
 		svs.levcache = cache;
 	}
-	if (buffer)
-		Z_Free(buffer);
 
-	fgets(str, sizeof(str)-1, f);
+	VFS_GETS(f, str, sizeof(str)-1);
 	for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 		*trim='\0';
 	for (trim = str; *trim <= ' ' && *trim; trim++)
 		;
 
-	fclose(f);
+	VFS_CLOSE(f);
 
 	SV_LoadLevelCache(str, "", true);
 	sv.allocated_client_slots = slots;

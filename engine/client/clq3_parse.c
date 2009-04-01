@@ -464,8 +464,6 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 		Info_SetValueForStarKey (svs.info, "*gamedir", value, MAX_SERVERINFO_STRING);
 #endif
 		COM_FlushFSCache();
-
-		Shader_Init();
 	}
 
 	if (usingpure)
@@ -607,7 +605,7 @@ void CLQ3_ParseGameState(void)
 	{
 		char buffer[2048];
 		strcpy(buffer, va("cp %i ", cl.servercount));
-		FS_GenerateClientPacksList(buffer, sizeof(buffer), ccs.fs_key);
+		FSQ3_GenerateClientPacksList(buffer, sizeof(buffer), ccs.fs_key);
 		CLQ3_SendClientCommand(buffer);
 	}
 

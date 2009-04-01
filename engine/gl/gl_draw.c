@@ -92,14 +92,8 @@ static unsigned cs_data[16*16];
 static int externalhair;
 int gl_anisotropy_factor;
 
-typedef struct
-{
-	int		texnum;
-	float	sl, tl, sh, th;
-} glpic_t;
-
-qbyte		conback_buffer[sizeof(mpic_t) + sizeof(glpic_t)];
-qbyte		custconback_buffer[sizeof(mpic_t) + sizeof(glpic_t)];
+qbyte		conback_buffer[sizeof(mpic_t)];
+qbyte		custconback_buffer[sizeof(mpic_t)];
 mpic_t		*default_conback = (mpic_t *)&conback_buffer, *conback, *custom_conback = (mpic_t *)&custconback_buffer;
 
 #include "hash.h"
@@ -245,7 +239,7 @@ qboolean Draw_RealPicFromWad (mpic_t	*out, char *name)
 		in = W_SafeGetLumpName (name+4);
 	else
 		in = W_SafeGetLumpName (name);
-	gl = (glpic_t *)out->data;
+	gl = &out->d.gl;
 
 	if (in)
 	{
@@ -393,7 +387,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 			if ((mem = ReadPCXFile(data, com_filesize, &pic->pic.width, &height)))
 			{
 				pic->pic.height = height;
-				gl = (glpic_t *)pic->pic.data;
+				gl = &pic->pic.d.gl;
 				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, "pics", false, true, false)))
 					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)mem, false, false);
 				gl->sl = 0;
@@ -434,7 +428,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 			pic->pic.height = height;
 			if (mem)
 			{
-				gl = (glpic_t *)pic->pic.data;
+				gl = &pic->pic.d.gl;
 				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, NULL, false, true, false)))
 					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)mem, false, true);
 				gl->sl = 0;
@@ -463,7 +457,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 			if ((mem = ReadJPEGFile(data, com_filesize, &pic->pic.width, &height)))
 			{
 				pic->pic.height = height;
-				gl = (glpic_t *)pic->pic.data;
+				gl = &pic->pic.d.gl;
 				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, NULL, false, true, false)))
 					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)mem, false, false);
 				gl->sl = 0;
@@ -491,7 +485,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 			strcpy(pic->name, path);
 			if (mem = ReadTargaFile ((qbyte *)dat, com_filesize, &pic->pic.width, &pic->pic.height, false))
 			{
-				gl = (glpic_t *)pic->pic.data;
+				gl = &pic->pic.d.gl;
 				if (!(gl->texnum = Mod_LoadReplacementTexture(alternatename, false, true)))
 					gl->texnum = GL_LoadTexture32(path, pic->pic.width, pic->pic.height, (unsigned *)dat, false, true);
 				gl->sl = 0;
@@ -542,7 +536,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 	pic->pic.width = qpic->width;
 	pic->pic.height = qpic->height;
 
-	gl = (glpic_t *)pic->pic.data;
+	gl = &pic->pic.d.gl;
 	if (!(gl->texnum = Mod_LoadReplacementTexture(path, NULL, false, true, false)))
 		gl->texnum = GL_LoadPicTexture (qpic);
 	gl->sl = 0;
@@ -969,7 +963,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	strcpy(glmenu_cachepics[glmenu_numcachepics].name, "conchars");
 	glmenu_cachepics[glmenu_numcachepics].pic.width = 128;
 	glmenu_cachepics[glmenu_numcachepics].pic.height = 128;
-	gl = (glpic_t *)&glmenu_cachepics[glmenu_numcachepics].pic.data;
+	gl = &glmenu_cachepics[glmenu_numcachepics].pic.d.gl;
 	gl->texnum = char_texture;
 	gl->sl = 0;
 	gl->tl = 0;
@@ -988,7 +982,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		strcpy(glmenu_cachepics[glmenu_numcachepics].name, "tinyfont");
 		glmenu_cachepics[glmenu_numcachepics].pic.width = 128;
 		glmenu_cachepics[glmenu_numcachepics].pic.height = 32;
-		gl = (glpic_t *)&glmenu_cachepics[glmenu_numcachepics].pic.data;
+		gl = &glmenu_cachepics[glmenu_numcachepics].pic.d.gl;
 		char_texturetiny = gl->texnum = GL_LoadTexture ("tinyfont", 128, 32, tinyfont, false, true);
 		gl->sl = 0;
 		gl->tl = 0;
@@ -1008,7 +1002,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		strcpy(glmenu_cachepics[glmenu_numcachepics].name, "gfx/menu/bigfont.lmp");
 		glmenu_cachepics[glmenu_numcachepics].pic.width = bigfont->width;
 		glmenu_cachepics[glmenu_numcachepics].pic.height = bigfont->height;
-		gl = (glpic_t *)&glmenu_cachepics[glmenu_numcachepics].pic.data;
+		gl = &glmenu_cachepics[glmenu_numcachepics].pic.d.gl;
 		gl->texnum = GL_LoadTexture ("gfx/menu/bigfont.lmp", bigfont->width, bigfont->height, data, false, true);
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1110,7 +1104,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-	gl = (glpic_t *)conback->data;
+	gl = &conback->d.gl;
 	if (!(gl->texnum=Mod_LoadReplacementTexture("gfx/conback.lmp", NULL, false, true, false)))
 	{
 		if (!ncdata)	//no fallback
@@ -1142,7 +1136,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	custom_conback->width = vid.conwidth;
 	custom_conback->height = vid.conheight;
-	gl = (glpic_t *)custom_conback->data;
+	gl = &custom_conback->d.gl;
 	gl->texnum = 0;
 	gl->sl = 0;
 	gl->sh = 1;
@@ -1586,7 +1580,7 @@ void GLDraw_Pic (int x, int y, mpic_t *pic)
 
 	if (scrap_dirty)
 		Scrap_Upload ();
-	gl = (glpic_t *)pic->data;
+	gl = &pic->d.gl;
 
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
@@ -1749,7 +1743,7 @@ void GLDraw_ScalePic (int x, int y, int width, int height, mpic_t *pic)
 
 	if (scrap_dirty)
 		Scrap_Upload ();
-	gl = (glpic_t *)pic->data;
+	gl = &pic->d.gl;
 //	qglColor4f (1,1,1,1);
 	GL_Bind (gl->texnum);
 	qglBegin (GL_QUADS);
@@ -1775,7 +1769,7 @@ void GLDraw_AlphaPic (int x, int y, mpic_t *pic, float alpha)
 
 	if (scrap_dirty)
 		Scrap_Upload ();
-	gl = (glpic_t *)pic->data;
+	gl = &pic->d.gl;
 	qglDisable(GL_ALPHA_TEST);
 	qglEnable (GL_BLEND);
 //	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1805,7 +1799,7 @@ void GLDraw_SubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int
 
 	if (scrap_dirty)
 		Scrap_Upload ();
-	gl = (glpic_t *)pic->data;
+	gl = &pic->d.gl;
 
 	oldglwidth = gl->sh - gl->sl;
 	oldglheight = gl->th - gl->tl;
@@ -2005,7 +1999,7 @@ void GLDraw_TileClear (int x, int y, int w, int h)
 	}
 	else
 	{
-		GL_Bind (*(int *)draw_backtile->data);
+		GL_Bind (draw_backtile->d.gl.texnum);
 		qglBegin (GL_QUADS);
 		qglTexCoord2f (x/64.0, y/64.0);
 		qglVertex2f (x, y);
@@ -2243,7 +2237,7 @@ void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float 
 
 	if (scrap_dirty)
 		Scrap_Upload ();
-	gl = (glpic_t *)pic->data;
+	gl = &pic->d.gl;
 /*
 	s2 = s2
 
@@ -2370,7 +2364,7 @@ void GL_Font_Callback(struct cvar_s *var, char *oldvalue)
 		pic = GLDraw_IsCached("conchars");
 		if (pic)
 		{
-			glpic_t *gl = (glpic_t *)pic->data;
+			glpic_t *gl = &pic->d.gl;
 			gl->texnum = char_texture;
 		}
 		else
@@ -2398,7 +2392,7 @@ void GL_Conback_Callback(struct cvar_s *var, char *oldvalue)
 	else
 	{
 		conback = custom_conback;
-		((glpic_t *)conback->data)->texnum = newtex;
+		conback->d.gl.texnum = newtex;
 	}
 }
 

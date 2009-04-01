@@ -3184,7 +3184,7 @@ qbool TP_CheckSoundTrigger (char *str)
 				// clean up the message
 				strcpy (str + j, str + i);
 
-				if (!snd_initialized)
+				if (!S_HaveOutput())
 					return false;
 
 				COM_DefaultExtension (soundname, ".wav", sizeof(soundname));

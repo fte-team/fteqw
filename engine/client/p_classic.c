@@ -186,6 +186,19 @@ static void PClassic_ClearParticles (void)
 	particles[r_numparticles - 1].next = NULL;
 }
 
+#define USEARRAYS
+
+#define BUFFERVERTS 2048*3
+vec3_t classicverts[BUFFERVERTS];
+union c
+{
+	byte_vec4_t b;
+	unsigned int i;
+} classiccolours[BUFFERVERTS];
+vec2_t classictexcoords[BUFFERVERTS];
+int classicnumverts;
+int setuptexcoords;
+
 //draws all the active particles.
 static void PClassic_DrawParticles(void)
 {
@@ -198,6 +211,8 @@ static void PClassic_DrawParticles(void)
 	unsigned char *at, theAlpha;
 	vec3_t up, right;
 	float dist, scale, r_partscale=0;
+
+	union c usecolours;
 #endif
 
 	if (!active_particles)
@@ -218,10 +233,32 @@ static void PClassic_DrawParticles(void)
 		if (!gl_solidparticles.value)
 			qglDepthMask (GL_FALSE);
 		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+#ifdef USEARRAYS
+		if (!setuptexcoords)
+		{
+			setuptexcoords = true;
+			for (i = 0; i < BUFFERVERTS; i += 3)
+			{
+				classictexcoords[i+1][0] = 1;
+				classictexcoords[i+2][1] = 1;
+			}
+		}
+		qglTexCoordPointer(2, GL_FLOAT, 0, classictexcoords);
+		qglVertexPointer(3, GL_FLOAT, 0, classicverts);
+		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, classiccolours);
+
+		qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		qglEnableClientState(GL_COLOR_ARRAY);
+		qglEnableClientState(GL_VERTEX_ARRAY);
+#else
 		qglBegin (GL_TRIANGLES);
+#endif
 
 		VectorScale (vup, 1.5, up);
 		VectorScale (vright, 1.5, right);
+
+		classicnumverts = 0;
 		break;
 #endif
 #ifdef SWQUAKE
@@ -277,9 +314,35 @@ static void PClassic_DrawParticles(void)
 		{
 #ifdef RGLQUAKE
 		case QR_OPENGL:
+#ifdef USEARRAYS
+			if (classicnumverts >= BUFFERVERTS-3)
+			{
+				qglDrawArrays(GL_TRIANGLES, 0, classicnumverts);
+				classicnumverts = 0;
+			}
+#endif
+
 			// hack a scale up to keep particles from disapearing
 			dist = (p->org[0] - r_origin[0]) * vpn[0] + (p->org[1] - r_origin[1]) * vpn[1] + (p->org[2] - r_origin[2]) * vpn[2];
 			scale = 1 + dist * r_partscale;
+
+#ifdef USEARRAYS
+			usecolours.i = d_8to24rgbtable[(int)p->color];
+			if (p->type == pt_fire)
+				usecolours.b[3] = 255 * (6 - p->ramp) / 6;
+			else
+				usecolours.b[3] = 255;
+
+			classiccolours[classicnumverts].i = usecolours.i;
+			VectorCopy(p->org, classicverts[classicnumverts]);
+			classicnumverts++;
+			classiccolours[classicnumverts].i = usecolours.i;
+			VectorMA(p->org, scale, up, classicverts[classicnumverts]);
+			classicnumverts++;
+			classiccolours[classicnumverts].i = usecolours.i;
+			VectorMA(p->org, scale, right, classicverts[classicnumverts]);
+			classicnumverts++;
+#else
 
 			at = (qbyte *) &d_8to24rgbtable[(int)p->color];
 			if (p->type == pt_fire)
@@ -290,6 +353,7 @@ static void PClassic_DrawParticles(void)
 			qglTexCoord2f (0, 0); qglVertex3fv (p->org);
 			qglTexCoord2f (1, 0); qglVertex3f (p->org[0] + up[0] * scale, p->org[1] + up[1] * scale, p->org[2] + up[2] * scale);
 			qglTexCoord2f (0, 1); qglVertex3f (p->org[0] + right[0] * scale, p->org[1] + right[1] * scale, p->org[2] + right[2] * scale);
+#endif
 			break;
 #endif
 #ifdef SWQUAKE
@@ -356,7 +420,15 @@ static void PClassic_DrawParticles(void)
 	{
 #ifdef RGLQUAKE
 	case QR_OPENGL:
+#ifdef USEARRAYS
+		if (classicnumverts)
+		{
+			qglDrawArrays(GL_TRIANGLES, 0, classicnumverts);
+			classicnumverts = 0;
+		}
+#else
 		qglEnd ();
+#endif
 		qglDisable (GL_BLEND);
 		qglDepthMask (GL_TRUE);
 		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);

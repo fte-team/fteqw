@@ -434,6 +434,9 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	cmd.o 		\
 	crc.o 		\
 	fs.o			\
+	fs_stdio.o		\
+	fs_pak.o		\
+	fs_zip.o		\
 	mathlib.o 		\
 	huff.o		\
 	md4.o 		\

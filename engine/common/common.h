@@ -281,7 +281,7 @@ extern char	com_homedir[MAX_OSPATH];
 extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 //extern	char	*com_basedir;
 
-void COM_WriteFile (char *filename, void *data, int len);
+void COM_WriteFile (const char *filename, const void *data, int len);
 FILE *COM_WriteFileOpen (char *filename);
 
 typedef struct {
@@ -350,7 +350,7 @@ void FS_FlushFSHash(void);
 void FS_CreatePath(const char *pname, enum fs_relative relativeto);
 int FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto);	//0 on success, non-0 on error
 int FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrelativeto, enum fs_relative newrelativeto);
-int FS_Remove(const char *fname, int relativeto);	//0 on success, non-0 on error
+int FS_Remove(const char *fname, enum fs_relative relativeto);	//0 on success, non-0 on error
 qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//if you really need to fopen yourself
 qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_relative relativeto);
 vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto);

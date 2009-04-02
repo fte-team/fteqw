@@ -81,6 +81,7 @@ zone_t *zone_head;
 void *zonelock;
 #endif
 
+#if 0
 static void Z_DumpTree(void)
 {
 	zone_t *zone;
@@ -116,6 +117,7 @@ static void Z_DumpTree(void)
 		zone = nextlist;
 	}
 }
+#endif
 
 void *VARGS Z_TagMalloc(int size, int tag)
 {
@@ -2166,7 +2168,9 @@ void Memory_Init (void *buf, int size)
 
 void Memory_DeInit(void)
 {
+#ifdef NOHIGH
 	Hunk_TempFree();
+#endif
 	Cache_Flush();
 
 #ifdef MULTITHREAD

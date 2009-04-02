@@ -922,7 +922,6 @@ void VID_Wait_Override_Callback(struct cvar_s *var, char *oldvalue)
 qboolean screenflush;
 void GL_DoSwap (void)
 {
-	extern int mouseusedforgui;
 	if (!screenflush)
 		return;
 	screenflush = 0;

@@ -1172,7 +1172,7 @@ void S_Music_Seek(float time)
 S_UpdateAmbientSounds
 ===================
 */
-char *Media_NextTrack(void);
+char *Media_NextTrack(int musicchannelnum);
 mleaf_t *Q1BSP_LeafForPoint (model_t *model, vec3_t p);
 void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 {

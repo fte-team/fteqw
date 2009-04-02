@@ -1595,7 +1595,9 @@ void CL_LinkPacketEntities (void)
 
 	autorotate = anglemod(100*servertime);
 
+#ifdef CSQC_DAT
 	CLCSQC_DeltaStart();
+#endif
 
 	for (newpnum=0 ; newpnum<pack->num_entities ; newpnum++)
 	{
@@ -1609,8 +1611,10 @@ void CL_LinkPacketEntities (void)
 			break;
 		}
 
+#ifdef CSQC_DAT
 		if (CLCSQC_DeltaUpdate(state))
 			continue;
+#endif
 
 		ent = &cl_visedicts[cl_numvisedicts];
 #ifdef Q3SHADERS
@@ -1874,7 +1878,9 @@ void CL_LinkPacketEntities (void)
 
 		}
 	}
+#ifdef CSQC_DAT
 	CLCSQC_DeltaEnd();
+#endif
 }
 #else
 
@@ -2773,12 +2779,16 @@ void CL_LinkPlayers (void)
 	{
 		if (state->messagenum != cl.validsequence)
 		{
+#ifdef CSQC_DAT
 			CLCSQC_DeltaPlayer(j, NULL);
+#endif
 			continue;	// not present this frame
 		}
 
+#ifdef CSQC_DAT
 		if (CLCSQC_DeltaPlayer(j, state))
 			continue;
+#endif
 
 		// spawn light flashes, even ones coming from invisible objects
 		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.playernum[0]))

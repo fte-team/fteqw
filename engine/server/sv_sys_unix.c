@@ -98,36 +98,6 @@ qboolean Sys_remove (char *path)
 	return system(va("rm \"%s\"", path));
 }
 
-#ifdef SHADERS
-int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void *), void *parm)
-{
-#include <dirent.h>
-	DIR *dir;
-	struct dirent *ent;
-	dir = opendir(gpath);
-	if (!dir)
-	{
-		Con_Printf("Failed to open dir %s\n", gpath);
-		return true;
-	}
-	do
-	{
-		ent = readdir(dir);	//FIXME: no wild card comparisons.
-		if (!ent)
-			break;
-		if (*ent->d_name != '.')
-			if (!func(ent->d_name, -2, parm))
-			{
-				closedir(dir);
-				return false;
-			}
-	} while(1);
-	closedir(dir);
-
-	return true;
-}
-#endif
-
 int Sys_DebugLog(char *file, char *fmt, ...)
 {
 	va_list argptr;
@@ -725,7 +695,7 @@ int main(int argc, char *argv[])
 
 
 
-int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void *), void *parm)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 #include <dirent.h>
 	DIR *dir, *dir2;

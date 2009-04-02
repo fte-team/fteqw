@@ -880,9 +880,13 @@ void SWVID_SetPalette(unsigned char *palette)
 void	SWVID_Shutdown (void)
 {
 	Con_Printf("VID_Shutdown\n");
-	XUngrabPointer(vid_dpy,CurrentTime);
-	XAutoRepeatOn(vid_dpy);
-	XDestroyWindow(vid_dpy, x_win);
+	if (vid_dpy)
+	{
+		XUngrabPointer(vid_dpy,CurrentTime);
+		XAutoRepeatOn(vid_dpy);
+		if (x_win)
+			XDestroyWindow(vid_dpy, x_win);
+	}
 //	XCloseDisplay(vid_dpy);
 //	vid_dpy = NULL;
 }

@@ -303,7 +303,7 @@ COM_WriteFile
 The filename will be prefixed by the current game directory
 ============
 */
-void COM_WriteFile (char *filename, void *data, int len)
+void COM_WriteFile (const char *filename, const void *data, int len)
 {
 	vfsfile_t *vfs;
 
@@ -721,7 +721,7 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 		pattern = outbuf;
 
 		Con_Printf("Warning: // characters in filename %s\n", pattern);
-		while (s=strstr(pattern, "//"))
+		while ((s=strstr(pattern, "//")))
 		{
 			s++;
 			while (*s)
@@ -1096,7 +1096,7 @@ void FS_CreatePath(const char *pname, enum fs_relative relativeto)
 	COM_CreatePath(fullname);
 }
 
-qboolean FS_WriteFile (const char *filename, void *data, int len, enum fs_relative relativeto)
+qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_relative relativeto)
 {
 	vfsfile_t *f;
 	FS_CreatePath(filename, relativeto);
@@ -2110,7 +2110,7 @@ qboolean Sys_FindGameData(const char *gamename, char *basepath, int basepathlen)
 	return false;
 }
 #else
-qboolean Sys_FindGameData(char *gamename, char *basepath, int basepathlen)
+qboolean Sys_FindGameData(const char *gamename, char *basepath, int basepathlen)
 {
 	return false;
 }

@@ -242,7 +242,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	return 1;
 }
 
-int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void *), void *parm)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 #include <dirent.h>
 	DIR *dir, *dir2;

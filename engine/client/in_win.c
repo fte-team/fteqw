@@ -1389,7 +1389,7 @@ void IN_MouseEvent (int mstate)
 			if ( !(mstate & (1<<i)) &&
 				(sysmouse.oldbuttons & (1<<i)) )
 			{
-					Key_Event (K_MOUSE1 + i, false);
+				Key_Event (K_MOUSE1 + i, false);
 			}
 		}	
 			
@@ -1420,10 +1420,11 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 		if ( !(mouse->buttons & (1<<i)) &&
 			(mouse->oldbuttons & (1<<i)) )
 		{
-				Key_Event (K_MOUSE1 + i, false);
+			Key_Event (K_MOUSE1 + i, false);
 		}
 	}
 	mouse->oldbuttons = mouse->buttons;
+
 	if (m_forcewheel.value)
 	{
 		mfwt = (int)m_forcewheel_threshold.value;

@@ -5157,6 +5157,7 @@ void CSQC_Shutdown(void)
 	}
 	csqcprogs = NULL;
 
+	memset(&deltafunction, 0, sizeof(deltafunction));
 	in_sensitivityscale = 1;
 
 	csqc_usinglistener = false;

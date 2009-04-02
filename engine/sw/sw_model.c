@@ -1551,7 +1551,6 @@ void *suplementryclipnodes;
 void *suplementryplanes;
 void *crouchhullfile;
 
-qbyte *COM_LoadMallocFile (char *path);
 void SWMod_LoadCrouchHull(void)
 {
 	int i;

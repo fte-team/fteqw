@@ -3731,8 +3731,10 @@ void Host_Shutdown(void)
 	Cmd_Shutdown();
 	Memory_DeInit();
 
+#ifndef CLIENTONLY
 	memset(&sv, 0, sizeof(sv));
 	memset(&svs, 0, sizeof(svs));
+#endif
 }
 
 #ifdef CLIENTONLY

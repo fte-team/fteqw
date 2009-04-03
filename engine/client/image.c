@@ -773,6 +773,10 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	#include <jerror.h>
 #endif
 
+#ifndef JPEG_FALSE
+#define JPEG_BOOL boolean
+#endif
+
 
 
 
@@ -821,7 +825,7 @@ typedef struct {
   int currentpos;
   int maxlen;
   JOCTET * buffer;		/* start of buffer */
-  boolean start_of_file;	/* have we gotten any data yet? */
+  JPEG_BOOL start_of_file;	/* have we gotten any data yet? */
 } my_source_mgr;
 
 typedef my_source_mgr * my_src_ptr;
@@ -837,7 +841,7 @@ init_source (j_decompress_ptr cinfo)
   src->start_of_file = TRUE;
 }
 
-METHODDEF(boolean)
+METHODDEF(JPEG_BOOL)
 fill_input_buffer (j_decompress_ptr cinfo)
 {
 	my_source_mgr *src = (my_source_mgr*) cinfo->src;
@@ -1037,7 +1041,7 @@ METHODDEF(void) init_destination (j_compress_ptr cinfo)
 	dest->pub.next_output_byte = dest->buffer;
 	dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
 }
-METHODDEF(boolean) empty_output_buffer (j_compress_ptr cinfo)
+METHODDEF(JPEG_BOOL) empty_output_buffer (j_compress_ptr cinfo)
 {
 	my_destination_mgr *dest = (my_destination_mgr*) cinfo->dest;
 

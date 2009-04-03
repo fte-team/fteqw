@@ -2,6 +2,12 @@
 #include "winquake.h"
 #define bool int	//we ain't c++ (grr microsoft stdbool.h gief!)
 
+#ifdef _WIN32
+#ifndef _WINDOWS
+#define _WINDOWS	//stupid GCC
+#endif
+#endif
+
 #include "npapi/npupp.h"
 
 #define NPQTV_VERSION 0.1
@@ -19,10 +25,11 @@ NPNetscapeFuncs *browserfuncs;
 
 #ifdef _WIN32
 #ifndef GetWindowLongPtr
-#define GetWindowLongPtr (void*)GetWindowLong
+#define GetWindowLongPtr GetWindowLong
 #endif
 #ifndef SetWindowLongPtr
-#define SetWindowLongPtr(w,p,v) SetWindowLong(w,p,(LONG)(v))
+#define SetWindowLongPtr SetWindowLong
+#define LONG_PTR LONG
 #endif
 
 
@@ -64,12 +71,12 @@ void VFSPIPE_Close(vfsfile_t *f)
 	free(p->data);
 	free(p);
 }
-int VFSPIPE_GetLen(vfsfile_t *f)
+unsigned long VFSPIPE_GetLen(vfsfile_t *f)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
 	return p->writepos - p->readpos;
 }
-int VFSPIPE_Tell(vfsfile_t *f)
+unsigned long VFSPIPE_Tell(vfsfile_t *f)
 {
 	return 0;
 }
@@ -411,7 +418,7 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 {
 	struct qstream *str;
 	struct context *ctx;
-	ctx = GetWindowLongPtr(hWnd, GWL_USERDATA);
+	ctx = (struct context *)GetWindowLongPtr(hWnd, GWL_USERDATA);
 	if (!ctx)
 		return DefWindowProc(hWnd, msg, wParam, lParam);
 
@@ -448,6 +455,8 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				{
 					switch(ctx->qtvf.connectiontype)
 					{
+					default:
+						break;
 					case QTVCT_STREAM:
 						Cmd_ExecuteString(va("qtvplay %s", ctx->qtvf.server), RESTRICT_LOCAL);
 						break;
@@ -577,7 +586,10 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			DrawWndBack(ctx, hWnd, hdc, &paint);
 			SetBkMode(hdc, TRANSPARENT);
 			if (!activecontext)
-				TextOutA(hdc, 0, 0, "Click to activate", 19);
+			{
+				s = "Click to activate";
+				TextOutA(hdc, 0, 0, s, strlen(s));
+			}
 			if (ctx->availver)
 			{
 				s = va("Your plugin is out of date");
@@ -615,14 +627,21 @@ NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
 {
 	int i;
 	struct context *ctx;
-	if (!instance)
+
+	if (!instance || instance->pdata)
+	{
 		return NPERR_INVALID_INSTANCE_ERROR;
+	}
 	if (mode != NP_EMBED && mode != NP_FULL)
+	{
 		return NPERR_INVALID_PLUGIN_ERROR;
+	}
 
 	ctx = malloc(sizeof(struct context));
 	if (!ctx)
+	{
 		return NPERR_OUT_OF_MEMORY_ERROR;
+	}
 
 	memset(ctx, 0, sizeof(struct context));
 
@@ -683,12 +702,15 @@ NPError NP_LOADDS NPP_Destroy(NPP instance, NPSavedData** save)
 	struct context *ctx = instance->pdata;
 	struct context *prev;
 
+	if (!ctx)
+		return NPERR_INVALID_INSTANCE_ERROR;
+
 #ifdef _WIN32
 	if (ctx->window.window)
 	{
 		if (ctx->oldproc)
-			SetWindowLongPtr(ctx->window.window, GWL_WNDPROC, ctx->oldproc);
-		SetWindowLongPtr(ctx->window.window, GWL_USERDATA, NULL);
+			SetWindowLongPtr(ctx->window.window, GWL_WNDPROC, (LONG_PTR)ctx->oldproc);
+		SetWindowLongPtr(ctx->window.window, GWL_USERDATA, (LONG_PTR)NULL);
 	}
 #endif
 
@@ -729,8 +751,13 @@ NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 	struct context *ctx = instance->pdata;
 
 #ifdef _WIN32
-	HWND oldwindow = ctx->window.window;
+	HWND oldwindow;
 	WNDPROC p;
+
+	if (!ctx)
+		return NPERR_INVALID_INSTANCE_ERROR;
+
+	oldwindow = ctx->window.window;
 
 	memcpy(&ctx->window, window, sizeof(ctx->window));
 
@@ -740,16 +767,16 @@ NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 		//we switched window?
 		if (oldwindow && ctx->oldproc)
 		{
-			SetWindowLongPtr(oldwindow, GWL_WNDPROC, ctx->oldproc);
+			SetWindowLongPtr(oldwindow, GWL_WNDPROC, (LONG_PTR)ctx->oldproc);
 			ctx->oldproc = NULL;
 		}
 
-		p = GetWindowLongPtr(ctx->window.window, GWL_WNDPROC);
+		p = (WNDPROC)GetWindowLongPtr(ctx->window.window, GWL_WNDPROC);
 		if (p != MyPluginWndProc)
 			ctx->oldproc = p;
 
-		SetWindowLongPtr(ctx->window.window, GWL_WNDPROC, MyPluginWndProc);
-		SetWindowLongPtr(ctx->window.window, GWL_USERDATA, ctx);
+		SetWindowLongPtr(ctx->window.window, GWL_WNDPROC, (LONG_PTR)MyPluginWndProc);
+		SetWindowLongPtr(ctx->window.window, GWL_USERDATA, (LONG_PTR)ctx);
 
 		if (ctx->contextrunning && mainwindow && oldwindow == sys_hijackwindow)
 		{
@@ -772,7 +799,7 @@ NPError NP_LOADDS NPP_NewStream(NPP instance, NPMIMEType type,
                                 NPStream* stream, NPBool seekable,
                                 uint16* stype)
 {
-	struct context *ctx = instance->pdata;
+//	struct context *ctx = instance->pdata;
 	struct qstream *qstr;
 
 	stream->pdata = qstr = malloc(sizeof(*qstr) + strlen(stream->url));
@@ -931,9 +958,6 @@ NPError NP_LOADDS NPP_SetValue(NPP instance, NPNVariable variable, void *value)
 	}
 	return NPERR_NO_ERROR;
 }
-
-
-
 
 NPError OSCALL NP_Initialize(NPNetscapeFuncs* pFuncs)
 {

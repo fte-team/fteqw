@@ -229,6 +229,7 @@ endif
 GLCFLAGS=-DGLQUAKE
 SWCFLAGS=-DSWQUAKE
 D3DCFLAGS=-DD3DQUAKE
+NPQTVCFLAGS=-DNPQTV
 
 CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	textedit.o	\
@@ -506,6 +507,7 @@ ifeq ($(FTE_TARGET),win32)
 	SV_DIR=sv_mingw
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) resources.o
 
+
 ifeq ($(USEASM),true)
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
 else
@@ -517,6 +519,18 @@ endif
 	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
 	GLB_DIR=gl_mgw
 	GLCL_DIR=glcl_mgw
+
+ifeq ($(USEASM),true)
+	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o npplug.o sys_npqtv.o ../../ftequake/npapi.def
+else
+	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o npplug.o sys_npqtv.o ../../ftequake/npapi.def
+endif
+	NPQTV_DLL_NAME=../npqtv.dll
+	NPQTVCL_DLL_NAME=../npqtvcl.dll
+	NPQTV_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32 -shared
+	NPQTV_CFLAGS=$(NPQTVCFLAGS) $(GLCFLAGS) $(W32_CFLAGS)
+	NPQTVB_DIR=npqtv_mgw
+	NPQTVCL_DIR=npqtvcl_mgw
 
 ifeq ($(USEASM),true)
 	SWCL_OBJS=$(SOFTWARE_OBJS) vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
@@ -795,6 +809,11 @@ VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SW_DIR) : $(
 $(OUT_DIR)/resources.o : winquake.rc
 	$(WINDRES) -I$(CLIENT_DIR) -O coff $< $@
 
+#npAPI stuff requires some extra resources
+$(OUT_DIR)/npplug.o : ftequake/npplug.rc
+	$(WINDRES) -I$(CLIENT_DIR) -O coff $< $@
+
+
 #$(OUT_DIR)/%.d: %.c
 #	@set -e; rm -f $@; \
 #	$(CC) -MM $(ALL_CFLAGS) $< > $@.$$$$; \
@@ -884,6 +903,21 @@ d3d-dbg:
 	$(MAKE) d3d-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(D3DB_DIR)"
 
 
+npqtvcl-tmp:
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(NPQTVCL_DLL_NAME)" WCFLAGS="$(NPQTV_CFLAGS)" LDFLAGS="$(NPQTV_LDFLAGS) $(LDFLAGS)" SOBJS="$(NPQTVCL_OBJS)"
+npqtv-tmp:
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(NPQTV_DLL_NAME)" WCFLAGS="$(NPQTV_CFLAGS)" LDFLAGS="$(NPQTV_LDFLAGS) $(LDFLAGS)" SOBJS="$(NPQTVCL_OBJS)"
+
+npqtvcl-rel:
+	$(MAKE) npqtvcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NPQTVCL_DIR)"
+npqtvcl-dbg:
+	$(MAKE) npqtvcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(NPQTVCL_DIR)"
+npqtv-rel:
+	$(MAKE) npqtv-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NPQTVB_DIR)"
+npqtv-dbg:
+	$(MAKE) npqtv-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(NPQTVB_DIR)"
+
+
 glcl-tmp:
 	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
 gl-tmp:
@@ -970,6 +1004,7 @@ help:
 	@-echo "sw"
 	@-echo "m"
 	@-echo "mingl"
+	@-echo "npqtv (FTE_TARGET=win32 only, for now)"
 	@-echo "d3d (for windows builds)"
 	@-echo "mcl (currently broken)"
 	@-echo "glcl (currently broken)"

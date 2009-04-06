@@ -1000,7 +1000,7 @@ void Con_DrawInput (void)
 				maskedtext[p] = (maskedtext[p]&255) | (COLOR_YELLOW<<CON_FGSHIFT);
 		}
 		else
-			Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8);
+			Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8, si, con_current->linewidth);
 
 		if (key_linepos == i)	//cursor is at end
 		{

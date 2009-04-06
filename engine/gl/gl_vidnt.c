@@ -67,6 +67,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifndef WS_EX_LAYERED
 	#define WS_EX_LAYERED 0x00080000
+#endif
+#ifndef LWA_ALPHA
 	#define LWA_ALPHA 0x00000002
 #endif
 typedef BOOL (WINAPI *lpfnSetLayeredWindowAttributes)(HWND hwnd, COLORREF crKey, BYTE bAlpha, DWORD dwFlags); 
@@ -1010,7 +1012,7 @@ void VID_Size_Override_Callback(struct cvar_s *var, char *oldvalue)
 
 void VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldvalue)
 {
-#ifdef GWL_EXSTYLE
+#ifdef WS_EX_LAYERED
 	if (modestate==MS_WINDOWED)
 	{
 		int av;

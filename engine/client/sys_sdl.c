@@ -129,7 +129,7 @@ void Sys_Quit (void)
 //enumerate the files in a directory (of both gpath and match - match may not contain ..)
 //calls the callback for each one until the callback returns 0
 //SDL provides no file enumeration facilities.
-int Sys_EnumerateFiles (char *gpath, char *match, int (*func)(char *, int, void *), void *parm)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 	return 1;
 }

@@ -250,5 +250,10 @@ void	GLVID_ShiftPalette (unsigned char *palette)
 		gammaworks = false;
 }
 
+void GLVID_SetCaption(char *text)
+{
+	SDL_WM_SetCaption( text, NULL );
+}
+
 
 

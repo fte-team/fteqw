@@ -10,9 +10,11 @@ BASE_DIR=.
 
 #only limited forms of cross-making is supported
 #only the following 3 are supported
-#linux->win32
-#linux->linux32
-#linux->linux64
+#linux->win32 (FTE_TARGET=win32) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
+#linux->linux32 (FTE_TARGET=linux32)
+#linux->linux64 (FTE_TARGET=linux64)
+#linux->morphos (FTE_TARGET=morphos) Contact Moodles for crosscompiler
+#linux->macosx (FTE_TARGET=macosx) or (FTE_TARGET=macosx_x86) Contact Moodles for crosscompiler, only works with Mac OSX 10.4 Tiger.
 #if you are cross compiling, you'll need to use FTE_TARGET=mytaget
 
 #correct the gcc build when cross compiling
@@ -996,19 +998,20 @@ help:
 	@-echo "clean - removes all output (use make dirs afterwards)"
 	@-echo "all - make all the targets possible"
 	@-echo "rel - make the releases for the default system"
+	@-echo "dbg - make the debug builds for the default system"
 	@-echo ""
 	@-echo "Normal targets:"
 	@-echo "(each of these targets must have the postfix -rel or -dbg)"
-	@-echo "sv"
-	@-echo "gl"
-	@-echo "sw"
-	@-echo "m"
-	@-echo "mingl"
-	@-echo "npqtv (FTE_TARGET=win32 only, for now)"
-	@-echo "d3d (for windows builds)"
-	@-echo "mcl (currently broken)"
-	@-echo "glcl (currently broken)"
-	@-echo "swcl (currently broken)"
+	@-echo "'sv-???' (Dedicated Server)"
+	@-echo "'gl-???' (OpenGL rendering + Built-in Server)"
+	@-echo "'sw-???' (Software rendering + Built-in Server)"
+	@-echo "'m-???' (Merged client, OpenGL & Software rendering + Dedicated server)"
+	@-echo "'mingl-???' (Minimal featured OpenGL render)"
+	@-echo "'npqtv-???' (FTE_TARGET=win32 only, for now) (QuakeTV Firefox/Netscape browser plugin)"
+	@-echo "'d3d-???' (for windows builds)"
+	@-echo "'mcl-???' (currently broken)"
+	@-echo "'glcl-???' (currently broken)"
+	@-echo "'swcl-???' (currently broken)"
 
 install:
 	-cp debug/*.* /opt/quake/

@@ -65,6 +65,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define WM_INPUT 255
 #endif
 
+#ifndef WS_EX_LAYERED
+	#define WS_EX_LAYERED 0x00080000
+	#define LWA_ALPHA 0x00000002
+#endif
+typedef BOOL (WINAPI *lpfnSetLayeredWindowAttributes)(HWND hwnd, COLORREF crKey, BYTE bAlpha, DWORD dwFlags); 
+
 extern cvar_t vid_conwidth, vid_conautoscale;
 
 
@@ -78,6 +84,10 @@ extern cvar_t vid_conwidth, vid_conautoscale;
 #define MAXHEIGHT		10000
 #define BASEWIDTH		320
 #define BASEHEIGHT		200
+
+extern cvar_t vid_width;
+extern cvar_t vid_height;
+extern cvar_t vid_wndalpha;
 
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
 
@@ -143,7 +153,7 @@ LONG WINAPI GLMainWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 qboolean GLAppActivate(BOOL fActive, BOOL minimize);
 char *VID_GetModeDescription (int mode);
 void ClearAllStates (void);
-void VID_UpdateWindowStatus (void);
+void VID_UpdateWindowStatus (HWND hWnd);
 void GL_Init(void *(*getglfunction) (char *name));
 
 typedef void (APIENTRY *lp3DFXFUNC) (int, int, int, int, int, const void*);
@@ -349,14 +359,26 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	WindowRect.right = info->width;
 	WindowRect.bottom = info->height;
 
-	DIBWidth = info->width;
-	DIBHeight = info->height;
 
-	if (sys_hijackwindow)
+	if (sys_parentwindow)
 	{
-		SetWindowLong(sys_hijackwindow, GWL_STYLE, GetWindowLong(sys_hijackwindow, GWL_STYLE)|WS_OVERLAPPED);
+		SetWindowLong(sys_parentwindow, GWL_STYLE, GetWindowLong(sys_parentwindow, GWL_STYLE)|WS_OVERLAPPED);
 		WindowStyle = WS_CHILDWINDOW|WS_OVERLAPPED;
 		ExWindowStyle = 0;
+
+		if (info->width > sys_parentwidth)
+			WindowRect.right = sys_parentwidth;
+		else if (info->width < sys_parentwidth)
+			WindowRect.left = (sys_parentwidth - info->width)/2;
+
+		if (info->height > sys_parentheight)
+			WindowRect.bottom = sys_parentheight;
+		else if (info->height < sys_parentheight)
+			WindowRect.top = (sys_parentheight - info->height)/2;
+
+
+		WindowRect.right += WindowRect.left;
+		WindowRect.bottom += WindowRect.top;
 	}
 	else
 	{
@@ -366,6 +388,9 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 
 		WindowStyle |= WS_SIZEBOX | WS_MAXIMIZEBOX;
 	}
+
+	DIBWidth = WindowRect.right - WindowRect.left;
+	DIBHeight = WindowRect.bottom - WindowRect.top;
 
 	rect = WindowRect;
 	AdjustWindowRectEx(&rect, WindowStyle, FALSE, 0);
@@ -382,7 +407,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		 rect.left, rect.top,
 		 wwidth,
 		 wheight,
-		 sys_hijackwindow,
+		 sys_parentwindow,
 		 NULL,
 		 global_hInstance,
 		 NULL);
@@ -393,8 +418,30 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		return false;
 	}
 
-	if (!sys_hijackwindow)
+	if (!sys_parentwindow)
 	{
+#ifdef WS_EX_LAYERED
+		int av;
+		av = 255*vid_wndalpha.value;
+		if (av < 70)
+			av = 70;
+		if (av < 255)
+		{
+			HMODULE hm = GetModuleHandle("user32.dll");
+			lpfnSetLayeredWindowAttributes pSetLayeredWindowAttributes;
+			pSetLayeredWindowAttributes = (void*)GetProcAddress(hm, "SetLayeredWindowAttributes");
+
+			if (pSetLayeredWindowAttributes)
+			{
+				// Set WS_EX_LAYERED on this window 
+				SetWindowLong(dibwindow, GWL_EXSTYLE, GetWindowLong(dibwindow, GWL_EXSTYLE) | WS_EX_LAYERED);
+
+				// Make this window 70% alpha
+				pSetLayeredWindowAttributes(dibwindow, 0, av, LWA_ALPHA);
+			}
+		}
+#endif
+
 		// Center and show the DIB window
 		CenterWindow(dibwindow, WindowRect.right - WindowRect.left,
 					 WindowRect.bottom - WindowRect.top, false);
@@ -675,7 +722,7 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 
 	window_width = DIBWidth;
 	window_height = DIBHeight;
-	VID_UpdateWindowStatus ();
+	VID_UpdateWindowStatus (mainwindow);
 
 	CDAudio_Resume ();
 	scr_disabled_for_loading = temp;
@@ -783,8 +830,28 @@ void VID_UnSetMode (void)
 VID_UpdateWindowStatus
 ================
 */
-void VID_UpdateWindowStatus (void)
+void VID_UpdateWindowStatus (HWND hWnd)
 {
+	POINT p;
+	RECT nr;
+	GetClientRect(hWnd, &nr);
+
+	//if its bad then we're probably minimised
+	if (nr.right <= nr.left)
+		return;
+	if (nr.bottom <= nr.top)
+		return;
+
+	WindowRect = nr;
+	p.x = 0;
+	p.y = 0;
+	ClientToScreen(hWnd, &p);
+	window_x = p.x;
+	window_y = p.y;
+	window_width = WindowRect.right - WindowRect.left;
+	window_height = WindowRect.bottom - WindowRect.top;
+	glwidth = window_width;
+	glheight = window_height;
 
 	window_rect.left = window_x;
 	window_rect.top = window_y;
@@ -917,6 +984,62 @@ void VID_Wait_Override_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (qwglSwapIntervalEXT && *_vid_wait_override.string)
 		qwglSwapIntervalEXT(_vid_wait_override.value);
+}
+
+void VID_Size_Override_Callback(struct cvar_s *var, char *oldvalue)
+{
+	int nw = vid_width.value;
+	int nh = vid_height.value;
+	int nx = 0;
+	int ny = 0;
+
+	if (sys_parentwindow && modestate==MS_WINDOWED)
+	{
+		if (nw > sys_parentwidth)
+			nw = sys_parentwidth;
+		else
+			nx = (sys_parentwidth - nw)/2;
+		if (nh > sys_parentheight)
+			nh = sys_parentheight;
+		else
+			ny = (sys_parentheight - nh)/2;
+
+		MoveWindow(mainwindow, nx, ny, nw, nh, FALSE);
+	}
+}
+
+void VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldvalue)
+{
+#ifdef GWL_EXSTYLE
+	if (modestate==MS_WINDOWED)
+	{
+		int av;
+		HMODULE hm = GetModuleHandle("user32.dll");
+		lpfnSetLayeredWindowAttributes pSetLayeredWindowAttributes;
+		pSetLayeredWindowAttributes = (void*)GetProcAddress(hm, "SetLayeredWindowAttributes");
+
+		av = 255 * var->value;
+		if (av < 70)
+			av = 70;
+		if (av > 255)
+			av = 255;
+
+		if (pSetLayeredWindowAttributes)
+		{
+			// Set WS_EX_LAYERED on this window 
+
+			if (av < 255)
+			{
+				SetWindowLong(mainwindow, GWL_EXSTYLE, GetWindowLong(mainwindow, GWL_EXSTYLE) | WS_EX_LAYERED);
+
+				// Make this window 70% alpha
+				pSetLayeredWindowAttributes(mainwindow, 0, av, LWA_ALPHA);
+			}
+			else
+				SetWindowLong(mainwindow, GWL_EXSTYLE, GetWindowLong(mainwindow, GWL_EXSTYLE) & ~WS_EX_LAYERED);
+		}
+	}
+#endif
 }
 
 qboolean screenflush;
@@ -1358,7 +1481,6 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 	return true;
 }
 
-
 /* main window procedure */
 LONG WINAPI GLMainWndProc (
     HWND    hWnd,
@@ -1391,19 +1513,7 @@ LONG WINAPI GLMainWndProc (
 			break;
 
 		case WM_MOVE:
-			{
-				RECT r;
-//				window_x = (int) LOWORD(lParam);
-//				window_y = (int) HIWORD(lParam);
-				GetWindowRect(hWnd, &r);
-				window_x = r.left;
-				window_y = r.top;
-				window_width = r.right - r.left;
-				window_height = r.bottom - r.top;
-				glwidth = window_width;
-				glheight = window_height;
-			}
-			VID_UpdateWindowStatus ();
+			VID_UpdateWindowStatus (hWnd);
 			break;
 
 		case WM_KEYDOWN:
@@ -1502,13 +1612,9 @@ LONG WINAPI GLMainWndProc (
     	case WM_SIZE:
 			if (!vid_initializing)
 			{
-				WindowRect.right = ((short*)&lParam)[0] - WindowRect.left;
-				WindowRect.bottom = ((short*)&lParam)[1] - WindowRect.top;
-				// force width/height to be updated
-				glwidth = WindowRect.right - WindowRect.left;
-				glheight = WindowRect.bottom - WindowRect.top;
 				Cvar_ForceCallback(&vid_conautoscale);
 				Cvar_ForceCallback(&vid_conwidth);
+				VID_UpdateWindowStatus (hWnd);
 			}
             break;
 
@@ -1602,6 +1708,7 @@ void GLVID_DeInit (void)
 	ActiveApp = false;
 
 	Cvar_Unhook(&_vid_wait_override);
+	Cvar_Unhook(&vid_wndalpha);
 
 	UnregisterClass(WINDOW_CLASS_NAME, global_hInstance);
 }
@@ -1661,6 +1768,9 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	S_Restart_f();
 
 	Cvar_Hook(&_vid_wait_override, VID_Wait_Override_Callback);
+	Cvar_Hook(&vid_width, VID_Size_Override_Callback);
+	Cvar_Hook(&vid_height, VID_Size_Override_Callback);
+	Cvar_Hook(&vid_wndalpha, VID_WndAlpha_Override_Callback);
 
 	vid_initialized = true;
 	vid_initializing = false;

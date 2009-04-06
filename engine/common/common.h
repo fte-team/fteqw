@@ -336,7 +336,7 @@ typedef struct vfsfile_s {
 #define VFS_FLUSH(vf) do{if(vf->Flush)vf->Flush(vf);}while(0)
 #define VFS_PUTS(vf,s) do{const char *t=s;vf->WriteBytes(vf,t,strlen(t));}while(0)
 char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen);
-void VFS_PRINTF(vfsfile_t *vf, char *fmt, ...);
+void VARGS VFS_PRINTF(vfsfile_t *vf, char *fmt, ...);
 
 enum fs_relative{
 	FS_GAME,		//standard search (not generally valid for save/rename/delete/etc)
@@ -351,6 +351,7 @@ void FS_CreatePath(const char *pname, enum fs_relative relativeto);
 int FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto);	//0 on success, non-0 on error
 int FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrelativeto, enum fs_relative newrelativeto);
 int FS_Remove(const char *fname, enum fs_relative relativeto);	//0 on success, non-0 on error
+qboolean FS_Copy(const char *source, const char *dest, enum fs_relative relativesource, enum fs_relative relativedest);
 qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//if you really need to fopen yourself
 qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_relative relativeto);
 vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto);

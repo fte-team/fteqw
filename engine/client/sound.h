@@ -114,8 +114,13 @@ void S_StartSoundDelayed(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, 
 void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);
 void S_StopAllSounds(qboolean clear);
-void S_Update (vec3_t origin, vec3_t v_forward, vec3_t v_right, vec3_t v_up);
+void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, qboolean dontmix);
 void S_ExtraUpdate (void);
+
+qboolean S_HaveOutput(void);
+
+void S_Music_Clear(sfx_t *onlyifsample);
+void S_Music_Seek(float time);
 
 sfx_t *S_PrecacheSound (char *sample);
 void S_TouchSound (char *sample);

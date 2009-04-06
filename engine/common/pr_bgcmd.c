@@ -1393,21 +1393,28 @@ void PF_vtos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_TSTRING(pr_string_temp);
 }
 
-#pragma message("this should use something more... less hacky")
 void PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *s=PR_GetStringOfs(prinst, OFS_PARM0);
-	s-=8;
-	if (((int *)s)[0] != PRSTR)
+	char *s=PR_RemoveProgsString(prinst, G_INT(OFS_PARM0));
+	if (!s)
 	{
-		Con_Printf("QC tried to free a non allocated string: ");
-		Con_Printf("%s\n", s+8);	//two prints, so that logged prints ensure the first is written.
+		Con_Printf("string was not strzoned\n");
+		(*prinst->pr_trace) = 1;
+		return;
+	}
+//	char *s=PR_GetStringOfs(prinst, OFS_PARM0);
+	s-=8;
+	if (!((int *)s)[0] != PRSTR)
+	{
+		Con_Printf("QC tried to free a non dynamic string: ");
+		Con_Printf("%s\n", s);	//two prints, so that logged prints ensure the first is written.
 		(*prinst->pr_trace) = 1;
 		PR_StackTrace(prinst);
 		return;
 	}
 	((int *)s)[0] = 0xabcd1234;
 	Z_TagFree(s);
+
 }
 
 void PF_dupstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)	//frik_file

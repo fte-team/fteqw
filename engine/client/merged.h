@@ -63,7 +63,7 @@ extern void	(*Draw_ScalePic)						(int x, int y, int width, int height, mpic_t *
 extern void	(*Draw_SubPic)							(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
 extern void	(*Draw_TransPic)						(int x, int y, mpic_t *pic);
 extern void	(*Draw_TransPicTranslate)				(int x, int y, int width, int height, qbyte *image, qbyte *translation);
-extern void	(*Draw_ConsoleBackground)				(int lines);
+extern void	(*Draw_ConsoleBackground)				(int firstline, int lastline, qboolean forceopaque);
 extern void	(*Draw_EditorBackground)				(int lines);
 extern void	(*Draw_TileClear)						(int x, int y, int w, int h);
 extern void	(*Draw_Fill)							(int x, int y, int w, int h, unsigned int c);
@@ -178,7 +178,7 @@ typedef struct {
 	void	(*Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
 	void	(*Draw_TransPic)			(int x, int y, mpic_t *pic);
 	void	(*Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation);
-	void	(*Draw_ConsoleBackground)	(int lines);
+	void	(*Draw_ConsoleBackground)	(int firstline, int lastline, qboolean forceopaque);
 	void	(*Draw_EditorBackground)	(int lines);
 	void	(*Draw_TileClear)			(int x, int y, int w, int h);
 	void	(*Draw_Fill)				(int x, int y, int w, int h, unsigned int c);

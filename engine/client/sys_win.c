@@ -41,7 +41,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 qboolean isDedicated = false;
 #endif
 
-HWND sys_hijackwindow;
+HWND sys_parentwindow;
+unsigned int sys_parentwidth;	//valid if sys_parentwindow is set
+unsigned int sys_parentheight;
 
 void Sys_CloseLibrary(dllhandle_t *lib)
 {

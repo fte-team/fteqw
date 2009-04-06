@@ -1742,7 +1742,7 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 	}
 }
 
-void SV_NextChunkedDownload(int chunknum, int ezpercent, int ezfilenum)
+void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum)
 {
 #define CHUNKSIZE 1024
 	char buffer[CHUNKSIZE];
@@ -1753,9 +1753,9 @@ void SV_NextChunkedDownload(int chunknum, int ezpercent, int ezfilenum)
 
 	msg = &host_client->datagram;
 
-	if (chunknum < 0 || (chunknum*CHUNKSIZE > host_client->downloadsize))
+	if (chunknum*CHUNKSIZE > host_client->downloadsize)
 	{
-		Con_Printf ("Invalid file chunk requested %i to %i of .\n", chunknum*CHUNKSIZE, (chunknum+1)*CHUNKSIZE, host_client->downloadsize);
+		SV_ClientPrintf (host_client, PRINT_HIGH, "Invalid file chunk requested %u to %u of %u.\n", chunknum*CHUNKSIZE, (chunknum+1)*CHUNKSIZE, host_client->downloadsize);
 		error = true;
 	}
 
@@ -1786,7 +1786,7 @@ void SV_NextChunkedDownload(int chunknum, int ezpercent, int ezfilenum)
 
 	if (i > 0)
 	{
-		if (msg == &msg_oob)//host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize)
+		if (msg == &msg_oob)
 		{
 			msg = &msg_oob;
 			msg->cursize = 0;
@@ -1798,7 +1798,7 @@ void SV_NextChunkedDownload(int chunknum, int ezpercent, int ezfilenum)
 			msg->data = oobdata;
 			MSG_WriteByte(msg, A2C_PRINT);
 			SZ_Write(msg, "\\chunk", 6);
-			MSG_WriteLong(msg, ezfilenum);
+			MSG_WriteLong(msg, ezfilenum);	//echoing the file num is used so the packets don't go out of sync.
 		}
 
 		if (i != CHUNKSIZE)
@@ -1850,7 +1850,10 @@ void SV_NextDownload_f (void)
 #ifdef PEXT_CHUNKEDDOWNLOADS
 	if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 	{
-		SV_NextChunkedDownload(atoi(Cmd_Argv(1)), atoi(Cmd_Argv(2)), atoi(Cmd_Argv(3)));
+		if (Cmd_Argc() < 2)
+			SV_NextChunkedDownload(atoi(Cmd_Argv(1)), atoi(Cmd_Argv(2)), atoi(Cmd_Argv(3)));
+		else
+			SV_NextChunkedDownload(atoi(Cmd_Argv(1)), atoi(Cmd_Argv(2)), atoi(Cmd_Argv(3)));
 		return;
 	}
 #endif
@@ -2378,7 +2381,7 @@ void SV_StopDownload_f(void)
 		host_client->download = NULL;
 	}
 	else
-		Con_Printf ("But you're not downloading anything\n");
+		SV_ClientPrintf(host_client, PRINT_HIGH, "But you're not downloading anything\n");
 
 	host_client->downloadstarted = false;
 }
@@ -3015,14 +3018,14 @@ void SV_SetInfo_f (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		Con_Printf ("User info settings:\n");
+		SV_ClientPrintf(host_client, PRINT_HIGH, "User info settings:\n");
 		Info_Print (host_client->userinfo);
 		return;
 	}
 
 	if (Cmd_Argc() != 3)
 	{
-		Con_Printf ("usage: setinfo [ <key> <value> ]\n");
+		SV_ClientPrintf(host_client, PRINT_HIGH, "usage: setinfo [ <key> <value> ]\n");
 		return;
 	}
 
@@ -3114,7 +3117,9 @@ Dumps the serverinfo info string
 */
 void SV_ShowServerinfo_f (void)
 {
+	SV_BeginRedirect(RD_CLIENT, host_client->language);
 	Info_Print (svs.info);
+	SV_EndRedirect();
 }
 
 void SV_NoSnap_f(void)
@@ -3228,12 +3233,12 @@ void SV_Vote_f (void)
 
 	if (!votelevel.value)
 	{
-		Con_TPrintf(STL_NOVOTING);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_NOVOTING);
 		return;
 	}
 	if (host_client->ismuted)
 	{
-		Con_TPrintf(STL_MUTEDVOTE);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_MUTEDVOTE);
 		return;
 	}
 
@@ -3247,7 +3252,7 @@ void SV_Vote_f (void)
 		base = NULL;
 	if (strchr(command, ';') || !strcmp(command, "if"))
 	{
-		Con_TPrintf(STL_BADVOTE);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_BADVOTE);
 		return;
 	}
 	num = Cmd_Level(command);
@@ -3255,7 +3260,7 @@ void SV_Vote_f (void)
 		*base = ' ';
 	if (num != Cmd_ExecLevel)
 	{
-		Con_TPrintf(STL_BADVOTE);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_BADVOTE);
 		return;
 	}
 
@@ -3269,13 +3274,13 @@ void SV_Vote_f (void)
 	if (VoteCount(command, id))
 	{
 		VoteRemoveCommands(command, id);
-		Con_TPrintf(STL_OLDVOTEREMOVED);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_OLDVOTEREMOVED);
 		return;
 	}
 	if (VoteCount(NULL, id)>=3)
 	{
 		VoteRemoveCommands(NULL, id);
-		Con_TPrintf(STL_VOTESREMOVED);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_VOTESREMOVED);
 	}
 
 	num = VoteCount(command, -1)+1;
@@ -3312,7 +3317,7 @@ void Cmd_Notarget_f (void)
 {
 	if (!sv_allow_cheats)
 	{
-		Con_Printf ("Cheats are not allowed on this server\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
 
@@ -3328,7 +3333,7 @@ void Cmd_God_f (void)
 {
 	if (!sv_allow_cheats)
 	{
-		Con_Printf ("Cheats are not allowed on this server\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
 
@@ -3355,7 +3360,7 @@ void Cmd_Give_f (void)
 
 	if (!sv_allow_cheats)
 	{
-		Con_Printf ("Cheats are not allowed on this server\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
 
@@ -3410,7 +3415,7 @@ void Cmd_Noclip_f (void)
 {
 	if (!sv_allow_cheats)
 	{
-		Con_Printf ("Cheats are not allowed on this server\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
 
@@ -3436,7 +3441,7 @@ void Cmd_Fly_f (void)
 {
 	if (!sv_allow_cheats)
 	{
-		Con_Printf ("Cheats are not allowed on this server\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
 
@@ -3467,20 +3472,20 @@ void Cmd_SetPos_f(void)
 {
 	if (!sv_allow_cheats)
 	{
-		Con_Printf ("Cheats are not allowed on this server\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
 	}
 
 	if (Cmd_Argc() != 4)
 	{
-		Con_Printf ("setpos %i %i %i\n", (int)sv_player->v->origin[0], (int)sv_player->v->origin[1], (int)sv_player->v->origin[2]);
+		SV_ClientPrintf(host_client, PRINT_HIGH, "setpos %f %f %f\n", sv_player->v->origin[0], sv_player->v->origin[1], sv_player->v->origin[2]);
 		return;
 	}
 	SV_LogPlayer(host_client, "setpos cheat");
 	if (sv_player->v->movetype != MOVETYPE_NOCLIP)
 	{
 		sv_player->v->movetype = MOVETYPE_NOCLIP;
-		Con_Printf("noclip on\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "noclip on\n");
 	}
 
 	sv_player->v->origin[0] = atof(Cmd_Argv(1));
@@ -3499,7 +3504,6 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 		string_t preserve;
 		preserve = ent->v->netname;
 		Q1QVMED_ClearEdict(ent, true);
-		Con_Printf("client netname: %x\n", preserve);
 		ent->v->netname = preserve;
 	}
 	else
@@ -3553,19 +3557,19 @@ void Cmd_Join_f (void)
 
 	if (svs.gametype != GT_PROGS)
 	{
-		Con_Printf ("Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
 		return;
 	}
 
 	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
 	{
-		Con_Printf ("Your QW client doesn't support this command\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Your QW client doesn't support this command\n");
 		return;
 	}
 
 	if (password.string[0] && stricmp(password.string, "none"))
 	{
-		Con_Printf ("This server requires a %s password. Please disconnect, set the password and reconnect as %s.\n", "player", "player");
+		SV_ClientPrintf(host_client, PRINT_HIGH, "This server requires a %s password. Please disconnect, set the password and reconnect as %s.\n", "player", "player");
 		return;
 	}
 
@@ -3578,7 +3582,7 @@ void Cmd_Join_f (void)
 	}
 	if (numclients >= maxclients.value)
 	{
-		Con_Printf ("Can't join, all player slots full\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Can't join, all player slots full\n");
 		return;
 	}
 
@@ -3646,19 +3650,19 @@ void Cmd_Observe_f (void)
 	
 	if (svs.gametype != GT_PROGS)
 	{
-		Con_Printf ("Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
 		return;
 	}
 
 	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
 	{
-		Con_Printf ("Your QW client doesn't support this command\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Your QW client doesn't support this command\n");
 		return;
 	}
 
 	if (spectator_password.string[0] && stricmp(spectator_password.string, "none"))
 	{
-		Con_Printf ("This server requires a %s password. Please disconnect, set the password and reconnect as %s.\n", "spectator", "spectator");
+		SV_ClientPrintf(host_client, PRINT_HIGH, "This server requires a %s password. Please disconnect, set the password and reconnect as %s.\n", "spectator", "spectator");
 		return;
 	}
 
@@ -3670,7 +3674,7 @@ void Cmd_Observe_f (void)
 	}
 	if (numspectators >= maxspectators.value)
 	{
-		Con_Printf ("Can't join, all spectator slots full\n");
+		SV_PrintToClient(host_client, PRINT_HIGH, "Can't join, all spectator slots full\n");
 		return;
 	}
 
@@ -3754,9 +3758,9 @@ void Cmd_FPSList_f(void)
 		}
 
 		if (frames)
-			Con_Printf("%s: %ffps (min%f max %f\n", cl->name, ftime/frames, minf, maxf);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %ffps (min%f max %f\n", cl->name, ftime/frames, minf, maxf);
 		else
-			Con_Printf("%s: no information available\n", cl->name);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: no information available\n", cl->name);
 	}
 }
 
@@ -3766,7 +3770,7 @@ void SV_EnableClientsCSQC(void)
 	if (host_client->fteprotocolextensions & PEXT_CSQC || atoi(Cmd_Argv(1)))
 		host_client->csqcactive = true;
 	else
-		Con_Printf("CSQC entities not enabled - no support from network protocol\n");
+		SV_ClientPrintf(host_client, PRINT_HIGH, "CSQC entities not enabled - no support from network protocol\n");
 #endif
 }
 void SV_DisableClientsCSQC(void)

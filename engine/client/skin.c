@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-cvar_t		baseskin = SCVAR("baseskin", "base");
+cvar_t		baseskin = SCVAR("baseskin", "");
 cvar_t		noskins = SCVAR("noskins", "0");
 
 extern cvar_t	cl_teamskin;
@@ -537,6 +537,9 @@ void Skin_NextDownload (void)
 		if (strchr(sc->skin->name, ' '))	//skip over skins using a space
 			continue;
 
+		if (!*sc->skin->name)
+			continue;
+
 		CL_CheckOrEnqueDownloadFile(va("skins/%s.pcx", sc->skin->name), NULL, 0);
 	}
 
@@ -594,6 +597,8 @@ void	Skin_Skins_f (void)
 
 	Skin_NextDownload ();
 
+
+	SCR_SetLoadingStage(LS_NONE);
 
 	CL_SendClientCommand(true, "begin %i", cl.servercount);
 	Cache_Report ();		// print remaining memory

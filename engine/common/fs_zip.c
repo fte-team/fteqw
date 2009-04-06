@@ -3,10 +3,6 @@
 
 #ifdef AVAIL_ZLIB
 
-#ifndef ZEXPORT
-#define ZEXPORT VARGS
-#endif
-
 #include <zlib.h>
 #include "unzip.c"
 

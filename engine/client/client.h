@@ -950,6 +950,11 @@ qboolean CSQC_KeyPress(int key, qboolean down);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation);
 void CSQC_ParseEntities(void);
 qboolean CSQC_SettingListener(void);
+
+qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state);
+void CSQC_DeltaStart(float time);
+qboolean CSQC_DeltaUpdate(entity_state_t *src);
+void CSQC_DeltaEnd(void);
 #endif
 
 //

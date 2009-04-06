@@ -210,6 +210,10 @@ keyname_t keynames[] =
 
 	{"SEMICOLON", ';'},	// because a raw semicolon seperates commands
 
+	{"TILDE", '~'},
+	{"BACKQUOTE", '`'},
+	{"BACKSLASH", '\\'},
+
 	{NULL,0}
 };
 
@@ -1378,8 +1382,6 @@ qboolean Key_MouseShouldBeFree(void)
 	}
 	if (key_dest == key_console)
 		return true;
-	if (key_dest == key_game && cls.state < ca_connected)
-		return true;
 
 #ifdef VM_UI
 	if (UI_MenuState())
@@ -1715,6 +1717,8 @@ void Key_Event (int key, qboolean down)
 #endif
 	case key_game:
 	case key_console:
+		if ((key >= ' ' && key <= 127) || key == K_ENTER || key == K_TAB)
+			key_dest = key_console;
 		Key_Console (key);
 		break;
 	default:

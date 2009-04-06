@@ -83,7 +83,7 @@ char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen)
 	return buffer;
 }
 
-void VFS_PRINTF(vfsfile_t *vf, char *format, ...)
+void VARGS VFS_PRINTF(vfsfile_t *vf, char *format, ...)
 {
 	va_list		argptr;
 	char		string[1024];

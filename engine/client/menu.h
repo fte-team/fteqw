@@ -393,6 +393,7 @@ void MP_RegisterCvarsAndCmds(void);
 void MP_Keydown(int key);
 void MP_Keyup(int key);
 
+#define MGT_BAD    ~0
 #define MGT_QUAKE1 0
 #define MGT_HEXEN2 1
 #define MGT_QUAKE2 2

@@ -342,6 +342,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define VARGS
 #endif
 
+#ifdef _WIN32
+#define ZEXPORT VARGS
+#define ZEXPORTVA VARGS
+#endif
+
+
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
 #define CACHE_SIZE	32		// used to align key data structures
 

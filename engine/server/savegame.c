@@ -988,7 +988,7 @@ void SV_Savegame_f (void)
 	{
 		VFS_PRINTF(f, "%s\n", cache->mapname);
 
-		FS_Copy(va("saves/%s.lvc", cache->mapname), va("saves/%s/%s.lvc", savename, cache->mapname), FS_GAME);
+		FS_Copy(va("saves/%s.lvc", cache->mapname), va("saves/%s/%s.lvc", savename, cache->mapname), FS_GAME, FS_GAME);
 
 		cache = cache->next;
 	}

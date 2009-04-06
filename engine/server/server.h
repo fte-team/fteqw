@@ -426,8 +426,8 @@ typedef struct client_s
 
 	char			downloadfn[MAX_QPATH];
 	vfsfile_t		*download;			// file being downloaded
-	int				downloadsize;		// total bytes
-	int				downloadcount;		// bytes sent
+	unsigned int	downloadsize;		// total bytes
+	unsigned int	downloadcount;		// bytes sent
 
 	int				downloadacked;		//DP-specific
 	int				downloadstarted;	//DP-specific
@@ -1041,6 +1041,7 @@ void SV_UserInit (void);
 qboolean SV_TogglePause (client_t *cl);
 
 void SV_ClientThink (void);
+void SV_Begin_Core(client_t *split);
 
 void VoteFlushAll(void);
 void SV_SetUpClientEdict (client_t *cl, edict_t *ent);

@@ -25,7 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"//would prefer not to have this
 #endif
 
-
+//name of the current backdrop for the loading screen
+char levelshotname[MAX_QPATH];
 
 
 void RSpeedShow(void)
@@ -1442,28 +1443,32 @@ SCR_DrawLoading
 */
 
 int			total_loading_size, current_loading_size, loading_stage;
+int CL_DownloadRate(void);
 
-char levelshotname[MAX_QPATH];
+int SCR_GetLoadingStage(void)
+{
+	return loading_stage;
+}
+void SCR_SetLoadingStage(int stage)
+{
+	loading_stage = stage;
+}
+
 void SCR_DrawLoading (void)
 {
+	int sizex, x, y;
 	mpic_t  *pic;
+	char *s;
+	int qdepth;
+	int h2depth;
+	int mtype = M_GameType();
+	y = vid.height/2;
 
-	if (!scr_drawloading)
-		return;
+	qdepth = COM_FDepthFile("gfx/loading.lmp", true);
+	h2depth = COM_FDepthFile("gfx/menu/loading.lmp", true);
 
-	if (*levelshotname)
-	{
-		if(Draw_ScalePic)
-			Draw_ScalePic(0, 0, vid.width, vid.height, Draw_SafeCachePic (levelshotname));
-		else
-			Draw_ConsoleBackground(vid.height);
-	}
-	else
-		Draw_ConsoleBackground(vid.height);
-
-	if (COM_FDepthFile("gfx/loading.lmp", true) < COM_FDepthFile("gfx/menu/loading.lmp", true))
+	if (qdepth < h2depth || h2depth > 0xffffff)
 	{	//quake files
-		int sizex, x, y;
 
 		pic = Draw_SafeCachePic ("gfx/loading.lmp");
 		if (pic)
@@ -1478,12 +1483,14 @@ void SCR_DrawLoading (void)
 		{
 			x = (vid.width/2) - 96;
 			y = (vid.height/2) - 8;
+
+			Draw_String((vid.width-7*8)/2, y-16, "Loading");
 		}
 
-		if (loading_stage)
+		if (loading_stage > LS_CONNECTION)
 		{
 			sizex = current_loading_size * 192 / total_loading_size;
-			if (loading_stage == 1)
+			if (loading_stage == LS_SERVER)
 			{
 				Draw_FillRGB(x, y, sizex, 16, 1.0, 0.0, 0.0);
 				Draw_FillRGB(x+sizex, y, 192-sizex, 16, 0.0, 0.0, 0.0);
@@ -1495,8 +1502,10 @@ void SCR_DrawLoading (void)
 			}
 
 			Draw_String(x+8, y+4, va("Loading %s... %i%%", 
-				(loading_stage == 1) ? "server" : "client",
+				(loading_stage == LS_SERVER) ? "server" : "client",
 				current_loading_size * 100 / total_loading_size));
+
+			y += 16;
 		}
 	}
 	else
@@ -1512,7 +1521,7 @@ void SCR_DrawLoading (void)
 			offset = (vid.width - pic->width)/2;
 			Draw_TransPic (offset , 0, pic);
 
-			if (loading_stage == 0)
+			if (loading_stage == LS_NONE)
 				return;
 
 			if (total_loading_size)
@@ -1520,7 +1529,7 @@ void SCR_DrawLoading (void)
 			else
 				size = 0;
 
-			if (loading_stage == 1)
+			if (loading_stage == LS_CLIENT)
 				count = size;
 			else
 				count = 106;
@@ -1529,7 +1538,7 @@ void SCR_DrawLoading (void)
 			Draw_Fill (offset+42, 87+1, count, 4, 138);
 			Draw_Fill (offset+42, 87+5, count, 1, 136);
 
-			if (loading_stage == 2)
+			if (loading_stage == LS_SERVER)
 				count = size;
 			else
 				count = 0;
@@ -1537,11 +1546,57 @@ void SCR_DrawLoading (void)
 			Draw_Fill (offset+42, 97, count, 1, 168);
 			Draw_Fill (offset+42, 97+1, count, 4, 170);
 			Draw_Fill (offset+42, 97+5, count, 1, 168);
+
+			y = 104;
 		}
 	}
 
-	SCR_SetUpToDrawConsole();
-	SCR_DrawConsole(!!*levelshotname);
+	if (cl.downloadlist || cls.downloadmethod)
+	{
+		unsigned int fcount;
+		unsigned int tsize;
+		qboolean sizeextra;
+		
+		x = vid.conwidth/2 - 160;
+
+		CL_GetDownloadSizes(&fcount, &tsize, &sizeextra);
+		//downloading files?
+		if (cls.downloadmethod)
+			Draw_String(x+8, y+4, va("Downloading %s... %i%%", 
+				cls.downloadname,
+				cls.downloadpercent));
+
+		if (tsize > 1024*1024*16)
+		{
+			Draw_String(x+8, y+8+4, va("%5ukbps %8umb%s remaining (%i files)", 
+				(unsigned int)(CL_DownloadRate()/1000.0f),
+				tsize/(1024*1024),
+				sizeextra?"+":"",
+				fcount));
+		}
+		else
+		{
+			Draw_String(x+8, y+8+4, va("%5ukbps %8ukb%s remaining (%i files)", 
+				(unsigned int)(CL_DownloadRate()/1000.0f),
+				tsize/1024,
+				sizeextra?"+":"",
+				fcount));
+		}
+
+		y+= 16+8;
+	}
+	else if (CL_TryingToConnect())
+	{
+		char dots[4];
+
+		s = CL_TryingToConnect();
+		x = (vid.width - (strlen(s)+15)*8) / 2;
+		dots[0] = '.';
+		dots[1] = '.';
+		dots[2] = '.';
+		dots[(int)realtime & 3] = 0;
+		Draw_String(x, y+4, va("Connecting to: %s%s", s, dots)); 
+	}
 }
 
 void SCR_BeginLoadingPlaque (void)
@@ -1636,7 +1691,7 @@ void SCR_SetUpToDrawConsole (void)
 // decide on the height of the console
 	if (!scr_disabled_for_loading)
 	{
-		if (cls.state != ca_active && !Media_PlayingFullScreen()
+		/*if (cls.state != ca_active && !Media_PlayingFullScreen()
 	#ifdef TEXTEDITOR
 			&& !editoractive
 	#endif
@@ -1649,6 +1704,10 @@ void SCR_SetUpToDrawConsole (void)
 			scr_con_current = scr_conlines;
 			scr_con_forcedraw = true;
 		}
+		else */
+		scr_con_forcedraw = false;
+		if ((key_dest == key_console || key_dest == key_game) && !cl.sendprespawn && cl.worldmodel && cl.worldmodel->needload)
+			Con_ForceActiveNow();
 		else if (key_dest == key_console || scr_chatmode)
 		{
 			scr_conlines = vid.height*scr_consize.value;    // half screen
@@ -1662,14 +1721,14 @@ void SCR_SetUpToDrawConsole (void)
 
 		if (scr_conlines < scr_con_current)
 		{
-			scr_con_current -= scr_conspeed.value*host_frametime;
+			scr_con_current -= scr_conspeed.value*host_frametime * (vid.height/320.0f);
 			if (scr_conlines > scr_con_current)
 				scr_con_current = scr_conlines;
 
 		}
 		else if (scr_conlines > scr_con_current)
 		{
-			scr_con_current += scr_conspeed.value*host_frametime;
+			scr_con_current += scr_conspeed.value*host_frametime * (vid.height/320.0f);
 			if (scr_conlines < scr_con_current)
 				scr_con_current = scr_conlines;
 		}
@@ -1707,8 +1766,6 @@ SCR_DrawConsole
 */
 void SCR_DrawConsole (qboolean noback)
 {
-	if (key_dest == key_menu)
-		return;
 	if (scr_con_current)
 	{
 		scr_copyeverything = 1;
@@ -2295,9 +2352,9 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		SCR_DrawNotifyString ();
 		scr_copyeverything = true;
 	}
-	else if (scr_drawloading)
+	else if (scr_drawloading || loading_stage)
 	{
-		SCR_DrawLoading ();
+		SCR_DrawLoading();
 
 		if (!nohud)
 		{
@@ -2313,20 +2370,16 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		}
 		SCR_ShowPics_Draw();
 	}
-	else if (cl.intermission == 1 && key_dest == key_game)
+	else if (cl.intermission == 1)
 	{
 		Sbar_IntermissionOverlay ();
-		M_Draw (uimenu);
-#ifdef MENU_DAT
-		MP_Draw();
-#endif
 	}
-	else if (cl.intermission == 2 && key_dest == key_game)
+	else if (cl.intermission == 2)
 	{
 		Sbar_FinaleOverlay ();
 		SCR_CheckDrawCenterString ();
 	}
-	else if (cl.intermission == 3 && key_dest == key_game)
+	else if (cl.intermission == 3)
 	{
 	}
 	else
@@ -2363,16 +2416,19 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		if (qrenderer == QR_OPENGL)
 			qglTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
 #endif
-#ifdef TEXTEDITOR
-		if (editoractive)
-			Editor_Draw();
-#endif
-		M_Draw (uimenu);
-#ifdef MENU_DAT
-		MP_Draw();
-#endif
-		SCR_DrawConsole (false);
 	}
+
+#ifdef TEXTEDITOR
+	if (editoractive)
+		Editor_Draw();
+#endif
+
+	SCR_DrawConsole (false);
+
+	M_Draw (uimenu);
+#ifdef MENU_DAT
+	MP_Draw();
+#endif
 
 	RSpeedEnd(RSPEED_2D);
 }

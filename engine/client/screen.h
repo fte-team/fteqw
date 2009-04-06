@@ -96,3 +96,13 @@ void Draw_TextBox (int x, int y, int width, int lines);
 qboolean SCR_ScreenShot (char *filename);
 
 void SCR_DrawTwoDimensional(int uimenu, qboolean nohud);
+
+enum
+{
+	LS_NONE,
+	LS_CONNECTION,
+	LS_SERVER,
+	LS_CLIENT,
+};
+int SCR_GetLoadingStage(void);
+void SCR_SetLoadingStage(int stage);

@@ -188,7 +188,7 @@ static cvar_t vid_fullscreen				= SCVARF ("vid_fullscreen_embedded", "0",
 static cvar_t vid_fullscreen				= SCVARF ("vid_fullscreen", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 #endif
-static cvar_t vid_height					= SCVARF ("vid_height", "480",
+cvar_t vid_height							= SCVARF ("vid_height", "480",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 static cvar_t vid_multisample				= SCVARF ("vid_multisample", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
@@ -196,8 +196,9 @@ static cvar_t vid_refreshrate				= SCVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 static cvar_t vid_stretch					= SCVARF ("vid_stretch", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t vid_wndalpha							= SCVAR ("vid_wndalpha", "1");
 //more readable defaults to match conwidth/conheight.
-static cvar_t vid_width						= SCVARF ("vid_width", "640",
+cvar_t vid_width							= SCVARF ("vid_width", "640",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
 extern cvar_t bul_backcol;
@@ -600,6 +601,7 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_stretch, VIDCOMMANDGROUP);
 	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
+	Cvar_Register (&vid_wndalpha, VIDCOMMANDGROUP);
 
 #ifdef NPQTV
 	Cvar_Register (&vid_fullscreen_npqtv, VIDCOMMANDGROUP);
@@ -739,7 +741,7 @@ void	(*Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic);
 void	(*Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
 void	(*Draw_TransPic)			(int x, int y, mpic_t *pic);
 void	(*Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *image, qbyte *translation);
-void	(*Draw_ConsoleBackground)	(int lines);
+void	(*Draw_ConsoleBackground)	(int firstline, int lastline, qboolean forceopaque);
 void	(*Draw_EditorBackground)	(int lines);
 void	(*Draw_TileClear)			(int x, int y, int w, int h);
 void	(*Draw_Fill)				(int x, int y, int w, int h, unsigned int c);

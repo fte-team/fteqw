@@ -921,7 +921,7 @@ qboolean Media_WinAvi_DecodeFrame(cin_t *cin, qboolean nosound)
 #ifdef SWQUAKE
 		D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
 #endif
-		Draw_ConsoleBackground(vid.height);
+		Draw_ConsoleBackground(0, vid.height, true);
 		Draw_String(0, 0, "Video stream is corrupt\n");			
 	}
 	else

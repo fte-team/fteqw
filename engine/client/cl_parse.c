@@ -370,7 +370,7 @@ void CL_GetDownloadSizes(unsigned int *filecount, unsigned int *totalsize, qbool
 	*somesizesunknown = false;
 	for(dl = cl.downloadlist; dl; dl = dl->next)
 	{
-		*filecount++;
+		*filecount += 1;
 		if (dl->flags & DLLF_SIZEUNKNOWN)
 			*somesizesunknown = true;
 		else
@@ -399,7 +399,7 @@ void CL_DisenqueDownload(char *filename)
 		}
 		else
 		{
-			for (dl = cl.downloadlist->next; dl->next; dl = dl->next)
+			for (dl = cl.downloadlist; dl->next; dl = dl->next)
 			{
 				if (!strcmp(dl->next->name, filename))
 				{
@@ -733,8 +733,7 @@ static qboolean CL_CheckModelResources (char *name)
 Model_NextDownload
 =================
 */
-void Sound_NextDownload (void);
-void Model_NextDownload (void)
+void Model_CheckDownloads (void)
 {
 //	char *twf;
 	char	*s;
@@ -743,14 +742,6 @@ void Model_NextDownload (void)
 
 //	Con_TPrintf (TLC_CHECKINGMODELS);
 
-/*	if (cls.downloadnumber == 0)
-	{
-		Con_TPrintf (TLC_CHECKINGMODELS);
-		cls.downloadnumber = 1;
-
-		cl.worldmodel = NULL;
-	}
-*/
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
@@ -785,22 +776,16 @@ void Model_NextDownload (void)
 		CL_CheckOrEnqueDownloadFile(s, s, (i==1)?DLLF_REQUIRED:0);	//world is required to be loaded.
 		CL_CheckModelResources(s);
 	}
-
-	CL_AllowIndependantSendCmd(false);	//stop it now, the indep stuff *could* require model tracing.
-
-	Hunk_Check ();		// make sure nothing is hurt
-
-	cl.sendprespawn = true;
 }
 
-int CL_LoadModels(int stage)
+int CL_LoadModels(int stage, qboolean dontactuallyload)
 {
 	extern model_t *loadmodel;
 	int i;
 
 	float giveuptime = Sys_DoubleTime()+0.1;	//small things get padded into a single frame
 
-#define atstage() ((cl.contentstage == stage++)?++cl.contentstage:false)
+#define atstage() ((cl.contentstage == stage++ && !dontactuallyload)?++cl.contentstage:false)
 #define endstage() if (giveuptime<Sys_DoubleTime()) return -1;
 
 	pmove.numphysent = 0;
@@ -995,13 +980,13 @@ int CL_LoadModels(int stage)
 	return stage;
 }
 
-int CL_LoadSounds(int stage)
+int CL_LoadSounds(int stage, qboolean dontactuallyload)
 {
 	int i;
 	float giveuptime = Sys_DoubleTime()+0.1;	//small things get padded into a single frame
 
-#define atstage() ((cl.contentstage == stage++)?++cl.contentstage:false)
-#define endstage() if (giveuptime<Sys_DoubleTime()) return -1;
+//#define atstage() ((cl.contentstage == stage++)?++cl.contentstage:false)
+//#define endstage() if (giveuptime<Sys_DoubleTime()) return -1;
 
 	for (i=1 ; i<MAX_SOUNDS ; i++)
 	{
@@ -1027,7 +1012,7 @@ int CL_LoadSounds(int stage)
 Sound_NextDownload
 =================
 */
-void Sound_NextDownload (void)
+void Sound_CheckDownloads (void)
 {
 	char mangled[512];
 	char	*s;
@@ -1061,7 +1046,10 @@ void Sound_NextDownload (void)
 		; i++)
 	{
 		s = cl.sound_name[i];
-		if (*s == '*')
+		if (*s == '*')	//q2 sexed sound
+			continue;
+
+		if (!S_HaveOutput())
 			continue;
 
 		//check without the sound/ prefix
@@ -1089,40 +1077,6 @@ void Sound_NextDownload (void)
 		//download the one the server said.
 		CL_CheckOrEnqueDownloadFile(s, NULL, 0);
 	}
-
-	// done with sounds, request models now
-	memset (cl.model_precache, 0, sizeof(cl.model_precache));
-	cl_playerindex = -1;
-	cl_h_playerindex = -1;
-	cl_spikeindex = -1;
-	cl_flagindex = -1;
-	cl_rocketindex = -1;
-	cl_grenadeindex = -1;
-	cl_gib1index = -1;
-	cl_gib2index = -1;
-	cl_gib3index = -1;
-#ifdef Q2CLIENT
-	if (cls.protocol == CP_QUAKE2)
-	{
-		Model_NextDownload();
-	}
-	else
-#endif
-	{
-		if (cls.demoplayback == DPB_EZTV)
-		{
-			if (CL_RemoveClientCommands("qtvmodellist"))
-				Con_Printf("Multiple modellists\n");
-			CL_SendClientCommand (true, "qtvmodellist %i 0", cl.servercount);
-		}
-		else
-		{
-			if (CL_RemoveClientCommands("modellist"))
-				Con_Printf("Multiple modellists\n");
-//			CL_SendClientCommand ("modellist %i 0", cl.servercount);
-			CL_SendClientCommand (true, modellist_name, cl.servercount, 0);
-		}
-	}
 }
 
 /*
@@ -1141,6 +1095,8 @@ void CL_RequestNextDownload (void)
 		if (cl.downloadlist)
 		{
 			downloadlist_t *dl;
+
+			//download required downloads first
 			for (dl = cl.downloadlist; dl; dl = dl->next)
 			{
 				if (dl->flags & DLLF_REQUIRED)
@@ -1167,11 +1123,24 @@ void CL_RequestNextDownload (void)
 
 	if (cl.sendprespawn)
 	{	// get next signon phase
+		extern int total_loading_size, current_loading_size;
+
+		if (!cl.contentstage)
+		{
+			stage = 0;
+			stage = CL_LoadModels(stage, true);
+			stage = CL_LoadSounds(stage, true);
+			total_loading_size = stage;
+			cl.contentstage = 0;
+		}
+
 		stage = 0;
-		stage = CL_LoadModels(stage);
+		stage = CL_LoadModels(stage, false);
+		current_loading_size = cl.contentstage;
 		if (stage < 0)
 			return;	//not yet
-		stage = CL_LoadSounds(stage);
+		stage = CL_LoadSounds(stage, false);
+		current_loading_size = cl.contentstage;
 		if (stage < 0)
 			return;
 
@@ -1182,27 +1151,29 @@ void CL_RequestNextDownload (void)
 #warning timedemo timer should start here
 #endif
 
+		if (!cl.worldmodel || cl.worldmodel->needload)
+		{
+			Con_Printf("\n\n-------------\nCouldn't download %s - cannot fully connect\n", cl.worldmodel->name);
+			SCR_SetLoadingStage(LS_NONE);
+			return;
+		}
 
 #ifdef Q2CLIENT
 		if (cls.protocol == CP_QUAKE2)
 		{
 			Skin_NextDownload();
+			SCR_SetLoadingStage(LS_NONE);
 			CL_SendClientCommand(true, "begin %i\n", cl.servercount);
 		}
 		else
 #endif
 		{
-			if (!cl.worldmodel || cl.worldmodel->needload)
-			{
-				Con_Printf("\n\n-------------\nCouldn't download %s - cannot fully connect\n", cl.worldmodel->name);
-				return;
-			}
-
 			if (cls.demoplayback == DPB_EZTV)
 			{
 				if (CL_RemoveClientCommands("qtvspawn"))
 					Con_Printf("Multiple prespawns\n");
 				CL_SendClientCommand(true, "qtvspawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
+				SCR_SetLoadingStage(LS_NONE);
 			}
 			else
 			{
@@ -1943,6 +1914,21 @@ qboolean CL_StartUploadFile(char *filename)
 float nextdemotime;
 #endif
 
+void CL_ClearParseState(void)
+{
+	// done with sounds, request models now
+	memset (cl.model_precache, 0, sizeof(cl.model_precache));
+	cl_playerindex = -1;
+	cl_h_playerindex = -1;
+	cl_spikeindex = -1;
+	cl_flagindex = -1;
+	cl_rocketindex = -1;
+	cl_grenadeindex = -1;
+	cl_gib1index = -1;
+	cl_gib2index = -1;
+	cl_gib3index = -1;
+}
+
 /*
 ==================
 CL_ParseServerData
@@ -1962,6 +1948,7 @@ void CL_ParseServerData (void)
 // wipe the client_state_t struct
 //
 
+	SCR_SetLoadingStage(LS_CLIENT);
 	SCR_BeginLoadingPlaque();
 
 // parse protocol version number
@@ -2164,6 +2151,7 @@ void CLQ2_ParseServerData (void)
 //
 // wipe the client_state_t struct
 //
+	SCR_SetLoadingStage(LS_CLIENT);
 	SCR_BeginLoadingPlaque();
 //	CL_ClearState ();
 	cls.state = ca_onserver;
@@ -2264,6 +2252,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	int protover;
 	if (developer.value)
 		Con_TPrintf (TLC_GOTSVDATAPACKET);
+	SCR_SetLoadingStage(LS_CLIENT);
 	CL_ClearState ();
 	Stats_NewMap();
 	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
@@ -2661,7 +2650,32 @@ void CL_ParseSoundlist (qboolean lots)
 		return;
 	}
 
-	Sound_NextDownload ();
+#ifdef Q2CLIENT
+	if (cls.protocol == CP_QUAKE2)
+	{
+		CL_AllowIndependantSendCmd(false);	//stop it now, the indep stuff *could* require model tracing.
+
+		Hunk_Check ();		// make sure nothing is hurt
+
+		cl.sendprespawn = true;
+	}
+	else
+#endif
+	{
+		if (cls.demoplayback == DPB_EZTV)
+		{
+			if (CL_RemoveClientCommands("qtvmodellist"))
+				Con_Printf("Multiple modellists\n");
+			CL_SendClientCommand (true, "qtvmodellist %i 0", cl.servercount);
+		}
+		else
+		{
+			if (CL_RemoveClientCommands("modellist"))
+				Con_Printf("Multiple modellists\n");
+//			CL_SendClientCommand ("modellist %i 0", cl.servercount);
+			CL_SendClientCommand (true, modellist_name, cl.servercount, 0);
+		}
+	}
 }
 
 /*
@@ -2731,7 +2745,14 @@ void CL_ParseModellist (qboolean lots)
 		return;
 	}
 
-	Model_NextDownload ();
+	Model_CheckDownloads();
+
+	CL_AllowIndependantSendCmd(false);	//stop it now, the indep stuff *could* require model tracing.
+
+	Hunk_Check ();		// make sure nothing is hurt
+
+	//set the flag to load models and send prespawn
+	cl.sendprespawn = true;
 }
 
 void CL_ProcessUserInfo (int slot, player_info_t *player);
@@ -2950,8 +2971,12 @@ void CL_ParseBaseline2 (void)
 
 void CLQ2_Precache_f (void)
 {
+	Model_CheckDownloads();
+	Sound_CheckDownloads();
+
+	cl.contentstage = 0;
 	cl.sendprespawn = true;
-	Sound_NextDownload();
+
 #ifdef VM_CG
 	CG_Start();
 #endif
@@ -4424,7 +4449,8 @@ void CL_ParsePrecache(void)
 		if (i >= 1 && i < MAX_SOUNDS)
 		{
 			sfx_t *sfx;
-			CL_CheckOrEnqueDownloadFile(va("sound/%s", s), NULL, 0);
+			if (S_HaveOutput())
+				CL_CheckOrEnqueDownloadFile(va("sound/%s", s), NULL, 0);
 			sfx = S_PrecacheSound (s);
 			if (!sfx)
 				Con_Printf("svc_precache: S_PrecacheSound(\"%s\") failed\n", s);

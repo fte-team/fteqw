@@ -1596,7 +1596,7 @@ void CL_LinkPacketEntities (void)
 	autorotate = anglemod(100*servertime);
 
 #ifdef CSQC_DAT
-	CLCSQC_DeltaStart();
+	CSQC_DeltaStart(servertime);
 #endif
 
 	for (newpnum=0 ; newpnum<pack->num_entities ; newpnum++)
@@ -1612,7 +1612,7 @@ void CL_LinkPacketEntities (void)
 		}
 
 #ifdef CSQC_DAT
-		if (CLCSQC_DeltaUpdate(state))
+		if (CSQC_DeltaUpdate(state))
 			continue;
 #endif
 
@@ -1879,7 +1879,7 @@ void CL_LinkPacketEntities (void)
 		}
 	}
 #ifdef CSQC_DAT
-	CLCSQC_DeltaEnd();
+	CSQC_DeltaEnd();
 #endif
 }
 #else
@@ -2780,13 +2780,13 @@ void CL_LinkPlayers (void)
 		if (state->messagenum != cl.validsequence)
 		{
 #ifdef CSQC_DAT
-			CLCSQC_DeltaPlayer(j, NULL);
+			CSQC_DeltaPlayer(j, NULL);
 #endif
 			continue;	// not present this frame
 		}
 
 #ifdef CSQC_DAT
-		if (CLCSQC_DeltaPlayer(j, state))
+		if (CSQC_DeltaPlayer(j, state))
 			continue;
 #endif
 

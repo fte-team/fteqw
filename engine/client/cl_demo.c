@@ -1925,6 +1925,8 @@ void CL_QTVPlay_f (void)
 		return;
 	}
 
+	SCR_SetLoadingStage(LS_CONNECTION);
+
 	host = connrequest;
 
 	connrequest = strchrrev(connrequest, '@');
@@ -1935,6 +1937,7 @@ void CL_QTVPlay_f (void)
 
 	if (!newf)
 	{
+		SCR_SetLoadingStage(LS_NONE);
 		Con_Printf("Couldn't connect to proxy\n");
 		return;
 	}

@@ -423,6 +423,39 @@ string_t PR_StringToProgs			(progfuncs_t *progfuncs, char *str)
 	return 0;
 }
 
+char *PR_RemoveProgsString				(progfuncs_t *progfuncs, string_t str)
+{
+	char *ret;
+
+	//input string is expected to be an allocated string
+	//if its a temp, or a constant, just return NULL.
+	if ((unsigned int)str & 0xc0000000)
+	{
+		if ((unsigned int)str & 0x80000000)
+		{
+			int i = str & ~0x80000000;
+			if (i >= prinst->numallocedstrings)
+			{
+				pr_trace = 1;
+				return NULL;
+			}
+			if (prinst->allocedstrings[i])
+			{
+				ret = prinst->allocedstrings[i];
+				prinst->allocedstrings[i] = NULL;	//remove it
+				return ret;
+			}
+			else
+			{
+				pr_trace = 1;
+				return NULL;	//urm, was freed...
+			}
+		}
+	}
+	pr_trace = 1;
+	return NULL;
+}
+
 char *PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 {
 	if ((unsigned int)str & 0xc0000000)

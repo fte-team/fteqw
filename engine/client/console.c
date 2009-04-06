@@ -329,11 +329,7 @@ void Con_ToggleConsole_f (void)
 	{
 		if (m_state)
 			key_dest = key_menu;
-		else if (cls.state == ca_active || Media_PlayingFullScreen()
-#ifdef VM_UI
-				 	|| UI_MenuState()
-#endif
-					)
+		else
 			key_dest = key_game;
 	}
 	else
@@ -495,6 +491,11 @@ void Con_CheckResize (void)
 		Con_ResizeCon (c);
 }
 
+void Con_ForceActiveNow(void)
+{
+	key_dest = key_console;
+	scr_conlines = scr_con_current = vid.height;
+}
 
 /*
 ================
@@ -910,7 +911,7 @@ void Con_DrawInput (void)
 
 	int si, x;
 
-	if (key_dest != key_console && cls.state == ca_active)
+	if (key_dest != key_console && con_current->vislines != vid.height)
 		return;		// don't draw anything (always draw if not active)
 
 	if (!con_current->linebuffered)
@@ -980,7 +981,16 @@ void Con_DrawInput (void)
 	}	//that's the default compleation applied
 
 	maskedtext[i] = '\0';
-	maskedtext[i+1] = '\0';	//just in case
+	maskedtext[i+1] = '\0';	//just in case i==key_linepos
+
+	x = 8;
+	y = con_current->vislines-22;
+
+	if (i >= con_current->linewidth)	//work out the start point
+		si = i - con_current->linewidth;
+	else
+		si = 0;
+
 
 	if (con_current->commandcompletion)
 	{
@@ -989,18 +999,24 @@ void Con_DrawInput (void)
 			for (p = 1; (maskedtext[p]&255)>' '; p++)
 				maskedtext[p] = (maskedtext[p]&255) | (COLOR_YELLOW<<CON_FGSHIFT);
 		}
+		else
+			Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8);
+
 		if (key_linepos == i)	//cursor is at end
 		{
-			x = text[1] == '/'?2:1;
-			fname = Cmd_CompleteCommand(text+x, true, true, con_commandmatch);
+			int cmdstart;
+			cmdstart = text[1] == '/'?2:1;
+			fname = Cmd_CompleteCommand(text+cmdstart, true, true, con_commandmatch);
 			if (fname)	//we can compleate it to:
 			{
-				for (p = i-x; fname[p]>' '; p++)
-					maskedtext[p+x] = (unsigned char)fname[p] | (COLOR_GREEN<<CON_FGSHIFT);
-				maskedtext[p+x] = '\0';
+				for (p = i-cmdstart; fname[p]>' '; p++)
+					maskedtext[p+cmdstart] = (unsigned char)fname[p] | (COLOR_GREEN<<CON_FGSHIFT);
+				maskedtext[p+cmdstart] = '\0';
 			}
 		}
 	}
+	else
+		Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8, si, con_current->linewidth);
 
 #ifdef _WIN32
 	if (ActiveApp)
@@ -1010,14 +1026,7 @@ void Con_DrawInput (void)
 		maskedtext[key_linepos] = 11|CON_WHITEMASK;	//make it blink
 	}
 
-	if (i >= con_current->linewidth)	//work out the start point
-		si = i - con_current->linewidth;
-	else
-		si = 0;
-
-	y = con_current->vislines-22;
-
-	for (i=0,p=0,x=8; x<=con_current->linewidth*8 ; p++)	//draw it
+	for (i=0,p=0; x<=con_current->linewidth*8 ; p++)	//draw it
 	{
 		if (!maskedtext[p])
 			break;
@@ -1302,6 +1311,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	unsigned char	progresspercenttext[128];
 	char *progresstext;
 	int progresspercent;
+	extern qboolean scr_con_forcedraw;
 
 #ifdef RUNTIMELIGHTING
 	extern model_t *lightmodel;
@@ -1320,7 +1330,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 // draw the background
 	if (!noback)
-		Draw_ConsoleBackground (lines);
+		Draw_ConsoleBackground (0, lines, scr_con_forcedraw);
 
 	con_current->unseentext = false;
 

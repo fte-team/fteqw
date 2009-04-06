@@ -159,6 +159,7 @@ void GLSCR_UpdateScreen (void)
 	extern qboolean editormodal;
 #endif
 	qboolean nohud;
+	qboolean noworld;
 	RSpeedMark();
 
 	if (block_drawing)
@@ -249,6 +250,7 @@ void GLSCR_UpdateScreen (void)
 //
 	SCR_SetUpToDrawConsole ();
 
+	noworld = false;
 	nohud = false;
 
 #ifdef VM_CG
@@ -261,10 +263,14 @@ void GLSCR_UpdateScreen (void)
 		nohud = true;
 	else
 #endif
-		if (r_worldentity.model && uimenu != 1)
+		if (uimenu != 1)
 		{
-		V_RenderView ();
-//		Q1BSP_TestClipDecal();
+			if (r_worldentity.model && cls.state == ca_active)
+ 				V_RenderView ();
+			else
+			{
+				noworld = true;
+			}
 		}
 	else
 		GL_DoSwap();
@@ -273,7 +279,27 @@ void GLSCR_UpdateScreen (void)
 
 	GLR_BrightenScreen();
 
-	if (!nohud)
+	if (noworld)
+	{
+		extern char levelshotname[];
+
+		if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE)
+			scr_con_current = vid.height;
+
+		//draw the levelshot or the conback fullscreen
+		if (*levelshotname)
+		{
+			if(Draw_ScalePic)
+				Draw_ScalePic(0, 0, vid.width, vid.height, Draw_SafeCachePic (levelshotname));
+			else
+				Draw_ConsoleBackground(0, vid.height, true);
+		}
+		else
+			Draw_ConsoleBackground(0, vid.height, true);
+
+		nohud = true;
+	}
+	else if (!nohud)
 		SCR_TileClear ();
 
 	SCR_DrawTwoDimensional(uimenu, nohud);

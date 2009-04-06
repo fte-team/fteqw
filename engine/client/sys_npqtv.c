@@ -33,7 +33,9 @@ NPNetscapeFuncs *browserfuncs;
 #endif
 
 
-extern HWND sys_hijackwindow;
+extern HWND sys_parentwindow;
+extern unsigned int sys_parentwidth;
+extern unsigned int sys_parentheight;
 HINSTANCE	global_hInstance;
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
@@ -310,6 +312,8 @@ void LoadSplashImage(struct context *ctx, vfsfile_t *f, const char *name)
 	free(buffer);
 	if (image)
 	{
+		if (ctx->splashdata)
+			free(ctx->splashdata);
 		ctx->splashdata = malloc(width*height*4);
 		for (y = 0; y < height; y++)
 		{
@@ -449,9 +453,9 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				free(str);
 			}
 
-			if (sys_hijackwindow != ctx->window.window)
+			if (sys_parentwindow != ctx->window.window)
 			{
-				if (!sys_hijackwindow)
+				if (!sys_parentwindow)
 				{
 					switch(ctx->qtvf.connectiontype)
 					{
@@ -472,13 +476,14 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					}
 				}
 
-				sys_hijackwindow = ctx->window.window;
-				if (sys_hijackwindow)
+				sys_parentwindow = ctx->window.window;
+				if (sys_parentwindow)
 				{
-					Cvar_SetValue(Cvar_FindVar("vid_width"), ctx->window.width);
-					Cvar_SetValue(Cvar_FindVar("vid_height"), ctx->window.height);
+					sys_parentwidth = ctx->window.width;
+					sys_parentheight = ctx->window.height;
 					Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
 				}
+
 			}
 			else
 			{
@@ -502,7 +507,7 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		{
 			int argc;
 			char *argv[16];
-			sys_hijackwindow = NULL;
+			sys_parentwindow = NULL;
 
 			GetModuleFileName(global_hInstance, binaryname, sizeof(binaryname));
 			argv[0] = binaryname;
@@ -527,14 +532,14 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				argv[argc++] = "-basegame";
 				argv[argc++] = ctx->gamename;
 			}
+			
+			sys_parentwidth = ctx->window.width;
+			sys_parentheight = ctx->window.height;
 			ctx->contextrunning = NPQTV_Sys_Startup(argc, argv);
-
-			Cvar_SetValue(Cvar_FindVar("vid_width"), ctx->window.width);
-			Cvar_SetValue(Cvar_FindVar("vid_height"), ctx->window.height);
 
 			if (*ctx->datadownload)
 			{
-				if (!FS_FLocateFile("default.cfg", FSLFRT_IFFOUND, NULL) || !FS_FLocateFile("gfx.wad", FSLFRT_IFFOUND, NULL))
+				if (!FS_FLocateFile("default.cfg", FSLFRT_IFFOUND, NULL) && !FS_FLocateFile("gfx.wad", FSLFRT_IFFOUND, NULL))
 				{
 					browserfuncs->geturlnotify(ctx->nppinstance, ctx->datadownload, NULL, &UnpackAndExtractPakFiles);
 					ctx->waitingfordatafiles++;
@@ -576,7 +581,7 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			EndPaint(hWnd, &paint);
 			return TRUE;
 		}
-		else if (!ctx->contextrunning)
+		else
 		{
 			HDC hdc;
 			PAINTSTRUCT paint;
@@ -585,17 +590,20 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			hdc = BeginPaint(hWnd, &paint);
 			DrawWndBack(ctx, hWnd, hdc, &paint);
 			SetBkMode(hdc, TRANSPARENT);
-			if (!activecontext)
+			if (!ctx->contextrunning)
 			{
-				s = "Click to activate";
-				TextOutA(hdc, 0, 0, s, strlen(s));
-			}
-			if (ctx->availver)
-			{
-				s = va("Your plugin is out of date");
-				TextOutA(hdc, 0, 16, s, strlen(s));
-				s = va("Version %3.1f is available", ctx->availver);
-				TextOutA(hdc, 0, 32, s, strlen(s));
+				if (!activecontext)
+				{
+					s = "Click to activate";
+					TextOutA(hdc, 0, 0, s, strlen(s));
+				}
+				if (ctx->availver)
+				{
+					s = va("Your plugin is out of date");
+					TextOutA(hdc, 0, 16, s, strlen(s));
+					s = va("Version %3.1f is available", ctx->availver);
+					TextOutA(hdc, 0, 32, s, strlen(s));
+				}
 			}
 			EndPaint(hWnd, &paint);
 			return TRUE;
@@ -608,7 +616,7 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			activecontext = ctx;
 			InvalidateRgn(hWnd, NULL, FALSE);
 		}
-		else
+		else if (activecontext != ctx)
 			Cbuf_AddText("quit\n", RESTRICT_LOCAL);
 		break;
 	default:
@@ -654,7 +662,7 @@ NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
 	//parse out the properties
 	for (i = 0; i < argc; i++)
 	{
-		if (!stricmp(argn[i], "datadownload"))
+		if (!stricmp(argn[i], "dataDownload"))
 		{
 			Q_strncpyz(ctx->datadownload, argv[i], sizeof(ctx->datadownload));
 		}
@@ -666,19 +674,41 @@ NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
 						if (!strstr(argn[i], ":"))
 							Q_strncpyz(ctx->gamename, argv[i], sizeof(ctx->gamename));
 		}
-		else if (!stricmp(argn[i], "onstart"))
+		else if (!stricmp(argn[i], "connType"))
+		{
+			if (!stricmp(argn[i], "join"))
+				ctx->qtvf.connectiontype = QTVCT_JOIN;
+			else if (!stricmp(argn[i], "qtv"))
+				ctx->qtvf.connectiontype = QTVCT_STREAM;
+			else if (!stricmp(argn[i], "connect"))
+				ctx->qtvf.connectiontype = QTVCT_CONNECT;
+			else if (!stricmp(argn[i], "join"))
+				ctx->qtvf.connectiontype = QTVCT_JOIN;
+			else if (!stricmp(argn[i], "observe"))
+				ctx->qtvf.connectiontype = QTVCT_OBSERVE;
+			else
+				ctx->qtvf.connectiontype = QTVCT_NONE;
+		}
+		else if (!stricmp(argn[i], "server") || !stricmp(argn[i], "stream"))
+			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
+		else if (!stricmp(argn[i], "splash"))
+		{
+			Q_strncpyz(ctx->qtvf.splashscreen, argv[i], sizeof(ctx->qtvf.splashscreen));
+			browserfuncs->geturlnotify(ctx->nppinstance, ctx->qtvf.splashscreen, NULL, &SplashscreenImageDescriptor);
+		}
+		else if (!stricmp(argn[i], "onStart"))
 		{
 			ctx->onstart = strdup(argv[i]);
 		}
-		else if (!stricmp(argn[i], "onend"))
+		else if (!stricmp(argn[i], "onEnd"))
 		{
 			ctx->onend = strdup(argv[i]);
 		}
-		else if (!stricmp(argn[i], "ondemoend"))
+		else if (!stricmp(argn[i], "onDemoEnd"))
 		{
 			ctx->ondemoend = strdup(argv[i]);
 		}
-		else if (!stricmp(argn[i], "availver"))
+		else if (!stricmp(argn[i], "availVer"))
 		{
 			ctx->availver = atof(argv[i]);
 			if (ctx->availver <= NPQTV_VERSION)
@@ -689,8 +719,12 @@ NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
 			if (atoi(argv[i]) && !activecontext)
 				activecontext = ctx;
 		}
-
 	}
+
+	if (!*ctx->qtvf.server)
+		ctx->qtvf.connectiontype = QTVCT_NONE;
+	else if (ctx->qtvf.connectiontype == QTVCT_NONE)
+		ctx->qtvf.connectiontype = QTVCT_STREAM;
 
 	//add it to the linked list
 	ctx->next = contextlist;
@@ -738,7 +772,7 @@ NPError NP_LOADDS NPP_Destroy(NPP instance, NPSavedData** save)
 	if (ctx == activecontext)
 	{
 		activecontext = NULL;
-		sys_hijackwindow = NULL;
+		sys_parentwindow = NULL;
 	}
 
 	free(ctx);
@@ -748,6 +782,7 @@ NPError NP_LOADDS NPP_Destroy(NPP instance, NPSavedData** save)
 }
 NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 {
+	extern cvar_t vid_width;
 	struct context *ctx = instance->pdata;
 
 #ifdef _WIN32
@@ -778,17 +813,21 @@ NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 		SetWindowLongPtr(ctx->window.window, GWL_WNDPROC, (LONG_PTR)MyPluginWndProc);
 		SetWindowLongPtr(ctx->window.window, GWL_USERDATA, (LONG_PTR)ctx);
 
-		if (ctx->contextrunning && mainwindow && oldwindow == sys_hijackwindow)
+		if (ctx->contextrunning && mainwindow && oldwindow == sys_parentwindow)
 		{
-			sys_hijackwindow = ctx->window.window;
+			sys_parentwindow = ctx->window.window;
 			SetParent(mainwindow, ctx->window.window);
 
-			oldwindow = sys_hijackwindow;
+			oldwindow = sys_parentwindow;
 		}
 	}
 
-	if (ctx->contextrunning && mainwindow && oldwindow == sys_hijackwindow)
-		MoveWindow(mainwindow, 0, 0, ctx->window.width, ctx->window.height, FALSE);
+	if (ctx->contextrunning)
+	{
+		sys_parentwidth = ctx->window.width;
+		sys_parentheight = ctx->window.height;
+		Cvar_ForceCallback(&vid_width);
+	}
 
 	InvalidateRgn(ctx->window.window, NULL, FALSE);
 #endif
@@ -864,8 +903,6 @@ NPError NP_LOADDS NPP_DestroyStream(NPP instance, NPStream* stream,
 		qstr->next = ctx->donestreams;
 		ctx->donestreams = qstr;
 	}
-
-	//CL_QTVPlay(pipe, false);
 
 	return NPERR_NO_ERROR;
 }

@@ -603,7 +603,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifndef SERVERONLY
 	total_loading_size = 100;
 	current_loading_size = 0;
-	loading_stage = 1;
+	SCR_SetLoadingStage(LS_SERVER);
 //	SCR_BeginLoadingPlaque();
 	SCR_ImageName(server);
 #endif

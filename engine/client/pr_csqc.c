@@ -4252,7 +4252,7 @@ float csqcdelta_time;
 static csqcedict_t *csqcdelta_playerents[MAX_CLIENTS];
 
 
-qboolean CLCSQC_DeltaPlayer(int playernum, player_state_t *state)
+qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state)
 {
 	func_t func;
 
@@ -4298,7 +4298,7 @@ qboolean CLCSQC_DeltaPlayer(int playernum, player_state_t *state)
 	return false;
 }
 
-void CLCSQC_DeltaStart(float time)
+void CSQC_DeltaStart(float time)
 {
 	csqcdelta_pack_t tmp;
 	csqcdelta_time = time;
@@ -4312,7 +4312,7 @@ void CLCSQC_DeltaStart(float time)
 	csqcdelta_pack_new.readpos = 0;
 	csqcdelta_pack_old.readpos = 0;
 }
-qboolean CLCSQC_DeltaUpdate(entity_state_t *src)
+qboolean CSQC_DeltaUpdate(entity_state_t *src)
 {
 	//FTE ensures that this function is called with increasing ent numbers each time
 	func_t func;
@@ -4392,7 +4392,7 @@ qboolean CLCSQC_DeltaUpdate(entity_state_t *src)
 	return false;
 }
 
-void CLCSQC_DeltaEnd(void)
+void CSQC_DeltaEnd(void)
 {
 	//remove any unreferenced ents stuck on the end
 	while (csqcdelta_pack_old.readpos < csqcdelta_pack_old.numents)

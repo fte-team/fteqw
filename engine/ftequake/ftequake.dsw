@@ -14,6 +14,9 @@ Package=<4>
     Begin Project Dependency
     Project_Dep_Name gas2masm
     End Project Dependency
+    Begin Project Dependency
+    Project_Dep_Name spellcheck
+    End Project Dependency
 }}}
 
 ###############################################################################
@@ -60,7 +63,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "q3asm2"=..\..\Q3ASM2\q3asm2.dsp - Package Owner=<4>
+Project: "q3asm2"=..\..\..\Q3ASM2\q3asm2.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -85,6 +88,18 @@ Package=<4>
 ###############################################################################
 
 Project: "qcvm"=..\QCLIB\qcvm\qcvm.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "spellcheck"=..\..\plugins\spellcheck\spellcheck.dsp - Package Owner=<4>
 
 Package=<5>
 {{{

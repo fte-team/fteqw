@@ -117,6 +117,9 @@ typedef struct plugin_s {
 
 	int blockcloses;
 
+	void *inputptr;
+	unsigned int inputbytes;
+
 	int tick;
 	int executestring;
 #ifndef SERVERONLY
@@ -127,6 +130,9 @@ typedef struct plugin_s {
 
 	//protocol-in-a-plugin
 	int connectionlessclientpacket;
+
+	//called to discolour console input text if they spelt it wrongly
+	int spellcheckmaskedtext;
 #endif
 	int svmsgfunction;
 	int chatmsgfunction;
@@ -386,6 +392,8 @@ int VARGS Plug_ExportToEngine(void *offset, unsigned int mask, const int *arg)
 		currentplug->chatmsgfunction = functionid;
 	else if (!strcmp(name, "CenterPrintMessage"))
 		currentplug->centerprintfunction = functionid;
+	else if (!strcmp(name, "SpellCheckMaskedText"))
+		currentplug->spellcheckmaskedtext = functionid;
 #endif
 	else
 		return 0;
@@ -1330,6 +1338,25 @@ int VARGS Plug_Net_Close(void *offset, unsigned int mask, const int *arg)
 	return 0;
 }
 
+int VARGS Plug_ReadInputBuffer(void *offset, unsigned int mask, const int *arg)
+{
+	void *buffer = VM_POINTER(arg[0]);
+	int bufferlen = VM_LONG(arg[1]);
+	if (bufferlen > currentplug->inputbytes)
+		bufferlen = currentplug->inputbytes;
+	memcpy(buffer, currentplug->inputptr, currentplug->inputbytes);
+	return bufferlen;
+}
+int VARGS Plug_UpdateInputBuffer(void *offset, unsigned int mask, const int *arg)
+{
+	void *buffer = VM_POINTER(arg[0]);
+	int bufferlen = VM_LONG(arg[1]);
+	if (bufferlen > currentplug->inputbytes)
+		bufferlen = currentplug->inputbytes;
+	memcpy(currentplug->inputptr, buffer, currentplug->inputbytes);
+	return bufferlen;
+}
+
 void Plug_CloseAll_f(void);
 void Plug_List_f(void);
 void Plug_Close_f(void);
@@ -1437,7 +1464,8 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("cos",						Plug_cos, 0);
 	Plug_RegisterBuiltin("atan2",					Plug_atan2, 0);
 
-	Plug_RegisterBuiltin("GetPluginName",			Plug_GetPluginName, 0);
+	Plug_RegisterBuiltin("ReadInputBuffer",			Plug_ReadInputBuffer, 0);
+	Plug_RegisterBuiltin("UpdateInputBuffer",		Plug_UpdateInputBuffer, 0);
 
 	Plug_Client_Init();
 
@@ -1509,6 +1537,23 @@ void Plug_SubConsoleCommand(console_t *con, char *line)
 	Q_strncpyz(buffer, va("%s %s", con->name, line), sizeof(buffer));
 	Cmd_TokenizeString(buffer, false, false);
 	VM_Call(currentplug->vm, currentplug->conexecutecommand, 0);
+	currentplug = oldplug;
+}
+
+void Plug_SpellCheckMaskedText(unsigned int *maskedstring, int maskedchars, int x, int y, int cs, int firstc, int charlimit)
+{
+	plugin_t *oldplug = currentplug;
+	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
+	{
+		if (currentplug->spellcheckmaskedtext)
+		{
+			currentplug->inputptr = maskedstring;
+			currentplug->inputbytes = sizeof(*maskedstring)*maskedchars;
+			VM_Call(currentplug->vm, currentplug->spellcheckmaskedtext, x, y, cs, firstc, charlimit);
+			currentplug->inputptr = NULL;
+			currentplug->inputbytes = 0;
+		}
+	}
 	currentplug = oldplug;
 }
 #endif

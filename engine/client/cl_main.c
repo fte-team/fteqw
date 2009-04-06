@@ -542,6 +542,16 @@ void CL_SendConnectPacket (
 	CL_RegisterSplitCommands();
 }
 
+char *CL_TryingToConnect(void)
+{
+	if (connect_time == -1)
+		return NULL;
+	if (cls.state != ca_disconnected)
+		return NULL;
+
+	return cls.servername;
+}
+
 /*
 =================
 CL_CheckForResend
@@ -699,6 +709,7 @@ void CL_CheckForResend (void)
 
 void CL_BeginServerConnect(void)
 {
+	SCR_SetLoadingStage(LS_CONNECTION);
 	connect_time = 0;
 	connect_type = 0;
 	connect_tries = 0;
@@ -707,6 +718,7 @@ void CL_BeginServerConnect(void)
 #ifdef NQPROT
 void CLNQ_BeginServerConnect(void)
 {
+	SCR_SetLoadingStage(LS_CONNECTION);
 	connect_time = 0;
 	connect_type = 1;
 	connect_tries = 0;
@@ -963,7 +975,8 @@ void CL_ClearState (void)
 		Cvar_ApplyLatches(CVAR_LATCH);
 	}
 
-	CL_ClearTEnts ();
+	CL_ClearParseState();
+	CL_ClearTEnts();
 	CL_ClearCustomTEnts();
 	SCR_ShowPic_Clear();
 
@@ -1055,6 +1068,8 @@ void CL_Disconnect (void)
 
 	connect_time = -1;
 	connect_tries = 0;
+
+	SCR_SetLoadingStage(0);
 
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
 
@@ -1169,6 +1184,7 @@ void CL_Disconnect (void)
 	r_worldentity.model = NULL;
 	cl.spectator = 0;
 	cl.sendprespawn = false;
+	cl.intermission = 0;
 
 #ifdef NQPROT
 	cls.signon=0;
@@ -2256,7 +2272,7 @@ client_connect:	//fixme: make function
 
 		total_loading_size = 100;
 		current_loading_size = 0;
-		loading_stage = 2;
+		SCR_SetLoadingStage(LS_CLIENT);
 
 		Validation_Apply_Ruleset();
 
@@ -2390,7 +2406,7 @@ void CLNQ_ConnectionlessPacket(void)
 
 		total_loading_size = 100;
 		current_loading_size = 0;
-		loading_stage = 2;
+		SCR_SetLoadingStage(LS_CLIENT);
 
 		allowremotecmd = false; // localid required now for remote cmds
 
@@ -3376,19 +3392,19 @@ void Host_Frame (double time)
 
 	// update audio
 #ifdef CSQC_DAT
-	if (CSQC_SettingListener())
-		S_ExtraUpdate();
-	else
+	if (!CSQC_SettingListener())
 #endif
-	if (cls.state == ca_active)
 	{
-		if (cls.protocol == CP_QUAKE3)
-			S_ExtraUpdate();
+		if (cls.state == ca_active)
+		{
+			if (cls.protocol != CP_QUAKE3)
+				S_UpdateListener (r_origin, vpn, vright, vup, false);
+		}
 		else
-			S_UpdateListener (r_origin, vpn, vright, vup, false);
+			S_UpdateListener (vec3_origin, vec3_origin, vec3_origin, vec3_origin, false);
 	}
-	else
-		S_UpdateListener (vec3_origin, vec3_origin, vec3_origin, vec3_origin, false);
+
+	S_ExtraUpdate ();
 
 	CDAudio_Update();
 
@@ -3590,10 +3606,6 @@ void Host_Init (quakeparms_t *parms)
 
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 
-	Cmd_StuffCmds();
-
-	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
-
 
 	//assuming they didn't use any waits in their config (fools)
 	//the configs should be fully loaded.
@@ -3625,6 +3637,11 @@ void Host_Init (quakeparms_t *parms)
 
 	if (COM_CheckParm ("-current"))
 		Cvar_Set(Cvar_FindVar("vid_desktopsettings"), "1");
+
+	//now exec their commandline
+	Cmd_StuffCmds();
+	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
+
 
 	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
 
@@ -3686,6 +3703,14 @@ Con_TPrintf (TL_NL);
 				"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. "
 				"\n"
 				"See the GNU General Public License for more details.\n");
+
+	if (!*cls.servername)
+		if (!sv.state)
+		{
+			if (qrenderer > QR_NONE)
+				M_ToggleMenu_f();
+			//Con_ForceActiveNow();
+		}
 }
 
 

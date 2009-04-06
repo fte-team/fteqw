@@ -1010,7 +1010,6 @@ void M_Draw (int uimenu)
 #ifdef VM_UI
 		UI_DrawMenu();
 #endif
-		S_ExtraUpdate ();
 	}
 
 	if (m_state != m_complex)
@@ -1029,15 +1028,7 @@ void M_Draw (int uimenu)
 	if ((!menu_script || scr_con_current) && !m_recursiveDraw)
 	{
 		scr_copyeverything = 1;
-
-		if (scr_con_current)
-		{
-			Draw_ConsoleBackground (vid.height);
-			S_ExtraUpdate ();
-		}
-		else
-			Draw_FadeScreen ();
-
+		Draw_FadeScreen ();
 		scr_fullupdate = 0;
 	}
 	else
@@ -1080,8 +1071,6 @@ void M_Draw (int uimenu)
 		return;
 #endif
 	}
-
-	S_ExtraUpdate ();
 }
 
 
@@ -1148,6 +1137,7 @@ void M_Keyup (int key)
 // Generic function to choose which game menu to draw
 int M_GameType (void)
 {
+	int cached;
 	int q1, h2, q2;
 
 	q1 = COM_FDepthFile("gfx/sp_menu.lmp", true);
@@ -1155,16 +1145,13 @@ int M_GameType (void)
 	q2 = COM_FDepthFile("pics/m_banner_game.pcx", true);
 
 	if (q2 < h2 && q2 < q1)
-	{	//AND QUAKE 2 WINS!!!
-		return MGT_QUAKE2;
-	}
+		cached = MGT_QUAKE2;
 	else if (h2 < q1)
-	{	//AND THE WINNER IS HEXEN 2!!!
-		return MGT_HEXEN2;
-	}
+		cached = MGT_HEXEN2;
+	else
+		cached = MGT_QUAKE1;
 
-	//QUAKE 1 WINS BY DEFAULT!
-	return MGT_QUAKE1;
+	return cached;
 }
 
 

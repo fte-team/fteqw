@@ -62,7 +62,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern	HINSTANCE	global_hInstance;
 extern	int			global_nCmdShow;
 
-extern HWND sys_hijackwindow;
+extern HWND sys_parentwindow;
+extern unsigned int sys_parentwidth;
+extern unsigned int sys_parentheight;
 
 #ifndef SERVERONLY
 

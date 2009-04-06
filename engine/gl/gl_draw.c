@@ -793,6 +793,14 @@ void GLDraw_ReInit (void)
 	lightmap_textures=NULL;
 	filmtexture=0;
 	glmenu_numcachepics=0;
+
+	draw_mesh.numvertexes = 4;
+	draw_mesh.numindexes = 6;
+	draw_mesh.xyz_array = draw_mesh_xyz;
+	draw_mesh.st_array = draw_mesh_st;
+	draw_mesh.colors_array = NULL;
+	draw_mesh.indexes = r_quad_indexes;
+
 #ifdef Q3SHADERS
 	r_fogtexture=0;
 #endif
@@ -1911,17 +1919,16 @@ Draw_ConsoleBackground
 
 ================
 */
-void GLDraw_ConsoleBackground (int lines)
+void GLDraw_ConsoleBackground (int firstline, int lastline, qboolean forceopaque)
 {
 //	char ver[80];
 //	int x, i;
 	float a;
-	extern qboolean scr_con_forcedraw;
 
 	conback->width = vid.conwidth;
 	conback->height = vid.conheight;
 
-	if (scr_con_forcedraw)
+	if (forceopaque)
 	{
 		a = 1; // console background is necessary
 	}
@@ -1943,7 +1950,7 @@ void GLDraw_ConsoleBackground (int lines)
 		if (shader_console)
 		{
 			currententity = &r_worldentity;
-			GLDraw_ShaderPic(0, lines - conback->height, vid.width, vid.height, shader_console, 1, 1, 1, a);
+			GLDraw_ShaderPic(0, lastline - conback->height, vid.width, vid.height, shader_console, 1, 1, 1, a);
 			qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			return;
 		}
@@ -1952,11 +1959,11 @@ void GLDraw_ConsoleBackground (int lines)
 	if (a >= 1)
 	{
 		qglColor3f (1,1,1);
-		GLDraw_Pic(0, lines-conback->height, conback);
+		GLDraw_Pic(0, lastline-conback->height, conback);
 	}
 	else
 	{
-		GLDraw_AlphaPic (0, lines - conback->height, conback, a);
+		GLDraw_AlphaPic (0, lastline - conback->height, conback, a);
 	}
 }
 

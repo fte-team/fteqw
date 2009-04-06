@@ -1271,7 +1271,7 @@ void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, qb
 	VectorCopy(right, listener_right);
 	VectorCopy(up, listener_up);
 
-	if (dontmix)
+	if (!dontmix)
 	{
 		S_RunCapture();
 

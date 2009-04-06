@@ -530,6 +530,9 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 #endif
 	}
 
+	if (!m || m->needload)
+		CL_CheckOrEnqueDownloadFile(m->name, NULL, 0);
+
 	// save end position for truelightning
 	if (ent)
 	{

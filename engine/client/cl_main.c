@@ -3704,15 +3704,19 @@ Con_TPrintf (TL_NL);
 				"\n"
 				"See the GNU General Public License for more details.\n");
 
-	if (!*cls.servername)
-		if (!sv.state)
-		{
-			if (qrenderer > QR_NONE)
-				M_ToggleMenu_f();
-			//Con_ForceActiveNow();
-		}
-}
 
+	if (!*cls.servername)
+	{
+		#ifndef CLIENTONLY
+			if (!sv.state)
+			{
+				if (qrenderer > QR_NONE)
+					M_ToggleMenu_f();
+				//Con_ForceActiveNow();
+			}
+		#endif
+	}
+}
 
 /*
 ===============

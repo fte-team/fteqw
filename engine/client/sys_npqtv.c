@@ -413,6 +413,14 @@ void DrawWndBack(struct context *ctx, HWND hWnd, HDC hdc, PAINTSTRUCT *p)
 		PatBlt(hdc, p->rcPaint.left, p->rcPaint.top, p->rcPaint.right-p->rcPaint.left,p->rcPaint.bottom-p->rcPaint.top,PATCOPY);
 }
 
+char *cleanarg(char *arg)
+{
+	//no hacking us, please.
+	while (*arg == '-' || *arg == '+')
+		arg++;
+	return arg;
+}
+
 LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	struct qstream *str;
@@ -506,30 +514,30 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				break;
 			case QTVCT_STREAM:
 				argv[argc++] = "+qtvplay";
-				argv[argc++] = ctx->qtvf.server;
+				argv[argc++] = cleanarg(ctx->qtvf.server);
 				break;
 			case QTVCT_CONNECT:
 				argv[argc++] = "+connect";
-				argv[argc++] = ctx->qtvf.server;
+				argv[argc++] = cleanarg(ctx->qtvf.server);
 				break;
 			case QTVCT_JOIN:
 				argv[argc++] = "+join";
-				argv[argc++] = ctx->qtvf.server;
+				argv[argc++] = cleanarg(ctx->qtvf.server);
 				break;
 			case QTVCT_OBSERVE:
 				argv[argc++] = "+observe";
-				argv[argc++] = ctx->qtvf.server;
+				argv[argc++] = cleanarg(ctx->qtvf.server);
 				break;
 			case QTVCT_MAP:
 				argv[argc++] = "+map";
-				argv[argc++] = ctx->qtvf.server;
+				argv[argc++] = cleanarg(ctx->qtvf.server);
 				break;
 			}
 
 			if (ctx->password)
 			{
 				argv[argc++] = "+password";
-				argv[argc++] = ctx->password;
+				argv[argc++] = cleanarg(ctx->password);
 			}
 
 			//figure out the game dirs (first token is the base game)
@@ -550,13 +558,15 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			else
 			{
 				argv[argc++] = "-basegame";
-				argv[argc++] = strdup(com_token);	//FIXME: this will leak
+				argv[argc++] = strdup(cleanarg(com_token));	//FIXME: this will leak
 			}
 			//later options are additions to that
 			while ((s = COM_ParseOut(s, com_token, sizeof(com_token))))
 			{
+				if (argc == sizeof(argv)/sizeof(argv[0]))
+					break;
 				argv[argc++] = "-addbasegame";
-				argv[argc++] = strdup(com_token);	//FIXME: this will leak
+				argv[argc++] = strdup(cleanarg(com_token));	//FIXME: this will leak
 			}
 			
 			sys_parentwidth = ctx->window.width;

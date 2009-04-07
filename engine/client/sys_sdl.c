@@ -341,7 +341,8 @@ int main(int argc, char **argv)
 #endif
 		{
 	// yield the CPU for a little while when paused, minimized, or not the focus
-			NET_Sleep(1, false);
+			if (!(SDL_GetAppState() & SDL_APPACTIVE))
+				SDL_Wait(1);
 
 			newtime = Sys_DoubleTime ();
 			time = newtime - oldtime;

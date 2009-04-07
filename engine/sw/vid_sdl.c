@@ -16,7 +16,11 @@ extern SDL_Surface *sdlsurf;
 
 qbyte vid_curpal[768];
 
-cvar_t in_xflip = {"in_xflip", "0"};
+#ifdef IN_XFLIP
+	#ifndef _MERGED_SDL // in_xflip is in both SW and GL SDL renderers.
+		cvar_t in_xflip = {"in_xflip", "0"};
+	#endif
+#endif
 
 void ResetFrameBuffers(void)
 {

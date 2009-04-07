@@ -488,7 +488,24 @@ SWCL_DIR=swcl_sdl$(BITS)
 
 SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 SV_EXE_NAME=../fteqw.sv$(BITS)
-SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
+SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -lz
+
+MINGL_DIR=mingl_sdl$(BITS)
+MINGL_EXE_NAME=../fteqw_sdl.mingl$(BITS)
+
+MB_DIR=m_sdl$(BITS)
+M_EXE_NAME=../fteqw_sdl$(BITS)
+MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o vid_sdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
+M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
+M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
+
+ifdef windir
+	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
+else
+	#pthread is needed because of SDL.
+	M_LDFLAGS=$(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
+endif
+
 
 #specific targets override those defaults as needed.
 

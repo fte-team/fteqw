@@ -161,8 +161,9 @@ struct context
 	WNDPROC oldproc;
 #endif
 
-	char datadownload[MAX_PATH];
-	char gamename[MAX_QPATH];
+	char *datadownload;
+	char *gamename;
+	char *password;
 	char *onstart;
 	char *onend;
 	char *ondemoend;
@@ -277,12 +278,6 @@ void UnpackAndExtractPakFiles_Complete(struct context *ctx, vfsfile_t *file, con
 		zipfilefuncs.ClosePath(zip);
 
 		Cmd_ExecuteString("fs_restart", RESTRICT_LOCAL);
-
-		//this code is to stop them from constantly downloading if that zip didn't contain one for some reason
-		if (!FS_FLocateFile("default.cfg", FSLFRT_IFFOUND, NULL))
-		{
-			FS_WriteFile("default.cfg", "", 0, FS_GAMEONLY);
-		}
 	}
 }
 struct pipetype UnpackAndExtractPakFiles =
@@ -455,37 +450,26 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			if (sys_parentwindow != ctx->window.window)
 			{
-				if (!sys_parentwindow)
+				if (qrenderer == -1)
 				{
-					switch(ctx->qtvf.connectiontype)
+					//urgh, its not started up yet
+					sys_parentwindow = ctx->window.window;
+
+					Host_FinishInit();
+				}
+				else
+				{
+					sys_parentwindow = ctx->window.window;
+					if (sys_parentwindow)
 					{
-					default:
-						break;
-					case QTVCT_STREAM:
-						Cmd_ExecuteString(va("qtvplay %s", ctx->qtvf.server), RESTRICT_LOCAL);
-						break;
-					case QTVCT_CONNECT:
-						Cmd_ExecuteString(va("connect %s", ctx->qtvf.server), RESTRICT_LOCAL);
-						break;
-					case QTVCT_JOIN:
-						Cmd_ExecuteString(va("join %s", ctx->qtvf.server), RESTRICT_LOCAL);
-						break;
-					case QTVCT_OBSERVE:
-						Cmd_ExecuteString(va("observe %s", ctx->qtvf.server), RESTRICT_LOCAL);
-						break;
+						sys_parentwidth = ctx->window.width;
+						sys_parentheight = ctx->window.height;
+						Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
 					}
 				}
 
-				sys_parentwindow = ctx->window.window;
-				if (sys_parentwindow)
-				{
-					sys_parentwidth = ctx->window.width;
-					sys_parentheight = ctx->window.height;
-					Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
-				}
-
 			}
-			else
+			else if (sys_parentwindow)
 			{
 				NPQTV_Sys_MainLoop();
 				if (!host_initialized)
@@ -505,6 +489,7 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 	case WM_PAINT:
 		if (activecontext == ctx && !ctx->contextrunning && ctx->window.window)
 		{
+			char *s;
 			int argc;
 			char *argv[16];
 			sys_parentwindow = NULL;
@@ -515,33 +500,92 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 			activecontext = ctx;
 
-			if (!*ctx->gamename || !strcmp(ctx->gamename, "q1") || !strcmp(ctx->gamename, "qw") || !strcmp(ctx->gamename, "quake") || !strcmp(ctx->gamename, "id1"))
+			switch(ctx->qtvf.connectiontype)
+			{
+			default:
+				break;
+			case QTVCT_STREAM:
+				argv[argc++] = "+qtvplay";
+				argv[argc++] = ctx->qtvf.server;
+				break;
+			case QTVCT_CONNECT:
+				argv[argc++] = "+connect";
+				argv[argc++] = ctx->qtvf.server;
+				break;
+			case QTVCT_JOIN:
+				argv[argc++] = "+join";
+				argv[argc++] = ctx->qtvf.server;
+				break;
+			case QTVCT_OBSERVE:
+				argv[argc++] = "+observe";
+				argv[argc++] = ctx->qtvf.server;
+				break;
+			case QTVCT_MAP:
+				argv[argc++] = "+map";
+				argv[argc++] = ctx->qtvf.server;
+				break;
+			}
+
+			if (ctx->password)
+			{
+				argv[argc++] = "+password";
+				argv[argc++] = ctx->password;
+			}
+
+			//figure out the game dirs (first token is the base game)
+			s = ctx->gamename;
+			s = COM_ParseOut(s, com_token, sizeof(com_token));
+			if (!*com_token || !strcmp(com_token, "q1") || !strcmp(com_token, "qw") || !strcmp(com_token, "quake"))
 				argv[argc++] = "-quake";
-			else if (!strcmp(ctx->gamename, "q2") || !strcmp(ctx->gamename, "quake2"))
+			else if (!strcmp(com_token, "q2") || !strcmp(com_token, "quake2"))
 				argv[argc++] = "-q2";
-			else if (!strcmp(ctx->gamename, "q3") || !strcmp(ctx->gamename, "quake3"))
+			else if (!strcmp(com_token, "q3") || !strcmp(com_token, "quake3"))
 				argv[argc++] = "-q3";
-			else if (!strcmp(ctx->gamename, "hl") || !strcmp(ctx->gamename, "halflife"))
+			else if (!strcmp(com_token, "hl") || !strcmp(com_token, "halflife"))
 				argv[argc++] = "-halflife";
-			else if (!strcmp(ctx->gamename, "h2") || !strcmp(ctx->gamename, "hexen2"))
+			else if (!strcmp(com_token, "h2") || !strcmp(com_token, "hexen2"))
 				argv[argc++] = "-hexen2";
-			else if (!strcmp(ctx->gamename, "nex") || !strcmp(ctx->gamename, "nexuiz"))
+			else if (!strcmp(com_token, "nex") || !strcmp(com_token, "nexuiz"))
 				argv[argc++] = "-nexuiz";
 			else
 			{
 				argv[argc++] = "-basegame";
-				argv[argc++] = ctx->gamename;
+				argv[argc++] = strdup(com_token);	//FIXME: this will leak
+			}
+			//later options are additions to that
+			while ((s = COM_ParseOut(s, com_token, sizeof(com_token))))
+			{
+				argv[argc++] = "-addbasegame";
+				argv[argc++] = strdup(com_token);	//FIXME: this will leak
 			}
 			
 			sys_parentwidth = ctx->window.width;
 			sys_parentheight = ctx->window.height;
 			ctx->contextrunning = NPQTV_Sys_Startup(argc, argv);
 
-			if (*ctx->datadownload)
+			//now that the file system is started up, check to make sure its complete
+			if (ctx->datadownload)
 			{
-				if (!FS_FLocateFile("default.cfg", FSLFRT_IFFOUND, NULL) && !FS_FLocateFile("gfx.wad", FSLFRT_IFFOUND, NULL))
+				char *s = ctx->datadownload;
+				char *c;
+				vfsfile_t *f;
+				while ((s = COM_ParseOut(s, com_token, sizeof(com_token))))
 				{
-					browserfuncs->geturlnotify(ctx->nppinstance, ctx->datadownload, NULL, &UnpackAndExtractPakFiles);
+					//FIXME: do we want to add some sort of file size indicator?
+					c = strchr(com_token, ':');
+					if (!c)
+						continue;
+					*c++ = 0;
+					f = FS_OpenVFS(com_token, "rb", FS_ROOT);
+					if (f)
+					{
+						Con_Printf("Already have %s\n", com_token);
+						VFS_CLOSE(f);
+						continue;
+					}
+					
+					Con_Printf("Attempting to download %s\n", c);
+					browserfuncs->geturlnotify(ctx->nppinstance, c, NULL, &UnpackAndExtractPakFiles);
 					ctx->waitingfordatafiles++;
 				}
 			}
@@ -657,14 +701,14 @@ NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
 	instance->pdata = ctx;
 	ctx->nppinstance = instance;
 
-	Q_strncpyz(ctx->gamename, "q1", sizeof(ctx->gamename));
+	ctx->gamename = strdup("q1");
 
 	//parse out the properties
 	for (i = 0; i < argc; i++)
 	{
 		if (!stricmp(argn[i], "dataDownload"))
 		{
-			Q_strncpyz(ctx->datadownload, argv[i], sizeof(ctx->datadownload));
+			ctx->datadownload = strdup(argv[i]);
 		}
 		else if (!stricmp(argn[i], "game"))
 		{
@@ -672,16 +716,23 @@ NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
 				if (!strstr(argn[i], "/"))
 					if (!strstr(argn[i], "\\"))
 						if (!strstr(argn[i], ":"))
-							Q_strncpyz(ctx->gamename, argv[i], sizeof(ctx->gamename));
+						{
+							free(ctx->gamename);
+							ctx->gamename = strdup(argv[i]);
+						}
 		}
 		else if (!stricmp(argn[i], "connType"))
 		{
+			if (ctx->qtvf.connectiontype)
+				continue;
 			if (!stricmp(argn[i], "join"))
 				ctx->qtvf.connectiontype = QTVCT_JOIN;
 			else if (!stricmp(argn[i], "qtv"))
 				ctx->qtvf.connectiontype = QTVCT_STREAM;
 			else if (!stricmp(argn[i], "connect"))
 				ctx->qtvf.connectiontype = QTVCT_CONNECT;
+			else if (!stricmp(argn[i], "map"))
+				ctx->qtvf.connectiontype = QTVCT_MAP;
 			else if (!stricmp(argn[i], "join"))
 				ctx->qtvf.connectiontype = QTVCT_JOIN;
 			else if (!stricmp(argn[i], "observe"))
@@ -690,7 +741,43 @@ NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
 				ctx->qtvf.connectiontype = QTVCT_NONE;
 		}
 		else if (!stricmp(argn[i], "server") || !stricmp(argn[i], "stream"))
+		{
+			if (*ctx->qtvf.server)
+				continue;
 			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
+		}
+		else if (!stricmp(argn[i], "map"))
+		{
+			if (ctx->qtvf.connectiontype)
+				continue;
+			ctx->qtvf.connectiontype = QTVCT_MAP;
+			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
+		}
+		else if (!stricmp(argn[i], "stream"))
+		{
+			if (ctx->qtvf.connectiontype)
+				continue;
+			ctx->qtvf.connectiontype = QTVCT_STREAM;
+			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
+		}
+		else if (!stricmp(argn[i], "join"))
+		{
+			if (ctx->qtvf.connectiontype)
+				continue;
+			ctx->qtvf.connectiontype = QTVCT_JOIN;
+			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
+		}
+		else if (!stricmp(argn[i], "observe"))
+		{
+			if (ctx->qtvf.connectiontype)
+				continue;
+			ctx->qtvf.connectiontype = QTVCT_OBSERVE;
+			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
+		}
+		else if (!stricmp(argn[i], "password"))
+		{
+			ctx->password = strdup(argv[i]);
+		}
 		else if (!stricmp(argn[i], "splash"))
 		{
 			Q_strncpyz(ctx->qtvf.splashscreen, argv[i], sizeof(ctx->qtvf.splashscreen));
@@ -748,6 +835,13 @@ NPError NP_LOADDS NPP_Destroy(NPP instance, NPSavedData** save)
 	}
 #endif
 
+	//actually these ifs are not required, just the frees
+	if (ctx->gamename)
+		free(ctx->gamename);
+	if (ctx->password)
+		free(ctx->password);
+	if (ctx->datadownload)
+		free(ctx->datadownload);
 	if (ctx->splashdata)
 		free(ctx->splashdata);
 

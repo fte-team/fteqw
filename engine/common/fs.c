@@ -2256,7 +2256,6 @@ void COM_InitFilesystem (void)
 #ifdef _WIN32
 	{	//win32 sucks.
 		HMODULE shfolder = LoadLibrary("shfolder.dll");
-		HMODULE advapi32;
 		DWORD winver = (DWORD)LOBYTE(LOWORD(GetVersion()));
 
 		if (shfolder)
@@ -2282,7 +2281,7 @@ void COM_InitFilesystem (void)
 
 #ifdef NPQTV
 		if (!*com_homedir)
-			Q_snprintfz(com_homedir, sizeof(com_homedir), "/%s/", ev, FULLENGINENAME);
+			Q_snprintfz(com_homedir, sizeof(com_homedir), "/%s/", FULLENGINENAME);
 		//as a browser plugin, always use their home directory
 		usehome = true;
 #else
@@ -2290,6 +2289,7 @@ void COM_InitFilesystem (void)
 			usehome = true; // always use home directory by default, as Vista+ mimics this behavior anyway
 		else if (winver >= 0x5) // Windows 2000/XP/2003
 		{
+			HMODULE advapi32;
 			advapi32 = LoadLibrary("advapi32.dll");
 
 			if (advapi32)
@@ -2387,6 +2387,19 @@ void COM_InitFilesystem (void)
 			}
 		}
 	}
+
+
+	i = COM_CheckParm ("-addbasegame");
+	do	//use multiple -addbasegames (this is so the basic dirs don't die)
+	{
+		FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
+		if (*com_homedir)
+			FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_homedir, com_argv[i+1]), ~0);
+
+		i = COM_CheckNextParm ("-addbasegame", i);
+	}
+	while (i && i < com_argc-1);
+
 
 	// any set gamedirs will be freed up to here
 	com_base_searchpaths = com_searchpaths;

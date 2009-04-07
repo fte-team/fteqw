@@ -814,6 +814,7 @@ typedef struct
 		QTVCT_CONNECT,
 		QTVCT_JOIN,
 		QTVCT_OBSERVE,
+		QTVCT_MAP
 	} connectiontype;
 	enum
 	{

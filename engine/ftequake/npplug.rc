@@ -52,7 +52,7 @@ BEGIN
             VALUE "InternalName", "npqtv\0"
             VALUE "LegalCopyright", "Copyright © 2009\0"
             VALUE "LegalTrademarks", "\0"
-            VALUE "MIMEType", "text/x-quaketvident|application/x-multiviewdemo\0"
+            VALUE "MIMEType", "text/x-quaketvident|application/x-multiviewdemo|application/x-fteplugin\0"
             VALUE "OriginalFilename", "npqtv.dll\0"
             VALUE "PrivateBuild", "\0"
             VALUE "ProductName", "QTV Viewer\0"

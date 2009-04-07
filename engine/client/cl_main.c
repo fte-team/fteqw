@@ -164,6 +164,7 @@ cvar_t	ruleset_allow_sensative_texture_replacements = SCVAR("ruleset_allow_sensa
 cvar_t	ruleset_allow_localvolume	= SCVAR("ruleset_allow_localvolume", "1");
 
 extern cvar_t cl_hightrack;
+extern cvar_t	vid_renderer;
 
 char cl_screengroup[] = "Screen options";
 char cl_controlgroup[] = "client operation options";
@@ -3486,10 +3487,11 @@ Host_Init
 */
 void Host_Init (quakeparms_t *parms)
 {
+#ifndef NPQTV
 	int i;
 	int qrc, hrc, def;
+#endif
 
-	extern cvar_t	vid_renderer;
 	COM_InitArgv (parms->argc, parms->argv);
 
 	if (setjmp (host_abort) )
@@ -3572,6 +3574,23 @@ void Host_Init (quakeparms_t *parms)
 	//	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
 	Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));
 
+	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
+	host_hunklevel = Hunk_LowMark ();
+
+	R_SetRenderer(-1);//set the renderer stuff to unset...
+
+	host_initialized = true;
+
+#ifdef NPQTV
+}
+
+void Host_FinishInit(void)
+{
+	int i;
+	int qrc, hrc, def;
+#endif
+
+
 	Cbuf_AddText ("cl_warncmd 0\n", RESTRICT_LOCAL);
 
 	Cbuf_AddText ("+mlook\n", RESTRICT_LOCAL);		//fixme: this is bulky, only exec one of these.
@@ -3597,12 +3616,7 @@ void Host_Init (quakeparms_t *parms)
 	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
 	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
 
-	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
-	host_hunklevel = Hunk_LowMark ();
 
-	R_SetRenderer(-1);//set the renderer stuff to unset...
-
-	host_initialized = true;
 
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 
@@ -3645,7 +3659,6 @@ void Host_Init (quakeparms_t *parms)
 
 	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
 
-#ifndef NPQTV
 //-1 means 'never set'
 	if (qrenderer == -1 && *vid_renderer.string)
 	{
@@ -3661,7 +3674,6 @@ void Host_Init (quakeparms_t *parms)
 
 	if (qrenderer == QR_NONE)
 		Con_Printf("Use the setrenderer command to use a gui\n");
-#endif
 
 #ifdef VM_UI
 	UI_Init();
@@ -3707,14 +3719,14 @@ Con_TPrintf (TL_NL);
 
 	if (!*cls.servername)
 	{
-		#ifndef CLIENTONLY
-			if (!sv.state)
-			{
-				if (qrenderer > QR_NONE)
-					M_ToggleMenu_f();
-				//Con_ForceActiveNow();
-			}
-		#endif
+#ifndef CLIENTONLY
+		if (!sv.state)
+#endif
+		{
+			if (qrenderer > QR_NONE)
+				M_ToggleMenu_f();
+			//Con_ForceActiveNow();
+		}
 	}
 }
 

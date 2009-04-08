@@ -29,7 +29,7 @@ void IN_DeactivateMouse(void)
 	SDL_WM_GrabInput(SDL_GRAB_OFF);
 }
 
-void IN_UpdateGrabs(void)
+void IN_UpdateGrabs(int fullscreen, int activeapp)
 {
 	if (!vid_isfullscreen)
 	{
@@ -56,7 +56,7 @@ void IN_UpdateGrabs(void)
 #define tenoh	0,0,0,0,0, 0,0,0,0,0
 #define fiftyoh tenoh, tenoh, tenoh, tenoh, tenoh
 #define hundredoh fiftyoh, fiftyoh
-static unsigned int tbl_sdltoquake[] = 
+static unsigned int tbl_sdltoquake[] =
 {
 	0,0,0,0,		//SDLK_UNKNOWN		= 0,
 	0,0,0,0,		//SDLK_FIRST		= 0,
@@ -313,7 +313,7 @@ void IN_Move (usercmd_t *cmd, int pnum)	//add mouse movement to cmd
 
 		if (in_mlook.state[pnum] & 1)
 			V_StopPitchDrift (pnum);
-		
+
 		if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
 		{
 			cl.viewangles[pnum][PITCH] += m_pitch.value * mouse_y;

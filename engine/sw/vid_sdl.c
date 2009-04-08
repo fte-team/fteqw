@@ -155,7 +155,7 @@ void SWVID_Update(vrect_t *rects)
 {
 	SDL_Flip(sdlsurf);
 
-	IN_UpdateGrabs();
+	IN_UpdateGrabs(vid_isfullscreen, ActiveApp);
 }
 
 void SWD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height)

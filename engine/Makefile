@@ -31,6 +31,20 @@ ifeq ($(FTE_TARGET),win32)
 	endif
 endif
 
+#correct the gcc build when cross compiling
+ifeq ($(FTE_TARGET),win32_SDL)
+	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
+		#CC didn't state that it was mingw... so try fixing that up
+		ifneq ($(shell which i586-mingw32msvc-gcc 2> /dev/null),)
+			#yup, the alternative exists (this matches the one debian has)
+			CC=i586-mingw32msvc-gcc
+			WINDRES=i586-mingw32msvc-windres
+			STRIP=i586-mingw32msvc-strip
+#			BITS?=32
+		endif
+	endif
+endif
+
 #crosscompile macosx from linux, default target ppc 32bit
 ifeq ($(FTE_TARGET),macosx)
 	ifeq ($(shell $(CC) -v 2>&1 | grep apple),)
@@ -164,6 +178,9 @@ endif
 ifeq ($(FTE_TARGET),win32)
 	BASELDFLAGS=-lm
 endif
+ifeq ($(FTE_TARGET),win32_SDL)
+	BASELDFLAGS=-lm
+endif
 ifeq ($(FTE_TARGET),cygwin)
 	BASELDFLAGS=-lm
 endif
@@ -177,9 +194,11 @@ BASELDFLAGS ?= -lm -ldl -lpthread
 
 ifeq ($(FTE_TARGET),win32)
 	IMAGELDFLAGS=$(LIBS_DIR)/mingw-libs/libpng.a $(LIBS_DIR)/mingw-libs/libz.a $(LIBS_DIR)/mingw-libs/libjpeg.a
-else
-	IMAGELDFLAGS=-lpng -ljpeg
 endif
+ifeq ($(FTE_TARGET),win32_SDL)
+	IMAGELDFLAGS=./libs/mingw-libs/libpng.a ./libs/mingw-libs/libz.a ./libs/mingw-libs/libjpeg.a
+endif
+IMAGELDFLAGS ?= -lpng -ljpeg
 
 #BASELDFLAGS=-lm  -lz
 GLXLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext $(IMAGELDFLAGS)
@@ -223,10 +242,12 @@ DEBUG_CFLAGS=-ggdb -g
 
 ifeq ($(FTE_TARGET),win32)
 	RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
-else
-	RELEASE_CFLAGS=-O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
-	#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 endif
+ifeq ($(FTE_TARGET),win32_SDL)
+	RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+endif
+RELEASE_CFLAGS ?= -O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
+#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 
 GLCFLAGS=-DGLQUAKE
 SWCFLAGS=-DSWQUAKE
@@ -508,6 +529,57 @@ endif
 
 
 #specific targets override those defaults as needed.
+
+ifeq ($(FTE_TARGET),win32_SDL)
+	LIBS_DIR=./libs/
+	
+	#the defaults for sdl come first
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o
+	GL_EXE_NAME=../fteqw_sdl_gl.exe
+	GLCL_EXE_NAME=../fteqwcl_sdl.exe
+	ifdef windir
+		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lwsock32 `sdl-config --libs`
+	else
+		GL_LDFLAGS=$(IMAGELDFLAGS) -lwsock32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
+	endif
+	GL_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs $(GLCFLAGS) `sdl-config --cflags`
+	GLB_DIR=gl_mgw_sdl$(BITS)
+	GLCL_DIR=glcl_mgw_sdl$(BITS)
+	
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_sdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o
+	SW_EXE_NAME=../fteqw_sdl_sw.exe
+	SWCL_EXE_NAME=../fteqwcl_sdl.exe
+	ifdef windir
+		SW_LDFLAGS=$(SWLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
+	else
+		#pthread is needed because of SDL.
+		SW_LDFLAGS=$(IMAGELDFLAGS) -lwsock32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(SWLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
+	endif
+	SW_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs $(SWCFLAGS) `sdl-config --cflags`
+	SWB_DIR=sw_mgw_sdl$(BITS)
+	SWCL_DIR=swcl_mgw_sdl$(BITS)
+
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) resources.o
+	SV_EXE_NAME=../fteqw_sv.exe
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
+	SV_LDFLAGS=./libs/mingw-libs/libz.a -lm -lmingw32 -lwsock32 -lwinmm
+
+	MINGL_DIR=mingl_sdl$(BITS)
+	MINGL_EXE_NAME=../fteqw_sdl_mingl.exe
+
+	MB_DIR=m_mgw_sdl$(BITS)
+	M_EXE_NAME=../fteqw_sdl.exe
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o vid_sdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o
+	M_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs $(SWCFLAGS) $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
+	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
+	
+	ifdef windir
+		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
+	else
+		#pthread is needed because of SDL.
+		M_LDFLAGS=$(IMAGELDFLAGS) -lwsock32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
+	endif
+endif
 
 ifeq ($(FTE_TARGET),win32)
 	# The extra object file called resources.o is specific for MinGW to link the icon in

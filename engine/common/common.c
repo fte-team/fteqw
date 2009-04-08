@@ -1664,7 +1664,7 @@ conchar_t q3codemasks[MAXQ3COLOURS] = {
 };
 
 
-//Strips out the flags 
+//Strips out the flags
 void COM_DeFunString(unsigned long *str, char *out, int outsize, qboolean ignoreflags)
 {
 	if (ignoreflags)
@@ -1715,7 +1715,7 @@ void COM_DeFunString(unsigned long *str, char *out, int outsize, qboolean ignore
 					*out++ = '^';
 					*out++ = 'h';
 				}
-				
+
 				if (d & (CON_FGMASK | CON_BGMASK | CON_NONCLEARBG))
 				{
 					if (outsize<=4)
@@ -3730,4 +3730,12 @@ int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...
 }
 #endif
 
+#endif
+
+// libSDL.a and libSDLmain.a mingw32 libs use this function for some reason, just here to shut gcc up
+#ifdef _MINGW_VFPRINTF
+int __mingw_vfprintf (FILE *__stream, const char *__format, __VALIST __local_argv)
+{
+  return vfprintf( __stream, __format, __local_argv );
+}
 #endif

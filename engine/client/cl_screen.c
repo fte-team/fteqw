@@ -1487,6 +1487,8 @@ void SCR_DrawLoading (void)
 			Draw_String((vid.width-7*8)/2, y-16, "Loading");
 		}
 
+		if (!total_loading_size)
+			total_loading_size = 1;
 		if (loading_stage > LS_CONNECTION)
 		{
 			sizex = current_loading_size * 192 / total_loading_size;

@@ -182,7 +182,7 @@ static cvar_t vid_desktopsettings			= SCVARF ("vid_desktopsettings", "0",
 #ifdef NPQTV
 static cvar_t vid_fullscreen_npqtv			= SCVARF ("vid_fullscreen", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-static cvar_t vid_fullscreen				= SCVARF ("vid_fullscreen_embedded", "0",
+cvar_t vid_fullscreen						= SCVARF ("vid_fullscreen_embedded", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 #else
 static cvar_t vid_fullscreen				= SCVARF ("vid_fullscreen", "1",

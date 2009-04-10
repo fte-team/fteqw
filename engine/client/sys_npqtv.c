@@ -10,6 +10,17 @@
 
 #include "npapi/npupp.h"
 
+#define Q_STRINGZ_TO_NPVARIANT(_val, _v)                                        \
+NP_BEGIN_MACRO                                                                \
+	NPString str = { _val, strlen(_val) };                                    \
+    (_v).type = NPVariantType_String;                                         \
+    (_v).value.stringValue = str;                                             \
+NP_END_MACRO
+#undef STRINGZ_TO_NPVARIANT
+#define STRINGZ_TO_NPVARIANT Q_STRINGZ_TO_NPVARIANT
+
+
+
 #define NPQTV_VERSION 0.1
 
 #define FIREFOX_BUGS_OVER_25MB
@@ -464,6 +475,8 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					sys_parentwindow = ctx->window.window;
 
 					Host_FinishInit();
+					if (ctx->onstart)
+						browserfuncs->geturl(ctx->nppinstance, va("javascript:%s;", ctx->onstart), "_self");
 				}
 				else
 				{
@@ -595,16 +608,13 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 					}
 					
 					Con_Printf("Attempting to download %s\n", c);
-					browserfuncs->geturlnotify(ctx->nppinstance, c, NULL, &UnpackAndExtractPakFiles);
-					ctx->waitingfordatafiles++;
+					if (!browserfuncs->geturlnotify(ctx->nppinstance, c, NULL, &UnpackAndExtractPakFiles))
+						ctx->waitingfordatafiles++;
 				}
 			}
 
 			if (ctx->contextrunning)
 			{
-				if (ctx->onstart)
-					browserfuncs->geturl(ctx->nppinstance, va("javascript:%s;", ctx->onstart), "_self");
-
 				//windows timers have low precision, ~10ms
 				//they're low priority anyway, so we might as well just create lots and spam them
 				SetTimer(hWnd, 1, 1, NULL);
@@ -928,9 +938,11 @@ NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 
 	if (ctx->contextrunning)
 	{
+		extern cvar_t vid_conwidth;
 		sys_parentwidth = ctx->window.width;
 		sys_parentheight = ctx->window.height;
 		Cvar_ForceCallback(&vid_width);
+		Cvar_ForceCallback(&vid_conwidth);
 	}
 
 	InvalidateRgn(ctx->window.window, NULL, FALSE);
@@ -1077,12 +1089,323 @@ void    NP_LOADDS NPP_URLNotify(NPP instance, const char* url,
 {
 }
 
+struct npscript_property
+{
+	char *name;
+	qboolean onlyifactive;
+
+	cvar_t *cvar;
+
+	char *(*getstring)(struct context *ctx);
+	void (*setstring)(struct context *ctx, const char *val);
+
+	int (*getint)(struct context *ctx);
+	void (*setint)(struct context *ctx, int val);
+};
+
+int npscript_property_isrunning_getb(struct context *ctx)
+{
+	if (ctx->contextrunning)
+		return true;
+	else
+		return false;
+}
+
+char *npscript_property_startserver_gets(struct context *ctx)
+{
+	return ctx->qtvf.server;
+}
+void npscript_property_startserver_sets(struct context *ctx, const char *val)
+{
+	ctx->qtvf.connectiontype = QTVCT_CONNECT;
+	Q_strncpyz(ctx->qtvf.server, val, sizeof(ctx->qtvf.server));
+}
+char *npscript_property_curserver_gets(struct context *ctx)
+{
+	if (!npscript_property_isrunning_getb(ctx))
+		return npscript_property_startserver_gets(ctx);
+
+	return cls.servername;
+}
+void npscript_property_curserver_sets(struct context *ctx, const char *val)
+{
+	if (!npscript_property_isrunning_getb(ctx))
+	{
+		npscript_property_startserver_sets(ctx, val);
+		return;
+	}
+
+	Q_strncpyz(cls.servername, val, sizeof(cls.servername));
+	CL_BeginServerConnect();
+}
+
+extern cvar_t skin, team, topcolor, bottomcolor, vid_fullscreen;
+struct npscript_property npscript_properties[] =
+{
+	{"isrunning",	false,	NULL,	NULL, NULL, npscript_property_isrunning_getb},
+	{"startserver",	false,	NULL,	npscript_property_startserver_gets, npscript_property_startserver_sets},
+	{"server",		false,	NULL,	npscript_property_curserver_gets, npscript_property_curserver_sets},
+	{"playername",	true,	&name},
+	{NULL,			true,	&skin},
+	{NULL,			true,	&team},
+	{NULL,			true,	&topcolor},
+	{NULL,			true,	&bottomcolor},
+	{NULL,			true,	&password},
+//	{NULL,			true,	&spectator},
+	{"fullscreen",	true,	&vid_fullscreen},
+	{NULL}
+};
+
+struct npscript
+{
+	NPObject obj;
+
+	struct context *ctx;
+
+	struct npscript_property *props;
+};
+
+NPObject *npscript_allocate(NPP npp, NPClass *aClass)
+{
+	struct npscript_property *prop;
+	struct npscript *obj;
+	obj = malloc(sizeof(*obj));
+	obj->obj._class = aClass;
+	obj->obj.referenceCount = 1;
+	obj->ctx = npp->pdata;
+
+	obj->props = npscript_properties;
+
+	for (prop = obj->props; prop->name||prop->cvar; prop++)
+	{
+		if(!prop->name)
+			prop->name = prop->cvar->name;
+	}
+	return (NPObject*)obj;
+}
+void npscript_deallocate(NPObject *npobj)
+{
+	free(npobj);
+}
+void npscript_invalidate(NPObject *npobj)
+{
+	struct npscript *obj = (struct npscript *)npobj;
+	obj->ctx = NULL;
+}
+bool npscript_hasMethod(NPObject *npobj, NPIdentifier name)
+{
+	NPUTF8 *mname;
+	mname = browserfuncs->utf8fromidentifier(name);
+	return false;
+}
+bool npscript_invoke(NPObject *npobj, NPIdentifier name, const NPVariant *args, uint32_t argCount, NPVariant *result)
+{
+	return false;
+}
+bool npscript_invokeDefault(NPObject *npobj, const NPVariant *args, uint32_t argCount, NPVariant *result)
+{
+	return false;
+}
+bool npscript_hasProperty(NPObject *npobj, NPIdentifier name)
+{
+	struct npscript *obj = (struct npscript *)npobj;
+	struct npscript_property *prop;
+	NPUTF8 *pname;
+	pname = browserfuncs->utf8fromidentifier(name);
+
+	for (prop = obj->props; prop->name; prop++)
+	{
+		if (!strcmp(prop->name, pname))
+			return true;
+	}
+	return false;
+}
+bool npscript_getProperty(NPObject *npobj, NPIdentifier name, NPVariant *result)
+{
+	struct npscript *obj = (struct npscript *)npobj;
+	struct context *ctx = obj->ctx;
+	NPUTF8 *pname;
+	char *res, *ns;
+	int len;
+	struct npscript_property *prop;
+	pname = browserfuncs->utf8fromidentifier(name);
+
+	for (prop = obj->props; prop->name; prop++)
+	{
+		if (!strcmp(prop->name, pname))
+		{
+			if (prop->onlyifactive)
+			{
+				if (!ctx->contextrunning)
+					return false;
+			}
+			if (prop->getstring)
+			{
+				//FIXME: Are we meant to malloc a new string buffer here?
+				res = prop->getstring(ctx);
+				len = strlen(res);
+				ns = browserfuncs->memalloc(len);
+				if (!ns)
+					return false;
+				memcpy(ns, res, len);
+				STRINGZ_TO_NPVARIANT(ns, *result);
+				return true;
+			}
+			else if (prop->getint)
+			{
+				INT32_TO_NPVARIANT(prop->getint(ctx), *result);
+				return true;
+			}
+			else if (prop->cvar)
+			{
+				//FIXME: Are we meant to malloc a new string buffer here?
+				res = prop->cvar->string;
+				len = strlen(res);
+				ns = browserfuncs->memalloc(len);
+				if (!ns)
+					return false;
+				memcpy(ns, res, len);
+				STRINGZ_TO_NPVARIANT(ns, *result);
+				return true;
+			}
+			return false;
+		}
+	}
+	return false;
+}
+bool npscript_setProperty(NPObject *npobj, NPIdentifier name, const NPVariant *value)
+{
+	struct npscript *obj = (struct npscript *)npobj;
+	struct context *ctx = obj->ctx;
+	NPUTF8 *pname;
+	NPString str;
+	struct npscript_property *prop;
+	pname = browserfuncs->utf8fromidentifier(name);
+
+	for (prop = obj->props; prop->name; prop++)
+	{
+		if (!strcmp(prop->name, pname))
+		{
+			if (prop->onlyifactive)
+			{
+				if (!ctx->contextrunning)
+					return false;
+			}
+
+			if (NPVARIANT_IS_STRING(*value))
+			{
+				char *t = NULL;
+
+				str = NPVARIANT_TO_STRING(*value);
+				if (str.utf8characters[str.utf8length] != 0)
+				{
+					t = malloc(str.utf8length+1);
+					memcpy(t, str.utf8characters, str.utf8length);
+					t[str.utf8length] = 0;
+					str.utf8characters = t;
+				}
+				if (prop->setstring)
+				{
+					prop->setstring(ctx, str.utf8characters);
+					if (t)
+						free(t);
+					return true;
+				}
+				if (prop->setint)
+				{
+					prop->setint(ctx, atoi(str.utf8characters));
+					if (t)
+						free(t);
+					return true;
+				}
+				if (t)
+					free(t);
+			}
+			if (NPVARIANT_IS_INT32(*value))
+			{
+				if (prop->setint)
+				{
+					prop->setint(ctx, NPVARIANT_TO_INT32(*value));
+					return true;
+				}
+			}
+			if (NPVARIANT_IS_DOUBLE(*value))
+			{
+				if (prop->setint)
+				{
+					prop->setint(ctx, NPVARIANT_TO_DOUBLE(*value));
+					return true;
+				}
+			}
+
+			if (prop->cvar)
+			{
+				if (NPVARIANT_IS_STRING(*value))
+				{
+					str = NPVARIANT_TO_STRING(*value);
+					Cvar_Set(prop->cvar, str.utf8characters);
+					return true;
+				}
+				if (NPVARIANT_IS_INT32(*value))
+				{
+					Cvar_SetValue(prop->cvar, NPVARIANT_TO_INT32(*value));
+					return true;
+				}
+				if (NPVARIANT_IS_DOUBLE(*value))
+				{
+					Cvar_SetValue(prop->cvar, NPVARIANT_TO_DOUBLE(*value));
+					return true;
+				}
+				if (NPVARIANT_IS_BOOLEAN(*value))
+				{
+					Cvar_SetValue(prop->cvar, NPVARIANT_TO_BOOLEAN(*value));
+					return true;
+				}
+			}
+			//sorry, no can do
+			return false;
+		}
+	}
+	//not known
+	return false;
+}
+bool npscript_removeProperty(NPObject *npobj, NPIdentifier name)
+{
+	return false;
+}
+bool npscript_enumerate(NPObject *npobj, NPIdentifier **value, uint32_t *count)
+{
+	return false;
+}
+bool npscript_construct(NPObject *npobj, const NPVariant *args, uint32_t argCount, NPVariant *result)
+{
+	return false;
+}
+
+NPClass npscript_class =
+{
+	NP_CLASS_STRUCT_VERSION,
+
+    npscript_allocate,
+    npscript_deallocate,
+    npscript_invalidate,
+    npscript_hasMethod,
+    npscript_invoke,
+    npscript_invokeDefault,
+    npscript_hasProperty,
+    npscript_getProperty,
+    npscript_setProperty,
+    npscript_removeProperty,
+    npscript_enumerate,
+    npscript_construct
+};
+
 NPError NP_LOADDS NPP_GetValue(NPP instance, NPPVariable variable, void *value)
 {
 	switch(variable)
 	{
 	case NPPVpluginScriptableNPObject:
-		*(void**)value = NULL;	//no scripting object, sorry.
+		*(void**)value = browserfuncs->createobject(instance, &npscript_class);
 		return NPERR_NO_ERROR;
 	default:
 		return NPERR_INVALID_PARAM;

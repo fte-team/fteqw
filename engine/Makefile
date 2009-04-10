@@ -534,7 +534,7 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	LIBS_DIR=./libs/
 	
 	#the defaults for sdl come first
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
 	GL_EXE_NAME=../fteqw_sdl_gl.exe
 	GLCL_EXE_NAME=../fteqwcl_sdl.exe
 	ifdef windir
@@ -546,7 +546,7 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	GLB_DIR=gl_mgw_sdl$(BITS)
 	GLCL_DIR=glcl_mgw_sdl$(BITS)
 	
-	SWCL_OBJS=$(SOFTWARE_OBJS) vid_sdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o
+	SWCL_OBJS=$(SOFTWARE_OBJS) vid_sdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
 	SW_EXE_NAME=../fteqw_sdl_sw.exe
 	SWCL_EXE_NAME=../fteqwcl_sdl.exe
 	ifdef windir
@@ -569,7 +569,7 @@ ifeq ($(FTE_TARGET),win32_SDL)
 
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../fteqw_sdl.exe
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o vid_sdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o vid_sdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
 	M_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs $(SWCFLAGS) $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
 	

@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 void Sys_mkdir (char *path);	//not all pre-unix systems have directories (including dos 1)
 qboolean Sys_remove (char *path);
-qboolean Sys_FindGameData(const char *gamename, char *basepath, int basepathlen);
+qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen);
 
 //
 // memory protection

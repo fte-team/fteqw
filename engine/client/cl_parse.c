@@ -1682,8 +1682,11 @@ void CLDP_ParseDownloadData(void)
 	
 	MSG_ReadData(buffer, size);
 
-	VFS_SEEK(cls.downloadqw, start);
-	VFS_WRITE(cls.downloadqw, buffer, size);
+	if (cls.downloadqw)
+	{
+		VFS_SEEK(cls.downloadqw, start);
+		VFS_WRITE(cls.downloadqw, buffer, size);
+	}
 
 	//this is only reliable because I'm lazy
 	MSG_WriteByte(&cls.netchan.message, clcdp_ackdownloaddata);
@@ -1717,15 +1720,20 @@ void CLDP_ParseDownloadBegin(char *s)
 	cls.downloadqw = FS_OpenVFS (cls.downloadtempname, "wb", FS_GAME);
 	cls.downloadmethod = DL_DARKPLACES;
 	
-	//fill the file with 0 bytes
-	memset(buffer, 0, sizeof(buffer));
-	for (pos = 0, chunk = 1; chunk; pos += chunk)
+	if (cls.downloadqw)
 	{
-		chunk = size - pos;
-		if (chunk > sizeof(buffer))
-			chunk = sizeof(buffer);
-		VFS_WRITE(cls.downloadqw, buffer, chunk);
+		//fill the file with 0 bytes
+		memset(buffer, 0, sizeof(buffer));
+		for (pos = 0, chunk = 1; chunk; pos += chunk)
+		{
+			chunk = size - pos;
+			if (chunk > sizeof(buffer))
+				chunk = sizeof(buffer);
+			VFS_WRITE(cls.downloadqw, buffer, chunk);
+		}
 	}
+	else
+		CL_DownloadFailed(cls.downloadname);
 
 	downloadstarttime = Sys_DoubleTime();
 }

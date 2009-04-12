@@ -1775,7 +1775,7 @@ potentialgamepath_t pgp[] = {
 #define NEXCFG "set sv_maxairspeed \"400\"\nset sv_mintic \"0.01\"\ncl_nolerp 0\n"
 
 typedef struct {
-	const char *gamename;	//sent to the master server when this is the current gamemode.
+	const char *protocolname;	//sent to the master server when this is the current gamemode.
 	const char *exename;	//used if the exe name contains this
 	const char *argname;	//used if this was used as a parameter.
 	const char *auniquefile;	//used if this file is relative from the gamedir
@@ -1783,25 +1783,26 @@ typedef struct {
 	const char *customexec;
 
 	const char *dir[4];
+	const char *poshname;	//Full name for the game.
 } gamemode_info_t;
 const gamemode_info_t gamemode_info[] = {
 //note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
 //this is to avoid having too many gamemodes anyway.
 
 //rogue/hipnotic have no special files - the detection conflicts and stops us from running regular quake
-	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		NULL,	"id1",		"qw",				"fte"},
-	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	NULL,				NULL,	"id1",		"qw",	"hipnotic",	"fte"},
-	{"Darkplaces-Rogue",	"rogue",		"-rogue",		NULL,				NULL,	"id1",		"qw",	"rogue",	"fte"},
-	{"Nexuiz",				"nexuiz",		"-nexuiz",		"nexuiz.exe",		NEXCFG,	"data",							"ftedata"},
+	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
+	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	NULL,				NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
+	{"Darkplaces-Rogue",	"rogue",		"-rogue",		NULL,				NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
+	{"Nexuiz",				"nexuiz",		"-nexuiz",		"nexuiz.exe",		NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
 
 	//supported commercial mods (some are currently only partially supported)
-	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	NULL,	"data1",						"fte"},
-	{"FTE-Quake2",			"q2",			"-q2",			"baseq2/pak0.pak",	NULL,	"baseq2",						"fteq2"},
-	{"FTE-Quake3",			"q3",			"-q3",			"baseq3/pak0.pk3",	NULL,	"baseq3",						"fteq3"},
+	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	NULL,	{"data1",						"fte"},		"Hexen II"},
+	{"FTE-Quake2",			"q2",			"-q2",			"baseq2/pak0.pak",	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
+	{"FTE-Quake3",			"q3",			"-q3",			"baseq3/pak0.pk3",	NULL,	{"baseq3",						"fteq3"},	"Quake III Arena"},
 
-	{"FTE-JK2",				"jk2",			"-jk2",			"base/assets0.pk3",	NULL,	"base",							"fte"},
+	{"FTE-JK2",				"jk2",			"-jk2",			"base/assets0.pk3",	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
 
-	{"FTE-HalfLife",		"hl",			"-halflife",	"valve/liblist.gam",NULL,	"valve",						"ftehl"},
+	{"FTE-HalfLife",		"hl",			"-halflife",	"valve/liblist.gam",NULL,	{"valve",						"ftehl"},	"Half-Life"},
 
 	{NULL}
 };
@@ -1999,8 +2000,33 @@ void FS_ReloadPackFiles_f(void)
 
 #ifdef _WIN32
 #include <windows.h>
-qboolean Sys_FindGameData(const char *gamename, char *basepath, int basepathlen)
+#include <shlobj.h>
+qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen)
 {
+	DWORD resultlen;
+	HKEY key = NULL;
+
+#ifndef INVALID_FILE_ATTRIBUTES
+	#define INVALID_FILE_ATTRIBUTES ((DWORD)-1)
+#endif
+
+	//first, try and find it in our game paths location
+	if (!FAILED(RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+	{
+		resultlen = basepathlen;
+		if (!RegQueryValueEx(key, gamename, NULL, NULL, basepath, &resultlen))
+		{
+			if (GetFileAttributes(basepath) != INVALID_FILE_ATTRIBUTES)
+			{
+				RegCloseKey(key);
+				return true;
+			}
+		}
+
+		RegCloseKey(key);
+	}
+
+
 	if (!strcmp(gamename, "q1"))
 	{
 		//try and find it via steam
@@ -2008,8 +2034,6 @@ qboolean Sys_FindGameData(const char *gamename, char *basepath, int basepathlen)
 		//append SteamApps\common\quake
 		//use it if we find winquake.exe there
 		FILE *f;
-		DWORD resultlen;
-		HKEY key = NULL;
 		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
 		{
 			resultlen = basepathlen;
@@ -2107,6 +2131,49 @@ qboolean Sys_FindGameData(const char *gamename, char *basepath, int basepathlen)
 		//append SteamApps\common\hexen 2
 	}
 
+	if (poshname)
+	{
+		char resultpath[MAX_PATH];
+		BROWSEINFO bi;
+		LPITEMIDLIST il;
+		memset(&bi, 0, sizeof(bi));
+		if (sys_parentwindow)
+			bi.hwndOwner = sys_parentwindow; //note that this is usually still null
+		else
+			bi.hwndOwner = mainwindow; //note that this is usually still null
+		bi.pidlRoot = NULL;
+		bi.pszDisplayName = resultpath;
+		bi.lpszTitle = va("Please locate your existing %s installation", poshname);
+		bi.ulFlags = BIF_RETURNONLYFSDIRS;
+		bi.lpfn = NULL;
+		bi.lParam = 0;
+		bi.iImage = 0;
+
+		il = SHBrowseForFolder(&bi);
+		if (il)
+		{
+			SHGetPathFromIDList(il, resultpath);
+			CoTaskMemFree(il);
+			Q_strncpyz(basepath, resultpath, basepathlen-1);
+
+			//and save it into the windows registry
+			if (!FAILED(RegCreateKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths",
+				0, NULL,
+				REG_OPTION_NON_VOLATILE,
+				KEY_WRITE,
+				NULL,
+				&key,
+				NULL)))
+			{
+				RegSetValueEx(key, gamename, 0, REG_SZ, basepath, strlen(basepath));
+
+				RegCloseKey(key);
+			}
+
+			return true;
+		}
+	}
+
 	return false;
 }
 #else
@@ -2181,7 +2248,7 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&com_gamename, "evil hacks");
 	Cvar_Register(&com_modname, "evil hacks");
 	//identify the game from a telling file
-	for (i = 0; gamemode_info[i].gamename; i++)
+	for (i = 0; gamemode_info[i].argname; i++)
 	{
 		if (!gamemode_info[i].auniquefile)
 			continue;	//no more
@@ -2194,13 +2261,13 @@ void COM_InitFilesystem (void)
 		}
 	}
 	//use the game based on an exe name over the filesystem one (could easily have multiple fs path matches).
-	for (i = 0; gamemode_info[i].gamename; i++)
+	for (i = 0; gamemode_info[i].argname; i++)
 	{
 		if (strstr(com_argv[0], gamemode_info[i].exename))
 			gamenum = i;
 	}
 	//use the game based on an parameter over all else.
-	for (i = 0; gamemode_info[i].gamename; i++)
+	for (i = 0; gamemode_info[i].argname; i++)
 	{
 		if (COM_CheckParm(gamemode_info[i].argname))
 		{
@@ -2216,7 +2283,7 @@ void COM_InitFilesystem (void)
 					break;
 				}
 #ifdef _WIN32
-				if (Sys_FindGameData(gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
+				if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
 				{
 					if (com_quakedir[strlen(com_quakedir)-1] == '\\')
 						com_quakedir[strlen(com_quakedir)-1] = '/';
@@ -2239,14 +2306,14 @@ void COM_InitFilesystem (void)
 	//still failed? find quake and use that one by default
 	if (gamenum<0)
 	{
-		for (i = 0; gamemode_info[i].gamename; i++)
+		for (i = 0; gamemode_info[i].argname; i++)
 		{
 			if (!strcmp(gamemode_info[i].argname, "-quake"))
 				gamenum = i;
 		}
 	}
 
-	Cvar_Set(&com_gamename, gamemode_info[gamenum].gamename);
+	Cvar_Set(&com_gamename, gamemode_info[gamenum].protocolname);
 
 	if (gamemode_info[gamenum].customexec)
 		Cbuf_AddText(gamemode_info[gamenum].customexec, RESTRICT_LOCAL);
@@ -2390,7 +2457,7 @@ void COM_InitFilesystem (void)
 
 
 	i = COM_CheckParm ("-addbasegame");
-	do	//use multiple -addbasegames (this is so the basic dirs don't die)
+	while (i && i < com_argc-1)	//use multiple -addbasegames (this is so the basic dirs don't die)
 	{
 		FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
 		if (*com_homedir)
@@ -2398,7 +2465,6 @@ void COM_InitFilesystem (void)
 
 		i = COM_CheckNextParm ("-addbasegame", i);
 	}
-	while (i && i < com_argc-1);
 
 
 	// any set gamedirs will be freed up to here

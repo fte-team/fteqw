@@ -429,7 +429,11 @@ char *cleanarg(char *arg)
 	//no hacking us, please.
 	while (*arg == '-' || *arg == '+')
 		arg++;
-	return arg;
+	while (*arg && *arg <= ' ')
+		arg++;
+	if (*arg)
+		return arg;
+	return "badarg";
 }
 
 LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)

@@ -1949,6 +1949,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			dir = bestdir;
 		}
 		VectorInverse(dir);
+		VectorNormalize(dir);
 
 		VectorNormalize(vec);
 		CrossProduct(dir, vec, tangent);
@@ -2010,6 +2011,15 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 
 			decverts += 3*3;
 			decalcount--;
+
+
+			// maintain run list
+			if (!(ptype->state & PS_INRUNLIST))
+			{
+				ptype->nexttorun = part_run_list;
+				part_run_list = ptype;
+				ptype->state |= PS_INRUNLIST;
+			}
 		}
 
 		return 0;
@@ -3707,7 +3717,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 	vec3_t stop, normal;
 	part_type_t *type, *lastvalidtype;
 	particle_t		*p, *kill;
-	clippeddecal_t *d;
+	clippeddecal_t *d, *dkill;
 	ramp_t *ramp;
 	float grav;
 	vec3_t friction;
@@ -3778,39 +3788,32 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 	{
 		if (type->clippeddecals)
 		{
-/*			for ( ;; )
+			for ( ;; )
 			{
 				dkill = type->clippeddecals;
 				if (dkill && dkill->die < particletime)
 				{
 					type->clippeddecals = dkill->next;
-					free_decals =
-
-
-					dkill->next = (clippeddecal_t *)kill_list;
-					kill_list = (particle_t*)dkill;
-					if (!kill_first)
-						kill_first = kill_list;
+					dkill->next = free_decals;
+					free_decals = dkill;
 					continue;
 				}
 				break;
 			}
-*/			for (d=type->clippeddecals ; d ; d=d->next)
+			for (d=type->clippeddecals ; d ; d=d->next)
 			{
-	/*			for ( ;; )
+				for ( ;; )
 				{
 					dkill = d->next;
 					if (dkill && dkill->die < particletime)
 					{
 						d->next = dkill->next;
-						dkill->next = (clippeddecal_t *)kill_list;
-						kill_list = (particle_t*)dkill;
-						if (!kill_first)
-							kill_first = kill_list;
+						dkill->next = free_decals;
+						free_decals = dkill;
 						continue;
 					}
 					break;
-				}*/
+				}
 
 
 

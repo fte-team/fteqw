@@ -2177,7 +2177,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	return false;
 }
 #else
-qboolean Sys_FindGameData(const char *gamename, char *basepath, int basepathlen)
+qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen)
 {
 	return false;
 }

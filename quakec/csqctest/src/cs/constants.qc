@@ -64,7 +64,13 @@ float INPUT_MOUSEMOVE = 2;
 #define STAT_ROCKETS 8
 #define STAT_CELLS 9
 #define STAT_ACTIVEWEAPON 10	//the one shown on the hud
+#define STAT_TOTALSECRETS 11
+#define STAT_TOTALMONSTERS 12
+#define STAT_FOUNDSECRETS 13
+#define STAT_KILLEDMONSTERS 14
 #define STAT_ITEMS 15
+#define STAT_VIEWHEIGHT 16
+#define STAT_VIEWZOOM 21	//DP extension
 //stats 32 onwards are filled by the csqc.
 
 

@@ -35,7 +35,7 @@
 	};
 #else
 	#ifdef CSQC
-		var void(float isnew) ParseEntityClass[ ] = {
+		nonstatic var void(float isnew) ParseEntityClass[ ] = {
 #define eclass(eid,func) func ,
 		eclasses
 #undef eclass

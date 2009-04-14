@@ -90,6 +90,7 @@ string(string s) cvar_string = #448;
 #ifdef CSQC
 float(float modelindex, string skinname) skinforname = #237;
 float(string skinname) shaderforname = #238;
+float(float midx, string framename) frameforname = #275;
 #endif
 
 //UNNAMED_FTE_CS_TAG_SUPPORT

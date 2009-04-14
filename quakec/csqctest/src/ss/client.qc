@@ -12,7 +12,6 @@ float	modelindex_eyes, modelindex_player;
 void() DefaultPlayerPhysics;
 
 .float usingcsqc;
-.float lackofcsqckicktime;
 
 /*
 =============================================================================
@@ -478,12 +477,6 @@ float(entity to) SendPlayer =
 	float ef;
 	float f;
 
-	if (!to.usingcsqc)
-	{
-		to.usingcsqc = 1;
-		self.dimension_see = 1;
-	}
-
 //encode the current weapon in the lower 4 bits.
 	for (f = 1, ef = 0; ef < 16; ef=ef+1,f*=2)
 	{
@@ -509,9 +502,9 @@ float(entity to) SendPlayer =
 	WriteCoord(MSG_ENTITY, self.origin_x);
 	WriteCoord(MSG_ENTITY, self.origin_y);
 	WriteCoord(MSG_ENTITY, self.origin_z);
-	WriteShort(MSG_ENTITY, self.velocity_x*64);
-	WriteShort(MSG_ENTITY, self.velocity_y*64);
-	WriteShort(MSG_ENTITY, self.velocity_z*64);
+	WriteShort(MSG_ENTITY, self.velocity_x);
+	WriteShort(MSG_ENTITY, self.velocity_y);
+	WriteShort(MSG_ENTITY, self.velocity_z);
 	WriteByte(MSG_ENTITY, ef);
 	return TRUE;
 };
@@ -997,17 +990,6 @@ void() PlayerPreThink =
 		self.weapon = W_BestWeapon ();
 		W_SetCurrentAmmo ();
 	}
-
-	if (self.lackofcsqckicktime)
-	{
-		if (!self.usingcsqc && self.lackofcsqckicktime < time)
-		{	//well, you could kick them instead, if you were feeling mean.
-			bprint(self.netname);
-			bprint(" is not using csqc!\n");
-			centerprint(self, "You are not using csqc.\nThis could be due to version differences or only a partially installed mod.\nIf you are using FTEQW, please type \n\sallow_download_csprogs 1\s\n in the console, and then reconnect.\n\nNote that certain incompatabilities may exist if you do not.");
-			self.lackofcsqckicktime = 0;
-		}
-	}
 };
 	
 /*
@@ -1214,7 +1196,7 @@ ClientConnect
 called when a player connects to a server
 ============
 */
-void() ClientConnect =
+void(float csqcenabled) ClientConnect =
 {
 	bprint (self.netname);
 	bprint (" entered the game\n");
@@ -1223,10 +1205,18 @@ void() ClientConnect =
 	if (intermission_running)
 		ExitIntermission ();
 
-	if (serverusingcsqc)
-		self.lackofcsqckicktime = time + 10;
-	self.usingcsqc = false;
-	self.dimension_see = 3;
+
+	self.usingcsqc = csqcenabled;
+	if (self.usingcsqc)
+		self.dimension_see = 1;
+	else
+	{
+		self.dimension_see = 3;
+
+		bprint(self.netname);
+		bprint(" is not using csqc!\n");
+		sprint(self, "You are not using csqc.\nThis could be due to version differences or only a partially installed mod.\nIf you are using FTEQW, please type \sallow_download_csprogs 1\s in the console, and then reconnect.\n\nNote that certain incompatabilities may exist if you do not.");
+	}
 };
 
 
@@ -1266,7 +1256,7 @@ float(entity ent) GetGender =
 	local string s;
 	if (infokeyworks)
 	{
-		s = infokey(ent, "sex");
+		s = infokey(ent, "s");
 		if (s == "" || s == "m" || s == "male" || s == "yesplease")
 			return GENDER_MALE;
 		if (s == "f" || s == "female" || s == "onthebeach")
@@ -1554,18 +1544,14 @@ void(entity targ, entity attacker) ClientObituary =
 	}
 };
 
-
-/*
-
-void() SV_ClientMovementCommand =
+void() DefaultPlayerPhysics = #347;
+void() SV_RunClientCommand =
 {
-	PlayerPreThink();
-
 	pmove_org = self.origin;
 	pmove_vel = self.velocity;
 	pmove_mins = self.mins;
 	pmove_maxs = self.maxs;
-	pmove_jump_held = self.jump_held;
+//	pmove_jump_held = self.jump_held;
 	pmove_waterjumptime = self.teleport_time;
 
 	//should match the one used by csqc.
@@ -1577,7 +1563,7 @@ void() SV_ClientMovementCommand =
 
 	self.origin = pmove_org;
 	self.velocity = pmove_vel;
-	self.jump_held = pmove_jump_held;
+//	self.jump_held = pmove_jump_held;
 	self.teleport_time = pmove_waterjumptime;
 
 	self.waterlevel = 0;//FIXME
@@ -1585,22 +1571,20 @@ void() SV_ClientMovementCommand =
 
 	self.button0 =   (input_buttons & 1);
 	self.button2 = !!(input_buttons & 2);
-
+/*
 	self.button3 = !!(input_buttons & 4);
 	self.button4 = !!(input_buttons & 8);
 	self.button5 = !!(input_buttons & 16);
 	self.button6 = !!(input_buttons & 32);
 	self.button7 = !!(input_buttons & 64);
 	self.button8 = !!(input_buttons & 128);
-
+*/
 	self.v_angle = input_angles;
 	self.angles = input_angles;
 	self.angles_x *= -1/3;
-	self.movement = input_movevalues;
 	self.impulse = input_impulse;
 
-	PlayerPostThink();
-	self.Version++;
+//we don't need this DP extension
+//	self.movement = input_movevalues;
 };
 
-*/

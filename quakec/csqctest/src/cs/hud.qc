@@ -119,6 +119,40 @@ void Hud_DrawWeaponWide(float num, vector pos)	//for LG
 	drawpic(pos, weaponnames[num], '48 16 0', '1 1 1', 1, 0);
 };
 
+string(float f, float chars, string lead) FormatFloat
+{
+	string s = ftos(f);
+	if (f < 10 && chars >= 3)
+		s = strcat(lead, lead, s);
+	else if (f < 10 && chars == 2)
+		s = strcat(lead, s);
+	else if (f < 100 && chars >= 3)
+		s = strcat(lead, s);
+	return s;
+};
+
+void() Hud_CoopScores_SBar =
+{
+	string s;
+	float secs;
+	float mins;
+	//When you press tab in single player/coop, you get some replacement info over the sbar
+	vector sbar = screensize_y * ' 0 1 0' - '0 24 0';
+	drawpic(sbar, "scorebar", '320 24 0', '1 1 1', 0.333, 0);
+
+	s = strcat("Monsters:", FormatFloat(getstati(STAT_KILLEDMONSTERS), 3, " "), "/", FormatFloat(getstati(STAT_TOTALMONSTERS), 3, " "));
+	drawstring(sbar + '8 4', s, '8 8 8', '1 1 1', 1, 0);
+	s = strcat("Secrets :", FormatFloat(getstati(STAT_FOUNDSECRETS), 3, " "), "/", FormatFloat(getstati(STAT_TOTALSECRETS), 3, " "));
+	drawstring(sbar + '8 12', s, '8 8 8', '1 1 1', 1, 0);
+
+	mins = floor(time/60);
+	secs = floor(time - mins*60);
+	s = strcat("Time :", FormatFloat(mins, 3, " "), ":", FormatFloat(secs, 2, "0"));
+	drawstring(sbar + '184 4', s, '8 8 8', '1 1 1', 1, 0);
+
+	drawstring(sbar + '232 12' - strlen(levelname)*'4 0', levelname, '8 8 8', '1 1 1', 1, 0);
+};
+
 void Hud_DrawSBar(void)
 {
 	vector sbar;
@@ -243,7 +277,7 @@ void Hud_DrawQ3Number(vector pos, float value, vector colours)
 
 entity hud3ditem;
 
-void Hud_Draw3dScene(vector topleft, vector size)
+void Hud_Draw3dScene(vector topleft, vector sz)
 {
 	clearscene();
 
@@ -251,7 +285,7 @@ void Hud_Draw3dScene(vector topleft, vector size)
 	setviewprop(VF_DRAWENGINESBAR, 0);
 	setviewprop(VF_DRAWCROSSHAIR, 0);
 	setviewprop(VF_MIN, topleft);
-	setviewprop(VF_SIZE, size);
+	setviewprop(VF_SIZE, sz);
 	setviewprop(VF_FOV, '30 30');
 	setviewprop(VF_ORIGIN, '0 0 0');
 	setviewprop(VF_ANGLES, '0 0 0');
@@ -260,7 +294,7 @@ void Hud_Draw3dScene(vector topleft, vector size)
 	renderscene();
 }
 
-void Hud_Draw3dItem(vector topleft, vector size, string modelname, vector org, vector ang)
+void Hud_Draw3dItem(vector topleft, vector sz, string modelname, vector org, vector ang)
 {
 	if (!hud3ditem)
 		hud3ditem = spawn();
@@ -269,10 +303,10 @@ void Hud_Draw3dItem(vector topleft, vector size, string modelname, vector org, v
 	hud3ditem.angles = ang;
 	setmodel(hud3ditem, modelname);
 
-	Hud_Draw3dScene(topleft, size);
+	Hud_Draw3dScene(topleft, sz);
 }
 
-void Hud_DrawQ3Head(vector topleft, vector size, string skinname, vector ang)
+void Hud_DrawQ3Head(vector topleft, vector sz, string skinname, vector ang)
 {
 	float headmodelindex;
 	vector headoffset;
@@ -305,7 +339,7 @@ void Hud_DrawQ3Head(vector topleft, vector size, string skinname, vector ang)
 	hud3ditem.origin = org;
 	hud3ditem.angles = ang;
 
-	Hud_Draw3dScene(topleft, size);
+	Hud_Draw3dScene(topleft, sz);
 	hud3ditem.skin = 0;
 }
 
@@ -323,9 +357,8 @@ void Hud_Q3(void)
 	Hud_DrawQ3Number(sbar+'248 0 0', getstati(STAT_AMMO), '1 1 1');
 }
 
-void Hud_Draw(float hudtype, float width, float height)
+nonstatic void Hud_Draw(float hudtype, float scoreboard, float width, float height)
 {
-	vector sbar;
 	screensize_x = width;
 	screensize_y = height;
 	screensize_z = 0;
@@ -334,14 +367,21 @@ void Hud_Draw(float hudtype, float width, float height)
 	items2 = getstatbits(STAT_ITEMS, 23, 9);
 
 	//if hudtype == 0 then the engine already drew it.
-	if (hudtype == 2)
+	if (hudtype == 3)
 	{
 		Hud_Q3();
 		return;
 	}
-	else
+	else if (hudtype == 2)
 	{
-		Hud_DrawSBar();
+		if (scoreboard)
+		{
+			Hud_CoopScores_SBar();
+		}
+		else
+		{
+			Hud_DrawSBar();
+		}
 		Hud_DrawIBar();
 	}
 };

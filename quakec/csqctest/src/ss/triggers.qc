@@ -408,7 +408,11 @@ local vector	org;
 	other.angles = t.mangle;
 	if (other.classname == "player")
 	{
-		other.fixangle = 1;		// turn this way immediately
+		// turn this way immediately
+		//note that csqc should have predicted this already
+		if (!other.usingcsqc)
+			other.fixangle = 1;
+
 		other.teleport_time = time + 0.7;
 		if (other.flags & FL_ONGROUND)
 			other.flags = other.flags - FL_ONGROUND;

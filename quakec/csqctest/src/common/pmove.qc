@@ -1,27 +1,3 @@
-
-float clientcommandframe;
-float input_timelength;
-vector input_angles;
-vector input_movevalues;
-float input_buttons;
-float input_impulse;
-//float input_lightlevel;
-//float input_weapon;
-//float input_servertime;
-
-float pmove_type;
-vector pmove_org;
-vector pmove_vel;
-vector pmove_mins;
-vector pmove_maxs;
-float pmove_jump_held;
-float pmove_waterjumptime;
-
-float movevars_friction;
-float movevars_gravity;
-
-float movevars_stepheight = 22;
-
 #ifdef OWNPLAYERPHYSICS
 
 void PMove_Move(vector dest)	//move forwards (preferably on the level) (does step ups)

@@ -15,9 +15,7 @@
 #define CSQC 1
 #endif
 
-#ifndef WORKINDP
-#pragma TARGET FTE
-#endif
+#pragma noref 1
 
 /*
 ==============================================================================
@@ -190,3 +188,5 @@ float pmove_waterjumptime;
 
 .float frame1time;	//for automatic framegroups.
 .float frame2time;
+
+#pragma noref 0

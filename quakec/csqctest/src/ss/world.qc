@@ -337,7 +337,7 @@ void() worldspawn =
 #ifdef WORKINDP
 	serverusingcsqc = TRUE;
 #else
-	serverusingcsqc = checkextension("EXT_CSQC");
+	serverusingcsqc = checkextension("EXT_CSQC") || checkextension("EXT_CSQC_1");
 #endif
 };
 

@@ -75,7 +75,7 @@ void(vector end) PushSelf =
 };
 
 //MOVETYPE_BOUNCE and MOVETYPE_TOSS
-void() BounceProject =
+nonstatic void() Movetype_Bounce =
 {
 	local vector dest;
 	local float td;
@@ -120,7 +120,7 @@ void() BounceProject =
 	setorigin(self, self.origin);
 };
 
-void() WalkProject =
+void() Movetype_Walk =
 {
 	float tl, td;
 	RunThink();
@@ -142,7 +142,7 @@ void() WalkProject =
 	setorigin(self, self.origin);
 };
 
-void() NoclipProject =
+void() Movetype_Noclip =
 {
 	float td;
 	RunThink();
@@ -154,7 +154,7 @@ void() NoclipProject =
 	self.origin += self.velocity*td;
 };
 
-void() NomoveProject =
+void() Movetype_Nomove =
 {
 	RunThink();
 };

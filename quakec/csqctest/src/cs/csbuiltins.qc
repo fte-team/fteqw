@@ -1,6 +1,9 @@
 
 //csqc only builtins.
 
+float(string s) checkextension = #99;	//this is core for csqc, but still an extension for ssqc
+
+
 void() clearscene			= #300; // (EXT_CSQC)
 void(float mask) addentities		= #301; //  (EXT_CSQC)
 void(entity ent) addentity		= #302; //  (EXT_CSQC)
@@ -39,7 +42,11 @@ string(float mdlindex) modelnameforindex 					= #334; //  (EXT_CSQC)
 
 float(string effectname) particleeffectforname					= #335; //  (EXT_CSQC)
 #ifdef WORKINDP
-void(entity ent, float effectnum, vector start, vector end) trailparticles	= #336; //  (EXT_CSQC),
+void(entity ent, float effectnum, vector start, vector end) trailparticles_dp	= #336; //  (EXT_CSQC),
+void(float effectnum, entity ent, vector start, vector end) trailparticles =
+{
+	trailparticles_dp(ent, effectnum, start, end);
+};
 #else
 void(float effectnum, entity ent, vector start, vector end) trailparticles	= #336; //  (EXT_CSQC),
 #endif

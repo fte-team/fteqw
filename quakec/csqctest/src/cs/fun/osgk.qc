@@ -2,8 +2,6 @@ string osgkname;
 
 void(float event, float button, float mousex, float mousey) OSGKMenuEvent =
 {
-	float f;
-	string str;
 	if (event == ME_DRAW)
 	{
 		//nothing.
@@ -31,7 +29,7 @@ void(float event, float button, float mousex, float mousey) OSGKMenuEvent =
 */};
 
 
-void(string posgkname) Menu_OSGK
+nonstatic void(string posgkname) Menu_OSGK
 {
 	if (osgkname)
 		strunzone(osgkname);

@@ -1,19 +1,87 @@
 .string target;
 .string targetname;
+.vector mangle;
+.string message;
 
 string() getentitytoken = #355;
 
+//fixme: I want an engine solution
+entity triggerchain;
+.entity nexttrigger;
+void() pmovetouchtriggers =
+{
+	vector amin = pmove_org+pmove_mins;
+	vector amax = pmove_org+pmove_maxs;
+	vector emin;
+	vector emax;
+	entity t;
+	entity oself = self;
+	for (self = triggerchain; self; self = self.nexttrigger)
+	{
+		emin = self.origin+self.mins;
+		if (emin_x > amax_x)
+			continue;
+		if (emin_y > amax_y)
+			continue;
+		if (emin_z > amax_z)
+			continue;
+
+		emax = self.origin+self.maxs;
+		if (emax_x < amin_x)
+			continue;
+		if (emax_y < amin_y)
+			continue;
+		if (emax_z < amin_z)
+			continue;
+		
+		if (self.classname == "trigger_teleport")
+		{
+			t = find(world, targetname, self.target);
+			if (t)
+			{
+				makevectors(t.angles);
+				Pred_Predict_Teleport(t.origin + '0 0 27', v_forward*300, t.angles);
+			}
+			//maybe they use a mod that uses some other choice pattern
+		}
+		if (self.classname == "trigger_push")
+		{
+			//fixme: add support for trigger_push
+		}
+	}
+
+	self = oself;
+}
+
 void() spawn_trigger_teleport =
 {
+	self.solid = SOLID_NOT;//SOLID_TRIGGER;
 	setmodel(self, self.model);
 	self.model = "";
 
-	print("teleport at ", vtos(self.mins), vtos(self.maxs), " to ", self.target, "\n");
+	self.nexttrigger = triggerchain;
+	triggerchain = self;
 };
 
 void() spawn_info_teleport_destination =
 {
-	print("teleport_dest at ", vtos(self.origin), " called ", self.targetname, "\n");
+};
+
+void() spawn_trigger_push =
+{
+	self.solid = SOLID_NOT;//SOLID_TRIGGER;
+	setmodel(self, self.model);
+	self.model = "";
+
+	self.nexttrigger = triggerchain;
+	triggerchain = self;
+};
+
+void() spawn_worldspawn =
+{
+	levelname = self.message;
+	mapname = "that was the mapname, dumbass";
+	remove(self);
 };
 
 float() parsenewmapentity =
@@ -23,7 +91,6 @@ float() parsenewmapentity =
 	local void() spawnfunc;
 	nent = spawn();
 
-//	print("new entity\n");
 	while (1)
 	{
 		field = getentitytoken();
@@ -38,7 +105,16 @@ float() parsenewmapentity =
 			{
 				self = nent;
 				spawnfunc();
+				return true;
 			}
+
+//			print("ignoring ", nent.classname, "\n");
+			//I don't know what you are, go away.
+			if (nent.classname!="")
+				strunzone(nent.classname);
+			if (nent.message!="")
+				strunzone(nent.message);
+			remove(nent);
 			return true;
 		}
 
@@ -54,12 +130,16 @@ float() parsenewmapentity =
 				spawnfunc = spawn_trigger_teleport;
 			if (value == "info_teleport_destination")
 				spawnfunc = spawn_info_teleport_destination;
-			nent.classname = value;
+			if (value == "trigger_push")
+				spawnfunc = spawn_trigger_push;
+			if (value == "worldspawn")
+				spawnfunc = spawn_worldspawn;
+			nent.classname = strzone(value);
 		}
 		else if (field == "targetname")
-			nent.targetname = value;
+			nent.targetname = strzone(value);
 		else if (field == "target")
-			nent.target = value;
+			nent.target = strzone(value);
 		else if (field == "origin")
 			nent.origin = stov(value);
 		else if (field == "angles")
@@ -70,8 +150,12 @@ float() parsenewmapentity =
 			nent.angles_y = stof(value);
 			nent.angles_z = 0;
 		}
+		else if (field == "mangle")
+			nent.angles = stov(value);
 		else if (field == "model")
 			nent.model = value;
+		else if (field == "message")
+			nent.message = strzone(value);
 /*		else if (field == "light");
 		else if (field == "mangle");
 		else if (field == "killtarget");
@@ -81,7 +165,6 @@ float() parsenewmapentity =
 		else if (field == "count");
 		else if (field == "dmg");
 		else if (field == "delay");
-		else if (field == "message");
 		else if (field == "worldtype");
 		else if (field == "sounds");
 		else if (field == "map");

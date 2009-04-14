@@ -33,75 +33,9 @@
 
 */
 
+#ifdef MD3PMODELS
 
-
-//These $frame lines of course state the quake player frames that we're using as cues for which animation to play.
-//(less work that way)
-
-//
-// running
-//
-$frame axrun1 axrun2 axrun3 axrun4 axrun5 axrun6
-
-$frame rockrun1 rockrun2 rockrun3 rockrun4 rockrun5 rockrun6
-
-//
-// standing
-//
-$frame stand1 stand2 stand3 stand4 stand5
-
-$frame axstnd1 axstnd2 axstnd3 axstnd4 axstnd5 axstnd6
-$frame axstnd7 axstnd8 axstnd9 axstnd10 axstnd11 axstnd12
-
-
-//
-// pain
-//
-$frame axpain1 axpain2 axpain3 axpain4 axpain5 axpain6
-
-$frame pain1 pain2 pain3 pain4 pain5 pain6
-
-
-//
-// death
-//
-
-$frame axdeth1 axdeth2 axdeth3 axdeth4 axdeth5 axdeth6
-$frame axdeth7 axdeth8 axdeth9
-
-$frame deatha1 deatha2 deatha3 deatha4 deatha5 deatha6 deatha7 deatha8
-$frame deatha9 deatha10 deatha11
-
-$frame deathb1 deathb2 deathb3 deathb4 deathb5 deathb6 deathb7 deathb8
-$frame deathb9
-
-$frame deathc1 deathc2 deathc3 deathc4 deathc5 deathc6 deathc7 deathc8
-$frame deathc9 deathc10 deathc11 deathc12 deathc13 deathc14 deathc15
-
-$frame deathd1 deathd2 deathd3 deathd4 deathd5 deathd6 deathd7
-$frame deathd8 deathd9
-
-$frame deathe1 deathe2 deathe3 deathe4 deathe5 deathe6 deathe7
-$frame deathe8 deathe9
-
-//
-// attacks
-//
-$frame nailatt1 nailatt2
-
-$frame light1 light2
-
-$frame rockatt1 rockatt2 rockatt3 rockatt4 rockatt5 rockatt6
-
-$frame shotatt1 shotatt2 shotatt3 shotatt4 shotatt5 shotatt6
-
-$frame axatt1 axatt2 axatt3 axatt4 axatt5 axatt6
-
-$frame axattb1 axattb2 axattb3 axattb4 axattb5 axattb6
-
-$frame axattc1 axattc2 axattc3 axattc4 axattc5 axattc6
-
-$frame axattd1 axattd2 axattd3 axattd4 axattd5 axattd6
+#include "playerframes.inc"
 
 //these are the animation sequence names used in quake3.
 enum {
@@ -162,14 +96,6 @@ nosave float anim_gender[MAXMODELS];	//one of the SEX_ enum values.
 nosave string anim_name[MAXMODELS];		//names the (skinless) player model, so they can be cached and shared.
 nosave float anim_headmodel[MAXMODELS];
 nosave vector anim_headoffset[MAXMODELS];
-
-//the genders you can have.
-//we're generous with three.
-enum {
-	GENDER_NEUTER,
-	GENDER_MALE,
-	GENDER_FEMALE
-};
 
 //note: q3 assumes male.
 //we assume male too, due to the player model that is typically used if we have no q3 models.
@@ -341,7 +267,8 @@ void(entity ent, string soundname) sexedsound =
 
 //our player's frames changed to some new sequence.
 //our animation function will animate acordingly.
-void(float anum) ForceToAnim =
+
+static void(float anum) ForceToAnim =
 {
 	if (anum <= TORSO_STAND2)
 	{
@@ -366,7 +293,6 @@ float(entity ent) animate =
 	float fnum;
 	float numframes;
 	float fps;
-	float firstframe;
 	float loopingframes;
 	float ret;
 
@@ -424,7 +350,7 @@ float(entity ent) animate =
 void() LegsUpdateAnim =
 {
 	float inair;
-	float onground;
+
 	tracebox(self.origin, self.mins, self.maxs, self.origin-'0 0 2', FALSE, self);
 
 	if (trace_fraction == 1)
@@ -550,12 +476,8 @@ void(entity ent) AddModelWithEffects =
 	ent.forceshader = 0;
 };
 
-.float ideal_yaw;
-.float yaw_speed;
-.float tag_index;
-
 //this function is called inside your base entity's predraw function (which should then return false)
-void() Anim_Draw =
+nonstatic void() Anim_Draw =
 {
 	vector tf, tr, tu;
 	vector ang;
@@ -825,7 +747,7 @@ void() Anim_Draw =
 };
 
 //remove our attached models, restoring the player model to being a boring player.
-void() Anim_UnsetModel =
+nonstatic void() Anim_UnsetModel =
 {
 	if (self.torsoent)
 		remove(self.torsoent);
@@ -845,7 +767,7 @@ void() Anim_UnsetModel =
 	setmodel(self, self.model);
 };
 
-float() Anim_GetGender =
+nonstatic float() Anim_GetGender =
 {
 	if (self.headent)
 		return anim_gender[self.headent.modelnum];
@@ -854,7 +776,7 @@ float() Anim_GetGender =
 
 //Attempts to read the animation file for the named q3 player model
 //-1 on failure.
-float(string modname) Anim_ReadAnimationFile =
+nonstatic float(string modname) Anim_ReadAnimationFile =
 {
 	local float modnum;
 	local string str;
@@ -885,7 +807,7 @@ float(string modname) Anim_ReadAnimationFile =
 		if (file < 0)
 		{
 			print("fopen ", modname, " failed\n");
-			return false;
+			return -1;
 		}
 
 		modname= strzone(modname);
@@ -966,7 +888,7 @@ float(string modname) Anim_ReadAnimationFile =
 //attempts to apply a player model/skin to the given entity.
 //this may load the configuration.cfg
 //skinname is of the form: ranger/default
-float(string skinname) Anim_SetModel =
+nonstatic float(string skinname) Anim_SetModel =
 {
 	local string lowermodelname;
 	local string uppermodelname;
@@ -980,11 +902,7 @@ float(string skinname) Anim_SetModel =
 	local float uppermodnum;
 	local float headmodnum;
 
-	local string str;
 	local float slashpos;
-	local float file;
-	local float sequencenum;
-	local float stupid;
 
 	tokenize(skinname);
 	lowermodelname = argv(2);
@@ -992,27 +910,15 @@ float(string skinname) Anim_SetModel =
 	headmodelname = argv(0);
 
 	slashpos = strstrofs(lowermodelname, "/");
-#ifdef WORKINDP
-	lowerskinname = substring(lowermodelname, slashpos+1, strlen(lowermodelname) - (slashpos+1));
-#else
 	lowerskinname = substring(lowermodelname, slashpos+1, -1);
-#endif
 	lowermodelname = substring(lowermodelname, 0, slashpos);
 
 	slashpos = strstrofs(uppermodelname, "/");
-#ifdef WORKINDP
-	upperskinname = substring(uppermodelname, slashpos+1, strlen(uppermodelname) - (slashpos+1));
-#else
 	upperskinname = substring(uppermodelname, slashpos+1, -1);
-#endif
 	uppermodelname = substring(uppermodelname, 0, slashpos);
 
 	slashpos = strstrofs(headmodelname, "/");
-#ifdef WORKINDP
-	headskinname = substring(headmodelname, slashpos+1, strlen(headmodelname) - (slashpos+1));
-#else
 	headskinname = substring(headmodelname, slashpos+1, -1);
-#endif
 	headmodelname = substring(headmodelname, 0, slashpos);
 
 	//seeing as we support loading each part from a different player model (well, q3 does)
@@ -1157,7 +1063,7 @@ entity(entity src) CloneModel =
 	return dest;
 };
 
-entity() Anim_DupModel =
+nonstatic entity() Anim_DupModel =
 {
 	local entity o, n;
 	o = self;
@@ -1174,7 +1080,7 @@ entity() Anim_DupModel =
 	return n;
 };
 
-float(string skinname) Anim_GetHeadModelIndex =
+nonstatic float(string skinname) Anim_GetHeadModelIndex =
 {
 	float slashpos;
 	string modelname;
@@ -1197,7 +1103,7 @@ float(string skinname) Anim_GetHeadModelIndex =
 	return anim_headmodel[modnum];
 };
 
-float(string skinname) Anim_GetHeadSkinNumber =
+nonstatic float(string skinname) Anim_GetHeadSkinNumber =
 {
 	float slashpos;
 	string modelname;
@@ -1209,11 +1115,7 @@ float(string skinname) Anim_GetHeadSkinNumber =
 		return 0;	//0 = default
 
 	slashpos = strstrofs(modelname, "/");
-#ifdef WORKINDP
-	skinname = substring(modelname, slashpos+1, strlen(modelname) - (slashpos+1));
-#else
 	skinname = substring(modelname, slashpos+1, -1);
-#endif
 	modelname = substring(modelname, 0, slashpos);
 
 	if (stof(skinname))
@@ -1231,7 +1133,7 @@ float(string skinname) Anim_GetHeadSkinNumber =
 	return skinforname(anim_headmodel[modnum], strcat("models/players/", modelname, "/head_", skinname, ".skin"));
 };
 
-vector(string skinname) Anim_GetHeadOffset =
+nonstatic vector(string skinname) Anim_GetHeadOffset =
 {
 	float slashpos;
 	string modelname;
@@ -1240,7 +1142,7 @@ vector(string skinname) Anim_GetHeadOffset =
 	tokenize(skinname);
 	modelname = argv(0);
 	if (modelname == "")
-		return 0;	//an invalid modelindex.
+		return '0 0 0';	//an invalid modelindex.
 
 	slashpos = strstrofs(modelname, "/");
 	modelname = substring(modelname, 0, slashpos);
@@ -1249,7 +1151,7 @@ vector(string skinname) Anim_GetHeadOffset =
 	//we load it three times.
 	modnum = Anim_ReadAnimationFile(modelname);
 	if (modnum < 0)
-		return 0;
+		return '0 0 0';
 	return anim_headoffset[modnum];
 }
 
@@ -1348,3 +1250,4 @@ float(float sventnum, float channel, string soundname, float vol, float att, vec
 		return CSQC_ServerSound(channel, soundname, org, vol, att);
 	return false;
 };
+#endif

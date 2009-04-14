@@ -4,8 +4,6 @@ Quake tetris, origionally created by FrikaC
 Ported to csqc by Spike, primarily for testing in a fun way.
 */
 
-vector tet_org;
-
 float tetris_on, tet_time, tet_autodown, tet_old_keys, tet_keys;
 vector piece_pos;
 float piece_type, next_piece, tet_score, tet_lines;
@@ -662,7 +660,7 @@ void(float event, float button, float mousex, float mousey) TetrisMenuEvent =
 	tet_old_keys = tet_keys;
 };
 
-void() Menu_Tetris =
+nonstatic void() Menu_Tetris =
 {
 	tetris_on = 1;
 	ResetTetris();

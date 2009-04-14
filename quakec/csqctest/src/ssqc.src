@@ -10,6 +10,7 @@ common/extensions.qc
 common/econstants.qc
 common/classes.qc
 
+common/pmovedefs.qc
 common/pmove.qc
 
 ss/subs.qc

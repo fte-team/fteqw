@@ -7,15 +7,13 @@ enum {
 	ME_DRAW = 200
 };
 
-var void(float event, float button, float mousex, float mousey) MenuEventFunc = __NULL__;
-
-void(void(float, float, float, float) fnc) Menu_Activate =
+nonstatic void(void(float, float, float, float) fnc) Menu_Activate =
 {
 	inmenu = TRUE;
 	MenuEventFunc = fnc;
 };
 
-vector mousepos;
+noref vector mousepos; //z is not set
 float (float event, float parama, float paramb) CSQC_InputEvent =
 {
 	if (!inmenu)
@@ -40,7 +38,7 @@ float (float event, float parama, float paramb) CSQC_InputEvent =
 	return true;
 };
 
-void() Menu_Think =
+nonstatic void() Menu_Think =
 {
 	if (!inmenu)
 		return;
@@ -51,7 +49,7 @@ void() Menu_Think =
 };
 
 //We don't have a main menu for the csqc yet, so just pop it instead, so submenus can close properly.
-void() Menu_Main =
+nonstatic void() Menu_Main =
 {
 	inmenu = FALSE;
 };

@@ -73,7 +73,7 @@ void() 		PlayerPreThink;
 void() 		PlayerPostThink;
 
 void()		ClientKill;
-void()		ClientConnect;
+void(float csqcenabled)		ClientConnect;
 void() 		PutClientInServer;		// call after setting the parm1... parms
 void()		ClientDisconnect;
 

@@ -41,20 +41,20 @@ float(float f) mapsoldieframetoplayer =
 {
 	switch(f)
 	{
-	case $stand1 .. $stand8:
+	case $stand1 .. $stand8 :
 		return $stand1;
-	case $death1 .. $deathc11;
+	case $death1 .. $deathc11 :
 		return $deatha1;
-	case $load1 .. $load11;
+	case $load1 .. $load11 :
 		return 0;	//never used!
-	case $death1 .. $deathc11;
+	case $death1 .. $deathc11 :
 		return $deatha1;
-	case $pain1 .. $painc13;
+	case $pain1 .. $painc13 :
 		return $pain1;
-	case $prowl_1 .. $prowl_24;
-	case $run1 .. $run8;
+	case $prowl_1 .. $prowl_24 :
+	case $run1 .. $run8 :
 		return $rockrun1;
-	case $shoot1 .. $shoot9;
+	case $shoot1 .. $shoot9 :
 		return $shotatt1;
 	}
 	return f;

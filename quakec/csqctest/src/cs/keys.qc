@@ -110,5 +110,5 @@ float K_MOUSE8		=	519;
 float K_MOUSE9		=	520;
 float K_MOUSE10		=	521;
 
-float K_MWHEELDOWN	=	K_MOUSE4;
-float K_MWHEELUP	=	K_MOUSE5;
+const noref float K_MWHEELDOWN	=	K_MOUSE4;
+const noref float K_MWHEELUP	=	K_MOUSE5;

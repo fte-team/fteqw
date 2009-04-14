@@ -1,41 +1,29 @@
-var float c_modellist = -1;
-var float c_skinlist = -1;
+static var float c_modellist = -1;
+static var float c_skinlist = -1;
 
-float c_modelnum;
-float c_skinnum;
+static float c_modelnum;
+static float c_skinnum;
 
-string(float num) ModelForNum =
+static string(float num) ModelForNum =
 {
 	string str;
 	float slashpos;
 	str = search_getfilename(c_modellist, num);
-#ifdef WORKINDP
-	str = substring(str, 15, strlen(str)-15);   // models/players/
-#else
 	str = substring(str, 15, -1);   // models/players/
-#endif
 	slashpos = strstrofs(str, "/");
 	return substring(str, 0, slashpos);
 }
-string(float num) SkinForNum =
+static string(float num) SkinForNum =
 {
 	string str;
 	float slashpos;
 	str = search_getfilename(c_skinlist, num);
-#ifdef WORKINDP
-	str = substring(str, 15, strlen(str)-15);   // models/players/
-#else
 	str = substring(str, 15, -1);   // models/players/
-#endif
 	slashpos = strstrofs(str, "/");
-#ifdef WORKINDP
-	return substring(str, slashpos+7, strlen(str)-slashpos-7-5);	// /upper_   .skin-1
-#else
 	return substring(str, slashpos+7, -6);	// /upper_   .skin-1
-#endif
 }
 
-void() CheckSkinNumber =
+static void() CheckSkinNumber =
 {
 	if (c_skinnum < 0)
 		c_skinnum = search_getsize(c_skinlist)-1;
@@ -43,7 +31,7 @@ void() CheckSkinNumber =
 		c_skinnum = 0;
 };
 
-void() FindPlayerSkins =
+static void() FindPlayerSkins =
 {
 	string str;
 
@@ -71,7 +59,7 @@ void() FindPlayerSkins =
 	}
 };
 
-void() FindPlayerModels =
+static void() FindPlayerModels =
 {
 	if (c_modellist >= 0)
 		search_end(c_modellist);
@@ -82,10 +70,15 @@ void() FindPlayerModels =
 	FindPlayerSkins();
 };
 
-void() DrawSkinChooser =
+static void() DrawSkinChooser =
 {
 	string modname;
 	string skinname;
+	if (c_skinlist < 0)
+		return;
+	if (c_modellist < 0)
+		return;
+
 	modname = ModelForNum(c_modelnum);
 	skinname = SkinForNum(c_skinnum);
 	cprint(modname, "/", skinname);
@@ -93,9 +86,8 @@ void() DrawSkinChooser =
 	chasecam = true;
 }
 
-void(float event, float button, float mousex, float mousey) SkinChooserMenuEvent =
+static void(float event, float button, float mousex, float mousey) SkinChooserMenuEvent =
 {
-	float f;
 	string str;
 	if (event == ME_DRAW)
 	{
@@ -152,7 +144,7 @@ void(float event, float button, float mousex, float mousey) SkinChooserMenuEvent
 };
 
 
-void() Menu_SkinChooser
+nonstatic void() Menu_SkinChooser
 {
 	c_modellist = -1;
 	c_skinlist = -1;
@@ -161,7 +153,7 @@ void() Menu_SkinChooser
 	Menu_Activate(SkinChooserMenuEvent);
 };
 
-void() SelectRandomSkin =
+nonstatic void() SelectRandomSkin =
 {
 	local string str;
 

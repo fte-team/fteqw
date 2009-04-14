@@ -1,5 +1,85 @@
+void(string model, void(float isnew) updatefunc, float flags) deltalisten = #371;
+void(float flags, float simtime) readserverentitystate = #369;
+#define RSES_NOLERP 1	//only really for use on predicted player entities
+#define RSES_AUTOROTATE 0
+#define RSES_NOROTATE 2
+#define RSES_AUTOTRAILS 0
+#define RSES_NOTRAILS 4
+#define RSES_AUTOLIGHTS 0
+#define RSES_NOLIGHTS 8
+
+#ifdef WORKINDP
+	#define show_scoreboard sb_showscores
+#endif
+
+float show_scoreboard;
+
+//check engine extensions, and give suitable warning
+void() checkengineversion =
+{
+	if (checkextension("FTE_STRINGS"))
+	{
+		isdp = substring(" ", 0, -1) == "";
+		if (isdp)
+			print("broken FTE_STRINGS support\n");
+	}
+	else
+		print("no FTE_STRINGS support, this mod might crash... sorry\n");
+};
+
+
+//check compiler, and give suitable warnings (unfortunatly at run time)
+float(float f) testfunc =
+{
+	return f;
+}
+float(float f1, float f2) testfunc2 =
+{
+	return f1+f2;
+}
+float testarray[2];
+void() checkcompilerversion =
+{
+	local entity testent;
+
+	testent = spawn();
+	testent.entnum = -5;
+	testent.owner = testent;
+	testent.owner.entnum += 5;
+	if (testent.entnum)
+		print("compiler failed on e.e.f += \n");
+	remove(testent);
+
+	testarray[0] = 5;
+	testarray[1] = 6;
+
+	if (testfunc(5)+testfunc(6) != 11)
+		print("compiler failed on f()+f()\n");
+	if (testfunc2(5, testfunc(6)) != 11)
+		print("compiler failed on f2(0,f1(1))\n");
+	if (testfunc2(testfunc(5),testfunc(6)) != 11)
+		print("compiler failed on f2(f(),f())\n");
+	if (testarray[0]+testarray[1] != 11)
+		print("compiler failed on a[0]+a[1]\n");
+};
+
+
 
 void(float isnew) RefreshPlayer;
+
+
+void(float isnew) RefreshOther =
+{
+	self.drawmask = MASK_ENGINE;
+	setmodelindex(self, self.modelindex);
+
+	if (self.entnum <= maxclients)
+		RefreshPlayer(isnew);
+	else if (self.colormap)
+		self.modelindex = 0;	//don't show dead bodies, we do dying ourselves.
+};
+
+
 
 float(string centertext) centerprinted =
 {
@@ -49,10 +129,10 @@ void() regcommands =
 	registercommand("-showteamscores");
 
 	registercommand("osgk");
-	registercommand("cin_command");
-	registercommand("cin_resize");
-	registercommand("cin_mousemove");
-	registercommand("cin_keypress");
+	registercommand("osgk_command");
+	registercommand("osgk_resize");
+	registercommand("osgk_mousemove");
+	registercommand("osgk_keypress");
 };
 
 float(string str) CSQC_ConsoleCommand =
@@ -70,27 +150,29 @@ float(string str) CSQC_ConsoleCommand =
 	case "randomskin":
 		SelectRandomSkin();
 		break;
-	case "test":
-		test();
-		break;
 	case "+showscores":
-	case "-showscores":
+		show_scoreboard = 1;
+		return false;
 	case "+showteamscores":
+		show_scoreboard = 2;
+		return false;
+	case "-showscores":
 	case "-showteamscores":
-		break;
+		show_scoreboard = 0;
+		return false;
 	case "osgk":
 		Menu_OSGK(argv(1));
 		break;
-	case "cin_command":
+	case "osgk_command":
 		gecko_navigate(argv(1), argv(2));
 		break;
-	case "cin_keypress":
+	case "osgk_keypress":
 		gecko_keyevent(argv(1), stof(argv(2)), 2);
 		break;
-	case "cin_resize":
+	case "osgk_resize":
 		gecko_resize(argv(1), stof(argv(2)), stof(argv(3)));
 		break;
-	case "cin_mousemove":
+	case "osgk_mousemove":
 		gecko_mousemove(argv(1), stof(argv(2)), stof(argv(3)));
 		break;
 	default:
@@ -101,11 +183,6 @@ float(string str) CSQC_ConsoleCommand =
 
 void() CSQC_Ent_Remove =	//the ent disappeared on the server.
 {
-	if (self == player_local)
-		print("WARNING: Player disappeared!\n");
-
-//	print("csqc ", ftos(self.modelindex), "(", self.model, ") removed\n");
-
 	if (self.removefunc)
 		self.removefunc();
 	remove(self);
@@ -148,11 +225,14 @@ void() drawloadingscreen =
 
 void() CSQC_Init =
 {
+	checkengineversion();
+	checkcompilerversion();
+
 	//set some cvars to their defaults, and create them at the same time
 	if (cvar_string("cg_giblevel") == "")	localcmd("set cg_giblevel 1\n");
 	if (cvar_string("cg_thirdPerson") == "")	localcmd("set cg_thirdPerson 0\n");
 	if (cvar_string("cg_forceskin") == "")	localcmd("set cg_forceskin \"\"\n");
-	if (cvar_string("cg_hudtype") == "")	localcmd("set cg_hudtype 0\n");
+	if (cvar_string("cg_hudtype") == "")	localcmd("set cg_hudtype 1\n");
 	if (cvar_string("cg_nopred") == "")		localcmd("set cg_nopred 0\n");
 	if (cvar_string("v_viewheight") == "")	localcmd("set v_viewheight 0\n");//normally an engine cvar in quakeworld.
 	if (cvar_string("cg_nostep") == "")		localcmd("set cg_nostep 0\n");
@@ -161,12 +241,20 @@ void() CSQC_Init =
 	if (cvar_string("cg_noselfjumpsound") == "")	localcmd("set cg_noselfjumpsound 0\n");
 
 	viewentity = spawn();
-	viewentity.renderflags = RF_VIEWMODEL;
+	viewentity.renderflags = RF_VIEWMODEL|RF_DEPTHHACK;
 
 	drawloadingscreen ();
 
-	ResetPlayerPrediction();
+	Pred_ResetPlayerPrediction();
 	regcommands();
+
+#ifndef FTEDEPENDANT
+	if (checkextension("EXT_CSQC_1"))
+#endif
+	{
+//		deltalisten("*", RefreshOther, 0);	//catch-all
+		deltalisten("progs/player.mdl", RefreshPlayer, RSES_NOLERP|RSES_NOROTATE);	//animate players/player-corpses
+	}
 };
 
 void(entity ent) CSQC_DrawViewModel =
@@ -178,6 +266,16 @@ void(entity ent) CSQC_DrawViewModel =
 
 	ent.fatness = 0;
 	DoThatViewModelThing(ent);
+
+#ifdef WORKINDP
+	//DP doesn't support RF_VIEWMODEL
+	//so hack around that
+	ent.renderflags = RF_DEPTHHACK;	//nope, not a view model, that just breaks things
+	ent.origin = vieworg;
+	ent.angles = input_angles;
+	ent.angles_x = -ent.angles_x;
+#endif
+
 	addentity(ent);
 	if (player_local.sveffects & SVE_QUAD)
 	{
@@ -192,21 +290,6 @@ void(entity ent) CSQC_DrawViewModel =
 		addentity(ent);
 	}
 }
-
-void(float isnew) CSQC_Delta_Update =
-{
-	self.drawmask = MASK_NORMAL;
-	setmodelindex(self, self.modelindex);
-//	if (isnew)
-//	{
-//		print("delt ", self.model, " updated at ", vtos(self.origin), "\n");
-//	}
-
-	if (self.entnum <= maxclients)
-		RefreshPlayer(isnew);
-	else if (self.colormap)
-		self.modelindex = 0;	//don't show dead bodies, we do dying ourselves.
-};
 
 //a bit of fun
 void() CSQC_Input_Frame =
@@ -228,33 +311,17 @@ void() CSQC_Delta_Remove =
 	remove(self);
 };
 
-void(float flags, float simtime) readserverentitystate = #369;
-#define RSES_AUTOLERP 0
-#define RSES_NOLERP 1
-#define RSES_AUTOROTATE 0
-#define RSES_NOROTATE 2
-#define RSES_AUTOTRAILS 0
-#define RSES_NOTRAILS 4
-#define RSES_AUTOLIGHTS 0
-#define RSES_NOLIGHTS 8
-
 void(float width, float height, float do2d) CSQC_UpdateView =
 {
-	float lagged;
-	float i;
 	float hudtype = cvar("cg_hudtype");
 
 	chasecam = cvar("cg_thirdPerson");
 	if (getstati(STAT_HEALTH) <= 0)
 		chasecam = 1;
 
-#ifndef WORKINDP
-	readserverentitystate(RSES_AUTOLERP|RSES_AUTOROTATE|RSES_AUTOTRAILS|RSES_AUTOLIGHTS, 0);
-#endif
-
 	clearscene();
 
-	if (hudtype)
+	if (hudtype != 1)
 	{
 		setviewprop(VF_DRAWENGINESBAR, 0);
 	}
@@ -264,10 +331,15 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 	}
 	setviewprop(VF_DRAWCROSSHAIR, 1);
 
+	//force fullscreen views (ignore viewsize).
+	setviewprop(VF_MIN, '0 0 0');
+	setviewprop(VF_SIZE_X, width);
+	setviewprop(VF_SIZE_Y, height);
+
+	addentities(MASK_NORMAL|MASK_ENGINE);
+
 	if (player_local)
 	{
-		UpdateLocalMovement();
-
 		setviewprop(VF_ORIGIN, vieworg);
 		setviewprop(VF_ANGLES, view_angles);
 
@@ -275,26 +347,22 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 		SetListener(vieworg, v_forward, v_right, v_up);
 
 		if (!chasecam)
+		{
 			CSQC_DrawViewModel(viewentity);
+		}
 	}
-
-	//force fullscreen views.
-	setviewprop(VF_MIN, '0 0 0');	
-	setviewprop(VF_SIZE_X, width);	
-	setviewprop(VF_SIZE_Y, height);
-
-#ifdef WORKINDP
-	addentities(MASK_NORMAL|MASK_ENGINE);
-#else
-	addentities(MASK_NORMAL);
-#endif
+	else
+	{
+		//engine didn't tell us about our player entity. that's not right...
+		addentities(MASK_ENGINEVIEWMODEL);
+	}
 
 	renderscene();
 
 	if (do2d)
 	{
 		if (hudtype)
-			Hud_Draw(hudtype, width, height);
+			Hud_Draw(hudtype, show_scoreboard, width, height);
 
 		Menu_Think();
 	}

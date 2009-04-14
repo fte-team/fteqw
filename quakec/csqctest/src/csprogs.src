@@ -16,16 +16,22 @@ common/extensions.qc
 common/econstants.qc
 cs/constants.qc
 
-common/pmove.qc
+common/pmovedefs.qc
 
-cs/animation.qc
+cs/keys.qc
+
+common/makeallstatic.qc
+
+common/pmove.qc
+cs/prediction.qc
+cs/q3playerm.qc
+cs/hlpm.qc
 cs/player.qc
 cs/hud.qc
 
 cs/movetypes.qc
 
 cs/map.qc
-cs/keys.qc
 cs/menu.qc
 cs/fun/tetris.qc
 cs/fun/osgk.qc

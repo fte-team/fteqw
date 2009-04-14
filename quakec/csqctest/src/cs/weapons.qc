@@ -2,8 +2,6 @@
 #define crandom() (random()*2 - 1)
 .float starttime;
 .vector source;
-.vector angles;
-.float alpha;
 
 //Moves the entity to where it should be
 void() RocketProject =
@@ -13,16 +11,12 @@ void() RocketProject =
 	self.origin = self.source + self.velocity * (time - self.starttime);
 
 	//Do the trail thing, if possible.
-#ifdef WORKINDP
-	trailparticles(self, particleeffectforname("tr_rocket"), self.origin, oldorg);
-#else
 	trailparticles(particleeffectforname("tr_rocket"), self, self.origin, oldorg);
-#endif
 
 	adddynamiclight(self.origin, 400, '0 1 0');
 };
 
-void(float isnew) ParseRocketClass =
+nonstatic void(float isnew) ParseRocketClass =
 {
 	self.starttime = time;
 	self.source_x = readcoord();
@@ -43,23 +37,19 @@ void(float isnew) ParseRocketClass =
 	self.predraw = RocketProject;
 };
 
-void() NailProject =
+nonstatic void() NailProject =
 {
 	local vector oldorg;
 	oldorg = self.origin;
 	self.origin = self.source + self.velocity * (time - self.starttime);
 
 	//Do the trail thing, if possible.
-#ifdef WORKINDP
-	trailparticles(self, particleeffectforname("tr_nail"), self.origin, oldorg);
-#else
 	trailparticles(particleeffectforname("tr_nail"), self, self.origin, oldorg);
-#endif
 
 //	adddynamiclight(self.origin, 100, '1 0 0');
 };
 
-void(float isnew) ParseNailClass =
+nonstatic void(float isnew) ParseNailClass =
 {
 	local float speed;
 	self.starttime = time;
@@ -129,12 +119,8 @@ void() GibProject =
 		self.alpha -= td;
 	}
 
-	BounceProject();
-#ifdef WORKINDP
-	trailparticles(self, particleeffectforname("tr_blood"), self.origin, oldorg);
-#else
+	Movetype_Bounce();
 	trailparticles(particleeffectforname("tr_blood"), self, self.origin, oldorg);
-#endif
 };
 
 void(string gibname, float dm, vector org) ThrowGib =
@@ -273,14 +259,11 @@ void TossGibs(vector org, float type, float dm)
 	}
 };
 
-void(float isnew) ParseGibbing =
+nonstatic void(float isnew) ParseGibbing =
 {
 	float type;
 	vector org;
 	float dm;
-	float i;
-
-	float giblevel;
 
 	type = readbyte();
 	dm = readbyte();
@@ -295,7 +278,7 @@ void(float isnew) ParseGibbing =
 	TossGibs(org, type, dm);
 }
 
-void(float isnew) ParseExplosion =
+nonstatic void(float isnew) ParseExplosion =
 {
 	local vector org;
 	local entity e;

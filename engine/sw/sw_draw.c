@@ -2019,7 +2019,7 @@ Draw_ConsoleBackground
 
 ================
 */
-void SWDraw_ConsoleBackground (int lines)
+void SWDraw_ConsoleBackground (int firstline, int lastline, qboolean forceopaque)
 {
 	int				x, y, v, w, h;
 	qbyte			*src;
@@ -2029,7 +2029,7 @@ void SWDraw_ConsoleBackground (int lines)
 	char			ver[100];
 //	static			char saveback[320*8];
 
-	if ((!scr_con_forcedraw && !scr_conalpha.value) || !lines)
+	if ((!forceopaque && !scr_conalpha.value) || !lastline)
 		return;
 
 	conback = (mpic_t *)SWDraw_SafeCachePic ("gfx/conback.lmp");
@@ -2054,8 +2054,8 @@ void SWDraw_ConsoleBackground (int lines)
 	w = conback->width;
 	h = conback->height;
 
-	if (lines > vid.conheight)
-		lines = vid.conheight;
+	if (lastline > vid.conheight)
+		lastline = vid.conheight;
 
 // hack the version number directly into the pic
 
@@ -2077,9 +2077,9 @@ void SWDraw_ConsoleBackground (int lines)
 		{
 			D_SetTransLevel(scr_conalpha.value, BM_BLEND);
 
-			for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
+			for (y=0 ; y<lastline ; y++, dest += vid.conrowbytes)
 			{
-				v = (vid.conheight - lines + y)*h/vid.conheight;
+				v = (vid.conheight - lastline + y)*h/vid.conheight;
 				src = conback->d.data + v*w;
 				f = 0;
 				fstep = w*0x10000/vid.conwidth;
@@ -2098,10 +2098,10 @@ void SWDraw_ConsoleBackground (int lines)
 		}
 		else
 		{
-			for (y=0 ; y<lines ; y++, dest += vid.conrowbytes)
+			for (y=0 ; y<lastline ; y++, dest += vid.conrowbytes)
 			{
 
-				v = (vid.conheight - lines + y)*h/vid.conheight;
+				v = (vid.conheight - lastline + y)*h/vid.conheight;
 				src = conback->d.data + v*w;
 				if (vid.conwidth == w)
 					memcpy (dest, src, vid.conwidth);
@@ -2129,10 +2129,10 @@ void SWDraw_ConsoleBackground (int lines)
 		unsigned short *dest16 = (unsigned short *)vid.conbuffer;
 		unsigned short *pal = d_8to16table;
 
-		for (y=0 ; y<lines ; y++, dest16 += vid.conrowbytes)
+		for (y=0 ; y<lastline ; y++, dest16 += vid.conrowbytes)
 		{
 
-			v = (vid.conheight - lines + y)*h/vid.conheight;
+			v = (vid.conheight - lastline + y)*h/vid.conheight;
 			src = conback->d.data + v*w;
 //			if (vid.conwidth == w)
 //				memcpy (dest16, src, vid.conwidth);
@@ -2172,15 +2172,15 @@ void SWDraw_ConsoleBackground (int lines)
 			qbyte			*src2;
 			int f1, f2;
 			int vf, hf;
-			for (y=0 ; y<lines ; y++, dest += (vid.conrowbytes<<2))
+			for (y=0 ; y<lastline ; y++, dest += (vid.conrowbytes<<2))
 			{
-				v = (vid.conheight - lines + y)*(h-1)/vid.conheight;
+				v = (vid.conheight - lastline + y)*(h-1)/vid.conheight;
 				src = conback->d.data + v*w;
-				v = (vid.conheight - lines + y)*(h-1)/vid.conheight+1;
+				v = (vid.conheight - lastline + y)*(h-1)/vid.conheight+1;
 				src2 = conback->d.data + v*w;
 
-				v = (vid.conheight - lines + y)*(h-1)/vid.conheight;
-				vf = (((vid.conheight - lines + y)*(h-1.0)/vid.conheight) - v) * 255;
+				v = (vid.conheight - lastline + y)*(h-1)/vid.conheight;
+				vf = (((vid.conheight - lastline + y)*(h-1.0)/vid.conheight) - v) * 255;
 
 				f = 0;
 				fstep = (w-1)*0x10000/vid.conwidth;
@@ -2214,9 +2214,9 @@ void SWDraw_ConsoleBackground (int lines)
 			
 			if (alpha != 255)	//blend it on
 		{
-			for (y=0 ; y<lines ; y++, dest += (vid.conrowbytes<<2))
+			for (y=0 ; y<lastline ; y++, dest += (vid.conrowbytes<<2))
 			{
-				v = (vid.conheight - lines + y)*h/vid.conheight;
+				v = (vid.conheight - lastline + y)*h/vid.conheight;
 				src = conback->d.data + v*w;
 
 				f = 0;
@@ -2233,9 +2233,9 @@ void SWDraw_ConsoleBackground (int lines)
 		}
 		else	//block colour (fast)
 		{
-			for (y=0 ; y<lines ; y++, p24dest += vid.conrowbytes)
+			for (y=0 ; y<lastline ; y++, p24dest += vid.conrowbytes)
 			{
-				v = (vid.conheight - lines + y)*h/vid.conheight;
+				v = (vid.conheight - lastline + y)*h/vid.conheight;
 				src = conback->d.data + v*w;
 
 				f = 0;
@@ -2260,7 +2260,7 @@ void SWDraw_ConsoleBackground (int lines)
 
 void SWDraw_EditorBackground (int lines)
 {
-	SWDraw_ConsoleBackground (lines);
+	SWDraw_ConsoleBackground (0, lines, true);
 }
 
 

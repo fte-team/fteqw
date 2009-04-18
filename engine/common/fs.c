@@ -1796,7 +1796,7 @@ const gamemode_info_t gamemode_info[] = {
 	{"Nexuiz",				"nexuiz",		"-nexuiz",		"nexuiz.exe",		NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
 
 	//supported commercial mods (some are currently only partially supported)
-	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	NULL,	{"data1",						"fte"},		"Hexen II"},
+	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	NULL,	{"data1",						"fteh2"},		"Hexen II"},
 	{"FTE-Quake2",			"q2",			"-q2",			"baseq2/pak0.pak",	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
 	{"FTE-Quake3",			"q3",			"-q3",			"baseq3/pak0.pk3",	NULL,	{"baseq3",						"fteq3"},	"Quake III Arena"},
 

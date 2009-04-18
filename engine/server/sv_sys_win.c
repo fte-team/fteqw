@@ -965,7 +965,7 @@ void Sys_ServerActivity(void)
 #undef STRINGF
 	}
 
-	if (wnd)
+	if (wnd && GetActiveWindow() != wnd)
 		FlashWindow(wnd, true);
 }
 

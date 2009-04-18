@@ -1124,7 +1124,8 @@ void Sys_SendKeyEvents (void)
 void Sys_ServerActivity(void)
 {
 #ifndef SERVERONLY
-	FlashWindow(mainwindow, true);
+	if (GetActiveWindow() != mainwindow)
+		FlashWindow(mainwindow, true);
 #endif
 }
 

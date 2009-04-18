@@ -1231,6 +1231,8 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 
 	seq_hash = cls.netchan.outgoing_sequence;
 
+	cl.splitclients = 1;
+
 // send this and the previous cmds in the message, so
 // if the last packet was dropped, it can be recovered
 	i = cls.netchan.outgoing_sequence & UPDATE_MASK;

@@ -1404,10 +1404,10 @@ void PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 //	char *s=PR_GetStringOfs(prinst, OFS_PARM0);
 	s-=8;
-	if (!((int *)s)[0] != PRSTR)
+	if (((int *)s)[0] != PRSTR)
 	{
 		Con_Printf("QC tried to free a non dynamic string: ");
-		Con_Printf("%s\n", s);	//two prints, so that logged prints ensure the first is written.
+		Con_Printf("%s\n", s+8);	//two prints, so that logged prints ensure the first is written.
 		(*prinst->pr_trace) = 1;
 		PR_StackTrace(prinst);
 		return;
@@ -1445,6 +1445,11 @@ void PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		start = strlen(s)-start;
 	if (length < 0)
 		length = strlen(s)-start+(length+1);
+	if (start < 0)
+	{
+	//	length += start;
+		start = 0;
+	}
 
 	if (start >= strlen(s) || length<=0 || !*s)
 	{
@@ -2059,12 +2064,12 @@ void PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 		if (value1[2] > 0)
 		{
-			pitch = 90;
+			pitch = -M_PI*0.5;
 			yaw = up ? atan2(-up[1], -up[0]) : 0;
 		}
 		else
 		{
-			pitch = 270;
+			pitch = M_PI*0.5;
 			yaw = up ? atan2(up[1], up[0]) : 0;
 		}
 		roll = 0;

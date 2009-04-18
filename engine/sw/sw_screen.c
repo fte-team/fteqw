@@ -53,6 +53,7 @@ extern qbyte Trans(qbyte p, qbyte p2);
 void SWSCR_UpdateScreen (void)
 {
 	qboolean nohud;
+	qboolean noworld;
 	int uimenu;
 	vrect_t		vrect;
 
@@ -126,7 +127,6 @@ void SWSCR_UpdateScreen (void)
 //
 	D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
 
-	SCR_TileClear();
 	SCR_SetUpToDrawConsole ();
 	SCR_EraseCenterString ();
 	
@@ -134,12 +134,13 @@ void SWSCR_UpdateScreen (void)
 									//  for linear writes all the time
 
 	nohud = false;
+	noworld = false;
 #ifdef TEXTEDIT
 	if (!editormodal)	//don't render view.
 #endif
 	{
 #ifdef CSQC_DAT
-		if (CSQC_DrawView())
+		if (cls.state == ca_active && CSQC_DrawView())
 			nohud = true;
 		else
 #endif
@@ -150,9 +151,22 @@ void SWSCR_UpdateScreen (void)
 			V_RenderView ();
 			VID_UnlockBuffer ();
 		}
+		else
+			noworld = true;
 	}
 
 	D_EnableBackBufferAccess ();	// of all overlay stuff if drawing directly
+
+	if (noworld)
+	{
+		if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE)
+			scr_con_current = vid.height;
+
+		nohud = true;
+		Draw_ConsoleBackground(0, vid.height, true);
+	}
+	else if (!nohud)
+		SCR_TileClear();
 
 	SCR_DrawTwoDimensional(uimenu, nohud);
 

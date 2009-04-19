@@ -143,6 +143,7 @@ typedef struct {	//must be first of each structure type.
 	int posy;
 	int width;
 	int height;
+	char *tooltip;
 	qboolean noselectionsound:1;
 	qboolean iszone:1;
 	qboolean ishidden:1;
@@ -242,6 +243,12 @@ typedef union menuoption_s {
 	menubind_t		bind;
 } menuoption_t;
 
+typedef struct menutooltip_s {
+	char **lines;
+	int rows;
+	int columns;
+} menutooltip_t;
+
 typedef struct menu_s {
 	int xpos;
 	int ypos;
@@ -261,6 +268,9 @@ typedef struct menu_s {
 	menuoption_t *options;
 
 	menuoption_t *selecteditem;
+
+	menutooltip_t *tooltip;
+	double tooltiptime;
 	
 	struct menu_s *child;
 	struct menu_s *parent;

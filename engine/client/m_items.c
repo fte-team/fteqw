@@ -22,7 +22,10 @@ void Draw_TextBox (int x, int y, int width, int lines)
 	p = Draw_SafeCachePic ("gfx/box_tl.lmp");
 
 	if (!p)	//assume none exist
+	{
+		Draw_FillRGB(x, y, width + 16, 8 * (2 + lines), 0.0, 0.0, 0.0);
 		return;
+	}
 
 	if (p)
 		Draw_TransPic (cx, cy, p);
@@ -183,6 +186,106 @@ int maxdots;
 int mindot;
 int dotofs;
 
+void MenuTooltipSplit(menu_t *menu, const char *text)
+{
+	char buf[1024];
+	char *c, *space;
+	int lines, lnsize, txsize;
+	int lnmax;
+	menutooltip_t *mtt;
+
+	if (menu->tooltip)
+	{
+		Z_Free(menu->tooltip);
+		menu->tooltip = NULL;
+	}
+
+	if (!text || !text[0] || vid.width < 320 || vid.height < 200)
+		return;
+
+	// calc a line maximum, use a third of the screen or 30 characters, whichever is bigger
+	lnmax = (vid.width / 24) - 2; 
+	if (lnmax < 30)
+		lnmax = 30;
+	// word wrap
+	lines = 1;
+	lnsize = txsize = 0;
+	space = NULL;
+	for (c = buf; *text && txsize < sizeof(buf) - 1; text++)
+	{
+		if (lnsize >= lnmax)
+		{
+			if (space)
+			{
+				lnsize = (c - space) - 1;
+				*space = '\n';
+				space = NULL;
+			}
+			else
+			{
+				lnsize = 0;
+				*c = '\n';
+				c++;
+				txsize++;
+				if (txsize >= sizeof(buf) - 1)
+					break;
+			}
+			lines++;
+		}
+
+		*c = *text;
+		switch (*c)
+		{
+		case '\n':
+			lines++;
+			lnsize = 0;
+			space = NULL;
+			break;
+		case ' ':
+			space = c;
+			break;
+		}
+		c++;
+		txsize++;
+		lnsize++;
+	}
+	// remove stray newlines at end and terminate string
+	while (txsize > 0 && buf[txsize - 1] == '\n')
+	{
+		lines--;
+		txsize--;
+	}
+	buf[txsize] = '\0';
+
+	// allocate new tooltip structure, copy text to structure
+	mtt = (menutooltip_t *)Z_Malloc(sizeof(menutooltip_t) + sizeof(char *)*lines + txsize + 1);
+	mtt->lines = (char **)(mtt + 1);
+	mtt->rows = lines;
+	Q_memcpy(mtt->lines + lines, buf, txsize + 1);
+	mtt->lines[0] = (char *)(mtt->lines + lines);
+
+	// rescan text, get max column length, convert \n to \0
+	lines = lnmax = txsize = 0;
+	for (c = mtt->lines[0]; *c; c++)
+	{
+		if (*c == '\n')
+		{
+			if (lnmax < txsize)
+				lnmax = txsize;
+			txsize = 0;
+			*c = '\0';
+			mtt->lines[++lines] = c + 1;
+		}
+		else
+			txsize++;
+	}
+	if (lnmax < txsize)
+		lnmax = txsize;
+	mtt->columns = lnmax;
+
+	menu->tooltip = mtt;
+}
+
 void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 {
 	int i;
@@ -199,6 +302,8 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 						if (!option->common.noselectionsound)
 							S_LocalSound ("misc/menu1.wav");
 						menu->selecteditem = option;
+						menu->tooltiptime = realtime + 1;
+						MenuTooltipSplit(menu, menu->selecteditem->common.tooltip);
 					}
 					if (menu->cursoritem)
 						menu->cursoritem->common.posy = menu->selecteditem->common.posy;
@@ -434,6 +539,37 @@ void MenuDraw(menu_t *menu)
 	if (!menu->dontexpand)
 		menu->xpos = ((vid.width - 320)>>1);
 	MenuDrawItems(menu->xpos, menu->ypos, menu->options, menu);
+	// draw tooltip
+	if (menu->selecteditem && menu->tooltip && realtime > menu->tooltiptime)
+	{
+		menuoption_t *option = menu->selecteditem;
+		if (omousex > menu->xpos+option->common.posx && omousex < menu->xpos+option->common.posx+option->common.width)
+			if (omousey > menu->ypos+option->common.posy && omousey < menu->ypos+option->common.posy+option->common.height)
+			{
+				int x = omousex;
+				int y = omousey;
+				int w = (menu->tooltip->columns + 3) * 8;
+				int h = (menu->tooltip->rows + 2) * 8;
+				int l, lines;
+
+				// keep the tooltip within view
+				if (x + w >= vid.width)
+					x = vid.width - w - 1;
+				if (y + h >= vid.height)
+					y -= h;
+
+				// draw tooltip
+				Draw_TextBox(x, y, menu->tooltip->columns, menu->tooltip->rows);
+				lines = menu->tooltip->rows;
+				x += 8;
+				y += 8;
+				for (l = 0; l < lines; l++)
+				{
+					Draw_String(x, y, menu->tooltip->lines[l]);
+					y += 8;
+				}
+			}
+	}
 }
 
 
@@ -1218,6 +1354,9 @@ void M_RemoveMenu (menu_t *menu)
 	}
 	menu->options=NULL;
 
+	if (menu->tooltip)
+		Z_Free(menu->tooltip);
+
 	if (menu->iszone)
 	{
 		menu->iszone=false;
@@ -1782,9 +1921,13 @@ void M_Menu_Main_f (void)
 		b->common.width = p->width;
 		b->common.height = 20;
 		if (m_helpismedia.value)
+		{
 			b=MC_AddConsoleCommand(mainm, 72, 92,	"", "menu_media\n");
+		}
 		else
+		{
 			b=MC_AddConsoleCommand(mainm, 72, 92,	"", "help\n");
+		}
 		b->common.width = p->width;
 		b->common.height = 20;
 		b=MC_AddConsoleCommand	(mainm, 72, 112,	"", "menu_quit\n");

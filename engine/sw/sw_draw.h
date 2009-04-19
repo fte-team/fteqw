@@ -33,7 +33,7 @@ void SWDraw_SubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int
 void SWDraw_Pic (int x, int y, mpic_t *pic);
 void SWDraw_TransPic (int x, int y, mpic_t *pic);
 void SWDraw_TransPicTranslate (int x, int y, int w, int h, qbyte *pic, qbyte *translation);
-void SWDraw_ConsoleBackground (int lines);
+void SWDraw_ConsoleBackground (int firstline, int lastline, qboolean forceopaque);
 void SWDraw_EditorBackground (int lines);
 void SWDraw_BeginDisc (void);
 void SWDraw_EndDisc (void);

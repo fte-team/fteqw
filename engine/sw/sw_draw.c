@@ -2573,7 +2573,7 @@ void SWDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b)
 
 	if (x < 0 || x + w > vid.width ||
 		y < 0 || y + h > vid.height) {
-		Con_Printf("Bad Draw_FillRGB(%d, %d, %d, %d)\n",
+		Con_Printf(CON_WARNING "Bad Draw_FillRGB(%d, %d, %d, %d)\n",
 			x, y, w, h);
 		return;
 	}

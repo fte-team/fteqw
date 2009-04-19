@@ -275,11 +275,11 @@ jclient_t *JCL_Connect(char *server, int defport, qboolean usesecure, char *acco
 
 	if (usesecure)
 	{
-		if (Net_SetTLSClient(jclient->socket)<0)
+		if (Net_SetTLSClient(jcl->socket)<0)
 		{
-			Net_Close(jclient->socket);
-			free(jclient);
-			jclient = NULL;
+			Net_Close(jcl->socket);
+			free(jcl);
+			jcl = NULL;
 
 			return NULL;
 		}
@@ -809,7 +809,7 @@ int JCL_ClientFrame(jclient_t *jcl)
 	{
 		if (jcl->tagdepth != 1)
 		{
-			if (jcl->tagdepth < 1)
+			if (jcl->tagdepth < 1 && jcl->bufferedinammount==jcl->instreampos)
 			{
 				Con_Printf("End of XML stream\n");
 				return JCL_KILL;
@@ -1093,6 +1093,12 @@ void JCL_Command(void)
 	{
 		if (!strcmp(arg[0]+1, "tlsopen") || !strcmp(arg[0]+1, "tlsconnect"))
 		{
+			if (!*arg[1])
+			{
+				Con_Printf("tlsopen [server] [account] [password]\n");
+				return;
+			}
+
 			if (jclient)
 			{
 				Con_Printf("You are already connected\nPlease /quit first\n");
@@ -1104,9 +1110,20 @@ void JCL_Command(void)
 				return;
 			}
 			jclient = JCL_Connect(arg[1], 5223, true, arg[2], arg[3]);
+			if (!jclient)
+			{
+				Con_Printf("Connect failed\n");
+				return;
+			}
 		}
 		else if (!strcmp(arg[0]+1, "open") || !strcmp(arg[0]+1, "connect"))
 		{
+			if (!*arg[1])
+			{
+				Con_Printf("open [server] [account] [password]\n");
+				return;
+			}
+
 			if (jclient)
 			{
 				Con_Printf("You are already connected\nPlease /quit first\n");
@@ -1118,6 +1135,11 @@ void JCL_Command(void)
 				return;
 			}
 			jclient = JCL_Connect(arg[1], 5222, false, arg[2], arg[3]);
+			if (!jclient)
+			{
+				Con_Printf("Connect failed\n");
+				return;
+			}
 		}
 		else if (!jclient)
 		{

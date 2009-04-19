@@ -674,7 +674,6 @@
 				BrowseInformation="1"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
-				CallingConvention="1"
 				DisableSpecificWarnings="4996"
 			/>
 			<Tool
@@ -780,7 +779,6 @@
 				BrowseInformation="1"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
-				CallingConvention="1"
 				DisableSpecificWarnings="4996"
 			/>
 			<Tool

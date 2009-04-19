@@ -206,6 +206,7 @@ float oldsbar = 0;
 
 void SCR_ScreenShot_f (void);
 void SCR_RSShot_f (void);
+void SCR_CPrint_f(void);
 
 cvar_t	show_fps	= SCVARF("show_fps", "0", CVAR_ARCHIVE);
 cvar_t	show_fps_x	= SCVAR("show_fps_x", "-1");
@@ -223,6 +224,8 @@ cvar_t	show_speed_y	= SCVAR("show_speed_y", "-9");
 extern char cl_screengroup[];
 void CLSCR_Init(void)
 {
+	Cmd_AddCommand("cprint", SCR_CPrint_f);
+
 	Cvar_Register(&show_fps, cl_screengroup);
 	Cvar_Register(&show_fps_x, cl_screengroup);
 	Cvar_Register(&show_fps_y, cl_screengroup);
@@ -432,9 +435,9 @@ Called for important messages that should stay in the center of the screen
 for a few moments
 ==============
 */
-void SCR_CenterPrint (int pnum, char *str, qboolean fromgamecode)
+void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 {
-	if (!fromgamecode)
+	if (!skipgamecode)
 	{
 #ifdef CSQC_DAT
 		if (CSQC_CenterPrint(pnum, str))	//csqc nabbed it.
@@ -464,6 +467,11 @@ void SCR_CenterPrint (int pnum, char *str, qboolean fromgamecode)
 			scr_center_lines[pnum]++;
 		str++;
 	}
+}
+
+void SCR_CPrint_f(void)
+{
+	SCR_CenterPrint(0, Cmd_Argv(0), true);
 }
 
 void SCR_EraseCenterString (void)

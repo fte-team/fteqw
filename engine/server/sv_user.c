@@ -1417,8 +1417,8 @@ void SV_Begin_Core(client_t *split)
 
 	client_t	*oh;
 	int		i;
-	if (progstype == PROG_H2 && host_client->playerclass)
-		host_client->edict->xv->playerclass = host_client->playerclass;	//make sure it's set the same as the userinfo
+	if (progstype == PROG_H2 && split->playerclass)
+		split->edict->xv->playerclass = host_client->playerclass;	//make sure it's set the same as the userinfo
 
 #ifdef Q2SERVER
 	if (ge)
@@ -1517,8 +1517,11 @@ void SV_Begin_Core(client_t *split)
 					else
 #endif
 					{
+						globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+
 						pr_global_struct->time = sv.physicstime;
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
+						G_FLOAT(OFS_PARM0) = split->csqcactive;	//this arg is part of EXT_CSQC_1, but doesn't have to be supported by the mod
 						PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 				
 						// actually spawn the player
@@ -4640,7 +4643,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			if (model)
 	// test the point
 			if (model->funcs.PointContents (model, player->v->origin) == FTECONTENTS_SOLID)
-				player->xv->fteflags = (int)player->xv->fteflags | FF_LADDER;	//touch that ladder!
+				player->xv->pmove_flags = (int)player->xv->pmove_flags | PMF_LADDER;	//touch that ladder!
 		}
 	}
 
@@ -4821,6 +4824,11 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	}
 	// end KK hack copied from QuakeForge anti-cheat
 	//it's amazing how code get's copied around...
+
+	if (SV_RunFullQCMovement(host_client, ucmd))
+	{
+		return;
+	}
 
 
 	cmd = *ucmd;
@@ -5037,10 +5045,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.worldmodel;
 	pmove.cmd = *ucmd;
-	if (sv.worldmodel->fromgame == fg_quake)
-		pmove.hullnum = ((int)sv_player->xv->fteflags&FF_CROUCHING)?3:1;
-	else
-		pmove.hullnum = SV_HullNumForPlayer(sv_player->xv->hull, sv_player->v->mins, sv_player->v->maxs);
+	pmove.hullnum = SV_HullNumForPlayer(sv_player->xv->hull, sv_player->v->mins, sv_player->v->maxs);
 
 	movevars.entgravity = host_client->entgravity/movevars.gravity;
 	movevars.maxspeed = host_client->maxspeed;
@@ -5059,14 +5064,14 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		pmove_mins[i] = pmove.origin[i] - 256;
 		pmove_maxs[i] = pmove.origin[i] + 256;
 	}
-	sv_player->xv->fteflags = (int)sv_player->xv->fteflags & ~FF_LADDER;	//assume not touching ladder trigger
+	sv_player->xv->pmove_flags = (int)sv_player->xv->pmove_flags & ~PMF_LADDER;	//assume not touching ladder trigger
 #if 1
 	AddLinksToPmove ( sv_player, sv_areanodes );
 #else
 	AddAllEntsToPmove ();
 #endif
 
-	if ((int)sv_player->xv->fteflags & FF_LADDER)
+	if ((int)sv_player->xv->pmove_flags & PMF_LADDER)
 		pmove.onladder = true;
 	else
 		pmove.onladder = false;
@@ -5393,7 +5398,7 @@ haveannothergo:
 								MSG_ReadDeltaUsercmd (&oldest, &oldcmd);
 								MSG_ReadDeltaUsercmd (&oldcmd, &newcmd);
 							}
-							break;;
+							break;
 						}
 					}
 
@@ -5716,12 +5721,12 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	else
 		host_client->last_sequence = 0;
 	cltime = MSG_ReadFloat ();
+	if (cltime < move->fservertime)
+		cltime = move->fservertime;
 	if (cltime > sv.time)
 		cltime = sv.time;
 	if (cltime < sv.time - 2)	//if you do lag more than this, you won't get your free time.
 		cltime = sv.time - 2;
-	if (cltime < move->fservertime)
-		cltime = move->fservertime;
 	timesincelast = cltime - move->fservertime;
 	move->fservertime = cltime;
 	move->servertime = move->fservertime;
@@ -5798,6 +5803,23 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 		if (msg_badread) Con_Printf("SV_ReadClientMessage: badread at %s:%i\n", __FILE__, __LINE__);
 
 		if (cursor_entitynumber) cursor_entitynumber->edict = entnum;
+	}
+
+	if (SV_RunFullQCMovement(host_client, move))
+	{
+		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_PostThink();
+		else
+#endif
+		{
+			if (pr_global_struct->PlayerPostThink)
+				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
+		}
+		host_client->isindependant = true;
+		return;
 	}
 
 

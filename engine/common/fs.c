@@ -2131,6 +2131,9 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		//append SteamApps\common\hexen 2
 	}
 
+#ifndef NPQTV //this is *really* unfortunate, but doing this crashes the browser
+				//I assume its because the client 
+
 	if (poshname)
 	{
 		char resultpath[MAX_PATH];
@@ -2173,6 +2176,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			return true;
 		}
 	}
+#endif
 
 	return false;
 }

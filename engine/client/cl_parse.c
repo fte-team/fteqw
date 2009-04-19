@@ -2460,6 +2460,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 
 	case 4:
 		SCR_EndLoadingPlaque ();		// allow normal screen updates
+		SCR_SetLoadingStage(LS_NONE);
 		break;
 	}
 }

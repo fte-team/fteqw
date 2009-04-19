@@ -194,7 +194,7 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 }
 
 //
-int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *result, int numbones)
+int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *result, int firstbone, int lastbones)
 {
 #ifdef SKELETALMODELS
 	if (inf->numbones)
@@ -215,20 +215,20 @@ int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *resul
 
 		int bonegroup;
 		int cbone = 0;
-		int lastbone;
+		int endbone;
 
-		if (numbones > inf->numbones)
-			numbones = inf->numbones;
-		if (!numbones)
+		if (lastbones > inf->numbones)
+			lastbones = inf->numbones;
+		if (!lastbones)
 			return 0;
 
 		for (bonegroup = 0; bonegroup < FS_COUNT; bonegroup++)
 		{
-			lastbone = fstate->g[bonegroup].endbone;
-			if (bonegroup == FS_COUNT-1 || lastbone > numbones)
-				lastbone = numbones;
+			endbone = fstate->g[bonegroup].endbone;
+			if (bonegroup == FS_COUNT-1 || endbone > lastbones)
+				endbone = lastbones;
 
-			if (lastbone == cbone)
+			if (endbone == cbone)
 				continue;
 
 			frame1 = fstate->g[bonegroup].frame[0];
@@ -259,14 +259,14 @@ int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *resul
 
 			if (numposes == 1)
 			{
-				memcpy(result, pose[0]+cbone*12, (lastbone-cbone)*12*sizeof(float));
-				result += (lastbone-cbone)*12;
-				cbone = lastbone;
+				memcpy(result, pose[0]+cbone*12, (lastbones-cbone)*12*sizeof(float));
+				result += (lastbones-cbone)*12;
+				cbone = lastbones;
 			}
 			else
 			{
 				//set up the identity matrix
-				for (; cbone < lastbone; cbone++)
+				for (; cbone < lastbones; cbone++)
 				{
 					//set up the per-bone transform matrix
 					for (k = 0;k < 12;k++)
@@ -306,7 +306,7 @@ float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *bu
 	}
 	else
 	{
-		numbones = Alias_GetBoneRelations(inf, fstate, (float*)relationsbuf, inf->numbones);
+		numbones = Alias_GetBoneRelations(inf, fstate, (float*)relationsbuf, 0, inf->numbones);
 		if (numbones == inf->numbones)
 			relations = (float*)relationsbuf;
 	}
@@ -2351,7 +2351,7 @@ int Mod_GetNumBones(model_t *model, qboolean allowtags)
 		return 0;
 }
 
-int Mod_GetBoneRelations(model_t *model, int numbones, framestate_t *fstate, float *result)
+int Mod_GetBoneRelations(model_t *model, int firstbone, int lastbone, framestate_t *fstate, float *result)
 {
 #ifdef SKELETALMODELS
 	galiasinfo_t *inf;
@@ -2361,7 +2361,7 @@ int Mod_GetBoneRelations(model_t *model, int numbones, framestate_t *fstate, flo
 		return false;
 
 	inf = Mod_Extradata(model);
-	return Alias_GetBoneRelations(inf, fstate, result, numbones);
+	return Alias_GetBoneRelations(inf, fstate, result, firstbone, lastbone);
 #endif
 	return 0;
 }

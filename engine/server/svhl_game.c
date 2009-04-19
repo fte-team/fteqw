@@ -11,8 +11,6 @@ I think globals.maxentities is the hard cap, rather than current max like in q1.
 #include "crc.h"
 #include "model_hl.h"
 
-#define GAMECODEMODULE Cvar_Get("hl_svgame", "valve/dlls/mp.dll", 0, "halflife cvars")->string
-
 #define ignore(s) Con_Printf("Fixme: " s "\n")
 #define notimp(l) Con_Printf("halflife sv builtin not implemented on line %i\n", l)
 
@@ -762,15 +760,27 @@ void GHL_GetGameDir(char *gamedir)
 }
 unk GHL_Cvar_RegisterVariable(unk){notimp(__LINE__);}
 unk GHL_FadeClientVolume(unk){notimp(__LINE__);}
-unk GHL_SetClientMaxspeed(unk){notimp(__LINE__);}
+unk GHL_SetClientMaxspeed(unk)
+{
+	notimp(__LINE__);
+}
 unk GHL_CreateFakeClient(unk){notimp(__LINE__);}
 unk GHL_RunPlayerMove(unk){notimp(__LINE__);}
 int GHL_NumberOfEntities(void)
 {
 	return 0;
 }
-unk GHL_GetInfoKeyBuffer(unk){notimp(__LINE__);}
-unk GHL_InfoKeyValue(unk){notimp(__LINE__);}
+char *GHL_GetInfoKeyBuffer(hledict_t *ed)
+{
+	if (!ed)
+		return svs.info;
+
+	return svs.clients[ed - SVHL_Edict - 1].userinfo;
+}
+char *GHL_InfoKeyValue(char *infostr, char *key)
+{
+	return Info_ValueForKey(infostr, key);
+}
 unk GHL_SetKeyValue(unk){notimp(__LINE__);}
 unk GHL_SetClientKeyValue(unk){notimp(__LINE__);}
 unk GHL_IsMapValid(unk){notimp(__LINE__);}

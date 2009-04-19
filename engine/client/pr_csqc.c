@@ -281,6 +281,7 @@ static void CSQC_FindGlobals(void)
 	fieldvector(origin);	\
 	fieldvector(angles);	\
 	fieldvector(velocity);	\
+	fieldfloat(pmove_flags);		/*transparency*/	\
 	fieldfloat(alpha);		/*transparency*/	\
 	fieldfloat(scale);		/*model scale*/		\
 	fieldfloat(fatness);	/*expand models X units along their normals.*/	\
@@ -326,7 +327,9 @@ static void CSQC_FindGlobals(void)
 	fieldentity(chain);		\
 	fieldentity(enemy);		\
 	fieldentity(groundentity);	\
-	fieldentity(owner);	\
+	fieldentity(owner);		\
+							\
+	fieldfunction(touch);	\
 							\
 	fieldfloat(solid);		\
 	fieldvector(mins);		\
@@ -482,6 +485,87 @@ void CS_ClearWorld (void)
 		CS_LinkEdict((csqcedict_t*)EDICT_NUM(csqcprogs, i), false);
 }
 
+#define MAX_NODELINKS	256	//all this means is that any more than this will not touch.
+static csqcedict_t *csnodelinks[MAX_NODELINKS];
+void CS_TouchLinks ( csqcedict_t *ent, areanode_t *node )
+{	//Spike: rewritten this function to cope with killtargets used on a few maps.
+	link_t		*l, *next;
+	csqcedict_t		*touch;
+	int			old_self, old_other;
+
+	int linkcount = 0, ln;
+
+	//work out who they are first.
+	for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
+	{
+		if (linkcount == MAX_NODELINKS)
+			break;
+		next = l->next;
+		touch = (csqcedict_t*)EDICT_FROM_AREA(l);
+		if (touch == ent)
+			continue;
+
+		if (!touch->v->touch || touch->v->solid != SOLID_TRIGGER)
+			continue;
+
+		if (ent->v->absmin[0] > touch->v->absmax[0]
+		|| ent->v->absmin[1] > touch->v->absmax[1]
+		|| ent->v->absmin[2] > touch->v->absmax[2]
+		|| ent->v->absmax[0] < touch->v->absmin[0]
+		|| ent->v->absmax[1] < touch->v->absmin[1]
+		|| ent->v->absmax[2] < touch->v->absmin[2] )
+			continue;
+
+//		if (!((int)ent->xv->dimension_solid & (int)touch->xv->dimension_hit))
+//			continue;
+
+		csnodelinks[linkcount++] = touch;
+	}
+
+	old_self = *csqcg.self;
+	old_other = *csqcg.other;
+	for (ln = 0; ln < linkcount; ln++)
+	{
+		touch = csnodelinks[ln];
+
+		//make sure nothing moved it away
+		if (touch->isfree)
+			continue;
+		if (!touch->v->touch || touch->v->solid != SOLID_TRIGGER)
+			continue;
+		if (ent->v->absmin[0] > touch->v->absmax[0]
+		|| ent->v->absmin[1] > touch->v->absmax[1]
+		|| ent->v->absmin[2] > touch->v->absmax[2]
+		|| ent->v->absmax[0] < touch->v->absmin[0]
+		|| ent->v->absmax[1] < touch->v->absmin[1]
+		|| ent->v->absmax[2] < touch->v->absmin[2] )
+			continue;
+
+//		if (!((int)ent->xv->dimension_solid & (int)touch->xv->dimension_hit))	//didn't change did it?...
+//			continue;
+
+		*csqcg.self = EDICT_TO_PROG(csqcprogs, (edict_t*)touch);
+		*csqcg.other = EDICT_TO_PROG(csqcprogs, (edict_t*)ent);
+
+		PR_ExecuteProgram (csqcprogs, touch->v->touch);
+
+		if (ent->isfree)
+			break;
+	}
+	*csqcg.self = old_self;
+	*csqcg.other = old_other;
+
+
+// recurse down both sides
+	if (node->axis == -1 || ent->isfree)
+		return;
+	
+	if ( ent->v->absmax[node->axis] > node->dist )
+		CS_TouchLinks ( ent, node->children[0] );
+	if ( ent->v->absmin[node->axis] < node->dist )
+		CS_TouchLinks ( ent, node->children[1] );
+}
+
 static void CS_UnlinkEdict (csqcedict_t *ent)
 {
 	if (!ent->area.prev)
@@ -542,9 +626,13 @@ static void CS_LinkEdict(csqcedict_t *ent, qboolean touchtriggers)
 // link it in
 
 	if (ent->v->solid == SOLID_TRIGGER)
-		InsertLinkBefore (&ent->area, &node->trigger_edicts);
+		InsertLinkBefore(&ent->area, &node->trigger_edicts);
 	else
-		InsertLinkBefore (&ent->area, &node->solid_edicts);
+		InsertLinkBefore(&ent->area, &node->solid_edicts);
+
+	// if touch_triggers, touch all entities at this node and decend for more
+	if (touchtriggers)
+		CS_TouchLinks(ent, cs_areanodes);
 }
 
 typedef struct {
@@ -1812,6 +1900,8 @@ static void csqc_setmodel(progfuncs_t *prinst, csqcedict_t *ent, int modelindex)
 		VectorClear(ent->v->mins);
 		VectorClear(ent->v->maxs);
 	}
+
+	CS_LinkEdict(ent, false);
 }
 
 static void PF_cs_SetModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2127,6 +2217,12 @@ static void PF_cs_runplayerphysics (progfuncs_t *prinst, struct globalvars_s *pr
 	extern vec3_t	player_mins;
 	extern vec3_t	player_maxs;
 
+	csqcedict_t *ent;
+	if (*prinst->callargc >= 1)
+		ent = (void*)G_EDICT(prinst, OFS_PARM0);
+	else
+		ent = NULL;
+
 	if (!cl.worldmodel)
 		return;	//urm..
 /*
@@ -2181,14 +2277,12 @@ typedef struct {
 
 	*/
 
+	//debugging field
 	pmove.sequence = *csqcg.clientcommandframe;
+
 	pmove.pm_type = PM_NORMAL;
 
 	pmove.jump_msec = 0;//(cls.z_ext & Z_EXT_PM_TYPE) ? 0 : from->jump_msec;
-	if (csqcg.pmove_jump_held)
-		pmove.jump_held = *csqcg.pmove_jump_held;
-	if (csqcg.pmove_waterjumptime)
-		pmove.waterjumptime = *csqcg.pmove_waterjumptime;
 
 //set up the movement command
 	msecs = *csqcg.input_timelength*1000 + 0.5f;
@@ -2203,15 +2297,29 @@ typedef struct {
 	pmove.cmd.upmove = csqcg.input_movevalues[2];
 	pmove.cmd.buttons = *csqcg.input_buttons;
 
-	VectorCopy(csqcg.pmove_org, pmove.origin);
-	VectorCopy(csqcg.pmove_vel, pmove.velocity);
-	VectorCopy(csqcg.pmove_maxs, player_maxs);
-	VectorCopy(csqcg.pmove_mins, player_mins);
+	if (ent)
+	{
+		pmove.jump_held = (int)ent->v->pmove_flags & PMF_JUMP_HELD;
+		pmove.waterjumptime = 0;
+		VectorCopy(ent->v->origin, pmove.origin);
+		VectorCopy(ent->v->velocity, pmove.velocity);
+		VectorCopy(ent->v->maxs, player_maxs);
+		VectorCopy(ent->v->mins, player_mins);
+	}
+	else
+	{
+		if (csqcg.pmove_jump_held)
+			pmove.jump_held = *csqcg.pmove_jump_held;
+		if (csqcg.pmove_waterjumptime)
+			pmove.waterjumptime = *csqcg.pmove_waterjumptime;
+		VectorCopy(csqcg.pmove_org, pmove.origin);
+		VectorCopy(csqcg.pmove_vel, pmove.velocity);
+		VectorCopy(csqcg.pmove_maxs, player_maxs);
+		VectorCopy(csqcg.pmove_mins, player_mins);
+	}
 	pmove.hullnum = 1;
 
 	CL_SetSolidEntities();
-
-
 
 	while(msecs)	//break up longer commands
 	{
@@ -2222,16 +2330,29 @@ typedef struct {
 		PM_PlayerMove(1);
 	}
 
-	if (csqcg.pmove_jump_held)
-		*csqcg.pmove_jump_held = pmove.jump_held;
-	if (csqcg.pmove_waterjumptime)
-		*csqcg.pmove_waterjumptime = pmove.waterjumptime;
-	VectorCopy(pmove.origin, csqcg.pmove_org);
-	VectorCopy(pmove.velocity, csqcg.pmove_vel);
+	if (ent)
+	{
+		VectorCopy(pmove.angles, ent->v->angles);
+		ent->v->angles[0] *= -1/3.0f;
+		VectorCopy(pmove.origin, ent->v->origin);
+		VectorCopy(pmove.velocity, ent->v->velocity);
+		ent->v->pmove_flags = 0;
+		ent->v->pmove_flags += pmove.jump_held ? PMF_JUMP_HELD : 0;
+		ent->v->pmove_flags += pmove.onladder ? PMF_LADDER : 0;
+	}
+	else
+	{
+		if (csqcg.pmove_jump_held)
+			*csqcg.pmove_jump_held = pmove.jump_held;
+		if (csqcg.pmove_waterjumptime)
+			*csqcg.pmove_waterjumptime = pmove.waterjumptime;
+		VectorCopy(pmove.origin, csqcg.pmove_org);
+		VectorCopy(pmove.velocity, csqcg.pmove_vel);
+	}
 
-	pmove.origin[0] = ((int)(pmove.origin[0]*8))/8.0f;
-	pmove.origin[1] = ((int)(pmove.origin[1]*8))/8.0f;
-	pmove.origin[2] = ((int)(pmove.origin[2]*8))/8.0f;
+	//fixme: touch solids
+
+	CS_LinkEdict (ent, true);
 }
 
 static void PF_cs_getentitytoken (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3529,34 +3650,23 @@ skelobject_t *skel_get(progfuncs_t *prinst, int skelidx, int bonecount)
 	}
 }
 
-//#263 float(entity ent) skel_buildrel (FTE_CSQC_SKELETONOBJECTS)
-//#263 float(entity ent, float skel) skel_updaterel (FTE_CSQC_SKELETONOBJECTS)
-static void PF_skel_buildrel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+//float(float modelindex) skel_create (FTE_CSQC_SKELETONOBJECTS)
+static void PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
-	int skelidx;
 	int numbones;
-	framestate_t fstate;
 	skelobject_t *skelobj;
 	qboolean isabs;
 	model_t *model;
-	if (*prinst->callargc > 1)
-		skelidx = G_FLOAT(OFS_PARM1);
-	else
-		skelidx = 0;
+	int midx;
+
+	midx = G_FLOAT(OFS_PARM0);
 
 	//default to failure
 	G_FLOAT(OFS_RETURN) = 0;
 
-	model = CSQC_GetModelForIndex(ent->v->modelindex);
+	model = CSQC_GetModelForIndex(midx);
 	if (!model)
 		return; //no model set, can't get a skeleton
-
-	cs_getframestate(ent, ent->v->renderflags, &fstate);
-
-	//heh... don't copy.
-	fstate.bonecount = 0;
-	fstate.bonestate = NULL;
 
 	isabs = false;
 	numbones = Mod_GetNumBones(model, isabs);
@@ -3568,18 +3678,9 @@ static void PF_skel_buildrel (progfuncs_t *prinst, struct globalvars_s *pr_globa
 			return;	//this isn't a skeletal model.
 	}
 
-	skelobj = skel_get(prinst, skelidx, numbones);
+	skelobj = skel_get(prinst, 0, numbones);
 	if (!skelobj)
 		return;	//couldn't get one, ran out of memory or something?
-
-	if (isabs || skelobj->numbones != Mod_GetBoneRelations(model, skelobj->numbones, &fstate, skelobj->bonematrix))
-	{
-		isabs = true;
-//		float *ab;
-//		ab = Alias_GetBonePositions(model, &fstate, skelobj->bonematrix, skelobj->numbones);
-//		if (ab != skelobj->bonematrix)
-//			memcpy(skelobj->bonematrix, ab, skelobj->numbones*12*sizeof(float));
-	}
 
 	skelobj->model = model;
 	skelobj->absolute = isabs;
@@ -3587,7 +3688,66 @@ static void PF_skel_buildrel (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	G_FLOAT(OFS_RETURN) = (skelobj - skelobjects) + 1;
 }
 
-//#264 float(float skel) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
+//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
+static void PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
+	int midx = G_FLOAT(OFS_PARM2);
+	int retainfrac = G_FLOAT(OFS_PARM3);
+	int firstbone = G_FLOAT(OFS_PARM4)-1;
+	int lastbone = G_FLOAT(OFS_PARM5)-1;
+
+	int numbones;
+	framestate_t fstate;
+	skelobject_t *skelobj;
+	model_t *model;
+
+	//default to failure
+	G_FLOAT(OFS_RETURN) = 0;
+
+	model = CSQC_GetModelForIndex(midx);
+	if (!model)
+		return; //invalid model, can't get a skeleton
+
+	cs_getframestate(ent, ent->v->renderflags, &fstate);
+
+	//heh... don't copy.
+	fstate.bonecount = 0;
+	fstate.bonestate = NULL;
+
+	numbones = Mod_GetNumBones(model, false);
+	if (!numbones)
+	{
+		return;	//this isn't a skeletal model.
+	}
+
+	skelobj = skel_get(prinst, skelidx, 0);
+	if (!skelobj)
+		return;	//couldn't get one, ran out of memory or something?
+
+	if (lastbone < 0)
+		lastbone = numbones;
+	if (lastbone > numbones)
+		lastbone = numbones;
+	if (firstbone < 0)
+		firstbone = 0;
+
+	if (retainfrac >= 1)
+	{
+		//retain everything...
+	}
+	else if (retainfrac>0)
+	{
+		//codeme
+	}
+	else
+		Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, skelobj->bonematrix);
+
+	G_FLOAT(OFS_RETURN) = (skelobj - skelobjects) + 1;
+}
+
+//float(float skel) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
 static void PF_skel_get_numbones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -3601,7 +3761,7 @@ static void PF_skel_get_numbones (progfuncs_t *prinst, struct globalvars_s *pr_g
 		G_FLOAT(OFS_RETURN) = skelobj->numbones;
 }
 
-//#265 string(float skel, float bonenum) skel_get_bonename (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+//string(float skel, float bonenum) skel_get_bonename (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
 static void PF_skel_get_bonename (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -3618,7 +3778,7 @@ static void PF_skel_get_bonename (progfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 }
 
-//#266 float(float skel, float bonenum) skel_get_boneparent (FTE_CSQC_SKELETONOBJECTS)
+//float(float skel, float bonenum) skel_get_boneparent (FTE_CSQC_SKELETONOBJECTS)
 static void PF_skel_get_boneparent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -3633,7 +3793,7 @@ static void PF_skel_get_boneparent (progfuncs_t *prinst, struct globalvars_s *pr
 		G_FLOAT(OFS_RETURN) = Mod_GetBoneParent(skelobj->model, boneidx);
 }
 
-//#267 float(float skel, string tagname) gettagindex (DP_MD3_TAGSINFO)
+//float(float skel, string tagname) gettagindex (DP_MD3_TAGSINFO)
 static void PF_skel_find_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -3647,7 +3807,7 @@ static void PF_skel_find_bone (progfuncs_t *prinst, struct globalvars_s *pr_glob
 		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(skelobj->model, bname);
 }
 
-//#268 vector(float skel, float bonenum) skel_get_bonerel (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+//vector(float skel, float bonenum) skel_get_bonerel (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
 static void PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -3687,34 +3847,98 @@ static void PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	}
 }
 
-//#269 vector(float skel, float bonenum) skel_get_boneabs (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+//vector(float skel, float bonenum) skel_get_boneabs (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
 static void PF_skel_get_boneabs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
 	int boneidx = G_FLOAT(OFS_PARM1)-1;
-	float *matrix[4];
+	float *rmatrix[4];
+	float workingm[12], tempmatrix[3][4];
 	skelobject_t *skelobj;
-	matrix[0] = csqcg.forward;
-	matrix[1] = csqcg.right;
-	matrix[2] = csqcg.up;
-	matrix[3] = G_VECTOR(OFS_RETURN);
+	int i;
+	rmatrix[0] = csqcg.forward;
+	rmatrix[1] = csqcg.right;
+	rmatrix[2] = csqcg.up;
+	rmatrix[3] = G_VECTOR(OFS_RETURN);
 
 	skelobj = skel_get(prinst, skelidx, 0);
 
-	//codeme
+	if (!skelobj || (unsigned int)boneidx >= skelobj->numbones)
+	{
+		rmatrix[0][0] = 1;
+		rmatrix[0][1] = 0;
+		rmatrix[0][2] = 0;
+
+		rmatrix[1][0] = 0;
+		rmatrix[1][1] = 1;
+		rmatrix[1][2] = 0;
+
+		rmatrix[2][0] = 0;
+		rmatrix[2][1] = 0;
+		rmatrix[2][2] = 1;
+
+		rmatrix[3][0] = 0;
+		rmatrix[3][1] = 0;
+		rmatrix[3][2] = 0;
+	}
+	else if (skelobj->absolute)
+	{
+		//can just copy it out
+		memcpy(rmatrix[0], skelobj->bonematrix + boneidx*12 + 0, sizeof(vec3_t));
+		memcpy(rmatrix[1], skelobj->bonematrix + boneidx*12 + 3, sizeof(vec3_t));
+		memcpy(rmatrix[2], skelobj->bonematrix + boneidx*12 + 6, sizeof(vec3_t));
+		memcpy(rmatrix[3], skelobj->bonematrix + boneidx*12 + 9, sizeof(vec3_t));
+	}
+	else
+	{
+		//we need to work out the abs position
+
+		//testme
+
+		//set up an identity matrix
+		for (i = 0;i < 12;i++)
+			workingm[i] = 0;
+		workingm[0] = 1;
+		workingm[5] = 1;
+		workingm[10] = 1;
+
+		while(boneidx >= 0)
+		{
+			//copy out the previous working matrix, so we don't stomp on it
+			memcpy(tempmatrix, workingm, sizeof(tempmatrix));
+			R_ConcatTransforms((void*)(skelobj->bonematrix + boneidx*12), (void*)tempmatrix, (void*)workingm);
+
+			boneidx = Mod_GetBoneParent(skelobj->model, boneidx+1)-1;
+		}
+		memcpy(rmatrix[0], (workingm+0), sizeof(vec3_t));
+		memcpy(rmatrix[1], (workingm+3), sizeof(vec3_t));
+		memcpy(rmatrix[2], (workingm+6), sizeof(vec3_t));
+		memcpy(rmatrix[3], (workingm+9), sizeof(vec3_t));
+	}
 }
 
-//#270 void(float skel, float bonenum, vector org) skel_set_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+//void(float skel, float bonenum, vector org) skel_set_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
 static void PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
 	unsigned int boneidx = G_FLOAT(OFS_PARM1)-1;
 	float *matrix[4];
 	skelobject_t *skelobj;
-	matrix[0] = csqcg.forward;
-	matrix[1] = csqcg.right;
-	matrix[2] = csqcg.up;
-	matrix[3] = G_VECTOR(OFS_PARM2);
+
+	if (*prinst->callargc > 5)
+	{
+		matrix[3] = G_VECTOR(OFS_PARM2);
+		matrix[0] = G_VECTOR(OFS_PARM3);
+		matrix[1] = G_VECTOR(OFS_PARM4);
+		matrix[2] = G_VECTOR(OFS_PARM5);
+	}
+	else
+	{
+		matrix[0] = csqcg.forward;
+		matrix[1] = csqcg.right;
+		matrix[2] = csqcg.up;
+		matrix[3] = G_VECTOR(OFS_PARM2);
+	}
 
 	skelobj = skel_get(prinst, skelidx, 0);
 	if (!skelobj || boneidx >= skelobj->numbones)
@@ -3726,7 +3950,7 @@ static void PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	VectorCopy(matrix[3], skelobj->bonematrix+12*boneidx+9);
 }
 
-//#271 void(float skel, float bonenum, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+//void(float skel, float bonenum, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
 static void PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -3734,10 +3958,20 @@ static void PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	float temp[3][4];
 	float mult[3][4];
 	skelobject_t *skelobj;
-	VectorCopy(csqcg.forward, mult[0]);
-	VectorCopy(csqcg.right, mult[1]);
-	VectorCopy(csqcg.up, mult[2]);
-	VectorCopy(G_VECTOR(OFS_PARM2), mult[3]);
+	if (*prinst->callargc > 5)
+	{
+		VectorCopy(G_VECTOR(OFS_PARM2), mult[3]);
+		VectorCopy(G_VECTOR(OFS_PARM3), mult[0]);
+		VectorCopy(G_VECTOR(OFS_PARM4), mult[1]);
+		VectorCopy(G_VECTOR(OFS_PARM5), mult[2]);
+	}
+	else
+	{
+		VectorCopy(csqcg.forward, mult[0]);
+		VectorCopy(csqcg.right, mult[1]);
+		VectorCopy(csqcg.up, mult[2]);
+		VectorCopy(G_VECTOR(OFS_PARM2), mult[3]);
+	}
 
 	skelobj = skel_get(prinst, skelidx, 0);
 	if (!skelobj || boneidx >= skelobj->numbones)
@@ -3750,7 +3984,7 @@ static void PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	R_ConcatTransforms(mult, temp, (float(*)[4])(skelobj->bonematrix+12*boneidx));
 }
 
-//#272 void(float skel, float startbone, float endbone, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+//void(float skel, float startbone, float endbone, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
 static void PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -3759,10 +3993,20 @@ static void PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	float temp[3][4];
 	float mult[3][4];
 	skelobject_t *skelobj;
-	VectorCopy(csqcg.forward, mult[0]);
-	VectorCopy(csqcg.right, mult[1]);
-	VectorCopy(csqcg.up, mult[2]);
-	VectorCopy(G_VECTOR(OFS_PARM2), mult[3]);
+	if (*prinst->callargc > 6)
+	{
+		VectorCopy(G_VECTOR(OFS_PARM3), mult[3]);
+		VectorCopy(G_VECTOR(OFS_PARM4), mult[0]);
+		VectorCopy(G_VECTOR(OFS_PARM5), mult[1]);
+		VectorCopy(G_VECTOR(OFS_PARM6), mult[2]);
+	}
+	else
+	{
+		VectorCopy(csqcg.forward, mult[0]);
+		VectorCopy(csqcg.right, mult[1]);
+		VectorCopy(csqcg.up, mult[2]);
+		VectorCopy(G_VECTOR(OFS_PARM3), mult[3]);
+	}
 
 	skelobj = skel_get(prinst, skelidx, 0);
 	if (!skelobj)
@@ -3781,7 +4025,7 @@ static void PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	}
 }
 
-//#273 void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones (FTE_CSQC_SKELETONOBJECTS)
+//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones (FTE_CSQC_SKELETONOBJECTS)
 static void PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skeldst = G_FLOAT(OFS_PARM0);
@@ -3796,6 +4040,8 @@ static void PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	skelobjsrc = skel_get(prinst, skelsrc, 0);
 	if (!skelobjdst || !skelobjsrc)
 		return;
+	if (skelobjsrc->absolute != skelobjdst->absolute)
+		return;
 
 	if (startbone == -1)
 		startbone = 0;
@@ -3809,7 +4055,7 @@ static void PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	}
 }
 
-//#274 void(float skel) skel_delete (FTE_CSQC_SKELETONOBJECTS)
+//void(float skel) skel_delete (FTE_CSQC_SKELETONOBJECTS)
 static void PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -4802,19 +5048,20 @@ static struct {
 	{"stoh",			PF_stoh,			261},
 	{"htos",			PF_htos,			262},
 
-	{"skel_buildrel",		PF_skel_buildrel,		263},//float(entity ent) skel_buildrel (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_numbones",	PF_skel_get_numbones,	264},//float(float skel) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_bonename",	PF_skel_get_bonename,	265},//string(float skel, float bonenum) skel_get_bonename (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
-	{"skel_get_boneparent",	PF_skel_get_boneparent,	266},//float(float skel, float bonenum) skel_get_boneparent (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_find_bone",		PF_skel_find_bone,		267},//float(float skel, string tagname) gettagindex (DP_MD3_TAGSINFO)
-	{"skel_get_bonerel",	PF_skel_get_bonerel,	268},//vector(float skel, float bonenum) skel_get_bonerel (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-	{"skel_get_boneabs",	PF_skel_get_boneabs,	269},//vector(float skel, float bonenum) skel_get_boneabs (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-	{"skel_set_bone",		PF_skel_set_bone,		270},//void(float skel, float bonenum, vector org) skel_set_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_mul_bone",		PF_skel_mul_bone,		271},//void(float skel, float bonenum, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_mul_bones",		PF_skel_mul_bones,		272},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_copybones",		PF_skel_copybones,		273},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_delete",			PF_skel_delete,			274},//void(float skel) skel_delete (FTE_CSQC_SKELETONOBJECTS)
-	{"frameforname",		PF_frameforname,		275},		// #275
+	{"skel_create",			PF_skel_create,			263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build",			PF_skel_build,			264},//float(float skel, entity ent, float modlindex, float firstbone, float lastbone) skel_build = #263; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_numbones",	PF_skel_get_numbones,	265},//float(float skel) skel_get_numbones = #264; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonename",	PF_skel_get_bonename,	266},//string(float skel, float bonenum) skel_get_bonename = #265; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+	{"skel_get_boneparent",	PF_skel_get_boneparent,	267},//float(float skel, float bonenum) skel_get_boneparent = #266; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_find_bone",		PF_skel_find_bone,		268},//float(float skel, string tagname) skel_get_boneidx = #267; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonerel",	PF_skel_get_bonerel,	269},//vector(float skel, float bonenum) skel_get_bonerel = #268; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_get_boneabs",	PF_skel_get_boneabs,	270},//vector(float skel, float bonenum) skel_get_boneabs = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_set_bone",		PF_skel_set_bone,		271},//void(float skel, float bonenum, vector org) skel_set_bone = #270; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bone",		PF_skel_mul_bone,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bones",		PF_skel_mul_bones,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_copybones",		PF_skel_copybones,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #273; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_delete",			PF_skel_delete,			275},//void(float skel) skel_delete = #274; // (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforname",		PF_frameforname,		276},//void(float modidx, string framename) frameforname = #275 (FTE_CSQC_SKELETONOBJECTS)
 
 //300
 	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
@@ -5157,8 +5404,19 @@ void CSQC_Shutdown(void)
 	}
 	csqcprogs = NULL;
 
+	Z_Free(csqcdelta_pack_new.e);
+	memset(&csqcdelta_pack_new, 0, sizeof(csqcdelta_pack_new));
+	Z_Free(csqcdelta_pack_old.e);
+	memset(&csqcdelta_pack_old, 0, sizeof(csqcdelta_pack_old));
+
 	memset(&deltafunction, 0, sizeof(deltafunction));
+	memset(csqcdelta_playerents, 0, sizeof(csqcdelta_playerents));
+
+	csqcmapentitydata = NULL;
+	csqcmapentitydataloaded = false;
+
 	in_sensitivityscale = 1;
+	num_csqc_edicts = 0;
 
 	csqc_usinglistener = false;
 }
@@ -5276,6 +5534,7 @@ double  csqctime;
 qboolean CSQC_Init (unsigned int checksum)
 {
 	int i;
+	string_t *str;
 	csqcedict_t *worldent;
 	csqcchecksum = checksum;
 
@@ -5349,6 +5608,7 @@ qboolean CSQC_Init (unsigned int checksum)
 		csqcprogs = InitProgs(&csqcprogparms);
 		PR_Configure(csqcprogs, -1, 16);
 
+		CS_ClearWorld();
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
 
 		csqc_isdarkplaces = false;
@@ -5368,17 +5628,15 @@ qboolean CSQC_Init (unsigned int checksum)
 			return false;
 		}
 
-		num_csqc_edicts = 0;
-		CS_ClearWorld();
 
 		PF_InitTempStrings(csqcprogs);
+
+		CSQC_FindGlobals();
 
 		csqc_fakereadbyte = -1;
 		memset(csqcent, 0, sizeof(*csqcent)*maxcsqcentities);	//clear the server->csqc entity translations.
 
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csmaxedicts.value);
-
-		CSQC_FindGlobals();
 
 		ED_Alloc(csqcprogs);	//we need a word entity.
 		//world edict becomes readonly
@@ -5388,17 +5646,18 @@ qboolean CSQC_Init (unsigned int checksum)
 		worldent->isfree = false;
 		worldent->v->model = PR_SetString(csqcprogs, cl.model_name[1]);
 
-		Z_Free(csqcdelta_pack_new.e);
-		memset(&csqcdelta_pack_new, 0, sizeof(csqcdelta_pack_new));
-		Z_Free(csqcdelta_pack_old.e);
-		memset(&csqcdelta_pack_old, 0, sizeof(csqcdelta_pack_old));
-
-		memset(&deltafunction, 0, sizeof(deltafunction));
-
-		memset(csqcdelta_playerents, 0, sizeof(csqcdelta_playerents));
-
-		csqcmapentitydata = NULL;
-		csqcmapentitydataloaded = false;
+		str = (string_t*)csqcprogs->GetEdictFieldValue(csqcprogs, (edict_t*)worldent, "message", NULL);
+		if (str)
+			*str = PR_SetString(csqcprogs, cl.levelname);
+		
+		str = (string_t*)PR_FindGlobal(csqcprogs, "mapname", 0);
+		if (str)
+		{
+			char *s = Info_ValueForKey(cl.serverinfo, "map");
+			if (!*s)
+				s = "unknown";
+			*str = PR_NewString(csqcprogs, s, strlen(s)+1);
+		}
 
 		if (csqcg.init_function)
 		{
@@ -5410,6 +5669,7 @@ qboolean CSQC_Init (unsigned int checksum)
 		}
 
 		Con_Printf("Loaded csqc\n");
+		csqcmapentitydataloaded = false;
 	}
 
 	return true; //success!

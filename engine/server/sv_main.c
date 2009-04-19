@@ -1916,7 +1916,8 @@ client_t *SVC_DirectConnect(void)
 #endif
 	}
 
-	SV_FixupName(name, name, sizeof(name));
+	SV_FixupName(name, temp.namebuf, sizeof(temp.namebuf));
+	name = temp.namebuf;
 
 	if (!*name)
 	{
@@ -2070,7 +2071,7 @@ client_t *SVC_DirectConnect(void)
 	switch(newcl->protocol)
 	{
 #ifdef Q3SERVER
-	case CP_QUAKE3:
+	case SCP_QUAKE3:
 		Huff_PreferedCompressionCRC();
 		if (temp.frameunion.q3frames)
 			Z_Free(temp.frameunion.q3frames);
@@ -2078,7 +2079,8 @@ client_t *SVC_DirectConnect(void)
 		break;
 #endif
 
-	case CP_QUAKE2:
+#ifdef Q2SERVER
+	case SCP_QUAKE2:
 		// build a new connection
 		// accept the new client
 		// this is the only place a client_t is ever initialized
@@ -2088,6 +2090,7 @@ client_t *SVC_DirectConnect(void)
 
 		temp.frameunion.q2frames = Z_Malloc(sizeof(q2client_frame_t)*Q2UPDATE_BACKUP);
 		break;
+#endif
 
 	default:
 		temp.frameunion.frames = newcl->frameunion.frames;	//don't touch these.

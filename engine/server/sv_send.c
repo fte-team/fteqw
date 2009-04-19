@@ -1995,6 +1995,7 @@ void SV_SendClientMessages (void)
 {
 	int			i, j;
 	client_t	*c;
+	float pt = sv.physicstime;
 
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
@@ -2128,7 +2129,7 @@ void SV_SendClientMessages (void)
 		if (ISNQCLIENT(c))
 		{	//nq clients get artificial choke too
 			c->send_message = false;
-			if (c->nextservertimeupdate != sv.physicstime && c->state != cs_zombie)
+			if (c->nextservertimeupdate != pt && c->state != cs_zombie)
 			{
 				c->send_message = true;
 

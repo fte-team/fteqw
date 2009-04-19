@@ -117,31 +117,32 @@ builtin_t pr_builtin[1024];
 extern BuiltinList_t BuiltinList[];
 
 struct {
-	func_t ChatMessage;
-
-	func_t getplayerstat[MAX_CL_STATS];
-	func_t getplayerstati[MAX_CL_STATS];
-
-	func_t UserCmd, ParseClientCommand, ParseConnectionlessPacket;
-	func_t ConsoleCmd;
+	func_t ChatMessage;	//mvdsv parsing of 'say' commands
+	func_t UserCmd;	//mvdsv
+	func_t ConsoleCmd; //mvdsv
 	func_t UserInfo_Changed;
 	func_t localinfoChanged;
+
+	func_t ParseClientCommand;	//KRIMZON_SV_PARSECLIENTCOMMAND
+	func_t ParseConnectionlessPacket;	//FTE_QC_SENDPACKET
 
 	func_t PausedTic;
 	func_t ShouldPause;
 
-	func_t ClassChangeWeapon;
+	func_t RunClientCommand;	//EXT_CSQC_1
+
+	func_t ClassChangeWeapon;//hexen2 support
 } gfuncs;
-func_t getplayerstat[MAX_CL_STATS];
-func_t getplayerstati[MAX_CL_STATS];
-func_t SpectatorConnect;
-func_t SpectatorThink;
-func_t SpectatorDisconnect;
+func_t getplayerstat[MAX_CL_STATS];	//unnamed FTE extension
+func_t getplayerstati[MAX_CL_STATS];//unnamed FTE extension
+func_t SpectatorConnect;	//QW
+func_t SpectatorThink;	//QW
+func_t SpectatorDisconnect;	//QW
 
 func_t SV_PlayerPhysicsQC;	//DP's DP_SV_PLAYERPHYSICS extension
-func_t EndFrameQC;
+func_t EndFrameQC;	//a common extension
 
-qboolean pr_items2;
+qboolean pr_items2;	//hipnotic (or was it rogue?)
 
 nqglobalvars_t realpr_nqglobal_struct;
 nqglobalvars_t *pr_nqglobal_struct = &realpr_nqglobal_struct;
@@ -483,6 +484,7 @@ void PR_LoadGlabalStruct(void)
 #define globalint(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
 #define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
 #define globalvec(need,name) ((nqglobalvars_t*)pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalvec_(need,name) ((nqglobalvars_t*)pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
 #define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
 //			globalint(pad);
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
@@ -528,8 +530,14 @@ void PR_LoadGlabalStruct(void)
 	globalfunc		(false, SetNewParms);
 	globalfunc		(false, SetChangeParms);
 	globalfloat		(false, cycle_wrapped);
-
 	globalfloat		(false, dimension_send);
+
+	
+	globalfloat		(false, clientcommandframe);
+	globalfloat		(false, input_timelength);
+	globalvec_		(false, input_angles);
+	globalvec_		(false, input_movevalues);
+	globalfloat		(false, input_buttons);
 
 	memset(&evalc_idealpitch, 0, sizeof(evalc_idealpitch));
 	memset(&evalc_pitch_speed, 0, sizeof(evalc_pitch_speed));
@@ -549,6 +557,10 @@ void PR_LoadGlabalStruct(void)
 	{	//make sure dimension send is always a valid pointer.
 		((nqglobalvars_t*)pr_globals)->trace_surfaceflags = &writeonly;
 	}
+
+
+
+
 
 	pr_global_struct->dimension_send = 255;
 
@@ -575,6 +587,7 @@ void PR_LoadGlabalStruct(void)
 	gfuncs.PausedTic = PR_FindFunction(svprogfuncs, "SV_PausedTic", PR_ANY);
 	gfuncs.ShouldPause = PR_FindFunction(svprogfuncs, "SV_ShouldPause", PR_ANY);
 	gfuncs.ClassChangeWeapon = PR_FindFunction(svprogfuncs, "ClassChangeWeapon", PR_ANY);
+	gfuncs.RunClientCommand = PR_FindFunction(svprogfuncs, "SV_RunClientCommand", PR_ANY);
 
 	if (pr_no_playerphysics.value)
 		SV_PlayerPhysicsQC = 0;
@@ -8297,6 +8310,7 @@ void PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //the first implementation of this function was (float type, float num, string name)
 //it is now float num, float type, .field
+//EXT_CSQC_1
 void PF_clientstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #if 0 //this is the old code
@@ -8306,6 +8320,8 @@ void PF_clientstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_QCStatFieldIdx(G_FLOAT(OFS_PARM1), G_INT(OFS_PARM2)+prinst->fieldadjust, G_FLOAT(OFS_PARM0));
 #endif
 }
+//EXT_CSQC_1
+//void(float num, float type, string name) globalstat
 void PF_globalstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *name = PF_VarString(prinst, 2, pr_globals);
@@ -8316,42 +8332,60 @@ void PF_globalstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #endif
 }
 
+//EXT_CSQC_1
 void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	
+	unsigned int i, n;
 	extern vec3_t player_maxs, player_mins;
-	float msecs;
-	pmove.sequence = *pr_nqglobal_struct->clientcommandframe;
-	pmove.pm_type = PM_NORMAL;
+	extern qbyte playertouch[];
+	unsigned int msecs;
+	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
+	edict_t *touched;
+	if (pr_nqglobal_struct->clientcommandframe)
+		pmove.sequence = *pr_nqglobal_struct->clientcommandframe;
+	else
+		pmove.sequence = 0;
+	if (host_client && host_client->edict == ent)
+		pmove.pm_type = SV_PMTypeForClient(host_client);
+	else
+		pmove.pm_type = PM_NORMAL;
 
 	pmove.jump_msec = 0;//(cls.z_ext & Z_EXT_PM_TYPE) ? 0 : from->jump_msec;
-	if (pr_nqglobal_struct->pmove_jump_held)
-		pmove.jump_held = *pr_nqglobal_struct->pmove_jump_held;
-	if (pr_nqglobal_struct->pmove_waterjumptime)
-		pmove.waterjumptime = *pr_nqglobal_struct->pmove_waterjumptime;
+
+	pmove.jump_held = ((int)ent->xv->pmove_flags)&PMF_JUMP_HELD;
+	pmove.waterjumptime = ent->v->teleport_time;
 
 //set up the movement command
-	msecs = *pr_nqglobal_struct->input_timelength*1000 + 0.5f;
+	msecs = pr_global_struct->input_timelength*1000 + 0.5f;
 	//precision inaccuracies. :(
 #define ANGLE2SHORT(x) (x) * (65536/360.0)
-	pmove.cmd.angles[0] = ANGLE2SHORT(pr_nqglobal_struct->input_angles[0]);
-	pmove.cmd.angles[1] = ANGLE2SHORT(pr_nqglobal_struct->input_angles[1]);
-	pmove.cmd.angles[2] = ANGLE2SHORT(pr_nqglobal_struct->input_angles[2]);
-	VectorCopy(pr_nqglobal_struct->input_angles, pmove.angles);
+	pmove.cmd.angles[0] = ANGLE2SHORT((pr_global_struct->input_angles)[0]);
+	pmove.cmd.angles[1] = ANGLE2SHORT((pr_global_struct->input_angles)[1]);
+	pmove.cmd.angles[2] = ANGLE2SHORT((pr_global_struct->input_angles)[2]);
+	VectorCopy(pr_global_struct->input_angles, pmove.angles);
 
-	pmove.cmd.forwardmove = (*pr_nqglobal_struct->input_movevalues)[0];
-	pmove.cmd.sidemove = (*pr_nqglobal_struct->input_movevalues)[1];
-	pmove.cmd.upmove = (*pr_nqglobal_struct->input_movevalues)[2];
-	pmove.cmd.buttons = *pr_nqglobal_struct->input_buttons;
+	pmove.cmd.forwardmove = (pr_global_struct->input_movevalues)[0];
+	pmove.cmd.sidemove = (pr_global_struct->input_movevalues)[1];
+	pmove.cmd.upmove = (pr_global_struct->input_movevalues)[2];
+	pmove.cmd.buttons = pr_global_struct->input_buttons;
 
-	VectorCopy(*pr_nqglobal_struct->pmove_org, pmove.origin);
-	VectorCopy(*pr_nqglobal_struct->pmove_vel, pmove.velocity);
-	VectorCopy(*pr_nqglobal_struct->pmove_maxs, player_maxs);
-	VectorCopy(*pr_nqglobal_struct->pmove_mins, player_mins);
-	pmove.hullnum = 1;
+	VectorCopy(ent->v->origin, pmove.origin);
+	VectorCopy(ent->v->velocity, pmove.velocity);
+	VectorCopy(ent->v->maxs, player_maxs);
+	VectorCopy(ent->v->mins, player_mins);
+	pmove.hullnum = SV_HullNumForPlayer(ent->xv->hull, ent->v->mins, ent->v->maxs);
 
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.worldmodel;
-	AddLinksToPmove ( PROG_TO_EDICT(svprogfuncs, pr_global_struct->self), sv_areanodes );
+
+	for (i=0 ; i<3 ; i++)
+	{
+		extern vec3_t	pmove_mins, pmove_maxs;
+		pmove_mins[i] = pmove.origin[i] - 256;
+		pmove_maxs[i] = pmove.origin[i] + 256;
+	}
+	AddLinksToPmove(ent, sv_areanodes);
+//	AddAllEntsToPmove();
 
 
 	while(msecs)	//break up longer commands
@@ -8363,12 +8397,160 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		PM_PlayerMove(1);
 	}
 
-	if (pr_nqglobal_struct->pmove_jump_held)
-		*pr_nqglobal_struct->pmove_jump_held = pmove.jump_held;
-	if (pr_nqglobal_struct->pmove_waterjumptime)
-		*pr_nqglobal_struct->pmove_waterjumptime = pmove.waterjumptime;
-	VectorCopy(pmove.origin, *pr_nqglobal_struct->pmove_org);
-	VectorCopy(pmove.velocity, *pr_nqglobal_struct->pmove_vel);
+	ent->xv->pmove_flags = 0;
+	ent->xv->pmove_flags += ((int)pmove.jump_held?PMF_JUMP_HELD:0);
+	ent->xv->pmove_flags += ((int)pmove.onladder?PMF_LADDER:0);
+	ent->v->teleport_time = pmove.waterjumptime;
+	VectorCopy(pmove.origin, ent->v->origin);
+	VectorCopy(pmove.velocity, ent->v->velocity);
+
+
+
+	ent->v->waterlevel = pmove.waterlevel;
+
+	if (pmove.watertype & FTECONTENTS_SOLID)
+		ent->v->watertype = Q1CONTENTS_SOLID;
+	else if (pmove.watertype & FTECONTENTS_SKY)
+		ent->v->watertype = Q1CONTENTS_SKY;
+	else if (pmove.watertype & FTECONTENTS_LAVA)
+		ent->v->watertype = Q1CONTENTS_LAVA;
+	else if (pmove.watertype & FTECONTENTS_SLIME)
+		ent->v->watertype = Q1CONTENTS_SLIME;
+	else if (pmove.watertype & FTECONTENTS_WATER)
+		ent->v->watertype = Q1CONTENTS_WATER;
+	else
+		ent->v->watertype = Q1CONTENTS_EMPTY;
+
+	if (pmove.onground)
+	{
+		ent->v->flags = (int)sv_player->v->flags | FL_ONGROUND;
+		ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, pmove.physents[pmove.groundent].info));
+	}
+	else
+		ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
+
+
+	SV_LinkEdict(ent, true);
+	for (i=0 ; i<pmove.numtouch ; i++)
+	{
+		if (pmove.physents[pmove.touchindex[i]].notouch)
+			continue;
+		n = pmove.physents[pmove.touchindex[i]].info;
+		touched = EDICT_NUM(svprogfuncs, n);
+		if (!ent->v->touch || (playertouch[n/8]&(1<<(n%8))))
+			continue;
+
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, touched);
+		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
+		pr_global_struct->time = sv.time;
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_Touch();
+		else
+#endif
+			PR_ExecuteProgram (svprogfuncs, touched->v->touch);
+		playertouch[n/8] |= 1 << (n%8);
+	}
+}
+
+
+//EXT_CSQC_1 (called when a movement command is received. runs full acceleration + movement)
+qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
+{
+	if (gfuncs.RunClientCommand)
+	{
+#ifdef SVCHAT
+		if (SV_ChatMove(ucmd->impulse))
+		{
+			ucmd->buttons = 0;
+			ucmd->impulse = 0;
+			ucmd->forwardmove = ucmd->sidemove = ucmd->upmove = 0;
+		}
+#endif
+
+		if (!sv_player->v->fixangle)
+		{
+			sv_player->v->v_angle[0] = SHORT2ANGLE(ucmd->angles[0]);
+			sv_player->v->v_angle[1] = SHORT2ANGLE(ucmd->angles[1]);
+			sv_player->v->v_angle[2] = SHORT2ANGLE(ucmd->angles[2]);
+		}
+
+		if (progstype == PROG_H2)
+			sv_player->xv->light_level = 128;	//hmm... HACK!!!
+
+		sv_player->v->button0 = ucmd->buttons & 1;
+		sv_player->v->button2 = (ucmd->buttons >> 1) & 1;
+	// DP_INPUTBUTTONS
+		sv_player->xv->button3 = ((ucmd->buttons >> 2) & 1);
+		sv_player->xv->button4 = ((ucmd->buttons >> 3) & 1);
+		sv_player->xv->button5 = ((ucmd->buttons >> 4) & 1);
+		sv_player->xv->button6 = ((ucmd->buttons >> 5) & 1);
+		sv_player->xv->button7 = ((ucmd->buttons >> 6) & 1);
+		sv_player->xv->button8 = ((ucmd->buttons >> 7) & 1);
+		if (ucmd->impulse && SV_FiltureImpulse(ucmd->impulse, host_client->trustlevel))
+			sv_player->v->impulse = ucmd->impulse;
+
+		if (host_client->iscuffed)
+		{
+			sv_player->v->impulse = 0;
+			sv_player->v->button0 = 0;
+		}
+
+		if (host_client->state && host_client->protocol != SCP_BAD)
+		{
+			sv_player->xv->movement[0] = ucmd->forwardmove * host_frametime;
+			sv_player->xv->movement[1] = ucmd->sidemove * host_frametime;
+			sv_player->xv->movement[2] = ucmd->upmove * host_frametime;
+		}
+
+		SV_CheckVelocity(sv_player);
+
+	//
+	// angles
+	// show 1/3 the pitch angle and all the roll angle
+		if (sv_player->v->health > 0)
+		{
+			if (!sv_player->v->fixangle)
+			{
+				sv_player->v->angles[PITCH] = -sv_player->v->v_angle[PITCH]/3;
+				sv_player->v->angles[YAW] = sv_player->v->v_angle[YAW];
+			}
+			sv_player->v->angles[ROLL] =
+				V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
+		}
+
+		//prethink should be consistant with what the engine normally does
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
+		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
+		SV_RunThink (client->edict);
+
+
+
+
+
+
+
+
+
+
+		pr_global_struct->input_timelength = ucmd->msec/1000.0f;
+	//precision inaccuracies. :(
+#define ANGLE2SHORT(x) (x) * (65536/360.0)
+		(pr_global_struct->input_angles)[0] = SHORT2ANGLE(ucmd->angles[0]);
+		(pr_global_struct->input_angles)[1] = SHORT2ANGLE(ucmd->angles[1]);
+		(pr_global_struct->input_angles)[2] = SHORT2ANGLE(ucmd->angles[2]);
+
+		(pr_global_struct->input_movevalues)[0] = ucmd->forwardmove;
+		(pr_global_struct->input_movevalues)[1] = ucmd->sidemove;
+		(pr_global_struct->input_movevalues)[2] = ucmd->upmove;
+		pr_global_struct->input_buttons = ucmd->buttons;
+//		pr_global_struct->input_impulse = ucmd->impulse;
+
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
+		PR_ExecuteProgram(svprogfuncs, gfuncs.RunClientCommand);
+ 		return true;
+	}
+	return false;
 }
 
 //DP_QC_GETSURFACE
@@ -8931,8 +9113,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		231},
 
 //EXT_CSQC
-	{"clientstat",		PF_clientstat,		0,		0,		0,		232},
-	{"runclientphys",	PF_runclientphys,	0,		0,		0,		233},
+	{"clientstat",		PF_clientstat,		0,		0,		0,		232},	//EXT_CSQC
+	{"globalstat",		PF_globalstat,		0,		0,		0,		233},	//EXT_CSQC_1 actually
 //END EXT_CSQC
 	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},
 	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239},
@@ -8970,6 +9152,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //	{"cprint",			PF_sv_cprint,		0,		0,		0,		338},	// #338 void(string s) cprint (EXT_CSQC)
 	{"print",			PF_print,		0,		0,		0,		339},	// #339 void(string s) print (EXT_CSQC)
+
+	{"runclientphys",	PF_runclientphys,	0,		0,		0,		347},
 
 //	{"runningserver",	PF_sv_runningserver,0,		0,		0,		350},	// #350 float() isserver (EXT_CSQC)
 //	{"registercommand",	PF_sv_registercommand,0,	0,		0,		352},	// #352 void(string cmdname) registercommand (EXT_CSQC)
@@ -9550,7 +9734,7 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldxfloat(fatness);
 	fieldxentity(view2);
 	fieldxvector(movement);
-	fieldxfloat(fteflags);
+	fieldxfloat(pmove_flags);
 	fieldxfloat(vweapmodelindex);
 
 	//dp extra fields

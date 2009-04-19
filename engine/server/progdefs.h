@@ -84,15 +84,9 @@ typedef struct nqglobalvars_s
 
 	float *clientcommandframe;
 	float *input_timelength;
-	float *input_angles;
+	vec3_t *input_angles;
 	vec3_t *input_movevalues;
 	float *input_buttons;
-	float *pmove_jump_held;
-	float *pmove_waterjumptime;
-	vec3_t *pmove_org;
-	vec3_t *pmove_vel;
-	vec3_t *pmove_mins;
-	vec3_t *pmove_maxs;
 } nqglobalvars_t;
 
 #define P_VEC(v) (pr_global_struct->V_##v)
@@ -193,8 +187,7 @@ typedef struct extentvars_s
 	float	alpha;	//DP_ENT_ALPHA
 	float	fatness;	//FTE_PEXT_FATNESS
 	int		view2;	//FTE_PEXT_VIEW2
-	float	fteflags;
-	vec3_t	movement;	
+	vec3_t	movement;
 	float	vweapmodelindex;
 
 	//dp extra fields
@@ -248,10 +241,11 @@ typedef struct extentvars_s
 	float	hasted;	//hexen2 uses this AS WELL as maxspeed
 
 	//csqc stuph.
-	func_t	SendEntity;
-	float	SendFlags;
-	float	Version;
-	float	pvsflags;
+	func_t	SendEntity;	//EXT_CSQC
+	float	SendFlags;	//EXT_CSQC_1 (one of the DP guys came up with it)
+	float	Version;	//EXT_CSQC (obsolete)
+	float	pvsflags;	//EXT_CSQC_1
+	float	pmove_flags;	//EXT_CSQC_1 (FIXME: is this really needed?)
 
 	//FTE_ENT_UNIQUESPAWNID
 	float	uniquespawnid;

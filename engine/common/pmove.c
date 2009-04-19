@@ -623,7 +623,6 @@ PM_AirMove
 void PM_AirMove (void)
 {
 	int			i;
-	vec3_t		wishvel;
 	float		fmove, smove;
 	vec3_t		wishdir;
 	float		wishspeed;
@@ -637,10 +636,9 @@ void PM_AirMove (void)
 	VectorNormalize (right);
 
 	for (i=0 ; i<2 ; i++)
-		wishvel[i] = forward[i]*fmove + right[i]*smove;
-	wishvel[2] = 0;
+		wishdir[i] = forward[i]*fmove + right[i]*smove;
+	wishdir[2] = 0;
 
-	VectorCopy (wishvel, wishdir);
 	wishspeed = VectorNormalize(wishdir);
 
 //
@@ -648,7 +646,6 @@ void PM_AirMove (void)
 //
 	if (wishspeed > movevars.maxspeed)
 	{
-		VectorScale (wishvel, movevars.maxspeed/wishspeed, wishvel);
 		wishspeed = movevars.maxspeed;
 	}
 

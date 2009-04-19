@@ -1686,7 +1686,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 		{
 			clstate_t clst;
 			clst.playernum = j;
-			clst.onladder = (int)ent->xv->fteflags&FF_LADDER;
+			clst.onladder = (int)ent->xv->pmove_flags&PMF_LADDER;
 			clst.lastcmd = &cl->lastcmd;
 			clst.modelindex = vent->v->modelindex;
 			clst.modelindex2 = vent->xv->vweapmodelindex;

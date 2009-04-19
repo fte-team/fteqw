@@ -1,15 +1,17 @@
 #include "quakedef.h"
-
 #include "glquake.h"
 
 #ifdef HLCLIENT
-
-#define CLIENTDLLNAME "cl_dlls/client"
 
 #define notimp(l) Con_Printf("halflife cl builtin not implemented on line %i\n", l)
 
 //#define HLCL_API_VERSION 6
 #define HLCL_API_VERSION 7
+
+
+//make shared
+struct hlcvar_s *GHL_CVarGetPointer(char *varname);
+
 
 #define HLPIC model_t*
 
@@ -534,12 +536,12 @@ void CLGHL_setcrosshair (HLPIC pic, hlsubrect_t rect, int r, int g, int b)
 {
 }
 
-int CLGHL_cvar_register (char *name, char *defvalue, int flags)
+struct hlcvar_s *CLGHL_cvar_register (char *name, char *defvalue, int flags)
 {
 	if (Cvar_Get(name, defvalue, 0, "Halflife cvars"))
 		return GHL_CVarGetPointer(name);
 	else
-		return false;
+		return NULL;
 }
 float CLGHL_cvar_getfloat (char *name)
 {
@@ -598,7 +600,23 @@ void CLGHL_localcmd (char *command)
 
 void CLGHL_getplayerinfo (int entnum, hlplayerinfo_t *result)
 {
-	notimp(__LINE__);
+	player_info_t *player;
+	entnum--;
+	if (entnum < 0 || entnum >= MAX_CLIENTS)
+		return;
+
+	player = &cl.players[entnum];
+	result->name = player->name;
+	result->ping = player->ping;
+	result->tcolour = player->rtopcolor;
+	result->bcolour = player->rbottomcolor;
+	result->isus = true;
+	result->isspec = player->spectator;
+	result->pl = player->pl;
+	if (player->skin)
+		result->model = player->skin->name;
+	else
+		result->model = "";
 }
 
 void CLGHL_startsound_name (char *name, float vol)
@@ -630,7 +648,21 @@ void CLGHL_anglevectors (float *ina, float *outf, float *outr, float *outu)
 hlmsginfo_t *CLGHL_get_message_info (char *name)
 {
 	//fixme: add parser
-	return NULL;
+	hlmsginfo_t *ret;
+	ret = Z_Malloc(sizeof(*ret));
+	memset(ret, 0, sizeof(*ret));
+	ret->name = name;
+	ret->message = name;
+	ret->x = 0;
+	ret->y = 0;
+	*(int*)&ret->c1 = 0xffffffff;
+	*(int*)&ret->c2 = 0xffffffff;
+	ret->effect = 0;
+	ret->fadein = 0;
+	ret->fadeout = 0;
+	ret->fxtime = 0;
+	ret->holdtime = 1000;
+	return ret;
 }
 int CLGHL_drawchar (int x, int y, int charnum, int r, int g, int b)
 {
@@ -714,6 +746,7 @@ int CLGHL_keyevent(int key, int down)
 		Key_Event(K_MOUSE1+key-241, down);
 	else
 		Con_Printf("CLGHL_keyevent: Unrecognised HL key code\n");
+	return true;	//fixme: check the return type
 }
 void CLGHL_getmousepos(int *outx, int *outy){notimp(__LINE__);}
 int CLGHL_movetypeisnoclip(void){notimp(__LINE__);return 0;}
@@ -806,8 +839,8 @@ model_t *CLGHL_loadmapsprite(char *name)
 	notimp(__LINE__);return NULL;
 }
 
-void CLGHL_fs_addgamedir(char *basedir, char *appname){notimp(__LINE__);return NULL;}
-int CLGHL_expandfilename(char *filename, char *outbuff, int outsize){notimp(__LINE__);return NULL;}
+void CLGHL_fs_addgamedir(char *basedir, char *appname){notimp(__LINE__);}
+int CLGHL_expandfilename(char *filename, char *outbuff, int outsize){notimp(__LINE__);return false;}
 
 char *CLGHL_player_key(int pnum, char *key){notimp(__LINE__);return NULL;}
 void CLGHL_player_setkey(char *key, char *value){notimp(__LINE__);return NULL;}
@@ -836,7 +869,7 @@ void CLGHL_setmouseenable(qboolean enable)
 
 
 
-
+#if HLCL_API_VERSION >= 7
 int CLGHL_demo_isrecording(void)
 {
 	return cls.demorecording;
@@ -863,6 +896,7 @@ struct hl_demo_api_s hl_demo_api =
 
 		0xdeadbeef
 };
+#endif
 
 CLHL_cgamefuncs_t CLHL_cgamefuncs;
 CLHL_enginecgamefuncs_t CLHL_enginecgamefuncs =
@@ -1000,22 +1034,29 @@ dllhandle_t clg;
 
 int CLHL_GamecodeDoesMouse(void)
 {
-	if (!clg || !CLHL_cgamefuncs.CL_CreateMove)
-		return false;
-	return true;
+#if HLCL_API_VERSION >= 7
+	if (clg && CLHL_cgamefuncs.CL_CreateMove)
+		return true;
+#endif
+	return false;
 }
 
 int CLHL_MouseEvent(unsigned int buttonmask)
 {
+#if HLCL_API_VERSION >= 7
 	if (!CLHL_GamecodeDoesMouse())
 		return false;
 
 	CLHL_cgamefuncs.IN_MouseEvent(buttonmask);
 	return true;
+#else
+	return false;
+#endif
 }
 
 void CLHL_SetMouseActive(int activate)
 {
+#if HLCL_API_VERSION >= 7
 	static int oldactive;
 	if (!clg)
 	{
@@ -1036,6 +1077,7 @@ void CLHL_SetMouseActive(int activate)
 		if (CLHL_cgamefuncs.IN_DeactivateMouse)
 			CLHL_cgamefuncs.IN_DeactivateMouse();
 	}
+#endif
 }
 
 void CLHL_UnloadClientGame(void)
@@ -1062,18 +1104,6 @@ void CLHL_LoadClientGame(void)
 	dllfunction_t funcs[] =
 	{
 		{(void*)&initfunc, "Initialize"},
-		{(void*)&CLHL_cgamefuncs.HUD_VidInit, "HUD_VidInit"},
-		{(void*)&CLHL_cgamefuncs.HUD_Init, "HUD_Init"},
-		{(void*)&CLHL_cgamefuncs.HUD_Shutdown, "HUD_Shutdown"},
-		{(void*)&CLHL_cgamefuncs.HUD_Redraw, "HUD_Redraw"},
-		{(void*)&CLHL_cgamefuncs.HUD_UpdateClientData, "HUD_UpdateClientData"},
-		{(void*)&CLHL_cgamefuncs.HUD_Reset, "HUD_Reset"},
-#if HLCL_API_VERSION >= 7
-		{(void*)&CLHL_cgamefuncs.CL_CreateMove, "CL_CreateMove"},
-		{(void*)&CLHL_cgamefuncs.IN_ActivateMouse, "IN_ActivateMouse"},
-		{(void*)&CLHL_cgamefuncs.IN_DeactivateMouse, "IN_DeactivateMouse"},
-		{(void*)&CLHL_cgamefuncs.IN_MouseEvent, "IN_MouseEvent"},
-#endif
 		{NULL}
 	};
 
@@ -1102,12 +1132,28 @@ void CLHL_LoadClientGame(void)
 		return;
 	}
 
-	CLHL_cgamefuncs.HUD_Init();
-	CLHL_cgamefuncs.HUD_VidInit();
+	CLHL_cgamefuncs.HUD_VidInit = (void*)Sys_GetAddressForName(clg, "HUD_VidInit");
+	CLHL_cgamefuncs.HUD_Init = (void*)Sys_GetAddressForName(clg, "HUD_Init");
+	CLHL_cgamefuncs.HUD_Shutdown = (void*)Sys_GetAddressForName(clg, "HUD_Shutdown");
+	CLHL_cgamefuncs.HUD_Redraw = (void*)Sys_GetAddressForName(clg, "HUD_Redraw");
+	CLHL_cgamefuncs.HUD_UpdateClientData = (void*)Sys_GetAddressForName(clg, "HUD_UpdateClientData");
+	CLHL_cgamefuncs.HUD_Reset = (void*)Sys_GetAddressForName(clg, "HUD_Reset");
+#if HLCL_API_VERSION >= 7
+	CLHL_cgamefuncs.CL_CreateMove = (void*)Sys_GetAddressForName(clg, "CL_CreateMove");
+	CLHL_cgamefuncs.IN_ActivateMouse = (void*)Sys_GetAddressForName(clg, "IN_ActivateMouse");
+	CLHL_cgamefuncs.IN_DeactivateMouse = (void*)Sys_GetAddressForName(clg, "IN_DeactivateMouse");
+	CLHL_cgamefuncs.IN_MouseEvent = (void*)Sys_GetAddressForName(clg, "IN_MouseEvent");
+#endif
+
+	if (CLHL_cgamefuncs.HUD_Init)
+		CLHL_cgamefuncs.HUD_Init();
+	if (CLHL_cgamefuncs.HUD_VidInit)
+		CLHL_cgamefuncs.HUD_VidInit();
 }
 
 int CLHL_BuildUserInput(int msecs, usercmd_t *cmd)
 {
+#if HLCL_API_VERSION >= 7
 	hlusercmd_t hlcmd;
 	if (!clg || !CLHL_cgamefuncs.CL_CreateMove)
 		return false;
@@ -1127,6 +1173,9 @@ int CLHL_BuildUserInput(int msecs, usercmd_t *cmd)
 	cmd->buttons = hlcmd.buttons;
 	cmd->lightlevel = hlcmd.lightlevel;
 	return true;
+#else
+	return false;
+#endif
 }
 
 int CLHL_DrawHud(void)
@@ -1136,6 +1185,8 @@ int CLHL_DrawHud(void)
 
 	if (!clg || !CLHL_cgamefuncs.HUD_Redraw)
 		return false;
+
+	memset(&state, 0, sizeof(state));
 
 //	state.origin;
 //	state.viewangles;

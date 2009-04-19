@@ -118,7 +118,7 @@ extern void SCR_EndLoadingPlaque					(void);
 extern void SCR_DrawConsole							(qboolean noback);
 extern void SCR_SetUpToDrawConsole					(void);
 extern void SCR_EraseCenterString					(void);
-extern void SCR_CenterPrint							(int pnum, char *str, qboolean fromgamecode);
+extern void SCR_CenterPrint							(int pnum, char *str, qboolean skipgamecode);
 
 #endif
 
@@ -141,7 +141,7 @@ extern qboolean	Mod_GetTag						(struct model_s *model, int tagnum, framestate_t
 extern int Mod_TagNumForName					(struct model_s *model, char *name);
 
 int Mod_GetNumBones(struct model_s *model, qboolean allowtags);
-int Mod_GetBoneRelations(struct model_s *model, int numbones, framestate_t *fstate, float *result);
+int Mod_GetBoneRelations(struct model_s *model, int firstbone, int lastbone, framestate_t *fstate, float *result);
 int Mod_GetBoneParent(struct model_s *model, int bonenum);
 char *Mod_GetBoneName(struct model_s *model, int bonenum);
 

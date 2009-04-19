@@ -471,7 +471,7 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 
 void SCR_CPrint_f(void)
 {
-	SCR_CenterPrint(0, Cmd_Argv(0), true);
+	SCR_CenterPrint(0, Cmd_Args(), true);
 }
 
 void SCR_EraseCenterString (void)

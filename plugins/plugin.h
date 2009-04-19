@@ -133,6 +133,7 @@ EBUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
 EBUILTIN(void, LocalSound, (char *soundname));
 EBUILTIN(void, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 EBUILTIN(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));
+
 EBUILTIN(int, LocalPlayerNumber, (void));
 EBUILTIN(void, GetServerInfo, (char *info, int infolen));
 EBUILTIN(void, SetUserInfo, (char *key, char *value));
@@ -154,6 +155,9 @@ EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 EBUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
 EBUILTIN(void, SCR_CenterPrint, (char *s));
 
+EBUILTIN(int, ReadInputBuffer, (void *inputbuffer, int buffersize));
+EBUILTIN(int, UpdateInputBuffer, (void *inputbuffer, int bytes));
+
 EBUILTIN(int, FS_Open, (char *name, qhandle_t *handle, int mode));
 EBUILTIN(void, FS_Close, (qhandle_t handle));
 EBUILTIN(int, FS_Write, (qhandle_t handle, void *data, int len));
@@ -170,6 +174,9 @@ EBUILTIN(void, Net_Close, (qhandle_t socket));
 #define NET_SERVERPORT -2
 
 
+#if defined(_WIN32) || defined(Q3_VM)
+int vsnprintf(char *buffer, int maxlen, char *format, va_list vargs);
+#endif
 
 #ifdef Q3_VM
 EBUILTIN(void, memcpy, (void *, void *, int len));
@@ -188,6 +195,21 @@ void Con_Printf(char *format, ...);
 void Sys_Errorf(char *format, ...);
 typedef unsigned char qbyte;
 void Q_strncpyz(char *d, const char *s, int n);
+
+
+
+
+#define PLUG_SHARED_BEGIN(t,p,b)		\
+ {										\
+	 t *p;								\
+	 char inputbuffer[8192];			\
+	 *(b) = ReadInputBuffer(inputbuffer, sizeof(inputbuffer));	\
+	 if (*(b))						\
+		 p = (t*)inputbuffer;			\
+	 else								\
+		 p = NULL;
+#define PLUG_SHARED_END(p,b) UpdateInputBuffer(inputbuffer, b);}
+
 
 //
 // qvm_api.c

@@ -215,6 +215,13 @@ BUILTINR(int, Net_Send, (qhandle_t socket, void *buffer, int len));
 BUILTIN(void, Net_Close, (qhandle_t socket));
 #undef ARGNAMES
 
+#define ARGNAMES ,inputbuffer,buffersize
+BUILTINR(int, ReadInputBuffer, (void *inputbuffer, int buffersize));
+#undef ARGNAMES
+#define ARGNAMES ,inputbuffer,bytes
+BUILTINR(int, UpdateInputBuffer, (void *inputbuffer, int bytes));
+#undef ARGNAMES
+
 #ifdef Q3_VM
 #define ARGNAMES ,out,in,len
 BUILTIN(void, memcpy, (void *out, void *in, int len));
@@ -231,6 +238,7 @@ BUILTINR(float, sin, (float f));
 BUILTINR(float, cos, (float f));
 #undef ARGNAMES
 #endif
+
 
 char	*va(char *format, ...)	//Identical in function to the one in Quake, though I can assure you that I wrote it...
 {					//It's not exactly hard, just easy to use, so gets duplicated lots.
@@ -279,6 +287,9 @@ void Plug_InitStandardBuiltins(void)
 
 	CHECKBUILTIN(Plug_ExportToEngine);
 	CHECKBUILTIN(Sys_Error);
+
+	CHECKBUILTIN(ReadInputBuffer);
+	CHECKBUILTIN(UpdateInputBuffer);
 
 #ifdef Q3_VM
 	CHECKBUILTIN(memcpy);

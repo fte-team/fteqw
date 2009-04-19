@@ -781,12 +781,15 @@ void() PlayerJump =
 	
 	if (self.waterlevel >= 2)
 	{
+//pmove code predicts this
+/*
 		if (self.watertype == CONTENT_WATER)
 			self.velocity_z = 100;
 		else if (self.watertype == CONTENT_SLIME)
 			self.velocity_z = 80;
 		else
 			self.velocity_z = 50;
+*/
 
 // play swiming sound
 		if (self.swim_flag < time)
@@ -814,7 +817,9 @@ void() PlayerJump =
 	self.button2 = 0;
 // player jumping sound
 	sound (self, CHAN_BODY, "player/plyrjmp8.wav", 1, ATTN_NORM);
-	self.velocity_z = self.velocity_z + 270;
+
+//pmove code predicts this
+//	self.velocity_z = self.velocity_z + 270;
 };
 
 
@@ -1547,44 +1552,11 @@ void(entity targ, entity attacker) ClientObituary =
 void() DefaultPlayerPhysics = #347;
 void() SV_RunClientCommand =
 {
-	pmove_org = self.origin;
-	pmove_vel = self.velocity;
-	pmove_mins = self.mins;
-	pmove_maxs = self.maxs;
-//	pmove_jump_held = self.jump_held;
-	pmove_waterjumptime = self.teleport_time;
-
 	//should match the one used by csqc.
 #ifdef OWNPLAYERPHYSICS
-	PMove();
+	PMove(self);
 #else
-	DefaultPlayerPhysics();
+	DefaultPlayerPhysics(self);
 #endif
-
-	self.origin = pmove_org;
-	self.velocity = pmove_vel;
-//	self.jump_held = pmove_jump_held;
-	self.teleport_time = pmove_waterjumptime;
-
-	self.waterlevel = 0;//FIXME
-	self.watertype = 0;//FIXME
-
-	self.button0 =   (input_buttons & 1);
-	self.button2 = !!(input_buttons & 2);
-/*
-	self.button3 = !!(input_buttons & 4);
-	self.button4 = !!(input_buttons & 8);
-	self.button5 = !!(input_buttons & 16);
-	self.button6 = !!(input_buttons & 32);
-	self.button7 = !!(input_buttons & 64);
-	self.button8 = !!(input_buttons & 128);
-*/
-	self.v_angle = input_angles;
-	self.angles = input_angles;
-	self.angles_x *= -1/3;
-	self.impulse = input_impulse;
-
-//we don't need this DP extension
-//	self.movement = input_movevalues;
 };
 

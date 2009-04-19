@@ -17,12 +17,12 @@ common/econstants.qc
 cs/constants.qc
 
 common/pmovedefs.qc
+common/pmove.qc
 
 cs/keys.qc
 
 common/makeallstatic.qc
 
-common/pmove.qc
 cs/prediction.qc
 cs/q3playerm.qc
 cs/hlpm.qc

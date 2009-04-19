@@ -30,10 +30,7 @@ static void() Player_Interpolate =
 {	//do some frame interpolation.
 	if (self.entnum == player_localentnum)
 	{
-		Pred_UpdateLocalMovement();
-		self.origin = pmove_org;
-		self.angles = input_angles;
-		self.angles_x = self.angles_x * -0.3333;
+		Pred_UpdateLocalMovement(self);
 	}
 
 	switch(self.modelstyle)
@@ -99,6 +96,10 @@ static void(float g) Player_SetLocalInfoGender =
 {
 	if (player_local == self)
 	{
+		//if it was forced, don't lie to everyone else.
+		if (cvar_string("cg_forceskin") != "")
+			return;
+
 		switch(g)
 		{
 		case GENDER_FEMALE:
@@ -299,10 +300,12 @@ void(float isnew) RefreshPlayer =
 			JustRessed();
 			self.haddied = false;
 		}
+		self.solid = SOLID_BBOX;
 	}
 	else
 	{
 		self.haddied = true;
+		self.solid = SOLID_NOT;
 	}
 
 	self.lastorg = self.origin;
@@ -372,7 +375,7 @@ void(float isnew) RefreshPlayer =
 		return;
 	}
 
-	Pred_PlayerUpdated();
+	Pred_PlayerUpdated(self);
 };
 
 //this is sent after the server has run our movement command.

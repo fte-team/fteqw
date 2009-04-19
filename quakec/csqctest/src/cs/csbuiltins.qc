@@ -62,7 +62,7 @@ string(float keynum) getkeybind		= #342; //  (EXT_CSQC)
 float(float framenum) getinputstate	= #345; //  (EXT_CSQC)
 void(float sens) setsensitivityscaler	= #346; //  (EXT_CSQC)
 
-void() runstandardplayerphysics		= #347; //  (EXT_CSQC)
+void(entity ent) runstandardplayerphysics		= #347; //  (EXT_CSQC_1)
 
 string(float playernum, string keyname) getplayerkeyvalue			= #348; //  (EXT_CSQC)
 

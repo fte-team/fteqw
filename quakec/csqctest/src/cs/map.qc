@@ -5,62 +5,24 @@
 
 string() getentitytoken = #355;
 
-//fixme: I want an engine solution
-entity triggerchain;
-.entity nexttrigger;
-void() pmovetouchtriggers =
+void() cs_teleport_touch =
 {
-	vector amin = pmove_org+pmove_mins;
-	vector amax = pmove_org+pmove_maxs;
-	vector emin;
-	vector emax;
-	entity t;
-	entity oself = self;
-	for (self = triggerchain; self; self = self.nexttrigger)
+	local entity t;
+	t = find(world, targetname, self.target);
+	if (t)
 	{
-		emin = self.origin+self.mins;
-		if (emin_x > amax_x)
-			continue;
-		if (emin_y > amax_y)
-			continue;
-		if (emin_z > amax_z)
-			continue;
-
-		emax = self.origin+self.maxs;
-		if (emax_x < amin_x)
-			continue;
-		if (emax_y < amin_y)
-			continue;
-		if (emax_z < amin_z)
-			continue;
-		
-		if (self.classname == "trigger_teleport")
-		{
-			t = find(world, targetname, self.target);
-			if (t)
-			{
-				makevectors(t.angles);
-				Pred_Predict_Teleport(t.origin + '0 0 27', v_forward*300, t.angles);
-			}
-			//maybe they use a mod that uses some other choice pattern
-		}
-		if (self.classname == "trigger_push")
-		{
-			//fixme: add support for trigger_push
-		}
+		makevectors(t.angles);
+		Pred_Predict_Teleport(t.origin + '0 0 27', v_forward*300, t.angles);
 	}
-
-	self = oself;
-}
+};
 
 void() spawn_trigger_teleport =
 {
-	self.solid = SOLID_NOT;//SOLID_TRIGGER;
+	self.solid = SOLID_TRIGGER;
 	setmodel(self, self.model);
 	self.model = "";
 
-	self.nexttrigger = triggerchain;
-	triggerchain = self;
+	self.touch = cs_teleport_touch;
 };
 
 void() spawn_info_teleport_destination =
@@ -69,18 +31,16 @@ void() spawn_info_teleport_destination =
 
 void() spawn_trigger_push =
 {
-	self.solid = SOLID_NOT;//SOLID_TRIGGER;
+	self.solid = SOLID_TRIGGER;
 	setmodel(self, self.model);
 	self.model = "";
 
-	self.nexttrigger = triggerchain;
-	triggerchain = self;
+//	self.touch = cs_teleport_touch;
 };
 
 void() spawn_worldspawn =
 {
 	levelname = self.message;
-	mapname = "that was the mapname, dumbass";
 	remove(self);
 };
 

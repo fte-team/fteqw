@@ -245,7 +245,6 @@ void() CSQC_Init =
 
 	drawloadingscreen ();
 
-	Pred_ResetPlayerPrediction();
 	regcommands();
 
 #ifndef FTEDEPENDANT

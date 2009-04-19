@@ -57,8 +57,8 @@ float(string skinname) Anim_GetHeadSkinNumber;
 vector(string skinname) Anim_GetHeadOffset;
 
 //prediction
-void() Pred_PlayerUpdated;
-void() Pred_UpdateLocalMovement;
+void(entity ent) Pred_PlayerUpdated;
+void(entity ent) Pred_UpdateLocalMovement;
 vector vieworg;
 
 //menu

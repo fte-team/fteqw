@@ -940,7 +940,9 @@ void SV_Unban_f (void)
 			if (svs.bannedips == nb)
 				svs.bannedips = nbnext;
 			Z_Free(nb);
-			break;
+
+			if (!all)
+				break;
 		}
 
 		nb = nbnext;

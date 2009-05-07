@@ -142,7 +142,7 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 	int frame2;
 	float mlerp;	//minor lerp, poses within a group.
 	int l = 0;
-	
+
 	mlerp = (fg1time)*g1->rate;
 	frame1=mlerp;
 	frame2=frame1+1;
@@ -695,7 +695,7 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galisskeletal
 #endif
 #endif
 
-qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, 
+qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf,
 									entity_t *e,
 								  float alpha, qboolean nolightdir)
 {
@@ -986,7 +986,7 @@ static void Mod_ClampModelSize(model_t *mod)
 			return;
 		}
 	}
-	
+
 	Con_DPrintf("Don't know what size to clamp \"%s\" to (size:%f).\n", mod->name, rad);
 #endif
 }
@@ -1666,7 +1666,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, qboolean alpha)
 			{
 				snprintf(skinname, sizeof(skinname), "%s_%i_pants", loadname, i);
 				texnums->loweroverlay = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
-			
+
 				snprintf(skinname, sizeof(skinname), "%s_%i_shirt", loadname, i);
 				texnums->upperoverlay = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
 			}
@@ -1809,7 +1809,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	}
 
 	seamremap = (int*)pq1inmodel;	//I like overloading locals.
-	
+
 	if (qtest)
 		i = sizeof(dmdl_t)/4 - sizeof(int)*2 - 1;
 	else
@@ -4639,7 +4639,7 @@ int Mod_GetNumBones(struct model_s *model, qboolean allowtags)
 {
 	return 0;
 }
-int Mod_GetBoneRelations(struct model_s *model, int numbones, framestate_t *fstate, float *result)
+int Mod_GetBoneRelations(model_t *model, int firstbone, int lastbone, framestate_t *fstate, float *result)
 {
 	return 0;
 }

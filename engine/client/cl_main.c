@@ -3757,8 +3757,6 @@ void Host_Shutdown(void)
 	S_Shutdown();
 	IN_Shutdown ();
 	R_ShutdownRenderer();
-	if (VID_DeInit)
-		VID_DeInit();
 #ifndef CLIENTONLY
 	SV_Shutdown();
 #else

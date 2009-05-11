@@ -2755,6 +2755,10 @@ QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *func, QCC_def_t *arglist[], i
 
 	if (oldret)
 	{
+		// Make sure our def_ret backup temp wasn't freed above
+		QCC_UnFreeTemp(oldret);	//this bug fix was brought to you by Blub, the character \ and the number 0.
+
+
 		//if we preserved the ofs_ret global, restore it here
 		if (t->type == ev_variant)
 		{

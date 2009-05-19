@@ -21,6 +21,16 @@
 #include "shader.h"
 #endif
 
+#ifdef MINGW
+/* Moodles being evil, need these from server.h
+PMF_JUMP_HELD undeclared (first use in this function)
+PMF_LADDER undeclared (first use in this function)*/
+#define PMF_JUMP_HELD			1
+#define PMF_LADDER				2	//pmove flags. seperate from flags
+// and this from server "progs.h"
+#define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,edict_t,area)
+#endif
+
 //#define CHEAT_PARANOID
 
 #include "pr_common.h"
@@ -559,7 +569,7 @@ void CS_TouchLinks ( csqcedict_t *ent, areanode_t *node )
 // recurse down both sides
 	if (node->axis == -1 || ent->isfree)
 		return;
-	
+
 	if ( ent->v->absmax[node->axis] > node->dist )
 		CS_TouchLinks ( ent, node->children[0] );
 	if ( ent->v->absmin[node->axis] < node->dist )
@@ -3634,7 +3644,7 @@ skelobject_t *skel_get(progfuncs_t *prinst, int skelidx, int bonecount)
 				return &skelobjects[skelidx];
 			}
 		}
-			
+
 		return NULL;
 	}
 	else
@@ -4617,7 +4627,7 @@ qboolean CSQC_DeltaUpdate(entity_state_t *src)
 		CSQC_EntStateToCSQC(deltaflags[src->modelindex], csqcdelta_time, src, ent);
 		ent->v->drawmask = MASK_DELTA;
 
-	
+
 		*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
 		pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = !oldent;
@@ -4716,7 +4726,7 @@ void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	//setup
 	servertime += cl.servertime;
-	pack = CL_ProcessPacketEntities(&servertime, (flags & RSES_NOLERP)); 
+	pack = CL_ProcessPacketEntities(&servertime, (flags & RSES_NOLERP));
 	if (!pack)
 		return;	//we're lagging. can't do anything, just don't update
 
@@ -4813,7 +4823,7 @@ void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globa
 			ent = (csqcedict_t *)ED_Alloc(prinst);
 
 		CSQC_EntStateToCSQC(flags, servertime, src, ent);
-		
+
 		if (csqcg.delta_update)
 		{
 			*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
@@ -5236,7 +5246,7 @@ static struct {
 
 	{"clienttype",	PF_NoCSQC,			455},		// #455 float(entity client) clienttype (DP_SV_BOTCLIENT) (don't implement)
 
-	
+
 //	{"WriteUnterminatedString",PF_WriteString2,		456},	//writestring but without the null terminator. makes things a little nicer.
 
 //DP_TE_FLAMEJET
@@ -5649,7 +5659,7 @@ qboolean CSQC_Init (unsigned int checksum)
 		str = (string_t*)csqcprogs->GetEdictFieldValue(csqcprogs, (edict_t*)worldent, "message", NULL);
 		if (str)
 			*str = PR_SetString(csqcprogs, cl.levelname);
-		
+
 		str = (string_t*)PR_FindGlobal(csqcprogs, "mapname", 0);
 		if (str)
 		{

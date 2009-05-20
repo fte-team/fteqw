@@ -791,7 +791,7 @@ qboolean SVQ3_GetUserCmd(int clientnumber, q3usercmd_t *ucmd)
 	ucmd->angles[0] = cmd->angles[0];
 	ucmd->angles[1] = cmd->angles[1];
 	ucmd->angles[2] = cmd->angles[2];
-	ucmd->serverTime = (signed char)cmd->servertime;
+	ucmd->serverTime = cmd->servertime;
 	ucmd->forwardmove = (signed char)cmd->forwardmove;
 	ucmd->rightmove = cmd->sidemove;
 	ucmd->upmove = cmd->upmove;

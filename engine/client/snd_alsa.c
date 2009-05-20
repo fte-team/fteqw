@@ -225,7 +225,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	memset(hw, 0, psnd_pcm_hw_params_sizeof());
 
 //WARNING: 'default' as the default sucks arse. it adds about a second's worth of lag.
-	devname = Cvar_Get(va("snd_alsadevice%i", cardnum+1), cardnum==0?"hw":"", 0, "Sound controls");
+	devname = Cvar_Get(va("snd_alsadevice%i", cardnum+1), (cardnum==0?"hw":(cardnum==1?"default":"")), 0, "Sound controls");
 	pcmname = devname->string;
 
 	if (!*pcmname)
@@ -239,13 +239,13 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	sc->inactive_sound = true;	//linux sound devices always play sound, even when we're not the active app...
 
-	Con_Printf("Initing ALSA sound device %s\n", pcmname);
+	Con_Printf("Initing ALSA sound device \"%s\"\n", pcmname);
 
 	err = psnd_pcm_open (&pcm, pcmname, SND_PCM_STREAM_PLAYBACK,
 						  SND_PCM_NONBLOCK);
 	if (0 > err)
 	{
-		Con_Printf (CON_ERROR "Error: audio open error: %s\n", psnd_strerror (err));
+		Con_Printf (CON_ERROR "Error: open error: %s\n", psnd_strerror (err));
 		return 0;
 	}
 	Con_Printf ("ALSA: Using PCM %s.\n", pcmname);
@@ -408,6 +408,20 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	sc->handle = pcm;
 	ALSA_GetDMAPos (sc);		// sets shm->buffer
 
+
+	//alsa doesn't seem to like high mixahead values
+	//(maybe it tells us above somehow...)
+	//so force it lower
+	//quake's default of 0.2 was for 10fps rendering anyway
+	//so force it down to 0.1 which is the default for halflife at least, and should give better latency
+	{
+		extern cvar_t _snd_mixahead;
+		if (_snd_mixahead.value >= 0.2)
+		{
+			Con_Printf("Alsa Hack: _snd_mixahead forced lower\n");
+			_snd_mixahead.value = 0.1;
+		}
+	}
 	return true;
 
 error:

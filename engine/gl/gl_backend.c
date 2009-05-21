@@ -424,7 +424,8 @@ void R_PushMesh ( mesh_t *mesh, int features )
 {
 	int numverts;
 
-	if ( !mesh->indexes || !mesh->xyz_array ) {
+	if ( !mesh->indexes || !mesh->xyz_array )
+	{
 		return;
 	}
 
@@ -433,7 +434,8 @@ void R_PushMesh ( mesh_t *mesh, int features )
 	R_PushIndexes ( mesh->indexes, mesh->trneighbors, mesh->trnormals, mesh->numindexes, features );
 
 	numverts = mesh->numvertexes;
-	if ( numVerts + numverts > MAX_ARRAY_VERTS ) {
+	if ( numVerts + numverts > MAX_ARRAY_VERTS )
+	{
 		numverts = MAX_ARRAY_VERTS - numVerts;
 	}
 
@@ -445,29 +447,38 @@ void R_PushMesh ( mesh_t *mesh, int features )
 		currentNormal += numverts * 3;
 	}
 
-	if ( mesh->st_array && (features & MF_STCOORDS) ) {
-		if ( features & MF_NONBATCHED ) {
+	if ( mesh->st_array && (features & MF_STCOORDS) )
+	{
+		if ( features & MF_NONBATCHED )
+		{
 			coordsArray = mesh->st_array;
 			currentCoords = coordsArray[0];
-		} else {
+		}
+		else
+		{
 			memcpy ( currentCoords, mesh->st_array, numverts * sizeof(vec2_t) );
 		}
 
 		currentCoords += numverts * 2;
 	}
 
-	if ( mesh->lmst_array && (features & MF_LMCOORDS) ) {
-		if ( features & MF_NONBATCHED ) {
+	if ( mesh->lmst_array && (features & MF_LMCOORDS) )
+	{
+		if ( features & MF_NONBATCHED )
+		{
 			lightmapCoordsArray = mesh->lmst_array;
 			currentLightmapCoords = lightmapCoordsArray[0];
-		} else {
+		}
+		else
+		{
 			memcpy ( currentLightmapCoords, mesh->lmst_array, numverts * sizeof(vec2_t) );
 		}
 
 		currentLightmapCoords += numverts * 2;
 	}
 
-	if ( mesh->colors_array && (features & MF_COLORS) ) {
+	if ( mesh->colors_array && (features & MF_COLORS) )
+	{
 		memcpy ( currentColor, mesh->colors_array, numverts * sizeof(byte_vec4_t) );
 		currentColor += numverts * 4;
 	}
@@ -771,30 +782,38 @@ R_FlushArrays
 */
 void R_FlushArrays (void)
 {
-	if ( !numVerts || !numIndexes ) {
+	if (!numVerts || !numIndexes)
+	{
 		return;
 	}
 
-	if ( numColors > 1 ) {
-		qglEnableClientState( GL_COLOR_ARRAY );
-	} else if ( numColors == 1 ) {
-		qglColor4ubv ( colorArray[0] );
+	if (numColors > 1)
+	{
+		qglEnableClientState(GL_COLOR_ARRAY);
+	}
+	else if (numColors == 1)
+	{
+		qglColor4ubv(colorArray[0]);
 	}
 
-	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
-	if ( !r_arrays_locked ) {
-		R_DrawTriangleStrips ( indexesArray, numIndexes );
-	} else {
-		qglDrawElements( GL_TRIANGLES, numIndexes, GL_INDEX_TYPE,	indexesArray );
+	if (!r_arrays_locked)
+	{
+		R_DrawTriangleStrips(indexesArray, numIndexes);
+	}
+	else
+	{
+		qglDrawElements(GL_TRIANGLES, numIndexes, GL_INDEX_TYPE, indexesArray);
 	}
 
 	r_numtris += numIndexes / 3;
 
-	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
-	if ( numColors > 1 ) {
-		qglDisableClientState( GL_COLOR_ARRAY );
+	if (numColors > 1)
+	{
+		qglDisableClientState(GL_COLOR_ARRAY);
 	}
 
 	r_numflushes++;
@@ -809,45 +828,54 @@ void R_FlushArraysMtex (void)
 {
 	int i;
 
-	if ( !numVerts || !numIndexes ) {
+	if (!numVerts || !numIndexes)
+	{
 		return;
 	}
 
-	if ( numColors > 1 ) {
-		qglEnableClientState( GL_COLOR_ARRAY );
-	} else if ( numColors == 1 ) {
-		qglColor4ubv ( colorArray[0] );
+	if (numColors > 1)
+	{
+		qglEnableClientState(GL_COLOR_ARRAY);
+	}
+	else if (numColors == 1)
+	{
+		qglColor4ubv(colorArray[0]);
 	}
 
 	GL_MBind( mtexid0, r_texNums[0] );
-	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
-	for ( i = 1; i < r_numUnits; i++ )
+	qglEnableClientState( GL_TEXTURE_COORD_ARRAY);
+	for (i = 1; i < r_numUnits; i++)
 	{
-		GL_MBind( mtexid0 + i, r_texNums[i] );
-		qglEnable ( GL_TEXTURE_2D );
-		qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+		GL_MBind(mtexid0 + i, r_texNums[i]);
+		qglEnable (GL_TEXTURE_2D );
+		qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	}
 
-	if ( !r_arrays_locked ) {
-		R_DrawTriangleStrips ( indexesArray, numIndexes );
-	} else {
-		qglDrawElements( GL_TRIANGLES, numIndexes, GL_INDEX_TYPE,	indexesArray );
+	if (!r_arrays_locked)
+	{
+		R_DrawTriangleStrips (indexesArray, numIndexes);
+	}
+	else
+	{
+		qglDrawElements(GL_TRIANGLES, numIndexes, GL_INDEX_TYPE, indexesArray);
 	}
 
 	r_numtris += numIndexes / 3;
 
 	for ( i = r_numUnits - 1; i >= 0; i-- )
 	{
-		GL_SelectTexture ( mtexid0 + i );
+		GL_SelectTexture (mtexid0 + i);
 
-		if ( i ) {
-			qglDisable ( GL_TEXTURE_2D );
+		if (i)
+		{
+			qglDisable (GL_TEXTURE_2D);
 		}
-		qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
+		qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	}
 
-	if ( numColors > 1 ) {
-		qglDisableClientState( GL_COLOR_ARRAY );
+	if (numColors > 1)
+	{
+		qglDisableClientState(GL_COLOR_ARRAY);
 	}
 
 	r_numflushes++;
@@ -883,7 +911,8 @@ void R_DeformVertices ( meshbuffer_t *mb )
 				args[3] = deformv->func.args[2] + deformv->func.args[3] * r_localShaderTime;
 				table = R_TableForFunc ( deformv->func.type );
 
-				for ( j = 0; j < numVerts; j++ ) {
+				for ( j = 0; j < numVerts; j++ )
+				{
 					deflect = deformv->args[0] * (vertexArray[j][0]+vertexArray[j][1]+vertexArray[j][2]) + args[3];
 					deflect = FTABLE_EVALUATE ( table, deflect ) * args[1] + args[0];
 
@@ -895,7 +924,8 @@ void R_DeformVertices ( meshbuffer_t *mb )
 			case DEFORMV_NORMAL:
 				args[0] = deformv->args[1] * r_localShaderTime;
 
-				for ( j = 0; j < numVerts; j++ ) {
+				for ( j = 0; j < numVerts; j++ )
+				{
 					args[1] = normalsArray[j][2] * args[0];
 
 					deflect = deformv->args[0] * R_FastSin ( args[1] );
@@ -923,7 +953,8 @@ void R_DeformVertices ( meshbuffer_t *mb )
 				args[1] = deformv->args[1];
 				args[2] = r_localShaderTime / (deformv->args[2]*pw);
 
-				for ( k = 0, p = 0; k < ph; k++ ) {
+				for ( k = 0, p = 0; k < ph; k++ )
+				{
 					deflect = R_FastSin ( (float)k * args[0] + args[2] ) * args[1];
 
 					for ( j = 0; j < pw; j++, p++ )
@@ -943,7 +974,8 @@ void R_DeformVertices ( meshbuffer_t *mb )
 					quad[1] = (float *)(vertexArray + indexesArray[k+1]);
 					quad[2] = (float *)(vertexArray + indexesArray[k+2]);
 
-					for ( j = 2; j >= 0; j-- ) {
+					for ( j = 2; j >= 0; j-- ) 
+					{
 						quad[3] = (float *)(vertexArray + indexesArray[k+3+j]);
 						if ( !VectorCompare (quad[3], quad[0]) && 
 							!VectorCompare (quad[3], quad[1]) &&
@@ -967,7 +999,8 @@ void R_DeformVertices ( meshbuffer_t *mb )
 					for ( j = 0; j < 3; j++ )
 						rot_centre[j] = (quad[0][j] + quad[1][j] + quad[2][j] + quad[3][j]) * 0.25 + currententity->origin[j];
 
-					for ( j = 0; j < 4; j++ ) {
+					for ( j = 0; j < 4; j++ )
+					{
 						VectorSubtract ( quad[j], rot_centre, tv );
 						Matrix3_Multiply_Vec3 ( result, tv, quad[j] );
 						VectorAdd ( rot_centre, quad[j], quad[j] );
@@ -990,11 +1023,13 @@ void R_DeformVertices ( meshbuffer_t *mb )
 					quad[1] = (float *)(vertexArray + indexesArray[k+1]);
 					quad[2] = (float *)(vertexArray + indexesArray[k+2]);
 
-					for ( j = 2; j >= 0; j-- ) {
+					for ( j = 2; j >= 0; j-- )
+					{
 						quad[3] = (float *)(vertexArray + indexesArray[k+3+j]);
 						if ( !VectorCompare (quad[3], quad[0]) && 
 							!VectorCompare (quad[3], quad[1]) &&
-							!VectorCompare (quad[3], quad[2]) ) {
+							!VectorCompare (quad[3], quad[2]) )
+						{
 							break;
 						}
 					}
@@ -1047,16 +1082,22 @@ void R_DeformVertices ( meshbuffer_t *mb )
 						}
 					}
 
-					if ( DotProduct (m0[long_axis], m0[short_axis]) ) {
+					if ( DotProduct (m0[long_axis], m0[short_axis]) )
+					{
 						VectorNormalize2 ( m0[long_axis], axis );
 						VectorCopy ( axis, m0[1] );
 
-						if ( axis[0] || axis[1] ) {
+						if ( axis[0] || axis[1] )
+						{
 							VectorVectors ( m0[1], m0[2], m0[0] );
-						} else {
+						}
+						else
+						{
 							VectorVectors ( m0[1], m0[0], m0[2] );
 						}
-					} else {
+					}
+					else
+					{
 						VectorNormalize2 ( m0[long_axis], axis );
 						VectorNormalize2 ( m0[short_axis], m0[0] );
 						VectorCopy ( axis, m0[1] );
@@ -1066,9 +1107,12 @@ void R_DeformVertices ( meshbuffer_t *mb )
 					for ( j = 0; j < 3; j++ )
 						rot_centre[j] = (quad[0][j] + quad[1][j] + quad[2][j] + quad[3][j]) * 0.25;
 
-					if ( currententity ) {
+					if ( currententity )
+					{
 						VectorAdd ( currententity->origin, rot_centre, tv );
-					} else {
+					}
+					else
+					{
 						VectorCopy ( rot_centre, tv );
 					}
 					VectorSubtract ( r_origin, tv, tv );
@@ -1084,7 +1128,8 @@ void R_DeformVertices ( meshbuffer_t *mb )
 					Matrix3_Transpose ( m1, m2 );
 					Matrix3_Multiply ( m2, m0, result );
 
-					for ( j = 0; j < 4; j++ ) {
+					for ( j = 0; j < 4; j++ )
+					{
 						VectorSubtract ( quad[j], rot_centre, tv );
 						Matrix3_Multiply_Vec3 ( result, tv, quad[j] );
 						VectorAdd ( rot_centre, quad[j], quad[j] );
@@ -1150,7 +1195,8 @@ float *R_VertexTCBase ( int tcgen, int unit )
 	if ( tcgen == TC_GEN_BASE )
 	{
 		memcpy ( outCoords, coordsArray[0], sizeof(float) * 2 * numVerts );
-	} else if ( tcgen == TC_GEN_LIGHTMAP )
+	}
+	else if ( tcgen == TC_GEN_LIGHTMAP )
 	{
 		memcpy ( outCoords, lightmapCoordsArray[0], sizeof(float) * 2 * numVerts );
 	}
@@ -1159,54 +1205,6 @@ float *R_VertexTCBase ( int tcgen, int unit )
 		RB_CalcEnvironmentTexCoords(outCoords);	//use genuine q3 code, to get it totally identical (for cell shading effects)
 												//plus, it looks like less overhead too
 												//I guess it depends on the size of the mesh
-/*
-	//the old qfusion code
-		if ( !currentmodel )
-		{
-			VectorSubtract ( vec3_origin, currententity->origin, transform );
-			AngleVectors(currententity->angles, axis[0], axis[1], axis[2]);
-			Matrix3_Transpose ( axis, inverse_axis );
-		}
-		else if ( currentmodel == cl.worldmodel )
-		{
-			VectorSubtract ( vec3_origin, r_origin, transform );
-		}
-		else if ( currentmodel->type == mod_brush )
-		{
-			VectorNegate ( currententity->origin, t );
-			VectorSubtract ( t, r_origin, transform );
-			AngleVectors(currententity->angles, axis[0], axis[1], axis[2]);
-			Matrix3_Transpose ( axis, inverse_axis );
-		}
-		else
-		{
-			VectorSubtract ( vec3_origin, currententity->origin, transform );
-			AngleVectors(currententity->angles, axis[0], axis[1], axis[2]);
-			Matrix3_Transpose ( axis, inverse_axis );
-		}
-
-		for ( i = 0; i < numVerts; i++, outCoords += 2 )
-		{
-			VectorAdd ( vertexArray[i], transform, t );
-
-			// project vector
-			if ( currentmodel && (currentmodel == cl.worldmodel) )
-			{
-				n[0] = normalsArray[i][0];
-				n[1] = normalsArray[i][1];
-				n[2] = Q_rsqrt ( DotProduct(t,t) );
-			}
-			else
-			{
-				n[0] = DotProduct ( normalsArray[i], inverse_axis[0] );
-				n[1] = DotProduct ( normalsArray[i], inverse_axis[1] );
-				n[2] = Q_rsqrt ( DotProduct(t,t) );
-			}
-
-			outCoords[0] = t[0]*n[2] - n[0];
-			outCoords[1] = t[1]*n[2] - n[1];
-		}
-*/
 	}
 	else if ( tcgen == TC_GEN_VECTOR )
 	{
@@ -1232,18 +1230,19 @@ int R_ShaderpassTex ( shaderpass_t *pass )
 {
 	if (pass->flags & (SHADER_PASS_ANIMMAP|SHADER_PASS_LIGHTMAP|SHADER_PASS_VIDEOMAP|SHADER_PASS_DELUXMAP))
 	{
-		if ( pass->flags & SHADER_PASS_ANIMMAP ) {
+		if (pass->flags & SHADER_PASS_ANIMMAP)
+		{
 			return pass->anim_frames[(int)(pass->anim_fps * r_localShaderTime) % pass->anim_numframes];
 		}
-		else if ( (pass->flags & SHADER_PASS_LIGHTMAP) && r_lmtex >= 0 )
+		else if ((pass->flags & SHADER_PASS_LIGHTMAP) && r_lmtex >= 0)
 		{
 			return lightmap_textures[r_lmtex];
 		}
-		else if ( (pass->flags & SHADER_PASS_DELUXMAP) && r_lmtex >= 0 )
+		else if ((pass->flags & SHADER_PASS_DELUXMAP) && r_lmtex >= 0)
 		{
 			return lightmap_textures[r_lmtex+1];
 		}
-		else if ( (pass->flags & SHADER_PASS_VIDEOMAP))
+		else if ((pass->flags & SHADER_PASS_VIDEOMAP))
 		{
 			return Media_UpdateForShader(pass->anim_frames[0], pass->cin);
 		}
@@ -2304,32 +2303,37 @@ void R_DrawNormals (void)
 {
 	int i;
 
-	R_ResetTexState ();
+	R_ResetTexState();
 
-	qglDisable( GL_TEXTURE_2D );
-	qglColor4f( 1, 1, 1, 1 );
-	qglDisable( GL_BLEND );
+	qglDisable(GL_TEXTURE_2D);
+	qglColor4f(1, 1, 1, 1);
+	qglDisable(GL_BLEND);
 
-	if ( gl_state.in2d ) {
-		qglBegin ( GL_POINTS );
-		for ( i = 0; i < numVerts; i++ ) { 
-			qglVertex3fv ( vertexArray[i] );
+	if (gl_state.in2d)
+	{
+		qglBegin(GL_POINTS);
+		for (i = 0; i < numVerts; i++)
+		{ 
+			qglVertex3fv(vertexArray[i]);
 		}
-		qglEnd ();
-	} else {
-		qglDisable( GL_DEPTH_TEST );
-		qglBegin ( GL_LINES );
-		for ( i = 0; i < numVerts; i++ ) { 
-			qglVertex3fv ( vertexArray[i] );
-			qglVertex3f ( vertexArray[i][0] + normalsArray[i][0], 
+		qglEnd();
+	}
+	else
+	{
+		qglDisable(GL_DEPTH_TEST);
+		qglBegin(GL_LINES);
+		for (i = 0; i < numVerts; i++)
+		{ 
+			qglVertex3fv(vertexArray[i]);
+			qglVertex3f(vertexArray[i][0] + normalsArray[i][0], 
 				vertexArray[i][1] + normalsArray[i][1], 
-				vertexArray[i][2] + normalsArray[i][2] );
+				vertexArray[i][2] + normalsArray[i][2]);
 		}
-		qglEnd ();
-		qglEnable( GL_DEPTH_TEST );
+		qglEnd();
+		qglEnable(GL_DEPTH_TEST);
 	}
 
-	qglEnable( GL_TEXTURE_2D );
+	qglEnable(GL_TEXTURE_2D);
 }
 
 /*
@@ -2373,8 +2377,7 @@ void R_AddDynamicLights ( meshbuffer_t *mb )
 			Matrix3_Multiply_Vec3 ( currententity->axis, point, dlorigin );
 		}
 
-		qglColor4f (light->color[0]*2, light->color[1]*2, light->color[2]*2,
-			1);//light->color[3]);
+		qglColor4f (light->color[0]*2, light->color[1]*2, light->color[2]*2, 1);//light->color[3]);
 
 		R_ResetTexState ();
 		dlightNumIndexes = 0;
@@ -2432,7 +2435,8 @@ void R_AddDynamicLights ( meshbuffer_t *mb )
 			tempIndexesArray[dlightNumIndexes++] = index[2];
 		}
 
-		if ( dlightNumIndexes ) {
+		if ( dlightNumIndexes )
+		{
 			R_PushIndexes ( tempIndexesArray, NULL, NULL, dlightNumIndexes, MF_NONBATCHED );
 			R_FlushArrays ();
 			dlightNumIndexes = 0;

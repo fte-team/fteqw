@@ -281,7 +281,7 @@ void IN_Move (float *movements, int pnum)
    
 	if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
 	{
-		if (cmd)
+		if (movements)
 			movements[1] += m_side.value * mouse_x;
 	}
 	else
@@ -295,7 +295,7 @@ void IN_Move (float *movements, int pnum)
 		cl.viewangles[pnum][PITCH] += m_pitch.value * mouse_y;
 		CL_ClampPitch(pnum);
 	} else {
-		if (cmd)
+		if (movements)
 		{
 			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
 				movements[2] -= m_forward.value * mouse_y;

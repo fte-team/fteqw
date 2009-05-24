@@ -1412,22 +1412,21 @@ void IN_Move (float *movements, int pnum)
 #ifdef IN_XFLIP
 	if(in_xflip.value) mouse_x *= -1;
 #endif
+	if (movements)
+   	{
+		if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
+			movements[1] += m_side.value * mouse_x;
+		else
+			cl.viewangles[pnum][YAW] -= m_yaw.value * mouse_x;
+		if (in_mlook.state[pnum] & 1)
+			V_StopPitchDrift (pnum);
    
-	if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
-		movements[1] += m_side.value * mouse_x;
-	else
-		cl.viewangles[pnum][YAW] -= m_yaw.value * mouse_x;
-	if (in_mlook.state[pnum] & 1)
-		V_StopPitchDrift (pnum);
-   
-	if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
-	{
-		cl.viewangles[pnum][PITCH] += m_pitch.value * mouse_y;
-		CL_ClampPitch(pnum);
-	}
-	else
-	{
-		if (cmd)
+		if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
+		{
+			cl.viewangles[pnum][PITCH] += m_pitch.value * mouse_y;
+			CL_ClampPitch(pnum);
+		}
+		else
 		{
 			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
 				movements[2] -= m_forward.value * mouse_y;

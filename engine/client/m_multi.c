@@ -282,7 +282,7 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 		{
 			info->tiwidth = ((int*)f)[0];
 			info->tiheight = ((int*)f)[1];
-			memcpy(info->translationimage, f+8, info->tiwidth*info->tiheight);
+			memcpy(info->translationimage, (char*)f+8, info->tiwidth*info->tiheight);
 			FS_FreeFile(f);
 		}
 	}

@@ -2874,7 +2874,11 @@ void COM_Version_f (void)
 	else if (_MSC_VER == 1500) { Con_Printf("Visual C++ 2008, version 9.0\n"); }
 	else
 	{
-		Con_Printf("Unknown Microsoft C++ compiler: %i %i %i \n",_MSC_VER, _MSC_FULL_VER, _MSC_BUILD);
+#ifdef _MSC_BUILD
+		Con_Printf("Unknown Microsoft C++ compiler: %i %i %i\n",_MSC_VER, _MSC_FULL_VER, _MSC_BUILD);
+#else
+		Con_Printf("Unknown Microsoft C++ compiler: %i %i\n",_MSC_VER, _MSC_FULL_VER);
+#endif
 	}
 #endif
 }

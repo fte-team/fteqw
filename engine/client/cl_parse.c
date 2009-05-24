@@ -4289,7 +4289,11 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 		Q_strncatz(fullchatmessage, va("%s", msg), sizeof(fullchatmessage));
 	}
 
-	CSQC_ParsePrint(fullchatmessage, PRINT_CHAT);
+#ifdef CSQC_DAT
+	if (CSQC_ParsePrint(fullchatmessage, PRINT_CHAT))
+		return;
+#endif
+	Con_Printf("%s", fullchatmessage);
 }
 
 // CL_PrintStandardMessage: takes non-chat net messages and performs name coloring
@@ -4369,7 +4373,11 @@ void CL_PrintStandardMessage(char *msg, int printlevel)
 
 	// print final chunk
 	Q_strncatz(fullmessage, msg, sizeof(fullmessage));
-	CSQC_ParsePrint(fullmessage, printlevel);
+#ifdef CSQC_DAT
+	if (CSQC_ParsePrint(fullmessage, printlevel))
+		return;
+#endif
+	Con_Printf("%s", fullmessage);
 }
 
 char stufftext[4096];

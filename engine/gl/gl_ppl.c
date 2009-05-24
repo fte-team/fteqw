@@ -1651,7 +1651,10 @@ static void PPL_BaseChain_NPR_Sketch(msurface_t *first)
 static void PPL_BaseTextureChain(msurface_t *first)
 {
 	texture_t	*t;
+#ifdef Q3SHADERS
 	shader_t *shader;
+#endif
+
 	if (r_drawflat.value||!r_lightmapintensity)
 	{
 		if (r_drawflat.value == 2)

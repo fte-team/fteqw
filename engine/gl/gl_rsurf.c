@@ -3553,7 +3553,7 @@ void GL_GenBrushModelVBO(model_t *mod)
 	void *vbovdata;
 	index_t *vboedata;
 	mesh_t *m;
-#define VBOSTRIDE (3+2+2)*4
+
 	if (!qglGenBuffersARB || !mod->numsurfaces)
 		return;
 

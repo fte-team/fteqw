@@ -119,6 +119,8 @@ vfsfile_t *VFSW32_Open(const char *osname, const char *mode)
 		h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	else if (read)
 		h = CreateFileA(osname, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	else
+		h = INVALID_HANDLE_VALUE;
 	if (h == INVALID_HANDLE_VALUE)
 		return NULL;
 

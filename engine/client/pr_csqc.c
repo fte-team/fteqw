@@ -6025,7 +6025,7 @@ qboolean CSQC_LoadResource(char *resname, char *restype)
 	return !!G_FLOAT(OFS_RETURN);
 }
 
-void CSQC_ParsePrint(char *message, int printlevel)
+qboolean CSQC_ParsePrint(char *message, int printlevel)
 {
 	void *pr_globals;
 	int bufferpos;
@@ -6033,8 +6033,7 @@ void CSQC_ParsePrint(char *message, int printlevel)
 	qboolean doflush;
 	if (!csqcprogs || !csqcg.parse_print)
 	{
-		Con_Printf("%s", message);
-		return;
+		return false;
 	}
 
 	bufferpos = strlen(csqc_printbuffer);
@@ -6081,6 +6080,7 @@ void CSQC_ParsePrint(char *message, int printlevel)
 			csqc_printbuffer[bufferpos] = 0;
 		}
 	}
+	return true;
 }
 
 qboolean CSQC_StuffCmd(int lplayernum, char *cmd)

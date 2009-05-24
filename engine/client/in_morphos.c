@@ -231,7 +231,7 @@ void IN_Commands(void)
 
 }
 
-void IN_Move (usercmd_t *cmd, int pnum)
+void IN_Move (float *movements, int pnum)
 {
 	extern int mousecursor_x, mousecursor_y;
 	extern int mousemove_x, mousemove_y;
@@ -282,7 +282,7 @@ void IN_Move (usercmd_t *cmd, int pnum)
 	if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
 	{
 		if (cmd)
-			cmd->sidemove += m_side.value * mouse_x;
+			movements[1] += m_side.value * mouse_x;
 	}
 	else
 	{
@@ -298,9 +298,9 @@ void IN_Move (usercmd_t *cmd, int pnum)
 		if (cmd)
 		{
 			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
-				cmd->upmove -= m_forward.value * mouse_y;
+				movements[2] -= m_forward.value * mouse_y;
 			else
-				cmd->forwardmove -= m_forward.value * mouse_y;
+				movements[0] -= m_forward.value * mouse_y;
 		}
 	}
 	mouse_x = mouse_y = 0.0;

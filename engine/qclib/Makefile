@@ -7,13 +7,13 @@ LIB_OBJS=
 
 CC=gcc -Wall
 
-DO_CC=$(CC) $(BASE_CFLAGS) -o $@ -c $< $(CFLAGS)
-
 all: qcc
 
 USEGUI_CFLAGS=
 # set to -DUSEGUI when compiling the GUI
 BASE_CFLAGS=-ggdb $(USEGUI_CFLAGS)
+
+DO_CC=$(CC) $(BASE_CFLAGS) -o $@ -c $< $(CFLAGS)
 
 lib: 
 
@@ -23,15 +23,18 @@ R_nocyg: $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS)
 	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mno-cygwin -lcomctl32
 R_win: $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS)
 	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mwindows -lcomctl32
-win_nocyg:
-	$(MAKE) USEGUI_CFLAGS=-DUSEGUI R_win_nocyg
-nocyg:
-	$(MAKE) USEGUI_CFLAGS=-DUSEGUI R_nocyg
-win:
-	$(MAKE) USEGUI_CFLAGS=-DUSEGUI R_win
 
-qcc: $(QCC_OBJS) $(COMMON_OBJS)
+win_nocyg:
+	$(MAKE) USEGUI_CFLAGS="-DUSEGUI -DQCCONLY" R_win_nocyg
+nocyg:
+	$(MAKE) USEGUI_CFLAGS="-DUSEGUI -DQCCONLY" R_nocyg
+win:
+	$(MAKE) USEGUI_CFLAGS="-DUSEGUI -DQCCONLY" R_win
+
+R_qcc: $(QCC_OBJS) $(COMMON_OBJS)
 	$(CC) $(BASE_CFLAGS) -o fteqcc.bin -O3 -s $(QCC_OBJS) $(COMMON_OBJS)
+qcc:
+	$(MAKE) USEGUI_CFLAGS="-DQCCONLY" R_qcc
 
 qccmain.o: qccmain.c qcc.h
 	$(DO_CC)

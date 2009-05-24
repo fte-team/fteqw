@@ -2802,7 +2802,7 @@ PR_ParseFunctionCall
 */
 QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could have no name set if it's a field call.
 {
-	QCC_def_t		*e, *d, *old, *oself;
+	QCC_def_t		*e, *d, *old, *oself, *out;
 	int			arg;
 	QCC_type_t		*t, *p;
 	int extraparms=false;
@@ -2836,6 +2836,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	{
 		if (!strcmp(func->name, "random"))
 		{
+			old = NULL;
 			func->references++;
 			if (!QCC_PR_CheckToken(")"))
 			{
@@ -2859,33 +2860,39 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 				d = NULL;
 			}
 
-
-			if (def_ret.temp->used)
-			{
-				old = QCC_GetTemp(def_ret.type);
-				if (def_ret.type->size == 3)
-					QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_V], &def_ret, old, NULL));
-				else
-					QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], &def_ret, old, NULL));
-				QCC_PR_ParseWarning(WARN_FIXEDRETURNVALUECONFLICT, "Return value conflict - output is inefficient");
-			}
-			else
-				old = NULL;
-
 			if (QCC_OPCodeValid(&pr_opcodes[OP_RAND0]))
 			{
+				if(def_ret.temp->used)
+					out = QCC_GetTemp(type_float);
+				else
+					out = &def_ret;
+				
 				if (e)
 				{
 					if (d)
-						QCC_PR_SimpleStatement(OP_RAND2, e->ofs, d->ofs, OFS_RETURN, false);
+						QCC_PR_SimpleStatement(OP_RAND2, e->ofs, d->ofs, out->ofs, false);
 					else
-						QCC_PR_SimpleStatement(OP_RAND1, e->ofs, 0, OFS_RETURN, false);
+						QCC_PR_SimpleStatement(OP_RAND1, e->ofs, 0, out->ofs, false);
 				}
 				else
-					QCC_PR_SimpleStatement(OP_RAND0, 0, 0, OFS_RETURN, false);
+					QCC_PR_SimpleStatement(OP_RAND0, 0, 0, out->ofs, false);
 			}
 			else
 			{
+				if (def_ret.temp->used)
+				{
+					old = QCC_GetTemp(def_ret.type);
+					if (def_ret.type->size == 3)
+						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_V], &def_ret, old, NULL));
+					else
+						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], &def_ret, old, NULL));
+					QCC_UnFreeTemp(old);
+					QCC_UnFreeTemp(&def_ret);
+					QCC_PR_ParseWarning(WARN_FIXEDRETURNVALUECONFLICT, "Return value conflict - output is inefficient");
+				}
+				else
+					old = NULL;
+			
 				if (e)
 				{
 					if (d)
@@ -2944,6 +2951,8 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 				else
 					QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_F, old, &def_ret, NULL));
 				QCC_FreeTemp(old);
+				QCC_UnFreeTemp(d);
+				QCC_UnFreeTemp(&def_ret);
 
 				return d;
 			}
@@ -2957,6 +2966,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 		}
 		if (!strcmp(func->name, "randomv"))
 		{
+			out = NULL;
 			func->references++;
 			if (!QCC_PR_CheckToken(")"))
 			{
@@ -2980,33 +2990,39 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 				d = NULL;
 			}
 
-
-			if (def_ret.temp->used)
-			{
-				old = QCC_GetTemp(def_ret.type);
-				if (def_ret.type->size == 3)
-					QCC_PR_Statement(&pr_opcodes[OP_STORE_V], &def_ret, old, NULL);
-				else
-					QCC_PR_Statement(&pr_opcodes[OP_STORE_F], &def_ret, old, NULL);
-				QCC_PR_ParseWarning(WARN_FIXEDRETURNVALUECONFLICT, "Return value conflict - output is inefficient");
-			}
-			else
-				old = NULL;
-
 			if (QCC_OPCodeValid(&pr_opcodes[OP_RANDV0]))
 			{
+				if(def_ret.temp->used)
+					out = QCC_GetTemp(type_vector);
+				else
+					out = &def_ret;
+				
 				if (e)
 				{
 					if (d)
-						QCC_PR_SimpleStatement(OP_RANDV2, e->ofs, d->ofs, OFS_RETURN, false);
+						QCC_PR_SimpleStatement(OP_RANDV2, e->ofs, d->ofs, out->ofs, false);
 					else
-						QCC_PR_SimpleStatement(OP_RANDV1, e->ofs, 0, OFS_RETURN, false);
+						QCC_PR_SimpleStatement(OP_RANDV1, e->ofs, 0, out->ofs, false);
 				}
 				else
-					QCC_PR_SimpleStatement(OP_RANDV0, 0, 0, OFS_RETURN, false);
+					QCC_PR_SimpleStatement(OP_RANDV0, 0, 0, out->ofs, false);
 			}
 			else
 			{
+				if (def_ret.temp->used)
+				{
+					old = QCC_GetTemp(def_ret.type);
+					if (def_ret.type->size == 3)
+						QCC_PR_Statement(&pr_opcodes[OP_STORE_V], &def_ret, old, NULL);
+					else
+						QCC_PR_Statement(&pr_opcodes[OP_STORE_F], &def_ret, old, NULL);
+					QCC_UnFreeTemp(old);
+					QCC_UnFreeTemp(&def_ret);
+					QCC_PR_ParseWarning(WARN_FIXEDRETURNVALUECONFLICT, "Return value conflict - output is inefficient");
+				}
+				else
+					old = NULL;
+				
 				if (e)
 				{
 					if (d)
@@ -3126,6 +3142,8 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 					QCC_PR_Statement(pr_opcodes+OP_STORE_F, old, &def_ret, NULL);
 				}
 				QCC_FreeTemp(old);
+				QCC_UnFreeTemp(d);
+				QCC_UnFreeTemp(&def_ret);
 
 				return d;
 			}
@@ -3152,9 +3170,25 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 				QCC_PR_Expect(")");
 			}
 
+			
+			if (def_ret.temp->used)
+			{
+				old = QCC_GetTemp(def_ret.type);
+				if (def_ret.type->size == 3)
+					QCC_PR_Statement(&pr_opcodes[OP_STORE_V], &def_ret, old, NULL);
+				else
+					QCC_PR_Statement(&pr_opcodes[OP_STORE_F], &def_ret, old, NULL);
+				QCC_UnFreeTemp(old);
+				QCC_UnFreeTemp(&def_ret);
+				QCC_PR_ParseWarning(WARN_FIXEDRETURNVALUECONFLICT, "Return value conflict - output is inefficient");
+			}
+			else
+				old = NULL;
+			/*
 			if (def_ret.temp->used)
 				QCC_PR_ParseWarning(0, "Return value conflict - output is likly to be invalid");
 			def_ret.temp->used = true;
+			*/
 
 			if (rettype != type_entity)
 			{
@@ -3164,6 +3198,22 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 				func->references++;
 			}
 			QCC_PR_SimpleStatement(OP_CALL0, func->ofs, 0, 0, false);
+
+			if (old)
+			{
+				d = QCC_GetTemp(rettype);
+				QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_ENT, &def_ret, d, NULL));
+				if (def_ret.type->size == 3)
+					QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_V, old, &def_ret, NULL));
+				else
+					QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_STORE_F, old, &def_ret, NULL));
+				QCC_FreeTemp(old);
+				QCC_UnFreeTemp(d);
+				QCC_UnFreeTemp(&def_ret);
+
+				return d;
+			}
+			
 			def_ret.type = rettype;
 			return &def_ret;
 		}

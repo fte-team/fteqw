@@ -2,10 +2,16 @@
 Microsoft Visual Studio Solution File, Format Version 9.00
 # Visual Studio 2005
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ftequake", "ftequake.vcproj", "{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}"
+	ProjectSection(ProjectDependencies) = postProject
+		{382E6790-D1CA-48F5-8E53-D114635EB61D} = {382E6790-D1CA-48F5-8E53-D114635EB61D}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gas2masm", "gas2masm.vcproj", "{382E6790-D1CA-48F5-8E53-D114635EB61D}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "npqtv", "npqtv.vcproj", "{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}"
+	ProjectSection(ProjectDependencies) = postProject
+		{382E6790-D1CA-48F5-8E53-D114635EB61D} = {382E6790-D1CA-48F5-8E53-D114635EB61D}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -31,6 +31,9 @@ typedef enum {
 	PM_FREEZE			// can't move or look around (TODO)
 } pmtype_t;
 
+#define PMF_JUMP_HELD			1
+#define PMF_LADDER				2	//pmove flags. seperate from flags
+
 #define	MAX_PHYSENTS	128
 typedef struct
 {

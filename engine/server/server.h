@@ -818,9 +818,6 @@ typedef struct
 #define FL_MOVECHAIN_ANGLE		32768    // when in a move chain, will update the angle
 #define FL_CLASS_DEPENDENT		2097152
 
-#define PMF_JUMP_HELD			1
-#define PMF_LADDER				2	//pmove flags. seperate from flags
-
 #define PVSF_NORMALPVS		0x0
 #define PVSF_NOTRACECHECK	0x1
 #define PVSF_USEPHS			0x2

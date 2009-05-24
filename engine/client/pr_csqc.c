@@ -21,16 +21,6 @@
 #include "shader.h"
 #endif
 
-#ifdef MINGW
-/* Moodles being evil, need these from server.h
-PMF_JUMP_HELD undeclared (first use in this function)
-PMF_LADDER undeclared (first use in this function)*/
-#define PMF_JUMP_HELD			1
-#define PMF_LADDER				2	//pmove flags. seperate from flags
-// and this from server "progs.h"
-#define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,edict_t,area)
-#endif
-
 //#define CHEAT_PARANOID
 
 #include "pr_common.h"
@@ -435,6 +425,8 @@ static void CS_LinkEdict(csqcedict_t *ent, qboolean touchtriggers);
 
 areanode_t	cs_areanodes[AREA_NODES];
 int			cs_numareanodes;
+#define	CSEDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,csqcedict_t,area)
+
 areanode_t *CS_CreateAreaNode (int depth, vec3_t mins, vec3_t maxs)
 {
 	areanode_t	*anode;
@@ -514,7 +506,7 @@ void CS_TouchLinks ( csqcedict_t *ent, areanode_t *node )
 		if (linkcount == MAX_NODELINKS)
 			break;
 		next = l->next;
-		touch = (csqcedict_t*)EDICT_FROM_AREA(l);
+		touch = CSEDICT_FROM_AREA(l);
 		if (touch == ent)
 			continue;
 

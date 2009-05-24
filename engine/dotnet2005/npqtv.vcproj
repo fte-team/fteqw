@@ -32634,6 +32634,10 @@
 					>
 				</File>
 				<File
+					RelativePath="..\common\fs_win32.c"
+					>
+				</File>
+				<File
 					RelativePath="..\common\fs_zip.c"
 					>
 				</File>

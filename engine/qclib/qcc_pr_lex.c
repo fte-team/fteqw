@@ -267,7 +267,7 @@ int ParsePrecompilerIf(void)
 	{
 		c = QCC_PR_CheckCompConstDefined(pr_token);
 		if (!c)
-			eval = false;
+			eval = atoi(pr_token);
 		else
 			eval = atoi(c->value);
 	}
@@ -805,6 +805,11 @@ pbool QCC_PR_Precompiler(void)
 				if (strlen(msg) >= sizeof(QCC_copyright))
 					QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
 				strncpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
+			}
+			else if (!strncmp(qcc_token, "compress", 8))
+			{
+				extern pbool compressoutput;
+				compressoutput = atoi(msg);
 			}
 			else if (!strncmp(qcc_token, "forcecrc", 8))
 			{

@@ -280,7 +280,7 @@ void IN_RawInput_DeInit(void);
 // forward-referenced functions
 void IN_StartupJoystick (void);
 void Joy_AdvancedUpdate_f (void);
-void IN_JoyMove (usercmd_t *cmd, int pnum);
+void IN_JoyMove (float *movements, int pnum);
 
 /*
 ===========
@@ -1397,7 +1397,7 @@ void IN_MouseEvent (int mstate)
 	}
 }
 
-static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
+static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 {
 	extern int mousecursor_x, mousecursor_y;
 	extern int mousemove_x, mousemove_y;
@@ -1522,7 +1522,7 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 	}
 
 
-	if (!cmd)
+	if (!movements)
 	{
 		return;
 	}
@@ -1532,7 +1532,7 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 
 // add mouse X/Y movement to cmd
 	if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
-		cmd->sidemove += m_side.value * mouse_x;
+		movements[1] += m_side.value * mouse_x;
 	else
 	{
 //		if ((int)((cl.viewangles[pnum][PITCH]+89.99)/180) & 1)
@@ -1552,9 +1552,9 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 	else
 	{
 		if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
-			cmd->upmove -= m_forward.value * mouse_y;
+			movements[2] -= m_forward.value * mouse_y;
 		else
-			cmd->forwardmove -= m_forward.value * mouse_y;
+			movements[0] -= m_forward.value * mouse_y;
 	}
 
 }
@@ -1565,7 +1565,7 @@ static void ProcessMouse(mouse_t *mouse, usercmd_t *cmd, int pnum)
 IN_MouseMove
 ===========
 */
-void IN_MouseMove (usercmd_t *cmd, int pnum)
+void IN_MouseMove (float *movements, int pnum)
 {
 #ifdef RGLQUAKE
 	extern int glwidth, glheight;
@@ -1744,22 +1744,22 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 
 			for (x = 0; x < rawmicecount; x++)
 			{
-				ProcessMouse(rawmice + x, cmd, 0);
+				ProcessMouse(rawmice + x, movements, 0);
 			}
 		}
 		else if (pnum < rawmicecount)
 		{
-			ProcessMouse(rawmice + pnum, cmd, pnum);
+			ProcessMouse(rawmice + pnum, movements, pnum);
 		}
 	}
 #endif
 
 	if (pnum == 0)
-		ProcessMouse(&sysmouse,		cmd, pnum);
+		ProcessMouse(&sysmouse,		movements, pnum);
 
 #ifdef SERIALMOUSE
 	if (pnum == 1 || cl.splitclients<2)
-		ProcessMouse(&serialmouse,	cmd, pnum);
+		ProcessMouse(&serialmouse,	movements, pnum);
 #endif
 }
 
@@ -1769,14 +1769,14 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 IN_Move
 ===========
 */
-void IN_Move (usercmd_t *cmd, int pnum)
+void IN_Move (float *movements, int pnum)
 {
 
 	if (ActiveApp && !Minimized)
 	{
-		IN_MouseMove (cmd, pnum);
+		IN_MouseMove (movements, pnum);
 		if (pnum == 1 || cl.splitclients<2)
-			IN_JoyMove (cmd, pnum);
+			IN_JoyMove (movements, pnum);
 	}
 }
 
@@ -2219,7 +2219,7 @@ qboolean IN_ReadJoystick (void)
 IN_JoyMove
 ===========
 */
-void IN_JoyMove (usercmd_t *cmd, int pnum)
+void IN_JoyMove (float *movements, int pnum)
 {
 	float	speed, aspeed;
 	float	fAxisValue, fTemp;
@@ -2313,7 +2313,7 @@ void IN_JoyMove (usercmd_t *cmd, int pnum)
 				// user wants forward control to be forward control
 				if (fabs(fAxisValue) > joy_forwardthreshold.value)
 				{
-					cmd->forwardmove += (fAxisValue * joy_forwardsensitivity.value) * speed * cl_forwardspeed.value;
+					movements[0] += (fAxisValue * joy_forwardsensitivity.value) * speed * cl_forwardspeed.value;
 				}
 			}
 			break;
@@ -2321,7 +2321,7 @@ void IN_JoyMove (usercmd_t *cmd, int pnum)
 		case AxisSide:
 			if (fabs(fAxisValue) > joy_sidethreshold.value)
 			{
-				cmd->sidemove += (fAxisValue * joy_sidesensitivity.value) * speed * cl_sidespeed.value;
+				movements[1] += (fAxisValue * joy_sidesensitivity.value) * speed * cl_sidespeed.value;
 			}
 			break;
 
@@ -2331,7 +2331,7 @@ void IN_JoyMove (usercmd_t *cmd, int pnum)
 				// user wants turn control to become side control
 				if (fabs(fAxisValue) > joy_sidethreshold.value)
 				{
-					cmd->sidemove -= (fAxisValue * joy_sidesensitivity.value) * speed * cl_sidespeed.value;
+					movements[2] -= (fAxisValue * joy_sidesensitivity.value) * speed * cl_sidespeed.value;
 				}
 			}
 			else

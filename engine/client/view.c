@@ -1393,6 +1393,7 @@ void R_DrawNameTags(void)
 
 void V_RenderPlayerViews(int plnum)
 {
+	int oldnuments;
 #ifdef SIDEVIEWS
 	int viewnum;
 #endif
@@ -1416,6 +1417,9 @@ void V_RenderPlayerViews(int plnum)
 		V_CalcRefdef (plnum);
 	}
 
+	oldnuments = cl_numvisedicts;
+	CL_LinkViewModel ();
+
 #ifdef SWQUAKE
 	if (cl.splitclients>1)
 		r_viewchanged = true;
@@ -1431,6 +1435,8 @@ void V_RenderPlayerViews(int plnum)
 		R_RenderView ();
 		R_DrawNameTags();
 	}
+
+	cl_numvisedicts = oldnuments;
 
 	if (scr_chatmode == 2)
 	{

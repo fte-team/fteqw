@@ -1665,7 +1665,7 @@ conchar_t q3codemasks[MAXQ3COLOURS] = {
 
 
 //Strips out the flags
-void COM_DeFunString(unsigned long *str, char *out, int outsize, qboolean ignoreflags)
+void COM_DeFunString(conchar_t *str, char *out, int outsize, qboolean ignoreflags)
 {
 	if (ignoreflags)
 	{
@@ -1746,11 +1746,29 @@ void COM_DeFunString(unsigned long *str, char *out, int outsize, qboolean ignore
 }
 
 //Takes a q3-style fun string, and returns an expanded string-with-flags
-void COM_ParseFunString(char *str, unsigned long *out, int outsize)
+void COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int outsize)
 {
-	int ext = CON_WHITEMASK;
-	int extstack[4];
+	conchar_t extstack[4];
 	int extstackdepth = 0;
+
+	conchar_t ext;
+
+#if 0
+	while(*str)
+	{
+		*out++ = CON_WHITEMASK|(unsigned char)*str++;
+	}
+	*out = 0;
+	return;
+#endif
+
+	if (*str == 1 || *str == 2)
+	{
+		defaultflags |= CON_HIGHCHARSMASK;
+		str++;
+	}
+
+	ext = defaultflags;
 
 	while(*str)
 	{
@@ -1798,6 +1816,18 @@ void COM_ParseFunString(char *str, unsigned long *out, int outsize)
 				ext ^= CON_BLINKTEXT;
 				continue;
 			}
+			else if (*str == 'd')
+			{
+				str++;
+				ext = defaultflags;
+				continue;
+			}
+			else if (*str == 'm')
+			{
+				str++;
+				ext ^= CON_HIGHCHARSMASK;
+				continue;
+			}
 			else if (*str == 'h')
 			{
 				str++;
@@ -1838,14 +1868,62 @@ void COM_ParseFunString(char *str, unsigned long *out, int outsize)
 				*out++ = '^' | ext;
 				if (!--outsize)
 					break;
-				*out++ = (*str++) | ext;
+				*out++ = (unsigned char)(*str++) | ext;
 			}
 			continue;
+		}
+		if (*str == '&' && str[1] == 'c')
+		{
+			// ezQuake color codes
+
+			if (ishexcode(str[2]) && ishexcode(str[3]) && ishexcode(str[4]))
+			{
+				//we don't support the full 12bit colour depth (only 4-bit CGA)
+				//so find the closest that we do support
+				int best = 1;
+				float bd = 255*255*255, d;
+				int c;
+				float r, g, b;
+				if      (str[2] >= '0' && str[2] <= '9')
+					r = (str[2]-'0') / (float)0xf;
+				else if (str[2] >= 'A' && str[2] <= 'F')
+					r = (str[2]-'A'+10) / (float)0xf;
+				else
+					r = (str[2]-'a'+10) / (float)0xf;
+				if      (str[3] >= '0' && str[3] <= '9')
+					g = (str[3]-'0') / (float)0xf;
+				else if (str[3] >= 'A' && str[3] <= 'F')
+					g = (str[3]-'A'+10) / (float)0xf;
+				else
+					g = (str[3]-'a'+10) / (float)0xf;
+				if      (str[4] >= '0' && str[4] <= '9')
+					b = (str[4]-'0') / (float)0xf;
+				else if (str[4] >= 'A' && str[4] <= 'F')
+					b = (str[4]-'A'+10) / (float)0xf;
+				else
+					b = (str[4]-'a'+10) / (float)0xf;
+
+				for (c = 0; c < sizeof(consolecolours)/sizeof(consolecolours[0]); c++)
+				{
+					d = (consolecolours[c].fr-r)*(consolecolours[c].fr-r) +
+						(consolecolours[c].fg-g)*(consolecolours[c].fg-g) +
+						(consolecolours[c].fb-b)*(consolecolours[c].fb-b);
+					if (d < bd)
+					{
+						best = c;
+						bd = d;
+					}
+				}
+				ext = (best << CON_FGSHIFT) | (ext&~CON_FGMASK);
+
+				str += 5;
+				continue;
+			}
 		}
 messedup:
 		if (!--outsize)
 			break;
-		*out++ = (*str++) | ext;
+		*out++ = (unsigned char)(*str++) | ext;
 	}
 	*out = 0;
 }
@@ -1886,6 +1964,12 @@ int COM_FunStringLength(unsigned char *str)
 				len++;
 				str++;
 			}
+			continue;
+		}
+		if (*str == '&' && str[1] == 'c' && ishexcode(str[2]) && ishexcode(str[3]) && ishexcode(str[4]))
+		{
+			//ezquake colour codes
+			str += 5;
 			continue;
 		}
 messedup:
@@ -2983,7 +3067,7 @@ void COM_Effectinfo_Reload(void)
 		COM_Effectinfo_Add(dpnames[i]);
 
 
-	f = COM_LoadMallocFile("effectinfo.txt");
+	FS_LoadFile("effectinfo.txt", &f);
 	if (!f)
 		return;
 	while (*f)
@@ -3004,6 +3088,7 @@ void COM_Effectinfo_Reload(void)
 			} while(*f && strcmp(com_token, "\n"));
 		}
 	}
+	FS_FreeFile(f);
 }
 
 unsigned int COM_Effectinfo_ForName(const char *efname)

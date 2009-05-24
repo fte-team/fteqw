@@ -820,6 +820,12 @@ extern BOOL  (WINAPI *qSwapBuffers)(HDC);
 
 extern void (APIENTRY *qglDrawRangeElements) (GLenum, GLuint, GLuint, GLsizei, GLenum, const GLvoid *);
 
+extern void (APIENTRY *qglGenBuffersARB)(GLsizei n, GLuint* ids);
+extern void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
+extern void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
+extern void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data, GLenum usage);
+extern void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
+
 /*
 extern qboolean gl_arb_fragment_program;
 extern PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;

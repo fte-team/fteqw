@@ -949,7 +949,8 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 		VM_LONG(ret) = Sys_Milliseconds();
 		break;
 	case CG_REAL_TIME:
-		VM_FLOAT(ret) = realtime;
+		//really local time
+		VM_LONG(ret) = Sys_Milliseconds();
 		break;
 
 	case CG_SNAPVECTOR: // ( float *v )
@@ -1114,6 +1115,7 @@ void CG_Stop (void)
 
 void CG_Start (void)
 {
+	SCR_SetLoadingStage(0);
 	if (cls.protocol != CP_QUAKE3)
 	{	//q3 clients only.
 		CG_Stop();
@@ -1140,8 +1142,8 @@ void CG_Start (void)
 	cgvm = VM_Create(NULL, "vm/cgame", CG_SystemCalls, CG_SystemCallsEx);
 	if (cgvm)
 	{	//hu... cgame doesn't appear to have a query version call!
-		VM_Call(cgvm, CG_INIT, ccs.serverMessageNum, ccs.lastServerCommandNum, cl.playernum[0]);
 		SCR_EndLoadingPlaque();
+		VM_Call(cgvm, CG_INIT, ccs.serverMessageNum, ccs.lastServerCommandNum, cl.playernum[0]);
 	}
 	else
 	{

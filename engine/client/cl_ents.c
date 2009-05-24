@@ -3185,6 +3185,8 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 	struct predicted_player *pplayer;
 	extern cvar_t cl_nopred;
 
+	int s;
+
 	playertime = realtime - cls.latency + 0.02;
 	if (playertime > realtime)
 		playertime = realtime;
@@ -3226,12 +3228,16 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 
 		// note that the local player is special, since he moves locally
 		// we use his last predicted postition
-		if (j == cl.playernum[0])
+		for (s = 0; s < cl.splitclients; s++)
 		{
-			VectorCopy(cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].playerstate[cl.playernum[0]].origin,
-				pplayer->origin);
+			if (j == cl.playernum[s])
+			{
+				VectorCopy(cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].playerstate[cl.playernum[s]].origin,
+					pplayer->origin);
+				break;
+			}
 		}
-		else
+		if (s == cl.splitclients)
 		{
 			// only predict half the move to minimize overruns
 			msec = 500*(playertime - state->state_time);
@@ -3358,7 +3364,6 @@ void CL_EmitEntities (void)
 	CL_LinkPacketEntities ();
 	CL_LinkProjectiles ();
 	CL_UpdateTEnts ();
-	CL_LinkViewModel ();
 }
 
 
@@ -3415,6 +3420,7 @@ static void MVD_InitInterpolation(void)
 	frame_t	*frame, *oldframe;
 	vec3_t dist;
 	struct predicted_player *pplayer;
+	int s;
 
 #define ISDEAD(i) ( (i) >= 41 && (i) <= 102 )
 
@@ -3460,7 +3466,12 @@ static void MVD_InitInterpolation(void)
 		}
 
 		// we dont interpolate ourself if we are spectating
-		if (i == cl.playernum[0] && cl.spectator)
+		for (s = 0; s < cl.splitclients; s++)
+		{
+			if (i == cl.playernum[s] && cl.spectator)
+				break;
+		}
+		if (s != cl.splitclients)
 			continue;
 
 		memset(state->velocity, 0, sizeof(state->velocity));
@@ -3508,15 +3519,19 @@ void MVD_Interpolate(void)
 	struct predicted_player *pplayer;
 	static float old;
 	extern float demtime;
+	int s;
 
-	self = &cl.frames[cl.parsecount & UPDATE_MASK].playerstate[cl.playernum[0]];
-	oldself = &cl.frames[(cls.netchan.outgoing_sequence - 1) & UPDATE_MASK].playerstate[cl.playernum[0]];
+	for (s = 0; s < cl.splitclients; s++)
+	{
+		self = &cl.frames[cl.parsecount & UPDATE_MASK].playerstate[cl.playernum[s]];
+		oldself = &cl.frames[(cls.netchan.outgoing_sequence - 1) & UPDATE_MASK].playerstate[cl.playernum[s]];
 
-	self->messagenum = cl.parsecount;
+		self->messagenum = cl.parsecount;
 
-	VectorCopy(oldself->origin, self->origin);
-	VectorCopy(oldself->velocity, self->velocity);
-	VectorCopy(oldself->viewangles, self->viewangles);
+		VectorCopy(oldself->origin, self->origin);
+		VectorCopy(oldself->velocity, self->velocity);
+		VectorCopy(oldself->viewangles, self->viewangles);
+	}
 
 	if (old != nextdemotime)
 	{

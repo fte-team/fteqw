@@ -628,7 +628,6 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 		if (uniformloc == -1)
 		{
 			Con_Printf("shader %s: param without uniform \"%s\"\n", shader->name, token);
-			return;
 		}
 		else
 		{
@@ -2144,6 +2143,8 @@ void Shader_DefaultBSP(char *shortname, shader_t *s)
 	s->features = MF_STCOORDS|MF_LMCOORDS|MF_TRNORMALS;
 	s->sort = SHADER_SORT_OPAQUE;
 	s->registration_sequence = 1;//fizme: registration_sequence;
+
+	s->style = SSTYLE_LIGHTMAPPED;
 }
 
 void Shader_DefaultBSPVertex(char *shortname, shader_t *s)

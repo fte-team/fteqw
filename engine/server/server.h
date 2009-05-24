@@ -469,6 +469,7 @@ typedef struct client_s
 
 //===== NETWORK ============
 	int				chokecount;
+	qboolean		waschoked;
 	int				delta_sequence;		// -1 = no compression
 	int				last_sequence;
 	netchan_t		netchan;

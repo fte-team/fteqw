@@ -13,9 +13,6 @@
 #include <stdio.h>
 #include <string.h>
 
-//the only function that is required externally. :/
-void SV_EndRedirect (void) {}
-
 
 
 
@@ -97,7 +94,7 @@ pbool Sys_WriteFile (char *fname, void *data, int len)
 	return 1;
 }
 
-void runtest(void)
+void runtest(char *progsname)
 {
 	progfuncs_t *pf;
 	func_t func;
@@ -115,9 +112,9 @@ void runtest(void)
 	pf = InitProgs(&ext);
 	pf->Configure(pf, 1024*1024, 1);	//memory quantity of 1mb. Maximum progs loadable into the instance of 1
 //If you support multiple progs types, you should tell the VM the offsets here, via RegisterFieldVar
-	pn = pf->LoadProgs(pf, "testprogs.dat", 0, builtins, sizeof(builtins)/sizeof(builtins[0]));	//load the progs, don't care about the crc, and use those builtins.
+	pn = pf->LoadProgs(pf, progsname, 0, builtins, sizeof(builtins)/sizeof(builtins[0]));	//load the progs, don't care about the crc, and use those builtins.
 	if (pn < 0)
-		printf("Failed to load progs\n");
+		printf("test: Failed to load progs \"%s\"\n", progsname);
 	else
 	{
 //allocate qc-acessable strings here for 64bit cpus. (allocate via AddString, tempstringbase is a holding area not used by the actual vm)
@@ -139,25 +136,28 @@ void runtest(void)
 
 //Run a compiler and nothing else.
 //Note that this could be done with an autocompile of PR_COMPILEALWAYS.
-void compile(void)
+void compile(int argc, char **argv)
 {
 	progfuncs_t *pf;
 
 	progparms_t ext;
 
-	char *testsrcfile =	//newstyle progs.src must start with a #.
-					//it's newstyle to avoid using multiple source files.
-			 	"#pragma PROGS_DAT \"testprogs.dat\"\r\n"
-				"//INTERMEDIATE FILE - EDIT TEST.C INSTEAD\r\n"
-				"\r\n"
-				"void(...) print = #1;\r\n"
-				"void() main =\r\n"
-				"{\r\n"
-				"	print(\"hello world\\n\");\r\n"
-				"};\r\n";
+	if (0)
+	{
+		char *testsrcfile =	//newstyle progs.src must start with a #.
+						//it's newstyle to avoid using multiple source files.
+				 	"#pragma PROGS_DAT \"testprogs.dat\"\r\n"
+					"//INTERMEDIATE FILE - EDIT TEST.C INSTEAD\r\n"
+					"\r\n"
+					"void(...) print = #1;\r\n"
+					"void() main =\r\n"
+					"{\r\n"
+					"	print(\"hello world\\n\");\r\n"
+					"};\r\n";
 
-	//so that the file exists. We could insert it via the callbacks instead
-	Sys_WriteFile("progs.src", testsrcfile, strlen(testsrcfile));
+		//so that the file exists. We could insert it via the callbacks instead
+		Sys_WriteFile("progs.src", testsrcfile, strlen(testsrcfile));
+	}
 
 	memset(&ext, 0, sizeof(ext));
 	ext.progsversion = PROGSTRUCT_VERSION;
@@ -168,18 +168,29 @@ void compile(void)
 	ext.printf = printf;
 
 	pf = InitProgs(&ext);
-	if (pf->StartCompile(pf, 0, NULL))
+	if (pf->StartCompile)
 	{
-		while(pf->ContinueCompile(pf) == 1)
-			;
+		if (pf->StartCompile(pf, argc, argv))
+		{
+			while(pf->ContinueCompile(pf) == 1)
+				;
+		}
 	}
+	else
+		printf("no compiler in this qcvm build\n");
 	CloseProgs(pf);
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
-	compile();
-	runtest();
+	if (argc < 2)
+	{
+		printf("Invalid arguments!\nPlease run as, for example:\n%s testprogs.dat --srcfile progs.src\nThe first argument is the name of the progs.dat to run, the remaining arguments are the qcc args to use", argv[0]);
+		return 0;
+	}
+
+	compile(argc-2, argv+2);
+	runtest(argv[1]);
 
 	return 0;
 }

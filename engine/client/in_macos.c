@@ -49,7 +49,7 @@ void IN_ModeChanged (void)
 }
 // called whenever screen dimensions change
 
-void IN_Move (usercmd_t *cmd, int pnum)
+void IN_Move (float *movements, int pnum)
 {
 	float tx, ty, filterfrac;
     
@@ -71,7 +71,7 @@ void IN_Move (usercmd_t *cmd, int pnum)
     
 	if ((in_strafe.state[pnum] & 1) || (lookstrafe.value && in_mlook.state[pnum]))
 	{
-		cmd->sidemove += m_side.value * mouse_x;
+		movements[1] += m_side.value * mouse_x;
 	}
 	else
 	{
@@ -88,7 +88,7 @@ void IN_Move (usercmd_t *cmd, int pnum)
 	}
 	else
 	{
-		cmd->forwardmove -= m_forward.value * mouse_y;
+		movements[0] -= m_forward.value * mouse_y;
 	}
     
 	mouse_x = mouse_y = 0.0;

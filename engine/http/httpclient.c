@@ -369,11 +369,12 @@ void HTTP_CL_Think(void)
 				cls.downloadpercent = 50;
 			else
 				cls.downloadpercent = con->bufferused*100.0f/con->contentlength;
-			strcpy(cls.downloadname, con->filename);
+			strcpy(cls.downloadlocalname, con->filename);
+			strcpy(cls.downloadremotename, con->filename);
 		}
 		else if (cls.downloadmethod == DL_HTTP)
 		{
-			if (!strcmp(cls.downloadname, con->filename))
+			if (!strcmp(cls.downloadlocalname, con->filename))
 			{
 				if (con->state != HC_GETTING)
 					cls.downloadpercent = 0;

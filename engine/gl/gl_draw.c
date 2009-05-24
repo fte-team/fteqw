@@ -380,7 +380,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 		char *mem;
 		char alternatename[MAX_QPATH];
 		snprintf(alternatename, sizeof(alternatename), "pics/%s.pcx", path);
-		data = COM_LoadMallocFile (alternatename);
+		FS_LoadFile(alternatename, (void**)&data);
 		if (data)
 		{
 			strcpy(pic->name, path);
@@ -400,7 +400,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 				glmenu_numcachepics++;
 				return &pic->pic;
 			}
-			BZ_Free(data);
+			FS_FreeFile(data);
 		}
 	}
 
@@ -408,7 +408,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 		char *mem;
 		char alternatename[MAX_QPATH];
 		snprintf(alternatename, MAX_QPATH-1, "%s", path);
-		data = COM_LoadMallocFile (alternatename);
+		FS_LoadFile(alternatename, &data);
 		if (data)
 		{
 			strcpy(pic->name, path);
@@ -441,7 +441,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 				glmenu_numcachepics++;
 				return &pic->pic;
 			}
-			BZ_Free(data);
+			FS_FreeFile(data);
 		}
 	}
 
@@ -450,7 +450,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 		char *mem;
 		char alternatename[MAX_QPATH];
 		snprintf(alternatename, MAX_QPATH-1,"%s.jpg", path);
-		data = COM_LoadMallocFile (alternatename);
+		FS_LoadFile(alternatename, (void**)&data);
 		if (data)
 		{
 			strcpy(pic->name, path);
@@ -470,7 +470,7 @@ mpic_t	*GLDraw_SafeCachePic (char *path)
 				glmenu_numcachepics++;
 				return &pic->pic;
 			}
-			BZ_Free(data);
+			FS_FreeFile(data);
 		}
 	}
 #endif
@@ -863,8 +863,9 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 			{
 
 				//gulp... so it's come to this has it? rework the hexen2 conchars into the q1 system.
-				char *tempchars = COM_LoadMallocFile("gfx/menu/conchars.lmp");
+				char *tempchars;
 				char *in, *out;
+				FS_LoadFile("gfx/menu/conchars.lmp", (void**)&tempchars);
 				if (tempchars)
 				{
 					draw_chars = BZ_Malloc(8*8*256*8);
@@ -900,7 +901,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 								*out++ = *in++;
 						}
 					}
-					Z_Free(tempchars);
+					FS_FreeFile(tempchars);
 
 					// add ocrana leds
 					if (con_ocranaleds.value && con_ocranaleds.value != 2)
@@ -999,7 +1000,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		glmenu_numcachepics++;
 	}
 	TRACE(("dbg: GLDraw_ReInit: gfx/menu/bigfont\n"));
-	bigfont = (qpic_t *)COM_LoadMallocFile ("gfx/menu/bigfont.lmp");
+	FS_LoadFile("gfx/menu/bigfont.lmp", (void**)&bigfont);
 	if (bigfont)
 	{
 		char *data;
@@ -1019,6 +1020,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		gl->sh = 1;
 		gl->th = 1;
 		glmenu_numcachepics++;
+		FS_FreeFile(bigfont);
 	}
 
 

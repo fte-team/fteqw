@@ -25,11 +25,13 @@ void IWeb_MoreGeneratedResize(int newsize)
 
 	ob = IWeb_GenerationBuffer;
 	IWeb_GenerationBuffer = BZ_Malloc(sizeof(IWeb_GenerationBuffer) + newsize);
+	memset(IWeb_GenerationBuffer, 0, sizeof(*IWeb_GenerationBuffer));
 
 	IWeb_GenerationBuffer->data = (char *)(IWeb_GenerationBuffer+1);
 	if (ob)
 	{
 		memcpy(IWeb_GenerationBuffer->data, ob->data, ob->len);
+		IWeb_GenerationBuffer->len = ob->len;
 		BZ_Free(ob);
 	}
 
@@ -378,12 +380,17 @@ unsigned long VFSGen_GetLen(vfsfile_t *f)
 
 void VFSGen_Close(vfsfile_t *f)
 {
+	int fnum;
 	vfsgen_t *g = (vfsgen_t*)f;
 	g->buffer->references--;
 	if (!g->buffer->references)
 	{
 		Z_Free(g->buffer->data);
 		Z_Free(g->buffer);
+
+		for (fnum = 0; fnum < sizeof(IWebFiles) / sizeof(IWebFile_t); fnum++)
+			if (IWebFiles[fnum].buffer == g->buffer)
+				IWebFiles[fnum].buffer = NULL;
 	}
 	Z_Free(g);
 }
@@ -400,6 +407,9 @@ vfsfile_t *VFSGen_Create(IWeb_FileGen_t *gen)
 	ret->funcs.Tell = VFSGen_Tell;
 	ret->funcs.GetLen = VFSGen_GetLen;
 	ret->funcs.Close = VFSGen_Close;
+
+	ret->buffer = gen;
+	gen->references++;
 
 	return (vfsfile_t*)ret;
 }

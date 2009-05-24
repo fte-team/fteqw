@@ -146,222 +146,32 @@ int Sbar_BottomColour(player_info_t *p)
 		return p->rbottomcolor;
 }
 
-void Draw_FunString(int x, int y, unsigned char *str)
+void Draw_ExpandedString(int x, int y, conchar_t *str)
 {
-	int ext = CON_WHITEMASK;
-	int extstack[4];
-	int extstackdepth = 0;
-
-
 	while(*str)
 	{
-		if (*str == '^')
-		{
-			str++;
-			if (*str >= '0' && *str <= '9')
-			{
-				ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK); //change colour only.
-				continue;
-			}
-			else if (*str == '&') // extended code
-			{
-				if (isextendedcode(str[1]) && isextendedcode(str[2]))
-				{
-					str++;// foreground char
-					if (*str == '-') // default for FG
-						ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					else if (*str >= 'A')
-						ext = ((*str - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					else
-						ext = ((*str - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					str++; // background char
-					if (*str == '-') // default (clear) for BG
-						ext &= ~CON_BGMASK & ~CON_NONCLEARBG;
-					else if (*str >= 'A')
-						ext = ((*str - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-					else
-						ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-					str++;
-					continue;
-				}
-				// else invalid code
-				goto messedup;
-			}
-			else if (*str == 'a')
-			{
-				str++;
-				ext ^= CON_2NDCHARSETTEXT;
-				continue;
-			}
-			else if (*str == 'b')
-			{
-				str++;
-				ext ^= CON_BLINKTEXT;
-				continue;
-			}
-			else if (*str == 'h')
-			{
-				str++;
-				ext ^= CON_HALFALPHA;
-				continue;
-			}
-			else if (*str == 's')	//store on stack (it's great for names)
-			{
-				str++;
-				if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
-				{
-					extstack[extstackdepth] = ext;
-					extstackdepth++;
-				}
-				continue;
-			}
-			else if (*str == 'r')	//restore from stack (it's great for names)
-			{
-				str++;
-				if (extstackdepth)
-				{
-					extstackdepth--;
-					ext = extstack[extstackdepth];
-				}
-				continue;
-			}
-			else if (*str == '^')
-			{
-				Draw_ColouredCharacter(x, y, '^' | ext);
-				str++;
-			}
-			else
-			{
-				Draw_ColouredCharacter(x, y, '^' | ext);
-				x += 8;
-				Draw_ColouredCharacter (x, y, (*str++) | ext);
-			}
-			x += 8;
-			continue;
-		}
-		if (*str == '&' && str[1] == 'c')
-		{
-			// ezQuake color codes
-			if (ishexcode(str[2]) && ishexcode(str[3]) && ishexcode(str[4]))
-			{
-				// Just strip it for now
-				// TODO: Colorize the console properly
-				str += 5;
-				continue;
-			}
-		}
-messedup:
-		Draw_ColouredCharacter (x, y, (*str++) | ext);
+		Draw_ColouredCharacter (x, y, *str++);
 		x += 8;
 	}
 }
 
-void Draw_FunStringLen(int x, int y, unsigned char *str, int len)
+void Draw_FunString(int x, int y, unsigned char *str)
 {
-	int ext = CON_WHITEMASK;
-	int extstack[4];
-	int extstackdepth = 0;
+	conchar_t buffer[2048];
+	COM_ParseFunString(CON_WHITEMASK, str, buffer, sizeof(buffer));
 
+	Draw_ExpandedString(x, y, buffer);
+}
 
-	while(*str)
-	{
-		if (*str == '^')
-		{
-			str++;
-			if (*str >= '0' && *str <= '9')
-			{
-				ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK); //change colour only.
-				continue;
-			}
-			else if (*str == '&') // extended code
-			{
-				if (isextendedcode(str[1]) && isextendedcode(str[2]))
-				{
-					str++; // foreground char
-					if (*str == '-') // default for FG
-						ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					else if (*str >= 'A')
-						ext = ((*str - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					else
-						ext = ((*str - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					str++; // background char
-					if (*str == '-') // default (clear) for BG
-						ext &= ~CON_BGMASK & ~CON_NONCLEARBG;
-					else if (*str >= 'A')
-						ext = ((*str - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-					else
-						ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-					str++;
-					continue;
-				}
-				// else invalid code
-				Draw_ColouredCharacter(x, y, '^' | ext);
-				Draw_ColouredCharacter(x, y, '&' | ext);
-				str++;
-				continue;
-			}
-			else if (*str == 'a')
-			{
-				str++;
-				ext ^= CON_2NDCHARSETTEXT;
-				continue;
-			}
-			else if (*str == 'b')
-			{
-				str++;
-				ext ^= CON_BLINKTEXT;
-				continue;
-			}
-			else if (*str == 'h')
-			{
-				str++;
-				ext ^= CON_HALFALPHA;
-				continue;
-			}
-			else if (*str == 's')	//store on stack (it's great for names)
-			{
-				str++;
-				if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
-				{
-					extstack[extstackdepth] = ext;
-					extstackdepth++;
-				}
-			}
-			else if (*str == 'r')	//restore from stack (it's great for names)
-			{
-				str++;
-				if (extstackdepth)
-				{
-					extstackdepth--;
-					ext = extstack[extstackdepth];
-				}
-				continue;
-			}
-			else if (*str == '^')
-			{
-				if (--len< 0)
-					break;
-				Draw_ColouredCharacter(x, y, '^' | ext);
-				str++;
-			}
-			else
-			{
-				if (--len< 0)
-					break;
-				if (--len< 0)
-					break;
-				Draw_ColouredCharacter(x, y, '^' | ext);
-				x += 8;
-				Draw_ColouredCharacter (x, y, (*str++) | ext);
-			}
-			x += 8;
-			continue;
-		}
-		if (--len< 0)
-			break;
-		Draw_ColouredCharacter (x, y, (*str++) | ext);
-		x += 8;
-	}
+void Draw_FunStringLen(int x, int y, unsigned char *str, int numchars)
+{
+	conchar_t buffer[2048];
+
+	if (numchars > sizeof(buffer)-1)
+		numchars = sizeof(buffer)-1;
+	COM_ParseFunString(CON_WHITEMASK, str, buffer, numchars+1);
+
+	Draw_ExpandedString(x, y, buffer);
 }
 
 static qboolean largegame = false;

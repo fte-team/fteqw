@@ -205,9 +205,7 @@ void GLMod_Shutdown (void)
 	Cmd_RemoveCommand("mod_texturelist");
 	Cmd_RemoveCommand("mod_usetexture");
 
-#ifdef RUNTIMELIGHTING
-	lightmodel = NULL;
-#endif
+	GLMod_ClearAll();
 }
 
 /*
@@ -276,6 +274,24 @@ mleaf_t *GLMod_PointInLeaf (model_t *model, vec3_t p)
 	return NULL;	// never reached
 }
 
+#if defined(RUNTIMELIGHTING) && defined(MULTITHREAD)
+void *relightthread;
+volatile qboolean wantrelight;
+
+void RelightThread(void *arg)
+{
+	while (wantrelight && relitsurface < lightmodel->numsurfaces)
+	{
+		LightFace(relitsurface);
+		lightmodel->surfaces[relitsurface].cached_dlight = -1;
+
+		relitsurface++;
+
+		lightmodel->surfaces[relitsurface].cached_dlight = -1;
+	}
+}
+#endif
+
 /*
 ===================
 Mod_ClearAll
@@ -284,17 +300,47 @@ Mod_ClearAll
 void GLMod_ClearAll (void)
 {
 	int		i;
+	int	t;
 	model_t	*mod;
 
 #ifdef RUNTIMELIGHTING
+#ifdef MULTITHREAD
+	if (relightthread)
+	{
+		wantrelight = false;
+		Sys_WaitOnThread(relightthread);
+		relightthread = NULL;
+	}
+#endif
 	lightmodel = NULL;
 #endif
 
+	//when the hunk is reset, all bsp models need to be reloaded
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
+	{
+		if (mod->needload)
+			continue;
+
+		if (mod->type == mod_brush)
+		{
+			for (t = 0; t < mod->numtextures; t++)
+			{
+				if (!mod->textures[t])
+					continue;
+				if (mod->textures[t]->gl_vboe)
+					qglDeleteBuffersARB(1, &mod->textures[t]->gl_vboe);
+				if (mod->textures[t]->gl_vbov)
+					qglDeleteBuffersARB(1, &mod->textures[t]->gl_vbov);
+				mod->textures[t]->gl_vboe = 0;
+				mod->textures[t]->gl_vbov = 0;
+			}
+		}
+
 		if (mod->type != mod_alias
 			&& mod->type != mod_halflife
 			)
 			mod->needload = true;
+	}
 }
 
 void GLMod_Think (void)
@@ -306,21 +352,31 @@ void GLMod_Think (void)
 		{
 			return;
 		}
+#ifdef MULTITHREAD
+		if (!relightthread)
+		{
+			wantrelight = true;
+			relightthread = Sys_CreateThread(RelightThread, lightmodel, 0);
+		}
+#else
 		LightFace(relitsurface);
 		GLMod_UpdateLightmap(relitsurface);
 
 		relitsurface++;
-
+#endif
 		if (relitsurface >= lightmodel->numsurfaces)
 		{
 			char filename[MAX_QPATH];
-			char *f;
-			Con_Printf("Finished lighting level\n");
+			Con_Printf("Finished lighting %s\n", lightmodel->name);
 
-
-			strcpy(filename, lightmodel->name);
-			f = COM_SkipPath(filename);
-			*f = '\0';
+#ifdef MULTITHREAD
+			if (relightthread)
+			{
+				wantrelight = false;
+				Sys_WaitOnThread(relightthread);
+				relightthread = NULL;
+			}
+#endif
 
 			if (lightmodel->deluxdata)
 			{
@@ -410,7 +466,6 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 	unsigned *buf = NULL;
 	qbyte	stackbuf[1024];		// avoid dirtying the cache heap
 	char mdlbase[MAX_QPATH];
-	qboolean lastload = false;
 	char *replstr;
 	qboolean doomsprite = false;
 
@@ -730,10 +785,10 @@ static char *GLMod_TD_Section(char *file, const char *sectionname)
 void GLMod_InitTextureDescs(char *mapname)
 {
 	if (advtexturedesc)
-		BZ_Free(advtexturedesc);
-	advtexturedesc = COM_LoadMallocFile(va("maps/shaders/%s.shaders", mapname));
+		FS_FreeFile(advtexturedesc);
+	FS_LoadFile(va("maps/shaders/%s.shaders", mapname), (void**)&advtexturedesc);
 	if (!advtexturedesc)
-		advtexturedesc = COM_LoadMallocFile(va("shaders/%s.shaders", mapname));
+		FS_LoadFile(va("shaders/%s.shaders", mapname), (void**)&advtexturedesc);
 	if (advtexturedesc)
 	{
 		mapsection = advtexturedesc;
@@ -741,7 +796,7 @@ void GLMod_InitTextureDescs(char *mapname)
 	}
 	else
 	{
-		advtexturedesc = COM_LoadMallocFile(va("map.shaders", mapname));
+		FS_LoadFile(va("map.shaders", mapname), (void**)&advtexturedesc);
 		mapsection = GLMod_TD_Section(advtexturedesc, mapname);
 		defaultsection = GLMod_TD_Section(advtexturedesc, "default");
 	}
@@ -1045,7 +1100,8 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 			char *star;
 			//find the *
 			if (!strcmp(gl_shadeq1_name.string, "*"))
-				tx->shader = R_RegisterCustom(mt->name, NULL);	//just load the regular name.
+			//	tx->shader = R_RegisterCustom(mt->name, NULL);	//just load the regular name.
+				tx->shader = R_RegisterShader(mt->name);	//just load the regular name.
 			else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(mt->name)+1>=sizeof(altname)))	//it's got to fit.
 				tx->shader = R_RegisterCustom(gl_shadeq1_name.string, NULL);
 			else
@@ -2082,7 +2138,7 @@ void GLMod_LoadCrouchHull(void)
 	COM_StripExtension(loadmodel->name, crouchhullname, sizeof(crouchhullname));
 	COM_DefaultExtension(crouchhullname, ".crh",sizeof(crouchhullname));	//crouch hull
 
-	crouchhullfile = COM_LoadMallocFile(crouchhullname);	//or otherwise temporary storage. load on hunk if you want, but that would be a waste.
+	FS_LoadFile(crouchhullname, &crouchhullfile);
 	if (!crouchhullfile)
 		return;
 
@@ -2816,7 +2872,7 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	if (crouchhullfile)
 	{
-		BZ_Free(crouchhullfile);
+		FS_FreeFile(crouchhullfile);
 		crouchhullfile=NULL;
 	}
 

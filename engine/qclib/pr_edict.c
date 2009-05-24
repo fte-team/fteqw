@@ -2452,6 +2452,14 @@ retry:
 		return false;
 	}
 
+	if (pr_progs->version == PROG_EXTENDEDVERSION && pr_progs->blockscompressed && !QC_decodeMethodSupported(2))
+	{
+		printf ("%s uses compression\n", filename);
+		PRHunkFree(progfuncs, hmark);
+		pr_progs=NULL;
+		return false;
+	}
+
 	fnc = pr_functions = (dfunction_t *)((qbyte *)pr_progs + pr_progs->ofs_functions);
 	pr_strings = ((char *)pr_progs + pr_progs->ofs_strings);
 	current_progstate->globaldefs = *(void**)&gd16 = (void *)((qbyte *)pr_progs + pr_progs->ofs_globaldefs);

@@ -487,6 +487,123 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 		qglDisable(GL_ALPHA_TEST);
 }
 
+static void PPL_BaseChain_VBO_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
+{	//doesn't merge surfaces, but tells gl to do each vertex arrayed surface individually, which means no vertex copying.
+	int vi;
+	glRect_t    *theRect;
+
+	varrayactive = false;
+	qglDisableClientState(GL_COLOR_ARRAY);
+	qglEnableClientState(GL_VERTEX_ARRAY);
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, tex->gl_vbov);
+	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, tex->gl_vboe);
+
+	qglVertexPointer(3, GL_FLOAT, VBOSTRIDE, NULL);
+
+	if (tex->alphaed || currententity->shaderRGBAf[3]<1)
+	{
+		if (*tex->name == '{')
+		{
+			qglEnable(GL_ALPHA_TEST);
+			qglDisable(GL_BLEND);
+			GL_TexEnv(GL_REPLACE);
+		}
+		else
+		{
+			qglEnable(GL_BLEND);
+			GL_TexEnv(GL_MODULATE);
+		}
+	}
+	else
+	{
+		qglDisable(GL_BLEND);
+		GL_TexEnv(GL_REPLACE);
+	}
+
+
+	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglTexCoordPointer(2, GL_FLOAT, VBOSTRIDE, (void*)(3*sizeof(float)));
+
+	GL_SelectTexture(GL_TEXTURE1_ARB);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglTexCoordPointer(2, GL_FLOAT, VBOSTRIDE, (void*)(5*sizeof(float)));
+
+	GL_TexEnv(GL_MODULATE);
+
+
+/*	if (currententity->shaderRGBAf[3]<1)
+	{
+		s->lightmaptexturenum = -1;
+		qglBlendFunc(GL_SRC_COLOR, GL_ONE);
+	}
+*/
+	if (overbright != 1)
+	{
+		GL_TexEnv(GL_COMBINE_ARB);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, overbright);	//this is the key
+	}
+
+//	numidxs = 0;
+	vi = -1;
+	for (; s ; s=s->texturechain)
+	{
+		if (!s->mesh)	//urm.
+			continue;
+		if (s->mesh->numvertexes <= 1)
+			continue;
+		if (vi != s->lightmaptexturenum)
+		{
+			if (vi<0)
+				qglEnable(GL_TEXTURE_2D);
+			vi = s->lightmaptexturenum;
+
+			if (vi>=0)
+			{
+				GL_Bind(lightmap_textures[vi] );
+				if (lightmap[vi]->modified)
+				{
+					lightmap[vi]->modified = false;
+					theRect = &lightmap[vi]->rectchange;
+					qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+						LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+						lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+					theRect->l = LMBLOCK_WIDTH;
+					theRect->t = LMBLOCK_HEIGHT;
+					theRect->h = 0;
+					theRect->w = 0;
+				}
+			}
+			else
+				qglDisable(GL_TEXTURE_2D);
+		}
+		qglDrawRangeElements(GL_TRIANGLES, s->mesh->vbofirstvert, s->mesh->numvertexes, s->mesh->numindexes, GL_INDEX_TYPE, (index_t*)(s->mesh->vbofirstelement*sizeof(index_t)));
+	}
+
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+
+	if (overbright != 1)
+	{
+		qglTexEnvi(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1);	//just in case
+		GL_TexEnv(GL_MODULATE);
+	}
+
+	//tmu 1 should be selected here
+	qglDisable(GL_TEXTURE_2D);
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	GL_SelectTexture(GL_TEXTURE0_ARB);
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglDisable(GL_TEXTURE_2D);
+
+	if (tex->alphaed)
+		qglDisable(GL_ALPHA_TEST);
+}
+
 /*
 static void PPL_BaseChain_NoBump_2TMU_TEST(msurface_t *s, texture_t *tex)
 {	//this was just me testing efficiency between arrays/glbegin.
@@ -1534,6 +1651,7 @@ static void PPL_BaseChain_NPR_Sketch(msurface_t *first)
 static void PPL_BaseTextureChain(msurface_t *first)
 {
 	texture_t	*t;
+	shader_t *shader;
 	if (r_drawflat.value||!r_lightmapintensity)
 	{
 		if (r_drawflat.value == 2)
@@ -1553,8 +1671,12 @@ static void PPL_BaseTextureChain(msurface_t *first)
 			return;
 		}
 	}
+	
+	t = R_TextureAnimation (first->texinfo->texture);
+
 #ifdef Q3SHADERS
-	if (first->texinfo->texture->shader)
+	shader = t->shader;
+	if (shader)// && shader->style != SSTYLE_LIGHTMAPPED)
 	{
 		meshbuffer_t mb;
 		msurface_t *s;
@@ -1563,7 +1685,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		int dlb;
 
 		glRect_t    *theRect;
-		if (first->texinfo->texture->shader->flags & SHADER_FLARE )
+		if (shader->flags & SHADER_FLARE )
 		{
 			dlight_t *dl;
 			while(first)
@@ -1588,7 +1710,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 			R_IBrokeTheArrays();
 
 		mb.entity = &r_worldentity;
-		mb.shader = first->texinfo->texture->shader;
+		mb.shader = shader;
 		mb.mesh = NULL;
 		mb.fog = NULL;
 		mb.infokey = -2;
@@ -1675,10 +1797,6 @@ static void PPL_BaseTextureChain(msurface_t *first)
 
 
 
-
-
-	t = R_TextureAnimation (first->texinfo->texture);
-
 	if (first->flags & SURF_DRAWTURB)
 	{
 		GL_DisableMultitexture();
@@ -1726,7 +1844,10 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		{
 //			PPL_BaseChain_NoBump_2TMU_TEST(first, t);
 //			PPL_BaseChain_NoBump_2TMU(first, t);
-			PPL_BaseChain_NoBump_2TMU_Overbright(first, t);
+			if (t->gl_vbov)
+				PPL_BaseChain_VBO_NoBump_2TMU_Overbright(first, t);
+			else
+				PPL_BaseChain_NoBump_2TMU_Overbright(first, t);
 		}
 	}
 }

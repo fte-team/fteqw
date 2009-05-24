@@ -1030,7 +1030,7 @@ void IN_Commands (void)
 IN_Move
 ===========
 */
-void IN_MouseMove (usercmd_t *cmd, int pnum)
+void IN_MouseMove (float *movements, int pnum)
 {
 	extern int mouseusedforgui, mousecursor_x, mousecursor_y;
 	extern int mousemove_x, mousemove_y;
@@ -1088,11 +1088,11 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 	if(in_xflip.value) mouse_x *= -1;
 #endif
 
-	if (cmd)
+	if (movements)
 	{
 // add mouse X/Y movement to cmd
 		if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
-			cmd->sidemove += m_side.value * mouse_x;
+			movements[1] += m_side.value * mouse_x;
 		else
 			cl.viewangles[pnum][YAW] -= m_yaw.value * mouse_x;
 
@@ -1107,17 +1107,17 @@ void IN_MouseMove (usercmd_t *cmd, int pnum)
 		else
 		{
 			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
-				cmd->upmove -= m_forward.value * mouse_y;
+				movements[2] -= m_forward.value * mouse_y;
 			else
-				cmd->forwardmove -= m_forward.value * mouse_y;
+				movements[0] -= m_forward.value * mouse_y;
 		}
 	}
 	mouse_x = mouse_y = 0.0;
 }
 
-void IN_Move (usercmd_t *cmd, int pnum)
+void IN_Move (float *movements, int pnum)
 {
-	IN_MouseMove(cmd, pnum);
+	IN_MouseMove(movements, pnum);
 }
 #endif
 

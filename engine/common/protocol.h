@@ -335,6 +335,9 @@ enum clcq2_ops_e
 #define clcdp_ackframe	50
 #define clcdp_ackdownloaddata 51
 
+#define clc_qcrequest 81
+#define clc_prydoncursor 82
+
 
 //==============================================
 

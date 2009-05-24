@@ -521,9 +521,10 @@ void Cmd_Exec_f (void)
 	else
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
-	if ((f = (char *)COM_LoadMallocFile(name)))
+	FS_LoadFile(name, &f);
+	if (FS_LoadFile(name, &f) != -1)
 		;
-	else if ((f = (char *)COM_LoadMallocFile(va("%s.cfg", name))))
+	else if (FS_LoadFile(va("%s.cfg", name), &f) != -1)
 		;
 	else
 	{
@@ -535,7 +536,7 @@ void Cmd_Exec_f (void)
 
 	// don't execute anything as if it was from server
 	Cbuf_InsertText (f, Cmd_FromGamecode() ? RESTRICT_INSECURE : Cmd_ExecLevel, true);
-	BZ_Free(f);
+	FS_FreeFile(f);
 }
 
 

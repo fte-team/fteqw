@@ -138,19 +138,19 @@ void HTTP_RunExisting (void)
 	int HTTPmarkup;	//version
 	int localerrno;
 
-	HTTP_active_connections_t *prev, *cl = HTTP_ServerConnections;
+	HTTP_active_connections_t **link, *cl;
 
-	prev = NULL;
-	for (prev = NULL; cl; cl=(prev=cl)->next)
+	link = &HTTP_ServerConnections;
+	for (link = &HTTP_ServerConnections; *link;)
 	{
 		int ammount, wanted;
 
+		cl = *link;
+
 		if (cl->close)
 		{
-			if (prev)
-				prev->next = cl->next;
-			else
-				HTTP_ServerConnections = cl->next;
+
+			*link = cl->next;
 			closesocket(cl->datasock);
 			cl->datasock = INVALID_SOCKET;
 			if (cl->inbuffer)
@@ -161,9 +161,10 @@ void HTTP_RunExisting (void)
 				VFS_CLOSE(cl->file);
 			IWebFree(cl);
 			httpconnectioncount--;
-			cl = prev;
-			break;
+			continue;
 		}
+
+		link = &(*link)->next;
 
 		switch(cl->mode)
 		{
@@ -332,14 +333,26 @@ cont:
 			else if (!stricmp(mode, "GET") || !stricmp(mode, "HEAD") || !stricmp(mode, "POST"))
 			{
 				if (*resource != '/')
+				{
+					resource[0] = '/';
 					resource[1] = 0;	//I'm lazy, they need to comply
+				}
 				Con_Printf("Download request for \"%s\"\n", resource+1);
 				if (!strnicmp(mode, "P", 1))	//when stuff is posted, data is provided. Give an error message if we couldn't do anything with that data.
 					cl->file = IWebGenerateFile(resource+1, content, contentlen);
-				else if (!SV_AllowDownload(resource+1))
-					cl->file = NULL;
 				else
-					cl->file = FS_OpenVFS(resource+1, "rb", FS_GAME);
+				{
+					if (!SV_AllowDownload(resource+1))
+						cl->file = NULL;
+					else
+						cl->file = FS_OpenVFS(resource+1, "rb", FS_GAME);
+				
+					if (!cl->file)
+					{
+						cl->file = IWebGenerateFile(resource+1, content, contentlen);
+					}
+				}
+
 				if (!cl->file)
 				{
 					if (HTTPmarkup >= 3)
@@ -418,11 +431,11 @@ notimplemented:
 			break;
 
 		case HTTP_SENDING:
-			if (cl->outbufferused < 128)
+			if (cl->outbufferused < 8192)
 			{
 				if (cl->file)
 				{
-					ExpandOutBuffer(cl, 1500, true);
+					ExpandOutBuffer(cl, 32768, true);
 					wanted = cl->outbuffersize - cl->outbufferused;
 					ammount = VFS_READ(cl->file, cl->outbuffer+cl->outbufferused, wanted);
 
@@ -483,10 +496,12 @@ notimplemented:
 
 qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while true
 {
-	struct sockaddr_in	from;
+	struct sockaddr_qstorage	from;
 	int		fromlen;
 	int clientsock;
 	int _true = true;
+	char buf[128];
+	netadr_t na;
 
 	HTTP_active_connections_t *cl;
 
@@ -534,7 +549,8 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 		return false;
 	}
 
-	Con_Printf("New connection\n");
+	SockadrToNetadr(&from, &na);
+	Con_Printf("New http connection from %s\n", NET_AdrToString(buf, sizeof(buf), na));
 
 	cl = IWebMalloc(sizeof(HTTP_active_connections_t));
 

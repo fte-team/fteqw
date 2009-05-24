@@ -1445,14 +1445,15 @@ static void P_LoadParticleSet(char *name, qboolean first)
 		Cbuf_AddText(particle_set_tsshaft, RESTRICT_LOCAL);
 	else
 	{
-		char *file = COM_LoadMallocFile(va("particles/%s.cfg", name));
+		char *file;
+		FS_LoadFile(va("particles/%s.cfg", name), (void**)&file);
 		if (!file)
-			file = COM_LoadMallocFile(va("%s.cfg", name));
+			FS_LoadFile(va("%s.cfg", name), (void**)&file);
 		if (file)
 		{
 			Cbuf_AddText(file, restrictlevel);
 			Cbuf_AddText("\n", restrictlevel);
-			BZ_Free(file);
+			FS_FreeFile(file);
 		}
 		else if (first)
 		{

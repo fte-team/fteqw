@@ -65,6 +65,8 @@ static int csqc_fakereadbyte;
 static int csqc_lplayernum;
 static qboolean csqc_isdarkplaces;
 
+static char csqc_printbuffer[8192];
+
 #define CSQCPROGSGROUP "CSQC progs control"
 cvar_t	pr_csmaxedicts = SCVAR("pr_csmaxedicts", "3072");
 cvar_t	cl_csqcdebug = SCVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
@@ -145,6 +147,7 @@ typedef enum
 	globalfunction(draw_function,		"CSQC_UpdateView");	\
 	globalfunction(parse_stuffcmd,		"CSQC_Parse_StuffCmd");	\
 	globalfunction(parse_centerprint,	"CSQC_Parse_CenterPrint");	\
+	globalfunction(parse_print,			"CSQC_Parse_Print");	\
 	globalfunction(input_event,			"CSQC_InputEvent");	\
 	globalfunction(input_frame,			"CSQC_Input_Frame");/*EXT_CSQC_1*/	\
 	globalfunction(console_command,		"CSQC_ConsoleCommand");	\
@@ -2131,6 +2134,51 @@ static void PF_cs_particleeffectnum (progfuncs_t *prinst, struct globalvars_s *p
 	COM_Effectinfo_ForName(effectname);
 
 	G_FLOAT(OFS_RETURN) = pe->FindParticleType(effectname)+1;
+}
+
+static void PF_cs_sendevent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent;
+	int i;
+	char *eventname = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *argtypes = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	MSG_WriteByte(&cls.netchan.message, clc_qcrequest);
+	for (i = 0; i < 6; i++)
+	{
+		if (argtypes[i] == 's')
+		{
+			MSG_WriteByte(&cls.netchan.message, ev_string);
+			MSG_WriteString(&cls.netchan.message, PR_GetStringOfs(prinst, OFS_PARM2+i*3));
+		}
+		else if (argtypes[i] == 'f')
+		{
+			MSG_WriteByte(&cls.netchan.message, ev_float);
+			MSG_WriteFloat(&cls.netchan.message, G_FLOAT(OFS_PARM2+i*3));
+		}
+		else if (argtypes[i] == 'i')
+		{
+			MSG_WriteByte(&cls.netchan.message, ev_integer);
+			MSG_WriteFloat(&cls.netchan.message, G_FLOAT(OFS_PARM2+i*3));
+		}
+		else if (argtypes[i] == 'v')
+		{
+			MSG_WriteByte(&cls.netchan.message, ev_vector);
+			MSG_WriteFloat(&cls.netchan.message, G_FLOAT(OFS_PARM2+i*3+0));
+			MSG_WriteFloat(&cls.netchan.message, G_FLOAT(OFS_PARM2+i*3+1));
+			MSG_WriteFloat(&cls.netchan.message, G_FLOAT(OFS_PARM2+i*3+2));
+		}
+		else if (argtypes[i] == 'e')
+		{
+			ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM2+i*3);
+			MSG_WriteByte(&cls.netchan.message, ev_entity);
+			MSG_WriteShort(&cls.netchan.message, ent->v->entnum);
+		}
+		else
+			break;
+	}
+	MSG_WriteByte(&cls.netchan.message, 0);
+	MSG_WriteString(&cls.netchan.message, eventname);
 }
 
 static void cs_set_input_state (usercmd_t *cmd)
@@ -5105,13 +5153,13 @@ static struct {
 	{"freepic",	PF_CL_free_pic,				319},		// #319 void(string name) freepic (EXT_CSQC)
 //320
 	{"drawcharacter",	PF_CL_drawcharacter,		320},		// #320 float(vector position, float character, vector scale, vector rgb, float alpha [, float flag]) drawcharacter (EXT_CSQC, [EXT_CSQC_???])
-	{"drawstring",	PF_CL_drawstring,				321},	// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])
+	{"drawrawstring",	PF_CL_drawrawstring,				321},	// #321 float(vector position, string text, vector scale, vector rgb, float alpha [, float flag]) drawstring (EXT_CSQC, [EXT_CSQC_???])
 	{"drawpic",	PF_CL_drawpic,				322},		// #322 float(vector position, string pic, vector size, vector rgb, float alpha [, float flag]) drawpic (EXT_CSQC, [EXT_CSQC_???])
 	{"drawfill",	PF_CL_drawfill,				323},		// #323 float(vector position, vector size, vector rgb, float alpha [, float flag]) drawfill (EXT_CSQC, [EXT_CSQC_???])
 	{"drawsetcliparea",	PF_CL_drawsetcliparea,			324},	// #324 void(float x, float y, float width, float height) drawsetcliparea (EXT_CSQC_???)
 	{"drawresetcliparea",	PF_CL_drawresetcliparea,	325},		// #325 void(void) drawresetcliparea (EXT_CSQC_???)
 
-	{"drawcolorcodedstring",	PF_CL_drawstring,						326},	// #326
+	{"drawstring",	PF_CL_drawcolouredstring,						326},	// #326
 	{"stringwidth",	PF_CL_stringwidth,					327},	// #327 EXT_CSQC_'DARKPLACES'
 	{"drawsubpic",	PF_CL_drawsubpic,						328},	// #328 EXT_CSQC_'DARKPLACES'
 //	{"?",	PF_Fixme,						329},	// #329 EXT_CSQC_'DARKPLACES'
@@ -5158,7 +5206,7 @@ static struct {
 //	{"?",	PF_Fixme,						356},	// #356
 //	{"?",	PF_Fixme,						357},	// #357
 //	{"?",	PF_Fixme,						358},	// #358
-//	{"?",	PF_Fixme,						359},	// #359
+	{"sendevent",	PF_cs_sendevent,				359},	// #359	void(string evname, string evargs, ...) (EXT_CSQC_1)
 
 //360
 //note that 'ReadEntity' is pretty hard to implement reliably. Modders should use a combination of ReadShort, and findfloat, and remember that it might not be known clientside (pvs culled or other reason)
@@ -5622,15 +5670,21 @@ qboolean CSQC_Init (unsigned int checksum)
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
 
 		csqc_isdarkplaces = false;
-		if (PR_LoadProgs(csqcprogs, "csprogs.dat", 32199, NULL, 0) < 0) //no per-progs builtins.
+		if (PR_LoadProgs(csqcprogs, "csprogs.dat", 22390, NULL, 0) < 0) //no per-progs builtins.
 		{
 			if (PR_LoadProgs(csqcprogs, "csprogs.dat", 52195, NULL, 0) < 0) //no per-progs builtins.
 			{
-				CSQC_Shutdown();
-				//failed to load or something
-				return false;
+				if (PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0) < 0) //no per-progs builtins.
+				{
+					CSQC_Shutdown();
+					//failed to load or something
+					return false;
+				}
 			}
-			csqc_isdarkplaces = true;
+			else
+				csqc_isdarkplaces = true;
+
+			Con_Printf(CON_WARNING "Running outdated or unknown csprogs.dat version\n");
 		}
 		if (setjmp(csqc_abort))
 		{
@@ -5873,7 +5927,7 @@ qboolean CSQC_DrawView(void)
 */
 	if (csqcg.cltime)
 		*csqcg.cltime = cl.time;
-	if (csqcg.cltime)
+	if (csqcg.svtime)
 		*csqcg.svtime = cl.servertime;
 
 	CSQC_RunThreads();	//wake up any qc threads
@@ -5969,6 +6023,64 @@ qboolean CSQC_LoadResource(char *resname, char *restype)
 	PR_ExecuteProgram (csqcprogs, csqcg.loadresource);
 
 	return !!G_FLOAT(OFS_RETURN);
+}
+
+void CSQC_ParsePrint(char *message, int printlevel)
+{
+	void *pr_globals;
+	int bufferpos;
+	char *nextline;
+	qboolean doflush;
+	if (!csqcprogs || !csqcg.parse_print)
+	{
+		Con_Printf("%s", message);
+		return;
+	}
+
+	bufferpos = strlen(csqc_printbuffer);
+
+	//fix-up faked bot chat
+	if (*message == '\1' && *csqc_printbuffer == '\1')
+		message++;
+
+	while(*message)
+	{
+		nextline = strchr(message, '\n');
+		if (nextline)
+		{
+			nextline+=1;
+			doflush = true;
+		}
+		else
+		{
+			nextline = message+strlen(message);
+			doflush = false;
+		}
+
+		if (bufferpos + nextline-message >= sizeof(csqc_printbuffer))
+		{
+			//if this would overflow the buffer, cap its length and flush the buffer
+			//this copes with too many strings and too long strings.
+			nextline = message + sizeof(csqc_printbuffer)-1 - bufferpos;
+			doflush = true;
+		}
+
+		memcpy(csqc_printbuffer+bufferpos, message, nextline-message);
+		bufferpos += nextline-message;
+		csqc_printbuffer[bufferpos] = '\0';
+		message = nextline;
+
+		if (doflush)
+		{
+			pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+			(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, csqc_printbuffer));
+			G_FLOAT(OFS_PARM1) = printlevel;
+			PR_ExecuteProgram (csqcprogs, csqcg.parse_print);
+
+			bufferpos = 0;
+			csqc_printbuffer[bufferpos] = 0;
+		}
+	}
 }
 
 qboolean CSQC_StuffCmd(int lplayernum, char *cmd)

@@ -224,9 +224,10 @@ iwboolean FTP_ClientConnThink (FTPclientconn_t *con)	//true to kill con
 		int len;
 		if (con->type == ftp_getting)
 		{
-			if (!cls.downloadmethod || (cls.downloadmethod == DL_FTP && !strcmp(cls.downloadname, con->localfile)))
+			if (!cls.downloadmethod || (cls.downloadmethod == DL_FTP && !strcmp(cls.downloadlocalname, con->localfile)))
 			{
-				strcpy(cls.downloadname, con->localfile);
+				strcpy(cls.downloadlocalname, con->localfile);
+				strcpy(cls.downloadremotename, con->localfile);
 				cls.downloadmethod = DL_FTP;
 				if (con->transfersize == -1)
 					cls.downloadpercent=50;
@@ -640,7 +641,7 @@ void FTP_ClientThink (void)
 			if (con->NotifyFunction)
 				con->NotifyFunction(con->localfile, false);
 
-			if (cls.downloadmethod == DL_FTP && !strcmp(cls.downloadname, con->localfile))
+			if (cls.downloadmethod == DL_FTP && !strcmp(cls.downloadlocalname, con->localfile))
 			{	//this was us
 				cls.downloadmethod = DL_NONE;
 			}

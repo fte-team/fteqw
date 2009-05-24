@@ -255,103 +255,6 @@ int                     scr_center_lines[MAX_SPLITS];
 int                     scr_erase_lines[MAX_SPLITS];
 int                     scr_erase_center[MAX_SPLITS];
 
-void CopyAndMarkup(conchar_t *dest, qbyte *src, int maxlength)
-{
-	conchar_t ext = CON_WHITEMASK;
-	conchar_t extstack[20];
-	int extstackdepth = 0;
-
-	if (maxlength < 0)
-		return;	// ...
-
-	while(*src && maxlength>0)
-	{
-		if (*src == '^')
-		{
-			src++;
-			if (*src >= '0' && *src <= '9')
-			{
-				ext = q3codemasks[*src - '0'] | (ext&~CON_Q3MASK);
-				src++;
-				continue;
-			}
-			else if (*src == '&') // extended code
-			{
-				if (isextendedcode(src[1]) && isextendedcode(src[2]))
-				{
-					src++; // foreground char
-					if (*src == '-') // default for FG
-						ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					else if (*src >= 'A')
-						ext = ((*src - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					else
-						ext = ((*src - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					src++; // background char
-					if (*src == '-') // default (clear) for BG
-						ext &= ~CON_BGMASK & ~CON_NONCLEARBG;
-					else if (*src >= 'A')
-						ext = ((*src - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-					else
-						ext = ((*src - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-					src++;
-					continue;
-				}
-				// else invalid code
-				*dest++ = '^' | ext;
-				maxlength--;
-				if (maxlength <= 0)
-					break; // need an extra check for writing length
-			}
-			else if (*src == 'b') // toggle blink bit
-			{
-				src++;
-				ext ^= CON_BLINKTEXT;
-				continue;
-			}
-			else if (*src == 'a') // toggle alternate charset
-			{
-				src++;
-				ext ^= CON_2NDCHARSETTEXT;
-				continue;
-			}
-			else if (*src == 'h')
-			{
-				src++;
-				ext ^= CON_HALFALPHA;
-				continue;
-			}
-			else if (*src == 's')
-			{
-				src++;
-				if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
-				{
-					extstack[extstackdepth] = ext;
-					extstackdepth++;
-				}
-				continue;
-			}
-			else if (*src == 'r')
-			{
-				src++;
-				if (extstackdepth)
-				{
-					extstackdepth--;
-					ext = extstack[extstackdepth];
-				}
-				continue;
-			}
-			else if (*src != '^')
-				src--;
-		}
-		if (*src == '\n')
-			*dest++ = *src++;
-		else
-			*dest++ = *src++ | ext;
-		maxlength--;
-	}
-	*dest = 0;
-}
-
 // SCR_StringToRGB: takes in "<index>" or "<r> <g> <b>" and converts to an RGB vector
 void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
 {
@@ -455,7 +358,7 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 		Cbuf_AddText("f_centerprint\n", RESTRICT_LOCAL);
 	}
 
-	CopyAndMarkup (scr_centerstring[pnum], str, sizeof(scr_centerstring[pnum]));
+	COM_ParseFunString(CON_WHITEMASK, str, scr_centerstring[pnum], sizeof(scr_centerstring[pnum]));
 	scr_centertime_off[pnum] = scr_centertime.value;
 	scr_centertime_start[pnum] = cl.time;
 
@@ -735,7 +638,7 @@ void SCR_ShowPics_Draw(void)
 
 		for (failed = cl.faileddownloads; failed; failed = failed->next)
 		{	//don't try displaying ones that we know to have failed.
-			if (!strcmp(failed->name, sp->picname))
+			if (!strcmp(failed->rname, sp->picname))
 				break;
 		}
 		if (failed)
@@ -1573,7 +1476,7 @@ void SCR_DrawLoading (void)
 		//downloading files?
 		if (cls.downloadmethod)
 			Draw_String(x+8, y+4, va("Downloading %s... %i%%", 
-				cls.downloadname,
+				cls.downloadlocalname,
 				cls.downloadpercent));
 
 		if (tsize > 1024*1024*16)

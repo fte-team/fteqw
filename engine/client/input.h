@@ -28,7 +28,7 @@ void IN_Shutdown (void);
 void IN_Commands (void);
 // oportunity for devices to stick commands on the script buffer
 
-void IN_Move (usercmd_t *cmd, int pnum);
+void IN_Move (float *movements, int pnum);
 // add additional movement on top of the keyboard move cmd
 
 void IN_ModeChanged (void);

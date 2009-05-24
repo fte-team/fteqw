@@ -1229,34 +1229,35 @@ cin_t *Media_Static_TryLoad(char *name)
 		int imagewidth;
 		int imageheight;
 
+		int fsize;
 		char fullname[MAX_QPATH];
 		qbyte *file;
 
 		sprintf(fullname, "%s", name);
-		file = COM_LoadMallocFile(fullname);	//read file
+		fsize = FS_LoadFile(fullname, &file);
 		if (!file)
 		{
 			sprintf(fullname, "pics/%s", name);
-			file = COM_LoadMallocFile(fullname);	//read file
+			fsize = FS_LoadFile(fullname, &file);
 			if (!file)
 				return NULL;
 		}
 
-		if ((staticfilmimage = ReadPCXFile(file, com_filesize, &imagewidth, &imageheight)) ||	//convert to 32 rgba if not corrupt
-			(staticfilmimage = ReadTargaFile(file, com_filesize, &imagewidth, &imageheight, false)) ||
+		if ((staticfilmimage = ReadPCXFile(file, fsize, &imagewidth, &imageheight)) ||	//convert to 32 rgba if not corrupt
+			(staticfilmimage = ReadTargaFile(file, fsize, &imagewidth, &imageheight, false)) ||
 #ifdef AVAIL_JPEGLIB
-			(staticfilmimage = ReadJPEGFile(file, com_filesize, &imagewidth, &imageheight)) ||
+			(staticfilmimage = ReadJPEGFile(file, fsize, &imagewidth, &imageheight)) ||
 #endif
 #ifdef AVAIL_PNGLIB
-			(staticfilmimage = ReadPNGFile(file, com_filesize, &imagewidth, &imageheight, fullname)) ||
+			(staticfilmimage = ReadPNGFile(file, fsize, &imagewidth, &imageheight, fullname)) ||
 #endif
 			0)
 		{
-			BZ_Free(file);	//got image data
+			FS_FreeFile(file);	//got image data
 		}
 		else
 		{
-			BZ_Free(file);	//got image data
+			FS_FreeFile(file);	//got image data
 			Con_Printf("Static cinematic format not supported.\n");	//not supported format
 			return NULL;
 		}

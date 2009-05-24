@@ -1881,6 +1881,8 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 
 	switch (crc)
 	{
+	case 12923:	//#pragma sourcefile usage
+		break;
 	case 54730:
 		printf("Recognised progs as QuakeWorld\n");
 		break;
@@ -1902,8 +1904,12 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 		printf("Recognised progs as Hexen2 (demo)\n");
 		break;
 
-	case 32199:
+	case 22390: //EXT_CSQC_1
 		printf("Recognised progs as a CSQC module\n");
+		break;
+	case 17105:
+	case 32199:	//outdated ext_csqc
+		printf("Recognised progs as outdated CSQC module\n");
 		break;
 	case 52195:
 		printf("Recognised progs as outdated CSQC module\n");

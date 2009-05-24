@@ -256,14 +256,16 @@ void COM_Init (void);
 void COM_InitArgv (int argc, const char **argv);
 void COM_ParsePlusSets (void);
 
+typedef unsigned int conchar_t;
+void COM_DeFunString(conchar_t *str, char *out, int outsize, qboolean ignoreflags);
+void COM_ParseFunString(conchar_t ext, char *str, conchar_t *out, int outsize);	//ext is usually CON_WHITEMASK
+int COM_FunStringLength(unsigned char *str);
+
 char *COM_SkipPath (const char *pathname);
 void COM_StripExtension (const char *in, char *out, int outlen);
 void COM_FileBase (const char *in, char *out, int outlen);
 int COM_FileSize(const char *path);
 void COM_DefaultExtension (char *path, char *extension, int maxlen);
-void COM_DeFunString(unsigned long *str, char *out, int outsize, qboolean ignoreflags);
-void COM_ParseFunString(char *str, unsigned long *out, int outsize);
-int COM_FunStringLength(unsigned char *str);
 char *COM_FileExtension (const char *in);
 void COM_CleanUpPath(char *str);
 
@@ -367,7 +369,6 @@ qbyte *COM_LoadStackFile (const char *path, void *buffer, int bufsize);
 qbyte *COM_LoadTempFile (const char *path);
 qbyte *COM_LoadTempFile2 (const char *path);	//allocates a little bit more without freeing old temp
 qbyte *COM_LoadHunkFile (const char *path);
-qbyte *COM_LoadMallocFile (const char *path);
 void COM_LoadCacheFile (const char *path, struct cache_user_s *cu);
 void COM_CreatePath (char *path);
 void COM_Gamedir (const char *dir);
@@ -376,6 +377,9 @@ char *COM_GetPathInfo (int i, int *crc);
 char *COM_NextPath (char *prevpath);
 void COM_FlushFSCache(void);	//a file was written using fopen
 void COM_RefreshFSCache_f(void);
+
+int FS_LoadFile(char *name, void **file);
+void FS_FreeFile(void *file);
 
 qboolean COM_LoadMapPackFile(const char *name, int offset);
 void COM_FlushTempoaryPacks(void);

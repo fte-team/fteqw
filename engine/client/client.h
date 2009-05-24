@@ -337,7 +337,8 @@ typedef struct
 	enum {DL_NONE, DL_QW, DL_QWCHUNKS, DL_Q3, DL_DARKPLACES, DL_QWPENDING, DL_HTTP, DL_FTP} downloadmethod;
 	vfsfile_t		*downloadqw;		// file transfer from server
 	char		downloadtempname[MAX_OSPATH];
-	char		downloadname[MAX_OSPATH];
+	char		downloadlocalname[MAX_OSPATH];
+	char		downloadremotename[MAX_OSPATH];
 	int			downloadpercent;
 	int			downloadchunknum;
 
@@ -401,7 +402,7 @@ extern client_static_t	cls;
 extern int nq_dp_protocol;
 
 typedef struct downloadlist_s {
-	char name[128];
+	char rname[128];
 	char localname[128];
 	unsigned int size;
 	unsigned int flags;
@@ -753,7 +754,7 @@ void CL_MakeActive(char *gamename);
 
 void CL_RegisterSplitCommands(void);
 void CL_InitInput (void);
-void CL_SendCmd (double frametime);
+void CL_SendCmd (double frametime, qboolean mainloop);
 void CL_SendMove (usercmd_t *cmd);
 #ifdef NQPROT
 void CL_ParseTEnt (qboolean nqprot);

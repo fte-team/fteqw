@@ -21,8 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // console
 //
 
-typedef unsigned int conchar_t;
-
 #define MAXCONCOLOURS 16
 typedef struct {
 	float fr, fg, fb;
@@ -108,8 +106,6 @@ typedef struct console_s
 
 extern	console_t	con_main;
 extern	console_t	*con_current;			// point to either con_main or con_chat
-
-extern	conchar_t	con_ormask;
 
 extern int scr_chatmode;
 

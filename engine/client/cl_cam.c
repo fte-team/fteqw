@@ -357,6 +357,7 @@ static void Cam_CheckHighTarget(int pnum)
 {
 	int i, j, max;
 	player_info_t	*s;
+	int sp;
 
 	j = -1;
 	for (i = 0, max = -9999; i < MAX_CLIENTS; i++)
@@ -364,14 +365,29 @@ static void Cam_CheckHighTarget(int pnum)
 		s = &cl.players[i];
 		if (s->name[0] && !s->spectator && s->frags > max)
 		{
-			max = s->frags;
-			j = i;
+			for (sp = pnum-1; sp >= 0; sp--)
+			{
+				if (Cam_TrackNum(sp) == i)
+					break;
+			}
+			if (sp == -1)
+			{
+				max = s->frags;
+				j = i;
+			}
 		}
 	}
 	if (j >= 0)
 	{
 		if (!locked[pnum] || cl.players[j].frags > cl.players[spec_track[pnum]].frags)
+		{
 			Cam_Lock(pnum, j);
+			for (sp = pnum+1; sp < cl.splitclients; sp++)
+			{
+				if (Cam_TrackNum(sp) == j)
+					locked[sp] = false;
+			}
+		}
 	}
 	else
 		Cam_Unlock(pnum);

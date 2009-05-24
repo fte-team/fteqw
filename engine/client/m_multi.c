@@ -268,22 +268,22 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 	extern qbyte translationTable[256];
 	setupmenu_t *info = menu->data;
 	mpic_t	*p;
-	qbyte *f;
+	void *f;
 
 	if (info->skinedit->modified)
 	{
 		info->skinedit->modified = false;
 
-		f = COM_LoadMallocFile (va("gfx/player/%s.lmp", info->skinedit->text));
+		FS_LoadFile(va("gfx/player/%s.lmp", info->skinedit->text), &f);
 		if (!f)
-			f = COM_LoadMallocFile("gfx/menuplyr.lmp");
+			FS_LoadFile("gfx/menuplyr.lmp", &f);
 
 		if (f)
 		{
 			info->tiwidth = ((int*)f)[0];
 			info->tiheight = ((int*)f)[1];
 			memcpy(info->translationimage, f+8, info->tiwidth*info->tiheight);
-			BZ_Free(f);
+			FS_FreeFile(f);
 		}
 	}
 

@@ -1,16 +1,33 @@
 #include "progsint.h"
 //#include "qcc.h"
 
+//#define AVAIL_ZLIB
+
 #ifdef AVAIL_ZLIB
 #ifdef _WIN32
 #define ZEXPORT VARGS
 #include "../libs/zlib.h"
 
-//# pragma comment (lib, "zip/zlib.lib") 
+# pragma comment (lib, "../libs/zlib.lib") 
 #else
 #include <zlib.h>
 #endif
 #endif
+
+pbool QC_decodeMethodSupported(int method)
+{
+	if (method == 0)
+		return true;
+	if (method == 1)
+		return true;
+	if (method == 2)
+	{
+#ifdef AVAIL_ZLIB
+		return false;
+#endif
+	}
+	return false;
+}
 
 char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, char *info, char *buffer)
 {
@@ -20,15 +37,15 @@ char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, char *
 		if (complen != len) Sys_Error("lengths do not match");
 		memcpy(buffer, info, len);		
 	}
-	else if (method == 1)	//encryption
+	else if (method == 1)	//xor encryption
 	{
 		if (complen != len) Sys_Error("lengths do not match");
 		for (i = 0; i < len; i++)
 			buffer[i] = info[i] ^ 0xA5;		
 	}
-#ifdef AVAIL_ZLIB
 	else if (method == 2)	//compression (ZLIB)
 	{
+#ifdef AVAIL_ZLIB
 		z_stream strm = {
 			info,
 			complen,
@@ -54,8 +71,8 @@ char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, char *
 		if (Z_STREAM_END != inflate(&strm, Z_FINISH))	//decompress it in one go.
 			Sys_Error("Failed block decompression\n");
 		inflateEnd(&strm);
-	}
 #endif
+	}
 	//add your decryption/decompression routine here.
 	else
 		Sys_Error("Bad file encryption routine\n");
@@ -76,16 +93,16 @@ int QC_encode(progfuncs_t *progfuncs, int len, int method, char *in, int handle)
 		SafeWrite(handle, in, len);
 		return len;
 	}
-	else if (method == 1)	//encryption
+	else if (method == 1)	//xor encryption
 	{
 		for (i = 0; i < len; i++)
 			in[i] = in[i] ^ 0xA5;
 		SafeWrite(handle, in, len);
 		return len;
 	}
-#ifdef AVAIL_ZLIB
 	else if (method == 2)	//compression (ZLIB)
 	{
+#ifdef AVAIL_ZLIB
 		char out[8192];
 
 		z_stream strm = {
@@ -122,8 +139,10 @@ int QC_encode(progfuncs_t *progfuncs, int len, int method, char *in, int handle)
 		i+=sizeof(out) - strm.avail_out;
 		deflateEnd(&strm);
 		return i;
-	}
 #endif
+		Sys_Error("ZLIB compression not supported in this build");
+		return 0;
+	}
 	//add your compression/decryption routine here.
 	else
 	{

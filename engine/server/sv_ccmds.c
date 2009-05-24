@@ -568,7 +568,7 @@ void SV_Map_f (void)
 	{
 		cvar_t *gametype;
 
-		gametype = Cvar_Get("mapname", "0", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
+		gametype = Cvar_Get("mapname", "", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
 		gametype->flags |= CVAR_SERVERINFO;
 		Cvar_ForceSet(gametype, level);
 

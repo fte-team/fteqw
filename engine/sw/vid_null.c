@@ -81,7 +81,7 @@ void IN_Commands(void)
 {
 }
 
-void IN_Move(usercmd_t *cmd, int pnum)
+void IN_Move(float *movements, int pnum)
 {
 }
 

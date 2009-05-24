@@ -1042,7 +1042,7 @@ int VARGS Plug_FS_Open(void *offset, unsigned int mask, const int *arg)
 
 	if (arg[2] == 1)
 	{
-		data = COM_LoadMallocFile(VM_POINTER(arg[0]));
+		FS_LoadFile(VM_POINTER(arg[0]), (void**)&data);
 		if (!data)
 			return -1;
 
@@ -1306,8 +1306,12 @@ void Plug_Net_Close_Internal(int handle)
 	{
 	case STREAM_FILE:
 		if (*pluginstreamarray[handle].file.filename)
+		{
 			COM_WriteFile(pluginstreamarray[handle].file.filename, pluginstreamarray[handle].file.buffer, pluginstreamarray[handle].file.curlen);
-		BZ_Free(pluginstreamarray[handle].file.buffer);
+			BZ_Free(pluginstreamarray[handle].file.buffer);
+		}
+		else
+			FS_FreeFile(pluginstreamarray[handle].file.buffer);
 		break;
 	case STREAM_NONE:
 		break;

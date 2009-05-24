@@ -297,7 +297,7 @@ void IN_Init (void)
 #endif
 	IN_ReInit();
 }
-void IN_Move (usercmd_t *cmd, int pnum)	//add mouse movement to cmd
+void IN_Move (float *movements, int pnum)	//add mouse movement to cmd
 {
 	mouse_x *= sensitivity.value*in_sensitivityscale;
 	mouse_y *= sensitivity.value*in_sensitivityscale;
@@ -307,7 +307,7 @@ void IN_Move (usercmd_t *cmd, int pnum)	//add mouse movement to cmd
 	{
 // add mouse X/Y movement to cmd
 		if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
-			cmd->sidemove += m_side.value * mouse_x;
+			movements[1] += m_side.value * mouse_x;
 		else
 			cl.viewangles[pnum][YAW] -= m_yaw.value * mouse_x;
 
@@ -323,9 +323,9 @@ void IN_Move (usercmd_t *cmd, int pnum)	//add mouse movement to cmd
 		else
 		{
 			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
-				cmd->upmove -= m_forward.value * mouse_y;
+				movements[2] -= m_forward.value * mouse_y;
 			else
-				cmd->forwardmove -= m_forward.value * mouse_y;
+				movements[0] -= m_forward.value * mouse_y;
 		}
 	}
 

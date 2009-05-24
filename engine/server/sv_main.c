@@ -151,6 +151,7 @@ cvar_t sv_masterport = SCVAR("sv_masterport", "0");
 cvar_t	sv_voicechat = SCVAR("sv_voicechat", "0");	//still development.
 cvar_t	sv_gamespeed = SCVAR("sv_gamespeed", "1");
 cvar_t	sv_csqcdebug = SCVAR("sv_csqcdebug", "0");
+cvar_t	sv_csqc_progname = SCVAR("sv_csqc_progname", "csprogs.dat");
 #ifdef TCPCONNECT
 cvar_t	sv_port_tcp = SCVARC("sv_port_tcp", "", SV_Tcpport_Callback);
 #ifdef IPPROTO_IPV6
@@ -595,25 +596,27 @@ void PIN_LoadMessages(void)
 	char message[1024];
 
 	int i;
-	char *file;
+	char *file, *end;
 	char *lstart;
+	int len;
 
 	dopinnedload = false;
 
 	while(pinned)
 		PIN_DeleteOldestMessage();
 
-	file = COM_LoadMallocFile("pinned.txt");
+	len = FS_LoadFile("pinned.txt", (void**)&file);
 	if (!file)
 		return;
+	end = file+len;
 
 	lstart = file;
 	for(;;)
 	{
-		while (*lstart <= ' ' && *lstart)
+		while (lstart<end && *lstart <= ' ')
 			lstart++;
 
-		for (i = 0; *lstart && i < sizeof(message)-1; i++)
+		for (i = 0; lstart<end && i < sizeof(message)-1; i++)
 		{
 			if (*lstart == '\n' || *lstart == '\r')
 				break;
@@ -621,10 +624,10 @@ void PIN_LoadMessages(void)
 		}
 		message[i] = '\0';
 
-		while (*lstart <= ' ' && *lstart)
+		while (lstart<end && *lstart <= ' ')
 			lstart++;
 
-		for (i = 0; *lstart && i < sizeof(setby)-1; i++)
+		for (i = 0; lstart<end && i < sizeof(setby)-1; i++)
 		{
 			if (*lstart == '\n' || *lstart == '\r')
 				break;
@@ -638,7 +641,7 @@ void PIN_LoadMessages(void)
 		PIN_MakeMessage(setby, message);
 	}
 
-	BZ_Free(file);
+	FS_FreeFile(file);
 }
 void PIN_SaveMessages(void)
 {
@@ -3916,7 +3919,10 @@ void Master_Shutdown (void)
 }
 
 #define iswhite(c) (c == ' ' || c == INVIS_CHAR1 || c == INVIS_CHAR2 || c == INVIS_CHAR3)
-#define isinvalid(c) (c == '\r' || c == '\n')
+#define isinvalid(c) (c == ':' || c == '\r' || c == '\n' || (unsigned char)(c) == '\xff')
+//colon is so clients can't get confused while parsing chats
+//255 is so fuhquake/ezquake don't end up with nameless players
+
 //is allowed to shorten, out must be as long as in and min of "unnamed"+1
 void SV_FixupName(char *in, char *out, unsigned int outlen)
 {
@@ -3929,7 +3935,7 @@ void SV_FixupName(char *in, char *out, unsigned int outlen)
 	len = outlen;
 
 	s = out;
-	while(iswhite(*in) || isinvalid(*in))
+	while(iswhite(*in) || isinvalid(*in) || *in == '\1' || *in == '\2')	//1 and 2 are to stop clients from printing the entire line as chat. only do that for the leading charater.
 		in++;
 	while(*in && len > 0)
 	{

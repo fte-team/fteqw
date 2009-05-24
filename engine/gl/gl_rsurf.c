@@ -3397,8 +3397,7 @@ void GL_BuildSurfaceDisplayList (msurface_t *fa)
 
 	if (lnumverts<3)
 		return;	//q3 map.
-//#ifdef Q3SHADERS
-//	if (fa->texinfo->texture->shader)
+
 	{	//build a nice mesh instead of a poly.
 		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vec3_t) + sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(byte_vec4_t))*lnumverts;
 		mesh_t *mesh;
@@ -3470,109 +3469,7 @@ void GL_BuildSurfaceDisplayList (msurface_t *fa)
 			mesh->colors_array[i][2] = 255;
 			mesh->colors_array[i][3] = 255;
 		}
-
-		return;
 	}
-//#endif
-	//
-	// draw texture
-	//
-	/*
-	poly = Hunk_AllocName (sizeof(glpoly_t) + (lnumverts-4) * VERTEXSIZE*sizeof(float), "SDList");
-	poly->next = fa->polys;
-	fa->polys = poly;
-	poly->numverts = lnumverts;
-
-	for (i=0 ; i<lnumverts ; i++)
-	{
-		lindex = currentmodel->surfedges[fa->firstedge + i];
-
-		if (lindex > 0)
-		{
-			r_pedge = &pedges[lindex];
-			vec = r_pcurrentvertbase[r_pedge->v[0]].position;
-		}
-		else
-		{
-			r_pedge = &pedges[-lindex];
-			vec = r_pcurrentvertbase[r_pedge->v[1]].position;
-		}
-
-		s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
-		t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
-
-		VectorCopy (vec, poly->verts[i]);
-		poly->verts[i][3] = s/fa->texinfo->texture->width;
-		poly->verts[i][4] = t/fa->texinfo->texture->height;
-
-		//
-		// lightmap texture coordinates
-		//
-		s -= fa->texturemins[0];
-		lm = s*fa->light_t;
-		s += fa->light_s*16;
-		s += 8;
-		s /= LMBLOCK_WIDTH*16;
-
-		t -= fa->texturemins[1];
-		lm += t;
-		t += fa->light_t*16;
-		t += 8;
-		t /= LMBLOCK_HEIGHT*16;
-
-		poly->verts[i][5] = s;
-		poly->verts[i][6] = t;
-
-#ifdef SPECULAR
-		if (fa->flags & SURF_PLANEBACK)
-			VectorNegate(fa->plane->normal, (poly->verts[i]+7));
-		else
-			VectorCopy(fa->plane->normal, (poly->verts[i]+7));
-#endif
-	}
-
-	//
-	// remove co-linear points - Ed
-	//
-	if (!gl_keeptjunctions.value && !(fa->flags & SURF_UNDERWATER) )
-	{
-		for (i = 0 ; i < lnumverts ; ++i)
-		{
-			vec3_t v1, v2;
-			float *prev, *this, *next;
-
-			prev = poly->verts[(i + lnumverts - 1) % lnumverts];
-			this = poly->verts[i];
-			next = poly->verts[(i + 1) % lnumverts];
-
-			VectorSubtract( this, prev, v1 );
-			VectorNormalize( v1 );
-			VectorSubtract( next, prev, v2 );
-			VectorNormalize( v2 );
-
-			// skip co-linear points
-			#define COLINEAR_EPSILON 0.001
-			if ((fabs( v1[0] - v2[0] ) <= COLINEAR_EPSILON) &&
-				(fabs( v1[1] - v2[1] ) <= COLINEAR_EPSILON) && 
-				(fabs( v1[2] - v2[2] ) <= COLINEAR_EPSILON))
-			{
-				int j;
-				for (j = i + 1; j < lnumverts; ++j)
-				{
-					int k;
-					for (k = 0; k < VERTEXSIZE; ++k)
-						poly->verts[j - 1][k] = poly->verts[j][k];
-				}
-				--lnumverts;
-				++nColinElim;
-				// retry next vertex next time, which is now current vertex
-				--i;
-			}
-		}
-	}
-
-	poly->numverts = lnumverts;
-	*/
 }
 
 /*
@@ -3643,6 +3540,84 @@ void GLSurf_DeInit(void)
 	numlightmaps=0;
 }
 
+void GL_GenBrushModelVBO(model_t *mod)
+{
+	unsigned int maxvboverts;
+	unsigned int maxvboelements;
+
+	unsigned int t;
+	unsigned int i;
+	unsigned int vbov, vboe;
+	unsigned int v;
+	unsigned int vcount, ecount;
+	void *vbovdata;
+	index_t *vboedata;
+	mesh_t *m;
+#define VBOSTRIDE (3+2+2)*4
+	if (!qglGenBuffersARB || !mod->numsurfaces)
+		return;
+
+	for (t = 0; t < mod->numtextures; t++)
+	{
+		if (!mod->textures[t])
+			continue;
+
+		mod->textures[t]->gl_vbov = 0;
+		mod->textures[t]->gl_vboe = 0;
+
+		maxvboverts = 0;
+		maxvboelements = 0;
+		for (i=0 ; i<mod->numsurfaces ; i++)
+		{
+			if (mod->surfaces[i].texinfo->texture != mod->textures[t])
+				continue;
+			m = mod->surfaces[i].mesh;
+
+			maxvboelements += m->numindexes;
+			maxvboverts += m->numvertexes;
+		}
+		if (maxvboverts > (1<<(sizeof(index_t)*8))-1)
+			continue;
+		if (!maxvboverts)
+			continue;
+
+		//fixme: stop this from leaking!
+		qglGenBuffersARB(1, &vbov);
+		qglGenBuffersARB(1, &vboe);
+		mod->textures[t]->gl_vbov = vbov;
+		mod->textures[t]->gl_vboe = vboe;
+		vcount = 0;
+		ecount = 0;
+		vbovdata = Hunk_TempAlloc(maxvboverts*VBOSTRIDE);
+		vboedata = Hunk_TempAllocMore(maxvboelements*sizeof(index_t));
+		for (i=0 ; i<mod->numsurfaces ; i++)
+		{
+			if (mod->surfaces[i].texinfo->texture != mod->textures[t])
+				continue;
+			m = mod->surfaces[i].mesh;
+
+			m->vbofirstvert = vcount;
+			m->vbofirstelement = ecount;
+			for (v = 0; v < m->numindexes; v++)
+				vboedata[ecount++] = vcount + m->indexes[v];
+			for (v = 0; v < m->numvertexes; v++)
+			{
+				memcpy((char*)vbovdata+(vcount+v)*VBOSTRIDE + 0, &m->xyz_array[v], sizeof(vec3_t));
+				if (m->st_array)
+					memcpy((char*)vbovdata+(vcount+v)*VBOSTRIDE + 12, &m->st_array[v], sizeof(vec2_t));
+				if (m->lmst_array)
+					memcpy((char*)vbovdata+(vcount+v)*VBOSTRIDE + 20, &m->lmst_array[v], sizeof(vec2_t));
+			}
+			vcount += v;
+		}
+		qglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbov);
+		qglBufferDataARB(GL_ARRAY_BUFFER_ARB, vcount*VBOSTRIDE, vbovdata, GL_STATIC_DRAW_ARB);
+		qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+		qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, vboe);
+		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, ecount*sizeof(vboedata[0]), vboedata, GL_STATIC_DRAW_ARB);
+		qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+	}
+}
 
 /*
 ==================
@@ -3747,7 +3722,7 @@ void GL_BuildLightmaps (void)
 		for (t = 0; t < m->numtextures; t++)
 		{
 			for (i=0 ; i<m->numsurfaces ; i++)
-			{//extra surface loop so we get slightly less texture switches
+			{//extra texture loop so we get slightly less texture switches
 				if (m->surfaces[i].texinfo->texture == m->textures[t])
 				{
 					GL_CreateSurfaceLightmap (m->surfaces + i, shift);
@@ -3758,6 +3733,8 @@ void GL_BuildLightmaps (void)
 				}
 			}
 		}
+
+		GL_GenBrushModelVBO(m);
 	}
 
 	//

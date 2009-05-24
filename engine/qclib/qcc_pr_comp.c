@@ -7374,7 +7374,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 	QCC_def_t *fasttrackpossible;
 
 	if (flag_fasttrackarrays)
-		fasttrackpossible = QCC_PR_GetDef(NULL, "__ext__fasttrackarrays", NULL, true, 1, false);
+		fasttrackpossible = QCC_PR_GetDef(type_float, "__ext__fasttrackarrays", NULL, true, 1, false);
 	else
 		fasttrackpossible = NULL;
 

@@ -37,6 +37,7 @@ extern cvar_t	sv_cheats;
 extern cvar_t	sv_bigcoords;
 extern cvar_t	sv_gamespeed;
 extern cvar_t	sv_csqcdebug;
+extern cvar_t	sv_csqc_progname;
 extern qboolean	sv_allow_cheats;
 
 /*
@@ -830,18 +831,29 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	//do we allow csprogs?
 #ifdef PEXT_CSQC
-	file = COM_LoadTempFile("csprogs.dat");
+	if (*sv_csqc_progname.string)
+		file = COM_LoadTempFile(sv_csqc_progname.string);
+	else
+		file = NULL;
 	if (file)
 	{
 		char text[64];
 		sv.csqcchecksum = Com_BlockChecksum(file, com_filesize);
 		sprintf(text, "0x%x", sv.csqcchecksum);
 		Info_SetValueForStarKey(svs.info, "*csprogs", text, MAX_SERVERINFO_STRING);
+		sprintf(text, "0x%x", com_filesize);
+		Info_SetValueForStarKey(svs.info, "*csprogssize", text, MAX_SERVERINFO_STRING);
+		if (strcmp(sv_csqc_progname.string, "csprogs.dat"))
+			Info_SetValueForStarKey(svs.info, "*csprogsname", sv_csqc_progname.string, MAX_SERVERINFO_STRING);
+		else
+			Info_SetValueForStarKey(svs.info, "*csprogsname", "", MAX_SERVERINFO_STRING);
 	}
 	else
 	{
 		sv.csqcchecksum = 0;
 		Info_SetValueForStarKey(svs.info, "*csprogs", "", MAX_SERVERINFO_STRING);
+		Info_SetValueForStarKey(svs.info, "*csprogssize", "", MAX_SERVERINFO_STRING);
+		Info_SetValueForStarKey(svs.info, "*csprogsname", "", MAX_SERVERINFO_STRING);
 	}
 
 	sv.csqcdebug = sv_csqcdebug.value;

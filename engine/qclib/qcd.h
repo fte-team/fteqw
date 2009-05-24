@@ -1,3 +1,4 @@
+pbool QC_decodeMethodSupported(int method);
 char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, char *info, char *buffer);
 int QC_encode(progfuncs_t *progfuncs, int len, int method, char *in, int handle);
 

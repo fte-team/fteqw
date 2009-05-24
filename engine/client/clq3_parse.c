@@ -414,8 +414,8 @@ void CLQ3_ParseDownload(void)
 	{
 		VFS_CLOSE(cls.downloadqw);
 		cls.downloadqw = NULL;
-		FS_Rename(cls.downloadtempname, cls.downloadname, FS_ROOT);	// ->
-		*cls.downloadtempname = *cls.downloadname = 0;
+		FS_Rename(cls.downloadtempname, cls.downloadlocalname, FS_ROOT);	// ->
+		*cls.downloadtempname = *cls.downloadlocalname = *cls.downloadremotename = 0;
 		cls.downloadmethod = DL_NONE;
 
 		FS_ReloadPackFiles();
@@ -492,7 +492,8 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 				Con_Printf("Sending request to download %s\n", com_token);
 				CLQ3_SendClientCommand("download %s.pk3", com_token);
 				ccs.downloadchunknum = 0;
-				snprintf(cls.downloadname, sizeof(cls.downloadname), "%s.pk3", com_token);
+				snprintf(cls.downloadlocalname, sizeof(cls.downloadlocalname), "%s.pk3", com_token);
+				snprintf(cls.downloadremotename, sizeof(cls.downloadremotename), "%s.pk3", com_token);
 				snprintf(cls.downloadtempname, sizeof(cls.downloadtempname), "%s.tmp", com_token);
 				cls.downloadmethod = DL_Q3;
 				cls.downloadpercent = 0;

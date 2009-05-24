@@ -44,6 +44,7 @@ cvar_t	cl_instantrotate = SCVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
 cvar_t	prox_inmenu = SCVAR("prox_inmenu", "0");
 
 usercmd_t independantphysics[MAX_SPLITS];
+vec3_t mousemovements[MAX_SPLITS];
 
 /*
 ===============================================================================
@@ -448,7 +449,7 @@ CL_AdjustAngles
 Moves the local angle positions
 ================
 */
-void CL_AdjustAngles (int pnum)
+void CL_AdjustAngles (int pnum, double frametime)
 {
 	float	speed, quant;
 	float	up, down;
@@ -456,12 +457,12 @@ void CL_AdjustAngles (int pnum)
 	if (in_speed.state[pnum] & 1)
 	{
 		if (ruleset_allow_frj.value)
-			speed = host_frametime * cl_anglespeedkey.value;
+			speed = frametime * cl_anglespeedkey.value;
 		else
-			speed = host_frametime * bound(-2, cl_anglespeedkey.value, 2);
+			speed = frametime * bound(-2, cl_anglespeedkey.value, 2);
 	}
 	else
-		speed = host_frametime;
+		speed = frametime;
 
 	if (in_rotate && pnum==0 && !(cl.fpd & FPD_LIMIT_YAW))
 	{
@@ -1013,7 +1014,10 @@ unsigned long _stdcall CL_IndepPhysicsThread(void *param)
 			time -= spare/1000.0f;
 			EnterCriticalSection(&indepcriticialsection);
 			if (cls.state)
-				CL_SendCmd(time - lasttime);
+			{
+				Sys_SendKeyEvents();
+				CL_SendCmd(time - lasttime, false);
+			}
 			lasttime = time;
 			LeaveCriticalSection(&indepcriticialsection);
 		}
@@ -1110,7 +1114,7 @@ void *CL_IndepPhysicsThread(void *param)
 			time -= spare/1000.0f;
 			pthread_mutex_lock(&indepcriticalsection);
 			if (cls.state)
-				CL_SendCmd(time - lasttime);
+				CL_SendCmd(time - lasttime, false);
 			lasttime = time;
 			pthread_mutex_unlock(&indepcriticalsection);
 		}
@@ -1369,7 +1373,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	return dontdrop;
 }
 
-void CL_SendCmd (double frametime)
+void CL_SendCmd (double frametime, qboolean mainloop)
 {
 	extern cvar_t cl_indepphysics;
 	sizebuf_t	buf;
@@ -1387,6 +1391,23 @@ void CL_SendCmd (double frametime)
 
 	extern cvar_t cl_maxfps;
 	clcmdbuf_t *next;
+
+	if (runningindepphys)
+	{
+		double curtime;
+		static double lasttime;
+		curtime = Sys_DoubleTime();
+		frametime = curtime - lasttime;
+		lasttime = curtime;
+
+/*		for (plnum = 0; plnum < cl.splitclients; plnum++)
+		{
+			CL_AdjustAngles(plnum, frametime);
+			IN_Move(mousemovements[plnum], plnum);
+		}
+		return;
+*/
+	}
 
 	CL_ProxyMenuHooks();
 
@@ -1413,12 +1434,16 @@ void CL_SendCmd (double frametime)
 				cmd->msec = frametime*1000;
 				independantphysics[0].msec = 0;
 
-				CL_AdjustAngles (plnum);
+				CL_AdjustAngles (plnum, frametime);
 				// get basic movement from keyboard
 				CL_BaseMove (cmd, plnum, 1, 1);
 
 				// allow mice or other external controllers to add to the move
-				IN_Move (cmd, plnum);
+				IN_Move (mousemovements[plnum], plnum);
+				independantphysics[plnum].forwardmove += mousemovements[plnum][0];
+				independantphysics[plnum].sidemove += mousemovements[plnum][1];
+				independantphysics[plnum].upmove += mousemovements[plnum][2];
+				VectorClear(mousemovements[plnum]);
 
 				// if we are spectator, try autocam
 				if (cl.spectator)
@@ -1461,6 +1486,8 @@ void CL_SendCmd (double frametime)
 		msecs=0;	//erm.
 
 	msecstouse = (int)msecs; //casts round down.
+	if (msecstouse == 0)
+		return;
 #ifdef IRCCONNECT
 	if (cls.netchan.remote_address.type != NA_IRC)
 #endif
@@ -1479,7 +1506,7 @@ void CL_SendCmd (double frametime)
 
 	fullsend = true;
 
-	if (!cl_indepphysics.value)
+	if (!runningindepphys)
 	{
 		// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
 		if (cls.state < ca_active && CL_FilterTime(msecstouse, 
@@ -1511,8 +1538,12 @@ void CL_SendCmd (double frametime)
 	for (plnum = 0; plnum < cl.splitclients; plnum++)
 	{
 //		CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
-		CL_AdjustAngles (plnum);
-		IN_Move (&independantphysics[plnum], plnum);
+		CL_AdjustAngles (plnum, frametime);
+		IN_Move (mousemovements[plnum], plnum);
+		independantphysics[plnum].forwardmove += mousemovements[plnum][0];
+		independantphysics[plnum].sidemove += mousemovements[plnum][1];
+		independantphysics[plnum].upmove += mousemovements[plnum][2];
+		VectorClear(mousemovements[plnum]);
 		
 		for (i=0 ; i<3 ; i++)
 			independantphysics[plnum].angles[i] = ((int)(cl.viewangles[plnum][i]*65536.0/360)&65535);
@@ -1529,6 +1560,10 @@ void CL_SendCmd (double frametime)
 		Cam_FinishMove(plnum, &independantphysics[plnum]);
 		independantphysics[plnum].msec = msecstouse;
 	}
+
+	//the main loop isn't allowed to send
+	if (runningindepphys && mainloop)
+		return;
 
 //	if (skipcmd)
 //		return;
@@ -1606,7 +1641,7 @@ void CL_SendCmd (double frametime)
 			return; // Q3 does it's own thing
 #endif
 		default:
-			Host_Error("Invalid protocol in CL_SendCmd: %i", cls.protocol);
+			Host_EndGame("Invalid protocol in CL_SendCmd: %i", cls.protocol);
 			return;
 		}
 	}

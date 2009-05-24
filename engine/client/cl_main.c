@@ -1162,7 +1162,10 @@ void CL_Disconnect (void)
 		cls.downloadqw = NULL;
 	}
 	if (!cls.downloadmethod)
-		*cls.downloadname = '\0';
+	{
+		*cls.downloadlocalname = '\0';
+		*cls.downloadremotename = '\0';
+	}
 
 	{
 		downloadlist_t *next;
@@ -2661,7 +2664,7 @@ void CL_Download_f (void)
 void CL_DownloadSize_f(void)
 {
 	downloadlist_t *dl;
-	char *name;
+	char *rname;
 	char *size;
 	char *redirection;
 
@@ -2670,37 +2673,37 @@ void CL_DownloadSize_f(void)
 	if (cls.demoplayback)
 		return;
 
-	name = Cmd_Argv(1);
+	rname = Cmd_Argv(1);
 	size = Cmd_Argv(2);
 	if (!strcmp(size, "e"))
 	{
-		Con_Printf("Download of \"%s\" failed. Not found.\n", name);
-		CL_DownloadFailed(name);
+		Con_Printf("Download of \"%s\" failed. Not found.\n", rname);
+		CL_DownloadFailed(rname);
 	}
 	else if (!strcmp(size, "p"))
 	{
-		Con_Printf("Download of \"%s\" failed. Not allowed.\n", name);
-		CL_DownloadFailed(name);
+		Con_Printf("Download of \"%s\" failed. Not allowed.\n", rname);
+		CL_DownloadFailed(rname);
 	}
 	else if (!strcmp(size, "r"))
 	{
 		redirection = Cmd_Argv(3);
 
-		dl = CL_DownloadFailed(name);
+		dl = CL_DownloadFailed(rname);
 
 		if (allow_download_redirection.value)
 		{
-			Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", name, redirection);
+			Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);
 			CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
 		}
 		else
-			Con_Printf("Download of \"%s\" redirected to \"%s\". Prevented by allow_download_redirection.\n", name, redirection);
+			Con_Printf("Download of \"%s\" redirected to \"%s\". Prevented by allow_download_redirection.\n", rname, redirection);
 	}
 	else
 	{
 		for (dl = cl.downloadlist; dl; dl = dl->next)
 		{
-			if (!strcmp(dl->name, name))
+			if (!strcmp(dl->rname, rname))
 			{
 				dl->size = strtoul(size, NULL, 0);
 				return;
@@ -2728,7 +2731,7 @@ void CL_ForceStopDownload (qboolean finish)
 	cls.downloadqw = NULL;
 
 	if (finish)
-		CL_DownloadFinished(cls.downloadname, cls.downloadtempname);
+		CL_DownloadFinished();
 	else
 	{
 		char *tempname;
@@ -2736,14 +2739,15 @@ void CL_ForceStopDownload (qboolean finish)
 		if (*cls.downloadtempname)
 			tempname = cls.downloadtempname;
 		else
-			tempname = cls.downloadname;
+			tempname = cls.downloadlocalname;
 
 		if (strncmp(tempname,"skins/",6))
 			FS_Remove(tempname, FS_GAME);
 		else
 			FS_Remove(tempname+6, FS_SKINS);
 	}
-	*cls.downloadname = '\0';
+	*cls.downloadlocalname = '\0';
+	*cls.downloadremotename = '\0';
 	cls.downloadpercent = 0;
 
 	// get another file if needed
@@ -3344,8 +3348,6 @@ void Host_Frame (double time)
 	// fetch results from server
 	CL_ReadPackets ();
 
-	CL_AllowIndependantSendCmd(true);
-
 	// send intentions now
 	// resend a connection request if necessary
 	if (cls.state == ca_disconnected)
@@ -3355,15 +3357,14 @@ void Host_Frame (double time)
 	}
 	else
 	{
-		extern qboolean runningindepphys;
-		if (!runningindepphys)
-			CL_SendCmd (host_frametime/cl.gamespeed);
+		CL_SendCmd (host_frametime/cl.gamespeed, true);
 
 		if (cls.state == ca_onserver && cl.validsequence && cl.worldmodel)
 		{	// first update is the final signon stage
 			CL_MakeActive("QuakeWorld");
 		}
 	}
+	CL_AllowIndependantSendCmd(true);
 
 	RSpeedEnd(RSPEED_PROTOCOL);
 

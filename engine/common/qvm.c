@@ -155,7 +155,6 @@ void QVM_UnloadDLL(dllhandle_t *handle)
 // ------------------------- * QVM files * -------------------------
 #define	VM_MAGIC	0x12721444
 #define	VM_MAGIC2	0x12721445
-#define LL(x)			x = LittleLong(x)
 
 #pragma pack(push,1)
 typedef struct vmHeader_s
@@ -318,47 +317,46 @@ typedef enum qvm_op_e
 qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 {
 	char path[MAX_QPATH];
-	vmHeader_t *header;
+	vmHeader_t header, *srcheader;
 	qvm_t *qvm;
 	qbyte *raw;
 	int n;
 	int i;
 
 	sprintf(path, "%s.qvm", name);
-	raw = COM_LoadMallocFile(path);
-//	FS_LoadFile(path, &raw, false);
+	FS_LoadFile(path, &raw);
 // file not found
 	if(!raw) return NULL;
-	header=(vmHeader_t*)raw;
+	srcheader=(vmHeader_t*)raw;
 
-	LL(header->vmMagic);
-	LL(header->instructionCount);
-	LL(header->codeOffset);
-	LL(header->codeLength);
-	LL(header->dataOffset);
-	LL(header->dataLength);
-	LL(header->litLength);
-	LL(header->bssLength);
+	header.vmMagic = LittleLong(srcheader->vmMagic);
+	header.instructionCount = LittleLong(srcheader->instructionCount);
+	header.codeOffset = LittleLong(srcheader->codeOffset);
+	header.codeLength = LittleLong(srcheader->codeLength);
+	header.dataOffset = LittleLong(srcheader->dataOffset);
+	header.dataLength = LittleLong(srcheader->dataLength);
+	header.litLength = LittleLong(srcheader->litLength);
+	header.bssLength = LittleLong(srcheader->bssLength);
 
-	if (header->vmMagic==VM_MAGIC2)
+	if (header.vmMagic==VM_MAGIC2)
 	{	//version2 cotains a jump table of sorts
 		//it is redundant information and can be ignored
 		//its also more useful for jit rather than bytecode
-		LL(header->jtrgLength);
+		header.jtrgLength = LittleLong(srcheader->jtrgLength);
 	}
 
 // check file
-	if(header->vmMagic!=VM_MAGIC && header->vmMagic!=VM_MAGIC2 || header->instructionCount<=0 || header->codeLength<=0)
+	if(header.vmMagic!=VM_MAGIC && header.vmMagic!=VM_MAGIC2 || header.instructionCount<=0 || header.codeLength<=0)
 	{
 		Con_Printf("%s: invalid qvm file\n", name);
-		BZ_Free(raw);
+		FS_FreeFile(raw);
 		return NULL;
 	}
 
 // create vitrual machine
 	qvm=Z_Malloc(sizeof(qvm_t));
-	qvm->len_cs=header->instructionCount+1;	//bad opcode padding.
-	qvm->len_ds=header->dataLength+header->litLength+header->bssLength;
+	qvm->len_cs=header.instructionCount+1;	//bad opcode padding.
+	qvm->len_ds=header.dataLength+header.litLength+header.bssLength;
 	qvm->len_ss=256*1024;									// 256KB stack space
 
 // memory
@@ -399,9 +397,9 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 
 // load instructions
 {
-	qbyte *src=raw+header->codeOffset;
+	qbyte *src=raw+header.codeOffset;
 	int *dst=(int*)qvm->cs;
-	int total=header->instructionCount;
+	int total=header.instructionCount;
 	qvm_op_t op;
 
 	for(n=0; n<total; n++)
@@ -448,17 +446,17 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 
 // load data segment
 {
-	int *src=(int*)(raw+header->dataOffset);
+	int *src=(int*)(raw+header.dataOffset);
 	int *dst=(int*)qvm->ds;
-	int total=header->dataLength/4;
+	int total=header.dataLength/4;
 
 	for(n=0; n<total; n++)
 		*dst++=LittleLong(*src++);
 
-	memcpy(dst, src, header->litLength);
+	memcpy(dst, src, header.litLength);
 }
 
-	BZ_Free(raw);
+	FS_FreeFile(raw);
 	return qvm;
 }
 

@@ -206,10 +206,10 @@ void VARGS PR_RunError (progfuncs_t *progfuncs, char *error, ...)
 	Q_vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 
-	{
-		void SV_EndRedirect (void);
-		SV_EndRedirect();
-	}
+//	{
+//		void SV_EndRedirect (void);
+//		SV_EndRedirect();
+//	}
 
 //	PR_PrintStatement (pr_statements + pr_xstatement);
 	PR_StackTrace (progfuncs);

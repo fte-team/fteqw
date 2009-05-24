@@ -70,6 +70,10 @@ typedef struct {
 
 typedef struct mesh_s
 {
+	unsigned int	vbofirstvert;
+	unsigned int	vbofirstelement;
+
+
     int				numvertexes;
 	vec3_t			*xyz_array;
 	vec3_t			*normals_array;
@@ -176,6 +180,9 @@ typedef struct texture_s
 
 	struct shader_s	*shader;
 
+	int			gl_vbov;
+	int			gl_vboe;
+
 	struct msurface_s	*texturechain;	// for gl_texsort drawing
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
@@ -183,6 +190,9 @@ typedef struct texture_s
 	struct texture_s *alternate_anims;	// bmodels in frmae 1 use these
 	unsigned	offsets[MIPLEVELS];		// four mip maps stored
 } texture_t;
+
+//the per-texture vbos have this stride (v_pos/st/lm_st)
+#define VBOSTRIDE (3+2+2)*sizeof(float)
 
 #define SURF_DRAWSKYBOX		0x00001
 #define	SURF_PLANEBACK		0x00002

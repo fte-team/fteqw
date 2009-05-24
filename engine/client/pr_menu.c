@@ -382,8 +382,8 @@ void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	G_FLOAT(OFS_RETURN) = 1;
 }
-//float	drawstring(vector position, string text, vector scale, vector rgb, float alpha, float flag) = #455;
-void PF_CL_drawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+//float	drawrawstring(vector position, string text, vector scale, vector rgb, float alpha, float flag) = #455;
+void PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -406,10 +406,36 @@ void PF_CL_drawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
+//float	drawstring(vector position, string text, vector scale, float alpha, float flag) = #455;
+void PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
+	float *size = G_VECTOR(OFS_PARM2);
+//	float *alpha = G_FLOAT(OFS_PARM3);
+//	float flag = G_FLOAT(OFS_PARM4);
+
+	if (!text)
+	{
+		G_FLOAT(OFS_RETURN) = -1;	//was null..
+		return;
+	}
+
+	Draw_FunString(pos[0], pos[1], text);
+}
+
 void PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	PF_strlen(prinst, pr_globals);
-//	G_FLOAT(OFS_RETURN)*=8;
+	char *text = PR_GetStringOfs(prinst, OFS_PARM0);
+	qboolean usecolours = G_FLOAT(OFS_PARM1);
+	if (usecolours)
+	{
+		G_FLOAT(OFS_RETURN) = COM_FunStringLength(text)*8;
+	}
+	else
+	{
+		G_FLOAT(OFS_RETURN) = strlen(text)*8;
+	}
 }
 
 #define DRAWFLAG_NORMAL 0
@@ -1389,7 +1415,7 @@ builtin_t menu_builtins[] = {
 	PF_CL_precache_pic,//2
 	PF_CL_free_pic,//3
 	PF_CL_drawcharacter,//4
-	PF_CL_drawstring,//5
+	PF_CL_drawrawstring,//5
 	PF_CL_drawpic,//6
 	PF_CL_drawfill,//7
 	PF_CL_drawsetcliparea,//8

@@ -2153,8 +2153,10 @@ void SV_SendClientMessages (void)
 		if (!sv.paused && !Netchan_CanPacket (&c->netchan, SV_RateForClient(c)))
 		{
 			c->chokecount++;
+			c->waschoked = true;
 			continue;		// bandwidth choke
 		}
+		c->waschoked = false;
 
 		if (c->state == cs_spawned)
 			SV_SendClientDatagram (c);

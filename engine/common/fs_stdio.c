@@ -1,38 +1,44 @@
 #include "quakedef.h"
 #include "fs.h"
 
+#ifndef _WIN32
+#define VFSSTDIO_Open VFSOS_Open
+#define stdiofilefuncs osfilefuncs
+#endif
+#define FSSTDIO_OpenTemp FS_OpenTemp
+
 typedef struct {
 	vfsfile_t funcs;
 	FILE *handle;
-} vfsosfile_t;
-int VFSOS_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+} vfsstdiofile_t;
+static int VFSSTDIO_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
-	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	return fread(buffer, 1, bytestoread, intfile->handle);
 }
-int VFSOS_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
+static int VFSSTDIO_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestoread)
 {
-	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	return fwrite(buffer, 1, bytestoread, intfile->handle);
 }
-qboolean VFSOS_Seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean VFSSTDIO_Seek (struct vfsfile_s *file, unsigned long pos)
 {
-	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	return fseek(intfile->handle, pos, SEEK_SET) == 0;
 }
-unsigned long VFSOS_Tell (struct vfsfile_s *file)
+static unsigned long VFSSTDIO_Tell (struct vfsfile_s *file)
 {
-	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	return ftell(intfile->handle);
 }
-void VFSOS_Flush(struct vfsfile_s *file)
+static void VFSSTDIO_Flush(struct vfsfile_s *file)
 {
-	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	fflush(intfile->handle);
 }
-unsigned long VFSOS_GetSize (struct vfsfile_s *file)
+static unsigned long VFSSTDIO_GetSize (struct vfsfile_s *file)
 {
-	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 
 	unsigned int curpos;
 	unsigned int maxlen;
@@ -43,39 +49,39 @@ unsigned long VFSOS_GetSize (struct vfsfile_s *file)
 
 	return maxlen;
 }
-void VFSOS_Close(vfsfile_t *file)
+static void VFSSTDIO_Close(vfsfile_t *file)
 {
-	vfsosfile_t *intfile = (vfsosfile_t*)file;
+	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 	fclose(intfile->handle);
 	Z_Free(file);
 }
 
-vfsfile_t *FS_OpenTemp(void)
+vfsfile_t *FSSTDIO_OpenTemp(void)
 {
 	FILE *f;
-	vfsosfile_t *file;
+	vfsstdiofile_t *file;
 
 	f = tmpfile();
 	if (!f)
 		return NULL;
 
-	file = Z_Malloc(sizeof(vfsosfile_t));
-	file->funcs.ReadBytes = VFSOS_ReadBytes;
-	file->funcs.WriteBytes = VFSOS_WriteBytes;
-	file->funcs.Seek = VFSOS_Seek;
-	file->funcs.Tell = VFSOS_Tell;
-	file->funcs.GetLen = VFSOS_GetSize;
-	file->funcs.Close = VFSOS_Close;
-	file->funcs.Flush = VFSOS_Flush;
+	file = Z_Malloc(sizeof(vfsstdiofile_t));
+	file->funcs.ReadBytes = VFSSTDIO_ReadBytes;
+	file->funcs.WriteBytes = VFSSTDIO_WriteBytes;
+	file->funcs.Seek = VFSSTDIO_Seek;
+	file->funcs.Tell = VFSSTDIO_Tell;
+	file->funcs.GetLen = VFSSTDIO_GetSize;
+	file->funcs.Close = VFSSTDIO_Close;
+	file->funcs.Flush = VFSSTDIO_Flush;
 	file->handle = f;
 
 	return (vfsfile_t*)file;
 }
 
-vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
+vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode)
 {
 	FILE *f;
-	vfsosfile_t *file;
+	vfsstdiofile_t *file;
 	qboolean read = !!strchr(mode, 'r');
 	qboolean write = !!strchr(mode, 'w');
 	qboolean append = !!strchr(mode, 'a');
@@ -99,20 +105,20 @@ vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 	if (!f)
 		return NULL;
 
-	file = Z_Malloc(sizeof(vfsosfile_t));
-	file->funcs.ReadBytes = strchr(mode, 'r')?VFSOS_ReadBytes:NULL;
-	file->funcs.WriteBytes = (strchr(mode, 'w')||strchr(mode, 'a'))?VFSOS_WriteBytes:NULL;
-	file->funcs.Seek = VFSOS_Seek;
-	file->funcs.Tell = VFSOS_Tell;
-	file->funcs.GetLen = VFSOS_GetSize;
-	file->funcs.Close = VFSOS_Close;
-	file->funcs.Flush = VFSOS_Flush;
+	file = Z_Malloc(sizeof(vfsstdiofile_t));
+	file->funcs.ReadBytes = strchr(mode, 'r')?VFSSTDIO_ReadBytes:NULL;
+	file->funcs.WriteBytes = (strchr(mode, 'w')||strchr(mode, 'a'))?VFSSTDIO_WriteBytes:NULL;
+	file->funcs.Seek = VFSSTDIO_Seek;
+	file->funcs.Tell = VFSSTDIO_Tell;
+	file->funcs.GetLen = VFSSTDIO_GetSize;
+	file->funcs.Close = VFSSTDIO_Close;
+	file->funcs.Flush = VFSSTDIO_Flush;
 	file->handle = f;
 
 	return (vfsfile_t*)file;
 }
 
-vfsfile_t *FSOS_OpenVFS(void *handle, flocation_t *loc, const char *mode)
+static vfsfile_t *FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 {
 	char diskname[MAX_OSPATH];
 
@@ -123,22 +129,22 @@ vfsfile_t *FSOS_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 	return VFSOS_Open(diskname, mode);
 }
 
-void FSOS_PrintPath(void *handle)
+static void FSSTDIO_PrintPath(void *handle)
 {
 	Con_Printf("%s\n", handle);
 }
-void FSOS_ClosePath(void *handle)
+static void FSSTDIO_ClosePath(void *handle)
 {
 	Z_Free(handle);
 }
-int FSOS_RebuildFSHash(const char *filename, int filesize, void *data)
+static int FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data)
 {
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory
 
 		char childpath[256];
 		sprintf(childpath, "%s*", filename);
-		Sys_EnumerateFiles((char*)data, childpath, FSOS_RebuildFSHash, data);
+		Sys_EnumerateFiles((char*)data, childpath, FSSTDIO_RebuildFSHash, data);
 		return true;
 	}
 	if (!Hash_GetInsensative(&filesystemhash, filename))
@@ -156,11 +162,11 @@ int FSOS_RebuildFSHash(const char *filename, int filesize, void *data)
 		fs_hash_dups++;
 	return true;
 }
-void FSOS_BuildHash(void *handle)
+static void FSSTDIO_BuildHash(void *handle)
 {
-	Sys_EnumerateFiles(handle, "*", FSOS_RebuildFSHash, handle);
+	Sys_EnumerateFiles(handle, "*", FSSTDIO_RebuildFSHash, handle);
 }
-qboolean FSOS_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
+static qboolean FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
 	FILE *f;
 	int len;
@@ -198,7 +204,7 @@ qboolean FSOS_FLocate(void *handle, flocation_t *loc, const char *filename, void
 
 	return true;
 }
-void FSOS_ReadFile(void *handle, flocation_t *loc, char *buffer)
+static void FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
 {
 	FILE *f;
 	f = fopen(loc->rawname, "rb");
@@ -208,19 +214,19 @@ void FSOS_ReadFile(void *handle, flocation_t *loc, char *buffer)
 	fread(buffer, 1, loc->len, f);
 	fclose(f);
 }
-int FSOS_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
+static int FSSTDIO_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 	return Sys_EnumerateFiles(handle, match, func, parm);
 }
 
-searchpathfuncs_t osfilefuncs = {
-	FSOS_PrintPath,
-	FSOS_ClosePath,
-	FSOS_BuildHash,
-	FSOS_FLocate,
-	FSOS_ReadFile,
-	FSOS_EnumerateFiles,
+searchpathfuncs_t stdiofilefuncs = {
+	FSSTDIO_PrintPath,
+	FSSTDIO_ClosePath,
+	FSSTDIO_BuildHash,
+	FSSTDIO_FLocate,
+	FSSTDIO_ReadFile,
+	FSSTDIO_EnumerateFiles,
 	NULL,
 	NULL,
-	FSOS_OpenVFS
+	FSSTDIO_OpenVFS
 };

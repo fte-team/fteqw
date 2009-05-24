@@ -1389,7 +1389,6 @@ void PF_vtos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char pr_string_temp[64];
 	//sprintf (pr_string_temp, "'%5.1f %5.1f %5.1f'", G_VECTOR(OFS_PARM0)[0], G_VECTOR(OFS_PARM0)[1], G_VECTOR(OFS_PARM0)[2]);
 	sprintf (pr_string_temp, "'%f %f %f'", G_VECTOR(OFS_PARM0)[0], G_VECTOR(OFS_PARM0)[1], G_VECTOR(OFS_PARM0)[2]);
-	PR_TempString(prinst, pr_string_temp);
 	RETURN_TSTRING(pr_string_temp);
 }
 
@@ -1531,7 +1530,7 @@ void PF_strdecolorize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
 	char result[8192];
 	unsigned long flagged[8192];
-	COM_ParseFunString(in, flagged, sizeof(flagged)/sizeof(flagged[0]));
+	COM_ParseFunString(CON_WHITEMASK, in, flagged, sizeof(flagged)/sizeof(flagged[0]));
 	COM_DeFunString(flagged, result, sizeof(result), true);
 
 	RETURN_TSTRING(result);

@@ -209,6 +209,11 @@ typedef struct {
 } shaderprogparm_t;
 
 typedef struct shader_s {
+	enum {
+		SSTYLE_CUSTOM,
+		SSTYLE_FULLBRIGHT,
+		SSTYLE_LIGHTMAPPED
+	} style;
 	int numpasses;	//careful... 0 means it's not loaded... and not actually a proper shader.
 	struct shader_s *next;
 	char name[MAX_QPATH];

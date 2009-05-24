@@ -99,6 +99,12 @@ void (APIENTRY *qglFogfv) (GLenum pname, const GLfloat *params);
 
 void (APIENTRY *qglDeleteTextures) (GLsizei n, const GLuint *textures);
 
+void (APIENTRY *qglGenBuffersARB)(GLsizei n, GLuint* ids);
+void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
+void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
+void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data, GLenum usage);
+void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
+
 /*
 PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
 PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
@@ -337,6 +343,15 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	if (gl_mtexarbable && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_combine && gl_config.arb_texture_env_dot3 && !COM_CheckParm("-nobump") && gl_bump.value)
 		gl_bumpmappingpossible = true;
+
+	if (strstr(gl_extensions, "GL_ARB_vertex_buffer_object"))
+	{
+		qglGenBuffersARB = (void *)getglext("glGenBuffersARB");
+		qglDeleteBuffersARB = (void *)getglext("glDeleteBuffersARB");
+		qglBindBufferARB = (void *)getglext("glBindBufferARB");
+		qglBufferDataARB = (void *)getglext("glBufferDataARB");
+		qglBufferSubDataARB = (void *)getglext("glBufferSubDataARB");
+	}
 
 /*
 	if (!!strstr(gl_extensions, "GL_ARB_fragment_program"))

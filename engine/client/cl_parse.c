@@ -307,7 +307,7 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 
 		for (dl = cl.faileddownloads; dl; dl = dl->next)	//yeah, so it failed... Ignore it.
 		{
-			if (!strcmp(dl->name, filename))
+			if (!strcmp(dl->rname, filename))
 			{
 				if (flags & DLLF_VERBOSE)
 					Con_Printf("We've failed to download \"%s\" already\n", filename);
@@ -318,7 +318,7 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 
 	for (dl = cl.downloadlist; dl; dl = dl->next)	//It's already on our list. Ignore it.
 	{
-		if (!strcmp(dl->name, filename))
+		if (!strcmp(dl->rname, filename))
 		{
 			if (flags & DLLF_VERBOSE)
 				Con_Printf("Already waiting for \"%s\"\n", filename);
@@ -326,7 +326,7 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 		}
 	}
 
-	if (!strcmp(cls.downloadname, filename))
+	if (!strcmp(cls.downloadremotename, filename))
 	{
 		if (flags & DLLF_VERBOSE)
 			Con_Printf("Already downloading \"%s\"\n", filename);
@@ -340,7 +340,7 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 	}
 
 	dl = Z_Malloc(sizeof(downloadlist_t));
-	Q_strncpyz(dl->name, filename, sizeof(dl->name));
+	Q_strncpyz(dl->rname, filename, sizeof(dl->rname));
 	Q_strncpyz(dl->localname, localname, sizeof(dl->localname));
 	dl->next = cl.downloadlist;
 	cl.downloadlist = dl;
@@ -352,7 +352,7 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 		| PEXT_PK3DOWNLOADS
 #endif
 		))
-		CL_SendClientCommand(true, "dlsize \"%s\"", dl->name);
+		CL_SendClientCommand(true, "dlsize \"%s\"", dl->rname);
 
 	if (flags & DLLF_VERBOSE)
 		Con_Printf("Enqued download of \"%s\"\n", filename);
@@ -391,7 +391,7 @@ void CL_DisenqueDownload(char *filename)
 	downloadlist_t *dl, *nxt;
 	if(cl.downloadlist)	//remove from enqued download list
 	{
-		if (!strcmp(cl.downloadlist->name, filename))
+		if (!strcmp(cl.downloadlist->rname, filename))
 		{
 			dl = cl.downloadlist;
 			cl.downloadlist = cl.downloadlist->next;
@@ -401,7 +401,7 @@ void CL_DisenqueDownload(char *filename)
 		{
 			for (dl = cl.downloadlist; dl->next; dl = dl->next)
 			{
-				if (!strcmp(dl->next->name, filename))
+				if (!strcmp(dl->next->rname, filename))
 				{
 					nxt = dl->next->next;
 					Z_Free(dl->next);
@@ -413,10 +413,11 @@ void CL_DisenqueDownload(char *filename)
 	}
 }
 
-void CL_SendDownloadRequest(char *filename, char *localname)
+void CL_SendDownloadStartRequest(char *filename, char *localname)
 {
-	strcpy (cls.downloadname, localname);
-	Con_TPrintf (TL_DOWNLOADINGFILE, cls.downloadname);
+	strcpy (cls.downloadremotename, filename);
+	strcpy (cls.downloadlocalname, localname);
+	Con_TPrintf (TL_DOWNLOADINGFILE, cls.downloadlocalname);
 
 	// download to a temp name, and only rename
 	// to the real name when done, so if interrupted
@@ -434,12 +435,15 @@ void CL_SendDownloadRequest(char *filename, char *localname)
 }
 
 //Do any reloading for the file that just reloaded.
-void CL_DownloadFinished(char *filename, char *tempname)
+void CL_DownloadFinished(void)
 {
 	int i;
 	extern int mod_numknown;
 	char *ext;
 	extern model_t	mod_known[];
+
+	char *filename = cls.downloadlocalname;
+	char *tempname = cls.downloadtempname;
 
 	COM_RefreshFSCache_f();
 
@@ -577,7 +581,7 @@ qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned 
 		downloadlist_t *dl;
 		for (dl = cl.faileddownloads; dl; dl = dl->next)
 		{
-			if (!strcmp(dl->name, filename))
+			if (!strcmp(dl->rname, filename))
 			{
 				//if its on the failed list, don't block waiting for it to download
 				return true;
@@ -710,7 +714,8 @@ static qboolean CL_CheckModelResources (char *name)
 		return false;
 
 	// checking for skins in the model
-	file = COM_LoadMallocFile (name);
+
+	FS_LoadFile(name, &file);
 	if (!file)
 	{
 		return false; // couldn't load it
@@ -723,7 +728,7 @@ static qboolean CL_CheckModelResources (char *name)
 		ret = CL_CheckQ2BspWals(file);
 	else
 		ret = false;
-	BZ_Free(file);
+	FS_FreeFile(file);
 
 	return ret;
 }
@@ -1022,10 +1027,10 @@ void Sound_CheckDownloads (void)
 //	Con_TPrintf (TLC_CHECKINGSOUNDS);
 
 #ifdef CSQC_DAT
-	if (cls.fteprotocolextensions & PEXT_CSQC)
+//	if (cls.fteprotocolextensions & PEXT_CSQC)
 	{
 		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
-		if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
+		if (*s)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
 			extern cvar_t allow_download_csprogs;
 			unsigned int chksum = strtoul(s, NULL, 0);
@@ -1106,11 +1111,11 @@ void CL_RequestNextDownload (void)
 				dl = cl.downloadlist;
 
 			if ((dl->flags & DLLF_OVERWRITE) || !COM_FCheckExists (dl->localname))
-				CL_SendDownloadRequest(dl->name, dl->localname);
+				CL_SendDownloadStartRequest(dl->rname, dl->localname);
 			else
 			{
 				Con_Printf("Already have %s\n", dl->localname);
-				CL_DisenqueDownload(dl->name);
+				CL_DisenqueDownload(dl->rname);
 
 				//recurse a bit.
 				CL_RequestNextDownload();
@@ -1275,10 +1280,10 @@ downloadlist_t *CL_DownloadFailed(char *name)
 	failed = Z_Malloc(sizeof(downloadlist_t));
 	failed->next = cl.faileddownloads;
 	cl.faileddownloads = failed;
-	Q_strncpyz(failed->name, name, sizeof(failed->name));
+	Q_strncpyz(failed->rname, name, sizeof(failed->rname));
 
 	//if this is what we're currently downloading, close it up now.
-	if (!stricmp(cls.downloadname, name) || !*name)
+	if (!stricmp(cls.downloadremotename, name) || !*name)
 	{
 		cls.downloadmethod = DL_NONE;
 
@@ -1288,14 +1293,15 @@ downloadlist_t *CL_DownloadFailed(char *name)
 			cls.downloadqw = NULL;
 			CL_SendClientCommand(true, "stopdownload");
 		}
-		*cls.downloadname = 0;
+		*cls.downloadlocalname = 0;
+		*cls.downloadremotename = 0;
 	}
 
 	link = &cl.downloadlist;
 	while(*link)
 	{
 		dl = *link;
-		if (!strcmp(dl->name, name))
+		if (!strcmp(dl->rname, name))
 		{
 			*link = dl->next;
 			failed->flags |= dl->flags;
@@ -1361,6 +1367,7 @@ void CL_ParseChunkedDownload(void)
 			else
 				Con_Printf("Couldn't find file \"%s\" on the server\n", svname);
 
+			cls.downloadmethod = 0;
 			CL_DownloadFailed(svname);
 
 			CL_RequestNextDownload();
@@ -1370,9 +1377,8 @@ void CL_ParseChunkedDownload(void)
 		if (cls.downloadmethod == DL_QWCHUNKS)
 			Host_EndGame("Received second download - \"%s\"\n", svname);
 
-		if (stricmp(cls.downloadname, svname))
-			if (stricmp(svname, "csprogs.dat") || strnicmp(cls.downloadname, "csprogsvers/", 12))
-				Host_EndGame("Server sent the wrong download - \"%s\" instead of \"%s\"\n", svname, cls.downloadname);
+		if (stricmp(cls.downloadremotename, svname))
+			Host_EndGame("Server sent the wrong download - \"%s\" instead of \"%s\"\n", svname, cls.downloadremotename);
 
 
 		//start the new download
@@ -1500,11 +1506,12 @@ int CL_RequestADownloadChunk(void)
 	cls.downloadqw = NULL;
 
 	CL_SendClientCommand(true, "stopdownload");
-	CL_DownloadFinished(cls.downloadname, cls.downloadtempname);
+	CL_DownloadFinished();
 
 	Con_Printf("Download took %i seconds (%i more)\n", (int)(Sys_DoubleTime() - downloadstarttime), CL_CountQueuedDownloads());
 
-	*cls.downloadname = '\0';
+	*cls.downloadlocalname = '\0';
+	*cls.downloadremotename = '\0';
 	cls.downloadpercent = 0;
 
 	return -1;
@@ -1546,12 +1553,14 @@ void CL_ParseDownload (void)
 		return; // not in demo playback
 	}
 
-	if (!*cls.downloadname)	//huh... that's not right...
+	if (!*cls.downloadlocalname)	//huh... that's not right...
 	{
 		Con_Printf(CON_WARNING "Warning: Server sending unknown file.\n");
-		strcpy(cls.downloadname, "unknown.txt");
+		strcpy(cls.downloadlocalname, "unknown.txt");
 		strcpy(cls.downloadtempname, "unknown.tmp");
 	}
+	if (!*cls.downloadremotename)
+		strcpy(cls.downloadremotename, "unknown.txt");
 
 	if (size < 0)
 	{
@@ -1562,15 +1571,8 @@ void CL_ParseDownload (void)
 			VFS_CLOSE (cls.downloadqw);
 			cls.downloadqw = NULL;
 		}
-		if (cl.downloadlist && !strcmp(cl.downloadlist->name, cls.downloadname))
-		{
-			downloadlist_t *next;
-			next = cl.downloadlist->next;
-			Z_Free(cl.downloadlist);
-			cl.downloadlist = next;
-		}
 
-		CL_DownloadFailed(cls.downloadname);
+		CL_DownloadFailed(cls.downloadremotename);
 
 		CL_RequestNextDownload ();
 		return;
@@ -1595,7 +1597,7 @@ void CL_ParseDownload (void)
 		{
 			msg_readcount += size;
 			Con_TPrintf (TL_FAILEDTOOPEN, cls.downloadtempname);
-			CL_DownloadFailed(cls.downloadname);
+			CL_DownloadFailed(cls.downloadremotename);
 			CL_RequestNextDownload ();
 			return;
 		}
@@ -1647,8 +1649,9 @@ void CL_ParseDownload (void)
 	{
 		VFS_CLOSE (cls.downloadqw);
 
-		CL_DownloadFinished(cls.downloadname, cls.downloadtempname);
-		*cls.downloadname = '\0';
+		CL_DownloadFinished();
+		*cls.downloadlocalname = '\0';
+		*cls.downloadremotename = '\0';
 		cls.downloadqw = NULL;
 		cls.downloadpercent = 0;
 
@@ -1733,7 +1736,7 @@ void CLDP_ParseDownloadBegin(char *s)
 		}
 	}
 	else
-		CL_DownloadFailed(cls.downloadname);
+		CL_DownloadFailed(cls.downloadremotename);
 
 	downloadstarttime = Sys_DoubleTime();
 }
@@ -1768,7 +1771,7 @@ void CLDP_ParseDownloadFinished(char *s)
 	else
 	{
 		Con_Printf("Download failed: unable to check CRC of download\n");
-		CL_DownloadFailed(cls.downloadname);
+		CL_DownloadFailed(cls.downloadremotename);
 		return;		
 	}
 
@@ -1776,18 +1779,19 @@ void CLDP_ParseDownloadFinished(char *s)
 	if (size != atoi(Cmd_Argv(1)))
 	{
 		Con_Printf("Download failed: wrong file size\n");
-		CL_DownloadFailed(cls.downloadname);
+		CL_DownloadFailed(cls.downloadremotename);
 		return;
 	}
 	if (runningcrc != atoi(Cmd_Argv(2)))
 	{
 		Con_Printf("Download failed: wrong crc\n");
-		CL_DownloadFailed(cls.downloadname);
+		CL_DownloadFailed(cls.downloadremotename);
 		return;
 	}
 
-	CL_DownloadFinished(cls.downloadname, cls.downloadtempname);
-	*cls.downloadname = '\0';
+	CL_DownloadFinished();
+	*cls.downloadlocalname = '\0';
+	*cls.downloadremotename = '\0';
 	cls.downloadqw = NULL;
 	cls.downloadpercent = 0;
 
@@ -2039,6 +2043,9 @@ void CL_ParseServerData (void)
 		int i;
 		MSG_ReadFloat();
 		cl.playernum[0] = MAX_CLIENTS - 1;
+		cl.playernum[1] = MAX_CLIENTS - 2;
+		cl.playernum[2] = MAX_CLIENTS - 3;
+		cl.playernum[3] = MAX_CLIENTS - 4;
 		cl.spectator = true;
 		for (i = 0; i < UPDATE_BACKUP; i++)
 			cl.frames[i].playerstate[cl.playernum[0]].pm_type = PM_SPECTATOR;
@@ -2754,6 +2761,7 @@ void CL_ParseModellist (qboolean lots)
 		return;
 	}
 
+	Sound_CheckDownloads();
 	Model_CheckDownloads();
 
 	CL_AllowIndependantSendCmd(false);	//stop it now, the indep stuff *could* require model tracing.
@@ -4064,12 +4072,12 @@ void CL_ParsePrint(char *msg, int level)
 }
 
 // CL_PlayerColor: returns color and mask for player_info_t
-int CL_PlayerColor(player_info_t *plr, int *name_ormask)
+int CL_PlayerColor(player_info_t *plr, qboolean *name_coloured)
 {
 	char *t;
 	int c;
 
-	*name_ormask = 0;
+	*name_coloured = false;
 
 	if (cl.teamfortress) //override based on team
 	{
@@ -4078,35 +4086,35 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 		{	//translate q1 skin colours to console colours
 		case 10:
 		case 1:
-			*name_ormask = CON_HIGHCHARSMASK;
+			*name_coloured = true;
 		case 4:	//red
 			c = 1;
 			break;
 		case 11:
-			*name_ormask = CON_HIGHCHARSMASK;
+			*name_coloured = true;
 		case 3: // green
 			c = 2;
 			break;
 		case 5:
-			*name_ormask = CON_HIGHCHARSMASK;
+			*name_coloured = true;
 		case 12:
 			c = 3;
 			break;
 		case 6:
 		case 7:
-			*name_ormask = CON_HIGHCHARSMASK;
+			*name_coloured = true;
 		case 8:
 		case 9:
 			c = 6;
 			break;
 		case 2: // light blue
-			*name_ormask = CON_HIGHCHARSMASK;
+			*name_coloured = true;
 		case 13: //blue
 		case 14: //blue
 			c = 5;
 			break;
 		default:
-			*name_ormask = CON_HIGHCHARSMASK;
+			*name_coloured = true;
 		case 0: // white
 			c = 7;
 			break;
@@ -4133,7 +4141,7 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 			}
 
 			if ((c / 7) & 1)
-				*name_ormask = CON_HIGHCHARSMASK;
+				*name_coloured = true;
 
 			c = 1 + (c % 7);
 		}
@@ -4151,7 +4159,7 @@ int CL_PlayerColor(player_info_t *plr, int *name_ormask)
 			c = plr->userid; // Quake2 can start from 0
 
 		if ((c / 7) & 1)
-			*name_ormask = CON_HIGHCHARSMASK;
+			*name_coloured = true;
 
 		c = 1 + (c % 7);
 	}
@@ -4165,10 +4173,12 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 {
 	char *name = NULL;
 	int c;
-	int name_ormask = 0;
+	qboolean name_coloured = false;
 	extern cvar_t cl_parsewhitetext;
 	qboolean memessage = false;
-
+	char fullchatmessage[2048];
+	
+	fullchatmessage[0] = 0;
 	if (plrflags & TPM_FAKED)
 	{
 		name = rawmsg; // use rawmsg pointer and msg modification to generate null-terminated string
@@ -4187,7 +4197,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 
 	if (cl_standardchat.value)
 	{
-		name_ormask = CON_HIGHCHARSMASK;
+		name_coloured = true;
 		c = 7;
 	}
 	else
@@ -4199,16 +4209,16 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 				c = 0; // blacken () on observers
 			else
 			{
-				name_ormask = CON_HIGHCHARSMASK;
+				name_coloured = true;
 				c = 7;
 			}
 		}
 		else if (plr)
-			c = CL_PlayerColor(plr, &name_ormask);
+			c = CL_PlayerColor(plr, &name_coloured);
 		else
 		{
 			// defaults for fake clients
-			name_ormask = CON_HIGHCHARSMASK;
+			name_coloured = true;
 			c = 7;
 		}
 	}
@@ -4219,44 +4229,41 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 	{
 		if (memessage)
 		{
-			con_ormask = CON_HIGHCHARSMASK;
 			if (!cl_standardchat.value && (plrflags & TPM_SPECTATOR))
-				Con_Printf ("^0*^7 ");
+				Q_strncatz(fullchatmessage, "^m^0*^7 ", sizeof(fullchatmessage));
 			else
-				Con_Printf ("* ");
+				Q_strncatz(fullchatmessage, "^m* ", sizeof(fullchatmessage));
 		}
 
 		if (plrflags & (TPM_TEAM|TPM_OBSERVEDTEAM)) // for team chat don't highlight the name, just the brackets
 		{
 			// color is reset every printf so we're safe here
-			con_ormask = name_ormask;
-			Con_Printf("^%c(", c);
-			con_ormask = CON_HIGHCHARSMASK;
-			Con_Printf("%s", name);
-			con_ormask = name_ormask;
-			Con_Printf("^%c)", c);
+			Q_strncatz(fullchatmessage, va("\1%s^%c(", name_coloured?"":"^m", c), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("%s%s^d",  name_coloured?"^m":"", name), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("%s^%c)", name_coloured?"^m":"", c), sizeof(fullchatmessage));
+		}
+		else if (cl_standardchat.value)
+		{
+			Q_strncatz(fullchatmessage, va("\1%s", name), sizeof(fullchatmessage));
 		}
 		else
 		{
-			con_ormask = name_ormask;
-			Con_Printf("^%c%s", c, name);
+			Q_strncatz(fullchatmessage, va("\1%s^%c%s^d", name_coloured?"":"^m", c, name), sizeof(fullchatmessage));
 		}
 
 		if (!memessage)
 		{
 			// only print seperator with an actual player name
-			con_ormask = CON_HIGHCHARSMASK;
 			if (!cl_standardchat.value && (plrflags & TPM_SPECTATOR))
-				Con_Printf ("^0:^7 ");
+				Q_strncatz(fullchatmessage, "^0: ^d", sizeof(fullchatmessage));
 			else
-				Con_Printf (": ");
+				Q_strncatz(fullchatmessage, ": ", sizeof(fullchatmessage));
 		}
 		else
-			Con_Printf (" ");
+			Q_strncatz(fullchatmessage, " ", sizeof(fullchatmessage));
 	}
 
 	// print message
-	con_ormask = CON_HIGHCHARSMASK;
 	if (cl_parsewhitetext.value && (cl_parsewhitetext.value == 1 || (plrflags & (TPM_TEAM|TPM_OBSERVEDTEAM))))
 	{
 		char *t, *u;
@@ -4268,35 +4275,35 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 			{
 				*t = 0;
 				*u = 0;
-				Con_Printf("%s", msg);
-				con_ormask = 0;
-				Con_Printf("%s", t+1);
-				con_ormask = CON_HIGHCHARSMASK;
+				Q_strncatz(fullchatmessage, va("%s", msg), sizeof(fullchatmessage));
+				Q_strncatz(fullchatmessage, va("^m%s^m", t+1), sizeof(fullchatmessage));
 				msg = u+1;
 			}
 			else
 				break;
 		}
-		Con_Printf("%s", msg);
-		con_ormask = 0;
+		Q_strncatz(fullchatmessage, va("%s", msg), sizeof(fullchatmessage));
 	}
 	else
 	{
-		Con_Printf ("%s", msg);
+		Q_strncatz(fullchatmessage, va("%s", msg), sizeof(fullchatmessage));
 	}
-	con_ormask = 0;
 
+	CSQC_ParsePrint(fullchatmessage, PRINT_CHAT);
 }
 
 // CL_PrintStandardMessage: takes non-chat net messages and performs name coloring
 // NOTE: msg is considered destroyable
 char acceptedchars[] = {'.', '?', '!', '\'', ',', ':', ' ', '\0'};
-void CL_PrintStandardMessage(char *msg)
+void CL_PrintStandardMessage(char *msg, int printlevel)
 {
 	int i;
 	player_info_t *p;
 	extern cvar_t cl_standardmsg;
 	char *begin = msg;
+	char fullmessage[2048];
+
+	fullmessage[0] = 0;
 
 	// search for player names in message
 	for (i = 0, p = cl.players; i < MAX_CLIENTS; p++, i++)
@@ -4304,7 +4311,7 @@ void CL_PrintStandardMessage(char *msg)
 		char *v;
 		char *name;
 		int len;
-		int ormask;
+		qboolean coloured;
 		char c;
 
 		name = p->name;
@@ -4340,30 +4347,29 @@ void CL_PrintStandardMessage(char *msg)
 			}
 
 			*v = 0; // cut off message
-			con_ormask = 0;
+
 			// print msg chunk
-			Con_Printf("%s", msg);
+			Q_strncatz(fullmessage, msg, sizeof(fullmessage));
 			msg = v + len; // update search point
 
 			// get name color
 			if (p->spectator || cl_standardmsg.value)
 			{
-				ormask = 0;
+				coloured = false;
 				c = '7';
 			}
 			else
-				c = '0' + CL_PlayerColor(p, &ormask);
+				c = '0' + CL_PlayerColor(p, &coloured);
 
 			// print name
-			con_ormask = ormask;
-			Con_Printf("^%c%s^7", c, name);
+			Q_strncatz(fullmessage, va("%s^%c%s^7", coloured?"\1":"", c, name), sizeof(fullmessage));
 			break;
 		}
 	}
 
 	// print final chunk
-	con_ormask = 0;
-	Con_Printf("%s", msg);
+	Q_strncatz(fullmessage, msg, sizeof(fullmessage));
+	CSQC_ParsePrint(fullmessage, printlevel);
 }
 
 char stufftext[4096];
@@ -4626,7 +4632,7 @@ void CL_ParseServerMessage (void)
 #endif
 				{
 					CL_ParsePrint(s, i);
-					CL_PrintStandardMessage(s);
+					CL_PrintStandardMessage(s, i);
 				}
 			}
 			break;
@@ -5135,10 +5141,9 @@ void CLQ2_ParseServerMessage (void)
 #endif
 				{
 					CL_ParsePrint(s, i);
-					CL_PrintStandardMessage(s);
+					CL_PrintStandardMessage(s, i);
 				}
 			}
-			con_ormask = 0;
 			break;
 		case svcq2_stufftext:	//11			// [string] stuffed into client's console buffer, should be \n terminated
 			s = MSG_ReadString ();
@@ -5372,10 +5377,9 @@ void CLNQ_ParseServerMessage (void)
 #endif
 				{
 					CL_ParsePrint(s, PRINT_HIGH);
-					CL_PrintStandardMessage(s);
+					CL_PrintStandardMessage(s, PRINT_HIGH);
 				}
 			}
-			con_ormask = 0;
 			break;
 
 		case svc_disconnect:

@@ -1778,6 +1778,9 @@ void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum)
 		if (!ezfilenum)
 			return;
 
+		if (host_client->waschoked)
+			return;	//don't let chunked downloads flood out the standard packets.
+
 		if (!Netchan_CanPacket(&host_client->netchan, SV_RateForClient(host_client)))
 			return;
 	}
@@ -3729,7 +3732,7 @@ void Cmd_FPSList_f(void)
 	client_t *cl;
 	int c;
 	int f;
-	double minf = DBL_MIN, maxf = DBL_MAX, this;
+	double minf = 1000, maxf = 0, this;
 	double ftime;
 	int frames;
 
@@ -3749,11 +3752,14 @@ void Cmd_FPSList_f(void)
 			{
 				if (cl->frameunion.frames[f].move_msecs >= 0)
 				{
-					this = 1000.0f/cl->frameunion.frames[f].move_msecs;
+					if (!cl->frameunion.frames[f].move_msecs)
+						this = 1001;
+					else
+						this = 1000.0f/cl->frameunion.frames[f].move_msecs;
 					ftime += this;
-					if (minf < this)
+					if (minf > this)
 						minf = this;
-					if (maxf > this)
+					if (maxf < this)
 						maxf = this;
 					frames++;
 				}
@@ -5234,6 +5240,125 @@ void SV_PostRunCmd(void)
 	}
 }
 
+void SV_ReadPrydonCursor(void)
+{
+	float f;
+	int entnum;
+	eval_t *cursor_screen, *cursor_start, *cursor_impact, *cursor_entitynumber;
+
+	if (svprogfuncs)
+	{
+		cursor_screen	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_screen", NULL);
+		cursor_start	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_start", NULL);
+		cursor_impact	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_impact", NULL);
+		cursor_entitynumber	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_entitynumber", NULL);
+	}
+	else
+	{
+		cursor_screen	= NULL;
+		cursor_start	= NULL;
+		cursor_impact	= NULL;
+		cursor_entitynumber	= NULL;
+	}
+
+	f = MSG_ReadShort() * (1.0f / 32767.0f);
+	if (cursor_screen) cursor_screen->_vector[0] = f;
+	f = MSG_ReadShort() * (1.0f / 32767.0f);
+	if (cursor_screen) cursor_screen->_vector[1] = f;
+
+	f = MSG_ReadFloat();
+	if (cursor_start) cursor_start->_vector[0] = f;
+	f = MSG_ReadFloat();
+	if (cursor_start) cursor_start->_vector[1] = f;
+	f = MSG_ReadFloat();
+	if (cursor_start) cursor_start->_vector[2] = f;
+
+	f = MSG_ReadFloat();
+	if (cursor_impact) cursor_impact->_vector[0] = f;
+	f = MSG_ReadFloat();
+	if (cursor_impact) cursor_impact->_vector[1] = f;
+	f = MSG_ReadFloat();
+	if (cursor_impact) cursor_impact->_vector[2] = f;
+
+	entnum = (unsigned short)MSG_ReadShort();
+	if (entnum >= sv.max_edicts)
+	{
+		Con_DPrintf("SV_ReadPrydonCursor: client send bad cursor_entitynumber\n");
+		entnum = 0;
+	}
+	// as requested by FrikaC, cursor_trace_ent is reset to world if the
+	// entity is free at time of receipt
+	if (!svprogfuncs || EDICT_NUM(svprogfuncs, entnum)->isfree)
+		entnum = 0;
+	if (msg_badread) Con_Printf("SV_ReadPrydonCursor: badread at %s:%i\n", __FILE__, __LINE__);
+
+	if (cursor_entitynumber) cursor_entitynumber->edict = entnum;
+}
+
+void SV_ReadQCRequest(void)
+{
+	int e;
+	char args[9];
+	char *rname;
+	func_t f;
+	int i;
+	globalvars_t *pr_globals;
+
+	if (!svprogfuncs)
+	{
+		msg_badread = true;
+		return;
+	}
+
+	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+
+	for (i = 0; ; i++)
+	{
+		if (i >= sizeof(args))
+			if (MSG_ReadByte() != ev_void)
+			{
+				msg_badread = true;
+				return;
+			}
+		switch(MSG_ReadByte())
+		{
+		case ev_void:
+			i = 6;
+			break;
+		case ev_float:
+			args[i] = 'f';
+			G_FLOAT(OFS_PARM0+i*3) = MSG_ReadFloat();
+			break;
+		case ev_vector:
+			args[i] = 'v';
+			G_FLOAT(OFS_PARM0+i*3+0) = MSG_ReadFloat();
+			G_FLOAT(OFS_PARM0+i*3+1) = MSG_ReadFloat();
+			G_FLOAT(OFS_PARM0+i*3+2) = MSG_ReadFloat();
+			break;
+		case ev_integer:
+			args[i] = 'i';
+			G_INT(OFS_PARM0+i*3) = MSG_ReadLong();
+			break;
+		case ev_string:
+			args[i] = 's';
+			G_INT(OFS_PARM0+i*3) = PR_TempString(svprogfuncs, MSG_ReadString());
+			break;
+		case ev_entity:
+			args[i] = 's';
+			e = MSG_ReadShort();
+			if (e < 0 || e >= sv.num_edicts)
+				e = 0;
+			G_INT(OFS_PARM0+i*3) = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, e));
+			break;
+		}
+	}
+
+	rname = MSG_ReadString();
+	f = PR_FindFunc(svprogfuncs, va("Cmd_%s_%s", rname, args), PR_ANY);
+	if (f)
+		PR_ExecuteProgram(svprogfuncs, f);
+}
+
 /*
 ===================
 SV_ExecuteClientMessage
@@ -5515,6 +5640,12 @@ haveannothergo:
 			sv_player = cl->edict;
 			break;
 
+		case clc_prydoncursor:
+			SV_ReadPrydonCursor();
+			break;
+		case clc_qcrequest:
+			SV_ReadQCRequest();
+			break;
 
 		case clc_stringcmd:
 			s = MSG_ReadString ();
@@ -5762,47 +5893,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
 	{
-		float f;
-		int entnum;
-		eval_t *cursor_screen, *cursor_start, *cursor_impact, *cursor_entitynumber;
-
-		cursor_screen	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_screen", NULL);
-		cursor_start	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_start", NULL);
-		cursor_impact	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_impact", NULL);
-		cursor_entitynumber	= svprogfuncs->GetEdictFieldValue(svprogfuncs, host_client->edict, "cursor_entitynumber", NULL);
-
-		f = MSG_ReadShort() * (1.0f / 32767.0f);
-		if (cursor_screen) cursor_screen->_vector[0] = f;
-		f = MSG_ReadShort() * (1.0f / 32767.0f);
-		if (cursor_screen) cursor_screen->_vector[1] = f;
-
-		f = MSG_ReadFloat();
-		if (cursor_start) cursor_start->_vector[0] = f;
-		f = MSG_ReadFloat();
-		if (cursor_start) cursor_start->_vector[1] = f;
-		f = MSG_ReadFloat();
-		if (cursor_start) cursor_start->_vector[2] = f;
-
-		f = MSG_ReadFloat();
-		if (cursor_impact) cursor_impact->_vector[0] = f;
-		f = MSG_ReadFloat();
-		if (cursor_impact) cursor_impact->_vector[1] = f;
-		f = MSG_ReadFloat();
-		if (cursor_impact) cursor_impact->_vector[2] = f;
-
-		entnum = (unsigned short)MSG_ReadShort();
-		if (entnum >= sv.max_edicts)
-		{
-			Con_DPrintf("SV_ReadClientMessage: client send bad cursor_entitynumber\n");
-			entnum = 0;
-		}
-		// as requested by FrikaC, cursor_trace_ent is reset to world if the
-		// entity is free at time of receipt
-		if (EDICT_NUM(svprogfuncs, entnum)->isfree)
-			entnum = 0;
-		if (msg_badread) Con_Printf("SV_ReadClientMessage: badread at %s:%i\n", __FILE__, __LINE__);
-
-		if (cursor_entitynumber) cursor_entitynumber->edict = entnum;
+		SV_ReadPrydonCursor();
 	}
 
 	if (SV_RunFullQCMovement(host_client, move))

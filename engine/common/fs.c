@@ -1265,10 +1265,12 @@ qbyte *COM_LoadStackFile (const char *path, void *buffer, int bufsize)
 }
 
 
-
+/*warning: at some point I'll change this function to return only read-only buffers*/
 int FS_LoadFile(char *name, void **file)
 {
 	*file = COM_LoadMallocFile(name);
+	if (!*file)
+		return -1;
 	return com_filesize;
 }
 void FS_FreeFile(void *file)
@@ -1581,9 +1583,9 @@ char *COM_NextPath (char *prevpath)
 #ifndef CLIENTONLY
 char *COM_GetPathInfo (int i, int *crc)
 {
-#ifdef WEBSERVER
-	extern cvar_t httpserver;
-#endif
+//#ifdef WEBSERVER
+//	extern cvar_t httpserver;
+//#endif
 
 	searchpath_t	*s;
 	static char name[MAX_OSPATH];
@@ -2000,6 +2002,9 @@ void FS_ReloadPackFiles_f(void)
 
 #ifdef _WIN32
 #include <windows.h>
+#ifdef MINGW
+#define byte BYTE	//some versions of mingw headers are broken slightly. this lets it compile.
+#endif
 #include <shlobj.h>
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen)
 {
@@ -2131,7 +2136,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		//append SteamApps\common\hexen 2
 	}
 
-#ifndef NPQTV //this is *really* unfortunate, but doing this crashes the browser
+#if !defined(NPQTV) && !defined(SERVERONLY) //this is *really* unfortunate, but doing this crashes the browser
 				//I assume its because the client 
 
 	if (poshname)

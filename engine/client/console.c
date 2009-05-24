@@ -21,7 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-conchar_t con_ormask;
 console_t	con_main;
 console_t	*con_current;			// point to either con_main
 
@@ -569,125 +568,30 @@ If no console is visible, the notify window will pop up.
 ================
 */
 
-#define INVIS_CHAR1 (char)12	//red
-#define INVIS_CHAR2 (char)138	//green
-#define INVIS_CHAR3 (char)160	//blue
-
 void Con_PrintCon (console_t *con, char *txt)
 {
+	conchar_t expanded[4096];
+	conchar_t *c;
 	int		y;
-	int		c, l;
+	int		l;
 	static int	cr;
-	int		mask;
 
-	int maskstack[4];
-	int maskstackdepth = 0;
+	COM_ParseFunString(CON_WHITEMASK, txt, expanded, sizeof(expanded));
 
-	con->unseentext = true;
-
-	if (txt[0] == 1 || txt[0] == 2)
+	c = expanded;
+	while (*c)
 	{
-		mask = CON_HIGHCHARSMASK|CON_WHITEMASK;		// go to colored text
-		txt++;
-	}
-	else
-		mask = CON_WHITEMASK;
-
-
-	while ( (c = *txt) )
-	{
-		if (c == '^')
-		{
-			if (txt[1]>='0' && txt[1]<='9')
-			{
-				mask = q3codemasks[txt[1]-'0'] + (mask&~CON_Q3MASK);	//change colour only.
-				txt+=2;
-				continue;
-			}
-			if (txt[1] == '&') // extended code
-			{
-				if (isextendedcode(txt[2]) && isextendedcode(txt[3]))
-				{
-					if (txt[2] == '-') // default for FG
-						mask = (COLOR_WHITE << CON_FGSHIFT) | (mask&~CON_FGMASK);
-					else if (txt[2] >= 'A')
-						mask = ((txt[2] - ('A' - 10)) << CON_FGSHIFT) | (mask&~CON_FGMASK);
-					else
-						mask = ((txt[2] - '0') << CON_FGSHIFT) | (mask&~CON_FGMASK);
-					if (txt[3] == '-') // default (clear) for BG
-						mask &= ~CON_BGMASK & ~CON_NONCLEARBG;
-					else if (txt[3] >= 'A')
-						mask = ((txt[3]- ('A' - 10)) << CON_BGSHIFT) | (mask&~CON_BGMASK) | CON_NONCLEARBG;
-					else
-						mask = ((txt[3] - '0') << CON_BGSHIFT) | (mask&~CON_BGMASK) | CON_NONCLEARBG;
-					txt+=4;
-					continue;
-				}
-			}
-			if (txt[1] == 'b')
-			{
-				mask ^= CON_BLINKTEXT;
-				txt+=2;
-				continue;
-			}
-			if (txt[1] == 'a')
-			{
-				mask ^= CON_2NDCHARSETTEXT;
-				txt+=2;
-				continue;
-			}
-			if (txt[1] == 'h')
-			{
-				mask ^= CON_HALFALPHA;
-				txt+=2;
-				continue;
-			}
-			if (txt[1] == 's')
-			{
-				if (maskstackdepth < sizeof(maskstack)/sizeof(maskstack[0]))
-				{
-					maskstack[maskstackdepth] = mask;
-					maskstackdepth++;
-				}
-				txt+=2;
-				continue;
-			}
-			if (txt[1] == 'r')
-			{
-				if (maskstackdepth)
-				{
-					maskstackdepth--;
-					mask = maskstack[maskstackdepth];
-				}
-				txt+=2;
-				continue;
-			}
-		}
-		if (c == '&' && txt[1] == 'c')
-		{
-			// ezQuake color codes
-
-			if (ishexcode(txt[2]) && ishexcode(txt[3]) && ishexcode(txt[4]))
-			{
-				// Just strip it for now
-				// TODO: Colorize the console properly
-				txt += 5;
-				continue;
-			}
-		}
-		if (c=='\t')
-			c = ' ';
+		if (*c&CON_CHARMASK=='\t')
+			*c = (*c&~CON_CHARMASK)|' ';
 
 	// count word length
 		for (l=0 ; l< con->linewidth ; l++)
-			if ( txt[l] <= ' ')
+			if ( c[l]&CON_CHARMASK <= ' ')
 				break;
 
 	// word wrap
 		if (l != con->linewidth && (con->x + l > con->linewidth) )
 			con->x = 0;
-
-		txt++;
 
 		if (cr)
 		{
@@ -703,7 +607,7 @@ void Con_PrintCon (console_t *con, char *txt)
 			con_times[con->current % NUM_CON_TIMES] = realtime;
 		}
 
-		switch (c)
+		switch (*c & (CON_CHARMASK&~CON_HIGHCHARSMASK))
 		{
 		case '\n':
 			con->x = 0;
@@ -716,12 +620,13 @@ void Con_PrintCon (console_t *con, char *txt)
 
 		default:	// display character and advance
 			y = con->current % con->totallines;
-			con->text[y*con->linewidth+con->x] = (qbyte)c | mask | con_ormask;			
+			con->text[y*con->linewidth+con->x] = *c;			
 			con->x++;
 			if (con->x >= con->linewidth)
 				con->x = 0;
 			break;
 		}
+		c++;
 		
 	}
 }
@@ -1404,7 +1309,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	{
 		unsigned int count, total;
 		qboolean extra;
-		progresstext = cls.downloadname;
+		progresstext = cls.downloadlocalname;
 		progresspercent = cls.downloadpercent;
 
 		if ((int)(realtime/2)&1)

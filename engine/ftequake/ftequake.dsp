@@ -6247,6 +6247,10 @@ SOURCE=..\common\fs_stdio.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\common\fs_win32.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\common\fs_zip.c
 # End Source File
 # Begin Source File
@@ -6365,7 +6369,7 @@ SOURCE=..\qclib\execloop.h
 !IF  "$(CFG)" == "ftequake - Win32 Release"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6387,7 +6391,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6409,7 +6413,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6431,7 +6435,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6453,7 +6457,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6475,7 +6479,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6497,7 +6501,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6519,7 +6523,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6541,7 +6545,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6563,7 +6567,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6585,7 +6589,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6607,7 +6611,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6629,7 +6633,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -6651,7 +6655,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
 
 # Begin Custom Build
-InputDir=\Quake\ftesrc\engine\QCLIB
+InputDir=\Games\Quake\ftesrc\engine\QCLIB
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \

@@ -580,7 +580,7 @@ static void PPL_BaseChain_VBO_NoBump_2TMU_Overbright(msurface_t *s, texture_t *t
 			else
 				qglDisable(GL_TEXTURE_2D);
 		}
-		qglDrawRangeElements(GL_TRIANGLES, s->mesh->vbofirstvert, s->mesh->numvertexes, s->mesh->numindexes, GL_INDEX_TYPE, (index_t*)(s->mesh->vbofirstelement*sizeof(index_t)));
+		qglDrawRangeElements(GL_TRIANGLES, s->mesh->vbofirstvert, s->mesh->vbofirstvert+s->mesh->numvertexes-1, s->mesh->numindexes, GL_INDEX_TYPE, (index_t*)(s->mesh->vbofirstelement*sizeof(index_t)));
 	}
 
 	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);

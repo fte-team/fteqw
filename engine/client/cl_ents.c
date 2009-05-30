@@ -2464,11 +2464,13 @@ void CL_ParsePlayerinfo (void)
 		return;
 	}
 
-	flags = state->flags = (unsigned short)MSG_ReadShort ();
+	flags = (unsigned short)MSG_ReadShort ();
 
-	if (cls.z_ext & Z_EXT_PM_TYPE)
+	if (cls.fteprotocolextensions & (PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS))
 		if (flags & PF_EXTRA_PFS)
 			flags |= MSG_ReadByte()<<16;
+
+	state->flags = flags;
 
 	state->messagenum = cl.parsecount;
 	org[0] = MSG_ReadCoord ();

@@ -1659,7 +1659,7 @@ void COM_Gamedir (const char *dir)
 			{
 				if (*(p+plen-dlen-1) == '/')
 				{
-					if (strcmp(p+plen-dlen, dir))
+					if (!strcmp(p+plen-dlen, dir))
 						return;
 				}
 			}

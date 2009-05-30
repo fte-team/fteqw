@@ -64,6 +64,13 @@ static void Fod_Cvar_Register(cvar_t *cvar)
 /* And some funny prototypes. Just because. */
 void Sys_Video_SetPalette(void *display, unsigned char *palette);
 
+#define byte qbyte
+
+#define D_BeginDirectRect FodQuake_BeginDirectRect
+#define D_EndDirectRect FodQuake_EndDirectRect
+#define VID_LockBuffer FodQuake_LockBuffer
+#define VID_UnlockBuffer FodQuake_UnlockBuffer
+
 #include "fod/vid_x11.c"
 #include "fod/in_x11.c"
 
@@ -237,7 +244,7 @@ void IN_Commands(void)
 		Sys_Video_GetEvents(fod_display);
 }
 
-void IN_Move(usercmd_t *cmd, int pnum)
+void IN_Move(float *movements, int pnum)
 {
 	float mx, my;
 	float mouse_deltadist;
@@ -311,7 +318,7 @@ void IN_Move(usercmd_t *cmd, int pnum)
 	}
 	else
 	{
-		if (cmd)
+		if (movements)
 		{
 			if ((in_strafe.state[pnum] & 1) && noclip_anglehack)
 				movements[2] -= m_forward.value * mouse_y;

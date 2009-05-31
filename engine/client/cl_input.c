@@ -586,6 +586,13 @@ void CL_ClampPitch (int pnum)
 	}
 	else
 #endif
+#ifdef Q3CLIENT
+		if (cls.gamemode == CP_QUAKE3)	//q3 expects the cgame to do it
+	{
+			//no-op
+	}
+	else
+#endif
 	{
 		if (cl.viewangles[pnum][PITCH] > cl.maxpitch)
 			cl.viewangles[pnum][PITCH] = cl.maxpitch;

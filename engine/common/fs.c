@@ -9,7 +9,9 @@
 
 #include "fs.h"
 
+#if defined(MINGW) && defined(_SDL)
 #include "SDL_syswm.h" // mingw sdl cross binary complains off sys_parentwindow
+#endif
 
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;

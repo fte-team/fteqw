@@ -9,12 +9,14 @@
 
 #include "fs.h"
 
+#include "SDL_syswm.h" // mingw sdl cross binary complains off sys_parentwindow
+
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;
 extern cvar_t com_fs_cache;
 int active_fs_cachetype;
 
-struct 
+struct
 {
 	const char *extension;
 	searchpathfuncs_t *funcs;
@@ -607,7 +609,7 @@ char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
 	searchpath_t	*search;
 	buffersize--;
 	*buffer = 0;
-	
+
 	if (com_purepaths)
 	{
 		for (search = com_purepaths ; search ; search = search->nextpure)
@@ -975,7 +977,7 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 
 	//blanket-bans
 
-		
+
 	filename = FS_GetCleanPath(filename, cleanname, sizeof(cleanname));
 	if (!filename)
 		return NULL;
@@ -1092,7 +1094,7 @@ void FS_CreatePath(const char *pname, enum fs_relative relativeto)
 	char fullname[MAX_OSPATH];
 	if (!FS_NativePath(pname, relativeto, fullname, sizeof(fullname)))
 		return;
-	
+
 	COM_CreatePath(fullname);
 }
 
@@ -1663,7 +1665,7 @@ void COM_Gamedir (const char *dir)
 						return;
 				}
 			}
-				
+
 		}
 	}
 
@@ -2137,7 +2139,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	}
 
 #if !defined(NPQTV) && !defined(SERVERONLY) //this is *really* unfortunate, but doing this crashes the browser
-				//I assume its because the client 
+				//I assume its because the client
 
 	if (poshname)
 	{
@@ -2145,6 +2147,13 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		BROWSEINFO bi;
 		LPITEMIDLIST il;
 		memset(&bi, 0, sizeof(bi));
+
+		#if defined(_SDL) && defined (WIN32) && defined (MINGW) // mingw32 sdl cross compiled binary, code completely untested, doesn't crash so good sign ~moodles
+			SDL_SysWMinfo wmInfo;
+			SDL_GetWMInfo(&wmInfo);
+			HWND sys_parentwindow = wmInfo.window;
+		#endif
+
 		if (sys_parentwindow)
 			bi.hwndOwner = sys_parentwindow; //note that this is usually still null
 		else
@@ -2369,13 +2378,13 @@ void COM_InitFilesystem (void)
 			advapi32 = LoadLibrary("advapi32.dll");
 
 			if (advapi32)
-			{ 
+			{
 				BOOL (WINAPI *dCheckTokenMembership) (HANDLE TokenHandle, PSID SidToCheck, PBOOL IsMember);
 				dCheckTokenMembership = (void *)GetProcAddress(advapi32, "CheckTokenMembership");
 
 				if (dCheckTokenMembership)
 				{
-					// on XP systems, only use a home directory by default if we're a limited user or if we're on a network			
+					// on XP systems, only use a home directory by default if we're a limited user or if we're on a network
 					BOOL isadmin, isonnetwork;
 					SID_IDENTIFIER_AUTHORITY ntauth = SECURITY_NT_AUTHORITY;
 					PSID adminSID, networkSID;
@@ -2385,7 +2394,7 @@ void COM_InitFilesystem (void)
 						SECURITY_BUILTIN_DOMAIN_RID,
 						DOMAIN_ALIAS_RID_ADMINS,
 						0, 0, 0, 0, 0, 0,
-						&adminSID); 
+						&adminSID);
 
 					// just checking the network rid should be close enough to matching domain logins
 					isonnetwork = AllocateAndInitializeSid(&ntauth,

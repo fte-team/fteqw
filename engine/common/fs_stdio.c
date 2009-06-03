@@ -1,7 +1,7 @@
 #include "quakedef.h"
 #include "fs.h"
 
-#ifndef _WIN32
+#if !defined(_WIN32) || defined(_SDL)
 #define VFSSTDIO_Open VFSOS_Open
 #define stdiofilefuncs osfilefuncs
 #endif

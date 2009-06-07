@@ -34,7 +34,9 @@ entity		self;
 entity		other;
 entity		world;
 float		time;
+#ifndef WORKINDP
 float		cltime;
+#endif
 float		frametime;
 
 float 		player_localentnum;	//the entnum

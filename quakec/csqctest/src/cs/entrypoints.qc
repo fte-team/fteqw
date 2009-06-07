@@ -1,18 +1,9 @@
-void(string model, void(float isnew) updatefunc, float flags) deltalisten = #371;
-void(float flags, float simtime) readserverentitystate = #369;
-#define RSES_NOLERP 1	//only really for use on predicted player entities
-#define RSES_AUTOROTATE 0
-#define RSES_NOROTATE 2
-#define RSES_AUTOTRAILS 0
-#define RSES_NOTRAILS 4
-#define RSES_AUTOLIGHTS 0
-#define RSES_NOLIGHTS 8
-
 #ifdef WORKINDP
 	#define show_scoreboard sb_showscores
 #endif
 
 float show_scoreboard;
+string dbgstr;
 
 //check engine extensions, and give suitable warning
 void() checkengineversion =
@@ -38,6 +29,14 @@ float(float f1, float f2) testfunc2 =
 	return f1+f2;
 }
 float testarray[2];
+
+float(float p1, float p2) a = {return p1+p2+5;};
+float() b = {return 86;};
+float(float p1) c = {return p1+566;};
+float() d = {return 7773;};
+
+#pragma TARGET ID
+
 void() checkcompilerversion =
 {
 	local entity testent;
@@ -53,6 +52,8 @@ void() checkcompilerversion =
 	testarray[0] = 5;
 	testarray[1] = 6;
 
+	if (testfunc (a(b(), c(d()))) != 86+5+7773+566)
+		print("compiler failed on a(b(), c(d()))\n");
 	if (testfunc(5)+testfunc(6) != 11)
 		print("compiler failed on f()+f()\n");
 	if (testfunc2(5, testfunc(6)) != 11)
@@ -63,6 +64,9 @@ void() checkcompilerversion =
 		print("compiler failed on a[0]+a[1]\n");
 };
 
+#ifdef FTEDEPENDANT
+# pragma TARGET FTE
+#endif
 
 
 void(float isnew) RefreshPlayer;
@@ -141,6 +145,9 @@ float(string str) CSQC_ConsoleCommand =
 	args = tokenize(str);
 	switch(argv(0))
 	{
+	case "test":
+		sendevent("testevent", "fsev", 64, "hello world", player_local, '73 72 71');
+		break;
 	case "tetris":
 		Menu_Tetris();
 		break;
@@ -179,6 +186,18 @@ float(string str) CSQC_ConsoleCommand =
 		return false;
 	}
 	return true;
+};
+
+void(string msg, float type) CSQC_Parse_Print =
+{
+	print("parse_print(", ftos(type), "): ");
+	print(msg);
+
+cprint(msg);
+
+	if (dbgstr)
+		strunzone(dbgstr);
+	dbgstr = strzone(msg);
 };
 
 void() CSQC_Ent_Remove =	//the ent disappeared on the server.
@@ -334,7 +353,12 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 	setviewprop(VF_MIN, '0 0 0');
 	setviewprop(VF_SIZE_X, width);
 	setviewprop(VF_SIZE_Y, height);
-
+#if 0
+	setviewprop(VF_MIN_X, width/2);
+	setviewprop(VF_MIN_Y, height/2);
+	setviewprop(VF_SIZE_X, width/2);
+	setviewprop(VF_SIZE_Y, height/2);
+#endif
 	addentities(MASK_NORMAL|MASK_ENGINE);
 
 	if (player_local)
@@ -357,13 +381,27 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 	}
 
 	renderscene();
-
+#if 0
+clearscene();
+	setviewprop(VF_MIN_X, 0);
+	setviewprop(VF_MIN_Y, 0);
+	setviewprop(VF_SIZE_X, width/2);
+	setviewprop(VF_SIZE_Y, height/2);
+	addentities(MASK_NORMAL|MASK_ENGINE);
+renderscene();
+#endif
 	if (do2d)
 	{
 		if (hudtype)
 			Hud_Draw(hudtype, show_scoreboard, width, height);
 
 		Menu_Think();
+	}
+
+	if (dbgstr)
+	{
+		drawrawstring('16 64 0', dbgstr, '16 16 16', '1 1 1', 0.5);
+		drawstring('16 80 0', dbgstr, '16 16 16', 0.5);
 	}
 };
 

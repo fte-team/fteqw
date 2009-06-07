@@ -23,7 +23,7 @@ string anumber[10] = {
 	"anum_8",
 	"anum_9"
 };
-void Hud_Init(void)
+void() Hud_Init
 {
 	float i;
 	precache_pic("sbar", true);
@@ -37,7 +37,7 @@ void Hud_Init(void)
 vector screensize;
 float items, items2;
 
-void Hud_DrawLargeValue(vector pos, float value, float threshhold)
+void(vector pos, float value, float threshhold) Hud_DrawLargeValue =
 {
 	float c;
 	float len;
@@ -77,7 +77,7 @@ void Hud_DrawLargeValue(vector pos, float value, float threshhold)
 	}
 };
 
-void Hud_DrawAmmoCount(float type, vector pos, float drawback)
+void(float type, vector pos, float drawback) Hud_DrawAmmoCount =
 {
 	string s;
 	float value;
@@ -110,11 +110,11 @@ string weaponnames[7] = {
 	"inv_srlaunch",
 	"inv_lightng"
 };
-void Hud_DrawWeapon(float num, vector pos)
+void(float num, vector pos) Hud_DrawWeapon
 {
 	drawpic(pos, weaponnames[num], '24 16 0', '1 1 1', 1, 0);
 };
-void Hud_DrawWeaponWide(float num, vector pos)	//for LG
+void(float num, vector pos) Hud_DrawWeaponWide	//for LG
 {
 	drawpic(pos, weaponnames[num], '48 16 0', '1 1 1', 1, 0);
 };
@@ -131,7 +131,7 @@ string(float f, float chars, string lead) FormatFloat
 	return s;
 };
 
-void() Hud_CoopScores_SBar =
+void(vector pos) Hud_CoopScores_SBar =
 {
 	string s;
 	float secs;
@@ -141,57 +141,53 @@ void() Hud_CoopScores_SBar =
 	drawpic(sbar, "scorebar", '320 24 0', '1 1 1', 0.333, 0);
 
 	s = strcat("Monsters:", FormatFloat(getstati(STAT_KILLEDMONSTERS), 3, " "), "/", FormatFloat(getstati(STAT_TOTALMONSTERS), 3, " "));
-	drawstring(sbar + '8 4', s, '8 8 8', '1 1 1', 1, 0);
+	drawstring(sbar + '8 4', s, '8 8 8', 1, 0);
 	s = strcat("Secrets :", FormatFloat(getstati(STAT_FOUNDSECRETS), 3, " "), "/", FormatFloat(getstati(STAT_TOTALSECRETS), 3, " "));
-	drawstring(sbar + '8 12', s, '8 8 8', '1 1 1', 1, 0);
+	drawstring(sbar + '8 12', s, '8 8 8', 1, 0);
 
 	mins = floor(time/60);
 	secs = floor(time - mins*60);
 	s = strcat("Time :", FormatFloat(mins, 3, " "), ":", FormatFloat(secs, 2, "0"));
-	drawstring(sbar + '184 4', s, '8 8 8', '1 1 1', 1, 0);
+	drawstring(sbar + '184 4', s, '8 8 8', 1, 0);
 
-	drawstring(sbar + '232 12' - strlen(levelname)*'4 0', levelname, '8 8 8', '1 1 1', 1, 0);
+	drawstring(sbar + '232 12' - strlen(levelname)*'4 0', levelname, '8 8 8', 1, 0);
 };
 
-void Hud_DrawSBar(void)
+void Hud_DrawSBar(vector pos)
 {
-	vector sbar;
-	sbar = screensize_y * ' 0 1 0' - '0 24 0';
-	drawpic(sbar, "sbar", '320 24 0', '1 1 1', 0.333, 0);
+	drawpic(pos, "sbar", '320 24 0', '1 1 1', 0.333, 0);
 
 	if (items & IT_INVULNERABILITY)
 	{
-		drawpic(sbar, "disc", '24 24 0', '1 1 1', 1, 0);
-		Hud_DrawLargeValue(sbar+'24 0 0', 999, 25);
+		drawpic(pos, "disc", '24 24 0', '1 1 1', 1, 0);
+		Hud_DrawLargeValue(pos+'24 0 0', 999, 25);
 	}
 	else
 	{
-		Hud_DrawLargeValue(sbar+'24 0 0', getstati(STAT_ARMOR), 25);
+		Hud_DrawLargeValue(pos+'24 0 0', getstati(STAT_ARMOR), 25);
 		if (items & IT_ARMOR3)
-			drawpic(sbar, "sb_armor3", '24 24 0', '1 1 1', 1, 0);
+			drawpic(pos, "sb_armor3", '24 24 0', '1 1 1', 1, 0);
 		else if (items & IT_ARMOR2)
-			drawpic(sbar, "sb_armor2", '24 24 0', '1 1 1', 1, 0);
+			drawpic(pos, "sb_armor2", '24 24 0', '1 1 1', 1, 0);
 		else if (items & IT_ARMOR1)
-			drawpic(sbar, "sb_armor1", '24 24 0', '1 1 1', 1, 0);
+			drawpic(pos, "sb_armor1", '24 24 0', '1 1 1', 1, 0);
 	}
 
-	Hud_DrawLargeValue(sbar+'136 0 0', getstati(STAT_HEALTH), 25);
+	Hud_DrawLargeValue(pos+'136 0 0', getstati(STAT_HEALTH), 25);
 
 	if (items & IT_SHELLS)
-		drawpic(sbar+'224 0 0', "sb_shells", '24 24 0', '1 1 1', 1, 0);
+		drawpic(pos+'224 0 0', "sb_shells", '24 24 0', '1 1 1', 1, 0);
 	else if (items & IT_NAILS)
-		drawpic(sbar+'224 0 0', "sb_nails", '24 24 0', '1 1 1', 1, 0);
+		drawpic(pos+'224 0 0', "sb_nails", '24 24 0', '1 1 1', 1, 0);
 	else if (items & IT_ROCKETS)
-		drawpic(sbar+'224 0 0', "sb_rocket", '24 24 0', '1 1 1', 1, 0);
+		drawpic(pos+'224 0 0', "sb_rocket", '24 24 0', '1 1 1', 1, 0);
 	else if (items & IT_CELLS)
-		drawpic(sbar+'224 0 0', "sb_cells", '24 24 0', '1 1 1', 1, 0);
-	Hud_DrawLargeValue(sbar+'248 0 0', getstati(STAT_AMMO), 10);
+		drawpic(pos+'224 0 0', "sb_cells", '24 24 0', '1 1 1', 1, 0);
+	Hud_DrawLargeValue(pos+'248 0 0', getstati(STAT_AMMO), 10);
 };
 
-void Hud_DrawIBar(void)
+void Hud_DrawIBar(vector pos)
 {
-	vector pos;
-	pos= screensize_y * ' 0 1 0' - '0 48 0';
 	drawpic(pos, "ibar", '320 24 0', '1 1 1', 0.333, 0);
 
 	if (items & IT_SHOTGUN)
@@ -209,10 +205,10 @@ void Hud_DrawIBar(void)
 	if (items & IT_LIGHTNING)
 		Hud_DrawWeaponWide(6, pos+'144 8 0');
 
-	Hud_DrawAmmoCount(0, pos + '6 0 0', false);
-	Hud_DrawAmmoCount(1, pos + '54 0 0', false);
-	Hud_DrawAmmoCount(2, pos + '102 0 0', false);
-	Hud_DrawAmmoCount(3, pos + '150 0 0', false);
+	Hud_DrawAmmoCount(0, pos + '10 0 0', false);
+	Hud_DrawAmmoCount(1, pos + '58 0 0', false);
+	Hud_DrawAmmoCount(2, pos + '106 0 0', false);
+	Hud_DrawAmmoCount(3, pos + '154 0 0', false);
 
 	if (items & IT_KEY1)
 		drawpic(pos+'192 8 0', "sb_key1", '16 16 0', '1 1 1', 1, 0);
@@ -343,25 +339,26 @@ void Hud_DrawQ3Head(vector topleft, vector sz, string skinname, vector ang)
 	hud3ditem.skin = 0;
 }
 
-void Hud_Q3(void)
+void Hud_Q3(vector pos)
 {
-	vector sbar;
-	sbar = screensize_y * ' 0 1 0' - '0 24 0';
+	Hud_Draw3dItem(pos+'224 0', '24 24', "models/powerups/ammo/rocketam.md3", '70 0 0', '0 90 0' + ('0 1 0'*20)*sin(time));
+	Hud_Draw3dItem(pos+'0 0', '24 24', "models/powerups/armor/armor_red.md3", '80 0 -10', '0 1 0'*360*(time/6));
+	Hud_DrawQ3Head(pos+'112 0', '24 24', cvar_string("cg_forceskin"), '0 180 0'+'0 20 0'*sin(time));
 
-	Hud_Draw3dItem(sbar+'224 0', '24 24', "models/powerups/ammo/rocketam.md3", '70 0 0', '0 90 0' + ('0 1 0'*20)*sin(time));
-	Hud_Draw3dItem(sbar+'0 0', '24 24', "models/powerups/armor/armor_red.md3", '80 0 -10', '0 1 0'*360*(time/6));
-	Hud_DrawQ3Head(sbar+'112 0', '24 24', cvar_string("cg_forceskin"), '0 180 0'+'0 20 0'*sin(time));
-
-	Hud_DrawQ3Number(sbar+'24 0 0', getstati(STAT_ARMOR), '1 1 1');
-	Hud_DrawQ3Number(sbar+'136 0 0', getstati(STAT_HEALTH), '1 1 1');
-	Hud_DrawQ3Number(sbar+'248 0 0', getstati(STAT_AMMO), '1 1 1');
+	Hud_DrawQ3Number(pos+'24 0 0', getstati(STAT_ARMOR), '1 1 1');
+	Hud_DrawQ3Number(pos+'136 0 0', getstati(STAT_HEALTH), '1 1 1');
+	Hud_DrawQ3Number(pos+'248 0 0', getstati(STAT_AMMO), '1 1 1');
 }
 
 nonstatic void Hud_Draw(float hudtype, float scoreboard, float width, float height)
 {
+	vector pos;
 	screensize_x = width;
 	screensize_y = height;
 	screensize_z = 0;
+
+	pos_x = (screensize_x-320)/2;
+	pos_y = screensize_y;
 
 	items = getstatbits(STAT_ITEMS, 0, 23);
 	items2 = getstatbits(STAT_ITEMS, 23, 9);
@@ -376,12 +373,12 @@ nonstatic void Hud_Draw(float hudtype, float scoreboard, float width, float heig
 	{
 		if (scoreboard)
 		{
-			Hud_CoopScores_SBar();
+			Hud_CoopScores_SBar(pos - '0 24 0');
 		}
 		else
 		{
-			Hud_DrawSBar();
+			Hud_DrawSBar(pos - '0 24 0');
 		}
-		Hud_DrawIBar();
+		Hud_DrawIBar(pos - '0 48 0');
 	}
 };

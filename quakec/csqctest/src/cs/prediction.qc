@@ -181,7 +181,7 @@ nonstatic void(entity ent) Pred_UpdateLocalMovement =
 
 	Pred_RunMovement(ent, clientcommandframe);
 
-	if (ent.origin_z > pmove_step_oldz+8 && ent.origin_z < pmove_step_oldz+24 && pmove_vel_z == 0)
+	if (ent.origin_z > pmove_step_oldz+8 && ent.origin_z < pmove_step_oldz+24 && ent.velocity_z == 0)
 	{
 		//evaluate out the remaining old step
 		if (pmove_steptime - time > 0)

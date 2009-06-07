@@ -440,7 +440,7 @@ stagger back a bit
 */
 void(float dist) ai_pain =
 {
-	self.Version++;	//if nothing else happened, we animated.
+	self.SendFlags = FULLSEND;	//if nothing else happened, we animated.
 
 	ai_back (dist);
 /*
@@ -462,7 +462,7 @@ stagger back a bit
 */
 void(float dist) ai_painforward =
 {
-	self.Version++;	//if nothing else happened, we animated.
+	self.SendFlags = FULLSEND;	//if nothing else happened, we animated.
 
 	walkmove (self.ideal_yaw, dist);
 };
@@ -476,7 +476,7 @@ The monster is walking it's beat
 */
 void(float dist) ai_walk =
 {	
-	self.Version++;	//if nothing else happened, we animated.
+	self.SendFlags = FULLSEND;	//if nothing else happened, we animated.
 
 	movedist = dist;
 	
@@ -502,7 +502,7 @@ The monster is staying in one place for a while, with slight angle turns
 */
 void() ai_stand =
 {
-	self.Version++;	//if nothing else happened, we animated.
+	self.SendFlags = FULLSEND;	//if nothing else happened, we animated.
 
 	if (FindTarget ())
 		return;
@@ -681,7 +681,7 @@ The monster has an enemy it is trying to kill
 */
 void(float dist) ai_run =
 {
-	self.Version++;	//if nothing else happened, we animated.
+	self.SendFlags = FULLSEND;	//if nothing else happened, we animated.
 
 	movedist = dist;
 // see if the enemy is dead

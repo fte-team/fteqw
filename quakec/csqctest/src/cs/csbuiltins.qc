@@ -26,12 +26,12 @@ float(string name) iscachedpic 			= #316; //  (EXT_CSQC)
 string(string name, float trywad) precache_pic 	= #317; //  (EXT_CSQC)
 vector(string picname) draw_getimagesize 	= #318; //  (EXT_CSQC)
 void(string name) freepic 			= #319; //  (EXT_CSQC)
-float(vector position, float character, vector scale, vector rgb, float alpha, ...) drawcharacter	= #320; //  (EXT_CSQC, [EXT_CSQC_???])
-float(vector position, string text, vector scale, vector rgb, float alpha, ...) drawstring		= #321; //  (EXT_CSQC, [EXT_CSQC_???])
-float(vector position, string pic, vector size, vector rgb, float alpha, ...) drawpic			= #322; //  (EXT_CSQC, [EXT_CSQC_???])
-float(vector position, vector size, vector rgb, float alpha, ...) drawfill				= #323; //  (EXT_CSQC, [EXT_CSQC_???])
-void(float x, float y, float width, float height) drawsetcliparea 					= #324; //  (EXT_CSQC_???)
-void(void) drawresetcliparea 			= #325; //  (EXT_CSQC_???)
+void(vector position, float character, vector scale, vector rgb, float alpha, ...) drawcharacter	= #320; //  (EXT_CSQC, [EXT_CSQC_???])
+void(vector position, string text, vector scale, vector rgb, float alpha, ...) drawrawstring		= #321; //  (EXT_CSQC, [EXT_CSQC_???])
+void(vector position, string pic, vector size, vector rgb, float alpha, ...) drawpic			= #322; //  (EXT_CSQC, [EXT_CSQC_???])
+void(vector position, vector size, vector rgb, float alpha, ...) drawfill				= #323; //  (EXT_CSQC, [EXT_CSQC_???])
+
+void(vector position, string text, vector scale, float alpha, ...) drawstring		= #326; //  (EXT_CSQC_1)
 
 float(float stnum) getstatf							= #330; //  (EXT_CSQC)
 float(float stnum) getstati							= #331; //  (EXT_CSQC)
@@ -42,6 +42,7 @@ string(float mdlindex) modelnameforindex 					= #334; //  (EXT_CSQC)
 
 float(string effectname) particleeffectforname					= #335; //  (EXT_CSQC)
 #ifdef WORKINDP
+//DP got the arguments the wrong way around...
 void(entity ent, float effectnum, vector start, vector end) trailparticles_dp	= #336; //  (EXT_CSQC),
 void(float effectnum, entity ent, vector start, vector end) trailparticles =
 {
@@ -82,3 +83,15 @@ float() readcoord			= #364; //  (EXT_CSQC)
 float() readangle			= #365; //  (EXT_CSQC)
 string() readstring			= #366; //  (EXT_CSQC)
 string() readfloat			= #367; //  (EXT_CSQC)
+
+void(string model, void(float isnew) updatefunc, float flags) deltalisten = #371;
+//void(float flags, float simtime) readserverentitystate = #369;
+#define RSES_NOLERP 1	//only really for use on predicted player entities
+#define RSES_AUTOROTATE 0
+#define RSES_NOROTATE 2
+#define RSES_AUTOTRAILS 0
+#define RSES_NOTRAILS 4
+#define RSES_AUTOLIGHTS 0
+#define RSES_NOLIGHTS 8
+
+void(string evname, string argdesc, ...) sendevent = #359;

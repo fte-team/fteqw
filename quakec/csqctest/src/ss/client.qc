@@ -546,7 +546,7 @@ void() PutClientInServer =
 	if (serverusingcsqc)
 	{
 		self.SendEntity = SendPlayer;
-		self.Version = self.Version+1;
+		self.SendFlags = FULLSEND;
 	}
 
 	DecodeLevelParms ();
@@ -960,7 +960,7 @@ void() PlayerPreThink =
 	if (self.view_ofs == '0 0 0')
 		return;		// intermission or finale
 
-	self.Version++;
+	self.SendFlags = FULLSEND;
 
 	makevectors (self.v_angle);		// is this still used
 

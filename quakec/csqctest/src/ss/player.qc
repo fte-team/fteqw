@@ -515,7 +515,7 @@ float(entity ent) WriteGibs =
 void(float type) ThrowCSQCGibs =
 {
 	self.cnt = type;
-	self.Version = self.Version+1;
+	self.SendFlags = FULLSEND;
 	self.SendEntity = WriteGibs;
 	if (type != GIB_PLAYER)
 	{	//schedule removal after a second.

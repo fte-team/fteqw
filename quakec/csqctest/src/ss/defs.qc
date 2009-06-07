@@ -503,5 +503,6 @@ float(entity targ, entity inflictor) CanDamage;
 float serverusingcsqc;
 
 .float(entity to) SendEntity;
-.float Version;
+.float SendFlags;
+#define FULLSEND 0xffffff
 float	MSG_ENTITY		= 5;

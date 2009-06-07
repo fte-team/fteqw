@@ -15,7 +15,9 @@
 #define CSQC 1
 #endif
 
-#pragma noref 1
+#ifdef FTEQCC
+#pragma noref 1	//remove warnings about unreferenced variables.
+#endif
 
 /*
 ==============================================================================
@@ -32,6 +34,7 @@ entity		self;
 entity		other;
 entity		world;
 float		time;
+float		cltime;
 float		frametime;
 
 float 		player_localentnum;	//the entnum
@@ -51,6 +54,9 @@ float		intermission;	//non-zero if the server sent an svc_intermission.
 // global variables set by built in functions
 //
 vector		v_forward, v_up, v_right;	// set by makevectors()
+#ifndef WORKINDP
+vector view_angles;
+#endif
 
 // set by traceline / tracebox
 float		trace_allsolid;
@@ -69,19 +75,22 @@ void()	CSQC_Shutdown;
 float(float f, float t, float n)	CSQC_InputEvent;
 void(float width, float height, float do2d)	CSQC_UpdateView;
 float(string s)	CSQC_ConsoleCommand;
-#endif
 
 //these fields are read and set by the default player physics
 vector		pmove_org;
 vector		pmove_vel;
 vector		pmove_mins;
 vector		pmove_maxs;
+#endif
+
 //retrieved from the current movement commands (read by player physics)
 float		input_timelength;
 vector		input_angles;
 vector		input_movevalues;	//forwards, right, up.
 float		input_buttons;		//attack, use, jump (default physics only uses jump)
+float		input_impulse;
 
+#ifdef WORKINDP
 float		movevar_gravity;
 float		movevar_stopspeed;
 float		movevar_maxspeed;
@@ -92,6 +101,7 @@ float		movevar_wateraccelerate;
 float		movevar_friction;
 float		movevar_waterfriction;
 float		movevar_entgravity;	//the local player's gravity field. Is a multiple (1 is the normal value)
+#endif
 
 //================================================
 void		end_sys_globals;		// flag for structure dumping
@@ -123,6 +133,9 @@ void		end_sys_globals;		// flag for structure dumping
 .vector		velocity;
 .vector		angles;
 .vector		avelocity;
+#ifndef WORKINDP
+.float		pmove_flags;
+#endif
 
 .string		classname;		// spawn function
 
@@ -132,20 +145,22 @@ void		end_sys_globals;		// flag for structure dumping
 .string		model;
 .float		frame;
 #ifndef WORKINDP
+.float		frame1time;	//for automatic framegroups.
 .float		frame2;
+.float		frame2time;
 .float		lerpfrac;	//the ammount of frame2 to use.
 #endif
 .float		skin;
 
-#ifdef WORKINDP
 .float		effects;
-#endif
 
 .vector		mins, maxs;		// bounding box extents reletive to origin
 .vector		size;			// maxs - mins
 
 .void()		touch;
+#ifdef WORKINDP
 .void()		use;
+#endif
 .void()		think;
 .void()		blocked;		// for doors or plats, called when can't push other
 
@@ -157,7 +172,7 @@ void		end_sys_globals;		// flag for structure dumping
 .string		netname;
 #endif
 
-.entity 	enemy;
+.entity 		enemy;
 
 .float		flags;
 
@@ -169,24 +184,23 @@ void		end_sys_globals;		// flag for structure dumping
 void		end_sys_fields;			// flag for structure dumping
 //================================================
 
-#ifdef WORKINDP
-.float frame2;
-.float renderflags;
-.float lerpfrac;
+#ifdef FTEQCC
+#pragma noref 0
 #endif
 
+
+#ifdef WORKINDP
+.float frame2;
+.float frame1time;
+.float frame2time;
+.float renderflags;
+.float lerpfrac;
+
 vector view_angles;
+#endif
 
 //optional extras
 .float alpha;
 .float scale;
 .float forceshader;	//an fte extension, to force a q3 shader upon a model
 .float fatness;	//an fte feature, to expand alias models along thier normals.
-
-float pmove_jump_held;
-float pmove_waterjumptime;
-
-.float frame1time;	//for automatic framegroups.
-.float frame2time;
-
-#pragma noref 0

@@ -370,7 +370,17 @@ void() BecomeExplosion =
 
 	self.dimension_seen = 2;
 	dimension_send = 2;
+
+#if 1
+	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
+	WriteByte (MSG_BROADCAST, TE_EXPLOSION);
+	WriteCoord (MSG_BROADCAST, self.origin_x);
+	WriteCoord (MSG_BROADCAST, self.origin_y);
+	WriteCoord (MSG_BROADCAST, self.origin_z);
+#else
 	te_explosion(self.origin);
+#endif
+
 	sound (self, CHAN_WEAPON, "weapons/r_exp3.wav", 1, ATTN_NORM);
 	self.dimension_seen = 3;
 	dimension_send = 3;
@@ -382,7 +392,7 @@ void() BecomeExplosion =
 	self.source = self.origin;
 	self.SendEntity = SendExplosion;
 	self.starttime = time;
-	self.Version+=1;
+	self.SendFlags = FULLSEND;
 };
 
 void() T_MissileTouch =
@@ -458,7 +468,7 @@ void() W_FireRocket =
 	missile.source = missile.origin;
 	missile.SendEntity = SendRocket;
 	missile.starttime = time;
-	missile.Version+=1;
+	missile.SendFlags = FULLSEND;
 };
 
 /*
@@ -680,7 +690,7 @@ void(vector org, vector dir) launch_spike =
 	newmis.velocity = dir * 1000;
 
 	newmis.SendEntity = SendNail;
-	newmis.Version++;
+	newmis.SendFlags = FULLSEND;
 	newmis.source = newmis.origin;
 	newmis.starttime = time;
 };

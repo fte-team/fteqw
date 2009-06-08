@@ -244,7 +244,7 @@ ifeq ($(FTE_TARGET),win32)
 	RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 endif
 ifeq ($(FTE_TARGET),win32_SDL)
-	RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+	RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS) -D_SDL
 endif
 RELEASE_CFLAGS ?= -O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
 #RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
@@ -508,7 +508,7 @@ SWB_DIR=sw_sdl$(BITS)
 SWCL_DIR=swcl_sdl$(BITS)
 
 SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
-SV_EXE_NAME=../fteqw.sv$(BITS)
+SV_EXE_NAME=../fteqw_sdl.sv$(BITS)
 SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -lz
 
 MINGL_DIR=mingl_sdl$(BITS)
@@ -560,8 +560,8 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	SWCL_DIR=swcl_mgw_sdl$(BITS)
 
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) resources.o
-	SV_EXE_NAME=../fteqw_sv.exe
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
+	SV_EXE_NAME=../fteqw_sdl_sv.exe
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -D_SDL
 	SV_LDFLAGS=./libs/mingw-libs/libz.a -lm -lmingw32 -lwsock32 -lwinmm
 
 	MINGL_DIR=mingl_sdl$(BITS)
@@ -708,6 +708,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 
 	SV_DIR=sv_linux$(BITS)
 	SV_LDFLAGS=-lz
+	SV_EXE_NAME=../fteqw.sv$(BITS)
 
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
 ifeq ($(USEASM),true)

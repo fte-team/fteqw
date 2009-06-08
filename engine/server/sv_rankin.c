@@ -4,6 +4,8 @@
 
 #if defined(_WIN32) && !defined(MINGW)
 #define inline //_inline	//fix for stupid VC
+#elif defined(CLANG)
+#define inline // fix for stupid clang
 #endif
 
 #ifdef SVRANKING

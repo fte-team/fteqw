@@ -108,6 +108,7 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		((struct sockaddr_in*)s)->sin_port = a->port;
 		return sizeof(struct sockaddr_in);
 
+	case NA_TCP:
 	case NA_IP:
 		memset (s, 0, sizeof(struct sockaddr_in));
 		((struct sockaddr_in*)s)->sin_family = AF_INET;
@@ -127,6 +128,7 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		((struct sockaddr_in6*)s)->sin6_port = a->port;
 		return sizeof(struct sockaddr_in6);
 
+	case NA_TCPV6:
 	case NA_IPV6:
 		memset (s, 0, sizeof(struct sockaddr_in6));
 		((struct sockaddr_in6*)s)->sin6_family = AF_INET6;
@@ -200,7 +202,7 @@ qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
 	if (a.type == NA_LOOPBACK)
 		return true;
 
-	if (a.type == NA_IP || a.type == NA_BROADCAST_IP)
+	if (a.type == NA_IP || a.type == NA_BROADCAST_IP || a.type == NA_TCP)
 	{
 		if ((memcmp(a.address.ip, b.address.ip, sizeof(a.address.ip)) == 0) && a.port == b.port)
 			return true;
@@ -208,7 +210,7 @@ qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
 	}
 
 #ifdef IPPROTO_IPV6
-	if (a.type == NA_IPV6 || a.type == NA_BROADCAST_IP6)
+	if (a.type == NA_IPV6 || a.type == NA_BROADCAST_IP6 || a.type == NA_TCPV6)
 	{
 		if ((memcmp(a.address.ip6, b.address.ip6, sizeof(a.address.ip6)) == 0) && a.port == b.port)
 			return true;
@@ -338,6 +340,7 @@ qboolean NET_AddressSmellsFunny(netadr_t a)
 
 char	*NET_AdrToString (char *s, int len, netadr_t a)
 {
+	char *rs = s;
 	qboolean doneblank;
 	char *p;
 	int i;
@@ -454,7 +457,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 //		Sys_Error("NET_AdrToString: Bad netadr_t type");
 	}
 
-	return s;
+	return rs;
 }
 
 char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
@@ -1894,7 +1897,14 @@ closesvstream:
 			con->tcpstreams = st;
 			st->socketnum = newsock;
 			st->inlen = 0;
+
+			/*grab the net address*/
 			SockadrToNetadr(&from, &st->remoteaddr);
+			/*sockadr doesn't contain transport info, so fix that up here*/
+			if (st->remoteaddr.type == NA_IP)
+				st->remoteaddr.type = NA_TCP;
+			else if (st->remoteaddr.type == NA_IPV6)
+				st->remoteaddr.type = NA_TCPV6;
 
 			//send the qizmo greeting.
 			send(newsock, "qizmo\n", 6, 0);
@@ -2035,7 +2045,8 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 			newcon->tcpstreams->next = NULL;
 			newcon->tcpstreams->socketnum = newsocket;
 			newcon->tcpstreams->inlen = 0;
-			SockadrToNetadr(&qs, &newcon->tcpstreams->remoteaddr);
+
+			newcon->tcpstreams->remoteaddr = adr;
 
 			//send the qizmo greeting.
 			send(newsocket, "qizmo\n", 6, 0);

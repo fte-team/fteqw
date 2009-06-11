@@ -1175,22 +1175,29 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 	}
 }
 
+
+
 qboolean csqc_rebuildmatricies;
-float mvp[12];
-float mvpi[12];
-static void buildmatricies(void)
+float csqc_proj_matrix[16];
+float csqc_proj_matrix_inverse[16];
+ void buildmatricies(void)
 {
 	float modelview[16];
 	float proj[16];
 
+	/*build modelview and projection*/
 	Matrix4_ModelViewMatrix(modelview, r_refdef.viewangles, r_refdef.vieworg);
 	Matrix4_Projection2(proj, r_refdef.fov_x, r_refdef.fov_y, 4);
-	Matrix4_Multiply(proj, modelview, mvp);
-	Matrix4_Invert_Simple((matrix4x4_t*)mvpi, (matrix4x4_t*)mvp);	//not actually used in this function.
+
+	/*build the project matrix*/
+	Matrix4_Multiply(proj, modelview, csqc_proj_matrix);
+
+	/*build the unproject matrix (inverted project matrix)*/
+	Matrix4_Invert(csqc_proj_matrix, csqc_proj_matrix_inverse);
 
 	csqc_rebuildmatricies = false;
 }
-static void PF_cs_project (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_cs_project (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (csqc_rebuildmatricies)
 		buildmatricies();
@@ -1206,45 +1213,52 @@ static void PF_cs_project (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		v[2] = in[2];
 		v[3] = 1;
 
-		Matrix4_Transform4(mvp, v, tempv);
+		Matrix4_Transform4(csqc_proj_matrix, v, tempv);
 
 		tempv[0] /= tempv[3];
 		tempv[1] /= tempv[3];
 		tempv[2] /= tempv[3];
 
 		out[0] = (1+tempv[0])/2;
-		out[1] = (1+tempv[1])/2;
-		out[2] = (1+tempv[2])/2;
+		out[1] = 1-(1+tempv[1])/2;
+		out[2] = tempv[2];
 
 		out[0] = out[0]*r_refdef.vrect.width + r_refdef.vrect.x;
 		out[1] = out[1]*r_refdef.vrect.height + r_refdef.vrect.y;
+
+		if (tempv[3] < 0)
+			out[2] *= -1;
 	}
 }
-static void PF_cs_unproject (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_cs_unproject (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (csqc_rebuildmatricies)
 		buildmatricies();
 
-
 	{
 		float *in = G_VECTOR(OFS_PARM0);
 		float *out = G_VECTOR(OFS_RETURN);
+		float tx, ty;
 
 		float v[4], tempv[4];
 
-		out[0] = (out[0]-r_refdef.vrect.x)/r_refdef.vrect.width;
-		out[1] = (out[1]-r_refdef.vrect.y)/r_refdef.vrect.height;
-
-		v[0] = in[0]*2-1;
-		v[1] = in[1]*2-1;
-		v[2] = in[2]*2-1;
+		tx = ((in[0]-r_refdef.vrect.x)/r_refdef.vrect.width);
+		ty = ((in[1]-r_refdef.vrect.y)/r_refdef.vrect.height);
+		ty = 1-ty;
+		v[0] = tx*2-1;
+		v[1] = ty*2-1;
+		v[2] = in[2];//*2-1;
 		v[3] = 1;
 
-		Matrix4_Transform4(mvpi, v, tempv);
+		//don't use 1, because the far clip plane really is an infinite distance away
+		if (v[2] >= 1)
+			v[2] = 0.999999;
 
-		out[0] = tempv[0];
-		out[1] = tempv[1];
-		out[2] = tempv[2];
+		Matrix4_Transform4(csqc_proj_matrix_inverse, v, tempv);
+
+		out[0] = tempv[0]/tempv[3];
+		out[1] = tempv[1]/tempv[3];
+		out[2] = tempv[2]/tempv[3];
 	}
 }
 
@@ -3139,7 +3153,7 @@ static void PF_cl_te_lightning1 (progfuncs_t *prinst, struct globalvars_s *pr_gl
 {
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 	float *start = G_VECTOR(OFS_PARM1);
-	float *end = G_VECTOR(OFS_PARM1);
+	float *end = G_VECTOR(OFS_PARM2);
 
 	CL_AddBeam(0, ent->entnum+MAX_EDICTS, start, end);
 }
@@ -3147,7 +3161,7 @@ static void PF_cl_te_lightning2 (progfuncs_t *prinst, struct globalvars_s *pr_gl
 {
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 	float *start = G_VECTOR(OFS_PARM1);
-	float *end = G_VECTOR(OFS_PARM1);
+	float *end = G_VECTOR(OFS_PARM2);
 
 	CL_AddBeam(1, ent->entnum+MAX_EDICTS, start, end);
 }
@@ -3155,7 +3169,7 @@ static void PF_cl_te_lightning3 (progfuncs_t *prinst, struct globalvars_s *pr_gl
 {
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 	float *start = G_VECTOR(OFS_PARM1);
-	float *end = G_VECTOR(OFS_PARM1);
+	float *end = G_VECTOR(OFS_PARM2);
 
 	CL_AddBeam(2, ent->entnum+MAX_EDICTS, start, end);
 }
@@ -3163,7 +3177,7 @@ static void PF_cl_te_beam (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 	float *start = G_VECTOR(OFS_PARM1);
-	float *end = G_VECTOR(OFS_PARM1);
+	float *end = G_VECTOR(OFS_PARM2);
 
 	CL_AddBeam(5, ent->entnum+MAX_EDICTS, start, end);
 }

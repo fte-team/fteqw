@@ -1067,7 +1067,7 @@ Emits a primitive statement, returning the var it places it's value in
 ============
 */
 QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_b, QCC_dstatement_t **outstatement);
-int inline QCC_ShouldConvert(QCC_def_t *var, etype_t wanted)
+static int QCC_ShouldConvert(QCC_def_t *var, etype_t wanted)
 {
 	if (var->type->type == ev_integer && wanted == ev_function)
 		return 0;

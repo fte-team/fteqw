@@ -24,10 +24,6 @@
 #define progfuncs qccprogfuncs
 extern progfuncs_t *qccprogfuncs;
 
-#if defined(_WIN32) && !defined(MINGW)
-#define inline _inline
-#endif
-
 #ifndef _WIN32
 #define stricmp strcasecmp
 #define strnicmp strncasecmp
@@ -875,7 +871,7 @@ extern qcc_cachedsourcefile_t *qcc_sourcefile;
 
 
 #ifdef COMMONINLINES
-bool inline QCC_PR_CheckToken (char *string)
+static bool inline QCC_PR_CheckToken (char *string)
 {
 	if (pr_token_type != tt_punct)
 		return false;
@@ -887,7 +883,7 @@ bool inline QCC_PR_CheckToken (char *string)
 	return true;
 }
 
-void inline QCC_PR_Expect (char *string)
+static void inline QCC_PR_Expect (char *string)
 {
 	if (strcmp (string, pr_token))
 		QCC_PR_ParseError ("expected %s, found %s",string, pr_token);

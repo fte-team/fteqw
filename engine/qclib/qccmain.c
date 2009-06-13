@@ -1709,7 +1709,7 @@ char *Sva(char *msg, ...)
 
 #define PROGDEFS_MAX_SIZE 16384
 //write (to file buf) and add to the crc
-void inline Add(char *p, unsigned short *crc, char *file)
+static void Add(char *p, unsigned short *crc, char *file)
 {
 	char *s;
 	int i = strlen(file);
@@ -1725,7 +1725,7 @@ void inline Add(char *p, unsigned short *crc, char *file)
 #define ADD(p) Add(p, &crc, file)
 //#define ADD(p) {char *s;int i = strlen(p);for(s=p;*s;s++,i++){QCC_CRC_ProcessByte(&crc, *s);file[i] = *s;}file[i]='\0';}
 
-void inline Add3(char *p, unsigned short *crc, char *file)
+static void Add3(char *p, unsigned short *crc, char *file)
 {
 	char *s;
 	for(s=p;*s;s++)

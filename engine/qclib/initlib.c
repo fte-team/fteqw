@@ -587,7 +587,7 @@ progfuncs_t deffuncs = {
 #endif
 
 	filefromprogs,
-	filefromnewprogs,
+	NULL,//filefromnewprogs,
 
 	SaveEnts,
 	LoadEnts,

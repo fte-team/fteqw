@@ -210,6 +210,25 @@ SOURCE=.\QccMain.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\qcctui.c
+
+!IF  "$(CFG)" == "qcc - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qcc - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "qcc - Win32 GUIDebug"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "qcc - Win32 GUIRelease"
+
+# PROP Exclude_From_Build 1
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
 SOURCE=.\qcd_main.c
 # End Source File
 # End Group

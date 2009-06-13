@@ -41,11 +41,11 @@ void qccClearHunk(void)
 		qcchunk=NULL;
 	}
 }
+int qccpersisthunk;
 void PostCompile(void)
 {
-#ifndef QCCONLY	//QCCONLY has a frontend that browses defs.
-	qccClearHunk();
-#endif
+	if (!qccpersisthunk)
+		qccClearHunk();
 
 	if (asmfile)
 	{

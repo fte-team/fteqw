@@ -25,19 +25,6 @@ vec3_t vec3_origin;
 //int				pr_max_edict_size;
 
 //unsigned short		pr_crc;
-const unsigned int		type_size[12] = {1,	//void
-						sizeof(string_t)/4,	//string
-						1,	//float
-						3,	//vector
-						1,	//entity
-						1,	//field
-						sizeof(func_t)/4,//function
-						sizeof(void *)/4,//pointer
-						1,	//integer
-						1,	//fixme: how big should a variant be?
-						0,	//ev_struct. variable sized.
-						0	//ev_union. variable sized.
-						};
 
 fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
 pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s, int bits);

@@ -13,6 +13,7 @@ char parameters[16384];
 char progssrcname[256];
 char progssrcdir[256];
 
+int qccpersisthunk = 1;
 void GoToDefinition(char *name)
 {
 	QCC_def_t *def;

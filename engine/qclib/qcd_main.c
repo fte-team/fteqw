@@ -186,7 +186,7 @@ char *filefromprogs(progfuncs_t *progfuncs, progsnum_t prnum, char *fname, int *
 	return NULL;
 }
 
-#ifndef QCCONLY
+/*
 char *filefromnewprogs(progfuncs_t *progfuncs, char *prname, char *fname, int *size, char *buffer)
 {
 	int num;
@@ -225,5 +225,4 @@ char *filefromnewprogs(progfuncs_t *progfuncs, char *prname, char *fname, int *s
 		*size = 0;
 	return NULL;
 }
-
-#endif
+*/

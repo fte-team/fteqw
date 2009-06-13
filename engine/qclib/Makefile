@@ -3,6 +3,7 @@ QCC_OBJS=qccmain.o qcc_pr_comp.o qcc_pr_lex.o
 VM_OBJS=pr_exec.o pr_edict.o pr_multi.o initlib.o qcdecomp.o
 GTKGUI_OBJS=qcc_gtk.o qccguistuff.o
 WIN32GUI_OBJS=qccgui.o qccguistuff.o
+TUI_OBJS=qcctui.o
 LIB_OBJS=
 
 CC=gcc -Wall
@@ -31,10 +32,10 @@ nocyg:
 win:
 	$(MAKE) USEGUI_CFLAGS="-DUSEGUI -DQCCONLY" R_win
 
-R_qcc: $(QCC_OBJS) $(COMMON_OBJS)
-	$(CC) $(BASE_CFLAGS) -o fteqcc.bin -O3 -s $(QCC_OBJS) $(COMMON_OBJS)
+R_qcc: $(QCC_OBJS) $(COMMON_OBJS) $(TUI_OBJS)
+	$(CC) $(BASE_CFLAGS) -o fteqcc.bin -O3 -s $(QCC_OBJS) $(TUI_OBJS) $(COMMON_OBJS)
 qcc:
-	$(MAKE) USEGUI_CFLAGS="-DQCCONLY" R_qcc
+	$(MAKE) USEGUI_CFLAGS="" R_qcc
 
 qccmain.o: qccmain.c qcc.h
 	$(DO_CC)

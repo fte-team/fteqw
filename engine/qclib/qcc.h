@@ -24,7 +24,7 @@
 #define progfuncs qccprogfuncs
 extern progfuncs_t *qccprogfuncs;
 
-#if _WIN32 && !defined(MINGW)
+#if defined(_WIN32) && !defined(MINGW)
 #define inline _inline
 #endif
 

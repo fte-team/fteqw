@@ -8,6 +8,106 @@
 #include "qcc.h"
 #include "gui.h"
 
+
+
+
+/*
+==============
+LoadFile
+==============
+*/
+unsigned char *QCC_ReadFile (char *fname, void *buffer, int len)
+{
+	long    length;
+	FILE *f;
+	f = fopen(fname, "rb");
+	if (!f)
+		return NULL;
+	length = fread(buffer, 1, len, f);
+	fclose(f);
+
+	if (length != len)
+		return NULL;
+
+	return buffer;
+}
+int QCC_FileSize (char *fname)
+{
+	long    length;
+	FILE *f;
+	f = fopen(fname, "rb");
+	if (!f)
+		return -1;
+	fseek(f, 0, SEEK_END);
+	length = ftell(f);
+	fclose(f);
+
+	return length;
+}
+
+pbool QCC_WriteFile (char *name, void *data, int len)
+{
+	long    length;
+	FILE *f;
+	f = fopen(name, "wb");
+	if (!f)
+		return false;
+	length = fwrite(data, 1, len, f);
+	fclose(f);
+
+	if (length != len)
+		return false;
+
+	return true;
+}
+
+#undef printf
+#undef Sys_Error
+
+void Sys_Error(const char *text, ...)
+{
+	va_list argptr;
+	static char msg[2048];	
+
+	va_start (argptr,text);
+	QC_vsnprintf (msg,sizeof(msg)-1, text,argptr);
+	va_end (argptr);
+
+	QCC_Error(ERR_INTERNAL, "%s", msg);
+}
+
+
+FILE *logfile;
+int logprintf(const char *format, ...)
+{
+	va_list		argptr;
+	static char		string[1024];
+
+	va_start (argptr, format);
+#ifdef _WIN32
+	_vsnprintf (string,sizeof(string)-1, format,argptr);
+#else
+	vsnprintf (string,sizeof(string), format,argptr);
+#endif
+	va_end (argptr);
+
+	printf("%s", string);
+	if (logfile)
+		fputs(string, logfile);
+
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
 #define Edit_Redo(hwndCtl)                      ((BOOL)(DWORD)SNDMSG((hwndCtl), EM_REDO, 0L, 0L))
 
 
@@ -23,9 +123,6 @@
 
 int GUIprintf(const char *msg, ...);
 void GUIPrint(HWND wnd, char *msg);
-char *QCC_ReadFile (char *fname, void *buffer, int len);
-int QCC_FileSize (char *fname);
-pbool QCC_WriteFile (char *name, void *data, int len);
 
 char finddef[256];
 

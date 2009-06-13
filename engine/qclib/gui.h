@@ -4,7 +4,7 @@ void EditFile(char *name, int line);
 void GUI_SetDefaultOpts(void);
 int GUI_BuildParms(char *args, char **argv);
 
-char *QCC_ReadFile (char *fname, void *buffer, int len);
+unsigned char *QCC_ReadFile (char *fname, void *buffer, int len);
 int QCC_FileSize (char *fname);
 pbool QCC_WriteFile (char *name, void *data, int len);
 void GUI_DialogPrint(char *title, char *text);

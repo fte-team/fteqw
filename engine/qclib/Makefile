@@ -70,7 +70,7 @@ gtkgui:
 	$(MAKE) USEGUI_CFLAGS="-DUSEGUI -DQCCONLY" R_gtkgui
 
 clean:
-	$(RM) fteqcc.bin fteqcc.exe $(QCC_OBJS) $(COMMON_OBJS) $(VM_OBJS) $(GTKGUI_OBJS) $(WIN32GUI_OBJS)
+	$(RM) fteqcc.bin fteqcc.exe $(QCC_OBJS) $(COMMON_OBJS) $(VM_OBJS) $(GTKGUI_OBJS) $(WIN32GUI_OBJS) $(TUI_OBJS)
 
 qcvm.so: $(QCC_OBJS) $(VM_OBJS) $(COMMON_OBJS)
 	$(CC) $(BASE_CFLAGS) -o $@ -O3 -s $(QCC_OBJS) $(VM_OBJS) $(COMMON_OBJS) -shared

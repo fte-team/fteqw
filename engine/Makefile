@@ -486,7 +486,7 @@ GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in
 GL_EXE_NAME=../fteqw_sdl.gl$(BITS)
 GLCL_EXE_NAME=../fteqwcl_sdl.gl$(BITS)
 ifdef windir
-	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lwsock32 `sdl-config --libs`
+	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `sdl-config --libs`
 else
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) `sdl-config --libs`
 endif
@@ -498,7 +498,7 @@ SWCL_OBJS=$(SOFTWARE_OBJS) vid_sdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
 SW_EXE_NAME=../fteqw_sdl.sw$(BITS)
 SWCL_EXE_NAME=../fteqwcl_sdl.sw$(BITS)
 ifdef windir
-SW_LDFLAGS=$(SWLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
+SW_LDFLAGS=$(SWLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
 else
 #pthread is needed because of SDL.
 SW_LDFLAGS=$(SWLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
@@ -521,7 +521,7 @@ M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
 M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
 
 ifdef windir
-	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
+	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
 else
 	#pthread is needed because of SDL.
 	M_LDFLAGS=$(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
@@ -538,9 +538,9 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	GL_EXE_NAME=../fteqw_sdl_gl.exe
 	GLCL_EXE_NAME=../fteqwcl_sdl.exe
 	ifdef windir
-		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lwsock32 `sdl-config --libs`
+		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `sdl-config --libs`
 	else
-		GL_LDFLAGS=$(IMAGELDFLAGS) -lwsock32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
+		GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
 	endif
 	GL_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs $(GLCFLAGS) `sdl-config --cflags`
 	GLB_DIR=gl_mgw_sdl$(BITS)
@@ -550,10 +550,10 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	SW_EXE_NAME=../fteqw_sdl_sw.exe
 	SWCL_EXE_NAME=../fteqwcl_sdl.exe
 	ifdef windir
-		SW_LDFLAGS=$(SWLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
+		SW_LDFLAGS=$(SWLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
 	else
 		#pthread is needed because of SDL.
-		SW_LDFLAGS=$(IMAGELDFLAGS) -lwsock32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(SWLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
+		SW_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(SWLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
 	endif
 	SW_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs $(SWCFLAGS) `sdl-config --cflags`
 	SWB_DIR=sw_mgw_sdl$(BITS)
@@ -562,7 +562,7 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) resources.o
 	SV_EXE_NAME=../fteqw_sdl_sv.exe
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -D_SDL
-	SV_LDFLAGS=./libs/mingw-libs/libz.a -lm -lmingw32 -lwsock32 -lwinmm
+	SV_LDFLAGS=./libs/mingw-libs/libz.a -lm -lmingw32 -lws2_32 -lwinmm
 
 	MINGL_DIR=mingl_sdl$(BITS)
 	MINGL_EXE_NAME=../fteqw_sdl_mingl.exe
@@ -574,10 +574,10 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
 	
 	ifdef windir
-		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lwsock32 -lSDLmain -lSDL
+		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
 	else
 		#pthread is needed because of SDL.
-		M_LDFLAGS=$(IMAGELDFLAGS) -lwsock32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
+		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
 	endif
 endif
 
@@ -594,7 +594,7 @@ ifeq ($(FTE_TARGET),win32)
 
 	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../fteqwsv.exe
-	SV_LDFLAGS=libs/zlib.lib -lwsock32 -lwinmm
+	SV_LDFLAGS=libs/zlib.lib -lws2_32 -lwinmm
 	SV_DIR=sv_mingw
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o resources.o
 
@@ -606,7 +606,7 @@ else
 endif
 	GL_EXE_NAME=../fteglqw.exe
 	GLCL_EXE_NAME=../fteglqwcl.exe
-	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
 	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
 	GLB_DIR=gl_mgw
 	GLCL_DIR=glcl_mgw
@@ -618,7 +618,7 @@ else
 endif
 	NPQTV_DLL_NAME=../npqtv.dll
 	NPQTVCL_DLL_NAME=../npqtvcl.dll
-	NPQTV_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32 -shared
+	NPQTV_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -shared
 	NPQTV_CFLAGS=$(NPQTVCFLAGS) $(GLCFLAGS) $(W32_CFLAGS)
 	NPQTVB_DIR=npqtv_mgw
 	NPQTVCL_DIR=npqtvcl_mgw
@@ -630,7 +630,7 @@ else
 endif
 	SW_EXE_NAME=../fteswqw.exe
 	SWCL_EXE_NAME=../fteswqwcl.exe
-	SW_LDFLAGS=$(SWLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
+	SW_LDFLAGS=$(SWLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
 	SW_CFLAGS=$(SWCFLAGS) $(W32_CFLAGS)
 	SWB_DIR=sw_mgw
 	SWCL_DIR=swcl_mgw
@@ -642,7 +642,7 @@ else
 endif
 	M_EXE_NAME=../fteqw.exe
 	MCL_EXE_NAME=../fteqwcl.exe
-	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
+	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
 	M_CFLAGS=$(SWCFLAGS) $(GLCFLAGS) $(W32_CFLAGS)
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw
@@ -650,7 +650,7 @@ endif
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
 	D3D_EXE_NAME=../fted3dqw.exe
 	D3DCL_EXE_NAME=../fted3dclqw.exe
-	D3D_LDFLAGS= -ldxguid -lwsock32 -lwinmm -lgdi32 -lole32
+	D3D_LDFLAGS= -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
 	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) -DMINIMAL
 	D3DB_DIR=d3d_mgw
 	D3DCL_DIR=d3dcl_mgw

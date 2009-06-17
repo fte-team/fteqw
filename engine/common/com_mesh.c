@@ -4074,7 +4074,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 
 					buffer = COM_Parse(buffer);
 					num = atoi(com_token);
-					if (num < 0 || num >= numverts || !indexes)
+					if (num < 0 || num >= numverts)
 						MD5ERROR0PARAM("MD5MESH: vertex out of range");
 
 					EXPECT("(");

@@ -585,12 +585,12 @@ qboolean Heightmap_NativeTrace(struct model_s *model, int hulloverride, int fram
 }
 
 #endif
-void Heightmap_FatPVS		(model_t *mod, vec3_t org, qboolean add)
+void Heightmap_FatPVS		(model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned int pvssize, qboolean add)
 {
 }
 
 #ifndef CLIENTONLY
-qboolean Heightmap_EdictInFatPVS	(model_t *mod, edict_t *edict)
+qboolean Heightmap_EdictInFatPVS	(model_t *mod, edict_t *edict, qbyte *pvsdata)
 {
 	return true;
 }

@@ -44,15 +44,15 @@ typedef struct {
 	qboolean (*NativeTrace)		(struct model_s *model, int hulloverride, int frame, vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace);
 	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
 
-	void (*FatPVS)				(struct model_s *model, vec3_t org, qboolean add);
-	qboolean (*EdictInFatPVS)	(struct model_s *model, struct edict_s *edict);
+	unsigned int (*FatPVS)		(struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge);
+	qboolean (*EdictInFatPVS)	(struct model_s *model, struct edict_s *edict, qbyte *pvsbuffer);
 	void (*FindTouchedLeafs_Q1)	(struct model_s *model, struct edict_s *ent, vec3_t cullmins, vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
 
 	void (*LightPointValues)	(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 	void (*StainNode)			(struct mnode_s *node, float *parms);
 	void (*MarkLights)			(struct dlight_s *light, int bit, struct mnode_s *node);
 
-	qbyte *(*LeafPVS)			(struct model_s *model, int num, qbyte *buffer);
+	qbyte *(*LeafPVS)			(struct model_s *model, int num, qbyte *buffer, unsigned int buffersize);
 	int	(*LeafnumForPoint)		(struct model_s *model, vec3_t point);
 } bspfuncs_t;
 
@@ -91,8 +91,11 @@ typedef struct mesh_s
 
 	vec3_t			lightaxis[3];
 
+	//FIXME: these can go when the new backend is done
 	unsigned int	patchWidth;
 	unsigned int	patchHeight;
+
+	struct mesh_s	*next;
 } mesh_t;
 struct meshbuffer_s;
 
@@ -163,6 +166,13 @@ typedef struct mplane_s
 	qbyte	pad[2];
 } mplane_t;
 
+typedef struct {
+	int base;
+	int bump;
+	int specular;
+	int fullbright;
+} texnums_t;
+
 typedef struct texture_s
 {
 	char		name[64];
@@ -173,10 +183,7 @@ typedef struct texture_s
 
 	int parttype;
 
-	int			gl_texturenum;
-	int			gl_texturenumfb;
-	int			gl_texturenumbumpmap;
-	int			gl_texturenumspec;
+	texnums_t tn;
 
 	struct shader_s	*shader;
 
@@ -191,8 +198,12 @@ typedef struct texture_s
 	unsigned	offsets[MIPLEVELS];		// four mip maps stored
 } texture_t;
 
-//the per-texture vbos have this stride (v_pos/st/lm_st)
-#define VBOSTRIDE (3+2+2)*sizeof(float)
+typedef struct
+{
+	float coord[3];
+	float texcoord[2];
+	float lmcoord[2];
+} vbovertex_t;
 
 #define SURF_DRAWSKYBOX		0x00001
 #define	SURF_PLANEBACK		0x00002
@@ -409,8 +420,8 @@ void Q1BSP_Init(void);
 
 qboolean Q1BSP_Trace(struct model_s *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
-void Q1BSP_FatPVS (struct model_s *mod, vec3_t org, qboolean add);
-qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct edict_s *ent);
+void Q1BSP_FatPVS (struct model_s *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean add);
+qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct edict_s *ent, qbyte *pvs);
 void Q1BSP_FindTouchedLeafs(struct model_s *mod, struct edict_s *ent, float *mins, float *maxs);
 qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, qbyte *buffer);
 
@@ -891,7 +902,7 @@ int		CM_LeafCluster (struct model_s *mod, int leafnum);
 int		CM_LeafArea (struct model_s *mod, int leafnum);
 int		CM_WriteAreaBits (struct model_s *mod, qbyte *buffer, int area);
 int		CM_PointLeafnum (struct model_s *mod, vec3_t p);
-qbyte	*CM_ClusterPVS (struct model_s *mod, int cluster, qbyte *buffer);
+qbyte	*CM_ClusterPVS (struct model_s *mod, int cluster, qbyte *buffer, unsigned int buffersize);
 qbyte	*CM_ClusterPHS (struct model_s *mod, int cluster);
 int		CM_BoxLeafnums (struct model_s *mod, vec3_t mins, vec3_t maxs, int *list, int listsize, int *topnode);
 int		CM_PointContents (struct model_s *mod, vec3_t p);

@@ -140,6 +140,7 @@ typedef struct
 		};
 #endif
 		struct {
+			char		*vw_model_precache[32];
 			char		*model_precache[MAX_MODELS];	// NULL terminated
 			char		sound_precache[MAX_SOUNDS][MAX_QPATH];	// NULL terminated
 			char		*lightstyles[MAX_LIGHTSTYLES];

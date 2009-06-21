@@ -98,7 +98,8 @@ void AddLightBlend (float r, float g, float b, float a2)
 
 float bubble_sintable[17], bubble_costable[17];
 
-void R_InitBubble() {
+void R_InitBubble(void)
+{
 	float a;
 	int i;
 	float *bub_sin, *bub_cos;

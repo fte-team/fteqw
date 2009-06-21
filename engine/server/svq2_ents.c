@@ -601,8 +601,6 @@ Build a client frame structure
 =============================================================================
 */
 
-extern qbyte	fatpvs[(MAX_MAP_LEAFS+1)/4];
-
 /*
 =============
 SV_BuildClientFrame
@@ -624,8 +622,8 @@ void SV_BuildClientFrame (client_t *client)
 	int		clientarea, clientcluster;
 	int		leafnum;
 	int		c_fullsend;
+	qbyte	clientpvs[(MAX_MAP_LEAFS+7)>>3];
 	qbyte	*clientphs;
-	qbyte	*bitvector;
 
 	if (client->state < cs_spawned)
 		return;
@@ -661,7 +659,7 @@ void SV_BuildClientFrame (client_t *client)
 	frame->ps = clent->client->ps;
 
 
-	sv.worldmodel->funcs.FatPVS(sv.worldmodel, org, false);
+	sv.worldmodel->funcs.FatPVS(sv.worldmodel, org, clientpvs, sizeof(clientpvs), false);
 	clientphs = CM_ClusterPHS (sv.worldmodel, clientcluster);
 
 	// build up the list of visible entities
@@ -707,11 +705,9 @@ void SV_BuildClientFrame (client_t *client)
 				// FIXME: if an ent has a model and a sound, but isn't
 				// in the PVS, only the PHS, clear the model
 
-				bitvector = fatpvs;
-
 				if (ent->num_clusters == -1)
 				{	// too many leafs for individual check, go by headnode
-					if (!CM_HeadnodeVisible (sv.worldmodel, ent->headnode, bitvector))
+					if (!CM_HeadnodeVisible (sv.worldmodel, ent->headnode, clientpvs))
 						continue;
 					c_fullsend++;
 				}
@@ -720,7 +716,7 @@ void SV_BuildClientFrame (client_t *client)
 					for (i=0 ; i < ent->num_clusters ; i++)
 					{
 						l = ent->clusternums[i];
-						if (bitvector[l >> 3] & (1 << (l&7) ))
+						if (clientpvs[l >> 3] & (1 << (l&7) ))
 							break;
 					}
 					if (i == ent->num_clusters)

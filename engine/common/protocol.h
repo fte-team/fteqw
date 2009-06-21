@@ -79,6 +79,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define Z_EXT_JOIN_OBSERVE	(1<<5)	// server: "join" and "observe" commands are supported
 									// client: on-the-fly spectator <-> player switching supported
 
+//#define Z_EXT_PF_ONGROUND	(1<<6)	// server: PF_ONGROUND is valid for all svc_playerinfo
+#define Z_EXT_VWEP			(1<<7)
+//#define Z_EXT_PF_SOLID		(1<<8)	//conflicts with many FTE extensions.
+
 #define SUPPORTED_Z_EXTENSIONS (Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW|Z_EXT_VIEWHEIGHT|Z_EXT_SERVERTIME|Z_EXT_PITCHLIMITS|Z_EXT_JOIN_OBSERVE)
 
 
@@ -378,6 +382,7 @@ enum clcq2_ops_e
 #endif
 
 #define	PF_COLOURMOD		(1<<19)
+//note that if you add any more, you may need to change the check in the client so more can be parsed
 
 
 

@@ -1727,7 +1727,7 @@ void SVHL_Snapshot_Build(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 	}
 }
 
-void SVHL_Snapshot_SetupPVS(client_t *client)
+void SVHL_Snapshot_SetupPVS(client_t *client, qbyte *pvs, unsigned int pvsbufsize)
 {
 }
 

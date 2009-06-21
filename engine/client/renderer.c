@@ -729,11 +729,13 @@ mpic_t	*(*Draw_CachePic)			(char *path);
 mpic_t	*(*Draw_SafeCachePic)		(char *path);
 void	(*Draw_Init)				(void);
 void	(*Draw_ReInit)				(void);
+
 void	(*Draw_Character)			(int x, int y, unsigned int num);
 void	(*Draw_ColouredCharacter)	(int x, int y, unsigned int num);
 void	(*Draw_String)				(int x, int y, const qbyte *str);
 void	(*Draw_TinyCharacter)		(int x, int y, unsigned int num);
 void	(*Draw_Alt_String)			(int x, int y, const qbyte *str);
+
 void	(*Draw_Crosshair)			(void);
 void	(*Draw_DebugChar)			(qbyte num);
 void	(*Draw_Pic)					(int x, int y, mpic_t *pic);
@@ -2472,7 +2474,7 @@ void R_MarkLeaves_Q3 (void)
 	}
 	else
 	{
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL);//, cl.worldmodel);
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL, 0);
 		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 		{
 			cluster = leaf->cluster;
@@ -2523,12 +2525,12 @@ void R_MarkLeaves_Q2 (void)
 			return;
 		}
 
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL);//, cl.worldmodel);
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL, 0);
 		// may have to combine two clusters because of solid water boundaries
 		if (r_viewcluster2 != r_viewcluster)
 		{
 			memcpy (fatvis, vis, (cl.worldmodel->numleafs+7)/8);
-			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL);//, cl.worldmodel);
+			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL, 0);
 			c = (cl.worldmodel->numleafs+31)/32;
 			for (i=0 ; i<c ; i++)
 				((int *)fatvis)[i] |= ((int *)vis)[i];

@@ -1066,6 +1066,14 @@ void IN_MouseMove (float *movements, int pnum)
 #endif
 	}
 
+#ifdef PEXT_CSQC
+	if (CSQC_MouseMove(mx, my))
+	{
+		mx = 0;
+		my = 0;
+	}
+#endif
+
 	if (m_filter.value)
 	{
 		float fraction = bound(0, m_filter.value, 2) * 0.5;

@@ -2394,7 +2394,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	org[2] += ps->viewheight;
 
 	clientarea = CM_PointLeafnum(sv.worldmodel, org);
-	bitvector = sv.worldmodel->funcs.LeafPVS(sv.worldmodel, sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, org), NULL);
+	bitvector = sv.worldmodel->funcs.LeafPVS(sv.worldmodel, sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, org), NULL, 0);
 	clientarea = CM_LeafArea(sv.worldmodel, clientarea);
 /*
 	if (client->areanum != clientarea)

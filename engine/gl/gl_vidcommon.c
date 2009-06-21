@@ -104,6 +104,8 @@ void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
 void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
 void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data, GLenum usage);
 void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
+void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
+GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 
 /*
 PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
@@ -175,7 +177,12 @@ const char *gl_renderer;
 const char *gl_version;
 const char *gl_extensions;
 
-int		texture_extension_number = 1;
+static int texture_extension_number = 1;
+
+int GL_AllocNewTexture(void)
+{
+	return texture_extension_number++;
+}
 
 void APIENTRY GL_DrawRangeElementsEmul(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices)
 {
@@ -351,6 +358,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglBindBufferARB = (void *)getglext("glBindBufferARB");
 		qglBufferDataARB = (void *)getglext("glBufferDataARB");
 		qglBufferSubDataARB = (void *)getglext("glBufferSubDataARB");
+		qglMapBufferARB = (void *)getglext("glMapBufferARB");
+		qglUnmapBufferARB = (void *)getglext("glUnmapBufferARB");
 	}
 
 /*
@@ -622,6 +631,8 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 	qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
 	qglShadeModel (GL_FLAT);
+
+	texture_extension_number = 1;
 
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);

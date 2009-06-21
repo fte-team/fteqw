@@ -464,7 +464,7 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #ifdef Q3SHADERS
 		shader_t *s;
 
-		s = R_RegisterCustom(picname, NULL);
+		s = R_RegisterCustom(picname, NULL, NULL);
 		if (s)
 		{
 			GLDraw_ShaderPic(pos[0], pos[1], size[0], size[1], s, rgb[0], rgb[1], rgb[2], alpha);
@@ -520,7 +520,7 @@ void PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #ifdef Q3SHADERS
 		shader_t *s;
 
-		s = R_RegisterCustom(picname, NULL);
+		s = R_RegisterCustom(picname, NULL, NULL);
 		if (s)
 		{
 			GLDraw_ShaderPic(pos[0], pos[1], size[0], size[1], s, rgb[0], rgb[1], rgb[2], alpha);

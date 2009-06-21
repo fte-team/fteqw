@@ -612,7 +612,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 						frac += fracstep;
 					}
 				}
-				texnums->base = texture_extension_number++;
+				texnums->base = GL_AllocNewTexture();
 				GL_Bind(texnums->base);
 				qglTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
@@ -634,7 +634,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 						frac += fracstep;
 					}
 				}
-				texnums->fullbright = texture_extension_number++;
+				texnums->fullbright = GL_AllocNewTexture();
 				GL_Bind(texnums->fullbright);
 				qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 

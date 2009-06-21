@@ -1627,7 +1627,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			//fixme: this is woefully gl specific. :(
 			if (qrenderer == QR_OPENGL)
 			{
-				ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell);
+				ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell, NULL);
 			}
 #endif
 			VQ2_AddLerpEntity (&ent);

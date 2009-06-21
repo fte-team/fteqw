@@ -1650,7 +1650,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, qboolean alpha)
 			if (cls.allow_shaders)
 			{
 				sprintf(skinname, "%s_%i", loadname, i);
-				texnums->shader = R_RegisterCustom (skinname, NULL);
+				texnums->shader = R_RegisterCustom (skinname, NULL, NULL);
 			}
 #endif
 
@@ -1750,7 +1750,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, qboolean alpha)
 				if (cls.allow_shaders)
 				{
 					sprintf(skinname, "%s_%i_%i", loadname, i, t);
-					texnums->shader = R_RegisterCustom (skinname, NULL);
+					texnums->shader = R_RegisterCustom (skinname, NULL, NULL);
 				}
 #endif
 
@@ -2042,7 +2042,7 @@ static void Q2_LoadSkins(md2_t *pq2inmodel, char *skins)
 		COM_CleanUpPath(skins);	//blooming tanks.
 		texnums->base = Mod_LoadReplacementTexture(skins, "models", true, false, true);
 #ifdef Q3SHADERS
-		texnums->shader = R_RegisterCustom(skins, NULL);
+		texnums->shader = R_RegisterCustom(skins, NULL, NULL);
 		if (!texnums->base && !texnums->shader)
 			Con_Printf("Couldn't load %s\n", skins);
 #endif

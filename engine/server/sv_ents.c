@@ -41,18 +41,15 @@ crosses a waterline.
 
 int needcleanup;
 
-int		fatbytes;
+//int		fatbytes;
 int glowsize, glowcolor; // made it a global variable, to suppress msvc warning.
-qbyte	fatpvs[(MAX_MAP_LEAFS+1)/4];
-
-
 
 #ifdef Q2BSPS
-void SV_Q2BSP_FatPVS (model_t *mod, vec3_t org)
+unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsigned int buffersize)
 {
 	int		leafs[64];
 	int		i, j, count;
-	int		longs;
+	unsigned int		longs;
 	qbyte	*src;
 	vec3_t	mins, maxs;
 
@@ -69,16 +66,17 @@ void SV_Q2BSP_FatPVS (model_t *mod, vec3_t org)
 	if (sv.worldmodel->fromgame == fg_quake3)
 		longs = CM_ClusterSize(mod);
 	else
-		longs = (CM_NumClusters(mod)+31)>>5;
+		longs = (CM_NumClusters(mod)+7)/8;
+	longs = (longs+(sizeof(long)-1))/sizeof(long);
 
 	// convert leafs to clusters
 	for (i=0 ; i<count ; i++)
 		leafs[i] = CM_LeafCluster(mod, leafs[i]);
 
-	CM_ClusterPVS(mod, leafs[0], fatpvs);
+	CM_ClusterPVS(mod, leafs[0], resultbuf, buffersize);
 
 
-//	memcpy (fatpvs, CM_ClusterPVS(leafs[0]), longs<<2);
+//	memcpy (resultbuf, CM_ClusterPVS(leafs[0]), longs<<2);
 	// or in all the other leaf bits
 	for (i=1 ; i<count ; i++)
 	{
@@ -87,10 +85,11 @@ void SV_Q2BSP_FatPVS (model_t *mod, vec3_t org)
 				break;
 		if (j != i)
 			continue;		// already have the cluster we want
-		src = CM_ClusterPVS(mod, leafs[i], NULL);
+		src = CM_ClusterPVS(mod, leafs[i], NULL, 0);
 		for (j=0 ; j<longs ; j++)
-			((long *)fatpvs)[j] |= ((long *)src)[j];
+			((long *)resultbuf)[j] |= ((long *)src)[j];
 	}
+	return longs*sizeof(long);
 }
 #endif
 
@@ -1106,9 +1105,9 @@ typedef struct {
 	qboolean onladder;
 	usercmd_t	*lastcmd;
 	int modelindex;
-	int modelindex2;
 	int frame;
 	int weaponframe;
+	int vw_index;
 	float *angles;
 	float *origin;
 	float *velocity;
@@ -1305,7 +1304,10 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 			}
 
 			cmd.buttons = 0;	// never send buttons
-			cmd.impulse = 0;	// never send impulses
+			if (ent->zext & Z_EXT_VWEP)
+				cmd.impulse = ent->vw_index;	// never send impulses
+			else
+				cmd.impulse = 0;
 
 			MSG_WriteDeltaUsercmd (msg, &nullcmd, &cmd);
 		}
@@ -1518,7 +1520,6 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				clst.modelindex = sv.demostate[i+1].modelindex;
 				if (!clst.modelindex)
 					continue;
-				clst.modelindex2 = 0;
 				clst.frame = sv.demostate[i+1].frame;
 				clst.weaponframe = sv.recordedplayer[i].weaponframe;
 				clst.angles = ang;
@@ -1539,6 +1540,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				clst.fteext = 0;//client->fteprotocolextensions;
 				clst.zext = 0;//client->zquake_extensions;
 				clst.cl = NULL;
+				clst.vw_index = 0;
 
 				lerp = (realtime - olddemotime) / (nextdemotime - olddemotime);
 				if (lerp < 0)
@@ -1589,6 +1591,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 
 		clst.fteext = 0;//client->fteprotocolextensions;
 		clst.zext = 0;//client->zquake_extensions;
+		clst.vw_index = 0;
 		clst.playernum = MAX_CLIENTS-1;
 		clst.isself = true;
 		clst.modelindex = 0;
@@ -1670,7 +1673,7 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 				continue;
 
 			// ignore if not touching a PV leaf
-			if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent))
+			if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent, pvs))
 				continue;
 
 			if (!((int)clent->xv->dimension_see & ((int)ent->xv->dimension_seen | (int)ent->xv->dimension_ghost)))
@@ -1689,13 +1692,13 @@ void SV_WritePlayersToClient (client_t *client, edict_t *clent, qbyte *pvs, size
 			clst.onladder = (int)ent->xv->pmove_flags&PMF_LADDER;
 			clst.lastcmd = &cl->lastcmd;
 			clst.modelindex = vent->v->modelindex;
-			clst.modelindex2 = vent->xv->vweapmodelindex;
 			clst.frame = vent->v->frame;
 			clst.weaponframe = ent->v->weaponframe;
 			clst.angles = ent->v->angles;
 			clst.origin = vent->v->origin;
 			clst.velocity = vent->v->velocity;
 			clst.effects = ent->v->effects;
+			clst.vw_index = ent->xv->vw_index;
 
 			if (progstype == PROG_H2 && ((int)vent->v->effects & H2EF_NODRAW))
 			{
@@ -2073,16 +2076,16 @@ qboolean SV_GibFilter(edict_t	*ent)
 #ifdef Q2BSPS
 static int		clientarea;
 
-void Q2BSP_FatPVS(model_t *mod, vec3_t org, qboolean add)
+unsigned int Q2BSP_FatPVS(model_t *mod, vec3_t org, qbyte *buffer, unsigned int buffersize, qboolean add)
 {//fixme: this doesn't add
 	int		leafnum;
 	leafnum = CM_PointLeafnum (mod, org);
 	clientarea = CM_LeafArea (mod, leafnum);
 
-	SV_Q2BSP_FatPVS (mod, org);
+	return SV_Q2BSP_FatPVS (mod, org, buffer, buffersize);
 }
 
-qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent)
+qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent, qbyte *pvs)
 {
 	int i,l;
 	if (!CM_AreasConnected (mod, clientarea, ent->areanum))
@@ -2095,7 +2098,7 @@ qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent)
 
 	if (ent->num_leafs == -1)
 	{	// too many leafs for individual check, go by headnode
-		if (!CM_HeadnodeVisible (mod, ent->headnode, fatpvs))
+		if (!CM_HeadnodeVisible (mod, ent->headnode, pvs))
 			return false;
 	}
 	else
@@ -2103,7 +2106,7 @@ qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent)
 		for (i=0 ; i < ent->num_leafs ; i++)
 		{
 			l = ent->leafnums[i];
-			if (fatpvs[l >> 3] & (1 << (l&7) ))
+			if (pvs[l >> 3] & (1 << (l&7) ))
 				break;
 		}
 		if (i == ent->num_leafs)
@@ -2454,12 +2457,12 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 						{
 							p = EDICT_NUM(svprogfuncs, p->xv->tag_entity);
 						}
-						if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, p))
+						if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, p, pvs))
 							continue;
 					}
 					else
 					{
-						if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent))
+						if (!sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent, pvs))
 							continue;
 					}
 				}
@@ -2615,25 +2618,24 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 	}
 }
 
-qbyte *SV_Snapshot_SetupPVS(client_t *client)
+qbyte *SV_Snapshot_SetupPVS(client_t *client, qbyte *pvs, unsigned int pvsbufsize)
 {
-//fixme: fatpvs is still a global.
 	vec3_t org;
 	int leavepvs = false;
 
 	for (; client; client = client->controlled)
 	{
 		VectorAdd (client->edict->v->origin, client->edict->v->view_ofs, org);
-		sv.worldmodel->funcs.FatPVS(sv.worldmodel, org, leavepvs);
+		sv.worldmodel->funcs.FatPVS(sv.worldmodel, org, pvs, pvsbufsize, leavepvs);
 		leavepvs = true;
 
 #ifdef PEXT_VIEW2
 		if (client->edict->xv->view2)	//add a second view point to the pvs
-			sv.worldmodel->funcs.FatPVS(sv.worldmodel, PROG_TO_EDICT(svprogfuncs, client->edict->xv->view2)->v->origin, leavepvs);
+			sv.worldmodel->funcs.FatPVS(sv.worldmodel, PROG_TO_EDICT(svprogfuncs, client->edict->xv->view2)->v->origin, pvs, pvsbufsize, leavepvs);
 #endif
 	}
 
-	return fatpvs;
+	return pvs;
 }
 
 void SV_Snapshot_Clear(packet_entities_t *pack)
@@ -2653,9 +2655,10 @@ Builds a temporary q1 style entity packet for a q3 client
 */
 void SVQ3Q1_BuildEntityPacket(client_t *client, packet_entities_t *pack)
 {
+	qbyte pvsbuf[(MAX_MAP_LEAFS+7)>>3];
 	qbyte *pvs;
 	SV_Snapshot_Clear(pack);
-	pvs = SV_Snapshot_SetupPVS(client);
+	pvs = SV_Snapshot_SetupPVS(client, pvsbuf, sizeof(pvsbuf));
 	SV_Snapshot_BuildQ1(client, pack, pvs, client->edict, false);
 }
 
@@ -2676,6 +2679,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	packet_entities_t	*pack;
 	edict_t	*clent;
 	client_frame_t	*frame;
+	qbyte pvsbuffer[(MAX_MAP_LEAFS+7)/8];
 
 
 	// this is the frame we are creating
@@ -2692,10 +2696,10 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		clent = client->edict;
 #ifdef HLSERVER
 		if (svs.gametype == GT_HALFLIFE)
-			pvs = SVHL_Snapshot_SetupPVS(client);
+			pvs = SVHL_Snapshot_SetupPVS(client, pvsbuffer, sizeof(pvsbuffer));
 		else
 #endif
-			pvs = SV_Snapshot_SetupPVS(client);
+			pvs = SV_Snapshot_SetupPVS(client, pvsbuffer, sizeof(pvsbuffer));
 	}
 
 	host_client = client;

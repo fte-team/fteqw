@@ -43,23 +43,23 @@ int		skytexturenum;
 
 int		solidskytexture;
 int		alphaskytexture;
-float	speedscale;		// for top sky and bottom sky
+static float	speedscale;		// for top sky and bottom sky
 
-float skyrotate;
-vec3_t skyaxis;
+static float skyrotate;
+static vec3_t skyaxis;
 
-qboolean usingskybox;
+static qboolean usingskybox;
 
-msurface_t	*warpface;
+static msurface_t	*warpface;
 
 extern cvar_t r_skyboxname;
 extern cvar_t gl_skyboxdist;
 extern cvar_t r_fastsky;
 extern cvar_t r_fastskycolour;
-char defaultskybox[MAX_QPATH];
+static char defaultskybox[MAX_QPATH];
 
 int skyboxtex[6];
-vec3_t glskycolor;
+static vec3_t glskycolor;
 
 void GLR_Fastskycolour_Callback(struct cvar_s *var, char *oldvalue)
 {
@@ -67,7 +67,7 @@ void GLR_Fastskycolour_Callback(struct cvar_s *var, char *oldvalue)
 }
 
 void GL_DrawSkyBox (msurface_t *s);
-void BoundPoly (int numverts, float *verts, vec3_t mins, vec3_t maxs)
+static void BoundPoly (int numverts, float *verts, vec3_t mins, vec3_t maxs)
 {
 	int		i, j;
 	float	*v;
@@ -142,7 +142,7 @@ void EmitWaterPolys (msurface_t *fa, float basealpha)
 			qglPushMatrix();
 			qglColor4f(1, 1, 1, a);
 			qglTranslatef (sin(cl.time+l*4) * 0.04f+cos(cl.time/2+l)*0.02f+cl.time/(64+l*8), cos(cl.time+l*4) * 0.06f+sin(cl.time/2+l)*0.02f+cl.time/(16+l*2), 0);
-			GL_DrawAliasMesh(fa->mesh, fa->texinfo->texture->gl_texturenum);
+			GL_DrawAliasMesh(fa->mesh, fa->texinfo->texture->tn.base);
 			qglPopMatrix();
 		}
 		qglMatrixMode(GL_MODELVIEW);
@@ -154,49 +154,10 @@ void EmitWaterPolys (msurface_t *fa, float basealpha)
 		qglPushMatrix();
 		qglTranslatef (sin(cl.time) * 0.4f, cos(cl.time) * 0.06f, 0);
 		fa->mesh->colors_array = NULL;
-		GL_DrawAliasMesh(fa->mesh, fa->texinfo->texture->gl_texturenum);
+		GL_DrawAliasMesh(fa->mesh, fa->texinfo->texture->tn.base);
 		qglPopMatrix();
 		qglMatrixMode(GL_MODELVIEW);
 	}
-}
-
-/*
-=============
-EmitSkyPolys
-=============
-*/
-void EmitSkyPolys (msurface_t *fa)
-{
-
-}
-
-/*
-===============
-EmitBothSkyLayers
-
-Does a sky warp on the pre-fragmented glpoly_t chain
-This will be called for brushmodels, the world
-will have them chained together.
-===============
-*/
-void GL_EmitBothSkyLayers (msurface_t *fa)
-{
-	GL_DisableMultitexture();
-
-	GL_Bind (solidskytexture);
-	speedscale = cl.gametime*8;
-	speedscale -= (int)speedscale & ~127 ;
-
-	EmitSkyPolys (fa);
-
-	qglEnable (GL_BLEND);
-	GL_Bind (alphaskytexture);
-	speedscale = cl.gametime*16;
-	speedscale -= (int)speedscale & ~127 ;
-
-	EmitSkyPolys (fa);
-
-	qglDisable (GL_BLEND);
 }
 
 #endif
@@ -207,7 +168,7 @@ GL_DrawSkyChain
 =================
 */
 #ifdef RGLQUAKE
-void R_DrawSkyBoxChain (msurface_t *s);
+static void R_DrawSkyBoxChain (msurface_t *s);
 void GL_DrawSkyChain (msurface_t *s)
 {
 	msurface_t	*fa;
@@ -250,37 +211,14 @@ void GL_DrawSkyChain (msurface_t *s)
 		R_DrawSkyBoxChain(s);
 		return;
 	}
-//	if (usingskydome)
-	{
-		GL_DrawSkySphere(s);
-		return;
-	}
 
-	// used when gl_texsort is on
-	GL_Bind(solidskytexture);
-	speedscale = cl.servertime;
-	speedscale*=8;
-	speedscale -= (int)speedscale & ~127 ;
-
-	for (fa=s ; fa ; fa=fa->texturechain)
-		EmitSkyPolys (fa);
-
-	qglEnable (GL_BLEND);
-	GL_Bind (alphaskytexture);
-	speedscale = cl.servertime;
-	speedscale*=16;
-	speedscale -= (int)speedscale & ~127 ;
-
-	for (fa=s ; fa ; fa=fa->texturechain)
-		EmitSkyPolys (fa);
-
-	qglDisable (GL_BLEND);
+	GL_DrawSkySphere(s);
 }
 #endif
 
 #ifdef D3DQUAKE
-void R_DrawSkyBoxChain (msurface_t *s);
-void D3D7_DrawSkyChain (msurface_t *s)
+static void R_DrawSkyBoxChain (msurface_t *s);
+static void D3D7_DrawSkyChain (msurface_t *s)
 {
 	//msurface_t	*fa;
 
@@ -333,7 +271,7 @@ void D3D7_DrawSkyChain (msurface_t *s)
 	D3D7_DrawSkySphere(s);
 }
 
-void D3D9_DrawSkyChain (msurface_t *s)
+static void D3D9_DrawSkyChain (msurface_t *s)
 {
 	//msurface_t	*fa;
 
@@ -495,7 +433,7 @@ void GLR_SetSky(char *name, float rotate, vec3_t axis)	//called from the client 
 	VectorCopy(axis, skyaxis);
 }
 
-vec3_t	skyclip[6] = {
+static vec3_t	skyclip[6] = {
 	{1,1,0},
 	{1,-1,0},
 	{0,-1,1},
@@ -503,10 +441,10 @@ vec3_t	skyclip[6] = {
 	{1,0,1},
 	{-1,0,1} 
 };
-int	c_sky;
+static int	c_sky;
 
 // 1 = s, 2 = t, 3 = 2048
-int	st_to_vec[6][3] =
+static int	st_to_vec[6][3] =
 {
 	{3,-1,2},
 	{-3,1,2},
@@ -522,7 +460,7 @@ int	st_to_vec[6][3] =
 };
 
 // s = [0]/[2], t = [1]/[2]
-int	vec_to_st[6][3] =
+static int	vec_to_st[6][3] =
 {
 	{-2,3,1},
 	{2,3,-1},
@@ -537,9 +475,9 @@ int	vec_to_st[6][3] =
 //	{1,2,-3}
 };
 
-float	skymins[2][6], skymaxs[2][6];
+static float	skymins[2][6], skymaxs[2][6];
 
-void DrawSkyPolygon (int nump, vec3_t vecs)
+static void DrawSkyPolygon (int nump, vec3_t vecs)
 {
 	int		i,j;
 	vec3_t	v, av;
@@ -615,7 +553,7 @@ void DrawSkyPolygon (int nump, vec3_t vecs)
 }
 
 #define	MAX_CLIP_VERTS	64
-void ClipSkyPolygon (int nump, vec3_t vecs, int stage)
+static void ClipSkyPolygon (int nump, vec3_t vecs, int stage)
 {
 	float	*norm;
 	float	*v;
@@ -711,7 +649,7 @@ void ClipSkyPolygon (int nump, vec3_t vecs, int stage)
 R_DrawSkyBoxChain
 =================
 */
-void R_DrawSkyBoxChain (msurface_t *s)
+static void R_DrawSkyBoxChain (msurface_t *s)
 {
 	msurface_t	*fa;
 
@@ -752,7 +690,7 @@ void R_DrawSkyBoxChain (msurface_t *s)
 #define skysphere_numverts (skygridx1 * skygridy1)
 #define skysphere_numtriangles (skygridx * skygridy * 2)
 
-int skymade;
+static int skymade;
 static index_t skysphere_element3i[skysphere_numtriangles * 3];
 static float skysphere_texcoord2f[skysphere_numverts * 2];
 
@@ -844,7 +782,7 @@ static void d3d_skyspherecalc(int skytype)
 
 #ifdef RGLQUAKE
 static float skysphere_vertex3f[skysphere_numverts * 3];
-mesh_t skymesh;
+static mesh_t skymesh;
 
 
 static void gl_skyspherecalc(int skytype)
@@ -917,7 +855,7 @@ static void gl_skyspherecalc(int skytype)
 	}
 }
 
-void GL_DrawSkySphere (msurface_t *fa)
+static void GL_DrawSkySphere (msurface_t *fa)
 {
 	extern cvar_t gl_maxdist;
 	float time = cl.gametime+realtime-cl.gametimemark;
@@ -982,7 +920,7 @@ void GL_DrawSkySphere (msurface_t *fa)
 #endif
 
 #ifdef D3DQUAKE
-void D3D7_DrawSkySphere (msurface_t *fa)
+static void D3D7_DrawSkySphere (msurface_t *fa)
 {
 	extern cvar_t gl_maxdist;
 	float time = cl.gametime+realtime-cl.gametimemark;
@@ -1076,7 +1014,7 @@ void D3D7_DrawSkySphere (msurface_t *fa)
 	}
 	*/
 }
-void D3D9_DrawSkySphere (msurface_t *fa)
+static void D3D9_DrawSkySphere (msurface_t *fa)
 {
 	extern cvar_t gl_maxdist;
 	float time = cl.gametime+realtime-cl.gametimemark;
@@ -1185,7 +1123,7 @@ void R_ForceSkyBox (void)
 }
 
 #ifdef RGLQUAKE
-void GL_MakeSkyVec (float s, float t, int axis)
+static void GL_MakeSkyVec (float s, float t, int axis)
 {
 	vec3_t		v, b;
 	int			j, k;

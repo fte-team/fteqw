@@ -581,12 +581,12 @@ void Con_PrintCon (console_t *con, char *txt)
 	c = expanded;
 	while (*c)
 	{
-		if (*c&CON_CHARMASK=='\t')
+		if ((*c&CON_CHARMASK)=='\t')
 			*c = (*c&~CON_CHARMASK)|' ';
 
 	// count word length
 		for (l=0 ; l< con->linewidth ; l++)
-			if ( c[l]&CON_CHARMASK <= ' ')
+			if ( (c[l]&CON_CHARMASK) <= ' ')
 				break;
 
 	// word wrap

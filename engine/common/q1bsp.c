@@ -858,11 +858,8 @@ Server only functions
 */
 #ifndef CLIENTONLY
 
-extern int		fatbytes;
-extern qbyte	fatpvs[(MAX_MAP_LEAFS+1)/4];
-
 //does the recursive work of Q1BSP_FatPVS
-void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node)
+void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node, qbyte *buffer, unsigned int buffersize)
 {
 	int		i;
 	qbyte	*pvs;
@@ -877,8 +874,8 @@ void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node)
 			if (node->contents != Q1CONTENTS_SOLID)
 			{
 				pvs = Q1BSP_LeafPVS (mod, (mleaf_t *)node, NULL);
-				for (i=0 ; i<fatbytes ; i++)
-					fatpvs[i] |= pvs[i];
+				for (i=0; i<buffersize; i++)
+					buffer[i] |= pvs[i];
 			}
 			return;
 		}
@@ -891,7 +888,7 @@ void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node)
 			node = node->children[1];
 		else
 		{	// go down both
-			SV_Q1BSP_AddToFatPVS (mod, org, node->children[0]);
+			SV_Q1BSP_AddToFatPVS (mod, org, node->children[0], buffer, buffersize);
 			node = node->children[1];
 		}
 	}
@@ -905,15 +902,17 @@ Calculates a PVS that is the inclusive or of all leafs within 8 pixels of the
 given point.
 =============
 */
-void Q1BSP_FatPVS (model_t *mod, vec3_t org, qboolean add)
+void Q1BSP_FatPVS (model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean add)
 {
-	fatbytes = (mod->numleafs+31)>>3;
+	unsigned int fatbytes = (mod->numleafs+31)>>3;
+	if (fatbytes > buffersize)
+		Sys_Error("map had too much pvs data (too many leaves)\n");;
 	if (!add)
-		Q_memset (fatpvs, 0, fatbytes);
-	SV_Q1BSP_AddToFatPVS (mod, org, mod->nodes);
+		Q_memset (pvsbuffer, 0, fatbytes);
+	SV_Q1BSP_AddToFatPVS (mod, org, mod->nodes, pvsbuffer, fatbytes);
 }
 
-qboolean Q1BSP_EdictInFatPVS(model_t *mod, edict_t *ent)
+qboolean Q1BSP_EdictInFatPVS(model_t *mod, edict_t *ent, qbyte *pvs)
 {
 	int i;
 
@@ -921,7 +920,7 @@ qboolean Q1BSP_EdictInFatPVS(model_t *mod, edict_t *ent)
 		return true;	//it's in too many leafs for us to cope with. Just trivially accept it.
 
 	for (i=0 ; i < ent->num_leafs ; i++)
-		if (fatpvs[ent->leafnums[i] >> 3] & (1 << (ent->leafnums[i]&7) ))
+		if (pvs[ent->leafnums[i] >> 3] & (1 << (ent->leafnums[i]&7) ))
 			return true;	//we might be able to see this one.
 
 	return false;	//none of this ents leafs were visible, so neither is the ent.

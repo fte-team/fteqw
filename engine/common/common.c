@@ -48,6 +48,7 @@ cvar_t	registered = SCVAR("registered","0");
 cvar_t	gameversion = SCVARF("gameversion","", CVAR_SERVERINFO);
 cvar_t	com_gamename = SCVAR("com_gamename", "");
 cvar_t	com_modname = SCVAR("com_modname", "");
+cvar_t	com_parseutf8 = SCVAR("com_parseutf8", "0");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -1750,6 +1751,8 @@ void COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int o
 {
 	conchar_t extstack[4];
 	int extstackdepth = 0;
+	unsigned int uc, l;
+	int utf8 = com_parseutf8.value;
 
 	conchar_t ext;
 
@@ -1772,6 +1775,99 @@ void COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int o
 
 	while(*str)
 	{
+		if (*str & 0x80 && utf8)
+		{	//check for utf-8
+
+			//uc is the output unicode char
+			uc = 0;
+			//l is the length
+			l = 0;
+
+			if ((*str & 0xc0) == 0x80)
+			{
+				//one byte... malformed
+				uc = '?';
+			}
+			else if ((*str & 0xe0) == 0xc0)
+			{
+				//two bytes
+				if ((str[1] & 0xc0) == 0x80)
+				{
+					uc = ((str[0] & 0x1f)<<6) | (str[1] & 0x3f);
+					if (uc > 0x7f)
+						l = 2;
+				}
+			}
+			else if ((*str & 0xf0) == 0xe0)
+			{
+				//three bytes
+				if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80)
+				{
+					uc = ((str[0] & 0x0f)<<12) | ((str[1] & 0x3f)<<6) | ((str[2] & 0x3f)<<0);
+					if (uc > 0x7ff)
+						l = 3;
+				}
+			}
+			else if ((*str & 0xf8) == 0xf0)
+			{
+				//four bytes
+				if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80)
+				{
+					uc = ((str[0] & 0x07)<<18) | ((str[1] & 0x3f)<<12) | ((str[2] & 0x3f)<<6) | ((str[3] & 0x3f)<<0);
+					if (uc > 0xffff)
+						l = 4;
+				}
+			}
+			else if ((*str & 0xfc) == 0xf8)
+			{
+				//five bytes
+				if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
+				{
+					uc = ((str[0] & 0x03)<<24) | ((str[1] & 0x3f)<<18) | ((str[2] & 0x3f)<<12) | ((str[3] & 0x3f)<<6) | ((str[4] & 0x3f)<<0);
+					if (uc > 0x1fffff)
+						l = 5;
+				}
+			}
+			else if ((*str & 0xfe) == 0xfc)
+			{
+				//six bytes
+				if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
+				{
+					uc = ((str[0] & 0x01)<<30) | ((str[1] & 0x3f)<<24) | ((str[2] & 0x3f)<<18) | ((str[3] & 0x3f)<<12) | ((str[4] & 0x3f)<<6) | ((str[5] & 0x3f)<<0);
+					if (uc > 0x3ffffff)
+						l = 6;
+				}
+			}
+			//0xfe and 0xff, while plausable leading bytes, are not permitted.
+
+			if (l)
+			{
+				//note that we don't support utf-16 surrogates
+				if (uc == 0xd800 || uc == 0xdb7f || uc == 0xdb80 || uc == 0xdbff || uc == 0xdc00 || uc == 0xdf80 || uc == 0xdfff)
+					l = 0;
+				//these are meant to be illegal too
+				else if (uc == 0xfffe || uc == 0xffff)
+					uc = '?';
+				//too big for our data types
+				else if (uc & ~CON_CHARMASK)
+					l = 0;
+			}
+			else
+				utf8 &= ~1;
+
+			//l is set if we got a valid utf-8 byte sequence
+			if (l)
+			{
+				if (!--outsize)
+					break;
+				*out++ = uc | ext;
+				str += l;
+				continue;
+			}
+
+			//malformed encoding we just drop through
+			//if its just a malformed or overlong string, we end up with a chunk of 'red' chars.
+		}
 		if (*str == '^')
 		{
 			str++;
@@ -1934,6 +2030,7 @@ int COM_FunStringLength(unsigned char *str)
 
 	while(*str)
 	{
+		//fixme: utf8
 		if (*str == '^')
 		{
 			str++;
@@ -2264,7 +2361,7 @@ skipwhite:
 			if (!c)
 			{
 				com_token[len] = 0;
-				return (char*)data;
+				return (char*)data-1;
 			}
 			com_token[len] = c;
 			len++;
@@ -2809,7 +2906,11 @@ void COM_Version_f (void)
 #endif
 
 #ifdef __MINGW32__
-	Con_Printf("Compiled with MinGW version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
+	Con_Printf("Compiled with MinGW32 version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
+#endif
+
+#ifdef __MINGW64__
+	Con_Printf("Compiled with MinGW64 version: %i.%i\n",__MINGW64_MAJOR_VERSION, __MINGW64_MINOR_VERSION);
 #endif
 
 #ifdef __CYGWIN__
@@ -2929,6 +3030,7 @@ void COM_Init (void)
 
 	Cvar_Register (&registered, "Copy protection");
 	Cvar_Register (&gameversion, "Gamecode");
+	Cvar_Register (&com_parseutf8, "Internationalisation");
 
 
 

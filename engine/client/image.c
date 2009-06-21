@@ -1833,12 +1833,10 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 		return 0;
 	buffer+=4;
 
-	texnum = texture_extension_number;
-	GL_Bind(texnum);
-
 	memcpy(&fmtheader, buffer, sizeof(fmtheader));
 	if (fmtheader.dwSize != sizeof(fmtheader))
 		return 0;	//corrupt/different version
+
 	buffer += fmtheader.dwSize;
 
 	nummips = fmtheader.dwMipMapCount;
@@ -1865,6 +1863,9 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 
 	if (!qglCompressedTexImage2DARB)
 		return 0;
+
+	texnum = GL_AllocNewTexture();
+	GL_Bind(texnum);
 
 	datasize = fmtheader.dwPitchOrLinearSize;
 	for (mipnum = 0; mipnum < nummips; mipnum++)
@@ -1893,8 +1894,6 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 	}
 
-
-	texture_extension_number++;
 	return texnum;
 }
 #endif

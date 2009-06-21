@@ -1762,23 +1762,8 @@ void COM_Gamedir (const char *dir)
 #endif
 }
 
-/*
-typedef struct {
-	char *file;
-	char *path;
-} potentialgamepath_t;
-
-potentialgamepath_t pgp[] = {
-	{"%s/id1/pak0.pak",		"%s/id1"},		//quake1
-	{"%s/baseq2/pak0.pak",	"%s/baseq2"},	//quake2
-	{"%s/data1/pak0.pak",	"%s/data1"},	//hexen2
-	{"%s/data/data.pk3",	"%s/data"},		//nexuiz
-	{"%s/baseq3/pak0.pk3",	"%s/baseq3"},	//quake3
-	{"%s/base/assets0.pk3",	"%s/base"}		//jk2
-};
-*/
-
 #define NEXCFG "set sv_maxairspeed \"400\"\nset sv_mintic \"0.01\"\ncl_nolerp 0\n"
+#define DMFCFG "set com_parseutf8 1\npm_airstep 1\n"
 
 typedef struct {
 	const char *protocolname;	//sent to the master server when this is the current gamemode.
@@ -1796,10 +1781,12 @@ const gamemode_info_t gamemode_info[] = {
 //this is to avoid having too many gamemodes anyway.
 
 //rogue/hipnotic have no special files - the detection conflicts and stops us from running regular quake
+	//protocol name(dpmaster) exename        cmdline switch   identifying file   exec     dir1       dir2    dir3       dir(fte)     full name
 	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
 	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	NULL,				NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
 	{"Darkplaces-Rogue",	"rogue",		"-rogue",		NULL,				NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
 	{"Nexuiz",				"nexuiz",		"-nexuiz",		"nexuiz.exe",		NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
+	{"DMF",					"dmf",			"-dmf",			"base/src/progs.src",DMFCFG,{"base",						         },		"DMF"},
 
 	//supported commercial mods (some are currently only partially supported)
 	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	NULL,	{"data1",						"fteh2"},		"Hexen II"},

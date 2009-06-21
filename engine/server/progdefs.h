@@ -188,7 +188,7 @@ typedef struct extentvars_s
 	float	fatness;	//FTE_PEXT_FATNESS
 	int		view2;	//FTE_PEXT_VIEW2
 	vec3_t	movement;
-	float	vweapmodelindex;
+	float	vw_index;
 
 	//dp extra fields
 	int		nodrawtoclient;		//

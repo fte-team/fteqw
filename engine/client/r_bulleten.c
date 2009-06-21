@@ -397,7 +397,7 @@ player_info_t	*s;
 #ifdef RGLQUAKE
 			if (qrenderer == QR_OPENGL)
 			{
-				GL_Bind(a->texture->gl_texturenum);
+				GL_Bind(a->texture->tn.base);
 
 				GL_Upload8 ("bulleten", (qbyte *)a->texture + a->texture->offsets[0], a->texture->width, a->texture->height, false, false);
 			}

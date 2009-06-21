@@ -250,6 +250,7 @@ typedef struct dlight_s
 	int		key;				// so entities can reuse same entry
 	qboolean	noppl, nodynamic, noflash, isstatic;
 	vec3_t	origin;
+	vec3_t	axis[3];
 	float	radius;
 	float	die;				// stop lighting after this time
 	float	decay;				// drop this each second
@@ -257,7 +258,12 @@ typedef struct dlight_s
 	float   color[3];
 	float	channelfade[3];
 
+	//the following are used for rendering (client code should clear on create)
 	struct	shadowmesh_s *worldshadowmesh;
+	int stexture;
+	struct {
+		float updatetime;
+	} face [6];
 	int style;	//multiply by style values if > 0
 	float	dist;
 	struct dlight_s *next;

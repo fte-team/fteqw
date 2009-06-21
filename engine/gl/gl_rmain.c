@@ -66,7 +66,6 @@ int			particletexture;	// little dot for particles
 int			particlecqtexture;	// little dot for particles
 int			explosiontexture;
 int			balltexture;
-int			playertextures;		// up to 16 color translated skins
 
 int			mirrortexturenum;	// quake texturenum, not gltexturenum
 qboolean	mirror;
@@ -288,14 +287,14 @@ void GL_SetupSceneProcessingTextures (void)
 	unsigned char pp_warp_tex[PP_WARP_TEX_SIZE*PP_WARP_TEX_SIZE*3];
 	unsigned char pp_edge_tex[PP_AMP_TEX_SIZE*PP_AMP_TEX_SIZE*3];
 
-	sceneblur_texture = texture_extension_number++;
+	sceneblur_texture = GL_AllocNewTexture();
 
 	if (!gl_config.arb_shader_objects)
 		return;
 
-	scenepp_texture = texture_extension_number++;
-	scenepp_texture_warp = texture_extension_number++;
-	scenepp_texture_edge = texture_extension_number++;
+	scenepp_texture = GL_AllocNewTexture();
+	scenepp_texture_warp = GL_AllocNewTexture();
+	scenepp_texture_edge = GL_AllocNewTexture();
 
 	// init warp texture - this specifies offset in 
 	for (y=0; y<PP_WARP_TEX_SIZE; y++)
@@ -1150,6 +1149,10 @@ void R_RenderScene (void)
 
 	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
+
+#ifdef NEWBACKEND
+	PPL_GenShadowMaps();
+#endif
 
 	GLR_SetupFrame ();
 

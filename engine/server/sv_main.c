@@ -2128,6 +2128,7 @@ client_t *SVC_DirectConnect(void)
 	{														//so switch on the bits that it should be sending.
 		newcl->zquake_extensions |= Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW;
 	}
+	newcl->zquake_extensions &= SUPPORTED_Z_EXTENSIONS;
 
 	Netchan_Setup (NS_SERVER, &newcl->netchan , adr, qport);
 

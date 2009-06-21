@@ -273,11 +273,12 @@ shader_t *R_RegisterShader (char *name);
 shader_t *R_RegisterShader_Vertex (char *name);
 shader_t *R_RegisterShader_Flare (char *name);
 shader_t *R_RegisterSkin (char *name);
-shader_t *R_RegisterCustom (char *name, void(*defaultgen)(char *name, shader_t*));
+shader_t *R_RegisterCustom (char *name, void(*defaultgen)(char *name, shader_t*, void *args), void *args);
 
 cin_t *R_ShaderGetCinematic(char *name);
 
-void Shader_DefaultSkinShell(char *shortname, shader_t *s);
+void Shader_DefaultSkinShell(char *shortname, shader_t *s, void *args);
+void Shader_DefaultBSP(char *shortname, shader_t *s, void *args);
 
 
 void R_BackendInit (void);

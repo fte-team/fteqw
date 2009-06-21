@@ -3076,7 +3076,7 @@ void CL_LinkViewModel(void)
 #ifdef Q3SHADERS
 		if (v_powerupshell.value == 2)
 		{
-			ent.forcedshader = R_RegisterCustom("powerups/quadWeapon", Shader_DefaultSkinShell);
+			ent.forcedshader = R_RegisterCustom("powerups/quadWeapon", Shader_DefaultSkinShell, NULL);
 			V_AddEntity(&ent);
 		}
 		else
@@ -3088,7 +3088,7 @@ void CL_LinkViewModel(void)
 #ifdef Q3SHADERS
 		if (v_powerupshell.value == 2)
 		{
-			ent.forcedshader = R_RegisterCustom("powerups/regen", Shader_DefaultSkinShell);
+			ent.forcedshader = R_RegisterCustom("powerups/regen", Shader_DefaultSkinShell, NULL);
 			ent.fatness = -2.5;
 			V_AddEntity(&ent);
 		}
@@ -3106,11 +3106,10 @@ void CL_LinkViewModel(void)
 	//fixme: this is woefully gl specific. :(
 	if (qrenderer == QR_OPENGL)
 	{
-		extern void Shader_DefaultSkinShell(char *shortname, shader_t *s);
 		ent.shaderRGBAf[0] = (!!(ent.flags & Q2RF_SHELL_RED));
 		ent.shaderRGBAf[1] = (!!(ent.flags & Q2RF_SHELL_GREEN));
 		ent.shaderRGBAf[2] = (!!(ent.flags & Q2RF_SHELL_BLUE));
-		ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell);
+		ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell, NULL);
 	}
 #endif
 

@@ -246,7 +246,7 @@ mpic_t	*SWDraw_CachePic (char *path)
 
 	pic = SWDraw_SafeCachePic(path);
 	if (!pic)
-		Sys_Error ("Draw_CachePic: failed to load %s", path);
+		Sys_Error ("Draw_CachePic: failed to load \"%s\"", path);
 		
 	return pic;
 }
@@ -474,7 +474,7 @@ void SWDraw_Init (void)
 	swmenu_numcachepics = 0;
 
 	// lame hack but whatever works
-	strcpy(swmenu_cachepics[swmenu_numcachepics].name, "pics/conchars.pcx");
+	strcpy(swmenu_cachepics[swmenu_numcachepics].name, "conchars");
 	swmenu_cachepics[swmenu_numcachepics].cache.fake = true;
 	swmenu_cachepics[swmenu_numcachepics].cache.data = BZ_Malloc(sizeof(mpic_t) + 128*128);
 	{

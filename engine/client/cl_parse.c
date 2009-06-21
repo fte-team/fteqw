@@ -4402,6 +4402,10 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 					Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
 				}
 			}
+			else if (!strncmp(stufftext, "//vweap ", 8))
+			{
+				Con_Printf("vweap!: %s\n", stufftext);
+			}
 			else if (!strncmp(stufftext, "//exectrigger ", 14))
 			{
 				COM_Parse(stufftext + 14);

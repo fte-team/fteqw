@@ -350,7 +350,7 @@ static qboolean VARGS PFQ2_inPVS (vec3_t p1, vec3_t p2)
 	leafnum = CM_PointLeafnum (sv.worldmodel, p1);
 	cluster = CM_LeafCluster (sv.worldmodel, leafnum);
 	area1 = CM_LeafArea (sv.worldmodel, leafnum);
-	mask = CM_ClusterPVS (sv.worldmodel, cluster, NULL);
+	mask = CM_ClusterPVS (sv.worldmodel, cluster, NULL, 0);
 
 	leafnum = CM_PointLeafnum (sv.worldmodel, p2);
 	cluster = CM_LeafCluster (sv.worldmodel, leafnum);

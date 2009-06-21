@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MACOSX
 #endif
 
-#if defined(__MINGW32_VERSION) || defined(__MINGW__) || defined(__MINGW32__)
+#if defined(__MINGW32_VERSION) || defined(__MINGW__) || defined(__MINGW32__) || defined(__MINGW64__)
 	#define MINGW
 #endif
 #if !defined(MINGW) && defined(__GNUC__) && defined(_WIN32)

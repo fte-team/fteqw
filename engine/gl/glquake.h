@@ -117,7 +117,7 @@ extern FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 extern	FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
 extern	FTEPFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
 
-extern	int texture_extension_number;
+int GL_AllocNewTexture(void);
 
 typedef struct {
 	qboolean tex_env_combine;
@@ -235,7 +235,6 @@ extern	int particlecqtexture;
 extern	int explosiontexture;
 extern	int balltexture;
 extern	int	netgraphtexture;	// netgraph texture
-extern	int	playertextures;
 
 extern	int	skytexturenum;		// index in cl.loadmodel, not gl texture object
 
@@ -825,6 +824,10 @@ extern void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
 extern void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
 extern void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data, GLenum usage);
 extern void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
+extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
+extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
+
+
 
 /*
 extern qboolean gl_arb_fragment_program;

@@ -2717,24 +2717,30 @@ void Cmd_WriteConfig_f(void)
 
 	filename = Cmd_Argv(1);
 	if (!*filename)
-		filename = "fte";
-
-	if (strstr(filename, ".."))
 	{
-		Con_Printf ("Couldn't write config %s\n",filename);
-		return;
+		snprintf(fname, sizeof(fname), "fte.cfg");
+		FS_CreatePath(fname, FS_GAMEONLY);
+		f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 	}
+	else
+	{
+		if (strstr(filename, ".."))
+		{
+			Con_Printf ("Couldn't write config %s\n",filename);
+			return;
+		}
+		snprintf(fname, sizeof(fname), "configs/%s", filename);
+		COM_DefaultExtension(fname, ".cfg", sizeof(fname));
 
-	snprintf(fname, sizeof(fname), "configs/%s", filename);
-	COM_DefaultExtension(fname, ".cfg", sizeof(fname));
-
-	FS_CreatePath(fname, FS_CONFIGONLY);
-	f = FS_OpenVFS(fname, "wb", FS_CONFIGONLY);
+		FS_CreatePath(fname, FS_CONFIGONLY);
+		f = FS_OpenVFS(fname, "wb", FS_CONFIGONLY);
+	}
 	if (!f)
 	{
 		Con_Printf ("Couldn't write config %s\n",fname);
 		return;
 	}
+
 	VFS_WRITE(f, "// FTE config file\n\n", 20);
 #ifndef SERVERONLY
 	Key_WriteBindings (f);

@@ -107,7 +107,7 @@ cvar_t	skin = SCVARF("skin",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	model = SCVARF("model",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	topcolor = SCVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	bottomcolor = SCVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	rate = SCVARF("rate",				"6480",		CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	rate = SCVARF("rate",				"10000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	drate = SCVARF("drate",				"100000",	CVAR_ARCHIVE | CVAR_USERINFO);		// :)
 cvar_t	noaim = SCVARF("noaim",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	msg = SCVARF("msg",					"1",		CVAR_ARCHIVE | CVAR_USERINFO);
@@ -517,7 +517,7 @@ void CL_SendConnectPacket (
 	for (c = 1; c < clients; c++)
 	{
 		Info_SetValueForStarKey (playerinfo2, "name", va("%s%i", name.string, c+1), MAX_INFO_STRING);
-		Q_strncatz(data, va(" \"%s\"", playerinfo2, SUPPORTED_Z_EXTENSIONS), sizeof(data));
+		Q_strncatz(data, va(" \"%s\"", playerinfo2), sizeof(data));
 	}
 
 	Q_strncatz(data, "\n", sizeof(data));

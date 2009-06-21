@@ -2774,7 +2774,7 @@ int PF_newcheckclient (progfuncs_t *prinst, int check)
 // get the PVS for the entity
 	VectorAdd (ent->v->origin, ent->v->view_ofs, org);
 	leaf = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, org);
-	checkpvs = sv.worldmodel->funcs.LeafPVS (sv.worldmodel, leaf, checkpvsbuffer);
+	checkpvs = sv.worldmodel->funcs.LeafPVS (sv.worldmodel, leaf, checkpvsbuffer, sizeof(checkpvsbuffer));
 
 	return i;
 }
@@ -3230,14 +3230,14 @@ void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PF_precache_sound_Internal(prinst, s);
 }
 
-void PF_precache_model_Internal (progfuncs_t *prinst, char *s)
+int PF_precache_model_Internal (progfuncs_t *prinst, char *s)
 {
 	int		i;
 
 	if (s[0] <= ' ')
 	{
 		Con_Printf ("precache_model: empty string\n");
-		return;
+		return 0;
 	}
 
 	for (i=1 ; i<MAX_MODELS ; i++)
@@ -3247,7 +3247,7 @@ void PF_precache_model_Internal (progfuncs_t *prinst, char *s)
 			if (strlen(s)>=MAX_QPATH-1)	//probably safest to keep this.
 			{
 				PR_BIError (prinst, "Precache name too long");
-				return;
+				return 0;
 			}
 #ifdef VM_Q1
 			if (svs.gametype == GT_Q1QVM)
@@ -3271,14 +3271,15 @@ void PF_precache_model_Internal (progfuncs_t *prinst, char *s)
 #endif
 			}
 
-			return;
+			return i;
 		}
 		if (!strcmp(sv.strings.model_precache[i], s))
 		{
-			return;
+			return i;
 		}
 	}
 	PR_BIError (prinst, "PF_precache_model: overflow");
+	return 0;
 }
 void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3301,47 +3302,54 @@ void PF_precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	PF_precache_model_Internal(prinst, fullname);
 }
 
-void PF_WeapIndex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_getmodelindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
-	int		i;
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
+	G_INT(OFS_RETURN) = PF_precache_model_Internal(prinst, s);
+}
+void PF_precache_vwep_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i;
+	char	*s;
 
-	G_FLOAT(OFS_RETURN) = 1;
-
-	if (s[0] <= ' ')
+	s = PR_GetStringOfs(prinst, OFS_PARM0);
+	if (!*s || strchr(s, '\"') || strchr(s, ';') || strchr(s, '\t') || strchr(s, '\n'))
 	{
-		PR_BIError (prinst, "Bad string");
-		return;
+		Con_Printf("PF_precache_vwep_model: bad string\n");
+		G_FLOAT(OFS_RETURN) = 0;
 	}
-
-	for (i=1 ; i<MAX_MODELS ; i++)
+	else
 	{
-		if (!*sv.strings.model_precache[i])
+		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
 		{
-			if (sv.state != ss_loading)	//allow it to be used to find a model too.
+			if (!sv.strings.vw_model_precache[i])
 			{
-				PR_BIError (prinst, "PF_Precache_*: Precache can only be done in spawn functions");
+				if (sv.state != ss_loading)
+				{
+					Con_Printf("PF_precache_vwep_model: not spawning\n");
+					G_FLOAT(OFS_RETURN) = 0;
+					return;
+				}
+#ifdef VM_Q1
+				if (svs.gametype == GT_Q1QVM)
+					sv.strings.vw_model_precache[i] = s;
+				else
+#endif
+					sv.strings.vw_model_precache[i] = PR_AddString(prinst, s, 0);
 				return;
 			}
-
-			strcpy(sv.strings.model_precache[i], s);
-			if (!strcmp(s + strlen(s) - 4, ".bsp"))
-				sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
-
-			G_FLOAT(OFS_RETURN) = i;
-			return;
+			if (!strcmp(sv.strings.vw_model_precache[i], s))
+			{
+				G_FLOAT(OFS_RETURN) = i;
+				return;
+			}
 		}
-		if (!strcmp(sv.strings.model_precache[i], s))
-		{
-			G_FLOAT(OFS_RETURN) = i;
-			return;
-		}
+		Con_Printf("PF_precache_vwep_model: overflow\n");
+		G_FLOAT(OFS_RETURN) = 0;
 	}
-	PR_BIError (prinst, "PF_precache_model: overflow");
 }
-
 
 void PF_svcoredump (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -8755,6 +8763,7 @@ void PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 }
 
+qbyte qcpvs[(MAX_MAP_LEAFS+7)/8];
 //#240 float(vector viewpos, entity viewee) checkpvs (FTE_QC_CHECKPVS)
 //note: this requires a correctly setorigined entity.
 void PF_checkpvs(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8764,9 +8773,9 @@ void PF_checkpvs(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	//FIXME: Make all alternatives of FatPVS not recalulate the pvs.
 	//and yeah, this is overkill what with the whole fat thing and all.
-	sv.worldmodel->funcs.FatPVS(sv.worldmodel, viewpos, false);
+	sv.worldmodel->funcs.FatPVS(sv.worldmodel, viewpos, qcpvs, sizeof(qcpvs), false);
 
-	G_FLOAT(OFS_RETURN) = sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent);
+	G_FLOAT(OFS_RETURN) = sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent, qcpvs);
 }
 
 //entity(string match [, float matchnum]) matchclient = #241;
@@ -9063,7 +9072,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //end telejano
 
 //fte extras
-	{"getmodelindex",	PF_WeapIndex,		0,		0,		0,		200},
+	{"getmodelindex",	PF_getmodelindex,	0,		0,		0,		200},
 	{"externcall",		PF_externcall,		0,		0,		0,		201},
 	{"addprogs",		PF_addprogs,		0,		0,		0,		202},
 	{"externvalue",		PF_externvalue,		0,		0,		0,		203},
@@ -9356,6 +9365,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	//no 504
 //end dp extras
+
+	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532},	// #532 float(string mname) precache_vwep_model
 
 	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin
 
@@ -9735,7 +9746,7 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 	fieldxentity(view2);
 	fieldxvector(movement);
 	fieldxfloat(pmove_flags);
-	fieldxfloat(vweapmodelindex);
+	fieldxfloat(vw_index);
 
 	//dp extra fields
 	fieldxentity(nodrawtoclient);

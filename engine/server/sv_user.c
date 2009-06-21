@@ -920,6 +920,48 @@ void SV_Modellist_f (void)
 
 	n = atoi(Cmd_Argv(2));
 
+	if (n >= MAX_MODELS)
+	{
+		SV_EndRedirect();
+		Con_Printf ("SV_Modellist_f: %s send an invalid index\n", host_client->name);
+		SV_DropClient(host_client);
+		return;
+	}
+
+	if (n == 0 && (host_client->zquake_extensions & Z_EXT_VWEP))
+	{
+		char mname[MAX_QPATH];
+		char vweaplist[1024] = "//vweap";
+		int pos = strlen(vweaplist);
+
+		for (i = 0; sv.strings.vw_model_precache[i]; i++)
+		{
+			//grab the model name... without a progs/ prefix if it has one
+			if (!strncmp(sv.strings.vw_model_precache[i], "progs/", 6))
+				Q_strncpy(mname, sv.strings.vw_model_precache[i]+6, sizeof(mname));
+			else
+				Q_strncpy(mname, sv.strings.vw_model_precache[i], sizeof(mname));
+
+			//strip .mdl extensions
+			if (!strcmp(COM_FileExtension(mname), ".mdl"))
+				COM_StripExtension(mname, mname, sizeof(mname));
+
+			//add it to the vweap command, taking care of any remaining spaces in names.
+			if (strchr(mname, ' '))
+				Q_strncatz(vweaplist, va(" \"%s\"", mname), sizeof(vweaplist));
+			else
+				Q_strncatz(vweaplist, va(" %s", mname), sizeof(vweaplist));
+		}
+
+		if (strlen(vweaplist) <= sizeof(vweaplist)-2)
+		{
+			Q_strncatz(vweaplist, "\n", sizeof(vweaplist));
+
+			ClientReliableWrite_Begin(host_client, svc_stufftext, 2+strlen(vweaplist));
+			ClientReliableWrite_String(host_client, vweaplist);
+		}
+	}
+
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow
 	if (host_client->num_backbuf)
@@ -928,14 +970,6 @@ void SV_Modellist_f (void)
 		Con_TPrintf(STL_BACKBUFSET, host_client->name, host_client->netchan.message.cursize);
 		ClientReliableWrite_Begin(host_client, svc_stufftext, 1+strlen(msg));
 		ClientReliableWrite_String(host_client, msg);
-		return;
-	}
-
-	if (n >= MAX_MODELS)
-	{
-		SV_EndRedirect();
-		Con_Printf ("SV_Modellist_f: %s send an invalid index\n", host_client->name);
-		SV_DropClient(host_client);
 		return;
 	}
 

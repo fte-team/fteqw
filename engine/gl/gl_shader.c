@@ -772,7 +772,7 @@ static void Shaderpass_VideoMap ( shader_t *shader, shaderpass_t *pass, char **p
 	else
 		Con_DPrintf (CON_WARNING "(shader %s) Couldn't load video %s\n", shader->name, token );
 
-	pass->anim_frames[0] = texture_extension_number++;
+	pass->anim_frames[0] = GL_AllocNewTexture();
 	pass->flags |= SHADER_PASS_VIDEOMAP;
 	shader->flags |= SHADER_VIDEOMAP;
 }
@@ -2020,7 +2020,7 @@ void Shader_RunCinematic (void)
 }
 */
 
-void Shader_DefaultBSP(char *shortname, shader_t *s)
+void Shader_DefaultBSP(char *shortname, shader_t *s, void *args)
 {
 	shaderpass_t *pass;
 
@@ -2030,7 +2030,13 @@ void Shader_DefaultBSP(char *shortname, shader_t *s)
 	if (gl_config.arb_texture_env_dot3)
 	{
 		if (gl_bump.value)
-			bumptex = Mod_LoadHiResTexture(va("normalmaps/%s", shortname), NULL, true, false, false);//GL_FindImage (shortname, 0);
+		{
+			bumptex = GL_FindTexture(va("%s_bump", shortname));
+			if (bumptex == -1)
+				bumptex = GL_FindTexture(va("%s_norm", shortname));
+			if (bumptex == -1)
+				bumptex = Mod_LoadHiResTexture(va("normalmaps/%s", shortname), NULL, true, false, false);//GL_FindImage (shortname, 0);
+		}
 		else
 			bumptex = 0;
 	}
@@ -2147,7 +2153,7 @@ void Shader_DefaultBSP(char *shortname, shader_t *s)
 	s->style = SSTYLE_LIGHTMAPPED;
 }
 
-void Shader_DefaultBSPVertex(char *shortname, shader_t *s)
+void Shader_DefaultBSPVertex(char *shortname, shader_t *s, void *args)
 {
 	shaderpass_t *pass;
 	pass = &s->passes[0];
@@ -2173,7 +2179,7 @@ void Shader_DefaultBSPVertex(char *shortname, shader_t *s)
 	s->sort = SHADER_SORT_OPAQUE;
 	s->registration_sequence = 1;//fizme: registration_sequence;
 }
-void Shader_DefaultBSPFlare(char *shortname, shader_t *s)
+void Shader_DefaultBSPFlare(char *shortname, shader_t *s, void *args)
 {
 	shaderpass_t *pass;
 	pass = &s->passes[0];
@@ -2202,7 +2208,7 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s)
 	s->sort = SHADER_SORT_ADDITIVE;
 	s->registration_sequence = 1;//fizme: registration_sequence;
 }
-void Shader_DefaultSkin(char *shortname, shader_t *s)
+void Shader_DefaultSkin(char *shortname, shader_t *s, void *args)
 {
 	int tex;
 	shaderpass_t *pass;
@@ -2305,7 +2311,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s)
 	s->sort = SHADER_SORT_OPAQUE;
 	s->registration_sequence = 1;//fizme: registration_sequence;
 }
-void Shader_DefaultSkinShell(char *shortname, shader_t *s)
+void Shader_DefaultSkinShell(char *shortname, shader_t *s, void *args)
 {
 	shaderpass_t *pass;
 	pass = &s->passes[0];
@@ -2336,7 +2342,7 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s)
 	s->sort = SHADER_SORT_OPAQUE;
 	s->registration_sequence = 1;//fizme: registration_sequence;
 }
-void Shader_Default2D(char *shortname, shader_t *s)
+void Shader_Default2D(char *shortname, shader_t *s, void *genargs)
 {
 	mpic_t *mp;
 
@@ -2447,7 +2453,7 @@ qboolean Shader_ParseShader(char *shortname, char *usename, shader_t *s)
 	return false;
 }
 
-int R_LoadShader ( char *name, void(*defaultgen)(char *name, shader_t*))
+int R_LoadShader ( char *name, void(*defaultgen)(char *name, shader_t*, void *args), void *genargs)
 {
 	int i, f = -1;
 	char shortname[MAX_QPATH];
@@ -2496,7 +2502,7 @@ int R_LoadShader ( char *name, void(*defaultgen)(char *name, shader_t*))
 	{
 		memset ( s, 0, sizeof( shader_t ) );
 		Com_sprintf ( s->name, MAX_QPATH, shortname );
-		defaultgen(shortname, s);
+		defaultgen(shortname, s, genargs);
 
 		return f;
 	}
@@ -2537,32 +2543,32 @@ cin_t *R_ShaderGetCinematic(char *name)
 
 shader_t *R_RegisterPic (char *name) 
 {
-	return &r_shaders[R_LoadShader (name, Shader_Default2D)];
+	return &r_shaders[R_LoadShader (name, Shader_Default2D, NULL)];
 }
 
 shader_t *R_RegisterShader (char *name)
 {
-	return &r_shaders[R_LoadShader (name, Shader_DefaultBSP)];
+	return &r_shaders[R_LoadShader (name, Shader_DefaultBSP, NULL)];
 }
 
 shader_t *R_RegisterShader_Vertex (char *name)
 {
-	return &r_shaders[R_LoadShader (name, Shader_DefaultBSPVertex)];
+	return &r_shaders[R_LoadShader (name, Shader_DefaultBSPVertex, NULL)];
 }
 
 shader_t *R_RegisterShader_Flare (char *name)
 {
-	return &r_shaders[R_LoadShader (name, Shader_DefaultBSPFlare)];
+	return &r_shaders[R_LoadShader (name, Shader_DefaultBSPFlare, NULL)];
 }
 
 shader_t *R_RegisterSkin (char *name)
 {
-	return &r_shaders[R_LoadShader (name, Shader_DefaultSkin)];
+	return &r_shaders[R_LoadShader (name, Shader_DefaultSkin, NULL)];
 }
-shader_t *R_RegisterCustom (char *name, void(*defaultgen)(char *name, shader_t*))
+shader_t *R_RegisterCustom (char *name, void(*defaultgen)(char *name, shader_t*, void *args), void *args)
 {
 	int i;
-	i = R_LoadShader (name, defaultgen);
+	i = R_LoadShader (name, defaultgen, args);
 	if (i < 0)
 		return NULL;
 	return &r_shaders[i];

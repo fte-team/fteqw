@@ -435,7 +435,7 @@ void SV_CalcPHS (void)
 	int		i, j, k, l, index, num;
 	int		bitbyte;
 	unsigned	*dest, *src;
-	qbyte	*scan;
+	qbyte	*scan, *lf;
 	int		count, vcount;
 
 	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
@@ -456,8 +456,9 @@ void SV_CalcPHS (void)
 	vcount = 0;
 	for (i=0 ; i<num ; i++, scan+=rowbytes)
 	{
-		memcpy (scan, sv.worldmodel->funcs.LeafPVS(sv.worldmodel, i, NULL),
-			rowbytes);
+		lf = sv.worldmodel->funcs.LeafPVS(sv.worldmodel, i, scan, rowbytes);
+		if (lf != scan)
+			memcpy (scan, lf, rowbytes);
 		if (i == 0)
 			continue;
 		for (j=0 ; j<num ; j++)

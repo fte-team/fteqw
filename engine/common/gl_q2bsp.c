@@ -1082,9 +1082,9 @@ void *Mod_LoadWall(char *name)
 			tex->width = width;
 			tex->height = height;
 
-			if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(name, loadname, true, false, true)))
-				if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(name, "bmodels", true, false, true)))
-					tex->gl_texturenum = GL_LoadTexture32 (name, width, height, (unsigned int *)in, true, false);
+			if (!(tex->tn.base = Mod_LoadReplacementTexture(name, loadname, true, false, true)))
+				if (!(tex->tn.base = Mod_LoadReplacementTexture(name, "bmodels", true, false, true)))
+					tex->tn.base = GL_LoadTexture32 (name, width, height, (unsigned int *)in, true, false);
 		}
 		else
 #endif
@@ -1163,15 +1163,15 @@ void *Mod_LoadWall(char *name)
 		tex->width = wal->width;
 		tex->height = wal->height;
 
-		if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(wal->name, loadname, true, false, true)))
-			if (!(tex->gl_texturenum = Mod_LoadReplacementTexture(wal->name, "bmodels", true, false, true)))
-				tex->gl_texturenum = R_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, true, false);
+		if (!(tex->tn.base = Mod_LoadReplacementTexture(wal->name, loadname, true, false, true)))
+			if (!(tex->tn.base = Mod_LoadReplacementTexture(wal->name, "bmodels", true, false, true)))
+				tex->tn.base = R_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, true, false);
 
 		in = Hunk_TempAllocMore(wal->width*wal->height);
 		oin = (qbyte *)wal+wal->offsets[0];
 		for (j = 0; j < wal->width*wal->height; j++)
 			in[j] = (d_q28to24table[oin[j]*3+0] + d_q28to24table[oin[j]*3+1] + d_q28to24table[oin[j]*3+2])/3;
-		tex->gl_texturenumbumpmap = R_LoadTexture8Bump (va("%s_bump", wal->name), tex->width, tex->height, in, true, r_shadow_bumpscale_basetexture.value);
+		tex->tn.bump = R_LoadTexture8Bump (va("%s_bump", wal->name), tex->width, tex->height, in, true, r_shadow_bumpscale_basetexture.value);
 	}
 	else
 #endif
@@ -1316,7 +1316,7 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 #ifdef RGLQUAKE
 			if (qrenderer == QR_OPENGL)
 				if (gl_shadeq2.value)
-					out->texture->shader = R_RegisterCustom (name, NULL);
+					out->texture->shader = R_RegisterCustom (name, NULL, NULL);
 #endif
 			Q_strncpyz(out->texture->name, in->texture, sizeof(out->texture->name));
 
@@ -2117,11 +2117,11 @@ qboolean CModQ3_LoadShaders (lump_t *l, qboolean useshaders)
 #if defined(RGLQUAKE) || defined(D3DQUAKE)
 		if ((qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D) && !useshaders)
 		{
-			loadmodel->texinfo[i].texture->gl_texturenum = Mod_LoadHiResTexture(in->shadername, loadname, true, false, true);
-			if (!loadmodel->texinfo[i].texture->gl_texturenum)
-				loadmodel->texinfo[i].texture->gl_texturenum = Mod_LoadHiResTexture(in->shadername, "bmodels", true, false, true);
-			loadmodel->texinfo[i].texture->gl_texturenumfb = 0;
-			loadmodel->texinfo[i].texture->gl_texturenumbumpmap = 0;
+			loadmodel->texinfo[i].texture->tn.base = Mod_LoadHiResTexture(in->shadername, loadname, true, false, true);
+			if (!loadmodel->texinfo[i].texture->tn.base)
+				loadmodel->texinfo[i].texture->tn.base = Mod_LoadHiResTexture(in->shadername, "bmodels", true, false, true);
+			loadmodel->texinfo[i].texture->tn.fullbright = 0;
+			loadmodel->texinfo[i].texture->tn.bump = 0;
 
 			if (!strncmp(in->shadername, "textures/skies/", 15))
 			{
@@ -3580,7 +3580,7 @@ void CMQ3_CalcPHS (void)
 	vcount = 0;
 	for (i=0 ; i<numclusters ; i++)
 	{
-		scan = CM_ClusterPVS (sv.worldmodel, i, NULL);
+		scan = CM_ClusterPVS (sv.worldmodel, i, NULL, 0);
 		for (j=0 ; j<numclusters ; j++)
 		{
 			if ( scan[j>>3] & (1<<(j&7)) )
@@ -3625,9 +3625,9 @@ void CMQ3_CalcPHS (void)
 }
 #endif
 
-qbyte *CM_LeafnumPVS (model_t *model, int leafnum, qbyte *buffer)
+qbyte *CM_LeafnumPVS (model_t *model, int leafnum, qbyte *buffer, unsigned int buffersize)
 {
-	return CM_ClusterPVS(model, CM_LeafCluster(model, leafnum), buffer);
+	return CM_ClusterPVS(model, CM_LeafCluster(model, leafnum), buffer, buffersize);
 }
 
 #ifndef SERVERONLY
@@ -3776,8 +3776,8 @@ void SWR_Q2BSP_StainNode (mnode_t *node, float *parms)
 #endif
 
 #ifndef CLIENTONLY
-void Q2BSP_FatPVS (model_t *mod, vec3_t org, qboolean add);
-qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent);
+unsigned int Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *buffer, unsigned int buffersize, qboolean add);
+qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent, qbyte *pvs);
 void Q2BSP_FindTouchedLeafs(model_t *mod, edict_t *ent, float *mins, float *maxs);
 #endif
 void GLQ2BSP_LightPointValues(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
@@ -5685,10 +5685,15 @@ qbyte	phsrow[MAX_MAP_LEAFS/8];
 
 
 
-qbyte	*CM_ClusterPVS (model_t *mod, int cluster, qbyte *buffer)
+qbyte	*CM_ClusterPVS (model_t *mod, int cluster, qbyte *buffer, unsigned int buffersize)
 {
 	if (!buffer)
+	{
 		buffer = pvsrow;
+		buffersize = sizeof(pvsrow);
+	}
+	if (buffersize < (numclusters+7)>>3)
+		Sys_Error("CM_ClusterPVS with too small a buffer\n");
 
 	if (mapisq3)
 	{

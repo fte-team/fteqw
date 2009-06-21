@@ -3,6 +3,9 @@
 //This is bad. lights*3, 33% framerate for no worthwhile effect.
 
 #include "quakedef.h"
+
+#ifndef NEWBACKEND
+
 #ifdef RGLQUAKE
 #include "glquake.h"
 #include "shader.h"
@@ -250,7 +253,7 @@ static void PPL_BaseChain_NoBump_1TMU(msurface_t *first, texture_t *tex)
 	qglTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
 	GL_TexEnv(GL_REPLACE);
-	GL_Bind (tex->gl_texturenum);
+	GL_Bind (tex->tn.base);
 
 	for (s=first; s ; s=s->texturechain)
 	{
@@ -404,7 +407,7 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 	}
 
 
-	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
+	GL_MBind(GL_TEXTURE0_ARB, tex->tn.base);
 	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
 	GL_SelectTexture(GL_TEXTURE1_ARB);
@@ -498,7 +501,7 @@ static void PPL_BaseChain_VBO_NoBump_2TMU_Overbright(msurface_t *s, texture_t *t
 	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, tex->gl_vbov);
 	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, tex->gl_vboe);
 
-	qglVertexPointer(3, GL_FLOAT, VBOSTRIDE, NULL);
+	qglVertexPointer(3, GL_FLOAT, sizeof(vbovertex_t), ((vbovertex_t*)NULL)->coord);
 
 	if (tex->alphaed || currententity->shaderRGBAf[3]<1)
 	{
@@ -521,13 +524,13 @@ static void PPL_BaseChain_VBO_NoBump_2TMU_Overbright(msurface_t *s, texture_t *t
 	}
 
 
-	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
+	GL_MBind(GL_TEXTURE0_ARB, tex->tn.base);
 	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglTexCoordPointer(2, GL_FLOAT, VBOSTRIDE, (void*)(3*sizeof(float)));
+	qglTexCoordPointer(2, GL_FLOAT, sizeof(vbovertex_t), ((vbovertex_t*)NULL)->texcoord);
 
 	GL_SelectTexture(GL_TEXTURE1_ARB);
 	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglTexCoordPointer(2, GL_FLOAT, VBOSTRIDE, (void*)(5*sizeof(float)));
+	qglTexCoordPointer(2, GL_FLOAT, sizeof(vbovertex_t), ((vbovertex_t*)NULL)->lmcoord);
 
 	GL_TexEnv(GL_MODULATE);
 
@@ -725,7 +728,7 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 	}
 
 	//Bind normal map to texture unit 0
-	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenumbumpmap);
+	GL_MBind(GL_TEXTURE0_ARB, tex->tn.bump);
 	qglEnable(GL_TEXTURE_2D);
 	GL_TexEnv(GL_COMBINE_ARB);
 	qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
@@ -734,7 +737,7 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	qglTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
 
-	GL_MBind(GL_TEXTURE1_ARB, tex->gl_texturenumbumpmap);
+	GL_SelectTexture(GL_TEXTURE1_ARB);
 	qglEnable(GL_TEXTURE_2D);
 	GL_TexEnv(GL_COMBINE_ARB);
 	qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
@@ -760,7 +763,7 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 				theRect = &lightmap[vi]->deluxrectchange;
 				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
 					LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
-					lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*3);
+					lightmap[vi]->deluxmaps+(theRect->t) *LMBLOCK_WIDTH*3);
 				theRect->l = LMBLOCK_WIDTH;
 				theRect->t = LMBLOCK_HEIGHT;
 				theRect->h = 0;
@@ -775,7 +778,7 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 	qglEnable(GL_BLEND);
 	qglBlendFunc(GL_DST_COLOR, GL_ZERO);
 
-	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
+	GL_MBind(GL_TEXTURE0_ARB, tex->tn.base);
 
 	GL_SelectTexture(GL_TEXTURE1_ARB);
 	qglEnable(GL_TEXTURE_2D);
@@ -812,6 +815,7 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 	qglDisable(GL_BLEND);
 
 	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglDisable(GL_TEXTURE_2D);
 	GL_SelectTexture(GL_TEXTURE0_ARB);
 }
 
@@ -823,7 +827,7 @@ static void PPL_BaseChain_Bump_4TMU(msurface_t *s, texture_t *tex)
 	PPL_EnableVertexArrays();
 
 	//Bind normal map to texture unit 0
-	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenumbumpmap);
+	GL_MBind(GL_TEXTURE0_ARB, tex->tn.bump);
 	qglEnable(GL_TEXTURE_2D);
 	GL_TexEnv(GL_REPLACE);
 
@@ -842,7 +846,7 @@ static void PPL_BaseChain_Bump_4TMU(msurface_t *s, texture_t *tex)
 	qglTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
 
 	//2 gets the diffusemap
-	GL_MBind(GL_TEXTURE2_ARB, tex->gl_texturenum);
+	GL_MBind(GL_TEXTURE2_ARB, tex->tn.base);
 	qglEnable(GL_TEXTURE_2D);
 	GL_TexEnv(GL_MODULATE);
 
@@ -1183,7 +1187,7 @@ void PPL_LoadSpecularFragmentProgram(void)
 
 		"	diff = bases * dot(bumps, deluxs);\n"
 		"	float dv = dot(normalize(halfnorm), bumps);\n"
-		"	spec = pow(dv, 8.0) * specs;\n"
+		"	spec = pow(dv, 16.0) * specs;\n"
 		"	gl_FragColor = vec4((diff+spec)*lms, 1.0);\n"
 		"}\n"
 		;
@@ -1221,17 +1225,17 @@ static void PPL_BaseChain_Specular_FP(msurface_t *s, texture_t *tex)
 	if (qglGetError())
 		Con_Printf("GL Error on shadow lighting\n");
 
-	GL_MBind(GL_TEXTURE0_ARB, tex->gl_texturenum);
+	GL_MBind(GL_TEXTURE0_ARB, tex->tn.base);
 	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
-	GL_MBind(GL_TEXTURE1_ARB, tex->gl_texturenumbumpmap);
+	GL_MBind(GL_TEXTURE1_ARB, tex->tn.bump);
 	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
 //	GL_MBind(GL_TEXTURE2_ARB, lightmap_textures[vi] );
 
 //	GL_MBind(GL_TEXTURE3_ARB, deluxmap_textures[vi] );
 
-	GL_MBind(GL_TEXTURE4_ARB, tex->gl_texturenumspec);
+	GL_MBind(GL_TEXTURE4_ARB, tex->tn.specular);
 
 	qglUniform3fvARB(ppl_specular_shader_vieworg, 1, r_refdef.vieworg);
 
@@ -1804,7 +1808,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 	{
 		GL_DisableMultitexture();
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		GL_Bind (t->gl_texturenum);
+		GL_Bind (t->tn.base);
 		for (; first ; first=first->texturechain)
 			EmitWaterPolys (first, currententity->shaderRGBAf[3]);
 
@@ -1824,11 +1828,11 @@ static void PPL_BaseTextureChain(msurface_t *first)
 	}
 	else
 	{
-		if (gl_bump.value && currentmodel->deluxdata && t->gl_texturenumbumpmap)
+		if (gl_bump.value && currentmodel->deluxdata && t->tn.bump)
 		{
 			if (gl_mtexarbable>=4)
 			{
-				if (t->gl_texturenumspec && gl_specular.value)
+				if (t->tn.specular && gl_specular.value)
 				{
 					if (ppl_specular_shader)
 						PPL_BaseChain_Specular_FP(first, t);
@@ -1878,9 +1882,9 @@ static void PPL_FullBrightTextureChain(msurface_t *first)
 		PPL_FlushArrays();
 	}
 
-	if (t->gl_texturenumfb && r_fb_bmodels.value && cls.allow_luma)
+	if (t->tn.fullbright && r_fb_bmodels.value && cls.allow_luma)
 	{
-		GL_Bind(t->gl_texturenumfb);
+		GL_Bind(t->tn.fullbright);
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
 		if (gl_mylumassuck.value)
 			qglEnable(GL_ALPHA_TEST);
@@ -2710,11 +2714,11 @@ void PPL_LightTexturesFP_Cached(model_t *model, vec3_t modelorigin, dlight_t *li
 
 
 			p = 0;
-			if (t->gl_texturenumbumpmap && ppl_light_shader[p|PERMUTATION_BUMPMAP])
+			if (t->tn.bump && ppl_light_shader[p|PERMUTATION_BUMPMAP])
 				p |= PERMUTATION_BUMPMAP;
-			if (gl_specular.value && t->gl_texturenumspec && ppl_light_shader[p|PERMUTATION_SPECULAR])
+			if (gl_specular.value && t->tn.specular && ppl_light_shader[p|PERMUTATION_SPECULAR])
 				p |= PERMUTATION_SPECULAR;
-			if (r_shadow_glsl_offsetmapping.value && t->gl_texturenumbumpmap && ppl_light_shader[p|PERMUTATION_OFFSET])
+			if (r_shadow_glsl_offsetmapping.value && t->tn.bump && ppl_light_shader[p|PERMUTATION_OFFSET])
 				p |= PERMUTATION_OFFSET;
 
 			if (p != lp)
@@ -2735,11 +2739,11 @@ void PPL_LightTexturesFP_Cached(model_t *model, vec3_t modelorigin, dlight_t *li
 
 
 			if (p & PERMUTATION_BUMPMAP)
-				GL_MBind(GL_TEXTURE1_ARB, t->gl_texturenumbumpmap);
+				GL_MBind(GL_TEXTURE1_ARB, t->tn.bump);
 			if (p & PERMUTATION_SPECULAR)
-				GL_MBind(GL_TEXTURE2_ARB, t->gl_texturenumspec);
+				GL_MBind(GL_TEXTURE2_ARB, t->tn.specular);
 
-			GL_MBind(GL_TEXTURE0_ARB, t->gl_texturenum);
+			GL_MBind(GL_TEXTURE0_ARB, t->tn.base);
 			qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
 
@@ -2805,10 +2809,12 @@ void PPL_LightTexturesFP(model_t *model, vec3_t modelorigin, dlight_t *light, ve
 
 
 		p = 0;
-		if (t->gl_texturenumbumpmap && ppl_light_shader[p|PERMUTATION_BUMPMAP])
+		if (t->tn.bump && ppl_light_shader[p|PERMUTATION_BUMPMAP])
 			p |= PERMUTATION_BUMPMAP;
-		if (gl_specular.value && t->gl_texturenumspec && ppl_light_shader[p|PERMUTATION_SPECULAR])
+		if (gl_specular.value && t->tn.specular && ppl_light_shader[p|PERMUTATION_SPECULAR])
 			p |= PERMUTATION_SPECULAR;
+		if (r_shadow_glsl_offsetmapping.value && t->tn.bump && ppl_light_shader[p|PERMUTATION_OFFSET])
+			p |= PERMUTATION_OFFSET;
 
 		if (p != lp)
 		{
@@ -2819,15 +2825,20 @@ void PPL_LightTexturesFP(model_t *model, vec3_t modelorigin, dlight_t *light, ve
 			qglUniform3fvARB(ppl_light_shader_lightposition[p], 1, relativelightorigin);
 			qglUniform3fvARB(ppl_light_shader_lightcolour[p], 1, colour);
 			qglUniform1fARB(ppl_light_shader_lightradius[p], light->radius);
+
+			if (ppl_light_shader_offset_scale[p]!=-1)
+				qglUniform1fARB(ppl_light_shader_offset_scale[p], r_shadow_glsl_offsetmapping_scale.value);
+			if (ppl_light_shader_offset_bias[p]!=-1)
+				qglUniform1fARB(ppl_light_shader_offset_bias[p], r_shadow_glsl_offsetmapping_bias.value);
 		}
 
 
 		if (p & PERMUTATION_BUMPMAP)
-			GL_MBind(GL_TEXTURE1_ARB, t->gl_texturenumbumpmap);
+			GL_MBind(GL_TEXTURE1_ARB, t->tn.bump);
 		if (p & PERMUTATION_SPECULAR)
-			GL_MBind(GL_TEXTURE2_ARB, t->gl_texturenumspec);
+			GL_MBind(GL_TEXTURE2_ARB, t->tn.specular);
 
-		GL_MBind(GL_TEXTURE0_ARB, t->gl_texturenum);
+		GL_MBind(GL_TEXTURE0_ARB, t->tn.base);
 		qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
 		for (; s; s=s->texturechain)
@@ -2910,9 +2921,9 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light, vec3
 
 			qglEnableClientState(GL_COLOR_ARRAY);
 			qglColorPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
-			if (t->gl_texturenumbumpmap && gl_mtexarbable>3)
+			if (t->tn.bump && gl_mtexarbable>3)
 			{
-				GL_MBind(GL_TEXTURE0_ARB, t->gl_texturenumbumpmap);
+				GL_MBind(GL_TEXTURE0_ARB, t->tn.bump);
 				qglEnable(GL_TEXTURE_2D);
 				//Set up texture environment to do (tex0 dot tex1)*color
 				GL_TexEnv(GL_REPLACE);	//make texture normalmap available.
@@ -2931,7 +2942,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light, vec3
 				qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				qglTexCoordPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->ncm);
 
-				GL_MBind(GL_TEXTURE2_ARB, t->gl_texturenumbumpmap);	//a dummy
+				GL_MBind(GL_TEXTURE2_ARB, t->tn.bump);	//a dummy
 				qglEnable(GL_TEXTURE_2D);
 				GL_TexEnv(GL_COMBINE_ARB);	//bumps * color		(the attenuation)
 				qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PRIMARY_COLOR_ARB); //(doesn't actually use the bound texture)
@@ -2939,7 +2950,7 @@ void PPL_LightTextures(model_t *model, vec3_t modelorigin, dlight_t *light, vec3
 				qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 				qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
 
-				GL_MBind(GL_TEXTURE3_ARB, t->gl_texturenum);
+				GL_MBind(GL_TEXTURE3_ARB, t->tn.base);
 				qglEnable(GL_TEXTURE_2D);
 				qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				qglTexCoordPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
@@ -3054,9 +3065,9 @@ void PPL_LightBModelTexturesFP(entity_t *e, dlight_t *light, vec3_t colour)
 			t = R_TextureAnimation (tnum);
 
 			p = 0;
-			if (t->gl_texturenumbumpmap && ppl_light_shader[p|PERMUTATION_BUMPMAP])
+			if (t->tn.bump && ppl_light_shader[p|PERMUTATION_BUMPMAP])
 				p |= PERMUTATION_BUMPMAP;
-			if (gl_specular.value && t->gl_texturenumspec && ppl_light_shader[p|PERMUTATION_SPECULAR])
+			if (gl_specular.value && t->tn.specular && ppl_light_shader[p|PERMUTATION_SPECULAR])
 				p |= PERMUTATION_SPECULAR;
 			if (p != lp)
 			{
@@ -3069,10 +3080,10 @@ void PPL_LightBModelTexturesFP(entity_t *e, dlight_t *light, vec3_t colour)
 				qglUniform1fARB(ppl_light_shader_lightradius[p], light->radius);
 			}
 
-			GL_MBind(GL_TEXTURE0_ARB, t->gl_texturenum);
+			GL_MBind(GL_TEXTURE0_ARB, t->tn.base);
 			qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-			GL_MBind(GL_TEXTURE1_ARB, t->gl_texturenumbumpmap);
-			GL_MBind(GL_TEXTURE2_ARB, t->gl_texturenumspec);
+			GL_MBind(GL_TEXTURE1_ARB, t->tn.bump);
+			GL_MBind(GL_TEXTURE2_ARB, t->tn.specular);
 			GL_SelectTexture(GL_TEXTURE0_ARB);
 		}
 
@@ -3131,9 +3142,9 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light, vec3_t colour)
 
 			qglEnableClientState(GL_COLOR_ARRAY);
 			qglColorPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stl);
-			if (t->gl_texturenumbumpmap && gl_mtexarbable>3)
+			if (t->tn.bump && gl_mtexarbable>3)
 			{
-				GL_MBind(GL_TEXTURE0_ARB, t->gl_texturenumbumpmap);
+				GL_MBind(GL_TEXTURE0_ARB, t->tn.bump);
 				qglEnable(GL_TEXTURE_2D);
 				//Set up texture environment to do (tex0 dot tex1)*color
 				GL_TexEnv(GL_REPLACE);	//make texture normalmap available.
@@ -3152,7 +3163,7 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light, vec3_t colour)
 				qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				qglTexCoordPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->ncm);
 
-				GL_MBind(GL_TEXTURE2_ARB, t->gl_texturenumbumpmap);
+				GL_MBind(GL_TEXTURE2_ARB, t->tn.bump);
 				qglEnable(GL_TEXTURE_2D);
 				GL_TexEnv(GL_COMBINE_ARB);	//bumps * color		(the attenuation)
 				qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PRIMARY_COLOR_ARB); //(doesn't actually use the bound texture)
@@ -3160,7 +3171,7 @@ void PPL_LightBModelTextures(entity_t *e, dlight_t *light, vec3_t colour)
 				qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 				qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
 
-				GL_MBind(GL_TEXTURE3_ARB, t->gl_texturenum);
+				GL_MBind(GL_TEXTURE3_ARB, t->tn.base);
 				qglEnable(GL_TEXTURE_2D);
 				qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
 				qglTexCoordPointer(3, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
@@ -4883,8 +4894,8 @@ qboolean PPL_AddLight(dlight_t *dl)
 			i = r_viewleaf - cl.worldmodel->leafs;
 
 		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
-		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb);
-		vvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, i, vvisb);
+		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+		vvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, i, vvisb, sizeof(vvisb));
 
 	//	if (!(lvis[i>>3] & (1<<(i&7))))	//light might not be visible, but it's effects probably should be.
 	//		return;
@@ -5550,8 +5561,5 @@ void PPL_FinishShadowMesh(dlight_t *dl)
 }
 
 #endif	//ifdef GLQUAKE
-
-
-
-
+#endif
 

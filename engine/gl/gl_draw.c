@@ -139,7 +139,7 @@ int			scrap_allocated[MAX_SCRAPS][BLOCK_WIDTH];
 qbyte		scrap_texels[MAX_SCRAPS][BLOCK_WIDTH*BLOCK_HEIGHT];
 qboolean	scrap_dirty;
 int			scrap_usedcount;
-int			scrap_texnum;
+int			scrap_texnum[MAX_SCRAPS];
 
 // returns a texture number and the position inside it
 int Scrap_AllocBlock (int w, int h, int *x, int *y)
@@ -193,7 +193,7 @@ void Scrap_Upload (void)
 	scrap_uploads++;
 	for (i = 0; i < scrap_usedcount; i++)
 	{
-		GL_Bind(scrap_texnum + i);
+		GL_Bind(scrap_texnum[i]);
 		GL_Upload8 ("scrap", scrap_texels[i], BLOCK_WIDTH, BLOCK_HEIGHT, false, true);
 	}
 	scrap_dirty = false;
@@ -297,7 +297,7 @@ qboolean Draw_RealPicFromWad (mpic_t	*out, char *name)
 			for (i=0 ; i<in->height ; i++)
 				for (j=0 ; j<in->width ; j++, k++)
 					scrap_texels[texnum][(y+i)*BLOCK_WIDTH + x + j] = in->data[k];
-			texnum += scrap_texnum;
+			texnum = scrap_texnum[texnum];
 			gl->texnum = texnum;
 			gl->sl = (x+0.25)/(float)BLOCK_WIDTH;
 			gl->sh = (x+in->width-0.25)/(float)BLOCK_WIDTH;
@@ -735,7 +735,7 @@ void GL_InitFogTexture (void)
 		}
 	}
 
-	r_fogtexture = texture_extension_number++;
+	r_fogtexture = GL_AllocNewTexture();
 	GL_Bind(r_fogtexture);
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_ALPHA, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT, 0, GL_ALPHA, GL_UNSIGNED_BYTE, data);
 
@@ -786,7 +786,6 @@ void GLDraw_ReInit (void)
 	Hash_InitTable(&gltexturetable, sizeof(gltexturetablebuckets)/sizeof(gltexturetablebuckets[0]), gltexturetablebuckets);
 
 
-	texture_extension_number=1;
 	solidskytexture=0;
 	alphaskytexture=0;
 	skyboxtex[0] = 0; skyboxtex[1] = 0; skyboxtex[2] = 0; skyboxtex[3] = 0; skyboxtex[4] = 0; skyboxtex[5] = 0;
@@ -1033,7 +1032,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 			char_tex2 = GL_LoadTexture ("charset", 128, 128, draw_chars, false, true);
 	}
 	
-	cs_texture = texture_extension_number++;
+	cs_texture = GL_AllocNewTexture();
 
 	missing_texture = GL_LoadTexture("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], true, false);
 
@@ -1159,11 +1158,11 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	Hunk_FreeToLowMark (start);
 
 	// save a texture slot for translated picture
-	translate_texture = texture_extension_number++;
+	translate_texture = GL_AllocNewTexture();
 
 	// save slots for scraps
-	scrap_texnum = texture_extension_number;
-	texture_extension_number += MAX_SCRAPS;
+	for (i = 0; i < MAX_SCRAPS; i++)
+		scrap_texnum[i] = GL_AllocNewTexture();
 
 	//
 	// get the other pics we need
@@ -2388,7 +2387,7 @@ void GL_Conback_Callback(struct cvar_s *var, char *oldvalue)
 {
 	int newtex = 0;
 #ifdef Q3SHADERS
-	if (*var->string && (shader_console = R_RegisterCustom(var->string, NULL)))
+	if (*var->string && (shader_console = R_RegisterCustom(var->string, NULL, NULL)))
 	{
 		conback = default_conback;
 	}
@@ -2454,8 +2453,7 @@ void MediaGL_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *p
 {
 	if (!filmtexture)
 	{
-		filmtexture=texture_extension_number;
-		texture_extension_number++;
+		filmtexture=GL_AllocNewTexture();
 	}
 
 	GL_Set2D ();
@@ -2492,8 +2490,7 @@ void MediaGL_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight)//top 
 {
 	if (!filmtexture)
 	{
-		filmtexture=texture_extension_number;
-		texture_extension_number++;
+		filmtexture=GL_AllocNewTexture();
 	}
 
 	GL_Set2D ();
@@ -2598,8 +2595,7 @@ void MediaGL_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight)
 
 	if (!filmtexture)
 	{
-		filmtexture=texture_extension_number;
-		texture_extension_number++;
+		filmtexture=GL_AllocNewTexture();
 	}
 
 	GL_Set2D ();
@@ -4036,7 +4032,7 @@ TRACE(("dbg: GL_LoadTexture: new %s\n", identifier));
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = texture_extension_number;
+	glt->texnum = GL_AllocNewTexture();
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 8;
@@ -4044,13 +4040,11 @@ TRACE(("dbg: GL_LoadTexture: new %s\n", identifier));
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(texture_extension_number );
+	GL_Bind(glt->texnum);
 
 	GL_Upload8 ("8bit", data, width, height, mipmap, alpha);
 
-	texture_extension_number++;
-
-	return texture_extension_number-1;
+	return glt->texnum;
 }
 
 int GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, qboolean mipmap, qboolean alpha)
@@ -4078,7 +4072,7 @@ int GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, qboo
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = texture_extension_number;
+	glt->texnum = GL_AllocNewTexture();
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 8;
@@ -4086,13 +4080,11 @@ int GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, qboo
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(texture_extension_number );
+	GL_Bind(glt->texnum);
 
 	GL_Upload8FB (data, width, height, mipmap);
 
-	texture_extension_number++;
-
-	return texture_extension_number-1;
+	return glt->texnum;
 }
 
 int GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, qboolean mipmap, qboolean alpha)
@@ -4113,7 +4105,7 @@ int GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, 
 
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = texture_extension_number;
+	glt->texnum = GL_AllocNewTexture();
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 24;
@@ -4121,13 +4113,11 @@ int GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, 
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(texture_extension_number );
+	GL_Bind(glt->texnum);
 
 	GL_Upload8Pal24 (data, palette24, width, height, mipmap, alpha);
 
-	texture_extension_number++;
-
-	return texture_extension_number-1;
+	return glt->texnum;
 }
 int GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, qboolean mipmap, qboolean alpha)
 {
@@ -4147,7 +4137,7 @@ int GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, 
 
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = texture_extension_number;
+	glt->texnum = GL_AllocNewTexture();
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 32;
@@ -4155,13 +4145,11 @@ int GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, 
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(texture_extension_number );
+	GL_Bind(glt->texnum);
 
 	GL_Upload8Pal32 (data, palette32, width, height, mipmap, alpha);
 
-	texture_extension_number++;
-
-	return texture_extension_number-1;
+	return glt->texnum;
 }
 
 int GL_LoadTexture32 (char *identifier, int width, int height, unsigned *data, qboolean mipmap, qboolean alpha)
@@ -4183,7 +4171,7 @@ int GL_LoadTexture32 (char *identifier, int width, int height, unsigned *data, q
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = texture_extension_number;
+	glt->texnum = GL_AllocNewTexture();
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 32;
@@ -4191,16 +4179,11 @@ int GL_LoadTexture32 (char *identifier, int width, int height, unsigned *data, q
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-//	if (!isDedicated)
-	{
-		GL_Bind(texture_extension_number );
+	GL_Bind(glt->texnum);
 
-		GL_Upload32 (identifier, data, width, height, mipmap, alpha);
-	}
+	GL_Upload32 (identifier, data, width, height, mipmap, alpha);
 
-	texture_extension_number++;
-
-	return texture_extension_number-1;
+	return glt->texnum;
 }
 
 int GL_LoadTexture32_BGRA (char *identifier, int width, int height, unsigned *data, qboolean mipmap, qboolean alpha)
@@ -4222,7 +4205,7 @@ int GL_LoadTexture32_BGRA (char *identifier, int width, int height, unsigned *da
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = texture_extension_number;
+	glt->texnum = GL_AllocNewTexture();
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 32;
@@ -4230,16 +4213,11 @@ int GL_LoadTexture32_BGRA (char *identifier, int width, int height, unsigned *da
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-//	if (!isDedicated)
-	{
-		GL_Bind(texture_extension_number );
+	GL_Bind(glt->texnum);
 
-		GL_Upload32_BGRA (identifier, data, width, height, mipmap, alpha);
-	}
+	GL_Upload32_BGRA (identifier, data, width, height, mipmap, alpha);
 
-	texture_extension_number++;
-
-	return texture_extension_number-1;
+	return glt->texnum;
 }
 
 int GL_LoadCompressed(char *name)
@@ -4274,19 +4252,17 @@ int GL_LoadCompressed(char *name)
 	gltextures = glt;
 
 	strcpy (glt->identifier, name);
-	glt->texnum = texture_extension_number;
+	glt->texnum = GL_AllocNewTexture();
 	glt->bpp = 32;
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(texture_extension_number );
+	GL_Bind(glt->texnum);
 
 	if (!GL_UploadCompressed (file, &glt->width, &glt->height, (unsigned int *)&glt->mipmap))
 		return 0;
 
-	texture_extension_number++;
-
-	return texture_extension_number-1;
+	return glt->texnum;
 }
 
 int GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned char *data, qboolean mipmap)
@@ -4308,7 +4284,7 @@ int GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned char 
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = texture_extension_number;
+	glt->texnum = GL_AllocNewTexture();
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 8;
@@ -4316,16 +4292,11 @@ int GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned char 
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-//	if (!isDedicated)
-	{
-		GL_Bind(texture_extension_number );
+	GL_Bind(glt->texnum);
 
-		GL_Upload8Grey (data, width, height, mipmap);
-	}
+	GL_Upload8Grey (data, width, height, mipmap);
 
-	texture_extension_number++;
-
-	return texture_extension_number-1;
+	return glt->texnum;
 }
 
 int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, qboolean mipmap, float bumpscale)
@@ -4352,7 +4323,7 @@ int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char 
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = texture_extension_number;
+	glt->texnum = GL_AllocNewTexture();
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 8;
@@ -4360,16 +4331,11 @@ int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char 
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-//	if (!isDedicated)
-	{
-		GL_Bind(texture_extension_number );
+	GL_Bind(glt->texnum);
 
-		GL_UploadBump (data, width, height, mipmap, bumpscale);
-	}
+	GL_UploadBump (data, width, height, mipmap, bumpscale);
 
-	texture_extension_number++;
-
-	return texture_extension_number-1;
+	return glt->texnum;
 }
 
 /*

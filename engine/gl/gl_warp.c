@@ -33,7 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern void GL_DrawAliasMesh (mesh_t *mesh, int texnum);
 
-void GL_DrawSkySphere (msurface_t *fa);
+static void GL_DrawSkySphere (msurface_t *fa);
 void D3D7_DrawSkySphere (msurface_t *fa);
 void D3D9_DrawSkySphere (msurface_t *fa);
 

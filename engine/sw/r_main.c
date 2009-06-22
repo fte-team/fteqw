@@ -618,12 +618,12 @@ void SWR_MarkLeaves (void)
 			return;
 		}
 
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL);
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL, 0);
 		// may have to combine two clusters because of solid water boundaries
 		if (r_viewcluster2 != r_viewcluster)
 		{
 			memcpy (fatvis, vis, (cl.worldmodel->numleafs+7)/8);
-			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL);//, cl.worldmodel);
+			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL, 0);//, cl.worldmodel);
 			c = (cl.worldmodel->numleafs+31)/32;
 			for (i=0 ; i<c ; i++)
 				((int *)fatvis)[i] |= ((int *)vis)[i];

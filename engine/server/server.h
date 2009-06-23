@@ -298,6 +298,8 @@ typedef struct
 	double				senttime;
 	float				ping_time;
 	int				move_msecs;
+	int					packetsizein;
+	int					packetsizeout;
 	packet_entities_t	entities;	//must come last (mvd states are bigger)
 } client_frame_t;
 

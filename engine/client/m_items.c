@@ -1526,7 +1526,7 @@ void M_Complex_Key(int key)
 
 			if (key != K_ESCAPE && key != '`')
 			{
-				Cbuf_InsertText (va("bind %s \"%s\"\n", Key_KeynumToString (key), currentmenu->selecteditem->bind.command), RESTRICT_LOCAL, false);
+				Cbuf_InsertText (va("bind \"%s\" \"%s\"\n", Key_KeynumToString (key), currentmenu->selecteditem->bind.command), RESTRICT_LOCAL, false);
 			}
 			bindingactive = false;
 			return;

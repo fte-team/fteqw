@@ -1619,6 +1619,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 {
 	qbyte		buf[MAX_DATAGRAM];
 	sizebuf_t	msg;
+	unsigned int sentbytes, fnum;
 
 	msg.data = buf;
 	msg.maxsize = sizeof(buf);
@@ -1677,8 +1678,11 @@ qboolean SV_SendClientDatagram (client_t *client)
 	SV_DarkPlacesDownloadChunk(client, &msg);
 
 	// send the datagram
-	Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
+	fnum = client->netchan.outgoing_sequence;
+	sentbytes = Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
 
+	if (client->frameunion.frames)
+		client->frameunion.frames[fnum & UPDATE_MASK].packetsizeout += sentbytes;
 	return true;
 }
 
@@ -1995,6 +1999,7 @@ void SV_SendClientMessages (void)
 {
 	int			i, j;
 	client_t	*c;
+	int sentbytes, fnum;
 	float pt = sv.physicstime;
 
 #ifdef Q3SERVER
@@ -2163,7 +2168,10 @@ void SV_SendClientMessages (void)
 		else
 		{
 			SV_DarkPlacesDownloadChunk(c, &c->datagram);
-			Netchan_Transmit (&c->netchan, c->datagram.cursize, c->datagram.data, SV_RateForClient(c));	// just update reliable
+			fnum = c->netchan.outgoing_sequence;
+			sentbytes = Netchan_Transmit (&c->netchan, c->datagram.cursize, c->datagram.data, SV_RateForClient(c));	// just update reliable
+			if (c->frameunion.frames)
+				c->frameunion.frames[fnum & UPDATE_MASK].packetsizeout += sentbytes;
 			c->datagram.cursize = 0;
 		}
 

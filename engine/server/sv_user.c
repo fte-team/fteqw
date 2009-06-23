@@ -3769,6 +3769,9 @@ void Cmd_FPSList_f(void)
 	double minf = 1000, maxf = 0, this;
 	double ftime;
 	int frames;
+	int inbytes;
+	int outbytes;
+	int msecs;
 
 
 	for (c = 0; c < sv.allocated_client_slots; c++)
@@ -3776,8 +3779,13 @@ void Cmd_FPSList_f(void)
 		cl = &svs.clients[c];
 		ftime = 0;
 		frames = 0;
+		inbytes = 0;
+		outbytes = 0;
 
 		if (!cl->state)
+			continue;
+
+		if (cl->protocol != SCP_QUAKEWORLD)
 			continue;
 
 		if (cl->frameunion.frames)
@@ -3787,21 +3795,30 @@ void Cmd_FPSList_f(void)
 				if (cl->frameunion.frames[f].move_msecs >= 0)
 				{
 					if (!cl->frameunion.frames[f].move_msecs)
+					{
 						this = 1001;
+						msecs+=1;
+					}
 					else
+					{
 						this = 1000.0f/cl->frameunion.frames[f].move_msecs;
+						msecs += cl->frameunion.frames[f].move_msecs;
+					}
 					ftime += this;
 					if (minf > this)
 						minf = this;
 					if (maxf < this)
 						maxf = this;
 					frames++;
+
+					inbytes += cl->frameunion.frames[f].packetsizein;
+					outbytes += cl->frameunion.frames[f].packetsizeout;
 				}
 			}
 		}
 
 		if (frames)
-			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %ffps (min%f max %f\n", cl->name, ftime/frames, minf, maxf);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %ffps (min%f max %f), in: %fbps, out: %fbps\n", cl->name, ftime/frames, minf, maxf, (1000.0f*inbytes)/msecs, (1000.0f*outbytes)/msecs);
 		else
 			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: no information available\n", cl->name);
 	}
@@ -5472,6 +5489,8 @@ void SV_ExecuteClientMessage (client_t *cl)
 		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
 		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
 		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].move_msecs = -1;
+		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].packetsizein = net_message.cursize;
+		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].packetsizeout = 0;
 	}
 
 	host_client = cl;

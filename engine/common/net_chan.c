@@ -349,7 +349,7 @@ transmition / retransmition of the reliable messages.
 A 0 length will still generate a packet and deal with the reliable messages.
 ================
 */
-void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
+int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 {
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_OVERALLMSGLEN + PACKET_HEADER];
@@ -361,6 +361,8 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 #ifdef NQPROT
 	if (chan->isnqprotocol)
 	{
+		int sentsize = 0;
+
 		send.data = send_buf;
 		send.maxsize = MAX_NQMSGLEN + PACKET_HEADER;
 		send.cursize = 0;
@@ -398,6 +400,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
 
 			Netchan_Block(chan, send.cursize, rate);
+			sentsize += send.cursize;
 			send.cursize = 0;
 		}
 
@@ -414,9 +417,10 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
 
 			Netchan_Block(chan, send.cursize, rate);
+			sentsize += send.cursize;
 			send.cursize = 0;
 		}
-		return;
+		return sentsize;
 	}
 #endif
 
@@ -426,7 +430,7 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		chan->fatal_error = true;
 		Con_TPrintf (TL_OUTMESSAGEOVERFLOW
 			, NET_AdrToString (remote_adr, sizeof(remote_adr), chan->remote_address));
-		return;
+		return 0;
 	}
 
 // if the remote side dropped the last reliable message, resend it
@@ -514,6 +518,8 @@ void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			, chan->incoming_sequence
 			, chan->incoming_reliable_sequence
 			, send.cursize);
+
+	return send.cursize;
 
 }
 

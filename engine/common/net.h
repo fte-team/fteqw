@@ -169,7 +169,7 @@ typedef struct
 extern	int	net_drop;		// packets dropped before this one
 
 void Netchan_Init (void);
-void Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate);
+int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate);
 void Netchan_OutOfBand (netsrc_t sock, netadr_t adr, int length, qbyte *data);
 void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t adr, char *format, ...);
 void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t adr, int language, translation_t text, ...);

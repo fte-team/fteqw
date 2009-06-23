@@ -902,7 +902,7 @@ Calculates a PVS that is the inclusive or of all leafs within 8 pixels of the
 given point.
 =============
 */
-void Q1BSP_FatPVS (model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean add)
+unsigned int Q1BSP_FatPVS (model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean add)
 {
 	unsigned int fatbytes = (mod->numleafs+31)>>3;
 	if (fatbytes > buffersize)
@@ -910,6 +910,7 @@ void Q1BSP_FatPVS (model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buff
 	if (!add)
 		Q_memset (pvsbuffer, 0, fatbytes);
 	SV_Q1BSP_AddToFatPVS (mod, org, mod->nodes, pvsbuffer, fatbytes);
+	return fatbytes;
 }
 
 qboolean Q1BSP_EdictInFatPVS(model_t *mod, edict_t *ent, qbyte *pvs)

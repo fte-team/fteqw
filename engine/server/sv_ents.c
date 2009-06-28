@@ -45,7 +45,7 @@ int needcleanup;
 int glowsize, glowcolor; // made it a global variable, to suppress msvc warning.
 
 #ifdef Q2BSPS
-unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsigned int buffersize)
+unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsigned int buffersize, qboolean add)
 {
 	int		leafs[64];
 	int		i, j, count;
@@ -76,9 +76,15 @@ unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsig
 	CM_ClusterPVS(mod, leafs[0], resultbuf, buffersize);
 
 
-//	memcpy (resultbuf, CM_ClusterPVS(leafs[0]), longs<<2);
+	if (!add)
+	{
+		memcpy (resultbuf, CM_ClusterPVS(mod, leafs[0], NULL, 0), longs<<2);
+		i = 1;
+	}
+	else
+		i = 0;
 	// or in all the other leaf bits
-	for (i=1 ; i<count ; i++)
+	for ( ; i<count ; i++)
 	{
 		for (j=0 ; j<i ; j++)
 			if (leafs[i] == leafs[j])
@@ -2082,7 +2088,7 @@ unsigned int Q2BSP_FatPVS(model_t *mod, vec3_t org, qbyte *buffer, unsigned int 
 	leafnum = CM_PointLeafnum (mod, org);
 	clientarea = CM_LeafArea (mod, leafnum);
 
-	return SV_Q2BSP_FatPVS (mod, org, buffer, buffersize);
+	return SV_Q2BSP_FatPVS (mod, org, buffer, buffersize, add);
 }
 
 qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent, qbyte *pvs)

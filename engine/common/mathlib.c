@@ -1295,6 +1295,25 @@ qboolean Matrix4_Invert(const float *m, float *out)
 #undef SWAP_ROWS
 }
 
+void Matrix3x4_InvertTo3x3(float *in, float *result)
+{
+#define A(x,y) in[x+y*4]
+#define result(x,y) result[x+y*3]
+	double determinant =    +A(0,0)*(A(1,1)*A(2,2)-A(2,1)*A(1,2))
+							-A(0,1)*(A(1,0)*A(2,2)-A(1,2)*A(2,0))
+							+A(0,2)*(A(1,0)*A(2,1)-A(1,1)*A(2,0));
+	double invdet = 1/determinant;
+	result(0,0) =  (A(1,1)*A(2,2)-A(2,1)*A(1,2))*invdet;
+	result(1,0) = -(A(0,1)*A(2,2)-A(0,2)*A(2,1))*invdet;
+	result(2,0) =  (A(0,1)*A(1,2)-A(0,2)*A(1,1))*invdet;
+	result(0,1) = -(A(1,0)*A(2,2)-A(1,2)*A(2,0))*invdet;
+	result(1,1) =  (A(0,0)*A(2,2)-A(0,2)*A(2,0))*invdet;
+	result(2,1) = -(A(0,0)*A(1,2)-A(1,0)*A(0,2))*invdet;
+	result(0,2) =  (A(1,0)*A(2,1)-A(2,0)*A(1,1))*invdet;
+	result(1,2) = -(A(0,0)*A(2,1)-A(2,0)*A(0,1))*invdet;
+	result(2,2) =  (A(0,0)*A(1,1)-A(1,0)*A(0,1))*invdet;
+}
+
 //screen->3d
 
 void Matrix4_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy)

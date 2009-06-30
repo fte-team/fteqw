@@ -119,20 +119,143 @@ clampedmodel_t clampedmodel[] = {
 #ifdef SKELETALMODELS
 
 
-void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, float *xyzout)
+void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, float *xyzout, float *normout)
 {
 	int i;
 	float *out, *matrix;
+	float *normo;
 
 	galisskeletaltransforms_t *v = weights;
-	for (i = 0;i < numweights;i++, v++)
+#ifndef SERVERONLY
+	if (normout)
 	{
-		out = xyzout + v->vertexindex * 3;
-		matrix = bonepose+v->boneindex*12;
-		// FIXME: this can very easily be optimized with SSE or 3DNow
-		out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
-		out[1] += v->org[0] * matrix[4] + v->org[1] * matrix[5] + v->org[2] * matrix[ 6] + v->org[3] * matrix[ 7];
-		out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
+		for (i = 0;i < numweights;i++, v++)
+		{
+			out = xyzout + v->vertexindex * 3;
+			normo = normout + v->vertexindex * 3;
+			matrix = bonepose+v->boneindex*12;
+			// FIXME: this can very easily be optimized with SSE or 3DNow
+			out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
+			out[1] += v->org[0] * matrix[4] + v->org[1] * matrix[5] + v->org[2] * matrix[ 6] + v->org[3] * matrix[ 7];
+			out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
+
+			normo[0] += v->normal[0] * matrix[0] + v->normal[1] * matrix[1] + v->normal[2] * matrix[ 2];
+			normo[1] += v->normal[0] * matrix[4] + v->normal[1] * matrix[5] + v->normal[2] * matrix[ 6];
+			normo[2] += v->normal[0] * matrix[8] + v->normal[1] * matrix[9] + v->normal[2] * matrix[10];
+		}
+	}
+	else
+#elif defined(_DEBUG)
+	if (normout)
+		Sys_Error("norms error");
+#endif
+	{
+		for (i = 0;i < numweights;i++, v++)
+		{
+			out = xyzout + v->vertexindex * 3;
+			matrix = bonepose+v->boneindex*12;
+			// FIXME: this can very easily be optimized with SSE or 3DNow
+			out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
+			out[1] += v->org[0] * matrix[4] + v->org[1] * matrix[5] + v->org[2] * matrix[ 6] + v->org[3] * matrix[ 7];
+			out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
+		}
+	}
+}
+
+static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
+{
+#define TriangleNormal(a,b,c,n) ( \
+	(n)[0] = ((a)[1] - (b)[1]) * ((c)[2] - (b)[2]) - ((a)[2] - (b)[2]) * ((c)[1] - (b)[1]), \
+	(n)[1] = ((a)[2] - (b)[2]) * ((c)[0] - (b)[0]) - ((a)[0] - (b)[0]) * ((c)[2] - (b)[2]), \
+	(n)[2] = ((a)[0] - (b)[0]) * ((c)[1] - (b)[1]) - ((a)[1] - (b)[1]) * ((c)[0] - (b)[0]) \
+	)
+	int i;
+	vec3_t *xyz;
+	vec3_t *normals;
+	float *inversepose;
+	galiasinfo_t *next;
+	vec3_t tn;
+	index_t *idx;
+	float *bonepose = NULL;
+
+	while (model)
+	{
+		int numbones = model->numbones;
+		galisskeletaltransforms_t *v = (galisskeletaltransforms_t*)((char*)model+model->ofstransforms);
+		int numweights = model->numtransforms;
+		int numverts = model->numverts;
+
+		if (model->nextsurf)
+			next = (galiasinfo_t*)((char*)model + model->nextsurf);
+		else
+			next = NULL;
+
+		xyz = Z_Malloc(numverts*sizeof(vec3_t));
+		normals = Z_Malloc(numverts*sizeof(vec3_t));
+		inversepose = Z_Malloc(numbones*sizeof(float)*9);
+
+		if (!model->sharesbones || !bonepose)
+		{
+			galiasgroup_t *g;
+			if (!model->groups)
+				return;
+			g = (galiasgroup_t*)((char*)model+model->groupofs);
+			if (g->numposes < 1)
+				return;
+			bonepose = (float*)((char*)g+g->poseofs);
+			for (i = 0; i < numbones; i++)
+				Matrix3x4_InvertTo3x3(bonepose+i*12, inversepose+i*9);
+		}
+
+		//build the actual base pose positions
+		Alias_TransformVerticies(bonepose, v, numweights, (float*)xyz, NULL);
+
+		//use that base pose to calculate the normals
+		memset(normals, 0, numverts*sizeof(vec3_t));
+		for(;;)
+		{
+			idx = (index_t*)((char*)model + model->ofs_indexes);
+
+			//calculate the triangle normal and accumulate them
+			for (i = 0; i < model->numindexes; i+=3, idx+=3)
+			{
+				TriangleNormal(xyz[idx[0]], xyz[idx[1]], xyz[idx[2]], tn);
+				//note that tn is relative to the size of the triangle
+				VectorAdd(normals[idx[0]], tn, normals[idx[0]]);
+				VectorAdd(normals[idx[1]], tn, normals[idx[1]]);
+				VectorAdd(normals[idx[2]], tn, normals[idx[2]]);
+			}
+
+			if (next && next->sharesverts && next->sharesbones)
+			{
+				model = next;
+				if (model->nextsurf)
+					next = (galiasinfo_t*)((char*)model + model->nextsurf);
+				else
+					next = NULL;
+			}
+			else
+				break;
+		}
+		//the normals are not normalized yet.
+		for (i = 0; i < numverts; i++)
+		{
+			VectorNormalize(normals[i]);
+		}
+
+		for (i = 0; i < numweights; i++, v++)
+		{
+			v->normal[0] = DotProduct(normals[v->vertexindex], inversepose+12*v->boneindex+0) / v->org[3];
+			v->normal[1] = DotProduct(normals[v->vertexindex], inversepose+12*v->boneindex+3) / v->org[3];
+			v->normal[2] = DotProduct(normals[v->vertexindex], inversepose+12*v->boneindex+6) / v->org[3];
+		}
+
+		//FIXME: save off the xyz+normals for this base pose as an optimisation for world objects.
+		Z_Free(inversepose);
+		Z_Free(normals);
+		Z_Free(xyz);
+
+		model = next;
 	}
 }
 
@@ -614,32 +737,9 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galisskeletal
 {
 	int i;
 
-
-	// blend the vertex bone weights
-//	memset(outhead, 0, mesh->numvertexes * sizeof(mesh->xyz_array[0]));
-
-	for (i = 0; i < mesh->numvertexes; i++)
-	{
-		mesh->normals_array[i][0] = 0;
-		mesh->normals_array[i][1] = 0;
-		mesh->normals_array[i][2] = 1;
-/*
-		mesh->colors_array[i][0] = ambientlight[0];
-		mesh->colors_array[i][1] = ambientlight[1];
-		mesh->colors_array[i][2] = ambientlight[2];
-		mesh->colors_array[i][3] = 255;//alpha;
-*/
-/*
-		mesh->xyz_array[i][0] = 0;
-		mesh->xyz_array[i][1] = 0;
-		mesh->xyz_array[i][2] = 0;
-		mesh->xyz_array[i][3] = 1;
-		*/
-	}
-	mesh->colors_array = NULL;
-
 	memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vec3_t));
-	Alias_TransformVerticies(bonepose, weights, numweights, (float*)mesh->xyz_array);
+	memset(mesh->normals_array, 0, mesh->numvertexes*sizeof(vec3_t));
+	Alias_TransformVerticies(bonepose, weights, numweights, (float*)mesh->xyz_array, (float*)mesh->normals_array);
 
 
 
@@ -761,7 +861,10 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf,
 		float *usebonepose;
 		usebonepose = Alias_GetBonePositions(inf, &e->framestate, (float*)bonepose, MAX_BONES);
 		Alias_BuildSkeletalMesh(mesh, usebonepose, (galisskeletaltransforms_t *)((char*)inf+inf->ofstransforms), inf->numtransforms);
-		return false;
+
+		if (mesh->colors_array)
+			R_LightArrays(mesh->colors_array, mesh->numvertexes, mesh->normals_array);
+		return true;
 	}
 #endif
 
@@ -869,7 +972,7 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, ve
 
 	while(mod)
 	{
-		indexes = (int*)((char*)mod + mod->ofs_indexes);
+		indexes = (index_t*)((char*)mod + mod->ofs_indexes);
 		group = (galiasgroup_t*)((char*)mod + mod->groupofs);
 		pose = (galiaspose_t*)((char*)&group[0] + group[0].poseofs);
 		posedata = (float*)((char*)pose + pose->ofsverts);
@@ -883,10 +986,10 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, ve
 			{
 				if (!mod->sharesbones)
 					R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), mod->numbones, bonepose);
-				Alias_TransformVerticies((float*)bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
+				Alias_TransformVerticies((float*)bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata, NULL);
 			}
 			else
-				Alias_TransformVerticies((float*)posedata, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
+				Alias_TransformVerticies((float*)posedata, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata, NULL);
 		}
 #endif
 
@@ -1021,7 +1124,7 @@ static int R_FindTriangleWithEdge ( int *indexes, int numtris, int start, int en
 
 	return match;
 }
-static void Mod_BuildTriangleNeighbours ( int *neighbours, int *indexes, int numtris )
+static void Mod_BuildTriangleNeighbours ( int *neighbours, index_t *indexes, int numtris )
 {
 	int i, *n;
 	int *index;
@@ -1044,7 +1147,7 @@ void Mod_CompileTriangleNeighbours(galiasinfo_t *galias)
 		int *neighbours;
 		neighbours = Hunk_Alloc(sizeof(int)*galias->numindexes/3*3);
 		galias->ofs_trineighbours = (qbyte *)neighbours - (qbyte *)galias;
-		Mod_BuildTriangleNeighbours(neighbours, (int*)((char*)galias + galias->ofs_indexes), galias->numindexes/3);
+		Mod_BuildTriangleNeighbours(neighbours, (index_t*)((char*)galias + galias->ofs_indexes), galias->numindexes/3);
 	}
 #endif
 }
@@ -3401,6 +3504,8 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 		root[i-1].nextsurf = sizeof(*root);
 	}
 
+	Alias_CalculateSkeletalNormals(root);
+
 //
 // move the complete, relocatable alias model to the cache
 //
@@ -3759,7 +3864,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 	root[0].sharesbones = false;
 
 
-
+	Alias_CalculateSkeletalNormals(root);
 
 //
 // move the complete, relocatable alias model to the cache
@@ -4202,6 +4307,8 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 
 	if (!lastsurf)
 		MD5ERROR0PARAM("MD5MESH: No meshes");
+
+	Alias_CalculateSkeletalNormals(root);
 
 	return root;
 #undef MD5ERROR0PARAM

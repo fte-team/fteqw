@@ -82,6 +82,9 @@ typedef struct {
 	int vertexindex;
 	int boneindex;
 	vec4_t org;
+#ifndef SERVERONLY
+	vec3_t normal;
+#endif
 } galisskeletaltransforms_t;
 #endif
 
@@ -122,7 +125,7 @@ typedef struct {
 
 float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize);
 #ifdef SKELETALMODELS
-void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, float *xyzout);
+void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, float *xyzout, float *normals);
 #endif
 qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, 
 									entity_t *e,

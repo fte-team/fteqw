@@ -44,7 +44,7 @@ extern	int nanmask;
 
 #define	IS_NAN(x) (((*(int *)&x)&nanmask)==nanmask)
 
-#define DotProduct(x,y) (x[0]*y[0]+x[1]*y[1]+x[2]*y[2])
+#define DotProduct(x,y) ((x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2])
 #define VectorSubtract(a,b,c) do{(c)[0]=(a)[0]-(b)[0];(c)[1]=(a)[1]-(b)[1];(c)[2]=(a)[2]-(b)[2];}while(0)
 #define VectorAdd(a,b,c) do{(c)[0]=(a)[0]+(b)[0];(c)[1]=(a)[1]+(b)[1];(c)[2]=(a)[2]+(b)[2];}while(0)
 #define VectorCopy(a,b) do{(b)[0]=(a)[0];(b)[1]=(a)[1];(b)[2]=(a)[2];}while(0)
@@ -115,6 +115,8 @@ void		Matrix4_Projection2 (float *proj, float fovx, float fovy, float neard);
 void		Matrix4_Transform3 (float *matrix, float *vector, float *product);
 void		Matrix4_Transform4 (float *matrix, float *vector, float *product);
 void		Matrix4_UnProject (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy);
+
+void		Matrix3x4_InvertTo3x3(float *in, float *result);
 
 fixed16_t	Mul16_30 (fixed16_t multiplier, fixed16_t multiplicand);
 int			Q_log2 (int val);

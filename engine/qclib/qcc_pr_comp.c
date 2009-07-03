@@ -584,6 +584,7 @@ pbool OpAssignedTo(QCC_def_t *v, unsigned int op)
 #undef ASSOC_RIGHT_RESULT
 
 #define	TOP_PRIORITY	7
+#define UNARY_PRIORITY	1
 #define	NOT_PRIORITY	5
 //conditional and/or
 #define CONDITION_PRIORITY 7
@@ -1050,7 +1051,9 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 	return false;
 }
 
-QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma);
+#define EXPR_WARN_ABOVE_1 2
+#define EXPR_DISALLOW_COMMA 4
+QCC_def_t *QCC_PR_Expression (int priority, int exprflags);
 int QCC_AStatementJumpsTo(int targ, int first, int last);
 pbool QCC_StatementIsAJump(int stnum, int notifdest);
 
@@ -1630,79 +1633,220 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 	}
 
 	//maths operators
-	if (opt_constantarithmatic && (var_a && var_a->constant) && (var_b && var_b->constant))
+	if (opt_constantarithmatic)
 	{
-		switch (op - pr_opcodes)	//improve some of the maths.
+		if (var_a && var_a->constant)
 		{
-		case OP_BITOR:
-			optres_constantarithmatic++;
-			return QCC_MakeFloatDef((float)((int)G_FLOAT(var_a->ofs) | (int)G_FLOAT(var_b->ofs)));
-		case OP_BITAND:
-			optres_constantarithmatic++;
-			return QCC_MakeFloatDef((float)((int)G_FLOAT(var_a->ofs) & (int)G_FLOAT(var_b->ofs)));
-		case OP_MUL_F:
-			optres_constantarithmatic++;
-			return QCC_MakeFloatDef(G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs));
-		case OP_DIV_F:
-			optres_constantarithmatic++;
-			return QCC_MakeFloatDef(G_FLOAT(var_a->ofs) / G_FLOAT(var_b->ofs));
-		case OP_ADD_F:
-			optres_constantarithmatic++;
-			return QCC_MakeFloatDef(G_FLOAT(var_a->ofs) + G_FLOAT(var_b->ofs));
-		case OP_SUB_F:
-			optres_constantarithmatic++;
-			return QCC_MakeFloatDef(G_FLOAT(var_a->ofs) - G_FLOAT(var_b->ofs));
+			if (var_b && var_b->constant)
+			{
+				//both are constants
+				switch (op - pr_opcodes)	//improve some of the maths.
+				{
+				case OP_BITOR:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatDef((float)((int)G_FLOAT(var_a->ofs) | (int)G_FLOAT(var_b->ofs)));
+				case OP_BITAND:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatDef((float)((int)G_FLOAT(var_a->ofs) & (int)G_FLOAT(var_b->ofs)));
+				case OP_MUL_F:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatDef(G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs));
+				case OP_DIV_F:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatDef(G_FLOAT(var_a->ofs) / G_FLOAT(var_b->ofs));
+				case OP_ADD_F:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatDef(G_FLOAT(var_a->ofs) + G_FLOAT(var_b->ofs));
+				case OP_SUB_F:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatDef(G_FLOAT(var_a->ofs) - G_FLOAT(var_b->ofs));
 
-		case OP_BITOR_I:
-			optres_constantarithmatic++;
-			return QCC_MakeIntDef(G_INT(var_a->ofs) | G_INT(var_b->ofs));
-		case OP_BITAND_I:
-			optres_constantarithmatic++;
-			return QCC_MakeIntDef(G_INT(var_a->ofs) & G_INT(var_b->ofs));
-		case OP_MUL_I:
-			optres_constantarithmatic++;
-			return QCC_MakeIntDef(G_INT(var_a->ofs) * G_INT(var_b->ofs));
-		case OP_DIV_I:
-			optres_constantarithmatic++;
-			return QCC_MakeIntDef(G_INT(var_a->ofs) / G_INT(var_b->ofs));
-		case OP_ADD_I:
-			optres_constantarithmatic++;
-			return QCC_MakeIntDef(G_INT(var_a->ofs) + G_INT(var_b->ofs));
-		case OP_SUB_I:
-			optres_constantarithmatic++;
-			return QCC_MakeIntDef(G_INT(var_a->ofs) - G_INT(var_b->ofs));
+				case OP_BITOR_I:
+					optres_constantarithmatic++;
+					return QCC_MakeIntDef(G_INT(var_a->ofs) | G_INT(var_b->ofs));
+				case OP_BITAND_I:
+					optres_constantarithmatic++;
+					return QCC_MakeIntDef(G_INT(var_a->ofs) & G_INT(var_b->ofs));
+				case OP_MUL_I:
+					optres_constantarithmatic++;
+					return QCC_MakeIntDef(G_INT(var_a->ofs) * G_INT(var_b->ofs));
+				case OP_DIV_I:
+					optres_constantarithmatic++;
+					return QCC_MakeIntDef(G_INT(var_a->ofs) / G_INT(var_b->ofs));
+				case OP_ADD_I:
+					optres_constantarithmatic++;
+					return QCC_MakeIntDef(G_INT(var_a->ofs) + G_INT(var_b->ofs));
+				case OP_SUB_I:
+					optres_constantarithmatic++;
+					return QCC_MakeIntDef(G_INT(var_a->ofs) - G_INT(var_b->ofs));
 
-		case OP_AND:
-			optres_constantarithmatic++;
-			return QCC_MakeIntDef(G_INT(var_a->ofs) && G_INT(var_b->ofs));
-		case OP_OR:
-			optres_constantarithmatic++;
-			return QCC_MakeIntDef(G_INT(var_a->ofs) || G_INT(var_b->ofs));
-		case OP_MUL_V:	//mul_f is actually a dot-product
-			optres_constantarithmatic++;
-			return QCC_MakeFloatDef(	G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+0) +
-										G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+1) +
-										G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+2));
-		case OP_MUL_FV:
-			optres_constantarithmatic++;
-			return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+0),
-										G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+1),
-										G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+2));
-		case OP_MUL_VF:
-			optres_constantarithmatic++;
-			return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs+0) * G_FLOAT(var_b->ofs),
-										G_FLOAT(var_a->ofs+1) * G_FLOAT(var_b->ofs),
-										G_FLOAT(var_a->ofs+2) * G_FLOAT(var_b->ofs));
-		case OP_ADD_V:
-			optres_constantarithmatic++;
-			return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs+0) + G_FLOAT(var_b->ofs+0),
-										G_FLOAT(var_a->ofs+1) + G_FLOAT(var_b->ofs+1),
-										G_FLOAT(var_a->ofs+2) + G_FLOAT(var_b->ofs+2));
-		case OP_SUB_V:
-			optres_constantarithmatic++;
-			return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs+0) - G_FLOAT(var_b->ofs+0),
-										G_FLOAT(var_a->ofs+1) - G_FLOAT(var_b->ofs+1),
-										G_FLOAT(var_a->ofs+2) - G_FLOAT(var_b->ofs+2));
+				case OP_AND:
+					optres_constantarithmatic++;
+					return QCC_MakeIntDef(G_INT(var_a->ofs) && G_INT(var_b->ofs));
+				case OP_OR:
+					optres_constantarithmatic++;
+					return QCC_MakeIntDef(G_INT(var_a->ofs) || G_INT(var_b->ofs));
+				case OP_MUL_V:	//mul_f is actually a dot-product
+					optres_constantarithmatic++;
+					return QCC_MakeFloatDef(	G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+0) +
+												G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+1) +
+												G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+2));
+				case OP_MUL_FV:
+					optres_constantarithmatic++;
+					return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+0),
+												G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+1),
+												G_FLOAT(var_a->ofs) * G_FLOAT(var_b->ofs+2));
+				case OP_MUL_VF:
+					optres_constantarithmatic++;
+					return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs+0) * G_FLOAT(var_b->ofs),
+												G_FLOAT(var_a->ofs+1) * G_FLOAT(var_b->ofs),
+												G_FLOAT(var_a->ofs+2) * G_FLOAT(var_b->ofs));
+				case OP_ADD_V:
+					optres_constantarithmatic++;
+					return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs+0) + G_FLOAT(var_b->ofs+0),
+												G_FLOAT(var_a->ofs+1) + G_FLOAT(var_b->ofs+1),
+												G_FLOAT(var_a->ofs+2) + G_FLOAT(var_b->ofs+2));
+				case OP_SUB_V:
+					optres_constantarithmatic++;
+					return QCC_MakeVectorDef(	G_FLOAT(var_a->ofs+0) - G_FLOAT(var_b->ofs+0),
+												G_FLOAT(var_a->ofs+1) - G_FLOAT(var_b->ofs+1),
+												G_FLOAT(var_a->ofs+2) - G_FLOAT(var_b->ofs+2));
+				}
+			}
+			else
+			{
+				//a is const, b is not
+				switch (op - pr_opcodes)
+				{
+				case OP_BITOR:
+				case OP_OR:
+				case OP_ADD_F:
+					if (G_FLOAT(var_a->ofs) == 0)
+					{
+						optres_constantarithmatic++;
+						QCC_UnFreeTemp(var_b);
+						return var_b;
+					}
+					break;
+				case OP_MUL_F:
+					if (G_FLOAT(var_a->ofs) == 1)
+					{
+						optres_constantarithmatic++;
+						QCC_UnFreeTemp(var_b);
+						return var_b;
+					}
+					break;
+				case OP_BITAND:
+				case OP_AND:
+					if (G_FLOAT(var_a->ofs) != 0)
+					{
+						optres_constantarithmatic++;
+						QCC_UnFreeTemp(var_b);
+						return var_b;
+					}
+					break;
+
+				case OP_BITOR_I:
+				case OP_OR_I:
+				case OP_ADD_I:
+					if (G_INT(var_a->ofs) == 0)
+					{
+						optres_constantarithmatic++;
+						QCC_UnFreeTemp(var_b);
+						return var_b;
+					}
+					break;
+				case OP_MUL_I:
+					if (G_INT(var_a->ofs) == 1)
+					{
+						optres_constantarithmatic++;
+						QCC_UnFreeTemp(var_b);
+						return var_b;
+					}
+					break;
+				case OP_BITAND_I:
+				case OP_AND_I:
+					if (G_INT(var_a->ofs) != 0)
+					{
+						optres_constantarithmatic++;
+						QCC_UnFreeTemp(var_b);
+						return var_b;
+					}
+					break;
+				}
+			}
+		}
+		else if (var_b && var_b->constant)
+		{
+			//b is const, a is not
+			switch (op - pr_opcodes)
+			{
+			case OP_BITOR:
+			case OP_OR:
+			case OP_SUB_F:
+			case OP_ADD_F:
+				if (G_FLOAT(var_b->ofs) == 0)
+				{
+					optres_constantarithmatic++;
+					QCC_UnFreeTemp(var_a);
+					return var_a;
+				}
+				break;
+			case OP_DIV_F:
+			case OP_MUL_F:
+				if (G_FLOAT(var_b->ofs) == 1)
+				{
+					optres_constantarithmatic++;
+					QCC_UnFreeTemp(var_a);
+					return var_a;
+				}
+				break;
+			//no bitand_f, I don't trust the casts
+			case OP_AND:
+				if (G_FLOAT(var_b->ofs) != 0)
+				{
+					optres_constantarithmatic++;
+					QCC_UnFreeTemp(var_a);
+					return var_a;
+				}
+				break;
+
+			case OP_BITOR_I:
+			case OP_OR_I:
+			case OP_SUB_I:
+			case OP_ADD_I:
+				if (G_INT(var_b->ofs) == 0)
+				{
+					optres_constantarithmatic++;
+					QCC_UnFreeTemp(var_a);
+					return var_a;
+				}
+				break;
+			case OP_DIV_I:
+			case OP_MUL_I:
+				if (G_INT(var_b->ofs) == 1)
+				{
+					optres_constantarithmatic++;
+					QCC_UnFreeTemp(var_a);
+					return var_a;
+				}
+				break;
+			case OP_BITAND_I:
+				if (G_INT(var_b->ofs) == 0xffffffff)
+				{
+					optres_constantarithmatic++;
+					QCC_UnFreeTemp(var_a);
+					return var_a;
+				}
+			case OP_AND_I:
+				if (G_INT(var_b->ofs) != 0)
+				{
+					optres_constantarithmatic++;
+					QCC_UnFreeTemp(var_a);
+					return var_a;
+				}
+				break;
+			}
 		}
 	}
 
@@ -2840,13 +2984,13 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			func->references++;
 			if (!QCC_PR_CheckToken(")"))
 			{
-				e = QCC_PR_Expression (TOP_PRIORITY, false);
+				e = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 				if (e->type->type != ev_float)
 					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i", 1);
 				if (!QCC_PR_CheckToken(")"))
 				{
 					QCC_PR_Expect(",");
-					d = QCC_PR_Expression (TOP_PRIORITY, false);
+					d = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 					if (d->type->type != ev_float)
 						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i", 2);
 					QCC_PR_Expect(")");
@@ -2970,13 +3114,13 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			func->references++;
 			if (!QCC_PR_CheckToken(")"))
 			{
-				e = QCC_PR_Expression (TOP_PRIORITY, false);
+				e = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 				if (e->type->type != ev_vector)
 						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i", 1);
 				if (!QCC_PR_CheckToken(")"))
 				{
 					QCC_PR_Expect(",");
-					d = QCC_PR_Expression (TOP_PRIORITY, false);
+					d = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 					if (d->type->type != ev_vector)
 						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHPARM, func, "type mismatch on parm %i", 2);
 					QCC_PR_Expect(")");
@@ -3222,7 +3366,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 			//t = (a/%1) / (nextent(world)/%1)
 			//a/%1 does a (int)entity to float conversion type thing
 
-			e = QCC_PR_Expression(TOP_PRIORITY, false);
+			e = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 			QCC_PR_Expect(")");
 			e = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], e, QCC_MakeIntDef(1), (QCC_dstatement_t **)0xffffffff);
 
@@ -3305,7 +3449,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 				QCC_PR_Lex();
 			}
 			else
-				e = QCC_PR_Expression (TOP_PRIORITY, false);
+				e = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 
 			if (arg == 0 && func->name)
 			{
@@ -3941,7 +4085,7 @@ reloop:
 		{
 			numstatements--;	//remove the last statement			
 
-			nd = QCC_PR_Expression (TOP_PRIORITY, true);
+			nd = QCC_PR_Expression (TOP_PRIORITY, 0);
 			QCC_PR_Expect("]");
 
 			if (d->type->size != 1)	//we need to multiply it to find the offset.						
@@ -3981,7 +4125,7 @@ reloop:
 		}
 		else
 		{
-			ao = QCC_PR_Expression (TOP_PRIORITY, true);
+			ao = QCC_PR_Expression (TOP_PRIORITY, 0);
 			QCC_PR_Expect("]");
 
 			if (QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]) && d->type->size != 1)	//we need to multiply it to find the offset.
@@ -4057,7 +4201,7 @@ reloop:
 						QCC_PR_ParseError(0, "Scoped array without specific engine support");
 
 					funcretr = QCC_PR_GetDef(type_function, qcva("ArraySet*%s", d->name), NULL, true, 1, false);
-					nd = QCC_PR_Expression(TOP_PRIORITY, true);
+					nd = QCC_PR_Expression(TOP_PRIORITY, 0);
 					if (nd->type->type != d->type->type)
 						QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, d, "Type Mismatch on array assignment");
 
@@ -4114,7 +4258,7 @@ reloop:
 
 						funcretr = QCC_PR_GetDef(type_function, qcva("ArraySet*%s", d->name), NULL, true, 1, false);
 
-						nd = QCC_PR_Expression(TOP_PRIORITY, true);
+						nd = QCC_PR_Expression(TOP_PRIORITY, 0);
 						if (nd->type->type != d->type->type)
 							QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, d, "Type Mismatch on array assignment");
 
@@ -4393,7 +4537,7 @@ reloop:
 			QCC_def_t *field;
 			if (QCC_PR_CheckToken("("))
 			{
-				field = QCC_PR_Expression(TOP_PRIORITY, true);
+				field = QCC_PR_Expression(TOP_PRIORITY, 0);
 				QCC_PR_Expect(")");
 			}
 			else
@@ -4515,7 +4659,7 @@ QCC_def_t *QCC_PR_Term (void)
 		
 		if (QCC_PR_CheckToken ("!"))
 		{
-			e = QCC_PR_Expression (NOT_PRIORITY, false);
+			e = QCC_PR_Expression (NOT_PRIORITY, EXPR_DISALLOW_COMMA|EXPR_WARN_ABOVE_1);
 			t = e->type->type;
 			if (t == ev_float)
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_NOT_F], e, 0, NULL);
@@ -4542,7 +4686,7 @@ QCC_def_t *QCC_PR_Term (void)
 		else if (QCC_PR_CheckToken ("&"))
 		{
 			int st = numstatements;
-			e = QCC_PR_Expression (NOT_PRIORITY, false);
+			e = QCC_PR_Expression (UNARY_PRIORITY, 0);
 			t = e->type->type;
 
 			if (st != numstatements)
@@ -4572,7 +4716,7 @@ QCC_def_t *QCC_PR_Term (void)
 		}
 		else if (QCC_PR_CheckToken ("*"))
 		{
-			e = QCC_PR_Expression (NOT_PRIORITY, false);
+			e = QCC_PR_Expression (UNARY_PRIORITY, 0);
 			t = e->type->type;
 
 			if (t != ev_pointer)
@@ -4616,7 +4760,7 @@ QCC_def_t *QCC_PR_Term (void)
 		}
 		else if (QCC_PR_CheckToken ("-"))
 		{
-			e = QCC_PR_Expression (NOT_PRIORITY, false);
+			e = QCC_PR_Expression (UNARY_PRIORITY, 0);
 
 			switch(e->type->type)
 			{
@@ -4635,7 +4779,7 @@ QCC_def_t *QCC_PR_Term (void)
 		}
 		else if (QCC_PR_CheckToken ("+"))
 		{
-			e = QCC_PR_Expression (NOT_PRIORITY, false);
+			e = QCC_PR_Expression (UNARY_PRIORITY, 0);
 
 			switch(e->type->type)
 			{
@@ -4720,7 +4864,7 @@ QCC_def_t *QCC_PR_Term (void)
 			{
 				pbool oldcond = conditional;
 				conditional = conditional?2:0;
-				e =	QCC_PR_Expression (TOP_PRIORITY, false);
+				e =	QCC_PR_Expression (TOP_PRIORITY, 0);
 				QCC_PR_Expect (")");
 				conditional = oldcond;
 			}
@@ -4765,7 +4909,7 @@ PR_Expression
 ==============
 */
 
-QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma)
+QCC_def_t *QCC_PR_Expression (int priority, int exprflags)
 {
 	QCC_dstatement32_t	*st;
 	QCC_opcode_t	*op, *oldop;
@@ -4781,7 +4925,7 @@ QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma)
 	if (priority == 0)
 		return QCC_PR_Term ();
 
-	e = QCC_PR_Expression (priority-1, allowcomma);
+	e = QCC_PR_Expression (priority-1, exprflags);
 
 	while (1)
 	{
@@ -4796,18 +4940,21 @@ QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma)
 			{
 				QCC_dstatement32_t *fromj, *elsej;
 				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_IFNOT], e, NULL, &fromj));
-				e = QCC_PR_Expression(TOP_PRIORITY, true);
+				e = QCC_PR_Expression(TOP_PRIORITY, 0);
 				e2 = QCC_GetTemp(e->type);
-				QCC_PR_Statement(&pr_opcodes[(e2->type->size>=3)?OP_STORE_V:OP_STORE_F], e, e2, NULL);
+				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[(e2->type->size>=3)?OP_STORE_V:OP_STORE_F], e, e2, NULL));
+				//e2 can be stomped upon until its reused anyway
+				QCC_UnFreeTemp(e2);
 
 				QCC_PR_Expect(":");
 				QCC_PR_Statement(&pr_opcodes[OP_GOTO], NULL, NULL, &elsej);
 				fromj->b = &statements[numstatements] - fromj;
-				e = QCC_PR_Expression(TOP_PRIORITY, true);
+				e = QCC_PR_Expression(TOP_PRIORITY, 0);
 
 				if (typecmp(e->type, e2->type) != 0)
 					QCC_PR_ParseError(0, "Ternary operator with mismatching types\n");
-				QCC_PR_Statement(&pr_opcodes[(e2->type->size>=3)?OP_STORE_V:OP_STORE_F], e, e2, NULL);
+				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[(e2->type->size>=3)?OP_STORE_V:OP_STORE_F], e, e2, NULL));
+				QCC_UnFreeTemp(e2);
 
 				elsej->a = &statements[numstatements] - elsej;
 				return e2;
@@ -4868,12 +5015,12 @@ QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma)
 					e->type = type_string;
 
 					//now we want to make sure that string = float can't work without it being a dereferenced pointer. (we don't want to allow storep_c without dereferece)
-					e2 = QCC_PR_Expression (priority, allowcomma);
+					e2 = QCC_PR_Expression (priority, exprflags);
 					if (e2->type->type == ev_float)
 						op = &pr_opcodes[OP_STOREP_C];
 				}
 				else
-					e2 = QCC_PR_Expression (priority, allowcomma);
+					e2 = QCC_PR_Expression (priority, exprflags);
 			}
 			else
 			{
@@ -4887,7 +5034,7 @@ QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma)
 						QCC_PR_Statement3(&pr_opcodes[OP_IF], e, NULL, NULL, false);
 				}
 
-				e2 = QCC_PR_Expression (priority-1, allowcomma);
+				e2 = QCC_PR_Expression (priority-1, exprflags);
 			}
 
 		// type check
@@ -5030,6 +5177,9 @@ QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma)
 			
 			if (type_c != ev_void/* && type_c != ev_string*/)	// field access gets type from field
 				e->type = e2->type->aux_type;
+
+			if (priority > 1 && exprflags & EXPR_WARN_ABOVE_1)
+				QCC_PR_ParseWarning(0, "You may wish to add brackets after that ! operator");
 			
 			break;
 		}
@@ -5170,10 +5320,10 @@ QCC_def_t *QCC_PR_Expression (int priority, pbool allowcomma)
 	if (e == NULL)
 		QCC_PR_ParseError(ERR_INTERNAL, "e == null");
 
-	if (allowcomma && priority == TOP_PRIORITY && QCC_PR_CheckToken (","))
+	if (!(exprflags&EXPR_DISALLOW_COMMA) && priority == TOP_PRIORITY && QCC_PR_CheckToken (","))
 	{
 		QCC_FreeTemp(e);
-		return QCC_PR_Expression(TOP_PRIORITY, true);
+		return QCC_PR_Expression(TOP_PRIORITY, exprflags);
 	}
 			
 	return e;
@@ -5268,7 +5418,7 @@ void QCC_PR_ParseStatement (void)
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_RETURN], 0, 0, NULL));
 			return;
 		}
-		e = QCC_PR_Expression (TOP_PRIORITY, true);
+		e = QCC_PR_Expression (TOP_PRIORITY, 0);
 		e2 = QCC_SupplyConversion(e, pr_scope->type->aux_type->type);
 		if (e != e2)
 		{
@@ -5296,7 +5446,7 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_Expect ("(");
 		patch2 = &statements[numstatements];
 		conditional = 1;
-		e = QCC_PR_Expression (TOP_PRIORITY, true);
+		e = QCC_PR_Expression (TOP_PRIORITY, 0);
 		conditional = 0;
 		if (((e->constant && !e->temp) || !STRCMP(e->name, "IMMEDIATE")) && opt_compound_jumps)
 		{
@@ -5374,7 +5524,7 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_Expect("(");
 		if (!QCC_PR_CheckToken(";"))
 		{
-			QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY, true));
+			QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY, 0));
 			QCC_PR_Expect(";");
 		}
 
@@ -5382,7 +5532,7 @@ void QCC_PR_ParseStatement (void)
 		if (!QCC_PR_CheckToken(";"))
 		{
 			conditional = 1;
-			e = QCC_PR_Expression(TOP_PRIORITY, true);
+			e = QCC_PR_Expression(TOP_PRIORITY, 0);
 			conditional = 0;
 			QCC_PR_Expect(";");
 		}
@@ -5392,7 +5542,7 @@ void QCC_PR_ParseStatement (void)
 		if (!QCC_PR_CheckToken(")"))
 		{
 			old_numstatements = numstatements;
-			QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY, true));
+			QCC_FreeTemp(QCC_PR_Expression(TOP_PRIORITY, 0));
 
 			numtemp = numstatements - old_numstatements;
 			if (numtemp > sizeof(linenum)/sizeof(linenum[0]))
@@ -5456,7 +5606,7 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_Expect ("while");
 		QCC_PR_Expect ("(");
 		conditional = 1;
-		e = QCC_PR_Expression (TOP_PRIORITY, true);
+		e = QCC_PR_Expression (TOP_PRIORITY, 0);
 		conditional = 0;
 
 		if (e->constant && !e->temp)
@@ -5558,7 +5708,7 @@ void QCC_PR_ParseStatement (void)
 
 		QCC_PR_Expect ("(");
 		conditional = 1;
-		e = QCC_PR_Expression (TOP_PRIORITY, true);
+		e = QCC_PR_Expression (TOP_PRIORITY, 0);
 		conditional = 0;
 
 //		negate = negate != 0;
@@ -5634,7 +5784,7 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_Expect ("(");
 
 		conditional = 1;
-		e = QCC_PR_Expression (TOP_PRIORITY, true);
+		e = QCC_PR_Expression (TOP_PRIORITY, 0);
 		conditional = 0;
 
 		if (e == &def_ret)
@@ -5989,10 +6139,10 @@ void QCC_PR_ParseStatement (void)
 			pr_casesdef2 = realloc(pr_casesdef2, sizeof(*pr_casesdef2)*max_cases);
 		}
 		pr_cases[num_cases] = numstatements;
-		pr_casesdef[num_cases] = QCC_PR_Expression (TOP_PRIORITY, false);
+		pr_casesdef[num_cases] = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 		if (QCC_PR_CheckToken(".."))
 		{
-			pr_casesdef2[num_cases] = QCC_PR_Expression (TOP_PRIORITY, false);
+			pr_casesdef2[num_cases] = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 			if (pr_casesdef[num_cases]->constant && pr_casesdef2[num_cases]->constant &&
 				!pr_casesdef[num_cases]->temp && !pr_casesdef2[num_cases]->temp)
 				if (G_FLOAT(pr_casesdef[num_cases]->ofs) >= G_FLOAT(pr_casesdef2[num_cases]->ofs))
@@ -6028,9 +6178,9 @@ void QCC_PR_ParseStatement (void)
 	{
 		QCC_def_t *nextthink;
 		QCC_def_t *time;
-		e = QCC_PR_Expression (TOP_PRIORITY, true);
+		e = QCC_PR_Expression (TOP_PRIORITY, 0);
 		QCC_PR_Expect(":");
-		e2 = QCC_PR_Expression (TOP_PRIORITY, true);
+		e2 = QCC_PR_Expression (TOP_PRIORITY, 0);
 		if (e->type->type != ev_entity || e2->type->type != ev_float)
 			QCC_PR_ParseError(ERR_THINKTIMETYPEMISMATCH, "thinktime type mismatch");
 
@@ -6064,7 +6214,7 @@ void QCC_PR_ParseStatement (void)
 //	qcc_functioncalled=0;
 
 	qcc_usefulstatement = false;
-	e = QCC_PR_Expression (TOP_PRIORITY, true);
+	e = QCC_PR_Expression (TOP_PRIORITY, 0);
 	expandedemptymacro = false;
 	QCC_PR_Expect (";");
 
@@ -8570,7 +8720,7 @@ void QCC_PR_ParseDefs (char *classname)
 			}
 			else
 			{
-				def = QCC_PR_Expression(TOP_PRIORITY, true);
+				def = QCC_PR_Expression(TOP_PRIORITY, 0);
 				if (!def->constant)
 					QCC_PR_ParseError(ERR_BADARRAYSIZE, "Array size is not a constant value");
 				else if (def->type->type == ev_integer)
@@ -8752,7 +8902,7 @@ void QCC_PR_ParseDefs (char *classname)
 #pragma message("this is experimental")
 			if (pr_scope)
 			{
-				d = QCC_PR_Expression(TOP_PRIORITY, false);
+				d = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 				if (d->constant)
 				{
 					for (i = 0; i < d->type->size; i++)

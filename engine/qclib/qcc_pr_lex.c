@@ -1600,12 +1600,11 @@ void QCC_PR_LexWhitespace (void)
 	// skip /* */ comments
 		if (c=='/' && pr_file_p[1] == '*')
 		{
+			pr_file_p+=2;
 			do
 			{
-				pr_file_p++;
 				if (pr_file_p[0]=='\n')
 				{
-					pr_file_p++;
 					QCC_PR_NewLine(true);
 				}
 				if (pr_file_p[1] == 0)
@@ -1613,8 +1612,9 @@ void QCC_PR_LexWhitespace (void)
 					pr_file_p++;
 					return;
 				}
-			} while (pr_file_p[-1] != '*' || pr_file_p[0] != '/');
-			pr_file_p++;
+				pr_file_p++;
+			} while (pr_file_p[0] != '*' || pr_file_p[1] != '/');
+			pr_file_p+=2;
 			continue;
 		}
 		

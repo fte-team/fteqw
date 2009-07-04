@@ -164,19 +164,25 @@ void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weight
 
 static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 {
+#ifndef SERVERONLY
+	//servers don't need normals. except maybe for tracing... but hey. The normal is calculated on a per-triangle basis.
+
 #define TriangleNormal(a,b,c,n) ( \
 	(n)[0] = ((a)[1] - (b)[1]) * ((c)[2] - (b)[2]) - ((a)[2] - (b)[2]) * ((c)[1] - (b)[1]), \
 	(n)[1] = ((a)[2] - (b)[2]) * ((c)[0] - (b)[0]) - ((a)[0] - (b)[0]) * ((c)[2] - (b)[2]), \
 	(n)[2] = ((a)[0] - (b)[0]) * ((c)[1] - (b)[1]) - ((a)[1] - (b)[1]) * ((c)[0] - (b)[0]) \
 	)
-	int i;
+	int i, j;
 	vec3_t *xyz;
 	vec3_t *normals;
+	int *mvert;
 	float *inversepose;
 	galiasinfo_t *next;
 	vec3_t tn;
+	vec3_t d1, d2;
 	index_t *idx;
 	float *bonepose = NULL;
+	float angle;
 
 	while (model)
 	{
@@ -193,6 +199,7 @@ static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		xyz = Z_Malloc(numverts*sizeof(vec3_t));
 		normals = Z_Malloc(numverts*sizeof(vec3_t));
 		inversepose = Z_Malloc(numbones*sizeof(float)*9);
+		mvert = Z_Malloc(numverts*sizeof(*mvert));
 
 		if (!model->sharesbones || !bonepose)
 		{
@@ -210,6 +217,24 @@ static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		//build the actual base pose positions
 		Alias_TransformVerticies(bonepose, v, numweights, (float*)xyz, NULL);
 
+		//work out which verticies are identical
+		//this is needed as two verts can have same origin but different tex coords
+		//without this, we end up with a seam that splits the normals each side on arms, etc
+		for (i = 0; i < numverts; i++)
+		{
+			mvert[i] = i;
+			for (j = 0; j < i; j++)
+			{
+				if (	xyz[i][0] == xyz[j][0]
+					&&	xyz[i][1] == xyz[j][1]
+					&&	xyz[i][2] == xyz[j][2])
+				{
+					mvert[i] = j;
+					break;
+				}
+			}
+		}
+
 		//use that base pose to calculate the normals
 		memset(normals, 0, numverts*sizeof(vec3_t));
 		for(;;)
@@ -221,9 +246,23 @@ static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 			{
 				TriangleNormal(xyz[idx[0]], xyz[idx[1]], xyz[idx[2]], tn);
 				//note that tn is relative to the size of the triangle
-				VectorAdd(normals[idx[0]], tn, normals[idx[0]]);
-				VectorAdd(normals[idx[1]], tn, normals[idx[1]]);
-				VectorAdd(normals[idx[2]], tn, normals[idx[2]]);
+
+				//Imagine a cube, each side made of two triangles
+
+				VectorSubtract(xyz[idx[1]], xyz[idx[0]], d1);
+				VectorSubtract(xyz[idx[2]], xyz[idx[0]], d2);
+				angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
+				VectorMA(normals[mvert[idx[0]]], angle, tn, normals[mvert[idx[0]]]);
+
+				VectorSubtract(xyz[idx[0]], xyz[idx[1]], d1);
+				VectorSubtract(xyz[idx[2]], xyz[idx[1]], d2);
+				angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
+				VectorMA(normals[mvert[idx[1]]], angle, tn, normals[mvert[idx[1]]]);
+				
+				VectorSubtract(xyz[idx[0]], xyz[idx[2]], d1);
+				VectorSubtract(xyz[idx[1]], xyz[idx[2]], d2);
+				angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
+				VectorMA(normals[mvert[idx[2]]], angle, tn, normals[mvert[idx[2]]]);
 			}
 
 			if (next && next->sharesverts && next->sharesbones)
@@ -245,9 +284,9 @@ static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 
 		for (i = 0; i < numweights; i++, v++)
 		{
-			v->normal[0] = DotProduct(normals[v->vertexindex], inversepose+12*v->boneindex+0) / v->org[3];
-			v->normal[1] = DotProduct(normals[v->vertexindex], inversepose+12*v->boneindex+3) / v->org[3];
-			v->normal[2] = DotProduct(normals[v->vertexindex], inversepose+12*v->boneindex+6) / v->org[3];
+			v->normal[0] = DotProduct(normals[mvert[v->vertexindex]], inversepose+9*v->boneindex+0) * v->org[3];
+			v->normal[1] = DotProduct(normals[mvert[v->vertexindex]], inversepose+9*v->boneindex+3) * v->org[3];
+			v->normal[2] = DotProduct(normals[mvert[v->vertexindex]], inversepose+9*v->boneindex+6) * v->org[3];
 		}
 
 		//FIXME: save off the xyz+normals for this base pose as an optimisation for world objects.
@@ -257,6 +296,7 @@ static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 
 		model = next;
 	}
+#endif
 }
 
 static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galiasgroup_t *g1, galiasgroup_t *g2, float lerpfrac, float fg1time, float fg2time)
@@ -360,12 +400,33 @@ int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *resul
 			f2time = fstate->g[bonegroup].frametime[1];
 			f2ness = fstate->g[bonegroup].lerpfrac;
 
+			//FIXME: fixup these framestates earlier, because this just isn't nice
 			if (frame1 < 0 || frame1 >= inf->groups)
-				continue;	//invalid, try ignoring this group
-			if (frame2 < 0 || frame2 >= inf->groups)
 			{
-				f2ness = 0;
-				frame2 = frame1;
+				if (frame2 < 0 || frame2 >= inf->groups || f2ness == 0)
+				{
+					if (bonegroup != FS_COUNT-1)
+						continue;	//just ignore this group
+
+					//there's no escaping it, both are bad. use the base pose
+					f2ness = 0;
+					frame1 = frame2 = 0;
+				}
+				else
+				{
+					//kill it, just use frame2
+					f2ness = 1;
+					frame1 = frame2;
+				}
+			}
+			else
+			{
+				if (frame2 < 0 || frame2 >= inf->groups)
+				{
+					//kill this anim
+					f2ness = 0;
+					frame2 = frame1;
+				}
 			}
 
 			bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
@@ -467,9 +528,14 @@ float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *bu
 			return NULL;
 
 		f = fstate->g[FS_REG].frame[0];
+		if (f < 0 || f >= inf->groups)
+			f = 0;
 		g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*bound(0, f, inf->groups-1));
 		f = fstate->g[FS_REG].frame[1];
-		g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*bound(0, f, inf->groups-1));
+		if (f < 0 || f >= inf->groups)
+			g2 = g1;
+		else
+			g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*bound(0, f, inf->groups-1));
 
 		if (g2->isheirachical)
 			g2 = g1;
@@ -862,6 +928,17 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf,
 		usebonepose = Alias_GetBonePositions(inf, &e->framestate, (float*)bonepose, MAX_BONES);
 		Alias_BuildSkeletalMesh(mesh, usebonepose, (galisskeletaltransforms_t *)((char*)inf+inf->ofstransforms), inf->numtransforms);
 
+		if (currententity->fatness)
+		{
+			if (mesh->xyz_array == tempVertexCoords)
+			{
+				int i;
+				for (i = 0; i < mesh->numvertexes; i++)
+				{
+					VectorMA(mesh->xyz_array[i], currententity->fatness, mesh->normals_array[i], mesh->xyz_array[i]);
+				}
+			}
+		}
 		if (mesh->colors_array)
 			R_LightArrays(mesh->colors_array, mesh->numvertexes, mesh->normals_array);
 		return true;
@@ -4670,9 +4747,23 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 		}
 		else if (!strcmp(com_token, "clampgroup"))
 		{
-			Con_Printf(CON_ERROR "EXTERNALANIM: clampgroup not yet supported (%s)\n", mod->name);
-			Hunk_FreeToLowMark(hunkstart);
-			return false;
+			grouplist = BZ_Realloc(grouplist, sizeof(galiasgroup_t)*(numgroups+1));
+			poseofs = BZ_Realloc(poseofs, sizeof(*poseofs)*(numgroups+1));
+			buffer = COM_Parse(buffer);
+			file = COM_LoadTempFile2(com_token);
+			if (file)	//FIXME: make non fatal somehow..
+			{
+				char namebkup[MAX_QPATH];
+				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
+				if (!Mod_ParseMD5Anim(file, root, &poseofs[numgroups], &grouplist[numgroups]))
+				{
+					Hunk_FreeToLowMark(hunkstart);
+					return false;
+				}
+				Q_strncpyz(grouplist[numgroups].name, namebkup, sizeof(grouplist[numgroups].name));
+				grouplist[numgroups].loop = false;
+				numgroups++;
+			}
 		}
 		else if (!strcmp(com_token, "frames"))
 		{

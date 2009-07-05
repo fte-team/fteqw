@@ -343,9 +343,7 @@ void R_AddSkySurface (msurface_t *fa);
 #endif
 #ifdef D3DQUAKE
 void D3D7_DrawSkyChain (msurface_t *s);
-void D3D7_DrawSkySphere (msurface_t *fa);
 void D3D9_DrawSkyChain (msurface_t *s);
-void D3D9_DrawSkySphere (msurface_t *fa);
 #endif
 
 //
@@ -452,7 +450,7 @@ typedef struct {
 //gl_ppl.c
 void PPL_DrawWorld (void);
 qboolean PPL_ShouldDraw(void);
-void RotateLightVector(vec3_t *angles, vec3_t origin, vec3_t lightpoint, vec3_t result);
+void RotateLightVector(const vec3_t *angles, const vec3_t origin, const vec3_t lightpoint, vec3_t result);
 
 //
 // gl_refrag.c
@@ -931,5 +929,211 @@ extern vec3_t	r_pright, r_pup, r_ppn;
 
 extern	float	xscaleshrink, yscaleshrink;
 #endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+//opengl 3 deprecation
+
+. Application-generated object names - the names of all object types, such as
+buffer, query, and texture objects, must be generated using the corresponding
+Gen* commands. Trying to bind an object name not returned by a Gen*
+command will result in an INVALID OPERATION error. This behavior is
+already the case for framebuffer, renderbuffer, and vertex array objects. Object
+types which have default objects (objects named zero) , such as vertex
+array, framebuffer, and texture objects, may also bind the default object, even
+though it is not returned by Gen*.
+
+. OpenGL Shading Language versions 1.10 and 1.20. These versions of the
+shading language depend on many API features that have also been deprecated.
+
+. Pixel transfer modes and operations - all pixel transfer modes, including
+pixel maps, shift and bias, color table lookup, color matrix, and convolution
+commands and state, and all associated state and commands defining
+that state.
+
+. Legacy OpenGL 1.0 pixel formats - the values 1, 2, 3, and 4 are no longer
+accepted as internal formats by TexImage* or any other command taking
+an internal format argument. The initial internal format of a texel array is
+RGBA instead of 1.
+
+. Texture borders - the border value to TexImage* must always be zero, or
+an INVALID VALUE error is generated (section 3.8.1); all language in section
+3.8 referring to nonzero border widths during texture image specification
+and texture sampling; and all associated state.
+
+GL_COLOR_INDEX
+
+glBegin
+glEnd
+glEdgeFlag*; 
+glColor*,
+glFogCoord*
+glIndex*
+glNormal3*
+glSecondaryColor3*
+glTexCoord*
+glVertex*
+
+glColorPointer
+glEdgeFlagPointer
+glFogCoordPointer
+glIndexPointer
+glNormalPointer
+glSecondary-
+glColorPointer, 
+glTexCoordPointer
+glVertexPointer
+glEnableClientState
+glDisableClientState,
+
+glInterleavedArrays
+glClientActiveTexture
+glFrustum,
+glLoadIdentity
+glLoadMatrix
+glLoadTransposeMatrix
+glMatrixMode,
+glMultMatrix
+glMultTransposeMatrix
+glOrtho
+glPopMatrix
+glPushMatrix,
+glRotate
+glScale
+glTranslate
+GL_RESCALE_NORMAL
+GL_NORMALIZE
+glTexGen*
+GL_TEXTURE_GEN_*,
+Material*
+glLight*
+glLightModel*
+glColorMaterial
+glShadeModel
+GL_LIGHTING
+GL_VERTEX_PROGRAM_TWO_SIDE
+GL_LIGHTi,
+GL_COLOR_MATERIAL
+glClipPlane
+GL_CLAMP_VERTEX_COLOR
+GL_CLAMP_FRAGMENT_COLOR
+glRect*
+
+glRasterPos*
+glWindowPos*
+
+GL_POINT_SMOOTH
+GL_POINT_SPRITE
+
+glLineStipple
+GL_LINE_STIPPLE
+GL_POLYGON
+GL_QUADS
+GL_QUAD_STRIP
+glPolygonMode
+glPolygonStipple
+GL_POLYGON_STIPPLE
+glDrawPixels
+glPixelZoom
+glBitmap
+GL_BITMAP
+
+GL_TEXTURE_COMPONENTS
+GL_ALPHA
+GL_LUMINANCE
+GL_LUMINANCE_ALPHA
+GL_INTENSITY
+
+GL_DEPTH_TEXTURE_MODE
+
+GL_CLAMP
+
+GL_GENERATE_MIPMAP
+
+glAreTexturesResident
+glPrioritizeTextures,
+GL_TEXTURE_PRIORITY
+GL_TEXTURE_ENV
+GL_TEXTURE_FILTER_CONTROL
+GL_TEXTURE_LOD_BIAS
+
+GL_TEXTURE_1D
+GL_TEXTURE_2D,
+GL_TEXTURE_3D
+GL_TEXTURE_1D_ARRAY
+GL_TEXTURE_2D_ARRAY
+GL_TEXTURE_CUBE_MAP
+GL_COLOR_SUM
+GL_FOG
+glFog
+GL_MAX_TEXTURE_UNITS
+GL_MAX_TEXTURE_COORDS
+glAlphaFunc
+GL_ALPHA_TEST
+
+glClearAccum
+GL_ACCUM_BUFFER_BIT
+
+glCopyPixels
+
+GL_AUX0
+GL_RED_BITS
+GL_GREEN_BITS
+GL_BLUE_BITS
+GL_ALPHA_BITS
+GL_DEPTH_BITS
+STENCIL BITS
+glMap*
+glEvalCoord*
+glMapGrid*
+glEvalMesh*
+glEvalPoint*
+
+glRenderMode
+glInitNames
+glPopName
+glPushName
+glLoadName
+glSelectBuffer
+glFeedbackBuffer
+glPassThrough
+glNewList
+glEndList
+glCallList
+glCallLists
+glListBase
+glGenLists,
+glIsList
+glDeleteLists
+
+
+GL_PERSPECTIVE_CORRECTION_HINT
+GL_POINT_SMOOTH_HINT,
+GL_FOG_HINT
+GL_GENERATE_MIPMAP_HINT
+
+glPushAttrib
+glPushClientAttrib
+glPopAttrib
+glPopClientAttrib,
+GL_MAX_ATTRIB_STACK_DEPTH,
+GL_MAX_CLIENT_ATTRIB_STACK_DEPTH
+GL_ATTRIB_STACK_DEPTH
+GL_CLIENT_ATTRIB_STACK_DEPTH
+GL_ALL_ATTRIB_BITS
+GL_CLIENT_ALL_ATTRIB_BITS.
+GL_EXTENSIONS
+*/
 
 #endif

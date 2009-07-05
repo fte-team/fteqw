@@ -218,7 +218,7 @@ void GL_DrawSkyChain (msurface_t *s)
 
 #ifdef D3DQUAKE
 static void R_DrawSkyBoxChain (msurface_t *s);
-static void D3D7_DrawSkyChain (msurface_t *s)
+void D3D7_DrawSkyChain (msurface_t *s)
 {
 	//msurface_t	*fa;
 
@@ -271,7 +271,7 @@ static void D3D7_DrawSkyChain (msurface_t *s)
 	D3D7_DrawSkySphere(s);
 }
 
-static void D3D9_DrawSkyChain (msurface_t *s)
+void D3D9_DrawSkyChain (msurface_t *s)
 {
 	//msurface_t	*fa;
 

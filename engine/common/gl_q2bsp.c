@@ -2768,6 +2768,11 @@ qboolean CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
 
 			out->mesh = Hunk_Alloc(sizeof(mesh_t) + (sizeof(vec3_t)) * numverts);
 			out->mesh->normals_array= map_normals_array + LittleLong(in->firstvertex);
+
+#pragma message("s/t vectors not calculated for q3bsp")
+			out->mesh->snormals_array = out->mesh->normals_array;
+			out->mesh->tnormals_array = out->mesh->normals_array;
+
 			out->mesh->colors_array	= map_colors_array + LittleLong(in->firstvertex);
 			out->mesh->indexes		= map_surfindexes + LittleLong(in->firstindex);
 			out->mesh->xyz_array	= map_verts + LittleLong(in->firstvertex);

@@ -87,16 +87,22 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define isextendedcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || x == '-')
 #define ishexcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || (x >= 'a' && x <= 'f'))
 
+typedef struct conline_s {
+	struct conline_s *older;
+	unsigned int length;
+	struct conline_s *newer;
+} conline_t;
+
 typedef struct console_s
 {
 	char name[64];
-	conchar_t text[CON_TEXTSIZE];
-	int		current;		// line where next message will be printed
+	int linecount;
+	conline_t *oldest;
+	conline_t *current;		// line where next message will be printed
 	int		x;				// offset in current line for next print
-	int		display;		// bottom of console displays this line
-	int		linewidth;
-	int		totallines;
-	int		vislines;
+	conline_t *display;		// bottom of console displays this line
+	int		vislines;		// pixel lines
+	int		linesprinted;	// for notify times
 	qboolean unseentext;
 	int		commandcompletion;	//allows tab completion of quake console commands
 	void	(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear.

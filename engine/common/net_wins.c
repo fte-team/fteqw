@@ -1333,7 +1333,7 @@ ftenet_connections_t *FTENET_CreateCollection(qboolean listen)
 	return col;
 }
 
-qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, const char *address, ftenet_generic_connection_t *(*establish)(qboolean isserver, const char *address))
+qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, const char *address, ftenet_generic_connection_t *(*establish)(qboolean isserver, const char *address), qboolean islisten)
 {
 	int i;
 	if (!col)
@@ -1369,7 +1369,7 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 	{
 		if (!col->conn[i])
 		{
-			col->conn[i] = establish(col->islisten, address);
+			col->conn[i] = establish(islisten, address);
 			if (!col->conn[i])
 				return false;
 			col->conn[i]->name = name;
@@ -1994,27 +1994,18 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 			closesocket(newsocket);
 			return NULL;
 		}
+
+		if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
+			Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 	}
 	else
 	{
-		if (!NET_StringToAdr(address, &adr))
+		if (!NET_PortToAdr(affamily, address, &adr))
 			return NULL;	//couldn't resolve the name
-
-		temp = NetadrToSockadr(&adr, &qs);
-		family = ((struct sockaddr_in*)&qs)->sin_family;
-
-		if ((newsocket = socket (family, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
+		newsocket = TCP_OpenStream(adr);
+		if (newsocket == INVALID_SOCKET)
 			return NULL;
-
-		if (connect(newsocket, (struct sockaddr *)&qs, temp) == INVALID_SOCKET)
-		{
-			closesocket(newsocket);
-			return NULL;
-		}
 	}
-
-	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
-		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 
 	//this isn't fatal
 	setsockopt(newsocket, IPPROTO_TCP, TCP_NODELAY, (char *)&_true, sizeof(_true));
@@ -2639,7 +2630,7 @@ ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(qboolean isse
 		newcon->generic.SendPacket = FTENET_IRCConnect_SendPacket;
 		newcon->generic.Close = FTENET_IRCConnect_Close;
 
-		newcon->generic.islisten = true;
+		newcon->generic.islisten = isserver;
 		newcon->generic.addrtype[0] = NA_IRC;
 		newcon->generic.addrtype[1] = NA_INVALID;
 
@@ -2758,7 +2749,7 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 	Con_Printf("No route - open some ports\n");
 }
 
-void NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host)
+void NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host, qboolean islisten)
 {
 	netadr_t adr;
 	NET_StringToAdr(host, &adr);
@@ -2767,17 +2758,17 @@ void NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *ho
 	{
 #ifdef TCPCONNECT
 	case NA_TCP:
-		FTENET_AddToCollection(collection, routename, host, FTENET_TCP4Connect_EstablishConnection);
+		FTENET_AddToCollection(collection, routename, host, FTENET_TCP4Connect_EstablishConnection, islisten);
 		break;
 #ifdef IPPROTO_IPV6
 	case NA_TCPV6:
-		FTENET_AddToCollection(collection, routename, host, FTENET_TCP6Connect_EstablishConnection);
+		FTENET_AddToCollection(collection, routename, host, FTENET_TCP6Connect_EstablishConnection, islisten);
 		break;
 #endif
 #endif
 #ifdef IRCCONNECT
 	case NA_IRC:
-		FTENET_AddToCollection(collection, routename, host, FTENET_IRCConnect_EstablishConnection);
+		FTENET_AddToCollection(collection, routename, host, FTENET_IRCConnect_EstablishConnection, islisten);
 		break;
 #endif
 	default:
@@ -3185,7 +3176,7 @@ void SVNET_AddPort(void)
 	{
 		svs.sockets = FTENET_CreateCollection(true);
 #ifndef SERVERONLY
-		FTENET_AddToCollection(svs.sockets, "SVLoopback", "27500", FTENET_Loop_EstablishConnection);
+		FTENET_AddToCollection(svs.sockets, "SVLoopback", "27500", FTENET_Loop_EstablishConnection, true);
 #endif
 	}
 
@@ -3194,30 +3185,30 @@ void SVNET_AddPort(void)
 	switch(adr.type)
 	{
 	case NA_IP:
-		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_UDP4_EstablishConnection);
+		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_UDP4_EstablishConnection, true);
 		break;
 #ifdef IPPROTO_IPV6
 	case NA_IPV6:
-		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_UDP6_EstablishConnection);
+		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_UDP6_EstablishConnection, true);
 		break;
 #endif
 #ifdef USEIPX
 	case NA_IPX:
-		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_IPX_EstablishConnection);
+		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_IPX_EstablishConnection, true);
 		break;
 #endif
 #ifdef IRCCONNECT
 	case NA_IRC:
-		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_IRCConnect_EstablishConnection);
+		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_IRCConnect_EstablishConnection, true);
 		break;
 #endif
 #ifdef IRCCONNECT
 	case NA_TCP:
-		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_TCP4Connect_EstablishConnection);
+		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_TCP4Connect_EstablishConnection, true);
 		break;
 #ifdef IPPROTO_IPV6
 	case NA_TCPV6:
-		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_TCP6Connect_EstablishConnection);
+		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_TCP6Connect_EstablishConnection, true);
 		break;
 #endif
 #endif
@@ -3285,14 +3276,14 @@ void NET_InitClient(void)
 
 	cls.sockets = FTENET_CreateCollection(false);
 #ifndef CLIENTONLY
-	FTENET_AddToCollection(cls.sockets, "CLLoopback", port, FTENET_Loop_EstablishConnection);
+	FTENET_AddToCollection(cls.sockets, "CLLoopback", port, FTENET_Loop_EstablishConnection, false);
 #endif
-	FTENET_AddToCollection(cls.sockets, "CLUDP4", port, FTENET_UDP4_EstablishConnection);
+	FTENET_AddToCollection(cls.sockets, "CLUDP4", port, FTENET_UDP4_EstablishConnection, true);
 #ifdef IPPROTO_IPV6
-	FTENET_AddToCollection(cls.sockets, "CLUDP6", port, FTENET_UDP6_EstablishConnection);
+	FTENET_AddToCollection(cls.sockets, "CLUDP6", port, FTENET_UDP6_EstablishConnection, true);
 #endif
 #ifdef USEIPX
-	FTENET_AddToCollection(cls.sockets, "CLIPX", port, FTENET_IPX_EstablishConnection);
+	FTENET_AddToCollection(cls.sockets, "CLIPX", port, FTENET_IPX_EstablishConnection, true);
 #endif
 
 	//
@@ -3316,29 +3307,29 @@ void NET_InitClient(void)
 #ifndef CLIENTONLY
 void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
 {
-	FTENET_AddToCollection(svs.sockets, "SVTCP4", var->string, FTENET_TCP4Connect_EstablishConnection);
+	FTENET_AddToCollection(svs.sockets, "SVTCP4", var->string, FTENET_TCP4Connect_EstablishConnection, true);
 }
 #ifdef IPPROTO_IPV6
 void SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue)
 {
-	FTENET_AddToCollection(svs.sockets, "SVTCP6", var->string, FTENET_TCP6Connect_EstablishConnection);
+	FTENET_AddToCollection(svs.sockets, "SVTCP6", var->string, FTENET_TCP6Connect_EstablishConnection, true);
 }
 #endif
 
 void SV_Port_Callback(struct cvar_s *var, char *oldvalue)
 {
-	FTENET_AddToCollection(svs.sockets, "SVUDP4", var->string, FTENET_UDP4_EstablishConnection);
+	FTENET_AddToCollection(svs.sockets, "SVUDP4", var->string, FTENET_UDP4_EstablishConnection, true);
 }
 #ifdef IPPROTO_IPV6
 void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue)
 {
-	FTENET_AddToCollection(svs.sockets, "SVUDP6", var->string, FTENET_UDP6_EstablishConnection);
+	FTENET_AddToCollection(svs.sockets, "SVUDP6", var->string, FTENET_UDP6_EstablishConnection, true);
 }
 #endif
 #ifdef USEIPX
 void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue)
 {
-	FTENET_AddToCollection(svs.sockets, "SVIPX", var->string, FTENET_IPX_EstablishConnection);
+	FTENET_AddToCollection(svs.sockets, "SVIPX", var->string, FTENET_IPX_EstablishConnection, true);
 }
 #endif
 #endif
@@ -3360,7 +3351,7 @@ void NET_InitServer(void)
 	{
 		svs.sockets = FTENET_CreateCollection(true);
 #ifndef SERVERONLY
-		FTENET_AddToCollection(svs.sockets, "SVLoopback", port, FTENET_Loop_EstablishConnection);
+		FTENET_AddToCollection(svs.sockets, "SVLoopback", port, FTENET_Loop_EstablishConnection, true);
 #endif
 	}
 

@@ -327,12 +327,7 @@ void GLMod_ClearAll (void)
 			{
 				if (!mod->textures[t])
 					continue;
-				if (mod->textures[t]->gl_vboe)
-					qglDeleteBuffersARB(1, &mod->textures[t]->gl_vboe);
-				if (mod->textures[t]->gl_vbov)
-					qglDeleteBuffersARB(1, &mod->textures[t]->gl_vbov);
-				mod->textures[t]->gl_vboe = 0;
-				mod->textures[t]->gl_vbov = 0;
+				GL_ClearVBO(&mod->textures[t]->vbo);
 			}
 		}
 
@@ -932,7 +927,6 @@ Mod_LoadTextures
 */
 qboolean GLMod_LoadTextures (lump_t *l)
 {
-	extern cvar_t gl_shadeq1, gl_shadeq1_name;
 	extern int gl_bumpmappingpossible;
 	int		i, j, pixels, num, max, altmax;
 	miptex_t	*mt;
@@ -996,14 +990,9 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 
 		if (!mt->offsets[0])	//this is a hl external style texture, load it a little later (from a wad)
 		{
-//			tx->gl_texturenum = Mod_LoadReplacementTexture("light1_4", true, false);
 			continue;
 		}
-//		for (j=0 ; j<MIPLEVELS ; j++)
-//			tx->offsets[j] = mt->offsets[j] + sizeof(texture_t) - sizeof(miptex_t);
-		// the pixels immediately follow the structures
-//		memcpy ( tx+1, mt+1, pixels);	//have to be saved for dynamic screen changing (done by reloading entire vid/draw subsystem and all textures)
-		
+
 		if (!Q_strncmp(mt->name,"sky",3))
 		{
 			tx->offsets[0] = (char *)mt + mt->offsets[0] - (char *)tx;
@@ -1094,30 +1083,6 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 				}
 			}
 		}
-#ifdef NEWBACKEND
-		tx->shader = R_RegisterCustom(mt->name, Shader_DefaultBSP, &tx->tn);
-#pragma message("warning: fix the following block")
-#endif
-#ifdef Q3SHADERS	//load q3 syntax shader last, after the textures inside the bsp have been loaded and stuff.
-		if (cls.allow_shaders && gl_shadeq1.value && *gl_shadeq1_name.string)
-		{
-			char *star;
-			//find the *
-			if (!strcmp(gl_shadeq1_name.string, "*"))
-			//	tx->shader = R_RegisterCustom(mt->name, NULL);	//just load the regular name.
-				tx->shader = R_RegisterShader(mt->name);	//just load the regular name.
-			else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(mt->name)+1>=sizeof(altname)))	//it's got to fit.
-				tx->shader = R_RegisterCustom(gl_shadeq1_name.string, NULL, NULL);
-			else
-			{
-				strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
-				altname[star-gl_shadeq1_name.string] = '\0';
-				strcat(altname, mt->name);	//insert the *
-				strcat(altname, star+1);	//add any final text.
-				tx->shader = R_RegisterCustom(altname, NULL, NULL);
-			}
-		}
-#endif
 	}
 //
 // sequence the animations
@@ -1229,13 +1194,12 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 
 void GLMod_NowLoadExternal(void)
 {
+	extern cvar_t gl_shadeq1, gl_shadeq1_name;
+
 	extern int gl_bumpmappingpossible;
 	int i, width, height;
 	qboolean alphaed;
 	texture_t	*tx;
-
-	if (loadmodel->fromgame != fg_halflife)
-		return;
 
 	for (i=0 ; i<loadmodel->numtextures ; i++)
 	{
@@ -1287,6 +1251,33 @@ void GLMod_NowLoadExternal(void)
 				tx->tn.bump = R_LoadTexture8Bump (va("%s_bump", tx->name), width, height, heightmap-j, true, r_shadow_bumpscale_basetexture.value);
 			}
 		}
+
+
+#ifdef NEWBACKEND
+		tx->shader = R_RegisterCustom(tx->name, Shader_DefaultBSP, &tx->tn);
+#pragma message("warning: fix the following block")
+#endif
+#ifdef Q3SHADERS	//load q3 syntax shader last, after the textures inside the bsp have been loaded and stuff.
+		if (cls.allow_shaders && gl_shadeq1.value && *gl_shadeq1_name.string)
+		{
+			char altname[MAX_QPATH];
+			char *star;
+			//find the *
+			if (!strcmp(gl_shadeq1_name.string, "*"))
+			//	tx->shader = R_RegisterCustom(mt->name, NULL);	//just load the regular name.
+				tx->shader = R_RegisterShader(tx->name);	//just load the regular name.
+			else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(tx->name)+1>=sizeof(altname)))	//it's got to fit.
+				tx->shader = R_RegisterCustom(gl_shadeq1_name.string, NULL, NULL);
+			else
+			{
+				strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
+				altname[star-gl_shadeq1_name.string] = '\0';
+				strcat(altname, tx->name);	//insert the *
+				strcat(altname, star+1);	//add any final text.
+				tx->shader = R_RegisterCustom(altname, NULL, NULL);
+			}
+		}
+#endif
 	}
 }
 

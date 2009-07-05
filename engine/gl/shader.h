@@ -130,7 +130,12 @@ typedef struct shaderpass_s {
 		TC_GEN_LIGHTMAP,	//use loaded lightmap coords
 		TC_GEN_ENVIRONMENT,
 		TC_GEN_DOTPRODUCT,
-		TC_GEN_VECTOR
+		TC_GEN_VECTOR,
+
+		//these are really for use only in glsl stuff.
+		TC_GEN_NORMAL,
+		TC_GEN_SVECTOR,
+		TC_GEN_TVECTOR,
 	} tcgen;
 	enum {
 		RGB_GEN_WAVE,

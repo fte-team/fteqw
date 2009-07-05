@@ -2567,6 +2567,24 @@ void Cmd_Vstr_f( void )
 	Cbuf_InsertText(v, Cmd_ExecLevel, true);
 }
 
+void Cmd_toggle_f(void)
+{
+	cvar_t *v;
+	if (Cmd_Argc()<2)
+	{
+		Con_Printf("missing cvar name\n");
+		return;
+	}
+	v = Cvar_Get(Cmd_Argv(1), "0", 0, "Custom variables");
+	if (!v)
+		return;
+
+	if (v->value)
+		Cvar_Set(v, "0");
+	else
+		Cvar_Set(v, "1");
+}
+
 void Cmd_set_f(void)
 {
 	void *mark;
@@ -2798,31 +2816,20 @@ void Cmd_Condump_f(void)
 	// print out current contents of console
 	// stripping out starting blank lines and blank spaces
 	{
-		conchar_t *text;
-		int row, line, x, spc, content;
 		console_t *curcon = &con_main;
-
-		content = 0;
-		row = curcon->current - curcon->totallines+1;
-		for (line = 0; line < curcon->totallines-1; line++, row++)
+		conline_t *l;
+		int i;
+		conchar_t *t;
+		for (l = curcon->oldest; l; l = l->newer)
 		{
-			text = curcon->text + (row % curcon->totallines)*curcon->linewidth;
-			spc = 0;
-			for (x = 0; x < curcon->linewidth; x++)
+			t = (conchar_t*)(l+1);
+			//FIXME: utf8?
+			for (i = 0; i < l->length; i++)
 			{
-				if (((qbyte)text[x]&255) == ' ')
-					spc++;
-				else
-				{
-					content = 1;
-					for (; spc > 0; spc--)
-						VFS_WRITE(f, " ", 1);
-					c = (qbyte)text[x]&255;
-					VFS_WRITE(f, &c, 1);
-				}
+				c = (qbyte)t[i]&0xff;
+				VFS_WRITE(f, &c, 1);
 			}
-			if (content)
-				VFS_WRITE(f, "\n", 1);
+			VFS_WRITE(f, "\n", 1);
 		}
 	}
 
@@ -2875,6 +2882,7 @@ void Cmd_Init (void)
 //	Cmd_AddCommand ("msg_trigger", Cmd_Msg_Trigger_f);
 //	Cmd_AddCommand ("filter", Cmd_Msg_Filter_f);
 
+	Cmd_AddCommand ("toggle", Cmd_toggle_f);
 	Cmd_AddCommand ("set", Cmd_set_f);
 	Cmd_AddCommand ("set_calc", Cmd_set_f);
 	Cmd_AddCommand ("seta", Cmd_set_f);

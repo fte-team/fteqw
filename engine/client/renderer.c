@@ -2294,6 +2294,8 @@ float	r_view_matrix[16];
 
 void MYgluPerspective(double fovx, double fovy, double zNear, double zFar)
 {
+	Matrix4_Projection_Far(r_projection_matrix, fovx, fovy, zNear, zFar);
+	/*
 	double xmin, xmax, ymin, ymax;
 
 	ymax = zNear * tan( fovy * M_PI / 360.0 );
@@ -2321,6 +2323,7 @@ void MYgluPerspective(double fovx, double fovy, double zNear, double zFar)
 	r_projection_matrix[7] = 0;
 	r_projection_matrix[11] = -1;
 	r_projection_matrix[15] = 0;
+	*/
 }
 
 void GL_InfinatePerspective(double fovx, double fovy,

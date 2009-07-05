@@ -1598,7 +1598,7 @@ qglColor3f(0,0,1);
 }
 
 //returns result in the form of the result vector
-void RotateLightVector(vec3_t *axis, vec3_t origin, vec3_t lightpoint, vec3_t result)
+void RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lightpoint, vec3_t result)
 {
 	vec3_t offs;
 

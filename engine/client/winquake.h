@@ -173,7 +173,7 @@ extern HWND		hwnd_dialog;
 
 void IN_UpdateClipCursor (void);
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify);
-int MapKey (int key);
+void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down);
 void MW_Hook_Message (long buttons);
 
 void S_BlockSound (void);

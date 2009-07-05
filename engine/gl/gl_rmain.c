@@ -1045,17 +1045,18 @@ void R_SetupGL (void)
 	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
 	if (r_refdef.useperspective)
 	{
-		if ((!r_shadows.value || !gl_canstencil) && gl_maxdist.value>256)//gl_nv_range_clamp)
+		if ((!r_shadows.value || !gl_canstencil) && gl_maxdist.value>=100)//gl_nv_range_clamp)
 		{
 	//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
 	//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
 	//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
 	//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
-			MYgluPerspective (fov_x, fov_y,  gl_mindist.value,  gl_maxdist.value);
+
+			Matrix4_Projection_Far(r_projection_matrix, fov_x, fov_y, gl_mindist.value, gl_maxdist.value);
 		}
 		else
 		{
-			GL_InfinatePerspective(fov_x, fov_y, gl_mindist.value);
+			Matrix4_Projection_Inf(r_projection_matrix, fov_x, fov_y, gl_mindist.value);
 		}
 	}
 	else
@@ -1151,7 +1152,7 @@ void R_RenderScene (void)
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 
 #ifdef NEWBACKEND
-	PPL_GenShadowMaps();
+	Sh_GenShadowMaps();
 #endif
 
 	GLR_SetupFrame ();

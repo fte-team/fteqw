@@ -1530,7 +1530,7 @@ void PF_strdecolorize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
 	char result[8192];
 	unsigned long flagged[8192];
-	COM_ParseFunString(CON_WHITEMASK, in, flagged, sizeof(flagged)/sizeof(flagged[0]));
+	COM_ParseFunString(CON_WHITEMASK, in, flagged, sizeof(flagged), false);
 	COM_DeFunString(flagged, result, sizeof(result), true);
 
 	RETURN_TSTRING(result);
@@ -1796,14 +1796,70 @@ void PF_crc16 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // #510 string(string in) uri_escape = #510;
 void PF_uri_escape  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *s = PR_GetStringOfs(prinst, OFS_PARM0);
-	RETURN_TSTRING(s);
+	static const char *hex = "0123456789ABCDEF";
+
+	unsigned char result[8192];
+	unsigned char *o = result;
+	unsigned char *s = PR_GetStringOfs(prinst, OFS_PARM0);
+	*result = 0;
+	while (*s && o < result+sizeof(result)-4)
+	{
+		if ((*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') || (*s >= '0' && *s <= '9')
+				|| *s == '.' || *s == '-' || *s == '_')
+			*o++ = *s++;
+		else
+		{
+			*o++ = '%';
+			*o++ = hex[*s>>4];
+			*o++ = hex[*s&0xf];
+			s++;
+		}
+	}
+	*o = 0;
+	RETURN_TSTRING(result);
 }
 
 // #511 string(string in) uri_unescape = #511;
 void PF_uri_unescape  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *s = PR_GetStringOfs(prinst, OFS_PARM0);
+	unsigned char *s = (unsigned char*)PR_GetStringOfs(prinst, OFS_PARM0);
+	unsigned char *i, *o;
+	unsigned char hex;
+	i = s; o = s;
+	while (*i)
+	{
+		if (*i == '%')
+		{
+			hex = 0;
+			if (i[1] >= 'A' && i[1] <= 'F')
+				hex += i[1]-'A'+10;
+			else if (i[1] >= 'a' && i[1] <= 'f')
+				hex += i[1]-'a'+10;
+			else if (i[1] >= '0' && i[1] <= '9')
+				hex += i[1]-'0';
+			else
+			{
+				*o++ = *i++;
+				continue;
+			}
+			hex <<= 4;
+			if (i[2] >= 'A' && i[2] <= 'F')
+				hex += i[2]-'A'+10;
+			else if (i[2] >= 'a' && i[2] <= 'f')
+				hex += i[2]-'a'+10;
+			else if (i[2] >= '0' && i[2] <= '9')
+				hex += i[2]-'0';
+			else
+			{
+				*o++ = *i++;
+				continue;
+			}
+			*o++ = hex;
+			i += 3;
+		}
+		*o++ = *i++;
+	}
+	*o = 0;
 	RETURN_TSTRING(s);
 }
 

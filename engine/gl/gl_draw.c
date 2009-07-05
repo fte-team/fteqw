@@ -47,6 +47,10 @@ index_t r_quad_indexes[6] = {0, 1, 2, 0, 2, 3};
 
 extern qbyte		gammatable[256];
 
+#ifdef AVAIL_FREETYPE
+struct font_s *conchar_font;
+#endif
+
 unsigned char *d_15to8table;
 qboolean inited15to8;
 extern cvar_t crosshair, crosshairimage, crosshairalpha, cl_crossx, cl_crossy, crosshaircolor, crosshairsize;
@@ -1185,6 +1189,10 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 #ifdef PLUGINS
 	Plug_DrawReloadImages();
 #endif
+
+#ifdef AVAIL_FREETYPE
+	conchar_font = Font_LoadFont(16, "C:/Windows/Fonts/cour.ttf");
+#endif
 }
 
 void GLDraw_Init (void)
@@ -1213,6 +1221,12 @@ void GLDraw_Init (void)
 void GLDraw_DeInit (void)
 {
 	Cmd_RemoveCommand ("gl_texture_anisotropic_filtering");
+#ifdef AVAIL_FREETYPE
+	if (conchar_font)
+		Font_Free(conchar_font);
+	conchar_font = NULL; 
+	Font_Shutdown();
+#endif
 
 	draw_disc = NULL;
 
@@ -1307,10 +1321,11 @@ void GLDraw_Character (int x, int y, unsigned int num)
 	if (y <= -8)
 		return;			// totally off screen
 
-	num &= 255;
-
+	num &= CON_CHARMASK;
 	if (num == 32)
 		return;		// space
+//	if ((num&0xff00) != 0xe000 && num & ~0x7f)
+//		num = '?';
 
 	row = num>>4;
 	col = num&15;
@@ -2355,6 +2370,8 @@ void GL_Font_Callback(struct cvar_s *var, char *oldvalue)
 {
 	mpic_t *pic;
 	int old_char_texture = char_texture;
+
+	//testfont = Font_LoadFont(testfontheight, var->string);
 
 	if (!*var->string
 		|| (!(char_texture=Mod_LoadHiResTexture(var->string, "fonts", false, true, true))

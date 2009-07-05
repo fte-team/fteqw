@@ -1393,7 +1393,7 @@ void ClearAllStates (void)
 // send an up event for each key, to make sure the server clears them all
 	for (i=0 ; i<256 ; i++)
 	{
-		Key_Event (i, false);
+		Key_Event (i, 0, false);
 	}
 
 	Key_ClearStates ();
@@ -1521,17 +1521,26 @@ LONG WINAPI GLMainWndProc (
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 			if (!vid_initializing)
-				Key_Event (MapKey(lParam), true);
+			{
+				IN_TranslateKeyEvent(wParam, lParam, true);
+			}
+			break;
+
+//		case WM_UNICHAR:
+		case WM_DEADCHAR:
+		case WM_SYSDEADCHAR:
+		case WM_CHAR:
+		case WM_SYSCHAR:
+//			if (!vid_initializing)
+//				IN_TranslateKeyEvent(wParam, lParam, true);
 			break;
 
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
-				Key_Event (MapKey(lParam), false);
-			break;
-
-		case WM_SYSCHAR:
-		// keep Alt-Space from happening
+			{
+				IN_TranslateKeyEvent(wParam, lParam, false);
+			}
 			break;
 
 	// this is complicated because Win32 seems to pack multiple mouse events into
@@ -1595,13 +1604,13 @@ LONG WINAPI GLMainWndProc (
 			{
 				if ((short) HIWORD(wParam) > 0)
 				{
-					Key_Event(K_MWHEELUP, true);
-					Key_Event(K_MWHEELUP, false);
+					Key_Event(K_MWHEELUP, 0, true);
+					Key_Event(K_MWHEELUP, 0, false);
 				}
 				else
 				{
-					Key_Event(K_MWHEELDOWN, true);
-					Key_Event(K_MWHEELDOWN, false);
+					Key_Event(K_MWHEELDOWN, 0, true);
+					Key_Event(K_MWHEELDOWN, 0, false);
 				}
 			}
 			break;

@@ -725,7 +725,7 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 	temp[1] = (-cursor_screen[1]+1)/2;
 	temp[2] = 1;
 
-	Matrix4_UnProject(temp, cursor_end, cl.viewangles[0], vec3_origin, (float)vid.width/vid.height, scr_fov.value );
+	Matrix4_UnProject(temp, cursor_end, cl.viewangles[0], vec3_origin, scr_fov.value*(float)vid.width/vid.height, scr_fov.value );
 	VectorScale(cursor_end, 100000, cursor_end);
 
 	VectorAdd(cursor_start, cl.simorg[0], cursor_start);

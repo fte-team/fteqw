@@ -310,13 +310,13 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 			if (!vid_initializing)
-				Key_Event (MapKey(lParam), true);
+				IN_TranslateKeyEvent (wParam, lParam, true);
 			break;
 
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
-				Key_Event (MapKey(lParam), false);
+				IN_TranslateKeyEvent (wParam, lParam, false);
 			break;
 
 		case WM_SYSCHAR:
@@ -379,13 +379,13 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			{
 				if ((short) HIWORD(wParam) > 0)
 				{
-					Key_Event(K_MWHEELUP, true);
-					Key_Event(K_MWHEELUP, false);
+					Key_Event(K_MWHEELUP, 0, true);
+					Key_Event(K_MWHEELUP, 0, false);
 				}
 				else
 				{
-					Key_Event(K_MWHEELDOWN, true);
-					Key_Event(K_MWHEELDOWN, false);
+					Key_Event(K_MWHEELDOWN, 0, true);
+					Key_Event(K_MWHEELDOWN, 0, false);
 				}
 			}
 			break;
@@ -897,6 +897,10 @@ int (D3D9_Mod_SkinForName)				(struct model_s *model, char *name)
 {
 	return 0;
 }
+int (D3D9_Mod_FrameForName)				(struct model_s *model, char *name)
+{
+	return 0;
+}
 
 void	 (D3D9_VID_DeInit)				(void)
 {
@@ -1310,7 +1314,7 @@ void	(D3D9_Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic);
 void	(D3D9_Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
 void	(D3D9_Draw_TransPic)			(int x, int y, mpic_t *pic);
 void	(D3D9_Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation);
-void	(D3D9_Draw_ConsoleBackground)	(int lines);
+void	D3D9_Draw_ConsoleBackground	(int firstline, int lastline, qboolean forceopaque);
 void	(D3D9_Draw_EditorBackground)	(int lines);
 void	(D3D9_Draw_TileClear)			(int x, int y, int w, int h);
 void	(D3D9_Draw_Fill)				(int x, int y, int w, int h, unsigned int c);
@@ -1449,6 +1453,7 @@ rendererinfo_t d3d9rendererinfo =
 	Mod_GetTag,
 	Mod_TagNumForName,
 	D3D9_Mod_SkinForName,
+	D3D9_Mod_FrameForName,
 
 
 	D3D9_VID_Init,

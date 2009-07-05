@@ -498,10 +498,10 @@ static void PPL_BaseChain_VBO_NoBump_2TMU_Overbright(msurface_t *s, texture_t *t
 	varrayactive = false;
 	qglDisableClientState(GL_COLOR_ARRAY);
 	qglEnableClientState(GL_VERTEX_ARRAY);
-	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, tex->gl_vbov);
-	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, tex->gl_vboe);
+	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, tex->vbo.vboe);
 
-	qglVertexPointer(3, GL_FLOAT, sizeof(vbovertex_t), ((vbovertex_t*)NULL)->coord);
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, tex->vbo.vbocoord);
+	qglVertexPointer(3, GL_FLOAT, 0, tex->vbo.coord);
 
 	if (tex->alphaed || currententity->shaderRGBAf[3]<1)
 	{
@@ -526,11 +526,13 @@ static void PPL_BaseChain_VBO_NoBump_2TMU_Overbright(msurface_t *s, texture_t *t
 
 	GL_MBind(GL_TEXTURE0_ARB, tex->tn.base);
 	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglTexCoordPointer(2, GL_FLOAT, sizeof(vbovertex_t), ((vbovertex_t*)NULL)->texcoord);
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, tex->vbo.vbotexcoord);
+	qglTexCoordPointer(2, GL_FLOAT, 0, tex->vbo.texcoord);
 
 	GL_SelectTexture(GL_TEXTURE1_ARB);
 	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglTexCoordPointer(2, GL_FLOAT, sizeof(vbovertex_t), ((vbovertex_t*)NULL)->lmcoord);
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, tex->vbo.vbolmcoord);
+	qglTexCoordPointer(2, GL_FLOAT, 0, tex->vbo.lmcoord);
 
 	GL_TexEnv(GL_MODULATE);
 
@@ -762,7 +764,7 @@ static void PPL_BaseChain_Bump_2TMU(msurface_t *first, texture_t *tex)
 				lightmap[vi]->deluxmodified = false;
 				theRect = &lightmap[vi]->deluxrectchange;
 				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
-					LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+					LMBLOCK_WIDTH, theRect->h, GL_RGB, GL_UNSIGNED_BYTE,
 					lightmap[vi]->deluxmaps+(theRect->t) *LMBLOCK_WIDTH*3);
 				theRect->l = LMBLOCK_WIDTH;
 				theRect->t = LMBLOCK_HEIGHT;
@@ -1705,8 +1707,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 				dl->radius = 50;
 
 				//flashblend only
-				dl->noppl = true;
-				dl->nodynamic = true;
+				dl->flags = LFLAG_ALLOW_FLASH;
 
 				first = first->texturechain;
 			}
@@ -1851,7 +1852,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		{
 //			PPL_BaseChain_NoBump_2TMU_TEST(first, t);
 //			PPL_BaseChain_NoBump_2TMU(first, t);
-			if (t->gl_vbov)
+			if (t->vbo.vbocoord)
 				PPL_BaseChain_VBO_NoBump_2TMU_Overbright(first, t);
 			else
 				PPL_BaseChain_NoBump_2TMU_Overbright(first, t);
@@ -2037,7 +2038,7 @@ void PPL_BaseBModelTextures(entity_t *e)
 			{
 				if (!cl_dlights[k].radius)
 					continue;
-				if (cl_dlights[k].nodynamic)
+				if (!(cl_dlights[k].flags & LFLAG_ALLOW_LMHACK))
 					continue;
 
 				currentmodel->funcs.MarkLights (&cl_dlights[k], 1<<k,
@@ -5178,12 +5179,12 @@ void PPL_DrawWorld (void)
 //			lc = NULL;
 			for (l = cl_dlights, i=0 ; i<dlights_running ; i++, l++)
 			{
-				if (!l->radius || l->noppl)
+				if (!l->radius || !(l->flags & LFLAG_ALLOW_PPL))
 					continue;
 				if (l->color[0]<0)
 					continue;	//quick check for darklight
 
-				if (l->isstatic)
+				if (l->flags & LFLAG_REALTIMEMODE)
 				{
 					if (!r_shadow_realtime_world.value)
 						continue;
@@ -5236,21 +5237,9 @@ void PPL_DrawWorld (void)
 			for (l = lc; l; l = l->next)	//we now have our quotaed list
 			{
 #endif
-				if(!l->isstatic)
-				{
-					l->color[0]*=10;
-					l->color[1]*=10;
-					l->color[2]*=10;
-				}
 				TRACE(("dbg: calling PPL_AddLight\n"));
 				if (PPL_AddLight(l))
 					numlights++;
-				if(!l->isstatic)
-				{
-					l->color[0]/=10;
-					l->color[1]/=10;
-					l->color[2]/=10;
-				}
 			}
 			qglEnable(GL_TEXTURE_2D);
 		
@@ -5507,7 +5496,7 @@ void PPL_BeginShadowMesh(dlight_t *dl)
 
 	if (buildingmesh)
 		return;
-	if (!dl->isstatic)
+	if (dl->die)
 		return;
 
 	sh_maxverts = 0;

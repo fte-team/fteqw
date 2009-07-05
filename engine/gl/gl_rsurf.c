@@ -384,7 +384,7 @@ void GLR_AddDynamicLights (msurface_t *surf)
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
 
-		if (cl_dlights[lnum].nodynamic)
+		if (!(cl_dlights[lnum].flags & LFLAG_ALLOW_LMHACK))
 			continue;
 
 		rad = cl_dlights[lnum].radius;
@@ -452,7 +452,7 @@ void GLR_AddDynamicLightNorms (msurface_t *surf)
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
 
-		if (cl_dlights[lnum].nodynamic)
+		if (!(cl_dlights[lnum].flags & LFLAG_ALLOW_LMHACK))
 			continue;
 
 		rad = cl_dlights[lnum].radius;
@@ -2778,16 +2778,18 @@ void GL_BuildSurfaceDisplayList (msurface_t *fa)
 	vertpage = 0;
 
 	if (lnumverts<3)
-		return;	//q3 map.
+		return;	//q3 flares.
 
 	{	//build a nice mesh instead of a poly.
-		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vec3_t) + sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(byte_vec4_t))*lnumverts;
+		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vec3_t) + 3*sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(byte_vec4_t))*lnumverts;
 		mesh_t *mesh;
 
 		fa->mesh = mesh = Hunk_Alloc(size);
 		mesh->xyz_array = (vec3_t*)(mesh + 1);
 		mesh->normals_array = (vec3_t*)(mesh->xyz_array + lnumverts);
-		mesh->st_array = (vec2_t*)(mesh->normals_array + lnumverts);
+		mesh->snormals_array = (vec3_t*)(mesh->normals_array + lnumverts);
+		mesh->tnormals_array = (vec3_t*)(mesh->snormals_array + lnumverts);
+		mesh->st_array = (vec2_t*)(mesh->tnormals_array + lnumverts);
 		mesh->lmst_array = (vec2_t*)(mesh->st_array + lnumverts);
 		mesh->colors_array = (byte_vec4_t*)(mesh->lmst_array + lnumverts);
 		mesh->indexes = (index_t*)(mesh->colors_array + lnumverts);
@@ -2845,6 +2847,8 @@ void GL_BuildSurfaceDisplayList (msurface_t *fa)
 				VectorNegate(fa->plane->normal, mesh->normals_array[i]);
 			else
 				VectorCopy(fa->plane->normal, mesh->normals_array[i]);
+			VectorCopy(fa->texinfo->vecs[0], mesh->snormals_array[i]);
+			VectorCopy(fa->texinfo->vecs[1], mesh->tnormals_array[i]);
 
 			mesh->colors_array[i][0] = 255;
 			mesh->colors_array[i][1] = 255;
@@ -2922,6 +2926,93 @@ void GLSurf_DeInit(void)
 	numlightmaps=0;
 }
 
+void GL_ClearVBO(vbo_t *vbo)
+{
+	int vboh[7];
+	int i, j;
+	vboh[0] = vbo->vboe;
+	vboh[1] = vbo->vbocoord;
+	vboh[2] = vbo->vbotexcoord;
+	vboh[3] = vbo->vbolmcoord;
+	vboh[4] = vbo->vbonormals;
+	vboh[5] = vbo->vbosvector;
+	vboh[6] = vbo->vbotvector;
+
+	for (i = 0; i < 7; i++)
+	{
+		if (!vboh[i])
+			continue;
+		for (j = 0; j < 7; j++)
+		{
+			if (vboh[j] == vboh[i])
+				break;	//already freed by one of the other ones
+		}
+		if (j == 7)
+			qglDeleteBuffersARB(1, &vboh[i]);
+	}
+	memset(vbo, 0, sizeof(*vbo));
+}
+
+qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int elementsize)
+{
+	unsigned int vbos[2];
+
+//	if (!qglGenBuffersARB)
+		return false;
+
+	qglGenBuffersARB(2, vbos);
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbos[0]);
+	qglBufferDataARB(GL_ARRAY_BUFFER_ARB, vsize, vdata, GL_STATIC_DRAW_ARB);
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, vbos[1]);
+	qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, elementsize, edata, GL_STATIC_DRAW_ARB);
+	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+	if (qglGetError())
+	{
+		qglDeleteBuffersARB(2, vbos);
+		return false;
+	}
+
+	//opengl ate our data, fixup the vbo arrays to point to the vbo instead of the raw data
+
+	if (vbo->indicies)
+	{
+		vbo->vboe = vbos[1];
+		vbo->indicies = (index_t*)((char*)vbo->indicies - (char*)edata);
+	}
+	if (vbo->coord)
+	{
+		vbo->vbocoord = vbos[0];
+		vbo->coord = (vec3_t*)((char*)vbo->coord - (char*)vdata);
+	}
+	if (vbo->texcoord)
+	{
+		vbo->vbotexcoord = vbos[0];
+		vbo->texcoord = (vec2_t*)((char*)vbo->texcoord - (char*)vdata);
+	}
+	if (vbo->lmcoord)
+	{
+		vbo->vbolmcoord = vbos[0];
+		vbo->lmcoord = (vec2_t*)((char*)vbo->lmcoord - (char*)vdata);
+	}
+	if (vbo->normals)
+	{
+		vbo->vbonormals = vbos[0];
+		vbo->normals = (vec3_t*)((char*)vbo->normals - (char*)vdata);
+	}
+	if (vbo->svector)
+	{
+		vbo->vbosvector = vbos[0];
+		vbo->svector = (vec3_t*)((char*)vbo->svector - (char*)vdata);
+	}
+	if (vbo->tvector)
+	{
+		vbo->vbotvector = vbos[0];
+		vbo->tvector = (vec3_t*)((char*)vbo->tvector - (char*)vdata);
+	}
+	return true;
+}
+
 static void GL_GenBrushModelVBO(model_t *mod)
 {
 	unsigned int maxvboverts;
@@ -2929,23 +3020,24 @@ static void GL_GenBrushModelVBO(model_t *mod)
 
 	unsigned int t;
 	unsigned int i;
-	unsigned int vbos[2];
 	unsigned int v;
 	unsigned int vcount, ecount;
-	vbovertex_t *vbovdata;
-	index_t *vboedata;
-	mesh_t *m;
+	unsigned int pervertsize;	//erm, that name wasn't intentional
 
-	if (!qglGenBuffersARB || !mod->numsurfaces)
+	vbo_t *vbo;
+	char *vboedata;
+	mesh_t *m;
+	char *vbovdata;
+
+	if (!mod->numsurfaces)
 		return;
 
 	for (t = 0; t < mod->numtextures; t++)
 	{
 		if (!mod->textures[t])
 			continue;
-
-		mod->textures[t]->gl_vbov = 0;
-		mod->textures[t]->gl_vboe = 0;
+		vbo = &mod->textures[t]->vbo;
+		GL_ClearVBO(vbo);
 
 		maxvboverts = 0;
 		maxvboelements = 0;
@@ -2964,13 +3056,27 @@ static void GL_GenBrushModelVBO(model_t *mod)
 			continue;
 
 		//fixme: stop this from leaking!
-		qglGenBuffersARB(2, vbos);
-		mod->textures[t]->gl_vbov = vbos[0];
-		mod->textures[t]->gl_vboe = vbos[1];
 		vcount = 0;
 		ecount = 0;
-		vbovdata = Hunk_TempAlloc(maxvboverts*sizeof(vbovertex_t));
-		vboedata = Hunk_TempAllocMore(maxvboelements*sizeof(index_t));
+
+		pervertsize =	sizeof(vec3_t)+	//cord
+					sizeof(vec2_t)+	//tex
+					sizeof(vec2_t)+	//lm
+					sizeof(vec3_t)+	//normal
+					sizeof(vec3_t)+	//sdir
+					sizeof(vec3_t);	//tdir
+
+		vbovdata = BZ_Malloc(maxvboverts*pervertsize);
+		vboedata = BZ_Malloc(maxvboelements*sizeof(index_t));
+
+		vbo->coord = (vec3_t*)(vbovdata);
+		vbo->texcoord = (vec2_t*)((char*)vbo->coord+maxvboverts*sizeof(*vbo->coord));
+		vbo->lmcoord = (vec2_t*)((char*)vbo->texcoord+maxvboverts*sizeof(*vbo->texcoord));
+		vbo->normals = (vec3_t*)((char*)vbo->lmcoord+maxvboverts*sizeof(*vbo->lmcoord));
+		vbo->svector = (vec3_t*)((char*)vbo->normals+maxvboverts*sizeof(*vbo->normals));
+		vbo->tvector = (vec3_t*)((char*)vbo->svector+maxvboverts*sizeof(*vbo->svector));
+		vbo->indicies = (index_t*)vboedata;
+
 		for (i=0 ; i<mod->numsurfaces ; i++)
 		{
 			if (mod->surfaces[i].texinfo->texture != mod->textures[t])
@@ -2980,31 +3086,41 @@ static void GL_GenBrushModelVBO(model_t *mod)
 			m->vbofirstvert = vcount;
 			m->vbofirstelement = ecount;
 			for (v = 0; v < m->numindexes; v++)
-				vboedata[ecount++] = vcount + m->indexes[v];
+				vbo->indicies[ecount++] = vcount + m->indexes[v];
 			for (v = 0; v < m->numvertexes; v++)
 			{
-				vbovdata[vcount+v].coord[0] = m->xyz_array[v][0];
-				vbovdata[vcount+v].coord[1] = m->xyz_array[v][1];
-				vbovdata[vcount+v].coord[2] = m->xyz_array[v][2];
+				vbo->coord[vcount+v][0] = m->xyz_array[v][0];
+				vbo->coord[vcount+v][1] = m->xyz_array[v][1];
+				vbo->coord[vcount+v][2] = m->xyz_array[v][2];
 				if (m->st_array)
 				{
-					vbovdata[vcount+v].texcoord[0] = m->st_array[v][0];
-					vbovdata[vcount+v].texcoord[1] = m->st_array[v][1];
+					vbo->texcoord[vcount+v][0] = m->st_array[v][0];
+					vbo->texcoord[vcount+v][1] = m->st_array[v][1];
 				}
 				if (m->lmst_array)
 				{
-					vbovdata[vcount+v].lmcoord[0] = m->lmst_array[v][0];
-					vbovdata[vcount+v].lmcoord[1] = m->lmst_array[v][1];
+					vbo->lmcoord[vcount+v][0] = m->lmst_array[v][0];
+					vbo->lmcoord[vcount+v][1] = m->lmst_array[v][1];
 				}
+				vbo->normals[vcount+v][0] = m->normals_array[v][0];
+				vbo->normals[vcount+v][1] = m->normals_array[v][1];
+				vbo->normals[vcount+v][2] = m->normals_array[v][2];
+				vbo->svector[vcount+v][0] = m->snormals_array[v][0];
+				vbo->svector[vcount+v][1] = m->snormals_array[v][1];
+				vbo->svector[vcount+v][2] = m->snormals_array[v][2];
+				vbo->tvector[vcount+v][0] = m->tnormals_array[v][0];
+				vbo->tvector[vcount+v][1] = m->tnormals_array[v][1];
+				vbo->tvector[vcount+v][2] = m->tnormals_array[v][2];
+
 			}
 			vcount += v;
 		}
-		qglBindBufferARB(GL_ARRAY_BUFFER_ARB, mod->textures[t]->gl_vbov);
-		qglBufferDataARB(GL_ARRAY_BUFFER_ARB, vcount*sizeof(vbovertex_t), vbovdata, GL_STATIC_DRAW_ARB);
-		qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-		qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, mod->textures[t]->gl_vboe);
-		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, ecount*sizeof(vboedata[0]), vboedata, GL_STATIC_DRAW_ARB);
-		qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+
+		if (GL_BuildVBO(vbo, vbovdata, vcount*pervertsize, vboedata, ecount*sizeof(index_t)))
+		{
+			BZ_Free(vbovdata);
+			BZ_Free(vboedata);
+		}
 	}
 }
 

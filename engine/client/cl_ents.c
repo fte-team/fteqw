@@ -79,6 +79,19 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 
 //============================================================
 
+static void CL_ClearDlight(dlight_t *dl, int key)
+{
+	int st;
+	st = dl->stexture;
+	memset (dl, 0, sizeof(*dl));
+	dl->stexture = st;
+	dl->axis[0][0] = 1;
+	dl->axis[1][1] = 1;
+	dl->axis[2][2] = 1;
+	dl->key = key;
+	dl->flags = LFLAG_DYNAMIC;
+}
+
 /*
 ===============
 CL_AllocDlight
@@ -98,8 +111,7 @@ dlight_t *CL_AllocDlight (int key)
 		{
 			if (dl->key == key)
 			{
-				memset (dl, 0, sizeof(*dl));
-				dl->key = key;
+				CL_ClearDlight(dl, key);
 				return dl;
 			}
 		}
@@ -109,8 +121,7 @@ dlight_t *CL_AllocDlight (int key)
 	if (dlights_running < MAX_DLIGHTS)
 	{
 		dl = &cl_dlights[dlights_running];
-		memset (dl, 0, sizeof(*dl));
-		dl->key = key;
+		CL_ClearDlight(dl, key);
 		dlights_running++;
 		if (dlights_software < MAX_SWLIGHTS)
 			dlights_software++;
@@ -118,8 +129,7 @@ dlight_t *CL_AllocDlight (int key)
 	}
 
 	dl = &cl_dlights[0];
-	memset (dl, 0, sizeof(*dl));
-	dl->key = key;
+	CL_ClearDlight(dl, key);
 	return dl;
 }
 
@@ -198,6 +208,12 @@ void CL_DecayLights (void)
 	{
 		if (!dl->radius)
 			continue;
+
+		if (!dl->die)
+		{
+			lastrunning = i;
+			continue;
+		}
 
 		if (dl->die < (float)cl.time)
 		{
@@ -1476,6 +1492,9 @@ void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entities_t *
 			le->oldframechange = le->framechange;
 			le->framechange = newpack->servertime;
 
+			if (le->framechange > le->oldframechange + 0.2)
+				le->oldframechange = le->framechange - 0.2;
+
 			le->frame = sold->frame;
 		}
 	}
@@ -1745,7 +1764,7 @@ void CL_LinkPacketEntities (void)
 		ent->shaderRGBAf[3] = state->trans/255.0f;
 #ifdef PEXT_FATNESS
 		//set trans
-		ent->fatness = state->fatness/2.0;
+		ent->fatness = state->fatness/16.0;
 #endif
 
 		// rotate binary objects locally
@@ -1867,6 +1886,7 @@ void CL_LinkPacketEntities (void)
 			if (rad)
 			{
 				dl = CL_AllocDlight (state->number);
+				memcpy(dl->axis, ent->axis, sizeof(dl->axis));
 				VectorCopy (ent->origin, dl->origin);
 				dl->die = (float)cl.time;
 				if (model->flags & EF_ROCKET)
@@ -2045,7 +2065,7 @@ void CL_LinkPacketEntities (void)
 #endif
 #ifdef PEXT_FATNESS
 		//set trans
-		ent->fatness = s1->fatness/2.0;
+		ent->fatness = s1->fatness/16.0;
 #endif
 
 		// rotate binary objects locally
@@ -2558,7 +2578,7 @@ void CL_ParsePlayerinfo (void)
 #endif
 #ifdef PEXT_FATNESS
 	if (flags & PF_FATNESS_Z && cls.fteprotocolextensions & PEXT_FATNESS)
-		state->fatness = (float)MSG_ReadChar() / 2;
+		state->fatness = (float)MSG_ReadChar() / 16;
 #endif
 #ifdef PEXT_HULLSIZE
 	if (cls.fteprotocolextensions & PEXT_HULLSIZE)
@@ -2793,20 +2813,51 @@ void CL_LinkPlayers (void)
 #endif
 
 		// spawn light flashes, even ones coming from invisible objects
-		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.playernum[0]))
+		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.playernum[0])
+			&& (state->effects & (EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_DIMLIGHT)))
 		{
+			vec3_t colour;
+			float radius;
 			org = (j == cl.playernum[0]) ? cl.simorg[0] : state->origin;
+			colour[0] = 0;
+			colour[1] = 0;
+			colour[2] = 0;
+			radius = 0;
 
-			if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
-				CL_NewDlight (j+1, org[0], org[1], org[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 3)->noppl = (j != cl.playernum[0]);
-			else if (state->effects & EF_BLUE)
-				CL_NewDlight (j+1, org[0], org[1], org[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 1)->noppl = (j != cl.playernum[0]);
-			else if (state->effects & EF_RED)
-				CL_NewDlight (j+1, org[0], org[1], org[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 2)->noppl = (j != cl.playernum[0]);
-			else if (state->effects & EF_BRIGHTLIGHT)
-				CL_NewDlight (j+1, org[0], org[1], org[2] + 16, 400 + (r_lightflicker.value?(rand()&31):0), 0.1, 0)->noppl = (j != cl.playernum[0]);
-			else if (state->effects & EF_DIMLIGHT)
-				CL_NewDlight (j+1, org[0], org[1], org[2], 200 + (r_lightflicker.value?(rand()&31):0), 0.1, 0)->noppl = (j != cl.playernum[0]);
+			if (state->effects & EF_BRIGHTLIGHT)
+			{
+				radius = max(radius,400);
+				colour[0] += 0.2;
+				colour[1] += 0.1;
+				colour[2] += 0.05;
+			}
+			if (state->effects & EF_DIMLIGHT)
+			{
+				radius = max(radius,200);
+				colour[0] += 0.2;
+				colour[1] += 0.1;
+				colour[2] += 0.05;
+			}
+			if (state->effects & EF_BLUE)
+			{
+				radius = max(radius,200);
+				colour[0] += 0.05;
+				colour[1] += 0.05;
+				colour[2] += 0.3;
+			}
+			if (state->effects & EF_RED)
+			{
+				radius = max(radius,200);
+				colour[0] += 0.5;
+				colour[1] += 0.05;
+				colour[2] += 0.05;
+			}
+
+			if (radius)
+			{
+				radius += r_lightflicker.value?(rand()&31):0;
+				CL_NewDlightRGB(j+1, org[0], org[1], org[2], radius, 0.1, colour[0], colour[1], colour[2])->flags &= ~LFLAG_ALLOW_FLASH;
+			}
 		}
 
 		if (state->modelindex < 1)
@@ -2867,7 +2918,7 @@ void CL_LinkPlayers (void)
 		ent->shaderRGBAf[2] = state->colourmod[2]/32;
 		ent->shaderRGBAf[3] = state->alpha/255;
 
-		ent->fatness = state->fatness/2;
+		ent->fatness = state->fatness/16;
 		//
 		// angles
 		//

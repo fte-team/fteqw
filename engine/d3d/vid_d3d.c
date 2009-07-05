@@ -303,13 +303,13 @@ static LRESULT WINAPI D3D7_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 			if (!vid_initializing)
-				Key_Event (MapKey(lParam), true);
+				IN_TranslateKeyEvent(wParam, lParam, true);
 			break;
 
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
-				Key_Event (MapKey(lParam), false);
+				IN_TranslateKeyEvent(wParam, lParam, false);
 			break;
 
 		case WM_SYSCHAR:
@@ -372,13 +372,13 @@ static LRESULT WINAPI D3D7_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			{
 				if ((short) HIWORD(wParam) > 0)
 				{
-					Key_Event(K_MWHEELUP, true);
-					Key_Event(K_MWHEELUP, false);
+					Key_Event(K_MWHEELUP, 0, true);
+					Key_Event(K_MWHEELUP, 0, false);
 				}
 				else
 				{
-					Key_Event(K_MWHEELDOWN, true);
-					Key_Event(K_MWHEELDOWN, false);
+					Key_Event(K_MWHEELDOWN, 0, true);
+					Key_Event(K_MWHEELDOWN, 0, false);
 				}
 			}
 			break;
@@ -716,7 +716,7 @@ void	(D3D7_Mod_NowLoadExternal)		(void)
 void	(D3D7_Mod_Think)				(void)
 {
 }
-qboolean(D3D7_Mod_GetTag)				(struct model_s *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result)
+qboolean(D3D7_Mod_GetTag)				(struct model_s *model, int tagnum, framestate_t *fstate, float *result)
 {
 	return false;
 }
@@ -725,6 +725,10 @@ int (D3D7_Mod_TagNumForName)			(struct model_s *model, char *name)
 	return 0;
 }
 int (D3D7_Mod_SkinForName)				(struct model_s *model, char *name)
+{
+	return 0;
+}
+int (D3D7_Mod_FrameForName)				(struct model_s *model, char *name)
 {
 	return 0;
 }
@@ -1185,6 +1189,7 @@ rendererinfo_t d3d7rendererinfo =
 	D3D7_Mod_GetTag,
 	D3D7_Mod_TagNumForName,
 	D3D7_Mod_SkinForName,
+	D3D7_Mod_FrameForName,
 
 
 	D3D7_VID_Init,

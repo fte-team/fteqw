@@ -428,13 +428,18 @@ void PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *text = PR_GetStringOfs(prinst, OFS_PARM0);
 	qboolean usecolours = G_FLOAT(OFS_PARM1);
+	float fontsize;
+	if (*prinst->callargc > 2)
+		fontsize = G_FLOAT(OFS_PARM2);
+	else
+		fontsize = 8;
 	if (usecolours)
 	{
-		G_FLOAT(OFS_RETURN) = COM_FunStringLength(text)*8;
+		G_FLOAT(OFS_RETURN) = COM_FunStringLength(text)*fontsize;
 	}
 	else
 	{
-		G_FLOAT(OFS_RETURN) = strlen(text)*8;
+		G_FLOAT(OFS_RETURN) = strlen(text)*fontsize;
 	}
 }
 

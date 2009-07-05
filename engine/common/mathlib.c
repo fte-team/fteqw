@@ -373,7 +373,7 @@ void VectorAngles(float *forward, float *up, float *result)	//up may be NULL
 	result[2] = roll;
 }
 
-void AngleVectors (vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
+void AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
 {
 	float		angle;
 	float		sr, sp, sy, cr, cp, cy;
@@ -419,7 +419,7 @@ int VectorCompare (vec3_t v1, vec3_t v2)
 	return 1;
 }
 
-void VectorMA (const vec3_t veca, const float scale, const vec3_t vecb, vec3_t vecc)
+void _VectorMA (const vec3_t veca, const float scale, const vec3_t vecb, vec3_t vecc)
 {
 	vecc[0] = veca[0] + scale*vecb[0];
 	vecc[1] = veca[1] + scale*vecb[1];
@@ -1027,7 +1027,47 @@ void Matrix4_Identity(float *outm)
 	outm[15] = 1;
 }
 
-void Matrix4_Projection(float *proj, float wdivh, float fovy, float neard)
+void Matrix4_Projection_Far(float *proj, float fovx, float fovy, float neard, float fard)
+{
+	double xmin, xmax, ymin, ymax;
+
+	//proj
+	ymax = neard * tan( fovy * M_PI / 360.0 );
+	ymin = -ymax;
+
+	if (fovx == fovy)
+	{
+		xmax = ymax;
+		xmin = ymin;
+	}
+	else
+	{
+		xmax = neard * tan( fovx * M_PI / 360.0 );
+		xmin = -xmax;
+	}
+
+	proj[0] = (2*neard) / (xmax - xmin);
+	proj[4] = 0;
+	proj[8] = (xmax + xmin) / (xmax - xmin);
+	proj[12] = 0;
+
+	proj[1] = 0;
+	proj[5] = (2*neard) / (ymax - ymin);
+	proj[9] = (ymax + ymin) / (ymax - ymin);
+	proj[13] = 0;
+
+	proj[2] = 0;
+	proj[6] = 0;
+	proj[10] = (fard+neard)/(neard-fard);
+	proj[14] = (2*fard*neard)/(neard-fard);
+	
+	proj[3] = 0;
+	proj[7] = 0;
+	proj[11] = -1;
+	proj[15] = 0;
+}
+
+void Matrix4_Projection_Inf(float *proj, float fovx, float fovy, float neard)
 {
 	float xmin, xmax, ymin, ymax;
 	float nudge = 1;
@@ -1036,8 +1076,16 @@ void Matrix4_Projection(float *proj, float wdivh, float fovy, float neard)
 	ymax = neard * tan( fovy * M_PI / 360.0 );
 	ymin = -ymax;
 
-	xmin = ymin * wdivh;
-	xmax = ymax * wdivh;
+	if (fovx == fovy)
+	{
+		xmax = ymax;
+		xmin = ymin;
+	}
+	else
+	{
+		xmax = neard * tan( fovx * M_PI / 360.0 );
+		xmin = -xmax;
+	}
 
 	proj[0] = (2*neard) / (xmax - xmin);
 	proj[4] = 0;
@@ -1297,6 +1345,18 @@ qboolean Matrix4_Invert(const float *m, float *out)
 
 void Matrix3x4_InvertTo3x3(float *in, float *result)
 {
+	float t1[16], tr[16];
+	memcpy(t1, in, sizeof(float)*12);
+	t1[12] = 0;
+	t1[13] = 0;
+	t1[14] = 0;
+	t1[15] = 1;
+	Matrix4_Invert(t1, tr);
+	VectorCopy(tr+0, result+0);
+	VectorCopy(tr+4, result+3);
+	VectorCopy(tr+8, result+6);
+	return;
+/*
 #define A(x,y) in[x+y*4]
 #define result(x,y) result[x+y*3]
 	double determinant =    +A(0,0)*(A(1,1)*A(2,2)-A(2,1)*A(1,2))
@@ -1312,18 +1372,19 @@ void Matrix3x4_InvertTo3x3(float *in, float *result)
 	result(0,2) =  (A(1,0)*A(2,1)-A(2,0)*A(1,1))*invdet;
 	result(1,2) = -(A(0,0)*A(2,1)-A(2,0)*A(0,1))*invdet;
 	result(2,2) =  (A(0,0)*A(1,1)-A(1,0)*A(0,1))*invdet;
+	*/
 }
 
 //screen->3d
 
-void Matrix4_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy)
+void Matrix4_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float fovx, float fovy)
 {
 	float modelview[16];
 	float proj[16];
 	float tempm[16];
 
 	Matrix4_ModelViewMatrix(modelview, viewangles, vieworg);
-	Matrix4_Projection(proj, wdivh, fovy, 4);
+	Matrix4_Projection_Inf(proj, fovx, fovy, 4);
 	Matrix4_Multiply(proj, modelview, tempm);
 
 	Matrix4_Invert(tempm, proj);
@@ -1346,13 +1407,13 @@ void Matrix4_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg,
 //returns fractions of screen.
 //uses GL style rotations and translations and stuff.
 //3d -> screen (fixme: offscreen return values needed)
-void Matrix4_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float wdivh, float fovy)
+void Matrix4_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float fovx, float fovy)
 {
 	float modelview[16];
 	float proj[16];
 
 	Matrix4_ModelViewMatrix(modelview, viewangles, vieworg);
-	Matrix4_Projection(proj, wdivh, fovy, 4);
+	Matrix4_Projection_Inf(proj, fovx, fovy, 4);
 
 	{
 		float v[4], tempv[4];

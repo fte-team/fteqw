@@ -803,14 +803,14 @@ void	D3D9_Draw_ImageColours		(float r, float g, float b, float a)
 	c[3] = a*255;
 }
 
-void	D3D9_Draw_ConsoleBackground	(int lines)
+void	D3D9_Draw_ConsoleBackground	(int firstline, int lastline, qboolean forceopaque)
 {
 	D3D9_Draw_ImageColours(1,1,1,1);
-	D3D9_Draw_Image(0, 0, vid.width, lines, 0, 1 - (float)lines/vid.height, 1, 1, conback_tex);
+	D3D9_Draw_Image(0, 0, vid.width, lastline, 0, 1 - (float)lastline/vid.height, 1, 1, conback_tex);
 }
 void	D3D9_Draw_EditorBackground	(int lines)
 {
-	D3D9_Draw_ConsoleBackground(lines);
+	D3D9_Draw_ConsoleBackground(0, lines, false);
 }
 
 

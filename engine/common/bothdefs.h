@@ -83,6 +83,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_MASM
 #endif
 
+//#define AVAIL_FREETYPE
+//#define NEWBACKEND
 
 //set any additional defines or libs in win32
 	#ifndef AVAIL_MASM

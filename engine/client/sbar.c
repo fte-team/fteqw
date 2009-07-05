@@ -158,7 +158,7 @@ void Draw_ExpandedString(int x, int y, conchar_t *str)
 void Draw_FunString(int x, int y, unsigned char *str)
 {
 	conchar_t buffer[2048];
-	COM_ParseFunString(CON_WHITEMASK, str, buffer, sizeof(buffer));
+	COM_ParseFunString(CON_WHITEMASK, str, buffer, sizeof(buffer), false);
 
 	Draw_ExpandedString(x, y, buffer);
 }
@@ -167,9 +167,11 @@ void Draw_FunStringLen(int x, int y, unsigned char *str, int numchars)
 {
 	conchar_t buffer[2048];
 
-	if (numchars > sizeof(buffer)-1)
-		numchars = sizeof(buffer)-1;
-	COM_ParseFunString(CON_WHITEMASK, str, buffer, numchars+1);
+	numchars *= sizeof(conchar_t);	//numchars should now be the size of the chars.
+
+	if (numchars > sizeof(buffer))
+		numchars = sizeof(buffer);
+	COM_ParseFunString(CON_WHITEMASK, str, buffer, numchars, false);
 
 	Draw_ExpandedString(x, y, buffer);
 }

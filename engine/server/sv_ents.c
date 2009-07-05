@@ -1355,7 +1355,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 #endif
 #ifdef PEXT_FATNESS
 		if (pflags & PF_FATNESS_Z)
-			MSG_WriteChar (msg, ent->fatness*2);
+			MSG_WriteChar (msg, ent->fatness*10);
 #endif
 #ifdef PEXT_HULLSIZE	//shrunken or crouching in halflife levels. (possibly enlarged)
 		if (pflags & PF_HULLSIZE_Z)
@@ -2332,7 +2332,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	}
 #endif
 #ifdef PEXT_FATNESS
-	state->fatness = ent->xv->fatness*2;
+	state->fatness = ent->xv->fatness*16;
 #endif
 }
 

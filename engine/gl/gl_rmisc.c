@@ -24,6 +24,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"
 #include "gl_draw.h"
 
+void R_ReloadRTLights_f(void);
+
+
 #ifdef WATERLAYERS
 cvar_t	r_waterlayers = SCVAR("r_waterlayers","3");
 #endif
@@ -716,6 +719,7 @@ void GLR_DeInit (void)
 {
 	Cmd_RemoveCommand ("timerefresh");
 	Cmd_RemoveCommand ("envmap");
+	Cmd_RemoveCommand ("r_editlights_reload");
 	Cmd_RemoveCommand ("pointfile");
 
 	Cmd_RemoveCommand ("makewad");
@@ -750,6 +754,7 @@ void GLR_Init (void)
 {	
 	Cmd_AddRemCommand ("timerefresh", GLR_TimeRefresh_f);
 	Cmd_AddRemCommand ("envmap", R_Envmap_f);
+	Cmd_AddRemCommand ("r_editlights_reload", R_ReloadRTLights_f);
 
 //	Cmd_AddRemCommand ("makewad", R_MakeTexWad_f);
 
@@ -779,6 +784,224 @@ void GLR_Init (void)
 	GLR_ReInit();
 }
 
+void R_ImportRTLights(char *entlump)
+{
+	typedef enum lighttype_e {LIGHTTYPE_MINUSX, LIGHTTYPE_RECIPX, LIGHTTYPE_RECIPXX, LIGHTTYPE_NONE, LIGHTTYPE_SUN, LIGHTTYPE_MINUSXX} lighttype_t;
+
+	/*I'm using the DP code so I know I'll get the DP results*/
+	int entnum, style, islight, skin, pflags, effects, n;
+	lighttype_t type;
+	float origin[3], angles[3], radius, color[3], light[4], fadescale, lightscale, originhack[3], overridecolor[3], vec[4];
+	char key[256], value[8192];
+
+	for (entnum = 0; ;entnum++)
+	{
+		entlump = COM_Parse(entlump);
+		if (com_token[0] != '{')
+			break;
+
+		type = LIGHTTYPE_MINUSX;
+		origin[0] = origin[1] = origin[2] = 0;
+		originhack[0] = originhack[1] = originhack[2] = 0;
+		angles[0] = angles[1] = angles[2] = 0;
+		color[0] = color[1] = color[2] = 1;
+		light[0] = light[1] = light[2] = 1;light[3] = 300;
+		overridecolor[0] = overridecolor[1] = overridecolor[2] = 1;
+		fadescale = 1;
+		lightscale = 1;
+		style = 0;
+		skin = 0;
+		pflags = 0;
+		effects = 0;
+		islight = false;
+		while (1)
+		{
+			entlump = COM_Parse(entlump);
+			if (!entlump)
+				break; // error
+			if (com_token[0] == '}')
+				break; // end of entity
+			if (com_token[0] == '_')
+				Q_strncpyz(key, com_token + 1, sizeof(key));
+			else
+				Q_strncpyz(key, com_token, sizeof(key));
+			while (key[strlen(key)-1] == ' ') // remove trailing spaces
+				key[strlen(key)-1] = 0;
+			entlump = COM_Parse(entlump);
+			if (!entlump)
+				break; // error
+			Q_strncpyz(value, com_token, sizeof(value));
+
+			// now that we have the key pair worked out...
+			if (!strcmp("light", key))
+			{
+				n = sscanf(value, "%f %f %f %f", &vec[0], &vec[1], &vec[2], &vec[3]);
+				if (n == 1)
+				{
+					// quake
+					light[0] = vec[0] * (1.0f / 256.0f);
+					light[1] = vec[0] * (1.0f / 256.0f);
+					light[2] = vec[0] * (1.0f / 256.0f);
+					light[3] = vec[0];
+				}
+				else if (n == 4)
+				{
+					// halflife
+					light[0] = vec[0] * (1.0f / 255.0f);
+					light[1] = vec[1] * (1.0f / 255.0f);
+					light[2] = vec[2] * (1.0f / 255.0f);
+					light[3] = vec[3];
+				}
+			}
+			else if (!strcmp("delay", key))
+				type = atoi(value);
+			else if (!strcmp("origin", key))
+				sscanf(value, "%f %f %f", &origin[0], &origin[1], &origin[2]);
+			else if (!strcmp("angle", key))
+				angles[0] = 0, angles[1] = atof(value), angles[2] = 0;
+			else if (!strcmp("angles", key))
+				sscanf(value, "%f %f %f", &angles[0], &angles[1], &angles[2]);
+			else if (!strcmp("color", key))
+				sscanf(value, "%f %f %f", &color[0], &color[1], &color[2]);
+			else if (!strcmp("wait", key))
+				fadescale = atof(value);
+			else if (!strcmp("classname", key))
+			{
+				if (!strncmp(value, "light", 5))
+				{
+					islight = true;
+					if (!strcmp(value, "light_fluoro"))
+					{
+						originhack[0] = 0;
+						originhack[1] = 0;
+						originhack[2] = 0;
+						overridecolor[0] = 1;
+						overridecolor[1] = 1;
+						overridecolor[2] = 1;
+					}
+					if (!strcmp(value, "light_fluorospark"))
+					{
+						originhack[0] = 0;
+						originhack[1] = 0;
+						originhack[2] = 0;
+						overridecolor[0] = 1;
+						overridecolor[1] = 1;
+						overridecolor[2] = 1;
+					}
+					if (!strcmp(value, "light_globe"))
+					{
+						originhack[0] = 0;
+						originhack[1] = 0;
+						originhack[2] = 0;
+						overridecolor[0] = 1;
+						overridecolor[1] = 0.8;
+						overridecolor[2] = 0.4;
+					}
+					if (!strcmp(value, "light_flame_large_yellow"))
+					{
+						originhack[0] = 0;
+						originhack[1] = 0;
+						originhack[2] = 0;
+						overridecolor[0] = 1;
+						overridecolor[1] = 0.5;
+						overridecolor[2] = 0.1;
+					}
+					if (!strcmp(value, "light_flame_small_yellow"))
+					{
+						originhack[0] = 0;
+						originhack[1] = 0;
+						originhack[2] = 0;
+						overridecolor[0] = 1;
+						overridecolor[1] = 0.5;
+						overridecolor[2] = 0.1;
+					}
+					if (!strcmp(value, "light_torch_small_white"))
+					{
+						originhack[0] = 0;
+						originhack[1] = 0;
+						originhack[2] = 0;
+						overridecolor[0] = 1;
+						overridecolor[1] = 0.5;
+						overridecolor[2] = 0.1;
+					}
+					if (!strcmp(value, "light_torch_small_walltorch"))
+					{
+						originhack[0] = 0;
+						originhack[1] = 0;
+						originhack[2] = 0;
+						overridecolor[0] = 1;
+						overridecolor[1] = 0.5;
+						overridecolor[2] = 0.1;
+					}
+				}
+			}
+			else if (!strcmp("style", key))
+				style = atoi(value);
+			else if (!strcmp("skin", key))
+				skin = (int)atof(value);
+			else if (!strcmp("pflags", key))
+				pflags = (int)atof(value);
+			else if (!strcmp("effects", key))
+				effects = (int)atof(value);
+
+			else if (!strcmp("scale", key))
+				lightscale = atof(value);
+			else if (!strcmp("fade", key))
+				fadescale = atof(value);
+		}
+		if (!islight)
+			continue;
+		if (lightscale <= 0)
+			lightscale = 1;
+		if (fadescale <= 0)
+			fadescale = 1;
+		if (color[0] == color[1] && color[0] == color[2])
+		{
+			color[0] *= overridecolor[0];
+			color[1] *= overridecolor[1];
+			color[2] *= overridecolor[2];
+		}
+		radius = light[3] * 1/*r_editlights_quakelightsizescale*/ * lightscale / fadescale;
+		color[0] = color[0] * light[0];
+		color[1] = color[1] * light[1];
+		color[2] = color[2] * light[2];
+		switch (type)
+		{
+		case LIGHTTYPE_MINUSX:
+			break;
+		case LIGHTTYPE_RECIPX:
+			radius *= 2;
+			VectorScale(color, (1.0f / 16.0f), color);
+			break;
+		case LIGHTTYPE_RECIPXX:
+			radius *= 2;
+			VectorScale(color, (1.0f / 16.0f), color);
+			break;
+		default:
+		case LIGHTTYPE_NONE:
+			break;
+		case LIGHTTYPE_SUN:
+			break;
+		case LIGHTTYPE_MINUSXX:
+			break;
+		}
+		VectorAdd(origin, originhack, origin);
+		if (radius >= 1)
+		{
+			dlight_t *dl = CL_AllocDlight(0);
+			VectorCopy(origin, dl->origin);
+			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+			dl->radius = radius;
+			VectorCopy(color, dl->color);
+			dl->flags |= LFLAG_REALTIMEMODE;
+			dl->flags |= (pflags & PFLAGS_CORONA)?LFLAG_ALLOW_FLASH:0;
+			dl->flags |= (pflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
+			dl->style = style+1;
+
+			//FIXME: cubemaps if skin >= 16
+		}
+	}
+}
 
 void R_LoadRTLights(void)
 {
@@ -791,6 +1014,9 @@ void R_LoadRTLights(void)
 	vec3_t org;
 	float radius;
 	vec3_t rgb;
+	unsigned int flags;
+
+	vec3_t angles;
 
 	//delete all old lights
 	dlights_running = 0;
@@ -800,8 +1026,7 @@ void R_LoadRTLights(void)
 	strncat(fname, ".rtlights", MAX_QPATH-1);
 
 	file = COM_LoadTempFile(fname);
-	if (!file)
-		return;
+	if (file)
 	while(1)
 	{
 		end = strchr(file, '\n');
@@ -822,30 +1047,78 @@ void R_LoadRTLights(void)
 		radius = atof(com_token);
 
 		file = COM_Parse(file);
-		rgb[0] = atof(com_token);
+		rgb[0] = file?atof(com_token):1;
 		file = COM_Parse(file);
-		rgb[1] = atof(com_token);
+		rgb[1] = file?atof(com_token):1;
 		file = COM_Parse(file);
-		rgb[2] = atof(com_token);
+		rgb[2] = file?atof(com_token):1;
 
 		file = COM_Parse(file);
-		style = atoi(com_token);
+		style = file?atof(com_token):0;
 
-		if (file)
+		file = COM_Parse(file);
+		//cubemap
+
+		file = COM_Parse(file);
+		//corona
+
+		file = COM_Parse(file);
+		angles[0] = atof(com_token);
+		file = COM_Parse(file);
+		angles[1] = atof(com_token);
+		file = COM_Parse(file);
+		angles[2] = atof(com_token);
+
+		file = COM_Parse(file);
+		//corrona scale
+
+		file = COM_Parse(file);
+		//ambient
+
+		file = COM_Parse(file);
+		//diffuse
+
+		file = COM_Parse(file);
+		//specular
+
+		file = COM_Parse(file);
+		if (*com_token)
+			flags = atoi(com_token);
+		else
+			flags = LFLAG_REALTIMEMODE;
+
+		if (radius)
 		{
 			dl = CL_AllocDlight(0);
 			VectorCopy(org, dl->origin);
 			dl->radius = radius;
 			VectorCopy(rgb, dl->color);
-			dl->die = cl.time + 0x7fffffff;
-			dl->isstatic = true;
-
-			dl->nodynamic = true;
-			dl->noflash = true;
+			dl->die = 0;
+			dl->flags = flags;
+			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 
 			dl->style = style+1;
 		}
 		file = end+1;
+	}
+}
+
+void R_ReloadRTLights_f(void)
+{
+	if (!cl.worldmodel)
+	{
+		Con_Printf("Cannot reload lights at this time\n");
+		return;
+	}
+	dlights_running = 0;
+	dlights_software = 0;
+	if (strcmp(Cmd_Argv(1), "bsp"))
+		R_LoadRTLights();
+
+	if (!dlights_running)
+	{
+		Con_Printf("Importing rtlights from BSP\n");
+		R_ImportRTLights(cl.worldmodel->entities);
 	}
 }
 

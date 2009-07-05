@@ -230,7 +230,7 @@ static char *defaultlanguagetext =
 "TLC_HOSTFATALERROR \"Host_Error: %s\\n\"\n"
 "TLC_CONFIGCFG_WRITEFAILED \"Couldn't write config.cfg.\\n\"\n"
 "TLC_HOSTSPEEDSOUTPUT \"%3i tot %3i server %3i gfx %3i snd\\n\"\n"
-"TLC_QUAKEWORLD_INITED \"ÄÅÅÅÅÅÅ QuakeWorld Initialized ÅÅÅÅÅÅÇ\\n\"\n"
+"TLC_QUAKEWORLD_INITED \"^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081 QuakeWorld Initialized ^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082\\n\"\n"
 "TLC_DEDICATEDCANNOTCONNECT \"Connect ignored - dedicated. set a renderer first\\n\"\n"
 "TLC_Q2CONLESSPACKET_UNKNOWN \"unknown connectionless packet for q2:  %s\\n\"\n"
 "TL_NORELATIVEPATHS \"Refusing to download a path with ..\\n\"\n"

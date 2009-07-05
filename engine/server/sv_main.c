@@ -3770,6 +3770,9 @@ void Master_Heartbeat (void)
 			}
 			else
 			{
+				if (sv_masterlist[i].adr.type == NA_TCP || sv_masterlist[i].adr.type == NA_TCPV6)
+					NET_EnsureRoute(svs.sockets, sv_masterlist[i].cv.name, sv_masterlist[i].cv.string, false);
+
 				//choose default port
 				switch (sv_masterlist[i].protocol)
 				{

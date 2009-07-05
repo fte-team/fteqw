@@ -542,14 +542,62 @@ static void Shader_ProgramName ( shader_t *shader, shaderpass_t *pass, char **pt
 		token = Shader_ParseString ( ptr );
 		return;
 	}
+
+
+	token = *ptr;
+	while (*token == ' ' || *token == '\t' || *token == '\r')
+		token++;
+	if (*token == '\n')
+	{
+		int count;
+		token++;
+		while (*token == ' ' || *token == '\t')
+			token++;
+		if (*token != '{')
+		{
+			Con_Printf("shader \"%s\" missing program string\n", shader->name);
+		}
+		else
+		{
+			token++;
+			vert = frag = token;
+			for (count = 1; *token; token++)
+			{
+				if (*token == '}')
+				{
+					count--;
+					if (!count)
+						break;
+				}
+				else if (*token == '{')
+					count++;
+			}
+			*token = 0;
+			*ptr = token+1;
+
+			shader->programhandle = GLSlang_CreateProgram("", (char *)vert, (char *)frag);
+			frag = NULL;
+			vert = NULL;
+
+			return;
+		}
+	}
 	token = Shader_ParseString ( ptr );
 	FS_LoadFile(token, &vert);
 	token = Shader_ParseString ( ptr );
-	FS_LoadFile(token, &frag);
+	if (!*token)
+		frag = vert;
+	else
+		FS_LoadFile(token, &frag);
+
 	if (vert && frag)
 		shader->programhandle = GLSlang_CreateProgram("", (char *)vert, (char *)frag);
 	if (vert)
+	{
+		if (frag == vert)
+			frag = NULL;
 		FS_FreeFile(vert);
+	}
 	if (frag)
 		FS_FreeFile(frag);
 }
@@ -1090,6 +1138,12 @@ static void Shaderpass_TcGen ( shader_t *shader, shaderpass_t *pass, char **ptr 
 		pass->tcgen = TC_GEN_ENVIRONMENT;
 	} else if ( !Q_stricmp (token, "vector") ) {
 		pass->tcgen = TC_GEN_BASE;
+	} else if ( !Q_stricmp (token, "normal") ) {
+		pass->tcgen = TC_GEN_NORMAL;
+	} else if ( !Q_stricmp (token, "svector") ) {
+		pass->tcgen = TC_GEN_SVECTOR;
+	} else if ( !Q_stricmp (token, "tvector") ) {
+		pass->tcgen = TC_GEN_TVECTOR;
 	}
 }
 static void Shaderpass_EnvMap ( shader_t *shader, shaderpass_t *pass, char **ptr )	//for alienarena
@@ -1678,6 +1732,7 @@ void Shader_SetFeatures ( shader_t *s )
 				s->features |= MF_LMCOORDS;
 				break;
 			case TC_GEN_ENVIRONMENT:
+			case TC_GEN_NORMAL:
 				s->features |= MF_NORMALS;
 				break;
 		}

@@ -77,6 +77,8 @@ typedef struct mesh_s
     int				numvertexes;
 	vec3_t			*xyz_array;
 	vec3_t			*normals_array;
+	vec3_t			*snormals_array;
+	vec3_t			*tnormals_array;
 	vec2_t			*st_array;
 	vec2_t			*lmst_array;
 	byte_vec4_t		*colors_array;
@@ -173,6 +175,26 @@ typedef struct {
 	int fullbright;
 } texnums_t;
 
+typedef struct 
+{
+	int		vboe;
+	index_t	*indicies;
+
+	int vbocoord;
+	vec3_t	*coord;
+	int vbotexcoord;
+	vec2_t	*texcoord;
+	int vbolmcoord;
+	vec2_t	*lmcoord;
+
+	int vbonormals;
+	vec3_t	*normals;
+	int vbosvector;
+	vec3_t	*svector;
+	int vbotvector;
+	vec3_t	*tvector;
+} vbo_t;
+
 typedef struct texture_s
 {
 	char		name[64];
@@ -187,8 +209,7 @@ typedef struct texture_s
 
 	struct shader_s	*shader;
 
-	int			gl_vbov;
-	int			gl_vboe;
+	vbo_t vbo;
 
 	struct msurface_s	*texturechain;	// for gl_texsort drawing
 	int			anim_total;				// total tenths in sequence ( 0 = no)
@@ -197,14 +218,18 @@ typedef struct texture_s
 	struct texture_s *alternate_anims;	// bmodels in frmae 1 use these
 	unsigned	offsets[MIPLEVELS];		// four mip maps stored
 } texture_t;
-
+/*
 typedef struct
 {
 	float coord[3];
 	float texcoord[2];
 	float lmcoord[2];
-} vbovertex_t;
 
+	float normals[3];
+	float svector[3];
+	float tvector[3];
+} vbovertex_t;
+*/
 #define SURF_DRAWSKYBOX		0x00001
 #define	SURF_PLANEBACK		0x00002
 #define	SURF_DRAWSKY		0x00004

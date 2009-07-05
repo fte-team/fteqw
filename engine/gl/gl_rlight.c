@@ -188,7 +188,7 @@ void GLR_RenderDlights (void)
 	l = cl_dlights;
 	for (i=0 ; i<dlights_running ; i++, l++)
 	{
-		if (!l->radius || l->noflash)
+		if (!l->radius || !(l->flags & LFLAG_ALLOW_FLASH))
 			continue;
 
 		//dlights emitting from the local player are not visible as flashblends
@@ -399,7 +399,7 @@ void GLR_PushDlights (void)
 	l = cl_dlights;
 	for (i=0 ; i<dlights_software ; i++, l++)
 	{
-		if (!l->radius || l->nodynamic)
+		if (!l->radius || !(l->flags & LFLAG_ALLOW_LMHACK))
 			continue;
 		currentmodel->funcs.MarkLights( l, 1<<i, currentmodel->nodes );
 	}

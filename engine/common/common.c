@@ -1746,8 +1746,19 @@ void COM_DeFunString(conchar_t *str, char *out, int outsize, qboolean ignoreflag
 	}
 }
 
-//Takes a q3-style fun string, and returns an expanded string-with-flags
-void COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int outsize)
+static int dehex(int i)
+{
+	if      (i >= '0' && i <= '9')
+		return (i-'0');
+	else if (i >= 'A' && i <= 'F')
+		return (i-'A'+10);
+	else
+		return (i-'a'+10);
+}
+
+//Takes a q3-style fun string, and returns an expanded string-with-flags (actual return value is the null terminator)
+//outsize parameter is in _BYTES_ (so sizeof is safe).
+conchar_t *COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int outsize, qboolean keepmarkup)
 {
 	conchar_t extstack[4];
 	int extstackdepth = 0;
@@ -1756,18 +1767,26 @@ void COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int o
 
 	conchar_t ext;
 
+	outsize /= sizeof(conchar_t);
+	if (!outsize)
+		return out;
+	//then outsize is decremented then checked before each write, so the trailing null has space
+
 #if 0
 	while(*str)
 	{
 		*out++ = CON_WHITEMASK|(unsigned char)*str++;
 	}
 	*out = 0;
-	return;
+	return out;
 #endif
 
 	if (*str == 1 || *str == 2)
 	{
-		defaultflags |= CON_HIGHCHARSMASK;
+		if (com_parseutf8.value)
+			defaultflags = (defaultflags&~CON_FGMASK) | (COLOR_MAGENTA<<CON_FGSHIFT);
+		else
+			defaultflags |= CON_HIGHCHARSMASK;
 		str++;
 	}
 
@@ -1870,103 +1889,127 @@ void COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int o
 		}
 		if (*str == '^')
 		{
-			str++;
-			if (*str >= '0' && *str <= '9')
+			if (str[1] >= '0' && str[1] <= '9')
 			{
-				ext = q3codemasks[*str++-'0'] | (ext&~CON_Q3MASK); //change colour only.
-				continue;
+				ext = q3codemasks[str[1]-'0'] | (ext&~CON_Q3MASK); //change colour only.
 			}
-			else if (*str == '&') // extended code
+			else if (str[1] == '&') // extended code
 			{
-				if (isextendedcode(str[1]) && isextendedcode(str[2]))
+				if (isextendedcode(str[2]) && isextendedcode(str[3]))
 				{
-					str++;// foreground char
-					if (*str == '-') // default for FG
+					// foreground char
+					if (str[2] == '-') // default for FG
 						ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					else if (*str >= 'A')
-						ext = ((*str - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					else if (str[2] >= 'A')
+						ext = ((str[2] - ('A' - 10)) << CON_FGSHIFT) | (ext&~CON_FGMASK);
 					else
-						ext = ((*str - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
-					str++; // background char
-					if (*str == '-') // default (clear) for BG
+						ext = ((str[2] - '0') << CON_FGSHIFT) | (ext&~CON_FGMASK);
+					// background char
+					if (str[3] == '-') // default (clear) for BG
 						ext &= ~CON_BGMASK & ~CON_NONCLEARBG;
-					else if (*str >= 'A')
-						ext = ((*str - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					else if (str[3] >= 'A')
+						ext = ((str[3] - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
 					else
-						ext = ((*str - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-					str++;
-					continue;
+						ext = ((str[3] - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
+					
+					if (!keepmarkup)
+					{
+						str += 4;
+						continue;
+					}
 				}
 				// else invalid code
 				goto messedup;
 			}
-			else if (*str == 'a')
+			else if (str[1] == 'a')
 			{
-				str++;
 				ext ^= CON_2NDCHARSETTEXT;
-				continue;
 			}
-			else if (*str == 'b')
+			else if (str[1] == 'b')
 			{
-				str++;
 				ext ^= CON_BLINKTEXT;
-				continue;
 			}
-			else if (*str == 'd')
+			else if (str[1] == 'd')
 			{
-				str++;
 				ext = defaultflags;
-				continue;
 			}
-			else if (*str == 'm')
+			else if (str[1] == 'm')
 			{
-				str++;
-				ext ^= CON_HIGHCHARSMASK;
-				continue;
+				if (com_parseutf8.value)
+				{
+					if ((ext & CON_FGMASK) != (COLOR_MAGENTA<<CON_FGSHIFT))
+						ext = (ext&~CON_FGMASK) | (COLOR_MAGENTA<<CON_FGSHIFT);
+					else
+						ext = (ext&~CON_FGMASK) | (CON_WHITEMASK);
+				}
+				else
+					ext ^= CON_HIGHCHARSMASK;
 			}
-			else if (*str == 'h')
+			else if (str[1] == 'h')
 			{
-				str++;
 				ext ^= CON_HALFALPHA;
-				continue;
 			}
-			else if (*str == 's')	//store on stack (it's great for names)
+			else if (str[1] == 's')	//store on stack (it's great for names)
 			{
-				str++;
 				if (extstackdepth < sizeof(extstack)/sizeof(extstack[0]))
 				{
 					extstack[extstackdepth] = ext;
 					extstackdepth++;
 				}
-				continue;
 			}
-			else if (*str == 'r')	//restore from stack (it's great for names)
+			else if (str[1] == 'r')	//restore from stack (it's great for names)
 			{
-				str++;
 				if (extstackdepth)
 				{
 					extstackdepth--;
 					ext = extstack[extstackdepth];
 				}
-				continue;
 			}
-			else if (*str == '^')
+			else if (str[1] == 'U')	//restore from stack (it's great for names)
 			{
-				if (!--outsize)
-					break;
-				*out++ = '^' | ext;
+				if (!keepmarkup)
+				{
+					uc = 0;
+					uc |= dehex(str[2])<<12;
+					uc |= dehex(str[3])<<8;
+					uc |= dehex(str[4])<<4;
+					uc |= dehex(str[5])<<0;
+
+					if (!--outsize)
+						break;
+					*out++ = uc | (ext&~CON_HIGHCHARSMASK);
+					str += 6;
+
+					continue;
+				}
+			}
+			else if (str[1] == '^')
+			{
+				if (keepmarkup)
+				{
+					if (!--outsize)
+						break;
+					if (com_parseutf8.value)
+						*out++ = (unsigned char)(*str) | ext;
+					else
+						*out++ = (unsigned char)(*str) | ext | 0xe000;
+				}
 				str++;
+
+				if (*str)
+					goto messedup;
+				continue;
 			}
 			else
 			{
-				if (!--outsize)
-					break;
-				*out++ = '^' | ext;
-				if (!--outsize)
-					break;
-				*out++ = (unsigned char)(*str++) | ext;
+				goto messedup;
 			}
-			continue;
+
+			if (!keepmarkup)
+			{
+				str+=2;
+				continue;
+			}
 		}
 		if (*str == '&' && str[1] == 'c')
 		{
@@ -2012,16 +2055,28 @@ void COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int o
 				}
 				ext = (best << CON_FGSHIFT) | (ext&~CON_FGMASK);
 
-				str += 5;
-				continue;
+				if (!keepmarkup)
+				{
+					str += 5;
+					continue;
+				}
 			}
 		}
 messedup:
 		if (!--outsize)
 			break;
-		*out++ = (unsigned char)(*str++) | ext;
+		if (utf8)
+			*out++ = (unsigned char)(*str++) | ext;
+		else
+		{
+			if (strchr("\n\r ", *str))
+				*out++ = (unsigned char)(*str++) | (ext&~CON_HIGHCHARSMASK);
+			else
+				*out++ = (unsigned char)(*str++) | ext | 0xe000;
+		}
 	}
 	*out = 0;
+	return out;
 }
 
 int COM_FunStringLength(unsigned char *str)

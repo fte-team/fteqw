@@ -358,7 +358,7 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 		Cbuf_AddText("f_centerprint\n", RESTRICT_LOCAL);
 	}
 
-	COM_ParseFunString(CON_WHITEMASK, str, scr_centerstring[pnum], sizeof(scr_centerstring[pnum]));
+	COM_ParseFunString(CON_WHITEMASK, str, scr_centerstring[pnum], sizeof(scr_centerstring[pnum]), false);
 	scr_centertime_off[pnum] = scr_centertime.value;
 	scr_centertime_start[pnum] = cl.time;
 
@@ -412,11 +412,11 @@ void SCR_CenterPrintBreaks(conchar_t *start, int *lines, int *maxlength)
 	{
 	// scan the width of the line
 		for (l=0 ; l<40 ; l++)
-			if ((start[l]&255) == '\n' || !(start[l]&255))
+			if ((start[l]&CON_CHARMASK) == '\n' || !(start[l]&CON_CHARMASK))
 				break;
 		if (l == 40)
 		{
-			while(l > 0 && (start[l-1]&255)>' ')
+			while(l > 0 && (start[l-1]&CON_CHARMASK)>' ')
 			{
 				l--;
 			}
@@ -430,9 +430,9 @@ void SCR_CenterPrintBreaks(conchar_t *start, int *lines, int *maxlength)
 //		for (l=0 ; l<40 && *start && *start != '\n'; l++)
  //			start++;
 
-		if (!(*start&255))
+		if (!(*start&CON_CHARMASK))
 			break;
-		else if ((*start&255) == '\n'||!l)
+		else if ((*start&CON_CHARMASK) == '\n'||!l)
 			start++;                // skip the \n
 	} while (1);
 }
@@ -474,14 +474,14 @@ void SCR_DrawCenterString (int pnum)
 
 	screenwidth = 40;//vid.width/8;
 
-	if ((start[0]&255) == '/')
+	if ((start[0]&CON_CHARMASK) == '/')
 	{
-		if ((start[1]&255) == 'O')
+		if ((start[1]&CON_CHARMASK) == 'O')
 		{
-			telejanostyle = (start[1]&255);
+			telejanostyle = (start[1]&CON_CHARMASK);
 			start+=2;
 		}
-		else if ((start[1]&255) == 'P')
+		else if ((start[1]&CON_CHARMASK) == 'P')
 		{	//hexen2 style plaque.
 			int lines, len;
 			start+=2;
@@ -495,11 +495,11 @@ void SCR_DrawCenterString (int pnum)
 	{
 	// scan the width of the line
 		for (l=0 ; l<=screenwidth ; l++)
-			if ((start[l]&255) == '\n' || !(start[l]&255))
+			if ((start[l]&CON_CHARMASK) == '\n' || !(start[l]&CON_CHARMASK))
 				break;
 		if (l == screenwidth+1)
 		{
-			while(l > 0 && (start[l-1]&255)>' ' && (start[l-1]&255) != ' '+128)
+			while(l > 0 && (start[l-1]&CON_CHARMASK)>' ' && (start[l-1]&CON_CHARMASK) != ' '+128)
 			{
 				l--;
 			}
@@ -525,9 +525,9 @@ void SCR_DrawCenterString (int pnum)
 //		for (l=0 ; l<40 && *start && *start != '\n'; l++)
  //			start++;
 
-		if (!(*start&255))
+		if (!(*start&CON_CHARMASK))
 			break;
-		else if ((*start&255) == '\n'||!l)
+		else if ((*start&CON_CHARMASK) == '\n'||!l)
 			start++;                // skip the \n
 	} while (1);
 }
@@ -1038,7 +1038,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 				adj+=v_viewheight.value;
 
 			start[2]+=adj;
-			Matrix4_Project(tr.endpos, end, cl.simangles[pnum], start, (float)rect.width/rect.height, r_refdef.fov_y);
+			Matrix4_Project(tr.endpos, end, cl.simangles[pnum], start, r_refdef.fov_x, r_refdef.fov_y);
 			*x = rect.x+rect.width*end[0];
 			*y = rect.y+rect.height*(1-end[1]);
 			return;

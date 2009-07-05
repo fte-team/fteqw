@@ -253,7 +253,7 @@ int PaddedPrint (char *s, int x)
 {
 	int	nextcolx = 0;
 
-	if (x)
+/*	if (x)
 		nextcolx = (int)((x + COLUMNWIDTH)/COLUMNWIDTH)*COLUMNWIDTH;
 
 	if (nextcolx > con_main.linewidth - MINCOLUMNWIDTH
@@ -262,7 +262,7 @@ int PaddedPrint (char *s, int x)
 		Con_Printf ("\n");
 		x=0;
 	}
-
+*/
 	if (x)
 	{
 		Con_Printf (" ");
@@ -434,49 +434,19 @@ void GetSelectionCoords(int *selectcoords)
 }
 */
 
-void Key_ConsoleDrawSelectionBox(void)
+qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey)
 {
-	extern cvar_t vid_conwidth, vid_conheight;
 	extern int mousecursor_x, mousecursor_y;
-	int xpos, ypos, temp;
-	int xpos2, ypos2;
-	int yadj;
-	
+
 	if (!con_mousedown[2])
-		return;
-
-	xpos2 = con_mousedown[0];
-	ypos2 = con_mousedown[1];
-
-	xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
-	ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
-
-	if (xpos2 < 1)
-		xpos2 = 1;
-	if (xpos < 1)
-		xpos = 1;
-	if (xpos2 > con_current->linewidth)
-		xpos2 = con_current->linewidth;
-	if (xpos > con_current->linewidth)
-		xpos = con_current->linewidth;
-	if (xpos2 > xpos)
 	{
-		temp = xpos;
-		xpos = xpos2;
-		xpos2 = temp;
+		*sx = *sy = *ex = *ey = 0;
+		return false;
 	}
-	xpos++;
-	if (ypos2 > ypos)
-	{
-		temp = ypos;
-		ypos = ypos2;
-		ypos2 = temp;
-	}
-	ypos++;
-
-	yadj = (con_current->vislines-22) % 8;
-
-	Draw_FillRGB(xpos2*8, yadj+ypos2*8, (xpos - xpos2)*8, (ypos - ypos2)*8, sccolor[0], sccolor[1], sccolor[2]);
+	*sx = con_mousedown[0];
+	*sy = con_mousedown[1];
+	*ex = mousecursor_x;
+	*ey = mousecursor_y;
 }
 
 void Key_ConsoleRelease(int key)
@@ -485,6 +455,7 @@ void Key_ConsoleRelease(int key)
 		con_mousedown[2] = false;
 	if (key == K_MOUSE2 && con_mousedown[2])
 	{
+#if 0
 		extern cvar_t vid_conwidth, vid_conheight;
 		extern int mousecursor_x, mousecursor_y;
 		int xpos, ypos, temp;
@@ -552,6 +523,7 @@ void Key_ConsoleRelease(int key)
 
 		Sys_SaveClipboard(bufhead);
 		Z_Free(bufhead);
+#endif
 	}
 }
 
@@ -562,7 +534,7 @@ Key_Console
 Interactive line editing and console scrollback
 ====================
 */
-void Key_Console (int key)
+void Key_Console (unsigned int unicode, int key)
 {
 	char	*clipText;
 	int upperconbound;
@@ -588,8 +560,8 @@ void Key_Console (int key)
 		int xpos, ypos;
 		xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
 		ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
-		con_mousedown[0] = xpos;
-		con_mousedown[1] = ypos;
+		con_mousedown[0] = mousecursor_x;
+		con_mousedown[1] = mousecursor_y;
 		if (ypos == 0 && con_main.next)
 		{
 			console_t *con;
@@ -740,61 +712,41 @@ void Key_Console (int key)
 		return;
 	}
 
-	upperconbound = con_current->current - con_current->totallines + 1;
-
 	if (key == K_PGUP || key==K_MWHEELUP)
 	{
-		// con_current->vislines actually contains the height of the console in
-		// pixels (and not the number of lines). It's 22 pixels larger
-		// than the text area to include borders I guess... weird shit.
-		// - Molgrum
+		int i = 2;
 		if (keydown[K_CTRL])
+			i = 8;
+		if (con_current->display == con_current->current)
+			i+=2;	//skip over the blank input line, and extra so we actually move despite the addition of the ^^^^^ line
+		while (i-->0)
 		{
-			if (con_current->display == con_current->current)
-			{
-				con_current->display -= ( ( con_current->vislines - 22 ) / 8 );
-			}
-			else
-			{
-				con_current->display -= ( ( con_current->vislines - 30 ) / 8 );
-			}
+			if (con_current->display->older == NULL)
+				break;
+			con_current->display = con_current->display->older;
 		}
-		else
-			con_current->display -= 2;
-		
-		if (con_current->display < upperconbound)
-			con_current->display = upperconbound;
 		return;
 	}
-
 	if (key == K_PGDN || key==K_MWHEELDOWN)
 	{
-		// con_current->vislines actually contains the height of the console in
-		// pixels (and not the number of lines). It's 22 pixels larger
-		// than the text area to include borders I guess... weird shit.
-		// - Molgrum
+		int i = 2;
 		if (keydown[K_CTRL])
-			con_current->display += ( ( con_current->vislines - 30 ) / 8 );
-		else
-			con_current->display += 2;
-		
-		if (con_current->display < upperconbound)
-			con_current->display = upperconbound;
-		
-		// Changed this to prevent the following scenario: PGUP, ENTER, PGDN ,(you'll
-		// see the ^^^^ indicator), PGDN, (the indicator disappears but the console position
-		// is still the same).
-		// - Molgrum
-		if (con_current->display >= ( con_current->current - 1 ))
+			i = 8;
+		while (i-->0)
+		{
+			if (con_current->display->newer == NULL)
+				break;
+			con_current->display = con_current->display->newer;
+		}
+		if (con_current->display->newer && con_current->display->newer == con_current->current)
 			con_current->display = con_current->current;
-		
 		return;
 	}
 
 	if (key == K_HOME)
 	{
 		if (keydown[K_CTRL])
-			con_current->display = upperconbound;
+			con_current->display = con_current->oldest;
 		else
 			key_linepos = 1;
 		return;
@@ -844,8 +796,35 @@ void Key_Console (int key)
 		return;
 	}
 
-	if (key < 32 || key > 127)
-		return;	// non printable
+	key = unicode;
+	if (!key)
+		return;
+
+	{
+		unsigned char c1;
+		unsigned char c2;
+
+		if (unicode > 127)
+		{
+			extern cvar_t com_parseutf8;
+			if (com_parseutf8.value)
+			{
+				c1 = 0xc0 | ((unicode>>6)&0x1f);
+				c2 = 0x80 | (unicode&0x3f);
+				if (key_linepos < MAXCMDLINE-2)
+				{
+					memmove(key_lines[edit_line]+key_linepos+2, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
+					key_lines[edit_line][key_linepos] = c1;
+					key_linepos++;
+					key_lines[edit_line][key_linepos] = c2;
+					key_linepos++;
+			//		key_lines[edit_line][key_linepos] = 0;
+				}
+				return;
+			}
+			unicode = '?';	//sorry
+		}
+	}
 
 	if (keydown[K_CTRL]) {
 		if (key >= '0' && key <= '9')
@@ -877,7 +856,7 @@ void Key_Console (int key)
 
 
 		
-	if (key_linepos < MAXCMDLINE-1)
+	if (strlen(key_lines[edit_line])+1 < MAXCMDLINE-1)
 	{
 		memmove(key_lines[edit_line]+key_linepos+1, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
 		key_lines[edit_line][key_linepos] = key;
@@ -988,7 +967,13 @@ int Key_StringToKeynum (char *str, int *modifier)
 	if (!str || !str[0])
 		return -1;
 	if (!str[1])	//single char.
+	{
+#if 0//def _WIN32
+		return VkKeyScan(str[0]);
+#else
 		return str[0];
+#endif
+	}
 
 	if (!strncmp(str, "K_", 2))
 		str+=2;
@@ -999,7 +984,9 @@ int Key_StringToKeynum (char *str, int *modifier)
 			return kn->keynum;
 	}
 	if (atoi(str))	//assume ascii code. (prepend with a 0 if needed)
+	{
 		return atoi(str);
+	}
 	return -1;
 }
 
@@ -1400,13 +1387,13 @@ Called by the system between frames for both key up and key down events
 Should NOT be called during an interrupt!
 ===================
 */
-void Key_Event (int key, qboolean down)
+void Key_Event (int key, unsigned int unicode, qboolean down)
 {
 	char	*kb;
 	char	cmd[1024];
 	int keystate, oldstate;
 
-//	Con_Printf ("%i : %i\n", key, down); //@@@
+//	Con_Printf ("%i : %i : %i\n", key, unicode, down); //@@@
 
 	oldstate = KeyModifier(keydown[K_SHIFT], keydown[K_ALT], keydown[K_CTRL]);
 
@@ -1515,7 +1502,9 @@ void Key_Event (int key, qboolean down)
 	}
 
 	if (key == K_SHIFT)
+	{
 		shift_down = down;
+	}
 
 	if (key == K_ESCAPE)
 		if (shift_down)
@@ -1687,7 +1676,7 @@ void Key_Event (int key, qboolean down)
 	}
 
 	if (shift_down)
-		key = keyshift[key];
+		unicode = keyshift[unicode];
 
 	if (!down)
 	{
@@ -1719,7 +1708,7 @@ void Key_Event (int key, qboolean down)
 	case key_console:
 		if ((key >= ' ' && key <= 127) || key == K_ENTER || key == K_TAB)
 			key_dest = key_console;
-		Key_Console (key);
+		Key_Console (unicode, key);
 		break;
 	default:
 		Sys_Error ("Bad key_dest");

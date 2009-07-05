@@ -16,7 +16,7 @@ void					D3D9_Draw_BeginDisc (void);
 mpic_t*					D3D9_Draw_CachePic (char *path);
 void					D3D9_Draw_Character (int x, int y, unsigned int num);
 void					D3D9_Draw_ColouredCharacter (int x, int y, unsigned int num);
-void					D3D9_Draw_ConsoleBackground (int lines);
+void					D3D9_Draw_ConsoleBackground	(int firstline, int lastline, qboolean forceopaque);
 void					D3D9_Draw_Crosshair (void);
 void					D3D9_Draw_DebugChar (qbyte num);
 void					D3D9_Draw_EditorBackground (int lines);

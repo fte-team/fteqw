@@ -456,11 +456,23 @@ void CL_DownloadFinished(void)
 		{
 			if (strncmp(tempname,"skins/",6))
 			{
-				FS_Rename(tempname, filename, FS_GAME);
+				if (!FS_Rename(tempname, filename, FS_GAME))
+				{
+					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
+					FS_NativePath(tempname, FS_GAME, nativetmp, sizeof(nativetmp));
+					FS_NativePath(filename, FS_GAME, nativefinal, sizeof(nativefinal));
+					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
+				}
 			}
 			else
 			{
-				FS_Rename(tempname+6, filename+6, FS_SKINS);
+				if (!FS_Rename(tempname+6, filename+6, FS_SKINS))
+				{
+					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
+					FS_NativePath(tempname+6, FS_SKINS, nativetmp, sizeof(nativetmp));
+					FS_NativePath(filename+6, FS_SKINS, nativefinal, sizeof(nativefinal));
+					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
+				}
 			}
 		}
 	}
@@ -2104,8 +2116,21 @@ void CL_ParseServerData (void)
 	}
 
 	// seperate the printfs so the server message can have a color
+#if 1
+	{
+		int i;
+		Con_Printf ("\n\n");
+		Con_Printf ("^Ue01d");
+		for (i = 34; i-->0; i--)
+			Con_Printf ("^Ue01e");
+		Con_Printf ("^Ue01f");
+		Con_Printf ("\n\n");
+	}
+	Con_Printf ("\1%s\n", str);
+#else
 	Con_TPrintf (TLC_LINEBREAK_NEWLEVEL);
 	Con_TPrintf (TLC_PC_PS_NL, 2, str);
+#endif
 
 	if (CL_RemoveClientCommands("new"))	//mvdsv is really appaling some times.
 	{
@@ -3067,7 +3092,7 @@ void CL_ParseStatic (int version)
 	ent->shaderRGBAf[2] = (8.0f/255.0f)*es.colormod[2];
 	ent->shaderRGBAf[3] = es.trans/255;
 
-	ent->fatness = es.fatness/2.0;
+	ent->fatness = es.fatness/16.0;
 	ent->abslight = es.abslight;
 
 	VectorCopy (es.origin, ent->origin);
@@ -3711,6 +3736,7 @@ void CL_MuzzleFlash (int destsplit)
 		{
 			dl = CL_AllocDlight (-i);
 			VectorCopy (s1->origin,  dl->origin);
+			AngleVectors(s1->angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 			break;
 		}
 	}
@@ -3722,9 +3748,10 @@ void CL_MuzzleFlash (int destsplit)
 
 			dl = CL_AllocDlight (-i);
 			VectorCopy (pl->origin,  dl->origin);	//set it's origin
+			AngleVectors(pl->viewangles, dl->axis[0], dl->axis[1], dl->axis[2]);
 
 			AngleVectors (pl->viewangles, fv, rv, uv);	//shift it up a little
-			VectorMA (dl->origin, 18, fv, dl->origin);
+			VectorMA (dl->origin, 15, fv, dl->origin);
 		}
 		else
 			return;

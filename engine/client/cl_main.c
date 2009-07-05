@@ -679,7 +679,7 @@ void CL_CheckForResend (void)
 #endif
 
 	if (connect_tries == 0)
-		NET_EnsureRoute(cls.sockets, "conn", cls.servername);
+		NET_EnsureRoute(cls.sockets, "conn", cls.servername, false);
 
 #ifdef NQPROT
 	if (connect_type || ((connect_tries&3)==3))
@@ -844,7 +844,7 @@ void CL_IRCConnect_f (void)
 {
 	CL_Disconnect_f ();
 
-	if (FTENET_AddToCollection(cls.sockets, "TCP", Cmd_Argv(2), FTENET_IRCConnect_EstablishConnection))
+	if (FTENET_AddToCollection(cls.sockets, "TCP", Cmd_Argv(2), FTENET_IRCConnect_EstablishConnection, false))
 	{
 		char *server;
 		server = Cmd_Argv (1);
@@ -3530,13 +3530,10 @@ void Host_Init (quakeparms_t *parms)
 	Con_Init ();
 	M_Init ();
 
+	//fixme: this difference needs to go.
 #ifndef _WIN32
 	IN_Init ();
 	CDAudio_Init ();
-//	VID_Init (host_basepal);
-//	Draw_Init ();
-//	SCR_Init ();
-//	R_Init ();
 
 	S_Init ();
 
@@ -3552,6 +3549,7 @@ void Host_Init (quakeparms_t *parms)
 	CL_Init ();
 	IN_Init ();
 #endif
+
 	TranslateInit();
 #ifndef CLIENTONLY
 	SV_Init(parms);

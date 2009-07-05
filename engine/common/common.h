@@ -258,7 +258,7 @@ void COM_ParsePlusSets (void);
 
 typedef unsigned int conchar_t;
 void COM_DeFunString(conchar_t *str, char *out, int outsize, qboolean ignoreflags);
-void COM_ParseFunString(conchar_t ext, char *str, conchar_t *out, int outsize);	//ext is usually CON_WHITEMASK
+conchar_t *COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int outsize, qboolean keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
 int COM_FunStringLength(unsigned char *str);
 
 char *COM_SkipPath (const char *pathname);

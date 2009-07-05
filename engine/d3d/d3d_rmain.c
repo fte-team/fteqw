@@ -344,7 +344,7 @@ void D3D7_DrawTextureChains(void)
 			continue;
 		t->texturechain = NULL;
 
-pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, (LPDIRECTDRAWSURFACE7)t->gl_texturenum);
+pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, (LPDIRECTDRAWSURFACE7)t->tn.base);
 pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
 pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
@@ -466,7 +466,7 @@ void D3D7_BaseBModelTextures(entity_t *e)
 	{
 		t = R_TextureAnimation(s->texinfo->texture);
 
-		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, (LPDIRECTDRAWSURFACE7)t->gl_texturenum);
+		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, (LPDIRECTDRAWSURFACE7)t->tn.base);
 		pD3DDev->lpVtbl->SetTexture(pD3DDev, 1, (LPDIRECTDRAWSURFACE7)lightmap_d3dtextures[s->lightmaptexturenum]);
 		{
 			m = s->mesh;

@@ -3781,6 +3781,7 @@ void Cmd_FPSList_f(void)
 		frames = 0;
 		inbytes = 0;
 		outbytes = 0;
+		msecs = 0;
 
 		if (!cl->state)
 			continue;

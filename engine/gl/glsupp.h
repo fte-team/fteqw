@@ -99,10 +99,24 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 #define GL_MAX_CUBE_MAP_TEXTURE_SIZE_ARB  0x851C
 #endif
 
+#ifndef GL_ARB_depth_texture
+#define GL_ARB_depth_texture
+#define GL_DEPTH_COMPONENT16_ARB          0x81A5
+#define GL_DEPTH_COMPONENT24_ARB          0x81A6
+#define GL_DEPTH_COMPONENT32_ARB          0x81A7
+#define GL_TEXTURE_DEPTH_SIZE_ARB         0x884A
+#define GL_DEPTH_TEXTURE_MODE_ARB         0x884B
+#endif
 
+#ifndef GL_ARB_shadow
+#define GL_ARB_shadow
+#define GL_TEXTURE_COMPARE_MODE_ARB       0x884C
+#define GL_TEXTURE_COMPARE_FUNC_ARB       0x884D
+#define GL_COMPARE_R_TO_TEXTURE_ARB       0x884E
+#endif
 
 #ifndef GL_EXT_texture3D
-#define define GL_EXT_texture3D 1
+#define GL_EXT_texture3D 1
 #define GL_PACK_SKIP_IMAGES               0x806B
 #define GL_PACK_SKIP_IMAGES_EXT           0x806B
 #define GL_PACK_IMAGE_HEIGHT              0x806C

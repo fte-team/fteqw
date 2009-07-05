@@ -58,6 +58,7 @@ cvar_t	m_forcewheel = SCVAR("m_forcewheel", "1");
 cvar_t	m_forcewheel_threshold = SCVAR("m_forcewheel_threshold", "32");
 cvar_t	in_mwhook = SCVARF("in_mwhook","0", CVAR_ARCHIVE);
 cvar_t	in_dinput = SCVARF("in_dinput","0", CVAR_ARCHIVE);
+cvar_t	in_builtinkeymap = SCVARF("in_builtinkeymap", "1", CVAR_ARCHIVE);
 
 cvar_t	m_accel_noforce = SCVAR("m_accel_noforce", "0");
 cvar_t  m_threshold_noforce = SCVAR("m_threshold_noforce", "0");
@@ -370,11 +371,11 @@ void MW_Hook_Message (long buttons)
 	buttons &= 0xFFFF;
 	switch (buttons ^ old_buttons)
 	{
-		case 8:		Key_Event(K_MOUSE4, buttons > old_buttons ? true : false); break;
-		case 16:	Key_Event(K_MOUSE5, buttons > old_buttons ? true : false); break;
-		case 32:	Key_Event(K_MOUSE6, buttons > old_buttons ? true : false); break;
-		case 64:	Key_Event(K_MOUSE7, buttons > old_buttons ? true : false); break;
-		case 128:	Key_Event(K_MOUSE8, buttons > old_buttons ? true : false); break;
+		case 8:		Key_Event(K_MOUSE4, 0, buttons > old_buttons ? true : false); break;
+		case 16:	Key_Event(K_MOUSE5, 0, buttons > old_buttons ? true : false); break;
+		case 32:	Key_Event(K_MOUSE6, 0, buttons > old_buttons ? true : false); break;
+		case 64:	Key_Event(K_MOUSE7, 0, buttons > old_buttons ? true : false); break;
+		case 128:	Key_Event(K_MOUSE8, 0, buttons > old_buttons ? true : false); break;
 		default:	break;
 	}
 
@@ -1276,6 +1277,7 @@ void IN_Init (void)
 	Cvar_Register (&in_mwhook, "Input Controls");
 
 	Cvar_Register (&in_dinput, "Input Controls");
+	Cvar_Register (&in_builtinkeymap, "Input Controls");
 
 	Cvar_Register (&m_accel_noforce, "Input Controls");
 	Cvar_Register (&m_threshold_noforce, "Input Controls");
@@ -1383,13 +1385,13 @@ void IN_MouseEvent (int mstate)
 			if ( (mstate & (1<<i)) &&
 				!(sysmouse.oldbuttons & (1<<i)) )
 			{
-				Key_Event (K_MOUSE1 + i, true);
+				Key_Event (K_MOUSE1 + i, 0, true);
 			}
 
 			if ( !(mstate & (1<<i)) &&
 				(sysmouse.oldbuttons & (1<<i)) )
 			{
-				Key_Event (K_MOUSE1 + i, false);
+				Key_Event (K_MOUSE1 + i, 0, false);
 			}
 		}	
 			
@@ -1414,13 +1416,13 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		if ( (mouse->buttons & (1<<i)) &&
 			!(mouse->oldbuttons & (1<<i)) )
 		{
-			Key_Event (K_MOUSE1 + i, true);
+			Key_Event (K_MOUSE1 + i, 0, true);
 		}
 
 		if ( !(mouse->buttons & (1<<i)) &&
 			(mouse->oldbuttons & (1<<i)) )
 		{
-			Key_Event (K_MOUSE1 + i, false);
+			Key_Event (K_MOUSE1 + i, 0, false);
 		}
 	}
 	mouse->oldbuttons = mouse->buttons;
@@ -1432,15 +1434,15 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		{
 			while(mouse->wheeldelta <= -mfwt)
 			{
-				Key_Event (K_MWHEELUP, true);
-				Key_Event (K_MWHEELUP, false);
+				Key_Event (K_MWHEELUP, 0, true);
+				Key_Event (K_MWHEELUP, 0, false);
 				mouse->wheeldelta += mfwt;
 			}
 
 			while(mouse->wheeldelta >= mfwt)
 			{
-				Key_Event (K_MWHEELDOWN, true);
-				Key_Event (K_MWHEELDOWN, false);
+				Key_Event (K_MWHEELDOWN, 0, true);
+				Key_Event (K_MWHEELDOWN, 0, false);
 				mouse->wheeldelta -= mfwt;
 			}
 		}
@@ -1864,38 +1866,38 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 
 	// buttons
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) 
-		Key_Event(K_MOUSE1, true);
+		Key_Event(K_MOUSE1, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP)   
-		Key_Event(K_MOUSE1, false);
+		Key_Event(K_MOUSE1, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) 
-		Key_Event(K_MOUSE2, true);
+		Key_Event(K_MOUSE2, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP)   
-		Key_Event(K_MOUSE2, false);
+		Key_Event(K_MOUSE2, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) 
-		Key_Event(K_MOUSE3, true);
+		Key_Event(K_MOUSE3, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP)   
-		Key_Event(K_MOUSE3, false);
+		Key_Event(K_MOUSE3, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) 
-		Key_Event(K_MOUSE4, true);
+		Key_Event(K_MOUSE4, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_UP)   
-		Key_Event(K_MOUSE4, false);
+		Key_Event(K_MOUSE4, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) 
-		Key_Event(K_MOUSE5, true);
+		Key_Event(K_MOUSE5, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_UP)   
-		Key_Event(K_MOUSE5, false);
+		Key_Event(K_MOUSE5, 0, false);
 
 	// mouse wheel
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)
 	{      // If the current message has a mouse_wheel message
 		if ((SHORT)raw->data.mouse.usButtonData > 0) 
 		{
-			Key_Event(K_MWHEELUP, true);
-			Key_Event(K_MWHEELUP, false);
+			Key_Event(K_MWHEELUP, 0, true);
+			Key_Event(K_MWHEELUP, 0, false);
 		}
 		if ((SHORT)raw->data.mouse.usButtonData < 0)
 		{
-			Key_Event(K_MWHEELDOWN, true);
-			Key_Event(K_MWHEELDOWN, false);
+			Key_Event(K_MWHEELDOWN, 0, true);
+			Key_Event(K_MWHEELDOWN, 0, false);
 		}
 	}
 
@@ -1905,12 +1907,12 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 	{
 		if ( (tbuttons & (1<<j)) && !(rawmice[i].buttons & (1<<j)) )
 		{
-			Key_Event (K_MOUSE1 + j, true);
+			Key_Event (K_MOUSE1 + j, 0, true);
 		}
 
 		if ( !(tbuttons & (1<<j)) && (rawmice[i].buttons & (1<<j)) )
 		{
-			Key_Event (K_MOUSE1 + j, false);
+			Key_Event (K_MOUSE1 + j, 0, false);
 		}
 
 	}
@@ -1961,7 +1963,7 @@ void IN_StartupJoystick (void)
 	// verify joystick driver is present
 	if ((numdevs = joyGetNumDevs ()) == 0)
 	{
-		Con_Printf ("\njoystick not found -- driver not present\n\n");
+		Con_Printf ("joystick not found -- driver not present\n");
 		return;
 	}
 
@@ -1981,7 +1983,7 @@ void IN_StartupJoystick (void)
 	// abort startup if we didn't find a valid joystick
 	if (mmr != JOYERR_NOERROR)
 	{
-		Con_Printf ("\njoystick not found -- no valid joysticks (%x)\n\n", mmr);
+		Con_Printf ("joystick not found -- no valid joysticks (%x)\n", mmr);
 		return;
 	}
 
@@ -1990,7 +1992,7 @@ void IN_StartupJoystick (void)
 	memset (&jc, 0, sizeof(jc));
 	if ((mmr = joyGetDevCaps (joy_id, &jc, sizeof(jc))) != JOYERR_NOERROR)
 	{
-		Con_Printf ("\njoystick not found -- invalid joystick capabilities (%x)\n\n", mmr); 
+		Con_Printf ("joystick not found -- invalid joystick capabilities (%x)\n", mmr); 
 		return;
 	}
 
@@ -2007,7 +2009,7 @@ void IN_StartupJoystick (void)
 	joy_avail = true; 
 	joy_advancedinit = false;
 
-	Con_Printf ("\njoystick detected\n\n"); 
+	Con_Printf ("joystick detected\n"); 
 }
 
 
@@ -2133,13 +2135,13 @@ void IN_Commands (void)
 		if ( (buttonstate & (1<<i)) && !(joy_oldbuttonstate & (1<<i)) )
 		{
 			key_index = (i < 4) ? K_JOY1 : K_AUX1;
-			Key_Event (key_index + i, true);
+			Key_Event (key_index + i, 0, true);
 		}
 
 		if ( !(buttonstate & (1<<i)) && (joy_oldbuttonstate & (1<<i)) )
 		{
 			key_index = (i < 4) ? K_JOY1 : K_AUX1;
-			Key_Event (key_index + i, false);
+			Key_Event (key_index + i, 0, false);
 		}
 	}
 	joy_oldbuttonstate = buttonstate;
@@ -2166,12 +2168,12 @@ void IN_Commands (void)
 		{
 			if ( (povstate & (1<<i)) && !(joy_oldpovstate & (1<<i)) )
 			{
-				Key_Event (K_AUX29 + i, true);
+				Key_Event (K_AUX29 + i, 0, true);
 			}
 
 			if ( !(povstate & (1<<i)) && (joy_oldpovstate & (1<<i)) )
 			{
-				Key_Event (K_AUX29 + i, false);
+				Key_Event (K_AUX29 + i, 0, false);
 			}
 		}
 		joy_oldpovstate = povstate;
@@ -2388,11 +2390,7 @@ void IN_JoyMove (float *movements, int pnum)
 	CL_ClampPitch(pnum);
 }
 
-
-
-
-
-qbyte        scantokey[128] = 
+static qbyte        scantokey[128] = 
 					{ 
 //  0           1       2       3       4       5       6       7 
 //  8           9       A       B       C       D       E       F 
@@ -2413,8 +2411,8 @@ qbyte        scantokey[128] =
 	0,			0,		0,			0,			0,		0,			0,				0, 
 	0,			0,		0,			0,			0,		0,			0,				0			// 7 
 					}; 
-
-qbyte        shiftscantokey[128] = 
+/*
+static qbyte        shiftscantokey[128] = 
 					{ 
 //  0           1       2       3       4       5       6       7 
 //  8           9       A       B       C       D       E       F 
@@ -2435,7 +2433,7 @@ qbyte        shiftscantokey[128] =
 	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0, 
 	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0         // 7 
 					}; 
-
+*/
 
 /*
 =======
@@ -2444,7 +2442,7 @@ MapKey
 Map from windows to quake keynums
 =======
 */
-int MapKey (int vkey)
+static int MapKey (int vkey)
 {
 	int key;
 	key = (vkey>>16)&255;
@@ -2522,4 +2520,29 @@ int MapKey (int vkey)
 	if (scantokey[key] == 0)
 		Con_DPrintf("key 0x%02x has no translation\n", key);
 	return scantokey[key];
+}
+
+void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down)
+{
+	extern cvar_t in_builtinkeymap;
+	int qcode;
+	int unicode;
+
+	qcode = MapKey(lParam);
+	unicode = (qcode < 128)?qcode:0;
+
+	if (WinNT && !in_builtinkeymap.value)
+	{
+		BYTE	keystate[256];
+		WCHAR	wchars[2];
+		GetKeyboardState(keystate);
+		if (ToUnicode(wParam, HIWORD(lParam), keystate, wchars, sizeof(wchars)/sizeof(wchars[0]), 0) > 0)
+		{
+			//ignore if more, its probably a compose and > 65535 anyway. we can't represent that.
+//			if (!wchars[1])
+				unicode = wchars[0];
+		}
+	}
+	
+	Key_Event (qcode, unicode, down);
 }

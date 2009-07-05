@@ -600,12 +600,12 @@ void D3D9_DrawTextureChains(void)
 
 		if (s->flags & SURF_DRAWTURB)
 		{
-			IDirect3DDevice9_SetTexture(pD3DDev9, 0, (void*)t->gl_texturenum);
+			IDirect3DDevice9_SetTexture(pD3DDev9, 0, (void*)t->tn.base);
 
 IDirect3DDevice9_SetTextureStageState(pD3DDev9, 0, D3DTSS_TEXCOORDINDEX, 0);
-IDirect3DDevice9_SetTexture(pD3DDev9, 0, (void*)t->gl_texturenum);
+IDirect3DDevice9_SetTexture(pD3DDev9, 0, (void*)t->tn.base);
 IDirect3DDevice9_SetTextureStageState(pD3DDev9, 1, D3DTSS_TEXCOORDINDEX, 1);
-IDirect3DDevice9_SetTexture(pD3DDev9, 1, (void*)t->gl_texturenum);
+IDirect3DDevice9_SetTexture(pD3DDev9, 1, (void*)t->tn.base);
 
 IDirect3DDevice9_SetTextureStageState(pD3DDev9, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 IDirect3DDevice9_SetTextureStageState(pD3DDev9, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
@@ -654,7 +654,7 @@ IDirect3DDevice9_SetTextureStageState(pD3DDev9, 1, D3DTSS_COLOROP, D3DTOP_MODULA
 			continue;
 		}
 
-IDirect3DDevice9_SetTexture(pD3DDev9, 0, (void*)t->gl_texturenum);
+IDirect3DDevice9_SetTexture(pD3DDev9, 0, (void*)t->tn.base);
 IDirect3DDevice9_SetTextureStageState(pD3DDev9, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 IDirect3DDevice9_SetTextureStageState(pD3DDev9, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
 IDirect3DDevice9_SetTextureStageState(pD3DDev9, 0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
@@ -792,7 +792,7 @@ void D3D9_BaseBModelTextures(entity_t *e)
 		if (s->lightmaptexturenum < 0)
 			continue;
 
-		IDirect3DDevice9_SetTexture(pD3DDev9, 0, (void*)t->gl_texturenum);
+		IDirect3DDevice9_SetTexture(pD3DDev9, 0, (void*)t->tn.base);
 		IDirect3DDevice9_SetTexture(pD3DDev9, 1, (void*)lightmap_d3d9textures[s->lightmaptexturenum]);
 		{
 			m = s->mesh;

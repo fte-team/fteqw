@@ -268,7 +268,7 @@ void SV_EdictToEntState (int num, edict_t *ent, entity_state_t *state)
 	else
 		state->scale = ent->xv->scale*16;
 
-	state->fatness = ent->xv->fatness*2;
+	state->fatness = ent->xv->fatness*16;
 }
 
 void SVNQ_CreateBaseline (void)

@@ -244,11 +244,20 @@ typedef struct
 #define MAX_DLIGHTS			MAX_RTLIGHTS
 #endif
 
+#define LFLAG_NORMALMODE (1<<0)
+#define LFLAG_REALTIMEMODE (1<<1)
+
+#define LFLAG_NOSHADOWS (1<<15)
+#define LFLAG_ALLOW_LMHACK (1<<16)
+#define LFLAG_ALLOW_FLASH (1<<17)
+#define LFLAG_ALLOW_PPL (1<<18)
+#define LFLAG_ALLOW_PPL (1<<18)
+
+#define LFLAG_DYNAMIC (LFLAG_ALLOW_PPL | LFLAG_ALLOW_LMHACK | LFLAG_ALLOW_FLASH | LFLAG_NORMALMODE | LFLAG_REALTIMEMODE)
 
 typedef struct dlight_s
 {
 	int		key;				// so entities can reuse same entry
-	qboolean	noppl, nodynamic, noflash, isstatic;
 	vec3_t	origin;
 	vec3_t	axis[3];
 	float	radius;
@@ -257,6 +266,8 @@ typedef struct dlight_s
 	float	minlight;			// don't add when contributing less
 	float   color[3];
 	float	channelfade[3];
+
+	unsigned int flags;
 
 	//the following are used for rendering (client code should clear on create)
 	struct	shadowmesh_s *worldshadowmesh;

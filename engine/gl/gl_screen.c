@@ -46,6 +46,9 @@ extern cvar_t vid_conautoscale;
 // console size manipulation callbacks
 void GLVID_Console_Resize(void)
 {
+#ifdef AVAIL_FREETYPE
+	extern struct font_s *conchar_font;
+#endif
 	extern cvar_t vid_conwidth, vid_conheight;
 	int cwidth, cheight;
 	float xratio;
@@ -95,6 +98,12 @@ void GLVID_Console_Resize(void)
 
 	vid.recalc_refdef = true;
 	Con_CheckResize();
+
+#ifdef AVAIL_FREETYPE
+	if (conchar_font)
+		Font_Free(conchar_font);
+	conchar_font = Font_LoadFont(8*glheight/vid.height, "C:/Windows/Fonts/cour.ttf");
+#endif
 
 #ifdef PLUGINS
 	Plug_ResChanged();

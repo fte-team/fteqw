@@ -63,6 +63,7 @@ void (APIENTRY *qglTexEnvf) (GLenum target, GLenum pname, GLfloat param);
 void (APIENTRY *qglTexEnvfv) (GLenum target, GLenum pname, const GLfloat *param);
 void (APIENTRY *qglTexEnvi) (GLenum target, GLenum pname, GLint param);
 void (APIENTRY *qglTexGeni) (GLenum coord, GLenum pname, GLint param);
+void (APIENTRY *qglTexGenfv) (GLenum coord, GLenum pname, const GLfloat *param);
 void (APIENTRY *qglTexImage2D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
 void (APIENTRY *qglTexParameteri) (GLenum target, GLenum pname, GLint param);
 void (APIENTRY *qglTexParameterf) (GLenum target, GLenum pname, GLfloat param);
@@ -412,15 +413,27 @@ GLhandleARB GLSlang_CreateShader (char *precompilerconstants, char *shadersource
 	GLint       compiled;
 	char        str[1024];
 
-	char *prstrings[2];
+	char *prstrings[3];
 	if (!precompilerconstants)
 		precompilerconstants = "";
-	prstrings[0] = precompilerconstants;
-	prstrings[1] = shadersource;
+	switch (shadertype)
+	{
+	case GL_FRAGMENT_SHADER_ARB:
+		prstrings[0] = "#define FRAGMENT_SHADER\n";
+		break;
+	case GL_VERTEX_SHADER_ARB:
+		prstrings[0] = "#define VERTEX_SHADER\n";
+		break;
+	default:
+		prstrings[0] = "#define UNKNOWN_SHADER\n";
+		break;
+	}
+	prstrings[1] = precompilerconstants;
+	prstrings[2] = shadersource;
 
 	shader = qglCreateShaderObjectARB(shadertype);
 
-	qglShaderSourceARB(shader, 2, (const GLcharARB**)prstrings, NULL);
+	qglShaderSourceARB(shader, 3, (const GLcharARB**)prstrings, NULL);
 	qglCompileShaderARB(shader);
 
 	qglGetObjectParameterivARB(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
@@ -553,6 +566,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglTexEnvfv			= (void *)getglcore("glTexEnvfv");
 	qglTexEnvi			= (void *)getglcore("glTexEnvi");
 	qglTexGeni			= (void *)getglcore("glTexGeni");
+	qglTexGenfv			= (void *)getglcore("glTexGenfv");
 	qglTexImage2D		= (void *)getglcore("glTexImage2D");
 	qglTexParameteri	= (void *)getglcore("glTexParameteri");
 	qglTexParameterf	= (void *)getglcore("glTexParameterf");

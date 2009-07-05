@@ -1277,6 +1277,10 @@ void R_ModifyTextureCoords ( shaderpass_t *pass, int unit )
 		{
 			qglTexCoordPointer(2, GL_FLOAT, 0, lightmapCoordsArray);
 		}
+		else if (pass->tcgen == TC_GEN_NORMAL)
+		{
+			qglTexCoordPointer(3, GL_FLOAT, 0, normalsArray);
+		}
 		else
 		{
 			qglTexCoordPointer(2, GL_FLOAT, 0, R_VertexTCBase(pass->tcgen, unit));
@@ -2080,7 +2084,20 @@ void R_RenderMeshProgram ( meshbuffer_t *mb, shaderpass_t *pass )
 		switch(s->progparm[i].type)
 		{
 		case SP_EYEPOS:
-			qglUniform3fvARB(s->progparm[i].handle, 1, r_origin);
+			{
+				vec3_t t, v;
+				VectorSubtract(r_origin, currententity->origin, t);
+
+				if (!Matrix3_Compare(currententity->axis, axisDefault))
+				{
+					Matrix3_Multiply_Vec3(currententity->axis, t, v );
+				}
+				else
+				{
+					VectorCopy(t, v);
+				}
+				qglUniform3fvARB(s->progparm[i].handle, 1, v);
+			}
 			break;
 		case SP_TIME:
 			qglUniform1fARB(s->progparm[i].handle, r_localShaderTime);

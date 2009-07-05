@@ -383,13 +383,13 @@ LONG WINAPI MainWndProc (
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 			if (!vid_initializing)
-				Key_Event (MapKey(lParam), true);
+				IN_TranslateKeyEvent(wParam, lParam, true);
 			break;
 
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
-				Key_Event (MapKey(lParam), false);
+				IN_TranslateKeyEvent(wParam, lParam, false);
 			break;
 
 	// this is complicated because Win32 seems to pack multiple mouse events into
@@ -446,11 +446,11 @@ LONG WINAPI MainWndProc (
 		// Event.
 		case WM_MOUSEWHEEL: 
 			if ((short) HIWORD(wParam) > 0) {
-				Key_Event(K_MWHEELUP, true);
-				Key_Event(K_MWHEELUP, false);
+				Key_Event(K_MWHEELUP, 0, true);
+				Key_Event(K_MWHEELUP, 0, false);
 			} else {
-				Key_Event(K_MWHEELDOWN, true);
-				Key_Event(K_MWHEELDOWN, false);
+				Key_Event(K_MWHEELDOWN, 0, true);
+				Key_Event(K_MWHEELDOWN, 0, false);
 			}
 			break;
 		case WM_INPUT:
@@ -953,7 +953,6 @@ void	SWVID_Shutdown (void)
 void	SWVID_Update (vrect_t *rects)	//end frame...
 {
 	extern qboolean mouseactive;
-	qboolean mouse;
 #ifdef MGL
 	if (usingmgl)
 	{

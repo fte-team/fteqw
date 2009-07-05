@@ -4767,6 +4767,9 @@ QCC_def_t *QCC_PR_Term (void)
 			case ev_float:
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_SUB_F], QCC_MakeFloatDef(0), e, NULL);
 				break;
+			case ev_vector:
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_SUB_V], QCC_MakeVectorDef(0, 0, 0), e, NULL);
+				break;
 			case ev_integer:
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_SUB_I], QCC_MakeIntDef(0), e, NULL);
 				break;
@@ -4784,10 +4787,13 @@ QCC_def_t *QCC_PR_Term (void)
 			switch(e->type->type)
 			{
 			case ev_float:
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_ADD_F], QCC_MakeFloatDef(0), e, NULL);
+				e2 = QCC_MakeFloatDef(0);
+				break;
+			case ev_vector:
+				e2 = QCC_MakeVectorDef(0, 0, 0);
 				break;
 			case ev_integer:
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_ADD_I], QCC_MakeIntDef(0), e, NULL);
+				e2 = QCC_MakeIntDef(0);
 				break;
 			default:
 				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for +");
@@ -4934,7 +4940,7 @@ QCC_def_t *QCC_PR_Expression (int priority, int exprflags)
 			if (QCC_PR_CheckToken ("(") )
 			{
 				qcc_usefulstatement=true;
-				return QCC_PR_ParseFunctionCall (e);
+				e = QCC_PR_ParseFunctionCall (e);
 			}
 			if (QCC_PR_CheckToken ("?"))
 			{

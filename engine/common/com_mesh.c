@@ -4784,9 +4784,38 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 		}
 		else if (!strcmp(com_token, "frames"))
 		{
-			Con_Printf (CON_ERROR "EXTERNALANIM: frames not yet supported (%s)\n", mod->name);
-			Hunk_FreeToLowMark(hunkstart);
-			return false;
+			galiasgroup_t ng;
+			void *np;
+
+			buffer = COM_Parse(buffer);
+			file = COM_LoadTempFile2(com_token);
+			if (file)	//FIXME: make non fatal somehow..
+			{
+				char namebkup[MAX_QPATH];
+				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
+				if (!Mod_ParseMD5Anim(file, root, &np, &ng))
+				{
+					Hunk_FreeToLowMark(hunkstart);
+					return false;
+				}
+
+				grouplist = BZ_Realloc(grouplist, sizeof(galiasgroup_t)*(numgroups+ng.numposes));
+				poseofs = BZ_Realloc(poseofs, sizeof(*poseofs)*(numgroups+ng.numposes));
+
+				//pull out each frame individually
+				for (i = 0; i < ng.numposes; i++)
+				{
+					grouplist[numgroups].isheirachical = ng.isheirachical;
+					grouplist[numgroups].loop = false;
+					grouplist[numgroups].numposes = 1;
+					grouplist[numgroups].rate = 24;
+					poseofs[numgroups] = (float*)np + i*12*root->numbones;
+					Q_snprintfz(grouplist[numgroups].name, sizeof(grouplist[numgroups].name), "%s%i", namebkup, i);
+					Q_strncpyz(grouplist[numgroups].name, namebkup, sizeof(grouplist[numgroups].name));
+					grouplist[numgroups].loop = false;
+					numgroups++;
+				}
+			}
 		}
 		else
 		{

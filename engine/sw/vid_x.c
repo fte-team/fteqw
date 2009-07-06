@@ -1123,7 +1123,7 @@ void GetEvent(void)
 
 	case FocusIn:
 		for (b = 0; b < 256; b++)
-			Key_Event(b, false);
+			Key_Event(b, 0, false);
 		focusedapp = true;
 		break;
 	case FocusOut:
@@ -1269,7 +1269,7 @@ void Sys_SendKeyEvents(void)
 		while (XPending(vid_dpy)) GetEvent();
 		while (keyq_head != keyq_tail)
 		{
-			Key_Event(keyq[keyq_tail].key, keyq[keyq_tail].down);
+			Key_Event(keyq[keyq_tail].key, keyq[keyq_tail].key, keyq[keyq_tail].down);
 			keyq_tail = (keyq_tail + 1) & 63;
 		}
 	}
@@ -1351,10 +1351,10 @@ void IN_Commands (void)
 	for (i=0 ; i<mouse_buttons ; i++)
 	{
 		if ( (mouse_buttonstate & (1<<i)) && !(mouse_oldbuttonstate & (1<<i)) )
-			Key_Event (K_MOUSE1 + i, true);
+			Key_Event (K_MOUSE1 + i, 0, true);
 
 		if ( !(mouse_buttonstate & (1<<i)) && (mouse_oldbuttonstate & (1<<i)) )
-			Key_Event (K_MOUSE1 + i, false);
+			Key_Event (K_MOUSE1 + i, 0, false);
 	}
 	mouse_oldbuttonstate = mouse_buttonstate;
 }

@@ -1211,7 +1211,7 @@ void CL_Disconnect (void)
 
 #ifdef TCPCONNECT
 	//disconnects it, without disconnecting the others.
-	FTENET_AddToCollection(cls.sockets, "TCP", NULL, NULL);
+	FTENET_AddToCollection(cls.sockets, "TCP", NULL, NULL, false);
 #endif
 
 	Cvar_ForceSet(&cl_servername, "none");

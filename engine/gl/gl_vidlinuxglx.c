@@ -399,7 +399,7 @@ static void GetEvent(void)
 		break;
 	case KeyPress:
 	case KeyRelease:
-		int b = XLateKey(&event.xkey);
+		b = XLateKey(&event.xkey);
 		Key_Event(b, b, event.type == KeyPress);
 		break;
 

@@ -369,7 +369,7 @@ void ClearAllStates (void)
 // send an up event for each key, to make sure the server clears them all
 	for (i=0 ; i<256 ; i++)
 	{
-		Key_Event (i, false);
+		Key_Event (i, 0, false);
 	}
 
 	Key_ClearStates ();
@@ -399,7 +399,8 @@ static void GetEvent(void)
 		break;
 	case KeyPress:
 	case KeyRelease:
-		Key_Event(XLateKey(&event.xkey), event.type == KeyPress);
+		int b = XLateKey(&event.xkey);
+		Key_Event(b, b, event.type == KeyPress);
 		break;
 
 	case MotionNotify:
@@ -458,7 +459,7 @@ static void GetEvent(void)
 			b = x11violations?K_MOUSE10:-1;
 
 		if (b>=0)
-			Key_Event(b, true);
+			Key_Event(b, 0, true);
 #ifdef WITH_VMODE
 		if (vidmode_ext && vidmode_usemode>=0)
 		if (!ActiveApp)
@@ -501,7 +502,7 @@ static void GetEvent(void)
 			b = x11violations?K_MOUSE10:-1;
 
 		if (b>=0)
-			Key_Event(b, false);
+			Key_Event(b, 0, false);
 		break;
 
 	case FocusIn:

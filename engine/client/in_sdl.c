@@ -253,7 +253,7 @@ void Sys_SendKeyEvents(void)
 
 		case SDL_KEYUP:
 		case SDL_KEYDOWN:
-			Key_Event(tbl_sdltoquake[event.key.keysym.sym], event.key.state);
+			Key_Event(tbl_sdltoquake[event.key.keysym.sym], event.key.keysym.unicode, event.key.state);
 			break;
 
 		case SDL_MOUSEMOTION:
@@ -266,7 +266,7 @@ void Sys_SendKeyEvents(void)
 			//Hmm. SDL allows for 255 buttons...
 			if (event.button.button > 10)
 				event.button.button = 10;
-			Key_Event(K_MOUSE1+event.button.button-1, event.button.state);
+			Key_Event(K_MOUSE1+event.button.button-1, 0, event.button.state);
 			break;
 
 		case SDL_QUIT:
@@ -288,6 +288,8 @@ void IN_Shutdown (void)
 void IN_ReInit (void)
 {
 	IN_ActivateMouse();
+
+	SDL_EnableUNICODE(SDL_ENABLE);
 }
 
 void IN_Init (void)

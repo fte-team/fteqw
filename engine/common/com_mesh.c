@@ -2817,7 +2817,7 @@ int Mod_TagNumForName(model_t *model, char *name)
 
 	return 0;
 }
-#ifndef SERVERONLY
+
 int Mod_FrameNumForName(model_t *model, char *name)
 {
 	galiasgroup_t *group;
@@ -2844,6 +2844,7 @@ int Mod_FrameNumForName(model_t *model, char *name)
 	return -1;
 }
 
+#ifndef SERVERONLY
 int Mod_SkinNumForName(model_t *model, char *name)
 {
 	int i;
@@ -2863,6 +2864,7 @@ int Mod_SkinNumForName(model_t *model, char *name)
 
 	return -1;
 }
+#endif
 
 float Mod_FrameDuration(model_t *model, int frameno)
 {
@@ -2880,7 +2882,6 @@ float Mod_FrameDuration(model_t *model, int frameno)
 	group += frameno;
 	return group->numposes/group->rate;
 }
-#endif
 
 
 #ifdef MD3MODELS

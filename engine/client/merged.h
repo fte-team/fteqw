@@ -41,6 +41,11 @@ typedef struct {
 #if defined(SERVERONLY)
 #define qrenderer QR_NONE
 #define FNC(n) (n)			//FNC is defined as 'pointer if client build, direct if dedicated server'
+
+#define Mod_SkinForName Mod_SkinNumForName
+#define Mod_FrameForName Mod_FrameNumForName
+#define Mod_GetFrameDuration Mod_FrameDuration
+
 #else
 #define FNC(n) (*n)
 extern r_qrenderer_t qrenderer;

@@ -418,14 +418,16 @@ int checkDepth(int d)
 {
 	if ([event type] == NSKeyDown)
 	{
-		Key_Event(keyconv[[event keyCode]],TRUE);
+		int code = keyconv[[event keyCode]]
+		Key_Event(code, code, TRUE);
 		//printf("%d\n",[event keyCode]);
 		return;
 	}
 
 	if ([event type] == NSKeyUp)
 	{
-		Key_Event(keyconv[[event keyCode]],FALSE);
+		int code = keyconv[[event keyCode]];
+		Key_Event(code, code, FALSE);
 		return;
 	}
 
@@ -435,27 +437,27 @@ int checkDepth(int d)
 
 		if ((mflags & NSAlternateKeyMask) ^ (oldmflags & NSAlternateKeyMask))
 		{
-			Key_Event(K_ALT,(mflags & NSAlternateKeyMask) ? TRUE : FALSE);
+			Key_Event(K_ALT, 0, (mflags & NSAlternateKeyMask) ? TRUE : FALSE);
 		}
 
 		if ((mflags & NSControlKeyMask) ^ (oldmflags & NSControlKeyMask))
 		{
-			Key_Event(K_LCTRL,(mflags & NSControlKeyMask) ? TRUE : FALSE);
+			Key_Event(K_LCTRL, 0, (mflags & NSControlKeyMask) ? TRUE : FALSE);
 		}
         
 		if ((mflags & NSShiftKeyMask) ^ (oldmflags & NSShiftKeyMask))
 		{
-			Key_Event(K_LSHIFT,(mflags & NSShiftKeyMask) ? TRUE : FALSE);
+			Key_Event(K_LSHIFT, 0, (mflags & NSShiftKeyMask) ? TRUE : FALSE);
 		}
 
 		if ((mflags & NSCommandKeyMask) ^ (oldmflags & NSCommandKeyMask))
 		{
-			Key_Event(K_LWIN,(mflags & NSCommandKeyMask) ? TRUE : FALSE);
+			Key_Event(K_LWIN, 0, (mflags & NSCommandKeyMask) ? TRUE : FALSE);
 		}
 
 		if ((mflags & NSAlphaShiftKeyMask) ^ (oldmflags & NSAlphaShiftKeyMask))
 		{
-			Key_Event(K_CAPSLOCK,(mflags & NSAlphaShiftKeyMask) ? TRUE : FALSE);
+			Key_Event(K_CAPSLOCK, 0, (mflags & NSAlphaShiftKeyMask) ? TRUE : FALSE);
 		}
 
 		oldmflags = mflags;
@@ -505,43 +507,43 @@ int checkDepth(int d)
 
 	if ([event type] == NSLeftMouseDown)
 	{
-		Key_Event(K_MOUSE1,TRUE);
+		Key_Event(K_MOUSE1, 0, TRUE);
 		return;
 	}
 
 	if ([event type] == NSLeftMouseUp)
 	{
-		Key_Event(K_MOUSE1,FALSE);
+		Key_Event(K_MOUSE1, 0, FALSE);
 		return;
 	}
 
 	if ([event type] == NSRightMouseDown)
 	{
-		Key_Event(K_MOUSE2,TRUE);
+		Key_Event(K_MOUSE2, 0, TRUE);
 		return;
 	}
 
 	if ([event type] == NSRightMouseUp)
 	{
-		Key_Event(K_MOUSE2,FALSE);
+		Key_Event(K_MOUSE2, 0, FALSE);
 		return;
 	}
 
 	if ([event type] == NSOtherMouseDown)
 	{
-		Key_Event(K_MOUSE3,TRUE);
+		Key_Event(K_MOUSE3, 0, TRUE);
 		return;
 	}
 
 	if ([event type] == NSOtherMouseUp)
 	{
-		Key_Event(K_MOUSE3,FALSE);
+		Key_Event(K_MOUSE3, 0, FALSE);
 		return;
 	}
     
 	if ([event type] == NSScrollWheel)
 	{
-		Key_Event(([event deltaY] > 0.0) ? K_MWHEELUP : K_MWHEELDOWN,TRUE);
+		Key_Event(([event deltaY] > 0.0) ? K_MWHEELUP : K_MWHEELDOWN, 0, TRUE);
 		return;
 	}
 }    

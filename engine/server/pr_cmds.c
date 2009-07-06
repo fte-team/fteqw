@@ -2023,6 +2023,7 @@ static void PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globa
 }
 static void PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifndef SERVERONLY
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	char *str = PF_VarString(prinst, 1, pr_globals);
 	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.models[modelindex];
@@ -2031,6 +2032,7 @@ static void PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	if (mod && Mod_SkinForName)
 		G_FLOAT(OFS_RETURN) = Mod_SkinForName(mod, str);
 	else
+#endif
 		G_FLOAT(OFS_RETURN) = -1;
 }
 

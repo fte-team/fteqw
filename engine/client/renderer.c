@@ -788,6 +788,7 @@ void	(*Mod_Think)				(void);
 //int (*Mod_TagNumForName)			(struct model_s *model, char *name);
 int (*Mod_SkinForName)				(struct model_s *model, char *name);
 int (*Mod_FrameForName)				(struct model_s *model, char *name);
+float (*Mod_GetFrameDuration)		(struct model_s *model, int framenum);
 
 
 
@@ -882,6 +883,12 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	SWMod_NowLoadExternal,
 	SWMod_Think,
+
+	NULL, //Mod_GetTag
+	NULL, //fixme: server will need this one at some point.
+	NULL,
+	NULL,
+	NULL,
 #elif defined(RGLQUAKE) || defined(D3DQUAKE)
 	GLMod_Init,
 	GLMod_ClearAll,
@@ -892,14 +899,16 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	GLMod_NowLoadExternal,
 	GLMod_Think,
-#else
-#error "Need logic here!"
-#endif
 
 	NULL, //Mod_GetTag
 	NULL, //fixme: server will need this one at some point.
 	NULL,
 	NULL,
+	Mod_FrameDuration,
+
+#else
+#error "Need logic here!"
+#endif
 
 	NULL, //VID_Init,
 	NULL, //VID_DeInit,
@@ -992,6 +1001,7 @@ rendererinfo_t softwarerendererinfo = {
 
 	NULL,	//Mod_GetTag
 	NULL,	//Mod_TagForName
+	NULL,
 	NULL,
 	NULL,
 
@@ -1092,6 +1102,7 @@ rendererinfo_t openglrendererinfo = {
 	Mod_TagNumForName,
 	Mod_SkinNumForName,
 	Mod_FrameNumForName,
+	Mod_FrameDuration,
 
 	GLVID_Init,
 	GLVID_DeInit,
@@ -1548,6 +1559,8 @@ void R_SetRenderer(int wanted)
 //	Mod_GetTag				= ri->Mod_GetTag;
 //	Mod_TagNumForName 		= ri->Mod_TagNumForName;
 	Mod_SkinForName 		= ri->Mod_SkinForName;
+	Mod_FrameForName		= ri->Mod_FrameForName;
+	Mod_GetFrameDuration	= ri->Mod_GetFrameDuration;
 
 	SCR_UpdateScreen		= ri->SCR_UpdateScreen;
 }

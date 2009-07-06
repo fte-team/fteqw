@@ -394,6 +394,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAX_STANDARDLIGHTSTYLES 64
 #define	MAX_MODELS		512			// these are sent over the net as bytes
 #define	MAX_SOUNDS		512			// so they cannot be blindly increased
+#define MAX_VWEP_MODELS 32
 
 #define	MAX_CSQCMODELS		256			// these live entirly clientside
 

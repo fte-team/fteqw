@@ -137,7 +137,7 @@ typedef enum
 	G_MAKEVECTORS,
 	G_NEXTCLIENT,
 
-	G_PRECAHCE_VWEP_MODEL,
+	G_PRECACHE_VWEP_MODEL,
 	G_SETPAUSE,
 	G_SETUSERINFO,
 	G_MOVETOGOAL,
@@ -502,13 +502,14 @@ void PF_ExecuteCommand  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_precache_vwep_model(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 
 int PF_checkclient_Internal (progfuncs_t *prinst);
 void PF_precache_sound_Internal (progfuncs_t *prinst, char *s);
 void PF_precache_model_Internal (progfuncs_t *prinst, char *s);
 void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m);
-char *PF_infokey_Internal (int entnum, char *value);
+char *PF_infokey_Internal (int entnum, char *value);;
 
 static int WrapQCBuiltin(builtin_t func, void *offset, unsigned int mask, const int *arg, char *argtypes)
 {
@@ -815,6 +816,13 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 
 	case G_LOGFRAG:
 		WrapQCBuiltin(PF_logfrag, offset, mask, arg, "nn");
+		break;
+	case G_PRECACHE_VWEP_MODEL:
+		{
+		int i = WrapQCBuiltin(PF_precache_vwep_model, offset, mask, arg, "s");
+		float f = *(float*)&i;
+		return f;
+		}
 		break;
 
 	case G_GETINFOKEY:

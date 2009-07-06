@@ -551,10 +551,12 @@ typedef struct
 //
 // information that is static for the entire time connected to a server
 //
+	char		model_name_vwep[MAX_VWEP_MODELS][MAX_QPATH];
 	char		model_name[MAX_MODELS][MAX_QPATH];
 	char		sound_name[MAX_SOUNDS][MAX_QPATH];
 	char		image_name[Q2MAX_IMAGES][MAX_QPATH];
 
+	struct model_s		*model_precache_vwep[MAX_VWEP_MODELS];
 	struct model_s		*model_precache[MAX_MODELS];
 	struct sfx_s		*sound_precache[MAX_SOUNDS];
 
@@ -1134,7 +1136,8 @@ void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale);
 int SCR_StringToPalIndex (char *rgbstring, float rgbinputscale);
 
 
-void CL_AddVWeapModel(entity_t *player, int model);
+struct model_s;
+void CL_AddVWeapModel(entity_t *player, struct model_s *model);
 
 
 qboolean Media_PlayingFullScreen(void);

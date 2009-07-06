@@ -1990,6 +1990,50 @@ void PF_set_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PF_setmodel_Internal(prinst, e, fullname);
 }
 
+static void PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	char *str = PF_VarString(prinst, 1, pr_globals);
+	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.models[modelindex];
+
+	if (mod && Mod_FrameForName)
+		G_FLOAT(OFS_RETURN) = Mod_FrameForName(mod, str);
+	else
+		G_FLOAT(OFS_RETURN) = -1;
+}
+static void PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	unsigned int framenum = G_FLOAT(OFS_PARM1);
+	model_t *mod;
+
+	if (modelindex >= MAX_MODELS)
+		G_FLOAT(OFS_RETURN) = 0;
+	else
+	{
+		mod = sv.models[modelindex];
+		if (!mod)
+			mod = sv.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
+
+		if (mod && Mod_GetFrameDuration)
+			G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, framenum);
+		else
+			G_FLOAT(OFS_RETURN) = 0;
+	}
+}
+static void PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	char *str = PF_VarString(prinst, 1, pr_globals);
+	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.models[modelindex];
+
+
+	if (mod && Mod_SkinForName)
+		G_FLOAT(OFS_RETURN) = Mod_SkinForName(mod, str);
+	else
+		G_FLOAT(OFS_RETURN) = -1;
+}
+
 /*
 =================
 PF_bprint
@@ -9126,6 +9170,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"globalstat",		PF_globalstat,		0,		0,		0,		233},	//EXT_CSQC_1 actually
 //END EXT_CSQC
 	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},
+	{"skinforname",		PF_skinforname,		0,		0,		0,		237},		// #237
 	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239},
 
 	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240},
@@ -9150,6 +9195,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"itos",			PF_itos,			0,		0,		0,		260},
 	{"stoh",			PF_stoh,			0,		0,		0,		261},
 	{"htos",			PF_htos,			0,		0,		0,		262},
+
+	{"frameforname",	PF_frameforname,	0,		0,		0,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameduration",	PF_frameduration,	0,		0,		0,		277},//float(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
+
 
 //EXT_CSQC
 //	{"setmodelindex",	PF_sv_SetModelIndex,0,		0,		0,		333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)

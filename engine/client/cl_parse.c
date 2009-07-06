@@ -510,6 +510,14 @@ void CL_DownloadFinished(void)
 					break;
 				}
 			}
+			for (i = 0; i < MAX_VWEP_MODELS; i++)
+			{
+				if (!strcmp(cl.model_name_vwep[i], filename))
+				{
+					cl.model_precache_vwep[i] = Mod_ForName(cl.model_name_vwep[i], false);
+					break;
+				}
+			}
 		}
 		S_ResetFailedLoad();	//okay, so this can still get a little spammy in bad places...
 
@@ -793,6 +801,17 @@ void Model_CheckDownloads (void)
 		CL_CheckOrEnqueDownloadFile(s, s, (i==1)?DLLF_REQUIRED:0);	//world is required to be loaded.
 		CL_CheckModelResources(s);
 	}
+
+	for (i = 0; i < MAX_VWEP_MODELS; i++)
+	{
+		s = cl.model_name_vwep[i];
+
+		if (!stricmp(COM_FileExtension(s), "dsp"))	//doom sprites are weird, and not really downloadable via this system
+			continue;
+
+		CL_CheckOrEnqueDownloadFile(s, s, 0);
+		CL_CheckModelResources(s);
+	}
 }
 
 int CL_LoadModels(int stage, qboolean dontactuallyload)
@@ -908,6 +927,18 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 				S_ExtraUpdate();
 
+				endstage();
+			}
+		}
+		for (i = 0; i < MAX_VWEP_MODELS; i++)
+		{
+			if (!cl.model_name_vwep[i][0])
+				continue;
+
+			if (atstage())
+			{
+				CSQC_LoadResource(cl.model_name_vwep[i], "model");
+				cl.model_precache_vwep[i] = Mod_ForName (cl.model_name_vwep[i], false);
 				endstage();
 			}
 		}
@@ -4429,9 +4460,21 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 					Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
 				}
 			}
-			else if (!strncmp(stufftext, "//vweap ", 8))
+			else if (!strncmp(stufftext, "//vwep ", 7))
 			{
-				Con_Printf("vweap!: %s\n", stufftext);
+				int i;
+				char *mname;
+				Cmd_TokenizeString(stufftext+7, false, false);
+				for (i = 0; i < Cmd_Argc(); i++)
+				{
+					mname = va("progs/%s.mdl", Cmd_Argv(i));
+					Q_strncpyz(cl.model_name_vwep[i], mname, sizeof(cl.model_name_vwep[i]));
+					if (cls.state == ca_active)
+					{
+						CL_CheckOrEnqueDownloadFile(mname, NULL, 0);
+						cl.model_precache_vwep[i] = Mod_ForName(mname, false);
+					}
+				}
 			}
 			else if (!strncmp(stufftext, "//exectrigger ", 14))
 			{

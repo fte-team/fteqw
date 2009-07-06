@@ -864,44 +864,6 @@ void	(D3D9_R_LessenStains)			(void)
 {
 }
 
-void	(D3D9_Mod_Init)					(void)
-{
-}
-void	(D3D9_Mod_ClearAll)				(void)
-{
-}
-struct model_s *(D3D9_Mod_ForName)		(char *name, qboolean crash)
-{
-	return NULL;
-}
-struct model_s *(D3D9_Mod_FindName)		(char *name)
-{
-	return NULL;
-}
-void	*(D3D9_Mod_Extradata)			(struct model_s *mod)
-{
-	return NULL;
-}	// handles caching
-void	(D3D9_Mod_TouchModel)			(char *name)
-{
-}
-
-void	(D3D9_Mod_NowLoadExternal)		(void)
-{
-}
-void	(D3D9_Mod_Think)				(void)
-{
-}
-
-int (D3D9_Mod_SkinForName)				(struct model_s *model, char *name)
-{
-	return 0;
-}
-int (D3D9_Mod_FrameForName)				(struct model_s *model, char *name)
-{
-	return 0;
-}
-
 void	 (D3D9_VID_DeInit)				(void)
 {
 	if (pD3DDev9)
@@ -1452,8 +1414,9 @@ rendererinfo_t d3d9rendererinfo =
 	GLMod_Think,
 	Mod_GetTag,
 	Mod_TagNumForName,
-	D3D9_Mod_SkinForName,
-	D3D9_Mod_FrameForName,
+	Mod_SkinNumForName,
+	Mod_FrameNumForName,
+	Mod_FrameDuration,
 
 
 	D3D9_VID_Init,

@@ -2835,9 +2835,9 @@ int Mod_FrameNumForName(model_t *model, char *name)
 
 	inf = Mod_Extradata(model);
 
-	for (i = 0; i < model->numframes; i++)
+	group = (galiasgroup_t*)((char*)inf + inf->groupofs);
+	for (i = 0; i < inf->groups; i++, group++)
 	{
-		group = (galiasgroup_t*)((char*)inf + inf->groupofs);
 		if (!strcmp(group->name, name))
 			return i;
 	}
@@ -2862,6 +2862,23 @@ int Mod_SkinNumForName(model_t *model, char *name)
 	}
 
 	return -1;
+}
+
+float Mod_FrameDuration(model_t *model, int frameno)
+{
+	int i;
+	galiasinfo_t *inf;
+	galiasgroup_t *group;
+
+	if (!model || model->type != mod_alias)
+		return 0;
+	inf = Mod_Extradata(model);
+
+	group = (galiasgroup_t*)((char*)inf + inf->groupofs);
+	if (frameno < 0 || frameno >= inf->groups)
+		return 0;
+	group += frameno;
+	return group->numposes/group->rate;
 }
 #endif
 

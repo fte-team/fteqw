@@ -688,51 +688,6 @@ void	(D3D7_R_LessenStains)			(void)
 {
 }
 
-void	(D3D7_Mod_Init)					(void)
-{
-}
-void	(D3D7_Mod_ClearAll)				(void)
-{
-}
-struct model_s *(D3D7_Mod_ForName)		(char *name, qboolean crash)
-{
-	return NULL;
-}
-struct model_s *(D3D7_Mod_FindName)		(char *name)
-{
-	return NULL;
-}
-void	*(D3D7_Mod_Extradata)			(struct model_s *mod)
-{
-	return NULL;
-}	// handles caching
-void	(D3D7_Mod_TouchModel)			(char *name)
-{
-}
-
-void	(D3D7_Mod_NowLoadExternal)		(void)
-{
-}
-void	(D3D7_Mod_Think)				(void)
-{
-}
-qboolean(D3D7_Mod_GetTag)				(struct model_s *model, int tagnum, framestate_t *fstate, float *result)
-{
-	return false;
-}
-int (D3D7_Mod_TagNumForName)			(struct model_s *model, char *name)
-{
-	return 0;
-}
-int (D3D7_Mod_SkinForName)				(struct model_s *model, char *name)
-{
-	return 0;
-}
-int (D3D7_Mod_FrameForName)				(struct model_s *model, char *name)
-{
-	return 0;
-}
-
 void	 (D3D7_VID_DeInit)				(void)
 {
 	if (pPrimary)
@@ -1094,7 +1049,6 @@ void	(D3D7_Mod_TouchModel)			(char *name);
 
 void	(D3D7_Mod_NowLoadExternal)		(void);
 void	(D3D7_Mod_Think)				(void);
-qboolean(D3D7_Mod_GetTag)				(struct model_s *model, int tagnum, int frame1, int frame2, float f2ness, float f1time, float f2time, float *result);
 int (D3D7_Mod_TagNumForName)			(struct model_s *model, char *name);
 int (D3D7_Mod_SkinForName)				(struct model_s *model, char *name);
 
@@ -1186,10 +1140,11 @@ rendererinfo_t d3d7rendererinfo =
 
 	GLMod_NowLoadExternal,
 	GLMod_Think,
-	D3D7_Mod_GetTag,
-	D3D7_Mod_TagNumForName,
-	D3D7_Mod_SkinForName,
-	D3D7_Mod_FrameForName,
+	Mod_GetTag,
+	Mod_TagNumForName,
+	Mod_SkinNumForName,
+	Mod_FrameNumForName,
+	Mod_FrameDuration,
 
 
 	D3D7_VID_Init,

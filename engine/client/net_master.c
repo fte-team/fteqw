@@ -1365,6 +1365,9 @@ void MasterInfo_Begin(void)
 			Master_AddMaster("195.74.0.8",					MT_MASTERQW, "unknown2 master server.");
 			Master_AddMaster("204.182.161.2",				MT_MASTERQW, "unknown5 master server.");
 
+			Master_AddMaster("asgaard.morphos-team.net:27000",MT_MASTERQW, "Asgaard");
+			Master_AddMaster("master.quakeservers.net:27000",MT_MASTERQW, "QuakeServers.net");
+
 			Master_AddMaster("255.255.255.255:27500",		MT_BCASTQW, "Nearby QuakeWorld UDP servers.");
 		}
 

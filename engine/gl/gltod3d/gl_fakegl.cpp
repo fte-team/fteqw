@@ -4143,8 +4143,9 @@ rendererinfo_t d3drendererinfo = {
 
 		Mod_GetTag,
 		Mod_TagNumForName,
-		NULL,
-		NULL,
+		Mod_SkinForName,
+		Mod_FrameForName,
+		Mod_GetFrameDuration,
 
 		D3DVID_Init,
 		GLVID_DeInit,

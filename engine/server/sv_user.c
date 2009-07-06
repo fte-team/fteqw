@@ -931,7 +931,7 @@ void SV_Modellist_f (void)
 	if (n == 0 && (host_client->zquake_extensions & Z_EXT_VWEP))
 	{
 		char mname[MAX_QPATH];
-		char vweaplist[1024] = "//vweap";
+		char vweaplist[1024] = "//vwep";
 		int pos = strlen(vweaplist);
 
 		for (i = 0; sv.strings.vw_model_precache[i]; i++)

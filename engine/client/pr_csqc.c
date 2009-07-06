@@ -3627,6 +3627,17 @@ static void PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_global
 	else
 		G_FLOAT(OFS_RETURN) = -1;
 }
+static void PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int modelindex = G_FLOAT(OFS_PARM0);
+	char *str = PF_VarString(prinst, 1, pr_globals);
+	model_t *mod = CSQC_GetModelForIndex(modelindex);
+
+	if (mod && Mod_GetFrameDuration)
+		G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, str);
+	else
+		G_FLOAT(OFS_RETURN) = 0;
+}
 static void PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int modelindex = G_FLOAT(OFS_PARM0);
@@ -5126,6 +5137,7 @@ static struct {
 	{"skel_copybones",		PF_skel_copybones,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #273; // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_delete",			PF_skel_delete,			275},//void(float skel) skel_delete = #274; // (FTE_CSQC_SKELETONOBJECTS)
 	{"frameforname",		PF_frameforname,		276},//void(float modidx, string framename) frameforname = #275 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameduration",		PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #276 (FTE_CSQC_SKELETONOBJECTS)
 
 //300
 	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)

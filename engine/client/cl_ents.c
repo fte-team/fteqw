@@ -2524,6 +2524,9 @@ void CL_ParsePlayerinfo (void)
 		state->viewangles[0] = state->command.angles[0] * (360.0/65536);
 		state->viewangles[1] = state->command.angles[1] * (360.0/65536);
 		state->viewangles[2] = state->command.angles[2] * (360.0/65536);
+
+		if (!(cls.z_ext & Z_EXT_VWEP))
+			state->command.impulse = 0;
 	}
 
 	for (i=0 ; i<3 ; i++)
@@ -2744,7 +2747,7 @@ void CL_AddFlagModels (entity_t *ent, int team)
 	VectorInverse(newent->axis[1]);
 }
 
-void CL_AddVWeapModel(entity_t *player, int model)
+void CL_AddVWeapModel(entity_t *player, model_t *model)
 {
 	entity_t	*newent;
 	vec3_t	angles;
@@ -2753,7 +2756,7 @@ void CL_AddVWeapModel(entity_t *player, int model)
 	VectorCopy(player->origin, newent->origin);
 	VectorCopy(player->angles, newent->angles);
 	newent->skinnum = player->skinnum;
-	newent->model = cl.model_precache[model];
+	newent->model = model;
 	newent->framestate = player->framestate;
 
 	VectorCopy(newent->angles, angles);
@@ -2881,7 +2884,10 @@ void CL_LinkPlayers (void)
 		ent->forcedshader = NULL;
 #endif
 
-		ent->model = cl.model_precache[state->modelindex];
+		if (state->command.impulse && cl.model_precache_vwep[0])
+			ent->model = cl.model_precache_vwep[0];
+		else
+			ent->model = cl.model_precache[state->modelindex];
 		ent->skinnum = state->skinnum;
 
 		ent->framestate.g[FS_REG].frametime[0] = cl.time - cl.lerpplayers[j].framechange;
@@ -3003,7 +3009,9 @@ void CL_LinkPlayers (void)
 		else if (state->effects & QWEF_FLAG2)
 			CL_AddFlagModels (ent, 1);
 		else if (info->vweapindex)
-			CL_AddVWeapModel (ent, info->vweapindex);
+			CL_AddVWeapModel (ent, cl.model_precache[info->vweapindex]);
+		else if (state->command.impulse)
+			CL_AddVWeapModel (ent, cl.model_precache_vwep[state->command.impulse]);
 
 	}
 }

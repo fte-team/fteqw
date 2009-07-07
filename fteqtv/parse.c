@@ -1707,11 +1707,14 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 					}
 					else
 					{
+						char buffer[512];
+
 						strcpy(tv->status, "Downloading map\n");
 						Sys_Printf(tv->cluster, "Attempting download of %s\n", tv->downloadname);
 						SendClientCommand(tv, "download %s\n", tv->map.modellist[1].name);
 
-						QW_StreamPrint(tv->cluster, tv, NULL, "[QTV] Attempting map download (%s)\n", tv->map.modellist[1].name);
+						snprintf(buffer, sizeof(buffer), "[QTV] Attempting map download (%s)\n", tv->map.modellist[1].name);
+						QW_StreamPrint(tv->cluster, tv, NULL, buffer);
 					}
 				}
 				else

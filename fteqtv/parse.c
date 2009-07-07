@@ -1426,7 +1426,7 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 	}
 }
 
-void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
+void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 {
 	int i;
 	netmsg_t buf;

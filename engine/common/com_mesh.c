@@ -4480,6 +4480,7 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 	float tx, ty, tz, qx, qy, qz;
 	int fac, flags;
 	float f;
+	char com_token[8192];
 
 	EXPECT("MD5Version");
 	EXPECT("10");
@@ -4679,12 +4680,13 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 	int i;
 
 	char *file;
-	galiasinfo_t *root = NULL;
+	galiasinfo_t *root = NULL, *surf;
 	int numgroups = 0;
 	galiasgroup_t *grouplist = NULL;
 	galiasgroup_t *newgroup = NULL;
 	void **poseofs;
 	int hunkstart, hunkend, hunktotal;
+	char com_token[8192];
 
 
 	loadmodel=mod;
@@ -4828,13 +4830,13 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 
 	newgroup = grouplist;
 	grouplist = Hunk_Alloc(sizeof(galiasgroup_t)*numgroups);
-	for(;;)
+	for(surf = root;;)
 	{
-		root->groupofs = (char*)grouplist - (char*)root;
-		root->groups = numgroups;
-		if (!root->nextsurf)
+		surf->groupofs = (char*)grouplist - (char*)surf;
+		surf->groups = numgroups;
+		if (!surf->nextsurf)
 			break;
-		root = (galiasinfo_t*)((char*)root + root->nextsurf);
+		surf = (galiasinfo_t*)((char*)surf + surf->nextsurf);
 	}
 	for (i = 0; i < numgroups; i++)
 	{

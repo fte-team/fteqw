@@ -41,7 +41,7 @@ console_t	*con_current;			// point to either con_main
 #endif
 
 static int Con_LineBreaks(conchar_t *start, conchar_t *end, int scrwidth, int maxlines, conchar_t **starts, conchar_t **ends);
-void Con_DrawProgress(int left, int right, int y);
+static int Con_DrawProgress(int left, int right, int y);
 
 #ifdef QTERM
 #include <windows.h>
@@ -883,8 +883,7 @@ void Con_DrawNotify (void)
 	if (maxlines > NUM_CON_TIMES)
 		maxlines = NUM_CON_TIMES;
 
-	Con_DrawProgress(0, vid.width, 0);
-	y += 8;
+	y = Con_DrawProgress(0, vid.width, 0);
 
 	l = con->current;
 	if (!l->length)
@@ -1032,7 +1031,8 @@ static int Con_LineBreaks(conchar_t *start, conchar_t *end, int scrwidth, int ma
 	return foundlines;
 }
 
-void Con_DrawProgress(int left, int right, int y)
+//returns the bottom of the progress bar
+static int Con_DrawProgress(int left, int right, int y)
 {
 #ifdef RUNTIMELIGHTING
 	extern model_t *lightmodel;
@@ -1167,7 +1167,10 @@ void Con_DrawProgress(int left, int right, int y)
 		x = Font_DrawChar(x, y, 0xe082|CON_WHITEMASK);
 
 		Font_DrawChar(barleft+(barwidth*progresspercent)/100 - Font_CharWidth(0xe083|CON_WHITEMASK)/2, y, 0xe083|CON_WHITEMASK);
+
+		y += Font_CharHeight();
 	}
+	return y;
 }
 
 //draws console selection choices at the top of the screen, if multiple consoles are available

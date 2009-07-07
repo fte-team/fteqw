@@ -191,16 +191,19 @@ void GLD_EndDirectRect (int x, int y, int width, int height)
 {
 }
 
-static int XLateKey(XKeyEvent *ev)
+static int XLateKey(XKeyEvent *ev, unsigned int *unicode)
 {
 
 	int key;
 	char buf[64];
-	KeySym keysym;
+	KeySym keysym, shifted;
 
 	key = 0;
 
-	XLookupString(ev, buf, sizeof buf, &keysym, 0);
+	keysym = XLookupKeysym(ev, 0);
+	XLookupString(ev, buf, sizeof buf, &shifted, 0);
+	if (unicode)
+		*unicode = buf[0];
 
 	switch(keysym)
 	{
@@ -380,6 +383,7 @@ static void GetEvent(void)
 {
 	XEvent event;
 	int b;
+	unsigned int uc;
 	qboolean wantwindowed;
 	qboolean x11violations = true;
 
@@ -398,9 +402,12 @@ static void GetEvent(void)
 		glheight = event.xconfigurerequest.height;
 		break;
 	case KeyPress:
+		b = XLateKey(&event.xkey, &uc);
+		Key_Event(b, uc, true);
+		break;
 	case KeyRelease:
-		b = XLateKey(&event.xkey);
-		Key_Event(b, b, event.type == KeyPress);
+		b = XLateKey(&event.xkey, NULL);
+		Key_Event(b, 0, false);
 		break;
 
 	case MotionNotify:

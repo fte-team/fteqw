@@ -891,16 +891,19 @@ void	SWVID_Shutdown (void)
 //	vid_dpy = NULL;
 }
 
-int XLateKey(XKeyEvent *ev)
+int XLateKey(XKeyEvent *ev, unsigned int *unicode)
 {
 
 	int key;
 	char buf[64];
-	KeySym keysym;
+	KeySym keysym, shifted;
 
 	key = 0;
 
-	XLookupString(ev, buf, sizeof buf, &keysym, 0);
+	keysym = XLookupKeysym(ev, 0);
+	XLookupString(ev, buf, sizeof buf, &shifted, 0);
+	if (unicode)
+		*unicode = buf[0];
 
 	switch(keysym)
 	{
@@ -1026,6 +1029,7 @@ struct
 {
 	int key;
 	int down;
+	unsigned int unicode;
 } keyq[64];
 int keyq_head=0;
 int keyq_tail=0;
@@ -1043,12 +1047,13 @@ void GetEvent(void)
 	XNextEvent(vid_dpy, &x_event);
 	switch(x_event.type) {
 	case KeyPress:
-		keyq[keyq_head].key = XLateKey(&x_event.xkey);
+		keyq[keyq_head].key = XLateKey(&x_event.xkey, &keyq[keyq_head].unicode);
 		keyq[keyq_head].down = true;
 		keyq_head = (keyq_head + 1) & 63;
 		break;
 	case KeyRelease:
-		keyq[keyq_head].key = XLateKey(&x_event.xkey);
+		keyq[keyq_head].key = XLateKey(&x_event.xkey, NULL);
+		keyq[keyq_head].unicode = 0;
 		keyq[keyq_head].down = false;
 		keyq_head = (keyq_head + 1) & 63;
 		break;
@@ -1269,7 +1274,7 @@ void Sys_SendKeyEvents(void)
 		while (XPending(vid_dpy)) GetEvent();
 		while (keyq_head != keyq_tail)
 		{
-			Key_Event(keyq[keyq_tail].key, keyq[keyq_tail].key, keyq[keyq_tail].down);
+			Key_Event(keyq[keyq_tail].key, keyq[keyq_tail].unicode, keyq[keyq_tail].down);
 			keyq_tail = (keyq_tail + 1) & 63;
 		}
 	}

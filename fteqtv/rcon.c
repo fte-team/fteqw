@@ -448,7 +448,7 @@ void Cmd_GenericQuery(cmdctxt_t *ctx, int dataset)
 	memmove(address+strlen(method), address, ARG_LEN-(1+strlen(method)));
 	strncpy(address, method, strlen(method));
 
-	if (!QTV_NewServerConnection(ctx->cluster, address, password, false, false, false, dataset))
+	if (!QTV_NewServerConnection(ctx->cluster, ctx->streamid, address, password, false, false, false, dataset))
 		Cmd_Printf(ctx, "Failed to connect to \"%s\", connection aborted\n", address);
 
 	Cmd_Printf(ctx, "Querying \"%s\"\n", address);
@@ -484,7 +484,7 @@ void Cmd_GenericConnect(cmdctxt_t *ctx, char *method)
 	memmove(address+strlen(method), address, ARG_LEN-(1+strlen(method)));
 	strncpy(address, method, strlen(method));
 
-	sv = QTV_NewServerConnection(ctx->cluster, address, password, false, false, false, false);
+	sv = QTV_NewServerConnection(ctx->cluster, ctx->streamid?ctx->streamid:1, address, password, false, false, false, false);
 	if (!sv)
 		Cmd_Printf(ctx, "Failed to connect to \"%s\", connection aborted\n", address);
 	else
@@ -636,9 +636,9 @@ void Cmd_Status(cmdctxt_t *ctx)
 		else if (ctx->qtv->sourcesock == INVALID_SOCKET && !ctx->qtv->sourcefile)
 			Cmd_Printf(ctx, " Connection not established\n");
 
-		if (*ctx->qtv->modellist[1].name)
+		if (*ctx->qtv->map.modellist[1].name)
 		{
-			Cmd_Printf(ctx, " Map name %s\n", ctx->qtv->modellist[1].name);
+			Cmd_Printf(ctx, " Map name %s\n", ctx->qtv->map.modellist[1].name);
 		}
 		if (*ctx->qtv->connectpassword)
 			Cmd_Printf(ctx, " Using a password\n");
@@ -655,9 +655,9 @@ void Cmd_Status(cmdctxt_t *ctx)
 		}
 */
 
-		if (ctx->qtv->bsp)
+		if (ctx->qtv->map.bsp)
 		{
-			Cmd_Printf(ctx, " BSP (%s) is loaded\n", ctx->qtv->mapname);
+			Cmd_Printf(ctx, " BSP (%s) is loaded\n", ctx->qtv->map.mapname);
 		}
 	}
 
@@ -842,6 +842,8 @@ void Cmd_Streams(cmdctxt_t *ctx)
 			else
 				status = "";
 			break;
+		case ERR_PAUSED:
+			status = " (paused)";
 		case ERR_DISABLED:
 			status = " (disabled)";
 			break;
@@ -895,13 +897,41 @@ void Cmd_Halt(cmdctxt_t *ctx)
 		Cmd_Printf(ctx, "Stream will disconnect\n");
 	}
 }
+
+void Cmd_Pause(cmdctxt_t *ctx)
+{
+	if (ctx->qtv->errored == ERR_PAUSED)
+	{
+		ctx->qtv->errored = ERR_NONE;
+		Cmd_Printf(ctx, "Stream unpaused.\n");
+	}
+	else if (ctx->qtv->errored == ERR_NONE)
+	{
+		if (ctx->qtv->sourcetype == SRC_DEMO)
+		{
+			ctx->qtv->errored = ERR_PAUSED;
+			Cmd_Printf(ctx, "Stream paused.\n");
+		}
+		else
+			Cmd_Printf(ctx, "Sorry, only demos may be paused.\n");
+	}
+}
+
 void Cmd_Resume(cmdctxt_t *ctx)
 {
-	if (ctx->qtv->errored == ERR_NONE)
-		Cmd_Printf(ctx, "Stream is already functional\n");
+	if (ctx->qtv->errored == ERR_PAUSED)
+	{
+		ctx->qtv->errored = ERR_NONE;
+		Cmd_Printf(ctx, "Stream unpaused.\n");
+	}
+	else
+	{
+		if (ctx->qtv->errored == ERR_NONE)
+			Cmd_Printf(ctx, "Stream is already functional\n");
 
-	ctx->qtv->errored = ERR_RECONNECT;
-	Cmd_Printf(ctx, "Stream will attempt to reconnect\n");
+		ctx->qtv->errored = ERR_RECONNECT;
+		Cmd_Printf(ctx, "Stream will attempt to reconnect\n");
+	}
 }
 
 void Cmd_Record(cmdctxt_t *ctx)
@@ -998,7 +1028,7 @@ void Cmd_BaseDir(cmdctxt_t *ctx)
 	char *val;
 	val = Cmd_Argv(ctx, 1);
 	if (!Cmd_IsLocal(ctx))
-		Cmd_Printf(ctx, "Sorry, you may not use this command remotly\n");
+		Cmd_Printf(ctx, "Sorry, you may not use this command remotely\n");
 
 	if (*val)
 		chdir(val);
@@ -1147,8 +1177,9 @@ const rconcommands_t rconcommands[] =
 
 
 
-	{"halt",		1, 0, Cmd_Halt,		"disables a stream, preventing it from reconnecting until someone tries watching it anew"},
+	{"halt",		1, 0, Cmd_Halt,		"disables a stream, preventing it from reconnecting until someone tries watching it anew. Boots current spectators"},
 	{"disable",		1, 0, Cmd_Halt},
+	{"pause",		1, 0, Cmd_Pause,		"Pauses a demo stream."},
 	{"resume",		1, 0, Cmd_Resume,	"reactivates a stream, allowing it to reconnect"},
 	{"enable",		1, 0, Cmd_Resume},
 	{"mute",		1, 0, Cmd_MuteStream,	"hides prints that come from the game server"},
@@ -1187,13 +1218,15 @@ void Cmd_ExecuteNow(cmdctxt_t *ctx, char *command)
 	{
 		i = atoi(command);
 		command = sid+1;
+		
+		ctx->streamid = i;
 
 		for (ctx->qtv = ctx->cluster->servers; ctx->qtv; ctx->qtv = ctx->qtv->next)
 			if (ctx->qtv->streamid == i)
 				break;
 	}
-
-
+	else
+		ctx->streamid = 0;
 
 	ctx->argc = 0;
 	for (i = 0; i < MAX_ARGS; i++)

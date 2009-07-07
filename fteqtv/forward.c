@@ -334,19 +334,19 @@ void Prox_SendPlayerStats(sv_t *qtv, oproxy_t *prox)
 	{
 		for (snum = 0; snum < MAX_STATS; snum++)
 		{
-			if (qtv->players[player].stats[snum])
+			if (qtv->map.players[player].stats[snum])
 			{
-				if ((unsigned)qtv->players[player].stats[snum] > 255)
+				if ((unsigned)qtv->map.players[player].stats[snum] > 255)
 				{
 					WriteByte(&msg, svc_updatestatlong);
 					WriteByte(&msg, snum);
-					WriteLong(&msg, qtv->players[player].stats[snum]);
+					WriteLong(&msg, qtv->map.players[player].stats[snum]);
 				}
 				else
 				{
 					WriteByte(&msg, svc_updatestat);
 					WriteByte(&msg, snum);
-					WriteByte(&msg, qtv->players[player].stats[snum]);
+					WriteByte(&msg, qtv->map.players[player].stats[snum]);
 				}
 			}
 		}
@@ -366,46 +366,46 @@ void Prox_SendInitialPlayers(sv_t *qtv, oproxy_t *prox, netmsg_t *msg)
 
 	for (i = 0; i < MAX_CLIENTS; i++)
 	{
-		if (!qtv->players[i].active) // interesting, is this set to false if player disconnect from server?
+		if (!qtv->map.players[i].active) // interesting, is this set to false if player disconnect from server?
 			continue;
 
 		flags =   (DF_ORIGIN << 0) | (DF_ORIGIN << 1) | (DF_ORIGIN << 2)
 				| (DF_ANGLES << 0) | (DF_ANGLES << 1) | (DF_ANGLES << 2) // angles is something what changed frequently, so may be not send it?
 				| DF_EFFECTS
 				| DF_SKINNUM // though it rare thingie, so better send it?
-				| (qtv->players[i].dead   ? DF_DEAD : 0)
-				| (qtv->players[i].gibbed ? DF_GIB  : 0)
+				| (qtv->map.players[i].dead   ? DF_DEAD : 0)
+				| (qtv->map.players[i].gibbed ? DF_GIB  : 0)
 				| DF_WEAPONFRAME // do we so really need it?
 				| DF_MODEL; // generally, that why we wrote this function, so YES send this
 
-		if (*qtv->players[i].userinfo && atoi(Info_ValueForKey(qtv->players[i].userinfo, "*spectator", buffer, sizeof(buffer))))
+		if (*qtv->map.players[i].userinfo && atoi(Info_ValueForKey(qtv->map.players[i].userinfo, "*spectator", buffer, sizeof(buffer))))
 			flags = DF_MODEL; // oh, that spec, just sent his model, may be even better ignore him?
 
 		WriteByte (msg, svc_playerinfo);
 		WriteByte (msg, i);
 		WriteShort (msg, flags);
 
-		WriteByte (msg, qtv->players[i].current.frame); // always sent
+		WriteByte (msg, qtv->map.players[i].current.frame); // always sent
 
 		for (j = 0 ; j < 3 ; j++)
 			if (flags & (DF_ORIGIN << j))
-				WriteShort (msg, qtv->players[i].current.origin[j]);
+				WriteShort (msg, qtv->map.players[i].current.origin[j]);
 
 		for (j = 0 ; j < 3 ; j++)
 			if (flags & (DF_ANGLES << j))
-				WriteShort (msg, qtv->players[i].current.angles[j]);
+				WriteShort (msg, qtv->map.players[i].current.angles[j]);
 
 		if (flags & DF_MODEL) // generally, that why we wrote this function, so YES send this
-			WriteByte (msg, qtv->players[i].current.modelindex);
+			WriteByte (msg, qtv->map.players[i].current.modelindex);
 
 		if (flags & DF_SKINNUM)
-			WriteByte (msg, qtv->players[i].current.skinnum);
+			WriteByte (msg, qtv->map.players[i].current.skinnum);
 
 		if (flags & DF_EFFECTS)
-			WriteByte (msg, qtv->players[i].current.effects);
+			WriteByte (msg, qtv->map.players[i].current.effects);
 
 		if (flags & DF_WEAPONFRAME)
-			WriteByte (msg, qtv->players[i].current.weaponframe);
+			WriteByte (msg, qtv->map.players[i].current.weaponframe);
 	}
 }
 
@@ -430,7 +430,9 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 	netmsg_t msg;
 	int prespawn;
 
-	if (!*qtv->mapname)
+	//only send connection data if there's actual data to be sent
+	//if not, the other end will get the data when we receive it anyway.
+	if (!*qtv->map.mapname)
 		return;
 
 	InitNetMsg(&msg, buffer, sizeof(buffer));
@@ -443,14 +445,14 @@ void Net_SendConnectionMVD(sv_t *qtv, oproxy_t *prox)
 
 	for (prespawn = 0;prespawn >= 0;)
 	{
-		prespawn = SendList(qtv, prespawn, qtv->soundlist, svc_soundlist, &msg);
+		prespawn = SendList(qtv, prespawn, qtv->map.soundlist, svc_soundlist, &msg);
 		Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 		msg.cursize = 0;
 	}
 
 	for (prespawn = 0;prespawn >= 0;)
 	{
-		prespawn = SendList(qtv, prespawn, qtv->modellist, svc_modellist, &msg);
+		prespawn = SendList(qtv, prespawn, qtv->map.modellist, svc_modellist, &msg);
 		Prox_SendMessage(qtv->cluster, prox, msg.data, msg.cursize, dem_read, (unsigned)-1);
 		msg.cursize = 0;
 	}
@@ -764,12 +766,12 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 									int i;
 									for (i = 0; i < MAX_CLIENTS; i++)
 									{
-										if (*qtv->players[i].userinfo)
+										if (*qtv->map.players[i].userinfo)
 											plyrs++;
 									}
 									sprintf(tempbuf, "SRCSRV: %s\n", qtv->server);
 									Net_ProxySendString(cluster, pend, tempbuf);
-									sprintf(tempbuf, "SRCHOST: %s\n", qtv->hostname);
+									sprintf(tempbuf, "SRCHOST: %s\n", qtv->map.hostname);
 									Net_ProxySendString(cluster, pend, tempbuf);
 									sprintf(tempbuf, "SRCPLYRS: %i\n", plyrs);
 									Net_ProxySendString(cluster, pend, tempbuf);
@@ -780,7 +782,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 								}
 								else
 								{
-									sprintf(tempbuf, "ASOURCE: %i: %15s: %15s\n", qtv->streamid, qtv->server, qtv->hostname);
+									sprintf(tempbuf, "ASOURCE: %i: %15s: %15s\n", qtv->streamid, qtv->server, qtv->map.hostname);
 									Net_ProxySendString(cluster, pend, tempbuf);
 								}
 							}
@@ -899,7 +901,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 							if (*t < '0' || *t > '9')
 								break;
 						if (*t)
-							qtv = QTV_NewServerConnection(cluster, colon, "", false, true, true, false);
+							qtv = QTV_NewServerConnection(cluster, 0, colon, "", false, true, true, false);
 						else
 						{
 							//numerical source, use a stream id.
@@ -913,7 +915,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						char buf[256];
 	
 						snprintf(buf, sizeof(buf), "demo:%s", colon);
-						qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
+						qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, true, true, false);
 						if (!qtv)
 						{
 							Net_ProxySendString(cluster, pend,	QTVSVHEADER

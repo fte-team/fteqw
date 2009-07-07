@@ -468,6 +468,7 @@ typedef enum {
 
 typedef enum {
 	ERR_NONE,	//stream is fine
+	ERR_PAUSED,
 	ERR_RECONNECT,	//stream needs to reconnect
 	ERR_PERMANENT,	//permanent error, transitioning to disabled next frame
 	ERR_DISABLED,	//stream is disabled, can be set to reconnect by admin
@@ -500,35 +501,10 @@ struct sv_s {	//details about a server connection (also known as stream)
 	unsigned int parsetime;
 	unsigned int parsespeed;
 
-	char gamedir[MAX_QPATH];
-	char mapname[256];
-	movevars_t movevars;
-	int cdtrack;
-	entity_t entity[MAX_ENTITIES];
-	frame_t frame[MAX_ENTITY_FRAMES];
-//	int maxents;
-	staticsound_t staticsound[MAX_STATICSOUNDS];
-	int staticsound_count;
-	entity_state_t spawnstatic[MAX_STATICENTITIES];
-	int spawnstatic_count;
-	filename_t lightstyle[MAX_LIGHTSTYLES];
-
-	char serverinfo[MAX_SERVERINFO_STRING];
-	char hostname[MAX_QPATH];
-	playerinfo_t players[MAX_CLIENTS];
-
-	filename_t modellist[MAX_MODELS];
-	filename_t soundlist[MAX_SOUNDS];
-	int modelindex_spike;	// qw is wierd.
-	int modelindex_player;	// qw is wierd.
-
 	FILE *downloadfile;
 	char downloadname[256];
 
 	char status[64];
-
-	nail_t nails[32];
-	int nailcount;
 
 	qboolean silentstream;
 
@@ -538,10 +514,8 @@ struct sv_s {	//details about a server connection (also known as stream)
 	int isconnected;
 	int clservercount;
 	unsigned int nextsendpings;
-	int trackplayer;
-	int thisplayer;
+
 	unsigned int timeout;
-	qboolean ispaused;
 	unsigned int packetratelimiter;
 
 	viewer_t *controller;
@@ -583,9 +557,6 @@ struct sv_s {	//details about a server connection (also known as stream)
 	cluster_t *cluster;
 	sv_t *next;	//next proxy->server connection
 
-	bsp_t *bsp;
-	int numinlines;
-
 #ifdef COMMENTARY
 	//audio stuff
 	soundcapt_t *comentrycapture;
@@ -594,6 +565,43 @@ struct sv_s {	//details about a server connection (also known as stream)
 	//options:
 	char server[MAX_QPATH];
 	int streamid;
+
+	struct mapstate_s
+	{
+		//this structure is freed+memset in QTV_CleanupMap
+
+		bsp_t *bsp;
+		int numinlines;
+
+		nail_t nails[32];
+		int nailcount;
+
+		char gamedir[MAX_QPATH];
+		char mapname[256];
+		movevars_t movevars;
+		int cdtrack;
+		entity_t entity[MAX_ENTITIES];
+		frame_t frame[MAX_ENTITY_FRAMES];
+	//	int maxents;
+		staticsound_t staticsound[MAX_STATICSOUNDS];
+		int staticsound_count;
+		entity_state_t spawnstatic[MAX_STATICENTITIES];
+		int spawnstatic_count;
+		filename_t lightstyle[MAX_LIGHTSTYLES];
+
+		char serverinfo[MAX_SERVERINFO_STRING];
+		char hostname[MAX_QPATH];
+		playerinfo_t players[MAX_CLIENTS];
+
+		filename_t modellist[MAX_MODELS];
+		filename_t soundlist[MAX_SOUNDS];
+		int modelindex_spike;	// qw is wierd.
+		int modelindex_player;	// qw is wierd.
+
+		int trackplayer;
+		int thisplayer;
+		qboolean ispaused;
+	} map;
 };
 
 typedef struct {
@@ -789,7 +797,7 @@ void Sys_Printf(cluster_t *cluster, char *fmt, ...) PRINTFWARNING(2);
 
 void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length);
 oproxy_t *Net_FileProxy(sv_t *qtv, char *filename);
-sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates, qboolean query);
+sv_t *QTV_NewServerConnection(cluster_t *cluster, int streamid, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates, qboolean query);
 SOCKET Net_MVDListen(int port);
 qboolean Net_StopFileProxy(sv_t *qtv);
 

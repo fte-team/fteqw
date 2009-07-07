@@ -114,9 +114,11 @@ void ConnectionData(sv_t *tv, void *buffer, int length, int to, unsigned int pla
 
 static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playermask)
 {
-	int i;
 	int protocol;
 	viewer_t *v;
+
+	//free the old map state
+	QTV_CleanupMap(tv);
 
 	protocol = ReadLong(m);
 	if (protocol != PROTOCOL_VERSION)
@@ -129,59 +131,42 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 
 	tv->clservercount = ReadLong(m);	//we don't care about server's servercount, it's all reliable data anyway.
 
-	tv->trackplayer = -1;
+	tv->map.trackplayer = -1;
 
-	ReadString(m, tv->gamedir, sizeof(tv->gamedir));
+	ReadString(m, tv->map.gamedir, sizeof(tv->map.gamedir));
 
 	if (tv->usequakeworldprotocols)
-		tv->thisplayer = ReadByte(m)&~128;
+		tv->map.thisplayer = ReadByte(m)&~128;
 	else
 	{
-		tv->thisplayer = MAX_CLIENTS-1;
+		tv->map.thisplayer = MAX_CLIENTS-1;
 		/*tv->servertime =*/ ReadFloat(m);
 	}
 	if (tv->controller)
-		tv->controller->thisplayer = tv->thisplayer;
-	ReadString(m, tv->mapname, sizeof(tv->mapname));
+		tv->controller->thisplayer = tv->map.thisplayer;
+	ReadString(m, tv->map.mapname, sizeof(tv->map.mapname));
 
-	QTV_Printf(tv, "Gamedir: %s\n", tv->gamedir);
+	QTV_Printf(tv, "Gamedir: %s\n", tv->map.gamedir);
 	QTV_Printf(tv, "---------------------\n");
-	Sys_Printf(tv->cluster, "Stream %i: %s\n", tv->streamid, tv->mapname);
+	Sys_Printf(tv->cluster, "Stream %i: %s\n", tv->streamid, tv->map.mapname);
 	QTV_Printf(tv, "---------------------\n");
 
 	// get the movevars
-	tv->movevars.gravity			= ReadFloat(m);
-	tv->movevars.stopspeed			= ReadFloat(m);
-	tv->movevars.maxspeed			= ReadFloat(m);
-	tv->movevars.spectatormaxspeed	= ReadFloat(m);
-	tv->movevars.accelerate			= ReadFloat(m);
-	tv->movevars.airaccelerate		= ReadFloat(m);
-	tv->movevars.wateraccelerate	= ReadFloat(m);
-	tv->movevars.friction			= ReadFloat(m);
-	tv->movevars.waterfriction		= ReadFloat(m);
-	tv->movevars.entgrav			= ReadFloat(m);
+	tv->map.movevars.gravity			= ReadFloat(m);
+	tv->map.movevars.stopspeed			= ReadFloat(m);
+	tv->map.movevars.maxspeed			= ReadFloat(m);
+	tv->map.movevars.spectatormaxspeed	= ReadFloat(m);
+	tv->map.movevars.accelerate			= ReadFloat(m);
+	tv->map.movevars.airaccelerate		= ReadFloat(m);
+	tv->map.movevars.wateraccelerate	= ReadFloat(m);
+	tv->map.movevars.friction			= ReadFloat(m);
+	tv->map.movevars.waterfriction		= ReadFloat(m);
+	tv->map.movevars.entgrav			= ReadFloat(m);
 
 	for (v = tv->cluster->viewers; v; v = v->next)
 	{
 		if (v->server == tv)
 			v->thinksitsconnected = false;
-	}
-
-//	tv->maxents = 0;	//clear these
-	tv->spawnstatic_count = 0;
-	memset(tv->modellist, 0, sizeof(tv->modellist));
-	memset(tv->soundlist, 0, sizeof(tv->soundlist));
-	memset(tv->lightstyle, 0, sizeof(tv->lightstyle));
-	tv->staticsound_count = 0;
-	memset(tv->staticsound, 0, sizeof(tv->staticsound));
-
-	memset(tv->players, 0, sizeof(tv->players));
-	memset(tv->entity, 0, sizeof(tv->entity));	//for the baselines
-
-
-	for (i = 0; i < MAX_ENTITY_FRAMES; i++)
-	{
-		tv->frame[i].numents = 0;
 	}
 
 	if (!tv->controller && tv->usequakeworldprotocols)
@@ -201,13 +186,13 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 static void ParseCDTrack(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	char nqversion[3];
-	tv->cdtrack = ReadByte(m);
+	tv->map.cdtrack = ReadByte(m);
 
 	ConnectionData(tv, (void*)((char*)m->data+m->startpos), m->readpos - m->startpos, to, mask, QW);
 
 	nqversion[0] = svc_cdtrack;
-	nqversion[1] = tv->cdtrack;
-	nqversion[2] = tv->cdtrack;
+	nqversion[1] = tv->map.cdtrack;
+	nqversion[2] = tv->map.cdtrack;
 	ConnectionData(tv, nqversion, 3, to, mask, NQ);
 }
 static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -269,9 +254,9 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		text[strlen(text)-1] = '\0';
 
 		//copy over the server's serverinfo
-		strlcpy(tv->serverinfo, text+16, sizeof(tv->serverinfo));
+		strlcpy(tv->map.serverinfo, text+16, sizeof(tv->map.serverinfo));
 
-		Info_ValueForKey(tv->serverinfo, "*qtv", value, sizeof(value));
+		Info_ValueForKey(tv->map.serverinfo, "*qtv", value, sizeof(value));
 		if (*value)
 		{
 			fromproxy = true;
@@ -281,13 +266,13 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			fromproxy = false;
 
 		//add on our extra infos
-		Info_SetValueForStarKey(tv->serverinfo, "*qtv", VERSION, sizeof(tv->serverinfo));
-		Info_SetValueForStarKey(tv->serverinfo, "*z_ext", Z_EXT_STRING, sizeof(tv->serverinfo));
+		Info_SetValueForStarKey(tv->map.serverinfo, "*qtv", VERSION, sizeof(tv->map.serverinfo));
+		Info_SetValueForStarKey(tv->map.serverinfo, "*z_ext", Z_EXT_STRING, sizeof(tv->map.serverinfo));
 
-		Info_ValueForKey(tv->serverinfo, "hostname", tv->hostname, sizeof(tv->hostname));
+		Info_ValueForKey(tv->map.serverinfo, "hostname", tv->map.hostname, sizeof(tv->map.hostname));
 
 		//change the hostname (the qtv's hostname with the server's hostname in brackets)
-		Info_ValueForKey(tv->serverinfo, "hostname", value, sizeof(value));
+		Info_ValueForKey(tv->map.serverinfo, "hostname", value, sizeof(value));
 		if (fromproxy && strchr(value, '(') && value[strlen(value)-1] == ')')	//already has brackets
 		{	//the fromproxy check is because it's fairly common to find a qw server with brackets after it's name.
 			char *s;
@@ -301,7 +286,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			else
 				snprintf(text, sizeof(text), "%s (live: %s)", tv->cluster->hostname, value);
 		}
-		Info_SetValueForStarKey(tv->serverinfo, "hostname", text, sizeof(tv->serverinfo));
+		Info_SetValueForStarKey(tv->map.serverinfo, "hostname", text, sizeof(tv->map.serverinfo));
 
 		if (tv->controller && (tv->controller->netchan.isnqprotocol == false))
 			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);
@@ -372,7 +357,7 @@ static void ParseSetInfo(sv_t *tv, netmsg_t *m)
 	ReadString(m, value, sizeof(value));
 
 	if (pnum < MAX_CLIENTS)
-		Info_SetValueForStarKey(tv->players[pnum].userinfo, key, value, sizeof(tv->players[pnum].userinfo));
+		Info_SetValueForStarKey(tv->map.players[pnum].userinfo, key, value, sizeof(tv->map.players[pnum].userinfo));
 
 	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1, QW);
 }
@@ -385,7 +370,7 @@ static void ParseServerinfo(sv_t *tv, netmsg_t *m)
 	ReadString(m, value, sizeof(value));
 
 	if (strcmp(key, "hostname"))	//don't allow the hostname to change, but allow the server to change other serverinfos.
-		Info_SetValueForStarKey(tv->serverinfo, key, value, sizeof(tv->serverinfo));
+		Info_SetValueForStarKey(tv->map.serverinfo, key, value, sizeof(tv->map.serverinfo));
 
 	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, dem_all, (unsigned)-1, QW);
 }
@@ -500,27 +485,27 @@ static void ParseBaseline(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		ParseError(m);
 		return;
 	}
-	ParseEntityState(&tv->entity[entnum].baseline, m);
+	ParseEntityState(&tv->map.entity[entnum].baseline, m);
 	
 	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 }
 
 static void ParseStaticSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
-	if (tv->staticsound_count == MAX_STATICSOUNDS)
+	if (tv->map.staticsound_count == MAX_STATICSOUNDS)
 	{
-		tv->staticsound_count--;	// don't be fatal.
+		tv->map.staticsound_count--;	// don't be fatal.
 		Sys_Printf(tv->cluster, "Too many static sounds\n");
 	}
 
-	tv->staticsound[tv->staticsound_count].origin[0] = ReadShort(m);
-	tv->staticsound[tv->staticsound_count].origin[1] = ReadShort(m);
-	tv->staticsound[tv->staticsound_count].origin[2] = ReadShort(m);
-	tv->staticsound[tv->staticsound_count].soundindex = ReadByte(m);
-	tv->staticsound[tv->staticsound_count].volume = ReadByte(m);
-	tv->staticsound[tv->staticsound_count].attenuation = ReadByte(m);
+	tv->map.staticsound[tv->map.staticsound_count].origin[0] = ReadShort(m);
+	tv->map.staticsound[tv->map.staticsound_count].origin[1] = ReadShort(m);
+	tv->map.staticsound[tv->map.staticsound_count].origin[2] = ReadShort(m);
+	tv->map.staticsound[tv->map.staticsound_count].soundindex = ReadByte(m);
+	tv->map.staticsound[tv->map.staticsound_count].volume = ReadByte(m);
+	tv->map.staticsound[tv->map.staticsound_count].attenuation = ReadByte(m);
 
-	tv->staticsound_count++;
+	tv->map.staticsound_count++;
 
 	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 }
@@ -539,15 +524,15 @@ static void ParseIntermission(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
-	if (tv->spawnstatic_count == MAX_STATICENTITIES)
+	if (tv->map.spawnstatic_count == MAX_STATICENTITIES)
 	{
-		tv->spawnstatic_count--;	// don't be fatal.
+		tv->map.spawnstatic_count--;	// don't be fatal.
 		Sys_Printf(tv->cluster, "Too many static entities\n");
 	}
 
-	ParseEntityState(&tv->spawnstatic[tv->spawnstatic_count], m);
+	ParseEntityState(&tv->map.spawnstatic[tv->map.spawnstatic_count], m);
 
-	tv->spawnstatic_count++;
+	tv->map.spawnstatic_count++;
 
 	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 }
@@ -565,7 +550,7 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 		for (i = 0; i < MAX_CLIENTS; i++)
 		{	//hide players
 			//they'll be sent after this packet.
-			tv->players[i].active = false;
+			tv->map.players[i].active = false;
 		}
 	}
 
@@ -575,18 +560,18 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 		num = 0;	// don't be fatal.
 		Sys_Printf(tv->cluster, "Too many svc_playerinfos, wrapping\n");
 	}
-	tv->players[num].old = tv->players[num].current;
+	tv->map.players[num].old = tv->map.players[num].current;
 
 	if (tv->usequakeworldprotocols)
 	{
-		tv->players[num].old = tv->players[num].current;
+		tv->map.players[num].old = tv->map.players[num].current;
 		flags = (unsigned short)ReadShort (m);
 
-		tv->players[num].current.origin[0] = ReadShort (m);
-		tv->players[num].current.origin[1] = ReadShort (m);
-		tv->players[num].current.origin[2] = ReadShort (m);
+		tv->map.players[num].current.origin[0] = ReadShort (m);
+		tv->map.players[num].current.origin[1] = ReadShort (m);
+		tv->map.players[num].current.origin[2] = ReadShort (m);
 
-		tv->players[num].current.frame = ReadByte(m);
+		tv->map.players[num].current.frame = ReadByte(m);
 
 		if (flags & PF_MSEC)
 			ReadByte (m);
@@ -594,100 +579,100 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 		if (flags & PF_COMMAND)
 		{
 			ReadDeltaUsercmd(m, &nullcmd, &nonnullcmd);
-			tv->players[num].current.angles[0] = nonnullcmd.angles[0];
-			tv->players[num].current.angles[1] = nonnullcmd.angles[1];
-			tv->players[num].current.angles[2] = nonnullcmd.angles[2];
+			tv->map.players[num].current.angles[0] = nonnullcmd.angles[0];
+			tv->map.players[num].current.angles[1] = nonnullcmd.angles[1];
+			tv->map.players[num].current.angles[2] = nonnullcmd.angles[2];
 		}
 		else
 		{	//the only reason we'd not get a command is if it's us.
 			if (tv->controller)
 			{
-				tv->players[num].current.angles[0] = tv->controller->ucmds[2].angles[0];
-				tv->players[num].current.angles[1] = tv->controller->ucmds[2].angles[1];
-				tv->players[num].current.angles[2] = tv->controller->ucmds[2].angles[2];
+				tv->map.players[num].current.angles[0] = tv->controller->ucmds[2].angles[0];
+				tv->map.players[num].current.angles[1] = tv->controller->ucmds[2].angles[1];
+				tv->map.players[num].current.angles[2] = tv->controller->ucmds[2].angles[2];
 			}
 			else
 			{
-				tv->players[num].current.angles[0] = tv->proxyplayerangles[0]/360*65535;
-				tv->players[num].current.angles[1] = tv->proxyplayerangles[1]/360*65535;
-				tv->players[num].current.angles[2] = tv->proxyplayerangles[2]/360*65535;
+				tv->map.players[num].current.angles[0] = tv->proxyplayerangles[0]/360*65535;
+				tv->map.players[num].current.angles[1] = tv->proxyplayerangles[1]/360*65535;
+				tv->map.players[num].current.angles[2] = tv->proxyplayerangles[2]/360*65535;
 			}
 		}
 
 		for (i=0 ; i<3 ; i++)
 		{
 			if (flags & (PF_VELOCITY1<<i) )
-				tv->players[num].current.velocity[i] = ReadShort(m);
+				tv->map.players[num].current.velocity[i] = ReadShort(m);
 			else
-				tv->players[num].current.velocity[i] = 0;
+				tv->map.players[num].current.velocity[i] = 0;
 		}
 
-		tv->players[num].gibbed = !!(flags & PF_GIB);
-		tv->players[num].dead = !!(flags & PF_DEAD);
+		tv->map.players[num].gibbed = !!(flags & PF_GIB);
+		tv->map.players[num].dead = !!(flags & PF_DEAD);
 
 		if (flags & PF_MODEL)
-			tv->players[num].current.modelindex = ReadByte (m);
+			tv->map.players[num].current.modelindex = ReadByte (m);
 		else
-			tv->players[num].current.modelindex = tv->modelindex_player;
+			tv->map.players[num].current.modelindex = tv->map.modelindex_player;
 
 		if (flags & PF_SKINNUM)
-			tv->players[num].current.skinnum = ReadByte (m);
+			tv->map.players[num].current.skinnum = ReadByte (m);
 		else
-			tv->players[num].current.skinnum = 0;
+			tv->map.players[num].current.skinnum = 0;
 
 		if (flags & PF_EFFECTS)
-			tv->players[num].current.effects = ReadByte (m);
+			tv->map.players[num].current.effects = ReadByte (m);
 		else
-			tv->players[num].current.effects = 0;
+			tv->map.players[num].current.effects = 0;
 
 		if (flags & PF_WEAPONFRAME)
-			tv->players[num].current.weaponframe = ReadByte (m);
+			tv->map.players[num].current.weaponframe = ReadByte (m);
 		else
-			tv->players[num].current.weaponframe = 0;
+			tv->map.players[num].current.weaponframe = 0;
 
-		tv->players[num].active = true;
+		tv->map.players[num].active = true;
 	}
 	else
 	{
 		flags = ReadShort(m);
-		tv->players[num].gibbed = !!(flags & DF_GIB);
-		tv->players[num].dead = !!(flags & DF_DEAD);
-		tv->players[num].current.frame = ReadByte(m);
+		tv->map.players[num].gibbed = !!(flags & DF_GIB);
+		tv->map.players[num].dead = !!(flags & DF_DEAD);
+		tv->map.players[num].current.frame = ReadByte(m);
 
 		for (i = 0; i < 3; i++)
 		{
 			if (flags & (DF_ORIGIN << i))
-				tv->players[num].current.origin[i] = ReadShort (m);
+				tv->map.players[num].current.origin[i] = ReadShort (m);
 		}
 
 		for (i = 0; i < 3; i++)
 		{
 			if (flags & (DF_ANGLES << i))
 			{
-				tv->players[num].current.angles[i] = ReadShort(m);
+				tv->map.players[num].current.angles[i] = ReadShort(m);
 			}
 		}
 
 		if (flags & DF_MODEL)
-			tv->players[num].current.modelindex = ReadByte (m);
+			tv->map.players[num].current.modelindex = ReadByte (m);
 
 		if (flags & DF_SKINNUM)
-			tv->players[num].current.skinnum = ReadByte (m);
+			tv->map.players[num].current.skinnum = ReadByte (m);
 
 		if (flags & DF_EFFECTS)
-			tv->players[num].current.effects = ReadByte (m);
+			tv->map.players[num].current.effects = ReadByte (m);
 
 		if (flags & DF_WEAPONFRAME)
-			tv->players[num].current.weaponframe = ReadByte (m);
+			tv->map.players[num].current.weaponframe = ReadByte (m);
 
-		tv->players[num].active = true;
+		tv->map.players[num].active = true;
 
 	}
 
-	tv->players[num].leafcount = BSP_SphereLeafNums(tv->bsp,	MAX_ENTITY_LEAFS, tv->players[num].leafs,
-														tv->players[num].current.origin[0]/8.0f,
-														tv->players[num].current.origin[1]/8.0f,
-														tv->players[num].current.origin[2]/8.0f, 32);
+	tv->map.players[num].leafcount = BSP_SphereLeafNums(tv->map.bsp,	MAX_ENTITY_LEAFS, tv->map.players[num].leafs,
+														tv->map.players[num].current.origin[0]/8.0f,
+														tv->map.players[num].current.origin[1]/8.0f,
+														tv->map.players[num].current.origin[2]/8.0f, 32);
 }
 
 static int readentitynum(netmsg_t *m, unsigned int *retflags)
@@ -756,7 +741,7 @@ static void ParseEntityDelta(sv_t *tv, netmsg_t *m, entity_state_t *old, entity_
 	if (forcerelink || (flags & (U_ORIGIN1|U_ORIGIN2|U_ORIGIN3|U_MODEL)))
 	{
 		ent->leafcount = 
-				BSP_SphereLeafNums(tv->bsp, MAX_ENTITY_LEAFS, ent->leafs,
+				BSP_SphereLeafNums(tv->map.bsp, MAX_ENTITY_LEAFS, ent->leafs,
 				new->origin[0]/8.0f,
 				new->origin[1]/8.0f,
 				new->origin[2]/8.0f, 32);
@@ -808,7 +793,7 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
 
 	viewer_t *v;
 
-	tv->nailcount = 0;
+	tv->map.nailcount = 0;
 
 	tv->physicstime = tv->parsetime;
 
@@ -830,7 +815,7 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
 
 	if (tv->usequakeworldprotocols)
 	{
-		newframe = &tv->frame[tv->netchan.incoming_sequence & (ENTITY_FRAMES-1)];
+		newframe = &tv->map.frame[tv->netchan.incoming_sequence & (ENTITY_FRAMES-1)];
 
 		if (tv->netchan.outgoing_sequence - tv->netchan.incoming_sequence >= ENTITY_FRAMES - 1)
 		{
@@ -844,11 +829,11 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
 	{
 		deltaframe = tv->netchan.incoming_sequence & (ENTITY_FRAMES-1);
 		tv->netchan.incoming_sequence++;
-		newframe = &tv->frame[tv->netchan.incoming_sequence & (ENTITY_FRAMES-1)];
+		newframe = &tv->map.frame[tv->netchan.incoming_sequence & (ENTITY_FRAMES-1)];
 	}
 	if (deltaframe != -1)
 	{
-		oldframe = &tv->frame[deltaframe];
+		oldframe = &tv->map.frame[deltaframe];
 		oldcount = oldframe->numents;
 	}
 	else
@@ -915,7 +900,7 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
 
 			if (!ExpandFrame(newindex, newframe))
 				break;
-			ParseEntityDelta(tv, m, &tv->entity[newnum].baseline, &newframe->ents[newindex], flags, &tv->entity[newnum], true);
+			ParseEntityDelta(tv, m, &tv->map.entity[newnum].baseline, &newframe->ents[newindex], flags, &tv->map.entity[newnum], true);
 			newframe->entnums[newindex] = newnum;
 			newindex++;
 		}
@@ -930,7 +915,7 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
 //printf("Propogate (changed)\n");
 			if (!ExpandFrame(newindex, newframe))
 				break;
-			ParseEntityDelta(tv, m, &oldframe->ents[oldindex], &newframe->ents[newindex], flags, &tv->entity[newnum], false);
+			ParseEntityDelta(tv, m, &oldframe->ents[oldindex], &newframe->ents[newindex], flags, &tv->map.entity[newnum], false);
 			newframe->entnums[newindex] = newnum;
 			newindex++;
 			oldindex++;
@@ -1016,7 +1001,7 @@ static void ParseUpdatePing(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	ping = ReadShort(m);
 
 	if (pnum < MAX_CLIENTS)
-		tv->players[pnum].ping = ping;
+		tv->map.players[pnum].ping = ping;
 	else
 		Sys_Printf(tv->cluster, "svc_updateping: invalid player number\n");
 
@@ -1031,7 +1016,7 @@ static void ParseUpdateFrags(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	frags = (signed short)ReadShort(m);
 
 	if (pnum < MAX_CLIENTS)
-		tv->players[pnum].frags = frags;
+		tv->map.players[pnum].frags = frags;
 	else
 		Sys_Printf(tv->cluster, "svc_updatefrags: invalid player number\n");
 
@@ -1052,7 +1037,7 @@ static void ParseUpdateStat(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
 		{
 			if (mask & (1<<pnum))
-				tv->players[pnum].stats[statnum] = value;
+				tv->map.players[pnum].stats[statnum] = value;
 		}
 	}
 	else
@@ -1074,7 +1059,7 @@ static void ParseUpdateStatLong(sv_t *tv, netmsg_t *m, int to, unsigned int mask
 		for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
 		{
 			if (mask & (1<<pnum))
-				tv->players[pnum].stats[statnum] = value;
+				tv->map.players[pnum].stats[statnum] = value;
 		}
 	}
 	else
@@ -1089,7 +1074,7 @@ static void ParseUpdateUserinfo(sv_t *tv, netmsg_t *m, int to, unsigned int mask
 	pnum = ReadByte(m);
 	ReadLong(m);
 	if (pnum < MAX_CLIENTS)
-		ReadString(m, tv->players[pnum].userinfo, sizeof(tv->players[pnum].userinfo));
+		ReadString(m, tv->map.players[pnum].userinfo, sizeof(tv->map.players[pnum].userinfo));
 	else
 	{
 		Sys_Printf(tv->cluster, "svc_updateuserinfo: invalid player number\n");
@@ -1110,7 +1095,7 @@ static void ParsePacketloss(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	value = ReadByte(m);
 
 	if (pnum < MAX_CLIENTS)
-		tv->players[pnum].packetloss = value;
+		tv->map.players[pnum].packetloss = value;
 	else
 		Sys_Printf(tv->cluster, "svc_updatepl: invalid player number\n");
 
@@ -1126,7 +1111,7 @@ static void ParseUpdateEnterTime(sv_t *tv, netmsg_t *m, int to, unsigned int mas
 	value = ReadFloat(m);
 
 	if (pnum < MAX_CLIENTS)
-		tv->players[pnum].entertime = value;
+		tv->map.players[pnum].entertime = value;
 	else
 		Sys_Printf(tv->cluster, "svc_updateentertime: invalid player number\n");
 
@@ -1342,7 +1327,7 @@ void ParseLightstyle(sv_t *tv, netmsg_t *m)
 	int style;
 	style = ReadByte(m);
 	if (style < MAX_LIGHTSTYLES)
-		ReadString(m, tv->lightstyle[style].name, sizeof(tv->lightstyle[style].name));
+		ReadString(m, tv->map.lightstyle[style].name, sizeof(tv->map.lightstyle[style].name));
 	else
 	{
 		Sys_Printf(tv->cluster, "svc_lightstyle: invalid lightstyle index (%i)\n", style);
@@ -1359,7 +1344,7 @@ void ParseNails(sv_t *tv, netmsg_t *m, qboolean nails2)
 	int count;
 	int i;
 	count = (unsigned char)ReadByte(m);
-	while(count > sizeof(tv->nails) / sizeof(tv->nails[0]))
+	while(count > sizeof(tv->map.nails) / sizeof(tv->map.nails[0]))
 	{//they sent too many, suck it out.
 		count--;
 		if (nails2)
@@ -1368,15 +1353,15 @@ void ParseNails(sv_t *tv, netmsg_t *m, qboolean nails2)
 			ReadByte(m);
 	}
 
-	tv->nailcount = count;
+	tv->map.nailcount = count;
 	while(count-- > 0)
 	{
 		if (nails2)
-			tv->nails[count].number = ReadByte(m);
+			tv->map.nails[count].number = ReadByte(m);
 		else
-			tv->nails[count].number = count;
+			tv->map.nails[count].number = count;
 		for (i = 0; i < 6; i++)
-			tv->nails[count].bits[i] = ReadByte(m);
+			tv->map.nails[count].bits[i] = ReadByte(m);
 	}
 }
 
@@ -1417,20 +1402,20 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 		fclose(tv->downloadfile);
 		tv->downloadfile = NULL;
 
-		snprintf(buffer, sizeof(buffer), "%s/%s", (tv->gamedir&&*tv->gamedir)?tv->gamedir:"id1", tv->modellist[1].name);
+		snprintf(buffer, sizeof(buffer), "%s/%s", (tv->map.gamedir&&*tv->map.gamedir)?tv->map.gamedir:"id1", tv->map.modellist[1].name);
 		rename(tv->downloadname, buffer);
 
 		Sys_Printf(tv->cluster, "Download complete\n");
 
-		tv->bsp = BSP_LoadModel(tv->cluster, tv->gamedir, tv->modellist[1].name);
-		if (!tv->bsp)
+		tv->map.bsp = BSP_LoadModel(tv->cluster, tv->map.gamedir, tv->map.modellist[1].name);
+		if (!tv->map.bsp)
 		{
 			Sys_Printf(tv->cluster, "Failed to read BSP\n");
 			tv->errored = ERR_PERMANENT;
 		}
 		else
 		{
-			SendClientCommand(tv, "prespawn %i 0 %i\n", tv->clservercount, LittleLong(BSP_Checksum(tv->bsp)));
+			SendClientCommand(tv, "prespawn %i 0 %i\n", tv->clservercount, LittleLong(BSP_Checksum(tv->map.bsp)));
 			strcpy(tv->status, "Prespawning\n");
 		}
 	}
@@ -1441,7 +1426,7 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 	}
 }
 
-void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
+void ParseMessage(sv_t *tv, char *buffer, int length, int to, int mask)
 {
 	int i;
 	netmsg_t buf;
@@ -1587,7 +1572,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			break;
 
 		case svc_setpause:	// [qbyte] on / off
-			tv->ispaused = ReadByte(&buf);
+			tv->map.ispaused = ReadByte(&buf);
 			Multicast(tv, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, dem_read, (unsigned)-1, Q1);
 			break;
 
@@ -1664,36 +1649,36 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			break;
 
 		case svc_modellist:
-			i = ParseList(tv, &buf, tv->modellist, to, mask);
+			i = ParseList(tv, &buf, tv->map.modellist, to, mask);
 			if (!i)
 			{
 				int j;
-				if (tv->bsp)
-					BSP_Free(tv->bsp);
+				if (tv->map.bsp)
+					BSP_Free(tv->map.bsp);
 
 				if (tv->cluster->nobsp)// || !tv->usequkeworldprotocols)
-					tv->bsp = NULL;
+					tv->map.bsp = NULL;
 				else
-					tv->bsp = BSP_LoadModel(tv->cluster, tv->gamedir, tv->modellist[1].name);
+					tv->map.bsp = BSP_LoadModel(tv->cluster, tv->map.gamedir, tv->map.modellist[1].name);
 
-				tv->numinlines = 0;
+				tv->map.numinlines = 0;
 				for (j = 2; j < 256; j++)
 				{
-					if (*tv->modellist[j].name != '*')
+					if (*tv->map.modellist[j].name != '*')
 						break;
-					tv->numinlines = j;
+					tv->map.numinlines = j;
 				}
 
-				tv->modelindex_player = 0;
-				tv->modelindex_spike = 0;
+				tv->map.modelindex_player = 0;
+				tv->map.modelindex_spike = 0;
 				for (j = 2; j < 256; j++)
 				{
-					if (!*tv->modellist[j].name)
+					if (!*tv->map.modellist[j].name)
 						break;
-					if (!strcmp(tv->modellist[j].name, "progs/player.mdl"))
-						tv->modelindex_player = j;
-					if (!strcmp(tv->modellist[j].name, "progs/spike.mdl"))
-						tv->modelindex_spike = j;
+					if (!strcmp(tv->map.modellist[j].name, "progs/player.mdl"))
+						tv->map.modelindex_player = j;
+					if (!strcmp(tv->map.modellist[j].name, "progs/spike.mdl"))
+						tv->map.modelindex_spike = j;
 				}
 				strcpy(tv->status, "Prespawning\n");
 			}
@@ -1702,7 +1687,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			{
 				if (i)
 					SendClientCommand(tv, "modellist %i %i\n", tv->clservercount, i);
-				else if (!tv->bsp && !tv->cluster->nobsp)
+				else if (!tv->map.bsp && !tv->cluster->nobsp)
 				{
 					if (tv->downloadfile)
 					{
@@ -1711,29 +1696,32 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 						Sys_Printf(tv->cluster, "Was already downloading %s\nOld download canceled\n", tv->downloadname);
 						tv->downloadfile = NULL;
 					}
-					snprintf(tv->downloadname, sizeof(tv->downloadname), "%s/%s.tmp", (tv->gamedir&&*tv->gamedir)?tv->gamedir:"id1", tv->modellist[1].name);
+					snprintf(tv->downloadname, sizeof(tv->downloadname), "%s/%s.tmp", (tv->map.gamedir&&*tv->map.gamedir)?tv->map.gamedir:"id1", tv->map.modellist[1].name);
+					QTV_mkdir(tv->downloadname);
 					tv->downloadfile = fopen(tv->downloadname, "wb");
 					if (!tv->downloadfile)
 					{
 						Sys_Printf(tv->cluster, "Couldn't open temporary file %s\n", tv->downloadname);
+
+						SendClientCommand(tv, "prespawn %i 0 %i\n", tv->clservercount, LittleLong(BSP_Checksum(tv->map.bsp)));
 					}
 					else
 					{
 						strcpy(tv->status, "Downloading map\n");
 						Sys_Printf(tv->cluster, "Attempting download of %s\n", tv->downloadname);
-						SendClientCommand(tv, "download %s\n", tv->modellist[1].name);
+						SendClientCommand(tv, "download %s\n", tv->map.modellist[1].name);
 
-						QW_StreamPrint(tv->cluster, tv, NULL, "[QTV] Attempting map download\n");
+						QW_StreamPrint(tv->cluster, tv, NULL, "[QTV] Attempting map download (%s)\n", tv->map.modellist[1].name);
 					}
 				}
 				else
 				{
-					SendClientCommand(tv, "prespawn %i 0 %i\n", tv->clservercount, LittleLong(BSP_Checksum(tv->bsp)));
+					SendClientCommand(tv, "prespawn %i 0 %i\n", tv->clservercount, LittleLong(BSP_Checksum(tv->map.bsp)));
 				}
 			}
 			break;
 		case svc_soundlist:
-			i = ParseList(tv, &buf, tv->soundlist, to, mask);
+			i = ParseList(tv, &buf, tv->map.soundlist, to, mask);
 			if (!i)
 				strcpy(tv->status, "Receiving modellist\n");
 			ConnectionData(tv, (void*)((char*)buf.data+buf.startpos), buf.readpos - buf.startpos, to, mask, QW);

@@ -437,11 +437,49 @@ SOURCE=.\forward.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\libqtvc\glibc_sucks.c
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Viewer Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
 SOURCE=.\httpsv.c
 # End Source File
 # Begin Source File
 
 SOURCE=.\mdfour.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\menu.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\msg.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\libqtvc\msvc_sucks.c
+
+!IF  "$(CFG)" == "qtvprox - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Debug"
+
+# SUBTRACT CPP /YX /Yc /Yu
+
+!ELSEIF  "$(CFG)" == "qtvprox - Win32 Viewer Debug"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 

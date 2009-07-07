@@ -22,8 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "bsd_string.h"
 
-#define CENTERTIME 1.5
-
 static const filename_t ConnectionlessModelList[] = {{""}, {"maps/start.bsp"}, {"progs/player.mdl"}, {""}};
 static const filename_t ConnectionlessSoundList[] = {{""}, {""}};
 
@@ -47,30 +45,6 @@ void QTV_DefaultMovevars(movevars_t *vars)
 
 
 void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum);
-
-#if defined(_WIN32) && !defined(__MINGW32_VERSION)
-int snprintf(char *buffer, int buffersize, char *format, ...)
-{
-	va_list		argptr;
-	int ret;
-	va_start (argptr, format);
-	ret = _vsnprintf (buffer, buffersize, format, argptr);
-	buffer[buffersize - 1] = '\0';
-	va_end (argptr);
-
-	return ret;
-}
-#endif
-#if (defined(_WIN32) && !defined(_VC80_UPGRADE) && !defined(__MINGW32_VERSION))
-int vsnprintf(char *buffer, int buffersize, char *format, va_list argptr)
-{
-	int ret;
-	ret = _vsnprintf (buffer, buffersize, format, argptr);
-	buffer[buffersize - 1] = '\0';
-
-	return ret;
-}
-#endif
 
 const usercmd_t nullcmd = {0};
 
@@ -255,7 +229,7 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *viewer)
 	}
 	else
 	{
-		WriteString(msg, tv->gamedir);
+		WriteString(msg, tv->map.gamedir);
 
 		if (!viewer)
 			WriteFloat(msg, 0);
@@ -266,26 +240,26 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *viewer)
 			else
 				WriteByte(msg, viewer->thisplayer | 128);
 		}
-		WriteString(msg, tv->mapname);
+		WriteString(msg, tv->map.mapname);
 
 
 		// get the movevars
-		WriteFloat(msg, tv->movevars.gravity);
-		WriteFloat(msg, tv->movevars.stopspeed);
-		WriteFloat(msg, tv->movevars.maxspeed);
-		WriteFloat(msg, tv->movevars.spectatormaxspeed);
-		WriteFloat(msg, tv->movevars.accelerate);
-		WriteFloat(msg, tv->movevars.airaccelerate);
-		WriteFloat(msg, tv->movevars.wateraccelerate);
-		WriteFloat(msg, tv->movevars.friction);
-		WriteFloat(msg, tv->movevars.waterfriction);
-		WriteFloat(msg, tv->movevars.entgrav);
+		WriteFloat(msg, tv->map.movevars.gravity);
+		WriteFloat(msg, tv->map.movevars.stopspeed);
+		WriteFloat(msg, tv->map.movevars.maxspeed);
+		WriteFloat(msg, tv->map.movevars.spectatormaxspeed);
+		WriteFloat(msg, tv->map.movevars.accelerate);
+		WriteFloat(msg, tv->map.movevars.airaccelerate);
+		WriteFloat(msg, tv->map.movevars.wateraccelerate);
+		WriteFloat(msg, tv->map.movevars.friction);
+		WriteFloat(msg, tv->map.movevars.waterfriction);
+		WriteFloat(msg, tv->map.movevars.entgrav);
 
 
 
 		WriteByte(msg, svc_stufftext);
 		WriteString2(msg, "fullserverinfo \"");
-		WriteString2(msg, tv->serverinfo);
+		WriteString2(msg, tv->map.serverinfo);
 		WriteString(msg, "\"\n");
 	}
 }
@@ -335,22 +309,22 @@ void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int playernum)
 
 
 		//modellist
-		for (i = 1; *tv->modellist[i].name; i++)
+		for (i = 1; *tv->map.modellist[i].name; i++)
 		{
-			WriteString(msg, tv->modellist[i].name);
+			WriteString(msg, tv->map.modellist[i].name);
 		}
 		WriteString(msg, "");
 
 		//soundlist
-		for (i = 1; *tv->soundlist[i].name; i++)
+		for (i = 1; *tv->map.soundlist[i].name; i++)
 		{
-			WriteString(msg, tv->soundlist[i].name);
+			WriteString(msg, tv->map.soundlist[i].name);
 		}
 		WriteString(msg, "");
 
 		WriteByte(msg, svc_cdtrack);
-		WriteByte(msg, tv->cdtrack);	//two of them, yeah... weird, eh?
-		WriteByte(msg, tv->cdtrack);
+		WriteByte(msg, tv->map.cdtrack);	//two of them, yeah... weird, eh?
+		WriteByte(msg, tv->map.cdtrack);
 
 		WriteByte(msg, svc_nqsetview);
 		WriteShort(msg, 15);
@@ -374,7 +348,7 @@ void SendServerData(sv_t *tv, viewer_t *viewer)
 	InitNetMsg(&msg, buffer, viewer->netchan.maxreliablelen);
 
 	if (tv && (tv->controller == viewer || !tv->controller))
-		viewer->thisplayer = tv->thisplayer;
+		viewer->thisplayer = tv->map.thisplayer;
 	else
 		viewer->thisplayer = viewer->netchan.isnqprotocol?15:MAX_CLIENTS-1;
 	if (viewer->netchan.isnqprotocol)
@@ -406,16 +380,16 @@ void SendNQSpawnInfoToViewer(cluster_t *cluster, viewer_t *viewer, netmsg_t *msg
 		{
 			WriteByte (msg, svc_nqupdatename);
 			WriteByte (msg, i);
-			Info_ValueForKey(tv->players[i].userinfo, "name", buffer, sizeof(buffer));
+			Info_ValueForKey(tv->map.players[i].userinfo, "name", buffer, sizeof(buffer));
 			WriteString (msg, buffer);	//fixme
 
 			WriteByte (msg, svc_updatefrags);
 			WriteByte (msg, i);
-			WriteShort (msg, tv->players[i].frags);
+			WriteShort (msg, tv->map.players[i].frags);
 
-			Info_ValueForKey(tv->players[i].userinfo, "bottomcolor", buffer, sizeof(buffer));
+			Info_ValueForKey(tv->map.players[i].userinfo, "bottomcolor", buffer, sizeof(buffer));
 			colours = atoi(buffer);
-			Info_ValueForKey(tv->players[i].userinfo, "topcolor", buffer, sizeof(buffer));
+			Info_ValueForKey(tv->map.players[i].userinfo, "topcolor", buffer, sizeof(buffer));
 			colours |= atoi(buffer)*16;
 			WriteByte (msg, svc_nqupdatecolors);
 			WriteByte (msg, i);
@@ -461,10 +435,10 @@ int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i, int thispl
 			WriteString2(msg, "\\*spectator\\1\\name\\");
 
 			// Print the number of people on QTV along with the hostname
-			if (tv && tv->hostname[0])
+			if (tv && tv->map.hostname[0])
 			{
-				if (tv->hostname[0])
-					snprintf(name, sizeof(name), "[%d] %s", tv->numviewers, tv->hostname);
+				if (tv->map.hostname[0])
+					snprintf(name, sizeof(name), "[%d] %s", tv->numviewers, tv->map.hostname);
 				else
 					snprintf(name, sizeof(name), "[%d] FTEQTV", tv->numviewers);
 			}
@@ -498,26 +472,26 @@ int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i, int thispl
 		}
 		if (!tv)
 			continue;
-		if (msg->cursize+cursize+strlen(tv->players[i].userinfo) > 768)
+		if (msg->cursize+cursize+strlen(tv->map.players[i].userinfo) > 768)
 		{
 			return i;
 		}
 		WriteByte(msg, svc_updateuserinfo);
 		WriteByte(msg, i);
 		WriteLong(msg, i);
-		WriteString(msg, tv->players[i].userinfo);
+		WriteString(msg, tv->map.players[i].userinfo);
 
 		WriteByte(msg, svc_updatefrags);
 		WriteByte(msg, i);
-		WriteShort(msg, tv->players[i].frags);
+		WriteShort(msg, tv->map.players[i].frags);
 
 		WriteByte(msg, svc_updateping);
 		WriteByte(msg, i);
-		WriteShort(msg, tv->players[i].ping);
+		WriteShort(msg, tv->map.players[i].ping);
 
 		WriteByte(msg, svc_updatepl);
 		WriteByte(msg, i);
-		WriteByte(msg, tv->players[i].packetloss);
+		WriteByte(msg, tv->map.players[i].packetloss);
 	}
 
 	i++;
@@ -550,11 +524,11 @@ int SendCurrentBaselines(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize
 			return i;
 		}
 
-		if (tv->entity[i].baseline.modelindex)
+		if (tv->map.entity[i].baseline.modelindex)
 		{
 			WriteByte(msg, svc_spawnbaseline);
 			WriteShort(msg, i);
-			WriteEntityState(msg, &tv->entity[i].baseline);
+			WriteEntityState(msg, &tv->map.entity[i].baseline);
 		}
 	}
 
@@ -567,13 +541,13 @@ int SendCurrentLightmaps(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize
 
 	for (; i < MAX_LIGHTSTYLES; i++)
 	{
-		if (msg->cursize+cursize+strlen(tv->lightstyle[i].name) > maxbuffersize)
+		if (msg->cursize+cursize+strlen(tv->map.lightstyle[i].name) > maxbuffersize)
 		{
 			return i;
 		}
 		WriteByte(msg, svc_lightstyle);
 		WriteByte(msg, i);
-		WriteString(msg, tv->lightstyle[i].name);
+		WriteString(msg, tv->map.lightstyle[i].name);
 	}
 	return i;
 }
@@ -588,16 +562,16 @@ int SendStaticSounds(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize, in
 		{
 			return i;
 		}
-		if (!tv->staticsound[i].soundindex)
+		if (!tv->map.staticsound[i].soundindex)
 			continue;
 
 		WriteByte(msg, svc_spawnstaticsound);
-		WriteShort(msg, tv->staticsound[i].origin[0]);
-		WriteShort(msg, tv->staticsound[i].origin[1]);
-		WriteShort(msg, tv->staticsound[i].origin[2]);
-		WriteByte(msg, tv->staticsound[i].soundindex);
-		WriteByte(msg, tv->staticsound[i].volume);
-		WriteByte(msg, tv->staticsound[i].attenuation);
+		WriteShort(msg, tv->map.staticsound[i].origin[0]);
+		WriteShort(msg, tv->map.staticsound[i].origin[1]);
+		WriteShort(msg, tv->map.staticsound[i].origin[2]);
+		WriteByte(msg, tv->map.staticsound[i].soundindex);
+		WriteByte(msg, tv->map.staticsound[i].volume);
+		WriteByte(msg, tv->map.staticsound[i].attenuation);
 	}
 
 	return i;
@@ -613,11 +587,11 @@ int SendStaticEntities(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize, 
 		{
 			return i;
 		}
-		if (!tv->spawnstatic[i].modelindex)
+		if (!tv->map.spawnstatic[i].modelindex)
 			continue;
 
 		WriteByte(msg, svc_spawnstatic);
-		WriteEntityState(msg, &tv->spawnstatic[i]);
+		WriteEntityState(msg, &tv->map.spawnstatic[i]);
 	}
 
 	return i;
@@ -720,7 +694,7 @@ void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv)
 	{
 		if (sv)
 		{
-			snprintf(buffer, sizeof(buffer), "%cQTV%c%s leaves to watch %s (%i)\n", 91+128, 93+128, viewer->name, *sv->hostname?sv->hostname:sv->server, sv->streamid);
+			snprintf(buffer, sizeof(buffer), "%cQTV%c%s leaves to watch %s (%i)\n", 91+128, 93+128, viewer->name, *sv->map.hostname?sv->map.hostname:sv->server, sv->streamid);
 			QW_StreamPrint(cluster, oldserver, viewer, buffer);
 		}
 		snprintf(buffer, sizeof(buffer), "%cQTV%c%s joins the stream\n", 91+128, 93+128, viewer->name);
@@ -900,7 +874,7 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 	if (cluster->numservers == 1)
 	{
 		initialserver = cluster->servers;
-		if (!initialserver->modellist[1].name[0])
+		if (!initialserver->map.modellist[1].name[0])
 			initialserver = NULL;	//damn, that server isn't ready
 	}
 
@@ -968,7 +942,7 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	if (cluster->nouserconnects && cluster->numservers == 1)
 	{
 		initialserver = cluster->servers;
-		if (!initialserver->modellist[1].name[0])
+		if (!initialserver->map.modellist[1].name[0])
 			initialserver = NULL;	//damn, that server isn't ready
 	}
 
@@ -1099,14 +1073,14 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 	{	//show this server's info
 		sv = cluster->servers;
 
-		WriteString2(&msg, sv->serverinfo);
+		WriteString2(&msg, sv->map.serverinfo);
 		WriteString2(&msg, "\n");
 
 		for (i = 0;i < MAX_CLIENTS; i++)
 		{
-			if (i == sv->thisplayer)
+			if (i == sv->map.thisplayer)
 				continue;
-			if (!sv->players[i].active)
+			if (!sv->map.players[i].active)
 				continue;
 			//userid
 			sprintf(elem, "%i", i);
@@ -1114,7 +1088,7 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 			WriteString2(&msg, " ");
 
 			//frags
-			sprintf(elem, "%i", sv->players[i].frags);
+			sprintf(elem, "%i", sv->map.players[i].frags);
 			WriteString2(&msg, elem);
 			WriteString2(&msg, " ");
 
@@ -1124,30 +1098,30 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 			WriteString2(&msg, " ");
 
 			//ping
-			sprintf(elem, "%i", sv->players[i].ping);
+			sprintf(elem, "%i", sv->map.players[i].ping);
 			WriteString2(&msg, elem);
 			WriteString2(&msg, " ");
 
 			//name
-			Info_ValueForKey(sv->players[i].userinfo, "name", elem, sizeof(elem));
+			Info_ValueForKey(sv->map.players[i].userinfo, "name", elem, sizeof(elem));
 			WriteString2(&msg, "\"");
 			WriteString2(&msg, elem);
 			WriteString2(&msg, "\" ");
 
 			//skin
-			Info_ValueForKey(sv->players[i].userinfo, "skin", elem, sizeof(elem));
+			Info_ValueForKey(sv->map.players[i].userinfo, "skin", elem, sizeof(elem));
 			WriteString2(&msg, "\"");
 			WriteString2(&msg, elem);
 			WriteString2(&msg, "\" ");
 			WriteString2(&msg, " ");
 
 			//tc
-			Info_ValueForKey(sv->players[i].userinfo, "topcolor", elem, sizeof(elem));
+			Info_ValueForKey(sv->map.players[i].userinfo, "topcolor", elem, sizeof(elem));
 			WriteString2(&msg, elem);
 			WriteString2(&msg, " ");
 
 			//bc
-			Info_ValueForKey(sv->players[i].userinfo, "bottomcolor", elem, sizeof(elem));
+			Info_ValueForKey(sv->map.players[i].userinfo, "bottomcolor", elem, sizeof(elem));
 			WriteString2(&msg, elem);
 			WriteString2(&msg, " ");
 
@@ -1346,7 +1320,7 @@ void SV_EmitPacketEntities (const sv_t *qtv, const viewer_t *v, const packet_ent
 
 		if (newnum < oldnum)
 		{	// this is a new entity, send it from the baseline
-			baseline = &qtv->entity[newnum].baseline;
+			baseline = &qtv->map.entity[newnum].baseline;
 //Con_Printf ("baseline %i\n", newnum);
 			SV_WriteDelta (newnum, baseline, &to->ents[newindex], msg, true);
 
@@ -1371,11 +1345,11 @@ void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg)
 	frame_t *frame;
 	int i, entnum;
 	WriteByte(msg, svc_packetentities);
-	frame = &qtv->frame[qtv->netchan.incoming_sequence & (ENTITY_FRAMES-1)];
+	frame = &qtv->map.frame[qtv->netchan.incoming_sequence & (ENTITY_FRAMES-1)];
 	for (i = 0; i < frame->numents; i++)
 	{
 		entnum = frame->entnums[i];
-		SV_WriteDelta(entnum, &qtv->entity[entnum].baseline, &frame->ents[i], msg, true);
+		SV_WriteDelta(entnum, &qtv->map.entity[entnum].baseline, &frame->ents[i], msg, true);
 	}
 	WriteShort(msg, 0);
 }
@@ -1403,40 +1377,40 @@ void SendLocalPlayerState(sv_t *tv, viewer_t *v, int playernum, netmsg_t *msg)
 
 	if (tv && tv->controller == v)
 	{	//we're the one that is actually playing.
-		v->trackplayer = tv->thisplayer;
+		v->trackplayer = tv->map.thisplayer;
 		flags = 0;
-		if (tv->players[tv->thisplayer].current.weaponframe)
+		if (tv->map.players[tv->map.thisplayer].current.weaponframe)
 			flags |= PF_WEAPONFRAME;
-		if (tv->players[tv->thisplayer].current.effects)
+		if (tv->map.players[tv->map.thisplayer].current.effects)
 			flags |= PF_EFFECTS;
 
-		if (tv->players[tv->thisplayer].dead)
+		if (tv->map.players[tv->map.thisplayer].dead)
 			flags |= PF_DEAD;
-		if (tv->players[tv->thisplayer].gibbed)
+		if (tv->map.players[tv->map.thisplayer].gibbed)
 			flags |= PF_GIB;
 
 		for (j=0 ; j<3 ; j++)
-			if (tv->players[tv->thisplayer].current.velocity[j])
+			if (tv->map.players[tv->map.thisplayer].current.velocity[j])
 				flags |= (PF_VELOCITY1<<j);
 
 		WriteShort(msg, flags);
-		WriteShort(msg, tv->players[tv->thisplayer].current.origin[0]);
-		WriteShort(msg, tv->players[tv->thisplayer].current.origin[1]);
-		WriteShort(msg, tv->players[tv->thisplayer].current.origin[2]);
-		WriteByte(msg, tv->players[tv->thisplayer].current.frame);
+		WriteShort(msg, tv->map.players[tv->map.thisplayer].current.origin[0]);
+		WriteShort(msg, tv->map.players[tv->map.thisplayer].current.origin[1]);
+		WriteShort(msg, tv->map.players[tv->map.thisplayer].current.origin[2]);
+		WriteByte(msg, tv->map.players[tv->map.thisplayer].current.frame);
 
 		for (j=0 ; j<3 ; j++)
 			if (flags & (PF_VELOCITY1<<j) )
-				WriteShort (msg, tv->players[tv->thisplayer].current.velocity[j]);
+				WriteShort (msg, tv->map.players[tv->map.thisplayer].current.velocity[j]);
 
 		if (flags & PF_MODEL)
-			WriteByte(msg, tv->players[tv->thisplayer].current.modelindex);
+			WriteByte(msg, tv->map.players[tv->map.thisplayer].current.modelindex);
 		if (flags & PF_SKINNUM)
-			WriteByte(msg, tv->players[tv->thisplayer].current.skinnum);
+			WriteByte(msg, tv->map.players[tv->map.thisplayer].current.skinnum);
 		if (flags & PF_EFFECTS)
-			WriteByte(msg, tv->players[tv->thisplayer].current.effects);
+			WriteByte(msg, tv->map.players[tv->map.thisplayer].current.effects);
 		if (flags & PF_WEAPONFRAME)
-			WriteByte(msg, tv->players[tv->thisplayer].current.weaponframe);
+			WriteByte(msg, tv->map.players[tv->map.thisplayer].current.weaponframe);
 	}
 	else
 	{
@@ -1519,7 +1493,7 @@ void SendNQClientData(sv_t *tv, viewer_t *v, netmsg_t *msg)
 		return;
 	}
 	else
-		pl = &tv->players[v->trackplayer];
+		pl = &tv->map.players[v->trackplayer];
 
 	bits = 0;
 	
@@ -1611,7 +1585,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 		WriteByte(msg, svc_nqtime);
 		WriteFloat(msg, tv->physicstime/1000.0f);
 
-		BSP_SetupForPosition(tv->bsp, v->origin[0], v->origin[1], v->origin[2]);
+		BSP_SetupForPosition(tv->map.bsp, v->origin[0], v->origin[1], v->origin[2]);
 
 		lerp = ((tv->simtime - tv->oldpackettime)/1000.0f) / ((tv->nextpackettime - tv->oldpackettime)/1000.0f);
 		if (lerp < 0)
@@ -1641,9 +1615,9 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			WriteShort(msg, v->trackplayer+1);
 
 			WriteByte(msg, svc_setangle);
-			WriteByte(msg, (int)InterpolateAngle(tv->players[v->trackplayer].old.angles[0], tv->players[v->trackplayer].current.angles[0], lerp)>>8);
-			WriteByte(msg, (int)InterpolateAngle(tv->players[v->trackplayer].old.angles[1], tv->players[v->trackplayer].current.angles[1], lerp)>>8);
-			WriteByte(msg, (int)InterpolateAngle(tv->players[v->trackplayer].old.angles[2], tv->players[v->trackplayer].current.angles[2], lerp)>>8);
+			WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[0], tv->map.players[v->trackplayer].current.angles[0], lerp)>>8);
+			WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[1], tv->map.players[v->trackplayer].current.angles[1], lerp)>>8);
+			WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[2], tv->map.players[v->trackplayer].current.angles[2], lerp)>>8);
 		}
 		else
 		{
@@ -1654,8 +1628,8 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 
 		for (e = 0; e < MAX_CLIENTS; e++)
 		{
-			pl = &tv->players[e];
-			ent = &tv->entity[e+1];
+			pl = &tv->map.players[e];
+			ent = &tv->map.entity[e+1];
 
 			if (e == v->thisplayer && v->trackplayer < 0)
 			{
@@ -1703,7 +1677,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			if (!pl->active)
 				continue;
 
-			if (pl->current.modelindex >= tv->numinlines && !BSP_Visible(tv->bsp, pl->leafcount, pl->leafs))
+			if (pl->current.modelindex >= tv->map.numinlines && !BSP_Visible(tv->map.bsp, pl->leafcount, pl->leafs))
 				continue;
 
 			pl->current.modelindex = 8;
@@ -1798,7 +1772,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			snapdist = snapdist*8;
 			snapdist = snapdist*snapdist;
 
-			topacket = &tv->frame[tv->netchan.incoming_sequence&(ENTITY_FRAMES-1)];
+			topacket = &tv->map.frame[tv->netchan.incoming_sequence&(ENTITY_FRAMES-1)];
 
 			for (newindex = 0; newindex < topacket->numents; newindex++)
 			{
@@ -1806,7 +1780,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				//pvs cull everything else
 				newstate = &topacket->ents[newindex];
 				newnum = topacket->entnums[newindex];
-				if (newstate->modelindex >= tv->numinlines && !BSP_Visible(tv->bsp, tv->entity[newnum].leafcount, tv->entity[newnum].leafs))
+				if (newstate->modelindex >= tv->map.numinlines && !BSP_Visible(tv->map.bsp, tv->map.entity[newnum].leafcount, tv->map.entity[newnum].leafs))
 					continue;
 
 				if (msg->cursize + 128 > msg->maxsize)
@@ -1927,7 +1901,7 @@ viewer_t *GetCommentator(viewer_t *v)
 
 void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 {
-	bsp_t *bsp = (!tv || tv->controller == v ? NULL : tv->bsp);
+	bsp_t *bsp = (!tv || tv->controller == v ? NULL : tv->map.bsp);
 	viewer_t *cv;
 	packet_entities_t *e;
 	int i;
@@ -1967,8 +1941,8 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 		if (tv->controller == v)
 		{
 			lerp = 1;
-			track = tv->thisplayer;
-			v->trackplayer = tv->thisplayer;
+			track = tv->map.thisplayer;
+			v->trackplayer = tv->map.thisplayer;
 		}
 		else
 		{
@@ -1985,10 +1959,10 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 
 			if (!v->commentator && track >= 0 && !v->backbuffered)
 			{
-				if (v->trackplayer != tv->trackplayer && tv->usequakeworldprotocols)
-					if (!tv->players[v->trackplayer].active && tv->players[tv->trackplayer].active)
+				if (v->trackplayer != tv->map.trackplayer && tv->usequakeworldprotocols)
+					if (!tv->map.players[v->trackplayer].active && tv->map.players[tv->map.trackplayer].active)
 					{
-						QW_StuffcmdToViewer (v, "track %i\n", tv->trackplayer);
+						QW_StuffcmdToViewer (v, "track %i\n", tv->map.trackplayer);
 					}
 			}
 		}
@@ -2001,57 +1975,57 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 				continue;
 			}
 
-			if (!tv->players[i].active && track != i)
+			if (!tv->map.players[i].active && track != i)
 				continue;
 
 			//bsp cull. currently tracked player is always visible
-			if (track != i && !BSP_Visible(bsp, tv->players[i].leafcount, tv->players[i].leafs))
+			if (track != i && !BSP_Visible(bsp, tv->map.players[i].leafcount, tv->map.players[i].leafs))
 				continue;
 
 			flags = PF_COMMAND;
-			if (track == i && tv->players[i].current.weaponframe)
+			if (track == i && tv->map.players[i].current.weaponframe)
 				flags |= PF_WEAPONFRAME;
-			if (tv->players[i].current.modelindex != tv->modelindex_player)
+			if (tv->map.players[i].current.modelindex != tv->map.modelindex_player)
 				flags |= PF_MODEL;
-			if (tv->players[i].dead || !tv->players[i].active)
+			if (tv->map.players[i].dead || !tv->map.players[i].active)
 				flags |= PF_DEAD;
-			if (tv->players[i].gibbed || !tv->players[i].active)
+			if (tv->map.players[i].gibbed || !tv->map.players[i].active)
 				flags |= PF_GIB;
-			if (tv->players[i].current.effects != 0)
+			if (tv->map.players[i].current.effects != 0)
 				flags |= PF_EFFECTS;
-			if (tv->players[i].current.skinnum != 0)
+			if (tv->map.players[i].current.skinnum != 0)
 				flags |= PF_SKINNUM;
-			if (tv->players[i].current.velocity[0])
+			if (tv->map.players[i].current.velocity[0])
 				flags |= PF_VELOCITY1;
-			if (tv->players[i].current.velocity[1])
+			if (tv->map.players[i].current.velocity[1])
 				flags |= PF_VELOCITY2;
-			if (tv->players[i].current.velocity[2])
+			if (tv->map.players[i].current.velocity[2])
 				flags |= PF_VELOCITY3;
 
 			WriteByte(msg, svc_playerinfo);
 			WriteByte(msg, i);
 			WriteShort(msg, flags);
 
-			if (!tv->players[i].active ||
-				(tv->players[i].current.origin[0] - tv->players[i].old.origin[0])*(tv->players[i].current.origin[0] - tv->players[i].old.origin[0]) > snapdist ||
-				(tv->players[i].current.origin[1] - tv->players[i].old.origin[1])*(tv->players[i].current.origin[1] - tv->players[i].old.origin[1]) > snapdist ||
-				(tv->players[i].current.origin[2] - tv->players[i].old.origin[2])*(tv->players[i].current.origin[2] - tv->players[i].old.origin[2]) > snapdist)
+			if (!tv->map.players[i].active ||
+				(tv->map.players[i].current.origin[0] - tv->map.players[i].old.origin[0])*(tv->map.players[i].current.origin[0] - tv->map.players[i].old.origin[0]) > snapdist ||
+				(tv->map.players[i].current.origin[1] - tv->map.players[i].old.origin[1])*(tv->map.players[i].current.origin[1] - tv->map.players[i].old.origin[1]) > snapdist ||
+				(tv->map.players[i].current.origin[2] - tv->map.players[i].old.origin[2])*(tv->map.players[i].current.origin[2] - tv->map.players[i].old.origin[2]) > snapdist)
 			{	//teleported (or respawned), so don't interpolate
-				WriteShort(msg, tv->players[i].current.origin[0]);
-				WriteShort(msg, tv->players[i].current.origin[1]);
-				WriteShort(msg, tv->players[i].current.origin[2]);
+				WriteShort(msg, tv->map.players[i].current.origin[0]);
+				WriteShort(msg, tv->map.players[i].current.origin[1]);
+				WriteShort(msg, tv->map.players[i].current.origin[2]);
 			}
 			else
 			{	//send interpolated angles
-				interp = (lerp)*tv->players[i].current.origin[0] + (1-lerp)*tv->players[i].old.origin[0];
+				interp = (lerp)*tv->map.players[i].current.origin[0] + (1-lerp)*tv->map.players[i].old.origin[0];
 				WriteShort(msg, interp);
-				interp = (lerp)*tv->players[i].current.origin[1] + (1-lerp)*tv->players[i].old.origin[1];
+				interp = (lerp)*tv->map.players[i].current.origin[1] + (1-lerp)*tv->map.players[i].old.origin[1];
 				WriteShort(msg, interp);
-				interp = (lerp)*tv->players[i].current.origin[2] + (1-lerp)*tv->players[i].old.origin[2];
+				interp = (lerp)*tv->map.players[i].current.origin[2] + (1-lerp)*tv->map.players[i].old.origin[2];
 				WriteShort(msg, interp);
 			}
 
-			WriteByte(msg, tv->players[i].current.frame);
+			WriteByte(msg, tv->map.players[i].current.frame);
 
 
 			if (flags & PF_MSEC)
@@ -2060,39 +2034,39 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 			}
 			if (flags & PF_COMMAND)
 			{
-				if (!tv->players[i].active)
+				if (!tv->map.players[i].active)
 				{
-					to.angles[0] = tv->players[i].current.angles[0];
-					to.angles[1] = tv->players[i].current.angles[1];
-					to.angles[2] = tv->players[i].current.angles[2];
+					to.angles[0] = tv->map.players[i].current.angles[0];
+					to.angles[1] = tv->map.players[i].current.angles[1];
+					to.angles[2] = tv->map.players[i].current.angles[2];
 				}
 				else
 				{
-					to.angles[0] = InterpolateAngle(tv->players[i].old.angles[0], tv->players[i].current.angles[0], lerp);
-					to.angles[1] = InterpolateAngle(tv->players[i].old.angles[1], tv->players[i].current.angles[1], lerp);
-					to.angles[2] = InterpolateAngle(tv->players[i].old.angles[2], tv->players[i].current.angles[2], lerp);
+					to.angles[0] = InterpolateAngle(tv->map.players[i].old.angles[0], tv->map.players[i].current.angles[0], lerp);
+					to.angles[1] = InterpolateAngle(tv->map.players[i].old.angles[1], tv->map.players[i].current.angles[1], lerp);
+					to.angles[2] = InterpolateAngle(tv->map.players[i].old.angles[2], tv->map.players[i].current.angles[2], lerp);
 				}
 				WriteDeltaUsercmd(msg, &nullcmd, &to);
 			}
 			//vel
 			if (flags & PF_VELOCITY1)
-				WriteShort(msg, tv->players[i].current.velocity[0]);
+				WriteShort(msg, tv->map.players[i].current.velocity[0]);
 			if (flags & PF_VELOCITY2)
-				WriteShort(msg, tv->players[i].current.velocity[1]);
+				WriteShort(msg, tv->map.players[i].current.velocity[1]);
 			if (flags & PF_VELOCITY3)
-				WriteShort(msg, tv->players[i].current.velocity[2]);
+				WriteShort(msg, tv->map.players[i].current.velocity[2]);
 			//model
 			if (flags & PF_MODEL)
-				WriteByte(msg, tv->players[i].current.modelindex);
+				WriteByte(msg, tv->map.players[i].current.modelindex);
 			//skin
 			if (flags & PF_SKINNUM)
-				WriteByte (msg, tv->players[i].current.skinnum);
+				WriteByte (msg, tv->map.players[i].current.skinnum);
 			//effects
 			if (flags & PF_EFFECTS)
-				WriteByte (msg, tv->players[i].current.effects);
+				WriteByte (msg, tv->map.players[i].current.effects);
 			//weaponframe
 			if (flags & PF_WEAPONFRAME)
-				WriteByte(msg, tv->players[i].current.weaponframe);
+				WriteByte(msg, tv->map.players[i].current.weaponframe);
 		}
 	}
 	else
@@ -2111,14 +2085,14 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 		entity_state_t *newstate;
 		int newnum, oldnum;
 		frame_t *frompacket, *topacket;
-		topacket = &tv->frame[tv->netchan.incoming_sequence&(ENTITY_FRAMES-1)];
+		topacket = &tv->map.frame[tv->netchan.incoming_sequence&(ENTITY_FRAMES-1)];
 		if (tv->usequakeworldprotocols)
 		{
-			frompacket = &tv->frame[(topacket->oldframe)&(ENTITY_FRAMES-1)];
+			frompacket = &tv->map.frame[(topacket->oldframe)&(ENTITY_FRAMES-1)];
 		}
 		else
 		{
-			frompacket = &tv->frame[(tv->netchan.incoming_sequence-1)&(ENTITY_FRAMES-1)];
+			frompacket = &tv->map.frame[(tv->netchan.incoming_sequence-1)&(ENTITY_FRAMES-1)];
 		}
 
 		for (newindex = 0; newindex < topacket->numents; newindex++)
@@ -2127,7 +2101,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 			//pvs cull everything else
 			newstate = &topacket->ents[newindex];
 			newnum = topacket->entnums[newindex];
-			if (newstate->modelindex >= tv->numinlines && !BSP_Visible(bsp, tv->entity[newnum].leafcount, tv->entity[newnum].leafs))
+			if (newstate->modelindex >= tv->map.numinlines && !BSP_Visible(bsp, tv->map.entity[newnum].leafcount, tv->map.entity[newnum].leafs))
 				continue;
 
 			e->entnum[e->numents] = newnum;
@@ -2189,18 +2163,18 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 
 	SV_EmitPacketEntities(tv, v, e, msg);
 
-	if (tv && tv->nailcount)
+	if (tv && tv->map.nailcount)
 	{
 		WriteByte(msg, svc_nails);
-		WriteByte(msg, tv->nailcount);
-		for (i = 0; i < tv->nailcount; i++)
+		WriteByte(msg, tv->map.nailcount);
+		for (i = 0; i < tv->map.nailcount; i++)
 		{
-			WriteByte(msg, tv->nails[i].bits[0]);
-			WriteByte(msg, tv->nails[i].bits[1]);
-			WriteByte(msg, tv->nails[i].bits[2]);
-			WriteByte(msg, tv->nails[i].bits[3]);
-			WriteByte(msg, tv->nails[i].bits[4]);
-			WriteByte(msg, tv->nails[i].bits[5]);
+			WriteByte(msg, tv->map.nails[i].bits[0]);
+			WriteByte(msg, tv->map.nails[i].bits[1]);
+			WriteByte(msg, tv->map.nails[i].bits[2]);
+			WriteByte(msg, tv->map.nails[i].bits[3]);
+			WriteByte(msg, tv->map.nails[i].bits[4]);
+			WriteByte(msg, tv->map.nails[i].bits[5]);
 		}
 	}
 }
@@ -2223,11 +2197,11 @@ void UpdateStats(sv_t *qtv, viewer_t *v)
 		cv = v;
 
 	if (qtv && qtv->controller == cv)
-		stats = qtv->players[qtv->thisplayer].stats;
+		stats = qtv->map.players[qtv->map.thisplayer].stats;
 	else if (cv->trackplayer == -1 || !qtv)
 		stats = nullstats;
 	else
-		stats = qtv->players[cv->trackplayer].stats;
+		stats = qtv->map.players[cv->trackplayer].stats;
 
 	for (i = 0; i < MAX_STATS; i++)
 	{
@@ -2301,13 +2275,13 @@ void PMove(viewer_t *v, usercmd_t *cmd)
 	pmove_t pmove;
 	if (v->server && v->server->controller == v)
 	{
-		v->origin[0] = v->server->players[v->server->thisplayer].current.origin[0]/8.0f;
-		v->origin[1] = v->server->players[v->server->thisplayer].current.origin[1]/8.0f;
-		v->origin[2] = v->server->players[v->server->thisplayer].current.origin[2]/8.0f;
+		v->origin[0] = v->server->map.players[v->server->map.thisplayer].current.origin[0]/8.0f;
+		v->origin[1] = v->server->map.players[v->server->map.thisplayer].current.origin[1]/8.0f;
+		v->origin[2] = v->server->map.players[v->server->map.thisplayer].current.origin[2]/8.0f;
 
-		v->velocity[0] = v->server->players[v->server->thisplayer].current.velocity[2]/8.0f;
-		v->velocity[1] = v->server->players[v->server->thisplayer].current.velocity[2]/8.0f;
-		v->velocity[2] = v->server->players[v->server->thisplayer].current.velocity[2]/8.0f;
+		v->velocity[0] = v->server->map.players[v->server->map.thisplayer].current.velocity[2]/8.0f;
+		v->velocity[1] = v->server->map.players[v->server->map.thisplayer].current.velocity[2]/8.0f;
+		v->velocity[2] = v->server->map.players[v->server->map.thisplayer].current.velocity[2]/8.0f;
 		return;
 	}
 	pmove.origin[0] = v->origin[0];
@@ -2322,7 +2296,7 @@ void PMove(viewer_t *v, usercmd_t *cmd)
 	qtv = v->server;
 	if (qtv)
 	{
-		pmove.movevars = qtv->movevars;
+		pmove.movevars = qtv->map.movevars;
 	}
 	else
 	{
@@ -2581,7 +2555,7 @@ guimenu:
 				QW_StuffcmdToViewer(v, "menutext 72 %i \"Áãôéöå Çáíåóº\"\n", y);
 				y+=8;
 			}
-			QW_StuffcmdToViewer(v, "menutext 32 %i \"%30s\" \"stream %i\"\n", y, *sv->hostname?sv->hostname:sv->server, sv->streamid);
+			QW_StuffcmdToViewer(v, "menutext 32 %i \"%30s\" \"stream %i\"\n", y, *sv->map.hostname?sv->map.hostname:sv->server, sv->streamid);
 			y+=8;
 		}
 		if (!shownheader)
@@ -2763,7 +2737,7 @@ tuiadmin:
 			isjoin = true;
 		
 		snprintf(buf, sizeof(buf), "udp:%s", args);
-		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, !isjoin, false);
+		qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, true, !isjoin, false);
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
@@ -2782,7 +2756,7 @@ tuiadmin:
 		char buf[256];
 
 		snprintf(buf, sizeof(buf), "tcp:%s", args);
-		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
+		qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, true, true, false);
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
@@ -2828,7 +2802,7 @@ tuiadmin:
 	{
 		char buf[256];
 		snprintf(buf, sizeof(buf), "file:%s", args);
-		qtv = QTV_NewServerConnection(cluster, buf, "", false, true, true, false);
+		qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, true, true, false);
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
@@ -3010,7 +2984,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else if (!strcmp(v->expectcommand, "addserver"))
 		{
 			snprintf(buf, sizeof(buf), "tcp:%s", message);
-			qtv = QTV_NewServerConnection(cluster, buf, "", false, false, false, false);
+			qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, false, false, false);
 			if (qtv)
 			{
 				QW_SetViewersServer(cluster, v, qtv);
@@ -3036,7 +3010,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else if (!strcmp(v->expectcommand, "insecadddemo"))
 		{
 			snprintf(buf, sizeof(buf), "file:%s", message);
-			qtv = QTV_NewServerConnection(cluster, buf, "", false, false, false, false);
+			qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, false, false, false);
 			if (!qtv)
 				QW_PrintfToViewer(v, "Failed to play demo \"%s\"\n", message);
 			else
@@ -3049,7 +3023,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else if (!strcmp(v->expectcommand, "adddemo"))
 		{
 			snprintf(buf, sizeof(buf), "file:%s", message);
-			qtv = QTV_NewServerConnection(cluster, buf, "", false, false, false, false);
+			qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, false, false, false);
 			if (!qtv)
 				QW_PrintfToViewer(v, "Failed to play demo \"%s\"\n", message);
 			else
@@ -3264,7 +3238,7 @@ void QW_PositionAtIntermission(sv_t *qtv, viewer_t *v)
 
 
 	if (qtv)
-		spot = BSP_IntermissionSpot(qtv->bsp);
+		spot = BSP_IntermissionSpot(qtv->map.bsp);
 	else
 		spot = &nullstreamspot;
 
@@ -3394,6 +3368,9 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					QTV_Say(cluster, v->server, v, ".menu", false);
 			}
 
+	//		else if (!strcmp(buf, "pause"))
+	//			qtv->errored = ERR_PAUSED;
+
 			else if (!strncmp(buf, "say \"", 5))
 				QTV_Say(cluster, qtv, v, buf+5, false);
 			else if (!strncmp(buf, "say ", 4))
@@ -3444,7 +3421,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					
 					for (t = v->trackplayer+1; t < MAX_CLIENTS; t++)
 					{
-						if (v->server->players[t].active)
+						if (v->server->map.players[t].active)
 						{
 							break;
 						}
@@ -3466,7 +3443,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					else
 					{
 						v->trackplayer = t;
-						Info_ValueForKey(v->server->players[t].userinfo, "name", buf, sizeof(buf));
+						Info_ValueForKey(v->server->map.players[t].userinfo, "name", buf, sizeof(buf));
 						QW_PrintfToViewer(v, "Now tracking: %s\n", buf);
 					}
 				}
@@ -3483,7 +3460,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					{
 						for (t = MAX_CLIENTS-1; t >= v->trackplayer; t--)
 						{
-							if (v->server->players[t].active)
+							if (v->server->map.players[t].active)
 							{
 								break;
 							}
@@ -3493,7 +3470,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					{
 						for (t = v->trackplayer-1; t >= 0; t--)
 						{
-							if (v->server->players[t].active)
+							if (v->server->map.players[t].active)
 							{
 								break;
 							}
@@ -3508,7 +3485,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					else
 					{
 						v->trackplayer = t;
-						Info_ValueForKey(v->server->players[t].userinfo, "name", buf, sizeof(buf));
+						Info_ValueForKey(v->server->map.players[t].userinfo, "name", buf, sizeof(buf));
 						QW_PrintfToViewer(v, "Now tracking: %s\n", buf);
 					}
 				}
@@ -3516,9 +3493,9 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 
 			if (v->trackplayer > -1 && v->server)
 			{
-				v->origin[0] = v->server->players[v->trackplayer].current.origin[0]/8.0;
-				v->origin[1] = v->server->players[v->trackplayer].current.origin[1]/8.0;
-				v->origin[2] = v->server->players[v->trackplayer].current.origin[2]/8.0;
+				v->origin[0] = v->server->map.players[v->trackplayer].current.origin[0]/8.0;
+				v->origin[1] = v->server->map.players[v->trackplayer].current.origin[1]/8.0;
+				v->origin[2] = v->server->map.players[v->trackplayer].current.origin[2]/8.0;
 			}
 
 			break;
@@ -3589,7 +3566,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				if (!qtv)
 					SendList(qtv, first, ConnectionlessModelList, svc_modellist, &msg);
 				else
-					SendList(qtv, first, qtv->modellist, svc_modellist, &msg);
+					SendList(qtv, first, qtv->map.modellist, svc_modellist, &msg);
 				SendBufferToViewer(v, msg.data, msg.cursize, true);
 			}
 			else if (!iscont && !strncmp(buf, "soundlist ", 10))
@@ -3613,7 +3590,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				if (!qtv)
 					SendList(qtv, first, ConnectionlessSoundList, svc_soundlist, &msg);
 				else
-					SendList(qtv, first, qtv->soundlist, svc_soundlist, &msg);
+					SendList(qtv, first, qtv->map.soundlist, svc_soundlist, &msg);
 				SendBufferToViewer(v, msg.data, msg.cursize, true);
 			}
 			else if (!iscont && !strncmp(buf, "prespawn", 8))
@@ -3646,15 +3623,15 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 
 						if (qtv && qtv->controller == v)
 						{
-							if (!qtv->bsp)
+							if (!qtv->map.bsp)
 							{
 							//warning do we still actually need to do this ourselves? Or can we just forward what the user stated?
-								QW_PrintfToViewer(v, "QTV doesn't have that map (%s), sorry.\n", qtv->modellist[1].name);
+								QW_PrintfToViewer(v, "QTV doesn't have that map (%s), sorry.\n", qtv->map.modellist[1].name);
 								qtv->errored = ERR_DROP;
 							}
-							else if (crc != BSP_Checksum(qtv->bsp))
+							else if (crc != BSP_Checksum(qtv->map.bsp))
 							{
-								QW_PrintfToViewer(v, "QTV's map (%s) does not match the servers\n", qtv->modellist[1].name);
+								QW_PrintfToViewer(v, "QTV's map (%s) does not match the servers\n", qtv->map.modellist[1].name);
 								qtv->errored = ERR_DROP;
 							}
 						}
@@ -3706,7 +3683,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				else
 				{
 					v->thinksitsconnected = true;
-					if (qtv && qtv->ispaused)
+					if (qtv && qtv->map.ispaused)
 					{
 						char msgb[] = {svc_setpause, 1};
 						SendBufferToViewer(v, msgb, sizeof(msgb), true);
@@ -3745,6 +3722,15 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				if (!v->drop)
 					Sys_Printf(cluster, "QW viewer %s disconnects\n", v->name);
 				v->drop = true;
+			}
+			else if (!strcmp(buf, "pause"))
+			{
+				if (qtv->errored == ERR_PAUSED)
+					qtv->errored = ERR_NONE;
+				else if (qtv->sourcetype == SRC_DEMO && (1 || v->isadmin))
+					qtv->errored = ERR_PAUSED;
+				else
+					QW_PrintfToViewer(v, "You may not pause this stream\n");
 			}
 			else if (!strncmp(buf, "ison", 4))
 			{
@@ -3828,7 +3814,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				InitNetMsg(&m, buf, sizeof(buf));
 				WriteByte(&m, svc_print);
 				WriteByte(&m, 2);
-				end = qtv->serverinfo;
+				end = qtv->map.serverinfo;
 				for(;;)
 				{
 					if (!*end)
@@ -3904,564 +3890,6 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			return;
 		}
 	}
-}
-
-void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
-{
-	//build a possible message, even though it'll probably not be sent
-
-	sv_t *sv;
-	int i, min;
-
-	switch(viewer->menunum)
-	{
-	default:
-		break;
-
-	case MENU_MAIN:
-		if (buttonnum < 0)
-			viewer->menuop -= (MENU_MAIN_ITEMCOUNT + 1)/2;
-		else if (buttonnum > 0)
-			viewer->menuop += (MENU_MAIN_ITEMCOUNT + 1)/2;
-		else if (buttonnum == 0)
-		{
-			switch(viewer->menuop)
-			{
-			case MENU_MAIN_STREAMS: //Streams
-				QW_SetMenu(viewer, MENU_SERVERS);
-				break;
-			case MENU_MAIN_CLIENTLIST://Client List
-				QW_SetMenu(viewer, MENU_CLIENTS);
-				break;
-
-			case MENU_MAIN_NEWSTREAM://New Stream
-				QW_PrintfToViewer(viewer, "Not implemented yet\n");
-				break;
-			case MENU_MAIN_DEMOS://Demos
-				Cluster_BuildAvailableDemoList(cluster);
-				QW_SetMenu(viewer, MENU_DEMOS);
-				break;
-
-			case MENU_MAIN_SERVERBROWSER://Server Browser
-				QW_PrintfToViewer(viewer, "Not implemented yet\n");
-				break;
-			case MENU_MAIN_ADMIN://Admin
-				QW_SetMenu(viewer, MENU_ADMIN);
-				break;
-
-			case MENU_MAIN_PREVPROX://Previous Proxy
-				if (viewer->isproxy)
-				{
-					QW_SetMenu(viewer, MENU_NONE);
-					QW_StuffcmdToViewer(viewer, "say proxy:menu\n");
-				}
-				else
-					QW_PrintfToViewer(viewer, "No client proxy detected\n");
-				break;
-			case MENU_MAIN_NEXTPROX://Next Proxy
-				if (viewer->server && viewer->server->serverisproxy && viewer->server->controller == viewer)
-				{
-					viewer->server->proxyisselected = false;
-					QW_SetMenu(viewer, MENU_NONE);
-					SendClientCommand(viewer->server, "say .menu");
-				}
-				else
-					QW_PrintfToViewer(viewer, "No server proxy detected\n");
-				break;
-			
-			case MENU_MAIN_HELP://Help Menu
-				QW_PrintfToViewer(viewer, "Not implemented yet\n");
-				break;
-			}
-		}
-		break;
-
-	case MENU_CLIENTS:
-		{
-		}
-		break;
-
-	case MENU_DEMOS:
-		if (buttonnum >= 0)
-			QW_StuffcmdToViewer(viewer, "say .demo %s\n", cluster->availdemos[viewer->menuop].name);
-		else
-			QW_SetMenu(viewer, MENU_MAIN);
-		break;
-
-	case MENU_ADMINSERVER:
-		if (viewer->server)
-		{
-			i = 0;
-			sv = viewer->server;
-			if (i++ == viewer->menuop)
-			{	//auto disconnect
-				sv->disconnectwhennooneiswatching ^= 1;
-			}
-			if (i++ == viewer->menuop)
-			{	//disconnect
-				QTV_Shutdown(viewer->server);
-			}
-			if (i++ == viewer->menuop)
-			{
-				if (sv->controller == viewer)
-					sv->controller = NULL;
-				else
-				{
-					sv->controller = viewer;
-					sv->controllersquencebias = viewer->netchan.outgoing_sequence - sv->netchan.outgoing_sequence;
-				}
-			}
-			if (i++ == viewer->menuop)
-			{	//back
-				QW_SetMenu(viewer, MENU_ADMIN);
-			}
-			break;
-		}
-		//fallthrough
-	case MENU_SERVERS:
-		if (!cluster->servers)
-		{
-			QW_StuffcmdToViewer(viewer, "echo Please enter a server ip\nmessagemode\n");
-			strcpy(viewer->expectcommand, "insecadddemo");
-		}
-		else
-		{
-			if (viewer->menuop < 0)
-				viewer->menuop = 0;
-			i = 0;
-			min = viewer->menuop - 10;
-			if (min < 0)
-				min = 0;
-			for (sv = cluster->servers; sv && i<min; sv = sv->next, i++)
-			{//skip over the early connections.
-			}
-			min+=20;
-			for (; sv && i < min; sv = sv->next, i++)
-			{
-				if (i == viewer->menuop)
-				{
-					/*if (sv->parsingconnectiondata || !sv->modellist[1].name[0])
-					{
-						QW_PrintfToViewer(viewer, "But that stream isn't connected\n");
-					}
-					else*/
-					{
-						QW_SetViewersServer(cluster, viewer, sv);
-						QW_SetMenu(viewer, MENU_NONE);
-						viewer->thinksitsconnected = false;
-					}
-					break;
-				}
-			}
-		}
-		break;
-	case MENU_ADMIN:
-		i = 0;
-		if (i++ == viewer->menuop)
-		{	//connection stuff
-			QW_SetMenu(viewer, MENU_ADMINSERVER);
-		}
-		if (i++ == viewer->menuop)
-		{	//qw port
-			QW_StuffcmdToViewer(viewer, "echo You will need to reconnect\n");
-			cluster->qwlistenportnum += (buttonnum<0)?-1:1;
-		}
-		if (i++ == viewer->menuop)
-		{	//hostname
-			strcpy(viewer->expectcommand, "hostname");
-			QW_StuffcmdToViewer(viewer, "echo Please enter the new hostname\nmessagemode\n");
-		}
-		if (i++ == viewer->menuop)
-		{	//master
-			strcpy(viewer->expectcommand, "master");
-			QW_StuffcmdToViewer(viewer, "echo Please enter the master dns or ip\necho Enter '.' for masterless mode\nmessagemode\n");
-		}
-		if (i++ == viewer->menuop)
-		{	//password
-			strcpy(viewer->expectcommand, "password");
-			QW_StuffcmdToViewer(viewer, "echo Please enter the new rcon password\nmessagemode\n");
-		}
-		if (i++ == viewer->menuop)
-		{	//add server
-			strcpy(viewer->expectcommand, "messagemode");
-			QW_StuffcmdToViewer(viewer, "echo Please enter the new qtv server dns or ip\naddserver\n");
-		}
-		if (i++ == viewer->menuop)
-		{	//add demo
-			strcpy(viewer->expectcommand, "adddemo");
-			QW_StuffcmdToViewer(viewer, "echo Please enter the name of the demo to play\nmessagemode\n");
-		}
-		if (i++ == viewer->menuop)
-		{	//choke
-			cluster->chokeonnotupdated ^= 1;
-		}
-		if (i++ == viewer->menuop)
-		{	//late forwarding
-			cluster->lateforward ^= 1;
-		}
-		if (i++ == viewer->menuop)
-		{	//no talking
-			cluster->notalking ^= 1;
-		}
-		if (i++ == viewer->menuop)
-		{	//nobsp
-			cluster->nobsp ^= 1;
-		}
-		if (i++ == viewer->menuop)
-		{	//back
-			QW_SetMenu(viewer, MENU_NONE);
-		}
-
-		break;
-	}
-}
-
-void WriteStringSelection(netmsg_t *b, qboolean selected, const char *str)
-{
-	if (selected)
-	{
-		WriteByte(b, 13);
-		while(*str)
-			WriteByte(b, 128|*str++);
-	}
-	else
-	{
-		WriteByte(b, ' ');
-		while(*str)
-			WriteByte(b, *str++);
-	}
-}
-
-void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
-{
-	char buffer[2048];
-	char str[64];
-	sv_t *sv;
-	int i, min;
-	unsigned char *s;
-
-	netmsg_t m;
-
-	if (viewer->backbuffered)
-		return;
-
-	if (viewer->menunum == MENU_FORWARDING)
-		return;
-
-	if (viewer->menuspamtime > cluster->curtime && viewer->menuspamtime < cluster->curtime + CENTERTIME*2000)
-		return;
-	viewer->menuspamtime = cluster->curtime + CENTERTIME*1000;
-
-	InitNetMsg(&m, buffer, sizeof(buffer));
-
-	WriteByte(&m, svc_centerprint);
-
-	sprintf(str, "FTEQTV build %i\n", cluster->buildnumber);
-	WriteString2(&m, str);
-	WriteString2(&m, "www.FTEQW.com\n");
-	WriteString2(&m, "-------------\n");
-	
-	if (strcmp(cluster->hostname, DEFAULT_HOSTNAME))
-		WriteString2(&m, cluster->hostname);
-
-	switch(viewer->menunum)
-	{
-	default:
-		WriteString2(&m, "bad menu");
-		break;
-
-	case MENU_MAIN:
-		{
-			WriteString2(&m, "\n\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f\n");
-			while (viewer->menuop < 0)
-				viewer->menuop += MENU_MAIN_ITEMCOUNT;
-			while (viewer->menuop >= MENU_MAIN_ITEMCOUNT)
-				viewer->menuop -= MENU_MAIN_ITEMCOUNT;
-			i = viewer->menuop;	
-
-			WriteStringSelection(&m, i==MENU_MAIN_STREAMS,		"Streams          ");
-			WriteStringSelection(&m, i==MENU_MAIN_CLIENTLIST,	"Client List      ");
-			WriteByte(&m, '\n');
-			WriteStringSelection(&m, i==MENU_MAIN_NEWSTREAM,	"New Stream       ");
-			WriteStringSelection(&m, i==MENU_MAIN_DEMOS,		"Demos            ");
-			WriteByte(&m, '\n');
-			WriteStringSelection(&m, i==MENU_MAIN_SERVERBROWSER,"Server Browser   ");
-			WriteStringSelection(&m, i==MENU_MAIN_ADMIN,		"Admin            ");
-			WriteByte(&m, '\n');
-			WriteStringSelection(&m, i==MENU_MAIN_PREVPROX,		"Previous Proxy   ");
-			WriteStringSelection(&m, i==MENU_MAIN_NEXTPROX,		"Next Proxy       ");
-			WriteByte(&m, '\n');
-			WriteStringSelection(&m, i==MENU_MAIN_HELP,			"Help             ");
-			WriteString2(&m,									"                  ");
-
-			WriteString2(&m, "\n\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f\n");
-		}
-		break;
-
-	case MENU_CLIENTS:
-		{
-			int start;
-			viewer_t *v;
-			char *srv;
-			int c;
-			v = cluster->viewers;
-
-			WriteString2(&m, "\nActive Clients\n\n");
-
-			start = viewer->menuop & ~7;
-			for (i = 0; i < start && v; i++)
-				v = v->next;
-			for (i = start; i < start+8 && v; i++, v = v->next)
-			{
-				for (c = strlen(v->name); c < 14; c++)
-					WriteByte(&m, ' ');
-				WriteStringSelection(&m, viewer->menuop == i, v->name);
-				WriteString2(&m, ": ");
-				if (v->server)
-				{
-					if (!v->server->sourcefile && !v->server->parsingconnectiondata)
-						srv = v->server->hostname;
-					else
-						srv = v->server->server;
-				}
-				else
-					srv = "None";
-				for (c = 0; c < 20; c++)
-				{
-					if (*srv)
-						WriteByte(&m, *srv++);
-					else
-						WriteByte(&m, ' ');
-				}
-
-				WriteByte(&m, '\n');
-			}
-			for (; i < start+8; i++)
-				WriteByte(&m, '\n');
-		}
-		break;
-
-
-	case MENU_DEMOS:
-		{
-			int start;
-
-			WriteString2(&m, "\nAvailable Demos\n\n");
-
-			if (cluster->availdemoscount == 0)
-			{
-				WriteString2(&m, "No demos are available");
-				break;
-			}
-			
-			if (viewer->menuop < 0)
-				viewer->menuop = 0;
-			if (viewer->menuop > cluster->availdemoscount-1)
-				viewer->menuop = cluster->availdemoscount-1;
-
-			start = viewer->menuop & ~7;
-			for (i = start; i < start+8; i++)
-			{
-				if (i == viewer->menuop)
-				{
-					WriteByte(&m, '[');
-					WriteString2(&m, cluster->availdemos[i].name);
-					WriteByte(&m, ']');
-				}
-				else
-				{
-					WriteString2(&m, cluster->availdemos[i].name);
-				}
-				WriteByte(&m, '\n');
-			}
-		}
-		break;
-
-	case MENU_ADMINSERVER:	//per-connection options
-		if (viewer->server)
-		{
-			sv = viewer->server;
-			WriteString2(&m, "\n\nConnection Admin\n");
-			WriteString2(&m, sv->hostname);
-			if (sv->sourcefile)
-				WriteString2(&m, " (demo)");
-			WriteString2(&m, "\n\n");
-
-			if (viewer->menuop < 0)
-				viewer->menuop = 0;
-
-			i = 0;
-
-			WriteString2(&m, " auto disconnect");
-			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-			if (viewer->server->disconnectwhennooneiswatching == 2)
-				sprintf(str, "%-20s", "when server disconnects");
-			else if (viewer->server->disconnectwhennooneiswatching)
-				sprintf(str, "%-20s", "when inactive");
-			else
-				sprintf(str, "%-20s", "never");
-			WriteString2(&m, str);
-			WriteString2(&m, "\n");
-
-			WriteString2(&m, "force disconnect");
-			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-			sprintf(str, "%-20s", "...");
-			WriteString2(&m, str);
-			WriteString2(&m, "\n");
-
-			WriteString2(&m, "    take control");
-			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-			sprintf(str, "%-20s", "...");
-			WriteString2(&m, str);
-			WriteString2(&m, "\n");
-
-			WriteString2(&m, "            back");
-			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-			sprintf(str, "%-20s", "...");
-			WriteString2(&m, str);
-			WriteString2(&m, "\n");
-
-			if (viewer->menuop >= i)
-				viewer->menuop = i - 1;
-
-			WriteString2(&m, "\n");
-
-			WriteString2(&m, "          status");
-			WriteString2(&m, " : ");
-			sprintf(str, "%-20s", viewer->server->status);
-			WriteString2(&m, str);
-			WriteString2(&m, "\n");
-
-			break;
-		}
-		//fallthrough
-	case MENU_SERVERS:	//connections list
-
-		WriteString2(&m, "\n\nServers\n\n");
-
-		if (!cluster->servers)
-		{
-			WriteString2(&m, "No active connections");
-		}
-		else
-		{
-			if (viewer->menuop < 0)
-				viewer->menuop = 0;
-			i = 0;
-			min = viewer->menuop - 10;
-			if (min < 0)
-				min = 0;
-			for (sv = cluster->servers; sv && i<min; sv = sv->next, i++)
-			{//skip over the early connections.
-			}
-			min+=20;
-			for (; sv && i < min; sv = sv->next, i++)
-			{
-				//Info_ValueForKey(sv->serverinfo, "hostname", str, sizeof(str));
-				//if (sv->parsingconnectiondata || !sv->modellist[1].name[0])
-				//	snprintf(str, sizeof(str), "%s", sv->server);
-				snprintf(str, sizeof(str), "%s", *sv->hostname?sv->hostname:sv->server);
-
-				if (i == viewer->menuop)
-					for (s = (unsigned char *)str; *s; s++)
-					{
-						if ((unsigned)*s >= ' ')
-							*s = 128 | (*s&~128);
-					}
-				WriteString2(&m, str);
-				WriteString2(&m, "\n");
-			}
-		}
-		break;
-
-	case MENU_ADMIN:	//admin menu
-
-		WriteString2(&m, "\n\nCluster Admin\n\n");
-
-		if (viewer->menuop < 0)
-			viewer->menuop = 0;
-		i = 0;
-
-		WriteString2(&m, " this connection");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20s", "...");
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		WriteString2(&m, "            port");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20i", cluster->qwlistenportnum);
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		WriteString2(&m, "        hostname");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20s", cluster->hostname);
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		WriteString2(&m, "          master");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20s", cluster->master);
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		WriteString2(&m, "        password");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20s", "...");
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		WriteString2(&m, "      add server");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20s", "...");
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		WriteString2(&m, "        add demo");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20s", "...");
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		WriteString2(&m, "           choke");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20s", cluster->chokeonnotupdated?"yes":"no");
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		WriteString2(&m, "delay forwarding");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20s", cluster->lateforward?"yes":"no");
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		WriteString2(&m, "         talking");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20s", cluster->notalking?"no":"yes");
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		WriteString2(&m, "           nobsp");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20s", cluster->nobsp?"yes":"no");
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		WriteString2(&m, "            back");
-		WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-		sprintf(str, "%-20s", "...");
-		WriteString2(&m, str);
-		WriteString2(&m, "\n");
-
-		if (viewer->menuop >= i)
-			viewer->menuop = i - 1;
-		break;
-	}
-
-
-	WriteByte(&m, 0);
-	SendBufferToViewer(viewer, m.data, m.cursize, true);
 }
 
 static const char dropcmd[] = {svc_stufftext, 'd', 'i', 's', 'c', 'o', 'n', 'n', 'e', 'c', 't', '\n', '\0'};

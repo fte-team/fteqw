@@ -9,6 +9,8 @@ Contains the control routines that handle both incoming and outgoing stuff
 #ifndef _WIN32
 #include <sys/stat.h>
 #include <dirent.h>
+#else
+#include <direct.h>
 #endif
 
 // char *date = "Oct 24 1996";
@@ -608,3 +610,297 @@ void Sys_Printf(cluster_t *cluster, char *fmt, ...)
 	printf("%s", string);
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//FIXME: move this to an appropriate place
+#ifdef _WIN32
+void Sys_mkdir(char *name)
+{
+	_mkdir(name);
+}
+#elif defined(__linux__)
+void Sys_mkdir(char *name)
+{
+	mkdir(name, 0777);
+}
+#else
+#warning no Sys_mkdir function defined, hope the default works for you
+void Sys_mkdir(char *name)
+{
+	mkdir(name, 0777);
+}
+#endif
+
+void QTV_mkdir(char *path)
+{
+	char	*ofs;
+
+	for (ofs = path+1 ; *ofs ; ofs++)
+	{
+		if (*ofs == '/')
+		{	// create the directory
+			*ofs = 0;
+			Sys_mkdir (path);
+			*ofs = '/';
+		}
+	}
+}
+
+
+
+/*
+
+
+unsigned char *FS_ReadFile2(char *gamedir, char *filename, unsigned int *sizep)
+{
+	int size;
+	unsigned char *data;
+
+	FILE *f;
+	char fname[1024];
+
+	if (!*filename)
+		return NULL;
+
+	//try and read it straight out of the file system
+	sprintf(fname, "%s/%s", gamedir, filename);
+	f = fopen(fname, "rb");
+	if (!f)
+		f = fopen(filename, "rb");	//see if we're being run from inside the gamedir
+	if (!f)
+	{
+		f = FindInPaks(gamedir, filename, &size);
+		if (!f)
+			f = FindInPaks("id1", filename, &size);
+		if (!f)
+		{
+			return NULL;
+		}
+	}
+	else
+	{
+		fseek(f, 0, SEEK_END);
+		size = ftell(f);
+		fseek(f, 0, SEEK_SET);
+	}
+	data = malloc(size);
+	if (data)
+		fread(data, 1, size, f);
+	fclose(f);
+
+	if (sizep)
+		*sizep = size;
+	return data;
+}
+
+unsigned char *FS_ReadFile(char *gamedir, char *filename, unsigned int *size)
+{
+	char *data;
+	if (!gamedir || !*gamedir || !strcmp(gamedir, "qw"))
+		data = NULL;
+	else
+		data = FS_ReadFile2(gamedir, filename, size);
+	if (!data)
+	{
+		data = FS_ReadFile2("qw", filename, size);
+		if (!data)
+		{
+			data = FS_ReadFile2("id1", filename, size);
+			if (!data)
+			{
+				return NULL;
+			}
+		}
+	}
+	return data;
+}
+
+void Cluster_Run(cluster_t *cluster, qboolean dowait)
+{
+	oproxy_t *pend, *pend2, *pend3;
+	sv_t *sv, *old;
+
+	int m;
+	struct timeval timeout;
+	fd_set socketset;
+
+	if (dowait)
+	{
+
+		FD_ZERO(&socketset);
+		m = 0;
+		if (cluster->qwdsocket != INVALID_SOCKET)
+		{
+			FD_SET(cluster->qwdsocket, &socketset);
+			if (cluster->qwdsocket >= m)
+				m = cluster->qwdsocket+1;
+		}
+
+		for (sv = cluster->servers; sv; sv = sv->next)
+		{
+			if (sv->usequkeworldprotocols && sv->sourcesock != INVALID_SOCKET)
+			{
+				FD_SET(sv->sourcesock, &socketset);
+				if (sv->sourcesock >= m)
+					m = sv->sourcesock+1;
+			}
+		}
+
+	#ifndef _WIN32
+		#ifndef STDIN
+			#define STDIN 0
+		#endif
+		FD_SET(STDIN, &socketset);
+		if (STDIN >= m)
+			m = STDIN+1;
+	#endif
+
+		if (cluster->viewserver)
+		{
+			timeout.tv_sec = 0;
+			timeout.tv_usec = 1000;
+		}
+		else
+		{
+			timeout.tv_sec = 100/1000;
+			timeout.tv_usec = (100%1000)*1000;
+		}
+
+		m = select(m, &socketset, NULL, NULL, &timeout);
+
+#ifdef _WIN32
+		for (;;)
+		{
+			char buffer[8192];
+			char *result;
+			char c;
+
+			if (!_kbhit())
+				break;
+			c = _getch();
+
+			if (c == '\n' || c == '\r')
+			{
+				Sys_Printf(cluster, "\n");
+				if (cluster->inputlength)
+				{
+					cluster->commandinput[cluster->inputlength] = '\0';
+					result = Rcon_Command(cluster, NULL, cluster->commandinput, buffer, sizeof(buffer), true);
+					Sys_Printf(cluster, "%s", result);
+					cluster->inputlength = 0;
+					cluster->commandinput[0] = '\0';
+				}
+			}
+			else if (c == '\b')
+			{
+				if (cluster->inputlength > 0)
+				{
+					Sys_Printf(cluster, "%c", c);
+					Sys_Printf(cluster, " ", c);
+					Sys_Printf(cluster, "%c", c);
+
+					cluster->inputlength--;
+					cluster->commandinput[cluster->inputlength] = '\0';
+				}
+			}
+			else
+			{
+				Sys_Printf(cluster, "%c", c);
+				if (cluster->inputlength < sizeof(cluster->commandinput)-1)
+				{
+					cluster->commandinput[cluster->inputlength++] = c;
+					cluster->commandinput[cluster->inputlength] = '\0';
+				}
+			}
+		}
+#else
+		if (FD_ISSET(STDIN, &socketset))
+		{
+			char buffer[8192];
+			char *result;
+			cluster->inputlength = read (0, cluster->commandinput, sizeof(cluster->commandinput));
+			if (cluster->inputlength >= 1)
+			{
+				cluster->commandinput[cluster->inputlength-1] = 0;        // rip off the /n and terminate
+				cluster->inputlength--;
+
+				if (cluster->inputlength)
+				{
+					cluster->commandinput[cluster->inputlength] = '\0';
+					result = Rcon_Command(cluster, NULL, cluster->commandinput, buffer, sizeof(buffer), true);
+					printf("%s", result);
+					cluster->inputlength = 0;
+					cluster->commandinput[0] = '\0';
+				}
+			}
+		}
+#endif
+	}
+
+
+
+	cluster->curtime = Sys_Milliseconds();
+
+	for (sv = cluster->servers; sv; )
+	{
+		old = sv;
+		sv = sv->next;
+		QTV_Run(old);
+	}
+
+	SV_FindProxies(cluster->tcpsocket, cluster, NULL);	//look for any other proxies wanting to muscle in on the action.
+
+	QW_UpdateUDPStuff(cluster);
+
+	while(cluster->pendingproxies)
+	{
+		pend2 = cluster->pendingproxies->next;
+		if (SV_ReadPendingProxy(cluster, cluster->pendingproxies))
+			cluster->pendingproxies = pend2;
+		else
+			break;
+	}
+	if (cluster->pendingproxies)
+	{
+		for(pend = cluster->pendingproxies; pend && pend->next; )
+		{
+			pend2 = pend->next;
+			pend3 = pend2->next;
+			if (SV_ReadPendingProxy(cluster, pend2))
+			{
+				pend->next = pend3;
+				pend = pend3;
+			}
+			else
+			{
+				pend = pend2;
+			}
+		}
+	}
+}
+
+
+
+
+
+*/

@@ -5,6 +5,7 @@ typedef struct cmdctxt_s cmdctxt_t;
 struct cmdctxt_s {
 	cluster_t *cluster;
 	sv_t *qtv;
+	int streamid;	//streamid, which is valid even if qtv is not, for specifying the streamid to use on connects
 	char *arg[MAX_ARGS];
 	int argc;
 	void (*printfunc)(cmdctxt_t *ctx, char *str);

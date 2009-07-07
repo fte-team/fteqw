@@ -392,11 +392,15 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 	if (!NET_StringToAddr(ip, &qtv->serveraddress, 27500))
 	{
 		Sys_Printf(qtv->cluster, "Stream %i: Unable to resolve %s\n", qtv->streamid, ip);
+		strcpy(qtv->status, "Unable to resolve server\n");
 		return false;
 	}
 	qtv->sourcesock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (qtv->sourcesock == INVALID_SOCKET)
+	{
+		strcpy(qtv->status, "Network error\n");
 		return false;
+	}
 
 	memset(&from, 0, sizeof(from));
 	((struct sockaddr*)&from)->sa_family = ((struct sockaddr*)&qtv->serveraddress)->sa_family;
@@ -404,6 +408,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 	{
 		closesocket(qtv->sourcesock);
 		qtv->sourcesock = INVALID_SOCKET;
+		strcpy(qtv->status, "Network error\n");
 		return false;
 	}
 
@@ -411,6 +416,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 	{
 		closesocket(qtv->sourcesock);
 		qtv->sourcesock = INVALID_SOCKET;
+		strcpy(qtv->status, "Network error\n");
 		return false;
 	}
 
@@ -421,6 +427,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 		{
 			closesocket(qtv->sourcesock);
 			qtv->sourcesock = INVALID_SOCKET;
+			strcpy(qtv->status, "Connection failed\n");
 			return false;
 		}
 	}
@@ -621,6 +628,7 @@ void Net_QueueUpstream(sv_t *qtv, int size, char *buffer)
 	if (qtv->upstreambuffersize + size > sizeof(qtv->upstreambuffer))
 	{
 		Sys_Printf(qtv->cluster, "Stream %i: Upstream queue overflowed for %s\n", qtv->streamid, qtv->server);
+		strcpy(qtv->status, "Upstream overflow");
 		qtv->errored = ERR_RECONNECT;
 		return;
 	}
@@ -645,9 +653,15 @@ qboolean Net_WriteUpstream(sv_t *qtv)
 				int err;
 				err = qerrno;
 				if (qerrno)
+				{
 					Sys_Printf(qtv->cluster, "Stream %i: Error: source socket error %i\n", qtv->streamid, qerrno);
+					strcpy(qtv->status, "Network error\n");
+				}
 				else
+				{
 					Sys_Printf(qtv->cluster, "Stream %i: Error: server %s disconnected\n", qtv->streamid, qtv->server);
+					strcpy(qtv->status, "Server disconnected");
+				}
 				qtv->errored = ERR_RECONNECT;	//if the server is down, we'll detect it on reconnect
 			}
 			return false;
@@ -1005,21 +1019,22 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 		qtv->sourcefile = NULL;
 	}
 
-	*qtv->serverinfo = '\0';
-	Info_SetValueForStarKey(qtv->serverinfo, "*version",	"FTEQTV",	sizeof(qtv->serverinfo));
-	Info_SetValueForStarKey(qtv->serverinfo, "*qtv",		VERSION,	sizeof(qtv->serverinfo));
-	Info_SetValueForStarKey(qtv->serverinfo, "hostname",	qtv->cluster->hostname,	sizeof(qtv->serverinfo));
-	Info_SetValueForStarKey(qtv->serverinfo, "maxclients",	"99",	sizeof(qtv->serverinfo));
+	*qtv->map.serverinfo = '\0';
+	Info_SetValueForStarKey(qtv->map.serverinfo, "*version",	"FTEQTV",	sizeof(qtv->map.serverinfo));
+	Info_SetValueForStarKey(qtv->map.serverinfo, "*qtv",		VERSION,	sizeof(qtv->map.serverinfo));
+	Info_SetValueForStarKey(qtv->map.serverinfo, "hostname",	qtv->cluster->hostname,	sizeof(qtv->map.serverinfo));
+	Info_SetValueForStarKey(qtv->map.serverinfo, "maxclients",	"99",	sizeof(qtv->map.serverinfo));
 	if (!strncmp(qtv->server, "file:", 5))
-		Info_SetValueForStarKey(qtv->serverinfo, "server",		"file",	sizeof(qtv->serverinfo));
+		Info_SetValueForStarKey(qtv->map.serverinfo, "server",		"file",	sizeof(qtv->map.serverinfo));
 	else
-		Info_SetValueForStarKey(qtv->serverinfo, "server",		qtv->server,	sizeof(qtv->serverinfo));
+		Info_SetValueForStarKey(qtv->map.serverinfo, "server",		qtv->server,	sizeof(qtv->map.serverinfo));
 
 	memcpy(qtv->server, serverurl, sizeof(qtv->server)-1);
 
 	if (qtv->disconnectwhennooneiswatching == 2)
 	{	//added because of paranoia rather than need. Should never occur.
 		printf("bug: autoclose==2\n");
+		strcpy(qtv->status, "Network error\n");
 		return false;
 	}
 	else if (!Net_ConnectToServer(qtv))
@@ -1038,6 +1053,62 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 		qtv->parsetime = Sys_Milliseconds() + BUFFERTIME*1000;
 	}
 	return true;
+}
+
+void QTV_CleanupMap(sv_t *qtv)
+{
+	int i;
+
+	//free the bsp
+	BSP_Free(qtv->map.bsp);
+	qtv->map.bsp = NULL;
+
+	//clean up entity state
+	for (i = 0; i < ENTITY_FRAMES; i++)
+	{
+		if (qtv->map.frame[i].ents)
+		{
+			free(qtv->map.frame[i].ents);
+			qtv->map.frame[i].ents = NULL;
+		}
+		if (qtv->map.frame[i].entnums)
+		{
+			free(qtv->map.frame[i].entnums);
+			qtv->map.frame[i].entnums = NULL;
+		}
+	}
+	memset(&qtv->map, 0, sizeof(qtv->map));
+}
+
+void QTV_DisconnectFromSource(sv_t *qtv)
+{
+		// close the source handle
+	if (qtv->sourcesock != INVALID_SOCKET)
+	{
+		if (qtv->usequakeworldprotocols)
+		{
+			char dying[] = {clc_stringcmd, 'd', 'r', 'o', 'p', '\0'};
+			Netchan_Transmit (qtv->cluster, &qtv->netchan, sizeof(dying), dying);
+			Netchan_Transmit (qtv->cluster, &qtv->netchan, sizeof(dying), dying);
+			Netchan_Transmit (qtv->cluster, &qtv->netchan, sizeof(dying), dying);
+		}
+		closesocket(qtv->sourcesock);
+		qtv->sourcesock = INVALID_SOCKET;
+	}
+	if (qtv->sourcefile)
+	{
+		fclose(qtv->sourcefile);
+		qtv->sourcefile = NULL;
+	}
+
+	//cancel downloads
+	if (qtv->downloadfile)
+	{
+		fclose(qtv->downloadfile);
+		qtv->downloadfile = NULL;
+		unlink(qtv->downloadname);
+		*qtv->downloadname = '\0';
+	}
 }
 
 void QTV_Cleanup(sv_t *qtv, qboolean leaveadmins)
@@ -1065,51 +1136,9 @@ void QTV_Cleanup(sv_t *qtv, qboolean leaveadmins)
 		}
 	}
 
-	// close the source handle
-	if (qtv->sourcesock != INVALID_SOCKET)
-	{
-		if (qtv->usequakeworldprotocols)
-		{
-			char dying[] = {clc_stringcmd, 'd', 'r', 'o', 'p', '\0'};
-			Netchan_Transmit (qtv->cluster, &qtv->netchan, sizeof(dying), dying);
-			Netchan_Transmit (qtv->cluster, &qtv->netchan, sizeof(dying), dying);
-			Netchan_Transmit (qtv->cluster, &qtv->netchan, sizeof(dying), dying);
-		}
-		closesocket(qtv->sourcesock);
-		qtv->sourcesock = INVALID_SOCKET;
-	}
-	if (qtv->sourcefile)
-	{
-		fclose(qtv->sourcefile);
-		qtv->sourcefile = NULL;
-	}
+	QTV_DisconnectFromSource(qtv);
 
-	//cancel downloads
-	if (qtv->downloadfile)
-	{
-		fclose(qtv->downloadfile);
-		qtv->downloadfile = NULL;
-		unlink(qtv->downloadname);
-		*qtv->downloadname = '\0';
-	}
-	//free the bsp
-	BSP_Free(qtv->bsp);
-	qtv->bsp = NULL;
-
-	//clean up entity state
-	for (i = 0; i < ENTITY_FRAMES; i++)
-	{
-		if (qtv->frame[i].ents)
-		{
-			free(qtv->frame[i].ents);
-			qtv->frame[i].ents = NULL;
-		}
-		if (qtv->frame[i].entnums)
-		{
-			free(qtv->frame[i].entnums);
-			qtv->frame[i].entnums = NULL;
-		}
-	}
+	QTV_CleanupMap(qtv);
 
 	//boot connected downstream proxies
 	for (prox = qtv->proxies; prox; )
@@ -1187,27 +1216,27 @@ void ChooseFavoriteTrack(sv_t *tv)
 	frags = -10000;
 	best = -1;
 	if (tv->controller || tv->proxyplayer)
-		best = tv->trackplayer;
+		best = tv->map.trackplayer;
 	else
 	{
 		for (pnum = 0; pnum < MAX_CLIENTS; pnum++)
 		{
-			if (*tv->players[pnum].userinfo && !atoi(Info_ValueForKey(tv->players[pnum].userinfo, "*spectator", buffer, sizeof(buffer))))
+			if (*tv->map.players[pnum].userinfo && !atoi(Info_ValueForKey(tv->map.players[pnum].userinfo, "*spectator", buffer, sizeof(buffer))))
 			{
-				if (tv->thisplayer == pnum)
+				if (tv->map.thisplayer == pnum)
 					continue;
-				if (frags < tv->players[pnum].frags)
+				if (frags < tv->map.players[pnum].frags)
 				{
 					best = pnum;
-					frags = tv->players[pnum].frags;
+					frags = tv->map.players[pnum].frags;
 				}
 			}
 		}
 	}
-	if (best != tv->trackplayer)
+	if (best != tv->map.trackplayer)
 	{
 		SendClientCommand (tv, "ptrack %i\n", best);
-		tv->trackplayer = best;
+		tv->map.trackplayer = best;
 
 		if (tv->usequakeworldprotocols)
 			QW_StreamStuffcmd(tv->cluster, tv, "track %i\n", best);
@@ -1341,7 +1370,7 @@ void QTV_ParseQWStream(sv_t *qtv)
 				strcpy(qtv->status, "Waiting for gamestate\n");
 				Netchan_Setup(qtv->sourcesock, &qtv->netchan, qtv->serveraddress, qtv->qport, true);
 
-				qtv->trackplayer = -1;
+				qtv->map.trackplayer = -1;
 
 				qtv->isconnected = true;
 				qtv->timeout = qtv->curtime + UDPTIMEOUT_LENGTH;
@@ -1531,8 +1560,17 @@ void QTV_Run(sv_t *qtv)
 	}
 
 
+	if (qtv->errored == ERR_PAUSED)
+	{
+		if (!qtv->parsingconnectiondata)
+			qtv->parsetime = qtv->curtime;
+	}
+
 	if (qtv->errored == ERR_RECONNECT)
 	{
+		qtv->buffersize = 0;
+		qtv->forwardpoint = 0;
+		QTV_DisconnectFromSource(qtv);
 		qtv->errored = ERR_NONE;
 		qtv->nextconnectattempt = qtv->curtime;	//make the reconnect happen _now_
 	}
@@ -1557,7 +1595,9 @@ void QTV_Run(sv_t *qtv)
 				if (qtv->sourcesock == INVALID_SOCKET && !qtv->sourcefile)
 				{
 					if (!QTV_Connect(qtv, qtv->server))	//reconnect it
+					{
 						qtv->errored = ERR_PERMANENT;
+					}
 				}
 				if (qtv->errored == ERR_NONE)
 					Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, 13, "getchallenge\n");
@@ -1610,14 +1650,14 @@ void QTV_Run(sv_t *qtv)
 				}
 				ChooseFavoriteTrack(qtv);
 
-				if (qtv->trackplayer >= 0)
+				if (qtv->map.trackplayer >= 0)
 				{
 					qtv->packetratelimiter += UDPPACKETINTERVAL;
 
 					WriteByte(&msg, clc_tmove);
-					WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[0]);
-					WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[1]);
-					WriteShort(&msg, qtv->players[qtv->trackplayer].current.origin[2]);
+					WriteShort(&msg, qtv->map.players[qtv->map.trackplayer].current.origin[0]);
+					WriteShort(&msg, qtv->map.players[qtv->map.trackplayer].current.origin[1]);
+					WriteShort(&msg, qtv->map.players[qtv->map.trackplayer].current.origin[2]);
 				}
 				else if (qtv->controller)
 				{
@@ -1642,7 +1682,7 @@ void QTV_Run(sv_t *qtv)
 
 					SetMoveCRC(qtv, &msg);
 				}
-				else if (qtv->proxyplayer || qtv->trackplayer < 0)
+				else if (qtv->proxyplayer || qtv->map.trackplayer < 0)
 				{
 					usercmd_t *cmd[3];
 					cmd[0] = &qtv->proxyplayerucmds[(qtv->proxyplayerucmdnum-2)%3];
@@ -1677,18 +1717,18 @@ void QTV_Run(sv_t *qtv)
 
 				to = qtv->netchan.outgoing_sequence & (ENTITY_FRAMES-1);
 				from = qtv->netchan.incoming_sequence & (ENTITY_FRAMES-1);
-				if (qtv->frame[from].numents)
+				if (qtv->map.frame[from].numents)
 				{
 					//remember which one we came from
-					qtv->frame[to].oldframe = from;
+					qtv->map.frame[to].oldframe = from;
 
 					WriteByte(&msg, clc_delta);
-					WriteByte(&msg, qtv->frame[to].oldframe);	//let the server know
+					WriteByte(&msg, qtv->map.frame[to].oldframe);	//let the server know
 				}
 				else
-					qtv->frame[to].oldframe = -1;
+					qtv->map.frame[to].oldframe = -1;
 
-				qtv->frame[to].numents = 0;
+				qtv->map.frame[to].numents = 0;
 
 				Netchan_Transmit(qtv->cluster, &qtv->netchan, msg.cursize, msg.data);
 			}
@@ -2067,7 +2107,7 @@ void QTV_Run(sv_t *qtv)
 	}
 }
 
-sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates, qboolean query)
+sv_t *QTV_NewServerConnection(cluster_t *cluster, int newstreamid, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates, qboolean query)
 {
 	sv_t *qtv;
 
@@ -2087,6 +2127,20 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, 
 			}
 		}
 	}
+	if (!newstreamid)	//no fixed id? generate a default id
+		newstreamid = 100;
+	//make sure it doesn't conflict
+	for(;;newstreamid++)
+	{
+		for (qtv = cluster->servers; qtv; qtv = qtv->next)
+		{
+			if (qtv->streamid == newstreamid)
+				break;
+		}
+		if (!qtv)
+			break;
+	}
+
 	if (autoclose)
 		if (cluster->nouserconnects)
 			return NULL;
@@ -2110,7 +2164,7 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, char *server, char *password, 
 	qtv->silentstream = true;
 	qtv->parsespeed = 1000;
 
-	qtv->streamid = ++cluster->nextstreamid;
+	qtv->streamid = newstreamid;
 
 	qtv->cluster = cluster;
 	qtv->next = cluster->servers;

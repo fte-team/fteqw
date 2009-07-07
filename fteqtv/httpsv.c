@@ -188,7 +188,7 @@ static void HTTPSV_GenerateNowPlaying(cluster_t *cluster, oproxy_t *dest)
 	for (streams = cluster->servers; streams; streams = streams->next)
 	{
 		HTMLPRINT("<dt>");
-		HTMLprintf(buffer, sizeof(buffer), "%s (%s: %s)", streams->server, streams->gamedir, streams->mapname);
+		HTMLprintf(buffer, sizeof(buffer), "%s (%s: %s)", streams->server, streams->map.gamedir, streams->map.mapname);
 		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 		snprintf(buffer, sizeof(buffer), "<span class=\"qtvfile\"> [ <a href=\"/watch.qtv?sid=%i\">Watch Now</a> ]</span>", streams->streamid);
 		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
@@ -196,11 +196,11 @@ static void HTTPSV_GenerateNowPlaying(cluster_t *cluster, oproxy_t *dest)
 
 		for (player = 0; player < MAX_CLIENTS; player++)
 		{
-			if (*streams->players[player].userinfo)
+			if (*streams->map.players[player].userinfo)
 			{
-				Info_ValueForKey(streams->players[player].userinfo, "name", plname, sizeof(plname));
+				Info_ValueForKey(streams->map.players[player].userinfo, "name", plname, sizeof(plname));
 
-				if (streams->players[player].frags < -90)
+				if (streams->map.players[player].frags < -90)
 				{
 					HTMLPRINT("<li class=\"spectator\">");
 				}

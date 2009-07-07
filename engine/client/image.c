@@ -1827,6 +1827,7 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 	int datasize;
 	int intfmt;
 	int pad;
+	unsigned int w, h;
 
 	ddsheader fmtheader;
 	if (*(int*)buffer != *(int*)"DDS ")
@@ -1873,7 +1874,13 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 //	(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid* data);
 		if (datasize < pad)
 			datasize = pad;
-		qglCompressedTexImage2DARB(GL_TEXTURE_2D, mipnum, intfmt, fmtheader.dwWidth>>mipnum, fmtheader.dwHeight>>mipnum, 0, datasize, buffer);
+		w = fmtheader.dwWidth>>mipnum;
+		if (w < 1)
+			w = 1;
+		h = fmtheader.dwHeight>>mipnum;
+		if (h < 1)
+			h = 1;
+		qglCompressedTexImage2DARB(GL_TEXTURE_2D, mipnum, intfmt, w, h, 0, datasize, buffer);
 		if (qglGetError())
 			Con_Printf("Incompatible dds file (mip %i)\n", mipnum);
 		buffer += datasize;

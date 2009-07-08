@@ -9,7 +9,7 @@ STRIPFLAGS=--strip-unneeded --remove-section=.comment
 # 'cause Microsoft suck.
 CLIBNAME = c
 
-OBJS = netchan.o parse.o msg.o qw.o source.o bsp.o rcon.o mdfour.o crc.o control.o forward.o pmove.o httpsv.o
+OBJS = netchan.o parse.o msg.o qw.o source.o bsp.o rcon.o mdfour.o crc.o control.o forward.o pmove.o menu.o httpsv.o
 
 all: qtv
 

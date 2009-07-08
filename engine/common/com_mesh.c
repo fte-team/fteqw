@@ -801,16 +801,13 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 #ifndef SERVERONLY
 static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galisskeletaltransforms_t *weights, int numweights)
 {
-	int i;
-
 	memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vec3_t));
 	memset(mesh->normals_array, 0, mesh->numvertexes*sizeof(vec3_t));
 	Alias_TransformVerticies(bonepose, weights, numweights, (float*)mesh->xyz_array, (float*)mesh->normals_array);
+}
 
-
-
-
-#if 0	//draws the bones
+static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bonecount)
+{
 	qglColor3f(1, 0, 0);
 	{
 		int i;
@@ -823,40 +820,46 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galisskeletal
 			p = bones[i].parent;
 			if (p < 0)
 				p = 0;
-			qglVertex3f(bonepose[i][3], bonepose[i][7], bonepose[i][11]);
-			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+			qglVertex3f(bonepose[i*12+3], bonepose[i*12+7], bonepose[i*12+11]);
+			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
 		}
 		qglEnd();
+		qglColor3f(1, 1, 1);
 		qglBegin(GL_LINES);
 		for (i = 0; i < bonecount; i++)
 		{
 			p = bones[i].parent;
 			if (p < 0)
 				p = 0;
-			org[0] = bonepose[i][3]; org[1] = bonepose[i][7]; org[2] = bonepose[i][11];
+			org[0] = bonepose[i*12+3]; org[1] = bonepose[i*12+7]; org[2] = bonepose[i*12+11];
 			qglVertex3fv(org);
-			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
-			dest[0] = org[0]+bonepose[i][0];dest[1] = org[1]+bonepose[i][1];dest[2] = org[2]+bonepose[i][2];
-			qglVertex3fv(org);
-			qglVertex3fv(dest);
-			qglVertex3fv(dest);
-			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
-			dest[0] = org[0]+bonepose[i][4];dest[1] = org[1]+bonepose[i][5];dest[2] = org[2]+bonepose[i][6];
+			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
+
+			dest[0] = org[0]+bonepose[i*12+0];dest[1] = org[1]+bonepose[i*12+1];dest[2] = org[2]+bonepose[i*12+2];
 			qglVertex3fv(org);
 			qglVertex3fv(dest);
+
 			qglVertex3fv(dest);
-			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
-			dest[0] = org[0]+bonepose[i][8];dest[1] = org[1]+bonepose[i][9];dest[2] = org[2]+bonepose[i][10];
+			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
+
+			dest[0] = org[0]+bonepose[i*12+4];dest[1] = org[1]+bonepose[i*12+5];dest[2] = org[2]+bonepose[i*12+6];
 			qglVertex3fv(org);
 			qglVertex3fv(dest);
+
 			qglVertex3fv(dest);
-			qglVertex3f(bonepose[p][3], bonepose[p][7], bonepose[p][11]);
+			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
+
+			dest[0] = org[0]+bonepose[i*12+8];dest[1] = org[1]+bonepose[i*12+9];dest[2] = org[2]+bonepose[i*12+10];
+			qglVertex3fv(org);
+			qglVertex3fv(dest);
+
+			qglVertex3fv(dest);
+			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
 		}
 		qglEnd();
 
 //		mesh->numindexes = 0;	//don't draw this mesh, as that would obscure the bones. :(
 	}
-#endif
 }
 #endif
 #endif
@@ -939,6 +942,9 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf,
 				}
 			}
 		}
+		if (!mesh->numindexes)
+			Alias_GLDrawSkeletalBones((galiasbone_t*)((char*)inf + inf->ofsbones), (float *)bonepose, inf->numbones);
+
 		if (mesh->colors_array)
 			R_LightArrays(mesh->colors_array, mesh->numvertexes, mesh->normals_array);
 		return true;
@@ -2868,7 +2874,6 @@ int Mod_SkinNumForName(model_t *model, char *name)
 
 float Mod_FrameDuration(model_t *model, int frameno)
 {
-	int i;
 	galiasinfo_t *inf;
 	galiasgroup_t *group;
 
@@ -4064,6 +4069,216 @@ static void GenMatrix(float x, float y, float z, float qx, float qy, float qz, f
 	}
 }
 
+qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, galiasgroup_t *gat)
+{
+#define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return false; }
+#define MD5ERROR1PARAM(x, y) { Con_Printf(CON_ERROR x "\n", y); return false; }
+#define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) MD5ERROR1PARAM("MD5ANIM: expected %s", x);
+	unsigned int i, j;
+
+	galiasgroup_t grp;
+
+	unsigned int parent;
+	unsigned int numframes;
+	unsigned int numjoints;
+	float framespersecond;
+	unsigned int numanimatedparts;
+	galiasbone_t *bonelist;
+
+	unsigned char *boneflags;
+	unsigned int *firstanimatedcomponents;
+
+	float *animatedcomponents;
+	float *baseframe;	//6 components.
+	float *posedata;
+	float tx, ty, tz, qx, qy, qz;
+	int fac, flags;
+	float f;
+	char com_token[8192];
+
+	EXPECT("MD5Version");
+	EXPECT("10");
+
+	EXPECT("commandline");
+	buffer = COM_Parse(buffer);
+
+	EXPECT("numFrames");
+	buffer = COM_Parse(buffer);
+	numframes = atoi(com_token);
+
+	EXPECT("numJoints");
+	buffer = COM_Parse(buffer);
+	numjoints = atoi(com_token);
+
+	EXPECT("frameRate");
+	buffer = COM_Parse(buffer);
+	framespersecond = atof(com_token);
+
+	EXPECT("numAnimatedComponents");
+	buffer = COM_Parse(buffer);
+	numanimatedparts = atoi(com_token);
+
+	firstanimatedcomponents = BZ_Malloc(sizeof(int)*numjoints);
+	animatedcomponents = BZ_Malloc(sizeof(float)*numanimatedparts);
+	boneflags = BZ_Malloc(sizeof(unsigned char)*numjoints);
+	baseframe = BZ_Malloc(sizeof(float)*12*numjoints);
+
+	*poseofs = posedata = Hunk_Alloc(sizeof(float)*12*numjoints*numframes);
+
+	if (prototype->numbones)
+	{
+		if (prototype->numbones != numjoints)
+			MD5ERROR0PARAM("MD5ANIM: number of bones doesn't match");
+		bonelist = (galiasbone_t *)((char*)prototype + prototype->ofsbones);
+	}
+	else
+	{
+		bonelist = Hunk_Alloc(sizeof(galiasbone_t)*numjoints);
+		prototype->ofsbones = (char*)bonelist - (char*)prototype;
+	}
+
+	EXPECT("hierarchy");
+	EXPECT("{");
+	for (i = 0; i < numjoints; i++, bonelist++)
+	{
+		buffer = COM_Parse(buffer);
+		if (prototype->numbones)
+		{
+			if (strcmp(bonelist->name, com_token))
+				MD5ERROR1PARAM("MD5ANIM: bone name doesn't match (%s)", com_token);
+		}
+		else
+			Q_strncpyz(bonelist->name, com_token, sizeof(bonelist->name));
+		buffer = COM_Parse(buffer);
+		parent = atoi(com_token);
+		if (prototype->numbones)
+		{
+			if (bonelist->parent != parent)
+				MD5ERROR1PARAM("MD5ANIM: bone name doesn't match (%s)", com_token);
+		}
+		else
+			bonelist->parent = parent;
+
+		buffer = COM_Parse(buffer);
+		boneflags[i] = atoi(com_token);
+		buffer = COM_Parse(buffer);
+		firstanimatedcomponents[i] = atoi(com_token);
+	}
+	EXPECT("}");
+
+	if (!prototype->numbones)
+		prototype->numbones = numjoints;
+
+	EXPECT("bounds");
+	EXPECT("{");
+	for (i = 0; i < numframes; i++)
+	{
+		EXPECT("(");
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f < loadmodel->mins[0]) loadmodel->mins[0] = f;
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f < loadmodel->mins[1]) loadmodel->mins[1] = f;
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f < loadmodel->mins[2]) loadmodel->mins[2] = f;
+		EXPECT(")");
+		EXPECT("(");
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f > loadmodel->maxs[0]) loadmodel->maxs[0] = f;
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f > loadmodel->maxs[1]) loadmodel->maxs[1] = f;
+		buffer = COM_Parse(buffer);f=atoi(com_token);
+		if (f > loadmodel->maxs[2]) loadmodel->maxs[2] = f;
+		EXPECT(")");
+	}
+	EXPECT("}");
+
+	EXPECT("baseframe");
+	EXPECT("{");
+	for (i = 0; i < numjoints; i++)
+	{
+		EXPECT("(");
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+0] = atof(com_token);
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+1] = atof(com_token);
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+2] = atof(com_token);
+		EXPECT(")");
+		EXPECT("(");
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+3] = atof(com_token);
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+4] = atof(com_token);
+		buffer = COM_Parse(buffer);
+		baseframe[i*6+5] = atof(com_token);
+		EXPECT(")");
+	}
+	EXPECT("}");
+
+	for (i = 0; i < numframes; i++)
+	{
+		EXPECT("frame");
+		EXPECT(va("%i", i));
+		EXPECT("{");
+		for (j = 0; j < numanimatedparts; j++)
+		{
+			buffer = COM_Parse(buffer);
+			animatedcomponents[j] = atof(com_token);
+		}
+		EXPECT("}");
+
+		for (j = 0; j < numjoints; j++)
+		{
+			fac = firstanimatedcomponents[j];
+			flags = boneflags[j];
+
+			if (flags&1)
+				tx = animatedcomponents[fac++];
+			else
+				tx = baseframe[j*6+0];
+			if (flags&2)
+				ty = animatedcomponents[fac++];
+			else
+				ty = baseframe[j*6+1];
+			if (flags&4)
+				tz = animatedcomponents[fac++];
+			else
+				tz = baseframe[j*6+2];
+			if (flags&8)
+				qx = animatedcomponents[fac++];
+			else
+				qx = baseframe[j*6+3];
+			if (flags&16)
+				qy = animatedcomponents[fac++];
+			else
+				qy = baseframe[j*6+4];
+			if (flags&32)
+				qz = animatedcomponents[fac++];
+			else
+				qz = baseframe[j*6+5];
+
+			GenMatrix(tx, ty, tz, qx, qy, qz, posedata+12*(j+numjoints*i));
+		}
+	}
+
+	BZ_Free(firstanimatedcomponents);
+	BZ_Free(animatedcomponents);
+	BZ_Free(boneflags);
+	BZ_Free(baseframe);
+
+	Q_strncpyz(grp.name, "", sizeof(grp.name));
+	grp.isheirachical = true;
+	grp.numposes = numframes;
+	grp.rate = framespersecond;
+	grp.loop = true;
+
+	*gat = grp;
+	return true;
+#undef MD5ERROR0PARAM
+#undef MD5ERROR1PARAM
+#undef EXPECT
+}
+
 galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 {
 #define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return NULL; }
@@ -4082,10 +4297,9 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 	galiasskin_t *skin;
 	galiastexnum_t *texnum;
 #endif
+	char *filestart = buffer;
 
 	float x, y, z, qx, qy, qz;
-
-
 
 	buffer = COM_Parse(buffer);
 	if (strcmp(com_token, "MD5Version"))
@@ -4105,7 +4319,17 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 		if (!buffer)
 			break;
 
-		if (!strcmp(com_token, "commandline"))
+		if (!strcmp(com_token, "numFrames"))
+		{
+			void *poseofs;
+			galiasgroup_t *grp = Hunk_Alloc(sizeof(galiasgroup_t));
+			Mod_ParseMD5Anim(filestart, root, &poseofs, grp);
+			root->groupofs = (char*)grp - (char*)root;
+			root->groups = 1;
+			grp->poseofs = (char*)poseofs - (char*)grp;
+			return root;
+		}
+		else if (!strcmp(com_token, "commandline"))
 		{	//we don't need this
 			buffer = strchr(buffer, '\"');
 			buffer = strchr((char*)buffer+1, '\"')+1;
@@ -4421,7 +4645,6 @@ qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer)
 
 	hunkstart = Hunk_LowMark ();
 
-
 	root = Mod_ParseMD5MeshModel(buffer);
 	if (root == NULL)
 	{
@@ -4453,214 +4676,6 @@ qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer)
 
 	mod->funcs.Trace = Mod_Trace;
 	return true;
-}
-
-qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, galiasgroup_t *gat)
-{
-#define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return false; }
-#define MD5ERROR1PARAM(x, y) { Con_Printf(CON_ERROR x "\n", y); return false; }
-#define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) MD5ERROR1PARAM("MD5ANIM: expected %s", x);
-	unsigned int i, j;
-
-	galiasgroup_t grp;
-
-	unsigned int parent;
-	unsigned int numframes;
-	unsigned int numjoints;
-	float framespersecond;
-	unsigned int numanimatedparts;
-	galiasbone_t *bonelist;
-
-	unsigned char *boneflags;
-	unsigned int *firstanimatedcomponents;
-
-	float *animatedcomponents;
-	float *baseframe;	//6 components.
-	float *posedata;
-	float tx, ty, tz, qx, qy, qz;
-	int fac, flags;
-	float f;
-	char com_token[8192];
-
-	EXPECT("MD5Version");
-	EXPECT("10");
-
-	EXPECT("commandline");
-	buffer = COM_Parse(buffer);
-
-	EXPECT("numFrames");
-	buffer = COM_Parse(buffer);
-	numframes = atoi(com_token);
-
-	EXPECT("numJoints");
-	buffer = COM_Parse(buffer);
-	numjoints = atoi(com_token);
-
-	EXPECT("frameRate");
-	buffer = COM_Parse(buffer);
-	framespersecond = atof(com_token);
-
-	EXPECT("numAnimatedComponents");
-	buffer = COM_Parse(buffer);
-	numanimatedparts = atoi(com_token);
-
-	firstanimatedcomponents = BZ_Malloc(sizeof(int)*numjoints);
-	animatedcomponents = BZ_Malloc(sizeof(float)*numanimatedparts);
-	boneflags = BZ_Malloc(sizeof(unsigned char)*numjoints);
-	baseframe = BZ_Malloc(sizeof(float)*12*numjoints);
-
-	*poseofs = posedata = Hunk_Alloc(sizeof(float)*12*numjoints*numframes);
-
-	if (prototype)
-	{
-		if (prototype->numbones != numjoints)
-			MD5ERROR0PARAM("MD5ANIM: number of bones doesn't match");
-		bonelist = (galiasbone_t *)((char*)prototype + prototype->ofsbones);
-	}
-	else
-	{
-		bonelist = Hunk_Alloc(sizeof(galiasbone_t)*numjoints);
-		prototype->ofsbones = (char*)bonelist - (char*)prototype;
-		prototype->numbones = numjoints;
-	}
-
-	EXPECT("hierarchy");
-	EXPECT("{");
-	for (i = 0; i < numjoints; i++, bonelist++)
-	{
-		buffer = COM_Parse(buffer);
-		if (prototype)
-		{
-			if (strcmp(bonelist->name, com_token))
-				MD5ERROR1PARAM("MD5ANIM: bone name doesn't match (%s)", com_token);
-		}
-		else
-			Q_strncpyz(bonelist->name, com_token, sizeof(bonelist->name));
-		buffer = COM_Parse(buffer);
-		parent = atoi(com_token);
-		if (prototype)
-		{
-			if (bonelist->parent != parent)
-				MD5ERROR1PARAM("MD5ANIM: bone name doesn't match (%s)", com_token);
-		}
-		else
-			bonelist->parent = parent;
-
-		buffer = COM_Parse(buffer);
-		boneflags[i] = atoi(com_token);
-		buffer = COM_Parse(buffer);
-		firstanimatedcomponents[i] = atoi(com_token);
-	}
-	EXPECT("}");
-
-	EXPECT("bounds");
-	EXPECT("{");
-	for (i = 0; i < numframes; i++)
-	{
-		EXPECT("(");
-		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f < loadmodel->mins[0]) loadmodel->mins[0] = f;
-		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f < loadmodel->mins[1]) loadmodel->mins[1] = f;
-		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f < loadmodel->mins[2]) loadmodel->mins[2] = f;
-		EXPECT(")");
-		EXPECT("(");
-		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f > loadmodel->maxs[0]) loadmodel->maxs[0] = f;
-		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f > loadmodel->maxs[1]) loadmodel->maxs[1] = f;
-		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f > loadmodel->maxs[2]) loadmodel->maxs[2] = f;
-		EXPECT(")");
-	}
-	EXPECT("}");
-
-	EXPECT("baseframe");
-	EXPECT("{");
-	for (i = 0; i < numjoints; i++)
-	{
-		EXPECT("(");
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+0] = atof(com_token);
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+1] = atof(com_token);
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+2] = atof(com_token);
-		EXPECT(")");
-		EXPECT("(");
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+3] = atof(com_token);
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+4] = atof(com_token);
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+5] = atof(com_token);
-		EXPECT(")");
-	}
-	EXPECT("}");
-
-	for (i = 0; i < numframes; i++)
-	{
-		EXPECT("frame");
-		EXPECT(va("%i", i));
-		EXPECT("{");
-		for (j = 0; j < numanimatedparts; j++)
-		{
-			buffer = COM_Parse(buffer);
-			animatedcomponents[j] = atof(com_token);
-		}
-		EXPECT("}");
-
-		for (j = 0; j < numjoints; j++)
-		{
-			fac = firstanimatedcomponents[j];
-			flags = boneflags[j];
-
-			if (flags&1)
-				tx = animatedcomponents[fac++];
-			else
-				tx = baseframe[j*6+0];
-			if (flags&2)
-				ty = animatedcomponents[fac++];
-			else
-				ty = baseframe[j*6+1];
-			if (flags&4)
-				tz = animatedcomponents[fac++];
-			else
-				tz = baseframe[j*6+2];
-			if (flags&8)
-				qx = animatedcomponents[fac++];
-			else
-				qx = baseframe[j*6+3];
-			if (flags&16)
-				qy = animatedcomponents[fac++];
-			else
-				qy = baseframe[j*6+4];
-			if (flags&32)
-				qz = animatedcomponents[fac++];
-			else
-				qz = baseframe[j*6+5];
-
-			GenMatrix(tx, ty, tz, qx, qy, qz, posedata+12*(j+numjoints*i));
-		}
-	}
-
-	BZ_Free(firstanimatedcomponents);
-	BZ_Free(animatedcomponents);
-	BZ_Free(boneflags);
-	BZ_Free(baseframe);
-
-	Q_strncpyz(grp.name, "", sizeof(grp.name));
-	grp.isheirachical = true;
-	grp.numposes = numframes;
-	grp.rate = framespersecond;
-	grp.loop = true;
-
-	*gat = grp;
-	return true;
-#undef MD5ERROR0PARAM
-#undef MD5ERROR1PARAM
-#undef EXPECT
 }
 
 /*

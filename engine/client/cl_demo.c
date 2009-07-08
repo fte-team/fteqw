@@ -207,6 +207,7 @@ int demo_preparsedemo(unsigned char *buffer, int bytes)
 		{
 			net_message.cursize = length;
 			memcpy(net_message.data, buffer+ofs, length);
+			MSG_BeginReading();
 			CL_ParseServerMessage();
 		}
 

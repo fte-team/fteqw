@@ -4787,13 +4787,13 @@ QCC_def_t *QCC_PR_Term (void)
 			switch(e->type->type)
 			{
 			case ev_float:
-				e2 = QCC_MakeFloatDef(0);
+				e2 = e;
 				break;
 			case ev_vector:
-				e2 = QCC_MakeVectorDef(0, 0, 0);
+				e2 = e;
 				break;
 			case ev_integer:
-				e2 = QCC_MakeIntDef(0);
+				e2 = e;
 				break;
 			default:
 				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for +");

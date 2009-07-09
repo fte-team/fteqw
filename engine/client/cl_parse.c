@@ -937,7 +937,9 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 			if (atstage())
 			{
-				CSQC_LoadResource(cl.model_name_vwep[i], "model");
+#ifdef CSQC_DAT
+				CSQC_LoadResource(cl.model_name_vwep[i], "vwep");
+#endif
 				cl.model_precache_vwep[i] = Mod_ForName (cl.model_name_vwep[i], false);
 				endstage();
 			}

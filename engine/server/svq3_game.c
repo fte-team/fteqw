@@ -2153,15 +2153,16 @@ void SVQ3_WriteSnapshotToClient(client_t *client, sizebuf_t *msg)
 }
 
 
-int clientNum;
-int clientarea;
-qbyte *areabits;
-qbyte		*bitvector;
+static int clientNum;
+static int clientarea;
+static qbyte *areabits;
+static qbyte		*bitvector;
 
 static int VARGS SVQ3_QsortEntityStates( const void *arg1, const void *arg2 )
 {
 	const q3entityState_t *s1 = *(const q3entityState_t **)arg1;
 	const q3entityState_t *s2 = *(const q3entityState_t **)arg2;
+
 
 	if( s1->number > s2->number )
 	{

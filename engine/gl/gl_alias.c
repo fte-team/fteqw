@@ -91,114 +91,6 @@ extern cvar_t r_vertexdlights;
 extern cvar_t mod_md3flags;
 extern cvar_t r_skin_overlays;
 
-/*
-qboolean GLMod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
-{
-	galiasinfo_t *mod = Mod_Extradata(model);
-	galiasgroup_t *group;
-	galiaspose_t *pose;
-	int i;
-
-	float *p1, *p2, *p3;
-	vec3_t edge1, edge2, edge3;
-	vec3_t normal;
-	vec3_t edgenormal;
-
-	float planedist;
-	float diststart, distend;
-
-	float frac;
-//	float temp;
-
-	vec3_t impactpoint;
-
-	float *posedata;
-	int *indexes;
-
-	while(mod)
-	{
-#pragma message("this just uses frame 0")
-		indexes = (int*)((char*)mod + mod->ofs_indexes);
-		group = (galiasgroup_t*)((char*)mod + mod->groupofs);
-		pose = (galiaspose_t*)((char*)&group[0] + group[0].poseofs);
-		posedata = (float*)((char*)pose + pose->ofsverts);
-#ifdef SKELETALMODELS
-		if (mod->numbones && !mod->sharesverts)
-		{
-			float bonepose[MAX_BONES][12];
-			posedata = alloca(mod->numverts*sizeof(vec3_t));
-			frac = 1;
-			if (group->isheirachical)
-			{
-				if (!mod->sharesbones)
-					R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), 0, mod->numbones, bonepose);
-				Alias_TransformVerticies(bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
-			}
-			else
-				Alias_TransformVerticies((void*)posedata, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata);
-		}
-#endif
-
-		for (i = 0; i < mod->numindexes; i+=3)
-		{
-			p1 = posedata + 3*indexes[i+0];
-			p2 = posedata + 3*indexes[i+1];
-			p3 = posedata + 3*indexes[i+2];
-
-			VectorSubtract(p1, p2, edge1);
-			VectorSubtract(p3, p2, edge2);
-			CrossProduct(edge1, edge2, normal);
-
-			planedist = DotProduct(p1, normal);
-			diststart = DotProduct(start, normal);
-			if (diststart <= planedist)
-				continue;	//start on back side.
-			distend = DotProduct(end, normal);
-			if (distend >= planedist)
-				continue;	//end on front side (as must start - doesn't cross).
-
-			frac = (diststart - planedist) / (diststart-distend);
-
-			if (frac >= trace->fraction)	//already found one closer.
-				continue;
-
-			impactpoint[0] = start[0] + frac*(end[0] - start[0]);
-			impactpoint[1] = start[1] + frac*(end[1] - start[1]);
-			impactpoint[2] = start[2] + frac*(end[2] - start[2]);
-
-//			temp = DotProduct(impactpoint, normal)-planedist;
-
-			CrossProduct(edge1, normal, edgenormal);
-//			temp = DotProduct(impactpoint, edgenormal)-DotProduct(p2, edgenormal);
-			if (DotProduct(impactpoint, edgenormal) > DotProduct(p2, edgenormal))
-				continue;
-
-			CrossProduct(normal, edge2, edgenormal);
-			if (DotProduct(impactpoint, edgenormal) > DotProduct(p3, edgenormal))
-				continue;
-
-			VectorSubtract(p1, p3, edge3);
-			CrossProduct(normal, edge3, edgenormal);
-			if (DotProduct(impactpoint, edgenormal) > DotProduct(p1, edgenormal))
-				continue;
-
-			trace->fraction = frac;
-			VectorCopy(impactpoint, trace->endpos);
-			VectorCopy(normal, trace->plane.normal);
-		}
-
-		if (mod->nextsurf)
-			mod = (galiasinfo_t*)((char*)mod + mod->nextsurf);
-		else
-			mod = NULL;
-	}
-
-	trace->allsolid = false;
-
-	return trace->fraction != 1;
-}
-*/
-
 #ifndef SERVERONLY
 static hashtable_t skincolourmapped;
 extern vec3_t shadevector, shadelight, ambientlight; 
@@ -802,7 +694,7 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 	qglEnd();
 }
 
-void GL_DrawAliasMesh_Sketch (mesh_t *mesh)
+void GL_DrawAliasMesh_Sketch (mesh_t *mesh, float linejitter)
 {
 	int i;
 	extern int gldepthfunc;
@@ -860,26 +752,26 @@ void GL_DrawAliasMesh_Sketch (mesh_t *mesh)
 		v3 = mesh->xyz_array[mesh->indexes[i+2]];
 		for (n = 0; n < 3; n++)	//rember we do this triangle AND the neighbours
 		{
-			qglVertex3f(v1[0]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v1[1]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v1[2]+0.5*(rand()/(float)RAND_MAX-0.5));
-			qglVertex3f(v2[0]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v2[1]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v2[2]+0.5*(rand()/(float)RAND_MAX-0.5));
+			qglVertex3f(v1[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v1[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v1[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
+			qglVertex3f(v2[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v2[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v2[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
 
-			qglVertex3f(v2[0]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v2[1]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v2[2]+0.5*(rand()/(float)RAND_MAX-0.5));
-			qglVertex3f(v3[0]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v3[1]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v3[2]+0.5*(rand()/(float)RAND_MAX-0.5));
+			qglVertex3f(v2[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v2[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v2[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
+			qglVertex3f(v3[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v3[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v3[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
 
-			qglVertex3f(v3[0]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v3[1]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v3[2]+0.5*(rand()/(float)RAND_MAX-0.5));
-			qglVertex3f(v1[0]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v1[1]+0.5*(rand()/(float)RAND_MAX-0.5),
-						v1[2]+0.5*(rand()/(float)RAND_MAX-0.5));
+			qglVertex3f(v3[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v3[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v3[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
+			qglVertex3f(v1[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v1[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
+						v1[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
 		}
 	}
 	qglEnd();
@@ -1373,7 +1265,7 @@ void R_DrawGAliasModel (entity_t *e)
 		{
 			if (needrecolour)
 				R_GAliasApplyLighting(&mesh, e->origin, e->angles, e->shaderRGBAf);
-			GL_DrawAliasMesh_Sketch(&mesh);
+			GL_DrawAliasMesh_Sketch(&mesh, 0.5);
 			continue;
 		}
 #ifdef Q3SHADERS
@@ -1408,7 +1300,7 @@ void R_DrawGAliasModel (entity_t *e)
 		{
 			if (needrecolour)
 				R_GAliasApplyLighting(&mesh, e->origin, e->angles, e->shaderRGBAf);
-			GL_DrawAliasMesh_Sketch(&mesh);
+			GL_DrawAliasMesh_Sketch(&mesh, 0);
 		}
 #ifdef Q3SHADERS
 		else if (skin->shader)

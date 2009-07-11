@@ -189,6 +189,9 @@ void APIENTRY GL_DrawRangeElementsEmul(GLenum mode, GLuint start, GLuint end, GL
 {
 	qglDrawElements(mode, count, type, indices);
 }
+void APIENTRY GL_BindBufferARBStub(GLenum target, GLuint id)
+{
+}
 
 #define getglcore getglfunction
 #define getglext(name) getglfunction(name)
@@ -595,9 +598,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 	qglDrawRangeElements	= (void *)getglext("glDrawRangeElements");
 	if (qglDrawRangeElements == 0)
-	{
 		qglDrawRangeElements = GL_DrawRangeElementsEmul;
-	}
 
 	//fixme: definatly make non-core
 	qglStencilOp		= (void *)getglcore("glStencilOp");
@@ -618,6 +619,12 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglNewList		= (void*)getglcore("glNewList");
 	qglEndList		= (void*)getglcore("glEndList");
 	qglCallList		= (void*)getglcore("glCallList");
+
+	qglBindBufferARB		= (void *)getglext("qglBindBufferARB");
+	if (!qglBindBufferARB)
+		qglBindBufferARB	= (void *)getglext("qglBindBuffer");
+	if (!qglBindBufferARB)
+		qglBindBufferARB	= GL_BindBufferARBStub;
 
 
 	gl_vendor = qglGetString (GL_VENDOR);

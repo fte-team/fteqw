@@ -557,7 +557,7 @@ void Con_PrintCon (console_t *con, char *txt)
 			con->linecount++;
 			if (con == &con_main)
 				con_times[con->linesprinted++%NUM_CON_TIMES] = realtime;
-			con->current->newer = Z_Malloc(sizeof(sizeof(conline_t)));
+			con->current->newer = Z_Malloc(sizeof(conline_t));
 			con->current->newer->older = con->current;
 			con->current = con->current->newer;
 			con->current->length = 0;

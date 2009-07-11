@@ -585,8 +585,9 @@ qboolean Heightmap_NativeTrace(struct model_s *model, int hulloverride, int fram
 }
 
 #endif
-void Heightmap_FatPVS		(model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned int pvssize, qboolean add)
+unsigned int Heightmap_FatPVS		(model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned int pvssize, qboolean add)
 {
+	return 0;
 }
 
 #ifndef CLIENTONLY
@@ -610,7 +611,7 @@ void Heightmap_MarkLights			(dlight_t *light, int bit, mnode_t *node)
 {
 }
 
-qbyte *Heightmap_LeafnumPVS	(model_t *model, int num, qbyte *buffer)
+qbyte *Heightmap_LeafnumPVS	(model_t *model, int num, qbyte *buffer, unsigned int buffersize)
 {
 	static qbyte heightmappvs = 255;
 	return &heightmappvs;

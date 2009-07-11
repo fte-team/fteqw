@@ -1,6 +1,5 @@
 #include "quakedef.h"
 
-qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer);
 /*
 
 ============================================================================
@@ -873,7 +872,7 @@ void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node, qbyte *buffe
 		{
 			if (node->contents != Q1CONTENTS_SOLID)
 			{
-				pvs = Q1BSP_LeafPVS (mod, (mleaf_t *)node, NULL);
+				pvs = Q1BSP_LeafPVS (mod, (mleaf_t *)node, NULL, 0);
 				for (i=0; i<buffersize; i++)
 					buffer[i] |= pvs[i];
 			}
@@ -996,7 +995,7 @@ PVS type stuff
 Mod_DecompressVis
 ===================
 */
-qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
+qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed, unsigned int buffersize)
 {
 	int		c;
 	qbyte	*out;
@@ -1004,6 +1003,9 @@ qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
 
 	row = (model->numleafs+7)>>3;
 	out = decompressed;
+
+	if (buffersize < row)
+		row = buffersize;
 
 #if 0
 	memcpy (out, in, row);
@@ -1041,7 +1043,7 @@ qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
 
 static qbyte	mod_novis[MAX_MAP_LEAFS/8];
 
-qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer)
+qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer, unsigned int buffersize)
 {
 
 	static qbyte	decompressed[MAX_MAP_LEAFS/8];
@@ -1050,14 +1052,17 @@ qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer)
 		return mod_novis;
 
 	if (!buffer)
+	{
 		buffer = decompressed;
+		buffersize = sizeof(decompressed);
+	}
 
-	return Q1BSP_DecompressVis (leaf->compressed_vis, model, buffer);
+	return Q1BSP_DecompressVis (leaf->compressed_vis, model, buffer, buffersize);
 }
 
-qbyte *Q1BSP_LeafnumPVS (model_t *model, int leafnum, qbyte *buffer)
+qbyte *Q1BSP_LeafnumPVS (model_t *model, int leafnum, qbyte *buffer, unsigned int buffersize)
 {
-	return Q1BSP_LeafPVS(model, model->leafs + leafnum, buffer);
+	return Q1BSP_LeafPVS(model, model->leafs + leafnum, buffer, buffersize);
 }
 
 //returns the leaf number, which is used as a bit index into the pvs.

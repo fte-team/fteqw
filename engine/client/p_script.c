@@ -67,6 +67,7 @@ typedef struct particle_s
 	vec3_t		rgb;
 	float		alpha;
 	float		scale;
+	float		s1, t1, s2, t2;
 
 	vec3_t		vel;	//renderer uses for sparks
 	float		angle;
@@ -118,7 +119,8 @@ typedef struct skytris_s {
 	struct msurface_s *face;
 } skytris_t;
 
-//these are the details of each particle which are exposed at render time - things that are static
+//these is the required render state for each particle
+//dynamic per-particle stuff isn't important. only static state.
 typedef struct {
 	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_DECAL} type;
 
@@ -161,7 +163,12 @@ typedef struct part_type_s {
 	float offsetspreadvert;
 	float randomvelvert;
 	float randscale;
+	
+	float s1, t1, s2, t2;
+	float texsstride;	//addition for s for each random slot.
+	int randsmax;	//max times the stride can be added
 
+	plooks_t *slooks;	//shared looks, so state switches don't apply between particles so much
 	plooks_t looks;
 
 	float spawntime;
@@ -276,6 +283,8 @@ trailstate_t *trailstates;
 int			ts_cycle; // current cyclic index of trailstates
 int			r_numtrailstates;
 
+static		qboolean r_plooksdirty;	//a particle effect was changed, reevaluate shared looks.
+
 extern cvar_t r_bouncysparks;
 extern cvar_t r_part_rain;
 extern cvar_t r_bloodstains;
@@ -377,6 +386,8 @@ static part_type_t *P_GetParticleType(char *name)
 	ptype->ramp = NULL;
 	ptype->particles = NULL;
 	ptype->beams = NULL;
+
+	r_plooksdirty = true;
 	return ptype;
 }
 
@@ -471,10 +482,17 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 
 			if (!ptype->looks.texturenum)
 			{
+				//note that this could get messy if you depend upon vid_restart to reload your effect without re-execing it after.
+				ptype->s1 = 0;
+				ptype->t1 = 0;
+				ptype->s2 = 1;
+				ptype->t2 = 1;
+				ptype->randsmax = 1;
+
 				if (warn)
 					Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
 
-				if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball"))
+				if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball") || ptype->looks.type == PT_TEXTUREDSPARK)
 					ptype->looks.texturenum = balltexture;
 				else
 					ptype->looks.texturenum = explosiontexture;
@@ -610,6 +628,10 @@ static void P_ParticleEffect_f(void)
 	ptype->rotationstartrand = M_PI-ptype->rotationstartmin;
 	ptype->spawnchance = 1;
 
+	ptype->randsmax = 1;
+	ptype->s2 = 1;
+	ptype->t2 = 1;
+
 	while(1)
 	{
 		buf = Cbuf_GetNext(Cmd_ExecLevel);
@@ -632,6 +654,25 @@ static void P_ParticleEffect_f(void)
 		// parse speed
 		if (!strcmp(var, "texture"))
 			Q_strncpyz(ptype->texname, value, sizeof(ptype->texname));
+		else if (!strcmp(var, "tcoords"))
+		{
+			float tscale;
+
+			tscale = atof(Cmd_Argv(5));
+			if (tscale < 0)
+				tscale = 1;
+
+			ptype->s1 = atof(value)/tscale;
+			ptype->t1 = atof(Cmd_Argv(2))/tscale;
+			ptype->s2 = atof(Cmd_Argv(3))/tscale;
+			ptype->t2 = atof(Cmd_Argv(4))/tscale;
+
+			ptype->randsmax = atoi(Cmd_Argv(6));
+			ptype->texsstride = atof(Cmd_Argv(7));
+
+			if (ptype->randsmax < 1 || ptype->texsstride == 0)
+				ptype->randsmax = 1;
+		}
 		else if (!strcmp(var, "rotationstart"))
 		{
 			ptype->rotationstartmin = atof(value)*M_PI/180;
@@ -1123,6 +1164,8 @@ static void P_ParticleEffect_f(void)
 	}
 
 	P_LoadTexture(ptype, true);
+
+	r_plooksdirty = true;
 }
 
 //assosiate a point effect with a model.
@@ -2148,6 +2191,16 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 
 			p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
 			p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
+			p->s1 = ptype->s1;
+			p->t1 = ptype->t1;
+			p->s2 = ptype->s2;
+			p->t2 = ptype->t2;
+			if (ptype->randsmax!=1)
+			{
+				m = ptype->texsstride * (rand()%ptype->randsmax);
+				p->s1 += m;
+				p->s2 += m;
+			}
 
 			if (ptype->colorindex >= 0)
 			{
@@ -2873,6 +2926,17 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 		p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
 		p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
+		p->s1 = ptype->s1;
+		p->t1 = ptype->t1;
+		p->s2 = ptype->s2;
+		p->t2 = ptype->t2;
+		if (ptype->randsmax!=1)
+		{
+			float offs;
+			offs = ptype->texsstride * (rand()%ptype->randsmax);
+			p->s1 += offs;
+			p->s2 += offs;
+		}
 
 		if (len < nrfirst || len >= nrlast)
 		{
@@ -3161,13 +3225,13 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 			x = 0;
 			y = scale;
 		}
-		qglTexCoord2f(0,0);
+		qglTexCoord2f(p->s1,p->t1);
 		qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-		qglTexCoord2f(0,1);
+		qglTexCoord2f(p->s1,p->t2);
 		qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
-		qglTexCoord2f(1,1);
+		qglTexCoord2f(p->s2,p->t2);
 		qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-		qglTexCoord2f(1,0);
+		qglTexCoord2f(p->s2,p->t1);
 		qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
 	}
 	qglEnd();
@@ -3183,7 +3247,6 @@ static void GL_DrawSketchParticle(int count, particle_t **plist, plooks_t *type)
 	int quant;
 
 	qglDisable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
 //	if (type->blendmode == BM_ADD)		//addative
 //		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 //	else if (type->blendmode == BM_SUBTRACT)	//subtractive
@@ -3282,7 +3345,6 @@ static void GL_DrawLineSparkParticle(int count, particle_t **plist, plooks_t *ty
 	particle_t *p;
 
 	qglDisable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
 	APPLYBLEND(type->blendmode);
 	qglShadeModel(GL_SMOOTH);
 	qglBegin(GL_LINES);
@@ -3332,10 +3394,10 @@ static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t
 		VectorNormalize(cr);
 
 		VectorMA(p->org, -p->scale/2, cr, point);
-		qglTexCoord2f(0, 0);
+		qglTexCoord2f(p->s1, p->t1);
 		qglVertex3fv(point);
 		VectorMA(p->org, p->scale/2, cr, point);
-		qglTexCoord2f(0, 1);
+		qglTexCoord2f(p->s1, p->t2);
 		qglVertex3fv(point);
 
 
@@ -3346,10 +3408,10 @@ static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t
 		VectorNormalize(cr);
 
 		VectorMA(o2, p->scale/2, cr, point);
-		qglTexCoord2f(1, 1);
+		qglTexCoord2f(p->s2, p->t2);
 		qglVertex3fv(point);
 		VectorMA(o2, -p->scale/2, cr, point);
-		qglTexCoord2f(1, 0);
+		qglTexCoord2f(p->s2, p->t1);
 		qglVertex3fv(point);
 	}
 	qglEnd();
@@ -3360,7 +3422,6 @@ static void GL_DrawSketchSparkParticle(int count, particle_t **plist, plooks_t *
 	particle_t *p;
 
 	qglDisable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
 	APPLYBLEND(type->blendmode);
 	qglShadeModel(GL_SMOOTH);
 	qglBegin(GL_LINES);
@@ -3424,10 +3485,10 @@ static void GL_DrawParticleBeam_Textured(int count, beamseg_t **blist, plooks_t 
 		ts = c->texture_s*q->angle + particletime*q->rotationspeed;
 
 		VectorMA(q->org, -q->scale, cr, point);
-		qglTexCoord2f(ts, 0);
+		qglTexCoord2f(ts, p->t1);
 		qglVertex3fv(point);
 		VectorMA(q->org, q->scale, cr, point);
-		qglTexCoord2f(ts, 1);
+		qglTexCoord2f(ts, p->t2);
 		qglVertex3fv(point);
 
 		qglColor4f(p->rgb[0],
@@ -3441,10 +3502,10 @@ static void GL_DrawParticleBeam_Textured(int count, beamseg_t **blist, plooks_t 
 		ts = b->texture_s*p->angle + particletime*p->rotationspeed;
 
 		VectorMA(p->org, p->scale, cr, point);
-		qglTexCoord2f(ts, 1);
+		qglTexCoord2f(ts, p->t2);
 		qglVertex3fv(point);
 		VectorMA(p->org, -p->scale, cr, point);
-		qglTexCoord2f(ts, 0);
+		qglTexCoord2f(ts, p->t1);
 		qglVertex3fv(point);
 	}
 	qglEnd();
@@ -3463,7 +3524,6 @@ static void GL_DrawParticleBeam_Untextured(int count, beamseg_t **blist, plooks_
 
 
 	qglDisable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
 	APPLYBLEND(type->blendmode);
 	qglShadeModel(GL_SMOOTH);
 	qglBegin(GL_QUADS);
@@ -3731,6 +3791,25 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 	int traces=r_particle_tracelimit.value;
 	int rampind;
 
+	if (r_plooksdirty)
+	{
+		int i, j;
+		for (i = 0; i < numparticletypes; i++)
+		{
+			//set the fallback
+			part_type[i].slooks = &part_type[i].looks;
+			for (j = i-1; j-- > 0;)
+			{
+				if (!memcmp(&part_type[i].looks, &part_type[j].looks, sizeof(plooks_t)))
+				{
+					part_type[i].slooks = part_type[j].slooks;
+					break;
+				}
+			}
+		}
+		r_plooksdirty = false;
+	}
+
 	pframetime = host_frametime;
 	if (cl.paused || r_secondaryview)
 		pframetime = 0;
@@ -3881,7 +3960,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 			while ((p=type->particles))
 			{
 				if (pdraw)
-					RQ_AddDistReorder(pdraw, p, &type->looks, p->org);
+					RQ_AddDistReorder(pdraw, p, type->slooks, p->org);
 
 				// make sure emitter runs at least once
 				if (type->emit >= 0 && type->emitstart <= 0)
@@ -3935,7 +4014,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 						VectorAdd(stop, oldorg, stop);
 						VectorScale(stop, 0.5, stop);
 
-						RQ_AddDistReorder(bdraw, b, &type->looks, stop);
+						RQ_AddDistReorder(bdraw, b, type->slooks, stop);
 					}
 				}
 
@@ -4144,7 +4223,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 			}
 
 			if (pdraw)
-				RQ_AddDistReorder((void*)pdraw, p, &type->looks, p->org);
+				RQ_AddDistReorder((void*)pdraw, p, type->slooks, p->org);
 		}
 
 		// beams are dealt with here
@@ -4204,7 +4283,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 								VectorAdd(stop, oldorg, stop);
 								VectorScale(stop, 0.5, stop);
 
-								RQ_AddDistReorder(bdraw, b, &type->looks, stop);
+								RQ_AddDistReorder(bdraw, b, type->slooks, stop);
 							}
 						}
 

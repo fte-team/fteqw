@@ -212,6 +212,7 @@ typedef struct texture_s
 	vbo_t vbo;
 
 	struct msurface_s	*texturechain;	// for gl_texsort drawing
+	struct msurface_s	**texturechain_tail;	//so we can link them in depth order
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
 	struct texture_s *anim_next;		// in the animation sequence
@@ -448,7 +449,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 unsigned int Q1BSP_FatPVS (struct model_s *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean add);
 qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct edict_s *ent, qbyte *pvs);
 void Q1BSP_FindTouchedLeafs(struct model_s *mod, struct edict_s *ent, float *mins, float *maxs);
-qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, qbyte *buffer);
+qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, qbyte *buffer, unsigned int buffersize);
 
 /*
 ==============================================================================

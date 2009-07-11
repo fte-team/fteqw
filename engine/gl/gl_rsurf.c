@@ -2336,8 +2336,9 @@ start:
 				}
 				else
 */				{
-					surf->texturechain = surf->texinfo->texture->texturechain;
-					surf->texinfo->texture->texturechain = surf;
+					*surf->texinfo->texture->texturechain_tail = surf;
+					surf->texinfo->texture->texturechain_tail = &surf->texturechain;
+					surf->texturechain = NULL;
 				}
 			}
 		}
@@ -2528,6 +2529,17 @@ static void GLR_LeafWorldNode (void)
 }
 #endif
 
+static void GLR_ClearChains(void)
+{
+	int i;
+	for (i = 0; i < cl.worldmodel->numtextures; i++)
+	{
+		if (!cl.worldmodel->textures[i])
+			continue;
+		cl.worldmodel->textures[i]->texturechain = NULL;
+		cl.worldmodel->textures[i]->texturechain_tail = &cl.worldmodel->textures[i]->texturechain;
+	}
+}
 /*
 =============
 R_DrawWorld
@@ -2552,6 +2564,7 @@ void R_DrawWorld (void)
 	else
 #endif
 	{
+		GLR_ClearChains();
 		qglColor3f (1,1,1);
 	//#ifdef QUAKE2
 		R_ClearSkyBox ();
@@ -2611,8 +2624,6 @@ qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		GLR_LessenStains();
 	}
 }
-
-qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer);
 
 
 
@@ -2847,7 +2858,7 @@ void GL_BuildSurfaceDisplayList (msurface_t *fa)
 				VectorNegate(fa->plane->normal, mesh->normals_array[i]);
 			else
 				VectorCopy(fa->plane->normal, mesh->normals_array[i]);
-			VectorCopy(fa->texinfo->vecs[0], mesh->snormals_array[i]);
+			VectorNegate(fa->texinfo->vecs[0], mesh->snormals_array[i]);
 			VectorCopy(fa->texinfo->vecs[1], mesh->tnormals_array[i]);
 
 			mesh->colors_array[i][0] = 255;
@@ -2957,7 +2968,7 @@ qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int elemen
 {
 	unsigned int vbos[2];
 
-//	if (!qglGenBuffersARB)
+	if (!qglGenBuffersARB)
 		return false;
 
 	qglGenBuffersARB(2, vbos);

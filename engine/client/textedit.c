@@ -35,7 +35,7 @@ typedef struct fileblock_s {
 } fileblock_t;
 #define FB_BREAK 1
 
-fileblock_t *cursorblock, *firstblock, *executionblock, *viewportystartblock;
+static fileblock_t *cursorblock, *firstblock, *executionblock, *viewportystartblock;
 
 void *E_Malloc(int size)
 {

@@ -354,7 +354,7 @@ cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_ligh
 												CVAR_CHEAT);
 cvar_t r_shadows							= SCVARF ("r_shadows", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "1");
+cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "0");
 
 cvar_t vid_preservegamma					= SCVAR ("vid_preservegamma", "0");
 cvar_t vid_hardwaregamma					= SCVARF ("vid_hardwaregamma", "1",
@@ -2601,8 +2601,8 @@ void R_MarkLeaves_Q1 (void)
 	else if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
 	{
 		int c;
-		Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis);
-		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
+		Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis, sizeof(fatvis));
+		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, 0);
 		c = (cl.worldmodel->numleafs+31)/32;
 		for (i=0 ; i<c ; i++)
 			((int *)fatvis)[i] |= ((int *)vis)[i];
@@ -2610,7 +2610,7 @@ void R_MarkLeaves_Q1 (void)
 		vis = fatvis;
 	}
 	else
-		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
+		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, 0);
 
 	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 	{

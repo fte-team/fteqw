@@ -474,13 +474,22 @@ void QVM_UnLoadVM(qvm_t *qvm)
 
 /*
 ** QVM_Goto
+
+(inlined this the old fashioned way)
 */
-static void inline QVM_Goto(qvm_t *vm, int addr)
-{
-	if(addr<0 || addr>vm->len_cs)
-		Sys_Error("VM run time error: program jumped off to hyperspace\n");
-	vm->pc=vm->cs+addr*2;
-}
+#define QVM_Goto(vm,addr)	\
+do{							\
+	if(addr<0 || addr>vm->len_cs)	\
+		Sys_Error("VM run time error: program jumped off to hyperspace\n");	\
+	vm->pc=vm->cs+addr*2;	\
+} while(0)
+
+//static void inline QVM_Goto(qvm_t *vm, int addr)
+//{
+//	if(addr<0 || addr>vm->len_cs)
+//		Sys_Error("VM run time error: program jumped off to hyperspace\n");
+//	vm->pc=vm->cs+addr*2;
+//}
 
 /*
 ** QVM_Call

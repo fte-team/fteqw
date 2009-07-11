@@ -447,6 +447,8 @@ qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey)
 	*sy = con_mousedown[1];
 	*ex = mousecursor_x;
 	*ey = mousecursor_y;
+
+	return true;
 }
 
 void Key_ConsoleRelease(int key)

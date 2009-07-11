@@ -23,12 +23,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef VM_Q1
 
-#define	GAME_API_VERSION	12
+#define	GAME_API_VERSION	13
 #define MAX_Q1QVM_EDICTS	768 //according to ktx at api version 12 (fte's protocols go to 2048)
 
 #define VMFSID_Q1QVM 57235	//a cookie
 
-#define WASTED_EDICT_T_SIZE 112	//qclib has split edict_t and entvars_t.
+#define WASTED_EDICT_T_SIZE sizeof(void*)	//qclib has split edict_t and entvars_t.
 								//mvdsv and the api we're implementing has them in one lump
 								//so we need to bias our entvars_t and fake the offsets a little.
 
@@ -982,7 +982,10 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 			if (VM_OOB(arg[1], arg[2]))
 				return -1;
 			cv = Cvar_Get(VM_POINTER(arg[0]), "", 0, "QC variables");
-			Q_strncpyz(VM_POINTER(arg[1]), cv->string, VM_LONG(arg[2]));
+			if (cv)
+				Q_strncpyz(VM_POINTER(arg[1]), cv->string, VM_LONG(arg[2]));
+			else
+				Q_strncpyz(VM_POINTER(arg[1]), "", VM_LONG(arg[2]));
 		}
 		break;
 	
@@ -1427,13 +1430,9 @@ qboolean Q1QVM_ClientSay(edict_t *player, qboolean team)
 	if (!q1qvm)
 		return false;
 
-	SV_EndRedirect();
-
 	pr_global_struct->time = sv.physicstime;
 	pr_global_struct->self = Q1QVMPF_EdictToProgs(svprogfuncs, player);
 	washandled = VM_Call(q1qvm, GAME_CLIENT_SAY, team);
-
-	SV_BeginRedirect(RD_CLIENT, host_client->language);	//put it back to how we expect it was. *shudder*
 
 	return washandled;
 }

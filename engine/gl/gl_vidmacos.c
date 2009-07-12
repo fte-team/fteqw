@@ -31,8 +31,6 @@
 
 // note: cocoa code is separated in vid_cocoa.m because of compilation pbs
 
-static qboolean vid_hwgamma_enabled = false;
-
 cvar_t in_xflip = SCVAR("in_xflip", "0");
 
 static int real_width, real_height;
@@ -171,15 +169,32 @@ void GLVID_SetPalette (unsigned char *palette)
 	pal = palette;
 	table1 = d_8to24rgbtable;
 	table2 = d_8to24bgrtable;
-	for (i=0 ; i<256 ; i++)
-	{
-		r = gammatable[pal[0]];
-		g = gammatable[pal[1]];
-		b = gammatable[pal[2]];
-		pal += 3;
 
-		*table1++ = LittleLong((255<<24) + (r<<0) + (g<<8) + (b<<16));
-		*table2++ = LittleLong((255<<24) + (r<<16) + (g<<8) + (b<<0));
+	if (vid_hardwaregamma.value)
+	{
+		for (i=0 ; i<256 ; i++)
+		{
+			r = pal[0];
+			g = pal[1];
+			b = pal[2];
+			pal += 3;
+
+			*table1++ = LittleLong((255<<24) + (r<<0) + (g<<8) + (b<<16));
+			*table2++ = LittleLong((255<<24) + (r<<16) + (g<<8) + (b<<0));
+		}
+	}
+	else
+	{
+		for (i=0 ; i<256 ; i++)
+		{
+			r = gammatable[pal[0]];
+			g = gammatable[pal[1]];
+			b = gammatable[pal[2]];
+			pal += 3;
+
+			*table1++ = LittleLong((255<<24) + (r<<0) + (g<<8) + (b<<16));
+			*table2++ = LittleLong((255<<24) + (r<<16) + (g<<8) + (b<<0));
+		}
 	}
 	d_8to24bgrtable[255] &= LittleLong(0xffffff);	// 255 is transparent
 	d_8to24rgbtable[255] &= LittleLong(0xffffff);	// 255 is transparent
@@ -235,7 +250,8 @@ void GLVID_SetDeviceGammaRamp(unsigned short *ramps)
 void GLVID_ShiftPalette(unsigned char *p)
 {
 	extern	unsigned short ramps[3][256];
-	GLVID_SetDeviceGammaRamp(ramps);
+	if (vid_hardwaregamma.value)
+		GLVID_SetDeviceGammaRamp(ramps);
 }
 
 

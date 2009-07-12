@@ -418,8 +418,8 @@ int checkDepth(int d)
 {
 	if ([event type] == NSKeyDown)
 	{
-		int code = keyconv[[event keyCode]]
-		Key_Event(code, code, TRUE);
+		int code = keyconv[[event keyCode]];
+		Key_Event(code, code>=128?0:code, TRUE);
 		//printf("%d\n",[event keyCode]);
 		return;
 	}
@@ -427,7 +427,7 @@ int checkDepth(int d)
 	if ([event type] == NSKeyUp)
 	{
 		int code = keyconv[[event keyCode]];
-		Key_Event(code, code, FALSE);
+		Key_Event(code, 0, FALSE);
 		return;
 	}
 

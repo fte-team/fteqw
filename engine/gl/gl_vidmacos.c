@@ -186,11 +186,6 @@ void GLVID_SetPalette (unsigned char *palette)
 	Con_Printf("Converted\n");
 }
 
-void GLVID_ShiftPalette(unsigned char *p)
-{
-//	GLVID_SetPalette(p);
-}
-
 void Sys_SendKeyEvents(void)
 {
 }
@@ -236,4 +231,11 @@ void GLVID_SetDeviceGammaRamp(unsigned short *ramps)
 {
     cocoaGamma(ramps,ramps+256,ramps+512);
 }
+
+void GLVID_ShiftPalette(unsigned char *p)
+{
+	extern	unsigned short ramps[3][256];
+	GLVID_SetDeviceGammaRamp(ramps);
+}
+
 

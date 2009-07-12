@@ -61,6 +61,7 @@ static Window vid_window;
 static GLXContext ctx = NULL;
 int scrnum;
 
+static qboolean vidglx_fullscreen;
 
 static float old_windowed_mouse = 0;
 
@@ -556,7 +557,7 @@ static void GetEvent(void)
 	wantwindowed = !!_windowed_mouse.value;
 	if (!ActiveApp)
 		wantwindowed = false;
-	if (key_dest == key_console)
+	if (key_dest == key_console && !vidglx_fullscreen)
 		wantwindowed = false;
 
 	if (old_windowed_mouse != wantwindowed)
@@ -881,6 +882,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 #endif
 
+	vidglx_fullscreen = fullscreen;
+
 	/* window attributes */
 	attr.background_pixel = 0;
 	attr.border_pixel = 0;
@@ -1040,18 +1043,14 @@ IN_Move
 */
 void IN_MouseMove (float *movements, int pnum)
 {
-	extern int mouseusedforgui, mousecursor_x, mousecursor_y;
+	extern int mousecursor_x, mousecursor_y;
 	extern int mousemove_x, mousemove_y;
 	float mx, my;
 
 	mx = mouse_x;
 	my = mouse_y;
 
-	if (mouseusedforgui || (key_dest == key_menu && (m_state == m_complex || m_state == m_plugin))
-#ifdef VM_UI
-		|| UI_MenuState()
-#endif
-		)
+	if (Key_MouseShouldBeFree())
 	{
 		mousemove_x += mouse_x;
 		mousemove_y += mouse_y;

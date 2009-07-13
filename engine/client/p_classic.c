@@ -149,6 +149,9 @@ static void PClassic_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
 static void PClassic_InitParticles (void)
 {
 	int i;
+	model_t *mod;
+	extern model_t	mod_known[];
+	extern int		mod_numknown;
 
 	if ((i = COM_CheckParm ("-particles")) && i + 1 < com_argc)	{
 		r_numparticles = (int) (Q_atoi(com_argv[i + 1]));
@@ -160,6 +163,15 @@ static void PClassic_InitParticles (void)
 	particles = (cparticle_t *) BZ_Malloc (r_numparticles * sizeof(cparticle_t));
 
 	CL_RegisterParticles();
+
+	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
+	{
+		mod->particleeffect = P_INVALID;
+		mod->particletrail = P_INVALID;
+		mod->engineflags &= ~MDLF_NODEFAULTTRAIL;
+
+		P_DefaultTrail(mod);
+	}
 }
 
 static void PClassic_ShutdownParticles(void)

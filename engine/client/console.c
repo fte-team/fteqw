@@ -34,10 +34,13 @@ console_t	*con_current;			// point to either con_main
 
 	#define Font_CharWidth(c) (conchar_font?GLFont_CharWidth(conchar_font, c):8)
 	#define Font_CharHeight() (conchar_font?GLFont_CharHeight(conchar_font):8)
+	#define Font_ScreenWidth() (conchar_font?glwidth:vid.width)
+	extern int glwidth;
 #else
 	#define Font_DrawChar(x,y,c) (Draw_ColouredCharacter(x, y, c),(x)+8)
 	#define Font_CharWidth(c) 8
 	#define Font_CharHeight() 8
+	#define Font_ScreenWidth() vid.width
 #endif
 
 static int Con_LineBreaks(conchar_t *start, conchar_t *end, int scrwidth, int maxlines, conchar_t **starts, conchar_t **ends);
@@ -883,7 +886,7 @@ void Con_DrawNotify (void)
 	if (maxlines > NUM_CON_TIMES)
 		maxlines = NUM_CON_TIMES;
 
-	y = Con_DrawProgress(0, vid.width, 0);
+	y = Con_DrawProgress(0, Font_ScreenWidth(), 0);
 
 	l = con->current;
 	if (!l->length)
@@ -897,7 +900,7 @@ void Con_DrawNotify (void)
 		if (t > con_notifytime.value)
 			break;
 
-		line = Con_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, vid.width, lines, starts, ends);
+		line = Con_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, Font_ScreenWidth(conchar_font), lines, starts, ends);
 		if (!line && lines > 0)
 		{
 			lines--;
@@ -923,18 +926,14 @@ void Con_DrawNotify (void)
 		{
 			for (c = starts[lines]; c < ends[lines]; c++)
 			{
-#ifdef AVAIL_FREETYPE
-				x += GLFont_CharWidth(conchar_font, *c);
-#else
-				x += 8;
-#endif
+				x += Font_CharWidth(conchar_font, *c);
 			}
 			x = (vid.width - x) / 2;
 		}
 		for (c = starts[lines]; c < ends[lines]; c++)
 			x = Font_DrawChar(x, y, *c);
 
-		y += 8;
+		y += Font_CharHeight(conchar_font);
 
 		lines++;
 	}
@@ -949,7 +948,7 @@ void Con_DrawNotify (void)
 		int lines, i;
 		c = COM_ParseFunString(CON_WHITEMASK, va(chat_team?"say_team: %s":"say: %s", chat_buffer), markup, sizeof(markup), true);
 		*c++ = (0xe00a+((int)(realtime*con_cursorspeed)&1))|CON_WHITEMASK;
-		lines = Con_LineBreaks(markup, c, vid.width, 8, starts, ends);
+		lines = Con_LineBreaks(markup, c, Font_ScreenWidth(), 8, starts, ends);
 		for (i = 0; i < lines; i++)
 		{
 			c = starts[i];
@@ -1248,11 +1247,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 		GLFont_BeginString(conchar_font, x, y, &x, &y);
 		GLFont_BeginString(conchar_font, selsx, selsy, &selsx, &selsy);
 		GLFont_BeginString(conchar_font, selex, seley, &selex, &seley);
-		ex = glwidth;
 	}
-	else
 #endif
-		ex = vid.width;
+	ex = Font_ScreenWidth();
 	sx = x;
 	ex -= sx;
 
@@ -1392,9 +1389,11 @@ void Con_DrawConsole (int lines, qboolean noback)
 				x = Font_DrawChar(x, y, *s++);
 			}
 
-			if (!top && y < top)
+			if (y < top)
 				break;
 		}
+		if (y < top)
+			break;
 	}
 
 // draw the input prompt, user text, and cursor if desired

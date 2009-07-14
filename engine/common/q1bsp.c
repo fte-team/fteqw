@@ -299,11 +299,18 @@ void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 	msurface_t	*surf;
 	int			i;
 
+	float		l, maxdist;
+	int			j, s, t;
+	vec3_t		impact;
+
 	if (node->contents < 0)
 		return;
 
 	splitplane = node->plane;
-	dist = DotProduct (light->origin, splitplane->normal) - splitplane->dist;
+	if (splitplane->type < 3)
+		dist = light->origin[splitplane->type] - splitplane->dist;
+	else
+		dist = DotProduct (light->origin, splitplane->normal) - splitplane->dist;
 
 	if (dist > light->radius)
 	{
@@ -316,16 +323,34 @@ void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 		return;
 	}
 
+	maxdist = light->radius*light->radius;
+
 // mark the polygons
 	surf = currentmodel->surfaces + node->firstsurface;
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
 	{
-		if (surf->dlightframe != r_dlightframecount)
+		//Yeah, you can blame LordHavoc for this alternate code here.
+		for (j=0 ; j<3 ; j++)
+			impact[j] = light->origin[j] - surf->plane->normal[j]*dist;
+
+		// clamp center of light to corner and check brightness
+		l = DotProduct (impact, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3] - surf->texturemins[0];
+		s = l+0.5;if (s < 0) s = 0;else if (s > surf->extents[0]) s = surf->extents[0];
+		s = l - s;
+		l = DotProduct (impact, surf->texinfo->vecs[1]) + surf->texinfo->vecs[1][3] - surf->texturemins[1];
+		t = l+0.5;if (t < 0) t = 0;else if (t > surf->extents[1]) t = surf->extents[1];
+		t = l - t;
+		// compare to minimum light
+		if ((s*s+t*t+dist*dist) < maxdist)
 		{
-			surf->dlightbits = 0;
-			surf->dlightframe = r_dlightframecount;
+			if (surf->dlightframe != r_dlightframecount)
+			{
+				surf->dlightbits = bit;
+				surf->dlightframe = r_dlightframecount;
+			}
+			else
+				surf->dlightbits |= bit;
 		}
-		surf->dlightbits |= bit;
 	}
 
 	Q1BSP_MarkLights (light, bit, node->children[0]);

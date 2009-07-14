@@ -1467,7 +1467,7 @@ static void FS_AddDataFiles(const char *purepath, const char *pathto, searchpath
 		if (!handle)
 			break;
 		snprintf (pakfile, sizeof(pakfile), "%spak%i.%s/", pathto, i, extension);
-		snprintf (purefile, sizeof(pakfile), "%spak%i.%s", purepath, i, extension);
+		snprintf (purefile, sizeof(pakfile), "%s/pak%i.%s", purepath, i, extension);
 		FS_AddPathHandle(purefile, pakfile, funcs, handle, true, false, false, (unsigned int)-1);
 	}
 

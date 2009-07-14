@@ -28,14 +28,14 @@ void R_ReloadRTLights_f(void);
 
 
 #ifdef WATERLAYERS
-cvar_t	r_waterlayers = SCVAR("r_waterlayers","3");
+cvar_t	r_waterlayers = SCVAR("r_waterlayers","");
 #endif
 
 extern void R_InitBubble();
 
 #ifndef SWQUAKE
 //SW rendering has a faster method, which takes more memory and stuff.
-//We need this for minor things though, so we'll just use the slow accurate method.
+//We need this for minor things though, so we'5ll just use the slow accurate method.
 //this is unlikly to be called very often.			
 qbyte GetPaletteIndex(int red, int green, int blue)
 {
@@ -1211,8 +1211,6 @@ TRACE(("dbg: GLR_NewMap: tp\n"));
 
 void GLR_PreNewMap(void)
 {
-	extern int solidskytexture;
-	solidskytexture = 0;
 }
 
 

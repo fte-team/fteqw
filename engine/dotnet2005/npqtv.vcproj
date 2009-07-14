@@ -19924,6 +19924,10 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\gl\gl_font.c"
+					>
+				</File>
+				<File
 					RelativePath="..\gl\gl_heightmap.c"
 					>
 					<FileConfiguration

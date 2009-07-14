@@ -331,8 +331,8 @@ void R_IBrokeTheArrays(void);
 void GL_DrawSkyBox (msurface_t *s);
 void GL_SubdivideSurface (msurface_t *fa, float dividesize);
 void GL_EmitBothSkyLayers (msurface_t *fa);
-void EmitWaterPolys (msurface_t *fa, float basealpha);
-void EmitSkyPolys (msurface_t *fa);
+void EmitWaterPolyChain (msurface_t *fa, float basealpha);	//chains through the texture chain
+void EmitWaterPolys (msurface_t *fa, float basealpha);	//don't use if you can avoid it
 void GL_DrawSkyChain (msurface_t *s);
 void R_InitSky (texture_t *mt);
 

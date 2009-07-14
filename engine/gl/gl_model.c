@@ -278,7 +278,7 @@ mleaf_t *GLMod_PointInLeaf (model_t *model, vec3_t p)
 void *relightthread;
 volatile qboolean wantrelight;
 
-void RelightThread(void *arg)
+int RelightThread(void *arg)
 {
 	while (wantrelight && relitsurface < lightmodel->numsurfaces)
 	{
@@ -289,6 +289,7 @@ void RelightThread(void *arg)
 
 		lightmodel->surfaces[relitsurface].cached_dlight = -1;
 	}
+	return 0;
 }
 #endif
 

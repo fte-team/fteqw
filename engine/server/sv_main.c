@@ -73,11 +73,11 @@ sv_masterlist_t sv_masterlist[] = {
 	{MP_QUAKEWORLD, SCVARC("sv_master7", "", SV_Masterlist_Callback)},
 	{MP_QUAKEWORLD, SCVARC("sv_master8", "", SV_Masterlist_Callback)},
 
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra1", "master.quakeservers.net:27000", SV_Masterlist_Callback)},	//european. admin: raz0?
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra2", "asgaard.morphos-team.net:27000", SV_Masterlist_Callback)},	//admin bigfoot
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra3", "qwmaster.ocrana.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra4", "masterserver.exhale.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra5", "kubus.rulez.pl:27000", SV_Masterlist_Callback)},	//poland. admin unknown
+	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra1", "qwmaster.ocrana.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
+	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra2", "masterserver.exhale.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
+	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra3", "kubus.rulez.pl:27000", SV_Masterlist_Callback)},	//poland. admin unknown
+	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra4", "master.quakeservers.net:27000", SV_Masterlist_Callback)},	//european. admin: raz0?
+	//{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra5", "asgaard.morphos-team.net:27000", SV_Masterlist_Callback)},	//admin bigfoot
 
 	{MP_DARKPLACES, SCVARC("sv_masterextra1", "ghdigital.com:27950", SV_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
 	{MP_DARKPLACES, SCVARC("sv_masterextra2", "dpmaster.deathmask.net:27950", SV_Masterlist_Callback)}, //209.164.24.243 (admin: Willis)
@@ -135,7 +135,7 @@ cvar_t sv_reportheartbeats = SCVAR("sv_reportheartbeats", "1");
 cvar_t sv_highchars = SCVAR("sv_highchars", "1");
 cvar_t sv_loadentfiles = SCVAR("sv_loadentfiles", "1");
 cvar_t sv_maxrate = SCVAR("sv_maxrate", "10000");
-cvar_t sv_maxdrate = SCVAR("sv_maxdrate", "10000");
+cvar_t sv_maxdrate = FCVAR("sv_maxdrate", "sv_maxdownloadrate", "10000", 0);
 cvar_t sv_minping = SCVARF("sv_minping", "0", CVAR_SERVERINFO);
 
 cvar_t sv_bigcoords = SCVARF("sv_bigcoords", "", CVAR_SERVERINFO);
@@ -219,7 +219,7 @@ void SV_FixupName(char *in, char *out, unsigned int outlen);
 void SV_AcceptClient (netadr_t adr, int userid, char *userinfo);
 void Master_Shutdown (void);
 void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
-bannedips_t *SV_BannedAddress (netadr_t *a);
+char *SV_BannedReason (netadr_t *a);
 
 #ifdef SQL
 void PR_SQLCycle();
@@ -2008,11 +2008,11 @@ client_t *SVC_DirectConnect(void)
 	}
 
 	{
-		bannedips_t *banip = SV_BannedAddress(&adr);
-		if (banip)
+		char *banreason = SV_BannedReason(&adr);
+		if (banreason)
 		{
-			if (banip->reason[0])
-				SV_RejectMessage (protocol, "You were banned.\nReason: %s\n", banip->reason);
+			if (*banreason)
+				SV_RejectMessage (protocol, "You were banned.\nReason: %s\n", banreason);
 			else
 				SV_RejectMessage (protocol, "You were banned.\n");
 			return NULL;
@@ -2386,8 +2386,8 @@ void SVC_RemoteCommand (void)
 	char	adr[MAX_ADR_SIZE];
 
 	{
-		bannedips_t *banip = SV_BannedAddress(&net_from);
-		if (banip)
+		char *br = SV_BannedReason(&net_from);
+		if (br)
 		{
 			Con_Printf ("Rcon from banned ip %s\n", NET_AdrToString (adr, sizeof(adr), net_from));
 			return;
@@ -2496,7 +2496,7 @@ void SVC_RealIP (void)
 {
 	unsigned int slotnum;
 	int cookie;
-	bannedips_t *banip;
+	char *banreason;
 	char adr[MAX_ADR_SIZE];
 
 	slotnum = atoi(Cmd_Argv(1));
@@ -2525,12 +2525,12 @@ void SVC_RealIP (void)
 		return;
 	}
 
-	banip = SV_BannedAddress(&net_from);
-	if (banip)
+	banreason = SV_BannedReason(&net_from);
+	if (banreason)
 	{
 		Con_Printf("%s has a banned realip\n", svs.clients[slotnum].name);
-		if (banip->reason)
-			SV_ClientPrintf(&svs.clients[slotnum], PRINT_CHAT, "You were banned.\nReason: %s\n", banip->reason);
+		if (*banreason)
+			SV_ClientPrintf(&svs.clients[slotnum], PRINT_CHAT, "You were banned.\nReason: %s\n", banreason);
 		else
 			SV_ClientPrintf(&svs.clients[slotnum], PRINT_CHAT, "You were banned.\n");
 		SV_DropClient(&svs.clients[slotnum]);
@@ -2764,29 +2764,10 @@ If 0, then only addresses matching the list will be allowed.  This lets you easi
 
 cvar_t	filterban = SCVAR("filterban", "1");
 
-/*
-=================
-SV_FilterPacket
-=================
-*/
-qboolean SV_FilterPacket (netadr_t *a)
-{
-	filteredips_t *banip;
-
-	if (NET_IsLoopBackAddress(*a))
-		return 0; // never filter loopback
-
-	for (banip = svs.filteredips; banip; banip=banip->next)
-	{
-		if (NET_CompareAdrMasked(*a, banip->adr, banip->adrmask))
-			return filterban.value;
-	}
-	return !filterban.value;
-}
 
 // SV_BannedAdress, run through ban address list and return corresponding bannedips_t
 // pointer, otherwise return NULL if not in the list
-bannedips_t *SV_BannedAddress (netadr_t *a)
+bannedips_t *SV_GetBannedAddressEntry (netadr_t *a)
 {
 	bannedips_t *banip;
 	for (banip = svs.bannedips; banip; banip=banip->next)
@@ -2795,6 +2776,38 @@ bannedips_t *SV_BannedAddress (netadr_t *a)
 			return banip;
 	}
 	return NULL;
+}
+
+/*
+=================
+SV_FilterPacket
+=================
+*/
+char *SV_BannedReason (netadr_t *a)
+{
+	char *reason = filterban.value?NULL:"";	//"" = banned with no explicit reason
+	bannedips_t *banip;
+
+	if (NET_IsLoopBackAddress(*a))
+		return NULL; // never filter loopback
+
+	for (banip = svs.bannedips; banip; banip=banip->next)
+	{
+		if (NET_CompareAdrMasked(*a, banip->adr, banip->adrmask))
+		{
+			switch(banip->type)
+			{
+			case BAN_BAN:
+				return banip->reason;
+			case BAN_PERMIT:
+				return 0;
+			default:
+				reason = filterban.value?banip->reason:NULL;
+				break;
+			}
+		}
+	}
+	return reason;
 }
 
 //send a network packet to a new non-connected client.
@@ -2829,6 +2842,7 @@ void SV_ReadPackets (void)
 	client_t	*cl;
 	int			qport;
 	laggedpacket_t *lp;
+	char		*banreason;
 
 	for (i = 0; i < MAX_CLIENTS; i++)	//fixme: shouldn't we be using svs.allocated_client_slots ?
 	{
@@ -2869,8 +2883,15 @@ void SV_ReadPackets (void)
 
 	while (SV_GetPacket ())
 	{
-		if (SV_FilterPacket (&net_from))
+		banreason = SV_BannedReason (&net_from);
+		if (banreason)
+		{
+			if (*banreason)
+				Netchan_OutOfBandPrint(NS_SERVER, net_from, "%cYou are banned: %s\n", A2C_PRINT, banreason);
+			else
+				Netchan_OutOfBandPrint(NS_SERVER, net_from, "%cYou are banned\n", A2C_PRINT);
 			continue;
+		}
 
 		// check for connectionless packet (0xffffffff) first
 		if (*(int *)net_message.data == -1)
@@ -3318,7 +3339,16 @@ void SV_MVDStream_Poll(void);
 	}
 	else
 	{
-		PR_GameCodePausedTic(Sys_DoubleTime() - sv.pausedstart);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+		{
+			Q1QVM_GameCodePausedTic(Sys_DoubleTime() - sv.pausedstart);
+		}
+		else
+#endif
+		{
+			PR_GameCodePausedTic(Sys_DoubleTime() - sv.pausedstart);
+		}
 	}
 
 #ifdef SQL

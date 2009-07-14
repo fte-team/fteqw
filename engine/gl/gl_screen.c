@@ -102,7 +102,7 @@ void GLVID_Console_Resize(void)
 #ifdef AVAIL_FREETYPE
 	if (conchar_font)
 		Font_Free(conchar_font);
-	conchar_font = Font_LoadFont(8*glheight/vid.height, "C:/Windows/Fonts/cour.ttf");
+	conchar_font = Font_LoadFont(8*glheight/vid.height, gl_font.string);
 #endif
 
 #ifdef PLUGINS

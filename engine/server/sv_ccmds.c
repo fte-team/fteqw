@@ -833,7 +833,7 @@ void SV_FilterIP_f (void)
 	netadr_t banmask;
 	int i;
 	client_t	*cl;
-	filteredips_t *nb;
+	bannedips_t *nb;
 	extern cvar_t filterban;
 
 	if (Cmd_Argc() < 2)
@@ -865,11 +865,13 @@ void SV_FilterIP_f (void)
 	}
 
 	// add IP and mask to filter list
-	nb = Z_Malloc(sizeof(filteredips_t));
-	nb->next = svs.filteredips;
+	nb = Z_Malloc(sizeof(bannedips_t));
+	nb->next = svs.bannedips;
 	nb->adr = banadr;
 	nb->adrmask = banmask;
-	svs.filteredips = nb;
+	nb->type = BAN_FILTER;
+	*nb->reason = 0;
+	svs.bannedips = nb;
 }
 
 void SV_BanList_f (void)
@@ -894,7 +896,7 @@ void SV_BanList_f (void)
 void SV_FilterList_f (void)
 {
 	int filtercount = 0;
-	filteredips_t *nb = svs.filteredips;
+	bannedips_t *nb = svs.bannedips;
 	char adr[MAX_ADR_SIZE];
 
 	while (nb)
@@ -952,8 +954,8 @@ void SV_Unban_f (void)
 void SV_Unfilter_f (void)
 {
 	qboolean all = false;
-	filteredips_t *nb = svs.filteredips;
-	filteredips_t *nbnext;
+	bannedips_t *nb = svs.bannedips;
+	bannedips_t *nbnext;
 	netadr_t unbanadr = {0};
 	netadr_t unbanmask = {0};
 	char adr[MAX_ADR_SIZE];
@@ -979,8 +981,8 @@ void SV_Unfilter_f (void)
 		{
 			if (!all)
 				Con_Printf("unfiltered %s\n", NET_AdrToStringMasked(adr, sizeof(adr), nb->adr, nb->adrmask));
-			if (svs.filteredips == nb)
-				svs.filteredips = nbnext;
+			if (svs.bannedips == nb)
+				svs.bannedips = nbnext;
 			Z_Free(nb);
 			break;
 		}
@@ -994,7 +996,6 @@ void SV_WriteIP_f (void)
 	vfsfile_t	*f;
 	char	name[MAX_OSPATH];
 	bannedips_t *bi;
-	filteredips_t *fi;
 	char *s;
 	char adr[MAX_ADR_SIZE];
 
@@ -1009,29 +1010,19 @@ void SV_WriteIP_f (void)
 		return;
 	}
 
-	s = "// banned ip addresses\n";
-	VFS_WRITE(f, s, strlen(s));
-
 	bi = svs.bannedips;
 	while (bi)
 	{
-		if (bi->reason[0])
-			s = va("banip %s \"%s\"\n", NET_AdrToStringMasked(adr, sizeof(adr), bi->adr, bi->adrmask), bi->reason);
+		if (bi->type == BAN_BAN)
+			s = "banip";
 		else
-			s = va("banip %s\n", NET_AdrToStringMasked(adr, sizeof(adr), bi->adr, bi->adrmask));
+			s = "addip";
+		if (bi->reason[0])
+			s = va("%s %s \"%s\"\n", s, NET_AdrToStringMasked(adr, sizeof(adr), bi->adr, bi->adrmask), bi->reason);
+		else
+			s = va("%s %s\n", s, NET_AdrToStringMasked(adr, sizeof(adr), bi->adr, bi->adrmask));
 		VFS_WRITE(f, s, strlen(s));
 		bi = bi->next;
-	}
-
-	s = "\n// filtered ip addresses\n";
-	VFS_WRITE(f, s, strlen(s));
-
-	fi = svs.filteredips;
-	while (fi)
-	{
-		s = va("addip %s\n", NET_AdrToStringMasked(adr, sizeof(adr), fi->adr, fi->adrmask));
-		VFS_WRITE(f, s, strlen(s));
-		fi = fi->next;
 	}
 
 	VFS_CLOSE (f);
@@ -2061,8 +2052,11 @@ void SV_InitOperatorCommands (void)
 
 	Cmd_AddCommand ("fraglogfile", SV_Fraglogfile_f);
 
+	//ask clients to take a remote screenshot
 	Cmd_AddCommand ("snap", SV_Snap_f);
 	Cmd_AddCommand ("snapall", SV_SnapAll_f);
+
+	//various punishments
 	Cmd_AddCommand ("kick", SV_Kick_f);
 	Cmd_AddCommand ("mute", SV_Mute_f);
 	Cmd_AddCommand ("cuff", SV_Cuff_f);
@@ -2082,12 +2076,6 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("writeip", SV_WriteIP_f);
 
 	Cmd_AddCommand ("floodprot", SV_Floodprot_f);
-
-//	Cmd_AddCommand ("filterip", SV_FilterIP_f);
-//	Cmd_AddCommand ("unfilter", SV_Unfilter_f);
-//	Cmd_AddCommand ("filterlist", SV_FilterList_f);
-
-//	Cmd_AddCommand ("writeip", SV_WriteIP_f);
 
 	Cmd_AddCommand ("sv", SV_SendGameCommand_f);
 	Cmd_AddCommand ("mod", SV_SendGameCommand_f);

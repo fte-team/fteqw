@@ -1678,8 +1678,6 @@ store:
 */
 
 
-extern	int		solidskytexture;
-extern	int		alphaskytexture;
 extern	float	speedscale;		// for top sky and bottom sky
 
 #if 0
@@ -1929,8 +1927,7 @@ void GLR_DrawWaterSurfaces (void)
 		
 		GL_Bind (t->tn.base);
 
-		for ( ; s ; s=s->texturechain)
-			EmitWaterPolys (s, r_wateralphaval);
+		EmitWaterPolyChain (s, r_wateralphaval);
 		
 		t->texturechain = NULL;
 	}
@@ -2234,10 +2231,10 @@ void R_MarkLeafSurfaces_Q1 (void)
 R_RecursiveWorldNode
 ================
 */
-static void GLR_RecursiveWorldNode (mnode_t *node)
+static void GLR_RecursiveWorldNode (mnode_t *node, unsigned int clipflags)
 {
-	int			c, side;
-	mplane_t	*plane;
+	int			c, side, clipped;
+	mplane_t	*plane, *clipplane;
 	msurface_t	*surf, **mark;
 	mleaf_t		*pleaf;
 	double		dot;
@@ -2250,8 +2247,18 @@ start:
 
 	if (node->visframe != r_visframecount)
 		return;
-	if (R_CullBox (node->minmaxs, node->minmaxs+3))
-		return;
+
+	for (c = 0, clipplane = frustum; c < 4; c++, clipplane++)
+	{
+		if (!(clipflags & (1 << c)))
+			continue;	// don't need to clip against it
+
+		clipped = BOX_ON_PLANE_SIDE (node->minmaxs, node->minmaxs + 3, clipplane);
+		if (clipped == 2)
+			return;
+		else if (clipped == 1)
+			clipflags -= (1<<c);	// node is entirely on screen
+	}
 
 // if a leaf node, draw stuff
 	if (node->contents < 0)
@@ -2302,7 +2309,7 @@ start:
 		side = 1;
 
 // recurse down the children, front side first
-	GLR_RecursiveWorldNode (node->children[side]);
+	GLR_RecursiveWorldNode (node->children[side], clipflags);
 
 // draw stuff
   	c = node->numsurfaces;
@@ -2313,18 +2320,18 @@ start:
 
 		shift = GLR_LightmapShift(cl.worldmodel);
 
-//		if (dot < 0 -BACKFACE_EPSILON)
-//			side = SURF_PLANEBACK;
-//		else if (dot > BACKFACE_EPSILON)
-//			side = 0;
+		if (dot < 0 -BACKFACE_EPSILON)
+			side = SURF_PLANEBACK;
+		else if (dot > BACKFACE_EPSILON)
+			side = 0;
 		{
 			for ( ; c ; c--, surf++)
 			{
 				if (surf->visframe != r_framecount)
 					continue;
 
-//				if (((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)))
-//					continue;		// wrong side
+				if (((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)))
+					continue;		// wrong side
 
 				R_RenderDynamicLightmaps (surf, shift);
 				// if sorting by texture, just store it out
@@ -2345,7 +2352,7 @@ start:
 	}
 
 // recurse down the back side
-	//GLR_RecursiveWorldNode (node->children[!side]);
+	//GLR_RecursiveWorldNode (node->children[!side], clipflags);
 	node = node->children[!side];
 	goto start;
 }
@@ -2479,32 +2486,36 @@ static void GLR_LeafWorldNode (void)
 	mplane_t *clipplane;
 
 
-	for ( pleaf = r_vischain; pleaf; pleaf = pleaf->vischain )
+	for (pleaf = r_vischain; pleaf; pleaf = pleaf->vischain)
 	{
 		// check for door connected areas
-//		if ( areabits )
+//		if (areabits)
 		{
-//			if (! (areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
+//			if (!(areabits[pleaf->area>>3] & (1<<(pleaf->area&7))))
 //			{
 //				continue;		// not visible
 //			}
 		}
 
 		clipflags = 15;		// 1 | 2 | 4 | 8
-//		if ( !r_nocull->value )
+//		if (!r_nocull->value)
 		{
 
 			for (i=0,clipplane=frustum ; i<4 ; i++,clipplane++)
 			{
-				clipped = BoxOnPlaneSide ( pleaf->minmaxs, pleaf->minmaxs+3, clipplane );
-				if ( clipped == 2 ) {
+				clipped = BoxOnPlaneSide (pleaf->minmaxs, pleaf->minmaxs+3, clipplane);
+				if (clipped == 2)
+				{
 					break;
-				} else if ( clipped == 1 ) {
+				}
+				else if (clipped == 1)
+				{
 					clipflags &= ~(1<<i);	// node is entirely on screen
 				}
 			}
 
-			if ( i != 4 ) {
+			if (i != 4)
+			{
 				continue;
 			}
 		}
@@ -2515,7 +2526,7 @@ static void GLR_LeafWorldNode (void)
 		do
 		{
 			surf = *mark++;
-			if ( surf->visframe != r_framecount )	//sufraces exist in multiple leafs.
+			if (surf->visframe != r_framecount)	//sufraces exist in multiple leafs.
 			{
 				surf->visframe = r_framecount;
 
@@ -2607,7 +2618,7 @@ void R_DrawWorld (void)
 			R_MarkLeafSurfaces_Q1();
 #else
 			R_MarkLeaves_Q1 ();
-			GLR_RecursiveWorldNode (cl.worldmodel->nodes);
+			GLR_RecursiveWorldNode (cl.worldmodel->nodes, 0xf);
 #endif
 		}
 

@@ -83,8 +83,13 @@ cvar_t r_drawflat							= SCVARF ("r_drawflat", "0",
 cvar_t r_drawflat_nonworldmodel				= SCVAR  ("r_drawflat_nonworldmodel", "0");
 cvar_t r_drawviewmodel						= SCVAR  ("r_drawviewmodel", "1");
 cvar_t r_drawviewmodelinvis					= SCVAR  ("r_drawviewmodelinvis", "0");
+#ifdef MINIMAL
+cvar_t r_dynamic							= SCVARF ("r_dynamic", "0",
+												CVAR_ARCHIVE);
+#else
 cvar_t r_dynamic							= SCVARF ("r_dynamic", "1",
 												CVAR_ARCHIVE);
+#endif
 cvar_t r_fastsky							= SCVAR  ("r_fastsky", "0");
 cvar_t r_fastskycolour						= SCVARF ("r_fastskycolour", "0",
 												CVAR_RENDERERCALLBACK);
@@ -102,8 +107,13 @@ cvar_t r_floortexture						= SCVARF ("r_floortexture", "",
 												CVAR_RENDERERCALLBACK);
 cvar_t r_fullbright							= SCVARF ("r_fullbright", "0",
 												CVAR_CHEAT);
+#ifdef MINIMAL
+cvar_t r_fullbrightSkins					= SCVARF ("r_fullbrightSkins", "1",
+												CVAR_SEMICHEAT);
+#else
 cvar_t r_fullbrightSkins					= SCVARF ("r_fullbrightSkins", "0",
 												CVAR_SEMICHEAT);
+#endif
 cvar_t r_lightmap_saturation				= SCVAR  ("r_lightmap_saturation", "1");
 cvar_t r_lightstylesmooth					= SCVAR  ("r_lightstylesmooth", "0");
 cvar_t r_lightstylespeed					= SCVAR  ("r_lightstylespeed", "10");
@@ -313,7 +323,7 @@ cvar_t gl_picmip2d							= SCVAR  ("gl_picmip2d", "0");
 cvar_t gl_nohwblend							= SCVAR  ("gl_nohwblend","1");
 cvar_t gl_savecompressedtex					= SCVAR  ("gl_savecompressedtex", "0");
 cvar_t gl_schematics						= SCVAR  ("gl_schematics", "0");
-cvar_t gl_skyboxdist						= SCVAR  ("gl_skyboxdist", "2300");
+cvar_t gl_skyboxdist						= SCVAR  ("gl_skyboxdist", "0");	//0 = guess.
 cvar_t gl_smoothcrosshair					= SCVAR  ("gl_smoothcrosshair", "1");
 
 //gl blends. Set this to 1 to stop the outside of your conchars from being visible

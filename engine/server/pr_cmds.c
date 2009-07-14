@@ -2141,18 +2141,13 @@ single print to a specific client
 centerprint(clientent, value)
 =================
 */
-void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_centerprint_Internal (int entnum, char *s)
 {
-	char		*s;
-	int			entnum;
 	client_t	*cl, *sp;
 	int			slen;
 
 	if (sv.demofile)
 		return;
-
-	entnum = G_EDICTNUM(prinst, OFS_PARM0);
-	s = PF_VarString(prinst, 1, pr_globals);
 
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
 	{
@@ -2192,6 +2187,18 @@ void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_centerprint);
 		MSG_WriteString ((sizebuf_t*)demo.dbuf, s);
 	}
+}
+
+void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char		*s;
+	int			entnum;
+	client_t	*cl, *sp;
+	int			slen;
+
+	entnum = G_EDICTNUM(prinst, OFS_PARM0);
+	s = PF_VarString(prinst, 1, pr_globals);
+	PF_centerprint_Internal(entnum, s);
 }
 
 /*
@@ -2487,17 +2494,9 @@ PF_ambientsound
 
 =================
 */
-void PF_ambientsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuation)
 {
-	char		*samp;
-	float		*pos;
-	float 		vol, attenuation;
 	int			i, soundnum;
-
-	pos = G_VECTOR (OFS_PARM0);
-	samp = PR_GetStringOfs(prinst, OFS_PARM1);
-	vol = G_FLOAT(OFS_PARM2);
-	attenuation = G_FLOAT(OFS_PARM3);
 
 // check to see if samp was properly precached
 	for (soundnum=1 ; *sv.strings.sound_precache[soundnum] ; soundnum++)
@@ -2523,6 +2522,20 @@ void PF_ambientsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	MSG_WriteByte (&sv.signon, vol*255);
 	MSG_WriteByte (&sv.signon, attenuation*64);
 
+}
+
+void PF_ambientsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char		*samp;
+	float		*pos;
+	float 		vol, attenuation;
+
+	pos = G_VECTOR (OFS_PARM0);
+	samp = PR_GetStringOfs(prinst, OFS_PARM1);
+	vol = G_FLOAT(OFS_PARM2);
+	attenuation = G_FLOAT(OFS_PARM3);
+
+	PF_ambientsound_Internal(pos, samp, vol, attenuation);
 }
 
 /*
@@ -3976,15 +3989,13 @@ sizebuf_t *NQWriteDest (int dest)
 }
 #endif
 
-struct globalvars_s *pr_netglob;
-progfuncs_t *pr_netprogfuncs;
 client_t *Write_GetClient(void)
 {
 	int		entnum;
 	edict_t	*ent;
 
-	ent = PROG_TO_EDICT(pr_netprogfuncs, pr_global_struct->msg_entity);
-	entnum = NUM_FOR_EDICT(pr_netprogfuncs, ent);
+	ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
+	entnum = NUM_FOR_EDICT(svprogfuncs, ent);
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
 		return NULL;//PR_RunError ("WriteDest: not a client");
 	return &svs.clients[entnum-1];
@@ -4002,8 +4013,6 @@ void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 
-	pr_netprogfuncs = prinst;
-	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
 		NPP_NQWriteByte(G_FLOAT(OFS_PARM0), (qbyte)G_FLOAT(OFS_PARM1));
@@ -4039,8 +4048,6 @@ void PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
-	pr_netprogfuncs = prinst;
-	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
 		NPP_NQWriteChar(G_FLOAT(OFS_PARM0), (char)G_FLOAT(OFS_PARM1));
@@ -4077,8 +4084,6 @@ void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 
-	pr_netprogfuncs = prinst;
-	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
 		NPP_NQWriteShort(G_FLOAT(OFS_PARM0), (short)(int)G_FLOAT(OFS_PARM1));
@@ -4115,8 +4120,6 @@ void PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 
-	pr_netprogfuncs = prinst;
-	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
 		NPP_NQWriteLong(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
@@ -4152,8 +4155,6 @@ void PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
-	pr_netprogfuncs = prinst;
-	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
 		NPP_NQWriteAngle(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
@@ -4190,8 +4191,6 @@ void PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 
-	pr_netprogfuncs = prinst;
-	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
 		NPP_NQWriteCoord(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
@@ -4217,10 +4216,9 @@ void PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #endif
 }
 
-void PF_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_WriteString_Internal (int target, char *str)
 {
-	char *str = PF_VarString(prinst, 1, pr_globals);;
-	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	if (target == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteString(&csqcmsgbuffer, str);
 		return;
@@ -4229,21 +4227,19 @@ void PF_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 
-	pr_netprogfuncs = prinst;
-	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteString(G_FLOAT(OFS_PARM0), str);
+		NPP_NQWriteString(target, str);
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteString(G_FLOAT(OFS_PARM0), str);
+		NPP_QWWriteString(target, str);
 		return;
 	}
 #else
-	if (G_FLOAT(OFS_PARM0) == MSG_ONE)
+	if (target == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
 		if (!cl)
@@ -4252,8 +4248,14 @@ void PF_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		ClientReliableWrite_String(cl, str);
 	}
 	else
-		MSG_WriteString (QWWriteDest(G_FLOAT(OFS_PARM0)), str);
+		MSG_WriteString (QWWriteDest(target), str);
 #endif
+}
+
+void PF_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *str = PF_VarString(prinst, 1, pr_globals);
+	PF_WriteString_Internal(G_FLOAT(OFS_PARM0), str);
 }
 
 
@@ -4268,8 +4270,6 @@ void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (qc_nonetaccess.value || sv.demofile)
 		return;
 
-	pr_netprogfuncs = prinst;
-	pr_netglob = pr_globals;
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
 		NPP_NQWriteEntity(G_FLOAT(OFS_PARM0), (short)G_EDICTNUM(prinst, OFS_PARM1));
@@ -6872,9 +6872,6 @@ void PF_plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		s = "";
 	else
 		s = T_GetString(G_FLOAT(OFS_PARM1)-1);
-
-	pr_netprogfuncs = prinst;
-	pr_netglob = pr_globals;
 
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE)
 	{

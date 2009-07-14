@@ -492,11 +492,15 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex)
 }
 #endif
 
-static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex, vbo_t *vbo)
+static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex, vbo_t *vbo, int fullbright)
 {	//doesn't merge surfaces, but tells gl to do each vertex arrayed surface individually, which means no vertex copying.
+#if 0
+extern cvar_t temp1;
+if (temp1.value)
+{
 	int vi;
 	glRect_t    *theRect;
-//	int first = 0, last = 0;
+	int first = 0, last = 0;
 
 	qglDisableClientState(GL_COLOR_ARRAY);
 	qglEnableClientState(GL_VERTEX_ARRAY);
@@ -504,6 +508,12 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex, 
 
 	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbo->vbocoord);
 	qglVertexPointer(3, GL_FLOAT, 0, vbo->coord);
+
+	
+	GL_MBind(GL_TEXTURE0_ARB, tex->tn.base);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbo->vbotexcoord);
+	qglTexCoordPointer(2, GL_FLOAT, 0, vbo->texcoord);
 
 	if (tex->alphaed || currententity->shaderRGBAf[3]<1)
 	{
@@ -525,11 +535,15 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex, 
 		GL_TexEnv(GL_REPLACE);
 	}
 
-
-	GL_MBind(GL_TEXTURE0_ARB, tex->tn.base);
-	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbo->vbotexcoord);
-	qglTexCoordPointer(2, GL_FLOAT, 0, vbo->texcoord);
+	if (fullbright)
+	{
+		GL_MBind(GL_TEXTURE2_ARB, tex->tn.fullbright);
+		qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		//qglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbo->vbotexcoord);
+		qglTexCoordPointer(2, GL_FLOAT, 0, vbo->texcoord);
+		GL_TexEnv(GL_ADD);
+		qglEnable(GL_TEXTURE_2D);
+	}
 
 	GL_SelectTexture(GL_TEXTURE1_ARB);
 	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -537,6 +551,160 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex, 
 	qglTexCoordPointer(2, GL_FLOAT, 0, vbo->lmcoord);
 
 	GL_TexEnv(GL_MODULATE);
+
+
+
+/*	if (currententity->shaderRGBAf[3]<1)
+	{
+		s->lightmaptexturenum = -1;
+		qglBlendFunc(GL_SRC_COLOR, GL_ONE);
+	}
+*/
+	if (overbright != 1)
+	{
+		GL_TexEnv(GL_COMBINE_ARB);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+		qglTexEnvi(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, overbright);	//this is the key
+	}
+
+//	numidxs = 0;
+	vi = -1;
+	for (; s ; s=s->texturechain)
+	{
+		if (!s->mesh)	//urm.
+			continue;
+		if (s->mesh->numvertexes <= 1)
+			continue;
+		if (vi != s->lightmaptexturenum)
+		{
+			if (last != first)
+				qglDrawElements(GL_TRIANGLES, last - first, GL_INDEX_TYPE, (index_t*)(first*sizeof(index_t)));
+			last = first;
+
+			if (vi<0)
+				qglEnable(GL_TEXTURE_2D);
+			vi = s->lightmaptexturenum;
+
+			if (vi>=0)
+			{
+				GL_Bind(lightmap_textures[vi] );
+				if (lightmap[vi]->modified)
+				{
+					lightmap[vi]->modified = false;
+					theRect = &lightmap[vi]->rectchange;
+					qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+						LMBLOCK_WIDTH, theRect->h, gl_lightmap_format, GL_UNSIGNED_BYTE,
+						lightmap[vi]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
+					theRect->l = LMBLOCK_WIDTH;
+					theRect->t = LMBLOCK_HEIGHT;
+					theRect->h = 0;
+					theRect->w = 0;
+				}
+			}
+			else
+				qglDisable(GL_TEXTURE_2D);
+		}
+		qglDrawRangeElements(GL_TRIANGLES, s->mesh->vbofirstvert, s->mesh->vbofirstvert+s->mesh->numvertexes-1, s->mesh->numindexes, GL_INDEX_TYPE, vbo->indicies + s->mesh->vbofirstelement);
+		if (s->mesh->vbofirstelement != last)
+		{
+			if (last != first)
+				qglDrawElements(GL_TRIANGLES, last - first, GL_INDEX_TYPE, (index_t*)(first*sizeof(index_t)));
+			first = s->mesh->vbofirstelement;
+			last = first;
+		}
+		last += s->mesh->numindexes;
+	}
+	if (last != first)
+		qglDrawElements(GL_TRIANGLES, last - first, GL_INDEX_TYPE, (index_t*)(first*sizeof(index_t)));
+
+	//rebinding vbos is meant to be cheap, thankfully
+	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+
+	if (overbright != 1)
+	{
+		qglTexEnvi(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1);	//just in case
+		GL_TexEnv(GL_MODULATE);
+	}
+
+	//tmu 1 should be selected here
+	qglDisable(GL_TEXTURE_2D);
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+
+	if (fullbright)
+	{
+		GL_SelectTexture(GL_TEXTURE2_ARB);
+		qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+		qglDisable(GL_TEXTURE_2D);
+	}
+
+	GL_SelectTexture(GL_TEXTURE0_ARB);
+	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglDisable(GL_TEXTURE_2D);
+
+
+	if (tex->alphaed)
+		qglDisable(GL_ALPHA_TEST);
+}
+else
+#endif
+{
+		int vi;
+	glRect_t    *theRect;
+//	int first = 0, last = 0;
+
+	qglDisableClientState(GL_COLOR_ARRAY);
+	qglEnableClientState(GL_VERTEX_ARRAY);
+	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, vbo->vboe);
+
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbo->vbocoord);
+	qglVertexPointer(3, GL_FLOAT, 0, vbo->coord);
+
+	
+	GL_MBind(GL_TEXTURE0_ARB, tex->tn.base);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbo->vbotexcoord);
+	qglTexCoordPointer(2, GL_FLOAT, 0, vbo->texcoord);
+
+	if (tex->alphaed || currententity->shaderRGBAf[3]<1)
+	{
+		if (*tex->name == '{')
+		{
+			qglEnable(GL_ALPHA_TEST);
+			qglDisable(GL_BLEND);
+			GL_TexEnv(GL_REPLACE);
+		}
+		else
+		{
+			qglEnable(GL_BLEND);
+			GL_TexEnv(GL_MODULATE);
+		}
+	}
+	else
+	{
+		qglDisable(GL_BLEND);
+		GL_TexEnv(GL_REPLACE);
+	}
+
+	if (fullbright)
+	{
+		GL_MBind(GL_TEXTURE2_ARB, tex->tn.fullbright);
+		qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		//qglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbo->vbotexcoord);
+		qglTexCoordPointer(2, GL_FLOAT, 0, vbo->texcoord);
+		GL_TexEnv(GL_ADD);
+		qglEnable(GL_TEXTURE_2D);
+	}
+
+	GL_SelectTexture(GL_TEXTURE1_ARB);
+	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbo->vbolmcoord);
+	qglTexCoordPointer(2, GL_FLOAT, 0, vbo->lmcoord);
+
+	GL_TexEnv(GL_MODULATE);
+
 
 
 /*	if (currententity->shaderRGBAf[3]<1)
@@ -618,13 +786,20 @@ static void PPL_BaseChain_NoBump_2TMU_Overbright(msurface_t *s, texture_t *tex, 
 	qglDisable(GL_TEXTURE_2D);
 	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
 
+	if (fullbright)
+	{
+		GL_SelectTexture(GL_TEXTURE2_ARB);
+		qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+		qglDisable(GL_TEXTURE_2D);
+	}
+
 	GL_SelectTexture(GL_TEXTURE0_ARB);
 	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglDisable(GL_TEXTURE_2D);
 
 
 	if (tex->alphaed)
 		qglDisable(GL_ALPHA_TEST);
+}
 }
 
 /*
@@ -1829,8 +2004,7 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		GL_DisableMultitexture();
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		GL_Bind (t->tn.base);
-		for (; first ; first=first->texturechain)
-			EmitWaterPolys (first, currententity->shaderRGBAf[3]);
+		EmitWaterPolyChain (first, currententity->shaderRGBAf[3]);
 
 		qglDisable(GL_BLEND);
 		qglColor4f(1,1,1, 1);
@@ -1871,39 +2045,23 @@ static void PPL_BaseTextureChain(msurface_t *first)
 		{
 //			PPL_BaseChain_NoBump_2TMU_TEST(first, t);
 //			PPL_BaseChain_NoBump_2TMU(first, t);
-			PPL_BaseChain_NoBump_2TMU_Overbright(first, t, &ot->vbo);
 
+			if (gl_mtexarbable>=3)
+			{
+				PPL_BaseChain_NoBump_2TMU_Overbright(first, t, &ot->vbo, r_fb_bmodels.value && cls.allow_luma);
+				return;
+			}
+			PPL_BaseChain_NoBump_2TMU_Overbright(first, t, &ot->vbo, false);
 		}
 	}
-}
 
-
-static void PPL_FullBrightTextureChain(msurface_t *first)
-{
-	texture_t	*ot = first->texinfo->texture;
-	texture_t	*t;
-	msurface_t	*s;
-
-	t = R_TextureAnimation (ot);
-
-	if (detailtexture && gl_detail.value)
-	{
-		GL_Bind(detailtexture);
-		qglBlendFunc(GL_DST_COLOR, GL_SRC_COLOR);
-
-		PPL_EnableVertexArrays();
-		qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-		qglTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
-		for (s = first; s ; s=s->texturechain)
-		{
-			PPL_GenerateDetailArrays(s);
-		}
-		PPL_FlushArrays();
-	}
-
+	/*if we couldn't draw fullbrights above due to tmu limitations, draw it now*/
 	if (t->tn.fullbright && r_fb_bmodels.value && cls.allow_luma)
 	{
+		msurface_t *s;
+
 		GL_Bind(t->tn.fullbright);
+		qglEnable(GL_BLEND);
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
 		if (gl_mylumassuck.value)
 			qglEnable(GL_ALPHA_TEST);
@@ -1925,9 +2083,35 @@ static void PPL_FullBrightTextureChain(msurface_t *first)
 
 		qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 		qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+		qglDisable(GL_BLEND);
 
 		if (gl_mylumassuck.value)
 			qglDisable(GL_ALPHA_TEST);
+	}
+}
+
+
+static void PPL_DetailTextureChain(msurface_t *first)
+{
+	texture_t	*ot = first->texinfo->texture;
+	texture_t	*t;
+	msurface_t	*s;
+
+	t = R_TextureAnimation (ot);
+
+	if (detailtexture && gl_detail.value)
+	{
+		GL_Bind(detailtexture);
+		qglBlendFunc(GL_DST_COLOR, GL_SRC_COLOR);
+
+		PPL_EnableVertexArrays();
+		qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		qglTexCoordPointer(2, GL_FLOAT, sizeof(surfvertexarray_t), varray_v->stw);
+		for (s = first; s ; s=s->texturechain)
+		{
+			PPL_GenerateDetailArrays(s);
+		}
+		PPL_FlushArrays();
 	}
 }
 
@@ -3352,7 +3536,7 @@ void PPL_DrawEntLighting(dlight_t *light, vec3_t colour)
 }
 #endif
 
-void PPL_FullBrights(model_t *model)
+void PPL_Details(model_t *model)
 {
 	int		tn;
 	msurface_t	*s;
@@ -3381,14 +3565,14 @@ void PPL_FullBrights(model_t *model)
 		if ((s->flags & SURF_DRAWTURB) && r_wateralphaval != 1.0)
 			continue;	// draw translucent water later
 
-		PPL_FullBrightTextureChain(s);
+		PPL_DetailTextureChain(s);
 	}
 
 	GL_TexEnv(GL_REPLACE);
 	qglDepthMask(1);
 }
 
-void PPL_FullBrightBModelTextures(entity_t *e)
+void PPL_DetailsBModelTextures(entity_t *e)
 {
 	int i;
 	model_t *model;
@@ -3414,7 +3598,7 @@ void PPL_FullBrightBModelTextures(entity_t *e)
 	{
 		if (chain && s->texinfo->texture != chain->texinfo->texture)	//last surface or not the same as the next
 		{
-			PPL_FullBrightTextureChain(chain);
+			PPL_DetailTextureChain(chain);
 			chain = NULL;
 		}
 
@@ -3423,22 +3607,23 @@ void PPL_FullBrightBModelTextures(entity_t *e)
 	}
 
 	if (chain)
-		PPL_FullBrightTextureChain(chain);
+		PPL_DetailTextureChain(chain);
 
 	qglPopMatrix();
 	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 	qglDepthMask(1);
 }
 
-//draw the bumps on the models for each light.
-void PPL_DrawEntFullBrights(void)
+//draw the detail textures over the top
+void PPL_DrawEntDetails(void)
 {
 	int		i;
 
 	currententity = &r_worldentity;
-	if (gl_detail.value || (r_fb_bmodels.value && cls.allow_luma))
-		PPL_FullBrights(cl.worldmodel);
+	if (!gl_detail.value)
+		return;
 
+	PPL_Details(cl.worldmodel);
 	if (!r_drawentities.value)
 		return;
 
@@ -3474,9 +3659,7 @@ void PPL_DrawEntFullBrights(void)
 			break;
 
 		case mod_brush:
-			PPL_FullBrightBModelTextures (currententity);
-			qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-			qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+			PPL_DetailsBModelTextures (currententity);
 			break;
 
 		default:
@@ -5287,7 +5470,7 @@ void PPL_DrawWorld (void)
 		PPL_Schematics();
 
 	TRACE(("dbg: calling PPL_DrawEntFullBrights\n"));
-	PPL_DrawEntFullBrights();
+	PPL_DrawEntDetails();
 
 	RSpeedEnd(RSPEED_FULLBRIGHTS);
 

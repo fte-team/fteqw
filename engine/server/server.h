@@ -505,6 +505,7 @@ typedef struct client_s
 		SCP_QUAKEWORLD,
 		SCP_QUAKE2,
 		SCP_QUAKE3,
+		//all the below are considered netquake clients.
 		SCP_NETQUAKE,
 		SCP_DARKPLACES6,
 		SCP_DARKPLACES7	//extra prediction stuff
@@ -684,17 +685,13 @@ typedef struct
 } challenge_t;
 
 typedef struct bannedips_s {
+	enum {BAN_BAN, BAN_FILTER, BAN_PERMIT} type;
 	struct bannedips_s *next;
 	netadr_t	adr;
 	netadr_t	adrmask;
+	unsigned int expiretime;
 	char reason[1];
 } bannedips_t;
-
-typedef struct filteredip_s {
-	struct filteredip_s *next;
-	netadr_t	adr;
-	netadr_t	adrmask;
-} filteredips_t;
 
 typedef enum {
 	GT_PROGS,	//q1, qw, h2 are similar enough that we consider it only one game mode. (We don't support the h2 protocol)
@@ -750,7 +747,6 @@ typedef struct
 	challenge_t	challenges[MAX_CHALLENGES];	// to prevent invalid IPs from connecting
 
 	bannedips_t *bannedips;
-	filteredips_t *filteredips;
 
 	char progsnames[MAX_PROGS][32];
 	progsnum_t progsnum[MAX_PROGS];

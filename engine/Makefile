@@ -355,6 +355,7 @@ GLQUAKE_OBJS =		\
 	gl_rlight.o		\
 	gl_rmain.o		\
 	gl_rmisc.o		\
+	gl_font.o		\
 	gl_heightmap.o		\
 	gl_rsurf.o		\
 	ltface.o		\

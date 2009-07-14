@@ -28,9 +28,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define VMFSID_Q1QVM 57235	//a cookie
 
-#define WASTED_EDICT_T_SIZE sizeof(void*)	//qclib has split edict_t and entvars_t.
+#if GAME_API_VERSION >= 13
+	#define WASTED_EDICT_T_SIZE (VM_NonNative(q1qvm)?sizeof(int):sizeof(void*))
+	//in version 13, the actual edict_t struct is gone, and there's a pointer to it in its place (which we don't need, but it changes size based on vm/native).
+#else
+	//this is probably broken on 64bit native code
+	#define WASTED_EDICT_T_SIZE 114
+								//qclib has split edict_t and entvars_t.
 								//mvdsv and the api we're implementing has them in one lump
 								//so we need to bias our entvars_t and fake the offsets a little.
+#endif
 
 //===============================================================
 
@@ -180,6 +187,7 @@ typedef enum
 	GAME_EDICT_THINK,                      //(self,other=world,time)
 	GAME_EDICT_BLOCKED,                     //(self,other)
 	GAME_CLIENT_SAY, 		//(int isteam)
+	GAME_PAUSED_TIC,		//(int milliseconds)
 } gameExport_t;
 
 
@@ -264,10 +272,10 @@ typedef struct {
 } q1qvmglobalvars_t;
 
 
-//this is not usable in 64bit to refer to a 32bit qvm (hence why we have two versions).
+//this is not directly usable in 64bit to refer to a 32bit qvm (hence why we have two versions).
 typedef struct
 {
-	edict_t		*ents;
+	struct vmedict_s		*ents;
 	int		sizeofent;
 	q1qvmglobalvars_t	*global;
 	field_t		*fields;
@@ -318,7 +326,7 @@ static edict_t *q1qvmedicts[MAX_Q1QVM_EDICTS];
 
 
 static void *evars;	//pointer to the gamecodes idea of an edict_t
-static int vevars;	//offset into the vm base of evars
+static qintptr_t vevars;	//offset into the vm base of evars
 
 /*
 static char *Q1QVMPF_AddString(progfuncs_t *pf, char *base, int minlength)
@@ -491,13 +499,12 @@ void PF_changelevel (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_cvar_setf (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-void PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_ambientsound (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_applylightstyle(int style, char *val, int col);
+void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuation);
 
 void PF_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_logfrag (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_ExecuteCommand  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -511,7 +518,7 @@ void PF_precache_model_Internal (progfuncs_t *prinst, char *s);
 void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m);
 char *PF_infokey_Internal (int entnum, char *value);;
 
-static int WrapQCBuiltin(builtin_t func, void *offset, unsigned int mask, const int *arg, char *argtypes)
+static int WrapQCBuiltin(builtin_t func, void *offset, unsigned qintptr_t mask, const qintptr_t *arg, char *argtypes)
 {
 	globalvars_t gv;
 	int argnum=0;
@@ -534,7 +541,7 @@ static int WrapQCBuiltin(builtin_t func, void *offset, unsigned int mask, const 
 			gv.param[argnum].vec[2] = VM_FLOAT(*arg++);
 			argnum++;
 			break;
-		case 's':	//three seperate args -> 1 vector
+		case 's':
 			gv.param[argnum].i = VM_LONG(*arg++);
 			argnum++;
 			break;
@@ -546,8 +553,8 @@ static int WrapQCBuiltin(builtin_t func, void *offset, unsigned int mask, const 
 	return gv.ret.i;
 }
 
-#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %i passes invalid pointer\n", fn);	//out of bounds.
-static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
+#define VALIDATEPOINTER(o,l) if ((qintptr_t)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %i passes invalid pointer\n", fn);	//out of bounds.
+static qintptr_t syscallhandle (void *offset, unsigned qintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
 	switch (fn)
 	{
@@ -600,12 +607,12 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 		break;
 
 	case G_LIGHTSTYLE:
-		WrapQCBuiltin(PF_lightstyle, offset, mask, arg, "is");
+		PF_applylightstyle(VM_LONG(arg[0]), VM_POINTER(arg[1]), 7);
 		break;
 
 	case G_SETORIGIN:
 		{
-			edict_t *e = Q1QVMPF_EdictNum(svprogfuncs, arg[0]);
+			edict_t *e = Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0]));
 			if (!e || e->isfree)
 				return false;
 
@@ -653,11 +660,17 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 		break;
 
 	case G_CENTERPRINT:
-		WrapQCBuiltin(PF_centerprint, offset, mask, arg, "ns");
+		PF_centerprint_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
 		break;
 
 	case G_AMBIENTSOUND:
-		WrapQCBuiltin(PF_ambientsound, offset, mask, arg, "vsff");
+		{
+			vec3_t pos;
+			pos[0] = VM_FLOAT(arg[0]);
+			pos[1] = VM_FLOAT(arg[1]);
+			pos[2] = VM_FLOAT(arg[2]);
+			PF_ambientsound_Internal(pos, VM_POINTER(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]));
+		}
 		break;
 
 	case G_SOUND:
@@ -689,20 +702,36 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 		break;
 
 	case G_LOCALCMD:
-		WrapQCBuiltin(PF_localcmd, offset, mask, arg, "s");
+		Cbuf_AddText (VM_POINTER(arg[0]), RESTRICT_INSECURE);
 		break;
 
 	case G_CVAR:
 		{
 			int i;
 			cvar_t *c;
-			c = Cvar_Get(VM_POINTER(arg[0]), "", 0, "Gamecode");
+			char *vname = VM_POINTER(arg[0]);
+
+			//paused state is not a cvar.
+			if (!strcmp(vname, "sv_paused"))
+			{
+				float f;
+				f = sv.paused;
+				return VM_LONG(f);
+			}
+
+			c = Cvar_Get(vname, "", 0, "Gamecode");
 			i = VM_LONG(c->value);
 			return i;
 		}
 
 	case G_CVAR_SET:
-		WrapQCBuiltin(PF_cvar_set, offset, mask, arg, "ss");
+		{
+			cvar_t *var;
+			var = Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "Gamecode variables");
+			if (!var)
+				return -1;
+			Cvar_Set (var, VM_POINTER(arg[1]));
+		}
 		break;
 
 	case G_FINDRADIUS:
@@ -720,7 +749,7 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 					continue;
 				VectorSubtract(ed->v->origin, org, diff);
 				if (rad > DotProduct(diff, diff))
-					return (int)(vevars + start*pr_edict_size);
+					return (qintptr_t)(vevars + start*pr_edict_size);
 			}
 			return 0;
 		}
@@ -863,7 +892,7 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 		WrapQCBuiltin(PF_WriteCoord, offset, mask, arg, "if");
 		break;
 	case G_WRITESTRING:
-		WrapQCBuiltin(PF_WriteString, offset, mask, arg, "is");
+		PF_WriteString_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
 		break;
 	case G_WRITEENTITY:
 		WrapQCBuiltin(PF_WriteEntity, offset, mask, arg, "in");
@@ -970,10 +999,15 @@ static int syscallqvm (void *offset, unsigned int mask, int fn, const int *arg)
 		if (VM_OOB(arg[2], arg[3]))
 			return 0;
 		return VM_GetFileList(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
-		break;
 
 	case G_CVAR_SET_FLOAT:
-		WrapQCBuiltin(PF_cvar_setf, offset, mask, arg, "sf");
+		{
+			cvar_t *var;
+			var = Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "Gamecode variables");
+			if (!var)
+				return -1;
+			Cvar_SetValue (var, VM_FLOAT(arg[1]));
+		}
 		break;
 
 	case G_CVAR_STRING:
@@ -1186,10 +1220,34 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 			while (start < sv.allocated_client_slots)
 			{
 				if (svs.clients[start].state == cs_spawned)
-					return (int)(vevars + (start+1) * pr_edict_size);
+					return (qintptr_t)(vevars + (start+1) * pr_edict_size);
 				start++;
 			}
 			return 0;
+		}
+		break;
+
+	case G_SETPAUSE:
+		{
+			int i;
+			client_t *cl;
+			int pause = VM_LONG(arg[0]);
+			if ((sv.paused&1) == (pause&1))
+				break;	//nothing changed, ignore it.
+			sv.paused = pause;
+			sv.pausedstart = Sys_DoubleTime();
+
+			// send out notifications
+			for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
+			{
+				if (!cl->state)
+					continue;
+				if ((ISQWCLIENT(cl) || ISNQCLIENT(cl)) && !cl->controller)
+				{
+					ClientReliableWrite_Begin (cl, svc_setpause, 2);
+					ClientReliableWrite_Byte (cl, sv.paused);
+				}
+			}
 		}
 		break;
 
@@ -1200,28 +1258,41 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 	return 0;
 }
 
-static int EXPORT_FN syscallnative (int arg, ...)
+#if __WORDSIZE == 64
+static int syscallqvm (void *offset, unsigned qintptr_t mask, int fn, const int *arg)
 {
-	int args[13];
+	qintptr_t args[13];
+	int i;
+	for (i = 0; i < 13; i++)
+		args[i] = arg[i];
+	return syscallhandle(offset, mask, fn, args);
+}
+#else
+#define syscallqvm syscallhandle
+#endif
+
+static qintptr_t EXPORT_FN syscallnative (qintptr_t arg, ...)
+{
+	qintptr_t args[13];
 	va_list argptr;
 
 	va_start(argptr, arg);
-	args[0]=va_arg(argptr, int);
-	args[1]=va_arg(argptr, int);
-	args[2]=va_arg(argptr, int);
-	args[3]=va_arg(argptr, int);
-	args[4]=va_arg(argptr, int);
-	args[5]=va_arg(argptr, int);
-	args[6]=va_arg(argptr, int);
-	args[7]=va_arg(argptr, int);
-	args[8]=va_arg(argptr, int);
-	args[9]=va_arg(argptr, int);
-	args[10]=va_arg(argptr, int);
-	args[11]=va_arg(argptr, int);
-	args[12]=va_arg(argptr, int);
+	args[0]=va_arg(argptr, qintptr_t);
+	args[1]=va_arg(argptr, qintptr_t);
+	args[2]=va_arg(argptr, qintptr_t);
+	args[3]=va_arg(argptr, qintptr_t);
+	args[4]=va_arg(argptr, qintptr_t);
+	args[5]=va_arg(argptr, qintptr_t);
+	args[6]=va_arg(argptr, qintptr_t);
+	args[7]=va_arg(argptr, qintptr_t);
+	args[8]=va_arg(argptr, qintptr_t);
+	args[9]=va_arg(argptr, qintptr_t);
+	args[10]=va_arg(argptr, qintptr_t);
+	args[11]=va_arg(argptr, qintptr_t);
+	args[12]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
-	return syscallqvm(NULL, ~0, arg, args);
+	return syscallhandle(NULL, ~0, arg, args);
 }
 
 void Q1QVM_Shutdown(void)
@@ -1250,7 +1321,7 @@ qboolean PR_LoadQ1QVM(void)
 	int i;
 	gameDataN_t *gd, gdm;
 	gameData32_t *gd32;
-	int ret;
+	qintptr_t ret;
 
 	if (q1qvm)
 		VM_Destroy(q1qvm);
@@ -1288,25 +1359,33 @@ qboolean PR_LoadQ1QVM(void)
 
 	q1qvmprogfuncs.stringtable = VM_MemoryBase(q1qvm);
 
-	ret = VM_Call(q1qvm, GAME_INIT, (int)(sv.time*1000), rand());
+	ret = VM_Call(q1qvm, GAME_INIT, (qintptr_t)(sv.time*1000), rand());
 	if (!ret)
 	{
 		Q1QVM_Shutdown();
 		return false;
 	}
-	gd32 = (gameData32_t*)((char*)VM_MemoryBase(q1qvm) + ret);	//qvm is 32bit
 
-	//when running native64, we need to convert these to real types, so we can use em below
-	gd = &gdm;
-	gd->ents = (struct edict_s *)gd32->ents;
-	gd->sizeofent = gd32->sizeofent;
-	gd->global = (q1qvmglobalvars_t *)gd32->global;
-	gd->fields = (field_t *)gd32->fields;
-	gd->APIversion = gd32->APIversion;
+	if (VM_NonNative(q1qvm))
+	{
+		gd32 = (gameData32_t*)((char*)VM_MemoryBase(q1qvm) + ret);	//qvm is 32bit
+
+		//when running native64, we need to convert these to real types, so we can use em below
+		//double casts to silence warnings
+		gd = &gdm;
+		gd->ents = (struct vmedict_s *)(qintptr_t)gd32->ents;
+		gd->sizeofent = gd32->sizeofent;
+		gd->global = (q1qvmglobalvars_t *)(qintptr_t)gd32->global;
+		gd->fields = (field_t *)(qintptr_t)gd32->fields;
+		gd->APIversion = gd32->APIversion;
+	}
+	else
+	{
+		gd = (gameDataN_t*)((char*)VM_MemoryBase(q1qvm) + ret);	//qvm is 32bit
+	}
 
 	pr_edict_size = gd->sizeofent;
-
-	vevars = (long)gd->ents;
+	vevars = (qintptr_t)gd->ents;
 	evars = ((char*)VM_MemoryBase(q1qvm) + vevars);
 	//FIXME: range check this pointer
 	//FIXME: range check the globals pointer
@@ -1316,11 +1395,11 @@ qboolean PR_LoadQ1QVM(void)
 
 //WARNING: global is not remapped yet...
 //This code is written evilly, but works well enough
-#define globalint(required, name) pr_nqglobal_struct->name = (int*)((char*)VM_MemoryBase(q1qvm)+(long)&gd->global->name)	//the logic of this is somewhat crazy
-#define globalfloat(required, name) pr_nqglobal_struct->name = (float*)((char*)VM_MemoryBase(q1qvm)+(long)&gd->global->name)
-#define globalstring(required, name) pr_nqglobal_struct->name = (string_t*)((char*)VM_MemoryBase(q1qvm)+(long)&gd->global->name)
-#define globalvec(required, name) pr_nqglobal_struct->V_##name = (vec3_t*)((char*)VM_MemoryBase(q1qvm)+(long)&gd->global->name)
-#define globalfunc(required, name) pr_nqglobal_struct->name = (int*)((char*)VM_MemoryBase(q1qvm)+(long)&gd->global->name)
+#define globalint(required, name) pr_nqglobal_struct->name = (int*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)	//the logic of this is somewhat crazy
+#define globalfloat(required, name) pr_nqglobal_struct->name = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
+#define globalstring(required, name) pr_nqglobal_struct->name = (string_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
+#define globalvec(required, name) pr_nqglobal_struct->V_##name = (vec3_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
+#define globalfunc(required, name) pr_nqglobal_struct->name = (int*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
 	globalint		(true, world);
@@ -1368,13 +1447,12 @@ qboolean PR_LoadQ1QVM(void)
 	pr_nqglobal_struct->trace_endcontents = &writable;
 
 	for (i = 0; i < 16; i++)
-		spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(long)(&gd->global->parm1 + i));
+		spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)(&gd->global->parm1 + i));
 	for (; i < NUM_SPAWN_PARMS; i++)
 		spawnparamglobals[i] = NULL;
 
 
 	sv.edicts = EDICT_NUM(svprogfuncs, 0);
-
 	return true;
 }
 
@@ -1465,7 +1543,7 @@ void Q1QVM_PostThink(void)
 
 void Q1QVM_StartFrame(void)
 {
-	VM_Call(q1qvm, GAME_START_FRAME, (int)(sv.time*1000));
+	VM_Call(q1qvm, GAME_START_FRAME, (qintptr_t)(sv.time*1000));
 }
 
 void Q1QVM_Touch(void)
@@ -1496,6 +1574,11 @@ void Q1QVM_SetChangeParms(void)
 void Q1QVM_ClientCommand(void)
 {
 	VM_Call(q1qvm, GAME_CLIENT_COMMAND);
+}
+
+void Q1QVM_GameCodePausedTic(float pausedduration)
+{
+	VM_Call(q1qvm, GAME_PAUSED_TIC, (qintptr_t)(pausedduration*1000));
 }
 
 void Q1QVM_DropClient(client_t *cl)

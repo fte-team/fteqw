@@ -769,8 +769,6 @@ void GLDraw_ReInit (void)
 	qbyte    *ncdata;
 	qbyte	*pal;
 	qbyte *tinyfont;
-	extern int		solidskytexture;
-	extern int		alphaskytexture;
 	extern int skyboxtex[6];
 	extern int	*lightmap_textures;
 
@@ -790,8 +788,6 @@ void GLDraw_ReInit (void)
 	Hash_InitTable(&gltexturetable, sizeof(gltexturetablebuckets)/sizeof(gltexturetablebuckets[0]), gltexturetablebuckets);
 
 
-	solidskytexture=0;
-	alphaskytexture=0;
 	skyboxtex[0] = 0; skyboxtex[1] = 0; skyboxtex[2] = 0; skyboxtex[3] = 0; skyboxtex[4] = 0; skyboxtex[5] = 0;
 	lightmap_textures=NULL;
 	filmtexture=0;
@@ -1186,12 +1182,10 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
 	PPL_CreateShaderObjects();
 
+	GL_Warp_Init();
+
 #ifdef PLUGINS
 	Plug_DrawReloadImages();
-#endif
-
-#ifdef AVAIL_FREETYPE
-	conchar_font = Font_LoadFont(16, "C:/Windows/Fonts/cour.ttf");
 #endif
 }
 
@@ -2398,6 +2392,8 @@ void GL_Font_Callback(struct cvar_s *var, char *oldvalue)
 	
 	GL_Smoothfont_Callback(&gl_smoothfont, "");
 	GL_Fontinwardstep_Callback(&gl_fontinwardstep, "");
+
+	GLVID_Console_Resize();
 }
 
 void GL_Conback_Callback(struct cvar_s *var, char *oldvalue)

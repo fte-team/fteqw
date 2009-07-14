@@ -63,7 +63,7 @@ struct vm_s {
 	void *hInst;
 
 // native
-	int (EXPORT_FN *vmMain)(int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);
+	qintptr_t (EXPORT_FN *vmMain)(qintptr_t command, qintptr_t arg0, qintptr_t arg1, qintptr_t arg2, qintptr_t arg3, qintptr_t arg4, qintptr_t arg5, qintptr_t arg6);
 };
 
 #if defined(__MORPHOS__) && I_AM_BIGFOOT
@@ -91,7 +91,6 @@ dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscal
 #ifdef _WIN32
 	sprintf(dllname, "%sx86.dll", name);
 #elif defined(__amd64__)
-	return 0;	//give up early, don't even try going there
 	sprintf(dllname, "%samd.so", name);
 #elif defined(_M_IX86) || defined(__i386__)
 	sprintf(dllname, "%sx86.so", name);
@@ -105,7 +104,7 @@ dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscal
 
 	hVM=NULL;
 	{
-		char name[MAX_OSPATH];
+		char fname[MAX_OSPATH];
 		char *gpath;
 		// run through the search paths
 		gpath = NULL;
@@ -114,10 +113,20 @@ dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscal
 			gpath = COM_NextPath (gpath);
 			if (!gpath)
 				return NULL;		// couldn't find one anywhere
-			snprintf (name, sizeof(name), "%s/%s", gpath, dllname);
 
-			Con_DPrintf("Loading native: %s\n", name);
-			hVM = Sys_LoadLibrary(name, funcs);
+			snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname);
+
+			Con_DPrintf("Loading native: %s\n", fname);
+			hVM = Sys_LoadLibrary(fname, funcs);
+			if (hVM)
+			{
+				break;
+			}
+					
+			snprintf (fname, sizeof(fname), "%s/%s", gpath, name);
+
+			Con_DPrintf("Loading native: %s\n", fname);
+			hVM = Sys_LoadLibrary(fname, funcs);
 			if (hVM)
 			{
 				break;
@@ -1046,25 +1055,39 @@ void *VM_MemoryBase(vm_t *vm)
 	}
 }
 
+/*returns true if we're running a 32bit vm on a 64bit host (in case we need workarounds)*/
+qboolean VM_NonNative(vm_t *vm)
+{
+	switch(vm->type)
+	{
+	case VM_BYTECODE:
+		return sizeof(int) != sizeof(void*);
+	case VM_NATIVE:
+		return false;
+	default:
+		return false;
+	}
+}
+
 /*
 ** VM_Call
 */
-int VARGS VM_Call(vm_t *vm, int instruction, ...)
+qintptr_t VARGS VM_Call(vm_t *vm, qintptr_t instruction, ...)
 {
 	va_list argptr;
-	int arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7;
+	qintptr_t arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7;
 
 	if(!vm) Sys_Error("VM_Call with NULL vm");
 
 	va_start(argptr, instruction);
-	arg0=va_arg(argptr, int);
-	arg1=va_arg(argptr, int);
-	arg2=va_arg(argptr, int);
-	arg3=va_arg(argptr, int);
-	arg4=va_arg(argptr, int);
-	arg5=va_arg(argptr, int);
-	arg6=va_arg(argptr, int);
-	arg7=va_arg(argptr, int);
+	arg0=va_arg(argptr, qintptr_t);
+	arg1=va_arg(argptr, qintptr_t);
+	arg2=va_arg(argptr, qintptr_t);
+	arg3=va_arg(argptr, qintptr_t);
+	arg4=va_arg(argptr, qintptr_t);
+	arg5=va_arg(argptr, qintptr_t);
+	arg6=va_arg(argptr, qintptr_t);
+	arg7=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
 	switch(vm->type)

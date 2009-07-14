@@ -67,6 +67,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define AVAIL_D3D
 #endif
 
+#ifdef _WIN32
+//needs testing on other platforms
+#define AVAIL_FREETYPE
+#endif
+
 #ifdef NO_PNG
 	#undef AVAIL_PNGLIB
 #endif
@@ -81,6 +86,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #if defined(NO_MASM) || !defined(_WIN32)
 	#undef AVAIL_MASM
+#endif
+#if defined(NO_FREETYPE)
+	#undef AVAIL_FREETYPE
 #endif
 
 //#define AVAIL_FREETYPE
@@ -230,6 +238,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HLSERVER
 	#undef WEBSERVER
 	#undef VM_Q1
+#endif
+
+#if defined(SWQUAKE) || defined(GLQUAKE)
+	//not supported in anything but GL. avoid bugs.
+	#undef AVAIL_FREETYPE
 #endif
 
 //remove any options that depend upon GL.

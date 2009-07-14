@@ -145,6 +145,7 @@ void Q1QVM_Blocked(void);
 void Q1QVM_SetNewParms(void);
 void Q1QVM_SetChangeParms(void);
 void Q1QVM_ClientCommand(void);
+void Q1QVM_GameCodePausedTic(float pausedduration);
 void Q1QVM_DropClient(struct client_s *cl);
 void Q1QVM_ChainMoved(void);
 void Q1QVM_EndFrame(void);

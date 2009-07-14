@@ -2,22 +2,38 @@
 #define _VM_H
 
 #ifdef _WIN32
-#define EXPORT_FN __cdecl
+	#define EXPORT_FN __cdecl
 #else
-#define EXPORT_FN
+	#define EXPORT_FN
 #endif
 
+#if __STDC_VERSION__ >= 199901L
+	//C99 has a stdint header which hopefully contains an intptr_t
+	//its optional... but if its not in there then its unlikely you'll actually be able to get the engine to a stage where it *can* load anything
+	#include <stdint.h>
+	#define qintptr_t intptr_t
+#else
+	#if defined(_WIN64)
+		#define qintptr_t __int64
+	#elif defined(_WIN32)
+		#define qintptr_t __int32
+	#else
+		#if __WORDSIZE == 64
+			#define qintptr_t long long
+		#else
+			#define qintptr_t long
+		#endif
+	#endif
+#endif
 
-
-
-typedef int (EXPORT_FN *sys_calldll_t) (int arg, ...);
-typedef int (*sys_callqvm_t) (void *offset, unsigned int mask, int fn, const int *arg);
+typedef qintptr_t (EXPORT_FN *sys_calldll_t) (qintptr_t arg, ...);
+typedef int (*sys_callqvm_t) (void *offset, unsigned qintptr_t mask, int fn, const int *arg);
 
 typedef struct vm_s vm_t;
 
 // for syscall users
-#define VM_LONG(x)		(*(int*)&(x))
-#define VM_FLOAT(x)		(*(float*)&(x))
+#define VM_LONG(x)		(*(int*)&(x))	//note: on 64bit platforms, the later bits can contain junk
+#define VM_FLOAT(x)		(*(float*)&(x))	//note: on 64bit platforms, the later bits can contain junk
 #define VM_POINTER(x)	((x)?(void*)((char *)offset+((x)%mask)):NULL)
 #define VM_OOB(p,l)		(p + l >= mask || VM_POINTER(p) < offset)
 // ------------------------- * interface * -------------------------
@@ -26,7 +42,8 @@ void VM_PrintInfo(vm_t *vm);
 vm_t *VM_Create(vm_t *vm, const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscallqvm);
 void VM_Destroy(vm_t *vm);
 qboolean VM_Restart(vm_t *vm);
-int VARGS VM_Call(vm_t *vm, int instruction, ...);
+qintptr_t VARGS VM_Call(vm_t *vm, qintptr_t instruction, ...);
+qboolean VM_NonNative(vm_t *vm);
 void *VM_MemoryBase(vm_t *vm);
 
 

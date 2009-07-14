@@ -85,7 +85,12 @@ void R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 
 cvar_t r_rockettrail = SCVARFC("r_rockettrail", "1", CVAR_SEMICHEAT, R_Rockettrail_Callback);
 cvar_t r_grenadetrail = SCVARFC("r_grenadetrail", "1", CVAR_SEMICHEAT, R_Grenadetrail_Callback);
+#ifdef MINIMAL
+//minimal builds get a different default.
+cvar_t r_particlesystem = SCVARFC("r_particlesystem", "classic", CVAR_SEMICHEAT, R_ParticleSystem_Callback);
+#else
 cvar_t r_particlesystem = SCVARFC("r_particlesystem", "script", CVAR_SEMICHEAT, R_ParticleSystem_Callback);
+#endif
 cvar_t r_particlesdesc = SCVARF("r_particlesdesc", "spikeset tsshaft", CVAR_SEMICHEAT);
 extern cvar_t r_bouncysparks;
 extern cvar_t r_part_rain;

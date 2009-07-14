@@ -3238,7 +3238,6 @@ void SVQ3_HandleClient(void)
 	SVQ3_ParseClientMessage(&svs.clients[i]);
 }
 
-bannedips_t *SV_BannedAddress (netadr_t *a);
 void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and let the gamecode know of it.
 {
 	//this is only called when running q3 gamecode
@@ -3248,7 +3247,6 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	int ret;
 	int challenge;
 	int qport;
-	bannedips_t *banip;
 	char adr[MAX_ADR_SIZE];
 
 	if (net_message.cursize < 13)
@@ -3265,17 +3263,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	if (!cl)
 		cl = SVQ3_FindEmptyPlayerSlot();
 
-	banip = SV_BannedAddress(&net_from);
-
-	if (banip)
-	{
-		if (banip->reason[0])
-			reason = banip->reason;
-		else
-			reason = "Banned.";
-		userinfo = NULL;
-	}
-	else if (!cl)
+	if (!cl)
 	{
 		reason = "Server is full.";
 		userinfo = NULL;

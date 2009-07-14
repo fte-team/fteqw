@@ -1724,6 +1724,7 @@ void Sbar_DrawScoreboard (void)
 
 	if (deadcount == cl.splitclients && !cl.spectator)
 	{
+#ifndef CLIENTONLY
 		if (sv.state && cls.gamemode == GAME_COOP)
 		{
 			for (pnum = 0; pnum < sv.allocated_client_slots; pnum++)
@@ -1735,6 +1736,7 @@ void Sbar_DrawScoreboard (void)
 			if (pnum == sv.allocated_client_slots)
 				return;
 		}
+#endif
 		if (cl.teamplay > 0 && !sb_showscores)
 			Sbar_TeamOverlay();
 		else

@@ -522,10 +522,14 @@ readnext:
 			cls.td_lastframe = demotime;
 			return 0;		// already read this frame's message
 		}
-		if (!cls.td_starttime && cls.state == ca_active)
+		if (cls.td_startframe == -1 && cls.state == ca_active)
 		{	//start the timer only once we are connected.
 			cls.td_starttime = Sys_DoubleTime();
 			cls.td_startframe = host_framecount;
+
+			//force the console up, we're done loading.
+			key_dest = key_game;
+			scr_con_current = 0;
 		}
 		demtime = demotime; // warp
 	}
@@ -2077,14 +2081,20 @@ void CL_FinishTimeDemo (void)
 
 	cls.timedemo = false;
 
-// the first frame didn't count
-	frames = (host_framecount - cls.td_startframe) - 1;
+	// loading frames don't count
+	if (cls.td_startframe == -1)
+	{
+		Con_Printf ("demo didn't finish loading\n");
+		frames = 0;
+	}
+	else
+		frames = (host_framecount - cls.td_startframe) - 1;
 	time = Sys_DoubleTime() - cls.td_starttime;
 	if (!time)
 		time = 1;
 	Con_Printf ("%i frames %5.1f seconds %5.1f fps\n", frames, time, frames/time);
 
-	Con_Printf("NOTE: times currently depend on load times\n");
+	cls.td_startframe = 0;
 }
 
 /*
@@ -2114,7 +2124,7 @@ void CL_TimeDemo_f (void)
 	
 	cls.timedemo = true;
 	cls.td_starttime = Sys_DoubleTime();
-	cls.td_startframe = host_framecount;
+	cls.td_startframe = -1;
 	cls.td_lastframe = -1;		// get a new message this frame
 }
 

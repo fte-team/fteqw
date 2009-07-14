@@ -314,7 +314,20 @@ void M_Menu_Particles_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
-	extern cvar_t r_bouncysparks, r_part_rain, gl_part_flame;
+	extern cvar_t r_bouncysparks, r_part_rain, gl_part_flame, r_particlesystem;
+
+	char *psystemopts[] =
+	{
+		"fixed/classic(faster)",
+		"scripted",
+		NULL
+	};
+	char *psystemvals[] =
+	{
+		"classic",
+		"script",
+		NULL
+	};
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -339,6 +352,8 @@ void M_Menu_Particles_f (void)
 
 	menu->selecteditem = (union menuoption_s *)
 
+	MC_AddCvarCombo(menu, 16, y,		"       particle system", &r_particlesystem, psystemopts, psystemvals);y+=8;
+	//fixme: hide the rest of the options if r_particlesystem==classic
 	MC_AddConsoleCommand(menu, 16, y,	"   Choose particle set", "menu_particlesets");y+=8;
 	MC_AddCheckBox(menu, 16, y,			"         sparks bounce", &r_bouncysparks,0);y+=8;
 //	MC_AddSlider(menu, 16, y,			"       exp spark count", &r_particles_in_explosion, 16, 1024);y+=8;
@@ -364,20 +379,24 @@ typedef struct {
 } presetinfo_t;
 presetinfo_t preset[] =
 {
+	//default is a reasonable nice look for single player
+	//fast is for competetive deathmatch games (equivelent to the default settings of other quakrworld engines)
+	//286 is an attempt to get the very vest fps possible, if you're crazy
 	{"r_presetname",		{"286",		"fast",		"default",			"nice",				"realtime"}},
 	{"gl_texturemode",		{"nn",		"ln",		"ln",				"ll",				"ll"}},
 	{"r_particlesdesc",		{"none",	"highfps",	"spikeset tsshaft",	"spikeset tsshaft",	"spikeset tsshaft"}},
+	{"r_particlesystem",	{"none",	"classic",	"script",			"script",			"script"}},
 	{"r_stains",			{"0",		"0",		"0.75",				"0.75",				"0.75"}},
 	{"r_drawflat",			{"1",		"0",		"0",				"0",				"0"}},
-	{"r_nolerp",			{"1",		"1",		"0",				"0",				"0"}},
-	{"r_nolightdir",		{"1",		"0",		"0",				"0",				"0"}},
+	{"r_nolerp",			{"1",		"0",		"0",				"0",				"0"}},
+	{"r_nolightdir",		{"1",		"1",		"0",				"0",				"0"}},
 	{"r_dynamic",			{"0",		"0",		"1",				"1",				"1"}},
 	{"r_bloom",				{"0",		"0",		"0",				"0",				"1"}},
 	{"gl_flashblend",		{"0",		"1",		"0",				"1",				"2"}},
 	{"gl_bump",				{"0",		"0",		"0",				"1",				"1"}},
 	{"gl_specular",			{"0",		"0",		"0",				"1",				"1"}},
 	{"r_loadlit",			{"0",		"1",		"1",				"2",				"2"}},
-	{"r_fastsky",			{"1",		"1",		"0",				"0",				"0"}},
+	{"r_fastsky",			{"1",		"0",		"0",				"0",				"0"}},
 	{"r_waterlayers",		{"0",		"2",		"3",				"4",				"4"}},
 	{"r_shadows",			{"0",		"0",		"0",				"1",				"1"}},
 	{"r_shadow_realtime_world",{"0",	"0",		"0",				"0",				"1"}},

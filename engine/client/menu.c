@@ -210,6 +210,14 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 
 int m_save_demonum;
 
+void M_CloseMenu_f (void)
+{
+	if (key_dest != key_menu)
+		return;
+	M_RemoveAllMenus();
+	key_dest = key_game;
+	m_state = m_none;
+}
 /*
 ================
 M_ToggleMenu_f
@@ -989,6 +997,7 @@ void M_Init (void)
 	M_Init_Internal();
 
 	Cmd_AddCommand("togglemenu", M_ToggleMenu_f);
+	Cmd_AddCommand("closemenu", M_CloseMenu_f);
 	Cmd_AddCommand("fps_preset", FPS_Preset_f);
 
 	Cvar_Register(&m_helpismedia, "Menu thingumiebobs");

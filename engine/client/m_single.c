@@ -86,7 +86,7 @@ void M_Menu_Save_f (void)
 
 	for (i=0 ; i< MAX_SAVEGAMES; i++)
 	{
-		op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 32+8*i, m_filenames[i], "savegame s%i\ntogglemenu\n", i);
+		op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 32+8*i, m_filenames[i], "savegame s%i\nclosemenu\n", i);
 		if (!menu->selecteditem)
 			menu->selecteditem = op;
 	}
@@ -111,7 +111,7 @@ void M_Menu_Load_f (void)
 	for (i=0 ; i< MAX_SAVEGAMES; i++)
 	{
 		if (loadable[i])
-			op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 32+8*i, m_filenames[i], "loadgame s%i\ntogglemenu\n", i);
+			op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 32+8*i, m_filenames[i], "loadgame s%i\nclosemenu\n", i);
 		else
 			MC_AddWhiteText(menu, 16, 32+8*i, m_filenames[i], false);
 		if (!menu->selecteditem && op)
@@ -178,9 +178,9 @@ void M_Menu_SinglePlayer_f (void)
 		MC_AddCenterPicture(menu, 0, "gfx/menu/title1.lmp");
 
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommand	(menu, 64, 64,	"Easy",		"togglemenu\nskill 0;deathmatch 0; coop 0;map demo1\n");
-		MC_AddConsoleCommand	(menu, 64, 72,	"Medium",	"togglemenu\nskill 1;deathmatch 0; coop 0;map demo1\n");
-		MC_AddConsoleCommand	(menu, 64, 80,	"Hard",		"togglemenu\nskill 2;deathmatch 0; coop 0;map demo1\n");
+		MC_AddConsoleCommand	(menu, 64, 64,	"Easy",		"closemenu\nskill 0;deathmatch 0; coop 0;map demo1\n");
+		MC_AddConsoleCommand	(menu, 64, 72,	"Medium",	"closemenu\nskill 1;deathmatch 0; coop 0;map demo1\n");
+		MC_AddConsoleCommand	(menu, 64, 80,	"Hard",		"closemenu\nskill 2;deathmatch 0; coop 0;map demo1\n");
 
 		MC_AddConsoleCommand	(menu, 64, 96,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommand	(menu, 64, 104,	"Save Game", "menu_save\n");
@@ -198,7 +198,7 @@ void M_Menu_SinglePlayer_f (void)
 		MC_AddCenterPicture(menu, 0, "gfx/p_option.lmp");
 
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",		"togglemenu\nmaxclients 1;deathmatch 0;coop 0;map start\n");
+		MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",		"closemenu\nmaxclients 1;deathmatch 0;coop 0;map start\n");
 		MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"Save Game", "menu_save\n");
 
@@ -230,7 +230,7 @@ void M_Menu_SinglePlayer_f (void)
 #else
 	MC_AddPicture(menu, 72, 32, "gfx/sp_menu.lmp");
 	
-	b = MC_AddConsoleCommand	(menu, 16, 32,	"", "togglemenu\nmaxclients 1;deathmatch 0;coop 0;map start\n");
+	b = MC_AddConsoleCommand	(menu, 16, 32,	"", "closemenu\nmaxclients 1;deathmatch 0;coop 0;map start\n");
 	menu->selecteditem = (menuoption_t *)b;
 	b->common.width = p->width;
 	b->common.height = 20;
@@ -613,7 +613,7 @@ void M_Menu_ParticleSets_f (void)
 	menu->remove = M_Demo_Remove;
 	info = menu->data;
 
-	info->command[0] = "r_particlesdesc";
+	info->command[0] = "r_particlesystem script; r_particlesdesc";
 	info->ext[0] = ".cfg";
 	info->numext = 1;
 

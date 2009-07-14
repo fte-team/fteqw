@@ -1724,6 +1724,17 @@ void Sbar_DrawScoreboard (void)
 
 	if (deadcount == cl.splitclients && !cl.spectator)
 	{
+		if (sv.state && cls.gamemode == GAME_COOP)
+		{
+			for (pnum = 0; pnum < sv.allocated_client_slots; pnum++)
+			{
+				if (svs.clients[pnum].state)
+					if (svs.clients[pnum].netchan.remote_address.type != NA_LOOPBACK)
+						break;
+			}
+			if (pnum == sv.allocated_client_slots)
+				return;
+		}
 		if (cl.teamplay > 0 && !sb_showscores)
 			Sbar_TeamOverlay();
 		else

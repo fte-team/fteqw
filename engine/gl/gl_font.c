@@ -3,7 +3,6 @@
 #ifdef AVAIL_FREETYPE
 #include "glquake.h"
 
-#pragma comment(lib, "../libs/freetype2/objs/freetype239.lib")
 #include <ft2build.h>
 #include FT_FREETYPE_H 
 
@@ -23,6 +22,13 @@ static FT_Library fontlib;
 #define GEN_CONCHAR_GLYPHS 0	//set to 0 or 1 to define whether to generate glyphs from conchars too, or if it should just draw them as glquake always used to
 extern cvar_t cl_noblink;
 
+qboolean triedtoloadfreetype;
+dllhandle_t *fontmodule;
+FT_Error (VARGS *pFT_Init_FreeType)		(FT_Library  *alibrary);
+FT_Error (VARGS *pFT_Load_Char)			(FT_Face face, FT_ULong char_code, FT_Int32 load_flags);
+FT_Error (VARGS *pFT_Set_Pixel_Sizes)	(FT_Face face, FT_UInt pixel_width, FT_UInt pixel_height);
+FT_Error (VARGS *pFT_New_Face)			(FT_Library library, const char *pathname, FT_Long face_index, FT_Face *aface);
+FT_Error (VARGS *pFT_Done_Face)			(FT_Face face);
 
 
 typedef struct font_s
@@ -228,7 +234,121 @@ struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 	}
 #endif
 
-	if (FT_Load_Char(f->face, charidx, FT_LOAD_RENDER))
+	if (charidx >= 0xe100 && charidx <= 0xe1ff)
+	{
+		static const char *imgs[] =
+		{
+			"inv_shotgun",
+			"inv_sshotgun",
+			"inv_nailgun",
+			"inv_snailgun",
+			"inv_rlaunch",
+			"inv_srlaunch",
+			"inv_lightng",
+
+			"inv2_shotgun",
+			"inv2_sshotgun",
+			"inv2_nailgun",
+			"inv2_snailgun",
+			"inv2_rlaunch",
+			"inv2_srlaunch",
+			"inv2_lightng",
+
+			"sb_shells",
+			"sb_nails",
+			"sb_rocket",
+			"sb_cells",
+
+			"sb_armor1",
+			"sb_armor2",
+			"sb_armor3",
+
+			"sb_key1",
+			"sb_key2",
+			"sb_invis",
+			"sb_invuln",
+			"sb_suit",
+			"sb_quad",
+
+			"sb_sigil1",
+			"sb_sigil2",
+			"sb_sigil3",
+			"sb_sigil4",
+
+			"face1",
+			"face_p1",
+			"face2",
+			"face_p2",
+			"face3",
+			"face_p3",
+			"face4",
+			"face_p4",
+			"face5",
+			"face_p5",
+
+			"face_invis",
+			"face_invul2",
+			"face_inv2",
+			"face_quad"
+		};
+		qpic_t *wadimg;
+		unsigned char *src;
+		unsigned int img[64*64];
+		int nw, nh;
+		int x, y;
+		unsigned int stepx, stepy;
+		unsigned int srcx, srcy;
+
+		if (charidx-0xe100 >= sizeof(imgs)/sizeof(imgs[0]))
+			wadimg = NULL;
+		else
+			wadimg = W_SafeGetLumpName(imgs[charidx-0xe100]);
+		if (wadimg)
+		{
+			nh = wadimg->height;
+			nw = wadimg->width;
+			while (nh < f->charheight)
+			{
+				nh *= 2;
+				nw *= 2;
+			}
+			if (nh > f->charheight)
+			{
+				nw = (nw * f->charheight)/nh;
+				nh = f->charheight;
+			}
+			stepy = 0x10000*((float)wadimg->height/nh);
+			stepx = 0x10000*((float)wadimg->width/nw);
+			if (nh > 64)
+				nh = 64;
+			if (nw > 64)
+				nw = 64;
+			srcy = 0;
+			for (y = 0; y < nh; y++)
+			{
+				src = (unsigned char *)(wadimg->data);
+				src += wadimg->width * (srcy>>16);
+				srcy += stepy;
+				srcx = 0;
+				for (x = 0; x < nw; x++)
+				{
+					img[x+y*64] = d_8to24rgbtable[src[srcx>>16]];
+					srcx += stepx;
+				}
+			}
+
+			c = Font_LoadGlyphData(f, charidx, false, img, nw, nh, 64);
+			if (c)
+			{
+				c->left = 0;
+				c->top = f->charheight - (f->charheight - nh) - 1;
+				c->advance = nw;
+				return c;
+			}
+		}
+	}
+
+	if (pFT_Load_Char(f->face, charidx, FT_LOAD_RENDER))
 		return NULL;
 
 	slot = f->face->glyph;
@@ -251,19 +371,36 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 	FT_Face face;
 	int error;
 	if (!fontlib)
-	{		
-		error = FT_Init_FreeType(&fontlib);
+	{
+		dllfunction_t ft2funcs[] =
+		{
+			{(void**)&pFT_Init_FreeType, "FT_Init_FreeType"},
+			{(void**)&pFT_Load_Char, "FT_Load_Char"},
+			{(void**)&pFT_Set_Pixel_Sizes, "FT_Set_Pixel_Sizes"},
+			{(void**)&pFT_New_Face, "FT_New_Face"},
+			{(void**)&pFT_Init_FreeType, "FT_Init_FreeType"},
+			{(void**)&pFT_Done_Face, "FT_Done_Face"},
+			{NULL, NULL}
+		};
+		if (triedtoloadfreetype)
+			return NULL;
+		triedtoloadfreetype = true;
+
+		fontmodule = Sys_LoadLibrary("freetype6", ft2funcs);
+		if (!fontmodule)
+			return NULL;
+		error = pFT_Init_FreeType(&fontlib);
 		if (error)
 			return NULL;
 	}
 
 	//fixme: use FT_Open_Face eventually
-	if (FT_New_Face(fontlib, fontfilename, 0, &face))
+	if (pFT_New_Face(fontlib, fontfilename, 0, &face))
 	{
 		return NULL;
 	}
 
-	error = FT_Set_Pixel_Sizes(face, 0, height);
+	error = pFT_Set_Pixel_Sizes(face, 0, height);
 	if (error)
 	{
 		return NULL;
@@ -273,10 +410,12 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 	memset(f, 0, sizeof(*f));
 	f->face = face;
 	f->charheight = height;
-	fontplanes.texnum[0] = GL_AllocNewTexture();
-	fontplanes.texnum[1] = GL_AllocNewTexture();
-	fontplanes.texnum[2] = GL_AllocNewTexture();
-	fontplanes.texnum[3] = GL_AllocNewTexture();
+
+	for (i = 0; i < FONTPLANES; i++)
+	{
+		if (!fontplanes.texnum[i])
+			fontplanes.texnum[i] = GL_AllocNewTexture();
+	}
 
 	for (i = 0; i < FONTCHARS; i++)
 	{
@@ -287,7 +426,20 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 
 void Font_Free(struct font_s *f)
 {
-	FT_Done_Face(f->face);
+	struct charcache_s **link;
+	for (link = &fontplanes.oldestchar; *link; )
+	{
+		if (*link >= f->chars && *link <= f->chars + FONTCHARS)
+		{
+			*link = (*link)->nextchar;
+			if (!*link)
+				fontplanes.newestchar = NULL;
+		}
+		else
+			link = &(*link)->nextchar;
+	}
+
+	pFT_Done_Face(f->face);
 	free(f);
 }
 
@@ -297,7 +449,7 @@ void GLFont_BeginString(struct font_s *font, int vx, int vy, int *px, int *py)
 	*py = (vy*glheight) / (float)vid.height;
 }
 
-int GLFont_CharHeight(struct font_s *font, unsigned int charcode)
+int GLFont_CharHeight(struct font_s *font)
 {
 	if (!font)
 		return 8;

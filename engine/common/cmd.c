@@ -1928,6 +1928,8 @@ void	Cmd_ExecuteString (char *text, int level)
 				if (UI_Command())
 					return;
 #endif
+				if (Cmd_AliasExist(cmd_argv[0], level))
+					break;	//server stuffed an alias for a command that it would already have received. use that instead.
 				Cmd_ForwardToServer ();
 			}
 			else

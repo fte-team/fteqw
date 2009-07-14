@@ -900,7 +900,7 @@ void Con_DrawNotify (void)
 		if (t > con_notifytime.value)
 			break;
 
-		line = Con_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, Font_ScreenWidth(conchar_font), lines, starts, ends);
+		line = Con_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, Font_ScreenWidth(), lines, starts, ends);
 		if (!line && lines > 0)
 		{
 			lines--;
@@ -926,14 +926,14 @@ void Con_DrawNotify (void)
 		{
 			for (c = starts[lines]; c < ends[lines]; c++)
 			{
-				x += Font_CharWidth(conchar_font, *c);
+				x += Font_CharWidth(*c);
 			}
 			x = (vid.width - x) / 2;
 		}
 		for (c = starts[lines]; c < ends[lines]; c++)
 			x = Font_DrawChar(x, y, *c);
 
-		y += Font_CharHeight(conchar_font);
+		y += Font_CharHeight();
 
 		lines++;
 	}

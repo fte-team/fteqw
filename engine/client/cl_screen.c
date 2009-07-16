@@ -976,23 +976,6 @@ void SCR_CalcRefdef (void)
 
 //	r_refdef.vrect.height/=2;
 
-#ifdef SWQUAKE
-	if (qrenderer == QR_SOFTWARE)
-	{
-
-		R_SetVrect (&r_refdef.vrect, &scr_vrect, sb_lines);
-
-	// guard against going from one mode to another that's less than half the
-	// vertical resolution
-		if (scr_con_current > vid.height)
-			scr_con_current = vid.height;
-
-	// notify the refresh of the change
-		SWR_ViewChanged (&r_refdef.vrect, sb_lines, vid.aspect);
-	}
-#endif
-
-
 	scr_vrect = r_refdef.vrect;
 }
 
@@ -1120,9 +1103,6 @@ SCR_DrawRam
 void SCR_DrawRam (void)
 {
 	if (!scr_showram.value || !scr_ram)
-		return;
-
-	if (!r_cache_thrash)
 		return;
 
 	Draw_Pic (scr_vrect.x+32, scr_vrect.y, scr_ram);
@@ -1652,21 +1632,10 @@ void SCR_SetUpToDrawConsole (void)
 
 	if (clearconsole++ < vid.numpages)
 	{
-		if (qrenderer == QR_SOFTWARE &&	!Media_PlayingFullScreen())
-		{
-			scr_copytop = 1;
-			Draw_TileClear (0, (int) scr_con_current, vid.width, vid.height - (int) scr_con_current);
-		}
-
 		Sbar_Changed ();
 	}
 	else if (clearnotify++ < vid.numpages)
 	{
-		if (qrenderer == QR_SOFTWARE &&	!Media_PlayingFullScreen())
-		{
-			scr_copytop = 1;
-			Draw_TileClear (0, 0, vid.width, con_notifylines);
-		}
 	}
 	else
 		con_notifylines = 0;
@@ -2157,29 +2126,8 @@ void SCR_TileClear (void)
 	if (cl.splitclients>1)
 		return;	//splitclients always takes the entire screen.
 
-	if (qrenderer == QR_SOFTWARE)
-	{
-		if (scr_fullupdate++ < vid.numpages)
-		{	// clear the entire screen
-			scr_copyeverything = 1;
-			Draw_TileClear (0, 0, vid.width, vid.height);
-			Sbar_Changed ();
-		}
-		else
-		{
-			if (scr_viewsize.value < 100)
-			{
-				int x, y;
-				x = vid.width - 10 * 8 - 8;
-				y = vid.height - sb_lines - 8;
-				// clear background for counters
-				if (show_fps.value)
-					Draw_TileClear(x, y, 10 * 8, 8);
-			}
-		}
-	}
 #ifdef PLUGINS
-	else if (plug_sbar.value)
+	if (plug_sbar.value)
 	{
 		if (scr_vrect.x > 0)
 		{
@@ -2203,8 +2151,8 @@ void SCR_TileClear (void)
 				vid.height);
 		}
 	}
-#endif
 	else
+#endif
 	{
 		if (scr_vrect.x > 0)
 		{

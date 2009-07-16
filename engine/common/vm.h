@@ -12,7 +12,6 @@
 	//its optional... but if its not in there then its unlikely you'll actually be able to get the engine to a stage where it *can* load anything
 	#include <stdint.h>
 	#define qintptr_t intptr_t
-	#define quintptr_t uintptr_t
 #else
 	#if defined(_WIN64)
 		#define qintptr_t __int64
@@ -25,11 +24,10 @@
 			#define qintptr_t long
 		#endif
 	#endif
-	#define quintptr_t unsigned qintptr_t
 #endif
 
 typedef qintptr_t (EXPORT_FN *sys_calldll_t) (qintptr_t arg, ...);
-typedef int (*sys_callqvm_t) (void *offset, quintptr_t mask, int fn, const int *arg);
+typedef int (*sys_callqvm_t) (void *offset, unsigned qintptr_t mask, int fn, const int *arg);
 
 typedef struct vm_s vm_t;
 

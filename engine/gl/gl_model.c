@@ -43,13 +43,8 @@ extern cvar_t r_replacemodels;
 extern int gl_bumpmappingpossible;
 qboolean isnotmap = true;	//used to not warp ammo models.
 
-#ifndef SWQUAKE
 model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
-#else
-extern model_t	*loadmodel;
-extern char	loadname[32];	// for hunk tags
-#endif
 
 void CM_Init(void);
 
@@ -72,14 +67,8 @@ void GLMod_LoadDoomSprite (model_t *mod);
 #endif
 
 #define	MAX_MOD_KNOWN	2048
-#ifndef SWQUAKE
 model_t	mod_known[MAX_MOD_KNOWN];
 int		mod_numknown;
-#else
-
-extern model_t	mod_known[MAX_MOD_KNOWN];
-extern int		mod_numknown;
-#endif
 
 extern cvar_t r_loadlits;
 #ifdef SPECULAR
@@ -731,11 +720,7 @@ model_t *GLMod_ForName (char *name, qboolean crash)
 ===============================================================================
 */
 
-#ifdef SWQUAKE
-extern qbyte	*mod_base;
-#else
 qbyte	*mod_base;
-#endif
 
 char *advtexturedesc;
 char *mapsection;

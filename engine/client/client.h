@@ -161,10 +161,6 @@ typedef struct player_info_s
 	unsigned int		ttopcolor;	//team, according to colour forcing
 	unsigned int		tbottomcolor;
 
-#ifdef SWQUAKE
-	struct palremap_s *palremap;
-#endif
-
 	int		spectator;
 	skin_t	*skin;
 

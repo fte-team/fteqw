@@ -227,18 +227,8 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		return out;
 
 	// TODO: we build a fullbright remap.. can we get rid of this?
-#ifdef SWQUAKE
-	if (qrenderer == QR_SOFTWARE && r_pixbytes == 1 && cls.allow_fbskins<0.2)	//only time FB has to exist... (gl can be disabled)
-	{
-		for (x = 0; x < vid.fullbright; x++)
-			fbremap[x] = GetPaletteIndex(host_basepal[((x+256-vid.fullbright)*3)], host_basepal[((x+256-vid.fullbright)*3)+1], host_basepal[((x+256-vid.fullbright)*3)+2]);
-	}
-	else
-#endif
-	{
-		for (x = 0; x < vid.fullbright; x++)
-			fbremap[x] = x + (256-vid.fullbright);	//fullbrights don't exist, so don't loose palette info.
-	}
+	for (x = 0; x < vid.fullbright; x++)
+		fbremap[x] = x + (256-vid.fullbright);	//fullbrights don't exist, so don't loose palette info.
 
 //
 // load the pic from disk
@@ -327,16 +317,8 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		Con_Printf ("Bad skin %s (unsupported size)\n", name);
 		return NULL;
 	}
-	if (qrenderer == QR_SOFTWARE)
-	{//biggest size possible, by the way
-		skin->width = 320;
-		skin->height = 200;
-	}
-	else
-	{
-		skin->width = srcw;
-		skin->height = srch;
-	}
+	skin->width = srcw;
+	skin->height = srch;
 
 	out = Cache_Alloc (&skin->cache, skin->width*skin->height, skin->name);
 	if (!out)

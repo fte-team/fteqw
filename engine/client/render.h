@@ -107,9 +107,6 @@ typedef struct entity_s
 	int drawflags;
 	int abslight;
 #endif
-#ifdef SWQUAKE
-	struct palremap_s		*palremap;
-#endif
 } entity_t;
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!
@@ -150,13 +147,6 @@ typedef struct
 
 	qboolean	useperspective;
 } refdef_t;
-
-
-//
-// refresh
-//
-extern	int		reinit_surfcache;
-
 
 extern	refdef_t	r_refdef;
 extern vec3_t	r_origin, vpn, vright, vup;
@@ -205,62 +195,9 @@ int GLR_LightPoint (vec3_t p);
 #endif
 
 
-
-
-
-#if defined(SWQUAKE)
-void SWR_Init (void);
-void SWR_InitTextures (void);
-void SWR_InitEfrags (void);
-void SWR_RenderView (void);		// must set r_refdef first
-void SWR_ViewChanged (vrect_t *pvrect, int lineadj, float aspect);
-								// called whenever r_refdef or vid change
-void SWR_InitSky (struct texture_s *mt);	// called at level load
-void SWR_SetSky (char *name, float rotate, vec3_t axis);
-qboolean SWR_CheckSky(void);
-
-void SWR_AddEfrags (entity_t *ent);
-void SWR_RemoveEfrags (entity_t *ent);
-
-void SWR_NewMap (void);
-
-void SWR_PushDlights (void);
-
-void SWR_AddStain(vec3_t org, float red, float green, float blue, float radius);
-void SWR_LessenStains(void);
-
-void MediaSW_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette);
-void MediaSW_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight);	//top down
-void MediaSW_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
-
-void SWR_SetSky (char *name, float rotate, vec3_t axis);
-qboolean SWR_CheckSky(void);
-void SWR_AddStain(vec3_t org, float red, float green, float blue, float radius);
-void SWR_LessenStains(void);
-
-void SWVID_Shutdown (void);
-void SWR_DeInit (void);
-void SWSCR_DeInit (void);
-
-int SWR_LightPoint (vec3_t p);
-#endif
-
 void R_AddEfrags (entity_t *ent);
 void R_RemoveEfrags (entity_t *ent);
 
-//
-// surface cache related
-//
-extern	int		reinit_surfcache;	// if 1, surface cache is currently empty and
-extern qboolean	r_cache_thrash;	// set if thrashing the surface cache
-
-int	D_SurfaceCacheForRes (int width, int height, int bpp);
-void D_FlushCaches (void);
-void D_DeleteSurfaceCache (void);
-void D_InitCaches (void *buffer, int size);
-void R_SetVrect (vrect_t *pvrect, vrect_t *pvrectin, int lineadj);
-
-struct palremap_s *D_IdentityRemap(void);
 
 //normalmaps
 //bumpmaps
@@ -400,21 +337,6 @@ void GLR_WipeStains(void);
 void GLR_LoadSkys (void);
 #endif
 
-#if defined(SWQUAKE)
-
-void	SWMod_Init (void);
-void	SWMod_ClearAll (void);
-struct model_s *SWMod_ForName (char *name, qboolean crash);
-struct model_s *SWMod_FindName (char *name);
-void	*SWMod_Extradata (struct model_s *mod);	// handles caching
-void	SWMod_TouchModel (char *name);
-
-struct mleaf_s *SWMod_PointInLeaf (struct model_s *model, float *p);
-
-void SWMod_Think (void);
-void SWMod_NowLoadExternal(void);
-#endif
-
 extern struct model_s		*currentmodel;
 
 qboolean Media_ShowFilm(void);
@@ -462,7 +384,6 @@ void R_RestartRenderer_f (void);//this goes here so we can save some stack when 
 
 //used to live in glquake.h
 qbyte GetPaletteIndex(int red, int green, int blue);
-qbyte GetPaletteNoFB(int red, int green, int blue);
 extern	cvar_t	r_norefresh;
 extern	cvar_t	r_drawentities;
 extern	cvar_t	r_drawworld;

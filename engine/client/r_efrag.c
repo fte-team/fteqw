@@ -20,9 +20,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_efrag.c
 
 #include "quakedef.h"
-#ifdef SWQUAKE
-#include "r_local.h"
-#endif
 
 extern int			r_framecount;
 
@@ -167,46 +164,6 @@ void R_Q1Q2BSP_SplitEntityOnNode (mnode_t *node)
 	if (sides & 2)
 		R_Q1Q2BSP_SplitEntityOnNode (node->children[1]);
 }
-
-#ifdef SWQUAKE
-/*
-===================
-R_SplitEntityOnNode2
-===================
-*/
-void R_Q1BSP_SplitEntityOnNode2 (mnode_t *node)
-{
-	mplane_t	*splitplane;
-	int			sides;
-
-	if (node->visframe != r_visframecount)
-		return;
-
-	if (node->contents < 0)
-	{
-		if (node->contents != Q1CONTENTS_SOLID)
-			r_pefragtopnode = node; // we've reached a non-solid leaf, so it's
-									//  visible and not BSP clipped
-		return;
-	}
-
-	splitplane = node->plane;
-	sides = BOX_ON_PLANE_SIDE(r_emins, r_emaxs, splitplane);
-
-	if (sides == 3)
-	{
-	// remember first splitter
-		r_pefragtopnode = node;
-		return;
-	}
-
-// not split yet; recurse down the contacted side
-	if (sides & 1)
-		R_Q1BSP_SplitEntityOnNode2 (node->children[0]);
-	else
-		R_Q1BSP_SplitEntityOnNode2 (node->children[1]);
-}
-#endif
 
 /*
 ===========

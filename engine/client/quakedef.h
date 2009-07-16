@@ -157,10 +157,6 @@ extern "C" {
 //#include "model.h"
 //#endif
 
-#if defined(SWQUAKE)
-#include "d_iface.h"
-#endif
-
 #ifdef PEXT_BULLETENS
 #include "r_bulleten.h"
 #endif

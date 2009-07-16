@@ -967,7 +967,6 @@ void CL_ClearState (void)
 	{
 		if (serverrunning)
 			SV_UnspawnServer();
-		D_FlushCaches ();
 		Mod_ClearAll ();
 
 		if (host_hunklevel)	// FIXME: check this...

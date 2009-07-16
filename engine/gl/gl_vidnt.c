@@ -104,7 +104,6 @@ BOOL bSetupPixelFormat(HDC hDC);
 qboolean VID_SetWindowedMode (rendererstate_t *info);	//-1 on bpp or hz for default.
 qboolean VID_SetFullDIBMode (rendererstate_t *info);	//-1 on bpp or hz for default.
 
-qboolean		DDActive;
 qboolean		scr_skipupdate;
 
 static DEVMODE	gdevmode;
@@ -118,10 +117,7 @@ extern qboolean vid_isfullscreen;
 
 unsigned short originalgammaramps[3][256];
 
-#ifdef SWQUAKE
-extern
-#endif
-		qboolean vid_initializing;
+qboolean vid_initializing;
 
 qboolean VID_AttachGL (rendererstate_t *info);
 

@@ -46,8 +46,6 @@ FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 
 entity_t	r_worldentity;
 
-qboolean	r_cache_thrash;		// compatability
-
 vec3_t		modelorg, r_entorigin;
 entity_t	*currententity;
 
@@ -977,8 +975,6 @@ void GLR_SetupFrame (void)
 			V_SetContentsColor (r_viewleaf->contents);
 	}
 	GLV_CalcBlend ();
-
-	r_cache_thrash = false;
 
 	c_brush_polys = 0;
 	c_alias_polys = 0;

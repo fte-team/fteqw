@@ -104,7 +104,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 
 	#define SVRANKING
-	#define SWSTAINS
 
 	#ifdef MINIMAL
 		#define CL_MASTER		//this is useful
@@ -240,14 +239,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef VM_Q1
 #endif
 
-#if defined(SWQUAKE) || defined(GLQUAKE)
+#if defined(GLQUAKE)
 	//not supported in anything but GL. avoid bugs.
 	#undef AVAIL_FREETYPE
 #endif
 
 //remove any options that depend upon GL.
 #ifndef SERVERONLY
-	#if defined(SWQUAKE) && !defined(GLQUAKE)
+	#if !defined(GLQUAKE)
 		#undef DOOMWADS
 		#undef HALFLIFEMODELS
 		#undef Q3BSPS

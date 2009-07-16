@@ -1204,9 +1204,6 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 			VM_LONG(ret) = sizeof(vidinfo_t);
 			vi->width = vid.width;
 			vi->height = vid.height;
-#ifdef SWQUAKE
-			vi->bpp = r_pixbytes;
-#endif
 			vi->refreshrate = 60;
 			vi->fullscreen = 1;
 			Q_strncpyz(vi->renderername, q_renderername, sizeof(vi->renderername));

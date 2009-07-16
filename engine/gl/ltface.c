@@ -1,7 +1,5 @@
 #include "quakedef.h"
 
-#if defined(D3DQUAKE) || defined(RGLQUAKE) || (!defined(RGLQUAKE) && !defined(SWQUAKE))
-
 #ifdef RUNTIMELIGHTING
 #if defined(RGLQUAKE) || defined(D3DQUAKE)
 
@@ -945,7 +943,5 @@ void LightFace (int surfnum)
 		}
 	}
 }
-
-#endif
 
 #endif

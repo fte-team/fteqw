@@ -310,9 +310,6 @@ typedef struct msurface_s
 	int			firstedge;	// look up in model->surfedges[], negative numbers
 	int			numedges;	// are backwards edges
 
-#ifdef SWQUAKE
-	struct surfcache_s	*cachespots[MIPLEVELS];
-#endif
 	struct	msurface_s	*nextalphasurface;
 	
 	short		texturemins[2];
@@ -464,14 +461,6 @@ SPRITE MODELS
 typedef struct mspriteframe_s
 {
 	float	up, down, left, right;
-/*
-	int		width;
-	int		height;
-	int		gl_texturenum;
-#ifdef SWQUAKE
-	qbyte	pixels[4];
-#endif
-	*/
 	mpic_t p;
 } mspriteframe_t;
 
@@ -518,9 +507,6 @@ typedef struct {
 
 typedef struct
 {
-#ifdef SWQUAKE
-	aliasframetype_t	type;
-#endif
 	int					firstpose;
 	int					numposes;
 	float				interval;
@@ -574,11 +560,6 @@ typedef struct {
 	synctype_t	synctype;
 	int			flags;
 	float		size;
-#ifdef SWQUAKE
-	int					model;
-	int					stverts;
-	int					skindesc;
-#endif
 	int					numposes;
 	int					poseverts;
 	int					posedata;	// numposes*poseverts trivert_t

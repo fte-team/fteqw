@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // a pixel can be one, two, or four bytes
 typedef qbyte pixel_t;
 
-typedef enum {QR_NONE, QR_SOFTWARE, QR_OPENGL, QR_DIRECT3D} r_qrenderer_t;
+typedef enum {QR_NONE, QR_OPENGL, QR_DIRECT3D} r_qrenderer_t;
 
 typedef struct {
 	//you are not allowed to make anything not work if it's not based on these vars...
@@ -112,33 +112,4 @@ void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height);
 void GLD_EndDirectRect (int x, int y, int width, int height);
 char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight);
 void GLVID_SetCaption(char *caption);
-#endif
-
-#ifdef SWQUAKE
-void	SWVID_SetPalette (unsigned char *palette);
-// called at startup and after any gamma correction
-
-void	SWVID_ShiftPalette (unsigned char *palette);
-// called for bonus and pain flashes, and for underwater color changes
-
-qboolean SWVID_Init (rendererstate_t *info, unsigned char *palette);
-// Called at startup to set up translation tables, takes 256 8 bit RGB values
-// the palette data will go away after the call, so it must be copied off if
-// the video driver will need it again
-
-void	SWVID_Shutdown (void);
-// Called at shutdown
-
-void	SWVID_Update (vrect_t *rects);
-// flushes the given rectangles from the view buffer to the screen
-
-void SWVID_LockBuffer (void);
-void SWVID_UnlockBuffer (void);
-
-int SWVID_ForceUnlockedAndReturnState (void);
-void SWVID_ForceLockState (int lk);
-
-char *SWVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight);
-
-void SWVID_SetCaption(char *caption);
 #endif

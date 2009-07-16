@@ -201,7 +201,6 @@ texture_t *R_TextureAnimation (texture_t *base);
 
 
 extern	entity_t	r_worldentity;
-extern	qboolean	r_cache_thrash;		// compatability
 extern	vec3_t		modelorg, r_entorigin;
 extern	entity_t	*currententity;
 extern	int			r_visframecount;	// ??? what difs?
@@ -872,75 +871,6 @@ void GL_Init(void *(*getglfunction) (char *name));
 
 qbyte GetPaletteIndex(int red, int green, int blue);
 int Mod_ReadFlagsFromMD1(char *name, int md3version);
-
-
-
-
-
-#ifdef SWQUAKE
-
-
-#define	CYCLE			128		// turbulent cycle size
-extern int r_pixbytes;
-
-#define WARP_WIDTH		320
-#define WARP_HEIGHT		200
-
-extern cvar_t   d_palconvwrite;
-extern cvar_t	d_palremapsize;
-
-extern cvar_t	r_drawflat;
-extern int		d_spanpixcount;
-extern int		r_framecount;		// sequence # of current frame since Quake
-									//  started
-extern qboolean	r_drawpolys;		// 1 if driver wants clipped polygons
-									//  rather than a span list
-extern qboolean	r_drawculledpolys;	// 1 if driver wants clipped polygons that
-									//  have been culled by the edge list
-extern qboolean	r_worldpolysbacktofront;	// 1 if driver wants polygons
-											//  delivered back to front rather
-											//  than front to back
-extern qboolean	r_recursiveaffinetriangles;	// true if a driver wants to use
-											//  recursive triangular subdivison
-											//  and vertex drawing via
-											//  D_PolysetDrawFinalVerts() past
-											//  a certain distance (normally
-											//  only used by the software
-											//  driver)
-extern float	r_aliasuvscale;		// scale-up factor for screen u and v
-									//  on Alias vertices passed to driver
-extern int		r_pixbytes;
-extern qboolean	r_dowarp;
-
-/*extern affinetridesc_t	r_affinetridesc;
-extern spritedesc_t		r_spritedesc;
-extern zpointdesc_t		r_zpointdesc;
-extern polydesc_t		r_polydesc;
-*/
-extern int		d_con_indirect;	// if 0, Quake will draw console directly
-								//  to vid.buffer; if 1, Quake will
-								//  draw console via D_DrawRect. Must be
-								//  defined by driver
-
-extern vec3_t	r_pright, r_pup, r_ppn;
-
-
-
-
-extern	float	xscaleshrink, yscaleshrink;
-#endif
-
-
-
-
-
-
-
-
-
-
-
-
 
 /*
 //opengl 3 deprecation

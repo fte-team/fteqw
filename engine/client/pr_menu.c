@@ -365,20 +365,7 @@ void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (Draw_ImageColours)
 		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	if (Draw_Image)
-	{
-		if (qrenderer == QR_SOFTWARE)
-		{
-			extern cvar_t vid_conwidth, vid_conheight;
-			float xratio, yratio;
-			// this has to be done this way because CSQC drawing needs
-			// to respect these cvars
-			xratio = vid.width / vid_conwidth.value;
-			yratio = vid.height / vid_conheight.value;
-			Draw_Image(pos[0]*xratio, pos[1]*yratio, size[0]*xratio, size[1]*yratio, fcol, frow, fcol+fsize, frow+fsize, Draw_CachePic("conchars"));
-		}
-		else
-			Draw_Image(pos[0], pos[1], size[0], size[1], fcol, frow, fcol+fsize, frow+fsize, Draw_CachePic("conchars"));
-	}
+		Draw_Image(pos[0], pos[1], size[0], size[1], fcol, frow, fcol+fsize, frow+fsize, Draw_CachePic("conchars"));
 
 	G_FLOAT(OFS_RETURN) = 1;
 }

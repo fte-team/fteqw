@@ -29,9 +29,6 @@ The engine has a few builtins.
 
 #ifdef PSET_SCRIPT
 
-#ifdef SWQUAKE
-#include "r_local.h"
-#endif
 #ifdef RGLQUAKE
 #include "glquake.h"//hack
 #endif
@@ -54,18 +51,6 @@ static int pe_default = P_INVALID;
 static int pe_size2 = P_INVALID;
 static int pe_size3 = P_INVALID;
 static int pe_defaulttrail = P_INVALID;
-
-static float psintable[64];
-
-static void buildsintable(void)
-{
-	int i;
-	for (i = 0; i < 64; i++)
-		psintable[i] = sin((i*M_PI)/32);
-}
-#define sin(x) (psintable[(int)(x*(64/M_PI)) & 63])
-#define cos(x) (psintable[((int)(x*(64/M_PI)) + 16) & 63])
-
 
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
 typedef struct particle_s
@@ -1319,8 +1304,6 @@ static void PScript_InitParticles (void)
 
 	if (r_numparticles)	//already inited
 		return;
-
-	buildsintable();
 
 	i = COM_CheckParm ("-particles");
 
@@ -3216,18 +3199,13 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 	{
 		p = *plist++;
 
-		if (type->scalefactor == 1)
-		{
-			scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
-				+ (p->org[2] - r_origin[2])*vpn[2];
-			scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
-			if (scale < 20)
-				scale = 0.25;
-			else
-				scale = 0.25 + scale * 0.001;
-		}
+		scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
+			+ (p->org[2] - r_origin[2])*vpn[2];
+		scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
+		if (scale < 20)
+			scale = 0.25;
 		else
-			scale = 1;
+			scale = 0.25 + scale * 0.001;
 
 		qglColor4f (p->rgb[0],
 					p->rgb[1],
@@ -3238,27 +3216,20 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 		{
 			x = sin(p->angle)*scale;
 			y = cos(p->angle)*scale;
-
-			qglTexCoord2f(p->s1,p->t1);
-			qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-			qglTexCoord2f(p->s1,p->t2);
-			qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
-			qglTexCoord2f(p->s2,p->t2);
-			qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-			qglTexCoord2f(p->s2,p->t1);
-			qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
 		}
 		else
 		{
-			qglTexCoord2f(p->s1,p->t1);
-			qglVertex3f (p->org[0] - scale*pup[0], p->org[1] - scale*pup[1], p->org[2] - scale*pup[2]);
-			qglTexCoord2f(p->s1,p->t2);
-			qglVertex3f (p->org[0] - scale*pright[0], p->org[1] - scale*pright[1], p->org[2] - scale*pright[2]);
-			qglTexCoord2f(p->s2,p->t2);
-			qglVertex3f (p->org[0] + scale*pup[0], p->org[1] + scale*pup[1], p->org[2] + scale*pup[2]);
-			qglTexCoord2f(p->s2,p->t1);
-			qglVertex3f (p->org[0] + scale*pright[0], p->org[1] + scale*pright[1], p->org[2] + scale*pright[2]);
+			x = 0;
+			y = scale;
 		}
+		qglTexCoord2f(p->s1,p->t1);
+		qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
+		qglTexCoord2f(p->s1,p->t2);
+		qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
+		qglTexCoord2f(p->s2,p->t2);
+		qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
+		qglTexCoord2f(p->s2,p->t1);
+		qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
 	}
 	qglEnd();
 }
@@ -3305,19 +3276,16 @@ static void GL_DrawSketchParticle(int count, particle_t **plist, plooks_t *type)
 		{
 			x = sin(p->angle)*scale;
 			y = cos(p->angle)*scale;
-
-			qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-			qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-			qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
-			qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
 		}
 		else
 		{
-			qglVertex3f (p->org[0] - scale*pup[0], p->org[1] - scale*pup[1], p->org[2] - scale*pup[2]);
-			qglVertex3f (p->org[0] + scale*pup[0], p->org[1] + scale*pup[1], p->org[2] + scale*pup[2]);
-			qglVertex3f (p->org[0] + scale*pright[0], p->org[1] + scale*pright[1], p->org[2] + scale*pright[2]);
-			qglVertex3f (p->org[0] - scale*pright[0], p->org[1] - scale*pright[1], p->org[2] - scale*pright[2]);
+			x = 0;
+			y = scale;
 		}
+		qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
+		qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
+		qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
+		qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
 	}
 	qglEnd();
 }
@@ -3677,124 +3645,6 @@ static void GL_DrawClippedDecal(int count, clippeddecal_t **dlist, plooks_t *typ
 }
 
 #endif
-#ifdef SWQUAKE
-static void SWD_DrawParticleSpark(int count, particle_t **plist, plooks_t *type)
-{
-	float speed;
-	vec3_t src, dest;
-	particle_t *p;
-
-	int r,g,b;	//if you have a cpu with mmx, good for you...
-
-	while (count--)
-	{
-		p = *plist++;
-
-		r = p->rgb[0]*255;
-		if (r < 0)
-			r = 0;
-		else if (r > 255)
-			r = 255;
-		g = p->rgb[1]*255;
-		if (g < 0)
-			g = 0;
-		else if (g > 255)
-			g = 255;
-		b = p->rgb[2]*255;
-		if (b < 0)
-			b = 0;
-		else if (b > 255)
-			b = 255;
-		p->color = GetPaletteIndex(r, g, b);
-
-		speed = Length(p->vel);
-		if ((speed) < 1)
-		{
-			VectorCopy(p->org, src);
-			VectorCopy(p->org, dest);
-		}
-		else
-		{	//causes flickers with lower vels (due to bouncing in physics)
-			if (speed < 50)
-				speed *= 50/speed;
-			VectorMA(p->org, 2.5/(speed), p->vel, src);
-			VectorMA(p->org, -2.5/(speed), p->vel, dest);
-		}
-
-		D_DrawSparkTrans(src, dest, p->alpha, p->color, type->blendmode);
-	}
-}
-static void SWD_DrawParticleBlob(int count, particle_t **plist, plooks_t *type)
-{
-	particle_t *p;
-	int r,g,b;	//This really shouldn't be like this. Pitty the 32 bit renderer...
-
-	while(count--)
-	{
-		p = *plist++;
-
-		r = p->rgb[0]*255;
-		if (r < 0)
-			r = 0;
-		else if (r > 255)
-			r = 255;
-		g = p->rgb[1]*255;
-		if (g < 0)
-			g = 0;
-		else if (g > 255)
-			g = 255;
-		b = p->rgb[2]*255;
-		if (b < 0)
-			b = 0;
-		else if (b > 255)
-			b = 255;
-		p->color = GetPaletteIndex(r, g, b);
-		D_DrawParticleTrans(p->org, p->alpha, p->scale, p->color, type->blendmode);
-	}
-}
-static void SWD_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
-{
-	int r,g,b;	//if you have a cpu with mmx, good for you...
-	beamseg_t *beam;
-	beamseg_t *c;
-	particle_t *p;
-	particle_t *q;
-
-//	if (!b->next)
-//		return;
-
-	while(count--)
-	{
-		beam = *blist++;
-
-		c = beam->next;
-
-		q = c->p;
-	//	if (!q)
-	//		return;
-
-		p = beam->p;
-
-		r = p->rgb[0]*255;
-		if (r < 0)
-			r = 0;
-		else if (r > 255)
-			r = 255;
-		g = p->rgb[1]*255;
-		if (g < 0)
-			g = 0;
-		else if (g > 255)
-			g = 255;
-		b = p->rgb[2]*255;
-		if (b < 0)
-			b = 0;
-		else if (b > 255)
-			b = 255;
-		p->color = GetPaletteIndex(r, g, b);
-		D_DrawSparkTrans(p->org, q->org, p->alpha, p->color, type->blendmode);
-	}
-}
-#endif
 
 void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticlest)(int count, beamseg_t**,plooks_t*), void (*beamparticlesut)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*))
 {
@@ -3845,11 +3695,6 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 
 	VectorScale (vup, 1.5, pup);
 	VectorScale (vright, 1.5, pright);
-#ifdef SWQUAKE
-	VectorScale (vright, xscaleshrink, r_pright);
-	VectorScale (vup, yscaleshrink, r_pup);
-	VectorCopy (vpn, r_ppn);
-#endif
 
 #ifdef Q2BSPS
 	if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
@@ -4415,19 +4260,6 @@ static void PScript_DrawParticles (void)
 		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 		qglDepthMask(1);
-		return;
-	}
-#endif
-#ifdef SWQUAKE
-	if (qrenderer == QR_SOFTWARE)
-	{
-		PScript_DrawParticleTypes(SWD_DrawParticleBlob, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleSpark, SWD_DrawParticleBeam, SWD_DrawParticleBeam, NULL);
-
-		RSpeedRemark();
-		D_StartParticles();
-		RQ_RenderDistAndClear();
-		D_EndParticles();
-		RSpeedEnd(RSPEED_PARTICLESDRAW);
 		return;
 	}
 #endif

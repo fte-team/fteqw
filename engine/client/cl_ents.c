@@ -1726,16 +1726,10 @@ void CL_LinkPacketEntities (void)
 			&& (gl_nocolors.value == -1 || (ent->model/* && state->modelindex == cl_playerindex*/)))
 		{
 			// TODO: DP colormap/colormod extension?
-#ifdef SWQUAKE
-			ent->palremap = cl.players[state->colormap-1].palremap;
-#endif
 			ent->scoreboard = &cl.players[state->colormap-1];
 		}
 		else
 		{
-#ifdef SWQUAKE
-			ent->palremap = D_IdentityRemap();
-#endif
 			ent->scoreboard = NULL;
 		}
 
@@ -2302,9 +2296,6 @@ void CL_LinkProjectiles (void)
 		ent->skinnum = 0;
 		memset(&ent->framestate, 0, sizeof(ent->framestate));
 		ent->flags = 0;
-#ifdef SWQUAKE
-		ent->palremap = D_IdentityRemap();
-#endif
 		ent->scoreboard = NULL;
 #ifdef PEXT_SCALE
 		ent->scale = 1;
@@ -2908,9 +2899,6 @@ void CL_LinkPlayers (void)
 			//state->lerpstarttime = 0;
 		}
 
-#ifdef SWQUAKE
-		ent->palremap = info->palremap;
-#endif
 		if (state->modelindex == cl_playerindex)
 			ent->scoreboard = info;		// use custom skin
 		else

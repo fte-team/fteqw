@@ -33,7 +33,6 @@ cvar_t	r_waterlayers = SCVAR("r_waterlayers","");
 
 extern void R_InitBubble();
 
-#ifndef SWQUAKE
 //SW rendering has a faster method, which takes more memory and stuff.
 //We need this for minor things though, so we'5ll just use the slow accurate method.
 //this is unlikly to be called very often.			
@@ -63,7 +62,6 @@ qbyte GetPaletteIndex(int red, int green, int blue)
 		return best;
 	}
 }
-#endif
 
 /*
 ==================
@@ -1245,11 +1243,5 @@ void GLR_TimeRefresh_f (void)
 	GL_EndRendering ();
 	GL_DoSwap();
 }
-
-#ifndef SWQUAKE
-void D_FlushCaches (void)
-{
-}
-#endif
 
 #endif

@@ -381,11 +381,7 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, int *width, int *height, qboolean *us
 		alpha = 2;
 
 //use malloc here if you want, but you'll have to free it again... NUR!
-#ifndef SWQUAKE	//quantity optimisation.
 	data = out = Hunk_TempAllocMore(tex->width * tex->height * 4);
-#else
-	data = out = Hunk_TempAllocMore(((tex->width*4 * tex->height) * 85)/64); //sw mip
-#endif
 
 	if (!data)
 		return NULL;
@@ -396,11 +392,7 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, int *width, int *height, qboolean *us
 	*height = tex->height;
 	pal = in + (((tex->width * tex->height) * 85) >> 6);
 	pal += 2;
-#ifndef SWQUAKE
 	for (d = 0;d < tex->width * tex->height;d++)	
-#else
-	for (d = 0;d < (tex->width * tex->height* 85)/64;d++)	//sw mip
-#endif
 	{
 		p = *in++;
 		if (alpha==1 && p == 255)	//only allow alpha on '{' textures

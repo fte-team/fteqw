@@ -26,10 +26,6 @@
 #error "nodraw isn't constant"
 #endif
 
-#ifdef SWQUAKE
-extern qboolean r_usinglits;
-#endif
-
 extern cvar_t r_shadow_bumpscale_basetexture;
 
 //these are in model.c (or gl_model.c)
@@ -1088,60 +1084,6 @@ void *Mod_LoadWall(char *name)
 		}
 		else
 #endif
-#ifdef SWQUAKE
-		if (qrenderer == QR_SOFTWARE)
-		{
-			int i, j;
-			qbyte *out;
-
-			tex = Hunk_AllocName(sizeof(texture_t) + width*r_pixbytes*height/64*85, ln);
-			tex->pixbytes = r_pixbytes;
-			tex->width = width;
-			tex->height = height;
-
-			tex->offsets[0] = sizeof(*tex);
-			tex->offsets[1] = tex->offsets[0] + width*height*r_pixbytes;
-			tex->offsets[2] = tex->offsets[1] + (width*height*r_pixbytes)/4;
-			tex->offsets[3] = tex->offsets[2] + (width*height*r_pixbytes)/(4*4);
-
-			out = (qbyte *)(tex+1);
-
-			if (tex->pixbytes == 4)
-			{
-				for (i = 0; i < width*height; i++)
-				{
-					*out++ = in[2];
-					*out++ = in[1];
-					*out++ = in[0];
-					*out++ = in[3];
-					in+=4;
-				}
-			}
-			else
-			{
-				for (i=0; i < tex->width*tex->height; i++)	//downgrade colour
-				{
-					*out++ = GetPaletteNoFB(in[0], in[1], in[2]);
-					in+=4;
-				}
-
-				in = (qbyte *)tex+tex->offsets[0];	//shrink mips.
-
-				for (j = 0; j < tex->height; j+=2)	//we could convert mip[1], but shrinking is probably faster.
-				for (i = 0; i < tex->width; i+=2)
-					*out++ = in[i + tex->width*j];
-
-				for (j = 0; j < tex->height; j+=4)
-				for (i = 0; i < tex->width; i+=4)
-					*out++ = in[i + tex->width*j];
-
-				for (j = 0; j < tex->height; j+=8)
-				for (i = 0; i < tex->width; i+=8)
-					*out++ = in[i + tex->width*j];
-			}
-		}
-		else
-#endif
 		{
 			Sys_Error("Mod_LoadWall with bad renderer\n");
 			tex = NULL;
@@ -1172,58 +1114,6 @@ void *Mod_LoadWall(char *name)
 		for (j = 0; j < wal->width*wal->height; j++)
 			in[j] = (d_q28to24table[oin[j]*3+0] + d_q28to24table[oin[j]*3+1] + d_q28to24table[oin[j]*3+2])/3;
 		tex->tn.bump = R_LoadTexture8Bump (va("%s_bump", wal->name), tex->width, tex->height, in, true, r_shadow_bumpscale_basetexture.value);
-	}
-	else
-#endif
-#if defined(SWQUAKE)
-	if (qrenderer == QR_SOFTWARE)
-	{
-		int i, j;
-		qbyte *out;
-
-		tex = Hunk_AllocName(sizeof(texture_t) + wal->width*r_pixbytes*wal->height/64*85, ln);
-		tex->width = wal->width;
-		tex->height = wal->height;
-
-		tex->pixbytes = r_pixbytes;
-		for (i = 0; i < MIPLEVELS; i++)
-			tex->offsets[i] = (wal->offsets[i] - sizeof(*wal))*tex->pixbytes + sizeof(*tex);
-
-		out = (qbyte *)(tex+1);
-		in = (qbyte *)wal+wal->offsets[0];
-
-		if (tex->pixbytes == 4)
-		{
-			for (i = 0; i < wal->width*wal->height/64*85; i++)
-			{
-				*out++ = d_q28to24table[*in*3+0];
-				*out++ = d_q28to24table[*in*3+1];
-				*out++ = d_q28to24table[*in*3+2];
-				*out++ = 255;
-				in++;
-			}
-		}
-		else
-		{
-			for (i=0; i < tex->width*tex->height; i++)	//downgrade colour
-			{
-				*out++ = GetPaletteNoFB(d_q28to24table[*in*3+0], d_q28to24table[*in*3+1], d_q28to24table[*in*3+2]);
-				in++;
-			}
-			in = (qbyte *)tex+tex->offsets[0];	//shrink mips.
-
-			for (j = 0; j < tex->height; j+=2)	//we could convert mip[1], but shrinking is probably faster.
-			for (i = 0; i < tex->width; i+=2)
-				*out++ = in[i + tex->width*j];
-
-			for (j = 0; j < tex->height; j+=4)
-			for (i = 0; i < tex->width; i+=4)
-				*out++ = in[i + tex->width*j];
-
-			for (j = 0; j < tex->height; j+=8)
-			for (i = 0; i < tex->width; i+=8)
-				*out++ = in[i + tex->width*j];
-		}
 	}
 	else
 #endif
@@ -1466,10 +1356,6 @@ qboolean CMod_LoadFaces (lump_t *l)
 			out->samples = NULL;
 #ifdef RGLQUAKE
 		else if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
-			out->samples = loadmodel->lightdata + i;
-#endif
-#ifdef SWQUAKE
-		else if (r_usinglits)
 			out->samples = loadmodel->lightdata + i;
 #endif
 		else
@@ -3737,45 +3623,6 @@ void GLR_Q2BSP_StainNode (mnode_t *node, float *parms)
 	GLR_Q2BSP_StainNode (node->children[1], parms);
 }
 #endif
-#ifdef SWQUAKE
-void SWR_StainSurf (msurface_t *surf, float *parms);
-void SWR_Q2BSP_StainNode (mnode_t *node, float *parms)
-{
-	mplane_t	*splitplane;
-	float		dist;
-	msurface_t	*surf;
-	int			i;
-
-	if (node->contents != -1)
-		return;
-
-	splitplane = node->plane;
-	dist = DotProduct ((parms+1), splitplane->normal) - splitplane->dist;
-
-	if (dist > (*parms))
-	{
-		SWR_Q2BSP_StainNode (node->children[0], parms);
-		return;
-	}
-	if (dist < (-*parms))
-	{
-		SWR_Q2BSP_StainNode (node->children[1], parms);
-		return;
-	}
-
-// mark the polygons
-	surf = cl.worldmodel->surfaces + node->firstsurface;
-	for (i=0 ; i<node->numsurfaces ; i++, surf++)
-	{
-		if (surf->flags&~(SURF_DONTWARP|SURF_PLANEBACK))
-			continue;
-		SWR_StainSurf(surf, parms);
-	}
-
-	SWR_Q2BSP_StainNode (node->children[0], parms);
-	SWR_Q2BSP_StainNode (node->children[1], parms);
-}
-#endif
 #endif
 
 #endif
@@ -4131,57 +3978,6 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #endif
 			loadmodel->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
 			loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
-			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
-			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
-			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
-			loadmodel->funcs.Trace					= CM_Trace;
-			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
-			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
-			loadmodel->funcs.NativeContents			= CM_NativeContents;
-			break;
-#endif
-#if defined(SWQUAKE)
-		case QR_SOFTWARE:
-		// load into heap
-		#ifndef SERVERONLY
-			noerrors = noerrors && SWMod_LoadVertexes		(&header.lumps[Q2LUMP_VERTEXES]);
-			noerrors = noerrors && SWMod_LoadEdges			(&header.lumps[Q2LUMP_EDGES]);
-			noerrors = noerrors && SWMod_LoadSurfedges		(&header.lumps[Q2LUMP_SURFEDGES]);
-			if (noerrors)
-				SWMod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);
-		#endif
-			noerrors = noerrors && CMod_LoadSurfaces		(&header.lumps[Q2LUMP_TEXINFO]);
-			noerrors = noerrors && CMod_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
-			noerrors = noerrors && CMod_LoadPlanes			(&header.lumps[Q2LUMP_PLANES]);
-		#ifndef SERVERONLY
-			noerrors = noerrors && CMod_LoadTexInfo		(&header.lumps[Q2LUMP_TEXINFO]);
-			noerrors = noerrors && CMod_LoadFaces			(&header.lumps[Q2LUMP_FACES]);
-			noerrors = noerrors && SWMod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES]);
-		#endif
-			noerrors = noerrors && CMod_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
-			noerrors = noerrors && CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
-			noerrors = noerrors && CMod_LoadBrushSides		(&header.lumps[Q2LUMP_BRUSHSIDES]);
-			noerrors = noerrors && CMod_LoadSubmodels		(&header.lumps[Q2LUMP_MODELS]);
-			noerrors = noerrors && CMod_LoadLeafs			(&header.lumps[Q2LUMP_LEAFS]);
-			noerrors = noerrors && CMod_LoadNodes			(&header.lumps[Q2LUMP_NODES]);
-			noerrors = noerrors && CMod_LoadAreas			(&header.lumps[Q2LUMP_AREAS]);
-			noerrors = noerrors && CMod_LoadAreaPortals	(&header.lumps[Q2LUMP_AREAPORTALS]);
-			if (noerrors)
-				CMod_LoadEntityString	(&header.lumps[Q2LUMP_ENTITIES]);
-
-			if (!noerrors)
-			{
-				Hunk_FreeToLowMark(start);
-				return NULL;
-			}
-
-#ifndef CLIENTONLY
-			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
-			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
-			loadmodel->funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
-#endif
-			loadmodel->funcs.LightPointValues		= SWQ2BSP_LightPointValues;
-			loadmodel->funcs.StainNode				= SWR_Q2BSP_StainNode;
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
 			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;

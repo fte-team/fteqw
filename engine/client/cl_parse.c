@@ -3111,9 +3111,6 @@ void CL_ParseStatic (int version)
 // copy it to the current state
 	ent->model = cl.model_precache[es.modelindex];
 	ent->framestate.g[FS_REG].frame[0] = ent->framestate.g[FS_REG].frame[1] = es.frame;
-#ifdef SWQUAKE
-	ent->palremap = D_IdentityRemap();
-#endif
 	ent->skinnum = es.skinnum;
 	ent->drawflags = es.hexen2flags;
 
@@ -3473,19 +3470,6 @@ void CL_NewTranslation (int slot)
 	if (bottom > 13 || bottom < 0)
 		bottom = 13;
 */
-#ifdef SWQUAKE
-	if (qrenderer == QR_SOFTWARE)
-	{
-		if (player->ttopcolor != top || player->tbottomcolor != bottom || !player->skin)
-		{
-			player->ttopcolor = top;
-			player->tbottomcolor = bottom;
-			D_DereferenceRemap(player->palremap);
-			player->palremap = D_GetPaletteRemap(255, 255, 255, false, true, top, bottom);
-		}
-		return;
-	}
-#endif
 	//other renderers still need the team stuff set, but that's all
 	player->ttopcolor = top;
 	player->tbottomcolor = bottom;

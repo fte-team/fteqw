@@ -65,9 +65,6 @@ typedef struct	//use this so we don't have to go slow over pics, and don't have 
 #ifdef RGLQUAKE
 		glpic_t gl;
 #endif
-#ifdef SWQUAKE
-		qbyte		data[4];			// variably sized
-#endif
 	} d;
 } mpic_t;
 

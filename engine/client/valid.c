@@ -94,22 +94,6 @@ static void Validation_Version(void)
 		*s = *"";
 		break;
 #endif
-#ifdef SWQUAKE
-	case QR_SOFTWARE:
-		if (r_pixbytes == 4)
-		{
-			*s++ = '3';
-			*s++ = '2';
-		}
-		else if (r_pixbytes == 2)
-		{
-			*s++ = '1';
-			*s++ = '6';
-		}
-		else
-			*s++ = '8';
-		break;
-#endif
 	default:
 		*sr = *"";
 		break;

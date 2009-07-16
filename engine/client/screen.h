@@ -60,12 +60,6 @@ void GLSCR_UpdateScreen (void);
 
 void SCR_ImageName (char *mapname);
 
-#if defined(SWQUAKE)
-void SWSCR_UpdateScreen (void);
-void SCR_UpdateWholeScreen (void);
-#endif
-
-
 //this stuff is internal to the screen systems.
 void RSpeedShow(void);
 

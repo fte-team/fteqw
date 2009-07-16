@@ -1035,9 +1035,6 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 
 	if (in->v->colormap > 0 && in->v->colormap <= MAX_CLIENTS)
 	{
-#ifdef SWQUAKE
-		out->palremap = cl.players[(int)in->v->colormap-1].palremap;
-#endif
 		out->scoreboard = &cl.players[(int)in->v->colormap-1];
 	} // TODO: DP COLORMAP extension?
 

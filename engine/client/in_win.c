@@ -605,11 +605,9 @@ void IN_UpdateGrabs(int fullscreen, int activeapp)
 {
 	int grabmouse;
 
-	if (!activeapp)
-		grabmouse = false;
-	else if (fullscreen)
+	if (fullscreen)
 		grabmouse = true;
-	else if (_windowed_mouse.value)
+	else if (activeapp && _windowed_mouse.value)
 	{
 		if (!Key_MouseShouldBeFree())
 			grabmouse = true;
@@ -1741,7 +1739,7 @@ void IN_MouseMove (float *movements, int pnum)
 #ifdef USINGRAWINPUT
 	if (rawmicecount)
 	{
-		if ((in_rawinput_combine.value && pnum == 0) || cl.splitclients <= 1)
+		if (in_rawinput_combine.value && pnum == 0)
 		{
 			// not the right way to do this but it'll work for now
 			int x;

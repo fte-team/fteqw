@@ -663,7 +663,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	VoteFlushAll();
 #ifndef SERVERONLY
-	D_FlushCaches();
 	cl.worldmodel = NULL;
 	r_worldentity.model = NULL;
 	if (0)

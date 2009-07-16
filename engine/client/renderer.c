@@ -3,9 +3,6 @@
 #ifdef RGLQUAKE
 #include "gl_draw.h"
 #endif
-#ifdef SWQUAKE
-#include "sw_draw.h"
-#endif
 
 
 qboolean vid_isfullscreen;
@@ -246,32 +243,6 @@ void R_BulletenForce_f (void);
 
 rendererstate_t currentrendererstate;
 
-#if defined(SWQUAKE)
-cvar_t d_smooth								= SCVAR  ("d_smooth", "0");
-
-cvar_t r_aliastransadj						= SCVAR  ("r_aliastransadj", "100");
-cvar_t r_aliastransbase						= SCVAR  ("r_aliastransbase", "200");
-cvar_t r_clearcolor							= SCVAR  ("r_clearcolor", "218");
-//cvar_t r_drawflat							= SCVARF ("r_drawflat", "0",
-//												CVAR_CHEAT);
-cvar_t r_draworder							= SCVARF ("r_draworder", "0",
-												CVAR_CHEAT);
-cvar_t r_dspeeds							= SCVAR  ("r_dspeeds", "0");
-cvar_t r_graphheight						= SCVAR  ("r_graphheight", "15");
-cvar_t r_maxedges							= SCVAR  ("r_maxedges", "0");
-cvar_t r_maxsurfs							= SCVAR  ("r_maxsurfs", "0");
-cvar_t r_numedges							= SCVAR  ("r_numedges", "0");
-cvar_t r_numsurfs							= SCVAR  ("r_numsurfs", "0");
-cvar_t r_aliasstats							= SCVAR  ("r_polymodelstats", "0");
-cvar_t r_reportedgeout						= SCVAR  ("r_reportedgeout", "0");
-cvar_t r_reportsurfout						= SCVAR  ("r_reportsurfout", "0");
-cvar_t r_timegraph							= SCVAR  ("r_timegraph", "0");
-cvar_t r_zgraph								= SCVAR  ("r_zgraph","0");
-
-cvar_t sw_surfcachesize						= SCVARF ("sw_surfcachesize", "0",
-												CVAR_RENDERERLATCH);
-#endif
-
 #if defined(RGLQUAKE) || defined(D3DQUAKE)
 cvar_t gl_ati_truform						= SCVAR  ("gl_ati_truform", "0");
 cvar_t gl_ati_truform_type					= SCVAR  ("gl_ati_truform_type", "1");
@@ -507,49 +478,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_menutint_shader, GLRENDEREROPTIONS);
 
 	R_BloomRegister();
-}
 #endif
-
-#if defined(SWQUAKE)
-extern cvar_t d_subdiv16;
-extern cvar_t d_mipcap;
-extern cvar_t d_mipscale;
-extern cvar_t d_smooth;
-void SWRenderer_Init(void)
-{
-	Cvar_Register (&d_subdiv16, SWRENDEREROPTIONS);
-	Cvar_Register (&d_mipcap, SWRENDEREROPTIONS);
-	Cvar_Register (&d_mipscale, SWRENDEREROPTIONS);
-	Cvar_Register (&d_smooth, SWRENDEREROPTIONS);
-
-	Cvar_Register (&r_maxsurfs, SWRENDEREROPTIONS);
-	Cvar_Register (&r_numsurfs, SWRENDEREROPTIONS);
-	Cvar_Register (&r_maxedges, SWRENDEREROPTIONS);
-	Cvar_Register (&r_numedges, SWRENDEREROPTIONS);
-	Cvar_Register (&r_sirds, SWRENDEREROPTIONS);
-
-	Cvar_Register (&r_aliastransbase, SWRENDEREROPTIONS);
-	Cvar_Register (&r_aliastransadj, SWRENDEREROPTIONS);
-	Cvar_Register (&r_reportedgeout, SWRENDEREROPTIONS);
-	Cvar_Register (&r_aliasstats, SWRENDEREROPTIONS);
-	Cvar_Register (&r_clearcolor, SWRENDEREROPTIONS);
-
-	Cvar_Register (&r_timegraph, SWRENDEREROPTIONS);
-	Cvar_Register (&r_draworder, SWRENDEREROPTIONS);
-	Cvar_Register (&r_zgraph, SWRENDEREROPTIONS);
-	Cvar_Register (&r_graphheight, SWRENDEREROPTIONS);
-	Cvar_Register (&r_aliasstats, SWRENDEREROPTIONS);
-	Cvar_Register (&r_dspeeds, SWRENDEREROPTIONS);
-	Cvar_Register (&r_ambient, SWRENDEREROPTIONS);
-	Cvar_Register (&r_ambient, SWRENDEREROPTIONS);
-	Cvar_Register (&r_reportsurfout, SWRENDEREROPTIONS);
-
-	Cvar_Register (&d_palconvwrite, SWRENDEREROPTIONS);
-	Cvar_Register (&d_palremapsize, SWRENDEREROPTIONS);
-
-	Cvar_Register (&sw_surfcachesize, SWRENDEREROPTIONS);
 }
-#endif
 
 void	R_InitTextures (void)
 {
@@ -599,9 +529,6 @@ void Renderer_Init(void)
 #endif
 #if defined(RGLQUAKE)
 	GLRenderer_Init();
-#endif
-#if defined(SWQUAKE)
-	SWRenderer_Init();
 #endif
 
 	Cvar_Register (&r_novis, GLRENDEREROPTIONS);
@@ -883,23 +810,7 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,	//Media_ShowFrameRGBA_32;
 	NULL,	//Media_ShowFrame8bit;
 
-#ifdef SWQUAKE
-	SWMod_Init,
-	SWMod_ClearAll,
-	SWMod_ForName,
-	SWMod_FindName,
-	SWMod_Extradata,
-	SWMod_TouchModel,
-
-	SWMod_NowLoadExternal,
-	SWMod_Think,
-
-	NULL, //Mod_GetTag
-	NULL, //fixme: server will need this one at some point.
-	NULL,
-	NULL,
-	NULL,
-#elif defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
 	GLMod_Init,
 	GLMod_ClearAll,
 	GLMod_ForName,
@@ -941,100 +852,6 @@ rendererinfo_t dedicatedrendererinfo = {
 };
 rendererinfo_t *pdedicatedrendererinfo = &dedicatedrendererinfo;
 
-#ifdef SWQUAKE
-rendererinfo_t softwarerendererinfo = {
-	"Software rendering",
-	{
-		"sw",
-		"software",
-	},
-	QR_SOFTWARE,
-
-	SWDraw_PicFromWad,
-	SWDraw_CachePic,
-	SWDraw_SafeCachePic,
-	SWDraw_Init,
-	SWDraw_Init,
-	SWDraw_Character,
-	SWDraw_ColouredCharacter,
-	SWDraw_TinyCharacter,
-	SWDraw_String,
-	SWDraw_Alt_String,
-	SWDraw_Crosshair,
-	SWDraw_DebugChar,
-	SWDraw_Pic,
-	NULL,//SWDraw_ScaledPic,
-	SWDraw_SubPic,
-	SWDraw_TransPic,
-	SWDraw_TransPicTranslate,
-	SWDraw_ConsoleBackground,
-	SWDraw_EditorBackground,
-	SWDraw_TileClear,
-	SWDraw_Fill,
-	SWDraw_FillRGB,
-	SWDraw_FadeScreen,
-	SWDraw_BeginDisc,
-	SWDraw_EndDisc,
-
-	SWDraw_Image,
-	SWDraw_ImageColours,
-
-	SWR_Init,
-	SWR_DeInit,
-	NULL,//SWR_ReInit,
-	SWR_RenderView,
-
-	SWR_CheckSky,
-	SWR_SetSky,
-
-	SWR_NewMap,
-	NULL,
-	SWR_LightPoint,
-	SWR_PushDlights,
-
-	SWR_AddStain,
-	SWR_LessenStains,
-
-	MediaSW_ShowFrameBGR_24_Flip,
-	MediaSW_ShowFrameRGBA_32,
-	MediaSW_ShowFrame8bit,
-
-	SWMod_Init,
-	SWMod_ClearAll,
-	SWMod_ForName,
-	SWMod_FindName,
-	SWMod_Extradata,
-	SWMod_TouchModel,
-
-	SWMod_NowLoadExternal,
-	SWMod_Think,
-
-	NULL,	//Mod_GetTag
-	NULL,	//Mod_TagForName
-	NULL,
-	NULL,
-	NULL,
-
-	SWVID_Init,
-	SWVID_Shutdown,
-	SWVID_LockBuffer,
-	SWVID_UnlockBuffer,
-	SWD_BeginDirectRect,
-	SWD_EndDirectRect,
-	SWVID_ForceLockState,
-	SWVID_ForceUnlockedAndReturnState,
-	SWVID_SetPalette,
-	SWVID_ShiftPalette,
-	SWVID_GetRGBInfo,
-
-	SWVID_SetCaption,
-
-	SWSCR_UpdateScreen,
-
-	""
-};
-rendererinfo_t *psoftwarerendererinfo = &softwarerendererinfo;
-#endif
 #ifdef RGLQUAKE
 rendererinfo_t openglrendererinfo = {
 	"OpenGL",
@@ -1151,9 +968,6 @@ rendererinfo_t **rendererinfo[] =
 #ifndef NPQTV
 	&pdedicatedrendererinfo,
 #endif
-#ifdef SWQUAKE
-	&psoftwarerendererinfo,
-#endif
 #ifdef RGLQUAKE
 	&popenglrendererinfo,
 	&pd3drendererinfo,
@@ -1232,19 +1046,10 @@ void CheckCustomMode(struct menu_s *menu)
 		info->customheight->common.ishidden = false;
 	}
 
-#ifdef SWQUAKE
-	if (info->renderer->selectedoption < 1)
-	{
-		info->conscalecombo->common.ishidden = true;
-	}
-	else
-#endif
-	{
-		if (!info->bppcombo->selectedoption)
-			info->bppcombo->selectedoption = 1;
+	if (!info->bppcombo->selectedoption)
+		info->bppcombo->selectedoption = 1;
 
-		info->conscalecombo->common.ishidden = false;
-	}
+	info->conscalecombo->common.ishidden = false;
 }
 qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 {
@@ -1310,26 +1115,16 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 
 	switch(info->renderer->selectedoption)
 	{
-#ifdef SWQUAKE
+#ifdef RGLQUAKE
 	case 0:
-		Cbuf_AddText("setrenderer sw\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-#else
-	case 0:
-#endif
 		Cbuf_AddText("setrenderer gl\n", RESTRICT_LOCAL);
 		break;
-#ifdef SWQUAKE
-	case 2:
-#else
-	case 1:
 #endif
-		Cbuf_AddText("setrenderer d3d7\n", RESTRICT_LOCAL);
-		break;
-	case 3:
-                Cbuf_AddText("setrenderer d3d9\n", RESTRICT_LOCAL);
-                break;
+#ifdef D3DQUAKE
+	case 1:
+        Cbuf_AddText("setrenderer d3d9\n", RESTRICT_LOCAL);
+        break;
+#endif
 	}
 	M_RemoveMenu(menu);
 	Cbuf_AddText("menu_video\n", RESTRICT_LOCAL);
@@ -1338,23 +1133,14 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 void M_Menu_Video_f (void)
 {
 	extern cvar_t r_stains, v_contrast;
-#if defined(SWQUAKE)
-	extern cvar_t d_smooth;
-#endif
 #if defined(RGLQUAKE)
 	extern cvar_t r_bloom;
 #endif
 	extern cvar_t r_bouncysparks;
 	static const char *modenames[128] = {"Custom"};
 	static const char *rendererops[] = {
-#ifdef SWQUAKE
-		"Software",
-#endif
 #ifdef RGLQUAKE
 		"OpenGL",
-#ifdef USE_D3D
-		"DirectX7",
-#endif
 #endif
 #ifdef D3DQUAKE
 		"DirectX9",
@@ -1404,20 +1190,8 @@ void M_Menu_Video_f (void)
 	menu = M_CreateMenu(sizeof(videomenuinfo_t));
 	info = menu->data;
 
-#if defined(SWQUAKE) && defined(RGLQUAKE)
-	if (qrenderer == QR_OPENGL)
-	{
-#ifdef USE_D3D
-		if (!strcmp(vid_renderer.string, "d3d"))
-			i = 2;
-		else
-#endif
-			i = 1;
-	}
-	else
-#endif
 #if defined(RGLQUAKE) && defined(USE_D3D)
-		 if (!strcmp(vid_renderer.string, "d3d"))
+	if (!strcmp(vid_renderer.string, "d3d9"))
 		i = 1;
 	else
 #endif
@@ -1458,9 +1232,6 @@ void M_Menu_Video_f (void)
 	MC_AddCheckBox(menu,	16, y,							"      Stain maps", &r_stains,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"   Bouncy sparks", &r_bouncysparks,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"            Rain", &r_part_rain,0);	y+=8;
-#if defined(SWQUAKE)
-	MC_AddCheckBox(menu,	16, y,							"    SW Smoothing", &d_smooth,0);	y+=8;
-#endif
 #ifdef RGLQUAKE
 	MC_AddCheckBox(menu,	16, y,							"  GL Bumpmapping", &gl_bump,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"           Bloom", &r_bloom,0);	y+=8;
@@ -1691,26 +1462,6 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 		host_colormap = (qbyte *)COM_LoadMallocFile ("gfx/colormap.lmp");
 		if (!host_colormap)
 		{
-#ifdef SWQUAKE
-			float f;
-			if (qrenderer == QR_SOFTWARE) //glquake doesn't care
-			{
-				data = host_colormap = BZ_Malloc(256*VID_GRADES+sizeof(int));
-				//let's try making one. this is probably caused by running out of baseq2.
-				for (j = 0; j < VID_GRADES; j++)
-				{
-					f = 1 - ((float)j/VID_GRADES);
-					for (i = 0; i < 256-vid.fullbright; i++)
-					{
-						data[i] = GetPaletteIndex(host_basepal[i*3+0]*f, host_basepal[i*3+1]*f, host_basepal[i*3+2]*f);
-					}
-					for (; i < 256; i++)
-						data[i] = i;
-					data+=256;
-				}
-			}
-#endif
-
 			vid.fullbright=0;
 		}
 		else
@@ -1967,9 +1718,6 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		for (i = 0; i < cl.num_statics; i++)	//make the static entities reappear.
 		{
 			cl_static_entities[i].model = cl.model_precache[staticmodelindex[i]];
-#ifdef SWQUAKE
-			cl_static_entities[i].palremap = D_IdentityRemap();
-#endif
 			if (staticmodelindex[i])	//make sure it's worthwhile.
 			{
 				R_AddEfrags(&cl_static_entities[i]);
@@ -1987,12 +1735,6 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		Con_Printf(	"\n"
 					"-----------------------------\n"
 					"Dedicated console created\n");
-		break;
-
-	case QR_SOFTWARE:
-		Con_Printf(	"\n"
-					"-----------------------------\n"
-					"Software renderer initialized\n");
 		break;
 
 	case QR_OPENGL:
@@ -2067,16 +1809,10 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	{
 		Con_Printf("vid_renderer unset or invalid. Using default.\n");
 		//gotta do this after main hunk is saved off.
-#if defined(RGLQUAKE) && defined(SWQUAKE)
-		Cmd_ExecuteString("setrenderer sw 8\n", RESTRICT_LOCAL);
-		Cbuf_AddText("menu_video\n", RESTRICT_LOCAL);
-
-#elif defined(RGLQUAKE)
+#if defined(RGLQUAKE)
 		Cmd_ExecuteString("setrenderer gl\n", RESTRICT_LOCAL);
 #elif defined(D3DQUAKE)
 		Cmd_ExecuteString("setrenderer d3d9\n", RESTRICT_LOCAL);
-#else
-		Cmd_ExecuteString("setrenderer sw\n", RESTRICT_LOCAL);
 #endif
 		return;
 	}
@@ -2091,10 +1827,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 			// force default values for systems not supporting desktop parameters
 			dwidth = 640;
 			dheight = 480;
-			if (newr.renderer == QR_SOFTWARE) // hack for software default
-				dbpp = 8;
-			else
-				dbpp = 32;
+			dbpp = 32;
 		}
 
 		if (vid_desktopsettings.value)

@@ -50,11 +50,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef AVAIL_DDRAW
 #include <ddraw.h>
 #endif
-#ifdef SWQUAKE
-#ifdef MGL
-#include <mgraph.h>
-#endif
-#endif
 #endif
 
 #undef byte
@@ -72,15 +67,6 @@ extern unsigned int sys_parentheight;
 LONG CDAudio_MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 #endif
 
-
-#ifdef AVAIL_DDRAW
-extern qboolean			DDActive;
-extern LPDIRECTDRAW		lpDD;
-extern LPDIRECTDRAWSURFACE	lpPrimary;
-extern LPDIRECTDRAWSURFACE	lpFrontBuffer;
-extern LPDIRECTDRAWSURFACE	lpBackBuffer;
-extern LPDIRECTDRAWPALETTE	lpDDPal;
-#endif
 /*
 struct soundcardinfo_s {
 	int snd_linear_count;	//change in asm_i386.h. MUST be first

@@ -2602,9 +2602,6 @@ entity_t *CL_NewTempEntity (void)
 	
 	memset (ent, 0, sizeof(*ent));
 
-#ifdef SWQUAKE
-	ent->palremap = D_IdentityRemap();
-#endif
 #ifdef PEXT_SCALE
 	ent->scale = 1;
 #endif

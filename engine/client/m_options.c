@@ -448,9 +448,6 @@ void M_Menu_FPS_f (void)
 #ifdef RGLQUAKE
 	extern cvar_t gl_compress, gl_detail, gl_bump, r_flashblend, r_shadow_realtime_world, gl_motionblur;
 #endif
-#ifdef SWQUAKE
-	extern cvar_t d_smooth, d_mipscale, d_mipcap;
-#endif
 	extern cvar_t r_stains, r_bloodstains, r_loadlits, r_dynamic, v_contentblend, show_fps;
 
 	key_dest = key_menu;
@@ -506,15 +503,6 @@ void M_Menu_FPS_f (void)
 		MC_AddCheckBox(menu, 48, y,			"   Realtime Lights", &r_shadow_realtime_world,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"         Waterwarp", &r_waterwarp,0);y+=8;
 		MC_AddSlider(menu, 48, y,			"       Motion blur", &gl_motionblur,		0,		0.99, 0);y+=8;
-		break;
-#endif
-#ifdef SWQUAKE
-	case QR_SOFTWARE:
-		if (r_pixbytes == 4)
-		{MC_AddCheckBox(menu, 48, y,			"   Load .lit files", &r_loadlits,0);y+=8;}
-		MC_AddCheckBox(menu, 48, y,			" Texture Smoothing", &d_smooth,0);y+=8;
-		MC_AddSlider(menu, 48, y,			"      Mipmap scale", &d_mipscale,		0.1,	3, 1);y+=8;
-		MC_AddSlider(menu, 48, y,			"    Mipmap Capping", &d_mipcap,		0,		3, 1);y+=8;
 		break;
 #endif
 	default:

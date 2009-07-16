@@ -25,10 +25,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #ifdef PEXT_BULLETENS
 
-#ifdef SWQUAKE
-#include "r_local.h"
-#include "d_local.h"
-#endif
 #ifdef RGLQUAKE
 #include "glquake.h"//hack
 #endif

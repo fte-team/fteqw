@@ -76,8 +76,6 @@ model_t *currentmodel;
 char	loadname[32];
 qbyte *mod_base;
 
-qboolean			DDActive;
-
 model_t *lightmodel;
 int relitsurface;
 
@@ -89,7 +87,7 @@ qboolean	r_cache_thrash;	// set if thrashing the surface cache
 
 mpic_t		*draw_disc;	// also used on sbar
 
-#if !defined(SWQUAKE) && !defined(RGLQUAKE)
+#if !defined(RGLQUAKE)
 qbyte GetPaletteIndex(int red, int green, int blue)
 {
 	//slow, horrible method.
@@ -181,12 +179,6 @@ void	D3D7_VID_GenPaletteTables (unsigned char *palette)
 				d_8to24rgbtable[i] = LittleLong(d_8to24rgbtable[i]);
 	}
 }
-
-#if !defined(SWQUAKE) && !defined(GLQUAKE)
-void D_FlushCaches (void)
-{
-}
-#endif
 
 
 

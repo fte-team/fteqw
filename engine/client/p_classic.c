@@ -273,13 +273,6 @@ static void PClassic_DrawParticles(void)
 		classicnumverts = 0;
 		break;
 #endif
-#ifdef SWQUAKE
-	case QR_SOFTWARE:
-		VectorScale (vright, xscaleshrink, r_pright);
-		VectorScale (vup, yscaleshrink, r_pup);
-		VectorCopy (vpn, r_ppn);
-		break;
-#endif
 	default:
 		RQ_RenderDistAndClear();
 		return;
@@ -366,11 +359,6 @@ static void PClassic_DrawParticles(void)
 			qglTexCoord2f (1, 0); qglVertex3f (p->org[0] + up[0] * scale, p->org[1] + up[1] * scale, p->org[2] + up[2] * scale);
 			qglTexCoord2f (0, 1); qglVertex3f (p->org[0] + right[0] * scale, p->org[1] + right[1] * scale, p->org[2] + right[2] * scale);
 #endif
-			break;
-#endif
-#ifdef SWQUAKE
-		case QR_SOFTWARE:
-			D_DrawParticleTrans (p->org, 1, 1, p->color, BM_BLEND);
 			break;
 #endif
 		}

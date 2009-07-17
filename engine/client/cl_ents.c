@@ -2764,6 +2764,8 @@ Create visible entities in the correct position
 for all current players
 =============
 */
+vec3_t nametagorg[MAX_CLIENTS];
+qboolean nametagseen[MAX_CLIENTS];
 void CL_LinkPlayers (void)
 {
 	int pnum;
@@ -2793,6 +2795,8 @@ void CL_LinkPlayers (void)
 	for (j=0, info=cl.players, state=frame->playerstate ; j < MAX_CLIENTS
 		; j++, info++, state++)
 	{
+		nametagseen[j] = false;
+
 		if (state->messagenum != cl.validsequence)
 		{
 #ifdef CSQC_DAT
@@ -2992,6 +2996,9 @@ void CL_LinkPlayers (void)
 			VectorCopy (exact.origin, ent->origin);
 		}
 
+		VectorCopy(ent->origin, nametagorg[j]);
+		nametagseen[j] = true;
+
 		if (state->effects & QWEF_FLAG1)
 			CL_AddFlagModels (ent, 0);
 		else if (state->effects & QWEF_FLAG2)
@@ -3021,6 +3028,7 @@ void CL_LinkViewModel(void)
 
 	static struct model_s *oldmodel[MAX_SPLITS];
 	static float lerptime[MAX_SPLITS];
+	static float frameduration[MAX_SPLITS];
 	static int prevframe[MAX_SPLITS];
 	static int oldframe[MAX_SPLITS];
 	float alpha;
@@ -3094,6 +3102,12 @@ void CL_LinkViewModel(void)
 		if (ent.framestate.g[FS_REG].frame[0] != prevframe[r_refdef.currentplayernum])
 		{
 			oldframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[1] = prevframe[r_refdef.currentplayernum];
+
+			frameduration[r_refdef.currentplayernum] = (realtime - lerptime[r_refdef.currentplayernum]);
+			if (frameduration[r_refdef.currentplayernum] < 0.01)//no faster than 100 times a second... to avoid divide by zero
+				frameduration[r_refdef.currentplayernum] = 0.01;
+			if (frameduration[r_refdef.currentplayernum] > 0.2)	//no slower than 5 times a second
+				frameduration[r_refdef.currentplayernum] = 0.2;
 			lerptime[r_refdef.currentplayernum] = realtime;
 		}
 		prevframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[0];
@@ -3102,9 +3116,10 @@ void CL_LinkViewModel(void)
 		{
 			oldmodel[r_refdef.currentplayernum] = ent.model;
 			oldframe[r_refdef.currentplayernum] = ent.framestate.g[FS_REG].frame[1] = ent.framestate.g[FS_REG].frame[0];
+			frameduration[r_refdef.currentplayernum] = 0.1;
 			lerptime[r_refdef.currentplayernum] = realtime;
 		}
-		ent.framestate.g[FS_REG].lerpfrac = 1-(realtime-lerptime[r_refdef.currentplayernum])*10;
+		ent.framestate.g[FS_REG].lerpfrac = 1-(realtime-lerptime[r_refdef.currentplayernum])/frameduration[r_refdef.currentplayernum];
 		ent.framestate.g[FS_REG].lerpfrac = bound(0, ent.framestate.g[FS_REG].lerpfrac, 1);
 	}
 #define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors

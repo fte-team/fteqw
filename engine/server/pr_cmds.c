@@ -2193,8 +2193,6 @@ void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char		*s;
 	int			entnum;
-	client_t	*cl, *sp;
-	int			slen;
 
 	entnum = G_EDICTNUM(prinst, OFS_PARM0);
 	s = PF_VarString(prinst, 1, pr_globals);

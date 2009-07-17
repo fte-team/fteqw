@@ -26,7 +26,12 @@ typedef struct
 	char		name[64];
 	int			width;
 	int			height;
-	int cachedbpp;
+
+	//for hardware 32bit texture overrides
+	int			tex_base;
+	int			tex_lower;
+	int			tex_upper;
+
 	qboolean	failedload;		// the name isn't a valid skin
 	cache_user_t	cache;
 } skin_t;

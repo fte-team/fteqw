@@ -2746,6 +2746,25 @@ static qboolean TP_IsItemVisible(item_vis_t *visitem)
 	return false;
 }
 
+//checks to see if a point at org the size of a player is visible or not
+qboolean TP_IsPlayerVisible(vec3_t origin)
+{
+	item_vis_t visitem;
+
+	VectorCopy(vpn, visitem.forward);
+	VectorCopy(vright, visitem.right);
+	VectorCopy(vup, visitem.up);
+	VectorCopy(r_origin, visitem.vieworg);
+
+	VectorCopy (origin, visitem.entorg);
+	visitem.entorg[2] += 27;
+	VectorSubtract (visitem.entorg, visitem.vieworg, visitem.dir);
+	visitem.dist = DotProduct (visitem.dir, visitem.forward);
+	visitem.radius = 25;
+
+	return TP_IsItemVisible(&visitem);
+}
+
 static float TP_RankPoint(item_vis_t *visitem)
 {
 	vec3_t v2, v3;

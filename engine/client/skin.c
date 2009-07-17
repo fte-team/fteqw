@@ -222,6 +222,10 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	if (skin->failedload)
 		return NULL;
 
+	skin->tex_base = 0;
+	skin->tex_lower = 0;
+	skin->tex_upper = 0;
+
 	out = Cache_Check (&skin->cache);
 	if (out)
 		return out;
@@ -250,7 +254,6 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 
 		skin->width = 320;
 		skin->height = 200;
-		skin->cachedbpp = 8;
 
 		out = Cache_Alloc (&skin->cache, 320*200, skin->name);
 
@@ -272,6 +275,22 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	{
 		if (strcmp(skin->name, baseskin.string))
 		{
+#if defined(RGLQUAKE) || defined(D3DQUAKE)
+			if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
+			{
+				skin->tex_base = Mod_LoadReplacementTexture(skin->name, "skins", true, false, true);
+				if (skin->tex_base)
+				{
+					sprintf (name, "%s_shirt", skin->name);
+					skin->tex_upper = Mod_LoadReplacementTexture(name, "skins", true, true, true);
+					sprintf (name, "%s_pants", skin->name);
+					skin->tex_lower = Mod_LoadReplacementTexture(name, "skins", true, true, true);
+
+					skin->failedload = true;
+					return NULL;
+				}
+			}
+#endif
 			//if its not already the base skin, try the base (and warn if anything not base couldn't load).
 			Con_Printf ("Couldn't load skin %s\n", name);
 			sprintf (name, "skins/%s.pcx", baseskin.string);
@@ -300,8 +319,6 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		Con_Printf ("Bad skin %s (unsupported format)\n", name);
 		return NULL;
 	}
-
-	skin->cachedbpp = 8;
 
 	pcx->xmax = (unsigned short)LittleShort(pcx->xmax);
 	pcx->ymax = (unsigned short)LittleShort(pcx->ymax);
@@ -415,8 +432,6 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 		path = "players/";
 	else
 		path = "skins/";
-
-	skin->cachedbpp = 32;
 
 //
 // load the pic from disk

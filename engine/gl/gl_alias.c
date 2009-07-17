@@ -366,6 +366,15 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 							return &cm->texnum;
 						}
 					}
+
+					if (e->scoreboard->skin->tex_base)
+					{
+						texnums = &cm->texnum;
+						texnums->loweroverlay = e->scoreboard->skin->tex_lower;
+						texnums->upperoverlay = e->scoreboard->skin->tex_upper;
+						texnums->base = e->scoreboard->skin->tex_base;
+						return texnums;
+					}
 				
 					cm->texnum.base = Mod_LoadHiResTexture(e->scoreboard->skin->name, "skins", true, false, true);
 					return &cm->texnum;
@@ -379,6 +388,15 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				original = Skin_Cache8(e->scoreboard->skin);
 				inwidth = e->scoreboard->skin->width;
 				inheight = e->scoreboard->skin->height;
+
+				if (!original && e->scoreboard->skin->tex_base)
+				{
+					texnums = &cm->texnum;
+					texnums->loweroverlay = e->scoreboard->skin->tex_lower;
+					texnums->upperoverlay = e->scoreboard->skin->tex_upper;
+					texnums->base = e->scoreboard->skin->tex_base;
+					return texnums;
+				}
 			}
 			else
 			{

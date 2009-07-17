@@ -94,7 +94,7 @@ cvar_t	v_gunkick = SCVAR("v_gunkick", "0");
 
 cvar_t	v_viewheight = SCVAR("v_viewheight", "0");
 
-cvar_t	scr_autoid = SCVAR("scr_autoid", "0");
+cvar_t	scr_autoid = SCVAR("scr_autoid", "1");
 
 
 extern cvar_t cl_chasecam;
@@ -1234,18 +1234,23 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	}
 }
 
+void Draw_ExpandedString(int x, int y, conchar_t *str);
+extern vec3_t nametagorg[MAX_CLIENTS];
+extern qboolean nametagseen[MAX_CLIENTS];
 void R_DrawNameTags(void)
 {
+	conchar_t buffer[256];
 	int i;
+	int len;
 	vec3_t center;
 	vec3_t tagcenter;
 	vec3_t waste, waste2;
-	frame_t *frame;
-	player_state_t *state;
 
 	if (!cl.spectator && !cls.demoplayback)
 		return;
 	if (!scr_autoid.value)
+		return;
+	if (cls.state != ca_active || !cl.validsequence)
 		return;
 
 #ifdef RGLQUAKE
@@ -1256,26 +1261,23 @@ void R_DrawNameTags(void)
 	}
 #endif
 
-	frame = &cl.frames[cl.parsecount&UPDATE_MASK];
-	state = frame->playerstate;
-	for (i = 0; i < MAX_CLIENTS; i++, state++)
+	for (i = 0; i < MAX_CLIENTS; i++)
 	{
-		if (state->messagenum != cl.parsecount)
-			continue;	// not present this frame
+		if (!nametagseen[i])
+			continue;
 		if (i == cl.playernum[r_refdef.currentplayernum])
 			continue;	// Don't draw tag for the local player
-		if (Cam_DrawPlayer(r_refdef.currentplayernum, i) == false)
-			continue;	// Don't draw tag for players not drawn on the map
-		if (view_frame && view_frame->playerstate[i].flags & PF_DEAD)
-			continue;	// Don't draw tag for dead people
-		if (!TraceLineN(r_refdef.vieworg, state->origin, waste, waste2))
+
+		if (TP_IsPlayerVisible(nametagorg[i]))
 		{
-			VectorCopy(state->origin, tagcenter);
+			VectorCopy(nametagorg[i], tagcenter);
 			tagcenter[2] += 32;
 			Matrix4_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
 			if (center[2] > 1)
 				continue;
-			Draw_FunString(center[0]*r_refdef.vrect.width+r_refdef.vrect.x, (1-center[1])*r_refdef.vrect.height+r_refdef.vrect.y, cl.players[i].name);
+
+			len = COM_ParseFunString(CON_WHITEMASK, cl.players[i].name, buffer, sizeof(buffer), false) - buffer;
+			Draw_ExpandedString(center[0]*r_refdef.vrect.width+r_refdef.vrect.x - len*4, (1-center[1])*r_refdef.vrect.height+r_refdef.vrect.y, buffer);
 		}
 	}
 }
@@ -1339,7 +1341,7 @@ void V_RenderPlayerViews(int plnum)
 	}
 	else
 		gl_ztrickdisabled&=~16;
-	
+
 
 #ifdef SIDEVIEWS
 /*	//adjust main view height to strip off the rearviews at the top
@@ -1379,7 +1381,7 @@ void V_RenderPlayerViews(int plnum)
 			continue;
 		if (vsec_scaley[viewnum].value+vsec_y[viewnum].value > 1)
 			continue;
-		
+
 		oldrect = r_refdef.vrect;
 		memcpy(oldangles, r_refdef.viewangles, sizeof(vec3_t));
 		memcpy(oldposition, r_refdef.vieworg, sizeof(vec3_t));
@@ -1410,7 +1412,7 @@ void V_RenderPlayerViews(int plnum)
 			r_refdef.vieworg[0]=r_refdef.vieworg[0];//*s+(1-s)*e->lerporigin[0];
 			r_refdef.vieworg[1]=r_refdef.vieworg[1];//*s+(1-s)*e->lerporigin[1];
 			r_refdef.vieworg[2]=r_refdef.vieworg[2];//*s+(1-s)*e->lerporigin[2];
-			
+
 			r_refdef.viewangles[0]=e->angles[0];//*s+(1-s)*e->msg_angles[1][0];
 			r_refdef.viewangles[1]=e->angles[1];//*s+(1-s)*e->msg_angles[1][1];
 			r_refdef.viewangles[2]=e->angles[2];//*s+(1-s)*e->msg_angles[1][2];
@@ -1462,12 +1464,12 @@ void V_RenderView (void)
 	if (r_worldentity.model)
 	{
 		RSpeedMark();
-	
+
 		CL_AllowIndependantSendCmd(false);
 
 		//work out which packet entities are solid
 		CL_SetSolidEntities ();
-		
+
 		CL_EmitEntities();
 
 		// Set up prediction for other players
@@ -1508,7 +1510,7 @@ void V_RenderView (void)
 	{
 		V_RenderPlayerViews(viewnum);
 	}
-		
+
 #ifdef PEXT_BULLETENS
 	alreadyrendering=false;
 #endif

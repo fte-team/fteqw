@@ -518,7 +518,7 @@ void PF_precache_model_Internal (progfuncs_t *prinst, char *s);
 void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m);
 char *PF_infokey_Internal (int entnum, char *value);;
 
-static int WrapQCBuiltin(builtin_t func, void *offset, unsigned qintptr_t mask, const qintptr_t *arg, char *argtypes)
+static int WrapQCBuiltin(builtin_t func, void *offset, quintptr_t mask, const qintptr_t *arg, char *argtypes)
 {
 	globalvars_t gv;
 	int argnum=0;
@@ -554,7 +554,7 @@ static int WrapQCBuiltin(builtin_t func, void *offset, unsigned qintptr_t mask, 
 }
 
 #define VALIDATEPOINTER(o,l) if ((qintptr_t)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %i passes invalid pointer\n", fn);	//out of bounds.
-static qintptr_t syscallhandle (void *offset, unsigned qintptr_t mask, qintptr_t fn, const qintptr_t *arg)
+static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
 	switch (fn)
 	{
@@ -1259,7 +1259,7 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 }
 
 #if __WORDSIZE == 64
-static int syscallqvm (void *offset, unsigned qintptr_t mask, int fn, const int *arg)
+static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
 {
 	qintptr_t args[13];
 	int i;

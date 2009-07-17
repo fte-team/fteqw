@@ -52,6 +52,18 @@ static int pe_size2 = P_INVALID;
 static int pe_size3 = P_INVALID;
 static int pe_defaulttrail = P_INVALID;
 
+static float psintable[64];
+
+static void buildsintable(void)
+{
+	int i;
+	for (i = 0; i < 64; i++)
+		psintable[i] = sin((i*M_PI)/32);
+}
+#define sin(x) (psintable[(int)(x*(64/M_PI)) & 63])
+#define cos(x) (psintable[((int)(x*(64/M_PI)) + 16) & 63])
+
+
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
 typedef struct particle_s
 {
@@ -1304,6 +1316,8 @@ static void PScript_InitParticles (void)
 
 	if (r_numparticles)	//already inited
 		return;
+
+	buildsintable();
 
 	i = COM_CheckParm ("-particles");
 
@@ -3199,13 +3213,18 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 	{
 		p = *plist++;
 
-		scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
-			+ (p->org[2] - r_origin[2])*vpn[2];
-		scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
-		if (scale < 20)
-			scale = 0.25;
+		if (type->scalefactor == 1)
+		{
+			scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
+				+ (p->org[2] - r_origin[2])*vpn[2];
+			scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
+			if (scale < 20)
+				scale = 0.25;
+			else
+				scale = 0.25 + scale * 0.001;
+		}
 		else
-			scale = 0.25 + scale * 0.001;
+			scale = 1;
 
 		qglColor4f (p->rgb[0],
 					p->rgb[1],
@@ -3216,20 +3235,27 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 		{
 			x = sin(p->angle)*scale;
 			y = cos(p->angle)*scale;
+
+			qglTexCoord2f(p->s1,p->t1);
+			qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
+			qglTexCoord2f(p->s1,p->t2);
+			qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
+			qglTexCoord2f(p->s2,p->t2);
+			qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
+			qglTexCoord2f(p->s2,p->t1);
+			qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
 		}
 		else
 		{
-			x = 0;
-			y = scale;
+			qglTexCoord2f(p->s1,p->t1);
+			qglVertex3f (p->org[0] - scale*pup[0], p->org[1] - scale*pup[1], p->org[2] - scale*pup[2]);
+			qglTexCoord2f(p->s1,p->t2);
+			qglVertex3f (p->org[0] - scale*pright[0], p->org[1] - scale*pright[1], p->org[2] - scale*pright[2]);
+			qglTexCoord2f(p->s2,p->t2);
+			qglVertex3f (p->org[0] + scale*pup[0], p->org[1] + scale*pup[1], p->org[2] + scale*pup[2]);
+			qglTexCoord2f(p->s2,p->t1);
+			qglVertex3f (p->org[0] + scale*pright[0], p->org[1] + scale*pright[1], p->org[2] + scale*pright[2]);
 		}
-		qglTexCoord2f(p->s1,p->t1);
-		qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-		qglTexCoord2f(p->s1,p->t2);
-		qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
-		qglTexCoord2f(p->s2,p->t2);
-		qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-		qglTexCoord2f(p->s2,p->t1);
-		qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
 	}
 	qglEnd();
 }
@@ -3276,16 +3302,19 @@ static void GL_DrawSketchParticle(int count, particle_t **plist, plooks_t *type)
 		{
 			x = sin(p->angle)*scale;
 			y = cos(p->angle)*scale;
+
+			qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
+			qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
+			qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
+			qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
 		}
 		else
 		{
-			x = 0;
-			y = scale;
+			qglVertex3f (p->org[0] - scale*pup[0], p->org[1] - scale*pup[1], p->org[2] - scale*pup[2]);
+			qglVertex3f (p->org[0] + scale*pup[0], p->org[1] + scale*pup[1], p->org[2] + scale*pup[2]);
+			qglVertex3f (p->org[0] + scale*pright[0], p->org[1] + scale*pright[1], p->org[2] + scale*pright[2]);
+			qglVertex3f (p->org[0] - scale*pright[0], p->org[1] - scale*pright[1], p->org[2] - scale*pright[2]);
 		}
-		qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-		qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-		qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
-		qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
 	}
 	qglEnd();
 }

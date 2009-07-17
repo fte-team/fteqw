@@ -170,7 +170,6 @@ extern cvar_t          scr_viewsize;
 extern cvar_t          scr_fov;
 extern cvar_t          scr_conspeed;
 extern cvar_t          scr_centertime;
-extern cvar_t          scr_showram;
 extern cvar_t          scr_showturtle;
 extern cvar_t          scr_showpause;
 extern cvar_t          scr_printspeed;
@@ -182,7 +181,6 @@ extern cvar_t			scr_consize;
 
 qboolean        scr_initialized;                // ready to draw
 
-mpic_t          *scr_ram;
 mpic_t          *scr_net;
 mpic_t          *scr_turtle;
 
@@ -1076,7 +1074,6 @@ void SCR_Init (void)
 	Cmd_AddRemCommand ("sizeup",SCR_SizeUp_f);
 	Cmd_AddRemCommand ("sizedown",SCR_SizeDown_f);
 
-	scr_ram = Draw_SafePicFromWad ("ram");
 	scr_net = Draw_SafePicFromWad ("net");
 	scr_turtle = Draw_SafePicFromWad ("turtle");
 
@@ -1095,18 +1092,6 @@ void SCR_DeInit (void)
 	}
 }
 
-/*
-==============
-SCR_DrawRam
-==============
-*/
-void SCR_DrawRam (void)
-{
-	if (!scr_showram.value || !scr_ram)
-		return;
-
-	Draw_Pic (scr_vrect.x+32, scr_vrect.y, scr_ram);
-}
 
 /*
 ==============
@@ -2249,7 +2234,6 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		{
 			Draw_Crosshair();
 
-			SCR_DrawRam ();
 			SCR_DrawNet ();
 			SCR_DrawFPS ();
 			SCR_DrawUPS ();

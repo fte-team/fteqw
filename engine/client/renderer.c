@@ -162,7 +162,6 @@ cvar_t scr_fov								= SCVARFC("fov", "90",
 												SCR_Fov_Callback);
 cvar_t scr_printspeed						= SCVAR  ("scr_printspeed", "8");
 cvar_t scr_showpause						= SCVAR  ("showpause", "1");
-cvar_t scr_showram							= SCVAR  ("showram", "1");
 cvar_t scr_showturtle						= SCVAR  ("showturtle", "0");
 cvar_t scr_sshot_compression				= SCVAR  ("scr_sshot_compression", "75");
 cvar_t scr_sshot_type						= SCVAR  ("scr_sshot_type", "jpg");
@@ -586,7 +585,6 @@ void Renderer_Init(void)
 //screen
 	Cvar_Register (&scr_conspeed, SCREENOPTIONS);
 	Cvar_Register (&scr_conalpha, SCREENOPTIONS);
-	Cvar_Register (&scr_showram, SCREENOPTIONS);
 	Cvar_Register (&scr_showturtle, SCREENOPTIONS);
 	Cvar_Register (&scr_showpause, SCREENOPTIONS);
 	Cvar_Register (&scr_centertime, SCREENOPTIONS);

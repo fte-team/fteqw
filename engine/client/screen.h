@@ -69,7 +69,6 @@ void SCR_CalcRefdef (void);
 void SCR_TileClear (void);
 void SCR_DrawNotifyString (void);
 void SCR_CheckDrawCenterString (void);
-void SCR_DrawRam (void);
 void SCR_DrawNet (void);
 void SCR_DrawTurtle (void);
 void SCR_DrawPause (void);

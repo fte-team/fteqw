@@ -1264,6 +1264,7 @@ int SVHL_InitGame(void)
 	{
 		Con_Printf(CON_ERROR "Error: %s is incompatible\n", fullname);
 		Sys_CloseLibrary(hlgamecode);
+		hlgamecode = NULL;
 		return 0;
 	}
 
@@ -1271,7 +1272,7 @@ int SVHL_InitGame(void)
 	return 1;
 }
 
-void SVHL_SaveLevelCache(void)
+void SVHL_SaveLevelCache(char *filename)
 {
 
 }

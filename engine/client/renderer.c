@@ -182,7 +182,7 @@ cvar_t vid_fullscreen						= SCVARF ("vid_fullscreen_embedded", "0",
 static cvar_t vid_fullscreen				= SCVARF ("vid_fullscreen", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 #endif
-cvar_t vid_height							= SCVARF ("vid_height", "480",
+cvar_t vid_height							= SCVARF ("vid_height", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 static cvar_t vid_multisample				= SCVARF ("vid_multisample", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
@@ -192,7 +192,7 @@ static cvar_t vid_stretch					= SCVARF ("vid_stretch", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_wndalpha							= SCVAR ("vid_wndalpha", "1");
 //more readable defaults to match conwidth/conheight.
-cvar_t vid_width							= SCVARF ("vid_width", "640",
+cvar_t vid_width							= SCVARF ("vid_width", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
 extern cvar_t bul_backcol;
@@ -1747,6 +1747,10 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 	return true;
 }
 
+#define DEFAULT_WIDTH 640
+#define DEFAULT_HEIGHT 480
+#define DEFAULT_BPP 32
+
 void R_RestartRenderer_f (void)
 {
 	int i, j;
@@ -1808,12 +1812,13 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	{
 		int dbpp, dheight, dwidth, drate;
 
-		if (!Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
+		if ((!newr.fullscreen && !vid_desktopsettings.value) || !Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
 		{
 			// force default values for systems not supporting desktop parameters
-			dwidth = 640;
-			dheight = 480;
-			dbpp = 32;
+			dwidth = DEFAULT_WIDTH;
+			dheight = DEFAULT_HEIGHT;
+			dbpp = DEFAULT_BPP;
+			drate = 0;
 		}
 
 		if (vid_desktopsettings.value)
@@ -1858,11 +1863,11 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 				failed = !R_ApplyRenderer(&newr);
 			}
 
-			if (failed)
+			if (failed && newr.width != DEFAULT_WIDTH && newr.height != DEFAULT_HEIGHT)
 			{
-				Con_Printf(CON_NOTICE "Trying 640*480\n");
-				newr.width = 640;
-				newr.height = 480;
+				Con_Printf(CON_NOTICE "Trying %i*%i\n", DEFAULT_WIDTH, DEFAULT_HEIGHT);
+				newr.width = DEFAULT_WIDTH;
+				newr.height = DEFAULT_HEIGHT;
 				failed = !R_ApplyRenderer(&newr);
 			}
 

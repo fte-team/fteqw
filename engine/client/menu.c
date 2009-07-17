@@ -1036,9 +1036,7 @@ void M_Draw (int uimenu)
 
 	if ((!menu_script || scr_con_current) && !m_recursiveDraw)
 	{
-		scr_copyeverything = 1;
 		Draw_FadeScreen ();
-		scr_fullupdate = 0;
 	}
 	else
 	{

@@ -1496,7 +1496,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		{
 #ifndef SERVERONLY
 	// yield the CPU for a little while when paused, minimized, or not the focus
-			if ((cl.paused || Minimized || block_drawing) && !Media_PlayingFullScreen())
+			if (cl.paused && !Media_PlayingFullScreen())
 			{
 				SleepUntilInput (PAUSE_SLEEP);
 				scr_skipupdate = 1;		// no point in bothering to draw

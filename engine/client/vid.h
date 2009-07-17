@@ -51,7 +51,6 @@ typedef struct
 {
 	pixel_t			*buffer;		// invisible buffer
 	pixel_t			*colormap;		// 256 * VID_GRADES size
-	unsigned short	*colormap16;	// 256 * VID_GRADES size
 	int				fullbright;		// index of first fullbright color
 	unsigned		rowbytes;	// may be > width if displayed in a window
 	unsigned		width;		
@@ -72,11 +71,8 @@ typedef struct
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state
-extern unsigned short	d_8to16table[256];
 
-extern unsigned int	d_8to24bgrtable[256];
 extern unsigned int	d_8to24rgbtable[256];
-extern unsigned int	*d_8to32table;
 
 #ifdef RGLQUAKE
 void	GLVID_SetPalette (unsigned char *palette);

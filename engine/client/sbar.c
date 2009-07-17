@@ -2156,9 +2156,6 @@ void Sbar_Draw (void)
 			continue;
 		}
 
-		scr_copyeverything = 1;
-	//	scr_fullupdate = 0;
-
 		sb_updates++;
 
 	// top line
@@ -2296,9 +2293,6 @@ void Sbar_TeamOverlay (void)
 		Sbar_DeathmatchOverlay(0);
 		return;
 	}
-
-	scr_copyeverything = 1;
-	scr_fullupdate = 0;
 
 	y = 0;
 
@@ -2486,9 +2480,6 @@ void Sbar_DeathmatchOverlay (int start)
 		cl.last_ping_request = realtime;
 		CL_SendClientCommand(true, "pings");
 	}
-
-	scr_copyeverything = 1;
-	scr_fullupdate = 0;
 
 	if (start)
 		y = start;
@@ -2802,9 +2793,6 @@ void Sbar_ChatModeOverlay(void)
 		CL_SendClientCommand(true, "pings");
 	}
 
-	scr_copyeverything = 1;
-	scr_fullupdate = 0;
-
 // scores
 	Sbar_SortFrags (true);
 
@@ -2903,9 +2891,6 @@ void Sbar_MiniDeathmatchOverlay (void)
 
 	if (sbar_rect.width < 512 || !sb_lines)
 		return; // not enuff room
-
-	scr_copyeverything = 1;
-	scr_fullupdate = 0;
 
 // scores
 	Sbar_SortFrags (false);
@@ -3024,9 +3009,6 @@ void Sbar_CoopIntermission (void)
 	sbar_rect.x = 0;
 	sbar_rect.y = 0;
 
-	scr_copyeverything = 1;
-	scr_fullupdate = 0;
-
 	pic = Draw_SafeCachePic ("gfx/complete.lmp");
 	if (!pic)
 		return;
@@ -3061,8 +3043,6 @@ Sbar_IntermissionOverlay
 */
 void Sbar_IntermissionOverlay (void)
 {
-	scr_copyeverything = 1;
-	scr_fullupdate = 0;
 #ifdef VM_UI
 	if (UI_DrawIntermission()>0)
 		return;
@@ -3089,7 +3069,6 @@ void Sbar_FinaleOverlay (void)
 {
 	mpic_t	*pic;
 
-	scr_copyeverything = 1;
 #ifdef VM_UI
 	if (UI_DrawFinale()>0)
 		return;

@@ -11,14 +11,9 @@ qboolean vid_isfullscreen;
 #define GRAPHICALNICETIES "Graphical Nicaties"	//or eyecandy, which ever you prefer.
 #define BULLETENVARS		"BulletenBoard controls"
 #define GLRENDEREROPTIONS	"GL Renderer Options"
-#define SWRENDEREROPTIONS	"SW Renderer Options"
 #define SCREENOPTIONS	"Screen Options"
 
-
-unsigned short	d_8to16table[256];
-unsigned int	d_8to24bgrtable[256];
 unsigned int	d_8to24rgbtable[256];
-unsigned int	*d_8to32table = d_8to24bgrtable;	//palette lookups while rendering r_pixbytes=4
 
 extern int gl_anisotropy_factor;
 
@@ -124,8 +119,6 @@ cvar_t r_novis								= SCVAR  ("r_novis", "0");
 cvar_t r_part_rain							= SCVARF ("r_part_rain", "0",
 												CVAR_ARCHIVE);
 //whack in a value of 2 and you get easily visible players.
-cvar_t r_sirds								= SCVARF ("r_sirds", "0",
-												CVAR_SEMICHEAT);
 cvar_t r_skyboxname							= SCVARF ("r_skybox", "",
 												CVAR_RENDERERCALLBACK);
 cvar_t r_speeds								= SCVARF ("r_speeds", "0",

@@ -157,10 +157,6 @@ int mouseusedforgui;
 int mousecursor_x, mousecursor_y;
 int mousemove_x, mousemove_y;
 
-// only the refresh window will be updated unless these variables are flagged
-int                     scr_copytop;
-int                     scr_copyeverything;
-
 float           scr_con_current;
 float           scr_conlines;           // lines of console to display
 
@@ -184,8 +180,6 @@ qboolean        scr_initialized;                // ready to draw
 mpic_t          *scr_net;
 mpic_t          *scr_turtle;
 
-int                     scr_fullupdate;
-
 int                     clearconsole;
 int                     clearnotify;
 
@@ -199,7 +193,6 @@ qboolean        scr_disabled_for_loading;
 qboolean        scr_drawloading;
 float           scr_disabled_time;
 
-qboolean        block_drawing;
 float oldsbar = 0;
 
 void SCR_ScreenShot_f (void);
@@ -396,7 +389,6 @@ void SCR_EraseCenterString (void)
 		else
 			y = 48;
 
-		scr_copytop = 1;
 		Draw_TileClear (0, y, vid.width, min(8*scr_erase_lines[pnum], vid.height - y - 1));
 	}
 }
@@ -537,7 +529,6 @@ extern qboolean sb_showscores;
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
-		scr_copytop = 1;
 		if (scr_center_lines[pnum] > scr_erase_lines[pnum])
 			scr_erase_lines[pnum] = scr_center_lines[pnum];
 
@@ -876,7 +867,6 @@ void SCR_CalcRefdef (void)
 	int             h;
 	qboolean		full = false;
 
-	scr_fullupdate = 0;             // force a background redraw
 	vid.recalc_refdef = 0;
 
 // force the status bar to redraw
@@ -1489,7 +1479,6 @@ void SCR_BeginLoadingPlaque (void)
 //		return;
 
 // redraw with no console and the loading plaque
-	scr_fullupdate = 0;
 	Sbar_Changed ();
 	scr_drawloading = true;
 	SCR_UpdateScreen ();
@@ -1497,7 +1486,6 @@ void SCR_BeginLoadingPlaque (void)
 
 	scr_disabled_for_loading = true;
 	scr_disabled_time = Sys_DoubleTime();	//realtime tends to change... Hmmm....
-	scr_fullupdate = 0;
 }
 
 void SCR_EndLoadingPlaque (void)
@@ -1506,7 +1494,6 @@ void SCR_EndLoadingPlaque (void)
 //		return;
 
 	scr_disabled_for_loading = false;
-	scr_fullupdate = 0;
 	*levelshotname = '\0';
 }
 
@@ -1635,7 +1622,6 @@ void SCR_DrawConsole (qboolean noback)
 {
 	if (scr_con_current)
 	{
-		scr_copyeverything = 1;
 		Con_DrawConsole (scr_con_current, noback);
 		clearconsole = 0;
 	}
@@ -2058,7 +2044,6 @@ int SCR_ModalMessage (char *text)
 	scr_notifystring = text;
 
 // draw a fresh screen
-	scr_fullupdate = 0;
 	scr_drawdialog = true;
 	SCR_UpdateScreen ();
 	scr_drawdialog = false;
@@ -2071,7 +2056,6 @@ int SCR_ModalMessage (char *text)
 		Sys_SendKeyEvents ();
 	} while (key_lastpress != 'y' && key_lastpress != 'n' && key_lastpress != K_ESCAPE);
 
-	scr_fullupdate = 0;
 	SCR_UpdateScreen ();
 
 	return key_lastpress == 'y';
@@ -2196,7 +2180,6 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		SCR_ShowPics_Draw();
 		Draw_FadeScreen ();
 		SCR_DrawNotifyString ();
-		scr_copyeverything = true;
 	}
 	else if (scr_drawloading || loading_stage)
 	{

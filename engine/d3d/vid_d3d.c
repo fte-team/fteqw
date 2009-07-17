@@ -811,16 +811,7 @@ void	(D3D7_SCR_UpdateScreen)			(void)
 	qboolean nohud;
 	RSpeedMark();
 
-	if (block_drawing)
-	{
-		RSpeedEnd(RSPEED_TOTALREFRESH);
-		return;
-	}
-
 	vid.numpages = 2;// + gl_triplebuffer.value;
-
-	scr_copytop = 0;
-	scr_copyeverything = 0;
 
 	if (scr_disabled_for_loading)
 	{

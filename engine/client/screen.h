@@ -23,7 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern	float		scr_con_current;
 extern	float		scr_conlines;		// lines of console to display
 
-extern	int			scr_fullupdate;	// set to 0 to force full redraw
 extern	int			sb_lines;
 
 extern	int			clearnotify;	// set to 0 whenever notify text is drawn
@@ -34,14 +33,9 @@ extern	cvar_t		scr_viewsize;
 
 extern cvar_t scr_viewsize;
 
-// only the refresh window will be updated unless these variables are flagged 
-extern	int			scr_copytop;
-extern	int			scr_copyeverything;
-
 qboolean	scr_skipupdate;
 
 qboolean SCR_RSShot (void);
-qboolean	block_drawing;
 
 //void SCR_DrawConsole (qboolean noback);
 //void SCR_SetUpToDrawConsole (void);

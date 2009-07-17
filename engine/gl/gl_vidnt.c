@@ -1047,7 +1047,7 @@ void GL_DoSwap (void)
 		return;
 	screenflush = 0;
 
-	if (!scr_skipupdate || block_drawing)
+	if (!scr_skipupdate)
 		qSwapBuffers(maindc);
 
 // handle the mouse state when windowed if that's changed

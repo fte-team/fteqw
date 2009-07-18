@@ -437,12 +437,23 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 // send an update
 	bits = 0;
 
-	for (i=0 ; i<3 ; i++)
+	if (sizeofcoord == 2)
 	{
-		miss = to->origin[i] - from->origin[i];
-		if ( miss < -0.1 || miss > 0.1 )
+		for (i=0 ; i<3 ; i++)
 		{
-			bits |= U_ORIGIN1<<i;
+			miss = (short)(to->origin[i]*8) - (short)(from->origin[i]*8);
+			if (miss)
+				bits |= U_ORIGIN1<<i;
+			else
+				to->origin[i] = from->origin[i];
+		}
+	}
+	else
+	{
+		for (i=0 ; i<3 ; i++)
+		{
+			if (to->origin[i] != from->origin[i])
+				bits |= U_ORIGIN1<<i;
 		}
 	}
 
@@ -847,9 +858,9 @@ void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *m
 		bits |= E5_FULLUPDATE;
 	}
 
-	if (!VectorCompare(from->origin, to->origin))
+	if (!VectorEquals(from->origin, to->origin))
 		bits |= E5_ORIGIN;
-	if (!VectorCompare(from->angles, to->angles))
+	if (!VectorEquals(from->angles, to->angles))
 		bits |= E5_ANGLES;
 	if (from->modelindex != to->modelindex)
 		bits |= E5_MODEL;
@@ -1811,7 +1822,7 @@ void SVNQ_EmitEntityState(sizebuf_t *msg, entity_state_t *ent)
 #define	NQU_ORIGIN2	(1<<2)
 #define	NQU_ORIGIN3	(1<<3)
 #define	NQU_ANGLE2	(1<<4)
-#define	NQU_NOLERP	(1<<5)		// don't interpolate movement
+#define	NQU_STEP	(1<<5)		// don't interpolate movement
 #define	NQU_FRAME		(1<<6)
 #define NQU_SIGNAL	(1<<7)		// just differentiates from other updates
 
@@ -1868,8 +1879,8 @@ int glowsize=0, glowcolor=0, colourmod=0;
 	if (ent->angles[2] != baseline->angles[2] )
 		bits |= NQU_ANGLE3;
 
-//	if ((ent->movetype == MOVETYPE_STEP || (ent->movetype == MOVETYPE_PUSH)) && (bits & (U_ANGLE1|U_ANGLE2|U_ANGLE3)))
-//		bits |= NQU_NOLERP;	// don't mess up the step animation
+	if (ent->dpflags & RENDER_STEP)
+		bits |= NQU_STEP;	// don't mess up the step animation
 
 	if (baseline->colormap != ent->colormap && ent->colormap>=0)
 		bits |= NQU_COLORMAP;
@@ -2187,15 +2198,6 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 
 	int i;
 
-//FIXME: move these
-// these are bits for the 'flags' field of the entity_state_t
-#define RENDER_STEP 1
-#define RENDER_GLOWTRAIL 2
-#define RENDER_VIEWMODEL 4
-#define RENDER_EXTERIORMODEL 8
-#define RENDER_LOWPRECISION 16 // send as low precision coordinates to save bandwidth
-#define RENDER_COLORMAPPED 32
-
 #ifdef Q2SERVER
 	state->modelindex2 = 0;
 	state->modelindex3 = 0;
@@ -2221,6 +2223,9 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			state->dpflags |= RENDER_EXTERIORMODEL;
 		//everyone else sees it normally.
 	}
+
+	if (ent->v->movetype == MOVETYPE_STEP)
+		state->dpflags |= RENDER_STEP;
 
 	state->number = NUM_FOR_EDICT(svprogfuncs, ent);
 	state->flags = 0;

@@ -89,7 +89,9 @@ int			con_notifylines;		// scan lines to clear for notify lines
 extern	unsigned char	key_lines[32][MAXCMDLINE];
 extern	int		edit_line;
 extern	int		key_linepos;
-		
+
+static conline_t	*selstartline, *selendline;
+static unsigned int	selstartoffset, selendoffset;
 
 qboolean	con_initialized;
 
@@ -395,6 +397,8 @@ void Con_Clear_f (void)
 		Z_Free(t);
 	}
 	con_main.display = con_main.current = con_main.oldest = NULL;
+	selstartline = NULL;
+	selendline = NULL;
 
 	Con_ResizeCon(&con_main);
 }
@@ -550,6 +554,11 @@ void Con_PrintCon (console_t *con, char *txt)
 				if (con->oldest == con->current)
 					break;
 
+				if (selstartline == con->oldest)
+					selstartline = NULL;
+				if (selendline == con->oldest)
+					selendline = NULL;
+
 				if (con->display == con->oldest)
 					con->display = con->oldest->newer;
 				con->oldest = con->oldest->newer;
@@ -570,6 +579,12 @@ void Con_PrintCon (console_t *con, char *txt)
 		default:
 			if (cr)
 				con->current->length = 0;
+
+			if (selstartline == con->current)
+				selstartline = NULL;
+			if (selendline == con->current)
+				selendline = NULL;
+
 			if (con->display == con->current)
 			{
 				con->current = BZ_Realloc(con->current, sizeof(*con->current)+(con->current->length+1)*sizeof(conchar_t));
@@ -1363,9 +1378,16 @@ void Con_DrawConsole (int lines, qboolean noback)
 							for (i = 0; i < linelength; i++)
 							{
 								send += Font_CharWidth(s[i]);
+
 								if (send > selex)
 									break;
 							}
+
+							selendline = l;
+							if (s)
+								selendoffset = (s+i+1) - (conchar_t*)(l+1);
+							else
+								selendoffset = 0;
 						}
 						if (y <= selsy)
 						{
@@ -1376,6 +1398,12 @@ void Con_DrawConsole (int lines, qboolean noback)
 									break;
 								sstart += x;
 							}
+
+							selstartline = l;
+							if (s)
+								selstartoffset = (s+i) - (conchar_t*)(l+1);
+							else
+								selstartoffset = 0;
 						}
 						
 						Draw_Fill(sstart, y, send - sstart, Font_CharHeight(), 0);
@@ -1398,6 +1426,86 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 // draw the input prompt, user text, and cursor if desired
 	DrawCursor();
+}
+
+
+
+char *Con_CopyConsole(void)
+{
+	conchar_t *cur;
+	conline_t *l;
+	conchar_t *lend;
+	char *result;
+	int outlen, maxlen;
+	int finalendoffset;
+
+	if (!selstartline || !selendline)
+		return NULL;
+
+	maxlen = 1024*1024;
+	result = Z_Malloc(maxlen+1);
+
+	l = selstartline;
+	cur = (conchar_t*)(l+1) + selstartoffset;
+	finalendoffset = selendoffset;
+	
+	if (selstartline == selendline)
+	{
+		if (selstartoffset+1 == finalendoffset)
+		{
+			//they only selected a single char?
+			//fix that up to select the entire token
+			while (cur > (conchar_t*)(l+1))
+			{
+				cur--;
+				if ((*cur & 0xff) == ' ')
+				{
+					cur++;
+					break;
+				}
+			}
+			while (finalendoffset < selendline->length)
+			{
+				if ((((conchar_t*)(l+1))[finalendoffset] & 0xff) != ' ')
+					finalendoffset++;
+				else
+					break;
+			}
+		}
+	}
+
+	outlen = 0;
+	for (;;)
+	{
+		if (l == selendline)
+			lend = (conchar_t*)(l+1) + finalendoffset;
+		else
+			lend = (conchar_t*)(l+1) + l->length;
+		while (cur < lend)
+		{
+			if (outlen == maxlen)
+				break;
+			result[outlen++] = *cur++;
+		}
+
+		if (l == selendline)
+			break;
+
+		l = l->newer;
+		if (!l)
+		{
+			Con_Printf("Error: Bad console buffer\n");
+			break;
+		}
+#ifdef _WIN32
+		result[outlen++] = '\r';
+#endif
+		result[outlen++] = '\n';
+		cur = (conchar_t*)(l+1);
+	}
+	result[outlen++] = 0;
+
+	return result;
 }
 
 

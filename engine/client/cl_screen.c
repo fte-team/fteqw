@@ -167,6 +167,7 @@ extern cvar_t          scr_fov;
 extern cvar_t          scr_conspeed;
 extern cvar_t          scr_centertime;
 extern cvar_t          scr_showturtle;
+extern cvar_t			scr_turtlefps;
 extern cvar_t          scr_showpause;
 extern cvar_t          scr_printspeed;
 extern cvar_t			scr_allowsnap;
@@ -1095,7 +1096,7 @@ void SCR_DrawTurtle (void)
 	if (!scr_showturtle.value || !scr_turtle)
 		return;
 
-	if (host_frametime < 0.1)
+	if (host_frametime <= 1.0/scr_turtlefps.value)
 	{
 		count = 0;
 		return;

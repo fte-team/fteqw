@@ -1576,11 +1576,8 @@ void COM_FileBase (const char *in, char *out, int outlen)
 	while (s > in && *s != '.')
 		s--;
 
-	for (s2 = s ; *s2 && *s2 != '/' ; s2--)
+	for (s2 = s ; s2 > in && *s2 && *s2 != '/' ; s2--)
 		;
-
-	if (in > s2)
-		s2 = in;
 
 	if (s-s2 < 2)
 	{

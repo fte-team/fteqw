@@ -1771,11 +1771,11 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, qboolean alpha)
 			//LH's naming scheme ("models" is likly to be ignored)
 			fbtexture = 0;
 			bumptexture = 0;
-			snprintf(skinname, sizeof(skinname), "%s_%i.", loadmodel->name, i);
+			snprintf(skinname, sizeof(skinname), "%s_%i", loadmodel->name, i);
 			texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 			if (texture)
 			{
-				snprintf(skinname, sizeof(skinname), "%s_%i_luma.", loadmodel->name, i);
+				snprintf(skinname, sizeof(skinname), "%s_%i_luma", loadmodel->name, i);
 				fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 				if (gl_bump.value)
 				{
@@ -1883,12 +1883,12 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, qboolean alpha)
 				//LH naming scheme
 				if (!texture)
 				{
-					sprintf(skinname, "%s_%i_%i.", loadmodel->name, i, t);
+					sprintf(skinname, "%s_%i_%i", loadmodel->name, i, t);
 					texture = Mod_LoadReplacementTexture(skinname, "models", true, false, true);
 				}
 				if (!fbtexture && r_fb_models.value)
 				{
-					sprintf(skinname, "%s_%i_%i_luma.", loadmodel->name, i, t);
+					sprintf(skinname, "%s_%i_%i_luma", loadmodel->name, i, t);
 					fbtexture = Mod_LoadReplacementTexture(skinname, "models", true, true, true);
 				}
 

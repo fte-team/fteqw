@@ -1268,6 +1268,8 @@ void R_DrawGAliasModel (entity_t *e)
 
 #if defined(Q3SHADERS) && defined(Q2BSPS)
 	fog = CM_FogForOrigin(currententity->origin);
+#elif defined(Q3SHADERS)
+	fog = NULL;
 #endif
 
 	qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->shaderRGBAf[3]);

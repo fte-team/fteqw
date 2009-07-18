@@ -7121,6 +7121,7 @@ void PF_sv_particleeffectnum(progfuncs_t *prinst, struct globalvars_s *pr_global
 //void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),
 void PF_sv_trailparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifdef PEXT_CSQC
 #pragma message("PF_sv_trailparticles: first two parameters differ from dp, but comply with spec")
 	int efnum = G_FLOAT(OFS_PARM0);
 	int ednum = G_EDICTNUM(prinst, OFS_PARM1);
@@ -7148,10 +7149,12 @@ void PF_sv_trailparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	MSG_WriteCoord(&sv.nqmulticast, end[2]);
 
 	SV_MulticastProtExt(start, MULTICAST_PHS, ~0, PEXT_CSQC, 0);
+#endif
 }
 //void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
 void PF_sv_pointparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifdef PEXT_CSQC
 	int efnum = G_FLOAT(OFS_PARM0);
 	float *org = G_VECTOR(OFS_PARM1);
 	float *vel = G_VECTOR(OFS_PARM2);
@@ -7197,6 +7200,7 @@ void PF_sv_pointparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		MSG_WriteShort(&sv.nqmulticast, count);
 	}
 	SV_MulticastProtExt(org, MULTICAST_PHS, ~0, PEXT_CSQC, 0);
+#endif
 }
 
 

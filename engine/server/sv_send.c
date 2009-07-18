@@ -1517,6 +1517,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		}
 		else
 		{
+#ifdef PEXT_CSQC
 			if ((client->fteprotocolextensions & PEXT_CSQC) && (sv.csqcchecksum || progstype == PROG_H2))
 			{
 				if (statsf[i] && statsf[i] - (float)(int)statsf[i] == 0)
@@ -1564,7 +1565,9 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 					}
 				}
 			}
-			else if (!statsi[i])
+			else
+#endif
+				if (!statsi[i])
 				statsi[i] = statsf[i];
 			if (statsi[i] != client->statsi[i])
 			{

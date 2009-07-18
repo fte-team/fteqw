@@ -659,7 +659,7 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 			normal[(k+1)%3] = v1[(k+2)%3] - v2[(k+2)%3];
 			normal[(k+2)%3] = -(v1[(k+1)%3] - v2[(k+1)%3]);
 
-			if (VectorCompare (normal, vec3_origin))
+			if (VectorEquals (normal, vec3_origin))
 				continue;
 
 			plane = &patchplanes[numpatchplanes++];
@@ -684,7 +684,7 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 
 		for (j = i + 1; j < numpatchplanes; j++)
 			if ( patchplanes[j].dist == patchplanes[i].dist
-				&& VectorCompare (patchplanes[j].normal, patchplanes[i].normal) )
+				&& VectorEquals (patchplanes[j].normal, patchplanes[i].normal) )
 			{
 				skip[i] = true;
 				break;
@@ -2482,9 +2482,9 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 			indexes[1] = p + size[0];
 			indexes[2] = p + 1;
 
-			if ( !VectorCompare(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
-				!VectorCompare(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
-				!VectorCompare(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) ) {
+			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
+				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
+				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) ) {
 				indexes += 3;
 				numindexes += 3;
 			}
@@ -2493,9 +2493,9 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 			indexes[1] = p + size[0];
 			indexes[2] = p + size[0] + 1;
 
-			if ( !VectorCompare(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
-				!VectorCompare(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
-				!VectorCompare(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) ) {
+			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
+				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
+				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) ) {
 				indexes += 3;
 				numindexes += 3;
 			}
@@ -3042,7 +3042,7 @@ qboolean CModQ3_LoadLeafs (lump_t *l)
 		out->nummarksurfaces = LittleLong(in->num_leafsurfaces);
 
 		if (out->minmaxs[0] > out->minmaxs[3+0] || out->minmaxs[1] > out->minmaxs[3+1] ||
-			out->minmaxs[2] > out->minmaxs[3+2] || VectorCompare (out->minmaxs, out->minmaxs+3))
+			out->minmaxs[2] > out->minmaxs[3+2] || VectorEquals (out->minmaxs, out->minmaxs+3))
 		{
 			out->nummarksurfaces = 0;
 		}

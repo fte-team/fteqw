@@ -2469,10 +2469,11 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	//pretend it came from the server, and update cheat/permissions/etc
 	CL_CheckServerInfo();
 
-
+#ifdef PEXT_CSQC
 	CSQC_Shutdown();
 	if (cls.demoplayback)
 		CSQC_Init(0);
+#endif
 }
 void CLNQ_SignonReply (void)
 {
@@ -2503,7 +2504,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 
 			CL_SendClientCommand(true, "playermodel %s", model.string);
 			CL_SendClientCommand(true, "playerskin %s", skin.string);
-
+#ifdef PEXT_CSQC
 			{
 				char *s;
 				s = Info_ValueForKey(cl.serverinfo, "*csprogs");
@@ -2512,6 +2513,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 				else
 					CSQC_Shutdown();
 			}
+#endif
 		}
 		break;
 
@@ -5729,9 +5731,11 @@ void CLNQ_ParseServerMessage (void)
 			CLNQ_ParseDarkPlaces5Entities();
 			break;
 
+#ifdef PEXT_CSQC
 		case svcdp_csqcentities:
 			CSQC_ParseEntities();
 			break;
+#endif
 
 		case svcdp_downloaddata:
 			CLDP_ParseDownloadData();

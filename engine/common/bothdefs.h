@@ -187,6 +187,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 //temporarily disable stuff here, so as to not break any custom configs
+//#define NEWBACKEND
 
 
 //fix things a little...
@@ -239,7 +240,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef VM_Q1
 #endif
 
-#if defined(GLQUAKE)
+#if defined(D3DQUAKE)
 	//not supported in anything but GL. avoid bugs.
 	#undef AVAIL_FREETYPE
 #endif
@@ -273,7 +274,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q3BSPS
 #endif
 #if !defined(Q3BSPS)
-	#undef Q3SHADERS
 	#undef Q3CLIENT //reconsider this (later)
 	#undef Q3SERVER //reconsider this (later)
 #endif

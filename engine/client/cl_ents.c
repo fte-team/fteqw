@@ -50,6 +50,8 @@ static struct predicted_player {
 	player_state_t *oldstate;
 } predicted_players[MAX_CLIENTS];
 
+static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le);
+
 extern int cl_playerindex, cl_h_playerindex, cl_rocketindex, cl_grenadeindex, cl_gib1index, cl_gib2index, cl_gib3index;
 
 qboolean CL_FilterModelindex(int modelindex, int frame)
@@ -379,6 +381,7 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		// these are bits for the 'flags' field of the entity_state_t
 
 		i = MSG_ReadByte();
+		to->dpflags = i;
 		to->flags = 0;
 		if (i & RENDER_VIEWMODEL)
 			to->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
@@ -1143,41 +1146,7 @@ entity_state_t *CL_FindPacketEntity(int num)
 }
 #endif
 
-//return 0 to 1
-//1 being entirly new frame.
-float CL_LerpEntityFrac(float lerprate, float lerptime)
-{
-	float f;
-	if (!lerprate)
-	{
-		return 0;
-	}
-	else
-	{
-		f = 1-(cl.time-lerptime)/lerprate;
-	}
-
-	if (f<0)f=0;
-	if (f>1)f=1;
-
-	return f;
-}
-
-float CL_EntLerpFactor(int entnum)
-{
-	float f;
-	if (cl.lerpents[entnum].lerprate<=0)
-		return 0;
-	else
-		f = 1-(cl.time-cl.lerpents[entnum].lerptime)/cl.lerpents[entnum].lerprate;
-	if (f<0)
-		f=0;
-	if (f>1)
-		f=1;
-	return f;
-}
-
-void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
+void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parenttagnum)
 {
 	entity_state_t *ps;
 	float *org=NULL, *ang=NULL;
@@ -1187,7 +1156,7 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 	int model;
 	framestate_t fstate;
 
-	if (tagent > cl.maxlerpents)
+	if (parenttagent > cl.maxlerpents)
 	{
 		Con_Printf("tag entity out of range!\n");
 		return;
@@ -1195,42 +1164,46 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 
 	memset(&fstate, 0, sizeof(fstate));
 
-	fstate.g[FS_REG].frame[1] = cl.lerpents[tagent].frame;
+	//for visibility checks
+	ent->keynum = parenttagent;
 
-	ent->keynum = tagent;
-
-	ps = CL_FindPacketEntity(tagent);
+	ps = CL_FindPacketEntity(parenttagent);
 	if (ps)
 	{
 		if (ps->tagentity)
-			CL_RotateAroundTag(ent, num, ps->tagentity, ps->tagindex);
+			CL_RotateAroundTag(ent, entnum, ps->tagentity, ps->tagindex);
 
 		org = ps->origin;
 		ang = ps->angles;
 		model = ps->modelindex;
-		fstate.g[FS_REG].frame[0] = ps->frame;
+
+		CL_LerpNetFrameState(FS_REG, &fstate, &cl.lerpents[parenttagent]);
 	}
 	else
 	{
 		extern int parsecountmod;
 //		Con_Printf("tagent %i\n", tagent);
-		if (tagent <= MAX_CLIENTS && tagent > 0)
+		if (parenttagent <= MAX_CLIENTS && parenttagent > 0)
 		{
-			if (tagent-1 == cl.playernum[0])
+			if (parenttagent == cl.playernum[0]+1)
 			{
 				org = cl.simorg[0];
 				ang = cl.simangles[0];
 			}
 			else
 			{
-				org = cl.frames[parsecountmod].playerstate[tagent-1].origin;
-				ang = cl.frames[parsecountmod].playerstate[tagent-1].viewangles;
+				org = cl.frames[parsecountmod].playerstate[parenttagent-1].origin;
+				ang = cl.frames[parsecountmod].playerstate[parenttagent-1].viewangles;
 			}
-			model = cl.frames[parsecountmod].playerstate[tagent-1].modelindex;
-			fstate.g[FS_REG].frame[0] = cl.frames[parsecountmod].playerstate[tagent-1].frame;
+			model = cl.frames[parsecountmod].playerstate[parenttagent-1].modelindex;
+
+			CL_LerpNetFrameState(FS_REG, &fstate, &cl.lerpplayers[parenttagent-1]);
 		}
 		else
+		{
+			CL_LerpNetFrameState(FS_REG, &fstate, &cl.lerpents[parenttagent]);
 			model = 0;
+		}
 	}
 
 	if (ang)
@@ -1240,10 +1213,11 @@ void CL_RotateAroundTag(entity_t *ent, int num, int tagent, int tagnum)
 		ang[0]*=-1;
 		VectorInverse(axis[1]);
 
-		fstate.g[FS_REG].lerpfrac = CL_EntLerpFactor(tagent);
-		fstate.g[FS_REG].frametime[0] = cl.time - cl.lerpents[tagent].framechange;
-		fstate.g[FS_REG].frametime[1] = cl.time - cl.lerpents[tagent].oldframechange;
-		if (Mod_GetTag(cl.model_precache[model], tagnum, &fstate, transform))
+//		fstate.g[FS_REG].lerpfrac = CL_EntLerpFactor(tagent);
+//		fstate.g[FS_REG].frametime[0] = cl.time - cl.lerpents[tagent].framechange;
+//		fstate.g[FS_REG].frametime[1] = cl.time - cl.lerpents[tagent].oldframechange;
+
+		if (Mod_GetTag(cl.model_precache[model], parenttagnum, &fstate, transform))
 		{
 			old[0] = ent->axis[0][0];
 			old[1] = ent->axis[1][0];
@@ -1400,6 +1374,39 @@ void V_AddLight (vec3_t org, float quant, float r, float g, float b)
 	CL_NewDlightRGB (0, org[0], org[1], org[2], quant, -0.1, r, g, b);
 }
 
+static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le)
+{
+	fs->g[fsanim].frame[0] = le->newframe;
+	fs->g[fsanim].frame[1] = le->oldframe;
+
+	fs->g[fsanim].frametime[0] = cl.servertime - le->newframestarttime;
+	fs->g[fsanim].frametime[1] = cl.servertime - le->oldframestarttime;
+
+	fs->g[fsanim].lerpfrac = 1-(fs->g[fsanim].frametime[0]) / le->framelerpdeltatime;
+	fs->g[fsanim].lerpfrac = bound(0, fs->g[FS_REG].lerpfrac, 1);
+}
+
+void CL_UpdateNetFrameLerpState(qboolean force, unsigned int curframe, lerpents_t *le)
+{
+	if (force || curframe != le->newframe)
+	{
+		le->framelerpdeltatime = bound(0, cl.servertime - le->newframestarttime, 0.1);	//clamp to 10 tics per second
+
+		if (!force)
+		{
+			le->oldframe = le->newframe;
+			le->oldframestarttime = le->newframestarttime;
+		}
+		else
+		{
+			le->oldframe = curframe;
+			le->oldframestarttime = cl.servertime;
+		}
+		le->newframe = curframe;
+		le->newframestarttime = cl.servertime;
+	}
+}
+
 /*
 ===============
 CL_LinkPacketEntities
@@ -1407,8 +1414,6 @@ CL_LinkPacketEntities
 ===============
 */
 void R_FlameTrail(vec3_t start, vec3_t end, float seperation);
-#define DECENTLERP
-#ifdef DECENTLERP
 
 void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entities_t *oldpack, float servertime)
 {
@@ -1471,32 +1476,72 @@ void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entities_t *
 			VectorClear(move);
 		}
 
-		for (i = 0; i < 3; i++)
+		if (sold == snew)
 		{
-			le->origin[i] = sold->origin[i] + frac*(move[i]);
+			//new this frame (or we noticed something changed significantly)
+			VectorCopy(snew->origin, le->origin);
+			VectorCopy(snew->angles, le->angles);
 
-			for (j = 0; j < 3; j++)
+			le->orglerpdeltatime = 0.1;
+			le->orglerpstarttime = oldpack->servertime;
+		}
+		else if (snew->dpflags & RENDER_STEP)
+		{
+			float lfrac;
+			//ignore the old packet entirely, except for maybe its time.
+			if (!VectorEquals(le->neworigin, snew->origin) || !VectorEquals(le->newangle, snew->angles))
 			{
-				a1 = sold->angles[i];
-				a2 = snew->angles[i];
-				if (a1 - a2 > 180)
-					a1 -= 360;
-				if (a1 - a2 < -180)
-					a1 += 360;
-				le->angles[i] = a1 + frac * (a2 - a1);
+				le->orglerpdeltatime = bound(0, oldpack->servertime - le->orglerpstarttime, 0.1);	//clamp to 10 tics per second
+				le->orglerpstarttime = oldpack->servertime;
+
+				VectorCopy(le->neworigin, le->oldorigin);
+				VectorCopy(le->newangle, le->oldangle);
+
+				VectorCopy(snew->origin, le->neworigin);
+				VectorCopy(snew->angles, le->newangle);
+			}
+
+			lfrac = (servertime - le->orglerpstarttime) / le->orglerpdeltatime;
+			lfrac = bound(0, lfrac, 1);
+			for (i = 0; i < 3; i++)
+			{
+				le->origin[i] = le->oldorigin[i] + lfrac*(le->neworigin[i] - le->oldorigin[i]);
+
+				for (j = 0; j < 3; j++)
+				{
+					a1 = le->oldangle[i];
+					a2 = le->newangle[i];
+					if (a1 - a2 > 180)
+						a1 -= 360;
+					if (a1 - a2 < -180)
+						a1 += 360;
+					le->angles[i] = a1 + lfrac * (a2 - a1);
+				}
 			}
 		}
-
-		if (snew == sold || (sold->frame != le->frame && sold->frame != snew->frame) || snew->modelindex != sold->modelindex)
+		else
 		{
-			le->oldframechange = le->framechange;
-			le->framechange = newpack->servertime;
+			//lerp based purely on the packet times,
+			for (i = 0; i < 3; i++)
+			{
+				le->origin[i] = sold->origin[i] + frac*(move[i]);
 
-			if (le->framechange > le->oldframechange + 0.2)
-				le->oldframechange = le->framechange - 0.2;
-
-			le->frame = sold->frame;
+				for (j = 0; j < 3; j++)
+				{
+					a1 = sold->angles[i];
+					a2 = snew->angles[i];
+					if (a1 - a2 > 180)
+						a1 -= 360;
+					if (a1 - a2 < -180)
+						a1 += 360;
+					le->angles[i] = a1 + frac * (a2 - a1);
+				}
+			}
+			le->orglerpdeltatime = 0.1;
+			le->orglerpstarttime = oldpack->servertime;
 		}
+
+		CL_UpdateNetFrameLerpState(sold == snew, snew->frame, le);
 	}
 }
 
@@ -1644,21 +1689,6 @@ void CL_LinkPacketEntities (void)
 
 		memset(&ent->framestate, 0, sizeof(ent->framestate));
 
-		if (le->framechange == le->oldframechange)
-			ent->framestate.g[FS_REG].lerpfrac = 0;
-		else
-		{
-			ent->framestate.g[FS_REG].lerpfrac = 1-(servertime - le->framechange) / (le->framechange - le->oldframechange);
-			if (ent->framestate.g[FS_REG].lerpfrac > 1)
-				ent->framestate.g[FS_REG].lerpfrac = 1;
-			else if (ent->framestate.g[FS_REG].lerpfrac < 0)
-			{
-				ent->framestate.g[FS_REG].lerpfrac = 0;
-				//le->oldframechange = le->framechange;
-			}
-		}
-
-
 		VectorCopy(le->origin, ent->origin);
 
 		//bots or powerup glows. items always glow, powerups can be disabled
@@ -1739,12 +1769,30 @@ void CL_LinkPacketEntities (void)
 		ent->abslight = state->abslight;
 		ent->drawflags = state->hexen2flags;
 
+		CL_LerpNetFrameState(FS_REG, &ent->framestate, le);
+		/*
 		// set frame
+		if (le->framechange == le->oldframechange)
+			ent->framestate.g[FS_REG].lerpfrac = 0;
+		else
+		{
+			ent->framestate.g[FS_REG].lerpfrac = 1-(servertime - le->framechange) / (le->framechange - le->oldframechange);
+			if (ent->framestate.g[FS_REG].lerpfrac > 1)
+				ent->framestate.g[FS_REG].lerpfrac = 1;
+			else if (ent->framestate.g[FS_REG].lerpfrac < 0)
+			{
+				ent->framestate.g[FS_REG].lerpfrac = 0;
+				//le->oldframechange = le->framechange;
+			}
+		}
+
+
 		ent->framestate.g[FS_REG].frame[0] = state->frame;
 		ent->framestate.g[FS_REG].frame[1] = le->frame;
 
 		ent->framestate.g[FS_REG].frametime[0] = cl.servertime - le->framechange;
 		ent->framestate.g[FS_REG].frametime[1] = cl.servertime - le->oldframechange;
+		*/
 
 //		f = (sin(realtime)+1)/2;
 
@@ -1896,313 +1944,6 @@ void CL_LinkPacketEntities (void)
 	CSQC_DeltaEnd();
 #endif
 }
-#else
-
-void CL_LinkPacketEntities (void)
-{
-	entity_t			*ent;
-	packet_entities_t	*pack;
-	entity_state_t		*s1;
-	float				f;
-	model_t				*model;
-	vec3_t				old_origin;
-	float				autorotate;
-	int					i;
-	int					pnum;
-	//, spnum;
-	dlight_t			*dl;
-	vec3_t				angles;
-	int flicker;
-
-	pack = &cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
-
-	autorotate = anglemod(100*cl.time);
-
-	for (pnum=0 ; pnum<pack->num_entities ; pnum++)
-	{
-		s1 = &pack->entities[pnum];
-
-		if (cl_numvisedicts == MAX_VISEDICTS)
-		{
-			Con_Printf("Too many visible entities\n");
-			break;
-		}
-		ent = &cl_visedicts[cl_numvisedicts];
-#ifdef Q3SHADERS
-		ent->forcedshader = NULL;
-#endif
-
-		if (CL_MayLerp())
-		{
-			//figure out the lerp factor
-			if (cl.lerpents[s1->number].lerprate<=0)
-				f = 0;
-			else
-				f = (cl.servertime-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;//(cl.gametime-cl.oldgametime);//1-(cl.time-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
-			if (f<0)
-				f=0;
-			if (f>1)
-				f=1;
-		}
-		else
-			f = 1;
-
-		ent->lerpfrac = 1-(cl.servertime-cl.lerpents[s1->number].lerptime)/cl.lerpents[s1->number].lerprate;
-		if (ent->lerpfrac<0)
-			ent->lerpfrac=0;
-		if (ent->lerpfrac>1)
-			ent->lerpfrac=1;
-
-//		if (s1->modelindex == 87 && !cl.paused)
-//			Con_Printf("%f %f\n", f, cl.lerpents[s1->number].lerptime-cl.servertime);
-
-		// calculate origin
-		for (i=0 ; i<3 ; i++)
-			ent->origin[i] = cl.lerpents[s1->number].origin[i] +
-			f * (s1->origin[i] - cl.lerpents[s1->number].origin[i]);
-
-		//bots or powerup glows. items always glow, powerups can be disabled
-		if (s1->modelindex != cl_playerindex || r_powerupglow.value)
-		{
-			flicker = r_lightflicker.value?(rand()&31):0;
-			// spawn light flashes, even ones coming from invisible objects
-			if ((s1->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
-				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + flicker, 0, 3);
-			else if (s1->effects & EF_BLUE)
-				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + flicker, 0, 1);
-			else if (s1->effects & EF_RED)
-				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + flicker, 0, 2);
-			else if (s1->effects & EF_BRIGHTLIGHT)
-				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2] + 16, 400 + flicker, 0, 0);
-			else if (s1->effects & EF_DIMLIGHT)
-				CL_NewDlight (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], 200 + flicker, 0, 0);
-		}
-		if (s1->light[3])
-		{
-			CL_NewDlightRGB (s1->number, s1->origin[0], s1->origin[1], s1->origin[2], s1->light[3], 0, s1->light[0]/1024.0f, s1->light[1]/1024.0f, s1->light[2]/1024.0f);
-		}
-
-		// if set to invisible, skip
-		if (s1->modelindex<1)
-			continue;
-
-		// create a new entity
-		if (cl_numvisedicts == MAX_VISEDICTS)
-			break;		// object list is full
-
-		if (CL_FilterModelindex(s1->modelindex, s1->frame))
-			continue;
-
-		model = cl.model_precache[s1->modelindex];
-		if (!model)
-		{
-			Con_DPrintf("Bad modelindex (%i)\n", s1->modelindex);
-			continue;
-		}
-
-		cl_numvisedicts++;
-
-#ifdef Q3SHADERS
-		ent->forcedshader = NULL;
-#endif
-
-		ent->visframe = 0;
-
-		ent->keynum = s1->number;
-
-		if (cl_r2g.value && s1->modelindex == cl_rocketindex && cl_rocketindex && cl_grenadeindex)
-			ent->model = cl.model_precache[cl_grenadeindex];
-		else
-			ent->model = model;
-
-		ent->flags = s1->flags;
-		if (s1->effects & NQEF_ADDATIVE)
-			ent->flags |= Q2RF_ADDATIVE;
-		if (s1->effects & EF_NODEPTHTEST)
-			ent->flags |= RF_NODEPTHTEST;
-
-		// set colormap
-		if (s1->colormap && (s1->colormap <= MAX_CLIENTS)
-			&& (gl_nocolors.value == -1 || (ent->model/* && s1->modelindex == cl_playerindex*/)))
-		{
-			ent->colormap = cl.players[s1->colormap-1].translations;
-			ent->scoreboard = &cl.players[s1->colormap-1];
-		}
-		else
-		{
-			ent->colormap = vid.colormap;
-			ent->scoreboard = NULL;
-		}
-
-		// set skin
-		ent->skinnum = s1->skinnum;
-
-		ent->abslight = s1->abslight;
-		ent->drawflags = s1->hexen2flags;
-
-		// set frame
-		ent->frame = s1->frame;
-		ent->oldframe = cl.lerpents[s1->number].frame;
-
-		ent->frame1time = cl.servertime - cl.lerpents[s1->number].framechange;
-		ent->frame2time = cl.servertime - cl.lerpents[s1->number].oldframechange;
-
-//		f = (sin(realtime)+1)/2;
-
-#ifdef PEXT_SCALE
-		//set scale
-		ent->scale = s1->scale/16.0;
-#endif
-#ifdef PEXT_TRANS
-		//set trans
-		ent->alpha = s1->trans/255.0;
-#endif
-#ifdef PEXT_FATNESS
-		//set trans
-		ent->fatness = s1->fatness/16.0;
-#endif
-
-		// rotate binary objects locally
-		if (model && model->flags & EF_ROTATE)
-		{
-			angles[0] = 0;
-			angles[1] = autorotate;
-			angles[2] = 0;
-
-			if (cl_item_bobbing.value)
-				ent->origin[2] += 5+sin(cl.time*3)*5;	//don't let it into the ground
-		}
-		else
-		{
-			float	a1, a2;
-
-			for (i=0 ; i<3 ; i++)
-			{
-				a1 = cl.lerpents[s1->number].angles[i];
-				a2 = s1->angles[i];
-				if (a1 - a2 > 180)
-					a1 -= 360;
-				if (a1 - a2 < -180)
-					a1 += 360;
-				angles[i] = a1 + f * (a2 - a1);
-			}
-		}
-
-		VectorCopy(angles, ent->angles);
-		angles[0]*=-1;
-		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
-		VectorInverse(ent->axis[1]);
-
-		if (ent->keynum <= MAX_CLIENTS
-#ifdef NQPROT
-			&& cls.protocol == CP_QUAKEWORLD
-#endif
-			)
-			ent->keynum += MAX_EDICTS;
-
-		if (s1->tagentity)
-		{	//ent is attached to a tag, rotate this ent accordingly.
-			CL_RotateAroundTag(ent, s1->number, s1->tagentity, s1->tagindex);
-		}
-
-		// add automatic particle trails
-		if (!model || (!(model->flags&~EF_ROTATE) && model->particletrail<0 && model->particleeffect<0))
-			continue;
-
-		if (!cls.allow_anyparticles && !(model->flags & ~EF_ROTATE))
-			continue;
-
-		// scan the old entity display list for a matching
-		for (i=0 ; i<cl_oldnumvisedicts ; i++)
-		{
-			if (cl_oldvisedicts[i].keynum == ent->keynum)
-			{
-				VectorCopy (cl_oldvisedicts[i].origin, old_origin);
-				break;
-			}
-		}
-		if (i == cl_oldnumvisedicts)
-		{
-			P_DelinkTrailstate(&(cl.lerpents[s1->number].trailstate));
-			P_DelinkTrailstate(&(cl.lerpents[s1->number].emitstate));
-			continue;		// not in last message
-		}
-
-		for (i=0 ; i<3 ; i++)
-		{
-			if ( abs(old_origin[i] - ent->origin[i]) > 128)
-			{	// no trail if too far
-				VectorCopy (ent->origin, old_origin);
-				break;
-			}
-		}
-
-		if (model->particletrail >= 0)
-		{
-			if (P_ParticleTrail (old_origin, ent->origin, model->particletrail, &cl.lerpents[s1->number].trailstate))
-				P_ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &cl.lerpents[s1->number].trailstate);
-		}
-
-		{
-			extern cvar_t gl_part_flame;
-			if (cls.allow_anyparticles && gl_part_flame.value)
-			{
-				P_EmitEffect (ent->origin, model->particleeffect, &(cl.lerpents[s1->number].emitstate));
-			}
-		}
-
-
-		//dlights are not so customisable.
-		if (r_rocketlight.value)
-		{
-			float rad = 0;
-			vec3_t dclr;
-
-			dclr[0] = 0.20;
-			dclr[1] = 0.10;
-			dclr[2] = 0;
-
-			if (model->flags & EF_ROCKET)
-			{
-				if (strncmp(model->name, "models/sflesh", 13))
-				{	//hmm. hexen spider gibs...
-					rad = 200;
-					dclr[2] = 0.05;
-				}
-			}
-			else if (model->flags & EF_FIREBALL)
-			{
-				rad = 120 - (rand() % 20);
-			}
-			else if (model->flags & EF_ACIDBALL)
-			{
-				rad = 120 - (rand() % 20);
-			}
-			else if (model->flags & EF_SPIT)
-			{
-				// as far as I can tell this effect inverses the light...
-				dclr[0] = -dclr[0];
-				dclr[1] = -dclr[1];
-				dclr[2] = -dclr[2];
-				rad = 120 - (rand() % 20);
-			}
-
-			if (rad)
-			{
-				dl = CL_AllocDlight (s1->number);
-				VectorCopy (ent->origin, dl->origin);
-				dl->die = (float)cl.time;
-				if (model->flags & EF_ROCKET)
-					dl->origin[2] += 1; // is this even necessary
-				dl->radius = rad * r_rocketlight.value;
-				VectorCopy(dclr, dl->color);
-			}
-
-
-		}
-	}
-}
-#endif
 
 /*
 =========================================================================
@@ -2648,7 +2389,7 @@ guess_pm_type:
 			state->pm_type = PM_NORMAL;
 	}
 
-	if (cl.lerpplayers[num].frame != state->frame)
+/*	if (cl.lerpplayers[num].frame != state->frame)
 	{
 		cl.lerpplayers[num].oldframechange = cl.lerpplayers[num].framechange;
 		cl.lerpplayers[num].framechange = cl.time;
@@ -2656,7 +2397,7 @@ guess_pm_type:
 
 		//don't care about position interpolation.
 	}
-
+*/
 	TP_ParsePlayerInfo(oldstate, state, info);
 }
 
@@ -2885,23 +2626,8 @@ void CL_LinkPlayers (void)
 			ent->model = cl.model_precache[state->modelindex];
 		ent->skinnum = state->skinnum;
 
-		ent->framestate.g[FS_REG].frametime[0] = cl.time - cl.lerpplayers[j].framechange;
-		ent->framestate.g[FS_REG].frametime[1] = cl.time - cl.lerpplayers[j].oldframechange;
-
-		if (ent->framestate.g[FS_REG].frame[0] != cl.lerpplayers[j].frame)
-		{
-			ent->framestate.g[FS_REG].frame[1] = ent->framestate.g[FS_REG].frame[0];
-			ent->framestate.g[FS_REG].frame[0] = cl.lerpplayers[j].frame;
-		}
-
-		ent->framestate.g[FS_REG].lerpfrac = 1-(realtime - cl.lerpplayers[j].framechange)*10;
-		if (ent->framestate.g[FS_REG].lerpfrac > 1)
-			ent->framestate.g[FS_REG].lerpfrac = 1;
-		else if (ent->framestate.g[FS_REG].lerpfrac < 0)
-		{
-			ent->framestate.g[FS_REG].lerpfrac = 0;
-			//state->lerpstarttime = 0;
-		}
+		CL_UpdateNetFrameLerpState(false, state->frame, &cl.lerpplayers[j]);
+		CL_LerpNetFrameState(FS_REG, &ent->framestate,	&cl.lerpplayers[j]);
 
 		if (state->modelindex == cl_playerindex)
 			ent->scoreboard = info;		// use custom skin
@@ -3648,13 +3374,6 @@ void MVD_Interpolate(void)
 				state->origin[j] = oldstate->origin[j] + f * (pplayer->oldo[j] - oldstate->origin[j]);
 				state->velocity[j] = oldstate->velocity[j] + f * (pplayer->oldv[j] - oldstate->velocity[j]);
 			}
-		}
-
-		if (cl.lerpplayers[i].frame != state->frame)
-		{
-			cl.lerpplayers[i].oldframechange = cl.lerpplayers[i].framechange;
-			cl.lerpplayers[i].framechange = demtime;
-			cl.lerpplayers[i].frame = state->frame;
 		}
 	}
 }

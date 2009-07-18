@@ -994,6 +994,7 @@ void R_ImportRTLights(char *entlump)
 			dl->flags |= LFLAG_REALTIMEMODE;
 			dl->flags |= (pflags & PFLAGS_CORONA)?LFLAG_ALLOW_FLASH:0;
 			dl->flags |= (pflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
+			dl->flags |= LFLAG_ALLOW_PPL;
 			dl->style = style+1;
 
 			//FIXME: cubemaps if skin >= 16
@@ -1092,7 +1093,7 @@ void R_LoadRTLights(void)
 			dl->radius = radius;
 			VectorCopy(rgb, dl->color);
 			dl->die = 0;
-			dl->flags = flags;
+			dl->flags = flags|LFLAG_ALLOW_PPL;
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 
 			dl->style = style+1;

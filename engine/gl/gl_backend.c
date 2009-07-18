@@ -977,9 +977,9 @@ void R_DeformVertices ( meshbuffer_t *mb )
 					for ( j = 2; j >= 0; j-- ) 
 					{
 						quad[3] = (float *)(vertexArray + indexesArray[k+3+j]);
-						if ( !VectorCompare (quad[3], quad[0]) && 
-							!VectorCompare (quad[3], quad[1]) &&
-							!VectorCompare (quad[3], quad[2]) ) {
+						if ( !VectorEquals (quad[3], quad[0]) && 
+							!VectorEquals (quad[3], quad[1]) &&
+							!VectorEquals (quad[3], quad[2]) ) {
 							break;
 						}
 					}
@@ -1026,9 +1026,9 @@ void R_DeformVertices ( meshbuffer_t *mb )
 					for ( j = 2; j >= 0; j-- )
 					{
 						quad[3] = (float *)(vertexArray + indexesArray[k+3+j]);
-						if ( !VectorCompare (quad[3], quad[0]) && 
-							!VectorCompare (quad[3], quad[1]) &&
-							!VectorCompare (quad[3], quad[2]) )
+						if ( !VectorEquals (quad[3], quad[0]) && 
+							!VectorEquals (quad[3], quad[1]) &&
+							!VectorEquals (quad[3], quad[2]) )
 						{
 							break;
 						}
@@ -2429,7 +2429,7 @@ void R_AddDynamicLights ( meshbuffer_t *mb )
 			VectorMA ( dlorigin, -dist, normal, point );
 			scale = 1 / (light->radius - dist);
 
-			if ( !VectorCompare (normal, oldnormal) ) {
+			if ( !VectorEquals (normal, oldnormal) ) {
 				MakeNormalVectors ( normal, right, up );
 				VectorCopy ( normal, oldnormal );
 			}

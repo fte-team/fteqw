@@ -4893,7 +4893,7 @@ qboolean PPL_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[1] = (i & 2) ? mins[1] : maxs[1];
 			v[2] = (i & 4) ? mins[2] : maxs[2];
 			v[3] = 1.0f;
-			Matrix4_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, (float)vid.width/vid.height, r_refdef.fov_y);
+			Matrix4_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
 			v2[0]*=r_view_width;
 			v2[1]*=r_view_height;
 //			GL_TransformToScreen(v, v2);

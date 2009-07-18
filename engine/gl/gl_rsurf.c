@@ -2165,7 +2165,7 @@ void R_MarkLeafSurfaces_Q1 (void)
 	int shift;
 
 	r_visframecount++;
-	if (1)//r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2)
+	if (r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2)
 	{
 	}
 	else
@@ -2190,7 +2190,7 @@ void R_MarkLeafSurfaces_Q1 (void)
 			vis = fatvis;
 		}
 		else
-			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
+			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, fatvis);
 	}
 
 
@@ -2679,6 +2679,7 @@ int GLAllocBlock (int w, int h, int *x, int *y)
 		if (!lightmap[texnum])
 		{
 			lightmap[texnum] = Z_Malloc(sizeof(*lightmap[texnum]));
+			lightmap[texnum]->meshchain = NULL;
 			lightmap[texnum]->modified = true;
 			// reset stainmap since it now starts at 255
 			memset(lightmap[texnum]->stainmaps, 255, sizeof(lightmap[texnum]->stainmaps));
@@ -2749,6 +2750,7 @@ int GLFillBlock (int texnum, int w, int h, int x, int y)
 		if (!lightmap[i])
 		{
 			lightmap[i] = BZ_Malloc(sizeof(*lightmap[i]));
+			lightmap[i]->meshchain = NULL;
 			lightmap[i]->modified = true;
 			for (l=0 ; l<LMBLOCK_HEIGHT ; l++)
 			{
@@ -2846,7 +2848,6 @@ void GL_BuildSurfaceDisplayList (msurface_t *fa)
 			t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
 
 			VectorCopy (vec, mesh->xyz_array[i]);
-			mesh->xyz_array[i][3] = 1;
 			mesh->st_array[i][0] = s/fa->texinfo->texture->width;
 			mesh->st_array[i][1] = t/fa->texinfo->texture->height;
 
@@ -3124,16 +3125,24 @@ static void GL_GenBrushModelVBO(model_t *mod)
 					vbo->lmcoord[vcount+v][0] = m->lmst_array[v][0];
 					vbo->lmcoord[vcount+v][1] = m->lmst_array[v][1];
 				}
-				vbo->normals[vcount+v][0] = m->normals_array[v][0];
-				vbo->normals[vcount+v][1] = m->normals_array[v][1];
-				vbo->normals[vcount+v][2] = m->normals_array[v][2];
-				vbo->svector[vcount+v][0] = m->snormals_array[v][0];
-				vbo->svector[vcount+v][1] = m->snormals_array[v][1];
-				vbo->svector[vcount+v][2] = m->snormals_array[v][2];
-				vbo->tvector[vcount+v][0] = m->tnormals_array[v][0];
-				vbo->tvector[vcount+v][1] = m->tnormals_array[v][1];
-				vbo->tvector[vcount+v][2] = m->tnormals_array[v][2];
-
+				if (m->normals_array)
+				{
+					vbo->normals[vcount+v][0] = m->normals_array[v][0];
+					vbo->normals[vcount+v][1] = m->normals_array[v][1];
+					vbo->normals[vcount+v][2] = m->normals_array[v][2];
+				}
+				if (m->snormals_array)
+				{
+					vbo->svector[vcount+v][0] = m->snormals_array[v][0];
+					vbo->svector[vcount+v][1] = m->snormals_array[v][1];
+					vbo->svector[vcount+v][2] = m->snormals_array[v][2];
+				}
+				if (m->tnormals_array)
+				{
+					vbo->tvector[vcount+v][0] = m->tnormals_array[v][0];
+					vbo->tvector[vcount+v][1] = m->tnormals_array[v][1];
+					vbo->tvector[vcount+v][2] = m->tnormals_array[v][2];
+				}
 			}
 			vcount += v;
 		}

@@ -61,12 +61,12 @@ extern cvar_t r_fastsky;
 extern cvar_t r_fastskycolour;
 static char defaultskybox[MAX_QPATH];
 
-static int skyprogram;
-static int skyprogram_time;
-static int skyprogram_eyepos;
+/*static*/ int skyprogram;
+/*static*/ int skyprogram_time;
+/*static*/ int skyprogram_eyepos;
 
-static int waterprogram;
-static int waterprogram_time;
+/*static*/ int waterprogram;
+/*static*/ int waterprogram_time;
 
 int skyboxtex[6];
 static vec3_t glskycolor;

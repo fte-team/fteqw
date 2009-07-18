@@ -653,13 +653,17 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 		parmtype = SP_ENTCOLOURS;
 	}
 	else if (!Q_stricmp(token, "upper"))
-	{
 		parmtype = SP_TOPCOLOURS;
-	}
 	else if (!Q_stricmp(token, "lower"))
-	{
 		parmtype = SP_BOTTOMCOLOURS;
-	}
+	else if (!Q_stricmp(token, "lightradius"))
+		parmtype = SP_LIGHTRADIUS;
+	else if (!Q_stricmp(token, "lightcolour"))
+		parmtype = SP_LIGHTCOLOUR;
+	else if (!Q_stricmp(token, "lightpos"))
+		parmtype = SP_LIGHTPOSITION;
+	else
+		Con_Printf("shader %s: parameter type \"%s\" not known\n", shader->name, token);
 
 	if (!shader->programhandle)
 	{
@@ -681,6 +685,8 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 		{
 			switch(parmtype)
 			{
+			case SP_BAD:
+				break;
 			case SP_TEXTURE:
 			case SP_CVARI:
 				GLSlang_SetUniform1i(uniformloc, specialint);
@@ -2077,10 +2083,97 @@ void Shader_RunCinematic (void)
 
 void Shader_DefaultBSP(char *shortname, shader_t *s, void *args)
 {
+	texnums_t *tn = args;
 	shaderpass_t *pass;
 
 	int bumptex;
 	extern cvar_t gl_bump;
+
+	if (*shortname == '*' && tn)
+	{
+		extern int waterprogram;
+		extern int waterprogram_time;
+
+		if (waterprogram)
+		{
+			//quake1 water
+			pass = &s->passes[s->numpasses++];
+
+			pass->flags = SHADER_PASS_DEPTHWRITE|SHADER_PASS_NOCOLORARRAY;
+			pass->tcgen = TC_GEN_BASE;
+			pass->anim_frames[0] = tn->base;
+			pass->depthfunc = GL_LEQUAL;
+			pass->blendmode = GL_MODULATE;
+			pass->alphagen = ALPHA_GEN_IDENTITY;
+			pass->rgbgen = RGB_GEN_IDENTITY;
+
+			pass->numMergedPasses = 1;
+			pass->flush = R_RenderMeshProgram;
+
+			s->programhandle = waterprogram;
+			s->numprogparams = 0;
+			s->progparm[s->numprogparams].handle = waterprogram_time;
+			s->progparm[s->numprogparams].type = SP_TIME;
+			s->numprogparams++;
+
+			s->numdeforms = 0;
+			s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;	//q1 surfaces are one sided - there are actually two of them
+			s->features = MF_STCOORDS;
+			s->sort = SHADER_SORT_OPAQUE;
+			s->registration_sequence = 1;//fizme: registration_sequence;
+			return;
+		}
+	}
+
+	if (!strncmp(shortname, "sky", 3) && tn)
+	{
+		extern int skyprogram;
+		extern int skyprogram_time;
+		extern int skyprogram_eyepos;
+
+		if (skyprogram)
+		{
+			//quake1 sky
+			pass = &s->passes[s->numpasses++];
+
+			pass->flags = SHADER_PASS_DEPTHWRITE|SHADER_PASS_NOCOLORARRAY;
+			pass->tcgen = TC_GEN_BASE;
+			pass->anim_frames[0] = tn->base;
+			pass->depthfunc = GL_LEQUAL;
+			pass->blendmode = GL_MODULATE;
+			pass->alphagen = ALPHA_GEN_IDENTITY;
+			pass->rgbgen = RGB_GEN_IDENTITY;
+
+			pass->numMergedPasses = 2;
+			pass->flush = R_RenderMeshProgram;
+
+			pass = &s->passes[s->numpasses++];
+
+			pass->flags = SHADER_PASS_NOCOLORARRAY;
+			pass->tcgen = TC_GEN_BASE;
+			pass->anim_frames[0] = tn->fullbright;
+			pass->depthfunc = GL_LEQUAL;
+			pass->blendmode = GL_MODULATE;
+			pass->alphagen = ALPHA_GEN_IDENTITY;
+			pass->rgbgen = RGB_GEN_IDENTITY;
+
+			s->programhandle = skyprogram;
+			s->numprogparams = 0;
+			s->progparm[s->numprogparams].handle = skyprogram_time;
+			s->progparm[s->numprogparams].type = SP_TIME;
+			s->numprogparams++;
+			s->progparm[s->numprogparams].handle = skyprogram_eyepos;
+			s->progparm[s->numprogparams].type = SP_EYEPOS;
+			s->numprogparams++;
+
+			s->numdeforms = 0;
+			s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;	//q1 surfaces are one sided - there are actually two of them
+			s->features = MF_STCOORDS;
+			s->sort = SHADER_SORT_OPAQUE;
+			s->registration_sequence = 1;//fizme: registration_sequence;
+			return;
+		}
+	}
 
 	if (gl_config.arb_texture_env_dot3)
 	{

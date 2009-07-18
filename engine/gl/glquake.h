@@ -433,6 +433,7 @@ typedef struct glRect_s {
 } glRect_t;
 typedef unsigned char stmap;
 typedef struct {
+	mesh_t		*meshchain;
 	qboolean	modified;
 	qboolean	deluxmodified;
 	glRect_t	rectchange;

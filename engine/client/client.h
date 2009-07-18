@@ -252,7 +252,6 @@ typedef struct
 #define LFLAG_ALLOW_LMHACK (1<<16)
 #define LFLAG_ALLOW_FLASH (1<<17)
 #define LFLAG_ALLOW_PPL (1<<18)
-#define LFLAG_ALLOW_PPL (1<<18)
 
 #define LFLAG_DYNAMIC (LFLAG_ALLOW_PPL | LFLAG_ALLOW_LMHACK | LFLAG_ALLOW_FLASH | LFLAG_NORMALMODE | LFLAG_REALTIMEMODE)
 
@@ -434,19 +433,28 @@ typedef struct downloadlist_s {
 
 
 typedef struct {
-	float lerptime;
-	float framechange;	//marks time of last frame change - for halflife model sequencing.
-	float oldframechange;
-	float lerprate;	//inverse rate...
-	vec3_t origin;	//current render position
-	vec3_t angles;
-	vec3_t forigin;	//when the frame changed
-	vec3_t fangles;
-	vec3_t foldorigin;//
-	vec3_t foldangles;
+	//current persistant state
 	trailstate_t *trailstate;	//when to next throw out a trail
 	trailstate_t *emitstate;    //when to next emit
-	unsigned short frame, oldframe;
+
+	//current origin
+	vec3_t origin;	//current render position
+	vec3_t angles;
+
+	//intermediate values for frame lerping
+	float framelerpdeltatime;
+	float newframestarttime;
+	int newframe;
+	float oldframestarttime;
+	int oldframe;
+
+	//intermediate values for origin lerping of stepping things
+	float orglerpdeltatime;
+	float orglerpstarttime;
+	vec3_t neworigin;
+	vec3_t oldorigin;
+	vec3_t newangle;
+	vec3_t oldangle;
 } lerpents_t;
 //
 // the client_state_t structure is wiped completely at every

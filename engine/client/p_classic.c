@@ -239,7 +239,9 @@ static void PClassic_DrawParticles(void)
 	int i;
 	float time2, time3, time1, dvel, frametime, grav;
 #ifdef RGLQUAKE
+#ifndef USEARRAYS
 	unsigned char *at, theAlpha;
+#endif
 	vec3_t up, right;
 	float dist, scale, r_partscale=0;
 

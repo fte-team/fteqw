@@ -204,6 +204,10 @@ typedef struct {
 		SP_TIME,
 		SP_EYEPOS,
 
+		SP_LIGHTRADIUS,
+		SP_LIGHTCOLOUR,
+		SP_LIGHTPOSITION,
+
 		//things that are set immediatly
 		SP_FIRSTIMMEDIATE,	//never set
 		SP_CVARI,

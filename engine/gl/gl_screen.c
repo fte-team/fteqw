@@ -48,6 +48,7 @@ void GLVID_Console_Resize(void)
 {
 #ifdef AVAIL_FREETYPE
 	extern struct font_s *conchar_font;
+	extern cvar_t gl_font;
 #endif
 	extern cvar_t vid_conwidth, vid_conheight;
 	int cwidth, cheight;
@@ -198,6 +199,9 @@ void GLSCR_UpdateScreen (void)
 		RSpeedEnd(RSPEED_TOTALREFRESH);
 		return;                         // not initialized yet
 	}
+
+	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 
 #ifdef VM_UI
 	uimenu = UI_MenuState();

@@ -748,8 +748,8 @@ SV_DIR?=sv_sdl
 
 .default: help
 all: rel
-rel: sv-rel gl-rel m-rel mingl-rel
-dbg: sv-dbg gl-dbg m-dbg mingl-dbg
+rel: sv-rel gl-rel mingl-rel
+dbg: sv-dbg gl-dbg mingl-dbg
 relcl: glcl-rel mcl-rel
 
 releases:

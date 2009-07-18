@@ -692,7 +692,6 @@ void	GLVID_SetPalette (unsigned char *palette)
 	unsigned r,g,b;
 	unsigned short i;
 	unsigned	*table;
-	unsigned	*table2;
 	extern qbyte gammatable[256];
 
 //
@@ -702,7 +701,6 @@ void	GLVID_SetPalette (unsigned char *palette)
 
 	pal = palette;
 	table = d_8to24rgbtable;
-	table2 = d_8to24bgrtable;
 	for (i=0 ; i<256 ; i++)
 	{
 		r = gammatable[pal[0]];
@@ -711,10 +709,8 @@ void	GLVID_SetPalette (unsigned char *palette)
 		pal += 3;
 
 		*table++ = BigLong((r<<24)|(g<<16)|(b<<8)|255);
-		*table2++ = BigLong((b<<24)|(g<<16)|(r<<8)|255);
 	}
 
-	d_8to24bgrtable[255] &= BigLong(0xffffff00); // 255 is transparent
 	d_8to24rgbtable[255] &= BigLong(0xffffff00); // 255 is transparent
 }
 

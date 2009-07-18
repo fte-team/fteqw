@@ -162,14 +162,12 @@ void GLVID_SetPalette (unsigned char *palette)
 	unsigned int r,g,b;
 	int i;
 	unsigned *table1;
-	unsigned *table2;
 	extern qbyte gammatable[256];
 
 	Con_Printf("Converting 8to24\n");
 
 	pal = palette;
 	table1 = d_8to24rgbtable;
-	table2 = d_8to24bgrtable;
 
 	if (vid_hardwaregamma.value)
 	{
@@ -181,7 +179,6 @@ void GLVID_SetPalette (unsigned char *palette)
 			pal += 3;
 
 			*table1++ = LittleLong((255<<24) + (r<<0) + (g<<8) + (b<<16));
-			*table2++ = LittleLong((255<<24) + (r<<16) + (g<<8) + (b<<0));
 		}
 	}
 	else
@@ -194,10 +191,8 @@ void GLVID_SetPalette (unsigned char *palette)
 			pal += 3;
 
 			*table1++ = LittleLong((255<<24) + (r<<0) + (g<<8) + (b<<16));
-			*table2++ = LittleLong((255<<24) + (r<<16) + (g<<8) + (b<<0));
 		}
 	}
-	d_8to24bgrtable[255] &= LittleLong(0xffffff);	// 255 is transparent
 	d_8to24rgbtable[255] &= LittleLong(0xffffff);	// 255 is transparent
 	Con_Printf("Converted\n");
 }

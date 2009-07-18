@@ -618,7 +618,6 @@ void GLVID_SetPalette (unsigned char *palette)
 	unsigned int r,g,b;
 	int i;
 	unsigned *table1;
-	unsigned *table2;
 	extern qbyte gammatable[256];
 
 	Con_Printf("Converting 8to24\n");

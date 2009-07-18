@@ -457,75 +457,15 @@ void Key_ConsoleRelease(int key)
 		con_mousedown[2] = false;
 	if (key == K_MOUSE2 && con_mousedown[2])
 	{
-#if 0
-		extern cvar_t vid_conwidth, vid_conheight;
 		extern int mousecursor_x, mousecursor_y;
-		int xpos, ypos, temp;
-		char *buf, *bufhead;
-		int x, y;
-
+		char *buffer;
 		con_mousedown[2] = false;
+		buffer = Con_CopyConsole();
+		if (!buffer)
+			return;
+		Sys_SaveClipboard(buffer);
+		Z_Free(buffer);
 
-		xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
-		ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
-
-		if (con_mousedown[0] < 1)
-			con_mousedown[0] = 1;
-		if (xpos < 1)
-			xpos = 1;
-		if (con_mousedown[0] > con_current->linewidth)
-			con_mousedown[0] = con_current->linewidth;
-		if (xpos > con_current->linewidth)
-			xpos = con_current->linewidth;
-		if (con_mousedown[0] > xpos)
-		{
-			temp = xpos;
-			xpos = con_mousedown[0];
-			con_mousedown[0] = temp;
-		}
-		xpos++;
-		if (con_mousedown[1] > ypos)
-		{
-			temp = ypos;
-			ypos = con_mousedown[1];
-			con_mousedown[1] = temp;
-		}
-		ypos++;
-
-		ypos += con_current->display-((con_current->vislines-22)/8)+1;
-		con_mousedown[1] += con_current->display-((con_current->vislines-22)/8)+1;
-		if (con_current->display != con_current->current)
-		{
-			ypos++;
-			con_mousedown[1]++;
-		}
-
-		con_mousedown[0]--;
-		xpos--;
-
-		temp = (ypos - con_mousedown[1]) * (xpos - con_mousedown[0] + 2) + 1;
-
-		bufhead = buf = Z_Malloc(temp);
-		for (y = con_mousedown[1]; y < ypos; y++)
-		{
-			if (y != con_mousedown[1])
-			{
-				while(buf > bufhead && buf[-1] == ' ')
-					buf--;
-				*buf++ = '\r';
-				*buf++ = '\n';
-			}
-
-			for (x = con_mousedown[0]; x < xpos; x++)
-				*buf++ = con_current->text[x + ((y%con_current->totallines)*con_current->linewidth)]&127;
-		}
-		while(buf > bufhead && buf[-1] == ' ')
-			buf--;
-		*buf++ = '\0';
-
-		Sys_SaveClipboard(bufhead);
-		Z_Free(bufhead);
-#endif
 	}
 }
 

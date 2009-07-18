@@ -1473,6 +1473,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			cls.netchan.outgoing_sequence++;
 		}
 
+		IN_Move (NULL, 0);
 		return; // sendcmds come from the demo
 	}
 

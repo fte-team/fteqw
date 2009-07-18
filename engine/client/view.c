@@ -1244,7 +1244,6 @@ void R_DrawNameTags(void)
 	int len;
 	vec3_t center;
 	vec3_t tagcenter;
-	vec3_t waste, waste2;
 
 	if (!cl.spectator && !cls.demoplayback)
 		return;

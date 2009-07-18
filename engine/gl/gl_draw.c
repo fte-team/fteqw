@@ -2914,18 +2914,25 @@ void GL_MipMap (qbyte *in, int width, int height)
 {
 	int		i, j;
 	qbyte	*out;
+	qbyte	*inrow;
 
-	width <<=2;
+	//with npot
+	int rowwidth = width*4;	//rowwidth is the byte width of the input
+	inrow = in;
+
+	width >>= 1;	//ensure its truncated, so don't merge with the *8
 	height >>= 1;
 	out = in;
-	for (i=0 ; i<height ; i++, in+=width)
+
+
+	for (i=0 ; i<height ; i++, inrow+=rowwidth*2)
 	{
-		for (j=0 ; j<width ; j+=8, out+=4, in+=8)
+		for (in = inrow, j=0 ; j<width ; j++, out+=4, in+=8)
 		{
-			out[0] = (in[0] + in[4] + in[width+0] + in[width+4])>>2;
-			out[1] = (in[1] + in[5] + in[width+1] + in[width+5])>>2;
-			out[2] = (in[2] + in[6] + in[width+2] + in[width+6])>>2;
-			out[3] = (in[3] + in[7] + in[width+3] + in[width+7])>>2;
+			out[0] = (in[0] + in[4] + in[rowwidth+0] + in[rowwidth+4])>>2;
+			out[1] = (in[1] + in[5] + in[rowwidth+1] + in[rowwidth+5])>>2;
+			out[2] = (in[2] + in[6] + in[rowwidth+2] + in[rowwidth+6])>>2;
+			out[3] = (in[3] + in[7] + in[rowwidth+3] + in[rowwidth+7])>>2;
 		}
 	}
 }

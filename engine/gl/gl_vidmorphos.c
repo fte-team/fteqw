@@ -625,7 +625,6 @@ void GLVID_SetPalette (unsigned char *palette)
 
 	pal = palette;
 	table1 = d_8to24rgbtable;
-	table2 = d_8to24bgrtable;
 	for (i=0 ; i<256 ; i++)
 	{
 		r = gammatable[pal[0]];
@@ -634,9 +633,7 @@ void GLVID_SetPalette (unsigned char *palette)
 		pal += 3;
 		
 		*table1++ = LittleLong((255<<24) + (r<<0) + (g<<8) + (b<<16));
-		*table2++ = LittleLong((255<<24) + (r<<16) + (g<<8) + (b<<0));
 	}
-	d_8to24bgrtable[255] &= LittleLong(0xffffff);	// 255 is transparent
 	d_8to24rgbtable[255] &= LittleLong(0xffffff);	// 255 is transparent
 }
 

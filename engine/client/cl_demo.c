@@ -394,6 +394,25 @@ qboolean CL_GetDemoMessage (void)
 		)
 	{	//read the nq demo
 
+		//if we've finished reading the connection part of the demo, but not finished loading, pause the demo
+		if (cls.signon == 1 && !cl.worldmodel)
+		{
+			demtime = cl.gametime;
+			return 0;
+		}
+
+		//if this is the starting frame of a timedemo
+		if (cls.timedemo)
+		if (cls.td_startframe == -1 && cls.state == ca_active)
+		{	//start the timer only once we are connected.
+			cls.td_starttime = Sys_DoubleTime();
+			cls.td_startframe = host_framecount;
+
+			//force the console up, we're done loading.
+			key_dest = key_game;
+			scr_con_current = 0;
+		}
+
 #ifdef Q2CLIENT
 		if (cls.demoplayback == DPB_QUAKE2 && (cls.netchan.last_received == realtime || cls.netchan.last_received > realtime-0.1))
 			return 0;

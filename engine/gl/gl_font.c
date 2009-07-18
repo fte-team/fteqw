@@ -122,7 +122,7 @@ struct charcache_s *Font_GetChar(font_t *f, CHARIDXTYPE charidx)
 	return c;
 }
 
-struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, int alphaonly, void *data, unsigned char bmw, unsigned char bmh, unsigned int pitch)
+struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, int alphaonly, void *data, unsigned int bmw, unsigned int bmh, unsigned int pitch)
 {
 	int x, y;
 	unsigned char *out;
@@ -395,10 +395,35 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 	}
 
 	//fixme: use FT_Open_Face eventually
-	if (pFT_New_Face(fontlib, fontfilename, 0, &face))
+	error = pFT_New_Face(fontlib, fontfilename, 0, &face);
+#ifdef _WIN32
+	if (error)
 	{
-		return NULL;
+		char fontdir[MAX_OSPATH];
+		HMODULE shfolder = LoadLibrary("shfolder.dll");
+		DWORD winver = (DWORD)LOBYTE(LOWORD(GetVersion()));
+
+		if (shfolder)
+		{
+			HRESULT (WINAPI *dSHGetFolderPath) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath);
+			dSHGetFolderPath = (void *)GetProcAddress(shfolder, "SHGetFolderPathA");
+			if (dSHGetFolderPath)
+			{
+				char folder[MAX_PATH];
+				// 0x14 == CSIDL_FONTS
+				if (dSHGetFolderPath(NULL, 0x14, NULL, 0, fontdir) == S_OK)
+				{
+					error = pFT_New_Face(fontlib, va("%s/%s.ttf", fontdir, fontfilename), 0, &face);
+					if (error)
+						error = pFT_New_Face(fontlib, va("%s/%s", fontdir, fontfilename), 0, &face);
+				}
+			}
+			FreeLibrary(shfolder);
+		}
 	}
+#endif
+	if (error)
+		return NULL;
 
 	error = pFT_Set_Pixel_Sizes(face, 0, height);
 	if (error)
@@ -469,10 +494,10 @@ int GLFont_CharWidth(struct font_s *font, unsigned int charcode)
 		return font->charheight;
 #endif
 
-	c = Font_GetChar(font, charcode&CON_CHARMASK);
+	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
 	{
-		c = Font_TryLoadGlyph(font, charcode&CON_CHARMASK);
+		c = Font_TryLoadGlyph(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 		if (!c)
 			return 0;
 	}
@@ -563,8 +588,8 @@ int GLFont_DrawChar(struct font_s *font, int px, int py, unsigned int charcode)
 
 		charcode &= 0xff;
 
-		sx = ((px)*vid.width) / (float)glwidth;
-		sy = ((py+font->charheight/8)*vid.height) / (float)glheight;
+		sx = ((px)*(int)vid.width) / (float)glwidth;
+		sy = ((py+font->charheight/8)*(int)vid.height) / (float)glheight;
 		sw = ((font->charheight)*vid.width) / (float)glwidth;
 		sh = ((font->charheight)*vid.height) / (float)glheight;
 
@@ -595,10 +620,10 @@ int GLFont_DrawChar(struct font_s *font, int px, int py, unsigned int charcode)
 	}
 #endif
 
-	c = Font_GetChar(font, charcode&CON_CHARMASK);
+	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
 	{
-		c = Font_TryLoadGlyph(font, charcode&CON_CHARMASK);
+		c = Font_TryLoadGlyph(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 		if (!c)
 			return px;
 	}
@@ -615,8 +640,8 @@ int GLFont_DrawChar(struct font_s *font, int px, int py, unsigned int charcode)
 	// draw background
 	if (charcode & CON_NONCLEARBG)
 	{
-		sx = ((px)*vid.width) / (float)glwidth;
-		sy = ((py+font->charheight/3)*vid.height) / (float)glheight;
+		sx = ((px)*(int)vid.width) / (float)glwidth;
+		sy = ((py+(int)font->charheight/3)*(int)vid.height) / (float)glheight;
 		sw = ((c->advance)*vid.width) / (float)glwidth;
 		sh = ((font->charheight)*vid.height) / (float)glheight;
 
@@ -625,8 +650,8 @@ int GLFont_DrawChar(struct font_s *font, int px, int py, unsigned int charcode)
 	}
 
 
-	sx = ((px+c->left)*vid.width) / (float)glwidth;
-	sy = ((py+font->charheight-c->top)*vid.height) / (float)glheight;
+	sx = ((px+c->left)*(int)vid.width) / (float)glwidth;
+	sy = ((py+font->charheight-c->top)*(int)vid.height) / (float)glheight;
 	sw = ((c->bmw)*vid.width) / (float)glwidth;
 	sh = ((c->bmh)*vid.height) / (float)glheight;
 

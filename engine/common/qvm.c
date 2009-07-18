@@ -70,9 +70,9 @@ struct vm_s {
 #include <proto/dynload.h>
 #endif
 
-dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, int (EXPORT_FN *syscall)(int arg, ... ))
+dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 {
-	void (EXPORT_FN *dllEntry)(int (EXPORT_FN *syscall)(int arg, ... ));
+	void (EXPORT_FN *dllEntry)(sys_calldll_t syscall);
 	char dllname[MAX_OSPATH];
 	dllhandle_t *hVM;
 

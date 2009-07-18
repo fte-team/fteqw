@@ -16,16 +16,28 @@
 #else
 	#if defined(_WIN64)
 		#define qintptr_t __int64
+		#define FTE_WORDSIZE 64
 	#elif defined(_WIN32)
 		#define qintptr_t __int32
+		#define FTE_WORDSIZE 32
 	#else
 		#if __WORDSIZE == 64
 			#define qintptr_t long long
+			#define FTE_WORDSIZE 64
 		#else
 			#define qintptr_t long
+			#define FTE_WORDSIZE 32
 		#endif
 	#endif
 	#define quintptr_t unsigned qintptr_t
+#endif
+
+#ifndef FTE_WORDSIZE
+#ifdef __WORDSIZE
+#define FTE_WORDSIZE __WORDSIZE
+#else
+#define FTE_WORDSIZE 32
+#endif
 #endif
 
 typedef qintptr_t (EXPORT_FN *sys_calldll_t) (qintptr_t arg, ...);

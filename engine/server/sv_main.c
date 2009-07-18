@@ -1631,7 +1631,7 @@ client_t *SVC_DirectConnect(void)
 		Q_strncpyz (userinfo[0], Cmd_Argv(1), sizeof(userinfo[0])-1);
 
 		switch (atoi(Info_ValueForKey(userinfo[0], "protocol")))
-	{
+		{
 		case 68:	//regular q3 1.32
 			break;
 //		case 43:	//q3 1.11 (most 'recent' demo)
@@ -1735,6 +1735,12 @@ client_t *SVC_DirectConnect(void)
 		// note an extra qbyte is needed to replace spectator key
 		for (i = 0; i < numssclients; i++)
 			Q_strncpyz (userinfo[i], Cmd_Argv(4+i), sizeof(userinfo[i])-1);
+	}
+
+	for (i = 0; i < numssclients; i++)
+	{
+		//don't let users exploit mods made for mvdsv instead of FTE
+		Info_RemoveKey (userinfo[i], "*VIP");
 	}
 
 	if (protocol == SCP_QUAKEWORLD)	//readd?

@@ -994,7 +994,7 @@ static int Con_LineBreaks(conchar_t *start, conchar_t *end, int scrwidth, int ma
 	// scan the width of the line
 		for (px=0, l=0 ; px <= scrwidth;)
 		{
-			if ((start[l]&CON_CHARMASK) == '\n' || (start+l >= end))
+			if (start+l >= end || (start[l]&CON_CHARMASK) == '\n')
 				break;
 			l++;
 			px += Font_CharWidth(start[l]);

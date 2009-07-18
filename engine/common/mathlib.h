@@ -51,8 +51,8 @@ extern	int nanmask;
 #define VectorClear(a)			((a)[0]=(a)[1]=(a)[2]=0)
 #define VectorNegate(a,b)		((b)[0]=-(a)[0],(b)[1]=-(a)[1],(b)[2]=-(a)[2])
 #define VectorLength(a)		Length(a)
-#define VectorMA(a,s,b,c) do{c[0] = a[0] + s*b[0];c[1] = a[1] + s*b[1];c[2] = a[2] + s*b[2];}while(0)
-
+#define VectorMA(a,s,b,c) do{(c)[0] = (a)[0] + (s)*(b)[0];(c)[1] = (a)[1] + (s)*(b)[1];(c)[2] = (a)[2] + (s)*(b)[2];}while(0)
+#define VectorEquals(a,b) ((a)[0] == (b)[0] && (a)[1] == (b)[1] && (a)[2] == (b)[2])
 
 
 typedef float matrix3x4[3][4];

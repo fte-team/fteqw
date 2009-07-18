@@ -11,7 +11,7 @@ static plugin_t *protocolclientplugin;
 
 
 
-int VARGS Plug_Menu_Control(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Menu_Control(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	if (qrenderer <= 0)
 		return 0;
@@ -45,7 +45,7 @@ int VARGS Plug_Menu_Control(void *offset, unsigned int mask, const int *arg)
 	}
 }
 
-int VARGS Plug_Key_GetKeyCode(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Key_GetKeyCode(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int modifier;
 	return Key_StringToKeynum(VM_POINTER(arg[0]), &modifier);
@@ -54,7 +54,7 @@ int VARGS Plug_Key_GetKeyCode(void *offset, unsigned int mask, const int *arg)
 
 
 
-int VARGS Plug_SCR_CenterPrint(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_SCR_CenterPrint(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	if (qrenderer <= 0)
 		return 0;
@@ -62,7 +62,7 @@ int VARGS Plug_SCR_CenterPrint(void *offset, unsigned int mask, const int *arg)
 	SCR_CenterPrint(0, VM_POINTER(arg[0]), true);
 	return 0;
 }
-int VARGS Plug_Media_ShowFrameRGBA_32(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Media_ShowFrameRGBA_32(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	void *src = VM_POINTER(arg[0]);
 	int srcwidth = VM_LONG(arg[1]);
@@ -92,7 +92,7 @@ typedef struct {
 int pluginimagearraylen;
 pluginimagearray_t *pluginimagearray;
 
-int VARGS Plug_Draw_LoadImage(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Draw_LoadImage(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	qboolean fromwad = arg[1];
@@ -180,7 +180,7 @@ void Plug_FreePlugImages(plugin_t *plug)
 }
 
 //int Draw_Image (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image)
-int VARGS Plug_Draw_Image(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Draw_Image(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	mpic_t *pic;
 	int i;
@@ -211,7 +211,7 @@ int VARGS Plug_Draw_Image(void *offset, unsigned int mask, const int *arg)
 	return 1;
 }
 //x1,y1,x2,y2
-int VARGS Plug_Draw_Line(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Draw_Line(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	switch(qrenderer)	//FIXME: I don't want qrenderer seen outside the refresh
 	{
@@ -230,7 +230,7 @@ int VARGS Plug_Draw_Line(void *offset, unsigned int mask, const int *arg)
 	}
 	return 1;
 }
-int VARGS Plug_Draw_Character(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Draw_Character(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	if (qrenderer <= 0)
 		return 0;
@@ -238,7 +238,7 @@ int VARGS Plug_Draw_Character(void *offset, unsigned int mask, const int *arg)
 	return 0;
 }
 void	(D3D_Draw_Fill_Colours)				(int x, int y, int w, int h);
-int VARGS Plug_Draw_Fill(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Draw_Fill(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	float x, y, width, height;
 	if (qrenderer <= 0)
@@ -269,7 +269,7 @@ int VARGS Plug_Draw_Fill(void *offset, unsigned int mask, const int *arg)
 	}
 	return 0;
 }
-int VARGS Plug_Draw_ColourP(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Draw_ColourP(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	qbyte *pal = host_basepal + VM_LONG(arg[0])*3;
 
@@ -283,7 +283,7 @@ int VARGS Plug_Draw_ColourP(void *offset, unsigned int mask, const int *arg)
 	}
 	return 0;
 }
-int VARGS Plug_Draw_Colour3f(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Draw_Colour3f(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	if (Draw_ImageColours)
 	{
@@ -292,7 +292,7 @@ int VARGS Plug_Draw_Colour3f(void *offset, unsigned int mask, const int *arg)
 	}
 	return 0;
 }
-int VARGS Plug_Draw_Colour4f(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Draw_Colour4f(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	if (Draw_ImageColours)
 	{
@@ -310,7 +310,7 @@ int VARGS Plug_Draw_Colour4f(void *offset, unsigned int mask, const int *arg)
 
 
 
-int VARGS Plug_LocalSound(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_LocalSound(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	if (qrenderer <= 0)
 		return false;
@@ -321,7 +321,7 @@ int VARGS Plug_LocalSound(void *offset, unsigned int mask, const int *arg)
 
 
 
-int VARGS Plug_CL_GetStats(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_CL_GetStats(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int i;
 	int pnum = VM_LONG(arg[0]);
@@ -362,7 +362,7 @@ typedef struct {
 	char team[8];
 } vmplugclientinfo_t;
 
-int VARGS Plug_GetPlayerInfo(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_GetPlayerInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int i, pt;
 	vmplugclientinfo_t *out;
@@ -405,12 +405,12 @@ int VARGS Plug_GetPlayerInfo(void *offset, unsigned int mask, const int *arg)
 		return pt == i;
 }
 
-int VARGS Plug_LocalPlayerNumber(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_LocalPlayerNumber(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	return cl.playernum[0];
 }
 
-int VARGS Plug_GetServerInfo(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_GetServerInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *outptr = VM_POINTER(arg[0]);
 	unsigned int outlen = VM_LONG(arg[1]);
@@ -423,7 +423,7 @@ int VARGS Plug_GetServerInfo(void *offset, unsigned int mask, const int *arg)
 	return true;
 }
 
-int VARGS Plug_SetUserInfo(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_SetUserInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *key = VM_POINTER(arg[0]);
 	char *value = VM_POINTER(arg[1]);
@@ -433,7 +433,7 @@ int VARGS Plug_SetUserInfo(void *offset, unsigned int mask, const int *arg)
 	return true;
 }
 
-int VARGS Plug_GetLocationName(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_GetLocationName(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	float *locpoint = VM_POINTER(arg[0]);
 	char *locname = VM_POINTER(arg[1]);
@@ -448,7 +448,7 @@ int VARGS Plug_GetLocationName(void *offset, unsigned int mask, const int *arg)
 	return VM_LONG(arg[1]);
 }
 
-int VARGS Plug_Con_SubPrint(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	char *text = VM_POINTER(arg[1]);
@@ -474,7 +474,7 @@ int VARGS Plug_Con_SubPrint(void *offset, unsigned int mask, const int *arg)
 
 	return 1;
 }
-int VARGS Plug_Con_RenameSub(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Con_RenameSub(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
@@ -488,7 +488,7 @@ int VARGS Plug_Con_RenameSub(void *offset, unsigned int mask, const int *arg)
 
 	return 1;
 }
-int VARGS Plug_Con_IsActive(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Con_IsActive(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
@@ -500,7 +500,7 @@ int VARGS Plug_Con_IsActive(void *offset, unsigned int mask, const int *arg)
 
 	return Con_IsActive(con);
 }
-int VARGS Plug_Con_SetActive(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Con_SetActive(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
@@ -513,7 +513,7 @@ int VARGS Plug_Con_SetActive(void *offset, unsigned int mask, const int *arg)
 	Con_SetActive(con);
 	return true;
 }
-int VARGS Plug_Con_Destroy(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Con_Destroy(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
@@ -526,7 +526,7 @@ int VARGS Plug_Con_Destroy(void *offset, unsigned int mask, const int *arg)
 	Con_Destroy(con);
 	return true;
 }
-int VARGS Plug_Con_NameForNum(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Con_NameForNum(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char num = VM_LONG(arg[0]);
 	char *buffer = VM_POINTER(arg[1]);

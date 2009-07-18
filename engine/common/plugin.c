@@ -103,7 +103,7 @@ cvar_t plug_loaddefault = SCVAR("plug_loaddefault", "1");
 #endif
 
 //custom plugin builtins.
-typedef int (EXPORT_FN *Plug_Builtin_t)(void *offset, unsigned int mask, const int *arg);
+typedef qintptr_t (EXPORT_FN *Plug_Builtin_t)(void *offset, quintptr_t mask, const qintptr_t *arg);
 void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags);
 #define PLUG_BIF_DLLONLY	1
 #define PLUG_BIF_QVMONLY	2
@@ -222,7 +222,7 @@ static void Plug_RegisterBuiltinIndex(char *name, Plug_Builtin_t bi, int flags, 
 }
 */
 
-int VARGS Plug_FindBuiltin(void *offset, unsigned int mask, const int *args)
+qintptr_t VARGS Plug_FindBuiltin(void *offset, quintptr_t mask, const qintptr_t *args)
 {
 	int i;
 	char *p = (char *)VM_POINTER(args[0]);
@@ -241,42 +241,50 @@ int VARGS Plug_FindBuiltin(void *offset, unsigned int mask, const int *args)
 	return 0;
 }
 
-int Plug_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
+int Plug_SystemCallsEx(void *offset, quintptr_t mask, int fn, const int *arg)
 {
+#if FTE_WORDSIZE == 32
+	#define args arg
+#else
+	qintptr_t args[9];
+
+	args[0]=arg[0];
+	args[1]=arg[1];
+	args[2]=arg[2];
+	args[3]=arg[3];
+	args[4]=arg[4];
+	args[5]=arg[5];
+	args[6]=arg[6];
+	args[7]=arg[7];
+	args[8]=arg[8];
+#endif
+
 	fn = fn+1;
 
 	if (fn>=0 && fn < numplugbuiltins && plugbuiltins[fn].func!=NULL)
-		return plugbuiltins[fn].func(offset, mask, arg);
-
+		return plugbuiltins[fn].func(offset, mask, args);
+#undef args
 	Sys_Error("QVM Plugin tried calling invalid builtin %i", fn);
 	return 0;
 }
 
-#ifdef _DEBUG
-static int Plug_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, const int *arg)
-{	//this is so we can use edit and continue properly (vc doesn't like function pointers for edit+continue)
-	return Plug_SystemCallsEx(offset, mask, fn, arg);
-}
-#define Plug_SystemCallsEx Plug_SystemCallsExWrapper
-#endif
-
 //I'm not keen on this.
 //but dlls call it without saying what sort of vm it comes from, so I've got to have them as specifics
-static int EXPORT_FN Plug_SystemCalls(int arg, ...)
+static qintptr_t EXPORT_FN Plug_SystemCalls(qintptr_t arg, ...)
 {
-	int args[9];
+	qintptr_t args[9];
 	va_list argptr;
 
 	va_start(argptr, arg);
-	args[0]=va_arg(argptr, int);
-	args[1]=va_arg(argptr, int);
-	args[2]=va_arg(argptr, int);
-	args[3]=va_arg(argptr, int);
-	args[4]=va_arg(argptr, int);
-	args[5]=va_arg(argptr, int);
-	args[6]=va_arg(argptr, int);
-	args[7]=va_arg(argptr, int);
-	args[8]=va_arg(argptr, int);
+	args[0]=va_arg(argptr, qintptr_t);
+	args[1]=va_arg(argptr, qintptr_t);
+	args[2]=va_arg(argptr, qintptr_t);
+	args[3]=va_arg(argptr, qintptr_t);
+	args[4]=va_arg(argptr, qintptr_t);
+	args[5]=va_arg(argptr, qintptr_t);
+	args[6]=va_arg(argptr, qintptr_t);
+	args[7]=va_arg(argptr, qintptr_t);
+	args[8]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
 	arg = -arg;
@@ -346,23 +354,23 @@ int Plug_Emumerated (const char *name, int size, void *param)
 	return true;
 }
 
-int VARGS Plug_Con_Print(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Con_Print(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 //	if (qrenderer <= 0)
 //		return false;
 	Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 	return 0;
 }
-int VARGS Plug_Sys_Error(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Sys_Error(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	Sys_Error("%s", (char*)offset+arg[0]);
 	return 0;
 }
-int VARGS Plug_Sys_Milliseconds(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Sys_Milliseconds(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	return Sys_DoubleTime()*1000;
 }
-int VARGS Plug_ExportToEngine(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_ExportToEngine(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = (char*)VM_POINTER(arg[0]);
 	unsigned int functionid = VM_LONG(arg[1]);
@@ -401,7 +409,7 @@ int VARGS Plug_ExportToEngine(void *offset, unsigned int mask, const int *arg)
 }
 
 //retrieve a plugin's name
-int VARGS Plug_GetPluginName(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_GetPluginName(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int plugnum = VM_LONG(arg[0]);
 	plugin_t *plug;
@@ -428,7 +436,7 @@ int VARGS Plug_GetPluginName(void *offset, unsigned int mask, const int *arg)
 }
 
 typedef void (*funcptr_t) ();
-int VARGS Plug_ExportNative(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_ExportNative(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	funcptr_t func;
 	char *name = (char*)VM_POINTER(arg[0]);
@@ -484,7 +492,7 @@ typedef struct {
 int plugincvararraylen;
 plugincvararray_t *plugincvararray;
 //qhandle_t Cvar_Register (char *name, char *defaultval, int flags, char *grouphint);
-int VARGS Plug_Cvar_Register(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Cvar_Register(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	char *defaultvalue = VM_POINTER(arg[1]);
@@ -513,7 +521,7 @@ int VARGS Plug_Cvar_Register(void *offset, unsigned int mask, const int *arg)
 	return i;
 }
 //int Cvar_Update, (qhandle_t handle, int modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
-int VARGS Plug_Cvar_Update(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Cvar_Update(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int handle;
 	int modcount;
@@ -543,7 +551,7 @@ int VARGS Plug_Cvar_Update(void *offset, unsigned int mask, const int *arg)
 }
 
 //void Cmd_Args(char *buffer, int buffersize)
-int VARGS Plug_Cmd_Args(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Cmd_Args(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *buffer = (char*)VM_POINTER(arg[0]);
 	char *args;
@@ -554,7 +562,7 @@ int VARGS Plug_Cmd_Args(void *offset, unsigned int mask, const int *arg)
 	return 1;
 }
 //void Cmd_Argv(int num, char *buffer, int buffersize)
-int VARGS Plug_Cmd_Argv(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Cmd_Argv(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *buffer = (char*)VM_POINTER(arg[1]);
 	char *args;
@@ -565,13 +573,13 @@ int VARGS Plug_Cmd_Argv(void *offset, unsigned int mask, const int *arg)
 	return 1;
 }
 //int Cmd_Argc(void)
-int VARGS Plug_Cmd_Argc(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Cmd_Argc(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	return Cmd_Argc();
 }
 
 //void Cvar_SetString (char *name, char *value);
-int VARGS Plug_Cvar_SetString(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Cvar_SetString(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = VM_POINTER(arg[0]),
 		*value = VM_POINTER(arg[1]);
@@ -586,7 +594,7 @@ int VARGS Plug_Cvar_SetString(void *offset, unsigned int mask, const int *arg)
 }
 
 //void Cvar_SetFloat (char *name, float value);
-int VARGS Plug_Cvar_SetFloat(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Cvar_SetFloat(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	float value = VM_FLOAT(arg[1]);
@@ -601,7 +609,7 @@ int VARGS Plug_Cvar_SetFloat(void *offset, unsigned int mask, const int *arg)
 }
 
 //void Cvar_GetFloat (char *name);
-int VARGS Plug_Cvar_GetFloat(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Cvar_GetFloat(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = VM_POINTER(arg[0]);
 	int ret;
@@ -616,7 +624,7 @@ int VARGS Plug_Cvar_GetFloat(void *offset, unsigned int mask, const int *arg)
 }
 
 //qboolean Cvar_GetString (char *name, char *retstring, int sizeofretstring);
-int VARGS Plug_Cvar_GetString(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Cvar_GetString(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name, *ret;
 	int retsize;
@@ -641,7 +649,7 @@ int VARGS Plug_Cvar_GetString(void *offset, unsigned int mask, const int *arg)
 }
 
 //void Cmd_AddText (char *text, qboolean insert);	//abort the entire engine.
-int VARGS Plug_Cmd_AddText(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Cmd_AddText(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	if (VM_LONG(arg[1]))
 		Cbuf_InsertText(VM_POINTER(arg[0]), RESTRICT_LOCAL, false);
@@ -680,7 +688,7 @@ void Plug_Command_f(void)
 	currentplug = oldplug;
 }
 
-int VARGS Plug_Cmd_AddCommand(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Cmd_AddCommand(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int i;
 	char *name = VM_POINTER(arg[0]);
@@ -771,7 +779,7 @@ int Plug_NewStreamHandle(plugstream_e type)
 
 //EBUILTIN(int, NET_TCPListen, (char *ip, int port, int maxcount));
 //returns a new socket with listen enabled.
-int VARGS Plug_Net_TCPListen(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int handle;
 	int sock;
@@ -830,7 +838,7 @@ int VARGS Plug_Net_TCPListen(void *offset, unsigned int mask, const int *arg)
 	return handle;
 
 }
-int VARGS Plug_Net_Accept(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Net_Accept(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int handle = VM_LONG(arg[0]);
 	struct sockaddr_in address;
@@ -870,7 +878,7 @@ int VARGS Plug_Net_Accept(void *offset, unsigned int mask, const int *arg)
 	return handle;
 }
 //EBUILTIN(int, NET_TCPConnect, (char *ip, int port));
-int VARGS Plug_Net_TCPConnect(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Net_TCPConnect(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *localip = VM_POINTER(arg[0]);
 	unsigned short localport = VM_LONG(arg[1]);
@@ -926,7 +934,7 @@ int VARGS Plug_Net_TCPConnect(void *offset, unsigned int mask, const int *arg)
 
 #ifdef GNUTLS
 
-int VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const qintptr_t *arg)
 {
 	static gnutls_anon_client_credentials anoncred;
 	static gnutls_certificate_credentials xcred;
@@ -1022,7 +1030,7 @@ int VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const int *arg)
 }
 #endif
 
-int VARGS Plug_FS_Open(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	//modes:
 	//1: read
@@ -1077,7 +1085,7 @@ int VARGS Plug_FS_Open(void *offset, unsigned int mask, const int *arg)
 		return -2;
 }
 
-int VARGS Plug_memset(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_memset(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	void *p = VM_POINTER(arg[0]);
 
@@ -1089,7 +1097,7 @@ int VARGS Plug_memset(void *offset, unsigned int mask, const int *arg)
 
 	return arg[0];
 }
-int VARGS Plug_memcpy(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_memcpy(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	void *p1 = VM_POINTER(arg[0]);
 	void *p2 = VM_POINTER(arg[1]);
@@ -1105,7 +1113,7 @@ int VARGS Plug_memcpy(void *offset, unsigned int mask, const int *arg)
 
 	return arg[0];
 }
-int VARGS Plug_memmove(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_memmove(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	void *p1 = VM_POINTER(arg[0]);
 	void *p2 = VM_POINTER(arg[1]);
@@ -1122,32 +1130,32 @@ int VARGS Plug_memmove(void *offset, unsigned int mask, const int *arg)
 	return arg[0];
 }
 
-int VARGS Plug_sqrt(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_sqrt(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int ret;
 	VM_FLOAT(ret) = sqrt(VM_FLOAT(arg[0]));
 	return ret;
 }
-int VARGS Plug_sin(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_sin(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int ret;
 	VM_FLOAT(ret) = sin(VM_FLOAT(arg[0]));
 	return ret;
 }
-int VARGS Plug_cos(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_cos(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int ret;
 	VM_FLOAT(ret) = cos(VM_FLOAT(arg[0]));
 	return ret;
 }
-int VARGS Plug_atan2(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_atan2(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int ret;
 	VM_FLOAT(ret) = atan2(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
 	return ret;
 }
 
-int VARGS Plug_Net_Recv(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Net_Recv(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int read;
 	int handle = VM_LONG(arg[0]);
@@ -1204,7 +1212,7 @@ int VARGS Plug_Net_Recv(void *offset, unsigned int mask, const int *arg)
 		return -2;
 	}
 }
-int VARGS Plug_Net_Send(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Net_Send(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int written;
 	int handle = VM_LONG(arg[0]);
@@ -1260,7 +1268,7 @@ int VARGS Plug_Net_Send(void *offset, unsigned int mask, const int *arg)
 		return -2;
 	}
 }
-int VARGS Plug_Net_SendTo(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Net_SendTo(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int written;
 	int handle = VM_LONG(arg[0]);
@@ -1332,7 +1340,7 @@ void Plug_Net_Close_Internal(int handle)
 
 	pluginstreamarray[handle].plugin = NULL;
 }
-int VARGS Plug_Net_Close(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_Net_Close(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int handle = VM_LONG(arg[0]);
 	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
@@ -1342,7 +1350,7 @@ int VARGS Plug_Net_Close(void *offset, unsigned int mask, const int *arg)
 	return 0;
 }
 
-int VARGS Plug_ReadInputBuffer(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_ReadInputBuffer(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	void *buffer = VM_POINTER(arg[0]);
 	int bufferlen = VM_LONG(arg[1]);
@@ -1351,7 +1359,7 @@ int VARGS Plug_ReadInputBuffer(void *offset, unsigned int mask, const int *arg)
 	memcpy(buffer, currentplug->inputptr, currentplug->inputbytes);
 	return bufferlen;
 }
-int VARGS Plug_UpdateInputBuffer(void *offset, unsigned int mask, const int *arg)
+qintptr_t VARGS Plug_UpdateInputBuffer(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	void *buffer = VM_POINTER(arg[0]);
 	int bufferlen = VM_LONG(arg[1]);
@@ -1383,7 +1391,7 @@ void Plug_Load_f(void)
 	}
 }
 /*
-static int Test_SysCalls_Ex(void *offset, unsigned int mask, int fn, const int *arg)
+static qintptr_t Test_SysCalls_Ex(void *offset, quintptr_t mask, int fn, qintptr_t *arg)
 {
 	switch(fn)
 	{

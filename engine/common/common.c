@@ -3034,6 +3034,35 @@ void COM_Version_f (void)
 #endif
 	}
 #endif
+
+	//print out which libraries are disabled
+#ifndef AVAIL_ZLIB
+	Con_Printf("zlib disabled\n");
+#endif
+
+	//but print client ones only if we're not dedicated
+#ifndef SERVERONLY
+#ifndef AVAIL_PNGLIB
+	Con_Printf("libpng disabled\n");
+#endif
+#ifndef AVAIL_JPEGLIB
+	Con_Printf("libjpeg disabled\n");
+#endif
+#ifndef AVAIL_OGGVORBIS
+	Con_Printf("libvorbis disabled\n");
+#endif
+#ifndef AVAIL_FREETYPE
+	Con_Printf("freetype2 disabled\n");
+#endif
+#ifdef _WIN32
+	#ifndef AVAIL_DINPUT
+		Con_Printf("dinput disabled\n");
+	#endif
+	#ifndef AVAIL_DSOUND
+		Con_Printf("dsound disabled\n");
+	#endif
+#endif
+#endif
 }
 
 /*

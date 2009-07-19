@@ -70,6 +70,7 @@ qboolean	mirror;
 mplane_t	*mirror_plane;
 msurface_t	*r_mirror_chain;
 qboolean	r_inmirror;	//or out-of-body
+extern msurface_t  *r_alpha_surfaces;
 
 //
 // view origin
@@ -121,6 +122,8 @@ cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
 extern cvar_t	gl_contrast;
 extern cvar_t	gl_mindist;
 
+extern cvar_t	ffov;
+
 extern cvar_t	gl_motionblur;
 extern cvar_t	gl_motionblurscale;
 
@@ -153,6 +156,12 @@ int scenepp_mt_program;
 int scenepp_mt_parm_texture0i;
 int scenepp_mt_parm_colorf;
 int scenepp_mt_parm_inverti;
+
+int scenepp_fisheye_texture;
+int scenepp_fisheye_program;
+int scenepp_fisheye_parm_fov;
+int scenepp_panorama_program;
+int scenepp_panorama_parm_fov;
 
 // KrimZon - init post processing - called in GL_CheckExtensions, when they're called
 // I put it here so that only this file need be changed when messing with the post
@@ -223,6 +232,67 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 		Con_Printf(CON_ERROR "GL Error initing shader object\n");
 }
 
+void GL_InitFisheyeFov(void)
+{
+	char *vshader = "\
+		varying vec2 texcoord;\
+		void main(void)\
+		{\
+			texcoord = gl_MultiTexCoord0.xy;\
+			gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;\
+		}";
+	char *fisheyefshader = "\
+		uniform samplerCube source;\
+		varying vec2 texcoord;\
+		uniform float fov;\
+		void main(void)\
+		{\
+			vec3 tc;	\
+			vec2 d;	\
+			vec2 ang;	\
+			d = texcoord;	\
+			ang.x = sqrt(d.x*d.x+d.y*d.y)*fov;	\
+			ang.y = -atan(d.y, d.x);	\
+			tc.x = sin(ang.x) * cos(ang.y);	\
+			tc.y = sin(ang.x) * sin(ang.y);	\
+			tc.z = cos(ang.x);	\
+			gl_FragColor = textureCube(source, tc);\
+		}";
+
+	char *panoramafshader = "\
+		uniform samplerCube source;\
+		varying vec2 texcoord;\
+		uniform float fov;\
+		void main(void)\
+		{\
+			vec3 tc;	\
+			float ang;	\
+			ang = texcoord.x*fov;	\
+			tc.x = sin(ang);	\
+			tc.y = -texcoord.y;	\
+			tc.z = cos(ang);	\
+			gl_FragColor = textureCube(source, tc);\
+		}";
+
+	scenepp_fisheye_program = GLSlang_CreateProgram(NULL, vshader, fisheyefshader);
+	if (scenepp_fisheye_program)
+	{
+		GLSlang_UseProgram(scenepp_fisheye_program);
+		GLSlang_SetUniform1i(GLSlang_GetUniformLocation(scenepp_fisheye_program, "source"), 0);
+		scenepp_fisheye_parm_fov = GLSlang_GetUniformLocation(scenepp_fisheye_program, "fov");
+		GLSlang_UseProgram(0);
+	}
+
+	scenepp_panorama_program = GLSlang_CreateProgram(NULL, vshader, panoramafshader);
+	if (scenepp_panorama_program)
+	{
+		GLSlang_UseProgram(scenepp_panorama_program);
+		GLSlang_SetUniform1i(GLSlang_GetUniformLocation(scenepp_panorama_program, "source"), 0);
+		scenepp_panorama_parm_fov = GLSlang_GetUniformLocation(scenepp_panorama_program, "fov");
+		GLSlang_UseProgram(0);
+	}
+}
+
 void GL_InitSceneProcessingShaders_MenuTint(void)
 {
 	char *vshader = "\
@@ -273,6 +343,7 @@ void GL_InitSceneProcessingShaders_MenuTint(void)
 void GL_InitSceneProcessingShaders (void)
 {
 	GL_InitSceneProcessingShaders_WaterWarp();
+	GL_InitFisheyeFov();
 	GL_InitSceneProcessingShaders_MenuTint();
 }
 
@@ -284,6 +355,8 @@ void GL_SetupSceneProcessingTextures (void)
 	int i, x, y;
 	unsigned char pp_warp_tex[PP_WARP_TEX_SIZE*PP_WARP_TEX_SIZE*3];
 	unsigned char pp_edge_tex[PP_AMP_TEX_SIZE*PP_AMP_TEX_SIZE*3];
+
+	scenepp_fisheye_texture = 0;
 
 	sceneblur_texture = GL_AllocNewTexture();
 
@@ -1567,6 +1640,407 @@ void GLR_SetupFog (void)
 }
 #endif
 
+static void R_RenderMotionBlur(void)
+{
+	int vwidth = 1, vheight = 1;
+	float vs, vt, cs, ct;
+
+	if (gl_config.arb_texture_non_power_of_two)
+	{	//we can use any size, supposedly
+		vwidth = glwidth;
+		vheight = glheight;
+	}
+	else
+	{	//limit the texture size to square and use padding.
+		while (vwidth < glwidth)
+			vwidth *= 2;
+		while (vheight < glheight)
+			vheight *= 2;
+	}
+
+	qglViewport (glx, gly, glwidth, glheight);
+
+	GL_Bind(sceneblur_texture);
+
+	// go 2d
+	qglMatrixMode(GL_PROJECTION);
+	qglPushMatrix();
+	qglLoadIdentity ();
+	qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
+	qglMatrixMode(GL_MODELVIEW);
+	qglPushMatrix();
+	qglLoadIdentity ();
+
+	//blend the last frame onto the scene
+	//the maths is because our texture is over-sized (must be power of two)
+	cs = vs = (float)glwidth / vwidth * 0.5;
+	ct = vt = (float)glheight / vheight * 0.5;
+	vs *= gl_motionblurscale.value;
+	vt *= gl_motionblurscale.value;
+
+	qglDisable (GL_DEPTH_TEST);
+	qglDisable (GL_CULL_FACE);
+	qglDisable (GL_ALPHA_TEST);
+	qglEnable(GL_BLEND);
+	qglColor4f(1, 1, 1, gl_motionblur.value);
+	qglBegin(GL_QUADS);
+	qglTexCoord2f(cs-vs, ct-vt);
+	qglVertex2f(0, 0);
+	qglTexCoord2f(cs+vs, ct-vt);
+	qglVertex2f(glwidth, 0);
+	qglTexCoord2f(cs+vs, ct+vt);
+	qglVertex2f(glwidth, glheight);
+	qglTexCoord2f(cs-vs, ct+vt);
+	qglVertex2f(0, glheight);
+	qglEnd();
+
+	qglMatrixMode(GL_PROJECTION);
+	qglPopMatrix();
+	qglMatrixMode(GL_MODELVIEW);
+	qglPopMatrix();
+
+
+	//copy the image into the texture so that we can play with it next frame too!
+	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+static void R_RenderWaterWarp(void)
+{
+	float vwidth = 1, vheight = 1;
+	float vs, vt;
+
+	// get the powers of 2 for the size of the texture that will hold the scene
+
+	if (gl_config.arb_texture_non_power_of_two)
+	{
+		vwidth = glwidth;
+		vheight = glheight;
+	}
+	else
+	{
+		while (vwidth < glwidth)
+		{
+			vwidth *= 2;
+		}
+		while (vheight < glheight)
+		{
+			vheight *= 2;
+		}
+	}
+
+	// get the maxtexcoords while we're at it
+	vs = glwidth / vwidth;
+	vt = glheight / vheight;
+
+	// 2d mode, but upside down to quake's normal 2d drawing
+	// this makes grabbing the sreen a lot easier
+	qglViewport (glx, gly, glwidth, glheight);
+
+	qglMatrixMode(GL_PROJECTION);
+	// Push the matrices to go into 2d mode, that matches opengl's mode
+	qglPushMatrix();
+	qglLoadIdentity ();
+	// TODO: use actual window width and height
+	qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
+
+	qglMatrixMode(GL_MODELVIEW);
+	qglPushMatrix();
+	qglLoadIdentity ();
+
+	qglDisable (GL_DEPTH_TEST);
+	qglDisable (GL_CULL_FACE);
+	qglDisable (GL_BLEND);
+	qglEnable (GL_ALPHA_TEST);
+
+	// copy the scene to texture
+	GL_Bind(scenepp_texture);
+	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	if (qglGetError())
+		Con_Printf(CON_ERROR "GL Error after qglCopyTexImage2D\n");
+
+	// Here we apply the shaders - currently just waterwarp
+	GLSlang_UseProgram(scenepp_ww_program);
+	//keep the amp proportional to the size of the scene in texture coords
+	// WARNING - waterwarp can change the amplitude, but if it's too big it'll exceed
+	// the size determined by the edge texture, after which black bits will be shown.
+	// Suggest clamping to a suitable range.
+	if (r_waterwarp.value<0)
+	{
+		GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*(-r_waterwarp.value));
+	}
+	else
+	{
+		GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*r_waterwarp.value);
+	}
+
+	if (qglGetError())
+		Con_Printf("GL Error after GLSlang_UseProgram\n");
+
+	{
+		float xmin, xmax, ymin, ymax;
+
+		xmin = cl.time * 0.25;
+		ymin = cl.time * 0.25;
+		xmax = xmin + 1;
+		ymax = ymin + 1/vt*vs;
+
+		GL_EnableMultitexture();
+		GL_Bind (scenepp_texture_warp);
+
+		GL_SelectTexture(mtexid1+1);
+		qglEnable(GL_TEXTURE_2D);
+		GL_Bind(scenepp_texture_edge);
+
+		qglBegin(GL_QUADS);
+
+		qglMTexCoord2fSGIS (mtexid0, 0, 0);
+		qglMTexCoord2fSGIS (mtexid1, xmin, ymin);
+		qglMTexCoord2fSGIS (mtexid1+1, 0, 0);
+		qglVertex2f(0, 0);
+
+		qglMTexCoord2fSGIS (mtexid0, vs, 0);
+		qglMTexCoord2fSGIS (mtexid1, xmax, ymin);
+		qglMTexCoord2fSGIS (mtexid1+1, 1, 0);
+		qglVertex2f(glwidth, 0);
+
+		qglMTexCoord2fSGIS (mtexid0, vs, vt);
+		qglMTexCoord2fSGIS (mtexid1, xmax, ymax);
+		qglMTexCoord2fSGIS (mtexid1+1, 1, 1);
+		qglVertex2f(glwidth, glheight);
+
+		qglMTexCoord2fSGIS (mtexid0, 0, vt);
+		qglMTexCoord2fSGIS (mtexid1, xmin, ymax);
+		qglMTexCoord2fSGIS (mtexid1+1, 0, 1);
+		qglVertex2f(0, glheight);
+		
+		qglEnd();
+
+		qglDisable(GL_TEXTURE_2D);
+		GL_SelectTexture(mtexid1);
+
+		GL_DisableMultitexture();
+	}
+
+	// Disable shaders
+	GLSlang_UseProgram(0);
+
+	// After all the post processing, pop the matrices
+	qglMatrixMode(GL_PROJECTION);
+	qglPopMatrix();
+	qglMatrixMode(GL_MODELVIEW);
+	qglPopMatrix();
+
+	if (qglGetError())
+		Con_Printf("GL Error after drawing with shaderobjects\n");
+}
+
+qboolean R_RenderScene_Fish(void)
+{
+	int cmapsize = 512;
+	int i;
+	static vec3_t ang[6] =
+				{	{0, -90, 0}, {0, 90, 0},
+					{90, 0, 0}, {-90, 0, 0},
+					{0, 0, 0}, {0, -180, 0}	};
+	int order[6] = {4, 0, 1, 5, 3, 2};
+	int numsides = 4;
+	vec3_t saveang;
+	int rot45 = 0;
+
+	if (!scenepp_panorama_program)
+		return false;
+
+	if (gl_config.arb_texture_non_power_of_two)
+	{
+		if (glwidth < glheight)
+			cmapsize = glwidth;
+		else
+			cmapsize = glheight;
+	}
+	else
+	{
+		while (cmapsize > glwidth || cmapsize > glheight)
+		{
+			cmapsize /= 2;
+		}
+	}
+
+	VectorCopy(r_refdef.viewangles, saveang);
+	saveang[2] = 0;
+
+	if (ffov.value < 0)
+	{
+		//panoramic view needs at most the four sides
+		if (ffov.value >= -90)
+			numsides = 1;
+//			else if (ffov.value >= -180)
+//			{
+//				numsides = 2;
+//				rot45 = 1;
+//			}
+		else if (ffov.value >= -270)
+			numsides = 3;
+		else
+			numsides = 4;
+
+		order[0] = 4;
+		order[1] = 0;
+		order[2] = 1;
+		order[3] = 5;
+	}
+	else
+	{
+		//fisheye view sees a full sphere
+		//
+		if (ffov.value <= 77)
+			numsides = 1;
+//			else if (ffov.value <= 180)
+//			{
+//				numsides = 3;
+//				rot45 = 3;
+//			}
+		else if (ffov.value <= 270)
+			numsides = 5;
+		else
+			numsides = 6;
+
+		order[0] = 4;
+		order[1] = 0;
+		order[2] = 3;
+		order[3] = 1;
+		order[4] = 2;
+		order[5] = 5;
+	}
+
+	qglViewport (glx, gly+glheight - cmapsize, cmapsize, cmapsize);
+
+	if (!scenepp_fisheye_texture)
+	{
+		scenepp_fisheye_texture = GL_AllocNewTexture();
+
+		qglDisable(GL_TEXTURE_2D);
+		qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
+
+		bindTexFunc(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
+		for (i = 0; i < 6; i++)
+			qglCopyTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, GL_RGB, 0, 0, cmapsize, cmapsize, 0);
+		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+		qglEnable(GL_TEXTURE_2D);
+		qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
+	}
+
+	r_refdef.vrect.width = (cmapsize+0.99)*vid.width/glwidth;
+	r_refdef.vrect.height = (cmapsize+0.99)*vid.height/glheight;
+	r_refdef.vrect.x = 0;
+	r_refdef.vrect.y = vid.height - r_refdef.vrect.height;
+
+	ang[0][0] = -saveang[0];
+	ang[0][1] = -90;
+	ang[0][2] = -saveang[0];
+
+	ang[1][0] = -saveang[0];
+	ang[1][1] = 90;
+	ang[1][2] = saveang[0];
+	ang[5][0] = -saveang[0]*2;
+	for (i = 0; i < numsides; i++)
+	{
+		mirror = false;
+
+		r_refdef.fov_x = 90;
+		r_refdef.fov_y = 90;
+		r_refdef.viewangles[0] = saveang[0]+ang[order[i]][0];
+		r_refdef.viewangles[1] = saveang[1]+ang[order[i]][1];
+		r_refdef.viewangles[2] = saveang[2]+ang[order[i]][2];
+
+		R_Clear ();
+
+	//	GLR_SetupFog ();
+
+		r_alpha_surfaces = NULL;
+
+		GL_SetShaderState2D(false);
+
+		// render normal view
+		R_RenderScene ();	
+
+		GLR_DrawWaterSurfaces ();
+		GLR_DrawAlphaSurfaces ();
+
+		// render mirror view
+		R_Mirror ();
+
+		qglDisable(GL_TEXTURE_2D);
+		qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
+		GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
+		qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + order[i], 0, 0, 0, 0, 0, cmapsize, cmapsize);
+		qglEnable(GL_TEXTURE_2D);
+		qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
+	}
+
+//qglClear (GL_COLOR_BUFFER_BIT);
+	qglViewport (glx, gly, glwidth, glheight);
+
+	qglDisable(GL_TEXTURE_2D);
+	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
+	qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
+
+	if (scenepp_panorama_program && ffov.value < 0)
+	{
+		GLSlang_UseProgram(scenepp_panorama_program);
+		GLSlang_SetUniform1f(scenepp_panorama_parm_fov, -ffov.value*3.1415926535897932384626433832795/180);
+	}
+	else
+	{
+		GLSlang_UseProgram(scenepp_fisheye_program);
+		GLSlang_SetUniform1f(scenepp_fisheye_parm_fov, ffov.value*3.1415926535897932384626433832795/180);
+	}
+
+
+	// go 2d
+	qglMatrixMode(GL_PROJECTION);
+	qglPushMatrix();
+	qglLoadIdentity ();
+	qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
+	qglMatrixMode(GL_MODELVIEW);
+	qglPushMatrix();
+	qglLoadIdentity ();
+
+	qglDisable (GL_DEPTH_TEST);
+	qglDisable (GL_CULL_FACE);
+	qglDisable (GL_ALPHA_TEST);
+	qglDisable(GL_BLEND);
+	qglBegin(GL_QUADS);
+	qglTexCoord2f(-0.5, -0.5);
+	qglVertex2f(0, 0);
+	qglTexCoord2f(0.5, -0.5);
+	qglVertex2f(glwidth, 0);
+	qglTexCoord2f(0.5, 0.5);
+	qglVertex2f(glwidth, glheight);
+	qglTexCoord2f(-0.5, 0.5);
+	qglVertex2f(0, glheight);
+	qglEnd();
+
+	qglMatrixMode(GL_PROJECTION);
+	qglPopMatrix();
+	qglMatrixMode(GL_MODELVIEW);
+	qglPopMatrix();
+
+	qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
+	qglEnable(GL_TEXTURE_2D);
+
+	GLSlang_UseProgram(0);
+
+	return true;
+}
 /*
 ================
 R_RenderView
@@ -1576,7 +2050,6 @@ r_refdef must be set before the first call
 */
 void GLR_RenderView (void)
 {
-	extern msurface_t  *r_alpha_surfaces;
 	double	time1 = 0, time2;
 
 	if (qglGetError())
@@ -1627,24 +2100,31 @@ void GLR_RenderView (void)
 		c_alias_polys = 0;
 	}
 
-	mirror = false;
+	if (ffov.value && cls.allow_fish && !(r_refdef.flags & Q2RDF_NOWORLDMODEL) && R_RenderScene_Fish())
+	{
+		//fisheye does its own rendering.
+	}
+	else
+	{
+		mirror = false;
 
-	R_Clear ();
+		R_Clear ();
 
-//	GLR_SetupFog ();
+	//	GLR_SetupFog ();
 
-	r_alpha_surfaces = NULL;
+		r_alpha_surfaces = NULL;
 
-	GL_SetShaderState2D(false);
+		GL_SetShaderState2D(false);
 
-	// render normal view
-	R_RenderScene ();	
+		// render normal view
+		R_RenderScene ();	
 
-	GLR_DrawWaterSurfaces ();
-	GLR_DrawAlphaSurfaces ();
+		GLR_DrawWaterSurfaces ();
+		GLR_DrawAlphaSurfaces ();
 
-	// render mirror view
-	R_Mirror ();
+		// render mirror view
+		R_Mirror ();
+	}
 
 	R_BloomBlend();
 
@@ -1674,196 +2154,12 @@ void GLR_RenderView (void)
 	// we check if we need to use any shaders - currently it's just waterwarp
 	if (scenepp_ww_program)
 	if ((r_waterwarp.value>0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
-	{
-		float vwidth = 1, vheight = 1;
-		float vs, vt;
-
-		// get the powers of 2 for the size of the texture that will hold the scene
-		while (vwidth < glwidth)
-		{
-			vwidth *= 2;
-		}
-		while (vheight < glheight)
-		{
-			vheight *= 2;
-		}
-
-		// get the maxtexcoords while we're at it
-		vs = glwidth / vwidth;
-		vt = glheight / vheight;
-
-		// 2d mode, but upside down to quake's normal 2d drawing
-		// this makes grabbing the sreen a lot easier
-		qglViewport (glx, gly, glwidth, glheight);
-
-		qglMatrixMode(GL_PROJECTION);
-		// Push the matrices to go into 2d mode, that matches opengl's mode
-		qglPushMatrix();
-		qglLoadIdentity ();
-		// TODO: use actual window width and height
-		qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
-
-		qglMatrixMode(GL_MODELVIEW);
-		qglPushMatrix();
-		qglLoadIdentity ();
-
-		qglDisable (GL_DEPTH_TEST);
-		qglDisable (GL_CULL_FACE);
-		qglDisable (GL_BLEND);
-		qglEnable (GL_ALPHA_TEST);
-
-		// copy the scene to texture
-		GL_Bind(scenepp_texture);
-		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-		if (qglGetError())
-			Con_Printf(CON_ERROR "GL Error after qglCopyTexImage2D\n");
-
-		// Here we apply the shaders - currently just waterwarp
-		GLSlang_UseProgram(scenepp_ww_program);
-		//keep the amp proportional to the size of the scene in texture coords
-		// WARNING - waterwarp can change the amplitude, but if it's too big it'll exceed
-		// the size determined by the edge texture, after which black bits will be shown.
-		// Suggest clamping to a suitable range.
-		if (r_waterwarp.value<0)
-		{
-			GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*(-r_waterwarp.value));
-		}
-		else
-		{
-			GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*r_waterwarp.value);
-		}
-
-		if (qglGetError())
-			Con_Printf("GL Error after GLSlang_UseProgram\n");
-
-		{
-			float xmin, xmax, ymin, ymax;
-
-			xmin = cl.time * 0.25;
-			ymin = cl.time * 0.25;
-			xmax = xmin + 1;
-			ymax = ymin + 1/vt*vs;
-
-			GL_EnableMultitexture();
-			GL_Bind (scenepp_texture_warp);
-
-			GL_SelectTexture(mtexid1+1);
-			qglEnable(GL_TEXTURE_2D);
-			GL_Bind(scenepp_texture_edge);
-
-			qglBegin(GL_QUADS);
-
-			qglMTexCoord2fSGIS (mtexid0, 0, 0);
-			qglMTexCoord2fSGIS (mtexid1, xmin, ymin);
-			qglMTexCoord2fSGIS (mtexid1+1, 0, 0);
-			qglVertex2f(0, 0);
-
-			qglMTexCoord2fSGIS (mtexid0, vs, 0);
-			qglMTexCoord2fSGIS (mtexid1, xmax, ymin);
-			qglMTexCoord2fSGIS (mtexid1+1, 1, 0);
-			qglVertex2f(glwidth, 0);
-
-			qglMTexCoord2fSGIS (mtexid0, vs, vt);
-			qglMTexCoord2fSGIS (mtexid1, xmax, ymax);
-			qglMTexCoord2fSGIS (mtexid1+1, 1, 1);
-			qglVertex2f(glwidth, glheight);
-
-			qglMTexCoord2fSGIS (mtexid0, 0, vt);
-			qglMTexCoord2fSGIS (mtexid1, xmin, ymax);
-			qglMTexCoord2fSGIS (mtexid1+1, 0, 1);
-			qglVertex2f(0, glheight);
-			
-			qglEnd();
-
-			qglDisable(GL_TEXTURE_2D);
-			GL_SelectTexture(mtexid1);
-
-			GL_DisableMultitexture();
-		}
-
-		// Disable shaders
-		GLSlang_UseProgram(0);
-
-		// After all the post processing, pop the matrices
-		qglMatrixMode(GL_PROJECTION);
-		qglPopMatrix();
-		qglMatrixMode(GL_MODELVIEW);
-		qglPopMatrix();
-
-		if (qglGetError())
-			Con_Printf("GL Error after drawing with shaderobjects\n");
-	}
+		R_RenderWaterWarp();
 
 
 
 	if (gl_motionblur.value>0 && gl_motionblur.value < 1 && qglCopyTexImage2D)
-	{
-		int vwidth = 1, vheight = 1;
-		float vs, vt, cs, ct;
-
-		if (gl_config.arb_texture_non_power_of_two)
-		{	//we can use any size, supposedly
-			vwidth = glwidth;
-			vheight = glheight;
-		}
-		else
-		{	//limit the texture size to square and use padding.
-			while (vwidth < glwidth)
-				vwidth *= 2;
-			while (vheight < glheight)
-				vheight *= 2;
-		}
-
-		qglViewport (glx, gly, glwidth, glheight);
-
-		GL_Bind(sceneblur_texture);
-
-		// go 2d
-		qglMatrixMode(GL_PROJECTION);
-		qglPushMatrix();
-		qglLoadIdentity ();
-		qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
-		qglMatrixMode(GL_MODELVIEW);
-		qglPushMatrix();
-		qglLoadIdentity ();
-
-		//blend the last frame onto the scene
-		//the maths is because our texture is over-sized (must be power of two)
-		cs = vs = (float)glwidth / vwidth * 0.5;
-		ct = vt = (float)glheight / vheight * 0.5;
-		vs *= gl_motionblurscale.value;
-		vt *= gl_motionblurscale.value;
-
-		qglDisable (GL_DEPTH_TEST);
-		qglDisable (GL_CULL_FACE);
-		qglDisable (GL_ALPHA_TEST);
-		qglEnable(GL_BLEND);
-		qglColor4f(1, 1, 1, gl_motionblur.value);
-		qglBegin(GL_QUADS);
-		qglTexCoord2f(cs-vs, ct-vt);
-		qglVertex2f(0, 0);
-		qglTexCoord2f(cs+vs, ct-vt);
-		qglVertex2f(glwidth, 0);
-		qglTexCoord2f(cs+vs, ct+vt);
-		qglVertex2f(glwidth, glheight);
-		qglTexCoord2f(cs-vs, ct+vt);
-		qglVertex2f(0, glheight);
-		qglEnd();
-
-		qglMatrixMode(GL_PROJECTION);
-		qglPopMatrix();
-		qglMatrixMode(GL_MODELVIEW);
-		qglPopMatrix();
-
-
-		//copy the image into the texture so that we can play with it next frame too!
-		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	}
+		R_RenderMotionBlur();
 }
 
 #endif

@@ -54,7 +54,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 	#define AVAIL_MASM
 
-#ifdef MINGW
+#if defined(MINGW) || defined(MACOSX)
 	#define AVAIL_PNGLIB
 	#define AVAIL_ZLIB
 	#define AVAIL_JPEGLIB

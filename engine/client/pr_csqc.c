@@ -4425,6 +4425,36 @@ static void PF_cs_setlistener (progfuncs_t *prinst, struct globalvars_s *pr_glob
 #define RSES_NOTRAILS 4
 #define RSES_NOLIGHTS 8
 
+static void CSQC_LerpStateToCSQC(lerpents_t *le, csqcedict_t *ent, qboolean nolerp)
+{
+	ent->v->frame = le->newframe;
+	ent->v->frame1time = max(0, cl.servertime - le->newframestarttime);
+	ent->v->frame2 = le->oldframe;
+	ent->v->frame2time = max(0, cl.servertime - le->newframestarttime);
+
+	ent->v->lerpfrac = bound(0, cl.servertime - le->newframestarttime, 0.1);
+
+
+/*	if (nolerp)
+	{
+		ent->v->origin[0] = le->neworigin[0];
+		ent->v->origin[1] = le->neworigin[1];
+		ent->v->origin[2] = le->neworigin[2];
+		ent->v->angles[0] = le->newangle[0];
+		ent->v->angles[1] = le->newangle[1];
+		ent->v->angles[2] = le->newangle[2];
+	}
+	else*/
+	{
+		ent->v->origin[0] = le->origin[0];
+		ent->v->origin[1] = le->origin[1];
+		ent->v->origin[2] = le->origin[2];
+		ent->v->angles[0] = le->angles[0];
+		ent->v->angles[1] = le->angles[1];
+		ent->v->angles[2] = le->angles[2];
+	}
+}
+
 void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src, csqcedict_t *ent)
 {
 	model_t *model;
@@ -4432,21 +4462,8 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 
 	le = &cl.lerpents[src->number];
 
-	//frames needs special handling
-	ent->v->frame = src->frame;
-	ent->v->frame2 = le->frame;
-	if (le->framechange == le->oldframechange)
-		ent->v->lerpfrac = 0;
-	else
-	{
-		ent->v->lerpfrac = 1-(lerptime - le->framechange) / (le->framechange - le->oldframechange);
-		if (ent->v->lerpfrac > 1)
-			ent->v->lerpfrac = 1;
-		else if (ent->v->lerpfrac < 0)
-		{
-			ent->v->lerpfrac = 0;
-		}
-	}
+	CSQC_LerpStateToCSQC(le, ent, flags & RSES_NOLERP);
+
 
 	model = cl.model_precache[src->modelindex];
 	if (!(flags & RSES_NOTRAILS))
@@ -4464,12 +4481,6 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 //	ent->v->bitmask = src->bitmask;
 	ent->v->flags = src->flags;
 //	ent->v->effects = src->effects;
-	ent->v->origin[0] = src->origin[0];
-	ent->v->origin[1] = src->origin[1];
-	ent->v->origin[2] = src->origin[2];
-	ent->v->angles[0] = src->angles[0];
-	ent->v->angles[1] = src->angles[1];
-	ent->v->angles[2] = src->angles[2];
 
 //we ignore the q2 state fields
 
@@ -4518,25 +4529,13 @@ void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 		ent->v->modelindex = srcp->modelindex;
 	ent->v->skin = srcp->skinnum;
 
-	ent->v->frame1time = cl.time - cl.lerpplayers[pnum].framechange;
-	ent->v->frame2time = cl.time - cl.lerpplayers[pnum].oldframechange;
+	CSQC_LerpStateToCSQC(&cl.lerpplayers[pnum], ent, true);
 
-	if (ent->v->frame != cl.lerpplayers[pnum].frame)
-	{
-		ent->v->frame2 = ent->v->frame;
-		ent->v->frame = cl.lerpplayers[pnum].frame;
-	}
 
-	ent->v->lerpfrac = 1-(realtime - cl.lerpplayers[pnum].framechange)*10;
-	if (ent->v->lerpfrac > 1)
-		ent->v->lerpfrac = 1;
-	else if (ent->v->lerpfrac < 0)
-	{
-		ent->v->lerpfrac = 0;
-	}
 	VectorCopy(srcp->origin, ent->v->origin);
-	VectorCopy(srcp->velocity, ent->v->velocity);
 	VectorCopy(srcp->viewangles, ent->v->angles);
+
+	VectorCopy(srcp->velocity, ent->v->velocity);
 	ent->v->angles[0] *= -0.333;
 	ent->v->colormap = pnum+1;
 	ent->v->scale = srcp->scale/16.0f;

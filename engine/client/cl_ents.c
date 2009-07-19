@@ -2485,6 +2485,8 @@ void CL_AddVWeapModel(entity_t *player, model_t *model)
 	vec3_t	angles;
 	newent = CL_NewTempEntity ();
 
+	newent->keynum = player->keynum;
+
 	VectorCopy(player->origin, newent->origin);
 	VectorCopy(player->angles, newent->angles);
 	newent->skinnum = player->skinnum;

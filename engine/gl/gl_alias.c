@@ -1260,6 +1260,12 @@ void R_DrawGAliasModel (entity_t *e)
 	if (qglPNTrianglesfATI && gl_ati_truform.value)
 		qglEnable(GL_PN_TRIANGLES_ATI);
 
+	if (clmodel == cl.model_precache_vwep[0])
+	{
+		extern int cl_playerindex;
+		clmodel = cl.model_precache[cl_playerindex];
+	}
+
 	if (e->flags & Q2RF_WEAPONMODEL)
 	{
 		VectorCopy(currententity->origin, saveorg);

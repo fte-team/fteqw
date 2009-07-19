@@ -673,7 +673,8 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 	SV_EXE_NAME=../macosx_fteqw.sv$(EXTENSION)$(BITS)
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
+	SV_LDFLAGS=-lz	
 
 	#seems, macosx has a more limited version of strip
 	STRIPFLAGS=

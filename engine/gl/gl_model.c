@@ -2867,13 +2867,13 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 	if (sv.state)	//if the server is running
 	{
 		if (!strcmp(loadmodel->name, va("maps/%s.bsp", sv.name)))
-			Mod_ParseInfoFromEntityLump(mod_base + header->lumps[LUMP_ENTITIES].fileofs);
+			Mod_ParseInfoFromEntityLump(mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
 	}
 	else
 #endif
 	{
 		if (!cl.model_precache[1])	//not copied across yet
-			Mod_ParseInfoFromEntityLump(mod_base + header->lumps[LUMP_ENTITIES].fileofs);
+			Mod_ParseInfoFromEntityLump(mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
 	}
 
 	Q1BSP_SetModelFuncs(mod);

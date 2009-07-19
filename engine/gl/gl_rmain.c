@@ -119,6 +119,9 @@ cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
 cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
 
+cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
+cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
+
 extern cvar_t	gl_contrast;
 extern cvar_t	gl_mindist;
 
@@ -1202,6 +1205,8 @@ void R_SetupGL (void)
 	{
 		qglDisable(GL_DITHER);
 	}
+
+	qglPolygonOffset(r_polygonoffset_submodel_factor.value, r_polygonoffset_submodel_offset.value);
 
 	GL_DisableMultitexture();
 }

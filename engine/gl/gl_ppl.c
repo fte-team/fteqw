@@ -2568,21 +2568,6 @@ void R_DrawBeam( entity_t *e )
 	}
 }
 
-void PPL_DrawEnt(entity_t *e, void *parm)
-{
-	qglEnd();
-	currententity = e;
-
-	qglDepthMask(1);
-	qglDisable(GL_POLYGON_OFFSET_FILL);
-	
-		R_IBrokeTheArrays();
-		R_DrawGAliasModel (currententity);
-
-	P_FlushRenderer();
-	qglBegin(GL_QUADS);
-}
-
 void PPL_DelayBaseBModelTextures(int count, void **e, void *parm)
 {
 	while(count--)
@@ -2592,7 +2577,9 @@ void PPL_DelayBaseBModelTextures(int count, void **e, void *parm)
 		qglDepthFunc ( gldepthfunc );
 		qglEnable(GL_DEPTH_TEST);
 		qglDepthMask(1);
+		qglEnable(GL_POLYGON_OFFSET_FILL);
 		PPL_BaseBModelTextures (currententity);
+		qglDisable(GL_POLYGON_OFFSET_FILL);
 	}
 }
 
@@ -2659,7 +2646,9 @@ void PPL_BaseEntTextures(void)
 				qglDepthFunc ( gldepthfunc );
 				qglEnable(GL_DEPTH_TEST);
 				qglDepthMask(1);
+				qglEnable(GL_POLYGON_OFFSET_FILL);
 				PPL_BaseBModelTextures (currententity);
+				qglDisable(GL_POLYGON_OFFSET_FILL);
 			}
 			break;
 
@@ -3526,7 +3515,9 @@ void PPL_DrawEntLighting(dlight_t *light, vec3_t colour)
 			break;
 
 		case mod_brush:
+			qglEnable(GL_POLYGON_OFFSET_FILL);
 			PPL_LightBModelTextures (currententity, light, colour);
+			qglDisable(GL_POLYGON_OFFSET_FILL);
 			break;
 
 		default:
@@ -3659,7 +3650,9 @@ void PPL_DrawEntDetails(void)
 			break;
 
 		case mod_brush:
+			qglEnable(GL_POLYGON_OFFSET_FILL);
 			PPL_DetailsBModelTextures (currententity);
+			qglDisable(GL_POLYGON_OFFSET_FILL);
 			break;
 
 		default:
@@ -4717,7 +4710,9 @@ void PPL_DrawShadowMeshes(dlight_t *dl)
 			break;
 
 		case mod_brush:
+			qglEnable(GL_POLYGON_OFFSET_FILL);
 			PPL_DrawBrushModelShadow (dl, currententity);
+			qglDisable(GL_POLYGON_OFFSET_FILL);
 			break;
 
 		default:

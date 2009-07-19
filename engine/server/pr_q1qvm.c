@@ -1268,7 +1268,7 @@ static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
 	return syscallhandle(offset, mask, fn, args);
 }
 #else
-#define syscallqvm syscallhandle
+#define syscallqvm (sys_callqvm_t)syscallhandle
 #endif
 
 static qintptr_t EXPORT_FN syscallnative (qintptr_t arg, ...)

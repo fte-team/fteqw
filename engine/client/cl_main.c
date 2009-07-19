@@ -2816,6 +2816,7 @@ void CL_FTP_f(void)
 }
 #endif
 
+void CL_Skygroup_f(void);
 void SCR_ShowPic_Script_f(void);
 /*
 =================
@@ -3071,6 +3072,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("serverinfo", CL_ServerInfo_f);
 #endif
 
+	Cmd_AddCommand ("skygroup", CL_Skygroup_f);
 //
 //  Windows commands
 //

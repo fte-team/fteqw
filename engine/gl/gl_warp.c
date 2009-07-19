@@ -405,7 +405,7 @@ void GL_DrawSkyChain (msurface_t *s)
 		return;
 	}
 
-	if (skyprogram)
+	if (skyprogram && !usingskybox)
 	{
 		GL_DrawProgram_SkyChain(s);
 		return;

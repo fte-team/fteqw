@@ -457,17 +457,114 @@ qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha)//r
 	return NULL;
 }
 
+typedef struct mapgroup_s {
+	char *mapname;
+	char *skyname;
+	struct mapgroup_s *next;
+} mapskys_t;
+static mapskys_t *mapskies;
+void CL_Skygroup_f(void)
+{
+	mapskys_t **link;
+	mapskys_t *ms;
+	char *skyname;
+	char *mapname;
+	int i;
+	int remove;
+
+	skyname = Cmd_Argv(1);
+
+	if (!*skyname)
+	{
+		skyname = NULL;
+		for (ms = mapskies; ms; ms = ms->next)
+		{
+			if (!skyname || strcmp(skyname, ms->skyname))
+			{
+				Con_Printf("%s%s:", skyname?"\n":"", ms->skyname);
+				skyname=ms->skyname;
+			}
+			Con_Printf(" %s", ms->mapname);
+		}
+		if (skyname)
+			Con_Printf("\n");
+		else
+			Con_Printf("No skygroups defined\n");
+		return;
+	}
+
+	if (!strcmp(skyname, "clear") && Cmd_Argc() == 2)
+	{
+		while (mapskies)
+		{
+			ms = mapskies->next;
+			Z_Free(mapskies);
+			mapskies = ms;
+		}
+		return;
+	}
+
+	if (*skyname == '-')
+	{
+		skyname++;
+		for (link = &mapskies; *link; )
+		{
+			if (!strcmp((*link)->mapname, skyname) || !strcmp((*link)->skyname, skyname))
+			{
+				ms = *link;
+				*link = ms->next;
+				Z_Free(ms);
+			}
+			else
+				link = &(*link)->next;
+		}
+		return;
+	}
+
+	for (i = 2; i < Cmd_Argc(); i++)
+	{
+		mapname = Cmd_Argv(i);
+
+		remove = *mapname == '-';
+		mapname += remove;
+
+		for (link = &mapskies; *link; link = &(*link)->next)
+		{
+			if (!strcmp((*link)->mapname, mapname))
+			{
+				ms = *link;
+				*link = ms->next;
+				Z_Free(ms);
+				break;
+			}
+		}
+		if (remove)
+			continue;
+
+		ms = Z_Malloc(sizeof(*ms) + strlen(mapname) + strlen(skyname) + 2);
+
+		ms->mapname = (char*)(ms+1);
+		ms->skyname = ms->mapname + strlen(mapname)+1;
+		ms->next = mapskies;
+
+		strcpy(ms->mapname, mapname);
+		strcpy(ms->skyname, skyname);
+
+		mapskies = ms;
+	}
+}
 
 //extern model_t	*loadmodel;
 
 char wads[4096];
-void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the model code.
+void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this should be in the model code.
 {
 	extern model_t *loadmodel;
 	char key[128];
 	char skyname[64];
 	float skyrotate = 0;
 	vec3_t skyaxis = {0, 0, 0};
+	mapskys_t *msky;
 
 	wads[0] = '\0';
 
@@ -482,6 +579,15 @@ void Mod_ParseInfoFromEntityLump(char *data)	//actually, this should be in the m
 		strcpy(skyname, "unit1_");
 	else
 		skyname[0] = '\0';
+
+	for (msky = mapskies; msky; msky = msky->next)
+	{
+		if (!strcmp(msky->mapname, mapname))
+		{
+			Q_strncpyz(skyname, msky->skyname, sizeof(skyname));
+			break;
+		}
+	}
 
 	if (data)
 	if ((data=COM_Parse(data)))	//read the map info.

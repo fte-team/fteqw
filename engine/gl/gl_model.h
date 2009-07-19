@@ -919,8 +919,6 @@ int		CM_HeadnodeForBox (struct model_s *mod, vec3_t mins, vec3_t maxs);
 struct trace_s	CM_TransformedBoxTrace (struct model_s *mod, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int brushmask, vec3_t origin, vec3_t angles);
 struct model_s *CM_TempBoxModel(vec3_t mins, vec3_t maxs);
 
-void Mod_ParseInfoFromEntityLump(char *data);
-
 void	VARGS CMQ2_SetAreaPortalState (int portalnum, qboolean open);
 void	CMQ3_SetAreaPortalState (int area1, int area2, qboolean open);
 #endif

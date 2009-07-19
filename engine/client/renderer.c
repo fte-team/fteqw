@@ -227,6 +227,10 @@ extern cvar_t r_shadows;
 extern cvar_t r_speeds;
 extern cvar_t r_waterwarp;
 
+extern cvar_t	r_polygonoffset_submodel_factor;
+extern cvar_t	r_polygonoffset_submodel_offset;
+
+
 void R_BulletenForce_f (void);
 
 rendererstate_t currentrendererstate;
@@ -415,6 +419,9 @@ void GLRenderer_Init(void)
 #ifdef WATERLAYERS
 	Cvar_Register (&r_waterlayers, GRAPHICALNICETIES);
 #endif
+
+	Cvar_Register (&r_polygonoffset_submodel_factor, GLRENDEREROPTIONS);
+	Cvar_Register (&r_polygonoffset_submodel_offset, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_nobind, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_picmip, GLRENDEREROPTIONS);

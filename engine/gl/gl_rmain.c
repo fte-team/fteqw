@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -58,7 +58,7 @@ float		r_wateralphaval;	//allowed or not...
 
 int			c_brush_polys, c_alias_polys;
 
-qboolean	envmap;				// true during envmap command capture 
+qboolean	envmap;				// true during envmap command capture
 
 int			particletexture;	// little dot for particles
 int			particlecqtexture;	// little dot for particles
@@ -370,7 +370,7 @@ void GL_SetupSceneProcessingTextures (void)
 	scenepp_texture_warp = GL_AllocNewTexture();
 	scenepp_texture_edge = GL_AllocNewTexture();
 
-	// init warp texture - this specifies offset in 
+	// init warp texture - this specifies offset in
 	for (y=0; y<PP_WARP_TEX_SIZE; y++)
 	{
 		for (x=0; x<PP_WARP_TEX_SIZE; x++)
@@ -394,7 +394,7 @@ void GL_SetupSceneProcessingTextures (void)
 	qglTexImage2D(GL_TEXTURE_2D, 0, 3, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_warp_tex);
 
 	// TODO: init edge texture - this is ampscale * 2, with ampscale calculated
-	// init warp texture - this specifies offset in 
+	// init warp texture - this specifies offset in
 	for (y=0; y<PP_AMP_TEX_SIZE; y++)
 	{
 		for (x=0; x<PP_AMP_TEX_SIZE; x++)
@@ -606,7 +606,7 @@ void R_DrawSpriteModel (entity_t *e)
 		mesh.xyz_array = vertcoords;
 		mesh.normals_array = NULL;
 
-		
+
 		R_IBrokeTheArrays();
 
 		mb.entity = e;
@@ -677,7 +677,7 @@ void R_DrawSpriteModel (entity_t *e)
 		extern int gldepthfunc;
 		qglDepthFunc(gldepthfunc);
 		qglDepthMask(0);
-		if (gldepthmin == 0.5) 
+		if (gldepthmin == 0.5)
 			qglCullFace ( GL_BACK );
 		else
 			qglCullFace ( GL_FRONT );
@@ -725,7 +725,7 @@ void R_DrawSpriteModel (entity_t *e)
 	VectorMA (e->origin, frame->down, up, point);
 	VectorMA (point, frame->right, right, point);
 	qglVertex3fv (point);
-	
+
 	qglEnd ();
 
 	qglDisable(GL_BLEND);
@@ -827,7 +827,7 @@ void GLR_DrawEntitiesOnList (void)
 			if (r_refdef.flags & Q2RDF_NOWORLDMODEL || !cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame == fg_doom)
 				R_DrawGAliasModel (currententity);
 			break;
-		
+
 #ifdef HALFLIFEMODELS
 		case mod_halflife:
 			R_DrawHLModel (currententity);
@@ -881,7 +881,7 @@ void R_PolyBlend (void)
 	qglEnable (GL_BLEND);
 	qglDisable (GL_DEPTH_TEST);
 	qglDisable (GL_TEXTURE_2D);
-	
+
 	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	qglLoadIdentity ();
@@ -1024,7 +1024,7 @@ void GLR_SetupFrame (void)
 		{
 		}
 		else if (r_viewleaf->contents == Q1CONTENTS_EMPTY)
-		{	//look down a bit			
+		{	//look down a bit
 			VectorCopy (r_origin, temp);
 			temp[2] -= 16;
 			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
@@ -1035,7 +1035,7 @@ void GLR_SetupFrame (void)
 		}
 		else if (r_viewleaf->contents <= Q1CONTENTS_WATER && r_viewleaf->contents >= Q1CONTENTS_LAVA)
 		{	//in water, look up a bit.
-		
+
 			VectorCopy (r_origin, temp);
 			temp[2] += 16;
 			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
@@ -1046,7 +1046,7 @@ void GLR_SetupFrame (void)
 		}
 		else
 			r_viewleaf2 = NULL;
-		
+
 		if (r_viewleaf)
 			V_SetContentsColor (r_viewleaf->contents);
 	}
@@ -1377,7 +1377,7 @@ void R_Mirror (void)
 		//yes, this can mean that the list is reversed a few times, but we do have depth testing to solve that anyway.
 		for(prevs = s,prevr=NULL,rejects=NULL;r_mirror_chain;r_mirror_chain=r_mirror_chain->nextalphasurface)
 		{
-			if (s->plane->dist != r_mirror_chain->plane->dist || s->plane->signbits != r_mirror_chain->plane->signbits 
+			if (s->plane->dist != r_mirror_chain->plane->dist || s->plane->signbits != r_mirror_chain->plane->signbits
 				|| s->plane->normal[0] != r_mirror_chain->plane->normal[0] || s->plane->normal[1] != r_mirror_chain->plane->normal[1] || s->plane->normal[2] != r_mirror_chain->plane->normal[2])
 			{	//reject
 				if (prevr)
@@ -1508,7 +1508,7 @@ Thus the final mirror matrix for any given plane p*<nx,ny,nz>+k=0 is:
 		view[14] = oldorg[2];
 		view[15] = 1;
 
-		Matrix4_Multiply(mirror, view, result); 
+		Matrix4_Multiply(mirror, view, result);
 
 		vpn[0] = result[0];
 		vpn[1] = result[1];
@@ -1545,9 +1545,9 @@ Thus the final mirror matrix for any given plane p*<nx,ny,nz>+k=0 is:
 	gldepthmin = 0;
 	gldepthmax = 0.5;
 	qglDepthRange (gldepthmin, gldepthmax);
-	qglDepthFunc (gldepthfunc);	
+	qglDepthFunc (gldepthfunc);
 
-	
+
 	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
 	memcpy(r_refdef.vieworg, oldorg, sizeof(vec3_t));
 
@@ -1822,7 +1822,7 @@ static void R_RenderWaterWarp(void)
 		qglMTexCoord2fSGIS (mtexid1, xmin, ymax);
 		qglMTexCoord2fSGIS (mtexid1+1, 0, 1);
 		qglVertex2f(0, glheight);
-		
+
 		qglEnd();
 
 		qglDisable(GL_TEXTURE_2D);
@@ -1975,7 +1975,7 @@ qboolean R_RenderScene_Fish(void)
 		GL_SetShaderState2D(false);
 
 		// render normal view
-		R_RenderScene ();	
+		R_RenderScene ();
 
 		GLR_DrawWaterSurfaces ();
 		GLR_DrawAlphaSurfaces ();
@@ -2105,12 +2105,15 @@ void GLR_RenderView (void)
 		c_alias_polys = 0;
 	}
 
+
+#ifdef FISH
 	if (ffov.value && cls.allow_fish && !(r_refdef.flags & Q2RDF_NOWORLDMODEL) && R_RenderScene_Fish())
 	{
 		//fisheye does its own rendering.
 	}
 	else
 	{
+#endif
 		mirror = false;
 
 		R_Clear ();
@@ -2122,14 +2125,16 @@ void GLR_RenderView (void)
 		GL_SetShaderState2D(false);
 
 		// render normal view
-		R_RenderScene ();	
+		R_RenderScene ();
 
 		GLR_DrawWaterSurfaces ();
 		GLR_DrawAlphaSurfaces ();
 
 		// render mirror view
 		R_Mirror ();
+#ifdef FISH
 	}
+#endif
 
 	R_BloomBlend();
 
@@ -2146,7 +2151,7 @@ void GLR_RenderView (void)
 
 		RQuantAdd(RQUANT_WPOLYS, c_brush_polys);
 		RQuantAdd(RQUANT_EPOLYS, c_alias_polys);
-	//	Con_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys); 
+	//	Con_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys);
 	}
 
 	if (qglGetError())

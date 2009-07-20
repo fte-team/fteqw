@@ -1844,6 +1844,7 @@ static void R_RenderWaterWarp(void)
 		Con_Printf("GL Error after drawing with shaderobjects\n");
 }
 
+#ifdef FISH
 qboolean R_RenderScene_Fish(void)
 {
 	int cmapsize = 512;
@@ -2046,6 +2047,8 @@ qboolean R_RenderScene_Fish(void)
 
 	return true;
 }
+#endif
+
 /*
 ================
 R_RenderView
@@ -2105,15 +2108,14 @@ void GLR_RenderView (void)
 		c_alias_polys = 0;
 	}
 
-
 #ifdef FISH
 	if (ffov.value && cls.allow_fish && !(r_refdef.flags & Q2RDF_NOWORLDMODEL) && R_RenderScene_Fish())
 	{
 		//fisheye does its own rendering.
 	}
 	else
-	{
 #endif
+	{
 		mirror = false;
 
 		R_Clear ();
@@ -2132,9 +2134,7 @@ void GLR_RenderView (void)
 
 		// render mirror view
 		R_Mirror ();
-#ifdef FISH
 	}
-#endif
 
 	R_BloomBlend();
 

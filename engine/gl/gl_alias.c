@@ -1249,6 +1249,12 @@ void R_DrawGAliasModel (entity_t *e)
 						-scale_origin[1],
 						-scale_origin[2]);
 	}
+	else if (!strcmp(clmodel->name, "progs/eyes.mdl"))
+	{
+		// double size of eyes, since they are really hard to see in gl
+		qglTranslatef (0, 0, 0 - (22 + 8));
+		qglScalef (2, 2, 2);
+	}
 
 	if (!ruleset_allow_larger_models.value && clmodel->clampscale != 1)
 	{	//possibly this should be on a per-frame basis, but that's a real pain to do

@@ -814,7 +814,7 @@ qboolean	chat_team;
 char		chat_buffer[MAXCMDLINE];
 int			chat_bufferlen = 0;
 
-void Key_Message (int key)
+void Key_Message (int key, int unicode)
 {
 
 	if (key == K_ENTER)
@@ -855,7 +855,7 @@ void Key_Message (int key)
 	if (chat_bufferlen == sizeof(chat_buffer)-1)
 		return; // all full
 
-	chat_buffer[chat_bufferlen++] = key;
+	chat_buffer[chat_bufferlen++] = unicode;
 	chat_buffer[chat_bufferlen] = 0;
 }
 
@@ -1496,7 +1496,7 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 		switch (key_dest)
 		{
 		case key_message:
-			Key_Message (key);
+			Key_Message (key, unicode);
 			break;
 		case key_menu:
 			M_Keydown (key);
@@ -1636,7 +1636,7 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 	switch (key_dest)
 	{
 	case key_message:
-		Key_Message (key);
+		Key_Message (key, unicode);
 		break;
 	case key_menu:
 		M_Keydown (key);

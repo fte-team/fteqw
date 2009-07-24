@@ -1655,7 +1655,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 			TRACE(("dbg: R_ApplyRenderer: reloading model %s\n", cl.model_name[i]));
 			cl.model_precache[i] = Mod_ForName (cl.model_name[i], false);
 
-			if (!cl.model_precache[i])
+			if (!cl.model_precache[i] && i == 1)
 			{
 				Con_Printf ("\nThe required model file '%s' could not be found.\n\n"
 					, cl.model_name[i]);
@@ -1668,6 +1668,15 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 				return false;
 			}
 		}
+
+		for (i=0; i < MAX_VWEP_MODELS; i++)
+		{
+			if (*cl.model_name_vwep[i])
+				cl.model_precache_vwep[i] = Mod_ForName (cl.model_name_vwep[i], false);
+			else
+				cl.model_precache_vwep[i] = NULL;
+		}
+
 #ifdef CSQC_DAT
 		for (i=1 ; i<MAX_CSQCMODELS ; i++)
 		{

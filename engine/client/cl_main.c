@@ -1409,7 +1409,8 @@ void CL_CheckServerInfo(void)
 	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "mirrors")))
 		cls.allow_mirrors=true;
 
-	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_luma")))
+	s = Info_ValueForKey(cl.serverinfo, "allow_luma");
+	if (cl.spectator || cls.demoplayback || !*s || atoi(s))
 		cls.allow_luma=true;
 
 	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_lmgamma")))

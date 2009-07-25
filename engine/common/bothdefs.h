@@ -145,7 +145,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define HLCLIENT		//we can run HL gamecode (not protocol compatible)
 //		#define HLSERVER		//we can run HL gamecode (not protocol compatible)
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
-		#define FISH			//sw rendering only
+		#define FISH			//fisheye distortion stuff
 		#define ZLIB			//zip/pk3 support
 		#define WEBSERVER		//http/ftp servers
 		#define WEBCLIENT		//http/ftp clients.
@@ -187,7 +187,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 //temporarily disable stuff here, so as to not break any custom configs
+#ifdef Q3SHADERS
 //#define NEWBACKEND
+#endif
 
 
 //fix things a little...

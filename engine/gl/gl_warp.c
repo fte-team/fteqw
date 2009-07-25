@@ -390,18 +390,21 @@ void GL_DrawSkyChain (msurface_t *s)
 
 	if (r_fastsky.value>0)	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
 	{
+		R_IBrokeTheArrays();
+		qglDisable(GL_BLEND);
 		qglDisable(GL_TEXTURE_2D);
+		qglDisable(GL_ALPHA_TEST);
 		qglColor3f(glskycolor[0], glskycolor[1], glskycolor[2]);
 		qglDisableClientState( GL_COLOR_ARRAY );
+		qglEnableClientState( GL_VERTEX_ARRAY );
 		for (fa=s ; fa ; fa=fa->texturechain)
 		{
 			qglVertexPointer(3, GL_FLOAT, 0, fa->mesh->xyz_array);
 			qglDrawElements(GL_TRIANGLES, fa->mesh->numindexes, GL_INDEX_TYPE, fa->mesh->indexes);
 		}
-		R_IBrokeTheArrays();
-
 		qglColor3f(1, 1, 1);
 		qglEnable(GL_TEXTURE_2D);
+		R_IBrokeTheArrays();
 		return;
 	}
 
@@ -1092,6 +1095,8 @@ static void GL_SkyForceDepth(msurface_t *fa)
 
 		qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 		qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+
+		R_IBrokeTheArrays();
 	}
 }
 

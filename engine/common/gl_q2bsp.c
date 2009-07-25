@@ -2305,9 +2305,6 @@ qboolean CModQ3_LoadFogs (lump_t *l)
 		}
 	}
 
-	if (count)
-		GL_InitFogTexture();
-
 	return true;
 }
 
@@ -2412,7 +2409,8 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	patch_cp[0] = patchwidth;
 	patch_cp[1] = patchheight;
 
-	if ( !patch_cp[0] || !patch_cp[1] ) {
+	if ( !patch_cp[0] || !patch_cp[1] )
+	{
 		return NULL;
 	}
 

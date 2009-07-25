@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 key up events are sent even if in console mode
 
 */
-void Editor_Key(int key);
+void Editor_Key(int key, int unicode);
 
 #define		KEY_MODIFIERSTATES 8
 #define		MAXCMDLINE	256
@@ -451,7 +451,7 @@ qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey)
 	return true;
 }
 
-void Key_ConsoleRelease(int key)
+void Key_ConsoleRelease(int key, int unicode)
 {
 	if (key == K_MOUSE1)
 		con_mousedown[2] = false;
@@ -479,7 +479,6 @@ Interactive line editing and console scrollback
 void Key_Console (unsigned int unicode, int key)
 {
 	char	*clipText;
-	int upperconbound;
 
 	if (con_current->redirect)
 	{
@@ -1301,12 +1300,12 @@ qboolean Key_MouseShouldBeFree(void)
 	//if true, the input code is expected to return mouse cursor positions rather than deltas
 
 	extern int mouseusedforgui;
-	if (mouseusedforgui)	//I don't like this
-		return true;
+//	if (mouseusedforgui)	//I don't like this
+//		return true;
 
 	if (key_dest == key_menu)
 	{
-		if (m_state == m_complex || m_state == m_plugin || m_state == m_menu_dat)
+		if (m_state == m_complex || m_state == m_plugin /*|| m_state == m_menu_dat*/)
 			return true;
 	}
 	if (key_dest == key_console)
@@ -1463,11 +1462,11 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 	if (key_dest == key_game)
 	{
 #ifdef CSQC_DAT
-		if (CSQC_KeyPress(key, down))	//give csqc a chance to handle it.
+		if (CSQC_KeyPress(key, unicode, down))	//give csqc a chance to handle it.
 			return;
 #endif
 #ifdef VM_CG
-		if (CG_KeyPress(key, down))
+		if (CG_KeyPress(key, unicode, down))
 			return;
 #endif
 	}
@@ -1482,7 +1481,7 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 		if (key_dest == key_game)
 #endif
 		{
-			if (UI_KeyPress(key, down))	//Allow the UI to see the escape key. It is possible that a developer may get stuck at a menu.
+			if (UI_KeyPress(key, unicode, down))	//Allow the UI to see the escape key. It is possible that a developer may get stuck at a menu.
 				return;
 		}
 #endif
@@ -1490,7 +1489,7 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 		if (!down)
 		{
 			if (key_dest == key_menu)
-				M_Keyup (key);
+				M_Keyup (key, unicode);
 			return;
 		}
 		switch (key_dest)
@@ -1499,11 +1498,11 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 			Key_Message (key, unicode);
 			break;
 		case key_menu:
-			M_Keydown (key);
+			M_Keydown (key, unicode);
 			break;
 #ifdef TEXTEDITOR
 		case key_editor:
-			Editor_Key (key);
+			Editor_Key (key, unicode);
 			break;
 #endif
 		case key_game:
@@ -1524,7 +1523,7 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 #ifndef NOMEDIA
 	if (key_dest == key_game && Media_PlayingFullScreen())
 	{
-		Media_Send_KeyEvent(NULL, key, down?0:1);
+		Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
 		return;
 	}
 #endif
@@ -1541,10 +1540,10 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 		switch (key_dest)
 		{
 		case key_menu:
-			M_Keyup (key);
+			M_Keyup (key, unicode);
 			break;
 		case key_console:
-			Key_ConsoleRelease(key);
+			Key_ConsoleRelease(key, unicode);
 			break;
 		default:
 			break;
@@ -1589,7 +1588,7 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 	if (key != '`' && key != '~')
 	if (key_dest == key_game || !down)
 	{
-		if (UI_KeyPress(key, down) && down)	//UI is allowed to take these keydowns. Keyups are always maintained.
+		if (UI_KeyPress(key, unicode, down) && down)	//UI is allowed to take these keydowns. Keyups are always maintained.
 			return;
 	}
 #endif
@@ -1617,7 +1616,7 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 		return;
 	}
 
-	if (shift_down)
+	if (shift_down && unicode < K_MAX && keyshift[unicode])
 		unicode = keyshift[unicode];
 
 	if (!down)
@@ -1625,7 +1624,7 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 		switch (key_dest)
 		{
 		case key_menu:
-			M_Keyup (key);
+			M_Keyup (key, unicode);
 			break;
 		default:
 			break;
@@ -1639,11 +1638,11 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 		Key_Message (key, unicode);
 		break;
 	case key_menu:
-		M_Keydown (key);
+		M_Keydown (key, unicode);
 		break;
 #ifdef TEXTEDITOR
 	case key_editor:
-		Editor_Key (key);
+		Editor_Key (key, unicode);
 		break;
 #endif
 	case key_game:

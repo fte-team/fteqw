@@ -713,42 +713,6 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue)
 }
 
 #ifdef Q3SHADERS
-#define FOG_TEXTURE_WIDTH 32
-#define FOG_TEXTURE_HEIGHT 32
-extern int r_fogtexture;
-void GL_InitFogTexture (void)
-{
-	qbyte data[FOG_TEXTURE_WIDTH*FOG_TEXTURE_HEIGHT];
-	int x, y;
-	float tw = 1.0f / ((float)FOG_TEXTURE_WIDTH - 1.0f);
-	float th = 1.0f / ((float)FOG_TEXTURE_HEIGHT - 1.0f);
-	float tx, ty, t;
-
-	if (r_fogtexture)
-		return;
-
-	//
-	// fog texture
-	//
-	for ( y = 0, ty = 0.0f; y < FOG_TEXTURE_HEIGHT; y++, ty += th )
-	{
-		for ( x = 0, tx = 0.0f; x < FOG_TEXTURE_WIDTH; x++, tx += tw )
-		{
-			t = (float)(sqrt( tx ) * 255.0);
-			data[x+y*FOG_TEXTURE_WIDTH] = (qbyte)(min( t, 255.0f ));
-		}
-	}
-
-	r_fogtexture = GL_AllocNewTexture();
-	GL_Bind(r_fogtexture);
-	qglTexImage2D (GL_TEXTURE_2D, 0, GL_ALPHA, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT, 0, GL_ALPHA, GL_UNSIGNED_BYTE, data);
-
-	qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
-	qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
-
-	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-}
 #endif
 /*
 ===============
@@ -800,9 +764,6 @@ void GLDraw_ReInit (void)
 	draw_mesh.colors_array = NULL;
 	draw_mesh.indexes = r_quad_indexes;
 
-#ifdef Q3SHADERS
-	r_fogtexture=0;
-#endif
 	GL_FlushBackEnd();
 //	GL_FlushSkinCache();
 	TRACE(("dbg: GLDraw_ReInit: GL_GAliasFlushSkinCache\n"));
@@ -1198,6 +1159,9 @@ void GLDraw_Init (void)
 	GLDraw_ReInit();
 
 	R_BackendInit();
+#ifdef NEWBACKEND
+	BE_Init();
+#endif
 
 
 

@@ -7,7 +7,7 @@
 float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 
 
-//#define USEBOTLIB
+#define USEBOTLIB
 
 #ifdef USEBOTLIB
 

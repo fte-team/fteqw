@@ -1081,7 +1081,7 @@ void M_Draw (int uimenu)
 }
 
 
-void M_Keydown (int key)
+void M_Keydown (int key, int unicode)
 {
 	switch (m_state)
 	{
@@ -1115,14 +1115,14 @@ void M_Keydown (int key)
 #endif
 #ifdef MENU_DAT
 	case m_menu_dat:
-		MP_Keydown(key);
+		MP_Keydown(key, unicode);
 		return;
 #endif
 	}
 }
 
 
-void M_Keyup (int key)
+void M_Keyup (int key, int unicode)
 {
 	switch (m_state)
 	{
@@ -1133,7 +1133,7 @@ void M_Keyup (int key)
 #endif
 #ifdef MENU_DAT
 	case m_menu_dat:
-		MP_Keyup(key);
+		MP_Keyup(key, unicode);
 		return;
 #endif
 	default:

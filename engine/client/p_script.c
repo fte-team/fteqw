@@ -1546,7 +1546,7 @@ static void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue)
 	{
 		mod->particleeffect = P_INVALID;
 		mod->particletrail = P_INVALID;
-		mod->engineflags &= ~MDLF_NODEFAULTTRAIL;
+		mod->engineflags &= ~(MDLF_NODEFAULTTRAIL | MDLF_ENGULPHS);
 
 		P_DefaultTrail(mod);
 	}

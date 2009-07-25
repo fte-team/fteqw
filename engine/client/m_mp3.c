@@ -814,7 +814,7 @@ struct cin_s {
 	void (*shutdown)(cin_t *cin);	//warning: don't free cin_t
 	//these are any interactivity functions you might want...
 	void (*cursormove) (struct cin_s *cin, float posx, float posy);	//pos is 0-1
-	void (*key) (struct cin_s *cin, int code, int event);
+	void (*key) (struct cin_s *cin, int code, int unicode, int event);
 	qboolean (*setsize) (struct cin_s *cin, int width, int height);
 	void (*getsize) (struct cin_s *cin, int *width, int *height);
 	void (*changestream) (struct cin_s *cin, char *streamname);
@@ -833,7 +833,6 @@ struct cin_s {
 		PGETFRAME			pgf;
 
 		LPWAVEFORMAT pWaveFormat;
-		HWND capturewindow;
 
 		//sound stuff
 		int soundpos;
@@ -1746,13 +1745,13 @@ void Media_Send_Command(cin_t *cin, char *command)
 		return;
 	cin->changestream(cin, command);
 }
-void Media_Send_KeyEvent(cin_t *cin, int button, int event)
+void Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event)
 {
 	if (!cin)
 		cin = fullscreenvid;
 	if (!cin || !cin->key)
 		return;
-	cin->key(cin, button, event);
+	cin->key(cin, button, unicode, event);
 }
 void Media_Send_MouseMove(cin_t *cin, float x, float y)
 {
@@ -1828,6 +1827,7 @@ float recordavi_audiotime;
 int capturesize;
 int capturewidth;
 char *capturevideomem;
+vfsfile_t *captureaudiorawfile;
 //short *captureaudiomem;
 int captureaudiosamples;
 int captureframe;
@@ -1867,7 +1867,7 @@ qboolean Media_PausedDemo (void)
 	//capturedemo doesn't record any frames when the console is visible
 	//but that's okay, as we don't load any demo frames either.
 	if ((cls.demoplayback && Media_Capturing()) || capturepaused)
-		if (scr_con_current > 0 || !cl.validsequence || capturepaused)
+		if (key_dest != key_game || scr_con_current > 0 || !cl.validsequence || capturepaused)
 			return true;
 
 	return false;
@@ -1875,7 +1875,7 @@ qboolean Media_PausedDemo (void)
 
 double Media_TweekCaptureFrameTime(double time)
 {
-	if (cls.demoplayback && Media_Capturing() && recordavi_frametime>0.01)
+	if (cls.demoplayback && Media_Capturing() && recordavi_frametime)
 	{
 		return time = recordavi_frametime;
 	}
@@ -2053,6 +2053,16 @@ static void MSD_Submit(soundcardinfo_t *sc)
 	case CT_NONE:
 		break;
 	case CT_SCREENSHOT:
+		if ((sc->snd_completed % (sc->sn.samples/sc->sn.numchannels)) < offset)
+		{
+			int partialsamplestosubmit;
+			//wraped, two chunks to send
+			partialsamplestosubmit = ((sc->sn.samples/sc->sn.numchannels)) - offset;
+			VFS_WRITE(captureaudiorawfile, sc->sn.buffer+offset*bytespersample, partialsamplestosubmit*bytespersample);
+			samplestosubmit -= partialsamplestosubmit;
+			offset = 0;
+		}
+		VFS_WRITE(captureaudiorawfile, sc->sn.buffer+offset*bytespersample, samplestosubmit*bytespersample);
 		break;
 	}
 }
@@ -2116,9 +2126,17 @@ void Media_StopRecordFilm_f (void)
 	recordavi_file = NULL;
 #endif /* WINAVI */
 
-	if (capturevideomem)	BZ_Free(capturevideomem);
+	if (capturevideomem)
+		BZ_Free(capturevideomem);
+	capturevideomem = NULL;
 
-	if (capture_fakesounddevice) S_ShutdownCard(capture_fakesounddevice);
+	if (capture_fakesounddevice)
+		S_ShutdownCard(capture_fakesounddevice);
+	capture_fakesounddevice = NULL;
+
+	if (captureaudiorawfile)
+		VFS_CLOSE(captureaudiorawfile);
+	captureaudiorawfile = NULL;
 
 
 	capturevideomem = NULL;
@@ -2153,6 +2171,8 @@ void Media_RecordFilm_f (void)
 	}
 
 	recordavi_frametime = 1/capturerate.value;
+	if (recordavi_frametime < 0.001)
+		recordavi_frametime = 0.001;	//no more than 1000 images per second.
 
 	captureframe = 0;
 	if (*fourcc)
@@ -2181,6 +2201,23 @@ void Media_RecordFilm_f (void)
 	}
 	else if (capturetype == CT_SCREENSHOT)
 	{
+		if (capturesound.value && capturesoundchannels.value >= 1)
+		{
+			char filename[MAX_OSPATH];
+			int chans = capturesoundchannels.value;
+			int sbits = capturesoundbits.value;
+			if (sbits < 8)
+				sbits = 8;
+			if (sbits != 8)
+				sbits = 16;
+			if (chans > 6)
+				chans = 6;
+			sprintf(filename, "%s/audio_%ichan_%ikhz_%ib.raw", capturefilenameprefix, chans, snd_speed/1000, sbits);
+			captureaudiorawfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+
+			if (captureaudiorawfile)
+				Media_InitFakeSoundDevice(chans, sbits);
+		}
 	}
 #if defined(WINAVI)
 	else if (capturetype == CT_AVI)
@@ -2401,7 +2438,7 @@ void Media_StopRecordFilm_f (void) {}
 void Media_RecordFilm_f (void){}
 void M_Menu_Media_f (void) {}
 
-char *Media_NextTrack(void) {return NULL;}
+char *Media_NextTrack(int musicchannelnum) {return NULL;}
 qboolean Media_PausedDemo(void) {return false;}
 qboolean Media_PlayingFullScreen(void) {return false;}
 

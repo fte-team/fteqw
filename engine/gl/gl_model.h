@@ -193,6 +193,9 @@ typedef struct
 	vec3_t	*svector;
 	int vbotvector;
 	vec3_t	*tvector;
+
+	int vbocolours;
+	byte_vec4_t *colours;
 } vbo_t;
 
 typedef struct texture_s

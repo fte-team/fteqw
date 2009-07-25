@@ -1371,7 +1371,7 @@ void IN_MouseEvent (int mstate)
 {
 	int		i;
 
-	if (dinput)
+	if (dinput && mouseactive)
 		return;
 
 #ifdef HLCLIENT
@@ -1379,7 +1379,7 @@ void IN_MouseEvent (int mstate)
 		return;
 #endif
 
-	if (mouseactive || (key_dest != key_game))
+	if (1)//mouseactive || (key_dest != key_game))
 	{
 	// perform button actions
 		for (i=0 ; i<sysmouse.numbuttons ; i++)
@@ -1463,10 +1463,11 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 	if(in_xflip.value) mx *= -1;
 #endif
 
+	mousemove_x += mx;
+	mousemove_y += my;
+
 	if (Key_MouseShouldBeFree())
 	{
-		mousemove_x += mx;
-		mousemove_y += my;
 		mousecursor_x += mx;
 		mousecursor_y += my;
 

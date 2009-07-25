@@ -3334,7 +3334,7 @@ static void PF_cs_gecko_keyevent (progfuncs_t *prinst, struct globalvars_s *pr_g
 
 	if (!cin)
 		return;
-	Media_Send_KeyEvent(cin, MP_TranslateDPtoFTECodes(key), eventtype);
+	Media_Send_KeyEvent(cin, MP_TranslateDPtoFTECodes(key), (key>127)?0:key, eventtype);
 }
 // #491 void gecko_mousemove( string name, float x, float y )
 static void PF_cs_gecko_mousemove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5959,7 +5959,7 @@ qboolean CSQC_DrawView(void)
 	return true;
 }
 
-qboolean CSQC_KeyPress(int key, qboolean down)
+qboolean CSQC_KeyPress(int key, int unicode, qboolean down)
 {
 	void *pr_globals;
 
@@ -5969,7 +5969,7 @@ qboolean CSQC_KeyPress(int key, qboolean down)
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	G_FLOAT(OFS_PARM0) = !down;
 	G_FLOAT(OFS_PARM1) = MP_TranslateFTEtoDPCodes(key);
-	G_FLOAT(OFS_PARM2) = 0;
+	G_FLOAT(OFS_PARM2) = unicode;
 
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
 

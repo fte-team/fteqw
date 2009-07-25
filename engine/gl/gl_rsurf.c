@@ -3069,6 +3069,8 @@ static void GL_GenBrushModelVBO(model_t *mod)
 			if (mod->surfaces[i].texinfo->texture != mod->textures[t])
 				continue;
 			m = mod->surfaces[i].mesh;
+			if (!m)
+				continue;
 
 			maxvboelements += m->numindexes;
 			maxvboverts += m->numvertexes;
@@ -3105,6 +3107,8 @@ static void GL_GenBrushModelVBO(model_t *mod)
 			if (mod->surfaces[i].texinfo->texture != mod->textures[t])
 				continue;
 			m = mod->surfaces[i].mesh;
+			if (!m)
+				continue;
 
 			m->vbofirstvert = vcount;
 			m->vbofirstelement = ecount;

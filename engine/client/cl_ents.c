@@ -2622,7 +2622,8 @@ void CL_LinkPlayers (void)
 		ent->forcedshader = NULL;
 #endif
 
-		if (state->command.impulse && cl.model_precache_vwep[0])
+		//the extra modelindex check is to stop lame mods from using vweps with rings
+		if (state->command.impulse && cl.model_precache_vwep[0] && state->modelindex == cl_playerindex)
 			ent->model = cl.model_precache_vwep[0];
 		else
 			ent->model = cl.model_precache[state->modelindex];

@@ -1307,7 +1307,7 @@ void R_DrawGAliasModel (entity_t *e)
 
 			R_IBrokeTheArrays();
 
-			mb.entity = &r_worldentity;
+			mb.entity = currententity;
 			mb.shader = currententity->forcedshader;
 			mb.fog = fog;
 			mb.mesh = &mesh;
@@ -1346,7 +1346,7 @@ void R_DrawGAliasModel (entity_t *e)
 				skin->shader->passes[0].flags &= ~SHADER_PASS_DEPTHWRITE;
 			}
 
-			mb.entity = &r_worldentity;
+			mb.entity = currententity;
 			mb.shader = skin->shader;
 			mb.fog = fog;
 			mb.mesh = &mesh;

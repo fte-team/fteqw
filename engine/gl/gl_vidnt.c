@@ -435,7 +435,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 				SetWindowLong(dibwindow, GWL_EXSTYLE, GetWindowLong(dibwindow, GWL_EXSTYLE) | WS_EX_LAYERED);
 
 				// Make this window 70% alpha
-				pSetLayeredWindowAttributes(dibwindow, 0, av, LWA_ALPHA);
+				pSetLayeredWindowAttributes(dibwindow, 0, (BYTE)av, LWA_ALPHA);
 			}
 		}
 #endif
@@ -1031,7 +1031,7 @@ void VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldvalue)
 				SetWindowLong(mainwindow, GWL_EXSTYLE, GetWindowLong(mainwindow, GWL_EXSTYLE) | WS_EX_LAYERED);
 
 				// Make this window 70% alpha
-				pSetLayeredWindowAttributes(mainwindow, 0, av, LWA_ALPHA);
+				pSetLayeredWindowAttributes(mainwindow, 0, (BYTE)av, LWA_ALPHA);
 			}
 			else
 				SetWindowLong(mainwindow, GWL_EXSTYLE, GetWindowLong(mainwindow, GWL_EXSTYLE) & ~WS_EX_LAYERED);

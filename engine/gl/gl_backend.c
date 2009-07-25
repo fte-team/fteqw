@@ -2,6 +2,8 @@
 #include "glquake.h"
 #include "shader.h"
 
+#ifndef NEWBACKEND
+
 #ifdef RGLQUAKE
 
 #define MAX_TEXTURE_UNITS 8
@@ -23,6 +25,7 @@ void GL_SetShaderState2D(qboolean is2d)
 
 extern int		*lightmap_textures;
 extern int		*deluxmap_textures;
+extern int		gl_filter_max;
 
 void GL_SelectTexture (GLenum target) 
 {
@@ -310,6 +313,43 @@ void R_FetchBottomColour(int *retred, int *retgreen, int *retblue)
 	}
 }
 
+#define FOG_TEXTURE_WIDTH 32
+#define FOG_TEXTURE_HEIGHT 32
+int r_fogtexture;
+void GL_InitFogTexture (void)
+{
+	qbyte data[FOG_TEXTURE_WIDTH*FOG_TEXTURE_HEIGHT];
+	int x, y;
+	float tw = 1.0f / ((float)FOG_TEXTURE_WIDTH - 1.0f);
+	float th = 1.0f / ((float)FOG_TEXTURE_HEIGHT - 1.0f);
+	float tx, ty, t;
+
+	if (r_fogtexture)
+		return;
+
+	//
+	// fog texture
+	//
+	for ( y = 0, ty = 0.0f; y < FOG_TEXTURE_HEIGHT; y++, ty += th )
+	{
+		for ( x = 0, tx = 0.0f; x < FOG_TEXTURE_WIDTH; x++, tx += tw )
+		{
+			t = (float)(sqrt( tx ) * 255.0);
+			data[x+y*FOG_TEXTURE_WIDTH] = (qbyte)(min( t, 255.0f ));
+		}
+	}
+
+	r_fogtexture = GL_AllocNewTexture();
+	GL_Bind(r_fogtexture);
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_ALPHA, FOG_TEXTURE_WIDTH, FOG_TEXTURE_HEIGHT, 0, GL_ALPHA, GL_UNSIGNED_BYTE, data);
+
+	qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
+	qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+
+	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+}
+
 void R_InitDynamicLightTexture (void)
 {
 	int x, y;
@@ -544,6 +584,8 @@ void R_BackendInit (void)
 
 	currentColor = inColorsArray[0];
 
+	r_fogtexture = 0;
+
 	r_arrays_locked = false;
 	r_blocked = false;
 
@@ -577,6 +619,7 @@ void R_BackendInit (void)
 	}
 
 	R_InitDynamicLightTexture();
+	GL_InitFogTexture();
 }
 
 qboolean varrayactive;
@@ -2199,7 +2242,6 @@ R_RenderFogOnMesh
 ================
 */
 
-int r_fogtexture;
 #define PlaneDiff(point,plane) (((plane)->type < 3 ? (point)[(plane)->type] : DotProduct((point), (plane)->normal)) - (plane)->dist)
 void R_RenderFogOnMesh ( shader_t *shader, struct mfog_s *fog )
 {
@@ -2530,5 +2572,7 @@ void R_FinishMeshBuffer ( meshbuffer_t *mb )
 
 
 
+
+#endif
 
 #endif

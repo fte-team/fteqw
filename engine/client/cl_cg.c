@@ -1179,7 +1179,7 @@ void CG_Command_f(void)
 	}
 }
 
-qboolean CG_KeyPress(int key, int down)
+qboolean CG_KeyPress(int key, int unicode, int down)
 {
 	if (!cgvm || !(keycatcher&8))
 		return false;

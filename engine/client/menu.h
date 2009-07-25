@@ -102,8 +102,8 @@ void M_SomeInitialisationFunctionCalledAtStartup(void)
 // menus
 //
 void M_Init (void);
-void M_Keydown (int key);
-void M_Keyup (int key);
+void M_Keydown (int key, int unicode);
+void M_Keyup (int key, int unicode);
 void M_Draw (int uimenu);
 void M_ToggleMenu_f (void);
 mpic_t	*M_CachePic (char *path);
@@ -400,8 +400,8 @@ void MP_Init (void);
 qboolean MP_Toggle(void);
 void MP_Draw(void);
 void MP_RegisterCvarsAndCmds(void);
-void MP_Keydown(int key);
-void MP_Keyup(int key);
+void MP_Keydown(int key, int unicode);
+void MP_Keyup(int key, int unicode);
 
 #define MGT_BAD    ~0
 #define MGT_QUAKE1 0

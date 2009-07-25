@@ -90,7 +90,7 @@ qboolean UI_Q2LayoutChanged(void);
 void UI_StringChanged(int num);
 void UI_MousePosition(int xpos, int ypos);
 int UI_MenuState(void);
-qboolean UI_KeyPress(int key, qboolean down);
+qboolean UI_KeyPress(int key, int unicode, qboolean down);
 void UI_Reset(void);
 void UI_DrawMenu(void);
 qboolean UI_DrawStatusBar(int scores);
@@ -121,7 +121,7 @@ void CG_Stop (void);
 void CG_Start (void);
 int CG_Refresh(void);
 qboolean CG_Command(void);
-qboolean CG_KeyPress(int key, int down);
+qboolean CG_KeyPress(int key, int unicode, int down);
 #endif
 
 typedef struct {

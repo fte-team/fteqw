@@ -419,7 +419,7 @@ void PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (*prinst->callargc > 2)
 		fontsize = G_FLOAT(OFS_PARM2);
 	else
-		fontsize = 8;
+		fontsize = 1;
 	if (usecolours)
 	{
 		G_FLOAT(OFS_RETURN) = COM_FunStringLength(text)*fontsize;
@@ -788,8 +788,8 @@ void PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	mousemove_x=0;
 	mousemove_y=0;
 
-	ret[0] = mousecursor_x;
-	ret[1] = mousecursor_y;
+//	ret[0] = mousecursor_x;
+//	ret[1] = mousecursor_y;
 	ret[2] = 0;
 }
 
@@ -1986,7 +1986,7 @@ int MP_TranslateDPtoFTECodes(int code)
 	}
 }
 
-void MP_Keydown(int key)
+void MP_Keydown(int key, int unicode)
 {
 	extern qboolean	keydown[K_MAX];
 	if (setjmp(mp_abort))
@@ -2018,16 +2018,13 @@ void MP_Keydown(int key)
 	{
 		void *pr_globals = PR_globals(menuprogs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoDPCodes(key);
-		if (G_FLOAT(OFS_PARM0) > 127)
-			G_FLOAT(OFS_PARM1) = 0;
-		else
-			G_FLOAT(OFS_PARM1) = G_FLOAT(OFS_PARM0);
+		G_FLOAT(OFS_PARM1) = unicode;
 		PR_ExecuteProgram(menuprogs, mp_keydown_function);
 	}
 	inmenuprogs--;
 }
 
-void MP_Keyup(int key)
+void MP_Keyup(int key, int unicode)
 {
 	if (setjmp(mp_abort))
 		return;
@@ -2041,10 +2038,7 @@ void MP_Keyup(int key)
 	{
 		void *pr_globals = PR_globals(menuprogs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoDPCodes(key);
-		if (G_FLOAT(OFS_PARM0) > 127)
-			G_FLOAT(OFS_PARM1) = 0;
-		else
-			G_FLOAT(OFS_PARM1) = G_FLOAT(OFS_PARM0);
+		G_FLOAT(OFS_PARM1) = unicode;
 		PR_ExecuteProgram(menuprogs, mp_keyup_function);
 	}
 	inmenuprogs--;

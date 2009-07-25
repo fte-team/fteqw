@@ -613,6 +613,8 @@ void SV_Map_f (void)
 		{
 			if (host_client->protocol == SCP_QUAKE3)
 				continue;
+			if (host_client->protocol == SCP_BAD)
+				continue;
 
 			if (ISNQCLIENT(host_client))
 				SVNQ_New_f();

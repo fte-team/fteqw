@@ -595,16 +595,18 @@ void R_DrawSpriteModel (entity_t *e)
 		coloursb[3] = e->shaderRGBAf[3]*255;
 		*(int*)colours[0] = *(int*)colours[1] = *(int*)colours[2] = *(int*)colours[3] = *(int*)coloursb;
 
+		mesh.vbofirstelement = 0;
+		mesh.vbofirstvert = 0;
+
 		mesh.colors_array = colours;
 		mesh.indexes = indexes;
 		mesh.lmst_array = NULL;
 		mesh.st_array = texcoords;
 		mesh.normals_array = NULL;
+		mesh.xyz_array = vertcoords;
 		mesh.numvertexes = 4;
 		mesh.numindexes = 6;
 		mesh.radius = e->scale;
-		mesh.xyz_array = vertcoords;
-		mesh.normals_array = NULL;
 
 
 		R_IBrokeTheArrays();
@@ -741,8 +743,101 @@ void R_DrawSpriteModel (entity_t *e)
 
 //==================================================================================
 
+static void R_DrawShadedSpriteModels(int count, void **entlist, void *parm)
+{
+	vec3_t	point;
+	mspriteframe_t	*frame;
+	vec3_t		forward, right, up;
+	msprite_t		*psprite;
+
+	qbyte coloursb[4];
+
+	meshbuffer_t mb;
+	mesh_t mesh;
+	vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
+	vec3_t vertcoords[4];
+	index_t indexes[6] = {0, 1, 2, 0, 2, 3};
+	byte_vec4_t colours[4];
+	float x, y;
+
+	int vnum = 0, inum = 0;
+
+	shader_t *lastshader = NULL;
+
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+
+	mesh.colors_array = colours;
+	mesh.indexes = indexes;
+	mesh.lmst_array = NULL;
+	mesh.st_array = texcoords;
+	mesh.normals_array = NULL;
+	mesh.xyz_array = vertcoords;
+
+	mb.fog = NULL;//fog;
+	mb.mesh = NULL;
+	mb.infokey = -1;
+	mb.dlightbits = 0;
+
+	R_IBrokeTheArrays();
+
+	while (count--)
+	{
+		currententity = *entlist++;
+		if (currententity->forcedshader != lastshader || 1)
+		{
+			if (lastshader)
+			{
+				mesh.numvertexes = vnum;
+				mesh.numindexes = inum;
+				mesh.radius = currententity->scale;
+				R_PushMesh(&mesh, lastshader->features | MF_NONBATCHED|MF_COLORS);
+
+				mb.entity = currententity;
+				mb.shader = currententity->forcedshader;
+				R_RenderMeshBuffer (&mb, false);
+			}
+
+			lastshader = currententity->forcedshader;
+		}
+
+
+	#define VectorSet(a,b,c,v) {v[0]=a;v[1]=b;v[2]=c;}
+		x = cos(currententity->rotation+225*M_PI/180)*currententity->scale;
+		y = sin(currententity->rotation+225*M_PI/180)*currententity->scale;
+		VectorSet (currententity->origin[0] - y*vright[0] + x*vup[0], currententity->origin[1] - y*vright[1] + x*vup[1], currententity->origin[2] - y*vright[2] + x*vup[2], vertcoords[3]);
+		VectorSet (currententity->origin[0] - x*vright[0] - y*vup[0], currententity->origin[1] - x*vright[1] - y*vup[1], currententity->origin[2] - x*vright[2] - y*vup[2], vertcoords[2]);
+		VectorSet (currententity->origin[0] + y*vright[0] - x*vup[0], currententity->origin[1] + y*vright[1] - x*vup[1], currententity->origin[2] + y*vright[2] - x*vup[2], vertcoords[1]);
+		VectorSet (currententity->origin[0] + x*vright[0] + y*vup[0], currententity->origin[1] + x*vright[1] + y*vup[1], currententity->origin[2] + x*vright[2] + y*vup[2], vertcoords[0]);
+
+		coloursb[0] = currententity->shaderRGBAf[0]*255;
+		coloursb[1] = currententity->shaderRGBAf[1]*255;
+		coloursb[2] = currententity->shaderRGBAf[2]*255;
+		coloursb[3] = currententity->shaderRGBAf[3]*255;
+		*(int*)colours[0] = *(int*)colours[1] = *(int*)colours[2] = *(int*)colours[3] = *(int*)coloursb;
+
+		vnum += 4;
+		inum += 6;
+	}
+
+	if (lastshader)
+	{
+		mesh.numvertexes = vnum;
+		mesh.numindexes = inum;
+		mesh.radius = currententity->scale;
+		R_PushMesh(&mesh, lastshader->features | MF_NONBATCHED|MF_COLORS);
+
+		mb.entity = currententity;
+		mb.shader = currententity->forcedshader;
+		R_RenderMeshBuffer (&mb, false);
+	}
+}
+
 void GLR_DrawSprite(int count, void **e, void *parm)
 {
+//	R_DrawShadedSpriteModels(count, e, parm);
+//	return;
+
 	while(count--)
 	{
 		currententity = *e++;
@@ -751,6 +846,155 @@ void GLR_DrawSprite(int count, void **e, void *parm)
 		R_DrawSpriteModel (currententity);
 	}
 }
+
+
+
+//q3 lightning gun
+void R_DrawLightning(entity_t *e)
+{
+	vec3_t v;
+	vec3_t dir, cr;
+	float scale = e->scale;
+	float length;
+
+	vec3_t points[4];
+	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+	index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
+
+	mesh_t mesh;
+	meshbuffer_t mb;
+
+	if (!e->forcedshader)
+		return;
+
+	if (!scale)
+		scale = 10;
+
+
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	length = Length(dir);
+
+	//this seems to be about right.
+	texcoords[2][0] = length/128;
+	texcoords[3][0] = length/128;
+
+	VectorSubtract(r_refdef.vieworg, e->origin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->origin, -scale/2, cr, points[0]);
+	VectorMA(e->origin, scale/2, cr, points[1]);
+
+	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->oldorigin, scale/2, cr, points[2]);
+	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
+
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = points;
+	mesh.indexes = indexarray;
+	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+	mesh.colors_array = NULL;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+
+	mb.entity = e;
+	mb.mesh = &mesh;
+	mb.shader = e->forcedshader;
+	mb.infokey = 0;
+	mb.fog = NULL;
+	mb.infokey = currententity->keynum;
+	mb.dlightbits = 0;
+
+
+	R_IBrokeTheArrays();
+
+	R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED);
+
+	R_RenderMeshBuffer ( &mb, false );
+}
+//q3 railgun beam
+void R_DrawRailCore(entity_t *e)
+{
+	vec3_t v;
+	vec3_t dir, cr;
+	float scale = e->scale;
+	float length;
+
+	mesh_t mesh;
+	meshbuffer_t mb;
+	vec3_t points[4];
+	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+	index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
+	int colors[4];
+	qbyte colorsb[4];
+
+	if (!e->forcedshader)
+		return;
+
+	if (!scale)
+		scale = 10;
+
+
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	length = Length(dir);
+
+	//this seems to be about right.
+	texcoords[2][0] = length/128;
+	texcoords[3][0] = length/128;
+
+	VectorSubtract(r_refdef.vieworg, e->origin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->origin, -scale/2, cr, points[0]);
+	VectorMA(e->origin, scale/2, cr, points[1]);
+
+	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->oldorigin, scale/2, cr, points[2]);
+	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
+
+	colorsb[0] = e->shaderRGBAf[0]*255;
+	colorsb[1] = e->shaderRGBAf[1]*255;
+	colorsb[2] = e->shaderRGBAf[2]*255;
+	colorsb[3] = e->shaderRGBAf[3]*255;
+	colors[0] = colors[1] = colors[2] = colors[3] = *(int*)colorsb;
+
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = points;
+	mesh.indexes = indexarray;
+	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+	mesh.colors_array = (byte_vec4_t*)colors;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+
+	mb.entity = e;
+	mb.mesh = &mesh;
+	mb.shader = e->forcedshader;
+	mb.infokey = 0;
+	mb.fog = NULL;
+	mb.infokey = currententity->keynum;
+	mb.dlightbits = 0;
+
+
+	R_IBrokeTheArrays();
+
+	R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED | MF_COLORS);
+
+	R_RenderMeshBuffer ( &mb, false );
+}
+
 /*
 =============
 R_DrawEntitiesOnList

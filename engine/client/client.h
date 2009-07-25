@@ -976,7 +976,7 @@ void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd);
 void CSQC_WorldLoaded(void);
 qboolean CSQC_ParseTempEntity(unsigned char firstbyte);
 qboolean CSQC_ConsoleCommand(char *cmd);
-qboolean CSQC_KeyPress(int key, qboolean down);
+qboolean CSQC_KeyPress(int key, int unicode, qboolean down);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation);
 void CSQC_ParseEntities(void);
 qboolean CSQC_SettingListener(void);
@@ -1168,7 +1168,7 @@ void Media_Send_Command(cin_t *cin, char *command);
 void Media_Send_MouseMove(cin_t *cin, float x, float y);
 void Media_Send_Resize(cin_t *cin, int x, int y);
 void Media_Send_GetSize(cin_t *cin, int *x, int *y);
-void Media_Send_KeyEvent(cin_t *cin, int button, int event);
+void Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event);
 
 void MVD_Interpolate(void);
 

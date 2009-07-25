@@ -1411,7 +1411,7 @@ int UI_MenuState(void)
 		return 0;
 }
 
-qboolean UI_KeyPress(int key, qboolean down)
+qboolean UI_KeyPress(int key, int unicode, qboolean down)
 {
 	extern qboolean	keydown[256];
 	extern int		keyshift[256];		// key to map to if shift held down in console

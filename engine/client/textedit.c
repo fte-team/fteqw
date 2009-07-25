@@ -350,7 +350,7 @@ void EditorOpenFile(char *name)
 	editoractive = true;
 }
 
-void Editor_Key(int key)
+void Editor_Key(int key, int unicode)
 {
 	int i;
 	if (keybindings[key][0])
@@ -420,9 +420,12 @@ void Editor_Key(int key)
 			evalstring[i-1] = '\0';
 			break;
 		default:
-			i = strlen(evalstring);
-			evalstring[i] = key;
-			evalstring[i+1] = '\0';
+			if (unicode)
+			{
+				i = strlen(evalstring);
+				evalstring[i] = unicode;
+				evalstring[i+1] = '\0';
+			}
 			break;
 		}
 		return;
@@ -700,7 +703,7 @@ void Editor_Key(int key)
 		insertkeyhit = insertkeyhit?false:true;
 		break;
 	default:
-		if ((key < ' ' || key > 127) && key != '\t')	//we deem these as unprintable
+		if (unicode < ' ' && unicode != '\t')	//we deem these as unprintable
 				break;
 
 		if (insertkeyhit)	//insert a char
@@ -719,13 +722,13 @@ void Editor_Key(int key)
 			}
 			cursorx++;
 			cursorblock->datalength++;
-			*(s+1) = key;
+			*(s+1) = unicode;
 		}
 		else	//over write a char
 		{
 			MakeNewSize(cursorblock, cursorblock->datalength+5);	//not really needed
 
-			cursorblock->data[cursorx] = key;
+			cursorblock->data[cursorx] = unicode;
 			cursorx++;
 			if (cursorx > cursorblock->datalength)
 				cursorblock->datalength = cursorx;

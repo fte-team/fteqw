@@ -547,8 +547,7 @@ void Con_PrintCon (console_t *con, char *txt)
 			cr = true;
 			break;
 		case '\n':
-			if (cr)
-				cr = false;
+			cr = false;
 			while (con->linecount >= con_maxlines.value)
 			{
 				if (con->oldest == con->current)
@@ -578,7 +577,10 @@ void Con_PrintCon (console_t *con, char *txt)
 			break;
 		default:
 			if (cr)
+			{
 				con->current->length = 0;
+				cr = false;
+			}
 
 			if (selstartline == con->current)
 				selstartline = NULL;

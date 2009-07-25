@@ -808,6 +808,8 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 	if (sc->channel[first_to_die].sfx)
 		sc->channel[first_to_die].sfx = NULL;
 
+	if (sc->total_chans <= first_to_die)
+		sc->total_chans = first_to_die+1;
     return &sc->channel[first_to_die];
 }
 

@@ -2946,6 +2946,12 @@ void COM_Version_f (void)
 
 	Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 
+#ifdef SVNREVISION
+	#define STRINGIFY2(arg) #arg
+	#define STRINGIFY(arg) STRINGIFY2(arg)
+	Con_Printf("SVN Revision: %s\n",STRINGIFY(SVNREVISION));
+#endif
+
 #ifdef _DEBUG
 	Con_Printf("debug build\n");
 #endif

@@ -497,63 +497,6 @@ void R_RotateForEntity (entity_t *e)
 =============================================================
 */
 
-/*
-================
-R_GetSpriteFrame
-================
-*/
-/*
-mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
-{
-	msprite_t		*psprite;
-	mspritegroup_t	*pspritegroup;
-	mspriteframe_t	*pspriteframe;
-	int				i, numframes, frame;
-	float			*pintervals, fullinterval, targettime, time;
-
-	psprite = currententity->model->cache.data;
-	frame = currententity->frame;
-
-	if ((frame >= psprite->numframes) || (frame < 0))
-	{
-		Con_DPrintf ("R_DrawSprite: no such frame %d (%s)\n", frame, currententity->model->name);
-		frame = 0;
-	}
-
-	if (psprite->frames[frame].type == SPR_SINGLE)
-	{
-		pspriteframe = psprite->frames[frame].frameptr;
-	}
-	else if (psprite->frames[frame].type == SPR_ANGLED)
-	{
-		pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
-		pspriteframe = pspritegroup->frames[(int)((r_refdef.viewangles[1]-currententity->angles[1])/360*8 + 0.5-4)&7];
-	}
-	else
-	{
-		pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
-		pintervals = pspritegroup->intervals;
-		numframes = pspritegroup->numframes;
-		fullinterval = pintervals[numframes-1];
-
-		time = currententity->frame1time;
-
-	// when loading in Mod_LoadSpriteGroup, we guaranteed all interval values
-	// are positive, so we don't have to worry about division by 0
-		targettime = time - ((int)(time / fullinterval)) * fullinterval;
-
-		for (i=0 ; i<(numframes-1) ; i++)
-		{
-			if (pintervals[i] > targettime)
-				break;
-		}
-
-		pspriteframe = pspritegroup->frames[i];
-	}
-
-	return pspriteframe;
-}
-*/
 
 /*
 =================
@@ -742,7 +685,7 @@ void R_DrawSpriteModel (entity_t *e)
 }
 
 //==================================================================================
-
+#ifdef NEWBACKEND
 static void R_DrawShadedSpriteModels(int count, void **entlist, void *parm)
 {
 	vec3_t	point;
@@ -832,6 +775,7 @@ static void R_DrawShadedSpriteModels(int count, void **entlist, void *parm)
 		R_RenderMeshBuffer (&mb, false);
 	}
 }
+#endif
 
 void GLR_DrawSprite(int count, void **e, void *parm)
 {
@@ -848,6 +792,7 @@ void GLR_DrawSprite(int count, void **e, void *parm)
 }
 
 
+#ifdef Q3SHADERS
 
 //q3 lightning gun
 void R_DrawLightning(entity_t *e)
@@ -994,6 +939,7 @@ void R_DrawRailCore(entity_t *e)
 
 	R_RenderMeshBuffer ( &mb, false );
 }
+#endif
 
 /*
 =============

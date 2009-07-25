@@ -8,7 +8,7 @@ CPUOPTIMIZATIONS=
 
 BASE_DIR=.
 
-SVNREVISION=-DSVNREVISION=`test -d .svn && svnversion || echo -`
+SVNREVISION:=-DSVNREVISION=$(shell test -d .svn && svnversion || echo -)
 
 #only limited forms of cross-making is supported
 #only the following 3 are supported

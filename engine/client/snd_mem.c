@@ -943,7 +943,7 @@ int GetLittleLong(void)
 	return val;
 }
 
-void FindNextChunk(char *name)
+unsigned int FindNextChunk(char *name)
 {
 	unsigned int dataleft;
 
@@ -953,18 +953,29 @@ void FindNextChunk(char *name)
 		if (dataleft < 8)
 		{	// didn't find the chunk
 			data_p = NULL;
-			return;
+			return 0;
 		}
 
 		data_p=last_chunk;
 		data_p += 4;
 		dataleft-= 8;
 		iff_chunk_len = GetLittleLong();
-		if (iff_chunk_len < 0 || iff_chunk_len > dataleft)
+		if (iff_chunk_len < 0)
 		{
 			data_p = NULL;
-			return;
+			return 0;
 		}
+		if (iff_chunk_len > dataleft)
+		{
+			Con_Printf ("Sound file seems truncated by %i bytes\n", iff_chunk_len-dataleft);
+#if 1
+			iff_chunk_len = dataleft;
+#else
+			data_p = NULL;
+			return 0;
+#endif
+		}
+
 		dataleft-= iff_chunk_len;
 //		if (iff_chunk_len > 1024*1024)
 //			Sys_Error ("FindNextChunk: %i length is past the 1 meg sanity limit", iff_chunk_len);
@@ -973,14 +984,14 @@ void FindNextChunk(char *name)
 		if ((iff_chunk_len&1) && dataleft)
 			last_chunk++;
 		if (!Q_strncmp(data_p, name, 4))
-			return;
+			return iff_chunk_len;
 	}
 }
 
-void FindChunk(char *name)
+unsigned int FindChunk(char *name)
 {
 	last_chunk = iff_data;
-	FindNextChunk (name);
+	return FindNextChunk (name);
 }
 
 
@@ -1013,6 +1024,7 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 	int     i;
 	int     format;
 	int		samples;
+	int		chunklen;
 
 	memset (&info, 0, sizeof(info));
 
@@ -1023,10 +1035,10 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 	iff_end = wav + wavlength;
 
 // find "RIFF" chunk
-	FindChunk("RIFF");
-	if (!(data_p && !Q_strncmp(data_p+8, "WAVE", 4)))
+	chunklen = FindChunk("RIFF");
+	if (chunklen < 4 ||  Q_strncmp(data_p+8, "WAVE", 4))
 	{
-		Con_Printf("Missing RIFF/WAVE chunks\n");
+		Con_Printf("Missing RIFF/WAVE chunks in %s\n", name);
 		return info;
 	}
 
@@ -1034,10 +1046,10 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 	iff_data = data_p + 12;
 // DumpChunks ();
 
-	FindChunk("fmt ");
-	if (!data_p)
+	chunklen = FindChunk("fmt ");
+	if (chunklen < 24-8)
 	{
-		Con_Printf("Missing fmt chunk\n");
+		Con_Printf("Missing/truncated fmt chunk\n");
 		return info;
 	}
 	data_p += 8;
@@ -1054,16 +1066,16 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 	info.width = GetLittleShort() / 8;
 
 // get cue chunk
-	FindChunk("cue ");
-	if (data_p)
+	chunklen = FindChunk("cue ");
+	if (chunklen >= 36-8)
 	{
 		data_p += 32;
 		info.loopstart = GetLittleLong();
 //		Con_Printf("loopstart=%d\n", sfx->loopstart);
 
 	// if the next chunk is a LIST chunk, look for a cue length marker
-		FindNextChunk ("LIST");
-		if (data_p)
+		chunklen = FindNextChunk ("LIST");
+		if (chunklen >= 32-8)
 		{
 			if (!strncmp (data_p + 28, "mark", 4))
 			{	// this is not a proper parse, but it works with cooledit...
@@ -1078,23 +1090,32 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 		info.loopstart = -1;
 
 // find data chunk
-	FindChunk("data");
-	if (!data_p)
+	chunklen = FindChunk("data"); 
+	if (!chunklen)
 	{
-		Con_Printf("Missing data chunk\n");
+		Con_Printf("Missing data chunk in %s\n", name);
 		return info;
 	}
 
-	data_p += 4;
-	samples = GetLittleLong () / info.width /info.numchannels;
+	data_p += 8;
+	samples = chunklen / info.width /info.numchannels;
 
 	if (info.samples)
 	{
 		if (samples < info.samples)
-			Sys_Error ("Sound %s has a bad loop length", name);
+		{
+			info.samples = samples;
+			Con_Printf ("Sound %s has a bad loop length\n", name);
+		}
 	}
 	else
 		info.samples = samples;
+
+	if (info.loopstart > info.samples)
+	{
+		Con_Printf ("Sound %s has a bad loop start\n", name);
+		info.loopstart = info.samples;
+	}
 
 	info.dataofs = data_p - wav;
 	

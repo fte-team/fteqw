@@ -456,7 +456,7 @@ void CL_DownloadFinished(void)
 		{
 			if (strncmp(tempname,"skins/",6))
 			{
-				if (!FS_Rename(tempname, filename, FS_GAME))
+				if (FS_Rename(tempname, filename, FS_GAME))
 				{
 					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
 					FS_NativePath(tempname, FS_GAME, nativetmp, sizeof(nativetmp));
@@ -466,7 +466,7 @@ void CL_DownloadFinished(void)
 			}
 			else
 			{
-				if (!FS_Rename(tempname+6, filename+6, FS_SKINS))
+				if (FS_Rename(tempname+6, filename+6, FS_SKINS))
 				{
 					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
 					FS_NativePath(tempname+6, FS_SKINS, nativetmp, sizeof(nativetmp));

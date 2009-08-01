@@ -167,6 +167,9 @@ void Draw_FunStringLen(int x, int y, unsigned char *str, int numchars)
 {
 	conchar_t buffer[2048];
 
+	//so parsefunstring can write out the null
+	numchars++;
+
 	numchars *= sizeof(conchar_t);	//numchars should now be the size of the chars.
 
 	if (numchars > sizeof(buffer))

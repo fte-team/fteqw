@@ -1167,6 +1167,9 @@ void IN_StartupMouse (void)
 
 	mouseinitialized = true;
 
+	//make sure it can't get stuck
+	IN_DeactivateMouse ();
+
 #ifdef AVAIL_DINPUT
 	if (in_dinput.value)
 	{
@@ -1348,6 +1351,8 @@ IN_Shutdown
 */
 void IN_Shutdown (void)
 {
+	mouseinitialized = false;
+
 	IN_DeactivateMouse ();
 	IN_ShowMouse ();
 

@@ -192,8 +192,7 @@ case 15:
 	break;
 
 case 16:
-	Pix(0  , 0  , c2);
-	Pix(0+1, 0+1, c);
+	Pix(0  , 0  , c);
 	break;
 
 case 17:

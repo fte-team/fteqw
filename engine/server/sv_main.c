@@ -2077,7 +2077,7 @@ client_t *SVC_DirectConnect(void)
 	}
 
 	//initialise the client's frames, based on that client's protocol
-	switch(newcl->protocol)
+	switch(temp.protocol)
 	{
 #ifdef Q3SERVER
 	case SCP_QUAKE3:

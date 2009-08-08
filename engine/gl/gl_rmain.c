@@ -510,9 +510,25 @@ void R_DrawSpriteModel (entity_t *e)
 	mspriteframe_t	*frame;
 	vec3_t		forward, right, up;
 	msprite_t		*psprite;
+	vec3_t sprorigin;
+	qbyte coloursb[4];
+
+	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum >= 0)
+	{
+		sprorigin[0] = cl.viewent[r_refdef.currentplayernum].origin[0];
+		sprorigin[1] = cl.viewent[r_refdef.currentplayernum].origin[1];
+		sprorigin[2] = cl.viewent[r_refdef.currentplayernum].origin[2];
+		VectorMA(sprorigin, e->origin[0], cl.viewent[r_refdef.currentplayernum].axis[0], sprorigin);
+		VectorMA(sprorigin, e->origin[1], cl.viewent[r_refdef.currentplayernum].axis[1], sprorigin);
+		VectorMA(sprorigin, e->origin[2], cl.viewent[r_refdef.currentplayernum].axis[2], sprorigin);
+		VectorMA(sprorigin, 12, vpn, sprorigin);
+
+		e->flags |= RF_NODEPTHTEST;
+	}
+	else
+		VectorCopy(e->origin, sprorigin);
 
 #ifdef Q3SHADERS
-	qbyte coloursb[4];
 
 	if (e->forcedshader)
 	{
@@ -527,10 +543,10 @@ void R_DrawSpriteModel (entity_t *e)
 #define VectorSet(a,b,c,v) {v[0]=a;v[1]=b;v[2]=c;}
 		x = cos(e->rotation+225*M_PI/180)*e->scale;
 		y = sin(e->rotation+225*M_PI/180)*e->scale;
-		VectorSet (e->origin[0] - y*vright[0] + x*vup[0], e->origin[1] - y*vright[1] + x*vup[1], e->origin[2] - y*vright[2] + x*vup[2], vertcoords[3]);
-		VectorSet (e->origin[0] - x*vright[0] - y*vup[0], e->origin[1] - x*vright[1] - y*vup[1], e->origin[2] - x*vright[2] - y*vup[2], vertcoords[2]);
-		VectorSet (e->origin[0] + y*vright[0] - x*vup[0], e->origin[1] + y*vright[1] - x*vup[1], e->origin[2] + y*vright[2] - x*vup[2], vertcoords[1]);
-		VectorSet (e->origin[0] + x*vright[0] + y*vup[0], e->origin[1] + x*vright[1] + y*vup[1], e->origin[2] + x*vright[2] + y*vup[2], vertcoords[0]);
+		VectorSet (sprorigin[0] - y*vright[0] + x*vup[0], sprorigin[1] - y*vright[1] + x*vup[1], sprorigin[2] - y*vright[2] + x*vup[2], vertcoords[3]);
+		VectorSet (sprorigin[0] - x*vright[0] - y*vup[0], sprorigin[1] - x*vright[1] - y*vup[1], sprorigin[2] - x*vright[2] - y*vup[2], vertcoords[2]);
+		VectorSet (sprorigin[0] + y*vright[0] - x*vup[0], sprorigin[1] + y*vright[1] - x*vup[1], sprorigin[2] + y*vright[2] - x*vup[2], vertcoords[1]);
+		VectorSet (sprorigin[0] + x*vright[0] + y*vup[0], sprorigin[1] + x*vright[1] + y*vup[1], sprorigin[2] + x*vright[2] + y*vup[2], vertcoords[0]);
 
 		coloursb[0] = e->shaderRGBAf[0]*255;
 		coloursb[1] = e->shaderRGBAf[1]*255;
@@ -588,8 +604,8 @@ void R_DrawSpriteModel (entity_t *e)
 
 	case SPR_FACING_UPRIGHT:
 		up[0] = 0;up[1] = 0;up[2]=1;
-		right[0] = e->origin[1] - r_origin[1];
-		right[1] = -(e->origin[0] - r_origin[0]);
+		right[0] = sprorigin[1] - r_origin[1];
+		right[1] = -(sprorigin[0] - r_origin[0]);
 		right[2] = 0;
 		VectorNormalize (right);
 		break;
@@ -652,22 +668,22 @@ void R_DrawSpriteModel (entity_t *e)
 	qglBegin (GL_QUADS);
 
 	qglTexCoord2f (0, 1);
-	VectorMA (e->origin, frame->down, up, point);
+	VectorMA (sprorigin, frame->down, up, point);
 	VectorMA (point, frame->left, right, point);
 	qglVertex3fv (point);
 
 	qglTexCoord2f (0, 0);
-	VectorMA (e->origin, frame->up, up, point);
+	VectorMA (sprorigin, frame->up, up, point);
 	VectorMA (point, frame->left, right, point);
 	qglVertex3fv (point);
 
 	qglTexCoord2f (1, 0);
-	VectorMA (e->origin, frame->up, up, point);
+	VectorMA (sprorigin, frame->up, up, point);
 	VectorMA (point, frame->right, right, point);
 	qglVertex3fv (point);
 
 	qglTexCoord2f (1, 1);
-	VectorMA (e->origin, frame->down, up, point);
+	VectorMA (sprorigin, frame->down, up, point);
 	VectorMA (point, frame->right, right, point);
 	qglVertex3fv (point);
 

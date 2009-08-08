@@ -1548,6 +1548,8 @@ qboolean CMod_LoadLeafs (lump_t *l)
 
 		out->contents = LittleLong (in->contents);
 		out->cluster = (unsigned short)LittleShort (in->cluster);
+		if (out->cluster == 0xffff)
+			out->cluster = -1;
 		out->area = LittleShort (in->area);
 		out->firstleafbrush = (unsigned short)LittleShort (in->firstleafbrush);
 		out->numleafbrushes = (unsigned short)LittleShort (in->numleafbrushes);

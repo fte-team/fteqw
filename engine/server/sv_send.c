@@ -448,8 +448,16 @@ void VARGS SV_BroadcastCommand (char *fmt, ...)
 			continue;
 		if (cl->state>=cs_connected)
 		{
-			ClientReliableWrite_Begin(cl, ISQ2CLIENT(cl)?svcq2_stufftext:svc_stufftext, strlen(string)+2);
-			ClientReliableWrite_String (cl, string);
+			if (ISQWCLIENT(cl) || ISNQCLIENT(cl))
+			{
+				ClientReliableWrite_Begin(cl, svc_stufftext, strlen(string)+2);
+				ClientReliableWrite_String (cl, string);
+			}
+			else if (ISQ2CLIENT(cl))
+			{
+				ClientReliableWrite_Begin(cl, svcq2_stufftext, strlen(string)+2);
+				ClientReliableWrite_String (cl, string);
+			}
 		}
 	}
 }
@@ -1684,7 +1692,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 	fnum = client->netchan.outgoing_sequence;
 	sentbytes = Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
 
-	if (client->frameunion.frames)
+	if (ISQWCLIENT(client) || ISNQCLIENT(client))
 		client->frameunion.frames[fnum & UPDATE_MASK].packetsizeout += sentbytes;
 	return true;
 }
@@ -2173,7 +2181,7 @@ void SV_SendClientMessages (void)
 			SV_DarkPlacesDownloadChunk(c, &c->datagram);
 			fnum = c->netchan.outgoing_sequence;
 			sentbytes = Netchan_Transmit (&c->netchan, c->datagram.cursize, c->datagram.data, SV_RateForClient(c));	// just update reliable
-			if (c->frameunion.frames)
+			if (ISQWCLIENT(c) || ISNQCLIENT(c))
 				c->frameunion.frames[fnum & UPDATE_MASK].packetsizeout += sentbytes;
 			c->datagram.cursize = 0;
 		}

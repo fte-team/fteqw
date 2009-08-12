@@ -133,6 +133,7 @@ void GL_Warp_Init(void)
 		"	vec4 clouds = texture2D(transt, tccoord);\n"
 
 		"	gl_FragColor.rgb = solid*(1-clouds.a) + clouds.rgb*clouds.a;\n"
+//		"	gl_FragColor.rgb = solid+clouds.rgb;\n"
 		"}\n"
 		"#endif\n"
 		;
@@ -253,7 +254,7 @@ void EmitWaterPolys (msurface_t *fa, float basealpha)
 	{
 		if (waterprogram)
 		{
-			GL_DrawProgram_SkyChain(fa);
+			GL_DrawProgram_WaterChain(fa);
 			return;
 		}
 		r_waterlayers.value = 3;
@@ -388,12 +389,13 @@ void GL_DrawSkyChain (msurface_t *s)
 	}
 #endif
 
+	R_IBrokeTheArrays();
+	qglDisable(GL_BLEND);
+	qglDisable(GL_ALPHA_TEST);
+
 	if (r_fastsky.value>0)	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
 	{
-		R_IBrokeTheArrays();
-		qglDisable(GL_BLEND);
 		qglDisable(GL_TEXTURE_2D);
-		qglDisable(GL_ALPHA_TEST);
 		qglColor3f(glskycolor[0], glskycolor[1], glskycolor[2]);
 		qglDisableClientState( GL_COLOR_ARRAY );
 		qglEnableClientState( GL_VERTEX_ARRAY );
@@ -408,34 +410,43 @@ void GL_DrawSkyChain (msurface_t *s)
 		return;
 	}
 
-	if (skyprogram && !usingskybox)
+	if (s->texinfo->texture->shader)
+	{
+		//this is the only pathway that actually uses shaders properly
+		GL_DrawSkySphere(s);
+	}
+	else if (skyprogram && !usingskybox)
 	{
 		GL_DrawProgram_SkyChain(s);
-		return;
-	}
-
-	R_CalcSkyChainBounds(s);
-
-#ifdef RGLQUAKE
-	if (usingskybox)
-	if (qrenderer == QR_OPENGL)
-	{
-		GL_DrawSkyBox (s);
-		GL_SkyForceDepth(s);
-		return;
-	}
-#endif
-
-	if (*r_fastsky.string)
-	{
-		GL_DrawSkyGrid(s->texinfo->texture);
-		GL_SkyForceDepth(s);
 	}
 	else
 	{
-		GL_DrawSkySphere(s);
-		GL_SkyForceDepth(s);
+		R_CalcSkyChainBounds(s);
+
+	#ifdef RGLQUAKE
+		if (usingskybox)
+		if (qrenderer == QR_OPENGL)
+		{
+			GL_DrawSkyBox (s);
+			GL_SkyForceDepth(s);
+			R_IBrokeTheArrays();
+			return;
+		}
+	#endif
+
+		if (*r_fastsky.string)
+		{
+			GL_DrawSkyGrid(s->texinfo->texture);
+			GL_SkyForceDepth(s);
+		}
+		else
+		{
+			GL_DrawSkySphere(s);
+			GL_SkyForceDepth(s);
+		}
 	}
+
+	R_IBrokeTheArrays();
 }
 #endif
 
@@ -1105,20 +1116,32 @@ static void GL_DrawProgram_SkyChain(msurface_t *fa)
 	vbo_t *v;
 	mesh_t *m;
 
+
 	v = &fa->texinfo->texture->vbo;
 	qglUseProgramObjectARB(skyprogram);
-	qglUniform1fARB(skyprogram_time, cl.time);
+	qglUniform1fARB(skyprogram_time, r_refdef.time);
 	qglUniform3fvARB(skyprogram_eyepos, 1, r_origin);
 
 
 	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, v->vboe);
 	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, v->vbocoord);
 	qglVertexPointer(3, GL_FLOAT, 0, v->coord);
+	qglEnableClientState(GL_VERTEX_ARRAY);
 
-	GL_MBind(mtexid0, fa->texinfo->texture->tn.base);
-	qglEnable(GL_TEXTURE_2D);
-	GL_MBind(mtexid1, fa->texinfo->texture->tn.fullbright);
-	qglEnable(GL_TEXTURE_2D);
+	if (fa->texinfo->texture->shader)
+	{
+		GL_MBind(mtexid0, fa->texinfo->texture->shader->passes[0].anim_frames[0]);
+		qglEnable(GL_TEXTURE_2D);
+		GL_MBind(mtexid1, fa->texinfo->texture->shader->passes[1].anim_frames[0]);
+		qglEnable(GL_TEXTURE_2D);
+	}
+	else
+	{
+		GL_MBind(mtexid0, fa->texinfo->texture->tn.base);
+		qglEnable(GL_TEXTURE_2D);
+		GL_MBind(mtexid1, fa->texinfo->texture->tn.fullbright);
+		qglEnable(GL_TEXTURE_2D);
+	}
 
 	for (; fa; fa = fa->texturechain)
 	{
@@ -1146,6 +1169,7 @@ static void GL_DrawProgram_WaterChain(msurface_t *fa)
 	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, v->vboe);
 	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, v->vbocoord);
 	qglVertexPointer(3, GL_FLOAT, 0, v->coord);
+	qglEnableClientState(GL_VERTEX_ARRAY);
 
 	GL_MBind(mtexid0, fa->texinfo->texture->tn.base);
 	qglEnable(GL_TEXTURE_2D);

@@ -1331,6 +1331,7 @@ int QCC_PR_LexInteger (void)
 
 void QCC_PR_LexNumber (void)
 {
+	int tokenlen = 0;
 	int num=0;
 	int base=10;
 	int c;
@@ -1339,32 +1340,41 @@ void QCC_PR_LexNumber (void)
 	{
 		sign=-1;
 		pr_file_p++;
+
+		pr_token[tokenlen++] = '-';
 	}
-	if (pr_file_p[1] == 'x')
+	if (pr_file_p[0] == '0' && pr_file_p[1] == 'x')
 	{
 		pr_file_p+=2;
 		base = 16;
+
+		pr_token[tokenlen++] = '0';
+		pr_token[tokenlen++] = 'x';
 	}
 
 	while((c = *pr_file_p))
 	{		
 		if (c >= '0' && c <= '9')
 		{
+			pr_token[tokenlen++] = c;
 			num*=base;
 			num += c-'0';
 		}
 		else if (c >= 'a' && c <= 'f')
 		{
+			pr_token[tokenlen++] = c;
 			num*=base;
 			num += c -'a'+10;
 		}
 		else if (c >= 'A' && c <= 'F')
 		{
+			pr_token[tokenlen++] = c;
 			num*=base;
 			num += c -'A'+10;
 		}
 		else if (c == '.')
 		{
+			pr_token[tokenlen++] = c;
 			pr_file_p++;
 			pr_immediate_type = type_float;
 			pr_immediate._float = (float)num;
@@ -1388,6 +1398,7 @@ void QCC_PR_LexNumber (void)
 		}
 		else if (c == 'i')
 		{
+			pr_token[tokenlen++] = 'x';
 			pr_file_p++;
 			pr_immediate_type = type_integer;
 			pr_immediate._int = num*sign;
@@ -1396,6 +1407,7 @@ void QCC_PR_LexNumber (void)
 		else break;
 		pr_file_p++;
 	}
+	pr_token[tokenlen++] = 0;
 
 	if (flag_assume_integer)
 	{
@@ -2510,6 +2522,7 @@ void QCC_PR_Lex (void)
 	if ( (c == '.'&&pr_file_p[1] >='0' && pr_file_p[1] <= '9') || (c >= '0' && c <= '9') || ( c=='-' && pr_file_p[1]>='0' && pr_file_p[1] <='9') )
 	{
 		pr_token_type = tt_immediate;
+
 //		pr_immediate_type = type_float;
 //		pr_immediate._float = QCC_PR_LexFloat ();
 

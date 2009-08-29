@@ -462,10 +462,10 @@ QCC_opcode_t pr_opcodes[] =
 {7, "||", "OR_I", 7, ASSOC_LEFT,				&type_integer,	&type_integer,	&type_integer},
 {7, "&&", "AND_IF", 7, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
 {7, "||", "OR_IF", 7, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
-{7, "&&", "AND_FI", 7, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "||", "OR_FI", 7, ASSOC_LEFT,				&type_float,	&type_float,	&type_integer},
+{7, "&&", "AND_FI", 7, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
+{7, "||", "OR_FI", 7, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
 {7, "!=", "NE_IF", 5, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
-{7, "!=", "NE_FI", 5, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
+{7, "!=", "NE_FI", 5, ASSOC_LEFT,				&type_float,	&type_float,	&type_integer},
 
 	
 

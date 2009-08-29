@@ -369,6 +369,7 @@ PROGS_OBJS =		\
 	pr_edict.o		\
 	pr_exec.o		\
 	pr_multi.o		\
+	pr_x86.o		\
 	qcc_cmdlib.o	\
 	qccmain.o		\
 	qcc_pr_comp.o	\

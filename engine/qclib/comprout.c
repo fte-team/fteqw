@@ -132,7 +132,7 @@ int Comp_Continue(progfuncs_t *progfuncs)
 	if (setjmp(qcccompileerror))
 	{
 		PostCompile();
-		if (*errorfile)
+		if (*errorfile && externs->useeditor)
 			externs->useeditor(progfuncs, errorfile, errorline, comp_nump, comp_parms);
 		return false;
 	}
@@ -143,7 +143,7 @@ int Comp_Continue(progfuncs_t *progfuncs)
 	{
 		PostCompile();
 
-		if (*errorfile)
+		if (*errorfile && externs->useeditor)
 			externs->useeditor(progfuncs, errorfile, errorline, comp_nump, comp_parms);
 
 		return false;

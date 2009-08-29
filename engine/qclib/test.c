@@ -12,12 +12,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
 
 
 
 //builtins and builtin management.
-void PF_print (progfuncs_t *prinst, struct globalvars_s *gvars)
+void PF_prints (progfuncs_t *prinst, struct globalvars_s *gvars)
 {
 	char *s;
 	s = prinst->VarString(prinst, 0);
@@ -25,9 +26,27 @@ void PF_print (progfuncs_t *prinst, struct globalvars_s *gvars)
 	printf("%s", s);
 }
 
+void PF_printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	printf("%f %f %f\n", G_FLOAT(OFS_PARM0+0), G_FLOAT(OFS_PARM0+1), G_FLOAT(OFS_PARM0+2));
+}
+
+void PF_printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	printf("%f\n", G_FLOAT(OFS_PARM0));
+}
+
+
+void PF_bad (progfuncs_t *prinst, struct globalvars_s *gvars)
+{
+	printf("bad builtin\n");
+}
+
 builtin_t builtins[] = {
-	PF_print,
-	PF_print
+	PF_bad,
+	PF_prints,
+	PF_printv,
+	PF_printf
 };
 
 
@@ -36,7 +55,10 @@ builtin_t builtins[] = {
 //Called when the qc library has some sort of serious error.
 void Sys_Abort(char *s, ...)
 {	//quake handles this with a longjmp.
-	printf("%s", s);
+	va_list ap;
+	va_start(ap, s);
+	vprintf(s, ap);
+	va_end(ap);
 	exit(1);
 }
 //Called when the library has something to say.
@@ -109,10 +131,13 @@ void runtest(char *progsname)
 	ext.Abort = Sys_Abort;
 	ext.printf = printf;
 
+	ext.numglobalbuiltins = sizeof(builtins)/sizeof(builtins[0]);
+	ext.globalbuiltins = builtins;
+
 	pf = InitProgs(&ext);
 	pf->Configure(pf, 1024*1024, 1);	//memory quantity of 1mb. Maximum progs loadable into the instance of 1
 //If you support multiple progs types, you should tell the VM the offsets here, via RegisterFieldVar
-	pn = pf->LoadProgs(pf, progsname, 0, builtins, sizeof(builtins)/sizeof(builtins[0]));	//load the progs, don't care about the crc, and use those builtins.
+	pn = pf->LoadProgs(pf, progsname, 0, NULL, 0);	//load the progs, don't care about the crc, and use those builtins.
 	if (pn < 0)
 		printf("test: Failed to load progs \"%s\"\n", progsname);
 	else
@@ -185,11 +210,11 @@ int main(int argc, char **argv)
 {
 	if (argc < 2)
 	{
-		printf("Invalid arguments!\nPlease run as, for example:\n%s testprogs.dat --srcfile progs.src\nThe first argument is the name of the progs.dat to run, the remaining arguments are the qcc args to use", argv[0]);
+		printf("Invalid arguments!\nPlease run as, for example:\n%s testprogs.dat -srcfile progs.src\nThe first argument is the name of the progs.dat to run, the remaining arguments are the qcc args to use", argv[0]);
 		return 0;
 	}
 
-	compile(argc-2, argv+2);
+	compile(argc-1, argv+1);
 	runtest(argv[1]);
 
 	return 0;

@@ -271,14 +271,14 @@ reeval:
 	case OP_STORE_FI:
 		OPB->_int = (int)OPA->_float;
 		break;
-	case OP_STORE_I:
-		OPB->_int = OPA->_int;
-		break;
+		
 	case OP_STORE_F:
 	case OP_STORE_ENT:
 	case OP_STORE_FLD:		// integers
 	case OP_STORE_S:
+	case OP_STORE_I:
 	case OP_STORE_FNC:		// pointers
+	case OP_STORE_P:
 		OPB->_int = OPA->_int;
 		break;
 	case OP_STORE_V:
@@ -493,9 +493,15 @@ reeval:
 		
 //==================
 
-	case OP_IFNOTS:
+	case OP_IFNOT_S:
 		RUNAWAYCHECK();
 		if (!OPA->string || !PR_StringToNative(progfuncs, OPA->string))
+			st += (sofs)st->b - 1;	// offset the s++
+		break;
+
+	case OP_IFNOT_F:
+		RUNAWAYCHECK();
+		if (!OPA->_float)
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
 
@@ -505,12 +511,18 @@ reeval:
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
 
-	case OP_IFS:
+	case OP_IF_S:
 		RUNAWAYCHECK();
 		if (OPA->string && PR_StringToNative(progfuncs, OPA->string))
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
-		
+
+	case OP_IF_F:
+		RUNAWAYCHECK();
+		if (OPA->_int)
+			st += (sofs)st->b - 1;	// offset the s++
+		break;
+
 	case OP_IF:
 		RUNAWAYCHECK();
 		if (OPA->_int)

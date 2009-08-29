@@ -470,11 +470,13 @@ extern pbool keywords_coexist;
 extern pbool output_parms;
 extern pbool autoprototype;
 extern pbool flag_ifstring;
+extern pbool flag_iffloat;
 extern pbool flag_acc;
 extern pbool flag_caseinsensative;
 extern pbool flag_laxcasts;
 extern pbool flag_hashonly;
 extern pbool flag_fasttrackarrays;
+extern pbool flag_assume_integer;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;

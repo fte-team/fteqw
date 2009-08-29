@@ -109,6 +109,10 @@ void PR_Configure (progfuncs_t *progfuncs, int addressable_size, int max_progs)	
 	edictrun_t *e;
 
 //	int a;
+#ifdef QCJIT
+	prinst->usejit = true;
+#endif
+
 	max_fields_size=0;
 	fields_size = 0;
 	progfuncs->stringtable = 0;

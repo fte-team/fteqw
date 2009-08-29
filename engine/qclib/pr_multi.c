@@ -90,8 +90,13 @@ progsnum_t PR_LoadProgs(progfuncs_t *progfuncs, char *s, int headercrc, builtin_
 			{
 				current_progstate->builtins = builtins;
 				current_progstate->numbuiltins = numbuiltins;
+
+#ifdef QCJIT
+				if (prinst->usejit)
+					prinst->usejit = PR_GenerateJit(progfuncs);
+#endif
 				if (oldtype>=0)
-				PR_SwitchProgs(progfuncs, oldtype);
+					PR_SwitchProgs(progfuncs, oldtype);
 				return a;	//we could load it. Yay!
 			}
 			if (oldtype!=-1)

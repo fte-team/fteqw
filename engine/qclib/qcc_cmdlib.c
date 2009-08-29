@@ -24,7 +24,7 @@ const unsigned int		type_size[12] = {1,	//void
 						1,	//entity
 						1,	//field
 						sizeof(func_t)/4,//function
-						sizeof(void *)/4,//pointer
+						1,  //pointer (its an int index)
 						1,	//integer
 						1,	//fixme: how big should a variant be?
 						0,	//ev_struct. variable sized.

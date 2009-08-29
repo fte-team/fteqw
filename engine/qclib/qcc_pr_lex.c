@@ -1397,8 +1397,16 @@ void QCC_PR_LexNumber (void)
 		pr_file_p++;
 	}
 
-	pr_immediate_type = type_float;
-	pr_immediate._float = (float)(num*sign);
+	if (flag_assume_integer)
+	{
+		pr_immediate_type = type_integer;
+		pr_immediate._int = num*sign;
+	}
+	else
+	{
+		pr_immediate_type = type_float;
+		pr_immediate._float = (float)(num*sign);
+	}
 }
 
 
@@ -2502,11 +2510,11 @@ void QCC_PR_Lex (void)
 	if ( (c == '.'&&pr_file_p[1] >='0' && pr_file_p[1] <= '9') || (c >= '0' && c <= '9') || ( c=='-' && pr_file_p[1]>='0' && pr_file_p[1] <='9') )
 	{
 		pr_token_type = tt_immediate;
-		pr_immediate_type = type_float;
-		pr_immediate._float = QCC_PR_LexFloat ();
+//		pr_immediate_type = type_float;
+//		pr_immediate._float = QCC_PR_LexFloat ();
 
-//		pr_token_type = tt_immediate;
-//		QCC_PR_LexNumber ();
+		pr_token_type = tt_immediate;
+		QCC_PR_LexNumber ();
 		return;
 	}
 

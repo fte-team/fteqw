@@ -28,6 +28,10 @@
 typedef unsigned char qbyte;
 #include <stdio.h>
 
+#if defined(_M_IX86) || defined(__i386__)
+#define QCJIT
+#endif
+
 #define DLL_PROG
 #ifndef PROGSUSED
 #define PROGSUSED
@@ -327,7 +331,9 @@ void PR_SetBuiltins(int type);
 #define vars(type, name, size) type name[size]
 
 typedef struct prinst_s {
-
+#ifdef QCJIT
+	pbool usejit;
+#endif
 	char **tempstrings;
 	int maxtempstrings;
 	int numtempstrings;

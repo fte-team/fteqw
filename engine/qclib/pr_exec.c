@@ -408,28 +408,6 @@ char *COM_TrimString(char *str)
 	return buffer;
 }
 
-#ifdef _WIN32
-#if (_MSC_VER >= 1400)
-//with MSVC 8, use MS extensions
-#define snprintf linuxlike_snprintf_vc8
-int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...);
-#define vsnprintf(a, b, c, d) vsnprintf_s(a, b, _TRUNCATE, c, d)
-#else
-//msvc crap
-#define snprintf linuxlike_snprintf
-int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...);
-#define vsnprintf linuxlike_vsnprintf
-int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
-#endif
-
-#ifdef _MSC_VER
-//these are provided so we don't use them
-//but mingw has some defines elsewhere and makes gcc moan
-#define _vsnprintf unsafe_vsnprintf
-#define _snprintf unsafe_snprintf
-#endif
-#endif
-
 char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 {
 	static char buf[256];
@@ -526,7 +504,14 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 			fdef = ED_FindField (progfuncs, assignment);
 			if (!fdef)
 			{
-				snprintf(buf, sizeof(buf), "Can't find field %s\n", assignment);
+				int l,nl = strlen(assignment);
+				strcpy(buf, "Can't find field ");
+				l = strlen(buf);
+				if (nl > sizeof(buf)-l-2)
+					nl = sizeof(buf)-l-2;
+				memcpy(buf+l, assignment, nl);
+				assignment[l+nl+0] = '\n';
+				assignment[l+nl+1] = 0;
 				return buf;
 			}
 			*(int *)val = G_INT(fdef->ofs);
@@ -552,8 +537,17 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 				func = ED_FindFunction (progfuncs, s, &i, progsnum);
 				if (!func)
 				{
+					int l,nl = strlen(s);
+
 					assignment[-1] = '=';
-					snprintf(buf, sizeof(buf), "Can't find function %s\n", s);
+
+					strcpy(buf, "Can't find field ");
+					l = strlen(buf);
+					if (nl > sizeof(buf)-l-2)
+						nl = sizeof(buf)-l-2;
+					memcpy(buf+l, assignment, nl);
+					assignment[l+nl+0] = '\n';
+					assignment[l+nl+1] = 0;
 					return buf;
 				}
 				*(func_t *)val = (func - pr_progstate[i].functions) | (i<<24);
@@ -839,11 +833,19 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 
 	float *glob;
 
-	int fnum = pr_xfunction - pr_functions;
-
-	runaway = 100000000;
+	int fnum;
 
 	prinst->continuestatement = -1;
+#ifdef QCJIT
+	if (prinst->usejit)
+	{
+		PR_EnterJIT(progfuncs, s);
+		return;
+	}
+#endif
+	fnum = pr_xfunction - pr_functions;
+
+	runaway = 100000000;
 
 #define PRBOUNDSCHECK
 #define RUNAWAYCHECK()							\

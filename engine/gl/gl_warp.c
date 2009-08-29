@@ -1128,6 +1128,7 @@ static void GL_DrawProgram_SkyChain(msurface_t *fa)
 	qglVertexPointer(3, GL_FLOAT, 0, v->coord);
 	qglEnableClientState(GL_VERTEX_ARRAY);
 
+#ifndef MINIMAL
 	if (fa->texinfo->texture->shader)
 	{
 		GL_MBind(mtexid0, fa->texinfo->texture->shader->passes[0].anim_frames[0]);
@@ -1137,11 +1138,14 @@ static void GL_DrawProgram_SkyChain(msurface_t *fa)
 	}
 	else
 	{
+#endif
 		GL_MBind(mtexid0, fa->texinfo->texture->tn.base);
 		qglEnable(GL_TEXTURE_2D);
 		GL_MBind(mtexid1, fa->texinfo->texture->tn.fullbright);
 		qglEnable(GL_TEXTURE_2D);
-	}
+#ifndef MINIMAL
+}
+#endif
 
 	for (; fa; fa = fa->texturechain)
 	{

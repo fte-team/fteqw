@@ -1558,8 +1558,13 @@ void SV_SendServerInfoChange(char *key, const char *value)
 {
 	if (!sv.state)
 		return;
+
 #ifdef Q2SERVER
-	if (ge)
+	if (svs.gametype == GT_QUAKE2)
+		return;	//FIXME!!!
+#endif
+#ifdef Q3SERVER
+	if (svs.gametype == GT_QUAKE3)
 		return;	//FIXME!!!
 #endif
 

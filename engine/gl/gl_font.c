@@ -409,7 +409,6 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 			dSHGetFolderPath = (void *)GetProcAddress(shfolder, "SHGetFolderPathA");
 			if (dSHGetFolderPath)
 			{
-				char folder[MAX_PATH];
 				// 0x14 == CSIDL_FONTS
 				if (dSHGetFolderPath(NULL, 0x14, NULL, 0, fontdir) == S_OK)
 				{

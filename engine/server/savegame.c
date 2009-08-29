@@ -910,6 +910,7 @@ void SV_Savegame_f (void)
 	char *savename;
 	levelcache_t *cache;
 	char str[MAX_LOCALINFO_STRING+1];
+	char *savefilename;
 
 	if (!sv.state)
 	{
@@ -922,7 +923,9 @@ void SV_Savegame_f (void)
 	if (!*savename || strstr(savename, ".."))
 		savename = "quicksav";
 
-	f = FS_OpenVFS(va("saves/%s/info.fsv", savename), "wt", FS_GAMEONLY);
+	savefilename = va("saves/%s/info.fsv", savename);
+	FS_CreatePath(savefilename, FS_GAMEONLY);
+	f = FS_OpenVFS(savefilename, "wt", FS_GAMEONLY);
 	if (!f)
 	{
 		Con_Printf("Couldn't open file saves/%s/info.fsv\n", savename);

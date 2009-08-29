@@ -1333,7 +1333,7 @@ void QCC_PR_LexNumber (void)
 {
 	int tokenlen = 0;
 	int num=0;
-	int base=10;
+	int base=0;
 	int c;
 	int sign=1;
 	if (*pr_file_p == '-')
@@ -1352,6 +1352,11 @@ void QCC_PR_LexNumber (void)
 		pr_token[tokenlen++] = 'x';
 	}
 
+	pr_immediate_type = NULL;
+	//assume base 10 if not stated
+	if (!base)
+		base = 10;
+
 	while((c = *pr_file_p))
 	{		
 		if (c >= '0' && c <= '9')
@@ -1360,13 +1365,13 @@ void QCC_PR_LexNumber (void)
 			num*=base;
 			num += c-'0';
 		}
-		else if (c >= 'a' && c <= 'f')
+		else if (c >= 'a' && c <= 'f' && base > 10)
 		{
 			pr_token[tokenlen++] = c;
 			num*=base;
 			num += c -'a'+10;
 		}
-		else if (c >= 'A' && c <= 'F')
+		else if (c >= 'A' && c <= 'F' && base > 10)
 		{
 			pr_token[tokenlen++] = c;
 			num*=base;
@@ -1384,8 +1389,14 @@ void QCC_PR_LexNumber (void)
 				c = *pr_file_p;
 				if (c >= '0' && c <= '9')
 				{
-					num*=base;
+					pr_token[tokenlen++] = c;
+					num*=10;
 					pr_immediate._float += (c-'0')/(float)(num);
+				}
+				else if (c == 'f')
+				{
+					pr_file_p++;
+					break;
 				}
 				else
 				{						
@@ -1394,22 +1405,33 @@ void QCC_PR_LexNumber (void)
 				pr_file_p++;
 			}
 			pr_immediate._float *= sign;
+			pr_token[tokenlen++] = 0;
 			return;
 		}
 		else if (c == 'i')
 		{
-			pr_token[tokenlen++] = 'x';
+			pr_token[tokenlen++] = c;
+			pr_token[tokenlen++] = 0;
 			pr_file_p++;
 			pr_immediate_type = type_integer;
 			pr_immediate._int = num*sign;
 			return;
 		}
-		else break;
+		else
+			break;
 		pr_file_p++;
 	}
 	pr_token[tokenlen++] = 0;
 
-	if (flag_assume_integer)
+	if (!pr_immediate_type)
+	{
+		if (flag_assume_integer)
+			pr_immediate_type = type_integer;
+		else
+			pr_immediate_type = type_float;
+	}
+
+	if (pr_immediate_type == type_integer)
 	{
 		pr_immediate_type = type_integer;
 		pr_immediate._int = num*sign;
@@ -2507,6 +2529,7 @@ void QCC_PR_Lex (void)
 // character is reached
 	if ( c == '~' || c == '%')	//let's see which one we make into an operator first... possibly both...
 	{
+		QCC_PR_ParseWarning(0, "~ or % prefixes to denote integers are deprecated. Please use a postfix of 'i'");
 		pr_file_p++;
 		pr_token_type = tt_immediate;
 		pr_immediate_type = type_integer;
@@ -2521,11 +2544,6 @@ void QCC_PR_Lex (void)
 	}
 	if ( (c == '.'&&pr_file_p[1] >='0' && pr_file_p[1] <= '9') || (c >= '0' && c <= '9') || ( c=='-' && pr_file_p[1]>='0' && pr_file_p[1] <='9') )
 	{
-		pr_token_type = tt_immediate;
-
-//		pr_immediate_type = type_float;
-//		pr_immediate._float = QCC_PR_LexFloat ();
-
 		pr_token_type = tt_immediate;
 		QCC_PR_LexNumber ();
 		return;

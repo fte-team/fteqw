@@ -90,7 +90,9 @@ float		input_timelength;
 vector		input_angles;
 vector		input_movevalues;	//forwards, right, up.
 float		input_buttons;		//attack, use, jump (default physics only uses jump)
+#ifndef WORKINDP
 float		input_impulse;
+#endif
 
 #ifdef WORKINDP
 float		movevar_gravity;

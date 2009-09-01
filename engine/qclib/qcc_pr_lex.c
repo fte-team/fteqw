@@ -1382,16 +1382,12 @@ void QCC_PR_LexNumber (void)
 			pr_token[tokenlen++] = c;
 			pr_file_p++;
 			pr_immediate_type = type_float;
-			pr_immediate._float = (float)num;
-			num = 1;
 			while(1)
 			{
 				c = *pr_file_p;
 				if (c >= '0' && c <= '9')
 				{
 					pr_token[tokenlen++] = c;
-					num*=10;
-					pr_immediate._float += (c-'0')/(float)(num);
 				}
 				else if (c == 'f')
 				{
@@ -1404,7 +1400,7 @@ void QCC_PR_LexNumber (void)
 				}
 				pr_file_p++;
 			}
-			pr_immediate._float *= sign;
+			pr_immediate._float = atof(pr_token);
 			pr_token[tokenlen++] = 0;
 			return;
 		}
@@ -1439,7 +1435,8 @@ void QCC_PR_LexNumber (void)
 	else
 	{
 		pr_immediate_type = type_float;
-		pr_immediate._float = (float)(num*sign);
+		pr_immediate._float = atof(pr_token);
+		//pr_immediate._float = (float)(num*sign);
 	}
 }
 

@@ -242,13 +242,23 @@ JOINT_CFLAGS=
 DEBUG_CFLAGS=-ggdb -g
 
 ifeq ($(FTE_TARGET),win32)
-	RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
+	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS)
 endif
 ifeq ($(FTE_TARGET),win32_SDL)
-	RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS) -D_SDL
+	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
+	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS) -D_SDL
+	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS) -D_SDL
 endif
-RELEASE_CFLAGS ?= -O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
-#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+
+# Make sure the Win32 targets don't get these added on
+ifneq ($(FTE_TARGET),win32)
+	ifneq ($(FTE_TARGET),win32_SDL)
+		RELEASE_CFLAGS ?= -O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
+		#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+	endif
+endif
 
 GLCFLAGS=-DGLQUAKE
 D3DCFLAGS=-DD3DQUAKE

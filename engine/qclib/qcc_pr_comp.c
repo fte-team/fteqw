@@ -5877,7 +5877,8 @@ void QCC_PR_ParseStatement (void)
 		if (QCC_PR_CheckKeyword (keyword_else, "else"))
 		{
 			int lastwasreturn;
-			lastwasreturn = statements[numstatements-1].op == OP_RETURN || statements[numstatements-1].op == OP_DONE;
+			lastwasreturn = statements[numstatements-1].op == OP_RETURN || statements[numstatements-1].op == OP_DONE ||
+				statements[numstatements-1].op == OP_GOTO;
 
 			//the last statement of the if was a return, so we don't need the goto at the end
 			if (lastwasreturn && opt_compound_jumps && !QCC_AStatementJumpsTo(numstatements, patch1-statements, numstatements))

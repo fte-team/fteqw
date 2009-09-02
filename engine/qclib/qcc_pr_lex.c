@@ -1400,8 +1400,8 @@ void QCC_PR_LexNumber (void)
 				}
 				pr_file_p++;
 			}
-			pr_immediate._float = atof(pr_token);
 			pr_token[tokenlen++] = 0;
+			pr_immediate._float = atof(pr_token);
 			return;
 		}
 		else if (c == 'i')

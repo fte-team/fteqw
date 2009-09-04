@@ -1435,8 +1435,10 @@ void QCC_PR_LexNumber (void)
 	else
 	{
 		pr_immediate_type = type_float;
-		pr_immediate._float = atof(pr_token);
-		//pr_immediate._float = (float)(num*sign);
+		// at this point, we know there's no . in it, so the NaN bug shouldn't happen
+		// and we cannot use atof on tokens like 0xabc, so use num*sign, it SHOULD be safe
+		//pr_immediate._float = atof(pr_token);
+		pr_immediate._float = (float)(num*sign);
 	}
 }
 

@@ -2047,7 +2047,7 @@ void SV_SendClientMessages (void)
 // build individual updates
 	for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
 	{
-		if (!c->state)
+		if (c->state <= cs_zombie)
 			continue;
 
 		if (c->drop)

@@ -123,7 +123,7 @@ void GL_Warp_Init(void)
 
 		"	vec3 dir = pos - eyepos;\n"
 
-		"	dir.z *= 3;\n"
+		"	dir.z *= 3.0;\n"
 		"	dir.xy /= 0.5*length(dir);\n"
 
 		"	tccoord = (dir.xy + time*0.03125);\n"
@@ -132,7 +132,7 @@ void GL_Warp_Init(void)
 		"	tccoord = (dir.xy + time*0.0625);\n"
 		"	vec4 clouds = texture2D(transt, tccoord);\n"
 
-		"	gl_FragColor.rgb = solid*(1-clouds.a) + clouds.rgb*clouds.a;\n"
+		"	gl_FragColor.rgb = solid*(1.0-clouds.a) + clouds.rgb*clouds.a;\n"
 //		"	gl_FragColor.rgb = solid+clouds.rgb;\n"
 		"}\n"
 		"#endif\n"

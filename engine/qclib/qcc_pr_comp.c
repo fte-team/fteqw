@@ -2168,7 +2168,7 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 			break;
 
 		case OP_MULSTORE_V:
-			op = &pr_opcodes[OP_MUL_V];
+			op = &pr_opcodes[OP_MUL_VF];
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
@@ -2406,7 +2406,7 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 				statement->op = OP_ADD_V;
 				break;
 			case OP_MULSTOREP_V:
-				statement->op = OP_MUL_V;
+				statement->op = OP_MUL_VF;
 				break;
 			default:	//no way will this be hit...
 				QCC_PR_ParseError(ERR_INTERNAL, "opcode invalid 3 times %i", op - pr_opcodes);

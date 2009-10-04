@@ -37,6 +37,8 @@ console_t	*con_current;			// point to either con_main
 	#define Font_ScreenWidth() (conchar_font?glwidth:vid.width)
 	extern int glwidth;
 #else
+	#define GLFont_BeginString(f, vx, vy, px, py) *px = vx; *py = vy;
+	#define GLFont_EndString(f)
 	#define Font_DrawChar(x,y,c) (Draw_ColouredCharacter(x, y, c),(x)+8)
 	#define Font_CharWidth(c) 8
 	#define Font_CharHeight() 8
@@ -529,6 +531,7 @@ void Con_PrintCon (console_t *con, char *txt)
 {
 	conchar_t expanded[4096];
 	conchar_t *c;
+	conline_t *oc;
 	static int	cr;
 
 	COM_ParseFunString(CON_WHITEMASK, txt, expanded, sizeof(expanded), false);
@@ -547,6 +550,20 @@ void Con_PrintCon (console_t *con, char *txt)
 			cr = true;
 			break;
 		case '\n':
+{
+conline_t *cl;
+cl = con->oldest;
+if (cl->older)
+Sys_Error("older?\n");
+while(cl->newer)
+{
+	if (cl->newer->older != cl)
+		Sys_Error("bad backlink\n");
+cl = cl->newer;
+}
+if (cl != con->current)
+Sys_Error("not newest?\n");
+}
 			cr = false;
 			while (con->linecount >= con_maxlines.value)
 			{
@@ -587,13 +604,13 @@ void Con_PrintCon (console_t *con, char *txt)
 			if (selendline == con->current)
 				selendline = NULL;
 
-			if (con->display == con->current)
-			{
-				con->current = BZ_Realloc(con->current, sizeof(*con->current)+(con->current->length+1)*sizeof(conchar_t));
+			oc = con->current;
+			con->current = BZ_Realloc(con->current, sizeof(*con->current)+(con->current->length+1)*sizeof(conchar_t));
+			if (con->display == oc)
 				con->display = con->current;
-			}
-			else
-				con->current = BZ_Realloc(con->current, sizeof(*con->current)+(con->current->length+1)*sizeof(conchar_t));
+			if (con->oldest == oc)
+				con->oldest = con->current;
+
 			if (con->current->older)
 				con->current->older->newer = con->current;
 			o = (conchar_t *)(con->current+1)+con->current->length;
@@ -1082,7 +1099,7 @@ static int Con_DrawProgress(int left, int right, int y)
 			if (total == 0)
 			{
 				//just show progress
-				sprintf(progresspercenttext, " %02d%%", progresspercent);
+				sprintf(progresspercenttext, " %02f%%", progresspercent);
 			}
 			else
 			{
@@ -1425,6 +1442,8 @@ void Con_DrawConsole (int lines, qboolean noback)
 		if (y < top)
 			break;
 	}
+
+	GLFont_EndString(conchar_font);
 
 // draw the input prompt, user text, and cursor if desired
 	DrawCursor();

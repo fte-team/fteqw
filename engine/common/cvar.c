@@ -659,7 +659,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		char *old = Info_ValueForKey(cls.userinfo, var->name);
 		if (strcmp(old, value))	//only spam the server if it actually changed
 		{				//this helps with config execs
-			Info_SetValueForKey (cls.userinfo, var->name, value, MAX_INFO_STRING);
+			Info_SetValueForKey (cls.userinfo, var->name, value, sizeof(cls.userinfo));
 			if (cls.state >= ca_connected)
 			{
 #ifdef Q2CLIENT
@@ -682,6 +682,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	var->string = (char*)Z_Malloc (Q_strlen(value)+1);
 	Q_strcpy (var->string, value);
 	var->value = Q_atof (var->string);
+	var->ival = Q_atoi (var->string);
 
 	if (latch)
 	{

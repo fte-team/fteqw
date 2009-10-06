@@ -69,6 +69,9 @@ typedef struct cvar_s
 
 	void		(*callback) (struct cvar_s *var, char *oldvalue);
 
+
+	int			ival;
+
 	char		*defaultstr;	//default
 	qbyte		restriction;
 

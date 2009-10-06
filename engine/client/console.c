@@ -24,11 +24,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 console_t	con_main;
 console_t	*con_current;			// point to either con_main
 
-//#undef AVAIL_FREETYPE
 #ifdef AVAIL_FREETYPE
 	extern struct font_s *conchar_font;
 	int GLFont_DrawChar(struct font_s *font, int px, int py, unsigned int charcode);
 	void GLFont_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
+	//void GLFont_EndString(struct font_s *font);
+	#define GLFont_EndString(f)
 
 	#define Font_DrawChar(x,y,c) (conchar_font?GLFont_DrawChar(conchar_font, x, y, c):(Draw_ColouredCharacter(x, y, c),(x)+8))
 

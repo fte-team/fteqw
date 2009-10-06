@@ -315,7 +315,12 @@ cvar_t *q3cvlist[MAX_VMQ3_CVARS];
 int VMQ3_Cvar_Register(vmcvar_t *v, char *name, char *defval, int flags)
 {
 	int i;
-	cvar_t *c = Cvar_Get(name, defval, 0, "Q3VM cvars");
+	int fteflags = 0;
+	cvar_t *c;
+
+	fteflags = flags & (CVAR_ARCHIVE | CVAR_USERINFO | CVAR_SERVERINFO);
+
+	c = Cvar_Get(name, defval, fteflags, "Q3VM cvars");
 	if (!c)	//command name, etc
 		return 0;
 	for (i = 0; i < MAX_VMQ3_CVARS; i++)
@@ -763,6 +768,9 @@ void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data )
 			Con_Printf( "%s: unsent fragments\n", NET_AdrToString( adr, sizeof(adr), chan->remote_address ) );
 			return;
 		}
+		/*drop the outgoing packet if we fragmented*/
+		/*failure to do this results in the wrong encoding due to the outgoing sequence*/
+		return;
 	}
 
 	// See if this message is too large and should be fragmented

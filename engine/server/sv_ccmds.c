@@ -35,13 +35,39 @@ cvar_t sv_cheats = SCVARF("sv_cheats", "0", CVAR_LATCH);
 
 extern cvar_t sv_public;
 
+void deleetstring(char *match, char *leet)
+{
+	char *s = match;
+	char *s2 = leet;
+	while(*s2)
+	{
+		*s = *s2 & ~128;
+		s2++;
+		if (*s == '3')
+			*s = 'e';
+		else if (*s == '4')
+			*s = 'a';
+		else if (*s == '1' || *s == '7')
+			*s = 'l';
+		else if (*s >= 18 && *s < 27)
+			*s = *s - 18 + '0';
+		else if (*s >= 'A' && *s <= 'Z')
+			*s = *s - 'A' + 'a';
+		else if (*s<' ' || *s == '~')
+			continue;
+			s++;
+	}
+	*s = '\0';
+
+}
 
 //generic helper function for naming players.
 client_t *SV_GetClientForString(char *name, int *id)
 {
 	int i;
-	char *s, *s2;
+	char *s;
 	char nicename[80];
+	char niceclname[80];
 	client_t *cl;
 
 	int first=0;
@@ -95,30 +121,10 @@ client_t *SV_GetClientForString(char *name, int *id)
 			continue;
 
 
-		s = nicename;
-		s2 = cl->name;
-		while(*s2)
-		{
-			*s = *s2 & ~128;
-			s2++;
-			if (*s == '3')
-				*s = 'e';
-			else if (*s == '4')
-				*s = 'a';
-			else if (*s == '1' || *s == '7')
-				*s = 'l';
-			else if (*s >= 18 && *s < 27)
-				*s = *s - 18 + '0';
-			else if (*s >= 'A' && *s <= 'Z')
-				*s = *s - 'A' + 'a';
-			else if (*s<' ' || *s == '~')
-				continue;
+		deleetstring(niceclname, cl->name);
+		deleetstring(nicename, name);
 
-			s++;
-		}
-		*s = '\0';
-
-		if (strstr(nicename, name))
+		if (strstr(niceclname, nicename))
 		{
 			if (id)
 				*id=i+1;
@@ -652,6 +658,9 @@ void SV_Kick_f (void)
 	client_t	*cl;
 	int clnum=-1;
 
+	if (!sv.state)
+		return;
+
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
 		SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTWASKICKED, cl->name);
@@ -665,6 +674,31 @@ void SV_Kick_f (void)
 
 	if (clnum == -1)
 		Con_TPrintf (STL_USERDOESNTEXIST, Cmd_Argv(1));
+}
+
+/*for q3's kick bot menu*/
+void SV_KickSlot_f (void)
+{
+	client_t	*cl;
+	int clnum=atoi(Cmd_Argv(1));
+
+	if (!sv.state)
+		return;
+
+	if (clnum < sv.allocated_client_slots && svs.clients[clnum].state)
+	{
+		cl = &svs.clients[clnum];
+
+		SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTWASKICKED, cl->name);
+		// print directly, because the dropped client won't get the
+		// SV_BroadcastPrintf message
+		SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUWEREKICKED);
+
+		SV_LogPlayer(cl, "kicked");
+		SV_DropClient (cl);
+	}
+	else
+		Con_Printf("Client %i is not active\n", clnum);
 }
 
 void SV_BanName_f (void)
@@ -2065,6 +2099,7 @@ void SV_InitOperatorCommands (void)
 
 	//various punishments
 	Cmd_AddCommand ("kick", SV_Kick_f);
+	Cmd_AddCommand ("clientkick", SV_KickSlot_f);
 	Cmd_AddCommand ("mute", SV_Mute_f);
 	Cmd_AddCommand ("cuff", SV_Cuff_f);
 	Cmd_AddCommand ("renameclient", SV_ForceName_f);

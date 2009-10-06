@@ -852,7 +852,7 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 		if (sv.strings.lightstyles[i])
 			VFS_PRINTF (f, "%s\n", sv.strings.lightstyles[i]);
 		else
-			VFS_PRINTF (f, "\n", sv.strings.lightstyles[i]);
+			VFS_PRINTF (f, "\n");
 	}
 
 	for (i=1 ; i<MAX_MODELS ; i++)

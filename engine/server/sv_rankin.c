@@ -159,7 +159,7 @@ qboolean Rank_OpenRankings(void)
 
 		if (!created && (rankfileheader.version != RANKFILE_VERSION || rankfileheader.ident != RANKFILE_IDENT))
 		{
-			Con_Printf("Rank file is version %i not %i\nEither delete the file or use an equivelent version of " DISTRIBUTION "\n");
+			Con_Printf("Rank file is version %i not %i\nEither delete the file or use an equivelent version of " DISTRIBUTION "\n", rankfileheader.version, RANKFILE_VERSION);
 			fclose(rankfile);
 			rankfile = NULL;
 

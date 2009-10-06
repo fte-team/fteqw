@@ -577,7 +577,7 @@ cvar_t *VARGS Q2Cvar_ForceSet (char *var_name, char *value)
 	cvar_t *var = Cvar_FindVar(var_name);
 	if (!var)
 	{
-		Con_Printf("Q2Cvar_Set: variable %s not found\n", var);
+		Con_Printf("Q2Cvar_Set: variable %s not found\n", var_name);
 		return NULL;
 	}
 	return Cvar_ForceSet(var, value);

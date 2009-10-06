@@ -643,6 +643,7 @@ void Key_Console (unsigned int unicode, int key)
 		if (history_line == edit_line)
 		{
 			key_lines[edit_line][0] = ']';
+			key_lines[edit_line][1] = '\0';
 			key_linepos = 1;
 		}
 		else
@@ -1298,7 +1299,7 @@ qboolean Key_MouseShouldBeFree(void)
 	//returns if the mouse should be a cursor or if it should go to the menu
 
 	//if true, the input code is expected to return mouse cursor positions rather than deltas
-
+	extern cvar_t cl_prydoncursor;
 	extern int mouseusedforgui;
 //	if (mouseusedforgui)	//I don't like this
 //		return true;
@@ -1313,9 +1314,11 @@ qboolean Key_MouseShouldBeFree(void)
 
 #ifdef VM_UI
 	if (UI_MenuState())
-		return true;
+		return false;
 #endif
 
+	if (cl_prydoncursor.ival)
+		return true;
 
 	return false;
 }

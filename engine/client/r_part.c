@@ -70,7 +70,7 @@ particleengine_t *particlesystem[] =
 	&pe_darkplaces,
 	&pe_classic,
 	&pe_null,
-	{NULL},
+	NULL,
 };
 
 void R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)

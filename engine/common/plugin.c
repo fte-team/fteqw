@@ -292,7 +292,7 @@ static qintptr_t EXPORT_FN Plug_SystemCalls(qintptr_t arg, ...)
 	if (arg>=0 && arg < numplugbuiltins && plugbuiltins[arg].func)
 		return plugbuiltins[arg].func(NULL, ~0, args);
 
-	Sys_Error("DLL Plugin tried calling invalid biultin %i", arg);
+	Sys_Error("DLL Plugin tried calling invalid builtin %i", (int)arg);
 	return 0;
 }
 

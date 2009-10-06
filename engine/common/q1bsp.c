@@ -675,7 +675,7 @@ void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
 	vec3_t verts[3];
 
 	/*if its a triangle fan/poly/quad then we can just submit the entire thing without generating extra fragments*/
-	if (mesh->istrifan)
+	if (0)//mesh->istrifan)
 	{
 		Fragment_ClipPoly(dec, mesh->numvertexes, mesh->xyz_array[0]);
 		return;

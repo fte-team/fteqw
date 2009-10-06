@@ -76,7 +76,7 @@ void TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
 	TP_CVAR(cl_parseSay,		"1");	\
 	TP_CVAR(cl_parseFunChars,		"1");	\
 	TP_CVAR(cl_triggers,		"1");	\
-	TP_CVAR(tp_autostatus,		"$name $location");	/* things which will not always change, but are useful */ \
+	TP_CVAR(tp_autostatus,		"");	/* things which will not always change, but are useful */ \
 	TP_CVAR(tp_forceTriggers,		"0");	\
 	TP_CVAR(tp_loadlocs,		"1");	\
 	TP_CVARC(cl_teamskin,		"", TP_SkinCvar_Callback);	\

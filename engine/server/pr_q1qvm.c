@@ -318,7 +318,6 @@ typedef enum {
 
 
 
-static field_t *qvmfields;
 static char *q1qvmentstring;
 static vm_t *q1qvm;
 static progfuncs_t q1qvmprogfuncs;
@@ -482,6 +481,7 @@ static char *Q1QVMPF_StringToNative(progfuncs_t *prinst, string_t str)
 	return (char*)VM_MemoryBase(q1qvm) + str;
 }
 
+//FIXME: move these to a header
 void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -516,7 +516,8 @@ int PF_checkclient_Internal (progfuncs_t *prinst);
 void PF_precache_sound_Internal (progfuncs_t *prinst, char *s);
 void PF_precache_model_Internal (progfuncs_t *prinst, char *s);
 void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m);
-char *PF_infokey_Internal (int entnum, char *value);;
+char *PF_infokey_Internal (int entnum, char *value);
+void PF_centerprint_Internal (int entnum, char *s);
 
 static int WrapQCBuiltin(builtin_t func, void *offset, quintptr_t mask, const qintptr_t *arg, char *argtypes)
 {
@@ -553,7 +554,7 @@ static int WrapQCBuiltin(builtin_t func, void *offset, quintptr_t mask, const qi
 	return gv.ret.i;
 }
 
-#define VALIDATEPOINTER(o,l) if ((qintptr_t)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %i passes invalid pointer\n", fn);	//out of bounds.
+#define VALIDATEPOINTER(o,l) if ((qintptr_t)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %i passes invalid pointer\n", (int)fn);	//out of bounds.
 static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
 	switch (fn)
@@ -562,11 +563,11 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		return GAME_API_VERSION;
 
 	case G_DPRINT:
-		Con_Printf("%s", VM_POINTER(arg[0]));
+		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 		break;
 
 	case G_ERROR:
-		SV_Error("Q1QVM: %s", VM_POINTER(arg[0]));
+		SV_Error("Q1QVM: %s", (char*)VM_POINTER(arg[0]));
 		break;
 
 	case G_GetEntityToken:
@@ -650,13 +651,13 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case G_BPRINT:
-		SV_BroadcastPrintf(arg[0], "%s", VM_POINTER(arg[1]));
+		SV_BroadcastPrintf(arg[0], "%s", (char*)VM_POINTER(arg[1]));
 		break;
 
 	case G_SPRINT:
 		if ((unsigned)VM_LONG(arg[0]) > sv.allocated_client_slots)
 			return 0;
-		SV_ClientPrintf(&svs.clients[VM_LONG(arg[0])-1], VM_LONG(arg[1]), "%s", VM_POINTER(arg[2]));
+		SV_ClientPrintf(&svs.clients[VM_LONG(arg[0])-1], VM_LONG(arg[1]), "%s", (char*)VM_POINTER(arg[2]));
 		break;
 
 	case G_CENTERPRINT:
@@ -1088,7 +1089,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case G_conprint:
-		Con_Printf("%s", VM_POINTER(arg[0]));
+		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 		break;
 
 	case G_readcmd:
@@ -1252,7 +1253,7 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 		break;
 
 	default:
-		SV_Error("Q1QVM: Trap %i not implemented\n", fn);
+		SV_Error("Q1QVM: Trap %i not implemented\n", (int)fn);
 		break;
 	}
 	return 0;

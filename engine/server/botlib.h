@@ -169,7 +169,7 @@ typedef struct bot_entitystate_s
 typedef struct botlib_import_s
 {
 	//print messages from the bot library
-	void		(QDECL *Print)(int type, char *fmt, ...) LIKEPRINTF(2);
+	void		(QDECL *Print)(int type, char *fmt, ...);
 	//trace a bbox through the world
 	void		(QDECL *Trace)(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int passent, int contentmask);
 	//trace a bbox against a specific entity

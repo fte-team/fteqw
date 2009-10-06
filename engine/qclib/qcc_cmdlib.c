@@ -263,7 +263,12 @@ skipwhite:
 				c = '\n';
 				data++;
 			}
-			else if (c=='\"'||c=='\0')
+			else if (c=='\"')
+			{
+				qcc_token[len] = 0;
+				return data;
+			}
+			else if (c=='\0'||c=='\n')
 			{
 				qcc_token[len] = 0;
 				return data;

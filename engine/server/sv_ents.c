@@ -114,8 +114,6 @@ qboolean demonails;
 static edict_t *csqcent[MAX_EDICTS];
 static int csqcnuments;
 
-static edict_t *ssqcent[MAX_EDICTS];
-
 qboolean SV_AddNailUpdate (edict_t *ent)
 {
 	if (ent->v->modelindex != sv_nailmodel

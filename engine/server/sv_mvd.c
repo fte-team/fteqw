@@ -2281,12 +2281,12 @@ int MVD_StreamStartListening(int port)
 
 	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 	{
-		Sys_Error ("MVD_StreamStartListening: socket:", strerror(qerrno));
+		Sys_Error ("MVD_StreamStartListening: socket: %s", strerror(qerrno));
 	}
 
 	if (ioctlsocket (sock, FIONBIO, &nonblocking) == INVALID_SOCKET)
 	{
-		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
+		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 	}
 
 	if( bind (sock, (void *)&address, sizeof(address)) == INVALID_SOCKET)

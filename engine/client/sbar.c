@@ -1869,7 +1869,7 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	{
 		if (cl.stats[pnum][STAT_H2_FLIGHT_T+i] > 0)
 		{
-			Sbar_DrawPic (ringpos[i], 119, Draw_SafeCachePic(va("gfx/ring_f.lmp", i+1)));
+			Sbar_DrawPic (ringpos[i], 119, Draw_SafeCachePic(va("gfx/ring_f.lmp")));
 			val = cl.stats[pnum][STAT_H2_FLIGHT_T+i];
 			if (val > 100)
 				val = 100;

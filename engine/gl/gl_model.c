@@ -944,7 +944,14 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 	{
 		m->dataofs[i] = LittleLong(m->dataofs[i]);
 		if (m->dataofs[i] == -1)	//e1m2, this happens
+		{
+			tx = Hunk_AllocName (sizeof(texture_t), loadname );
+			memcpy(tx, r_notexture_mip, sizeof(texture_t));
+			tx->parttype = -1;
+			sprintf(tx->name, "unnamed%i", i);
+			loadmodel->textures[i] = tx;
 			continue;
+		}
 		mt = (miptex_t *)((qbyte *)m + m->dataofs[i]);
 
 	TRACE(("dbg: GLMod_LoadTextures: texture %s\n", loadname));

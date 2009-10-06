@@ -548,30 +548,35 @@ void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
 
 #else
 
-#define MAXFRAGMENTVERTS 128
+#define MAXFRAGMENTVERTS 360
 int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist)
 {
-	float dotv[MAXFRAGMENTVERTS];
-	int i, i2, i3;
+	float dotv[MAXFRAGMENTVERTS+1];
+	char keep[MAXFRAGMENTVERTS+1];
+#define KEEP_KILL 0
+#define KEEP_KEEP 1
+#define KEEP_BORDER 2 
+	int i;
 	int outcount = 0;
 	int clippedcount = 0;
-	vec3_t impact;
-
-	float *lastvalid = NULL;	//the reason these arn't just an index is because it'd need to be a special case for the first vert.
-	float lastvaliddot = 0;
+	float d, *p1, *p2, *out;
 #define FRAG_EPSILON 0.5
 
 	for (i = 0; i < incount; i++)
 	{
 		dotv[i] = DotProduct((inverts+i*3), plane) - planedist;
 		if (dotv[i]<-FRAG_EPSILON)
-			clippedcount++;
-		else
 		{
-			lastvalid = inverts+i*3;
-			lastvaliddot = dotv[i];
+			keep[i] = KEEP_KILL;
+			clippedcount++;
 		}
+		else if (dotv[i] > FRAG_EPSILON)
+			keep[i] = KEEP_KEEP;
+		else
+			keep[i] = KEEP_BORDER;
 	}
+	dotv[i] = dotv[0];
+	keep[i] = keep[0];
 
 	if (clippedcount == incount)
 		return 0;	//all were clipped
@@ -581,98 +586,53 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 		return incount;
 	}
 
-	//FIXME:
-/*
-
-  We should end up with a nicly clipped quad.
-  If a vertex is on the other side of the place, we remove it, and add two in it's place, on the lines between the verts not chopped.
-  we work out the last remaining vert in the above loop
-  the loop below loops through all verts, if it's to be removed, it does a nested loop to find the next vert that is not going to be removed
-  it then adds two new verts on the right two lines.
-  Due to using four clipplanes, this should result in a perfect quad. It doesn't.
-
-*/
-	for (i = 0; i < incount; )
+	for (i = 0; i < incount; i++)
 	{
-		if (dotv[i] < -FRAG_EPSILON)	//clipped
+		p1 = inverts+i*3;
+		if (keep[i] == KEEP_BORDER)
 		{
-			//work out where the line impacts the plane
-			lastvaliddot = (dotv[i]) / (dotv[i]-lastvaliddot);
-			VectorInterpolate((inverts+i*3), lastvaliddot, lastvalid, impact);
-
-			if (outcount+1 >= MAXFRAGMENTVERTS)	//bum
-				break;
-
-			//generate a vertex where the line crosses the plane
-			outverts[outcount*3 + 0] = impact[0];
-			outverts[outcount*3 + 1] = impact[1];
-			outverts[outcount*3 + 2] = impact[2];
-			outcount++;
-
-			i3 = (i+1);
-			while (dotv[i3%incount] < -FRAG_EPSILON)	//clipped
-				i3++;
-
-			//take away any verticies on the other side of the plane
-
-			i = (i3-1)%incount;
-			i2=i3%incount;
-
-			lastvaliddot = (dotv[i]) / (dotv[i]-dotv[i2]);
-			VectorInterpolate((inverts+i*3), lastvaliddot, (inverts+i2*3), impact);
-
-			//generate a vertex where the line crosses back onto our plane
-			outverts[outcount*3 + 0] = impact[0];
-			outverts[outcount*3 + 1] = impact[1];
-			outverts[outcount*3 + 2] = impact[2];
-			outcount++;
-			lastvalid = outverts+outcount*3;
-			lastvaliddot = 0;		// :)
-
-			i = i3;
+			out = outverts+outcount++*3;
+			VectorCopy(p1, out);
+			continue;
 		}
-		else
-		{	//this vertex wasn't clipped. Just copy to the output.
-
-			if (outcount == MAXFRAGMENTVERTS)	//bum
-				break;
-
-			outverts[outcount*3 + 0] = inverts[i*3 + 0];
-			outverts[outcount*3 + 1] = inverts[i*3 + 1];
-			outverts[outcount*3 + 2] = inverts[i*3 + 2];
-			lastvalid = inverts+i*3;
-			lastvaliddot = dotv[i];
-
-			outcount++;
-			i++;
+		if (keep[i] == KEEP_KEEP)
+		{
+			out = outverts+outcount++*3;
+			VectorCopy(p1, out);
 		}
+		if (keep[i+1] == KEEP_BORDER || keep[i] == keep[i+1])
+			continue;
+		p2 = inverts+((i+1)%incount)*3;
+		d = dotv[i] - dotv[i+1];
+		if (d)
+			d = dotv[i] / d;
+
+		out = outverts+outcount++*3;
+		VectorInterpolate(p1, d, p2, out);
 	}
-
 	return outcount;
 }
 
-void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
+void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts)
 {
 	//emit the triangle, and clip it's fragments.
 	int p;
 	float verts[MAXFRAGMENTVERTS*3];
 	float verts2[MAXFRAGMENTVERTS*3];
 	float *cverts;
-	int numverts;
 	int flip;
 
-
+	if (numverts > MAXFRAGMENTTRIS)
+		return;
 	if (dec->numtris == MAXFRAGMENTTRIS)
 		return;	//don't bother
 
-	VectorCopy(a, (verts+0*3));
-	VectorCopy(b, (verts+1*3));
-	VectorCopy(c, (verts+2*3));
-	numverts = 3;
+	//clip to the first plane specially, so we don't have extra copys
+	numverts = Fragment_ClipPolyToPlane(inverts, verts, numverts, dec->planenorm[0], dec->planedist[0]);
 
 	//clip the triangle to the 6 planes.
 	flip = 0;
-	for (p = 0; p < dec->numplanes; p++)
+	for (p = 1; p < dec->numplanes; p++)
 	{
 		flip^=1;
 		if (flip)
@@ -712,17 +672,27 @@ void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
 {
 	int i;
 
-	float *a, *b, *c;
+	vec3_t verts[3];
 
+	/*if its a triangle fan/poly/quad then we can just submit the entire thing without generating extra fragments*/
+	if (mesh->istrifan)
+	{
+		Fragment_ClipPoly(dec, mesh->numvertexes, mesh->xyz_array[0]);
+		return;
+	}
+
+	//Fixme: optimise q3 patches
+
+	/*otherwise it goes in and out in weird places*/
 	for (i = 0; i < mesh->numindexes; i+=3)
 	{
 		if (dec->numtris == MAXFRAGMENTTRIS)
 			break;
-		a = mesh->xyz_array[mesh->indexes[i+0]];
-		b = mesh->xyz_array[mesh->indexes[i+1]];
-		c = mesh->xyz_array[mesh->indexes[i+2]];
 
-		Fragment_ClipTriangle(dec, a, b, c);
+		VectorCopy(mesh->xyz_array[mesh->indexes[i+0]], verts[0]);
+		VectorCopy(mesh->xyz_array[mesh->indexes[i+1]], verts[1]);
+		VectorCopy(mesh->xyz_array[mesh->indexes[i+2]], verts[2]);
+		Fragment_ClipPoly(dec, 3, verts[0]);
 	}
 }
 
@@ -754,7 +724,6 @@ void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 	surf = cl.worldmodel->surfaces + node->firstsurface;
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
 	{
-
 		if (surf->flags & SURF_PLANEBACK)
 		{
 			if (-DotProduct(surf->plane->normal, dec->normal) > -0.5)
@@ -770,6 +739,55 @@ void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 
 	Q1BSP_ClipDecalToNodes (dec, node->children[0]);
 	Q1BSP_ClipDecalToNodes (dec, node->children[1]);
+}
+
+void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
+{
+	mplane_t	*splitplane;
+	float		dist;
+	msurface_t	**msurf;
+	msurface_t	*surf;
+	mleaf_t		*leaf;
+	int			i;
+
+	if (node->contents != -1)
+	{
+		leaf = (mleaf_t *)node;
+	// mark the polygons
+		msurf = leaf->firstmarksurface;
+		for (i=0 ; i<leaf->nummarksurfaces ; i++, msurf++)
+		{
+			surf = *msurf;
+			/*if (surf->flags & SURF_PLANEBACK)
+			{
+				if (-DotProduct(surf->plane->normal, dec->normal) > -0.5)
+					continue;
+			}
+			else
+			{
+				if (DotProduct(surf->plane->normal, dec->normal) > -0.5)
+					continue;
+			}*/
+			Fragment_Mesh(dec, surf->mesh);
+		}
+		return;
+	}
+
+	splitplane = node->plane;
+	dist = DotProduct (dec->center, splitplane->normal) - splitplane->dist;
+
+	if (dist > dec->radius)
+	{
+		Q3BSP_ClipDecalToNodes (dec, node->children[0]);
+		return;
+	}
+	if (dist < -dec->radius)
+	{
+		Q3BSP_ClipDecalToNodes (dec, node->children[1]);
+		return;
+	}
+	Q3BSP_ClipDecalToNodes (dec, node->children[0]);
+	Q3BSP_ClipDecalToNodes (dec, node->children[1]);
 }
 
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out)
@@ -792,7 +810,10 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 		dec.planedist[p] = -(dec.radius - DotProduct(dec.center, dec.planenorm[p]));
 	dec.numplanes = 6;
 
-	Q1BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
+	if (cl.worldmodel->fromgame == fg_quake3)
+		Q3BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
+	else
+		Q1BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
 
 	*out = (float *)decalfragmentverts;
 	return dec.numtris;
@@ -800,30 +821,41 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 
 //This is spike's testing function, and is only usable by gl. :)
 /*
+#include "glquake.h"
 void Q1BSP_TestClipDecal(void)
 {
 	int i;
 	int numtris;
 	vec3_t fwd;
 	vec3_t start;
-	vec3_t center, normal, tangent;
+	vec3_t center, normal, tangent, tangent2;
 	float *verts;
 
 	if (cls.state != ca_active)
 		return;
 
-	VectorCopy(cl.simorg[0], start);
-	start[2]+=22;
+	VectorCopy(r_origin, start);
+//	start[2]+=22;
 	VectorMA(start, 10000, vpn, fwd);
 
-	TraceLineN(start, fwd, center, normal);
+	if (!TraceLineN(start, fwd, center, normal))
+	{
+		VectorCopy(start, center);
+		normal[0] = 0;
+		normal[1] = 0;
+		normal[2] = 1;
+	}
 
 	CrossProduct(fwd, normal, tangent);
 	VectorNormalize(tangent);
 
-	numtris = Q1BSP_ClipDecal(center, normal, tangent, 128, &verts);
+	CrossProduct(normal, tangent, tangent2);
+
+	numtris = Q1BSP_ClipDecal(center, normal, tangent, tangent2, 128, &verts);
+	PPL_RevertToKnownState();
 	qglDisable(GL_TEXTURE_2D);
 	qglDisable(GL_BLEND);
+	qglDisable(GL_ALPHA_TEST);
 	qglDisable(GL_DEPTH_TEST);
 
 	qglColor3f(1, 0, 0);
@@ -869,6 +901,7 @@ void Q1BSP_TestClipDecal(void)
 	qglEnd();
 	qglEnable(GL_TEXTURE_2D);
 	qglEnable(GL_DEPTH_TEST);
+	PPL_RevertToKnownState();
 }
 */
 

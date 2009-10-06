@@ -93,6 +93,7 @@ extern cvar_t r_particlesdesc;
 struct model_s;
 struct msurface_s;
 
+void P_InitParticleSystem(void);
 void P_DefaultTrail (struct model_s *model);
 void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk);//this is just a wrapper
 

@@ -70,28 +70,6 @@ RECT		window_rect;
 int window_x, window_y;
 
 
-/*
-struct texture_s	*r_notexture_mip;
-
-int		r_framecount;
-
-mleaf_t		*r_viewleaf;
-
-#define	MAX_MOD_KNOWN	1024
-int mod_numknown;
-model_t	mod_known[MAX_MOD_KNOWN];
-model_t *loadmodel;
-model_t *currentmodel;
-char	loadname[32];
-qbyte *mod_base;
-
-model_t *lightmodel;
-int relitsurface;
-
-mpic_t		*draw_disc;	// also used on sbar
-
-int d3d9width, d3d9height;
-*/
 void BuildGammaTable (float g, float c);
 static void	D3D9_VID_GenPaletteTables (unsigned char *palette)
 {
@@ -333,10 +311,10 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
     	case WM_SIZE:
 			if (!vid_initializing)
 			{
-				GetWindowRect(mainwindow, &window_rect);
+				GetClientRect(mainwindow, &window_rect);
 				// force width/height to be updated
-//				glwidth = window_rect.right - window_rect.left;
-//				glheight = window_rect.bottom - window_rect.top;
+				vid.pixelwidth = window_rect.right - window_rect.left;
+				vid.pixelheight = window_rect.bottom - window_rect.top;
 //				Cvar_ForceCallback(&vid_conautoscale);
 //				Cvar_ForceCallback(&vid_conwidth);
 			}
@@ -400,7 +378,7 @@ static void resetD3D9(void)
 
 	/*clear the screen to black as soon as we start up, so there's no lingering framebuffer state*/
 	IDirect3DDevice9_BeginScene(pD3DDev9);
-	IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
+	IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
 	IDirect3DDevice9_EndScene(pD3DDev9);
 	IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
 
@@ -431,6 +409,7 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 	int i;
 	int numadaptors;
 	int err;
+	RECT rect;
 	D3DADAPTER_IDENTIFIER9 inf;
 	extern cvar_t _vid_wait_override;
 
@@ -509,6 +488,8 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 				*s = 0;
 			Con_Printf("D3D9: Using device %s\n", inf.Description);
 
+			vid.numpages = d3dpp.BackBufferCount;
+
 			if (d3dpp.Windowed)	//fullscreen we get positioned automagically.
 			{					//windowed, we get positioned at 0,0... which is often going to be on the wrong screen
 								//the user can figure it out from here
@@ -526,7 +507,11 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 				memset(&mi, 0, sizeof(mi));
 				mi.cbSize = sizeof(mi);
 				pGetMonitorInfoA(hm, &mi);
-				MoveWindow(d3dpp.hDeviceWindow, mi.rcWork.left, mi.rcWork.top, d3dpp.BackBufferWidth, d3dpp.BackBufferHeight, false);
+				rect.left = rect.top = 0;
+				rect.right = d3dpp.BackBufferWidth;
+				rect.bottom = d3dpp.BackBufferHeight;
+				AdjustWindowRectEx(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0);
+				MoveWindow(d3dpp.hDeviceWindow, mi.rcWork.left, mi.rcWork.top, rect.right-rect.left, rect.bottom-rect.top, false);
 			}
 			return;	//successful
 		}
@@ -546,6 +531,8 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	DWORD bpp = info->bpp;
 	DWORD zbpp = 16;
 	DWORD flags = 0;
+	DWORD wstyle;
+	RECT rect;
 	MSG msg;
 
 	extern cvar_t vid_conwidth;
@@ -573,13 +560,16 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	RegisterClass(&wc);
 
 	if (info->fullscreen)
-		mainwindow = CreateWindow(CLASSNAME, "Direct3D", 0, 0, 0, width, height, NULL, NULL, NULL, NULL);
+		wstyle = 0;
 	else
-		mainwindow = CreateWindow(CLASSNAME, "Direct3D", WS_OVERLAPPEDWINDOW, 0, 0, width, height, NULL, NULL, NULL, NULL);
-/*
-	width = vid_conwidth.value;
-	height = vid_conheight.value;
-*/
+		wstyle = WS_OVERLAPPEDWINDOW;
+	
+	rect.left = rect.top = 0;
+	rect.right = info->width;
+	rect.bottom = info->height;
+	AdjustWindowRectEx(&rect, wstyle, FALSE, 0);
+	mainwindow = CreateWindow(CLASSNAME, "Direct3D", wstyle, 0, 0, rect.right-rect.left, rect.bottom-rect.top, NULL, NULL, NULL, NULL);
+
 	// Try as specified.
 
 	initD3D9(mainwindow, info);
@@ -608,6 +598,7 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 //	pD3DX->lpVtbl->GetBufferSize((void*)pD3DX, &width, &height);
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
+	vid.pixeloffset = -0.5;
 	vid.recalc_refdef = true;
 
 	vid.width = vid.conwidth = width;
@@ -627,7 +618,7 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 
 resetD3D9();
-/*
+
 
 	
 	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ALPHAFUNC, D3DCMP_GREATER );
@@ -645,7 +636,7 @@ resetD3D9();
 
 	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
 
-*/
+
 	GetWindowRect(mainwindow, &window_rect);
 
 
@@ -778,7 +769,6 @@ static void D3D9_Set2D (void)
 //	IDirect3DDevice9_EndScene(pD3DDev9);
 
 	Matrix4_OrthographicD3D(m, 0, vid.width, 0, vid.height, -100, 100);
-	d3dx_ortho(m);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)m);
 
 	Matrix4_Identity(m);
@@ -1138,9 +1128,7 @@ static void	(D3D9_R_Init)					(void)
 static void	(D3D9_R_DeInit)					(void)
 {
 }
-static void	(D3D9_R_ReInit)					(void)
-{
-}
+
 static void	(D3D9_R_RenderView)				(void)
 {
 		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
@@ -1184,29 +1172,28 @@ rendererinfo_t d3drendererinfo =
 	},
 	QR_DIRECT3D,
 
-	R_SafePicFromWad,
-	R_SafeCachePic,
+	R2D_SafePicFromWad,
+	R2D_SafeCachePic,
 	D3D9_Draw_Init,
 	D3D9_Draw_ReInit,
 	D3D9_Draw_Crosshair,
-	R_ScalePic,
-	R_SubPic,
+	R2D_ScalePic,
+	R2D_SubPic,
 	D3D9_Draw_TransPicTranslate,
-	R_ConsoleBackground,
-	R_EditorBackground,
-	R_TileClear,
+	R2D_ConsoleBackground,
+	R2D_EditorBackground,
+	R2D_TileClear,
 	D3D9_Draw_Fill,
 	D3D9_Draw_FillRGB,
 	D3D9_Draw_FadeScreen,
 	D3D9_Draw_BeginDisc,
 	D3D9_Draw_EndDisc,
 
-	R_Image,
-	R_ImageColours,
+	R2D_Image,
+	R2D_ImageColours,
 
-	R2D_Init,
+	D3D9_R_Init,
 	D3D9_R_DeInit,
-	D3D9_R_ReInit,
 	D3D9_R_RenderView,
 
 	D3D9_R_NewMap,

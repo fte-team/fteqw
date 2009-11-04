@@ -1,4 +1,5 @@
 #include "quakedef.h"
+#ifdef D3DQUAKE
 #include "shader.h"
 
 #include <d3d9.h>
@@ -157,3 +158,4 @@ void BE_SelectMode(backendmode_t mode, unsigned int flags)
 void BE_ClearVBO(vbo_t *vbo)
 {
 }
+#endif

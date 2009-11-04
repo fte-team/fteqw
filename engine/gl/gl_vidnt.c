@@ -501,6 +501,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		vid.conwidth = info->width;
 	vid.width = vid.conwidth;
 	vid.height = vid.conheight;
+	vid.pixeloffset = 0;
 
 	vid.numpages = 2;
 

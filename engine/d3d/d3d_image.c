@@ -1,5 +1,5 @@
 #include "quakedef.h"
-
+#ifdef D3DQUAKE
 #include <d3d9.h>
 LPDIRECT3DDEVICE9 pD3DDev9;
 
@@ -284,3 +284,4 @@ texid_t D3D_FindTexture (char *identifier)
 {
 	return r_nulltex;
 }
+#endif

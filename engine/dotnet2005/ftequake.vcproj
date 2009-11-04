@@ -29369,44 +29369,16 @@
 				Name="d3d"
 				>
 				<File
-					RelativePath="..\d3dm\d3d_backend.c"
-					>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="..\d3dm\d3d_image.c"
-					>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="..\d3dm\d3d_sucks.c"
+					RelativePath="..\d3d\d3d_backend.c"
 					>
 				</File>
 				<File
-					RelativePath="..\d3dm\vid_d3d.c"
+					RelativePath="..\d3d\d3d_image.c"
 					>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\d3d\vid_d3d.c"
+					>
 				</File>
 			</Filter>
 		</Filter>

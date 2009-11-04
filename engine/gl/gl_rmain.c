@@ -46,7 +46,7 @@ entity_t	r_worldentity;
 vec3_t		modelorg, r_entorigin;
 
 int			r_visframecount;	// bumped when going to a new PVS
-int			r_framecount;		// used for dlight push checking
+extern int			r_framecount;		// used for dlight push checking
 
 float		r_wateralphaval;	//allowed or not...
 

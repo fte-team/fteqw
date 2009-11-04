@@ -1033,8 +1033,8 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 
 	if (c->texplane >= DEFAULTPLANE)
 	{
-		sx = ((px+c->left)*(int)vid.width) / (float)vid.pixelwidth;
-		sy = ((py+c->top)*(int)vid.height) / (float)vid.pixelheight;
+		sx = ((px+vid.pixeloffset+c->left)*(int)vid.width) / (float)vid.pixelwidth;
+		sy = ((py+vid.pixeloffset+c->top)*(int)vid.height) / (float)vid.pixelheight;
 		sw = ((curfont->charheight)*vid.width) / (float)vid.pixelwidth;
 		sh = ((curfont->charheight)*vid.height) / (float)vid.pixelheight;
 
@@ -1045,10 +1045,10 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	}
 	else
 	{
-		sx = ((px+c->left)*(int)vid.width) / (float)vid.pixelwidth;
-		sy = ((py+c->top)*(int)vid.height) / (float)vid.pixelheight;
-		sw = ((c->bmw)*vid.width) / (float)vid.pixelwidth;
-		sh = ((c->bmh)*vid.height) / (float)vid.pixelheight;
+		sx = ((px-0.5+c->left)*(int)vid.width) / (float)vid.pixelwidth;
+		sy = ((py-0.5+c->top)*(int)vid.height) / (float)vid.pixelheight;
+		sw = ((c->bmw+1)*vid.width) / (float)vid.pixelwidth;
+		sh = ((c->bmh+1)*vid.height) / (float)vid.pixelheight;
 		v = Font_BeginChar(fontplanes.texnum[c->texplane]);
 	}
 

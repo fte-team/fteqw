@@ -6,8 +6,11 @@
 refdef_t	r_refdef;
 vec3_t		r_origin, vpn, vright, vup;
 entity_t	r_worldentity;
-entity_t	*currententity;
+entity_t	*currententity;	//nnggh
+model_t		*currentmodel;	//fixme: remove? or fix.
 int			sh_shadowframe;	//index for msurf->shadowframe
+int			r_framecount;
+struct texture_s	*r_notexture_mip;
 
 
 void R_InitParticleTexture (void);

@@ -551,7 +551,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 		char syspath[MAX_OSPATH];
 		SV_SpawnServer (level, startspot, false, false);
 
-		SV_ClearWorld();
+		World_ClearWorld(&sv.world);
 		if (!ge)
 		{
 			Con_Printf("Incorrect gamecode type.\n");
@@ -654,7 +654,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	PR_Configure(svprogfuncs, -1, MAX_PROGS);
 	PR_RegisterFields();
-	PR_InitEnts(svprogfuncs, sv.max_edicts);
+	PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
 	modelpos = VFS_TELL(f);
 	LoadModelsAndSounds(f);
@@ -666,14 +666,14 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	memset(file, 0, filelen+1);
 	clnum=VFS_READ(f, file, filelen);
 	file[filelen]='\0';
-	pr_edict_size=svprogfuncs->load_ents(svprogfuncs, file, 0);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, 0);
 	BZ_Free(file);
 
 	progstype = pt;
 
 	PR_LoadGlabalStruct();
 
-	pr_global_struct->time = sv.time = sv.physicstime = time;
+	pr_global_struct->time = sv.time = sv.world.physicstime = time;
 	sv.starttime = Sys_DoubleTime() - sv.time;
 
 	VFS_SEEK(f, modelpos);
@@ -683,7 +683,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	PF_InitTempStrings(svprogfuncs);
 
-	SV_ClearWorld ();
+	World_ClearWorld (&sv.world);
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
@@ -720,7 +720,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 					if (spawnparamglobals[j])
 						*spawnparamglobals[j] = host_client->spawn_parms[j];
 				}
-				pr_global_struct->time = sv.physicstime;
+				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 				ent->area.next = ent->area.prev = NULL;
 				G_FLOAT(OFS_PARM0) = sv.time-host_client->spawninfotime;
@@ -729,13 +729,13 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 		}
 	}
 
-	for (i=0 ; i<sv.num_edicts ; i++)
+	for (i=0 ; i<sv.world.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);
 		if (ent->isfree)
 			continue;
 
-		SV_LinkEdict (ent, false);	// force retouch even for stationary
+		World_LinkEdict (&sv.world, (wedict_t*)ent, false);	// force retouch even for stationary
 	}
 
 	return true;	//yay

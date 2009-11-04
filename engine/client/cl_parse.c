@@ -253,7 +253,7 @@ int CL_CalcNet (void)
 			lost++;
 	}
 
-	if (!cl_countpendingpl.value)
+	if (!cl_countpendingpl.ival)
 	{
 		pending = cls.netchan.outgoing_sequence - cls.netchan.incoming_sequence - 1;
 		lost -= pending;
@@ -770,7 +770,7 @@ void Model_CheckDownloads (void)
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
-		R_SetSky(cl.skyname, cl.skyrotate, cl.skyaxis);
+//		R_SetSky(cl.skyname);
 		for (i = 0; i < Q2MAX_IMAGES; i++)
 		{
 			char picname[256];
@@ -837,7 +837,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 			{
 				extern cvar_t allow_download_csprogs;
 				unsigned int chksum = strtoul(s, NULL, 0);
-				if (allow_download_csprogs.value)
+				if (allow_download_csprogs.ival)
 				{
 					char *str = va("csprogsvers/%x.dat", chksum);
 					if (CL_CheckOrEnqueDownloadFile("csprogs.dat", str, DLLF_REQUIRED))
@@ -865,12 +865,16 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	if (atstage())
 	{
 		char *s;
-		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
-#ifndef FTE_DEBUG
-		if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
+		qboolean anycsqc;
+#if 0//ndef FTE_DEBUG
+		anycsqc = true;
+#else
+		anycsqc = atoi(Info_ValueForKey(cl.serverinfo, "anycsqc"));
 #endif
+		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
+		if (anycsqc || *s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
-			unsigned int chksum = strtoul(s, NULL, 0);
+			unsigned int chksum = anycsqc?0:strtoul(s, NULL, 0);
 			if (CSQC_Init(chksum))
 			{
 				CL_SendClientCommand(true, "enablecsqc");
@@ -964,8 +968,6 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 			cl.hexen2pickups = cl.worldmodel->hulls[MAX_MAP_HULLSDH2-1].available;
 		else
 			cl.hexen2pickups = false;
-
-		R_CheckSky();
 
 #ifdef CSQC_DAT
 		CSQC_WorldLoaded();
@@ -1079,7 +1081,7 @@ void Sound_CheckDownloads (void)
 		{
 			extern cvar_t allow_download_csprogs;
 			unsigned int chksum = strtoul(s, NULL, 0);
-			if (allow_download_csprogs.value)
+			if (allow_download_csprogs.ival)
 			{
 				char *str = va("csprogsvers/%x.dat", chksum);
 				CL_CheckOrEnqueDownloadFile("csprogs.dat", str, DLLF_REQUIRED);
@@ -1222,7 +1224,7 @@ void CL_RequestNextDownload (void)
 			{
 				if (CL_RemoveClientCommands("qtvspawn"))
 					Con_Printf("Multiple prespawns\n");
-				CL_SendClientCommand(true, "qtvspawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
+				CL_SendClientCommand(true, "qtvspawn %i 0 %i", cl.servercount, COM_RemapMapChecksum(LittleLong(cl.worldmodel->checksum2)));
 				SCR_SetLoadingStage(LS_NONE);
 			}
 			else
@@ -1231,7 +1233,7 @@ void CL_RequestNextDownload (void)
 				if (CL_RemoveClientCommands("prespawn"))
 					Con_Printf("Multiple prespawns\n");
 	//			CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
-				CL_SendClientCommand(true, prespawn_name, cl.servercount, LittleLong(cl.worldmodel->checksum2));
+				CL_SendClientCommand(true, prespawn_name, cl.servercount, COM_RemapMapChecksum(LittleLong(cl.worldmodel->checksum2)));
 			}
 		}
 
@@ -1676,7 +1678,7 @@ void CL_ParseDownload (void)
 	if (cls.downloadmethod == DL_QWPENDING)
 		cls.downloadmethod = DL_QW;
 
-	if (percent != 100 && size == 0 && cl_dlemptyterminate.value)
+	if (percent != 100 && size == 0 && cl_dlemptyterminate.ival)
 	{
 		Con_Printf(CON_WARNING "WARNING: Client received empty svc_download, assuming EOF\n");
 		percent = 100;
@@ -2012,14 +2014,18 @@ void CL_ParseServerData (void)
 // allow 2.2 and 2.29 demos to play
 #ifdef PROTOCOL_VERSION_FTE
 	cls.fteprotocolextensions=0;
+	cls.fteprotocolextensions2=0;
 	for(;;)
 	{
 		protover = MSG_ReadLong ();
 		if (protover == PROTOCOL_VERSION_FTE)
 		{
 			cls.fteprotocolextensions =  MSG_ReadLong();
-			if (developer.value || cl_shownet.value)
-				Con_TPrintf (TL_FTEEXTENSIONS, cls.fteprotocolextensions);
+			continue;
+		}
+		if (protover == PROTOCOL_VERSION_FTE2)
+		{
+			cls.fteprotocolextensions2 =  MSG_ReadLong();
 			continue;
 		}
 		if (protover == PROTOCOL_VERSION_QW)	//this ends the version info
@@ -2034,6 +2040,10 @@ void CL_ParseServerData (void)
 		!(cls.demoplayback && (protover == 26 || protover == 27 || protover == 28)))
 		Host_EndGame ("Server returned version %i, not %i\n", protover, PROTOCOL_VERSION_QW);
 #endif
+
+	if (cls.fteprotocolextensions2||cls.fteprotocolextensions)
+		if (developer.ival || cl_shownet.ival)
+			Con_TPrintf (TL_FTEEXTENSIONS, cls.fteprotocolextensions2, cls.fteprotocolextensions);
 
 	if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
 	{
@@ -2323,7 +2333,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	char	*str;
 	int gametype;
 	int protover;
-	if (developer.value)
+	if (developer.ival)
 		Con_TPrintf (TLC_GOTSVDATAPACKET);
 	SCR_SetLoadingStage(LS_CLIENT);
 	CL_ClearState ();
@@ -2453,7 +2463,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	{
 		Info_SetValueForStarKey(cl.serverinfo, "*csprogs", va("%i", cl_dp_csqc_progscrc), sizeof(cl.serverinfo));
 		Info_SetValueForStarKey(cl.serverinfo, "*csprogssize", va("%i", cl_dp_csqc_progssize), sizeof(cl.serverinfo));
-		Info_SetValueForStarKey(cl.serverinfo, "*csprogsname", va("%i", cl_dp_csqc_progsname), sizeof(cl.serverinfo));
+		Info_SetValueForStarKey(cl.serverinfo, "*csprogsname", va("%s", cl_dp_csqc_progsname), sizeof(cl.serverinfo));
 	}
 
 	//update gamemode
@@ -2494,7 +2504,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 	case 2:
 		CL_SendClientCommand(true, "name \"%s\"\n", name.string);
 
-		CL_SendClientCommand(true, "color %i %i\n", (int)topcolor.value, (int)bottomcolor.value);
+		CL_SendClientCommand(true, "color %i %i\n", topcolor.ival, bottomcolor.ival);
 
 		CL_SendClientCommand(true, "spawn %s", "");
 
@@ -3160,7 +3170,8 @@ void CL_ParseStaticSound (void)
 	vol = MSG_ReadByte ();
 	atten = MSG_ReadByte ();
 
-	if (!cl_staticsounds.value)
+	vol *= cl_staticsounds.value;
+	if (vol < 0)
 		return;
 
 	S_StaticSound (cl.sound_precache[sound_num], org, vol, atten);
@@ -3739,7 +3750,7 @@ void CL_MuzzleFlash (int destsplit)
 	i = MSG_ReadShort ();
 
 	//was it us?
-	if (!cl_muzzleflash.value) // remove all muzzleflashes
+	if (!cl_muzzleflash.ival) // remove all muzzleflashes
 		return;
 
 	if (i-1 == cl.playernum[destsplit] && cl_muzzleflash.value == 2)
@@ -4241,7 +4252,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 	if (plr) // use special formatting with a real chat message
 		name = plr->name; // use player's name
 
-	if (cl_standardchat.value)
+	if (cl_standardchat.ival)
 	{
 		name_coloured = true;
 		c = 7;
@@ -4288,7 +4299,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 			Q_strncatz(fullchatmessage, va("%s%s^d",  name_coloured?"^m":"", name), sizeof(fullchatmessage));
 			Q_strncatz(fullchatmessage, va("%s^%c)", name_coloured?"^m":"", c), sizeof(fullchatmessage));
 		}
-		else if (cl_standardchat.value)
+		else if (cl_standardchat.ival)
 		{
 			Q_strncatz(fullchatmessage, va("\1%s", name), sizeof(fullchatmessage));
 		}
@@ -4403,7 +4414,7 @@ void CL_PrintStandardMessage(char *msg, int printlevel)
 			msg = v + len; // update search point
 
 			// get name color
-			if (p->spectator || cl_standardmsg.value)
+			if (p->spectator || cl_standardmsg.ival)
 			{
 				coloured = false;
 				c = '7';
@@ -5147,7 +5158,7 @@ void CLQ2_ParseServerMessage (void)
 		switch (cmd)
 		{
 		default:
-			Host_EndGame ("CL_ParseServerMessage: Illegible server message");
+			Host_EndGame ("CLQ2_ParseServerMessage: Illegible server message (%i)", cmd);
 			return;
 
 	//known to game
@@ -5523,8 +5534,8 @@ void CLNQ_ParseServerMessage (void)
 				cl.playernum[0] = (cl.viewentity[0] = MSG_ReadShort())-1;
 				if (cl.playernum[0] >= MAX_CLIENTS)
 				{
-					cl.playernum[0] = 32;	//pretend it's an mvd (we have that spare slot)
-					Con_Printf(CON_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n");
+					Con_Printf(CON_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n", cl.playernum[0]);
+					cl.playernum[0] = MAX_CLIENTS;	//pretend it's an mvd (we have that spare slot)
 				}
 			}
 			else

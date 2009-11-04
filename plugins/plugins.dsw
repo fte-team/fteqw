@@ -15,7 +15,7 @@ Package=<4>
 
 ###############################################################################
 
-Project: "emailsv"=.\emailsv\emailsv.dsp - Package Owner=<4>
+Project: "emailsv"=..\..\plugins\emailsv\emailsv.dsp - Package Owner=<4>
 
 Package=<5>
 {{{
@@ -52,6 +52,18 @@ Package=<4>
 ###############################################################################
 
 Project: "irc"=.\irc\irc.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Project: "jabber"=.\jabber\jabber.dsp - Package Owner=<4>
 
 Package=<5>
 {{{

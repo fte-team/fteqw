@@ -1305,9 +1305,6 @@ void D3D9_DrawWorld(void)
 #endif
 	{
 //		qglColor3f (1,1,1);
-	//#ifdef QUAKE2
-//		R_ClearSkyBox ();
-	//#endif
 
 		RSpeedRemark();
 

@@ -93,12 +93,12 @@ extern	double		host_frametime;
 extern	double		realtime;			// not bounded in any way, changed at
 										// start of every frame, never reset
 
-void SV_Error (char *error, ...);
+void SV_Error (char *error, ...) LIKEPRINTF(1);
 void SV_Init (struct quakeparms_s *parms);
 
-void Con_Printf (char *fmt, ...);
+void Con_Printf (char *fmt, ...) LIKEPRINTF(1);
 void Con_TPrintf (translation_t fmt, ...);
-void Con_DPrintf (char *fmt, ...);
+void Con_DPrintf (char *fmt, ...) LIKEPRINTF(1);
 
 #endif
 

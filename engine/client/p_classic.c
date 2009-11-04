@@ -22,6 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef PSET_CLASSIC
 
 #include "glquake.h"
+#include "shader.h"
+#include "renderque.h"
 
 void D_DrawParticleTrans (vec3_t porg, float palpha, float pscale, unsigned int pcolour, blendmode_t blendmode);
 
@@ -51,8 +53,14 @@ typedef enum {
 } effect_type_t;
 
 
-typedef struct cparticle_s {
-	enum {
+typedef struct cparticle_s
+{
+	avec3_t org;
+	float die;
+	avec3_t vel;
+	float ramp;
+	enum
+	{
 		pt_static,
 		pt_fire,
 		pt_explode,
@@ -62,10 +70,6 @@ typedef struct cparticle_s {
 		pt_grav,
 		pt_slowgrav
 	} type;
-	float die;
-	vec3_t org;
-	vec3_t vel;
-	float ramp;
 	unsigned char color;
 	struct cparticle_s *next;
 } cparticle_t;
@@ -79,6 +83,21 @@ static cparticle_t	*particles, *active_particles, *free_particles;
 static int	ramp1[8] = {0x6f, 0x6d, 0x6b, 0x69, 0x67, 0x65, 0x63, 0x61};
 static int	ramp2[8] = {0x6f, 0x6e, 0x6d, 0x6c, 0x6b, 0x6a, 0x68, 0x66};
 static int	ramp3[8] = {0x6d, 0x6b, 6, 5, 4, 3};
+
+
+
+#define BUFFERVERTS 2048*3
+static vecV_t classicverts[BUFFERVERTS];
+static union c
+{
+	byte_vec4_t b;
+	unsigned int i;
+} classiccolours[BUFFERVERTS];
+static vec2_t classictexcoords[BUFFERVERTS];
+index_t classicindexes[BUFFERVERTS];
+static mesh_t classicmesh;
+static shader_t *classicshader;
+
 
 
 //obtains an index for the name, even if it is unknown (one can be loaded after. will only fail if the effect limit is reached)
@@ -172,10 +191,13 @@ static void PClassic_InitParticles (void)
 	extern model_t	mod_known[];
 	extern int		mod_numknown;
 
-	if ((i = COM_CheckParm ("-particles")) && i + 1 < com_argc)	{
+	if ((i = COM_CheckParm ("-particles")) && i + 1 < com_argc)
+	{
 		r_numparticles = (int) (Q_atoi(com_argv[i + 1]));
 		r_numparticles = bound(ABSOLUTE_MIN_PARTICLES, r_numparticles, ABSOLUTE_MAX_PARTICLES);
-	} else {
+	}
+	else
+	{
 		r_numparticles = DEFAULT_NUM_PARTICLES;
 	}
 
@@ -191,6 +213,31 @@ static void PClassic_InitParticles (void)
 
 		P_DefaultTrail(mod);
 	}
+
+	for (i = 0; i < BUFFERVERTS; i += 3)
+	{
+		classictexcoords[i+1][0] = 1;
+		classictexcoords[i+2][1] = 1;
+
+		classicindexes[i+0] = i+0;
+		classicindexes[i+1] = i+1;
+		classicindexes[i+2] = i+2;
+	}
+	classicmesh.xyz_array = classicverts;
+	classicmesh.st_array = classictexcoords;
+	classicmesh.colors4b_array = (byte_vec4_t*)classiccolours;
+	classicmesh.indexes = classicindexes;
+	classicshader = R_RegisterShader("particles_classic",
+		"{\n"
+			"{\n"
+				"map $diffuse\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+				"blendfunc blend\n"
+			"}\n"
+		"}\n"
+		);
+	classicshader->defaulttextures.base = particlecqtexture;
 }
 
 static void PClassic_ShutdownParticles(void)
@@ -217,87 +264,27 @@ static void PClassic_ClearParticles (void)
 	particles[r_numparticles - 1].next = NULL;
 }
 
-#define USEARRAYS
-
-#define BUFFERVERTS 2048*3
-vec3_t classicverts[BUFFERVERTS];
-union c
-{
-	byte_vec4_t b;
-	unsigned int i;
-} classiccolours[BUFFERVERTS];
-vec2_t classictexcoords[BUFFERVERTS];
-int classicnumverts;
-int setuptexcoords;
-
 //draws all the active particles.
 static void PClassic_DrawParticles(void)
 {
-	RSpeedLocals();
-
 	cparticle_t *p, *kill;
 	int i;
 	float time2, time3, time1, dvel, frametime, grav;
-#ifdef RGLQUAKE
-#ifndef USEARRAYS
-	unsigned char *at, theAlpha;
-#endif
 	vec3_t up, right;
 	float dist, scale, r_partscale=0;
-
 	union c usecolours;
-#endif
+	RSpeedMark();
+
+	RQ_RenderDistAndClear();
 
 	if (!active_particles)
 	{
-		RQ_RenderDistAndClear();
 		return;
 	}
 
-	switch(qrenderer)
-	{
-#ifdef RGLQUAKE
-	case QR_OPENGL:
-		r_partscale = 0.004 * tan (r_refdef.fov_x * (M_PI / 180) * 0.5f);
-
-		GL_Bind(particlecqtexture);
-
-		qglEnable (GL_BLEND);
-		if (!gl_solidparticles.value)
-			qglDepthMask (GL_FALSE);
-		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-#ifdef USEARRAYS
-		if (!setuptexcoords)
-		{
-			setuptexcoords = true;
-			for (i = 0; i < BUFFERVERTS; i += 3)
-			{
-				classictexcoords[i+1][0] = 1;
-				classictexcoords[i+2][1] = 1;
-			}
-		}
-		qglTexCoordPointer(2, GL_FLOAT, 0, classictexcoords);
-		qglVertexPointer(3, GL_FLOAT, 0, classicverts);
-		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, classiccolours);
-
-		qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-		qglEnableClientState(GL_COLOR_ARRAY);
-		qglEnableClientState(GL_VERTEX_ARRAY);
-#else
-		qglBegin (GL_TRIANGLES);
-#endif
-
-		VectorScale (vup, 1.5, up);
-		VectorScale (vright, 1.5, right);
-
-		classicnumverts = 0;
-		break;
-#endif
-	default:
-		RQ_RenderDistAndClear();
-		return;
-	}
+	r_partscale = 0.004 * tan (r_refdef.fov_x * (M_PI / 180) * 0.5f);
+	VectorScale (vup, 1.5, up);
+	VectorScale (vright, 1.5, right);
 
 	frametime = host_frametime;
 	if (cl.paused)
@@ -336,53 +323,35 @@ static void PClassic_DrawParticles(void)
 			break;
 		}
 
-		switch(qrenderer)
+		if (classicmesh.numvertexes >= BUFFERVERTS-3)
 		{
-#ifdef RGLQUAKE
-		case QR_OPENGL:
-#ifdef USEARRAYS
-			if (classicnumverts >= BUFFERVERTS-3)
-			{
-				qglDrawArrays(GL_TRIANGLES, 0, classicnumverts);
-				classicnumverts = 0;
-			}
-#endif
-
-			// hack a scale up to keep particles from disapearing
-			dist = (p->org[0] - r_origin[0]) * vpn[0] + (p->org[1] - r_origin[1]) * vpn[1] + (p->org[2] - r_origin[2]) * vpn[2];
-			scale = 1 + dist * r_partscale;
-
-#ifdef USEARRAYS
-			usecolours.i = d_8to24rgbtable[(int)p->color];
-			if (p->type == pt_fire)
-				usecolours.b[3] = 255 * (6 - p->ramp) / 6;
-			else
-				usecolours.b[3] = 255;
-
-			classiccolours[classicnumverts].i = usecolours.i;
-			VectorCopy(p->org, classicverts[classicnumverts]);
-			classicnumverts++;
-			classiccolours[classicnumverts].i = usecolours.i;
-			VectorMA(p->org, scale, up, classicverts[classicnumverts]);
-			classicnumverts++;
-			classiccolours[classicnumverts].i = usecolours.i;
-			VectorMA(p->org, scale, right, classicverts[classicnumverts]);
-			classicnumverts++;
-#else
-
-			at = (qbyte *) &d_8to24rgbtable[(int)p->color];
-			if (p->type == pt_fire)
-				theAlpha = 255 * (6 - p->ramp) / 6;
-			else
-				theAlpha = 255;
-			qglColor4ub (*at, *(at + 1), *(at + 2), theAlpha);
-			qglTexCoord2f (0, 0); qglVertex3fv (p->org);
-			qglTexCoord2f (1, 0); qglVertex3f (p->org[0] + up[0] * scale, p->org[1] + up[1] * scale, p->org[2] + up[2] * scale);
-			qglTexCoord2f (0, 1); qglVertex3f (p->org[0] + right[0] * scale, p->org[1] + right[1] * scale, p->org[2] + right[2] * scale);
-#endif
-			break;
-#endif
+			classicmesh.numindexes = classicmesh.numvertexes;
+			BE_DrawMeshChain(classicshader, &classicmesh, NULL, &classicshader->defaulttextures);
+			classicmesh.numvertexes = 0;
 		}
+
+		// hack a scale up to keep particles from disapearing
+		dist = (p->org[0] - r_origin[0]) * vpn[0] + (p->org[1] - r_origin[1]) * vpn[1] + (p->org[2] - r_origin[2]) * vpn[2];
+		scale = 1 + dist * r_partscale;
+
+
+		usecolours.i = d_8to24rgbtable[(int)p->color];
+		if (p->type == pt_fire)
+			usecolours.b[3] = 255 * (6 - p->ramp) / 6;
+		else
+			usecolours.b[3] = 255;
+		classiccolours[classicmesh.numvertexes].i = usecolours.i;
+		VectorCopy(p->org, classicverts[classicmesh.numvertexes]);
+		classicmesh.numvertexes++;
+		classiccolours[classicmesh.numvertexes].i = usecolours.i;
+		VectorMA(p->org, scale, up, classicverts[classicmesh.numvertexes]);
+		classicmesh.numvertexes++;
+		classiccolours[classicmesh.numvertexes].i = usecolours.i;
+		VectorMA(p->org, scale, right, classicverts[classicmesh.numvertexes]);
+		classicmesh.numvertexes++;
+
+
+
 
 		p->org[0] += p->vel[0] * frametime;
 		p->org[1] += p->vel[1] * frametime;
@@ -437,43 +406,15 @@ static void PClassic_DrawParticles(void)
 		}
 	}
 
-	switch(qrenderer)
+	if (classicmesh.numvertexes)
 	{
-#ifdef RGLQUAKE
-	case QR_OPENGL:
-#ifdef USEARRAYS
-		if (classicnumverts)
-		{
-			qglDrawArrays(GL_TRIANGLES, 0, classicnumverts);
-			classicnumverts = 0;
-		}
-#else
-		qglEnd ();
-#endif
-		qglDisable (GL_BLEND);
-		qglDepthMask (GL_TRUE);
-		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		qglColor3ub (255, 255, 255);
-		break;
-#endif
-	default:
-		break;
+		classicmesh.numindexes = classicmesh.numvertexes;
+		BE_DrawMeshChain(classicshader, &classicmesh, NULL, &classicshader->defaulttextures);
+		classicmesh.numvertexes = 0;
 	}
 
-
-
-
-
-	RSpeedRemark();
-	RQ_RenderDistAndClear();
 	RSpeedEnd(RSPEED_PARTICLESDRAW);
 }
-
-//called to set up the rendering state (opengl)
-static void PClassic_FlushRenderer(void)
-{
-}
-
 
 
 static void Classic_ParticleExplosion (vec3_t org)
@@ -677,7 +618,8 @@ static void Classic_ParticleTrail (vec3_t start, vec3_t end, vec3_t *trail_origi
 		goto done;
 	VectorScale(delta, 1 / len, dir);	//unit vector in direction of trail
 
-	switch (type) {
+	switch (type)
+	{
 	case ALT_ROCKET_TRAIL:
 		len /= 1.5; break;
 	case BLOOD_TRAIL:
@@ -691,7 +633,8 @@ static void Classic_ParticleTrail (vec3_t start, vec3_t end, vec3_t *trail_origi
 
 	VectorScale (delta, 1.0 / num_particles, delta);
 
-	for (i = 0; i < num_particles && free_particles; i++) {
+	for (i = 0; i < num_particles && free_particles; i++)
+	{
 		p = free_particles;
 		free_particles = p->next;
 		p->next = active_particles;
@@ -700,7 +643,8 @@ static void Classic_ParticleTrail (vec3_t start, vec3_t end, vec3_t *trail_origi
 		VectorClear (p->vel);
 		p->die = cl.time + 2;
 
-		switch(type) {		
+		switch(type)
+		{		
 		case GRENADE_TRAIL:
 			p->ramp = (rand() & 3) + 2;
 			p->color = ramp3[(int) p->ramp];
@@ -732,10 +676,13 @@ static void Classic_ParticleTrail (vec3_t start, vec3_t end, vec3_t *trail_origi
 			tracercount++;
 
 			VectorCopy (point, p->org);
-			if (tracercount & 1) {
+			if (tracercount & 1)
+			{
 				p->vel[0] = 90 * dir[1];
 				p->vel[1] = 90 * -dir[0];
-			} else {
+			}
+			else
+			{
 				p->vel[0] = 90 * -dir[1];
 				p->vel[1] = 90 * dir[0];
 			}
@@ -837,8 +784,7 @@ particleengine_t pe_classic =
 	PClassic_ShutdownParticles,
 	PClassic_DelinkTrailstate,
 	PClassic_ClearParticles,
-	PClassic_DrawParticles,
-	PClassic_FlushRenderer
+	PClassic_DrawParticles
 };
 
 #endif

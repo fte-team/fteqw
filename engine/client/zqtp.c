@@ -931,7 +931,7 @@ static void CountNearbyPlayers(qboolean dead)
 
 static char *Macro_CountNearbyEnemyPlayers (void)
 {
-	if (!ruleset_allow_playercount.value)
+	if (!ruleset_allow_playercount.ival)
 		return " ";
 	CountNearbyPlayers(false);
 	sprintf(macro_buf, "\xffz%d\xff", vars.numenemies);
@@ -942,7 +942,7 @@ static char *Macro_CountNearbyEnemyPlayers (void)
 
 static char *Macro_Count_Last_NearbyEnemyPlayers (void)
 {
-	if (!ruleset_allow_playercount.value)
+	if (!ruleset_allow_playercount.ival)
 		return " ";
 	if (vars.deathtrigger_time && realtime - vars.deathtrigger_time <= 5)
 	{
@@ -960,7 +960,7 @@ static char *Macro_Count_Last_NearbyEnemyPlayers (void)
 
 static char *Macro_CountNearbyFriendlyPlayers (void)
 {
-	if (!ruleset_allow_playercount.value)
+	if (!ruleset_allow_playercount.ival)
 		return " ";
 	CountNearbyPlayers(false);
 	sprintf(macro_buf, "\xffz%d\xff", vars.numfriendlies);
@@ -971,7 +971,7 @@ static char *Macro_CountNearbyFriendlyPlayers (void)
 
 static char *Macro_Count_Last_NearbyFriendlyPlayers (void)
 {
-	if (!ruleset_allow_playercount.value)
+	if (!ruleset_allow_playercount.ival)
 		return " ";
 	if (vars.deathtrigger_time && realtime - vars.deathtrigger_time <= 5)
 	{
@@ -1200,7 +1200,7 @@ static char *TP_ParseMacroString (char *s)
 	int		i = 0;
 	char	*macro_string;
 
-	if (!cl_parseSay.value)
+	if (!cl_parseSay.ival)
 		return s;
 
 	while (*s && i < MAX_MACRO_STRING-1)
@@ -1322,7 +1322,7 @@ static char *TP_ParseFunChars (char *s, qbool chat)
 	char		*out = buf;
 	int			 c;
 
-	if (!cl_parseFunChars.value)
+	if (!cl_parseFunChars.ival)
 		return s;
 
 	while (*s) {
@@ -2505,7 +2505,7 @@ static int CountTeammates (void)
 	player_info_t	*player;
 	char	*myteam;
 
-	if (tp_forceTriggers.value)
+	if (tp_forceTriggers.ival)
 		return 1;
 
 	if (!cl.teamplay)
@@ -2531,7 +2531,7 @@ static qboolean CheckTrigger (void)
 	if (cl.spectator)
 		return false;
 
-	if (tp_forceTriggers.value)
+	if (tp_forceTriggers.ival)
 		return true;
 
 	if (!cl.teamplay)
@@ -2695,6 +2695,7 @@ more:
 	}
 }
 
+qboolean R_CullSphere (vec3_t org, float radius);
 static qboolean TP_IsItemVisible(item_vis_t *visitem)
 {
 	vec3_t end, v;
@@ -2702,6 +2703,9 @@ static qboolean TP_IsItemVisible(item_vis_t *visitem)
 
 	if (visitem->dist <= visitem->radius)
 		return true;
+
+	if (R_CullSphere(visitem->entorg, visitem->radius))
+		return false;
 
 	VectorNegate (visitem->dir, v);
 	VectorNormalize (v);
@@ -3044,7 +3048,7 @@ void TP_UpdateAutoStatus(void)
 	char newstatusbuf[sizeof(vars.autoteamstatus)];
 	char *newstatus;
 
-	if (vars.autoteamstatus_time > realtime)
+	if (vars.autoteamstatus_time > realtime || !*tp_autostatus.string)
 		return;
 	vars.autoteamstatus_time = realtime + 3;
 

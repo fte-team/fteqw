@@ -2,6 +2,7 @@
 #include "glquake.h"
 
 #include "particles.h"
+#include "renderque.h"
 
 //obtains an index for the name, even if it is unknown (one can be loaded after. will only fail if the effect limit is reached)
 static int PNULL_ParticleTypeForName(char *name)
@@ -46,13 +47,8 @@ static void PNULL_DrawParticles(void)
 	RSpeedLocals();
 
 	RSpeedRemark();
-#ifdef GLQUAKE
 	RQ_RenderDistAndClear();
-#endif
 	RSpeedEnd(RSPEED_PARTICLESDRAW);
-}
-static void PNULL_FlushRenderer(void)
-{
 }
 
 
@@ -80,6 +76,5 @@ particleengine_t pe_null =
 	PNULL_ShutdownParticles,
 	PNULL_DelinkTrailstate,
 	PNULL_ClearParticles,
-	PNULL_DrawParticles,
-	PNULL_FlushRenderer
+	PNULL_DrawParticles
 };

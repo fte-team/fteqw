@@ -52,24 +52,15 @@ extern r_qrenderer_t qrenderer;
 extern char *q_renderername;
 
 extern mpic_t	*(*Draw_SafePicFromWad)				(char *name);
-extern mpic_t	*(*Draw_CachePic)					(char *path);
 extern mpic_t	*(*Draw_SafeCachePic)				(char *path);
 extern void	(*Draw_Init)							(void);
-extern void	(*Draw_ReInit)							(void);
-extern void	(*Draw_Character)						(int x, int y, unsigned int num);
 extern void	(*Draw_TinyCharacter)					(int x, int y, unsigned int num);
-extern void	(*Draw_ColouredCharacter)				(int x, int y, unsigned int num);
-extern void	(*Draw_String)							(int x, int y, const qbyte *str);
-extern void	(*Draw_Alt_String)						(int x, int y, const qbyte *str);
 extern void	(*Draw_Crosshair)						(void);
-extern void	(*Draw_DebugChar)						(qbyte num);
-extern void	(*Draw_Pic)								(int x, int y, mpic_t *pic);
 extern void	(*Draw_ScalePic)						(int x, int y, int width, int height, mpic_t *pic);
-extern void	(*Draw_SubPic)							(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
-extern void	(*Draw_TransPic)						(int x, int y, mpic_t *pic);
+extern void	(*Draw_SubPic)							(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight);
 extern void	(*Draw_TransPicTranslate)				(int x, int y, int width, int height, qbyte *image, qbyte *translation);
 extern void	(*Draw_ConsoleBackground)				(int firstline, int lastline, qboolean forceopaque);
-extern void	(*Draw_EditorBackground)				(int lines);
+extern void	(*Draw_EditorBackground)				(void);
 extern void	(*Draw_TileClear)						(int x, int y, int w, int h);
 extern void	(*Draw_Fill)							(int x, int y, int w, int h, unsigned int c);
 extern void	(*Draw_FillRGB)							(int x, int y, int w, int h, float r, float g, float b);
@@ -83,11 +74,7 @@ extern void	(*Draw_ImageColours)					(float r, float g, float b, float a);
 
 extern void	(*R_Init)								(void);
 extern void	(*R_DeInit)								(void);
-extern void	(*R_ReInit)								(void);
 extern void	(*R_RenderView)							(void);		// must set r_refdef first
-
-extern qboolean	(*R_CheckSky)						(void);
-extern void (*R_SetSky)								(char *name, float rotate, vec3_t axis);
 
 extern void	(*R_NewMap)								(void);
 extern void	(*R_PreNewMap)							(void);
@@ -96,7 +83,6 @@ extern int	(*R_LightPoint)							(vec3_t point);
 extern void	(*R_PushDlights)						(void);
 extern void	(*R_AddStain)							(vec3_t org, float red, float green, float blue, float radius);
 extern void	(*R_LessenStains)						(void);
-extern void	(*R_DrawWaterSurfaces)					(void);
 
 extern void (*Media_ShowFrameBGR_24_Flip)			(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
 extern void (*Media_ShowFrameRGBA_32)				(qbyte *framedata, int inwidth, int inheight);	//top down
@@ -151,8 +137,9 @@ int Mod_GetBoneRelations(struct model_s *model, int firstbone, int lastbone, fra
 int Mod_GetBoneParent(struct model_s *model, int bonenum);
 char *Mod_GetBoneName(struct model_s *model, int bonenum);
 
-void Draw_FunString(int x, int y, unsigned char *str);
-void Draw_FunStringLen(int x, int y, unsigned char *str, int len);
+void Draw_FunString(int x, int y, const unsigned char *str);
+void Draw_AltFunString(int x, int y, const unsigned char *str);
+void Draw_FunStringWidth(int x, int y, const unsigned char *str, int width);
 
 
 #ifdef SERVERONLY
@@ -168,24 +155,15 @@ typedef struct {
 	r_qrenderer_t rtype;
 
 	mpic_t	*(*Draw_SafePicFromWad)			(char *name);
-	mpic_t	*(*Draw_CachePic)			(char *path);
 	mpic_t	*(*Draw_SafeCachePic)		(char *path);
 	void	(*Draw_Init)				(void);
-	void	(*Draw_ReInit)				(void);
-	void	(*Draw_Character)			(int x, int y, unsigned int num);
-	void	(*Draw_ColouredCharacter)	(int x, int y, unsigned int num);
-	void	(*Draw_TinyCharacter)		(int x, int y, unsigned int num);
-	void	(*Draw_String)				(int x, int y, const qbyte *str);
-	void	(*Draw_Alt_String)			(int x, int y, const qbyte *str);
+	void	(*Draw_Shutdown)			(void);
 	void	(*Draw_Crosshair)			(void);
-	void	(*Draw_DebugChar)			(qbyte num);
-	void	(*Draw_Pic)					(int x, int y, mpic_t *pic);
 	void	(*Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic);
-	void	(*Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
-	void	(*Draw_TransPic)			(int x, int y, mpic_t *pic);
+	void	(*Draw_SubPic)				(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight);
 	void	(*Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation);
 	void	(*Draw_ConsoleBackground)	(int firstline, int lastline, qboolean forceopaque);
-	void	(*Draw_EditorBackground)	(int lines);
+	void	(*Draw_EditorBackground)	(void);
 	void	(*Draw_TileClear)			(int x, int y, int w, int h);
 	void	(*Draw_Fill)				(int x, int y, int w, int h, unsigned int c);
 	void	(*Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b);
@@ -198,11 +176,7 @@ typedef struct {
 
 	void	(*R_Init)					(void);
 	void	(*R_DeInit)					(void);
-	void	(*R_ReInit)					(void);
 	void	(*R_RenderView)				(void);		// must set r_refdef first
-
-	qboolean	(*R_CheckSky)			(void);
-	void	(*R_SetSky)					(char *name, float rotate, vec3_t axis);
 
 	void	(*R_NewMap)					(void);
 	void	(*R_PreNewMap)				(void);

@@ -359,7 +359,8 @@ readnext:
 	}
 
 // decide if it is time to grab the next message
-	if (!sv.paused) {	// always grab until fully connected
+	if (!sv.paused)
+	{	// always grab until fully connected
 		if (!svd.mvdplayback)
 		{
 			if (svd.realtime + 1.0 < demotime) {

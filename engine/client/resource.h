@@ -2,15 +2,8 @@
 // Microsoft Developer Studio generated include file.
 // Used by winquake.rc
 //
-#define IDS_STRING1                     1
-#define IDI_ICON2                       1
-#define IDD_DIALOG1                     108
-#define IDD_PROGRESS                    109
-#define IDB_QWBITMAP                    112
-#define IDI_ICON1                       115
-#define IDB_BITMAP1                     116
-#define IDI_ICON3                       122
-#define IDC_PROGRESS                    1000
+#define IDI_ICON1                       1
+#define IDI_ICON2                       2
 
 // Next default values for new objects
 // 

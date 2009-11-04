@@ -204,7 +204,7 @@ qboolean EditorSaveFile(char *s)	//returns true if succesful
 	{
 		memcpy(data + pos, b->data, b->datalength);
 		pos += b->datalength;
-		if (editaddcr.value)
+		if (editaddcr.ival)
 		{
 			data[pos]='\r';
 			pos++;
@@ -294,7 +294,7 @@ void EditorOpenFile(char *name)
 		pos+=len;
 		pos++;	//and a \n
 
-		if (editstripcr.value)
+		if (editstripcr.ival)
 		{
 			if (line[len-1] == '\r')
 				len--;
@@ -739,6 +739,8 @@ void Editor_Key(int key, int unicode)
 
 void Draw_CursorLine(int ox, int y, fileblock_t *b)
 {
+#pragma message("Fixme: ")
+/*
 	int x=0;
 	qbyte *d = b->data;
 	int cx;
@@ -791,10 +793,13 @@ void Draw_CursorLine(int ox, int y, fileblock_t *b)
 	}
 	if (a == cx)
 		Draw_ColouredCharacter (x+ox, y, 11|CON_WHITEMASK);
+*/
 }
 
 void Draw_NonCursorLine(int x, int y, fileblock_t *b)
 {
+#pragma message("Fixme: ")
+/*
 	int nx = 0;
 	qbyte *d = b->data;
 	int i;
@@ -831,6 +836,7 @@ void Draw_NonCursorLine(int x, int y, fileblock_t *b)
 		d++;
 		nx += 8;
 	}
+*/
 }
 
 fileblock_t *firstline(void)
@@ -863,7 +869,7 @@ void Editor_Draw(void)
 		key_dest = key_editor;
 
 	if ((editoractive && cls.state == ca_disconnected) || editormodal)
-		Draw_EditorBackground (vid.height);
+		Draw_EditorBackground();
 
 	if (cursorlinenum < 0)	//look for the cursor line num
 	{
@@ -905,10 +911,10 @@ void Editor_Draw(void)
 		x = 0;
 
 	if (madechanges)
-		Draw_Character (vid.width - 8, 0, '!'|CON_HIGHCHARSMASK);
+		Draw_FunString (vid.width - 8, 0, "!");
 	if (!insertkeyhit)
-		Draw_Character (vid.width - 16, 0, 'O'|CON_HIGHCHARSMASK);
-	Draw_String(0, 0, va("%6i:%4i:%s", cursorlinenum, cursorx+1, OpenEditorFile));
+		Draw_FunString (vid.width - 16, 0, "O");
+	Draw_FunString(0, 0, va("%6i:%4i:%s", cursorlinenum, cursorx+1, OpenEditorFile));
 
 	if (useeval)
 	{
@@ -917,7 +923,7 @@ void Editor_Draw(void)
 		else
 		{
 			char *eq;
-			Draw_String(0, 8, evalstring);
+			Draw_FunString(0, 8, evalstring);
 
 			eq = strchr(evalstring, '=');
 			if (eq)
@@ -930,7 +936,7 @@ void Editor_Draw(void)
 				else
 					*eq = '\0';
 			}
-			Draw_String(vid.width/2, 8, editprogfuncs->EvaluateDebugString(editprogfuncs, evalstring));
+			Draw_FunString(vid.width/2, 8, editprogfuncs->EvaluateDebugString(editprogfuncs, evalstring));
 			if (eq)
 				*eq = '=';
 		}
@@ -976,7 +982,7 @@ void Editor_Draw(void)
 
 int QCLibEditor(progfuncs_t *prfncs, char *filename, int line, int nump, char **parms)
 {
-	if (editormodal || !developer.value)
+	if (editormodal || !developer.ival)
 		return line;	//whoops
 
 	if (!qrenderer)

@@ -20,6 +20,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define QCLIB	//as opposed to standard qc stuff. One or other. All references+changes were by DMW unless specified otherwise. Starting 1/10/02
 
+struct client_s;
+struct edict_s;
+
 #define MAX_PROGS 64
 #define MAXADDONS 16
 
@@ -33,6 +36,7 @@ void Q_InitProgs(void);
 void PR_RegisterFields(void);
 void PR_Init(void);
 void ED_Spawned (struct edict_s *ent, int loading);
+qboolean SV_RunFullQCMovement(struct client_s *client, usercmd_t *ucmd);
 qboolean PR_KrimzonParseCommand(char *s);
 qboolean PR_UserCmd(char *cmd);
 qboolean PR_ConsoleCmd(void);
@@ -54,12 +58,64 @@ extern progstype_t progstype;
 
 //extern globalvars_t *glob0;
 
-extern int pr_edict_size;
-
 
 //extern progparms_t progparms;
 
 //extern progsnum_t mainprogs;
+
+#if defined(ODE_STATIC) || defined(ODE_DYNAMIC)
+#define USEODE 1
+#endif
+
+#ifdef USEODE
+typedef struct {
+	// physics parameters
+	qboolean ode_physics;
+	void *ode_body;
+	void *ode_geom;
+	void *ode_joint;
+	float *ode_vertex3f;
+	int *ode_element3i;
+	int ode_numvertices;
+	int ode_numtriangles;
+	vec3_t ode_mins;
+	vec3_t ode_maxs;
+	vec_t ode_mass;
+	vec3_t ode_origin;
+	vec3_t ode_velocity;
+	vec3_t ode_angles;
+	vec3_t ode_avelocity;
+	qboolean ode_gravity;
+	int ode_modelindex;
+	vec_t ode_movelimit; // smallest component of (maxs[]-mins[])
+	float ode_offsetmatrix[16];
+	float ode_offsetimatrix[16];
+	int ode_joint_type;
+	int ode_joint_enemy;
+	int ode_joint_aiment;
+	vec3_t ode_joint_origin; // joint anchor
+	vec3_t ode_joint_angles; // joint axis
+	vec3_t ode_joint_velocity; // second joint axis
+	vec3_t ode_joint_movedir; // parameters
+	void *ode_massbuf;
+} entityode_t;
+
+typedef struct
+{
+	// for ODE physics engine
+	qboolean ode; // if true then ode is activated
+	void *ode_world;
+	void *ode_space;
+	void *ode_contactgroup;
+	// number of constraint solver iterations to use (for dWorldStepFast)
+	int ode_iterations;
+	// actual step (server frametime / ode_iterations)
+	vec_t ode_step;
+	// max velocity for a 1-unit radius object at current step to prevent
+	// missed collisions
+	vec_t ode_movelimit;
+} worldode_t;
+#endif
 
 #define	MAX_ENT_LEAFS	16
 typedef struct edict_s
@@ -69,27 +125,33 @@ typedef struct edict_s
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
 	qboolean	readonly;	//world
-
-#ifndef VM_Q1
-	stdentvars_t		*v;
-	#define xv v
-#else
-	stdentvars_t		*v;
-
-	//the rest is free for adaption
+#ifdef VM_Q1
+	stdentvars_t	*v;
 	extentvars_t	*xv;
+#else
+	union {
+		stdentvars_t	*v;
+		stdentvars_t	*xv;
+	};
 #endif
-	link_t		area;				// linked to a division node or leaf
+	/*qc lib doesn't care about the rest*/
 
+	/*these are shared with csqc*/
+	link_t	area;
 	int			num_leafs;
 	short		leafnums[MAX_ENT_LEAFS];
-	int areanum;	//q2bsp
-	int areanum2;	//q2bsp
-	int headnode;	//q2bsp
+#ifdef Q2BSPS
+	int areanum;
+	int areanum2;
+	int headnode;
+#endif
+#ifdef USEODE
+	entityode_t ode;
+#endif
+	qbyte solidtype;
+	/*csqc doesn't reference the rest*/
 
 	entity_state_t	baseline;
-
-	qbyte solidtype;	//relinks entities if their solidity changed
 // other fields from progs come immediately after
 } edict_t;
   
@@ -109,7 +171,7 @@ extern progfuncs_t *svprogfuncs;	//instance
 extern progparms_t svprogparms;
 extern progsnum_t svmainprogs;
 extern progsnum_t clmainprogs;
-#define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,edict_t,area)
+#define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,wedict_t,area)
 #define	HLEDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,hledict_t,area)
 #define	Q2EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,q2edict_t,area)
 #define	Q3EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,q3serverEntity_t,area)

@@ -21,8 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // screen.c -- master for refresh, status bar, console, chat, notify, etc
 
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
+#include "shader.h"
 
 #include <time.h>
 
@@ -41,15 +42,13 @@ extern qboolean        scr_drawloading;
 extern int scr_chatmode;
 extern cvar_t scr_chatmodecvar;
 extern cvar_t vid_conautoscale;
+extern qboolean		scr_con_forcedraw;
 
 
 // console size manipulation callbacks
 void GLVID_Console_Resize(void)
 {
-#ifdef AVAIL_FREETYPE
-	extern struct font_s *conchar_font;
 	extern cvar_t gl_font;
-#endif
 	extern cvar_t vid_conwidth, vid_conheight;
 	int cwidth, cheight;
 	float xratio;
@@ -71,8 +70,8 @@ void GLVID_Console_Resize(void)
 		yratio = 1 / yratio;
 
 		//autoscale overrides conwidth/height (without actually changing them)
-		cwidth = glwidth;
-		cheight = glheight;
+		cwidth = vid.pixelwidth;
+		cheight = vid.pixelheight;
 	}
 	else
 	{
@@ -82,9 +81,9 @@ void GLVID_Console_Resize(void)
 
 
 	if (!cwidth)
-		cwidth = glwidth;
+		cwidth = vid.pixelwidth;
 	if (!cheight)
-		cheight = glheight;
+		cheight = vid.pixelheight;
 
 	cwidth*=xratio;
 	cheight*=yratio;
@@ -100,11 +99,11 @@ void GLVID_Console_Resize(void)
 	vid.recalc_refdef = true;
 	Con_CheckResize();
 
-#ifdef AVAIL_FREETYPE
-	if (conchar_font)
-		Font_Free(conchar_font);
-	conchar_font = Font_LoadFont(8*glheight/vid.height, gl_font.string);
-#endif
+	if (font_conchar)
+		Font_Free(font_conchar);
+	font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, gl_font.string);
+	if (!font_conchar && *gl_font.string)
+		font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, "");
 
 #ifdef PLUGINS
 	Plug_ResChanged();
@@ -183,7 +182,7 @@ void GLSCR_UpdateScreen (void)
 		}
 		else
 		{		
-			GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
+			GL_BeginRendering ();
 			scr_drawloading = true;
 			SCR_DrawLoading ();
 			scr_drawloading = false;
@@ -200,23 +199,21 @@ void GLSCR_UpdateScreen (void)
 		return;                         // not initialized yet
 	}
 
-	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-
 #ifdef VM_UI
 	uimenu = UI_MenuState();
 #else
 	uimenu = 0;
 #endif
 
-	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
+	GL_BeginRendering ();
+	Shader_DoReload();
 
 #ifdef TEXTEDITOR
 	if (editormodal)
 	{
 		Editor_Draw();
 		GLV_UpdatePalette (false, host_frametime);
-#if defined(_WIN32) && defined(RGLQUAKE)
+#if defined(_WIN32) && defined(GLQUAKE)
 		Media_RecordFrame();
 #endif
 		GLR_BrightenScreen();
@@ -233,7 +230,7 @@ void GLSCR_UpdateScreen (void)
 	{
 		M_Draw(0);
 		GLV_UpdatePalette (false, host_frametime);
-#if defined(_WIN32) && defined(RGLQUAKE)
+#if defined(_WIN32) && defined(GLQUAKE)
 		Media_RecordFrame();
 #endif
 		GLR_BrightenScreen();
@@ -281,8 +278,10 @@ void GLSCR_UpdateScreen (void)
 
 	GL_Set2D ();
 
+	R_PolyBlend ();
 	GLR_BrightenScreen();
 
+	scr_con_forcedraw = false;
 	if (noworld)
 	{
 		extern char levelshotname[];
@@ -295,11 +294,13 @@ void GLSCR_UpdateScreen (void)
 		{
 			if(Draw_ScalePic)
 				Draw_ScalePic(0, 0, vid.width, vid.height, Draw_SafeCachePic (levelshotname));
-			else
+			else if (scr_con_current != vid.height)
 				Draw_ConsoleBackground(0, vid.height, true);
 		}
-		else
+		else if (scr_con_current != vid.height)
 			Draw_ConsoleBackground(0, vid.height, true);
+		else
+			scr_con_forcedraw = true;
 
 		nohud = true;
 	}
@@ -309,7 +310,7 @@ void GLSCR_UpdateScreen (void)
 	SCR_DrawTwoDimensional(uimenu, nohud);
 
 	GLV_UpdatePalette (false, host_frametime);
-#if defined(_WIN32) && defined(RGLQUAKE)
+#if defined(_WIN32) && defined(GLQUAKE)
 	Media_RecordFrame();
 #endif
 
@@ -324,16 +325,16 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 {	//returns a BZ_Malloced array
 	extern qboolean gammaworks;
 	int i, c;
-	qbyte *ret = BZ_Malloc(prepadbytes + glwidth*glheight*3);
+	qbyte *ret = BZ_Malloc(prepadbytes + vid.pixelwidth*vid.pixelheight*3);
 
-	qglReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, ret + prepadbytes); 
+	qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_RGB, GL_UNSIGNED_BYTE, ret + prepadbytes); 
 
-	*truewidth = glwidth;
-	*trueheight = glheight;
+	*truewidth = vid.pixelwidth;
+	*trueheight = vid.pixelheight;
 
 	if (gammaworks)
 	{
-		c = prepadbytes+glwidth*glheight*3;
+		c = prepadbytes+vid.pixelwidth*vid.pixelheight*3;
 		for (i=prepadbytes ; i<c ; i+=3)
 		{
 			extern qbyte		gammatable[256];

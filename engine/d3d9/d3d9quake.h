@@ -35,7 +35,7 @@ mpic_t*					D3D9_Draw_SafeCachePic (char *path);
 mpic_t*					D3D9_Draw_SafePicFromWad (char *name);
 void					D3D9_Draw_ScalePic (int x, int y, int width, int height, mpic_t *pic);
 void					D3D9_Draw_String (int x, int y, const qbyte *str);
-void					D3D9_Draw_SubPic (int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
+void					D3D9_Draw_SubPic (int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight);
 void					D3D9_Draw_TileClear (int x, int y, int w, int h);
 void					D3D9_Draw_TransPic (int x, int y, mpic_t *pic);
 void					D3D9_Draw_TransPicTranslate (int x, int y, int w, int h, qbyte *pic, qbyte *translation);

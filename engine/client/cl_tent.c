@@ -548,7 +548,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 
 	if (etype >= 0 && cls.state == ca_active && etype != P_INVALID)
 	{
-		if (cl_beam_trace.value)
+		if (cl_beam_trace.ival)
 		{
 			VectorSubtract(end, start, normal);
 			VectorNormalize(normal);
@@ -933,7 +933,7 @@ void CL_ParseTEnt (void)
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 	
 	// sprite		
-		if (cl_expsprite.value) // temp hopefully
+		if (cl_expsprite.ival) // temp hopefully
 		{
 			explosion_t *ex = CL_AllocExplosion ();
 			VectorCopy (pos, ex->origin);
@@ -973,7 +973,7 @@ void CL_ParseTEnt (void)
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 	
 	// sprite		
-		if (cl_expsprite.value && !nqprot) // temp hopefully
+		if (cl_expsprite.ival && !nqprot) // temp hopefully
 		{
 			explosion_t *ex = CL_AllocExplosion ();
 			VectorCopy (pos, ex->origin);
@@ -2532,7 +2532,7 @@ void CLQ2_ParseTEnt (void)
 		VectorCopy (pos, ex->origin);
 		ex->flags = Q2RF_FULLBRIGHT;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0.1, 0);
+		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0.1, 0);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_muzzleflash");
 		break;
 	case CRTE_BLUE_MUZZLEFLASH:
@@ -2541,7 +2541,7 @@ void CLQ2_ParseTEnt (void)
 		VectorCopy (pos, ex->origin);
 		ex->flags = Q2RF_FULLBRIGHT;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0.1, 0);
+		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0.1, 0);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_blue_muzzleflash");
 		break;
 	case CRTE_SMART_MUZZLEFLASH:
@@ -2550,7 +2550,7 @@ void CLQ2_ParseTEnt (void)
 		VectorCopy (pos, ex->origin);
 		ex->flags = Q2RF_FULLBRIGHT;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0, 0.2);
+		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0, 0.2);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_smart_muzzleflash");
 		break;
 	case CRTE_LEADERFIELD:
@@ -2561,7 +2561,7 @@ void CLQ2_ParseTEnt (void)
 		VectorCopy (pos, ex->origin);
 		ex->flags = Q2RF_FULLBRIGHT;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0, 0.2);
+		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0, 0.2);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_deathfield");
 		break;
 	case CRTE_BLASTERBEAM:
@@ -2642,10 +2642,13 @@ void CL_UpdateBeams (void)
 		
 		if (b->endtime < cl.time)
 		{
-			P_DelinkTrailstate(&b->trailstate);
-			P_DelinkTrailstate(&b->emitstate);
-			b->model = NULL;
-			continue;
+			if (!sv.paused)
+			{	/*don't let lightning decay while paused*/
+				P_DelinkTrailstate(&b->trailstate);
+				P_DelinkTrailstate(&b->emitstate);
+				b->model = NULL;
+				continue;
+			}
 		}
 
 		lastrunningbeam = bnum;
@@ -2709,7 +2712,7 @@ void CL_UpdateBeams (void)
 						org[2] += 16;
 						VectorAdd (org, fwd, b->end);
 
-						if (cl_beam_trace.value)
+						if (cl_beam_trace.ival)
 						{
 							vec3_t normal;
 							VectorMA(org, len+4, ang, fwd);
@@ -2760,7 +2763,7 @@ void CL_UpdateBeams (void)
 				pitch += 360;
 		}
 
-		if (ruleset_allow_particle_lightning.value)
+		if (ruleset_allow_particle_lightning.ival)
 			if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, &b->trailstate))
 				continue;
 

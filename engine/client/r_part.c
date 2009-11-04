@@ -122,7 +122,6 @@ cvar_t r_part_sparks = SCVAR("r_part_sparks", "1");
 cvar_t r_part_sparks_trifan = SCVAR("r_part_sparks_trifan", "1");
 cvar_t r_part_sparks_textured = SCVAR("r_part_sparks_textured", "1");
 cvar_t r_part_beams = SCVAR("r_part_beams", "1");
-cvar_t r_part_beams_textured = SCVAR("r_part_beams_textured", "1");
 cvar_t r_part_contentswitch = SCVAR("r_part_contentswitch", "1");
 
 
@@ -150,7 +149,6 @@ void P_InitParticleSystem(void)
 	Cvar_Register(&r_part_sparks_trifan, particlecvargroupname);
 	Cvar_Register(&r_part_sparks_textured, particlecvargroupname);
 	Cvar_Register(&r_part_beams, particlecvargroupname);
-	Cvar_Register(&r_part_beams_textured, particlecvargroupname);
 	Cvar_Register(&r_part_contentswitch, particlecvargroupname);
 
 	Cvar_Register (&gl_part_flame, particlecvargroupname);

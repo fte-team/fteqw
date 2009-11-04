@@ -243,7 +243,7 @@ static char *defaultlanguagetext =
 "TL_FAILEDTOOPEN \"Failed to open %s\\n\"\n"
 "TL_RENAMEFAILED \"failed to rename.\\n\"\n"
 "TL_UPLOADCOMPLEATE \"Upload completed\\n\"\n"
-"TL_FTEEXTENSIONS \"Using FTE extensions 0x%x\\n\"\n"
+"TL_FTEEXTENSIONS \"Using FTE extensions 0x%x%x\\n\"\n"
 "TLC_LINEBREAK_NEWLEVEL \"\\n\\n\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\\n\\n\"\n"
 "TLC_PC_PS_NL \"%c%s\\n\"\n"
 "TLC_NOQ2CINEMATICSSUPPORT \"Cinematics on q2 levels is not yet supported\\nType 'cmd nextserver %i' to proceed.\"\n"
@@ -780,7 +780,7 @@ void T_LoadString(void)
 	//count new lines
 	strings_loaded = true;
 	strings_count = 0;
-	strings_list = COM_LoadMallocFile("strings.txt");
+	strings_list = FS_LoadMallocFile("strings.txt");
 	if (!strings_list)
 		return;
 

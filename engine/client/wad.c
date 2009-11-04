@@ -38,7 +38,7 @@ Space padding is so names can be printed nicely in tables.
 Can safely be performed in place.
 ==================
 */
-void W_CleanupName (char *in, char *out)
+void W_CleanupName (const char *in, char *out)
 {
 	int		i;
 	int		c;
@@ -136,7 +136,7 @@ lumpinfo_t	*W_GetLumpinfo (char *name)
 	return NULL;
 }
 
-void *W_SafeGetLumpName (char *name)
+void *W_SafeGetLumpName (const char *name)
 {
 	int		i;
 	lumpinfo_t	*lump_p;
@@ -428,6 +428,25 @@ qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha)//r
 	miptex_t *tex;
 	qbyte *data;
 
+	if (!strncmp(name, "gfx/", 4))
+	{
+		qpic_t *p;
+		p = W_SafeGetLumpName(name+4);
+		if (p)
+		{
+			*width = p->width;
+			*height = p->height;
+			*usesalpha = false;
+
+			data = BZ_Malloc(p->width * p->height * 4);
+			for (i = 0; i < p->width * p->height; i++)
+			{
+				((unsigned int*)data)[i] = d_8to24rgbtable[p->data[i]];
+			}
+			return data;
+		}
+	}
+
 	texname[16] = 0;
 	W_CleanupName (name, texname);
 	for (i = 0;i < numwadtextures;i++)
@@ -562,9 +581,10 @@ void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this sho
 	extern model_t *loadmodel;
 	char key[128];
 	char skyname[64];
-	float skyrotate = 0;
-	vec3_t skyaxis = {0, 0, 0};
 	mapskys_t *msky;
+
+	cl.skyrotate = 0;
+	VectorClear(cl.skyaxis);
 
 	wads[0] = '\0';
 
@@ -622,7 +642,7 @@ void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this sho
 		}
 		else if (!strcmp("skyrotate", key))
 		{
-			skyrotate = atof(com_token);
+			cl.skyrotate = atof(com_token);
 		}
 		else if (!strcmp("skyaxis", key))
 		{
@@ -631,21 +651,18 @@ void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this sho
 			s = COM_Parse(key);
 			if (s)
 			{
-				skyaxis[0] = atof(s);
+				cl.skyaxis[0] = atof(s);
 				s = COM_Parse(s);
 				if (s)
 				{
-					skyaxis[1] = atof(s);
+					cl.skyaxis[1] = atof(s);
 					COM_Parse(s);
 					if (s)
-						skyaxis[2] = atof(s);
+						cl.skyaxis[2] = atof(s);
 				}
 			}
 		}
 	}
-
-	skyrotate = VectorNormalize(skyaxis);
-	R_SetSky(skyname, skyrotate, skyaxis);
 }
 
 //textures/fred.wad is the DP standard - I wanna go for that one.

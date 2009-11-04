@@ -644,17 +644,21 @@ void CL_CalcClientTime(void)
 
 	{
 		float want;
-		float oldst = cl.servertime;
+		float oldst = realtime;
 
-		want = cl.oldgametime + (realtime - cl.gametimemark);
-		if (want>cl.servertime)
-			cl.servertime = want;
+		if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) && cls.protocol == CP_QUAKEWORLD)
+			cl.servertime = cl.time;
+		else
+		{
+			want = cl.oldgametime + (realtime - cl.gametimemark);
+			if (want>cl.servertime)
+				cl.servertime = want;
 
-		if (cl.servertime > cl.gametime)
-			cl.servertime = cl.gametime;
-		if (cl.servertime < cl.oldgametime)
-			cl.servertime = cl.oldgametime;
-
+			if (cl.servertime > cl.gametime)
+				cl.servertime = cl.gametime;
+			if (cl.servertime < cl.oldgametime)
+				cl.servertime = cl.oldgametime;
+		}
 		if (oldst == 0)
 		{
 			int i;
@@ -806,7 +810,7 @@ void CL_PredictMovePNum (int pnum)
 			f = 1-f;
 //			Con_Printf("%f\n", f);
 
-//			if (cl_nolerp.value)
+//			if (cl_nolerp.ival)
 //				f = 1;
 
 

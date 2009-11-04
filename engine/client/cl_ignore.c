@@ -127,13 +127,13 @@ static void Display_Ignorelist(void) {
 	if (x)
 		Con_Printf ("\n");
 
-	if (ignore_opponents.value)
+	if (ignore_opponents.ival)
 		Con_Printf("\x02" "Opponents are Ignored\n");
 
-	if (ignore_spec.value == 2 || (ignore_spec.value == 1 && !cl.spectator))
+	if (ignore_spec.ival == 2 || (ignore_spec.ival == 1 && !cl.spectator))
 		Con_Printf ("\x02" "Spectators are Ignored\n");
 
-	if (ignore_qizmo_spec.value)
+	if (ignore_qizmo_spec.ival)
 		Con_Printf("\x02" "Qizmo spectators are Ignored\n");
 
 	Con_Printf("\n");
@@ -399,13 +399,13 @@ qboolean Ignore_Message(char *s, int flags, int offset) {
 	int slot, i, p, q, len;	
 	char name[MAX_SCOREBOARDNAME];
 
-	if (!ignore_mode.value && (flags & 2))
+	if (!ignore_mode.ival && (flags & 2))
 		return false;		
 
 
-	if (ignore_spec.value == 2 && (flags == 4 || (flags == 8 && ignore_mode.value)))
+	if (ignore_spec.ival == 2 && (flags == 4 || (flags == 8 && ignore_mode.ival)))
 		return true;
-	else if (ignore_spec.value == 1 && (flags == 4) && !cl.spectator)
+	else if (ignore_spec.ival == 1 && (flags == 4) && !cl.spectator)
 		return true;
 
 	if (flags == 1 || flags == 4) {
@@ -431,8 +431,8 @@ qboolean Ignore_Message(char *s, int flags, int offset) {
 		return true;
 	
 
-	if (ignore_opponents.value && (
-			(int) ignore_opponents.value == 1 ||
+	if (ignore_opponents.ival && (
+			(int) ignore_opponents.ival == 1 ||
 			(cls.state >= ca_connected && /*!cl.standby &&*/ !cls.demoplayback && !cl.spectator) // match?
 			) && 
 		flags == 1 && !cl.spectator && slot != cl.playernum[0] &&

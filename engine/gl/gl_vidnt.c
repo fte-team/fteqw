@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_vidnt.c -- NT GL vid component
 
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 #include "winquake.h"
 #include "resource.h"
@@ -170,6 +170,10 @@ extern cvar_t		vid_desktopgamma;
 extern cvar_t		gl_lateswap;
 extern cvar_t		vid_preservegamma;
 
+extern cvar_t		vid_gl_context_version;
+extern cvar_t		vid_gl_context_debug;
+extern cvar_t		vid_gl_context_forwardcompatible;
+
 int			window_center_x, window_center_y, window_x, window_y, window_width, window_height;
 RECT		window_rect;
 
@@ -227,6 +231,16 @@ BOOL (APIENTRY *qGetDeviceGammaRamp)(HDC hDC, GLvoid *ramp);
 BOOL (APIENTRY *qSetDeviceGammaRamp)(HDC hDC, GLvoid *ramp);
 
 BOOL (APIENTRY *qwglChoosePixelFormatARB)(HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int* piFormats, UINT* nNumFormats);
+
+HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, const int *attribList);
+#define WGL_CONTEXT_MAJOR_VERSION_ARB		0x2091
+#define WGL_CONTEXT_MINOR_VERSION_ARB		0x2092
+#define WGL_CONTEXT_LAYER_PLANE_ARB			0x2093
+#define WGL_CONTEXT_FLAGS_ARB				0x2094
+#define		WGL_CONTEXT_DEBUG_BIT_ARB				0x0001
+#define		WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB	0x0002
+#define ERROR_INVALID_VERSION_ARB			0x2095
+
 
 qboolean GLInitialise (char *renderer)
 {
@@ -675,6 +689,7 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 
 	// Set either the fullscreen or windowed mode
 	qwglChoosePixelFormatARB = NULL;
+	qwglCreateContextAttribsARB = NULL;
 	stat = CreateMainWindow(info);
 	if (stat)
 	{
@@ -848,8 +863,8 @@ void VID_UpdateWindowStatus (HWND hWnd)
 	window_y = p.y;
 	window_width = WindowRect.right - WindowRect.left;
 	window_height = WindowRect.bottom - WindowRect.top;
-	glwidth = window_width;
-	glheight = window_height;
+	vid.pixelwidth = window_width;
+	vid.pixelheight = window_height;
 
 	window_rect.left = window_x;
 	window_rect.top = window_y;
@@ -940,9 +955,81 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		return false;
 	}
 
+	qwglCreateContextAttribsARB = getglfunc("wglCreateContextAttribsARB");
+#ifdef _DEBUG
+	//attempt to promote that to opengl3.
+	if (qwglCreateContextAttribsARB)
+	{
+		HGLRC opengl3;
+		int attribs[7];
+		char *mv;
+		int i = 0;
+
+		mv = vid_gl_context_version.string;
+		while (*mv)
+		{
+			if (*mv++ == '.')
+				break;
+		}
+
+		if (*vid_gl_context_version.string)
+		{
+			attribs[i++] = WGL_CONTEXT_MAJOR_VERSION_ARB;
+			attribs[i++] = (int)vid_gl_context_version.value;
+		}
+		if (*mv)
+		{
+			attribs[i++] = WGL_CONTEXT_MINOR_VERSION_ARB;
+			attribs[i++] = atoi(mv);
+		}
+
+		//flags
+		attribs[i+1] = 0;
+		if (vid_gl_context_debug.value)
+			attribs[i+1] |= WGL_CONTEXT_DEBUG_BIT_ARB;
+		if (vid_gl_context_forwardcompatible.value)
+			attribs[i+1] |= WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
+
+		if (attribs[i+1])
+		{
+			attribs[i] = WGL_CONTEXT_FLAGS_ARB;
+			i += 2;
+		}
+
+		attribs[i] = 0;
+
+		if (!i)
+		{
+			//just use the default (ie: max = opengl 2.1 or so)
+		}
+		else if ((opengl3 = qwglCreateContextAttribsARB(maindc, NULL, attribs)))
+		{
+			qwglMakeCurrent(NULL, NULL);
+			qwglDeleteContext(baseRC);
+
+			baseRC = opengl3;
+			if (!qwglMakeCurrent( maindc, baseRC ))
+			{
+				Con_SafePrintf(CON_ERROR "wglMakeCurrent failed\n");	//green to make it show.
+				return false;
+			}
+		}
+		else
+		{
+			DWORD error = GetLastError();
+			if (error == ERROR_INVALID_VERSION_ARB)
+				Con_Printf("Unsupported OpenGL context version (%s).\n", vid_gl_context_version.string);
+			else
+				Con_Printf("Unknown error creating an OpenGL (%s) Context.\n", vid_gl_context_version.string);
+		}
+	}
+#endif
+
 	TRACE(("dbg: VID_AttachGL: GL_Init\n"));
 	GL_Init(getglfunc);
+
 	qwglChoosePixelFormatARB	= getglfunc("wglChoosePixelFormatARB");
+
 	qwglSwapIntervalEXT		= getglfunc("wglSwapIntervalEXT");
 	if (qwglSwapIntervalEXT && *_vid_wait_override.string)
 	{
@@ -966,11 +1053,10 @@ GL_BeginRendering
 
 =================
 */
-void GL_BeginRendering (int *x, int *y, int *width, int *height)
+void GL_BeginRendering (void)
 {
-	*x = *y = 0;
-	*width = WindowRect.right - WindowRect.left;
-	*height = WindowRect.bottom - WindowRect.top;
+	vid.pixelwidth = WindowRect.right - WindowRect.left;
+	vid.pixelheight = WindowRect.bottom - WindowRect.top;
 
 //    if (!wglMakeCurrent( maindc, baseRC ))
 //		Sys_Error ("wglMakeCurrent failed");
@@ -1153,6 +1239,15 @@ void	GLVID_ShiftPalette (unsigned char *palette)
 	}
 }
 
+void GLVID_Crashed(void)
+{
+	if (qSetDeviceGammaRamp && gammaworks)
+	{
+		OblitterateOldGamma();
+		qSetDeviceGammaRamp(maindc, originalgammaramps);
+	}
+}
+
 void	GLVID_Shutdown (void)
 {
 	if (qSetDeviceGammaRamp)
@@ -1316,8 +1411,13 @@ BOOL bSetupPixelFormat(HDC hDC)
 	0,				// shift bit ignored
 	0,				// no accumulation buffer
 	0, 0, 0, 0, 			// accum bits ignored
-	32,				// 32-bit z-buffer	
+#ifndef RTLIGHTS
+	32,				// 32-bit z-buffer
+	0,				// 0 stencil, don't need it unless we're using rtlights
+#else
+	24,				// 24-bit z-buffer
 	8,				// stencil buffer
+#endif
 	0,				// no auxiliary buffer
 	PFD_MAIN_PLANE,			// main layer
 	0,				// reserved
@@ -1676,13 +1776,13 @@ LONG WINAPI GLMainWndProc (
 }
 
 
-qboolean GLVID_Is8bit() {
+qboolean GLVID_Is8bit(void) {
 	return is8bit;
 }
 
 #define GL_SHARED_TEXTURE_PALETTE_EXT 0x81FB
 
-void VID_Init8bitPalette() 
+void VID_Init8bitPalette(void) 
 {
 	// Check for 8bit Extensions and initialize them.
 	int i;
@@ -1690,15 +1790,15 @@ void VID_Init8bitPalette()
 	char *oldPalette, *newPalette;
 
 	qglColorTableEXT = (void *)qwglGetProcAddress("glColorTableEXT");
-    if (!qglColorTableEXT || strstr(gl_extensions, "GL_EXT_shared_texture_palette") ||
-		COM_CheckParm("-no8bit"))
+    if (!qglColorTableEXT || !GL_CheckExtension("GL_EXT_shared_texture_palette") || COM_CheckParm("-no8bit"))
 		return;
 
 	Con_SafePrintf("8-bit GL extensions enabled.\n");
-    qglEnable( GL_SHARED_TEXTURE_PALETTE_EXT );
+    qglEnable(GL_SHARED_TEXTURE_PALETTE_EXT);
 	oldPalette = (char *) d_8to24rgbtable; //d_8to24table3dfx;
 	newPalette = thePalette;
-	for (i=0;i<256;i++) {
+	for (i=0;i<256;i++)
+	{
 		*newPalette++ = *oldPalette++;
 		*newPalette++ = *oldPalette++;
 		*newPalette++ = *oldPalette++;
@@ -1747,13 +1847,11 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	if (!RegisterClass (&wc))	//this isn't really fatal, we'll let the CreateWindow fail instead.
 		MessageBox(NULL, "RegisterClass failed", "GAH", 0);
 
-	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON2));
+	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
 
 	vid_initialized = false;
 	vid_initializing = true;
 
-	vid.maxwarpwidth = WARP_WIDTH;
-	vid.maxwarpheight = WARP_HEIGHT;
 	vid.colormap = host_colormap;
 
 	if (hwnd_dialog)

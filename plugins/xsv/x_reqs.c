@@ -106,8 +106,6 @@ void XR_QueryExtension (xclient_t *cl, xReq *request)
 	}
 	else
 #endif
-		if (0) {}	//for the else
-	else
 	{
 		Con_Printf("Extension %s not supported\n", extname);
 		rep.major_opcode	= 0;
@@ -1035,7 +1033,7 @@ void XR_ChangeWindowAttributes (xclient_t *cl, xReq *request)
 	if (req->valueMask > CWCursor)	//anything else is an error on some implementation's part.
 		X_SendError(cl, BadImplementation, 0, X_ChangeWindowAttributes, 0);
 
-	XW_ClearArea(wnd, 0, 0, wnd->width, wnd->height);
+//	XW_ClearArea(wnd, 0, 0, wnd->width, wnd->height);
 }
 
 void XR_ConfigureWindow (xclient_t *cl, xReq *request)

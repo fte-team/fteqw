@@ -559,11 +559,6 @@ void CLQ3_ParseGameState(void)
 				Host_EndGame("CLQ3_ParseGameState: configString index %i out of range", index);
 			}
 			configString = MSG_ReadString();
-			if (index == CFGSTR_SYSINFO)
-			{
-				//check some things.
-				cl.servercount = atoi(Info_ValueForKey(configString, "sv_serverid"));
-			}
 
 			CG_InsertIntoGameState(index, configString);
 			break;

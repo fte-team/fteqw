@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_light.c
 
 #include "quakedef.h"
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 #include "glquake.h"
 
 int	r_dlightframecount;
@@ -31,7 +31,7 @@ int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 R_AnimateLight
 ==================
 */
-void GLR_AnimateLight (void)
+void R_AnimateLight (void)
 {
 	int			i,j;
 	int v1, v2;
@@ -64,9 +64,6 @@ void GLR_AnimateLight (void)
 		v2 = cl_lightstyle[j].map[v2] - 'a';
 
 		d_lightstylevalue[j] = (v1*(1-f) + v2*(f))*22;
-
-		if (d_lightstylevalue[j] > 255)
-			d_lightstylevalue[j] = 255;
 	}	
 }
 
@@ -115,7 +112,7 @@ void R_InitBubble(void)
 	}
 }
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 void R_RenderDlight (dlight_t *light)
 {
 	int		i, j;
@@ -123,22 +120,35 @@ void R_RenderDlight (dlight_t *light)
 	vec3_t	v;
 	float	rad;
 	float	*bub_sin, *bub_cos;
+	vec3_t colour;
 
 	bub_sin = bubble_sintable;
 	bub_cos = bubble_costable;
 	rad = light->radius * 0.35;
 
+	VectorCopy(light->color, colour);
+
+	if (light->fov)
+	{
+		float a = -DotProduct(light->axis[0], vpn);
+		colour[0] *= a;
+		colour[1] *= a;
+		colour[2] *= a;
+		rad *= a;
+		rad *= 0.33;
+	}
+
 	VectorSubtract (light->origin, r_origin, v);
 	if (Length (v) < rad)
 	{	// view is inside the dlight
-		AddLightBlend (light->color[0]*5, light->color[1]*5, light->color[2]*5, light->radius * 0.0003);
+		AddLightBlend (colour[0]*5, colour[1]*5, colour[2]*5, light->radius * 0.0003);
 		return;
 	}
 
 	qglBegin (GL_TRIANGLE_FAN);
 //	qglColor3f (0.2,0.1,0.0);
 //	qglColor3f (0.2,0.1,0.05); // changed dimlight effect
-	qglColor4f (light->color[0]*2, light->color[1]*2, light->color[2]*2,
+	qglColor4f (colour[0]*2, colour[1]*2, colour[2]*2,
 		1);//light->color[3]);
 	for (i=0 ; i<3 ; i++)
 		v[i] = light->origin[i] - vpn[i]*rad/1.5;
@@ -168,7 +178,7 @@ void GLR_RenderDlights (void)
 	dlight_t	*l;
 	vec3_t waste1, waste2;
 
-	if (!r_flashblend.value)
+	if (!r_flashblend.ival)
 		return;
 
 //	r_dlightframecount = r_framecount + 1;	// because the count hasn't
@@ -179,14 +189,14 @@ void GLR_RenderDlights (void)
 	qglEnable (GL_BLEND);
 	qglBlendFunc (GL_ONE, GL_ONE);
 
-	if (r_flashblend.value == 2)
+	if (r_flashblend.ival == 2)
 	{
 		qglDisable(GL_DEPTH_TEST);
 		qglDepthMask(0);
 	}
 
-	l = cl_dlights;
-	for (i=0 ; i<dlights_running ; i++, l++)
+	l = cl_dlights+rtlights_first;
+	for (i=rtlights_first; i<rtlights_max; i++, l++)
 	{
 		if (!l->radius || !(l->flags & LFLAG_ALLOW_FLASH))
 			continue;
@@ -197,7 +207,7 @@ void GLR_RenderDlights (void)
 		if (l->key == -(cl.playernum[r_refdef.currentplayernum]+1))
 			continue;	//was a muzzleflash
 
-		if (r_flashblend.value == 2)
+		if (r_flashblend.ival == 2)
 		{
 			if (TraceLineN(r_refdef.vieworg, l->origin, waste1, waste2))
 				continue;
@@ -205,7 +215,7 @@ void GLR_RenderDlights (void)
 		R_RenderDlight (l);
 	}
 
-	if (r_flashblend.value == 2)
+	if (r_flashblend.ival == 2)
 	{
 		qglEnable(GL_DEPTH_TEST);
 		qglDepthMask(1);
@@ -388,7 +398,7 @@ void GLR_PushDlights (void)
 	r_dlightframecount = r_framecount + 1;	// because the count hasn't
 											//  advanced yet for this frame
 
-	if (!r_dynamic.value || !cl.worldmodel)
+	if (!r_dynamic.ival || !cl.worldmodel)
 		return;
 
 	if (!cl.worldmodel->nodes)
@@ -396,8 +406,8 @@ void GLR_PushDlights (void)
 
 	currentmodel = cl.worldmodel;
 	
-	l = cl_dlights;
-	for (i=0 ; i<dlights_software ; i++, l++)
+	l = cl_dlights+rtlights_first;
+	for (i=rtlights_first ; i <= DL_LAST ; i++, l++)
 	{
 		if (!l->radius || !(l->flags & LFLAG_ALLOW_LMHACK))
 			continue;
@@ -475,7 +485,7 @@ void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_a
 /*
 	qglDisable(GL_TEXTURE_2D);
 	qglDisable(GL_DEPTH_TEST);
-	qglDisable(GL_CULL_FACE);
+	GL_CullFace(0);
 	qglColor4f(1,1,1,1);
 	qglBegin(GL_QUADS);
 	for ( i = 0; i < 8; i++ )

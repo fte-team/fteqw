@@ -1,6 +1,6 @@
 #include "quakedef.h"
 #ifdef DOOMWADS
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 
 #include "doommap.h"
@@ -130,7 +130,7 @@ int Doom_LoadFlat(char *name)
 
 	sprintf(texname, "flat-%-.8s", name);
 	Q_strlwr(texname);
-	tex = Mod_LoadReplacementTexture(texname, "flats", true, false, true);
+	tex = R_LoadReplacementTexture(texname, "flats", true, false, true);
 	if (tex)
 		return tex;
 
@@ -536,7 +536,7 @@ qboolean GLR_DoomWorld(void)
 //pick a point, follow along the walls making a triangle fan, until an angle of > 180, throw out fan, rebuild arrays.
 //at new point, start a new fan. Be prepared to not be able to generate one.
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 
 #define MAX_REGIONS		256
 #define MAX_POLYVERTS	(MAX_FLATTRIS*3)
@@ -772,7 +772,7 @@ static void Triangulate_Sectors(dsector_t *sectorl, qboolean glbspinuse)
 
 	sectorm = BZ_Malloc(sectorc * sizeof(*sectorm));
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (glbspinuse)
 	{
 		for (i = 0; i < ssectorsc; i++)
@@ -839,7 +839,7 @@ static void Triangulate_Sectors(dsector_t *sectorl, qboolean glbspinuse)
 
 	for (i = 0; i < sectorc; i++)
 	{
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 		sectorm[i].ceilingtex = Doom_LoadFlat(sectorl[i].ceilingtexture);
 		sectorm[i].floortex = Doom_LoadFlat(sectorl[i].floortexture);
 #endif
@@ -1045,7 +1045,7 @@ static void CleanWalls(dsidedef_t *sidedefsl)
 	sidedefsm = BZ_Malloc(sidedefsc * sizeof(*sidedefsm));
 	for (i = 0; i < sidedefsc; i++)
 	{
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 		strncpy(texname, sidedefsl[i].middletex, 8);
 		texname[8] = '\0';
 		if (!strcmp(texname, "-"))

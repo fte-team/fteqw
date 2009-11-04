@@ -123,23 +123,23 @@ void D3D9_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap
 
 	if (mipmap)
 	{
-		TRACE(("dbg: GL_RoundDimensions: %f\n", gl_picmip.value));
-		*scaled_width >>= (int)gl_picmip.value;
-		*scaled_height >>= (int)gl_picmip.value;
+		TRACE(("dbg: GL_RoundDimensions: %i\n", gl_picmip.ival));
+		*scaled_width >>= gl_picmip.ival;
+		*scaled_height >>= gl_picmip.ival;
 	}
 	else
 	{
-		*scaled_width >>= (int)gl_picmip2d.value;
-		*scaled_height >>= (int)gl_picmip2d.value;
+		*scaled_width >>= gl_picmip2d.ival;
+		*scaled_height >>= gl_picmip2d.ival;
 	}
 
-	TRACE(("dbg: GL_RoundDimensions: %f\n", gl_max_size.value));
-	if (gl_max_size.value)
+	TRACE(("dbg: GL_RoundDimensions: %i\n", gl_max_size.ival));
+	if (gl_max_size.ival)
 	{
-		if (*scaled_width > gl_max_size.value)
-			*scaled_width = gl_max_size.value;
-		if (*scaled_height > gl_max_size.value)
-			*scaled_height = gl_max_size.value;
+		if (*scaled_width > gl_max_size.ival)
+			*scaled_width = gl_max_size.ival;
+		if (*scaled_height > gl_max_size.ival)
+			*scaled_height = gl_max_size.ival;
 	}
 
 	if (*scaled_width < 1)

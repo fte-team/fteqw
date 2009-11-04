@@ -21,13 +21,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 #include "renderque.h"
-
-#ifdef Q3SHADERS
 #include "shader.h"
-#endif
 
 void R_RenderBrushPoly (msurface_t *fa);
 
@@ -47,7 +44,6 @@ FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 entity_t	r_worldentity;
 
 vec3_t		modelorg, r_entorigin;
-entity_t	*currententity;
 
 int			r_visframecount;	// bumped when going to a new PVS
 int			r_framecount;		// used for dlight push checking
@@ -59,11 +55,6 @@ float		r_wateralphaval;	//allowed or not...
 int			c_brush_polys, c_alias_polys;
 
 qboolean	envmap;				// true during envmap command capture
-
-int			particletexture;	// little dot for particles
-int			particlecqtexture;	// little dot for particles
-int			explosiontexture;
-int			balltexture;
 
 int			mirrortexturenum;	// quake texturenum, not gltexturenum
 qboolean	mirror;
@@ -119,6 +110,7 @@ cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
 cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
 
+#pragma message("r_polygonoffset_submodel_offset: not implemented at the mo")
 cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
 cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
 
@@ -144,10 +136,10 @@ extern	cvar_t	gl_ztrick;
 extern	cvar_t	scr_fov;
 
 // post processing stuff
-int sceneblur_texture;
-int scenepp_texture;
-int scenepp_texture_warp;
-int scenepp_texture_edge;
+texid_t sceneblur_texture;
+texid_t scenepp_texture;
+texid_t scenepp_texture_warp;
+texid_t scenepp_texture_edge;
 
 int scenepp_ww_program;
 int scenepp_ww_parm_texture0i;
@@ -160,7 +152,7 @@ int scenepp_mt_parm_texture0i;
 int scenepp_mt_parm_colorf;
 int scenepp_mt_parm_inverti;
 
-int scenepp_fisheye_texture;
+texid_t scenepp_fisheye_texture;
 int scenepp_fisheye_program;
 int scenepp_fisheye_parm_fov;
 int scenepp_panorama_program;
@@ -359,7 +351,7 @@ void GL_SetupSceneProcessingTextures (void)
 	unsigned char pp_warp_tex[PP_WARP_TEX_SIZE*PP_WARP_TEX_SIZE*3];
 	unsigned char pp_edge_tex[PP_AMP_TEX_SIZE*PP_AMP_TEX_SIZE*3];
 
-	scenepp_fisheye_texture = 0;
+	scenepp_fisheye_texture = r_nulltex;
 
 	sceneblur_texture = GL_AllocNewTexture();
 
@@ -389,8 +381,8 @@ void GL_SetupSceneProcessingTextures (void)
 	}
 
 	GL_Bind(scenepp_texture_warp);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	qglTexImage2D(GL_TEXTURE_2D, 0, 3, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_warp_tex);
 
 	// TODO: init edge texture - this is ampscale * 2, with ampscale calculated
@@ -433,8 +425,8 @@ void GL_SetupSceneProcessingTextures (void)
 	}
 
 	GL_Bind(scenepp_texture_edge);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_edge_tex);
 }
 
@@ -507,11 +499,19 @@ R_DrawSpriteModel
 void R_DrawSpriteModel (entity_t *e)
 {
 	vec3_t	point;
-	mspriteframe_t	*frame;
+	mspriteframe_t	*frame, genframe;
 	vec3_t		forward, right, up;
 	msprite_t		*psprite;
 	vec3_t sprorigin;
-	qbyte coloursb[4];
+	unsigned int fl;
+	unsigned int sprtype;
+
+	static vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
+	static index_t indexes[6] = {0, 1, 2, 0, 2, 3};
+	vecV_t vertcoords[4];
+	avec4_t colours[4];
+	mesh_t mesh;
+
 
 	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum >= 0)
 	{
@@ -528,74 +528,26 @@ void R_DrawSpriteModel (entity_t *e)
 	else
 		VectorCopy(e->origin, sprorigin);
 
-#ifdef Q3SHADERS
-
-	if (e->forcedshader)
+	if (!e->model || e->forcedshader)
 	{
-		meshbuffer_t mb;
-		mesh_t mesh;
-		vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
-		vec3_t vertcoords[4];
-		index_t indexes[6] = {0, 1, 2, 0, 2, 3};
-		byte_vec4_t colours[4];
-		float x, y;
-
-#define VectorSet(a,b,c,v) {v[0]=a;v[1]=b;v[2]=c;}
-		x = cos(e->rotation+225*M_PI/180)*e->scale;
-		y = sin(e->rotation+225*M_PI/180)*e->scale;
-		VectorSet (sprorigin[0] - y*vright[0] + x*vup[0], sprorigin[1] - y*vright[1] + x*vup[1], sprorigin[2] - y*vright[2] + x*vup[2], vertcoords[3]);
-		VectorSet (sprorigin[0] - x*vright[0] - y*vup[0], sprorigin[1] - x*vright[1] - y*vup[1], sprorigin[2] - x*vright[2] - y*vup[2], vertcoords[2]);
-		VectorSet (sprorigin[0] + y*vright[0] - x*vup[0], sprorigin[1] + y*vright[1] - x*vup[1], sprorigin[2] + y*vright[2] - x*vup[2], vertcoords[1]);
-		VectorSet (sprorigin[0] + x*vright[0] + y*vup[0], sprorigin[1] + x*vright[1] + y*vup[1], sprorigin[2] + x*vright[2] + y*vup[2], vertcoords[0]);
-
-		coloursb[0] = e->shaderRGBAf[0]*255;
-		coloursb[1] = e->shaderRGBAf[1]*255;
-		coloursb[2] = e->shaderRGBAf[2]*255;
-		coloursb[3] = e->shaderRGBAf[3]*255;
-		*(int*)colours[0] = *(int*)colours[1] = *(int*)colours[2] = *(int*)colours[3] = *(int*)coloursb;
-
-		mesh.vbofirstelement = 0;
-		mesh.vbofirstvert = 0;
-
-		mesh.colors_array = colours;
-		mesh.indexes = indexes;
-		mesh.lmst_array = NULL;
-		mesh.st_array = texcoords;
-		mesh.normals_array = NULL;
-		mesh.xyz_array = vertcoords;
-		mesh.numvertexes = 4;
-		mesh.numindexes = 6;
-		mesh.radius = e->scale;
-
-
-		R_IBrokeTheArrays();
-
-		mb.entity = e;
-		mb.shader = e->forcedshader;
-		mb.fog = NULL;//fog;
-		mb.mesh = &mesh;
-		mb.infokey = -1;
-		mb.dlightbits = 0;
-
-		R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED|MF_COLORS);
-
-		R_RenderMeshBuffer ( &mb, false );
-		return;
+		genframe.shader = e->forcedshader;
+		genframe.up = genframe.left = -1;
+		genframe.down = genframe.right = 1;
+		sprtype = SPR_VP_PARALLEL;
+		frame = &genframe;
 	}
-#endif
-	if (!e->model)
+	else
+	{
+		// don't even bother culling, because it's just a single
+		// polygon without a surface cache
+		frame = R_GetSpriteFrame (e);
+		psprite = e->model->cache.data;
+		sprtype = psprite->type;
+	}
+	if (!frame->shader)
 		return;
 
-	if (e->flags & RF_NODEPTHTEST)
-		qglDisable(GL_DEPTH_TEST);
-
-	// don't even bother culling, because it's just a single
-	// polygon without a surface cache
-	frame = R_GetSpriteFrame (e);
-	psprite = e->model->cache.data;
-//	frame = 0x05b94140;
-
-	switch(psprite->type)
+	switch(sprtype)
 	{
 	case SPR_ORIENTED:
 		// bullet marks on walls
@@ -628,187 +580,64 @@ void R_DrawSpriteModel (entity_t *e)
 	right[1]*=e->scale;
 	right[2]*=e->scale;
 
-	qglColor4fv (e->shaderRGBAf);
 
-	GL_DisableMultitexture();
+	Vector4Copy(e->shaderRGBAf, colours[0]);
+	Vector4Copy(e->shaderRGBAf, colours[1]);
+	Vector4Copy(e->shaderRGBAf, colours[2]);
+	Vector4Copy(e->shaderRGBAf, colours[3]);
 
-    GL_Bind(frame->p.d.gl.texnum);
+	fl = 0;
+	if (e->flags & Q2RF_ADDITIVE)
+		fl |= BEF_FORCEADDITIVE;
+	if (e->shaderRGBAf[3]<1 || gl_blendsprites.value)
+		fl |= BEF_FORCETRANSPARENT;
+	if (e->flags & RF_NODEPTHTEST)
+		fl |= BEF_FORCENODEPTH;
+	BE_SelectMode(BEM_STANDARD, fl);
 
-	{
-		extern int gldepthfunc;
-		qglDepthFunc(gldepthfunc);
-		qglDepthMask(0);
-		if (gldepthmin == 0.5)
-			qglCullFace ( GL_BACK );
-		else
-			qglCullFace ( GL_FRONT );
-
-		GL_TexEnv(GL_MODULATE);
-
-		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		qglDisable (GL_ALPHA_TEST);
-		qglDisable(GL_BLEND);
-	}
-
-	if (e->flags & Q2RF_ADDATIVE)
-	{
-		qglEnable(GL_BLEND);
-		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-	}
-	else if (e->shaderRGBAf[3]<1 || gl_blendsprites.value)
-	{
-		qglEnable(GL_BLEND);
-		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	}
-	else
-		qglEnable (GL_ALPHA_TEST);
-
-	qglDisable(GL_CULL_FACE);
-	qglBegin (GL_QUADS);
-
-	qglTexCoord2f (0, 1);
 	VectorMA (sprorigin, frame->down, up, point);
-	VectorMA (point, frame->left, right, point);
-	qglVertex3fv (point);
+	VectorMA (point, frame->left, right, vertcoords[0]);
 
-	qglTexCoord2f (0, 0);
 	VectorMA (sprorigin, frame->up, up, point);
-	VectorMA (point, frame->left, right, point);
-	qglVertex3fv (point);
+	VectorMA (point, frame->left, right, vertcoords[1]);
 
-	qglTexCoord2f (1, 0);
 	VectorMA (sprorigin, frame->up, up, point);
-	VectorMA (point, frame->right, right, point);
-	qglVertex3fv (point);
+	VectorMA (point, frame->right, right, vertcoords[2]);
 
-	qglTexCoord2f (1, 1);
 	VectorMA (sprorigin, frame->down, up, point);
-	VectorMA (point, frame->right, right, point);
-	qglVertex3fv (point);
+	VectorMA (point, frame->right, right, vertcoords[3]);
 
-	qglEnd ();
 
-	qglDisable(GL_BLEND);
-	qglDisable (GL_ALPHA_TEST);
-	qglEnable(GL_DEPTH_TEST);
-
-	qglEnable(GL_CULL_FACE);
-	qglEnable(GL_BLEND);
-
-	if (e->flags & Q2RF_ADDATIVE)	//back to regular blending for us!
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = vertcoords;
+	mesh.indexes = indexes;
+	mesh.numindexes = sizeof(indexes)/sizeof(indexes[0]);
+	mesh.colors4f_array = colours;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+	mesh.istrifan = true;
+	BE_DrawMeshChain(frame->shader, &mesh, NULL, NULL);
 }
 
 //==================================================================================
-#ifdef NEWBACKEND
-static void R_DrawShadedSpriteModels(int count, void **entlist, void *parm)
-{
-	vec3_t	point;
-	mspriteframe_t	*frame;
-	vec3_t		forward, right, up;
-	msprite_t		*psprite;
-
-	qbyte coloursb[4];
-
-	meshbuffer_t mb;
-	mesh_t mesh;
-	vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
-	vec3_t vertcoords[4];
-	index_t indexes[6] = {0, 1, 2, 0, 2, 3};
-	byte_vec4_t colours[4];
-	float x, y;
-
-	int vnum = 0, inum = 0;
-
-	shader_t *lastshader = NULL;
-
-	mesh.vbofirstelement = 0;
-	mesh.vbofirstvert = 0;
-
-	mesh.colors_array = colours;
-	mesh.indexes = indexes;
-	mesh.lmst_array = NULL;
-	mesh.st_array = texcoords;
-	mesh.normals_array = NULL;
-	mesh.xyz_array = vertcoords;
-
-	mb.fog = NULL;//fog;
-	mb.mesh = NULL;
-	mb.infokey = -1;
-	mb.dlightbits = 0;
-
-	R_IBrokeTheArrays();
-
-	while (count--)
-	{
-		currententity = *entlist++;
-		if (currententity->forcedshader != lastshader || 1)
-		{
-			if (lastshader)
-			{
-				mesh.numvertexes = vnum;
-				mesh.numindexes = inum;
-				mesh.radius = currententity->scale;
-				R_PushMesh(&mesh, lastshader->features | MF_NONBATCHED|MF_COLORS);
-
-				mb.entity = currententity;
-				mb.shader = currententity->forcedshader;
-				R_RenderMeshBuffer (&mb, false);
-			}
-
-			lastshader = currententity->forcedshader;
-		}
-
-
-	#define VectorSet(a,b,c,v) {v[0]=a;v[1]=b;v[2]=c;}
-		x = cos(currententity->rotation+225*M_PI/180)*currententity->scale;
-		y = sin(currententity->rotation+225*M_PI/180)*currententity->scale;
-		VectorSet (currententity->origin[0] - y*vright[0] + x*vup[0], currententity->origin[1] - y*vright[1] + x*vup[1], currententity->origin[2] - y*vright[2] + x*vup[2], vertcoords[3]);
-		VectorSet (currententity->origin[0] - x*vright[0] - y*vup[0], currententity->origin[1] - x*vright[1] - y*vup[1], currententity->origin[2] - x*vright[2] - y*vup[2], vertcoords[2]);
-		VectorSet (currententity->origin[0] + y*vright[0] - x*vup[0], currententity->origin[1] + y*vright[1] - x*vup[1], currententity->origin[2] + y*vright[2] - x*vup[2], vertcoords[1]);
-		VectorSet (currententity->origin[0] + x*vright[0] + y*vup[0], currententity->origin[1] + x*vright[1] + y*vup[1], currententity->origin[2] + x*vright[2] + y*vup[2], vertcoords[0]);
-
-		coloursb[0] = currententity->shaderRGBAf[0]*255;
-		coloursb[1] = currententity->shaderRGBAf[1]*255;
-		coloursb[2] = currententity->shaderRGBAf[2]*255;
-		coloursb[3] = currententity->shaderRGBAf[3]*255;
-		*(int*)colours[0] = *(int*)colours[1] = *(int*)colours[2] = *(int*)colours[3] = *(int*)coloursb;
-
-		vnum += 4;
-		inum += 6;
-	}
-
-	if (lastshader)
-	{
-		mesh.numvertexes = vnum;
-		mesh.numindexes = inum;
-		mesh.radius = currententity->scale;
-		R_PushMesh(&mesh, lastshader->features | MF_NONBATCHED|MF_COLORS);
-
-		mb.entity = currententity;
-		mb.shader = currententity->forcedshader;
-		R_RenderMeshBuffer (&mb, false);
-	}
-}
-#endif
 
 void GLR_DrawSprite(int count, void **e, void *parm)
 {
-//	R_DrawShadedSpriteModels(count, e, parm);
-//	return;
-
 	while(count--)
 	{
+#pragma message("this needs merging or q3 railgun will lag like hell")
 		currententity = *e++;
-		qglEnable(GL_TEXTURE_2D);
 
 		R_DrawSpriteModel (currententity);
 	}
 }
 
 
-#ifdef Q3SHADERS
+#ifdef Q3CLIENT
 
 //q3 lightning gun
 void R_DrawLightning(entity_t *e)
@@ -818,12 +647,11 @@ void R_DrawLightning(entity_t *e)
 	float scale = e->scale;
 	float length;
 
-	vec3_t points[4];
+	vecV_t points[4];
 	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
 	index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
 
 	mesh_t mesh;
-	meshbuffer_t mb;
 
 	if (!e->forcedshader)
 		return;
@@ -853,31 +681,18 @@ void R_DrawLightning(entity_t *e)
 	VectorMA(e->oldorigin, scale/2, cr, points[2]);
 	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
 
+	memset(&mesh, 0, sizeof(mesh));
 	mesh.vbofirstelement = 0;
 	mesh.vbofirstvert = 0;
 	mesh.xyz_array = points;
 	mesh.indexes = indexarray;
 	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
-	mesh.colors_array = NULL;
+	mesh.colors4f_array = NULL;
 	mesh.lmst_array = NULL;
 	mesh.normals_array = NULL;
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
-
-	mb.entity = e;
-	mb.mesh = &mesh;
-	mb.shader = e->forcedshader;
-	mb.infokey = 0;
-	mb.fog = NULL;
-	mb.infokey = currententity->keynum;
-	mb.dlightbits = 0;
-
-
-	R_IBrokeTheArrays();
-
-	R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED);
-
-	R_RenderMeshBuffer ( &mb, false );
+	BE_DrawMeshChain(e->forcedshader, &mesh, NULL, NULL);
 }
 //q3 railgun beam
 void R_DrawRailCore(entity_t *e)
@@ -888,12 +703,10 @@ void R_DrawRailCore(entity_t *e)
 	float length;
 
 	mesh_t mesh;
-	meshbuffer_t mb;
-	vec3_t points[4];
+	vecV_t points[4];
 	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
 	index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
-	int colors[4];
-	qbyte colorsb[4];
+	vec4_t colors[4];
 
 	if (!e->forcedshader)
 		return;
@@ -923,37 +736,24 @@ void R_DrawRailCore(entity_t *e)
 	VectorMA(e->oldorigin, scale/2, cr, points[2]);
 	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
 
-	colorsb[0] = e->shaderRGBAf[0]*255;
-	colorsb[1] = e->shaderRGBAf[1]*255;
-	colorsb[2] = e->shaderRGBAf[2]*255;
-	colorsb[3] = e->shaderRGBAf[3]*255;
-	colors[0] = colors[1] = colors[2] = colors[3] = *(int*)colorsb;
+	Vector4Copy(e->shaderRGBAf, colors[0]);
+	Vector4Copy(e->shaderRGBAf, colors[1]);
+	Vector4Copy(e->shaderRGBAf, colors[2]);
+	Vector4Copy(e->shaderRGBAf, colors[3]);
 
+	memset(&mesh, 0, sizeof(mesh));
 	mesh.vbofirstelement = 0;
 	mesh.vbofirstvert = 0;
 	mesh.xyz_array = points;
 	mesh.indexes = indexarray;
 	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
-	mesh.colors_array = (byte_vec4_t*)colors;
+	mesh.colors4f_array = (vec4_t*)colors;
 	mesh.lmst_array = NULL;
 	mesh.normals_array = NULL;
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
 
-	mb.entity = e;
-	mb.mesh = &mesh;
-	mb.shader = e->forcedshader;
-	mb.infokey = 0;
-	mb.fog = NULL;
-	mb.infokey = currententity->keynum;
-	mb.dlightbits = 0;
-
-
-	R_IBrokeTheArrays();
-
-	R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED | MF_COLORS);
-
-	R_RenderMeshBuffer ( &mb, false );
+	BE_DrawMeshChain(e->forcedshader, &mesh, NULL, NULL);
 }
 #endif
 
@@ -984,7 +784,7 @@ void GLR_DrawEntitiesOnList (void)
 			RQ_AddDistReorder(GLR_DrawSprite, currententity, NULL, currententity->origin);
 //			R_DrawSpriteModel(currententity);
 			continue;
-#ifdef Q3SHADERS
+#ifdef Q3CLIENT
 		case RT_BEAM:
 		case RT_RAIL_RINGS:
 		case RT_LIGHTNING:
@@ -1031,7 +831,7 @@ void GLR_DrawEntitiesOnList (void)
 		{
 		case mod_alias:
 			if (r_refdef.flags & Q2RDF_NOWORLDMODEL || !cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame == fg_doom)
-				R_DrawGAliasModel (currententity);
+				R_DrawGAliasModel (currententity, BEM_STANDARD);
 			break;
 
 #ifdef HALFLIFEMODELS
@@ -1067,6 +867,7 @@ R_PolyBlend
 ============
 */
 void GLV_CalcBlendServer (float colors[4]);
+//bright flashes and stuff
 void R_PolyBlend (void)
 {
 	float shift[4];
@@ -1081,6 +882,9 @@ void R_PolyBlend (void)
 
 //Con_Printf("R_PolyBlend(): %4.2f %4.2f %4.2f %4.2f\n",shift[0], shift[1],	shift[2],	shift[3]);
 
+	PPL_RevertToKnownState();
+
+
 	GL_DisableMultitexture();
 
 	qglDisable (GL_ALPHA_TEST);
@@ -1090,26 +894,24 @@ void R_PolyBlend (void)
 
 	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	qglLoadIdentity ();
-
-	qglRotatef (-90,  1, 0, 0);	    // put Z going up
-	 qglRotatef (90,  0, 0, 1);	    // put Z going up
-
 	qglColor4fv (shift);
 
 	qglBegin (GL_QUADS);
 
-	qglVertex3f (10, 100, 100);
-	qglVertex3f (10, -100, 100);
-	qglVertex3f (10, -100, -100);
-	qglVertex3f (10, 100, -100);
+	qglVertex3f (r_refdef.vrect.x, r_refdef.vrect.y, -1);
+	qglVertex3f (r_refdef.vrect.x, r_refdef.vrect.y+r_refdef.vrect.height, -1);
+	qglVertex3f (r_refdef.vrect.x+r_refdef.vrect.width, r_refdef.vrect.y+r_refdef.vrect.height, -1);
+	qglVertex3f (r_refdef.vrect.x+r_refdef.vrect.width, r_refdef.vrect.y, -1);
 	qglEnd ();
 
 	qglDisable (GL_BLEND);
 	qglEnable (GL_TEXTURE_2D);
 	qglEnable (GL_ALPHA_TEST);
+
+	PPL_RevertToKnownState();
 }
 
+//for lack of hardware gamma
 void GLR_BrightenScreen (void)
 {
 	float f;
@@ -1121,6 +923,8 @@ void GLR_BrightenScreen (void)
 
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
+
+	PPL_RevertToKnownState();
 
 	f = gl_contrast.value;
 	f = min (f, 3);
@@ -1146,6 +950,8 @@ void GLR_BrightenScreen (void)
 	qglDisable (GL_BLEND);
 	qglColor3f(1, 1, 1);
 
+	PPL_RevertToKnownState();
+
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
 }
 
@@ -1163,7 +969,7 @@ void GLR_SetupFrame (void)
 
 	if (!mirror)
 	{
-		GLR_AnimateLight ();
+		R_AnimateLight ();
 
 	// build the transformation matrix for the given view angles
 
@@ -1189,7 +995,7 @@ void GLR_SetupFrame (void)
 
 		r_oldviewcluster = r_viewcluster;
 		r_oldviewcluster2 = r_viewcluster2;
-		leaf = GLMod_PointInLeaf (cl.worldmodel, r_origin);
+		leaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
 		r_viewcluster = r_viewcluster2 = leaf->cluster;
 
 		// check above and below so crossing solid water doesn't draw wrong
@@ -1199,7 +1005,7 @@ void GLR_SetupFrame (void)
 
 			VectorCopy (r_origin, temp);
 			temp[2] -= 16;
-			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
+			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
 			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
 				(leaf->cluster != r_viewcluster2) )
 				r_viewcluster2 = leaf->cluster;
@@ -1210,7 +1016,7 @@ void GLR_SetupFrame (void)
 
 			VectorCopy (r_origin, temp);
 			temp[2] += 16;
-			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
+			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
 			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
 				(leaf->cluster != r_viewcluster2) )
 				r_viewcluster2 = leaf->cluster;
@@ -1224,7 +1030,7 @@ void GLR_SetupFrame (void)
 
 		r_oldviewleaf = r_viewleaf;
 		r_oldviewleaf2 = r_viewleaf2;
-		r_viewleaf = GLMod_PointInLeaf (cl.worldmodel, r_origin);
+		r_viewleaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
 
 		if (!r_viewleaf)
 		{
@@ -1233,7 +1039,7 @@ void GLR_SetupFrame (void)
 		{	//look down a bit
 			VectorCopy (r_origin, temp);
 			temp[2] -= 16;
-			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
+			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
 			if (leaf->contents <= Q1CONTENTS_WATER && leaf->contents >= Q1CONTENTS_LAVA)
 				r_viewleaf2 = leaf;
 			else
@@ -1244,7 +1050,7 @@ void GLR_SetupFrame (void)
 
 			VectorCopy (r_origin, temp);
 			temp[2] += 16;
-			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
+			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
 			if (leaf->contents == Q1CONTENTS_EMPTY)
 				r_viewleaf2 = leaf;
 			else
@@ -1271,26 +1077,25 @@ R_SetupGL
 void R_SetupGL (void)
 {
 	float	screenaspect;
-	extern	int glwidth, glheight;
 	int		x, x2, y2, y, w, h;
 
 	float fov_x, fov_y;
 	//
 	// set up viewpoint
 	//
-	x = r_refdef.vrect.x * glwidth/(int)vid.width;
-	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * glwidth/(int)vid.width;
-	y = (vid.height-r_refdef.vrect.y) * glheight/(int)vid.height;
-	y2 = ((int)vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * glheight/(int)vid.height;
+	x = r_refdef.vrect.x * vid.pixelwidth/(int)vid.width;
+	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * vid.pixelwidth/(int)vid.width;
+	y = (vid.height-r_refdef.vrect.y) * vid.pixelheight/(int)vid.height;
+	y2 = ((int)vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * vid.pixelheight/(int)vid.height;
 
 	// fudge around because of frac screen scale
 	if (x > 0)
 		x--;
-	if (x2 < glwidth)
+	if (x2 < vid.pixelwidth)
 		x2++;
 	if (y2 < 0)
 		y2--;
-	if (y < glheight)
+	if (y < vid.pixelheight)
 		y++;
 
 	w = x2 - x;
@@ -1307,7 +1112,7 @@ void R_SetupGL (void)
 	gl_truescreenrect.width = w;
 	gl_truescreenrect.height = h;
 
-	qglViewport (glx + x, gly + y2, w, h);
+	qglViewport (x, y2, w, h);
 
 	qglMatrixMode(GL_PROJECTION);
 
@@ -1323,7 +1128,13 @@ void R_SetupGL (void)
 	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
 	if (r_refdef.useperspective)
 	{
-		if ((!r_shadows.value || !gl_canstencil) && gl_maxdist.value>=100)//gl_nv_range_clamp)
+		int stencilshadows = 0;
+#ifdef RTLIGHTS
+		stencilshadows |= r_shadow_realtime_dlight.value && r_shadow_realtime_dlight_shadows.value;
+		stencilshadows |= r_shadow_realtime_world.value && r_shadow_realtime_world_shadows.value;
+#endif
+
+		if ((!stencilshadows || !gl_canstencil) && gl_maxdist.value>=100)//gl_nv_range_clamp)
 		{
 	//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
 	//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
@@ -1346,63 +1157,12 @@ void R_SetupGL (void)
 	}
 	qglLoadMatrixf(r_projection_matrix);
 
-	if (mirror)
-	{
-//		if (mirror_plane->normal[2])
-//			qglScalef (1, -1, 1);
-//		else
-//			qglScalef (-1, 1, 1);
-		qglCullFace(GL_BACK);
-	}
-	else
-	{
-#ifdef R_XFLIP
-		if (r_xflip.value)
-		{
-			qglScalef (1, -1, 1);
-			qglCullFace(GL_BACK);
-		}
-		else
-#endif
-		qglCullFace(GL_FRONT);
-	}
-
 	qglMatrixMode(GL_MODELVIEW);
 
 
 	Matrix4_ModelViewMatrixFromAxis(r_view_matrix, vpn, vright, vup, r_refdef.vieworg);
 	qglLoadMatrixf(r_view_matrix);
 
-	//
-	// set drawing parms
-	//
-	if (gl_cull.value)
-		qglEnable(GL_CULL_FACE);
-	else
-		qglDisable(GL_CULL_FACE);
-
-	qglDisable(GL_BLEND);
-	qglDisable(GL_ALPHA_TEST);
-	qglEnable(GL_DEPTH_TEST);
-
-//#ifndef D3DQUAKE
-//	glClearDepth(1.0f);
-//#endif
-
-//		if (gl_lightmap_format == GL_LUMINANCE)
-//		glBlendFunc (GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
-/*	else if (gl_lightmap_format == GL_INTENSITY)
-	{
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		glColor4f (0,0,0,1);
-		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-	else if (gl_lightmap_format == GL_RGBA)
-	{
-		glBlendFunc (GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
-	}
-
-  */
 	if (gl_dither.value)
 	{
 		qglEnable(GL_DITHER);
@@ -1411,10 +1171,6 @@ void R_SetupGL (void)
 	{
 		qglDisable(GL_DITHER);
 	}
-
-	qglPolygonOffset(r_polygonoffset_submodel_factor.value, r_polygonoffset_submodel_offset.value);
-
-	GL_DisableMultitexture();
 }
 
 /*
@@ -1431,8 +1187,9 @@ void R_RenderScene (void)
 	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 
-#ifdef NEWBACKEND
-	Sh_GenShadowMaps();
+#ifdef RTLIGHTS
+	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		Sh_GenShadowMaps();
 #endif
 
 	GLR_SetupFrame ();
@@ -1441,7 +1198,7 @@ void R_RenderScene (void)
 	R_SetupGL ();
 
 	TRACE(("dbg: calling R_SetFrustrum\n"));
-	R_SetFrustum ();
+	R_SetFrustum (r_projection_matrix, r_view_matrix);
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
@@ -1472,11 +1229,6 @@ void R_RenderScene (void)
 		TRACE(("dbg: calling R_DrawParticles\n"));
 		P_DrawParticles ();
 	}
-
-#ifdef GLTEST
-	Test_Draw ();
-#endif
-
 }
 
 
@@ -1488,7 +1240,6 @@ R_Clear
 int gldepthfunc = GL_LEQUAL;
 void R_Clear (void)
 {
-	qglDepthMask(1);
 	if (r_mirroralpha.value != 1.0)
 	{
 		if (gl_clear.value && !r_secondaryview)
@@ -1534,8 +1285,6 @@ void R_Clear (void)
 		gldepthmax = 1;
 		gldepthfunc=GL_LEQUAL;
 	}
-
-	qglDepthFunc (gldepthfunc);
 	qglDepthRange (gldepthmin, gldepthmax);
 }
 
@@ -1621,7 +1370,7 @@ void R_Mirror (void)
 		qglEnableClientState( GL_VERTEX_ARRAY );
 		for (prevs = s; s; s=s->nextalphasurface)	//write the polys to the stencil buffer.
 		{
-			qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
+			qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), s->mesh->xyz_array);
 			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
 		}
 
@@ -1776,7 +1525,7 @@ qglEnable(GL_POLYGON_OFFSET_FILL);
 		for (s=prevs ; s ; s=s->nextalphasurface)
 		{
 			qglEnable (GL_BLEND);
-			R_RenderBrushPoly (s);
+			//R_RenderBrushPoly (s);
 		}
 qglDisable(GL_POLYGON_OFFSET_FILL);
 qglPolygonOffset(0, 0);
@@ -1858,18 +1607,20 @@ static void R_RenderMotionBlur(void)
 
 	if (gl_config.arb_texture_non_power_of_two)
 	{	//we can use any size, supposedly
-		vwidth = glwidth;
-		vheight = glheight;
+		vwidth = vid.pixelwidth;
+		vheight = vid.pixelheight;
 	}
 	else
 	{	//limit the texture size to square and use padding.
-		while (vwidth < glwidth)
+		while (vwidth < vid.pixelwidth)
 			vwidth *= 2;
-		while (vheight < glheight)
+		while (vheight < vid.pixelheight)
 			vheight *= 2;
 	}
 
-	qglViewport (glx, gly, glwidth, glheight);
+	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
+
+	PPL_RevertToKnownState();
 
 	GL_Bind(sceneblur_texture);
 
@@ -1877,20 +1628,20 @@ static void R_RenderMotionBlur(void)
 	qglMatrixMode(GL_PROJECTION);
 	qglPushMatrix();
 	qglLoadIdentity ();
-	qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
+	qglOrtho  (0, vid.pixelwidth, 0, vid.pixelheight, -99999, 99999);
 	qglMatrixMode(GL_MODELVIEW);
 	qglPushMatrix();
 	qglLoadIdentity ();
 
 	//blend the last frame onto the scene
 	//the maths is because our texture is over-sized (must be power of two)
-	cs = vs = (float)glwidth / vwidth * 0.5;
-	ct = vt = (float)glheight / vheight * 0.5;
+	cs = vs = (float)vid.pixelwidth / vwidth * 0.5;
+	ct = vt = (float)vid.pixelheight / vheight * 0.5;
 	vs *= gl_motionblurscale.value;
 	vt *= gl_motionblurscale.value;
 
 	qglDisable (GL_DEPTH_TEST);
-	qglDisable (GL_CULL_FACE);
+	GL_CullFace(0);
 	qglDisable (GL_ALPHA_TEST);
 	qglEnable(GL_BLEND);
 	qglColor4f(1, 1, 1, gl_motionblur.value);
@@ -1898,11 +1649,11 @@ static void R_RenderMotionBlur(void)
 	qglTexCoord2f(cs-vs, ct-vt);
 	qglVertex2f(0, 0);
 	qglTexCoord2f(cs+vs, ct-vt);
-	qglVertex2f(glwidth, 0);
+	qglVertex2f(vid.pixelwidth, 0);
 	qglTexCoord2f(cs+vs, ct+vt);
-	qglVertex2f(glwidth, glheight);
+	qglVertex2f(vid.pixelwidth, vid.pixelheight);
 	qglTexCoord2f(cs-vs, ct+vt);
-	qglVertex2f(0, glheight);
+	qglVertex2f(0, vid.pixelheight);
 	qglEnd();
 
 	qglMatrixMode(GL_PROJECTION);
@@ -1912,9 +1663,11 @@ static void R_RenderMotionBlur(void)
 
 
 	//copy the image into the texture so that we can play with it next frame too!
-	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	PPL_RevertToKnownState();
 }
 
 static void R_RenderWaterWarp(void)
@@ -1922,54 +1675,56 @@ static void R_RenderWaterWarp(void)
 	float vwidth = 1, vheight = 1;
 	float vs, vt;
 
+	PPL_RevertToKnownState();
+
 	// get the powers of 2 for the size of the texture that will hold the scene
 
 	if (gl_config.arb_texture_non_power_of_two)
 	{
-		vwidth = glwidth;
-		vheight = glheight;
+		vwidth = vid.pixelwidth;
+		vheight = vid.pixelheight;
 	}
 	else
 	{
-		while (vwidth < glwidth)
+		while (vwidth < vid.pixelwidth)
 		{
 			vwidth *= 2;
 		}
-		while (vheight < glheight)
+		while (vheight < vid.pixelheight)
 		{
 			vheight *= 2;
 		}
 	}
 
 	// get the maxtexcoords while we're at it
-	vs = glwidth / vwidth;
-	vt = glheight / vheight;
+	vs = vid.pixelwidth / vwidth;
+	vt = vid.pixelheight / vheight;
 
 	// 2d mode, but upside down to quake's normal 2d drawing
 	// this makes grabbing the sreen a lot easier
-	qglViewport (glx, gly, glwidth, glheight);
+	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 
 	qglMatrixMode(GL_PROJECTION);
 	// Push the matrices to go into 2d mode, that matches opengl's mode
 	qglPushMatrix();
 	qglLoadIdentity ();
 	// TODO: use actual window width and height
-	qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
+	qglOrtho  (0, vid.pixelwidth, 0, vid.pixelheight, -99999, 99999);
 
 	qglMatrixMode(GL_MODELVIEW);
 	qglPushMatrix();
 	qglLoadIdentity ();
 
 	qglDisable (GL_DEPTH_TEST);
-	qglDisable (GL_CULL_FACE);
+	GL_CullFace(0);
 	qglDisable (GL_BLEND);
 	qglEnable (GL_ALPHA_TEST);
 
 	// copy the scene to texture
 	GL_Bind(scenepp_texture);
-	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	if (qglGetError())
 		Con_Printf(CON_ERROR "GL Error after qglCopyTexImage2D\n");
@@ -2003,7 +1758,7 @@ static void R_RenderWaterWarp(void)
 		GL_EnableMultitexture();
 		GL_Bind (scenepp_texture_warp);
 
-		GL_SelectTexture(mtexid1+1);
+		GL_SelectTexture(2);
 		qglEnable(GL_TEXTURE_2D);
 		GL_Bind(scenepp_texture_edge);
 
@@ -2017,22 +1772,22 @@ static void R_RenderWaterWarp(void)
 		qglMTexCoord2fSGIS (mtexid0, vs, 0);
 		qglMTexCoord2fSGIS (mtexid1, xmax, ymin);
 		qglMTexCoord2fSGIS (mtexid1+1, 1, 0);
-		qglVertex2f(glwidth, 0);
+		qglVertex2f(vid.pixelwidth, 0);
 
 		qglMTexCoord2fSGIS (mtexid0, vs, vt);
 		qglMTexCoord2fSGIS (mtexid1, xmax, ymax);
 		qglMTexCoord2fSGIS (mtexid1+1, 1, 1);
-		qglVertex2f(glwidth, glheight);
+		qglVertex2f(vid.pixelwidth, vid.pixelheight);
 
 		qglMTexCoord2fSGIS (mtexid0, 0, vt);
 		qglMTexCoord2fSGIS (mtexid1, xmin, ymax);
 		qglMTexCoord2fSGIS (mtexid1+1, 0, 1);
-		qglVertex2f(0, glheight);
+		qglVertex2f(0, vid.pixelheight);
 
 		qglEnd();
 
 		qglDisable(GL_TEXTURE_2D);
-		GL_SelectTexture(mtexid1);
+		GL_SelectTexture(1);
 
 		GL_DisableMultitexture();
 	}
@@ -2045,6 +1800,8 @@ static void R_RenderWaterWarp(void)
 	qglPopMatrix();
 	qglMatrixMode(GL_MODELVIEW);
 	qglPopMatrix();
+
+	PPL_RevertToKnownState();
 
 	if (qglGetError())
 		Con_Printf("GL Error after drawing with shaderobjects\n");
@@ -2069,14 +1826,14 @@ qboolean R_RenderScene_Fish(void)
 
 	if (gl_config.arb_texture_non_power_of_two)
 	{
-		if (glwidth < glheight)
-			cmapsize = glwidth;
+		if (vid.pixelwidth < vid.pixelheight)
+			cmapsize = vid.pixelwidth;
 		else
-			cmapsize = glheight;
+			cmapsize = vid.pixelheight;
 	}
 	else
 	{
-		while (cmapsize > glwidth || cmapsize > glheight)
+		while (cmapsize > vid.pixelwidth || cmapsize > vid.pixelheight)
 		{
 			cmapsize /= 2;
 		}
@@ -2129,16 +1886,16 @@ qboolean R_RenderScene_Fish(void)
 		order[5] = 5;
 	}
 
-	qglViewport (glx, gly+glheight - cmapsize, cmapsize, cmapsize);
+	qglViewport (0, vid.pixelheight - cmapsize, cmapsize, cmapsize);
 
-	if (!scenepp_fisheye_texture)
+	if (!TEXVALID(scenepp_fisheye_texture))
 	{
 		scenepp_fisheye_texture = GL_AllocNewTexture();
 
 		qglDisable(GL_TEXTURE_2D);
 		qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
 
-		bindTexFunc(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
+		GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
 		for (i = 0; i < 6; i++)
 			qglCopyTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, GL_RGB, 0, 0, cmapsize, cmapsize, 0);
 		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -2150,8 +1907,8 @@ qboolean R_RenderScene_Fish(void)
 		qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
 	}
 
-	r_refdef.vrect.width = (cmapsize+0.99)*vid.width/glwidth;
-	r_refdef.vrect.height = (cmapsize+0.99)*vid.height/glheight;
+	r_refdef.vrect.width = (cmapsize+0.99)*vid.width/vid.pixelwidth;
+	r_refdef.vrect.height = (cmapsize+0.99)*vid.height/vid.pixelheight;
 	r_refdef.vrect.x = 0;
 	r_refdef.vrect.y = vid.height - r_refdef.vrect.height;
 
@@ -2184,9 +1941,6 @@ qboolean R_RenderScene_Fish(void)
 		// render normal view
 		R_RenderScene ();
 
-		GLR_DrawWaterSurfaces ();
-		GLR_DrawAlphaSurfaces ();
-
 		// render mirror view
 		R_Mirror ();
 
@@ -2199,7 +1953,7 @@ qboolean R_RenderScene_Fish(void)
 	}
 
 //qglClear (GL_COLOR_BUFFER_BIT);
-	qglViewport (glx, gly, glwidth, glheight);
+	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 
 	qglDisable(GL_TEXTURE_2D);
 	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
@@ -2221,24 +1975,24 @@ qboolean R_RenderScene_Fish(void)
 	qglMatrixMode(GL_PROJECTION);
 	qglPushMatrix();
 	qglLoadIdentity ();
-	qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
+	qglOrtho  (0, vid.pixelwidth, 0, vid.pixelheight, -99999, 99999);
 	qglMatrixMode(GL_MODELVIEW);
 	qglPushMatrix();
 	qglLoadIdentity ();
 
 	qglDisable (GL_DEPTH_TEST);
-	qglDisable (GL_CULL_FACE);
+	GL_CullFace(0);
 	qglDisable (GL_ALPHA_TEST);
 	qglDisable(GL_BLEND);
 	qglBegin(GL_QUADS);
 	qglTexCoord2f(-0.5, -0.5);
 	qglVertex2f(0, 0);
 	qglTexCoord2f(0.5, -0.5);
-	qglVertex2f(glwidth, 0);
+	qglVertex2f(vid.pixelwidth, 0);
 	qglTexCoord2f(0.5, 0.5);
-	qglVertex2f(glwidth, glheight);
+	qglVertex2f(vid.pixelwidth, vid.pixelheight);
 	qglTexCoord2f(-0.5, 0.5);
-	qglVertex2f(0, glheight);
+	qglVertex2f(0, vid.pixelheight);
 	qglEnd();
 
 	qglMatrixMode(GL_PROJECTION);
@@ -2269,7 +2023,7 @@ void GLR_RenderView (void)
 	if (qglGetError())
 		Con_Printf("GL Error before drawing scene\n");
 
-	if (r_norefresh.value || !glwidth || !glheight)
+	if (r_norefresh.value || !vid.pixelwidth || !vid.pixelheight)
 	{
 		GL_DoSwap();
 		return;
@@ -2300,14 +2054,14 @@ void GLR_RenderView (void)
 	    qglPNTrianglesfATI(GL_PN_TRIANGLES_TESSELATION_LEVEL_ATI, gl_ati_truform_tesselation.value);
 	}
 
-	if (gl_finish.value)
+	if (gl_finish.ival)
 	{
 		RSpeedMark();
 		qglFinish ();
 		RSpeedEnd(RSPEED_FINISH);
 	}
 
-	if (r_speeds.value)
+	if (r_speeds.ival)
 	{
 		time1 = Sys_DoubleTime ();
 		c_brush_polys = 0;
@@ -2324,19 +2078,16 @@ void GLR_RenderView (void)
 	{
 		mirror = false;
 
+		GL_SetShaderState2D(false);
+
 		R_Clear ();
 
 	//	GLR_SetupFog ();
 
 		r_alpha_surfaces = NULL;
 
-		GL_SetShaderState2D(false);
-
 		// render normal view
 		R_RenderScene ();
-
-		GLR_DrawWaterSurfaces ();
-		GLR_DrawAlphaSurfaces ();
 
 		// render mirror view
 		R_Mirror ();
@@ -2344,11 +2095,9 @@ void GLR_RenderView (void)
 
 	R_BloomBlend();
 
-	R_PolyBlend ();
-
 //	qglDisable(GL_FOG);
 
-	if (r_speeds.value)
+	if (r_speeds.ival)
 	{
 //		glFinish ();
 		time2 = Sys_DoubleTime ();

@@ -98,7 +98,7 @@ qboolean Init_GNUTLS(void) {return true;}
 cvar_t plug_sbar = SCVAR("plug_sbar", "1");
 cvar_t plug_loaddefault = SCVAR("plug_loaddefault", "1");
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 #endif
 
@@ -1626,7 +1626,7 @@ void Plug_SBar(void)
 		return;
 
 	ret = 0;
-	if (!plug_sbar.value || cl.splitclients > 1)
+	if (!plug_sbar.ival || cl.splitclients > 1)
 		currentplug = NULL;
 	else
 	{

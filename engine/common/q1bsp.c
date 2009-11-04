@@ -1,5 +1,6 @@
 #include "quakedef.h"
 
+#include "pr_common.h"
 /*
 
 ============================================================================
@@ -675,13 +676,13 @@ void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
 	vec3_t verts[3];
 
 	/*if its a triangle fan/poly/quad then we can just submit the entire thing without generating extra fragments*/
-	if (0)//mesh->istrifan)
+	if (mesh->istrifan)
 	{
 		Fragment_ClipPoly(dec, mesh->numvertexes, mesh->xyz_array[0]);
 		return;
 	}
 
-	//Fixme: optimise q3 patches
+	//Fixme: optimise q3 patches (quad strips with bends between each strip)
 
 	/*otherwise it goes in and out in weird places*/
 	for (i = 0; i < mesh->numindexes; i+=3)
@@ -741,6 +742,12 @@ void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 	Q1BSP_ClipDecalToNodes (dec, node->children[1]);
 }
 
+#ifdef RTLIGHTS
+extern int sh_shadowframe;
+#else
+static int sh_shadowframe;
+#endif
+#ifdef Q3BSPS
 void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 {
 	mplane_t	*splitplane;
@@ -758,16 +765,12 @@ void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 		for (i=0 ; i<leaf->nummarksurfaces ; i++, msurf++)
 		{
 			surf = *msurf;
-			/*if (surf->flags & SURF_PLANEBACK)
-			{
-				if (-DotProduct(surf->plane->normal, dec->normal) > -0.5)
-					continue;
-			}
-			else
-			{
-				if (DotProduct(surf->plane->normal, dec->normal) > -0.5)
-					continue;
-			}*/
+
+			//only check each surface once. it can appear in multiple leafs.
+			if (surf->shadowframe == sh_shadowframe)
+				continue;
+			surf->shadowframe = sh_shadowframe;
+
 			Fragment_Mesh(dec, surf->mesh);
 		}
 		return;
@@ -789,6 +792,7 @@ void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 	Q3BSP_ClipDecalToNodes (dec, node->children[0]);
 	Q3BSP_ClipDecalToNodes (dec, node->children[1]);
 }
+#endif
 
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out)
 {	//quad marks a full, independant quad
@@ -810,10 +814,14 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 		dec.planedist[p] = -(dec.radius - DotProduct(dec.center, dec.planenorm[p]));
 	dec.numplanes = 6;
 
-	if (cl.worldmodel->fromgame == fg_quake3)
-		Q3BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
-	else
+	sh_shadowframe++;
+
+	if (cl.worldmodel->fromgame == fg_quake)
 		Q1BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
+#ifdef Q3BSPS
+	else if (cl.worldmodel->fromgame == fg_quake3)
+		Q3BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
+#endif
 
 	*out = (float *)decalfragmentverts;
 	return dec.numtris;
@@ -970,7 +978,7 @@ unsigned int Q1BSP_FatPVS (model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned 
 	return fatbytes;
 }
 
-qboolean Q1BSP_EdictInFatPVS(model_t *mod, edict_t *ent, qbyte *pvs)
+qboolean Q1BSP_EdictInFatPVS(model_t *mod, wedict_t *ent, qbyte *pvs)
 {
 	int i;
 
@@ -991,7 +999,7 @@ SV_FindTouchedLeafs
 Links the edict to the right leafs so we can get it's potential visability.
 ===============
 */
-void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node, float *mins, float *maxs)
+void Q1BSP_RFindTouchedLeafs (world_t *w, wedict_t *ent, mnode_t *node, float *mins, float *maxs)
 {
 	mplane_t	*splitplane;
 	mleaf_t		*leaf;
@@ -1012,7 +1020,7 @@ void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node, float *mins, float *m
 		}
 
 		leaf = (mleaf_t *)node;
-		leafnum = leaf - sv.worldmodel->leafs - 1;
+		leafnum = leaf - w->worldmodel->leafs - 1;
 
 		ent->leafnums[ent->num_leafs] = leafnum;
 		ent->num_leafs++;
@@ -1026,16 +1034,16 @@ void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node, float *mins, float *m
 
 // recurse down the contacted sides
 	if (sides & 1)
-		Q1BSP_RFindTouchedLeafs (ent, node->children[0], mins, maxs);
+		Q1BSP_RFindTouchedLeafs (w, ent, node->children[0], mins, maxs);
 
 	if (sides & 2)
-		Q1BSP_RFindTouchedLeafs (ent, node->children[1], mins, maxs);
+		Q1BSP_RFindTouchedLeafs (w, ent, node->children[1], mins, maxs);
 }
-void Q1BSP_FindTouchedLeafs(model_t *mod, edict_t *ent, float *mins, float *maxs)
+void Q1BSP_FindTouchedLeafs(world_t *w, model_t *mod, wedict_t *ent, float *mins, float *maxs)
 {
 	ent->num_leafs = 0;
 	if (ent->v->modelindex)
-		Q1BSP_RFindTouchedLeafs (ent, mod->nodes, mins, maxs);
+		Q1BSP_RFindTouchedLeafs (w, ent, mod->nodes, mins, maxs);
 }
 
 #endif

@@ -1,6 +1,7 @@
 //read menu.h
 
 #include "quakedef.h"
+#include "shader.h"
 
 int selectitem;
 menu_t *menu_script;
@@ -145,6 +146,7 @@ void M_MenuS_Picture_f (void)
 	int x = atoi(Cmd_Argv(1));
 	int y = atoi(Cmd_Argv(2));
 	char *picname = Cmd_Argv(3);
+	mpic_t *p;
 
 	if (!menu_script)
 	{
@@ -152,10 +154,14 @@ void M_MenuS_Picture_f (void)
 		return;
 	}
 
+	p = Draw_SafeCachePic(picname);
+	if (!p)
+		return;
+
 	if (!strcmp(Cmd_Argv(1), "-"))
-		MC_AddCenterPicture(menu_script, y, picname);
+		MC_AddCenterPicture(menu_script, y, p->height, picname);
 	else
-		MC_AddPicture(menu_script, x, y, picname);
+		MC_AddPicture(menu_script, x, y, p->width, p->height, picname);
 }
 
 void M_MenuS_Edit_f (void)

@@ -16,10 +16,10 @@
 
 #ifdef CSQC_DAT
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"	//evil to include this
-#include "shader.h"
 #endif
+#include "shader.h"
 
 //#define CHEAT_PARANOID
 
@@ -51,6 +51,7 @@ qboolean csqc_drawsbar;
 qboolean csqc_addcrosshair;
 static int num_csqc_edicts;
 static int csqc_fakereadbyte;
+world_t csqc_world;
 
 static int csqc_lplayernum;
 static qboolean csqc_isdarkplaces;
@@ -58,7 +59,7 @@ static qboolean csqc_isdarkplaces;
 static char csqc_printbuffer[8192];
 
 #define CSQCPROGSGROUP "CSQC progs control"
-cvar_t	pr_csmaxedicts = SCVAR("pr_csmaxedicts", "3072");
+cvar_t	pr_csmaxedicts = SCVAR("pr_csmaxedicts", "3072");	//not tied to protocol nor server.
 cvar_t	cl_csqcdebug = SCVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
 cvar_t  cl_nocsqc = SCVAR("cl_nocsqc", "0");
 cvar_t  pr_csqc_coreonerror = SCVAR("pr_csqc_coreonerror", "1");
@@ -181,35 +182,24 @@ typedef enum
 	globalfloat(player_localnum,		"player_localnum");		/*float		the entity number of the local player*/	\
 	globalfloat(intermission,			"intermission");		/*float		set when the client receives svc_intermission*/	\
 	globalvector(view_angles,			"view_angles");			/*float		set to the view angles at the start of each new frame (EXT_CSQC_1)*/ \
-	globalfloat(dpcompat_sbshowscores,	"sb_showscores");		/*float		ask darkplaces people, its not part of the csqc standard */	\
+	globalfloat(dpcompat_sbshowscores,	"sb_showscores");		/*deprecated		ask darkplaces people, its not part of the csqc standard */	\
 	\
-	globalvector(pmove_org,				"pmove_org");			/*read/written by runplayerphysics*/ \
-	globalvector(pmove_vel,				"pmove_vel");			/*read/written by runplayerphysics*/ \
-	globalvector(pmove_mins,			"pmove_mins");			/*read/written by runplayerphysics*/ \
-	globalvector(pmove_maxs,			"pmove_maxs");			/*read/written by runplayerphysics*/ \
-	globalfloat(pmove_jump_held,		"pmove_jump_held");		/*read/written by runplayerphysics*/ \
-	globalfloat(pmove_waterjumptime,	"pmove_waterjumptime");	/*read/written by runplayerphysics*/ \
+	globalvector(pmove_org,				"pmove_org");			/*deprecated. read/written by runplayerphysics*/ \
+	globalvector(pmove_vel,				"pmove_vel");			/*deprecated. read/written by runplayerphysics*/ \
+	globalvector(pmove_mins,			"pmove_mins");			/*deprecated. read/written by runplayerphysics*/ \
+	globalvector(pmove_maxs,			"pmove_maxs");			/*deprecated. read/written by runplayerphysics*/ \
+	globalfloat(pmove_jump_held,		"pmove_jump_held");		/*deprecated. read/written by runplayerphysics*/ \
+	globalfloat(pmove_waterjumptime,	"pmove_waterjumptime");	/*deprecated. read/written by runplayerphysics*/ \
 	\
 	globalfloat(input_timelength,		"input_timelength");	/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalvector(input_angles,			"input_angles");		/*vector	filled by getinputstate, read by runplayerphysics*/ \
 	globalvector(input_movevalues,		"input_movevalues");	/*vector	filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat(input_buttons,			"input_buttons");		/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat(input_impulse,			"input_impulse");		/*float		filled by getinputstate, read by runplayerphysics*/ \
-	globalfloat(input_lightlevel,		"input_lightlevel");	/*float		filled by getinputstate, read by runplayerphysics*/ \
-	globalfloat(input_weapon,			"input_weapon");		/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat(input_lightlevel,		"input_lightlevel");	/*unused float		filled by getinputstate, read by runplayerphysics*/ \
+	globalfloat(input_weapon,			"input_weapon");		/*unused float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat(input_servertime,		"input_servertime");	/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat(input_clienttime,		"input_clienttime");	/*float		filled by getinputstate, read by runplayerphysics*/ \
-	\
-	globalfloat(movevar_gravity,		"movevar_gravity");		/*float		obtained from the server*/ \
-	globalfloat(movevar_stopspeed,		"movevar_stopspeed");	/*float		obtained from the server*/ \
-	globalfloat(movevar_maxspeed,		"movevar_maxspeed");	/*float		obtained from the server*/ \
-	globalfloat(movevar_spectatormaxspeed,"movevar_spectatormaxspeed");		/*float		obtained from the server*/ \
-	globalfloat(movevar_accelerate,		"movevar_accelerate");	/*float		obtained from the server*/ \
-	globalfloat(movevar_airaccelerate,	"movevar_airaccelerate");	/*float		obtained from the server*/ \
-	globalfloat(movevar_wateraccelerate,"movevar_wateraccelerate");	/*float		obtained from the server*/ \
-	globalfloat(movevar_friction,		"movevar_friction");	/*float		obtained from the server*/ \
-	globalfloat(movevar_waterfriction,	"movevar_waterfriction");	/*float		obtained from the server*/ \
-	globalfloat(movevar_entgravity,		"movevar_entgravity");	/*float		obtained from the server*/ \
 
 
 typedef struct {
@@ -278,85 +268,78 @@ static void CSQC_FindGlobals(void)
 
 //this is the list for all the csqc fields.
 //(the #define is so the list always matches the ones pulled out)
-#define csqcfields	\
-	fieldfloat(entnum);		\
-	fieldfloat(modelindex);	\
-	fieldvector(origin);	\
-	fieldvector(angles);	\
-	fieldvector(velocity);	\
-	fieldfloat(pmove_flags);		/*transparency*/	\
-	fieldfloat(alpha);		/*transparency*/	\
-	fieldfloat(scale);		/*model scale*/		\
-	fieldfloat(fatness);	/*expand models X units along their normals.*/	\
-	fieldfloat(skin);		\
-	fieldfloat(colormap);	\
-	fieldfloat(flags);		\
-	fieldfloat(frame);		\
-	fieldfloat(frame2);		/*EXT_CSQC_1*/\
-	fieldfloat(frame1time);	/*EXT_CSQC_1*/\
-	fieldfloat(frame2time);	/*EXT_CSQC_1*/\
-	fieldfloat(lerpfrac);	/*EXT_CSQC_1*/\
-	fieldfloat(renderflags);\
-	fieldfloat(forceshader);/*FTE_CSQC_SHADERS*/\
-	fieldfloat(dimension_hit);	\
-	fieldfloat(dimension_solid);	\
+#define csqcextfields	\
+	comfieldfloat(entnum);		\
+	comfieldfloat(frame2);		/*EXT_CSQC_1*/\
+	comfieldfloat(frame1time);	/*EXT_CSQC_1*/\
+	comfieldfloat(frame2time);	/*EXT_CSQC_1*/\
+	comfieldfloat(lerpfrac);	/*EXT_CSQC_1*/\
+	comfieldfloat(renderflags);\
+	comfieldfloat(forceshader);/*FTE_CSQC_SHADERS*/\
 							\
-	fieldfloat(baseframe);	/*FTE_CSQC_BASEFRAME*/\
-	fieldfloat(baseframe2);	/*FTE_CSQC_BASEFRAME*/\
-	fieldfloat(baseframe1time);	/*FTE_CSQC_BASEFRAME*/\
-	fieldfloat(baseframe2time);	/*FTE_CSQC_BASEFRAME*/\
-	fieldfloat(baselerpfrac);	/*FTE_CSQC_BASEFRAME*/\
-	fieldfloat(basebone);	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(baseframe);	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(baseframe2);	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(baseframe1time);	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(baseframe2time);	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(baselerpfrac);	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(basebone);	/*FTE_CSQC_BASEFRAME*/\
 							\
-  	fieldfloat(bonecontrol1);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	fieldfloat(bonecontrol2);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	fieldfloat(bonecontrol3);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	fieldfloat(bonecontrol4);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	fieldfloat(bonecontrol5);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	fieldfloat(subblendfrac);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	fieldfloat(basesubblendfrac);	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/\
+  	comfieldfloat(bonecontrol1);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol2);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol3);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol4);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol5);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(subblendfrac);	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(basesubblendfrac);	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/\
 							\
-	fieldfloat(skeletonindex);		/*FTE_CSQC_SKELETONOBJECTS*/\
+	comfieldfloat(skeletonindex);		/*FTE_CSQC_SKELETONOBJECTS*/\
 							\
-	fieldfloat(drawmask);	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
-	fieldfunction(predraw);	/*If present, is called just before it's drawn.*/	\
+	comfieldfloat(drawmask);	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
+	comfieldfunction(predraw);	/*If present, is called just before it's drawn.*/	\
 							\
-	fieldstring(model);		\
-	fieldfloat(ideal_yaw);	\
-	fieldfloat(ideal_pitch);\
-	fieldfloat(yaw_speed);	\
-	fieldfloat(pitch_speed);\
-							\
-	fieldentity(chain);		\
-	fieldentity(enemy);		\
-	fieldentity(groundentity);	\
-	fieldentity(owner);		\
-							\
-	fieldfunction(touch);	\
-							\
-	fieldfloat(solid);		\
-	fieldvector(mins);		\
-	fieldvector(maxs);		\
-	fieldvector(size);		\
-	fieldvector(absmin);	\
-	fieldvector(absmax);	\
-	fieldfloat(hull);		/*(FTE_PEXT_HEXEN2)*/
+	comfieldfloat(ideal_pitch);\
+	comfieldfloat(pitch_speed);\
+
 
 
 //note: doesn't even have to match the clprogs.dat :)
 typedef struct {
-#define fieldfloat(name) float name
-#define fieldvector(name) vec3_t name
-#define fieldentity(name) int name
-#define fieldstring(name) string_t name
-#define fieldfunction(name) func_t name
-csqcfields
-#undef fieldfloat
-#undef fieldvector
-#undef fieldentity
-#undef fieldstring
-#undef fieldfunction
+
+#define comfieldfloat(ssqcname,sharedname,csqcname) float csqcname
+#define comfieldvector(ssqcname,sharedname,csqcname) vec3_t csqcname
+#define comfieldentity(ssqcname,sharedname,csqcname) int csqcname
+#define comfieldstring(ssqcname,sharedname,csqcname) string_t csqcname
+#define comfieldfunction(ssqcname,sharedname,csqcname) func_t csqcname
+comqcfields
+#undef comfieldfloat
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
+
+#ifdef VM_Q1
 } csqcentvars_t;
+typedef struct {
+#endif
+
+#define comfieldfloat(name) float name
+#define comfieldvector(name) vec3_t name
+#define comfieldentity(name) int name
+#define comfieldstring(name) string_t name
+#define comfieldfunction(name) func_t name
+comextqcfields
+csqcextfields
+#undef comfieldfloat
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
+
+#ifdef VM_Q1
+} csqcextentvars_t;
+#else
+} csqcentvars_t;
+#endif
 
 typedef struct csqcedict_s
 {
@@ -364,11 +347,29 @@ typedef struct csqcedict_s
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
 	qboolean	readonly;	//world
+#ifdef VM_Q1
 	csqcentvars_t	*v;
+	csqcextentvars_t	*xv;
+#else
+	union {
+		csqcentvars_t	*v;
+		csqcentvars_t	*xv;
+	};
+#endif
+	/*the above is shared with qclib*/
+	link_t	area;
+	int			num_leafs;
+	short		leafnums[MAX_ENT_LEAFS];
+#ifdef Q2BSPS
+	int areanum;	//q2bsp
+	int areanum2;	//q2bsp
+	int headnode;	//q2bsp
+#endif
+	qbyte solidtype;
+	/*the above is shared with ssqc*/
 
 	//add whatever you wish here
 	trailstate_t *trailstate;
-	link_t	area;
 } csqcedict_t;
 
 static csqcedict_t *csqc_edicts;	//consider this 'world'
@@ -376,12 +377,33 @@ static csqcedict_t *csqc_edicts;	//consider this 'world'
 
 static void CSQC_InitFields(void)
 {	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
-#define fieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define fieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define fieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define fieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define fieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcentvars_t*)0)->name, -1)
-csqcfields	//any *64->int32 casts are erroneous, it's biased off NULL.
+#define comfieldfloat(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define comfieldvector(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define comfieldentity(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define comfieldstring(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define comfieldfunction(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcentvars_t*)0)->name, -1)
+comqcfields
+#undef comfieldfloat
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
+
+#ifdef VM_Q1
+#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, sizeof(csqcentvars_t) + (int)&((csqcextentvars_t*)0)->name, -1)
+#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, sizeof(csqcentvars_t) + (int)&((csqcextentvars_t*)0)->name, -1)
+#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, sizeof(csqcentvars_t) + (int)&((csqcextentvars_t*)0)->name, -1)
+#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, sizeof(csqcentvars_t) + (int)&((csqcextentvars_t*)0)->name, -1)
+#define comfieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, sizeof(csqcentvars_t) + (int)&((csqcextentvars_t*)0)->name, -1)
+#else
+#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define comfieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#endif
+comextqcfields
+csqcextfields
 #undef fieldfloat
 #undef fieldvector
 #undef fieldentity
@@ -683,7 +705,7 @@ static void CS_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 			if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
 				continue;
 
-			if (!((int)clip->passedict->v->dimension_hit & (int)touch->v->dimension_solid))
+			if (!((int)clip->passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
 				continue;
 		}
 
@@ -710,7 +732,7 @@ static void CS_ClipToLinks ( areanode_t *node, moveclip_t *clip )
 		}
 
 
-		if (!((int)clip->passedict->v->dimension_solid & (int)touch->v->dimension_hit))
+		if (!((int)clip->passedict->xv->dimension_solid & (int)touch->xv->dimension_hit))
 			continue;
 
 		model = CSQC_GetModelForIndex(touch->v->modelindex);
@@ -777,57 +799,57 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 {
 	//FTE_CSQC_HALFLIFE_MODELS
 #ifdef HALFLIFEMODELS
-	out->bonecontrols[0] = in->v->bonecontrol1;
-	out->bonecontrols[1] = in->v->bonecontrol2;
-	out->bonecontrols[2] = in->v->bonecontrol3;
-	out->bonecontrols[3] = in->v->bonecontrol4;
-	out->bonecontrols[4] = in->v->bonecontrol5;
-	out->g[FS_REG].subblendfrac = in->v->subblendfrac;
-	out->g[FST_BASE].subblendfrac = in->v->subblendfrac;
+	out->bonecontrols[0] = in->xv->bonecontrol1;
+	out->bonecontrols[1] = in->xv->bonecontrol2;
+	out->bonecontrols[2] = in->xv->bonecontrol3;
+	out->bonecontrols[3] = in->xv->bonecontrol4;
+	out->bonecontrols[4] = in->xv->bonecontrol5;
+	out->g[FS_REG].subblendfrac = in->xv->subblendfrac;
+	out->g[FST_BASE].subblendfrac = in->xv->subblendfrac;
 #endif
 
 	//FTE_CSQC_BASEFRAME
-	out->g[FST_BASE].endbone = in->v->basebone;
+	out->g[FST_BASE].endbone = in->xv->basebone;
 	if (out->g[FST_BASE].endbone)
 	{	//small optimisation.
 		out->g[FST_BASE].endbone -= 1;
 
-		out->g[FST_BASE].frame[0] = in->v->baseframe;
-		out->g[FST_BASE].frame[1] = in->v->baseframe2;
-		out->g[FST_BASE].lerpfrac = in->v->baselerpfrac;
+		out->g[FST_BASE].frame[0] = in->xv->baseframe;
+		out->g[FST_BASE].frame[1] = in->xv->baseframe2;
+		out->g[FST_BASE].lerpfrac = in->xv->baselerpfrac;
 		if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
 		{
-			out->g[FST_BASE].frametime[0] = *csqcg.svtime - in->v->baseframe1time;
-			out->g[FST_BASE].frametime[1] = *csqcg.svtime - in->v->baseframe2time;
+			out->g[FST_BASE].frametime[0] = *csqcg.svtime - in->xv->baseframe1time;
+			out->g[FST_BASE].frametime[1] = *csqcg.svtime - in->xv->baseframe2time;
 		}
 		else
 		{
-			out->g[FST_BASE].frametime[0] = in->v->baseframe1time;
-			out->g[FST_BASE].frametime[1] = in->v->baseframe2time;
+			out->g[FST_BASE].frametime[0] = in->xv->baseframe1time;
+			out->g[FST_BASE].frametime[1] = in->xv->baseframe2time;
 		}
 	}
 
 	//and the normal frames.
 	out->g[FS_REG].frame[0] = in->v->frame;
-	out->g[FS_REG].frame[1] = in->v->frame2;
-	out->g[FS_REG].lerpfrac = in->v->lerpfrac;
+	out->g[FS_REG].frame[1] = in->xv->frame2;
+	out->g[FS_REG].lerpfrac = in->xv->lerpfrac;
 	if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
 	{
-		out->g[FS_REG].frametime[0] = *csqcg.svtime - in->v->frame1time;
-		out->g[FS_REG].frametime[1] = *csqcg.svtime - in->v->frame2time;
+		out->g[FS_REG].frametime[0] = *csqcg.svtime - in->xv->frame1time;
+		out->g[FS_REG].frametime[1] = *csqcg.svtime - in->xv->frame2time;
 	}
 	else
 	{
-		out->g[FS_REG].frametime[0] = in->v->frame1time;
-		out->g[FS_REG].frametime[1] = in->v->frame2time;
+		out->g[FS_REG].frametime[0] = in->xv->frame1time;
+		out->g[FS_REG].frametime[1] = in->xv->frame2time;
 	}
 
 	out->bonecount = 0;
 	out->bonestate = NULL;
-	if (in->v->skeletonindex)
+	if (in->xv->skeletonindex)
 	{
 		skelobject_t *so;
-		so = skel_get(csqcprogs, in->v->skeletonindex, 0);
+		so = skel_get(csqcprogs, in->xv->skeletonindex, 0);
 		if (so && so->inuse == 1)
 		{
 			out->bonecount = so->numbones;
@@ -967,7 +989,11 @@ static model_t *CSQC_GetModelForIndex(int index)
 	else if (index > 0 && index < MAX_MODELS)
 		return cl.model_precache[index];
 	else if (index < 0 && index > -MAX_CSQCMODELS)
+	{
+		if (!cl.model_csqcprecache[-index])
+			cl.model_csqcprecache[-index] = Mod_ForName(cl.model_csqcname[-index], false);
 		return cl.model_csqcprecache[-index];
+	}
 	else
 		return NULL;
 }
@@ -986,9 +1012,9 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	memset(out, 0, sizeof(*out));
 	out->model = model;
 
-	if (in->v->renderflags)
+	if (in->xv->renderflags)
 	{
-		rflags = in->v->renderflags;
+		rflags = in->xv->renderflags;
 		if (rflags & CSQCRF_VIEWMODEL)
 			out->flags |= Q2RF_DEPTHHACK|Q2RF_WEAPONMODEL;
 		if (rflags & CSQCRF_EXTERNALMODEL)
@@ -996,7 +1022,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		if (rflags & CSQCRF_DEPTHHACK)
 			out->flags |= Q2RF_DEPTHHACK;
 		if (rflags & CSQCRF_ADDITIVE)
-			out->flags |= Q2RF_ADDATIVE;
+			out->flags |= Q2RF_ADDITIVE;
 		//CSQCRF_USEAXIS is below
 		if (rflags & CSQCRF_NOSHADOW)
 			out->flags |= RF_NOSHADOW;
@@ -1022,14 +1048,14 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		AngleVectors(out->angles, out->axis[0], out->axis[1], out->axis[2]);
 		VectorInverse(out->axis[1]);
 
-		if (!in->v->scale || in->v->scale == 1.0f)
+		if (!in->xv->scale || in->xv->scale == 1.0f)
 			out->scale = 1;
 		else
 		{
-			VectorScale(out->axis[0], in->v->scale, out->axis[0]);
-			VectorScale(out->axis[1], in->v->scale, out->axis[1]);
-			VectorScale(out->axis[2], in->v->scale, out->axis[2]);
-			out->scale = in->v->scale;
+			VectorScale(out->axis[0], in->xv->scale, out->axis[0]);
+			VectorScale(out->axis[1], in->xv->scale, out->axis[1]);
+			VectorScale(out->axis[2], in->xv->scale, out->axis[2]);
+			out->scale = in->xv->scale;
 		}
 	}
 
@@ -1041,21 +1067,19 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	out->shaderRGBAf[0] = 1;
 	out->shaderRGBAf[1] = 1;
 	out->shaderRGBAf[2] = 1;
-	if (!in->v->alpha)
+	if (!in->xv->alpha)
 		out->shaderRGBAf[3] = 1;
 	else
-		out->shaderRGBAf[3] = in->v->alpha;
+		out->shaderRGBAf[3] = in->xv->alpha;
 
 	out->skinnum = in->v->skin;
-	out->fatness = in->v->fatness;
-#ifdef Q3SHADERS
-	if (in->v->forceshader >= 1)
-		out->forcedshader = r_shaders + ((int)in->v->forceshader-1);
+	out->fatness = in->xv->fatness;
+	if (in->xv->forceshader >= 1)
+		out->forcedshader = r_shaders + ((int)in->xv->forceshader-1);
 	else
 		out->forcedshader = NULL;
-#endif
 
-	out->keynum = -1;
+	out->keynum = -in->entnum;
 
 	return true;
 }
@@ -1112,12 +1136,71 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 */
 }
 
-static void PF_R_AddDynamicLight(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_R_DynamicLight_Set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	dlight_t *l;
+	unsigned int lno = G_FLOAT(OFS_PARM0);
+	int field = G_FLOAT(OFS_PARM1);
+	if (lno >= cl_maxdlights)
+		return;
+	l = cl_dlights+lno;
+	switch (field)
+	{
+	case 0:
+		VectorCopy(G_VECTOR(OFS_PARM1), l->origin);
+		break;
+	case 1:
+		VectorCopy(G_VECTOR(OFS_PARM2), l->color);
+		break;
+	default:
+		break;
+	}
+}
+static void PF_R_DynamicLight_Get(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	dlight_t *l;
+	unsigned int lno = G_FLOAT(OFS_PARM0);
+	int field = G_FLOAT(OFS_PARM1);
+	if (lno >= cl_maxdlights)
+	{
+		if (field == -1)
+			G_FLOAT(OFS_RETURN) = cl_maxdlights;
+		else
+			G_INT(OFS_RETURN) = 0;
+		return;
+	}
+	l = cl_dlights+lno;
+	switch (field)
+	{
+	case 0:
+		VectorCopy(l->origin, G_VECTOR(OFS_RETURN));
+		break;
+	case 1:
+		VectorCopy(l->color, G_VECTOR(OFS_RETURN));
+		break;
+	default:
+		G_INT(OFS_RETURN) = 0;
+		break;
+	}
+}
+
+static void PF_R_DynamicLight_Add(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
 	float radius = G_FLOAT(OFS_PARM1);
 	float *rgb = G_VECTOR(OFS_PARM2);
-	V_AddLight(org, radius, rgb[0]/5, rgb[1]/5, rgb[2]/5);
+//	float style = G_FLOAT(OFS_PARM3);
+//	char *cubemapname = G_STRING(OFS_PARM4);
+//	float pflags = G_FLOAT(OFS_PARM5);
+
+	csqcedict_t *self;
+
+	//if the org matches self, then attach it.
+	self = (csqcedict_t*)PROG_TO_EDICT(prinst, *csqcg.self);
+	if (VectorCompare(self->v->origin, org))
+		G_FLOAT(OFS_RETURN) = V_AddLight(-self->entnum, org, radius, rgb[0]/5, rgb[1]/5, rgb[2]/5);
+	else
+		G_FLOAT(OFS_RETURN) = V_AddLight(0, org, radius, rgb[0]/5, rgb[1]/5, rgb[2]/5);
 }
 
 static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1144,12 +1227,12 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 		if (ent->isfree)
 			continue;
 
-		if ((int)ent->v->drawmask & mask)
+		if ((int)ent->xv->drawmask & mask)
 		{
-			if (ent->v->predraw)
+			if (ent->xv->predraw)
 			{
 				*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
-				PR_ExecuteProgram(prinst, ent->v->predraw);
+				PR_ExecuteProgram(prinst, ent->xv->predraw);
 
 				if (ent->isfree)
 					continue;	//bummer...
@@ -1172,6 +1255,77 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 	}
 }
 
+static shader_t *csqc_shadern;
+static int csqc_startpolyvert;
+// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
+static void PF_R_PolygonBegin(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqc_shadern = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0));
+	csqc_startpolyvert = cl_numstrisvert;
+}
+
+// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
+static void PF_R_PolygonVertex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (cl_numstrisvert == cl_maxstrisvert)
+	{
+		cl_maxstrisvert+=64;
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+	}
+
+	VectorCopy(G_VECTOR(OFS_PARM0), cl_strisvertv[cl_numstrisvert]);
+	Vector2Copy(G_VECTOR(OFS_PARM1), cl_strisvertt[cl_numstrisvert]);
+	VectorCopy(G_VECTOR(OFS_PARM2), cl_strisvertc[cl_numstrisvert]);
+	cl_strisvertc[cl_numstrisvert][3] = G_FLOAT(OFS_PARM3);
+	cl_numstrisvert++;
+}
+
+// #308 void() R_EndPolygon (EXT_CSQC_???)
+static void PF_R_PolygonEnd(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	scenetris_t *t;
+	int i;
+	int nv;
+	/*if the shader didn't change, continue with the old poly*/
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == csqc_shadern)
+		t = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris+=8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = csqc_shadern;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = csqc_startpolyvert;
+		t->numvert = 0;
+		t->numidx = 0;
+	}
+
+	nv = cl_numstrisvert-csqc_startpolyvert;
+	if (cl_numstrisidx+(nv-2)*3 > cl_maxstrisidx)
+	{
+		cl_maxstrisidx=cl_numstrisidx+(nv-2)*3 + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+
+	/*build the triangle fan out of triangles*/
+	for (i = 2; i < nv; i++)
+	{
+		cl_strisidx[cl_numstrisidx++] = t->numvert + 0;
+		cl_strisidx[cl_numstrisidx++] = t->numvert + i-1;
+		cl_strisidx[cl_numstrisidx++] = t->numvert + i;
+	}
+	t->numidx = cl_numstrisidx - t->firstidx;
+	t->numvert += cl_numstrisvert-csqc_startpolyvert;
+
+	/*set up ready for the next poly*/
+	csqc_startpolyvert = cl_numstrisvert;
+}
 
 
 qboolean csqc_rebuildmatricies;
@@ -1557,7 +1711,7 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 	if (cl.worldmodel)
 		R_PushDlights ();
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		gl_ztrickdisabled|=16;
@@ -1573,7 +1727,7 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	R_RenderView();
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		gl_ztrickdisabled&=~16;
@@ -1583,7 +1737,7 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 	}
 #endif
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		qglDisable(GL_ALPHA_TEST);
@@ -1613,7 +1767,7 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 static void PF_cs_getstatf(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int stnum = G_FLOAT(OFS_PARM0);
-	float val = *(float*)&cl.stats[csqc_lplayernum][stnum];	//copy float into the stat
+	float val = cl.statsf[csqc_lplayernum][stnum];	//copy float into the stat
 	G_FLOAT(OFS_RETURN) = val;
 }
 static void PF_cs_getstati(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1720,10 +1874,10 @@ static void PF_cs_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals
 		maxs = vec3_origin;
 	}
 
-	savedhull = ent->v->hull;
-	ent->v->hull = 0;
+	savedhull = ent->xv->hull;
+	ent->xv->hull = 0;
 	trace = CS_Move (v1, mins, maxs, v2, nomonsters, ent);
-	ent->v->hull = savedhull;
+	ent->xv->hull = savedhull;
 
 	cs_settracevars(&trace);
 }
@@ -1742,10 +1896,10 @@ static void PF_cs_tracebox(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	nomonsters = G_FLOAT(OFS_PARM4);
 	ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM5);
 
-	savedhull = ent->v->hull;
-	ent->v->hull = 0;
+	savedhull = ent->xv->hull;
+	ent->xv->hull = 0;
 	trace = CS_Move (v1, mins, maxs, v2, nomonsters, ent);
-	ent->v->hull = savedhull;
+	ent->xv->hull = savedhull;
 
 	*csqcg.trace_allsolid = trace.allsolid;
 	*csqcg.trace_startsolid = trace.startsolid;
@@ -1783,8 +1937,8 @@ static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
 
 	CS_CheckVelocity (tossent);
 
-	savedhull = tossent->v->hull;
-	tossent->v->hull = 0;
+	savedhull = tossent->xv->hull;
+	tossent->xv->hull = 0;
 	for (i = 0;i < 200;i++) // LordHavoc: sanity check; never trace more than 10 seconds
 	{
 		velocity[2] -= gravity;
@@ -1798,7 +1952,7 @@ static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
 		if (trace.fraction < 1 && trace.ent && (void*)trace.ent != ignore)
 			break;
 	}
-	tossent->v->hull = savedhull;
+	tossent->xv->hull = savedhull;
 
 	trace.fraction = 0; // not relevant
 	return trace;
@@ -2175,7 +2329,7 @@ static void PF_cs_sendevent (progfuncs_t *prinst, struct globalvars_s *pr_global
 		{
 			ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM2+i*3);
 			MSG_WriteByte(&cls.netchan.message, ev_entity);
-			MSG_WriteShort(&cls.netchan.message, ent->v->entnum);
+			MSG_WriteShort(&cls.netchan.message, ent->xv->entnum);
 		}
 		else
 			break;
@@ -2360,7 +2514,7 @@ typedef struct {
 
 	if (ent)
 	{
-		pmove.jump_held = (int)ent->v->pmove_flags & PMF_JUMP_HELD;
+		pmove.jump_held = (int)ent->xv->pmove_flags & PMF_JUMP_HELD;
 		pmove.waterjumptime = 0;
 		VectorCopy(ent->v->origin, pmove.origin);
 		VectorCopy(ent->v->velocity, pmove.velocity);
@@ -2397,12 +2551,13 @@ typedef struct {
 		ent->v->angles[0] *= -1/3.0f;
 		VectorCopy(pmove.origin, ent->v->origin);
 		VectorCopy(pmove.velocity, ent->v->velocity);
-		ent->v->pmove_flags = 0;
-		ent->v->pmove_flags += pmove.jump_held ? PMF_JUMP_HELD : 0;
-		ent->v->pmove_flags += pmove.onladder ? PMF_LADDER : 0;
+		ent->xv->pmove_flags = 0;
+		ent->xv->pmove_flags += pmove.jump_held ? PMF_JUMP_HELD : 0;
+		ent->xv->pmove_flags += pmove.onladder ? PMF_LADDER : 0;
 	}
 	else
 	{
+		//Legacy path
 		if (csqcg.pmove_jump_held)
 			*csqcg.pmove_jump_held = pmove.jump_held;
 		if (csqcg.pmove_waterjumptime)
@@ -2463,7 +2618,7 @@ static void PF_cs_serverkey (progfuncs_t *prinst, struct globalvars_s *pr_global
 			ret = "Unknown";
 			break;
 		case CP_QUAKEWORLD:
-			if (cls.fteprotocolextensions)
+			if (cls.fteprotocolextensions||cls.fteprotocolextensions2)
 				ret = "QuakeWorld FTE";
 			else if (cls.z_ext)
 				ret = "QuakeWorld ZQuake";
@@ -2786,8 +2941,8 @@ static void PF_cs_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	ent = (void*)PROG_TO_EDICT(prinst, *csqcg.self);
 	current = anglemod( ent->v->angles[0] );
-	ideal = ent->v->ideal_pitch;
-	speed = ent->v->pitch_speed;
+	ideal = ent->xv->ideal_pitch;
+	speed = ent->xv->pitch_speed;
 
 	if (current == ideal)
 		return;
@@ -3287,11 +3442,7 @@ static void PF_cs_gecko_create (progfuncs_t *prinst, struct globalvars_s *pr_glo
 {
 	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	cin_t *cin;
-#ifdef Q3SHADERS
 	cin = R_ShaderGetCinematic(shader);
-#else
-	cin = NULL;
-#endif
 
 	if (!cin)
 		G_FLOAT(OFS_RETURN) = 0;
@@ -3308,11 +3459,7 @@ static void PF_cs_gecko_navigate (progfuncs_t *prinst, struct globalvars_s *pr_g
 	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *command = PR_GetStringOfs(prinst, OFS_PARM1);
 	cin_t *cin;
-#ifdef Q3SHADERS
 	cin = R_ShaderGetCinematic(shader);
-#else
-	cin = NULL;
-#endif
 
 	if (!cin)
 		return;
@@ -3326,11 +3473,7 @@ static void PF_cs_gecko_keyevent (progfuncs_t *prinst, struct globalvars_s *pr_g
 	int key = G_FLOAT(OFS_PARM1);
 	int eventtype = G_FLOAT(OFS_PARM2);
 	cin_t *cin;
-#ifdef Q3SHADERS
 	cin = R_ShaderGetCinematic(shader);
-#else
-	cin = NULL;
-#endif
 
 	if (!cin)
 		return;
@@ -3343,11 +3486,7 @@ static void PF_cs_gecko_mousemove (progfuncs_t *prinst, struct globalvars_s *pr_
 	float posx = G_FLOAT(OFS_PARM1);
 	float posy = G_FLOAT(OFS_PARM2);
 	cin_t *cin;
-#ifdef Q3SHADERS
 	cin = R_ShaderGetCinematic(shader);
-#else
-	cin = NULL;
-#endif
 
 	if (!cin)
 		return;
@@ -3360,11 +3499,7 @@ static void PF_cs_gecko_resize (progfuncs_t *prinst, struct globalvars_s *pr_glo
 	float sizex = G_FLOAT(OFS_PARM1);
 	float sizey = G_FLOAT(OFS_PARM2);
 	cin_t *cin;
-#ifdef Q3SHADERS
 	cin = R_ShaderGetCinematic(shader);
-#else
-	cin = NULL;
-#endif
 	if (!cin)
 		return;
 	Media_Send_Resize(cin, sizex, sizey);
@@ -3376,12 +3511,7 @@ static void PF_cs_gecko_get_texture_extent (progfuncs_t *prinst, struct globalva
 	float *ret = G_VECTOR(OFS_RETURN);
 	int sx, sy;
 	cin_t *cin;
-#ifdef Q3SHADERS
 	cin = R_ShaderGetCinematic(shader);
-#else
-	cin = NULL;
-#endif
-
 	if (cin)
 	{
 		Media_Send_GetSize(cin, &sx, &sy);
@@ -3481,7 +3611,7 @@ static void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_
 	int i;
 	framestate_t fstate;
 
-	cs_getframestate(ent, ent->v->renderflags, &fstate);
+	cs_getframestate(ent, ent->xv->renderflags, &fstate);
 
 	if (Mod_GetTag(mod, tagnum, &fstate, transforms))
 	{
@@ -3492,14 +3622,14 @@ static void PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalvars_s *pr_
 		VectorCopy(csqcg.up, src+8);
 		src[11] = 0;
 
-		if (ent->v->scale)
+		if (ent->xv->scale)
 		{
 			for (i = 0; i < 12; i+=4)
 			{
-				transforms[i+0] *= ent->v->scale;
-				transforms[i+1] *= ent->v->scale;
-				transforms[i+2] *= ent->v->scale;
-				transforms[i+3] *= ent->v->scale;
+				transforms[i+0] *= ent->xv->scale;
+				transforms[i+1] *= ent->xv->scale;
+				transforms[i+2] *= ent->xv->scale;
+				transforms[i+3] *= ent->xv->scale;
 			}
 		}
 
@@ -3549,7 +3679,7 @@ static void PF_cs_gettaginfo (progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	framestate_t fstate;
 
-	cs_getframestate(ent, ent->v->renderflags, &fstate);
+	cs_getframestate(ent, ent->xv->renderflags, &fstate);
 
 #pragma message("PF_cs_gettaginfo: This function doesn't honour attachments (but setattachment isn't implemented yet anyway)")
 	if (!Mod_GetTag(mod, tagnum, &fstate, transforms))
@@ -3627,11 +3757,11 @@ static void PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_global
 static void PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int modelindex = G_FLOAT(OFS_PARM0);
-	char *str = PF_VarString(prinst, 1, pr_globals);
+	int frameno = G_FLOAT(OFS_PARM1);
 	model_t *mod = CSQC_GetModelForIndex(modelindex);
 
 	if (mod && Mod_GetFrameDuration)
-		G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, str);
+		G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, frameno);
 	else
 		G_FLOAT(OFS_RETURN) = 0;
 }
@@ -3650,21 +3780,23 @@ static void PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals
 static void PF_shaderforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *str = PF_VarString(prinst, 0, pr_globals);
-#ifdef Q3SHADERS
+
 	shader_t *shad;
 	shad = R_RegisterSkin(str);
 	if (shad)
 		G_FLOAT(OFS_RETURN) = shad-r_shaders + 1;
 	else
 		G_FLOAT(OFS_RETURN) = 0;
-#else
-	G_FLOAT(OFS_RETURN) = 0;
-#endif
 }
 
 void skel_reset(void)
 {
-	numskelobjectsused = 0;
+	while (numskelobjectsused > 0)
+	{
+		numskelobjectsused--;
+		skelobjects[numskelobjectsused].numbones = 0;
+		skelobjects[numskelobjectsused].inuse = false;
+	}
 }
 
 void skel_dodelete(void)
@@ -3697,7 +3829,7 @@ skelobject_t *skel_get(progfuncs_t *prinst, int skelidx, int bonecount)
 			{
 				skelobjects[skelidx].numbones = bonecount;
 				skelobjects[skelidx].bonematrix = (float*)PR_AddString(prinst, "", sizeof(float)*12*bonecount);
-				if (skelidx < numskelobjectsused)
+				if (skelidx <= numskelobjectsused)
 				{
 					numskelobjectsused = skelidx + 1;
 					skelobjects[skelidx].model = NULL;
@@ -3782,7 +3914,7 @@ static void PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (!model)
 		return; //invalid model, can't get a skeleton
 
-	cs_getframestate(ent, ent->v->renderflags, &fstate);
+	cs_getframestate(ent, ent->xv->renderflags, &fstate);
 
 	//heh... don't copy.
 	fstate.bonecount = 0;
@@ -3895,15 +4027,15 @@ static void PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	if (!skelobj || skelobj->absolute || (unsigned int)boneidx >= skelobj->numbones)
 	{
 		matrix[0][0] = 1;
-		matrix[0][1] = 0;
-		matrix[0][2] = 0;
-
 		matrix[1][0] = 0;
-		matrix[1][1] = 1;
-		matrix[1][2] = 0;
-
 		matrix[2][0] = 0;
+
+		matrix[0][1] = 0;
+		matrix[1][1] = 1;
 		matrix[2][1] = 0;
+
+		matrix[0][2] = 0;
+		matrix[1][2] = 0;
 		matrix[2][2] = 1;
 
 		matrix[3][0] = 0;
@@ -3912,10 +4044,19 @@ static void PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	}
 	else
 	{
-		memcpy(matrix[0], skelobj->bonematrix + boneidx*12 + 0, sizeof(vec3_t));
-		memcpy(matrix[1], skelobj->bonematrix + boneidx*12 + 3, sizeof(vec3_t));
-		memcpy(matrix[2], skelobj->bonematrix + boneidx*12 + 6, sizeof(vec3_t));
-		memcpy(matrix[3], skelobj->bonematrix + boneidx*12 + 9, sizeof(vec3_t));
+		float *bone = skelobj->bonematrix+12*boneidx;
+		matrix[0][0] = bone[0];
+		matrix[1][0] = bone[1];
+		matrix[2][0] = bone[2];
+		matrix[3][0] = bone[3];
+		matrix[0][1] = bone[4];
+		matrix[1][1] = bone[5];
+		matrix[2][1] = bone[6];
+		matrix[3][1] = bone[7];
+		matrix[0][2] = bone[8];
+		matrix[1][2] = bone[9];
+		matrix[2][2] = bone[10];
+		matrix[3][2] = bone[11];
 	}
 }
 
@@ -3996,6 +4137,7 @@ static void PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	unsigned int boneidx = G_FLOAT(OFS_PARM1)-1;
 	float *matrix[4];
 	skelobject_t *skelobj;
+	float *bone;
 
 	if (*prinst->callargc > 5)
 	{
@@ -4016,10 +4158,19 @@ static void PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	if (!skelobj || boneidx >= skelobj->numbones)
 		return;
 //testme
-	VectorCopy(matrix[0], skelobj->bonematrix+12*boneidx+0);
-	VectorCopy(matrix[1], skelobj->bonematrix+12*boneidx+3);
-	VectorCopy(matrix[2], skelobj->bonematrix+12*boneidx+6);
-	VectorCopy(matrix[3], skelobj->bonematrix+12*boneidx+9);
+	bone = skelobj->bonematrix+12*boneidx;
+	bone[0] = matrix[0][0];
+	bone[1] = matrix[1][0];
+	bone[2] = matrix[2][0];
+	bone[3] = matrix[3][0];
+	bone[4] = matrix[0][1];
+	bone[5] = matrix[1][1];
+	bone[6] = matrix[2][1];
+	bone[7] = matrix[3][1];
+	bone[8] = matrix[0][2];
+	bone[9] = matrix[1][2];
+	bone[10]= matrix[2][2];
+	bone[11]= matrix[3][2];
 }
 
 //void(float skel, float bonenum, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
@@ -4197,10 +4348,10 @@ realcheck:
 			start[0] = stop[0] = x ? maxs[0] : mins[0];
 			start[1] = stop[1] = y ? maxs[1] : mins[1];
 
-			savedhull = ent->v->hull;
-			ent->v->hull = 0;
+			savedhull = ent->xv->hull;
+			ent->xv->hull = 0;
 			trace = CS_Move (start, vec3_origin, vec3_origin, stop, true, ent);
-			ent->v->hull = savedhull;
+			ent->xv->hull = savedhull;
 
 			if (trace.fraction != 1.0 && trace.endpos[2] > bottom)
 				bottom = trace.endpos[2];
@@ -4428,11 +4579,11 @@ static void PF_cs_setlistener (progfuncs_t *prinst, struct globalvars_s *pr_glob
 static void CSQC_LerpStateToCSQC(lerpents_t *le, csqcedict_t *ent, qboolean nolerp)
 {
 	ent->v->frame = le->newframe;
-	ent->v->frame1time = max(0, cl.servertime - le->newframestarttime);
-	ent->v->frame2 = le->oldframe;
-	ent->v->frame2time = max(0, cl.servertime - le->newframestarttime);
+	ent->xv->frame1time = max(0, cl.servertime - le->newframestarttime);
+	ent->xv->frame2 = le->oldframe;
+	ent->xv->frame2time = max(0, cl.servertime - le->newframestarttime);
 
-	ent->v->lerpfrac = bound(0, cl.servertime - le->newframestarttime, 0.1);
+	ent->xv->lerpfrac = bound(0, cl.servertime - le->newframestarttime, 0.1);
 
 
 /*	if (nolerp)
@@ -4469,14 +4620,14 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 	if (!(flags & RSES_NOTRAILS))
 	{
 		//use entnum as a test to see if its new (if the old origin isn't usable)
-		if (ent->v->entnum && model->particletrail >= 0)
+		if (ent->xv->entnum && model->particletrail >= 0)
 		{
 			if (pe->ParticleTrail (ent->v->origin, src->origin, model->particletrail, &(le->trailstate)))
 				pe->ParticleTrailIndex(ent->v->origin, src->origin, model->traildefaultindex, 0, &(le->trailstate));
 		}
 	}
 
-	ent->v->entnum = src->number;
+	ent->xv->entnum = src->number;
 	ent->v->modelindex = src->modelindex;
 //	ent->v->bitmask = src->bitmask;
 	ent->v->flags = src->flags;
@@ -4488,15 +4639,15 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 	ent->v->skin = src->skinnum;
 //	ent->v->glowsize = src->glowsize;
 //	ent->v->glowcolor = src->glowcolour;
-	ent->v->scale = src->scale/16.0f;
-	ent->v->fatness = src->fatness/16.0f;
+	ent->xv->scale = src->scale/16.0f;
+	ent->xv->fatness = src->fatness/16.0f;
 //	ent->v->hexen2flags = src->hexen2flags;
 //	ent->v->abslight = src->abslight;
 //	ent->v->dpflags = src->dpflags;
 //	ent->v->colormod[0] = (src->colormod[0]/255.0f)*8;
 //	ent->v->colormod[1] = (src->colormod[1]/255.0f)*8;
 //	ent->v->colormod[2] = (src->colormod[2]/255.0f)*8;
-	ent->v->alpha = src->trans/255.0f;
+	ent->xv->alpha = src->trans/255.0f;
 //	ent->v->lightstyle = src->lightstyle;
 //	ent->v->lightpflags = src->lightpflags;
 //	ent->v->solid = src->solid;
@@ -4519,7 +4670,7 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 }
 void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 {
-	ent->v->entnum = pnum+1;
+	ent->xv->entnum = pnum+1;
 
 	if (cl.spectator && !Cam_DrawPlayer(0, pnum))
 	{
@@ -4538,9 +4689,9 @@ void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 	VectorCopy(srcp->velocity, ent->v->velocity);
 	ent->v->angles[0] *= -0.333;
 	ent->v->colormap = pnum+1;
-	ent->v->scale = srcp->scale/16.0f;
+	ent->xv->scale = srcp->scale/16.0f;
 	//ent->v->fatness = srcp->fatness;
-	ent->v->alpha = srcp->alpha/255.0f;
+	ent->xv->alpha = srcp->alpha/255.0f;
 
 //	ent->v->colormod[0] = (srcp->colormod[0]/255.0f)*8;
 //	ent->v->colormod[1] = (srcp->colormod[1]/255.0f)*8;
@@ -4595,7 +4746,7 @@ qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state)
 			ent = (csqcedict_t *)ED_Alloc(csqcprogs);
 
 		CSQC_PlayerStateToCSQC(playernum, state, ent);
-		ent->v->drawmask = MASK_DELTA;
+		ent->xv->drawmask = MASK_DELTA;
 
 		*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
 		pr_globals = PR_globals(csqcprogs, PR_CURRENT);
@@ -4686,7 +4837,7 @@ qboolean CSQC_DeltaUpdate(entity_state_t *src)
 			ent = (csqcedict_t *)ED_Alloc(csqcprogs);
 
 		CSQC_EntStateToCSQC(deltaflags[src->modelindex], csqcdelta_time, src, ent);
-		ent->v->drawmask = MASK_DELTA;
+		ent->xv->drawmask = MASK_DELTA;
 
 
 		*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
@@ -4927,10 +5078,6 @@ void PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globa
 //these are the builtins that still need to be added.
 #define PS_cs_setattachment		PF_Fixme
 
-#define PF_R_PolygonBegin		PF_Fixme			// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
-#define PF_R_PolygonVertex		PF_Fixme			// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
-#define PF_R_PolygonEnd			PF_Fixme			// #308 void() R_EndPolygon (EXT_CSQC_???)
-
 //warning: functions that depend on globals are bad, mkay?
 static struct {
 	char *name;
@@ -5142,7 +5289,7 @@ static struct {
 	{"setproperty",	PF_R_SetViewFlag,	303},				// #303 float(float property, ...) setproperty (EXT_CSQC)
 	{"renderscene",	PF_R_RenderScene,	304},				// #304 void() renderscene (EXT_CSQC)
 
-	{"adddynamiclight",	PF_R_AddDynamicLight,	305},			// #305 void(vector org, float radius, vector lightcolours) adddynamiclight (EXT_CSQC)
+	{"dynamiclight_add",	PF_R_DynamicLight_Add,	305},			// #305 float(vector org, float radius, vector lightcolours) adddynamiclight (EXT_CSQC)
 
 	{"R_BeginPolygon",	PF_R_PolygonBegin,	306},				// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
 	{"R_PolygonVertex",	PF_R_PolygonVertex,	307},				// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
@@ -5238,6 +5385,9 @@ static struct {
 	{"readserverentitystate",	PF_ReadServerEntityState,		369},	// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)
 //	{"readsingleentitystate",	PF_ReadSingleEntityState,		370},
 	{"deltalisten",	PF_DeltaListen,					371},		// #371 float(string modelname, float flags) deltalisten  (EXT_CSQC_1)
+
+	{"dynamiclight_get",	PF_R_DynamicLight_Get,	372},
+	{"dynamiclight_set",	PF_R_DynamicLight_Set,	373},
 
 //400
 	{"copyentity",	PF_cs_copyentity,		400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
@@ -5465,6 +5615,31 @@ void CSQC_ForgetThreads(void)
 	}
 }
 
+void CSQC_EntSpawn (struct edict_s *e, int loading)
+{
+	struct csqcedict_s *ent = (csqcedict_t*)e;
+#ifdef VM_Q1
+	if (!ent->xv)
+		ent->xv = (csqcextentvars_t *)(ent->v+1);
+#endif
+}
+pbool CSQC_EntFree (struct edict_s *e)
+{
+	struct csqcedict_s *ent = (csqcedict_t*)e;
+	ent->v->solid = SOLID_NOT;
+	ent->xv->drawmask = 0;
+	ent->v->modelindex = 0;
+	ent->v->think = 0;
+	ent->v->nextthink = 0;
+
+#ifdef USEODE
+	World_Physics_RemoveFromEntity(&csqc_world, (wedict_t*)ent);
+	World_Physics_RemoveJointFromEntity(&csqc_world, (wedict_t*)ent);
+#endif
+
+	return true;
+}
+
 void CSQC_Shutdown(void)
 {
 	search_close_progs(csqcprogs, false);
@@ -5645,8 +5820,8 @@ qboolean CSQC_Init (unsigned int checksum)
 	csqcprogparms.Abort = CSQC_Abort;
 	csqcprogparms.edictsize = sizeof(csqcedict_t);
 
-	csqcprogparms.entspawn = NULL;//void (*entspawn) (struct edict_s *ent);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
-	csqcprogparms.entcanfree = NULL;//bool (*entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed
+	csqcprogparms.entspawn = CSQC_EntSpawn;//void (*entspawn) (struct edict_s *ent);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
+	csqcprogparms.entcanfree = CSQC_EntFree;//bool (*entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed
 	csqcprogparms.stateop = NULL;//StateOp;//void (*stateop) (float var, func_t func);
 	csqcprogparms.cstateop = NULL;//CStateOp;
 	csqcprogparms.cwstateop = NULL;//CWStateOp;
@@ -6281,7 +6456,7 @@ void CSQC_ParseEntities(void)
 			{
 				ent = (csqcedict_t*)ED_Alloc(csqcprogs);
 				csqcent[entnum] = ent;
-				ent->v->entnum = entnum;
+				ent->xv->entnum = entnum;
 				G_FLOAT(OFS_PARM0) = true;
 
 				if (cl_csqcdebug.value)

@@ -129,7 +129,6 @@ void S_SoundInfo_f(void)
 		Con_Printf("%5d samplepos\n", sc->sn.samplepos);
 		Con_Printf("%5d samplebits\n", sc->sn.samplebits);
 		Con_Printf("%5d speed\n", sc->sn.speed);
-		Con_Printf("0x%x dma buffer\n", sc->sn.buffer);
 		Con_Printf("%5d total_channels\n", sc->total_chans);
 	}
 }
@@ -178,42 +177,42 @@ static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
 	memset(sc, 0, sizeof(*sc));
 
 	// set requested rate
-	if (!snd_khz.value)
+	if (!snd_khz.ival)
 		sc->sn.speed = 22050;
-/*	else if (snd_khz.value >= 195)
+/*	else if (snd_khz.ival >= 195)
 		sc->sn.speed = 200000;
-	else if (snd_khz.value >= 180)
+	else if (snd_khz.ival >= 180)
 		sc->sn.speed = 192000;
-	else if (snd_khz.value >= 90)
+	else if (snd_khz.ival >= 90)
 		sc->sn.speed = 96000; */
-	else if (snd_khz.value >= 45)
+	else if (snd_khz.ival >= 45)
 		sc->sn.speed = 48000;
-	else if (snd_khz.value >= 30)
+	else if (snd_khz.ival >= 30)
 		sc->sn.speed = 44100;
-	else if (snd_khz.value >= 20)
+	else if (snd_khz.ival >= 20)
 		sc->sn.speed = 22050;
-	else if (snd_khz.value >= 10)
+	else if (snd_khz.ival >= 10)
 		sc->sn.speed = 11025;
 	else
 		sc->sn.speed = 8000;
 
 	// set requested speaker count
-	if (snd_speakers.value > MAXSOUNDCHANNELS)
+	if (snd_speakers.ival > MAXSOUNDCHANNELS)
 		sc->sn.numchannels = MAXSOUNDCHANNELS;
-	else if (snd_speakers.value > 1)
-		sc->sn.numchannels = (int)snd_speakers.value;
+	else if (snd_speakers.ival > 1)
+		sc->sn.numchannels = (int)snd_speakers.ival;
 	else
 		sc->sn.numchannels = 1;
 
 	// set requested sample bits
-	if (snd_samplebits.value >= 16)
+	if (snd_samplebits.ival >= 16)
 		sc->sn.samplebits = 16;
 	else
 		sc->sn.samplebits = 8;
 
 	// set requested buffer size
-	if (snd_buffersize.value > 0)
-		sc->sn.samples = (int)snd_buffersize.value * sc->sn.numchannels;
+	if (snd_buffersize.ival > 0)
+		sc->sn.samples = snd_buffersize.ival * sc->sn.numchannels;
 	else
 		sc->sn.samples = 0;
 
@@ -362,7 +361,7 @@ void S_Startup (void)
 		sc->next = sndcardinfo;
 		sndcardinfo = sc;
 
-		if (!snd_usemultipledevices.value)
+		if (!snd_usemultipledevices.ival)
 			break;
 	}
 
@@ -383,7 +382,7 @@ void SNDDMA_SetUnderWater(qboolean underwater)
 //so that the video code can call it directly without flushing the models it's just loaded.
 void S_DoRestart (void)
 {
-	if (nosound.value)
+	if (nosound.ival)
 		return;
 
 	S_StopAllSounds (true);
@@ -427,13 +426,13 @@ void S_Control_f (void)
 	{
 		if (!Q_strcasecmp(Cmd_Argv (2), "off"))
 		{
-			if (snd_usemultipledevices.value)
+			if (snd_usemultipledevices.ival)
 			{
 				Cvar_SetValue(&snd_usemultipledevices, 0);
 				S_Restart_f();
 			}
 		}
-		else if (!snd_usemultipledevices.value)
+		else if (!snd_usemultipledevices.ival)
 		{
 			Cvar_SetValue(&snd_usemultipledevices, 1);
 			S_Restart_f();
@@ -752,13 +751,13 @@ sfx_t *S_PrecacheSound (char *name)
 {
 	sfx_t	*sfx;
 
-	if (nosound.value)
+	if (nosound.ival)
 		return NULL;
 
 	sfx = S_FindName (name);
 
 // cache it in
-	if (precache.value &&sndcardinfo)
+	if (precache.ival && sndcardinfo)
 		S_LoadSound (sfx);
 
 	return sfx;
@@ -848,6 +847,9 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	dotforward = DotProduct(listener_forward, source_vec);
 	dotup = DotProduct(listener_up, source_vec);
 
+	if (snd_leftisright.ival)
+		dotright = -dotright;
+
 	for (i = 0; i < sc->sn.numchannels; i++)
 	{
 		scale = 1 + (dotright*sin(sc->yaw[i]*M_PI/180) + dotforward*cos(sc->yaw[i]*M_PI/180));// - dotup*cos(sc->pitch[0])*2;
@@ -878,7 +880,7 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 	if (!sfx)
 		return;
 
-	if (nosound.value)
+	if (nosound.ival)
 		return;
 
 	vol = fvol*255;
@@ -915,7 +917,7 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 		return;		// couldn't load the sound's data
 	}
 
-	if (scache->length > snd_speed*20 && !ruleset_allow_overlongsounds.value)
+	if (scache->length > snd_speed*20 && !ruleset_allow_overlongsounds.ival)
 	{
 		Con_DPrintf("Shortening over-long sound effect\n");
 		startpos = scache->length - snd_speed*10;
@@ -1366,7 +1368,7 @@ void S_UpdateCard(soundcardinfo_t *sc)
 //
 // debugging output
 //
-	if (snd_show.value)
+	if (snd_show.ival)
 	{
 		total = 0;
 		ch = sc->channel;
@@ -1422,7 +1424,7 @@ void S_ExtraUpdate (void)
 	IN_Accumulate ();
 #endif
 
-	if (snd_noextraupdate.value)
+	if (snd_noextraupdate.ival)
 		return;		// don't pollute timings
 
 	S_RunCapture();
@@ -1560,7 +1562,7 @@ void S_LocalSound (char *sound)
 {
 	sfx_t	*sfx;
 
-	if (nosound.value)
+	if (nosound.ival)
 		return;
 	if (!sound_started)
 		return;
@@ -1718,7 +1720,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 
 	if (prepadl == 0x7fffffff)
 	{
-		if (snd_show.value)
+		if (snd_show.ival)
 			Con_Printf("Wasn't playing\n");
 		prepadl = 0;
 		spare = s->sfxcache->length;
@@ -1762,7 +1764,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			snd_speed, 
 			s->sfxcache->width, 
 			s->sfxcache->numchannels, 
-			(int)snd_linearresample_stream.value);
+			snd_linearresample_stream.ival);
 	}
 
 	s->sfxcache->loopstart = s->sfxcache->length;

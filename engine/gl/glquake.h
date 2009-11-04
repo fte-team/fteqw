@@ -42,7 +42,7 @@ void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	#ifdef __MACOSX__
 		//apple, you suck.
 		#include <AGL/agl.h>
@@ -54,22 +54,18 @@ void ClearBounds (vec3_t mins, vec3_t maxs);
 
 void GL_InitFogTexture(void);
 
-void GL_BeginRendering (int *x, int *y, int *width, int *height);
+void GL_BeginRendering (void);
 void GL_EndRendering (void);
 
+void R_PolyBlend (void);
 void GLR_BrightenScreen (void);
 void GLR_NetGraph (void);
-void GLR_DrawAlphaSurfaces (void);
+void GLR_FrameTimeGraph (int frametime);
 void GL_FlushSkinCache(void);
 void GL_GAliasFlushSkinCache(void);
 
 void PPL_CreateShaderObjects(void);
 void PPL_BaseBModelTextures(entity_t *e);
-
-#ifdef RUNTIMELIGHTING
-void LightFace (int surfnum);
-void LightLoadEntities(char *entstring);
-#endif
 
 // Function prototypes for the Texture Object Extension routines
 typedef GLboolean (APIENTRY *ARETEXRESFUNCPTR)(GLsizei, const GLuint *,
@@ -99,6 +95,7 @@ typedef void		(APIENTRYP FTEPFNGLGETINFOLOGARBPROC)			(GLhandleARB obj, GLsizei 
 typedef void		(APIENTRYP FTEPFNGLLINKPROGRAMARBPROC)			(GLhandleARB programObj);
 typedef GLint		(APIENTRYP FTEPFNGLGETUNIFORMLOCATIONARBPROC)	(GLhandleARB programObj, const GLcharARB *name);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM4FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX4FVARBPROC)		(GLint location, GLsizei count, GLboolean transpose, GLfloat *value);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM4FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM3FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM3FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
@@ -117,7 +114,7 @@ extern FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 extern	FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
 extern	FTEPFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
 
-int GL_AllocNewTexture(void);
+qboolean GL_CheckExtension(char *extname);
 
 typedef struct {
 	qboolean tex_env_combine;
@@ -143,24 +140,26 @@ extern gl_config_t gl_config;
 
 extern	float	gldepthmin, gldepthmax;
 
-void GL_Upload32 (char *name, unsigned *data, int width, int height,  qboolean mipmap, qboolean alpha);	//name was added for texture compression output
-void GL_Upload32_BGRA (char *name, unsigned *data, int width, int height,  qboolean mipmap, qboolean alpha);	//name was added for texture compression output
-void GL_Upload8 (char *name, qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
-void GL_Upload24BGR_Flip (char *name, qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
-void GL_Upload24BGR (char *name, qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
+/*
+void GL_Upload32 (char *name, unsigned *data, int width, int height, unsigned int flags);	//name was added for texture compression output
+void GL_Upload32_BGRA (char *name, unsigned *data, int width, int height, unsigned int flags);	//name was added for texture compression output
+void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int flags, unsigned int alphatype);
+void GL_Upload24BGR_Flip (char *name, qbyte *data, int width, int height, unsigned int flags);
+void GL_Upload24BGR (char *name, qbyte *data, int width, int height, unsigned int flags);
 #ifdef GL_EXT_paletted_texture
 void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
 #endif
-int GL_LoadTexture (char *identifier, int width, int height, qbyte *data, qboolean mipmap, qboolean alpha);
-int GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, qboolean mipmap, float bumpscale);
-int GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, qboolean mipmap, qboolean alpha);
-int GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, qboolean mipmap, qboolean alpha);
-int GL_LoadTexture32 (char *identifier, int width, int height, unsigned *data, qboolean mipmap, qboolean alpha);
-int GL_LoadCompressed(char *name);
-int GL_FindTexture (char *identifier);
+*/
+texid_t GL_LoadTexture (char *identifier, int width, int height, qbyte *data, unsigned int flags, unsigned int transtype);
+texid_t GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, unsigned int flags, float bumpscale);
+texid_t GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+texid_t GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+texid_t GL_LoadTexture32 (char *identifier, int width, int height, void *data, unsigned int flags);
+texid_t GL_LoadCompressed(char *name);
+texid_t GL_FindTexture (char *identifier);
 
-int GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, qboolean mipmap, qboolean alpha);
-void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height,  qboolean mipmap, qboolean alpha);
+texid_t GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, unsigned int flags);
+void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags);
 
 typedef struct
 {
@@ -169,36 +168,33 @@ typedef struct
 	float	r, g, b;
 } glvert_t;
 
-extern glvert_t glv;
-
-extern	int glx, gly, glwidth, glheight;
+FTE_DEPRECATED extern glvert_t glv;
 
 #endif
 
 // r_local.h -- private refresh defs
 
-#define ALIAS_BASE_SIZE_RATIO		(1.0 / 11.0)
+//#define ALIAS_BASE_SIZE_RATIO		(1.0 / 11.0)
 					// normalizing factor so player model works out to about
 					//  1 pixel per triangle
-#define	MAX_LBM_HEIGHT		480
+//#define	MAX_LBM_HEIGHT		480
 
-#define TILE_SIZE		128		// size of textures generated by R_GenTiledSurf
+//#define TILE_SIZE		128		// size of textures generated by R_GenTiledSurf
 
-#define SKYSHIFT		7
-#define	SKYSIZE			(1 << SKYSHIFT)
-#define SKYMASK			(SKYSIZE - 1)
+//#define SKYSHIFT		7
+//#define	SKYSIZE			(1 << SKYSHIFT)
+//#define SKYMASK			(SKYSIZE - 1)
 
 #define BACKFACE_EPSILON	0.01
 
 
 void R_TimeRefresh_f (void);
-texture_t *SWR_TextureAnimation (texture_t *base);
+FTE_DEPRECATED texture_t *SWR_TextureAnimation (texture_t *base);
 texture_t *R_TextureAnimation (texture_t *base);
 
 #include "particles.h"
 
 //====================================================
-
 
 extern	entity_t	r_worldentity;
 extern	vec3_t		modelorg, r_entorigin;
@@ -206,7 +202,7 @@ extern	entity_t	*currententity;
 extern	int			r_visframecount;	// ??? what difs?
 extern	int			r_framecount;
 extern	mplane_t	frustum[4];
-extern	int		c_brush_polys, c_alias_polys;
+FTE_DEPRECATED extern	int		c_brush_polys, c_alias_polys;
 
 extern float r_wateralphaval;
 
@@ -228,18 +224,10 @@ extern	int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;	
 extern	texture_t	*r_notexture_mip;
 extern	int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
-extern	qboolean	envmap;
-extern	int	particletexture;
-extern	int particlecqtexture;
-extern	int explosiontexture;
-extern	int balltexture;
-extern	int	netgraphtexture;	// netgraph texture
-
-extern	int	skytexturenum;		// index in cl.loadmodel, not gl texture object
+FTE_DEPRECATED extern	qboolean	envmap;
+extern	texid_t	netgraphtexture;	// netgraph texture
 
 extern	int		gl_lightmap_format;
-extern	int		gl_solid_format;
-extern	int		gl_alpha_format;
 
 extern	int			mirrortexturenum;	// quake texturenum, not gltexturenum
 extern	qboolean	mirror;
@@ -251,26 +239,22 @@ extern	float	r_view_matrix[16];
 extern	const char *gl_vendor;
 extern	const char *gl_renderer;
 extern	const char *gl_version;
-extern	const char *gl_extensions;
 
 
 #ifdef Q3SHADERS
-void R_UnlockArrays (void);
-void R_IBrokeTheArrays(void);
-void R_ClearArrays (void);
+FTE_DEPRECATED void R_UnlockArrays (void);
+FTE_DEPRECATED void R_IBrokeTheArrays(void);
+FTE_DEPRECATED void R_ClearArrays (void);
 #endif
+FTE_DEPRECATED void PPL_RevertToKnownState(void);
 
-int Mod_LoadReplacementTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
-extern int image_width, image_height;
-int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust);
-int Mod_LoadBumpmapTexture(char *name, char *subpath);
-
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 void R_TranslatePlayerSkin (int playernum);
-void GL_Bind (int texnum);
-void GL_MBind( GLenum target, int texnum );
-void GL_TexEnv( GLenum mode );
-void GL_BindType (int type, int texnum);
+void GL_Bind (texid_t texnum);
+void GL_MBind(int tmunum, texid_t texnum);
+void GL_CullFace(unsigned int sflags);
+void GL_TexEnv(GLenum mode);
+void GL_BindType (int type, texid_t texnum);
 void GL_FlushBackEnd (void);
 
 // Multitexture
@@ -299,7 +283,7 @@ extern qboolean gl_mtexable;
 
 void GL_DisableMultitexture(void);
 void GL_EnableMultitexture(void);
-void GL_SelectTexture (GLenum target);
+void GL_SelectTexture (int tmunum);
 void GL_SetShaderState2D(qboolean is2d);
 
 void R_DrawRailCore(entity_t *e);
@@ -311,31 +295,28 @@ void R_DrawBeam( entity_t *e );
 //
 // vid_gl*.c
 //
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 void GL_DoSwap (void);
 #endif
 
 //
 // gl_backend.c
 //
-#ifdef RGLQUAKE
-void R_BackendInit(void);
-void R_IBrokeTheArrays(void);
+#ifdef GLQUAKE
+void FTE_DEPRECATED R_BackendInit(void);
+void FTE_DEPRECATED R_IBrokeTheArrays(void);
 #endif
+
+void R_DrawSkyChain (msurface_t *s);
+texnums_t R_InitSky (texture_t *mt);
 
 //
 // gl_warp.c
 //
-#ifdef RGLQUAKE
-void GL_DrawSkyBox (msurface_t *s);
-void GL_SubdivideSurface (msurface_t *fa, float dividesize);
-void GL_EmitBothSkyLayers (msurface_t *fa);
-void EmitWaterPolyChain (msurface_t *fa, float basealpha);	//chains through the texture chain
-void EmitWaterPolys (msurface_t *fa, float basealpha);	//don't use if you can avoid it
-void GL_DrawSkyChain (msurface_t *s);
-void R_InitSky (texture_t *mt);
+#ifdef GLQUAKE
+void FTE_DEPRECATED GL_SubdivideSurface (msurface_t *fa, float dividesize);
+void FTE_DEPRECATED GL_EmitBothSkyLayers (msurface_t *fa);
 
-void R_ClearSkyBox (void);
 void R_DrawSkyBox (msurface_t *s);
 void R_ForceSkyBox (void);
 void R_AddSkySurface (msurface_t *fa);
@@ -348,15 +329,15 @@ void D3D9_DrawSkyChain (msurface_t *s);
 //
 // gl_draw.c
 //
-#ifdef RGLQUAKE
-int GL_LoadPicTexture (qpic_t *pic);
+#ifdef GLQUAKE
+texid_t GL_LoadPicTexture (qpic_t *pic);
 void GL_Set2D (void);
 #endif
 
 //
 // gl_rmain.c
 //
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 qboolean R_CullSphere (vec3_t origin, float radius);
 qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs);
@@ -369,16 +350,13 @@ void GL_SetupSceneProcessingTextures (void);
 //
 // gl_alias.c
 //
-#ifdef RGLQUAKE
-void R_DrawGAliasModel (entity_t *e);
+#ifdef GLQUAKE
+void R_DrawGAliasModel (entity_t *e, unsigned int rmode);
 void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius);
-void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, float radius);
-void R_LightArrays(byte_vec4_t *colours, int vertcount, vec3_t *normals);
+void R_LightArrays(vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals);
 
 //misc model formats
-void R_DrawAlias3Model (entity_t *ent);
 void R_DrawHLModel(entity_t	*curent);
-void R_DrawGroupModel (entity_t *ent);
 
 //typedef float m3by3_t[3][3];
 //int GetTag(model_t *mod, char *tagname, int frame, float **org, m3by3_t **ang);
@@ -387,7 +365,7 @@ void R_DrawGroupModel (entity_t *ent);
 //
 // gl_rlight.c
 //
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 void GLR_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 void GLR_RenderDlights (void);
@@ -396,20 +374,16 @@ int GLR_LightPoint (vec3_t p);
 void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 #endif
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
-void GLR_AnimateLight (void);
-#endif
-
 //
 // gl_heightmap.c
 //
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 void GL_DrawHeightmapModel (entity_t *e);
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 #endif
 
 //gl_bloom.c
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 void R_BloomRegister(void);
 void R_BloomBlend(void);
 void R_InitBloomTextures(void);
@@ -418,10 +392,12 @@ void R_InitBloomTextures(void);
 //
 // gl_rsurf.c
 //
-#ifdef RGLQUAKE
-void R_DrawBrushModel (entity_t *e);
+#ifdef GLQUAKE
+FTE_DEPRECATED void R_DrawBrushModel (entity_t *e);
 void R_DrawWorld (void);
 void GL_BuildLightmaps (void);
+void R_RenderDynamicLightmaps (msurface_t *fa, int shift);
+int GLR_LightmapShift (model_t *model);
 
 void GL_LoadShaders(void);
 
@@ -448,9 +424,9 @@ typedef struct {
 #endif
 
 //gl_ppl.c
-void PPL_DrawWorld (void);
-qboolean PPL_ShouldDraw(void);
-void RotateLightVector(const vec3_t *angles, const vec3_t origin, const vec3_t lightpoint, vec3_t result);
+FTE_DEPRECATED void PPL_DrawWorld (qbyte *viewvis);
+FTE_DEPRECATED qboolean PPL_ShouldDraw(void);
+FTE_DEPRECATED void RotateLightVector(const vec3_t *angles, const vec3_t origin, const vec3_t lightpoint, vec3_t result);
 
 //
 // gl_refrag.c
@@ -464,7 +440,7 @@ void R_StoreEfrags (efrag_t **ppefrag);
 void R_NetGraph (void);
 
 
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 
 extern void (APIENTRY *qglAccum) (GLenum op, GLfloat value);
 extern void (APIENTRY *qglAlphaFunc) (GLenum func, GLclampf ref);
@@ -825,7 +801,16 @@ extern void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei
 extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
 extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 
+extern const GLubyte * (APIENTRY * qglGetStringi) (GLenum name, GLuint index);
 
+extern void (APIENTRY *qglGenFramebuffersEXT)(GLsizei n, GLuint* ids);
+extern void (APIENTRY *qglDeleteFramebuffersEXT)(GLsizei n, const GLuint* ids);
+extern void (APIENTRY *qglBindFramebufferEXT)(GLenum target, GLuint id);
+extern void (APIENTRY *qglGenRenderbuffersEXT)(GLsizei n, GLuint* ids);
+extern void (APIENTRY *qglDeleteRenderbuffersEXT)(GLsizei n, const GLuint* ids);
+extern void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
+extern void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
+extern void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId, GLint  level);
 
 /*
 extern qboolean gl_arb_fragment_program;
@@ -847,6 +832,7 @@ extern FTEPFNGLATTACHOBJECTARBPROC			qglAttachObjectARB;
 extern FTEPFNGLGETINFOLOGARBPROC			qglGetInfoLogARB;
 extern FTEPFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
 extern FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
+extern FTEPFNGLUNIFORMMATRIX4FVARBPROC		qglUniformMatrix4fvARB;
 extern FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
 extern FTEPFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
 extern FTEPFNGLUNIFORM3FARBPROC			qglUniform3fARB;

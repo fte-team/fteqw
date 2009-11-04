@@ -176,7 +176,7 @@ cvar_t	fraglimit		= SCVARF("fraglimit",		"" ,	CVAR_SERVERINFO);
 cvar_t	timelimit		= SCVARF("timelimit",		"" ,	CVAR_SERVERINFO);
 cvar_t	teamplay		= SCVARF("teamplay",		"" ,	CVAR_SERVERINFO);
 cvar_t	samelevel		= SCVARF("samelevel",		"" ,	CVAR_SERVERINFO);
-cvar_t	maxclients		= SCVARF("maxclients",		"8",	CVAR_SERVERINFO);
+cvar_t	maxclients		= FCVAR("maxclients","sv_maxclients","8",CVAR_SERVERINFO);
 cvar_t	maxspectators	= SCVARF("maxspectators",	"8",	CVAR_SERVERINFO);
 #ifdef SERVERONLY
 cvar_t	deathmatch		= SCVARF("deathmatch",		"1",	CVAR_SERVERINFO);			// 0, 1, or 2
@@ -188,6 +188,7 @@ cvar_t	skill			= SCVARF("skill",			"" ,	CVAR_SERVERINFO);			// 0, 1, 2 or 3
 cvar_t	spawn			= SCVARF("spawn",			"" ,	CVAR_SERVERINFO);
 cvar_t	watervis		= SCVARF("watervis",		"" ,	CVAR_SERVERINFO);
 cvar_t	rearview		= SCVARF("rearview",		"" ,	CVAR_SERVERINFO);
+cvar_t	allow_fish		= SCVARF("allow_fish",		"0",	CVAR_SERVERINFO);
 cvar_t	allow_luma		= SCVARF("allow_luma",		"1",	CVAR_SERVERINFO);
 cvar_t	allow_bump		= SCVARF("allow_bump",		"1",	CVAR_SERVERINFO);
 cvar_t	allow_skybox	= SCVARF("allow_skybox",	"",		CVAR_SERVERINFO);
@@ -317,8 +318,8 @@ void VARGS SV_Error (char *error, ...)
 
 		inerror = false;
 		Host_EndGame("SV_Error: %s\n",string);
-		return;
 	}
+	SCR_EndLoadingPlaque();
 
 	if (!isDedicated)	//dedicated servers crash...
 	{
@@ -326,7 +327,6 @@ void VARGS SV_Error (char *error, ...)
 		SCR_EndLoadingPlaque();
 		inerror=false;
 		longjmp (host_abort, 1);
-		return;
 	}
 #endif
 
@@ -477,7 +477,7 @@ void SV_DropClient (client_t *drop)
 				}
 
 				if (progstype == PROG_NQ)
-					ED_ClearEdict(svprogfuncs, drop->edict);
+					ED_Clear(svprogfuncs, drop->edict);
 			}
 
 			if (drop->spawninfo)
@@ -524,6 +524,7 @@ void SV_DropClient (client_t *drop)
 	if (drop->netchan.remote_address.type == NA_LOOPBACK)
 	{
 		Netchan_Transmit(&drop->netchan, 0, "", SV_RateForClient(drop));
+#pragma message("This mans that we may not see the reason we kicked ourselves.")
 		CL_Disconnect();
 		drop->state = cs_free;	//don't do zombie stuff
 	}
@@ -1355,6 +1356,17 @@ void SVC_GetChallenge (void)
 				memcpy(over, &lng, sizeof(lng));
 				over+=sizeof(lng);
 			}
+			//tell the client what fte extensions we support
+			if (svs.fteprotocolextensions2)
+			{
+				lng = LittleLong(PROTOCOL_VERSION_FTE2);
+				memcpy(over, &lng, sizeof(lng));
+				over+=sizeof(lng);
+
+				lng = LittleLong(svs.fteprotocolextensions2);
+				memcpy(over, &lng, sizeof(lng));
+				over+=sizeof(lng);
+			}
 #endif
 
 #ifdef HUFFNETWORK
@@ -1614,6 +1626,7 @@ client_t *SVC_DirectConnect(void)
 	int protocol;
 
 	unsigned int protextsupported=0;
+	unsigned int protextsupported2=0;
 
 
 	char *name;
@@ -1762,9 +1775,13 @@ client_t *SVC_DirectConnect(void)
 				protextsupported = Q_atoi(Cmd_Argv(1));
 				Con_DPrintf("Client supports 0x%x fte extensions\n", protextsupported);
 				break;
+			case PROTOCOL_VERSION_FTE2:
+				protextsupported2 = Q_atoi(Cmd_Argv(1));
+				Con_DPrintf("Client supports 0x%x fte2 extensions\n", protextsupported);
+				break;
 			case PROTOCOL_VERSION_HUFFMAN:
 				huffcrc = Q_atoi(Cmd_Argv(1));
-				Con_DPrintf("Client supports huffman compression\n", huffcrc);
+				Con_DPrintf("Client supports huffman compression. crc 0x%x\n", huffcrc);
 				break;
 			}
 		}
@@ -1839,6 +1856,7 @@ client_t *SVC_DirectConnect(void)
 
 	newcl->userid = nextuserid;
 	newcl->fteprotocolextensions = protextsupported;
+	newcl->fteprotocolextensions2 = protextsupported2;
 	newcl->protocol = protocol;
 
 	if (sv.msgfromdemo)
@@ -1898,7 +1916,7 @@ client_t *SVC_DirectConnect(void)
 
 	if (protocol == SCP_QUAKEWORLD &&!atoi(Info_ValueForKey (temp.userinfo, "iknow")))
 	{
-		if (sv.worldmodel->fromgame == fg_halflife && !(newcl->fteprotocolextensions & PEXT_HLBSP))
+		if (sv.world.worldmodel->fromgame == fg_halflife && !(newcl->fteprotocolextensions & PEXT_HLBSP))
 		{
 			if (atof(Info_ValueForKey (temp.userinfo, "*FuhQuake")) < 0.3)
 			{
@@ -1908,7 +1926,7 @@ client_t *SVC_DirectConnect(void)
 			}
 		}
 #ifdef PEXT_Q2BSP
-		else if (sv.worldmodel->fromgame == fg_quake2 && !(newcl->fteprotocolextensions & PEXT_Q2BSP))
+		else if (sv.world.worldmodel->fromgame == fg_quake2 && !(newcl->fteprotocolextensions & PEXT_Q2BSP))
 		{
 			SV_RejectMessage (protocol, "The server is using a quake 2 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
 //			Con_Printf("player %s was dropped due to incompatible client\n", name);
@@ -1916,7 +1934,7 @@ client_t *SVC_DirectConnect(void)
 		}
 #endif
 #ifdef PEXT_Q3BSP
-		else if (sv.worldmodel->fromgame == fg_quake3 && !(newcl->fteprotocolextensions & PEXT_Q3BSP))
+		else if (sv.world.worldmodel->fromgame == fg_quake3 && !(newcl->fteprotocolextensions & PEXT_Q3BSP))
 		{
 			SV_RejectMessage (protocol, "The server is using a quake 3 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
 //			Con_Printf("player %s was dropped due to incompatible client\n", name);
@@ -2491,7 +2509,7 @@ void SVC_RemoteCommand (void)
 			strcat (remaining, " ");
 		}
 
-		Cmd_ExecuteString (remaining, rcon_level.value);
+		Cmd_ExecuteString (remaining, rcon_level.ival);
 
 	}
 
@@ -2842,13 +2860,14 @@ SV_ReadPackets
 */
 //FIMXE: move to header
 qboolean SV_GetPacket (void);
-void SV_ReadPackets (void)
+qboolean SV_ReadPackets (void)
 {
 	int			i;
 	client_t	*cl;
 	int			qport;
 	laggedpacket_t *lp;
 	char		*banreason;
+	qboolean	received = false;
 
 	for (i = 0; i < MAX_CLIENTS; i++)	//fixme: shouldn't we be using svs.allocated_client_slots ?
 	{
@@ -2871,6 +2890,7 @@ void SV_ReadPackets (void)
 
 			if (Netchan_Process(&cl->netchan))
 			{	// this is a valid, sequenced packet, so process it
+				received++;
 				svs.stats.packets++;
 				if (cl->state > cs_zombie)
 				{	//make sure they didn't already disconnect
@@ -2909,6 +2929,7 @@ void SV_ReadPackets (void)
 #ifdef Q3SERVER
 		if (svs.gametype == GT_QUAKE3)
 		{
+			received++;
 			SVQ3_HandleClient();
 			continue;
 		}
@@ -2935,6 +2956,7 @@ void SV_ReadPackets (void)
 				{
 					if (NQNetChan_Process(&cl->netchan))
 					{
+						received++;
 						svs.stats.packets++;
 						SVNQ_ExecuteClientMessage(cl);
 					}
@@ -2949,6 +2971,7 @@ void SV_ReadPackets (void)
 #pragma message("qwoverq3: fixme: this will block qw+q3 clients from the same ip")
 				if (cl->state != cs_zombie)
 				{
+					received++;
 					SVQ3_HandleClient();
 				}
 				break;
@@ -2992,6 +3015,7 @@ void SV_ReadPackets (void)
 
 			if (Netchan_Process(&cl->netchan))
 			{	// this is a valid, sequenced packet, so process it
+				received++;
 				svs.stats.packets++;
 				if (cl->state != cs_zombie)
 				{
@@ -3019,6 +3043,8 @@ void SV_ReadPackets (void)
 		//	Con_Printf ("%s:sequenced packet without connection\n"
 		// ,NET_AdrToString(net_from));
 	}
+
+	return received;
 }
 
 /*
@@ -3073,7 +3099,8 @@ void SV_CheckTimeouts (void)
 			}
 		}
 	}
-	if (sv.paused && !nclients) {
+	if (sv.paused && !nclients)
+	{
 		// nobody left, unpause the server
 		if (SV_TogglePause(NULL))
 			SV_BroadcastTPrintf(PRINT_HIGH, STL_CLIENTLESSUNPAUSE);
@@ -3198,7 +3225,7 @@ void SV_Impulse_f (void)
 	if (!svprogfuncs)
 		return;
 
-	pr_global_struct->time = sv.physicstime;
+	pr_global_struct->time = sv.world.physicstime;
 
 	svs.clients[i].state = cs_connected;
 
@@ -3209,7 +3236,7 @@ void SV_Impulse_f (void)
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 
-	pr_global_struct->time = sv.physicstime;
+	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 
@@ -3246,6 +3273,7 @@ void SV_Frame (void)
 	extern cvar_t pr_imitatemvdsv;
 	static double	start, end;
 	float oldtime;
+	qboolean isidle;
 
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
@@ -3283,10 +3311,10 @@ void SV_Frame (void)
 	IWebRun();
 #endif
 
-	if (sv_master.value)
+	if (sv_master.ival)
 	{
-		if (sv_masterport.value)
-			SVM_Think(sv_masterport.value);
+		if (sv_masterport.ival)
+			SVM_Think(sv_masterport.ival);
 		else
 			SVM_Think(PORT_MASTER);
 	}
@@ -3296,7 +3324,7 @@ void SV_MVDStream_Poll(void);
 	SV_MVDStream_Poll();
 	}
 
-	if (sv.state < ss_active || !sv.worldmodel)
+	if (sv.state < ss_active || !sv.world.worldmodel)
 	{
 #ifndef SERVERONLY
 	// check for commands typed to the host
@@ -3322,9 +3350,9 @@ void SV_MVDStream_Poll(void);
 	SV_CheckLog ();
 
 // get packets
-	SV_ReadPackets ();
+	isidle = !SV_ReadPackets ();
 
-	if (pr_imitatemvdsv.value)
+	if (pr_imitatemvdsv.ival)
 	{
 		Cbuf_Execute ();
 		if (sv.state < ss_active)	//whoops...
@@ -3340,8 +3368,13 @@ void SV_MVDStream_Poll(void);
 	// move autonomous things around if enough time has passed
 	if (!sv.paused)
 	{
+#ifdef Q2SERVER
+		//q2 is idle even if clients sent packets.
+		if (svs.gametype == GT_QUAKE2)
+			isidle = true;
+#endif
 		if (SV_Physics ())
-			return;
+			isidle = false;
 	}
 	else
 	{
@@ -3357,55 +3390,59 @@ void SV_MVDStream_Poll(void);
 		}
 	}
 
+	if (!isidle)
+	{
+
 #ifdef SQL
-	PR_SQLCycle();
+		PR_SQLCycle();
 #endif
 
-	while(SV_ReadMVD());
+		while(SV_ReadMVD());
 
-	if (sv.multicast.cursize)
-	{
-		Con_Printf("Unterminated multicast\n");
-		sv.multicast.cursize=0;
-	}
+		if (sv.multicast.cursize)
+		{
+			Con_Printf("Unterminated multicast\n");
+			sv.multicast.cursize=0;
+		}
 
 #ifndef SERVERONLY
 // check for commands typed to the host
-	if (isDedicated)
+		if (isDedicated)
 #endif
-	{
+		{
 #ifdef PLUGINS
-		Plug_Tick();
+			Plug_Tick();
 #endif
 
-		SV_GetConsoleCommands ();
+			SV_GetConsoleCommands ();
 
 // process console commands
-		if (!pr_imitatemvdsv.value)
-			Cbuf_Execute ();
-	}
+			if (!pr_imitatemvdsv.value)
+				Cbuf_Execute ();
+		}
 
-	if (sv.state < ss_active)	//whoops...
-		return;
+		if (sv.state < ss_active)	//whoops...
+			return;
 
-	SV_CheckVars ();
+		SV_CheckVars ();
 
 // send messages back to the clients that had packets read this frame
-	SV_SendClientMessages ();
+		SV_SendClientMessages ();
 
 //	demo_start = Sys_DoubleTime ();
-	SV_SendMVDMessage();
+		SV_SendMVDMessage();
 //	demo_end = Sys_DoubleTime ();
 //	svs.stats.demo += demo_end - demo_start;
 
 // send a heartbeat to the master if needed
-	Master_Heartbeat ();
+		Master_Heartbeat ();
 
 
 #ifdef Q2SERVER
-	if (ge && ge->edicts)
-		SVQ2_ClearEvents();
+		if (ge && ge->edicts)
+			SVQ2_ClearEvents();
 #endif
+	}
 
 // collect timing statistics
 	end = Sys_DoubleTime ();
@@ -3488,6 +3525,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&watervis,	cvargroup_serverinfo);
 	Cvar_Register (&rearview,	cvargroup_serverinfo);
 	Cvar_Register (&mirrors,	cvargroup_serverinfo);
+	Cvar_Register (&allow_fish, cvargroup_serverinfo);
 	Cvar_Register (&allow_luma,	cvargroup_serverinfo);
 	Cvar_Register (&allow_bump,	cvargroup_serverinfo);
 	Cvar_Register (&allow_skybox,	cvargroup_serverinfo);
@@ -3692,6 +3730,8 @@ void SV_InitLocal (void)
 #ifdef PEXT_DPFLAGS
 	svs.fteprotocolextensions |= PEXT_DPFLAGS;
 #endif
+
+	svs.fteprotocolextensions2 |= PEXT2_PRYDONCURSOR;
 
 //	if (svs.protocolextensions)
 //		Info_SetValueForStarKey (svs.info, "*"DISTRIBUTION"_ext", va("%x", svs.protocolextensions), MAX_SERVERINFO_STRING);

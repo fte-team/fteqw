@@ -87,6 +87,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 	hlmdl_tex_t	*tex;
 	hlmdl_bone_t	*bones;
 	hlmdl_bonecontroller_t	*bonectls;
+	texid_t *texnums;
 
 	int					start, end, total;
     /*~~*/
@@ -108,7 +109,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 		sprintf(st, "%d", (int) crc);
 		Info_SetValueForKey (cls.userinfo, 
 			(mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-			st, MAX_INFO_STRING);
+			st, sizeof(cls.userinfo));
 
 		if (cls.state >= ca_connected)
 		{
@@ -199,9 +200,11 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 	model->bones = (char *)bones - (char *)model;
 	model->bonectls = (char *)bonectls - (char *)model;
 
+	texnums = Hunk_Alloc(texheader->numtextures*sizeof(model->texnums));
+	model->texnums = (char *)texnums - (char *)model;
     for(i = 0; i < texheader->numtextures; i++)
     {
-        tex[i].i = GL_LoadTexture8Pal24("", tex[i].w, tex[i].h, (qbyte *) texheader + tex[i].i, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].i, true, false);
+        texnums[i] = GL_LoadTexture8Pal24("", tex[i].w, tex[i].h, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, IF_NOALPHA|IF_NOGAMMA);
     }
 
 
@@ -575,6 +578,7 @@ void R_DrawHLModel(entity_t	*curent)
 	model.textures	= (hlmdl_tex_t *)				((char *)modelc + modelc->textures);
 	model.bones		= (hlmdl_bone_t *)				((char *)modelc + modelc->bones);
 	model.bonectls	= (hlmdl_bonecontroller_t *)	((char *)modelc + modelc->bonectls);
+	model.texnums	= (texid_t *)					((char *)modelc + modelc->texnums);
 
     skins = (short *) ((qbyte *) model.texheader + model.texheader->skins);
 
@@ -680,7 +684,7 @@ void R_DrawHLModel(entity_t	*curent)
 			{
 				tex_w = 1.0f / model.textures[skins[mesh->skinindex]].w;
 				tex_h = 1.0f / model.textures[skins[mesh->skinindex]].h;
-				GL_Bind(model.textures[skins[mesh->skinindex]].i);
+				GL_Bind(model.texnums[skins[mesh->skinindex]]);
 			}
 
             GL_Draw_HL_AliasFrame((short *) ((qbyte *) model.header + mesh->index), transformed, tex_w, tex_h);

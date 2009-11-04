@@ -45,7 +45,7 @@ int VM_fopen (char *name, int *handle, int fmode, int owner)
 	switch (fmode)
 	{
 	case VM_FS_READ:
-		vm_fopen_files[i].data = COM_LoadMallocFile(name);
+		vm_fopen_files[i].data = FS_LoadMallocFile(name);
 		vm_fopen_files[i].bufferlen = vm_fopen_files[i].len = com_filesize;
 		vm_fopen_files[i].ofs = 0;
 		if (vm_fopen_files[i].data)
@@ -56,7 +56,7 @@ int VM_fopen (char *name, int *handle, int fmode, int owner)
 		/*
 	case VM_FS_APPEND:
 	case VM_FS_APPEND2:
-		vm_fopen_files[i].data = COM_LoadMallocFile(name);
+		vm_fopen_files[i].data = FS_LoadMallocFile(name);
 		vm_fopen_files[i].ofs = vm_fopen_files[i].bufferlen = vm_fopen_files[i].len = com_filesize;
 		if (vm_fopen_files[i].data)
 			break;

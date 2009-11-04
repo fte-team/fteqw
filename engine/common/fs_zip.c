@@ -6,10 +6,6 @@
 #include <zlib.h>
 #include "unzip.c"
 
-#ifdef _WIN32
-#pragma comment( lib, "../libs/zlib.lib" )
-#endif
-
 typedef struct
 {
 	char	name[MAX_QPATH];

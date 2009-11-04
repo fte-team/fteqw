@@ -52,19 +52,19 @@ void M_Menu_Options_f (void)
 	mgt = M_GameType();
 	if (mgt == MGT_QUAKE2)
 	{	//q2...
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_options");
 		y += 32;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{	//h2
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
+		MC_AddPicture(menu, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title3.lmp");
 		y+=32;
 	}
 	else
 	{	//q1
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_option.lmp");
 	}
 
 	menu->selecteditem = (union menuoption_s *)
@@ -83,7 +83,8 @@ void M_Menu_Options_f (void)
 	MC_AddCheckBox(menu, 16, y,		"      HUD on left side", &cl_hudswap,0); y+=8;
 	MC_AddCheckBox(menu, 16, y,		"    Old-style chatting", &cl_standardchat,0);y+=8;
 	MC_AddCheckBox(menu, 16, y,		"    Old-style messages", &cl_standardmsg,0);y+=8;
-	y+=4;MC_AddEditCvar(menu, 16, y,		"           Imitate FPS", "cl_netfps"); y+=8+4;
+	y+=4;MC_AddEditCvar(menu, 16, y,"           Imitate FPS", "cl_netfps"); y+=8+4;
+	y+=4;MC_AddEditCvar(menu, 16, y,"    Auto status format", "tp_autostatus"); y+=8+4;
 
 	MC_AddConsoleCommand(menu, 16, y,	"         Video Options", "menu_video\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"           FPS Options", "menu_fps\n"); y+=8;
@@ -271,7 +272,7 @@ void M_Menu_Audio_f (void)
 
 	if (mgt == MGT_QUAKE2)
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_options");
 		y += 32;
 	}
 	else if (mgt == MGT_HEXEN2)
@@ -279,8 +280,8 @@ void M_Menu_Audio_f (void)
 	}
 	else
 	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_option.lmp");
 	}
 
 	menu->selecteditem = (union menuoption_s *)
@@ -338,7 +339,7 @@ void M_Menu_Particles_f (void)
 
 	if (mgt == MGT_QUAKE2)
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_options");
 		y += 32;
 	}
 	else if (mgt == MGT_HEXEN2)
@@ -346,8 +347,8 @@ void M_Menu_Particles_f (void)
 	}
 	else
 	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_option.lmp");
 	}
 
 	menu->selecteditem = (union menuoption_s *)
@@ -388,18 +389,21 @@ presetinfo_t preset[] =
 	{"r_particlesystem",	{"none",	"classic",	"script",			"script",			"script"}},
 	{"r_stains",			{"0",		"0",		"0.75",				"0.75",				"0.75"}},
 	{"r_drawflat",			{"1",		"0",		"0",				"0",				"0"}},
+	{"gl_miptexLevel",		{"3",		"0",		"0",				"0",				"0"}},
 	{"r_nolerp",			{"1",		"0",		"0",				"0",				"0"}},
 	{"r_nolightdir",		{"1",		"1",		"0",				"0",				"0"}},
-	{"r_dynamic",			{"0",		"0",		"1",				"1",				"1"}},
+	{"r_dynamic",			{"0",		"0",		"1",				"0",				"0"}},
 	{"r_bloom",				{"0",		"0",		"0",				"0",				"1"}},
 	{"gl_flashblend",		{"0",		"1",		"0",				"1",				"2"}},
 	{"gl_bump",				{"0",		"0",		"0",				"1",				"1"}},
+	{"r_skin_overlays",		{"0",		"0",		"1",				"1",				"1"}},
 	{"gl_specular",			{"0",		"0",		"0",				"1",				"1"}},
 	{"r_loadlit",			{"0",		"1",		"1",				"2",				"2"}},
 	{"r_fastsky",			{"1",		"0",		"0",				"-1",				"-1"}},
 	{"r_waterlayers",		{"0",		"2",		"",					"4",				"4"}},
 	{"r_shadows",			{"0",		"0",		"0",				"1",				"1"}},
 	{"r_shadow_realtime_world",{"0",	"0",		"0",				"0",				"1"}},
+	{"r_shadow_realtime_dlight",{"0",	"0",		"0",				"1",				"1"}},
 	{"gl_detail",			{"0",		"0",		"0",				"1",				"1"}},
 	{"gl_load24bit",		{"0",		"0",		"1",				"1",				"1"}},
 	{"r_replacemodels",		{"",		"",			"md3 md2",			"md3 md2",			"md3 md2"}},
@@ -441,12 +445,14 @@ void FPS_Preset_f (void)
 
 void M_Menu_FPS_f (void)
 {
+	char *loadlitoptions[] = {" off", " load", " generate", NULL};
+	char *numbervalues[] = {"0", "1", "2"};
 	int y = 32;
 	menu_t *menu;
 	int mgt;
 	int i, len;
-#ifdef RGLQUAKE
-	extern cvar_t gl_compress, gl_detail, gl_bump, r_flashblend, r_shadow_realtime_world, gl_motionblur;
+#ifdef GLQUAKE
+	extern cvar_t gl_compress, gl_detail, gl_bump, gl_specular, r_flashblend, r_shadow_realtime_world, r_shadow_realtime_dlight, gl_motionblur, r_nolightdir;
 #endif
 	extern cvar_t r_stains, r_bloodstains, r_loadlits, r_dynamic, v_contentblend, show_fps;
 
@@ -459,7 +465,7 @@ void M_Menu_FPS_f (void)
 
 	if (mgt == MGT_QUAKE2)
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_options");
 		y += 32;
 	}
 	else if (mgt == MGT_HEXEN2)
@@ -467,8 +473,8 @@ void M_Menu_FPS_f (void)
 	}
 	else
 	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_option.lmp");
 	}
 
 	menu->selecteditem = (union menuoption_s *)
@@ -480,27 +486,35 @@ void M_Menu_FPS_f (void)
 		len = strlen(preset[0].value[i]);
 		MC_AddConsoleCommand(menu, 48+8*(9-len), y,		va("(preset) %s", preset[0].value[i]), va("fps_preset %s\n", preset[0].value[i])); y+=8;
 	}
+
 	MC_AddCheckBox(menu, 48, y,				"          Show FPS", &show_fps,0);y+=8;
 
 	MC_AddCheckBox(menu, 48, y,				"     Content blend", &v_contentblend,0);y+=8;
-	MC_AddCheckBox(menu, 48, y,				"    Dynamic lights", &r_dynamic,0);y+=8;
-	MC_AddCheckBox(menu, 48, y,			    	"         Stainmaps", &r_stains,0);y+=8;
 
-	y+=4;MC_AddEditCvar(menu, 48, y,				"            Skybox", "r_skybox");y+=8;y+=4;
+	y+=4;MC_AddEditCvar(menu, 48, y,		"            Skybox", "r_skybox");y+=8;y+=4;
 
 	switch(qrenderer)
 	{
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	case QR_OPENGL:
-		MC_AddCheckBox(menu, 48, y,			"      Blood stains", &r_bloodstains,0);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"   Load .lit files", &r_loadlits,0);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"     Flashblending", &r_flashblend,0);y+=8;
+		MC_AddCvarCombo(menu, 48, y,		" Coloured lighting", &r_loadlits, loadlitoptions, numbervalues);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"   32 bit textures", &gl_load24bit,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"  Detail Texturing", &gl_detail,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"          Bumpmaps", &gl_bump,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			" Specular Textures", &gl_specular,0);y+=8;
 		MC_AddCheckBox(menu, 48, y,			"   Tex Compression", &gl_compress,0);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"   32 bit textures", &gl_load24bit,0);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"   Dynamic shadows", &r_shadows,0);y+=8;
-		MC_AddCheckBox(menu, 48, y,			"   Realtime Lights", &r_shadow_realtime_world,0);y+=8;
+
+		MC_AddCheckBox(menu, 48, y,			"         Stainmaps", &r_stains,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"      Blood stains", &r_bloodstains,0);y+=8;
+
+		MC_AddCheckBox(menu, 48, y,			" Flat mdl Lighting", &r_nolightdir,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"Old Dynamic lights", &r_dynamic,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"     Flashblending", &r_flashblend,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"  Realtime DLights", &r_shadow_realtime_dlight,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"   DLights Shadows", &r_shadow_realtime_dlight_shadows,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"  Realtime WLights", &r_shadow_realtime_world,0);y+=8;
+		MC_AddCheckBox(menu, 48, y,			"     World Shadows", &r_shadow_realtime_world_shadows,0);y+=8;
+
 		MC_AddCheckBox(menu, 48, y,			"         Waterwarp", &r_waterwarp,0);y+=8;
 		MC_AddSlider(menu, 48, y,			"       Motion blur", &gl_motionblur,		0,		0.99, 0);y+=8;
 		break;

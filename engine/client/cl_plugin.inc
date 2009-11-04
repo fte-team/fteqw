@@ -215,7 +215,7 @@ qintptr_t VARGS Plug_Draw_Line(void *offset, quintptr_t mask, const qintptr_t *a
 {
 	switch(qrenderer)	//FIXME: I don't want qrenderer seen outside the refresh
 	{
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	case QR_OPENGL:
 		qglDisable(GL_TEXTURE_2D);
 		qglBegin(GL_LINES);
@@ -232,9 +232,12 @@ qintptr_t VARGS Plug_Draw_Line(void *offset, quintptr_t mask, const qintptr_t *a
 }
 qintptr_t VARGS Plug_Draw_Character(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
+	int x, y;
 	if (qrenderer <= 0)
 		return 0;
-	Draw_Character(arg[0], arg[1], (unsigned int)arg[2]);
+	Font_BeginString(font_conchar, arg[0], arg[1], &x, &y);
+	Font_DrawChar(x, y, CON_WHITEMASK | 0xe000 | (unsigned int)arg[2]);
+	Font_EndString(font_conchar);
 	return 0;
 }
 void	(D3D_Draw_Fill_Colours)				(int x, int y, int w, int h);
@@ -249,7 +252,7 @@ qintptr_t VARGS Plug_Draw_Fill(void *offset, quintptr_t mask, const qintptr_t *a
 	height = VM_FLOAT(arg[3]);
 	switch(qrenderer)	//FIXME: I don't want qrenderer seen outside the refresh
 	{
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	case QR_OPENGL:
 		qglDisable(GL_TEXTURE_2D);
 		qglBegin(GL_QUADS);

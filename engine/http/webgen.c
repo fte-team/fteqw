@@ -5,7 +5,7 @@
 #include "iweb.h"
 
 #ifdef CLIENTONLY
-IWEBFILE *IWebGenerateFile(char *name)
+vfsfile_t *IWebGenerateFile(char *name)
 {
 	return NULL;
 }
@@ -32,7 +32,7 @@ void IWeb_MoreGeneratedResize(int newsize)
 	{
 		memcpy(IWeb_GenerationBuffer->data, ob->data, ob->len);
 		IWeb_GenerationBuffer->len = ob->len;
-		BZ_Free(ob);
+		IWebFree(ob);
 	}
 
 	IWeb_GenerationBufferTotal = newsize;

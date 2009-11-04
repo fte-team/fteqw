@@ -1,5 +1,20 @@
-//#define HALFLIFE_API_VERSION 138
-#define HALFLIFE_API_VERSION 140
+/*supported halflife API versions:
+138
+140
+*/
+#if HLSERVER >= 1
+	#define HALFLIFE_API_VERSION HLSERVER
+#else
+	#define HALFLIFE_API_VERSION 140
+#endif
+
+#ifndef QDECL
+	#ifdef _MSC_VER
+		#define QDECL _cdecl
+	#else
+		#define QDECL
+	#endif
+#endif
 
 typedef long hllong; //long is 64bit on amd64+linux, not sure that's what valve meant, but lets keep it for compatibility.
 typedef struct hledict_s hledict_t;
@@ -317,237 +332,237 @@ vec3_t landmark;
 //http://metamod.org/dllapi_notes.html
 typedef struct
 {
-	void (*GameDLLInit)(void);
-    int (*DispatchSpawn)(hledict_t *ed);
-    void (*DispatchThink)(hledict_t *ed);
-    unk (*DispatchUse)(unk);
-    void (*DispatchTouch)(hledict_t *e1, hledict_t *e2);
-    void (*DispatchBlocked)(hledict_t *self, hledict_t *other);
-    void (*DispatchKeyValue)(hledict_t *ed, hlfielddef_t *fdef);
-    unk (*DispatchSave)(unk);
-    unk (*DispatchRestore)(unk);
-    unk (*DispatchObjectCollsionBox)(unk);
-    unk (*SaveWriteFields)(unk);
-    unk (*SaveReadFields)(unk);
-    unk (*SaveGlobalState)(unk);
-    unk (*RestoreGlobalState)(unk);
-    unk (*ResetGlobalState)(unk);
-    qboolean (*ClientConnect)(hledict_t *ed, char *name, char *ip, char reject[128]);
-    void (*ClientDisconnect)(hledict_t *ed);
-    void (*ClientKill)(hledict_t *ed);
-    void (*ClientPutInServer)(hledict_t *ed);
-    void (*ClientCommand)(hledict_t *ed);
-    unk (*ClientUserInfoChanged)(unk);
-    void (*ServerActivate)(hledict_t *edictlist, int numedicts, int numplayers);
+	void (QDECL *GameDLLInit)(void);
+    int (QDECL *DispatchSpawn)(hledict_t *ed);
+    void (QDECL *DispatchThink)(hledict_t *ed);
+    unk (QDECL *DispatchUse)(unk);
+    void (QDECL *DispatchTouch)(hledict_t *e1, hledict_t *e2);
+    void (QDECL *DispatchBlocked)(hledict_t *self, hledict_t *other);
+    void (QDECL *DispatchKeyValue)(hledict_t *ed, hlfielddef_t *fdef);
+    unk (QDECL *DispatchSave)(unk);
+    unk (QDECL *DispatchRestore)(unk);
+    unk (QDECL *DispatchObjectCollsionBox)(unk);
+    unk (QDECL *SaveWriteFields)(unk);
+    unk (QDECL *SaveReadFields)(unk);
+    unk (QDECL *SaveGlobalState)(unk);
+    unk (QDECL *RestoreGlobalState)(unk);
+    unk (QDECL *ResetGlobalState)(unk);
+    qboolean (QDECL *ClientConnect)(hledict_t *ed, char *name, char *ip, char reject[128]);
+    void (QDECL *ClientDisconnect)(hledict_t *ed);
+    void (QDECL *ClientKill)(hledict_t *ed);
+    void (QDECL *ClientPutInServer)(hledict_t *ed);
+    void (QDECL *ClientCommand)(hledict_t *ed);
+    unk (QDECL *ClientUserInfoChanged)(unk);
+    void (QDECL *ServerActivate)(hledict_t *edictlist, int numedicts, int numplayers);
 #if HALFLIFE_API_VERSION > 138
-    unk (*ServerDeactivate)(unk);
+    unk (QDECL *ServerDeactivate)(unk);
 #endif
-    void (*PlayerPreThink)(hledict_t *ed);
-    void (*PlayerPostThink)(hledict_t *ed);
-    unk (*StartFrame)(unk);
-    unk (*ParmsNewLevel)(unk);
-    unk (*ParmsChangeLevel)(unk);
-    unk (*GetGameDescription)(unk);
-    unk (*PlayerCustomization)(unk);
-    unk (*SpectatorConnect)(unk);
-    unk (*SpectatorDisconnect)(unk);
-    unk (*SpectatorThink)(unk);
+    void (QDECL *PlayerPreThink)(hledict_t *ed);
+    void (QDECL *PlayerPostThink)(hledict_t *ed);
+    unk (QDECL *StartFrame)(unk);
+    unk (QDECL *ParmsNewLevel)(unk);
+    unk (QDECL *ParmsChangeLevel)(unk);
+    unk (QDECL *GetGameDescription)(unk);
+    unk (QDECL *PlayerCustomization)(unk);
+    unk (QDECL *SpectatorConnect)(unk);
+    unk (QDECL *SpectatorDisconnect)(unk);
+    unk (QDECL *SpectatorThink)(unk);
 	//138
 #if HALFLIFE_API_VERSION > 138
-    unk (*Sys_Error)(unk);
-    unk (*PM_Move)(unk);
-    unk (*PM_Init)(unk);
-    unk (*PM_FindTextureType)(unk);
-    unk (*SetupVisibility)(unk);
-    unk (*UpdateClientData)(unk);
-    unk (*AddToFullPack)(unk);
-    unk (*CreateBaseline)(unk);
-    unk (*RegisterEncoders)(unk);
-    unk (*GetWeaponData)(unk);
-    unk (*CmdStart)(unk);
-    unk (*CmdEnd)(unk);
-    unk (*ConnectionlessPacket)(unk);
-    unk (*GetHullBounds)(unk);
-    unk (*CreateInstancedBaselines)(unk);
-    unk (*InconsistentFile)(unk);
-    unk (*AllowLagCompensation)(unk);
+    unk (QDECL *Sys_Error)(unk);
+    unk (QDECL *PM_Move)(unk);
+    unk (QDECL *PM_Init)(unk);
+    unk (QDECL *PM_FindTextureType)(unk);
+    unk (QDECL *SetupVisibility)(unk);
+    unk (QDECL *UpdateClientData)(unk);
+    unk (QDECL *AddToFullPack)(unk);
+    unk (QDECL *CreateBaseline)(unk);
+    unk (QDECL *RegisterEncoders)(unk);
+    unk (QDECL *GetWeaponData)(unk);
+    unk (QDECL *CmdStart)(unk);
+    unk (QDECL *CmdEnd)(unk);
+    unk (QDECL *ConnectionlessPacket)(unk);
+    unk (QDECL *GetHullBounds)(unk);
+    unk (QDECL *CreateInstancedBaselines)(unk);
+    unk (QDECL *InconsistentFile)(unk);
+    unk (QDECL *AllowLagCompensation)(unk);
 #endif
 } SVHL_GameFuncs_t;
 
 //http://metamod.org/newapi_notes.html
 struct 
 {
-	unk (*OnFreeEntPrivateData)(unk);
-    unk (*GameShutdown)(unk);
-    unk (*ShouldCollide)(unk);
-    unk (*CvarValue)(unk);
-    unk (*CvarValue2 )(unk);
+	unk (QDECL *OnFreeEntPrivateData)(unk);
+    unk (QDECL *GameShutdown)(unk);
+    unk (QDECL *ShouldCollide)(unk);
+    unk (QDECL *CvarValue)(unk);
+    unk (QDECL *CvarValue2 )(unk);
 } *SVHL_GameFuncsEx;
 
 // http://metamod.org/engine_notes.html
 typedef struct
 {
-	int (*PrecacheModel)(char *name);
-	int (*PrecacheSound)(char *name);
-	void (*SetModel)(hledict_t *ed, char *modelname);
-	unk (*ModelIndex)(unk);
-	int (*ModelFrames)(int midx);
-	void (*SetSize)(hledict_t *ed, float *mins, float *maxs);
-	void (*ChangeLevel)(char *nextmap, char *startspot);
-	unk (*GetSpawnParms)(unk);
-	unk (*SaveSpawnParms)(unk);
-	float (*VecToYaw)(float *inv);
-	void (*VecToAngles)(float *inv, float *outa);
-	unk (*MoveToOrigin)(unk);
-	unk (*ChangeYaw)(unk);
-	unk (*ChangePitch)(unk);
-	hledict_t *(*FindEntityByString)(hledict_t *last, char *field, char *value);
-	unk (*GetEntityIllum)(unk);
-	hledict_t *(*FindEntityInSphere)(hledict_t *last, float *org, float radius);
-	hledict_t *(*FindClientInPVS)(hledict_t *ed);
-	unk (*EntitiesInPVS)(unk);
-	void (*MakeVectors)(float *angles);
-	void (*AngleVectors)(float *angles, float *forward, float *right, float *up);
-	hledict_t *(*CreateEntity)(void);
-	void (*RemoveEntity)(hledict_t *ed);
-	hledict_t *(*CreateNamedEntity)(string_t name);
-	unk (*MakeStatic)(unk);
-	unk (*EntIsOnFloor)(unk);
-	int (*DropToFloor)(hledict_t *ed);
-	int (*WalkMove)(hledict_t *ed, float yaw, float dist, int mode);
-	void (*SetOrigin)(hledict_t *ed, float *neworg);
-	void (*EmitSound)(hledict_t *ed, int chan, char *soundname, float vol, float atten, int flags, int pitch);
-	void (*EmitAmbientSound)(hledict_t *ed, float *org, char *samp, float vol, float attenuation, unsigned int flags, int pitch);
-	void (*TraceLine)(float *start, float *end, int flags, hledict_t *ignore, hltraceresult_t *result);
-	unk (*TraceToss)(unk);
-	unk (*TraceMonsterHull)(unk);
-	void (*TraceHull)(float *start, float *end, int flags, int hullnum, hledict_t *ignore, hltraceresult_t *result);
-	unk (*TraceModel)(unk);
-	char *(*TraceTexture)(hledict_t *againstent, vec3_t start, vec3_t end);
-	unk (*TraceSphere)(unk);
-	unk (*GetAimVector)(unk);
-	void (*ServerCommand)(char *cmd);
-	void (*ServerExecute)(void);
-	unk (*ClientCommand)(unk);
-	unk (*ParticleEffect)(unk);
-	void (*LightStyle)(int stylenum, char *stylestr);
-	int (*DecalIndex)(char *decalname);
-	int (*PointContents)(float *org);
-	void (*MessageBegin)(int dest, int svc, float *org, hledict_t *ent);
-	void (*MessageEnd)(void);
-	void (*WriteByte)(int value);
-	void (*WriteChar)(int value);
-	void (*WriteShort)(int value);
-	void (*WriteLong)(int value);
-	void (*WriteAngle)(float value);
-	void (*WriteCoord)(float value);
-	void (*WriteString)(char *string);
-	void (*WriteEntity)(int entnum);
-	void (*CVarRegister)(hlcvar_t *hlvar);
-	float (*CVarGetFloat)(char *vname);
-	char *(*CVarGetString)(char *vname);
-	void (*CVarSetFloat)(char *vname, float v);
-	void (*CVarSetString)(char *vname, char *v);
-	void (*AlertMessage)(int level, char *fmt, ...);
-	void (*EngineFprintf)(FILE *f, char *fmt, ...);
-	void *(*PvAllocEntPrivateData)(hledict_t *ed, long quant);
-	unk (*PvEntPrivateData)(unk);
-	unk (*FreeEntPrivateData)(unk);
-	unk (*SzFromIndex)(unk);
-	string_t (*AllocString)(char *string);
-	unk (*GetVarsOfEnt)(unk);
-	hledict_t * (*PEntityOfEntOffset)(int ednum);
-	int (*EntOffsetOfPEntity)(hledict_t *ed);
-	int (*IndexOfEdict)(hledict_t *ed);
-	hledict_t *(*PEntityOfEntIndex)(int idx);
-	unk (*FindEntityByVars)(unk);
-	void *(*GetModelPtr)(hledict_t *ed);
-	int (*RegUserMsg)(char *msgname, int msgsize);
-	unk (*AnimationAutomove)(unk);
-	unk (*GetBonePosition)(unk);
-	hlintptr_t (*FunctionFromName)(char *name);
-	char *(*NameForFunction)(hlintptr_t);
-	unk (*ClientPrintf)(unk);
-	void (*ServerPrint)(char *msg);
-	char *(*Cmd_Args)(void);
-	char *(*Cmd_Argv)(int argno);
-	int (*Cmd_Argc)(void);
-	unk (*GetAttachment)(unk);
-	void (*CRC32_Init)(hlcrc_t *crc);
-	void (*CRC32_ProcessBuffer)(hlcrc_t *crc, qbyte *p, int len);
-	void (*CRC32_ProcessByte)(hlcrc_t *crc, qbyte b);
-	hlcrc_t (*CRC32_Final)(hlcrc_t crc);
-	long (*RandomLong)(long minv, long maxv);
-	float (*RandomFloat)(float minv, float maxv);
-	unk (*SetView)(unk);
-	unk (*Time)(unk);
-	unk (*CrosshairAngle)(unk);
-	void *(*LoadFileForMe)(char *name, int *size_out);
-	void (*FreeFile)(void *fptr);
-	unk (*EndSection)(unk);
-	int (*CompareFileTime)(char *fname1, char *fname2, int *result);
-	void (*GetGameDir)(char *gamedir);
-	unk (*Cvar_RegisterVariable)(unk);
-	unk (*FadeClientVolume)(unk);
-	unk (*SetClientMaxspeed)(unk);
-	unk (*CreateFakeClient)(unk);
-	unk (*RunPlayerMove)(unk);
-	unk (*NumberOfEntities)(unk);
-	unk (*GetInfoKeyBuffer)(unk);
-	unk (*InfoKeyValue)(unk);
-	unk (*SetKeyValue)(unk);
-	unk (*SetClientKeyValue)(unk);
-	unk (*IsMapValid)(unk);
-	unk (*StaticDecal)(unk);
-	unk (*PrecacheGeneric)(unk);
-	int (*GetPlayerUserId)(hledict_t *ed);
-	unk (*BuildSoundMsg)(unk);
-	unk (*IsDedicatedServer)(unk);
+	int (QDECL *PrecacheModel)(char *name);
+	int (QDECL *PrecacheSound)(char *name);
+	void (QDECL *SetModel)(hledict_t *ed, char *modelname);
+	unk (QDECL *ModelIndex)(unk);
+	int (QDECL *ModelFrames)(int midx);
+	void (QDECL *SetSize)(hledict_t *ed, float *mins, float *maxs);
+	void (QDECL *ChangeLevel)(char *nextmap, char *startspot);
+	unk (QDECL *GetSpawnParms)(unk);
+	unk (QDECL *SaveSpawnParms)(unk);
+	float (QDECL *VecToYaw)(float *inv);
+	void (QDECL *VecToAngles)(float *inv, float *outa);
+	unk (QDECL *MoveToOrigin)(unk);
+	unk (QDECL *ChangeYaw)(unk);
+	unk (QDECL *ChangePitch)(unk);
+	hledict_t *(QDECL *FindEntityByString)(hledict_t *last, char *field, char *value);
+	unk (QDECL *GetEntityIllum)(unk);
+	hledict_t *(QDECL *FindEntityInSphere)(hledict_t *last, float *org, float radius);
+	hledict_t *(QDECL *FindClientInPVS)(hledict_t *ed);
+	unk (QDECL *EntitiesInPVS)(unk);
+	void (QDECL *MakeVectors)(float *angles);
+	void (QDECL *AngleVectors)(float *angles, float *forward, float *right, float *up);
+	hledict_t *(QDECL *CreateEntity)(void);
+	void (QDECL *RemoveEntity)(hledict_t *ed);
+	hledict_t *(QDECL *CreateNamedEntity)(string_t name);
+	unk (QDECL *MakeStatic)(unk);
+	unk (QDECL *EntIsOnFloor)(unk);
+	int (QDECL *DropToFloor)(hledict_t *ed);
+	int (QDECL *WalkMove)(hledict_t *ed, float yaw, float dist, int mode);
+	void (QDECL *SetOrigin)(hledict_t *ed, float *neworg);
+	void (QDECL *EmitSound)(hledict_t *ed, int chan, char *soundname, float vol, float atten, int flags, int pitch);
+	void (QDECL *EmitAmbientSound)(hledict_t *ed, float *org, char *samp, float vol, float attenuation, unsigned int flags, int pitch);
+	void (QDECL *TraceLine)(float *start, float *end, int flags, hledict_t *ignore, hltraceresult_t *result);
+	unk (QDECL *TraceToss)(unk);
+	unk (QDECL *TraceMonsterHull)(unk);
+	void (QDECL *TraceHull)(float *start, float *end, int flags, int hullnum, hledict_t *ignore, hltraceresult_t *result);
+	unk (QDECL *TraceModel)(unk);
+	char *(QDECL *TraceTexture)(hledict_t *againstent, vec3_t start, vec3_t end);
+	unk (QDECL *TraceSphere)(unk);
+	unk (QDECL *GetAimVector)(unk);
+	void (QDECL *ServerCommand)(char *cmd);
+	void (QDECL *ServerExecute)(void);
+	unk (QDECL *ClientCommand)(unk);
+	unk (QDECL *ParticleEffect)(unk);
+	void (QDECL *LightStyle)(int stylenum, char *stylestr);
+	int (QDECL *DecalIndex)(char *decalname);
+	int (QDECL *PointContents)(float *org);
+	void (QDECL *MessageBegin)(int dest, int svc, float *org, hledict_t *ent);
+	void (QDECL *MessageEnd)(void);
+	void (QDECL *WriteByte)(int value);
+	void (QDECL *WriteChar)(int value);
+	void (QDECL *WriteShort)(int value);
+	void (QDECL *WriteLong)(int value);
+	void (QDECL *WriteAngle)(float value);
+	void (QDECL *WriteCoord)(float value);
+	void (QDECL *WriteString)(char *string);
+	void (QDECL *WriteEntity)(int entnum);
+	void (QDECL *CVarRegister)(hlcvar_t *hlvar);
+	float (QDECL *CVarGetFloat)(char *vname);
+	char *(QDECL *CVarGetString)(char *vname);
+	void (QDECL *CVarSetFloat)(char *vname, float v);
+	void (QDECL *CVarSetString)(char *vname, char *v);
+	void (QDECL *AlertMessage)(int level, char *fmt, ...);
+	void (QDECL *EngineFprintf)(FILE *f, char *fmt, ...);
+	void *(QDECL *PvAllocEntPrivateData)(hledict_t *ed, long quant);
+	unk (QDECL *PvEntPrivateData)(unk);
+	unk (QDECL *FreeEntPrivateData)(unk);
+	unk (QDECL *SzFromIndex)(unk);
+	string_t (QDECL *AllocString)(char *string);
+	unk (QDECL *GetVarsOfEnt)(unk);
+	hledict_t * (QDECL *PEntityOfEntOffset)(int ednum);
+	int (QDECL *EntOffsetOfPEntity)(hledict_t *ed);
+	int (QDECL *IndexOfEdict)(hledict_t *ed);
+	hledict_t *(QDECL *PEntityOfEntIndex)(int idx);
+	unk (QDECL *FindEntityByVars)(unk);
+	void *(QDECL *GetModelPtr)(hledict_t *ed);
+	int (QDECL *RegUserMsg)(char *msgname, int msgsize);
+	unk (QDECL *AnimationAutomove)(unk);
+	unk (QDECL *GetBonePosition)(unk);
+	hlintptr_t (QDECL *FunctionFromName)(char *name);
+	char *(QDECL *NameForFunction)(hlintptr_t);
+	unk (QDECL *ClientPrintf)(unk);
+	void (QDECL *ServerPrint)(char *msg);
+	char *(QDECL *Cmd_Args)(void);
+	char *(QDECL *Cmd_Argv)(int argno);
+	int (QDECL *Cmd_Argc)(void);
+	unk (QDECL *GetAttachment)(unk);
+	void (QDECL *CRC32_Init)(hlcrc_t *crc);
+	void (QDECL *CRC32_ProcessBuffer)(hlcrc_t *crc, qbyte *p, int len);
+	void (QDECL *CRC32_ProcessByte)(hlcrc_t *crc, qbyte b);
+	hlcrc_t (QDECL *CRC32_Final)(hlcrc_t crc);
+	long (QDECL *RandomLong)(long minv, long maxv);
+	float (QDECL *RandomFloat)(float minv, float maxv);
+	unk (QDECL *SetView)(unk);
+	unk (QDECL *Time)(unk);
+	unk (QDECL *CrosshairAngle)(unk);
+	void *(QDECL *LoadFileForMe)(char *name, int *size_out);
+	void (QDECL *FreeFile)(void *fptr);
+	unk (QDECL *EndSection)(unk);
+	int (QDECL *CompareFileTime)(char *fname1, char *fname2, int *result);
+	void (QDECL *GetGameDir)(char *gamedir);
+	unk (QDECL *Cvar_RegisterVariable)(unk);
+	unk (QDECL *FadeClientVolume)(unk);
+	unk (QDECL *SetClientMaxspeed)(unk);
+	unk (QDECL *CreateFakeClient)(unk);
+	unk (QDECL *RunPlayerMove)(unk);
+	unk (QDECL *NumberOfEntities)(unk);
+	char *(QDECL *GHL_GetInfoKeyBuffer)(hledict_t *ed);
+	char *(QDECL *GHL_InfoKeyValue)(char *infostr, char *key);
+	unk (QDECL *SetKeyValue)(unk);
+	unk (QDECL *SetClientKeyValue)(unk);
+	unk (QDECL *IsMapValid)(unk);
+	unk (QDECL *StaticDecal)(unk);
+	unk (QDECL *PrecacheGeneric)(unk);
+	int (QDECL *GetPlayerUserId)(hledict_t *ed);
+	unk (QDECL *BuildSoundMsg)(unk);
+	unk (QDECL *IsDedicatedServer)(unk);
 	//138
 #if HALFLIFE_API_VERSION > 138
-	hlcvar_t *(*CVarGetPointer)(char *varname);
-	unk (*GetPlayerWONId)(unk);
-	unk (*Info_RemoveKey)(unk);
-	unk (*GetPhysicsKeyValue)(unk);
-	unk (*SetPhysicsKeyValue)(unk);
-	unk (*GetPhysicsInfoString)(unk);
-	unsigned short (*PrecacheEvent)(int eventtype, char *eventname);
-	void (*PlaybackEvent)(int flags, hledict_t *ent, unsigned short eventidx, float delay, float *origin, float *angles, float f1, float f2, int i1, int i2, int b1, int b2);
-	unk (*SetFatPVS)(unk);
-	unk (*SetFatPAS)(unk);
-	unk (*CheckVisibility)(unk);
-	unk (*DeltaSetField)(unk);
-	unk (*DeltaUnsetField)(unk);
-	unk (*DeltaAddEncoder)(unk);
-	unk (*GetCurrentPlayer)(unk);
-	unk (*CanSkipPlayer)(unk);
-	unk (*DeltaFindField)(unk);
-	unk (*DeltaSetFieldByIndex)(unk);
-	unk (*DeltaUnsetFieldByIndex)(unk);
-	unk (*SetGroupMask)(unk);
-	unk (*CreateInstancedBaseline)(unk);
-	unk (*Cvar_DirectSet)(unk);
-	unk (*ForceUnmodified)(unk);
-	unk (*GetPlayerStats)(unk);
-	unk (*AddServerCommand)(unk);
+	hlcvar_t *(QDECL *CVarGetPointer)(char *varname);
+	unk (QDECL *GetPlayerWONId)(unk);
+	unk (QDECL *Info_RemoveKey)(unk);
+	unk (QDECL *GetPhysicsKeyValue)(unk);
+	unk (QDECL *SetPhysicsKeyValue)(unk);
+	unk (QDECL *GetPhysicsInfoString)(unk);
+	unsigned short (QDECL *PrecacheEvent)(int eventtype, char *eventname);
+	void (QDECL *PlaybackEvent)(int flags, hledict_t *ent, unsigned short eventidx, float delay, float *origin, float *angles, float f1, float f2, int i1, int i2, int b1, int b2);
+	unk (QDECL *SetFatPVS)(unk);
+	unk (QDECL *SetFatPAS)(unk);
+	unk (QDECL *CheckVisibility)(unk);
+	unk (QDECL *DeltaSetField)(unk);
+	unk (QDECL *DeltaUnsetField)(unk);
+	unk (QDECL *DeltaAddEncoder)(unk);
+	unk (QDECL *GetCurrentPlayer)(unk);
+	unk (QDECL *CanSkipPlayer)(unk);
+	unk (QDECL *DeltaFindField)(unk);
+	unk (QDECL *DeltaSetFieldByIndex)(unk);
+	unk (QDECL *DeltaUnsetFieldByIndex)(unk);
+	unk (QDECL *SetGroupMask)(unk);
+	unk (QDECL *CreateInstancedBaseline)(unk);
+	unk (QDECL *Cvar_DirectSet)(unk);
+	unk (QDECL *ForceUnmodified)(unk);
+	unk (QDECL *GetPlayerStats)(unk);
+	unk (QDECL *AddServerCommand)(unk);
 	//
-	unk (*Voice_GetClientListening)(unk);
-	qboolean (*Voice_SetClientListening)(int listener, int sender, int shouldlisten);
+	unk (QDECL *Voice_GetClientListening)(unk);
+	qboolean (QDECL *Voice_SetClientListening)(int listener, int sender, int shouldlisten);
 	//140
-	unk (*GetPlayerAuthId)(unk);
-	unk (*SequenceGet)(unk);
-	unk (*SequencePickSentence)(unk);
-	unk (*GetFileSize)(unk);
-	unk (*GetApproxWavePlayLen)(unk);
-	unk (*IsCareerMatch)(unk);
-	unk (*GetLocalizedStringLength)(unk);
-	unk (*RegisterTutorMessageShown)(unk);
-	unk (*GetTimesTutorMessageShown)(unk);
-	unk (*ProcessTutorMessageDecayBuffer)(unk);
-	unk (*ConstructTutorMessageDecayBuffer)(unk);
-	unk (*ResetTutorMessageDecayData)(unk);
-	unk (*QueryClientCvarValue)(unk);
-	unk (*QueryClientCvarValue2)(unk);
+	unk (QDECL *GetPlayerAuthId)(unk);
+	unk (QDECL *SequenceGet)(unk);
+	unk (QDECL *SequencePickSentence)(unk);
+	unk (QDECL *GetFileSize)(unk);
+	unk (QDECL *GetApproxWavePlayLen)(unk);
+	unk (QDECL *IsCareerMatch)(unk);
+	unk (QDECL *GetLocalizedStringLength)(unk);
+	unk (QDECL *RegisterTutorMessageShown)(unk);
+	unk (QDECL *GetTimesTutorMessageShown)(unk);
+	unk (QDECL *ProcessTutorMessageDecayBuffer)(unk);
+	unk (QDECL *ConstructTutorMessageDecayBuffer)(unk);
+	unk (QDECL *ResetTutorMessageDecayData)(unk);
+	unk (QDECL *QueryClientCvarValue)(unk);
+	unk (QDECL *QueryClientCvarValue2)(unk);
 #endif
 
 	int check;	//added so I can be sure parameters match this list, etc
@@ -560,8 +575,7 @@ extern hledict_t *SVHL_Edict;
 extern int SVHL_NumActiveEnts;
 
 
-
-
+void QDECL GHL_RemoveEntity(hledict_t *ed);
 
 void SVHL_LinkEdict (hledict_t *ent, qboolean touch_triggers);
 void SVHL_UnlinkEdict (hledict_t *ent);

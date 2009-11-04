@@ -1,11 +1,16 @@
 #include "quakedef.h"
 #include "fs.h"
 
+#ifdef WEBSVONLY
+#define Z_Free free
+#define Z_Malloc malloc
+#else
 #if !defined(_WIN32) || defined(_SDL)
 #define VFSSTDIO_Open VFSOS_Open
 #define stdiofilefuncs osfilefuncs
 #endif
 #define FSSTDIO_OpenTemp FS_OpenTemp
+#endif
 
 typedef struct {
 	vfsfile_t funcs;
@@ -118,6 +123,8 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode)
 	return (vfsfile_t*)file;
 }
 
+
+#ifndef WEBSVONLY
 static vfsfile_t *FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 {
 	char diskname[MAX_OSPATH];
@@ -131,7 +138,7 @@ static vfsfile_t *FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const char *mo
 
 static void FSSTDIO_PrintPath(void *handle)
 {
-	Con_Printf("%s\n", handle);
+	Con_Printf("%s\n", (char*)handle);
 }
 static void FSSTDIO_ClosePath(void *handle)
 {
@@ -230,3 +237,4 @@ searchpathfuncs_t stdiofilefuncs = {
 	NULL,
 	FSSTDIO_OpenVFS
 };
+#endif

@@ -267,31 +267,29 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 	p = c->data;
 	if (p)
 	{
-		Draw_Character (x+4, y, 128);
-		Draw_Character (x+12, y, 130);
-		Draw_Character (x+24, y, 128);
-		Draw_Character (x+32, y, 130);
+		Draw_FunString (x+4, y, "^Ue080^Ue082");
+		Draw_FunString (x+24, y, "^Ue080^Ue082");
 
 		if (p->flags&DPF_WANTTOINSTALL)
-			Draw_Character (x+8, y, 131);
+			Draw_FunString (x+8, y, "^Ue083");
 		else
-			Draw_Character (x+8, y, 129);
+			Draw_FunString (x+8, y, "^Ue081");
 
 		//if you have it already
 		if (p->flags&(DPF_HAVEAVERSION | ((((int)(realtime*4))&1)?(DPF_DOWNLOADING|DPF_ENQUED):0) ))
-			Draw_Character (x+28, y, 131);
+			Draw_FunString (x+28, y, "^Ue083");
 		else
-			Draw_Character (x+28, y, 129);
+			Draw_FunString (x+28, y, "^Ue081");
 
 
 		if (&m->selecteditem->common == &c->common)
-			Draw_Alt_String (x+48, y, p->name);
+			Draw_AltFunString (x+48, y, p->name);
 		else
-			Draw_String(x+48, y, p->name);
+			Draw_FunString(x+48, y, p->name);
 
 		if (p->flags & DPF_DISPLAYVERSION)
 		{
-			Draw_String(x+48+strlen(p->name)*8, y, va(" (%i.%i)", p->version/1000, p->version%1000));
+			Draw_FunString(x+48+strlen(p->name)*8, y, va(" (%i.%i)", p->version/1000, p->version%1000));
 		}
 	}
 }

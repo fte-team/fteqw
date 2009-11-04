@@ -201,7 +201,7 @@ void NPP_NQFlush(void)
 			memcpy(&cd, &buffer[multicastpos+sizeofcoord*2], sizeofcoord);
 			org[2] = MSG_FromCoord(cd, sizeofcoord);
 
-			SV_MulticastProtExt(org, multicasttype, FULLDIMENSIONMASK, requireextension, 0);
+			SV_MulticastProtExt(org, multicasttype, pr_global_struct->dimension_send, requireextension, 0);
 		}
 		writedest = NULL;
 	}
@@ -1000,7 +1000,7 @@ void NPP_QWFlush(void)
 
 			qwsize = sv.multicast.cursize;
 			sv.multicast.cursize = 0;
-			SV_MulticastProtExt(org, multicasttype, FULLDIMENSIONMASK, requireextension, 0);
+			SV_MulticastProtExt(org, multicasttype, pr_global_struct->dimension_send, requireextension, 0);
 			sv.multicast.cursize = qwsize;
 		}
 		writedest = NULL;

@@ -56,7 +56,6 @@ qboolean		static_registered = true;	// only for startup check, then set
 
 qboolean		msg_suppress_1 = false;
 
-void COM_InitFilesystem (void);
 void COM_Path_f (void);
 void COM_Dir_f (void);
 void COM_Locate_f (void);
@@ -1619,6 +1618,8 @@ void COM_DefaultExtension (char *path, char *extension, int maxlen)
 		src--;
 	}
 
+	if (*extension != '.')
+		Q_strncatz (path, ".", maxlen);
 	Q_strncatz (path, extension, maxlen);
 }
 
@@ -1755,7 +1756,7 @@ static int dehex(int i)
 
 //Takes a q3-style fun string, and returns an expanded string-with-flags (actual return value is the null terminator)
 //outsize parameter is in _BYTES_ (so sizeof is safe).
-conchar_t *COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int outsize, qboolean keepmarkup)
+conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, qboolean keepmarkup)
 {
 	conchar_t extstack[4];
 	int extstackdepth = 0;
@@ -2078,6 +2079,7 @@ messedup:
 
 int COM_FunStringLength(unsigned char *str)
 {
+	//FIXME:
 	int len = 0;
 
 	while(*str)
@@ -3213,7 +3215,7 @@ int COM_Effectinfo_Add(const char *effectname)
 void COM_Effectinfo_Reload(void)
 {
 	int i;
-	char *f;
+	char *f, *buf;
 	static const char *dpnames[] =
 	{
 		"TE_GUNSHOT",
@@ -3263,6 +3265,7 @@ void COM_Effectinfo_Reload(void)
 	FS_LoadFile("effectinfo.txt", &f);
 	if (!f)
 		return;
+	buf = f;
 	while (*f)
 	{
 		f = COM_ParseToken(f, NULL);
@@ -3281,7 +3284,7 @@ void COM_Effectinfo_Reload(void)
 			} while(*f && strcmp(com_token, "\n"));
 		}
 	}
-	FS_FreeFile(f);
+	FS_FreeFile(buf);
 }
 
 unsigned int COM_Effectinfo_ForName(const char *efname)
@@ -3314,6 +3317,71 @@ char *COM_Effectinfo_ForNumber(unsigned int efnum)
 	return "";
 }
 
+/*************************************************************************/
+
+/*remaps map checksums from known non-cheat GPL maps to authentic id1 maps*/
+unsigned int COM_RemapMapChecksum(unsigned int checksum)
+{
+	static const struct {
+		char *name;
+		unsigned int gpl2;
+		unsigned int id11;
+		unsigned int id12;
+	} sums[] = 
+	{
+		{"maps/start.bsp", -603735309, 714749795, 493454459},
+
+		{"maps/e1m1.bsp", -1213097692, 523840258, -1391994750},
+		{"maps/e1m2.bsp", -2134038629, 1561595172, 1729102119}, 
+		{"maps/e1m3.bsp", 526593427, 1008794158, 893792842},
+		{"maps/e1m4.bsp", -1218723400, -442162482, -304478603},
+		{"maps/e1m5.bsp", 1709090059, 1856217547, -1473504118},
+		{"maps/e1m6.bsp", 1014375998, 1304756164, 738207971},
+		{"maps/e1m7.bsp", 1375393448, -1396746908, -1747518694},
+		{"maps/e1m8.bsp", 1470379688, -163803419, 79095617},
+
+		{"maps/e2m1.bsp", -1725230579, -797758554, -587894734},
+		{"maps/e2m2.bsp", -1573837115, -355822557, -1349116595},
+		{"maps/e2m3.bsp", 156655662, 1203005272, -57072303},
+		{"maps/e2m4.bsp", -1530012474, -1629664024, -1021928503},
+		{"maps/e3m5.bsp", -594001393, -1405673977, -1854273999},
+		{"maps/e2m6.bsp", 1041933133, 583875451, -1851573375},
+		{"maps/e2m7.bsp", -1583122652, 1814005234, 2051006488},
+
+		{"maps/e3m1.bsp", -1118143869, -457270773, -1867379423},
+		{"maps/e3m2.bsp", -469484146, 723435606, -1670613704},
+		{"maps/e3m3.bsp", -300762423, -540030088, -1009754856},
+		{"maps/e3m4.bsp", -214067894, 1107310161, -1317466952},
+		{"maps/e3m5.bsp", -594001393, -1405673977, -1854273999},
+		{"maps/e3m6.bsp", -1664550468, 1631142730, 767655416},
+		{"maps/e3m7.bsp", 781051658, -1513131760, 272220593},
+
+		{"maps/e4m1.bsp", 1548541253, 1254243660, -1141873840},
+		{"maps/e4m2.bsp", -1400585206, 92253388, -472296},
+		{"maps/e4m3.bsp", -1230693918, 1961442781, 1505685644},
+		{"maps/e4m4.bsp", 842253404, -374904516, 758847551},
+		{"maps/e4m5.bsp", -439098147, 389110272, 1771890676},
+		{"maps/e4m6.bsp", 1518024640, 1714857656, 102825880},
+		{"maps/e4m7.bsp", -381063035, -585362206, -1645477460},
+		{"maps/e4m8.bsp", 844770132, 1063417045, 1018457175},
+
+		{"maps/gpl_dm1.bsp", 2100781454, -1548219590, -976758093},
+		{"maps/gpl_dm2.bsp", 2066969664, 392410074, 1710634548},
+		{"maps/gpl_dm3.bsp", -1859681874, 2060033246, 367136248},
+		{"maps/gpl_dm4.bsp", -1015750775, 326737183, -1670388545},
+		{"maps/gpl_dm5.bsp", 2009758949, 766929852, -1339209475},
+		{"maps/gpl_dm6.bsp", 537693021, 247150701, 1376311851},
+
+		{"maps/end.bsp", -124054866, -1503553320, -1143688027}
+	};
+	unsigned int i;
+	for (i = 0; i < sizeof(sums)/sizeof(sums[0]); i++)
+	{
+		if (checksum == sums[i].gpl2)
+			return sums[i].id12;
+	}
+	return checksum;
+}
 
 /*
 =====================================================================

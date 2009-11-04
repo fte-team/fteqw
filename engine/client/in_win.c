@@ -32,9 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef AVAIL_DINPUT
 
-#ifdef _MSC_VER
-#pragma comment (lib, "dxguid.lib")
-#else
+#ifndef _MSC_VER
 #define DIRECTINPUT_VERSION 0x0500
 #endif
 
@@ -173,6 +171,14 @@ DWORD		joy_flags;
 DWORD		joy_numbuttons;
 
 #ifdef AVAIL_DINPUT
+static const GUID fGUID_XAxis	= {0xA36D02E0, 0xC9F3, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+static const GUID fGUID_YAxis	= {0xA36D02E1, 0xC9F3, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+static const GUID fGUID_ZAxis	= {0xA36D02E2, 0xC9F3, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+static const GUID fGUID_SysMouse	= {0x6F1D2B60, 0xD5A0, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+
+static const GUID fIID_IDirectInputDevice7A	= {0x57d7c6bc, 0x2356, 0x11d3, {0x8e, 0x9d, 0x00, 0xC0, 0x4f, 0x68, 0x44, 0xae}};
+static const GUID fIID_IDirectInput7A		= {0x9a4cb684, 0x236d, 0x11d3, {0x8e, 0x9d, 0x00, 0xc0, 0x4f, 0x68, 0x44, 0xae}};
+
 // devices
 LPDIRECTINPUT		g_pdi;
 LPDIRECTINPUTDEVICE	g_pMouse;
@@ -199,9 +205,9 @@ typedef struct MYDATA {
 } MYDATA;
 
 static DIOBJECTDATAFORMAT rgodf[] = {
-  { &GUID_XAxis,    FIELD_OFFSET(MYDATA, lX),       DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
-  { &GUID_YAxis,    FIELD_OFFSET(MYDATA, lY),       DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
-  { &GUID_ZAxis,    FIELD_OFFSET(MYDATA, lZ),       0x80000000 | DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
+  { &fGUID_XAxis,    FIELD_OFFSET(MYDATA, lX),       DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
+  { &fGUID_YAxis,    FIELD_OFFSET(MYDATA, lY),       DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
+  { &fGUID_ZAxis,    FIELD_OFFSET(MYDATA, lZ),       0x80000000 | DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
   { 0,              FIELD_OFFSET(MYDATA, bButtonA), DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
   { 0,              FIELD_OFFSET(MYDATA, bButtonB), DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
   { 0,              FIELD_OFFSET(MYDATA, bButtonC), 0x80000000 | DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
@@ -697,7 +703,7 @@ int IN_InitDInput (void)
 	if (pDirectInputCreateEx) // use DirectInput 7
 	{
 		// register with DirectInput and get an IDirectInput to play with.
-		hr = iDirectInputCreateEx(global_hInstance, DINPUT_VERSION_DX7, &IID_IDirectInput7, &g_pdi7, NULL);
+		hr = iDirectInputCreateEx(global_hInstance, DINPUT_VERSION_DX7, &fIID_IDirectInput7A, &g_pdi7, NULL);
 
 		if (FAILED(hr))
 			return 0;
@@ -705,7 +711,7 @@ int IN_InitDInput (void)
 		IDirectInput7_EnumDevices(g_pdi7, 0, &IN_EnumerateDevices, NULL, DIEDFL_ATTACHEDONLY);
 
 		// obtain an interface to the system mouse device.
-		hr = IDirectInput7_CreateDeviceEx(g_pdi7, &GUID_SysMouse, &IID_IDirectInputDevice7, &g_pMouse7, NULL);
+		hr = IDirectInput7_CreateDeviceEx(g_pdi7, &fGUID_SysMouse, &fIID_IDirectInputDevice7A, &g_pMouse7, NULL);
 
 		if (FAILED(hr)) {
 			Con_SafePrintf ("Couldn't open DI7 mouse device\n");
@@ -763,7 +769,7 @@ int IN_InitDInput (void)
 	IDirectInput_EnumDevices(g_pdi, 0, &IN_EnumerateDevices, NULL, DIEDFL_ATTACHEDONLY);
 
 // obtain an interface to the system mouse device.
-	hr = IDirectInput_CreateDevice(g_pdi, &GUID_SysMouse, &g_pMouse, NULL);
+	hr = IDirectInput_CreateDevice(g_pdi, &fGUID_SysMouse, &g_pMouse, NULL);
 
 	if (FAILED(hr))
 	{
@@ -1487,11 +1493,17 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		if (mousecursor_y >= vid.height)
 			mousecursor_y = vid.height - 1;
 		mx=my=0;
-
-#ifdef VM_UI
-		UI_MousePosition(mousecursor_x, mousecursor_y);
-#endif
 	}
+#ifdef VM_UI
+	else
+	{
+		if (UI_MousePosition(mx, my))
+		{
+			mx = 0;
+			my = 0;
+		}
+	}
+#endif
 
 #ifdef PEXT_CSQC
 	if (CSQC_MouseMove(mx, my))
@@ -1537,8 +1549,8 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		return;
 	}
 
-	if (cl.paused)
-		return;
+//	if (cl.paused)
+//		return;
 
 // add mouse X/Y movement to cmd
 	if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
@@ -1577,9 +1589,6 @@ IN_MouseMove
 */
 void IN_MouseMove (float *movements, int pnum)
 {
-#ifdef RGLQUAKE
-	extern int glwidth, glheight;
-#endif
 	POINT		current_pos;
 
 	extern int mousecursor_x, mousecursor_y;
@@ -1591,16 +1600,12 @@ void IN_MouseMove (float *movements, int pnum)
 		mousecursor_x = current_pos.x-window_x;
 		mousecursor_y = current_pos.y-window_y;
 
-#ifdef RGLQUAKE
-		if (qrenderer == QR_OPENGL)	//2d res scaling.
-		{
-			mousecursor_x *= vid.width/(float)glwidth;
-			mousecursor_y *= vid.height/(float)glheight;
-		}
-#endif
+		mousecursor_x *= vid.width/(float)vid.pixelwidth;
+		mousecursor_y *= vid.height/(float)vid.pixelheight;
 
 #ifdef VM_UI
-		UI_MousePosition(mousecursor_x, mousecursor_y);
+		if (!Key_MouseShouldBeFree())
+			UI_MousePosition(mousecursor_x, mousecursor_y);
 #endif
 
 		return;

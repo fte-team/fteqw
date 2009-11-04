@@ -362,7 +362,7 @@ void BuildGammaTable (float g, float c)
 V_CheckGamma
 =================
 */
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
 	BuildGammaTable (v_gamma.value, v_contrast.value);
@@ -598,7 +598,7 @@ void V_CalcPowerupCshift (void)
 V_CalcBlend
 =============
 */
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 
 void GLV_CalcBlendServer (float colors[4])
 {
@@ -640,7 +640,7 @@ void GLV_CalcBlend (void)
 	{
 //		if (j != CSHIFT_SERVER)
 //		{
-			if (!gl_cshiftpercent.value || !gl_cshiftenabled.value)
+			if (!gl_cshiftpercent.value || !gl_cshiftenabled.ival)
 				continue;
 
 			a2 = ((cl.cshifts[j].percent * gl_cshiftpercent.value) / 100.0) / 255.0;
@@ -693,7 +693,7 @@ void GLV_UpdatePalette (qboolean force, double ftime)
 
 	for (i=0 ; i<CSHIFT_SERVER ; i++)
 	{
-		if (gl_nohwblend.value || !gl_cshiftenabled.value)
+		if (gl_nohwblend.ival || !gl_cshiftenabled.ival)
 		{
 			if (0 != cl.prev_cshifts[i].percent)
 			{
@@ -732,7 +732,7 @@ void GLV_UpdatePalette (qboolean force, double ftime)
 		GLV_CalcBlend ();
 
 		a = v_blend[3];
-		if (gl_nohwblend.value)
+		if (gl_nohwblend.ival)
 			a = 0;
 		r = 255*v_blend[0]*a;
 		g = 255*v_blend[1]*a;
@@ -1049,8 +1049,8 @@ void V_CalcRefdef (int pnum)
 
 	if (view_message && view_message->flags & PF_DEAD && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
 	{
-		if (!cl.spectator || !cl_chasecam.value)
-			r_refdef.viewangles[ROLL] = 80;	// dead view angle
+		if (!cl.spectator || !cl_chasecam.ival)
+			r_refdef.viewangles[ROLL] = 80*v_deathtilt.value;	// dead view angle
 	}
 	else
 	{
@@ -1162,9 +1162,6 @@ entity_t *CL_EntityNum(int num)
 float CalcFov (float fov_x, float width, float height);
 void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 {
-#ifdef GLQUAKE
-	extern int glwidth, glheight;
-#endif
 #if MAX_SPLITS > 4
 #pragma warning "Please change this function to cope with the new MAX_SPLITS value"
 #endif
@@ -1186,7 +1183,7 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	case 2:	//horizontal bands
 	case 3:
 #ifdef GLQUAKE
-		if (qrenderer == QR_OPENGL && glwidth > glheight * 2)
+		if (qrenderer == QR_OPENGL && vid.pixelwidth > vid.pixelheight * 2)
 		{	//over twice as wide as high, assume duel moniter, horizontal.
 			vrect->width = vid.width/cl.splitclients;
 			vrect->height = vid.height;
@@ -1219,15 +1216,12 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	if (cl.stats[pnum][STAT_VIEWZOOM])
 		r_refdef.fov_x *= cl.stats[pnum][STAT_VIEWZOOM]/255.0f;
 
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL && vrect->width < (vrect->height*640)/432)
+	if (vrect->width < (vrect->height*640)/432)
 	{
-		extern int glwidth, glheight;
-		r_refdef.fov_y = CalcFov(r_refdef.fov_x, (vrect->width*glwidth)/vid.width, (vrect->height*glheight)/vid.height);
+		r_refdef.fov_y = CalcFov(r_refdef.fov_x, (vrect->width*vid.pixelwidth)/vid.width, (vrect->height*vid.pixelheight)/vid.height);
 //		r_refdef.fov_x = CalcFov(r_refdef.fov_y, 432, 640);
 	}
 	else
-#endif
 	{
 		r_refdef.fov_y = CalcFov(r_refdef.fov_x, 640, 432);
 		r_refdef.fov_x = CalcFov(r_refdef.fov_y, vrect->height, vrect->width);
@@ -1247,12 +1241,12 @@ void R_DrawNameTags(void)
 
 	if (!cl.spectator && !cls.demoplayback)
 		return;
-	if (!scr_autoid.value)
+	if (!scr_autoid.ival)
 		return;
 	if (cls.state != ca_active || !cl.validsequence)
 		return;
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		void GL_Set2D (void);
@@ -1350,7 +1344,7 @@ void V_RenderPlayerViews(int plnum)
 		r_refdef.vrect.height += vsecheight;
 	}
 */
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	gl_ztrickdisabled&=~1;
 #endif
 	for (viewnum = 0; viewnum < SIDEVIEWS; viewnum++)

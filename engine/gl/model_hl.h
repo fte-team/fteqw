@@ -56,7 +56,7 @@ typedef struct
     int		flags;
     int		w;	/* width */
     int		h;	/* height */
-    int		i;	/* index */
+    int		offset;	/* index */
 } hlmdl_tex_t;
 
 /*
@@ -213,6 +213,7 @@ typedef struct
     hlmdl_tex_t				*textures;
     hlmdl_bone_t			*bones;
     hlmdl_bonecontroller_t		*bonectls;
+	texid_t					*texnums;
 } hlmodel_t;
 
 typedef struct	//this is stored as the cache. an hlmodel_t is generated when drawing
@@ -222,6 +223,7 @@ typedef struct	//this is stored as the cache. an hlmodel_t is generated when dra
     int textures;
     int bones;
     int bonectls;
+	int texnums;
 } hlmodelcache_t;
 
 /* HL mathlib prototypes: */
@@ -231,7 +233,7 @@ void	QuaternionGLMatrix(float x, float y, float z, float w, vec4_t *GLM);
 
 /* HL drawing */
 qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
-void	R_Draw_HL_AliasModel(hlmodel_t *model);
+void	R_DrawHLModel(entity_t	*curent);
 
 /* physics stuff */
 void *Mod_GetHalfLifeModelData(model_t *mod);

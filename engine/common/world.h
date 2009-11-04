@@ -82,7 +82,7 @@ typedef struct q2trace_s
 	cplane_t	plane;		// surface normal at impact
 	q2csurface_t	*surface;	// surface hit
 	int			contents;	// contents on other side of surface hit
-	struct edict_s	*ent;		// not set by CM_*() functions
+	void	*ent;		// not set by CM_*() functions
 } q2trace_t;
 
 #define	MOVE_NORMAL		0
@@ -92,6 +92,7 @@ typedef struct q2trace_s
 #define MOVE_RESERVED	8	//so we are less likly to get into tricky situations when we want to steal annother future DP extension.
 #define MOVE_TRIGGERS	16	//triggers must be marked with FINDABLE_NONSOLID	(an alternative to solid-corpse)
 #define MOVE_EVERYTHING	32	//doesn't use the area grid stuff, and can return triggers and non-solid items if they're marked with FINDABLE_NONSOLID
+#define MOVE_LAGGED		64	//trace touches current last-known-state, instead of actual ents (just affects players for now)
 
 typedef struct areanode_s
 {
@@ -104,45 +105,93 @@ typedef struct areanode_s
 
 #define	AREA_DEPTH	4
 #define	AREA_NODES	32 //pow(2, AREA_DEPTH+1)
+typedef struct wedict_s wedict_t;
+
+typedef struct
+{
+	qboolean present;
+	vec3_t laggedpos;
+} laggedentinfo_t;
+
+struct world_s {
+	unsigned int	max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.
+	unsigned int	num_edicts;			// increases towards MAX_EDICTS
+	unsigned int	edict_size;
+	wedict_t		*edicts;			// can NOT be array indexed, because
+									// edict_t is variable sized, but can
+									// be used to reference the world ent
+	struct progfuncs_s *progs;
+	model_t			*worldmodel;
+	struct model_s	*models[MAX_MODELS];
+	areanode_t	areanodes[AREA_NODES];
+	int			numareanodes;
+
+	double		physicstime;
+	int			lastcheck;			// used by PF_checkclient
+	double		lastchecktime;		// for monster ai
+
+	laggedentinfo_t *lagents;
+	unsigned int maxlagents;
+
+#ifdef USEODE
+	worldode_t ode;
+#endif
+};
+typedef struct world_s world_t;
 
 #ifndef CLIENTONLY
-extern	areanode_t	sv_areanodes[AREA_NODES];
 
-
-void SV_ClearWorld (void);
+void World_ClearWorld (world_t *w);
 // called after the world model has been loaded, before linking any entities
 
-void SV_UnlinkEdict (edict_t *ent);
+void World_UnlinkEdict (wedict_t *ent);
 // call before removing an entity, and before trying to move one,
 // so it doesn't clip against itself
 // flags ent->v.modified
 
-void SV_LinkEdict (edict_t *ent, qboolean touch_triggers);
+void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers);
 // Needs to be called any time an entity changes origin, mins, maxs, or solid
 // flags ent->v.modified
 // sets ent->v.absmin and ent->v.absmax
 // if touchtriggers, calls prog functions for the intersected triggers
 
-int SV_PointContents (vec3_t p);
+void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node);
+
+int World_PointContents (world_t *w, vec3_t p);
 // returns the CONTENTS_* value from the world at the given point.
 // does not check any entities at all
 
-edict_t	*SV_TestEntityPosition (edict_t *ent);
+wedict_t	*World_TestEntityPosition (world_t *w, wedict_t *ent);
 
-trace_t SV_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, edict_t *passedict);
-// mins and maxs are reletive
+/*
+ World_Move:
+ mins and maxs are reletive
 
-// if the entire move stays in a solid volume, trace.allsolid will be set
+ if the entire move stays in a solid volume, trace.allsolid will be set
 
-// if the starting point is in a solid, it will be allowed to move out
-// to an open area
+ if the starting point is in a solid, it will be allowed to move out
+ to an open area
 
-// nomonsters is used for line of sight or edge testing, where mosnters
-// shouldn't be considered solid objects
+ nomonsters is used for line of sight or edge testing, where mosnters
+ shouldn't be considered solid objects
 
-// passedict is explicitly excluded from clipping checks (normally NULL)
+ passedict is explicitly excluded from clipping checks (normally NULL)
+*/
+trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, wedict_t *passedict);
 
 
-edict_t	*SV_TestPlayerPosition (edict_t *ent, vec3_t origin);
+#ifdef Q2SERVER
+typedef struct q2edict_s q2edict_t;
 
+void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent);
+void VARGS WorldQ2_UnlinkEdict(world_t *w, q2edict_t *ent);
+int VARGS WorldQ2_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, q2edict_t **list,
+	int maxcount, int areatype);
+trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, q2edict_t *passedict);
+
+unsigned int Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *buffer, unsigned int buffersize, qboolean add);
+qboolean Q2BSP_EdictInFatPVS(model_t *mod, wedict_t *ent, qbyte *pvs);
+void Q2BSP_FindTouchedLeafs(world_t *w, model_t *mod, wedict_t *ent, float *mins, float *maxs);
+
+#endif
 #endif

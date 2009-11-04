@@ -54,7 +54,7 @@ qboolean SV_CheckBottom (edict_t *ent)
 		{
 			start[0] = x ? maxs[0] : mins[0];
 			start[1] = y ? maxs[1] : mins[1];
-			if (!(SV_PointContents (start) & FTECONTENTS_SOLID))
+			if (!(World_PointContents (&sv.world, start) & FTECONTENTS_SOLID))
 				goto realcheck;
 		}
 
@@ -74,7 +74,7 @@ realcheck:
 	stop[2] = start[2] - 2*movevars.stepheight;
 	savedhull = ent->xv->hull;
 	ent->xv->hull = 0;
-	trace = SV_Move (start, vec3_origin, vec3_origin, stop, true, ent);
+	trace = World_Move (&sv.world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
 	if (trace.fraction == 1.0)
@@ -90,7 +90,7 @@ realcheck:
 			
 			savedhull = ent->xv->hull;
 			ent->xv->hull = 0;
-			trace = SV_Move (start, vec3_origin, vec3_origin, stop, true, ent);
+			trace = World_Move (&sv.world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)ent);
 			ent->xv->hull = savedhull;
 			
 			if (trace.fraction != 1.0 && trace.endpos[2] > bottom)
@@ -117,7 +117,7 @@ void set_move_trace(trace_t *trace, struct globalvars_s *pr_globals)
 	if (trace->ent)
 		pr_global_struct->trace_ent = EDICT_TO_PROG(svprogfuncs, trace->ent);
 	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+		pr_global_struct->trace_ent = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 }
 
 /*
@@ -136,7 +136,7 @@ qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noene
 	vec3_t		oldorg, neworg, end;
 	trace_t		trace;
 	int			i;
-	edict_t		*enemy = sv.edicts;
+	edict_t		*enemy = (edict_t*)sv.world.edicts;
 
 // try the move	
 	VectorCopy (ent->v->origin, oldorg);
@@ -152,7 +152,7 @@ qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noene
 			if (!noenemy)
 			{
 				enemy = PROG_TO_EDICT(svprogfuncs, ent->v->enemy);
-				if (i == 0 && enemy != sv.edicts)
+				if (i == 0 && enemy != (edict_t*)sv.world.edicts)
 				{
 					dz = ent->v->origin[2] - PROG_TO_EDICT(svprogfuncs, ent->v->enemy)->v->origin[2];
 					if (dz > 40)
@@ -161,22 +161,22 @@ qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noene
 						neworg[2] += 8;
 				}
 			}
-			trace = SV_Move (ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, ent);
+			trace = World_Move (&sv.world, ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, (wedict_t*)ent);
 			if (set_trace)
 				set_move_trace(&trace, set_trace);
 	
 			if (trace.fraction == 1)
 			{
-				if ( ((int)ent->v->flags & FL_SWIM) && !(SV_PointContents(trace.endpos) & FTECONTENTS_FLUID))
+				if ( ((int)ent->v->flags & FL_SWIM) && !(World_PointContents(&sv.world, trace.endpos) & FTECONTENTS_FLUID))
 					return false;	// swim monster left water
 	
 				VectorCopy (trace.endpos, ent->v->origin);
 				if (relink)
-					SV_LinkEdict (ent, true);
+					World_LinkEdict (&sv.world, (wedict_t*)ent, true);
 				return true;
 			}
 			
-			if (noenemy || enemy == sv.edicts)
+			if (noenemy || enemy == (edict_t*)sv.world.edicts)
 				break;
 		}
 		
@@ -188,7 +188,7 @@ qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noene
 	VectorCopy (neworg, end);
 	end[2] -= movevars.stepheight*2;
 
-	trace = SV_Move (neworg, ent->v->mins, ent->v->maxs, end, false, ent);
+	trace = World_Move (&sv.world, neworg, ent->v->mins, ent->v->maxs, end, false, (wedict_t*)ent);
 	if (set_trace)
 		set_move_trace(&trace, set_trace);
 
@@ -198,7 +198,7 @@ qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noene
 	if (trace.startsolid)
 	{
 		neworg[2] -= movevars.stepheight;
-		trace = SV_Move (neworg, ent->v->mins, ent->v->maxs, end, false, ent);
+		trace = World_Move (&sv.world, neworg, ent->v->mins, ent->v->maxs, end, false, (wedict_t*)ent);
 		if (set_trace)
 			set_move_trace(&trace, set_trace);
 		if (trace.allsolid || trace.startsolid)
@@ -211,7 +211,7 @@ qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noene
 		{
 			VectorAdd (ent->v->origin, move, ent->v->origin);
 			if (relink)
-				SV_LinkEdict (ent, true);
+				World_LinkEdict (&sv.world, (wedict_t*)ent, true);
 			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
 //	Con_Printf ("fall down\n"); 
 			return true;
@@ -229,7 +229,7 @@ qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noene
 		{	// entity had floor mostly pulled out from underneath it
 			// and is trying to correct
 			if (relink)
-				SV_LinkEdict (ent, true);
+				World_LinkEdict (&sv.world, (wedict_t*)ent, true);
 			return true;
 		}
 		VectorCopy (oldorg, ent->v->origin);
@@ -245,7 +245,7 @@ qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noene
 
 // the move is ok
 	if (relink)
-		SV_LinkEdict (ent, true);
+		World_LinkEdict (&sv.world, (wedict_t*)ent, true);
 	return true;
 }
 
@@ -284,10 +284,10 @@ qboolean SV_StepDirection (edict_t *ent, float yaw, float dist, struct globalvar
 		{		// not turned far enough, so don't take the step
 			VectorCopy (oldorigin, ent->v->origin);
 		}
-		SV_LinkEdict (ent, true);
+		World_LinkEdict (&sv.world, (wedict_t*)ent, true);
 		return true;
 	}
-	SV_LinkEdict (ent, true);
+	World_LinkEdict (&sv.world, (wedict_t*)ent, true);
 		
 	return false;
 }
@@ -440,7 +440,7 @@ void SV_MoveToGoal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 
 // if the next step hits the enemy, return immediately
-	if ( PROG_TO_EDICT(svprogfuncs, ent->v->enemy) != sv.edicts &&  SV_CloseEnough (ent, goal, dist) )
+	if ( PROG_TO_EDICT(svprogfuncs, ent->v->enemy) != (edict_t*)sv.world.edicts &&  SV_CloseEnough (ent, goal, dist) )
 		return;
 
 // bump around...

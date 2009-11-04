@@ -2,9 +2,10 @@
 //was origonally an mp3 track selector, now handles lots of media specific stuff - like q3 films!
 //should rename to m_media.c
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"//fixme
 #endif
+#include "shader.h"
 
 #if !defined(NOMEDIA)
 
@@ -289,7 +290,7 @@ void M_Media_Draw (void)
 
 	p = Draw_SafeCachePic ("gfx/p_option.lmp");
 	if (p)
-		M_DrawPic ( (320-p->width)/2, 4, p);
+		M_DrawScalePic ( (320-p->width)/2, 4, 144, 24, p);
 	if (!bgmvolume.value)
 		M_Print (12, 32, "Not playing - no volume");
 	else if (!*currenttrack.nicename)
@@ -791,23 +792,17 @@ typedef enum {
 	MFT_OFSGECKO
 } media_filmtype_t;
 
-typedef enum {
-	MOT_NONE,
-	MOT_PALETTE,
-	MOT_RGBA,
-	MOT_BGRA,
-	MOT_BGR_FLIP
-} media_outputtype_t;
-
 struct cin_s {
 
 	//these are the outputs (not always power of two!)
-	media_outputtype_t outtype;
+	enum uploadfmt outtype;
 	int outwidth;
 	int outheight;
 	qbyte *outdata;
 	qbyte *outpalette;
 	int outunchanged;
+
+	texid_t texture;
 
 	qboolean (*decodeframe)(cin_t *cin, qboolean nosound);
 	void (*doneframe)(cin_t *cin);
@@ -915,11 +910,11 @@ qboolean Media_WinAvi_DecodeFrame(cin_t *cin, qboolean nosound)
 	{		
 		SCR_SetUpToDrawConsole();
 		Draw_ConsoleBackground(0, vid.height, true);
-		Draw_String(0, 0, "Video stream is corrupt\n");			
+		Draw_FunString(0, 0, "Video stream is corrupt\n");			
 	}
 	else
 	{
-		cin->outtype = MOT_BGR_FLIP;
+		cin->outtype = TF_BGR24_FLIP;
 		cin->outwidth = lpbi->biWidth;
 		cin->outheight = lpbi->biHeight;
 		cin->outdata = (char*)lpbi+lpbi->biSize;
@@ -1053,6 +1048,7 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 //////////////////////////////////////////////////////////////////////////////////
 //Quake3 RoQ Support
 
+#ifdef Q3CLIENT
 void Media_Roq_Shutdown(struct cin_s *cin)
 {
 	roq_close(cin->roq.roqfilm);
@@ -1131,7 +1127,7 @@ qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound)
 		}
 
 		cin->outunchanged = false;
-		cin->outtype = MOT_RGBA;
+		cin->outtype = TF_RGBA32;
 		cin->outwidth = cin->roq.roqfilm->width;
 		cin->outheight = cin->roq.roqfilm->height;
 		cin->outdata = cin->framedata;
@@ -1190,11 +1186,13 @@ cin_t *Media_RoQ_TryLoad(char *name)
 	}
 	return NULL;
 }
+#endif
 
 //Quake3 RoQ Support
 //////////////////////////////////////////////////////////////////////////////////
 //Static Image Support
 
+#ifndef MINIMAL
 void Media_Static_Shutdown(struct cin_s *cin)
 {
 	BZ_Free(cin->image.filmimage);
@@ -1203,8 +1201,8 @@ void Media_Static_Shutdown(struct cin_s *cin)
 
 qboolean Media_Static_DecodeFrame(cin_t *cin, qboolean nosound)
 {
-	cin->outunchanged = cin->outtype==MOT_RGBA?true:false;//handy
-	cin->outtype = MOT_RGBA;
+	cin->outunchanged = cin->outtype==TF_RGBA32?true:false;//handy
+	cin->outtype = TF_RGBA32;
 	cin->outwidth = cin->image.imagewidth;
 	cin->outheight = cin->image.imageheight;
 	cin->outdata = cin->image.filmimage;
@@ -1268,11 +1266,13 @@ cin_t *Media_Static_TryLoad(char *name)
 	}
 	return NULL;
 }
+#endif
 
 //Static Image Support
 //////////////////////////////////////////////////////////////////////////////////
 //Quake2 CIN Support
 
+#ifdef Q2CLIENT
 void Media_Cin_Shutdown(struct cin_s *cin)
 {
 	CIN_FinishCinematic();
@@ -1308,6 +1308,7 @@ cin_t *Media_Cin_TryLoad(char *name)
 
 	return NULL;
 }
+#endif
 
 //Quake2 CIN Support
 //////////////////////////////////////////////////////////////////////////////////
@@ -1605,6 +1606,9 @@ void Media_ShutdownCin(cin_t *cin)
 	if (cin->shutdown)
 		cin->shutdown(cin);
 
+	if (TEXVALID(cin->texture))
+		R_DestroyTexture(cin->texture);
+
 	if (cin->framedata)
 	{
 		BZ_Free(cin->framedata);
@@ -1621,20 +1625,26 @@ cin_t *Media_StartCin(char *name)
 	if (!name || !*name)	//clear only.
 		return NULL;
 
+#ifdef OFFSCREENGECKO
 	if (!cin)
 		cin = Media_Gecko_TryLoad(name);
+#endif
 
 	if (!cin)
 		cin = Media_Static_TryLoad(name);
 
+#ifdef Q2CLIENT
 	if (!cin)
 		cin = Media_Cin_TryLoad(name);
-
+#endif
+#ifdef Q3CLIENT
 	if (!cin)
 		cin = Media_RoQ_TryLoad(name);
-
+#endif
+#ifdef WINAVI
 	if (!cin)
 		cin = Media_WinAvi_TryLoad(name);
+#endif
 
 	return cin;
 }
@@ -1677,16 +1687,17 @@ qboolean Media_ShowFilm(void)
 
 	switch(fullscreenvid->outtype)
 	{
-	case MOT_RGBA:
+	case TF_RGBA32:
 		Media_ShowFrameRGBA_32(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
 		break;
-	case MOT_PALETTE:
+	case TF_TRANS8:
+	case TF_SOLID8:
 		Media_ShowFrame8bit(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight, fullscreenvid->outpalette);
 		break;
-	case MOT_BGR_FLIP:
+	case TF_BGR24_FLIP:
 		Media_ShowFrameBGR_24_Flip(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
 		break;
-	case MOT_BGRA:
+	case TF_BGRA32:
 #pragma message("Media_ShowFilm: BGRA comes out as RGBA")
 //		Media_ShowFrameBGRA_32
 		Media_ShowFrameRGBA_32(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
@@ -1699,41 +1710,28 @@ qboolean Media_ShowFilm(void)
 	return true;
 }
 
-#ifdef RGLQUAKE
-int Media_UpdateForShader(int texnum, cin_t *cin)
+#ifdef GLQUAKE
+texid_t Media_UpdateForShader(cin_t *cin)
 {
 	if (!cin)
-		return 0;
+		return r_nulltex;
 	if (!Media_DecodeFrame(cin, true))
 	{
-		return 0;
+		return r_nulltex;
 	}
 
 	if (!cin->outunchanged)
 	{
-		GL_Bind(texnum);
-		switch(cin->outtype)
-		{
-		case MOT_RGBA:
-			GL_Upload32("cin", (unsigned int*)cin->outdata, cin->outwidth, cin->outheight, false, false);
-			break;
-		case MOT_PALETTE:
-			GL_Upload8("cin", cin->outdata, cin->outwidth, cin->outheight, false, false);
-			break;
-		case MOT_BGR_FLIP:
-			GL_Upload24BGR_Flip ("cin", cin->outdata, cin->outwidth, cin->outheight, false, false);
-			break;
-		case MOT_BGRA:
-			GL_Upload32_BGRA("cin", (unsigned int*)cin->outdata, cin->outwidth, cin->outheight, false, false);
-			break;
-		}
+		if (!TEXVALID(cin->texture))
+			cin->texture = R_AllocNewTexture(cin->outwidth, cin->outheight);
+		R_Upload(cin->texture, "cin", cin->outtype, cin->outdata, cin->outwidth, cin->outheight, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);
 	}
 
 	if (cin->doneframe)
 		cin->doneframe(cin);
 
 
-	return texnum;
+	return cin->texture;
 }
 #endif
 
@@ -1806,7 +1804,7 @@ void Media_PlayFilm_f (void)
 
 
 
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 #if defined(WINAVI)
 #define WINAVIRECORDING
 PAVIFILE recordavi_file;
@@ -1893,12 +1891,7 @@ void Media_RecordFrame (void)
 		if (y < scr_con_current) y = scr_con_current;
 		if (y > vid.height-8)
 			y = vid.height-8;
-		qglColor4f(1, 0, 0, sin(realtime*4)/4+0.75);
-		qglEnable(GL_BLEND);
-		qglDisable(GL_ALPHA_TEST);
-		GL_TexEnv(GL_MODULATE);
-		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		Draw_String((strlen(capturemessage.string)+1)*8, y, "PAUSED");
+		Draw_FunString((strlen(capturemessage.string)+1)*8, y, S_COLOR_RED "PAUSED");
 		return;
 	}
 
@@ -1912,7 +1905,7 @@ void Media_RecordFrame (void)
 		if (y < scr_con_current) y = scr_con_current;
 		if (y > vid.height-8)
 			y = vid.height-8;
-		Draw_String(0, y, capturemessage.string);
+		Draw_FunString(0, y, capturemessage.string);
 	}
 
 	//time for annother frame?
@@ -1939,10 +1932,10 @@ void Media_RecordFrame (void)
 				return;
 			}
 		//ask gl for it
-			qglReadPixels (glx, gly, glwidth, glheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer ); 
+			qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer ); 
 
 			// swap rgb to bgr
-			c = glwidth*glheight*3;
+			c = vid.pixelwidth*vid.pixelheight*3;
 			for (i=0 ; i<c ; i+=3)
 			{
 				temp = framebuffer[i];
@@ -1950,7 +1943,7 @@ void Media_RecordFrame (void)
 				framebuffer[i+2] = temp;
 			}
 			//write it
-			hr = AVIStreamWrite(recordavi_video_stream, captureframe++, 1, framebuffer, glwidth*glheight * 3, ((captureframe%15) == 0)?AVIIF_KEYFRAME:0, NULL, NULL);
+			hr = AVIStreamWrite(recordavi_video_stream, captureframe++, 1, framebuffer, vid.pixelwidth*vid.pixelheight * 3, ((captureframe%15) == 0)?AVIIF_KEYFRAME:0, NULL, NULL);
 			if (FAILED(hr)) Con_Printf("Recoring error\n");	
 		}
 #endif /* WINAVI */
@@ -1973,12 +1966,7 @@ skipframe:
 	if (y < scr_con_current) y = scr_con_current;
 	if (y > vid.height-8)
 		y = vid.height-8;
-	qglColor4f(1, 0, 0, sin(realtime*4)/4+0.75);
-	qglEnable(GL_BLEND);
-	qglDisable(GL_ALPHA_TEST);
-	GL_TexEnv(GL_MODULATE);
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	Draw_String((strlen(capturemessage.string)+1)*8, y, "RECORDING");
+	Draw_FunString((strlen(capturemessage.string)+1)*8, y, S_COLOR_RED"RECORDING");
 }
 }
 
@@ -2262,12 +2250,12 @@ void Media_RecordFilm_f (void)
 
 		memset(&bitmap_info_header, 0, sizeof(BITMAPINFOHEADER));
 		bitmap_info_header.biSize = 40;
-		bitmap_info_header.biWidth = glwidth;
-		bitmap_info_header.biHeight = glheight;
+		bitmap_info_header.biWidth = vid.pixelwidth;
+		bitmap_info_header.biHeight = vid.pixelheight;
 		bitmap_info_header.biPlanes = 1;
 		bitmap_info_header.biBitCount = 24;
 		bitmap_info_header.biCompression = BI_RGB;
-		bitmap_info_header.biSizeImage = glwidth*glheight * 3;
+		bitmap_info_header.biSizeImage = vid.pixelwidth*vid.pixelheight * 3;
 
 
 		memset(&stream_header, 0, sizeof(stream_header));
@@ -2275,7 +2263,7 @@ void Media_RecordFilm_f (void)
 		stream_header.fccHandler = recordavi_codec_fourcc;
 		stream_header.dwScale = 100;
 		stream_header.dwRate = (unsigned long)(0.5 + 100.0/recordavi_frametime);
-		SetRect(&stream_header.rcFrame, 0, 0, glwidth, glheight);  
+		SetRect(&stream_header.rcFrame, 0, 0, vid.pixelwidth, vid.pixelheight);  
 
 		hr = AVIFileCreateStream(recordavi_file, &recordavi_uncompressed_video_stream, &stream_header);
 		if (FAILED(hr))
@@ -2350,7 +2338,7 @@ void Media_RecordFilm_f (void)
 //		if (recordavi_wave_format.nSamplesPerSec)
 //			captureaudiomem = BZ_Malloc(recordavi_wave_format.nSamplesPerSec*2);
 
-		capturevideomem = BZ_Malloc(glwidth*glheight*3);
+		capturevideomem = BZ_Malloc(vid.pixelwidth*vid.pixelheight*3);
 	}
 #endif /* WINAVI */
 	else
@@ -2376,13 +2364,13 @@ void Media_RecordDemo_f(void)
 	else
 		CL_Stopdemo_f();	//capturing failed for some reason
 }
-#else /* RGLQUAKE */
+#else /* GLQUAKE */
 void Media_CaptureDemoEnd(void){}
 void Media_RecordAudioFrame (short *sample_buffer, int samples){}
 double Media_TweekCaptureFrameTime(double time) { return time ; }
 void Media_RecordFrame (void) {}
 qboolean Media_PausedDemo (void) {return false;} //should not return a value
-#endif /* RGLQUAKE */
+#endif /* GLQUAKE */
 void Media_Init(void)
 {
 	Cmd_AddCommand("playfilm", Media_PlayFilm_f);
@@ -2391,7 +2379,7 @@ void Media_Init(void)
 	Cmd_AddCommand("music_rewind", Media_Rewind_f);
 	Cmd_AddCommand("music_next", Media_Next_f);
 
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 	Cmd_AddCommand("capture", Media_RecordFilm_f);
 	Cmd_AddCommand("capturedemo", Media_RecordDemo_f);
 	Cmd_AddCommand("capturestop", Media_StopRecordFilm_f);

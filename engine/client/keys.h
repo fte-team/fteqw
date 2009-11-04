@@ -182,7 +182,7 @@ void Key_WriteBindings (vfsfile_t *f);
 void Key_SetBinding (int keynum, int modifier, char *binding, int cmdlevel);
 void Key_ClearStates (void);
 
-void Key_ConsoleDrawSelectionBox(void);
+qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey);
 
 #endif
 

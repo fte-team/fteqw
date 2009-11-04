@@ -48,7 +48,7 @@ qboolean SCR_RSShot (void);
 
 //void SCR_UpdateScreen (void);
 
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 void GLSCR_UpdateScreen (void);
 #endif
 
@@ -67,6 +67,7 @@ void SCR_DrawNet (void);
 void SCR_DrawTurtle (void);
 void SCR_DrawPause (void);
 void SCR_VRectForPlayer(vrect_t *vrect, int pnum);	//returns a region for the player's view
+void SCR_DrawCursor(int prydoncursornum);
 
 void CLSCR_Init(void);	//basically so I can register a few friendly cvars.
 
@@ -93,3 +94,20 @@ enum
 };
 int SCR_GetLoadingStage(void);
 void SCR_SetLoadingStage(int stage);
+
+
+/*fonts*/
+void Font_Init(void);
+void Font_Shutdown(void);
+struct font_s *Font_LoadFont(int height, char *fontfilename);
+void Font_Free(struct font_s *f);
+void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
+int Font_CharHeight(void);
+int Font_CharWidth(unsigned int charcode);
+int Font_DrawChar(int px, int py, unsigned int charcode);
+void Font_ForceColour(float r, float g, float b, float a);
+void Font_EndString(struct font_s *font);
+int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
+extern struct font_s *font_conchar;
+extern struct font_s *font_tiny;
+/*end fonts*/

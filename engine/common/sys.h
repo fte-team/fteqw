@@ -36,12 +36,12 @@ void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length);
 //
 // system IO
 //
-int VARGS Sys_DebugLog(char *file, char *fmt, ...);
+int VARGS Sys_DebugLog(char *file, char *fmt, ...) LIKEPRINTF(2);
 
-void VARGS Sys_Error (const char *error, ...);
+NORETURN void VARGS Sys_Error (const char *error, ...) LIKEPRINTF(1);
 // an error will cause the entire program to exit
 
-void VARGS Sys_Printf (char *fmt, ...);
+void VARGS Sys_Printf (char *fmt, ...) LIKEPRINTF(1);
 // send text to the console
 
 void Sys_Quit (void);
@@ -51,9 +51,9 @@ typedef struct {
 	char *name;
 } dllfunction_t;
 typedef void *dllhandle_t;
-dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs);
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs);
 void Sys_CloseLibrary(dllhandle_t *lib);
-void *Sys_GetAddressForName(dllhandle_t *module, char *exportname);
+void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname);
 char *Sys_GetNameForAddress(dllhandle_t *module, void *address);
 
 unsigned int Sys_Milliseconds (void);

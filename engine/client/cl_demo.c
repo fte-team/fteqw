@@ -1055,6 +1055,11 @@ void CL_Record_f (void)
 		MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE);
 		MSG_WriteLong (&buf, cls.fteprotocolextensions);
 	}
+	if (cls.fteprotocolextensions2)	//maintain demo compatability
+	{
+		MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE2);
+		MSG_WriteLong (&buf, cls.fteprotocolextensions2);
+	}
 #endif
 	MSG_WriteLong (&buf, PROTOCOL_VERSION_QW);
 	MSG_WriteLong (&buf, cl.servercount);
@@ -1424,18 +1429,27 @@ void CL_PlayDemo(char *demoname)
 //
 	Q_strncpyz (name, demoname, sizeof(name));
 	COM_DefaultExtension (name, ".qwd", sizeof(name));
-	cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
+	if (*name == '#')
+		cls.demofile = VFSOS_Open(name+1, "rb");
+	else
+		cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
 	if (!cls.demofile)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
 		COM_DefaultExtension (name, ".dem", sizeof(name));
-		cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
+		if (*name == '#')
+			cls.demofile = VFSOS_Open(name+1, "rb");
+		else
+			cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
 	}
 	if (!cls.demofile)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
 		COM_DefaultExtension (name, ".mvd", sizeof(name));
-		cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
+		if (*name == '#')
+			cls.demofile = VFSOS_Open(name+1, "rb");
+		else
+			cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
 	}
 	if (!cls.demofile)
 	{
@@ -1679,7 +1693,7 @@ void CL_QTVPoll (void)
 				if (*colon)
 					Con_Printf("streaming \"%s\" from qtv\n", colon);
 				else
-					Con_Printf("qtv connection established\n", colon);
+					Con_Printf("qtv connection established to %s\n", colon);
 				streamavailable = true;
 			}
 
@@ -1723,8 +1737,8 @@ void CL_QTVPoll (void)
 					key_dest = key_menu;
 					sourcesmenu = M_CreateMenu(0);
 
-					MC_AddPicture(sourcesmenu, 16, 4, "gfx/qplaque.lmp");
-					MC_AddCenterPicture(sourcesmenu, 4, "gfx/p_option.lmp");
+					MC_AddPicture(sourcesmenu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+					MC_AddCenterPicture(sourcesmenu, 4, 24, "gfx/p_option.lmp");
 				}
 				if (init_numplayers == true && init_numviewers == true)
 					MC_AddConsoleCommand(sourcesmenu, 42, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %i@%s\n", streamid, qtvhostname));
@@ -1769,12 +1783,12 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result)
 	memset(result, 0, sizeof(*result));
 	if (!f)
 	{
-		Con_Printf("Couldn't open QTV file: %s\n", name);
+		Con_Printf("Couldn't open QTV file: %s\n", fname);
 		return;
 	}
 	if (!VFS_GETS(f, buffer, sizeof(buffer)-1))
 	{
-		Con_Printf("Empty QTV file: %s\n", name);
+		Con_Printf("Empty QTV file: %s\n", fname);
 		VFS_CLOSE(f);
 		return;
 	}
@@ -1783,7 +1797,7 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result)
 		s++;
 	if (*s != '[')
 	{
-		Con_Printf("Bad QTV file: %s\n", name);
+		Con_Printf("Bad QTV file: %s\n", fname);
 		VFS_CLOSE(f);
 		return;
 	}
@@ -1792,7 +1806,7 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result)
 		s++;
 	if (strnicmp(s, "QTV", 3))
 	{
-		Con_Printf("Bad QTV file: %s\n", name);
+		Con_Printf("Bad QTV file: %s\n", fname);
 		VFS_CLOSE(f);
 		return;
 	}
@@ -1801,7 +1815,7 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result)
 		s++;
 	if (*s != ']')
 	{
-		Con_Printf("Bad QTV file: %s\n", name);
+		Con_Printf("Bad QTV file: %s\n", fname);
 		VFS_CLOSE(f);
 		return;
 	}
@@ -1810,7 +1824,7 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result)
 		s++;
 	if (*s)
 	{
-		Con_Printf("Bad QTV file: %s\n", name);
+		Con_Printf("Bad QTV file: %s\n", fname);
 		VFS_CLOSE(f);
 		return;
 	}
@@ -1972,7 +1986,7 @@ void CL_QTVPlay_f (void)
 	else
 		host = NULL;
 
-	if (qtvcl_forceversion1.value)
+	if (qtvcl_forceversion1.ival)
 	{
 		connrequest =	"QTV\n"
 				"VERSION: 1.0\n";
@@ -1985,7 +1999,7 @@ void CL_QTVPlay_f (void)
 
 	VFS_WRITE(newf, connrequest, strlen(connrequest));
 
-	if (qtvcl_eztvextensions.value)
+	if (qtvcl_eztvextensions.ival)
 	{
 		connrequest =	"QTV_EZQUAKE_EXT: 3\n";
 		VFS_WRITE(newf, connrequest, strlen(connrequest));
@@ -2039,7 +2053,7 @@ void CL_QTVList_f (void)
 		return;
 	}
 
-	if (qtvcl_forceversion1.value)
+	if (qtvcl_forceversion1.ival)
 	{
 		connrequest =	"QTV\n"
 				"VERSION: 1.0\n";

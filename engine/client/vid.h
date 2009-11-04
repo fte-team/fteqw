@@ -35,10 +35,8 @@ typedef struct {
 	int bpp;
 	int rate;
 	int multisample;	//for opengl antialiasing (which requires context stuff)
-	float stretch;
 	char glrenderer[MAX_QPATH];
 	r_qrenderer_t renderer;
-	qboolean allow_modex;
 } rendererstate_t;
 
 typedef struct vrect_s
@@ -49,32 +47,29 @@ typedef struct vrect_s
 
 typedef struct
 {
-	pixel_t			*buffer;		// invisible buffer
 	pixel_t			*colormap;		// 256 * VID_GRADES size
 	int				fullbright;		// index of first fullbright color
-	unsigned		rowbytes;	// may be > width if displayed in a window
+
 	unsigned		width;		
 	unsigned		height;
 	float			aspect;		// width / height -- < 0 is taller than wide
 	int				numpages;
 	int				recalc_refdef;	// if true, recalc vid-based stuff
 
-	pixel_t			*conbuffer;
-	int				conrowbytes;
-	unsigned		conwidth;
-	unsigned		conheight;
+FTE_DEPRECATED	pixel_t			*conbuffer;
+FTE_DEPRECATED	int				conrowbytes;
+FTE_DEPRECATED	unsigned		conwidth;
+FTE_DEPRECATED	unsigned		conheight;
 
-	int				maxwarpwidth;
-	int				maxwarpheight;
-	pixel_t			*direct;		// direct drawing to framebuffer, if not
-									//  NULL
+	unsigned		pixelwidth;
+	unsigned		pixelheight;
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state
 
 extern unsigned int	d_8to24rgbtable[256];
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 void	GLVID_SetPalette (unsigned char *palette);
 // called at startup and after any gamma correction
 
@@ -88,6 +83,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette);
 
 void	GLVID_Shutdown (void);
 // Called at shutdown
+
+void GLVID_Crashed(void);
 
 void	GLVID_Update (vrect_t *rects);
 // flushes the given rectangles from the view buffer to the screen

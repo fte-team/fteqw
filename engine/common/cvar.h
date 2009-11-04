@@ -116,6 +116,7 @@ typedef struct cvar_group_s
 #define CVAR_RENDERERCALLBACK	(1<<13) //force callback for cvars on renderer change
 #define CVAR_NOUNSAFEEXPAND	(1<<14) // do not expand cvar value when command is from gamecode
 #define CVAR_RULESETLATCH	(1<<15)	//latched by the ruleset
+#define CVAR_SHADERSYSTEM	(1<<16)	//change flushes shaders.
 
 #define CVAR_LASTFLAG CVAR_RULESETLATCH
 

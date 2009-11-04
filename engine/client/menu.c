@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include "quakedef.h"
 #include "winquake.h"
+#include "shader.h"
 
 void M_Menu_Audio_f (void);
 void M_Menu_Demos_f (void);
@@ -47,60 +48,17 @@ cvar_t m_helpismedia = SCVAR("m_helpismedia", "0");
 //=============================================================================
 /* Support Routines */
 
-/*
-================
-M_DrawCharacter
-
-Draws one solid graphics character
-================
-*/
-void M_DrawCharacter (int cx, int line, unsigned int num)
-{
-	Draw_Character ( cx + ((vid.width - 320)>>1), line, num);
-}
-
-void M_DrawColouredCharacter (int cx, int line, unsigned int num)
-{
-	Draw_ColouredCharacter( cx + ((vid.width - 320)>>1), line, num);
-}
 void M_Print (int cx, int cy, qbyte *str)
 {
-	while (*str)
-	{
-		M_DrawCharacter (cx, cy, (*str)|CON_HIGHCHARSMASK);
-		str++;
-		cx += 8;
-	}
+	Draw_AltFunString(cx + ((vid.width - 320)>>1), cy, str);
 }
-
-void M_PrintColoured (int cx, int cy, int colour, qbyte *str)
-{
-	while (*str)
-	{
-		M_DrawColouredCharacter (cx, cy, (*str) + (colour<<CON_FGSHIFT));
-		str++;
-		cx += 8;
-	}
-}
-
 void M_PrintWhite (int cx, int cy, qbyte *str)
 {
-	while (*str)
-	{
-		M_DrawCharacter (cx, cy, *str);
-		str++;
-		cx += 8;
-	}
+	Draw_FunString(cx + ((vid.width - 320)>>1), cy, str);
 }
-
-void M_DrawTransPic (int x, int y, mpic_t *pic)
+void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic)
 {
-	Draw_TransPic (x + ((vid.width - 320)>>1), y, pic);
-}
-
-void M_DrawPic (int x, int y, mpic_t *pic)
-{
-	Draw_Pic (x + ((vid.width - 320)>>1), y, pic);
+	Draw_ScalePic (x + ((vid.width - 320)>>1), y, w, h, pic);
 }
 
 qbyte identityTable[256];
@@ -149,17 +107,17 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 	p = Draw_SafeCachePic ("gfx/box_tl.lmp");
 	if (!p)
 		return;	//assume we can't find any
-	M_DrawTransPic (cx, cy, p);
+	M_DrawScalePic (cx, cy, 8, 8, p);
 	p = Draw_SafeCachePic ("gfx/box_ml.lmp");
 	if (p)
 		for (n = 0; n < lines; n++)
 		{
 			cy += 8;
-			M_DrawTransPic (cx, cy, p);
+			M_DrawScalePic (cx, cy, 8, 8, p);
 		}
 	p = Draw_SafeCachePic ("gfx/box_bl.lmp");
 	if (p)
-		M_DrawTransPic (cx, cy+8, p);
+		M_DrawScalePic (cx, cy+8, 8, 8, p);
 
 	// draw middle
 	cx += 8;
@@ -168,7 +126,7 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 		cy = y;
 		p = Draw_SafeCachePic ("gfx/box_tm.lmp");
 		if (p)
-			M_DrawTransPic (cx, cy, p);
+			M_DrawScalePic (cx, cy, 16, 8, p);
 		p = Draw_SafeCachePic ("gfx/box_mm.lmp");
 		if (p)
 			for (n = 0; n < lines; n++)
@@ -180,11 +138,11 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 					if (!p)
 						break;
 				}
-				M_DrawTransPic (cx, cy, p);
+				M_DrawScalePic (cx, cy, 16, 8, p);
 			}
 		p = Draw_SafeCachePic ("gfx/box_bm.lmp");
 		if (p)
-			M_DrawTransPic (cx, cy+8, p);
+			M_DrawScalePic (cx, cy+8, 16, 8, p);
 		width -= 2;
 		cx += 16;
 	}
@@ -193,17 +151,17 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 	cy = y;
 	p = Draw_SafeCachePic ("gfx/box_tr.lmp");
 	if (p)
-		M_DrawTransPic (cx, cy, p);
+		M_DrawScalePic (cx, cy, 8, 8, p);
 	p = Draw_SafeCachePic ("gfx/box_mr.lmp");
 	if (p)
 		for (n = 0; n < lines; n++)
 		{
 			cy += 8;
-			M_DrawTransPic (cx, cy, p);
+			M_DrawScalePic (cx, cy, 8, 8, p);
 		}
 	p = Draw_SafeCachePic ("gfx/box_br.lmp");
 	if (p)
-		M_DrawTransPic (cx, cy+8, p);
+		M_DrawScalePic (cx, cy+8, 8, 8, p);
 }
 
 //=============================================================================
@@ -235,6 +193,10 @@ void M_ToggleMenu_f (void)
 	if (MP_Toggle())
 		return;
 #endif
+#ifdef VM_UI
+	if (UI_OpenMenu())
+		return;
+#endif
 
 	if (key_dest == key_menu)
 	{
@@ -253,39 +215,6 @@ void M_ToggleMenu_f (void)
 	{
 		M_Menu_Main_f ();
 	}
-}
-
-//=============================================================================
-/* OPTIONS MENU */
-#define	SLIDER_RANGE	10
-
-void M_DrawSlider (int x, int y, float range)
-{
-	int	i;
-
-	if (range < 0)
-		range = 0;
-	if (range > 1)
-		range = 1;
-	M_DrawCharacter (x-8, y, 128);
-	for (i=0 ; i<SLIDER_RANGE ; i++)
-		M_DrawCharacter (x + i*8, y, 129);
-	M_DrawCharacter (x+i*8, y, 130);
-	M_DrawCharacter (x + (SLIDER_RANGE-1)*8 * range, y, 131);
-}
-
-void M_DrawCheckbox (int x, int y, int on)
-{
-#if 0
-	if (on)
-		M_DrawCharacter (x, y, 131);
-	else
-		M_DrawCharacter (x, y, 129);
-#endif
-	if (on)
-		M_Print (x, y, "on");
-	else
-		M_Print (x, y, "off");
 }
 
 //=============================================================================
@@ -418,7 +347,7 @@ void M_Menu_Keys_f (void)
 
 	menu = M_CreateMenu(0);
 
-	MC_AddCenterPicture(menu, 4, "gfx/ttl_cstm.lmp");
+	MC_AddCenterPicture(menu, 4, 24, "gfx/ttl_cstm.lmp");
 
 	mgt = M_GameType();
 #ifdef Q2CLIENT
@@ -486,121 +415,6 @@ void M_UnbindCommand (char *command)
 	}
 }
 
-
-void M_Keys_Draw (void)
-{
-	int		i, l;
-	int		keys[2];
-	char	*name;
-	int		x, y;
-	mpic_t	*p;
-
-	p = Draw_SafeCachePic ("gfx/ttl_cstm.lmp");
-	if (p)
-		M_DrawPic ( (320-p->width)/2, 4, p);
-
-	if (bind_grab)
-		M_Print (12, 32, "Press a key or button for this action");
-	else
-		M_Print (18, 32, "Enter to change, backspace to clear");
-
-// search for known bindings
-	for (i=0 ; ; i++)
-	{
-		if (!bindnames[i].command)
-			break;
-		y = 48 + 8*i;
-
-		M_Print (16, y, bindnames[i].name);
-
-		l = strlen (bindnames[i].command);
-
-		M_FindKeysForCommand (bindnames[i].command, keys);
-
-		if (keys[0] == -1)
-		{
-			M_Print (140, y, "???");
-		}
-		else
-		{
-			name = Key_KeynumToString (keys[0]);
-			M_Print (140, y, name);
-			x = strlen(name) * 8;
-			if (keys[1] != -1)
-			{
-				M_Print (140 + x + 8, y, "or");
-				M_Print (140 + x + 32, y, Key_KeynumToString (keys[1]));
-			}
-		}
-	}
-
-	if (bind_grab)
-		M_DrawCharacter (130, 48 + keys_cursor*8, '=');
-	else
-		M_DrawCharacter (130, 48 + keys_cursor*8, 12+((int)(realtime*4)&1));
-}
-
-
-void M_Keys_Key (int k)
-{
-	char	cmd[80];
-	int		keys[2];
-
-	if (bind_grab)
-	{	// defining a key
-		S_LocalSound ("misc/menu1.wav");
-		if (k == K_ESCAPE)
-		{
-			bind_grab = false;
-		}
-		else if (k != '`')
-		{
-			sprintf (cmd, "bind %s \"%s\"\n", Key_KeynumToString (k), bindnames[keys_cursor].command);
-			Cbuf_InsertText (cmd, RESTRICT_LOCAL, false);
-		}
-
-		bind_grab = false;
-		return;
-	}
-
-	switch (k)
-	{
-	case K_ESCAPE:
-		M_Menu_Options_f ();
-		break;
-
-	case K_LEFTARROW:
-	case K_UPARROW:
-		S_LocalSound ("misc/menu1.wav");
-		keys_cursor--;
-		if (keys_cursor < 0)
-			keys_cursor = numbindnames-1;
-		break;
-
-	case K_DOWNARROW:
-	case K_RIGHTARROW:
-		S_LocalSound ("misc/menu1.wav");
-		keys_cursor++;
-		if (keys_cursor >= numbindnames)
-			keys_cursor = 0;
-		break;
-
-	case K_ENTER:		// go into bind mode
-		M_FindKeysForCommand (bindnames[keys_cursor].command, keys);
-		S_LocalSound ("misc/menu2.wav");
-		if (keys[1] != -1)
-			M_UnbindCommand (bindnames[keys_cursor].command);
-		bind_grab = true;
-		break;
-
-	case K_BACKSPACE:		// delete bindings
-	case K_DEL:				// delete bindings
-		S_LocalSound ("misc/menu2.wav");
-		M_UnbindCommand (bindnames[keys_cursor].command);
-		break;
-	}
-}
-
 //=============================================================================
 /* HELP MENU */
 
@@ -639,7 +453,7 @@ void M_Help_Draw (void)
 	if (!pic)
 		M_Menu_Main_f ();
 	else
-		M_DrawPic (0, 0, pic);
+		M_DrawScalePic (0, 0, 320, 200, pic);
 }
 
 
@@ -974,7 +788,6 @@ void M_DeInit_Internal (void)
 #endif
 	Cmd_RemoveCommand ("menu_setup");
 	Cmd_RemoveCommand ("menu_newmulti");
-	Cmd_RemoveCommand ("menu_main");	//I've moved main to last because that way tab give us main and not quit.
 
 	Cmd_RemoveCommand ("menu_options");
 	Cmd_RemoveCommand ("menu_video");
@@ -986,6 +799,8 @@ void M_DeInit_Internal (void)
 
 	Cmd_RemoveCommand ("menu_download");
 
+
+	Cmd_RemoveCommand ("menu_main");	//I've moved main to last because that way tab give us main and not quit.
 	Cmd_RemoveCommand ("quickconnect");
 }
 
@@ -1043,13 +858,11 @@ void M_Draw (int uimenu)
 		m_recursiveDraw = false;
 	}
 
+	Draw_ImageColours(1, 1, 1, 1);
+
 	switch (m_state)
 	{
 	case m_none:
-		break;
-
-	case m_keys:
-		M_Keys_Draw ();
 		break;
 
 	case m_help:
@@ -1089,10 +902,6 @@ void M_Keydown (int key, int unicode)
 		key_dest = key_console;
 		return;
 
-	case m_keys:
-		M_Keys_Key (key);
-		return;
-
 	case m_help:
 		M_Help_Key (key);
 		return;
@@ -1106,7 +915,7 @@ void M_Keydown (int key, int unicode)
 		return;
 
 	case m_complex:
-		M_Complex_Key (key);
+		M_Complex_Key (key, unicode);
 		return;
 #ifdef PLUGINS
 	case m_plugin:
@@ -1145,6 +954,7 @@ void M_Keyup (int key, int unicode)
 int M_GameType (void)
 {
 	int cached;
+#if defined(Q2CLIENT)
 	int q1, h2, q2;
 
 	q1 = COM_FDepthFile("gfx/sp_menu.lmp", true);
@@ -1156,6 +966,7 @@ int M_GameType (void)
 	else if (h2 < q1)
 		cached = MGT_HEXEN2;
 	else
+#endif
 		cached = MGT_QUAKE1;
 
 	return cached;

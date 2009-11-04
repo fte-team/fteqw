@@ -187,7 +187,7 @@ int wildcmp(const char *wild, const char *string);	//1 if match
 #define Q_strcmp(s1, s2) strcmp((s1), (s2))
 #define Q_strncmp(s1, s2, n) strncmp((s1), (s2), (n))
 
-void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...);
+void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...) LIKEPRINTF(3);
 
 #define Q_strncpyS(d, s, n) do{const char *____in=(s);char *____out=(d);int ____i; for (____i=0;*(____in); ____i++){if (____i == (n))break;*____out++ = *____in++;}if (____i < (n))*____out='\0';}while(0)	//only use this when it should be used. If undiciided, use N
 #define Q_strncpyN(d, s, n) do{if (n < 0)Sys_Error("Bad length in strncpyz");Q_strncpyS((d), (s), (n));((char *)(d))[n] = '\0';}while(0)	//this'll stop me doing buffer overflows. (guarenteed to overflow if you tried the wrong size.)
@@ -258,18 +258,19 @@ void COM_ParsePlusSets (void);
 
 typedef unsigned int conchar_t;
 void COM_DeFunString(conchar_t *str, char *out, int outsize, qboolean ignoreflags);
-conchar_t *COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int outsize, qboolean keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
+conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, qboolean keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
 int COM_FunStringLength(unsigned char *str);
 
 char *COM_SkipPath (const char *pathname);
 void COM_StripExtension (const char *in, char *out, int outlen);
+void COM_StripAllExtensions (char *in, char *out, int outlen);
 void COM_FileBase (const char *in, char *out, int outlen);
 int COM_FileSize(const char *path);
 void COM_DefaultExtension (char *path, char *extension, int maxlen);
 char *COM_FileExtension (const char *in);
 void COM_CleanUpPath(char *str);
 
-char	*VARGS va(char *format, ...);
+char	*VARGS va(char *format, ...) LIKEPRINTF(1);
 // does a varargs printf into a temp buffer
 
 //============================================================================
@@ -338,7 +339,7 @@ typedef struct vfsfile_s {
 #define VFS_FLUSH(vf) do{if(vf->Flush)vf->Flush(vf);}while(0)
 #define VFS_PUTS(vf,s) do{const char *t=s;vf->WriteBytes(vf,t,strlen(t));}while(0)
 char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen);
-void VARGS VFS_PRINTF(vfsfile_t *vf, char *fmt, ...);
+void VARGS VFS_PRINTF(vfsfile_t *vf, char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
 	FS_GAME,		//standard search (not generally valid for save/rename/delete/etc)
@@ -371,13 +372,18 @@ qbyte *COM_LoadTempFile2 (const char *path);	//allocates a little bit more witho
 qbyte *COM_LoadHunkFile (const char *path);
 void COM_LoadCacheFile (const char *path, struct cache_user_s *cu);
 void COM_CreatePath (char *path);
-void COM_Gamedir (const char *dir);
 void FS_ForceToPure(const char *str, const char *crcs, int seed);
 char *COM_GetPathInfo (int i, int *crc);
 char *COM_NextPath (char *prevpath);
 void COM_FlushFSCache(void);	//a file was written using fopen
 void COM_RefreshFSCache_f(void);
 
+void COM_InitFilesystem (void);
+void FS_Shutdown(void);
+void COM_Gamedir (const char *dir);
+char *FS_GetGamedir(void);
+
+qbyte *FS_LoadMallocFile (const char *path);
 int FS_LoadFile(char *name, void **file);
 void FS_FreeFile(void *file);
 
@@ -392,6 +398,8 @@ extern qboolean standard_quake;	//fixme: remove
 void COM_Effectinfo_Clear(void);
 unsigned int COM_Effectinfo_ForName(const char *efname);
 char *COM_Effectinfo_ForNumber(unsigned int efnum);
+
+unsigned int COM_RemapMapChecksum(unsigned int checksum);
 
 #define	MAX_INFO_KEY	64
 char *Info_ValueForKey (char *s, const char *key);

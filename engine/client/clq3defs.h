@@ -321,4 +321,14 @@ void MSG_Q3_ReadDeltaUsercmd(int key, const usercmd_t *from, usercmd_t *to);
 
 
 void MSG_WriteBits(sizebuf_t *msg, int value, int bits);
+
+
+
+typedef struct q3refEntity_s q3refEntity_t;
+void VQ3_AddEntity(const q3refEntity_t *q3);
+typedef struct q3polyvert_s q3polyvert_t;
+void VQ3_AddPoly(shader_t *s, int num, q3polyvert_t *verts);
+typedef struct q3refdef_s q3refdef_t;
+void VQ3_RenderView(const q3refdef_t *ref);
+
 #endif

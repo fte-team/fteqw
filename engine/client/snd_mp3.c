@@ -51,11 +51,6 @@
 #define USE_MADLIB
 #include "mymad.c"
 
-#ifdef _MSC_VER
-#pragma comment (lib, "../libs/libmad/msvc++/release/libmad.lib")
-#endif
-
-
 /*
  * This is perhaps the simplest example use of the MAD high-level API.
  * Standard input is mapped into memory via mmap(), then the high-level API

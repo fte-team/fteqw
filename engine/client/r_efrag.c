@@ -222,7 +222,7 @@ void R_StoreEfrags (efrag_t **ppefrag)
 		pent = pefrag->entity;
 		clmodel = pent->model;
 
-		if ((!r_drawflame.value) && (clmodel->engineflags & MDLF_FLAME))
+		if ((!r_drawflame.ival) && (clmodel->engineflags & MDLF_FLAME))
 			break;
 
 //		switch (clmodel->type)
@@ -243,7 +243,7 @@ void R_StoreEfrags (efrag_t **ppefrag)
 				pent->visframe = r_framecount;
 
 			// emit particles for statics (we don't need to cheat check statics)
-				if (clmodel->particleeffect >= 0 && gl_part_flame.value)
+				if (clmodel->particleeffect >= 0 && gl_part_flame.ival)
 				{
 					// TODO: this is ugly.. assumes ent is in static entities, and subtracts
 					// pointer math to get an index to use in cl_static emit

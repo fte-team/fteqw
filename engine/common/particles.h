@@ -116,7 +116,6 @@ void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk);//this is just a wr
 #define P_DelinkTrailstate pe->DelinkTrailstate
 #define P_ClearParticles pe->ClearParticles
 #define P_DrawParticles pe->DrawParticles
-#define P_FlushRenderer pe->FlushRenderer
 
 typedef struct {
 	char *name1;
@@ -143,7 +142,6 @@ typedef struct {
 	void (*DelinkTrailstate) (trailstate_t **tsk);
 	void (*ClearParticles) (void);
 	void (*DrawParticles) (void);
-	void (*FlushRenderer) (void);
 } particleengine_t;
 extern particleengine_t *pe;
 

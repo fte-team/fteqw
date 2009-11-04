@@ -1511,7 +1511,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 				AngleVectors (ent.angles, forward, NULL, NULL);
 				VectorMA (ent.origin, 64, forward, start);
-				V_AddLight (start, 100, 0.2, 0, 0);
+				V_AddLight (ent.keynum, start, 100, 0.2, 0, 0);
 			}
 		}
 		else
@@ -1535,13 +1535,13 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 //			ent.flags |= Q2RF_EXTERNALMODEL;	// only draw from mirrors
 
 			if (effects & Q2EF_FLAG1)
-				V_AddLight (ent.origin, 225, 0.2, 0.05, 0.05);
+				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.05, 0.05);
 			else if (effects & Q2EF_FLAG2)
-				V_AddLight (ent.origin, 225, 0.05, 0.05, 0.2);
+				V_AddLight (ent.keynum, ent.origin, 225, 0.05, 0.05, 0.2);
 			else if (effects & Q2EF_TAGTRAIL)						//PGM
-				V_AddLight (ent.origin, 225, 0.2, 0.2, 0.0);	//PGM
+				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.2, 0.0);	//PGM
 			else if (effects & Q2EF_TRACKERTRAIL)					//PGM
-				V_AddLight (ent.origin, 225, -0.2, -0.2, -0.2);	//PGM
+				V_AddLight (ent.keynum, ent.origin, 225, -0.2, -0.2, -0.2);	//PGM
 		}
 
 		// if set to invisible, skip
@@ -1623,18 +1623,11 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.shaderRGBAf[0] = (!!(renderfx & Q2RF_SHELL_RED));
 			ent.shaderRGBAf[1] = (!!(renderfx & Q2RF_SHELL_GREEN));
 			ent.shaderRGBAf[2] = (!!(renderfx & Q2RF_SHELL_BLUE));
-#ifdef Q3SHADERS	//fixme: do better.
-			//fixme: this is woefully gl specific. :(
-			if (qrenderer == QR_OPENGL)
-			{
-				ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell, NULL);
-			}
-#endif
+			ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell, NULL);
+
 			VQ2_AddLerpEntity (&ent);
 		}
-#ifdef Q3SHADERS
 		ent.forcedshader = NULL;
-#endif
 
 //		ent.skin = NULL;		// never use a custom skin on others
 		ent.skinnum = 0;
@@ -1723,7 +1716,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xdc, 4, &cent->trailstate);
 
-				V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
+				V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
 			}
 			// PGM - Do not reorder EF_BLASTER and EF_HYPERBLASTER. 
 			// EF_BLASTER | EF_TRACKER is a special case for EF_BLASTER2... Cheese!
@@ -1733,22 +1726,22 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				if (effects & Q2EF_TRACKER)	// lame... problematic?
 				{
 					CLQ2_BlasterTrail2 (cent->lerp_origin, ent.origin);
-					V_AddLight (ent.origin, 200, 0, 0.2, 0);		
+					V_AddLight (ent.keynum, ent.origin, 200, 0, 0.2, 0);		
 				}
 				else
 				{
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe0, 1, &cent->trailstate);
-					V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
+					V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
 				}
 //PGM
 			}
 			else if (effects & Q2EF_HYPERBLASTER)
 			{
 				if (effects & Q2EF_TRACKER)						// PGM	overloaded for blaster2.
-					V_AddLight (ent.origin, 200, 0, 0.2, 0);		// PGM
+					V_AddLight (ent.keynum, ent.origin, 200, 0, 0.2, 0);		// PGM
 				else											// PGM
-					V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
+					V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
 			}
 			else if (effects & Q2EF_GIB)
 			{
@@ -1779,7 +1772,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				{
 					i = bfg_lightramp[s1->frame];
 				}
-				V_AddLight (ent.origin, i, 0, 0.2, 0);
+				V_AddLight (ent.keynum, ent.origin, i, 0, 0.2, 0);
 			}
 			// RAFAEL
 			else if (effects & Q2EF_TRAP)
@@ -1787,19 +1780,19 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				ent.origin[2] += 32;
 				CLQ2_TrapParticles (&ent);
 				i = (rand()%100) + 100;
-				V_AddLight (ent.origin, i, 0.2, 0.16, 0.05);
+				V_AddLight (ent.keynum, ent.origin, i, 0.2, 0.16, 0.05);
 			}
 			else if (effects & Q2EF_FLAG1)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_flag1"), &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 242, 1, &cent->trailstate);
-				V_AddLight (ent.origin, 225, 0.2, 0.05, 0.05);
+				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.05, 0.05);
 			}
 			else if (effects & Q2EF_FLAG2)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_flag2"), &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 115, 1, &cent->trailstate);
-				V_AddLight (ent.origin, 225, 0.05, 0.05, 0.2);
+				V_AddLight (ent.keynum, ent.origin, 225, 0.05, 0.05, 0.2);
 			}
 //======
 //ROGUE
@@ -1807,7 +1800,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_tagtrail"), &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 220, 1, &cent->trailstate);
-				V_AddLight (ent.origin, 225, 0.2, 0.2, 0.0);
+				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.2, 0.0);
 			}
 			else if (effects & Q2EF_TRACKERTRAIL)
 			{
@@ -1818,19 +1811,19 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 					intensity = 50 + (500 * (sin(cl.time/500.0) + 1.0));
 
 					// FIXME - check out this effect in rendition
-					V_AddLight (ent.origin, intensity, -0.2, -0.2, -0.2);
+					V_AddLight (ent.keynum, ent.origin, intensity, -0.2, -0.2, -0.2);
 				}
 				else
 				{
 					CLQ2_Tracker_Shell (cent->lerp_origin);
-					V_AddLight (ent.origin, 155, -0.2, -0.2, -0.2);
+					V_AddLight (ent.keynum, ent.origin, 155, -0.2, -0.2, -0.2);
 				}
 			}
 			else if (effects & Q2EF_TRACKER)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_tracker"), &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0, 1, &cent->trailstate);
-				V_AddLight (ent.origin, 200, -0.2, -0.2, -0.2);
+				V_AddLight (ent.keynum, ent.origin, 200, -0.2, -0.2, -0.2);
 			}
 //ROGUE
 //======
@@ -1845,12 +1838,12 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_ionripper"), &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 228, 4, &cent->trailstate);
-				V_AddLight (ent.origin, 100, 0.2, 0.1, 0.1);
+				V_AddLight (ent.keynum, ent.origin, 100, 0.2, 0.1, 0.1);
 			}
 			// RAFAEL
 			else if (effects & Q2EF_BLUEHYPERBLASTER)
 			{
-				V_AddLight (ent.origin, 200, 0, 0, 0.2);
+				V_AddLight (ent.keynum, ent.origin, 200, 0, 0, 0.2);
 			}
 			// RAFAEL
 			else if (effects & Q2EF_PLASMA)
@@ -1859,7 +1852,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				{
 					P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, &cent->trailstate);
 				}
-				V_AddLight (ent.origin, 130, 0.2, 0.1, 0.1);
+				V_AddLight (ent.keynum, ent.origin, 130, 0.2, 0.1, 0.1);
 			}
 		}
 
@@ -2056,6 +2049,9 @@ void CLQ2_AddEntities (void)
 	cl_visedicts = cl_visedicts_list[cls.netchan.incoming_sequence&1];
 
 	cl_numvisedicts = 0;
+	cl_numstrisidx = 0;
+	cl_numstrisvert = 0;
+	cl_numstris = 0;
 
 	if (cl.time*1000 > cl.q2frame.servertime)
 	{

@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sys_win.h
 
 #include "quakedef.h"
+
 #include "winquake.h"
 #include "resource.h"
 #include "errno.h"
@@ -31,6 +32,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef MULTITHREAD
 #include <process.h>
+#endif
+
+#ifdef _DEBUG
+#define CATCHCRASH
 #endif
 
 #if !defined(CLIENTONLY) && !defined(SERVERONLY)
@@ -45,7 +50,7 @@ void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	FreeLibrary((HMODULE)lib);
 }
-dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	int i;
 	HMODULE lib;
@@ -72,7 +77,7 @@ dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
 	return (dllhandle_t*)lib;
 }
 
-void *Sys_GetAddressForName(dllhandle_t *module, char *exportname)
+void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 {
 	if (!module)
 		return NULL;
@@ -310,6 +315,80 @@ int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 	return 1;
 };
 
+#ifdef CATCHCRASH
+#include "dbghelp.h"
+typedef BOOL (WINAPI *MINIDUMPWRITEDUMP) (
+	HANDLE hProcess,
+	DWORD ProcessId,
+	HANDLE hFile,
+	MINIDUMP_TYPE DumpType,
+	PMINIDUMP_EXCEPTION_INFORMATION ExceptionParam,
+	PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
+	PMINIDUMP_CALLBACK_INFORMATION CallbackParam
+	);
+
+static DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
+{
+	char dumpPath[1024];
+	HANDLE hProc = GetCurrentProcess();
+	DWORD procid = GetCurrentProcessId();
+	HANDLE dumpfile;
+	HMODULE hDbgHelp;
+	MINIDUMPWRITEDUMP fnMiniDumpWriteDump;
+	HMODULE hKernel;
+	BOOL (WINAPI *pIsDebuggerPresent)(void);
+
+	hKernel = LoadLibrary ("kernel32");
+	pIsDebuggerPresent = (void*)GetProcAddress(hKernel, "IsDebuggerPresent");
+
+#ifdef GLQUAKE
+	GLVID_Crashed();
+#endif
+
+	if (pIsDebuggerPresent ())
+	{
+		/*if we have a current window, minimize it to bring us out of fullscreen*/
+		ShowWindow(mainwindow, SW_MINIMIZE);
+		return EXCEPTION_CONTINUE_SEARCH;
+	}
+
+	/*if we have a current window, kill it, so it can't steal input of handle window messages or anything risky like that*/
+	DestroyWindow(mainwindow);
+
+	hDbgHelp = LoadLibrary ("DBGHELP");
+	if (hDbgHelp)
+		fnMiniDumpWriteDump = (MINIDUMPWRITEDUMP)GetProcAddress (hDbgHelp, "MiniDumpWriteDump");
+	else
+		fnMiniDumpWriteDump = NULL;
+
+	if (fnMiniDumpWriteDump)
+	{
+		if (MessageBox(NULL, "KABOOM! We crashed!\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNO) != IDYES)
+			return EXCEPTION_EXECUTE_HANDLER;
+
+		/*take a dump*/
+		GetTempPath (sizeof(dumpPath)-16, dumpPath);
+		Q_strncatz(dumpPath, DISTRIBUTION"CrashDump.dmp", sizeof(dumpPath));
+		dumpfile = CreateFile (dumpPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (dumpfile)
+		{
+			MINIDUMP_EXCEPTION_INFORMATION crashinfo;
+			crashinfo.ClientPointers = TRUE;
+			crashinfo.ExceptionPointers = exceptionInfo;
+			crashinfo.ThreadId = GetCurrentThreadId ();
+			if (fnMiniDumpWriteDump(hProc, procid, dumpfile, MiniDumpWithIndirectlyReferencedMemory|MiniDumpWithDataSegs, &crashinfo, NULL, NULL))
+			{
+				CloseHandle(dumpfile);
+				MessageBox(NULL, va("You can find the crashdump at\n%s\nPlease send this file to someone.\n\nWarning: sensitive information (like your current user name) might be present in the dump.\nYou will probably want to compress it.", dumpPath), DISTRIBUTION " Sucks", 0);
+				return EXCEPTION_EXECUTE_HANDLER;
+			}
+		}
+	}
+	MessageBox(NULL, "Kaboom! Sorry. Blame the nubs.", DISTRIBUTION " Sucks", 0);
+	return EXCEPTION_EXECUTE_HANDLER;
+}
+#endif
+
 int *debug;
 
 
@@ -364,7 +443,7 @@ LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 
 		// Disable CTRL+ESC
 			//this works, but we've got to give some way to tab out...
-			if (sys_disableTaskSwitch.value)
+			if (sys_disableTaskSwitch.ival)
 			{
 				if (pkbhs->vkCode == VK_ESCAPE && GetAsyncKeyState (VK_CONTROL) >> ((sizeof(SHORT) * 8) - 1))
 					return 1;
@@ -407,54 +486,6 @@ FILE IO
 
 ===============================================================================
 */
-
-/*
-================
-Sys_filelength
-================
-*/
-int Sys_filelength (FILE *f)
-{
-	int		pos;
-	int		end;
-
-	pos = ftell (f);
-	fseek (f, 0, SEEK_END);
-	end = ftell (f);
-	fseek (f, pos, SEEK_SET);
-
-	return end;
-}
-
-
-int	Sys_FileTime (char *path)
-{
-	FILE	*f;
-	int		t=0, retval;
-
-#ifndef SERVERONLY
-	if (qrenderer)
-		t = VID_ForceUnlockedAndReturnState ();
-#endif
-	
-	f = fopen(path, "rb");
-	
-	if (f)
-	{
-		fclose(f);
-		retval = 1;
-	}
-	else
-	{
-		retval = -1;
-	}
-
-#ifndef SERVERONLY
-	if (qrenderer)
-		VID_ForceLockState (t);
-#endif
-	return retval;
-}
 
 void Sys_mkdir (char *path)
 {
@@ -735,7 +766,7 @@ void Sys_Quit (void)
 }
 
 
-#if 0
+#if 1
 /*
 ================
 Sys_DoubleTime
@@ -743,91 +774,32 @@ Sys_DoubleTime
 */
 double Sys_DoubleTime (void)
 {
-	static int			sametimecount;
-	static unsigned int	oldtime;
 	static int			first = 1;
+	static LARGE_INTEGER		qpcfreq;
 	LARGE_INTEGER		PerformanceCount;
-	unsigned int		temp, t2;
-	double				time;
-
-	Sys_PushFPCW_SetHigh ();
+	static LONGLONG			oldcall;
+	static LONGLONG			firsttime;
+	LONGLONG			diff;
 
 	QueryPerformanceCounter (&PerformanceCount);
-
-	temp = ((unsigned int)PerformanceCount.LowPart >> lowshift) |
-		   ((unsigned int)PerformanceCount.HighPart << (32 - lowshift));
-
 	if (first)
 	{
-		oldtime = temp;
 		first = 0;
+		QueryPerformanceFrequency(&qpcfreq);
+		firsttime = PerformanceCount.QuadPart;
+		diff = 0;
 	}
 	else
-	{
-	// check for turnover or backward time
-		if ((temp <= oldtime) && ((oldtime - temp) < 0x10000000))
-		{
-			oldtime = temp;	// so we can't get stuck
-		}
-		else
-		{
-			t2 = temp - oldtime;
-
-			time = (double)t2 * pfreq;
-			oldtime = temp;
-
-			curtime += time;
-
-			if (curtime == lastcurtime)
-			{
-				sametimecount++;
-
-				if (sametimecount > 100000)
-				{
-					curtime += 1.0;
-					sametimecount = 0;
-				}
-			}
-			else
-			{
-				sametimecount = 0;
-			}
-
-			lastcurtime = curtime;
-		}
-	}
-
-	Sys_PopFPCW ();
-
-    return curtime;
+		diff = PerformanceCount.QuadPart - oldcall;
+	if (diff >= 0)
+		oldcall = PerformanceCount.QuadPart;
+	return (oldcall - firsttime) / (double)qpcfreq.QuadPart;
 }
-
-/*
-================
-Sys_InitFloatTime
-================
-*/
-void Sys_InitFloatTime (void)
+unsigned int Sys_Milliseconds (void)
 {
-	int		j;
-
-	Sys_DoubleTime ();
-
-	j = COM_CheckParm("-starttime");
-
-	if (j)
-	{
-		curtime = (double) (Q_atof(com_argv[j+1]));
-	}
-	else
-	{
-		curtime = 0.0;
-	}
-
-	lastcurtime = curtime;
+	return Sys_DoubleTime()*1000;
 }
-
-#endif
+#else
 unsigned int Sys_Milliseconds (void)
 {
 	static DWORD starttime;
@@ -861,7 +833,7 @@ double Sys_DoubleTime (void)
 {
 	return Sys_Milliseconds()/1000.f;
 }
-
+#endif
 
 
 
@@ -1248,7 +1220,7 @@ void NPQTV_Sys_MainLoop(void)
 		Host_Frame (duratrion);
 		lastlooptime = newtime;
 
-		SetHookState(sys_disableWinKeys.value);
+		SetHookState(sys_disableWinKeys.ival);
 
 //			Sleep(0);
 #else
@@ -1296,229 +1268,279 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	quakeparms_t	parms;
 	double			time, oldtime, newtime;
 	char	cwd[1024];
-	RECT			rect;
 	const char *qtvfile = NULL;
 	
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
         return 0;
+
+#ifdef _MSC_VER
+#if _M_IX86_FP >= 1
+	{
+		int idedx;
+		char cpuname[13];
+		/*I'm not going to check to make sure cpuid works.*/
+		__asm
+		{
+			xor eax, eax
+			cpuid
+			mov dword ptr [cpuname+0],ebx
+			mov dword ptr [cpuname+4],edx
+			mov dword ptr [cpuname+8],ecx
+		}
+		cpuname[12] = 0;
+		__asm
+		{
+			mov eax, 0x1
+			cpuid
+			mov idedx, edx
+		}
+//		MessageBox(NULL, cpuname, cpuname, 0);
+#if _M_IX86_FP >= 2
+		if (!(idedx&(1<<26)))
+			MessageBox(NULL, "This is an SSE2 optimised build, and your cpu doesn't seem to support it", DISTRIBUTION, 0);
+		else
+#endif
+		     if (!(idedx&(1<<25)))
+			MessageBox(NULL, "This is an SSE optimised build, and your cpu doesn't seem to support it", DISTRIBUTION, 0);
+	}
+#endif
+#endif
+
+#ifdef CATCHCRASH
+	__try
+#endif
+	{
 /*
 #ifndef _DEBUG
 #ifdef _MSC_VER
-	signal (SIGFPE,	Signal_Error_Handler);
-	signal (SIGILL,	Signal_Error_Handler);
-	signal (SIGSEGV,	Signal_Error_Handler);
+		signal (SIGFPE,	Signal_Error_Handler);
+		signal (SIGILL,	Signal_Error_Handler);
+		signal (SIGSEGV,	Signal_Error_Handler);
 #endif
 #endif
 */
-	global_hInstance = hInstance;
-	global_nCmdShow = nCmdShow;
+		global_hInstance = hInstance;
+		global_nCmdShow = nCmdShow;
 
-	parms.argc = 1;
-	argv[0] = exename;
+		parms.argc = 1;
+		argv[0] = exename;
 
-	while (*lpCmdLine && (parms.argc < MAX_NUM_ARGVS))
-	{
-		while (*lpCmdLine && ((*lpCmdLine <= 32) || (*lpCmdLine > 126)))
-			lpCmdLine++;
-
-		if (*lpCmdLine)
+		while (*lpCmdLine && (parms.argc < MAX_NUM_ARGVS))
 		{
-			if (*lpCmdLine == '\"')
-			{
+			while (*lpCmdLine && ((*lpCmdLine <= 32) || (*lpCmdLine > 126)))
 				lpCmdLine++;
-
-				argv[parms.argc] = lpCmdLine;
-				parms.argc++;
-
-				while (*lpCmdLine && *lpCmdLine != '\"')
-					lpCmdLine++;
-			}
-			else
-			{
-				argv[parms.argc] = lpCmdLine;
-				parms.argc++;
-
-
-				while (*lpCmdLine && ((*lpCmdLine > 32) && (*lpCmdLine <= 126)))
-					lpCmdLine++;
-			}
 
 			if (*lpCmdLine)
 			{
-				*lpCmdLine = 0;
-				lpCmdLine++;
+				if (*lpCmdLine == '\"')
+				{
+					lpCmdLine++;
+
+					argv[parms.argc] = lpCmdLine;
+					parms.argc++;
+
+					while (*lpCmdLine && *lpCmdLine != '\"')
+						lpCmdLine++;
+				}
+				else
+				{
+					argv[parms.argc] = lpCmdLine;
+					parms.argc++;
+
+
+					while (*lpCmdLine && ((*lpCmdLine > 32) && (*lpCmdLine <= 126)))
+						lpCmdLine++;
+				}
+
+				if (*lpCmdLine)
+				{
+					*lpCmdLine = 0;
+					lpCmdLine++;
+				}
 			}
 		}
-	}
 
-	GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
-	strcpy(exename, COM_SkipPath(cwd));
-	parms.argv = argv;
+		GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
+		strcpy(exename, COM_SkipPath(cwd));
+		parms.argv = argv;
 
-	COM_InitArgv (parms.argc, parms.argv);
+		COM_InitArgv (parms.argc, parms.argv);
 
-	if (COM_CheckParm("--version") || COM_CheckParm("-v"))
-	{
-		printf("version " DISTRIBUTION " " __TIME__ __DATE__ "\n");
-		return true;
-	}
-
-	if (!GetCurrentDirectory (sizeof(cwd), cwd))
-		Sys_Error ("Couldn't determine current directory");
-	if (parms.argc >= 2)
-	{
-		if (*parms.argv[1] != '-' && *parms.argv[1] != '+')
+		if (COM_CheckParm("--version") || COM_CheckParm("-v"))
 		{
-			char *e;
+			printf("version " DISTRIBUTION " " __TIME__ __DATE__ "\n");
+			return true;
+		}
 
-			qtvfile = parms.argv[1];
-
-
-			GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
-			for (e = cwd+strlen(cwd)-1; e >= cwd; e--)
+		if (!GetCurrentDirectory (sizeof(cwd), cwd))
+			Sys_Error ("Couldn't determine current directory");
+		if (parms.argc >= 2)
+		{
+			if (*parms.argv[1] != '-' && *parms.argv[1] != '+')
 			{
-				if (*e == '/' || *e == '\\')
+				char *e;
+
+				qtvfile = parms.argv[1];
+
+				GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
+				for (e = cwd+strlen(cwd)-1; e >= cwd; e--)
 				{
-					*e = 0;
-					break;
+					if (*e == '/' || *e == '\\')
+					{
+						*e = 0;
+						break;
+					}
+				}
+
+			}
+		}
+
+		TL_InitLanguages();
+		//tprints are now allowed
+
+		parms.basedir = cwd;
+
+		parms.argc = com_argc;
+		parms.argv = com_argv;
+
+	#if !defined(CLIENTONLY) && !defined(SERVERONLY)
+		if (COM_CheckParm ("-dedicated"))
+			isDedicated = true;
+	#endif
+
+		if (isDedicated)
+		{
+	#if !defined(CLIENTONLY)
+			hwnd_dialog=NULL;
+			
+			if (!Sys_InitTerminal())
+				Sys_Error ("Couldn't allocate dedicated server console");
+	#endif
+		}
+	#ifdef IDD_DIALOG1
+		else
+			hwnd_dialog = CreateDialog(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), NULL, NULL);
+
+		if (hwnd_dialog)
+		{
+			RECT			rect;
+			if (GetWindowRect (hwnd_dialog, &rect))
+			{
+				if (rect.left > (rect.top * 2))
+				{
+					SetWindowPos (hwnd_dialog, 0,
+						(rect.left / 2) - ((rect.right - rect.left) / 2),
+						rect.top, 0, 0,
+						SWP_NOZORDER | SWP_NOSIZE);
 				}
 			}
 
+			ShowWindow (hwnd_dialog, SW_SHOWDEFAULT);
+			UpdateWindow (hwnd_dialog);
+			SetForegroundWindow (hwnd_dialog);
 		}
-	}
+	#endif
 
-	TL_InitLanguages();
-	//tprints are now allowed
+		if (!Sys_Startup_CheckMem(&parms))
+			Sys_Error ("Not enough memory free; check disk space\n");
 
-	parms.basedir = cwd;
 
-	parms.argc = com_argc;
-	parms.argv = com_argv;
-
-#if !defined(CLIENTONLY) && !defined(SERVERONLY)
-	if (COM_CheckParm ("-dedicated"))
-		isDedicated = true;
-#endif
-
-	if (isDedicated)
-	{
-#if !defined(CLIENTONLY)
-		hwnd_dialog=NULL;
-		
-		if (!Sys_InitTerminal())
-			Sys_Error ("Couldn't allocate dedicated server console");
-#endif
-	}
-	else
-		hwnd_dialog = CreateDialog(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), NULL, NULL);
-
-	if (hwnd_dialog)
-	{
-		if (GetWindowRect (hwnd_dialog, &rect))
+	#ifndef CLIENTONLY
+		if (isDedicated)	//compleate denial to switch to anything else - many of the client structures are not initialized.
 		{
-			if (rect.left > (rect.top * 2))
+			SV_Init (&parms);
+
+			SV_Frame ();
+
+			while (1)
 			{
-				SetWindowPos (hwnd_dialog, 0,
-					(rect.left / 2) - ((rect.right - rect.left) / 2),
-					rect.top, 0, 0,
-					SWP_NOZORDER | SWP_NOSIZE);
+				if (!isDedicated)
+					Sys_Error("Dedicated was cleared");
+				NET_Sleep(100, false);				
+				SV_Frame ();
 			}
+			return TRUE;
+		}
+	#endif
+
+		tevent = CreateEvent(NULL, FALSE, FALSE, NULL);
+		if (!tevent)
+			Sys_Error ("Couldn't create event");
+
+	#ifdef SERVERONLY
+		Sys_Printf ("SV_Init\n");
+		SV_Init(&parms);
+	#else
+		Sys_Printf ("Host_Init\n");
+		Host_Init (&parms);
+	#endif
+
+		oldtime = Sys_DoubleTime ();
+
+		if (qtvfile)
+		{
+			char *ext = COM_FileExtension(qtvfile);
+			if (!strcmp(ext, "qwd") || !strcmp(ext, "dem") || !strcmp(ext, "mvd"))
+				Cbuf_AddText(va("playdemo \"#%s\"\n", qtvfile), RESTRICT_LOCAL);
+			else
+				Cbuf_AddText(va("qtvplay \"#%s\"\n", qtvfile), RESTRICT_LOCAL);
 		}
 
-		ShowWindow (hwnd_dialog, SW_SHOWDEFAULT);
-		UpdateWindow (hwnd_dialog);
-		SetForegroundWindow (hwnd_dialog);
-	}
+	//client console should now be initialized.
 
-
-	if (!Sys_Startup_CheckMem(&parms))
-		Sys_Error ("Not enough memory free; check disk space\n");
-
-
-#ifndef CLIENTONLY
-	if (isDedicated)	//compleate denial to switch to anything else - many of the client structures are not initialized.
-	{
-		SV_Init (&parms);
-
-		SV_Frame ();
-
+		/* main window message loop */
 		while (1)
 		{
-			if (!isDedicated)
-				Sys_Error("Dedicated was cleared");
-			NET_Sleep(100, false);				
-			SV_Frame ();
+			if (isDedicated)
+			{
+	#ifndef CLIENTONLY
+				NET_Sleep(50, false);
+
+			// find time passed since last cycle
+				newtime = Sys_DoubleTime ();
+				time = newtime - oldtime;
+				oldtime = newtime;
+				
+				SV_Frame ();
+	#else
+				Sys_Error("wut?");
+	#endif
+			}
+			else
+			{
+	#ifndef SERVERONLY
+		// yield the CPU for a little while when paused, minimized, or not the focus
+	/*			if (cl.paused && !Media_PlayingFullScreen())
+				{
+					SleepUntilInput (PAUSE_SLEEP);
+					scr_skipupdate = 1;		// no point in bothering to draw
+				}
+				else if (!ActiveApp && !Media_PlayingFullScreen())
+				{
+					SleepUntilInput (NOT_FOCUS_SLEEP);
+				}
+	*/
+				newtime = Sys_DoubleTime ();
+				time = newtime - oldtime;
+				Host_Frame (time);
+				oldtime = newtime;
+
+				SetHookState(sys_disableWinKeys.ival);
+
+	//			Sleep(0);
+	#else
+				Sys_Error("wut?");
+	#endif
+			}
 		}
-		return TRUE;
 	}
-#endif
-
-	tevent = CreateEvent(NULL, FALSE, FALSE, NULL);
-	if (!tevent)
-		Sys_Error ("Couldn't create event");
-
-#ifdef SERVERONLY
-	Sys_Printf ("SV_Init\n");
-	SV_Init(&parms);
-#else
-	Sys_Printf ("Host_Init\n");
-	Host_Init (&parms);
-#endif
-
-	oldtime = Sys_DoubleTime ();
-
-
-	if (qtvfile)
-		Cbuf_AddText(va("qtvplay \"#%s\"\n", qtvfile), RESTRICT_LOCAL);
-
-//client console should now be initialized.
-
-    /* main window message loop */
-	while (1)
+#ifdef CATCHCRASH
+	__except (CrashExceptionHandler(GetExceptionCode(), GetExceptionInformation()))
 	{
-		if (isDedicated)
-		{
-#ifndef CLIENTONLY
-			NET_Sleep(50, false);
-
-		// find time passed since last cycle
-			newtime = Sys_DoubleTime ();
-			time = newtime - oldtime;
-			oldtime = newtime;
-			
-			SV_Frame ();
-#else
-			Sys_Error("wut?");
-#endif
-		}
-		else
-		{
-#ifndef SERVERONLY
-	// yield the CPU for a little while when paused, minimized, or not the focus
-			if (cl.paused && !Media_PlayingFullScreen())
-			{
-				SleepUntilInput (PAUSE_SLEEP);
-				scr_skipupdate = 1;		// no point in bothering to draw
-			}
-			else if (!ActiveApp && !Media_PlayingFullScreen())
-			{
-				SleepUntilInput (NOT_FOCUS_SLEEP);
-			}
-
-			newtime = Sys_DoubleTime ();
-			time = newtime - oldtime;
-			Host_Frame (time);
-			oldtime = newtime;
-
-			SetHookState(sys_disableWinKeys.value);
-
-//			Sleep(0);
-#else
-			Sys_Error("wut?");
-#endif
-		}
+		return 1;
 	}
+#endif
 
     /* return success of application */
     return TRUE;

@@ -29,9 +29,10 @@ The engine has a few builtins.
 
 #ifdef PSET_SCRIPT
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"//hack
 #endif
+#include "shader.h"
 
 #ifdef D3DQUAKE
 //d3d is awkward
@@ -63,8 +64,6 @@ static void buildsintable(void)
 #define sin(x) (psintable[(int)(x*(64/M_PI)) & 63])
 #define cos(x) (psintable[((int)(x*(64/M_PI)) + 16) & 63])
 
-
-// !!! if this is changed, it must be changed in d_ifacea.h too !!!
 typedef struct particle_s
 {
 	struct particle_s	*next;
@@ -72,9 +71,7 @@ typedef struct particle_s
 
 // driver-usable fields
 	vec3_t		org;
-	float		color;	//used by sw renderer. To be removed.
-	vec3_t		rgb;
-	float		alpha;
+	vec4_t		rgba;
 	float		scale;
 	float		s1, t1, s2, t2;
 
@@ -97,8 +94,7 @@ typedef struct clippeddecal_s
 	vec3_t		vertex[3];
 	vec2_t		texcoords[3];
 
-	vec3_t		rgb;
-	float		alpha;
+	vec4_t		rgba;
 } clippeddecal_t;
 
 #define BS_LASTSEG 0x1 // no draw to next, no delete
@@ -134,11 +130,7 @@ typedef struct {
 	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_DECAL} type;
 
 	blendmode_t blendmode;
-
-	int texturenum;
-#ifdef D3DQUAKE
-	void *d3dtexture;
-#endif
+	shader_t *shader;
 
 	float scalefactor;
 	float invscalefactor;
@@ -251,7 +243,7 @@ typedef struct part_type_s {
 #define PS_INRUNLIST 0x1 // particle type is currently in execution list
 } part_type_t;
 
-void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticlest)(int count, beamseg_t**,plooks_t*), void (*beamparticlesut)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*));
+static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticles)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*));
 
 #ifndef TYPESONLY
 
@@ -260,8 +252,6 @@ static double sint[7] = {0.000000, 0.781832,  0.974928,  0.433884, -0.433884, -0
 static double cost[7] = {1.000000, 0.623490, -0.222521, -0.900969, -0.900969, -0.222521,  0.623490};
 
 #define crand() (rand()%32767/16383.5f-1)
-
-void D_DrawParticleTrans (vec3_t porg, float palpha, float pscale, unsigned int pcolour, blendmode_t blendmode);
 
 static void P_ReadPointFile_f (void);
 static void P_ExportBuiltinSet_f(void);
@@ -314,23 +304,14 @@ extern cvar_t r_part_contentswitch;
 
 static float particletime;
 
-#define APPLYBLEND(bm)	\
-		switch (bm)												\
-		{														\
-		case BM_ADD:											\
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);					\
-			break;												\
-		case BM_SUBTRACT:										\
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_COLOR);	\
-			break;												\
-		case BM_BLENDCOLOUR:										\
-			qglBlendFunc(GL_SRC_COLOR, GL_ONE_MINUS_SRC_COLOR);	\
-			break;												\
-		case BM_BLEND:											\
-		default:												\
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);	\
-			break;												\
-		}
+#define BUFFERVERTS 2048*4
+static vecV_t pscriptverts[BUFFERVERTS];
+static avec4_t pscriptcolours[BUFFERVERTS];
+static vec2_t pscripttexcoords[BUFFERVERTS];
+static index_t pscriptquadindexes[(BUFFERVERTS/4)*6];
+static index_t pscripttriindexes[BUFFERVERTS];
+static mesh_t pscriptmesh;
+static mesh_t pscripttmesh;
 
 static int numparticletypes;
 static part_type_t *part_type;
@@ -481,59 +462,119 @@ static int CheckAssosiation(char *name, int from)
 
 static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 {
-	switch (qrenderer)
+	texnums_t tn;
+	char *defaultshader;
+	char *namepostfix;
+	if (qrenderer<=0)
+		return;
+
+	/*try and load the shader, fail if we would need to generate one*/
+	ptype->looks.shader = R_RegisterCustom(ptype->texname, NULL, NULL);
+	
+	if (!ptype->looks.shader)
 	{
-#ifdef RGLQUAKE
-	case QR_OPENGL:
-		if (*ptype->texname && strcmp(ptype->texname, "default"))
+		/*okay, so no shader, generate a shader that matches the legacy/shaderless mode*/
+		switch(ptype->looks.blendmode)
 		{
-			ptype->looks.texturenum = Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
+		case BM_BLEND:
+		default:
+			namepostfix = "_blend";
+			defaultshader =
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc blend\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+				"}\n"
+				;
+			break;
+		case BM_BLENDCOLOUR:
+			namepostfix = "_bc";
+			defaultshader =
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc GL_SRC_COLOR GL_ONE_MINUS_SRC_COLOR\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+				"}\n"
+				;
+			break;
+		case BM_ADD:
+			namepostfix = "_add";
+			defaultshader =
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc GL_SRC_ALPHA GL_ONE\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+				"}\n"
+				;
+			break;
+		case BM_SUBTRACT:
+			namepostfix = "_sub";
+			defaultshader =
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_COLOR\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+				"}\n"
+				;
+			break;
+		}
 
-			if (!ptype->looks.texturenum)
+		memset(&tn, 0, sizeof(tn));
+		tn.base = R_LoadHiResTexture(ptype->texname, "particles", 0);
+		if (!TEXVALID(tn.base))
+		{
+			/*okay, so the texture they specified wasn't valid either. use a fully default one*/
+
+			//note that this could get messy if you depend upon vid_restart to reload your effect without re-execing it after.
+			ptype->s1 = 0;
+			ptype->t1 = 0;
+			ptype->s2 = 1;
+			ptype->t2 = 1;
+			ptype->randsmax = 1;
+			if (ptype->looks.type == PT_BEAM)
 			{
-				//note that this could get messy if you depend upon vid_restart to reload your effect without re-execing it after.
-				ptype->s1 = 0;
-				ptype->t1 = 0;
-				ptype->s2 = 1;
-				ptype->t2 = 1;
-				ptype->randsmax = 1;
-
-				if (warn)
-					Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
-
-				if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball") || ptype->looks.type == PT_TEXTUREDSPARK)
-					ptype->looks.texturenum = balltexture;
-				else
-					ptype->looks.texturenum = explosiontexture;
+				/*untextured beams get a single continuous blob*/
+				ptype->looks.shader = R_RegisterShader(va("beam%s", namepostfix), defaultshader);
+				tn.base = beamtexture;
+			}
+			else if (ptype->looks.type == PT_SPARKFAN)
+			{
+				/*untextured beams get a single continuous blob*/
+				ptype->looks.shader = R_RegisterShader(va("fan%s", namepostfix), defaultshader);
+				tn.base = ptritexture;
+			}
+			else if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball") || ptype->looks.type == PT_TEXTUREDSPARK)
+			{
+				/*sparks and special names get a nice circular texture.
+				as these are fully default, we can basically discard the texture name in the shader, and get better batching*/
+				ptype->looks.shader = R_RegisterShader(va("ball%s", namepostfix), defaultshader);
+				tn.base = balltexture;
+			}
+			else
+			{
+				/*anything else gets a fuzzy texture*/
+				ptype->looks.shader = R_RegisterShader(va("default%s", namepostfix), defaultshader);
+				tn.base = explosiontexture;
 			}
 		}
 		else
-			ptype->looks.texturenum = explosiontexture;
-		break;
-#endif
-#ifdef D3DQUAKE
-	case QR_DIRECT3D:
-		if (*ptype->texname && strcmp(ptype->texname, "default"))
 		{
-			ptype->looks.d3dtexture = NULL;//Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
-
-			if (!ptype->looks.d3dtexture)
-			{
-				if (warn)
-					Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
-
-				if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball"))
-					ptype->looks.d3dtexture = d3dballtexture;
-				else
-					ptype->looks.d3dtexture = d3dexplosiontexture;
-			}
+			/*texture looks good, make a shader, and give it the texture as a diffuse stage*/
+			ptype->looks.shader = R_RegisterShader(va("%s%s", ptype->texname, namepostfix), defaultshader);
 		}
-		else
-			ptype->looks.d3dtexture = d3dexplosiontexture;
-		break;
-#endif
-	default:
-		break;
+		R_BuildDefaultTexnums(&tn, ptype->looks.shader);
 	}
 }
 
@@ -1373,6 +1414,29 @@ static void PScript_InitParticles (void)
 
 	Cvar_Hook(&r_particlesdesc, R_ParticlesDesc_Callback);
 	Cvar_ForceCallback(&r_particlesdesc);
+
+
+	for (i = 0; i < (BUFFERVERTS>>2)*6; i += 6)
+	{
+		pscriptquadindexes[i+0] = ((i/6)<<2)+0;
+		pscriptquadindexes[i+1] = ((i/6)<<2)+1;
+		pscriptquadindexes[i+2] = ((i/6)<<2)+2;
+		pscriptquadindexes[i+3] = ((i/6)<<2)+0;
+		pscriptquadindexes[i+4] = ((i/6)<<2)+2;
+		pscriptquadindexes[i+5] = ((i/6)<<2)+3;
+	}
+	pscriptmesh.xyz_array = pscriptverts;
+	pscriptmesh.st_array = pscripttexcoords;
+	pscriptmesh.colors4f_array = pscriptcolours;
+	pscriptmesh.indexes = pscriptquadindexes;
+	for (i = 0; i < BUFFERVERTS; i++)
+	{
+		pscripttriindexes[i] = i;
+	}
+	pscripttmesh.xyz_array = pscriptverts;
+	pscripttmesh.st_array = pscripttexcoords;
+	pscripttmesh.colors4f_array = pscriptcolours;
+	pscripttmesh.indexes = pscripttriindexes;
 }
 
 static void PScript_Shutdown (void)
@@ -1633,7 +1697,7 @@ static void P_AddRainParticles(void)
 
 	skytris_t *st;
 
-	if (!r_part_rain.value || !r_part_rain_quantity.value)
+	if (!r_part_rain.ival || !r_part_rain_quantity.ival)
 	{
 		skipped = true;
 		return;
@@ -1665,7 +1729,7 @@ glDisable(GL_DEPTH_TEST);
 glBegin(GL_TRIANGLES);
 
 	st = skytris;
-	for (i = 0; i < r_part_rain_quantity.value; i++)
+	for (i = 0; i < r_part_rain_quantity.ival; i++)
 		st = st->next;
 		glVertex3f(st->org[0], st->org[1], st->org[2]);
 		glVertex3f(st->org[0]+st->x[0], st->org[1]+st->x[1], st->org[2]+st->x[2]);
@@ -1917,7 +1981,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		return 1;
 
 	// inwater check, switch only once
-	if (r_part_contentswitch.value && ptype->inwater >= 0 && cl.worldmodel)
+	if (r_part_contentswitch.ival && ptype->inwater >= 0 && cl.worldmodel)
 	{
 		int cont;
 		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, org);
@@ -2035,9 +2099,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			d->die = ptype->randdie*frandom();
 
 			if (ptype->die)
-				d->alpha = ptype->alpha+d->die*ptype->alphachange;
+				d->rgba[3] = ptype->alpha+d->die*ptype->alphachange;
 			else
-				d->alpha = ptype->alpha;
+				d->rgba[3] = ptype->alpha;
 
 			if (ptype->colorindex >= 0)
 			{
@@ -2045,22 +2109,22 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
 				cidx = ptype->colorindex + cidx;
 				if (cidx > 255)
-					d->alpha = d->alpha / 2; // Hexen 2 style transparency
+					d->rgba[3] = d->rgba[3] / 2; // Hexen 2 style transparency
 				cidx = (cidx & 0xff) * 3;
-				d->rgb[0] = host_basepal[cidx] * (1/255.0);
-				d->rgb[1] = host_basepal[cidx+1] * (1/255.0);
-				d->rgb[2] = host_basepal[cidx+2] * (1/255.0);
+				d->rgba[0] = host_basepal[cidx] * (1/255.0);
+				d->rgba[1] = host_basepal[cidx+1] * (1/255.0);
+				d->rgba[2] = host_basepal[cidx+2] * (1/255.0);
 			}
 			else
-				VectorCopy(ptype->rgb, d->rgb);
+				VectorCopy(ptype->rgb, d->rgba);
 
 			vec[2] = frandom();
 			vec[0] = vec[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
 			vec[1] = vec[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
 			vec[2] = vec[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
-			d->rgb[0] += vec[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*d->die;
-			d->rgb[1] += vec[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*d->die;
-			d->rgb[2] += vec[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*d->die;
+			d->rgba[0] += vec[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*d->die;
+			d->rgba[1] += vec[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*d->die;
+			d->rgba[2] += vec[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*d->die;
 
 			d->die = particletime + ptype->die - d->die;
 
@@ -2191,9 +2255,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			p->die = ptype->randdie*frandom();
 			p->scale = ptype->scale+ptype->randscale*frandom();
 			if (ptype->die)
-				p->alpha = ptype->alpha+p->die*ptype->alphachange;
+				p->rgba[3] = ptype->alpha+p->die*ptype->alphachange;
 			else
-				p->alpha = ptype->alpha;
+				p->rgba[3] = ptype->alpha;
 			// p->color = 0;
 			if (ptype->emittime < 0)
 				p->state.trailstate = NULL;
@@ -2219,14 +2283,14 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
 				cidx = ptype->colorindex + cidx;
 				if (cidx > 255)
-					p->alpha = p->alpha / 2; // Hexen 2 style transparency
+					p->rgba[3] = p->rgba[3] / 2; // Hexen 2 style transparency
 				cidx = (cidx & 0xff) * 3;
-				p->rgb[0] = host_basepal[cidx] * (1/255.0);
-				p->rgb[1] = host_basepal[cidx+1] * (1/255.0);
-				p->rgb[2] = host_basepal[cidx+2] * (1/255.0);
+				p->rgba[0] = host_basepal[cidx] * (1/255.0);
+				p->rgba[1] = host_basepal[cidx+1] * (1/255.0);
+				p->rgba[2] = host_basepal[cidx+2] * (1/255.0);
 			}
 			else
-				VectorCopy(ptype->rgb, p->rgb);
+				VectorCopy(ptype->rgb, p->rgba);
 
 			// use org temporarily for rgbsync
 			p->org[2] = frandom();
@@ -2234,9 +2298,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			p->org[1] = p->org[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
 			p->org[2] = p->org[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
 
-			p->rgb[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
-			p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
-			p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
+			p->rgba[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
+			p->rgba[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
+			p->rgba[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
 
 			// randomvel
 			p->vel[0] = crandom()*ptype->randomvel;
@@ -2884,9 +2948,9 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		p->die = ptype->randdie*frandom();
 		p->scale = ptype->scale+ptype->randscale*frandom();
 		if (ptype->die)
-			p->alpha = ptype->alpha+p->die*ptype->alphachange;
+			p->rgba[3] = ptype->alpha+p->die*ptype->alphachange;
 		else
-			p->alpha = ptype->alpha;
+			p->rgba[3] = ptype->alpha;
 //		p->color = 0;
 
 //		if (ptype->spawnmode == SM_TRACER)
@@ -2904,30 +2968,24 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 			cidx = ptype->colorindex + cidx;
 			if (cidx > 255)
-				p->alpha = p->alpha / 2;
+				p->rgba[3] = p->rgba[3] / 2;
 			cidx = (cidx & 0xff) * 3;
-			p->rgb[0] = host_basepal[cidx] * (1/255.0);
-			p->rgb[1] = host_basepal[cidx+1] * (1/255.0);
-			p->rgb[2] = host_basepal[cidx+2] * (1/255.0);
+			p->rgba[0] = host_basepal[cidx] * (1/255.0);
+			p->rgba[1] = host_basepal[cidx+1] * (1/255.0);
+			p->rgba[2] = host_basepal[cidx+2] * (1/255.0);
 		}
 		else
-			VectorCopy(ptype->rgb, p->rgb);
+			VectorCopy(ptype->rgb, p->rgba);
 
 		// use org temporarily for rgbsync
 		p->org[2] = frandom();
 		p->org[0] = p->org[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
 		p->org[1] = p->org[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
 		p->org[2] = p->org[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
-		if (ptype->orgadd)
-		{
-			p->org[0] += vec[0]*ptype->orgadd;
-			p->org[1] += vec[1]*ptype->orgadd;
-			p->org[2] += vec[2]*ptype->orgadd;
-		}
 
-		p->rgb[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
-		p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
-		p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
+		p->rgba[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
+		p->rgba[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
+		p->rgba[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
 
 		VectorClear (p->vel);
 		if (ptype->emittime < 0)
@@ -3085,6 +3143,13 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 				p->org[2] = p->org[2]*ptype->areaspreadvert + start[2];
 				break;
 			}
+
+			if (ptype->orgadd)
+			{
+				p->org[0] += vec[0]*ptype->orgadd;
+				p->org[1] += vec[1]*ptype->orgadd;
+				p->org[2] += vec[2]*ptype->orgadd;
+			}
 		}
 
 		VectorAdd (start, vstep, start);
@@ -3172,7 +3237,7 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailst
 		return 1;
 
 	// inwater check, switch only once
-	if (r_part_contentswitch.value && ptype->inwater >= 0)
+	if (r_part_contentswitch.ival && ptype->inwater >= 0)
 	{
 		int cont;
 		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, startpos);
@@ -3192,26 +3257,25 @@ static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int
 	P_ParticleTrail(start, end, pe_defaulttrail, tsk);
 }
 
-vec3_t pright, pup;
+static vec3_t pright, pup;
 static float pframetime;
-#ifdef RGLQUAKE
+
 static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *type)
 {
 	particle_t *p;
 	float x,y;
 	float scale;
 
-
-	qglEnable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_FLAT);
-	qglBegin(GL_QUADS);
-
-
 	while (count--)
 	{
 		p = *plist++;
+
+		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
+		{
+			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+			BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+			pscriptmesh.numvertexes = 0;
+		}
 
 		if (type->scalefactor == 1)
 		{
@@ -3226,113 +3290,68 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 		else
 			scale = 1;
 
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					p->alpha);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+0]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+1]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+2]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+3]);
+
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+0], p->s1, p->t1);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+1], p->s1, p->t2);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+2], p->s2, p->t2);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+3], p->s2, p->t1);
 
 		if (p->angle)
 		{
 			x = sin(p->angle)*scale;
 			y = cos(p->angle)*scale;
 
-			qglTexCoord2f(p->s1,p->t1);
-			qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-			qglTexCoord2f(p->s1,p->t2);
-			qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
-			qglTexCoord2f(p->s2,p->t2);
-			qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-			qglTexCoord2f(p->s2,p->t1);
-			qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
+			pscriptverts[pscriptmesh.numvertexes+0][0] = p->org[0] - x*pright[0] - y*pup[0];
+			pscriptverts[pscriptmesh.numvertexes+0][1] = p->org[1] - x*pright[1] - y*pup[1];
+			pscriptverts[pscriptmesh.numvertexes+0][2] = p->org[2] - x*pright[2] - y*pup[2];
+			pscriptverts[pscriptmesh.numvertexes+1][0] = p->org[0] - y*pright[0] + x*pup[0];
+			pscriptverts[pscriptmesh.numvertexes+1][1] = p->org[1] - y*pright[1] + x*pup[1];
+			pscriptverts[pscriptmesh.numvertexes+1][2] = p->org[2] - y*pright[2] + x*pup[2];
+			pscriptverts[pscriptmesh.numvertexes+2][0] = p->org[0] + x*pright[0] + y*pup[0];
+			pscriptverts[pscriptmesh.numvertexes+2][1] = p->org[1] + x*pright[1] + y*pup[1];
+			pscriptverts[pscriptmesh.numvertexes+2][2] = p->org[2] + x*pright[2] + y*pup[2];
+			pscriptverts[pscriptmesh.numvertexes+3][0] = p->org[0] + y*pright[0] - x*pup[0];
+			pscriptverts[pscriptmesh.numvertexes+3][1] = p->org[1] + y*pright[1] - x*pup[1];
+			pscriptverts[pscriptmesh.numvertexes+3][2] = p->org[2] + y*pright[2] - x*pup[2];
 		}
 		else
 		{
-			qglTexCoord2f(p->s1,p->t1);
-			qglVertex3f (p->org[0] - scale*pup[0], p->org[1] - scale*pup[1], p->org[2] - scale*pup[2]);
-			qglTexCoord2f(p->s1,p->t2);
-			qglVertex3f (p->org[0] - scale*pright[0], p->org[1] - scale*pright[1], p->org[2] - scale*pright[2]);
-			qglTexCoord2f(p->s2,p->t2);
-			qglVertex3f (p->org[0] + scale*pup[0], p->org[1] + scale*pup[1], p->org[2] + scale*pup[2]);
-			qglTexCoord2f(p->s2,p->t1);
-			qglVertex3f (p->org[0] + scale*pright[0], p->org[1] + scale*pright[1], p->org[2] + scale*pright[2]);
+			VectorMA(p->org, -scale, pup, pscriptverts[pscriptmesh.numvertexes+0]);
+			VectorMA(p->org, -scale, pright, pscriptverts[pscriptmesh.numvertexes+1]);
+			VectorMA(p->org, scale, pup, pscriptverts[pscriptmesh.numvertexes+2]);
+			VectorMA(p->org, scale, pright, pscriptverts[pscriptmesh.numvertexes+3]);
 		}
+		pscriptmesh.numvertexes += 4;
 	}
-	qglEnd();
-}
 
-
-static void GL_DrawSketchParticle(int count, particle_t **plist, plooks_t *type)
-{
-	particle_t *p;
-	float x,y;
-	float scale;
-
-	int quant;
-
-	qglDisable(GL_TEXTURE_2D);
-//	if (type->blendmode == BM_ADD)		//addative
-//		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//	else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-//	else
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_LINES);
-
-	while (count--)
+	if (pscriptmesh.numvertexes)
 	{
-		p = *plist++;
-
-		scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
-			+ (p->org[2] - r_origin[2])*vpn[2];
-		scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
-		if (scale < 20)
-			scale = 0.25;
-		else
-			scale = 0.25 + scale * 0.001;
-
-		qglColor4f (p->rgb[0]/2,
-					p->rgb[1]/2,
-					p->rgb[2]/2,
-					p->alpha*2);
-
-		quant = scale;
-
-		if (p->angle)
-		{
-			x = sin(p->angle)*scale;
-			y = cos(p->angle)*scale;
-
-			qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-			qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-			qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
-			qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
-		}
-		else
-		{
-			qglVertex3f (p->org[0] - scale*pup[0], p->org[1] - scale*pup[1], p->org[2] - scale*pup[2]);
-			qglVertex3f (p->org[0] + scale*pup[0], p->org[1] + scale*pup[1], p->org[2] + scale*pup[2]);
-			qglVertex3f (p->org[0] + scale*pright[0], p->org[1] + scale*pright[1], p->org[2] + scale*pright[2]);
-			qglVertex3f (p->org[0] - scale*pright[0], p->org[1] - scale*pright[1], p->org[2] - scale*pright[2]);
-		}
+		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+		BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+		pscriptmesh.numvertexes = 0;
 	}
-	qglEnd();
 }
 
 static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 {
 	particle_t *p;
-	int i;
-	vec3_t v;
+	vec3_t v, cr, o2;
 	float scale;
-
-	qglDisable(GL_TEXTURE_2D);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
 
 	while (count--)
 	{
 		p = *plist++;
+
+		if (pscripttmesh.numvertexes >= BUFFERVERTS-3)
+		{
+			pscripttmesh.numindexes = pscripttmesh.numvertexes;
+			BE_DrawMeshChain(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
+			pscripttmesh.numvertexes = 0;
+		}
 
 		scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
 			+ (p->org[2] - r_origin[2])*vpn[2];
@@ -3341,33 +3360,40 @@ static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 			scale = 0.05;
 		else
 			scale = 0.05 + scale * 0.0001;
-	/*
-		if ((p->vel[0]*p->vel[0]+p->vel[1]*p->vel[1]+p->vel[2]*p->vel[2])*2*scale > 30*30)
-			scale = 1+1/30/Length(p->vel)*2;*/
 
-		qglBegin (GL_TRIANGLE_FAN);
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					p->alpha);
-		qglVertex3fv (p->org);
-		qglColor4f (p->rgb[0]/2,
-					p->rgb[1]/2,
-					p->rgb[2]/2,
-					0);
-		for (i=7 ; i>=0 ; i--)
-		{
-			v[0] = p->org[0] - p->vel[0]*scale + vright[0]*cost[i%7]*p->scale + vup[0]*sint[i%7]*p->scale;
-			v[1] = p->org[1] - p->vel[1]*scale + vright[1]*cost[i%7]*p->scale + vup[1]*sint[i%7]*p->scale;
-			v[2] = p->org[2] - p->vel[2]*scale + vright[2]*cost[i%7]*p->scale + vup[2]*sint[i%7]*p->scale;
-			qglVertex3fv (v);
-		}
-		qglEnd ();
+		Vector4Copy(p->rgba, pscriptcolours[pscripttmesh.numvertexes+0]);
+		Vector4Copy(p->rgba, pscriptcolours[pscripttmesh.numvertexes+1]);
+		Vector4Copy(p->rgba, pscriptcolours[pscripttmesh.numvertexes+2]);
+
+		Vector2Set(pscripttexcoords[pscripttmesh.numvertexes+0], p->s1, p->t1);
+		Vector2Set(pscripttexcoords[pscripttmesh.numvertexes+1], p->s1, p->t2);
+		Vector2Set(pscripttexcoords[pscripttmesh.numvertexes+2], p->s2, p->t1);
+
+
+		VectorMA(p->org, -scale, p->vel, o2);
+		VectorSubtract(r_refdef.vieworg, o2, v);
+		CrossProduct(v, p->vel, cr);
+		VectorNormalize(cr);
+
+		VectorCopy(p->org, pscriptverts[pscripttmesh.numvertexes+0]);
+		VectorMA(o2, -p->scale, cr, pscriptverts[pscripttmesh.numvertexes+1]);
+		VectorMA(o2, p->scale, cr, pscriptverts[pscripttmesh.numvertexes+2]);
+
+		pscripttmesh.numvertexes += 3;
+	}
+
+	if (pscripttmesh.numvertexes)
+	{
+		pscripttmesh.numindexes = pscripttmesh.numvertexes;
+		BE_DrawMeshChain(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
+		pscripttmesh.numvertexes = 0;
 	}
 }
 
 static void GL_DrawLineSparkParticle(int count, particle_t **plist, plooks_t *type)
 {
+#pragma message("fixme: no line sparks")
+#if 0
 	particle_t *p;
 
 	qglDisable(GL_TEXTURE_2D);
@@ -3392,39 +3418,43 @@ static void GL_DrawLineSparkParticle(int count, particle_t **plist, plooks_t *ty
 		qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
 	}
 	qglEnd();
+#endif
 }
 
 static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t *type)
 {
 	particle_t *p;
-	vec3_t v, cr, o2, point;
+	vec3_t v, cr, o2;
 
-	qglEnable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_QUADS);
-
-
-	while(count--)
+	while (count--)
 	{
 		p = *plist++;
 
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					p->alpha);
+		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
+		{
+			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+			BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+			pscriptmesh.numvertexes = 0;
+		}
+
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+0]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+1]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+2]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+3]);
+
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+0], p->s1, p->t1);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+1], p->s1, p->t2);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+2], p->s2, p->t2);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+3], p->s2, p->t1);
+
+		
 
 		VectorSubtract(r_refdef.vieworg, p->org, v);
 		CrossProduct(v, p->vel, cr);
 		VectorNormalize(cr);
 
-		VectorMA(p->org, -p->scale/2, cr, point);
-		qglTexCoord2f(p->s1, p->t1);
-		qglVertex3fv(point);
-		VectorMA(p->org, p->scale/2, cr, point);
-		qglTexCoord2f(p->s1, p->t2);
-		qglVertex3fv(point);
+		VectorMA(p->org, -p->scale/2, cr, pscriptverts[pscriptmesh.numvertexes+0]);
+		VectorMA(p->org, p->scale/2, cr, pscriptverts[pscriptmesh.numvertexes+1]);
 
 
 		VectorMA(p->org, 0.1, p->vel, o2);
@@ -3433,249 +3463,119 @@ static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t
 		CrossProduct(v, p->vel, cr);
 		VectorNormalize(cr);
 
-		VectorMA(o2, p->scale/2, cr, point);
-		qglTexCoord2f(p->s2, p->t2);
-		qglVertex3fv(point);
-		VectorMA(o2, -p->scale/2, cr, point);
-		qglTexCoord2f(p->s2, p->t1);
-		qglVertex3fv(point);
+		VectorMA(o2, p->scale/2, cr, pscriptverts[pscriptmesh.numvertexes+2]);
+		VectorMA(o2, -p->scale/2, cr, pscriptverts[pscriptmesh.numvertexes+3]);
+
+		pscriptmesh.numvertexes += 4;
 	}
-	qglEnd();
-}
 
-static void GL_DrawSketchSparkParticle(int count, particle_t **plist, plooks_t *type)
-{
-	particle_t *p;
-
-	qglDisable(GL_TEXTURE_2D);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_LINES);
-
-	while(count--)
+	if (pscriptmesh.numvertexes)
 	{
-		p = *plist++;
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					p->alpha);
-		qglVertex3f (p->org[0], p->org[1], p->org[2]);
-
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					0);
-		qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
+		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+		BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+		pscriptmesh.numvertexes = 0;
 	}
-	qglEnd();
 }
 
-static void GL_DrawParticleBeam_Textured(int count, beamseg_t **blist, plooks_t *type)
+static void GL_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 {
 	beamseg_t *b;
-	vec3_t v, point;
+	vec3_t v;
 	vec3_t cr;
 	beamseg_t *c;
 	particle_t *p;
 	particle_t *q;
 	float ts;
 
-	qglEnable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_QUADS);
-	
 	while(count--)
 	{
 		b = *blist++;
 
+		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
+		{
+			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+			BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+			pscriptmesh.numvertexes = 0;
+		}
+
 		c = b->next;
 
 		q = c->p;
-//		if (!q)
-//			continue;
-
 		p = b->p;
-//		if (!p)
-//			continue;
 
-		qglColor4f(q->rgb[0],
-				  q->rgb[1],
-				  q->rgb[2],
-				  q->alpha);
-	//	qglBegin(GL_LINE_LOOP);
 		VectorSubtract(r_refdef.vieworg, q->org, v);
 		VectorNormalize(v);
 		CrossProduct(c->dir, v, cr);
 		ts = c->texture_s*q->angle + particletime*q->rotationspeed;
-
-		VectorMA(q->org, -q->scale, cr, point);
-		qglTexCoord2f(ts, p->t1);
-		qglVertex3fv(point);
-		VectorMA(q->org, q->scale, cr, point);
-		qglTexCoord2f(ts, p->t2);
-		qglVertex3fv(point);
-
-		qglColor4f(p->rgb[0],
-				  p->rgb[1],
-				  p->rgb[2],
-				  p->alpha);
+		Vector4Copy(q->rgba, pscriptcolours[pscriptmesh.numvertexes+0]);
+		Vector4Copy(q->rgba, pscriptcolours[pscriptmesh.numvertexes+1]);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+0], ts, p->t1);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+1], ts, p->t2);
+		VectorMA(q->org, -q->scale, cr, pscriptverts[pscriptmesh.numvertexes+0]);
+		VectorMA(q->org, q->scale, cr, pscriptverts[pscriptmesh.numvertexes+1]);
 
 		VectorSubtract(r_refdef.vieworg, p->org, v);
 		VectorNormalize(v);
 		CrossProduct(b->dir, v, cr); // replace with old p->dir?
 		ts = b->texture_s*p->angle + particletime*p->rotationspeed;
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+2]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+3]);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+2], ts, p->t2);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+3], ts, p->t1);
+		VectorMA(p->org, p->scale, cr, pscriptverts[pscriptmesh.numvertexes+2]);
+		VectorMA(p->org, -p->scale, cr, pscriptverts[pscriptmesh.numvertexes+3]);
 
-		VectorMA(p->org, p->scale, cr, point);
-		qglTexCoord2f(ts, p->t2);
-		qglVertex3fv(point);
-		VectorMA(p->org, -p->scale, cr, point);
-		qglTexCoord2f(ts, p->t1);
-		qglVertex3fv(point);
+		pscriptmesh.numvertexes += 4;
 	}
-	qglEnd();
-}
 
-static void GL_DrawParticleBeam_Untextured(int count, beamseg_t **blist, plooks_t *type)
-{
-	vec3_t v;
-	vec3_t cr;
-	beamseg_t *c;
-	particle_t *p;
-	particle_t *q;
-	beamseg_t *b;
-
-	vec3_t point[4];
-
-
-	qglDisable(GL_TEXTURE_2D);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_QUADS);
-
-	while(count--)
+	if (pscriptmesh.numvertexes)
 	{
-		b = *blist++;
-
-		c = b->next;
-
-		q = c->p;
-	//	if (!q)
-	//		continue;
-
-		p = b->p;
-	//	if (!p)
-	//		continue;
-
-		VectorSubtract(r_refdef.vieworg, q->org, v);
-		VectorNormalize(v);
-		CrossProduct(c->dir, v, cr);
-
-		VectorMA(q->org, -q->scale, cr, point[0]);
-		VectorMA(q->org, q->scale, cr, point[1]);
-
-
-		VectorSubtract(r_refdef.vieworg, p->org, v);
-		VectorNormalize(v);
-		CrossProduct(b->dir, v, cr); // replace with old p->dir?
-
-		VectorMA(p->org, p->scale, cr, point[2]);
-		VectorMA(p->org, -p->scale, cr, point[3]);
-
-
-		//one half
-		//back out
-		//back in
-		//front in
-		//front out
-		qglColor4f(q->rgb[0],
-			  q->rgb[1],
-			  q->rgb[2],
-			  0);
-		qglVertex3fv(point[0]);
-		qglColor4f(q->rgb[0],
-			  q->rgb[1],
-			  q->rgb[2],
-			  q->alpha);
-		qglVertex3fv(q->org);
-
-		qglColor4f(p->rgb[0],
-			  p->rgb[1],
-			  p->rgb[2],
-			  p->alpha);
-		qglVertex3fv(p->org);
-		qglColor4f(p->rgb[0],
-			  p->rgb[1],
-			  p->rgb[2],
-			  0);
-		qglVertex3fv(point[3]);
-
-		//front out
-		//front in
-		//back in
-		//back out
-		qglColor4f(p->rgb[0],
-			  p->rgb[1],
-			  p->rgb[2],
-			  0);
-		qglVertex3fv(point[2]);
-		qglColor4f(p->rgb[0],
-			  p->rgb[1],
-			  p->rgb[2],
-			  p->alpha);
-		qglVertex3fv(p->org);
-
-		qglColor4f(q->rgb[0],
-			  q->rgb[1],
-			  q->rgb[2],
-			  q->alpha);
-		qglVertex3fv(q->org);
-		qglColor4f(q->rgb[0],
-			  q->rgb[1],
-			  q->rgb[2],
-			  0);
-		qglVertex3fv(point[1]);
+		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+		BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+		pscriptmesh.numvertexes = 0;
 	}
-	qglEnd();
 }
 
 static void GL_DrawClippedDecal(int count, clippeddecal_t **dlist, plooks_t *type)
 {
 	clippeddecal_t *d;
 
-	qglEnable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
-
-//	qglDisable(GL_TEXTURE_2D);
-//	qglBegin(GL_LINE_LOOP);
-
-	qglBegin(GL_TRIANGLES);
-
 	while (count--)
 	{
 		d = *dlist++;
 
-		qglColor4f(d->rgb[0],
-			  d->rgb[1],
-			  d->rgb[2],
-			  d->alpha);
+		if (pscripttmesh.numvertexes >= BUFFERVERTS-3)
+		{
+			pscripttmesh.numindexes = pscripttmesh.numvertexes;
+			BE_DrawMeshChain(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
+			pscripttmesh.numvertexes = 0;
+		}
 
-		qglTexCoord2fv(d->texcoords[0]);
-		qglVertex3fv(d->vertex[0]);
-		qglTexCoord2fv(d->texcoords[1]);
-		qglVertex3fv(d->vertex[1]);
-		qglTexCoord2fv(d->texcoords[2]);
-		qglVertex3fv(d->vertex[2]);
+		Vector4Copy(d->rgba, pscriptcolours[pscripttmesh.numvertexes+0]);
+		Vector4Copy(d->rgba, pscriptcolours[pscripttmesh.numvertexes+1]);
+		Vector4Copy(d->rgba, pscriptcolours[pscripttmesh.numvertexes+2]);
+		Vector4Copy(d->rgba, pscriptcolours[pscripttmesh.numvertexes+3]);
+
+		Vector2Copy(d->texcoords[0], pscripttexcoords[pscripttmesh.numvertexes+0]);
+		Vector2Copy(d->texcoords[1], pscripttexcoords[pscripttmesh.numvertexes+1]);
+		Vector2Copy(d->texcoords[2], pscripttexcoords[pscripttmesh.numvertexes+2]);
+
+		VectorCopy(d->vertex[0], pscriptverts[pscripttmesh.numvertexes+0]);
+		VectorCopy(d->vertex[1], pscriptverts[pscripttmesh.numvertexes+1]);
+		VectorCopy(d->vertex[2], pscriptverts[pscripttmesh.numvertexes+2]);
+
+		pscriptmesh.numvertexes += 3;
 	}
-	qglEnd();
+
+	if (pscriptmesh.numvertexes)
+	{
+		pscripttmesh.numindexes = pscripttmesh.numvertexes;
+		BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+		pscripttmesh.numvertexes = 0;
+	}
 }
 
-#endif
-
-void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticlest)(int count, beamseg_t**,plooks_t*), void (*beamparticlesut)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*))
+static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticles)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*))
 {
 	RSpeedMark();
 
@@ -3696,7 +3596,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 										//remember that they're not drawn instantly either.
 	beamseg_t *b, *bkill;
 
-	int traces=r_particle_tracelimit.value;
+	int traces=r_particle_tracelimit.ival;
 	int rampind;
 
 	if (r_plooksdirty)
@@ -3734,33 +3634,24 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 
 	kill_list = kill_first = NULL;
 
-	// reassign drawing methods by cvars
-	if (r_part_beams_textured.value < 0)
-		beamparticlest = NULL;
-	else if (!r_part_beams_textured.value)
-		beamparticlest = beamparticlesut;
+	if (r_part_beams.ival < 0)
+		beamparticles = NULL;
+	else if (!r_part_beams.ival)
+		beamparticles = NULL;
 
-	if (r_part_beams.value < 0)
-		beamparticlesut = NULL;
-	else if (!r_part_beams.value)
-	{
-		beamparticlest = NULL;
-		beamparticlesut = NULL;
-	}
-
-	if (r_part_sparks_textured.value < 0)
+	if (r_part_sparks_textured.ival < 0)
 		sparktexturedparticles = NULL;
-	else if (!r_part_sparks_textured.value)
+	else if (!r_part_sparks_textured.ival)
 		sparktexturedparticles = sparklineparticles;
 
-	if (r_part_sparks_trifan.value < 0)
+	if (r_part_sparks_trifan.ival < 0)
 		sparkfanparticles = NULL;
-	else if (!r_part_sparks_trifan.value)
+	else if (!r_part_sparks_trifan.ival)
 		sparkfanparticles = sparklineparticles;
 
-	if (r_part_sparks.value < 0)
+	if (r_part_sparks.ival < 0)
 		sparklineparticles = NULL;
-	else if (!r_part_sparks.value)
+	else if (!r_part_sparks.ival)
 	{
 		sparktexturedparticles = NULL;
 		sparkfanparticles = NULL;
@@ -3807,22 +3698,22 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 					if (rampind >= type->rampindexes)
 						rampind = type->rampindexes - 1;
 					ramp = type->ramp + rampind;
-					VectorCopy(ramp->rgb, d->rgb);
-					d->alpha = ramp->alpha;
+					VectorCopy(ramp->rgb, d->rgba);
+					d->rgba[3] = ramp->alpha;
 					break;
 				case RAMP_DELTA:	//particle ramps
 					ramp = type->ramp + (int)(type->rampindexes * (type->die - (d->die - particletime)) / type->die);
-					VectorMA(d->rgb, pframetime, ramp->rgb, d->rgb);
-					d->alpha -= pframetime*ramp->alpha;
+					VectorMA(d->rgba, pframetime, ramp->rgb, d->rgba);
+					d->rgba[3] -= pframetime*ramp->alpha;
 					break;
 				case RAMP_NONE:	//particle changes acording to it's preset properties.
 					if (particletime < (d->die-type->die+type->rgbchangetime))
 					{
-						d->rgb[0] += pframetime*type->rgbchange[0];
-						d->rgb[1] += pframetime*type->rgbchange[1];
-						d->rgb[2] += pframetime*type->rgbchange[2];
+						d->rgba[0] += pframetime*type->rgbchange[0];
+						d->rgba[1] += pframetime*type->rgbchange[1];
+						d->rgba[2] += pframetime*type->rgbchange[2];
 					}
-					d->alpha += pframetime*type->alphachange;
+					d->rgba[3] += pframetime*type->alphachange;
 				}
 
 				drawdecalparticles(1, &d, &type->looks);
@@ -3837,10 +3728,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 		switch(type->looks.type)
 		{
 		case PT_BEAM:
-			if (*type->texname)
-				bdraw = beamparticlest;
-			else
-				bdraw = beamparticlesut;
+			bdraw = beamparticles;
 			break;
 		case PT_DECAL:
 			break;
@@ -3870,14 +3758,14 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 					P_RunParticleEffectType(p->org, p->vel, 1, type->emit);
 
 				// make sure stain effect runs
-				if (type->stains && r_bloodstains.value)
+				if (type->stains && r_bloodstains.ival)
 				{
 					if (traces-->0&&tr(oldorg, p->org, stop, normal))
 					{
-						R_AddStain(stop,	(p->rgb[1]*-10+p->rgb[2]*-10),
-											(p->rgb[0]*-10+p->rgb[2]*-10),
-											(p->rgb[0]*-10+p->rgb[1]*-10),
-											30*p->alpha*type->stains);
+						R_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
+											(p->rgba[0]*-10+p->rgba[2]*-10),
+											(p->rgba[0]*-10+p->rgba[1]*-10),
+											30*p->rgba[3]*type->stains);
 					}
 				}
 
@@ -4044,8 +3932,8 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 				if (rampind >= type->rampindexes)
 					rampind = type->rampindexes - 1;
 				ramp = type->ramp + rampind;
-				VectorCopy(ramp->rgb, p->rgb);
-				p->alpha = ramp->alpha;
+				VectorCopy(ramp->rgb, p->rgba);
+				p->rgba[3] = ramp->alpha;
 				p->scale = ramp->scale;
 				break;
 			case RAMP_DELTA:	//particle ramps
@@ -4053,18 +3941,18 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 				if (rampind >= type->rampindexes)
 					rampind = type->rampindexes - 1;
 				ramp = type->ramp + rampind;
-				VectorMA(p->rgb, pframetime, ramp->rgb, p->rgb);
-				p->alpha -= pframetime*ramp->alpha;
+				VectorMA(p->rgba, pframetime, ramp->rgb, p->rgba);
+				p->rgba[3] -= pframetime*ramp->alpha;
 				p->scale += pframetime*ramp->scale;
 				break;
 			case RAMP_NONE:	//particle changes acording to it's preset properties.
 				if (particletime < (p->die-type->die+type->rgbchangetime))
 				{
-					p->rgb[0] += pframetime*type->rgbchange[0];
-					p->rgb[1] += pframetime*type->rgbchange[1];
-					p->rgb[2] += pframetime*type->rgbchange[2];
+					p->rgba[0] += pframetime*type->rgbchange[0];
+					p->rgba[1] += pframetime*type->rgbchange[1];
+					p->rgba[2] += pframetime*type->rgbchange[2];
 				}
-				p->alpha += pframetime*type->alphachange;
+				p->rgba[3] += pframetime*type->alphachange;
 				p->scale += pframetime*type->scaledelta;
 			}
 
@@ -4079,15 +3967,15 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 				}
 			}
 
-			if (type->cliptype>=0 && r_bouncysparks.value)
+			if (type->cliptype>=0 && r_bouncysparks.ival)
 			{
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
-					if (type->stains && r_bloodstains.value)
-						R_AddStain(stop,	p->rgb[1]*-10+p->rgb[2]*-10,
-											p->rgb[0]*-10+p->rgb[2]*-10,
-											p->rgb[0]*-10+p->rgb[1]*-10,
-											30*p->alpha);
+					if (type->stains && r_bloodstains.ival)
+						R_AddStain(stop,	p->rgba[1]*-10+p->rgba[2]*-10,
+											p->rgba[0]*-10+p->rgba[2]*-10,
+											p->rgba[0]*-10+p->rgba[1]*-10,
+											30*p->rgba[3]);
 
 					if (part_type + type->cliptype == type)
 					{	//bounce
@@ -4112,14 +4000,14 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 					continue;
 				}
 			}
-			else if (type->stains && r_bloodstains.value)
+			else if (type->stains && r_bloodstains.ival)
 			{
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
-					R_AddStain(stop,	(p->rgb[1]*-10+p->rgb[2]*-10),
-										(p->rgb[0]*-10+p->rgb[2]*-10),
-										(p->rgb[0]*-10+p->rgb[1]*-10),
-										30*p->alpha*type->stains);
+					R_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
+										(p->rgba[0]*-10+p->rgba[2]*-10),
+										(p->rgba[0]*-10+p->rgba[1]*-10),
+										30*p->rgba[3]*type->stains);
 					p->die = -1;
 					continue;
 				}
@@ -4236,13 +4124,6 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 
 static void PScript_FlushRenderer(void)
 {
-#ifdef RGLQUAKE
-	qglDepthMask(0);	//primarily to stop close particles from obscuring each other
-	qglDisable(GL_ALPHA_TEST);
-	qglEnable (GL_BLEND);
-	GL_TexEnv(GL_MODULATE);
-	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-#endif
 }
 
 /*
@@ -4255,57 +4136,15 @@ static void PScript_DrawParticles (void)
 	RSpeedMark();
 
 	P_AddRainParticles();
-#if defined(RGLQUAKE)
-	if (qrenderer == QR_OPENGL)
-	{
-		extern int gldepthfunc;
-		extern cvar_t r_drawflat;
-
-		P_FlushRenderer();
-
-		if (qglPolygonOffset)
-			qglPolygonOffset(-1, 0);
-		qglEnable(GL_POLYGON_OFFSET_FILL);
-		qglEnable(GL_BLEND);
-
-		qglDepthFunc(gldepthfunc);
-
-		qglDisable(GL_ALPHA_TEST);
-		if (r_drawflat.value == 2)
-			PScript_DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
-		else
-			PScript_DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawLineSparkParticle, GL_DrawTrifanParticle, GL_DrawTexturedSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
-		qglDisable(GL_POLYGON_OFFSET_FILL);
 
 
+	PScript_FlushRenderer();
 
-		RSpeedRemark();
-		RQ_RenderBatchClear();
-		RSpeedEnd(RSPEED_PARTICLESDRAW);
+	PScript_DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawLineSparkParticle, GL_DrawTrifanParticle, GL_DrawTexturedSparkParticle, GL_DrawParticleBeam, GL_DrawClippedDecal);
 
-		qglEnable(GL_TEXTURE_2D);
-
-		GL_TexEnv(GL_MODULATE);
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-		qglDepthMask(1);
-		return;
-	}
-#endif
-#if defined(D3DQUAKE)
-	if (qrenderer == QR_DIRECT3D)
-	{
-		if (!D3D7_DrawParticles(particletime))
-			D3D9_DrawParticles(particletime);
-	}
-#endif
-
-	if (qrenderer)
-	{
-			RSpeedRemark();
-			RQ_RenderDistAndClear();
-			RSpeedEnd(RSPEED_PARTICLESDRAW);
-	}
+	RSpeedRemark();
+	RQ_RenderBatchClear();
+	RSpeedEnd(RSPEED_PARTICLESDRAW);
 }
 
 
@@ -4333,8 +4172,7 @@ particleengine_t pe_script =
 	PScript_Shutdown,
 	PScript_DelinkTrailstate,
 	PScript_ClearParticles,
-	PScript_DrawParticles,
-	PScript_FlushRenderer
+	PScript_DrawParticles
 };
 
 #endif

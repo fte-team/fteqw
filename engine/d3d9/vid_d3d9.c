@@ -85,7 +85,7 @@ mpic_t		*draw_disc;	// also used on sbar
 
 int d3d9width, d3d9height;
 #if 0
-#if !defined(RGLQUAKE)
+#if !defined(GLQUAKE)
 qbyte GetPaletteIndex(int red, int green, int blue)
 {
 	//slow, horrible method.
@@ -1136,7 +1136,7 @@ void	(D3D9_SCR_UpdateScreen)			(void)
 	{
 		Editor_Draw();
 		GLV_UpdatePalette (false, host_frametime);
-#if defined(_WIN32) && defined(RGLQUAKE)
+#if defined(_WIN32) && defined(GLQUAKE)
 		Media_RecordFrame();
 #endif
 		GLR_BrightenScreen();
@@ -1209,7 +1209,7 @@ void	(D3D9_SCR_UpdateScreen)			(void)
 	SCR_DrawTwoDimensional(uimenu, nohud);
 
 	GLV_UpdatePalette (false, host_frametime);
-#if defined(_WIN32) && defined(RGLQUAKE)
+#if defined(_WIN32) && defined(GLQUAKE)
 	Media_RecordFrame();
 #endif
 

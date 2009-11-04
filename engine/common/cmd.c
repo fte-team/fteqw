@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 cvar_t com_fs_cache			= SCVARF("fs_cache", "0", CVAR_ARCHIVE);
-cvar_t rcon_level			= SCVAR("rcon_level", "50");
+cvar_t rcon_level			= SCVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= SCVAR("cmd_maxbuffersize", "65536");
 int	Cmd_ExecLevel;
 
@@ -103,7 +103,7 @@ char *TP_MacroString (char *s, int *len)
 		if (!Q_strcasecmp(s, macro->name))
 		{
 			if (macro->disputableintentions)
-				if (!tp_disputablemacros.value)
+				if (!tp_disputablemacros.ival)
 					continue;
 			if (len)
 				*len = strlen(macro->name);
@@ -208,7 +208,7 @@ void Cbuf_AddText (const char *text, int level)
 
 		newmax = cmd_text[level].buf.maxsize*2;
 
-		if (newmax > cmd_maxbuffersize.value && cmd_maxbuffersize.value)
+		if (newmax > cmd_maxbuffersize.ival && cmd_maxbuffersize.ival)
 		{
 			Con_TPrintf (TL_FUNCOVERFLOW, "Cbuf_AddText");
 			return;
@@ -531,7 +531,7 @@ void Cmd_Exec_f (void)
 		Con_TPrintf (TL_EXECFAILED,name);
 		return;
 	}
-	if (cl_warncmd.value || developer.value)
+	if (cl_warncmd.ival || developer.ival)
 		Con_TPrintf (TL_EXECING,name);
 
 	// don't execute anything as if it was from server
@@ -676,7 +676,7 @@ void Cmd_Alias_f (void)
 	{
 		if (!strcmp(s, a->name))
 		{
-			if ((a->restriction?a->restriction:rcon_level.value) > Cmd_ExecLevel)
+			if ((a->restriction?a->restriction:rcon_level.ival) > Cmd_ExecLevel)
 			{
 				Con_TPrintf (TL_ALIASRESTRICTIONLEVELERROR);
 				return;
@@ -835,7 +835,7 @@ char *Cmd_AliasExist(char *name, int restrictionlevel)
 	{
 		if (!strcmp(name, a->name))
 		{
-			if ((a->restriction?a->restriction:rcon_level.value) > restrictionlevel)
+			if ((a->restriction?a->restriction:rcon_level.ival) > restrictionlevel)
 			{
 				return NULL;	//not at this level...
 			}
@@ -879,7 +879,7 @@ void Cmd_AliasLevel_f (void)
 		else if (level < RESTRICT_MIN)
 			level = RESTRICT_MIN;
 
-		if (level > Cmd_ExecLevel || (a->restriction?a->restriction:rcon_level.value) > Cmd_ExecLevel)
+		if (level > Cmd_ExecLevel || (a->restriction?a->restriction:rcon_level.ival) > Cmd_ExecLevel)
 		{
 			Con_TPrintf(TL_ALIASRAISELEVELERROR);
 			return;
@@ -908,16 +908,16 @@ void Cmd_AliasList_f (void)
 
 	for (cmd=cmd_alias ; cmd ; cmd=cmd->next)
 	{
-		if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+		if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
 			continue;
 		if (flags && !(cmd->flags & flags))
 			continue;
 		if (!num)
 			Con_TPrintf(TL_ALIASLIST);
 		if (cmd->execlevel)
-			Con_Printf("(%2i)(%2i) %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.value), cmd->execlevel, cmd->name);
+			Con_Printf("(%2i)(%2i) %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.ival), cmd->execlevel, cmd->name);
 		else
-			Con_Printf("(%2i)     %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.value), cmd->name);
+			Con_Printf("(%2i)     %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.ival), cmd->name);
 		num++;
 	}
 	if (num)
@@ -931,7 +931,7 @@ void Alias_WriteAliases (vfsfile_t *f)
 	int num=0;
 	for (cmd=cmd_alias ; cmd ; cmd=cmd->next)
 	{
-//		if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+//		if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
 //			continue;
 		if (cmd->flags & ALIAS_FROMSERVER)
 			continue;
@@ -1581,9 +1581,9 @@ void Cmd_RestrictCommand_f (void)
 				if (cmd->restriction)
 					Con_TPrintf (TL_RESTRICTCURRENTLEVEL, cmd_name, (int)cmd->restriction);
 				else
-					Con_TPrintf (TL_RESTRICTCURRENTLEVELDEFAULT, cmd_name, (int)rcon_level.value);
+					Con_TPrintf (TL_RESTRICTCURRENTLEVELDEFAULT, cmd_name, rcon_level.ival);
 			}
-			else if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+			else if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
 				Con_TPrintf(TL_RESTRICTCOMMANDTOOHIGH);
 			else
 				cmd->restriction = level;
@@ -1600,9 +1600,9 @@ void Cmd_RestrictCommand_f (void)
 			if (v->restriction)
 				Con_TPrintf (TL_RESTRICTCURRENTLEVEL, cmd_name, (int)v->restriction);
 			else
-				Con_TPrintf (TL_RESTRICTCURRENTLEVELDEFAULT, cmd_name, (int)rcon_level.value);
+				Con_TPrintf (TL_RESTRICTCURRENTLEVELDEFAULT, cmd_name, rcon_level.ival);
 		}
-		else if ((v->restriction?v->restriction:rcon_level.value) > Cmd_ExecLevel)
+		else if ((v->restriction?v->restriction:rcon_level.ival) > Cmd_ExecLevel)
 			Con_TPrintf(TL_RESTRICTCOMMANDTOOHIGH);
 		else
 			v->restriction = level;
@@ -1620,9 +1620,9 @@ void Cmd_RestrictCommand_f (void)
 				if (a->restriction)
 					Con_TPrintf (TL_RESTRICTCURRENTLEVEL, cmd_name, (int)a->restriction);
 				else
-					Con_TPrintf (TL_RESTRICTCURRENTLEVELDEFAULT, cmd_name, (int)rcon_level.value);
+					Con_TPrintf (TL_RESTRICTCURRENTLEVELDEFAULT, cmd_name, rcon_level.ival);
 			}
-			else if ((a->restriction?a->restriction:rcon_level.value) > Cmd_ExecLevel)
+			else if ((a->restriction?a->restriction:rcon_level.ival) > Cmd_ExecLevel)
 				Con_TPrintf(TL_RESTRICTCOMMANDTOOHIGH);
 			else
 				a->restriction = level;
@@ -1642,7 +1642,7 @@ int Cmd_Level(char *name)
 	{
 		if (!strcmp(cmds->name, name))
 		{
-			return cmds->restriction?cmds->restriction:rcon_level.value;
+			return cmds->restriction?cmds->restriction:rcon_level.ival;
 		}
 	}
 	for (a=cmd_alias ; a ; a=a->next)
@@ -1796,11 +1796,11 @@ void Cmd_List_f (void)
 	int num=0;
 	for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 	{
-		if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+		if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
 			continue;
 		if (!num)
 			Con_TPrintf(TL_COMMANDLISTHEADER);
-		Con_Printf("(%2i) %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.value), cmd->name);
+		Con_Printf("(%2i) %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.ival), cmd->name);
 		num++;
 	}
 	if (num)
@@ -1912,7 +1912,7 @@ void	Cmd_ExecuteString (char *text, int level)
 			if (strcmp (cmd_argv[0],cmd->name))
 				break;	//yes, I know we found it... (but it's the wrong case, go for an alias or cvar instead FIRST)
 
-			if ((cmd->restriction?cmd->restriction:rcon_level.value) > level)
+			if ((cmd->restriction?cmd->restriction:rcon_level.ival) > level)
 				Con_TPrintf(TL_WASRESTIRCTED, cmd_argv[0]);
 			else if (!cmd->function)
 			{
@@ -1952,7 +1952,7 @@ void	Cmd_ExecuteString (char *text, int level)
 				return;
 #endif
 
-			if ((a->restriction?a->restriction:rcon_level.value) > level)
+			if ((a->restriction?a->restriction:rcon_level.ival) > level)
 			{
 				Con_TPrintf(TL_WASRESTIRCTED, cmd_argv[0]);
 				return;
@@ -1988,7 +1988,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 	if (cmd)	//go for skipped ones
 	{
-		if ((cmd->restriction?cmd->restriction:rcon_level.value) > level)
+		if ((cmd->restriction?cmd->restriction:rcon_level.ival) > level)
 			Con_TPrintf(TL_WASRESTIRCTED, cmd_argv[0]);
 		else if (!cmd->function)
 			Cmd_ForwardToServer ();
@@ -2219,7 +2219,7 @@ const char *If_Token(const char *func, const char **end)
 			var = Cvar_FindVar(com_token);	//for consistancy.
 		if (var)
 		{
-			if ((var->restriction?var->restriction:rcon_level.value) > Cmd_ExecLevel)
+			if ((var->restriction?var->restriction:rcon_level.ival) > Cmd_ExecLevel)
 				s2 = "RESTRICTED";
 			else
 				s2 = var->string;
@@ -2904,7 +2904,7 @@ void Cmd_Init (void)
 	Cvar_Register(&tp_disputablemacros, "Teamplay");
 
 #ifndef SERVERONLY
-	rcon_level.value = atof(rcon_level.string);	//client is restricted to not be allowed to change restrictions.
+	rcon_level.ival = atof(rcon_level.string);	//client is restricted to not be allowed to change restrictions.
 #else
 	Cvar_Register(&rcon_level, "Access controls");		//server gains versatility.
 #endif

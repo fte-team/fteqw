@@ -561,7 +561,7 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 		sc->loopstart = sc->loopstart * scale;
 
 	sc->speed = snd_speed;
-	if (loadas8bit.value)
+	if (loadas8bit.ival)
 		sc->width = 1;
 	else
 		sc->width = inwidth;
@@ -575,7 +575,7 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
 		sc->speed, 
 		sc->width, 
 		sc->numchannels, 
-		(int)snd_linearresample.value);
+		snd_linearresample.ival);
 }
 
 //=============================================================================

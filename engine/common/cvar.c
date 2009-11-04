@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cvar.c -- dynamic variable tracking
 
 #include "quakedef.h"
+#include "shader.h"
 
 cvar_group_t *cvar_groups;
 
@@ -305,7 +306,7 @@ void Cvar_List_f (void)
 		for (cmd=grp->cvars ; cmd ; cmd=cmd->next)
 		{
 			// list only non-restricted cvars
-			if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+			if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
 				continue;
 
 			// list only cvars with search substring
@@ -481,7 +482,7 @@ void Cvar_Reset_f (void)
 		for (cmd=grp->cvars ; cmd ; cmd=cmd->next)
 		{
 			// reset only non-restricted cvars
-			if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+			if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
 				continue;
 
 			// don't reset cvars with matched flags
@@ -654,6 +655,12 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	}
 #endif
 #ifndef SERVERONLY
+	if (var->flags & CVAR_SHADERSYSTEM)
+	{
+		if (var->string && value)
+			if (strcmp(var->string, value))
+				Shader_NeedReload();
+	}
 	if (var->flags & CVAR_USERINFO)
 	{
 		char *old = Info_ValueForKey(cls.userinfo, var->name);
@@ -1037,7 +1044,7 @@ qboolean	Cvar_Command (int level)
 	if (!v)
 		return false;
 
-	if ((v->restriction?v->restriction:rcon_level.value) > level)
+	if ((v->restriction?v->restriction:rcon_level.ival) > level)
 	{
 		Con_Printf ("You do not have the priveledges for %s\n", v->name);
 		return true;

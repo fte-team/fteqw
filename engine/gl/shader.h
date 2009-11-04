@@ -1,4 +1,5 @@
-#ifdef Q3SHADERS
+typedef void (shader_gen_t)(char *name, shader_t*, const void *args);
+
 #define SHADER_PASS_MAX	8
 #define SHADER_MAX_TC_MODS	8
 #define SHADER_DEFORM_MAX	8
@@ -22,6 +23,7 @@ typedef enum {
 	SHADER_SORT_OPAQUE,
 	SHADER_SORT_BANNER,
 	SHADER_SORT_UNDERWATER,
+	SHADER_SORT_DECAL,
 	SHADER_SORT_ADDITIVE,
 	SHADER_SORT_NEAREST
 } shadersort_t;
@@ -103,40 +105,71 @@ typedef struct
     shaderfunc_t	func;
 } deformv_t;
 
+enum
+{
+	/*source and dest factors match each other for easier parsing
+	  but they're not meant to ever be set on the shader itself
+	  NONE is also invalid, and is used to signify disabled, it should never be set on only one
+	*/
+	SBITS_SRCBLEND_NONE					= 0x00000000,
+	SBITS_SRCBLEND_ZERO					= 0x00000001,
+	SBITS_SRCBLEND_ONE					= 0x00000002,
+	SBITS_SRCBLEND_DST_COLOR			= 0x00000003,
+	SBITS_SRCBLEND_ONE_MINUS_DST_COLOR	= 0x00000004,
+	SBITS_SRCBLEND_SRC_ALPHA			= 0x00000005,
+	SBITS_SRCBLEND_ONE_MINUS_SRC_ALPHA	= 0x00000006,
+	SBITS_SRCBLEND_DST_ALPHA			= 0x00000007,
+	SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA	= 0x00000008,
+	SBITS_SRCBLEND_SRC_COLOR_INVALID			= 0x00000009,
+	SBITS_SRCBLEND_ONE_MINUS_SRC_COLOR_INVALID	= 0x0000000a,
+	SBITS_SRCBLEND_ALPHA_SATURATE		= 0x0000000b,
+#define SBITS_SRCBLEND_BITS				  0x0000000f
+
+	/*must match src factors, just shifted 4*/
+	SBITS_DSTBLEND_NONE					= 0x00000000,
+	SBITS_DSTBLEND_ZERO					= 0x00000010,
+	SBITS_DSTBLEND_ONE					= 0x00000020,
+	SBITS_DSTBLEND_DST_COLOR_INVALID			= 0x00000030,
+	SBITS_DSTBLEND_ONE_MINUS_DST_COLOR_INVALID	= 0x00000040,
+	SBITS_DSTBLEND_SRC_ALPHA			= 0x00000050,
+	SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA	= 0x00000060,
+	SBITS_DSTBLEND_DST_ALPHA			= 0x00000070,
+	SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA	= 0x00000080,
+	SBITS_DSTBLEND_SRC_COLOR			= 0x00000090,
+	SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR	= 0x000000a0,
+	SBITS_DSTBLEND_ALPHA_SATURATE_INVALID		= 0x000000b0,
+#define SBITS_DSTBLEND_BITS				  0x000000f0
+
+#define SBITS_BLEND_BITS				(SBITS_SRCBLEND_BITS|SBITS_DSTBLEND_BITS)
+
+	SBITS_ATEST_NONE					= 0x00000000,
+	SBITS_ATEST_GT0						= 0x00000100,
+	SBITS_ATEST_LT128					= 0x00000200,
+	SBITS_ATEST_GE128					= 0x00000300,
+#define SBITS_ATEST_BITS				  0x00000f00
+
+	SBITS_MISC_DEPTHWRITE				= 0x00001000,
+	SBITS_MISC_NODEPTHTEST				= 0x00002000,
+
+	SBITS_MISC_DEPTHEQUALONLY			= 0x00004000,
+	SBITS_MISC_DEPTHCLOSERONLY			= 0x00008000,
+
+//	SBITS_MISC_POLYFILL_LINES			= 0x00008000,
+#define SBITS_MISC_BITS				  0x0000f000
+};
+
 
 typedef struct shaderpass_s {
 	int numMergedPasses;
 
-	shaderfunc_t rgbgen_func;
-	shaderfunc_t alphagen_func;
-
+#ifndef NOMEDIA
 	struct cin_s *cin;
-
+#endif
 	
-    unsigned int	blendsrc, blenddst; // glBlendFunc args
-	unsigned int	blendmode, envmode;
+	unsigned int	shaderbits;
 
-	unsigned int	combinesrc0, combinesrc1, combinemode;
+	unsigned int	blendmode;
 
-    unsigned int	depthfunc;			// glDepthFunc arg
-    enum {
-		SHADER_ALPHA_GT0,
-		SHADER_ALPHA_LT128,
-		SHADER_ALPHA_GE128
-	} alphafunc;
-
-	enum {
-		TC_GEN_BASE,	//basic specified texture coords
-		TC_GEN_LIGHTMAP,	//use loaded lightmap coords
-		TC_GEN_ENVIRONMENT,
-		TC_GEN_DOTPRODUCT,
-		TC_GEN_VECTOR,
-
-		//these are really for use only in glsl stuff.
-		TC_GEN_NORMAL,
-		TC_GEN_SVECTOR,
-		TC_GEN_TVECTOR,
-	} tcgen;
 	enum {
 		RGB_GEN_WAVE,
 		RGB_GEN_ENTITY,
@@ -152,6 +185,8 @@ typedef struct shaderpass_s {
 		RGB_GEN_TOPCOLOR,
 		RGB_GEN_BOTTOMCOLOR
 	} rgbgen;
+	shaderfunc_t rgbgen_func;
+
 	enum {
 		ALPHA_GEN_ENTITY,
 		ALPHA_GEN_WAVE,
@@ -161,27 +196,55 @@ typedef struct shaderpass_s {
 		ALPHA_GEN_VERTEX,
 		ALPHA_GEN_CONST
 	} alphagen;
+	shaderfunc_t alphagen_func;
 
+	enum {
+		TC_GEN_BASE,	//basic specified texture coords
+		TC_GEN_LIGHTMAP,	//use loaded lightmap coords
+		TC_GEN_ENVIRONMENT,
+		TC_GEN_DOTPRODUCT,
+		TC_GEN_VECTOR,
+
+		//these are really for use only in glsl stuff.
+		TC_GEN_NORMAL,
+		TC_GEN_SVECTOR,
+		TC_GEN_TVECTOR,
+	} tcgen;
 	int numtcmods;
 	tcmod_t		tcmods[SHADER_MAX_TC_MODS];
 
-	void (*flush) (meshbuffer_t *mb, struct shaderpass_s *pass);
-
 	int anim_numframes;
-	int			anim_frames[SHADER_MAX_ANIMFRAMES];
+	texid_t			anim_frames[SHADER_MAX_ANIMFRAMES];
 	float anim_fps;
-	unsigned int texturetype;
+//	unsigned int texturetype;
 
 	enum {
-		SHADER_PASS_BLEND		= 1 << 0,
-		SHADER_PASS_ALPHAFUNC	= 1 << 1,
-		SHADER_PASS_DEPTHWRITE	= 1 << 2,
+		T_GEN_SINGLEMAP,	//single texture specified in the shader
+		T_GEN_ANIMMAP,		//animating sequence of textures specified in the shader
+		T_GEN_LIGHTMAP,		//world light samples
+		T_GEN_DELUXMAP,		//world light directions
+		T_GEN_SHADOWMAP,	//light's depth values.
 
-		SHADER_PASS_VIDEOMAP	= 1 << 3,
-		SHADER_PASS_DETAIL		= 1 << 4,
-		SHADER_PASS_LIGHTMAP	= 1 << 5,
-		SHADER_PASS_DELUXMAP	= 1 << 6,
-		SHADER_PASS_NOCOLORARRAY = 1<< 7,
+		T_GEN_DIFFUSE,		//texture's default diffuse texture
+		T_GEN_NORMALMAP,	//texture's default normalmap
+		T_GEN_SPECULAR,		//texture's default specular texture
+		T_GEN_UPPEROVERLAY,	//texture's default personal colour
+		T_GEN_LOWEROVERLAY,	//texture's default team colour
+		T_GEN_FULLBRIGHT,	//texture's default fullbright overlay
+
+		T_GEN_CURRENTRENDER,//copy the current screen to a texture, and draw that
+
+		T_GEN_VIDEOMAP,		//use the media playback as an image source, updating each frame for which it is visible
+	} texgen;
+
+	enum {
+		SHADER_PASS_NOCOLORARRAY = 1<< 3,
+
+		//FIXME: remove these
+		SHADER_PASS_VIDEOMAP	= 1 << 4,
+		SHADER_PASS_DETAIL		= 1 << 5,
+		SHADER_PASS_LIGHTMAP	= 1 << 6,
+		SHADER_PASS_DELUXMAP	= 1 << 7,
 		SHADER_PASS_ANIMMAP		= 1 << 8
 	} flags;
 } shaderpass_t;
@@ -190,8 +253,8 @@ typedef struct
 {
 	mesh_t			meshes[5];
 
-	int				farbox_textures[6];
-	int				nearbox_textures[6];
+	texid_t			farbox_textures[6];
+	texid_t			nearbox_textures[6];
 } skydome_t;
 
 typedef struct {
@@ -203,6 +266,7 @@ typedef struct {
 		SP_BOTTOMCOLOURS,
 		SP_TIME,
 		SP_EYEPOS,
+		SP_ENTMATRIX,
 
 		SP_LIGHTRADIUS,
 		SP_LIGHTCOLOUR,
@@ -217,13 +281,16 @@ typedef struct {
 	unsigned int handle;
 } shaderprogparm_t;
 
-typedef struct shader_s {
-	enum {
-		SSTYLE_CUSTOM,
-		SSTYLE_FULLBRIGHT,
-		SSTYLE_LIGHTMAPPED
-	} style;
-	int numpasses;	//careful... 0 means it's not loaded... and not actually a proper shader.
+typedef struct {
+	float factor;
+	float unit;
+} polyoffset_t;
+struct shader_s
+{
+	int width;
+	int height;
+	int numpasses;
+	texnums_t defaulttextures;
 	struct shader_s *next;
 	char name[MAX_QPATH];
 	//end of shared fields.
@@ -234,6 +301,8 @@ typedef struct shader_s {
 	int numdeforms;
 	deformv_t	deforms[SHADER_DEFORM_MAX];
 
+	polyoffset_t polyoffset;
+
 	enum {
 		SHADER_SKY				= 1 << 0,
 		SHADER_NOMIPMAPS		= 1 << 1,
@@ -243,16 +312,21 @@ typedef struct shader_s {
 		SHADER_DEFORMV_BULGE	= 1 << 5,
 		SHADER_AUTOSPRITE		= 1 << 6,
 		SHADER_FLARE			= 1 << 7,
-		SHADER_POLYGONOFFSET	= 1 << 8,
+//		SHADER_REMOVED			= 1 << 8,
 		SHADER_ENTITY_MERGABLE	= 1 << 9,
 		SHADER_VIDEOMAP			= 1 << 10,
 		SHADER_DEPTHWRITE		= 1 << 11,
 		SHADER_AGEN_PORTAL		= 1 << 12,
 		SHADER_BLEND			= 1 << 13,	//blend or alphatest (not 100% opaque).
-		SHADER_NODRAW			= 1 << 14	//parsed only to pee off developers when they forget it on no-pass shaders.
+		SHADER_NODRAW			= 1 << 14,	//parsed only to pee off developers when they forget it on no-pass shaders.
+
+		SHADER_NODLIGHT			= 1 << 15,	//from surfaceflags
+		SHADER_HASLIGHTMAP		= 1 << 16
 	} flags;
 
-	unsigned int programhandle;
+	union {
+		int glsl;
+	} programhandle;
 	int numprogparams;
 	shaderprogparm_t progparm[SHADER_PROGPARMS_MAX];
 
@@ -261,38 +335,78 @@ typedef struct shader_s {
 	shadersort_t sort;
 
 	skydome_t	*skydome;
+	shader_gen_t *generator;
+	const char	*genargs;
 
 	meshfeatures_t features;
 
 	int registration_sequence;
-} shader_t;
+};
 
 extern shader_t	r_shaders[];
+extern int be_maxpasses;
 
-
-
-
-void R_RenderMeshGeneric ( meshbuffer_t *mb, shaderpass_t *pass );
-void R_RenderMeshCombined ( meshbuffer_t *mb, shaderpass_t *pass );
-void R_RenderMeshMultitextured ( meshbuffer_t *mb, shaderpass_t *pass );
-void R_RenderMeshProgram ( meshbuffer_t *mb, shaderpass_t *pass );
 
 shader_t *R_RegisterPic (char *name);
-shader_t *R_RegisterShader (char *name);
+shader_t *R_RegisterShader (char *name, const char *shaderscript);
+shader_t *R_RegisterShader_Lightmap (char *name);
 shader_t *R_RegisterShader_Vertex (char *name);
 shader_t *R_RegisterShader_Flare (char *name);
 shader_t *R_RegisterSkin (char *name);
-shader_t *R_RegisterCustom (char *name, void(*defaultgen)(char *name, shader_t*, void *args), void *args);
+shader_t *R_RegisterCustom (char *name, shader_gen_t *defaultgen, const void *args);
+void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader);
 
 cin_t *R_ShaderGetCinematic(char *name);
 
-void Shader_DefaultSkinShell(char *shortname, shader_t *s, void *args);
-void Shader_DefaultBSP(char *shortname, shader_t *s, void *args);
+void Shader_DefaultSkinShell(char *shortname, shader_t *s, const void *args);
+void Shader_DefaultBSP(char *shortname, shader_t *s, const void *args);
+void Shader_DefaultScript(char *shortname, shader_t *s, const void *args);
 
-
+void Shader_DoReload(void);
 void R_BackendInit (void);
 void Shader_Shutdown (void);
 qboolean Shader_Init (void);
+void Shader_NeedReload(void);
 
 mfog_t *CM_FogForOrigin(vec3_t org);
+
+//not all modes accept meshes - STENCIL(intentional) and DEPTHONLY(not implemented)
+typedef enum
+{
+	BEM_STANDARD,		//regular mode to draw surfaces akin to q3 (aka: legacy mode). lightmaps+delux+ambient
+	BEM_DEPTHONLY,		//just a quick depth pass. textures used only for alpha test (shadowmaps).
+	BEM_STENCIL,		//used for drawing shadow volumes to the stencil buffer.
+	BEM_DEPTHDARK,		//a quick depth pass. textures used only for alpha test. additive textures still shown as normal.
+	BEM_LIGHT,			//we have a valid light
+	BEM_SMAPLIGHT		//we have a light using a shadowmap
+} backendmode_t;
+
+#define BEF_FORCEDEPTHWRITE		1
+#define BEF_FORCEDEPTHTEST		2
+#define BEF_FORCEADDITIVE		4	//blend dest = GL_ONE
+#define BEF_FORCETRANSPARENT	8	//texenv replace -> modulate
+#define BEF_FORCENODEPTH		16	//disables any and all depth.
+
+//Select the current render mode and modifier flags
+void BE_SelectMode(backendmode_t mode, unsigned int flags);
+
+//Draws an entire mesh chain from a VBO. vbo can be null, in which case the chain may be drawn without batching.
+void BE_DrawMeshChain(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
+
+//submits the world and ents... used only by gl_shadows.c
+void BE_SubmitMeshes (void);
+
+void BE_Init(void);
+
+void BE_ClearVBO(vbo_t *vbo);
+
+#ifdef RTLIGHTS
+void BE_SetupForShadowMap(void);
+void Sh_GenShadowMaps (void);
+void Sh_DrawLights(qbyte *vis);
+void BE_BaseEntShadowDepth(void);
+void BE_SelectDLight(dlight_t *dl, vec3_t colour);
+
+//Returns true if the mesh is not lit by the current light
+qboolean BE_LightCullModel(vec3_t org, model_t *model);
 #endif

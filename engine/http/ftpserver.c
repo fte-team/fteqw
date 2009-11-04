@@ -1,5 +1,13 @@
 #include "quakedef.h"
 
+#ifdef WEBSVONLY
+#undef vsnprintf
+#undef _vsnprintf
+#ifdef _WIN32
+#define vsnprintf _vsnprintf
+#endif
+#endif
+
 #ifdef WEBSERVER
 
 #include "iweb.h"
@@ -51,14 +59,14 @@ qboolean FTP_ServerInit(int port)
 
 	if ((ftpserversocket = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		Con_Printf ("FTP_TCP_OpenSocket: socket: %s\n", strerror(qerrno));
+		IWebPrintf ("FTP_TCP_OpenSocket: socket: %s\n", strerror(qerrno));
 		ftpserverfailed = true;
 		return false;
 	}
 
 	if (ioctlsocket (ftpserversocket, FIONBIO, &_true) == -1)
 	{
-		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
+		IWebPrintf ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 		ftpserverfailed = true;
 		return false;
 	}
@@ -79,7 +87,7 @@ qboolean FTP_ServerInit(int port)
 	
 	if( bind (ftpserversocket, (void *)&address, sizeof(address)) == -1)
 	{
-		Con_Printf("FTP_ServerInit: failed to bind socket\n");
+		IWebPrintf("FTP_ServerInit: failed to bind socket\n");
 		closesocket(ftpserversocket);
 		ftpserverfailed = true;
 		return false;
@@ -126,9 +134,9 @@ static int SendFileNameTo(const char *rawname, int size, void *param)
 		fname = slash+1;
 
 	if (isdir)
-		sprintf(buffer, "drw-r--r--\t1\troot\troot\t%8i Jan 1 12:00 %s\r\n", size, fname);
+		sprintf(buffer, "drw-r--r--\t1\troot\troot\t%8u Jan 1 12:00 %s\r\n", size, fname);
 	else
-		sprintf(buffer, "-rw-r--r--\t1\troot\troot\t%8i Jan 1 12:00 %s\r\n", size, fname);
+		sprintf(buffer, "-rw-r--r--\t1\troot\troot\t%8u Jan 1 12:00 %s\r\n", size, fname);
     
 //	strcpy(buffer, fname);
 //	for (i = strlen(buffer); i < 40; i+=8)
@@ -138,7 +146,7 @@ static int SendFileNameTo(const char *rawname, int size, void *param)
 	return true;
 }
 
-int FTP_SV_makelistensocket(unsigned long blocking)
+int FTP_SV_makelistensocket(unsigned long nblocking)
 {
 	char name[256];
 	int sock;
@@ -160,12 +168,12 @@ int FTP_SV_makelistensocket(unsigned long blocking)
 
 	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		Sys_Error ("FTP_TCP_OpenSocket: socket:", strerror(qerrno));
+		Sys_Error ("FTP_TCP_OpenSocket: socket: %s", strerror(qerrno));
 	}
 
-	if (ioctlsocket (sock, FIONBIO, &blocking) == -1)
+	if (ioctlsocket (sock, FIONBIO, &nblocking) == -1)
 	{
-		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
+		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 	}
 	
 	if( bind (sock, (void *)&address, sizeof(address)) == -1)
@@ -215,6 +223,7 @@ void QueueMessage(FTPclient_t *cl, char *msg)
 		strcat(cl->messagebuffer, msg);
 	}
 }
+
 void VARGS QueueMessageva(FTPclient_t *cl, char *fmt, ...)
 {
 	va_list		argptr;
@@ -222,6 +231,7 @@ void VARGS QueueMessageva(FTPclient_t *cl, char *fmt, ...)
 
 	va_start (argptr, fmt);
 	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	msg[sizeof(msg)-1] = 0;
 	va_end (argptr);
 
 	if (send (cl->controlsock, msg, strlen(msg), 0) == -1)
@@ -240,6 +250,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 
 	char mode[64];
 	static char resource[8192];
+	int _true = true;
 
 	if (cl->datadir == 1)
 	{
@@ -282,6 +293,13 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				QueueMessage (cl, "226 Transfer complete .\r\n");
 				cl->datadir = 0;
 			}
+		}
+
+		pos = cl->datadir?1:!cl->blocking;
+		if (ioctlsocket (cl->controlsock, FIONBIO, &pos) == -1)
+		{
+			IWebPrintf ("FTP_ServerRun: blocking error: %s\n", strerror(qerrno));
+			return 0;
 		}
 	}
 	else if (cl->datadir == 2)
@@ -439,7 +457,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				cl->datasock = INVALID_SOCKET;
 			}
 
-			cl->datasock = FTP_SV_makelistensocket(cl->blocking);
+			cl->datasock = FTP_SV_makelistensocket(true);
 			if (cl->datasock == INVALID_SOCKET)
 				QueueMessage (cl, "425 server was unable to make a listen socket\r\n");
 			else
@@ -467,12 +485,12 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 
 			if ((cl->datasock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 			{
-				Sys_Error ("FTP_UDP_OpenSocket: socket:", strerror(qerrno));
+				Sys_Error ("FTP_UDP_OpenSocket: socket: %s", strerror(qerrno));
 			}
 
-			if (ioctlsocket (cl->datasock, FIONBIO, &cl->blocking) == -1)
+			if (ioctlsocket (cl->datasock, FIONBIO, &_true) == -1)
 			{
-				Sys_Error ("FTTP_UDP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
+				Sys_Error ("FTTP_UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 			}
 
 			from.sin_family = AF_INET;
@@ -592,7 +610,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				continue;
 			}
 
-			if (!*resource == '/')
+			if (!(*resource == '/'))
 			{
 				memmove(resource+strlen(cl->path), resource, strlen(resource)+1);
 				memcpy(resource, cl->path, strlen(cl->path));
@@ -735,7 +753,7 @@ unsigned int WINAPI BlockingClient(FTPclient_t *cl)
 		return 0;
 	}
 
-	cl->blocking = false;
+	cl->blocking = true;
 
 	while (!FTP_ServerThinkForConnection(cl))
 	{

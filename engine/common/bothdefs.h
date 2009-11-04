@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define __BOTHDEFS_H
 
 #if defined(__APPLE__) && defined(__MACH__)
-#define MACOSX
+	#define MACOSX
 #endif
 
 #if defined(__MINGW32_VERSION) || defined(__MINGW__) || defined(__MINGW32__) || defined(__MINGW64__)
@@ -35,6 +35,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef HAVE_CONFIG_H	//if it was configured properly, then we have a more correct list of features we want to use.
 	#include "config.h"
 #else
+	#ifndef MSVCLIBSPATH
+		#define MSVCLIBSPATH "../libs/"
+	#endif
 
 	#ifdef NO_LIBRARIES
 		#define NO_DIRECTX
@@ -72,6 +75,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define AVAIL_FREETYPE
 #endif
 
+//#define ODE_DYNAMIC
+
 #ifdef NO_PNG
 	#undef AVAIL_PNGLIB
 #endif
@@ -92,7 +97,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 //#define AVAIL_FREETYPE
-//#define NEWBACKEND
 
 //set any additional defines or libs in win32
 	#ifndef AVAIL_MASM
@@ -142,8 +146,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define Q2CLIENT		//client can connect to q2 servers
 		#define Q3CLIENT
 		#define Q3SERVER
-//		#define HLCLIENT		//we can run HL gamecode (not protocol compatible)
-//		#define HLSERVER		//we can run HL gamecode (not protocol compatible)
+//		#define HLCLIENT 7		//we can run HL gamecode (not protocol compatible, set to 6 or 7)
+//		#define HLSERVER 140	//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
 		#define FISH			//fisheye distortion stuff
 		#define ZLIB			//zip/pk3 support
@@ -158,6 +162,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define TEXTEDITOR
 		#define PPL				//per pixel lighting (stencil shadowing)
 		#define DDS				//a sort of image file format.
+		#define RTLIGHTS		//realtime lighting
 
 		#define VM_Q1			//q1 qvm gamecode interface
 
@@ -173,8 +178,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define CSQC_DAT	//support for csqc
 		#define MENU_DAT	//support for menu.dat
 
-		#define Q3SHADERS
-
 		#define PSET_SCRIPT
 		#define PSET_CLASSIC
 		//#define PSET_DARKPLACES
@@ -184,11 +187,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //these things were moved to plugins.
 	#endif
 
-#endif
-
-//temporarily disable stuff here, so as to not break any custom configs
-#ifdef Q3SHADERS
-//#define NEWBACKEND
 #endif
 
 
@@ -207,7 +205,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
-#if !defined(AVAIL_D3D) || (!defined(GLQUAKE) && !defined(RGLQUAKE))
+#if !defined(AVAIL_D3D) || !defined(GLQUAKE)
 	#undef USE_D3D
 #endif
 
@@ -227,7 +225,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef WEBCLIENT
 	#undef TEXTEDITOR
 	#undef RUNTIMELIGHTING
-	#undef Q3SHADERS
 	#undef TERRAIN	//not supported
 
 	#undef PSET_SCRIPT
@@ -353,10 +350,31 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifdef _MSC_VER
-#define VARGS __cdecl
+	#define VARGS __cdecl
+	#define MSVCDISABLEWARNINGS
+	#define FTE_DEPRECATED __declspec(deprecated)
+	#define NORETURN __declspec(noreturn)
+#endif
+#if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
+	#define FTE_DEPRECATED  __attribute__((__deprecated__))	//no idea about the actual gcc version
+	#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
+#endif
+#if (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5))
+	#define NORETURN __attribute__((noreturn))
+#endif
+
+
+#ifndef FTE_DEPRECATED
+#define FTE_DEPRECATED
+#endif
+#ifndef LIKEPRINTF
+#define LIKEPRINTF(x)
 #endif
 #ifndef VARGS
 #define VARGS
+#endif
+#ifndef NORETURN
+#define NORETURN
 #endif
 
 #ifdef _WIN32

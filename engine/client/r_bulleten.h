@@ -28,10 +28,6 @@ extern bulletentexture_t *bulletentexture;
 
 extern qbyte		*draw_chars; //console text
 
-
-extern int scoreboardlines;
-extern int fragsort[];
-
 qboolean R_AddBulleten (texture_t *textur);
 void R_MakeBulleten (texture_t *textur, int lefttext, int toptext, char *text, qbyte *background);
 //void R_MakeBulleten (texture_t *textur, int lefttext, int toptext, char *text);

@@ -4,11 +4,6 @@
 #include "d3dquake.h"
 #include "glquake.h"
 
-#pragma comment(lib, "d3dx.lib")
-#pragma comment(lib, "ddraw.lib")
-#pragma comment(lib, "dxguid.lib")
-
-
 #ifndef WM_XBUTTONDOWN
    #define WM_XBUTTONDOWN      0x020B
    #define WM_XBUTTONUP      0x020C
@@ -87,7 +82,7 @@ qboolean	r_cache_thrash;	// set if thrashing the surface cache
 
 mpic_t		*draw_disc;	// also used on sbar
 
-#if !defined(RGLQUAKE)
+#if !defined(GLQUAKE)
 qbyte GetPaletteIndex(int red, int green, int blue)
 {
 	//slow, horrible method.
@@ -872,7 +867,7 @@ void	(D3D7_SCR_UpdateScreen)			(void)
 	{
 		Editor_Draw();
 		GLV_UpdatePalette (false, host_frametime);
-#if defined(_WIN32) && defined(RGLQUAKE)
+#if defined(_WIN32) && defined(GLQUAKE)
 		Media_RecordFrame();
 #endif
 		GLR_BrightenScreen();
@@ -946,7 +941,7 @@ void	(D3D7_SCR_UpdateScreen)			(void)
 	SCR_DrawTwoDimensional(uimenu, nohud);
 
 //	GLV_UpdatePalette (false, host_frametime);
-#if defined(_WIN32) && defined(RGLQUAKE)
+#if defined(_WIN32) && defined(GLQUAKE)
 	Media_RecordFrame();
 #endif
 

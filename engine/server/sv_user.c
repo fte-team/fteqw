@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qwsvdef.h"
 
 #ifndef CLIENTONLY
+#include "pr_common.h"
 
 #include <ctype.h>
 #define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+i*ge->edict_size)
@@ -43,6 +44,7 @@ cvar_t	sv_spectalk = SCVAR("sv_spectalk", "1");
 
 cvar_t	sv_mapcheck	= SCVAR("sv_mapcheck", "1");
 
+cvar_t	sv_antilag = SCVARF("sv_antilag", "0", CVAR_SERVERINFO);
 cvar_t	sv_cheatpc = SCVAR("sv_cheatpc", "125");
 cvar_t	sv_cheatspeedchecktime = SCVAR("sv_cheatspeedchecktime", "30");
 cvar_t	sv_playermodelchecks = SCVAR("sv_playermodelchecks", "1");
@@ -251,6 +253,11 @@ void SV_New_f (void)
 		else
 			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions);
 	}
+	if (host_client->fteprotocolextensions2)//let the client know
+	{
+		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_FTE2);
+		ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions2);
+	}
 #endif
 	ClientReliableWrite_Long (host_client, ISQ2CLIENT(host_client)?PROTOCOL_VERSION_Q2:PROTOCOL_VERSION_QW);
 	ClientReliableWrite_Long (host_client, svs.spawncount);
@@ -362,7 +369,7 @@ void SV_New_f (void)
 
 	ClientReliableWrite_Byte (host_client, svc_cdtrack);
 	if (svprogfuncs)
-		ClientReliableWrite_Byte (host_client, sv.edicts->v->sounds);
+		ClientReliableWrite_Byte (host_client, ((edict_t*)sv.world.edicts)->v->sounds);
 	else
 		ClientReliableWrite_Byte (host_client, 0);
 
@@ -453,8 +460,8 @@ void SVNQ_New_f (void)
 
 // send music
 	MSG_WriteByte (&host_client->netchan.message, svc_cdtrack);
-	MSG_WriteByte (&host_client->netchan.message, sv.edicts->v->sounds);
-	MSG_WriteByte (&host_client->netchan.message, sv.edicts->v->sounds);
+	MSG_WriteByte (&host_client->netchan.message, ((edict_t*)sv.world.edicts)->v->sounds);
+	MSG_WriteByte (&host_client->netchan.message, ((edict_t*)sv.world.edicts)->v->sounds);
 
 // set view
 	MSG_WriteByte (&host_client->netchan.message, svc_setview);
@@ -1060,7 +1067,7 @@ void SV_PreSpawn_f (void)
 	statics = sv.numextrastatics;
 	buf = atoi(Cmd_Argv(2));
 
-	if (buf >= bufs+statics+sv.num_edicts+255)
+	if (buf >= bufs+statics+sv.world.num_edicts+255)
 	{
 		SV_EndRedirect();
 		Con_Printf ("SV_Modellist_f: %s send an invalid index\n", host_client->name);
@@ -1071,17 +1078,17 @@ void SV_PreSpawn_f (void)
 	if (!buf)
 	{
 		// should be three numbers following containing checksums
-		check = atoi(Cmd_Argv(3));
+		check = COM_RemapMapChecksum(atoi(Cmd_Argv(3)));
 
 //		Con_DPrintf("Client check = %d\n", check);
 
-		if (sv_mapcheck.value && check != sv.worldmodel->checksum &&
-			check != LittleLong(sv.worldmodel->checksum2))
+		if (sv_mapcheck.value && check != sv.world.worldmodel->checksum &&
+			check != COM_RemapMapChecksum(LittleLong(sv.world.worldmodel->checksum2)))
 		if (!sv.demofile || (sv.demofile && !sv.democausesreconnect))	//demo playing causes no check. If it's the return level, check anyway to avoid that loophole.
 		{
 			SV_ClientTPrintf (host_client, PRINT_HIGH,
 				STL_MAPCHEAT,
-				sv.modelname, check, sv.worldmodel->checksum, sv.worldmodel->checksum2);
+				sv.modelname, check, sv.world.worldmodel->checksum, sv.world.worldmodel->checksum2);
 			SV_DropClient (host_client);
 			return;
 		}
@@ -1140,7 +1147,7 @@ void SV_PreSpawn_f (void)
 		}
 		while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))	//baselines
 		{
-			if (buf - bufs - sv.numextrastatics >= sv.num_edicts)
+			if (buf - bufs - sv.numextrastatics >= sv.world.num_edicts)
 				break;
 
 			ent = EDICT_NUM(svprogfuncs, buf - bufs - sv.numextrastatics);
@@ -1196,7 +1203,7 @@ void SV_PreSpawn_f (void)
 		}
 		while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))
 		{
-			i = buf - bufs - sv.numextrastatics - sv.num_edicts;
+			i = buf - bufs - sv.numextrastatics - sv.world.num_edicts;
 			if (i >= 255)
 				break;
 
@@ -1235,7 +1242,7 @@ void SV_PreSpawn_f (void)
 	}
 	else if (buf >= bufs)
 	{
-		buf = bufs+sv.numextrastatics+sv.num_edicts+255;
+		buf = bufs+sv.numextrastatics+sv.world.num_edicts+255;
 	}
 	else
 	{
@@ -1260,7 +1267,7 @@ void SV_PreSpawn_f (void)
 			}
 		}
 	}
-	if (buf == bufs+sv.numextrastatics+sv.num_edicts+255)
+	if (buf == bufs+sv.numextrastatics+sv.world.num_edicts+255)
 	{	// all done prespawning
 		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 		MSG_WriteString (&host_client->netchan.message, va("cmd spawn %i\n",svs.spawncount) );
@@ -1434,7 +1441,7 @@ void SV_SpawnSpectator (void)
 	// search for an info_playerstart to spawn the spectator at
 	//this is only useful when a mod doesn't nativly support spectators. old qw on nq mods.
 
-	for (i=MAX_CLIENTS+1 ; i<sv.num_edicts ; i++)
+	for (i=MAX_CLIENTS+1 ; i<sv.world.num_edicts ; i++)
 	{
 		e = EDICT_NUM(svprogfuncs, i);
 		if (!strcmp(PR_GetString(svprogfuncs, e->v->classname), "info_player_start"))
@@ -1473,7 +1480,7 @@ void SV_Begin_Core(client_t *split)
 		f = PR_FindFunction(svprogfuncs, "RestoreGame", PR_ANY);
 		if (f)
 		{
-			pr_global_struct->time = sv.physicstime;
+			pr_global_struct->time = sv.world.physicstime;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
 			PR_ExecuteProgram (svprogfuncs, f);
 		}
@@ -1501,7 +1508,7 @@ void SV_Begin_Core(client_t *split)
 				}
 
 				// call the spawn function
-				pr_global_struct->time = sv.physicstime;
+				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
 				PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
 			}
@@ -1519,7 +1526,7 @@ void SV_Begin_Core(client_t *split)
 					edict_t *ent;
 					ent = split->edict;
 					j = strlen(split->spawninfo);
-					SV_UnlinkEdict(ent);
+					World_UnlinkEdict((wedict_t*)ent);
 					svprogfuncs->restoreent(svprogfuncs, split->spawninfo, &j, ent);
 
 					eval2 = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "stats_restored", NULL);
@@ -1530,7 +1537,7 @@ void SV_Begin_Core(client_t *split)
 						if (spawnparamglobals[j])
 							*spawnparamglobals[j] = split->spawn_parms[j];
 					}
-					pr_global_struct->time = sv.physicstime;
+					pr_global_struct->time = sv.world.physicstime;
 					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 					G_FLOAT(OFS_PARM0) = sv.time - split->spawninfotime;
 					PR_ExecuteProgram(svprogfuncs, eval->function);
@@ -1553,13 +1560,13 @@ void SV_Begin_Core(client_t *split)
 					{
 						globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-						pr_global_struct->time = sv.physicstime;
+						pr_global_struct->time = sv.world.physicstime;
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
 						G_FLOAT(OFS_PARM0) = split->csqcactive;	//this arg is part of EXT_CSQC_1, but doesn't have to be supported by the mod
 						PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 				
 						// actually spawn the player
-						pr_global_struct->time = sv.physicstime;
+						pr_global_struct->time = sv.world.physicstime;
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
 						PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 					}
@@ -1994,7 +2001,7 @@ void SV_NextUpload (void)
 
 	if (!host_client->upload)
 	{
-		host_client->upload = FS_OpenVFS(host_client->uploadfn, "wb", FS_GAME);
+		host_client->upload = FS_OpenVFS(host_client->uploadfn, "wb", FS_GAMEONLY);
 		if (!host_client->upload)
 		{
 			Sys_Printf("Can't create %s\n", host_client->uploadfn);
@@ -2815,7 +2822,7 @@ void SV_Kill_f (void)
 #ifdef VM_Q1
 	if (svs.gametype == GT_Q1QVM)
 	{
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		Q1QVM_ClientCommand();
 		return;
@@ -2840,7 +2847,7 @@ void SV_Kill_f (void)
 		SV_PushFloodProt(host_client);
 	}
 
-	pr_global_struct->time = sv.physicstime;
+	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientKill);
@@ -3531,7 +3538,7 @@ void Cmd_SetPos_f(void)
 	sv_player->v->origin[0] = atof(Cmd_Argv(1));
 	sv_player->v->origin[1] = atof(Cmd_Argv(2));
 	sv_player->v->origin[2] = atof(Cmd_Argv(3));
-	SV_LinkEdict (sv_player, false);
+	World_LinkEdict (&sv.world, (wedict_t*)sv_player, false);
 }
 
 void ED_ClearEdict (progfuncs_t *progfuncs, edict_t *e);
@@ -3550,7 +3557,7 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 #endif
 	{
 		if (progstype != PROG_NQ)	//allow frikbots to work in NQ mods (but not qw!)
-			ED_ClearEdict(svprogfuncs, ent);
+			ED_Clear(svprogfuncs, ent);
 		ent->v->netname = PR_SetString(svprogfuncs, cl->name);
 	}
 	ED_Spawned(ent, false);
@@ -3653,12 +3660,12 @@ void Cmd_Join_f (void)
 	}
 
 	// call the spawn function
-	pr_global_struct->time = sv.physicstime;
+	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 
 	// actually spawn the player
-	pr_global_struct->time = sv.physicstime;
+	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 
@@ -3748,7 +3755,7 @@ void Cmd_Observe_f (void)
 	// call the spawn function
 	if (SpectatorConnect)
 	{
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
 	}
@@ -3841,6 +3848,15 @@ void SV_DisableClientsCSQC(void)
 #endif
 }
 
+void SV_STFU_f(void)
+{
+	char *msg;
+	SV_ClientPrintf(host_client, 255, "stfu\n");
+	msg = "cl_antilag 0\n";
+	ClientReliableWrite_Begin(host_client, svc_stufftext, 2+strlen(msg));
+	ClientReliableWrite_String(host_client, msg);
+}
+
 void SV_MVDList_f (void);
 void SV_MVDInfo_f (void);
 typedef struct
@@ -3859,6 +3875,8 @@ ucmd_t ucmds[] =
 	{"prespawn", SV_PreSpawn_f, true},
 	{"spawn", SV_Spawn_f, true},
 	{"begin", SV_Begin_f, true},
+
+	{"al", SV_STFU_f, true},
 
 	{"join", Cmd_Join_f},
 	{"observe", Cmd_Observe_f},
@@ -4114,7 +4132,7 @@ void SVNQ_Spawn_f (void)
 	}
 	else
 	{
-		memset (ent->v, 0, pr_edict_size);
+		memset (ent->v, 0, sv.world.edict_size);
 		ED_Spawned(ent, false);
 
 		ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
@@ -4191,7 +4209,7 @@ void SVNQ_Begin_f (void)
 				}
 
 				// call the spawn function
-				pr_global_struct->time = sv.physicstime;
+				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 				PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
 			}
@@ -4206,12 +4224,12 @@ void SVNQ_Begin_f (void)
 			}
 
 			// call the spawn function
-			pr_global_struct->time = sv.physicstime;
+			pr_global_struct->time = sv.world.physicstime;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 
 			// actually spawn the player
-			pr_global_struct->time = sv.physicstime;
+			pr_global_struct->time = sv.world.physicstime;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 		}
@@ -4281,7 +4299,7 @@ void SVNQ_PreSpawn_f (void)
 		return;
 	}
 
-	for (e = 1; e < sv.num_edicts; e++)
+	for (e = 1; e < sv.world.num_edicts; e++)
 	{
 		ent = EDICT_NUM(svprogfuncs, e);
 		state = &ent->baseline;
@@ -4524,7 +4542,7 @@ void SVNQ_ExecuteUserCommand (char *s)
 
 
 int implevels[256];
-qboolean SV_FiltureImpulse(int imp, int level)
+qboolean SV_FilterImpulse(int imp, int level)
 {
 	if (imp < 0 || imp > 255)
 		return true;	//erm
@@ -4633,7 +4651,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
 	{
 		next = l->next;
-		check = EDICT_FROM_AREA(l);
+		check = (edict_t*)EDICT_FROM_AREA(l);
 
 		if (check->v->owner == pl)
 			continue;		// player's own missile
@@ -4665,7 +4683,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			{
 				if(progstype != PROG_H2)
 					pe->angles[0]*=-1;	//quake is wierd. I guess someone fixed it hexen2... or my code is buggy or something...
-				pe->model = sv.models[(int)(check->v->modelindex)];
+				pe->model = sv.world.models[(int)(check->v->modelindex)];
 				VectorCopy (check->v->angles, pe->angles);
 			}
 			else
@@ -4681,7 +4699,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 	for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
 	{
 		next = l->next;
-		check = EDICT_FROM_AREA(l);
+		check = (edict_t*)EDICT_FROM_AREA(l);
 
 		if (check->v->owner == pl)
 			continue;		// player's own missile
@@ -4697,7 +4715,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			if (!((int)player->xv->dimension_hit & (int)check->xv->dimension_solid))
 				continue;
 
-			model = sv.models[(int)check->v->modelindex];
+			model = sv.world.models[(int)check->v->modelindex];
 			if (model)
 	// test the point
 			if (model->funcs.PointContents (model, player->v->origin) == FTECONTENTS_SOLID)
@@ -4732,7 +4750,7 @@ void AddAllEntsToPmove (void)
 	int			pl;
 
 	pl = EDICT_TO_PROG(svprogfuncs, sv_player);
-	for (e=1 ; e<sv.num_edicts ; e++)
+	for (e=1 ; e<sv.world.num_edicts ; e++)
 	{
 		check = EDICT_NUM(svprogfuncs, e);
 		if (check->isfree)
@@ -4759,7 +4777,7 @@ void AddAllEntsToPmove (void)
 			if (check->v->solid == SOLID_BSP)
 			{
 				VectorCopy (check->v->angles, pe->angles);
-				pe->model = sv.models[(int)(check->v->modelindex)];
+				pe->model = sv.world.models[(int)(check->v->modelindex)];
 			}
 			else
 			{
@@ -4933,7 +4951,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		pmove.jump_msec = 0;
 		pmove.waterjumptime = 0;
 		pmove.numphysent = 1;
-		pmove.physents[0].model = sv.worldmodel;
+		pmove.physents[0].model = sv.world.worldmodel;
 		pmove.cmd = *ucmd;
 		pmove.hullnum = SV_HullNumForPlayer(0, player_mins, player_maxs);
 
@@ -4990,7 +5008,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	sv_player->xv->button6 = ((ucmd->buttons >> 5) & 1);
 	sv_player->xv->button7 = ((ucmd->buttons >> 6) & 1);
 	sv_player->xv->button8 = ((ucmd->buttons >> 7) & 1);
-	if (ucmd->impulse && SV_FiltureImpulse(ucmd->impulse, host_client->trustlevel))
+	if (ucmd->impulse && SV_FilterImpulse(ucmd->impulse, host_client->trustlevel))
 		sv_player->v->impulse = ucmd->impulse;
 
 	if (host_client->iscuffed)
@@ -5101,7 +5119,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	else
 		pmove.waterjumptime = sv_player->v->teleport_time;
 	pmove.numphysent = 1;
-	pmove.physents[0].model = sv.worldmodel;
+	pmove.physents[0].model = sv.world.worldmodel;
 	pmove.cmd = *ucmd;
 	pmove.hullnum = SV_HullNumForPlayer(sv_player->xv->hull, sv_player->v->mins, sv_player->v->maxs);
 
@@ -5124,7 +5142,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	}
 	sv_player->xv->pmove_flags = (int)sv_player->xv->pmove_flags & ~PMF_LADDER;	//assume not touching ladder trigger
 #if 1
-	AddLinksToPmove ( sv_player, sv_areanodes );
+	AddLinksToPmove ( sv_player, sv.world.areanodes );
 #else
 	AddAllEntsToPmove ();
 #endif
@@ -5201,7 +5219,7 @@ if (sv_player->v->health > 0 && before && !after )
 	if (!host_client->spectator)
 	{
 		// link into place and touch triggers
-		SV_LinkEdict (sv_player, true);
+		World_LinkEdict (&sv.world, (wedict_t*)sv_player, true);
 
 /*		for (i = 0; i < pmove.numphysent; i++)
 		{
@@ -5333,7 +5351,7 @@ void SV_ReadPrydonCursor(void)
 	if (cursor_impact) cursor_impact->_vector[2] = f;
 
 	entnum = (unsigned short)MSG_ReadShort();
-	if (entnum >= sv.max_edicts)
+	if (entnum >= sv.world.max_edicts)
 	{
 		Con_DPrintf("SV_ReadPrydonCursor: client send bad cursor_entitynumber\n");
 		entnum = 0;
@@ -5350,7 +5368,7 @@ void SV_ReadPrydonCursor(void)
 void SV_ReadQCRequest(void)
 {
 	int e;
-	char args[9];
+	char args[7];
 	char *rname;
 	func_t f;
 	int i;
@@ -5367,16 +5385,18 @@ void SV_ReadQCRequest(void)
 	for (i = 0; ; i++)
 	{
 		if (i >= sizeof(args))
+		{
 			if (MSG_ReadByte() != ev_void)
 			{
 				msg_badread = true;
 				return;
 			}
+			goto done;
+		}
 		switch(MSG_ReadByte())
 		{
 		case ev_void:
-			i = 6;
-			break;
+			goto done;
 		case ev_float:
 			args[i] = 'f';
 			G_FLOAT(OFS_PARM0+i*3) = MSG_ReadFloat();
@@ -5398,17 +5418,20 @@ void SV_ReadQCRequest(void)
 		case ev_entity:
 			args[i] = 's';
 			e = MSG_ReadShort();
-			if (e < 0 || e >= sv.num_edicts)
+			if (e < 0 || e >= sv.world.num_edicts)
 				e = 0;
 			G_INT(OFS_PARM0+i*3) = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, e));
 			break;
 		}
 	}
 
+done:
 	rname = MSG_ReadString();
-	f = PR_FindFunc(svprogfuncs, va("Cmd_%s_%s", rname, args), PR_ANY);
+	f = PR_FindFunction(svprogfuncs, va("Cmd_%s_%s", rname, args), PR_ANY);
 	if (f)
 		PR_ExecuteProgram(svprogfuncs, f);
+	else
+		SV_ClientPrintf(host_client, PRINT_HIGH, "qcrequest \"%s\" not supported\n", rname);
 }
 
 /*
@@ -5469,6 +5492,25 @@ void SV_ExecuteClientMessage (client_t *cl)
 			SV_CSQC_DropAll(cl);
 #endif
 		cl->lastsequence_acknoledged = cl->netchan.incoming_acknowledged;
+
+		if (sv_antilag.ival)
+		{
+			/*
+			extern cvar_t temp1;
+			if (temp1.ival)
+			frame = &cl->frameunion.frames[(cl->netchan.incoming_acknowledged+temp1.ival) & UPDATE_MASK];
+			*/
+#pragma message("FIXME: make antilag optionally support non-player ents too")
+			for (i = 0; i < sv.allocated_client_slots; i++)
+			{
+				cl->laggedents[i].present = frame->playerpresent[i];
+				if (cl->laggedents[i].present)
+					VectorCopy(frame->playerpositions[i], cl->laggedents[i].laggedpos);
+			}
+			cl->laggedents_count = sv.allocated_client_slots;
+		}
+		else
+			cl->laggedents_count = 0;
 	}
 	else
 	{
@@ -5721,7 +5763,7 @@ haveannothergo:
 			else if (host_client->spectator)
 			{
 				VectorCopy(o, sv_player->v->origin);
-				SV_LinkEdict(sv_player, false);
+				World_LinkEdict(&sv.world, (wedict_t*)sv_player, false);
 			}
 			break;
 
@@ -5952,7 +5994,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 
 	if (SV_RunFullQCMovement(host_client, move))
 	{
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 #ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
@@ -5968,7 +6010,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	}
 
 
-	if (i && SV_FiltureImpulse(i, host_client->trustlevel))
+	if (i && SV_FilterImpulse(i, host_client->trustlevel))
 		host_client->edict->v->impulse = i;
 
 	host_client->edict->v->button0 = bits & 1;
@@ -6095,6 +6137,7 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_spectalk, cvargroup_servercontrol);
 	Cvar_Register (&sv_mapcheck, cvargroup_servercontrol);
 
+	Cvar_Register (&sv_antilag, cvargroup_servercontrol);
 	Cvar_Register (&sv_cheatpc, cvargroup_servercontrol);
 	Cvar_Register (&sv_cheatspeedchecktime, cvargroup_servercontrol);
 	Cvar_Register (&sv_playermodelchecks, cvargroup_servercontrol);
@@ -6222,7 +6265,7 @@ void SV_UserFriction (void)
 	start[2] = origin[2] + sv_player->v->mins[2];
 	stop[2] = start[2] - 34;
 
-	trace = SV_Move (start, vec3_origin, vec3_origin, stop, true, sv_player);
+	trace = World_Move (&sv.world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)sv_player);
 
 	if (trace.fraction == 1.0)
 		friction = sv_friction.value*sv_edgefriction.value;
@@ -6454,7 +6497,7 @@ void SV_ClientThink (void)
 
 	if (SV_PlayerPhysicsQC)
 	{
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		PR_ExecuteProgram (svprogfuncs, SV_PlayerPhysicsQC);
 		return;

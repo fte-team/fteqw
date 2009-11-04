@@ -13,6 +13,10 @@
 #include "./mingw-libs/SDL_syswm.h" // mingw sdl cross binary complains off sys_parentwindow
 #endif
 
+#ifdef _MSC_VER
+#pragma comment(lib, MSVCLIBSPATH "zlib.lib")
+#endif
+
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;
 extern cvar_t com_fs_cache;
@@ -769,9 +773,6 @@ typedef struct {
 #define GZ_RESERVED (32|64|128)
 
 #include <zlib.h>
-#ifdef _WIN32
-#pragma comment( lib, "../libs/zlib.lib" )
-#endif
 
 vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, gzheader_t *header)
 {
@@ -1231,7 +1232,7 @@ qbyte *COM_LoadFile (const char *path, int usehunk)
 	return buf;
 }
 
-qbyte *COM_LoadMallocFile (const char *path)	//used for temp info along side temp hunk
+qbyte *FS_LoadMallocFile (const char *path)
 {
 	return COM_LoadFile (path, 5);
 }
@@ -1272,7 +1273,7 @@ qbyte *COM_LoadStackFile (const char *path, void *buffer, int bufsize)
 /*warning: at some point I'll change this function to return only read-only buffers*/
 int FS_LoadFile(char *name, void **file)
 {
-	*file = COM_LoadMallocFile(name);
+	*file = FS_LoadMallocFile(name);
 	if (!*file)
 		return -1;
 	return com_filesize;
@@ -1638,6 +1639,7 @@ void COM_Gamedir (const char *dir)
 	searchpath_t	*next;
 	int plen, dlen;
 	char *p;
+	qboolean isbase;
 
 	if (!*dir || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
 		|| strstr(dir, "\\") || strstr(dir, ":") )
@@ -1646,9 +1648,12 @@ void COM_Gamedir (const char *dir)
 		return;
 	}
 
+	isbase = false;
 	dlen = strlen(dir);
-	for (next = com_base_searchpaths; next; next = next->next)
+	for (next = com_searchpaths; next; next = next->next)
 	{
+		if (next == com_base_searchpaths)
+			isbase = true;
 		if (next->funcs == &osfilefuncs)
 		{
 			p = next->handle;
@@ -1657,14 +1662,32 @@ void COM_Gamedir (const char *dir)
 			{
 				//no basedir, maybe
 				if (!strcmp(p, dir))
-					return;
+				{
+					if (isbase && com_searchpaths == com_base_searchpaths)
+					{
+						Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
+						return;
+					}
+					if (!isbase)
+						return;
+					break;
+				}
 			}
 			else if (plen > dlen)
 			{
 				if (*(p+plen-dlen-1) == '/')
 				{
 					if (!strcmp(p+plen-dlen, dir))
-						return;
+					{
+						if (isbase && com_searchpaths == com_base_searchpaths)
+						{
+							Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
+							return;
+						}
+						if (!isbase)
+							return;
+						break;
+					}
 				}
 			}
 
@@ -1677,7 +1700,7 @@ void COM_Gamedir (const char *dir)
 	Host_WriteConfiguration();	//before we change anything.
 #endif
 
-	strcpy (gamedirfile, dir);
+	Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
 
 #ifndef CLIENTONLY
 	sv.gamedirchanged = true;
@@ -1746,12 +1769,10 @@ void COM_Gamedir (const char *dir)
 		}
 	}
 
-#ifdef Q3SHADERS
 	{
 		extern void Shader_Init(void);
 		Shader_Init();	//FIXME!
 	}
-#endif
 
 	COM_Effectinfo_Clear();
 

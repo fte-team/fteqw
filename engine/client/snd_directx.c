@@ -22,6 +22,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <dsound.h>
 
+#ifdef _MSC_VER
+#pragma comment(lib, MSVCLIBSPATH "dxsdk7/lib/dxguid.lib")
+#endif
+
 #define SND_ERROR 0
 #define SND_LOADED 1
 #define SND_NOMORE 2	//like error, but doesn't try the next card.
@@ -594,7 +598,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	dsndcard="DirectSound";
 	if (pDirectSoundEnumerate)
 		pDirectSoundEnumerate(&DSEnumCallback, NULL);
-	if (!snd_usemultipledevices.value)	//if only one device, ALWAYS use the default.
+	if (!snd_usemultipledevices.ival)	//if only one device, ALWAYS use the default.
 		dsndguid=NULL;
 
 	aimedforguid++;
@@ -609,7 +613,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 #ifndef MINIMAL
 #ifdef _IKsPropertySet_
 	dh->pDS = NULL;
-	if (snd_eax.value)
+	if (snd_eax.ival)
 	{
 		CoInitialize(NULL);
 		if (FAILED(CoCreateInstance( &CLSID_EAXDirectSound, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectSound, (void **)&dh->pDS )))
@@ -676,7 +680,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	dsbuf.lpwfxFormat = NULL;
 
 #ifdef DSBCAPS_GLOBALFOCUS
-	if (snd_inactive.value)
+	if (snd_inactive.ival)
 	{
 		dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
 		sc->inactive_sound = true;
@@ -715,7 +719,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		dsbuf.dwSize = sizeof(DSBUFFERDESC);
 		dsbuf.dwFlags = DSBCAPS_CTRLFREQUENCY|DSBCAPS_LOCSOFTWARE;	//dmw 29 may, 2003 removed locsoftware
 #ifdef DSBCAPS_GLOBALFOCUS
-		if (snd_inactive.value)
+		if (snd_inactive.ival)
 		{
 			dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
 			sc->inactive_sound = true;
@@ -836,7 +840,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 
 #ifdef _IKsPropertySet_
 	//attempt at eax support
-	if (snd_eax.value)
+	if (snd_eax.ival)
 	{
 		int r;
 		DWORD support;
@@ -982,7 +986,7 @@ void DSOUND_UpdateCapture(void)
 
 //	return;
 
-	if (!snd_capture.value)
+	if (!snd_capture.ival)
 	{
 		if (DSCaptureBuffer)
 		{

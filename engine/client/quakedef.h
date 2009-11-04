@@ -24,10 +24,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "bothdefs.h"	//first thing included by ALL files.
 
-#if _MSC_VER
-#define MSVCDISABLEWARNINGS
-#endif
-
 #ifdef MSVCDISABLEWARNINGS
 //#pragma warning( disable : 4244 4127 4201 4214 4514 4305 4115 4018)
 /*#pragma warning( disable : 4244)	//conversion from const double to float
@@ -81,8 +77,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #pragma warning( 4 : 4267)	//truncation from const double to float
 
+#pragma warning( error : 4020)
 
-//#pragma warning(error:4013)
+#pragma warning(error:4013)
 #endif
 
 
@@ -90,11 +87,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define QUAKEDEF_H__
 
 #define WATERLAYERS
-
-#ifdef GLQUAKE
-#define RGLQUAKE
-#undef GLQUAKE	//compiler option
-#endif
 
 #ifdef SERVERONLY
 #define isDedicated true
@@ -151,7 +143,7 @@ extern "C" {
 #include "vm.h"
 
 
-//#if defined(RGLQUAKE)
+//#if defined(GLQUAKE)
 #include "gl_model.h"
 //#else
 //#include "model.h"
@@ -189,12 +181,12 @@ extern "C" {
 #if (_MSC_VER >= 1400)
 //with MSVC 8, use MS extensions
 #define snprintf linuxlike_snprintf_vc8
-int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...);
+int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
 #define vsnprintf(a, b, c, d) vsnprintf_s(a, b, _TRUNCATE, c, d)
 #else
 //msvc crap
 #define snprintf linuxlike_snprintf
-int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...);
+int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
 #define vsnprintf linuxlike_vsnprintf
 int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
 #endif
@@ -256,12 +248,12 @@ void Host_ServerFrame (void);
 void Host_InitCommands (void);
 void Host_Init (quakeparms_t *parms);
 void Host_Shutdown(void);
-void VARGS Host_Error (char *error, ...);
-void VARGS Host_EndGame (char *message, ...);
+NORETURN void VARGS Host_Error (char *error, ...) LIKEPRINTF(1);
+NORETURN void VARGS Host_EndGame (char *message, ...) LIKEPRINTF(1);
 qboolean Host_SimulationTime(float time);
 void Host_Frame (double time);
 void Host_Quit_f (void);
-void VARGS Host_ClientCommands (char *fmt, ...);
+void VARGS Host_ClientCommands (char *fmt, ...) LIKEPRINTF(1);
 void Host_ShutdownServer (qboolean crash);
 
 extern qboolean		msg_suppress_1;		// suppresses resolution and cache size console output
@@ -271,6 +263,14 @@ extern qboolean		msg_suppress_1;		// suppresses resolution and cache size consol
 #if !defined(SERVERONLY) && !defined(CLIENTONLY)
 extern qboolean isDedicated;
 #endif
+
+
+
+void FTE_DEPRECATED GL_DrawAliasMesh (mesh_t *mesh, texid_t texnum);
+void FTE_DEPRECATED R_RenderMeshBuffer(struct meshbuffer_s *mb, qboolean shadowpass);
+
+
+
 
 
 

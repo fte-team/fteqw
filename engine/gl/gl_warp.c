@@ -20,542 +20,86 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_warp.c -- sky and water polygons
 
 #include "quakedef.h"
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 #include "glquake.h"
-#ifdef D3DQUAKE
-#include "d3dquake.h"
-#endif
-#ifdef Q3SHADERS
 #include "shader.h"
-#endif
 #include <ctype.h>
 
-
-extern void GL_DrawAliasMesh (mesh_t *mesh, int texnum);
-
-static void GL_DrawProgram_WaterChain(msurface_t *fa);
-static void GL_DrawProgram_SkyChain(msurface_t *fa);
 static void R_CalcSkyChainBounds (msurface_t *s);
 static void GL_DrawSkyGrid (texture_t *tex);
 static void GL_DrawSkySphere (msurface_t *fa);
 static void GL_SkyForceDepth(msurface_t *fa);
-void D3D7_DrawSkySphere (msurface_t *fa);
-void D3D9_DrawSkySphere (msurface_t *fa);
+static void GL_DrawSkyBox (texid_t *texnums, msurface_t *s);
 
-extern	model_t	*loadmodel;
-
-int		skytexturenum;
+//static int		skytexturenum;
 
 static float	speedscale;		// for top sky and bottom sky
 
-static float skyrotate;
-static vec3_t skyaxis;
+//static float skyrotate;
+//static vec3_t skyaxis;
 
-static qboolean usingskybox;
+//static qboolean usingskybox;
 
-static msurface_t	*warpface;
+//static msurface_t	*warpface;
 
-extern cvar_t r_skyboxname;
+//extern cvar_t r_skyboxname;
 extern cvar_t gl_skyboxdist;
 extern cvar_t r_fastsky;
 extern cvar_t r_fastskycolour;
-static char defaultskybox[MAX_QPATH];
+//static char defaultskybox[MAX_QPATH];
 
-/*static*/ int skyprogram;
-/*static*/ int skyprogram_time;
-/*static*/ int skyprogram_eyepos;
+//static int skyprogram;
+//static int skyprogram_time;
+//static int skyprogram_eyepos;
 
-/*static*/ int waterprogram;
-/*static*/ int waterprogram_time;
+//static int waterprogram;
+//static int waterprogram_time;
 
-int skyboxtex[6];
-static vec3_t glskycolor;
-
-void GLR_Fastskycolour_Callback(struct cvar_s *var, char *oldvalue)
-{
-	SCR_StringToRGB(var->string, glskycolor, 255);
-}
+static qboolean overrideskybox;
+static texid_t overrideskyboxtex[6];
+//static vec3_t glskycolor;
 
 
-static void BoundPoly (int numverts, float *verts, vec3_t mins, vec3_t maxs)
-{
-	int		i, j;
-	float	*v;
-
-	mins[0] = mins[1] = mins[2] = 9999;
-	maxs[0] = maxs[1] = maxs[2] = -9999;
-	v = verts;
-	for (i=0 ; i<numverts ; i++)
-		for (j=0 ; j<3 ; j++, v++)
-		{
-			if (*v < mins[j])
-				mins[j] = *v;
-			if (*v > maxs[j])
-				maxs[j] = *v;
-		}
-}
-
-void GL_Warp_Init(void)
-{
-	char *progtext;
-	static char *skyglslprog = 
-		"#ifdef VERTEX_SHADER\n"
-		"varying vec3 pos;\n"
-
-		"void main (void)\n"
-		"{\n"
-		"	pos = gl_Vertex.xyz;\n"
-		"	gl_Position = ftransform();\n"
-		"}\n"
-		"#endif\n"
-
-		"#ifdef FRAGMENT_SHADER\n"
-		"uniform sampler2D solidt;\n"
-		"uniform sampler2D transt;\n"
-
-		"uniform float time;\n"
-		"uniform vec3 eyepos;\n"
-		"varying vec3 pos;\n"
-
-		"void main (void)\n"
-		"{\n"
-		"	vec2 tccoord;\n"
-
-		"	vec3 dir = pos - eyepos;\n"
-
-		"	dir.z *= 3.0;\n"
-		"	dir.xy /= 0.5*length(dir);\n"
-
-		"	tccoord = (dir.xy + time*0.03125);\n"
-		"	vec3 solid = vec3(texture2D(solidt, tccoord));\n"
-
-		"	tccoord = (dir.xy + time*0.0625);\n"
-		"	vec4 clouds = texture2D(transt, tccoord);\n"
-
-		"	gl_FragColor.rgb = solid*(1.0-clouds.a) + clouds.rgb*clouds.a;\n"
-//		"	gl_FragColor.rgb = solid+clouds.rgb;\n"
-		"}\n"
-		"#endif\n"
-		;
-
-	static char *waterglslprog = 
-		"#ifdef VERTEX_SHADER\n"
-		"varying vec3 pos;\n"
-		"varying vec2 tc;\n"
-
-		"void main (void)\n"
-		"{\n"
-		"	tc = gl_MultiTexCoord0.st;\n"
-		"	gl_Position = ftransform();\n"
-		"}\n"
-		"#endif\n"
-
-		"#ifdef FRAGMENT_SHADER\n"
-		"uniform sampler2D watertexture;\n"
-		"uniform float time;\n"
-		"varying vec2 tc;\n"
-
-		"void main (void)\n"
-		"{\n"
-		"	vec2 ntc;\n"
-		"	ntc.s = tc.s + sin(tc.t+time)*0.125;\n"
-		"	ntc.t = tc.t + sin(tc.s+time)*0.125;\n"
-		"	vec3 ts = vec3(texture2D(watertexture, ntc));\n"
-
-		"	gl_FragColor.rgb = ts;\n"
-		"}\n"
-		"#endif\n"
-		;
-
-	if (FS_LoadFile("quakesky.glsl", &progtext) < 0)
-		progtext = skyglslprog;
-	skyprogram = GLSlang_CreateProgram("", progtext, progtext);
-	if (progtext != skyglslprog)
-		FS_FreeFile(progtext);
-
-	if (skyprogram)
-	{
-		GLSlang_UseProgram(skyprogram);
-
-		qglUniform1iARB(qglGetUniformLocationARB(skyprogram, "solidt"), 0);
-		qglUniform1iARB(qglGetUniformLocationARB(skyprogram, "transt"), 1);
-
-		skyprogram_time = qglGetUniformLocationARB(skyprogram, "time");
-		skyprogram_eyepos = qglGetUniformLocationARB(skyprogram, "eyepos");
-
-		GLSlang_UseProgram(0);
-	}
-
-	if (FS_LoadFile("quakewater.glsl", &progtext) < 0)
-		progtext = waterglslprog;
-	waterprogram = GLSlang_CreateProgram("", progtext, progtext);
-	if (progtext != waterglslprog)
-		FS_FreeFile(progtext);
-
-	if (waterprogram)
-	{
-		GLSlang_UseProgram(waterprogram);
-
-		qglUniform1iARB(qglGetUniformLocationARB(waterprogram, "watertexture"), 0);
-		waterprogram_time = qglGetUniformLocationARB(waterprogram, "time");
-
-		GLSlang_UseProgram(0);
-	}
-}
 
 //=========================================================
 
-
-/*
-// speed up sin calculations - Ed
-float	turbsin[] =
-{
-	#include "gl_warp_sin.h"
-};
-#define TURBSCALE (256.0 / (2 * M_PI))
-*/
-/*
-=============
-EmitWaterPolys
-
-Does a water warp on the pre-fragmented glpoly_t chain
-=============
-*/
-#ifdef RGLQUAKE
-void EmitWaterPolys (msurface_t *fa, float basealpha)
-{
-	float a;
-	int l;
-	extern cvar_t r_waterlayers;
-	//the code prior to april 2005 gave a nicer result, but was incompatible with meshes and required poly lists instead
-	//the new code uses vertex arrays but sacrifises the warping. We're left only with scaling.
-	//The default settings still look nicer than original quake but not pre-april.
-	//in the plus side, you can never see the junction glitches of the old warping. :)
-
-#ifdef Q3SHADERS
-	if (fa->texinfo->texture->shader)
-	{
-		meshbuffer_t mb;
-		mb.sortkey = 0;
-		mb.infokey = 0;
-		mb.dlightbits = 0;
-		mb.entity = &r_worldentity;
-		mb.shader = fa->texinfo->texture->shader;
-		mb.fog = NULL;
-		mb.mesh = fa->mesh;
-		r_worldentity.shaderRGBAf[3] = basealpha;
-		R_PushMesh(mb.mesh, mb.shader->features);
-		r_worldentity.shaderRGBAf[3] = 1;
-		R_RenderMeshBuffer(&mb, false);
-		return;
-	}
-#endif
-	if (!*r_waterlayers.string)
-	{
-		if (waterprogram)
-		{
-			GL_DrawProgram_WaterChain(fa);
-			return;
-		}
-		r_waterlayers.value = 3;
-	}
-	if (r_waterlayers.value>=1)
-	{
-		qglEnable(GL_BLEND);	//to ensure.
-		qglMatrixMode(GL_TEXTURE);
-		fa->mesh->colors_array=NULL;
-		for (a=basealpha,l = 0; l < r_waterlayers.value; l++,a=a*4/6)
-		{
-			qglPushMatrix();
-			qglColor4f(1, 1, 1, a);
-			qglTranslatef (sin(cl.time+l*4) * 0.04f+cos(cl.time/2+l)*0.02f+cl.time/(64+l*8), cos(cl.time+l*4) * 0.06f+sin(cl.time/2+l)*0.02f+cl.time/(16+l*2), 0);
-			GL_DrawAliasMesh(fa->mesh, fa->texinfo->texture->tn.base);
-			qglPopMatrix();
-		}
-		qglMatrixMode(GL_MODELVIEW);
-		qglDisable(GL_BLEND);	//to ensure.
-	}
-	else	//dull (fast) single player
-	{
-		qglMatrixMode(GL_TEXTURE);
-		qglPushMatrix();
-		qglTranslatef (sin(cl.time) * 0.4f, cos(cl.time) * 0.06f, 0);
-		fa->mesh->colors_array = NULL;
-		GL_DrawAliasMesh(fa->mesh, fa->texinfo->texture->tn.base);
-		qglPopMatrix();
-		qglMatrixMode(GL_MODELVIEW);
-	}
-}
-
-#endif
-
-void EmitWaterPolyChain (msurface_t *s, float basealpha)
-{
-	float a;
-	int l;
-	extern cvar_t r_waterlayers;
-
-#ifdef Q3SHADERS
-	if (s->texinfo->texture->shader)
-	{
-		meshbuffer_t mb;
-		mb.sortkey = 0;
-		mb.infokey = 0;
-		mb.dlightbits = 0;
-		mb.entity = &r_worldentity;
-		mb.shader = s->texinfo->texture->shader;
-		mb.fog = NULL;
-		mb.mesh = s->mesh;
-		r_worldentity.shaderRGBAf[3] = basealpha;
-		while(s)
-		{
-			if (R_MeshWillExceed(s->mesh))
-				R_RenderMeshBuffer(&mb, false);
-			R_PushMesh(s->mesh, mb.shader->features);
-		}
-		r_worldentity.shaderRGBAf[3] = 1;
-		R_RenderMeshBuffer(&mb, false);
-		return;
-	}
-#endif
-	if (!*r_waterlayers.string)
-	{
-		if (waterprogram)
-		{
-			GL_DrawProgram_WaterChain(s);
-			return;
-		}
-		r_waterlayers.value = 3;
-	}
-	if (r_waterlayers.value>=1)
-	{
-		msurface_t *fa;
-		qglEnable(GL_BLEND);	//to ensure.
-		qglMatrixMode(GL_TEXTURE);
-		for (a=basealpha,l = 0; l < r_waterlayers.value; l++,a=a*4/6)
-		{
-			qglPushMatrix();
-			qglColor4f(1, 1, 1, a);
-			qglTranslatef (sin(cl.time+l*4) * 0.04f+cos(cl.time/2+l)*0.02f+cl.time/(64+l*8), cos(cl.time+l*4) * 0.06f+sin(cl.time/2+l)*0.02f+cl.time/(16+l*2), 0);
-			for (fa = s; fa; fa = fa->texturechain)
-			{
-				fa->mesh->colors_array=NULL;
-				GL_DrawAliasMesh(fa->mesh, fa->texinfo->texture->tn.base);
-			}
-			qglPopMatrix();
-		}
-		qglMatrixMode(GL_MODELVIEW);
-		qglDisable(GL_BLEND);	//to ensure.
-	}
-	else	//dull (fast) single player
-	{
-		msurface_t *fa;
-		qglMatrixMode(GL_TEXTURE);
-		qglPushMatrix();
-		qglTranslatef (sin(cl.time) * 0.4f, cos(cl.time) * 0.06f, 0);
-		for (fa = s; fa; fa = fa->texturechain)
-		{
-			fa->mesh->colors_array=NULL;
-			GL_DrawAliasMesh(fa->mesh, fa->texinfo->texture->tn.base);
-		}
-		qglPopMatrix();
-		qglMatrixMode(GL_MODELVIEW);
-	}
-}
 
 /*
 =================
 GL_DrawSkyChain
 =================
 */
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 static void R_DrawSkyBoxChain (msurface_t *s);
-void GL_DrawSkyChain (msurface_t *s)
+void R_DrawSkyChain (msurface_t *s)
 {
-	msurface_t	*fa;
+	texid_t *skyboxtex;
 
-	GL_DisableMultitexture();
-#ifdef Q3SHADERS
-	if (!skyboxtex[0] && !usingskybox)
+	skyboxtex = s->texinfo->texture->shader->skydome->farbox_textures;		
+
+	R_CalcSkyChainBounds(s);
+
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL)
 	{
-		int i;
-		if (s->texinfo->texture->shader && s->texinfo->texture->shader->skydome)
-		{
-			for (i = 0; i < 6; i++)
-			{
-				skyboxtex[i] = s->texinfo->texture->shader->skydome->farbox_textures[i];		
-			}
-		}
+		GL_DrawSkyBox (skyboxtex, s);
+		GL_SkyForceDepth(s);
+		return;
 	}
 #endif
 
-	R_IBrokeTheArrays();
-	qglDisable(GL_BLEND);
-	qglDisable(GL_ALPHA_TEST);
-
-	if (r_fastsky.value>0)	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
+	if (*r_fastsky.string)
 	{
-		qglDisable(GL_TEXTURE_2D);
-		qglColor3f(glskycolor[0], glskycolor[1], glskycolor[2]);
-		qglDisableClientState( GL_COLOR_ARRAY );
-		qglEnableClientState( GL_VERTEX_ARRAY );
-		for (fa=s ; fa ; fa=fa->texturechain)
-		{
-			qglVertexPointer(3, GL_FLOAT, 0, fa->mesh->xyz_array);
-			qglDrawElements(GL_TRIANGLES, fa->mesh->numindexes, GL_INDEX_TYPE, fa->mesh->indexes);
-		}
-		qglColor3f(1, 1, 1);
-		qglEnable(GL_TEXTURE_2D);
-		R_IBrokeTheArrays();
-		return;
-	}
-
-	if (s->texinfo->texture->shader)
-	{
-		//this is the only pathway that actually uses shaders properly
-		GL_DrawSkySphere(s);
-	}
-	else if (skyprogram && !usingskybox)
-	{
-		GL_DrawProgram_SkyChain(s);
+		GL_DrawSkyGrid(s->texinfo->texture);
+		GL_SkyForceDepth(s);
 	}
 	else
 	{
-		R_CalcSkyChainBounds(s);
-
-	#ifdef RGLQUAKE
-		if (usingskybox)
-		if (qrenderer == QR_OPENGL)
-		{
-			GL_DrawSkyBox (s);
-			GL_SkyForceDepth(s);
-			R_IBrokeTheArrays();
-			return;
-		}
-	#endif
-
-		if (*r_fastsky.string)
-		{
-			GL_DrawSkyGrid(s->texinfo->texture);
-			GL_SkyForceDepth(s);
-		}
-		else
-		{
-			GL_DrawSkySphere(s);
-			GL_SkyForceDepth(s);
-		}
+		GL_DrawSkySphere(s);
+		GL_SkyForceDepth(s);
 	}
 
 	R_IBrokeTheArrays();
-}
-#endif
-
-#ifdef D3DQUAKE
-static void R_DrawSkyBoxChain (msurface_t *s);
-void D3D7_DrawSkyChain (msurface_t *s)
-{
-	//msurface_t	*fa;
-
-#ifdef Q3SHADERS
-	if (!solidskytexture&&!usingskybox)
-	{
-		int i;
-		if (s->texinfo->texture->shader && s->texinfo->texture->shader->skydome)
-		{
-			for (i = 0; i < 6; i++)
-			{
-				skyboxtex[i] = s->texinfo->texture->shader->skydome->farbox_textures[i];		
-			}
-			solidskytexture = 1;
-		}
-	}
-#endif
-/*
-	if (r_fastsky.value||(!solidskytexture&&!usingskybox))	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
-	{
-		int fc;
-		qbyte *pal;
-		fc = r_fastskycolour.value;
-		if (fc > 255)
-			fc = 255;
-		if (fc < 0)
-			fc = 0;
-		pal = host_basepal+fc*3;
-		qglDisable(GL_TEXTURE_2D);
-		qglColor3f(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f);
-		qglDisableClientState( GL_COLOR_ARRAY );
-		for (fa=s ; fa ; fa=fa->texturechain)
-		{
-			qglVertexPointer(3, GL_FLOAT, 0, fa->mesh->xyz_array);
-			qglDrawElements(GL_TRIANGLES, fa->mesh->numindexes, GL_INDEX_TYPE, fa->mesh->indexes);
-		}
-		R_IBrokeTheArrays();
-
-		qglColor3f(1, 1, 1);
-		qglEnable(GL_TEXTURE_2D);
-		return;
-	}
-*/
-/*	if (usingskybox)
-	{
-		R_DrawSkyBoxChain(s);
-		return;
-	}
-*/
-	D3D7_DrawSkySphere(s);
-}
-
-void D3D9_DrawSkyChain (msurface_t *s)
-{
-	//msurface_t	*fa;
-
-#ifdef Q3SHADERS
-	if (!solidskytexture&&!usingskybox)
-	{
-		int i;
-		if (s->texinfo->texture->shader && s->texinfo->texture->shader->skydome)
-		{
-			for (i = 0; i < 6; i++)
-			{
-				skyboxtex[i] = s->texinfo->texture->shader->skydome->farbox_textures[i];		
-			}
-			solidskytexture = 1;
-		}
-	}
-#endif
-/*
-	if (r_fastsky.value||(!solidskytexture&&!usingskybox))	//this is for visability only... we'd otherwise not stoop this low (and this IS low)
-	{
-		int fc;
-		qbyte *pal;
-		fc = r_fastskycolour.value;
-		if (fc > 255)
-			fc = 255;
-		if (fc < 0)
-			fc = 0;
-		pal = host_basepal+fc*3;
-		qglDisable(GL_TEXTURE_2D);
-		qglColor3f(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f);
-		qglDisableClientState( GL_COLOR_ARRAY );
-		for (fa=s ; fa ; fa=fa->texturechain)
-		{
-			qglVertexPointer(3, GL_FLOAT, 0, fa->mesh->xyz_array);
-			qglDrawElements(GL_TRIANGLES, fa->mesh->numindexes, GL_INDEX_TYPE, fa->mesh->indexes);
-		}
-		R_IBrokeTheArrays();
-
-		qglColor3f(1, 1, 1);
-		qglEnable(GL_TEXTURE_2D);
-		return;
-	}
-*/
-/*	if (usingskybox)
-	{
-		R_DrawSkyBoxChain(s);
-		return;
-	}
-*/
-	D3D9_DrawSkySphere(s);
 }
 #endif
 
@@ -566,106 +110,6 @@ void D3D9_DrawSkyChain (msurface_t *s)
 
 =================================================================
 */
-
-
-/*
-==================
-R_LoadSkys
-==================
-*/
-static char	*skyname_suffix[][6] = {
-	{"px", "py", "nx", "ny", "pz", "nz"},
-	{"posx", "posy", "negx", "negy", "posz", "negz"},
-	{"rt", "bk", "lf", "ft", "up", "dn"},
-	{"_px", "_py", "_nx", "_ny", "_pz", "_nz"},
-	{"_posx", "_posy", "_negx", "_negy", "_posz", "_negz"},
-	{"_rt", "_bk", "_lf", "_ft", "_up", "_dn"}
-};
-
-static char *skyname_pattern[] = {
-	"%s_%s",
-	"%s%s",
-	"env/%s%s",
-	"gfx/env/%s%s"
-};
-
-void GLR_LoadSkys (void)
-{
-	int		i;
-	char	name[MAX_QPATH];
-	char *boxname;
-	int p, s;
-
-	if (*r_skyboxname.string)
-		boxname = r_skyboxname.string;	//user forced
-	else
-		boxname = defaultskybox;
-
-	if (!*boxname)
-	{	//wipe the box
-		for (i=0 ; i<6 ; i++)
-			skyboxtex[i] = 0;
-	}
-	else
-	{
-		for(;;)
-		{
-			for (i=0 ; i<6 ; i++)
-			{
-				for (p = 0; p < sizeof(skyname_pattern)/sizeof(skyname_pattern[0]); p++)
-				{
-					for (s = 0; s < sizeof(skyname_suffix)/sizeof(skyname_suffix[0]); s++)
-					{
-						snprintf (name, sizeof(name), skyname_pattern[p], boxname, skyname_suffix[s][i]);
-						skyboxtex[i] = Mod_LoadHiResTexture(name, NULL, false, false, true);
-						if (skyboxtex[i])
-							break;
-					}
-					if (skyboxtex[i])
-						break;
-				}
-				if (!skyboxtex[i])
-					break;
-
-#ifdef RGLQUAKE
-				//so the user can specify GL_NEAREST and still get nice skyboxes... yeah, a hack
-				if (qrenderer == QR_OPENGL)
-				{
-					qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-					qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				}
-#endif
-			}
-			if (boxname != defaultskybox && i < 6 && *defaultskybox)
-			{
-				boxname = defaultskybox;
-				continue;
-			}
-			break;
-		}
-	}
-}
-
-
-qboolean GLR_CheckSky()
-{
-	return true;
-}
-
-void GLR_Skyboxname_Callback(struct cvar_s *var, char *oldvalue)
-{
-	GLR_LoadSkys();
-}
-
-void GLR_SetSky(char *name, float rotate, vec3_t axis)	//called from the client code, once per level
-{
-	Q_strncpyz(defaultskybox, name, sizeof(defaultskybox));
-	if (!*r_skyboxname.string)	//don't override a user's settings
-		GLR_Skyboxname_Callback(&r_skyboxname, "");
-
-	skyrotate = rotate;
-	VectorCopy(axis, skyaxis);
-}
 
 static vec3_t	skyclip[6] = {
 	{1,1,0},
@@ -892,6 +336,12 @@ static void R_CalcSkyChainBounds (msurface_t *s)
 
 	c_sky = 0;
 
+	for (i=0 ; i<6 ; i++)
+	{
+		skymins[0][i] = skymins[1][i] = 9999;
+		skymaxs[0][i] = skymaxs[1][i] = -9999;
+	}
+
 	// calculate vertex values for sky box
 
 	for (fa=s ; fa ; fa=fa->texturechain)
@@ -1006,8 +456,8 @@ static void d3d_skyspherecalc(int skytype)
 }
 #endif
 
-#ifdef RGLQUAKE
-static float skysphere_vertex3f[skysphere_numverts * 3];
+#ifdef GLQUAKE
+static vecV_t skysphere_vertex3f[skysphere_numverts];
 static mesh_t skymesh;
 
 
@@ -1015,7 +465,8 @@ static void gl_skyspherecalc(int skytype)
 {	//yes, this is basically stolen from DarkPlaces
 	int i, j;
 	index_t *e;
-	float a, b, x, ax, ay, v[3], length, *vertex3f, *texcoord2f;
+	float a, b, x, ax, ay, v[3], length, *texcoord2f;
+	vecV_t* vertex;
 	float dx, dy, dz;
 
 	float texscale;
@@ -1043,7 +494,7 @@ static void gl_skyspherecalc(int skytype)
 	dx = 16;
 	dy = 16;
 	dz = 16 / 3;
-	vertex3f = skysphere_vertex3f;
+	vertex = skysphere_vertex3f;
 	texcoord2f = skysphere_texcoord2f;
 	for (j = 0;j <= skygridy;j++)
 	{
@@ -1060,9 +511,10 @@ static void gl_skyspherecalc(int skytype)
 			length = texscale / sqrt(v[0]*v[0]+v[1]*v[1]+(v[2]*v[2]*9));
 			*texcoord2f++ = v[0] * length;
 			*texcoord2f++ = v[1] * length;
-			*vertex3f++ = v[0];
-			*vertex3f++ = v[1];
-			*vertex3f++ = v[2];
+			(*vertex)[0] = v[0];
+			(*vertex)[1] = v[1];
+			(*vertex)[2] = v[2];
+			vertex++;
 		}
 	}
 	e = skysphere_element3i;
@@ -1111,89 +563,6 @@ static void GL_SkyForceDepth(msurface_t *fa)
 	}
 }
 
-static void GL_DrawProgram_SkyChain(msurface_t *fa)
-{
-	vbo_t *v;
-	mesh_t *m;
-
-
-	v = &fa->texinfo->texture->vbo;
-	qglUseProgramObjectARB(skyprogram);
-	qglUniform1fARB(skyprogram_time, r_refdef.time);
-	qglUniform3fvARB(skyprogram_eyepos, 1, r_origin);
-
-
-	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, v->vboe);
-	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, v->vbocoord);
-	qglVertexPointer(3, GL_FLOAT, 0, v->coord);
-	qglEnableClientState(GL_VERTEX_ARRAY);
-
-#ifndef MINIMAL
-	if (fa->texinfo->texture->shader)
-	{
-		GL_MBind(mtexid0, fa->texinfo->texture->shader->passes[0].anim_frames[0]);
-		qglEnable(GL_TEXTURE_2D);
-		GL_MBind(mtexid1, fa->texinfo->texture->shader->passes[1].anim_frames[0]);
-		qglEnable(GL_TEXTURE_2D);
-	}
-	else
-	{
-#endif
-		GL_MBind(mtexid0, fa->texinfo->texture->tn.base);
-		qglEnable(GL_TEXTURE_2D);
-		GL_MBind(mtexid1, fa->texinfo->texture->tn.fullbright);
-		qglEnable(GL_TEXTURE_2D);
-#ifndef MINIMAL
-}
-#endif
-
-	for (; fa; fa = fa->texturechain)
-	{
-		m = fa->mesh;
-		qglDrawRangeElements(GL_TRIANGLES, m->vbofirstvert, m->vbofirstvert+m->numvertexes, m->numindexes, GL_INDEX_TYPE, v->indicies+m->vbofirstelement);
-	}
-
-	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-	qglUseProgramObjectARB(0);
-	qglDisable(GL_TEXTURE_2D);
-	GL_SelectTexture(mtexid0);
-}
-
-static void GL_DrawProgram_WaterChain(msurface_t *fa)
-{
-	vbo_t *v;
-	mesh_t *m;
-
-	v = &fa->texinfo->texture->vbo;
-	qglUseProgramObjectARB(waterprogram);
-	qglUniform1fARB(waterprogram_time, cl.time);
-
-
-	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, v->vboe);
-	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, v->vbocoord);
-	qglVertexPointer(3, GL_FLOAT, 0, v->coord);
-	qglEnableClientState(GL_VERTEX_ARRAY);
-
-	GL_MBind(mtexid0, fa->texinfo->texture->tn.base);
-	qglEnable(GL_TEXTURE_2D);
-
-	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, v->vbotexcoord);
-	qglTexCoordPointer(2, GL_FLOAT, 0, v->texcoord);
-	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-
-	for (; fa; fa = fa->texturechain)
-	{
-		m = fa->mesh;
-		qglDrawRangeElements(GL_TRIANGLES, m->vbofirstvert, m->vbofirstvert+m->numvertexes, m->numindexes, GL_INDEX_TYPE, v->indicies+m->vbofirstelement);
-	}
-
-	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-	qglUseProgramObjectARB(0);
-	GL_SelectTexture(mtexid0);
-}
-
 static void GL_DrawSkySphere (msurface_t *fa)
 {
 	extern cvar_t gl_maxdist;
@@ -1211,7 +580,6 @@ static void GL_DrawSkySphere (msurface_t *fa)
 
 //draw in bulk? this is eeevil
 //FIXME: We should use the skybox clipping code and split the sphere into 6 sides.
-#ifdef Q3SHADERS
 	if (fa->texinfo->texture->shader)
 	{	//the shader route.
 		meshbuffer_t mb;
@@ -1227,17 +595,16 @@ static void GL_DrawSkySphere (msurface_t *fa)
 		R_RenderMeshBuffer(&mb, false);
 	}
 	else
-#endif
 	{	//the boring route.
 		gl_skyspherecalc(1);
 		qglMatrixMode(GL_TEXTURE);
 		qglPushMatrix();
 		qglTranslatef(time*8/128, time*8/128, 0);
-		GL_DrawAliasMesh(&skymesh, fa->texinfo->texture->tn.base);
+		GL_DrawAliasMesh(&skymesh, fa->texinfo->texture->shader->defaulttextures.base);
 		qglColor4f(1,1,1,0.5);
 		qglEnable(GL_BLEND);
 		qglTranslatef(time*8/128, time*8/128, 0);
-		GL_DrawAliasMesh(&skymesh, fa->texinfo->texture->tn.fullbright);
+		GL_DrawAliasMesh(&skymesh, fa->texinfo->texture->shader->defaulttextures.fullbright);
 		qglDisable(GL_BLEND);
 		qglPopMatrix();
 		qglMatrixMode(GL_MODELVIEW);
@@ -1246,210 +613,9 @@ static void GL_DrawSkySphere (msurface_t *fa)
 }
 #endif
 
-#ifdef D3DQUAKE
-static void D3D7_DrawSkySphere (msurface_t *fa)
-{
-	extern cvar_t gl_maxdist;
-	float time = cl.gametime+realtime-cl.gametimemark;
 
-	float skydist = 99999;//gl_maxdist.value;
-	if (skydist<1)
-		skydist=gl_skyboxdist.value;
-	skydist/=16;
 
-	//scale sky sphere and place around view origin.
-//	qglPushMatrix();
-//	qglTranslatef(r_refdef.vieworg[0], r_refdef.vieworg[1], r_refdef.vieworg[2]);
-//	qglScalef(skydist, skydist, skydist);
-
-//draw in bulk? this is eeevil
-//FIXME: We should use the skybox clipping code and split the sphere into 6 sides.
-/*#ifdef Q3SHADERS
-	if (fa->texinfo->texture->shader)
-	{	//the shader route.
-		meshbuffer_t mb;
-		d3d_skyspherecalc(2);
-		mb.sortkey = 0;
-		mb.infokey = -1;
-		mb.dlightbits = 0;
-		mb.entity = &r_worldentity;
-		mb.shader = fa->texinfo->texture->shader;
-		mb.fog = NULL;
-		mb.mesh = &skymesh;
-		R_PushMesh(mb.mesh, mb.shader->features);
-		R_RenderMeshBuffer(&mb, false);
-	}
-	else
-#endif*/
-	{	//the boring route.
-		d3d_skyspherecalc(1);
-//		qglMatrixMode(GL_TEXTURE);
-//		qglPushMatrix();
-//		qglTranslatef(time*8/128, time*8/128, 0);
-
-		pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHATESTENABLE, FALSE );
-
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-//		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_CURRENT);
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
-
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-//		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
-
-		pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_SRCBLEND,  D3DBLEND_SRCALPHA);
-		pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_DESTBLEND,  D3DBLEND_INVSRCALPHA);
-
-		d3d_animateskysphere(time*8/128);
-		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, (LPDIRECTDRAWSURFACE7)solidskytexture);
-		pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_TEX1, skysphere_d3dvertex, skysphere_numverts, skysphere_element3i, skysphere_numtriangles * 3, 0);
-
-		pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHABLENDENABLE, TRUE);
-//		pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHATESTENABLE, TRUE);
-
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLORARG2, D3DTA_CURRENT);
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-//		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
-		pD3DDev->lpVtbl->SetTextureStageState(pD3DDev, 0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
-
-//		qglTranslatef(time*8/128, time*8/128, 0);
-		d3d_animateskysphere(time*16/128);
-		pD3DDev->lpVtbl->SetTexture(pD3DDev, 0, (LPDIRECTDRAWSURFACE7)alphaskytexture);
-		pD3DDev->lpVtbl->DrawIndexedPrimitive(pD3DDev, D3DPT_TRIANGLELIST, D3DFVF_XYZ|D3DFVF_TEX1, skysphere_d3dvertex, skysphere_numverts, skysphere_element3i, skysphere_numtriangles * 3, 0);
-
-		pD3DDev->lpVtbl->SetRenderState(pD3DDev, D3DRENDERSTATE_ALPHABLENDENABLE, FALSE);
-//		qglDisable(GL_BLEND);
-//		qglPopMatrix();
-//		qglMatrixMode(GL_MODELVIEW);
-	}
-//	qglPopMatrix();
-
-/*
-	if (!cls.allow_skyboxes)	//allow a little extra fps.
-	{//Draw the texture chain to only the depth buffer.
-		if (qglColorMask)
-			qglColorMask(0,0,0,0);
-		for (; fa; fa = fa->texturechain)
-		{
-			GL_DrawAliasMesh(fa->mesh, 0);
-		}
-		if (qglColorMask)
-			qglColorMask(1,1,1,1);
-	}
-	*/
-}
-static void D3D9_DrawSkySphere (msurface_t *fa)
-{
-	extern cvar_t gl_maxdist;
-	float time = cl.gametime+realtime-cl.gametimemark;
-
-	float skydist = 99999;//gl_maxdist.value;
-	if (skydist<1)
-		skydist=gl_skyboxdist.value;
-	skydist/=16;
-
-	//scale sky sphere and place around view origin.
-//	qglPushMatrix();
-//	qglTranslatef(r_refdef.vieworg[0], r_refdef.vieworg[1], r_refdef.vieworg[2]);
-//	qglScalef(skydist, skydist, skydist);
-
-//draw in bulk? this is eeevil
-//FIXME: We should use the skybox clipping code and split the sphere into 6 sides.
-/*#ifdef Q3SHADERS
-	if (fa->texinfo->texture->shader)
-	{	//the shader route.
-		meshbuffer_t mb;
-		d3d_skyspherecalc(2);
-		mb.sortkey = 0;
-		mb.infokey = -1;
-		mb.dlightbits = 0;
-		mb.entity = &r_worldentity;
-		mb.shader = fa->texinfo->texture->shader;
-		mb.fog = NULL;
-		mb.mesh = &skymesh;
-		R_PushMesh(mb.mesh, mb.shader->features);
-		R_RenderMeshBuffer(&mb, false);
-	}
-	else
-#endif*/
-	{	//the boring route.
-		d3d_skyspherecalc(1);
-//		qglMatrixMode(GL_TEXTURE);
-//		qglPushMatrix();
-//		qglTranslatef(time*8/128, time*8/128, 0);
-
-		d3d_animateskysphere(time*8/128);
-		D3D9_DrawSkyMesh(0, solidskytexture, skysphere_d3dvertex, skysphere_numverts, skysphere_element3i, skysphere_numtriangles);
-		d3d_animateskysphere(time*16/128);
-		D3D9_DrawSkyMesh(1, alphaskytexture, skysphere_d3dvertex, skysphere_numverts, skysphere_element3i, skysphere_numtriangles);
-
-//		qglDisable(GL_BLEND);
-//		qglPopMatrix();
-//		qglMatrixMode(GL_MODELVIEW);
-	}
-//	qglPopMatrix();
-
-/*
-	if (!cls.allow_skyboxes)	//allow a little extra fps.
-	{//Draw the texture chain to only the depth buffer.
-		if (qglColorMask)
-			qglColorMask(0,0,0,0);
-		for (; fa; fa = fa->texturechain)
-		{
-			GL_DrawAliasMesh(fa->mesh, 0);
-		}
-		if (qglColorMask)
-			qglColorMask(1,1,1,1);
-	}
-	*/
-}
-#endif
-
-/*
-==============
-R_ClearSkyBox
-==============
-*/
-void R_ClearSkyBox (void)
-{
-	int		i;
-
-	if (!cl.worldmodel)	//allow skyboxes on non quake1 maps. (expect them even)
-	{
-		usingskybox = false;		
-		return;
-	}
-
-	for (i=0 ; i<6 ; i++)
-	{
-		skymins[0][i] = skymins[1][i] = 9999;
-		skymaxs[0][i] = skymaxs[1][i] = -9999;
-	}
-
-	if (!skyboxtex[0] || !skyboxtex[1] || !skyboxtex[2] || !skyboxtex[3] || !skyboxtex[4] || !skyboxtex[5])
-	{
-		usingskybox = false;
-		return;
-	}
-
-	usingskybox = true;
-}
-
-void R_ForceSkyBox (void)
-{
-	int		i;
-
-	for (i=0 ; i<6 ; i++)
-	{
-		skymins[0][i] = skymins[1][i] = -1;
-		skymaxs[0][i] = skymaxs[1][i] = 1;
-	}
-}
-
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 static void GL_MakeSkyVec (float s, float t, int axis)
 {
 	vec3_t		v, b;
@@ -1459,9 +625,9 @@ static void GL_MakeSkyVec (float s, float t, int axis)
 
 	if (!skydist)
 	{
-		if (r_shadows.value || !gl_maxdist.value)
-			skydist = 1000000;	//inifite distance
-		else
+//		if (r_shadows.value || !gl_maxdist.value)
+//			skydist = 1000000;	//inifite distance
+//		else
 			skydist = gl_maxdist.value * 0.577;
 	}
 
@@ -1533,9 +699,9 @@ static void MakeSkyGridVec2 (float s, float t, int axis, vec3_t v)
 
 	if (!skydist)
 	{
-		if (r_shadows.value || !gl_maxdist.value)
-			skydist = 1000000;	//inifite distance
-		else
+//		if (r_shadows.value || !gl_maxdist.value)
+//			skydist = 1000000;	//inifite distance
+//		else
 			skydist = gl_maxdist.value * 0.577;
 	}
 
@@ -1602,7 +768,7 @@ static void GL_DrawSkyGrid (texture_t *tex)
 	float time = cl.gametime+realtime-cl.gametimemark;
 
 	GL_DisableMultitexture();
-	GL_Bind (tex->tn.base);
+	GL_Bind (tex->shader->defaulttextures.base);
 
 	speedscale = time*8;
 	speedscale -= (int)speedscale & ~127;
@@ -1615,7 +781,7 @@ static void GL_DrawSkyGrid (texture_t *tex)
 	}
 
 	qglEnable (GL_BLEND);
-	GL_Bind (tex->tn.fullbright);
+	GL_Bind (tex->shader->defaulttextures.fullbright);
 
 	speedscale = time*16;
 	speedscale -= (int)speedscale & ~127;
@@ -1636,16 +802,13 @@ static void GL_DrawSkyGrid (texture_t *tex)
 R_DrawSkyBox
 ==============
 */
-int	skytexorder[6] = {0,2,1,3,4,5};
-#ifdef RGLQUAKE
-void GL_DrawSkyBox (msurface_t *s)
+static int	skytexorder[6] = {0,2,1,3,4,5};
+#ifdef GLQUAKE
+static void GL_DrawSkyBox (texid_t *texnums, msurface_t *s)
 {
 	int i;
 
-	if (!usingskybox)
-		return;
-
-	if (skyrotate)
+	if (cl.skyrotate)
 	{
 		for (i=0 ; i<6 ; i++)
 		{
@@ -1671,8 +834,8 @@ void GL_DrawSkyBox (msurface_t *s)
 
 	qglPushMatrix ();	
 	qglTranslatef (r_origin[0], r_origin[1], r_origin[2]);
-	if (skyrotate)
-		qglRotatef (cl.time * skyrotate, skyaxis[0], skyaxis[1], skyaxis[2]);
+	if (cl.skyrotate)
+		qglRotatef (cl.time * cl.skyrotate, cl.skyaxis[0], cl.skyaxis[1], cl.skyaxis[2]);
 
 	for (i=0 ; i<6 ; i++)
 	{
@@ -1680,7 +843,7 @@ void GL_DrawSkyBox (msurface_t *s)
 		|| skymins[1][i] >= skymaxs[1][i])
 			continue;
 
-		GL_Bind (skyboxtex[skytexorder[i]]);
+		GL_Bind (texnums[skytexorder[i]]);
 
 		qglBegin (GL_QUADS);
 		GL_MakeSkyVec (skymins[0][i], skymins[1][i], i);
@@ -1705,7 +868,7 @@ R_InitSky
 A sky texture is 256*128, with the right side being a masked overlay
 ==============
 */
-void R_InitSky (texture_t *mt)
+texnums_t R_InitSky (texture_t *mt)
 {
 	int			i, j, p;
 	qbyte		*src;
@@ -1714,9 +877,9 @@ void R_InitSky (texture_t *mt)
 	int			r, g, b;
 	unsigned	*rgba;
 	char name[MAX_QPATH];
+	texnums_t	tn;
 
-	int		solidskytexture;
-	int		alphaskytexture;
+	memset(&tn, 0, sizeof(tn));
 
 	src = (qbyte *)mt + mt->offsets[0];
 
@@ -1742,18 +905,10 @@ void R_InitSky (texture_t *mt)
 
 	Q_snprintfz(name, sizeof(name), "%s_solid", mt->name);
 	Q_strlwr(name);
-	solidskytexture = Mod_LoadReplacementTexture(name, NULL, true, false, true);
-	if (!solidskytexture)
-		solidskytexture = R_LoadTexture32(name, 128, 128, trans, true, false);
-/*
-	if (!solidskytexture)
-		solidskytexture = texture_extension_number++;
+	tn.base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA);
+	if (!TEXVALID(tn.base))
+		tn.base = R_LoadTexture32(name, 128, 128, trans, IF_NOALPHA|IF_NOGAMMA);
 
-	GL_Bind (solidskytexture );
-	glTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, 128, 128, 0, GL_RGBA, GL_UNSIGNED_BYTE, trans);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-*/
 	alphamask = LittleLong(0x7fffffff);
 	for (i=0 ; i<128 ; i++)
 		for (j=0 ; j<128 ; j++)
@@ -1767,19 +922,10 @@ void R_InitSky (texture_t *mt)
 
 	Q_snprintfz(name, sizeof(name), "%s_trans", mt->name);
 	Q_strlwr(name);
-	alphaskytexture = Mod_LoadReplacementTexture(name, NULL, true, true, true);
-	if (!alphaskytexture)
-		alphaskytexture = R_LoadTexture32(name, 128, 128, trans, true, true);
-/*
-	if (!alphaskytexture)
-		alphaskytexture = texture_extension_number++;
-	GL_Bind(alphaskytexture);
-	glTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 128, 128, 0, GL_RGBA, GL_UNSIGNED_BYTE, trans);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-*/
+	tn.fullbright = R_LoadReplacementTexture(name, NULL, 0);
+	if (!TEXVALID(tn.fullbright))
+		tn.fullbright = R_LoadTexture32(name, 128, 128, trans, IF_NOGAMMA);
 
-	mt->tn.base = solidskytexture;
-	mt->tn.fullbright = alphaskytexture;
+	return tn;
 }
 #endif

@@ -3,14 +3,26 @@
 
 #ifdef HLCLIENT
 
+//make shared
+#ifndef QDECL
+	#ifdef _MSC_VER
+		#define QDECL _cdecl
+	#else
+		#define QDECL
+	#endif
+#endif
+struct hlcvar_s *QDECL GHL_CVarGetPointer(char *varname);
+
+
+
 #define notimp(l) Con_Printf("halflife cl builtin not implemented on line %i\n", l)
 
-//#define HLCL_API_VERSION 6
+#if HLCLIENT >= 1
+#define HLCL_API_VERSION HLCLIENT
+#else
 #define HLCL_API_VERSION 7
+#endif
 
-
-//make shared
-struct hlcvar_s *GHL_CVarGetPointer(char *varname);
 
 
 #define HLPIC model_t*
@@ -111,104 +123,104 @@ typedef struct
 
 typedef struct
 {
-	HLPIC (*pic_load) (char *picname);
-	int (*pic_getnumframes) (HLPIC pic);
-	int (*pic_getheight) (HLPIC pic, int frame);
-	int (*pic_getwidth) (HLPIC pic, int frame);
-	void (*pic_select) (HLPIC pic, int r, int g, int b);
-	void (*pic_drawcuropaque) (int frame, int x, int y, void *loc);
-	void (*pic_drawcuralphatest) (int frame, int x, int y, void *loc);
-	void (*pic_drawcuradditive) (int frame, int x, int y, void *loc);
-	void (*pic_enablescissor) (int x, int y, int width, int height);
-	void (*pic_disablescissor) (void);
-	hlspriteinf_t *(*pic_parsepiclist) (char *filename, int *numparsed);
+	HLPIC (QDECL *pic_load) (char *picname);
+	int (QDECL *pic_getnumframes) (HLPIC pic);
+	int (QDECL *pic_getheight) (HLPIC pic, int frame);
+	int (QDECL *pic_getwidth) (HLPIC pic, int frame);
+	void (QDECL *pic_select) (HLPIC pic, int r, int g, int b);
+	void (QDECL *pic_drawcuropaque) (int frame, int x, int y, void *loc);
+	void (QDECL *pic_drawcuralphatest) (int frame, int x, int y, void *loc);
+	void (QDECL *pic_drawcuradditive) (int frame, int x, int y, void *loc);
+	void (QDECL *pic_enablescissor) (int x, int y, int width, int height);
+	void (QDECL *pic_disablescissor) (void);
+	hlspriteinf_t *(QDECL *pic_parsepiclist) (char *filename, int *numparsed);
 
-	void (*fillrgba) (int x, int y, int width, int height, int r, int g, int b, int a);
-	int (*getscreeninfo) (hlscreeninfo_t *info);
-	void (*setcrosshair) (HLPIC pic, hlsubrect_t rect, int r, int g, int b);	//I worry about stuff like this
+	void (QDECL *fillrgba) (int x, int y, int width, int height, int r, int g, int b, int a);
+	int (QDECL *getscreeninfo) (hlscreeninfo_t *info);
+	void (QDECL *setcrosshair) (HLPIC pic, hlsubrect_t rect, int r, int g, int b);	//I worry about stuff like this
 	
-	int (*cvar_register) (char *name, char *defvalue, int flags);
-	float (*cvar_getfloat) (char *name);
-	char *(*cvar_getstring) (char *name);
+	struct hlcvar_s *(QDECL *cvar_register) (char *name, char *defvalue, int flags);
+	float (QDECL *cvar_getfloat) (char *name);
+	char *(QDECL *cvar_getstring) (char *name);
 
-	void (*cmd_register) (char *name, void (*func) (void));
-	void (*hooknetmsg) (char *msgname, void *func);
-	void (*forwardcmd) (char *command);
-	void (*localcmd) (char *command);
+	void (QDECL *cmd_register) (char *name, void (*func) (void));
+	void (QDECL *hooknetmsg) (char *msgname, void *func);
+	void (QDECL *forwardcmd) (char *command);
+	void (QDECL *localcmd) (char *command);
 
-	void (*getplayerinfo) (int entnum, hlplayerinfo_t *result);
+	void (QDECL *getplayerinfo) (int entnum, hlplayerinfo_t *result);
 
-	void (*startsound_name) (char *name, float vol);
-	void (*startsound_idx) (int idx, float vol);
+	void (QDECL *startsound_name) (char *name, float vol);
+	void (QDECL *startsound_idx) (int idx, float vol);
 
-	void (*anglevectors) (float *ina, float *outf, float *outr, float *outu);
+	void (QDECL *anglevectors) (float *ina, float *outf, float *outr, float *outu);
 
-	hlmsginfo_t *(*get_message_info) (char *name);	//translated+scaled+etc intro stuff
-	int (*drawchar) (int x, int y, int charnum, int r, int g, int b);
-	int (*drawstring) (int x, int y, char *string);
+	hlmsginfo_t *(QDECL *get_message_info) (char *name);	//translated+scaled+etc intro stuff
+	int (QDECL *drawchar) (int x, int y, int charnum, int r, int g, int b);
+	int (QDECL *drawstring) (int x, int y, char *string);
 #if HLCL_API_VERSION >= 7
-	void (*settextcolour) (float r, float b, float g);
+	void (QDECL *settextcolour) (float r, float b, float g);
 #endif
-	void (*drawstring_getlen) (char *string, int *outlen, int *outheight);
-	void (*consoleprint) (char *str);
-	void (*centerprint) (char *str);
+	void (QDECL *drawstring_getlen) (char *string, int *outlen, int *outheight);
+	void (QDECL *consoleprint) (char *str);
+	void (QDECL *centerprint) (char *str);
 
 #if HLCL_API_VERSION >= 7
-	int (*getwindowcenterx)(void);	//yes, really, window center. for use with Get/SetCursorPos, the windows function.
-	int (*getwindowcentery)(void);	//yes, really, window center. for use with Get/SetCursorPos, the windows function.
-	void (*getviewnangles)(float*ang);
-	void (*setviewnangles)(float*ang);
-	void (*getmaxclients)(float*ang);
-	void (*cvar_setvalue)(char *cvarname, char *value);
+	int (QDECL *getwindowcenterx)(void);	//yes, really, window center. for use with Get/SetCursorPos, the windows function.
+	int (QDECL *getwindowcentery)(void);	//yes, really, window center. for use with Get/SetCursorPos, the windows function.
+	void (QDECL *getviewnangles)(float*ang);
+	void (QDECL *setviewnangles)(float*ang);
+	void (QDECL *getmaxclients)(float*ang);
+	void (QDECL *cvar_setvalue)(char *cvarname, char *value);
 
-	int (*cmd_argc)(void);
-	char *(*cmd_argv)(int i);
-	void (*con_printf)(char *fmt, ...);
-	void (*con_dprintf)(char *fmt, ...);
-	void (*con_notificationprintf)(int pos, char *fmt, ...);
-	void (*con_notificationprintfex)(void *info, char *fmt, ...);	//arg1 is of specific type
-	char *(*physkey)(char *key);
-	char *(*serverkey)(char *key);
-	float (*getclientmaxspeed)(void);
-	int (*checkparm)(char *str, char **next);
-	int (*keyevent)(int key, int down);
-	void (*getmousepos)(int *outx, int *outy);
-	int (*movetypeisnoclip)(void);
-	struct hlclent_s *(*getlocalplayer)(void);
-	struct hlclent_s *(*getviewent)(void);
-	struct hlclent_s *(*getentidx)(void);
-	float (*getlocaltime)(void);
-	void (*calcshake)(void);
-	void (*applyshake)(void);
-	int (*pointcontents)(float *point, float *truecon);
-	int (*waterentity)(float *point);
-	void (*traceline) (float *start, float *end, int flags, int hull, int forprediction);
+	int (QDECL *cmd_argc)(void);
+	char *(QDECL *cmd_argv)(int i);
+	void (QDECL *con_printf)(char *fmt, ...);
+	void (QDECL *con_dprintf)(char *fmt, ...);
+	void (QDECL *con_notificationprintf)(int pos, char *fmt, ...);
+	void (QDECL *con_notificationprintfex)(void *info, char *fmt, ...);	//arg1 is of specific type
+	char *(QDECL *physkey)(char *key);
+	char *(QDECL *serverkey)(char *key);
+	float (QDECL *getclientmaxspeed)(void);
+	int (QDECL *checkparm)(char *str, char **next);
+	int (QDECL *keyevent)(int key, int down);
+	void (QDECL *getmousepos)(int *outx, int *outy);
+	int (QDECL *movetypeisnoclip)(void);
+	struct hlclent_s *(QDECL *getlocalplayer)(void);
+	struct hlclent_s *(QDECL *getviewent)(void);
+	struct hlclent_s *(QDECL *getentidx)(void);
+	float (QDECL *getlocaltime)(void);
+	void (QDECL *calcshake)(void);
+	void (QDECL *applyshake)(float *,float *,float);
+	int (QDECL *pointcontents)(float *point, float *truecon);
+	int (QDECL *waterentity)(float *point);
+	void (QDECL *traceline) (float *start, float *end, int flags, int hull, int forprediction);
 
-	model_t *(*loadmodel)(char *modelname, int *mdlindex);
-	int (*addrentity)(int type, void *ent);
+	model_t *(QDECL *loadmodel)(char *modelname, int *mdlindex);
+	int (QDECL *addrentity)(int type, void *ent);
 
-	model_t *(*modelfrompic) (HLPIC pic);
-	void (*soundatloc)(char*sound, float volume, float *org);
+	model_t *(QDECL *modelfrompic) (HLPIC pic);
+	void (QDECL *soundatloc)(char*sound, float volume, float *org);
 
-	unsigned short (*precacheevent)(int evtype, char *name);
-	void (*playevent)(int flags, struct hledict_s *ent, unsigned short evindex, float delay, float *origin, float *angles, float f1, float f2, int i1, int i2, int b1, int b2);
-	void (*weaponanimate)(int anim, int body);
-	float (*randfloat) (float minv, float maxv);
-	long (*randlong) (long minv, long maxv);
-	void (*hookevent) (char *name, void (*func)(struct hlevent_s *event));
-	int (*con_isshown) (void);
-	char *(*getgamedir) (void);
-	struct hlcvar_s *(*cvar_find) (char *name);
-	char *(*lookupbinding) (char *command);
-	char *(*getlevelname) (void);
-	void (*getscreenfade) (struct hlsfade_s *fade);
-	void (*setscreenfade) (struct hlsfade_s *fade);
-	void *(*vgui_getpanel) (void);
-	void (*vgui_paintback) (int extents[4]);
+	unsigned short (QDECL *precacheevent)(int evtype, char *name);
+	void (QDECL *playevent)(int flags, struct hledict_s *ent, unsigned short evindex, float delay, float *origin, float *angles, float f1, float f2, int i1, int i2, int b1, int b2);
+	void (QDECL *weaponanimate)(int anim, int body);
+	float (QDECL *randfloat) (float minv, float maxv);
+	long (QDECL *randlong) (long minv, long maxv);
+	void (QDECL *hookevent) (char *name, void (*func)(struct hlevent_s *event));
+	int (QDECL *con_isshown) (void);
+	char *(QDECL *getgamedir) (void);
+	struct hlcvar_s *(QDECL *cvar_find) (char *name);
+	char *(QDECL *lookupbinding) (char *command);
+	char *(QDECL *getlevelname) (void);
+	void (QDECL *getscreenfade) (struct hlsfade_s *fade);
+	void (QDECL *setscreenfade) (struct hlsfade_s *fade);
+	void *(QDECL *vgui_getpanel) (void);
+	void (QDECL *vgui_paintback) (int extents[4]);
 
-	void *(*loadfile) (char *path, int onhunk, int *length);
-	char *(*parsefile) (char *data, char *token);
-	void (*freefile) (void *file);
+	void *(QDECL *loadfile) (char *path, int onhunk, int *length);
+	char *(QDECL *parsefile) (char *data, char *token);
+	void (QDECL *freefile) (void *file);
 
 	struct hl_tri_api_s
 	{
@@ -227,10 +239,10 @@ typedef struct
 	} *eventapi;
 	struct hl_demo_api_s 
 	{
-		int (*isrecording)(void);
-		int (*isplaying)(void);
-		int (*istimedemo)(void);
-		void (*writedata)(int size, void *data);
+		int (QDECL *isrecording)(void);
+		int (QDECL *isplaying)(void);
+		int (QDECL *istimedemo)(void);
+		void (QDECL *writedata)(int size, void *data);
 
 		int sentinal;
 	} *demoapi;
@@ -245,22 +257,22 @@ typedef struct
 		int sentinal;
 	} *voiceapi;
 
-	int (*forcedspectator) (void);
-	model_t *(*loadmapsprite) (char *name);
+	int (QDECL *forcedspectator) (void);
+	model_t *(QDECL *loadmapsprite) (char *name);
 
-	void (*fs_addgamedir) (char *basedir, char *appname);
-	int (*expandfilename) (char *filename, char *outbuff, int outsize);
+	void (QDECL *fs_addgamedir) (char *basedir, char *appname);
+	int (QDECL *expandfilename) (char *filename, char *outbuff, int outsize);
 
-	char *(*player_key) (int pnum, char *key);
-	void (*player_setkey) (char *key, char *value);	//wait, no pnum?
+	char *(QDECL *player_key) (int pnum, char *key);
+	void (QDECL *player_setkey) (char *key, char *value);	//wait, no pnum?
 
-	qboolean (*getcdkey) (int playernum, char key[16]);
+	qboolean (QDECL *getcdkey) (int playernum, char key[16]);
 	int trackerfromplayer;
 	int playerfromtracker;
-	int (*sendcmd_unreliable) (char *cmd);
-	void (*getsysmousepos) (long *xandy);
-	void (*setsysmousepos) (int x, int y);
-	void (*setmouseenable) (qboolean enable);
+	int (QDECL *sendcmd_unreliable) (char *cmd);
+	void (QDECL *getsysmousepos) (long *xandy);
+	void (QDECL *setsysmousepos) (int x, int y);
+	void (QDECL *setmouseenable) (qboolean enable);
 #endif
 
 	int sentinal;
@@ -269,17 +281,17 @@ typedef struct
 
 typedef struct
 {
-	int (*HUD_VidInit) (void);
-	int (*HUD_Init) (void);
-	int (*HUD_Shutdown) (void);
-	int (*HUD_Redraw) (float maptime, int inintermission);
-	int (*HUD_UpdateClientData) (hllocalclientdata_t *localclientdata, float maptime);
-	int (*HUD_Reset) (void);
+	int (QDECL *HUD_VidInit) (void);
+	int (QDECL *HUD_Init) (void);
+	int (QDECL *HUD_Shutdown) (void);
+	int (QDECL *HUD_Redraw) (float maptime, int inintermission);
+	int (QDECL *HUD_UpdateClientData) (hllocalclientdata_t *localclientdata, float maptime);
+	int (QDECL *HUD_Reset) (void);
 #if HLCL_API_VERSION >= 7
-	void (*CL_CreateMove) (float frametime, hlusercmd_t *cmd, int isplaying);
-	void (*IN_ActivateMouse) (void);
-	void (*IN_DeactivateMouse) (void);
-	void (*IN_MouseEvent) (int buttonmask);
+	void (QDECL *CL_CreateMove) (float frametime, hlusercmd_t *cmd, int isplaying);
+	void (QDECL *IN_ActivateMouse) (void);
+	void (QDECL *IN_DeactivateMouse) (void);
+	void (QDECL *IN_MouseEvent) (int buttonmask);
 #endif
 } CLHL_cgamefuncs_t;
 
@@ -311,7 +323,7 @@ typedef struct
 typedef struct
 {
 	char name[64];
-	int (*hook) (char *name, int bufsize, void *bufdata);
+	int (QDECL *hook) (char *name, int bufsize, void *bufdata);
 } CLHL_UserMessages_t;
 CLHL_UserMessages_t usermsgs[256];
 
@@ -329,12 +341,12 @@ int hl_viewmodelsequencebody;
 
 
 
-HLPIC CLGHL_pic_load (char *picname)
+HLPIC QDECL CLGHL_pic_load (char *picname)
 {
 	return Mod_ForName(picname, false);
 //	return Draw_SafeCachePic(picname);
 }
-int CLGHL_pic_getnumframes (HLPIC pic)
+int QDECL CLGHL_pic_getnumframes (HLPIC pic)
 {
 	if (pic)
 		return pic->numframes;
@@ -369,7 +381,7 @@ static mpic_t *getspritepic(HLPIC pic, int frame)
 	return NULL;
 }
 
-int CLGHL_pic_getheight (HLPIC pic, int frame)
+int QDECL CLGHL_pic_getheight (HLPIC pic, int frame)
 {
 	mspriteframe_t *pframe;
 
@@ -379,7 +391,7 @@ int CLGHL_pic_getheight (HLPIC pic, int frame)
 
 	return pframe->p.width;
 }
-int CLGHL_pic_getwidth (HLPIC pic, int frame)
+int QDECL CLGHL_pic_getwidth (HLPIC pic, int frame)
 {
 	mspriteframe_t *pframe;
 
@@ -389,12 +401,12 @@ int CLGHL_pic_getwidth (HLPIC pic, int frame)
 
 	return pframe->p.height;
 }
-void CLGHL_pic_select (HLPIC pic, int r, int g, int b)
+void QDECL CLGHL_pic_select (HLPIC pic, int r, int g, int b)
 {
 	selectedpic = pic;
 	Draw_ImageColours(r/255.0f, g/255.0f, b/255.0f, 1);
 }
-void CLGHL_pic_drawcuropaque (int frame, int x, int y, hlsubrect_t *loc)
+void QDECL CLGHL_pic_drawcuropaque (int frame, int x, int y, hlsubrect_t *loc)
 {
 	mpic_t *pic = getspritepic(selectedpic, frame);
 	if (!pic)
@@ -409,7 +421,7 @@ void CLGHL_pic_drawcuropaque (int frame, int x, int y, hlsubrect_t *loc)
 		(float)loc->r/pic->width, (float)loc->b/pic->height,
 		pic);
 }
-void CLGHL_pic_drawcuralphtest (int frame, int x, int y, hlsubrect_t *loc)
+void QDECL CLGHL_pic_drawcuralphtest (int frame, int x, int y, hlsubrect_t *loc)
 {
 	mpic_t *pic = getspritepic(selectedpic, frame);
 	if (!pic)
@@ -423,7 +435,7 @@ void CLGHL_pic_drawcuralphtest (int frame, int x, int y, hlsubrect_t *loc)
 		(float)loc->r/pic->width, (float)loc->b/pic->height,
 		pic);
 }
-void CLGHL_pic_drawcuradditive (int frame, int x, int y, hlsubrect_t *loc)
+void QDECL CLGHL_pic_drawcuradditive (int frame, int x, int y, hlsubrect_t *loc)
 {
 	mpic_t *pic = getspritepic(selectedpic, frame);
 	if (!pic)
@@ -452,13 +464,13 @@ void CLGHL_pic_drawcuradditive (int frame, int x, int y, hlsubrect_t *loc)
 	}
 	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
-void CLGHL_pic_enablescissor (int x, int y, int width, int height)
+void QDECL CLGHL_pic_enablescissor (int x, int y, int width, int height)
 {
 }
-void CLGHL_pic_disablescissor (void)
+void QDECL CLGHL_pic_disablescissor (void)
 {
 }
-hlspriteinf_t *CLGHL_pic_parsepiclist (char *filename, int *numparsed)
+hlspriteinf_t *QDECL CLGHL_pic_parsepiclist (char *filename, int *numparsed)
 {
 	hlspriteinf_t *result;
 	int entry;
@@ -514,10 +526,10 @@ hlspriteinf_t *CLGHL_pic_parsepiclist (char *filename, int *numparsed)
 	return result;
 }
 
-void CLGHL_fillrgba (int x, int y, int width, int height, int r, int g, int b, int a)
+void QDECL CLGHL_fillrgba (int x, int y, int width, int height, int r, int g, int b, int a)
 {
 }
-int CLGHL_getscreeninfo (hlscreeninfo_t *info)
+int QDECL CLGHL_getscreeninfo (hlscreeninfo_t *info)
 {
 	int i;
 	if (info->size != sizeof(*info))
@@ -532,25 +544,25 @@ int CLGHL_getscreeninfo (hlscreeninfo_t *info)
 
 	return true;
 }
-void CLGHL_setcrosshair (HLPIC pic, hlsubrect_t rect, int r, int g, int b)
+void QDECL CLGHL_setcrosshair (HLPIC pic, hlsubrect_t rect, int r, int g, int b)
 {
 }
 
-struct hlcvar_s *CLGHL_cvar_register (char *name, char *defvalue, int flags)
+struct hlcvar_s *QDECL CLGHL_cvar_register (char *name, char *defvalue, int flags)
 {
 	if (Cvar_Get(name, defvalue, 0, "Halflife cvars"))
 		return GHL_CVarGetPointer(name);
 	else
 		return NULL;
 }
-float CLGHL_cvar_getfloat (char *name)
+float QDECL CLGHL_cvar_getfloat (char *name)
 {
 	cvar_t *var = Cvar_FindVar(name);
 	if (var)
 		return var->value;
 	return 0;
 }
-char *CLGHL_cvar_getstring (char *name)
+char *QDECL CLGHL_cvar_getstring (char *name)
 {
 	cvar_t *var = Cvar_FindVar(name);
 	if (var)
@@ -558,11 +570,11 @@ char *CLGHL_cvar_getstring (char *name)
 	return "";
 }
 
-void CLGHL_cmd_register (char *name, xcommand_t func)
+void QDECL CLGHL_cmd_register (char *name, xcommand_t func)
 {
 	Cmd_AddRemCommand(name, func);
 }
-void CLGHL_hooknetmsg (char *msgname, void *func)
+void QDECL CLGHL_hooknetmsg (char *msgname, void *func)
 {
 	int i;
 	//update the current list now.
@@ -589,16 +601,16 @@ void CLGHL_hooknetmsg (char *msgname, void *func)
 	pendingusermsgs[numnewhooks].hook = func;
 	numnewhooks++;
 }
-void CLGHL_forwardcmd (char *command)
+void QDECL CLGHL_forwardcmd (char *command)
 {
 	CL_SendClientCommand(true, "%s", command);
 }
-void CLGHL_localcmd (char *command)
+void QDECL CLGHL_localcmd (char *command)
 {
 	Cbuf_AddText(command, RESTRICT_SERVER);
 }
 
-void CLGHL_getplayerinfo (int entnum, hlplayerinfo_t *result)
+void QDECL CLGHL_getplayerinfo (int entnum, hlplayerinfo_t *result)
 {
 	player_info_t *player;
 	entnum--;
@@ -619,7 +631,7 @@ void CLGHL_getplayerinfo (int entnum, hlplayerinfo_t *result)
 		result->model = "";
 }
 
-void CLGHL_startsound_name (char *name, float vol)
+void QDECL CLGHL_startsound_name (char *name, float vol)
 {
 	sfx_t *sfx = S_PrecacheSound (name);
 	if (!sfx)
@@ -629,7 +641,7 @@ void CLGHL_startsound_name (char *name, float vol)
 	}
 	S_StartSound (-1, -1, sfx, vec3_origin, vol, 1);
 }
-void CLGHL_startsound_idx (int idx, float vol)
+void QDECL CLGHL_startsound_idx (int idx, float vol)
 {
 	sfx_t *sfx = cl.sound_precache[idx];
 	if (!sfx)
@@ -640,12 +652,12 @@ void CLGHL_startsound_idx (int idx, float vol)
 	S_StartSound (-1, -1, sfx, vec3_origin, vol, 1);
 }
 
-void CLGHL_anglevectors (float *ina, float *outf, float *outr, float *outu)
+void QDECL CLGHL_anglevectors (float *ina, float *outf, float *outr, float *outu)
 {
 	AngleVectors(ina, outf, outr, outu);
 }
 
-hlmsginfo_t *CLGHL_get_message_info (char *name)
+hlmsginfo_t *QDECL CLGHL_get_message_info (char *name)
 {
 	//fixme: add parser
 	hlmsginfo_t *ret;
@@ -664,70 +676,70 @@ hlmsginfo_t *CLGHL_get_message_info (char *name)
 	ret->holdtime = 1000;
 	return ret;
 }
-int CLGHL_drawchar (int x, int y, int charnum, int r, int g, int b)
+int QDECL CLGHL_drawchar (int x, int y, int charnum, int r, int g, int b)
 {
 	return 0;
 }
-int CLGHL_drawstring (int x, int y, char *string)
+int QDECL CLGHL_drawstring (int x, int y, char *string)
 {
 	return 0;
 }
-void CLGHL_settextcolour(float r, float g, float b)
+void QDECL CLGHL_settextcolour(float r, float g, float b)
 {
 }
-void CLGHL_drawstring_getlen (char *string, int *outlen, int *outheight)
+void QDECL CLGHL_drawstring_getlen (char *string, int *outlen, int *outheight)
 {
 	*outlen = strlen(string)*8;
 	*outheight = 8;
 }
-void CLGHL_consoleprint (char *str)
+void QDECL CLGHL_consoleprint (char *str)
 {
 	Con_Printf("%s", str);
 }
-void CLGHL_centerprint (char *str)
+void QDECL CLGHL_centerprint (char *str)
 {
 	SCR_CenterPrint(0, str, true);
 }
 
 
-int CLGHL_getwindowcenterx(void)
+int QDECL CLGHL_getwindowcenterx(void)
 {
 	return window_center_x;
 }
-int CLGHL_getwindowcentery(void)
+int QDECL CLGHL_getwindowcentery(void)
 {
 	return window_center_y;
 }
-void CLGHL_getviewnangles(float*ang)
+void QDECL CLGHL_getviewnangles(float*ang)
 {
 	VectorCopy(cl.viewangles[0], ang);
 }
-void CLGHL_setviewnangles(float*ang)
+void QDECL CLGHL_setviewnangles(float*ang)
 {
 	VectorCopy(ang, cl.viewangles[0]);
 }
-void CLGHL_getmaxclients(float*ang){notimp(__LINE__);}
-void CLGHL_cvar_setvalue(char *cvarname, char *value){notimp(__LINE__);}
+void QDECL CLGHL_getmaxclients(float*ang){notimp(__LINE__);}
+void QDECL CLGHL_cvar_setvalue(char *cvarname, char *value){notimp(__LINE__);}
 
-int CLGHL_cmd_argc(void)
+int QDECL CLGHL_cmd_argc(void)
 {
 	return Cmd_Argc();
 }
-char *CLGHL_cmd_argv(int i)
+char *QDECL CLGHL_cmd_argv(int i)
 {
 	return Cmd_Argv(i);
 }
 #define CLGHL_con_printf Con_Printf//void CLGHL_con_printf(char *fmt, ...){notimp(__LINE__);}
 #define CLGHL_con_dprintf Con_DPrintf//void CLGHL_con_dprintf(char *fmt, ...){notimp(__LINE__);}
-void CLGHL_con_notificationprintf(int pos, char *fmt, ...){notimp(__LINE__);}
-void CLGHL_con_notificationprintfex(void *info, char *fmt, ...){notimp(__LINE__);}
-char *CLGHL_physkey(char *key){notimp(__LINE__);return NULL;}
-char *CLGHL_serverkey(char *key){notimp(__LINE__);return NULL;}
-float CLGHL_getclientmaxspeed(void)
+void QDECL CLGHL_con_notificationprintf(int pos, char *fmt, ...){notimp(__LINE__);}
+void QDECL CLGHL_con_notificationprintfex(void *info, char *fmt, ...){notimp(__LINE__);}
+char *QDECL CLGHL_physkey(char *key){notimp(__LINE__);return NULL;}
+char *QDECL CLGHL_serverkey(char *key){notimp(__LINE__);return NULL;}
+float QDECL CLGHL_getclientmaxspeed(void)
 {
 	return 320;
 }
-int CLGHL_checkparm(char *str, const char **next)
+int QDECL CLGHL_checkparm(char *str, const char **next)
 {
 	int i;
 	i = COM_CheckParm(str);
@@ -740,7 +752,7 @@ int CLGHL_checkparm(char *str, const char **next)
 	}
 	return i;
 }
-int CLGHL_keyevent(int key, int down)
+int QDECL CLGHL_keyevent(int key, int down)
 {
 	if (key >= 241 && key <= 241+5)
 		Key_Event(K_MOUSE1+key-241, 0, down);
@@ -748,62 +760,62 @@ int CLGHL_keyevent(int key, int down)
 		Con_Printf("CLGHL_keyevent: Unrecognised HL key code\n");
 	return true;	//fixme: check the return type
 }
-void CLGHL_getmousepos(int *outx, int *outy){notimp(__LINE__);}
-int CLGHL_movetypeisnoclip(void){notimp(__LINE__);return 0;}
-struct hlclent_s *CLGHL_getlocalplayer(void){notimp(__LINE__);return NULL;}
-struct hlclent_s *CLGHL_getviewent(void){notimp(__LINE__);return NULL;}
-struct hlclent_s *CLGHL_getentidx(void){notimp(__LINE__);return NULL;}
-float CLGHL_getlocaltime(void){return cl.time;}
-void CLGHL_calcshake(void){notimp(__LINE__);}
-void CLGHL_applyshake(float *origin, float *angles, float factor){notimp(__LINE__);}
-int CLGHL_pointcontents(float *point, float *truecon){notimp(__LINE__);return 0;}
-int CLGHL_entcontents(float *point){notimp(__LINE__);return 0;}
-void CLGHL_traceline(float *start, float *end, int flags, int hull, int forprediction){notimp(__LINE__);}
+void QDECL CLGHL_getmousepos(int *outx, int *outy){notimp(__LINE__);}
+int QDECL CLGHL_movetypeisnoclip(void){notimp(__LINE__);return 0;}
+struct hlclent_s *QDECL CLGHL_getlocalplayer(void){notimp(__LINE__);return NULL;}
+struct hlclent_s *QDECL CLGHL_getviewent(void){notimp(__LINE__);return NULL;}
+struct hlclent_s *QDECL CLGHL_getentidx(void){notimp(__LINE__);return NULL;}
+float QDECL CLGHL_getlocaltime(void){return cl.time;}
+void QDECL CLGHL_calcshake(void){notimp(__LINE__);}
+void QDECL CLGHL_applyshake(float *origin, float *angles, float factor){notimp(__LINE__);}
+int QDECL CLGHL_pointcontents(float *point, float *truecon){notimp(__LINE__);return 0;}
+int QDECL CLGHL_entcontents(float *point){notimp(__LINE__);return 0;}
+void QDECL CLGHL_traceline(float *start, float *end, int flags, int hull, int forprediction){notimp(__LINE__);}
 
-model_t *CLGHL_loadmodel(char *modelname, int *mdlindex){notimp(__LINE__);return Mod_ForName(modelname, false);}
-int CLGHL_addrentity(int type, void *ent){notimp(__LINE__);return 0;}
+model_t *QDECL CLGHL_loadmodel(char *modelname, int *mdlindex){notimp(__LINE__);return Mod_ForName(modelname, false);}
+int QDECL CLGHL_addrentity(int type, void *ent){notimp(__LINE__);return 0;}
 
-model_t *CLGHL_modelfrompic(HLPIC pic){notimp(__LINE__);return NULL;}
-void CLGHL_soundatloc(char*sound, float volume, float *org){notimp(__LINE__);}
+model_t *QDECL CLGHL_modelfrompic(HLPIC pic){notimp(__LINE__);return NULL;}
+void QDECL CLGHL_soundatloc(char*sound, float volume, float *org){notimp(__LINE__);}
 
-unsigned short CLGHL_precacheevent(int evtype, char *name){notimp(__LINE__);return 0;}
-void CLGHL_playevent(int flags, struct hledict_s *ent, unsigned short evindex, float delay, float *origin, float *angles, float f1, float f2, int i1, int i2, int b1, int b2){notimp(__LINE__);}
-void CLGHL_weaponanimate(int newsequence, int body)
+unsigned short QDECL CLGHL_precacheevent(int evtype, char *name){notimp(__LINE__);return 0;}
+void QDECL CLGHL_playevent(int flags, struct hledict_s *ent, unsigned short evindex, float delay, float *origin, float *angles, float f1, float f2, int i1, int i2, int b1, int b2){notimp(__LINE__);}
+void QDECL CLGHL_weaponanimate(int newsequence, int body)
 {
 	hl_viewmodelsequencetime = cl.time;
 	hl_viewmodelsequencecur = newsequence;
 	hl_viewmodelsequencebody = body;
 }
-float CLGHL_randfloat(float minv, float maxv){notimp(__LINE__);return minv;}
-long CLGHL_randlong(long minv, long maxv){notimp(__LINE__);return minv;}
-void CLGHL_hookevent(char *name, void (*func)(struct hlevent_s *event)){notimp(__LINE__);}
-int CLGHL_con_isshown(void)
+float QDECL CLGHL_randfloat(float minv, float maxv){notimp(__LINE__);return minv;}
+long QDECL CLGHL_randlong(long minv, long maxv){notimp(__LINE__);return minv;}
+void QDECL CLGHL_hookevent(char *name, void (*func)(struct hlevent_s *event)){notimp(__LINE__);}
+int QDECL CLGHL_con_isshown(void)
 {
 	return scr_con_current > 0;
 }
-char *CLGHL_getgamedir(void)
+char *QDECL CLGHL_getgamedir(void)
 {
 	extern char	gamedirfile[];
 	return gamedirfile;
 }
-struct hlcvar_s *CLGHL_cvar_find(char *name)
+struct hlcvar_s *QDECL CLGHL_cvar_find(char *name)
 {
 	return GHL_CVarGetPointer(name);
 }
-char *CLGHL_lookupbinding(char *command)
+char *QDECL CLGHL_lookupbinding(char *command)
 {
 	return NULL;
 }
-char *CLGHL_getlevelname(void)
+char *QDECL CLGHL_getlevelname(void)
 {
 	return cl.levelname;
 }
-void CLGHL_getscreenfade(struct hlsfade_s *fade){notimp(__LINE__);}
-void CLGHL_setscreenfade(struct hlsfade_s *fade){notimp(__LINE__);}
-void *CLGHL_vgui_getpanel(void){notimp(__LINE__);return NULL;}
-void CLGHL_vgui_paintback(int extents[4]){notimp(__LINE__);}
+void QDECL CLGHL_getscreenfade(struct hlsfade_s *fade){notimp(__LINE__);}
+void QDECL CLGHL_setscreenfade(struct hlsfade_s *fade){notimp(__LINE__);}
+void *QDECL CLGHL_vgui_getpanel(void){notimp(__LINE__);return NULL;}
+void QDECL CLGHL_vgui_paintback(int extents[4]){notimp(__LINE__);}
 
-void *CLGHL_loadfile(char *path, int alloctype, int *length)
+void *QDECL CLGHL_loadfile(char *path, int alloctype, int *length)
 {
 	void *ptr = NULL;
 	int flen = -1;
@@ -819,49 +831,49 @@ void *CLGHL_loadfile(char *path, int alloctype, int *length)
 
 	return ptr;
 }
-char *CLGHL_parsefile(char *data, char *token)
+char *QDECL CLGHL_parsefile(char *data, char *token)
 {
 	return COM_ParseOut(data, token, 1024);
 }
-void CLGHL_freefile(void *file)
+void QDECL CLGHL_freefile(void *file)
 {
 	//only valid for alloc type 5
 	FS_FreeFile(file);
 }
 
 
-int CLGHL_forcedspectator(void)
+int QDECL CLGHL_forcedspectator(void)
 {
 	return cls.demoplayback;
 }
-model_t *CLGHL_loadmapsprite(char *name)
+model_t *QDECL CLGHL_loadmapsprite(char *name)
 {
 	notimp(__LINE__);return NULL;
 }
 
-void CLGHL_fs_addgamedir(char *basedir, char *appname){notimp(__LINE__);}
-int CLGHL_expandfilename(char *filename, char *outbuff, int outsize){notimp(__LINE__);return false;}
+void QDECL CLGHL_fs_addgamedir(char *basedir, char *appname){notimp(__LINE__);}
+int QDECL CLGHL_expandfilename(char *filename, char *outbuff, int outsize){notimp(__LINE__);return false;}
 
-char *CLGHL_player_key(int pnum, char *key){notimp(__LINE__);return NULL;}
-void CLGHL_player_setkey(char *key, char *value){notimp(__LINE__);return NULL;}
+char *QDECL CLGHL_player_key(int pnum, char *key){notimp(__LINE__);return NULL;}
+void QDECL CLGHL_player_setkey(char *key, char *value){notimp(__LINE__);return;}
 
-qboolean CLGHL_getcdkey(int playernum, char key[16]){notimp(__LINE__);return false;}
-int CLGHL_trackerfromplayer(int pslot){notimp(__LINE__);return 0;}
-int CLGHL_playerfromtracker(int tracker){notimp(__LINE__);return 0;}
-int CLGHL_sendcmd_unreliable(char *cmd){notimp(__LINE__);return 0;}
-void CLGHL_getsysmousepos(long *xandy)
+qboolean QDECL CLGHL_getcdkey(int playernum, char key[16]){notimp(__LINE__);return false;}
+int QDECL CLGHL_trackerfromplayer(int pslot){notimp(__LINE__);return 0;}
+int QDECL CLGHL_playerfromtracker(int tracker){notimp(__LINE__);return 0;}
+int QDECL CLGHL_sendcmd_unreliable(char *cmd){notimp(__LINE__);return 0;}
+void QDECL CLGHL_getsysmousepos(long *xandy)
 {
 #ifdef _WIN32
 	GetCursorPos((LPPOINT)xandy);
 #endif
 }
-void CLGHL_setsysmousepos(int x, int y)
+void QDECL CLGHL_setsysmousepos(int x, int y)
 {
 #ifdef _WIN32
 	SetCursorPos(x, y);
 #endif
 }
-void CLGHL_setmouseenable(qboolean enable)
+void QDECL CLGHL_setmouseenable(qboolean enable)
 {
 	extern cvar_t _windowed_mouse;
 	Cvar_Set(&_windowed_mouse, enable?"1":"0");
@@ -870,19 +882,19 @@ void CLGHL_setmouseenable(qboolean enable)
 
 
 #if HLCL_API_VERSION >= 7
-int CLGHL_demo_isrecording(void)
+int QDECL CLGHL_demo_isrecording(void)
 {
 	return cls.demorecording;
 }
-int CLGHL_demo_isplaying(void)
+int QDECL CLGHL_demo_isplaying(void)
 {
 	return cls.demoplayback;
 }
-int CLGHL_demo_istimedemo(void)
+int QDECL CLGHL_demo_istimedemo(void)
 {
 	return cls.timedemo;
 }
-void CLGHL_demo_writedata(int size, void *data)
+void QDECL CLGHL_demo_writedata(int size, void *data)
 {
 	notimp(__LINE__);
 }
@@ -1100,7 +1112,7 @@ void CLHL_LoadClientGame(void)
 	char fullname[MAX_OSPATH];
 	char *path;
 
-	int (*initfunc)(CLHL_enginecgamefuncs_t *funcs, int version);
+	int (QDECL *initfunc)(CLHL_enginecgamefuncs_t *funcs, int version);
 	dllfunction_t funcs[] =
 	{
 		{(void*)&initfunc, "Initialize"},
@@ -1115,7 +1127,7 @@ void CLHL_LoadClientGame(void)
 	while((path = COM_NextPath (path)))
 	{
 		if (!path)
-			return NULL;		// couldn't find one anywhere
+			return;		// couldn't find one anywhere
 		snprintf (fullname, sizeof(fullname), "%s/%s", path, "cl_dlls/client");
 		clg = Sys_LoadLibrary(fullname, funcs);
 		if (clg)
@@ -1127,6 +1139,7 @@ void CLHL_LoadClientGame(void)
 
 	if (!initfunc(&CLHL_enginecgamefuncs, HLCL_API_VERSION))
 	{
+		Con_Printf("HalfLife cldll is not version %i\n", HLCL_API_VERSION);
 		Sys_CloseLibrary(clg);
 		clg = NULL;
 		return;
@@ -1284,7 +1297,7 @@ int CLHL_ParseGamePacket(void)
 				if (!(flags & 4))
 					S_StartSound(0, 0, S_PrecacheSound("explosion"), startp, 1, 1);
 				if (!(flags & 2))
-					CL_NewDlightRGB(0, startp[0], startp[1], startp[2], 200, 1, 0.2,0.2,0.2);
+					CL_NewDlightRGB(0, startp, 200, 1, 0.2,0.2,0.2);
 
 				ef = CL_AllocExplosion();
 				VectorCopy(startp, ef->origin);

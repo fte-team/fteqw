@@ -1,9 +1,10 @@
 #include "quakedef.h"
 
 #if defined(TERRAIN) && !defined(SERVERONLY) //fixme
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 #endif
+#include "shader.h"
 
 //heightmaps work thusly:
 //there is one raw heightmap file
@@ -24,13 +25,13 @@ typedef struct {
 	float terrainscale;
 	float heightscale;
 	int numsegs;
-	int detailtexture;
-	int textures[SECTIONS*SECTIONS];
+	texid_t detailtexture;
+	texid_t textures[SECTIONS*SECTIONS];
 	int displaylist[SECTIONS*SECTIONS];	//display lists are famous for being stupidly fast with heightmaps.
 	unsigned short mins[SECTIONS*SECTIONS], maxs[SECTIONS*SECTIONS];
 } heightmap_t;
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #define DISPLISTS
 //#define MULTITEXTURE	//ATI suck. I don't know about anyone else (this goes at 1/5th the speed).
 
@@ -51,14 +52,11 @@ void GL_DrawHeightmapModel (entity_t *e)
 	if (e->model == cl.worldmodel)
 	{
 		qglColor4f(1, 1, 1, 1);
-
-		R_ClearSkyBox();
-		R_ForceSkyBox();
-		GL_DrawSkyBox(NULL);
+		R_DrawSkyChain(NULL);
 	}
 	else
 		qglColor4fv(e->shaderRGBAf);
-	qglEnable(GL_CULL_FACE);
+	GL_CullFace(SHADER_CULL_BACK);
 
 	for (x = 0; x < hm->numsegs; x++)
 	{
@@ -84,10 +82,8 @@ void GL_DrawHeightmapModel (entity_t *e)
 #ifdef MULTITEXTURE
 				if (qglActiveTextureARB)
 				{
-					qglActiveTextureARB(GL_TEXTURE0_ARB);
-					bindTexFunc(GL_TEXTURE_2D, hm->textures[x+y*SECTIONS]);
-					qglActiveTextureARB(GL_TEXTURE1_ARB);
-					bindTexFunc(GL_TEXTURE_2D, hm->detailtexture);
+					GL_MBind(0, hm->textures[x+y*SECTIONS]);
+					GL_MBind(1, hm->detailtexture);
 					qglEnable(GL_TEXTURE_2D);
 
 					subsize = hm->terrainsize/SECTIONS;
@@ -121,7 +117,7 @@ void GL_DrawHeightmapModel (entity_t *e)
 				else
 #endif
 				{	//single texture
-					bindTexFunc(GL_TEXTURE_2D, hm->textures[x+y*SECTIONS]);
+					GL_Bind(hm->textures[x+y*SECTIONS]);
 					qglBegin(GL_QUADS);
 					subsize = hm->terrainsize/hm->numsegs;
 					minx = x*subsize;
@@ -142,7 +138,7 @@ void GL_DrawHeightmapModel (entity_t *e)
 					}
 					qglEnd();
 
-					bindTexFunc(GL_TEXTURE_2D, hm->detailtexture);
+					GL_Bind(hm->detailtexture);
 					qglEnable(GL_BLEND);
 
 					qglBlendFunc (GL_ZERO, GL_SRC_COLOR);
@@ -591,12 +587,12 @@ unsigned int Heightmap_FatPVS		(model_t *mod, vec3_t org, qbyte *pvsbuffer, unsi
 }
 
 #ifndef CLIENTONLY
-qboolean Heightmap_EdictInFatPVS	(model_t *mod, edict_t *edict, qbyte *pvsdata)
+qboolean Heightmap_EdictInFatPVS	(model_t *mod, wedict_t *edict, qbyte *pvsdata)
 {
 	return true;
 }
 
-void Heightmap_FindTouchedLeafs	(model_t *mod, edict_t *ent, float *mins, float *maxs)
+void Heightmap_FindTouchedLeafs	(world_t *w, model_t *mod, wedict_t *ent, float *mins, float *maxs)
 {
 }
 #endif
@@ -765,23 +761,20 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 
 	mod->entities = COM_LoadHunkFile(entfile);
 
-#ifdef RGLQUAKE
-	hm->detailtexture = Mod_LoadHiResTexture(detailtexname, "", true, true, false);
-
-	for (x = 0; x < numsegs; x++)
+	if (qrenderer>0)
 	{
-		int y;
+		hm->detailtexture = R_LoadHiResTexture(detailtexname, "", IF_NOGAMMA);
 
-		for (y = 0; y < numsegs; y++)
+		for (x = 0; x < numsegs; x++)
 		{
-			hm->textures[x+y*SECTIONS] = Mod_LoadHiResTexture(va("%s%02ix%02i%s", basetexname, x, y, exttexname), "", true, true, false);
-			qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			qglTexParameteri (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			int y;
+
+			for (y = 0; y < numsegs; y++)
+			{
+				hm->textures[x+y*SECTIONS] = R_LoadHiResTexture(va("%s%02ix%02i%s", basetexname, x, y, exttexname), "", IF_CLAMP|IF_NOGAMMA);
+			}
 		}
 	}
-#endif
-
-	R_SetSky(skyname, skyrotate, skyaxis);
 
 	mod->funcs.Trace				= Heightmap_Trace;
 	mod->funcs.PointContents		= Heightmap_PointContents;

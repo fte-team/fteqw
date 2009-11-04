@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 
 extern vrect_t gl_truescreenrect;
@@ -71,10 +71,10 @@ static cvar_t		r_bloom_fast_sample = SCVARF("r_bloom_fast_sample", "0", CVAR_REN
 
 typedef struct {
 	//texture numbers
-	int	tx_screen;
-	int tx_effect;
-	int tx_backup;
-	int tx_downsample;
+	texid_t	tx_screen;
+	texid_t tx_effect;
+	texid_t tx_backup;
+	texid_t tx_downsample;
 
 	//the viewport dimensions
 	int vp_x;
@@ -143,7 +143,7 @@ void R_Bloom_InitBackUpTexture(int widthheight)
 	data = Z_Malloc(widthheight * widthheight * 4);
 
 	bs.size_backup = widthheight;
-	bs.tx_backup = GL_LoadTexture32("***bs.tx_backup***", bs.size_backup, bs.size_backup, (unsigned int*)data, false, false);
+	bs.tx_backup = GL_LoadTexture32("***bs.tx_backup***", bs.size_backup, bs.size_backup, (unsigned int*)data, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);
 	
 	Z_Free (data);
 }
@@ -182,7 +182,7 @@ void R_Bloom_InitEffectTexture(void)
 
 	data = Z_Malloc(bs.size_sample * bs.size_sample * 4);
 
-	bs.tx_effect = GL_LoadTexture32("***bs.tx_effect***", bs.size_sample, bs.size_sample, (unsigned int*)data, false, false);
+	bs.tx_effect = GL_LoadTexture32("***bs.tx_effect***", bs.size_sample, bs.size_sample, (unsigned int*)data, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);
 	
 	Z_Free (data);
 }
@@ -199,8 +199,8 @@ void R_Bloom_InitTextures(void)
 	int maxtexsize;
 
 	//find closer power of 2 to screen size 
-	for (bs.scr_w = 1;bs.scr_w < glwidth;bs.scr_w *= 2);
-	for (bs.scr_h = 1;bs.scr_h < glheight;bs.scr_h *= 2);
+	for (bs.scr_w = 1;bs.scr_w < vid.pixelwidth;bs.scr_w *= 2);
+	for (bs.scr_h = 1;bs.scr_h < vid.pixelheight;bs.scr_h *= 2);
 
 	//disable blooms if we can't handle a texture of that size
 	qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxtexsize);
@@ -217,12 +217,12 @@ void R_Bloom_InitTextures(void)
 	size = bs.scr_w * bs.scr_h * 4;
 	data = Z_Malloc(size);
 	memset(data, 255, size);
-	if (!bs.tx_screen)
+	if (!TEXVALID(bs.tx_screen))
 		bs.tx_screen = GL_AllocNewTexture();
 	GL_Bind(bs.tx_screen);
-	qglTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, bs.scr_w, bs.scr_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, bs.scr_w, bs.scr_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	Z_Free (data);
 
 
@@ -230,13 +230,13 @@ void R_Bloom_InitTextures(void)
 	R_Bloom_InitEffectTexture ();
 
 	//if screensize is more than 2x the bloom effect texture, set up for stepped downsampling
-	bs.tx_downsample = 0;
+	bs.tx_downsample = r_nulltex;
 	bs.size_downsample = 0;
-	if (glwidth > (bs.size_sample * 2) && !r_bloom_fast_sample.value)
+	if (vid.pixelwidth > (bs.size_sample * 2) && !r_bloom_fast_sample.value)
 	{
 		bs.size_downsample = (int)(bs.size_sample * 2);
 		data = Z_Malloc(bs.size_downsample * bs.size_downsample * 4);
-		bs.tx_downsample = GL_LoadTexture32("***bs.tx_downsample***", bs.size_downsample, bs.size_downsample, (unsigned int*)data, false, false);
+		bs.tx_downsample = GL_LoadTexture32("***bs.tx_downsample***", bs.size_downsample, bs.size_downsample, (unsigned int*)data, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);
 		Z_Free (data);
 	}
 
@@ -266,10 +266,10 @@ R_InitBloomTextures
 void R_InitBloomTextures(void)
 {
 	bs.size_sample = 0;
-	if (!r_bloom.value)
+	if (!r_bloom.ival)
 		return;
 
-	bs.tx_screen = 0;	//this came from a vid_restart, where none of the textures are valid any more.
+	bs.tx_screen = r_nulltex;	//this came from a vid_restart, where none of the textures are valid any more.
 	R_Bloom_InitTextures ();
 }
 
@@ -491,10 +491,10 @@ void R_Bloom_GeneratexDiamonds(void)
 	qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, bs.smp_w, bs.smp_h);
 
 	//restore full screen workspace
-	qglViewport(0, 0, glwidth, glheight);
+	qglViewport(0, 0, vid.pixelwidth, vid.pixelheight);
 	qglMatrixMode(GL_PROJECTION);
     qglLoadIdentity ();
-	qglOrtho(0, glwidth, glheight, 0, -10, 100);
+	qglOrtho(0, vid.pixelwidth, vid.pixelheight, 0, -10, 100);
 	qglMatrixMode(GL_MODELVIEW);
     qglLoadIdentity ();
 }											
@@ -517,9 +517,9 @@ void R_Bloom_DownsampleView( void )
 		
 		//copy the screen and draw resized
 		GL_Bind(bs.tx_screen);
-		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bs.vp_x, glheight - (bs.vp_y + bs.vp_h), bs.vp_w, bs.vp_h);
+		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bs.vp_x, vid.pixelheight - (bs.vp_y + bs.vp_h), bs.vp_w, bs.vp_h);
 
-		R_Bloom_Quad(0, glheight-midsample_height, midsample_width, midsample_height, bs.scr_s, bs.scr_t);
+		R_Bloom_Quad(0, vid.pixelheight-midsample_height, midsample_width, midsample_height, bs.scr_s, bs.scr_t);
 
 		//now copy into Downsampling (mid-sized) texture
 		GL_Bind(bs.tx_downsample);
@@ -527,14 +527,14 @@ void R_Bloom_DownsampleView( void )
 
 		//now draw again in bloom size
 		qglColor4f(0.5f, 0.5f, 0.5f, 1.0f);
-		R_Bloom_Quad(0,  glheight-bs.smp_h, bs.smp_w, bs.smp_h, bs.smp_s, bs.smp_t);
+		R_Bloom_Quad(0,  vid.pixelheight-bs.smp_h, bs.smp_w, bs.smp_h, bs.smp_s, bs.smp_t);
 
 		//now blend the big screen texture into the bloom generation space (hoping it adds some blur)
 		qglEnable(GL_BLEND);
 		qglBlendFunc(GL_ONE, GL_ONE);
 		qglColor4f(0.5f, 0.5f, 0.5f, 1.0f);
 		GL_Bind(bs.tx_screen);
-		R_Bloom_Quad(0,  glheight-bs.smp_h, bs.smp_w, bs.smp_h, bs.scr_s, bs.scr_t);
+		R_Bloom_Quad(0,  vid.pixelheight-bs.smp_h, bs.smp_w, bs.smp_h, bs.scr_s, bs.scr_t);
 		qglColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 		qglDisable(GL_BLEND);
 	}
@@ -542,8 +542,8 @@ void R_Bloom_DownsampleView( void )
 	{	//downsample simple
 
 		GL_Bind(bs.tx_screen);
-		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bs.vp_x, glheight - (bs.vp_y + bs.vp_h), bs.vp_w, bs.vp_h);
-		R_Bloom_Quad(0, glheight-bs.smp_h, bs.smp_w, bs.smp_h, bs.scr_s, bs.scr_t);
+		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bs.vp_x, vid.pixelheight - (bs.vp_y + bs.vp_h), bs.vp_w, bs.vp_h);
+		R_Bloom_Quad(0, vid.pixelheight-bs.smp_h, bs.smp_w, bs.smp_h, bs.scr_s, bs.scr_t);
 	}
 }
 
@@ -558,7 +558,7 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 	if (!r_bloom.value)
 		return;
 
-	if (!bs.size_sample || bs.scr_w < glwidth || bs.scr_h < glheight)
+	if (!bs.size_sample || bs.scr_w < vid.pixelwidth || bs.scr_h < vid.pixelheight)
 		R_Bloom_InitTextures();
 
 	if (bs.scr_w < bs.size_sample ||
@@ -566,14 +566,14 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 		return;
 
 	//set up full screen workspace
-	qglViewport(0, 0, glwidth, glheight);
+	qglViewport(0, 0, vid.pixelwidth, vid.pixelheight);
 	qglDisable(GL_DEPTH_TEST);
 	qglMatrixMode(GL_PROJECTION);
     qglLoadIdentity();
-	qglOrtho(0, glwidth, glheight, 0, -10, 100);
+	qglOrtho(0, vid.pixelwidth, vid.pixelheight, 0, -10, 100);
 	qglMatrixMode(GL_MODELVIEW);
     qglLoadIdentity();
-	qglDisable(GL_CULL_FACE);
+	GL_CullFace(0);
 
 	qglDisable(GL_BLEND);
 	qglEnable(GL_TEXTURE_2D);
@@ -582,7 +582,7 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 
 	//set up current sizes
 	bs.vp_x = gl_truescreenrect.x;
-	bs.vp_y = glheight - gl_truescreenrect.y;
+	bs.vp_y = vid.pixelheight - gl_truescreenrect.y;
 	bs.vp_w = gl_truescreenrect.width;
 	bs.vp_h = gl_truescreenrect.height;
 	bs.scr_s = (float)bs.vp_w / (float)bs.scr_w;
@@ -621,7 +621,7 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 	GL_Bind(bs.tx_backup);
 	qglColor4f(1, 1, 1, 1);
 	R_Bloom_Quad(0, 
-		glheight - (buh),
+		vid.pixelheight - (buh),
 		buw,
 		buh,
 		bs.smp_s,

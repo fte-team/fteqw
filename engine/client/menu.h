@@ -74,7 +74,7 @@ void M_SomeMenuConsoleCommand_f (void)
 	int y = 32;
 
 	//add the title
-	MC_AddCenterPicture(m, 4, "gfx/p_option.lmp");
+	MC_AddCenterPicture(m, 4, 24, "gfx/p_option.lmp");
 
 	//add the blinking > thingie
 	//(note NULL instead of a valid string, this should really be a variant of mt_menudot instead)
@@ -113,7 +113,7 @@ void M_Menu_Quit_f (void);
 struct menu_s;
 
 
-typedef enum {m_none, m_complex, m_help, m_keys, m_slist, m_media, m_plugin, m_menu_dat} m_state_t;
+typedef enum {m_none, m_complex, m_help, m_slist, m_media, m_plugin, m_menu_dat} m_state_t;
 extern m_state_t m_state;
 
 typedef enum {
@@ -132,7 +132,6 @@ typedef enum {
 	mt_checkbox,
 	mt_picture, 
 	mt_picturesel, 
-	mt_strechpic,
 	mt_menudot, 
 	mt_custom
 } menutype_t;
@@ -284,10 +283,9 @@ menutext_t *MC_AddRedText(menu_t *menu, int x, int y, const char *text, qboolean
 menutext_t *MC_AddWhiteText(menu_t *menu, int x, int y, const char *text, qboolean rightalign);
 menubind_t *MC_AddBind(menu_t *menu, int x, int y, const char *caption, char *command);
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height);
-menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, char *picname);
+menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, char *picname);
 menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname);
-menupicture_t *MC_AddStrechPicture(menu_t *menu, int x, int y, int width, int height, char *picname);
-menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, char *picname);
+menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picname);
 menupicture_t *MC_AddCursor(menu_t *menu, int x, int y);
 menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t *var, float min, float max, float delta);
 menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t *var, int cvarbitmask);
@@ -311,9 +309,7 @@ void M_HideMenu (menu_t *menu);
 void M_RemoveMenu (menu_t *menu);
 void M_RemoveAllMenus (void);
 
-void DrawCursor(void);
-
-void M_Complex_Key(int key);
+void M_Complex_Key(int key, int unicode);
 void M_Complex_Draw(void);
 void M_Script_Init(void);
 void M_Serverlist_Init(void);
@@ -346,7 +342,6 @@ void M_Main_Draw (void);
 		void M_Setup_Draw (void);
 		void M_Net_Draw (void);
 	void M_Options_Draw (void);
-		void M_Keys_Draw (void);
 		void M_Video_Draw (void);
 	void M_Help_Draw (void);
 	void M_Quit_Draw (void);
@@ -366,7 +361,6 @@ void M_Main_Key (int key);
 		void M_Setup_Key (int key);
 		void M_Net_Key (int key);
 	void M_Options_Key (int key);
-		void M_Keys_Key (int key);
 		void M_Video_Key (int key);
 	void M_Help_Key (int key);
 	void M_Quit_Key (int key);
@@ -384,12 +378,11 @@ void M_SListKey(int key);
 
 //drawing funcs
 void M_BuildTranslationTable(int top, int bottom);
-void M_DrawTransPicTranslate (int x, int y, mpic_t *pic);
-void M_DrawTransPic (int x, int y, mpic_t *pic);
+FTE_DEPRECATED void M_DrawTransPicTranslate (int x, int y, mpic_t *pic);
 void M_DrawCharacter (int cx, int line, unsigned int num);
 void M_Print (int cx, int cy, qbyte *str);
 void M_PrintWhite (int cx, int cy, qbyte *str);
-void M_DrawPic (int x, int y, mpic_t *pic);
+void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic);
 
 
 void M_FindKeysForCommand (char *command, int *twokeys);

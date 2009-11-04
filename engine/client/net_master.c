@@ -584,7 +584,7 @@ void Master_AddMaster (char *address, int type, char *description)
 #pragma message("Master_AddMaster: add ipv6. don't care about tcp/irc.")
 	if (adr.type != NA_IP && adr.type != NA_IPX)
 	{
-		Con_Printf("Fixme: unable to poll address family\n", address);
+		Con_Printf("Fixme: unable to poll address family for \"%s\"\n", address);
 		return;
 	}
 

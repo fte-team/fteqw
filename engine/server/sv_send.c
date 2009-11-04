@@ -485,7 +485,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 //	to = MULTICAST_ALL;
 #ifdef Q2BSPS
-	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
+	if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
 	{
 		int			area1, area2, cluster;
 
@@ -493,8 +493,8 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 		if (to != MULTICAST_ALL_R && to != MULTICAST_ALL)
 		{
-			leafnum = CM_PointLeafnum (sv.worldmodel, origin);
-			area1 = CM_LeafArea (sv.worldmodel, leafnum);
+			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
+			area1 = CM_LeafArea (sv.world.worldmodel, leafnum);
 		}
 		else
 		{
@@ -514,17 +514,17 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PHS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PHS:
-			leafnum = CM_PointLeafnum (sv.worldmodel, origin);
-			cluster = CM_LeafCluster (sv.worldmodel, leafnum);
-			mask = CM_ClusterPHS (sv.worldmodel, cluster);
+			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
+			cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+			mask = CM_ClusterPHS (sv.world.worldmodel, cluster);
 			break;
 
 		case MULTICAST_PVS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PVS:
-			leafnum = CM_PointLeafnum (sv.worldmodel, origin);
-			cluster = CM_LeafCluster (sv.worldmodel, leafnum);
-			mask = CM_ClusterPVS (sv.worldmodel, cluster, NULL, 0);
+			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
+			cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+			mask = CM_ClusterPVS (sv.world.worldmodel, cluster, NULL, 0);
 			break;
 
 		default:
@@ -556,13 +556,13 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			{
 #ifdef Q2SERVER
 				if (ge)
-					leafnum = CM_PointLeafnum (sv.worldmodel, client->q2edict->s.origin);
+					leafnum = CM_PointLeafnum (sv.world.worldmodel, client->q2edict->s.origin);
 				else
 #endif
-					leafnum = CM_PointLeafnum (sv.worldmodel, client->edict->v->origin);
-				cluster = CM_LeafCluster (sv.worldmodel, leafnum);
-				area2 = CM_LeafArea (sv.worldmodel, leafnum);
-				if (!CM_AreasConnected (sv.worldmodel, area1, area2))
+					leafnum = CM_PointLeafnum (sv.world.worldmodel, client->edict->v->origin);
+				cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+				area2 = CM_LeafArea (sv.world.worldmodel, leafnum);
+				if (!CM_AreasConnected (sv.world.worldmodel, area1, area2))
 					continue;
 				if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
 					continue;
@@ -618,7 +618,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	else
 #endif
 	{
-		leafnum = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, origin);
+		leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
 
 		reliable = false;
 
@@ -633,13 +633,13 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PHS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PHS:
-			mask = sv.phs + leafnum * 4*((sv.worldmodel->numleafs+31)>>5);
+			mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
 			break;
 
 		case MULTICAST_PVS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PVS:
-			mask = sv.pvs + leafnum * 4*((sv.worldmodel->numleafs+31)>>5);
+			mask = sv.pvs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
 			break;
 
 		default:
@@ -686,7 +686,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				// -1 is because pvs rows are 1 based, not 0 based like leafs
 				if (mask != sv.pvs)
 				{
-					leafnum = sv.worldmodel->funcs.LeafnumForPoint (sv.worldmodel, client->edict->v->origin)-1;
+					leafnum = sv.world.worldmodel->funcs.LeafnumForPoint (sv.world.worldmodel, client->edict->v->origin)-1;
 					if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
 					{
 		//				Con_Printf ("PVS supressed multicast\n");
@@ -1063,21 +1063,21 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	// on client side doesn't stray too far off
 	if (ISQWCLIENT(client))
 	{
-		if (client->fteprotocolextensions & PEXT_ACCURATETIMINGS && sv.physicstime - client->nextservertimeupdate > 0)
+		if (client->fteprotocolextensions & PEXT_ACCURATETIMINGS && sv.world.physicstime - client->nextservertimeupdate > 0)
 		{	//the fte pext causes the server to send out accurate timings, allowing for perfect interpolation.
 			MSG_WriteByte (msg, svc_updatestatlong);
 			MSG_WriteByte (msg, STAT_TIME);
-			MSG_WriteLong (msg, (int)(sv.physicstime * 1000));
+			MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
 
-			client->nextservertimeupdate = sv.physicstime;//+10;
+			client->nextservertimeupdate = sv.world.physicstime;//+10;
 		}
-		else if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.physicstime - client->nextservertimeupdate > 0)
+		else if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.world.physicstime - client->nextservertimeupdate > 0)
 		{	//the zquake ext causes the server to send out peridoic timings, allowing for moderatly accurate game time.
 			MSG_WriteByte (msg, svc_updatestatlong);
 			MSG_WriteByte (msg, STAT_TIME);
-			MSG_WriteLong (msg, (int)(sv.physicstime * 1000));
+			MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
 
-			client->nextservertimeupdate = sv.physicstime+10;
+			client->nextservertimeupdate = sv.world.physicstime+10;
 		}
 	}
 
@@ -1089,9 +1089,9 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 
 	MSG_WriteByte (msg, svc_time);
-	MSG_WriteFloat(msg, sv.physicstime);
-	client->nextservertimeupdate = sv.physicstime;
-//	Con_Printf("%f\n", sv.physicstime);
+	MSG_WriteFloat(msg, sv.world.physicstime);
+	client->nextservertimeupdate = sv.world.physicstime;
+//	Con_Printf("%f\n", sv.world.physicstime);
 
 
 	bits = 0;
@@ -1638,7 +1638,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 	msg.allowoverflow = true;
 	msg.overflowed = false;
 
-	if (sv.worldmodel && !client->controller)
+	if (sv.world.worldmodel && !client->controller)
 	{
 		if (ISQ2CLIENT(client))
 		{
@@ -1669,7 +1669,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 	SZ_Clear (&client->datagram);
 
 	// send deltas over reliable stream
-	if (sv.worldmodel)
+	if (sv.world.worldmodel)
 		if (!ISQ2CLIENT(client) && Netchan_CanReliable (&client->netchan, SV_RateForClient(client)))
 		{
 			int pnum=1;
@@ -2011,7 +2011,7 @@ void SV_SendClientMessages (void)
 	int			i, j;
 	client_t	*c;
 	int sentbytes, fnum;
-	float pt = sv.physicstime;
+	float pt = sv.world.physicstime;
 
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
@@ -2151,14 +2151,14 @@ void SV_SendClientMessages (void)
 
 				if (c->state == cs_connected && !c->datagram.cursize && !c->netchan.message.cursize)
 				{
-					if (c->nextservertimeupdate < sv.physicstime)
+					if (c->nextservertimeupdate < sv.world.physicstime)
 					{	//part of the nq protocols allowed downloading content over isdn
 						//the nop requirement of the protocol persisted to prevent timeouts when content loading is otherwise slow..
 						//aditionally we might need this for lost packets, not sure
 						//but the client isn't able to respond unless we send an occasional datagram
 						if (c->nextservertimeupdate)
 							MSG_WriteByte(&c->datagram, svc_nop);
-						c->nextservertimeupdate = sv.physicstime+5;
+						c->nextservertimeupdate = sv.world.physicstime+5;
 					}
 				}
 			}

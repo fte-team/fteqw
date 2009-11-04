@@ -38,7 +38,7 @@ cvar_t	cl_sparemsec = SCVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
 cvar_t  cl_queueimpulses = SCVAR("cl_queueimpulses", "0");
 cvar_t	cl_smartjump = SCVAR("cl_smartjump", "1");
 
-cvar_t	cl_prydoncursor = SCVAR("cl_prydoncursor", "0");	//for dp protocol
+cvar_t	cl_prydoncursor = SCVAR("cl_prydoncursor", "");	//for dp protocol
 cvar_t	cl_instantrotate = SCVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
 
 cvar_t	prox_inmenu = SCVAR("prox_inmenu", "0");
@@ -80,6 +80,9 @@ kbutton_t	in_button3, in_button4, in_button5, in_button6, in_button7, in_button8
 int			in_impulse[MAX_SPLITS][IN_IMPULSECACHE];
 int			in_nextimpulse[MAX_SPLITS];
 int			in_impulsespending[MAX_SPLITS];
+
+float		cursor_screen[2];
+qboolean	cursor_active;
 
 
 void KeyDown (kbutton_t *b)
@@ -165,7 +168,7 @@ void IN_MLookUp (void) {
 	pnum = atoi(c+strlen(c)-1);
 	if (pnum)pnum--;
 KeyUp(&in_mlook);
-if ( !(in_mlook.state[pnum]&1) &&  lookspring.value)
+if ( !(in_mlook.state[pnum]&1) &&  lookspring.ival)
 	V_StartPitchDrift(pnum);
 }
 void IN_UpDown(void) {KeyDown(&in_up);}
@@ -212,7 +215,7 @@ void IN_JumpDown (void)
 	
 
 
-	condition = (cls.state == ca_active && cl_smartjump.value && !prox_inmenu.value);
+	condition = (cls.state == ca_active && cl_smartjump.ival && !prox_inmenu.ival);
 #ifdef Q2CLIENT
 	if (condition && cls.protocol == CP_QUAKE2)
 		KeyDown(&in_up);
@@ -229,7 +232,7 @@ void IN_JumpDown (void)
 }
 void IN_JumpUp (void)
 {
-	if (cl_smartjump.value)
+	if (cl_smartjump.ival)
 		KeyUp(&in_up);
 	KeyUp(&in_jump);
 }
@@ -328,7 +331,7 @@ void IN_Impulse (void)
 		return;
 	}
 
-	if (cl_queueimpulses.value)
+	if (cl_queueimpulses.ival)
 	{
 		in_impulse[pnum][(in_nextimpulse[pnum]+in_impulsespending[pnum])%IN_IMPULSECACHE] = newimp;
 		in_impulsespending[pnum]++;
@@ -412,7 +415,7 @@ void CL_ProxyMenuHook(char *command, kbutton_t *key)
 
 void CL_ProxyMenuHooks(void)
 {
-	if (!prox_inmenu.value)
+	if (!prox_inmenu.ival)
 		return;
 
 	CL_ProxyMenuHook("say proxy:menu down\n", &in_back);
@@ -456,10 +459,10 @@ void CL_AdjustAngles (int pnum, double frametime)
 	
 	if (in_speed.state[pnum] & 1)
 	{
-		if (ruleset_allow_frj.value)
-			speed = frametime * cl_anglespeedkey.value;
+		if (ruleset_allow_frj.ival)
+			speed = frametime * cl_anglespeedkey.ival;
 		else
-			speed = frametime * bound(-2, cl_anglespeedkey.value, 2);
+			speed = frametime * bound(-2, cl_anglespeedkey.ival, 2);
 	}
 	else
 		speed = frametime;
@@ -467,17 +470,17 @@ void CL_AdjustAngles (int pnum, double frametime)
 	if (in_rotate && pnum==0 && !(cl.fpd & FPD_LIMIT_YAW))
 	{
 		quant = in_rotate;
-		if (!cl_instantrotate.value)
+		if (!cl_instantrotate.ival)
 			quant *= speed;
 		in_rotate -= quant;
-		if (ruleset_allow_frj.value)
+		if (ruleset_allow_frj.ival)
 			cl.viewangles[pnum][YAW] += quant;
 	}
 
 	if (!(in_strafe.state[pnum] & 1))
 	{
-		quant = cl_yawspeed.value;
-		if (cl.fpd & FPD_LIMIT_YAW || !ruleset_allow_frj.value)
+		quant = cl_yawspeed.ival;
+		if (cl.fpd & FPD_LIMIT_YAW || !ruleset_allow_frj.ival)
 			quant = bound(-900, quant, 900);
 		cl.viewangles[pnum][YAW] -= speed*quant * CL_KeyState (&in_right, pnum);
 		cl.viewangles[pnum][YAW] += speed*quant * CL_KeyState (&in_left, pnum);
@@ -486,8 +489,8 @@ void CL_AdjustAngles (int pnum, double frametime)
 	if (in_klook.state[pnum] & 1)
 	{
 		V_StopPitchDrift (pnum);
-		quant = cl_pitchspeed.value;
-		if (cl.fpd & FPD_LIMIT_PITCH || !ruleset_allow_frj.value)
+		quant = cl_pitchspeed.ival;
+		if (cl.fpd & FPD_LIMIT_PITCH || !ruleset_allow_frj.ival)
 			quant = bound(-700, quant, 700);
 		cl.viewangles[pnum][PITCH] -= speed*quant * CL_KeyState (&in_forward, pnum);
 		cl.viewangles[pnum][PITCH] += speed*quant * CL_KeyState (&in_back, pnum);
@@ -496,11 +499,11 @@ void CL_AdjustAngles (int pnum, double frametime)
 	up = CL_KeyState (&in_lookup, pnum);
 	down = CL_KeyState(&in_lookdown, pnum);
 
-	quant = cl_pitchspeed.value;
-	if (!ruleset_allow_frj.value)
+	quant = cl_pitchspeed.ival;
+	if (!ruleset_allow_frj.ival)
 		quant = bound(-700, quant, 700);	
-	cl.viewangles[pnum][PITCH] -= speed*cl_pitchspeed.value * up;
-	cl.viewangles[pnum][PITCH] += speed*cl_pitchspeed.value * down;
+	cl.viewangles[pnum][PITCH] -= speed*cl_pitchspeed.ival * up;
+	cl.viewangles[pnum][PITCH] += speed*cl_pitchspeed.ival * down;
 
 	if (up || down)
 		V_StopPitchDrift (pnum);
@@ -541,7 +544,7 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps)
 	cmd->sidemove -= scale*cl_sidespeed.value * CL_KeyState (&in_moveleft, pnum);
 
 #ifdef IN_XFLIP
-	if(in_xflip.value) cmd->sidemove *= -1;
+	if(in_xflip.ival) cmd->sidemove *= -1;
 #endif
 
 
@@ -587,7 +590,7 @@ void CL_ClampPitch (int pnum)
 	else
 #endif
 #ifdef Q3CLIENT
-		if (cls.gamemode == CP_QUAKE3)	//q3 expects the cgame to do it
+		if (cls.protocol == CP_QUAKE3)	//q3 expects the cgame to do it
 	{
 			//no-op
 	}
@@ -598,7 +601,7 @@ void CL_ClampPitch (int pnum)
 			cl.viewangles[pnum][PITCH] = cl.maxpitch;
 		if (cl.viewangles[pnum][PITCH] < cl.minpitch)
 			cl.viewangles[pnum][PITCH] = cl.minpitch;
-	}
+	} 
 }
 
 /*
@@ -652,19 +655,12 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 		cmd->impulse = 0;
 }
 
-float cursor_screen[2];
-
 void CL_DrawPrydonCursor(void)
 {
-	if (cls.protocol == CP_NETQUAKE)
-	if (nq_dp_protocol >= 6)
-	if (cl_prydoncursor.value)
+	if (cursor_active && cl_prydoncursor.ival)
 	{
-		mpic_t *pic = Draw_SafeCachePic(va("gfx/prydoncursor%03i.lmp", (int)cl_prydoncursor.value));
-		if (pic)
-			Draw_Pic((int)((cursor_screen[0] + 1) * 0.5 * vid.width), (int)((cursor_screen[1] + 1) * 0.5 * vid.height), pic);
-		else
-			Draw_Character((int)((cursor_screen[0] + 1) * 0.5 * vid.width), (int)((cursor_screen[1] + 1) * 0.5 * vid.height), '+');
+		SCR_DrawCursor(cl_prydoncursor.ival);
+		V_StopPitchDrift (0);
 	}
 }
 
@@ -675,15 +671,19 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 	vec3_t temp;
 	vec3_t cursor_impact_normal;
 
-	if (!cl_prydoncursor.value)
+	extern int mousecursor_x, mousecursor_y;
+
+	cursor_active = true;
+
+	if (!cl_prydoncursor.ival)
 	{	//center the cursor
 		cursor_screen[0] = 0;
 		cursor_screen[1] = 0;
 	}
 	else
 	{
-		cursor_screen[0] += from->sidemove/10000.0f;
-		cursor_screen[1] -= from->forwardmove/10000.0f;
+		cursor_screen[0] = mousecursor_x/(vid.width/2.0f) - 1;
+		cursor_screen[1] = mousecursor_y/(vid.height/2.0f) - 1;
 		if (cursor_screen[0] < -1)
 			cursor_screen[0] = -1;
 		if (cursor_screen[1] < -1)
@@ -717,22 +717,15 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 		cl.cmd.cursor_screen[1] = 1;
 	}
 	*/
-//	cursor_screen[0] = bound(-1, cursor_screen[0], 1);
-//	cursor_screen[1] = bound(-1, cursor_screen[1], 1);
 
 	VectorClear(cursor_start);
 	temp[0] = (cursor_screen[0]+1)/2;
 	temp[1] = (-cursor_screen[1]+1)/2;
 	temp[2] = 1;
 
-	Matrix4_UnProject(temp, cursor_end, cl.viewangles[0], vec3_origin, scr_fov.value*(float)vid.width/vid.height, scr_fov.value );
+	VectorCopy(r_origin, cursor_start);
+	Matrix4_UnProject(temp, cursor_end, cl.viewangles[0], cursor_start, r_refdef.fov_x, r_refdef.fov_y);
 	VectorScale(cursor_end, 100000, cursor_end);
-
-	VectorAdd(cursor_start, cl.simorg[0], cursor_start);
-	VectorAdd(cursor_end, cl.simorg[0], cursor_end);
-	cursor_start[2]+=cl.viewheight[0];
-	cursor_end[2]+=cl.viewheight[0];
-
 
 	CL_SetSolidEntities();
 	//don't bother with players, they don't exist in NQ...
@@ -1005,20 +998,20 @@ unsigned long _stdcall CL_IndepPhysicsThread(void *param)
 {
 	int sleeptime;
 	float fps;
-	float time, lasttime;
+	unsigned int time, lasttime;
 	float spare;
-	lasttime = Sys_DoubleTime();
+	lasttime = Sys_Milliseconds();
 	while(1)
 	{
-		time = Sys_DoubleTime();
-		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value);
+		time = Sys_Milliseconds();
+		spare = CL_FilterTime((time - lasttime), cl_netfps.value);
 		if (spare)
 		{
 			//don't let them bank too much and get sudden bursts
 			if (spare > 15)
 				spare = 15;
 
-			time -= spare/1000.0f;
+			time -= spare;
 			EnterCriticalSection(&indepcriticialsection);
 			if (cls.state)
 			{
@@ -1210,20 +1203,20 @@ qboolean CL_WriteDeltas (int plnum, sizebuf_t *buf)
 
 	i = (cls.netchan.outgoing_sequence-2) & UPDATE_MASK;
 	cmd = &cl.frames[i].cmd[plnum];
-	if (cl_c2sImpulseBackup.value >= 2)
+	if (cl_c2sImpulseBackup.ival >= 2)
 		dontdrop = dontdrop || cmd->impulse;
 	MSG_WriteDeltaUsercmd (buf, &nullcmd, cmd);
 	oldcmd = cmd;
 
 	i = (cls.netchan.outgoing_sequence-1) & UPDATE_MASK;
-	if (cl_c2sImpulseBackup.value >= 3)
+	if (cl_c2sImpulseBackup.ival >= 3)
 		dontdrop = dontdrop || cmd->impulse;
 	cmd = &cl.frames[i].cmd[plnum];
 	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
 	oldcmd = cmd;
 
 	i = (cls.netchan.outgoing_sequence) & UPDATE_MASK;
-	if (cl_c2sImpulseBackup.value >= 1)
+	if (cl_c2sImpulseBackup.ival >= 1)
 		dontdrop = dontdrop || cmd->impulse;
 	cmd = &cl.frames[i].cmd[plnum];
 	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
@@ -1261,7 +1254,7 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 	checksumIndex = buf->cursize;
 	MSG_WriteByte (buf, 0);
 
-	if (!cl.q2frame.valid || cl_nodelta.value)
+	if (!cl.q2frame.valid || cl_nodelta.ival)
 		MSG_WriteLong (buf, -1);	// no compression
 	else
 		MSG_WriteLong (buf, cl.q2frame.serverframe);
@@ -1307,8 +1300,9 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	int seq_hash;
 	qboolean dontdrop = false;
 	usercmd_t *cmd;
-	int checksumIndex, firstsize, i, plnum;
+	int checksumIndex, firstsize, plnum;
 	int clientcount, lost;
+	int curframe = cls.netchan.outgoing_sequence & UPDATE_MASK;
 
 	seq_hash = cls.netchan.outgoing_sequence;
 
@@ -1318,6 +1312,42 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 
 	if (!clientcount)
 		clientcount = 1;
+
+
+	for (plnum = 0; plnum<clientcount; plnum++)
+	{
+		cmd = &cl.frames[curframe].cmd[plnum];
+		*cmd = independantphysics[plnum];
+		
+		cmd->lightlevel = 0;
+#ifdef CSQC_DAT
+		CSQC_Input_Frame(plnum, cmd);
+#endif
+		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
+	}
+	cl.frames[curframe].senttime = realtime;
+	cl.frames[curframe].receivedtime = -1;		// we haven't gotten a reply yet
+
+
+	if ((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR) && *cl_prydoncursor.string)
+	{
+		vec3_t cursor_start, cursor_impact;
+		int cursor_entitynumber = 0;
+		cmd = &cl.frames[curframe].cmd[0];
+		CL_UpdatePrydonCursor(cmd, cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
+		MSG_WriteByte (buf, clc_prydoncursor);
+		MSG_WriteShort(buf, cursor_screen[0] * 32767.0f);
+		MSG_WriteShort(buf, cursor_screen[1] * 32767.0f);
+		MSG_WriteFloat(buf, cursor_start[0]);
+		MSG_WriteFloat(buf, cursor_start[1]);
+		MSG_WriteFloat(buf, cursor_start[2]);
+		MSG_WriteFloat(buf, cursor_impact[0]);
+		MSG_WriteFloat(buf, cursor_impact[1]);
+		MSG_WriteFloat(buf, cursor_impact[2]);
+		MSG_WriteShort(buf, cursor_entitynumber);
+	}
+	else
+		cursor_active = false;
 
 	MSG_WriteByte (buf, clc_move);
 
@@ -1332,18 +1362,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	firstsize=0;
 	for (plnum = 0; plnum<clientcount; plnum++)
 	{
-		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-		cmd = &cl.frames[i].cmd[plnum];
-		*cmd = independantphysics[plnum];
-		
-		cmd->lightlevel = 0;
-#ifdef CSQC_DAT
-		CSQC_Input_Frame(plnum, cmd);
-#endif
-
-		cl.frames[i].senttime = realtime;
-		cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
-		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
+		cmd = &cl.frames[curframe].cmd[plnum];
 
 		if (plnum)
 			MSG_WriteByte (buf, clc_move);
@@ -1364,7 +1383,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	if (cls.netchan.outgoing_sequence - cl.validsequence >= UPDATE_BACKUP-1)
 		cl.validsequence = 0;
 
-	if (cl.validsequence && !cl_nodelta.value && cls.state == ca_active && !cls.demorecording)
+	if (cl.validsequence && !cl_nodelta.ival && cls.state == ca_active && !cls.demorecording)
 	{
 		cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = cl.validsequence;
 		MSG_WriteByte (buf, clc_delta);
@@ -1382,7 +1401,6 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 
 void CL_SendCmd (double frametime, qboolean mainloop)
 {
-	extern cvar_t cl_indepphysics;
 	sizebuf_t	buf;
 	qbyte		data[512];
 	int			i, plnum;
@@ -1427,9 +1445,9 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			cl.frames[i].senttime = realtime;		// we haven't gotten a reply yet
 			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 
-			if (cl.splitclients > cl_splitscreen.value+1)
+			if (cl.splitclients > cl_splitscreen.ival+1)
 			{
-				cl.splitclients = cl_splitscreen.value+1;
+				cl.splitclients = cl_splitscreen.ival+1;
 				if (cl.splitclients < 1)
 					cl.splitclients = 1;
 			}
@@ -1533,8 +1551,8 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 #endif
 				))
 				fullsend = false;
-			if (spare > cl_sparemsec.value)
-				spare = cl_sparemsec.value;
+			if (spare > cl_sparemsec.ival)
+				spare = cl_sparemsec.ival;
 			if (spare > 0)
 				msecstouse -= spare;
 		}
@@ -1680,7 +1698,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	else
 #endif
 	//shamelessly stolen from fuhquake
-		if (cl_c2spps.value>0)
+		if (cl_c2spps.ival>0)
 	{
 		pps_balance += frametime;
 		// never drop more than 2 messages in a row -- that'll cause PL
@@ -1688,7 +1706,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		if (pps_balance > 0 || dropcount >= 2 || dontdrop)
 		{
 			float	pps;
-			pps = cl_c2spps.value;
+			pps = cl_c2spps.ival;
 			if (pps < 10) pps = 10;
 			if (pps > 72) pps = 72;
 			pps_balance -= 1 / pps;
@@ -1914,13 +1932,3 @@ void CL_InitInput (void)
 	Cvar_Register (&cl_prydoncursor, inputnetworkcvargroup);
 	Cvar_Register (&cl_instantrotate, inputnetworkcvargroup);
 }
-
-/*
-============
-CL_ClearStates
-============
-*/
-void CL_ClearStates (void)
-{
-}
-

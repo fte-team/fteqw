@@ -10,8 +10,6 @@ qboolean SVQ2_InitGameProgs(void)
 #else
 game_export_t	*ge;
 
-trace_t SVQ2_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, q2edict_t *passedict);
-
 
 
 void Sys_UnloadGame (void);
@@ -304,7 +302,7 @@ static void VARGS PFQ2_setmodel (q2edict_t *ent, char *name)
 		mod = Mod_FindName (name);
 		VectorCopy (mod->mins, ent->mins);
 		VectorCopy (mod->maxs, ent->maxs);
-		SVQ2_LinkEdict (ent);
+		WorldQ2_LinkEdict (&sv.world, ent);
 	}
 
 }
@@ -347,17 +345,17 @@ static qboolean VARGS PFQ2_inPVS (vec3_t p1, vec3_t p2)
 	int		area1, area2;
 	qbyte	*mask;
 
-	leafnum = CM_PointLeafnum (sv.worldmodel, p1);
-	cluster = CM_LeafCluster (sv.worldmodel, leafnum);
-	area1 = CM_LeafArea (sv.worldmodel, leafnum);
-	mask = CM_ClusterPVS (sv.worldmodel, cluster, NULL, 0);
+	leafnum = CM_PointLeafnum (sv.world.worldmodel, p1);
+	cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+	area1 = CM_LeafArea (sv.world.worldmodel, leafnum);
+	mask = CM_ClusterPVS (sv.world.worldmodel, cluster, NULL, 0);
 
-	leafnum = CM_PointLeafnum (sv.worldmodel, p2);
-	cluster = CM_LeafCluster (sv.worldmodel, leafnum);
-	area2 = CM_LeafArea (sv.worldmodel, leafnum);
+	leafnum = CM_PointLeafnum (sv.world.worldmodel, p2);
+	cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+	area2 = CM_LeafArea (sv.world.worldmodel, leafnum);
 	if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
 		return false;
-	if (!CM_AreasConnected (sv.worldmodel, area1, area2))
+	if (!CM_AreasConnected (sv.world.worldmodel, area1, area2))
 		return false;		// a door blocks sight
 	return true;
 }
@@ -377,17 +375,17 @@ static qboolean VARGS PFQ2_inPHS (vec3_t p1, vec3_t p2)
 	int		area1, area2;
 	qbyte	*mask;
 
-	leafnum = CM_PointLeafnum (sv.worldmodel, p1);
-	cluster = CM_LeafCluster (sv.worldmodel, leafnum);
-	area1 = CM_LeafArea (sv.worldmodel, leafnum);
-	mask = CM_ClusterPHS (sv.worldmodel, cluster);
+	leafnum = CM_PointLeafnum (sv.world.worldmodel, p1);
+	cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+	area1 = CM_LeafArea (sv.world.worldmodel, leafnum);
+	mask = CM_ClusterPHS (sv.world.worldmodel, cluster);
 
-	leafnum = CM_PointLeafnum (sv.worldmodel, p2);
-	cluster = CM_LeafCluster (sv.worldmodel, leafnum);
-	area2 = CM_LeafArea (sv.worldmodel, leafnum);
+	leafnum = CM_PointLeafnum (sv.world.worldmodel, p2);
+	cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+	area2 = CM_LeafArea (sv.world.worldmodel, leafnum);
 	if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
 		return false;		// more than one bounce away
-	if (!CM_AreasConnected (sv.worldmodel, area1, area2))
+	if (!CM_AreasConnected (sv.world.worldmodel, area1, area2))
 		return false;		// a door blocks hearing
 
 	return true;
@@ -395,7 +393,7 @@ static qboolean VARGS PFQ2_inPHS (vec3_t p1, vec3_t p2)
 
 qboolean VARGS PFQ2_AreasConnected(int area1, int area2)
 {
-	return CM_AreasConnected(sv.worldmodel, area1, area2);
+	return CM_AreasConnected(sv.world.worldmodel, area1, area2);
 }
 
 
@@ -545,7 +543,7 @@ static q2trace_t VARGS SVQ2_Trace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_
 		mins = nullvec;
 	if (!maxs)
 		maxs = nullvec;
-	tr = SVQ2_Move(start, mins, maxs, end, contentmask, passedict);
+	tr = WorldQ2_Move(&sv.world, start, mins, maxs, end, contentmask, passedict);
 	memcpy(&ret, &tr, sizeof(q2trace_t));
 	return ret;
 }
@@ -618,6 +616,19 @@ Init the game subsystem for a new map
 void VARGS Q2SCR_DebugGraph(float value, int color)
 {return;}
 
+static void	VARGS SVQ2_LinkEdict (q2edict_t *ent)
+{
+	WorldQ2_LinkEdict(&sv.world, ent);
+}
+static void	VARGS SVQ2_UnlinkEdict (q2edict_t *ent)
+{
+	WorldQ2_UnlinkEdict(&sv.world, ent);
+}
+static int	VARGS SVQ2_AreaEdicts (vec3_t mins, vec3_t maxs, q2edict_t **list,	int maxcount, int areatype)
+{
+	return WorldQ2_AreaEdicts(&sv.world, mins, maxs, list, maxcount, areatype);
+}
+
 qboolean SVQ2_InitGameProgs(void)
 {
 	volatile static game_import_t	import;	//volatile because msvc sucks
@@ -628,7 +639,7 @@ qboolean SVQ2_InitGameProgs(void)
 	}
 
 	// unload anything we have now
-	if (sv.worldmodel->fromgame == fg_quake || sv.worldmodel->fromgame == fg_halflife)	//we don't support q1 or hl maps yet... If ever.
+	if (sv.world.worldmodel->fromgame == fg_quake || sv.world.worldmodel->fromgame == fg_halflife)	//we don't support q1 or hl maps yet... If ever.
 	{
 		SVQ2_ShutdownGameProgs();
 		return false;
@@ -691,7 +702,7 @@ qboolean SVQ2_InitGameProgs(void)
 	import.SetAreaPortalState	= CMQ2_SetAreaPortalState;
 	import.AreasConnected		= PFQ2_AreasConnected;
 
-	if (sv.worldmodel->fromgame == fg_quake || sv.worldmodel->fromgame == fg_halflife)
+	if (sv.world.worldmodel->fromgame == fg_quake || sv.world.worldmodel->fromgame == fg_halflife)
 	{
 		return false;
 		/*

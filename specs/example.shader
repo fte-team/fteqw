@@ -24,6 +24,4 @@ console_glsl
 	}
 }
 
-//gl_shadeq1 can be used to allow shaders on q1 bsps/mdls
-//gl_shadeq2 for q2 content
-//gl_shadeq3 (default enabled) allows shaders on md3s and q3bsp
+

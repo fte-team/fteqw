@@ -395,12 +395,12 @@ static void GetEvent(void)
 
 	switch (event.type) {
 	case ResizeRequest:
-		glwidth = event.xresizerequest.width;
-		glheight = event.xresizerequest.height;
+		vid.pixelwidth = event.xresizerequest.width;
+		vid.pixelheight = event.xresizerequest.height;
 		break;
 	case ConfigureNotify:
-		glwidth = event.xconfigurerequest.width;
-		glheight = event.xconfigurerequest.height;
+		vid.pixelwidth = event.xconfigurerequest.width;
+		vid.pixelheight = event.xconfigurerequest.height;
 		break;
 	case KeyPress:
 		b = XLateKey(&event.xkey, &uc);
@@ -722,10 +722,6 @@ GL_BeginRendering
 */
 void GL_BeginRendering (int *x, int *y, int *width, int *height)
 {
-	*x = *y = 0;
-	*width = glwidth;
-	*height = glheight;
-
 //    if (!wglMakeCurrent( maindc, baseRC ))
 //		Sys_Error ("wglMakeCurrent failed");
 
@@ -762,9 +758,9 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	unsigned long mask;
 	Window root;
 	XVisualInfo *visinfo;
+	qboolean fullscreen = false;
 
 #ifdef WITH_VMODE
-	qboolean fullscreen = false;
 	int MajorVersion, MinorVersion;
 
 	if (info->fullscreen)
@@ -953,8 +949,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 
-	glwidth = info->width;
-	glheight = info->height;
+	vid.pixelwidth = info->width;
+	vid.pixelheight = info->height;
 
 	if (vid.conheight > info->height)
 		vid.conheight = info->height;

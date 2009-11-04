@@ -124,13 +124,15 @@ extern	int	con_notifylines;		// scan lines to clear for notify lines
 void Con_DrawCharacter (int cx, int line, int num);
 
 void Con_CheckResize (void);
+void Con_ForceActiveNow(void);
 void Con_Init (void);
 void Con_DrawConsole (int lines, qboolean noback);
+char *Con_CopyConsole(void);
 void Con_Print (char *txt);
-void VARGS Con_Printf (const char *fmt, ...);
+void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);
-void VARGS Con_DPrintf (char *fmt, ...);
-void VARGS Con_SafePrintf (char *fmt, ...);
+void VARGS Con_DPrintf (char *fmt, ...) LIKEPRINTF(1);
+void VARGS Con_SafePrintf (char *fmt, ...) LIKEPRINTF(1);
 void Con_Clear_f (void);
 void Con_DrawNotify (void);
 void Con_ClearNotify (void);

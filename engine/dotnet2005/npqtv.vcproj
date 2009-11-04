@@ -18669,6 +18669,14 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\gl\gl_shadow.c"
+					>
+				</File>
+				<File
+					RelativePath="..\gl\gl_vbo.c"
+					>
+				</File>
+				<File
 					RelativePath="..\gl\gl_vidcommon.c"
 					>
 					<FileConfiguration
@@ -31120,6 +31128,26 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\qclib\pr_x86.c"
+					>
+					<FileConfiguration
+						Name="GLDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>

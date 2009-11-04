@@ -1,6 +1,7 @@
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
+#include "gl_draw.h"
 
 //standard 1.1 opengl calls
 void (APIENTRY *qglAlphaFunc) (GLenum func, GLclampf ref);
@@ -34,6 +35,7 @@ void (APIENTRY *qglFinish) (void);
 void (APIENTRY *qglFlush) (void);
 void (APIENTRY *qglFrustum) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 GLuint (APIENTRY *qglGenLists) (GLsizei range);
+void (APIENTRY *qglGenTextures) (GLsizei n, GLuint *textures);
 GLenum (APIENTRY *qglGetError) (void);
 void (APIENTRY *qglGetFloatv) (GLenum pname, GLfloat *params);
 void (APIENTRY *qglGetIntegerv) (GLenum pname, GLint *params);
@@ -108,6 +110,17 @@ void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, 
 void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
 GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 
+const GLubyte * (APIENTRY * qglGetStringi) (GLenum name, GLuint index);
+
+void (APIENTRY *qglGenFramebuffersEXT)(GLsizei n, GLuint* ids);
+void (APIENTRY *qglDeleteFramebuffersEXT)(GLsizei n, const GLuint* ids);
+void (APIENTRY *qglBindFramebufferEXT)(GLenum target, GLuint id);
+void (APIENTRY *qglGenRenderbuffersEXT)(GLsizei n, GLuint* ids);
+void (APIENTRY *qglDeleteRenderbuffersEXT)(GLsizei n, const GLuint* ids);
+void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
+void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
+void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId, GLint  level);
+
 /*
 PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
 PFNGLGETPROGRAMIVARBPROC qglGetProgramivARB;
@@ -129,6 +142,7 @@ FTEPFNGLATTACHOBJECTARBPROC         qglAttachObjectARB;
 FTEPFNGLGETINFOLOGARBPROC           qglGetInfoLogARB;
 FTEPFNGLLINKPROGRAMARBPROC          qglLinkProgramARB;
 FTEPFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
+FTEPFNGLUNIFORMMATRIX4FVARBPROC		qglUniformMatrix4fvARB;
 FTEPFNGLUNIFORM4FARBPROC            qglUniform4fARB;
 FTEPFNGLUNIFORM4FVARBPROC           qglUniform4fvARB;
 FTEPFNGLUNIFORM3FARBPROC            qglUniform3fARB;
@@ -176,13 +190,35 @@ float		gldepthmin, gldepthmax;
 const char *gl_vendor;
 const char *gl_renderer;
 const char *gl_version;
-const char *gl_extensions;
+static const char *gl_extensions;
 
-static int texture_extension_number = 1;
+unsigned int gl_major_version;
+unsigned int gl_minor_version;
+static unsigned int gl_num_extensions;
 
-int GL_AllocNewTexture(void)
+
+qboolean GL_CheckExtension(char *extname)
 {
-	return texture_extension_number++;
+	int i;
+	if (gl_num_extensions && qglGetStringi)
+	{
+		for (i = 0; i < gl_num_extensions; i++)
+			if (!strcmp(qglGetStringi(GL_EXTENSIONS, i), extname))
+				return true;
+	}
+
+	if (!gl_extensions)
+		return false;
+
+	//note that this is not actually correct...
+	return !!strstr(gl_extensions, extname);
+}
+
+texid_t GL_AllocNewTexture(void)
+{
+	texid_t r;
+	qglGenTextures(1, &r.num);
+	return r;
 }
 
 void APIENTRY GL_DrawRangeElementsEmul(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices)
@@ -233,6 +269,15 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	qglGenProgramsARB = NULL;
 */
 
+	qglGenFramebuffersEXT		= NULL;
+	qglDeleteFramebuffersEXT	= NULL;
+	qglBindFramebufferEXT		= NULL;
+	qglGenRenderbuffersEXT		= NULL;
+	qglDeleteRenderbuffersEXT	= NULL;
+	qglBindRenderbufferEXT		= NULL;
+	qglRenderbufferStorageEXT	= NULL;
+	qglFramebufferTexture2DEXT	= NULL;
+
 	gl_config.arb_texture_non_power_of_two = false;
 	gl_config.sgis_generate_mipmap = false;
 
@@ -248,19 +293,19 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	gl_config.ext_texture_filter_anisotropic = 0;
 
-	if (strstr(gl_extensions, "GL_EXT_texture_filter_anisotropic"))
+	if (GL_CheckExtension("GL_EXT_texture_filter_anisotropic"))
 	{
 		qglGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_config.ext_texture_filter_anisotropic);
 
 		Con_SafePrintf("Anisotropic filter extension found (%dx max).\n",gl_config.ext_texture_filter_anisotropic);
 	}
 
-	if (strstr(gl_extensions, "GL_ARB_texture_non_power_of_two"))
+	if (GL_CheckExtension("GL_ARB_texture_non_power_of_two"))
 		gl_config.arb_texture_non_power_of_two = true;
-//	if (strstr(gl_extensions, "GL_SGIS_generate_mipmap"))	//a suprising number of implementations have this broken.
+//	if (GL_CheckExtension("GL_SGIS_generate_mipmap"))	//a suprising number of implementations have this broken.
 //		gl_config.sgis_generate_mipmap = true;
 
-	if (strstr(gl_extensions, "GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
+	if (GL_CheckExtension("GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.
 		qglActiveTextureARB = (void *) getglext("glActiveTextureARB");
 		qglClientActiveTextureARB = (void *) getglext("glClientActiveTextureARB");
@@ -292,7 +337,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		}
 
 	}
-	else if (strstr(gl_extensions, "GL_SGIS_multitexture") && !COM_CheckParm("-nomtex"))
+	else if (GL_CheckExtension("GL_SGIS_multitexture") && !COM_CheckParm("-nomtex"))
 	{	//SGIS multitexture, limited in many ways but basic functionality is identical to ARB
 		Con_SafePrintf("Multitexture extensions found.\n");
 		qglMTexCoord2fSGIS = (void *) getglext("glMTexCoord2fSGIS");
@@ -303,15 +348,15 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		mtexid1 = GL_TEXTURE1_SGIS;
 	}
 
-	if (strstr(gl_extensions, "GL_EXT_stencil_wrap"))
+	if (GL_CheckExtension("GL_EXT_stencil_wrap"))
 		gl_config.ext_stencil_wrap = true;
 
-	if (strstr(gl_extensions, "GL_ATI_separate_stencil"))
+	if (GL_CheckExtension("GL_ATI_separate_stencil"))
 		qglStencilOpSeparateATI = (void *) getglext("glStencilOpSeparateATI");
-	if (strstr(gl_extensions, "GL_EXT_stencil_two_side"))
+	if (GL_CheckExtension("GL_EXT_stencil_two_side"))
 		qglActiveStencilFaceEXT = (void *) getglext("glActiveStencilFaceEXT");
 
-	if (strstr(gl_extensions, "GL_ARB_texture_compression"))
+	if (GL_CheckExtension("GL_ARB_texture_compression"))
 	{
 		qglCompressedTexImage2DARB = (void *)getglext("glCompressedTexImage2DARB");
 		qglGetCompressedTexImageARB = (void *)getglext("glGetCompressedTexImageARB");
@@ -325,37 +370,37 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 			gl_config.arb_texture_compression = true;
 	}
 
-	if (strstr(gl_extensions, "GL_ATI_pn_triangles"))
+	if (GL_CheckExtension("GL_ATI_pn_triangles"))
 	{
 		qglPNTrianglesfATI = (void *)getglext("glPNTrianglesfATI");
 		qglPNTrianglesiATI = (void *)getglext("glPNTrianglesiATI");
 	}
 
-	if (strstr(gl_extensions, "GL_EXT_texture_object"))
+	if (GL_CheckExtension("GL_EXT_texture_object"))
 	{
 		bindTexFunc			= (void *)getglext("glBindTextureEXT");
 		if (!bindTexFunc)	//grrr
 			bindTexFunc			= (void *)getglext("glBindTexture");
 	}
 
-	if (strstr(gl_extensions, "GL_EXT_compiled_vertex_array"))
+	if (GL_CheckExtension("GL_EXT_compiled_vertex_array"))
 	{
 		qglLockArraysEXT = (void *)getglext("glLockArraysEXT");
 		qglUnlockArraysEXT = (void *)getglext("glUnlockArraysEXT");
 	}
 
-	gl_config.tex_env_combine = !!strstr(gl_extensions, "GL_EXT_texture_env_combine");
-	gl_config.env_add = !!strstr(gl_extensions, "GL_EXT_texture_env_add");
-	gl_config.nv_tex_env_combine4 = !!strstr(gl_extensions, "GL_NV_texture_env_combine4");
+	gl_config.tex_env_combine = GL_CheckExtension("GL_EXT_texture_env_combine");
+	gl_config.env_add = GL_CheckExtension("GL_EXT_texture_env_add");
+	gl_config.nv_tex_env_combine4 = GL_CheckExtension("GL_NV_texture_env_combine4");
 
-	gl_config.arb_texture_env_combine = !!strstr(gl_extensions, "GL_ARB_texture_env_combine");
-	gl_config.arb_texture_env_dot3 = !!strstr(gl_extensions, "GL_ARB_texture_env_dot3");
-	gl_config.arb_texture_cube_map = !!strstr(gl_extensions, "GL_ARB_texture_cube_map");
+	gl_config.arb_texture_env_combine = GL_CheckExtension("GL_ARB_texture_env_combine");
+	gl_config.arb_texture_env_dot3 = GL_CheckExtension("GL_ARB_texture_env_dot3");
+	gl_config.arb_texture_cube_map = GL_CheckExtension("GL_ARB_texture_cube_map");
 
 	if (gl_mtexarbable && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_combine && gl_config.arb_texture_env_dot3 && !COM_CheckParm("-nobump") && gl_bump.value)
 		gl_bumpmappingpossible = true;
 
-	if (strstr(gl_extensions, "GL_ARB_vertex_buffer_object"))
+	if (GL_CheckExtension("GL_ARB_vertex_buffer_object"))
 	{
 		qglGenBuffersARB = (void *)getglext("glGenBuffersARB");
 		qglDeleteBuffersARB = (void *)getglext("glDeleteBuffersARB");
@@ -367,7 +412,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	}
 
 /*
-	if (!!strstr(gl_extensions, "GL_ARB_fragment_program"))
+	if (GL_CheckExtension("GL_ARB_fragment_program"))
 	{
 		gl_config.arb_fragment_program = true;
 		qglProgramStringARB = (void *)getglext("glProgramStringARB");
@@ -380,9 +425,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	// glslang
 	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.
 	//but our code kinda requires both for clean workings.
-	if (!!strstr(gl_extensions, "GL_ARB_fragment_shader"))
-	if (!!strstr(gl_extensions, "GL_ARB_vertex_shader"))
-	if (!!strstr(gl_extensions, "GL_ARB_shader_objects"))
+	if (GL_CheckExtension("GL_ARB_fragment_shader"))
+	if (GL_CheckExtension("GL_ARB_vertex_shader"))
+	if (GL_CheckExtension("GL_ARB_shader_objects"))
 	{
 		gl_config.arb_shader_objects = true;
 		qglCreateProgramObjectARB	= (void *)getglext("glCreateProgramObjectARB");
@@ -396,6 +441,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglGetInfoLogARB			= (void *)getglext("glGetInfoLogARB");
 		qglLinkProgramARB			= (void *)getglext("glLinkProgramARB");
 		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocationARB");
+		qglUniformMatrix4fvARB		= (void *)getglext("glUniformMatrix4fvARB");
 		qglUniform4fARB				= (void *)getglext("glUniform4fARB");
 		qglUniform4fvARB			= (void *)getglext("glUniform4fvARB");
 		qglUniform3fARB				= (void *)getglext("glUniform3fARB");
@@ -404,6 +450,18 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUniform1fARB				= (void *)getglext("glUniform1fARB");
 
 		GL_InitSceneProcessingShaders();
+	}
+
+	if (GL_CheckExtension("GL_ARB_fragment_shader"))
+	{
+		qglGenFramebuffersEXT		= (void *)getglext("glGenFramebuffersEXT");
+		qglDeleteFramebuffersEXT	= (void *)getglext("glDeleteFramebuffersEXT");
+		qglBindFramebufferEXT		= (void *)getglext("glBindFramebufferEXT");
+		qglGenRenderbuffersEXT		= (void *)getglext("glGenRenderbuffersEXT");
+		qglDeleteRenderbuffersEXT	= (void *)getglext("glDeleteRenderbuffersEXT");
+		qglBindRenderbufferEXT		= (void *)getglext("glBindRenderbufferEXT");
+		qglRenderbufferStorageEXT	= (void *)getglext("glRenderbufferStorageEXT");
+		qglFramebufferTexture2DEXT	= (void *)getglext("glFramebufferTexture2DEXT");
 	}
 }
 
@@ -443,6 +501,7 @@ GLhandleARB GLSlang_CreateShader (char *precompilerconstants, char *shadersource
 	if(!compiled)
 	{
 		qglGetInfoLogARB(shader, sizeof(str), NULL, str);
+		qglDeleteObjectARB(shader);
 		switch (shadertype)
 		{
 		case GL_FRAGMENT_SHADER_ARB:
@@ -473,6 +532,10 @@ GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag)
 
 	qglLinkProgramARB(program);
 
+	//flag the source objects for deletion, they'll only be deleted when they're no longer attached to anything
+	qglDeleteObjectARB(vert);
+	qglDeleteObjectARB(frag);
+
 	qglGetObjectParameterivARB(program, GL_OBJECT_LINK_STATUS_ARB, &linked);
 
 	if(!linked)
@@ -496,7 +559,12 @@ GLhandleARB GLSlang_CreateProgram(char *precompilerconstants, char *vert, char *
 	vs = GLSlang_CreateShader(precompilerconstants, vert, GL_VERTEX_SHADER_ARB);
 	fs = GLSlang_CreateShader(precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB);
 	if (!vs || !fs)
+	{
+		//delete ignores 0s.
+		qglDeleteObjectARB(vs);
+		qglDeleteObjectARB(fs);
 		return 0;
+	}
 	return GLSlang_CreateProgramObject(vs, fs);
 }
 
@@ -542,6 +610,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglFinish			= (void *)getglcore("glFinish");
 	qglFlush			= (void *)getglcore("glFlush");
 	qglFrustum			= (void *)getglcore("glFrustum");
+	qglGenTextures		= (void *)getglcore("glGenTextures");
 	qglGetFloatv		= (void *)getglcore("glGetFloatv");
 	qglGetIntegerv		= (void *)getglcore("glGetIntegerv");
 	qglGetString		= (void *)getglcore("glGetString");
@@ -614,6 +683,8 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 	qglPolygonOffset	= (void *)getglext("glPolygonOffset");
 
+	qglGetStringi		= (void *)getglext("glGetStringi");
+
 	//used by heightmaps
 	qglGenLists		= (void*)getglcore("glGenLists");
 	qglNewList		= (void*)getglcore("glNewList");
@@ -634,37 +705,144 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 	gl_version = qglGetString (GL_VERSION);
 	Con_SafePrintf ("GL_VERSION: %s\n", gl_version);
-	gl_extensions = qglGetString (GL_EXTENSIONS);
-	Con_DPrintf ("GL_EXTENSIONS: %s\n", gl_extensions);
 
-	if (!gl_extensions)
-		Sys_Error("no extensions\n");
+	if (qglGetError())
+		Con_Printf("glGetError %s:%i\n", __FILE__, __LINE__);
+	qglGetIntegerv(GL_MAJOR_VERSION, &gl_major_version);
+	qglGetIntegerv(GL_MINOR_VERSION, &gl_minor_version);
+	if (qglGetError())
+	{
+		gl_major_version = 1;
+		gl_minor_version = 1;
+	}
+	qglGetIntegerv(GL_NUM_EXTENSIONS, &gl_num_extensions);
+	if (!qglGetError())
+	{
+		int i;
+		if (developer.value)
+		{
+			Con_DPrintf ("GL_EXTENSIONS:");
+			for (i = 0; i < gl_num_extensions; i++)
+				Con_DPrintf (" %s", qglGetStringi(GL_EXTENSIONS, i));
+			Con_DPrintf ("\n");
+		}
+		else
+			Con_Printf ("GL_EXTENSIONS: %i extensions\n", gl_num_extensions);
+		gl_extensions = NULL;
+	}
+	else
+	{
+		gl_num_extensions = 0;
+		gl_extensions = qglGetString (GL_EXTENSIONS);
+		Con_DPrintf ("GL_EXTENSIONS: %s\n", gl_extensions);
+
+		if (!gl_extensions)
+			Sys_Error("no extensions\n");
+	}
 
 	GL_CheckExtensions (getglfunction);
 
 	qglClearColor (0,0,0,0);	//clear to black so that it looks a little nicer on start.
 	qglClear(GL_COLOR_BUFFER_BIT);
-	qglCullFace(GL_FRONT);
-	qglEnable(GL_TEXTURE_2D);
-
-	qglEnable(GL_ALPHA_TEST);
-	qglAlphaFunc(GL_GREATER, 0.666);
 
 	qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
 	qglShadeModel (GL_FLAT);
 
-	texture_extension_number = 1;
-
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-//	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 }
 
 unsigned int	d_8to24rgbtable[256];
+
+
+
+
+
+rendererinfo_t openglrendererinfo = {
+	"OpenGL",
+	{
+		"gl",
+		"opengl",
+		"hardware",
+	},
+	QR_OPENGL,
+
+
+	R2D_SafePicFromWad,
+	R2D_SafeCachePic,
+	GLDraw_Init,
+	GLDraw_ReInit,
+	GLDraw_Crosshair,
+	R2D_ScalePic,
+	R2D_SubPic,
+	GLDraw_TransPicTranslate,
+	R2D_ConsoleBackground,
+	R2D_EditorBackground,
+	R2D_TileClear,
+	GLDraw_Fill,
+	GLDraw_FillRGB,
+	GLDraw_FadeScreen,
+	GLDraw_BeginDisc,
+	GLDraw_EndDisc,
+
+	R2D_Image,
+	R2D_ImageColours,
+
+	GLR_Init,
+	GLR_DeInit,
+	GLR_RenderView,
+
+
+	GLR_NewMap,
+	GLR_PreNewMap,
+	GLR_LightPoint,
+	GLR_PushDlights,
+
+
+	GLR_AddStain,
+	GLR_LessenStains,
+
+	MediaGL_ShowFrameBGR_24_Flip,
+	MediaGL_ShowFrameRGBA_32,
+	MediaGL_ShowFrame8bit,
+
+
+	RMod_Init,
+	RMod_ClearAll,
+	RMod_ForName,
+	RMod_FindName,
+	RMod_Extradata,
+	RMod_TouchModel,
+
+	RMod_NowLoadExternal,
+	RMod_Think,
+
+	Mod_GetTag,
+	Mod_TagNumForName,
+	Mod_SkinNumForName,
+	Mod_FrameNumForName,
+	Mod_FrameDuration,
+
+	GLVID_Init,
+	GLVID_DeInit,
+	GLVID_LockBuffer,
+	GLVID_UnlockBuffer,
+	GLD_BeginDirectRect,
+	GLD_EndDirectRect,
+	GLVID_ForceLockState,
+	GLVID_ForceUnlockedAndReturnState,
+	GLVID_SetPalette,
+	GLVID_ShiftPalette,
+	GLVID_GetRGBInfo,
+
+	GLVID_SetCaption,	//setcaption
+
+
+	GLSCR_UpdateScreen,
+
+	""
+};
+
 #endif

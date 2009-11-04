@@ -408,7 +408,7 @@ void AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
 	}
 }
 
-int VectorCompare (vec3_t v1, vec3_t v2)
+int VectorCompare (const vec3_t v1, const vec3_t v2)
 {
 	int		i;
 	
@@ -524,13 +524,6 @@ void VectorInverse (vec3_t v)
 	v[0] = -v[0];
 	v[1] = -v[1];
 	v[2] = -v[2];
-}
-
-void VectorScale (vec3_t in, vec_t scale, vec3_t out)
-{
-	out[0] = in[0]*scale;
-	out[1] = in[1]*scale;
-	out[2] = in[2]*scale;
 }
 
 
@@ -732,11 +725,11 @@ fixed16_t Invert24To16(fixed16_t val)
 
 
 
-void VectorTransform (const vec3_t in1, matrix3x4 in2, vec3_t out)
+void VectorTransform (const vec3_t in1, const matrix3x4 in2, vec3_t out)
 {
 	out[0] = DotProduct(in1, in2[0]) + in2[0][3];
-	out[1] = DotProduct(in1, in2[1]) +	in2[1][3];
-	out[2] = DotProduct(in1, in2[2]) +	in2[2][3];
+	out[1] = DotProduct(in1, in2[1]) + in2[1][3];
+	out[2] = DotProduct(in1, in2[2]) + in2[2][3];
 }
 
 #ifdef HALFLIFEMODELS
@@ -953,9 +946,9 @@ void Matrix4_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg
 	Matrix4_Multiply(tempmat, Matrix4_NewTranslation(-vieworg[0],  -vieworg[1],  -vieworg[2]), modelview);	    // put Z going up
 }
 
-void		Matrix4x4_CreateTranslate (matrix4x4_t *out, float x, float y, float z)
+void		Matrix4x4_CreateTranslate (float *out, float x, float y, float z)
 {
-	memcpy(out, Matrix4_NewTranslation(x, y, z), sizeof(*out));
+	memcpy(out, Matrix4_NewTranslation(x, y, z), 16*sizeof(float));
 }
 
 void Matrix4_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg)
@@ -982,6 +975,42 @@ void Matrix4_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, 
 	Matrix4_Multiply(tempmat, Matrix4_NewTranslation(-vieworg[0],  -vieworg[1],  -vieworg[2]), modelview);	    // put Z going up
 }
 
+
+void Matrix4x4_ToVectors(const matrix4x4_t *in, float vx[3], float vy[3], float vz[3], float t[3])
+{
+	vx[0] = in->m[0][0];
+	vx[1] = in->m[0][1];
+	vx[2] = in->m[0][2];
+	vy[0] = in->m[1][0];
+	vy[1] = in->m[1][1];
+	vy[2] = in->m[1][2];
+	vz[0] = in->m[2][0];
+	vz[1] = in->m[2][1];
+	vz[2] = in->m[2][2];
+	t [0] = in->m[3][0];
+	t [1] = in->m[3][1];
+	t [2] = in->m[3][2];
+}
+
+void Matrix4x4_FromVectors(matrix4x4_t *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
+{
+	out->m[0][0] = vx[0];
+	out->m[1][0] = vy[0];
+	out->m[2][0] = vz[0];
+	out->m[3][0] = t[0];
+	out->m[0][1] = vx[1];
+	out->m[1][1] = vy[1];
+	out->m[2][1] = vz[1];
+	out->m[3][1] = t[1];
+	out->m[0][2] = vx[2];
+	out->m[1][2] = vy[2];
+	out->m[2][2] = vz[2];
+	out->m[3][2] = t[2];
+	out->m[0][3] = 0.0f;
+	out->m[1][3] = 0.0f;
+	out->m[2][3] = 0.0f;
+	out->m[3][3] = 1.0f;
+}
 
 void Matrix4_ModelMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg)
 {
@@ -1163,7 +1192,29 @@ void Matrix4_Orthographic(float *proj, float xmin, float xmax, float ymax, float
 	proj[11] = 0;
 	proj[15] = 1;
 }
+void Matrix4_OrthographicD3D(float *proj, float xmin, float xmax, float ymax, float ymin,
+		     float znear, float zfar)
+{
+	proj[0] = 2/(xmax-xmin);
+	proj[4] = 0;
+	proj[8] = 0;
+	proj[12] = (xmax+xmin)/(xmax-xmin);
 
+	proj[1] = 0;
+	proj[5] = 2/(ymax-ymin);
+	proj[9] = 0;
+	proj[13] = (ymax+ymin)/(ymax-ymin);
+
+	proj[2] = 0;
+	proj[6] = 0;
+	proj[10] = -2/(zfar-znear);
+	proj[14] = (zfar+znear)/(zfar-znear);
+	
+	proj[3] = 0;
+	proj[7] = 0;
+	proj[11] = 0;
+	proj[15] = 1;
+}
 /*
  * Compute inverse of 4x4 transformation matrix.
  * Code contributed by Jacques Leroy jle@star.be
@@ -1450,7 +1501,7 @@ void Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out)
 	out[2][2] = in1[2][0]*in2[0][2] + in1[2][1]*in2[1][2] +	in1[2][2]*in2[2][2];
 }
 
-vec_t VectorNormalize2 (vec3_t v, vec3_t out)
+vec_t VectorNormalize2 (const vec3_t v, vec3_t out)
 {
 	float	length, ilength;
 

@@ -25,7 +25,24 @@ typedef vec_t vec3_t[3];
 typedef vec_t vec4_t[4];
 typedef vec_t vec5_t[5];
 
+/*16-byte aligned vectors, for auto-vectorising, should propogate to structs
+sse and altivec can unroll loops using aligned reads, which should be faster... 4 at once.
+*/
+#ifdef _MSC_VER
+typedef __declspec(align(16)) vec3_t avec3_t;
+typedef __declspec(align(16)) vec4_t avec4_t;
+typedef __declspec(align(4)) qbyte byte_vec4_t[4];
+#elif __GNUC__ >= 3
+typedef __attribute__((aligned(16))) vec3_t avec3_t;
+typedef __attribute__((aligned(16))) vec4_t avec4_t;
+typedef __attribute__((aligned(4))) qbyte byte_vec4_t[4];
+#else
+typedef vec3_t avec3_t;
+typedef vec4_t avec4_t;
 typedef qbyte byte_vec4_t[4];
+#endif
+
+#define vecV_t avec4_t
 
 typedef	int	fixed4_t;
 typedef	int	fixed8_t;
@@ -48,12 +65,21 @@ extern	int nanmask;
 #define VectorSubtract(a,b,c) do{(c)[0]=(a)[0]-(b)[0];(c)[1]=(a)[1]-(b)[1];(c)[2]=(a)[2]-(b)[2];}while(0)
 #define VectorAdd(a,b,c) do{(c)[0]=(a)[0]+(b)[0];(c)[1]=(a)[1]+(b)[1];(c)[2]=(a)[2]+(b)[2];}while(0)
 #define VectorCopy(a,b) do{(b)[0]=(a)[0];(b)[1]=(a)[1];(b)[2]=(a)[2];}while(0)
+#define VectorScale(a,s,b) do{(b)[0]=(s)*(a)[0];(b)[1]=(s)*(a)[1];(b)[2]=(s)*(a)[2];}while(0)
 #define VectorClear(a)			((a)[0]=(a)[1]=(a)[2]=0)
+#define VectorSet(r,x,y,z) {(r)[0] = x; (r)[1] = y;(r)[2] = z;}
 #define VectorNegate(a,b)		((b)[0]=-(a)[0],(b)[1]=-(a)[1],(b)[2]=-(a)[2])
 #define VectorLength(a)		Length(a)
 #define VectorMA(a,s,b,c) do{(c)[0] = (a)[0] + (s)*(b)[0];(c)[1] = (a)[1] + (s)*(b)[1];(c)[2] = (a)[2] + (s)*(b)[2];}while(0)
 #define VectorEquals(a,b) ((a)[0] == (b)[0] && (a)[1] == (b)[1] && (a)[2] == (b)[2])
+#define VectorAvg(a,b,c)		((c)[0]=((a)[0]+(b)[0])*0.5f,(c)[1]=((a)[1]+(b)[1])*0.5f, (c)[2]=((a)[2]+(b)[2])*0.5f)
 
+#define Vector2Copy(a,b) {(b)[0]=(a)[0];(b)[1]=(a)[1];}
+#define Vector2Set(r,x,y) {(r)[0] = x; (r)[1] = y;}
+
+#define Vector4Copy(a,b) do{(b)[0]=(a)[0];(b)[1]=(a)[1];(b)[2]=(a)[2];(b)[3]=(a)[3];}while(0)
+#define Vector4Scale(in,scale,out)		((out)[0]=(in)[0]*scale,(out)[1]=(in)[1]*scale,(out)[2]=(in)[2]*scale,(out)[3]=(in)[3]*scale)
+#define Vector4Add(a,b,c)		((c)[0]=(((a[0])+(b[0]))),(c)[1]=(((a[1])+(b[1]))),(c)[2]=(((a[2])+(b[2]))),(c)[3]=(((a[3])+(b[3]))))
 
 typedef float matrix3x4[3][4];
 typedef float matrix3x3[3][3];
@@ -105,10 +131,11 @@ float		Q_rsqrt(float number);
 void		Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
 void		Matrix4_Identity(float *outm);
 qboolean	Matrix4_Invert(const float *m, float *out);
-void		Matrix4x4_CreateTranslate (matrix4x4_t *out, float x, float y, float z);
+void		Matrix4_CreateTranslate (float *out, float x, float y, float z);
 void		Matrix4_ModelMatrixFromAxis (float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg);
 void		Matrix4_ModelViewMatrix (float *modelview, vec3_t viewangles, vec3_t vieworg);
 void		Matrix4_ModelViewMatrixFromAxis (float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg);
+void		Matrix4_CreateFromQuakeEntity (float *matrix, float x, float y, float z, float pitch, float yaw, float roll, float scale);
 void		Matrix4_Multiply (float *a, float *b, float *out);
 void		Matrix4_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float fovx, float fovy);
 void		Matrix4_Transform3 (float *matrix, float *vector, float *product);
@@ -132,12 +159,11 @@ void		R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3]);
 void		R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4]);
 void		R_ConcatTransforms (matrix3x4 in1, matrix3x4 in2, matrix3x4 out);
 void		RotatePointAroundVector (vec3_t dst, const vec3_t dir, const vec3_t point, float degrees);
-int			VectorCompare (vec3_t v1, vec3_t v2);
+int			VectorCompare (const vec3_t v1, const vec3_t v2);
 void		VectorInverse (vec3_t v);
 void		_VectorMA (const vec3_t veca, const float scale, const vec3_t vecb, vec3_t vecc);
 float		VectorNormalize (vec3_t v);		// returns vector length
-vec_t		VectorNormalize2 (vec3_t v, vec3_t out);
+vec_t		VectorNormalize2 (const vec3_t v, vec3_t out);
 void		VectorNormalizeFast(vec3_t v);
-void		VectorScale (vec3_t in, vec_t scale, vec3_t out);
-void		VectorTransform (const vec3_t in1, matrix3x4 in2, vec3_t out);
+void		VectorTransform (const vec3_t in1, const matrix3x4 in2, vec3_t out);
 void		VectorVectors (const vec3_t forward, vec3_t right, vec3_t up);

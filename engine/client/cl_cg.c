@@ -2,7 +2,7 @@
 //#include "cg_public.h"
 #ifdef VM_CG
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 
 #include "shader.h"
 
@@ -15,13 +15,7 @@ typedef float m3by3_t[3][3];
 #include "clq3defs.h"
 
 //cl_ui.c
-typedef struct q3refEntity_s q3refEntity_t;
-void VQ3_AddEntity(const q3refEntity_t *q3);
-typedef struct q3refdef_s q3refdef_t;
-void VQ3_RenderView(const q3refdef_t *ref);
 void CG_Command_f(void);
-
-void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s2, float t2, shader_t *pic);
 
 #define	CGAME_IMPORT_API_VERSION	4
 
@@ -268,6 +262,12 @@ void CG_InsertIntoGameState(int num, char *str)
 		Con_DPrintf("%i: %s", num, str);
 	}
 
+	if (num == CFGSTR_SYSINFO)
+	{
+		//check some things.
+		cl.servercount = atoi(Info_ValueForKey(str, "sv_serverid"));
+	}
+
 	if (cggamestate.dataCount + strlen(str)+1 > MAX_GAMESTATE_CHARS)
 	{
 		char oldstringData[MAX_GAMESTATE_CHARS];
@@ -378,16 +378,15 @@ typedef struct {
 	int		numPoints;
 } markFragment_t;
 int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projection,
-				   int maxPoints, vec3_t pointBuffer, int maxFragments, markFragment_t *fragmentBuffer )
+				   int maxPoints, float *pointBuffer, int maxFragments, markFragment_t *fragmentBuffer )
 {
-#if 1	//FIXME: make work
-	return 0;
-#else
 	vec3_t center;
 	vec3_t axis[3];
 	vec3_t p[4];
 	int i;
+	float *clippedpoints;
 	float radius;
+	int numtris;
 
 	if (numPoints != 4)
 		return 0;
@@ -407,10 +406,10 @@ int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projecti
 	*/
 
 	VectorClear(center);
-	VectorAdd(center, points[0], center);
-	VectorAdd(center, points[1], center);
-	VectorAdd(center, points[2], center);
-	VectorAdd(center, points[3], center);
+	VectorMA(center, 0.25, points[0], center);
+	VectorMA(center, 0.25, points[1], center);
+	VectorMA(center, 0.25, points[2], center);
+	VectorMA(center, 0.25, points[3], center);
 
 	VectorSubtract(points[0], center, p[0]);
 	VectorSubtract(points[1], center, p[1]);
@@ -419,23 +418,35 @@ int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projecti
 
 	for (i = 0; i < 3; i++)
 	{
-		axis[1][i] = (p[2][i]+p[1][i])/2;
-		axis[2][i] = (p[2][i]+p[3][i])/2;
+		axis[1][i] = (p[2][i]-p[1][i]);
+		axis[2][i] = (p[3][i]-p[2][i]);
 	}
 
 	radius = VectorNormalize(axis[1]);
 	VectorNormalize(axis[2]);
-	VectorNormalize(projection);
+	VectorNormalize2(projection, axis[0]);
 
-	
+	numtris = Q1BSP_ClipDecal(center, axis[0], axis[1], axis[2], radius, &clippedpoints);
+	if (numtris > maxFragments)
+		numtris = maxFragments;
+	if (numtris > maxPoints/3)
+		numtris = maxPoints/3;
+	for (i = 0; i < numtris; i++)
+	{
+		fragmentBuffer[i].numPoints = 3;
+		fragmentBuffer[i].firstPoint = i*3;
 
-
-	Q1BSP_ClipDecal(center, axis[0], axis[1], axis[2], radius, pointBuffer, maxPoints);
-	fragmentBuffer->firstPoint = 0;
-	fragmentBuffer->numPoints = 0;
-
-	return 1;
-#endif
+		pointBuffer[i*9+0] = clippedpoints[i*9+0];
+		pointBuffer[i*9+1] = clippedpoints[i*9+1];
+		pointBuffer[i*9+2] = clippedpoints[i*9+2];
+		pointBuffer[i*9+3] = clippedpoints[i*9+3];
+		pointBuffer[i*9+4] = clippedpoints[i*9+4];
+		pointBuffer[i*9+5] = clippedpoints[i*9+5];
+		pointBuffer[i*9+6] = clippedpoints[i*9+6];
+		pointBuffer[i*9+7] = clippedpoints[i*9+7];
+		pointBuffer[i*9+8] = clippedpoints[i*9+8];
+	}
+	return numtris;
 }
 
 
@@ -462,10 +473,10 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 	switch(fn)
 	{
 	case CG_PRINT:
-		Con_Printf("%s", VM_POINTER(arg[0]));
+		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 		break;
 	case CG_ERROR:
-		Host_EndGame("cgame: %s", VM_POINTER(arg[0]));
+		Host_EndGame("cgame: %s", (char*)VM_POINTER(arg[0]));
 		break;
 
 	case CG_ARGC:
@@ -518,23 +529,21 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 		break;
 
 	case CG_SENDCONSOLECOMMAND:
-		Con_DPrintf("CG_SENDCONSOLECOMMAND: %s", VM_POINTER(arg[0]));
+		Con_DPrintf("CG_SENDCONSOLECOMMAND: %s", (char*)VM_POINTER(arg[0]));
 		Cbuf_AddText(VM_POINTER(arg[0]), RESTRICT_SERVER);
 		break;
 	case CG_ADDCOMMAND:
 		Cmd_AddRemCommand(VM_POINTER(arg[0]), NULL);
 		break;
 	case CG_SENDCLIENTCOMMAND:
-		Con_DPrintf("CG_SENDCLIENTCOMMAND: %s", VM_POINTER(arg[0]));
-		CL_SendClientCommand(true, "%s", VM_POINTER(arg[0]));
+		Con_DPrintf("CG_SENDCLIENTCOMMAND: %s", (char*)VM_POINTER(arg[0]));
+		CL_SendClientCommand(true, "%s", (char*)VM_POINTER(arg[0]));
 		break;
 
 	case CG_UPDATESCREEN:	//force a buffer swap cos loading won't refresh it soon.
 		SCR_BeginLoadingPlaque();
 		SCR_UpdateScreen();
 		SCR_EndLoadingPlaque();
-//		GL_EndRendering();
-//		GL_DoSwap();
 		break;
 
 	case CG_FS_FOPENFILE: //fopen
@@ -776,13 +785,15 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 //			VM_LONG(ret) = VM_TOHANDLE(Draw_SafeCachePic(VM_POINTER(arg[0])));
 		break;
 
-	case CG_R_CLEARSCENE:	//clear scene
-		cl_numvisedicts=0;
-		dlights_running=0;
-		dlights_software=0;
+	case CG_R_CLEARSCENE:	//clear scene (not rtlights, only dynamic ones)
+		cl_numvisedicts = 0;
+		cl_numstrisidx = 0;
+		cl_numstrisvert = 0;
+		cl_numstris = 0;
+		rtlights_first = RTL_FIRST;
 		break;
 	case CG_R_ADDPOLYTOSCENE:
-		// ...
+		VQ3_AddPoly(VM_FROMSHANDLE(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]));
 		break;
 	case CG_R_ADDREFENTITYTOSCENE:	//add ent to scene
 		VQ3_AddEntity(VM_POINTER(arg[0]));
@@ -791,7 +802,7 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 	case CG_R_ADDLIGHTTOSCENE:	//add light to scene.
 		{
 			float *org = VM_POINTER(arg[0]);
-			CL_NewDlightRGB(-1, org[0], org[1], org[2], VM_FLOAT(arg[1]), 0, VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]));
+			CL_NewDlightRGB(-1, org, VM_FLOAT(arg[1]), 0, VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]));
 		}
 		break;
 	case CG_R_RENDERSCENE:	//render scene
@@ -810,10 +821,7 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 		break;
 
 	case CG_R_DRAWSTRETCHPIC:
-		if (qrenderer == QR_OPENGL)
-			GLDraw_ShaderImage(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_FROMSHANDLE(arg[8]));
-//		else
-//			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
+		Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
 		break;
 
 	case CG_R_LERPTAG:	//Lerp tag...
@@ -1081,7 +1089,7 @@ static int EXPORT_FN CG_SystemCalls(int arg, ...)
 
 int CG_Refresh(void)
 {
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	int time;
 	if (!cgvm)
 		return false;
@@ -1101,7 +1109,7 @@ int CG_Refresh(void)
 
 void CG_Stop (void)
 {
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	keycatcher &= ~2;
 	if (cgvm)
 	{
@@ -1122,7 +1130,7 @@ void CG_Start (void)
 		return;
 	}
 
-#if defined(RGLQUAKE) || defined(DIRECT3D)
+#if defined(GLQUAKE) || defined(DIRECT3D)
 	if (!Draw_SafeCachePic)	//no renderer loaded
 	{
 		CG_Stop();
@@ -1157,7 +1165,7 @@ void CG_Start (void)
 
 qboolean CG_Command(void)
 {
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (!cgvm)
 		return false;
 	Con_DPrintf("CG_Command: %s %s\n", Cmd_Argv(0), Cmd_Args());

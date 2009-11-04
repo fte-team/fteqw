@@ -2611,7 +2611,7 @@ void FTENET_IRCConnect_Close(ftenet_generic_connection_t *gcon)
 	FTENET_Generic_Close(gcon);
 }
 
-ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address)
+struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address)
 {
 	//this is written to support either ipv4 or ipv6, depending on the remote addr.
 	ftenet_ircconnect_connection_t *newcon;

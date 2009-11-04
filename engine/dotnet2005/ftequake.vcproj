@@ -251,7 +251,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\client,../libs/freetype2/include,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include"
+				AdditionalIncludeDirectories="..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk9/include;../libs/dxsdk7/include"
 				PreprocessorDefinitions="_DEBUG;D3DQUAKE;WIN32;_WINDOWS"
 				RuntimeLibrary="1"
 				FloatingPointModel="2"
@@ -5814,190 +5814,6 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="..\server\world.c"
-					>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
 				</File>
@@ -15636,172 +15452,6 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\gl\gl_alias.c"
-					>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
 					RelativePath="..\gl\gl_backend.c"
 					>
 					<FileConfiguration
@@ -16500,10 +16150,6 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\gl\gl_font.c"
-					>
-				</File>
-				<File
 					RelativePath="..\gl\gl_heightmap.c"
 					>
 					<FileConfiguration
@@ -16840,176 +16486,6 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\gl\gl_model.c"
-					>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
 					RelativePath="..\gl\gl_ngraph.c"
 					>
 					<FileConfiguration
@@ -17135,342 +16611,6 @@
 					<FileConfiguration
 						Name="Debug Dedicated Server|x64"
 						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="..\gl\gl_ppl.c"
-					>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="..\common\gl_q2bsp.c"
-					>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -18366,172 +17506,8 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\gl\gl_shader.c"
+					RelativePath="..\gl\gl_shadow.c"
 					>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\gl\gl_vidcommon.c"
@@ -19190,176 +18166,6 @@
 					<FileConfiguration
 						Name="MDebug|x64"
 						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="..\gl\LTFACE.C"
-					>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22775,6 +21581,190 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\server\world.c"
+					>
+					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLDebug|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DDebug|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
 					RelativePath="..\common\zone.c"
 					>
 					<FileConfiguration
@@ -24049,6 +23039,82 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\qclib\pr_x86.c"
+					>
+					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
 					RelativePath="..\QCLIB\qcc_cmdlib.c"
 					>
 					<FileConfiguration
@@ -25164,7 +24230,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25183,7 +24249,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25202,7 +24268,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25240,7 +24306,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25259,7 +24325,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25278,7 +24344,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25297,7 +24363,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25339,7 +24405,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25358,7 +24424,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25377,7 +24443,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25416,7 +24482,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25433,7 +24499,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25453,7 +24519,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25470,7 +24536,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25512,7 +24578,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25531,7 +24597,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25550,7 +24616,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25589,7 +24655,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25606,7 +24672,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25626,7 +24692,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25643,7 +24709,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25685,7 +24751,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25704,7 +24770,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25723,7 +24789,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25761,7 +24827,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25780,7 +24846,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25799,7 +24865,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -25818,7 +24884,7 @@
 						>
 						<Tool
 							Name="VCCustomBuildTool"
-							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; &gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
+							CommandLine="cl /EP /I ..\common &quot;$(InputPath)&quot; /nologo&gt; &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;..\gas2masm\debug\gas2masm &lt; &quot;$(OUTDIR)\$(InputName).spp&quot; &gt;          &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;ml /c /Cp /coff /Fo&quot;$(OUTDIR)\$(InputName).obj&quot; /Zm /Zi  &quot;$(OUTDIR)\$(InputName).asm&quot;&#x0D;&#x0A;del &quot;$(OUTDIR)\$(InputName).spp&quot;&#x0D;&#x0A;"
 							Outputs="&quot;$(OUTDIR)\$(InputName).obj&quot;"
 						/>
 					</FileConfiguration>
@@ -28684,844 +27750,774 @@
 				</File>
 			</Filter>
 			<Filter
-				Name="d3d"
+				Name="nonwin"
 				>
 				<File
-					RelativePath="..\d3d\d3d_draw.c"
+					RelativePath="..\client\in_macos.c"
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="D3DDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\d3d\d3d_mesh.c"
+					RelativePath="..\client\in_morphos.c"
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="D3DDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\d3d\d3d_rmain.c"
+					RelativePath="..\client\snd_alsa.c"
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="D3DDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\d3d\d3d_rsurf.c"
+					RelativePath="..\client\snd_linux.c"
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="D3DDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\d3d\vid_d3d.c"
+					RelativePath="..\client\snd_macos.c"
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="D3DDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\client\snd_morphos.c"
+					>
+					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="GLRelease|x64"
+						Name="D3DDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\server\sv_sys_unix.c"
+					>
+					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\client\sys_linux.c"
+					>
+					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\client\sys_morphos.c"
+					>
+					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\client\sys_sdl.c"
+					>
+					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
 						/>
 					</FileConfiguration>
 				</File>
 			</Filter>
 			<Filter
-				Name="d3d9"
+				Name="renderer"
 				>
 				<File
-					RelativePath="..\d3d9\d3d9_draw.c"
+					RelativePath="..\gl\gl_alias.c"
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
@@ -29687,7 +28683,181 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\d3d9\d3d9_mesh.c"
+					RelativePath="..\gl\gl_font.c"
+					>
+				</File>
+				<File
+					RelativePath="..\gl\gl_model.c"
+					>
+					<FileConfiguration
+						Name="MinGLDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLDebug|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DDebug|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MinGLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLDebug|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="MDebug|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\common\gl_q2bsp.c"
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
@@ -29853,7 +29023,7 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\d3d9\d3d9_rmain.c"
+					RelativePath="..\gl\gl_shader.c"
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
@@ -29929,6 +29099,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -29938,6 +29109,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -30019,7 +29191,7 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\d3d9\d3d9_rsurf.c"
+					RelativePath="..\gl\LTFACE.C"
 					>
 					<FileConfiguration
 						Name="MinGLDebug|Win32"
@@ -30095,6 +29267,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -30104,6 +29277,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -30131,6 +29305,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -30140,6 +29315,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -30185,170 +29361,50 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\d3d9\vid_d3d9.c"
+					RelativePath="..\client\r_2d.c"
+					>
+				</File>
+			</Filter>
+			<Filter
+				Name="d3d"
+				>
+				<File
+					RelativePath="..\d3dm\d3d_backend.c"
 					>
 					<FileConfiguration
-						Name="MinGLDebug|Win32"
+						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\d3dm\d3d_image.c"
+					>
 					<FileConfiguration
 						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\d3dm\d3d_sucks.c"
+					>
+				</File>
+				<File
+					RelativePath="..\d3dm\vid_d3d.c"
+					>
 					<FileConfiguration
-						Name="GLDebug|x64"
+						Name="GLDebug|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-							UsePrecompiledHeader="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
 				</File>

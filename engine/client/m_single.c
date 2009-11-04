@@ -2,6 +2,7 @@
 
 #include "quakedef.h"
 #include "winquake.h"
+#include "shader.h"
 #ifndef CLIENTONLY
 //=============================================================================
 /* LOAD/SAVE MENU */
@@ -79,7 +80,7 @@ void M_Menu_Save_f (void)
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
 	menu->data = menu+1;
 	
-	MC_AddCenterPicture (menu, 4, "gfx/p_save.lmp");	
+	MC_AddCenterPicture (menu, 4, 24, "gfx/p_save.lmp");	
 	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 32, NULL, false);	
 
 	M_ScanSaves ();
@@ -103,7 +104,7 @@ void M_Menu_Load_f (void)
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
 	menu->data = menu+1;
 	
-	MC_AddCenterPicture(menu, 4, "gfx/p_load.lmp");	
+	MC_AddCenterPicture(menu, 4, 24, "gfx/p_load.lmp");	
 	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 32, NULL, false);	
 
 	M_ScanSaves ();
@@ -124,22 +125,31 @@ void M_Menu_Load_f (void)
 
 void M_Menu_SinglePlayer_f (void)
 {
-	int mgt;
-#ifndef CLIENTONLY
-	menubutton_t *b;
-#endif
 	menu_t *menu;
+#ifndef CLIENTONLY
+	int mgt;
+	menubutton_t *b;
 	mpic_t *p;
+#endif
 
 	key_dest = key_menu;
 	m_state = m_complex;
+
+#ifdef CLIENTONLY
+	menu = M_CreateMenu(0);
+
+	MC_AddWhiteText(menu, 84, 12*8, "This build is unable", false);
+	MC_AddWhiteText(menu, 84, 13*8, "to start a local game", false);
+
+	MC_AddBox (menu, 60, 10*8, 25, 4);
+#else
 
 	mgt = M_GameType();
 	if (mgt == MGT_QUAKE2)
 	{	//q2...
 		menu = M_CreateMenu(0);
 
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_game");
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_game");
 
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommand	(menu, 64, 40,	"Easy",		"skill 0;deathmatch 0; coop 0;newgame\n");
@@ -174,8 +184,8 @@ void M_Menu_SinglePlayer_f (void)
 			NULL
 		};
 		menu = M_CreateMenu(0);
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title1.lmp");
+		MC_AddPicture(menu, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title1.lmp");
 
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommand	(menu, 64, 64,	"Easy",		"closemenu\nskill 0;deathmatch 0; coop 0;map demo1\n");
@@ -194,8 +204,8 @@ void M_Menu_SinglePlayer_f (void)
 	else if (QBigFontWorks())
 	{
 		menu = M_CreateMenu(0);
-		MC_AddPicture(menu, 16, 0, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/p_option.lmp");
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
 
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",		"closemenu\nmaxclients 1;deathmatch 0;coop 0;map start\n");
@@ -208,8 +218,8 @@ void M_Menu_SinglePlayer_f (void)
 	else
 	{	//q1
 		menu = M_CreateMenu(0);
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_option.lmp");
 	}
 
 	p = Draw_SafeCachePic("gfx/sp_menu.lmp");
@@ -222,28 +232,22 @@ void M_Menu_SinglePlayer_f (void)
 	}
 	else
 	{
-#ifdef CLIENTONLY
-	MC_AddWhiteText(menu, 92, 12*8, "QuakeWorld is for", false);
-	MC_AddWhiteText(menu, 92, 13*8, "Internet play only", false);
+		MC_AddPicture(menu, 72, 32, 232, 64, "gfx/sp_menu.lmp");
 
-	MC_AddBox (menu, 60, 10*8, 23, 4);
-#else
-	MC_AddPicture(menu, 72, 32, "gfx/sp_menu.lmp");
-	
-	b = MC_AddConsoleCommand	(menu, 16, 32,	"", "closemenu\nmaxclients 1;deathmatch 0;coop 0;map start\n");
-	menu->selecteditem = (menuoption_t *)b;
-	b->common.width = p->width;
-	b->common.height = 20;
-	b = MC_AddConsoleCommand	(menu, 16, 52,	"", "menu_load\n");
-	b->common.width = p->width;
-	b->common.height = 20;
-	b = MC_AddConsoleCommand	(menu, 16, 72,	"", "menu_save\n");
-	b->common.width = p->width;
-	b->common.height = 20;
+		b = MC_AddConsoleCommand	(menu, 16, 32,	"", "closemenu\nmaxclients 1;deathmatch 0;coop 0;map start\n");
+		menu->selecteditem = (menuoption_t *)b;
+		b->common.width = p->width;
+		b->common.height = 20;
+		b = MC_AddConsoleCommand	(menu, 16, 52,	"", "menu_load\n");
+		b->common.width = p->width;
+		b->common.height = 20;
+		b = MC_AddConsoleCommand	(menu, 16, 72,	"", "menu_save\n");
+		b->common.width = p->width;
+		b->common.height = 20;
 
-	menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
-#endif
+		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
 	}
+#endif
 }
 
 
@@ -312,9 +316,9 @@ static void M_DemoDraw(int x, int y, menucustom_t *control, menu_t *menu)
 		else
 			text = item->name+info->pathlen;
 		if (item == info->selected)
-			Draw_Alt_String(x, y+8, text);
+			Draw_AltFunString(x, y+8, text);
 		else
-			Draw_String(x, y+8, text);
+			Draw_FunString(x, y+8, text);
 		y+=8;
 		item = item->next;
 	}

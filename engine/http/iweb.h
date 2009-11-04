@@ -7,31 +7,9 @@
 #ifdef WEBSVONLY
 
 typedef unsigned char qbyte;
-typedef enum {false, true} qboolean;
-typedef enum {NA_INVALID, NA_LOOPBACK, NA_IP, NA_IPX, NA_BROADCAST_IP, NA_BROADCAST_IPX} netadrtype_t;
-typedef struct
-{
-	netadrtype_t	type;
-
-	qbyte	ip[4];
-	qbyte	ipx[10];
-
-	unsigned short	port;
-} netadr_t;
 #include <stdlib.h>
 #include <stdio.h>
 #include <malloc.h>
-
-#ifdef _WIN32
-#include <winsock.h>
-#endif
-
-
-#define PORT_ANY 0
-void Sys_Error(char *fmt, ...);
-int COM_CheckParm(char *parm);
-int com_argc;
-char **com_argv;
 
 #define Con_TPrintf IWebPrintf
 #define TL_NETBINDINTERFACE			"binding to %s"
@@ -45,19 +23,9 @@ char **com_argv;
 #define IWebMalloc(x) calloc(x, 1)
 #define IWebRealloc(x, y) realloc(x, y)
 #define IWebFree free
-
-#define MAX_OSPATH 1024
-
-#else
-
-#ifndef QUAKEDEF_H__
+#endif
 
 #include "quakedef.h"
-
-#else
-//#include <netinet/in.h>
-#endif
-#endif
 
 #ifdef _WIN32
 #include "winquake.h"
@@ -82,9 +50,9 @@ typedef qboolean iwboolean;
 
 //it's not allowed to error.
 #ifndef WEBSVONLY
-void VARGS IWebDPrintf(char *fmt, ...);
-void VARGS IWebPrintf(char *fmt, ...);
-void VARGS IWebWarnPrintf(char *fmt, ...);
+void VARGS IWebDPrintf(char *fmt, ...) LIKEPRINTF(1);
+void VARGS IWebPrintf(char *fmt, ...) LIKEPRINTF(1);
+void VARGS IWebWarnPrintf(char *fmt, ...) LIKEPRINTF(1);
 #endif
 
 typedef struct {

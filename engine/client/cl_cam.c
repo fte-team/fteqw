@@ -100,7 +100,7 @@ qboolean Cam_DrawViewModel(int pnum)
 {
 	if (cl.spectator)
 	{
-		if (autocam[pnum] && locked[pnum] && cl_chasecam.value)
+		if (autocam[pnum] && locked[pnum] && cl_chasecam.ival)
 			return true;
 		return false;
 	}
@@ -624,7 +624,7 @@ void Cam_FinishMove(int pnum, usercmd_t *cmd)
 		}
 	}
 
-	if (autocam[pnum] && cl_hightrack.value) 
+	if (autocam[pnum] && cl_hightrack.ival) 
 	{
 		Cam_CheckHighTarget(pnum);
 		return;

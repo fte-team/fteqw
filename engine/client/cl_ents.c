@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "particles.h"
+#include "shader.h"
 
 extern	cvar_t	cl_predict_players;
 extern	cvar_t	cl_predict_players2;
@@ -34,6 +35,7 @@ extern	cvar_t	r_powerupglow;
 extern	cvar_t	v_powerupshell;
 extern	cvar_t	cl_nolerp;
 extern	cvar_t	cl_nolerp_netquake;
+extern	cvar_t	r_torch;
 
 extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
@@ -58,19 +60,19 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 {
 	if (modelindex == cl_playerindex)
 	{
-		if (cl_deadbodyfilter.value == 2)
+		if (cl_deadbodyfilter.ival == 2)
 		{
 			if (frame >= 41 && frame <= 102)
 				return true;
 		}
-		else if (cl_deadbodyfilter.value)
+		else if (cl_deadbodyfilter.ival)
 		{
 			if (frame == 49 || frame == 60 || frame == 69 || frame == 84 || frame == 93 || frame == 102)
 				return true;
 		}
 	}
 
-	if (cl_gibfilter.value && (
+	if (cl_gibfilter.ival && (
 			modelindex == cl_h_playerindex ||
 			modelindex == cl_gib1index ||
 			modelindex == cl_gib2index ||
@@ -81,9 +83,16 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 
 //============================================================
 
+void CL_InitDlights(void)
+{
+	rtlights_max = cl_maxdlights = RTL_FIRST;
+	cl_dlights = BZ_Realloc(NULL, sizeof(*cl_dlights)*cl_maxdlights);
+	memset(cl_dlights, 0, sizeof(*cl_dlights)*cl_maxdlights);
+}
+
 static void CL_ClearDlight(dlight_t *dl, int key)
 {
-	int st;
+	texid_t st;
 	st = dl->stexture;
 	memset (dl, 0, sizeof(*dl));
 	dl->stexture = st;
@@ -92,6 +101,23 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 	dl->axis[2][2] = 1;
 	dl->key = key;
 	dl->flags = LFLAG_DYNAMIC;
+//	if (r_shadow_realtime_dlight_shadowmap.value)
+//		dl->flags |= LFLAG_SHADOWMAP;
+}
+
+dlight_t *CL_AllocSlight(void)
+{
+	dlight_t	*dl;
+	if (rtlights_max == cl_maxdlights)
+	{
+		cl_maxdlights = rtlights_max+8;
+		cl_dlights = BZ_Realloc(cl_dlights, sizeof(*cl_dlights)*cl_maxdlights);
+		memset(&cl_dlights[rtlights_max], 0, sizeof(*cl_dlights)*(cl_maxdlights-rtlights_max));
+	}
+	dl = &cl_dlights[rtlights_max++];
+
+	CL_ClearDlight(dl, 0);
+	return dl;
 }
 
 /*
@@ -108,8 +134,8 @@ dlight_t *CL_AllocDlight (int key)
 // first look for an exact key match
 	if (key)
 	{
-		dl = cl_dlights;
-		for (i=0 ; i<dlights_running ; i++, dl++)
+		dl = cl_dlights+rtlights_first;
+		for (i=rtlights_first ; i<RTL_FIRST ; i++, dl++)
 		{
 			if (dl->key == key)
 			{
@@ -119,18 +145,21 @@ dlight_t *CL_AllocDlight (int key)
 		}
 	}
 
-// then look for anything else
-	if (dlights_running < MAX_DLIGHTS)
+	//default to the first
+	dl = &cl_dlights[rtlights_first?rtlights_first-1:0];
+	//try and find one that is free
+	for (i=RTL_FIRST; i > rtlights_first && i > 0; )
 	{
-		dl = &cl_dlights[dlights_running];
-		CL_ClearDlight(dl, key);
-		dlights_running++;
-		if (dlights_software < MAX_SWLIGHTS)
-			dlights_software++;
-		return dl;
+		i--;
+		if (!cl_dlights[i].radius)
+		{
+			dl = &cl_dlights[i];
+			break;
+		}
 	}
+	if (rtlights_first > dl - cl_dlights)
+		rtlights_first = dl - cl_dlights;
 
-	dl = &cl_dlights[0];
 	CL_ClearDlight(dl, key);
 	return dl;
 }
@@ -140,46 +169,33 @@ dlight_t *CL_AllocDlight (int key)
 CL_NewDlight
 ===============
 */
-dlight_t *CL_NewDlight (int key, float x, float y, float z, float radius, float time,
-				   int type)
+dlight_t *CL_NewDlight (int key, const vec3_t org, float radius, float time, int type)
 {
+	static const vec3_t lightcolour[] =
+	{
+		{0.2, 0.1, 0.05},
+		{0.05, 0.05, 0.3},
+		{0.5, 0.05, 0.05},
+		{0.5, 0.05, 0.4}
+	};
 	dlight_t	*dl;
+	if (type >= sizeof(lightcolour)/sizeof(lightcolour[0]))
+		type = 0;
 
 	dl = CL_AllocDlight (key);
-	dl->origin[0] = x;
-	dl->origin[1] = y;
-	dl->origin[2] = z;
+	VectorCopy(org, dl->origin);
 	dl->radius = radius;
 	dl->die = (float)cl.time + time;
-	if (type == 0) {
-		dl->color[0] = 0.2;
-		dl->color[1] = 0.1;
-		dl->color[2] = 0.05;
-	} else if (type == 1) {
-		dl->color[0] = 0.05;
-		dl->color[1] = 0.05;
-		dl->color[2] = 0.3;
-	} else if (type == 2) {
-		dl->color[0] = 0.5;
-		dl->color[1] = 0.05;
-		dl->color[2] = 0.05;
-	} else if (type == 3) {
-		dl->color[0]=0.5;
-		dl->color[1] = 0.05;
-		dl->color[2] = 0.4;
-	}
-
+	VectorCopy(lightcolour[type], dl->color);
 	return dl;
 }
-dlight_t *CL_NewDlightRGB (int key, float x, float y, float z, float radius, float time,
+dlight_t *CL_NewDlightRGB (int key, const vec3_t org, float radius, float time,
 				   float r, float g, float b)
 {
 	dlight_t	*dl;
 
 	dl = CL_AllocDlight (key);
-	dl->origin[0] = x;
-	dl->origin[1] = y;
-	dl->origin[2] = z;
+	VectorCopy(org, dl->origin);
 	dl->radius = radius;
 	dl->die = cl.time + time;
 	dl->color[0] = r;
@@ -199,26 +215,28 @@ CL_DecayLights
 void CL_DecayLights (void)
 {
 	int			i;
-	int lastrunning = -1;
 	dlight_t	*dl;
 
 	if (cl.paused)	//DON'T DO IT!!!
 		return;
 
-	dl = cl_dlights;
-	for (i=0 ; i<dlights_running ; i++, dl++)
+	dl = cl_dlights+rtlights_first;
+	for (i=rtlights_first ; i<RTL_FIRST ; i++, dl++)
 	{
 		if (!dl->radius)
+		{
 			continue;
+		}
 
 		if (!dl->die)
 		{
-			lastrunning = i;
 			continue;
 		}
 
 		if (dl->die < (float)cl.time)
 		{
+			if (i==rtlights_first)
+				rtlights_first++;
 			dl->radius = 0;
 			continue;
 		}
@@ -226,10 +244,11 @@ void CL_DecayLights (void)
 		dl->radius -= host_frametime*dl->decay;
 		if (dl->radius < 0)
 		{
+			if (i==rtlights_first)
+				rtlights_first++;
 			dl->radius = 0;
 			continue;
 		}
-		lastrunning = i;
 
 		if (dl->channelfade[0])
 		{
@@ -252,10 +271,6 @@ void CL_DecayLights (void)
 				dl->color[2] = 0;
 		}
 	}
-	dlights_running = lastrunning+1;
-	dlights_software = dlights_running;
-	if (dlights_software > MAX_SWLIGHTS)
-		dlights_software = MAX_SWLIGHTS;
 }
 
 
@@ -300,7 +315,7 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 			bitcounts[i]++;
 
 #ifdef PROTOCOLEXTENSIONS
-	if (bits & U_EVENMORE && cls.fteprotocolextensions)
+	if (bits & U_EVENMORE && (cls.fteprotocolextensions & (PEXT_SCALE|PEXT_TRANS|PEXT_FATNESS|PEXT_HEXEN2|PEXT_COLOURMOD|PEXT_DPFLAGS|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2)))
 		morebits = MSG_ReadByte ();
 	if (morebits & U_YETMORE)
 		morebits |= MSG_ReadByte()<<8;
@@ -369,11 +384,11 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		to->colormod[2] = MSG_ReadByte();
 	}
 
-	if (morebits & U_ENTITYDBL)
+	if (morebits & U_ENTITYDBL && cls.fteprotocolextensions & PEXT_ENTITYDBL)
 		to->number += 512;
-	if (morebits & U_ENTITYDBL2)
+	if (morebits & U_ENTITYDBL2 && cls.fteprotocolextensions & PEXT_ENTITYDBL2)
 		to->number += 1024;
-	if (morebits & U_MODELDBL)
+	if (morebits & U_MODELDBL && cls.fteprotocolextensions & PEXT_MODELDBL)
 		to->modelindex += 256;
 
 	if (morebits & U_DPFLAGS)// && cls.fteprotocolextensions & PEXT_DPFLAGS)
@@ -459,19 +474,21 @@ void CL_ParsePacketEntities (qboolean delta)
 	qboolean	full;
 	int		from;
 
-	if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS))
+	newpacket = cls.netchan.incoming_sequence&UPDATE_MASK;
+	newp = &cl.frames[newpacket].packet_entities;
+	cl.frames[newpacket].invalid = false;
+
+	if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) && cls.protocol == CP_QUAKEWORLD)
 	{
 		cl.oldgametime = cl.gametime;
 		cl.oldgametimemark = cl.gametimemark;
 		cl.gametime = realtime;
 		cl.gametimemark = realtime;
+
+		newp->servertime = realtime;
 	}
-
-	newpacket = cls.netchan.incoming_sequence&UPDATE_MASK;
-	newp = &cl.frames[newpacket].packet_entities;
-	cl.frames[newpacket].invalid = false;
-
-	newp->servertime = cl.gametime;
+	else
+		newp->servertime = cl.gametime;
 
 	if (delta)
 	{
@@ -1369,9 +1386,9 @@ void VQ2_AddLerpEntity(entity_t *in)	//a convienience function
 	ent->angles[0]*=-1;
 }
 
-void V_AddLight (vec3_t org, float quant, float r, float g, float b)
+int V_AddLight (int entsource, vec3_t org, float quant, float r, float g, float b)
 {
-	CL_NewDlightRGB (0, org[0], org[1], org[2], quant, -0.1, r, g, b);
+	return CL_NewDlightRGB (entsource, org, quant, -0.1, r, g, b) - cl_dlights;
 }
 
 static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le)
@@ -1638,13 +1655,15 @@ void CL_LinkPacketEntities (void)
 	//, spnum;
 	dlight_t			*dl;
 	vec3_t				angles;
-	int flicker;
 	qboolean nolerp;
 
 	float servertime;
 
 	CL_CalcClientTime();
-	servertime = cl.servertime;
+	if ((cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) || cls.protocol != CP_QUAKEWORLD)
+		servertime = cl.servertime;
+	else
+		servertime = realtime;
 
 	nolerp = !CL_MayLerp() && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
 #ifdef NQPROT
@@ -1654,7 +1673,10 @@ void CL_LinkPacketEntities (void)
 	if (!pack)
 		return;
 
-	servertime = cl.servertime;
+	if ((cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) || cls.protocol != CP_QUAKEWORLD)
+		servertime = cl.servertime;
+	else
+		servertime = realtime;
 
 
 	autorotate = anglemod(100*servertime);
@@ -1681,9 +1703,7 @@ void CL_LinkPacketEntities (void)
 #endif
 
 		ent = &cl_visedicts[cl_numvisedicts];
-#ifdef Q3SHADERS
 		ent->forcedshader = NULL;
-#endif
 
 		le = &cl.lerpents[state->number];
 
@@ -1691,25 +1711,58 @@ void CL_LinkPacketEntities (void)
 
 		VectorCopy(le->origin, ent->origin);
 
-		//bots or powerup glows. items always glow, powerups can be disabled
-		if (state->modelindex != cl_playerindex || r_powerupglow.value)
+		//bots or powerup glows. items always glow, bots can be disabled
+		if (state->modelindex != cl_playerindex || r_powerupglow.ival)
+		if (state->effects & (EF_BLUE | EF_RED | EF_BRIGHTLIGHT | EF_DIMLIGHT) || state->light[3])
 		{
-			flicker = r_lightflicker.value?(rand()&31):0;
-			// spawn light flashes, even ones coming from invisible objects
-			if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
-				CL_NewDlight (state->number, state->origin[0], state->origin[1], state->origin[2], 200 + flicker, 0, 3);
-			else if (state->effects & EF_BLUE)
-				CL_NewDlight (state->number, state->origin[0], state->origin[1], state->origin[2], 200 + flicker, 0, 1);
-			else if (state->effects & EF_RED)
-				CL_NewDlight (state->number, state->origin[0], state->origin[1], state->origin[2], 200 + flicker, 0, 2);
-			else if (state->effects & EF_BRIGHTLIGHT)
-				CL_NewDlight (state->number, state->origin[0], state->origin[1], state->origin[2] + 16, 400 + flicker, 0, 0);
-			else if (state->effects & EF_DIMLIGHT)
-				CL_NewDlight (state->number, state->origin[0], state->origin[1], state->origin[2], 200 + flicker, 0, 0);
-		}
-		if (state->light[3])
-		{
-			CL_NewDlightRGB (state->number, state->origin[0], state->origin[1], state->origin[2], state->light[3], 0, state->light[0]/1024.0f, state->light[1]/1024.0f, state->light[2]/1024.0f);
+			vec3_t colour;
+			float radius;
+			colour[0] = 0;
+			colour[1] = 0;
+			colour[2] = 0;
+			radius = 0;
+
+			if (state->effects & EF_BRIGHTLIGHT)
+			{
+				radius = max(radius,400);
+				colour[0] += 0.2;
+				colour[1] += 0.1;
+				colour[2] += 0.05;
+			}
+			if (state->effects & EF_DIMLIGHT)
+			{
+				radius = max(radius,200);
+				colour[0] += 0.2;
+				colour[1] += 0.1;
+				colour[2] += 0.05;
+			}
+			if (state->effects & EF_BLUE)
+			{
+				radius = max(radius,200);
+				colour[0] += 0.05;
+				colour[1] += 0.05;
+				colour[2] += 0.3;
+			}
+			if (state->effects & EF_RED)
+			{
+				radius = max(radius,200);
+				colour[0] += 0.5;
+				colour[1] += 0.05;
+				colour[2] += 0.05;
+			}
+			if (state->light[3])
+			{
+				radius = max(radius,state->light[3]);
+				colour[0] += state->light[0]/1024.0f;
+				colour[1] += state->light[1]/1024.0f;
+				colour[2] += state->light[2]/1024.0f;
+			}
+
+			if (radius)
+			{
+				radius += r_lightflicker.value?(rand()&31):0;
+				CL_NewDlightRGB(state->number, state->origin, radius, 0.1, colour[0], colour[1], colour[2]);
+			}
 		}
 
 		// if set to invisible, skip
@@ -1732,10 +1785,7 @@ void CL_LinkPacketEntities (void)
 
 		cl_numvisedicts++;
 
-#ifdef Q3SHADERS
 		ent->forcedshader = NULL;
-#endif
-
 		ent->visframe = 0;
 
 		ent->keynum = state->number;
@@ -1746,8 +1796,8 @@ void CL_LinkPacketEntities (void)
 			ent->model = model;
 
 		ent->flags = state->flags;
-		if (state->effects & NQEF_ADDATIVE)
-			ent->flags |= Q2RF_ADDATIVE;
+		if (state->effects & NQEF_ADDITIVE)
+			ent->flags |= Q2RF_ADDITIVE;
 		if (state->effects & EF_NODEPTHTEST)
 			ent->flags |= RF_NODEPTHTEST;
 
@@ -1884,7 +1934,7 @@ void CL_LinkPacketEntities (void)
 
 		{
 			extern cvar_t gl_part_flame;
-			if (cls.allow_anyparticles && gl_part_flame.value)
+			if (cls.allow_anyparticles && gl_part_flame.ival)
 			{
 				P_EmitEffect (ent->origin, model->particleeffect, &(le->emitstate));
 			}
@@ -1902,6 +1952,7 @@ void CL_LinkPacketEntities (void)
 
 			if (model->flags & EF_ROCKET)
 			{
+#pragma message("Replace this flag on load for hexen2 models")
 				if (strncmp(model->name, "models/sflesh", 13))
 				{	//hmm. hexen spider gibs...
 					rad = 200;
@@ -2002,7 +2053,7 @@ void CL_ParseProjectiles (int modelindex, qboolean nails2)
 		pr->origin[0] = ( ( bits[0] + ((bits[1]&15)<<8) ) <<1) - 4096;
 		pr->origin[1] = ( ( (bits[1]>>4) + (bits[2]<<4) ) <<1) - 4096;
 		pr->origin[2] = ( ( bits[3] + ((bits[4]&15)<<8) ) <<1) - 4096;
-		pr->angles[0] = 360*((int)bits[4]>>4)/16.0f;
+		pr->angles[0] = 360*(((int)bits[4]>>4)/16.0f + 1/32.0f);
 		pr->angles[1] = 360*(int)bits[5]/256.0f;
 	}
 }
@@ -2030,9 +2081,8 @@ void CL_LinkProjectiles (void)
 
 		if (pr->modelindex < 1)
 			continue;
-#ifdef Q3SHADERS
+
 		ent->forcedshader = NULL;
-#endif
 		ent->model = cl.model_precache[pr->modelindex];
 		ent->skinnum = 0;
 		memset(&ent->framestate, 0, sizeof(ent->framestate));
@@ -2553,6 +2603,9 @@ void CL_LinkPlayers (void)
 			continue;
 #endif
 
+		if (info->spectator)
+			continue;
+
 		// spawn light flashes, even ones coming from invisible objects
 		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.playernum[0])
 			&& (state->effects & (EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_DIMLIGHT)))
@@ -2597,7 +2650,7 @@ void CL_LinkPlayers (void)
 			if (radius)
 			{
 				radius += r_lightflicker.value?(rand()&31):0;
-				CL_NewDlightRGB(j+1, org[0], org[1], org[2], radius, 0.1, colour[0], colour[1], colour[2])->flags &= ~LFLAG_ALLOW_FLASH;
+				CL_NewDlightRGB(j+1, org, radius, 0.1, colour[0], colour[1], colour[2])->flags &= ~LFLAG_ALLOW_FLASH;
 			}
 		}
 
@@ -2617,10 +2670,7 @@ void CL_LinkPlayers (void)
 		cl_numvisedicts++;
 		ent->keynum = j+1;
 		ent->flags = 0;
-
-#ifdef Q3SHADERS
 		ent->forcedshader = NULL;
-#endif
 
 		//the extra modelindex check is to stop lame mods from using vweps with rings
 		if (state->command.impulse && cl.model_precache_vwep[0] && state->modelindex == cl_playerindex)
@@ -2705,7 +2755,7 @@ void CL_LinkPlayers (void)
 		if (pnum < cl.splitclients)
 		{	//this is a local player
 		}
-		else if (msec <= 0 || (!cl_predict_players.value && !cl_predict_players2.value))
+		else if (msec <= 0 || (!cl_predict_players.ival && !cl_predict_players2.ival))
 		{
 			VectorCopy (state->origin, ent->origin);
 //Con_DPrintf ("nopredict\n");
@@ -2737,23 +2787,23 @@ void CL_LinkPlayers (void)
 		else if (state->command.impulse)
 			CL_AddVWeapModel (ent, cl.model_precache_vwep[state->command.impulse]);
 
+		if (r_torch.ival)
+		{
+			dlight_t *dl;
+			dl = CL_NewDlightRGB(j+1, ent->origin, 300, r_torch.ival, 0.05, 0.05, 0.02);
+			dl->flags |= LFLAG_SHADOWMAP|LFLAG_ALLOW_FLASH;
+			dl->fov = 60;
+			angles[0] *= 3;
+			angles[1] += sin(realtime)*8;
+			angles[0] += cos(realtime*1.13)*5;
+			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+		}
 	}
 }
-
-#ifdef Q3SHADERS	//fixme: do better.
-#include "shader.h"
-#endif
 
 void CL_LinkViewModel(void)
 {
 	entity_t	ent;
-//	float		ambient[4], diffuse[4];
-//	int			j;
-//	int			lnum;
-//	vec3_t		dist;
-//	float		add;
-//	dlight_t	*dl;
-//	int			ambientlight, shadelight;
 
 	static struct model_s *oldmodel[MAX_SPLITS];
 	static float lerptime[MAX_SPLITS];
@@ -2779,7 +2829,7 @@ void CL_LinkViewModel(void)
 		return;
 #endif
 
-	if (!r_drawentities.value)
+	if (!r_drawentities.ival)
 		return;
 
 	if ((cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVISIBILITY) && r_drawviewmodelinvis.value <= 0)
@@ -2851,40 +2901,33 @@ void CL_LinkViewModel(void)
 		ent.framestate.g[FS_REG].lerpfrac = 1-(realtime-lerptime[r_refdef.currentplayernum])/frameduration[r_refdef.currentplayernum];
 		ent.framestate.g[FS_REG].lerpfrac = bound(0, ent.framestate.g[FS_REG].lerpfrac, 1);
 	}
-#define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
-#define	Q2RF_WEAPONMODEL		4		// only draw through eyes
-#define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
 
-	ent.flags = Q2RF_WEAPONMODEL|Q2RF_DEPTHHACK;
+	ent.flags = Q2RF_WEAPONMODEL|Q2RF_DEPTHHACK|RF_NOSHADOW;
 
 	V_AddEntity(&ent);
 
-	if (!v_powerupshell.value)
+	if (!v_powerupshell.ival)
 		return;
 
 	if (cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_QUAD)
 	{
-#ifdef Q3SHADERS
-		if (v_powerupshell.value == 2)
+		if (v_powerupshell.ival == 2)
 		{
 			ent.forcedshader = R_RegisterCustom("powerups/quadWeapon", Shader_DefaultSkinShell, NULL);
 			V_AddEntity(&ent);
 		}
 		else
-#endif
 			ent.flags |= Q2RF_SHELL_BLUE;
 	}
 	if (cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVULNERABILITY)
 	{
-#ifdef Q3SHADERS
-		if (v_powerupshell.value == 2)
+		if (v_powerupshell.ival == 2)
 		{
 			ent.forcedshader = R_RegisterCustom("powerups/regen", Shader_DefaultSkinShell, NULL);
 			ent.fatness = -2.5;
 			V_AddEntity(&ent);
 		}
 		else
-#endif
 			ent.flags |= Q2RF_SHELL_RED;
 	}
 
@@ -2893,16 +2936,11 @@ void CL_LinkViewModel(void)
 
 	ent.fatness = 0.5;
 	ent.shaderRGBAf[3] /= 10;
-#ifdef Q3SHADERS	//fixme: do better.
-	//fixme: this is woefully gl specific. :(
-	if (qrenderer == QR_OPENGL)
-	{
-		ent.shaderRGBAf[0] = (!!(ent.flags & Q2RF_SHELL_RED));
-		ent.shaderRGBAf[1] = (!!(ent.flags & Q2RF_SHELL_GREEN));
-		ent.shaderRGBAf[2] = (!!(ent.flags & Q2RF_SHELL_BLUE));
-		ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell, NULL);
-	}
-#endif
+
+	ent.shaderRGBAf[0] = (!!(ent.flags & Q2RF_SHELL_RED));
+	ent.shaderRGBAf[1] = (!!(ent.flags & Q2RF_SHELL_GREEN));
+	ent.shaderRGBAf[2] = (!!(ent.flags & Q2RF_SHELL_BLUE));
+	ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell, NULL);
 
 	V_AddEntity(&ent);
 }
@@ -2983,7 +3021,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 	if (playertime > realtime)
 		playertime = realtime;
 
-	if (cl_nopred.value || cls.demoplayback)
+	if (cl_nopred.value || cls.demoplayback || cl.paused)
 		return;
 
 	frame = &cl.frames[cl.parsecount&UPDATE_MASK];
@@ -3034,7 +3072,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 			// only predict half the move to minimize overruns
 			msec = 500*(playertime - state->state_time);
 			if (msec <= 0 ||
-				(!cl_predict_players.value && !cl_predict_players2.value) ||
+				(!cl_predict_players.ival && !cl_predict_players2.ival) ||
 				!dopred)
 			{
 				VectorCopy (state->origin, pplayer->origin);
@@ -3080,7 +3118,7 @@ void CL_SetSolidPlayers (int playernum)
 	struct predicted_player *pplayer;
 	physent_t *pent;
 
-	if (!cl_solid_players.value)
+	if (!cl_solid_players.ival)
 		return;
 
 	pent = pmove.physents + pmove.numphysent;
@@ -3131,6 +3169,9 @@ void CL_SwapEntityLists(void)
 //	cl_visedicts = cl_visedicts_list[cls.netchan.incoming_sequence&1];
 
 	cl_numvisedicts = 0;
+	cl_numstrisidx = 0;
+	cl_numstrisvert = 0;
+	cl_numstris = 0;
 }
 
 void CL_EmitEntities (void)

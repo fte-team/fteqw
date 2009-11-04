@@ -100,6 +100,10 @@ char	*NET_AdrToStringMasked (char *s, int len, netadr_t a, netadr_t amask);
 void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits);
 qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask);
 
+
+struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address);
+qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, struct ftenet_generic_connection_s *(*establish)(qboolean isserver, const char *address), qboolean islisten);
+
 //============================================================================
 
 #define	OLD_AVG		0.99		// total = oldtotal*OLD_AVG + new*(1-OLD_AVG)
@@ -171,12 +175,13 @@ extern	int	net_drop;		// packets dropped before this one
 void Netchan_Init (void);
 int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate);
 void Netchan_OutOfBand (netsrc_t sock, netadr_t adr, int length, qbyte *data);
-void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t adr, char *format, ...);
+void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t adr, char *format, ...) LIKEPRINTF(3);
 void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t adr, int language, translation_t text, ...);
 qboolean Netchan_Process (netchan_t *chan);
 void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t adr, int qport);
 
 qboolean Netchan_CanPacket (netchan_t *chan, int rate);
+void Netchan_Block (netchan_t *chan, int bytes, int rate);
 qboolean Netchan_CanReliable (netchan_t *chan, int rate);
 #ifdef NQPROT
 nqprot_t NQNetChan_Process(netchan_t *chan);
@@ -228,6 +233,7 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 #endif
 
 int UDP_OpenSocket (int port, qboolean bcast);
+int UDP6_OpenSocket (int port, qboolean bcast);
 int IPX_OpenSocket (int port, qboolean bcast);
 int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
 void SockadrToNetadr (struct sockaddr_qstorage *s, netadr_t *a);

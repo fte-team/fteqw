@@ -43,9 +43,18 @@ int QC_strcasecmp (const char *s1, const char *s2);
 #define QC_vsnprintf vsnprintf
 #endif
 
+#if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
+	#ifndef LIKEPRINTF
+		#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
+	#endif
+#endif
+#ifndef LIKEPRINTF
+#define LIKEPRINTF(x)
+#endif
+
 double I_FloatTime (void);
 
-void	VARGS QCC_Error (int errortype, const char *error, ...);
+void	VARGS QCC_Error (int errortype, const char *error, ...) LIKEPRINTF(2);
 int		CheckParm (char *check);
 
 

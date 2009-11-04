@@ -20,6 +20,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sbar.c -- status bar code
 
 #include "quakedef.h"
+#include "shader.h"
+
+#pragma message("hipnotic/rogue: Find out")
+#define FINDOUT 1024
 
 extern cvar_t hud_tracking_show;
 
@@ -132,7 +136,7 @@ int Sbar_PlayerNum(void)
 
 int Sbar_TopColour(player_info_t *p)
 {
-	if (scr_scoreboard_forcecolors.value)
+	if (scr_scoreboard_forcecolors.ival)
 		return p->ttopcolor;
 	else
 		return p->rtopcolor;
@@ -140,30 +144,63 @@ int Sbar_TopColour(player_info_t *p)
 
 int Sbar_BottomColour(player_info_t *p)
 {
-	if (scr_scoreboard_forcecolors.value)
+	if (scr_scoreboard_forcecolors.ival)
 		return p->tbottomcolor;
 	else
 		return p->rbottomcolor;
 }
 
+//Draws a pre-marked-up string with no width limit. doesn't support new lines
 void Draw_ExpandedString(int x, int y, conchar_t *str)
 {
+	Font_BeginString(font_conchar, x, y, &x, &y);
 	while(*str)
 	{
-		Draw_ColouredCharacter (x, y, *str++);
-		x += 8;
+		x = Font_DrawChar(x, y, *str++);
 	}
+	Font_EndString(font_conchar);
 }
 
-void Draw_FunString(int x, int y, unsigned char *str)
+//Draws a marked-up string using the regular char set with no width limit. doesn't support new lines
+void Draw_FunString(int x, int y, const unsigned char *str)
 {
 	conchar_t buffer[2048];
 	COM_ParseFunString(CON_WHITEMASK, str, buffer, sizeof(buffer), false);
 
 	Draw_ExpandedString(x, y, buffer);
 }
+//Draws a marked up string using the alt char set (legacy mode would be |128)
+void Draw_AltFunString(int x, int y, const unsigned char *str)
+{
+	conchar_t buffer[2048];
+	COM_ParseFunString(COLOR_MAGENTA<<CON_FGSHIFT, str, buffer, sizeof(buffer), false);
 
-void Draw_FunStringLen(int x, int y, unsigned char *str, int numchars)
+	Draw_ExpandedString(x, y, buffer);
+}
+
+//Draws a marked up string no wider than $width virtual pixels.
+void Draw_FunStringWidth(int x, int y, const unsigned char *str, int width)
+{
+	conchar_t buffer[2048];
+	conchar_t *w = buffer;
+
+	width = (width*vid.pixelwidth)/vid.width;
+
+	COM_ParseFunString(CON_WHITEMASK, str, buffer, sizeof(buffer), false);
+
+	Font_BeginString(font_conchar, x, y, &x, &y);
+	while(*w)
+	{
+		width -= Font_CharWidth(*w);
+		if (width < 0)
+			return;
+		x = Font_DrawChar(x, y, *w++);
+	}
+	Font_EndString(font_conchar);
+}
+
+//Draws a marked up string with at most $numchars characters. obsolete
+FTE_DEPRECATED void Draw_FunStringLen(int x, int y, unsigned char *str, int numchars)
 {
 	conchar_t buffer[2048];
 
@@ -192,6 +229,8 @@ static qboolean largegame = false;
 #ifdef Q2CLIENT
 void DrawHUDString (char *string, int x, int y, int centerwidth, int xor)
 {
+#pragma message("q2: reimplement me")
+/*
 	int		margin;
 	char	line[1024];
 	int		width;
@@ -223,6 +262,7 @@ void DrawHUDString (char *string, int x, int y, int centerwidth, int xor)
 			y += 8;
 		}
 	}
+*/
 }
 #define STAT_MINUS		10	// num frame for '-' stats digit
 char		*q2sb_nums[2][11] =
@@ -233,6 +273,11 @@ char		*q2sb_nums[2][11] =
 	"anum_6", "anum_7", "anum_8", "anum_9", "anum_minus"}
 };
 
+static mpic_t *Sbar_Q2CachePic(char *name)
+{
+	return Draw_SafeCachePic(va("pics/%s.pcx", name));
+}
+
 #define	ICON_WIDTH	24
 #define	ICON_HEIGHT	24
 #define	CHAR_WIDTH	16
@@ -242,6 +287,7 @@ void SCR_DrawField (int x, int y, int color, int width, int value)
 	char	num[16], *ptr;
 	int		l;
 	int		frame;
+	mpic_t *p;
 
 	if (width < 1)
 		return;
@@ -264,7 +310,9 @@ void SCR_DrawField (int x, int y, int color, int width, int value)
 		else
 			frame = *ptr -'0';
 
-		Draw_TransPic (x,y,Draw_SafeCachePic(q2sb_nums[color][frame]));
+		p = Sbar_Q2CachePic(q2sb_nums[color][frame]);
+		if (p)
+			Draw_ScalePic (x,y,p->width, p->height, p);
 		x += CHAR_WIDTH;
 		ptr++;
 		l--;
@@ -295,6 +343,7 @@ void Sbar_ExecuteLayoutString (char *s)
 	int		width;
 	int		index;
 //	q2clientinfo_t	*ci;
+	mpic_t *p;
 
 	if (cls.state != ca_active)
 		return;
@@ -357,7 +406,9 @@ void Sbar_ExecuteLayoutString (char *s)
 			{
 //				SCR_AddDirtyPoint (x, y);
 //				SCR_AddDirtyPoint (x+23, y+23);
-				Draw_Pic (x, y, Draw_SafeCachePic(Get_Q2ConfigString(Q2CS_IMAGES+value)));
+				p = Sbar_Q2CachePic(Get_Q2ConfigString(Q2CS_IMAGES+value));
+				if (p)
+					Draw_ScalePic (x, y, p->width, p->height, p);
 			}
 			continue;
 		}
@@ -389,14 +440,14 @@ void Sbar_ExecuteLayoutString (char *s)
 			time = atoi(com_token);
 
 //			DrawAltString (x+32, y, ci->name);
-			Draw_String (x+32, y+8,  "Score: ");
-			Draw_Alt_String (x+32+7*8, y+8,  va("%i", score));
-			Draw_String (x+32, y+16, va("Ping:  %i", ping));
-			Draw_String (x+32, y+24, va("Time:  %i", time));
+			Draw_FunString (x+32, y+8,  "Score: ");
+			Draw_AltFunString (x+32+7*8, y+8,  va("%i", score));
+			Draw_FunString (x+32, y+16, va("Ping:  %i", ping));
+			Draw_FunString (x+32, y+24, va("Time:  %i", time));
 
 //			if (!ci->icon)
 //				ci = &cl.baseclientinfo;
-//			Draw_Pic (x, y, Draw_CachePic(ci->iconname));
+//			Draw_Pic (x, y, Draw_SafeCachePic(ci->iconname));
 			continue;
 		}
 
@@ -431,7 +482,7 @@ void Sbar_ExecuteLayoutString (char *s)
 //			if (value == cl.playernum)
 //				Draw_Alt_String (x, y, block);
 //			else
-				Draw_String (x, y, block);
+				Draw_FunString (x, y, block);
 			continue;
 		}
 
@@ -440,7 +491,9 @@ void Sbar_ExecuteLayoutString (char *s)
 			s = COM_Parse (s);
 //			SCR_AddDirtyPoint (x, y);
 //			SCR_AddDirtyPoint (x+23, y+23);
-			Draw_Pic (x, y, Draw_SafeCachePic(com_token));
+			p = Draw_SafeCachePic(com_token);
+			if (p)
+				Draw_ScalePic (x, y, p->width, p->height, p);
 			continue;
 		}
 
@@ -468,7 +521,11 @@ void Sbar_ExecuteLayoutString (char *s)
 				color = 1;
 
 			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 1)
-				Draw_Pic (x, y, Draw_SafeCachePic("field_3"));
+			{
+				p = Draw_SafeCachePic("field_3");
+				if (p)
+					Draw_ScalePic (x, y, p->width, p->height, p);
+			}
 
 			SCR_DrawField (x, y, color, width, value);
 			continue;
@@ -488,7 +545,11 @@ void Sbar_ExecuteLayoutString (char *s)
 				continue;	// negative number = don't show
 
 			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 4)
-				Draw_Pic (x, y, Draw_SafeCachePic("field_3"));
+			{
+				p = Draw_SafeCachePic("field_3");
+				if (p)
+					Draw_ScalePic (x, y, p->width, p->height, p);
+			}
 
 			SCR_DrawField (x, y, color, width, value);
 			continue;
@@ -506,7 +567,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			color = 0;	// green
 
 			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 2)
-				Draw_Pic (x, y, Draw_SafeCachePic("field_3"));
+				Draw_ScalePic (x, y, FINDOUT, FINDOUT, Draw_SafeCachePic("field_3"));
 
 			SCR_DrawField (x, y, color, width, value);
 			continue;
@@ -522,7 +583,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			index = cl.q2frame.playerstate.stats[index];
 			if (index < 0 || index >= Q2MAX_CONFIGSTRINGS)
 				Host_EndGame ("Bad stat_string index");
-			Draw_String (x, y, Get_Q2ConfigString(index));
+			Draw_FunString (x, y, Get_Q2ConfigString(index));
 			continue;
 		}
 
@@ -536,7 +597,7 @@ void Sbar_ExecuteLayoutString (char *s)
 		if (!strcmp(com_token, "string"))
 		{
 			s = COM_Parse (s);
-			Draw_String (x, y, com_token);
+			Draw_FunString (x, y, com_token);
 			continue;
 		}
 
@@ -550,7 +611,7 @@ void Sbar_ExecuteLayoutString (char *s)
 		if (!strcmp(com_token, "string2"))
 		{
 			s = COM_Parse (s);
-			Draw_Alt_String (x, y, com_token);
+			Draw_AltFunString (x, y, com_token);
 			continue;
 		}
 
@@ -622,7 +683,7 @@ Tab key down
 */
 void Sbar_ShowScores (void)
 {
-	if (scr_scoreboard_teamscores.value)
+	if (scr_scoreboard_teamscores.ival)
 	{
 		Sbar_ShowTeamScores();
 		return;
@@ -678,7 +739,7 @@ Tab key up
 */
 void Sbar_DontShowScores (void)
 {
-	if (scr_scoreboard_teamscores.value)
+	if (scr_scoreboard_teamscores.ival)
 	{
 		Sbar_DontShowTeamScores();
 		return;
@@ -896,9 +957,9 @@ void Sbar_Init (void)
 Sbar_DrawPic
 =============
 */
-void Sbar_DrawPic (int x, int y, mpic_t *pic)
+void Sbar_DrawPic (int x, int y, int w, int h, mpic_t *pic)
 {
-	Draw_Pic (sbar_rect.x + x /* + ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y + (sbar_rect.height-SBAR_HEIGHT), pic);
+	Draw_ScalePic(sbar_rect.x + x /* + ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y + (sbar_rect.height-SBAR_HEIGHT), w, h, pic);
 }
 
 /*
@@ -908,20 +969,9 @@ Sbar_DrawSubPic
 JACK: Draws a portion of the picture in the status bar.
 */
 
-void Sbar_DrawSubPic(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height)
+void Sbar_DrawSubPic(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight)
 {
-	Draw_SubPic (sbar_rect.x + x, sbar_rect.y + y+(sbar_rect.height-SBAR_HEIGHT), pic, srcx, srcy, width, height);
-}
-
-
-/*
-=============
-Sbar_DrawTransPic
-=============
-*/
-void Sbar_DrawTransPic (int x, int y, mpic_t *pic)
-{
-	Draw_TransPic (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y + (sbar_rect.height-SBAR_HEIGHT), pic);
+	Draw_SubPic (sbar_rect.x + x, sbar_rect.y + y+(sbar_rect.height-SBAR_HEIGHT), width, height, pic, srcx, srcy, srcwidth, srcheight);
 }
 
 /*
@@ -933,7 +983,9 @@ Draws one solid graphics character
 */
 void Sbar_DrawCharacter (int x, int y, int num)
 {
-	Draw_Character (sbar_rect.x +  x /*+ ((sbar_rect.width - 320)>>1) */ + 4, sbar_rect.y + y + sbar_rect.height-SBAR_HEIGHT, num);
+	Font_BeginString(font_conchar, sbar_rect.x + x + 4, sbar_rect.y + y + sbar_rect.height-SBAR_HEIGHT, &x, &y);
+	Font_DrawChar(x, y, num | 0xe000 | CON_WHITEMASK);
+	Font_EndString(font_conchar);
 }
 
 /*
@@ -943,32 +995,32 @@ Sbar_DrawString
 */
 void Sbar_DrawString (int x, int y, char *str)
 {
-	Draw_String (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
-}
-
-void Sbar_DrawFunString (int x, int y, char *str)
-{
 	Draw_FunString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
 }
 
 void Draw_TinyString (int x, int y, const qbyte *str)
 {
-	float xstart = x;
+	float xstart;
+
+#pragma message("hexen2: use a tinychar *6 font")
+	if (!font_tiny)
+		return;
+
+	Font_BeginString(font_tiny, x, y, &x, &y);
+	xstart = x;
+
 	while (*str)
 	{
 		if (*str == '\n')
 		{
 			x = xstart;
-			y += 6;
+			y += Font_CharHeight();
 			str++;
 			continue;
 		}
-		if (Draw_TinyCharacter)
-		Draw_TinyCharacter (x, y, *str);
-//		Draw_Character (x, y, *str);
-		str++;
-		x += 6;
+		x = Font_DrawChar(x, y, *str++);
 	}
+	Font_EndString(font_tiny);
 }
 void Sbar_DrawTinyString (int x, int y, char *str)
 {
@@ -1083,7 +1135,7 @@ void Sbar_DrawNum (int x, int y, int num, int digits, int color)
 		else
 			frame = *ptr -'0';
 
-		Sbar_DrawTransPic (x,y,sb_nums[color][frame]);
+		Sbar_DrawPic (x, y, 24, 24, sb_nums[color][frame]);
 		x += 24;
 		ptr++;
 	}
@@ -1111,7 +1163,7 @@ void Sbar_Hexen2DrawNum (int x, int y, int num, int digits)
 		else
 			frame = *ptr -'0';
 
-		Sbar_DrawTransPic (x,y,sb_nums[0][frame]);
+		Sbar_DrawPic (x, y, FINDOUT, FINDOUT, sb_nums[0][frame]);
 		x += 13;
 		ptr++;
 	}
@@ -1268,7 +1320,7 @@ void Sbar_SoloScoreboard (void)
 	char	str[80];
 	int		minutes, seconds, tens, units;
 
-	Sbar_DrawPic (0, 0, sb_scorebar);
+	Sbar_DrawPic (0, 0, 320, 24, sb_scorebar);
 
 	// time
 	time = cl.servertime;
@@ -1335,12 +1387,12 @@ void Sbar_DrawInventory (int pnum)
 		if (sbar_rogue)
 		{
 			if ( cl.stats[pnum][STAT_ACTIVEWEAPON] >= RIT_LAVA_NAILGUN )
-				Sbar_DrawPic (0, -24, rsb_invbar[0]);
+				Sbar_DrawPic (0, -24, FINDOUT, FINDOUT, rsb_invbar[0]);
 			else
-				Sbar_DrawPic (0, -24, rsb_invbar[1]);
+				Sbar_DrawPic (0, -24, FINDOUT, FINDOUT, rsb_invbar[1]);
 		}
 		else
-			Sbar_DrawPic (0, -24, sb_ibar);
+			Sbar_DrawPic (0, -24, 320, 24, sb_ibar);
 	}
 // weapons
 	for (i=0 ; i<7 ; i++)
@@ -1361,13 +1413,15 @@ void Sbar_DrawInventory (int pnum)
 			else
 				flashon = (flashon%5) + 2;
 
-			if (headsup) {
+			if (headsup)
+			{
 				if (i || sbar_rect.height>200)
-					Sbar_DrawSubPic ((hudswap) ? 0 : (sbar_rect.width-24),-68-(7-i)*16 , sb_weapons[flashon][i],0,0,24,16);
-
-			} else
-			Sbar_DrawPic (i*24, -16, sb_weapons[flashon][i]);
-//			Sbar_DrawSubPic (0,0,20,20,i*24, -16, sb_weapons[flashon][i]);
+					Sbar_DrawSubPic ((hudswap) ? 0 : (sbar_rect.width-24),-68-(7-i)*16, 24,16, sb_weapons[flashon][i],0,0,(i==6)?48:24, 16);
+			}
+			else
+			{
+				Sbar_DrawPic (i*24, -16, 24, 16, sb_weapons[flashon][i]);
+			}
 
 			if (flashon > 1)
 				sb_updates = 0;		// force update to remove flash
@@ -1386,11 +1440,11 @@ void Sbar_DrawInventory (int pnum)
 					if (headsup)
 					{
 						if (sbar_rect.height>200)
-							Sbar_DrawSubPic ((hudswap) ? 0 : (sbar_rect.width-24),-68-(5-i)*16 , rsb_weapons[i],0,0,24,16);
+							Sbar_DrawSubPic ((hudswap) ? 0 : (sbar_rect.width-24),-68-(5-i)*16, FINDOUT, FINDOUT, rsb_weapons[i],0,0,FINDOUT,FINDOUT);
 
 					}
 					else
-						Sbar_DrawPic ((i+2)*24, -16, rsb_weapons[i]);
+						Sbar_DrawPic ((i+2)*24, -16, 24, 16, rsb_weapons[i]);
 				}
 			}
 		}
@@ -1399,17 +1453,26 @@ void Sbar_DrawInventory (int pnum)
 // ammo counts
 	for (i=0 ; i<4 ; i++)
 	{
-		sprintf (num, "%3i",cl.stats[pnum][STAT_SHELLS+i] );
+		snprintf (num, sizeof(num), "%3i",cl.stats[pnum][STAT_SHELLS+i] );
+		if (num[0] != ' ')
+			num[0] += 18-'0';
+		if (num[1] != ' ')
+			num[1] += 18-'0';
+		if (num[2] != ' ')
+			num[2] += 18-'0';
 		if (headsup)
 		{
 //			Sbar_DrawSubPic(3, -24, sb_ibar, 3, 0, 42,11);
-			Sbar_DrawSubPic((hudswap) ? 0 : (sbar_rect.width-42), -24 - (4-i)*11, sb_ibar, 3+(i*48), 0, 42, 11);
+			Sbar_DrawSubPic((hudswap) ? 0 : (sbar_rect.width-42), -24 - (4-i)*11, 42, 11, sb_ibar, 3+(i*48), 0, 320, 24);
+/*
 			if (num[0] != ' ')
 				Sbar_DrawCharacter ( (hudswap) ? 3 : (sbar_rect.width-39), -24 - (4-i)*11, 18 + num[0] - '0');
 			if (num[1] != ' ')
 				Sbar_DrawCharacter ( (hudswap) ? 11 : (sbar_rect.width-31), -24 - (4-i)*11, 18 + num[1] - '0');
 			if (num[2] != ' ')
 				Sbar_DrawCharacter ( (hudswap) ? 19 : (sbar_rect.width-23), -24 - (4-i)*11, 18 + num[2] - '0');
+*/
+			Sbar_DrawString((hudswap) ? 3 : (sbar_rect.width-39), -24 - (4-i)*11, num);
 		}
 		else
 		{
@@ -1434,7 +1497,7 @@ void Sbar_DrawInventory (int pnum)
 				sb_updates = 0;
 			}
 			else
-				Sbar_DrawPic (192 + i*16, -16, sb_items[i]);
+				Sbar_DrawPic (192 + i*16, -16, 16, 16, sb_items[i]);
 			if (time &&	time > cl.time - 2)
 				sb_updates = 0;
 		}
@@ -1455,7 +1518,7 @@ void Sbar_DrawInventory (int pnum)
 				}
 				else
 				{
-					Sbar_DrawPic (288 + i*16, -16, rsb_items[i]);
+					Sbar_DrawPic (288 + i*16, -16, 16, 16, rsb_items[i]);
 				}
 
 				if (time &&	time > cl.time - 2)
@@ -1476,7 +1539,7 @@ void Sbar_DrawInventory (int pnum)
 					sb_updates = 0;
 				}
 				else
-					Sbar_DrawPic (320-32 + i*8, -16, sb_sigil[i]);
+					Sbar_DrawPic (320-32 + i*8, -16, 8, 16, sb_sigil[i]);
 				if (time &&	time > cl.time - 2)
 					sb_updates = 0;
 			}
@@ -1562,22 +1625,22 @@ void Sbar_DrawFace (int pnum)
 	if ( (cl.stats[pnum][STAT_ITEMS] & (IT_INVISIBILITY | IT_INVULNERABILITY) )
 	== (IT_INVISIBILITY | IT_INVULNERABILITY) )
 	{
-		Sbar_DrawPic (112, 0, sb_face_invis_invuln);
+		Sbar_DrawPic (112, 0, 24, 24, sb_face_invis_invuln);
 		return;
 	}
 	if (cl.stats[pnum][STAT_ITEMS] & IT_QUAD)
 	{
-		Sbar_DrawPic (112, 0, sb_face_quad );
+		Sbar_DrawPic (112, 0, 24, 24, sb_face_quad );
 		return;
 	}
 	if (cl.stats[pnum][STAT_ITEMS] & IT_INVISIBILITY)
 	{
-		Sbar_DrawPic (112, 0, sb_face_invis );
+		Sbar_DrawPic (112, 0, 24, 24, sb_face_invis );
 		return;
 	}
 	if (cl.stats[pnum][STAT_ITEMS] & IT_INVULNERABILITY)
 	{
-		Sbar_DrawPic (112, 0, sb_face_invuln);
+		Sbar_DrawPic (112, 0, 24, 24, sb_face_invuln);
 		return;
 	}
 
@@ -1596,7 +1659,7 @@ void Sbar_DrawFace (int pnum)
 	}
 	else
 		anim = 0;
-	Sbar_DrawPic (112, 0, sb_faces[f][anim]);
+	Sbar_DrawPic (112, 0, 24, 24, sb_faces[f][anim]);
 }
 
 /*
@@ -1607,13 +1670,13 @@ Sbar_DrawNormal
 void Sbar_DrawNormal (int pnum)
 {
 	if (cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1))
-	Sbar_DrawPic (0, 0, sb_sbar);
+		Sbar_DrawPic (0, 0, 320, 24, sb_sbar);
 
 // armor
 	if (cl.stats[pnum][STAT_ITEMS] & IT_INVULNERABILITY)
 	{
 		Sbar_DrawNum (24, 0, 666, 3, 1);
-		Sbar_DrawPic (0, 0, draw_disc);
+		Sbar_DrawPic (0, 0, 24, 24, draw_disc);
 	}
 	else
 	{
@@ -1622,22 +1685,22 @@ void Sbar_DrawNormal (int pnum)
 			Sbar_DrawNum (24, 0, cl.stats[pnum][STAT_ARMOR], 3,
 				cl.stats[pnum][STAT_ARMOR] <= 25);
 			if (cl.stats[pnum][STAT_ITEMS] & RIT_ARMOR3)
-				Sbar_DrawPic (0, 0, sb_armor[2]);
+				Sbar_DrawPic (0, 0, 24, 24, sb_armor[2]);
 			else if (cl.stats[pnum][STAT_ITEMS] & RIT_ARMOR2)
-				Sbar_DrawPic (0, 0, sb_armor[1]);
+				Sbar_DrawPic (0, 0, 24, 24, sb_armor[1]);
 			else if (cl.stats[pnum][STAT_ITEMS] & RIT_ARMOR1)
-				Sbar_DrawPic (0, 0, sb_armor[0]);
+				Sbar_DrawPic (0, 0, 24, 24, sb_armor[0]);
 		}
 		else
 		{
 			Sbar_DrawNum (24, 0, cl.stats[pnum][STAT_ARMOR], 3,
 				cl.stats[pnum][STAT_ARMOR] <= 25);
 			if (cl.stats[pnum][STAT_ITEMS] & IT_ARMOR3)
-				Sbar_DrawPic (0, 0, sb_armor[2]);
+				Sbar_DrawPic (0, 0, 24, 24, sb_armor[2]);
 			else if (cl.stats[pnum][STAT_ITEMS] & IT_ARMOR2)
-				Sbar_DrawPic (0, 0, sb_armor[1]);
+				Sbar_DrawPic (0, 0, 24, 24, sb_armor[1]);
 			else if (cl.stats[pnum][STAT_ITEMS] & IT_ARMOR1)
-				Sbar_DrawPic (0, 0, sb_armor[0]);
+				Sbar_DrawPic (0, 0, 24, 24, sb_armor[0]);
 		}
 	}
 
@@ -1652,30 +1715,30 @@ void Sbar_DrawNormal (int pnum)
 	if (sbar_rogue)
 	{
 		if (cl.stats[pnum][STAT_ITEMS] & RIT_SHELLS)
-			Sbar_DrawPic (224, 0, sb_ammo[0]);
+			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[0]);
 		else if (cl.stats[pnum][STAT_ITEMS] & RIT_NAILS)
-			Sbar_DrawPic (224, 0, sb_ammo[1]);
+			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[1]);
 		else if (cl.stats[pnum][STAT_ITEMS] & RIT_ROCKETS)
-			Sbar_DrawPic (224, 0, sb_ammo[2]);
+			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[2]);
 		else if (cl.stats[pnum][STAT_ITEMS] & RIT_CELLS)
-			Sbar_DrawPic (224, 0, sb_ammo[3]);
+			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[3]);
 		else if (cl.stats[pnum][STAT_ITEMS] & RIT_LAVA_NAILS)
-			Sbar_DrawPic (224, 0, rsb_ammo[0]);
+			Sbar_DrawPic (224, 0, 24, 24, rsb_ammo[0]);
 		else if (cl.stats[pnum][STAT_ITEMS] & RIT_PLASMA_AMMO)
-			Sbar_DrawPic (224, 0, rsb_ammo[1]);
+			Sbar_DrawPic (224, 0, 24, 24, rsb_ammo[1]);
 		else if (cl.stats[pnum][STAT_ITEMS] & RIT_MULTI_ROCKETS)
-			Sbar_DrawPic (224, 0, rsb_ammo[2]);
+			Sbar_DrawPic (224, 0, 24, 24, rsb_ammo[2]);
 	}
 	else
 	{
 		if (cl.stats[pnum][STAT_ITEMS] & IT_SHELLS)
-			Sbar_DrawPic (224, 0, sb_ammo[0]);
+			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[0]);
 		else if (cl.stats[pnum][STAT_ITEMS] & IT_NAILS)
-			Sbar_DrawPic (224, 0, sb_ammo[1]);
+			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[1]);
 		else if (cl.stats[pnum][STAT_ITEMS] & IT_ROCKETS)
-			Sbar_DrawPic (224, 0, sb_ammo[2]);
+			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[2]);
 		else if (cl.stats[pnum][STAT_ITEMS] & IT_CELLS)
-			Sbar_DrawPic (224, 0, sb_ammo[3]);
+			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[3]);
 	}
 
 	Sbar_DrawNum (248, 0, cl.stats[pnum][STAT_AMMO], 3
@@ -1759,14 +1822,14 @@ void Sbar_DrawScoreboard (void)
 void Sbar_Hexen2DrawItem(int pnum, int x, int y, int itemnum)
 {
 	int num;
-	Sbar_DrawPic(x, y, Draw_CachePic(va("gfx/arti%02d.lmp", itemnum)));
+	Sbar_DrawPic(x, y, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/arti%02d.lmp", itemnum)));
 
 	num = cl.stats[pnum][STAT_H2_CNT_TORCH+itemnum];
 	if(num > 0)
 	{
 		if (num >= 10)
-			Sbar_DrawPic(x+20, y+21, Draw_CachePic(va("gfx/artinum%d.lmp", num/10)));
-		Sbar_DrawPic(x+20+4, y+21, Draw_CachePic(va("gfx/artinum%d.lmp", num%10)));
+			Sbar_DrawPic(x+20, y+21, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/artinum%d.lmp", num/10)));
+		Sbar_DrawPic(x+20+4, y+21, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/artinum%d.lmp", num%10)));
 	}
 }
 
@@ -1782,7 +1845,7 @@ void Sbar_Hexen2DrawInventory(int pnum)
 	for (i = 0, x=320/2-114; i < 7; i++, x+=33)
 	{
 		if ((sb_hexen2_cur_item-3+i+30)%15 == sb_hexen2_cur_item)
-			Sbar_DrawTransPic(x+9, y-12, Draw_CachePic("gfx/artisel.lmp"));
+			Sbar_DrawPic(x+9, y-12, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/artisel.lmp"));
 		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item-3+i+30)%15);
 	}
 #else
@@ -1827,8 +1890,8 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	//adjust it so there's space
 	sbar_rect.y -= 46+98-SBAR_HEIGHT;
 
-	Sbar_DrawPic(0, 46, Draw_SafeCachePic("gfx/btmbar1.lmp"));
-	Sbar_DrawPic(160, 46, Draw_SafeCachePic("gfx/btmbar2.lmp"));
+	Sbar_DrawPic(0, 46, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/btmbar1.lmp"));
+	Sbar_DrawPic(160, 46, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/btmbar2.lmp"));
 
 	Sbar_DrawTinyString (11, 48, pclassname[pclass]);
 
@@ -1861,7 +1924,7 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	{
 		if (cl.stats[pnum][STAT_H2_ARMOUR1+i] > 0)
 		{
-			Sbar_DrawPic (164+i*40, 115, Draw_SafeCachePic(va("gfx/armor%d.lmp", i+1)));
+			Sbar_DrawPic (164+i*40, 115, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/armor%d.lmp", i+1)));
 			Sbar_DrawTinyString (168+i*40, 136, va("+%d", cl.stats[pnum][STAT_H2_ARMOUR1+i]));
 		}
 	}
@@ -1869,14 +1932,14 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	{
 		if (cl.stats[pnum][STAT_H2_FLIGHT_T+i] > 0)
 		{
-			Sbar_DrawPic (ringpos[i], 119, Draw_SafeCachePic(va("gfx/ring_f.lmp")));
+			Sbar_DrawPic (ringpos[i], 119, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/ring_f.lmp")));
 			val = cl.stats[pnum][STAT_H2_FLIGHT_T+i];
 			if (val > 100)
 				val = 100;
 			if (val < 0)
 				val = 0;
-			Sbar_DrawPic(ringpos[i]+29 - (int)(26 * (val/(float)100)),142,Draw_CachePic("gfx/ringhlth.lmp"));
-			Sbar_DrawPic(ringpos[i]+29, 142, Draw_CachePic("gfx/rhlthcvr.lmp"));
+			Sbar_DrawPic(ringpos[i]+29 - (int)(26 * (val/(float)100)),142, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/ringhlth.lmp"));
+			Sbar_DrawPic(ringpos[i]+29, 142, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/rhlthcvr.lmp"));
 		}
 	}
 
@@ -1885,23 +1948,23 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	{
 		if (cl.statsstr[pnum][STAT_H2_PUZZLE1+i])
 		{
-			Sbar_DrawPic (194+(slot%4)*31, slot<4?51:82, Draw_SafeCachePic(va("gfx/puzzle/%s.lmp", cl.statsstr[pnum][STAT_H2_PUZZLE1+i])));
+			Sbar_DrawPic (194+(slot%4)*31, slot<4?51:82, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/puzzle/%s.lmp", cl.statsstr[pnum][STAT_H2_PUZZLE1+i])));
 			slot++;
 		}
 	}
 
-	Sbar_DrawPic(134, 50, Draw_SafeCachePic(va("gfx/cport%d.lmp", pclass)));
+	Sbar_DrawPic(134, 50, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/cport%d.lmp", pclass)));
 }
 
 void Sbar_Hexen2DrawBasic(int pnum)
 {
 	int chainpos;
 	int val, maxval;
-	Sbar_DrawPic(0, 0, Draw_CachePic("gfx/topbar1.lmp"));
-	Sbar_DrawPic(160, 0, Draw_CachePic("gfx/topbar2.lmp"));
-	Sbar_DrawTransPic(0, -23, Draw_CachePic("gfx/topbumpl.lmp"));
-	Sbar_DrawTransPic(138, -8, Draw_CachePic("gfx/topbumpm.lmp"));
-	Sbar_DrawTransPic(269, -23, Draw_CachePic("gfx/topbumpr.lmp"));
+	Sbar_DrawPic(0, 0, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/topbar1.lmp"));
+	Sbar_DrawPic(160, 0, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/topbar2.lmp"));
+	Sbar_DrawPic(0, -23, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/topbumpl.lmp"));
+	Sbar_DrawPic(138, -8, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/topbumpm.lmp"));
+	Sbar_DrawPic(269, -23, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/topbumpr.lmp"));
 
 	//mana1
 	maxval = cl.stats[pnum][STAT_H2_MAXMANA];
@@ -1910,8 +1973,8 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	Sbar_DrawTinyString(201, 22, va("%03d", val));
 	if(val)
 	{
-		Sbar_DrawPic(190, 26-(int)((val*18.0)/(float)maxval+0.5), Draw_CachePic("gfx/bmana.lmp"));
-		Sbar_DrawPic(190, 27, Draw_CachePic("gfx/bmanacov.lmp"));
+		Sbar_DrawPic(190, 26-(int)((val*18.0)/(float)maxval+0.5), FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/bmana.lmp"));
+		Sbar_DrawPic(190, 27, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/bmanacov.lmp"));
 	}
 
 	//mana2
@@ -1921,8 +1984,8 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	Sbar_DrawTinyString(243, 22, va("%03d", val));
 	if(val)
 	{
-		Sbar_DrawPic(232, 26-(int)((val*18.0)/(float)maxval+0.5), Draw_CachePic("gfx/gmana.lmp"));
-		Sbar_DrawPic(232, 27, Draw_CachePic("gfx/gmanacov.lmp"));
+		Sbar_DrawPic(232, 26-(int)((val*18.0)/(float)maxval+0.5), FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/gmana.lmp"));
+		Sbar_DrawPic(232, 27, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/gmanacov.lmp"));
 	}
 
 
@@ -1940,10 +2003,10 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	chainpos = (195.0f*cl.stats[pnum][STAT_HEALTH]) / cl.stats[pnum][STAT_H2_MAXHEALTH];
 	if (chainpos < 0)
 		chainpos = 0;
-	Sbar_DrawPic(45+((int)chainpos&7), 38, Draw_CachePic("gfx/hpchain.lmp"));
-	Sbar_DrawPic(45+(int)chainpos, 36,	Draw_CachePic("gfx/hpgem.lmp"));
-	Sbar_DrawPic(43, 36, Draw_CachePic("gfx/chnlcov.lmp"));
-	Sbar_DrawPic(267, 36, Draw_CachePic("gfx/chnrcov.lmp"));
+	Sbar_DrawPic(45+((int)chainpos&7), 38, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/hpchain.lmp"));
+	Sbar_DrawPic(45+(int)chainpos, 36,	FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/hpgem.lmp"));
+	Sbar_DrawPic(43, 36, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/chnlcov.lmp"));
+	Sbar_DrawPic(267, 36, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/chnrcov.lmp"));
 
 
 	Sbar_Hexen2DrawItem(pnum, 144, 3, sb_hexen2_cur_item);
@@ -1957,7 +2020,7 @@ void Sbar_DrawTeamStatus(void)
 	int y;
 	int track;
 
-	if (!sbar_teamstatus.value)
+	if (!sbar_teamstatus.ival)
 		return;
 	y = -32;
 
@@ -1979,7 +2042,7 @@ void Sbar_DrawTeamStatus(void)
 
 		if (*cl.players[p].name)
 		{
-			Sbar_DrawFunString (0, y, cl.players[p].teamstatus);
+			Sbar_DrawString (0, y, cl.players[p].teamstatus);
 			y-=8;
 		}
 	}
@@ -2106,6 +2169,8 @@ void Sbar_Draw (void)
 
 	Sbar_Start();
 
+	Draw_ImageColours(1, 1, 1, 1);
+
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
 		if (cl.splitclients>1 || scr_chatmode)
@@ -2122,7 +2187,7 @@ void Sbar_Draw (void)
 			sbar_rect.x = 0;
 			sbar_rect.y = 0;
 
-			if (scr_centersbar.value)
+			if (scr_centersbar.ival)
 			{
 				sbar_rect.x = (vid.width - 320)/2;
 				sbar_rect.width -= sbar_rect.x;
@@ -2145,8 +2210,8 @@ void Sbar_Draw (void)
 			if (cl.stats[pnum][STAT_HEALTH] <= 0)	//when dead, show nothing
 				continue;
 
-			if (scr_viewsize.value != 120)
-				Cvar_Set(&scr_viewsize, "120");
+//			if (scr_viewsize.value != 120)
+//				Cvar_Set(&scr_viewsize, "120");
 
 			Sbar_DrawString (0, -8, va("Health: %i", cl.stats[pnum][STAT_HEALTH]));
 			Sbar_DrawString (0, -16, va(" Armor: %i", cl.stats[pnum][STAT_ARMOR]));
@@ -2177,7 +2242,7 @@ void Sbar_Draw (void)
 			{
 				if (autocam[pnum] != CAM_TRACK)
 				{
-					Sbar_DrawPic (0, 0, sb_scorebar);
+					Sbar_DrawPic (0, 0, 320, 24, sb_scorebar);
 					Sbar_DrawString (160-7*8,4, "SPECTATOR MODE");
 					Sbar_DrawString(160-14*8+4, 12, "Press [ATTACK] for AutoCamera");
 				}
@@ -2190,11 +2255,11 @@ void Sbar_Draw (void)
 					else
 						Sbar_DrawNormal (pnum);
 
-					if (hud_tracking_show.value)
+					if (hud_tracking_show.ival)
 					{
 						sprintf(st, "Tracking %-.64s",
 							cl.players[spec_track[pnum]].name);
-						Sbar_DrawFunString(0, -8, st);
+						Sbar_DrawString(0, -8, st);
 					}
 				}
 			}
@@ -2213,7 +2278,7 @@ void Sbar_Draw (void)
 		}
 	}
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (cl_sbar.value == 1 || scr_viewsize.value<100)
 	{
 		if (cl.splitclients==1 && sbar_rect.x>0)
@@ -2267,7 +2332,7 @@ void Sbar_IntermissionNumber (int x, int y, int num, int digits, int color)
 		else
 			frame = *ptr -'0';
 
-		Draw_TransPic (x,y,sb_nums[color][frame]);
+		Draw_ScalePic (x,y, 16, 24, sb_nums[color][frame]);
 		x += 24;
 		ptr++;
 	}
@@ -2299,19 +2364,22 @@ void Sbar_TeamOverlay (void)
 
 	y = 0;
 
-	if (scr_scoreboard_drawtitle.value)
+	if (scr_scoreboard_drawtitle.ival)
 	{
 		pic = Draw_SafeCachePic ("gfx/ranking.lmp");
 		if (pic)
-			Draw_Pic ((vid.width-pic->width)/2, 0, pic);
+		{
+			k = (pic->width * 24) / pic->height;
+			Draw_ScalePic ((vid.width-k)/2, 0, k, 24, pic);
+		}
 		y += 24;
 	}
 
 	x = (vid.width - 320)/2 + 36;
-	Draw_String(x, y, "low/avg/high team total players");
+	Draw_FunString(x, y, "low/avg/high team total players");
 	y += 8;
 //	Draw_String(x, y, "------------ ---- ----- -------");
-	Draw_String(x, y, "\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f \x1d\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1e\x1e\x1f");
+	Draw_FunString(x, y, "\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f \x1d\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1e\x1e\x1f");
 	y += 8;
 
 // sort the teams
@@ -2340,23 +2408,24 @@ void Sbar_TeamOverlay (void)
 			pavg = 999;
 
 		sprintf (num, "%3i/%3i/%3i", plow, pavg, phigh);
-		Draw_String ( x, y, num);
+		Draw_FunString ( x, y, num);
 
 	// draw team
 		Q_strncpyz (team, tm->team, sizeof(team));
-		Draw_String (x + 104, y, team);
+		Draw_FunString (x + 104, y, team);
 
 	// draw total
 		sprintf (num, "%5i", tm->frags);
-		Draw_String (x + 104 + 40, y, num);
+		Draw_FunString (x + 104 + 40, y, num);
 
 	// draw players
 		sprintf (num, "%5i", tm->players);
-		Draw_String (x + 104 + 88, y, num);
+		Draw_FunString (x + 104 + 88, y, num);
 
-		if (!strncmp(cl.players[cl.playernum[0]].team, tm->team, 16)) {
-			Draw_Character ( x + 104 - 8, y, 16);
-			Draw_Character ( x + 104 + 32, y, 17);
+		if (!strncmp(cl.players[cl.playernum[0]].team, tm->team, 16))
+		{
+			Draw_FunString ( x + 104 - 8, y, "^Ue016");
+			Draw_FunString ( x + 104 + 32, y, "^Ue017");
 		}
 
 		y += 8;
@@ -2381,14 +2450,14 @@ ping time frags name
 	int p = s->ping;									\
 	if (p < 0 || p > 999) p = 999;						\
 	sprintf(num, "%4i", p);								\
-	Draw_FunString(x, y, num);							\
+	Draw_FunStringWidth(x, y, num, 4*8);				\
 })
 
 #define COLUMN_PL COLUMN(pl, 2*8,						\
 {														\
 	int p = s->pl;										\
 	sprintf(num, "%2i", p);								\
-	Draw_FunString(x, y, num);							\
+	Draw_FunStringWidth(x, y, num, 2*8);				\
 })
 #define COLUMN_TIME COLUMN(time, 4*8,					\
 {														\
@@ -2398,54 +2467,57 @@ ping time frags name
 		total = cl.servertime - s->entertime;			\
 	minutes = (int)total/60;							\
 	sprintf (num, "%4i", minutes);						\
-	Draw_String ( x , y, num);							\
+	Draw_FunStringWidth(x, y, num, 4*8);				\
 })
 #define COLUMN_FRAGS COLUMN(frags, 5*8,					\
-{														\
+{	\
+	int cx; int cy;										\
 	if (s->spectator)									\
 	{													\
-		if (cl.teamplay)								\
-			Draw_String( x, y, "spectator" );			\
-		else											\
-			Draw_String( x, y, "spec" );				\
+		Draw_FunStringWidth(x, y, "spectator", 5*8);	\
 	}													\
 	else												\
 	{													\
 		if (largegame)									\
-			Sbar_FillPC ( x, y+1, 40, 3, top);			\
+			Sbar_FillPC(x, y+1, 40, 3, top);			\
 		else											\
-			Sbar_FillPC ( x, y, 40, 4, top);				\
-		Sbar_FillPC ( x, y+4, 40, 4, bottom);				\
+			Sbar_FillPC(x, y, 40, 4, top);				\
+		Sbar_FillPC(x, y+4, 40, 4, bottom);				\
 														\
 		f = s->frags;									\
-		sprintf (num, "%3i",f);							\
+		sprintf(num, "%3i",f);							\
 														\
-		Draw_Character ( x+8 , y, num[0]);				\
-		Draw_Character ( x+16 , y, num[1]);				\
-		Draw_Character ( x+24 , y, num[2]);				\
+		Font_BeginString(font_conchar, x+8, y, &cx, &cy);	\
+		Font_DrawChar(cx, cy, num[0] | 0xe000 | CON_WHITEMASK);	\
+		Font_BeginString(font_conchar, x+16, y, &cx, &cy);	\
+		Font_DrawChar(cx, cy, num[1] | 0xe000 | CON_WHITEMASK);	\
+		Font_BeginString(font_conchar, x+24, y, &cx, &cy);	\
+		Font_DrawChar(cx, cy, num[2] | 0xe000 | CON_WHITEMASK);	\
 														\
 		if ((cl.spectator && k == spec_track[0]) ||		\
 			(!cl.spectator && k == cl.playernum[0]))	\
 		{												\
-			Draw_Character ( x, y, 16);					\
-			Draw_Character ( x + 32, y, 17);			\
+			Font_BeginString(font_conchar, x, y, &cx, &cy);	\
+			Font_DrawChar(cx, cy, 16 | 0xe000 | CON_WHITEMASK);	\
+			Font_BeginString(font_conchar, x+32, y, &cx, &cy);	\
+			Font_DrawChar(cx, cy, 17 | 0xe000 | CON_WHITEMASK);	\
 		}												\
+		Font_EndString(font_conchar);					\
 	}													\
-														\
 })
 #define COLUMN_TEAMNAME COLUMN(team, 4*8,				\
 {														\
 	if (!s->spectator)									\
 	{													\
-		Draw_FunStringLen(x, y, s->team, 4);			\
+		Draw_FunStringWidth(x, y, s->team, 4*8);			\
 	}													\
 })
-#define COLUMN_NAME COLUMN(name, (cl.teamplay ? 12*8 : 16*8),	{Draw_FunString(x, y, s->name);})
-#define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetKills(k)));})
-#define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetTKills(k)));})
-#define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetDeaths(k)));})
-#define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetTouches(k)));})
-#define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunString(x, y, va("%4i", Stats_GetCaptures(k)));})
+#define COLUMN_NAME COLUMN(name, (cl.teamplay ? 12*8 : 16*8),	{Draw_FunStringWidth(x, y, s->name, (cl.teamplay ? 12*8 : 16*8));})
+#define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8);})
+#define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8);})
+#define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8);})
+#define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8);})
+#define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8);})
 
 
 
@@ -2489,11 +2561,14 @@ void Sbar_DeathmatchOverlay (int start)
 	else
 	{
 		y = 0;
-		if (scr_scoreboard_drawtitle.value)
+		if (scr_scoreboard_drawtitle.ival)
 		{
 			pic = Draw_SafeCachePic ("gfx/ranking.lmp");
 			if (pic)
-				Draw_Pic ((vid.width - 320)/2 + 160-pic->width/2, 0, pic);
+			{
+				k = (pic->width * 24) / pic->height;
+				Draw_ScalePic ((vid.width-k)/2, 0, k, 24, pic);
+			}
 			y += 24;
 		}
 	}
@@ -2509,7 +2584,7 @@ void Sbar_DeathmatchOverlay (int start)
 	else
 		y = 24;
 
-	if (scr_scoreboard_newstyle.value)
+	if (scr_scoreboard_newstyle.ival)
 	{
 		// Electro's scoreboard eyecandy: Increase to fit the new scoreboard
 		y += 8;
@@ -2551,7 +2626,7 @@ void Sbar_DeathmatchOverlay (int start)
 
 	startx = (vid.width-rank_width)/2;
 
-	if (scr_scoreboard_newstyle.value)
+	if (scr_scoreboard_newstyle.ival)
 	{
 		// Electro's scoreboard eyecandy: Draw top border
 		Draw_Fill(startx - 3, y - 1, rank_width - 1, 1, 0);
@@ -2568,16 +2643,16 @@ void Sbar_DeathmatchOverlay (int start)
 
 	y += 8;
 
-	if (scr_scoreboard_titleseperator.value && !scr_scoreboard_newstyle.value)
+	if (scr_scoreboard_titleseperator.ival && !scr_scoreboard_newstyle.ival)
 	{
 		x = startx;
 #define COLUMN(title, width, code) \
 if (showcolumns & (1<<COLUMN##title)) \
 { \
-	Draw_String(x, y, "\x1d"); \
+	Draw_FunString(x, y, "^Ue01d"); \
 	for (i = 8; i < width-8; i+= 8) \
-		Draw_String(x+i, y, "\x1e"); \
-	Draw_String(x+i, y, "\x1f"); \
+		Draw_FunString(x+i, y, "^Ue01e"); \
+	Draw_FunString(x+i, y, "^Ue01f"); \
 	x += width+8; \
 }
 		ALLCOLUMNS
@@ -2585,7 +2660,7 @@ if (showcolumns & (1<<COLUMN##title)) \
 		y += 8;
 	}
 
-	if (scr_scoreboard_newstyle.value)
+	if (scr_scoreboard_newstyle.ival)
 	{
 		// Electro's scoreboard eyecandy: Draw top border (under header)
 		Draw_Fill (startx - 3, y + 1, rank_width - 1, 1, 0);
@@ -2618,7 +2693,7 @@ if (showcolumns & (1<<COLUMN##title)) \
 		top = Sbar_TopColour(s);
 		bottom = Sbar_BottomColour(s);
 
-		if (scr_scoreboard_newstyle.value)
+		if (scr_scoreboard_newstyle.ival)
 		{
 			// Electro's scoreboard eyecandy: Render the main background transparencies behind players row
 			// TODO: Alpha values on the background
@@ -2655,122 +2730,8 @@ if (showcolumns & (1<<COLUMN##title)) \
 #undef COLUMN
 	}
 
-	if (scr_scoreboard_newstyle.value)
+	if (scr_scoreboard_newstyle.ival)
 		Draw_Fill (startx - 3, y + skip, rank_width - 1, 1, 0); // Electro - Border - Bottom
-
-/*
-	if (cl.teamplay)
-	{
-		if (scr_chatmode)
-			x = vid.width/2 + ((int)vid.width/2 - 320)/2 + 4;
-		else
-			x = ((int)vid.width - 320)/2 + 4;
-//                            0    40 64   104   152  192
-		Draw_String ( x , y, "ping pl time frags team name");
-		y += 8;
-//		Draw_String ( x , y, "---- -- ---- ----- ---- ----------------");
-		Draw_String ( x , y, "\x1d\x1e\x1e\x1f \x1d\x1f \x1d\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1f \x1d\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f");
-		y += 8;
-	}
-	else
-	{
-		if (scr_chatmode)
-			x = vid.width/2 + ((int)vid.width/2 - 320)/2 + 16;
-		else
-			x = ((int)vid.width - 320)/2 + 16;
-//                            0    40 64   104   152
-		Draw_String ( x , y, "ping pl time frags name");
-		y += 8;
-//		Draw_String ( x , y, "---- -- ---- ----- ----------------");
-		Draw_String ( x , y, "\x1d\x1e\x1e\x1f \x1d\x1f \x1d\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1f \x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f");
-		y += 8;
-	}
-
-	for (i=0 ; i<l && y <= vid.height-10 ; i++)
-	{
-		k = fragsort[i];
-		s = &cl.players[k];
-		if (!s->name[0])
-			continue;
-
-		// draw ping
-		p = s->ping;
-		if (p < 0 || p > 999)
-			p = 999;
-		sprintf (num, "%4i", p);
-		Draw_FunString ( x, y, num);
-
-		// draw pl
-		p = s->pl;
-		sprintf (num, "%3i", p);
-		if (p > 25)
-			Draw_Alt_String ( x+32, y, num);
-		else
-			Draw_String ( x+32, y, num);
-
-		if (s->spectator)
-		{
-			Draw_String (x+56, y, "(spectator)");
-			// draw name
-			if (cl.teamplay)
-				Draw_FunString (x+152+40, y, s->name);
-			else
-				Draw_FunString (x+152, y, s->name);
-			y += skip;
-			continue;
-		}
-
-
-		// draw time
-		if (cl.intermission)
-			total = cl.completed_time - s->entertime;
-		else
-			total = cl.servertime - s->entertime;
-		minutes = (int)total/60;
-		sprintf (num, "%4i", minutes);
-		Draw_String ( x+64 , y, num);
-
-		// draw background
-		top = s->topcolor;
-		bottom = s->bottomcolor;
-		top = Sbar_ColorForMap (top);
-		bottom = Sbar_ColorForMap (bottom);
-
-		if (largegame)
-			Draw_Fill ( x+104, y+1, 40, 3, top);
-		else
-			Draw_Fill ( x+104, y, 40, 4, top);
-		Draw_Fill ( x+104, y+4, 40, 4, bottom);
-
-	// draw number
-		f = s->frags;
-		sprintf (num, "%3i",f);
-
-		Draw_Character ( x+112 , y, num[0]);
-		Draw_Character ( x+120 , y, num[1]);
-		Draw_Character ( x+128 , y, num[2]);
-
-		if ((cl.spectator && k == spec_track[0]) ||
-			(!cl.spectator && k == cl.playernum[0]))
-		{
-			Draw_Character ( x + 104, y, 16);
-			Draw_Character ( x + 136, y, 17);
-		}
-
-		// team
-		if (cl.teamplay)
-			Draw_FunStringLen (x+152, y, s->team, 4);
-
-		// draw name
-		if (cl.teamplay)
-			Draw_FunString (x+152+40, y, s->name);
-		else
-			Draw_FunString (x+152, y, s->name);
-
-		y += skip;
-	}
-*/
-	Draw_Character(0,0,' ' | CON_WHITEMASK);
 
 	if (y >= vid.height-10) // we ran over the screen size, squish
 		largegame = true;
@@ -2816,9 +2777,9 @@ void Sbar_ChatModeOverlay(void)
 	y = vid.height/2;
 
 	x = 4;
-	Draw_String ( x , y, "name");
+	Draw_FunString ( x , y, "name");
 	y += 8;
-	Draw_String ( x , y, "\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f");
+	Draw_FunString ( x , y, "\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f");
 	y += 8;
 
 	for (i=0 ; i<l && y <= vid.height-10 ; i++)
@@ -2837,7 +2798,7 @@ void Sbar_ChatModeOverlay(void)
 		else
 			Sbar_FillPC ( x, y, 8*4, 4, top);
 		Sbar_FillPC ( x, y+4, 8*4, 4, bottom);
-
+/*
 		if (cl.spectator && k == Cam_TrackNum(0))
 		{
 			Draw_Character ( x, y, 16);
@@ -2856,7 +2817,7 @@ void Sbar_ChatModeOverlay(void)
 				Draw_Character ( x+8*3, y, ']');
 			}
 		}
-
+*/
 		// draw name
 		if (cl.teamplay)
 			Draw_FunString (x+8*4, y, s->name);
@@ -2865,8 +2826,6 @@ void Sbar_ChatModeOverlay(void)
 
 		y += skip;
 	}
-
-	Draw_Character(0,0,' ' | CON_WHITEMASK);
 
 	if (y >= vid.height-10) // we ran over the screen size, squish
 		largegame = true;
@@ -2885,7 +2844,7 @@ void Sbar_MiniDeathmatchOverlay (void)
 {
 	int				i, k;
 	int				top, bottom;
-	int				x, y, f;
+	int				x, y, f, px, py;
 	char			num[12];
 	player_info_t	*s;
 	int				numlines;
@@ -2944,26 +2903,31 @@ void Sbar_MiniDeathmatchOverlay (void)
 		f = s->frags;
 		sprintf (num, "%3i",f);
 
-		Draw_ColouredCharacter ( x+8 , y, CON_WHITEMASK|num[0]);
-		Draw_Character ( x+16, y, num[1]);
-		Draw_Character ( x+24, y, num[2]);
+		Font_BeginString(font_conchar, x+8, y, &px, &py);
+		Font_DrawChar ( px, py, num[0] | 0xe000 | CON_WHITEMASK);
+		Font_BeginString(font_conchar, x+16, y, &px, &py);
+		Font_DrawChar ( px, py, num[1] | 0xe000 | CON_WHITEMASK);
+		Font_BeginString(font_conchar, x+24, y, &px, &py);
+		Font_DrawChar ( px, py, num[2] | 0xe000 | CON_WHITEMASK);
 
 		if ((cl.spectator && k == spec_track[0]) ||
 			(!cl.spectator && k == cl.playernum[0]))
 		{
-			Draw_Character ( x, y, 16);
-			Draw_Character ( x + 32, y, 17);
+			Font_BeginString(font_conchar, x, y, &px, &py);
+			Font_DrawChar ( px, py, 16 | 0xe000 | CON_WHITEMASK);
+			Font_BeginString(font_conchar, x+32, y, &px, &py);
+			Font_DrawChar ( px, py, 17 | 0xe000 | CON_WHITEMASK);
 		}
 
 		Q_strncpyz(name, s->name, sizeof(name));
 	// team and name
 		if (cl.teamplay)
 		{
-			Draw_FunStringLen (x+48, y, s->team, 4);
-			Draw_FunStringLen (x+48+40, y, name, MAX_DISPLAYEDNAME);
+			Draw_FunStringWidth (x+48, y, s->team, 32);
+			Draw_FunStringWidth (x+48+40, y, name, MAX_DISPLAYEDNAME*8);
 		}
 		else
-			Draw_FunStringLen (x+48, y, name, MAX_DISPLAYEDNAME);
+			Draw_FunStringWidth (x+48, y, name, MAX_DISPLAYEDNAME*8);
 		y += 8;
 	}
 
@@ -2973,8 +2937,8 @@ void Sbar_MiniDeathmatchOverlay (void)
 
 	// draw seperator
 	x += 208;
-	for (y = sbar_rect.height - sb_lines; y < sbar_rect.height - 6; y += 2)
-		Draw_ColouredCharacter(x, y, CON_WHITEMASK|14);
+//	for (y = sbar_rect.height - sb_lines; y < sbar_rect.height - 6; y += 2)
+//		Draw_ColouredCharacter(x, y, CON_WHITEMASK|14);
 
 	x += 16;
 
@@ -2985,15 +2949,19 @@ void Sbar_MiniDeathmatchOverlay (void)
 		tm = teams + k;
 
 	// draw pings
-		Draw_FunStringLen (x, y, tm->team, 4);
+		Draw_FunStringWidth (x, y, tm->team, 32);
 
 	// draw total
 		sprintf (num, "%5i", tm->frags);
 		Draw_FunString(x + 40, y, num);
 
-		if (!strncmp(cl.players[cl.playernum[0]].team, tm->team, 16)) {
-			Draw_Character ( x - 8, y, 16);
-			Draw_Character ( x + 32, y, 17);
+		if (!strncmp(cl.players[cl.playernum[0]].team, tm->team, 16))
+		{
+			Font_BeginString(font_conchar, x-8, y, &px, &py);
+			Font_DrawChar(px, py, 16|0xe000|CON_WHITEMASK);
+			Font_BeginString(font_conchar, x+32, y, &px, &py);
+			Font_DrawChar(px, py, 17|0xe000|CON_WHITEMASK);
+			Font_EndString(font_conchar);
 		}
 
 		y += 8;
@@ -3015,27 +2983,27 @@ void Sbar_CoopIntermission (void)
 	pic = Draw_SafeCachePic ("gfx/complete.lmp");
 	if (!pic)
 		return;
-	Draw_Pic ((sbar_rect.width - 320)/2 + 64, (sbar_rect.height - 200)/2 + 24, pic);
+	Draw_ScalePic ((sbar_rect.width - 320)/2 + 64, (sbar_rect.height - 200)/2 + 24, 192, 24, pic);
 
 	pic = Draw_SafeCachePic ("gfx/inter.lmp");
 	if (pic)
-		Draw_TransPic ((sbar_rect.width - 320)/2 + 0, (sbar_rect.height - 200)/2 + 56, pic);
+		Draw_ScalePic ((sbar_rect.width - 320)/2 + 0, (sbar_rect.height - 200)/2 + 56, 160, 144, pic);
 
 // time
 	dig = cl.completed_time/60;
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 64, dig, 3, 0);
 	num = cl.completed_time - dig*60;
-	Draw_TransPic ((sbar_rect.width - 320)/2 + 234,(sbar_rect.height - 200)/2 + 64,sb_colon);
-	Draw_TransPic ((sbar_rect.width - 320)/2 + 246,(sbar_rect.height - 200)/2 + 64,sb_nums[0][num/10]);
-	Draw_TransPic ((sbar_rect.width - 320)/2 + 266,(sbar_rect.height - 200)/2 + 64,sb_nums[0][num%10]);
+	Draw_ScalePic ((sbar_rect.width - 320)/2 + 234,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_colon);
+	Draw_ScalePic ((sbar_rect.width - 320)/2 + 246,(sbar_rect.height - 200)/2 + 64, 16, 26, sb_nums[0][num/10]);
+	Draw_ScalePic ((sbar_rect.width - 320)/2 + 266,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_nums[0][num%10]);
 
 //it is assumed that secrits/monsters are going to be constant for any player...
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 104, cl.stats[0][STAT_SECRETS], 3, 0);
-	Draw_TransPic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 104,sb_slash);
+	Draw_ScalePic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 104, 16, 24, sb_slash);
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 240, (sbar_rect.height - 200)/2 + 104, cl.stats[0][STAT_TOTALSECRETS], 3, 0);
 
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 144, cl.stats[0][STAT_MONSTERS], 3, 0);
-	Draw_TransPic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 144,sb_slash);
+	Draw_ScalePic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 144, 16, 24, sb_slash);
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 240, (sbar_rect.height - 200)/2 + 144, cl.stats[0][STAT_TOTALMONSTERS], 3, 0);
 }
 /*
@@ -3078,6 +3046,6 @@ void Sbar_FinaleOverlay (void)
 #endif
 	pic = Draw_SafeCachePic ("gfx/finale.lmp");
 	if (pic)
-		Draw_TransPic ( (vid.width-pic->width)/2, 16, pic);
+		Draw_ScalePic ( (vid.width-pic->width)/2, 16, pic->width, pic->height, pic);
 }
 

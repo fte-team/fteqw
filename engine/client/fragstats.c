@@ -216,7 +216,7 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		{
 			fragstats.weapontotals[wid].owndeaths++;
 			Stats_Message("%s killed you\n", cl.players[p2].name);
-			Stats_Message("%s deaths: %i (%i/%i)\n", fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills);
+			Stats_Message("%s deaths: %i (%i/%i)\n", fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].owndeaths, fragstats.weapontotals[wid].owndeaths, fragstats.totaldeaths);
 		}
 
 		fragstats.clienttotals[p2].kills++;
@@ -225,7 +225,7 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		{
 			fragstats.weapontotals[wid].ownkills++;
 			Stats_Message("You killed %s\n", cl.players[p1].name);
-			Stats_Message("%s kills: %i (%i/%i)\n", fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills);
+			Stats_Message("%s kills: %i (%i/%i)\n", fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills, fragstats.totalkills);
 		}
 		break;
 	case ff_tkdeath:

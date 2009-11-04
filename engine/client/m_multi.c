@@ -2,6 +2,7 @@
 
 #include "quakedef.h"
 #include "winquake.h"
+#include "shader.h"
 
 extern cvar_t maxclients;
 
@@ -25,7 +26,7 @@ void M_Menu_MultiPlayer_f (void)
 	
 	if (mgt == MGT_QUAKE2)
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_multiplayer");
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_multiplayer");
 
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommand	(menu, 64, 40,	"Join network server", "menu_slist\n");
@@ -39,7 +40,7 @@ void M_Menu_MultiPlayer_f (void)
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title4.lmp");
 
 		mgt=64;
 		menu->selecteditem = (menuoption_t*)
@@ -54,8 +55,8 @@ void M_Menu_MultiPlayer_f (void)
 	}
 	else if (QBigFontWorks())
 	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
 
 		mgt=32;
 		menu->selecteditem = (menuoption_t*)
@@ -74,9 +75,9 @@ void M_Menu_MultiPlayer_f (void)
 		p = Draw_SafeCachePic("gfx/mp_menu.lmp");
 		if (p)
 		{
-			MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-			MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
-			MC_AddPicture(menu, 72, 32, "gfx/mp_menu.lmp");
+			MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+			MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
+			MC_AddPicture(menu, 72, 32, 232, 64, "gfx/mp_menu.lmp");
 		}
 	}
 
@@ -260,7 +261,7 @@ void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 		p = Draw_SafeCachePic (va("players/%s_i", skin.string));
 	}
 	if (p)
-		Draw_TransPic (x-12, y-8, p);
+		Draw_ScalePic (x-12, y-8, p->width, p->height, p);
 }
 
 void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
@@ -289,7 +290,7 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 
 	p = Draw_SafeCachePic ("gfx/bigbox.lmp");
 	if (p)
-		Draw_TransPic (x-12, y-8, p);
+		Draw_ScalePic (x-12, y-8, 72, 72, p);
 
 	M_BuildTranslationTable(info->topcolour*16, info->lowercolour*16);
 	Draw_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);	
@@ -321,11 +322,11 @@ void M_Menu_Setup_f (void)
 			info = menu->data;
 //			menu->key = MC_Main_Key;	
 
-			MC_AddPicture(menu, 0, 4, "pics/m_main_plaque");
+			MC_AddPicture(menu, 0, 4, 38, 166, "pics/m_main_plaque");
 			p = Draw_SafeCachePic("pics/m_main_logo");
 			if (!p)
 				return;
-			MC_AddPicture(menu, 0, 173, "pics/m_main_logo");
+			MC_AddPicture(menu, 0, 173, 36, 42, "pics/m_main_logo");
 
 			menu->selecteditem = (menuoption_t*)
 			(info->nameedit = MC_AddEdit(menu, 64, 40, "Your name", name.string));
@@ -369,8 +370,8 @@ void M_Menu_Setup_f (void)
 	menu = M_CreateMenu(sizeof(setupmenu_t));	
 	info = menu->data;
 	
-	MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-	MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
+	MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+	MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
 
 
 //	MC_AddPicture(menu, 72, 32, Draw_CachePic ("gfx/mp_menu.lmp") );
@@ -563,7 +564,7 @@ void M_Menu_GameOptions_f (void)
 
 	if (mgt == MGT_QUAKE2)
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_start_server");
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_start_server");
 		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
@@ -571,8 +572,8 @@ void M_Menu_GameOptions_f (void)
 	}
 	else
 	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
 	}
 
 //	MC_AddPicture(menu, 72, 32, ("gfx/mp_menu.lmp") );

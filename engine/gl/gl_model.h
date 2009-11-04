@@ -26,7 +26,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 struct hull_s;
 struct trace_s;
-struct edict_s;
+struct wedict_s;
+struct model_s;
+struct world_s;
 
 typedef struct {
 //	qboolean (*RecursiveHullCheck) (struct hull_s *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
@@ -36,6 +38,8 @@ typedef struct {
 
 typedef struct {
 	//deals with FTECONTENTS (assumes against solid)
+	void (*PurgeModel) (struct model_s *mod);
+
 	qboolean (*Trace)			(struct model_s *model, int hulloverride, int frame, vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace);
 	unsigned int (*PointContents)	(struct model_s *model, vec3_t p);
 	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
@@ -45,8 +49,8 @@ typedef struct {
 	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
 
 	unsigned int (*FatPVS)		(struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge);
-	qboolean (*EdictInFatPVS)	(struct model_s *model, struct edict_s *edict, qbyte *pvsbuffer);
-	void (*FindTouchedLeafs_Q1)	(struct model_s *model, struct edict_s *ent, vec3_t cullmins, vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
+	qboolean (*EdictInFatPVS)	(struct model_s *model, struct wedict_s *edict, qbyte *pvsbuffer);
+	void (*FindTouchedLeafs_Q1)	(struct world_s *w, struct model_s *model, struct wedict_s *ent, vec3_t cullmins, vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
 
 	void (*LightPointValues)	(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 	void (*StainNode)			(struct mnode_s *node, float *parms);
@@ -54,19 +58,7 @@ typedef struct {
 
 	qbyte *(*LeafPVS)			(struct model_s *model, int num, qbyte *buffer, unsigned int buffersize);
 	int	(*LeafnumForPoint)		(struct model_s *model, vec3_t point);
-} bspfuncs_t;
-
-#ifdef D3DQUAKE
-	#define sizeof_index_t 2
-#endif
-
-#if sizeof_index_t == 2
-	#define GL_INDEX_TYPE GL_UNSIGNED_SHORT
-	typedef unsigned short index_t;
-#else
-	#define GL_INDEX_TYPE GL_UNSIGNED_INT
-	typedef unsigned int index_t;
-#endif
+} modelfuncs_t;
 
 typedef struct mesh_s
 {
@@ -75,13 +67,14 @@ typedef struct mesh_s
 
 
     int				numvertexes;
-	vec3_t			*xyz_array;
+	vecV_t			*xyz_array;
 	vec3_t			*normals_array;
 	vec3_t			*snormals_array;
 	vec3_t			*tnormals_array;
 	vec2_t			*st_array;
 	vec2_t			*lmst_array;
-	byte_vec4_t		*colors_array;
+	avec4_t			*colors4f_array;
+	byte_vec4_t		*colors4b_array;
 
     int				numindexes;
     index_t			*indexes;
@@ -91,23 +84,17 @@ typedef struct mesh_s
 	vec3_t			mins, maxs;
 	float			radius;
 
-	vec3_t			lightaxis[3];
-
-	//FIXME: these can go when the new backend is done
-	unsigned int	patchWidth;
-	unsigned int	patchHeight;
+	qboolean		istrifan;	/*if its a fan/poly/single quad*/
 
 	struct mesh_s	*next;
 } mesh_t;
-struct meshbuffer_s;
+FTE_DEPRECATED struct meshbuffer_s;
 
-void R_PushMesh ( mesh_t *mesh, int features );
-void R_RenderMeshBuffer ( struct meshbuffer_s *mb, qboolean shadowpass );
-qboolean R_MeshWillExceed(mesh_t *mesh);
+void FTE_DEPRECATED R_PushMesh ( mesh_t *mesh, int features );
+void FTE_DEPRECATED R_RenderMeshBuffer ( struct meshbuffer_s *mb, qboolean shadowpass );
+qboolean FTE_DEPRECATED R_MeshWillExceed(mesh_t *mesh);
 
 extern int gl_canbumpmap;
-
-
 
 
 /*
@@ -126,7 +113,7 @@ m*_t structures are in-memory
 #define	QWEF_FLAG1	 			16	//only applies to player entities
 #define NQEF_NODRAW				16	//so packet entities are free to get this instead
 #define	QWEF_FLAG2	 			32	//only applies to player entities
-#define NQEF_ADDATIVE			32	//so packet entities are free to get this instead
+#define NQEF_ADDITIVE			32	//so packet entities are free to get this instead
 #define EF_BLUE					64
 #define EF_RED					128
 
@@ -169,19 +156,26 @@ typedef struct mplane_s
 } mplane_t;
 
 typedef struct {
-	int base;
-	int bump;
-	int specular;
-	int fullbright;
+	texid_t base;
+	texid_t bump;
+	texid_t upperoverlay;
+	texid_t loweroverlay;
+	texid_t specular;
+	texid_t fullbright;
+
+	struct shader_s *shader;	//fixme: remove...
 } texnums_t;
 
 typedef struct 
 {
+	int meshcount;
+	struct msurface_s **meshlist;
+
 	int		vboe;
 	index_t	*indicies;
 
 	int vbocoord;
-	vec3_t	*coord;
+	vecV_t	*coord;
 	int vbotexcoord;
 	vec2_t	*texcoord;
 	int vbolmcoord;
@@ -195,8 +189,10 @@ typedef struct
 	vec3_t	*tvector;
 
 	int vbocolours;
-	byte_vec4_t *colours;
+	vec4_t	*colours4f;
 } vbo_t;
+void GL_SelectVBO(int vbo);
+void GL_SelectEBO(int vbo);
 
 typedef struct texture_s
 {
@@ -207,8 +203,6 @@ typedef struct texture_s
 	qbyte	alphaed;	//gl_blend needed on this surface.
 
 	int parttype;
-
-	texnums_t tn;
 
 	struct shader_s	*shader;
 
@@ -273,14 +267,6 @@ typedef struct mtexinfo_s
 #define	VERTEXSIZE	7
 #endif
 
-typedef struct glpoly_s
-{
-	struct	glpoly_s	*next;
-	int		numverts;
-	float	verts[4][VERTEXSIZE];	// variable sized (xyz s1t1 s2t2 (ldir_xyz)
-} glpoly_t;
-
-#ifdef Q3SHADERS
 typedef struct mfog_s
 {
 	struct shader_s		*shader;
@@ -290,7 +276,6 @@ typedef struct mfog_s
 	int				numplanes;
 	mplane_t		**planes;
 } mfog_t;
-#endif
 
 #if MAX_SWDECALS
 typedef struct decal_s {
@@ -304,9 +289,6 @@ typedef struct decal_s {
 
 typedef struct msurface_s
 {
-	int			visframe;		// should be drawn when node is crossed
-	int			shadowframe;
-
 	mplane_t	*plane;
 	int			flags;
 
@@ -320,16 +302,15 @@ typedef struct msurface_s
 
 	int			light_s, light_t;	// gl lightmap coordinates
 
-#ifdef Q3SHADERS
 	mfog_t		*fog;
-#endif
 	mesh_t		*mesh;
 	entity_t	*ownerent;
+
 	struct	msurface_s	*texturechain;
-#if 0
-	vec3_t normal;
-#endif
 	mtexinfo_t	*texinfo;
+	struct msurface_s	**mark;
+	int			visframe;		// should be drawn when node is crossed
+	int			shadowframe;
 	
 // lighting info
 	int			dlightframe;
@@ -439,18 +420,21 @@ typedef struct hull_s
 	hullfuncs_t funcs;
 } hull_t;
 
-
 void Q1BSP_SetHullFuncs(hull_t *hull);
 void Q1BSP_SetModelFuncs(struct model_s *mod);
 void Q1BSP_Init(void);
 
+int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out);
+
 qboolean Q1BSP_Trace(struct model_s *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
 unsigned int Q1BSP_FatPVS (struct model_s *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean add);
-qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct edict_s *ent, qbyte *pvs);
-void Q1BSP_FindTouchedLeafs(struct model_s *mod, struct edict_s *ent, float *mins, float *maxs);
+qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct wedict_s *ent, qbyte *pvs);
+void Q1BSP_FindTouchedLeafs(struct world_s *w, struct model_s *mod, struct wedict_s *ent, float *mins, float *maxs);
 qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, qbyte *buffer, unsigned int buffersize);
 
+
+FTE_DEPRECATED texnums_t R_InitSky (struct texture_s *mt);
 /*
 ==============================================================================
 
@@ -464,7 +448,7 @@ SPRITE MODELS
 typedef struct mspriteframe_s
 {
 	float	up, down, left, right;
-	mpic_t p;
+	shader_t *shader;
 } mspriteframe_t;
 
 mspriteframe_t *R_GetSpriteFrame (entity_t *currententity);
@@ -502,7 +486,7 @@ ALIAS MODELS
 Alias models are position independent, so the cache manager can move them.
 ==============================================================================
 */
-
+#if 0
 typedef struct {
 	int		s;
 	int		t;
@@ -585,7 +569,7 @@ extern	mstvert_t	stverts[MAXALIASVERTS*2];
 extern	mtriangle_t	triangles[MAXALIASTRIS];
 extern	dtrivertx_t	*poseverts[MAXALIASFRAMES];
 
-
+#endif
 
 
 /*
@@ -601,15 +585,16 @@ extern	dtrivertx_t	*poseverts[MAXALIASFRAMES];
 
 #define MD2IDALIASHEADER		(('2'<<24)+('P'<<16)+('D'<<8)+'I')
 #define MD2ALIAS_VERSION	8
+#define	MD2MAX_SKINNAME		64	//part of the format
 
+/*
 #define	MD2MAX_TRIANGLES	4096
+#define MD2MAX_FRAMES		512
 #define MD2MAX_VERTS		2048
-#define MD2MAX_FRAMES		512 
 #define MD2MAX_SKINS		32
-#define	MD2MAX_SKINNAME		64
 // sanity checking size
 #define MD2MAX_SIZE	(1024*4200)
-
+*/
 typedef struct
 {
 	short	s;
@@ -628,11 +613,13 @@ typedef struct
 	qbyte	lightnormalindex;
 } md2trivertx_t;
 
+/*
 #define MD2TRIVERTX_V0   0
 #define MD2TRIVERTX_V1   1
 #define MD2TRIVERTX_V2   2
 #define MD2TRIVERTX_LNI  3
 #define MD2TRIVERTX_SIZE 4
+*/
 
 typedef struct
 {
@@ -674,12 +661,10 @@ typedef struct
 	int			ofs_frames;		// offset for first frame
 	int			ofs_glcmds;	
 	int			ofs_end;		// end of file
-
-	int			gl_texturenum[MAX_SKINS];
 } md2_t;
 
-#define ALIASTYPE_MDL 1
-#define ALIASTYPE_MD2 2
+//#define ALIASTYPE_MDL 1
+//#define ALIASTYPE_MD2 2
 
 
 
@@ -736,7 +721,7 @@ typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom} from
 #define	EF_TRACER2	64			// orange split trail + rotate
 #define	EF_TRACER3	128			// purple trail
 
-//hexen2.
+//hexen2 support.
 #define  EFH2_FIREBALL		 256			// Yellow transparent trail in all directions
 #define  EFH2_ICE				 512			// Blue-white transparent trail, with gravity
 #define  EFH2_MIP_MAP			1024			// This model has mip-maps
@@ -849,7 +834,7 @@ typedef struct model_s
 	unsigned	checksum2;
 
 
-	bspfuncs_t	funcs;
+	modelfuncs_t	funcs;
 //
 // additional model data
 //

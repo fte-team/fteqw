@@ -62,7 +62,7 @@ int SV_ModelIndex (char *name)
 		{
 			Q_strncpyz(sv.strings.model_precache[i], name, sizeof(sv.strings.model_precache[i]));
 			if (!strcmp(name + strlen(name) - 4, ".bsp"))
-				sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
+				sv.world.models[i] = Mod_FindName(sv.strings.model_precache[i]);
 			Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", name);
 		}
 		else
@@ -278,7 +278,7 @@ void SVNQ_CreateBaseline (void)
 
 	int playermodel = SV_SafeModelIndex("progs/player.mdl");
 
-	for (entnum = 0; entnum < sv.num_edicts ; entnum++)
+	for (entnum = 0; entnum < sv.world.num_edicts ; entnum++)
 	{
 		svent = EDICT_NUM(svprogfuncs, entnum);
 
@@ -438,7 +438,7 @@ void SV_CalcPHS (void)
 	qbyte	*scan, *lf;
 	int		count, vcount;
 
-	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
+	if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
 	{
 		//PHS calcs are pointless with Q2 bsps
 		return;
@@ -447,7 +447,7 @@ void SV_CalcPHS (void)
 	if (developer.value)
 		Con_TPrintf (STL_BUILDINGPHS);
 
-	num = sv.worldmodel->numleafs;
+	num = sv.world.worldmodel->numleafs;
 	rowwords = (num+31)>>5;
 	rowbytes = rowwords*4;
 
@@ -456,7 +456,7 @@ void SV_CalcPHS (void)
 	vcount = 0;
 	for (i=0 ; i<num ; i++, scan+=rowbytes)
 	{
-		lf = sv.worldmodel->funcs.LeafPVS(sv.worldmodel, i, scan, rowbytes);
+		lf = sv.world.worldmodel->funcs.LeafPVS(sv.world.worldmodel, i, scan, rowbytes);
 		if (lf != scan)
 			memcpy (scan, lf, rowbytes);
 		if (i == 0)
@@ -546,7 +546,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 #ifdef HLSERVER
 		SVHL_ShutdownGame();
 #endif
-		sv.worldmodel = NULL;
+		sv.world.worldmodel = NULL;
 		sv.state = ss_dead;
 		*sv.name = '\0';
 	}
@@ -789,10 +789,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		sprintf (sv.modelname,"maps/%s.bsp", server);
 	}
 	sv.state = ss_loading;
-	sv.worldmodel = Mod_ForName (sv.modelname, true);
-	if (!sv.worldmodel || sv.worldmodel->needload)
+	sv.world.worldmodel = Mod_ForName (sv.modelname, true);
+	if (!sv.world.worldmodel || sv.world.worldmodel->needload)
 		Sys_Error("%s is missing or corrupt\n", sv.modelname);
-	if (sv.worldmodel->type != mod_brush && sv.worldmodel->type != mod_heightmap)
+	if (sv.world.worldmodel->type != mod_brush && sv.world.worldmodel->type != mod_heightmap)
 		Sys_Error("%s is not a bsp model\n", sv.modelname);
 	sv.state = ss_dead;
 
@@ -808,13 +808,13 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_ImageName(server);
 #endif
 
-	if (sv.worldmodel->fromgame == fg_doom)
+	if (sv.world.worldmodel->fromgame == fg_doom)
 		Info_SetValueForStarKey(svs.info, "*bspversion", "1", MAX_SERVERINFO_STRING);
-	else if (sv.worldmodel->fromgame == fg_halflife)
+	else if (sv.world.worldmodel->fromgame == fg_halflife)
 		Info_SetValueForStarKey(svs.info, "*bspversion", "30", MAX_SERVERINFO_STRING);
-	else if (sv.worldmodel->fromgame == fg_quake2)
+	else if (sv.world.worldmodel->fromgame == fg_quake2)
 		Info_SetValueForStarKey(svs.info, "*bspversion", "38", MAX_SERVERINFO_STRING);
-	else if (sv.worldmodel->fromgame == fg_quake3)
+	else if (sv.world.worldmodel->fromgame == fg_quake3)
 		Info_SetValueForStarKey(svs.info, "*bspversion", "46", MAX_SERVERINFO_STRING);
 	else
 		Info_SetValueForStarKey(svs.info, "*bspversion", "", MAX_SERVERINFO_STRING);
@@ -827,7 +827,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	//
 	// clear physics interaction links
 	//
-	SV_ClearWorld ();
+	World_ClearWorld (&sv.world);
 
 	//do we allow csprogs?
 #ifdef PEXT_CSQC
@@ -871,7 +871,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		if (svprogfuncs)	//we don't want the q1 stuff anymore.
 		{
 			CloseProgs(svprogfuncs);
-			svprogfuncs = NULL;
+			sv.world.progs = svprogfuncs = NULL;
 		}
 	}
 
@@ -889,7 +889,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	else
 #endif
 #ifdef Q2SERVER
-	if ((sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//these are the rules for running a q2 server
+	if ((sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//these are the rules for running a q2 server
 		newgametype = GT_QUAKE2;	//we loaded the dll
 	else
 #endif
@@ -935,7 +935,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 
 
-	sv.models[1] = sv.worldmodel;
+	sv.world.models[1] = sv.world.worldmodel;
 #ifdef VM_Q1
 	if (svs.gametype == GT_Q1QVM)
 	{
@@ -943,10 +943,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		sv.strings.model_precache[0] = "";
 
 		sv.strings.model_precache[1] = sv.modelname;	//the qvm doesn't have access to this array
-		for (i=1 ; i<sv.worldmodel->numsubmodels ; i++)
+		for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
 		{
 			sv.strings.model_precache[1+i] = localmodels[i];
-			sv.models[i+1] = Mod_ForName (localmodels[i], false);
+			sv.world.models[i+1] = Mod_ForName (localmodels[i], false);
 		}
 
 		//check player/eyes models for hacks
@@ -961,10 +961,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		sv.strings.model_precache[0] = "";
 
 		sv.strings.model_precache[1] = PR_AddString(svprogfuncs, sv.modelname, 0);
-		for (i=1 ; i<sv.worldmodel->numsubmodels ; i++)
+		for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
 		{
 			sv.strings.model_precache[1+i] = PR_AddString(svprogfuncs, localmodels[i], 0);
-			sv.models[i+1] = Mod_ForName (localmodels[i], false);
+			sv.world.models[i+1] = Mod_ForName (localmodels[i], false);
 		}
 
 		//check player/eyes models for hacks
@@ -985,16 +985,16 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			strcpy(sv.strings.configstring[Q2CS_AIRACCEL], "0");
 
 		// init map checksum config string but only for Q2/Q3 maps
-		if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
+		if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
 			sprintf(sv.strings.configstring[Q2CS_MAPCHECKSUM], "%i", map_checksum);
 		else
 			strcpy(sv.strings.configstring[Q2CS_MAPCHECKSUM], "0");
 
 		strcpy(sv.strings.configstring[Q2CS_MODELS+1], sv.modelname);
-		for (i=1; i<sv.worldmodel->numsubmodels; i++)
+		for (i=1; i<sv.world.worldmodel->numsubmodels; i++)
 		{
 			strcpy(sv.strings.configstring[Q2CS_MODELS+1+i], localmodels[i]);
-			sv.models[i+1] = Mod_ForName (localmodels[i], false);
+			sv.world.models[i+1] = Mod_ForName (localmodels[i], false);
 		}
 	}
 #endif
@@ -1116,7 +1116,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef VM_Q1
 		if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
 #endif
-			ent->v->model = PR_NewString(svprogfuncs, sv.worldmodel->name, 0);
+			ent->v->model = PR_NewString(svprogfuncs, sv.world.worldmodel->name, 0);
 		ent->v->modelindex = 1;		// world model
 		ent->v->solid = SOLID_BSP;
 		ent->v->movetype = MOVETYPE_PUSH;
@@ -1224,7 +1224,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		spawnflagmask = SPAWNFLAG_NOT_DEATHMATCH;
 //do this and get the precaches/start up the game
 	if (sv_loadentfiles.value)
-		file = COM_LoadMallocFile(va("maps/%s.ent", server));
+		file = FS_LoadMallocFile(va("maps/%s.ent", server));
 	else
 		file = NULL;
 	if (file)
@@ -1238,7 +1238,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			break;
 		case GT_Q1QVM:
 		case GT_PROGS:
-			pr_edict_size = PR_LoadEnts(svprogfuncs, file, spawnflagmask);
+			sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, spawnflagmask);
 			break;
 		case GT_QUAKE2:
 #ifdef Q2SERVER
@@ -1264,18 +1264,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			break;
 		case GT_Q1QVM:
 		case GT_PROGS:
-			pr_edict_size = PR_LoadEnts(svprogfuncs, sv.worldmodel->entities, spawnflagmask);
+			sv.world.edict_size = PR_LoadEnts(svprogfuncs, sv.world.worldmodel->entities, spawnflagmask);
 			break;
 		case GT_QUAKE2:
 #ifdef Q2SERVER
-			ge->SpawnEntities(sv.name, sv.worldmodel->entities, startspot?startspot:"");
+			ge->SpawnEntities(sv.name, sv.world.worldmodel->entities, startspot?startspot:"");
 #endif
 			break;
 		case GT_QUAKE3:
 			break;
 		case GT_HALFLIFE:
 #ifdef HLSERVER
-			SVHL_SpawnEntities(sv.worldmodel->entities);
+			SVHL_SpawnEntities(sv.world.worldmodel->entities);
 #endif
 			break;
 		}
@@ -1404,12 +1404,12 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				sv_player->xv->clientcolors = atoi(Info_ValueForKey(host_client->userinfo, "topcolor"))*16 + atoi(Info_ValueForKey(host_client->userinfo, "bottomcolor"));
 
 				// call the spawn function
-				pr_global_struct->time = sv.physicstime;
+				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 
 				// actually spawn the player
-				pr_global_struct->time = sv.physicstime;
+				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 

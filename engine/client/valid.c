@@ -72,23 +72,20 @@ static void Validation_Version(void)
 
 	switch(qrenderer)
 	{
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	case QR_OPENGL:
 		s = sr;
 		//print certain allowed 'cheat' options.
 		//realtime lighting (shadows can show around corners)
 		//drawflat is just lame
 		//24bits can be considered eeeevil, by some.
-		if (r_shadows.value)
-		{
-			if (r_shadow_realtime_world.value)
-				*s++ = 'W';
-			else
-				*s++ = 'S';
-		}
-		if (r_drawflat.value)
+		if (r_shadow_realtime_world.ival)
+			*s++ = 'W';
+		else if (r_shadow_realtime_dlight.ival)
+			*s++ = 'S';
+		if (r_drawflat.ival)
 			*s++ = 'F';
-		if (gl_load24bit.value)
+		if (gl_load24bit.ival)
 			*s++ = 'H';
 
 		*s = *"";
@@ -101,7 +98,7 @@ static void Validation_Version(void)
 
 	*s = '\0';
 
-	if (!allow_f_version.value)
+	if (!allow_f_version.ival)
 		return;	//suppress it
 
 	if (Security_Generate_Crc)
@@ -133,7 +130,7 @@ void Validation_CheckIfResponse(char *text)
 	if (!Security_Verify_Response)
 		return;	//valid or not, we can't check it.
 
-	if (!auth_validateclients.value)
+	if (!auth_validateclients.ival)
 		return;
 
 	//do the parsing.
@@ -274,7 +271,7 @@ void Validation_IncludeFile(char *filename, char *file, int filelen)
 
 static void Validation_FilesModified (void)
 {
-	Con_Printf ("Not implemented\n", RESTRICT_RCON);
+	Con_Printf ("Not implemented\n");
 }
 
 void Validation_FlushFileList(void)
@@ -299,7 +296,7 @@ static void Validation_Server(void)
 #ifndef _MSC_VER
 	#warning is allowing the user to turn this off practical?..
 #endif
-	if (!allow_f_server.value)
+	if (!allow_f_server.ival)
 		return;
 	Cbuf_AddText(va("say server is %s\n", NET_AdrToString(adr, sizeof(adr), cls.netchan.remote_address)), RESTRICT_LOCAL);
 }
@@ -309,7 +306,7 @@ static void Validation_Skins(void)
 	extern cvar_t r_fullbrightSkins, r_fb_models;
 	int percent = r_fullbrightSkins.value*100;
 
-	if (!allow_f_skins.value)
+	if (!allow_f_skins.ival)
 		return;
 
 	RulesetLatch(&r_fb_models);
@@ -321,7 +318,7 @@ static void Validation_Skins(void)
 		percent = cls.allow_fbskins*100;
 	if (percent)
 		Cbuf_AddText(va("say all player skins %i%% fullbright%s\n", percent, r_fb_models.value?" (plus luma)":""), RESTRICT_LOCAL);
-	else if (r_fb_models.value)
+	else if (r_fb_models.ival)
 		Cbuf_AddText("say luma textures only\n", RESTRICT_LOCAL);
 	else
 		Cbuf_AddText("say Only cheaters use full bright skins\n", RESTRICT_LOCAL);
@@ -329,9 +326,9 @@ static void Validation_Skins(void)
 
 static void Validation_Scripts(void)
 {	//subset of ruleset
-	if (!allow_f_scripts.value)
+	if (!allow_f_scripts.ival)
 		return;
-	if (ruleset_allow_frj.value)
+	if (ruleset_allow_frj.ival)
 		Cbuf_AddText("say scripts are allowed\n", RESTRICT_LOCAL);
 	else
 		Cbuf_AddText("say scripts are capped\n", RESTRICT_LOCAL);
@@ -340,7 +337,7 @@ static void Validation_Scripts(void)
 static void Validation_FakeShaft(void)
 {
 	extern cvar_t cl_truelightning;
-	if (!allow_f_fakeshaft.value)
+	if (!allow_f_fakeshaft.ival)
 		return;
 	if (cl_truelightning.value > 0.999)
 		Cbuf_AddText("say fakeshaft on\n", RESTRICT_LOCAL);
@@ -352,14 +349,14 @@ static void Validation_FakeShaft(void)
 
 static void Validation_System(void)
 {	//subset of ruleset
-	if (!allow_f_system.value)
+	if (!allow_f_system.ival)
 		return;
 	Cbuf_AddText("say f_system not supported\n", RESTRICT_LOCAL);
 }
 
 static void Validation_CmdLine(void)
 {
-	if (!allow_f_cmdline.value)
+	if (!allow_f_cmdline.ival)
 		return;
 	Cbuf_AddText("say f_cmdline not supported\n", RESTRICT_LOCAL);
 }
@@ -380,8 +377,7 @@ typedef struct {
 } ruleset_t;
 
 rulesetrule_t rulesetrules_strict[] = {
-	{"gl_shadeq1", "0"},
-	{"gl_shadeq3", "0"},	//FIXME: there needs to be some other way to block these
+	{"ruleset_allow_shaders", "0"},
 	{"ruleset_allow_playercount", "0"},
 	{"ruleset_allow_frj", "0"},
 	{"ruleset_allow_packet", "0"},
@@ -405,8 +401,7 @@ rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_modified_eyes", "0"},
 	{"ruleset_allow_sensative_texture_replacements", "0"},
 	{"ruleset_allow_localvolume", "0"},
-	{"gl_shadeq1", "0"},
-	{"gl_shadeq3", "0"},
+	{"ruleset_allow_shaders", "0"},
 	{NULL}
 };
 

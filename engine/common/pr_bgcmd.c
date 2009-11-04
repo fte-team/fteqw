@@ -515,11 +515,11 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	switch (fmode)
 	{
 	case 0:	//read
-		pf_fopen_files[i].data = COM_LoadMallocFile(pf_fopen_files[i].name);
+		pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name);
 		if (!pf_fopen_files[i].data)
 		{
 			Q_strncpyz(pf_fopen_files[i].name, name, sizeof(pf_fopen_files[i].name));
-			pf_fopen_files[i].data = COM_LoadMallocFile(pf_fopen_files[i].name);
+			pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name);
 		}
 
 		if (pf_fopen_files[i].data)
@@ -534,7 +534,7 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pf_fopen_files[i].ofs = 0;
 		break;
 	case 1:	//append
-		pf_fopen_files[i].data = COM_LoadMallocFile(pf_fopen_files[i].name);
+		pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name);
 		pf_fopen_files[i].ofs = pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
 		if (pf_fopen_files[i].data)
 		{
@@ -736,7 +736,10 @@ void PF_whichpack (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (FS_FLocateFile(srcname, FSLFRT_IFFOUND, &loc))
 	{
-		RETURN_TSTRING(FS_WhichPackForLocation(&loc));
+		srcname = FS_WhichPackForLocation(&loc);
+		if (srcname == NULL)
+			srcname = "";
+		RETURN_TSTRING(srcname);
 	}
 	else
 	{

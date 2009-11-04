@@ -24,29 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 console_t	con_main;
 console_t	*con_current;			// point to either con_main
 
-#ifdef AVAIL_FREETYPE
-	extern struct font_s *conchar_font;
-	int GLFont_DrawChar(struct font_s *font, int px, int py, unsigned int charcode);
-	void GLFont_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
-	//void GLFont_EndString(struct font_s *font);
-	#define GLFont_EndString(f)
+#define Font_ScreenWidth() (vid.pixelwidth)
 
-	#define Font_DrawChar(x,y,c) (conchar_font?GLFont_DrawChar(conchar_font, x, y, c):(Draw_ColouredCharacter(x, y, c),(x)+8))
-
-	#define Font_CharWidth(c) (conchar_font?GLFont_CharWidth(conchar_font, c):8)
-	#define Font_CharHeight() (conchar_font?GLFont_CharHeight(conchar_font):8)
-	#define Font_ScreenWidth() (conchar_font?glwidth:vid.width)
-	extern int glwidth;
-#else
-	#define GLFont_BeginString(f, vx, vy, px, py) *px = vx; *py = vy;
-	#define GLFont_EndString(f)
-	#define Font_DrawChar(x,y,c) (Draw_ColouredCharacter(x, y, c),(x)+8)
-	#define Font_CharWidth(c) 8
-	#define Font_CharHeight() 8
-	#define Font_ScreenWidth() vid.width
-#endif
-
-static int Con_LineBreaks(conchar_t *start, conchar_t *end, int scrwidth, int maxlines, conchar_t **starts, conchar_t **ends);
 static int Con_DrawProgress(int left, int right, int y);
 
 #ifdef QTERM
@@ -915,6 +894,8 @@ void Con_DrawNotify (void)
 	int maxlines;
 	float t;
 
+	Font_BeginString(font_conchar, x, y, &x, &y);
+
 	maxlines = con_numnotifylines.value;
 	if (maxlines < 0)
 		maxlines = 0;
@@ -935,7 +916,7 @@ void Con_DrawNotify (void)
 		if (t > con_notifytime.value)
 			break;
 
-		line = Con_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, Font_ScreenWidth(), lines, starts, ends);
+		line = Font_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, Font_ScreenWidth(), lines, starts, ends);
 		if (!line && lines > 0)
 		{
 			lines--;
@@ -983,7 +964,7 @@ void Con_DrawNotify (void)
 		int lines, i;
 		c = COM_ParseFunString(CON_WHITEMASK, va(chat_team?"say_team: %s":"say: %s", chat_buffer), markup, sizeof(markup), true);
 		*c++ = (0xe00a+((int)(realtime*con_cursorspeed)&1))|CON_WHITEMASK;
-		lines = Con_LineBreaks(markup, c, Font_ScreenWidth(), 8, starts, ends);
+		lines = Font_LineBreaks(markup, c, Font_ScreenWidth(), 8, starts, ends);
 		for (i = 0; i < lines; i++)
 		{
 			c = starts[i];
@@ -998,6 +979,8 @@ void Con_DrawNotify (void)
 
 	if (y > con_notifylines)
 		con_notifylines = y;
+
+	Font_EndString(font_conchar);
 }
 
 //send all the stuff that was con_printed to sys_print. 
@@ -1016,53 +999,6 @@ void Con_PrintToSys(void)
 			Sys_Printf("%c", t[i]&0xff);
 		Sys_Printf("\n");
 	}
-}
-
-static int Con_LineBreaks(conchar_t *start, conchar_t *end, int scrwidth, int maxlines, conchar_t **starts, conchar_t **ends)
-{
-	int l, bt;
-	int px;
-	int foundlines = 0;
-
-	while (start < end)
-	{
-	// scan the width of the line
-		for (px=0, l=0 ; px <= scrwidth;)
-		{
-			if (start+l >= end || (start[l]&CON_CHARMASK) == '\n')
-				break;
-			l++;
-			px += Font_CharWidth(start[l]);
-		}
-		//if we did get to the end
-		if (px > scrwidth)
-		{
-			bt = l;
-			//backtrack until we find a space
-			while(l > 0 && (start[l-1]&CON_CHARMASK)>' ')
-			{
-				l--;
-			}
-			if (l == 0 && bt>0)
-				l = bt-1;
-			px -= Font_CharWidth(start[l]);
-		}
-
-		starts[foundlines] = start;
-		ends[foundlines] = start+l;
-		foundlines++;
-		if (foundlines == maxlines)
-			break;
-
-		start+=l;
-//		for (l=0 ; l<40 && *start && *start != '\n'; l++)
- //			start++;
-
-		if ((*start&CON_CHARMASK) == '\n'||!l)
-			start++;                // skip the \n
-	}
-
-	return foundlines;
 }
 
 //returns the bottom of the progress bar
@@ -1253,7 +1189,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	int top;
 	conchar_t *starts[64], *ends[sizeof(starts)/sizeof(starts[0])];
 	int i;
-	extern int glwidth;
+	qboolean haveprogress;
 
 	if (lines <= 0)
 		return;
@@ -1276,20 +1212,15 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 	selactive = Key_GetConsoleSelectionBox(&selsx, &selsy, &selex, &seley);
 
-#ifdef AVAIL_FREETYPE
-	if (conchar_font)
-	{
-		GLFont_BeginString(conchar_font, x, y, &x, &y);
-		GLFont_BeginString(conchar_font, selsx, selsy, &selsx, &selsy);
-		GLFont_BeginString(conchar_font, selex, seley, &selex, &seley);
-	}
-#endif
+	Font_BeginString(font_conchar, x, y, &x, &y);
+	Font_BeginString(font_conchar, selsx, selsy, &selsx, &selsy);
+	Font_BeginString(font_conchar, selex, seley, &selex, &seley);
 	ex = Font_ScreenWidth();
 	sx = x;
 	ex -= sx;
 
 	y -= Font_CharHeight();
-	Con_DrawProgress(x, ex - x, y);
+	haveprogress = Con_DrawProgress(x, ex - x, y) != y;
 	y -= Font_CharHeight();
 	Con_DrawInput (x, ex - x, y);
 
@@ -1358,7 +1289,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	{
 		s = (conchar_t*)(l+1);
 
-		linecount = Con_LineBreaks(s, s+l->length, ex-sx, sizeof(starts)/sizeof(starts[0]), starts, ends);
+		linecount = Font_LineBreaks(s, s+l->length, ex-sx, sizeof(starts)/sizeof(starts[0]), starts, ends);
 
 		//if Con_LineBreaks didn't find any lines at all, then it was an empty line, and we need to ensure that its still drawn
 		if (linecount == 0)
@@ -1386,7 +1317,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 						int sstart;
 						int send;
 						sstart = sx;
-						send = sstart+linelength*8;
+						send = sstart;
+						for (i = 0; i < linelength; i++)
+							send += Font_CharWidth(s[i]);
 
 						//show something on blank lines
 						if (send == sstart)
@@ -1426,7 +1359,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 								selstartoffset = 0;
 						}
 						
-						Draw_Fill(sstart, y, send - sstart, Font_CharHeight(), 0);
+						Draw_Fill((sstart*vid.width)/vid.pixelwidth, (y*vid.height)/vid.pixelheight, ((send - sstart)*vid.width)/vid.pixelwidth, (Font_CharHeight()*vid.height)/vid.pixelheight, 0);
 					}
 				}
 			}
@@ -1444,10 +1377,22 @@ void Con_DrawConsole (int lines, qboolean noback)
 			break;
 	}
 
-	GLFont_EndString(conchar_font);
+	if (!haveprogress && lines == vid.height)
+	{
+		char *version = va(DISTRIBUTION " Quake %i", build_number());
+		int i;
+		Font_BeginString(font_conchar, vid.width, lines, &x, &y);
+		y -= Font_CharHeight();
+		for (i = 0; version[i]; i++)
+			x -= Font_CharWidth(version[i] | CON_WHITEMASK|CON_HALFALPHA);
+		for (i = 0; version[i]; i++)
+			x = Font_DrawChar(x, y, version[i] | CON_WHITEMASK|CON_HALFALPHA);
+	}
+
+	Font_EndString(font_conchar);
 
 // draw the input prompt, user text, and cursor if desired
-	DrawCursor();
+	SCR_DrawCursor(0);
 }
 
 

@@ -1,10 +1,10 @@
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 #endif
 
 #ifdef D3DQUAKE
-#include "d3dquake.h"
+//#include "d3dquake.h"
 #endif
 
 cvar_t r_dodgytgafiles = SCVAR("r_dodgytgafiles", "0");	//Certain tgas are upside down.
@@ -545,13 +545,15 @@ return NULL;
 	#ifndef PNG_SUCKS_WITH_SETJMP
 		#if defined(MINGW)
 			#include "./mingw-libs/png.h"
-			#pragma comment(lib, "../libs/libpng.a")
 		#elif defined(_WIN32)
 			#include "png.h"
-			#pragma comment(lib, "../libs/libpng.lib")
 		#else
 			#include <png.h>
 		#endif
+	#endif
+
+	#ifdef _MSC_VER
+		#pragma comment(lib, MSVCLIBSPATH "libpng.lib")
 	#endif
 
 
@@ -761,16 +763,18 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	#define JPEG_API VARGS
 	#include "./mingw-libs/jpeglib.h"
 	#include "./mingw-libs/jerror.h"
-	#pragma comment(lib, "../libs/jpeg.a")
 #elif defined(_WIN32)
 	#define JPEG_API VARGS
 	#include "jpeglib.h"
 	#include "jerror.h"
-	#pragma comment(lib, "../libs/jpeg.lib")
 #else
 //	#include <jinclude.h>
 	#include <jpeglib.h>
 	#include <jerror.h>
+#endif
+
+#ifdef _MSC_VER
+	#pragma comment(lib, MSVCLIBSPATH "jpeg.lib")
 #endif
 
 #ifndef JPEG_FALSE
@@ -1761,7 +1765,7 @@ void SaturateR8G8B8(qbyte *data, int size, float sat)
 
 void BoostGamma(qbyte *rgba, int width, int height)
 {
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 	int i;
 	extern qbyte gammatable[256];
 
@@ -1784,7 +1788,7 @@ void BoostGamma(qbyte *rgba, int width, int height)
 
 
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 
 #ifdef DDS
 #ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
@@ -1817,11 +1821,11 @@ typedef struct {
 } ddsheader;
 
 
-int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
+texid_t GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 {
 	extern int		gl_filter_min;
 	extern int		gl_filter_max;
-	int texnum;
+	texid_t texnum;
 	int nummips;
 	int mipnum;
 	int datasize;
@@ -1831,12 +1835,12 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 
 	ddsheader fmtheader;
 	if (*(int*)buffer != *(int*)"DDS ")
-		return 0;
+		return r_nulltex;
 	buffer+=4;
 
 	memcpy(&fmtheader, buffer, sizeof(fmtheader));
 	if (fmtheader.dwSize != sizeof(fmtheader))
-		return 0;	//corrupt/different version
+		return r_nulltex;	//corrupt/different version
 
 	buffer += fmtheader.dwSize;
 
@@ -1860,10 +1864,10 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 		pad = 8;
 	}
 	else
-		return 0;
+		return r_nulltex;
 
 	if (!qglCompressedTexImage2DARB)
-		return 0;
+		return r_nulltex;
 
 	texnum = GL_AllocNewTexture();
 	GL_Bind(texnum);
@@ -1892,13 +1896,13 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 
 	if (nummips>1)
 	{
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 	}
 	else
 	{
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 	}
 
 	return texnum;
@@ -1950,15 +1954,16 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, char *fn
 int image_width, image_height;
 qbyte *COM_LoadFile (char *path, int usehunk);
 //fixme: should probably get rid of the 'Mod' prefix, and use something more suitable.
-int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean colouradjust)
+texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 {
 	qboolean alphaed;
 	char *buf, *data;
-	int len;
+	texid_t tex;
 //	int h;
 	char fname[MAX_QPATH], nicename[MAX_QPATH];
 
-	static char *extensions[] = {//reverse order of preference - (match commas with optional file types)
+	static char *extensions[] =
+	{//reverse order of preference - (match commas with optional file types)
 		".pcx",	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
 #ifdef AVAIL_JPEGLIB
 		".jpg",
@@ -1971,15 +1976,21 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 		""
 	};
 
-	static char *path[] ={
+	static char *path[] =
+	{
+		/*if three args, first is the subpath*/
+		/*the last two args are texturename then extension*/
 		"2%s%s",
-		"3textures/%s/%s%s",	//this is special... It uses the subpath parameter. Note references to (i == 1)
+		"3textures/%s/%s%s",
 		"3%s/%s%s",
 		"2textures/%s%s",
 		"2override/%s%s"
 	};
 
 	int i, e;
+
+	image_width = 0;
+	image_height = 0;
 
 	COM_StripAllExtensions(name, nicename, sizeof(nicename));
 
@@ -1988,17 +1999,20 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 		*data = '#';
 	}
 
-	if ((len = R_FindTexture(name))!=-1)	//don't bother if it already exists.
-		return len;
+	tex = R_FindTexture(name);
+	if (TEXVALID(tex))	//don't bother if it already exists.
+		return tex;
 	if (subpath && *subpath)
 	{
 		snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
-		if ((len = R_FindTexture(fname))!=-1)	//don't bother if it already exists.
-			return len;
+		tex = R_FindTexture(fname);
+		if (TEXVALID(tex))	//don't bother if it already exists.
+			return tex;
 	}
 
-	if ((len = R_LoadCompressed(name)))
-		return len;
+	tex = R_LoadCompressed(name);
+	if (TEXVALID(tex))
+		return tex;
 
 	if (strchr(name, '/'))	//never look in a root dir for the pic
 		i = 0;
@@ -2019,10 +2033,10 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 			snprintf(fname, sizeof(fname)-1, path[i]+1, nicename, ".dds");
 		if ((buf = COM_LoadFile (fname, 5)))
 		{
-			len = GL_LoadTextureDDS(buf, com_filesize);
+			tex = GL_LoadTextureDDS(buf, com_filesize);
 			BZ_Free(buf);
-			if (len)
-				return len;
+			if (TEXVALID(tex))
+				return tex;
 		}
 #endif
 
@@ -2042,22 +2056,22 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height, fname)))
 				{
 					extern cvar_t vid_hardwaregamma;
-					if (colouradjust && !vid_hardwaregamma.value)
+					if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 						BoostGamma(data, image_width, image_height);
 					TRACE(("dbg: Mod_LoadHiResTexture: %s loaded\n", name));
 					if (i == 1)
 					{	//if it came from a special subpath (eg: map specific), upload it using the subpath prefix
 						snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
-						len = R_LoadTexture32 (fname, image_width, image_height, (unsigned*)data, mipmap, alpha);
+						tex = R_LoadTexture32 (fname, image_width, image_height, data, flags);
 					}
 					else
-						len = R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
+						tex = R_LoadTexture32 (name, image_width, image_height, data, flags);
 
 					BZ_Free(data);
 
 					BZ_Free(buf);
 
-					return len;
+					return tex;
 				}
 				else
 				{
@@ -2068,33 +2082,54 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 		}
 	}
 
+	/*still failed? attempt to load quake lmp files, which have no real format id*/
+	snprintf(fname, sizeof(fname)-1, "%s%s", nicename, ".lmp");
+	if ((buf = COM_LoadFile (fname, 5)))
+	{
+		extern cvar_t vid_hardwaregamma;
+		tex = r_nulltex;
+		if (com_filesize >= 8)
+		{
+			image_width = LittleLong(((int*)buf)[0]);
+			image_height = LittleLong(((int*)buf)[1]);
+			if (image_width*image_height+8 == com_filesize)
+			{
+				tex = R_LoadTexture8(name, image_width, image_height, buf+8, flags, 1);
+			}
+		}
+		BZ_Free(buf);
+		return tex;
+	}
+
 	//now look in wad files. (halflife compatability)
 	data = W_GetTexture(name, &image_width, &image_height, &alphaed);
 	if (data)
-		return R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alphaed);
-	return 0;
+		return R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, flags);
+	return r_nulltex;
 }
-int Mod_LoadReplacementTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust)
+texid_t R_LoadReplacementTexture(char *name, char *subpath, unsigned int flags)
 {
 	if (!gl_load24bit.value)
-		return 0;
-	return Mod_LoadHiResTexture(name, subpath, mipmap, alpha, gammaadjust);
+		return r_nulltex;
+	return R_LoadHiResTexture(name, subpath, flags);
 }
 
 extern cvar_t r_shadow_bumpscale_bumpmap;
-int Mod_LoadBumpmapTexture(char *name, char *subpath)
+texid_t R_LoadBumpmapTexture(char *name, char *subpath)
 {
 	char *buf, *data;
-	int len;
+	texid_t tex;
 //	int h;
 	char fname[MAX_QPATH], nicename[MAX_QPATH];
 
-	static char *extensions[] = {//reverse order of preference - (match commas with optional file types)
+	static char *extensions[] =
+	{//reverse order of preference - (match commas with optional file types)
 		".tga",
 		""
 	};
 
-	static char *path[] ={
+	static char *path[] =
+	{
 		"%s%s",
 		"textures/%s/%s%s",	//this is special... It's special name is Mr Ben Ian Graham Hacksworth.
 		"textures/%s%s",
@@ -2107,11 +2142,13 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 
 	COM_StripExtension(name, nicename, sizeof(nicename));
 
-	if ((len = R_FindTexture(name))!=-1)	//don't bother if it already exists.
-		return len;
+	tex = R_FindTexture(name);
+	if (TEXVALID(tex))	//don't bother if it already exists.
+		return tex;
 
-	if ((len = R_LoadCompressed(name)))
-		return len;
+	tex = R_LoadCompressed(name);
+	if (TEXVALID(tex))
+		return tex;
 
 	if (strchr(name, '/'))	//never look in a root dir for the pic
 		i = 0;
@@ -2144,7 +2181,7 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 				if ((data = ReadTargaFile(buf, com_filesize, &image_width, &image_height, 2)))	//Only load a greyscale image.
 				{
 					TRACE(("dbg: Mod_LoadBumpmapTexture: tga %s loaded\n", name));
-					len = R_LoadTexture8Bump(name, image_width, image_height, data, true, r_shadow_bumpscale_bumpmap.value);
+					tex = R_LoadTexture8Bump(name, image_width, image_height, data, IF_NOALPHA|IF_NOGAMMA);
 					BZ_Free(data);
 				}
 				else
@@ -2155,11 +2192,11 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 
 				BZ_Free(buf);
 
-				return len;
+				return tex;
 			}
 		}
 	}
-	return 0;
+	return r_nulltex;
 }
 
 #endif

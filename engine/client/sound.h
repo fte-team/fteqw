@@ -115,6 +115,7 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);
 void S_StopAllSounds(qboolean clear);
 void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, qboolean dontmix);
+void S_GetListenerInfo(float *origin, float *forward, float *right, float *up);
 void S_ExtraUpdate (void);
 
 qboolean S_HaveOutput(void);

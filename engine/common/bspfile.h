@@ -492,22 +492,21 @@ typedef struct
 #define	Q2CONTENTS_LADDER			0x20000000
 
 
+//Texinfo flags - warning: these mix with q3 surface flags
+#define	TI_LIGHT		0x1		// value will hold the light strength
 
-#define	SURF_LIGHT		0x1		// value will hold the light strength
+#define	TI_SLICK		0x2		// effects game physics
 
-#define	SURF_SLICK		0x2		// effects game physics
+#define	TI_SKY		0x4		// don't draw, but add to skybox
+#define	TI_WARP		0x8		// turbulent water warp
+#define	TI_TRANS33	0x10
+#define TI_TRANS66	0x20
+#define	TI_FLOWING	0x40	// scroll towards angle
+#define	TI_NODRAW		0x80	// don't bother referencing the texture
 
-#define	SURF_SKY		0x4		// don't draw, but add to skybox
-#define	SURF_WARP		0x8		// turbulent water warp
-#define	SURF_TRANS33	0x10
-#define	SURF_TRANS66	0x20
-#define	SURF_FLOWING	0x40	// scroll towards angle
-#define	SURF_NODRAW		0x80	// don't bother referencing the texture
+#define	TI_ALPHATEST	0x100
 
-#define	SURF_NODRAW		0x80	// don't bother referencing the texture
-
-#define	SURF_ALPHATEST	0x100
-
+//Surface flags
 #define Q3SURF_LADDER	0x8		//wee
 
 // content masks

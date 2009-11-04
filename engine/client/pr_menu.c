@@ -2,12 +2,10 @@
 
 #ifdef MENU_DAT
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
-#ifdef Q3SHADERS
+#endif
 #include "shader.h"
-#endif
-#endif
 
 #include "pr_common.h"
 
@@ -349,8 +347,7 @@ void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float alpha = G_FLOAT(OFS_PARM4);
 //	float flag = G_FLOAT(OFS_PARM5);
 
-	const float fsize = 0.0625;
-	float frow, fcol;
+	int x, y;
 
 	if (!chara)
 	{
@@ -358,14 +355,12 @@ void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	chara &= 255;
-	frow = (chara>>4)*fsize;
-	fcol = (chara&15)*fsize;
-
-	if (Draw_ImageColours)
-		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	if (Draw_Image)
-		Draw_Image(pos[0], pos[1], size[0], size[1], fcol, frow, fcol+fsize, frow+fsize, Draw_CachePic("conchars"));
+#pragma message("fixme: this doesn't scale or colour chars")
+	Font_BeginString(font_conchar, pos[0], pos[1], &x, &y);
+	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
+	Font_DrawChar(x, y, 0xe000|(chara&0xff));
+	Font_ForceColour(1, 1, 1, 1);
+	Font_EndString(font_conchar);
 
 	G_FLOAT(OFS_RETURN) = 1;
 }
@@ -375,9 +370,10 @@ void PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *pos = G_VECTOR(OFS_PARM0);
 	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
 	float *size = G_VECTOR(OFS_PARM2);
-//	float *rgb = G_VECTOR(OFS_PARM3);
-//	float alpha = G_FLOAT(OFS_PARM4);
+	float *rgb = G_VECTOR(OFS_PARM3);
+	float alpha = G_FLOAT(OFS_PARM4);
 //	float flag = G_FLOAT(OFS_PARM5);
+	int x, y;
 
 	if (!text)
 	{
@@ -385,12 +381,15 @@ void PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
+#pragma message("fixme: this doesn't scale")
+	Font_BeginString(font_conchar, pos[0], pos[1], &x, &y);
+	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
 	while(*text)
 	{
-		G_FLOAT(OFS_PARM1) = *text++;
-		PF_CL_drawcharacter(prinst, pr_globals);
-		pos[0] += size[0];
+		x = Font_DrawChar(x, y, 0xe000|(*text++&0xff));
 	}
+	Font_ForceColour(1, 1, 1, 1);
+	Font_EndString(font_conchar);
 }
 
 //float	drawstring(vector position, string text, vector scale, float alpha, float flag) = #455;
@@ -435,9 +434,19 @@ void PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #define DRAWFLAG_MODULATE 2
 #define DRAWFLAG_MODULATE2 3
 
-#ifdef Q3SHADERS
-void GLDraw_ShaderPic (int x, int y, int width, int height, shader_t *pic, float r, float g, float b, float a);
-#endif
+static void PF_SelectDPDrawFlag(int flag)
+{
+	//flags:
+	//0 = blend
+	//1 = add
+	//2 = modulate
+	//3 = modulate*2
+	if (flag == 1)
+		BE_SelectMode(BEM_STANDARD, BEF_FORCEADDITIVE);
+	else
+		BE_SelectMode(BEM_STANDARD, BEF_FORCETRANSPARENT);
+}
+
 //float	drawpic(vector position, string pic, vector size, vector rgb, float alpha, float flag) = #456;
 void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -446,46 +455,16 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *size = G_VECTOR(OFS_PARM2);
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
-	float flag = G_FLOAT(OFS_PARM5);
+	int flag = (int)G_FLOAT(OFS_PARM5);
 
 	mpic_t *p;
 
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-#ifdef Q3SHADERS
-		shader_t *s;
-
-		s = R_RegisterCustom(picname, NULL, NULL);
-		if (s)
-		{
-			GLDraw_ShaderPic(pos[0], pos[1], size[0], size[1], s, rgb[0], rgb[1], rgb[2], alpha);
-			return;
-		}
-#endif
-
-		if (flag == 1)	//add
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-		else if(flag == 2)	//modulate
-			qglBlendFunc(GL_DST_COLOR, GL_ZERO);
-		else if(flag == 3)	//modulate*2
-			qglBlendFunc(GL_DST_COLOR,GL_SRC_COLOR);
-		else	//blend
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-#endif
-
 	p = Draw_SafeCachePic(picname);
 
-	if (Draw_ImageColours)
-		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	if (Draw_Image)
-		Draw_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
-
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-#endif
+	PF_SelectDPDrawFlag(flag);
+	Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	Draw_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
+	BE_SelectMode(BEM_STANDARD, 0);
 
 	G_FLOAT(OFS_RETURN) = 1;
 }
@@ -503,49 +482,16 @@ void PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	mpic_t *p;
 
-	if(pos[2] || size[2])
-		Con_Printf("VM_drawsubpic: z value%s from %s discarded\n",(pos[2] && size[2]) ? "s" : " ",((pos[2] && size[2]) ? "pos and size" : (pos[2] ? "pos" : "size")));
-
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-#ifdef Q3SHADERS
-		shader_t *s;
-
-		s = R_RegisterCustom(picname, NULL, NULL);
-		if (s)
-		{
-			GLDraw_ShaderPic(pos[0], pos[1], size[0], size[1], s, rgb[0], rgb[1], rgb[2], alpha);
-			return;
-		}
-#endif
-
-		if (flag == 1)	//add
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-		else if(flag == 2)	//modulate
-			qglBlendFunc(GL_DST_COLOR, GL_ZERO);
-		else if(flag == 3)	//modulate*2
-			qglBlendFunc(GL_DST_COLOR,GL_SRC_COLOR);
-		else	//blend
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-#endif
-
 	p = Draw_SafeCachePic(picname);
 
-	if (Draw_ImageColours)
-		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	if (Draw_Image)
-		Draw_Image(	pos[0], pos[1],
-					size[0], size[1],
-					srcPos[0], srcPos[1],
-					srcPos[0]+srcSize[0], srcPos[1]+srcSize[1],
-					p);
-
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-#endif
+	PF_SelectDPDrawFlag(flag);
+	Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	Draw_Image(	pos[0], pos[1],
+				size[0], size[1],
+				srcPos[0], srcPos[1],
+				srcPos[0]+srcSize[0], srcPos[1]+srcSize[1],
+				p);
+	BE_SelectMode(BEM_STANDARD, 0);
 
 	G_FLOAT(OFS_RETURN) = 1;
 }
@@ -557,7 +503,7 @@ void PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *size = G_VECTOR(OFS_PARM1);
 	float *rgb = G_VECTOR(OFS_PARM2);
 	float alpha = G_FLOAT(OFS_PARM3);
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		qglColor4f(rgb[0], rgb[1], rgb[2], alpha);
@@ -581,15 +527,15 @@ void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals
 {
 	float x = G_FLOAT(OFS_PARM0), y = G_FLOAT(OFS_PARM1), w = G_FLOAT(OFS_PARM2), h = G_FLOAT(OFS_PARM3);
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL && qglScissor)
 	{
 
-		x *= (float)glwidth/vid.width;
-		y *= (float)glheight/vid.height;
+		x *= (float)vid.pixelwidth/vid.width;
+		y *= (float)vid.pixelheight/vid.height;
 
-		w *= (float)glwidth/vid.width;
-		h *= (float)glheight/vid.height;
+		w *= (float)vid.pixelwidth/vid.width;
+		h *= (float)vid.pixelheight/vid.height;
 
 		//add a pixel because this makes DP's menus come out right.
 		x-=1;
@@ -598,7 +544,7 @@ void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals
 		h+=2;
 
 
-		qglScissor (x, glheight-(y+h), w, h);
+		qglScissor (x, vid.pixelheight-(y+h), w, h);
 		qglEnable(GL_SCISSOR_TEST);
 		G_FLOAT(OFS_RETURN) = 1;
 		return;
@@ -609,7 +555,7 @@ void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals
 //void	drawresetcliparea(void) = #459;
 void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		qglDisable(GL_SCISSOR_TEST);
@@ -628,7 +574,7 @@ void PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *pos = G_VECTOR(OFS_PARM4);
 	int numpoints = *prinst->callargc-4;
 
-#ifdef RGLQUAKE	// :(
+#ifdef GLQUAKE	// :(
 
 	if (qrenderer == QR_OPENGL)
 	{
@@ -1762,7 +1708,7 @@ void MP_Draw(void)
 	if (setjmp(mp_abort))
 		return;
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		GL_TexEnv(GL_MODULATE);

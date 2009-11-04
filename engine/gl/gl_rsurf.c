@@ -20,26 +20,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_surf.c: surface-related refresh code
 
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#if defined(GLQUAKE) //|| defined(D3DQUAKE)
 #include "glquake.h"
 #include "shader.h"
 #include "renderque.h"
 #include <math.h>
 
-int			skytexturenum;
-
 extern cvar_t gl_bump;
 
-extern qbyte			areabits[MAX_Q2MAP_AREAS/8];
+static qbyte			areabits[MAX_Q2MAP_AREAS/8];
 
 model_t		*currentmodel;
 
 
 int		lightmap_bytes;		// 1, 3 or 4
 
-int		*lightmap_textures;
-int		*deluxmap_textures;
-int		detailtexture;
+texid_t	*lightmap_textures;
+texid_t	*deluxmap_textures;
 
 #define MAX_LIGHTMAP_SIZE LMBLOCK_WIDTH
 
@@ -58,8 +55,6 @@ extern msurface_t *r_mirror_chain;
 
 mleaf_t		*r_vischain;		// linked list of visible leafs
 
-void R_RenderDynamicLightmaps (msurface_t *fa, int shift);
-
 extern cvar_t gl_detail;
 extern cvar_t r_stains;
 extern cvar_t r_loadlits;
@@ -72,8 +67,8 @@ int GLR_LightmapShift (model_t *model)
 {
 	extern cvar_t gl_overbright_all, gl_lightmap_shift;
 
-	if (gl_overbright_all.value || (model->engineflags & MDLF_NEEDOVERBRIGHT))
-		return bound(0, gl_lightmap_shift.value, 2);
+	if (gl_overbright_all.ival || (model->engineflags & MDLF_NEEDOVERBRIGHT))
+		return bound(0, gl_lightmap_shift.ival, 2);
 	return 0;
 }
 
@@ -160,7 +155,7 @@ void GLR_StainSurf (msurface_t *surf, float *parms)
 
 //combination of R_AddDynamicLights and R_MarkLights
 /*
-void GLR_StainNode (mnode_t *node, float *parms)
+static void GLR_StainNode (mnode_t *node, float *parms)
 {
 	mplane_t	*splitplane;
 	float		dist;
@@ -197,46 +192,6 @@ void GLR_StainNode (mnode_t *node, float *parms)
 	GLR_StainNode (node->children[1], parms);
 }
 */
-
-void GLR_StainQ3Node (mnode_t *node, float *parms)
-{
-//	mplane_t	*splitplane;
-//	float		dist;
-	int			i;
-	
-	if (node->contents != -1)
-	{
-		msurface_t	**mark;
-		mleaf_t *leaf;
-
-		// mark the polygons
-		leaf = (mleaf_t *)node;
-		mark = leaf->firstmarksurface;
-		for (i=0 ; i<leaf->nummarksurfaces ; i++)
-		{
-			GLR_StainSurf(*mark++, parms);
-		}
-
-		return;	
-	}
-	/*
-	splitplane = node->plane;
-	dist = DotProduct ((parms+1), splitplane->normal) - splitplane->dist;
-	
-	if (dist > (*parms))
-	{
-		GLR_StainQ2Node (node->children[0], parms);
-		return;
-	}
-	if (dist < (-*parms))
-	{
-		GLR_StainQ2Node (node->children[1], parms);
-		return;
-	}*/
-
-	GLR_StainQ3Node (node->children[0], parms);
-	GLR_StainQ3Node (node->children[1], parms);
-}
 
 void GLR_AddStain(vec3_t org, float red, float green, float blue, float radius)
 {
@@ -363,7 +318,7 @@ void GLR_LessenStains(void)
 R_AddDynamicLights
 ===============
 */
-void GLR_AddDynamicLights (msurface_t *surf)
+static void GLR_AddDynamicLights (msurface_t *surf)
 {
 	int			lnum;
 	int			sd, td;
@@ -379,7 +334,7 @@ void GLR_AddDynamicLights (msurface_t *surf)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<dlights_software ; lnum++)
+	for (lnum=rtlights_first; lnum<RTL_FIRST; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -431,7 +386,7 @@ void GLR_AddDynamicLights (msurface_t *surf)
 	}
 }
 
-void GLR_AddDynamicLightNorms (msurface_t *surf)
+static void GLR_AddDynamicLightNorms (msurface_t *surf)
 {
 	int			lnum;
 	int			sd, td;
@@ -447,7 +402,7 @@ void GLR_AddDynamicLightNorms (msurface_t *surf)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<dlights_software ; lnum++)
+	for (lnum=rtlights_first; lnum<RTL_FIRST; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -504,7 +459,7 @@ void GLR_AddDynamicLightNorms (msurface_t *surf)
 }
 
 #ifdef PEXT_LIGHTSTYLECOL
-void GLR_AddDynamicLightsColours (msurface_t *surf)
+static void GLR_AddDynamicLightsColours (msurface_t *surf)
 {
 	int			lnum;
 	int			sd, td;
@@ -521,7 +476,7 @@ void GLR_AddDynamicLightsColours (msurface_t *surf)
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	for (lnum=0 ; lnum<dlights_software ; lnum++)
+	for (lnum=rtlights_first; lnum<RTL_FIRST; lnum++)
 	{
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
@@ -607,7 +562,7 @@ void GLR_AddDynamicLightsColours (msurface_t *surf)
 
 
 
-void GLR_BuildDeluxMap (msurface_t *surf, qbyte *dest)
+static void GLR_BuildDeluxMap (msurface_t *surf, qbyte *dest)
 {
 	int			smax, tmax;
 	int			i, j, size;
@@ -717,9 +672,11 @@ store:
 			{
 				temp[2]=0.5;	//don't let it get too dark.
 			}
+
 			dest[0] = (temp[0]+1)/2*255;
 			dest[1] = (temp[1]+1)/2*255;
 			dest[2] = (temp[2]+1)/2*255;
+
 			dest += 3;
 			bnorm+=3;
 		}
@@ -733,7 +690,7 @@ R_BuildLightMap
 Combine and scale multiple lightmaps into the 8.8 format in blocklights
 ===============
 */
-void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift)
+static void GLR_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift)
 {
 	int			smax, tmax;
 	int			t;
@@ -1680,20 +1637,15 @@ store:
 
 extern	float	speedscale;		// for top sky and bottom sky
 
-#if 0
-static void DrawGLWaterPoly (glpoly_t *p);
-static void DrawGLWaterPolyLightmap (glpoly_t *p);
-#endif
 
 qboolean mtexenabled = false;
 
-void GL_SelectTexture (GLenum target);
 
 void GL_DisableMultitexture(void) 
 {
 	if (mtexenabled) {
 		qglDisable(GL_TEXTURE_2D);
-		GL_SelectTexture(mtexid0);
+		GL_SelectTexture(0);
 		mtexenabled = false;
 	}
 }
@@ -1701,60 +1653,10 @@ void GL_DisableMultitexture(void)
 void GL_EnableMultitexture(void) 
 {
 	if (gl_mtexable) {
-		GL_SelectTexture(mtexid1);
+		GL_SelectTexture(1);
 		qglEnable(GL_TEXTURE_2D);
 		mtexenabled = true;
 	}
-}
-
-/*
-================
-DrawGLPoly
-================
-*/
-static void DrawGLPoly (mesh_t *mesh)
-{
-//	GL_DrawAliasMesh 
-#ifdef Q3SHADERS
-	R_UnlockArrays();
-#endif
-
-	qglVertexPointer(3, GL_FLOAT, 0, mesh->xyz_array);
-	qglEnableClientState( GL_VERTEX_ARRAY );
-	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
-	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
-	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_INDEX_TYPE, mesh->indexes);
-	R_IBrokeTheArrays();
-}
-
-/*
-================
-R_RenderBrushPoly
-================
-*/
-void R_RenderBrushPoly (msurface_t *fa)
-{
-	//FIXME: this code is only used for mirrors. remove.
-	texture_t	*t;
-
-	c_brush_polys++;
-
-	if (fa->flags & SURF_DRAWSKY)
-	{	// warp texture, no lightmaps
-		return;
-	}
-		
-	t = R_TextureAnimation (fa->texinfo->texture);
-	GL_Bind (t->tn.base);
-
-	if (fa->flags & SURF_DRAWTURB)
-	{	// warp texture, no lightmaps
-		EmitWaterPolys (fa, r_wateralphaval);
-		qglDisable(GL_BLEND);	//to ensure.
-		return;
-	}
-
-	DrawGLPoly (fa->mesh);
 }
 
 /*
@@ -1782,7 +1684,7 @@ void R_RenderDynamicLightmaps (msurface_t *fa, int shift)
 	if (fa->flags & ( SURF_DRAWSKY | SURF_DRAWTURB) )
 		return;
 
-	if (fa->texinfo->flags & (SURF_SKY|SURF_TRANS33|SURF_TRANS66|SURF_WARP))
+	if (fa->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP))
 		return;
 
 	if (fa->texinfo->flags & (TEX_SPECIAL))
@@ -1835,29 +1737,35 @@ dynamic:
 		if ((theRect->h + theRect->t) < (fa->light_t + tmax))
 			theRect->h = (fa->light_t-theRect->t)+tmax;
 
-		lightmap[fa->lightmaptexturenum]->deluxmodified = true;
-		theRect = &lightmap[fa->lightmaptexturenum]->deluxrectchange;
-		if (fa->light_t < theRect->t) {
-			if (theRect->h)
-				theRect->h += theRect->t - fa->light_t;
-			theRect->t = fa->light_t;
-		}
-		if (fa->light_s < theRect->l) {
-			if (theRect->w)
-				theRect->w += theRect->l - fa->light_s;
-			theRect->l = fa->light_s;
-		}
+		if (gl_bump.ival)
+		{
+			lightmap[fa->lightmaptexturenum]->deluxmodified = true;
+			theRect = &lightmap[fa->lightmaptexturenum]->deluxrectchange;
+			if (fa->light_t < theRect->t) {
+				if (theRect->h)
+					theRect->h += theRect->t - fa->light_t;
+				theRect->t = fa->light_t;
+			}
+			if (fa->light_s < theRect->l) {
+				if (theRect->w)
+					theRect->w += theRect->l - fa->light_s;
+				theRect->l = fa->light_s;
+			}
 
-		if ((theRect->w + theRect->l) < (fa->light_s + smax))
-			theRect->w = (fa->light_s-theRect->l)+smax;
-		if ((theRect->h + theRect->t) < (fa->light_t + tmax))
-			theRect->h = (fa->light_t-theRect->t)+tmax;
+			if ((theRect->w + theRect->l) < (fa->light_s + smax))
+				theRect->w = (fa->light_s-theRect->l)+smax;
+			if ((theRect->h + theRect->t) < (fa->light_t + tmax))
+				theRect->h = (fa->light_t-theRect->t)+tmax;
+
+			luxbase = lightmap[fa->lightmaptexturenum]->deluxmaps;
+			luxbase += fa->light_t * LMBLOCK_WIDTH * 3 + fa->light_s * 3;
+		}
+		else
+			luxbase = NULL;
 
 
 		base = lightmap[fa->lightmaptexturenum]->lightmaps;
 		base += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
-		luxbase = lightmap[fa->lightmaptexturenum]->deluxmaps;
-		luxbase += fa->light_t * LMBLOCK_WIDTH * 3 + fa->light_s * 3;
 		stainbase = lightmap[fa->lightmaptexturenum]->stainmaps;
 		stainbase += (fa->light_t * LMBLOCK_WIDTH + fa->light_s) * 3;
 		GLR_BuildLightMap (fa, base, luxbase, stainbase, shift);
@@ -1880,270 +1788,6 @@ void R_MirrorChain (msurface_t *s)
 	mirror_plane = s->plane;
 }
 
-
-/*
-================
-R_DrawWaterSurfaces
-================
-*/
-void GLR_DrawWaterSurfaces (void)
-{
-	int			i;
-	msurface_t	*s;
-	texture_t	*t;
-
-	if (r_wateralphaval == 1.0)
-		return;
-
-	//
-	// go back to the world matrix
-	//
-
-    qglLoadMatrixf (r_view_matrix);
-
-	if (r_wateralphaval < 1.0) {
-		qglEnable (GL_BLEND);
-		qglDisable (GL_ALPHA_TEST);
-		qglColor4f (1,1,1,r_wateralphaval);
-		GL_TexEnv(GL_MODULATE);
-	}
-	else
-	{
-		qglDisable (GL_BLEND);
-		qglDisable (GL_ALPHA_TEST);
-		GL_TexEnv(GL_REPLACE);
-	}
-
-	for (i=0 ; i<cl.worldmodel->numtextures ; i++)
-	{
-		t = cl.worldmodel->textures[i];
-		if (!t)
-			continue;
-		s = t->texturechain;
-		if (!s)
-			continue;
-		if ( !(s->flags & SURF_DRAWTURB ) )
-			continue;
-		
-		GL_Bind (t->tn.base);
-
-		EmitWaterPolyChain (s, r_wateralphaval);
-		
-		t->texturechain = NULL;
-	}
-
-	if (r_wateralphaval < 1.0) {
-		GL_TexEnv(GL_REPLACE);
-
-		qglColor4f (1,1,1,1);
-		qglDisable (GL_BLEND);
-	}
-}
-
-
-static void GLR_DrawAlphaSurface(int count, msurface_t	**surfs, void *type)
-{
-	msurface_t *s = (*surfs);
-
-	qglPushMatrix();
-	R_RotateForEntity(s->ownerent);
-#ifdef Q3SHADERS
-	if (s->texinfo->texture->shader)
-	{
-		meshbuffer_t mb;
-		mb.dlightbits = 0;
-		mb.entity = s->ownerent;
-		mb.shader = s->texinfo->texture->shader;
-		mb.sortkey = 0;
-
-		mb.infokey = s->lightmaptexturenum;
-		mb.mesh = s->mesh;
-		mb.fog = s->fog;
-		currententity = s->ownerent;
-		if (s->mesh)
-		{
-			R_PushMesh(s->mesh, mb.shader->features|MF_NONBATCHED);
-			R_RenderMeshBuffer ( &mb, false );
-		}
-
-		qglPopMatrix();
-		return;
-	}
-#endif
-	GL_Bind(s->texinfo->texture->tn.base);
-
-	if (s->texinfo->flags & SURF_TRANS33)
-		qglColor4f (1,1,1,0.33);
-	else if (s->texinfo->flags & SURF_TRANS66)
-		qglColor4f (1,1,1,0.66);
-	else
-	{
-		if (s->flags & SURF_DRAWTURB)
-		{
-			qglColor4f (1,1,1,1);
-			EmitWaterPolys (s, r_wateralphaval);
-		}
-		else
-		{
-			Sys_Error("GLR_DrawAlphaSurface needs work");
-			/*
-			if (gl_mtexable)
-			{
-				int i;
-				float *v;
-				glpoly_t *p;
-				GL_TexEnv(GL_REPLACE);
-				GL_EnableMultitexture();
-				GL_Bind(lightmap_textures[s->lightmaptexturenum]);
-				GL_TexEnv(GL_BLEND);
-				p = s->polys;
-
-				qglColor4f (1,1,1,1);
-				while(p)
-				{
-					qglBegin (GL_POLYGON);
-					v = p->verts[0];
-					for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
-					{
-						qglMTexCoord2fSGIS (mtexid0, v[3], v[4]);
-						qglMTexCoord2fSGIS (mtexid1, v[5], v[6]);
-						qglVertex3fv (v);
-					}
-					qglEnd ();
-					p=p->next;
-				}
-				GL_DisableMultitexture();
-			}
-			else
-			*/
-			{
-				if (s->samples)	//could do true vertex lighting... ?
-					qglColor4ub (*s->samples,*s->samples,*s->samples,255);
-				else
-					qglColor4f (1,1,1,1);
-				DrawGLPoly (s->mesh);
-			}
-		}
-
-		qglPopMatrix();
-		return;
-	}
-
-	if (s->flags & SURF_DRAWTURB || s->texinfo->flags & SURF_WARP)
-		EmitWaterPolys (s, r_wateralphaval);
-//	else if(s->texinfo->flags & SURF_FLOWING)			// PGM	9/16/98
-//		DrawGLFlowingPoly (s);							// PGM
-	else
-		DrawGLPoly (s->mesh);
-
-	qglPopMatrix();
-}
-
-void GLR_DrawAlphaSurfaces (void)
-{
-	msurface_t	*s;
-	vec3_t v;
-
-	//
-	// go back to the world matrix
-	//
-
-    qglLoadMatrixf (r_view_matrix);
-	GL_TexEnv(GL_MODULATE);
-	
-	qglEnable(GL_ALPHA_TEST);
-	qglDisable(GL_BLEND);
-//	if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake2))
-	{	//this is a mahoosive hack.
-		qglDepthMask(0);	//this makes no difference to the cheating.
-
-		qglDisable(GL_ALPHA_TEST);
-		qglEnable(GL_BLEND);
-	}
-	qglColor4f (1,1,1,1);
-	for (s=r_alpha_surfaces ; s ; s=s->nextalphasurface)
-	{
-		if (s->flags&0x80000)
-		{
-			Con_Printf("Infinate alpha surface loop detected\n");
-			break;
-		}
-		s->flags |= 0x80000;
-		if (s->texinfo->flags & SURF_ALPHATEST)
-		{	//simple alpha testing.
-
-			if (s->ownerent != currententity)
-			{
-				currententity = s->ownerent;
-				qglPopMatrix();
-				qglPushMatrix();
-				R_RotateForEntity(currententity);
-			}
-/*
-			if (gl_mtexable)
-			{
-				int i;
-				float *v;
-				glpoly_t *p;
-				GL_Bind(s->texinfo->texture->gl_texturenum);
-				GL_TexEnv(GL_REPLACE);
-				GL_EnableMultitexture();
-				GL_Bind(lightmap_textures[s->lightmaptexturenum]);
-				GL_TexEnv(GL_BLEND);
-				p = s->polys;
-
-
-				while(p)
-				{
-					qglBegin (GL_POLYGON);
-					v = p->verts[0];
-					for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
-					{
-						qglMTexCoord2fSGIS (mtexid0, v[3], v[4]);
-						qglMTexCoord2fSGIS (mtexid1, v[5], v[6]);
-						qglVertex3fv (v);
-					}
-					qglEnd ();
-					p=p->next;
-				}
-				GL_DisableMultitexture();
-			}
-			else
-*/
-			{
-//				if (s->samples)	//could do true vertex lighting... ?
-//					qglColor4ub (*s->samples,*s->samples,*s->samples,255);
-//				else
-					qglColor4f (1,1,1,1);
-				DrawGLPoly (s->mesh);
-				qglColor4f (1,1,1,1);
-			}
-			continue;
-		}
-		v[0] = s->plane->normal[0] * s->plane->dist+s->ownerent->origin[0];
-		v[1] = s->plane->normal[1] * s->plane->dist+s->ownerent->origin[1];
-		v[2] = s->plane->normal[2] * s->plane->dist+s->ownerent->origin[2];
-		RQ_AddDistReorder((void*)GLR_DrawAlphaSurface, s, NULL, v);
-	}
-	for (s=r_alpha_surfaces ; s ; s=s->nextalphasurface)
-	{
-		if (!(s->flags&0x80000))
-			break;
-		s->flags &= ~0x80000;
-	}
-	RQ_RenderDistAndClear();
-	qglDepthMask(1);
-
-	GL_TexEnv(GL_REPLACE);
-
-	qglColor4f (1,1,1,1);
-	qglDisable (GL_BLEND);
-
-	r_alpha_surfaces = NULL;
-
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-}
-
 /*
 =============================================================
 
@@ -2152,49 +1796,15 @@ void GLR_DrawAlphaSurfaces (void)
 =============================================================
 */
 
-
-#if 0
-void R_MarkLeafSurfaces_Q1 (void)
+qbyte *R_MarkLeafSurfaces_Q1 (void)
 {
-	static qbyte	fatvis[MAX_MAP_LEAFS/8];
-	static qbyte	*vis;
+	qbyte	*vis;
 	mleaf_t	*leaf;
 	int		i, j;
-	qbyte	solid[4096];
 	msurface_t *surf;
 	int shift;
 
-	r_visframecount++;
-	if (r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2)
-	{
-	}
-	else
-	{
-		r_oldviewleaf = r_viewleaf;
-		r_oldviewleaf2 = r_viewleaf2;
-
-		if ((int)r_novis.value&1)
-		{
-			vis = solid;
-			memset (solid, 0xff, (cl.worldmodel->numleafs+7)>>3);
-		}
-		else if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
-		{
-			int c;
-			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis);
-			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL);
-			c = (cl.worldmodel->numleafs+31)/32;
-			for (i=0 ; i<c ; i++)
-				((int *)fatvis)[i] |= ((int *)vis)[i];
-
-			vis = fatvis;
-		}
-		else
-			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, fatvis);
-	}
-
-
-	shift = GLR_LightmapShift(cl.worldmodel);
+	vis = R_CalcVis_Q1();
 		
 	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 	{
@@ -2213,9 +1823,7 @@ void R_MarkLeafSurfaces_Q1 (void)
 					continue;
 				surf->visframe = r_visframecount;
 
-				R_RenderDynamicLightmaps (surf, shift);
-				surf->texturechain = surf->texinfo->texture->texturechain;
-				surf->texinfo->texture->texturechain = surf;
+				*surf->mark = surf;
 			}
 
 			//deal with static ents.
@@ -2223,8 +1831,33 @@ void R_MarkLeafSurfaces_Q1 (void)
 				R_StoreEfrags (&leaf->efrags);
 		}
 	}
+
+	{
+		texture_t *tex;
+
+		shift = GLR_LightmapShift(cl.worldmodel);
+
+		for (i = 0; i < cl.worldmodel->numtextures; i++)
+		{
+			tex = cl.worldmodel->textures[i];
+			if (!tex)
+				continue;
+			for (j = 0; j < tex->vbo.meshcount; j++)
+			{
+				surf = tex->vbo.meshlist[j];
+				if (surf)
+				{
+					R_RenderDynamicLightmaps (surf, shift);
+
+					tex->vbo.meshlist[j] = NULL;
+					surf->texturechain = surf->texinfo->texture->texturechain;
+					surf->texinfo->texture->texturechain = surf;
+				}
+			}
+		}
+	}
+	return vis;
 }
-#else
 
 /*
 ================
@@ -2343,9 +1976,8 @@ start:
 				}
 				else
 */				{
-					*surf->texinfo->texture->texturechain_tail = surf;
-					surf->texinfo->texture->texturechain_tail = &surf->texturechain;
-					surf->texturechain = NULL;
+					surf->texturechain = surf->texinfo->texture->texturechain;
+					surf->texinfo->texture->texturechain = surf;
 				}
 			}
 		}
@@ -2356,7 +1988,6 @@ start:
 	node = node->children[!side];
 	goto start;
 }
-#endif
 
 #ifdef Q2BSPS
 static void GLR_RecursiveQ2WorldNode (mnode_t *node)
@@ -2454,7 +2085,7 @@ static void GLR_RecursiveQ2WorldNode (mnode_t *node)
 
 		R_RenderDynamicLightmaps (surf, shift);
 
-		if (surf->texinfo->flags & (SURF_TRANS33|SURF_TRANS66))
+		if (surf->texinfo->flags & (TI_TRANS33|TI_TRANS66))
 		{	// add to the translucent chain
 			surf->nextalphasurface = r_alpha_surfaces;
 			r_alpha_surfaces = surf;
@@ -2529,13 +2160,40 @@ static void GLR_LeafWorldNode (void)
 			if (surf->visframe != r_framecount)	//sufraces exist in multiple leafs.
 			{
 				surf->visframe = r_framecount;
-
+				if (surf->mark)
+					*surf->mark = surf;
+				/*
 				surf->texturechain = surf->texinfo->texture->texturechain;
-				surf->texinfo->texture->texturechain = surf;
+				surf->texinfo->texture->texturechain = surf;#
+				*/
 			}
 		} while (--i);
 
 //		c_world_leafs++;
+	}
+
+
+
+
+	{
+		int j;
+		texture_t *tex;
+		for (i = 0; i < cl.worldmodel->numtextures; i++)
+		{
+			tex = cl.worldmodel->textures[i];
+			if (!tex)
+				continue;
+			for (j = 0; j < tex->vbo.meshcount; j++)
+			{
+				surf = tex->vbo.meshlist[j];
+				if (surf)
+				{
+					tex->vbo.meshlist[j] = NULL;
+					surf->texturechain = surf->texinfo->texture->texturechain;
+					surf->texinfo->texture->texturechain = surf;
+				}
+			}
+		}
 	}
 }
 #endif
@@ -2559,6 +2217,7 @@ R_DrawWorld
 
 void R_DrawWorld (void)
 {
+	qbyte *vis;
 	RSpeedLocals();
 	entity_t	ent;
 
@@ -2576,10 +2235,6 @@ void R_DrawWorld (void)
 #endif
 	{
 		GLR_ClearChains();
-		qglColor3f (1,1,1);
-	//#ifdef QUAKE2
-		R_ClearSkyBox ();
-	//#endif
 
 		RSpeedRemark();
 
@@ -2601,36 +2256,35 @@ void R_DrawWorld (void)
 #ifdef Q3BSPS
 			if (ent.model->fromgame == fg_quake3)
 			{
-				R_MarkLeaves_Q3 ();
+				vis = R_MarkLeaves_Q3 ();
 				GLR_LeafWorldNode ();
 			}
 			else
 #endif
 			{
-				R_MarkLeaves_Q2 ();
+				vis = R_MarkLeaves_Q2 ();
 				GLR_RecursiveQ2WorldNode (cl.worldmodel->nodes);
 			}
 		}
 		else
 #endif
 		{
-#if 0
-			R_MarkLeafSurfaces_Q1();
-#else
-			R_MarkLeaves_Q1 ();
-			GLR_RecursiveWorldNode (cl.worldmodel->nodes, 0xf);
-#endif
+			extern cvar_t temp1;
+			if (1)//temp1.value)
+				vis = R_MarkLeafSurfaces_Q1();
+			else
+			{
+				vis = R_MarkLeaves_Q1 ();
+				GLR_RecursiveWorldNode (cl.worldmodel->nodes, 0xf);
+			}
 		}
 
 		RSpeedEnd(RSPEED_WORLDNODE);
 		TRACE(("dbg: calling PPL_DrawWorld\n"));
 //		if (r_shadows.value >= 2 && gl_canstencil && gl_mtexable)
-			PPL_DrawWorld();
+			PPL_DrawWorld(vis);
 //		else
 //			DrawTextureChains (cl.worldmodel, 1, r_refdef.vieworg);
-
-
-qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
 		GLR_LessenStains();
 	}
@@ -2683,6 +2337,14 @@ int GLAllocBlock (int w, int h, int *x, int *y)
 			lightmap[texnum]->modified = true;
 			// reset stainmap since it now starts at 255
 			memset(lightmap[texnum]->stainmaps, 255, sizeof(lightmap[texnum]->stainmaps));
+
+			//clear out the deluxmaps incase there is none on the map.
+			for (j = 0; j < LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3; j+=3)
+			{
+				lightmap[texnum]->deluxmaps[j+0] = 128;
+				lightmap[texnum]->deluxmaps[j+1] = 128;
+				lightmap[texnum]->deluxmaps[j+2] = 255;
+			}
 		}
 
 
@@ -2757,6 +2419,14 @@ int GLFillBlock (int texnum, int w, int h, int x, int y)
 				lightmap[i]->allocated[l] = LMBLOCK_HEIGHT;
 			}
 
+			//clear out the deluxmaps incase there is none on the map.
+			for (l = 0; l < LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3; l+=3)
+			{
+				lightmap[i]->deluxmaps[l+0] = 0;
+				lightmap[i]->deluxmaps[l+1] = 0;
+				lightmap[i]->deluxmaps[l+2] = 255;
+			}
+
 			//maybe someone screwed with my lightmap...
 			memset(lightmap[i]->lightmaps, 255, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
 			if (cl.worldmodel->lightdata)
@@ -2767,7 +2437,7 @@ int GLFillBlock (int texnum, int w, int h, int x, int y)
 			{
 				char basename[MAX_QPATH];
 				COM_StripExtension(cl.worldmodel->name, basename, sizeof(basename));
-				lightmap_textures[i] = Mod_LoadHiResTexture(va("%s/lm_%04i", basename, i), NULL, true, false, false);
+				lightmap_textures[i] = R_LoadHiResTexture(va("%s/lm_%04i", basename, i), NULL, IF_NOALPHA|IF_NOGAMMA);
 				lightmap[i]->modified = false;
 			}
 
@@ -2805,22 +2475,22 @@ void GL_BuildSurfaceDisplayList (msurface_t *fa)
 		return;	//q3 flares.
 
 	{	//build a nice mesh instead of a poly.
-		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vec3_t) + 3*sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(byte_vec4_t))*lnumverts;
+		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vecV_t) + 3*sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(vec4_t))*lnumverts;
 		mesh_t *mesh;
 
 		fa->mesh = mesh = Hunk_Alloc(size);
-		mesh->xyz_array = (vec3_t*)(mesh + 1);
+		mesh->xyz_array = (vecV_t*)(mesh + 1);
 		mesh->normals_array = (vec3_t*)(mesh->xyz_array + lnumverts);
 		mesh->snormals_array = (vec3_t*)(mesh->normals_array + lnumverts);
 		mesh->tnormals_array = (vec3_t*)(mesh->snormals_array + lnumverts);
 		mesh->st_array = (vec2_t*)(mesh->tnormals_array + lnumverts);
 		mesh->lmst_array = (vec2_t*)(mesh->st_array + lnumverts);
-		mesh->colors_array = (byte_vec4_t*)(mesh->lmst_array + lnumverts);
-		mesh->indexes = (index_t*)(mesh->colors_array + lnumverts);
+		mesh->colors4f_array = (vec4_t*)(mesh->lmst_array + lnumverts);
+		mesh->indexes = (index_t*)(mesh->colors4f_array + lnumverts);
 
 		mesh->numindexes = (lnumverts-2)*3;
 		mesh->numvertexes = lnumverts;
-		mesh->patchWidth = mesh->patchHeight = 1;
+		mesh->istrifan = true;
 
 		for (i=0 ; i<lnumverts-2 ; i++)
 		{
@@ -2871,12 +2541,14 @@ void GL_BuildSurfaceDisplayList (msurface_t *fa)
 			else
 				VectorCopy(fa->plane->normal, mesh->normals_array[i]);
 			VectorNegate(fa->texinfo->vecs[0], mesh->snormals_array[i]);
-			VectorCopy(fa->texinfo->vecs[1], mesh->tnormals_array[i]);
+			VectorNegate(fa->texinfo->vecs[1], mesh->tnormals_array[i]);
+			VectorNormalize(mesh->snormals_array[i]);
+			VectorNormalize(mesh->tnormals_array[i]);
 
-			mesh->colors_array[i][0] = 255;
-			mesh->colors_array[i][1] = 255;
-			mesh->colors_array[i][2] = 255;
-			mesh->colors_array[i][3] = 255;
+			mesh->colors4f_array[i][0] = 1;
+			mesh->colors4f_array[i][1] = 1;
+			mesh->colors4f_array[i][2] = 1;
+			mesh->colors4f_array[i][3] = 1;
 		}
 	}
 }
@@ -2938,7 +2610,8 @@ void GLSurf_DeInit(void)
 
 	if (lightmap_textures)
 	{
-		qglDeleteTextures(numlightmaps, lightmap_textures);
+		for (i = 0; i < numlightmaps; i++)
+			qglDeleteTextures(1, &lightmap_textures[i].num);
 		BZ_Free(lightmap_textures);
 	}
 	if (lightmap)
@@ -2949,7 +2622,7 @@ void GLSurf_DeInit(void)
 	numlightmaps=0;
 }
 
-void GL_ClearVBO(vbo_t *vbo)
+void BE_ClearVBO(vbo_t *vbo)
 {
 	int vboh[7];
 	int i, j;
@@ -2984,14 +2657,15 @@ qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int elemen
 		return false;
 
 	qglGenBuffersARB(2, vbos);
-	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, vbos[0]);
+	GL_SelectVBO(vbos[0]);
 	qglBufferDataARB(GL_ARRAY_BUFFER_ARB, vsize, vdata, GL_STATIC_DRAW_ARB);
-	qglBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, vbos[1]);
+	GL_SelectEBO(vbos[1]);
 	qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, elementsize, edata, GL_STATIC_DRAW_ARB);
-	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+
 	if (qglGetError())
 	{
+		GL_SelectVBO(0);
+		GL_SelectEBO(0);
 		qglDeleteBuffersARB(2, vbos);
 		return false;
 	}
@@ -3006,7 +2680,7 @@ qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int elemen
 	if (vbo->coord)
 	{
 		vbo->vbocoord = vbos[0];
-		vbo->coord = (vec3_t*)((char*)vbo->coord - (char*)vdata);
+		vbo->coord = (vecV_t*)((char*)vbo->coord - (char*)vdata);
 	}
 	if (vbo->texcoord)
 	{
@@ -3033,6 +2707,12 @@ qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int elemen
 		vbo->vbotvector = vbos[0];
 		vbo->tvector = (vec3_t*)((char*)vbo->tvector - (char*)vdata);
 	}
+	if (vbo->colours4f)
+	{
+		vbo->vbocolours = vbos[0];
+		vbo->colours4f = (vec4_t*)((char*)vbo->colours4f - (char*)vdata);
+	}
+
 	return true;
 }
 
@@ -3046,6 +2726,7 @@ static void GL_GenBrushModelVBO(model_t *mod)
 	unsigned int v;
 	unsigned int vcount, ecount;
 	unsigned int pervertsize;	//erm, that name wasn't intentional
+	unsigned int meshes;
 
 	vbo_t *vbo;
 	char *vboedata;
@@ -3060,10 +2741,11 @@ static void GL_GenBrushModelVBO(model_t *mod)
 		if (!mod->textures[t])
 			continue;
 		vbo = &mod->textures[t]->vbo;
-		GL_ClearVBO(vbo);
+		BE_ClearVBO(vbo);
 
 		maxvboverts = 0;
 		maxvboelements = 0;
+		meshes = 0;
 		for (i=0 ; i<mod->numsurfaces ; i++)
 		{
 			if (mod->surfaces[i].texinfo->texture != mod->textures[t])
@@ -3072,6 +2754,7 @@ static void GL_GenBrushModelVBO(model_t *mod)
 			if (!m)
 				continue;
 
+			meshes++;
 			maxvboelements += m->numindexes;
 			maxvboverts += m->numvertexes;
 		}
@@ -3084,23 +2767,30 @@ static void GL_GenBrushModelVBO(model_t *mod)
 		vcount = 0;
 		ecount = 0;
 
-		pervertsize =	sizeof(vec3_t)+	//cord
+		pervertsize =	sizeof(vecV_t)+	//coord
 					sizeof(vec2_t)+	//tex
 					sizeof(vec2_t)+	//lm
 					sizeof(vec3_t)+	//normal
 					sizeof(vec3_t)+	//sdir
-					sizeof(vec3_t);	//tdir
+					sizeof(vec3_t)+	//tdir
+					sizeof(vec4_t);	//colours
 
 		vbovdata = BZ_Malloc(maxvboverts*pervertsize);
 		vboedata = BZ_Malloc(maxvboelements*sizeof(index_t));
 
-		vbo->coord = (vec3_t*)(vbovdata);
+		vbo->coord = (vecV_t*)(vbovdata);
 		vbo->texcoord = (vec2_t*)((char*)vbo->coord+maxvboverts*sizeof(*vbo->coord));
 		vbo->lmcoord = (vec2_t*)((char*)vbo->texcoord+maxvboverts*sizeof(*vbo->texcoord));
 		vbo->normals = (vec3_t*)((char*)vbo->lmcoord+maxvboverts*sizeof(*vbo->lmcoord));
 		vbo->svector = (vec3_t*)((char*)vbo->normals+maxvboverts*sizeof(*vbo->normals));
 		vbo->tvector = (vec3_t*)((char*)vbo->svector+maxvboverts*sizeof(*vbo->svector));
+		vbo->colours4f = (vec4_t*)((char*)vbo->tvector+maxvboverts*sizeof(*vbo->tvector));
 		vbo->indicies = (index_t*)vboedata;
+
+		vbo->meshcount = meshes;
+		vbo->meshlist = BZ_Malloc(meshes*sizeof(*vbo->meshlist));
+
+		meshes = 0;
 
 		for (i=0 ; i<mod->numsurfaces ; i++)
 		{
@@ -3109,6 +2799,9 @@ static void GL_GenBrushModelVBO(model_t *mod)
 			m = mod->surfaces[i].mesh;
 			if (!m)
 				continue;
+
+			mod->surfaces[i].mark = &vbo->meshlist[meshes++];
+			*mod->surfaces[i].mark = NULL;
 
 			m->vbofirstvert = vcount;
 			m->vbofirstelement = ecount;
@@ -3147,6 +2840,13 @@ static void GL_GenBrushModelVBO(model_t *mod)
 					vbo->tvector[vcount+v][1] = m->tnormals_array[v][1];
 					vbo->tvector[vcount+v][2] = m->tnormals_array[v][2];
 				}
+				if (m->colors4f_array)
+				{
+					vbo->colours4f[vcount+v][0] = m->colors4f_array[v][0];
+					vbo->colours4f[vcount+v][1] = m->colors4f_array[v][1];
+					vbo->colours4f[vcount+v][2] = m->colors4f_array[v][2];
+					vbo->colours4f[vcount+v][3] = m->colors4f_array[v][3];
+				}
 			}
 			vcount += v;
 		}
@@ -3156,6 +2856,11 @@ static void GL_GenBrushModelVBO(model_t *mod)
 			BZ_Free(vbovdata);
 			BZ_Free(vboedata);
 		}
+	}
+	for (i=0 ; i<mod->numsurfaces ; i++)
+	{
+		if (!mod->surfaces[i].mark)
+			Host_EndGame("Surfaces with bad textures detected\n");
 	}
 }
 
@@ -3292,13 +2997,13 @@ void GL_BuildLightmaps (void)
 			continue;
 		lightmap[i]->modified = false;
 		GL_Bind(lightmap_textures[i]);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		qglTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes
 		, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
 		gl_lightmap_format, GL_UNSIGNED_BYTE, lightmap[i]->lightmaps);
 
-		if (gl_bump.value)
+		if (gl_bump.ival)
 		{
 			lightmap[i]->deluxmodified = false;
 			lightmap[i]->deluxrectchange.l = LMBLOCK_WIDTH;
@@ -3306,8 +3011,8 @@ void GL_BuildLightmaps (void)
 			lightmap[i]->deluxrectchange.w = 0;
 			lightmap[i]->deluxrectchange.h = 0;
 			GL_Bind(deluxmap_textures[i]);
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			qglTexImage2D (GL_TEXTURE_2D, 0, 3
 			, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
 			GL_RGB, GL_UNSIGNED_BYTE, lightmap[i]->deluxmaps);

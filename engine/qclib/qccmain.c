@@ -15,6 +15,7 @@ extern int optres_test2;
 
 int writeasm;
 static pbool pr_werror;
+pbool verbose;
 
 
 pbool QCC_PR_SimpleGetToken (void);
@@ -230,6 +231,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_laxcasts,		FLAG_MIDCOMPILE,"lax",			"Lax type checks",		"Disables many errors (generating warnings instead) when function calls or operations refer to two normally incompatible types. This is required for reacc support, and can also allow certain (evil) mods to compile that were originally written for frikqcc."},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
 	{&flag_hashonly,		FLAG_MIDCOMPILE,"hashonly",		"Hash-only constants",	"Allows use of only #constant for precompiler constants, allows certain preqcc using mods to compile"},
 	{&opt_logicops,			FLAG_MIDCOMPILE,"lo",			"Logic ops",			"This changes the behaviour of your code. It generates additional if operations to early-out in if statements. With this flag, the line if (0 && somefunction()) will never call the function. It can thus be considered an optimisation. However, due to the change of behaviour, it is not considered so by fteqcc. Note that due to inprecisions with floats, this flag can cause runaway loop errors within the player walk and run functions (without iffloat also enabled). This code is advised:\nplayer_stand1:\n    if (self.velocity_x || self.velocity_y)\nplayer_run\n    if (!(self.velocity_x || self.velocity_y))"},
+	{&flag_msvcstyle,		FLAG_MIDCOMPILE,"msvcstyle",	"MSVC-style errors",	"Generates warning and error messages in a format that msvc understands, to facilitate ide integration."},
 	{&flag_fasttrackarrays,	FLAG_MIDCOMPILE|FLAG_ASDEFAULT,"fastarrays","fast arrays where possible",	"Generates extra instructions inside array handling functions to detect engine and use extension opcodes only in supporting engines.\nAdds a global which is set by the engine if the engine supports the extra opcodes. Note that this applies to all arrays or none."},
 	{&flag_assume_integer,	FLAG_MIDCOMPILE,"assumeint",	"Assume Integers",		"Numerical constants are assumed to be integers, instead of floats."},
 	{NULL}
@@ -634,10 +636,13 @@ pbool QCC_WriteData (int crc)
 		//include a type block?
 		types = debugtarget;//!!QCC_PR_CheckCompConstDefined("TYPES");	//useful for debugging and saving (maybe, anyway...).
 
-		if (qcc_targetformat == QCF_DARKPLACES)
-			printf("DarkPlaces or FTE will be required\n");
-		else
-			printf("An FTE executor will be required\n");
+		if (verbose)
+		{
+			if (qcc_targetformat == QCF_DARKPLACES)
+				printf("DarkPlaces or FTE will be required\n");
+			else
+				printf("An FTE executor will be required\n");
+		}
 		break;
 	case QCF_KK7:
 		if (bodylessfuncs)
@@ -845,16 +850,20 @@ pbool QCC_WriteData (int crc)
 //PrintGlobals ();
 strofs = (strofs+3)&~3;
 
-	printf ("%6i strofs (of %i)\n", strofs, MAX_STRINGS);
-	printf ("%6i numstatements (of %i)\n", numstatements, MAX_STATEMENTS);
-	printf ("%6i numfunctions (of %i)\n", numfunctions, MAX_FUNCTIONS);
-	printf ("%6i numglobaldefs (of %i)\n", numglobaldefs, MAX_GLOBALS);
-	printf ("%6i numfielddefs (%i unique) (of %i)\n", numfielddefs, pr.size_fields, MAX_FIELDS);
-	printf ("%6i numpr_globals (of %i)\n", numpr_globals, MAX_REGS);	
+	if (verbose)
+	{
+		printf ("%6i strofs (of %i)\n", strofs, MAX_STRINGS);
+		printf ("%6i numstatements (of %i)\n", numstatements, MAX_STATEMENTS);
+		printf ("%6i numfunctions (of %i)\n", numfunctions, MAX_FUNCTIONS);
+		printf ("%6i numglobaldefs (of %i)\n", numglobaldefs, MAX_GLOBALS);
+		printf ("%6i numfielddefs (%i unique) (of %i)\n", numfielddefs, pr.size_fields, MAX_FIELDS);
+		printf ("%6i numpr_globals (of %i)\n", numpr_globals, MAX_REGS);
+	}
 	
 	if (!*destfile)
 		strcpy(destfile, "progs.dat");
-	printf("Writing %s\n", destfile);
+	if (verbose)
+		printf("Writing %s\n", destfile);
 	h = SafeOpenWrite (destfile, 2*1024*1024);
 	SafeWrite (h, &progs, sizeof(progs));
 	SafeWrite (h, "\r\n\r\n", 4);
@@ -1187,7 +1196,8 @@ strofs = (strofs+3)&~3;
 		break;
 	}
 
-	printf ("%6i TOTAL SIZE\n", (int)SafeSeek (h, 0, SEEK_CUR));
+	if (verbose)
+		printf ("%6i TOTAL SIZE\n", (int)SafeSeek (h, 0, SEEK_CUR));
 
 	progs.entityfields = pr.size_fields;
 
@@ -1215,7 +1225,8 @@ strofs = (strofs+3)&~3;
 			unsigned int version = 1;
 			StripExtension(destfile);
 			strcat(destfile, ".lno");
-			printf("Writing %s\n", destfile);
+			if (verbose)
+				printf("Writing %s for debugging\n", destfile);
 			h = SafeOpenWrite (destfile, 2*1024*1024);
 			SafeWrite (h, &lnotype, sizeof(int));
 			SafeWrite (h, &version, sizeof(int));
@@ -1608,8 +1619,9 @@ int QCC_PR_FinishCompilation (void)
 				}
 				else
 				{
-					QCC_PR_Warning(WARN_NOTDEFINED, strings + d->s_file, d->s_line, "function %s was not defined",d->name);
+					QCC_PR_ParseErrorPrintDef(ERR_NOFUNC, d, "function %s was not defined",d->name);
 					bodylessfuncs = true;
+					errors = true;
 				}
 //				errors = true;
 			}
@@ -1887,28 +1899,35 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 	case 12923:	//#pragma sourcefile usage
 		break;
 	case 54730:
-		printf("Recognised progs as QuakeWorld\n");
+		if (verbose)
+			printf("Recognised progs as QuakeWorld\n");
 		break;
 	case 5927:
-		printf("Recognised progs as NetQuake server gamecode\n");
+		if (verbose)
+			printf("Recognised progs as NetQuake server gamecode\n");
 		break;
 
 	case 26940:
-		printf("Recognised progs as Quake pre-release...\n");
+		if (verbose)
+			printf("Recognised progs as Quake pre-release...\n");
 		break;
 
 	case 38488:
-		printf("Recognised progs as original Hexen2\n");
+		if (verbose)
+			printf("Recognised progs as original Hexen2\n");
 		break;
 	case 26905:
-		printf("Recognised progs as Hexen2 Mission Pack\n");
+		if (verbose)
+			printf("Recognised progs as Hexen2 Mission Pack\n");
 		break;
 	case 14046:
-		printf("Recognised progs as Hexen2 (demo)\n");
+		if (verbose)
+			printf("Recognised progs as Hexen2 (demo)\n");
 		break;
 
 	case 22390: //EXT_CSQC_1
-		printf("Recognised progs as a CSQC module\n");
+		if (verbose)
+			printf("Recognised progs as an EXT_CSQC_1 module\n");
 		break;
 	case 17105:
 	case 32199:	//outdated ext_csqc
@@ -1918,7 +1937,8 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 		printf("Recognised progs as outdated CSQC module\n");
 		break;
 	case 10020:
-		printf("Recognised progs as a DP/FTE Menu module\n");
+		if (verbose)
+			printf("Recognised progs as a DP/FTE Menu module\n");
 		break;
 
 	case 32401:
@@ -2274,14 +2294,17 @@ void QCC_CopyFiles (void)
 	char	srcdir[1024], destdir[1024];
 	int		p;					
 
-	if (numsounds > 0)
-		printf ("%3i unique precache_sounds\n", numsounds);
-	if (nummodels > 0)
-		printf ("%3i unique precache_models\n", nummodels);
-	if (numtextures > 0)
-		printf ("%3i unique precache_textures\n", numtextures);
-	if (numfiles > 0)
-		printf ("%3i unique precache_files\n", numfiles);
+	if (verbose)
+	{
+		if (numsounds > 0)
+			printf ("%3i unique precache_sounds\n", numsounds);
+		if (nummodels > 0)
+			printf ("%3i unique precache_models\n", nummodels);
+		if (numtextures > 0)
+			printf ("%3i unique precache_textures\n", numtextures);
+		if (numfiles > 0)
+			printf ("%3i unique precache_files\n", numfiles);
+	}
 
 	p = QCC_CheckParm ("-copy");
 	if (p && p < myargc-2)
@@ -3157,7 +3180,9 @@ void QCC_ContinueCompile(void)
 	if (autoprototype)
 		printf ("prototyping %s\n", qccmfilename);
 	else
+	{
 		printf ("compiling %s\n", qccmfilename);
+	}
 	QCC_LoadFile (qccmfilename, (void *)&qccmsrc2);
 
 	if (!QCC_PR_CompileFile (qccmsrc2, qccmfilename) )
@@ -3217,58 +3242,61 @@ void QCC_FinishCompile(void)
 
 	if (donesomething)
 	{
-		printf ("Compile Complete\n\n");
+		if (verbose)
+		{
+			printf ("Compile Complete\n\n");
 
-		if (optres_shortenifnots)
-			printf("optres_shortenifnots %i\n", optres_shortenifnots);
-		if (optres_overlaptemps)
-			printf("optres_overlaptemps %i\n", optres_overlaptemps);
-		if (optres_noduplicatestrings)
-			printf("optres_noduplicatestrings %i\n", optres_noduplicatestrings);
-		if (optres_constantarithmatic)
-			printf("optres_constantarithmatic %i\n", optres_constantarithmatic);
-		if (optres_nonvec_parms)
-			printf("optres_nonvec_parms %i\n", optres_nonvec_parms);
-		if (optres_constant_names)
-			printf("optres_constant_names %i\n", optres_constant_names);
-		if (optres_constant_names_strings)
-			printf("optres_constant_names_strings %i\n", optres_constant_names_strings);
-		if (optres_precache_file)
-			printf("optres_precache_file %i\n", optres_precache_file);
-		if (optres_filenames)
-			printf("optres_filenames %i\n", optres_filenames);
-		if (optres_assignments)
-			printf("optres_assignments %i\n", optres_assignments);
-		if (optres_unreferenced)
-			printf("optres_unreferenced %i\n", optres_unreferenced);
-		if (optres_locals)
-			printf("optres_locals %i\n", optres_locals);
-		if (optres_function_names)
-			printf("optres_function_names %i\n", optres_function_names);
-		if (optres_dupconstdefs)
-			printf("optres_dupconstdefs %i\n", optres_dupconstdefs);
-		if (optres_return_only)
-			printf("optres_return_only %i\n", optres_return_only);
-		if (optres_compound_jumps)
-			printf("optres_compound_jumps %i\n", optres_compound_jumps);
-	//	if (optres_comexprremoval)
-	//		printf("optres_comexprremoval %i\n", optres_comexprremoval);
-		if (optres_stripfunctions)
-			printf("optres_stripfunctions %i\n", optres_stripfunctions);
-		if (optres_locals_marshalling)
-			printf("optres_locals_marshalling %i\n", optres_locals_marshalling);
-		if (optres_logicops)
-			printf("optres_logicops %i\n", optres_logicops);
+			if (optres_shortenifnots)
+				printf("optres_shortenifnots %i\n", optres_shortenifnots);
+			if (optres_overlaptemps)
+				printf("optres_overlaptemps %i\n", optres_overlaptemps);
+			if (optres_noduplicatestrings)
+				printf("optres_noduplicatestrings %i\n", optres_noduplicatestrings);
+			if (optres_constantarithmatic)
+				printf("optres_constantarithmatic %i\n", optres_constantarithmatic);
+			if (optres_nonvec_parms)
+				printf("optres_nonvec_parms %i\n", optres_nonvec_parms);
+			if (optres_constant_names)
+				printf("optres_constant_names %i\n", optres_constant_names);
+			if (optres_constant_names_strings)
+				printf("optres_constant_names_strings %i\n", optres_constant_names_strings);
+			if (optres_precache_file)
+				printf("optres_precache_file %i\n", optres_precache_file);
+			if (optres_filenames)
+				printf("optres_filenames %i\n", optres_filenames);
+			if (optres_assignments)
+				printf("optres_assignments %i\n", optres_assignments);
+			if (optres_unreferenced)
+				printf("optres_unreferenced %i\n", optres_unreferenced);
+			if (optres_locals)
+				printf("optres_locals %i\n", optres_locals);
+			if (optres_function_names)
+				printf("optres_function_names %i\n", optres_function_names);
+			if (optres_dupconstdefs)
+				printf("optres_dupconstdefs %i\n", optres_dupconstdefs);
+			if (optres_return_only)
+				printf("optres_return_only %i\n", optres_return_only);
+			if (optres_compound_jumps)
+				printf("optres_compound_jumps %i\n", optres_compound_jumps);
+		//	if (optres_comexprremoval)
+		//		printf("optres_comexprremoval %i\n", optres_comexprremoval);
+			if (optres_stripfunctions)
+				printf("optres_stripfunctions %i\n", optres_stripfunctions);
+			if (optres_locals_marshalling)
+				printf("optres_locals_marshalling %i\n", optres_locals_marshalling);
+			if (optres_logicops)
+				printf("optres_logicops %i\n", optres_logicops);
 
 
-		if (optres_test1)
-			printf("optres_test1 %i\n", optres_test1);
-		if (optres_test2)
-			printf("optres_test2 %i\n", optres_test2);
-		
-		printf("numtemps %i\n", numtemps);
-
-		printf("%i warnings\n", pr_warning_count);
+			if (optres_test1)
+				printf("optres_test1 %i\n", optres_test1);
+			if (optres_test2)
+				printf("optres_test2 %i\n", optres_test2);
+			
+			printf("numtemps %i\n", numtemps);
+		}
+		if (!flag_msvcstyle)
+			printf("%i warnings\n", pr_warning_count);
 	}
 
 	qcc_compileactive = false;

@@ -95,7 +95,7 @@ int PR_InitEnts(progfuncs_t *progfuncs, int max_ents)
 	sv_edicts = PRHunkAlloc(progfuncs, externs->edictsize);
 	prinst->edicttable[0] = sv_edicts;
 	((edictrun_t*)prinst->edicttable[0])->fields = PRAddressableAlloc(progfuncs, max_fields_size);
-	ED_ClearEdict(progfuncs, (edictrun_t *)sv_edicts);
+	QC_ClearEdict(progfuncs, sv_edicts);
 	sv_num_edicts = 1;
 
 	return max_fields_size;
@@ -643,7 +643,8 @@ progfuncs_t deffuncs = {
 	PR_StringToProgs,
 	PR_StringToNative,
 	0,
-	PR_QueryField
+	PR_QueryField,
+	QC_ClearEdict
 };
 #undef printf
 

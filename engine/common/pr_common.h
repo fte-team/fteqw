@@ -12,6 +12,37 @@ typedef struct edict_s {
 } edict_t;
 #endif
 
+struct wedict_s
+{
+	qboolean	isfree;
+	float		freetime; // sv.time when the object was freed
+	int			entnum;
+	qboolean	readonly;	//world
+#ifdef VM_Q1
+	comentvars_t	*v;
+	comextentvars_t	*xv;
+#else
+	union {
+		comentvars_t	*v;
+		comentvars_t	*xv;
+	};
+#endif
+	/*the above is shared with qclib*/
+	link_t	area;
+	int			num_leafs;
+	short		leafnums[MAX_ENT_LEAFS];
+#ifdef Q2BSPS
+	int areanum;	//q2bsp
+	int areanum2;	//q2bsp
+	int headnode;	//q2bsp
+#endif
+#ifdef USEODE
+	entityode_t ode;
+#endif
+	qbyte solidtype;
+	/*the above is shared with ssqc*/
+};
+
 #define PF_cin_open PF_Fixme
 #define PF_cin_close PF_Fixme
 #define PF_cin_setstate PF_Fixme
@@ -50,7 +81,7 @@ typedef struct edict_s {
 typedef struct lh_extension_s {
 	char *name;
 	int numbuiltins;
-	qboolean *enabled;
+	qboolean *queried;
 	char *builtinnames[21];	//extend freely
 } lh_extension_t;
 
@@ -72,9 +103,10 @@ extern cvar_t pr_tempstringsize;
 extern cvar_t pr_tempstringcount;
 
 int MP_TranslateFTEtoDPCodes(int code);
+int MP_TranslateDPtoFTECodes(int code);
 
 //pr_cmds.c builtins that need to be moved to a common.
-void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...);
+void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);
 void PF_print (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_dprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_error (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -157,7 +189,7 @@ char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_glob
 
 
 //pr_cmds.c builtins that need to be moved to a common.
-void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...);
+void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);
 void PF_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_cvar_setf (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -294,6 +326,43 @@ void PF_Common_RegisterCvars(void);
 
 
 
+
+/*these are server ones, provided by pr_cmds.c, as required by pr_q1qvm.c*/
+void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_WriteFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_multicast (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_changelevel (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_cvar_setf (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_applylightstyle(int style, char *val, int col);
+void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuation);
+void PF_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_logfrag (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_ExecuteCommand  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_precache_vwep_model(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+int PF_checkclient_Internal (progfuncs_t *prinst);
+void PF_precache_sound_Internal (progfuncs_t *prinst, char *s);
+int PF_precache_model_Internal (progfuncs_t *prinst, char *s);
+void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m);
+char *PF_infokey_Internal (int entnum, char *value);
+void PF_centerprint_Internal (int entnum, char *s);
+void PF_WriteString_Internal (int target, char *str);
+pbool ED_CanFree (edict_t *ed);
+
+
+
 // edict->solid values
 #define	SOLID_NOT				0		// no interaction with other objects
 #define	SOLID_TRIGGER			1		// touch on edge, but not blocking
@@ -309,22 +378,28 @@ void PF_Common_RegisterCvars(void);
 #define	DAMAGE_AIM				2
 
 // edict->flags
-#define	FL_FLY					1
-#define	FL_SWIM					2
-#define	FL_GLIMPSE				4
-#define	FL_CLIENT				8
-#define	FL_INWATER				16
-#define	FL_MONSTER				32
-#define	FL_GODMODE				64
-#define	FL_NOTARGET				128
-#define	FL_ITEM					256
-#define	FL_ONGROUND				512
-#define	FL_PARTIALGROUND		1024	// not all corners are valid
-#define	FL_WATERJUMP			2048	// player jumping out of water
-
-#define FL_FINDABLE_NONSOLID	16384	//a cpqwsv feature
-#define FL_MOVECHAIN_ANGLE		32768    // when in a move chain, will update the angle
-#define FL_CLASS_DEPENDENT		2097152
+#define	FL_FLY					(1<<0)
+#define	FL_SWIM					(1<<1)
+#define	FL_GLIMPSE				(1<<2)
+#define	FL_CLIENT				(1<<3)
+#define	FL_INWATER				(1<<4)
+#define	FL_MONSTER				(1<<5)
+#define	FL_GODMODE				(1<<6)
+#define	FL_NOTARGET				(1<<7)
+#define	FL_ITEM					(1<<8)
+#define	FL_ONGROUND				(1<<9)
+#define	FL_PARTIALGROUND		(1<<10)	// not all corners are valid
+#define	FL_WATERJUMP			(1<<11)	// player jumping out of water
+								//12
+								//13
+#define FL_FINDABLE_NONSOLID	(1<<14)	//a cpqwsv feature
+#define FL_MOVECHAIN_ANGLE		(1<<15)    // when in a move chain, will update the angle
+#define FL_LAGGEDMOVE			(1<<16)
+								//17
+								//18
+								//19
+								//20
+#define FL_CLASS_DEPENDENT		(1<<21)
 
 
 

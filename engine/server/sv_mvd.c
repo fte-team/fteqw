@@ -1749,7 +1749,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 		memset(&from, 0, sizeof(from));
 
-		for (n = 0; n < sv.num_edicts; n++)
+		for (n = 0; n < sv.world.num_edicts; n++)
 		{
 			ent = EDICT_NUM(svprogfuncs, n);
 			state = &ent->baseline;
@@ -2316,16 +2316,16 @@ void SV_MVDStream_Poll(void)
 	char *ip;
 	char adrbuf[MAX_ADR_SIZE];
 
-	if (!sv.state || !qtv_streamport.value)
+	if (!sv.state || !qtv_streamport.ival)
 		wanted = false;
-	else if (listenport && (int)qtv_streamport.value != listenport)	//easy way to switch... disable for a frame. :)
+	else if (listenport && qtv_streamport.ival != listenport)	//easy way to switch... disable for a frame. :)
 	{
-		listenport = qtv_streamport.value;
+		listenport = qtv_streamport.ival;
 		wanted = false;
 	}
 	else
 	{
-		listenport = qtv_streamport.value;
+		listenport = qtv_streamport.ival;
 		wanted = true;
 	}
 

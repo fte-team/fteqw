@@ -168,7 +168,7 @@ PROFILE_DIR=$(BASE_DIR)/profile
 
 ALL_CFLAGS=$(HAVECONFIG) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS)
 
-DO_CC=$(CC) $(ALL_CFLAGS) -o $@ -c $<
+DO_CC=@echo $< && $(CC) $(ALL_CFLAGS) -o $@ -c $<
 ifeq ($(USEASM),true)
 	ifdef windir
 		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -o $@ -c $< $(CFLAGS)
@@ -177,6 +177,9 @@ ifeq ($(USEASM),true)
 	endif
 endif
 
+ifeq ($(FTE_TARGET),vc)
+	BASELDFLAGS=
+endif
 ifeq ($(FTE_TARGET),win32)
 	BASELDFLAGS=-lm
 endif
@@ -236,7 +239,16 @@ else
 	BASE_ASM_CFLAGS = -DNOASM
 endif
 
-BASE_CFLAGS=$(BASE_ASM_CFLAGS) -Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D9_DIR) -I$(D3D7_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/sdl/include -I$(LIBS_DIR)/sdl/include/SDL -I./libs/freetype2/include -I./libs/freetype2/include/freetype -D_vsnprintf=vsnprintf -D_snprintf=snprintf $(SVNREVISION)
+ifeq ($(FTE_TARGET),vc)
+	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
+	GNUC_FUNCS=
+else
+	WARNINGFLAGS=-Wall
+
+	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -D_vsnprintf=vsnprintf -D_snprintf=snprintf
+endif
+
+BASE_CFLAGS=$(BASE_ASM_CFLAGS) $(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D9_DIR) -I$(D3D7_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/sdl/include -I$(LIBS_DIR)/sdl/include/SDL -I./libs/freetype2/include -I./libs/freetype2/include/freetype $(SVNREVISION)
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
@@ -341,7 +353,8 @@ GLQUAKE_OBJS =		\
 	ltface.o		\
 	gl_screen.o		\
 	gl_bloom.o		\
-	gl_backend.o	\
+	gl_vbo.o	\
+	gl_shadow.o	\
 	gl_shader.o		\
 	gl_warp.o		\
 	gl_ppl.o		\
@@ -478,7 +491,7 @@ GLCL_DIR=glcl_sdl$(BITS)
 
 SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 SV_EXE_NAME=../fteqw_sdl.sv$(BITS)
-SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -lz
+SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 
 MINGL_DIR=mingl_sdl$(BITS)
 MINGL_EXE_NAME=../fteqw_sdl.mingl$(BITS)
@@ -535,6 +548,35 @@ ifeq ($(FTE_TARGET),win32_SDL)
 		#pthread is needed because of SDL.
 		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
 	endif
+endif
+
+ifeq ($(FTE_TARGET),vc)
+	CC=cl
+	DEBUG_CFLAGS ?= -Od $(CPUOPTIMIZATIONS) /fp:fast
+	PROFILE_CFLAGS = -O2 -Ot -Ox -GL $(CPUOPTIMISATIONS) /fp:fast 
+	PROFILE_LDFLAGS = /LTCG:PGINSTRUMENT
+	RELEASE_CFLAGS = -O2 -Ot -Ox -GL $(CPUOPTIMIZATIONS) /fp:fast
+	RELEASE_LDFLAGS = /LTCG:PGOPTIMIZE
+	
+
+	DO_CC=@$(CC) /nologo $(ALL_CFLAGS) -Fo$@ -c $<
+	DO_LD=link /nologo /out:$@ wsock32.lib user32.lib advapi32.lib winmm.lib libs/zlib.lib shell32.lib /nodefaultlib:libc.lib /nodefaultlib:MSVCRT /manifest:no /OPT:REF 
+	PRECOMPHEADERS = 
+	NODEPS = 1
+
+	LIBS_DIR=./libs/
+
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
+	SV_EXE_NAME=../fteqwsv.exe
+	SV_DIR=sv_vc
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o resources.o
+	SV_LDFLAGS=/subsystem:console
+	
+	M_EXE_NAME=../fteqw.exe
+	MCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
+	MB_DIR=m_vc
+	M_LDFLAGS=$(GLLDFLAGS) libs/jpeg.lib libs/libpng.lib libs/zlib.lib uuid.lib gdi32.lib ole32.lib libs/dxsdk7/lib/dxguid.lib /subsystem:windows
 endif
 
 ifeq ($(FTE_TARGET),win32)
@@ -808,17 +850,21 @@ $(OUT_DIR)/npplug.o : ftequake/npplug.rc
 #	rm -f $@.$$$$
 
 $(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.c
+ifeq ($(NODEPS),)
 	@set -e; rm -f $@.d; \
 	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	 sed 's,\($*\)\.o[ :]*,\1.o $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	 rm -f $@.d.$$$$
+endif
 	$(DO_CC) -I$(OUT_DIR)
 
 $(OUT_DIR)/%.oo $(OUT_DIR)/%.d : %.c
+ifeq ($(NODEPS),)
 	@set -e; rm -f $@.d; \
 	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	 sed 's,\($*\)\.oo[ :]*,\1.oo $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	 rm -f $@.d.$$$$
+endif
 	$(DO_CC) -I$(OUT_DIR)
 
 $(OUT_DIR)/%.mo $(OUT_DIR)/%.d : %.m
@@ -831,6 +877,7 @@ $(OUT_DIR)/%.mo $(OUT_DIR)/%.d : %.m
 #enables use of precompiled headers in gcc 3.4 onwards.
 $(OUT_DIR)/quakedef.h.gch : quakedef.h
 	$(CC) -x c $(BASE_CFLAGS) $(WCFLAGS) -o $@ -c $< $(CFLAGS)
+PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
 
 #addprefix is to add the ./release/server/ part of the object name
 #foreach is needed as the OBJS is a list of variable names containing object lists.
@@ -838,18 +885,19 @@ $(OUT_DIR)/quakedef.h.gch : quakedef.h
 #god knows how gcc loads the list properly.
 #or at least I hope he does. It makes no sence to mortals.
 
-$(OUT_DIR)/$(EXE_NAME):   $(OUT_DIR)/quakedef.h.gch    $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))))
-	$(CC) $(WCFLAGS) -o $@ $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol)))) $(LDFLAGS) $(CFLAGS)
+DO_LD ?= $(CC) -o $@ $(WCFLAGS) $(CFLAGS)
+$(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS)    $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))))
+	$(DO_LD) $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol)))) $(LDFLAGS)
 
 _out-rel:
-	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
+	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(RELEASE_LDFLAGS)" OBJS="$(OBJS)"
 	$(STRIP) $(STRIPFLAGS) $(OUT_DIR)/$(EXE_NAME)
 
 _out-dbg:
-	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
+	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(DEBUG_LDFLAGS)" OBJS="$(OBJS)"
 
 _out-profile:
-	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(PROFILE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
+	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(PROFILE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(PROFILE_LDFLAGS)" OBJS="$(OBJS)"
 
 _cl-rel: reldir
 	$(MAKE) _out-rel EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS CLIENT_OBJS PROGS_OBJS"
@@ -1003,6 +1051,12 @@ help:
 	@-echo "'d3d-???' (for windows builds)"
 	@-echo "'mcl-???' (currently broken)"
 	@-echo "'glcl-???' (currently broken)"
+	@-echo ""
+	@-echo "Cross targets can be specified with FTE_TARGET=blah"
+	@-echo "linux32, linux64 specify specific x86 archs"
+	@-echo "SDL - Attempt to use sdl for the current target"
+	@-echo "win32 - Mingw compile for win32"
+	@-echo "vc - Attempts to use msvc8+ to compile. Note: uses profile guided optimisations. You must build+run the relevent profile target before a release target will compile properly. Debug doesn't care."
 
 install:
 	-cp debug/*.* /opt/quake/

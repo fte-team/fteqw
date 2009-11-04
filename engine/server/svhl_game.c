@@ -28,14 +28,14 @@ int lastusermessage;
 
 
 
-string_t GHL_AllocString(char *string)
+string_t QDECL GHL_AllocString(char *string)
 {
 	char *news;
 	news = Hunk_Alloc(strlen(string)+1);
 	memcpy(news, string, strlen(string)+1);
 	return news - SVHL_Globals.stringbase;
 }
-int GHL_PrecacheModel(char *name)
+int QDECL GHL_PrecacheModel(char *name)
 {
 	int		i;
 
@@ -81,7 +81,7 @@ int GHL_PrecacheModel(char *name)
 	SV_Error ("GHL_precache_model: overflow");
 	return 0;
 }
-int GHL_PrecacheSound(char *name)
+int QDECL GHL_PrecacheSound(char *name)
 {
 	int		i;
 
@@ -125,7 +125,7 @@ int GHL_PrecacheSound(char *name)
 	SV_Error ("GHL_precache_sound: overflow");
 	return 0;
 }
-void GHL_SetModel(hledict_t *ed, char *modelname)
+void QDECL GHL_SetModel(hledict_t *ed, char *modelname)
 {
 	model_t *mod;
 	int mdlidx = GHL_PrecacheModel(modelname);
@@ -141,40 +141,40 @@ void GHL_SetModel(hledict_t *ed, char *modelname)
 	}
 	SVHL_LinkEdict(ed, false);
 }
-unk GHL_ModelIndex(unk){notimp(__LINE__);}
-int GHL_ModelFrames(int midx)
+unk QDECL GHL_ModelIndex(unk){notimp(__LINE__);}
+int QDECL GHL_ModelFrames(int midx)
 {
 	//returns the number of frames(sequences I assume) this model has
 	ignore("ModelFrames");
 	return 1;
 }
-void GHL_SetSize(hledict_t *ed, float *mins, float *maxs)
+void QDECL GHL_SetSize(hledict_t *ed, float *mins, float *maxs)
 {
 	VectorCopy(mins, ed->v.mins);
 	VectorCopy(maxs, ed->v.maxs);
 	SVHL_LinkEdict(ed, false);
 }
-void GHL_ChangeLevel(char *nextmap, char *startspot)
+void QDECL GHL_ChangeLevel(char *nextmap, char *startspot)
 {
 	Cbuf_AddText(va("changelevel %s %s@%f@%f@%f\n", nextmap, startspot, SVHL_Globals.landmark[0], SVHL_Globals.landmark[1], SVHL_Globals.landmark[2]), RESTRICT_PROGS);
 }
-unk GHL_GetSpawnParms(unk){notimp(__LINE__);}
-unk GHL_SaveSpawnParms(unk){notimp(__LINE__);}
-float GHL_VecToYaw(float *inv)
+unk QDECL GHL_GetSpawnParms(unk){notimp(__LINE__);}
+unk QDECL GHL_SaveSpawnParms(unk){notimp(__LINE__);}
+float QDECL GHL_VecToYaw(float *inv)
 {
 	vec3_t outa;
 
 	VectorAngles(inv, NULL, outa);
 	return outa[1];
 }
-void GHL_VecToAngles(float *inv, float *outa)
+void QDECL GHL_VecToAngles(float *inv, float *outa)
 {
 	VectorAngles(inv, NULL, outa);
 }
-unk GHL_MoveToOrigin(unk){notimp(__LINE__);}
-unk GHL_ChangeYaw(unk){notimp(__LINE__);}
-unk GHL_ChangePitch(unk){notimp(__LINE__);}
-hledict_t *GHL_FindEntityByString(hledict_t *last, char *field, char *value)
+unk QDECL GHL_MoveToOrigin(unk){notimp(__LINE__);}
+unk QDECL GHL_ChangeYaw(unk){notimp(__LINE__);}
+unk QDECL GHL_ChangePitch(unk){notimp(__LINE__);}
+hledict_t *QDECL GHL_FindEntityByString(hledict_t *last, char *field, char *value)
 {
 	hledict_t *ent;
 	int i;
@@ -205,8 +205,8 @@ hledict_t *GHL_FindEntityByString(hledict_t *last, char *field, char *value)
 	}
 	return SVHL_Edict;
 }
-unk GHL_GetEntityIllum(unk){notimp(__LINE__);}
-hledict_t *GHL_FindEntityInSphere(hledict_t *last, float *org, float radius)
+unk QDECL GHL_GetEntityIllum(unk){notimp(__LINE__);}
+hledict_t *QDECL GHL_FindEntityInSphere(hledict_t *last, float *org, float radius)
 {
 	int i, j;
 	vec3_t eorg;
@@ -235,7 +235,7 @@ hledict_t *GHL_FindEntityInSphere(hledict_t *last, float *org, float radius)
 	}
 	return NULL;
 }
-hledict_t *GHL_FindClientInPVS(hledict_t *ed)
+hledict_t *QDECL GHL_FindClientInPVS(hledict_t *ed)
 {
 	qbyte	*viewerpvs;
 	int best = 0, i;
@@ -248,7 +248,7 @@ hledict_t *GHL_FindClientInPVS(hledict_t *ed)
 	//fixme: we need to track some state
 	//a different client should be returned each call _per ent_ (so it can be used once per frame)
 
-	viewerpvs = sv.worldmodel->funcs.LeafPVS(sv.worldmodel, sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, ed->v.origin), NULL);
+	viewerpvs = sv.worldmodel->funcs.LeafPVS(sv.worldmodel, sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, ed->v.origin), NULL, 0);
 
 	for (i = 0; i < MAX_CLIENTS; i++)
 	{
@@ -279,19 +279,19 @@ hledict_t *GHL_FindClientInPVS(hledict_t *ed)
 		return &SVHL_Edict[best];
 	return NULL;
 }
-unk GHL_EntitiesInPVS(unk){notimp(__LINE__);}
-void GHL_MakeVectors(float *angles)
+unk QDECL GHL_EntitiesInPVS(unk){notimp(__LINE__);}
+void QDECL GHL_MakeVectors(float *angles)
 {
 	AngleVectors(angles, SVHL_Globals.v_forward, SVHL_Globals.v_right, SVHL_Globals.v_up);
 }
-void GHL_AngleVectors(float *angles, float *forward, float *right, float *up)
+void QDECL GHL_AngleVectors(float *angles, float *forward, float *right, float *up)
 {
 	AngleVectors(angles, forward, right, up);
 }
 
 ///////////////////////////////////////////////////////////
 
-hledict_t *GHL_CreateEntity(void)
+hledict_t *QDECL GHL_CreateEntity(void)
 {	
 	int i;
 	static int spawnnumber;
@@ -321,69 +321,71 @@ hledict_t *GHL_CreateEntity(void)
 	SV_Error("Ran out of free edicts");
 	return NULL;
 }
-void GHL_RemoveEntity(hledict_t *ed)
+void QDECL GHL_RemoveEntity(hledict_t *ed)
 {
 	SVHL_UnlinkEdict(ed);
 	ed->isfree = true;
 	ed->freetime = sv.time+2;
 }
-hledict_t *GHL_CreateNamedEntity(string_t name)
+hledict_t *QDECL GHL_CreateNamedEntity(string_t name)
 {
-	void (*spawnfunc)(hlentvars_t *evars);
+	void (QDECL *spawnfunc)(hlentvars_t *evars);
 	hledict_t *ed;
 	ed = GHL_CreateEntity();
 	if (!ed)
 		return NULL;
 	ed->v.classname = name;
 
-	spawnfunc = (void(*)(hlentvars_t*))GetProcAddress((HINSTANCE)hlgamecode, name+SVHL_Globals.stringbase);
+	spawnfunc = (void(QDECL *)(hlentvars_t*))GetProcAddress((HINSTANCE)hlgamecode, name+SVHL_Globals.stringbase);
 	if (spawnfunc)
 		spawnfunc(&ed->v);
 	return ed;
 }
-void *GHL_PvAllocEntPrivateData(hledict_t *ed, long quant)
+void *QDECL GHL_PvAllocEntPrivateData(hledict_t *ed, long quant)
 {
+	if (!ed)
+		return NULL;
 	ed->moddata = Z_Malloc(quant);
 	return ed->moddata;
 }
-unk GHL_PvEntPrivateData(unk)
+unk QDECL GHL_PvEntPrivateData(unk)
 {
 	notimp(__LINE__);
 }
-unk GHL_FreeEntPrivateData(unk)
+unk QDECL GHL_FreeEntPrivateData(unk)
 {
 	notimp(__LINE__);
 }
-unk GHL_GetVarsOfEnt(unk)
+unk QDECL GHL_GetVarsOfEnt(unk)
 {
 	notimp(__LINE__);
 }
-hledict_t *GHL_PEntityOfEntOffset(int ednum)
+hledict_t *QDECL GHL_PEntityOfEntOffset(int ednum)
 {
 	return (hledict_t *)(ednum + (char*)SVHL_Edict);
 }
-int GHL_EntOffsetOfPEntity(hledict_t *ed)
+int QDECL GHL_EntOffsetOfPEntity(hledict_t *ed)
 {
 	return (char*)ed - (char*)SVHL_Edict;
 }
-int GHL_IndexOfEdict(hledict_t *ed)
+int QDECL GHL_IndexOfEdict(hledict_t *ed)
 {
 	return ed - SVHL_Edict;
 }
-hledict_t *GHL_PEntityOfEntIndex(int idx)
+hledict_t *QDECL GHL_PEntityOfEntIndex(int idx)
 {
 	return &SVHL_Edict[idx];
 }
-unk GHL_FindEntityByVars(unk)
+unk QDECL GHL_FindEntityByVars(unk)
 {
 	notimp(__LINE__);
 }
 
 ///////////////////////////////////////////////////////
 
-unk GHL_MakeStatic(unk){notimp(__LINE__);}
-unk GHL_EntIsOnFloor(unk){notimp(__LINE__);}
-int GHL_DropToFloor(hledict_t *ed)
+unk QDECL GHL_MakeStatic(unk){notimp(__LINE__);}
+unk QDECL GHL_EntIsOnFloor(unk){notimp(__LINE__);}
+int QDECL GHL_DropToFloor(hledict_t *ed)
 {
 	vec3_t top;
 	vec3_t bottom;
@@ -396,25 +398,25 @@ int GHL_DropToFloor(hledict_t *ed)
 	VectorCopy(tr.endpos, ed->v.origin);
 	return tr.fraction != 0 && tr.fraction != 1;
 }
-int GHL_WalkMove(hledict_t *ed, float yaw, float dist, int mode)
+int QDECL GHL_WalkMove(hledict_t *ed, float yaw, float dist, int mode)
 {
 	ignore("walkmove");
 	return 1;
 }
-void GHL_SetOrigin(hledict_t *ed, float *neworg)
+void QDECL GHL_SetOrigin(hledict_t *ed, float *neworg)
 {
 	VectorCopy(neworg, ed->v.origin);
 	SVHL_LinkEdict(ed, false);
 }
-void GHL_EmitSound(hledict_t *ed, int chan, char *soundname, float vol, float atten, int flags, int pitch)
+void QDECL GHL_EmitSound(hledict_t *ed, int chan, char *soundname, float vol, float atten, int flags, int pitch)
 {
 	SV_StartSound(ed-SVHL_Edict, ed->v.origin, ~0, chan, soundname, vol*255, atten);
 }
-void GHL_EmitAmbientSound(hledict_t *ed, float *org, char *soundname, float vol, float atten, unsigned int flags, int pitch)
+void QDECL GHL_EmitAmbientSound(hledict_t *ed, float *org, char *soundname, float vol, float atten, unsigned int flags, int pitch)
 {
 	SV_StartSound(0, org, ~0, 0, soundname, vol*255, atten);
 }
-void GHL_TraceLine(float *start, float *end, int flags, hledict_t *ignore, hltraceresult_t *result)
+void QDECL GHL_TraceLine(float *start, float *end, int flags, hledict_t *ignore, hltraceresult_t *result)
 {
 	trace_t t;
 	
@@ -433,9 +435,9 @@ void GHL_TraceLine(float *start, float *end, int flags, hledict_t *ignore, hltra
 		result->touched = &SVHL_Edict[0];
 	result->hitgroup = 0;
 }
-unk GHL_TraceToss(unk){notimp(__LINE__);}
-unk GHL_TraceMonsterHull(unk){notimp(__LINE__);}
-void GHL_TraceHull(float *start, float *end, int flags, int hullnum, hledict_t *ignore, hltraceresult_t *result)
+unk QDECL GHL_TraceToss(unk){notimp(__LINE__);}
+unk QDECL GHL_TraceMonsterHull(unk){notimp(__LINE__);}
+void QDECL GHL_TraceHull(float *start, float *end, int flags, int hullnum, hledict_t *ignore, hltraceresult_t *result)
 {
 	trace_t t;
 
@@ -452,35 +454,35 @@ void GHL_TraceHull(float *start, float *end, int flags, int hullnum, hledict_t *
 	result->touched = t.ent;
 	result->hitgroup = 0;
 }
-unk GHL_TraceModel(unk){notimp(__LINE__);}
-char *GHL_TraceTexture(hledict_t *againstent, vec3_t start, vec3_t end)
+unk QDECL GHL_TraceModel(unk){notimp(__LINE__);}
+char *QDECL GHL_TraceTexture(hledict_t *againstent, vec3_t start, vec3_t end)
 {
 	trace_t tr;
 	sv.worldmodel->funcs.Trace(sv.worldmodel, 0, 0, start, end, vec3_origin, vec3_origin, &tr);
 	return tr.surface->name;
 }
-unk GHL_TraceSphere(unk){notimp(__LINE__);}
-unk GHL_GetAimVector(unk){notimp(__LINE__);}
-void GHL_ServerCommand(char *cmd)
+unk QDECL GHL_TraceSphere(unk){notimp(__LINE__);}
+unk QDECL GHL_GetAimVector(unk){notimp(__LINE__);}
+void QDECL GHL_ServerCommand(char *cmd)
 {
 	Cbuf_AddText(cmd, RESTRICT_PROGS);
 }
-void GHL_ServerExecute(void)
+void QDECL GHL_ServerExecute(void)
 {
 	Cbuf_ExecuteLevel(RESTRICT_PROGS);
 }
-unk GHL_ClientCommand(unk){notimp(__LINE__);}
-unk GHL_ParticleEffect(unk){notimp(__LINE__);}
-void GHL_LightStyle(int stylenum, char *stylestr)
+unk QDECL GHL_ClientCommand(unk){notimp(__LINE__);}
+unk QDECL GHL_ParticleEffect(unk){notimp(__LINE__);}
+void QDECL GHL_LightStyle(int stylenum, char *stylestr)
 {
 	PF_applylightstyle(stylenum, stylestr, 7);
 }
-int GHL_DecalIndex(char *decalname)
+int QDECL GHL_DecalIndex(char *decalname)
 {
 	Con_Printf("Fixme: precache decal %s\n", decalname);
 	return 0;
 }
-int GHL_PointContents(float *org)
+int QDECL GHL_PointContents(float *org)
 {
 	return Q1CONTENTS_EMPTY;
 }
@@ -488,7 +490,7 @@ int GHL_PointContents(float *org)
 int svhl_messagedest;
 vec3_t svhl_messageorigin;
 hledict_t *svhl_messageent;
-void GHL_MessageBegin(int dest, int type, float *org, hledict_t *ent)
+void QDECL GHL_MessageBegin(int dest, int type, float *org, hledict_t *ent)
 {
 	svhl_messagedest = dest;
 	if (org)
@@ -506,7 +508,7 @@ void GHL_MessageBegin(int dest, int type, float *org, hledict_t *ent)
 	MSG_WriteShort(&sv.multicast, 0);
 	MSG_WriteByte(&sv.multicast, type);
 }
-void GHL_MessageEnd(unk)
+void QDECL GHL_MessageEnd(unk)
 {
 	unsigned short len;
 	client_t *cl;
@@ -552,42 +554,42 @@ void GHL_MessageEnd(unk)
 
 	SZ_Clear (&sv.multicast);
 }
-void GHL_WriteByte(int value)
+void QDECL GHL_WriteByte(int value)
 {
 	MSG_WriteByte(&sv.multicast, value);
 }
-void GHL_WriteChar(int value)
+void QDECL GHL_WriteChar(int value)
 {
 	MSG_WriteChar(&sv.multicast, value);
 }
-void GHL_WriteShort(int value)
+void QDECL GHL_WriteShort(int value)
 {
 	MSG_WriteShort(&sv.multicast, value);
 }
-void GHL_WriteLong(int value)
+void QDECL GHL_WriteLong(int value)
 {
 	MSG_WriteLong(&sv.multicast, value);
 }
-void GHL_WriteAngle(float value)
+void QDECL GHL_WriteAngle(float value)
 {
 	MSG_WriteAngle8(&sv.multicast, value);
 }
-void GHL_WriteCoord(float value)
+void QDECL GHL_WriteCoord(float value)
 {
 	coorddata i = MSG_ToCoord(value, 2);
 	SZ_Write (&sv.multicast, (void*)&i, 2);
 }
-void GHL_WriteString(char *string)
+void QDECL GHL_WriteString(char *string)
 {
 	MSG_WriteString(&sv.multicast, string);
 }
-void GHL_WriteEntity(int entnum)
+void QDECL GHL_WriteEntity(int entnum)
 {
 	MSG_WriteShort(&sv.multicast, entnum);
 }
 
 
-void GHL_AlertMessage(int level, char *fmt, ...)
+void QDECL GHL_AlertMessage(int level, char *fmt, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -598,12 +600,12 @@ void GHL_AlertMessage(int level, char *fmt, ...)
 
 	Con_Printf("%s\n", string);
 }
-void GHL_EngineFprintf(FILE *f, char *fmt, ...)
+void QDECL GHL_EngineFprintf(FILE *f, char *fmt, ...)
 {
 	SV_Error("Halflife gamecode tried to use EngineFprintf\n");
 }
-unk GHL_SzFromIndex(unk){notimp(__LINE__);}
-void *GHL_GetModelPtr(hledict_t *ed)
+unk QDECL GHL_SzFromIndex(unk){notimp(__LINE__);}
+void *QDECL GHL_GetModelPtr(hledict_t *ed)
 {
 #ifdef SERVERONLY
 	return NULL;
@@ -615,7 +617,7 @@ void *GHL_GetModelPtr(hledict_t *ed)
 	return Mod_GetHalfLifeModelData(sv.models[ed->v.modelindex]);
 #endif
 }
-int GHL_RegUserMsg(char *msgname, int msgsize)
+int QDECL GHL_RegUserMsg(char *msgname, int msgsize)
 {
 	//we use 1 as the code to choose others.
 	if (lastusermessage <= 1)
@@ -639,47 +641,47 @@ int GHL_RegUserMsg(char *msgname, int msgsize)
 
 	return lastusermessage--;
 }
-unk GHL_AnimationAutomove(unk){notimp(__LINE__);}
-unk GHL_GetBonePosition(unk){notimp(__LINE__);}
+unk QDECL GHL_AnimationAutomove(unk){notimp(__LINE__);}
+unk QDECL GHL_GetBonePosition(unk){notimp(__LINE__);}
 
-hlintptr_t GHL_FunctionFromName(char *name)
+hlintptr_t QDECL GHL_FunctionFromName(char *name)
 {
 	return (hlintptr_t)Sys_GetAddressForName(hlgamecode, name);
 }
-char *GHL_NameForFunction(hlintptr_t function)
+char *QDECL GHL_NameForFunction(hlintptr_t function)
 {
 	return Sys_GetNameForAddress(hlgamecode, (void*)function);
 }
 
-unk GHL_ClientPrintf(unk)
+unk QDECL GHL_ClientPrintf(unk)
 {
 //	SV_ClientPrintf(
 	notimp(__LINE__);
 }
-void GHL_ServerPrint(char *msg)
+void QDECL GHL_ServerPrint(char *msg)
 {
 	Con_Printf("%s", msg);	
 }
-char *GHL_Cmd_Args(void)
+char *QDECL GHL_Cmd_Args(void)
 {
 	return Cmd_Args();
 }
-char *GHL_Cmd_Argv(int arg)
+char *QDECL GHL_Cmd_Argv(int arg)
 {
 	return Cmd_Argv(arg);
 }
-int GHL_Cmd_Argc(unk)
+int QDECL GHL_Cmd_Argc(unk)
 {
 	return Cmd_Argc();
 }
-unk GHL_GetAttachment(unk){notimp(__LINE__);}
-void GHL_CRC32_Init(hlcrc_t *crc)
+unk QDECL GHL_GetAttachment(unk){notimp(__LINE__);}
+void QDECL GHL_CRC32_Init(hlcrc_t *crc)
 {
 	unsigned short crc16 = *crc;
 	QCRC_Init(&crc16);
 	*crc = crc16;
 }
-void GHL_CRC32_ProcessBuffer(hlcrc_t *crc, qbyte *p, int len)
+void QDECL GHL_CRC32_ProcessBuffer(hlcrc_t *crc, qbyte *p, int len)
 {
 	unsigned short crc16 = *crc;
 	while(len-->0)
@@ -688,29 +690,29 @@ void GHL_CRC32_ProcessBuffer(hlcrc_t *crc, qbyte *p, int len)
 	}
 	*crc = crc16;
 }
-void GHL_CRC32_ProcessByte(hlcrc_t *crc, qbyte b)
+void QDECL GHL_CRC32_ProcessByte(hlcrc_t *crc, qbyte b)
 {
 	unsigned short crc16 = *crc;
 	QCRC_ProcessByte(&crc16, b);
 	*crc = crc16;
 }
-hlcrc_t GHL_CRC32_Final(hlcrc_t crc)
+hlcrc_t QDECL GHL_CRC32_Final(hlcrc_t crc)
 {
 	unsigned short crc16 = crc;
 	return QCRC_Value(crc16);
 }
-long GHL_RandomLong(long minv, long maxv)
+long QDECL GHL_RandomLong(long minv, long maxv)
 {
 	return minv + frandom()*(maxv-minv);
 }
-float GHL_RandomFloat(float minv, float maxv)
+float QDECL GHL_RandomFloat(float minv, float maxv)
 {
 	return minv + frandom()*(maxv-minv);
 }
-unk GHL_SetView(unk){notimp(__LINE__);}
-unk GHL_Time(unk){notimp(__LINE__);}
-unk GHL_CrosshairAngle(unk){notimp(__LINE__);}
-void *GHL_LoadFileForMe(char *name, int *size_out)
+unk QDECL GHL_SetView(unk){notimp(__LINE__);}
+unk QDECL GHL_Time(unk){notimp(__LINE__);}
+unk QDECL GHL_CrosshairAngle(unk){notimp(__LINE__);}
+void *QDECL GHL_LoadFileForMe(char *name, int *size_out)
 {
 	int fsize;
 	void *fptr;
@@ -721,13 +723,13 @@ void *GHL_LoadFileForMe(char *name, int *size_out)
 		return NULL;
 	return fptr;
 }
-void GHL_FreeFile(void *fptr)
+void QDECL GHL_FreeFile(void *fptr)
 {
 	FS_FreeFile(fptr);
 }
-unk GHL_EndSection(unk){notimp(__LINE__);}
+unk QDECL GHL_EndSection(unk){notimp(__LINE__);}
 #include <sys/stat.h>
-int GHL_CompareFileTime(char *fname1, char *fname2, int *result)
+int QDECL GHL_CompareFileTime(char *fname1, char *fname2, int *result)
 {
 	flocation_t loc1, loc2;
 	struct stat stat1, stat2;
@@ -752,50 +754,50 @@ int GHL_CompareFileTime(char *fname1, char *fname2, int *result)
 
 	return 1;
 }
-void GHL_GetGameDir(char *gamedir)
+void QDECL GHL_GetGameDir(char *gamedir)
 {
 	extern char gamedirfile[];
 	//warning: the output buffer size is not specified!
 	Q_strncpyz(gamedir, gamedirfile, MAX_QPATH);
 }
-unk GHL_Cvar_RegisterVariable(unk){notimp(__LINE__);}
-unk GHL_FadeClientVolume(unk){notimp(__LINE__);}
-unk GHL_SetClientMaxspeed(unk)
+unk QDECL GHL_Cvar_RegisterVariable(unk){notimp(__LINE__);}
+unk QDECL GHL_FadeClientVolume(unk){notimp(__LINE__);}
+unk QDECL GHL_SetClientMaxspeed(unk)
 {
 	notimp(__LINE__);
 }
-unk GHL_CreateFakeClient(unk){notimp(__LINE__);}
-unk GHL_RunPlayerMove(unk){notimp(__LINE__);}
-int GHL_NumberOfEntities(void)
+unk QDECL GHL_CreateFakeClient(unk){notimp(__LINE__);}
+unk QDECL GHL_RunPlayerMove(unk){notimp(__LINE__);}
+int QDECL GHL_NumberOfEntities(void)
 {
 	return 0;
 }
-char *GHL_GetInfoKeyBuffer(hledict_t *ed)
+char *QDECL GHL_GetInfoKeyBuffer(hledict_t *ed)
 {
 	if (!ed)
 		return svs.info;
 
 	return svs.clients[ed - SVHL_Edict - 1].userinfo;
 }
-char *GHL_InfoKeyValue(char *infostr, char *key)
+char *QDECL GHL_InfoKeyValue(char *infostr, char *key)
 {
 	return Info_ValueForKey(infostr, key);
 }
-unk GHL_SetKeyValue(unk){notimp(__LINE__);}
-unk GHL_SetClientKeyValue(unk){notimp(__LINE__);}
-unk GHL_IsMapValid(unk){notimp(__LINE__);}
-unk GHL_StaticDecal(unk){notimp(__LINE__);}
-unk GHL_PrecacheGeneric(unk){notimp(__LINE__);}
-int GHL_GetPlayerUserId(hledict_t *ed)
+unk QDECL GHL_SetKeyValue(unk){notimp(__LINE__);}
+unk QDECL GHL_SetClientKeyValue(unk){notimp(__LINE__);}
+unk QDECL GHL_IsMapValid(unk){notimp(__LINE__);}
+unk QDECL GHL_StaticDecal(unk){notimp(__LINE__);}
+unk QDECL GHL_PrecacheGeneric(unk){notimp(__LINE__);}
+int QDECL GHL_GetPlayerUserId(hledict_t *ed)
 {
 	unsigned int clnum = (ed - SVHL_Edict) - 1;
 	if (clnum >= sv.allocated_client_slots)
 		return -1;
 	return svs.clients[clnum].userid;
 }
-unk GHL_BuildSoundMsg(unk){notimp(__LINE__);}
+unk QDECL GHL_BuildSoundMsg(unk){notimp(__LINE__);}
 
-int GHL_IsDedicatedServer(void)
+int QDECL GHL_IsDedicatedServer(void)
 {
 #ifdef SERVERONLY
 	return 1;
@@ -878,7 +880,7 @@ void SVHL_FreeCvar(hlcvar_t *var)
 	}
 }
 
-hlcvar_t *GHL_CVarGetPointer(char *varname)
+hlcvar_t *QDECL GHL_CVarGetPointer(char *varname)
 {
 	cvar_t *var;
 	hlcvar_t *hlvar;
@@ -901,7 +903,7 @@ hlcvar_t *GHL_CVarGetPointer(char *varname)
 	}
 	return hlvar;
 }
-void GHL_CVarRegister(hlcvar_t *hlvar)
+void QDECL GHL_CVarRegister(hlcvar_t *hlvar)
 {
 	cvar_t *var;
 	var = Cvar_Get(hlvar->name, hlvar->string, 0, "HalfLife");
@@ -919,7 +921,7 @@ void GHL_CVarRegister(hlcvar_t *hlvar)
 	}
 	var->hlcvar = hlvar;
 }
-float GHL_CVarGetFloat(char *vname)
+float QDECL GHL_CVarGetFloat(char *vname)
 {
 	cvar_t *var = Cvar_FindVar(vname);
 	if (var)
@@ -927,7 +929,7 @@ float GHL_CVarGetFloat(char *vname)
 	Con_Printf("cvar %s does not exist\n", vname);
 	return 0;
 }
-char *GHL_CVarGetString(char *vname)
+char *QDECL GHL_CVarGetString(char *vname)
 {
 	cvar_t *var = Cvar_FindVar(vname);
 	if (var)
@@ -935,7 +937,7 @@ char *GHL_CVarGetString(char *vname)
 	Con_Printf("cvar %s does not exist\n", vname);
 	return "";
 }
-void GHL_CVarSetFloat(char *vname, float value)
+void QDECL GHL_CVarSetFloat(char *vname, float value)
 {
 	cvar_t *var = Cvar_FindVar(vname);
 	if (var)
@@ -943,7 +945,7 @@ void GHL_CVarSetFloat(char *vname, float value)
 	else
 		Con_Printf("cvar %s does not exist\n", vname);
 }
-void GHL_CVarSetString(char *vname, char *value)
+void QDECL GHL_CVarSetString(char *vname, char *value)
 {
 	cvar_t *var = Cvar_FindVar(vname);
 	if (var)
@@ -952,56 +954,56 @@ void GHL_CVarSetString(char *vname, char *value)
 		Con_Printf("cvar %s does not exist\n", vname);
 }
 
-unk GHL_GetPlayerWONId(unk){notimp(__LINE__);}
-unk GHL_Info_RemoveKey(unk){notimp(__LINE__);}
-unk GHL_GetPhysicsKeyValue(unk){notimp(__LINE__);}
-unk GHL_SetPhysicsKeyValue(unk){notimp(__LINE__);}
-unk GHL_GetPhysicsInfoString(unk){notimp(__LINE__);}
-unsigned short GHL_PrecacheEvent(int eventtype, char *eventname)
+unk QDECL GHL_GetPlayerWONId(unk){notimp(__LINE__);}
+unk QDECL GHL_Info_RemoveKey(unk){notimp(__LINE__);}
+unk QDECL GHL_GetPhysicsKeyValue(unk){notimp(__LINE__);}
+unk QDECL GHL_SetPhysicsKeyValue(unk){notimp(__LINE__);}
+unk QDECL GHL_GetPhysicsInfoString(unk){notimp(__LINE__);}
+unsigned short QDECL GHL_PrecacheEvent(int eventtype, char *eventname)
 {
 	Con_Printf("Fixme: GHL_PrecacheEvent: %s\n", eventname);
 	return 0;
 }
-void GHL_PlaybackEvent(int flags, hledict_t *ent, unsigned short eventidx, float delay, float *origin, float *angles, float f1, float f2, int i1, int i2, int b1, int b2)
+void QDECL GHL_PlaybackEvent(int flags, hledict_t *ent, unsigned short eventidx, float delay, float *origin, float *angles, float f1, float f2, int i1, int i2, int b1, int b2)
 {
 	ignore("GHL_PlaybackEvent not implemented");
 }
-unk GHL_SetFatPVS(unk){notimp(__LINE__);}
-unk GHL_SetFatPAS(unk){notimp(__LINE__);}
-unk GHL_CheckVisibility(unk){notimp(__LINE__);}
-unk GHL_DeltaSetField(unk){notimp(__LINE__);}
-unk GHL_DeltaUnsetField(unk){notimp(__LINE__);}
-unk GHL_DeltaAddEncoder(unk){notimp(__LINE__);}
-unk GHL_GetCurrentPlayer(unk){notimp(__LINE__);}
-unk GHL_CanSkipPlayer(unk){notimp(__LINE__);}
-unk GHL_DeltaFindField(unk){notimp(__LINE__);}
-unk GHL_DeltaSetFieldByIndex(unk){notimp(__LINE__);}
-unk GHL_DeltaUnsetFieldByIndex(unk){notimp(__LINE__);}
-unk GHL_SetGroupMask(unk){notimp(__LINE__);}
-unk GHL_CreateInstancedBaseline(unk){notimp(__LINE__);}
-unk GHL_Cvar_DirectSet(unk){notimp(__LINE__);}
-unk GHL_ForceUnmodified(unk){notimp(__LINE__);}
-unk GHL_GetPlayerStats(unk){notimp(__LINE__);}
-unk GHL_AddServerCommand(unk){notimp(__LINE__);}
-unk GHL_Voice_GetClientListening(unk){notimp(__LINE__);}
-qboolean GHL_Voice_SetClientListening(int listener, int sender, int shouldlisten)
+unk QDECL GHL_SetFatPVS(unk){notimp(__LINE__);}
+unk QDECL GHL_SetFatPAS(unk){notimp(__LINE__);}
+unk QDECL GHL_CheckVisibility(unk){notimp(__LINE__);}
+unk QDECL GHL_DeltaSetField(unk){notimp(__LINE__);}
+unk QDECL GHL_DeltaUnsetField(unk){notimp(__LINE__);}
+unk QDECL GHL_DeltaAddEncoder(unk){notimp(__LINE__);}
+unk QDECL GHL_GetCurrentPlayer(unk){notimp(__LINE__);}
+unk QDECL GHL_CanSkipPlayer(unk){notimp(__LINE__);}
+unk QDECL GHL_DeltaFindField(unk){notimp(__LINE__);}
+unk QDECL GHL_DeltaSetFieldByIndex(unk){notimp(__LINE__);}
+unk QDECL GHL_DeltaUnsetFieldByIndex(unk){notimp(__LINE__);}
+unk QDECL GHL_SetGroupMask(unk){notimp(__LINE__);}
+unk QDECL GHL_CreateInstancedBaseline(unk){notimp(__LINE__);}
+unk QDECL GHL_Cvar_DirectSet(unk){notimp(__LINE__);}
+unk QDECL GHL_ForceUnmodified(unk){notimp(__LINE__);}
+unk QDECL GHL_GetPlayerStats(unk){notimp(__LINE__);}
+unk QDECL GHL_AddServerCommand(unk){notimp(__LINE__);}
+unk QDECL GHL_Voice_GetClientListening(unk){notimp(__LINE__);}
+qboolean QDECL GHL_Voice_SetClientListening(int listener, int sender, int shouldlisten)
 {
 	return false;
 }
-unk GHL_GetPlayerAuthId(unk){notimp(__LINE__);}
-unk GHL_SequenceGet(unk){notimp(__LINE__);}
-unk GHL_SequencePickSentence(unk){notimp(__LINE__);}
-unk GHL_GetFileSize(unk){notimp(__LINE__);}
-unk GHL_GetApproxWavePlayLen(unk){notimp(__LINE__);}
-unk GHL_IsCareerMatch(unk){notimp(__LINE__);}
-unk GHL_GetLocalizedStringLength(unk){notimp(__LINE__);}
-unk GHL_RegisterTutorMessageShown(unk){notimp(__LINE__);}
-unk GHL_GetTimesTutorMessageShown(unk){notimp(__LINE__);}
-unk GHL_ProcessTutorMessageDecayBuffer(unk){notimp(__LINE__);}
-unk GHL_ConstructTutorMessageDecayBuffer(unk){notimp(__LINE__);}
-unk GHL_ResetTutorMessageDecayData(unk){notimp(__LINE__);}
-unk GHL_QueryClientCvarValue(unk){notimp(__LINE__);}
-unk GHL_QueryClientCvarValue2(unk){notimp(__LINE__);}
+unk QDECL GHL_GetPlayerAuthId(unk){notimp(__LINE__);}
+unk QDECL GHL_SequenceGet(unk){notimp(__LINE__);}
+unk QDECL GHL_SequencePickSentence(unk){notimp(__LINE__);}
+unk QDECL GHL_GetFileSize(unk){notimp(__LINE__);}
+unk QDECL GHL_GetApproxWavePlayLen(unk){notimp(__LINE__);}
+unk QDECL GHL_IsCareerMatch(unk){notimp(__LINE__);}
+unk QDECL GHL_GetLocalizedStringLength(unk){notimp(__LINE__);}
+unk QDECL GHL_RegisterTutorMessageShown(unk){notimp(__LINE__);}
+unk QDECL GHL_GetTimesTutorMessageShown(unk){notimp(__LINE__);}
+unk QDECL GHL_ProcessTutorMessageDecayBuffer(unk){notimp(__LINE__);}
+unk QDECL GHL_ConstructTutorMessageDecayBuffer(unk){notimp(__LINE__);}
+unk QDECL GHL_ResetTutorMessageDecayData(unk){notimp(__LINE__);}
+unk QDECL GHL_QueryClientCvarValue(unk){notimp(__LINE__);}
+unk QDECL GHL_QueryClientCvarValue2(unk){notimp(__LINE__);}
 
 
 
@@ -1216,8 +1218,8 @@ int SVHL_InitGame(void)
 	char *gamedll;
 	char *path;
 	char fullname[MAX_OSPATH];
-	void (*GiveFnptrsToDll) (funcs, globals);
-	int (*GetEntityAPI)(SVHL_GameFuncs_t *pFunctionTable, int apivers);
+	void (QDECL *GiveFnptrsToDll) (funcs, globals);
+	int (QDECL *GetEntityAPI)(SVHL_GameFuncs_t *pFunctionTable, int apivers);
 
 	dllfunction_t hlgamefuncs[] =
 	{
@@ -1262,7 +1264,9 @@ int SVHL_InitGame(void)
 
 	if (!GetEntityAPI(&SVHL_GameFuncs, HALFLIFE_API_VERSION))
 	{
-		Con_Printf(CON_ERROR "Error: %s is incompatible\n", fullname);
+		Con_Printf(CON_ERROR "Error: %s is incompatible (FTE is %i)\n", fullname, HALFLIFE_API_VERSION);
+		if (GetEntityAPI(&SVHL_GameFuncs, 138))
+			Con_Printf(CON_ERROR "mod is 138\n");
 		Sys_CloseLibrary(hlgamecode);
 		hlgamecode = NULL;
 		return 0;

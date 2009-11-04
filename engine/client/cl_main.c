@@ -118,6 +118,7 @@ cvar_t	cl_chatsound = SCVAR("cl_chatsound","1");
 cvar_t	cl_enemychatsound = SCVAR("cl_enemychatsound", "misc/talk.wav");
 cvar_t	cl_teamchatsound = SCVAR("cl_teamchatsound", "misc/talk.wav");
 
+cvar_t	r_torch			= SCVARF("r_torch",	"0",	CVAR_CHEAT);
 cvar_t	r_rocketlight	= SCVARC("r_rocketlight",	"1", Cvar_Limiter_ZeroToOne_Callback);
 cvar_t	r_lightflicker	= SCVAR("r_lightflicker",	"1");
 cvar_t	cl_r2g			= SCVAR("cl_r2g",	"0");
@@ -162,6 +163,7 @@ cvar_t	ruleset_allow_larger_models	= SCVAR("ruleset_allow_larger_models", "1");
 cvar_t	ruleset_allow_modified_eyes = SCVAR("ruleset_allow_modified_eyes", "0");
 cvar_t	ruleset_allow_sensative_texture_replacements = SCVAR("ruleset_allow_sensative_texture_replacements", "1");
 cvar_t	ruleset_allow_localvolume	= SCVAR("ruleset_allow_localvolume", "1");
+cvar_t  ruleset_allow_shaders	= SCVAR("ruleset_allow_shaders", "1");
 
 extern cvar_t cl_hightrack;
 extern cvar_t	vid_renderer;
@@ -182,10 +184,11 @@ entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
 trailstate_t   *cl_static_emit[MAX_STATIC_ENTITIES];
 lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 //lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
-dlight_t		cl_dlights[MAX_DLIGHTS];
+dlight_t		*cl_dlights;
+unsigned int	cl_maxdlights; /*size of cl_dlights array*/
 
 int cl_baselines_count;
-int dlights_running, dlights_software;
+int rtlights_first, rtlights_max;
 
 // refresh list
 // this is double buffered so the last frame
@@ -193,6 +196,18 @@ int dlights_running, dlights_software;
 int				cl_numvisedicts, cl_oldnumvisedicts;
 entity_t		*cl_visedicts, *cl_oldvisedicts;
 entity_t		cl_visedicts_list[2][MAX_VISEDICTS];
+
+scenetris_t		*cl_stris;
+vecV_t			*cl_strisvertv;
+vec4_t			*cl_strisvertc;
+vec2_t			*cl_strisvertt;
+index_t			*cl_strisidx;
+unsigned int cl_numstrisidx;
+unsigned int cl_maxstrisidx;
+unsigned int cl_numstrisvert;
+unsigned int cl_maxstrisvert;
+unsigned int cl_numstris;
+unsigned int cl_maxstris;
 
 double			connect_time = -1;		// for connection retransmits
 int				connect_type = 0;
@@ -279,6 +294,7 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t adr)
 {
 	char	data[2048];
 	cls.fteprotocolextensions = 0;
+	cls.fteprotocolextensions2 = 0;
 
 	cls.resendinfo = false;
 
@@ -292,9 +308,10 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t adr)
 }
 
 #ifdef PROTOCOL_VERSION_FTE
-unsigned int CL_SupportedFTEExtensions(void)
+void CL_SupportedFTEExtensions(int *pext1, int *pext2)
 {
 	unsigned int fteprotextsupported = 0;
+	unsigned int fteprotextsupported2 = 0;
 
 #ifdef PEXT_SCALE	//dmw - protocol extensions
 	fteprotextsupported |= PEXT_SCALE;
@@ -373,12 +390,19 @@ unsigned int CL_SupportedFTEExtensions(void)
 	fteprotextsupported |= PEXT_DPFLAGS;
 #endif
 
+	fteprotextsupported2 |= PEXT2_PRYDONCURSOR;
+
 	fteprotextsupported &= strtoul(cl_pext_mask.string, NULL, 16);
+//	fteprotextsupported2 &= strtoul(cl_pext2_mask.string, NULL, 16);
 
-	if (cl_nopext.value)
+	if (cl_nopext.ival)
+	{
 		fteprotextsupported = 0;
+		fteprotextsupported2 = 0;
+	}
 
-	return fteprotextsupported;
+	*pext1 = fteprotextsupported;
+	*pext2 = fteprotextsupported2;
 }
 #endif
 
@@ -391,7 +415,7 @@ called by CL_Connect_f and CL_CheckResend
 */
 void CL_SendConnectPacket (
 #ifdef PROTOCOL_VERSION_FTE
-						   int ftepext,
+						   int ftepext, int ftepext2,
 #endif
 						   int compressioncrc
 						  /*, ...*/)	//dmw new parms
@@ -403,6 +427,7 @@ void CL_SendConnectPacket (
 	double t1, t2;
 #ifdef PROTOCOL_VERSION_FTE
 	int fteprotextsupported=0;
+	int fteprotextsupported2=0;
 #endif
 	int clients;
 	int c;
@@ -414,15 +439,16 @@ void CL_SendConnectPacket (
 	if (cls.state != ca_disconnected)
 		return;
 
-	if (cl_nopext.value)	//imagine it's an unenhanced server
+	if (cl_nopext.ival)	//imagine it's an unenhanced server
 	{
 		compressioncrc = 0;
 	}
 
 #ifdef PROTOCOL_VERSION_FTE
-	fteprotextsupported = CL_SupportedFTEExtensions();
+	CL_SupportedFTEExtensions(&fteprotextsupported, &fteprotextsupported2);
 
 	fteprotextsupported &= ftepext;
+	fteprotextsupported2 &= ftepext2;
 
 #ifdef Q2CLIENT
 	if (cls.protocol != CP_QUAKEWORLD)
@@ -430,6 +456,7 @@ void CL_SendConnectPacket (
 #endif
 
 	cls.fteprotocolextensions = fteprotextsupported;
+	cls.fteprotocolextensions2 = fteprotextsupported2;
 #endif
 
 	t1 = Sys_DoubleTime ();
@@ -526,6 +553,10 @@ void CL_SendConnectPacket (
 	if (ftepext)
 		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE, fteprotextsupported), sizeof(data));
 #endif
+#ifdef PROTOCOL_VERSION_FTE2
+	if (ftepext2)
+		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE2, fteprotextsupported2), sizeof(data));
+#endif
 
 #ifdef HUFFNETWORK
 	if (compressioncrc && Huff_CompressionCRC(compressioncrc))
@@ -616,7 +647,7 @@ void CL_CheckForResend (void)
 			CL_ConnectToDarkPlaces("", adr);
 		}
 		else
-			CL_SendConnectPacket (svs.fteprotocolextensions, false);
+			CL_SendConnectPacket (svs.fteprotocolextensions, svs.fteprotocolextensions2, false);
 		return;
 	}
 #endif
@@ -839,7 +870,6 @@ void CLNQ_Connect_f (void)
 #endif
 
 #ifdef IRCCONNECT
-struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboolean isserver, char *address);
 void CL_IRCConnect_f (void)
 {
 	CL_Disconnect_f ();
@@ -1025,7 +1055,7 @@ void CL_ClearState (void)
 //	memset (cl_dlights, 0, sizeof(cl_dlights));
 	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
 
-	dlights_running = 0;
+	rtlights_first = rtlights_max = RTL_FIRST;
 
 	if (cl_baselines)
 	{
@@ -1144,7 +1174,7 @@ void CL_Disconnect (void)
 
 	if (cl.worldmodel)
 	{
-#if defined(RUNTIMELIGHTING) && defined(RGLQUAKE)
+#if defined(RUNTIMELIGHTING) && defined(GLQUAKE)
 		extern model_t *lightmodel;
 		lightmodel = NULL;
 #endif
@@ -1374,9 +1404,6 @@ void CL_CheckServerInfo(void)
 	unsigned int allowed;
 	int oldstate;
 	int oldteamplay;
-	qboolean oldallowshaders;
-
-	oldallowshaders = cls.allow_shaders;
 
 	oldteamplay = cl.teamplay;
 	cl.teamplay = atoi(Info_ValueForKey(cl.serverinfo, "teamplay"));
@@ -1388,7 +1415,6 @@ void CL_CheckServerInfo(void)
 	cls.allow_watervis=false;
 	cls.allow_skyboxes=false;
 	cls.allow_mirrors=false;
-	cls.allow_shaders=false;
 	cls.allow_luma=false;
 	cls.allow_bump=false;
 #ifdef FISH
@@ -1435,17 +1461,11 @@ void CL_CheckServerInfo(void)
 		cls.allow_cheats = true;
 
 	s = Info_ValueForKey(cl.serverinfo, "strict");
-	if ((!cl.spectator && !cls.demoplayback && *s && strcmp(s, "0")) || !ruleset_allow_semicheats.value)
+	if ((!cl.spectator && !cls.demoplayback && *s && strcmp(s, "0")) || !ruleset_allow_semicheats.ival)
 	{
 		cls.allow_semicheats = false;
 		cls.allow_cheats	= false;
 	}
-
-	cls.allow_shaders = cls.allow_cheats;
-
-	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_shaders")))
-		cls.allow_shaders=true;
-
 
 	cls.maxfps = atof(Info_ValueForKey(cl.serverinfo, "maxfps"));
 	if (cls.maxfps < 20)
@@ -1471,10 +1491,18 @@ void CL_CheckServerInfo(void)
 		movevars.stepheight = PM_DEFAULTSTEPHEIGHT;
 
 	// Initialize cl.maxpitch & cl.minpitch
-	s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "maxpitch") : "";
-	cl.maxpitch = *s ? Q_atof(s) : 80.0f;
-	s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "minpitch") : "";
-	cl.minpitch = *s ? Q_atof(s) : -70.0f;
+	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)
+	{
+		s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "maxpitch") : "";
+		cl.maxpitch = *s ? Q_atof(s) : 80.0f;
+		s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "minpitch") : "";
+		cl.minpitch = *s ? Q_atof(s) : -70.0f;
+	}
+	else
+	{
+		cl.maxpitch = 89.9;
+		cl.minpitch = -89.9;
+	}
 
 	allowed = atoi(Info_ValueForKey(cl.serverinfo, "allow"));
 	if (allowed & 1)
@@ -1485,8 +1513,7 @@ void CL_CheckServerInfo(void)
 		cls.allow_skyboxes = true;
 	if (allowed & 8)
 		cls.allow_mirrors = true;
-	if (allowed & 16)
-		cls.allow_shaders = true;
+	//16
 	if (allowed & 32)
 		cls.allow_luma = true;
 	if (allowed & 64)
@@ -1526,8 +1553,6 @@ void CL_CheckServerInfo(void)
 	Cvar_ForceCheatVars(cls.allow_semicheats, cls.allow_cheats);
 	Validation_Apply_Ruleset();
 
-	if (oldallowshaders != cls.allow_shaders)
-		Cache_Flush();	//this will cause all models to be reloaded.
 	if (oldteamplay != cl.teamplay)
 		Skin_FlushPlayers();
 }
@@ -1622,7 +1647,7 @@ void CL_FullInfo_f (void)
 		if (!stricmp(key, pmodel_name) || !stricmp(key, emodel_name))
 			continue;
 
-		Info_SetValueForKey (cls.userinfo, key, value, MAX_INFO_STRING);
+		Info_SetValueForKey (cls.userinfo, key, value, sizeof(cls.userinfo));
 	}
 }
 
@@ -1636,7 +1661,7 @@ void CL_SetInfo (char *key, char *value)
 		return;
 	}
 
-	Info_SetValueForStarKey (cls.userinfo, key, value, MAX_INFO_STRING);
+	Info_SetValueForStarKey (cls.userinfo, key, value, sizeof(cls.userinfo));
 	if (cls.state >= ca_connected)
 	{
 #ifdef Q2CLIENT
@@ -1755,7 +1780,7 @@ void CL_Packet_f (void)
 		cls.realserverip = adr;
 		Con_DPrintf ("Sending realip packet\n");
 	}
-	else if (!ruleset_allow_packet.value)
+	else if (!ruleset_allow_packet.ival)
 	{
 		Con_Printf("Sorry, the %s command is disallowed\n", Cmd_Argv(0));
 		return;
@@ -1818,7 +1843,10 @@ void CL_NextDemo (void)
 		}
 	}
 
-	sprintf (str,"playdemo %s\n", cls.demos[cls.demonum]);
+	if (!strcmp(cls.demos[cls.demonum], "quit"))
+		sprintf (str,"quit\n");
+	else
+		sprintf (str,"playdemo %s\n", cls.demos[cls.demonum]);
 	Cbuf_InsertText (str, RESTRICT_LOCAL, false);
 	cls.demonum++;
 }
@@ -2060,7 +2088,7 @@ void CL_ConnectionlessPacket (void)
 
 	if (c == S2C_CHALLENGE)
 	{
-		unsigned long pext = 0, huffcrc=0;
+		unsigned long pext = 0, pext2 = 0, huffcrc=0;
 		Con_TPrintf (TLC_S2C_CHALLENGE);
 
 		s = MSG_ReadString ();
@@ -2072,7 +2100,7 @@ void CL_ConnectionlessPacket (void)
 			{
 				cls.protocol = CP_QUAKE3;
 				cls.challenge = atoi(s+17);
-				CL_SendConnectPacket (0, 0/*, ...*/);
+				CL_SendConnectPacket (0, 0, 0/*, ...*/);
 			}
 			else
 			{
@@ -2150,6 +2178,8 @@ void CL_ConnectionlessPacket (void)
 				break;
 			if (c == PROTOCOL_VERSION_FTE)
 				pext = MSG_ReadLong ();
+			else if (c == PROTOCOL_VERSION_FTE2)
+				pext2 = MSG_ReadLong ();
 #ifdef HUFFNETWORK
 			else if (c == (('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24)))
 				huffcrc = MSG_ReadLong ();
@@ -2158,7 +2188,7 @@ void CL_ConnectionlessPacket (void)
 			else
 				MSG_ReadLong ();
 		}
-		CL_SendConnectPacket (pext, huffcrc/*, ...*/);
+		CL_SendConnectPacket (pext, pext2, huffcrc/*, ...*/);
 		return;
 	}
 #ifdef Q2CLIENT
@@ -2558,7 +2588,6 @@ void CL_ReadPackets (void)
 			CLQ3_ParseServerMessage();
 #endif
 			break;
-			break;
 		case CP_QUAKEWORLD:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			{
@@ -2691,7 +2720,7 @@ void CL_DownloadSize_f(void)
 
 		dl = CL_DownloadFailed(rname);
 
-		if (allow_download_redirection.value)
+		if (allow_download_redirection.ival)
 		{
 			Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);
 			CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
@@ -2836,7 +2865,7 @@ void CL_Init (void)
 	cls.state = ca_disconnected;
 
 	sprintf (st, "%s %i", DISTRIBUTION, build_number());
-	Info_SetValueForStarKey (cls.userinfo, "*ver", st, MAX_INFO_STRING);
+	Info_SetValueForStarKey (cls.userinfo, "*ver", st, sizeof(cls.userinfo));
 
 	InitValidation();
 
@@ -2844,6 +2873,7 @@ void CL_Init (void)
 	CL_InitTEnts ();
 	CL_InitPrediction ();
 	CL_InitCam ();
+	CL_InitDlights();
 	PM_Init ();
 	TP_Init();
 
@@ -2908,6 +2938,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cl_staticsounds, "Item effects");
 
+	Cvar_Register (&r_torch, "Item effects");
 	Cvar_Register (&r_rocketlight, "Item effects");
 	Cvar_Register (&r_lightflicker, "Item effects");
 	Cvar_Register (&cl_r2g, "Item effects");
@@ -2987,6 +3018,7 @@ void CL_Init (void)
 	Cvar_Register (&ruleset_allow_modified_eyes,			cl_controlgroup);
 	Cvar_Register (&ruleset_allow_sensative_texture_replacements,	cl_controlgroup);
 	Cvar_Register (&ruleset_allow_localvolume,			cl_controlgroup);
+	Cvar_Register (&ruleset_allow_shaders,			cl_controlgroup);
 
 	Cvar_Register (&qtvcl_forceversion1,				cl_controlgroup);
 	Cvar_Register (&qtvcl_eztvextensions,				cl_controlgroup);
@@ -3005,6 +3037,10 @@ void CL_Init (void)
 	Cmd_AddCommand ("qtvdemos", CL_QTVDemos_f);
 	Cmd_AddCommand ("demo_jump", CL_DemoJump_f);
 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
+
+#ifdef _DEBUG
+	Cmd_AddCommand ("crashme", (void*)~0);
+#endif
 
 	Cmd_AddCommand ("showpic", SCR_ShowPic_Script_f);
 
@@ -3244,9 +3280,12 @@ void Host_Frame (double time)
 //		realframetime *= cl_demospeed.value; // this probably screws up other timings
 
 #ifndef CLIENTONLY
-	RSpeedRemark();
-	SV_Frame();
-	RSpeedEnd(RSPEED_SERVER);
+	if (sv.state)
+	{
+		RSpeedRemark();
+		SV_Frame();
+		RSpeedEnd(RSPEED_SERVER);
+	}
 #endif
 
 	if (cl.gamespeed<0.1)
@@ -3286,22 +3325,22 @@ void Host_Frame (double time)
 
 	*/
 	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
-	if ((cl_netfps.value>0 || cls.demoplayback || cl_indepphysics.value))
+	if ((cl_netfps.value>0 || cls.demoplayback || cl_indepphysics.ival))
 	{	//limit the fps freely, and expect the netfps to cope.
-		if (cl_maxfps.value > 0)
+		if (cl_maxfps.ival > 0)
 			if ((realtime - oldrealtime) < 1/cl_maxfps.value)
 				return;
 	}
 	else
 	{
 		realtime += spare/1000;	//don't use it all!
-		spare = CL_FilterTime((realtime - oldrealtime)*1000, (cl_maxfps.value>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:cl_netfps.value);
+		spare = CL_FilterTime((realtime - oldrealtime)*1000, (cl_maxfps.ival>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:cl_netfps.value);
 		if (!spare)
 			return;
 		if (spare < 0 || cls.state < ca_onserver)
 			spare = 0;	//uncapped.
-		if (spare > cl_sparemsec.value)
-			spare = cl_sparemsec.value;
+		if (spare > cl_sparemsec.ival)
+			spare = cl_sparemsec.ival;
 
 		realtime -= spare/1000;	//don't use it all!
 	}
@@ -3343,7 +3382,7 @@ void Host_Frame (double time)
 
 	RSpeedRemark();
 
-	CL_UseIndepPhysics(!!cl_indepphysics.value);
+	CL_UseIndepPhysics(!!cl_indepphysics.ival);
 
 	CL_AllowIndependantSendCmd(false);
 
@@ -3359,7 +3398,7 @@ void Host_Frame (double time)
 	}
 	else
 	{
-		CL_SendCmd (host_frametime/cl.gamespeed, true);
+		CL_SendCmd (cl.gamespeed?host_frametime/cl.gamespeed:host_frametime, true);
 
 		if (cls.state == ca_onserver && cl.validsequence && cl.worldmodel)
 		{	// first update is the final signon stage
@@ -3371,7 +3410,7 @@ void Host_Frame (double time)
 	RSpeedEnd(RSPEED_PROTOCOL);
 
 	// update video
-	if (host_speeds.value)
+	if (host_speeds.ival)
 		time1 = Sys_DoubleTime ();
 
 	if (SCR_UpdateScreen)
@@ -3379,7 +3418,7 @@ void Host_Frame (double time)
 		extern mleaf_t	*r_viewleaf;
 		extern cvar_t scr_chatmodecvar;
 
-		if (scr_chatmodecvar.value && !cl.intermission)
+		if (scr_chatmodecvar.ival && !cl.intermission)
 			scr_chatmode = (cl.spectator&&cl.splitclients<2&&cls.state == ca_active)?2:1;
 		else
 			scr_chatmode = 0;
@@ -3391,7 +3430,7 @@ void Host_Frame (double time)
 			SNDDMA_SetUnderWater(false);
 	}
 
-	if (host_speeds.value)
+	if (host_speeds.ival)
 		time2 = Sys_DoubleTime ();
 
 	// update audio
@@ -3412,7 +3451,7 @@ void Host_Frame (double time)
 
 	CDAudio_Update();
 
-	if (host_speeds.value)
+	if (host_speeds.ival)
 	{
 		pass1 = (time1 - time3)*1000;
 		time3 = Sys_DoubleTime ();

@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #ifdef PEXT_BULLETENS
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"//hack
 #endif
 
@@ -390,12 +390,12 @@ player_info_t	*s;
 #endif
 			R_MakeBulleten(a->texture, a->bultextleft, a->bultexttop, text, a->normaltexture);
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 			if (qrenderer == QR_OPENGL)
 			{
 				GL_Bind(a->texture->tn.base);
 
-				GL_Upload8 ("bulleten", (qbyte *)a->texture + a->texture->offsets[0], a->texture->width, a->texture->height, false, false);
+				GL_Upload8 ("bulleten", (qbyte *)a->texture + a->texture->offsets[0], a->texture->width, a->texture->height, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA, 0);
 			}
 #endif
 		}

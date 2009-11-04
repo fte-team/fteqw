@@ -152,6 +152,7 @@ Make a master server current
 ====================
 */
 void Master_ClearAll(void);
+void Master_ReResolve(void);
 void Master_Add(char *stringadr);
 
 void SV_SetMaster_f (void)
@@ -335,7 +336,7 @@ void SV_Give_f (void)
 	{
 		int oldself;
 		oldself = pr_global_struct->self;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 		Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
 		pr_global_struct->self = oldself;
 	}
@@ -1398,7 +1399,7 @@ void SV_Status_f (void)
 	else
 		Con_Printf ("current map      : %s\n", sv.name);
 
-	Con_Printf("map uptime       : %s\n", ShowTime(sv.physicstime));
+	Con_Printf("map uptime       : %s\n", ShowTime(sv.world.physicstime));
 	Con_Printf("server uptime    : %s\n", ShowTime(realtime));
 	if (sv.csqcdebug)
 		Con_Printf("csqc debug       : true\n");
@@ -1865,7 +1866,8 @@ void SV_Snap (int uid)
 		if (cl->userid == uid)
 			break;
 	}
-	if (i >= MAX_CLIENTS) {
+	if (i >= MAX_CLIENTS)
+	{
 		Con_TPrintf (STL_USERDOESNTEXIST);
 		return;
 	}
@@ -1877,7 +1879,7 @@ void SV_Snap (int uid)
 
 	sprintf(pcxname, "%d-00.pcx", uid);
 
-	sprintf(checkname, "%s/snap", gamedirfile);
+	strcpy(checkname, "snap");
 	Sys_mkdir(gamedirfile);
 	Sys_mkdir(checkname);
 
@@ -1886,7 +1888,7 @@ void SV_Snap (int uid)
 		pcxname[strlen(pcxname) - 6] = i/10 + '0';
 		pcxname[strlen(pcxname) - 5] = i%10 + '0';
 		sprintf (checkname, "%s/snap/%s", gamedirfile, pcxname);
-		if (Sys_FileTime(checkname) == -1)
+		if (!COM_FCheckExists(checkname))
 			break;	// file doesn't exist
 	}
 	if (i==100)

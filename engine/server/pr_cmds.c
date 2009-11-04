@@ -160,9 +160,6 @@ char *QC_ProgsNameForEnt(edict_t *ent)
 	return "?";
 }
 
-
-int pr_edict_size;
-
 void ED_Spawned (struct edict_s *ent, int loading)
 {
 #ifdef VM_Q1
@@ -185,7 +182,7 @@ void ED_Spawned (struct edict_s *ent, int loading)
 
 pbool ED_CanFree (edict_t *ed)
 {
-	if (ed == sv.edicts)
+	if (ed == (edict_t*)sv.world.edicts)
 	{
 		if (developer.value)
 		{
@@ -202,7 +199,7 @@ pbool ED_CanFree (edict_t *ed)
 		*svprogfuncs->pr_trace = 1;
 		return false;
 	}
-	SV_UnlinkEdict (ed);		// unlink from world bsp
+	World_UnlinkEdict ((wedict_t*)ed);		// unlink from world bsp
 
 	ed->v->model = 0;
 	ed->v->takedamage = 0;
@@ -214,7 +211,6 @@ pbool ED_CanFree (edict_t *ed)
 	VectorClear (ed->v->angles);
 	ed->v->nextthink = 0;
 	ed->v->solid = 0;
-
 
 	ed->v->classname = 0;
 
@@ -231,6 +227,12 @@ pbool ED_CanFree (edict_t *ed)
 
 	ed->xv->SendEntity = 0;
 	sv.csqcentversion[ed->entnum] = ed->xv->Version+1;
+
+#ifdef USEODE
+	World_Physics_RemoveFromEntity(&sv.world, (wedict_t*)ed);
+	World_Physics_RemoveJointFromEntity(&sv.world, (wedict_t*)ed);
+#endif
+
 
 	return true;
 }
@@ -423,14 +425,14 @@ void Q_SetProgsParms(qboolean forcompiler)
 
 	svprogparms.gametime = &sv.time;
 
-	svprogparms.sv_edicts = &sv.edicts;
-	svprogparms.sv_num_edicts = &sv.num_edicts;
+	svprogparms.sv_edicts = (edict_t**)&sv.world.edicts;
+	svprogparms.sv_num_edicts = &sv.world.num_edicts;
 
 	svprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 
 	if (!svprogfuncs)
 	{
-		svprogfuncs = InitProgs(&svprogparms);
+		sv.world.progs = svprogfuncs = InitProgs(&svprogparms);
 	}
 	PR_ClearThreads();
 	PR_fclose_progs(svprogfuncs);
@@ -868,17 +870,17 @@ void PR_ApplyCompilation_f (void)
 
 	PR_Configure(svprogfuncs, -1, MAX_PROGS);
 	PR_RegisterFields();
-	PR_InitEnts(svprogfuncs, sv.max_edicts);
+	PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
-	pr_edict_size=svprogfuncs->load_ents(svprogfuncs, s, 0);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, s, 0);
 
 
 	PR_LoadGlabalStruct();
 
-	pr_global_struct->time = sv.physicstime;
+	pr_global_struct->time = sv.world.physicstime;
 
 
-	SV_ClearWorld ();
+	World_ClearWorld (&sv.world);
 
 	for (i=0 ; i<sv.allocated_client_slots ; i++)
 	{
@@ -887,14 +889,14 @@ void PR_ApplyCompilation_f (void)
 		svs.clients[i].edict = ent;
 	}
 
-	ent = sv.edicts;
-	for (i=0 ; i<sv.num_edicts ; i++)
+	ent = (edict_t*)sv.world.edicts;
+	for (i=0 ; i<sv.world.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);
 		if (ent->isfree)
 			continue;
 
-		SV_LinkEdict (ent, false);	// force retouch even for stationary
+		World_LinkEdict (&sv.world, (wedict_t*)ent, false);	// force retouch even for stationary
 	}
 
 	svprogfuncs->parms->memfree(s);
@@ -1238,7 +1240,7 @@ void Q_InitProgs(void)
 	}
 	prnum = 0;
 
-	switch (sv.worldmodel->fromgame)	//spawn functions for - spawn funcs still come from the first progs found.
+	switch (sv.world.worldmodel->fromgame)	//spawn functions for - spawn funcs still come from the first progs found.
 	{
 	case fg_quake2:
 		if (COM_FDepthFile("q2bsp.dat", true)!=0x7fffffff)
@@ -1376,10 +1378,10 @@ void Q_InitProgs(void)
 		}
 	}
 
-	sv.max_edicts = pr_maxedicts.value;
-	if (sv.max_edicts > MAX_EDICTS)
-		sv.max_edicts = MAX_EDICTS;
-	pr_edict_size = PR_InitEnts(svprogfuncs, sv.max_edicts);
+	sv.world.max_edicts = pr_maxedicts.value;
+	if (sv.world.max_edicts > MAX_EDICTS)
+		sv.world.max_edicts = MAX_EDICTS;
+	sv.world.edict_size = PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 }
 
 qboolean PR_QCChat(char *text, int say_type)
@@ -1448,7 +1450,7 @@ qboolean PR_GameCodePacket(char *s)
 		return false;
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-	pr_global_struct->time = sv.physicstime;
+	pr_global_struct->time = sv.world.physicstime;
 
 	// check for packets from connected clients
 	pr_global_struct->self = 0;
@@ -1486,7 +1488,7 @@ qboolean PR_KrimzonParseCommand(char *s)
 	{	//the QC is expected to send it back to use via a builtin.
 
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
@@ -1515,7 +1517,7 @@ qboolean PR_UserCmd(char *s)
 	{	//the QC is expected to send it back to use via a builtin.
 
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
@@ -1526,7 +1528,7 @@ qboolean PR_UserCmd(char *s)
 #ifdef VM_Q1
 	if (svs.gametype == GT_Q1QVM)
 	{
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		Q1QVM_ClientCommand();
 		return true;	//qvm can print something if it wants
@@ -1547,7 +1549,7 @@ qboolean PR_UserCmd(char *s)
 		}
 
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
@@ -1584,8 +1586,8 @@ qboolean PR_ConsoleCmd(void)
 		{
 			if (sv_redirected != RD_OBLIVION)
 			{
-				pr_global_struct->time = sv.physicstime;
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+				pr_global_struct->time = sv.world.physicstime;
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 			}
 
 			PR_ExecuteProgram (svprogfuncs, gfuncs.ConsoleCmd);
@@ -1603,7 +1605,7 @@ void PR_ClientUserInfoChanged(char *name, char *oldivalue, char *newvalue)
 		globalvars_t *pr_globals;
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, name);
@@ -1621,8 +1623,8 @@ void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue)
 		globalvars_t *pr_globals;
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-		pr_global_struct->time = sv.physicstime;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+		pr_global_struct->time = sv.world.physicstime;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 
 		G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, name);
 		G_INT(OFS_PARM1) = PR_TempString(svprogfuncs, oldivalue);
@@ -1786,7 +1788,7 @@ void PF_setorigin (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	e = G_EDICT(prinst, OFS_PARM0);
 	org = G_VECTOR(OFS_PARM1);
 	VectorCopy (org, e->v->origin);
-	SV_LinkEdict (e, false);
+	World_LinkEdict (&sv.world, (wedict_t*)e, false);
 }
 
 
@@ -1816,7 +1818,7 @@ void PF_setsize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorCopy (min, e->v->mins);
 	VectorCopy (max, e->v->maxs);
 	VectorSubtract (max, min, e->v->size);
-	SV_LinkEdict (e, false);
+	World_LinkEdict (&sv.world, (wedict_t*)e, false);
 }
 
 
@@ -1860,7 +1862,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 #endif
 					m = sv.strings.model_precache[i] = PR_AddString(prinst, m, 0);
 				if (!strcmp(m + strlen(m) - 4, ".bsp"))
-					sv.models[i] = Mod_FindName(m);
+					sv.world.models[i] = Mod_FindName(m);
 				Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", m);
 
 				if (sv.state != ss_loading)
@@ -1895,7 +1897,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 			VectorCopy (mod->mins, e->v->mins);
 			VectorCopy (mod->maxs, e->v->maxs);
 			VectorSubtract (mod->maxs, mod->mins, e->v->size);
-			SV_LinkEdict (e, false);
+			World_LinkEdict (&sv.world, (wedict_t*)e, false);
 		}
 
 		return;
@@ -1921,7 +1923,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 			//nq dedicated servers load bsps and mdls
 			//qw dedicated servers only load bsps (better)
 
-			mod = sv.models[i];
+			mod = sv.world.models[i];
 			if (mod)
 			{
 				mod = Mod_ForName (m, false);
@@ -1930,7 +1932,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 					VectorCopy (mod->mins, e->v->mins);
 					VectorCopy (mod->maxs, e->v->maxs);
 					VectorSubtract (mod->maxs, mod->mins, e->v->size);
-					SV_LinkEdict (e, false);
+					World_LinkEdict (&sv.world, (wedict_t*)e, false);
 				}
 			}
 			else
@@ -1946,12 +1948,12 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 				e->v->maxs[1] =
 				e->v->maxs[2] = 16;
 				VectorSubtract (e->v->maxs, e->v->mins, e->v->size);
-				SV_LinkEdict (e, false);
+				World_LinkEdict (&sv.world, (wedict_t*)e, false);
 			}
 		}
 		else
 		{
-			if (sv.models[i])
+			if (sv.world.models[i])
 			{
 				mod = Mod_ForName (m, false);
 				if (mod)
@@ -1959,7 +1961,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 					VectorCopy (mod->mins, e->v->mins);
 					VectorCopy (mod->maxs, e->v->maxs);
 					VectorSubtract (mod->maxs, mod->mins, e->v->size);
-					SV_LinkEdict (e, false);
+					World_LinkEdict (&sv.world, (wedict_t*)e, false);
 				}
 			}
 			//qw was fixed - it never sets the size of an alias model, mostly because it doesn't know it.
@@ -1994,7 +1996,7 @@ static void PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_global
 {
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	char *str = PF_VarString(prinst, 1, pr_globals);
-	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.models[modelindex];
+	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.world.models[modelindex];
 
 	if (mod && Mod_FrameForName)
 		G_FLOAT(OFS_RETURN) = Mod_FrameForName(mod, str);
@@ -2011,9 +2013,9 @@ static void PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globa
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{
-		mod = sv.models[modelindex];
+		mod = sv.world.models[modelindex];
 		if (!mod)
-			mod = sv.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
+			mod = sv.world.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
 
 		if (mod && Mod_GetFrameDuration)
 			G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, framenum);
@@ -2026,7 +2028,7 @@ static void PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals
 #ifndef SERVERONLY
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	char *str = PF_VarString(prinst, 1, pr_globals);
-	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.models[modelindex];
+	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.world.models[modelindex];
 
 
 	if (mod && Mod_SkinForName)
@@ -2616,6 +2618,9 @@ void PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	nomonsters = G_FLOAT(OFS_PARM2);
 	ent = G_EDICT(prinst, OFS_PARM3);
 
+	if (sv_antilag.ival == 2)
+		nomonsters |= MOVE_LAGGED;
+
 	if (*svprogfuncs->callargc == 6)
 	{
 		mins = G_VECTOR(OFS_PARM4);
@@ -2629,7 +2634,7 @@ void PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	savedhull = ent->xv->hull;
 	ent->xv->hull = 0;
-	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
+	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
 	if (trace.startsolid)
@@ -2652,7 +2657,7 @@ void PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (trace.ent)
 		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
 	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
+		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.world.edicts);
 }
 
 static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2672,7 +2677,7 @@ static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	savedhull = ent->xv->hull;
 	ent->xv->hull = 0;
-	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
+	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
 	if (trace.startsolid)
@@ -2692,7 +2697,7 @@ static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (trace.ent)
 		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
 	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
+		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.world.edicts);
 }
 
 static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2712,7 +2717,7 @@ static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	savedhull = ent->xv->hull;
 	ent->xv->hull = 0;
-	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
+	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
 	if (trace.startsolid)
@@ -2735,7 +2740,7 @@ static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (trace.ent)
 		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
 	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
+		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.world.edicts);
 }
 
 extern trace_t SV_Trace_Toss (edict_t *ent, edict_t *ignore);
@@ -2746,7 +2751,7 @@ static void PF_TraceToss (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	edict_t	*ignore;
 
 	ent = G_EDICT(prinst, OFS_PARM0);
-	if (ent == sv.edicts)
+	if (ent == (edict_t*)sv.world.edicts)
 		Con_DPrintf("tracetoss: can not use world entity\n");
 	ignore = G_EDICT(prinst, OFS_PARM1);
 
@@ -2765,7 +2770,7 @@ static void PF_TraceToss (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (trace.ent)
 		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
 	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
+		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.world.edicts);
 }
 
 /*
@@ -2830,8 +2835,8 @@ int PF_newcheckclient (progfuncs_t *prinst, int check)
 
 // get the PVS for the entity
 	VectorAdd (ent->v->origin, ent->v->view_ofs, org);
-	leaf = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, org);
-	checkpvs = sv.worldmodel->funcs.LeafPVS (sv.worldmodel, leaf, checkpvsbuffer, sizeof(checkpvsbuffer));
+	leaf = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, org);
+	checkpvs = sv.world.worldmodel->funcs.LeafPVS (sv.world.worldmodel, leaf, checkpvsbuffer, sizeof(checkpvsbuffer));
 
 	return i;
 }
@@ -2858,16 +2863,17 @@ int PF_checkclient_Internal (progfuncs_t *prinst)
 	edict_t	*ent, *self;
 	int		l;
 	vec3_t	view;
+	world_t *w = &sv.world;
 
 // find a new check if on a new frame
-	if (sv.time - sv.lastchecktime >= 0.1)
+	if (w->physicstime - w->lastchecktime >= 0.1)
 	{
-		sv.lastcheck = PF_newcheckclient (prinst, sv.lastcheck);
-		sv.lastchecktime = sv.time;
+		w->lastcheck = PF_newcheckclient (prinst, w->lastcheck);
+		w->lastchecktime = w->physicstime;
 	}
 
 // return check if it might be visible
-	ent = EDICT_NUM(prinst, sv.lastcheck);
+	ent = EDICT_NUM(prinst, w->lastcheck);
 	if (ent->isfree || ent->v->health <= 0)
 	{
 		return 0;
@@ -2876,7 +2882,7 @@ int PF_checkclient_Internal (progfuncs_t *prinst)
 // if current entity can't possibly see the check entity, return 0
 	self = PROG_TO_EDICT(prinst, pr_global_struct->self);
 	VectorAdd (self->v->origin, self->v->view_ofs, view);
-	l = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, view)-1;
+	l = w->worldmodel->funcs.LeafnumForPoint(w->worldmodel, view)-1;
 	if ( (l<0) || !(checkpvs[l>>3] & (1<<(l&7)) ) )
 	{
 c_notvis++;
@@ -2885,7 +2891,7 @@ c_notvis++;
 
 // might be able to see it
 c_invis++;
-	return sv.lastcheck;
+	return w->lastcheck;
 }
 
 void PF_checkclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3040,7 +3046,7 @@ void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			return;
 		}
 	}
-	RETURN_EDICT(prinst, sv.edicts);
+	RETURN_EDICT(prinst, sv.world.edicts);
 }
 
 //DP_SV_BOTCLIENT
@@ -3085,7 +3091,7 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else if (!strcmp(str, "pr_map_builtin"))
 		G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("map_builtin", 0);
 	else if (!strcmp(str, "halflifebsp"))
-		G_FLOAT(OFS_RETURN) = sv.worldmodel->fromgame == fg_halflife;
+		G_FLOAT(OFS_RETURN) = sv.world.worldmodel->fromgame == fg_halflife;
 	else
 	{
 		cvar_t *cv = Cvar_FindVar(str);
@@ -3107,11 +3113,12 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_sv_getlight (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	/*not shared with client - clients get more lights*/
 	float *point = G_VECTOR(OFS_PARM0);
 	vec3_t diffuse, ambient, dir;
-	if (sv.worldmodel && sv.worldmodel->funcs.LightPointValues)
+	if (sv.world.worldmodel && sv.world.worldmodel->funcs.LightPointValues)
 	{
-		sv.worldmodel->funcs.LightPointValues(sv.worldmodel, point, diffuse, ambient, dir);
+		sv.world.worldmodel->funcs.LightPointValues(sv.world.worldmodel, point, diffuse, ambient, dir);
 		VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
 	}
 	else
@@ -3140,13 +3147,13 @@ void PF_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	vec3_t	eorg;
 	int		i, j;
 
-	chain = (edict_t *)sv.edicts;
+	chain = (edict_t *)sv.world.edicts;
 
 	org = G_VECTOR(OFS_PARM0);
 	rad = G_FLOAT(OFS_PARM1);
 	rad = rad*rad;
 
-	for (i=1 ; i<sv.num_edicts ; i++)
+	for (i=1 ; i<sv.world.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);
 		if (ent->isfree)
@@ -3314,7 +3321,7 @@ int PF_precache_model_Internal (progfuncs_t *prinst, char *s)
 				sv.strings.model_precache[i] = PR_AddString(prinst, s, 0);
 			s = sv.strings.model_precache[i];
 			if (!strcmp(s + strlen(s) - 4, ".bsp"))
-				sv.models[i] = Mod_FindName(s);
+				sv.world.models[i] = Mod_FindName(s);
 
 			if (sv.state != ss_loading)
 			{
@@ -3497,14 +3504,14 @@ void PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		end[2] -= 256;
 
 	VectorCopy (ent->v->origin, start);
-	trace = SV_Move (start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, ent);
+	trace = World_Move (&sv.world, start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
 
 	if (trace.fraction == 1 || trace.allsolid)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{
 		VectorCopy (trace.endpos, ent->v->origin);
-		SV_LinkEdict (ent, false);
+		World_LinkEdict (&sv.world, (wedict_t*)ent, false);
 		ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
 		ent->v->groundentity = EDICT_TO_PROG(prinst, trace.ent);
 		G_FLOAT(OFS_RETURN) = 1;
@@ -3674,7 +3681,7 @@ void PF_pointcontents (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	v = G_VECTOR(OFS_PARM0);
 
 //	cont = SV_Move(v, vec3_origin, vec3_origin, v, MOVE_NOMONSTERS, NULL).contents;
-	cont = SV_PointContents (v);
+	cont = World_PointContents (&sv.world, v);
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)
@@ -3730,7 +3737,7 @@ void PF_aim (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // try sending a trace straight
 	VectorCopy (P_VEC(v_forward), dir);
 	VectorMA (start, 2048, dir, end);
-	tr = SV_Move (start, vec3_origin, vec3_origin, end, false, ent);
+	tr = World_Move (&sv.world, start, vec3_origin, vec3_origin, end, false, (wedict_t*)ent);
 	if (tr.ent && ((edict_t *)tr.ent)->v->takedamage == DAMAGE_AIM
 	&& (!teamplay.value || ent->v->team <=0 || ent->v->team != ((edict_t *)tr.ent)->v->team) )
 	{
@@ -3744,7 +3751,7 @@ void PF_aim (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	bestdist = sv_aim.value;
 	bestent = NULL;
 
-	for (i=1 ; i<sv.num_edicts ; i++ )
+	for (i=1 ; i<sv.world.num_edicts ; i++ )
 	{
 		check = EDICT_NUM(prinst, i);
 		if (check->v->takedamage != DAMAGE_AIM)
@@ -3761,7 +3768,7 @@ void PF_aim (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		dist = DotProduct (dir, P_VEC(v_forward));
 		if (dist < bestdist)
 			continue;	// to far to turn
-		tr = SV_Move (start, vec3_origin, vec3_origin, end, false, ent);
+		tr = World_Move (&sv.world, start, vec3_origin, vec3_origin, end, false, (wedict_t*)ent);
 		if (tr.ent == check)
 		{	// can shoot at this one
 			bestdist = dist;
@@ -6079,8 +6086,8 @@ void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			}
 		}
 
-		if (ext->enabled)
-			*ext->enabled = true;
+		if (ext->queried)
+			*ext->queried = true;
 
 		G_FLOAT(OFS_RETURN) = true;
 		Con_DPrintf("Extension %s is supported\n", s);
@@ -6453,7 +6460,7 @@ void PF_log(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #ifdef Q2BSPS
 void PF_OpenPortal	(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (sv.worldmodel->fromgame == fg_quake2)
+	if (sv.world.worldmodel->fromgame == fg_quake2)
 	{
 		int i, portal	= G_FLOAT(OFS_PARM0);
 		int state	= G_FLOAT(OFS_PARM1)!=0;
@@ -6486,8 +6493,8 @@ static void PF_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	in = G_EDICT(prinst, OFS_PARM0);
 	out = G_EDICT(prinst, OFS_PARM1);
 
-	memcpy(out->v, in->v, pr_edict_size);
-	SV_LinkEdict(out, false);
+	memcpy(out->v, in->v, sv.world.edict_size);
+	World_LinkEdict(&sv.world, (wedict_t*)out, false);
 }
 
 
@@ -8191,7 +8198,7 @@ typedef struct zymbone_s
 int SV_TagForName(int modelindex, char *tagname)
 {
 #if 1
-	model_t *model = sv.models[modelindex];
+	model_t *model = sv.world.models[modelindex];
 	if (!model)
 		model = Mod_ForName(sv.strings.model_precache[modelindex], false);
 	if (!model)
@@ -8257,18 +8264,18 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	tagidx = 0;
 
-	if (tagentity != sv.edicts && tagname && tagname[0])
+	if (tagentity != (edict_t*)sv.world.edicts && tagname && tagname[0])
 	{
 		modelindex = (int)tagentity->v->modelindex;
 		if (modelindex > 0 && modelindex < MAX_MODELS)
 		{
-			if (!sv.models[modelindex])
-				sv.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
-			if (sv.models[modelindex])
+			if (!sv.world.models[modelindex])
+				sv.world.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
+			if (sv.world.models[modelindex])
 			{
 				tagidx = SV_TagForName(modelindex, tagname);
 				if (tagidx == 0)
-					Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), sv.models[modelindex]->name);
+					Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), sv.world.models[modelindex]->name);
 			}
 			else
 				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): Couldn't load model %s\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, sv.modelname[modelindex]);
@@ -8301,7 +8308,7 @@ void PF_gettagindex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		{
 			tagidx = SV_TagForName(modelindex, tagname);
 			if (tagidx == 0)
-				Con_DPrintf("PF_gettagindex(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, e), tagname, tagname, NUM_FOR_EDICT(prinst, e), sv.models[modelindex]->name);
+				Con_DPrintf("PF_gettagindex(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, e), tagname, tagname, NUM_FOR_EDICT(prinst, e), sv.world.models[modelindex]->name);
 		}
 		else
 			Con_DPrintf("PF_gettagindex(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i but it has no model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, e), tagname, tagname, NUM_FOR_EDICT(prinst, e));
@@ -8330,7 +8337,7 @@ void PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float result[12];
 	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
 	int tagnum = G_FLOAT(OFS_PARM1);
-	model_t *model = sv.models[(int)ent->v->modelindex];
+	model_t *model = sv.world.models[(int)ent->v->modelindex];
 
 	float *origin = G_VECTOR(OFS_RETURN);
 	float *axis[3];
@@ -8429,7 +8436,7 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pmove.hullnum = SV_HullNumForPlayer(ent->xv->hull, ent->v->mins, ent->v->maxs);
 
 	pmove.numphysent = 1;
-	pmove.physents[0].model = sv.worldmodel;
+	pmove.physents[0].model = sv.world.worldmodel;
 
 	for (i=0 ; i<3 ; i++)
 	{
@@ -8437,9 +8444,10 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pmove_mins[i] = pmove.origin[i] - 256;
 		pmove_maxs[i] = pmove.origin[i] + 256;
 	}
-	AddLinksToPmove(ent, sv_areanodes);
+	AddLinksToPmove(ent, sv.world.areanodes);
 //	AddAllEntsToPmove();
 
+	SV_PreRunCmd();
 
 	while(msecs)	//break up longer commands
 	{
@@ -8448,61 +8456,62 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			pmove.cmd.msec = 50;
 		msecs -= pmove.cmd.msec;
 		PM_PlayerMove(1);
-	}
 
-	ent->xv->pmove_flags = 0;
-	ent->xv->pmove_flags += ((int)pmove.jump_held?PMF_JUMP_HELD:0);
-	ent->xv->pmove_flags += ((int)pmove.onladder?PMF_LADDER:0);
-	ent->v->teleport_time = pmove.waterjumptime;
-	VectorCopy(pmove.origin, ent->v->origin);
-	VectorCopy(pmove.velocity, ent->v->velocity);
-
+		ent->xv->pmove_flags = 0;
+		ent->xv->pmove_flags += ((int)pmove.jump_held?PMF_JUMP_HELD:0);
+		ent->xv->pmove_flags += ((int)pmove.onladder?PMF_LADDER:0);
+		ent->v->teleport_time = pmove.waterjumptime;
+		VectorCopy(pmove.origin, ent->v->origin);
+		VectorCopy(pmove.velocity, ent->v->velocity);
 
 
-	ent->v->waterlevel = pmove.waterlevel;
 
-	if (pmove.watertype & FTECONTENTS_SOLID)
-		ent->v->watertype = Q1CONTENTS_SOLID;
-	else if (pmove.watertype & FTECONTENTS_SKY)
-		ent->v->watertype = Q1CONTENTS_SKY;
-	else if (pmove.watertype & FTECONTENTS_LAVA)
-		ent->v->watertype = Q1CONTENTS_LAVA;
-	else if (pmove.watertype & FTECONTENTS_SLIME)
-		ent->v->watertype = Q1CONTENTS_SLIME;
-	else if (pmove.watertype & FTECONTENTS_WATER)
-		ent->v->watertype = Q1CONTENTS_WATER;
-	else
-		ent->v->watertype = Q1CONTENTS_EMPTY;
+		ent->v->waterlevel = pmove.waterlevel;
 
-	if (pmove.onground)
-	{
-		ent->v->flags = (int)sv_player->v->flags | FL_ONGROUND;
-		ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, pmove.physents[pmove.groundent].info));
-	}
-	else
-		ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
-
-
-	SV_LinkEdict(ent, true);
-	for (i=0 ; i<pmove.numtouch ; i++)
-	{
-		if (pmove.physents[pmove.touchindex[i]].notouch)
-			continue;
-		n = pmove.physents[pmove.touchindex[i]].info;
-		touched = EDICT_NUM(svprogfuncs, n);
-		if (!ent->v->touch || (playertouch[n/8]&(1<<(n%8))))
-			continue;
-
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, touched);
-		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
-		pr_global_struct->time = sv.time;
-#ifdef VM_Q1
-		if (svs.gametype == GT_Q1QVM)
-			Q1QVM_Touch();
+		if (pmove.watertype & FTECONTENTS_SOLID)
+			ent->v->watertype = Q1CONTENTS_SOLID;
+		else if (pmove.watertype & FTECONTENTS_SKY)
+			ent->v->watertype = Q1CONTENTS_SKY;
+		else if (pmove.watertype & FTECONTENTS_LAVA)
+			ent->v->watertype = Q1CONTENTS_LAVA;
+		else if (pmove.watertype & FTECONTENTS_SLIME)
+			ent->v->watertype = Q1CONTENTS_SLIME;
+		else if (pmove.watertype & FTECONTENTS_WATER)
+			ent->v->watertype = Q1CONTENTS_WATER;
 		else
-#endif
-			PR_ExecuteProgram (svprogfuncs, touched->v->touch);
-		playertouch[n/8] |= 1 << (n%8);
+			ent->v->watertype = Q1CONTENTS_EMPTY;
+
+		if (pmove.onground)
+		{
+			ent->v->flags = (int)sv_player->v->flags | FL_ONGROUND;
+			ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, pmove.physents[pmove.groundent].info));
+		}
+		else
+			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
+
+
+
+		World_LinkEdict(&sv.world, (wedict_t*)ent, true);
+		for (i=0 ; i<pmove.numtouch ; i++)
+		{
+			if (pmove.physents[pmove.touchindex[i]].notouch)
+				continue;
+			n = pmove.physents[pmove.touchindex[i]].info;
+			touched = EDICT_NUM(svprogfuncs, n);
+			if (!touched->v->touch || (playertouch[n/8]&(1<<(n%8))))
+				continue;
+
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, touched);
+			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
+			pr_global_struct->time = sv.time;
+	#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+				Q1QVM_Touch();
+			else
+	#endif
+				PR_ExecuteProgram (svprogfuncs, touched->v->touch);
+			playertouch[n/8] |= 1 << (n%8);
+		}
 	}
 }
 
@@ -8540,7 +8549,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		sv_player->xv->button6 = ((ucmd->buttons >> 5) & 1);
 		sv_player->xv->button7 = ((ucmd->buttons >> 6) & 1);
 		sv_player->xv->button8 = ((ucmd->buttons >> 7) & 1);
-		if (ucmd->impulse && SV_FiltureImpulse(ucmd->impulse, host_client->trustlevel))
+		if (ucmd->impulse && SV_FilterImpulse(ucmd->impulse, host_client->trustlevel))
 			sv_player->v->impulse = ucmd->impulse;
 
 		if (host_client->iscuffed)
@@ -8620,7 +8629,7 @@ void PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	modelindex = ent->v->modelindex;
 	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.models[(int)ent->v->modelindex];
+		model = sv.world.models[(int)ent->v->modelindex];
 	else
 		model = NULL;
 
@@ -8643,7 +8652,7 @@ void PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	modelindex = ent->v->modelindex;
 	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.models[(int)ent->v->modelindex];
+		model = sv.world.models[(int)ent->v->modelindex];
 	else
 		model = NULL;
 
@@ -8674,7 +8683,7 @@ void PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	modelindex = ent->v->modelindex;
 	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.models[(int)ent->v->modelindex];
+		model = sv.world.models[(int)ent->v->modelindex];
 	else
 		model = NULL;
 
@@ -8707,7 +8716,7 @@ void PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	modelindex = ent->v->modelindex;
 	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.models[(int)ent->v->modelindex];
+		model = sv.world.models[(int)ent->v->modelindex];
 	else
 		model = NULL;
 
@@ -8745,7 +8754,7 @@ void PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	modelindex = ent->v->modelindex;
 	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.models[(int)ent->v->modelindex];
+		model = sv.world.models[(int)ent->v->modelindex];
 	else
 		model = NULL;
 
@@ -8818,9 +8827,9 @@ void PF_checkpvs(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	//FIXME: Make all alternatives of FatPVS not recalulate the pvs.
 	//and yeah, this is overkill what with the whole fat thing and all.
-	sv.worldmodel->funcs.FatPVS(sv.worldmodel, viewpos, qcpvs, sizeof(qcpvs), false);
+	sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, viewpos, qcpvs, sizeof(qcpvs), false);
 
-	G_FLOAT(OFS_RETURN) = sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent, qcpvs);
+	G_FLOAT(OFS_RETURN) = sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, (wedict_t*)ent, qcpvs);
 }
 
 //entity(string match [, float matchnum]) matchclient = #241;
@@ -9551,8 +9560,8 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 	for (i = 0; i < QSG_Extensions_count; i++)
 	{
-		if (QSG_Extensions[i].enabled)
-			*QSG_Extensions[i].enabled = false;
+		if (QSG_Extensions[i].queried)
+			*QSG_Extensions[i].queried = false;
 	}
 
 	if (type == PROG_QW && pr_imitatemvdsv.value>0)	//pretend to be mvdsv for a bit.
@@ -9683,178 +9692,39 @@ int pr_numbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 
 void PR_RegisterFields(void)	//it's just easier to do it this way.
 {
-#define fieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, (int)&((stdentvars_t*)0)->name, -1)
-#define fieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, (int)&((stdentvars_t*)0)->name, -1)
-#define fieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, (int)&((stdentvars_t*)0)->name, -1)
-#define fieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, (int)&((stdentvars_t*)0)->name, -1)
-#define fieldfunction(name) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, (int)&((stdentvars_t*)0)->name, -1)
-
+#define comfieldfloat(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_float, #ssqcname, (int)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldvector(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_vector, #ssqcname, (int)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldentity(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_entity, #ssqcname, (int)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldstring(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_string, #ssqcname, (int)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldfunction(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_function, #ssqcname, (int)&((stdentvars_t*)0)->ssqcname, -1)
+comqcfields
+#undef comfieldfloat
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
 #ifdef VM_Q1
-#define fieldxfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
-#define fieldxvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
-#define fieldxentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
-#define fieldxstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
-#define fieldxfunction(name) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
+#define comfieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
+#define comfieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
+#define comfieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
+#define comfieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
+#define comfieldfunction(name) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
 #else
-#define fieldxfloat fieldfloat
-#define fieldxvector fieldvector
-#define fieldxentity fieldentity
-#define fieldxstring fieldstring
-#define fieldxfunction fieldfunction
+#define comfieldfloat(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_float, #ssqcname, (int)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldvector(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_vector, #ssqcname, (int)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldentity(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_entity, #ssqcname, (int)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldstring(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_string, #ssqcname, (int)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldfunction(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_function, #ssqcname, (int)&((stdentvars_t*)0)->ssqcname, -1)
 #endif
 
-	fieldfloat(modelindex);
-	fieldvector(absmin);
-	fieldvector(absmax);
-	fieldfloat(ltime);
-	fieldfloat(lastruntime);
-	fieldfloat(movetype);
-	fieldfloat(solid);
-	fieldvector(origin);
-	fieldvector(oldorigin);
-	fieldvector(velocity);
-	fieldvector(angles);
-	fieldvector(avelocity);
-	fieldstring(classname);
-	fieldstring(model);
-	fieldfloat(frame);
-	fieldfloat(skin);
-	fieldfloat(effects);
-	fieldvector(mins);
-	fieldvector(maxs);
-	fieldvector(size);
-	fieldfunction(touch);
-	fieldfunction(use);
-	fieldfunction(think);
-	fieldfunction(blocked);
-	fieldfloat(nextthink);
-	fieldentity(groundentity);
-	fieldfloat(health);
-	fieldfloat(frags);
-	fieldfloat(weapon);
-	fieldstring(weaponmodel);
-	fieldfloat(weaponframe);
-	fieldfloat(currentammo);
-	fieldfloat(ammo_shells);
-	fieldfloat(ammo_nails);
-	fieldfloat(ammo_rockets);
-	fieldfloat(ammo_cells);
-	fieldfloat(items);
-	fieldfloat(takedamage);
-	fieldentity(chain);
-	fieldfloat(deadflag);
-	fieldvector(view_ofs);
-	fieldfloat(button0);
-	fieldfloat(button1);
-	fieldfloat(button2);
-	fieldfloat(impulse);
-	fieldfloat(fixangle);
-	fieldvector(v_angle);
-	fieldstring(netname);
-	fieldentity(enemy);
-	fieldfloat(flags);
-	fieldfloat(colormap);
-	fieldfloat(team);
-	fieldfloat(max_health);
-	fieldfloat(teleport_time);
-	fieldfloat(armortype);
-	fieldfloat(armorvalue);
-	fieldfloat(waterlevel);
-	fieldfloat(watertype);
-	fieldfloat(ideal_yaw);
-	fieldfloat(yaw_speed);
-	fieldentity(aiment);
-	fieldentity(goalentity);
-	fieldfloat(spawnflags);
-	fieldstring(target);
-	fieldstring(targetname);
-	fieldfloat(dmg_take);
-	fieldfloat(dmg_save);
-	fieldentity(dmg_inflictor);
-	fieldentity(owner);
-	fieldvector(movedir);
-	fieldfloat(sounds);
-	fieldstring(noise);
-	fieldstring(noise1);
-	fieldstring(noise2);
-	fieldstring(noise3);
+comextqcfields
+svextqcfields
 
-//the rest are extras. (not in header)
-	fieldxfloat(button3);
-	fieldxfloat(button4);
-	fieldxfloat(button5);
-	fieldxfloat(button6);
-	fieldxfloat(button7);
-	fieldxfloat(button8);
-	fieldxfloat(gravity);		//standard extension
-	fieldxfloat(maxspeed);	//standard extension
-	fieldxfloat(items2);	//standard nq
-	fieldxvector(punchangle);//standard nq
-	fieldxfloat(scale);
-	fieldxfloat(alpha);
-	fieldxfloat(fatness);
-	fieldxentity(view2);
-	fieldxvector(movement);
-	fieldxfloat(pmove_flags);
-	fieldxfloat(vw_index);
-
-	//dp extra fields
-	fieldxentity(nodrawtoclient);
-	fieldxentity(drawonlytoclient);
-	fieldxentity(viewmodelforclient);
-	fieldxentity(exteriormodeltoclient);
-
-	fieldxfloat(viewzoom);
-
-	fieldxentity(tag_entity);
-	fieldxfloat(tag_index);
-
-	fieldxfloat(glow_size);
-	fieldxfloat(glow_color);
-	fieldxfloat(glow_trail);
-
-	fieldxvector(colormod);
-
-//	if (progstype == PROG_H2)
-	{
-		fieldxvector(color);
-	}
-	fieldxfloat(light_lev);
-	fieldxfloat(style);
-	fieldxfloat(pflags);
-
-	fieldxfloat(clientcolors);
-
-//hexen 2 stuff
-	fieldxfloat(playerclass);
-	fieldxfloat(hull);
-	fieldxfloat(hasted);
-
-	fieldxfloat(light_level);
-	fieldxfloat(abslight);
-	fieldxfloat(drawflags);
-	fieldxentity(movechain);
-	fieldxfunction(chainmoved);
-
-	//QSG_DIMENSION_PLANES
-	fieldxfloat(dimension_see);
-	fieldxfloat(dimension_seen);
-	fieldxfloat(dimension_ghost);
-	fieldxfloat(dimension_ghost_alpha);
-	fieldxfloat(dimension_solid);
-	fieldxfloat(dimension_hit);
-
-
-	// EXT_CSQC
-	fieldxfunction(SendEntity);
-	fieldxfloat(SendFlags);
-	fieldxfloat(Version);
-	fieldxfloat(pvsflags);
-
-	// FTE_ENT_UNIQUESPAWNID
-	fieldxfloat(uniquespawnid);
-
-	fieldxfunction(customizeentityforclient);
+#undef comfieldfloat
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
 
 	//Tell the qc library to split the entity fields each side.
 	//the fields above become < 0, the remaining fields specified by the qc stay where the mod specified, as far as possible (with addons at least).

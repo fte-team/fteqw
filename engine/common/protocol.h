@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef SIDEVIEWS
 	#define PEXT_VIEW2			0x00000010
 #endif
-#define PEXT_BULLETENS			0x00000020
+//#define PEXT_BULLETENS			0x00000020
 #define PEXT_ACCURATETIMINGS	0x00000040
 #define PEXT_SOUNDDBL			0x00000080	//revised startsound protocol
 #define PEXT_FATNESS			0x00000100	//GL only (or servers)
@@ -52,10 +52,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_SPAWNSTATIC2		0x00400000	//Sends an entity delta instead of a baseline.
 #define PEXT_CUSTOMTEMPEFFECTS	0x00800000	//supports custom temp ents.
 #define PEXT_256PACKETENTITIES	0x01000000	//Client can recieve 256 packet entities.
-//#define PEXT_64PLAYERS			0x02000000	//Client is able to cope with 64 players. Wow.
+//#define PEXT_NEVERUSED		0x02000000	//Client is able to cope with 64 players. Wow.
 #define PEXT_SHOWPIC			0x04000000
 #define PEXT_SETATTACHMENT		0x08000000	//md3 tags (needs networking, they need to lerp).
-//#define PEXT_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
+//#define PEXT2_NEVERUSED		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
 #define PEXT_CHUNKEDDOWNLOADS	0x20000000	//alternate file download method. Hopefully it'll give quadroupled download speed, especially on higher pings.
 
 #ifdef CSQC_DAT
@@ -69,6 +69,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #else
 #define PEXT_BIGUSERINFOS	0xffffffff
 #endif		
+
+#define PEXT2_PRYDONCURSOR			0x00000001
+//#define PEXT2_64PLAYERS			0x02000000	//Client is able to cope with 64 players. Wow.
+//#define PEXT2_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
 
 //ZQuake transparent protocol extensions.
 #define Z_EXT_PM_TYPE		(1<<0)	// basic PM_TYPE functionality (reliable jump_held)
@@ -87,6 +91,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 #define PROTOCOL_VERSION_FTE			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))	//fte extensions.
+#define PROTOCOL_VERSION_FTE2			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('2' << 24))	//fte extensions.
 #define PROTOCOL_VERSION_HUFFMAN		(('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24))	//packet compression
 
 #define	PROTOCOL_VERSION_QW 28
@@ -908,7 +913,7 @@ typedef struct q1usercmd_s
 #define Q2RF_USE_DISGUISE		0x00040000
 //ROGUE
 
-#define Q2RF_ADDATIVE			0x00080000
+#define Q2RF_ADDITIVE			0x00080000
 #define RF_NOSHADOW				0x00100000
 #define RF_NODEPTHTEST			0x00200000
 

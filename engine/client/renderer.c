@@ -1,15 +1,24 @@
 #include "quakedef.h"
 #include "winquake.h"
-#ifdef RGLQUAKE
-#include "gl_draw.h"
-#endif
+#include "pr_common.h"
 
+
+refdef_t	r_refdef;
+vec3_t		r_origin, vpn, vright, vup;
+entity_t	r_worldentity;
+entity_t	*currententity;
+int			sh_shadowframe;	//index for msurf->shadowframe
+
+
+void R_InitParticleTexture (void);
 
 qboolean vid_isfullscreen;
 
 #define VIDCOMMANDGROUP "Video config"
 #define GRAPHICALNICETIES "Graphical Nicaties"	//or eyecandy, which ever you prefer.
+#ifdef PEXT_BULLETENS
 #define BULLETENVARS		"BulletenBoard controls"
+#endif
 #define GLRENDEREROPTIONS	"GL Renderer Options"
 #define SCREENOPTIONS	"Screen Options"
 
@@ -20,7 +29,7 @@ extern int gl_anisotropy_factor;
 // callbacks used for cvars
 void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue);
 void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldvalue);
@@ -43,23 +52,12 @@ cvar_t cl_cursorbias						= SCVAR  ("cl_cursorbias", "4");
 
 cvar_t gl_nocolors							= SCVAR  ("gl_nocolors", "0");
 cvar_t gl_part_flame						= SCVAR  ("gl_part_flame", "1");
-//opengl library
 
+//opengl library, blank means try default.
 static cvar_t gl_driver						= SCVARF ("gl_driver", "",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-#ifdef Q3SHADERS
-cvar_t gl_shadeq1							= SCVARF ("gl_shadeq1", "0",
-												CVAR_SEMICHEAT);
 cvar_t gl_shadeq1_name						= SCVAR  ("gl_shadeq1_name", "*");
-//use if you want.
-cvar_t gl_shadeq2							= SCVARF ("gl_shadeq2", "0",
-												CVAR_SEMICHEAT);
-//use if you want.
-cvar_t gl_shadeq3							= SCVARF ("gl_shadeq3", "1",
-												CVAR_SEMICHEAT);
-
 extern cvar_t r_vertexlight;
-#endif
 
 cvar_t mod_md3flags							= SCVAR  ("mod_md3flags", "1");
 
@@ -71,8 +69,8 @@ cvar_t r_bouncysparks						= SCVARF ("r_bouncysparks", "0",
 cvar_t r_drawdisk							= SCVAR  ("r_drawdisk", "1");
 cvar_t r_drawentities						= SCVAR  ("r_drawentities", "1");
 cvar_t r_drawflat							= SCVARF ("r_drawflat", "0",
-												CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK);
-cvar_t r_drawflat_nonworldmodel				= SCVAR  ("r_drawflat_nonworldmodel", "0");
+												CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
+cvar_t gl_miptexLevel						= SCVAR  ("gl_miptexLevel", "0");
 cvar_t r_drawviewmodel						= SCVAR  ("r_drawviewmodel", "1");
 cvar_t r_drawviewmodelinvis					= SCVAR  ("r_drawviewmodelinvis", "0");
 #ifdef MINIMAL
@@ -82,9 +80,10 @@ cvar_t r_dynamic							= SCVARF ("r_dynamic", "0",
 cvar_t r_dynamic							= SCVARF ("r_dynamic", "1",
 												CVAR_ARCHIVE);
 #endif
-cvar_t r_fastsky							= SCVAR  ("r_fastsky", "0");
+cvar_t r_fastsky							= SCVARF ("r_fastsky", "0",
+												CVAR_SHADERSYSTEM);
 cvar_t r_fastskycolour						= SCVARF ("r_fastskycolour", "0",
-												CVAR_RENDERERCALLBACK);
+												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fb_bmodels							= SCVARF("gl_fb_bmodels", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_fb_models							= FCVAR  ("r_fb_models", "gl_fb_models", "1",
@@ -94,13 +93,13 @@ cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
 cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
 												CVAR_ARCHIVE);
 cvar_t r_floorcolour						= SCVARF ("r_floorcolour", "255 255 255",
-												CVAR_RENDERERCALLBACK);
+												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_floortexture						= SCVARF ("r_floortexture", "",
-												CVAR_RENDERERCALLBACK);
+												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fullbright							= SCVARF ("r_fullbright", "0",
-												CVAR_CHEAT);
+												CVAR_CHEAT|CVAR_SHADERSYSTEM);
 cvar_t r_fullbrightSkins					= SCVARF ("r_fullbrightSkins", "1",
-												CVAR_SEMICHEAT);
+												CVAR_SEMICHEAT|CVAR_SHADERSYSTEM);
 cvar_t r_lightmap_saturation				= SCVAR  ("r_lightmap_saturation", "1");
 cvar_t r_lightstylesmooth					= SCVAR  ("r_lightstylesmooth", "0");
 cvar_t r_lightstylespeed					= SCVAR  ("r_lightstylespeed", "10");
@@ -115,19 +114,19 @@ cvar_t r_part_rain							= SCVARF ("r_part_rain", "0",
 												CVAR_ARCHIVE);
 //whack in a value of 2 and you get easily visible players.
 cvar_t r_skyboxname							= SCVARF ("r_skybox", "",
-												CVAR_RENDERERCALLBACK);
-cvar_t r_speeds								= SCVARF ("r_speeds", "0",
-												CVAR_CHEAT);
+												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
+cvar_t r_speeds								= SCVAR ("r_speeds", "0");
 cvar_t r_stainfadeammount					= SCVAR  ("r_stainfadeammount", "1");
 cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
 cvar_t r_stains								= SCVARFC("r_stains", "0.75",
 												CVAR_ARCHIVE,
 												Cvar_Limiter_ZeroToOne_Callback);
 cvar_t r_wallcolour							= SCVARF ("r_wallcolour", "255 255 255",
-												CVAR_RENDERERCALLBACK);
+												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
 cvar_t r_walltexture						= SCVARF ("r_walltexture", "",
-												CVAR_RENDERERCALLBACK);
-cvar_t r_wateralpha							= SCVAR  ("r_wateralpha", "1");
+												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);	//FIXME: broken
+cvar_t r_wateralpha							= SCVARF  ("r_wateralpha", "1",
+												CVAR_SHADERSYSTEM);
 cvar_t r_waterwarp							= SCVARF ("r_waterwarp", "1",
 												CVAR_ARCHIVE);
 
@@ -169,7 +168,7 @@ cvar_t vid_renderer							= SCVARF ("vid_renderer", "",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
 static cvar_t vid_allow_modex				= SCVARF ("vid_allow_modex", "1",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);	//FIXME: remove
 static cvar_t vid_bpp						= SCVARF ("vid_bpp", "32",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 static cvar_t vid_desktopsettings			= SCVARF ("vid_desktopsettings", "0",
@@ -188,8 +187,6 @@ cvar_t vid_height							= SCVARF ("vid_height", "0",
 static cvar_t vid_multisample				= SCVARF ("vid_multisample", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 static cvar_t vid_refreshrate				= SCVARF ("vid_displayfrequency", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-static cvar_t vid_stretch					= SCVARF ("vid_stretch", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_wndalpha							= SCVAR ("vid_wndalpha", "1");
 //more readable defaults to match conwidth/conheight.
@@ -235,7 +232,13 @@ void R_BulletenForce_f (void);
 
 rendererstate_t currentrendererstate;
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE)
+cvar_t	vid_gl_context_version				= SCVAR  ("vid_gl_context_version", "");
+cvar_t	vid_gl_context_forwardcompatible	= SCVAR  ("vid_gl_context_breakeverything", "0");	//not useful, yet, hence the name
+cvar_t	vid_gl_context_debug				= SCVAR  ("vid_gl_context_debug", "0");	//for my ati drivers, debug 1 only works if version >= 3
+#endif
+
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 cvar_t gl_ati_truform						= SCVAR  ("gl_ati_truform", "0");
 cvar_t gl_ati_truform_type					= SCVAR  ("gl_ati_truform_type", "1");
 cvar_t gl_ati_truform_tesselation			= SCVAR  ("gl_ati_truform_tesselation", "3");
@@ -298,7 +301,7 @@ cvar_t gl_specular							= SCVAR  ("gl_specular", "0");
 #endif
 
 // The callbacks are not in D3D yet (also ugly way of seperating this)
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 cvar_t gl_texture_anisotropic_filtering		= SCVARFC("gl_texture_anisotropic_filtering", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												GL_Texture_Anisotropic_Filtering_Callback);
@@ -316,17 +319,21 @@ cvar_t gl_ztrick							= SCVAR  ("gl_ztrick", "0");
 
 cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
 												CVAR_ARCHIVE);
+
 cvar_t r_shadow_bumpscale_basetexture		= SCVAR  ("r_shadow_bumpscale_basetexture", "4");
 cvar_t r_shadow_bumpscale_bumpmap			= SCVAR  ("r_shadow_bumpscale_bumpmap", "10");
+
 cvar_t r_shadow_glsl_offsetmapping			= SCVAR  ("r_shadow_glsl_offsetmapping", "0");
 cvar_t r_shadow_glsl_offsetmapping_bias		= SCVAR  ("r_shadow_glsl_offsetmapping_bias", "0.04");
 cvar_t r_shadow_glsl_offsetmapping_scale	= SCVAR  ("r_shadow_glsl_offsetmapping_scale", "-0.04");
-cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0",
-												CVAR_CHEAT | CVAR_ARCHIVE);
-cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0.8",
-												CVAR_CHEAT);
-cvar_t r_shadows							= SCVARF ("r_shadows", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+
+cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_dlight_shadows		= SCVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0.8", 0);
+cvar_t r_shadows							= SCVARF ("r_shadows", "0", CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+
 cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "0");
 
 cvar_t vid_preservegamma					= SCVAR ("vid_preservegamma", "0");
@@ -341,7 +348,7 @@ extern cvar_t r_waterlayers;
 
 #endif
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 void GLD3DRenderer_Init(void)
 {
 	Cvar_Register (&gl_mindist, GLRENDEREROPTIONS);
@@ -349,10 +356,16 @@ void GLD3DRenderer_Init(void)
 }
 #endif
 
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 void GLRenderer_Init(void)
 {
 	extern cvar_t gl_contrast;
+
+	//gl-specific video vars
+	Cvar_Register (&vid_gl_context_version, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_gl_context_debug, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_gl_context_forwardcompatible, GLRENDEREROPTIONS);
+
 	//screen
 	Cvar_Register (&gl_triplebuffer, GLRENDEREROPTIONS);
 
@@ -384,6 +397,9 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_shadow_bumpscale_basetexture, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_bumpmap, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_realtime_world, GLRENDEREROPTIONS);
+	Cvar_Register (&r_shadow_realtime_world_shadows, GLRENDEREROPTIONS);
+	Cvar_Register (&r_shadow_realtime_dlight, GLRENDEREROPTIONS);
+	Cvar_Register (&r_shadow_realtime_dlight_shadows, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_realtime_world_lightmaps, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_keeptjunctions, GLRENDEREROPTIONS);
@@ -399,7 +415,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_fontinwardstep, GRAPHICALNICETIES);
 	Cvar_Register (&gl_font, GRAPHICALNICETIES);
-	Cvar_Register (&gl_conback, GRAPHICALNICETIES);
 	Cvar_Register (&gl_smoothfont, GRAPHICALNICETIES);
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
@@ -455,15 +470,12 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_vertexdlights, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_schematics, GLRENDEREROPTIONS);
-#ifdef Q3SHADERS
+
 	Cvar_Register (&r_vertexlight, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_shadeq1, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_shadeq1_name, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_shadeq2, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_shadeq3, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_blend2d, GLRENDEREROPTIONS);
-#endif
+
 	Cvar_Register (&gl_blendsprites, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_mylumassuck, GLRENDEREROPTIONS);
@@ -473,8 +485,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_menutint_shader, GLRENDEREROPTIONS);
 
 	R_BloomRegister();
-#endif
 }
+#endif
 
 void	R_InitTextures (void)
 {
@@ -519,18 +531,19 @@ void Renderer_Init(void)
 	Cmd_AddCommand("setrenderer", R_SetRenderer_f);
 	Cmd_AddCommand("vid_restart", R_RestartRenderer_f);
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 	GLD3DRenderer_Init();
 #endif
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 	GLRenderer_Init();
 #endif
+
+	Cvar_Register (&gl_conback, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_novis, GLRENDEREROPTIONS);
 
 	//but register ALL vid_ commands.
 	Cvar_Register (&_vid_wait_override, VIDCOMMANDGROUP);
-	Cvar_Register (&vid_stretch, VIDCOMMANDGROUP);
 	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_wndalpha, VIDCOMMANDGROUP);
@@ -539,7 +552,6 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_fullscreen_npqtv, VIDCOMMANDGROUP);
 #endif
 	Cvar_Register (&vid_fullscreen, VIDCOMMANDGROUP);
-//	Cvar_Register (&vid_stretch, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_bpp, VIDCOMMANDGROUP);
 
 	Cvar_Register (&vid_conwidth, VIDCOMMANDGROUP);
@@ -616,14 +628,15 @@ void Renderer_Init(void)
 	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
 	Cvar_Register (&r_wateralpha, GRAPHICALNICETIES);
 
+	Cvar_Register (&gl_miptexLevel, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
-	Cvar_Register (&r_drawflat_nonworldmodel, GRAPHICALNICETIES);
 	Cvar_Register (&r_menutint, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_replacemodels, GRAPHICALNICETIES);
 
+#ifdef PEXT_BULLETENS
 //bulletens
 	Cvar_Register(&bul_nowater, BULLETENVARS);
 	Cvar_Register(&bul_rippleamount, BULLETENVARS);
@@ -641,14 +654,14 @@ void Renderer_Init(void)
 	Cvar_Register(&bul_text3,	BULLETENVARS);
 	Cvar_Register(&bul_text2,	BULLETENVARS);
 	Cvar_Register(&bul_text1,	BULLETENVARS);
+	Cvar_Register(&bul_norender,	BULLETENVARS);	//find this one first...
+
+	Cmd_AddCommand("bul_make",	R_BulletenForce_f);
+#endif
 
 
 // misc
 	Cvar_Register(&con_ocranaleds, "Console controls");
-
-	Cvar_Register(&bul_norender,	BULLETENVARS);	//find this one first...
-
-	Cmd_AddCommand("bul_make",	R_BulletenForce_f);
 
 	P_InitParticleSystem();
 	R_InitTextures();
@@ -657,26 +670,18 @@ void Renderer_Init(void)
 
 
 mpic_t	*(*Draw_SafePicFromWad)		(char *name);
-mpic_t	*(*Draw_CachePic)			(char *path);
 mpic_t	*(*Draw_SafeCachePic)		(char *path);
 void	(*Draw_Init)				(void);
-void	(*Draw_ReInit)				(void);
+void	(*Draw_Shutdown)			(void);
 
-void	(*Draw_Character)			(int x, int y, unsigned int num);
-void	(*Draw_ColouredCharacter)	(int x, int y, unsigned int num);
-void	(*Draw_String)				(int x, int y, const qbyte *str);
-void	(*Draw_TinyCharacter)		(int x, int y, unsigned int num);
-void	(*Draw_Alt_String)			(int x, int y, const qbyte *str);
+//void	(*Draw_TinyCharacter)		(int x, int y, unsigned int num);
 
 void	(*Draw_Crosshair)			(void);
-void	(*Draw_DebugChar)			(qbyte num);
-void	(*Draw_Pic)					(int x, int y, mpic_t *pic);
 void	(*Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic);
-void	(*Draw_SubPic)				(int x, int y, mpic_t *pic, int srcx, int srcy, int width, int height);
-void	(*Draw_TransPic)			(int x, int y, mpic_t *pic);
+void	(*Draw_SubPic)				(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight);
 void	(*Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *image, qbyte *translation);
 void	(*Draw_ConsoleBackground)	(int firstline, int lastline, qboolean forceopaque);
-void	(*Draw_EditorBackground)	(int lines);
+void	(*Draw_EditorBackground)	(void);
 void	(*Draw_TileClear)			(int x, int y, int w, int h);
 void	(*Draw_Fill)				(int x, int y, int w, int h, unsigned int c);
 void    (*Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b);
@@ -689,11 +694,7 @@ void	(*Draw_ImageColours)		(float r, float g, float b, float a);
 
 void	(*R_Init)					(void);
 void	(*R_DeInit)					(void);
-void	(*R_ReInit)					(void);
 void	(*R_RenderView)				(void);		// must set r_refdef first
-
-qboolean	(*R_CheckSky)			(void);
-void	(*R_SetSky)					(char *name, float rotate, vec3_t axis);
 
 void	(*R_NewMap)					(void);
 void	(*R_PreNewMap)				(void);
@@ -756,20 +757,11 @@ rendererinfo_t dedicatedrendererinfo = {
 	QR_NONE,
 
 	NULL,	//Draw_PicFromWad;	//Not supported
-	NULL,	//Draw_CachePic;
 	NULL,	//Draw_SafeCachePic;
 	NULL,	//Draw_Init;
-	NULL,	//Draw_Init;
-	NULL,	//Draw_Character;
-	NULL,	//Draw_ColouredCharacter;
-	NULL,	//Draw_TinyCharacter;
-	NULL,	//Draw_String;
-	NULL,	//Draw_Alt_String;
+	NULL,	//Draw_Shutdown;
 	NULL,	//Draw_Crosshair;
-	NULL,	//Draw_DebugChar;
-	NULL,	//Draw_Pic;
 	NULL,	//Draw_SubPic;
-	NULL,	//Draw_TransPic;
 	NULL,	//Draw_TransPicTranslate;
 	NULL,	//Draw_ConsoleBackground;
 	NULL,	//Draw_EditorBackground;
@@ -786,11 +778,7 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL,	//R_Init;
 	NULL,	//R_DeInit;
-	NULL,	//R_ReInit;
 	NULL,	//R_RenderView;
-
-	NULL,	//R_CheckSky;
-	NULL,	//R_SetSky;
 
 	NULL,	//R_NewMap;
 	NULL,	//R_PreNewMap
@@ -805,16 +793,16 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,	//Media_ShowFrameRGBA_32;
 	NULL,	//Media_ShowFrame8bit;
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
-	GLMod_Init,
-	GLMod_ClearAll,
-	GLMod_ForName,
-	GLMod_FindName,
-	GLMod_Extradata,
-	GLMod_TouchModel,
+#if defined(GLQUAKE) || defined(D3DQUAKE)
+	RMod_Init,
+	RMod_ClearAll,
+	RMod_ForName,
+	RMod_FindName,
+	RMod_Extradata,
+	RMod_TouchModel,
 
-	GLMod_NowLoadExternal,
-	GLMod_Think,
+	RMod_NowLoadExternal,
+	RMod_Think,
 
 	NULL, //Mod_GetTag
 	NULL, //fixme: server will need this one at some point.
@@ -847,131 +835,24 @@ rendererinfo_t dedicatedrendererinfo = {
 };
 rendererinfo_t *pdedicatedrendererinfo = &dedicatedrendererinfo;
 
-#ifdef RGLQUAKE
-rendererinfo_t openglrendererinfo = {
-	"OpenGL",
-	{
-		"gl",
-		"opengl",
-		"hardware",
-	},
-	QR_OPENGL,
-
-
-	GLDraw_SafePicFromWad,
-	GLDraw_CachePic,
-	GLDraw_SafeCachePic,
-	GLDraw_Init,
-	GLDraw_ReInit,
-	GLDraw_Character,
-	GLDraw_ColouredCharacter,
-	GLDraw_TinyCharacter,
-	GLDraw_String,
-	GLDraw_Alt_String,
-	GLDraw_Crosshair,
-	GLDraw_DebugChar,
-	GLDraw_Pic,
-	GLDraw_ScalePic,
-	GLDraw_SubPic,
-	GLDraw_TransPic,
-	GLDraw_TransPicTranslate,
-	GLDraw_ConsoleBackground,
-	GLDraw_EditorBackground,
-	GLDraw_TileClear,
-	GLDraw_Fill,
-	GLDraw_FillRGB,
-	GLDraw_FadeScreen,
-	GLDraw_BeginDisc,
-	GLDraw_EndDisc,
-
-	GLDraw_Image,
-	GLDraw_ImageColours,
-
-	GLR_Init,
-	GLR_DeInit,
-	GLR_ReInit,
-	GLR_RenderView,
-
-
-	GLR_CheckSky,
-	GLR_SetSky,
-
-	GLR_NewMap,
-	GLR_PreNewMap,
-	GLR_LightPoint,
-	GLR_PushDlights,
-
-
-	GLR_AddStain,
-	GLR_LessenStains,
-
-	MediaGL_ShowFrameBGR_24_Flip,
-	MediaGL_ShowFrameRGBA_32,
-	MediaGL_ShowFrame8bit,
-
-
-	GLMod_Init,
-	GLMod_ClearAll,
-	GLMod_ForName,
-	GLMod_FindName,
-	GLMod_Extradata,
-	GLMod_TouchModel,
-
-	GLMod_NowLoadExternal,
-	GLMod_Think,
-
-	Mod_GetTag,
-	Mod_TagNumForName,
-	Mod_SkinNumForName,
-	Mod_FrameNumForName,
-	Mod_FrameDuration,
-
-	GLVID_Init,
-	GLVID_DeInit,
-	GLVID_LockBuffer,
-	GLVID_UnlockBuffer,
-	GLD_BeginDirectRect,
-	GLD_EndDirectRect,
-	GLVID_ForceLockState,
-	GLVID_ForceUnlockedAndReturnState,
-	GLVID_SetPalette,
-	GLVID_ShiftPalette,
-	GLVID_GetRGBInfo,
-
-	GLVID_SetCaption,	//setcaption
-
-
-	GLSCR_UpdateScreen,
-
-	""
-};
-rendererinfo_t *popenglrendererinfo = &openglrendererinfo;
-#endif
-
-#ifdef D3DQUAKE
+rendererinfo_t openglrendererinfo;
+rendererinfo_t d3drendererinfo;
 rendererinfo_t d3d7rendererinfo;
-rendererinfo_t *pd3d7rendererinfo = &d3d7rendererinfo;
-#endif
-
-rendererinfo_t *pd3drendererinfo;
-
 rendererinfo_t d3d9rendererinfo;
-rendererinfo_t *pd3d9rendererinfo = &d3d9rendererinfo;
 
-rendererinfo_t **rendererinfo[] =
+rendererinfo_t *rendererinfo[] =
 {
 #ifndef NPQTV
-	&pdedicatedrendererinfo,
+	&dedicatedrendererinfo,
 #endif
-#ifdef RGLQUAKE
-	&popenglrendererinfo,
-	&pd3drendererinfo,
-#endif
-#ifdef D3DQUAKE
-	&pd3d7rendererinfo,
+#ifdef GLQUAKE
+	&openglrendererinfo,
+	&d3drendererinfo,
 #endif
 #ifdef D3DQUAKE
-	&pd3d9rendererinfo,
+	&d3drendererinfo,
+	&d3d7rendererinfo,
+	&d3d9rendererinfo,
 #endif
 };
 
@@ -1110,7 +991,7 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 
 	switch(info->renderer->selectedoption)
 	{
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	case 0:
 		Cbuf_AddText("setrenderer gl\n", RESTRICT_LOCAL);
 		break;
@@ -1128,13 +1009,13 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 void M_Menu_Video_f (void)
 {
 	extern cvar_t r_stains, v_contrast;
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 	extern cvar_t r_bloom;
 #endif
 	extern cvar_t r_bouncysparks;
 	static const char *modenames[128] = {"Custom"};
 	static const char *rendererops[] = {
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 		"OpenGL",
 #endif
 #ifdef D3DQUAKE
@@ -1162,7 +1043,7 @@ void M_Menu_Video_f (void)
 	int prefabmode;
 	int prefab2dmode;
 	int currentbpp;
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	int currenttexturefilter;
 #endif
 
@@ -1185,7 +1066,7 @@ void M_Menu_Video_f (void)
 	menu = M_CreateMenu(sizeof(videomenuinfo_t));
 	info = menu->data;
 
-#if defined(RGLQUAKE) && defined(USE_D3D)
+#if defined(GLQUAKE) && defined(USE_D3D)
 	if (!strcmp(vid_renderer.string, "d3d9"))
 		i = 1;
 	else
@@ -1199,7 +1080,7 @@ void M_Menu_Video_f (void)
 	else
 		currentbpp = 0;
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (!Q_strcasecmp(gl_texturemode.string, "gl_nearest_mipmap_nearest"))
 		currenttexturefilter = 0;
 	else if (!Q_strcasecmp(gl_texturemode.string, "gl_linear_mipmap_linear"))
@@ -1211,7 +1092,7 @@ void M_Menu_Video_f (void)
 #endif
 
 
-	MC_AddCenterPicture(menu, 4, "vidmodes");
+	MC_AddCenterPicture(menu, 4, 24, "vidmodes");
 
 	y = 32;
 	info->renderer = MC_AddCombo(menu,	16, y,				"   Renderer     ", rendererops, i);	y+=8;
@@ -1227,7 +1108,7 @@ void M_Menu_Video_f (void)
 	MC_AddCheckBox(menu,	16, y,							"      Stain maps", &r_stains,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"   Bouncy sparks", &r_bouncysparks,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"            Rain", &r_part_rain,0);	y+=8;
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	MC_AddCheckBox(menu,	16, y,							"  GL Bumpmapping", &gl_bump,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"           Bloom", &r_bloom,0);	y+=8;
 #endif
@@ -1235,7 +1116,7 @@ void M_Menu_Video_f (void)
 	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120, 0.1);y+=8;
 	MC_AddSlider(menu,	16, y,								"           Gamma", &v_gamma, 0.3, 1, 0.05);	y+=8;
 	MC_AddSlider(menu,	16, y,								"        Contrast", &v_contrast, 1, 3, 0.05);	y+=8;
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	info->texturefiltercombo = MC_AddCombo(menu, 16, y,		" Texture Filter ", texturefilternames, currenttexturefilter); y+=8;
 	MC_AddSlider(menu, 16, y,								"Anisotropy Level", &gl_texture_anisotropic_filtering, 1, 16, 1); y+=8;	//urm, this shouldn't really be a slider, but should be a combo instead
 #endif
@@ -1244,7 +1125,6 @@ void M_Menu_Video_f (void)
 	menu->selecteditem = (union menuoption_s *)info->renderer;
 	menu->event = CheckCustomMode;
 }
-
 
 void R_SetRenderer(int wanted)
 {
@@ -1256,28 +1136,19 @@ void R_SetRenderer(int wanted)
 		qrenderer = -1;
 	}
 	else
-		qrenderer = (*rendererinfo[wanted])->rtype;
+		qrenderer = rendererinfo[wanted]->rtype;
 
-	ri = (*rendererinfo[wanted]);
+	ri = rendererinfo[wanted];
 
 	q_renderername = ri->name[0];
 
 
 	Draw_SafePicFromWad		= ri->Draw_SafePicFromWad;	//Not supported
-	Draw_CachePic			= ri->Draw_CachePic;
 	Draw_SafeCachePic		= ri->Draw_SafeCachePic;
 	Draw_Init				= ri->Draw_Init;
-	Draw_ReInit				= ri->Draw_Init;
-	Draw_Character			= ri->Draw_Character;
-	Draw_ColouredCharacter	= ri->Draw_ColouredCharacter;
-	Draw_String				= ri->Draw_String;
-	Draw_TinyCharacter		= ri->Draw_TinyCharacter;
-	Draw_Alt_String			= ri->Draw_Alt_String;
+	Draw_Shutdown			= ri->Draw_Shutdown;
 	Draw_Crosshair			= ri->Draw_Crosshair;
-	Draw_DebugChar			= ri->Draw_DebugChar;
-	Draw_Pic				= ri->Draw_Pic;
 	Draw_SubPic				= ri->Draw_SubPic;
-	Draw_TransPic			= ri->Draw_TransPic;
 	Draw_TransPicTranslate	= ri->Draw_TransPicTranslate;
 	Draw_ConsoleBackground	= ri->Draw_ConsoleBackground;
 	Draw_EditorBackground	= ri->Draw_EditorBackground;
@@ -1299,8 +1170,6 @@ void R_SetRenderer(int wanted)
 	R_PreNewMap				= ri->R_PreNewMap;
 	R_LightPoint			= ri->R_LightPoint;
 	R_PushDlights			= ri->R_PushDlights;
-	R_CheckSky				= ri->R_CheckSky;
-	R_SetSky				= ri->R_SetSky;
 
 	R_AddStain				= ri->R_AddStain;
 	R_LessenStains			= ri->R_LessenStains;
@@ -1437,7 +1306,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 			BZ_Free(host_basepal);
 		if (host_colormap)
 			BZ_Free(host_colormap);
-		host_basepal = (qbyte *)COM_LoadMallocFile ("gfx/palette.lmp");
+		host_basepal = (qbyte *)FS_LoadMallocFile ("gfx/palette.lmp");
 		if (!host_basepal)
 		{
 			qbyte *pcx=NULL;
@@ -1454,7 +1323,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 					goto q2colormap;	//skip the colormap.lmp file as we already read it
 			}
 		}
-		host_colormap = (qbyte *)COM_LoadMallocFile ("gfx/colormap.lmp");
+		host_colormap = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp");
 		if (!host_colormap)
 		{
 			vid.fullbright=0;
@@ -1502,6 +1371,7 @@ TRACE(("dbg: R_ApplyRenderer: wad loaded\n"));
 		Draw_Init();
 TRACE(("dbg: R_ApplyRenderer: draw inited\n"));
 		R_Init();
+		R_InitParticleTexture ();
 TRACE(("dbg: R_ApplyRenderer: renderer inited\n"));
 		SCR_Init();
 TRACE(("dbg: R_ApplyRenderer: screen inited\n"));
@@ -1532,8 +1402,10 @@ TRACE(("dbg: R_ApplyRenderer: isDedicated = true\n"));
 	}
 TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 	Mod_Init();
+#ifdef PEXT_BULLETENS
 TRACE(("dbg: R_ApplyRenderer: initing bulletein boards\n"));
 	WipeBulletenTextures();
+#endif
 
 //	host_hunklevel = Hunk_LowMark();
 
@@ -1545,17 +1417,17 @@ TRACE(("dbg: R_ApplyRenderer: initing bulletein boards\n"));
 	}
 
 #ifndef CLIENTONLY
-	if (sv.worldmodel)
+	if (sv.world.worldmodel)
 	{
-		edict_t *ent;
+		wedict_t *ent;
 #ifdef Q2SERVER
 		q2edict_t *q2ent;
 #endif
 
 TRACE(("dbg: R_ApplyRenderer: reloading server map\n"));
-		sv.worldmodel = Mod_ForName (sv.modelname, false);
+		sv.world.worldmodel = Mod_ForName (sv.modelname, false);
 TRACE(("dbg: R_ApplyRenderer: loaded\n"));
-		if (sv.worldmodel->needload)
+		if (sv.world.worldmodel->needload)
 		{
 			SV_Error("Bsp went missing on render restart\n");
 		}
@@ -1563,23 +1435,23 @@ TRACE(("dbg: R_ApplyRenderer: doing that funky phs thang\n"));
 		SV_CalcPHS ();
 
 TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
-		SV_ClearWorld ();
+		World_ClearWorld (&sv.world);
 
 		if (svs.gametype == GT_PROGS)
 		{
 			for (i = 0; i < MAX_MODELS; i++)
 			{
-				if (sv.strings.model_precache[i] && *sv.strings.model_precache[i] && (!strcmp(sv.strings.model_precache[i] + strlen(sv.strings.model_precache[i]) - 4, ".bsp") || i-1 < sv.worldmodel->numsubmodels))
-					sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
+				if (sv.strings.model_precache[i] && *sv.strings.model_precache[i] && (!strcmp(sv.strings.model_precache[i] + strlen(sv.strings.model_precache[i]) - 4, ".bsp") || i-1 < sv.world.worldmodel->numsubmodels))
+					sv.world.models[i] = Mod_FindName(sv.strings.model_precache[i]);
 				else
-					sv.models[i] = NULL;
+					sv.world.models[i] = NULL;
 			}
 
-			ent = sv.edicts;
+			ent = sv.world.edicts;
 //			ent->v->model = PR_NewString(svprogfuncs, sv.worldmodel->name);	//FIXME: is this a problem for normal ents?
-			for (i=0 ; i<sv.num_edicts ; i++)
+			for (i=0 ; i<sv.world.num_edicts ; i++)
 			{
-				ent = EDICT_NUM(svprogfuncs, i);
+				ent = (wedict_t*)EDICT_NUM(svprogfuncs, i);
 				if (!ent)
 					continue;
 				if (ent->isfree)
@@ -1588,7 +1460,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 				if (ent->area.prev)
 				{
 					ent->area.prev = ent->area.next = NULL;
-					SV_LinkEdict (ent, false);	// relink ents so touch functions continue to work.
+					World_LinkEdict (&sv.world, ent, false);	// relink ents so touch functions continue to work.
 				}
 			}
 		}
@@ -1597,10 +1469,10 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 		{
 			for (i = 0; i < MAX_MODELS; i++)
 			{
-				if (sv.strings.configstring[Q2CS_MODELS+i] && *sv.strings.configstring[Q2CS_MODELS+i] && (!strcmp(sv.strings.configstring[Q2CS_MODELS+i] + strlen(sv.strings.configstring[Q2CS_MODELS+i]) - 4, ".bsp") || i-1 < sv.worldmodel->numsubmodels))
-					sv.models[i] = Mod_FindName(sv.strings.configstring[Q2CS_MODELS+i]);
+				if (sv.strings.configstring[Q2CS_MODELS+i] && *sv.strings.configstring[Q2CS_MODELS+i] && (!strcmp(sv.strings.configstring[Q2CS_MODELS+i] + strlen(sv.strings.configstring[Q2CS_MODELS+i]) - 4, ".bsp") || i-1 < sv.world.worldmodel->numsubmodels))
+					sv.world.models[i] = Mod_FindName(sv.strings.configstring[Q2CS_MODELS+i]);
 				else
-					sv.models[i] = NULL;
+					sv.world.models[i] = NULL;
 			}
 
 			q2ent = ge->edicts;
@@ -1614,7 +1486,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 				if (q2ent->area.prev)
 				{
 					q2ent->area.prev = q2ent->area.next = NULL;
-					SVQ2_LinkEdict (q2ent);	// relink ents so touch functions continue to work.
+					WorldQ2_LinkEdict (&sv.world, q2ent);	// relink ents so touch functions continue to work.
 				}
 			}
 		}
@@ -1644,7 +1516,11 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 		}
 
 		cl.worldmodel = NULL;
-		cl_numvisedicts=0;
+		cl_numvisedicts = 0;
+		cl_numstrisidx = 0;
+		cl_numstrisvert = 0;
+		cl_numstris = 0;
+
 TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 		for (i=1 ; i<MAX_MODELS ; i++)
 		{
@@ -1788,8 +1664,6 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	newr.width = vid_width.value;
 	newr.height = vid_height.value;
 
-	newr.allow_modex = vid_allow_modex.value;
-
 	newr.multisample = vid_multisample.value;
 	newr.bpp = vid_bpp.value;
 	newr.fullscreen = vid_fullscreen.value;
@@ -1800,13 +1674,13 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	newr.renderer = -1;
 	for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 	{
-		if (!*rendererinfo[i])
+		if (!rendererinfo[i]->description)
 			continue;	//not valid in this build. :(
 		for (j = 4-1; j >= 0; j--)
 		{
-			if (!(*rendererinfo[i])->name[j])
+			if (!rendererinfo[i]->name[j])
 				continue;
-			if (!stricmp((*rendererinfo[i])->name[j], vid_renderer.string))
+			if (!stricmp(rendererinfo[i]->name[j], vid_renderer.string))
 			{
 				newr.renderer = i;
 				break;
@@ -1817,7 +1691,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	{
 		Con_Printf("vid_renderer unset or invalid. Using default.\n");
 		//gotta do this after main hunk is saved off.
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 		Cmd_ExecuteString("setrenderer gl\n", RESTRICT_LOCAL);
 #elif defined(D3DQUAKE)
 		Cmd_ExecuteString("setrenderer d3d9\n", RESTRICT_LOCAL);
@@ -1915,6 +1789,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 #ifdef MENU_DAT
 	MP_Init();
 #endif
+	CL_InitDlights();
 }
 
 void R_SetRenderer_f (void)
@@ -1927,8 +1802,8 @@ void R_SetRenderer_f (void)
 		Con_Printf ("\nValid setrenderer parameters are:\n");
 		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 		{
-			if ((*rendererinfo[i]))
-				Con_Printf("%s: %s\n", (*rendererinfo[i])->name[0], (*rendererinfo[i])->description);
+			if (rendererinfo[i]->description)
+				Con_Printf("%s: %s\n", rendererinfo[i]->name[0], rendererinfo[i]->description);
 		}
 		return;
 	}
@@ -1936,13 +1811,13 @@ void R_SetRenderer_f (void)
 	best = -1;
 	for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 	{
-		if (!*rendererinfo[i])
+		if (!rendererinfo[i]->description)
 			continue;	//not valid in this build. :(
 		for (j = 4-1; j >= 0; j--)
 		{
-			if (!(*rendererinfo[i])->name[j])
+			if (!rendererinfo[i]->name[j])
 				continue;
-			if (!stricmp((*rendererinfo[i])->name[j], param))
+			if (!stricmp(rendererinfo[i]->name[j], param))
 			{
 				best = i;
 				break;
@@ -2198,6 +2073,7 @@ mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
 int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 int r_visframecount;
 mleaf_t		*r_vischain;		// linked list of visible leafs
+static qbyte	curframevis[MAX_MAP_LEAFS/8];
 
 /*
 ===============
@@ -2205,16 +2081,16 @@ R_MarkLeaves
 ===============
 */
 #ifdef Q3BSPS
-void R_MarkLeaves_Q3 (void)
+qbyte *R_MarkLeaves_Q3 (void)
 {
-	qbyte	*vis;
+	static qbyte	*vis;
 	int		i;
 
 	int cluster;
 	mleaf_t	*leaf;
 
 	if (r_oldviewcluster == r_viewcluster && !r_novis.value && r_viewcluster != -1)
-		return;
+		return vis;
 
 	// development aid to let you run around and see exactly where
 	// the pvs ends
@@ -2242,7 +2118,7 @@ void R_MarkLeaves_Q3 (void)
 	}
 	else
 	{
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL, 0);
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, curframevis, sizeof(curframevis));
 		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 		{
 			cluster = leaf->cluster;
@@ -2258,84 +2134,117 @@ void R_MarkLeaves_Q3 (void)
 			}
 		}
 	}
+	return vis;
 }
 #endif
 
 #ifdef Q2BSPS
-void R_MarkLeaves_Q2 (void)
+qbyte *R_MarkLeaves_Q2 (void)
 {
-	qbyte	fatvis[MAX_MAP_LEAFS/8];
-	qbyte	*vis;
+	static qbyte	*vis;
 	mnode_t	*node;
 	int		i;
 
 	int cluster;
 	mleaf_t	*leaf;
 
-		int c;
+	int c;
 
-		if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
-			return;
+	if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
+		return vis;
 
-		r_oldviewcluster = r_viewcluster;
-		r_oldviewcluster2 = r_viewcluster2;
+	r_oldviewcluster = r_viewcluster;
+	r_oldviewcluster2 = r_viewcluster2;
 
-		if (r_novis.value == 2)
-			return;
-		r_visframecount++;
-		if (r_novis.value || r_viewcluster == -1 || !cl.worldmodel->vis)
-		{
-			// mark everything
-			for (i=0 ; i<cl.worldmodel->numleafs ; i++)
-				cl.worldmodel->leafs[i].visframe = r_visframecount;
-			for (i=0 ; i<cl.worldmodel->numnodes ; i++)
-				cl.worldmodel->nodes[i].visframe = r_visframecount;
-			return;
-		}
-
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, NULL, 0);
-		// may have to combine two clusters because of solid water boundaries
-		if (r_viewcluster2 != r_viewcluster)
-		{
-			memcpy (fatvis, vis, (cl.worldmodel->numleafs+7)/8);
-			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL, 0);
-			c = (cl.worldmodel->numleafs+31)/32;
-			for (i=0 ; i<c ; i++)
-				((int *)fatvis)[i] |= ((int *)vis)[i];
-			vis = fatvis;
-		}
-
-		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
-		{
-			cluster = leaf->cluster;
-			if (cluster == -1)
-				continue;
-			if (vis[cluster>>3] & (1<<(cluster&7)))
-			{
-				node = (mnode_t *)leaf;
-				do
-				{
-					if (node->visframe == r_visframecount)
-						break;
-					node->visframe = r_visframecount;
-					node = node->parent;
-				} while (node);
-			}
-		}
-		return;
+	if (r_novis.value == 2)
+		return vis;
+	r_visframecount++;
+	if (r_novis.value || r_viewcluster == -1 || !cl.worldmodel->vis)
+	{
+		// mark everything
+		for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+			cl.worldmodel->leafs[i].visframe = r_visframecount;
+		for (i=0 ; i<cl.worldmodel->numnodes ; i++)
+			cl.worldmodel->nodes[i].visframe = r_visframecount;
+		return vis;
 	}
+
+	vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, curframevis, sizeof(curframevis));
+	// may have to combine two clusters because of solid water boundaries
+	if (r_viewcluster2 != r_viewcluster)
+	{
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL, sizeof(curframevis));
+		c = (cl.worldmodel->numleafs+31)/32;
+		for (i=0 ; i<c ; i++)
+			((int *)curframevis)[i] |= ((int *)vis)[i];
+		vis = curframevis;
+	}
+
+	for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
+	{
+		cluster = leaf->cluster;
+		if (cluster == -1)
+			continue;
+		if (vis[cluster>>3] & (1<<(cluster&7)))
+		{
+			node = (mnode_t *)leaf;
+			do
+			{
+				if (node->visframe == r_visframecount)
+					break;
+				node->visframe = r_visframecount;
+				node = node->parent;
+			} while (node);
+		}
+	}
+	return vis;
+}
 #endif
 
-void R_MarkLeaves_Q1 (void)
+qbyte *R_CalcVis_Q1 (void)
+{
+	unsigned int i;
+	static qbyte	*vis;
+	r_visframecount++;
+	if (r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2)
+	{
+	}
+	else
+	{
+		r_oldviewleaf = r_viewleaf;
+		r_oldviewleaf2 = r_viewleaf2;
+
+		if ((int)r_novis.value&1)
+		{
+			vis = curframevis;
+			memset (vis, 0xff, (cl.worldmodel->numleafs+7)>>3);
+		}
+		else if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
+		{
+			int c;
+			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, curframevis, sizeof(curframevis));
+			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, sizeof(curframevis));
+			c = (cl.worldmodel->numleafs+31)/32;
+			for (i=0 ; i<c ; i++)
+				((int *)curframevis)[i] |= ((int *)vis)[i];
+			vis = curframevis;
+		}
+		else
+			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, curframevis, sizeof(curframevis));
+	}
+	return vis;
+}
+
+qbyte *R_MarkLeaves_Q1 (void)
 {
 	qbyte	fatvis[MAX_MAP_LEAFS/8];
-	qbyte	*vis;
+	static qbyte	*vis;
 	mnode_t	*node;
 	int		i;
 	qbyte	solid[4096];
 
 	if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.value) || r_novis.value == 2)
-		return;
+		return vis;
 
 //	if (mirror)
 //		return;
@@ -2345,7 +2254,7 @@ void R_MarkLeaves_Q1 (void)
 	r_oldviewleaf = r_viewleaf;
 	r_oldviewleaf2 = r_viewleaf2;
 
-	if (r_novis.value)
+	if (r_novis.ival)
 	{
 		vis = solid;
 		memset (solid, 0xff, (cl.worldmodel->numleafs+7)>>3);
@@ -2378,6 +2287,7 @@ void R_MarkLeaves_Q1 (void)
 			} while (node);
 		}
 	}
+	return vis;
 }
 
 
@@ -2469,7 +2379,7 @@ int SignbitsForPlane (mplane_t *out)
 	return bits;
 }
 #if 1
-void R_SetFrustum (void)
+void R_SetFrustum (float projmat[16], float viewmat[16])
 {
 	float scale;
 	int i;
@@ -2478,7 +2388,7 @@ void R_SetFrustum (void)
 	if ((int)r_novis.value & 4)
 		return;
 
-	Matrix4_Multiply(r_projection_matrix, r_view_matrix, mvp);
+	Matrix4_Multiply(projmat, viewmat, mvp);
 
 	for (i = 0; i < 4; i++)
 	{
@@ -2548,3 +2458,157 @@ void R_SetFrustum (void)
 	}
 }
 #endif
+
+
+
+
+#include "glquake.h"
+
+//we could go for nice smooth round particles... but then we would loose a little bit of the chaotic nature of the particles.
+static qbyte	dottexture[8][8] =
+{
+	{0,0,0,0,0,0,0,0},
+	{0,0,0,1,1,0,0,0},
+	{0,0,1,1,1,1,0,0},
+	{0,1,1,1,1,1,1,0},
+	{0,1,1,1,1,1,1,0},
+	{0,0,1,1,1,1,0,0},
+	{0,0,0,1,1,0,0,0},
+	{0,0,0,0,0,0,0,0},
+};
+static qbyte	exptexture[16][16] =
+{
+	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+	{0,0,0,0,1,0,0,0,1,0,0,1,0,0,0,0},
+	{0,0,0,1,1,1,1,1,3,1,1,2,1,0,0,0},
+	{0,0,0,1,1,1,1,4,4,4,5,4,2,1,1,0},
+	{0,0,1,1,6,5,5,8,6,8,3,6,3,2,1,0},
+	{0,0,1,5,6,7,5,6,8,8,8,3,3,1,0,0},
+	{0,0,0,1,6,8,9,9,9,9,4,6,3,1,0,0},
+	{0,0,2,1,7,7,9,9,9,9,5,3,1,0,0,0},
+	{0,0,2,4,6,8,9,9,9,9,8,6,1,0,0,0},
+	{0,0,2,2,3,5,6,8,9,8,8,4,4,1,0,0},
+	{0,0,1,2,4,1,8,7,8,8,6,5,4,1,0,0},
+	{0,1,1,1,7,8,1,6,7,5,4,7,1,0,0,0},
+	{0,1,2,1,1,5,1,3,4,3,1,1,0,0,0,0},
+	{0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+};
+
+texid_t			particletexture;	// little dot for particles
+texid_t			particlecqtexture;	// little dot for particles
+texid_t			explosiontexture;
+texid_t			balltexture;
+texid_t			beamtexture;
+texid_t			ptritexture;
+void R_InitParticleTexture (void)
+{
+#define PARTICLETEXTURESIZE 64
+	int		x,y;
+	float dx, dy, d;
+	qbyte	data[PARTICLETEXTURESIZE*PARTICLETEXTURESIZE][4];
+
+	//
+	// particle texture
+	//
+	for (x=0 ; x<8 ; x++)
+	{
+		for (y=0 ; y<8 ; y++)
+		{
+			data[y*8+x][0] = 255;
+			data[y*8+x][1] = 255;
+			data[y*8+x][2] = 255;
+			data[y*8+x][3] = dottexture[x][y]*255;
+		}
+	}
+
+	particletexture = R_LoadTexture32("", 8, 8, data, IF_NOMIPMAP|IF_NOPICMIP);
+
+
+	//
+	// particle triangle texture
+	//
+
+	// clear to transparent white
+	for (x = 0; x < 32 * 32; x++)
+	{
+			data[x][0] = 255;
+			data[x][1] = 255;
+			data[x][2] = 255;
+			data[x][3] = 0;
+	}
+	//draw a circle in the top left.
+	for (x=0 ; x<16 ; x++)
+	{
+		for (y=0 ; y<16 ; y++)
+		{
+			if ((x - 7.5) * (x - 7.5) + (y - 7.5) * (y - 7.5) <= 8 * 8)
+				data[y*32+x][3] = 255;
+		}
+	}
+
+	particlecqtexture = R_LoadTexture32("", 32, 32, data, IF_NOMIPMAP|IF_NOPICMIP);
+
+
+
+
+
+	for (x=0 ; x<16 ; x++)
+	{
+		for (y=0 ; y<16 ; y++)
+		{
+			data[y*16+x][0] = 255;
+			data[y*16+x][1] = 255;
+			data[y*16+x][2] = 255;
+			data[y*16+x][3] = exptexture[x][y]*255/9.0;
+		}
+	}
+	explosiontexture = R_LoadTexture32("", 16, 16, data, IF_NOMIPMAP|IF_NOPICMIP);
+
+	memset(data, 255, sizeof(data));
+	for (y = 0;y < PARTICLETEXTURESIZE;y++)
+	{
+		dy = (y - 0.5f*PARTICLETEXTURESIZE) / (PARTICLETEXTURESIZE*0.5f-1);
+		for (x = 0;x < PARTICLETEXTURESIZE;x++)
+		{
+			dx = (x - 0.5f*PARTICLETEXTURESIZE) / (PARTICLETEXTURESIZE*0.5f-1);
+			d = 256 * (1 - (dx*dx+dy*dy));
+			d = bound(0, d, 255);
+			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d;
+		}
+	}
+	balltexture = R_LoadTexture32("", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
+
+	memset(data, 255, sizeof(data));
+	for (y = 0;y < PARTICLETEXTURESIZE;y++)
+	{
+		dy = (y - 0.5f*PARTICLETEXTURESIZE) / (PARTICLETEXTURESIZE*0.5f-1);
+		d = 256 * (1 - (dy*dy));
+		d = bound(0, d, 255);
+		for (x = 0;x < PARTICLETEXTURESIZE;x++)
+		{
+			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d;
+		}
+	}
+	beamtexture = R_LoadTexture32("", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
+
+	for (y = 0;y < PARTICLETEXTURESIZE;y++)
+	{
+		dy = y / (PARTICLETEXTURESIZE*0.5f-1);
+		d = 256 * (1 - (dy*dy));
+		d = bound(0, d, 255);
+		for (x = 0;x < PARTICLETEXTURESIZE;x++)
+		{
+			dx = x / (PARTICLETEXTURESIZE*0.5f-1);
+			d = 256 * (1 - (dx+dy));
+			d = bound(0, d, 255);
+			data[y*PARTICLETEXTURESIZE+x][0] = (qbyte) d;
+			data[y*PARTICLETEXTURESIZE+x][1] = (qbyte) d;
+			data[y*PARTICLETEXTURESIZE+x][2] = (qbyte) d;
+			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d/2;
+		}
+	}
+	ptritexture = R_LoadTexture32("", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
+}
+

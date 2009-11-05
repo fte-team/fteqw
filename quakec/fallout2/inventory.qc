@@ -7,7 +7,6 @@ float IID_NONE = 0;
 //weapons with ammo, things with a toggle state
 #define NotStackable(iid) (IsRanged(iid))
 
-
 //the ammoless weapons
 float IID_WP_WRENCH = 399;
 float IID_WP_KNIFE = 400;
@@ -118,6 +117,7 @@ float IID_BUILD_GTURRET = 357;
 
 float IID_EQUIP_MEDIC_BAG = 375;
 float IID_EQUIP_GOGGLES = 376;
+float IID_EQUIP_SILENCER = 377;
 float IID_EQUIP_BELTPOUCH = 378;
 float IID_EQUIP_BACKPACK = 379;
 float IID_EQUIP_TOOLKIT = 380;
@@ -128,7 +128,6 @@ float IID_EQUIP_SPRINTKIT = 384;
 float IID_EQUIP_HOVERBOOTS = 385;
 float IID_EQUIP_XRAY = 386;
 float IID_EQUIP_EXTENDER = 387;
-
 
 float IID_MISC_JUNK = 310;
 float IID_MISC_NUKACOLA = 311;
@@ -143,8 +142,6 @@ float IID_MISC_COPPERWIRE = 319;
 float IID_MISC_HMXCOMPOUND = 320;
 float IID_MISC_GUM = 321;
 float IID_MISC_XRAYTUBE = 322;
-
-float IID_EQUIP_SILENCER = 323;
 
 
 #define IsShootable(iid) (IsMelee(iid) || IsRanged(iid) || IsGrenade(iid))
@@ -189,7 +186,6 @@ float(float slotno, float iid) FitsInSlot;
 .float          xslot8;
 
 #define MAXSLOTS 24
-
 
 
 
@@ -642,7 +638,7 @@ string(float iid) GetItemVModel =
 	if (iid == IID_WP_ALIENBLASTER)
 		return "progs/v_blaster.mdl";
 	if (iid >= IID_WP_PIPERIFLE && iid <= IID_WP_PIPERIFLE_S_R)
- 		return "progs/v_pipe.mdl";
+		return "progs/v_pipe.mdl";
 	if (iid == IID_WP_WINCHESTER)
 		return "progs/v_double.mdl";
 	if (iid == IID_WP_MOSSBERG)
@@ -739,7 +735,7 @@ string(float iid) GetItemWModel =
 	if (iid == IID_WP_ALIENBLASTER)
 		return "progs/w_alien.mdl";
 	if (iid >= IID_WP_PIPERIFLE && iid <= IID_WP_PIPERIFLE_S_R)
-		return "progs/w_rangem.mdl";
+		return "progs/w_pipe.mdl";
 	if (iid == IID_WP_WINCHESTER)
 		return "progs/w_double.mdl";
 	if (iid == IID_WP_MOSSBERG)
@@ -810,7 +806,7 @@ string(float iid) GetItemWModel =
 	if (iid == IID_CHEM_SUPERSTIM)
 		return "maps/b_bh100.bsp";
 
-	if (iid >= IID_AM_NEEDLER && iid <= IID_AM_WARSAW)
+	if (iid >= IID_AM_NEEDLER && iid <= IID_AM_CASELESS)
 		return "progs/ammobox.mdl";
 
 //fixme
@@ -842,7 +838,6 @@ float(float iid) WeaponAmmoType =
 		return IID_GREN_SMOKE;
 	if (iid == IID_GREN_FLASH)
 		return IID_GREN_FLASH;
-
 
 	if (iid == IID_WP_USP)
 		return IID_AM_45ACP;
@@ -944,9 +939,9 @@ float(float iid) WeaponMagQuant =
 	if (iid == IID_WP_WINCHESTER)
 		return 2;
 	if (iid == IID_WP_MOSSBERG)
-		return 8;
-	if (iid == IID_WP_JACKHAMMER)
 		return 12;
+	if (iid == IID_WP_JACKHAMMER)
+		return 20;
 	if (iid == IID_WP_MP9)
 		return 25;
 	if (iid == IID_WP_MP7)
@@ -964,7 +959,7 @@ float(float iid) WeaponMagQuant =
 	if (iid == IID_WP_AK112)
 		return 24;
 	if (iid == IID_WP_AK112_M)
-		return 40;
+		return 90;
 	if (iid == IID_WP_AK74)
 		return 30;
 	if (iid == IID_WP_ACR)
@@ -1265,8 +1260,7 @@ string(float iid) GetItemName =
 		return "smoke grenade";
 	if (iid == IID_GREN_FLASH)
 		return "flash grenade";
-	if (iid == IID_GREN_FLARE)
-		return "ultra-light flare";
+
 
 	if (iid == IID_ARM_DESERT)
 		return "desert armor";
@@ -1395,17 +1389,17 @@ float(float iid) GetBaseValue =
 
 
 	if (iid == IID_WP_USP)
-		return 25;
+		return 7;
 	if (iid == IID_WP_USP_S)
-		return 30;
+		return 7;
 	if (iid == IID_WP_GLOCK)
-		return 20;
+		return 6;
 	if (iid == IID_WP_GLOCK_S)
-		return 25;
+		return 6;
 	if (iid == IID_WP_DEAGLE)
-		return 35;
+		return 9;
 	if (iid == IID_WP_DEAGLE_M)
-		return 40;
+		return 9;
 	if (iid == IID_WP_NEEDLER)
 		return 10;
 	if (iid == IID_WP_ALIENBLASTER)
@@ -1427,47 +1421,47 @@ float(float iid) GetBaseValue =
 	if (iid == IID_WP_PIPERIFLE_SCOPE_S_R)
 		return 8;
 	if (iid == IID_WP_WINCHESTER)
-		return 30;
+		return 10;
 	if (iid == IID_WP_MOSSBERG)
-		return 150;
+		return 15;
 	if (iid == IID_WP_JACKHAMMER)
-		return 200;
-	if (iid == IID_WP_MP9)
-		return 75;
-	if (iid == IID_WP_MP9_S)
-		return 75;
-	if (iid == IID_WP_MP7)
-		return 75;
-	if (iid == IID_WP_MP7_S)
-		return 75;
-	if (iid == IID_WP_RANGEMASTER)
-		return 50;
-	if (iid == IID_WP_RANGEMASTER_SCOPE)
-		return 50;
-	if (iid == IID_WP_AK47)
 		return 25;
+	if (iid == IID_WP_MP9)
+		return 10;
+	if (iid == IID_WP_MP9_S)
+		return 10;
+	if (iid == IID_WP_MP7)
+		return 11;
+	if (iid == IID_WP_MP7_S)
+		return 11;
+	if (iid == IID_WP_RANGEMASTER)
+		return 12;
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return 12;
+	if (iid == IID_WP_AK47)
+		return 20;
 	if (iid == IID_WP_AK112)
-		return 80;
+		return 15;
 	if (iid == IID_WP_AK112_M)
-		return 90;
+		return 17;
 	if (iid == IID_WP_AK74)
-		return 30;
+		return 20;
 	if (iid == IID_WP_ACR)
-		return 100;
+		return 24;
 	if (iid == IID_WP_DKS1)
-		return 120;
+		return 25;
 	if (iid == IID_WP_DKS1_S)
-		return 125;
+		return 25;
 	if (iid == IID_WP_MOONLIGHT)
-		return 140;
+		return 30;
 	if (iid == IID_WP_G11)
-		return 150;
+		return 75;
 	if (iid == IID_WP_GAUSERIFLE)
-		return 200;
+		return 75;
 	if (iid == IID_WP_PULSERIFLE)
-		return 200;
+		return 85;
 	if (iid == IID_WP_TURBOPLASMA)
-		return 200;
+		return 100;
 	if (iid == IID_WP_PLASMACARBINE)
 		return 105;
 	if (iid == IID_WP_FNFAL)
@@ -1517,8 +1511,7 @@ float(float iid) GetBaseValue =
 		return 1;
 	if (iid == IID_GREN_FLASH)
 		return 1;
-	if (iid == IID_GREN_FLARE)
-		return 1;
+
 
 	if (iid == IID_ARM_DESERT)
 		return 1;
@@ -1752,8 +1745,6 @@ string(float iid) GetItemDesc =
 		return "temporarily blinds nearby enemies";
 	if (iid == IID_GREN_STUN)
 		return "delivers a forceful shock to nearby enemies";
-	if (iid == IID_GREN_FLARE)
-		return "provides a blue light for shadowy areas";
 
 	if (iid == IID_ARM_DESERT)
 		return "the light armor of a raider; makes a great disguise";
@@ -1985,8 +1976,6 @@ string(float iid) GetItemImage =
 		return "flash.jpg";
 	if (iid == IID_GREN_STUN)
 		return "stun.jpg";
-	if (iid == IID_GREN_FLARE)
-		return "flare.jpg";
 
 	if (iid == IID_ARM_DESERT)
 		return "desert.jpg";
@@ -2175,8 +2164,6 @@ float(string itname) ItemIDOfName =
 		return IID_GREN_FRAG;
 	if (itname == "stun grenade")
 		return IID_GREN_STUN;
-	if (itname == "stun flare")
-		return IID_GREN_FLARE;
 	if (itname == "emp grenade")
 		return IID_GREN_EMP;
 	if (itname == "smoke grenade")
@@ -2338,17 +2325,17 @@ string (float slot, float int) PerkName =
 		if (int == 9)
 			return "nintendo gamer";
 		if (int == 10)
-			return "duck and cover";
+			return "esp";
 		if (int == 11)
 			return "last man standing";
 		if (int == 12)
 			return "bodysnatcher";
 		if (int == 13)
-			return "natural aim";
+			return "medicine man";
 		if (int == 14)
 			return "dark alchemist";
 		if (int == 15)
-			return "commando";
+			return "renegade commando";
 		if (int == 16)
 			return "power shot";
 		if (int == 17)
@@ -2386,7 +2373,7 @@ string(float int) GetPerkImage =
 	else if (int == 12)
 		return "gui/perks/bodysnatcher.jpg";
 	else if (int == 13)
-		return "gui/perks/sixthsense.jpg";
+		return "gui/perks/healingway.jpg";
 	else if (int == 14)
 		return "gui/perks/alchemist.jpg";
 	else if (int == 15)
@@ -2414,7 +2401,7 @@ string(float int) GetPerkDesc =
 	else if (int == 3)
 		return "instant stance change, fast prone movement";
 	else if (int == 4)
-		return "smash down locked doors and chests very loudly";
+		return "smash down locked doors and chests, very loud";
 	else if (int == 5)
 		return "fast reloading, instant weapon switching";
 	else if (int == 6)
@@ -2422,17 +2409,17 @@ string(float int) GetPerkDesc =
 	else if (int == 7)
 		return "25% damage bonus to any enemy not targetting you";
 	else if (int == 8)
-		return "gain melee knockback and berserker speed";
+		return "gain melee knockback and berserker rage bonus";
 	else if (int == 9)
 		return "you'll sometimes enter 'the zone'!";
 	else if (int == 10)
-		return "+25% miss chance when taking cover";
+		return "+10% miss chance to you and any nearby allies";
 	else if (int == 11)
 		return "recover hit points as you mow down foes";
 	else if (int == 12)
 		return "become a master of disguise by looting dead bodies";
 	else if (int == 13)
-		return "you can perform quicker aimed shots";
+		return "25% bonus to all chems used on yourself and others";
 	else if (int == 14)
 		return "mix chems together to make better ones";
 	else if (int == 15)
@@ -2449,4 +2436,3 @@ string(float int) GetPerkDesc =
 		return "";
 
 };
-

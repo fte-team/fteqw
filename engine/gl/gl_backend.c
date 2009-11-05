@@ -2039,7 +2039,6 @@ qboolean BE_LightCullModel(vec3_t org, model_t *model)
 		}
 		else
 		{
-			float dist;
 			int i;
 
 			for (i = 0; i < 3; i++)

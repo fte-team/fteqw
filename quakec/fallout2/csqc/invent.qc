@@ -1,6 +1,8 @@
 void bprint(float plev, string st, string s2){}
 float PRINT_MEDIUM = 1;
+
 #include "../inventory.qc"
+
 
 float show_inventory;
 
@@ -79,6 +81,7 @@ void() Invent_Draw =
 	drawstring('112 248 0'+('2 0 0'*IMGSIZEF), "   ARMOUR   ", '8 8 8', '1 1 1', 1);
 	SlotImage('112 256 0'+('2 0 0'*IMGSIZEF), 3);
 
+
 	i = getstati(62);
 	if (i == 1)
 		itname = "team: rangers";
@@ -91,7 +94,7 @@ void() Invent_Draw =
 	if (i == 1)
 		itname = "class: medic";
 	else if (i == 2)
-		itname = "class: assasin";
+		itname = "class: assassin";
 	else if (i == 3)
 		itname = "class: soldier";
 	else if (i == 4)

@@ -1,41 +1,62 @@
 float IID_NONE = 0;
 
-#define IsMelee(iid) (iid == IID_NONE || (iid >= IID_WP_TOOLKIT && iid <= IID_WP_POWERAXE))
-#define IsGrenade(iid) (iid >= IID_GREN_FRAG && iid <= IID_GREN_FLASH)
-#define IsRanged(iid) (iid >= IID_WP_USP && iid <= IID_WP_ROCKETLAUNCHER)
+#define IsMelee(iid) (iid == IID_NONE || (iid >= IID_WP_WRENCH && iid <= IID_WP_POWERAXE))
+#define IsGrenade(iid) (iid >= IID_GREN_FRAG && iid <= IID_GREN_STUN)
+#define IsRanged(iid) (iid >= IID_WP_GLOCK && iid <= IID_WP_ACR)
 
 //weapons with ammo, things with a toggle state
 #define NotStackable(iid) (IsRanged(iid))
 
 //the ammoless weapons
-float IID_WP_TOOLKIT = 400;
-float IID_WP_KNIFE = 401;
-float IID_WP_AXE = 402;
-float IID_WP_VIBROBLADE = 403;
-float IID_WP_POWERAXE = 404;
+float IID_WP_WRENCH = 399;
+float IID_WP_KNIFE = 400;
+float IID_WP_AXE = 401;
+float IID_WP_SPEAR = 402;
+float IID_WP_POWERAXE = 403;
 
 //the ammoed weapons
+float IID_WP_GLOCK = 404;
 float IID_WP_USP = 405;
 float IID_WP_DEAGLE = 406;
 float IID_WP_NEEDLER = 407;
 float IID_WP_ALIENBLASTER = 408;
-float IID_WP_PIPERIFLE = 409;
-float IID_WP_WINCHESTER = 410;
-float IID_WP_MOSSBERG = 411;
-float IID_WP_JACKHAMMER = 412;
-float IID_WP_MP9 = 413;
-float IID_WP_MP7 = 414;
-float IID_WP_RANGEMASTER = 415;
-float IID_WP_AK112 = 416;
-float IID_WP_AK74 = 417;
-float IID_WP_DKS1 = 418;
-float IID_WP_MOONLIGHT = 419;
-float IID_WP_SA80 = 420;
-float IID_WP_GAUSERIFLE = 421;      //2mm EC
-float IID_WP_PULSERIFLE = 422;
-float IID_WP_FNFAL = 423;		//.308 AP
-float IID_WP_ROCKETLAUNCHER = 430;
+float IID_WP_WINCHESTER = 409;
+float IID_WP_MOSSBERG = 410;
+float IID_WP_JACKHAMMER = 411;
+float IID_WP_MP9 = 412;
+float IID_WP_MP7 = 413;
+float IID_WP_RANGEMASTER = 414;
+float IID_WP_AK112 = 415;
+float IID_WP_AK74 = 416;
+float IID_WP_DKS1 = 417;
+float IID_WP_MOONLIGHT = 418;
+float IID_WP_G11 = 419;
+float IID_WP_GLOCK_S = 420;
+float IID_WP_USP_S = 421;
+float IID_WP_MP9_S = 422;
+float IID_WP_MP7_S = 423;
+float IID_WP_PIPERIFLE = 424;
+float IID_WP_PIPERIFLE_R = 425;
+float IID_WP_PIPERIFLE_S = 426;
+float IID_WP_PIPERIFLE_SCOPE = 427;
+float IID_WP_PIPERIFLE_SCOPE_S = 428;
+float IID_WP_PIPERIFLE_SCOPE_R = 429;
+float IID_WP_PIPERIFLE_SCOPE_S_R = 430;
+float IID_WP_PIPERIFLE_S_R = 431;
+float IID_WP_DEAGLE_M = 432;
+float IID_WP_AK112_M = 433;
 
+float IID_WP_GAUSERIFLE = 434;      //2mm EC
+float IID_WP_PULSERIFLE = 435;
+float IID_WP_PLASMACARBINE = 436;
+float IID_WP_TURBOPLASMA = 437;
+float IID_WP_FNFAL = 438;		//.308 AP
+float IID_WP_ROCKETLAUNCHER = 439;
+float IID_WP_LASERGATLING = 440;
+float IID_WP_DKS1_S = 441;
+float IID_WP_RANGEMASTER_SCOPE = 442;
+float IID_WP_AK47 = 443;
+float IID_WP_ACR = 444;
 
 //and ammo for those guns
 float IID_AM_NEEDLER = 507;
@@ -49,15 +70,20 @@ float IID_AM_762MM = 514; //"7.62mm ammo";
 float IID_AM_44MAGNUM = 515; //".44 magnum ammo";
 float IID_AM_45ACP = 516; //".45 ACP ammo";
 float IID_AM_ROCKET = 517; //"explosive rocket"
+float IID_AM_CASELESS = 518; //caseless
+float IID_AM_WARSAW = 519; //ak-47 ammo
 
 //grenade items
 float IID_GREN_FRAG = 101;
 float IID_GREN_EMP = 102;
 float IID_GREN_SMOKE = 103;
 float IID_GREN_FLASH = 104;
+float IID_GREN_STUN = 105;
+float IID_GREN_FLARE = 106;
 
 //armour
-#define IsArmor(iid) (iid >= IID_ARM_SHIRT && iid <= IID_ARM_LPOWER)
+#define IsArmor(iid) (iid >= IID_ARM_DESERT && iid <= IID_ARM_LPOWER)
+float IID_ARM_DESERT = 200;
 float IID_ARM_SHIRT = 201;
 float IID_ARM_LEATHER = 202;
 float IID_ARM_KEVLAR = 203;
@@ -75,6 +101,7 @@ float IID_CHEM_SUPERSTIM = 303;
 float IID_CHEM_ADRENALINE = 304;
 float IID_CHEM_PSYCHO = 305;
 float IID_CHEM_BESERK = 306;
+float IID_CHEM_RADX = 307;
 
 float IID_BUILD_MRAMMO = 350;
 float IID_BUILD_SHIELDGEN = 351;
@@ -85,15 +112,41 @@ float IID_BUILD_TELEPAD = 355;
 float IID_BUILD_RTURRET = 356;
 float IID_BUILD_GTURRET = 357;
 
-float IID_EQUIP_CLIMBINGGEAR = 375;
-float IID_EQUIP_STEALTHBOY = 376;
-float IID_EQUIP_SPRINTKIT = 377;
-float IID_EQUIP_HOVERBOOTS = 378;
+#define IsEquip(iid) (iid >= IID_EQUIP_MEDIC_BAG && iid <= IID_EQUIP_EXTENDER)
+#define IsJunk(iid) (iid >= IID_MISC_JUNK && iid <= IID_MISC_XRAYTUBE)
+
+float IID_EQUIP_MEDIC_BAG = 375;
+float IID_EQUIP_GOGGLES = 376;
+float IID_EQUIP_BELTPOUCH = 378;
+float IID_EQUIP_BACKPACK = 379;
+float IID_EQUIP_TOOLKIT = 380;
+float IID_EQUIP_CLIMBINGGEAR = 381;
+float IID_EQUIP_BATTERY = 382;
+float IID_EQUIP_STEALTHBOY = 383;
+float IID_EQUIP_SPRINTKIT = 384;
+float IID_EQUIP_HOVERBOOTS = 385;
+float IID_EQUIP_XRAY = 386;
+float IID_EQUIP_EXTENDER = 387;
+
+
+float IID_MISC_JUNK = 310;
+float IID_MISC_NUKACOLA = 311;
+float IID_MISC_CHEMICALS = 312;
+float IID_MISC_AEROSOL = 313;
+float IID_MISC_RDXCRYSTAL = 314;
+float IID_MISC_STEELPIPE = 315;
+float IID_MISC_DUCKTAPE = 316;
+float IID_MISC_LCD = 317;
+float IID_MISC_CIRCUITBOARD = 318;
+float IID_MISC_COPPERWIRE = 319;
+float IID_MISC_HMXCOMPOUND = 320;
+float IID_MISC_GUM = 321;
+float IID_MISC_XRAYTUBE = 322;
+
+float IID_EQUIP_SILENCER = 323;
+
 
 #define IsShootable(iid) (IsMelee(iid) || IsRanged(iid) || IsGrenade(iid))
-#define ToIID(it) floor(it/512)
-#define ToStatus(it) (it&511)
-#define SlotVal(iid,st) ((iid*512) | (st&511))
 
 float(float slotno, float iid) FitsInSlot;
 
@@ -101,9 +154,6 @@ float(float slotno, float iid) FitsInSlot;
 //slot3 is the armour slot.
 //the other slots are for misilaneous things.
 
-#define MAXSLOTS 16
-
-#ifndef CSQC
 .float          islot1;
 .float          islot2;
 .float          islot3;
@@ -120,33 +170,100 @@ float(float slotno, float iid) FitsInSlot;
 .float          islot14;
 .float          islot15;
 .float          islot16;
+.float          islot17;
+.float          islot18;
+.float          islot19;
+.float          islot20;
+.float          islot21;
+.float          islot22;
+.float          islot23;
+.float          islot24;
+.float          xslot1;
+.float          xslot2;
+.float          xslot3;
+.float          xslot4;
+.float          xslot5;
+.float          xslot6;
+.float          xslot7;
+.float          xslot8;
 
-void(float stnum, float sttype, .float fieldname) clientstatf = #232;
+#define MAXSLOTS 24
+
+void(float sttype, float stnum, string fieldname) clientstat = #232;
 void() SetupStats =
 {
 	//2 is ev_float
 	//32 is the first stat we are allowed to use
-	clientstatf(32, 2, islot1);
-	clientstatf(33, 2, islot2);
-	clientstatf(34, 2, islot3);
-	clientstatf(35, 2, islot4);
-	clientstatf(36, 2, islot5);
-	clientstatf(37, 2, islot6);
-	clientstatf(38, 2, islot7);
-	clientstatf(39, 2, islot8);
-	clientstatf(40, 2, islot9);
-	clientstatf(41, 2, islot10);
-	clientstatf(42, 2, islot11);
-	clientstatf(43, 2, islot12);
-	clientstatf(44, 2, islot13);
-	clientstatf(45, 2, islot14);
-	clientstatf(46, 2, islot15);
-	clientstatf(47, 2, islot16);
-
-	clientstatf(61, 2, current_slot);
-	clientstatf(62, 2, team);
-	clientstatf(63, 2, class);
+	clientstat(2, 32, "islot1");
+	clientstat(2, 33, "islot2");
+	clientstat(2, 34, "islot3");
+	clientstat(2, 35, "islot4");
+	clientstat(2, 36, "islot5");
+	clientstat(2, 37, "islot6");
+	clientstat(2, 38, "islot7");
+	clientstat(2, 39, "islot8");
+	clientstat(2, 40, "islot9");
+	clientstat(2, 41, "islot10");
+	clientstat(2, 42, "islot11");
+	clientstat(2, 43, "islot12");
+	clientstat(2, 44, "islot13");
+	clientstat(2, 45, "islot14");
+	clientstat(2, 46, "islot15");
+	clientstat(2, 47, "islot16");
+	clientstat(2, 48, "health");
+	clientstat(2, 49, "max_health");
+	clientstat(2, 50, "ammo_shells");
+	clientstat(2, 51, "ammo_cells");
+	clientstat(2, 52, "weight");
+	clientstat(2, 53, "max_weight");
+	clientstat(2, 54, "position");
+	clientstat(2, 55, "rage");
+	clientstat(2, 56, "regen");
+	clientstat(2, 57, "missionbrief");
+	clientstat(2, 58, "sneak");
+	clientstat(2, 59, "perk2");
+	clientstat(2, 60, "perk1");
+	clientstat(2, 61, "current_slot");
+	clientstat(2, 62, "team");
+	clientstat(2, 63, "class");
+	clientstat(2, 64, "start_time");
+	clientstat(2, 65, "location");
+	clientstat(2, 66, "map_obj");
+	clientstat(2, 67, "map_ent1");
+	clientstat(2, 68, "map_ent2");
+	clientstat(2, 69, "map_ent3");
+	clientstat(2, 70, "silencer");
+	clientstat(2, 71, "extender");
+	clientstat(2, 91, "islot17");
+	clientstat(2, 92, "islot18");
+	clientstat(2, 93, "islot19");
+	clientstat(2, 94, "islot20");
+	clientstat(2, 95, "islot21");
+	clientstat(2, 96, "islot22");
+	clientstat(2, 97, "islot23");
+	clientstat(2, 98, "islot24");
+	clientstat(2, 99, "recoil");
+	clientstat(2, 100, "xslot1");
+	clientstat(2, 101, "xslot2");
+	clientstat(2, 102, "xslot3");
+	clientstat(2, 103, "xslot4");
+	clientstat(2, 104, "xslot5");
+	clientstat(2, 105, "xslot6");
+	clientstat(2, 106, "xslot7");
+	clientstat(2, 107, "xslot8");
+	clientstat(2, 108, "safezone");
+	clientstat(2, 109, "connected");
+	clientstat(2, 110, "steadyaim");
+	clientstat(2, 125, "timer");
+	clientstat(2, 126, "popup");
+	clientstat(2, 127, "score");
 };
+
+
+#define ToIID(it) floor(it/512)
+#define ToStatus(it) (it&511)
+#define SlotVal(iid,st) ((iid*512) | (st&511))
+
 
 float(entity e, float slotno) ItemInSlot =
 {
@@ -182,6 +299,22 @@ float(entity e, float slotno) ItemInSlot =
 		return e.islot15;
 	if (slotno == 16)
 		return e.islot16;
+	if (slotno == 17)
+		return e.islot17;
+	if (slotno == 18)
+		return e.islot18;
+	if (slotno == 19)
+		return e.islot19;
+	if (slotno == 20)
+		return e.islot20;
+	if (slotno == 21)
+		return e.islot21;
+	if (slotno == 22)
+		return e.islot22;
+	if (slotno == 23)
+		return e.islot23;
+	if (slotno == 24)
+		return e.islot24;
 
 	return 0;
 };
@@ -220,6 +353,22 @@ void(entity e, float slotno, float item) SetItemSlot =
 		e.islot15 = item;
 	else if (slotno == 16)
 		e.islot16 = item;
+	else if (slotno == 17)
+		e.islot17 = item;
+	else if (slotno == 18)
+		e.islot18 = item;
+	else if (slotno == 19)
+		e.islot19 = item;
+	else if (slotno == 20)
+		e.islot20 = item;
+	else if (slotno == 21)
+		e.islot21 = item;
+	else if (slotno == 22)
+		e.islot22 = item;
+	else if (slotno == 23)
+		e.islot23 = item;
+	else if (slotno == 24)
+		e.islot24 = item;
 };
 
 float(entity e, float iid) SlotOfItem =
@@ -256,7 +405,76 @@ float(entity e, float iid) SlotOfItem =
 		return 15;
 	if (ToIID(e.islot16) == iid)
 		return 16;
+	if (ToIID(e.islot17) == iid)
+		return 17;
+	if (ToIID(e.islot18) == iid)
+		return 18;
+	if (ToIID(e.islot19) == iid)
+		return 19;
+	if (ToIID(e.islot20) == iid)
+		return 20;
+	if (ToIID(e.islot21) == iid)
+		return 21;
+	if (ToIID(e.islot22) == iid)
+		return 22;
+	if (ToIID(e.islot23) == iid)
+		return 23;
+	if (ToIID(e.islot24) == iid)
+		return 24;
+	return 0;
+};
 
+float(entity e, float iid) ShadowSlotOfItem =
+{
+	if (ToIID(getstati(32)) == iid)
+		return 1;
+	if (ToIID(getstati(33)) == iid)
+		return 2;
+	if (ToIID(getstati(34)) == iid)
+		return 3;
+	if (ToIID(getstati(35)) == iid)
+		return 4;
+	if (ToIID(getstati(36)) == iid)
+		return 5;
+	if (ToIID(getstati(37)) == iid)
+		return 6;
+	if (ToIID(getstati(38)) == iid)
+		return 7;
+	if (ToIID(getstati(39)) == iid)
+		return 8;
+	if (ToIID(getstati(40)) == iid)
+		return 9;
+	if (ToIID(getstati(41)) == iid)
+		return 10;
+	if (ToIID(getstati(42)) == iid)
+		return 11;
+	if (ToIID(getstati(43)) == iid)
+		return 12;
+	if (ToIID(getstati(44)) == iid)
+		return 13;
+	if (ToIID(getstati(45)) == iid)
+		return 14;
+	if (ToIID(getstati(46)) == iid)
+		return 15;
+	if (ToIID(getstati(47)) == iid)
+		return 16;
+
+	if (ToIID(getstati(91)) == iid)
+		return 17;
+	if (ToIID(getstati(92)) == iid)
+		return 18;
+	if (ToIID(getstati(93)) == iid)
+		return 19;
+	if (ToIID(getstati(94)) == iid)
+		return 20;
+	if (ToIID(getstati(95)) == iid)
+		return 21;
+	if (ToIID(getstati(96)) == iid)
+		return 22;
+	if (ToIID(getstati(97)) == iid)
+		return 23;
+	if (ToIID(getstati(98)) == iid)
+		return 24;
 	return 0;
 };
 
@@ -295,6 +513,22 @@ float(entity e, float iid) TotalQuantity =
 		ret += ToStatus(e.islot15);
 	if (ToIID(e.islot16) == iid)
 		ret += ToStatus(e.islot16);
+	if (ToIID(e.islot17) == iid)
+		ret += ToStatus(e.islot17);
+	if (ToIID(e.islot18) == iid)
+		ret += ToStatus(e.islot18);
+	if (ToIID(e.islot19) == iid)
+		ret += ToStatus(e.islot19);
+	if (ToIID(e.islot20) == iid)
+		ret += ToStatus(e.islot20);
+	if (ToIID(e.islot21) == iid)
+		ret += ToStatus(e.islot21);
+	if (ToIID(e.islot22) == iid)
+		ret += ToStatus(e.islot22);
+	if (ToIID(e.islot23) == iid)
+		ret += ToStatus(e.islot23);
+	if (ToIID(e.islot24) == iid)
+		ret += ToStatus(e.islot24);
 
 	return ret;
 };
@@ -327,32 +561,14 @@ float(entity e) FindEmptySlot =
 		return 14;
 	if (ToIID(e.islot15) == IID_NONE)
 		return 15;
-	if (ToIID(e.islot16) == IID_NONE)
-		return 16;
 
 	return 0;
 };
 
 float(entity e, float iid) FindSuitableEmptySlot =
 {
-	if (ToIID(e.islot1) == IID_NONE)
-		if (FitsInSlot(1, iid))
-			return 1;
-	if (ToIID(e.islot2) == IID_NONE)
-		if (FitsInSlot(2, iid))
-			return 2;
-	if (ToIID(e.islot3) == IID_NONE)
-		if (FitsInSlot(3, iid))
-			return 3;
-	if (ToIID(e.islot4) == IID_NONE)
-		if (FitsInSlot(4, iid))
-			return 4;
-	if (ToIID(e.islot5) == IID_NONE)
-		if (FitsInSlot(5, iid))
-			return 5;
-	if (ToIID(e.islot6) == IID_NONE)
-		if (FitsInSlot(6, iid))
-			return 6;
+	if (!IsJunk(iid))
+	{
 	if (ToIID(e.islot7) == IID_NONE)
 		if (FitsInSlot(7, iid))
 			return 7;
@@ -383,7 +599,26 @@ float(entity e, float iid) FindSuitableEmptySlot =
 	if (ToIID(e.islot16) == IID_NONE)
 		if (FitsInSlot(16, iid))
 			return 16;
-
+	}
+	else if (IsJunk(iid))
+	{
+		if (ToIID(e.islot17) == IID_NONE)
+				return 17;
+		if (ToIID(e.islot18) == IID_NONE)
+				return 18;
+		if (ToIID(e.islot19) == IID_NONE)
+				return 19;
+		if (ToIID(e.islot20) == IID_NONE)
+				return 20;
+		if (ToIID(e.islot21) == IID_NONE)
+				return 21;
+		if (ToIID(e.islot22) == IID_NONE)
+				return 22;
+		if (ToIID(e.islot23) == IID_NONE)
+				return 23;
+		if (ToIID(e.islot24) == IID_NONE)
+				return 24;
+	}
 	return 0;
 };
 
@@ -422,75 +657,113 @@ slot_t(float slot) SlotField =
 		return islot15;
 	if (slot == 16)
 		return islot16;
+	if (slot == 17)
+		return islot17;
+	if (slot == 18)
+		return islot18;
+	if (slot == 19)
+		return islot19;
+	if (slot == 20)
+		return islot20;
+	if (slot == 21)
+		return islot21;
+	if (slot == 22)
+		return islot22;
+	if (slot == 23)
+		return islot23;
+	if (slot == 24)
+		return islot24;
 
 
 	bprint(PRINT_MEDIUM, "ERROR: Invalid slot number (", ftos(slot), ")\n");
 	return islot1;
 };
-#endif
 
 
 string(float iid) GetItemVModel =
 {
 	if (iid == IID_NONE)
 		return "progs/v_fist.mdl";
-	if (iid == IID_WP_TOOLKIT)
+	if (iid == IID_WP_WRENCH)
 		return "progs/v_span.mdl";
 	if (iid == IID_WP_KNIFE)
 		return "progs/v_knife.mdl";
 	if (iid == IID_WP_AXE)
 		return "progs/v_axe.mdl";
-	if (iid == IID_WP_VIBROBLADE)
-		return "progs/v_knife.mdl";
+	if (iid == IID_WP_SPEAR)
+		return "progs/v_spear.mdl";
 	if (iid == IID_WP_POWERAXE)
 		return "progs/v_axe.mdl";
 	if (iid == IID_WP_USP)
 		return "progs/v_1911.mdl";
-
+	if (iid == IID_WP_USP_S)
+		return "progs/v_1911.mdl";
+	if (iid == IID_WP_GLOCK)
+		return "progs/v_glock.mdl";
+	if (iid == IID_WP_GLOCK_S)
+		return "progs/v_glock.mdl";
 	if (iid == IID_WP_DEAGLE)
 		return "progs/v_deagle.mdl";
 	if (iid == IID_WP_NEEDLER)
-		return "progs/v_1911.mdl";
+		return "progs/v_needler.mdl";
 	if (iid == IID_WP_ALIENBLASTER)
-		return "progs/v_alien.mdl";
-	if (iid == IID_WP_PIPERIFLE)
-		return "progs/v_piperifle.mdl";
+		return "progs/v_blaster.mdl";
+	if (iid >= IID_WP_PIPERIFLE && iid <= IID_WP_PIPERIFLE_S_R)
+ 		return "progs/v_pipe.mdl";
 	if (iid == IID_WP_WINCHESTER)
 		return "progs/v_double.mdl";
 	if (iid == IID_WP_MOSSBERG)
-		return "progs/v_shotgun.mdl";
+		return "progs/v_combat.mdl";
 
 	if (iid == IID_WP_JACKHAMMER)
 		return "progs/v_jackhammer.mdl";
 	if (iid == IID_WP_MP9)
-		return "progs/v_mp9.mdl";
+		return "progs/v_ump.mdl";
 	if (iid == IID_WP_MP7)
+		return "progs/v_smg.mdl";
+	if (iid == IID_WP_MP9_S)
+		return "progs/v_ump.mdl";
+	if (iid == IID_WP_MP7_S)
 		return "progs/v_smg.mdl";
 	if (iid == IID_WP_RANGEMASTER)
  		return "progs/v_rangem.mdl";
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+ 		return "progs/v_rangem_s.mdl";
 	if (iid == IID_WP_AK112)
 		return "progs/v_ak47.mdl";
 	if (iid == IID_WP_AK74)
 		return "progs/v_ak47.mdl";
+	if (iid == IID_WP_ACR)
+		return "progs/v_acr.mdl";
 	if (iid == IID_WP_DKS1)
+		return "progs/v_srifle.mdl";
+	if (iid == IID_WP_DKS1_S)
 		return "progs/v_srifle.mdl";
 	if (iid == IID_WP_MOONLIGHT)
 		return "progs/v_night.mdl";
 	if (iid == IID_WP_FNFAL)
- 		return "progs/v_rangem.mdl";
+ 		return "progs/v_fnfal.mdl";
+	if (iid == IID_WP_AK112_M)
+		return "progs/v_ak47.mdl";
 
-
-	if (iid == IID_WP_SA80)
-		return "progs/v_sa80.mdl";
+	if (iid == IID_WP_G11)
+		return "progs/v_g11.mdl";
 	if (iid == IID_WP_GAUSERIFLE)
 		return "progs/v_gauss.mdl";
 	if (iid == IID_WP_PULSERIFLE)
+		return "progs/v_plasma.mdl";
+	if (iid == IID_WP_TURBOPLASMA)
+		return "progs/v_plasma.mdl";
+	if (iid == IID_WP_PLASMACARBINE)
 		return "progs/v_carbine.mdl";
-
 	if (iid == IID_WP_ROCKETLAUNCHER)
 		return "progs/v_rocket.mdl";
+	if (iid == IID_WP_LASERGATLING)
+		return "progs/v_chain.mdl";
 
 	if (iid == IID_GREN_FRAG)
+		return "progs/v_handgren.mdl";
+	if (iid == IID_GREN_STUN)
 		return "progs/v_handgren.mdl";
 	if (iid == IID_GREN_EMP)
 		return "progs/v_handgren.mdl";
@@ -507,56 +780,87 @@ string(float iid) GetItemWModel =
 {
 	if (iid == IID_WP_KNIFE)
 		return "progs/w_knife.mdl";
+	if (iid == IID_WP_WRENCH)
+		return "progs/w_span.mdl";
 	if (iid == IID_WP_AXE)
 		return "progs/w_knife.mdl";
-	if (iid == IID_WP_VIBROBLADE)
-		return "progs/w_axe.mdl";
+	if (iid == IID_WP_SPEAR)
+		return "progs/w_spear.mdl";
 	if (iid == IID_WP_POWERAXE)
 		return "progs/w_axe.mdl";
 
 	if (iid == IID_WP_USP)
 		return "progs/w_1911.mdl";
+	if (iid == IID_WP_USP_S)
+		return "progs/w_1911.mdl";
+	if (iid == IID_WP_GLOCK)
+		return "progs/w_glock.mdl";
+	if (iid == IID_WP_GLOCK_S)
+		return "progs/w_glock.mdl";
 	if (iid == IID_WP_DEAGLE)
+		return "progs/w_deagle.mdl";
+	if (iid == IID_WP_DEAGLE_M)
 		return "progs/w_deagle.mdl";
 	if (iid == IID_WP_NEEDLER)
 		return "progs/w_1911.mdl";
 	if (iid == IID_WP_ALIENBLASTER)
 		return "progs/w_alien.mdl";
-	if (iid == IID_WP_PIPERIFLE)
-		return "progs/w_pipe.mdl";
+	if (iid >= IID_WP_PIPERIFLE && iid <= IID_WP_PIPERIFLE_S_R)
+		return "progs/w_rangem.mdl";
 	if (iid == IID_WP_WINCHESTER)
-		return "progs/w_shotgun.mdl";
+		return "progs/w_double.mdl";
 	if (iid == IID_WP_MOSSBERG)
-		return "progs/w_pipe.mdl";
+		return "progs/w_combat.mdl";
 	if (iid == IID_WP_JACKHAMMER)
 		return "progs/w_jackhammer.mdl";
 
 	if (iid == IID_WP_MP9)
 		return "progs/w_mp9.mdl";
 	if (iid == IID_WP_MP7)
+		return "progs/w_mp5.mdl";
+	if (iid == IID_WP_MP9_S)
+		return "progs/w_mp9.mdl";
+	if (iid == IID_WP_MP7_S)
 		return "progs/w_mp7.mdl";
 	if (iid == IID_WP_RANGEMASTER)
 		return "progs/w_rangem.mdl";
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return "progs/w_rangem.mdl";
 	if (iid == IID_WP_AK112)
+		return "progs/w_ak47.mdl";
+	if (iid == IID_WP_AK112_M)
 		return "progs/w_ak47.mdl";
 	if (iid == IID_WP_AK74)
 		return "progs/w_ak47.mdl";
+	if (iid == IID_WP_ACR)
+		return "progs/w_acr.mdl";
 	if (iid == IID_WP_DKS1)
+		return "progs/w_srifle.mdl";
+	if (iid == IID_WP_DKS1_S)
 		return "progs/w_srifle.mdl";
 	if (iid == IID_WP_MOONLIGHT)
 		return "progs/w_night.mdl";
-	if (iid == IID_WP_SA80)
-		return "progs/w_sa80.mdl";
+	if (iid == IID_WP_G11)
+		return "progs/w_g11.mdl";
 	if (iid == IID_WP_FNFAL)
-		return "progs/w_rangem.mdl";
+		return "progs/w_fnfal.mdl";
 
 	if (iid == IID_WP_GAUSERIFLE)
 		return "progs/w_gauss.mdl";
 	if (iid == IID_WP_PULSERIFLE)
+		return "progs/w_plasma.mdl";
+	if (iid == IID_WP_TURBOPLASMA)
+		return "progs/w_plasma.mdl";
+	if (iid == IID_WP_PLASMACARBINE)
 		return "progs/w_carbine.mdl";
+
 	if (iid == IID_WP_ROCKETLAUNCHER)
 		return "progs/w_rocket.mdl";
+	if (iid == IID_WP_LASERGATLING)
+		return "progs/w_chain.mdl";
 
+	if (iid == IID_GREN_STUN)
+		return "progs/grenade2.mdl";
 	if (iid == IID_GREN_FRAG)
 		return "progs/grenade2.mdl";
 	if (iid == IID_GREN_EMP)
@@ -573,6 +877,9 @@ string(float iid) GetItemWModel =
 	if (iid == IID_CHEM_SUPERSTIM)
 		return "maps/b_bh100.bsp";
 
+	if (iid >= IID_AM_NEEDLER && iid <= IID_AM_WARSAW)
+		return "progs/ammobox.mdl";
+
 //fixme
 	if (iid == IID_CHEM_ADRENALINE)
 		return "maps/b_bh10.bsp";
@@ -580,6 +887,11 @@ string(float iid) GetItemWModel =
 		return "maps/b_bh25.bsp";
 	if (iid == IID_CHEM_BESERK)
 		return "maps/b_bh100.bsp";
+	if (iid == IID_CHEM_RADX)
+		return "maps/b_bh25.bsp";
+
+	if (iid >= IID_MISC_JUNK && iid <= IID_MISC_XRAYTUBE)
+		return "progs/junk1.mdl";
 
 
 	return "progs/s_light.spr";	//no model. :/
@@ -587,16 +899,38 @@ string(float iid) GetItemWModel =
 
 float(float iid) WeaponAmmoType =
 {
+	if (iid == IID_GREN_STUN)
+		return IID_GREN_STUN;
+	if (iid == IID_GREN_FRAG)
+		return IID_GREN_FRAG;
+	if (iid == IID_GREN_EMP)
+		return IID_GREN_EMP;
+	if (iid == IID_GREN_SMOKE)
+		return IID_GREN_SMOKE;
+	if (iid == IID_GREN_FLASH)
+		return IID_GREN_FLASH;
+
+
 	if (iid == IID_WP_USP)
+		return IID_AM_45ACP;
+	if (iid == IID_WP_USP_S)
+		return IID_AM_45ACP;
+	if (iid == IID_WP_GLOCK)
+		return IID_AM_10MM;
+	if (iid == IID_WP_GLOCK_S)
 		return IID_AM_10MM;
 	if (iid == IID_WP_DEAGLE)
+		return IID_AM_44MAGNUM;
+	if (iid == IID_WP_AK47)
+		return IID_AM_WARSAW;
+	if (iid == IID_WP_DEAGLE_M)
 		return IID_AM_44MAGNUM;
 	if (iid == IID_WP_NEEDLER)
 		return IID_AM_NEEDLER;
 	if (iid == IID_WP_ALIENBLASTER)
 		return IID_AM_ENERGYCELL;
-	if (iid == IID_WP_PIPERIFLE)
-		return IID_AM_10MM;
+	if (iid >= IID_WP_PIPERIFLE && iid <= IID_WP_PIPERIFLE_S_R)
+		return IID_AM_44MAGNUM;
 	if (iid == IID_WP_WINCHESTER)
 		return IID_AM_12GAUGESHELLS;
 	if (iid == IID_WP_MOSSBERG)
@@ -604,21 +938,35 @@ float(float iid) WeaponAmmoType =
 	if (iid == IID_WP_JACKHAMMER)
 		return IID_AM_12GAUGESHELLS;
 	if (iid == IID_WP_MP9)
-		return IID_AM_10MM;
+		return IID_AM_45ACP;
 	if (iid == IID_WP_MP7)
+		return IID_AM_10MM;
+	if (iid == IID_WP_MP9_S)
+		return IID_AM_45ACP;
+	if (iid == IID_WP_MP7_S)
 		return IID_AM_10MM;
 	if (iid == IID_WP_RANGEMASTER)
 		return IID_AM_556MM;
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return IID_AM_556MM;
 	if (iid == IID_WP_AK112)
 		return IID_AM_5MMHIGHVEL;
-	if (iid == IID_WP_AK74)
+	if (iid == IID_WP_AK47)
+		return IID_AM_WARSAW;
+	if (iid == IID_WP_AK112_M)
 		return IID_AM_5MMHIGHVEL;
+	if (iid == IID_WP_AK74)
+		return IID_AM_WARSAW;
+	if (iid == IID_WP_ACR)
+		return IID_AM_NEEDLER;
 	if (iid == IID_WP_DKS1)
+		return IID_AM_762MM;
+	if (iid == IID_WP_DKS1_S)
 		return IID_AM_762MM;
 	if (iid == IID_WP_MOONLIGHT)
 		return IID_AM_556MM;
-	if (iid == IID_WP_SA80)
-		return IID_AM_556MM;
+	if (iid == IID_WP_G11)
+		return IID_AM_CASELESS;
 	if (iid == IID_WP_FNFAL)
 		return IID_AM_762MM;
 
@@ -626,8 +974,16 @@ float(float iid) WeaponAmmoType =
 		return IID_AM_2MMEC;
 	if (iid == IID_WP_PULSERIFLE)
 		return IID_AM_ENERGYCELL;
+	if (iid == IID_WP_PULSERIFLE)
+		return IID_AM_ENERGYCELL;
+	if (iid == IID_WP_TURBOPLASMA)
+		return IID_AM_ENERGYCELL;
+	if (iid == IID_WP_PLASMACARBINE)
+		return IID_AM_ENERGYCELL;
 	if (iid == IID_WP_ROCKETLAUNCHER)
 		return IID_AM_ROCKET;
+	if (iid == IID_WP_LASERGATLING)
+		return IID_AM_ENERGYCELL;
 
 	return IID_NONE;
 };
@@ -636,44 +992,72 @@ float(float iid) WeaponMagQuant =
 {
 	if (iid == IID_WP_USP)
 		return 12;
+	if (iid == IID_WP_USP_S)
+		return 12;
+	if (iid == IID_WP_GLOCK)
+		return 15;
+	if (iid == IID_WP_GLOCK_S)
+		return 15;
 	if (iid == IID_WP_DEAGLE)
 		return 7;
+	if (iid == IID_WP_DEAGLE_M)
+		return 11;
 	if (iid == IID_WP_NEEDLER)
 		return 15;
 	if (iid == IID_WP_ALIENBLASTER)
 		return 6;
-	if (iid == IID_WP_PIPERIFLE)
+	if (iid >= IID_WP_PIPERIFLE && iid <= IID_WP_PIPERIFLE_S_R)
 		return 1;
 	if (iid == IID_WP_WINCHESTER)
 		return 2;
 	if (iid == IID_WP_MOSSBERG)
-		return 6;
+		return 8;
 	if (iid == IID_WP_JACKHAMMER)
-		return 10;
+		return 12;
 	if (iid == IID_WP_MP9)
-		return 30;
+		return 25;
 	if (iid == IID_WP_MP7)
+		return 30;
+	if (iid == IID_WP_MP9_S)
+		return 25;
+	if (iid == IID_WP_MP7_S)
 		return 30;
 	if (iid == IID_WP_RANGEMASTER)
 		return 10;
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return 10;
+	if (iid == IID_WP_AK47)
+		return 30;
 	if (iid == IID_WP_AK112)
 		return 24;
+	if (iid == IID_WP_AK112_M)
+		return 40;
 	if (iid == IID_WP_AK74)
 		return 30;
+	if (iid == IID_WP_ACR)
+		return 24;
 	if (iid == IID_WP_DKS1)
+		return 8;
+	if (iid == IID_WP_DKS1_S)
 		return 8;
 	if (iid == IID_WP_MOONLIGHT)
 		return 30;
-	if (iid == IID_WP_SA80)
-		return 30;
+	if (iid == IID_WP_G11)
+		return 50;
 	if (iid == IID_WP_GAUSERIFLE)
 		return 10;
 	if (iid == IID_WP_PULSERIFLE)
 		return 40;
+	if (iid == IID_WP_TURBOPLASMA)
+		return 40;
+	if (iid == IID_WP_PLASMACARBINE)
+		return 50;
 	if (iid == IID_WP_FNFAL)
 		return 20;
 	if (iid == IID_WP_ROCKETLAUNCHER)
 		return 1;
+	if (iid == IID_WP_LASERGATLING)
+		return 120;
 
 	return 0;
 };
@@ -685,15 +1069,23 @@ float(float iid) GetItemWeight =
 	if (iid == IID_WP_KNIFE)
 		return 1;
 	if (iid == IID_WP_AXE)
-		return 2;
-	if (iid == IID_WP_VIBROBLADE)
+		return 8;
+	if (iid == IID_WP_SPEAR)
 		return 8;
 	if (iid == IID_WP_POWERAXE)
 		return 6;
 	if (iid == IID_WP_USP)
 		return 1;
+	if (iid == IID_WP_USP_S)
+		return 1;
+	if (iid == IID_WP_GLOCK)
+		return 1;
+	if (iid == IID_WP_GLOCK_S)
+		return 1;
 	if (iid == IID_WP_DEAGLE)
-		return 2;
+		return 3;
+	if (iid == IID_WP_DEAGLE_M)
+		return 4;
 	if (iid == IID_WP_NEEDLER)
 		return 2;
 	if (iid == IID_WP_ALIENBLASTER)
@@ -708,28 +1100,48 @@ float(float iid) GetItemWeight =
 		return 6;
 	if (iid == IID_WP_MP9)
 		return 3;
+	if (iid == IID_WP_MP9_S)
+		return 3;
 	if (iid == IID_WP_MP7)
+		return 3;
+	if (iid == IID_WP_MP7_S)
 		return 3;
 	if (iid == IID_WP_RANGEMASTER)
 		return 5;
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return 5;
 	if (iid == IID_WP_AK112)
 		return 5;
+	if (iid == IID_WP_AK47)
+		return 6;
+	if (iid == IID_WP_AK112_M)
+		return 7;
 	if (iid == IID_WP_AK74)
 		return 5;
+	if (iid == IID_WP_ACR)
+		return 5;
 	if (iid == IID_WP_DKS1)
-		return 7;
+		return 9;
+	if (iid == IID_WP_DKS1_S)
+		return 9;
 	if (iid == IID_WP_MOONLIGHT)
 		return 5;
-	if (iid == IID_WP_SA80)
-		return 5;
+	if (iid == IID_WP_G11)
+		return 6;
 	if (iid == IID_WP_GAUSERIFLE)
 		return 9;
 	if (iid == IID_WP_PULSERIFLE)
-		return 12;
+		return 11;
+	if (iid == IID_WP_TURBOPLASMA)
+		return 11;
+	if (iid == IID_WP_PLASMACARBINE)
+		return 08;
 	if (iid == IID_WP_FNFAL)
-		return 9;
+		return 8;
 	if (iid == IID_WP_ROCKETLAUNCHER)
 		return 10;
+	if (iid == IID_WP_LASERGATLING)
+		return 25;
 
 
 	if (iid == IID_ARM_SHIRT)
@@ -786,27 +1198,49 @@ string(float iid) GetItemName =
 		return "nothing";
 
 
-	if (iid == IID_WP_TOOLKIT)
-		return "toolkit";
+	if (iid == IID_WP_WRENCH)
+		return "WRENCH";
 	if (iid == IID_WP_KNIFE)
 		return "knife";
 	if (iid == IID_WP_AXE)
 		return "axe";
-	if (iid == IID_WP_VIBROBLADE)
-		return "ripper";
+	if (iid == IID_WP_SPEAR)
+		return "spear";
 	if (iid == IID_WP_POWERAXE)
-		return "poweraxe";
+		return "disruptor";
 
 	if (iid == IID_WP_USP)
-		return "1911 (10mm)";
+		return "usp (45 acp)";
+	if (iid == IID_WP_USP_S)
+		return "usp (silenced)";
+	if (iid == IID_WP_GLOCK)
+		return "glock 21 (10mm)";
+	if (iid == IID_WP_GLOCK_S)
+		return "glock 21 (silenced)";
 	if (iid == IID_WP_DEAGLE)
 		return "desert eagle (.44mag)";
+	if (iid == IID_WP_DEAGLE_M)
+		return "desert eagle (silenced)";
 	if (iid == IID_WP_NEEDLER)
 		return "needler";
 	if (iid == IID_WP_ALIENBLASTER)
 		return "alien blaster (energy)";
 	if (iid == IID_WP_PIPERIFLE)
-		return "pipe rifle (10mm)";
+		return "pipe rifle (.44mag)";
+	if (iid == IID_WP_PIPERIFLE_S)
+		return "pipe rifle (silenced)";
+	if (iid == IID_WP_PIPERIFLE_R)
+		return "pipe rifle (rod&spring)";
+	if (iid == IID_WP_PIPERIFLE_SCOPE)
+		return "pipe rifle (scope)";
+	if (iid == IID_WP_PIPERIFLE_S_R)
+		return "pipe rifle (silenced, rod&spring)";
+	if (iid == IID_WP_PIPERIFLE_SCOPE_R)
+		return "pipe rifle (scope, rod&spring)";
+	if (iid == IID_WP_PIPERIFLE_SCOPE_S)
+		return "pipe rifle (scope, silenced)";
+	if (iid == IID_WP_PIPERIFLE_SCOPE_S_R)
+		return "pipe rifle (scope, silenced, rod&spring)";
 	if (iid == IID_WP_WINCHESTER)
 		return "winchester (12g)";
 	if (iid == IID_WP_MOSSBERG)
@@ -814,56 +1248,82 @@ string(float iid) GetItemName =
 	if (iid == IID_WP_JACKHAMMER)
 		return "jackhammer (12g)";
 	if (iid == IID_WP_MP9)
-		return "mp9 (10mm)";
+		return "h&k ump (.45 acp)";
+	if (iid == IID_WP_MP9_S)
+		return "h&k ump (silenced)";
 	if (iid == IID_WP_MP7)
-		return "grease gun (10mm)";
+		return "h&k mp10 (10mm)";
+	if (iid == IID_WP_MP7_S)
+		return "h&k mp10 (silenced)";
 	if (iid == IID_WP_RANGEMASTER)
 		return "rangemaster (5.56mm)";
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return "rangemaster (x2 SUSAT scope)";
+	if (iid == IID_WP_AK47)
+		return "ak-47 (7.62mm warsaw pact)";
 	if (iid == IID_WP_AK112)
-		return "ak-112 (5mm-hv)";
+		return "ak-112 (5mm jhp)";
+	if (iid == IID_WP_AK112_M)
+		return "ak-112 (extended magazine)";
 	if (iid == IID_WP_AK74)
-		return "ak-74 (5mm-hv)";
+		return "ak-47 (7.62mm warsaw pact)";
+	if (iid == IID_WP_ACR)
+		return "steyr acr (5mm flechette)";
 	if (iid == IID_WP_DKS1)
-		return "dks-1 (7.62mm)";
+		return "knight sr-25 widowmaker (7.62mm)";
+	if (iid == IID_WP_DKS1_S)
+		return "knight sr-25 widowmaker (silenced)";
 	if (iid == IID_WP_MOONLIGHT)
 		return "moonlight (5.56mm)";
-	if (iid == IID_WP_SA80)
-		return "sa-80 (5.56mm)";
+	if (iid == IID_WP_G11)
+		return "hk g11 (4mm)";
 	if (iid == IID_WP_GAUSERIFLE)
 		return "gauss rifle (2mm EC)";
 	if (iid == IID_WP_PULSERIFLE)
-		return "laser carbine (energy)";
+		return "phased plasma rifle (energy)";
+	if (iid == IID_WP_TURBOPLASMA)
+		return "turbo plasma rifle (energy)";
+	if (iid == IID_WP_PLASMACARBINE)
+		return "plasma carbine (energy)";
 	if (iid == IID_WP_FNFAL)
-		return "fn-fal (7.62mm)";
+		return "fn fal (7.62mm)";
 	if (iid == IID_WP_ROCKETLAUNCHER)
 		return "rocket launcher";
+	if (iid == IID_WP_LASERGATLING)
+		return "laser minigun (energy)";
 
 
 
 	if (iid == IID_AM_NEEDLER)
 		return "needler cartidge";
 	if (iid == IID_AM_2MMEC)
-		return "2mm EC ammo";
+		return "2mm AP";
 	if (iid == IID_AM_10MM)
-		return "10mm FMJ";
+		return "10mm JHP";
 	if (iid == IID_AM_556MM)
 		return "5.56mm FMJ";
 	if (iid == IID_AM_5MMHIGHVEL)
 		return "5mm JHP";
 	if (iid == IID_AM_12GAUGESHELLS)
-		return "12-guage shotgun shells";
+		return "12GA shotgun shells";
 	if (iid == IID_AM_ENERGYCELL)
 		return "small energy cell";
 	if (iid == IID_AM_762MM)
 		return "7.62mm AP";
 	if (iid == IID_AM_44MAGNUM)
-		return ".44 magnum ammo";
+		return ".44 magnum FMJ";
+	if (iid == IID_AM_WARSAW)
+		return "7.62mmx38 Warsaw Pact";
 	if (iid == IID_AM_45ACP)
-		return ".45 ACP ammo";
+		return ".45 ACP";
 	if (iid == IID_AM_ROCKET)
 		return "explosive rocket";
+	if (iid == IID_AM_CASELESS)
+		return "4.7mm caseless";
 
 
+	if (iid == IID_GREN_STUN)
+		return "stun grenade";
 	if (iid == IID_GREN_FRAG)
 		return "frag grenade";
 	if (iid == IID_GREN_EMP)
@@ -871,17 +1331,20 @@ string(float iid) GetItemName =
 	if (iid == IID_GREN_SMOKE)
 		return "smoke grenade";
 	if (iid == IID_GREN_FLASH)
-		return "flashbang";
+		return "flash grenade";
+	if (iid == IID_GREN_FLARE)
+		return "ultra-light flare";
 
-
+	if (iid == IID_ARM_DESERT)
+		return "desert armor";
 	if (iid == IID_ARM_SHIRT)
-		return "bulletproof shirt";
+		return "kevlar shirt";
 	if (iid == IID_ARM_LEATHER)
 		return "leather armor";
 	if (iid == IID_ARM_KEVLAR)
-		return "kevlar armor";
+		return "double kevlar";
 	if (iid == IID_ARM_METAL)
-		return "metal armor";
+		return "ceramic armor";
 	if (iid == IID_ARM_COMBAT)
 		return "combat armor";
 	if (iid == IID_ARM_BROTHERHOOD)
@@ -889,7 +1352,7 @@ string(float iid) GetItemName =
 	if (iid == IID_ARM_FORCE)
 		return "force armor";
 	if (iid == IID_ARM_LPOWER)
-		return "light power armor";
+		return "power armor";
 
 
 	if (iid == IID_CHEM_STIMPACK)
@@ -904,7 +1367,8 @@ string(float iid) GetItemName =
 		return "psycho";
 	if (iid == IID_CHEM_BESERK)
 		return "beserk";
-
+	if (iid == IID_CHEM_RADX)
+		return "rad-x";
 
 	if (iid == IID_BUILD_MRAMMO)
 		return "mr. ammo";
@@ -921,17 +1385,300 @@ string(float iid) GetItemName =
 	if (iid == IID_BUILD_GTURRET)
 		return "machine-gun turret";
 
+
+	if (iid == IID_EQUIP_MEDIC_BAG)
+		return "medics bag";
+	if (iid == IID_EQUIP_GOGGLES)
+		return "ghost goggles";
+	if (iid == IID_EQUIP_SILENCER)
+		return "universal silencer";
+	if (iid == IID_EQUIP_BELTPOUCH)
+		return "belt pouch";
+	if (iid == IID_EQUIP_TOOLKIT)
+		return "super WRENCH";
+	if (iid == IID_EQUIP_BACKPACK)
+		return "haversack";
 	if (iid == IID_EQUIP_CLIMBINGGEAR)
 		return "climbing gear";
+	if (iid == IID_EQUIP_BATTERY)
+		return "enhanced battery";
 	if (iid == IID_EQUIP_STEALTHBOY)
 		return "stealthboy";
 	if (iid == IID_EQUIP_SPRINTKIT)
 		return "lucozade sport!";
 	if (iid == IID_EQUIP_HOVERBOOTS)
 		return "hover boots";
+	if (iid == IID_EQUIP_EXTENDER)
+		return "barrel extender";
+	if (iid == IID_EQUIP_XRAY)
+		return "x-ray device";
+
+	if (iid == IID_MISC_JUNK)
+		return "random junk";
+	if (iid == IID_MISC_NUKACOLA)
+		return "nuka-cola";
+	if (iid == IID_MISC_CHEMICALS)
+		return "chemicals";
+	if (iid == IID_MISC_AEROSOL)
+		return "aerosol can";
+	if (iid == IID_MISC_RDXCRYSTAL)
+		return "rdx crystals";
+	if (iid == IID_MISC_STEELPIPE)
+		return "steel pipe";
+	if (iid == IID_MISC_DUCKTAPE)
+		return "duct tape";
+	if (iid == IID_MISC_LCD)
+		return "liquid crystal display";
+	if (iid == IID_MISC_CIRCUITBOARD)
+		return "circuit board";
+	if (iid == IID_MISC_COPPERWIRE)
+		return "copper wire";
+	if (iid == IID_MISC_HMXCOMPOUND)
+		return "hmx compound";
+	if (iid == IID_MISC_GUM)
+		return "chewing gum";
+	if (iid == IID_MISC_XRAYTUBE)
+		return "x-ray tube";
+
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
 	return strcat("unknown", ftos(iid));
+};
+
+float(float iid) GetBaseValue =
+{
+	if (iid == IID_NONE)
+		return 0;
+
+
+	if (iid == IID_WP_WRENCH)
+		return 1;
+	if (iid == IID_WP_KNIFE)
+		return 1;
+	if (iid == IID_WP_AXE)
+		return 1;
+	if (iid == IID_WP_SPEAR)
+		return 1;
+
+
+	if (iid == IID_WP_USP)
+		return 25;
+	if (iid == IID_WP_USP_S)
+		return 30;
+	if (iid == IID_WP_GLOCK)
+		return 20;
+	if (iid == IID_WP_GLOCK_S)
+		return 25;
+	if (iid == IID_WP_DEAGLE)
+		return 35;
+	if (iid == IID_WP_DEAGLE_M)
+		return 40;
+	if (iid == IID_WP_NEEDLER)
+		return 10;
+	if (iid == IID_WP_ALIENBLASTER)
+		return 20;
+	if (iid == IID_WP_PIPERIFLE)
+		return 5;
+	if (iid == IID_WP_PIPERIFLE_S)
+		return 5;
+	if (iid == IID_WP_PIPERIFLE_R)
+		return 6;
+	if (iid == IID_WP_PIPERIFLE_SCOPE)
+		return 6;
+	if (iid == IID_WP_PIPERIFLE_S_R)
+		return 7;
+	if (iid == IID_WP_PIPERIFLE_SCOPE_R)
+		return 7;
+	if (iid == IID_WP_PIPERIFLE_SCOPE_S)
+		return 7;
+	if (iid == IID_WP_PIPERIFLE_SCOPE_S_R)
+		return 8;
+	if (iid == IID_WP_WINCHESTER)
+		return 30;
+	if (iid == IID_WP_MOSSBERG)
+		return 150;
+	if (iid == IID_WP_JACKHAMMER)
+		return 200;
+	if (iid == IID_WP_MP9)
+		return 75;
+	if (iid == IID_WP_MP9_S)
+		return 75;
+	if (iid == IID_WP_MP7)
+		return 75;
+	if (iid == IID_WP_MP7_S)
+		return 75;
+	if (iid == IID_WP_RANGEMASTER)
+		return 50;
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return 50;
+	if (iid == IID_WP_AK47)
+		return 25;
+	if (iid == IID_WP_AK112)
+		return 80;
+	if (iid == IID_WP_AK112_M)
+		return 90;
+	if (iid == IID_WP_AK74)
+		return 30;
+	if (iid == IID_WP_ACR)
+		return 100;
+	if (iid == IID_WP_DKS1)
+		return 120;
+	if (iid == IID_WP_DKS1_S)
+		return 125;
+	if (iid == IID_WP_MOONLIGHT)
+		return 140;
+	if (iid == IID_WP_G11)
+		return 150;
+	if (iid == IID_WP_GAUSERIFLE)
+		return 200;
+	if (iid == IID_WP_PULSERIFLE)
+		return 200;
+	if (iid == IID_WP_TURBOPLASMA)
+		return 200;
+	if (iid == IID_WP_PLASMACARBINE)
+		return 105;
+	if (iid == IID_WP_FNFAL)
+		return 50;
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return 100;
+	if (iid == IID_WP_LASERGATLING)
+		return 150;
+
+
+
+	if (iid == IID_AM_NEEDLER)
+		return 1;
+	if (iid == IID_AM_2MMEC)
+		return 1;
+	if (iid == IID_AM_10MM)
+		return 1;
+	if (iid == IID_AM_556MM)
+		return 1;
+	if (iid == IID_AM_5MMHIGHVEL)
+		return 1;
+	if (iid == IID_AM_12GAUGESHELLS)
+		return 1;
+	if (iid == IID_AM_ENERGYCELL)
+		return 1;
+	if (iid == IID_AM_762MM)
+		return 1;
+	if (iid == IID_AM_44MAGNUM)
+		return 1;
+	if (iid == IID_AM_WARSAW)
+		return 1;
+	if (iid == IID_AM_45ACP)
+		return 1;
+	if (iid == IID_AM_ROCKET)
+		return 1;
+	if (iid == IID_AM_CASELESS)
+		return 1;
+
+
+	if (iid == IID_GREN_STUN)
+		return 1;
+	if (iid == IID_GREN_FRAG)
+		return 1;
+	if (iid == IID_GREN_EMP)
+		return 1;
+	if (iid == IID_GREN_SMOKE)
+		return 1;
+	if (iid == IID_GREN_FLASH)
+		return 1;
+	if (iid == IID_GREN_FLARE)
+		return 1;
+
+	if (iid == IID_ARM_DESERT)
+		return 1;
+	if (iid == IID_ARM_SHIRT)
+		return 1;
+	if (iid == IID_ARM_LEATHER)
+		return 2;
+	if (iid == IID_ARM_KEVLAR)
+		return 3;
+	if (iid == IID_ARM_METAL)
+		return 4;
+	if (iid == IID_ARM_COMBAT)
+		return 5;
+	if (iid == IID_ARM_BROTHERHOOD)
+		return 8;
+	if (iid == IID_ARM_FORCE)
+		return 10;
+	if (iid == IID_ARM_LPOWER)
+		return 15;
+
+
+	if (iid == IID_CHEM_STIMPACK)
+		return 1;
+	if (iid == IID_CHEM_MEDICALBAG)
+		return 1;
+	if (iid == IID_CHEM_SUPERSTIM)
+		return 1;
+	if (iid == IID_CHEM_ADRENALINE)
+		return 1;
+	if (iid == IID_CHEM_PSYCHO)
+		return 1;
+	if (iid == IID_CHEM_BESERK)
+		return 1;
+	if (iid == IID_CHEM_RADX)
+		return 1;
+
+	if (iid == IID_EQUIP_MEDIC_BAG)
+		return 1;
+	if (iid == IID_EQUIP_GOGGLES)
+		return 1;
+	if (iid == IID_EQUIP_SILENCER)
+		return 1;
+	if (iid == IID_EQUIP_BELTPOUCH)
+		return 1;
+	if (iid == IID_EQUIP_TOOLKIT)
+		return 1;
+	if (iid == IID_EQUIP_BACKPACK)
+		return 1;
+	if (iid == IID_EQUIP_CLIMBINGGEAR)
+		return 1;
+	if (iid == IID_EQUIP_BATTERY)
+		return 1;
+	if (iid == IID_EQUIP_STEALTHBOY)
+		return 1;
+	if (iid == IID_EQUIP_SPRINTKIT)
+		return 1;
+	if (iid == IID_EQUIP_HOVERBOOTS)
+		return 1;
+	if (iid == IID_EQUIP_EXTENDER)
+		return 1;
+	if (iid == IID_EQUIP_XRAY)
+		return 1;
+
+	if (iid == IID_MISC_JUNK)
+		return 0;
+	if (iid == IID_MISC_NUKACOLA)
+		return 0;
+	if (iid == IID_MISC_CHEMICALS)
+		return 0;
+	if (iid == IID_MISC_AEROSOL)
+		return 0;
+	if (iid == IID_MISC_RDXCRYSTAL)
+		return 0;
+	if (iid == IID_MISC_STEELPIPE)
+		return 0;
+	if (iid == IID_MISC_DUCKTAPE)
+		return 0;
+	if (iid == IID_MISC_LCD)
+		return 0;
+	if (iid == IID_MISC_CIRCUITBOARD)
+		return 0;
+	if (iid == IID_MISC_COPPERWIRE)
+		return 0;
+	if (iid == IID_MISC_HMXCOMPOUND)
+		return 0;
+	if (iid == IID_MISC_GUM)
+		return 0;
+	if (iid == IID_MISC_XRAYTUBE)
+		return 0;
+
+
+	bprint(PRINT_MEDIUM, ftos(iid), " without a sell price!\n");
+	return 0;
 };
 
 string(float iid) GetItemDesc =
@@ -940,17 +1687,245 @@ string(float iid) GetItemDesc =
 		return "";
 
 
-	if (iid == IID_WP_TOOLKIT)
-		return "a wattz(tm) brand toolkit consisting of many handy instruments, including a wrench. this kit is a repairman's dream, and allows those with the proper knowledge to perform technical tasks.";
-	if (iid == IID_WP_AK74)
-		return "the ak74 is the predecessor of the legendary ak-47. it is still the same old killing machine, except that it uses the 5.45mm high-velocity round that was common in the latest assault rifles just before the war.";
+	if (iid == IID_WP_WRENCH)
+		return "a heavy multi-function wrench";
+	if (iid == IID_WP_KNIFE)
+		return "great for stealth attacks";
+	if (iid == IID_WP_AXE)
+		return "a futuristic battle axe";
+	if (iid == IID_WP_SPEAR)
+		return "a long, sharp polearm";
+	if (iid == IID_WP_POWERAXE)
+		return "a futuristic axe of some sort";
+
+	if (iid == IID_WP_USP)
+		return "uses 45 acp, a solid round";
+	if (iid == IID_WP_USP_S)
+		return "this usp has a silencer attached for maximum stealth";
+	if (iid == IID_WP_GLOCK)
+		return "a rugged, reliable sidearm";
+	if (iid == IID_WP_GLOCK_S)
+		return "silencer allows for hit-and-run tactics";
+	if (iid == IID_WP_DEAGLE)
+		return "the favorite of late 20th century action heroes";
+	if (iid == IID_WP_DEAGLE_M)
+		return "a modified desert eagle with extended magazines";
+	if (iid == IID_WP_NEEDLER)
+		return "an experimental weapon of some sort";
+	if (iid == IID_WP_ALIENBLASTER)
+		return "this gun is of an unknown origin";
+	if (iid == IID_WP_PIPERIFLE)
+		return "a homemade rifle made out of a steel pipe";
+	if (iid == IID_WP_PIPERIFLE_S)
+		return "this pipe rifle has a silencer attached";
+	if (iid == IID_WP_PIPERIFLE_SCOPE)
+		return "a crude scope has been attached to this pipe rifle";
+	if (iid == IID_WP_PIPERIFLE_R)
+		return "a modified pipe rifle with a rod&spring replacement";
+	if (iid == IID_WP_PIPERIFLE_S_R)
+		return "pipe rifle with a silencer and rod&spring replacement";
+	if (iid == IID_WP_PIPERIFLE_SCOPE_R)
+		return "pipe rifle with a scope and rod&spring replacement";
+	if (iid == IID_WP_PIPERIFLE_SCOPE_S)
+		return "pipe rifle with a scope and silencer";
+	if (iid == IID_WP_PIPERIFLE_SCOPE_S_R)
+		return "pipe rifle with a scope, silencer, and rod&spring";
+	if (iid == IID_WP_WINCHESTER)
+		return "double-barrelled and sawed off";
+	if (iid == IID_WP_MOSSBERG)
+		return "semi-auto combat shotgun, magazine fed";
+	if (iid == IID_WP_JACKHAMMER)
+		return "the ultimate for close range battles";
+	if (iid == IID_WP_MP9)
+		return "higher recoil due to larger .45 acp round";
+	if (iid == IID_WP_MP9_S)
+		return "higher recoil due to larger .45 acp round";
+	if (iid == IID_WP_MP7)
+		return "great all-around weapon; good burst fire";
+	if (iid == IID_WP_MP7_S)
+		return "silenced 10mm smg; less recoil";
+	if (iid == IID_WP_RANGEMASTER)
+		return "civilian battle rifle. sturdy and effective";
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return "civilian battle rifle. this one has a scope";
+	if (iid == IID_WP_AK47)
+		return "an outdated assault rifle with extreme durability";
+	if (iid == IID_WP_AK112)
+		return "a common assault rifle with extreme durability";
+	if (iid == IID_WP_AK112_M)
+		return "this rifle has been modified to accept larger magazines";
+	if (iid == IID_WP_DKS1)
+		return "this sturdy rifle fires .308, a larger, more reliable round";
+	if (iid == IID_WP_DKS1_S)
+		return ".308 sniper rifle, silenced for stealth-ops";
+	if (iid == IID_WP_DKS1)
+		return "semi-auto sniper rifle";
+	if (iid == IID_WP_MOONLIGHT)
+		return "decent rifle with extra utility";
+	if (iid == IID_WP_G11)
+		return "a prototype rifle that uses caseless ammo";
+	if (iid == IID_WP_GAUSERIFLE)
+		return "fires extremely high-velocity rounds";
+	if (iid == IID_WP_PULSERIFLE)
+		return "high-tech plasma weapon released just before the war";
+	if (iid == IID_WP_TURBOPLASMA)
+		return "modified plasma rifle for greater heat and pressure dissipation";
+	if (iid == IID_WP_PLASMACARBINE)
+		return "prototype plasma rifle released during the final stages of the war";
+	if (iid == IID_WP_FNFAL)
+		return "rifle designed for longer range; high recoil";
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return "great for devastating tactical strikes";
+	if (iid == IID_WP_LASERGATLING)
+		return "quite simply, the ultimate in heavy firepower";
+
+
+
+	if (iid == IID_AM_NEEDLER)
+		return "good armor-peircing properties";
+	if (iid == IID_AM_2MMEC)
+		return "virtually ignores armor";
+	if (iid == IID_AM_10MM)
+		return "jacketed hollow-points for good damage";
+	if (iid == IID_AM_556MM)
+		return "standard rifle round, moderate recoil";
+	if (iid == IID_AM_5MMHIGHVEL)
+		return "experimental high-velocity rifle ammo";
+	if (iid == IID_AM_12GAUGESHELLS)
+		return "the old standard, has trouble with heavy armor";
+	if (iid == IID_AM_ENERGYCELL)
+		return "this energy cell comes from an unknown origin";
+	if (iid == IID_AM_762MM)
+		return "good stopping power and armor-piercing performance";
+	if (iid == IID_AM_44MAGNUM)
+		return "full metal jacket, hit 'em hard";
+	if (iid == IID_AM_WARSAW)
+		return "ancient soviet rifle round, used in the ak47";
+	if (iid == IID_AM_45ACP)
+		return "a common pistol round with good stopping power";
+	if (iid == IID_AM_ROCKET)
+		return "expensive and extremely lethal";
+	if (iid == IID_AM_CASELESS)
+		return "a brick of small-caliber caseless ammo";
+
+
+	if (iid == IID_GREN_FRAG)
+		return "all-purpose fragmentation grenade";
+	if (iid == IID_GREN_EMP)
+		return "useful against robots and cyborgs";
+	if (iid == IID_GREN_SMOKE)
+		return "very useful for a quick getaway!";
+	if (iid == IID_GREN_FLASH)
+		return "temporarily blinds nearby enemies";
+	if (iid == IID_GREN_STUN)
+		return "delivers a forceful shock to nearby enemies";
+	if (iid == IID_GREN_FLARE)
+		return "provides a blue light for shadowy areas";
+
+	if (iid == IID_ARM_DESERT)
+		return "the light armor of a raider; makes a great disguise";
+	if (iid == IID_ARM_SHIRT)
+		return "featherweight body armor with good stealth and mobility";
+	if (iid == IID_ARM_LEATHER)
+		return "made of thick, tanned brahmin hide";
+	if (iid == IID_ARM_KEVLAR)
+		return "a suit of dragon skin(tm), reduces all damage to blunt trauma";
+	if (iid == IID_ARM_METAL)
+		return "metal plates deflect smaller attacks easily";
+	if (iid == IID_ARM_COMBAT)
+		return "made from defensive polymers, the yardstick of armors";
+	if (iid == IID_ARM_BROTHERHOOD)
+		return "enhanced combat armor with anti-explosive plating";
+	if (iid == IID_ARM_FORCE)
+		return "experimental energy-field armor, very low absorb";
+	if (iid == IID_ARM_LPOWER)
+		return "this heavy armor contains servos that assist with movement";
+
+
+	if (iid == IID_CHEM_STIMPACK)
+		return "advanced healing chem that replaces lost blood";
+	if (iid == IID_CHEM_MEDICALBAG)
+		return "first aid kit with many high-tech supplies";
+	if (iid == IID_CHEM_SUPERSTIM)
+		return "contains nanobots that heal very fast";
+	if (iid == IID_CHEM_ADRENALINE)
+		return "boosts the metabolism, increasing jump and run speed";
+	if (iid == IID_CHEM_PSYCHO)
+		return "unknown chemicals, probably of military origin";
+	if (iid == IID_CHEM_BESERK)
+		return "unknown chemicals, probably of military origin";
+	if (iid == IID_CHEM_RADX)
+		return "powerful anti-radiation pills";
+
+
 	if (iid == IID_BUILD_MRAMMO)
-		return "a military prototype, the mr. ammo was designed to allow soldiers an extra source of ammunition in remote areas, as the handy little machine is capable of churning out ammo from things such as rocks, debris, and metal scraps.";
+		return "provides extra ammunition";
+	if (iid == IID_BUILD_SHIELDGEN)
+		return "protects all nearby allies";
+	if (iid == IID_BUILD_AUTODOC)
+		return "the auto-doc will repair injuries";
+	if (iid == IID_BUILD_ROBOFANG)
+		return "robofang guardian unit";
+	if (iid == IID_BUILD_TTURRET)
+		return "dispatches hostile intruders";
+	if (iid == IID_BUILD_RTURRET)
+		return "rocket turret";
+	if (iid == IID_BUILD_GTURRET)
+		return "machine-gun turret";
+
+
+	if (iid == IID_EQUIP_MEDIC_BAG)
+		return "allows more chems to be carried";
+	if (iid == IID_EQUIP_GOGGLES)
+		return "protects against visual impairments";
+	if (iid == IID_EQUIP_SILENCER)
+		return "attaches to any smallarm";
+	if (iid == IID_EQUIP_BELTPOUCH)
+		return "useful for carrying extra grenades";
+	if (iid == IID_EQUIP_TOOLKIT)
+		return "for picking all sorts of locks";
+	if (iid == IID_EQUIP_BACKPACK)
+		return "this handy bag lets you carry more ammunition";
 	if (iid == IID_EQUIP_CLIMBINGGEAR)
-		return "FIXME:\nActivate, and then run at and up a wall. Don't look too far away from the wall!";
+		return "for those hard to reach places";
+	if (iid == IID_EQUIP_BATTERY)
+		return "provides prolonged battery life";
+	if (iid == IID_EQUIP_STEALTHBOY)
+		return "makes user blurry and hard to see";
+	if (iid == IID_EQUIP_EXTENDER)
+		return "gives a weapon slightly longer range and damage";
+	if (iid == IID_EQUIP_XRAY)
+		return "allows for enemy detection through walls";
+
+	if (iid == IID_MISC_NUKACOLA)
+		return "a bottle of tasty nuka-cola";
+	if (iid == IID_MISC_JUNK)
+		return "metallic bits, pipe and other debris";
+	if (iid == IID_MISC_CHEMICALS)
+		return "standard household cleaner";
+	if (iid == IID_MISC_AEROSOL)
+		return "a half-full aerosol can";
+	if (iid == IID_MISC_RDXCRYSTAL)
+		return "a batch of highly unstable explosive crystals";
+	if (iid == IID_MISC_STEELPIPE)
+		return "a slightly rusted steel pipe";
+	if (iid == IID_MISC_DUCKTAPE)
+		return "ancient, but still highly functional";
+	if (iid == IID_MISC_LCD)
+		return "an lcd from a Lameboy DS videogame unit";
+	if (iid == IID_MISC_CIRCUITBOARD)
+		return "a corroded circuit board from a remote control";
+	if (iid == IID_MISC_COPPERWIRE)
+		return "a small spool of thin copper wire";
+	if (iid == IID_MISC_HMXCOMPOUND)
+		return "a small amount of high-grade military explosive";
+	if (iid == IID_MISC_GUM)
+		return "trident chewing gum, limited edition watermelon flavor";
+	if (iid == IID_MISC_XRAYTUBE)
+		return "??? a strange device ???";
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a desc!\n");
-	return strcat("<no description>", ftos(iid));
+	return strcat("", ftos(iid));
 };
 
 string(float iid) GetItemImage =
@@ -959,63 +1934,91 @@ string(float iid) GetItemImage =
 		return "blank.jpg";
 
 
-	if (iid == IID_WP_TOOLKIT)
-		return "toolkit.jpg";
+	if (iid == IID_WP_WRENCH)
+		return "wrench.jpg";
 	if (iid == IID_WP_KNIFE)
 		return "knife.jpg";
 	if (iid == IID_WP_AXE)
-		return "axe.jpg";
-	if (iid == IID_WP_VIBROBLADE)
-		return "ripper.jpg";
+		return "disruptor.jpg";
+	if (iid == IID_WP_SPEAR)
+		return "spear.jpg";
 	if (iid == IID_WP_POWERAXE)
-		return "poweraxe.jpg";
+		return "disruptor.jpg";
 
 	if (iid == IID_WP_USP)
 		return "usp.jpg";
+	if (iid == IID_WP_USP_S)
+		return "usp.jpg";
+	if (iid == IID_WP_GLOCK)
+		return "glock.jpg";
+	if (iid == IID_WP_GLOCK_S)
+		return "glock.jpg";
 	if (iid == IID_WP_DEAGLE)
+		return "deagle.jpg";
+	if (iid == IID_WP_DEAGLE_M)
 		return "deagle.jpg";
 	if (iid == IID_WP_NEEDLER)
 		return "needler.jpg";
 	if (iid == IID_WP_ALIENBLASTER)
-		return "blaster.jpg";
-	if (iid == IID_WP_PIPERIFLE)
+		return "ppistol.jpg";
+	if (iid >= IID_WP_PIPERIFLE && iid <= IID_WP_PIPERIFLE_S_R)
 		return "prifle.jpg";
 	if (iid == IID_WP_WINCHESTER)
 		return "double.jpg";
 	if (iid == IID_WP_MOSSBERG)
-		return "mossberg.jpg";
+		return "citykiller.jpg";
 	if (iid == IID_WP_JACKHAMMER)
 		return "jackhammer.jpg";
 	if (iid == IID_WP_MP9)
 		return "mp9.jpg";
 	if (iid == IID_WP_MP7)
 		return "ggun.jpg";
+	if (iid == IID_WP_MP9_S)
+		return "mp9.jpg";
+	if (iid == IID_WP_MP7_S)
+		return "ggun.jpg";
 	if (iid == IID_WP_RANGEMASTER)
 		return "rangem.jpg";
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return "rangem_s.jpg";
+	if (iid == IID_WP_AK47)
+		return "ak47.jpg";
 	if (iid == IID_WP_AK112)
 		return "ak112.jpg";
+	if (iid == IID_WP_AK112_M)
+		return "ak112.jpg";
 	if (iid == IID_WP_AK74)
-		return "ak74.jpg";
+		return "ak47.jpg";
+	if (iid == IID_WP_ACR)
+		return "acr.jpg";
 	if (iid == IID_WP_DKS1)
 		return "dks1.jpg";
+	if (iid == IID_WP_DKS1_S)
+		return "dks1_s.jpg";
 	if (iid == IID_WP_MOONLIGHT)
 		return "moonlight.jpg";
-	if (iid == IID_WP_SA80)
-		return "sa80.jpg";
+	if (iid == IID_WP_G11)
+		return "g11.jpg";
 	if (iid == IID_WP_GAUSERIFLE)
 		return "grifle.jpg";
 	if (iid == IID_WP_PULSERIFLE)
-		return "lcarbine.jpg";
+		return "plasmar.jpg";
+	if (iid == IID_WP_TURBOPLASMA)
+		return "turbo.jpg";
+	if (iid == IID_WP_PULSERIFLE)
+		return "carbine.jpg";
 	if (iid == IID_WP_FNFAL)
 		return "fnfal.jpg";
 	if (iid == IID_WP_ROCKETLAUNCHER)
 		return "rpg.jpg";
+	if (iid == IID_WP_LASERGATLING)
+		return "gatling.jpg";
 
 
 	if (iid == IID_AM_NEEDLER)
 		return "needles.jpg";
 	if (iid == IID_AM_2MMEC)
-		return "2mm.jpg";
+		return "2mmec.jpg";
 	if (iid == IID_AM_10MM)
 		return "10mm.jpg";
 	if (iid == IID_AM_556MM)
@@ -1030,11 +2033,14 @@ string(float iid) GetItemImage =
 		return "762mm.jpg";
 	if (iid == IID_AM_44MAGNUM)
 		return "44mag.jpg";
+	if (iid == IID_AM_WARSAW)
+		return "762mm.jpg";
 	if (iid == IID_AM_45ACP)
 		return "45acp.jpg";
 	if (iid == IID_AM_ROCKET)
 		return "rocket.jpg";
-
+	if (iid == IID_AM_CASELESS)
+		return "caseless.jpg";
 
 	if (iid == IID_GREN_FRAG)
 		return "frag.jpg";
@@ -1044,16 +2050,21 @@ string(float iid) GetItemImage =
 		return "smoke.jpg";
 	if (iid == IID_GREN_FLASH)
 		return "flash.jpg";
+	if (iid == IID_GREN_STUN)
+		return "stun.jpg";
+	if (iid == IID_GREN_FLARE)
+		return "flare.jpg";
 
-
+	if (iid == IID_ARM_DESERT)
+		return "desert.jpg";
 	if (iid == IID_ARM_SHIRT)
 		return "shirt.jpg";
 	if (iid == IID_ARM_LEATHER)
 		return "leather.jpg";
 	if (iid == IID_ARM_KEVLAR)
-		return "kevlar.jpg";
+		return "doublek.jpg";
 	if (iid == IID_ARM_METAL)
-		return "metal.jpg";
+		return "ceramic.jpg";
 	if (iid == IID_ARM_COMBAT)
 		return "combat.jpg";
 	if (iid == IID_ARM_BROTHERHOOD)
@@ -1067,13 +2078,15 @@ string(float iid) GetItemImage =
 	if (iid == IID_CHEM_STIMPACK)
 		return "stimpack.jpg";
 	if (iid == IID_CHEM_MEDICALBAG)
-		return "medbag.jpg";
+		return "medkit.jpg";
 	if (iid == IID_CHEM_SUPERSTIM)
 		return "superstim.jpg";
 	if (iid == IID_CHEM_ADRENALINE)
 		return "adrenaline.jpg";
 	if (iid == IID_CHEM_PSYCHO)
 		return "psycho.jpg";
+	if (iid == IID_CHEM_RADX)
+		return "radx.jpg";
 	if (iid == IID_CHEM_BESERK)
 		return "beserk.jpg";
 
@@ -1093,12 +2106,56 @@ string(float iid) GetItemImage =
 	if (iid == IID_BUILD_GTURRET)
 		return "gturret.jpg";
 
+	if (iid == IID_EQUIP_MEDIC_BAG)
+		return "equip/medbag.jpg";
+	if (iid == IID_EQUIP_GOGGLES)
+		return "equip/goggles.jpg";
+	if (iid == IID_EQUIP_SILENCER)
+		return "equip/silencer.jpg";
+	if (iid == IID_EQUIP_BELTPOUCH)
+		return "equip/beltpouch.jpg";
+	if (iid == IID_EQUIP_TOOLKIT)
+		return "equip/WRENCH2.jpg";
+	if (iid == IID_EQUIP_BACKPACK)
+		return "equip/haversack.jpg";
 	if (iid == IID_EQUIP_CLIMBINGGEAR)
-		return "robofang.jpg";
+		return "equip/cgear.jpg";
+	if (iid == IID_EQUIP_BATTERY)
+		return "equip/battery.jpg";
 	if (iid == IID_EQUIP_STEALTHBOY)
-		return "stealthboy.jpg";
-	if (iid == IID_EQUIP_SPRINTKIT)
-		return "sprintkit.jpg";
+		return "equip/stealthboy.jpg";
+	if (iid == IID_EQUIP_EXTENDER)
+		return "equip/silencer.jpg";
+	if (iid == IID_EQUIP_XRAY)
+		return "equip/xray.jpg";
+
+
+	if (iid == IID_MISC_NUKACOLA)
+		return "junk/nukacola.jpg";
+	if (iid == IID_MISC_JUNK)
+		return "junk/junk.jpg";
+	if (iid == IID_MISC_CHEMICALS)
+		return "junk/chemicals.jpg";
+	if (iid == IID_MISC_AEROSOL)
+		return "junk/aerosol.jpg";
+	if (iid == IID_MISC_RDXCRYSTAL)
+		return "junk/rdxcrystal.jpg";
+	if (iid == IID_MISC_STEELPIPE)
+		return "junk/pipe.jpg";
+	if (iid == IID_MISC_DUCKTAPE)
+		return "junk/tape.jpg";
+	if (iid == IID_MISC_LCD)
+		return "junk/lcd.jpg";
+	if (iid == IID_MISC_CIRCUITBOARD)
+		return "junk/board.jpg";
+	if (iid == IID_MISC_COPPERWIRE)
+		return "junk/wire.jpg";
+	if (iid == IID_MISC_HMXCOMPOUND)
+		return "junk/hmx.jpg";
+	if (iid == IID_MISC_GUM)
+		return "junk/gum.jpg";
+	if (iid == IID_MISC_XRAYTUBE)
+		return "junk/tube.jpg";
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
 	return strcat("unknown.jpg", ftos(iid));
@@ -1109,18 +2166,20 @@ float(string itname) ItemIDOfName =
 {
 	if (itname == "nothing")
 		return IID_NONE;
-	if (itname == "toolkit")
-		return IID_WP_TOOLKIT;
+	if (itname == "WRENCH")
+		return IID_WP_WRENCH;
 	if (itname == "knife")
 		return IID_WP_KNIFE;
-	if (itname == "axe")
+	if (itname == "hand-axe")
 		return IID_WP_AXE;
-	if (itname == "ripper")
-		return IID_WP_VIBROBLADE;
+	if (itname == "spear")
+		return IID_WP_SPEAR;
 	if (itname == "poweraxe")
 		return IID_WP_POWERAXE;
-	if (itname == "1911")
+	if (itname == "usp")
 		return IID_WP_USP;
+	if (itname == "glock")
+		return IID_WP_GLOCK;
 	if (itname == "desert eagle")
 		return IID_WP_DEAGLE;
 	if (itname == "deagle")
@@ -1145,31 +2204,51 @@ float(string itname) ItemIDOfName =
 		return IID_WP_MP7;
 	if (itname == "rangemaster")
 		return IID_WP_RANGEMASTER;
+	if (itname == "rangemaster (scope)")
+		return IID_WP_RANGEMASTER_SCOPE;
 	if (itname == "fnfal")
 		return IID_WP_FNFAL;
+	if (itname == "ak-47")
+		return IID_WP_AK112;
 	if (itname == "ak-112")
 		return IID_WP_AK112;
+	if (itname == "ak-112 m")
+		return IID_WP_AK112_M;
 	if (itname == "ak-74")
 		return IID_WP_AK74;
+	if (itname == "acr")
+		return IID_WP_ACR;
 	if (itname == "dks-1")
 		return IID_WP_DKS1;
+	if (itname == "dks-1 silenced")
+		return IID_WP_DKS1_S;
 	if (itname == "moonlight")
 		return IID_WP_MOONLIGHT;
-	if (itname == "sa-80")
-		return IID_WP_SA80;
+	if (itname == "g11")
+		return IID_WP_G11;
 	if (itname == "gauss rifle")
 		return IID_WP_GAUSERIFLE;
-	if (itname == "laser carbine")
+	if (itname == "phased plasma rifle")
 		return IID_WP_PULSERIFLE;
+	if (itname == "plasma carbine")
+		return IID_WP_PLASMACARBINE;
+	if (itname == "turbo plasma rifle")
+		return IID_WP_TURBOPLASMA;
 	if (itname == "rocket")
 		return IID_WP_ROCKETLAUNCHER;
+	if (itname == "laser minigun")
+		return IID_WP_LASERGATLING;
 	if (itname == "frag grenade")
 		return IID_GREN_FRAG;
+	if (itname == "stun grenade")
+		return IID_GREN_STUN;
+	if (itname == "stun flare")
+		return IID_GREN_FLARE;
 	if (itname == "emp grenade")
 		return IID_GREN_EMP;
 	if (itname == "smoke grenade")
 		return IID_GREN_SMOKE;
-	if (itname == "flashbang")
+	if (itname == "flash grenade")
 		return IID_GREN_FLASH;
 	if (itname == "bulletproof shirt")
 		return IID_ARM_SHIRT;
@@ -1201,6 +2280,8 @@ float(string itname) ItemIDOfName =
 		return IID_CHEM_ADRENALINE;
 	if (itname == "psycho")
 		return IID_CHEM_PSYCHO;
+	if (itname == "rad-x")
+		return IID_CHEM_RADX;
 	if (itname == "beserk")
 		return IID_CHEM_BESERK;
 	if (itname == "mr.ammo")
@@ -1225,6 +2306,39 @@ float(string itname) ItemIDOfName =
 		return IID_EQUIP_CLIMBINGGEAR;
 	if (itname == "stealthboy")
 		return IID_EQUIP_STEALTHBOY;
+	if (itname == "xray")
+		return IID_EQUIP_XRAY;
+	if (itname == "extender")
+		return IID_EQUIP_EXTENDER;
+
+	if (itname == "nukacola")
+		return IID_MISC_NUKACOLA;
+	if (itname == "junk")
+		return IID_MISC_JUNK;
+	if (itname == "chemicals")
+		return IID_MISC_CHEMICALS;
+	if (itname == "aerosol")
+		return IID_MISC_AEROSOL;
+	if (itname == "rdx")
+		return IID_MISC_RDXCRYSTAL;
+	if (itname == "steelpipe")
+		return IID_MISC_STEELPIPE;
+	if (itname == "duct-tape")
+		return IID_MISC_DUCKTAPE;
+	if (itname == "lcd")
+		return IID_MISC_LCD;
+	if (itname == "circuit board")
+		return IID_MISC_CIRCUITBOARD;
+	if (itname == "copper wire")
+		return IID_MISC_COPPERWIRE;
+	if (itname == "nukacola")
+		return IID_MISC_NUKACOLA;
+	if (itname == "hmx compound")
+		return IID_MISC_HMXCOMPOUND;
+	if (itname == "chewing gum")
+		return IID_MISC_GUM;
+	if (itname == "x-ray tube")
+		return IID_MISC_XRAYTUBE;
 
 	if (itname == "sprintkit")
 		return IID_EQUIP_SPRINTKIT;
@@ -1239,11 +2353,177 @@ float(string itname) ItemIDOfName =
 
 float(float slotno, float iid) FitsInSlot =
 {
+	if (IsEquip(iid))
+		return false;
+
 	if (!iid)	//nothing can be put in every slot.
 		return true;
 	if (slotno == 1 || slotno == 2)
 		return IsShootable(iid);
 	if (slotno == 3)
 		return IsArmor(iid);
+	if (slotno == 4)
+		return IsEquip(iid);
+	if (slotno == 17)
+		return IsJunk(iid);
+	if (slotno == 18)
+		return IsJunk(iid);
+	if (slotno == 19)
+		return IsJunk(iid);
+	if (slotno == 20)
+		return IsJunk(iid);
+	if (slotno == 21)
+		return IsJunk(iid);
+	if (slotno == 22)
+		return IsJunk(iid);
+	if (slotno == 23)
+		return IsJunk(iid);
+	if (slotno == 24)
+		return IsJunk(iid);
+
 	return true;
+};
+
+string (float slot, float int) PerkName =
+{
+		if (int == 1)
+			return "unbreakable";
+		if (int == 2)
+			return "feral swiftness";
+		if (int == 3)
+			return "stunt man";
+		if (int == 4)
+			return "kick in the door!";
+		if (int == 5)
+			return "quick draw";
+		if (int == 6)
+			return "light step";
+		if (int == 7)
+			return "surprise attack";
+		if (int == 8)
+			return "large and in charge";
+		if (int == 9)
+			return "nintendo gamer";
+		if (int == 10)
+			return "duck and cover";
+		if (int == 11)
+			return "last man standing";
+		if (int == 12)
+			return "bodysnatcher";
+		if (int == 13)
+			return "natural aim";
+		if (int == 14)
+			return "dark alchemist";
+		if (int == 15)
+			return "commando";
+		if (int == 16)
+			return "power shot";
+		if (int == 17)
+			return "one in a million";
+		if (int == 18)
+			return "master blaster";
+		if (int == 19)
+			return "death wish";
+};
+
+string(float int) GetPerkImage =
+{
+	if (int == 1)
+		return "gui/perks/ironman.jpg";
+	else if (int == 2)
+		return "gui/perks/swiftness.jpg";
+	else if (int == 3)
+		return "gui/perks/stuntman.jpg";
+	else if (int == 4)
+		return "gui/perks/kickin.jpg";
+	else if (int == 5)
+		return "gui/perks/quickdraw.jpg";
+	else if (int == 6)
+		return "gui/perks/lightstep.jpg";
+	else if (int == 7)
+		return "gui/perks/surprise.jpg";
+	else if (int == 8)
+		return "gui/perks/large.jpg";
+	else if (int == 9)
+		return "gui/perks/nintendo.jpg";
+	else if (int == 10)
+		return "gui/perks/redscare.jpg";
+	else if (int == 11)
+		return "gui/perks/lastman.jpg";
+	else if (int == 12)
+		return "gui/perks/bodysnatcher.jpg";
+	else if (int == 13)
+		return "gui/perks/sixthsense.jpg";
+	else if (int == 14)
+		return "gui/perks/alchemist.jpg";
+	else if (int == 15)
+		return "gui/perks/eastern.jpg";
+	else if (int == 16)
+		return "gui/perks/powershot.jpg";
+	else if (int == 17)
+		return "gui/perks/million.jpg";
+	else if (int == 18)
+		return "gui/perks/demoman.jpg";
+	else if (int == 19)
+		return "gui/perks/lightning.jpg";
+	else
+		return "gui/perks/none.jpg";
+
+};
+
+
+string(float int) GetPerkDesc =
+{
+	if (int == 1)
+		return "25% damage resist bonus while at half health";
+	else if (int == 2)
+		return "provides a flat 10% bonus movement speed";
+	else if (int == 3)
+		return "instant stance change, fast prone movement";
+	else if (int == 4)
+		return "smash down locked doors and chests very loudly";
+	else if (int == 5)
+		return "fast reloading, instant weapon switching";
+	else if (int == 6)
+		return "reduced footsteps, +10% sneak, don't trip traps";
+	else if (int == 7)
+		return "25% damage bonus to any enemy not targetting you";
+	else if (int == 8)
+		return "gain melee knockback and berserker speed";
+	else if (int == 9)
+		return "you'll sometimes enter 'the zone'!";
+	else if (int == 10)
+		return "+25% miss chance when taking cover";
+	else if (int == 11)
+		return "recover hit points as you mow down foes";
+	else if (int == 12)
+		return "become a master of disguise by looting dead bodies";
+	else if (int == 13)
+		return "you can perform quicker aimed shots";
+	else if (int == 14)
+		return "mix chems together to make better ones";
+	else if (int == 15)
+		return "you have mastered martial arts and kick attacks";
+	else if (int == 16)
+		return "25% damage bonus to your aimed shots";
+	else if (int == 17)
+		return "you sometimes get very, very lucky with anything";
+	else if (int == 18)
+		return "bigger crosshairs means even bigger damage bonus";
+	else if (int == 19)
+		return "20% damage bonus and you also take 20% more damage";
+	else
+		return "";
+
+};
+
+float (float int) getperk =
+{
+
+	if (self.perk1 == int)
+		return TRUE;
+	else if (self.perk2 == int)
+		return TRUE;
+	else
+		return FALSE;
 };

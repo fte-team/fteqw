@@ -43,6 +43,7 @@ $frame paind17 paind18 paind19
 
 void () enforcer_assault_rifle;
 void () enf_reload1;
+void () Footstep;
 
 void() enforcer_fire =
 {
@@ -69,11 +70,36 @@ void (float tmp, float dam) enforcer_single =
 	{
 		sound (self, CHAN_WEAPON, "weapons/reload.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
 		enf_reload1();
-		self.mag1 = self.maxmag1;
+		self.mag1 = 30;
 		return;
 	}
 
 	self.mag1 = self.mag1 - 1;
+
+	if (self.weapon == 3)
+		sound (self, CHAN_WEAPON, "weapons/smg_s.wav", 1, ATTN_NORM);
+	else if (self.weapon == 4)
+		sound (self, CHAN_WEAPON, "weapons/ak112.wav", 1, ATTN_NORM);
+	else if (self.weapon == 5)
+		sound (self, CHAN_WEAPON, "ogre/ak47.wav", 1, ATTN_NORM);
+	else if (self.weapon == 6 && random()<0.5)
+		sound (self, CHAN_WEAPON, "weapons/moonlight-1.wav", 1, ATTN_NORM);
+	else if (self.weapon == 6)
+		sound (self, CHAN_WEAPON, "weapons/moonlight-2.wav", 1, ATTN_NORM);
+
+	if (self.weapon == 3)
+		dam = 12;
+	else if (self.weapon == 4)
+		dam = 16;
+	else if (self.weapon == 5)
+		dam = 18;
+	else if (self.weapon == 6)
+		dam = 16;
+
+	self.attack = self.attack + 1;
+
+	if (self.attack > 5)
+		self.attack = 0;
 
 	makevectors (self.angles);
 
@@ -87,7 +113,7 @@ void (float tmp, float dam) enforcer_single =
 
 	direction = dir;
 
-	traceline (src, src + direction*4000 + v_right*crandom()*tmp + v_up*crandom()*tmp, FALSE, self);
+	traceline (src, src + direction*4000 + v_right*crandom()*tmp*2 + v_up*crandom()*tmp*2, FALSE, self);
 
 	if (trace_fraction == PLAT_LOW_TRIGGER)
 		return;
@@ -95,19 +121,13 @@ void (float tmp, float dam) enforcer_single =
 	if (trace_ent.takedamage)
 	{
 		SpawnBlood (org, PLAT_LOW_TRIGGER);
-		dam = dam + random()*dam;
+		dam = dam + random()*dam - 3;
 		dam = dam * (1 - (trace_fraction));
 		T_Damage (trace_ent, self, self, dam);
 	}
 	else
-	{
-		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-		WriteByte (MSG_MULTICAST, TE_SPIKE);
-		WriteCoord (MSG_MULTICAST, trace_endpos_x);
-		WriteCoord (MSG_MULTICAST, trace_endpos_y);
-		WriteCoord (MSG_MULTICAST, trace_endpos_z);
-		multicast (trace_endpos, MULTICAST_PVS);
-	}
+		bullet_hole (trace_endpos);
+
 };
 
 //============================================================================
@@ -126,7 +146,9 @@ if (random() < 0.2)
 ai_walk(2);};
 void()	enf_walk2	=[	$walk2 ,	enf_walk3	] {ai_walk(4);};
 void()	enf_walk3	=[	$walk3 ,	enf_walk4	] {ai_walk(4);};
-void()	enf_walk4	=[	$walk4 ,	enf_walk5	] {ai_walk(3);};
+void()	enf_walk4	=[	$walk4 ,	enf_walk5	] {ai_walk(3);
+Footstep();
+};
 void()	enf_walk5	=[	$walk5 ,	enf_walk6	] {ai_walk(1);};
 void()	enf_walk6	=[	$walk6 ,	enf_walk7	] {ai_walk(2);};
 void()	enf_walk7	=[	$walk7 ,	enf_walk8	] {ai_walk(2);};
@@ -134,17 +156,23 @@ void()	enf_walk8	=[	$walk8 ,	enf_walk9	] {ai_walk(1);};
 void()	enf_walk9	=[	$walk9 ,	enf_walk10	] {ai_walk(2);};
 void()	enf_walk10	=[	$walk10,	enf_walk11	] {ai_walk(4);};
 void()	enf_walk11	=[	$walk11,	enf_walk12	] {ai_walk(4);};
-void()	enf_walk12	=[	$walk12,	enf_walk13	] {ai_walk(1);};
+void()	enf_walk12	=[	$walk12,	enf_walk13	] {ai_walk(1);
+Footstep();
+};
 void()	enf_walk13	=[	$walk13,	enf_walk14	] {ai_walk(2);};
 void()	enf_walk14	=[	$walk14,	enf_walk15	] {ai_walk(3);};
 void()	enf_walk15	=[	$walk15,	enf_walk16	] {ai_walk(4);};
 void()	enf_walk16	=[	$walk16,	enf_walk1	] {ai_walk(2);};
 
 void()	enf_run1	=[	$run1  ,	enf_run2	] {ai_run(18);};
-void()	enf_run2	=[	$run2  ,	enf_run3	] {ai_run(14);};
+void()	enf_run2	=[	$run2  ,	enf_run3	] {ai_run(14);
+Footstep();
+};
 void()	enf_run3	=[	$run3  ,	enf_run4	] {ai_run(7);};
 void()	enf_run4	=[	$run4  ,	enf_run5	] {ai_run(12);};
-void()	enf_run5	=[	$run5  ,	enf_run6	] {ai_run(14);};
+void()	enf_run5	=[	$run5  ,	enf_run6	] {ai_run(14);
+Footstep();
+};
 void()	enf_run6	=[	$run6  ,	enf_run7	] {ai_run(14);};
 void()	enf_run7	=[	$run7  ,	enf_run8	] {ai_run(7);};
 void()	enf_run8	=[	$run8  ,	enf_run1	] {ai_run(11);};
@@ -161,17 +189,19 @@ void()	enf_atk8	=[	$attack3,	enf_atk9	] {ai_face();};
 void()	enf_atk9	=[	$attack2,	enf_atk10	] {ai_face();};
 void()	enf_atk10	=[	$attack1,	enf_run1	] {ai_face();};
 
-void()	enf_burst1	=[	$attack5,	enf_burst2	] {enforcer_single(400, 16);};
-void()	enf_burst2	=[	$attack6,	enf_burst3	] {enforcer_single(400, 16);ai_face();};
-void()	enf_burst3	=[	$attack5,	enf_burst4	] {enforcer_single(400, 16);};
-void()	enf_burst4	=[	$attack6,	enf_burst5	] {enforcer_single(450, 16);ai_face();};
-void()	enf_burst5	=[	$attack5,	enf_burst6	] {enforcer_single(450, 16);};
-void()	enf_burst6	=[	$attack6,	enf_burst7	] {enforcer_single(500, 16);ai_face();};
-void()	enf_burst7	=[	$attack5,	enf_burst8	] {enforcer_single(550, 16);};
-void()	enf_burst8	=[	$attack4,	enf_burst9	] {enforcer_single(600, 16);ai_face();};
+void()	enf_burst1	=[	$attack5,	enf_burst2	] {enforcer_single(500, 13);};
+void()	enf_burst2	=[	$attack6,	enf_burst3	] {enforcer_single(500, 13);ai_face();};
+void()	enf_burst3	=[	$attack5,	enf_burst4	] {enforcer_single(50, 13);};
+void()	enf_burst4	=[	$attack6,	enf_burst5	] {enforcer_single(550, 13);ai_face();};
+void()	enf_burst5	=[	$attack5,	enf_burst6	] {enforcer_single(550, 13);};
+void()	enf_burst6	=[	$attack6,	enf_burst7	] {enforcer_single(500, 13);ai_face();};
+void()	enf_burst7	=[	$attack5,	enf_burst8	] {enforcer_single(550, 13);};
+void()	enf_burst8	=[	$attack4,	enf_burst9	] {enforcer_single(700, 13);ai_face();};
 void()	enf_burst9	=[	$attack3,	enf_burst10	] {ai_face();};
 void()	enf_burst10	=[	$attack2,	enf_run1	] {ai_face();};
 
+void()	enf_burst1a	=[	$attack5,	enf_burst2a	] {enforcer_single(300, 17);};
+void()	enf_burst2a	=[	$attack6,	enf_burst1a	] {enforcer_single(300, 17);};
 
 
 void()	enf_reload1	=[	$attack10,	enf_reload2	] {};
@@ -266,26 +296,25 @@ void(entity attacker, float damage)	enf_pain =
 
 void()	enf_die1	=[	$death1,	enf_die2	] {};
 void()	enf_die2	=[	$death2,	enf_die3	] {};
-void()	enf_die3	=[	$death3,	enf_die4	]
-{self.solid = SOLID_NOT;self.ammo_cells = 5;DropBackpack();};
+void()	enf_die3	=[	$death3,	enf_die4	] {};
 void()	enf_die4	=[	$death4,	enf_die5	] {ai_forward(14);};
-void()	enf_die5	=[	$death5,	enf_die6	] {ai_forward(2);};
+void()	enf_die5	=[	$death5,	enf_die6	] {ai_forward(6);};
 void()	enf_die6	=[	$death6,	enf_die7	] {};
 void()	enf_die7	=[	$death7,	enf_die8	] {};
 void()	enf_die8	=[	$death8,	enf_die9	] {};
-void()	enf_die9	=[	$death9,	enf_die10	] {ai_forward(3);};
-void()	enf_die10	=[	$death10,	enf_die11	] {ai_forward(5);};
-void()	enf_die11	=[	$death11,	enf_die12	] {ai_forward(5);};
-void()	enf_die12	=[	$death12,	enf_die13	] {ai_forward(5);};
+void()	enf_die9	=[	$death9,	enf_die10	] {ai_forward(6);};
+void()	enf_die10	=[	$death10,	enf_die11	] {ai_forward(6);};
+void()	enf_die11	=[	$death11,	enf_die12	] {ai_forward(6);};
+void()	enf_die12	=[	$death12,	enf_die13	] {ai_forward(6);};
 void()	enf_die13	=[	$death13,	enf_die14	] {};
-void()	enf_die14	=[	$death14,	enf_die14	] {};
-
-void()	enf_fdie1	=[	$fdeath1,	enf_fdie2	] {
-
+void()	enf_die14	=[	$death14,	enf_die14	] {
+setsize (self, '-12 -12 -24', '12 12 -16');
+self.rtime = 1;
 };
+
+void()	enf_fdie1	=[	$fdeath1,	enf_fdie2	] {};
 void()	enf_fdie2	=[	$fdeath2,	enf_fdie3	] {};
-void()	enf_fdie3	=[	$fdeath3,	enf_fdie4	] 
-{self.solid = SOLID_NOT;self.ammo_cells = 5;DropBackpack();};
+void()	enf_fdie3	=[	$fdeath3,	enf_fdie4	] {};
 void()	enf_fdie4	=[	$fdeath4,	enf_fdie5	] {};
 void()	enf_fdie5	=[	$fdeath5,	enf_fdie6	] {};
 void()	enf_fdie6	=[	$fdeath6,	enf_fdie7	] {};
@@ -293,56 +322,133 @@ void()	enf_fdie7	=[	$fdeath7,	enf_fdie8	] {};
 void()	enf_fdie8	=[	$fdeath8,	enf_fdie9	] {};
 void()	enf_fdie9	=[	$fdeath9,	enf_fdie10	] {};
 void()	enf_fdie10	=[	$fdeath10,	enf_fdie11	] {};
-void()	enf_fdie11	=[	$fdeath11,	enf_fdie11	] {};
+void()	enf_fdie11	=[	$fdeath11,	enf_fdie11	] {
+setsize (self, '-12 -12 -24', '12 12 -16');
+self.rtime = 1;
+};
 
 
-void() enf_die =
+void () enforcer_pain =
 {
-// check for gib
-	if (self.health < -35)
+	local vector dir;
+
+	if (self.rtime > 0)
 	{
-		sound (self, CHAN_VOICE, "player/udeath.wav", 1, ATTN_NORM);
-		if (random() > 0.5)
-			enf_die1 ();
-		else
-			enf_fdie1 ();
+		self.health = 240;
 		return;
 	}
 
-// regular death
-	sound (self, CHAN_VOICE, "enforcer/death1.wav", 1, ATTN_NORM);
-	if (random() > 0.5)
-		enf_die1 ();
+	dir = normalize(self.origin - self.enemy.origin);
+	self.velocity = dir * 80;
+
+	if (self.frame == 47)
+	{
+		self.frame = 48;
+		self.think = enf_die1;
+		self.nextthink = time + 0.2;
+	}
 	else
-		enf_fdie1 ();
+	{
+		ThrowGib ("progs/zom_gib.mdl", -40);
+		self.frame = 47;
+		self.think = enf_fdie1;
+		self.nextthink = time + 0.2;
+	}
+
+	self.attack = self.attack + 1;
+
+	if (self.attack == 8)
+	{
+		if (random()*4 <= 2)
+			sound (self, CHAN_VOICE, "player/udeath.wav", 1, ATTN_NORM);
+		else
+			sound (self, CHAN_VOICE, "player/teledth1.wav", 1, ATTN_NORM);
+	}
+	if (self.attack >= 16)
+	{
+		self.solid = SOLID_NOT;
+
+		enf_die1();
+		ThrowGib ("progs/zom_gib.mdl", -35);
+		ThrowGib ("progs/zom_gib.mdl", -35);
+		ThrowGib ("progs/gib1.mdl", -35);
+	}
+};
+
+void (vector stuff, vector ang) spawn_live_enforcer =
+{
+	local entity grunt;
+
+	grunt = spawn ();
+	grunt.origin = stuff;
+	grunt.enemy = self.enemy;
+	grunt.attack_finished = time + 10;
+	grunt.solid = SOLID_SLIDEBOX;
+	grunt.movetype = MOVETYPE_STEP;
+	grunt.takedamage = DAMAGE_YES;
+	setmodel (grunt, "progs/enforcer.mdl");
+	setsize (grunt, '-12 -12 -24', '12 12 32');
+	grunt.classname = "body";
+	grunt.netname = "dead";
+	grunt.health = 240;
+	grunt.angles = ang;
+	grunt.max_health = grunt.health;
+	grunt.th_pain = enforcer_pain;
+	grunt.think = enforcer_pain;
+	grunt.th_die = corpse_gib;
+	grunt.nextthink = time + 0.05;
+};
+
+void() enf_die =
+{
+	if (random()<0.75)
+		DropMoney();
+	if (random()<0.50)
+		DropMoney();
+	if (random()<0.25)
+		DropMoney();
+
+
+	if (self.weapon == 3)
+	{
+		DropFromChest(self, IID_WP_MP7_S, self.mag1);
+		DropFromChest(self, IID_AM_5MMHIGHVEL, 30+random()*30);
+	}
+	else if (self.weapon == 4)
+	{
+		DropFromChest(self, IID_WP_AK112, self.mag1);
+		DropFromChest(self, IID_AM_5MMHIGHVEL, 24+random()*24);
+	}
+	else if (self.weapon == 5)
+	{
+		DropFromChest(self, IID_WP_AK74, self.mag1);
+		DropFromChest(self, IID_AM_WARSAW, 30+random()*30);
+	}
+	else if (self.weapon == 6)
+	{
+		DropFromChest(self, IID_WP_MOONLIGHT, self.mag1);
+		DropFromChest(self, IID_AM_556MM, 30+random()*30);
+	}
+
+	self.solid = SOLID_NOT;
+	spawn_live_enforcer(self.origin, self.angles);
+	remove(self);
 };
 
 void () enforcer_assault_rifle =
 {
 	local float r;
 
-	r = range (self.enemy);
-
-	if (r == RANGE_FAR || r == RANGE_MID)//single shot at range
-	{
-		if (self.weapon == 5)
-			sound (self, CHAN_WEAPON, "weapons/ak112.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
-		if (self.weapon == 6)
-			sound (self, CHAN_WEAPON, "weapons/ak47.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
-		enforcer_single(200, 18);
-	}
-	if (r == RANGE_NEAR || r == RANGE_MELEE)//open up when close
-	{
-		if (self.weapon == 5)
-			sound (self, CHAN_WEAPON, "weapons/auto.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
-		if (self.weapon == 6)
-			sound (self, CHAN_WEAPON, "weapons/auto2.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
-		enf_burst1();
-	}
+	enf_burst1a();
 };
 
 void() monster_enforcer =
 {
+	if (self.zone == 0)
+	{
+		load_monster();
+		return;
+	}
 		precache_model2 ("progs/enforcer.mdl");
 		precache_model2 ("progs/h_mega.mdl");
 		precache_model2 ("progs/laser.mdl");
@@ -378,7 +484,18 @@ void() monster_enforcer =
 		self.th_die = enf_die;
 		self.th_missile = enf_atk1;
 
-		self.weapon = 6;
+		if (random()<0.9)
+			self.weapon = 5;
+		else if (random()<0.1)
+			self.weapon = 3;
+		else if (random()<0.1)
+			self.weapon = 4;
+
+		else if (random()<0.1)
+			self.weapon = 6;
+		else
+			self.weapon = 5;
+
 		self.th_missile = enf_atk1;
 		self.mag1 = 24;
 		self.maxmag1 = self.mag1;

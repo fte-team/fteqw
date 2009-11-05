@@ -149,7 +149,7 @@ local float		r;
 	spot2 = targ.origin + targ.view_ofs;
 	
 	r = vlen (spot1 - spot2);
-	if (r < 120)
+	if (r < 80)
 		return RANGE_MELEE;
 	if (r < 500)
 		return RANGE_NEAR;
@@ -349,7 +349,8 @@ slower noticing monsters.
 float() FindTarget =
 {
 	local entity	client;
-	local float		r;
+	local float		r, x;
+	local string y;
 
 // if the first spawnflag bit is set, the monster will only wake up on
 // really seeing the player, not another monster getting angry
@@ -378,15 +379,18 @@ float() FindTarget =
 		return FALSE;
 	if (client.items & IT_INVISIBILITY)
 		return FALSE;
+	if ((client.sneak > 75) && (client.velocity == '0 0 0'))//if you are standing still, hiding, there's no chance
+		return FALSE;                                 //they will see you, unless they turn into you
 
 	r = range (client);
-	if (r == RANGE_FAR)
-		return FALSE;
 		
 	if (!visible (client))
 		return FALSE;
 
-	if (client.sneak != 0)//sneaking players are invisible
+
+	if (client.team == 0)//client connecting
+		return FALSE;
+	if (client.class == 0)//client connecting
 		return FALSE;
 
 
@@ -397,10 +401,47 @@ float() FindTarget =
 	}
 	else if (r == RANGE_MID)
 	{
-		if ( /* client.show_hostile < time || */ !infront (client))
+		if (!infront (client))
 			return FALSE;
 	}
 	
+	if ((self.search_time < time))
+	{
+		if (self.alert == 0 && client.sneak > 5)
+			self.search_time = time + 2;
+		else if (self.alert == 0 && client.sneak <= 5)
+			self.search_time = time + 1;
+		else if (self.alert > 0)
+		{
+			self.search_time = time + 2;
+			self.alert = self.alert - 1;
+		}
+
+		//if your sneak level is 70% or higher you will never get caught
+		//alert guards get the full 100% random roll, otherwise 90%
+		if (self.alert == 0)
+			x = random()*80;
+		else
+			x = random()*100;
+		if (client.sneak >= 70 && client.velocity == '0 0 0')
+		{
+			sprint(client, 2, self.netname);
+			sprint(client, 2, " failed to detect you.\n");
+		}
+		else if (client.sneak > 0 && (x > client.sneak + 15))
+		{
+			sprint(client, 2, "you've been detected!\n");
+			client.sneak = 0;
+		}
+		else if (client.sneak > 0)
+		{
+			sprint(client, 2, self.netname);
+			sprint(client, 2, " failed to detect you.\n");
+		}
+	}
+
+	if (client.sneak > 0)//sneaking players are invisible
+		return FALSE;
 //
 // got one
 //
@@ -477,11 +518,6 @@ void(float dist) ai_walk =
 {
 	movedist = dist;
 	
-	if (self.classname == "monster_dragon")
-	{
-		movetogoal (dist);
-		return;
-	}
 	// check for noticing a player
 	if (FindTarget ())
 		return;

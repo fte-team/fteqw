@@ -31,11 +31,13 @@ boss.qc
 knight.qc
 hknight.qc
 shalrath.qc
-shambler.qc
 wizard.qc
+shambler.qc
 dog.qc
 ogre.qc
 misc.qc
+tarbaby.qc
 mod_buy.qc
 turrets.qc
 cmds.qc
+fish.qc

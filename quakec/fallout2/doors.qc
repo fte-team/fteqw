@@ -165,21 +165,23 @@ void () OpenDoorBeep =
 
 	if (r != RANGE_MELEE)
 	{
-		self.think = OpenDoorBeep;
-		self.nextthink = time + 0.5;
+		self.owner.owner.rtime = 0;
+		remove(self);
 		return;
 	}
 
-	if (random()*3<1)
-		sound (self, CHAN_BODY, "misc/build1.wav", 1, ATTN_NORM);
-	else if (random()*3<2)
-		sound (self, CHAN_BODY, "misc/build2.wav", 1, ATTN_NORM);
+	if (random()*3<1.5)
+		sound (self, CHAN_BODY, "items/lockpick1.wav", 1, ATTN_NORM);
 	else
-		sound (self, CHAN_BODY, "misc/build3.wav", 1, ATTN_NORM);
+		sound (self, CHAN_BODY, "items/lockpick2.wav", 1, ATTN_NORM);
 
 	self.think = OpenDoorBeep;
 	self.nextthink = time + 0.5;
-	self.owner.owner.rtime = self.owner.owner.rtime + 1;
+	if (ToIID(other.islot4) == IID_EQUIP_TOOLKIT)
+		self.owner.owner.rtime = self.owner.owner.rtime + 3;
+	else
+		self.owner.owner.rtime = self.owner.owner.rtime + 1;
+
 	self.frame = floor ((self.owner.owner.rtime / 12) * 7);
 
 	if (self.owner.owner.rtime >= 12)
@@ -239,12 +241,48 @@ void () door_touch =
 	{
 		if (self.size_y <= 128 && self.size_x <= 128)
 		{
-		if (other.class == 2 || other.class == 4) //assassins as well as scientists
-		{                                         //can open doors for more freedom
+
+		if (other.perk1 == 4 || other.perk2 == 4)
+		{
+			self.owner.rtime = 12;
+			sound (other, CHAN_VOICE, "player/berserk.wav", 1, ATTN_NORM);
+			door_use ();
+			loud_noise(200);
+		}
+		else if (self.owner.items == IT_KEY1)
+		{                                   
 			SpawnOpenDoor(self, other);
 			return;
 		}
-
+		else if (self.owner.items == IT_KEY2)
+		{
+			if (other.class == 1)
+			{
+				sprint(other, 2, "the lock on this door is too complex for you.\n");
+				sound (other, CHAN_BODY, "items/locked.wav", 1, ATTN_NORM);
+				return;
+			}
+			if (other.class == 2)
+			{
+				sprint(other, 2, "picking...\n");
+				other.attack_finished = time + 7;
+				other.rtime = time + 7.5;
+				SpawnOpenDoor(self, other);
+				return;
+			}
+			if (other.class == 3)
+			{
+				sprint(other, 2, "the lock on this door is too complex for you.\n");
+				sound (other, CHAN_BODY, "items/locked.wav", 1, ATTN_NORM);
+				return;
+			}
+			if (other.class == 4)
+			{
+				sprint(other, 2, "picking...\n");
+				SpawnOpenDoor(self, other);
+				return;
+			}
+		}
 		if (self.owner.items == IT_KEY1)
 			sound (self, CHAN_VOICE, self.noise3, 1, ATTN_NORM);
 
@@ -483,23 +521,11 @@ void () func_door =
 	self.blocked = door_blocked;
 	self.use = door_use;
 
-	if (coop == 0)
-	{
-		if ((self.spawnflags & DOOR_SILVER_KEY))
-			self.items = IT_KEY1;
-		if ((self.spawnflags & DOOR_GOLD_KEY))
-			self.items = IT_KEY2;
-	}
-
-	if (coop == 1)
-	{
-		r = random()*10;
-
-		if (r <= 7)
-			self.items = IT_KEY1;
-		else
-			self.items = IT_KEY2;
-	}
+	if (random()<0.20)
+		self.items = IT_KEY1; //easy-to-pick lock
+	else if (random()<0.60)
+		self.items = IT_KEY2; //hard-to-pick lock
+	
 	if (!self.speed)
 	{
 		self.speed = 100;

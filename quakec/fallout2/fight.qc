@@ -15,6 +15,7 @@ float() DemonCheckAttack;
 float(float v) anglemod;
 
 void(vector dest) ChooseTurn;
+void(entity targ, entity inflictor, entity attacker, float damage) X_Damage;
 
 void() ai_face;
 
@@ -60,9 +61,9 @@ float() CheckAttack =
 
 	traceline (spot1, spot2, FALSE, self);
 
-	if (trace_ent != targ)
-		return FALSE;		// don't have a clear shot
-			
+	//if (trace_ent != targ)
+	//	return FALSE;		// don't have a clear shot
+		
 	if (trace_inopen && trace_inwater)
 		return FALSE;			// sight line crossed contents
 
@@ -83,9 +84,6 @@ float() CheckAttack =
 		return FALSE;
 		
 	if (time < self.attack_finished)
-		return FALSE;
-		
-	if (enemy_range == RANGE_FAR)
 		return FALSE;
 		
 	if (enemy_range == RANGE_MELEE)
@@ -132,6 +130,12 @@ void() ai_face =
 {
 	self.ideal_yaw = vectoyaw(self.enemy.origin - self.origin);
 	ChangeYaw ();
+
+	if (self.enemy.sneak > 0)//invisible, estimate position
+	{
+		self.angles_y += random()*50;
+		self.angles_y -= random()*50;
+	}
 };
 
 /*
@@ -172,7 +176,9 @@ void() ai_charge_side =
 /*
 =============
 ai_melee
-
+Monster melee weapons will have armor-piercing properties
+to make them feared, with the exception of the dogs, which
+will have great damage that does not go through armor.
 =============
 */
 void() ai_melee =
@@ -194,7 +200,7 @@ void() ai_melee =
 
 
 void() ai_melee_side =
-{
+{	
 	local vector	delta;
 	local float 	ldmg;
 

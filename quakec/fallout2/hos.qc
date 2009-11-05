@@ -197,7 +197,6 @@ void (float xx) hos_forward =
 		rng = range (te);
 		if (((rng <= RANGE_NEAR) && (self.rescued == MULTICAST_ALL)))
 		{
-			sound (self, CHAN_BODY, "misc/rescued.wav", PLAT_LOW_TRIGGER, ATTN_NONE);
 			te = find (world, classname, "hostage");
 			while (te)
 			{
@@ -216,4 +215,88 @@ void (float xx) hos_forward =
 		te = find (te, classname, "buyzone");
 	}
 	self.oldorg = self.origin;
+};
+
+void (vector jojo) spawn_civilian =
+{
+	local entity civ, te, oself;
+	local entity x;
+	local float stop;
+
+	x = findradius (jojo, 300);
+
+	while (x)
+	{
+		if (x.classname == "trigger_teleport")
+			stop = 1;
+
+		x = x.chain;
+	}
+
+	if (stop == 1)
+	{
+		remove(self);
+		return;
+	}
+
+	civ = spawn ();
+	oself = self;
+	self = civ;
+	self.solid = SOLID_SLIDEBOX;
+	self.movetype = MOVETYPE_STEP;
+	self.takedamage = DAMAGE_AIM;
+	setmodel (self, "progs/hosfem.mdl");
+	setsize (self, VEC_HULL_MIN, '16 16 32');
+	self.health = 80;
+	self.netname = "civilian";
+	self.classname = "rhostage";
+	self.max_health = self.health;
+	hos_stand1 ();
+	self.th_die = hostage_die;
+	self.th_pain = hostage_pain;
+	self.rescued = 0;
+	self.angles_y = random()*360;
+
+	self.origin = jojo + '0 64 0';
+	self.origin_z = self.origin_z + 1;
+	droptofloor();
+
+	if (!walkmove(0, 0))
+	{
+		self.origin = jojo + '0 -64 0';
+		self.origin_z = self.origin_z + 1;
+		droptofloor();
+		if (!walkmove(0, 0))
+		{
+			self.origin = jojo + '64 0 0';
+			self.origin_z = self.origin_z + 1;
+			droptofloor();
+			if (!walkmove(0, 0))
+			{
+				self.origin = jojo + '-64 0 0';
+				self.origin_z = self.origin_z + 1;
+				droptofloor();
+				if (!walkmove(0, 0))
+				{
+					remove(self);
+					return;
+				}
+			}
+		}
+	}
+
+	te = findradius (self.origin, 30);
+	while (te)
+	{
+		if (te.classname == "player" || te.classname == "monster" && te.health > 0)
+		{
+			remove(self);
+			return;
+		}
+
+
+		te = te.chain;
+	}
+
+	self = oself;
 };

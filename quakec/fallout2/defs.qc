@@ -363,7 +363,7 @@ float   TE_EXPLOSION    = 3;
 float   TE_TAREXPLOSION = 4;
 float   TE_LIGHTNING1   = 5;
 float   TE_LIGHTNING2   = 6;
-float   TE_WIZSPIKE             = 7;
+float   TE_WIZSPIKE     = 7;
 float   TE_KNIGHTSPIKE  = 8;
 float   TE_LIGHTNING3   = 9;
 float   TE_LAVASPLASH   = 10;
@@ -454,6 +454,16 @@ float   MULTICAST_PVS_R = 5;            // within sight, reliable
 
 #define FL_FINDABLE_NONSOLID	16384	//a cpqwsv feature
 
+// map objectives
+float   OBJ_NONE         = 0;            // no objective
+float   OBJ_HOSTAGE      = 1;            // rescue hostages
+float   OBJ_SUPPLY       = 2;            // capture supplies
+float   OBJ_SHADOW       = 3;            // pass without trace
+float   OBJ_DEADTOWN     = 4;            // overrun with zombies
+float   OBJ_DESTROY      = 5;            // destroy enemy fuel tanks
+float   OBJ_DEFUSE  = 6;            // defuse explosives
+float   OBJ_EXTERMINATE  = 6;            // destroy deathclaw nest
+float   OBJ_SHAMBLERHUNT = 7;            // destroy shambler hive
 
 //================================================
 
@@ -478,18 +488,28 @@ float           teamplay;
 float           timelimit;
 float           fraglimit;
 float           deathmatch;
+string           m_map;
 float           coop;
 var float           rj                      =       1;
 float           no_connect;
 float           round_end;
 float           red_kill;
 float           blue_kill;
-float           teamthatwon;
-float           team_blue;
-float           team_red;
+float           called_in;
+
+float           winningteam;
+float           t1alive;
+float           t2alive;
+float           t1dead;
+float           t2dead;
 float           bombed;
 float           zombies;
 float           hostages;
+float           musicplay;
+float           musictrack;
+float           supplies;
+float           commanders;
+float           rescue;
 float           dead_hostage;
 float           team1win;
 float           team2win;
@@ -503,7 +523,17 @@ float           max_zombies;
 float           gtimer;
 float           total_players;
 float           endgame_timer;
+float           time_left;
 
+float           s_map_obj;
+float           s_ent1;
+float           s_ent2;
+float           s_ent3;
+float           s_p1;
+float           s_p2;
+float           s_p3;
+
+float           challenge_rating;
 //================================================
 
 //
@@ -575,7 +605,7 @@ float   AS_MISSILE              = 4;
 .float          rad_time;
 .float          fly_sound;
 .float          axhitme;
-
+.float          duck;
 .float          show_hostile;   // set to time+0.2 whenever a client fires a
 							// weapon or takes damage.  Used to alert
 							// monsters that otherwise would let the player go
@@ -586,8 +616,8 @@ float   AS_MISSILE              = 4;
 .string         deathtype;              // keeps track of how the player died
 
 float   POS_STAND               = 0;
-float   POS_DUCK                = 0;
-float   POS_PRONE               = 0;
+float   POS_DUCK                = 1;
+float   POS_PRONE               = 2;
 
 float          blue_gadget;
 float          red_gadget;
@@ -595,12 +625,19 @@ float          blue_weapon;
 float          red_weapon;
 float          blue_armor;
 float          red_armor;
+float   intermission_running;
 
 .float          ghost;
 .float          ghostcnt;
 .float          dtime;
 .float          active;
 .float          class;
+.float          tclass;
+.float          xclass;
+.float          zone;
+.float          missionbrief;
+.float          silencer;
+.float          extender;
 //.float          vote1;
 //.float          vote2;
 //.float          vote3;
@@ -616,6 +653,8 @@ float          red_armor;
 .float          attack;
 .float          position;
 .float          recoil;
+.float          heat;
+.float          hold;
 .float          critical;
 .float          helmet;
 .float          rtime;
@@ -626,6 +665,9 @@ float          red_armor;
 .float          pcamera;
 .float          pcamera2;
 .float          equipment_slot;
+.float          has_radio;
+.float          score;
+
 //.float          select;
 //.float          grenade_hold;
 .float          grab;
@@ -634,8 +676,14 @@ float          red_armor;
 .float          weight;
 .float          max_weight;
 .float          hostage;
-
+.float          xregen;
 .float          sneak;
+
+.float          skill_combat;
+.float          skill_doctor;
+.float          skill_sneak;
+.float          skill_science;
+
 .float          rescued;
 .float          scale;
 .float          bandages;
@@ -643,13 +691,14 @@ float          red_armor;
 .float          cycle1;
 .float          cycle2;
 //.float          c4;
-.float          trait;
+.float          perk1;
+.float          perk2;
 .float          protect;
-.float          perk;
 .float          equipment;
 .float          buildtype;
 //.float          ctimer;
 .float          flash;
+.float          zoom;
 .float          oldteam;
 .float          dead;
 .float          grenadetoggle;
@@ -659,6 +708,8 @@ float          red_armor;
 .float          vote_on;
 .float          vote_type;
 .float          vote_num;
+.float          driftx;
+.float          drifty;
 .float          vote1;
 .float          vote2;
 .float          vote3;
@@ -668,17 +719,56 @@ float          red_armor;
 .float          vote7;
 .float          vote8;
 .float          spamdelay;
-
+.float          speedmulti;
+.float          picking;
+.float          inplace;
+.float          alert;
+.float          searchtime;
+.float          timer;
+.float          safezone;
+.float          pickup;
+.float          accept;
+.float          grenslot;
+.float          connected;
 .string        armornoise;
 .string        ammotype1;
 .string        ammotype2;
-//.string        deathsound;
 .string        currentmenu;
+.entity        wielded;
+.float        walk;
+.float          steadyaim;
+.float          lastman;
+.float          popup;
+.float          flare;
 
 .entity         friend;
+.entity         tumbler1;
+.entity         tumbler2;
+.entity         chest;
 .entity         view2;
+.entity         heal_ent;
 .vector         oldorg;
 .vector         home;
+
+.float           location;
+.float           start_time;
+.float           map_obj;//hostages, assassinate, rescue, defuse, supply crates
+.float           map_ent1;//map creature type 1
+.float           map_ent2;//map creature type 1
+.float           map_ent3;//map creature type 1
+.float           map_ent1_percent;//amount of creature type 1
+.float           map_ent2_percent;//amount of creature type 2
+.float           map_ent3_percent;//amount of creature type 3
+
+.float skill_small_guns;
+.float skill_big_guns;
+.float skill_energy_weapons;
+.float skill_melee;
+.float skill_unarmed;
+.float skill_thrown;
+
+.entity tag_entity; // entity this is attached to (call setattachment to set this)
+.float tag_index; // which tag on that entity (0 is relative to the entity, > 0 is an index into the tags on the model if it has any) 
 
 //
 // object stuff
@@ -811,7 +901,7 @@ vector(entity e, float speed) aim = #44;                // returns the shooting 
 float(string s) cvar = #45;                                             // return cvar.value
 void(string s) localcmd = #46;                                  // put string into local que
 entity(entity e) nextent = #47;                                 // for looping through all ents
-// #48 was removed
+void particle(vector org, vector dir, float color, float count) = #48;
 void() ChangeYaw = #49;                                         // turn towards self.ideal_yaw
 											// at self.yaw_speed
 // #50 was removed
@@ -858,9 +948,23 @@ string(entity e, string key) infokey    = #80;  // get a key value (world = serv
 float(string s) stof                            = #81;          // convert string to float
 void(vector where, float set) multicast = #82;  // sends the temp message to a set
 												// of clients, possibly in PVS or PHS
+vector(vector org) getlight = #92;
 
+void particle2(vector origin, vector vmin, vector vmax, float color, float effect, float count) = #215;
+void particle3(vector mins, vector maxsminusmins, float colour, float effect, float count) = #216;
+void particle4(vector center, float radius, float colour, float effect, float count) = #217;
 
 string(...) strcat = #115;
+float(float stnum) getstati							= #331; //  (EXT_CSQC)
+void(vector org) te_smallflash = #416;
+void(vector org) te_gunshot = #418;
+void(vector org) te_spike = #419;
+void(vector org) te_superspike = #420;
+void(vector org) te_tarexplosion = #421;
+void(vector org) te_wizspike = #422;
+void(vector org) te_knightspike = #423;
+void(vector org) te_teleport = #424;
+void(entity e, entity tagentity, string tagname) setattachment = #443;
 
 //============================================================================
 

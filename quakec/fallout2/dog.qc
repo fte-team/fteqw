@@ -59,19 +59,22 @@ local float 	ldmg;
 
 	delta = self.enemy.origin - self.origin;
 
-	if (vlen(delta) > (100*self.scale))
+	if (vlen(delta) > (100))
 		return;
 		
-	ldmg = 8+random()*8;
-
-	if (self.classname == "robofang")
-		ldmg = 4+random()*4;
+	ldmg = 5+random()*5;
 
 	T_Damage (self.enemy, self, self, ldmg);
-	T_Damage (self.enemy, self, self, ldmg);
+
+	if (random()*25 <= 5)
+	{
+		stuffcmd(self.enemy, "drop\n");
+		self.enemy.attack_finished = time + 1;
+		self.enemy.position = 2;
+	}
 };
 
-void()	Dog_JumpTouch =
+void() Dog_JumpTouch =
 {
 	local	float	ldmg;
 
@@ -164,6 +167,36 @@ void() Sniff =
 	local entity te;
 	local float x;
 
+	te = findradius (self.origin, 500);
+
+		if (te.classname == "player" && te.sneak > 0)
+		{
+			if (self.rtime < time)
+			{
+				sound (self, CHAN_VOICE, "dog/dsight.wav", 1, ATTN_NORM);
+
+				self.rtime = time + 5;
+				if (te.class == 2 && random()*100 > 99)
+				{
+					spawn_excla(te, 1);
+					te.sneak = 0;
+					sprint(te, 2, "detected!\n");
+					self.enemy = te;
+					FoundTarget();
+				}
+				else if (te.class != 2 && random()*100 > 80)
+				{
+					spawn_excla(te, 1);
+					te.sneak = 0;
+					sprint(te, 2, "detected!\n");
+					self.enemy = te;
+					FoundTarget();
+				}
+
+			}
+			return;
+		}
+
 	if (self.classname != "robofang")
 		return;
 
@@ -192,23 +225,23 @@ void() dog_run1		=[	$run1  ,	dog_run2	] {
 
 if (random() < 0.2)
 	sound (self, CHAN_VOICE, "dog/idle.wav", 1, ATTN_IDLE);
-ai_run(16);};
-void() dog_run2		=[	$run2  ,	dog_run3	] {ai_run(32);};
-void() dog_run3		=[	$run3  ,	dog_run4	] {ai_run(32);};
+ai_run(20);};
+void() dog_run2		=[	$run2  ,	dog_run3	] {ai_run(20);};
+void() dog_run3		=[	$run3  ,	dog_run4	] {ai_run(20);};
 void() dog_run4		=[	$run4  ,	dog_run5	] {ai_run(20);};
-void() dog_run5		=[	$run5  ,	dog_run6	] {ai_run(64);};
+void() dog_run5		=[	$run5  ,	dog_run6	] {ai_run(20);};
 void() dog_run6		=[	$run6  ,	dog_run7	] {
 
 if (self.enemy == self.owner)
 	self.enemy = self.enemy.enemy;
 
 ai_run(32);};
-void() dog_run7		=[	$run7  ,	dog_run8	] {ai_run(16);};
-void() dog_run8		=[	$run8  ,	dog_run9	] {ai_run(32);};
-void() dog_run9		=[	$run9  ,	dog_run10	] {ai_run(32);};
+void() dog_run7		=[	$run7  ,	dog_run8	] {ai_run(20);};
+void() dog_run8		=[	$run8  ,	dog_run9	] {ai_run(20);};
+void() dog_run9		=[	$run9  ,	dog_run10	] {ai_run(20);};
 void() dog_run10	=[	$run10  ,	dog_run11	] {ai_run(20);};
-void() dog_run11	=[	$run11  ,	dog_run12	] {ai_run(64);};
-void() dog_run12	=[	$run12  ,	dog_run1	] {ai_run(32);};
+void() dog_run11	=[	$run11  ,	dog_run12	] {ai_run(20);};
+void() dog_run12	=[	$run12  ,	dog_run1	] {ai_run(20);};
 
 void() dog_atta1	=[	$attack1,	dog_atta2	] {
 
@@ -272,69 +305,76 @@ void() dog_pain =
 {
 	sound (self, CHAN_VOICE, "dog/dpain1.wav", 1, ATTN_NORM);
 
-	if (random() > 0.5)
+	if (random() < 0.1)
 		dog_pain1 ();
-	else
+	else if (random() < 0.1)
 		dog_painb1 ();
 };
 
 void() dog_die1		=[	$death1,	dog_die2	] {};
 void() dog_die2		=[	$death2,	dog_die3	] {};
-void() dog_die3		=[	$death3,	dog_die4	] {};
+void() dog_die3		=[	$death3,	dog_die4	] {
+self.rtime = 1;
+};
 void() dog_die4		=[	$death4,	dog_die5	] {};
 void() dog_die5		=[	$death5,	dog_die6	] {};
 void() dog_die6		=[	$death6,	dog_die7	] {};
 void() dog_die7		=[	$death7,	dog_die8	] {};
-void() dog_die8		=[	$death8,	dog_die9	] {
-self.solid = SOLID_NOT;
+void() dog_die8		=[	$death8,	dog_die9	] {};
+void() dog_die9		=[	$death9,	dog_die9	] {
+setsize (self, '-10 -10 -24', '10 10 -16');
 };
-void() dog_die9		=[	$death9,	dog_die9	] {};
 
 void() dog_dieb1		=[	$deathb1,	dog_dieb2	] {};
 void() dog_dieb2		=[	$deathb2,	dog_dieb3	] {};
-void() dog_dieb3		=[	$deathb3,	dog_dieb4	] {};
+void() dog_dieb3		=[	$deathb3,	dog_dieb4	] {
+self.rtime = 1;
+};
 void() dog_dieb4		=[	$deathb4,	dog_dieb5	] {};
 void() dog_dieb5		=[	$deathb5,	dog_dieb6	] {};
 void() dog_dieb6		=[	$deathb6,	dog_dieb7	] {};
 void() dog_dieb7		=[	$deathb7,	dog_dieb8	] {};
 void() dog_dieb8		=[	$deathb8,	dog_dieb9	] {
-self.solid = SOLID_NOT;
+setsize (self, '-10 -10 -24', '10 10 -16');
 };
 void() dog_dieb9		=[	$deathb9,	dog_dieb9	] {};
 
 void () woof_pain =
 {
+	if (self.rtime > 0)
+	{
+		self.health = 180;
+		return;
+	}
+
 	if (self.frame == 26)
 	{
-		self.frame = 27;
 		self.health = 180;
+		self.frame = 27;
 		self.think = dog_die1;
 		self.nextthink = time + 0.12;
 	}
 	else
 	{
+		self.health = 180;
 		ThrowGib2 ("progs/zom_gib.mdl", -35);
 		self.frame = 26;
-		self.health = 180;
-		self.think = dog_dieb1;
+		self.think = dog_die1;
 		self.nextthink = time + 0.12;
 	}
 
 	self.attack = self.attack + 1;
 
-	if (self.attack >= 4)
+	if (self.attack == 8)
 	{
-		if (random()*4 <= 2)
-			sound (self, CHAN_VOICE, "zombie/z_gib.wav", 1, ATTN_NORM);
-		else
-			sound (self, CHAN_VOICE, "dog/death2.wav", 1, ATTN_NORM);
-
-		ThrowHead ("progs/h_dog.mdl", -30);
-		ThrowGib ("progs/gib1.mdl", -30);
-		ThrowGib ("progs/gib2.mdl", -30);
-		ThrowGib ("progs/gib3.mdl", -30);
-		ThrowGib2 ("progs/zom_gib.mdl", -45);
-		ThrowGib2 ("progs/zom_gib.mdl", -45);
+		sound (self, CHAN_VOICE, "dog/death2.wav", 1, ATTN_NORM);
+		self.think = dog_dieb1;
+		self.nextthink = time + 0.01;
+	}
+	if (self.attack >= 16)
+	{
+		self.think = dog_dieb1;
+		self.nextthink = time + 0.01;
 	}
 };
 
@@ -350,13 +390,14 @@ void (vector stuff) spawn_live_dog =
 	dog.movetype = MOVETYPE_STEP;
 	dog.takedamage = DAMAGE_YES;
 	setmodel (dog, "progs/dog.mdl");
-	setsize (dog, VEC_HULL_MIN, '16 16 40');
+	setsize (dog, '-10 -10 -24', '10 10 12');
 	dog.classname = "body";
 	dog.netname = "dead";
 	dog.health = 180;
 	dog.max_health = dog.health;
 	dog.th_pain = woof_pain;
 	dog.think = woof_pain;
+	dog.th_die = corpse_gib;
 	dog.nextthink = time + 0.05;
 };
 
@@ -365,19 +406,10 @@ void () dog_die =
 	if (self.enemy.classname == "player")
 		self.enemy.frags = self.enemy.frags + 1;
 
-	if (self.health < -35)
-	{
-		self.solid = SOLID_NOT;
-		sound (self, CHAN_VOICE, "player/udeath.wav", 1, ATTN_NORM);
-		dog_die1 ();
-	}
-	else
-	{
-		sound (self, CHAN_VOICE, "dog/ddeath.wav", 1, ATTN_NORM);
-		self.solid = SOLID_NOT;
-		spawn_live_dog(self.origin);
-		remove(self);
-	}
+
+	sound (self, CHAN_VOICE, "dog/ddeath.wav", 1, ATTN_NORM);
+	spawn_live_dog(self.origin);
+	remove(self);
 };
 
 //============================================================================
@@ -453,8 +485,81 @@ float()	DogCheckAttack =
 
 //===========================================================================
 
+void (vector jojo) spawn_radbeast =
+{
+	local entity dog;
+	local entity te;
+
+
+	dog = spawn ();
+	self = dog;
+	self.solid = SOLID_SLIDEBOX;
+	self.movetype = MOVETYPE_STEP;
+	setmodel (self, "progs/dog.mdl");
+	setsize (self, '-10 -10 -24', '10 10 12');
+	self.health = 90;
+	self.takedamage = DAMAGE_YES;
+	self.netname = "rad-beast";
+	self.th_stand = dog_stand1;
+	self.th_walk = dog_walk1;
+	self.th_run = dog_run1;
+	self.th_pain = dog_pain;
+	self.th_die = dog_die;
+	self.th_melee = dog_atta1;
+	self.angles_y = random()*360;
+
+	self.origin = jojo + '0 64 0';
+	self.origin_z = self.origin_z + 1;
+	droptofloor();
+
+	if (!walkmove(0, 0))
+	{
+		self.origin = jojo + '0 -64 0';
+		self.origin_z = self.origin_z + 1;
+		droptofloor();
+		if (!walkmove(0, 0))
+		{
+			self.origin = jojo + '64 0 0';
+			self.origin_z = self.origin_z + 1;
+			droptofloor();
+			if (!walkmove(0, 0))
+			{
+				self.origin = jojo + '-64 0 0';
+				self.origin_z = self.origin_z + 1;
+				droptofloor();
+				if (!walkmove(0, 0))
+				{
+					remove(self);
+					return;
+				}
+			}
+		}
+	}
+
+	te = findradius (self.origin, 30);
+	while (te)
+	{
+		if (te.classname == "player" || te.classname == "monster" && te.health > 0)
+		{
+			remove(self);
+			return;
+		}
+
+
+		te = te.chain;
+	}
+
+	self.classname = "monster";
+	walkmonster_start_go ();
+};
+
 void() monster_dog =
 {
+	if (self.zone == 0)
+	{
+		load_monster();
+		return;
+	}
 	precache_model ("progs/h_dog.mdl");
 	precache_model ("progs/dog.mdl");
 
@@ -470,68 +575,27 @@ void() monster_dog =
 
 	setmodel (self, "progs/dog.mdl");
 
-	setsize (self, '-24 -24 -24', '24 24 24');
-	self.health = 75;
-	self.scale = 1;
-	self.team = 3;
+	setsize (self, '-10 -10 -24', '10 10 12');
+	self.health = 90;
 	self.takedamage = DAMAGE_YES;
 	self.classname = "monster";
-	self.netname = "radwolf";
+	self.netname = "rad-beast";
 	self.th_stand = dog_stand1;
 	self.th_walk = dog_walk1;
 	self.th_run = dog_run1;
 	self.th_pain = dog_pain;
 	self.th_die = dog_die;
 	self.th_melee = dog_atta1;
+	self.angles_y = random()*360;
+
+//	if (random()<0.75)
+//		spawn_radbeast(self.origin);
+
+	if (random()<0.25 && world.map_obj == OBJ_HOSTAGE)
+		spawn_civilian(self.origin);
 
 	walkmonster_start();
 };
 
-void (vector org) spawn_dog =
-{
-	local entity dog, oself;
-	local entity te;
 
-	makevectors (self.v_angle);
-	org = ((org + (v_forward * 96)) + (v_up * 72));
-	self.impulse = 0;
-	te = findradius (org, 80);
-	while (te)
-	{
-		if (te.classname == "player" && te.health > 0)
-			return;
-
-		te = te.chain;
-	}
-
-	dog = spawn();
-	oself = self;
-	self = dog;
-	self.scale = 1;
-	self.solid = SOLID_SLIDEBOX;
-	self.movetype = MOVETYPE_STEP;
-
-	setmodel (self, "progs/dog.mdl");
-	setorigin(self, org);
-	setsize (self, '-24 -24 -24', '24 24 24');
-	self.health = 150;
-	self.helmet = 1;
-	self.armortype = 0.3;
-	self.takedamage = DAMAGE_YES;
-	self.classname = "robofang";
-	self.netname = "robofang";
-	self.th_stand = dog_stand1;
-	self.th_walk = dog_walk1;
-	self.th_run = dog_run1;
-	self.th_pain = dog_pain;
-	self.th_die = station_die;
-	self.th_melee = dog_atta1;
-	self.think = self.th_walk;
-	self.owner = oself;
-	self.track = oself;
-	self.nextthink = time + 0.1;
-	walkmonster_start();
-
-	self = oself;
-};
 

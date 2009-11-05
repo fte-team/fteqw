@@ -216,8 +216,7 @@ void() barrel_explode =
 {
 	self.takedamage = DAMAGE_NO;
 	self.classname = "explo_box";
-	// did say self.owner
-	T_RadiusDamage (self, self, 160, world, "");
+	T_RadiusDamage2 (self, self.owner, 65+random()*65, other, 800);
 	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
 	WriteByte (MSG_MULTICAST, TE_EXPLOSION);
 	WriteCoord (MSG_MULTICAST, self.origin_x);
@@ -262,35 +261,27 @@ void() misc_explobox =
 
 void () hostage_die =
 {
-	self.enemy.frags = (self.enemy.frags - START_OFF);
-	self.enemy.ammo_shells = (self.enemy.ammo_shells - MULTICAST_PVS_R);
-	if ((self.enemy.team == START_OFF))
-	{
-		blue_kill = (blue_kill + START_OFF);
-	}
-	if ((self.enemy.team == SILENT))
-	{
-		red_kill = (red_kill + START_OFF);
-	}
-	if ((self.enemy.frags <= MULTICAST_ALL))
-	{
-		self.enemy.frags = MULTICAST_ALL;
-	}
-	if ((self.enemy.ammo_shells <= MULTICAST_ALL))
-	{
-		self.enemy.ammo_shells = MULTICAST_ALL;
-	}
+	local entity ze;
+
 	self.frame = START_OFF;
-	if ((self.model == "progs/hosfem.mdl"))
-	{
-		sound (self, CHAN_VOICE, "misc/hosdie2.wav", START_OFF, ATTN_NORM);
-	}
+	if (self.model == "progs/hosfem.mdl")
+		sound (self, CHAN_VOICE, "misc/hosdie2.wav", 1, ATTN_NONE);
 	else
-	{
-		sound (self, CHAN_VOICE, "misc/hosdie1.wav", START_OFF, ATTN_NORM);
-	}
-	sound (self, CHAN_BODY, "misc/hosdown.wav", START_OFF, ATTN_NONE);
+		sound (self, CHAN_VOICE, "misc/hosdie1.wav", 1, ATTN_NONE);
+
+
+		ze = find (world, classname, "player");
+
+		while (ze)
+		{
+			if (ze.classname == "player")
+				ze.score = ze.score - 100;
+
+			ze = find(ze, classname, "player");
+		}
+
 	hos_deatha1 ();
+
 	setsize (self, VEC_ORIGIN, VEC_ORIGIN);
 };
 
@@ -336,6 +327,40 @@ void () sci_think =
 
 	if (self.health <= 0)
 		return;
+};
+
+void (vector place) hostage_new =
+{
+	local entity te;
+	local float qq;
+
+	precache_model ("progs/hosfem.mdl");
+	precache_model ("progs/hosguy.mdl");
+	precache_sound ("misc/hosdie1.wav");
+	precache_sound ("misc/hosdie2.wav");
+	precache_sound ("misc/hosdown.wav");
+	precache_sound ("misc/rescued.wav");
+
+	hostages = hostages + 1;
+	setorigin(self, place + '0 0 24');
+	hos_stand1 ();
+	self.movetype = MOVETYPE_STEP;
+	self.velocity = VEC_ORIGIN;
+	self.touch = SUB_Null;
+	self.classname = "rhostage";
+	self.takedamage = DAMAGE_AIM;
+	setsize (self, VEC_HULL_MIN, VEC_HULL_MAX);
+	self.home = self.origin;
+	setmodel (self, "progs/hosfem.mdl");
+	self.health = 70;
+	self.think = hostage_think;
+	self.nextthink = (time + START_OFF);
+	self.solid = SOLID_BBOX;
+	self.th_die = hostage_die;
+	self.th_pain = hostage_pain;
+	self.rescued = MULTICAST_ALL;
+	self.angles_y = floor ((random () * 360));
+	self.netname = "citizen";
 };
 
 void () hostage_spawn =
@@ -882,3 +907,163 @@ void() misc_noisemaker =
 	self.nextthink = time + 0.1 + random();
 	self.think = noise_think;
 };
+
+
+void() brotherhood_merchant =
+{
+	setorigin(self, self.origin + '0 0 64');
+	self.movetype = MOVETYPE_BOUNCE;
+	self.velocity_z = -200;
+
+	setmodel (self, "progs/enforcer.mdl");
+	self.touch = SUB_Null;
+	self.solid = SOLID_SLIDEBOX;
+	setsize (self, '-16 -16 -24', '16 16 32');
+	self.takedamage = DAMAGE_NO;
+	self.classname = "merchant";
+	self.think = shop_face;
+	self.nextthink = time + 0.5;
+};
+
+void() brotherhood_sergeant =
+{
+	setorigin(self, self.origin + '0 0 64');
+	self.movetype = MOVETYPE_BOUNCE;
+	self.velocity_z = -200;
+
+	setmodel (self, "progs/enforcer.mdl");
+	self.touch = SUB_Null;
+	self.solid = SOLID_SLIDEBOX;
+	setsize (self, '-16 -16 -24', '16 16 32');
+	self.takedamage = DAMAGE_NO;
+};
+
+void() brotherhood_soldier =
+{
+	setorigin(self, self.origin + '0 0 64');
+	self.movetype = MOVETYPE_BOUNCE;
+	self.velocity_z = -200;
+
+	setmodel (self, "progs/enforcer.mdl");
+	self.touch = SUB_Null;
+	self.solid = SOLID_SLIDEBOX;
+	setsize (self, '-16 -16 -24', '16 16 32');
+	self.takedamage = DAMAGE_NO;
+};
+
+void() brotherhood_guard =
+{
+	precache_model ("progs/enforcer.mdl");
+	precache_sound ("enforcer/sight1.wav");
+	precache_sound ("enforcer/sight2.wav");
+	precache_sound ("enforcer/sight3.wav");
+	precache_sound ("enforcer/sight4.wav");
+
+	setorigin(self, self.origin + '0 0 64');
+	self.movetype = MOVETYPE_BOUNCE;
+	self.velocity_z = -200;
+
+	setmodel (self, "progs/enforcer.mdl");
+	self.touch = SUB_Null;
+	self.solid = SOLID_SLIDEBOX;
+	setsize (self, '-16 -16 -24', '16 16 32');
+	self.takedamage = DAMAGE_NO;
+};
+
+void() brotherhood_doctor =
+{
+	setorigin(self, self.origin + '0 0 64');
+	self.movetype = MOVETYPE_BOUNCE;
+	self.velocity_z = -200;
+
+	setmodel (self, "progs/enforcer.mdl");
+	self.touch = SUB_Null;
+	self.solid = SOLID_SLIDEBOX;
+	setsize (self, '-16 -16 -24', '16 16 32');
+	self.takedamage = DAMAGE_NO;
+};
+
+
+void() computer_noise =
+{
+
+	if (random()<0.10)
+		sound (self, CHAN_WEAPON, "effects/beep1.wav", 1, ATTN_IDLE);
+	else if (random()<0.10)
+		sound (self, CHAN_WEAPON, "effects/beep2.wav", 1, ATTN_IDLE);
+	else if (random()<0.10)
+		sound (self, CHAN_WEAPON, "effects/beep3.wav", 1, ATTN_IDLE);
+	else if (random()<0.10)
+		sound (self, CHAN_WEAPON, "effects/beep4.wav", 1, ATTN_IDLE);
+
+	self.nextthink = time + 5;
+};
+
+void() misc_computer =
+{
+	precache_sound ("effects/beep1.wav");
+	precache_sound ("effects/beep2.wav");
+	precache_sound ("effects/beep3.wav");
+	precache_sound ("effects/beep4.wav");
+
+	self.nextthink = time + 5;
+	self.think = computer_noise;
+};
+
+void() medical_noise =
+{
+
+	sound (self, CHAN_WEAPON, "effects/beep5.wav", 1, ATTN_IDLE);
+
+	self.nextthink = time + 2.50;
+};
+
+void() misc_medical =
+{
+	precache_sound ("effects/beep5.wav");
+
+	self.nextthink = time + 2.50;
+	self.think = medical_noise;
+};
+
+void() radio_noise =
+{
+
+	if (random()<0.10)
+		sound (self, CHAN_WEAPON, "effects/radio1.wav", 1, ATTN_NORM);
+	else if (random()<0.10)
+		sound (self, CHAN_WEAPON, "effects/radio2.wav", 1, ATTN_NORM);
+	else if (random()<0.10)
+		sound (self, CHAN_WEAPON, "effects/radio3.wav", 1, ATTN_NORM);
+	else if (random()<0.10)
+		sound (self, CHAN_WEAPON, "effects/radio4.wav", 1, ATTN_NORM);
+
+	self.nextthink = time + 4;
+};
+
+void() misc_radio =
+{
+	self.nextthink = time + 5;
+	self.think = radio_noise;
+};
+
+void() brotherhood_wounded =
+{
+	remove(self);
+};
+
+void() func_tank =
+{
+	precache_model ("progs/x_tank.mdl");
+	setmodel (self, "progs/x_tank.mdl");
+	setorigin(self, self.origin + '0 0 64');
+	self.movetype = MOVETYPE_BOUNCE;
+	self.velocity_z = -200;
+
+	self.touch = SUB_Null;
+	self.solid = SOLID_SLIDEBOX;
+	setsize (self, '-64 -64 -32', '64 64 32');
+	self.takedamage = DAMAGE_NO;
+};
+
+

@@ -88,7 +88,10 @@ void() multi_touch =
 
 	if (other.classname != "player")
 		return;
-	
+//PERK_ED: light step doesnt trigger trigger_multiple/trigger_once
+	if (other.perk1 == 6 || other.perk2 == 6)
+		return;
+
 // if the trigger has an angles field, check player's facing direction
 	if (self.movedir != '0 0 0')
 	{
@@ -417,7 +420,7 @@ local vector	org;
 	org = t.origin + 32 * v_forward;
 
 	spawn_tfog (org);
-	spawn_tdeath(t.origin, other);
+	//spawn_tdeath(t.origin, other);
 	if (self.classname == "player")
 	{
 		self.solid = SOLID_NOT;

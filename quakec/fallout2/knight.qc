@@ -45,6 +45,18 @@ $frame death9 death10
 $frame deathb1 deathb2 deathb3 deathb4 deathb5 deathb6 deathb7 deathb8
 $frame deathb9 deathb10 deathb11
 
+void() go_invisible =
+{
+	setmodel (self, "");
+	sound (self, CHAN_BODY, "items/inv1.wav", 1, ATTN_NORM);
+};
+
+void() go_visible =
+{
+	setmodel (self, "progs/knight.mdl");
+	sound (self, CHAN_BODY, "misc/r_tele4.wav", 1, ATTN_NORM);
+};
+
 void()	knight_stand1	=[	$stand1,	knight_stand2	] {ai_stand();};
 void()	knight_stand2	=[	$stand2,	knight_stand3	] {ai_stand();};
 void()	knight_stand3	=[	$stand3,	knight_stand4	] {ai_stand();};
@@ -75,16 +87,18 @@ void()	knight_walk14	=[	$walk14,	knight_walk1	] {ai_walk(3);};
 
 
 void()	knight_run1	=[	$runb1,		knight_run2	] {
-if (random() < 0.2)
+if ((random() < 0.6) && self.model != "")
+	go_invisible();
+else if (random() < 0.2)
 	sound (self, CHAN_VOICE, "knight/idle.wav", 1,  ATTN_IDLE);
-ai_run(16);};
-void()	knight_run2	=[	$runb2,		knight_run3	] {ai_run(20);};
-void()	knight_run3	=[	$runb3,		knight_run4	] {ai_run(13);};
-void()	knight_run4	=[	$runb4,		knight_run5	] {ai_run(7);};
-void()	knight_run5	=[	$runb5,		knight_run6	] {ai_run(16);};
-void()	knight_run6	=[	$runb6,		knight_run7	] {ai_run(20);};
-void()	knight_run7	=[	$runb7,		knight_run8	] {ai_run(14);};
-void()	knight_run8	=[	$runb8,		knight_run1	] {ai_run(6);};
+ai_run(21);};
+void()	knight_run2	=[	$runb2,		knight_run3	] {ai_run(25);};
+void()	knight_run3	=[	$runb3,		knight_run4	] {ai_run(18);};
+void()	knight_run4	=[	$runb4,		knight_run5	] {ai_run(12);};
+void()	knight_run5	=[	$runb5,		knight_run6	] {ai_run(21);};
+void()	knight_run6	=[	$runb6,		knight_run7	] {ai_run(25);};
+void()	knight_run7	=[	$runb7,		knight_run8	] {ai_run(19);};
+void()	knight_run8	=[	$runb8,		knight_run1	] {ai_run(11);};
 
 
 void()	knight_runatk1	=[	$runattack1,		knight_runatk2	]
@@ -94,6 +108,7 @@ if (random() > 0.5)
 else
 	sound (self, CHAN_WEAPON, "knight/sword1.wav", 1, ATTN_NORM);
 ai_charge(20);
+go_visible();
 };
 void()	knight_runatk2	=[	$runattack2,	knight_runatk3	] {ai_charge_side();};
 void()	knight_runatk3	=[	$runattack3,	knight_runatk4	] {ai_charge_side();};
@@ -108,22 +123,70 @@ void()	knight_runatk11	=[	$runattack11,	knight_run1	] {ai_charge(10);};
 
 void()	knight_atk1	=[	$attackb1,		knight_atk2	]
 {
+
+if (self.takedamage == DAMAGE_NO)
+{
+	remove(self);
+	return;
+}
+
 sound (self, CHAN_WEAPON, "knight/sword1.wav", 1, ATTN_NORM);
-ai_charge(0);};
-void()	knight_atk2	=[	$attackb2,		knight_atk3	] {ai_charge(7);};
-void()	knight_atk3	=[	$attackb3,		knight_atk4	] {ai_charge(4);};
-void()	knight_atk4	=[	$attackb4,		knight_atk5	] {ai_charge(0);};
-void()	knight_atk5	=[	$attackb5,		knight_atk6	] {ai_charge(3);};
-void()	knight_atk6	=[	$attackb6,		knight_atk7	] {ai_charge(4); ai_melee();};
-void()	knight_atk7	=[	$attackb7,		knight_atk8	] {ai_charge(1); ai_melee();};
-void()	knight_atk8	=[	$attackb8,		knight_atk9	] {ai_charge(3);
+ai_charge(0);
+go_visible();
+};
+void()	knight_atk2	=[	$attackb2,		knight_atk3	] {ai_charge(9);};
+void()	knight_atk3	=[	$attackb3,		knight_atk4	] {ai_charge(6);};
+void()	knight_atk4	=[	$attackb4,		knight_atk5	] {ai_charge(2);};
+void()	knight_atk5	=[	$attackb5,		knight_atk6	] {ai_charge(5);};
+void()	knight_atk6	=[	$attackb6,		knight_atk7	] {ai_charge(6); ai_melee();};
+void()	knight_atk7	=[	$attackb7,		knight_atk8	] {ai_charge(3); ai_melee();};
+void()	knight_atk8	=[	$attackb8,		knight_atk9	] {ai_charge(5);
 ai_melee();};
-void()	knight_atk9	=[	$attackb9,		knight_atk10] {ai_charge(1);};
-void()	knight_atk10=[	$attackb10,		knight_run1	] {ai_charge(5);};
+void()	knight_atk9	=[	$attackb9,		knight_atk10] {ai_charge(3);};
+void()	knight_atk10=[	$attackb10,		knight_run1	] {ai_charge(9);};
 
 //void()	knight_atk9	=[	$attack9,		knight_atk10	] {};
 //void()	knight_atk10	=[	$attack10,		knight_atk11	] {};
 //void()	knight_atk11	=[	$attack11,		knight_run1	] {};
+
+
+
+void() knight_laser =
+{
+	local	vector	offang;
+	local	vector	org, vec;
+	
+	offang = vectoangles (self.enemy.origin - self.origin);
+	
+	makevectors (offang);
+
+	org = self.origin + self.mins + self.size*0.5 + v_forward * 20;
+
+// set missile speed
+	vec = normalize (v_forward);
+	vec_z = 0 - vec_z + (random() - 0.5)*0.1;
+	
+	launch_spike (org, vec);
+	newmis.classname = "knightspike";
+	setmodel (newmis, "progs/k_spike.mdl");
+	setsize (newmis, VEC_ORIGIN, VEC_ORIGIN);		
+	newmis.velocity = vec*300;
+	sound (self, CHAN_WEAPON, "hknight/attack1.wav", 1, ATTN_NORM);
+};
+
+
+void()	knight_ratk1	=[	$attackb1,		knight_ratk2	] {};
+void()	knight_ratk2	=[	$attackb2,		knight_ratk3	] {};
+void()	knight_ratk3	=[	$attackb3,		knight_ratk4	] {};
+void()	knight_ratk4	=[	$attackb4,		knight_ratk5	] {};
+void()	knight_ratk5	=[	$attackb5,		knight_ratk6	] {};
+void()	knight_ratk6	=[	$attackb6,		knight_ratk7	] {};
+void()	knight_ratk7	=[	$attackb7,		knight_ratk8	] {
+knight_laser();
+};
+void()	knight_ratk8	=[	$attackb8,		knight_ratk9	] {};
+void()	knight_ratk9	=[	$attackb9,		knight_ratk10     ] {};
+void()	knight_ratk10     =[	$attackb10,		knight_run1	      ] {};
 
 //===========================================================================
 
@@ -165,6 +228,7 @@ void(entity attacker, float damage)	knight_pain =
 	}
 	
 };
+
 
 //===========================================================================
 
@@ -233,13 +297,15 @@ void() knight_die =
 
 void() monster_knight =
 {
-	if (deathmatch)
+	if (self.zone == 0)
 	{
-		remove(self);
+		load_monster();
 		return;
 	}
+
 	precache_model ("progs/knight.mdl");
 	precache_model ("progs/h_knight.mdl");
+	precache_model ("progs/k_spike.mdl");
 
 	precache_sound ("knight/kdeath.wav");
 	precache_sound ("knight/khurt.wav");
@@ -255,14 +321,15 @@ void() monster_knight =
 
 	setsize (self, '-16 -16 -24', '16 16 40');
 	self.health = 75;
-
+      self.islot3 = SlotVal(IID_ARM_METAL, 1);
+	self.armornoise = "weapons/ric1.wav";
 	self.th_stand = knight_stand1;
 	self.th_walk = knight_walk1;
 	self.th_run = knight_run1;
 	self.th_melee = knight_atk1;
 	self.th_pain = knight_pain;
 	self.th_die = knight_die;
-	self.armornoise = "weapons/ric1.wav";
-
+	self.classname = "monster";
+	self.netname = "reaver";
 	walkmonster_start ();
 };

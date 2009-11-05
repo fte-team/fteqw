@@ -58,18 +58,18 @@ void() f_walk16 =[      $swim16, f_walk17 ] {ai_walk(8);};
 void() f_walk17 =[      $swim17, f_walk18 ] {ai_walk(8);};
 void() f_walk18 =[      $swim18, f_walk1 ] {ai_walk(8);};
 
-void() f_run1  =[      $swim1, f_run2 ] {ai_run(12);
+void() f_run1  =[      $swim1, f_run2 ] {ai_run(24);
 	if (random() < 0.5)
 		sound (self, CHAN_VOICE, "fish/idle.wav", 1, ATTN_NORM);
 };
-void() f_run2  =[      $swim3, f_run3 ] {ai_run(12);};
-void() f_run3  =[      $swim5, f_run4 ] {ai_run(12);};
-void() f_run4  =[      $swim7, f_run5 ] {ai_run(12);};
-void() f_run5  =[      $swim9, f_run6 ] {ai_run(12);};
-void() f_run6  =[      $swim11, f_run7 ] {ai_run(12);};
-void() f_run7  =[      $swim13, f_run8 ] {ai_run(12);};
-void() f_run8  =[      $swim15, f_run9 ] {ai_run(12);};
-void() f_run9  =[      $swim17, f_run1 ] {ai_run(12);};
+void() f_run2  =[      $swim3, f_run3 ] {ai_run(24);};
+void() f_run3  =[      $swim5, f_run4 ] {ai_run(24);};
+void() f_run4  =[      $swim7, f_run5 ] {ai_run(24);};
+void() f_run5  =[      $swim9, f_run6 ] {ai_run(24);};
+void() f_run6  =[      $swim11, f_run7 ] {ai_run(24);};
+void() f_run7  =[      $swim13, f_run8 ] {ai_run(24);};
+void() f_run8  =[      $swim15, f_run9 ] {ai_run(24);};
+void() f_run9  =[      $swim17, f_run1 ] {ai_run(24);};
 
 void() fish_melee =
 {
@@ -165,9 +165,8 @@ void() monster_fish =
 	setsize (self, '-16 -16 -24', '16 16 24');
 	self.health = 50;
 	self.helmet = 1;
-	self.corporation = 3;
 	self.classname = "monster";
-	self.netname = "pirannah";
+	self.netname = "death remora";
 
 	self.th_stand = f_stand1;
 	self.th_walk = f_walk1;

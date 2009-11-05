@@ -66,6 +66,9 @@ void() monster_death_use =
 
 void() walkmonster_start_go =
 {
+	local float replace;
+	local vector back;
+
 	self.origin_z = self.origin_z + 1;	// raise off floor a bit
 	droptofloor();
 	
@@ -74,6 +77,17 @@ void() walkmonster_start_go =
 		dprint ("walkmonster in wall at: ");
 		dprint (vtos(self.origin));
 		dprint ("\n");
+		back = self.origin;
+		replace = 90;
+		while (!walkmove(0,0) && replace > 0)
+		{
+			setorigin(self, back);
+			self.origin_x = self.origin_x + crandom()*600;
+			self.origin_y = self.origin_y + crandom()*600;
+			self.origin_z = self.origin_z + 1;	// raise off floor a bit
+			droptofloor();
+			replace = replace - 1;
+		}
 	}
 	
 	self.takedamage = DAMAGE_AIM;
@@ -97,7 +111,7 @@ void() walkmonster_start_go =
 			dprint ("\n");
 		}
 // this used to be an objerror
-		if (self.movetarget.classname == "path_corner")
+		if (self.movetarget.classname == "path_corner" || self.movetarget.classname == "rhostage")
 			self.th_walk ();
 		else
 			self.pausetime = 99999999;

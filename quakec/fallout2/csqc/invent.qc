@@ -1,6 +1,6 @@
 void bprint(float plev, string st, string s2){}
 float PRINT_MEDIUM = 1;
-#include "inventory.qc"
+#include "../inventory.qc"
 
 float show_inventory;
 

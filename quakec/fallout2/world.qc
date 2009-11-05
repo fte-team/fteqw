@@ -13,6 +13,88 @@ void () monster_fish;
 
 void (vector jojo) spawn_ghoul;
 
+
+
+float (float int) getperk =
+{
+	if (self.perk1 == int)
+		return TRUE;
+	else if (self.perk2 == int)
+		return TRUE;
+	else
+		return FALSE;
+};
+
+void(float stnum, float sttype, .float fieldname) clientstat = #232;
+void() SetupStats =
+{
+	//2 is ev_float
+	//32 is the first stat we are allowed to use
+	clientstat(32, 2, islot1);
+	clientstat(33, 2, islot2);
+	clientstat(34, 2, islot3);
+	clientstat(35, 2, islot4);
+	clientstat(36, 2, islot5);
+	clientstat(37, 2, islot6);
+	clientstat(38, 2, islot7);
+	clientstat(39, 2, islot8);
+	clientstat(40, 2, islot9);
+	clientstat(41, 2, islot10);
+	clientstat(42, 2, islot11);
+	clientstat(43, 2, islot12);
+	clientstat(44, 2, islot13);
+	clientstat(45, 2, islot14);
+	clientstat(46, 2, islot15);
+	clientstat(47, 2, islot16);
+	clientstat(48, 2, health);
+	clientstat(49, 2, max_health);
+	clientstat(50, 2, ammo_shells);
+	clientstat(51, 2, ammo_cells);
+	clientstat(52, 2, weight);
+	clientstat(53, 2, max_weight);
+	clientstat(54, 2, position);
+	clientstat(55, 2, rage);
+	clientstat(56, 2, regen);
+	clientstat(57, 2, missionbrief);
+	clientstat(58, 2, sneak);
+	clientstat(59, 2, perk2);
+	clientstat(60, 2, perk1);
+	clientstat(61, 2, current_slot);
+	clientstat(62, 2, team);
+	clientstat(63, 2, class);
+	clientstat(64, 2, start_time);
+	clientstat(65, 2, location);
+	clientstat(66, 2, map_obj);
+	clientstat(67, 2, map_ent1);
+	clientstat(68, 2, map_ent2);
+	clientstat(69, 2, map_ent3);
+	clientstat(70, 2, silencer);
+	clientstat(71, 2, extender);
+	clientstat(91, 2, islot17);
+	clientstat(92, 2, islot18);
+	clientstat(93, 2, islot19);
+	clientstat(94, 2, islot20);
+	clientstat(95, 2, islot21);
+	clientstat(96, 2, islot22);
+	clientstat(97, 2, islot23);
+	clientstat(98, 2, islot24);
+	clientstat(99, 2, recoil);
+	clientstat(100, 2, xslot1);
+	clientstat(101, 2, xslot2);
+	clientstat(102, 2, xslot3);
+	clientstat(103, 2, xslot4);
+	clientstat(104, 2, xslot5);
+	clientstat(105, 2, xslot6);
+	clientstat(106, 2, xslot7);
+	clientstat(107, 2, xslot8);
+	clientstat(108, 2, safezone);
+	clientstat(109, 2, connected);
+	clientstat(110, 2, steadyaim);
+	clientstat(125, 2, timer);
+	clientstat(126, 2, popup);
+	clientstat(127, 2, score);
+};
+
 //assesses all current players
 void() get_difficulty =
 {

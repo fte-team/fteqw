@@ -1,4 +1,4 @@
-../csprogs.dat
+csprogs.dat
 
 csqc/system.qc
 csqc/stdbuiltins.qc

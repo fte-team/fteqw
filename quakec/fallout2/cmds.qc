@@ -5,6 +5,8 @@ string(float n) argv = #442;
 string(string s, float start, float length) substring = #116;
 float(string str, string sub) strstrofs = #221;
 
+
+
 float(string desc) itemtoslot =
 {
 	local float slot;

@@ -7,6 +7,7 @@ float IID_NONE = 0;
 //weapons with ammo, things with a toggle state
 #define NotStackable(iid) (IsRanged(iid))
 
+
 //the ammoless weapons
 float IID_WP_WRENCH = 399;
 float IID_WP_KNIFE = 400;
@@ -189,75 +190,7 @@ float(float slotno, float iid) FitsInSlot;
 
 #define MAXSLOTS 24
 
-void(float sttype, float stnum, string fieldname) clientstat = #232;
-void() SetupStats =
-{
-	//2 is ev_float
-	//32 is the first stat we are allowed to use
-	clientstat(2, 32, "islot1");
-	clientstat(2, 33, "islot2");
-	clientstat(2, 34, "islot3");
-	clientstat(2, 35, "islot4");
-	clientstat(2, 36, "islot5");
-	clientstat(2, 37, "islot6");
-	clientstat(2, 38, "islot7");
-	clientstat(2, 39, "islot8");
-	clientstat(2, 40, "islot9");
-	clientstat(2, 41, "islot10");
-	clientstat(2, 42, "islot11");
-	clientstat(2, 43, "islot12");
-	clientstat(2, 44, "islot13");
-	clientstat(2, 45, "islot14");
-	clientstat(2, 46, "islot15");
-	clientstat(2, 47, "islot16");
-	clientstat(2, 48, "health");
-	clientstat(2, 49, "max_health");
-	clientstat(2, 50, "ammo_shells");
-	clientstat(2, 51, "ammo_cells");
-	clientstat(2, 52, "weight");
-	clientstat(2, 53, "max_weight");
-	clientstat(2, 54, "position");
-	clientstat(2, 55, "rage");
-	clientstat(2, 56, "regen");
-	clientstat(2, 57, "missionbrief");
-	clientstat(2, 58, "sneak");
-	clientstat(2, 59, "perk2");
-	clientstat(2, 60, "perk1");
-	clientstat(2, 61, "current_slot");
-	clientstat(2, 62, "team");
-	clientstat(2, 63, "class");
-	clientstat(2, 64, "start_time");
-	clientstat(2, 65, "location");
-	clientstat(2, 66, "map_obj");
-	clientstat(2, 67, "map_ent1");
-	clientstat(2, 68, "map_ent2");
-	clientstat(2, 69, "map_ent3");
-	clientstat(2, 70, "silencer");
-	clientstat(2, 71, "extender");
-	clientstat(2, 91, "islot17");
-	clientstat(2, 92, "islot18");
-	clientstat(2, 93, "islot19");
-	clientstat(2, 94, "islot20");
-	clientstat(2, 95, "islot21");
-	clientstat(2, 96, "islot22");
-	clientstat(2, 97, "islot23");
-	clientstat(2, 98, "islot24");
-	clientstat(2, 99, "recoil");
-	clientstat(2, 100, "xslot1");
-	clientstat(2, 101, "xslot2");
-	clientstat(2, 102, "xslot3");
-	clientstat(2, 103, "xslot4");
-	clientstat(2, 104, "xslot5");
-	clientstat(2, 105, "xslot6");
-	clientstat(2, 106, "xslot7");
-	clientstat(2, 107, "xslot8");
-	clientstat(2, 108, "safezone");
-	clientstat(2, 109, "connected");
-	clientstat(2, 110, "steadyaim");
-	clientstat(2, 125, "timer");
-	clientstat(2, 126, "popup");
-	clientstat(2, 127, "score");
-};
+
 
 
 #define ToIID(it) floor(it/512)
@@ -2517,13 +2450,3 @@ string(float int) GetPerkDesc =
 
 };
 
-float (float int) getperk =
-{
-
-	if (self.perk1 == int)
-		return TRUE;
-	else if (self.perk2 == int)
-		return TRUE;
-	else
-		return FALSE;
-};

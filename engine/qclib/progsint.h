@@ -134,8 +134,6 @@ typedef union eval_s
 #endif
 */
 
-
-#define	MAX_ENT_LEAFS	16
 typedef struct edictrun_s
 {
 	pbool	isfree;

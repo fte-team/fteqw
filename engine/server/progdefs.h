@@ -315,3 +315,6 @@ comextqcfields
 #undef comfieldstring
 #undef comfieldfunction
 } comextentvars_t;
+
+
+#define	MAX_ENT_LEAFS	16

@@ -2642,7 +2642,7 @@ void CL_UpdateBeams (void)
 		
 		if (b->endtime < cl.time)
 		{
-			if (!sv.paused)
+			if (!cl.paused)
 			{	/*don't let lightning decay while paused*/
 				P_DelinkTrailstate(&b->trailstate);
 				P_DelinkTrailstate(&b->emitstate);

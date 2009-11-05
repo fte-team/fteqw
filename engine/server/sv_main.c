@@ -429,7 +429,7 @@ void SV_DropClient (client_t *drop)
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
 				if (pr_nqglobal_struct->SetChangeParms)
 					PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
-				for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+				for (j=0 ; j<NUM_RANK_SPAWN_PARMS ; j++)
 					if (spawnparamglobals[j])
 						rs.parm[j] = *spawnparamglobals[j];
 				Rank_SetPlayerStats(drop->rankid, &rs);
@@ -2249,8 +2249,10 @@ client_t *SVC_DirectConnect(void)
 				}
 				else
 				{
-					for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+					for (i=0 ; i<NUM_RANK_SPAWN_PARMS ; i++)
 						newcl->spawn_parms[i] = rs.parm[i];
+					for (; i < NUM_SPAWN_PARMS; i++)
+						newcl->spawn_parms[i] = 0;
 				}
 
 				if (rs.timeonserver > 3*60)	//woo. Ages.
@@ -4077,7 +4079,7 @@ qboolean ReloadRanking(client_t *cl, char *newname)
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
 			if (pr_nqglobal_struct->SetChangeParms)
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
-			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+			for (j=0 ; j<NUM_RANK_SPAWN_PARMS ; j++)
 				if (spawnparamglobals[j])
 					rs.parm[j] = *spawnparamglobals[j];
 			Rank_SetPlayerStats(cl->rankid, &rs);

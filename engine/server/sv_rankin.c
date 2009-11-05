@@ -30,7 +30,7 @@ cvar_t rank_needlogin = SCVAR("rank_needlogin", "0");
 cvar_t rank_filename = SCVAR("rank_filename", "");
 char rank_cvargroup[] = "server rankings";
 
-#define RANKFILE_VERSION 0x00000000
+#define RANKFILE_VERSION ((NUM_RANK_SPAWN_PARMS==32)?0:0x00000001)
 #define RANKFILE_IDENT	*(int*)"RANK"
 
 void inline READ_PLAYERSTATS(int x, rankstats_t *os)
@@ -42,7 +42,7 @@ void inline READ_PLAYERSTATS(int x, rankstats_t *os)
 
 	os->kills = swaplong(os->kills);
 	os->deaths = swaplong(os->deaths);
-	for (i = 0; i < NUM_SPAWN_PARMS; i++)
+	for (i = 0; i < NUM_RANK_SPAWN_PARMS; i++)
 		os->parm[i] = swapfloat(os->parm[i]);
 	os->timeonserver = swapfloat(os->timeonserver);
 //	os->flags1 = (os->flags1);
@@ -60,7 +60,7 @@ void inline WRITE_PLAYERSTATS(int x, rankstats_t *os)
 
 	ns.kills = swaplong(os->kills);
 	ns.deaths = swaplong(os->deaths);
-	for (i = 0; i < NUM_SPAWN_PARMS; i++)
+	for (i = 0; i < NUM_RANK_SPAWN_PARMS; i++)
 		ns.parm[i] = swapfloat(os->parm[i]);
 	ns.timeonserver = swapfloat(os->timeonserver);
 	ns.flags1 = (os->flags1);

@@ -740,7 +740,7 @@ static texid_t Shader_TextureForPass(const shaderpass_t *pass)
 
 	case T_GEN_VIDEOMAP:
 #ifdef NOMEDIA
-		return shaderstate.curtexnums?shaderstate.curtexnums->base:0;
+		return shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
 #else
 		return Media_UpdateForShader(pass->cin);
 #endif

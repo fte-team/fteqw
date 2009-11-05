@@ -1073,7 +1073,7 @@ texture_t *Mod_LoadWall(char *name)
 	oin = (qbyte *)wal+wal->offsets[0];
 	for (j = 0; j < wal->width*wal->height; j++)
 		in[j] = (d_q28to24table[oin[j]*3+0] + d_q28to24table[oin[j]*3+1] + d_q28to24table[oin[j]*3+2])/3;
-	tn.bump = R_LoadTexture8Bump (va("%s_bump", wal->name), tex->width, tex->height, in, true, r_shadow_bumpscale_basetexture.value);
+	tn.bump = R_LoadTexture8BumpPal (va("%s_bump", wal->name), tex->width, tex->height, in, true);
 
 	BZ_Free(wal);
 

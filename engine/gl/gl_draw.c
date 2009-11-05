@@ -97,6 +97,7 @@ texid_t GL_LoadTextureFmt (char *name, int width, int height, enum uploadfmt fmt
 	case TF_SOLID8:
 		return GL_LoadTexture(name, width, height, data, flags, 0);
 
+	case TF_HEIGHT8PAL:
 	case TF_HEIGHT8:
 		return GL_LoadTexture8Bump(name, width, height, data, flags, r_shadow_bumpscale_basetexture.value);
 

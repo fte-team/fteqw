@@ -1123,7 +1123,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 					for (j = 0; j < pixels; j++)
 						base[j] = (host_basepal[base[j]*3] + host_basepal[base[j]*3+1] + host_basepal[base[j]*3+2]) / 3;
 
-					tn.bump = R_LoadTexture8Bump(altname, tx->width, tx->height, base, true, r_shadow_bumpscale_basetexture.value);	//normalise it and then bump it.
+					tn.bump = R_LoadTexture8BumpPal(altname, tx->width, tx->height, base, true);	//normalise it and then bump it.
 				}
 
 				//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
@@ -1309,7 +1309,7 @@ void RMod_NowLoadExternal(void)
 						*heightmap++ = (data[j*4+0] + data[j*4+1] + data[j*4+2])/3;
 					}
 					
-					tn.bump = R_LoadTexture8Bump (va("%s_bump", tx->name), width, height, heightmap-j, true, r_shadow_bumpscale_basetexture.value);
+					tn.bump = R_LoadTexture8BumpPal (va("%s_bump", tx->name), width, height, heightmap-j, true);
 				}
 			}
 		}

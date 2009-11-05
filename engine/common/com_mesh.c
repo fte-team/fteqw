@@ -2016,7 +2016,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 					if (gl_bump.ival)
 					{
 						snprintf(skinname, sizeof(skinname), "%s__%i_bump", loadname, i);
-						bumptexture = R_LoadTexture8Bump(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA, 1.0);
+						bumptexture = R_LoadTexture8BumpPal(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
 					}
 				}
 			}

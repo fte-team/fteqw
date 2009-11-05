@@ -1130,10 +1130,12 @@ void ClientReliableWrite_SZ(client_t *cl, void *data, int len);
 #define RANK_CUFFED		4
 #define RANK_CRIPPLED	8	//ha ha... get speed cheaters with this!... :o)
 
+#define NUM_RANK_SPAWN_PARMS 32
+
 typedef struct {	//stats info
 	int kills;
 	int deaths;
-	float parm[NUM_SPAWN_PARMS];
+	float parm[NUM_RANK_SPAWN_PARMS];
 	float timeonserver;
 	qbyte flags1;
 	qbyte trustlevel;

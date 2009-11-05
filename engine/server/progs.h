@@ -26,7 +26,7 @@ struct edict_s;
 #define MAX_PROGS 64
 #define MAXADDONS 16
 
-#define	NUM_SPAWN_PARMS			32	//moved from server.h because of include ordering :(.
+#define	NUM_SPAWN_PARMS			64	//moved from server.h because of include ordering :(.
 
 #define NewGetEdictFieldValue GetEdictFieldValue
 void Q_SetProgsParms(qboolean forcompiler);
@@ -46,9 +46,6 @@ void PR_RunThreads(void);
 
 #define PR_MAINPROGS 0	//this is a constant that should really be phased out. But seeing as QCLIB requires some sort of master progs due to extern funcs...
 	//maybe go through looking for extern funcs, and remember which were not allocated. It would then be a first come gets priority. Not too bad I supppose.
-
-#include "progtype.h"
-#include "progdefs.h"
 
 extern int compileactive;
 
@@ -117,7 +114,6 @@ typedef struct
 } worldode_t;
 #endif
 
-#define	MAX_ENT_LEAFS	16
 typedef struct edict_s
 {
 	//these 5 shared with qclib

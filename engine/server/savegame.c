@@ -274,8 +274,10 @@ void SV_Loadgame_f(void)
 		cl->connection_started = realtime+20;
 		cl->istobeloaded = true;
 
-		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+		for (i=0 ; i<16 ; i++)
 			fscanf (f, "%f\n", &cl->spawn_parms[i]);
+		for (; i < NUM_SPAWN_PARMS; i++)
+			cl->spawn_parms[i] = 0;
 	}
 	else	//fte QuakeWorld saves ALL the clients on the server.
 	{

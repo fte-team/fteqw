@@ -344,6 +344,7 @@ GLQUAKE_OBJS =		\
 	gl_draw.o		\
 	gl_model.o		\
 	gl_ngraph.o		\
+	gl_backend.o		\
 	gl_rlight.o		\
 	gl_rmain.o		\
 	gl_rmisc.o		\
@@ -351,13 +352,12 @@ GLQUAKE_OBJS =		\
 	gl_heightmap.o		\
 	gl_rsurf.o		\
 	ltface.o		\
+	r_2d.o			\
 	gl_screen.o		\
 	gl_bloom.o		\
-	gl_vbo.o	\
 	gl_shadow.o	\
 	gl_shader.o		\
 	gl_warp.o		\
-	gl_ppl.o		\
 	gl_vidcommon.o	\
 	gl_hlmdl.o
 

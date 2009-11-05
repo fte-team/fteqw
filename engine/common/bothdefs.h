@@ -123,9 +123,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define PSET_CLASSIC
 
-#ifndef SERVERONLY	//don't be stupid, stupid.
-		#define CLIENTONLY
-#endif
+		#ifndef SERVERONLY	//don't be stupid, stupid.
+			#ifndef CLIENTONLY
+				#define CLIENTONLY
+			#endif
+		#endif
 	#else
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
 		#define SP2MODELS		//quake2 sprite models

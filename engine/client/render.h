@@ -234,6 +234,7 @@ enum uploadfmt
 	TF_TRANS8,	/*8bit quake-palette image, index 255=transparent*/
 	TF_TRANS8_FULLBRIGHT,	/*fullbright 8 - fullbright texels have alpha 255, everything else 0*/
 	TF_HEIGHT8,	/*image data is greyscale, convert to a normalmap and load that, uploaded alpha contains the original heights*/
+	TF_HEIGHT8PAL, /*source data is palette values rather than actual heights, generate a fallback heightmap*/
 	TF_H2_T7G1, /*8bit data, odd indexes give greyscale transparence*/
 	TF_H2_TRANS8_0,	/*8bit data, 0 is transparent, not 255*/
 	TF_H2_T4A4	/*8bit data, weird packing*/
@@ -331,6 +332,7 @@ int R_LoadTexture(char *name, int width, int height, void *data, void *palette, 
 #define R_LoadTexture8(id,w,h,d,f,t)		R_LoadTexture(id,w,h,t?TF_TRANS8:TF_SOLID8,d,f)
 #define R_LoadTexture32(id,w,h,d,f)		R_LoadTexture(id,w,h,TF_RGBA32,d,f)
 #define R_LoadTextureFB(id,w,h,d,f)		R_LoadTexture(id,w,h,TF_TRANS8_FULLBRIGHT,d,f)
+#define R_LoadTexture8BumpPal(id,w,h,d,f)	R_LoadTexture(id,w,h,TF_HEIGHT8PAL,d,f)
 #define R_LoadTexture8Bump(id,w,h,d,f)	R_LoadTexture(id,w,h,TF_HEIGHT8,d,f)
 
 /*it seems a little excessive to have to include glquake (and windows headers), just to load some textures/shaders for the backend*/

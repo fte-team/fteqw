@@ -55,6 +55,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "cmd.h"
 #include "model.h"
 #include "crc.h"
+#include "progtype.h"
+#include "progdefs.h"
 #include "progs.h"
 #include "q2game.h"
 

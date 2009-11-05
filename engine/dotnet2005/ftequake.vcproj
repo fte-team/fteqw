@@ -18533,6 +18533,10 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\common\com_phys_ode.c"
+					>
+				</File>
+				<File
 					RelativePath="..\common\common.c"
 					>
 					<FileConfiguration

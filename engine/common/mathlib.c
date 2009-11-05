@@ -916,7 +916,7 @@ void Matrix4_Transform3(float *matrix, float *vector, float *product)
 	product[2] = matrix[2]*vector[0] + matrix[6]*vector[1] + matrix[10]*vector[2] + matrix[14];
 }
 
-void Matrix4_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg)
+void Matrix4_ModelViewMatrix(float *modelview, const vec3_t viewangles, const vec3_t vieworg)
 {
 	float tempmat[16];
 	//load identity.
@@ -946,12 +946,12 @@ void Matrix4_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg
 	Matrix4_Multiply(tempmat, Matrix4_NewTranslation(-vieworg[0],  -vieworg[1],  -vieworg[2]), modelview);	    // put Z going up
 }
 
-void		Matrix4x4_CreateTranslate (float *out, float x, float y, float z)
+void		Matrix4_CreateTranslate (float *out, float x, float y, float z)
 {
 	memcpy(out, Matrix4_NewTranslation(x, y, z), 16*sizeof(float));
 }
 
-void Matrix4_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg)
+void Matrix4_ModelViewMatrixFromAxis(float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg)
 {
 	float tempmat[16];
 
@@ -976,43 +976,46 @@ void Matrix4_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, 
 }
 
 
-void Matrix4x4_ToVectors(const matrix4x4_t *in, float vx[3], float vy[3], float vz[3], float t[3])
+void Matrix4_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
 {
-	vx[0] = in->m[0][0];
-	vx[1] = in->m[0][1];
-	vx[2] = in->m[0][2];
-	vy[0] = in->m[1][0];
-	vy[1] = in->m[1][1];
-	vy[2] = in->m[1][2];
-	vz[0] = in->m[2][0];
-	vz[1] = in->m[2][1];
-	vz[2] = in->m[2][2];
-	t [0] = in->m[3][0];
-	t [1] = in->m[3][1];
-	t [2] = in->m[3][2];
+	vx[0] = in[0];
+	vx[1] = in[4];
+	vx[2] = in[8];
+
+	vy[0] = in[1];
+	vy[1] = in[5];
+	vy[2] = in[9];
+
+	vz[0] = in[2];
+	vz[1] = in[6];
+	vz[2] = in[10];
+
+	t [0] = in[3];
+	t [1] = in[7];
+	t [2] = in[11];
 }
 
-void Matrix4x4_FromVectors(matrix4x4_t *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
+void Matrix4_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
 {
-	out->m[0][0] = vx[0];
-	out->m[1][0] = vy[0];
-	out->m[2][0] = vz[0];
-	out->m[3][0] = t[0];
-	out->m[0][1] = vx[1];
-	out->m[1][1] = vy[1];
-	out->m[2][1] = vz[1];
-	out->m[3][1] = t[1];
-	out->m[0][2] = vx[2];
-	out->m[1][2] = vy[2];
-	out->m[2][2] = vz[2];
-	out->m[3][2] = t[2];
-	out->m[0][3] = 0.0f;
-	out->m[1][3] = 0.0f;
-	out->m[2][3] = 0.0f;
-	out->m[3][3] = 1.0f;
+	out[0] = vx[0];
+	out[4] = vy[0];
+	out[8] = vz[0];
+	out[12] = t[0];
+	out[1] = vx[1];
+	out[5] = vy[1];
+	out[9] = vz[1];
+	out[13] = t[1];
+	out[2] = vx[2];
+	out[6] = vy[2];
+	out[10] = vz[2];
+	out[14] = t[2];
+	out[3] = 0.0f;
+	out[7] = 0.0f;
+	out[11] = 0.0f;
+	out[15] = 1.0f;
 }
 
-void Matrix4_ModelMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg)
+void Matrix4_ModelMatrixFromAxis(float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg)
 {
 	float tempmat[16];
 
@@ -1394,6 +1397,59 @@ qboolean Matrix4_Invert(const float *m, float *out)
 #undef SWAP_ROWS
 }
 
+void Matrix4_Invert_Simple (const float *in1, float *out)
+{
+	// we only support uniform scaling, so assume the first row is enough
+	// (note the lack of sqrt here, because we're trying to undo the scaling,
+	// this means multiplying by the inverse scale twice - squaring it, which
+	// makes the sqrt a waste of time)
+#if 1
+	double scale = 1.0 / (in1[0] * in1[0] + in1[1] * in1[1] + in1[2] * in1[2]);
+#else
+	double scale = 3.0 / sqrt
+		 (in1->m[0][0] * in1->m[0][0] + in1->m[0][1] * in1->m[0][1] + in1->m[0][2] * in1->m[0][2]
+		+ in1->m[1][0] * in1->m[1][0] + in1->m[1][1] * in1->m[1][1] + in1->m[1][2] * in1->m[1][2]
+		+ in1->m[2][0] * in1->m[2][0] + in1->m[2][1] * in1->m[2][1] + in1->m[2][2] * in1->m[2][2]);
+	scale *= scale;
+#endif
+
+	// invert the rotation by transposing and multiplying by the squared
+	// recipricol of the input matrix scale as described above
+	out[0] = in1[0] * scale;
+	out[1] = in1[4] * scale;
+	out[2] = in1[8] * scale;
+	out[4] = in1[1] * scale;
+	out[5] = in1[5] * scale;
+	out[6] = in1[9] * scale;
+	out[8] = in1[2] * scale;
+	out[9] = in1[6] * scale;
+	out[10] = in1[10] * scale;
+
+#ifdef MATRIX4x4_OPENGLORIENTATION
+	// invert the translate
+	out->m[3][0] = -(in1->m[3][0] * out->m[0][0] + in1->m[3][1] * out->m[1][0] + in1->m[3][2] * out->m[2][0]);
+	out->m[3][1] = -(in1->m[3][0] * out->m[0][1] + in1->m[3][1] * out->m[1][1] + in1->m[3][2] * out->m[2][1]);
+	out->m[3][2] = -(in1->m[3][0] * out->m[0][2] + in1->m[3][1] * out->m[1][2] + in1->m[3][2] * out->m[2][2]);
+
+	// don't know if there's anything worth doing here
+	out->m[0][3] = 0;
+	out->m[1][3] = 0;
+	out->m[2][3] = 0;
+	out->m[3][3] = 1;
+#else
+	// invert the translate
+	out[3] = -(in1[3] * out[0] + in1[7] * out[1] + in1[11] * out[2]);
+	out[7] = -(in1[3] * out[4] + in1[7] * out[5] + in1[11] * out[6]);
+	out[11] = -(in1[3] * out[8] + in1[7] * out[9] + in1[11] * out[10]);
+
+	// don't know if there's anything worth doing here
+	out[12] = 0;
+	out[13] = 0;
+	out[14] = 0;
+	out[15] = 1;
+#endif
+}
+
 void Matrix3x4_InvertTo3x3(float *in, float *result)
 {
 	float t1[16], tr[16];
@@ -1428,7 +1484,7 @@ void Matrix3x4_InvertTo3x3(float *in, float *result)
 
 //screen->3d
 
-void Matrix4_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float fovx, float fovy)
+void Matrix4_UnProject(const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy)
 {
 	float modelview[16];
 	float proj[16];
@@ -1458,7 +1514,7 @@ void Matrix4_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg,
 //returns fractions of screen.
 //uses GL style rotations and translations and stuff.
 //3d -> screen (fixme: offscreen return values needed)
-void Matrix4_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float fovx, float fovy)
+void Matrix4_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy)
 {
 	float modelview[16];
 	float proj[16];

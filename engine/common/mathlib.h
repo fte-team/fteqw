@@ -131,16 +131,21 @@ float		Q_rsqrt(float number);
 void		Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
 void		Matrix4_Identity(float *outm);
 qboolean	Matrix4_Invert(const float *m, float *out);
+void		Matrix4_Invert_Simple (const float *in1, float *out);
 void		Matrix4_CreateTranslate (float *out, float x, float y, float z);
-void		Matrix4_ModelMatrixFromAxis (float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg);
-void		Matrix4_ModelViewMatrix (float *modelview, vec3_t viewangles, vec3_t vieworg);
-void		Matrix4_ModelViewMatrixFromAxis (float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg);
+void		Matrix4_ModelMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
+void		Matrix4_ModelViewMatrix (float *modelview, const vec3_t viewangles, const vec3_t vieworg);
+void		Matrix4_ModelViewMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
 void		Matrix4_CreateFromQuakeEntity (float *matrix, float x, float y, float z, float pitch, float yaw, float roll, float scale);
 void		Matrix4_Multiply (float *a, float *b, float *out);
-void		Matrix4_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float fovx, float fovy);
+void		Matrix4_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy);
 void		Matrix4_Transform3 (float *matrix, float *vector, float *product);
 void		Matrix4_Transform4 (float *matrix, float *vector, float *product);
-void		Matrix4_UnProject (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float fovx, float fovy);
+void		Matrix4_UnProject (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy);
+void		Matrix4_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3]);
+void		Matrix4_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3]);
+
+#define AngleVectorsFLU(a,f,l,u) do{AngleVectors(a,f,l,u);VectorNegate(l,l);}while(0)
 
 //projection matricies of different types... gesh
 void		Matrix4_Orthographic (float *proj, float xmin, float xmax, float ymax, float ymin, float znear, float zfar);

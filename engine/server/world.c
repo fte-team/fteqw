@@ -22,6 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "pr_common.h"
 
+//#define pr_global_struct dgsdfg sdfg sdfg sd gsgd
+
 #ifndef CLIENTONLY
 /*
 

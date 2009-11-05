@@ -249,8 +249,10 @@ void SV_Shutdown (void)
 		sv_fraglogfile = NULL;
 	}
 
-	
 	PR_Deinit();
+#ifdef USEODE
+	World_Physics_Shutdown();
+#endif
 
 	if (sv.mvdrecording)
 		SV_MVDStop_f();
@@ -4353,6 +4355,10 @@ void SV_Init (quakeparms_t *parms)
 #endif
 
 	SV_Demo_Init();
+
+#ifdef USEODE
+	World_Physics_Init();
+#endif
 
 #ifdef SVRANKING
 	Rank_RegisterCommands();

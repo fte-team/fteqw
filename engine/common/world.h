@@ -141,6 +141,16 @@ typedef struct world_s world_t;
 
 #ifndef CLIENTONLY
 
+#ifdef USEODE
+void World_Physics_RemoveFromEntity(world_t *world, wedict_t *ed);
+void World_Physics_RemoveJointFromEntity(world_t *world, wedict_t *ed);
+void World_Physics_Frame(world_t *world, double frametime, double gravity);
+void World_Physics_Init(void);
+void World_Physics_Start(world_t *world);
+void World_Physics_End(world_t *world);
+void World_Physics_Shutdown(void);
+#endif
+
 void World_ClearWorld (world_t *w);
 // called after the world model has been loaded, before linking any entities
 

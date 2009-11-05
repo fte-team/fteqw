@@ -443,6 +443,10 @@ void Q_SetProgsParms(qboolean forcompiler)
 
 void PR_Deinit(void)
 {
+#ifdef USEODE
+	World_Physics_End(&sv.world);
+#endif
+
 #ifdef SQL
 	SQL_DeInit();
 #endif
@@ -1382,6 +1386,11 @@ void Q_InitProgs(void)
 	if (sv.world.max_edicts > MAX_EDICTS)
 		sv.world.max_edicts = MAX_EDICTS;
 	sv.world.edict_size = PR_InitEnts(svprogfuncs, sv.world.max_edicts);
+
+
+#ifdef USEODE
+	World_Physics_Start(&sv.world);
+#endif
 }
 
 qboolean PR_QCChat(char *text, int say_type)

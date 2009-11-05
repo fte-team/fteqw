@@ -448,6 +448,7 @@ WINDOWSSERVERONLY_OBJS = \
 
 COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	com_mesh.o	\
+	com_phys_ode.o	\
 	common.o 		\
 	cvar.o 		\
 	cmd.o 		\

@@ -44,13 +44,6 @@ void() SetChangeParms =
 	if (!self.current_slot)	//changing without spawning?
 		DecodeLevelParms();	//make sure we have our inventory!
 
-/*
-	if (self.health <= 0)
-	{
-		SetNewParms ();
-		return;
-	}
- */
 
 
 	self.items = self.items - (self.items & 
@@ -71,10 +64,6 @@ void() SetChangeParms =
 	parm8 = self.ammo_shells;
 	parm9 = self.perk1;
 	parm10 = self.perk2;
-
-
-
-
 	parm16 = self.current_slot;
 	parm17 = self.islot1;
 	parm18 = self.islot2;
@@ -104,28 +93,27 @@ void() SetChangeParms =
 };
 
 void() SetNewParms =
-{	//remember, don't use self!
-//	parm1 = IID_WP_USP;
-//	parm2 = IID_WP_KNIFE;
-//	parm3 = IID_ARM_SHIRT;
-//	parm4 = 0;
-//	parm6 = 0;
- 	parm7 = 0;
-	parm8 = 300;	//starting cash
- 	parm9 = 0;
-	parm10 = 0;
-//	parm11 = 0;
-//	parm12 = 0;
-	//parm13 = 0;
-	parm14 = 0;
-//	parm15 = 0;
-
-	parm5 = 0;		//score
+{	
 
 //16 is the current_slot
 //17 to 32 are inventory slots.
 //the assignments were moved into PutClientInServer
 //on account of changing maps before spawning was resulting in no inventory.
+	parm1 = 0;
+	parm2 = 0;
+	parm3 = 0;
+	parm4 = 0;
+	parm5 = 0;
+	parm6 = 0;
+	parm7 = 0;
+	parm8 = 300;
+	parm9 = 0;
+	parm10 = 0;
+	parm11 = 0;
+	parm12 = 0;
+	parm13 = 0;
+	parm14 = 0;
+	parm15 = 0;
 	parm16 = 0;
 	parm17 = 0;
 	parm18 = 0;
@@ -675,33 +663,12 @@ void() PutClientInServer =
 
 	if (self.current_slot == 0)
 	{
+		self.islot1 = SlotVal(IID_WP_GLOCK, 15);
 		self.islot2 = 0;
-
-		self.current_slot = 1;
-		if (self.class == 1)
-			self.islot1 = SlotVal(IID_WP_WINCHESTER, 2);
-		if (self.class == 2)
-		{
-			self.islot1 = SlotVal(IID_WP_GLOCK, 15);
-			self.islot2 = SlotVal(IID_WP_KNIFE, 1);
-		}
-		if (self.class == 3)
-			self.islot1 = SlotVal(IID_WP_USP, 12);
-		if (self.class == 4)
-			self.islot1 = SlotVal(IID_WP_PIPERIFLE, 1);
-
 		self.islot3 = 0;
-		self.islot7 = SlotVal(IID_CHEM_STIMPACK, 3);
-
-		if (self.class == 1)
-			self.islot8 = SlotVal(IID_AM_12GAUGESHELLS, 20);
-		if (self.class == 2)
-			self.islot8 = SlotVal(IID_AM_10MM, 30);
-		if (self.class == 3)
-			self.islot8 = SlotVal(IID_AM_45ACP, 24);
-		if (self.class == 4)
-			self.islot8 = SlotVal(IID_AM_44MAGNUM, 20);
-
+		self.islot5 = SlotVal(IID_CHEM_STIMPACK, 3);
+		self.islot7 = SlotVal(IID_AM_10MM, 30);
+		self.islot8 = 0;
 		self.islot9 = 0;
 		self.islot10 = 0;
 		self.islot11 = 0;
@@ -713,41 +680,11 @@ void() PutClientInServer =
 		self.islot17 = 0;
 		self.islot18 = 0;
 		self.islot19 = 0;
-      	self.islot20 = 0;
-//now give them special items for thier class.
-//you're fairly screwed if you change class.
-		if (self.class == 1)
-		{
-			x = SlotOfItem(self, IID_CHEM_MEDICALBAG);
-			if (x == 0)
-				self.islot5 = SlotVal(IID_CHEM_MEDICALBAG, 100);
-		}
-		if (self.class == 2)
-		{
-			x = SlotOfItem(self, IID_EQUIP_STEALTHBOY);
-			if (x == 0)
-				self.islot4 = SlotVal(IID_EQUIP_STEALTHBOY, 1);
-		}
-		if (self.class == 4)
-		{
-			x = SlotOfItem(self, IID_WP_WRENCH);
-			if (x == 0)
-				self.islot5 = SlotVal(IID_WP_WRENCH, 1);
-
-			TryGiveStackable(self, IID_MISC_STEELPIPE, 1);
-			TryGiveStackable(self, IID_MISC_DUCKTAPE, 1);
-			TryGiveStackable(self, IID_MISC_AEROSOL, 2);
-			TryGiveStackable(self, IID_MISC_JUNK, 2);
-
-			xx = ceil(309+random()*12);
-			TryGiveStackable(self, xx, 1);
-
-			xx = ceil(309+random()*12);
-			TryGiveStackable(self, xx, 1);
-
-			xx = ceil(309+random()*12);
-			TryGiveStackable(self, xx, 1);
-		}
+      		self.islot20 = 0;
+     		self.islot21 = 0;
+     		self.islot22 = 0;
+     		self.islot23 = 0;
+     		self.islot24 = 0;
 	}
 
 	self.attack_finished = time;
@@ -764,14 +701,9 @@ void() PutClientInServer =
 	self.angles = spot.angles;
 	self.fixangle = TRUE;           // turn this way immediately
 
-	if (self.class == 1)
-		self.max_health = 80;
-	if (self.class == 2)
-		self.max_health = 80;
-	if (self.class == 3)
-		self.max_health = 100;
-	if (self.class == 4)
-		self.max_health = 60;
+
+	self.max_health = 100;
+
 	self.equipment_slot = 0;
 
 	self.health = self.max_health;

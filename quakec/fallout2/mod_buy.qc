@@ -972,6 +972,14 @@ void() W_PlayerMenu =
 			{
 				self.missionbrief = 0;
 				self.class = self.tclass;
+				if (self.class == 1)
+					self.skill_doctor = 1;
+				if (self.class == 2)
+					self.skill_sneak = 1;
+				if (self.class == 3)
+					self.skill_combat = 1;
+				if (self.class == 4)
+					self.skill_science = 1;
 				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
 				self.currentmenu = "none";
 				centerprint(self, "");
@@ -1117,13 +1125,12 @@ void() W_PlayerMenu =
 
 						te = te.chain;
 					}
-				        /*
+				
 					if (greed == 1)
 						self.score = self.score - 50;
 					else
-						self.score = self.score - 25;*/
+						self.score = self.score - 25;
 
-					self.chest.solid = SOLID_NOT;
 
 					sound (self, CHAN_WEAPON, "effects/openlock.wav", TRUE, ATTN_NORM);
 					sprint(self, 2, "you manage to pick the lock. you find:\n");

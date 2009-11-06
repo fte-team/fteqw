@@ -52,13 +52,22 @@ void() SetChangeParms =
 	}
  */
 
-// remove items
+
 	self.items = self.items - (self.items & 
 	(IT_KEY1 | IT_KEY2 | IT_INVISIBILITY | IT_INVULNERABILITY | IT_SUIT | IT_QUAD) );
 	
-//	parm6 = self.chem;
-	if (self.class > 0)
-		parm7 = self.class;
+
+	if (self.skill_combat > 0)
+		parm5 = self.skill_combat;
+	if (self.skill_doctor > 0)
+		parm6 = self.skill_doctor;
+	if (self.skill_sneak > 0)
+		parm7 = self.skill_sneak;
+	if (self.skill_science > 0)
+		parm14 = self.skill_science;
+
+
+
 	parm8 = self.ammo_shells;
 	parm9 = self.perk1;
 	parm10 = self.perk2;
@@ -140,14 +149,19 @@ void() DecodeLevelParms =
 {
 	setspawnparms(self);
 
-//	self.chem = parm6;
+
+	if (parm5 > 0)
+		self.skill_combat = parm5;
+	if (parm6 > 0)
+		self.skill_doctor = parm6;
 	if (parm7 > 0)
-		self.class = parm7;
+		self.skill_sneak = parm7;
+	if (parm14 > 0)
+		self.skill_science = parm14;
+
 	self.ammo_shells = parm8;
 	self.perk1 = parm9;
 	self.perk2 = parm10;
-	self.score = parm5;
-
 
 
 	self.current_slot = parm16;
@@ -170,11 +184,11 @@ void() DecodeLevelParms =
 	self.islot17 = parm1;
 	self.islot18 = parm2;
 	self.islot19 = parm3;
-      self.islot20 = parm4;
+        self.islot20 = parm4;
 	self.islot21 = parm11;
 	self.islot22 = parm12;
 	self.islot23 = parm13;
-      self.islot24 = parm15;
+        self.islot24 = parm15;
 
 };
 
@@ -636,7 +650,7 @@ void() PutClientInServer =
 
 	DecodeLevelParms ();
 
-	if (self.class == 0 || self.team == 0)
+	if (self.skill_combat == 0 && self.skill_sneak == 0 && self.skill_doctor == 0 && self.skill_science == 0)
 	{
 		self.deadflag = DEAD_NO;
 		self.health = 200;
@@ -1679,7 +1693,7 @@ void() PlayerPreThink =
 		DisplayMenu ();
 		return;
 	}
-	else if (self.class == 0 && self.currentmenu == "none")
+	else if (self.skill_combat == 0 && self.skill_sneak == 0 && self.skill_doctor == 0 && self.skill_science == 0 && self.currentmenu == "none")
 	{
 		self.currentmenu = "select_skill";
 		DisplayMenu ();

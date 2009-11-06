@@ -70,6 +70,10 @@ void() SetupStats =
 	clientstat(69, 2, map_ent3);
 	clientstat(70, 2, silencer);
 	clientstat(71, 2, extender);
+	clientstat(81, 2, skill_combat);
+	clientstat(82, 2, skill_doctor);
+	clientstat(83, 2, skill_sneak);
+	clientstat(84, 2, skill_science);
 	clientstat(91, 2, islot17);
 	clientstat(92, 2, islot18);
 	clientstat(93, 2, islot19);
@@ -93,6 +97,7 @@ void() SetupStats =
 	clientstat(125, 2, timer);
 	clientstat(126, 2, popup);
 	clientstat(127, 2, score);
+
 };
 
 //assesses all current players

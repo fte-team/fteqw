@@ -3,6 +3,7 @@ float PRINT_MEDIUM = 1;
 #include "../inventory.qc"
 
 float show_inventory;
+float show_pipboy;
 
 vector mousepos;
 
@@ -31,6 +32,7 @@ float mouseisdown;
 #define IMGSIZEQ ('1 1 0'*2)
 
 #define CURSORSIZE 8
+
 
 void(vector pos, float slotno) SlotImage =
 {
@@ -114,7 +116,7 @@ void(vector pos, float slotno) SlotImageSmall =
 	}
 
 	itname = GetItemImage(ToIID(it));
-	drawpic(pos, strcat("gui/", itname), IMGSIZEZ, '1 1 1', 1);
+	drawpic(pos, strcat("gui/", itname), IMGSIZEH, '1 1 1', 1);
 
 	mod_s = getstati(70);
 	mod_e = getstati(71);
@@ -134,7 +136,7 @@ void(vector pos, float slotno) SlotImageSmall =
 		return;
 	itname = ftos(it);
 	it = strlen(itname);
-	drawstring(pos + IMGSIZEZ - '0 8 0' - '8 0 0'*it, itname, '8 8 8', '1 1 1', 1);
+	drawstring(pos + IMGSIZEZ - '0 16 0' - '16 0 0'*it, itname, '8 8 8', '1 1 1', 1);
 };
 
 void(vector pos, float slotno) QuickImage =
@@ -355,6 +357,61 @@ void(vector pos, string image) Crosshair =
 	drawpic(pos, image, IMGSIZEQ, '1 1 1', 1);
 };
 
+
+void() Pipboy_Draw =
+{
+	float width,height,lvl,bar;
+	vector w;
+
+	width = cvar("vid_conwidth");
+	height = cvar("vid_conheight");
+	w = '1 1 0'*height;
+
+
+
+
+	drawpic('0 0 0', "gui/pipboy/pipboy.jpg", w, '1 1 1', 1);
+	drawstring('2 2 0'*IMGSIZEF, "COMBAT", '8 8 8', '1 1 1', 1);
+	bar = 0;
+	lvl = getstati(81);
+	while (bar <= lvl)
+	{
+		drawpic('3 2 0'*IMGSIZEF + ('4 0 0'*bar),  "gui/graph/red.jpg", '1 4 0'*2, '1 1 1', 1);		
+		bar = bar + 1;
+	}
+
+
+	drawstring('2 2.2 0'*IMGSIZEF, "DOCTOR", '8 8 8', '1 1 1', 1);
+	bar = 0;
+	lvl = getstati(82);
+	while (bar <= lvl)
+	{
+		drawpic('3 2.2 0'*IMGSIZEF + ('4 0 0'*bar),  "gui/graph/green.jpg", '1 4 0'*2, '1 1 1', 1);		
+		bar = bar + 1;
+	}
+
+
+	drawstring('2 2.4 0'*IMGSIZEF, "SNEAK", '8 8 8', '1 1 1', 1);
+	bar = 0;
+	lvl = getstati(83);
+	while (bar <= lvl)
+	{
+		drawpic('3 2.4 0'*IMGSIZEF + ('4 0 0'*bar),  "gui/graph/blue.jpg", '1 4 0'*2, '1 1 1', 1);		
+		bar = bar + 1;
+	}
+
+	drawstring('2 2.6 0'*IMGSIZEF, "SCIENCE", '8 8 8', '1 1 1', 1);
+	bar = 0;
+	lvl = getstati(84);
+	while (bar <= lvl)
+	{
+		drawpic('3 2.6 0'*IMGSIZEF + ('4 0 0'*bar),  "gui/graph/yellow.jpg", '1 4 0'*2, '1 1 1', 1);		
+		bar = bar + 1;
+	}
+
+};
+
+
 void() Invent_Draw =
 {
 	local float i;
@@ -363,37 +420,54 @@ void() Invent_Draw =
 	local float op;
 	
 	local float height,width;
+	vector w;
 	height = cvar("vid_conheight");
 	width = cvar("vid_conwidth");
 	//how much space have we got for the slider?
 
+	drawpic('0 0 0', "gui/pipboy/inventory.jpg", w, '1 1 1', 1);
 
 	local float slotofs;
 	slotofs = sliderpos*(height - (IMGSIZEF*6)) + (IMGSIZEF*6);
-
+/*
 	for (i = 6; i <= MAXSLOTS; i++)
 	{
 		SlotImage(((i*IMGSIZEF-slotofs) * '0 1 0'), i+1);
 
 //		itname = GetItemName(ToIID(it));
 //		drawstring(toppos + ((i*8-slotofs) * '0 1 0'), strcat(itname, " (", ftos(ToStatus(it)), ")"), '8 8 0', '1 1 1', 1);
-	}
+	}*/
 
-	drawstring('112 248 0', " HAND1 ", '8 8 8', '1 1 1', 1);
-	SlotImage('112 256 0', 1);
-	drawstring('112 248 0'+('1 0 0'*IMGSIZEF), " HAND2 ", '8 8 8', '1 1 1', 1);
-	SlotImage('112 256 0'+('1 0 0'*IMGSIZEF), 2);
-	drawstring('112 248 0'+('2 0 0'*IMGSIZEF), " ARMOUR ", '8 8 8', '1 1 1', 1);
-	SlotImage('112 256 0'+('2 0 0'*IMGSIZEF), 3);
+	SlotImage('2 1 0'*IMGSIZEF, 5);
+	SlotImage('2 2 0'*IMGSIZEF, 6);
+	SlotImage('2 3 0'*IMGSIZEF, 7);
+	SlotImage('2 4 0'*IMGSIZEF, 8);
+	SlotImage('2 5 0'*IMGSIZEF, 9);
+	SlotImage('2 6 0'*IMGSIZEF, 10);
 
+	SlotImage('3 1 0'*IMGSIZEF, 11);
+	SlotImage('3 2 0'*IMGSIZEF, 12);
+	SlotImage('3 3 0'*IMGSIZEF, 13);
+	SlotImage('3 4 0'*IMGSIZEF, 14);
+	SlotImage('3 5 0'*IMGSIZEF, 15);
+	SlotImage('3 6 0'*IMGSIZEF, 16);
 
-	drawstring('112 120 0', " EQUIP ", '8 8 8', '1 1 1', 1);
-	SlotImage('112 128 0', 4);
-	drawstring('112 120 0'+('1 0 0'*IMGSIZEF), " POUCH1 ", '8 8 8', '1 1 1', 1);
-	SlotImage('112 128 0'+('1 0 0'*IMGSIZEF), 5);
-	drawstring('112 120 0'+('2 0 0'*IMGSIZEF), " POUCH2 ", '8 8 8', '1 1 1', 1);
-	SlotImage('112 128 0'+('2 0 0'*IMGSIZEF), 6);
+	SlotImage('5.5 1 0'*IMGSIZEF, 1);
+	SlotImage('5.5 3 0'*IMGSIZEF, 2);
+	SlotImage('5.5 5.5 0'*IMGSIZEF, 3);
 
+	SlotImageSmall('1 3 0'*IMGSIZEK, 17);
+	SlotImageSmall('1 4 0'*IMGSIZEK, 18);
+	SlotImageSmall('1 5 0'*IMGSIZEK, 19);
+	SlotImageSmall('1 6 0'*IMGSIZEK, 20);
+	SlotImageSmall('1 7 0'*IMGSIZEK, 21);
+	SlotImageSmall('1 8 0'*IMGSIZEK, 22);
+	SlotImageSmall('1 9 0'*IMGSIZEK, 23);
+	SlotImageSmall('1 10 0'*IMGSIZEK, 24);
+
+	SlotImageSmall('1 12.5 0'*IMGSIZEK, 4);
+
+/*
 	drawstring('120 72 0'+('4 0 0'*IMGSIZEF), " JUNK ", '8 8 8', '1 1 1', 1);
 	SlotImageSmall('112 80 0'+('4 0 0'*IMGSIZEF), 17);
 	SlotImageSmall('112 128 0'+('4 0 0'*IMGSIZEF), 18);
@@ -402,9 +476,9 @@ void() Invent_Draw =
 	SlotImageSmall('96 80 0'+('5 0 0'*IMGSIZEF), 21);
 	SlotImageSmall('96 128 0'+('5 0 0'*IMGSIZEF), 22);
 	SlotImageSmall('96 176 0'+('5 0 0'*IMGSIZEF), 23);
-	SlotImageSmall('96 224 0'+('5 0 0'*IMGSIZEF), 24);
+	SlotImageSmall('96 224 0'+('5 0 0'*IMGSIZEF), 24);*/
 
-
+/*
 	perki = GetPerkImage(getstati(60));
 	perk2i = GetPerkImage(getstati(59));
 
@@ -419,99 +493,18 @@ void() Invent_Draw =
 	drawstring('112 408 0'+('3 0 0'*IMGSIZEF), p1, '8 8 8', '1 1 1', 1);
 	drawstring('112 408 0'+('5 0 0'*IMGSIZEF), p2, '8 8 8', '1 1 1', 1);
 
-	i = getstati(62);
-	if (i == 1)
-		itname = "team: rangers";
-	else if (i == 2)
-		itname = "team: raiders";
-	else
-		itname = "team: none";
-	drawstring('112 264 0'+('0 1 0'*IMGSIZEF), itname, '8 8 8', '1 1 1', 1);
-	i = getstati(63);
-	if (i == 1)
-	{	
-		itname = "skill set: first aid";
-		s1 = "small arms: 65%";
-		s2 = "big guns:   35%";
-		s3 = "melee:      45%";
-		s4 = "sneak:      40%";
-		s5 = "first aid:  90%";
-		s6 = "doctor:     75%";
-		s7 = "science:    25%";
-		s8 = "repair:     35%";
-		s9 = "thrown:     50%";
-	}
-	else if (i == 2)
-	{	
-		itname = "skill set: stealth";
-		s1 = "small arms: 75%";
-		s2 = "big guns:   25%";
-		s3 = "melee:      80%";
-		s4 = "sneak:      95%";
-		s5 = "first aid:  55%";
-		s6 = "doctor:     15%";
-		s7 = "science:    55%";
-		s8 = "repair:     25%";
-		s9 = "thrown:     75%";
-	}
-	else if (i == 3)
-	{	
-		itname = "skill set: combat";
-		s1 = "small arms: 90%";
-		s2 = "big guns:   75%";
-		s3 = "melee:      80%";
-		s4 = "sneak:      55%";
-		s5 = "first aid:  55%";
-		s6 = "doctor:     15%";
-		s7 = "science:    15%";
-		s8 = "repair:     15%";
-		s9 = "thrown:     75%";
-	}
-	else if (i == 4)
-	{	
-		itname = "skill set: science";
-		s1 = "small arms: 25%";
-		s2 = "big guns:   10%";
-		s3 = "melee:      15%";
-		s4 = "sneak:      35%";
-		s5 = "first aid:  65%";
-		s6 = "doctor:     25%";
-		s7 = "science:    95%";
-		s8 = "repair:     90%";
-		s9 = "thrown:     25%";
-	}
-	else
-	{
-		itname = "class: none";
-		s1 = "small arms: 10%";
-		s2 = "big guns:    5%";
-		s3 = "melee:       5%";
-		s4 = "sneak:      10%";
-		s5 = "first aid:  10%";
-		s6 = "doctor:      5%";
-		s7 = "science:    15%";
-		s8 = "repair:      5%";
-	}
-
-	drawstring('112 272 0'+('0 1 0'*IMGSIZEF), itname, '8 8 8', '1 1 1', 1);
-	drawstring('112 280 0'+('0 1 0'*IMGSIZEF), s1, '8 8 8', '1 1 1', 1);
-	drawstring('112 288 0'+('0 1 0'*IMGSIZEF), s2, '8 8 8', '1 1 1', 1);
-	drawstring('112 296 0'+('0 1 0'*IMGSIZEF), s3, '8 8 8', '1 1 1', 1);
-	drawstring('112 304 0'+('0 1 0'*IMGSIZEF), s4, '8 8 8', '1 1 1', 1);
-	drawstring('112 312 0'+('0 1 0'*IMGSIZEF), s5, '8 8 8', '1 1 1', 1);
-	drawstring('112 320 0'+('0 1 0'*IMGSIZEF), s6, '8 8 8', '1 1 1', 1);
-	drawstring('112 328 0'+('0 1 0'*IMGSIZEF), s7, '8 8 8', '1 1 1', 1);
-	drawstring('112 336 0'+('0 1 0'*IMGSIZEF), s8, '8 8 8', '1 1 1', 1);
-	drawstring('112 344 0'+('0 1 0'*IMGSIZEF), s9, '8 8 8', '1 1 1', 1);
+*/
 
 
 
+
+/*
 	drawpic(('1 0 0'*IMGSIZEF), "gui/scrollup.jpg", '16 16 0', '1 1 1', 1);
 	for (i = 0; i < height; i+=16)
 		drawpic('1 0 0'*IMGSIZEF+'0 16 0'+i*'0 1 0', "gui/scrollbar.jpg", '16 16 0', '1 1 1', 1);
 	drawpic(('1 0 0'*IMGSIZEF)+(height-16)*'0 1 0', "gui/scrolldown.jpg", '16 16 0', '1 1 1', 1);
 
-	drawpic(('1 0 0'*IMGSIZEF)+'0 16 0'+sliderpos*(height-48)*'0 1 0', "gui/scrollbox.jpg", '16 16 0', '1 1 1', 1);
+	drawpic(('1 0 0'*IMGSIZEF)+'0 16 0'+sliderpos*(height-48)*'0 1 0', "gui/scrollbox.jpg", '16 16 0', '1 1 1', 1);*/
 
 
 	if (showcontextmenu)
@@ -542,44 +535,45 @@ void() Invent_Draw =
 	}
 	else
 	{
-		if (mousepos_x >= IMGSIZEF)
+		if  ((mousepos_y >= 12.5*IMGSIZEH && mousepos_y <= 13*IMGSIZEH) && mousepos_x <= IMGSIZEF)
+		{
+				slotnum = 4;
+		}
+		else if (mousepos_x >= IMGSIZEF)
 		{
 			slotnum = 0;
-			if (mousepos_x >= 112 && mousepos_x <= 112+3*IMGSIZEF)
-				if (mousepos_y >= 256 && mousepos_y <= 256+IMGSIZEF)
-					slotnum = floor((mousepos_x - 112)/IMGSIZEF) + 1;
+			if (mousepos_x >= 2*IMGSIZEF && mousepos_x <= 3*IMGSIZEF)
+				if (mousepos_y >= 1*IMGSIZEF && mousepos_y <= 7*IMGSIZEF)
+					slotnum = floor((mousepos_y)/IMGSIZEF) + 4;
 
-			if (mousepos_x >= 112 && mousepos_x <= 112+3*IMGSIZEF)
-				if (mousepos_y >= 128 && mousepos_y <= 128+IMGSIZEF)
-					slotnum = floor((mousepos_x - 112)/IMGSIZEF) + 4;
+			if (mousepos_x >= 3*IMGSIZEF && mousepos_x <= 4*IMGSIZEF)
+				if (mousepos_y >= 1*IMGSIZEF && mousepos_y <= 7*IMGSIZEF)
+					slotnum = floor((mousepos_y)/IMGSIZEF) + 10;
 
-			if (mousepos_x >= 112+3*IMGSIZEF && mousepos_x <= 112+4*IMGSIZEF)
-				if (mousepos_y >= 336 && mousepos_y <= 336+IMGSIZEF)
-					slotnum = 98;
+			if (mousepos_x >= 5.5*IMGSIZEF && mousepos_x <= 6.5*IMGSIZEF)
+				if (mousepos_y >= 1*IMGSIZEF && mousepos_y <= 2*IMGSIZEF)
+					slotnum = 1;
+			if (mousepos_x >= 5.5*IMGSIZEF && mousepos_x <= 6.5*IMGSIZEF)
+				if (mousepos_y >= 3*IMGSIZEF && mousepos_y <= 4*IMGSIZEF)
+					slotnum = 2;
 
-			if (mousepos_x >= 112+5*IMGSIZEF && mousepos_x <= 112+6*IMGSIZEF)
-				if (mousepos_y >= 336 && mousepos_y <= 336+IMGSIZEF)
-					slotnum = 99;
-
-			
-			if (mousepos_x >= 112+4*IMGSIZEF && mousepos_x <= 112+5*IMGSIZEF)
-				if (mousepos_y >= 80 && mousepos_y <= 80+4*IMGSIZEX)
-					slotnum = floor((mousepos_y - 80)/IMGSIZEX) + 17;
-
-			if (mousepos_x >= 112+5*IMGSIZEF && mousepos_x <= 112+6*IMGSIZEF)
-				if (mousepos_y >= 80 && mousepos_y <= 80+4*IMGSIZEX)
-					slotnum = floor((mousepos_y - 80)/IMGSIZEX) + 21;
+			if (mousepos_x >= 5.5*IMGSIZEF && mousepos_x <= 6.5*IMGSIZEF)
+				if (mousepos_y >= 5.5*IMGSIZEF && mousepos_y <= 6.5*IMGSIZEF)
+					slotnum = 3;
 		}
 		else
 		{
-			slotnum = floor((mousepos_y + slotofs)/IMGSIZEF) + 1;
+			slotnum = floor((mousepos_y)/IMGSIZEK) + 14;
+			if (slotnum <= 16)
+				slotnum = 0;
+			if (slotnum >= 25)
+				slotnum = 0;
 		}
 //			slotnum = floor((mousepos_y - toppos_y)/8) + 1;
 	}
 
 	drawstring('128 0 0', ftos(slotnum), '8 8 0', '1 1 1', 1);
 
-	drawfill('120 24 0', '512 40 0', '0 0 0', 0.7);
 
 if (slotnum <= 24)
 {
@@ -606,10 +600,8 @@ if (slotnum <= 24)
 			it = getstati(98);
 	}
 
-	itname = GetItemName(ToIID(it));
-	drawstring('128 32 0', itname, '8 8 0', '1 1 1', 1);
 	itname = GetItemDesc(ToIID(it));
-	drawstring('128 48 0', itname, '8 8 0', '1 1 1', 1);
+	drawstring('32 16 0', itname, '8 8 0', '1 1 1', 1);
 }
 else if (slotnum == 98)
 {
@@ -647,6 +639,10 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 		if (param1 == 'i')
 		{
 			show_inventory = !show_inventory;
+		}
+		if (param1 == 'p')
+		{
+			show_pipboy = !show_pipboy;
 		}
 		else if (!show_inventory)
 			return false;

@@ -444,6 +444,8 @@ void(float do2d) CSQC_UpdateView =
 		DrawScreen();
 	else if (show_inventory)
 		Invent_Draw();
+	else if (show_pipboy)
+		Pipboy_Draw();
 	else
 	{
 		Health_Draw();

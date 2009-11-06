@@ -151,6 +151,7 @@ void() DecodeLevelParms =
 	self.perk1 = parm9;
 	self.perk2 = parm10;
 
+	self.class = 1;
 
 	self.current_slot = parm16;
 	self.islot1 = parm17;
@@ -1625,9 +1626,10 @@ void() PlayerPreThink =
 		DisplayMenu ();
 		return;
 	}
-	else if (self.skill_combat == 0 && self.skill_sneak == 0 && self.skill_doctor == 0 && self.skill_science == 0 && self.currentmenu == "none")
+	else if (self.score >= 20 && self.currentmenu == "none")
 	{
-		self.currentmenu = "select_skill";
+		self.currentmenu = "gain_skill";
+		self.missionbrief = 2;
 		DisplayMenu ();
 	}
 

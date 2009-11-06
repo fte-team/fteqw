@@ -444,60 +444,6 @@ float (float input) overweight =
 		return (FALSE);
 };
 
-void () W_GetClass =
-{
-	if ((self.currentmenu == "select_skill"))
-	{
-		if (self.impulse == 1)
-		{
-			self.missionbrief = 2;
-			sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-			self.currentmenu = "none";
-			self.max_health = 80;
-			self.tclass = 1;
-			self.currentmenu = "confirm_skill";
-			self.ghost = 0;
-			return;
-		}
-		if ((self.impulse == 2))
-		{
-			self.missionbrief = 2;
-			sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-			self.currentmenu = "none";
-			self.max_health = 70;
-			self.tclass = 2;
-			self.currentmenu = "confirm_skill";
-			self.ghost = 0;
-			return;
-		}
-		if (self.impulse == 3)
-		{
-			self.missionbrief = 2;
-			sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-			self.currentmenu = "none";
-			self.max_health = 100;
-			self.tclass = 3;
-			self.currentmenu = "confirm_skill";
-			self.ghost = 0;
-			return;
-		}
-		if (self.impulse == 4)
-		{
-			self.missionbrief = 2;
-			sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-			self.max_health = 80;
-			self.currentmenu = "none";
-			self.tclass = 4;
-			self.currentmenu = "confirm_skill";
-			self.ghost = 0;
-			return;
-		}
-	}
-	if (self.impulse > 4)
-		return;
-
-};
-
 
 void() W_PlayerMenu =
 {
@@ -895,17 +841,15 @@ void() W_PlayerMenu =
 		}
 
 	}
-	else if (self.currentmenu == "select_skill")
+	else if (self.currentmenu == "gain_skill")
 	{
 		if (self.impulse == 1)
 		{
 			self.missionbrief = 2;
 			sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
 			self.currentmenu = "none";
-			self.max_health = 80;
 			self.tclass = 1;
 			self.currentmenu = "confirm_skill";
-			centerprint (self, "your skill-set will be‘\n\nfirst aid - OK?\n1‘ Yes     \n2‘ No      \n\nprimary:   first aid\nsecondary: buff allies\n");
 			self.ghost = 0;
 			return;
 		}
@@ -914,10 +858,8 @@ void() W_PlayerMenu =
 			self.missionbrief = 2;
 			sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
 			self.currentmenu = "none";
-			self.max_health = 70;
 			self.tclass = 2;
 			self.currentmenu = "confirm_skill";
-			centerprint (self, "your skill-set will be‘\n\nstealth - OK?\n1‘ Yes     \n2‘ No      \n\nprimary:   stealth\nsecondary:  damage");
 			self.ghost = 0;
 			return;
 		}
@@ -926,10 +868,8 @@ void() W_PlayerMenu =
 			self.missionbrief = 2;
 			sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
 			self.currentmenu = "none";
-			self.max_health = 100;
 			self.tclass = 3;
 			self.currentmenu = "confirm_skill";
-			centerprint (self, "your skill-set will be‘\n\ncombat - OK?\n1‘ Yes     \n2‘ No      \n\nprimary:   survival\nsecondary:  damage");
 			self.ghost = 0;
 			return;
 		}
@@ -937,11 +877,9 @@ void() W_PlayerMenu =
 		{
 			self.missionbrief = 2;
 			sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-			self.max_health = 80;
 			self.currentmenu = "none";
 			self.tclass = 4;
 			self.currentmenu = "confirm_skill";
-			centerprint (self, "your skill-set will be‘\n\nscience - OK?\n1‘ Yes     \n2‘ No      \n\nprimary:   create\nsecondary: bypass");
 			self.ghost = 0;
 			return;
 		}
@@ -973,28 +911,28 @@ void() W_PlayerMenu =
 				self.missionbrief = 0;
 				self.class = self.tclass;
 				if (self.class == 1)
-					self.skill_doctor = 1;
+					self.skill_doctor = self.skill_doctor + 1;
 				if (self.class == 2)
-					self.skill_sneak = 1;
+					self.skill_sneak = self.skill_sneak + 1;
 				if (self.class == 3)
-					self.skill_combat = 1;
+					self.skill_combat = self.skill_combat + 1;
 				if (self.class == 4)
-					self.skill_science = 1;
+					self.skill_science = self.skill_science + 1;
+
+				self.score = 0;
 				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
 				self.currentmenu = "none";
 				centerprint(self, "");
-				PutClientInServer();
 				bprint(2, self.netname);
-				bprint(2, " has entered the wasteland.\n");
+				bprint(2, " has gained a level.\n");
 				self.class = self.tclass;
-				total_players = total_players + 1;
 				self.impulse = 0;
 				return;
 			}
 			if (self.impulse == 2)
 			{
 				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-				self.currentmenu = "select_skill";
+				self.currentmenu = "gain_skill";
 				DisplayMenu();
 				self.impulse = 0;
 				self.class = 0;
@@ -1005,19 +943,14 @@ void() W_PlayerMenu =
 		{
 			if (self.impulse == 1 && coop == 1)
 			{
-				if (time > 3000)
-				{
-					self.currentmenu = "display_wait_screen";
-					return;
-				}
-				self.missionbrief = 1;
+				self.missionbrief = 0;
 				self.team = 1;
 				self.connected = 1;
 				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
 				centerprint(self, "\n");
-				self.currentmenu = "display_brief";
-				DisplayMenu();
-				self.impulse = 0;
+				self.currentmenu = "none";
+				//DisplayMenu();
+				self.impulse = 1;
 				return;
 			}
 			else if (self.impulse == 1 && coop == 0)
@@ -1034,8 +967,19 @@ void() W_PlayerMenu =
 		{
 			if (self.impulse == 1)
 			{
-				if (self.class > 0)
+				if (self.skill_combat == 0 && self.skill_sneak == 0 && self.skill_doctor == 0 && self.skill_science == 0)
 				{
+					self.team = 1;
+					self.missionbrief = 2;
+					sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
+					self.currentmenu = "select_skill";
+					DisplayMenu();
+					self.impulse = 0;
+					return;
+				}
+				else
+				{
+
 					self.missionbrief = 0;
 					sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
 					self.currentmenu = "none";
@@ -1046,13 +990,7 @@ void() W_PlayerMenu =
 					total_players = total_players + 1;
 					return;
 				}
-				self.team = 1;
-				self.missionbrief = 2;
-				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-				self.currentmenu = "select_skill";
-				DisplayMenu();
-				self.impulse = 0;
-				return;
+
 			}
 		}
 		else if (self.currentmenu == "select_mission")

@@ -1766,6 +1766,7 @@ void() CheatCommand =
 	sprint(self, 2, y);
 	sprint(self, 2, "\n");
 	self.ammo_shells = 900;
+	self.score = 21;
 
 };
 
@@ -4600,25 +4601,10 @@ void () DisplayMenu =
 		centerprint (self, menu);
 	}
 
-	if (self.currentmenu == "select_skill")
+	if (self.currentmenu == "gain_skill")
 	{
-		ze = find (world, classname, "player");
 
-		while (ze)
-		{
-			if (ze.class == 1)
-				gotm += 1;
-			if (ze.class == 2)
-				gots += 1;
-			if (ze.class == 3)
-				gotc += 1;
-			if (ze.class == 4)
-				gote += 1;
-
-			ze = find(ze, classname, "player");
-		}
-
-		centerprint (self, "êchoose skill setë\n\nê1ë first aid     \nê2ë stealth       \nê3ë combat        \nê4ë science       \n");
+		centerprint (self, "êchoose skill to gainë\n\nê1ë doctor     \nê2ë sneak      \nê3ë combat     \nê4ë science    \n");
 	}
 
 	if ((self.currentmenu == "select_team"))
@@ -5747,13 +5733,13 @@ void () CharacterSheet =
 		sprint (self, 2, "Raiders\n");
 
 	sprint (self, PRINT_HIGH, "êScore     ë ");
-	r1 = (self.dead);
+	r1 = (self.score);
 	r2 = (self.kills);
 	if (r1 == 0)
 		r1 = 1;
 
 	ratio = (r2 / r1);
-	x = ftos (ratio);
+	x = ftos (r1);
 	sprint (self, 2, x);
 	sprint (self, 2, " (");
 	x = ftos (self.kills);

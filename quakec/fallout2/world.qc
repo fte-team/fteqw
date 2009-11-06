@@ -177,7 +177,7 @@ void() load_monster =
 	{
 		self.zone = 1;
 
-			monster_ogre();
+			monster_army();
 /*
 		if (world.map_ent1 == 1)
 			monster_dog();
@@ -210,9 +210,7 @@ void() load_monster =
 			monster_dog();
 		if (world.map_ent2 == 2)
 			monster_zombie();
-		if (world.map_ent2 == 3)
-			monster_tarbaby();
-		if (world.map_ent2 == 4 || world.map_ent2 == 5)
+		if (world.map_ent2 == 3 || world.map_ent2 == 4 || world.map_ent2 == 5)
 			monster_army();
 		if (world.map_ent2 == 6)
 			monster_ogre();

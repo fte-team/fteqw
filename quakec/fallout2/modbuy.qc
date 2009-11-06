@@ -392,56 +392,6 @@ float () weightx =
 	return tmp;
 };
 
-void () W_GetClass =
-{
-	if ((self.currentmenu == "select_skill"))
-	{
-		sound (self, CHAN_WEAPON, "buttons/switch02.wav", TRUE, ATTN_NORM);
-		if (self.impulse == 1)
-		{
-			self.currentmenu = "none";
-			self.max_health = 80;
-			self.class = 1;
-			self.currentmenu = "confirm_skill";
-			centerprint (self, "your class will be‘\n\nMedic - OK?\n1‘ Yes     \n2‘ No      \n");
-			self.ghost = 0;
-			return;
-		}
-		if ((self.impulse == 2))
-		{
-			self.currentmenu = "none";
-			self.max_health = 70;
-			self.class = 2;
-			self.currentmenu = "confirm_skill";
-			centerprint (self, "your class will be‘\n\nAssassin - OK?\n1‘ Yes     \n2‘ No      \n");
-			self.ghost = 0;
-			return;
-		}
-		if (self.impulse == 3)
-		{
-			self.currentmenu = "none";
-			self.max_health = 100;
-			self.class = 3;
-			self.currentmenu = "confirm_skill";
-			centerprint (self, "your class will be‘\n\nSoldiier - OK?\n1‘ Yes     \n2‘ No      \n");
-			self.ghost = 0;
-			return;
-		}
-		if (self.impulse == 4)
-		{
-			self.max_health = 80;
-			self.currentmenu = "none";
-			self.class = 4;
-			self.currentmenu = "confirm_skill";
-			centerprint (self, "your class will be‘\n\nScientist - OK?\n1‘ Yes     \n2‘ No      \n");
-			self.ghost = 0;
-			return;
-		}
-	}
-	if (self.impulse > 4)
-		return;
-
-};
 
 
 void() W_PlayerMenu =
@@ -716,7 +666,7 @@ void() W_PlayerMenu =
 
 	}
 
-	if (self.currentmenu == "select_skill")
+	if (self.currentmenu == "gain_skill")
 	{
 		sound (self, CHAN_WEAPON, "buttons/switch02.wav", TRUE, ATTN_NORM);
 
@@ -768,7 +718,7 @@ void() W_PlayerMenu =
 			if (self.impulse == 1)
 			{
 				sound (self, CHAN_WEAPON, "buttons/switch02.wav", TRUE, ATTN_NORM);
-				self.currentmenu = "select_skill";
+				self.currentmenu = "gain_skill";
 				DisplayMenu();
 				self.impulse = 0;
 				return;
@@ -796,7 +746,7 @@ void() W_PlayerMenu =
 			if (self.impulse == 2)
 			{
 				sound (self, CHAN_WEAPON, "buttons/switch02.wav", TRUE, ATTN_NORM);
-				self.currentmenu = "select_skill";
+				self.currentmenu = "gain_skill";
 				DisplayMenu();
 				self.impulse = 0;
 				self.class = 0;

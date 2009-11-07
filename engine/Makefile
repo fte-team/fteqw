@@ -829,7 +829,7 @@ config: clean
 	/bin/bash makeconfig.sh
 
 ifneq ($(OUT_DIR),)
-	-include $(OUT_DIR)/*.d
+-include $(OUT_DIR)/*.o.d
 endif
 
 
@@ -854,7 +854,8 @@ $(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.c
 ifeq ($(NODEPS),)
 	@set -e; rm -f $@.d; \
 	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
-	 sed 's,\($*\)\.o[ :]*,\1.o $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed 's,\($*\)\.o[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	 rm -f $@.d.$$$$
 endif
 	$(DO_CC) -I$(OUT_DIR)
@@ -863,7 +864,8 @@ $(OUT_DIR)/%.oo $(OUT_DIR)/%.d : %.c
 ifeq ($(NODEPS),)
 	@set -e; rm -f $@.d; \
 	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
-	 sed 's,\($*\)\.oo[ :]*,\1.oo $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed 's,\($*\)\.oo[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	 rm -f $@.d.$$$$
 endif
 	$(DO_CC) -I$(OUT_DIR)
@@ -871,7 +873,8 @@ endif
 $(OUT_DIR)/%.mo $(OUT_DIR)/%.d : %.m
 	@set -e; rm -f $@.d; \
 	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
-	 sed 's,\($*\)\.mo[ :]*,\1.mo $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed 's,\($*\)\.mo[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	 rm -f $@.d.$$$$
 	$(DO_CC) -I$(OUT_DIR)
 

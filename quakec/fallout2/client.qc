@@ -1627,11 +1627,12 @@ void() PlayerPreThink =
 	}
 
 
-	if ((self.skill_combat + self.skill_sneak + self.skill_doctor + self.skill_science) <= 5)
+	if ((self.skill_combat + self.skill_sneak + self.skill_doctor + self.skill_science) <= 10)
 	{
 		if (self.currentmenu == "none")
 		{
 			self.currentmenu = "gain_skill";
+			self.missionbrief = 2;
 			return;
 		}
 	}

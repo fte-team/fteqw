@@ -1755,20 +1755,17 @@ void() W_ChangeWeapon =
 CheatCommand
 ============
 */
+
+
 void() CheatCommand =
 {
 	local float x;
 	local string y;
-/*
-	x = self.waterlevel;
-	y = ftos(x);
 
-	sprint(self, 2, "waterlevel: ");
-	sprint(self, 2, y);
-	sprint(self, 2, "\n");
-	self.ammo_shells = 900;
-	self.currentmenu = "gain_skill";
-*/
+	self.islot17 = SlotVal(IID_MISC_CHEMICALS, 50);
+	self.islot18 = SlotVal(IID_MISC_NUKACOLA, 50);
+	self.islot19 = SlotVal(IID_MISC_AEROSOL, 50);
+	self.islot20 = SlotVal(IID_MISC_GUM, 50);
 };
 
 /*
@@ -2456,8 +2453,8 @@ void () Explosion =
 {
 	local float r;
 
-	self.effects = EF_DIMLIGHT;
-	self.touch = SUB_Null;
+	//self.effects = EF_DIMLIGHT;
+	//self.touch = SUB_Null;
 
 	r = random ();
 	if (r < 0.33)
@@ -2472,12 +2469,12 @@ void () Explosion =
 	WriteCoord (MSG_BROADCAST, self.origin_x);
 	WriteCoord (MSG_BROADCAST, self.origin_y);
 	WriteCoord (MSG_BROADCAST, self.origin_z);
-	Screenshake ();
-	self.frame = 3;
-	self.velocity = VEC_ORIGIN;
-	self.avelocity = '300 300 250';
-	self.think = ExplosionFrames;
-	self.nextthink = (time + 0.02);
+	//Screenshake ();
+	//self.frame = 3;
+	//self.velocity = VEC_ORIGIN;
+	//self.avelocity = '300 300 250';
+	//self.think = ExplosionFrames;
+	//self.nextthink = (time + 0.02);
 };
 
 void () FragExplode =
@@ -3715,9 +3712,6 @@ void () WeaponTouch =
 
 	x = (ToIID(self.islot1));
 
-	if (IsJunk(x) && other.class != 4)
-		return;
-
 	if (ItemInSlot(other, other.current_slot) == 0 && FitsInSlot(other.current_slot, ToIID(self.islot1)))
 		slotnum = other.current_slot;
 	if (!slotnum)
@@ -4196,8 +4190,8 @@ void () UseStimpack =
 				thing = thing.chain;      
 			}
 
-			self.health = self.health + 10;
-			self.regen = self.regen + 10;
+			self.health = self.health + 20;
+			self.regen = self.regen + (5 + (self.skill_doctor));
 		}
 	}
 	else if (trace_ent.classname == "player")//healing another team-mate
@@ -4268,8 +4262,8 @@ void () UseStimpack =
 				sprint(self, PRINT_MEDIUM, trace_ent.netname);
 				sprint(self, PRINT_MEDIUM, " with a stimpack\n");
 
-				trace_ent.health = trace_ent.health + 10;
-				trace_ent.regen = trace_ent.regen + 10;
+				trace_ent.health = trace_ent.health + 20;
+				trace_ent.regen = trace_ent.regen + (5 + (self.skill_doctor));
 			}
 		}
 	}
@@ -5643,25 +5637,25 @@ void () shop_face =
 			self.enemy = te;
 			te.safezone = 1;
 			te.xslot1 = self.xslot1;
-			te.xslot1 = self.xslot2;
-			te.xslot1 = self.xslot3;
-			te.xslot1 = self.xslot4;
-			te.xslot1 = self.xslot5;
-			te.xslot1 = self.xslot6;
-			te.xslot1 = self.xslot7;
-			te.xslot1 = self.xslot8;
-			te.xslot1 = self.xslot9;
-			te.xslot1 = self.xslot10;
-			te.xslot1 = self.xslot11;
-			te.xslot1 = self.xslot12;
-			te.xslot1 = self.xslot13;
-			te.xslot1 = self.xslot14;
-			te.xslot1 = self.xslot15;
-			te.xslot1 = self.xslot16;
-			te.xslot1 = self.xslot17;
-			te.xslot1 = self.xslot18;
-			te.xslot1 = self.xslot19;
-			te.xslot1 = self.xslot20;
+			te.xslot2 = self.xslot2;
+			te.xslot3 = self.xslot3;
+			te.xslot4 = self.xslot4;
+			te.xslot5 = self.xslot5;
+			te.xslot6 = self.xslot6;
+			te.xslot7 = self.xslot7;
+			te.xslot8 = self.xslot8;
+			te.xslot9 = self.xslot9;
+			te.xslot10 = self.xslot10;
+			te.xslot11 = self.xslot11;
+			te.xslot12 = self.xslot12;
+			te.xslot13 = self.xslot13;
+			te.xslot14 = self.xslot14;
+			te.xslot15 = self.xslot15;
+			te.xslot16 = self.xslot16;
+			te.xslot17 = self.xslot17;
+			te.xslot18 = self.xslot18;
+			te.xslot19 = self.xslot19;
+			te.xslot20 = self.xslot20;
 		}
 		te = te.chain;
 	}

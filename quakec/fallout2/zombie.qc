@@ -697,6 +697,7 @@ void (entity stuff) spawn_zombie =
 	self.th_run = zombie_run1;
 	self.th_pain = zombie_pain;
 	self.th_die = zombie_die;
+	self.th_melee = zombie_melee;
 	self.th_missile = zombie_missile;
 	self.target = stuff.target;
 	walkmonster_start_go ();
@@ -747,8 +748,8 @@ void () spawn_ghoul_copy =
 	self.th_run = zombie_run1;
 	self.th_pain = zombie_pain;
 	self.th_die = zombie_die;
-	if (random()<0.1)
-		self.th_missile = zombie_missile;
+	self.th_melee = zombie_melee;
+	self.th_missile = zombie_missile;
 	self.angles_y = random()*360;
 
 	self.origin = self.origin + '0 64 0';
@@ -840,8 +841,8 @@ void (vector jojo) spawn_ghoul =
 	self.th_run = zombie_run1;
 	self.th_pain = zombie_pain;
 	self.th_die = zombie_die;
-	if (random()<0.1)
-		self.th_missile = zombie_missile;
+	self.th_melee = zombie_melee;
+	self.th_missile = zombie_missile;
 	self.angles_y = random()*360;
 
 	self.origin = jojo + '0 64 0';
@@ -930,8 +931,6 @@ void() monster_zombie =
 	self.th_run = zombie_run1;
 	self.th_die = zombie_die;
 	self.th_melee = zombie_melee;
-
-
 	self.th_missile = zombie_missile;
 
 	self.angles_y = random()*360;

@@ -97,11 +97,12 @@ void() SetupStats =
 	clientstat(97, 2, islot23);
 	clientstat(98, 2, islot24);
 	clientstat(99, 2, recoil);
-	clientstat(81, 2, skill_combat);
-	clientstat(82, 2, skill_doctor);
-	clientstat(83, 2, skill_sneak);
-	clientstat(84, 2, skill_science);
-
+	clientstat(100, 2, skill_combat);
+	clientstat(101, 2, skill_doctor);
+	clientstat(102, 2, skill_sneak);
+	clientstat(103, 2, skill_science);
+	clientstat(104, 2, mixslot1);
+	clientstat(105, 2, mixslot2);
 	clientstat(108, 2, safezone);
 	clientstat(109, 2, connected);
 	clientstat(110, 2, steadyaim);
@@ -2101,6 +2102,7 @@ void() worldspawn =
 	precache_sound ("misc/hosdie2.wav");
 	precache_sound ("misc/hosdown.wav");
 	precache_sound ("misc/rescued.wav");
+	precache_sound ("misc/beep1.wav");
 
 	precache_sound ("player/gib1.wav");
 	precache_sound ("player/step1.wav");

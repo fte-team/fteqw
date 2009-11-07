@@ -21,7 +21,7 @@ float(string desc) itemtoslot =
 	}
 
 	slot = stof(desc);
-	if (slot >= 1 && slot <= MAXSLOTS)
+	if (slot >= 1 && slot <= 26)
 		return slot;
 
 	if (desc == "current")
@@ -259,6 +259,551 @@ void(string arg1) Cmd_InvDrop =
 	DropFromSlot(slotno, true, false);
 };
 
+void(string arg1) Cmd_InvBuy =
+{
+	local float x,y, iid, amount, money;
+
+
+	x = FindEmptySlot(self);
+
+	if (x == 0)
+	{
+		sprint(self, 2, "no more room in inventory!\n");
+		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+		return;
+	}
+
+
+
+	if (arg1 == "1")
+	{
+		iid = ToIID(self.xslot1);
+		amount = ToStatus(self.xslot1);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot1);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+
+	if (arg1 == "2")
+	{
+		iid = ToIID(self.xslot2);
+		amount = ToStatus(self.xslot2);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot2);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+
+	if (arg1 == "3")
+	{
+		iid = ToIID(self.xslot3);
+		amount = ToStatus(self.xslot3);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot3);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+
+	if (arg1 == "4")
+	{
+		iid = ToIID(self.xslot4);
+		amount = ToStatus(self.xslot4);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot4);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+
+	if (arg1 == "5")
+	{
+		iid = ToIID(self.xslot5);
+		amount = ToStatus(self.xslot5);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot5);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+
+	if (arg1 == "6")
+	{
+		iid = ToIID(self.xslot6);
+		amount = ToStatus(self.xslot6);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");	
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot6);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+
+	if (arg1 == "7")
+	{
+		iid = ToIID(self.xslot7);
+		amount = ToStatus(self.xslot7);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot7);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+
+	if (arg1 == "8")
+	{
+		iid = ToIID(self.xslot8);
+		amount = ToStatus(self.xslot8);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot8);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "9")
+	{
+		iid = ToIID(self.xslot9);
+		amount = ToStatus(self.xslot9);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot9);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "10")
+	{
+		iid = ToIID(self.xslot10);
+		amount = ToStatus(self.xslot10);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot10);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "11")
+	{
+		iid = ToIID(self.xslot11);
+		amount = ToStatus(self.xslot11);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot11);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "12")
+	{
+		iid = ToIID(self.xslot12);
+		amount = ToStatus(self.xslot12);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot12);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "13")
+	{
+		iid = ToIID(self.xslot13);
+		amount = ToStatus(self.xslot13);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot13);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "14")
+	{
+		iid = ToIID(self.xslot14);
+		amount = ToStatus(self.xslot14);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot14);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "15")
+	{
+		iid = ToIID(self.xslot15);
+		amount = ToStatus(self.xslot15);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot15);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "16")
+	{
+		iid = ToIID(self.xslot16);
+		amount = ToStatus(self.xslot16);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot16);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "17")
+	{
+		iid = ToIID(self.xslot17);
+		amount = ToStatus(self.xslot17);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot17);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "18")
+	{
+		iid = ToIID(self.xslot18);
+		amount = ToStatus(self.xslot18);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot18);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "19")
+	{
+		iid = ToIID(self.xslot19);
+		amount = ToStatus(self.xslot19);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot19);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+	if (arg1 == "20")
+	{
+		iid = ToIID(self.xslot20);
+		amount = ToStatus(self.xslot20);
+		money = GetBaseValue(iid);
+		if (self.ammo_shells < money)
+		{
+			sprint(self, 2, "not enough money.\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+		else
+			self.ammo_shells = self.ammo_shells - money;
+
+		if (NotStackable(iid))
+			SetItemSlot(self, x, self.xslot20);
+		else
+			
+			if (!TryGiveStackable(self, iid, amount))
+			{
+				sprint(self, 2, "full inventory.\n");
+				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+				return;
+			}
+		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
+	}
+};
+
 void(string arg1) Cmd_InvSell =
 {
 	local float it, iid, x;
@@ -302,89 +847,188 @@ void(string arg1) Cmd_InvSell =
 
 void(string arg1) Cmd_InvMix =
 {
-	local float it, iid;
+	local float it, iid1, iid2, item1, item2;
 	local float slotno, x;
-	slotno = itemtoslot(arg1);
 
-	if (!slotno)
+
+
+	it = ItemInSlot(self, 23);
+	iid1 = ToIID(it);
+	if (iid1 == 0)
 	{
-		sprint(self, PRINT_MEDIUM, "Can't drop - you don't have one\n");
+		sprint(self, PRINT_MEDIUM, "need two items!\n");
+		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
 		return;
 	}
 
-
-	it = ItemInSlot(self, slotno);
-	iid = ToIID(it);
-
-
-	if (iid == 0)
-		return;
-
-	if (iid == IID_MISC_NUKACOLA)
+	it = ItemInSlot(self, 24);
+	iid2 = ToIID(it);
+	if (iid2 == 0)
 	{
-		x = SlotOfItem(self, IID_MISC_CHEMICALS);
-		if (x == 0)
+		sprint(self, PRINT_MEDIUM, "need two items!\n");
+		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+		return;
+	}
+
+	if ((iid1 == IID_MISC_NUKACOLA && iid2 == IID_MISC_CHEMICALS) ||
+            (iid2 == IID_MISC_NUKACOLA && iid1 == IID_MISC_CHEMICALS))
+	{
+
+		DecreaseDestroySlot(23);
+		DecreaseDestroySlot(24);
+
+		if (random()*100 >= (self.skill_science*10))
 		{
-			sprint(self, PRINT_MEDIUM, "you need (1) nukacola and (1) chemicals\n");
+			sprint(self, PRINT_MEDIUM, "your concoction exploded!\n");
+			Explosion();
 			return;
 		}
-		DecreaseDestroySlot(slotno);
-		DecreaseDestroySlot(x);
 
+		if (random()*100 < ((self.skill_science*10) - 100))
+		{
+			sprint(self, PRINT_MEDIUM, "2 stimpacks created!\n");
+			sound (self, CHAN_BODY, "misc/yourturn.wav", 1, ATTN_NORM);
+			TryGiveStackable(self, IID_CHEM_STIMPACK, 2);
+			return;
+		}
 		TryGiveStackable(self, IID_CHEM_STIMPACK, 1);
-		sprint(self, PRINT_MEDIUM, "stimpack created\n");
+		sprint(self, PRINT_MEDIUM, "1 stimpack created\n");
+		sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
 	}
-	if (iid == IID_MISC_AEROSOL)
+	
+
+	else if ((iid1 == IID_MISC_AEROSOL && iid2 == IID_MISC_CHEMICALS) ||
+            (iid2 == IID_MISC_AEROSOL && iid1 == IID_MISC_CHEMICALS))
 	{
-		x = SlotOfItem(self, IID_MISC_CHEMICALS);
-		if (x == 0)
+
+		DecreaseDestroySlot(23);
+		DecreaseDestroySlot(24);
+
+                if (random()*100 > (self.skill_science*10))
 		{
-			sprint(self, PRINT_MEDIUM, "you need (1) aerosol can and (1) chemicals\n");
+			sprint(self, PRINT_MEDIUM, "your concoction exploded!\n");
+			Explosion();
 			return;
 		}
-		DecreaseDestroySlot(slotno);
-		DecreaseDestroySlot(x);
 
-		TryGiveStackable(self, IID_CHEM_RADX, 3);
-		sprint(self, PRINT_MEDIUM, "rad-x created\n");
+		if (random()*100 < ((self.skill_science*10) - 100))
+		{
+			sprint(self, PRINT_MEDIUM, "2 flash bombs created!\n");
+			sound (self, CHAN_BODY, "misc/yourturn.wav", 1, ATTN_NORM);
+			TryGiveStackable(self, IID_GREN_FLASH, 2);
+			return;
+		}
+		TryGiveStackable(self, IID_GREN_FLASH, 1);
+		sprint(self, PRINT_MEDIUM, "1 flash bomb created\n");
+		sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
 	}
-	if (iid == IID_MISC_RDXCRYSTAL)
+	else if ((iid1 == IID_MISC_NUKACOLA && iid2 == IID_MISC_GUM) ||
+            (iid2 == IID_MISC_NUKACOLA && iid1 == IID_MISC_GUM))
 	{
-		x = SlotOfItem(self, IID_MISC_CHEMICALS);
-		if (x == 0)
+
+		DecreaseDestroySlot(23);
+		DecreaseDestroySlot(24);
+
+		if (random()*100 > (self.skill_science*10))
 		{
-			sprint(self, PRINT_MEDIUM, "you need (1) rdx crystal and (1) chemicals\n");
+			sprint(self, PRINT_MEDIUM, "your concoction exploded!\n");
+			Explosion();
 			return;
 		}
-		DecreaseDestroySlot(slotno);
-		DecreaseDestroySlot(x);
 
-		TryGiveStackable(self, IID_CHEM_PSYCHO, 2);
-		sprint(self, PRINT_MEDIUM, "psycho created\n");
+		if (random()*100 < ((self.skill_science*10) - 100))
+		{
+			sprint(self, PRINT_MEDIUM, "2 stun bombs created!\n");
+			sound (self, CHAN_BODY, "misc/yourturn.wav", 1, ATTN_NORM);
+			TryGiveStackable(self, IID_GREN_STUN, 2);
+			return;
+		}
+		TryGiveStackable(self, IID_GREN_STUN, 1);
+		sprint(self, PRINT_MEDIUM, "1 stun bomb created\n");
+		sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
 	}
-	if (iid == IID_CHEM_STIMPACK)
+	else if ((iid1 == IID_MISC_RDXCRYSTAL && iid2 == IID_MISC_HMXCOMPOUND) ||
+            (iid2 == IID_MISC_RDXCRYSTAL && iid1 == IID_MISC_HMXCOMPOUND))
 	{
-		if (ToStatus(slotno) <= 1)
-		{
-			sprint(self, PRINT_MEDIUM, "you need (2) stimpacks and (1) chemicals\n");
-			return;
-		}
-		x = SlotOfItem(self, IID_MISC_CHEMICALS);
-		if (x == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need (2) stimpacks and (1) chemicals\n");
-			return;
-		}
-		DecreaseDestroySlot(slotno);
-		DecreaseDestroySlot(slotno);
-		DecreaseDestroySlot(x);
 
+		DecreaseDestroySlot(23);
+		DecreaseDestroySlot(24);
+
+		if (random()*100 > (self.skill_science*5))
+		{
+			sprint(self, PRINT_MEDIUM, "your concoction exploded!\n");
+			Explosion();
+			return;
+		}
+
+		if (random()*100 < ((self.skill_science*4) - 100))
+		{
+			sprint(self, PRINT_MEDIUM, "2 rockets created!\n");
+			sound (self, CHAN_BODY, "misc/yourturn.wav", 1, ATTN_NORM);
+			TryGiveStackable(self, IID_AM_ROCKET, 2);
+			return;
+		}
+		TryGiveStackable(self, IID_AM_ROCKET, 1);
+		sprint(self, PRINT_MEDIUM, "1 rocket created\n");
+		sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
+	}
+	else if ((iid1 == IID_MISC_CHEMICALS && iid2 == IID_MISC_HMXCOMPOUND) ||
+            (iid2 == IID_MISC_CHEMICALS && iid1 == IID_MISC_HMXCOMPOUND))
+	{
+
+		DecreaseDestroySlot(23);
+		DecreaseDestroySlot(24);
+
+		if (random()*100 > (self.skill_science*8))
+		{
+			sprint(self, PRINT_MEDIUM, "your concoction exploded!\n");
+			Explosion();
+			return;
+		}
+
+		if (random()*100 < ((self.skill_science*8) - 100))
+		{
+			sprint(self, PRINT_MEDIUM, "2 grenades created!\n");
+			sound (self, CHAN_BODY, "misc/yourturn.wav", 1, ATTN_NORM);
+			TryGiveStackable(self, IID_GREN_FRAG, 2);
+			return;
+		}
+		TryGiveStackable(self, IID_GREN_FRAG, 1);
+		sprint(self, PRINT_MEDIUM, "1 grenade created\n");
+		sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
+	}
+	else if ((iid1 == IID_MISC_CHEMICALS && iid2 == IID_MISC_RDXCRYSTAL) ||
+            (iid2 == IID_MISC_CHEMICALS && iid1 == IID_MISC_RDXCRYSTAL))
+	{
+
+		DecreaseDestroySlot(23);
+		DecreaseDestroySlot(24);
+
+		if (random()*100 > (self.skill_science*3))
+		{
+			sprint(self, PRINT_MEDIUM, "your concoction exploded!\n");
+			Explosion();
+			return;
+		}
+
+		if (random()*100 < ((self.skill_science*4) - 100))
+		{
+			sprint(self, PRINT_MEDIUM, "2 super stims created!\n");
+			sound (self, CHAN_BODY, "misc/yourturn.wav", 1, ATTN_NORM);
+			TryGiveStackable(self, IID_CHEM_SUPERSTIM, 2);
+			return;
+		}
 		TryGiveStackable(self, IID_CHEM_SUPERSTIM, 1);
-		sprint(self, PRINT_MEDIUM, "superstim created.\n");
+		sprint(self, PRINT_MEDIUM, "1 super stim created\n");
+		sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
 	}
 
-
-
+	else
+	{
+		sprint(self, PRINT_MEDIUM, "cannot merge items!\n");
+		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+		return;
+	}
 };
 
 void(string arg1) Cmd_InvCreate =
@@ -867,6 +1511,12 @@ void(string line) SV_ParseClientCommand =
 		if (self.deadflag || self.current_slot==0)
 			return;
 		Cmd_InvSell(argv(1));
+	}
+	else if (cmd == "invbuy")
+	{
+		if (self.deadflag || self.current_slot==0)
+			return;
+		Cmd_InvBuy(argv(1));
 	}
 	else if (cmd == "invmix")
 	{

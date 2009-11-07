@@ -924,8 +924,169 @@ void() brotherhood_merchant =
 	self.think = shop_face;
 	self.nextthink = time + 0.5;
 
-	self.xslot1 = 412;
-	self.xslot2 = 413;
+
+	if (random()*100 < 33)
+	{
+		self.xslot1 = SlotVal(IID_WP_MP9, 1);
+		self.xslot6 = SlotVal(IID_AM_10MM, 30);
+	}
+	else if (random()*100 < 33)
+	{
+		self.xslot1 = SlotVal(IID_WP_USP, 1);
+		self.xslot6 = SlotVal(IID_AM_45ACP, 30);
+	}
+	else
+	{
+		self.xslot1 = SlotVal(IID_WP_GLOCK, 1);
+		self.xslot6 = SlotVal(IID_AM_10MM, 30);
+	}
+
+	if (random()*100 < 33)
+	{
+		self.xslot2 = SlotVal(IID_WP_DEAGLE, 1);
+		self.xslot7 = SlotVal(IID_AM_44MAGNUM, 30);
+	}
+	else if (random()*100 < 33)
+	{
+		self.xslot2 = SlotVal(IID_WP_NEEDLER, 1);
+		self.xslot7 = SlotVal(IID_AM_NEEDLER, 30);
+	}
+	else
+	{
+		self.xslot2 = SlotVal(IID_WP_PIPERIFLE, 1);
+		self.xslot7 = SlotVal(IID_AM_44MAGNUM, 30);
+	}
+
+	if (random()*100 < 33)
+	{
+		self.xslot3 = SlotVal(IID_WP_WINCHESTER, 1);
+		self.xslot8 = SlotVal(IID_AM_12GAUGESHELLS, 30);
+	}
+	else if (random()*100 < 33)
+	{
+		self.xslot3 = SlotVal(IID_WP_RANGEMASTER, 1);
+		self.xslot8 = SlotVal(IID_AM_556MM, 30);
+	}
+	else
+	{
+		self.xslot3 = SlotVal(IID_WP_DKS1, 1);
+		self.xslot8 = SlotVal(IID_AM_762MM, 30);
+	}
+
+	if (random()*100 < 33)
+	{
+		self.xslot4 = SlotVal(IID_WP_WINCHESTER, 1);
+		self.xslot9 = SlotVal(IID_AM_12GAUGESHELLS, 30);
+	}
+	else if (random()*100 < 33)
+	{
+		self.xslot4 = SlotVal(IID_WP_RANGEMASTER, 1);
+		self.xslot9 = SlotVal(IID_AM_556MM, 30);
+	}
+	else
+	{
+		self.xslot4 = SlotVal(IID_WP_DKS1, 1);
+		self.xslot9 = SlotVal(IID_AM_762MM, 30);
+	}
+
+	if (random()*100 < 33)
+	{
+		self.xslot5 = SlotVal(IID_WP_AK112, 1);
+		self.xslot10 = SlotVal(IID_AM_556MM, 30);
+	}
+	else if (random()*100 < 33)
+	{
+		self.xslot5 = SlotVal(IID_WP_MOSSBERG, 1);
+		self.xslot10 = SlotVal(IID_AM_12GAUGESHELLS, 30);
+	}
+	else
+	{
+		self.xslot5 = SlotVal(IID_WP_MP7, 1);
+		self.xslot10 = SlotVal(IID_AM_45ACP, 30);
+	}
+
+
+	if (random()*100 < 50)
+		self.xslot11 = SlotVal(IID_ARM_SHIRT, 1);
+	else
+		self.xslot11 = SlotVal(IID_ARM_LEATHER, 1);
+
+	if (random()*100 < 50)
+		self.xslot12 = SlotVal(IID_ARM_KEVLAR, 1);
+	else
+		self.xslot12 = SlotVal(IID_ARM_METAL, 1);
+
+	if (random()*100 < 75)
+		self.xslot13 = SlotVal(IID_ARM_COMBAT, 1);
+	else
+		self.xslot13 = SlotVal(IID_ARM_BROTHERHOOD, 1);
+
+
+	if (random()*100 < 75)
+		self.xslot14 = SlotVal(IID_GREN_FRAG, 1);
+	else
+		self.xslot14 = SlotVal(IID_GREN_FLASH, 1);
+
+	if (random()*100 < 75)
+		self.xslot15 = SlotVal(IID_GREN_SMOKE, 1);
+	else
+		self.xslot15 = SlotVal(IID_GREN_STUN, 1);
+
+	if (random()*100 < 80)
+		self.xslot16 = SlotVal(IID_WP_AK112, 1);
+	else if (random()*100 < 20)
+		self.xslot16 = SlotVal(IID_WP_MOSSBERG, 1);
+	else if (random()*100 < 20)
+		self.xslot16 = SlotVal(IID_WP_FNFAL, 1);
+	else if (random()*100 < 20)
+		self.xslot16 = SlotVal(IID_WP_MOONLIGHT, 1);
+	else
+		self.xslot16 = SlotVal(IID_WP_G11, 1);
+
+	if (random()*100 < 80)
+		self.xslot17 = SlotVal(IID_WP_DKS1, 1);
+	else if (random()*100 < 20)
+		self.xslot17 = SlotVal(IID_WP_JACKHAMMER, 1);
+	else if (random()*100 < 20)
+		self.xslot17 = SlotVal(IID_WP_PLASMACARBINE, 1);
+	else if (random()*100 < 20)
+		self.xslot17 = SlotVal(IID_WP_ROCKETLAUNCHER, 1);
+	else
+		self.xslot17 = SlotVal(IID_WP_LASERGATLING, 1);
+
+	if (random()*100 < 20)
+		self.xslot18 = SlotVal(IID_AM_ENERGYCELL, 30);
+	else if (random()*100 < 20)
+		self.xslot18 = SlotVal(IID_EQUIP_BELTPOUCH, 1);
+	else if (random()*100 < 20)
+		self.xslot18 = SlotVal(IID_EQUIP_STEALTHBOY, 1);
+	else if (random()*100 < 20)
+		self.xslot18 = SlotVal(IID_EQUIP_CLIMBINGGEAR, 1);
+	else
+		self.xslot18 = SlotVal(IID_EQUIP_TOOLKIT, 1);
+
+	if (random()*100 < 20)
+		self.xslot19 = SlotVal(IID_EQUIP_MEDIC_BAG, 1);
+	else if (random()*100 < 20)
+		self.xslot19 = SlotVal(IID_AM_CASELESS, 30);
+	else if (random()*100 < 20)
+		self.xslot19 = SlotVal(IID_AM_2MMEC, 30);
+	else if (random()*100 < 20)
+		self.xslot19 = SlotVal(IID_EQUIP_BACKPACK, 1);
+	else
+		self.xslot19 = SlotVal(IID_EQUIP_TOOLKIT, 1);
+
+
+	if (random()*100 < 20)
+		self.xslot20 = SlotVal(IID_MISC_NUKACOLA, 1);
+	else if (random()*100 < 20)
+		self.xslot20 = SlotVal(IID_MISC_CHEMICALS, 1);
+	else if (random()*100 < 20)
+		self.xslot20 = SlotVal(IID_MISC_AEROSOL, 1);
+	else if (random()*100 < 20)
+		self.xslot20 = SlotVal(IID_MISC_DUCKTAPE, 1);
+	else
+		self.xslot20 = SlotVal(IID_MISC_XRAYTUBE, 1);
 };
 
 void() brotherhood_sergeant =
@@ -984,6 +1145,18 @@ void() brotherhood_doctor =
 	self.solid = SOLID_SLIDEBOX;
 	setsize (self, '-16 -16 -24', '16 16 32');
 	self.takedamage = DAMAGE_NO;
+	self.classname = "merchant";
+	self.think = shop_face;
+	self.nextthink = time + 0.5;
+
+	self.xslot1 = SlotVal(IID_WP_KNIFE, 1);
+	self.xslot2 = SlotVal(IID_WP_NEEDLER, 1);
+	self.xslot3 = SlotVal(IID_ARM_LEATHER, 1);
+	self.xslot16 = SlotVal(IID_CHEM_STIMPACK, 5);
+	self.xslot17 = SlotVal(IID_CHEM_MEDICALBAG, 4);
+	self.xslot18 = SlotVal(IID_CHEM_SUPERSTIM, 3);
+	self.xslot19 = SlotVal(IID_CHEM_ADRENALINE, 3);
+	self.xslot20 = SlotVal(IID_CHEM_PSYCHO, 3);
 };
 
 

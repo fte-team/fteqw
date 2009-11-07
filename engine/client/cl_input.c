@@ -1329,7 +1329,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	cl.frames[curframe].receivedtime = -1;		// we haven't gotten a reply yet
 
 
-	if ((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR) && *cl_prydoncursor.string)
+	if ((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR) && *cl_prydoncursor.string && cls.state == ca_active)
 	{
 		vec3_t cursor_start, cursor_impact;
 		int cursor_entitynumber = 0;

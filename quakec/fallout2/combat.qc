@@ -134,20 +134,17 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	else if (attacker.classname == "player" && total_players == 2)
 		damage = floor(damage * 0.90);
 
-	if (attacker.classname == "monster" && total_players == 4)
-		damage = floor(damage * 1.30);
-	if (attacker.classname == "monster" && total_players == 3)
-		damage = floor(damage * 1.20);
-	else if (attacker.classname == "monster" && total_players == 2)
-		damage = floor(damage * 1.10);
+	if (attacker.classname == "monster")
+		damage = floor(damage * 0.80);
+
 
 //getting hurt is slightly painful to the score, play cautiously!
 	if (attacker.classname == "monster" && targ.classname == "player")
-		targ.score = targ.score - 6;
+		targ.score = targ.score - 1;
 
 //flanking monsters awards points
 	if (attacker.classname == "player" && targ.classname == "monster" && targ.enemy != attacker)
-		attacker.score = attacker.score + 5;
+		attacker.score = attacker.score + 1;
 
 //aimed shots awards points
 	if (attacker.classname == "player" && targ.classname == "monster" && attacker.recoil <= 5)
@@ -165,20 +162,20 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 		dot = (vec * v_forward);
 
 		if (dot > 0.3)
-			attacker.score = attacker.score + 5;
+			attacker.score = attacker.score + 1;
 	}
 
 //attacking a team-mate is a HUGE penalty
 	if (attacker.classname == "player" && targ.classname == "player")
 	{
-		attacker.score = attacker.score - 25;
+		attacker.score = attacker.score - 3;
 		sprint(attacker, 2, "you just shot a teammate! be careful!\n");
 	}
 
 //attacking a hostage is a HUGE penalty
 	if (attacker.classname == "player" && targ.classname == "hostage")
 	{
-		attacker.score = attacker.score - 25;
+		attacker.score = attacker.score - 3;
 		sprint(attacker, 2, "you just shot a hostage! be careful!\n");
 	}
 
@@ -333,7 +330,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 				damage = (damage * 3);
 
 			if (targ.classname == "monster")
-				attacker.score = attacker.score + 5;
+				attacker.score = attacker.score + 1;
 
 			helm = targ.armortype;
 			if (targ.helmet == 0)
@@ -559,7 +556,7 @@ take = damage;
 		while (te)
 		{
 			if (te.classname == "player")
-				te.score = te.score + 10;
+				te.score = te.score + 2;
 
 			te = te.chain;
 		}
@@ -655,7 +652,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) J_Damage =
 				damage = (damage * 3);
 
 			if (targ.classname == "monster")
-				attacker.score = attacker.score + 5;
+				attacker.score = attacker.score + 1;
 
 			helm = targ.armortype;
 			if (targ.helmet == 0)
@@ -949,7 +946,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) X_Damage =
 				damage = (damage * 3);
 
 			if (targ.classname == "monster")
-				attacker.score = attacker.score + 5;
+				attacker.score = attacker.score + 1;
 
 			helm = targ.armortype;
 			if (targ.helmet == 0)

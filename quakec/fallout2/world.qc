@@ -68,12 +68,26 @@ void() SetupStats =
 	clientstat(67, 2, map_ent1);
 	clientstat(68, 2, map_ent2);
 	clientstat(69, 2, map_ent3);
-	clientstat(70, 2, silencer);
-	clientstat(71, 2, extender);
-	clientstat(81, 2, skill_combat);
-	clientstat(82, 2, skill_doctor);
-	clientstat(83, 2, skill_sneak);
-	clientstat(84, 2, skill_science);
+	clientstat(71, 2, xslot1);
+	clientstat(72, 2, xslot2);
+	clientstat(73, 2, xslot3);
+	clientstat(74, 2, xslot4);
+	clientstat(75, 2, xslot5);
+	clientstat(76, 2, xslot6);
+	clientstat(77, 2, xslot7);
+	clientstat(78, 2, xslot8);
+	clientstat(79, 2, xslot9);
+	clientstat(80, 2, xslot10);
+	clientstat(81, 2, xslot11);
+	clientstat(82, 2, xslot12);
+	clientstat(83, 2, xslot13);
+	clientstat(84, 2, xslot14);
+	clientstat(85, 2, xslot15);
+	clientstat(86, 2, xslot16);
+	clientstat(87, 2, xslot17);
+	clientstat(88, 2, xslot18);
+	clientstat(89, 2, xslot19);
+	clientstat(90, 2, xslot20);
 	clientstat(91, 2, islot17);
 	clientstat(92, 2, islot18);
 	clientstat(93, 2, islot19);
@@ -83,14 +97,11 @@ void() SetupStats =
 	clientstat(97, 2, islot23);
 	clientstat(98, 2, islot24);
 	clientstat(99, 2, recoil);
-	clientstat(100, 2, xslot1);
-	clientstat(101, 2, xslot2);
-	clientstat(102, 2, xslot3);
-	clientstat(103, 2, xslot4);
-	clientstat(104, 2, xslot5);
-	clientstat(105, 2, xslot6);
-	clientstat(106, 2, xslot7);
-	clientstat(107, 2, xslot8);
+	clientstat(81, 2, skill_combat);
+	clientstat(82, 2, skill_doctor);
+	clientstat(83, 2, skill_sneak);
+	clientstat(84, 2, skill_science);
+
 	clientstat(108, 2, safezone);
 	clientstat(109, 2, connected);
 	clientstat(110, 2, steadyaim);
@@ -669,15 +680,12 @@ if (coop == 1) // Players vs Monsters
 		te = find(te, classname, "player");
 	}
 
-//	if (pcount > 0)
-//		self.timer = self.timer + 0.5;
-
 	if (pcount == 0 && self.timer > 5)
 		localcmd("restart\n");
 
 	if (world.map_obj == OBJ_HOSTAGE)
 	{
-		time_left = time_left - 1;
+		//time_left = time_left - 1;
 
 		te = find(world, classname, "rhostage");
 		while (te)
@@ -1088,11 +1096,12 @@ if (coop == 1) // Players vs Monsters
 					ze = find (ze, classname, "player");
 				}
 			}
-			if (endgame_timer == 10)
+			if (endgame_timer >= 10)
 			{
 				localcmd("serverinfo objective return\n");
 				changelevel ("r_bunker");
 			}
+			endgame_timer = endgame_timer + 1;
 		}
 		if (pcount == 0 && pdead > 0)
 			endgame_timer = endgame_timer + 1;
@@ -1743,14 +1752,8 @@ void () RecoilControl =
 
 				}
 
-				if (te.class == 1)
-					te.recoil = te.recoil - 0.20;
-				if (te.class == 2)
-					te.recoil = te.recoil - 0.20;
-				if (te.class == 3)
-					te.recoil = te.recoil - 0.25;
-				if (te.class == 4)
-					te.recoil = te.recoil - 0.15;
+
+					te.recoil = te.recoil - (0.20+(te.skill_combat*0.005));
 			}
 			else
 			{
@@ -1967,7 +1970,7 @@ void() worldspawn =
 	precache_model ("progs/v_pipe.mdl");
 	precache_model ("progs/v_double.mdl");
 	precache_model ("progs/v_combat.mdl");
-	precache_model ("progs/v_ump.mdl");
+	precache_model ("progs/v_mp9.mdl");
 	precache_model ("progs/v_g11.mdl");
 	precache_model ("progs/v_ak47.mdl");
 	precache_model ("progs/v_acr.mdl");
@@ -2096,6 +2099,8 @@ void() worldspawn =
 
 	precache_sound ("misc/hosdie1.wav");
 	precache_sound ("misc/hosdie2.wav");
+	precache_sound ("misc/hosdown.wav");
+	precache_sound ("misc/rescued.wav");
 
 	precache_sound ("player/gib1.wav");
 	precache_sound ("player/step1.wav");

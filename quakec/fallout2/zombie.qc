@@ -524,6 +524,12 @@ void () zombie_death =
 {
 	if (self.rtime > 0)
 	{
+		if (random()*100<10)
+		{
+			remove(self);
+			return;
+		}
+
 		if (random()*100<50)
 			sound (self, CHAN_VOICE, "player/headshot.wav", 0.75, ATTN_NORM);
 		else
@@ -925,13 +931,8 @@ void() monster_zombie =
 	self.th_die = zombie_die;
 	self.th_melee = zombie_melee;
 
-	if (world.map_obj == OBJ_DEADTOWN)
-	{
-		if (random()<0.5)
-			self.th_missile = zombie_missile;
-	}
-	else
-		self.th_missile = zombie_missile;
+
+	self.th_missile = zombie_missile;
 
 	self.angles_y = random()*360;
 
@@ -939,12 +940,15 @@ void() monster_zombie =
 
 
 
-	if (random()<0.25 || world.map_obj == OBJ_DEADTOWN)
-		spawn_ghoul(self.origin);
-	if (world.map_obj == OBJ_DEADTOWN && random()<0.25)
-		spawn_ghoul(self.origin + '128 128 0');
-	if (world.map_obj == OBJ_DEADTOWN && random()<0.25)
-		spawn_ghoul(self.origin + '128 0 0');
+
+	spawn_ghoul(self.origin + '-128 -128 0');
+	spawn_ghoul(self.origin + '-128 0 0');
+	spawn_ghoul(self.origin + '0 -128 0');
+	spawn_ghoul(self.origin + '0 128 0');
+	spawn_ghoul(self.origin + '128 0 0');
+	spawn_ghoul(self.origin + '128 128 0');
+	spawn_ghoul(self.origin + '-128 128 0');
+	spawn_ghoul(self.origin + '128 -128 0');
 
 	if (random()<0.25 && world.map_obj == 1)
 		spawn_civilian(self.origin);

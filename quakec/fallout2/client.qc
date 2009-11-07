@@ -153,7 +153,9 @@ void() DecodeLevelParms =
 
 	self.class = 1;
 
-	self.current_slot = parm16;
+	if (parm16 > 0)
+		self.current_slot = parm16;
+
 	self.islot1 = parm17;
 	self.islot2 = parm18;
 	self.islot3 = parm19;
@@ -620,7 +622,7 @@ void() PutClientInServer =
 	self.takedamage = DAMAGE_AIM;
 	self.movetype = MOVETYPE_WALK;
 	self.show_hostile = 0;
-	self.max_health = 100;
+	self.max_health = 100 + self.skill_combat;
 	self.health = 100;
 	self.flags = FL_CLIENT;
 	self.air_finished = time + 12;
@@ -638,7 +640,7 @@ void() PutClientInServer =
 
 
 	DecodeLevelParms ();
-
+/*
 	if (self.skill_combat == 0 && self.skill_sneak == 0 && self.skill_doctor == 0 && self.skill_science == 0)
 	{
 		self.deadflag = DEAD_NO;
@@ -660,7 +662,7 @@ void() PutClientInServer =
 		self.active = 1;
 		player_stand1 ();
 		return;
-	}
+	}*/
 
 	if (self.current_slot == 0)
 	{
@@ -703,7 +705,7 @@ void() PutClientInServer =
 	self.fixangle = TRUE;           // turn this way immediately
 
 
-	self.max_health = 100;
+	self.max_health = 100 + self.skill_combat;
 
 	self.equipment_slot = 0;
 
@@ -1312,7 +1314,7 @@ float(entity targ) check_fov_side =
 
 void() SneakLevel =
 {
-	local float sn, st, front, r;
+	local float sn, st, front, r, q;
 	local entity te;
 	local string report;
 
@@ -1330,7 +1332,7 @@ void() SneakLevel =
 	}
 
 
-	sn = 95;
+	sn = 90 + self.skill_sneak*0.5;
 
 	//sneaking along a wall increases chance by 2%
 	makevectors(self.angles);
@@ -1358,16 +1360,9 @@ void() SneakLevel =
 	if (r > 0 && r <= 600)
 	{
 		r = 600 - r;
+		q = 3 + (self.skill_sneak/5);
 
-
-		if (self.class == 1)
-			sn = sn - r/3;
-		if (self.class == 2)
-			sn = sn - r/6;
-		if (self.class == 3)
-			sn = sn - r/3;
-		if (self.class == 4)
-			sn = sn - r/3;
+		sn = sn - r/q;
 	}
 
 
@@ -1431,6 +1426,8 @@ void() ArmorCheck =
 	if (self.walk == 1)
 		self.speedmulti = self.speedmulti * 0.50;
 
+	self.speedmulti = self.speedmulti*(1+(self.skill_sneak*0.01));
+
 	//Armor
 	if (aid == IID_ARM_DESERT)
 		type = 0.10;
@@ -1450,8 +1447,6 @@ void() ArmorCheck =
 		type = 0.15;
 	if (aid == IID_ARM_LPOWER)
 		type = 0.50;
-	if (self.class == 3)
-		type += 0.10;
 	if (self.rage == IID_CHEM_PSYCHO)
 		type += 0.20;
 
@@ -1506,15 +1501,9 @@ void () WeightControl =
 	wt = wt + GetItemsWeight(self.islot16);
 
 	self.weight = wt;
+	self.max_weight = 30;
 
-	if (self.class == 1)
-		self.max_weight = 40;
-	if (self.class == 2)
-		self.max_weight = 40;
-	if (self.class == 3)
-		self.max_weight = 60;
-	if (self.class == 4)
-		self.max_weight = 30;
+	self.max_weight = self.max_weight + self.skill_combat;
 };
 
 
@@ -1571,11 +1560,7 @@ void () PositionControl =
 	if (self.maxspeed < 50)
 		self.maxspeed = 50;
 
-	if (self.equipment_slot)
-	{
-		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_SPRINTKIT)
-			self.maxspeed = self.maxspeed*2;
-	}
+
 };
 
 .float clientcolors;
@@ -1626,14 +1611,30 @@ void() PlayerPreThink =
 		DisplayMenu ();
 		return;
 	}
-	else if (self.score >= 20 && self.currentmenu == "none")
+	else if (self.score >= 500 && self.score <= 1550 && self.currentmenu == "none")
+	{
+		self.score = self.score + 1;
+	}
+	else if (self.score >= 1551 && self.currentmenu == "none")
 	{
 		self.currentmenu = "gain_skill";
 		self.missionbrief = 2;
 		DisplayMenu ();
 	}
+	else if (self.score >= 200 && self.currentmenu == "none")
+	{
+			self.score = 500;
+	}
 
 
+	if ((self.skill_combat + self.skill_sneak + self.skill_doctor + self.skill_science) <= 5)
+	{
+		if (self.currentmenu == "none")
+		{
+			self.currentmenu = "gain_skill";
+			return;
+		}
+	}
 
 
 
@@ -2217,8 +2218,7 @@ void() ClientConnect =
 	stuffcmd(self, "alias zoom impulse 60\n");
 	stuffcmd(self, "alias hostage impulse 65\n");
 
-	stuffcmd(self, "alias stimpack \"cmd invuse superstims+stimpack+bandages\"\n");
-	stuffcmd(self, "alias bandages \"cmd invuse bandages+superstims+stimpack\"\n");
+	stuffcmd(self, "alias stimpack impulse 225\n");
 	stuffcmd(self, "alias equip \"cmd invuse 4\"\n");
 	stuffcmd(self, "alias q1 \"cmd invuse 5\"\n");
 	stuffcmd(self, "alias q2 \"cmd invuse 6\"\n");

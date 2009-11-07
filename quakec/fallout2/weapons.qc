@@ -199,14 +199,15 @@ void(float damage, float dist, float rate) FireMelee =
 
 			if (dot < 0.5 && trace_ent.takedamage)
 			{
-				tdam = self.sneak*random()*3;
+				tdam = 10 + (15*self.skill_sneak);
+
 				if (getperk(7))
-					tdam = self.sneak*random()*6;
+					tdam = tdam * 2;
 
 				if (self.steadyaim == 0)
-					tdam = tdam * 5;
+					tdam = tdam + 10;
 
-			if (trace_ent.solid != SOLID_BSP && trace_ent.classname != "car" && (trace_ent.islot3 == 0 || self.critical == 3))
+			if (trace_ent.solid != SOLID_BSP && trace_ent.classname != "car")
 				SpawnBlood (org, 1);
 			else
 				SpawnNonBlood (org, 1);
@@ -239,7 +240,7 @@ void(float damage, float dist, float rate) FireMelee =
 						bprint(2, " assassinates ");
 						bprint(2, trace_ent.netname);
 						bprint(2, "!\n");
-						self.score = self.score + 25;
+						self.score = self.score + 5;
 
 						if (random()*4<2)
 							sound (trace_ent, CHAN_WEAPON, "player/headshot.wav", 0.25, ATTN_IDLE);
@@ -1620,11 +1621,11 @@ void() W_Attack =
 	else if (weap == IID_WP_DKS1_S)
 		FireAssaultRifle(35, 3, "weapons/moonlight1.wav", 5000, 0.25);
 	else if (weap == IID_WP_WINCHESTER)
-		W_FireShotgun (2, 4, 8, 30, 1500, 0, "weapons/shotgun1.wav");
+		W_FireShotgun (2, 5, 8, 50, 1500, 0, "weapons/shotgun1.wav");
 	else if (weap == IID_WP_MOSSBERG)
-		W_FireShotgun (2, 4, 8, 20, 2000, 1, "weapons/citykiller.wav");
+		W_FireShotgun (2, 5, 7, 20, 2000, 1, "weapons/citykiller.wav");
 	else if (weap == IID_WP_JACKHAMMER)
-		W_FireShotgun (1, 4, 9, 25, 1750, 2, "weapons/citykiller.wav");
+		W_FireShotgun (1, 5, 7, 30, 1750, 2, "weapons/citykiller.wav");
 	else if (weap == IID_WP_MP9)
 		FireSMG(14, 0, "weapons/mp7.wav", 1500, 0.10);
 	else if (weap == IID_WP_MP7)
@@ -1758,7 +1759,7 @@ void() CheatCommand =
 {
 	local float x;
 	local string y;
-
+/*
 	x = self.waterlevel;
 	y = ftos(x);
 
@@ -1766,8 +1767,8 @@ void() CheatCommand =
 	sprint(self, 2, y);
 	sprint(self, 2, "\n");
 	self.ammo_shells = 900;
-	self.score = 21;
-
+	self.currentmenu = "gain_skill";
+*/
 };
 
 /*
@@ -4227,14 +4228,28 @@ void () UseStimpack =
 				{
 					sprint(self, PRINT_MEDIUM, trace_ent.netname);
 					sprint(self, PRINT_MEDIUM, " had no stims!\n");
-					return;
 				}
-				else
+				if (x >= 1)
 				{
-					self.score = self.score + 50;
+					self.score = self.score + 5;
 					sprint(self, PRINT_MEDIUM, trace_ent.netname);
 					sprint(self, PRINT_MEDIUM, " had a stim. using it to heal.\n");
 					DecreaseDestroySlotOther(trace_ent, x);//take away a stimpack
+					return;
+				}
+				x = SlotOfItem(trace_ent, IID_CHEM_MEDICALBAG);
+				if (x == 0)
+				{
+					sprint(self, PRINT_MEDIUM, trace_ent.netname);
+					sprint(self, PRINT_MEDIUM, " had no medical bag!\n");
+				}
+				if (x >= 1)
+				{
+					self.score = self.score + 5;
+					sprint(self, PRINT_MEDIUM, trace_ent.netname);
+					sprint(self, PRINT_MEDIUM, " had a stim. using it to heal.\n");
+					DecreaseDestroySlotOther(trace_ent, x);//take away a stimpack
+					return;
 				}
 			}
 
@@ -4645,9 +4660,7 @@ void () DisplayMenu =
 
 void () Special =
 {
-	if (self.class == 1)
-		UseMedicalBag();
-	else
+
 		Sneak();
 };
 
@@ -4946,7 +4959,7 @@ void () ExitScreen =
 			sprint(self, 2, "lock is jammed.\n");
 			return;
 		}
-		if (self.class != 2 && self.class != 4)
+		if (self.skill_sneak == 0)
 		{
 			sound (self, CHAN_BODY, "items/locked.wav", 1, ATTN_NORM);
 			sprint(self, 2, "locked!\n");
@@ -4970,7 +4983,8 @@ void () ExitScreen =
 		if (self.currentmenu != "none")
 			return;
 
-		bprint (2, "hostage has been located.\n");
+		bprint (2, "civilian has been located.\n");
+		sound (trace_ent, CHAN_BODY, "misc/rescued.wav", 1, ATTN_NONE);
 		rescue = rescue + 1;
 		//remove(trace_ent);
 		spawn_excla(trace_ent, 3000);
@@ -5628,6 +5642,26 @@ void () shop_face =
 		{
 			self.enemy = te;
 			te.safezone = 1;
+			te.xslot1 = self.xslot1;
+			te.xslot1 = self.xslot2;
+			te.xslot1 = self.xslot3;
+			te.xslot1 = self.xslot4;
+			te.xslot1 = self.xslot5;
+			te.xslot1 = self.xslot6;
+			te.xslot1 = self.xslot7;
+			te.xslot1 = self.xslot8;
+			te.xslot1 = self.xslot9;
+			te.xslot1 = self.xslot10;
+			te.xslot1 = self.xslot11;
+			te.xslot1 = self.xslot12;
+			te.xslot1 = self.xslot13;
+			te.xslot1 = self.xslot14;
+			te.xslot1 = self.xslot15;
+			te.xslot1 = self.xslot16;
+			te.xslot1 = self.xslot17;
+			te.xslot1 = self.xslot18;
+			te.xslot1 = self.xslot19;
+			te.xslot1 = self.xslot20;
 		}
 		te = te.chain;
 	}
@@ -5734,20 +5768,10 @@ void () CharacterSheet =
 
 	sprint (self, PRINT_HIGH, "êScore     ë ");
 	r1 = (self.score);
-	r2 = (self.kills);
-	if (r1 == 0)
-		r1 = 1;
 
-	ratio = (r2 / r1);
 	x = ftos (r1);
 	sprint (self, 2, x);
-	sprint (self, 2, " (");
-	x = ftos (self.kills);
-	sprint (self, 2, x);
-	sprint (self, PRINT_HIGH, "/");
-	x = ftos (self.dead);
-	sprint (self, 2, x);
-	sprint (self, 2, ")   ");
+
 	sprint (self, PRINT_HIGH, "\nêSpeed     ë ");
 	x = ftos (self.maxspeed);
 	sprint (self, 2, x);

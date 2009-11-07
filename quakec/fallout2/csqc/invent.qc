@@ -4,6 +4,7 @@ float PRINT_MEDIUM = 1;
 
 float show_inventory;
 float show_pipboy;
+float show_trader;
 
 vector mousepos;
 
@@ -32,6 +33,37 @@ float mouseisdown;
 #define IMGSIZEQ ('1 1 0'*2)
 
 #define CURSORSIZE 8
+
+
+
+
+
+
+void(vector pos, float slotno) TraderImage =
+{
+	local float it, mod_s, mod_e;
+	local string itname;
+
+
+	if (slotno == downslotnum && slotnum)
+		slotno = slotnum;
+	else if (slotno == slotnum && downslotnum)
+		slotno = downslotnum;
+
+	if (slotno <= 20)
+		it = getstati(70+slotno);
+
+
+	itname = GetItemImage(ToIID(it));
+	drawpic(pos, strcat("gui/", itname), IMGSIZEV, '1 1 1', 1);
+
+	it = ToStatus(it);
+	if (it < 1)
+		return;
+	itname = ftos(it);
+	it = strlen(itname);
+	drawstring(pos + IMGSIZEV - '0 8 0' - '8 0 0'*it, itname, '8 8 8', '1 1 1', 1);
+};
 
 
 void(vector pos, float slotno) SlotImage =
@@ -70,9 +102,6 @@ void(vector pos, float slotno) SlotImage =
 
 	itname = GetItemImage(ToIID(it));
 	drawpic(pos, strcat("gui/", itname), IMGSIZEV, '1 1 1', 1);
-
-	mod_s = getstati(70);
-	mod_e = getstati(71);
 
 	it = ToStatus(it);
 	if (it < 1)
@@ -118,18 +147,6 @@ void(vector pos, float slotno) SlotImageSmall =
 	itname = GetItemImage(ToIID(it));
 	drawpic(pos, strcat("gui/", itname), IMGSIZEH, '1 1 1', 1);
 
-	mod_s = getstati(70);
-	mod_e = getstati(71);
-
-
-	if (it > 0)
-	{
-		if (mod_s == it)
-			drawstring(pos, "sil", '8 8 8', '1 1 1', 1);
-
-		if (mod_e == it)
-			drawstring(pos, "ext", '8 8 8', '1 1 1', 1);
-	}
 
 	it = ToStatus(it);
 	if (it <= 1)
@@ -358,6 +375,25 @@ void(vector pos, string image) Crosshair =
 };
 
 
+void() Trader_Draw =
+{
+	float width,height,lvl,bar;
+	vector w;
+
+	width = cvar("vid_conwidth");
+	height = cvar("vid_conheight");
+	//w = '1 1 0'*height;
+
+
+
+
+	drawpic('0 0 0', "gui/pipboy/buyscreen.bmp", w, '1 1 1', 1);
+	TraderImage('2 2 0'*IMGSIZEF, 1);
+	TraderImage('2 3 0'*IMGSIZEF, 2);
+
+	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
+};
+
 void() Pipboy_Draw =
 {
 	float width,height,lvl,bar;
@@ -365,7 +401,7 @@ void() Pipboy_Draw =
 
 	width = cvar("vid_conwidth");
 	height = cvar("vid_conheight");
-	w = '1 1 0'*height;
+
 
 
 
@@ -429,14 +465,7 @@ void() Invent_Draw =
 
 	local float slotofs;
 	slotofs = sliderpos*(height - (IMGSIZEF*6)) + (IMGSIZEF*6);
-/*
-	for (i = 6; i <= MAXSLOTS; i++)
-	{
-		SlotImage(((i*IMGSIZEF-slotofs) * '0 1 0'), i+1);
 
-//		itname = GetItemName(ToIID(it));
-//		drawstring(toppos + ((i*8-slotofs) * '0 1 0'), strcat(itname, " (", ftos(ToStatus(it)), ")"), '8 8 0', '1 1 1', 1);
-	}*/
 
 	SlotImage('2 1 0'*IMGSIZEF, 5);
 	SlotImage('2 2 0'*IMGSIZEF, 6);
@@ -467,16 +496,6 @@ void() Invent_Draw =
 
 	SlotImageSmall('1 12.5 0'*IMGSIZEK, 4);
 
-/*
-	drawstring('120 72 0'+('4 0 0'*IMGSIZEF), " JUNK ", '8 8 8', '1 1 1', 1);
-	SlotImageSmall('112 80 0'+('4 0 0'*IMGSIZEF), 17);
-	SlotImageSmall('112 128 0'+('4 0 0'*IMGSIZEF), 18);
-	SlotImageSmall('112 176 0'+('4 0 0'*IMGSIZEF), 19);
-	SlotImageSmall('112 224 0'+('4 0 0'*IMGSIZEF), 20);
-	SlotImageSmall('96 80 0'+('5 0 0'*IMGSIZEF), 21);
-	SlotImageSmall('96 128 0'+('5 0 0'*IMGSIZEF), 22);
-	SlotImageSmall('96 176 0'+('5 0 0'*IMGSIZEF), 23);
-	SlotImageSmall('96 224 0'+('5 0 0'*IMGSIZEF), 24);*/
 
 /*
 	perki = GetPerkImage(getstati(60));
@@ -498,13 +517,7 @@ void() Invent_Draw =
 
 
 
-/*
-	drawpic(('1 0 0'*IMGSIZEF), "gui/scrollup.jpg", '16 16 0', '1 1 1', 1);
-	for (i = 0; i < height; i+=16)
-		drawpic('1 0 0'*IMGSIZEF+'0 16 0'+i*'0 1 0', "gui/scrollbar.jpg", '16 16 0', '1 1 1', 1);
-	drawpic(('1 0 0'*IMGSIZEF)+(height-16)*'0 1 0', "gui/scrolldown.jpg", '16 16 0', '1 1 1', 1);
 
-	drawpic(('1 0 0'*IMGSIZEF)+'0 16 0'+sliderpos*(height-48)*'0 1 0', "gui/scrollbox.jpg", '16 16 0', '1 1 1', 1);*/
 
 
 	if (showcontextmenu)
@@ -513,25 +526,11 @@ void() Invent_Draw =
 
 		op = floor((mousepos_y - contextpos_y)/8);
 		drawstring(contextpos + (0 * '0 8 0'), "use/reload", '8 8 0', '1 1 0' + (op!=0)*'0 0 1', 1);
-		drawstring(contextpos + (1 * '0 8 0'), "put in hand", '8 8 0', '1 1 0' + (op!=1)*'0 0 1', 1);
-		if (getstati(108) == 0)
-			drawstring(contextpos + (2 * '0 8 0'), "drop", '8 8 0', '1 1 0' + (op!=2)*'0 0 1', 1);
+		drawstring(contextpos + (1 * '0 8 0'), "drop", '8 8 0', '1 1 0' + (op!=1)*'0 0 1', 1);
+		drawstring(contextpos + (2 * '0 8 0'), "mix", '8 8 0', '1 1 0' + (op!=2)*'0 0 1', 1);
 		if (getstati(108) == 1)
-			drawstring(contextpos + (2 * '0 8 0'), "sell", '8 8 0', '1 1 0' + (op!=2)*'0 0 1', 1);
-		if (getstati(60) == 14 || getstati(59) == 14)
-			drawstring(contextpos + (3 * '0 8 0'), "mix chems", '8 8 0', '1 1 0' + (op!=3)*'0 0 1', 1);
+			drawstring(contextpos + (3 * '0 8 0'), "sell", '8 8 0', '1 1 0' + (op!=3)*'0 0 1', 1);
 
-			drawstring(contextpos + (4 * '0 8 0'), "build: flash bomb", '8 8 0', '1 1 0' + (op!=4)*'0 0 1', 1);
-			drawstring(contextpos + (5 * '0 8 0'), "build: frag grenade", '8 8 0', '1 1 0' + (op!=5)*'0 0 1', 1);
-			drawstring(contextpos + (6 * '0 8 0'), "build: stun grenade", '8 8 0', '1 1 0' + (op!=6)*'0 0 1', 1);
-			drawstring(contextpos + (7 * '0 8 0'), "build: silencer", '8 8 0', '1 1 0' + (op!=7)*'0 0 1', 1);
-
-			if (getstati(63) == 4)
-			{
-				drawstring(contextpos + (8 * '0 8 0'), "build: scope", '8 8 0', '1 1 0' + (op!=8)*'0 0 1', 1);
-				drawstring(contextpos + (9 * '0 8 0'), "build: x-ray device", '8 8 0', '1 1 0' + (op!=9)*'0 0 1', 1);
-				drawstring(contextpos + (10 * '0 8 0'), "build: modification", '8 8 0', '1 1 0' + (op!=10)*'0 0 1', 1);
-			}
 	}
 	else
 	{
@@ -644,6 +643,10 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 		{
 			show_pipboy = !show_pipboy;
 		}
+		if (param1 == 'b' && (getstati(108) == 1))
+		{
+			show_trader = !show_trader;
+		}
 		else if (!show_inventory)
 			return false;
 		else if (param1 == k_mouse1)
@@ -672,7 +675,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			return false;
 		return true;
 	}
-	if (eventtype == 1 && show_inventory)	//key up
+	if (eventtype == 1 && (show_inventory || show_trader || show_pipboy))	//key up
 	{
 		if (param1 == k_mouse1)
 		{		
@@ -682,28 +685,12 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 
 				if (op == 0)
 					localcmd(strcat("cmd invuse ", ftos(slotnum), "\n"));
-				else if (op == 1)
-					localcmd(strcat("cmd invswap 1 ", ftos(slotnum), "\nimpulse 1\n"));
-				else if ((op == 2) && (getstati(108) == 0))
+				else if ((op == 1))
 					localcmd(strcat("cmd invdrop ", ftos(slotnum), "\n"));
-				else if ((op == 2) && (getstati(108) == 1))
-					localcmd(strcat("cmd invsell ", ftos(slotnum), "\n"));
-				else if (op == 3)
+				else if (op == 2)
 					localcmd(strcat("cmd invmix ", ftos(slotnum), "\n"));
-				else if (op == 4)
-					localcmd("cmd create flash\n");
-				else if (op == 5)
-					localcmd("cmd create grenade\n");
-				else if (op == 6)
-					localcmd("cmd create stun\n");
-				else if (op == 7)
-					localcmd("cmd create silencer\n");
-				else if (op == 8)
-					localcmd("cmd create extender\n");
-				else if (op == 9)
-					localcmd("cmd create xray\n");
-				else if (op == 10)
-					localcmd("cmd create modify\n");
+				else if ((op == 3) && (getstati(108) == 1))
+					localcmd(strcat("cmd invsell ", ftos(slotnum), "\n"));
 
 				showcontextmenu = false;
 			}
@@ -744,7 +731,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			return false;
 		return true;
 	}
-	if (eventtype == 2 && show_inventory)	//mouse
+	if (eventtype == 2 && (show_inventory || show_trader || show_pipboy))	//mouse
 	{
 		mousepos_x += param1;
 		mousepos_y += param2;

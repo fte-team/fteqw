@@ -184,6 +184,18 @@ float(float slotno, float iid) FitsInSlot;
 .float          xslot6;
 .float          xslot7;
 .float          xslot8;
+.float          xslot9;
+.float          xslot10;
+.float          xslot11;
+.float          xslot12;
+.float          xslot13;
+.float          xslot14;
+.float          xslot15;
+.float          xslot16;
+.float          xslot17;
+.float          xslot18;
+.float          xslot19;
+.float          xslot20;
 
 #define MAXSLOTS 24
 
@@ -604,7 +616,7 @@ slot_t(float slot) SlotField =
 		return islot24;
 
 
-	bprint(PRINT_MEDIUM, "ERROR: Invalid slot number (", ftos(slot), ")\n");
+	//bprint(PRINT_MEDIUM, "ERROR: Invalid slot number (", ftos(slot), ")\n");
 	return islot1;
 };
 
@@ -647,11 +659,11 @@ string(float iid) GetItemVModel =
 	if (iid == IID_WP_JACKHAMMER)
 		return "progs/v_jackhammer.mdl";
 	if (iid == IID_WP_MP9)
-		return "progs/v_ump.mdl";
+		return "progs/v_mp9.mdl";
 	if (iid == IID_WP_MP7)
 		return "progs/v_smg.mdl";
 	if (iid == IID_WP_MP9_S)
-		return "progs/v_ump.mdl";
+		return "progs/v_mp9.mdl";
 	if (iid == IID_WP_MP7_S)
 		return "progs/v_smg.mdl";
 	if (iid == IID_WP_RANGEMASTER)

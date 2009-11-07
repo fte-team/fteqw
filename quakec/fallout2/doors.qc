@@ -8,6 +8,12 @@ void () door_go_up;
 
 void () door_blocked =
 {
+	if (other.classname == "treasure_chest")
+	{
+		remove(other);
+		return;
+	}
+
 	T_Damage (other, self, self, self.dmg);
 	if ((self.wait >= MULTICAST_ALL))
 	{
@@ -159,7 +165,8 @@ void () door_killed =
 
 void () OpenDoorBeep =
 {
-	local float r;
+	local float r,x;
+
 
 	r = range (self.enemy);
 
@@ -175,9 +182,14 @@ void () OpenDoorBeep =
 	else
 		sound (self, CHAN_BODY, "items/lockpick2.wav", 1, ATTN_NORM);
 
+
+	x = (2.51 - (2.5*(self.enemy.skill_sneak/30)));
+
+
 	self.think = OpenDoorBeep;
-	self.nextthink = time + 0.5;
-	if (ToIID(other.islot4) == IID_EQUIP_TOOLKIT)
+	self.nextthink = time + x;
+
+	if (ToIID(self.enemy.islot4) == IID_EQUIP_TOOLKIT)
 		self.owner.owner.rtime = self.owner.owner.rtime + 3;
 	else
 		self.owner.owner.rtime = self.owner.owner.rtime + 1;
@@ -256,32 +268,13 @@ void () door_touch =
 		}
 		else if (self.owner.items == IT_KEY2)
 		{
-			if (other.class == 1)
-			{
-				sprint(other, 2, "the lock on this door is too complex for you.\n");
-				sound (other, CHAN_BODY, "items/locked.wav", 1, ATTN_NORM);
-				return;
-			}
-			if (other.class == 2)
-			{
+
 				sprint(other, 2, "picking...\n");
 				other.attack_finished = time + 7;
 				other.rtime = time + 7.5;
 				SpawnOpenDoor(self, other);
 				return;
-			}
-			if (other.class == 3)
-			{
-				sprint(other, 2, "the lock on this door is too complex for you.\n");
-				sound (other, CHAN_BODY, "items/locked.wav", 1, ATTN_NORM);
-				return;
-			}
-			if (other.class == 4)
-			{
-				sprint(other, 2, "picking...\n");
-				SpawnOpenDoor(self, other);
-				return;
-			}
+
 		}
 		if (self.owner.items == IT_KEY1)
 			sound (self, CHAN_VOICE, self.noise3, 1, ATTN_NORM);

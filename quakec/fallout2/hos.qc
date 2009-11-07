@@ -285,7 +285,7 @@ void (vector jojo) spawn_civilian =
 		}
 	}
 
-	te = findradius (self.origin, 30);
+	te = findradius (self.origin, 40);
 	while (te)
 	{
 		if (te.classname == "player" || te.classname == "monster" && te.health > 0)

@@ -923,6 +923,9 @@ void() brotherhood_merchant =
 	self.classname = "merchant";
 	self.think = shop_face;
 	self.nextthink = time + 0.5;
+
+	self.xslot1 = 412;
+	self.xslot2 = 413;
 };
 
 void() brotherhood_sergeant =

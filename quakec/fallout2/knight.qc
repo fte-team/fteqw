@@ -48,7 +48,7 @@ $frame deathb9 deathb10 deathb11
 void() go_invisible =
 {
 	setmodel (self, "");
-	sound (self, CHAN_BODY, "items/inv1.wav", 1, ATTN_NORM);
+	sound (self, CHAN_BODY, "misc/r_tele4.wav", 1, ATTN_NORM);
 };
 
 void() go_visible =
@@ -67,10 +67,7 @@ void()	knight_stand7	=[	$stand7,	knight_stand8	] {ai_stand();};
 void()	knight_stand8	=[	$stand8,	knight_stand9	] {ai_stand();};
 void()	knight_stand9	=[	$stand9,	knight_stand1	] {ai_stand();};
 
-void()	knight_walk1	=[	$walk1,		knight_walk2	] {
-if (random() < 0.2)
-	sound (self, CHAN_VOICE, "knight/idle.wav", 1,  ATTN_IDLE);
-ai_walk(3);};
+void()	knight_walk1	=[	$walk1,		knight_walk2	] {ai_walk(3);};
 void()	knight_walk2	=[	$walk2,		knight_walk3	] {ai_walk(2);};
 void()	knight_walk3	=[	$walk3,		knight_walk4	] {ai_walk(3);};
 void()	knight_walk4	=[	$walk4,		knight_walk5	] {ai_walk(4);};
@@ -89,8 +86,6 @@ void()	knight_walk14	=[	$walk14,	knight_walk1	] {ai_walk(3);};
 void()	knight_run1	=[	$runb1,		knight_run2	] {
 if ((random() < 0.6) && self.model != "")
 	go_invisible();
-else if (random() < 0.2)
-	sound (self, CHAN_VOICE, "knight/idle.wav", 1,  ATTN_IDLE);
 ai_run(21);};
 void()	knight_run2	=[	$runb2,		knight_run3	] {ai_run(25);};
 void()	knight_run3	=[	$runb3,		knight_run4	] {ai_run(18);};
@@ -129,6 +124,16 @@ if (self.takedamage == DAMAGE_NO)
 	remove(self);
 	return;
 }
+
+local vector source, org, vec, dir;
+local float weap, dot, tdam;
+local string sdam;
+makevectors (self.enemy.angles);
+vec = normalize ((self.origin - self.enemy.origin));
+dot = (vec * v_forward);
+
+if (dot > 0.5)
+	return;
 
 sound (self, CHAN_WEAPON, "knight/sword1.wav", 1, ATTN_NORM);
 ai_charge(0);
@@ -247,7 +252,8 @@ void()	knight_bow10	=[	$walk1,		knight_walk1	] {ai_turn();};
 
 
 
-void()	knight_die1	=[	$death1,	knight_die2	] {};
+void()	knight_die1	=[	$death1,	knight_die2	] 
+{go_visible();};
 void()	knight_die2	=[	$death2,	knight_die3	] {};
 void()	knight_die3	=[	$death3,	knight_die4	] 
 {self.solid = SOLID_NOT;};
@@ -321,7 +327,7 @@ void() monster_knight =
 
 	setsize (self, '-16 -16 -24', '16 16 40');
 	self.health = 75;
-      self.islot3 = SlotVal(IID_ARM_METAL, 1);
+        self.islot3 = SlotVal(IID_ARM_METAL, 1);
 	self.armornoise = "weapons/ric1.wav";
 	self.th_stand = knight_stand1;
 	self.th_walk = knight_walk1;

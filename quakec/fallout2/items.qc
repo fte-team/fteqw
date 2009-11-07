@@ -207,7 +207,7 @@ void() treasure_touch =
 	{
 		sound (self, CHAN_BODY, "items/locked.wav", 1, ATTN_NORM);
 		sprint(other, 2, "this metal box is locked.\n");
-		if (other.class == 2 || other.class == 4)
+		if (other.skill_sneak >= 1)
 		{
 			sprint(other, 2, "you may attempt to pick this\n");
 			sprint(other, 2, "by pressing your 'action' key\n");
@@ -539,7 +539,7 @@ void () OpenChestBeep =
 
 
 	self.think = OpenChestBeep;
-	self.nextthink = time + 0.2+random()*0.4;
+	self.nextthink = time + 0.1+random()*0.4 + (0.02*self.enemy.skill_sneak);
 	self.enemy.chest = self;
 	self.enemy.currentmenu = "menu_lockpick";
 
@@ -929,6 +929,7 @@ void() buyzone1 =
 	setsize (self, '-16 -16 -24', '16 16 32');
 	setorigin(self, self.origin + '0 0 24');
 	self.classname = "merchant";
+
 };
 
 void() buyzone2 =

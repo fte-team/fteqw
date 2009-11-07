@@ -949,8 +949,9 @@ void() W_PlayerMenu =
 				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
 				centerprint(self, "\n");
 				self.currentmenu = "none";
-				//DisplayMenu();
-				self.impulse = 1;
+				PutClientInServer();
+				self.impulse = 0;
+				self.current_slot = 1;
 				return;
 			}
 			else if (self.impulse == 1 && coop == 0)

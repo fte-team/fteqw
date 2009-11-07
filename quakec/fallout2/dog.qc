@@ -343,6 +343,11 @@ void () woof_pain =
 {
 	if (self.rtime > 0)
 	{
+		if (random()*100<10)
+		{
+			remove(self);
+			return;
+		}
 		self.health = 180;
 		return;
 	}

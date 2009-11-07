@@ -1378,6 +1378,11 @@ void () grunt_pain =
 
 	if (self.rtime > 0)
 	{
+		if (random()*100<10)
+		{
+			remove(self);
+			return;
+		}
 		if (random()*100<50)
 			sound (self, CHAN_VOICE, "player/headshot.wav", 0.75, ATTN_NORM);
 		else

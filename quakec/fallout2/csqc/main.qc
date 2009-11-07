@@ -442,6 +442,8 @@ void(float do2d) CSQC_UpdateView =
 		DrawScreen();
 	else if (getstati(109) == 0)
 		DrawScreen();
+	else if (show_trader)
+		Trader_Draw();
 	else if (show_inventory)
 		Invent_Draw();
 	else if (show_pipboy)

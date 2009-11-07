@@ -1022,7 +1022,35 @@ void(string arg1) Cmd_InvMix =
 		sprint(self, PRINT_MEDIUM, "1 super stim created\n");
 		sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
 	}
+	else if ((iid1 == IID_WP_NEEDLER && iid2 == IID_WP_NEEDLER) ||
+            (iid2 == IID_WP_NEEDLER && iid1 == IID_WP_NEEDLER))
+	{
 
+
+
+		if (random()*100 > (self.skill_science*10))
+		{
+			sprint(self, PRINT_MEDIUM, "your concoction exploded!\n");
+			Explosion();
+			return;
+		}
+		
+		x = FindEmptySlot(self);
+
+		if (x == 0)
+		{
+			sprint(self, 2, "no more room in inventory!\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
+
+		DecreaseDestroySlot(23);
+		DecreaseDestroySlot(24);
+
+		SetItemSlot(self, x, SlotVal(IID_WP_ACR, 1));
+		sprint(self, PRINT_MEDIUM, "Steyr ACR created\n");
+		sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
+	}
 	else
 	{
 		sprint(self, PRINT_MEDIUM, "cannot merge items!\n");

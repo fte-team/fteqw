@@ -1641,7 +1641,7 @@ void() W_Attack =
 	else if (weap == IID_WP_AK112_M)
 		FireAssaultRifle(16, 10, "weapons/ak112.wav", 4000, 0.095);
 	else if (weap == IID_WP_ACR)
-		FireAssaultRifle(16, 7, "weapons/auto2.wav", 9000, 0.090);
+		FireAssaultRifle(16, 7, "weapons/ak112.wav", 9000, 0.090);
 	else if (weap == IID_WP_AK74)
 		FireAssaultRifle(20, 12, "ogre/ak47.wav", 3500, 0.090);
 	else if (weap == IID_WP_DKS1)
@@ -1766,6 +1766,7 @@ void() CheatCommand =
 	self.islot18 = SlotVal(IID_MISC_NUKACOLA, 50);
 	self.islot19 = SlotVal(IID_MISC_AEROSOL, 50);
 	self.islot20 = SlotVal(IID_MISC_GUM, 50);
+	self.islot10 = SlotVal(IID_WP_ACR, 1);
 };
 
 /*
@@ -2548,9 +2549,9 @@ void () FlashExplode =
 		{
 			if (CanDamage (self, te))
 			{
-				te.flash = 4;
-				te.attack_finished = time + 4;
-				spawn_excla(te, 4);
+				te.flash = 12;
+				te.attack_finished = time + 12;
+				spawn_excla(te, 12);
 			}
 
 		}
@@ -2561,9 +2562,9 @@ void () FlashExplode =
 				te.missionbrief = 5;
 				stuffcmd (te, "v_cshift 255 255 255 255\n");
 				stuffcmd (te, "v_idlescale 3\n");
-				te.flash = time + 4;
+				te.flash = time + 12;
 
-				spawn_excla(te, 4);
+				spawn_excla(te, 12);
 			}
 		}
 		te = te.chain;
@@ -2580,9 +2581,9 @@ void () FlashExplode =
 
 			if (dot > 0.3 && CanDamage (self, te))
 			{
-				te.flash = 4;
-				te.attack_finished = time + 4;
-				spawn_excla(te, 4);
+				te.flash = 12;
+				te.attack_finished = time + 12;
+				spawn_excla(te, 12);
 			}
 
 		}

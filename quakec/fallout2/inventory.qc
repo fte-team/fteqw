@@ -561,6 +561,12 @@ float(entity e, float iid) FindSuitableEmptySlot =
 	if (ToIID(e.islot16) == IID_NONE)
 		if (FitsInSlot(16, iid))
 			return 16;
+	if (ToIID(e.islot15) == IID_NONE)
+		if (FitsInSlot(23, iid))
+			return 23;
+	if (ToIID(e.islot16) == IID_NONE)
+		if (FitsInSlot(24, iid))
+			return 24;
 	}
 	else if (IsJunk(iid))
 	{
@@ -576,10 +582,6 @@ float(entity e, float iid) FindSuitableEmptySlot =
 				return 21;
 		if (ToIID(e.islot22) == IID_NONE)
 				return 22;
-		if (ToIID(e.islot23) == IID_NONE)
-				return 23;
-		if (ToIID(e.islot24) == IID_NONE)
-				return 24;
 	}
 	return 0;
 };
@@ -635,10 +637,6 @@ slot_t(float slot) SlotField =
 		return islot23;
 	if (slot == 24)
 		return islot24;
-	if (slot == 25)
-		return mixslot1;
-	if (slot == 26)
-		return mixslot2;
 
 	//bprint(PRINT_MEDIUM, "ERROR: Invalid slot number (", ftos(slot), ")\n");
 	return islot1;
@@ -1510,31 +1508,31 @@ float(float iid) GetBaseValue =
 
 
 	if (iid == IID_AM_NEEDLER)
-		return 1;
+		return 7;
 	if (iid == IID_AM_2MMEC)
-		return 1;
+		return 15;
 	if (iid == IID_AM_10MM)
-		return 1;
+		return 3;
 	if (iid == IID_AM_556MM)
-		return 1;
+		return 5;
 	if (iid == IID_AM_5MMHIGHVEL)
-		return 1;
+		return 4;
 	if (iid == IID_AM_12GAUGESHELLS)
-		return 1;
+		return 4;
 	if (iid == IID_AM_ENERGYCELL)
-		return 1;
+		return 12;
 	if (iid == IID_AM_762MM)
-		return 1;
+		return 8;
 	if (iid == IID_AM_44MAGNUM)
-		return 1;
+		return 6;
 	if (iid == IID_AM_WARSAW)
-		return 1;
+		return 5;
 	if (iid == IID_AM_45ACP)
-		return 1;
+		return 4;
 	if (iid == IID_AM_ROCKET)
-		return 1;
+		return 30;
 	if (iid == IID_AM_CASELESS)
-		return 1;
+		return 10;
 
 
 	if (iid == IID_GREN_STUN)
@@ -2332,10 +2330,7 @@ float(float slotno, float iid) FitsInSlot =
 		return IsJunk(iid);
 	if (slotno == 22)
 		return IsJunk(iid);
-	if (slotno == 23)
-		return IsJunk(iid);
-	if (slotno == 24)
-		return IsJunk(iid);
+
 
 	return true;
 };

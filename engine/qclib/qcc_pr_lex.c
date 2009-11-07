@@ -2419,7 +2419,7 @@ int QCC_PR_CheakCompConst(void)
 	if (!strncmp(pr_file_p, "__NULL__", 8))
 	{
 		static char retbuf[256];
-		sprintf(retbuf, "~0");
+		sprintf(retbuf, "0i");
 		pr_file_p = retbuf;
 		QCC_PR_Lex();	//translate the macro's value
 		pr_file_p = oldpr_file_p+8;

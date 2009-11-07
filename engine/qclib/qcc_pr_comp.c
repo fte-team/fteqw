@@ -9133,8 +9133,13 @@ void QCC_PR_ParseDefs (char *classname)
 					i = 0;
 					do
 					{
-						if (QCC_PR_CheckImmediate("0"))
+						if (pr_token_type == tt_immediate && (
+							(pr_immediate_type == type_integer && pr_immediate._int == 0) ||
+							(pr_immediate_type == type_float && pr_immediate._float == 0)))
+						{
+							QCC_PR_Lex();
 							G_FUNCTION(def->ofs+i) = 0;
+						}
 						else
 						{
 							name = QCC_PR_ParseName ();

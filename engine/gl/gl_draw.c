@@ -46,6 +46,8 @@ void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, int w
 	case TF_INVALID:
 		break;
 
+	case TF_RGBX32:
+		flags |= IF_NOALPHA;
 	case TF_RGBA32:
 		GL_Upload32(name, data, width, height, flags);
 		break;
@@ -85,6 +87,8 @@ texid_t GL_LoadTextureFmt (char *name, int width, int height, enum uploadfmt fmt
 	case TF_INVALID:
 		return r_nulltex;
 
+	case TF_RGBX32:
+		flags |= IF_NOALPHA;
 	case TF_RGBA32:
 		return GL_LoadTexture32(name, width, height, data, flags);
 
@@ -313,7 +317,6 @@ Draw_Init
 void GLDraw_ReInit (void)
 {
 	char	ver[40];
-	extern int	*lightmap_textures;
 
 	int maxtexsize;
 

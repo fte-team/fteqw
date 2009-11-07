@@ -3431,8 +3431,6 @@ void Q2BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 }
 
 #ifndef SERVERONLY
-#ifdef GLQUAKE
-void GLR_StainSurf (msurface_t *surf, float *parms);
 void GLR_Q2BSP_StainNode (mnode_t *node, float *parms)
 {
 	mplane_t	*splitplane;
@@ -3463,13 +3461,12 @@ void GLR_Q2BSP_StainNode (mnode_t *node, float *parms)
 	{
 		if (surf->flags&~(SURF_DONTWARP|SURF_PLANEBACK))
 			continue;
-		GLR_StainSurf(surf, parms);
+		Surf_StainSurf(surf, parms);
 	}
 
 	GLR_Q2BSP_StainNode (node->children[0], parms);
 	GLR_Q2BSP_StainNode (node->children[1], parms);
 }
-#endif
 #endif
 
 #endif

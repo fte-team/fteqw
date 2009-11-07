@@ -199,14 +199,15 @@ void GLSCR_UpdateScreen (void)
 		return;                         // not initialized yet
 	}
 
+
+	Shader_DoReload();
+
+	GL_BeginRendering ();
 #ifdef VM_UI
 	uimenu = UI_MenuState();
 #else
 	uimenu = 0;
 #endif
-
-	GL_BeginRendering ();
-	Shader_DoReload();
 
 #ifdef TEXTEDITOR
 	if (editormodal)

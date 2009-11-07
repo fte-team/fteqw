@@ -225,8 +225,6 @@ static void GLR_DrawSSector(unsigned int ssec)
 					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texy,
 					vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight,
 					vertexesl[v1].xpos, vertexesl[v1].ypos, sec2->floorheight, ld->flags & LINEDEF_LOWERUNPEGGED);
-
-				c_brush_polys++;
 			}
 
 			if (sec->ceilingheight > sec2->ceilingheight)
@@ -252,7 +250,6 @@ static void GLR_DrawSSector(unsigned int ssec)
 				glTexCoord2f(1, 1);
 				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec2->ceilingheight);
 				glEnd();*/
-				c_brush_polys++;
 			}
 
 			if (sidedefsm[sd].middletex)
@@ -295,7 +292,6 @@ static void GLR_DrawSSector(unsigned int ssec)
 				}
 				glEnd();
 				*/
-				c_brush_polys++;
 			}
 		}
 		else
@@ -334,7 +330,6 @@ static void GLR_DrawSSector(unsigned int ssec)
 			}
 			glEnd();
 #endif
-			c_brush_polys++;
 		}
 	}
 }
@@ -513,8 +508,6 @@ qboolean GLR_DoomWorld(void)
 				qglVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sectorm[i].ceilingheight);
 			}
 			qglEnd();
-
-			c_brush_polys += sectorm[i].numflattris;
 		}
 	}
 	qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);

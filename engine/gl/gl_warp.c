@@ -563,6 +563,22 @@ static void GL_SkyForceDepth(msurface_t *fa)
 	}
 }
 
+static void FTE_DEPRECATED GL_DrawAliasMesh (mesh_t *mesh, texid_t texnum)
+{
+	shader_t shader;
+	memset(&shader, 0, sizeof(shader));
+	shader.numpasses = 1;
+	shader.passes[0].numMergedPasses = 1;
+	shader.passes[0].anim_frames[0] = texnum;
+	shader.passes[0].rgbgen = RGB_GEN_IDENTITY;
+	shader.passes[0].alphagen = ALPHA_GEN_IDENTITY;
+	shader.passes[0].shaderbits |= SBITS_MISC_DEPTHWRITE;
+	shader.passes[0].blendmode = GL_MODULATE;
+	shader.passes[0].texgen = T_GEN_SINGLEMAP;
+
+	BE_DrawMeshChain(&shader, mesh, NULL, NULL);
+}
+
 static void GL_DrawSkySphere (msurface_t *fa)
 {
 	extern cvar_t gl_maxdist;
@@ -767,7 +783,7 @@ static void GL_DrawSkyGrid (texture_t *tex)
 	int i;
 	float time = cl.gametime+realtime-cl.gametimemark;
 
-	GL_DisableMultitexture();
+	PPL_RevertToKnownState();
 	GL_Bind (tex->shader->defaulttextures.base);
 
 	speedscale = time*8;

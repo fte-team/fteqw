@@ -176,6 +176,52 @@ extern	struct texture_s	*r_notexture_mip;
 
 extern	entity_t	r_worldentity;
 
+
+//gl_alias.c
+void R_DrawGAliasModel (entity_t *e, unsigned int rmode);
+
+//r_surf.c
+struct model_s;
+struct msurface_s;
+void Surf_DrawWorld(void);
+void Surf_StainSurf(struct msurface_s *surf, float *parms);
+void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius);
+void Surf_LessenStains(void);
+void Surf_WipeStains(void);
+void Surf_DeInit(void);
+void Surf_BuildLightmaps(void);
+void Surf_RenderDynamicLightmaps (struct msurface_s *fa, int shift);
+int Surf_LightmapShift (struct model_s *model);
+#ifndef LMBLOCK_WIDTH
+#define	LMBLOCK_WIDTH		128
+#define	LMBLOCK_HEIGHT		128
+typedef struct glRect_s {
+	unsigned char l,t,w,h;
+} glRect_t;
+typedef unsigned char stmap;
+struct mesh_s;
+typedef struct {
+	struct mesh_s		*meshchain;
+	qboolean	modified;
+	qboolean	deluxmodified;
+	glRect_t	rectchange;
+	glRect_t	deluxrectchange;
+	int allocated[LMBLOCK_WIDTH];
+	qbyte		lightmaps[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];
+	qbyte		deluxmaps[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//fixme: make seperate structure for easy disabling with less memory usage.
+	stmap		stainmaps[3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//rgb no a. added to lightmap for added (hopefully) speed.
+} lightmapinfo_t;
+extern lightmapinfo_t **lightmap;
+extern int numlightmaps;
+extern texid_t		*lightmap_textures;
+extern texid_t		*deluxmap_textures;
+extern int			lightmap_bytes;		// 1, 3(, or 4)
+#endif
+
+
+
+
+
 #if defined(GLQUAKE)
 void GLR_Init (void);
 void GLR_ReInit (void);
@@ -192,9 +238,6 @@ void GLR_NewMap (void);
 
 void GLR_PushDlights (void);
 void GLR_DrawWaterSurfaces (void);
-
-void GLR_AddStain(vec3_t org, float red, float green, float blue, float radius);
-void GLR_LessenStains(void);
 
 void MediaGL_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette);
 void MediaGL_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight);	//top down
@@ -241,65 +284,7 @@ enum uploadfmt
 };
 
 
-#if 0
-/*
-int R_LoadTexture(char *name, int width, int height, void *data, void *palette, int flags)
-{
-	if (palette)
-	{
-		if (flags & TF_BUMPMAP)
-			return 0;	//huh?
-
-		if (flags & TF_FULLBRIGHT)
-			return 0;	//huh?
-
-		if (flags & TF_32BIT)
-			return R_LoadTexture8Pal32(name, width, height, data, palette, flags&TF_MIPMAP, flags&TF_ALPHA);
-
-		return 0;
-	}
-
-	if (flags & TF_FULLBRIGHT)
-	{
-		if (flags & TF_BUMPMAP)
-			return 0;	//huh?
-
-		if (flags & TF_24BIT)
-			return 0;
-		if (flags & TF_32BIT)
-			return 0;
-
-		//8bit fullbrights
-		return R_LoadTextureFB(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);
-	}
-
-	if (flags & TF_BUMPMAP)
-	{
-		if (flags & TF_24BIT)
-			return 0;
-		if (flags & TF_32BIT)
-			return R_LoadTexture32(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);	//Warning: this is not correct
-		return R_LoadTexture8Bump(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_BUMPMAP | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-	}
-
-	if (flags & TF_32BIT)
-		return R_LoadTexture32(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);
-	if (data)
-		return R_LoadTexture8(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);
-
-	return R_FindTexture(name);
-}
-
-	#define R_LoadTexture8Pal32(skinname,width,height,data,palette,usemips,alpha) R_LoadTexture(name, width, height, data, palette, TF_32BIT | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-	#define R_LoadTexture8(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-	#define R_LoadTexture32(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_32BIT | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-	#define R_LoadTextureFB(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_FULLBRIGHT | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-	#define R_LoadTexture8Bump(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_BUMPMAP | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-
-	#define R_FindTexture(name) R_LoadTexture(name, 0, 0, NULL, NULL, 0)
-	#define R_LoadCompressed(name)  ((qrenderer == QR_OPENGL)?GL_LoadCompressed(name):0)
-*/
-#elif defined(GLQUAKE) && defined(D3DQUAKE)
+#if defined(GLQUAKE) && defined(D3DQUAKE)
 	#define R_LoadTexture8Pal32(skinname,width,height,data,palette,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture8Pal32(skinname, width, height, data, palette, usemips, alpha):GL_LoadTexture8Pal32(skinname, width, height, data, palette, usemips, alpha))
 	#define R_LoadTexture8Pal24(skinname,width,height,data,palette,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture8Pal24(skinname, width, height, data, palette, usemips, alpha):GL_LoadTexture8Pal24(skinname, width, height, data, palette, usemips, alpha))
 	
@@ -362,6 +347,8 @@ extern	texid_t balltexture;
 extern	texid_t beamtexture;
 extern	texid_t ptritexture;
 
+extern	float	r_projection_matrix[16];
+extern	float	r_view_matrix[16];
 void GL_ParallelPerspective(double xmin, double xmax, double ymax, double ymin, double znear, double zfar);
 void GL_InfinatePerspective(double fovx, double fovy, double zNear);
 
@@ -383,7 +370,6 @@ struct mleaf_s *RMod_PointInLeaf (struct model_s *model, float *p);
 
 void RMod_Think (void);
 void RMod_NowLoadExternal(void);
-void GLR_WipeStains(void);
 void GLR_LoadSkys (void);
 void R_BloomRegister(void);
 #endif
@@ -411,6 +397,7 @@ qbyte *R_MarkLeaves_Q3 (void);
 void R_SetFrustum (float projmat[16], float viewmat[16]);
 void R_SetRenderer(int wanted);
 void R_AnimateLight (void);
+struct texture_s *R_TextureAnimation (struct texture_s *base);
 void RQ_Init(void);
 
 void CLQ2_EntityEvent(entity_state_t *es);

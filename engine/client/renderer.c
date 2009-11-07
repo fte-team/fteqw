@@ -1445,9 +1445,9 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 			for (i = 0; i < MAX_MODELS; i++)
 			{
 				if (sv.strings.model_precache[i] && *sv.strings.model_precache[i] && (!strcmp(sv.strings.model_precache[i] + strlen(sv.strings.model_precache[i]) - 4, ".bsp") || i-1 < sv.world.worldmodel->numsubmodels))
-					sv.world.models[i] = Mod_FindName(sv.strings.model_precache[i]);
+					sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
 				else
-					sv.world.models[i] = NULL;
+					sv.models[i] = NULL;
 			}
 
 			ent = sv.world.edicts;
@@ -1473,9 +1473,9 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 			for (i = 0; i < MAX_MODELS; i++)
 			{
 				if (sv.strings.configstring[Q2CS_MODELS+i] && *sv.strings.configstring[Q2CS_MODELS+i] && (!strcmp(sv.strings.configstring[Q2CS_MODELS+i] + strlen(sv.strings.configstring[Q2CS_MODELS+i]) - 4, ".bsp") || i-1 < sv.world.worldmodel->numsubmodels))
-					sv.world.models[i] = Mod_FindName(sv.strings.configstring[Q2CS_MODELS+i]);
+					sv.models[i] = Mod_FindName(sv.strings.configstring[Q2CS_MODELS+i]);
 				else
-					sv.world.models[i] = NULL;
+					sv.models[i] = NULL;
 			}
 
 			q2ent = ge->edicts;

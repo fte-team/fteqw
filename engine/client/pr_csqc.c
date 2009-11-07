@@ -49,7 +49,6 @@ static csqctreadstate_t *csqcthreads;
 qboolean csqc_resortfrags;
 qboolean csqc_drawsbar;
 qboolean csqc_addcrosshair;
-static int num_csqc_edicts;
 static int csqc_fakereadbyte;
 world_t csqc_world;
 
@@ -128,6 +127,7 @@ typedef enum
 #define CSQCRF_USEAXIS			16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
 #define CSQCRF_NOSHADOW			32 //don't cast shadows upon other entities (can still be self shadowing, if the engine wishes, and not additive)
 #define CSQCRF_FRAMETIMESARESTARTTIMES 64 //EXT_CSQC_1: frame times should be read as (time-frametime).
+#define CSQCRF_NOAUTOADD		128 //EXT_CSQC_1: don't automatically add after predraw was called
 
 
 //If I do it like this, I'll never forget to register something...
@@ -182,7 +182,6 @@ typedef enum
 	globalfloat(player_localnum,		"player_localnum");		/*float		the entity number of the local player*/	\
 	globalfloat(intermission,			"intermission");		/*float		set when the client receives svc_intermission*/	\
 	globalvector(view_angles,			"view_angles");			/*float		set to the view angles at the start of each new frame (EXT_CSQC_1)*/ \
-	globalfloat(dpcompat_sbshowscores,	"sb_showscores");		/*deprecated		ask darkplaces people, its not part of the csqc standard */	\
 	\
 	globalvector(pmove_org,				"pmove_org");			/*deprecated. read/written by runplayerphysics*/ \
 	globalvector(pmove_vel,				"pmove_vel");			/*deprecated. read/written by runplayerphysics*/ \
@@ -365,14 +364,15 @@ typedef struct csqcedict_s
 	int areanum2;	//q2bsp
 	int headnode;	//q2bsp
 #endif
+#ifdef USEODE
+	entityode_t ode;
+#endif
 	qbyte solidtype;
 	/*the above is shared with ssqc*/
 
 	//add whatever you wish here
 	trailstate_t *trailstate;
 } csqcedict_t;
-
-static csqcedict_t *csqc_edicts;	//consider this 'world'
 
 
 static void CSQC_InitFields(void)
@@ -443,345 +443,6 @@ void skel_dodelete(void);
 
 
 static model_t *CSQC_GetModelForIndex(int index);
-static void CS_LinkEdict(csqcedict_t *ent, qboolean touchtriggers);
-
-areanode_t	cs_areanodes[AREA_NODES];
-int			cs_numareanodes;
-#define	CSEDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,csqcedict_t,area)
-
-areanode_t *CS_CreateAreaNode (int depth, vec3_t mins, vec3_t maxs)
-{
-	areanode_t	*anode;
-	vec3_t		size;
-	vec3_t		mins1, maxs1, mins2, maxs2;
-
-	anode = &cs_areanodes[cs_numareanodes];
-	cs_numareanodes++;
-
-	ClearLink (&anode->trigger_edicts);
-	ClearLink (&anode->solid_edicts);
-
-	if (depth == AREA_DEPTH)
-	{
-		anode->axis = -1;
-		anode->children[0] = anode->children[1] = NULL;
-		return anode;
-	}
-
-	VectorSubtract (maxs, mins, size);
-	if (size[0] > size[1])
-		anode->axis = 0;
-	else
-		anode->axis = 1;
-
-	anode->dist = 0.5 * (maxs[anode->axis] + mins[anode->axis]);
-	VectorCopy (mins, mins1);
-	VectorCopy (mins, mins2);
-	VectorCopy (maxs, maxs1);
-	VectorCopy (maxs, maxs2);
-
-	maxs1[anode->axis] = mins2[anode->axis] = anode->dist;
-
-	anode->children[0] = CS_CreateAreaNode (depth+1, mins2, maxs2);
-	anode->children[1] = CS_CreateAreaNode (depth+1, mins1, maxs1);
-
-	return anode;
-}
-
-void CS_ClearWorld (void)
-{
-	int i;
-
-	memset (cs_areanodes, 0, sizeof(cs_areanodes));
-	cs_numareanodes = 0;
-	if (cl.worldmodel)
-		CS_CreateAreaNode (0, cl.worldmodel->mins, cl.worldmodel->maxs);
-	else
-	{
-		vec3_t mins, maxs;
-		int i;
-		for (i = 0; i < 3; i++)
-		{
-			mins[i] = -4096;
-			maxs[i] = 4096;
-		}
-		CS_CreateAreaNode (0, mins, maxs);
-	}
-
-	for (i = 1; i < num_csqc_edicts; i++)
-		CS_LinkEdict((csqcedict_t*)EDICT_NUM(csqcprogs, i), false);
-}
-
-#define MAX_NODELINKS	256	//all this means is that any more than this will not touch.
-static csqcedict_t *csnodelinks[MAX_NODELINKS];
-void CS_TouchLinks ( csqcedict_t *ent, areanode_t *node )
-{	//Spike: rewritten this function to cope with killtargets used on a few maps.
-	link_t		*l, *next;
-	csqcedict_t		*touch;
-	int			old_self, old_other;
-
-	int linkcount = 0, ln;
-
-	//work out who they are first.
-	for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
-	{
-		if (linkcount == MAX_NODELINKS)
-			break;
-		next = l->next;
-		touch = CSEDICT_FROM_AREA(l);
-		if (touch == ent)
-			continue;
-
-		if (!touch->v->touch || touch->v->solid != SOLID_TRIGGER)
-			continue;
-
-		if (ent->v->absmin[0] > touch->v->absmax[0]
-		|| ent->v->absmin[1] > touch->v->absmax[1]
-		|| ent->v->absmin[2] > touch->v->absmax[2]
-		|| ent->v->absmax[0] < touch->v->absmin[0]
-		|| ent->v->absmax[1] < touch->v->absmin[1]
-		|| ent->v->absmax[2] < touch->v->absmin[2] )
-			continue;
-
-//		if (!((int)ent->xv->dimension_solid & (int)touch->xv->dimension_hit))
-//			continue;
-
-		csnodelinks[linkcount++] = touch;
-	}
-
-	old_self = *csqcg.self;
-	old_other = *csqcg.other;
-	for (ln = 0; ln < linkcount; ln++)
-	{
-		touch = csnodelinks[ln];
-
-		//make sure nothing moved it away
-		if (touch->isfree)
-			continue;
-		if (!touch->v->touch || touch->v->solid != SOLID_TRIGGER)
-			continue;
-		if (ent->v->absmin[0] > touch->v->absmax[0]
-		|| ent->v->absmin[1] > touch->v->absmax[1]
-		|| ent->v->absmin[2] > touch->v->absmax[2]
-		|| ent->v->absmax[0] < touch->v->absmin[0]
-		|| ent->v->absmax[1] < touch->v->absmin[1]
-		|| ent->v->absmax[2] < touch->v->absmin[2] )
-			continue;
-
-//		if (!((int)ent->xv->dimension_solid & (int)touch->xv->dimension_hit))	//didn't change did it?...
-//			continue;
-
-		*csqcg.self = EDICT_TO_PROG(csqcprogs, (edict_t*)touch);
-		*csqcg.other = EDICT_TO_PROG(csqcprogs, (edict_t*)ent);
-
-		PR_ExecuteProgram (csqcprogs, touch->v->touch);
-
-		if (ent->isfree)
-			break;
-	}
-	*csqcg.self = old_self;
-	*csqcg.other = old_other;
-
-
-// recurse down both sides
-	if (node->axis == -1 || ent->isfree)
-		return;
-
-	if ( ent->v->absmax[node->axis] > node->dist )
-		CS_TouchLinks ( ent, node->children[0] );
-	if ( ent->v->absmin[node->axis] < node->dist )
-		CS_TouchLinks ( ent, node->children[1] );
-}
-
-static void CS_UnlinkEdict (csqcedict_t *ent)
-{
-	if (!ent->area.prev)
-		return;		// not linked in anywhere
-	RemoveLink (&ent->area);
-	ent->area.prev = ent->area.next = NULL;
-}
-
-static void CS_LinkEdict(csqcedict_t *ent, qboolean touchtriggers)
-{
-	areanode_t *node;
-
-	if (ent->area.prev)
-		CS_UnlinkEdict (ent);	// unlink from old position
-
-	if (ent == csqc_edicts)
-		return;		// don't add the world
-
-	//FIXME: use some sort of area grid ?
-	VectorAdd(ent->v->origin, ent->v->mins, ent->v->absmin);
-	VectorAdd(ent->v->origin, ent->v->maxs, ent->v->absmax);
-
-	if ((int)ent->v->flags & FL_ITEM)
-	{
-		ent->v->absmin[0] -= 15;
-		ent->v->absmin[1] -= 15;
-		ent->v->absmax[0] += 15;
-		ent->v->absmax[1] += 15;
-	}
-	else
-	{	// because movement is clipped an epsilon away from an actual edge,
-		// we must fully check even when bounding boxes don't quite touch
-		ent->v->absmin[0] -= 1;
-		ent->v->absmin[1] -= 1;
-		ent->v->absmin[2] -= 1;
-		ent->v->absmax[0] += 1;
-		ent->v->absmax[1] += 1;
-		ent->v->absmax[2] += 1;
-	}
-
-	if (!ent->v->solid)
-		return;
-
-	// find the first node that the ent's box crosses
-	node = cs_areanodes;
-	while (1)
-	{
-		if (node->axis == -1)
-			break;
-		if (ent->v->absmin[node->axis] > node->dist)
-			node = node->children[0];
-		else if (ent->v->absmax[node->axis] < node->dist)
-			node = node->children[1];
-		else
-			break;		// crosses the node
-	}
-
-// link it in
-
-	if (ent->v->solid == SOLID_TRIGGER)
-		InsertLinkBefore(&ent->area, &node->trigger_edicts);
-	else
-		InsertLinkBefore(&ent->area, &node->solid_edicts);
-
-	// if touch_triggers, touch all entities at this node and decend for more
-	if (touchtriggers)
-		CS_TouchLinks(ent, cs_areanodes);
-}
-
-typedef struct {
-	int type;
-	trace_t trace;
-	vec3_t boxmins;	//mins/max of total move.
-	vec3_t boxmaxs;
-	vec3_t start;
-	vec3_t end;
-	vec3_t mins;	//mins/max of ent
-	vec3_t maxs;
-	csqcedict_t *passedict;
-} moveclip_t;
-#define	CSEDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,csqcedict_t,area)
-static void CS_ClipToLinks ( areanode_t *node, moveclip_t *clip )
-{
-	model_t		*model;
-	trace_t		tr;
-	link_t		*l, *next;
-	csqcedict_t		*touch;
-
-	//work out who they are first.
-	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
-	{
-		next = l->next;
-		touch = (csqcedict_t*)CSEDICT_FROM_AREA(l);
-		if (touch->v->solid == SOLID_NOT)
-			continue;
-		if (touch == clip->passedict)
-			continue;
-		if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
-			continue;
-
-		if (clip->type & MOVE_NOMONSTERS && touch->v->solid != SOLID_BSP)
-			continue;
-
-		if (clip->passedict)
-		{
-			// don't clip corpse against character
-			if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
-				continue;
-			// don't clip character against corpse
-			if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
-				continue;
-
-			if (!((int)clip->passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
-				continue;
-		}
-
-		if (clip->boxmins[0] > touch->v->absmax[0]
-		|| clip->boxmins[1] > touch->v->absmax[1]
-		|| clip->boxmins[2] > touch->v->absmax[2]
-		|| clip->boxmaxs[0] < touch->v->absmin[0]
-		|| clip->boxmaxs[1] < touch->v->absmin[1]
-		|| clip->boxmaxs[2] < touch->v->absmin[2] )
-			continue;
-
-		if (clip->passedict && clip->passedict->v->size[0] && !touch->v->size[0])
-			continue;	// points never interact
-
-	// might intersect, so do an exact clip
-		if (clip->trace.allsolid)
-			return;
-		if (clip->passedict)
-		{
-		 	if ((csqcedict_t*)PROG_TO_EDICT(csqcprogs, touch->v->owner) == clip->passedict)
-				continue;	// don't clip against own missiles
-			if ((csqcedict_t*)PROG_TO_EDICT(csqcprogs, clip->passedict->v->owner) == touch)
-				continue;	// don't clip against owner
-		}
-
-
-		if (!((int)clip->passedict->xv->dimension_solid & (int)touch->xv->dimension_hit))
-			continue;
-
-		model = CSQC_GetModelForIndex(touch->v->modelindex);
-		if (!model)
-			continue;
-		model->funcs.Trace(model, 0, 0, clip->start, clip->end, clip->mins, clip->maxs, &tr);
-		if (tr.fraction < clip->trace.fraction)
-		{
-			tr.ent = (void*)touch;
-			clip->trace = tr;
-		}
-	}
-}
-
-static trace_t CS_Move(vec3_t v1, vec3_t mins, vec3_t maxs, vec3_t v2, float nomonsters, csqcedict_t *passedict)
-{
-	moveclip_t clip;
-
-	if (cl.worldmodel)
-	{
-		cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, v1, v2, mins, maxs, &clip.trace);
-		clip.trace.ent = (void*)csqc_edicts;
-	}
-	else
-	{
-		memset(&clip.trace, 0, sizeof(clip.trace));
-		clip.trace.fraction = 1;
-		VectorCopy(v2, clip.trace.endpos);
-		clip.trace.ent = (void*)csqc_edicts;
-	}
-
-//why use trace.endpos instead?
-//so that if we hit a wall early, we don't have a box covering the whole world because of a shotgun trace.
-	clip.boxmins[0] = ((v1[0] < clip.trace.endpos[0])?v1[0]:clip.trace.endpos[0]) - mins[0]-1;
-	clip.boxmins[1] = ((v1[1] < clip.trace.endpos[1])?v1[1]:clip.trace.endpos[1]) - mins[1]-1;
-	clip.boxmins[2] = ((v1[2] < clip.trace.endpos[2])?v1[2]:clip.trace.endpos[2]) - mins[2]-1;
-	clip.boxmaxs[0] = ((v1[0] > clip.trace.endpos[0])?v1[0]:clip.trace.endpos[0]) + maxs[0]+1;
-	clip.boxmaxs[1] = ((v1[1] > clip.trace.endpos[1])?v1[1]:clip.trace.endpos[1]) + maxs[1]+1;
-	clip.boxmaxs[2] = ((v1[2] > clip.trace.endpos[2])?v1[2]:clip.trace.endpos[2]) + maxs[2]+1;
-
-	VectorCopy(mins, clip.mins);
-	VectorCopy(maxs, clip.maxs);
-	VectorCopy(v1, clip.start);
-	VectorCopy(v2, clip.end);
-	clip.passedict = passedict;
-
-	CS_ClipToLinks(cs_areanodes, &clip);
-	return clip.trace;
-}
 
 static void CS_CheckVelocity(csqcedict_t *ent)
 {
@@ -872,7 +533,7 @@ static void PF_cs_remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 
 	pe->DelinkTrailstate(&ed->trailstate);
-	CS_UnlinkEdict(ed);
+	World_UnlinkEdict((wedict_t*)ed);
 	ED_Free (prinst, (void*)ed);
 }
 
@@ -1114,26 +775,6 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (CopyCSQCEdictToEntity(in, &ent))
 		V_AddAxisEntity(&ent);
-
-/*
-	{
-		float a[4];
-		float q[4];
-		float r[4];
-		EularToQuaternian(ent.angles, a);
-
-		QuaternainToAngleMatrix(a, ent.axis);
-		ent.origin[0] += 16;
-		V_AddEntity(&ent);
-
-		quaternion_rotation(0, 0, 1, cl.time*360, r);
-		quaternion_multiply(a, r, q);
-		QuaternainToAngleMatrix(q, ent.axis);
-		ent.origin[0] -= 32;
-		ent.angles[1] = cl.time;
-		V_AddEntity(&ent);
-	}
-*/
 }
 
 static void PF_R_DynamicLight_Set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1234,7 +875,7 @@ static void PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_glob
 				*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
 				PR_ExecuteProgram(prinst, ent->xv->predraw);
 
-				if (ent->isfree)
+				if (ent->isfree || (int)ent->xv->renderflags & CSQCRF_NOAUTOADD)
 					continue;	//bummer...
 			}
 
@@ -1815,7 +1456,7 @@ static void PF_cs_SetOrigin(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	VectorCopy(org, ent->v->origin);
 
-	CS_LinkEdict(ent, false);
+	World_LinkEdict(&csqc_world, (wedict_t*)ent, false);
 }
 
 static void PF_cs_SetSize(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1827,7 +1468,7 @@ static void PF_cs_SetSize(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorCopy(mins, ent->v->mins);
 	VectorCopy(maxs, ent->v->maxs);
 
-	CS_LinkEdict(ent, false);
+	World_LinkEdict(&csqc_world, (wedict_t*)ent, false);
 }
 
 static void cs_settracevars(trace_t *tr)
@@ -1847,7 +1488,7 @@ static void cs_settracevars(trace_t *tr)
 	if (tr->ent)
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)tr->ent);
 	else
-		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)csqc_edicts);
+		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)csqc_world.edicts);
 }
 
 static void PF_cs_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1876,7 +1517,7 @@ static void PF_cs_traceline(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	savedhull = ent->xv->hull;
 	ent->xv->hull = 0;
-	trace = CS_Move (v1, mins, maxs, v2, nomonsters, ent);
+	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
 	cs_settracevars(&trace);
@@ -1898,7 +1539,7 @@ static void PF_cs_tracebox(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	savedhull = ent->xv->hull;
 	ent->xv->hull = 0;
-	trace = CS_Move (v1, mins, maxs, v2, nomonsters, ent);
+	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
 	*csqcg.trace_allsolid = trace.allsolid;
@@ -1912,7 +1553,7 @@ static void PF_cs_tracebox(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (trace.ent)
 		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)trace.ent);
 	else
-		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_edicts);
+		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_world.edicts);
 }
 
 static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
@@ -1944,7 +1585,7 @@ static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
 		velocity[2] -= gravity;
 		VectorScale (velocity, 0.05, move);
 		VectorAdd (origin, move, end);
-		trace = CS_Move (origin, tossent->v->mins, tossent->v->maxs, end, MOVE_NORMAL, tossent);
+		trace = World_Move (&csqc_world, origin, tossent->v->mins, tossent->v->maxs, end, MOVE_NORMAL, (wedict_t*)tossent);
 		VectorCopy (trace.endpos, origin);
 
 		CS_CheckVelocity (tossent);
@@ -1964,7 +1605,7 @@ static void PF_cs_tracetoss (progfuncs_t *prinst, struct globalvars_s *pr_global
 	csqcedict_t	*ignore;
 
 	ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
-	if (ent == csqc_edicts)
+	if (ent == (csqcedict_t*)csqc_world.edicts)
 		Con_DPrintf("tracetoss: can not use world entity\n");
 	ignore = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
 
@@ -1981,7 +1622,7 @@ static void PF_cs_tracetoss (progfuncs_t *prinst, struct globalvars_s *pr_global
 	if (trace.ent)
 		*csqcg.trace_ent = EDICT_TO_PROG(prinst, trace.ent);
 	else
-		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_edicts);
+		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_world.edicts);
 }
 
 static int CS_PointContents(vec3_t org)
@@ -2071,7 +1712,7 @@ static void csqc_setmodel(progfuncs_t *prinst, csqcedict_t *ent, int modelindex)
 		VectorClear(ent->v->maxs);
 	}
 
-	CS_LinkEdict(ent, false);
+	World_LinkEdict(&csqc_world, (wedict_t*)ent, false);
 }
 
 static void PF_cs_SetModel(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2568,7 +2209,7 @@ typedef struct {
 
 	//fixme: touch solids
 
-	CS_LinkEdict (ent, true);
+	World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
 }
 
 static void PF_cs_getentitytoken (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3540,14 +3181,14 @@ static void PF_cs_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	end[2] -= 512;
 
 	VectorCopy (ent->v->origin, start);
-	trace = CS_Move (start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, ent);
+	trace = World_Move (&csqc_world, start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
 
 	if (trace.fraction == 1 || trace.allsolid)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{
 		VectorCopy (trace.endpos, ent->v->origin);
-		CS_LinkEdict (ent, false);
+		World_LinkEdict(&csqc_world, (wedict_t*)ent, false);
 		ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
 		ent->v->groundentity = EDICT_TO_PROG(prinst, trace.ent);
 		G_FLOAT(OFS_RETURN) = 1;
@@ -3563,7 +3204,7 @@ static void PF_cs_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	memcpy(out->v, in->v, csqcentsize);
 
-	CS_LinkEdict (out, false);
+	World_LinkEdict (&csqc_world, (wedict_t*)out, false);
 }
 
 static void PF_cl_playingdemo (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4335,7 +3976,7 @@ realcheck:
 	start[0] = stop[0] = (mins[0] + maxs[0])*0.5;
 	start[1] = stop[1] = (mins[1] + maxs[1])*0.5;
 	stop[2] = start[2] - 2*movevars.stepheight;
-	trace = CS_Move (start, vec3_origin, vec3_origin, stop, true, ent);
+	trace = World_Move (&csqc_world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)ent);
 
 	if (trace.fraction == 1.0)
 		return false;
@@ -4350,7 +3991,7 @@ realcheck:
 
 			savedhull = ent->xv->hull;
 			ent->xv->hull = 0;
-			trace = CS_Move (start, vec3_origin, vec3_origin, stop, true, ent);
+			trace = World_Move (&csqc_world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)ent);
 			ent->xv->hull = savedhull;
 
 			if (trace.fraction != 1.0 && trace.endpos[2] > bottom)
@@ -4385,7 +4026,7 @@ static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qbo
 	vec3_t		oldorg, neworg, end;
 	trace_t		trace;
 	int			i;
-	csqcedict_t		*enemy = csqc_edicts;
+	csqcedict_t		*enemy = (csqcedict_t*)csqc_world.edicts;
 
 // try the move
 	VectorCopy (ent->v->origin, oldorg);
@@ -4401,7 +4042,7 @@ static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qbo
 			if (!noenemy)
 			{
 				enemy = (csqcedict_t*)PROG_TO_EDICT(csqcprogs, ent->v->enemy);
-				if (i == 0 && enemy != csqc_edicts)
+				if (i == 0 && enemy != (csqcedict_t*)csqc_world.edicts)
 				{
 					dz = ent->v->origin[2] - ((csqcedict_t*)PROG_TO_EDICT(csqcprogs, ent->v->enemy))->v->origin[2];
 					if (dz > 40)
@@ -4410,7 +4051,7 @@ static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qbo
 						neworg[2] += 8;
 				}
 			}
-			trace = CS_Move (ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, ent);
+			trace = World_Move (&csqc_world, ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, (wedict_t*)ent);
 			if (set_trace)
 				cs_settracevars(&trace);
 
@@ -4421,11 +4062,11 @@ static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qbo
 
 				VectorCopy (trace.endpos, ent->v->origin);
 				if (relink)
-					CS_LinkEdict (ent, true);
+					World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
 				return true;
 			}
 
-			if (noenemy || enemy == csqc_edicts)
+			if (noenemy || enemy == (csqcedict_t*)csqc_world.edicts)
 				break;
 		}
 
@@ -4437,7 +4078,7 @@ static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qbo
 	VectorCopy (neworg, end);
 	end[2] -= movevars.stepheight*2;
 
-	trace = CS_Move (neworg, ent->v->mins, ent->v->maxs, end, false, ent);
+	trace = World_Move (&csqc_world, neworg, ent->v->mins, ent->v->maxs, end, false, (wedict_t*)ent);
 	if (set_trace)
 		cs_settracevars(&trace);
 
@@ -4447,7 +4088,7 @@ static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qbo
 	if (trace.startsolid)
 	{
 		neworg[2] -= movevars.stepheight;
-		trace = CS_Move (neworg, ent->v->mins, ent->v->maxs, end, false, ent);
+		trace = World_Move (&csqc_world, neworg, ent->v->mins, ent->v->maxs, end, false, (wedict_t*)ent);
 		if (set_trace)
 			cs_settracevars(&trace);
 		if (trace.allsolid || trace.startsolid)
@@ -4460,7 +4101,7 @@ static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qbo
 		{
 			VectorAdd (ent->v->origin, move, ent->v->origin);
 			if (relink)
-				CS_LinkEdict (ent, true);
+				World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
 			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
 //	Con_Printf ("fall down\n");
 			return true;
@@ -4478,7 +4119,7 @@ static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qbo
 		{	// entity had floor mostly pulled out from underneath it
 			// and is trying to correct
 			if (relink)
-				CS_LinkEdict (ent, true);
+				World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
 			return true;
 		}
 		VectorCopy (oldorg, ent->v->origin);
@@ -4494,7 +4135,7 @@ static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qbo
 
 // the move is ok
 	if (relink)
-		CS_LinkEdict (ent, true);
+		World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
 	return true;
 }
 
@@ -5640,6 +5281,25 @@ pbool CSQC_EntFree (struct edict_s *e)
 	return true;
 }
 
+void CSQC_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
+{
+	int oself = *csqcg.self;
+	int oother = *csqcg.other;
+
+	*csqcg.self = EDICT_TO_PROG(w->progs, (edict_t*)s);
+	*csqcg.other = EDICT_TO_PROG(w->progs, (edict_t*)o);
+
+	PR_ExecuteProgram (w->progs, s->v->touch);
+
+	*csqcg.self = oself;
+	*csqcg.other = oother;
+}
+
+model_t *CSQC_World_ModelForIndex(world_t *w, int modelindex)
+{
+	return CSQC_GetModelForIndex(modelindex);
+}
+
 void CSQC_Shutdown(void)
 {
 	search_close_progs(csqcprogs, false);
@@ -5663,7 +5323,7 @@ void CSQC_Shutdown(void)
 	csqcmapentitydataloaded = false;
 
 	in_sensitivityscale = 1;
-	num_csqc_edicts = 0;
+	csqc_world.num_edicts = 0;
 
 	csqc_usinglistener = false;
 }
@@ -5842,8 +5502,8 @@ qboolean CSQC_Init (unsigned int checksum)
 
 	csqcprogparms.gametime = &csqctime;
 
-	csqcprogparms.sv_edicts = (struct edict_s **)&csqc_edicts;
-	csqcprogparms.sv_num_edicts = &num_csqc_edicts;
+	csqcprogparms.sv_edicts = (struct edict_s **)&csqc_world.edicts;
+	csqcprogparms.sv_num_edicts = &csqc_world.num_edicts;
 
 	csqcprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 
@@ -5854,8 +5514,10 @@ qboolean CSQC_Init (unsigned int checksum)
 		csqcmapentitydataloaded = true;
 		csqcprogs = InitProgs(&csqcprogparms);
 		PR_Configure(csqcprogs, -1, 16);
-
-		CS_ClearWorld();
+		csqc_world.worldmodel = cl.worldmodel;
+		csqc_world.Event_Touch = CSQC_Event_Touch;
+		csqc_world.GetCModel = CSQC_World_ModelForIndex;
+		World_ClearWorld(&csqc_world);
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
 
 		csqc_isdarkplaces = false;
@@ -6092,6 +5754,7 @@ qboolean CSQC_DrawView(void)
 	r_secondaryview = 0;
 
 	CL_CalcClientTime();
+	csqc_world.physicstime = cl.servertime;
 
 	DropPunchAngle (0);
 	if (cl.worldmodel)
@@ -6108,12 +5771,6 @@ qboolean CSQC_DrawView(void)
 
 	CSQC_ChangeLocalPlayer(0);
 
-/*	if (csqcg.dpcompat_sbshowscores)
-	{
-		extern qboolean sb_showscores;
-		*csqcg.dpcompat_sbshowscores = sb_showscores;
-	}
-*/
 	if (csqcg.cltime)
 		*csqcg.cltime = cl.time;
 	if (csqcg.svtime)

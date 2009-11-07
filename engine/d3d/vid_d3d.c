@@ -598,7 +598,6 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 //	pD3DX->lpVtbl->GetBufferSize((void*)pD3DX, &width, &height);
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
-	vid.pixeloffset = -0.5;
 	vid.recalc_refdef = true;
 
 	vid.width = vid.conwidth = width;
@@ -665,7 +664,7 @@ static void	(D3D9_R_NewMap)					(void)
 	int i;
 	r_worldentity.model = cl.worldmodel;
 	R_AnimateLight();
-//	D3D9_BuildLightmaps();
+	Surf_BuildLightmaps();
 
 	/*wipe any lingering particles*/
 	P_ClearParticles();
@@ -768,7 +767,7 @@ static void D3D9_Set2D (void)
 	D3DVIEWPORT9 vport;
 //	IDirect3DDevice9_EndScene(pD3DDev9);
 
-	Matrix4_OrthographicD3D(m, 0, vid.width, 0, vid.height, -100, 100);
+	Matrix4_OrthographicD3D(m, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), -100, 100);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)m);
 
 	Matrix4_Identity(m);
@@ -791,17 +790,11 @@ static void D3D9_Set2D (void)
 
 	vport.X = 0;
 	vport.Y = 0;
-	D3D9_GetBufferSize(&vport.Width, &vport.Height);
+	vport.Width = vid.pixelwidth;
+	vport.Height = vid.pixelheight;
 	vport.MinZ = 0;
 	vport.MaxZ = 1;
 	IDirect3DDevice9_SetViewport(pD3DDev9, &vport);
-}
-
-static void D3D9_GetBufferSize(int *width, int *height)
-{
-	*width = vid.pixelwidth;
-	*height = vid.pixelheight;//vid.height;
-//	IDirect3DDevice9_GetBufferSize((void*)pD3DX, width, height);
 }
 
 static int d3d9error(int i)
@@ -924,8 +917,6 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 
 		VID_ShiftPalette (NULL);
 	}
-
-	vid.numpages = 2;// + gl_triplebuffer.value;
 
 	if (scr_disabled_for_loading)
 	{
@@ -1127,11 +1118,78 @@ static void	(D3D9_R_Init)					(void)
 }
 static void	(D3D9_R_DeInit)					(void)
 {
+	Surf_DeInit();
+}
+
+
+
+static void D3D9_SetupViewPort(void)
+{
+	extern cvar_t gl_mindist;
+	float	screenaspect;
+	int		x, x2, y2, y, w, h;
+
+	float fov_x, fov_y;
+
+	D3DVIEWPORT9 vport;
+
+	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+	VectorCopy (r_refdef.vieworg, r_origin);
+
+	//
+	// set up viewpoint
+	//
+	x = r_refdef.vrect.x * vid.pixelwidth/(int)vid.width;
+	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * vid.pixelwidth/(int)vid.width;
+	y = (r_refdef.vrect.y) * vid.pixelheight/(int)vid.height;
+	y2 = ((int)(r_refdef.vrect.y + r_refdef.vrect.height)) * vid.pixelheight/(int)vid.height;
+
+	// fudge around because of frac screen scale
+	if (x > 0)
+		x--;
+	if (x2 < vid.pixelwidth)
+		x2++;
+	if (y < 0)
+		y--;
+	if (y2 < vid.pixelheight)
+		y2++;
+
+	w = x2 - x;
+	h = y2 - y;
+
+	vport.X = x;
+	vport.Y = y;
+	vport.Width = w;
+	vport.Height = h;
+	vport.MinZ = 0;
+	vport.MaxZ = 1;
+	IDirect3DDevice9_SetViewport(pD3DDev9, &vport);
+
+	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
+	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+
+	if (r_waterwarp.value<0 && r_viewleaf->contents <= Q1CONTENTS_WATER)
+	{
+		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+	}
+
+	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
+	GL_InfinatePerspective(fov_x, fov_y, gl_mindist.value);
+
+	Matrix4_ModelViewMatrixFromAxis(r_view_matrix, vpn, vright, vup, r_refdef.vieworg);
+
+
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_projection_matrix);
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_view_matrix);
 }
 
 static void	(D3D9_R_RenderView)				(void)
 {
-		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
+	D3D9_SetupViewPort();
+	d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
+	Surf_DrawWorld();
+	P_DrawParticles ();
 }
 
 void	(D3D9_R_NewMap)					(void);

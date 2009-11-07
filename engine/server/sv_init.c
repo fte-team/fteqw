@@ -62,7 +62,7 @@ int SV_ModelIndex (char *name)
 		{
 			Q_strncpyz(sv.strings.model_precache[i], name, sizeof(sv.strings.model_precache[i]));
 			if (!strcmp(name + strlen(name) - 4, ".bsp"))
-				sv.world.models[i] = Mod_FindName(sv.strings.model_precache[i]);
+				sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
 			Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", name);
 		}
 		else
@@ -108,6 +108,7 @@ void SV_FlushSignon (void)
 	sv.num_signon_buffers++;
 	sv.signon.cursize = 0;
 }
+#ifdef SERVER_DEMO_PLAYBACK
 void SV_FlushDemoSignon (void)
 {
 	if (sv.demosignon.cursize < sv.demosignon.maxsize - 512)
@@ -121,7 +122,7 @@ void SV_FlushDemoSignon (void)
 	sv.num_demosignon_buffers++;
 	sv.demosignon.cursize = 0;
 }
-
+#endif
 /*
 ================
 SV_CreateBaseline
@@ -935,7 +936,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 
 
-	sv.world.models[1] = sv.world.worldmodel;
+	sv.models[1] = sv.world.worldmodel;
 #ifdef VM_Q1
 	if (svs.gametype == GT_Q1QVM)
 	{
@@ -946,7 +947,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
 		{
 			sv.strings.model_precache[1+i] = localmodels[i];
-			sv.world.models[i+1] = Mod_ForName (localmodels[i], false);
+			sv.models[i+1] = Mod_ForName (localmodels[i], false);
 		}
 
 		//check player/eyes models for hacks
@@ -964,7 +965,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
 		{
 			sv.strings.model_precache[1+i] = PR_AddString(svprogfuncs, localmodels[i], 0);
-			sv.world.models[i+1] = Mod_ForName (localmodels[i], false);
+			sv.models[i+1] = Mod_ForName (localmodels[i], false);
 		}
 
 		//check player/eyes models for hacks
@@ -994,7 +995,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		for (i=1; i<sv.world.worldmodel->numsubmodels; i++)
 		{
 			strcpy(sv.strings.configstring[Q2CS_MODELS+1+i], localmodels[i]);
-			sv.world.models[i+1] = Mod_ForName (localmodels[i], false);
+			sv.models[i+1] = Mod_ForName (localmodels[i], false);
 		}
 	}
 #endif

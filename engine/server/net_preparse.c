@@ -1363,7 +1363,7 @@ void NPP_QWWriteEntity(int dest, short data)	//replacement write func (nq to qw)
 
 
 
-
+#ifdef SERVER_DEMO_PLAYBACK
 
 
 
@@ -2306,7 +2306,7 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 	NPP_AddData(&data, sizeof(qbyte));
 	NPP_MVDCheckFlush();
 }
-
+#endif //SERVER_DEMO_PLAYBACK
 
 void NPP_Flush(void)
 {

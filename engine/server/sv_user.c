@@ -283,11 +283,14 @@ void SV_New_f (void)
 		default:
 			playernum = NUM_FOR_EDICT(svprogfuncs, split->edict)-1;
 		}
+#ifdef SERVER_DEMO_PLAYBACK
 		if (sv.demostate)
 		{
 			playernum = (MAX_CLIENTS-1-splitnum)|128;
 		}
-		else if (split->spectator)
+		else
+#endif
+			if (split->spectator)
 			playernum |= 128;
 
 		if (sv.state == ss_cinematic)
@@ -310,9 +313,11 @@ void SV_New_f (void)
 		ClientReliableWrite_Byte (host_client, 128);
 
 	// send full levelname
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demostatevalid)
 		ClientReliableWrite_String (host_client, sv.demfullmapname);
 	else
+#endif
 		ClientReliableWrite_String (host_client, sv.mapname);
 
 	//
@@ -345,6 +350,7 @@ void SV_New_f (void)
 	ClientReliableWrite_Float(host_client, movevars.waterfriction);
 	ClientReliableWrite_Float(host_client, movevars.entgravity);
 
+#ifdef SERVER_DEMO_PLAYBACK
 	// send server info string
 	if (sv.demostatevalid)
 	{
@@ -353,6 +359,7 @@ void SV_New_f (void)
 		ClientReliableWrite_String (host_client, va("fullserverinfo \"%s\"\n", sv.demoinfo) );
 	}
 	else
+#endif
 	{
 		ClientReliableCheckBlock(host_client, 20 + strlen(svs.info));
 		ClientReliableWrite_Byte (host_client, svc_stufftext);
@@ -869,6 +876,7 @@ void SV_Soundlist_f (void)
 		maxclientsupportedsounds *= 2;
 #endif
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.democausesreconnect)	//read the list from somewhere else
 	{
 		for (i = 1+n;
@@ -881,6 +889,7 @@ void SV_Soundlist_f (void)
 			n = 0;
 	}
 	else
+#endif
 	{
 		for (i = 1+n;
 			i < maxclientsupportedsounds && *sv.strings.sound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);
@@ -999,6 +1008,7 @@ void SV_Modellist_f (void)
 		maxclientsupportedmodels *= 2;
 #endif
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.democausesreconnect)	//read the list from somewhere else
 	{
 		for (i = 1+n;
@@ -1010,6 +1020,7 @@ void SV_Modellist_f (void)
 			n = 0;
 	}
 	else
+#endif
 	{
 		for (i = 1+n;
 			i < maxclientsupportedmodels && sv.strings.model_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);	//make sure we don't send a 0 next...
@@ -1060,9 +1071,11 @@ void SV_PreSpawn_f (void)
 		return;
 	}
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.democausesreconnect)
 		bufs = sv.num_demosignon_buffers;
 	else
+#endif
 		bufs = sv.num_signon_buffers;
 	statics = sv.numextrastatics;
 	buf = atoi(Cmd_Argv(2));
@@ -1084,7 +1097,9 @@ void SV_PreSpawn_f (void)
 
 		if (sv_mapcheck.value && check != sv.world.worldmodel->checksum &&
 			check != COM_RemapMapChecksum(LittleLong(sv.world.worldmodel->checksum2)))
+#ifdef SERVER_DEMO_PLAYBACK
 		if (!sv.demofile || (sv.demofile && !sv.democausesreconnect))	//demo playing causes no check. If it's the return level, check anyway to avoid that loophole.
+#endif
 		{
 			SV_ClientTPrintf (host_client, PRINT_HIGH,
 				STL_MAPCHEAT,
@@ -1106,7 +1121,11 @@ void SV_PreSpawn_f (void)
 		return;
 	}
 
-	if (buf >= bufs && !sv.democausesreconnect)
+	if (buf >= bufs
+#ifdef SERVER_DEMO_PLAYBACK
+		&& !sv.democausesreconnect
+#endif
+		)
 	{
 		int i;
 		entity_state_t from;
@@ -1246,6 +1265,7 @@ void SV_PreSpawn_f (void)
 	}
 	else
 	{
+#ifdef SERVER_DEMO_PLAYBACK
 		if (sv.democausesreconnect)
 		{
 			if (host_client->netchan.message.cursize+sv.signon_buffer_size[buf]+30 < host_client->netchan.message.maxsize)
@@ -1257,6 +1277,7 @@ void SV_PreSpawn_f (void)
 			}
 		}
 		else
+#endif
 		{
 			if (host_client->netchan.message.cursize+sv.signon_buffer_size[buf]+30 < host_client->netchan.message.maxsize)
 			{
@@ -1320,6 +1341,7 @@ void SV_Spawn_f (void)
 // send all current light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
+#ifdef SERVER_DEMO_PLAYBACK
 		if (sv.democausesreconnect)
 		{
 			if (i >= MAX_STANDARDLIGHTSTYLES)
@@ -1330,6 +1352,7 @@ void SV_Spawn_f (void)
 			ClientReliableWrite_String (host_client, sv.demolightstyles[i]);
 		}
 		else
+#endif
 		{
 			if (i >= MAX_STANDARDLIGHTSTYLES)
 				if (!sv.strings.lightstyles[i])
@@ -2753,6 +2776,7 @@ void SV_Pings_f (void)
 	client_t *client;
 	int		j;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 	{
 		for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
@@ -2768,7 +2792,7 @@ void SV_Pings_f (void)
 		}
 		return;
 	}
-
+#endif
 	if (ISNQCLIENT(host_client))
 	{
 		char *s;
@@ -2946,7 +2970,11 @@ void SV_PTrack_f (void)
 	int		i;
 	edict_t *ent, *tent;
 
-	if (!host_client->spectator && !sv.demofile)
+	if (!host_client->spectator
+#ifdef SERVER_DEMO_PLAYBACK
+		&& !sv.demofile
+#endif
+		)
 		return;
 
 	if (Cmd_Argc() != 2)
@@ -2960,11 +2988,13 @@ void SV_PTrack_f (void)
 	}
 
 	i = atoi(Cmd_Argv(1));
+#ifdef SERVER_DEMO_PLAYBACK
 	if (*sv.recordedplayer[i].userinfo)
 	{
 		host_client->spec_track = i+1;
 		return;
 	}
+#endif
 
 	if (i < 0 || i >= MAX_CLIENTS || svs.clients[i].state != cs_spawned ||
 		svs.clients[i].spectator)
@@ -4683,7 +4713,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			{
 				if(progstype != PROG_H2)
 					pe->angles[0]*=-1;	//quake is wierd. I guess someone fixed it hexen2... or my code is buggy or something...
-				pe->model = sv.world.models[(int)(check->v->modelindex)];
+				pe->model = sv.models[(int)(check->v->modelindex)];
 				VectorCopy (check->v->angles, pe->angles);
 			}
 			else
@@ -4715,7 +4745,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			if (!((int)player->xv->dimension_hit & (int)check->xv->dimension_solid))
 				continue;
 
-			model = sv.world.models[(int)check->v->modelindex];
+			model = sv.models[(int)check->v->modelindex];
 			if (model)
 	// test the point
 			if (model->funcs.PointContents (model, player->v->origin) == FTECONTENTS_SOLID)
@@ -4777,7 +4807,7 @@ void AddAllEntsToPmove (void)
 			if (check->v->solid == SOLID_BSP)
 			{
 				VectorCopy (check->v->angles, pe->angles);
-				pe->model = sv.world.models[(int)(check->v->modelindex)];
+				pe->model = sv.models[(int)(check->v->modelindex)];
 			}
 			else
 			{
@@ -4795,12 +4825,14 @@ void AddAllEntsToPmove (void)
 
 int SV_PMTypeForClient (client_t *cl)
 {
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demostatevalid)
 	{	//force noclip... This does create problems for closing demos.
 		if (cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
 			return PM_SPECTATOR;
 		return PM_OLD_SPECTATOR;
 	}
+#endif
 
 	if (sv_brokenmovetypes.value)	//this is to mimic standard qw servers, which don't support movetypes other than MOVETYPE_FLY.
 	{								//it prevents bugs from being visible in unsuspecting mods.
@@ -4926,6 +4958,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	if (host_frametime > 0.1)
 		host_frametime = 0.1;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demostatevalid)
 	{	//spectators watching MVDs do not affect the running progs.
 		player_mins[0] = -16;
@@ -4977,6 +5010,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 
 		return;
 	}
+#endif
 
 #ifdef SVCHAT
 	if (SV_ChatMove(ucmd->impulse))
@@ -5756,11 +5790,14 @@ haveannothergo:
 			o[1] = MSG_ReadCoord();
 			o[2] = MSG_ReadCoord();
 			// only allowed by spectators
+#ifdef SERVER_DEMO_PLAYBACK
 			if (sv.mvdplayback)
 			{
 				VectorCopy(o, host_client->specorigin);
 			}
-			else if (host_client->spectator)
+			else
+#endif
+			if (host_client->spectator)
 			{
 				VectorCopy(o, sv_player->v->origin);
 				World_LinkEdict(&sv.world, (wedict_t*)sv_player, false);

@@ -801,8 +801,8 @@ rendererinfo_t openglrendererinfo = {
 	GLR_PushDlights,
 
 
-	GLR_AddStain,
-	GLR_LessenStains,
+	Surf_AddStain,
+	Surf_LessenStains,
 
 	MediaGL_ShowFrameBGR_24_Flip,
 	MediaGL_ShowFrameRGBA_32,

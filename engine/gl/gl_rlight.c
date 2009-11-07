@@ -183,6 +183,9 @@ void GLR_RenderDlights (void)
 
 //	r_dlightframecount = r_framecount + 1;	// because the count hasn't
 											//  advanced yet for this frame
+
+	PPL_RevertToKnownState();
+
 	qglDepthMask (0);
 	qglDisable (GL_TEXTURE_2D);
 	qglShadeModel (GL_SMOOTH);

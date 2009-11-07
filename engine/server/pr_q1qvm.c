@@ -1316,6 +1316,9 @@ qboolean PR_LoadQ1QVM(void)
 	q1qvmprogfuncs.StringToProgs = Q1QVMPF_StringToProgs;
 	q1qvmprogfuncs.StringToNative = Q1QVMPF_StringToNative;
 
+	sv.world.Event_Touch = SVPR_Event_Touch;
+	sv.world.GetCModel = SVPR_GetCModel;
+
 	sv.world.num_edicts = 0;	//we're not ready for most of the builtins yet
 	sv.world.max_edicts = 0;	//so clear these out, just in case
 	sv.world.edict_size = 0;	//if we get a division by zero, then at least its a safe crash

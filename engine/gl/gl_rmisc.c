@@ -571,7 +571,7 @@ void GLR_DeInit (void)
 
 	GLDraw_DeInit();
 
-	GLSurf_DeInit();
+	Surf_DeInit();
 }
 
 void GLR_Init (void)
@@ -1059,7 +1059,7 @@ void GLR_NewMap (void)
 	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 		cl.worldmodel->leafs[i].efrags = NULL;
 
-	GLSurf_DeInit();
+	Surf_DeInit();
 
 	r_viewleaf = NULL;
 	r_viewcluster = -1;
@@ -1068,9 +1068,9 @@ void GLR_NewMap (void)
 TRACE(("dbg: GLR_NewMap: clear particles\n"));
 	P_ClearParticles ();
 TRACE(("dbg: GLR_NewMap: wiping them stains (getting the cloth out)\n"));
-	GLR_WipeStains();
+	Surf_WipeStains();
 TRACE(("dbg: GLR_NewMap: building lightmaps\n"));
-	GL_BuildLightmaps ();
+	Surf_BuildLightmaps ();
 TRACE(("dbg: GLR_NewMap: figuring out skys and mirrors\n"));
 	// identify sky texture
 	if (cl.worldmodel->fromgame != fg_quake2 && cl.worldmodel->fromgame != fg_quake3)

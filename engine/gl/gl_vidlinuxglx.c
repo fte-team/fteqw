@@ -772,7 +772,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 
-	vid.pixeloffset = 0;
 	vid.colormap = host_colormap;
 
 // interpret command-line params

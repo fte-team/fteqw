@@ -1922,7 +1922,7 @@ void PF_bitshift(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	shift = G_FLOAT(OFS_PARM1);
 
 	if (shift < 0)
-		bitmask >>= shift;
+		bitmask >>= -shift;
 	else
 		bitmask <<= shift;
 
@@ -2441,7 +2441,7 @@ lh_extension_t QSG_Extensions[] = {
 	{NULL},
 
 	//{"EXT_CSQC"},	//this is the base csqc extension. I'm not sure what needs to be separate and what does not.
-	//{"EXT_CSQC_DELTAS"},//this is a separate extension because a: its slower thus optional. b: the feature may be banned in a league due to cheat protection.
+	//{"EXT_CSQC_DELTAS"},//this is a separate extension because the feature may be banned in a league due to cheat protection.
 
 //the rest are generic extensions
 	{"??TOMAZ_STRINGS",					6, NULL, {"tq_zone", "tq_unzone",  "tq_strcat", "tq_substring", "tq_stof", "tq_stov"}},
@@ -2573,7 +2573,9 @@ lh_extension_t QSG_Extensions[] = {
 #endif
 	{"FTE_MULTIPROGS"},	//multiprogs functions are available.
 	{"FTE_MULTITHREADED",				3,	NULL, {"sleep", "fork", "abort"}},
+#ifdef SERVER_DEMO_PLAYBACK
 	{"FTE_MVD_PLAYBACK"},
+#endif
 #ifdef SVCHAT
 	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif

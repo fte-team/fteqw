@@ -2627,7 +2627,6 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 */
 
 //combination of R_AddDynamicLights and R_MarkLights
-void GLR_StainSurf (msurface_t *surf, float *parms);
 static void Q1BSP_StainNode (mnode_t *node, float *parms)
 {
 #ifdef GLQUAKE
@@ -2659,7 +2658,7 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 	{
 		if (surf->flags&~(SURF_DONTWARP|SURF_PLANEBACK))
 			continue;
-		GLR_StainSurf(surf, parms);
+		Surf_StainSurf(surf, parms);
 	}
 
 	Q1BSP_StainNode (node->children[0], parms);

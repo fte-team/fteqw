@@ -3,6 +3,10 @@
 #ifndef SERVERONLY
 #include "shader.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 void Font_Init(void);
 void Font_Shutdown(void);
 struct font_s *Font_LoadFont(int height, char *fontfilename);
@@ -1033,8 +1037,8 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 
 	if (c->texplane >= DEFAULTPLANE)
 	{
-		sx = ((px+vid.pixeloffset+c->left)*(int)vid.width) / (float)vid.pixelwidth;
-		sy = ((py+vid.pixeloffset+c->top)*(int)vid.height) / (float)vid.pixelheight;
+		sx = ((px+c->left)*(int)vid.width) / (float)vid.pixelwidth;
+		sy = ((py+c->top)*(int)vid.height) / (float)vid.pixelheight;
 		sw = ((curfont->charheight)*vid.width) / (float)vid.pixelwidth;
 		sh = ((curfont->charheight)*vid.height) / (float)vid.pixelheight;
 
@@ -1045,8 +1049,8 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	}
 	else
 	{
-		sx = ((px-vid.pixeloffset+c->left)*(int)vid.width) / (float)vid.pixelwidth;
-		sy = ((py-vid.pixeloffset+c->top)*(int)vid.height) / (float)vid.pixelheight;
+		sx = ((px+c->left)*(int)vid.width) / (float)vid.pixelwidth;
+		sy = ((py+c->top)*(int)vid.height) / (float)vid.pixelheight;
 		sw = ((c->bmw+1)*vid.width) / (float)vid.pixelwidth;
 		sh = ((c->bmh+1)*vid.height) / (float)vid.pixelheight;
 		v = Font_BeginChar(fontplanes.texnum[c->texplane]);

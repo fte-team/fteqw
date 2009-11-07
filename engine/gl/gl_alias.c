@@ -17,7 +17,7 @@
 #ifdef GLQUAKE
 	#include "glquake.h"
 #endif
-#if defined(GLQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 
 #ifdef _WIN32
 	#include <malloc.h>
@@ -96,6 +96,7 @@ static hashtable_t skincolourmapped;
 extern avec3_t shadevector, shadelight, ambientlight; 
 
 //changes vertex lighting values
+#if 0
 static void R_GAliasApplyLighting(mesh_t *mesh, vec3_t org, vec3_t angles, float *colormod)
 {
 	int l, v;
@@ -192,6 +193,7 @@ static void R_GAliasApplyLighting(mesh_t *mesh, vec3_t org, vec3_t angles, float
 		}
 	}
 }
+#endif
 
 void GL_GAliasFlushSkinCache(void)
 {
@@ -343,7 +345,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 						{
 							inwidth = e->scoreboard->skin->width;
 							inheight = e->scoreboard->skin->height;
-							cm->texnum.base = GL_LoadTexture32(e->scoreboard->skin->name, inwidth, inheight, (unsigned int*)original, IF_NOALPHA|IF_NOGAMMA);
+							cm->texnum.base = R_LoadTexture32(e->scoreboard->skin->name, inwidth, inheight, (unsigned int*)original, IF_NOALPHA|IF_NOGAMMA);
 							return &cm->texnum;
 						}
 					}
@@ -354,7 +356,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 						{
 							inwidth = e->scoreboard->skin->width;
 							inheight = e->scoreboard->skin->height;
-							cm->texnum.base = GL_LoadTexture(e->scoreboard->skin->name, inwidth, inheight, original, IF_NOALPHA|IF_NOGAMMA, 1);
+							cm->texnum.base = R_LoadTexture8(e->scoreboard->skin->name, inwidth, inheight, original, IF_NOALPHA|IF_NOGAMMA, 1);
 							return &cm->texnum;
 						}
 					}
@@ -514,13 +516,8 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 						frac += fracstep;
 					}
 				}
-				texnums->base = GL_AllocNewTexture();
-				GL_Bind(texnums->base);
-				qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
-				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
+				texnums->base = R_AllocNewTexture(scaled_width, scaled_height);
+				R_Upload(texnums->base, "", TF_RGBX32, pixels, scaled_width, scaled_height, IF_NOMIPMAP);
 
 				//now do the fullbrights.
 				out = pixels;
@@ -536,12 +533,8 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 						frac += fracstep;
 					}
 				}
-				texnums->fullbright = GL_AllocNewTexture();
-				GL_Bind(texnums->fullbright);
-				qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
-				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				texnums->fullbright = R_AllocNewTexture(scaled_width, scaled_height);
+				R_Upload(texnums->fullbright, "", TF_RGBA32, pixels, scaled_width, scaled_height, IF_NOMIPMAP);
 			}
 			else
 			{
@@ -584,7 +577,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 	return texnums;
 }
 
-
+#if defined(RTLIGHTS) && defined(GLQUAKE)
 static int numFacing;
 static qbyte *triangleFacing;
 static void R_CalcFacing(mesh_t *mesh, vec3_t lightpos)
@@ -703,22 +696,7 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 	}
 	qglEnd();
 }
-
-void GL_DrawAliasMesh (mesh_t *mesh, texid_t texnum)
-{
-	shader_t shader;
-	memset(&shader, 0, sizeof(shader));
-	shader.numpasses = 1;
-	shader.passes[0].numMergedPasses = 1;
-	shader.passes[0].anim_frames[0] = texnum;
-	shader.passes[0].rgbgen = RGB_GEN_IDENTITY;
-	shader.passes[0].alphagen = ALPHA_GEN_IDENTITY;
-	shader.passes[0].shaderbits |= SBITS_MISC_DEPTHWRITE;
-	shader.passes[0].blendmode = GL_MODULATE;
-	shader.passes[0].texgen = T_GEN_SINGLEMAP;
-
-	BE_DrawMeshChain(&shader, mesh, NULL, NULL);
-}
+#endif
 
 //true if no shading is to be used.
 static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel, unsigned int rmode)
@@ -912,6 +890,7 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 
 	vec3_t saveorg;
 	int surfnum;
+	int bef;
 
 	float	tmatrix[3][4];
 
@@ -919,8 +898,6 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 	qboolean nolightdir;
 
 	shader_t *shader;
-
-	currententity = e;
 
 //	if (e->flags & Q2RF_VIEWERMODEL && e->keynum == cl.playernum[r_refdef.currentplayernum]+1)
 //		return;
@@ -969,15 +946,14 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 	if (e->flags & Q2RF_DEPTHHACK)
 		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
 
-	BE_SelectMode(rmode, BEF_FORCEDEPTHTEST);
-
+	bef = BEF_FORCEDEPTHTEST;
 	if (e->flags & Q2RF_ADDITIVE)
 	{
-		BE_SelectMode(rmode, BEF_FORCEDEPTHTEST|BEF_FORCEADDITIVE);
+		bef |= BEF_FORCETRANSPARENT;
 	}
 	else if (e->drawflags & DRF_TRANSLUCENT)
 	{
-		BE_SelectMode(rmode, BEF_FORCEDEPTHTEST|BEF_FORCETRANSPARENT);
+		bef |= BEF_FORCETRANSPARENT;
 		e->shaderRGBAf[3] = r_wateralpha.value;
 	}
 	else if ((e->model->flags & EFH2_SPECIAL_TRANS))	//hexen2 flags.
@@ -995,9 +971,9 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 		//(alpha test)
 	}
 	else if (e->shaderRGBAf[3] < 1)
-	{
-		BE_SelectMode(rmode, BEF_FORCEDEPTHTEST|BEF_FORCETRANSPARENT);
-	}
+		bef |= BEF_FORCETRANSPARENT;
+	BE_SelectMode(rmode, bef);
+
 
 	qglPushMatrix();
 	R_RotateForEntity(e);
@@ -1129,8 +1105,6 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 	{
 		needrecolour = Alias_GAliasBuildMesh(&mesh, inf, e, e->shaderRGBAf[3], nolightdir);
 
-		c_alias_polys += mesh.numindexes/3;
-
 		shader = currententity->forcedshader;
 		skin = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
 
@@ -1182,6 +1156,7 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 	BE_SelectMode(rmode, 0);
 }
 
+#if defined(RTLIGHTS) && defined(GLQUAKE)
 //returns result in the form of the result vector
 void RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lightpoint, vec3_t result)
 {
@@ -1416,7 +1391,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 
 	qglPopMatrix();
 }
-
+#endif
 
 
 

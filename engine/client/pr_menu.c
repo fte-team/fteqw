@@ -358,7 +358,7 @@ void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #pragma message("fixme: this doesn't scale or colour chars")
 	Font_BeginString(font_conchar, pos[0], pos[1], &x, &y);
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
-	Font_DrawChar(x, y, 0xe000|(chara&0xff));
+	Font_DrawChar(x, y, CON_WHITEMASK | 0xe000|(chara&0xff));
 	Font_ForceColour(1, 1, 1, 1);
 	Font_EndString(font_conchar);
 
@@ -460,6 +460,8 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	mpic_t *p;
 
 	p = Draw_SafeCachePic(picname);
+	if (!p)
+		p = Draw_SafePicFromWad(picname);
 
 	PF_SelectDPDrawFlag(flag);
 	Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);

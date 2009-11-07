@@ -61,7 +61,6 @@ qboolean	mirror;
 mplane_t	*mirror_plane;
 msurface_t	*r_mirror_chain;
 qboolean	r_inmirror;	//or out-of-body
-extern msurface_t  *r_alpha_surfaces;
 
 //
 // view origin
@@ -884,9 +883,6 @@ void R_PolyBlend (void)
 
 	PPL_RevertToKnownState();
 
-
-	GL_DisableMultitexture();
-
 	qglDisable (GL_ALPHA_TEST);
 	qglEnable (GL_BLEND);
 	qglDisable (GL_DEPTH_TEST);
@@ -960,7 +956,7 @@ void GLR_BrightenScreen (void)
 R_SetupFrame
 ===============
 */
-void GLR_SetupFrame (void)
+static void GLR_SetupFrame (void)
 {
 // don't allow cheats in multiplayer
 	r_wateralphaval = r_wateralpha.value;
@@ -1080,6 +1076,10 @@ void R_SetupGL (void)
 	int		x, x2, y2, y, w, h;
 
 	float fov_x, fov_y;
+
+	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+	VectorCopy (r_refdef.vieworg, r_origin);
+
 	//
 	// set up viewpoint
 	//
@@ -1192,8 +1192,6 @@ void R_RenderScene (void)
 		Sh_GenShadowMaps();
 #endif
 
-	GLR_SetupFrame ();
-
 	TRACE(("dbg: calling R_SetupGL\n"));
 	R_SetupGL ();
 
@@ -1207,7 +1205,7 @@ void R_RenderScene (void)
 #endif
 		{
 			TRACE(("dbg: calling R_DrawWorld\n"));
-			R_DrawWorld ();		// adds static entities to the list
+			Surf_DrawWorld ();		// adds static entities to the list
 		}
 	}
 
@@ -1217,9 +1215,6 @@ void R_RenderScene (void)
 	GLR_DrawEntitiesOnList ();
 
 //	R_DrawDecals();
-
-	TRACE(("dbg: calling GL_DisableMultitexture\n"));
-	GL_DisableMultitexture();
 
 	TRACE(("dbg: calling R_RenderDlights\n"));
 	GLR_RenderDlights ();
@@ -1722,6 +1717,7 @@ static void R_RenderWaterWarp(void)
 
 	// copy the scene to texture
 	GL_Bind(scenepp_texture);
+	qglEnable(GL_TEXTURE_2D);
 	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1755,7 +1751,8 @@ static void R_RenderWaterWarp(void)
 		xmax = xmin + 1;
 		ymax = ymin + 1/vt*vs;
 
-		GL_EnableMultitexture();
+		GL_SelectTexture(1);
+		qglEnable(GL_TEXTURE_2D);
 		GL_Bind (scenepp_texture_warp);
 
 		GL_SelectTexture(2);
@@ -1788,8 +1785,8 @@ static void R_RenderWaterWarp(void)
 
 		qglDisable(GL_TEXTURE_2D);
 		GL_SelectTexture(1);
-
-		GL_DisableMultitexture();
+		qglDisable(GL_TEXTURE_2D);
+		GL_SelectTexture(0);
 	}
 
 	// Disable shaders
@@ -1933,8 +1930,6 @@ qboolean R_RenderScene_Fish(void)
 		R_Clear ();
 
 	//	GLR_SetupFog ();
-
-		r_alpha_surfaces = NULL;
 
 		GL_SetShaderState2D(false);
 
@@ -2083,8 +2078,6 @@ void GLR_RenderView (void)
 		R_Clear ();
 
 	//	GLR_SetupFog ();
-
-		r_alpha_surfaces = NULL;
 
 		// render normal view
 		R_RenderScene ();

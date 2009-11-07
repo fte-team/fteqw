@@ -393,20 +393,32 @@ void BE_SelectMode(backendmode_t mode, unsigned int flags);
 //Draws an entire mesh chain from a VBO. vbo can be null, in which case the chain may be drawn without batching.
 void BE_DrawMeshChain(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
 
-//submits the world and ents... used only by gl_shadows.c
-void BE_SubmitMeshes (void);
+//Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required
+void BE_DrawWorld (qbyte *vis);
 
+//called at init, force the display to the right defaults etc
 void BE_Init(void);
 
+//Generates an optimised VBO, one for each texture on the map
+void BE_GenBrushModelVBO(model_t *mod);
+//Destroys the given vbo
 void BE_ClearVBO(vbo_t *vbo);
+//Uploads all modified lightmaps
+void BE_UploadAllLightmaps(void);
 
 #ifdef RTLIGHTS
+//submits the world and ents... used only by gl_shadows.c
+void BE_SubmitMeshes (void);
+//sets up gl for depth-only FIXME
 void BE_SetupForShadowMap(void);
+//Generates shadow maps (called before anything is drawn in case it needs to clobber the normal view)
 void Sh_GenShadowMaps (void);
+//Draws lights, called from the backend
 void Sh_DrawLights(qbyte *vis);
+//Draws the depth of ents in the world near the current light
 void BE_BaseEntShadowDepth(void);
+//Sets the given light+colour to be the current one that everything is to be lit/culled by.
 void BE_SelectDLight(dlight_t *dl, vec3_t colour);
-
 //Returns true if the mesh is not lit by the current light
 qboolean BE_LightCullModel(vec3_t org, model_t *model);
 #endif

@@ -30,8 +30,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef USEODE
 
-#pragma message("fixme: fix this up before adding to csqc")
-//#define pr_global_struct dgsdfg sdfg sdfg sd gsgd
 #pragma message("fixme: pitch values are probably inverted")
 
 //============================================================================
@@ -1689,25 +1687,13 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	movetype = (int)ed->v->movetype;
 	scale = ed->xv->scale;
 	modelindex = 0;
+	model = NULL;
 
 	switch(solid)
 	{
 	case SOLID_BSP:
 		modelindex = (int)ed->v->modelindex;
-		if (modelindex >= 1 && modelindex < MAX_MODELS)
-		{
-			model = world->models[modelindex];
-		}
-#pragma message("no csqc models")
-	/*	else if (world == &cl.world && modelindex <= -1 && modelindex > MAX_MODELS)
-		{
-			model = cl.model_precache[modelindex];
-		}*/
-		else
-		{
-			model = NULL;
-			modelindex = 0;
-		}
+		model = world->GetCModel(world, modelindex);
 		if (model)
 		{
 			VectorScale(model->mins, scale, entmins);
@@ -1726,13 +1712,11 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	case SOLID_PHYSICS_BOX:
 	case SOLID_PHYSICS_SPHERE:
 	case SOLID_PHYSICS_CAPSULE:
-		model = NULL;
 		VectorCopy(ed->v->mins, entmins);
 		VectorCopy(ed->v->maxs, entmaxs);
 		massval = ed->xv->mass;
 		break;
 	default:
-		model = NULL;
 		if (ed->ode.ode_physics)
 			World_Physics_RemoveFromEntity(world, ed);
 		return;
@@ -2119,27 +2103,11 @@ static void nearCallback (void *data, dGeomID o1, dGeomID o2)
 
 	if(ed1 && ed1->v->touch)
 	{
-		pr_global_struct->self = EDICT_TO_PROG(world->progs, ed1);
-		pr_global_struct->other = EDICT_TO_PROG(world->progs, (edict_t*)(ed2 ? ed2 : world->edicts));
-		pr_global_struct->time = world->physicstime;
-#ifdef VM_Q1
-		if (world==&sv.world && svs.gametype == GT_Q1QVM)
-			Q1QVM_Touch();
-		else
-#endif
-			PR_ExecuteProgram (world->progs, ed1->v->touch);
+		world->Event_Touch(world, ed1, ed2);
 	}
 	if(ed2 && ed2->v->touch)
 	{
-		pr_global_struct->self = EDICT_TO_PROG(world->progs, ed2);
-		pr_global_struct->other = EDICT_TO_PROG(world->progs, (edict_t*)(ed1 ? ed1 : world->edicts));
-		pr_global_struct->time = world->physicstime;
-#ifdef VM_Q1
-		if (world==&sv.world && svs.gametype == GT_Q1QVM)
-			Q1QVM_Touch();
-		else
-#endif
-			PR_ExecuteProgram (world->progs, ed2->v->touch);
+		world->Event_Touch(world, ed2, ed1);
 	}
 
 	// merge bounce factors and bounce stop

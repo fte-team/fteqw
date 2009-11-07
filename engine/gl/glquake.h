@@ -190,19 +190,17 @@ FTE_DEPRECATED extern glvert_t glv;
 
 void R_TimeRefresh_f (void);
 FTE_DEPRECATED texture_t *SWR_TextureAnimation (texture_t *base);
-texture_t *R_TextureAnimation (texture_t *base);
 
 #include "particles.h"
 
 //====================================================
 
 extern	entity_t	r_worldentity;
-extern	vec3_t		modelorg, r_entorigin;
+extern	vec3_t		r_entorigin;
 extern	entity_t	*currententity;
 extern	int			r_visframecount;	// ??? what difs?
 extern	int			r_framecount;
 extern	mplane_t	frustum[4];
-FTE_DEPRECATED extern	int		c_brush_polys, c_alias_polys;
 
 extern float r_wateralphaval;
 
@@ -232,9 +230,6 @@ extern	int		gl_lightmap_format;
 extern	int			mirrortexturenum;	// quake texturenum, not gltexturenum
 extern	qboolean	mirror;
 extern	mplane_t	*mirror_plane;
-
-extern	float	r_projection_matrix[16];
-extern	float	r_view_matrix[16];
 
 extern	const char *gl_vendor;
 extern	const char *gl_renderer;
@@ -281,8 +276,6 @@ extern int mtexid1;
 
 extern qboolean gl_mtexable;
 
-void GL_DisableMultitexture(void);
-void GL_EnableMultitexture(void);
 void GL_SelectTexture (int tmunum);
 void GL_SetShaderState2D(qboolean is2d);
 
@@ -337,8 +330,8 @@ void GL_Set2D (void);
 //
 // gl_rmain.c
 //
-#ifdef GLQUAKE
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
+#ifdef GLQUAKE
 qboolean R_CullSphere (vec3_t origin, float radius);
 qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs);
 void R_RotateForEntity (entity_t *e);
@@ -351,7 +344,6 @@ void GL_SetupSceneProcessingTextures (void);
 // gl_alias.c
 //
 #ifdef GLQUAKE
-void R_DrawGAliasModel (entity_t *e, unsigned int rmode);
 void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius);
 void R_LightArrays(vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals);
 
@@ -394,34 +386,10 @@ void R_InitBloomTextures(void);
 //
 #ifdef GLQUAKE
 FTE_DEPRECATED void R_DrawBrushModel (entity_t *e);
-void R_DrawWorld (void);
-void GL_BuildLightmaps (void);
-void R_RenderDynamicLightmaps (msurface_t *fa, int shift);
-int GLR_LightmapShift (model_t *model);
 
 void GL_LoadShaders(void);
-
-#ifndef LMBLOCK_WIDTH
-#define	LMBLOCK_WIDTH		128
-#define	LMBLOCK_HEIGHT		128
-typedef struct glRect_s {
-	unsigned char l,t,w,h;
-} glRect_t;
-typedef unsigned char stmap;
-typedef struct {
-	mesh_t		*meshchain;
-	qboolean	modified;
-	qboolean	deluxmodified;
-	glRect_t	rectchange;
-	glRect_t	deluxrectchange;
-	int allocated[LMBLOCK_WIDTH];
-	qbyte		lightmaps[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];
-	qbyte		deluxmaps[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//fixme: make seperate structure for easy disabling with less memory usage.
-	stmap		stainmaps[3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//rgb no a. added to lightmap for added (hopefully) speed.
-} lightmapinfo_t;
 #endif
 
-#endif
 
 //gl_ppl.c
 FTE_DEPRECATED void PPL_DrawWorld (qbyte *viewvis);

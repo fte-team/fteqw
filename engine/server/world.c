@@ -22,8 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "pr_common.h"
 
-//#define pr_global_struct dgsdfg sdfg sdfg sd gsgd
-
 #ifndef CLIENTONLY
 /*
 
@@ -187,7 +185,15 @@ void World_ClearWorld (world_t *w)
 	
 	memset (w->areanodes, 0, sizeof(w->areanodes));
 	w->numareanodes = 0;
-	World_CreateAreaNode (w, 0, w->worldmodel->mins, w->worldmodel->maxs);
+	if (!w->worldmodel)
+	{
+		vec3_t mins, maxs;
+		VectorSet(mins, -4096, -4096, -4096);
+		VectorSet(maxs, 4096, 4096, 4096);
+		World_CreateAreaNode (w, 0, mins, maxs);
+	}
+	else
+		World_CreateAreaNode (w, 0, w->worldmodel->mins, w->worldmodel->maxs);
 }
 
 
@@ -217,7 +223,6 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 {
 	link_t		*l, *next;
 	wedict_t		*touch;
-	int			old_self, old_other;
 
 	int linkcount = 0, ln;
 
@@ -248,8 +253,6 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 		nodelinks[linkcount++] = touch;
 	}
 
-	old_self = pr_global_struct->self;
-	old_other = pr_global_struct->other;
 	for (ln = 0; ln < linkcount; ln++)
 	{
 		touch = nodelinks[ln];
@@ -271,21 +274,11 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 		if (!((int)ent->xv->dimension_solid & (int)touch->xv->dimension_hit))	//didn't change did it?...
 			continue;
 
-		pr_global_struct->self = EDICT_TO_PROG(w->progs, touch);
-		pr_global_struct->other = EDICT_TO_PROG(w->progs, ent);
-		pr_global_struct->time = w->physicstime;
-#ifdef VM_Q1
-		if (w==&sv.world && svs.gametype == GT_Q1QVM)
-			Q1QVM_Touch();
-		else
-#endif
-			PR_ExecuteProgram (w->progs, touch->v->touch);
+		w->Event_Touch(w, touch, ent);
 
 		if (ent->isfree)
 			break;
 	}
-	pr_global_struct->self = old_self;
-	pr_global_struct->other = old_other;
 
 
 // recurse down both sides
@@ -474,7 +467,8 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	}
 	
 // link to PVS leafs
-	w->worldmodel->funcs.FindTouchedLeafs_Q1(w, w->worldmodel, ent, ent->v->absmin, ent->v->absmax);
+	if (w->worldmodel)
+		w->worldmodel->funcs.FindTouchedLeafs_Q1(w, w->worldmodel, ent, ent->v->absmin, ent->v->absmax);
 /*
 #ifdef Q2BSPS
 	if (w->worldmodel->fromgame == fg_quake2 || w->worldmodel->fromgame == fg_quake3)
@@ -1106,7 +1100,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 // get the clipping hull
 	if (ent->v->solid == SOLID_BSP)
 	{
-		model = w->models[(int)ent->v->modelindex];
+		model = w->GetCModel(w, ent->v->modelindex);
 		if (!model || (model->type != mod_brush && model->type != mod_heightmap))
 			SV_Error("SOLID_BSP with non bsp model (classname: %s)", PR_GetString(svprogfuncs, ent->v->classname));
 	}
@@ -1141,12 +1135,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 			model_t *model;
 			if (ent->v->modelindex < 1 || ent->v->modelindex >= MAX_MODELS)
 				SV_Error("SV_ClipMoveToEntity: modelindex out of range\n");
-			model = w->models[ (int)ent->v->modelindex ];
-			if (!model)
-			{	//if the model isn't loaded, load it.
-				//this saves on memory requirements with mods that don't ever use this.
-				model = w->models[(int)ent->v->modelindex] = Mod_ForName(sv.strings.model_precache[(int)ent->v->modelindex], false);
-			}
+			model = w->GetCModel(w, ent->v->modelindex);
 
 			if (model && model->funcs.Trace)
 			{
@@ -1177,7 +1166,7 @@ static trace_t WorldQ2_ClipMoveToEntity (world_t *w, q2edict_t *ent, vec3_t star
 // get the clipping hull
 	if (ent->s.solid == Q2SOLID_BSP)
 	{
-		model = w->models[(int)ent->s.modelindex];
+		model = w->GetCModel(w, ent->s.modelindex);
 		if (!model || model->type != mod_brush)
 			SV_Error("SOLID_BSP with non bsp model");
 	}
@@ -1373,7 +1362,7 @@ static model_t *WorldQ2_ModelForEntity (world_t *w, q2edict_t *ent)
 // decide which clipping hull to use, based on the size
 	if (ent->solid == Q2SOLID_BSP)
 	{	// explicit hulls in the BSP model
-		model = w->models[ (int)ent->s.modelindex ];
+		model = w->GetCModel(w, ent->s.modelindex);
 
 		if (!model)
 			SV_Error ("Q2SOLID_BSP with a non bsp model");

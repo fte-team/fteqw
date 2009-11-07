@@ -1497,6 +1497,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 			PR_ExecuteProgram(svprogfuncs, getplayerstat[i]);
 			statsf[i] = G_FLOAT(OFS_RETURN);
 		}
+#ifdef SERVER_DEMO_PLAYBACK
 		if (sv.demofile)
 		{
 			if (!client->spec_track)
@@ -1511,6 +1512,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 				statsi[i] = sv.recordedplayer[client->spec_track - 1].stats[i];
 			}
 		}
+#endif
 		if (!ISQWCLIENT(client))
 		{
 			if (!statsi[i])

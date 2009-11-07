@@ -391,6 +391,33 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 #endif
 }
 
+model_t *SVPR_GetCModel(world_t *w, int modelindex)
+{
+	if ((unsigned int)modelindex < MAX_MODELS)
+		return sv.models[modelindex];
+	else
+		return NULL;
+}
+
+void SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
+{
+	int oself = pr_global_struct->self;
+	int oother = pr_global_struct->other;
+
+	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
+	pr_global_struct->other = EDICT_TO_PROG(w->progs, o);
+	pr_global_struct->time = w->physicstime;
+#ifdef VM_Q1
+	if (w==&sv.world && svs.gametype == GT_Q1QVM)
+		Q1QVM_Touch();
+	else
+#endif
+		PR_ExecuteProgram (w->progs, s->v->touch);
+
+	pr_global_struct->self = oself;
+	pr_global_struct->other = oother;
+}
+
 void Q_SetProgsParms(qboolean forcompiler)
 {
 	progstype = PROG_NONE;
@@ -434,6 +461,8 @@ void Q_SetProgsParms(qboolean forcompiler)
 	{
 		sv.world.progs = svprogfuncs = InitProgs(&svprogparms);
 	}
+	sv.world.Event_Touch = SVPR_Event_Touch;
+	sv.world.GetCModel = SVPR_GetCModel;
 	PR_ClearThreads();
 	PR_fclose_progs(svprogfuncs);
 
@@ -1871,7 +1900,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 #endif
 					m = sv.strings.model_precache[i] = PR_AddString(prinst, m, 0);
 				if (!strcmp(m + strlen(m) - 4, ".bsp"))
-					sv.world.models[i] = Mod_FindName(m);
+					sv.models[i] = Mod_FindName(m);
 				Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", m);
 
 				if (sv.state != ss_loading)
@@ -1932,7 +1961,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 			//nq dedicated servers load bsps and mdls
 			//qw dedicated servers only load bsps (better)
 
-			mod = sv.world.models[i];
+			mod = sv.models[i];
 			if (mod)
 			{
 				mod = Mod_ForName (m, false);
@@ -1962,7 +1991,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 		}
 		else
 		{
-			if (sv.world.models[i])
+			if (sv.models[i])
 			{
 				mod = Mod_ForName (m, false);
 				if (mod)
@@ -2005,7 +2034,7 @@ static void PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_global
 {
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	char *str = PF_VarString(prinst, 1, pr_globals);
-	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.world.models[modelindex];
+	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.models[modelindex];
 
 	if (mod && Mod_FrameForName)
 		G_FLOAT(OFS_RETURN) = Mod_FrameForName(mod, str);
@@ -2022,9 +2051,9 @@ static void PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globa
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{
-		mod = sv.world.models[modelindex];
+		mod = sv.models[modelindex];
 		if (!mod)
-			mod = sv.world.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
+			mod = sv.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
 
 		if (mod && Mod_GetFrameDuration)
 			G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, framenum);
@@ -2037,7 +2066,7 @@ static void PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals
 #ifndef SERVERONLY
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	char *str = PF_VarString(prinst, 1, pr_globals);
-	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.world.models[modelindex];
+	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.models[modelindex];
 
 
 	if (mod && Mod_SkinForName)
@@ -2061,8 +2090,10 @@ void PF_bprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char		*s;
 	int			level;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 		return;
+#endif
 
 	if (progstype != PROG_QW)
 	{
@@ -2095,8 +2126,10 @@ void PF_sprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int			entnum;
 	int			level;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 		return;
+#endif
 
 	entnum = G_EDICTNUM(prinst, OFS_PARM0);
 
@@ -2157,8 +2190,10 @@ void PF_centerprint_Internal (int entnum, char *s)
 	client_t	*cl, *sp;
 	int			slen;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 		return;
+#endif
 
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
 	{
@@ -3330,7 +3365,7 @@ int PF_precache_model_Internal (progfuncs_t *prinst, char *s)
 				sv.strings.model_precache[i] = PR_AddString(prinst, s, 0);
 			s = sv.strings.model_precache[i];
 			if (!strcmp(s + strlen(s) - 4, ".bsp"))
-				sv.world.models[i] = Mod_FindName(s);
+				sv.models[i] = Mod_FindName(s);
 
 			if (sv.state != ss_loading)
 			{
@@ -4024,8 +4059,13 @@ void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
@@ -4060,8 +4100,13 @@ void PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
+
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
 		NPP_NQWriteChar(G_FLOAT(OFS_PARM0), (char)G_FLOAT(OFS_PARM1));
@@ -4095,8 +4140,12 @@ void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
@@ -4131,8 +4180,12 @@ void PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
@@ -4167,8 +4220,13 @@ void PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
+
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
 		NPP_NQWriteAngle(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
@@ -4202,8 +4260,12 @@ void PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
@@ -4238,7 +4300,11 @@ void PF_WriteString_Internal (int target, char *str)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value
+#ifdef SERVER_DEMO_PLAYBACK
+		|| sv.demofile
+#endif
+		)
 		return;
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
@@ -4281,7 +4347,11 @@ void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value
+#ifdef SERVER_DEMO_PLAYBACK
+		|| sv.demofile
+#endif
+		)
 		return;
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
@@ -4316,7 +4386,11 @@ void PF_WriteString2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int old;
 	char *str;
 
-	if (G_FLOAT(OFS_PARM0) != MSG_CSQC && (qc_nonetaccess.value || sv.demofile))
+	if (G_FLOAT(OFS_PARM0) != MSG_CSQC && (qc_nonetaccess.value
+#ifdef SERVER_DEMO_PLAYBACK
+		|| sv.demofile
+#endif
+		))
 		return;
 
 	str = PF_VarString(prinst, 1, pr_globals);
@@ -4403,9 +4477,10 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 {
 	int split=0;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 		return;
-
+#endif
 
 	if (type > TE_SUPERBULLET)	//pick a new effect, cos this one we don't know about.
 		type = TE_SPIKE;
@@ -6879,8 +6954,10 @@ void PF_plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char		*s;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 		return;
+#endif
 
 	if (G_FLOAT(OFS_PARM1) == 0)
 		s = "";
@@ -8207,7 +8284,7 @@ typedef struct zymbone_s
 int SV_TagForName(int modelindex, char *tagname)
 {
 #if 1
-	model_t *model = sv.world.models[modelindex];
+	model_t *model = sv.models[modelindex];
 	if (!model)
 		model = Mod_ForName(sv.strings.model_precache[modelindex], false);
 	if (!model)
@@ -8278,13 +8355,13 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		modelindex = (int)tagentity->v->modelindex;
 		if (modelindex > 0 && modelindex < MAX_MODELS)
 		{
-			if (!sv.world.models[modelindex])
-				sv.world.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
-			if (sv.world.models[modelindex])
+			if (!sv.models[modelindex])
+				sv.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
+			if (sv.models[modelindex])
 			{
 				tagidx = SV_TagForName(modelindex, tagname);
 				if (tagidx == 0)
-					Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), sv.world.models[modelindex]->name);
+					Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), sv.models[modelindex]->name);
 			}
 			else
 				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): Couldn't load model %s\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, sv.modelname[modelindex]);
@@ -8317,7 +8394,7 @@ void PF_gettagindex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		{
 			tagidx = SV_TagForName(modelindex, tagname);
 			if (tagidx == 0)
-				Con_DPrintf("PF_gettagindex(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, e), tagname, tagname, NUM_FOR_EDICT(prinst, e), sv.world.models[modelindex]->name);
+				Con_DPrintf("PF_gettagindex(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, e), tagname, tagname, NUM_FOR_EDICT(prinst, e), sv.models[modelindex]->name);
 		}
 		else
 			Con_DPrintf("PF_gettagindex(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i but it has no model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, e), tagname, tagname, NUM_FOR_EDICT(prinst, e));
@@ -8346,7 +8423,7 @@ void PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float result[12];
 	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
 	int tagnum = G_FLOAT(OFS_PARM1);
-	model_t *model = sv.world.models[(int)ent->v->modelindex];
+	model_t *model = sv.models[(int)ent->v->modelindex];
 
 	float *origin = G_VECTOR(OFS_RETURN);
 	float *axis[3];
@@ -8638,7 +8715,7 @@ void PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	modelindex = ent->v->modelindex;
 	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.world.models[(int)ent->v->modelindex];
+		model = sv.models[(int)ent->v->modelindex];
 	else
 		model = NULL;
 
@@ -8661,7 +8738,7 @@ void PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	modelindex = ent->v->modelindex;
 	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.world.models[(int)ent->v->modelindex];
+		model = sv.models[(int)ent->v->modelindex];
 	else
 		model = NULL;
 
@@ -8692,7 +8769,7 @@ void PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	modelindex = ent->v->modelindex;
 	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.world.models[(int)ent->v->modelindex];
+		model = sv.models[(int)ent->v->modelindex];
 	else
 		model = NULL;
 
@@ -8725,7 +8802,7 @@ void PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	modelindex = ent->v->modelindex;
 	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.world.models[(int)ent->v->modelindex];
+		model = sv.models[(int)ent->v->modelindex];
 	else
 		model = NULL;
 
@@ -8763,7 +8840,7 @@ void PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	modelindex = ent->v->modelindex;
 	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.world.models[(int)ent->v->modelindex];
+		model = sv.models[(int)ent->v->modelindex];
 	else
 		model = NULL;
 

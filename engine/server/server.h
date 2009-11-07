@@ -147,6 +147,7 @@ typedef struct
 
 	int			allocated_client_slots;	//number of slots available. (used mostly to stop single player saved games cacking up)
 
+	model_t	*models[MAX_MODELS];
 	qbyte		*pvs, *phs;			// fully expanded and decompressed
 
 	// added to every client's unreliable buffer each frame, then cleared
@@ -206,8 +207,8 @@ typedef struct
 	qboolean mvdrecording;
 
 //====================================================
-//this lot is for playback of demos
-
+//this lot is for serverside playback of demos
+#ifdef SERVER_DEMO_PLAYBACK
 	qboolean mvdplayback;
 	float realtime;
 	vfsfile_t *demofile;	//also signifies playing the thing.
@@ -260,6 +261,7 @@ typedef struct
 	char		demfullmapname[64];
 
 	char		*demolightstyles[MAX_LIGHTSTYLES];
+#endif
 //====================================================
 
 	entity_state_t extendedstatics[MAX_STATIC_ENTITIES];

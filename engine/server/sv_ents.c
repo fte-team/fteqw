@@ -160,6 +160,7 @@ void SV_EmitNailUpdate (sizebuf_t *msg, qboolean recorder)
 
 	MSG_WriteByte (msg, numnails);
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (demonails)
 	{
 		for (n=0 ; n<numnails ; n++)
@@ -192,6 +193,7 @@ void SV_EmitNailUpdate (sizebuf_t *msg, qboolean recorder)
 
 		return;
 	}
+#endif
 	for (n=0 ; n<numnails ; n++)
 	{
 		ent = nails[n];
@@ -1285,7 +1287,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 		//we need to tell the client that it's moved, as it's own origin might not be natural
 
 		for (i=0 ; i<3 ; i++)
-			MSG_WriteCoord (msg, ent->origin[i]+(sv.demostatevalid?1:0));
+			MSG_WriteCoord (msg, ent->origin[i]);
 
 		MSG_WriteByte (msg, ent->frame);
 
@@ -1433,11 +1435,13 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 			if (cl->state != cs_spawned)
 				continue;
 
+#ifdef SERVER_DEMO_PLAYBACK
 			if (sv.demostatevalid)
 			{
 				if (client != cl)
 					continue;
 			}
+#endif
 
 			ent = cl->edict;
 			if (cl->viewent && ent == clent)
@@ -1511,6 +1515,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 		return;
 #endif
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demostatevalid)	//this is a demo
 	{
 		usercmd_t cmd;
@@ -1641,7 +1646,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 		}
 		return;
 	}
-
+#endif
 	for (j=0,cl=svs.clients ; j<sv.allocated_client_slots ; j++,cl++)
 	{
 		if (cl->state != cs_spawned || (cl->state == cs_free && cl->name[0]))	//this includes bots, and nq bots
@@ -1749,8 +1754,10 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 			if (ent != vent || host_client->viewent == j+1)
 				clst.modelindex = 0;
 
+#ifdef SERVER_DEMO_PLAYBACK
 			if (sv.demostatevalid)
 				clst.health = 100;
+#endif
 
 			clst.isself = false;
 			if ((cl == client || cl->controller == client))
@@ -2138,7 +2145,8 @@ qboolean Q2BSP_EdictInFatPVS(model_t *mod, wedict_t *ent, qbyte *pvs)
 }
 #endif
 
-void SV_Snapshot_Build_Playback(client_t *client, packet_entities_t *pack)
+#ifdef SERVER_DEMO_PLAYBACK
+static void SV_Snapshot_Build_Playback(client_t *client, packet_entities_t *pack)
 {
 	int e;
 	entity_state_t	*state;
@@ -2195,6 +2203,7 @@ void SV_Snapshot_Build_Playback(client_t *client, packet_entities_t *pack)
 				continue;
 		}
 }
+#endif
 
 void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *client)
 {
@@ -2731,11 +2740,13 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 
 	// put other visible entities into either a packet_entities or a nails message
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demostatevalid)	//generate info from demo stats
 	{
 		SV_Snapshot_Build_Playback(client, pack);
 	}
 	else
+#endif
 	{
 #ifdef HLSERVER
 		if (svs.gametype == GT_HALFLIFE)

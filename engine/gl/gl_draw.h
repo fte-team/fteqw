@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void GLDraw_Init (void);
 void GLDraw_ReInit (void);
 void GLDraw_DeInit (void);
-void GLSurf_DeInit (void);
+void Surf_DeInit (void);
 void GLDraw_TransPicTranslate (int x, int y, int w, int h, qbyte *pic, qbyte *translation);
 void GLDraw_BeginDisc (void);
 void GLDraw_EndDisc (void);

@@ -268,7 +268,6 @@ extern qboolean isDedicated;
 
 
 
-void FTE_DEPRECATED GL_DrawAliasMesh (mesh_t *mesh, texid_t texnum);
 void FTE_DEPRECATED R_RenderMeshBuffer(struct meshbuffer_s *mb, qboolean shadowpass);
 
 

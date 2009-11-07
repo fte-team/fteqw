@@ -328,6 +328,9 @@ void PF_Common_RegisterCvars(void);
 
 
 /*these are server ones, provided by pr_cmds.c, as required by pr_q1qvm.c*/
+#ifdef VM_Q1
+model_t *SVPR_GetCModel(world_t *w, int modelindex);
+void SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o);
 void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -360,7 +363,7 @@ char *PF_infokey_Internal (int entnum, char *value);
 void PF_centerprint_Internal (int entnum, char *s);
 void PF_WriteString_Internal (int target, char *str);
 pbool ED_CanFree (edict_t *ed);
-
+#endif
 
 
 // edict->solid values

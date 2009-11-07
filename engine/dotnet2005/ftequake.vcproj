@@ -29444,6 +29444,10 @@
 					RelativePath="..\client\r_2d.c"
 					>
 				</File>
+				<File
+					RelativePath="..\client\r_surf.c"
+					>
+				</File>
 			</Filter>
 			<Filter
 				Name="d3d"

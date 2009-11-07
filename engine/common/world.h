@@ -114,15 +114,17 @@ typedef struct
 } laggedentinfo_t;
 
 struct world_s {
+	void (*Event_Touch)(struct world_s *w, wedict_t *s, wedict_t *o);
+	model_t *(*GetCModel)(struct world_s *w, int modelindex);
+
 	unsigned int	max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.
 	unsigned int	num_edicts;			// increases towards MAX_EDICTS
-	unsigned int	edict_size;
+FTE_DEPRECATED	unsigned int	edict_size;
 	wedict_t		*edicts;			// can NOT be array indexed, because
 									// edict_t is variable sized, but can
 									// be used to reference the world ent
 	struct progfuncs_s *progs;
 	model_t			*worldmodel;
-	struct model_s	*models[MAX_MODELS];
 	areanode_t	areanodes[AREA_NODES];
 	int			numareanodes;
 

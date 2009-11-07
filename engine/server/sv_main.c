@@ -793,6 +793,7 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 
 	i = client - svs.clients;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 	{
 		MSG_WriteByte (buf, svc_updatefrags);
@@ -822,6 +823,7 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 		MSG_WriteString (buf, info);
 		return;
 	}
+#endif
 
 //Sys_Printf("SV_FullClientUpdate:  Updated frags for client %d\n", i);
 
@@ -911,12 +913,14 @@ void SV_FullClientUpdateToClient (client_t *client, client_t *cl)
 	else
 #endif
 	{
+#ifdef SERVER_DEMO_PLAYBACK
 		if (sv.demofile)
 		{
 			int i = client - svs.clients;
 			ClientReliableCheckBlock(cl, 24 + strlen(sv.recordedplayer[i].userinfo));
 		}
 		else
+#endif
 			ClientReliableCheckBlock(cl, 24 + strlen(client->userinfo));
 		if (cl->num_backbuf) {
 			SV_FullClientUpdate (client, &cl->backbuf, cl->fteprotocolextensions);
@@ -2862,8 +2866,11 @@ void SV_OpenRoute_f(void)
 SV_ReadPackets
 =================
 */
+#ifdef SERVER_DEMO_PLAYBACK
 //FIMXE: move to header
 qboolean SV_GetPacket (void);
+#endif
+
 qboolean SV_ReadPackets (void)
 {
 	int			i;
@@ -2911,7 +2918,11 @@ qboolean SV_ReadPackets (void)
 		}
 	}
 
-	while (SV_GetPacket ())
+#ifdef SERVER_DEMO_PLAYBACK
+	while (SV_GetPacket())
+#else
+	while (NET_GetPacket (NS_SERVER))
+#endif
 	{
 		banreason = SV_BannedReason (&net_from);
 		if (banreason)
@@ -3401,7 +3412,9 @@ void SV_MVDStream_Poll(void);
 		PR_SQLCycle();
 #endif
 
+#ifdef SERVER_DEMO_PLAYBACK
 		while(SV_ReadMVD());
+#endif
 
 		if (sv.multicast.cursize)
 		{
@@ -4312,8 +4325,11 @@ void SV_IgnoreCommand_f(void)
 SV_Init
 ====================
 */
+#ifdef SERVER_DEMO_PLAYBACK
 //FIXME: move to header
 void SV_Demo_Init(void);
+#endif
+
 void SV_Init (quakeparms_t *parms)
 {
 	int i;
@@ -4356,7 +4372,9 @@ void SV_Init (quakeparms_t *parms)
 	IWebInit();
 #endif
 
+#ifdef SERVER_DEMO_PLAYBACK
 	SV_Demo_Init();
+#endif
 
 #ifdef USEODE
 	World_Physics_Init();

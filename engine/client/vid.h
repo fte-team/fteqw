@@ -63,8 +63,6 @@ FTE_DEPRECATED	unsigned		conheight;
 
 	unsigned		pixelwidth;
 	unsigned		pixelheight;
-
-	float			pixeloffset;	//Add this to the 1:1 vertex coord to place quads and stuff in the right places.
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state

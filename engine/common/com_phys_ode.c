@@ -63,9 +63,9 @@ cvar_t physics_ode_spinlimit = CVARDP4(0, "physics_ode_spinlimit", "10000", "res
 #else
 #ifdef WINAPI
 // ODE does not use WINAPI
-#define ODE_API
+#define ODE_API VARGS /*vargs because fte likes to be compiled fastcall (vargs is defined as cdecl...)*/
 #else
-#define ODE_API
+#define ODE_API VARGS
 #endif
 
 #define DEG2RAD(d) (d * M_PI * (1/180.0f))
@@ -246,7 +246,7 @@ typedef void dNearCallback (void *data, dGeomID o1, dGeomID o2);
 #define dSAP_AXES_ZYX  ((2)|(1<<2)|(0<<4))
 
 //const char*     (ODE_API *dGetConfiguration)(void);
-//int             (ODE_API *dCheckConfiguration)( const char* token );
+int             (ODE_API *dCheckConfiguration)( const char* token );
 int             (ODE_API *dInitODE)(void);
 //int             (ODE_API *dInitODE2)(unsigned int uiInitFlags);
 //int             (ODE_API *dAllocateODEDataForThread)(unsigned int uiAllocateFlags);
@@ -712,7 +712,7 @@ dGeomID         (ODE_API *dCreateTriMesh)(dSpaceID space, dTriMeshDataID Data, d
 static dllfunction_t odefuncs[] =
 {
 //	{"dGetConfiguration",							(void **) &dGetConfiguration},
-//	{"dCheckConfiguration",							(void **) &dCheckConfiguration},
+	{(void **) &dCheckConfiguration,				"dCheckConfiguration"},
 	{(void **) &dInitODE,							"dInitODE"},
 //	{"dInitODE2",									(void **) &dInitODE2},
 //	{"dAllocateODEDataForThread",					(void **) &dAllocateODEDataForThread},
@@ -1202,7 +1202,7 @@ void World_Physics_Init(void)
 	{
 		dInitODE();
 //		dInitODE2(0);
-#ifdef ODE_DNYAMIC
+#ifdef ODE_DYNAMIC
 # ifdef dSINGLE
 		if (!dCheckConfiguration("ODE_single_precision"))
 # else
@@ -1214,7 +1214,7 @@ void World_Physics_Init(void)
 # else
 			Con_Printf("ode library not compiled for double precision - incompatible!  Not using ODE physics.\n");
 # endif
-			Sys_UnloadLibrary(&ode_dll);
+			Sys_CloseLibrary(ode_dll);
 			ode_dll = NULL;
 		}
 #endif

@@ -2158,13 +2158,19 @@ void World_Physics_Frame(world_t *world, double frametime, double gravity)
 		world->ode.ode_movelimit = physics_ode_movelimit.value / world->ode.ode_step;
 
 		// copy physics properties from entities to physics engine
-		for (i = 0, ed = world->edicts + i;i < world->num_edicts;i++, ed++)
+		for (i = 0;i < world->num_edicts;i++)
+		{
+			ed = EDICT_NUM(world->progs, i);
 			if (!ed->isfree)
 				World_Physics_Frame_BodyFromEntity(world, ed);
+		}
 		// oh, and it must be called after all bodies were created
-		for (i = 0, ed = world->edicts + i;i < world->num_edicts;i++, ed++)
+		for (i = 0;i < world->num_edicts;i++)
+		{
+			ed = EDICT_NUM(world->progs, i);
 			if (!ed->isfree)
 				World_Physics_Frame_JointFromEntity(world, ed);
+		}
 
 		for (i = 0;i < world->ode.ode_iterations;i++)
 		{
@@ -2192,9 +2198,12 @@ void World_Physics_Frame(world_t *world, double frametime, double gravity)
 		}
 
 		// copy physics properties from physics engine to entities
-		for (i = 1, ed = world->edicts + i;i < world->num_edicts;i++, ed++)
+		for (i = 1;i < world->num_edicts;i++)
+		{
+			ed = EDICT_NUM(world->progs, i);
 			if (!ed->isfree)
 				World_Physics_Frame_BodyToEntity(world, ed);
+		}
 	}
 }
 

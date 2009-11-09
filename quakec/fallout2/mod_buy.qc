@@ -976,10 +976,10 @@ void() W_PlayerMenu =
 		}
 		else if (self.currentmenu == "select_mission")
 		{
-			if (self.impulse == 1)
+			if (self.impulse >= 1 && self.impulse <= 6)
 			{
 				if (infokey(world, "objective") == "return" || infokey(world, "objective") == "start")
-					get_new_mission();
+					get_new_mission(1);
 				else
 				{
 					sprint(self, 2, "you're already on a mission!\n");
@@ -993,7 +993,8 @@ void() W_PlayerMenu =
 				self.impulse = 0;
 				return;
 			}
-			else if (self.impulse == 2)
+	
+			else
 			{
 				centerprint(self, "\n");
 				self.currentmenu = "none";

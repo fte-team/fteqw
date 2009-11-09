@@ -1028,61 +1028,24 @@ void() brotherhood_merchant =
 
 	self.xslot15 = SlotVal(IID_CHEM_MEDICALBAG, 25);
 
-	if (random()*100 < 80)
-		self.xslot16 = SlotVal(IID_WP_AK112, 1);
-	else if (random()*100 < 20)
-		self.xslot16 = SlotVal(IID_WP_MOSSBERG, 1);
-	else if (random()*100 < 20)
-		self.xslot16 = SlotVal(IID_WP_FNFAL, 1);
-	else if (random()*100 < 20)
-		self.xslot16 = SlotVal(IID_WP_MOONLIGHT, 1);
-	else
-		self.xslot16 = SlotVal(IID_WP_G11, 1);
 
-	if (random()*100 < 80)
-		self.xslot17 = SlotVal(IID_WP_DKS1, 1);
-	else if (random()*100 < 20)
-		self.xslot17 = SlotVal(IID_WP_JACKHAMMER, 1);
-	else if (random()*100 < 20)
-		self.xslot17 = SlotVal(IID_WP_PLASMACARBINE, 1);
-	else if (random()*100 < 20)
-		self.xslot17 = SlotVal(IID_WP_ROCKETLAUNCHER, 1);
-	else
-		self.xslot17 = SlotVal(IID_WP_LASERGATLING, 1);
+	self.xslot16 = SlotVal(IID_WP_ACR, 1);
+	self.xslot17 = SlotVal(IID_AM_762MM, 30);
+
+
+	self.xslot18 = SlotVal(IID_WP_ALIENBLASTER, 1);
+	self.xslot19 = SlotVal(IID_AM_ENERGYCELL, 30);
 
 	if (random()*100 < 20)
-		self.xslot18 = SlotVal(IID_AM_ENERGYCELL, 30);
+		self.xslot20 = SlotVal(IID_AM_ENERGYCELL, 30);
 	else if (random()*100 < 20)
-		self.xslot18 = SlotVal(IID_EQUIP_BELTPOUCH, 1);
+		self.xslot20 = SlotVal(IID_EQUIP_BELTPOUCH, 1);
 	else if (random()*100 < 20)
-		self.xslot18 = SlotVal(IID_EQUIP_STEALTHBOY, 1);
+		self.xslot20 = SlotVal(IID_EQUIP_STEALTHBOY, 1);
 	else if (random()*100 < 20)
-		self.xslot18 = SlotVal(IID_EQUIP_CLIMBINGGEAR, 1);
+		self.xslot20 = SlotVal(IID_EQUIP_CLIMBINGGEAR, 1);
 	else
-		self.xslot18 = SlotVal(IID_EQUIP_TOOLKIT, 1);
-
-	if (random()*100 < 20)
-		self.xslot19 = SlotVal(IID_EQUIP_MEDIC_BAG, 1);
-	else if (random()*100 < 20)
-		self.xslot19 = SlotVal(IID_AM_CASELESS, 30);
-	else if (random()*100 < 20)
-		self.xslot19 = SlotVal(IID_AM_2MMEC, 30);
-	else if (random()*100 < 20)
-		self.xslot19 = SlotVal(IID_EQUIP_BACKPACK, 1);
-	else
-		self.xslot19 = SlotVal(IID_EQUIP_TOOLKIT, 1);
-
-
-	if (random()*100 < 20)
-		self.xslot20 = SlotVal(IID_MISC_NUKACOLA, 1);
-	else if (random()*100 < 20)
-		self.xslot20 = SlotVal(IID_MISC_CHEMICALS, 1);
-	else if (random()*100 < 20)
-		self.xslot20 = SlotVal(IID_MISC_AEROSOL, 1);
-	else if (random()*100 < 20)
-		self.xslot20 = SlotVal(IID_MISC_DUCKTAPE, 1);
-	else
-		self.xslot20 = SlotVal(IID_MISC_XRAYTUBE, 1);
+		self.xslot20 = SlotVal(IID_EQUIP_TOOLKIT, 1);
 };
 
 void() brotherhood_sergeant =

@@ -1589,7 +1589,7 @@ void() W_Attack =
 	else if (weap == IID_WP_USP)
 		FirePistol(14, 6, "weapons/usp.wav", 2000, 0.1);
 	else if (weap == IID_WP_USP_S)
-		FirePistol(12, 6, "weapons/smg_s.wav", 2000, 0.1);
+		FirePistol(12, 6, "weapons/smg_s.wav", 1800, 0.1);
 	else if (weap == IID_WP_DEAGLE)
 		FirePistol(18, 9, "weapons/deagle.wav", 3000, 0.1);
 	else if (weap == IID_WP_DEAGLE_M)
@@ -1641,9 +1641,9 @@ void() W_Attack =
 	else if (weap == IID_WP_AK112_M)
 		FireAssaultRifle(16, 10, "weapons/ak112.wav", 4000, 0.095);
 	else if (weap == IID_WP_ACR)
-		FireAssaultRifle(16, 7, "weapons/ak112.wav", 9000, 0.090);
+		FireAssaultRifle(25, 7, "weapons/bozar.wav", 9000, 0.090);
 	else if (weap == IID_WP_AK74)
-		FireAssaultRifle(20, 12, "ogre/ak47.wav", 3500, 0.090);
+		FireAssaultRifle(45, 12, "ogre/ak47.wav", 3500, 0.090);
 	else if (weap == IID_WP_DKS1)
 		FireAssaultRifle(40, 3, "weapons/dks-1.wav", 8000, 0.2);
 	else if (weap == IID_WP_MOONLIGHT && self.zoom == 0)

@@ -227,9 +227,9 @@ void() load_monster =
 		if (world.map_ent2 == 6)
 			monster_ogre();
 		if (world.map_ent2 == 7)
-			monster_wizard();
+			monster_army();
 		if (world.map_ent2 == 8)
-			monster_knight();
+			monster_demon1();
 		if (world.map_ent2 == 9)
 			monster_demon1();
 		if (world.map_ent2 == 10)
@@ -1969,6 +1969,7 @@ void() worldspawn =
 	precache_model ("progs/v_smg.mdl");
 	precache_model ("progs/v_rangem.mdl");
 	precache_model ("progs/v_pipe.mdl");
+	precache_model ("progs/v_bozar.mdl");
 	precache_model ("progs/v_double.mdl");
 	precache_model ("progs/v_combat.mdl");
 	precache_model ("progs/v_mp9.mdl");
@@ -2035,6 +2036,7 @@ void() worldspawn =
 	precache_model ("progs/w_rocket.mdl");
 	precache_model ("progs/w_plasma.mdl");
 	precache_model ("progs/w_chain.mdl");
+	precache_model ("progs/w_bozar.mdl");
 	precache_model ("progs/money.mdl");
 
 	precache_model ("progs/turrgun.mdl");
@@ -2146,6 +2148,7 @@ void() worldspawn =
 	precache_sound ("weapons/moonlight-1.wav");
 	precache_sound ("weapons/moonlight-2.wav");
 	precache_sound ("weapons/needler.wav");
+	precache_sound ("weapons/bozar.wav");
 	precache_sound ("weapons/smg_s.wav");
 	precache_sound ("weapons/shotgun1.wav");
 	precache_sound ("weapons/mp5.wav");

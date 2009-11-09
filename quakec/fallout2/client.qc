@@ -270,47 +270,50 @@ void() get_new_map =
 		m_map = "e3m1";
 	else if (random()<0.04)
 		m_map = "e4m1";
-	else if (random()<0.04)
+	else if (random()<0.08)
 		m_map = "bbelief1";
-	else if (random()<0.15)
-		m_map = "bbelief1";
-	else if (random()<0.15)
+	else if (random()<0.08)
 		m_map = "bbelief2";
-	else if (random()<0.15)
+	else if (random()<0.08)
 		m_map = "bbelief3";
-	else if (random()<0.15)
+	else if (random()<0.08)
 		m_map = "bbelief4";
-	else if (random()<0.15)
+	else if (random()<0.08)
 		m_map = "bbelief5";
-	else if (random()<0.15)
+	else if (random()<0.08)
 		m_map = "bbelief6";
-	else if (random()<0.15)
-		m_map = "bbelief7";
-	else if (random()<0.15)
-		m_map = "bbelief8";
+	else if (random()<0.08)
+		m_map = "e1m4";
+	else if (random()<0.08)
+		m_map = "e2m3";
+	else if (random()<0.08)
+		m_map = "e3m3";
+	else if (random()<0.08)
+		m_map = "e1m3";
+	else if (random()<0.08)
+		m_map = "e1m5";
 	else
 		m_map = "bbelief1";
 
 };
 
-void() get_new_mission =
+void(float type) get_new_mission =
 {
 	local float x;
 	local string savemap;
 
-	x = ceil(random()*6);
 
-	if (x == 1)
+	if (type == 1)
 		savemap = "hostage";
-	if (x == 2)
+	if (type == 2)
 		savemap = "supplies";
-	if (x == 3)
+	if (type == 3)
 		savemap = "shadow";
-	if (x == 4)
+	if (type == 4)
 		savemap = "deadtown";
-	if (x == 5)
+	if (type == 5)
 		savemap = "destroy";
-	if (x == 6)
+	if (type == 6)
 		savemap = "defuse";
 
 	localcmd("serverinfo objective ");
@@ -1300,7 +1303,7 @@ void() SneakLevel =
 	if (r > 0 && r <= 600)
 	{
 		r = 600 - r;
-		q = 3 + (self.skill_sneak/5);
+		q = 3 + (self.skill_sneak/2);
 
 		sn = sn - r/q;
 	}

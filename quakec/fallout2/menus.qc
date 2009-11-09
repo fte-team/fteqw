@@ -469,8 +469,13 @@ string () MissionString =
 	return ("‘‘‘   mission  select  ‘‘‘\n"
 		"\n"
 		"\n"
-		"1‘ get new mission\n"
-		"2‘ grab one later \n\n\n");
+		"1‘ hostage rescue   \n"
+		"2‘ capture supplies \n"
+		"3‘ shadow mission   \n"
+		"4‘ zombie mission   \n"
+		"5‘ destroy supplies \n"
+		"6‘ bomb defusal     \n\n"
+		"7‘ grab one later   \n");
 };
 
 string () DepartString =

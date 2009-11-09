@@ -107,7 +107,7 @@ void(vector pos, float slotno) SlotImage =
 	drawpic(pos, strcat("gui/", itname), IMGSIZEV, '1 1 1', 1);
 
 	it = ToStatus(it);
-	if (it < 1)
+	if (it <= 1)
 		return;
 	itname = ftos(it);
 	it = strlen(itname);

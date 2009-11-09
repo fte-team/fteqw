@@ -289,13 +289,13 @@ void() junk_touch =
 
 void() SpawnJunk =
 {
-	setorigin(self, self.origin + '0 0 64');
+	setorigin(self, self.origin + '0 0 32');
 	self.movetype = MOVETYPE_BOUNCE;
 	self.velocity_x = crandom()*600;
 	self.velocity_y = crandom()*600;
 	self.velocity_z = -100;
 
-	self.avelocity_y = crandom()*600;
+	self.avelocity_y = crandom()*300;
 
 	if (random()*100 < 50)
 		setmodel (self, "progs/junk1.mdl");
@@ -303,38 +303,38 @@ void() SpawnJunk =
 		setmodel (self, "progs/junk2.mdl");
 
 	self.touch = junk_touch;
-	self.solid = SOLID_BBOX;
+	self.solid = SOLID_TRIGGER;
 	setsize (self, '-12 -12 0', '12 12 12');
 	self.takedamage = DAMAGE_NO;
 	self.classname = "random_junk";
 
 
 	if (random()*100 <= 10)
-		self.islot1 = IID_MISC_JUNK;
+		self.islot1 = SlotVal(IID_MISC_JUNK, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_NUKACOLA;
+		self.islot1 = SlotVal(IID_MISC_NUKACOLA, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_CHEMICALS;
+		self.islot1 = SlotVal(IID_MISC_CHEMICALS, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_AEROSOL;
+		self.islot1 = SlotVal(IID_MISC_AEROSOL, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_RDXCRYSTAL;
+		self.islot1 = SlotVal(IID_MISC_RDXCRYSTAL, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_STEELPIPE;
+		self.islot1 = SlotVal(IID_MISC_STEELPIPE, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_DUCKTAPE;
+		self.islot1 = SlotVal(IID_MISC_DUCKTAPE, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_LCD;
+		self.islot1 = SlotVal(IID_MISC_LCD, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_CIRCUITBOARD;
+		self.islot1 = SlotVal(IID_MISC_CIRCUITBOARD, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_COPPERWIRE;
+		self.islot1 = SlotVal(IID_MISC_COPPERWIRE, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_HMXCOMPOUND;
+		self.islot1 = SlotVal(IID_MISC_HMXCOMPOUND, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_GUM;
-	else if (random()*100 <= 10)
-		self.islot1 = IID_MISC_XRAYTUBE;
+		self.islot1 = SlotVal(IID_MISC_GUM, 1);
+	else
+		self.islot1 = SlotVal(IID_MISC_JUNK, 1);
 
 	if (random()*100 <= 10)
 		self.flash = 2;
@@ -358,9 +358,7 @@ void() TreasureChest =
 	self.takedamage = DAMAGE_NO;
 	self.classname = "treasure_chest";
 
-	SpawnJunk();
-	SpawnJunk();
-	SpawnJunk();
+
 };
 
 
@@ -1327,6 +1325,9 @@ void() weapon_supershotgun =
 
 	if (random()<0.25)
 		TreasureChest();
+
+	SpawnJunk();
+	SpawnJunk();
 };
 
 /*QUAKED weapon_nailgun (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1342,6 +1343,9 @@ void() weapon_nailgun =
 		Explosive();
 	else
 		TreasureChest();
+
+	SpawnJunk();
+	SpawnJunk();
 };
 
 /*QUAKED weapon_supernailgun (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1357,6 +1361,10 @@ void() weapon_supernailgun =
 		Explosive();
 	else if (random()*100 <= 40)
 		TreasureChest();
+
+	SpawnJunk();
+	SpawnJunk();
+	SpawnJunk();
 };
 
 /*QUAKED weapon_grenadelauncher (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1374,6 +1382,8 @@ void() weapon_grenadelauncher =
 	else if (random()*100 <= 40)
 		TreasureChest();
 
+	SpawnJunk();
+
 };
 
 /*QUAKED weapon_rocketlauncher (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1390,6 +1400,7 @@ void() weapon_rocketlauncher =
 	else if (random()*100 <= 40)
 		TreasureChest();
 
+	SpawnJunk();
 };
 
 
@@ -1408,6 +1419,7 @@ void() weapon_lightning =
 	else if (random()*100 <= 40)
 		TreasureChest();
 
+	SpawnJunk();
 };
 
 

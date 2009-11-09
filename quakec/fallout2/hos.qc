@@ -246,7 +246,7 @@ void (vector jojo) spawn_civilian =
 	self.movetype = MOVETYPE_STEP;
 	self.takedamage = DAMAGE_AIM;
 	setmodel (self, "progs/hosfem.mdl");
-	setsize (self, VEC_HULL_MIN, '16 16 32');
+	setsize (self, '-10 -10 24', '10 10 24');
 	self.health = 80;
 	self.netname = "civilian";
 	self.classname = "rhostage";

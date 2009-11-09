@@ -40,7 +40,6 @@ float           total_monsters;
 float           found_secrets;          // number of secrets found
 float           killed_monsters;        // number of monsters killed
 
-
 // spawnparms are used to encode information about clients across server
 // level changes
 float           parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8, parm9, parm10, parm11, parm12, parm13, parm14, parm15, parm16;

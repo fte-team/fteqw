@@ -11,7 +11,7 @@ float IID_NONE = 0;
 //the ammoless weapons
 float IID_WP_WRENCH = 399;
 float IID_WP_KNIFE = 400;
-float IID_WP_AXE = 401;
+float IID_WP_SLEDGE = 401;
 float IID_WP_SPEAR = 402;
 float IID_WP_POWERAXE = 403;
 
@@ -24,8 +24,8 @@ float IID_WP_ALIENBLASTER = 408;
 float IID_WP_WINCHESTER = 409;
 float IID_WP_MOSSBERG = 410;
 float IID_WP_JACKHAMMER = 411;
-float IID_WP_MP9 = 412;
-float IID_WP_MP7 = 413;
+float IID_WP_GREASEGUN = 412;
+float IID_WP_MP9 = 413;
 float IID_WP_RANGEMASTER = 414;
 float IID_WP_AK112 = 415;
 float IID_WP_AK74 = 416;
@@ -34,8 +34,8 @@ float IID_WP_MOONLIGHT = 418;
 float IID_WP_G11 = 419;
 float IID_WP_GLOCK_S = 420;
 float IID_WP_USP_S = 421;
-float IID_WP_MP9_S = 422;
-float IID_WP_MP7_S = 423;
+float IID_WP_GREASEGUN_S = 422;
+float IID_WP_MP9_S = 423;
 float IID_WP_PIPERIFLE = 424;
 float IID_WP_PIPERIFLE_R = 425;
 float IID_WP_PIPERIFLE_S = 426;
@@ -85,12 +85,12 @@ float IID_GREN_FLARE = 106;
 //armour
 #define IsArmor(iid) (iid >= IID_ARM_DESERT && iid <= IID_ARM_LPOWER)
 float IID_ARM_DESERT = 200;
-float IID_ARM_SHIRT = 201;
-float IID_ARM_LEATHER = 202;
-float IID_ARM_KEVLAR = 203;
-float IID_ARM_METAL = 204;
+float IID_ARM_LEATHER = 201;
+float IID_ARM_VANDAL = 202;
+float IID_ARM_METAL = 203;
+float IID_ARM_TESLA = 204;
 float IID_ARM_COMBAT = 205;
-float IID_ARM_BROTHERHOOD = 206;
+float IID_ARM_SEVA = 206;
 float IID_ARM_FORCE = 207;
 float IID_ARM_LPOWER = 208;
 
@@ -651,7 +651,7 @@ string(float iid) GetItemVModel =
 		return "progs/v_span.mdl";
 	if (iid == IID_WP_KNIFE)
 		return "progs/v_knife.mdl";
-	if (iid == IID_WP_AXE)
+	if (iid == IID_WP_SLEDGE)
 		return "progs/v_axe.mdl";
 	if (iid == IID_WP_SPEAR)
 		return "progs/v_spear.mdl";
@@ -680,13 +680,13 @@ string(float iid) GetItemVModel =
 
 	if (iid == IID_WP_JACKHAMMER)
 		return "progs/v_jackhammer.mdl";
+	if (iid == IID_WP_GREASEGUN)
+		return "progs/v_mp9.mdl";
 	if (iid == IID_WP_MP9)
-		return "progs/v_mp9.mdl";
-	if (iid == IID_WP_MP7)
 		return "progs/v_smg.mdl";
-	if (iid == IID_WP_MP9_S)
+	if (iid == IID_WP_GREASEGUN_S)
 		return "progs/v_mp9.mdl";
-	if (iid == IID_WP_MP7_S)
+	if (iid == IID_WP_MP9_S)
 		return "progs/v_smg.mdl";
 	if (iid == IID_WP_RANGEMASTER)
  		return "progs/v_rangem.mdl";
@@ -745,7 +745,7 @@ string(float iid) GetItemWModel =
 		return "progs/w_knife.mdl";
 	if (iid == IID_WP_WRENCH)
 		return "progs/w_span.mdl";
-	if (iid == IID_WP_AXE)
+	if (iid == IID_WP_SLEDGE)
 		return "progs/w_knife.mdl";
 	if (iid == IID_WP_SPEAR)
 		return "progs/w_spear.mdl";
@@ -777,13 +777,13 @@ string(float iid) GetItemWModel =
 	if (iid == IID_WP_JACKHAMMER)
 		return "progs/w_jackhammer.mdl";
 
+	if (iid == IID_WP_GREASEGUN)
+		return "progs/w_mp9.mdl";
 	if (iid == IID_WP_MP9)
-		return "progs/w_mp9.mdl";
-	if (iid == IID_WP_MP7)
 		return "progs/w_mp5.mdl";
-	if (iid == IID_WP_MP9_S)
+	if (iid == IID_WP_GREASEGUN_S)
 		return "progs/w_mp9.mdl";
-	if (iid == IID_WP_MP7_S)
+	if (iid == IID_WP_MP9_S)
 		return "progs/w_mp7.mdl";
 	if (iid == IID_WP_RANGEMASTER)
 		return "progs/w_rangem.mdl";
@@ -899,13 +899,13 @@ float(float iid) WeaponAmmoType =
 		return IID_AM_12GAUGESHELLS;
 	if (iid == IID_WP_JACKHAMMER)
 		return IID_AM_12GAUGESHELLS;
+	if (iid == IID_WP_GREASEGUN)
+		return IID_AM_45ACP;
 	if (iid == IID_WP_MP9)
-		return IID_AM_45ACP;
-	if (iid == IID_WP_MP7)
 		return IID_AM_10MM;
-	if (iid == IID_WP_MP9_S)
+	if (iid == IID_WP_GREASEGUN_S)
 		return IID_AM_45ACP;
-	if (iid == IID_WP_MP7_S)
+	if (iid == IID_WP_MP9_S)
 		return IID_AM_10MM;
 	if (iid == IID_WP_RANGEMASTER)
 		return IID_AM_556MM;
@@ -976,13 +976,13 @@ float(float iid) WeaponMagQuant =
 		return 12;
 	if (iid == IID_WP_JACKHAMMER)
 		return 20;
+	if (iid == IID_WP_GREASEGUN)
+		return 25;
 	if (iid == IID_WP_MP9)
-		return 25;
-	if (iid == IID_WP_MP7)
 		return 30;
-	if (iid == IID_WP_MP9_S)
+	if (iid == IID_WP_GREASEGUN_S)
 		return 25;
-	if (iid == IID_WP_MP7_S)
+	if (iid == IID_WP_MP9_S)
 		return 30;
 	if (iid == IID_WP_RANGEMASTER)
 		return 10;
@@ -1030,7 +1030,7 @@ float(float iid) GetItemWeight =
 		return 0;
 	if (iid == IID_WP_KNIFE)
 		return 1;
-	if (iid == IID_WP_AXE)
+	if (iid == IID_WP_SLEDGE)
 		return 8;
 	if (iid == IID_WP_SPEAR)
 		return 8;
@@ -1060,13 +1060,13 @@ float(float iid) GetItemWeight =
 		return 5;
 	if (iid == IID_WP_JACKHAMMER)
 		return 6;
+	if (iid == IID_WP_GREASEGUN)
+		return 3;
+	if (iid == IID_WP_GREASEGUN_S)
+		return 3;
 	if (iid == IID_WP_MP9)
 		return 3;
 	if (iid == IID_WP_MP9_S)
-		return 3;
-	if (iid == IID_WP_MP7)
-		return 3;
-	if (iid == IID_WP_MP7_S)
 		return 3;
 	if (iid == IID_WP_RANGEMASTER)
 		return 5;
@@ -1106,20 +1106,20 @@ float(float iid) GetItemWeight =
 		return 25;
 
 
-	if (iid == IID_ARM_SHIRT)
-		return 3;
 	if (iid == IID_ARM_LEATHER)
 		return 5;
-	if (iid == IID_ARM_KEVLAR)
-		return 9;
+	if (iid == IID_ARM_VANDAL)
+		return 10;
 	if (iid == IID_ARM_METAL)
-		return 15;
-	if (iid == IID_ARM_COMBAT)
+		return 20;
+	if (iid == IID_ARM_TESLA)
 		return 12;
-	if (iid == IID_ARM_BROTHERHOOD)
-		return 17;
+	if (iid == IID_ARM_COMBAT)
+		return 14;
+	if (iid == IID_ARM_SEVA)
+		return 16;
 	if (iid == IID_ARM_FORCE)
-		return 6;
+		return 9;
 	if (iid == IID_ARM_LPOWER)
 		return 20;
 
@@ -1164,7 +1164,7 @@ string(float iid) GetItemName =
 		return "WRENCH";
 	if (iid == IID_WP_KNIFE)
 		return "knife";
-	if (iid == IID_WP_AXE)
+	if (iid == IID_WP_SLEDGE)
 		return "axe";
 	if (iid == IID_WP_SPEAR)
 		return "spear";
@@ -1209,14 +1209,10 @@ string(float iid) GetItemName =
 		return "mossberg (12g)";
 	if (iid == IID_WP_JACKHAMMER)
 		return "jackhammer (12g)";
-	if (iid == IID_WP_MP9)
-		return "h&k ump (.45 acp)";
-	if (iid == IID_WP_MP9_S)
-		return "h&k ump (silenced)";
-	if (iid == IID_WP_MP7)
-		return "h&k mp10 (10mm)";
-	if (iid == IID_WP_MP7_S)
-		return "h&k mp10 (silenced)";
+	if (iid == IID_WP_GREASEGUN)
+		return "grease gun (.45 acp)";
+	if (iid == IID_WP_GREASEGUN)
+		return "mp9 (10mm)";
 	if (iid == IID_WP_RANGEMASTER)
 		return "rangemaster (5.56mm)";
 	if (iid == IID_WP_RANGEMASTER_SCOPE)
@@ -1298,18 +1294,18 @@ string(float iid) GetItemName =
 
 	if (iid == IID_ARM_DESERT)
 		return "desert armor";
-	if (iid == IID_ARM_SHIRT)
-		return "kevlar shirt";
 	if (iid == IID_ARM_LEATHER)
 		return "leather armor";
-	if (iid == IID_ARM_KEVLAR)
-		return "double kevlar";
+	if (iid == IID_ARM_VANDAL)
+		return "vandal armor";
 	if (iid == IID_ARM_METAL)
-		return "ceramic armor";
+		return "metal armor";
+	if (iid == IID_ARM_TESLA)
+		return "tesla armor";
 	if (iid == IID_ARM_COMBAT)
 		return "combat armor";
-	if (iid == IID_ARM_BROTHERHOOD)
-		return "brotherhood armor";
+	if (iid == IID_ARM_SEVA)
+		return "seva suit";
 	if (iid == IID_ARM_FORCE)
 		return "force armor";
 	if (iid == IID_ARM_LPOWER)
@@ -1416,7 +1412,7 @@ float(float iid) GetBaseValue =
 		return 5;
 	if (iid == IID_WP_KNIFE)
 		return 5;
-	if (iid == IID_WP_AXE)
+	if (iid == IID_WP_SLEDGE)
 		return 15;
 	if (iid == IID_WP_SPEAR)
 		return 25;
@@ -1460,13 +1456,13 @@ float(float iid) GetBaseValue =
 		return 150;
 	if (iid == IID_WP_JACKHAMMER)
 		return 250;
-	if (iid == IID_WP_MP9)
+	if (iid == IID_WP_GREASEGUN)
 		return 100;
-	if (iid == IID_WP_MP9_S)
+	if (iid == IID_WP_GREASEGUN_S)
 		return 125;
-	if (iid == IID_WP_MP7)
+	if (iid == IID_WP_MP9)
 		return 110;
-	if (iid == IID_WP_MP7_S)
+	if (iid == IID_WP_MP9_S)
 		return 125;
 	if (iid == IID_WP_RANGEMASTER)
 		return 80;
@@ -1536,30 +1532,30 @@ float(float iid) GetBaseValue =
 
 
 	if (iid == IID_GREN_STUN)
-		return 1;
+		return 5;
 	if (iid == IID_GREN_FRAG)
-		return 1;
+		return 10;
 	if (iid == IID_GREN_EMP)
-		return 1;
+		return 15;
 	if (iid == IID_GREN_SMOKE)
-		return 1;
+		return 5;
 	if (iid == IID_GREN_FLASH)
-		return 1;
+		return 5;
 
 
 	if (iid == IID_ARM_DESERT)
 		return 45;
-	if (iid == IID_ARM_SHIRT)
-		return 50;
 	if (iid == IID_ARM_LEATHER)
+		return 50;
+	if (iid == IID_ARM_VANDAL)
 		return 90;
-	if (iid == IID_ARM_KEVLAR)
-		return 125;
 	if (iid == IID_ARM_METAL)
 		return 100;
+	if (iid == IID_ARM_TESLA)
+		return 175;
 	if (iid == IID_ARM_COMBAT)
 		return 300;
-	if (iid == IID_ARM_BROTHERHOOD)
+	if (iid == IID_ARM_SEVA)
 		return 350;
 	if (iid == IID_ARM_FORCE)
 		return 500;
@@ -1610,31 +1606,31 @@ float(float iid) GetBaseValue =
 		return 10;
 
 	if (iid == IID_MISC_JUNK)
-		return 0;
+		return 1;
 	if (iid == IID_MISC_NUKACOLA)
-		return 0;
+		return 1;
 	if (iid == IID_MISC_CHEMICALS)
-		return 0;
+		return 2;
 	if (iid == IID_MISC_AEROSOL)
-		return 0;
+		return 2;
 	if (iid == IID_MISC_RDXCRYSTAL)
-		return 0;
+		return 3;
 	if (iid == IID_MISC_STEELPIPE)
-		return 0;
+		return 1;
 	if (iid == IID_MISC_DUCKTAPE)
-		return 0;
+		return 1;
 	if (iid == IID_MISC_LCD)
-		return 0;
+		return 2;
 	if (iid == IID_MISC_CIRCUITBOARD)
-		return 0;
+		return 2;
 	if (iid == IID_MISC_COPPERWIRE)
-		return 0;
+		return 1;
 	if (iid == IID_MISC_HMXCOMPOUND)
-		return 0;
+		return 1;
 	if (iid == IID_MISC_GUM)
-		return 0;
+		return 2;
 	if (iid == IID_MISC_XRAYTUBE)
-		return 0;
+		return 5;
 
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a sell price!\n");
@@ -1651,7 +1647,7 @@ string(float iid) GetItemDesc =
 		return "a heavy multi-function wrench";
 	if (iid == IID_WP_KNIFE)
 		return "great for stealth attacks";
-	if (iid == IID_WP_AXE)
+	if (iid == IID_WP_SLEDGE)
 		return "a futuristic battle axe";
 	if (iid == IID_WP_SPEAR)
 		return "a long, sharp polearm";
@@ -1696,13 +1692,13 @@ string(float iid) GetItemDesc =
 		return "semi-auto combat shotgun, magazine fed";
 	if (iid == IID_WP_JACKHAMMER)
 		return "the ultimate for close range battles";
+	if (iid == IID_WP_GREASEGUN)
+		return "higher recoil due to larger .45 acp round";
+	if (iid == IID_WP_GREASEGUN_S)
+		return "higher recoil due to larger .45 acp round";
 	if (iid == IID_WP_MP9)
-		return "higher recoil due to larger .45 acp round";
-	if (iid == IID_WP_MP9_S)
-		return "higher recoil due to larger .45 acp round";
-	if (iid == IID_WP_MP7)
 		return "great all-around weapon; good burst fire";
-	if (iid == IID_WP_MP7_S)
+	if (iid == IID_WP_MP9_S)
 		return "silenced 10mm smg; less recoil";
 	if (iid == IID_WP_RANGEMASTER)
 		return "civilian battle rifle. sturdy and effective";
@@ -1782,22 +1778,22 @@ string(float iid) GetItemDesc =
 
 	if (iid == IID_ARM_DESERT)
 		return "the light armor of a raider; makes a great disguise";
-	if (iid == IID_ARM_SHIRT)
-		return "featherweight body armor with good stealth and mobility";
 	if (iid == IID_ARM_LEATHER)
-		return "made of thick, tanned brahmin hide";
-	if (iid == IID_ARM_KEVLAR)
-		return "a suit of dragon skin(tm), reduces all damage to blunt trauma";
+		return "lightweight leather armor. provides great mobility.";
+	if (iid == IID_ARM_VANDAL)
+		return "enhanced leather armor for extra protection.";
 	if (iid == IID_ARM_METAL)
-		return "metal plates deflect smaller attacks easily";
+		return "gives great protection at a sacrifice to speed.";
+	if (iid == IID_ARM_TESLA)
+		return "experimental armor with high deflection but low absorb.";
 	if (iid == IID_ARM_COMBAT)
-		return "made from defensive polymers, the yardstick of armors";
-	if (iid == IID_ARM_BROTHERHOOD)
-		return "enhanced combat armor with anti-explosive plating";
+		return "this all-purpose armor is designed for combat missions.";
+	if (iid == IID_ARM_SEVA)
+		return "high-tech suit provides more environmental defense";
 	if (iid == IID_ARM_FORCE)
 		return "experimental energy-field armor, very low absorb";
 	if (iid == IID_ARM_LPOWER)
-		return "this heavy armor contains servos that assist with movement";
+		return "the heaviest armor with great protection";
 
 
 	if (iid == IID_CHEM_STIMPACK)
@@ -1896,7 +1892,7 @@ string(float iid) GetItemImage =
 		return "wrench.jpg";
 	if (iid == IID_WP_KNIFE)
 		return "knife.jpg";
-	if (iid == IID_WP_AXE)
+	if (iid == IID_WP_SLEDGE)
 		return "disruptor.jpg";
 	if (iid == IID_WP_SPEAR)
 		return "spear.jpg";
@@ -1927,30 +1923,26 @@ string(float iid) GetItemImage =
 		return "citykiller.jpg";
 	if (iid == IID_WP_JACKHAMMER)
 		return "jackhammer.jpg";
+	if (iid == IID_WP_GREASEGUN)
+		return "ggun2.jpg";
 	if (iid == IID_WP_MP9)
 		return "mp9.jpg";
-	if (iid == IID_WP_MP7)
-		return "ggun.jpg";
-	if (iid == IID_WP_MP9_S)
-		return "mp9.jpg";
-	if (iid == IID_WP_MP7_S)
-		return "ggun.jpg";
 	if (iid == IID_WP_RANGEMASTER)
-		return "rangem.jpg";
+		return "rangem.png";
 	if (iid == IID_WP_RANGEMASTER_SCOPE)
 		return "rangem_s.jpg";
 	if (iid == IID_WP_AK47)
 		return "ak47.jpg";
 	if (iid == IID_WP_AK112)
-		return "ak112.jpg";
+		return "ak112.png";
 	if (iid == IID_WP_AK112_M)
-		return "ak112.jpg";
+		return "ak112.png";
 	if (iid == IID_WP_AK74)
 		return "ak47.jpg";
 	if (iid == IID_WP_ACR)
 		return "acr.jpg";
 	if (iid == IID_WP_DKS1)
-		return "dks1.jpg";
+		return "dks1.png";
 	if (iid == IID_WP_DKS1_S)
 		return "dks1_s.jpg";
 	if (iid == IID_WP_MOONLIGHT)
@@ -1960,15 +1952,15 @@ string(float iid) GetItemImage =
 	if (iid == IID_WP_GAUSERIFLE)
 		return "grifle.jpg";
 	if (iid == IID_WP_PULSERIFLE)
-		return "plasmar.jpg";
+		return "plasma.jpg";
 	if (iid == IID_WP_TURBOPLASMA)
-		return "turbo.jpg";
+		return "plasma.jpg";
 	if (iid == IID_WP_PULSERIFLE)
 		return "carbine.jpg";
 	if (iid == IID_WP_FNFAL)
 		return "fnfal.jpg";
 	if (iid == IID_WP_ROCKETLAUNCHER)
-		return "rpg.jpg";
+		return "rocket.jpg";
 	if (iid == IID_WP_LASERGATLING)
 		return "gatling.jpg";
 
@@ -1980,7 +1972,7 @@ string(float iid) GetItemImage =
 	if (iid == IID_AM_10MM)
 		return "10mm.jpg";
 	if (iid == IID_AM_556MM)
-		return "556mm.jpg";
+		return "556mm.png";
 	if (iid == IID_AM_5MMHIGHVEL)
 		return "5mmhv.jpg";
 	if (iid == IID_AM_12GAUGESHELLS)
@@ -1988,7 +1980,7 @@ string(float iid) GetItemImage =
 	if (iid == IID_AM_ENERGYCELL)
 		return "cell.jpg";
 	if (iid == IID_AM_762MM)
-		return "762mm.jpg";
+		return "762mm.png";
 	if (iid == IID_AM_44MAGNUM)
 		return "44mag.jpg";
 	if (iid == IID_AM_WARSAW)
@@ -2013,18 +2005,18 @@ string(float iid) GetItemImage =
 
 	if (iid == IID_ARM_DESERT)
 		return "desert.jpg";
-	if (iid == IID_ARM_SHIRT)
-		return "shirt.jpg";
 	if (iid == IID_ARM_LEATHER)
 		return "leather.jpg";
-	if (iid == IID_ARM_KEVLAR)
-		return "doublek.jpg";
+	if (iid == IID_ARM_VANDAL)
+		return "vandal.jpg";
 	if (iid == IID_ARM_METAL)
-		return "ceramic.jpg";
+		return "metal.jpg";
+	if (iid == IID_ARM_TESLA)
+		return "tesla.jpg";
 	if (iid == IID_ARM_COMBAT)
 		return "combat.jpg";
-	if (iid == IID_ARM_BROTHERHOOD)
-		return "brotherhood.jpg";
+	if (iid == IID_ARM_SEVA)
+		return "seva.jpg";
 	if (iid == IID_ARM_FORCE)
 		return "force.jpg";
 	if (iid == IID_ARM_LPOWER)
@@ -2127,7 +2119,7 @@ float(string itname) ItemIDOfName =
 	if (itname == "knife")
 		return IID_WP_KNIFE;
 	if (itname == "hand-axe")
-		return IID_WP_AXE;
+		return IID_WP_SLEDGE;
 	if (itname == "spear")
 		return IID_WP_SPEAR;
 	if (itname == "poweraxe")
@@ -2154,10 +2146,10 @@ float(string itname) ItemIDOfName =
 		return IID_WP_MOSSBERG;
 	if (itname == "jackhammer")
 		return IID_WP_JACKHAMMER;
+	if (itname == "grease gun")
+		return IID_WP_GREASEGUN;
 	if (itname == "mp9")
 		return IID_WP_MP9;
-	if (itname == "grease gun")
-		return IID_WP_MP7;
 	if (itname == "rangemaster")
 		return IID_WP_RANGEMASTER;
 	if (itname == "rangemaster (scope)")
@@ -2204,18 +2196,18 @@ float(string itname) ItemIDOfName =
 		return IID_GREN_SMOKE;
 	if (itname == "flash grenade")
 		return IID_GREN_FLASH;
-	if (itname == "bulletproof shirt")
-		return IID_ARM_SHIRT;
 	if (itname == "leather armor")
 		return IID_ARM_LEATHER;
-	if (itname == "kevlar armor")
-		return IID_ARM_KEVLAR;
+	if (itname == "vandal armor")
+		return IID_ARM_VANDAL;
 	if (itname == "metal armor")
 		return IID_ARM_METAL;
+	if (itname == "tesla armor")
+		return IID_ARM_TESLA;
 	if (itname == "combat armor")
 		return IID_ARM_COMBAT;
-	if (itname == "brotherhood armor")
-		return IID_ARM_BROTHERHOOD;
+	if (itname == "seva suit")
+		return IID_ARM_SEVA;
 	if (itname == "force armor")
 		return IID_ARM_FORCE;
 	if (itname == "light power armor")

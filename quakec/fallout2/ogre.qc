@@ -1128,7 +1128,7 @@ void () monster_ogre =
 	setsize (self, '-16 -16 -24', '16 16 48');
 	self.health = 200;
 	self.team = 3;
-      self.islot3 = SlotVal(IID_ARM_SHIRT, 1);
+      self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
 	self.armornoise = "misc/thud.wav";
 	self.th_stand = ogre_stand1;
 	self.th_walk = ogre_walk1;

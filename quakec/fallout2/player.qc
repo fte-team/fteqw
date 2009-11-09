@@ -292,7 +292,7 @@ float (entity guy) holding_melee =
 
 	if (iid == IID_NONE ||
 	    iid == IID_WP_KNIFE ||
-	    iid == IID_WP_AXE ||
+	    iid == IID_WP_SLEDGE ||
 	    iid == IID_WP_SPEAR ||
 	    iid == IID_WP_WRENCH)
 		return true;
@@ -433,7 +433,7 @@ void () player_run = [ 137, player_run ]
 
 	self.walkframe = self.walkframe + 1;
 
-	if (self.walkframe == 6)
+	if (self.walkframe >= 6)
 		self.walkframe = 0;
 };
 
@@ -492,7 +492,7 @@ void () player_walk = [ 170, player_walk ]
 
 	self.frame = (170 + self.walkframe);
 
-	if (self.walkframe == 11)
+	if (self.walkframe >= 11)
 		self.walkframe = 0;
 
 	self.walkframe = (self.walkframe + 1);
@@ -553,7 +553,7 @@ void () player_slow = [ 170, player_slow ]
 
 	self.frame = (170 + floor(self.walkframe/2));
 
-	if (self.walkframe == 22)
+	if (self.walkframe >= 22)
 		self.walkframe = 0;
 
 	self.walkframe = (self.walkframe + 1);

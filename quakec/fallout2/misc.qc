@@ -927,8 +927,8 @@ void() brotherhood_merchant =
 
 	if (random()*100 < 33)
 	{
-		self.xslot1 = SlotVal(IID_WP_MP9, 1);
-		self.xslot6 = SlotVal(IID_AM_10MM, 30);
+		self.xslot1 = SlotVal(IID_WP_GREASEGUN, 1);
+		self.xslot6 = SlotVal(IID_AM_45ACP, 30);
 	}
 	else if (random()*100 < 33)
 	{
@@ -992,7 +992,7 @@ void() brotherhood_merchant =
 	if (random()*100 < 33)
 	{
 		self.xslot5 = SlotVal(IID_WP_AK112, 1);
-		self.xslot10 = SlotVal(IID_AM_556MM, 30);
+		self.xslot10 = SlotVal(IID_AM_5MMHIGHVEL, 30);
 	}
 	else if (random()*100 < 33)
 	{
@@ -1001,36 +1001,32 @@ void() brotherhood_merchant =
 	}
 	else
 	{
-		self.xslot5 = SlotVal(IID_WP_MP7, 1);
-		self.xslot10 = SlotVal(IID_AM_45ACP, 30);
+		self.xslot5 = SlotVal(IID_WP_MP9, 1);
+		self.xslot10 = SlotVal(IID_AM_10MM, 30);
 	}
 
 
 	if (random()*100 < 50)
-		self.xslot11 = SlotVal(IID_ARM_SHIRT, 1);
-	else
 		self.xslot11 = SlotVal(IID_ARM_LEATHER, 1);
+	else
+		self.xslot11 = SlotVal(IID_ARM_VANDAL, 1);
 
 	if (random()*100 < 50)
-		self.xslot12 = SlotVal(IID_ARM_KEVLAR, 1);
-	else
 		self.xslot12 = SlotVal(IID_ARM_METAL, 1);
+	else
+		self.xslot12 = SlotVal(IID_ARM_TESLA, 1);
 
 	if (random()*100 < 75)
 		self.xslot13 = SlotVal(IID_ARM_COMBAT, 1);
 	else
-		self.xslot13 = SlotVal(IID_ARM_BROTHERHOOD, 1);
+		self.xslot13 = SlotVal(IID_ARM_SEVA, 1);
 
 
-	if (random()*100 < 75)
-		self.xslot14 = SlotVal(IID_GREN_FRAG, 1);
-	else
-		self.xslot14 = SlotVal(IID_GREN_FLASH, 1);
 
-	if (random()*100 < 75)
-		self.xslot15 = SlotVal(IID_GREN_SMOKE, 1);
-	else
-		self.xslot15 = SlotVal(IID_GREN_STUN, 1);
+	self.xslot14 = SlotVal(IID_CHEM_STIMPACK, 1);
+
+
+	self.xslot15 = SlotVal(IID_CHEM_MEDICALBAG, 25);
 
 	if (random()*100 < 80)
 		self.xslot16 = SlotVal(IID_WP_AK112, 1);
@@ -1152,11 +1148,11 @@ void() brotherhood_doctor =
 	self.xslot1 = SlotVal(IID_WP_KNIFE, 1);
 	self.xslot2 = SlotVal(IID_WP_NEEDLER, 1);
 	self.xslot3 = SlotVal(IID_ARM_LEATHER, 1);
-	self.xslot16 = SlotVal(IID_CHEM_STIMPACK, 5);
-	self.xslot17 = SlotVal(IID_CHEM_MEDICALBAG, 4);
-	self.xslot18 = SlotVal(IID_CHEM_SUPERSTIM, 3);
-	self.xslot19 = SlotVal(IID_CHEM_ADRENALINE, 3);
-	self.xslot20 = SlotVal(IID_CHEM_PSYCHO, 3);
+	self.xslot16 = SlotVal(IID_CHEM_STIMPACK, 1);
+	self.xslot17 = SlotVal(IID_CHEM_MEDICALBAG, 25);
+	self.xslot18 = SlotVal(IID_CHEM_SUPERSTIM, 1);
+	self.xslot19 = SlotVal(IID_CHEM_ADRENALINE, 1);
+	self.xslot20 = SlotVal(IID_CHEM_PSYCHO, 1);
 };
 
 

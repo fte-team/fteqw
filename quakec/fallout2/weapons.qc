@@ -125,7 +125,7 @@ float (entity healer, entity saved) RevivePlayer =
 
 //	saved.materialize = 200;
 	saved.ghost = 0;
-	saved.health = 1;
+	saved.health = 40;
 	saved.air_finished = time + 10;
 	saved.view_ofs = '0 0 22';
 	self = saved;
@@ -172,7 +172,7 @@ void(float damage, float dist, float rate) FireMelee =
 	weap = ToIID(self.(SlotField(self.current_slot)));
 
 	//large and in charge! adds a small burst of adrenalnie
-	if ((getperk(8)) && ((weap == IID_WP_SPEAR || weap == IID_WP_AXE || weap == IID_WP_WRENCH)))
+	if ((getperk(8)) && ((weap == IID_WP_SPEAR || weap == IID_WP_SLEDGE || weap == IID_WP_WRENCH)))
 	{
 		if (self.ragetime <= 0)
 		{
@@ -272,10 +272,10 @@ void(float damage, float dist, float rate) FireMelee =
 		if (self.class == 2 || self.class == 3)
 			damage = damage * 1.25;
 
-		if (weap == IID_WP_AXE || weap == IID_WP_SPEAR || weap == IID_WP_KNIFE)
+		if (weap == IID_WP_SLEDGE || weap == IID_WP_SPEAR || weap == IID_WP_KNIFE)
 			SpawnBlood (org, 1);
 
-		if ((getperk(8)) && (weap == IID_WP_AXE || weap == IID_WP_SPEAR || weap == IID_WP_WRENCH))
+		if ((getperk(8)) && (weap == IID_WP_SLEDGE || weap == IID_WP_SPEAR || weap == IID_WP_WRENCH))
 		{
 			sprint(self, 2, "!LARGE AND IN CHARGE\n");
 			dir = normalize(trace_ent.origin - self.origin);
@@ -306,7 +306,7 @@ void(float damage, float dist, float rate) FireMelee =
 		else
 			sound (self, CHAN_BODY, "weapons/brawl-2.wav", 1, ATTN_NORM);
 	}
-	else if (weap == IID_WP_AXE || weap == IID_WP_WRENCH)
+	else if (weap == IID_WP_SLEDGE || weap == IID_WP_WRENCH)
 	{
 		if (random()<0.5)
 			sound (self, CHAN_BODY, "effects/axe_hit1.wav", 1, ATTN_NORM);
@@ -334,7 +334,7 @@ void() W_FireMelee =
 		FireMelee(5+random()*30, 64, 1.2);
 	else if (iid == IID_WP_KNIFE)
 		FireMelee(5+random()*20, 64, 0.4);
-	else if (iid == IID_WP_AXE)
+	else if (iid == IID_WP_SLEDGE)
 		FireMelee(5+random()*80, 96, 1);
 	else if (iid == IID_WP_SPEAR)	
 		FireMelee(5+random()*60, 160, 0.8);
@@ -1573,7 +1573,7 @@ void() W_Attack =
 		sound (self, CHAN_WEAPON, "effects/miss.wav", TRUE, ATTN_NORM);
 
 	}
-	else if (weap == IID_WP_AXE || weap == IID_WP_WRENCH)
+	else if (weap == IID_WP_SLEDGE || weap == IID_WP_WRENCH)
 	{
 		if (random()<0.75)
 		{
@@ -1626,13 +1626,13 @@ void() W_Attack =
 		W_FireShotgun (2, 5, 7, 20, 2000, 1, "weapons/citykiller.wav");
 	else if (weap == IID_WP_JACKHAMMER)
 		W_FireShotgun (1, 5, 7, 30, 1750, 2, "weapons/citykiller.wav");
-	else if (weap == IID_WP_MP9)
+	else if (weap == IID_WP_GREASEGUN)
 		FireSMG(14, 0, "weapons/mp7.wav", 1500, 0.10);
-	else if (weap == IID_WP_MP7)
+	else if (weap == IID_WP_MP9)
 		FireSMG(12, 0, "weapons/mp5.wav", 1500, 0.08);
-	else if (weap == IID_WP_MP9_S)
+	else if (weap == IID_WP_GREASEGUN_S)
 		FireSMG(12, 0, "weapons/smg_s.wav", 1500, 0.10);
-	else if (weap == IID_WP_MP7_S)
+	else if (weap == IID_WP_MP9_S)
 		FireSMG(10, 0, "weapons/smg_s.wav", 1500, 0.08);
 	else if (weap == IID_WP_RANGEMASTER)
 		FireAssaultRifle(18, 4, "weapons/rangem.wav", 4000, 0.1);
@@ -2480,7 +2480,7 @@ void () Explosion =
 
 void () FragExplode =
 {
-	local float r;
+	local float r, d;
 	local entity te;
 	local vector dir;
 
@@ -2507,7 +2507,10 @@ void () FragExplode =
 		te = te.chain;
 	}
 
-	T_RadiusDamage2 (self, self.owner, 65+random()*65, other, 400);
+	r = 400 + self.skill_science*2;
+	d = 65+random()*65 + self.skill_science;
+
+	T_RadiusDamage2 (self, self.owner, 65+random()*65, other, r);
 	remove (self);
 };
 
@@ -2530,7 +2533,7 @@ void () PlasmaExplode =
 void () FlashExplode =
 {
 	local entity te;
-	local float dot;
+	local float dot, effect;
 	local vector vec;
 
 	self.velocity = VEC_ORIGIN;
@@ -2542,6 +2545,8 @@ void () FlashExplode =
 	WriteCoord (0, self.origin_z);
 	sound (self, CHAN_BODY, "misc/flash.wav", 1, ATTN_NORM);
 
+	effect = 5 + (self.skill_science/3);
+
 	te = findradius (self.origin, 200);
 	while (te)
 	{
@@ -2549,8 +2554,8 @@ void () FlashExplode =
 		{
 			if (CanDamage (self, te))
 			{
-				te.flash = 12;
-				te.attack_finished = time + 12;
+				te.flash = effect;
+				te.attack_finished = time + effect;
 				spawn_excla(te, 12);
 			}
 
@@ -2562,9 +2567,9 @@ void () FlashExplode =
 				te.missionbrief = 5;
 				stuffcmd (te, "v_cshift 255 255 255 255\n");
 				stuffcmd (te, "v_idlescale 3\n");
-				te.flash = time + 12;
+				te.flash = time + effect;
 
-				spawn_excla(te, 12);
+				spawn_excla(te, effect);
 			}
 		}
 		te = te.chain;
@@ -2581,9 +2586,9 @@ void () FlashExplode =
 
 			if (dot > 0.3 && CanDamage (self, te))
 			{
-				te.flash = 12;
-				te.attack_finished = time + 12;
-				spawn_excla(te, 12);
+				te.flash = effect;
+				te.attack_finished = time + effect;
+				spawn_excla(te, effect);
 			}
 
 		}
@@ -2597,9 +2602,9 @@ void () FlashExplode =
 			{
 				stuffcmd (te, "v_cshift 255 255 255 255\n");
 				stuffcmd (te, "v_idlescale 3\n");
-				te.flash = time + 4;
+				te.flash = time + effect;
 
-				spawn_excla(te, 4);
+				spawn_excla(te, effect);
 			}
 		}
 		te = te.chain;
@@ -2607,37 +2612,38 @@ void () FlashExplode =
 	remove (self);
 };
 
-void () FlashThink =
-{
-	local entity te;
-
-	te = findradius(self.origin, 600);
-
-	while (te)
-	{
-		if (te.classname == "player" && te.sneak > 0)
-			te.sneak = 0;
-
-		te = te.chain;
-	}
-
-	self.nextthink = time + 1;
-	self.score = self.score + 1;
-
-	if (self.score == 120)
-		remove(self);
-};
 
 void () StunExplode =
 {
 	local entity te;
-	local float dot;
+	local float dot, effect;
 	local vector vec;
 
-	self.effects = EF_BLUE;
-	self.think = FlashThink;
-	self.nextthink = time + 1;
+	self.velocity = VEC_ORIGIN;
+
+	WriteByte (0, SVC_TEMPENTITY);
+	WriteByte (0, WEAPON_SPIKES);
+	WriteCoord (0, self.origin_x);
+	WriteCoord (0, self.origin_y);
+	WriteCoord (0, self.origin_z);
+
+	te = findradius(self.origin, 400);
+
+	while (te)
+	{
+		if (te.flags & FL_MONSTER)
+		{
+			te.hold = effect;
+
+		}
+		if (te.classname == "player")
+			te.hold = effect;
+
+		te = te.chain;
+	}
 	sound (self, CHAN_BODY, "misc/flash.wav", 1, ATTN_NORM);
+
+	remove(self);
 };
 
 /*
@@ -2963,17 +2969,17 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 	}
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
-	if (weap == IID_WP_MP9)
+	if (weap == IID_WP_GREASEGUN)
 		loud_noise(50);
-	else if (weap == IID_WP_MP7)
+	else if (weap == IID_WP_MP9)
 		loud_noise(40);
-	else if (weap == IID_WP_MP9_S)
+	else if (weap == IID_WP_GREASEGUN_S)
 		loud_noise(5);
-	else if (weap == IID_WP_MP7_S)
+	else if (weap == IID_WP_MP9_S)
 		loud_noise(5);
 
 	//only silenced weapons do not break stealth
-	if (weap != IID_WP_MP9_S && weap != IID_WP_MP7_S && self.sneak > 0)
+	if (weap != IID_WP_GREASEGUN_S && weap != IID_WP_MP9_S && self.sneak > 0)
 	{
 		self.equipment_slot = 0;
 		sprint(self, PRINT_HIGH, " Uncloaked \n");
@@ -3066,13 +3072,13 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 
 		dam = dam + random()*dam;
 
-	if (weap == IID_WP_MP9)
+	if (weap == IID_WP_GREASEGUN)
 		J_Damage (trace_ent, self, self, dam);
-	else if (weap == IID_WP_MP7)
+	else if (weap == IID_WP_MP9)
 		T_Damage (trace_ent, self, self, dam);
-	else if (weap == IID_WP_MP9_S)
+	else if (weap == IID_WP_GREASEGUN_S)
 		J_Damage (trace_ent, self, self, dam);
-	else if (weap == IID_WP_MP7_S)
+	else if (weap == IID_WP_MP9_S)
 		T_Damage (trace_ent, self, self, dam);
 
 		T_Damage (trace_ent, self, self, dam);
@@ -3287,14 +3293,7 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 		}
 	}
 
-	if (self.extender == weap && self.silencer != weap)
-		dam = dam * 1.10;
 
-	if (self.silencer == weap)
-	{
-		sound (self, CHAN_WEAPON, "weapons/needler.wav", 1, ATTN_NORM);
-		loud_noise(20);
-	}
 	else
 	{
 		if (weap == IID_WP_MOONLIGHT)
@@ -3398,6 +3397,8 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 
 	if (tmp > 500)
 		tmp = 500;
+
+	tmp = tmp * 0.75;
 
 	source = self.origin + '0 0 22';
 
@@ -3935,7 +3936,7 @@ void (entity chest, float iid, float num) DropFromChest =
 		newmis.flash = num;
 		newmis.touch = MultiTouch;
 	}
-	else if (iid >= IID_ARM_SHIRT && iid <= IID_ARM_LPOWER)
+	else if (iid >= IID_ARM_LEATHER && iid <= IID_ARM_LPOWER)
 	{
 		newmis.flash = num;
 		newmis.touch = MultiTouch;
@@ -4147,19 +4148,45 @@ float(entity x, float slotno) DecreaseDestroySlotOther;
 
 void () UseStimpack =
 {
-	local float x;
+	local float x, found;
 	local vector source;
-	local entity thing;
+	local entity thing, te;
 
 
 	if (self.attack_finished > time)
+		return;
+
+	te = findradius (self.origin, 100);
+	while (te)
+	{
+
+		if (found == 0 && te.classname == "player" && te.deadflag)
+		{
+
+			x = SlotOfItem(self, IID_CHEM_STIMPACK);
+			if (x == 0)
+			{
+				sprint(self, PRINT_MEDIUM, "you don't have a stimpack\n");
+				return;
+			}
+
+			DecreaseDestroySlot(x);//take away a stimpack
+			sound (trace_ent, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
+			RevivePlayer(self, te);
+			found = 1;
+		}
+
+		te = te.chain;
+	}
+
+	if (found == 1)
 		return;
 
 	self.attack_finished = time + 1;
 	self.rtime = time + 1;
 
 	makevectors (self.v_angle);
-	source = self.origin + '0 0 16';
+	source = self.origin + '0 0 0';
 	traceline (source, source + v_forward*64, FALSE, self);
 
 	if (trace_fraction == 1.0)//nobody in front of user, so heal self
@@ -4390,7 +4417,7 @@ void () UseMedicalBag =
 	self.rtime = time + 1;
 
 	makevectors (self.v_angle);
-	source = self.origin + '0 0 16';
+	source = self.origin + '0 0 0';
 	traceline (source, source + v_forward*64, FALSE, self);
 
 	if (trace_fraction == 1.0)//nobody in front of user, so heal self
@@ -4421,9 +4448,8 @@ void () UseMedicalBag =
 			}
 
 			sound (self, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
-			sprint(self, PRINT_MEDIUM, "you heal yourself with your medkit\n");
-			self.health = self.health + 5;
-			self.regen = self.regen + 5;
+			sprint(self, PRINT_MEDIUM, "you start to bandage yourself\n");
+			self.regen = self.regen + self.skill_doctor;
 		}
 	}
 	else if (trace_ent.classname == "player")//healing another team-mate
@@ -4474,13 +4500,12 @@ void () UseMedicalBag =
 				sound (trace_ent, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
 				self.score = self.score + 10;
 				sprint(trace_ent, PRINT_MEDIUM, self.netname);
-				sprint(trace_ent, PRINT_MEDIUM, " heals you with a stimpack\n");
+				sprint(trace_ent, PRINT_MEDIUM, " bandages your wounds\n");
 				sprint(self, PRINT_MEDIUM, "you heal ");
 				sprint(self, PRINT_MEDIUM, trace_ent.netname);
 				sprint(self, PRINT_MEDIUM, " with a stimpack\n");
 
-				trace_ent.health = trace_ent.health + 10;
-				trace_ent.regen = trace_ent.regen + 10;
+				trace_ent.regen = trace_ent.regen + self.skill_doctor;
 			}
 		}
 	}
@@ -5358,33 +5383,26 @@ void () Bar_Think =
 {
 	local float dot1;
 
-	if ((self.owner.health < WEAPON_SHOTGUN))
+
+	if (self.owner.health >= self.owner.max_health)
 	{
-		remove (self);
-		return;
-	}
-	if ((self.owner.health >= self.owner.max_health))
-	{
-		remove (self);
+		self.frame = 0;
+		setmodel (self, "");
+		self.nextthink = time + 0.01;
 		return;
 	}
 	self.flags = self.flags;
 
-	if ((self.owner.position == WEAPON_SHOTGUN))
-	{
-		dot1 = WEAPON_SHOTGUN;
-	}
-	if ((dot1 == WEAPON_SHOTGUN))
-	{
-		self.frame = MULTICAST_ALL;
-		setmodel (self, "");
-		self.nextthink = (time + 0.01);
-		return;
-	}
-	if (((self.owner.health >= WEAPON_SHOTGUN) && (dot1 == MULTICAST_ALL)))
+	if (self.owner.health >= 1)
 	{
 		self.frame = floor (((self.owner.health / self.owner.max_health) * TE_WIZSPIKE));
-		setorigin (self, (self.owner.origin + '0 0 48'));
+		if (self.owner.position == 0)
+			setorigin (self, (self.owner.origin + '0 0 40'));
+		else if (self.owner.position == 1)
+			setorigin (self, (self.owner.origin + '0 0 32'));
+		else
+			setorigin (self, (self.owner.origin + '0 0 24'));
+
 		self.nextthink = (time + 0.01);
 		setmodel (self, "progs/hbar.spr");
 	}
@@ -5407,6 +5425,7 @@ void (entity guy) spawn_dot =
 	hologram.cnt = MULTICAST_ALL;
 	hologram.think = Bar_Think;
 	hologram.nextthink = (time + 0.01);
+	hologram.scale = 0.5;
 };
 
 void() FinishTurret;
@@ -6467,26 +6486,6 @@ void() AttachSilencer =
 			return;
 		}
 	}
-	else if (weap == IID_WP_MP7)
-	{
-		sprint(self, 2, "silencer attached.\n");
-		DecreaseDestroySlot(y);
-
-		if (self.current_slot == 1)
-		{
-			x = ToStatus(self.islot1);
-			self.islot1 = 0;
-			SetItemSlot(self, 1, SlotVal(IID_WP_MP7_S, x));
-			return;
-		}
-		if (self.current_slot == 2)
-		{
-			x = ToStatus(self.islot2);
-			self.islot2 = 0;
-			SetItemSlot(self, 2, SlotVal(IID_WP_MP7_S, x));
-			return;
-		}
-	}
 	else if (weap == IID_WP_MP9)
 	{
 		sprint(self, 2, "silencer attached.\n");
@@ -6504,6 +6503,26 @@ void() AttachSilencer =
 			x = ToStatus(self.islot2);
 			self.islot2 = 0;
 			SetItemSlot(self, 2, SlotVal(IID_WP_MP9_S, x));
+			return;
+		}
+	}
+	else if (weap == IID_WP_GREASEGUN)
+	{
+		sprint(self, 2, "silencer attached.\n");
+		DecreaseDestroySlot(y);
+
+		if (self.current_slot == 1)
+		{
+			x = ToStatus(self.islot1);
+			self.islot1 = 0;
+			SetItemSlot(self, 1, SlotVal(IID_WP_GREASEGUN_S, x));
+			return;
+		}
+		if (self.current_slot == 2)
+		{
+			x = ToStatus(self.islot2);
+			self.islot2 = 0;
+			SetItemSlot(self, 2, SlotVal(IID_WP_GREASEGUN_S, x));
 			return;
 		}
 	}
@@ -6881,7 +6900,7 @@ void() SpawnGModel =
 			setmodel (hologram, "progs/g_knife.mdl");
 		if (weap == IID_WP_WRENCH)
 			setmodel (hologram, "progs/g_wrench.mdl");
-		if (weap == IID_WP_AXE)
+		if (weap == IID_WP_SLEDGE)
 			setmodel (hologram, "progs/g_axe.mdl");
 		if (weap == IID_WP_SPEAR)
 			setmodel (hologram, "progs/g_spear.mdl");
@@ -6903,7 +6922,7 @@ void() SpawnGModel =
 			setmodel (hologram, "progs/g_knife.mdl");
 		if (weap == IID_WP_WRENCH)
 			setmodel (hologram, "progs/g_wrench.mdl");
-		if (weap == IID_WP_AXE)
+		if (weap == IID_WP_SLEDGE)
 			setmodel (hologram, "progs/g_axe.mdl");
 		if (weap == IID_WP_SPEAR)
 			setmodel (hologram, "progs/g_spear.mdl");

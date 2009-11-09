@@ -342,51 +342,19 @@ void() execute_changelevel =
 	local entity    pos;
 	local float x;
 
-	intermission_running = 1;
-	
-// enforce a wait time before allowing changelevel
-	intermission_exittime = time + 15;
-
-	pos = FindIntermission ();
 
 
-	WriteByte (MSG_ALL, SVC_INTERMISSION);
-	WriteCoord (MSG_ALL, pos.origin_x);
-	WriteCoord (MSG_ALL, pos.origin_y);
-	WriteCoord (MSG_ALL, pos.origin_z);
-	WriteAngle (MSG_ALL, pos.mangle_x);
-	WriteAngle (MSG_ALL, pos.mangle_y);
-	WriteAngle (MSG_ALL, pos.mangle_z);
-	
+	localcmd("map r_bunker\n");
 
 
-	x = ceil(random()*6);
-
-	if (x == 1)
-		savemap = "hostage";
-	if (x == 2)
-		savemap = "supplies";
-	if (x == 3)
-		savemap = "shadow";
-	if (x == 4)
-		savemap = "deadtown";
-	if (x == 5)
-		savemap = "destroy";
-	if (x == 6)
-		savemap = "defuse";
-
-	if (intermission_exittime < time)
-		localcmd("map r_bunker");
-
-	if (infokey(world, "objective") != "return" && infokey(world, "objective") != "start")
-		localcmd("serverinfo objective return\n");
-
-	self.nextthink = time + 1;
 };
 
 
 void() changelevel_touch =
 {
+	if (coop == 0)
+		return;
+
 	if (other.classname != "player")
 		return;
 
@@ -446,7 +414,7 @@ void() changelevel_touch =
 // we can't move people right now, because touch functions are called
 // in the middle of C movement code, so set a think time to do it
 	self.think = execute_changelevel;
-	self.nextthink = time + 0.1;
+	self.nextthink = time + 10;
 };
 
 /*QUAKED trigger_changelevel (0.5 0.5 0.5) ? NO_INTERMISSION
@@ -519,6 +487,12 @@ entity() SelectSpawnPoint =
 	numspots = 0;
 	totalspots = 0;
 
+
+	if (infokey(world, "coop") == "0")
+		coop = 0;
+	if (infokey(world, "coop") == "1")
+		coop = 1;
+
 // testinfo_player_start is only found in regioned levels
 
 	spot = find (world, classname, "testplayerstart");
@@ -527,8 +501,8 @@ entity() SelectSpawnPoint =
 	
 	spot = find (world, classname, "spawn3");
 
-	if (spot)
-		ent1 = "spawn3";
+	if (coop == 0)
+		ent1 = "info_player_deathmatch";
 	else
 		ent1 = "info_player_coop";
 
@@ -709,6 +683,8 @@ void() PutClientInServer =
 
 	self.equipment_slot = 0;
 
+	spawn_dot(self);
+
 	self.health = self.max_health;
 
 // oh, this is a hack!
@@ -738,42 +714,6 @@ void() PutClientInServer =
 	self.view_ofs = '0 0 22';
 	self.view2 = world;
 
-	if (world.model == "maps/r_bunker.bsp")
-	{
-		if (infokey(world, "objective") != "return")
-		{
-			if (self.ammo_shells == 300)
-				self.popup = 1;
-			else
-				self.popup = 2;
-		}
-	}
-
-	if (world.model == "maps/r_bunker.bsp")
-	{
-		if (infokey(world, "objective") == "return")
-		{
-			if (self.score <= 0)
-			{
-				self.popup = 6;
-			}
-			if (self.score <= 400)
-			{
-				self.ammo_shells = self.ammo_shells + 25;
-				self.popup = 3;
-			}
-			else if (self.score <= 800)
-			{
-				self.ammo_shells = self.ammo_shells + 50;
-				self.popup = 4;
-			}
-			else
-			{
-				self.ammo_shells = self.ammo_shells + 75;
-				self.popup = 5;
-			}
-		}
-	}
 
 // Mod - Xian (May.20.97)
 // Bug where player would have velocity from their last kill
@@ -840,6 +780,8 @@ void() PutClientInServer =
 	}
 
 	W_SetCurrentAmmo();
+	stuffcmd(self, "sizeup\n");
+	stuffcmd(self, "sizeup\n");
 };
 
 
@@ -873,7 +815,6 @@ void() info_player_start2 =
 
 	while (x > 0)
 	{
-		bprint(2, "hi\n");
 		start = spawn();
 		setsize(start, '-16 -16 -24', '16 16 32');
 		setorigin(start, self.origin + '0 0 4');
@@ -905,7 +846,6 @@ potential spawning position for coop games
 */
 void() info_player_coop =
 {
-	coop = 1;
 };
 
 
@@ -1373,7 +1313,7 @@ void() SneakLevel =
 
 	//bulletproof shirt gives a 2% bonus to stealth
 	st = ToIID(self.islot3);
-	if (st == IID_ARM_SHIRT)
+	if (st == IID_ARM_LEATHER)
 		sn = sn + 2;
 
 	//metal armor gives a large penalty to stealth
@@ -1386,10 +1326,6 @@ void() SneakLevel =
 	if (st == IID_ARM_LPOWER)
 		sn = sn - 10;
 
-	//body snatcher allows for an automatic disguise
-	st = ToIID(self.islot3);
-	if (st == IID_ARM_DESERT)
-		sn = 99;
 
 	//stealthboy allows for an automatic 10-second invisibility
 	st = ToIID(self.islot4);
@@ -1431,17 +1367,17 @@ void() ArmorCheck =
 	//Armor
 	if (aid == IID_ARM_DESERT)
 		type = 0.10;
-	if (aid == IID_ARM_SHIRT)
-		type = 0.25;
 	if (aid == IID_ARM_LEATHER)
+		type = 0.25;
+	if (aid == IID_ARM_VANDAL)
 		type = 0.30;
-	if (aid == IID_ARM_KEVLAR)
-		type = 0.50;
 	if (aid == IID_ARM_METAL)
+		type = 0.50;
+	if (aid == IID_ARM_TESLA)
 		type = 0.25;
 	if (aid == IID_ARM_COMBAT)
 		type = 0.40;
-	if (aid == IID_ARM_BROTHERHOOD)
+	if (aid == IID_ARM_SEVA)
 		type = 0.45;
 	if (aid == IID_ARM_FORCE)
 		type = 0.15;
@@ -1451,24 +1387,24 @@ void() ArmorCheck =
 		type += 0.20;
 
 
-	if (aid <= IID_ARM_KEVLAR)
+	if (aid <= IID_ARM_METAL)
 		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
-	else if (aid <= IID_ARM_BROTHERHOOD)
+	else if (aid <= IID_ARM_SEVA)
 		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
 	else
 		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
 
-	if (aid == IID_ARM_SHIRT)
-		self.armornoise = "misc/thud.wav";
 	if (aid == IID_ARM_LEATHER)
 		self.armornoise = "misc/thud.wav";
-	if (aid == IID_ARM_KEVLAR)
+	if (aid == IID_ARM_VANDAL)
 		self.armornoise = "misc/thud.wav";
 	if (aid == IID_ARM_METAL)
+		self.armornoise = "misc/thud.wav";
+	if (aid == IID_ARM_TESLA)
 		self.armornoise = "weapons/ric1.wav";
 	if (aid == IID_ARM_COMBAT)
 		self.armornoise = "misc/thud.wav";
-	if (aid == IID_ARM_BROTHERHOOD)
+	if (aid == IID_ARM_SEVA)
 		self.armornoise = "misc/thud.wav";
 	if (aid == IID_ARM_FORCE)
 		self.armornoise = "misc/laserdef.wav";
@@ -1541,10 +1477,6 @@ void () PositionControl =
 	else
 		self.maxspeed = 50;
 
-	if (self.health <= (self.max_health*0.20) && random()<0.05)
-		sound (self, CHAN_AUTO, "player/paina.wav", 1, ATTN_NORM);
-	else if (self.health <= (self.max_health*0.20) && random()<0.05)
-		sound (self, CHAN_AUTO, "player/painb.wav", 1, ATTN_NORM);
 
 	if (getperk(2))
 			self.maxspeed = self.maxspeed*1.10;
@@ -1964,7 +1896,7 @@ void() CheckPowerups =
 			self.modelindex = modelindex_player;
 		if (self.position == 2)
 			self.modelindex = modelindex_prone;
-		if (self.sneak == 1 || self.sneak == 3 && coop == 0)
+		if (self.sneak > 0 && coop == 0)
 			self.modelindex = modelindex_gone;
 		if (self.sneak > 0 && coop == 1)
 			self.modelindex = modelindex_sneak;
@@ -2778,7 +2710,7 @@ void() Identify =
 		tmp = ToIID(trace_ent.islot3);
 		if (tmp == 0)
 			c2 = "natural armor";
-		else if (tmp == IID_ARM_SHIRT)
+		else if (tmp == IID_ARM_LEATHER)
 			c2 = "lightly armored";
 		else
 			c2 = GetItemName(ToIID(trace_ent.islot3));

@@ -2240,6 +2240,11 @@ void() worldspawn =
 
 	// 63 testing
 	lightstyle(63, "a");
+
+	if (infokey(world, "coop") == "0")
+		coop = 0;
+	if (infokey(world, "coop") == "1")
+		coop = 1;
 };
 
 void() StartFrame =

@@ -355,13 +355,14 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 		}
 	}
 
-	if (damage <= 0)
+	if (damage <= 0 && (attacker.classname == "monster" || attacker.classname == "player"))
 	{
 		damage = 0;
 		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
 		return;
 	}
 
+	if (attacker.classname == "monster" || attacker.classname == "player")
 		sound (targ, CHAN_ITEM, targ.armornoise, 1, ATTN_NORM);
 
 	
@@ -449,25 +450,25 @@ take = damage;
 	switch(ToIID(targ.islot3))
 	{
 	case IID_ARM_DESERT:
-		take -= 1;
-		break;
-	case IID_ARM_SHIRT:
-		take -= 1;
+		take -= 2;
 		break;
 	case IID_ARM_LEATHER:
-		take -= 5;
-		break;
-	case IID_ARM_KEVLAR:
 		take -= 3;
 		break;
+	case IID_ARM_VANDAL:
+		take -= 4;
+		break;
 	case IID_ARM_METAL:
+		take -= 5;
+		break;
+	case IID_ARM_TESLA:
 		take -= 9;
 		break;
 	case IID_ARM_COMBAT:
-		take -= 7;
+		take -= 6;
 		break;
-	case IID_ARM_BROTHERHOOD:
-		take -= 10;
+	case IID_ARM_SEVA:
+		take -= 8;
 		break;
 	case IID_ARM_FORCE:
 		take -= 13;
@@ -481,22 +482,22 @@ take = damage;
 
 	switch(ToIID(targ.islot3))
 	{
-	case IID_ARM_SHIRT:
+	case IID_ARM_LEATHER:
 		take = take * 0.80;
 		break;
-	case IID_ARM_LEATHER:
+	case IID_ARM_VANDAL:
 		take = take * 0.70;
 		break;
-	case IID_ARM_KEVLAR:
+	case IID_ARM_METAL:
 		take = take * 0.50;
 		break;
-	case IID_ARM_METAL:
+	case IID_ARM_TESLA:
 		take = take * 0.65;
 		break;
 	case IID_ARM_COMBAT:
 		take = take * 0.60;
 		break;
-	case IID_ARM_BROTHERHOOD:
+	case IID_ARM_SEVA:
 		take = take * 0.55;
 		break;
 	case IID_ARM_FORCE:
@@ -782,22 +783,22 @@ take = damage;
 	case IID_ARM_DESERT:
 		take -= 1;
 		break;
-	case IID_ARM_SHIRT:
+	case IID_ARM_LEATHER:
 		take -= 1;
 		break;
-	case IID_ARM_LEATHER:
-		take -= 10;
-		break;
-	case IID_ARM_KEVLAR:
-		take -= 5;
+	case IID_ARM_VANDAL:
+		take -= 15;
 		break;
 	case IID_ARM_METAL:
+		take -= 10;
+		break;
+	case IID_ARM_TESLA:
 		take -= 25;
 		break;
 	case IID_ARM_COMBAT:
 		take -= 20;
 		break;
-	case IID_ARM_BROTHERHOOD:
+	case IID_ARM_SEVA:
 		take -= 20;
 		break;
 	case IID_ARM_FORCE:
@@ -812,22 +813,22 @@ take = damage;
 
 	switch(ToIID(targ.islot3))
 	{
-	case IID_ARM_SHIRT:
+	case IID_ARM_LEATHER:
 		take = take * 0.70;
 		break;
-	case IID_ARM_LEATHER:
+	case IID_ARM_VANDAL:
 		take = take * 0.60;
 		break;
-	case IID_ARM_KEVLAR:
+	case IID_ARM_METAL:
 		take = take * 0.40;
 		break;
-	case IID_ARM_METAL:
+	case IID_ARM_TESLA:
 		take = take * 0.55;
 		break;
 	case IID_ARM_COMBAT:
 		take = take * 0.50;
 		break;
-	case IID_ARM_BROTHERHOOD:
+	case IID_ARM_SEVA:
 		take = take * 0.45;
 		break;
 	case IID_ARM_FORCE:
@@ -1062,7 +1063,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) X_Damage =
 	case IID_ARM_METAL:
 		take -= 1;
 		break;
-	case IID_ARM_BROTHERHOOD:
+	case IID_ARM_SEVA:
 		take -= 1;
 		break;
 	case IID_ARM_FORCE:
@@ -1080,7 +1081,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) X_Damage =
 		case IID_ARM_LEATHER:
 			take = take * 0.90;
 			break;
-		case IID_ARM_KEVLAR:
+		case IID_ARM_VANDAL:
 			take = take * 0.75;
 			break;
 		case IID_ARM_METAL:
@@ -1089,7 +1090,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) X_Damage =
 		case IID_ARM_COMBAT:
 			take = take * 0.90;
 			break;
-		case IID_ARM_BROTHERHOOD:
+		case IID_ARM_SEVA:
 			take = take * 0.80;
 			break;
 		case IID_ARM_LPOWER:

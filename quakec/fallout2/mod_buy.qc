@@ -561,27 +561,7 @@ void() W_PlayerMenu =
 
 			return;
 	}
-	else if (self.currentmenu == "shop_armor")
-	{
-		if (self.impulse == 1)
-                  BuyArmor(3, 50, IID_ARM_SHIRT);         //weight, cost, item
-		if (self.impulse == 2)
-                  BuyArmor(7, 100, IID_ARM_LEATHER);         //weight, cost, item
-		if (self.impulse == 3)
-                  BuyArmor(9, 125, IID_ARM_KEVLAR);         //weight, cost, item
-		if (self.impulse == 4)
-                  BuyArmor(15, 150, IID_ARM_METAL);         //weight, cost, item
-		if (self.impulse == 5)
-                  BuyArmor(12, 200, IID_ARM_COMBAT);         //weight, cost, item
-		if (self.impulse == 6)
-                  BuyArmor(17, 250, IID_ARM_BROTHERHOOD);   //weight, cost, item
-		if (self.impulse == 7)
-                  BuyArmor(5, 300, IID_ARM_FORCE);         //weight, cost, item
-		if (self.impulse == 8)
-                  BuyArmor(20, 400, IID_ARM_LPOWER);         //weight, cost, item
 
-			return;
-	}
 	else if (self.currentmenu == "shop_ammo" && world.map_obj != 4)
 	{
 		if (self.impulse == 1)
@@ -667,7 +647,7 @@ void() W_PlayerMenu =
 		if (self.impulse == 2)
                   BuyWeapon(3, 8, IID_WP_WRENCH);         //weight, cost, item
 		if (self.impulse == 3)
-                  BuyWeapon(8, 9, IID_WP_AXE);         //weight, cost, item
+                  BuyWeapon(8, 9, IID_WP_SLEDGE);         //weight, cost, item
 		if (self.impulse == 4)
                   BuyWeapon(4, 12, IID_WP_SPEAR);         //weight, cost, item
 
@@ -701,9 +681,9 @@ void() W_PlayerMenu =
 		if (self.impulse == 4)
                   BuyWeapon(2, 120, IID_WP_NEEDLER);         //weight, cost, item
 		if (self.impulse == 5)
-                  BuyWeapon(3, 170, IID_WP_MP7);         //weight, cost, item
+                  BuyWeapon(3, 170, IID_WP_MP9);         //weight, cost, item
 		if (self.impulse == 6)
-                  BuyWeapon(3, 150, IID_WP_MP9);         //weight, cost, item
+                  BuyWeapon(3, 150, IID_WP_GREASEGUN);         //weight, cost, item
 
 			return;
 	}

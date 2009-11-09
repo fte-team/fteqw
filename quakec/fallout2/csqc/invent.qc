@@ -440,10 +440,9 @@ void() Trader_Draw =
 
 	if (showcontextmenu && show_trader)
 	{
-			drawfill(contextpos - '8 8 0', '88 24 0'+'96 96 0', '0 0 0', 0.9);
-
+		drawfill(contextpos - '8 8 0', '48 48 0', '0 0 0', 1.0);
 		op = floor((mousepos_y - contextpos_y)/8);
-		drawstring(contextpos + (0 * '0 8 0'), "buy", '8 8 0', '1 1 0' + (op!=0)*'0 0 1', 
+		drawstring(contextpos + '0 8 0', "buy?", '8 8 0', '1 1 0' + (op!=0)*'0 0 1', 
 1);
 	}
 
@@ -522,7 +521,7 @@ void() Pipboy_Draw =
 
 void() Invent_Draw =
 {
-	local float i;
+	local float i, check;
 	local float it;
 	local string itname, s1, s2, s3, s4, s5, s6, s7, s8, s9, perki, perk2i, p1, p2, pn, pd;
 	local float op;
@@ -552,9 +551,24 @@ void() Invent_Draw =
 	SlotImage('3 5 0'*IMGSIZEF, 15);
 	SlotImage('3 6 0'*IMGSIZEF, 16);
 
-	SlotImage('5.5 1 0'*IMGSIZEF, 1);
-	SlotImage('5.5 2 0'*IMGSIZEF, 2);
-	SlotImage('5.5 3 0'*IMGSIZEF, 3);
+	check = getstati(32);
+	if (check > 0)
+		SlotImage('5.5 1 0'*IMGSIZEF, 1);
+	else
+		drawpic('5.5 1 0'*IMGSIZEF, "gui/pipboy/weapon1.png", IMGSIZEV, '1 1 1', 1);
+
+	check = getstati(33);
+	if (check > 0)
+		SlotImage('5.5 2 0'*IMGSIZEF, 2);
+	else
+		drawpic('5.5 2 0'*IMGSIZEF, "gui/pipboy/weapon2.png", IMGSIZEV, '1 1 1', 1);
+
+	check = getstati(34);
+	if (check > 0)
+		SlotImage('5.5 3 0'*IMGSIZEF, 3);
+	else
+		drawpic('5.5 3 0'*IMGSIZEF, "gui/pipboy/armor.png", IMGSIZEV, '1 1 1', 1);
+
 
 	SlotImageSmall('1 3 0'*IMGSIZEK, 17);
 	SlotImageSmall('1 4 0'*IMGSIZEK, 18);

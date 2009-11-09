@@ -409,27 +409,6 @@ void() enf_die =
 		DropMoney();
 
 
-	if (self.weapon == 3)
-	{
-		DropFromChest(self, IID_WP_MP7_S, self.mag1);
-		DropFromChest(self, IID_AM_5MMHIGHVEL, 30+random()*30);
-	}
-	else if (self.weapon == 4)
-	{
-		DropFromChest(self, IID_WP_AK112, self.mag1);
-		DropFromChest(self, IID_AM_5MMHIGHVEL, 24+random()*24);
-	}
-	else if (self.weapon == 5)
-	{
-		DropFromChest(self, IID_WP_AK74, self.mag1);
-		DropFromChest(self, IID_AM_WARSAW, 30+random()*30);
-	}
-	else if (self.weapon == 6)
-	{
-		DropFromChest(self, IID_WP_MOONLIGHT, self.mag1);
-		DropFromChest(self, IID_AM_556MM, 30+random()*30);
-	}
-
 	self.solid = SOLID_NOT;
 	spawn_live_enforcer(self.origin, self.angles);
 	remove(self);

@@ -257,6 +257,90 @@ void() Explosive =
 	droptofloor();
 };
 
+float (entity to, float iid, float quant) TryGiveStackable;
+void() junk_touch =
+{
+	local float junktype;
+
+	if (other.skill_science <= 0)
+		return;
+	if (other.classname != "player")
+		return;
+	if (other.health <= 0)
+		return;
+
+
+
+	if (!TryGiveStackable(other, ToIID(self.islot1), self.flash))
+	{	
+		sprint(other, PRINT_MEDIUM, "inventory full.\n");
+		return;
+	}
+
+	sound (other, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
+
+	sprint(other, PRINT_MEDIUM, "found ");
+	sprint(other, PRINT_MEDIUM, GetItemName(ToIID(self.islot1)));
+	sprint(other, PRINT_MEDIUM, ".\n");
+
+	remove (self);
+
+};
+
+void() SpawnJunk =
+{
+	setorigin(self, self.origin + '0 0 64');
+	self.movetype = MOVETYPE_BOUNCE;
+	self.velocity_x = crandom()*600;
+	self.velocity_y = crandom()*600;
+	self.velocity_z = -100;
+
+	self.avelocity_y = crandom()*600;
+
+	if (random()*100 < 50)
+		setmodel (self, "progs/junk1.mdl");
+	else
+		setmodel (self, "progs/junk2.mdl");
+
+	self.touch = junk_touch;
+	self.solid = SOLID_BBOX;
+	setsize (self, '-12 -12 0', '12 12 12');
+	self.takedamage = DAMAGE_NO;
+	self.classname = "random_junk";
+
+
+	if (random()*100 <= 10)
+		self.islot1 = IID_MISC_JUNK;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_NUKACOLA;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_CHEMICALS;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_AEROSOL;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_RDXCRYSTAL;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_STEELPIPE;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_DUCKTAPE;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_LCD;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_CIRCUITBOARD;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_COPPERWIRE;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_HMXCOMPOUND;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_GUM;
+	else if (random()*100 <= 10)
+		self.islot1 = IID_MISC_XRAYTUBE;
+
+	if (random()*100 <= 10)
+		self.flash = 2;
+	else
+		self.flash = 1;
+};
 void() TreasureChest =
 {
 	setorigin(self, self.origin + '0 0 64');
@@ -273,7 +357,15 @@ void() TreasureChest =
 	setsize (self, '-12 -12 0', '12 12 12');
 	self.takedamage = DAMAGE_NO;
 	self.classname = "treasure_chest";
+
+	SpawnJunk();
+	SpawnJunk();
+	SpawnJunk();
 };
+
+
+
+
 
 void() car_rock =
 {
@@ -2165,6 +2257,7 @@ void() DropMoney =
 	item.nextthink = time + 120;    // remove after 2 minutes
 	item.think = SUB_Remove;
 };
+
 
 
 /*

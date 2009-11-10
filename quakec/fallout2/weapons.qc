@@ -125,7 +125,7 @@ float (entity healer, entity saved) RevivePlayer =
 
 //	saved.materialize = 200;
 	saved.ghost = 0;
-	saved.health = 40;
+	saved.health = 20 + (healer.skill_doctor);
 	saved.air_finished = time + 10;
 	saved.view_ofs = '0 0 22';
 	self = saved;
@@ -1621,11 +1621,11 @@ void() W_Attack =
 	else if (weap == IID_WP_DKS1_S)
 		FireAssaultRifle(35, 3, "weapons/moonlight1.wav", 5000, 0.25);
 	else if (weap == IID_WP_WINCHESTER)
-		W_FireShotgun (2, 5, 8, 50, 1500, 0, "weapons/shotgun1.wav");
+		W_FireShotgun (2, 5, 7, 50, 1500, 0, "weapons/shotgun1.wav");
 	else if (weap == IID_WP_MOSSBERG)
-		W_FireShotgun (2, 5, 7, 20, 2000, 1, "weapons/citykiller.wav");
+		W_FireShotgun (2, 5, 6, 20, 2000, 1, "weapons/citykiller.wav");
 	else if (weap == IID_WP_JACKHAMMER)
-		W_FireShotgun (1, 5, 7, 30, 1750, 2, "weapons/citykiller.wav");
+		W_FireShotgun (1, 5, 6, 30, 1750, 2, "weapons/citykiller.wav");
 	else if (weap == IID_WP_GREASEGUN)
 		FireSMG(14, 0, "weapons/mp7.wav", 1500, 0.10);
 	else if (weap == IID_WP_MP9)
@@ -1641,7 +1641,7 @@ void() W_Attack =
 	else if (weap == IID_WP_AK112_M)
 		FireAssaultRifle(16, 10, "weapons/ak112.wav", 4000, 0.095);
 	else if (weap == IID_WP_ACR)
-		FireAssaultRifle(25, 7, "weapons/bozar.wav", 9000, 0.090);
+		FireAssaultRifle(45, 7, "weapons/amr.wav", 9000, 0.1);
 	else if (weap == IID_WP_AK74)
 		FireAssaultRifle(45, 12, "ogre/ak47.wav", 3500, 0.090);
 	else if (weap == IID_WP_DKS1)
@@ -3310,6 +3310,8 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 
 		if (weap == IID_WP_DKS1)
 			loud_noise(100);
+		else if (weap == IID_WP_ACR)
+			loud_noise(110);
 		else if (weap == IID_WP_MOONLIGHT)
 			loud_noise(5);
 		else if (weap == IID_WP_DKS1_S)
@@ -3445,6 +3447,8 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 	if (self.zoom > 0 && weap == IID_WP_G11 && self.attack >= 3 && weap != IID_WP_MOONLIGHT)
 		stuffcmd (self, "-attack\n");
 	if (weap == IID_WP_GAUSERIFLE)
+		stuffcmd (self, "-attack\n");
+	if (weap == IID_WP_ACR)
 		stuffcmd (self, "-attack\n");
 
 	if (trace_ent.takedamage)
@@ -4218,8 +4222,8 @@ void () UseStimpack =
 				thing = thing.chain;      
 			}
 
-			self.health = self.health + 20;
-			self.regen = self.regen + (5 + (self.skill_doctor));
+			self.health = self.health + 10 + (self.skill_doctor/2);
+			self.regen = self.regen + (3 + (self.skill_doctor/2));
 		}
 	}
 	else if (trace_ent.classname == "player")//healing another team-mate
@@ -4290,8 +4294,8 @@ void () UseStimpack =
 				sprint(self, PRINT_MEDIUM, trace_ent.netname);
 				sprint(self, PRINT_MEDIUM, " with a stimpack\n");
 
-				trace_ent.health = trace_ent.health + 20;
-				trace_ent.regen = trace_ent.regen + (5 + (self.skill_doctor));
+				trace_ent.health = trace_ent.health + 10 + (self.skill_doctor/2);
+				trace_ent.regen = trace_ent.regen + (3 + (self.skill_doctor/2));
 			}
 		}
 	}
@@ -4449,7 +4453,7 @@ void () UseMedicalBag =
 
 			sound (self, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
 			sprint(self, PRINT_MEDIUM, "you start to bandage yourself\n");
-			self.regen = self.regen + self.skill_doctor;
+			self.regen = self.regen + 3 + (self.skill_doctor/2);
 		}
 	}
 	else if (trace_ent.classname == "player")//healing another team-mate
@@ -4505,7 +4509,7 @@ void () UseMedicalBag =
 				sprint(self, PRINT_MEDIUM, trace_ent.netname);
 				sprint(self, PRINT_MEDIUM, " with a stimpack\n");
 
-				trace_ent.regen = trace_ent.regen + self.skill_doctor;
+				trace_ent.regen = trace_ent.regen + 3 + (self.skill_doctor/2);
 			}
 		}
 	}
@@ -6016,10 +6020,10 @@ void (float rec, float number, float dam, float spread, float ran, float auto, s
 
 	weap = ToIID(self.(SlotField(self.current_slot)));
 
-	var1 = (16 + (random () * 12) * (self.recoil));
-	var2 = (16 + (random () * 12) * (self.recoil));
-	var3 = (16 + (random () * 12) * (self.recoil));
-	var4 = (16 + (random () * 12) * (self.recoil));
+	var1 = ((random () * 16) * (self.recoil));
+	var2 = ((random () * 16) * (self.recoil));
+	var3 = ((random () * 16) * (self.recoil));
+	var4 = ((random () * 16) * (self.recoil));
 
 	if (self.position == 0)
 		player_single1 ();

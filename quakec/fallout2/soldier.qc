@@ -383,7 +383,7 @@ void (float tmp, float dam) army_fire4 =
 
 	makevectors (self.angles);
 
-	sound (self, CHAN_WEAPON, "weapons/ak112.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
+	sound (self, CHAN_WEAPON, "weapons/ak47.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
 
 	src = self.origin + v_forward*10;
 	src_z = self.absmin_z + self.size_z * 0.7;
@@ -747,7 +747,7 @@ void () army_atk6 = [ 86, army_atk7 ]
 void () army_atk7 = [ 87, army_atk8 ]
 {
 	ai_face ();
-	army_fire (120, 19);
+	army_fire (170, 19);
 };
 
 void () army_atk8 = [ 88, army_atk9 ]
@@ -789,7 +789,7 @@ void () army_atka4 = [ 84, army_atka5 ]
 void () army_atka5 = [ 85, army_atka6 ]
 {
 	ai_face ();
-	army_fire2 (200, 7);
+	army_fire2 (250, 7);
 };
 
 void () army_atka6 = [ 86, army_atka7 ]
@@ -850,7 +850,7 @@ void () army_atkb5 = [ 85, army_atkb6 ]
 	if (r == RANGE_NEAR || r == RANGE_MELEE)
 		self.recoil = 1;
 
-	army_fire3 (100, 15);
+	army_fire3 (120, 15);
 };
 
 void () army_atkb6 = [ 86, army_atkb7 ]
@@ -858,8 +858,8 @@ void () army_atkb6 = [ 86, army_atkb7 ]
 	ai_face ();
 	if (self.recoil == 1)
 	{
-		army_fire3 (150, 14);
-		army_fire3 (150, 14);
+		army_fire3 (160, 14);
+		army_fire3 (160, 14);
 	}
 };
 
@@ -867,7 +867,7 @@ void () army_atkb7 = [ 87, army_atkb8 ]
 {
 	ai_face ();
 	if (self.recoil == 1)
-		army_fire3 (150, 14);
+		army_fire3 (160, 14);
 };
 
 void () army_atkb8 = [ 88, army_atkb9 ]
@@ -875,8 +875,8 @@ void () army_atkb8 = [ 88, army_atkb9 ]
 	ai_face ();
 	if (self.recoil == 1)
 	{
-		army_fire3 (150, 14);
-		army_fire3 (150, 14);
+		army_fire3 (160, 14);
+		army_fire3 (160, 14);
 	}
 };
 
@@ -885,8 +885,8 @@ void () army_atkb9 = [ 89, army_run1 ]
 	ai_face ();
 	if (self.recoil == 1)
 	{
-		army_fire3 (150, 14);
-		army_fire3 (150, 14);
+		army_fire3 (170, 14);
+		army_fire3 (170, 14);
 	}
 };
 
@@ -919,7 +919,7 @@ void () army_atkcs4 = [ 84, army_atkcs5 ]
 void () army_atkcs5 = [ 85, army_atkcs6 ]
 {
 	ai_face ();
-	sound (self, CHAN_WEAPON, "weapons/ak112.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
+	sound (self, CHAN_WEAPON, "weapons/ak47.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
 	army_fire4 (100, 20);
 };
 
@@ -1483,7 +1483,7 @@ void () army_die =
 	if (self.weapon == 4)
 		DropFromChest(self, IID_WP_MP9, 15);
 	if (self.weapon == 5)
-		DropFromChest(self, IID_WP_AK112, 12);
+		DropFromChest(self, IID_WP_AK47, 12);
 
 	if (self.weapon == 1)
 		DropFromChest(self, IID_AM_44MAGNUM, 10);
@@ -1572,8 +1572,6 @@ void (vector jojo, entity friend) spawn_soldier =
 		te = te.chain;
 	}
 
-//soldiers have either 0, 1 or 2 grenades
-	self.grenadetoggle = floor(random()*2);
 
 //soldiers have either pistol, smg, shotgun or rifle
 	self.weapon = ceil(random()*4);
@@ -1711,7 +1709,7 @@ void () monster_army =
 	self.movetype = MOVETYPE_STEP;
 	setmodel (self, "progs/soldier.mdl");
 	setsize (self, '-12 -12 -24', '12 12 28');
-	self.health = 70+random()*30;
+	self.health = 100;
 	self.team = 3;
       self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
 	self.armortype = 0.2;
@@ -1795,7 +1793,7 @@ void () monster_army =
 
 	if (random()<0.25 && (world.map_obj != OBJ_SHADOW))
 		spawn_soldier(self.origin, self);
-	if (random()<0.25 && world.map_obj == OBJ_HOSTAGE)
+	if (random()<0.25)
 		spawn_civilian(self.origin);
 };
 
@@ -1906,7 +1904,7 @@ void () monster_commander =
 	commanders = commanders + 1;
 
 	setsize (self, '-12 -12 -24', '12 12 32');
-	self.health = 120;
+	self.health = 300;
       self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
 	self.armortype = 0.5;
 	self.helmet = 1;

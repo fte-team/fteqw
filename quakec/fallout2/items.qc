@@ -287,59 +287,65 @@ void() junk_touch =
 
 };
 
-void() SpawnJunk =
+void(vector loc) SpawnJunk =
 {
-	setorigin(self, self.origin + '0 0 32');
-	self.movetype = MOVETYPE_BOUNCE;
-	self.velocity_x = crandom()*600;
-	self.velocity_y = crandom()*600;
-	self.velocity_z = -100;
+	local entity junk;
 
-	self.avelocity_y = crandom()*300;
+	junk = spawn ();
+
+	setorigin(junk, loc + '0 0 96');
+
+
+	junk.movetype = MOVETYPE_BOUNCE;
+	junk.velocity_x = crandom()*600;
+	junk.velocity_y = crandom()*600;
+	junk.velocity_z = -100;
+
+	junk.avelocity_y = crandom()*300;
 
 	if (random()*100 < 50)
-		setmodel (self, "progs/junk1.mdl");
+		setmodel (junk, "progs/junk1.mdl");
 	else
-		setmodel (self, "progs/junk2.mdl");
+		setmodel (junk, "progs/junk2.mdl");
 
-	self.touch = junk_touch;
-	self.solid = SOLID_TRIGGER;
-	setsize (self, '-12 -12 0', '12 12 12');
-	self.takedamage = DAMAGE_NO;
-	self.classname = "random_junk";
+	junk.touch = junk_touch;
+	junk.solid = SOLID_TRIGGER;
+	setsize (junk, '-12 -12 0', '12 12 12');
+	junk.takedamage = DAMAGE_NO;
+	junk.classname = "random_junk";
 
 
 	if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_JUNK, 1);
+		junk.islot1 = SlotVal(IID_MISC_JUNK, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_NUKACOLA, 1);
+		junk.islot1 = SlotVal(IID_MISC_NUKACOLA, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_CHEMICALS, 1);
+		junk.islot1 = SlotVal(IID_MISC_CHEMICALS, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_AEROSOL, 1);
+		junk.islot1 = SlotVal(IID_MISC_AEROSOL, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_RDXCRYSTAL, 1);
+		junk.islot1 = SlotVal(IID_MISC_RDXCRYSTAL, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_STEELPIPE, 1);
+		junk.islot1 = SlotVal(IID_MISC_STEELPIPE, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_DUCKTAPE, 1);
+		junk.islot1 = SlotVal(IID_MISC_DUCKTAPE, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_LCD, 1);
+		junk.islot1 = SlotVal(IID_MISC_LCD, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_CIRCUITBOARD, 1);
+		junk.islot1 = SlotVal(IID_MISC_CIRCUITBOARD, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_COPPERWIRE, 1);
+		junk.islot1 = SlotVal(IID_MISC_COPPERWIRE, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_HMXCOMPOUND, 1);
+		junk.islot1 = SlotVal(IID_MISC_HMXCOMPOUND, 1);
 	else if (random()*100 <= 10)
-		self.islot1 = SlotVal(IID_MISC_GUM, 1);
+		junk.islot1 = SlotVal(IID_MISC_GUM, 1);
 	else
-		self.islot1 = SlotVal(IID_MISC_JUNK, 1);
+		junk.islot1 = SlotVal(IID_MISC_JUNK, 1);
 
 	if (random()*100 <= 10)
-		self.flash = 2;
+		junk.flash = 2;
 	else
-		self.flash = 1;
+		junk.flash = 1;
 };
 void() TreasureChest =
 {
@@ -1326,8 +1332,12 @@ void() weapon_supershotgun =
 	if (random()<0.25)
 		TreasureChest();
 
-	SpawnJunk();
-	SpawnJunk();
+
+
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
 };
 
 /*QUAKED weapon_nailgun (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1344,8 +1354,10 @@ void() weapon_nailgun =
 	else
 		TreasureChest();
 
-	SpawnJunk();
-	SpawnJunk();
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
 };
 
 /*QUAKED weapon_supernailgun (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1362,9 +1374,10 @@ void() weapon_supernailgun =
 	else if (random()*100 <= 40)
 		TreasureChest();
 
-	SpawnJunk();
-	SpawnJunk();
-	SpawnJunk();
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
 };
 
 /*QUAKED weapon_grenadelauncher (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1382,7 +1395,10 @@ void() weapon_grenadelauncher =
 	else if (random()*100 <= 40)
 		TreasureChest();
 
-	SpawnJunk();
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
 
 };
 
@@ -1400,7 +1416,10 @@ void() weapon_rocketlauncher =
 	else if (random()*100 <= 40)
 		TreasureChest();
 
-	SpawnJunk();
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
 };
 
 
@@ -1419,7 +1438,10 @@ void() weapon_lightning =
 	else if (random()*100 <= 40)
 		TreasureChest();
 
-	SpawnJunk();
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
+		SpawnJunk(self.origin);
 };
 
 

@@ -672,7 +672,7 @@ string(float iid) GetItemVModel =
 	if (iid == IID_WP_ALIENBLASTER)
 		return "progs/v_blaster.mdl";
 	if (iid >= IID_WP_PIPERIFLE && iid <= IID_WP_PIPERIFLE_S_R)
-		return "progs/v_bozar.mdl";
+		return "progs/v_pipe.mdl";
 	if (iid == IID_WP_WINCHESTER)
 		return "progs/v_double.mdl";
 	if (iid == IID_WP_MOSSBERG)

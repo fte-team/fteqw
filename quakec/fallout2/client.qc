@@ -101,12 +101,12 @@ void() SetNewParms =
 //on account of changing maps before spawning was resulting in no inventory.
 	parm1 = 0;
 	parm2 = 0;
-	parm3 = 0;
+	parm3 = SlotVal(IID_ARM_LEATHER, 1);
 	parm4 = 0;
 	parm5 = 0;
 	parm6 = 0;
 	parm7 = 0;
-	parm8 = 300;
+	parm8 = 150;
 	parm9 = 0;
 	parm10 = 0;
 	parm11 = 0;
@@ -599,7 +599,7 @@ void() PutClientInServer =
 	self.takedamage = DAMAGE_AIM;
 	self.movetype = MOVETYPE_WALK;
 	self.show_hostile = 0;
-	self.max_health = 100 + self.skill_combat;
+	self.max_health = 150 + (self.skill_combat*2);
 	self.health = 100;
 	self.flags = FL_CLIENT;
 	self.air_finished = time + 12;
@@ -644,8 +644,8 @@ void() PutClientInServer =
 	if (self.current_slot == 0)
 	{
 		self.islot1 = SlotVal(IID_WP_GLOCK, 15);
-		self.islot2 = 0;
-		self.islot3 = 0;
+		self.islot2 = SlotVal(IID_WP_KNIFE, 1);
+		self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
 		self.islot5 = SlotVal(IID_CHEM_STIMPACK, 3);
 		self.islot7 = SlotVal(IID_AM_10MM, 30);
 		self.islot8 = 0;
@@ -1546,34 +1546,19 @@ void() PlayerPreThink =
 		DisplayMenu ();
 		return;
 	}
-	else if (self.score >= 500 && self.score <= 1550 && self.currentmenu == "none")
-	{
-		self.score = self.score + 1;
-	}
-	else if (self.score >= 1551 && self.currentmenu == "none")
-	{
-		self.currentmenu = "gain_skill";
-		self.missionbrief = 2;
-		DisplayMenu ();
-	}
-	else if (self.score >= 200 && self.currentmenu == "none")
-	{
-			self.score = 500;
-	}
 
 
-	if ((self.skill_combat + self.skill_sneak + self.skill_doctor + self.skill_science) <= 10)
+
+	if (self.score < 200)
 	{
-		if (self.currentmenu == "none")
+		if ((self.skill_combat + self.skill_doctor + self.skill_sneak + self.skill_science) <= 10)
 		{
-			self.currentmenu = "gain_skill";
-			self.missionbrief = 2;
-			return;
+			self.score = 200;
+	
+			sound (self, CHAN_BODY, "misc/secret.wav", 1, ATTN_NORM);
+			sprint(self, 2, "you have gained a level!\npress 'p' to assign a skill point.\n");
 		}
 	}
-
-
-
 
 	if (self.cycle1 < time)
 	{

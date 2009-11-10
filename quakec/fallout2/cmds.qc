@@ -259,6 +259,31 @@ void(string arg1) Cmd_InvDrop =
 	DropFromSlot(slotno, true, false);
 };
 
+void(string arg1) Cmd_GainLevel =
+{
+	if (self.score < 200)
+	{
+		sprint(self, 2, "not enough experience points.\n");
+		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+		return;
+	}
+	if (self.score >= 200)
+	{
+		sound (self, CHAN_BODY, "buttons/switch02.wav", 1, ATTN_NORM);
+		self.score = self.score - 200;
+	}	
+
+	if (arg1 == "combat")
+		self.skill_combat = self.skill_combat + 1;
+	else if (arg1 == "doctor")
+		self.skill_doctor = self.skill_doctor + 1;
+	else if (arg1 == "sneak")
+		self.skill_sneak = self.skill_sneak + 1;
+	else if (arg1 == "science")
+		self.skill_science = self.skill_science + 1;
+};
+
+
 void(string arg1) Cmd_InvBuy =
 {
 	local float x,y, iid, amount, money, item;
@@ -373,6 +398,7 @@ void(string arg1) Cmd_InvSell =
 
 	SetItemSlot(self, slotno, 0);
 	x = GetBaseValue(iid);
+	x = x / 5;
 	y = ftos(x);
 	z = GetItemName(iid);
 
@@ -1167,6 +1193,12 @@ void(string line) SV_ParseClientCommand =
 		if (self.deadflag || self.current_slot==0)
 			return;
 		Cmd_InvBuy(argv(1));
+	}
+	else if (cmd == "gainlevel")
+	{
+		if (self.deadflag || self.current_slot==0)
+			return;
+		Cmd_GainLevel(argv(1));
 	}
 	else if (cmd == "invmix")
 	{

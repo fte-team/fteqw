@@ -452,7 +452,7 @@ void() monster_enforcer =
 		self.netname = "enforcer";
 
 		setsize (self, '-12 -12 -24', '12 12 32');
-		self.health = 100;
+		self.health = 200;
             self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
 		self.armortype = 0.5;
 		self.helmet = 1;

@@ -879,7 +879,7 @@ void (entity attacker, float damage) ogre_pain =
 	if (self.pain_finished > time)
 		return;
 
-	if (random()*8 <= 1)
+	if (random()*100 <= 1)
 	{
 		ogre_paind1();
 		self.pain_finished = time + 7;
@@ -1126,7 +1126,7 @@ void () monster_ogre =
 	self.netname = "mutant";
 	self.classname = "monster";
 	setsize (self, '-16 -16 -24', '16 16 48');
-	self.health = 200;
+	self.health = 300;
 	self.team = 3;
       self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
 	self.armornoise = "misc/thud.wav";

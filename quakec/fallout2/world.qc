@@ -189,30 +189,13 @@ void() load_monster =
 	{
 		self.zone = 1;
 
-			monster_army();
-/*
-		if (world.map_ent1 == 1)
-			monster_dog();
-		if (world.map_ent1 == 2)
-			monster_zombie();
-		if (world.map_ent1 == 3)
-			monster_tarbaby();
-		if (world.map_ent1 == 4 || world.map_ent1 == 5)
-			monster_army();
-		if (world.map_ent1 == 6)
-			monster_ogre();
-		if (world.map_ent1 == 7)
-			monster_wizard();
-		if (world.map_ent1 == 8)
-			monster_knight();
-		if (world.map_ent1 == 9)
-			monster_demon1();
-		if (world.map_ent1 == 10)
-			monster_enforcer();
-		if (world.map_ent1 == 11)
-			monster_shalrath();
-		if (world.map_ent1 == 12)
-			monster_shambler();*/
+			
+	if (world.map_obj == OBJ_DEADTOWN)
+		monster_zombie();
+	else
+		monster_army();
+
+
 	}
 	else if (y <= world.map_ent2_percent)
 	{
@@ -222,12 +205,12 @@ void() load_monster =
 			monster_dog();
 		if (world.map_ent2 == 2)
 			monster_zombie();
-		if (world.map_ent2 == 3 || world.map_ent2 == 4 || world.map_ent2 == 5)
+		if (world.map_ent2 == 3 || world.map_ent2 == 4)
 			monster_army();
-		if (world.map_ent2 == 6)
+		if (world.map_ent2 == 5 || world.map_ent2 == 6)
 			monster_ogre();
 		if (world.map_ent2 == 7)
-			monster_army();
+			monster_enforcer();
 		if (world.map_ent2 == 8)
 			monster_demon1();
 		if (world.map_ent2 == 9)
@@ -248,13 +231,13 @@ void() load_monster =
 		else if (random()<0.10)
 			monster_zombie();
 		else if (random()<0.10)
-			monster_army();
+			monster_enforcer();
 		else if (random()<0.10)
 			monster_ogre();
 		else if (random()<0.10)
-			monster_wizard();
+			monster_army();
 		else if (random()<0.10)
-			monster_knight();
+			monster_enforcer();
 
 	if (world.map_obj == OBJ_DEADTOWN)
 		spawn_ghoul(self.origin + '128 0 0');
@@ -742,6 +725,7 @@ if (coop == 1) // Players vs Monsters
 			if (endgame_timer == 0)
 			{
 				bprint(2, "^4** ^bTHE HOSTAGES WERE SAVED!!!^b **\n");
+				sound (self, CHAN_VOICE, "misc/fanfare.wav", 1, ATTN_NONE);
 				ze = find (world, classname, "player");
 				while (ze != world)
 				{
@@ -2105,6 +2089,10 @@ void() worldspawn =
 	precache_sound ("misc/hosdown.wav");
 	precache_sound ("misc/rescued.wav");
 	precache_sound ("misc/beep1.wav");
+	precache_sound ("buttons/switch02.wav");
+	precache_sound ("buttons/switch04.wav");
+	precache_sound ("misc/secret.wav");
+	precache_sound ("misc/fanfare.wav");
 
 	precache_sound ("player/gib1.wav");
 	precache_sound ("player/step1.wav");
@@ -2149,6 +2137,7 @@ void() worldspawn =
 	precache_sound ("weapons/moonlight-2.wav");
 	precache_sound ("weapons/needler.wav");
 	precache_sound ("weapons/bozar.wav");
+	precache_sound ("weapons/amr.wav");
 	precache_sound ("weapons/smg_s.wav");
 	precache_sound ("weapons/shotgun1.wav");
 	precache_sound ("weapons/mp5.wav");

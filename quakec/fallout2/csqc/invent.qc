@@ -17,6 +17,8 @@ float sliderpos;
 
 float downslotnum;	//the slot number when the mousecursor when down
 
+float selected_class;
+
 vector toppos = '0 32 0';
 
 float k_mouse1;
@@ -442,7 +444,7 @@ void() Trader_Draw =
 	{
 		drawfill(contextpos - '8 8 0', '48 48 0', '0 0 0', 1.0);
 		op = floor((mousepos_y - contextpos_y)/8);
-		drawstring(contextpos + '0 8 0', "buy?", '8 8 0', '1 1 0' + (op!=0)*'0 0 1', 
+		drawstring(contextpos + '0 8 0', "buy?", '8 8 0', '1 1 0' + (op!=1)*'0 0 1', 
 1);
 	}
 
@@ -468,6 +470,7 @@ void() Trader_Draw =
 void() Pipboy_Draw =
 {
 	float width,height,lvl,bar;
+	string skill;
 	vector w;
 
 	width = cvar("vid_conwidth");
@@ -477,45 +480,84 @@ void() Pipboy_Draw =
 
 
 
-	drawpic('0 0 0', "gui/pipboy/pipboy.jpg", '640 480 0', '1 1 1', 1);
-	drawstring('3 2 0'*IMGSIZEF, "COMBAT", '8 8 8', '1 1 1', 1);
+	if (mousepos_y >= 200 && mousepos_y <= 325)
+	{
+		if (mousepos_x >= 150 && mousepos_x <= 250)
+		{
+			drawpic('0 0 0', "gui/pipboy/skills2.jpg", '640 480 0', '1 1 1', 1);
+			selected_class = 1;
+		}
+		else if (mousepos_x >= 250 && mousepos_x <= 350)
+		{
+			drawpic('0 0 0', "gui/pipboy/skills3.jpg", '640 480 0', '1 1 1', 1);
+			selected_class = 2;
+		}
+		else if (mousepos_x >= 350 && mousepos_x <= 450)
+		{
+			drawpic('0 0 0', "gui/pipboy/skills4.jpg", '640 480 0', '1 1 1', 1);
+			selected_class = 3;
+		}
+		else if (mousepos_x >= 450 && mousepos_x <= 550)
+		{
+			drawpic('0 0 0', "gui/pipboy/skills5.jpg", '640 480 0', '1 1 1', 1);
+			selected_class = 4;
+		}
+		else
+		{
+			drawpic('0 0 0', "gui/pipboy/skills1.jpg", '640 480 0', '1 1 1', 1);
+			selected_class = 0;
+		}
+	}
+	else
+	{
+		drawpic('0 0 0', "gui/pipboy/skills1.jpg", '640 480 0', '1 1 1', 1);
+		selected_class = 0;
+	}
+
+
+
 	bar = 0;
 	lvl = getstati(100);
+	skill = ftos(lvl+1);
 	while (bar <= lvl)
 	{
-		drawpic('4 2 0'*IMGSIZEF + ('4 0 0'*bar),  "gui/graph/red.jpg", '1 4 0'*2, '1 1 1', 1);		
+		drawpic('210 190 0' - ('0 4 0'*bar),  "gui/graph/red.jpg", '16 2 0'*2, '1 1 1', 1);		
 		bar = bar + 1;
 	}
+		drawstring('220 190 0' - ('0 4 0'*(lvl+4)), skill, '8 8 0', '1 1 1', 1);
 
 
-	drawstring('3 2.2 0'*IMGSIZEF, "DOCTOR", '8 8 8', '1 1 1', 1);
 	bar = 0;
 	lvl = getstati(101);
+	skill = ftos(lvl+1);
 	while (bar <= lvl)
 	{
-		drawpic('4 2.2 0'*IMGSIZEF + ('4 0 0'*bar),  "gui/graph/green.jpg", '1 4 0'*2, '1 1 1', 1);		
+		drawpic('305 190 0'  - ('0 4 0'*bar),  "gui/graph/green.jpg", '16 2 0'*2, '1 1 1', 1);		
 		bar = bar + 1;
 	}
+		drawstring('315 190 0' - ('0 4 0'*(lvl+4)), skill, '8 8 0', '1 1 1', 1);
 
-
-	drawstring('3 2.4 0'*IMGSIZEF, "SNEAK", '8 8 8', '1 1 1', 1);
 	bar = 0;
 	lvl = getstati(102);
+	skill = ftos(lvl+1);
 	while (bar <= lvl)
 	{
-		drawpic('4 2.4 0'*IMGSIZEF + ('4 0 0'*bar),  "gui/graph/blue.jpg", '1 4 0'*2, '1 1 1', 1);		
+		drawpic('395 190 0' - ('0 4 0'*bar),  "gui/graph/blue.jpg", '16 2 0'*2, '1 1 1', 1);		
 		bar = bar + 1;
 	}
+		drawstring('405 190 0' - ('0 4 0'*(lvl+4)), skill, '8 8 0', '1 1 1', 1);
 
-	drawstring('3 2.6 0'*IMGSIZEF, "SCIENCE", '8 8 8', '1 1 1', 1);
 	bar = 0;
 	lvl = getstati(103);
+	skill = ftos(lvl+1);
 	while (bar <= lvl)
 	{
-		drawpic('4 2.6 0'*IMGSIZEF + ('4 0 0'*bar),  "gui/graph/yellow.jpg", '1 4 0'*2, '1 1 1', 1);		
+		drawpic('485 190 0' - ('0 4 0'*bar),  "gui/graph/yellow.jpg", '16 2 0'*2, '1 1 1', 1);		
 		bar = bar + 1;
 	}
+		drawstring('495 190 0' - ('0 4 0'*(lvl+4)), skill, '8 8 0', '1 1 1', 1);
 
+	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
 };
 
 
@@ -749,7 +791,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			show_pipboy = false;
 			show_inventory = false;
 		}
-		else if (!show_inventory && !show_trader)
+		else if (!show_inventory && !show_trader && !show_pipboy)
 			return false;
 		else if (param1 == k_mouse1)
 		{
@@ -800,7 +842,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			{
 				op = floor((mousepos_y - contextpos_y)/8);
 
-				if (op == 0)
+				if (op == 1)
 					localcmd(strcat("cmd invbuy ", ftos(slotnum), "\n"));
 	
 				showcontextmenu = false;
@@ -827,6 +869,17 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							showcontextmenu = true;	//show the context menu
 							contextpos = mousepos;
 						}
+					}
+					else if (show_pipboy)	
+					{
+						if (selected_class == 1)
+							localcmd("cmd gainlevel combat\n");
+						if (selected_class == 2)
+							localcmd("cmd gainlevel doctor\n");
+						if (selected_class == 3)
+							localcmd("cmd gainlevel sneak\n");
+						if (selected_class == 4)
+							localcmd("cmd gainlevel science\n");
 					}
 					else
 					{

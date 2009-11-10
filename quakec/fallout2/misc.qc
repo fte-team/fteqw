@@ -1072,6 +1072,20 @@ void() brotherhood_soldier =
 	self.solid = SOLID_SLIDEBOX;
 	setsize (self, '-16 -16 -24', '16 16 32');
 	self.takedamage = DAMAGE_NO;
+
+	self.xslot1 = SlotVal(IID_AM_45ACP, 30);
+	self.xslot2 = SlotVal(IID_AM_10MM, 30);
+	self.xslot3 = SlotVal(IID_AM_12GAUGESHELLS, 30);
+	self.xslot4 = SlotVal(IID_AM_5MMHIGHVEL, 30);
+	self.xslot5 = SlotVal(IID_AM_762MM, 30);
+	self.xslot6 = SlotVal(IID_AM_556MM, 30);
+	self.xslot7 = SlotVal(IID_AM_ENERGYCELL, 30);
+	self.xslot8 = SlotVal(IID_AM_CASELESS, 30);
+	self.xslot8 = SlotVal(IID_AM_NEEDLER, 30);
+	self.xslot16 = SlotVal(IID_WP_AK112_M, 1);
+	self.xslot17 = SlotVal(IID_WP_G11, 1);
+	self.xslot18 = SlotVal(IID_WP_JACKHAMMER, 1);
+	self.xslot19 = SlotVal(IID_WP_MOONLIGHT, 1);
 };
 
 void() brotherhood_guard =

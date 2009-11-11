@@ -1946,7 +1946,7 @@ void() worldspawn =
 	precache_model ("progs/v_fist.mdl");
 	precache_model ("progs/v_knife.mdl");
 	precache_model ("progs/v_spear.mdl");
-	precache_model ("progs/v_1911.mdl");
+	precache_model ("progs/v_usp.mdl");
 	precache_model ("progs/v_needler.mdl");
 	precache_model ("progs/v_glock.mdl");
 	precache_model ("progs/v_fnfal.mdl");
@@ -2003,7 +2003,7 @@ void() worldspawn =
 	precache_model ("progs/w_combat.mdl");
 	precache_model ("progs/w_axe.mdl");
 	precache_model ("progs/w_glock.mdl");
-	precache_model ("progs/w_1911.mdl");
+	precache_model ("progs/w_usp.mdl");
 	precache_model ("progs/w_deagle.mdl");
 	precache_model ("progs/w_alien.mdl");
 	precache_model ("progs/w_mp9.mdl");

@@ -658,9 +658,9 @@ string(float iid) GetItemVModel =
 	if (iid == IID_WP_POWERAXE)
 		return "progs/v_axe.mdl";
 	if (iid == IID_WP_USP)
-		return "progs/v_1911.mdl";
+		return "progs/v_usp.mdl";
 	if (iid == IID_WP_USP_S)
-		return "progs/v_1911.mdl";
+		return "progs/v_usp.mdl";
 	if (iid == IID_WP_GLOCK)
 		return "progs/v_glock.mdl";
 	if (iid == IID_WP_GLOCK_S)
@@ -753,9 +753,9 @@ string(float iid) GetItemWModel =
 		return "progs/w_axe.mdl";
 
 	if (iid == IID_WP_USP)
-		return "progs/w_1911.mdl";
+		return "progs/w_usp.mdl";
 	if (iid == IID_WP_USP_S)
-		return "progs/w_1911.mdl";
+		return "progs/w_usp.mdl";
 	if (iid == IID_WP_GLOCK)
 		return "progs/w_glock.mdl";
 	if (iid == IID_WP_GLOCK_S)
@@ -765,7 +765,7 @@ string(float iid) GetItemWModel =
 	if (iid == IID_WP_DEAGLE_M)
 		return "progs/w_deagle.mdl";
 	if (iid == IID_WP_NEEDLER)
-		return "progs/w_1911.mdl";
+		return "progs/w_usp.mdl";
 	if (iid == IID_WP_ALIENBLASTER)
 		return "progs/w_alien.mdl";
 	if (iid >= IID_WP_PIPERIFLE && iid <= IID_WP_PIPERIFLE_S_R)

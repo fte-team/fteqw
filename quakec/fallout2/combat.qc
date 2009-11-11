@@ -118,7 +118,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	local   float   save, dm;
 	local   float   take, severity, helm;
 	local   string  attackerteam, targteam;
-
+	local string info1, info2;
 
 	if (!targ.takedamage)
 		return;
@@ -533,6 +533,7 @@ take = damage;
 		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
 		return;
 	}
+
 
 
 	targ.health = targ.health - take;

@@ -978,14 +978,21 @@ void() W_PlayerMenu =
 		{
 			if (self.impulse >= 1 && self.impulse <= 6)
 			{
-				if (infokey(world, "objective") == "return" || infokey(world, "objective") == "start")
-					get_new_mission(1);
-				else
-				{
-					sprint(self, 2, "you're already on a mission!\n");
-					self.currentmenu = "none";
-					return;
-				}
+
+					if (self.impulse == 1)
+						get_new_mission(1);
+					if (self.impulse == 2)
+						get_new_mission(2);
+					if (self.impulse == 3)
+						get_new_mission(3);
+					if (self.impulse == 4)
+						get_new_mission(4);
+					if (self.impulse == 5)
+						get_new_mission(5);
+					if (self.impulse == 6)
+						get_new_mission(6);
+
+
 				self.team = 1;
 				sound (self, CHAN_WEAPON, "effects/radio2.wav", TRUE, ATTN_IDLE);
 				centerprint(self, "mission obtained\n");

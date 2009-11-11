@@ -911,6 +911,13 @@ void() misc_noisemaker =
 
 void() brotherhood_merchant =
 {
+	local entity sign;
+/*
+	sign = spawn();
+	sign.origin = self.origin + '0 0 32';
+	setmodel(sign, "progs/trader.spr");
+	sign.solid = SOLID_NOT;*/
+
 	setorigin(self, self.origin + '0 0 64');
 	self.movetype = MOVETYPE_BOUNCE;
 	self.velocity_z = -200;
@@ -925,111 +932,35 @@ void() brotherhood_merchant =
 	self.nextthink = time + 0.5;
 
 
-	if (random()*100 < 33)
-	{
-		self.xslot1 = SlotVal(IID_WP_GREASEGUN, 1);
-		self.xslot6 = SlotVal(IID_AM_45ACP, 30);
-	}
-	else if (random()*100 < 33)
-	{
-		self.xslot1 = SlotVal(IID_WP_USP, 1);
-		self.xslot6 = SlotVal(IID_AM_45ACP, 30);
-	}
-	else
-	{
-		self.xslot1 = SlotVal(IID_WP_GLOCK, 1);
-		self.xslot6 = SlotVal(IID_AM_10MM, 30);
-	}
+	
+	self.xslot1 = SlotVal(IID_WP_USP, 1);
+	self.xslot6 = SlotVal(IID_AM_45ACP, 30);
 
-	if (random()*100 < 33)
-	{
-		self.xslot2 = SlotVal(IID_WP_DEAGLE, 1);
-		self.xslot7 = SlotVal(IID_AM_44MAGNUM, 30);
-	}
-	else if (random()*100 < 33)
-	{
-		self.xslot2 = SlotVal(IID_WP_NEEDLER, 1);
-		self.xslot7 = SlotVal(IID_AM_NEEDLER, 30);
-	}
-	else
-	{
-		self.xslot2 = SlotVal(IID_WP_PIPERIFLE, 1);
-		self.xslot7 = SlotVal(IID_AM_44MAGNUM, 30);
-	}
+	self.xslot2 = SlotVal(IID_WP_PIPERIFLE, 1);
+	self.xslot7 = SlotVal(IID_AM_44MAGNUM, 30);
 
-	if (random()*100 < 33)
-	{
-		self.xslot3 = SlotVal(IID_WP_WINCHESTER, 1);
-		self.xslot8 = SlotVal(IID_AM_12GAUGESHELLS, 30);
-	}
-	else if (random()*100 < 33)
-	{
-		self.xslot3 = SlotVal(IID_WP_RANGEMASTER, 1);
-		self.xslot8 = SlotVal(IID_AM_556MM, 30);
-	}
-	else
-	{
-		self.xslot3 = SlotVal(IID_WP_DKS1, 1);
-		self.xslot8 = SlotVal(IID_AM_762MM, 30);
-	}
+	self.xslot3 = SlotVal(IID_WP_WINCHESTER, 1);
+	self.xslot8 = SlotVal(IID_AM_12GAUGESHELLS, 30);
 
-	if (random()*100 < 33)
-	{
-		self.xslot4 = SlotVal(IID_WP_WINCHESTER, 1);
-		self.xslot9 = SlotVal(IID_AM_12GAUGESHELLS, 30);
-	}
-	else if (random()*100 < 33)
-	{
-		self.xslot4 = SlotVal(IID_WP_RANGEMASTER, 1);
-		self.xslot9 = SlotVal(IID_AM_556MM, 30);
-	}
-	else
-	{
-		self.xslot4 = SlotVal(IID_WP_DKS1, 1);
-		self.xslot9 = SlotVal(IID_AM_762MM, 30);
-	}
+	self.xslot4 = SlotVal(IID_WP_RANGEMASTER, 1);
+	self.xslot9 = SlotVal(IID_AM_556MM, 30);
 
-	if (random()*100 < 33)
-	{
-		self.xslot5 = SlotVal(IID_WP_AK112, 1);
-		self.xslot10 = SlotVal(IID_AM_5MMHIGHVEL, 30);
-	}
-	else if (random()*100 < 33)
-	{
-		self.xslot5 = SlotVal(IID_WP_MOSSBERG, 1);
-		self.xslot10 = SlotVal(IID_AM_12GAUGESHELLS, 30);
-	}
-	else
-	{
-		self.xslot5 = SlotVal(IID_WP_MP9, 1);
-		self.xslot10 = SlotVal(IID_AM_10MM, 30);
-	}
+	self.xslot5 = SlotVal(IID_WP_MP9, 1);
+	self.xslot10 = SlotVal(IID_AM_10MM, 30);
 
 
-	if (random()*100 < 50)
-		self.xslot11 = SlotVal(IID_ARM_LEATHER, 1);
-	else
-		self.xslot11 = SlotVal(IID_ARM_VANDAL, 1);
 
-	if (random()*100 < 50)
-		self.xslot12 = SlotVal(IID_ARM_METAL, 1);
-	else
-		self.xslot12 = SlotVal(IID_ARM_TESLA, 1);
-
-	if (random()*100 < 75)
-		self.xslot13 = SlotVal(IID_ARM_COMBAT, 1);
-	else
-		self.xslot13 = SlotVal(IID_ARM_SEVA, 1);
+	self.xslot11 = SlotVal(IID_ARM_VANDAL, 1);
+	self.xslot12 = SlotVal(IID_ARM_METAL, 1);
+	self.xslot13 = SlotVal(IID_ARM_TESLA, 1);
 
 
 
 	self.xslot14 = SlotVal(IID_CHEM_STIMPACK, 1);
-
-
 	self.xslot15 = SlotVal(IID_CHEM_MEDICALBAG, 25);
 
 
-	self.xslot16 = SlotVal(IID_WP_ACR, 1);
+	self.xslot16 = SlotVal(IID_WP_DKS1, 1);
 	self.xslot17 = SlotVal(IID_AM_762MM, 30);
 
 
@@ -1081,11 +1012,17 @@ void() brotherhood_soldier =
 	self.xslot6 = SlotVal(IID_AM_556MM, 30);
 	self.xslot7 = SlotVal(IID_AM_ENERGYCELL, 30);
 	self.xslot8 = SlotVal(IID_AM_CASELESS, 30);
-	self.xslot8 = SlotVal(IID_AM_NEEDLER, 30);
+	self.xslot9 = SlotVal(IID_AM_NEEDLER, 30);
+	self.xslot15 = SlotVal(IID_WP_ACR, 1);
 	self.xslot16 = SlotVal(IID_WP_AK112_M, 1);
 	self.xslot17 = SlotVal(IID_WP_G11, 1);
 	self.xslot18 = SlotVal(IID_WP_JACKHAMMER, 1);
 	self.xslot19 = SlotVal(IID_WP_MOONLIGHT, 1);
+	self.xslot19 = SlotVal(IID_WP_MOSSBERG, 1);
+
+	self.think = shop_face;
+	self.nextthink = time + 0.5;
+
 };
 
 void() brotherhood_guard =

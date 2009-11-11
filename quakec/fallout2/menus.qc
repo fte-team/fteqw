@@ -474,7 +474,7 @@ string () MissionString =
 		"ê3ë shadow mission   \n"
 		"ê4ë zombie mission   \n"
 		"ê5ë destroy supplies \n"
-		"6ë bomb defusal     \n\n"
+		"ê6ë bomb defusal     \n\n"
 		"ê7ë grab one later   \n");
 };
 

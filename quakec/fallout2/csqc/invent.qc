@@ -623,8 +623,18 @@ void() Invent_Draw =
 	SlotImageSmall('1 12.5 0'*IMGSIZEK, 4);
 
 
-	SlotImageSmall('11 12 0'*IMGSIZEK, 23);
-	SlotImageSmall('13 12 0'*IMGSIZEK, 24);
+	check = getstati(97);
+	if (check > 0)
+		SlotImage('11 12 0'*IMGSIZEK, 23);
+	else
+		drawpic('11 12 0'*IMGSIZEK, "gui/pipboy/mix.png", IMGSIZEH, '1 1 1', 1);
+
+
+	check = getstati(98);
+	if (check > 0)
+		SlotImage('13 12 0'*IMGSIZEK, 24);
+	else
+		drawpic('13 12 0'*IMGSIZEK, "gui/pipboy/mix.png", IMGSIZEH, '1 1 1', 1);
 
 /*
 	perki = GetPerkImage(getstati(60));
@@ -756,7 +766,36 @@ else if (slotnum == 99)
 }
 //	drawfill(mousepos, '8 8 0', '0 0 0', 0.7);
 //	drawstring(mousepos, "^", '8 8 0', '1 1 1', 1);
-	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
+
+	if (downslotnum == 0)
+		drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
+	else
+	{
+
+		if (downslotnum <= 16)
+			it = getstati(31+downslotnum);
+		else
+		{
+			if (downslotnum == 17)
+				it = getstati(91);
+			if (downslotnum == 18)
+				it = getstati(92);
+			if (downslotnum == 19)
+				it = getstati(93);
+			if (downslotnum == 20)
+				it = getstati(94);
+			if (downslotnum == 21)
+				it = getstati(95);
+			if (downslotnum == 22)
+				it = getstati(96);
+			if (downslotnum == 23)
+				it = getstati(97);
+			if (downslotnum == 24)
+				it = getstati(98);
+		}
+		itname = GetItemImage(ToIID(it));
+		drawpic(mousepos, strcat("gui/", itname), '48 48 0', '1 1 1', 1);
+	}
 };
 
 void() CalcScrollPos =

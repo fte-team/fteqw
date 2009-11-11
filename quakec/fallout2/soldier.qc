@@ -1477,24 +1477,22 @@ void () army_die =
 	if (self.weapon == 1)
 		DropFromChest(self, IID_WP_PIPERIFLE, 1);
 	if (self.weapon == 2)
-		DropFromChest(self, IID_WP_USP, 6);
+		DropFromChest(self, IID_WP_GLOCK, 6);
 	if (self.weapon == 3)
 		DropFromChest(self, IID_WP_WINCHESTER, 1);
 	if (self.weapon == 4)
-		DropFromChest(self, IID_WP_MP9, 15);
+		DropFromChest(self, IID_WP_GREASEGUN, 15);
 	if (self.weapon == 5)
 		DropFromChest(self, IID_WP_AK47, 12);
 
 	if (self.weapon == 1)
 		DropFromChest(self, IID_AM_44MAGNUM, 10);
 	if (self.weapon == 2)
-		DropFromChest(self, IID_AM_45ACP, 12);
+		DropFromChest(self, IID_AM_10MM, 12);
 	if (self.weapon == 3)
 		DropFromChest(self, IID_AM_12GAUGESHELLS, 8);
 	if (self.weapon == 4)
-		DropFromChest(self, IID_AM_10MM, 15);
-	if (self.weapon == 4)
-		DropFromChest(self, IID_AM_10MM, 30);
+		DropFromChest(self, IID_AM_45ACP, 30);
 	if (self.weapon == 5)
 		DropFromChest(self, IID_AM_5MMHIGHVEL, 24);
 
@@ -1515,9 +1513,9 @@ void (vector jojo, entity friend) spawn_soldier =
 	self.movetype = MOVETYPE_STEP;
 	setmodel (self, "progs/soldier.mdl");
 	setsize (self, '-12 -12 -24', '12 12 28');
-	self.health = 60+random()*30;
 	self.netname = "raider";
-	self.max_health = self.health;
+	self.max_health = 150;
+	self.health = self.max_health;
 	self.armornoise = "misc/thud.wav";
 	self.th_stand = army_stand1;
 	self.th_walk = army_walk1;
@@ -1666,8 +1664,9 @@ void () monster_army =
 		self.netname = "enforcer";
 
 		setsize (self, '-12 -12 -24', '12 12 28');
-		self.health = 120;
-            self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
+		self.max_health = 150;
+		self.health = self.max_health;
+          	  self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
 		self.armortype = 35;
 		self.helmet = 1;
 		self.th_stand = enf_stand1;
@@ -1709,7 +1708,8 @@ void () monster_army =
 	self.movetype = MOVETYPE_STEP;
 	setmodel (self, "progs/soldier.mdl");
 	setsize (self, '-12 -12 -24', '12 12 28');
-	self.health = 100;
+	self.max_health = 150;
+	self.health = self.max_health;
 	self.team = 3;
       self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
 	self.armortype = 0.2;
@@ -1904,7 +1904,8 @@ void () monster_commander =
 	commanders = commanders + 1;
 
 	setsize (self, '-12 -12 -24', '12 12 32');
-	self.health = 300;
+	self.max_health =250;
+	self.health = self.max_health;
       self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
 	self.armortype = 0.5;
 	self.helmet = 1;

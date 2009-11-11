@@ -703,7 +703,7 @@ if (coop == 1) // Players vs Monsters
 
 			sound (world, CHAN_BODY, "misc/menu3.wav", 1, ATTN_NONE);
 		}
-		else if (hdead >= 2) //hostages killed
+		else if (hdead > hcount) //hostages killed
 		{
 			if (endgame_timer == 0)
 				bprint(2, "^4** ^bTHE HOSTAGES WERE KILLED!!!^b **\n");
@@ -1954,6 +1954,7 @@ void() worldspawn =
 	precache_model ("progs/v_rangem.mdl");
 	precache_model ("progs/v_pipe.mdl");
 	precache_model ("progs/v_bozar.mdl");
+	precache_model ("progs/v_lsw.mdl");
 	precache_model ("progs/v_double.mdl");
 	precache_model ("progs/v_combat.mdl");
 	precache_model ("progs/v_mp9.mdl");
@@ -2084,6 +2085,7 @@ void() worldspawn =
 	precache_sound ("weapons/smoke.wav");
 	precache_sound ("weapons/energy2.wav");
 
+
 	precache_sound ("misc/hosdie1.wav");
 	precache_sound ("misc/hosdie2.wav");
 	precache_sound ("misc/hosdown.wav");
@@ -2137,6 +2139,7 @@ void() worldspawn =
 	precache_sound ("weapons/moonlight-2.wav");
 	precache_sound ("weapons/needler.wav");
 	precache_sound ("weapons/bozar.wav");
+	precache_sound ("weapons/lsw.wav");
 	precache_sound ("weapons/amr.wav");
 	precache_sound ("weapons/smg_s.wav");
 	precache_sound ("weapons/shotgun1.wav");

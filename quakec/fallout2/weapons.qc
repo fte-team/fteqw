@@ -199,7 +199,7 @@ void(float damage, float dist, float rate) FireMelee =
 
 			if (dot < 0.5 && trace_ent.takedamage)
 			{
-				tdam = 10 + (15*self.skill_sneak);
+				tdam = 25 + (30*self.skill_sneak);
 
 				if (getperk(7))
 					tdam = tdam * 2;
@@ -1595,29 +1595,29 @@ void() W_Attack =
 	else if (weap == IID_WP_DEAGLE_M)
 		FirePistol(18, 9, "weapons/deagle.wav", 3000, 0.1);
 	else if (weap == IID_WP_NEEDLER)
-		FirePistol(16, 2, "weapons/needler.wav", 2000, 0.1);
+		FirePistol(10+self.skill_science, 2, "weapons/needler.wav", 2000, 0.1);
 	else if (weap == IID_WP_GLOCK)
 		FirePistol(12, 6, "weapons/glock.wav", 2000, 0.1);
 	else if (weap == IID_WP_GLOCK_S)
 		FirePistol(10, 6, "weapons/smg_s.wav", 2000, 0.1);
 	else if (weap == IID_WP_ALIENBLASTER)
-		FirePulseRifle(16, 0.1, 48, 2);
+		FirePulseRifle(16, 0.1, 10+self.skill_science*4, 2);
 	else if (weap == IID_WP_PIPERIFLE)
-		FireAssaultRifle(20, 5, "weapons/rangem.wav", 5000, 0.1);
+		FireAssaultRifle(15+self.skill_science, 5, "weapons/rangem.wav", 5000, 0.1);
 	else if (weap == IID_WP_PIPERIFLE_S)
-		FireAssaultRifle(20, 5, "weapons/needler.wav", 5000, 0.1);
+		FireAssaultRifle(15+self.skill_science, 5, "weapons/needler.wav", 5000, 0.1);
 	else if (weap == IID_WP_PIPERIFLE_S_R)
-		FireAssaultRifle(20, 5, "weapons/needler.wav", 5000, 0.1);
+		FireAssaultRifle(15+self.skill_science, 5, "weapons/needler.wav", 5000, 0.1);
 	else if (weap == IID_WP_PIPERIFLE_SCOPE_S_R)
-		FireAssaultRifle(20, 5, "weapons/needler.wav", 5000, 0.1);
+		FireAssaultRifle(15+self.skill_science, 5, "weapons/needler.wav", 5000, 0.1);
 	else if (weap == IID_WP_PIPERIFLE_SCOPE_S)
-		FireAssaultRifle(20, 5, "weapons/needler.wav", 5000, 0.1);
+		FireAssaultRifle(15+self.skill_science, 5, "weapons/needler.wav", 5000, 0.1);
 	else if (weap == IID_WP_PIPERIFLE_R)
-		FireAssaultRifle(20, 5, "weapons/rangem.wav", 5000, 0.1);
+		FireAssaultRifle(15+self.skill_science, 5, "weapons/rangem.wav", 5000, 0.1);
 	else if (weap == IID_WP_PIPERIFLE_SCOPE)
-		FireAssaultRifle(20, 5, "weapons/rangem.wav", 5000, 0.1);
+		FireAssaultRifle(15+self.skill_science, 5, "weapons/rangem.wav", 5000, 0.1);
 	else if (weap == IID_WP_PIPERIFLE_SCOPE_R)
-		FireAssaultRifle(20, 5, "weapons/rangem.wav", 5000, 0.1);
+		FireAssaultRifle(15+self.skill_science, 5, "weapons/rangem.wav", 5000, 0.1);
 	else if (weap == IID_WP_DKS1_S)
 		FireAssaultRifle(35, 3, "weapons/moonlight1.wav", 5000, 0.25);
 	else if (weap == IID_WP_WINCHESTER)
@@ -1627,9 +1627,9 @@ void() W_Attack =
 	else if (weap == IID_WP_JACKHAMMER)
 		W_FireShotgun (1, 5, 6, 30, 1750, 2, "weapons/citykiller.wav");
 	else if (weap == IID_WP_GREASEGUN)
-		FireSMG(14, 0, "weapons/mp7.wav", 1500, 0.10);
+		FireSMG(14, 0, "weapons/mp5.wav", 1500, 0.10);
 	else if (weap == IID_WP_MP9)
-		FireSMG(12, 0, "weapons/mp5.wav", 1500, 0.08);
+		FireSMG(12, 0, "ogre/ak74.wav", 1500, 0.08);
 	else if (weap == IID_WP_GREASEGUN_S)
 		FireSMG(12, 0, "weapons/smg_s.wav", 1500, 0.10);
 	else if (weap == IID_WP_MP9_S)
@@ -1639,13 +1639,13 @@ void() W_Attack =
 	else if (weap == IID_WP_AK112)
 		FireAssaultRifle(16, 10, "weapons/ak112.wav", 4000, 0.095);
 	else if (weap == IID_WP_AK112_M)
-		FireAssaultRifle(16, 10, "weapons/ak112.wav", 4000, 0.095);
+		FireAssaultRifle(16, 10, "weapons/lsw.wav", 5000, 0.10);
 	else if (weap == IID_WP_ACR)
-		FireAssaultRifle(45, 7, "weapons/amr.wav", 9000, 0.1);
+		FireAssaultRifle(35, 7, "weapons/bozar.wav", 9000, 0.1);
 	else if (weap == IID_WP_AK74)
 		FireAssaultRifle(45, 12, "ogre/ak47.wav", 3500, 0.090);
 	else if (weap == IID_WP_DKS1)
-		FireAssaultRifle(40, 3, "weapons/dks-1.wav", 8000, 0.2);
+		FireAssaultRifle(35, 3, "weapons/dks-1.wav", 8000, 0.2);
 	else if (weap == IID_WP_MOONLIGHT && self.zoom == 0)
 		FireAssaultRifle(16, 10, "weapons/m4-nw.wav", 4000, 0.09);
 	else if (weap == IID_WP_MOONLIGHT && self.zoom == 1)
@@ -1762,11 +1762,7 @@ void() CheatCommand =
 	local float x;
 	local string y;
 
-	self.islot17 = SlotVal(IID_MISC_CHEMICALS, 50);
-	self.islot18 = SlotVal(IID_MISC_NUKACOLA, 50);
-	self.islot19 = SlotVal(IID_MISC_AEROSOL, 50);
-	self.islot20 = SlotVal(IID_MISC_GUM, 50);
-	self.islot10 = SlotVal(IID_WP_ACR, 1);
+	self.ammo_shells = 900;
 };
 
 /*
@@ -3027,7 +3023,7 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 	if (self.velocity == '0 0 0')
 		tmp = tmp + (15*self.recoil);
 	else
-		tmp = tmp + (20*self.recoil);
+		tmp = tmp + (25*self.recoil);
 
 	self.attack = self.attack + 1;
 	self.recoil = self.recoil + 4;
@@ -3293,17 +3289,17 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 		}
 	}
 
-
+	if (weap == IID_WP_MOONLIGHT)
+	{
+		if (random()<0.5)
+			sound (self, CHAN_WEAPON, "weapons/moonlight-1.wav", 1, ATTN_NORM);
+		else
+			sound (self, CHAN_WEAPON, "weapons/moonlight-2.wav", 1, ATTN_NORM);
+	}
 	else
 	{
-		if (weap == IID_WP_MOONLIGHT)
-		{
-			if (random()<0.5)
-				sound (self, CHAN_WEAPON, "weapons/moonlight-1.wav", 1, ATTN_NORM);
-			else
-				sound (self, CHAN_WEAPON, "weapons/moonlight-2.wav", 1, ATTN_NORM);
-		}
-		else if (weap == IID_WP_DKS1_S)
+
+		if (weap == IID_WP_DKS1_S)
 			sound (self, CHAN_WEAPON, "ogre/ak74.wav", 1, ATTN_NORM);
 		else
 			sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
@@ -3356,8 +3352,7 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 
 	DropAmmo ();
 	makevectors (self.v_angle);
-	if (self.recoil >= 10)
-		self.recoil = 10;
+
 
 	if (self.attack == 0)
 	{
@@ -3381,6 +3376,7 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 	tmp = accuracy * 10;
 	xrecoil = dam / 2;
 
+
 	//for the snipers
 	if (self.position == 2 && self.recoil == 0)
 		tmp = tmp * 0.75;
@@ -3390,6 +3386,8 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 
 	self.attack = self.attack + 1;
 	self.recoil = self.recoil + xrecoil;
+	if (self.recoil >= 10)
+		self.recoil = 10;
 
 	if (self.zoom > 0 && weap == IID_WP_G11 && self.attack == 3)
 	{
@@ -3417,6 +3415,14 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 	if (self.position == 1)
 		y = y * 0.90;
 
+	if (self.position == 2 && weap == IID_WP_AK112_M)
+	{
+		if (self.recoil >= 7)
+			self.recoil = 7;
+
+		y = y * 0.10;
+		tmp = tmp * 0.75;
+	}
 	if (random()*3<=2)
 		self.driftx = self.driftx + y;
 	else
@@ -3442,7 +3448,7 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 		stuffcmd (self, "-attack\n");
 	if (weap == IID_WP_FNFAL && self.zoom == 1)
 		stuffcmd (self, "-attack\n");
-	if (self.zoom > 0 && weap != IID_WP_G11 && weap != IID_WP_MOONLIGHT)
+	if (self.zoom > 0 && weap != IID_WP_G11 && weap != IID_WP_MOONLIGHT && weap != IID_WP_AK112_M)
 		stuffcmd (self, "-attack\n");
 	if (self.zoom > 0 && weap == IID_WP_G11 && self.attack >= 3 && weap != IID_WP_MOONLIGHT)
 		stuffcmd (self, "-attack\n");
@@ -6020,10 +6026,10 @@ void (float rec, float number, float dam, float spread, float ran, float auto, s
 
 	weap = ToIID(self.(SlotField(self.current_slot)));
 
-	var1 = ((random () * 16) * (self.recoil));
-	var2 = ((random () * 16) * (self.recoil));
-	var3 = ((random () * 16) * (self.recoil));
-	var4 = ((random () * 16) * (self.recoil));
+	var1 = ((random () * 12) * (self.recoil));
+	var2 = ((random () * 12) * (self.recoil));
+	var3 = ((random () * 12) * (self.recoil));
+	var4 = ((random () * 12) * (self.recoil));
 
 	if (self.position == 0)
 		player_single1 ();
@@ -6214,6 +6220,8 @@ void (string color) ZoomInLarge =
 
 	if (color == "red")
 		stuffcmd (self, "v_cshift 100 0 0 50\n");
+	if (color == "pink")
+		stuffcmd (self, "v_cshift 100 0 25 50\n");
 	if (color == "blue")
 		stuffcmd (self, "v_cshift 0 0 100 75\n");
 	if (color == "green")
@@ -6235,6 +6243,8 @@ void (string color) ZoomInSmall =
 
 	if (color == "red")
 		stuffcmd (self, "v_cshift 100 0 0 50\n");
+	if (color == "pink")
+		stuffcmd (self, "v_cshift 100 0 25 50\n");
 	if (color == "blue")
 		stuffcmd (self, "v_cshift 0 0 100 75\n");
 	if (color == "green")
@@ -6269,6 +6279,8 @@ void () ZoomIn =
 		ZoomInLarge("purple");
 	if (weap == IID_WP_ACR)
 		ZoomInLarge("pink");
+	if (weap == IID_WP_AK112_M)
+		ZoomInSmall("pink");
 	if (weap == IID_WP_DKS1_S)
 		ZoomInLarge("purple");
 	if (weap == IID_WP_FNFAL)

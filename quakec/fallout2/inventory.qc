@@ -681,13 +681,13 @@ string(float iid) GetItemVModel =
 	if (iid == IID_WP_JACKHAMMER)
 		return "progs/v_jackhammer.mdl";
 	if (iid == IID_WP_GREASEGUN)
-		return "progs/v_mp9.mdl";
+		return "progs/v_smg.mdl";
 	if (iid == IID_WP_MP9)
-		return "progs/v_smg.mdl";
-	if (iid == IID_WP_GREASEGUN_S)
 		return "progs/v_mp9.mdl";
-	if (iid == IID_WP_MP9_S)
+	if (iid == IID_WP_GREASEGUN_S)
 		return "progs/v_smg.mdl";
+	if (iid == IID_WP_MP9_S)
+		return "progs/v_mp9.mdl";
 	if (iid == IID_WP_RANGEMASTER)
  		return "progs/v_rangem.mdl";
 	if (iid == IID_WP_RANGEMASTER_SCOPE)
@@ -707,7 +707,7 @@ string(float iid) GetItemVModel =
 	if (iid == IID_WP_FNFAL)
  		return "progs/v_fnfal.mdl";
 	if (iid == IID_WP_AK112_M)
-		return "progs/v_ak47.mdl";
+		return "progs/v_lsw.mdl";
 
 	if (iid == IID_WP_G11)
 		return "progs/v_g11.mdl";
@@ -916,7 +916,7 @@ float(float iid) WeaponAmmoType =
 	if (iid == IID_WP_AK47)
 		return IID_AM_WARSAW;
 	if (iid == IID_WP_AK112_M)
-		return IID_AM_5MMHIGHVEL;
+		return IID_AM_556MM;
 	if (iid == IID_WP_AK74)
 		return IID_AM_WARSAW;
 	if (iid == IID_WP_ACR)
@@ -993,7 +993,7 @@ float(float iid) WeaponMagQuant =
 	if (iid == IID_WP_AK112)
 		return 24;
 	if (iid == IID_WP_AK112_M)
-		return 90;
+		return 100;
 	if (iid == IID_WP_AK74)
 		return 30;
 	if (iid == IID_WP_ACR)
@@ -1077,7 +1077,7 @@ float(float iid) GetItemWeight =
 	if (iid == IID_WP_AK47)
 		return 6;
 	if (iid == IID_WP_AK112_M)
-		return 7;
+		return 8;
 	if (iid == IID_WP_AK74)
 		return 5;
 	if (iid == IID_WP_ACR)
@@ -1206,7 +1206,7 @@ string(float iid) GetItemName =
 	if (iid == IID_WP_WINCHESTER)
 		return "winchester (12g)";
 	if (iid == IID_WP_MOSSBERG)
-		return "mossberg (12g)";
+		return "citykiller (12g)";
 	if (iid == IID_WP_JACKHAMMER)
 		return "jackhammer (12g)";
 	if (iid == IID_WP_GREASEGUN)
@@ -1222,7 +1222,7 @@ string(float iid) GetItemName =
 	if (iid == IID_WP_AK112)
 		return "ak-112 (5mm jhp)";
 	if (iid == IID_WP_AK112_M)
-		return "ak-112 (extended magazine)";
+		return "light support weapon (5.56mm)";
 	if (iid == IID_WP_AK74)
 		return "ak-47 (7.62mm warsaw pact)";
 	if (iid == IID_WP_ACR)
@@ -1707,9 +1707,9 @@ string(float iid) GetItemDesc =
 	if (iid == IID_WP_AK112)
 		return "a common assault rifle with extreme durability";
 	if (iid == IID_WP_AK112_M)
-		return "this rifle has been modified to accept larger magazines";
+		return "a great weapon for providing suppressing fire";
 	if (iid == IID_WP_DKS1)
-		return "this sturdy rifle fires .308\na larger and more reliable round";
+		return "the larger caliber 7.62mm provides extra power";
 	if (iid == IID_WP_DKS1_S)
 		return ".308 sniper rifle, silenced for stealth-ops";
 	if (iid == IID_WP_DKS1)
@@ -1733,7 +1733,7 @@ string(float iid) GetItemDesc =
 	if (iid == IID_WP_LASERGATLING)
 		return "quite simply, the ultimate in heavy firepower";
 	if (iid == IID_WP_ACR)
-		return "sniper-style weapon that supports burst fire";
+		return "fast, powerful, and accurate - a sniper's dream";
 
 
 	if (iid == IID_AM_NEEDLER)
@@ -1784,7 +1784,7 @@ string(float iid) GetItemDesc =
 	if (iid == IID_ARM_METAL)
 		return "gives great protection at a sacrifice to speed.";
 	if (iid == IID_ARM_TESLA)
-		return "experimental armor with high deflection but low absorb.";
+		return "experimental armor. great against small rounds.";
 	if (iid == IID_ARM_COMBAT)
 		return "this all-purpose armor is designed for combat missions.";
 	if (iid == IID_ARM_SEVA)
@@ -2180,7 +2180,7 @@ string(float iid) GetItemImage =
 	if (iid == IID_WP_AK112)
 		return "ak112.png";
 	if (iid == IID_WP_AK112_M)
-		return "ak112.png";
+		return "lsw.png";
 	if (iid == IID_WP_AK74)
 		return "ak47.jpg";
 	if (iid == IID_WP_ACR)

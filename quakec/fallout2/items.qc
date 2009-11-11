@@ -291,6 +291,9 @@ void(vector loc) SpawnJunk =
 {
 	local entity junk;
 
+	if (random()*100 <= 80)
+		return;
+
 	junk = spawn ();
 
 	setorigin(junk, loc + '0 0 96');
@@ -315,13 +318,12 @@ void(vector loc) SpawnJunk =
 	junk.classname = "random_junk";
 
 
-	if (random()*100 <= 10)
-		junk.islot1 = SlotVal(IID_MISC_JUNK, 1);
-	else if (random()*100 <= 10)
+
+	if (random()*100 <= 25)
 		junk.islot1 = SlotVal(IID_MISC_NUKACOLA, 1);
-	else if (random()*100 <= 10)
+	else if (random()*100 <= 25)
 		junk.islot1 = SlotVal(IID_MISC_CHEMICALS, 1);
-	else if (random()*100 <= 10)
+	else if (random()*100 <= 25)
 		junk.islot1 = SlotVal(IID_MISC_AEROSOL, 1);
 	else if (random()*100 <= 10)
 		junk.islot1 = SlotVal(IID_MISC_RDXCRYSTAL, 1);

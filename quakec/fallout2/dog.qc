@@ -66,12 +66,8 @@ local float 	ldmg;
 
 	T_Damage (self.enemy, self, self, ldmg);
 
-	if (random()*25 <= 5)
-	{
-		stuffcmd(self.enemy, "drop\n");
-		self.enemy.attack_finished = time + 1;
-		self.enemy.position = 2;
-	}
+	self.enemy.attack_finished = time + 0.25;
+
 };
 
 void() Dog_JumpTouch =

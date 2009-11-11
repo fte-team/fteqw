@@ -1,4 +1,4 @@
-//FIXME: most of this should be in common/constants.qc
+//FIXME: some of this should be in common/constants.qc
 
 //
 // constants
@@ -38,9 +38,10 @@ float	EF_DIMLIGHT 	= 8;
 
 
 
-float	MASK_ENGINE		= 1;	//this is special. Any entities known by the engine but not the csqc will be added.
+float	MASK_ENGINE		= 1;	//this is special. Any entities known by the engine but not the csqc will be added (does not include viewmodels).
+float MASK_VIEWMODELS   = 2;	//this is also special. It will cause all engine viewmodels to be added (including viewmodelforclient).
 //you can add any other masks below, remember, use bits.
-float	MASK_NORMAL		= 2;
+float	MASK_NORMAL		= 4;	//normal, as in normal view ents that the csqc provides
 
 
 

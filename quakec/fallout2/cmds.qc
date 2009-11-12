@@ -283,6 +283,56 @@ void(string arg1) Cmd_GainLevel =
 		self.skill_science = self.skill_science + 1;
 };
 
+void(string arg1, string arg2) Cmd_GainPerk =
+{
+
+	sound (self, CHAN_BODY, "buttons/switch02.wav", 1, ATTN_NORM);
+	
+
+	if (arg2 == "1")
+	{
+		if (arg1 == "1")
+			self.perk1 = 1;
+		if (arg1 == "2")
+			self.perk1 = 2;
+		if (arg1 == "3")
+			self.perk1 = 3;
+		if (arg1 == "4")
+			self.perk1 = 4;
+		if (arg1 == "5")
+			self.perk1 = 5;
+		if (arg1 == "6")
+			self.perk1 = 6;
+		if (arg1 == "7")
+			self.perk1 = 7;
+		if (arg1 == "8")
+			self.perk1 = 8;
+		if (arg1 == "9")
+			self.perk1 = 9;
+	}
+	if (arg2 == "2")
+	{
+		if (arg1 == "1")
+			self.perk2 = 1;
+		if (arg1 == "2")
+			self.perk2 = 2;
+		if (arg1 == "3")
+			self.perk2 = 3;
+		if (arg1 == "4")
+			self.perk2 = 4;
+		if (arg1 == "5")
+			self.perk2 = 5;
+		if (arg1 == "6")
+			self.perk2 = 6;
+		if (arg1 == "7")
+			self.perk2 = 7;
+		if (arg1 == "8")
+			self.perk2 = 8;
+		if (arg1 == "9")
+			self.perk2 = 9;
+	}
+};
+
 
 void(string arg1) Cmd_InvBuy =
 {
@@ -1217,6 +1267,12 @@ void(string line) SV_ParseClientCommand =
 		if (self.deadflag || self.current_slot==0)
 			return;
 		Cmd_InvSwap(argv(1), argv(2));
+	}
+	else if (cmd == "gainperk")
+	{
+		if (self.deadflag || self.current_slot==0)
+			return;
+		Cmd_GainPerk(argv(1), argv(2));
 	}
 	else if (cmd == "invgive")
 	{

@@ -535,8 +535,8 @@ take = damage;
 	}
 
 
-
-	targ.health = targ.health - take;
+	if (targ.hold <= 0)
+		targ.health = targ.health - take;
 
 	if (targ.classname == "monster" && targ.enemy.classname != "player" && attacker.classname == "player")
 	{

@@ -1639,7 +1639,7 @@ void() W_Attack =
 	else if (weap == IID_WP_AK112)
 		FireAssaultRifle(16, 10, "weapons/ak112.wav", 4000, 0.095);
 	else if (weap == IID_WP_AK112_M)
-		FireAssaultRifle(16, 10, "weapons/lsw.wav", 5000, 0.10);
+		FireAssaultRifle(17, 10, "weapons/lsw.wav", 5000, 0.10);
 	else if (weap == IID_WP_ACR)
 		FireAssaultRifle(35, 7, "weapons/bozar.wav", 9000, 0.1);
 	else if (weap == IID_WP_AK74)
@@ -1761,8 +1761,18 @@ void() CheatCommand =
 {
 	local float x;
 	local string y;
+	local entity te;
 
 	self.ammo_shells = 900;
+
+	te = findradius (self.origin, 6000);
+	while (te)
+	{
+		if (te.classname == "monster")
+			te.hold = 100;
+
+		te = te.chain;
+	}
 };
 
 /*
@@ -3417,11 +3427,11 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 
 	if (self.position == 2 && weap == IID_WP_AK112_M)
 	{
-		if (self.recoil >= 7)
-			self.recoil = 7;
+		if (self.recoil >= 8)
+			self.recoil = 8;
 
-		y = y * 0.10;
-		tmp = tmp * 0.75;
+		y = y * 0.25;
+		tmp = tmp * 0.80;
 	}
 	if (random()*3<=2)
 		self.driftx = self.driftx + y;

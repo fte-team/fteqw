@@ -2572,85 +2572,70 @@ float(float slotno, float iid) FitsInSlot =
 string (float slot, float int) PerkName =
 {
 		if (int == 1)
-			return "unbreakable";
+			return "Support Fire";
 		if (int == 2)
-			return "feral swiftness";
+			return "Duck And Cover";
 		if (int == 3)
-			return "stunt man";
+			return "Harmless";
 		if (int == 4)
-			return "kick in the door!";
+			return "Hit The Deck";
 		if (int == 5)
-			return "quick draw";
+			return "Living Anatomy";
 		if (int == 6)
-			return "light step";
+			return "Mutation";
 		if (int == 7)
-			return "surprise attack";
+			return "Narrow Escape";
 		if (int == 8)
-			return "large and in charge";
+			return "Schizophrenia";
 		if (int == 9)
-			return "nintendo gamer";
-		if (int == 10)
-			return "esp";
-		if (int == 11)
-			return "last man standing";
-		if (int == 12)
-			return "bodysnatcher";
-		if (int == 13)
-			return "medicine man";
-		if (int == 14)
-			return "dark alchemist";
-		if (int == 15)
-			return "renegade commando";
-		if (int == 16)
-			return "power shot";
-		if (int == 17)
-			return "one in a million";
-		if (int == 18)
-			return "master blaster";
-		if (int == 19)
-			return "death wish";
+			return "Sleep Tight";
+
 };
+
+string (float slot, float int) PerkNameCentered =
+{
+		if (int == 1)
+			return " Support Fire";
+		if (int == 2)
+			return "Duck And Cover";
+		if (int == 3)
+			return "   Harmless";
+		if (int == 4)
+			return " Hit The Deck";
+		if (int == 5)
+			return "Living Anatomy";
+		if (int == 6)
+			return "   Mutation";
+		if (int == 7)
+			return "Narrow Escape";
+		if (int == 8)
+			return "Schizophrenia";
+		if (int == 9)
+			return " Sleep Tight";
+
+};
+
 
 string(float int) GetPerkImage =
 {
 	if (int == 1)
-		return "gui/perks/ironman.jpg";
+		return "gui/perks/Support Fire.jpg";
 	else if (int == 2)
-		return "gui/perks/swiftness.jpg";
+		return "gui/perks/Duck And Cover.jpg";
 	else if (int == 3)
-		return "gui/perks/stuntman.jpg";
+		return "gui/perks/Harmless.jpg";
 	else if (int == 4)
-		return "gui/perks/kickin.jpg";
+		return "gui/perks/Hit The Deck.jpg";
 	else if (int == 5)
-		return "gui/perks/quickdraw.jpg";
+		return "gui/perks/Living Anatomy.jpg";
 	else if (int == 6)
-		return "gui/perks/lightstep.jpg";
+		return "gui/perks/Mutation.jpg";
 	else if (int == 7)
-		return "gui/perks/surprise.jpg";
+		return "gui/perks/Narrow Escape.jpg";
 	else if (int == 8)
-		return "gui/perks/large.jpg";
+		return "gui/perks/Schizophrenia.jpg";
 	else if (int == 9)
-		return "gui/perks/nintendo.jpg";
-	else if (int == 10)
-		return "gui/perks/redscare.jpg";
-	else if (int == 11)
-		return "gui/perks/lastman.jpg";
-	else if (int == 12)
-		return "gui/perks/bodysnatcher.jpg";
-	else if (int == 13)
-		return "gui/perks/healingway.jpg";
-	else if (int == 14)
-		return "gui/perks/alchemist.jpg";
-	else if (int == 15)
-		return "gui/perks/eastern.jpg";
-	else if (int == 16)
-		return "gui/perks/powershot.jpg";
-	else if (int == 17)
-		return "gui/perks/million.jpg";
-	else if (int == 18)
-		return "gui/perks/demoman.jpg";
-	else if (int == 19)
-		return "gui/perks/lightning.jpg";
+		return "gui/perks/Sleep Tight.jpg";
 	else
 		return "gui/perks/none.jpg";
 
@@ -2660,43 +2645,23 @@ string(float int) GetPerkImage =
 string(float int) GetPerkDesc =
 {
 	if (int == 1)
-		return "25% damage resist bonus while at half health";
+		return "33% recoil reduction while prone";
 	else if (int == 2)
-		return "provides a flat 10% bonus movement speed";
+		return "20% damage resist while taking cover and ducking";
 	else if (int == 3)
-		return "instant stance change, fast prone movement";
+		return "enemies tend to ignore you over your friends";
 	else if (int == 4)
-		return "smash down locked doors and chests, very loud";
+		return "50% damage resist to area attacks while prone";
 	else if (int == 5)
-		return "fast reloading, instant weapon switching";
+		return "Aimed attacks get a damage bonus equal to Doctor skill";
 	else if (int == 6)
-		return "reduced footsteps, +10% sneak, don't trip traps";
+		return "This perk randomly functions as two perks";
 	else if (int == 7)
-		return "25% damage bonus to any enemy not targetting you";
+		return "Provides you a few hassle-free seconds to escape danger";
 	else if (int == 8)
-		return "gain melee knockback and berserker rage bonus";
+		return "You sometimes gain additional skills from another place";
 	else if (int == 9)
-		return "you'll sometimes enter 'the zone'!";
-	else if (int == 10)
-		return "+10% miss chance to you and any nearby allies";
-	else if (int == 11)
-		return "recover hit points as you mow down foes";
-	else if (int == 12)
-		return "become a master of disguise by looting dead bodies";
-	else if (int == 13)
-		return "25% bonus to all chems used on yourself and others";
-	else if (int == 14)
-		return "mix chems together to make better ones";
-	else if (int == 15)
-		return "you have mastered martial arts and kick attacks";
-	else if (int == 16)
-		return "25% damage bonus to your aimed shots";
-	else if (int == 17)
-		return "you sometimes get very, very lucky with anything";
-	else if (int == 18)
-		return "bigger crosshairs means even bigger damage bonus";
-	else if (int == 19)
-		return "20% damage bonus and you also take 20% more damage";
+		return "Automatically kill anything with knife in sneak mode";
 	else
 		return "";
 

@@ -5,6 +5,9 @@ float PRINT_MEDIUM = 1;
 float show_inventory;
 float show_pipboy;
 float show_trader;
+float show_perks;
+float show_items;
+float show_gainperk;
 
 vector mousepos;
 
@@ -18,6 +21,8 @@ float sliderpos;
 float downslotnum;	//the slot number when the mousecursor when down
 
 float selected_class;
+float perkslot;
+float which_perk;
 
 vector toppos = '0 32 0';
 
@@ -467,6 +472,165 @@ void() Trader_Draw =
 	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
 };
 
+void() Perks_Draw =
+{
+	local string perki, perk2i, p1, p2;
+
+	drawpic('0 0 0', "gui/pipboy/perks.png", '640 480 0', '1 1 1', 1);
+
+
+
+	if (mousepos_y >= 2.5*IMGSIZEF && mousepos_y <= 3.5*IMGSIZEF)
+	{
+
+	
+		if (mousepos_x >= 4*IMGSIZEF && mousepos_x <= 5*IMGSIZEF)
+			selected_class = 8;
+
+		if (mousepos_x >= 6.5*IMGSIZEF && mousepos_x <= 7.5*IMGSIZEF)
+			selected_class = 9;
+			
+	}
+
+	if (mousepos_y >= 390 && mousepos_y <= 425)
+	{
+
+
+		if (mousepos_x >= 300 && mousepos_x <= 335)
+			selected_class = 5;
+		else if (mousepos_x >= 350 && mousepos_x <= 385)
+			selected_class = 6;
+
+		else if (mousepos_x >= 400 && mousepos_x <= 435)
+			selected_class = 7;
+		else
+			selected_class = 0;
+	}
+
+
+	perki = GetPerkImage(getstati(60));
+	perk2i = GetPerkImage(getstati(59));
+
+
+	drawpic('3.5 2 0'*IMGSIZEF,  perki, '128 128 0', '1 1 1', 1);
+
+	drawpic('6 2 0'*IMGSIZEF, perk2i, '128 128 0', '1 1 1', 1);
+
+	p1 = PerkNameCentered(1, getstati(60));
+	p2 = PerkNameCentered(2, getstati(59));
+
+	drawstring('4 4.5 0'*IMGSIZEF - '28 0 0', p1, '8 8 8', '1 1 1', 1);
+	drawstring('6 4.5 0'*IMGSIZEF + '8 0 0', p2, '8 8 8', '1 1 1', 1);
+
+
+
+	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
+};
+
+void() Items_Draw =
+{
+	local float it;
+	local string itname;
+
+	drawpic('0 0 0', "gui/pipboy/items.png", '640 480 0', '1 1 1', 1);
+
+	if (mousepos_y >= 390 && mousepos_y <= 425)
+	{
+
+		drawpic('0 0 0', "gui/pipboy/items.png", '640 480 0', '1 1 1', 1);
+
+		if (mousepos_x >= 300 && mousepos_x <= 325)
+			selected_class = 5;
+		else if (mousepos_x >= 350 && mousepos_x <= 385)
+			selected_class = 6;
+
+		else if (mousepos_x >= 400 && mousepos_x <= 435)
+			selected_class = 7;
+		else
+			selected_class = 0;
+	}
+
+	SlotImage('3 1.25 0'*IMGSIZEF, 1);
+
+	SlotImage('3 2.75 0'*IMGSIZEF, 2);
+
+	SlotImage('3 4.25 0'*IMGSIZEF, 3);
+
+
+	it = getstati(32);
+	itname = GetItemName(ToIID(it));
+	drawstring('4 1.5 0'*IMGSIZEF + '0 0 0', itname, '16 16 0', '1 1 1', 1);
+
+	it = getstati(33);
+	itname = GetItemName(ToIID(it));
+	drawstring('4 3 0'*IMGSIZEF + '0 0 0', itname, '16 16 0', '1 1 1', 1);
+
+	it = getstati(34);
+	itname = GetItemName(ToIID(it));
+	drawstring('4 4.5 0'*IMGSIZEF + '0 0 0', itname, '16 16 0', '1 1 1', 1);
+
+	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
+};
+
+
+
+void() GainPerk_Draw =
+{
+	local float it;
+	local string itname, pn, pd;
+
+	drawpic('0 0 0', "gui/pipboy/gainperk.png", '640 480 0', '1 1 1', 1);
+
+	if (mousepos_y >= 2*IMGSIZEF && mousepos_y <= 3*IMGSIZEF)
+	{
+		if (mousepos_x >= 2*IMGSIZEF && mousepos_x <= 3*IMGSIZEF)
+			which_perk = 1;
+		else if (mousepos_x >= 3*IMGSIZEF && mousepos_x <= 4*IMGSIZEF)
+			which_perk = 2;
+		else if (mousepos_x >= 4*IMGSIZEF && mousepos_x <= 5*IMGSIZEF)
+			which_perk = 3;
+		else if (mousepos_x >= 5*IMGSIZEF && mousepos_x <= 6*IMGSIZEF)
+			which_perk = 4;
+		else if (mousepos_x >= 6*IMGSIZEF && mousepos_x <= 7*IMGSIZEF)
+			which_perk = 5;
+		else
+			which_perk = 0;
+	}
+	if (mousepos_y >= 3*IMGSIZEF && mousepos_y <= 4*IMGSIZEF)
+	{
+		if (mousepos_x >= 2*IMGSIZEF && mousepos_x <= 3*IMGSIZEF)
+			which_perk = 6;
+		else if (mousepos_x >= 3*IMGSIZEF && mousepos_x <= 4*IMGSIZEF)
+			which_perk = 7;
+		else if (mousepos_x >= 4*IMGSIZEF && mousepos_x <= 5*IMGSIZEF)
+			which_perk = 8;
+		else if (mousepos_x >= 5*IMGSIZEF && mousepos_x <= 6*IMGSIZEF)
+			which_perk = 9;
+		else
+			which_perk = 0;
+	}
+
+	drawpic('2 2 0'*IMGSIZEF, "gui/perks/Support Fire.png", '64 64 0', '1 1 1', 1);
+	drawpic('3 2 0'*IMGSIZEF, "gui/perks/Duck And Cover", '64 64 0', '1 1 1', 1);
+	drawpic('4 2 0'*IMGSIZEF, "gui/perks/Harmless.png", '64 64 0', '1 1 1', 1);
+	drawpic('5 2 0'*IMGSIZEF, "gui/perks/Hit The Deck.png", '64 64 0', '1 1 1', 1);
+	drawpic('6 2 0'*IMGSIZEF, "gui/perks/Living Anatomy.png", '64 64 0', '1 1 1', 1);
+
+	drawpic('2 3 0'*IMGSIZEF, "gui/perks/Mutation.png", '64 64 0', '1 1 1', 1);
+	drawpic('3 3 0'*IMGSIZEF, "gui/perks/Narrow Escape.png", '64 64 0', '1 1 1', 1);
+	drawpic('4 3 0'*IMGSIZEF, "gui/perks/Schizophrenia.png", '64 64 0', '1 1 1', 1);
+	drawpic('5 3 0'*IMGSIZEF, "gui/perks/Sleep Tight.png", '64 64 0', '1 1 1', 1);
+
+	pn = PerkName(1, which_perk);
+	pd = GetPerkDesc(which_perk);
+	drawstring('32 16 0', pn, '8 8 0', '1 1 1', 1);
+	drawstring('32 32 0', pd, '8 8 0', '1 1 1', 1);
+
+
+	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
+};
+
+
 void() Pipboy_Draw =
 {
 	float width,height,lvl,bar;
@@ -475,8 +639,6 @@ void() Pipboy_Draw =
 
 	width = cvar("vid_conwidth");
 	height = cvar("vid_conheight");
-
-
 
 
 
@@ -508,6 +670,21 @@ void() Pipboy_Draw =
 			selected_class = 0;
 		}
 	}
+	else if (mousepos_y >= 390 && mousepos_y <= 425)
+	{
+
+		drawpic('0 0 0', "gui/pipboy/skills1.jpg", '640 480 0', '1 1 1', 1);
+
+		if (mousepos_x >= 300 && mousepos_x <= 325)
+			selected_class = 5;
+		else if (mousepos_x >= 350 && mousepos_x <= 375)
+			selected_class = 6;
+
+		else if (mousepos_x >= 400 && mousepos_x <= 425)
+			selected_class = 7;
+		else
+			selected_class = 0;
+	}
 	else
 	{
 		drawpic('0 0 0', "gui/pipboy/skills1.jpg", '640 480 0', '1 1 1', 1);
@@ -515,7 +692,40 @@ void() Pipboy_Draw =
 	}
 
 
+	if (selected_class == 1)
+	{
+		drawstring('200 50 0', "   combat", '8 8 0', '1 1 1', 1);
+		drawstring('200 66 0', "place points into this skill for improved", '8 8 0', '1 1 1', 1);
+		drawstring('200 74 0', "handling of weapons, as well as increased", '8 8 0', '1 1 1', 1);
+		drawstring('200 82 0', "carry capacity and other aspects of being", '8 8 0', '1 1 1', 1);
+		drawstring('200 90 0', "trained in combat.", '8 8 0', '1 1 1', 1);
+	}
+	if (selected_class == 2)
+	{
+		drawstring('200 50 0', "   doctor", '8 8 0', '1 1 1', 1);
+		drawstring('200 66 0', "place points into this skill for improved", '8 8 0', '1 1 1', 1);
+		drawstring('200 74 0', "chem use, which substantially affects the", '8 8 0', '1 1 1', 1);
+		drawstring('200 82 0', "amount of healing done, as well as all of", '8 8 0', '1 1 1', 1);
+		drawstring('200 90 0', "the other aspects of first aid.", '8 8 0', '1 1 1', 1);
+	}
+	if (selected_class == 3)
+	{
+		drawstring('200 50 0', "   sneak", '8 8 0', '1 1 1', 1);
+		drawstring('200 66 0', "place points into this skill to maximize", '8 8 0', '1 1 1', 1);
+		drawstring('200 74 0', "your ability to remain unseen by enemies.", '8 8 0', '1 1 1', 1);
+		drawstring('200 82 0', "grants higher sneak ability and how fast", '8 8 0', '1 1 1', 1);
+		drawstring('200 90 0', "you can pick locks, among other things.", '8 8 0', '1 1 1', 1);
 
+	}
+	if (selected_class == 4)
+	{
+		drawstring('200 50 0', "   science", '16 16 0', '1 1 1', 1);
+		drawstring('200 66 0', "place points into this skill to increase", '8 8 0', '1 1 1', 1);
+		drawstring('200 74 0', "your chances of making useful items from", '8 8 0', '1 1 1', 1);
+		drawstring('200 82 0', "junk found in the wasteland. use the mix", '8 8 0', '1 1 1', 1);
+		drawstring('200 90 0', "box found in your inventory screen.", '8 8 0', '1 1 1', 1);
+
+	}
 	bar = 0;
 	lvl = getstati(100);
 	skill = ftos(lvl+1);
@@ -596,20 +806,17 @@ void() Invent_Draw =
 	check = getstati(32);
 	if (check > 0)
 		SlotImage('5.5 1 0'*IMGSIZEF, 1);
-	else
-		drawpic('5.5 1 0'*IMGSIZEF, "gui/pipboy/weapon1.png", IMGSIZEV, '1 1 1', 1);
+
 
 	check = getstati(33);
 	if (check > 0)
 		SlotImage('5.5 2 0'*IMGSIZEF, 2);
-	else
-		drawpic('5.5 2 0'*IMGSIZEF, "gui/pipboy/weapon2.png", IMGSIZEV, '1 1 1', 1);
+
 
 	check = getstati(34);
 	if (check > 0)
 		SlotImage('5.5 3 0'*IMGSIZEF, 3);
-	else
-		drawpic('5.5 3 0'*IMGSIZEF, "gui/pipboy/armor.png", IMGSIZEV, '1 1 1', 1);
+
 
 
 	SlotImageSmall('1 3 0'*IMGSIZEK, 17);
@@ -626,37 +833,12 @@ void() Invent_Draw =
 	check = getstati(97);
 	if (check > 0)
 		SlotImage('11 12 0'*IMGSIZEK, 23);
-	else
-		drawpic('11 12 0'*IMGSIZEK, "gui/pipboy/mix.png", IMGSIZEH, '1 1 1', 1);
+
 
 
 	check = getstati(98);
 	if (check > 0)
 		SlotImage('13 12 0'*IMGSIZEK, 24);
-	else
-		drawpic('13 12 0'*IMGSIZEK, "gui/pipboy/mix.png", IMGSIZEH, '1 1 1', 1);
-
-/*
-	perki = GetPerkImage(getstati(60));
-	perk2i = GetPerkImage(getstati(59));
-
-	drawstring('112 328 0'+('3 0 0'*IMGSIZEF), " PERK1 ", '8 8 8', '1 1 1', 1);
-	drawpic('112 336 0'+('3 0 0'*IMGSIZEF),  perki, IMGSIZEV, '1 1 1', 1);
-	drawstring('112 328 0'+('5 0 0'*IMGSIZEF), " PERK2 ", '8 8 8', '1 1 1', 1);
-	drawpic('112 336 0'+('5 0 0'*IMGSIZEF), perk2i, IMGSIZEV, '1 1 1', 1);
-
-	p1 = PerkName(1, getstati(60));
-	p2 = PerkName(2, getstati(59));
-
-	drawstring('112 408 0'+('3 0 0'*IMGSIZEF), p1, '8 8 8', '1 1 1', 1);
-	drawstring('112 408 0'+('5 0 0'*IMGSIZEF), p2, '8 8 8', '1 1 1', 1);
-
-*/
-
-
-
-
-
 
 
 	if (showcontextmenu && show_inventory)
@@ -747,8 +929,8 @@ if (slotnum <= 24)
 			it = getstati(98);
 	}
 
-	itname = GetItemDesc(ToIID(it));
-	drawstring('32 16 0', itname, '8 8 0', '1 1 1', 1);
+	itname = GetItemName(ToIID(it));
+	drawstring('32 16 0', itname, '16 16 0', '1 1 1', 1);
 }
 else if (slotnum == 98)
 {
@@ -817,20 +999,29 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			show_inventory = !show_inventory;
 			show_pipboy = false;
 			show_trader = false;
+			show_perks = false;
+			show_items = false;
+			show_gainperk = false;
 		}
 		if (param1 == 'p')
 		{
 			show_pipboy = !show_pipboy;
 			show_inventory = false;
 			show_trader = false;
+			show_perks = false;
+			show_items = false;
+			show_gainperk = false;
 		}
 		if (param1 == 'b' && (getstati(108) == 1))
 		{
 			show_trader = !show_trader;
 			show_pipboy = false;
 			show_inventory = false;
+			show_perks = false;
+			show_items = false;
+			show_gainperk = false;
 		}
-		else if (!show_inventory && !show_trader && !show_pipboy)
+		else if (!show_inventory && !show_trader && !show_pipboy && !show_perks && !show_items && !show_gainperk) 
 			return false;
 		else if (param1 == k_mouse1)
 		{
@@ -858,7 +1049,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			return false;
 		return true;
 	}
-	if (eventtype == 1 && (show_inventory || show_trader || show_pipboy))	//key up
+	if (eventtype == 1 && (show_inventory || show_trader || show_pipboy || show_items || show_perks || show_gainperk))	//key up
 	{
 		if (param1 == k_mouse1)
 		{		
@@ -895,7 +1086,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 
 				else if (downslotnum == slotnum)	//mouse didn't move away
 				{
-					if (slotnum >= 1 && slotnum <= 26)
+					if (slotnum >= 1 && slotnum <= 26 && show_inventory)
 					{
 						//if there's actually an item there		
 						if ((show_inventory) && (getstati(32+slotnum-1) != 0))	
@@ -909,16 +1100,139 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							contextpos = mousepos;
 						}
 					}
+					else if (show_gainperk)	
+					{
+						if (which_perk == getstati(60))
+							return;
+						if (which_perk == getstati(59))
+							return;
+						if (which_perk >= 1 && which_perk <= 9)
+							localcmd(strcat("cmd gainperk ", ftos(which_perk), " ", ftos(perkslot), "\n"));
+							show_inventory = false;
+							show_pipboy = false;
+							show_trader = false;
+							show_perks = true;
+							show_items = false;
+							show_gainperk = false;
+					}
 					else if (show_pipboy)	
 					{
 						if (selected_class == 1)
 							localcmd("cmd gainlevel combat\n");
-						if (selected_class == 2)
+						else if (selected_class == 2)
 							localcmd("cmd gainlevel doctor\n");
-						if (selected_class == 3)
+						else if (selected_class == 3)
 							localcmd("cmd gainlevel sneak\n");
-						if (selected_class == 4)
+						else if (selected_class == 4)
 							localcmd("cmd gainlevel science\n");
+						else if (selected_class == 5)
+						{
+							show_inventory = false;
+							show_pipboy = true;
+							show_trader = false;
+							show_perks = false;
+							show_items = false;
+							show_gainperk = false;
+						}
+						else if (selected_class == 6)
+						{
+							show_inventory = false;
+							show_pipboy = false;
+							show_trader = false;
+							show_perks = false;
+							show_items = true;
+							show_gainperk = false;
+						}
+						else if (selected_class == 7)
+						{
+							show_inventory = false;
+							show_pipboy = false;
+							show_trader = false;
+							show_perks = true;
+							show_items = false;
+							show_gainperk = false;
+						}
+
+					}
+					else if (show_items)	
+					{
+						if (selected_class == 5)
+						{
+							show_inventory = false;
+							show_pipboy = true;
+							show_trader = false;
+							show_perks = false;
+							show_items = false;
+							show_gainperk = false;
+						}
+						else if (selected_class == 6)
+						{
+							show_inventory = false;
+							show_pipboy = false;
+							show_trader = false;
+							show_perks = false;
+							show_items = true;
+							show_gainperk = false;
+						}
+						else if (selected_class == 7)
+						{
+							show_inventory = false;
+							show_pipboy = false;
+							show_trader = false;
+							show_perks = true;
+							show_items = false;
+							show_gainperk = false;
+						}
+					}
+					else if (show_perks)	
+					{
+						if (selected_class == 5)
+						{
+							show_inventory = false;
+							show_pipboy = true;
+							show_trader = false;
+							show_perks = false;
+							show_items = false;
+							show_gainperk = false;
+						}
+						else if (selected_class == 6)
+						{
+							show_inventory = false;
+							show_pipboy = false;
+							show_trader = false;
+							show_perks = false;
+							show_items = true;
+							show_gainperk = false;
+						}
+						else if (selected_class == 7)
+						{
+							show_inventory = false;
+							show_pipboy = false;
+							show_trader = false;
+							show_perks = true;
+							show_items = false;
+							show_gainperk = false;
+						}
+						else if (selected_class == 8)
+						{
+							show_inventory = false;
+							show_pipboy = false;
+							show_trader = false;
+							show_perks = false;
+							show_items = false;
+							show_gainperk = true;
+							perkslot = 1;
+						}
+						else if (selected_class == 9)
+						{
+							show_inventory = false;
+							show_pipboy = false;
+							show_trader = false;
+							show_perks = false;
+							show_items = false;
+							show_gainperk = true;
+							perkslot = 2;
+						}
 					}
 					else
 					{
@@ -940,7 +1254,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			return false;
 		return true;
 	}
-	if (eventtype == 2 && (show_inventory || show_trader || show_pipboy))	//mouse
+	if (eventtype == 2 && (show_inventory || show_trader || show_pipboy || show_items || show_perks || show_gainperk))	//mouse
 	{
 		mousepos_x += param1;
 		mousepos_y += param2;

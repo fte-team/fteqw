@@ -410,6 +410,12 @@ void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 		Invent_Draw();
 	else if (show_pipboy)
 		Pipboy_Draw();
+	else if (show_perks)
+		Perks_Draw();
+	else if (show_items)
+		Items_Draw();
+	else if (show_gainperk)
+		GainPerk_Draw();
 	else
 	{
 		Health_Draw();

@@ -55,10 +55,10 @@ typedef	int	fixed16_t;
 struct mplane_s;
 
 extern vec3_t vec3_origin;
-extern	int nanmask;
 
 #define bound(min,num,max) ((num) >= (min) ? ((num) < (max) ? (num) : (max)) : (min))
 
+#define nanmask (255<<23)
 #define	IS_NAN(x) (((*(int *)&x)&nanmask)==nanmask)
 
 #define DotProduct(x,y) ((x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2])
@@ -131,19 +131,20 @@ float		Q_rsqrt(float number);
 void		Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
 void		Matrix4_Identity(float *outm);
 qboolean	Matrix4_Invert(const float *m, float *out);
-void		Matrix4_Invert_Simple (const float *in1, float *out);
+void		Matrix4Q_Invert_Simple (const float *in1, float *out);
 void		Matrix4_CreateTranslate (float *out, float x, float y, float z);
+void		Matrix4Q_CreateTranslate (float *out, float x, float y, float z);
 void		Matrix4_ModelMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
 void		Matrix4_ModelViewMatrix (float *modelview, const vec3_t viewangles, const vec3_t vieworg);
 void		Matrix4_ModelViewMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
 void		Matrix4_CreateFromQuakeEntity (float *matrix, float x, float y, float z, float pitch, float yaw, float roll, float scale);
-void		Matrix4_Multiply (float *a, float *b, float *out);
+void		Matrix4_Multiply (const float *a, const float *b, float *out);
 void		Matrix4_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy);
-void		Matrix4_Transform3 (float *matrix, float *vector, float *product);
-void		Matrix4_Transform4 (float *matrix, float *vector, float *product);
+void		Matrix4_Transform3 (const float *matrix, const float *vector, float *product);
+void		Matrix4_Transform4 (const float *matrix, const float *vector, float *product);
 void		Matrix4_UnProject (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy);
-void		Matrix4_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3]);
-void		Matrix4_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3]);
+void		Matrix4Q_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3]);
+void		Matrix4Q_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3]);
 
 #define AngleVectorsFLU(a,f,l,u) do{AngleVectors(a,f,l,u);VectorNegate(l,l);}while(0)
 

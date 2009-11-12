@@ -23,7 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <math.h>
 
 vec3_t vec3_origin = {0,0,0};
-int nanmask = 255<<23;
 
 /*-----------------------------------------------------------------*/
 
@@ -877,7 +876,7 @@ float *Matrix4_NewTranslation(float x, float y, float z)
 }
 
 //be aware that this generates two sorts of matricies depending on order of a+b
-void Matrix4_Multiply(float *a, float *b, float *out)
+void Matrix4_Multiply(const float *a, const float *b, float *out)
 {
 	out[0]  = a[0] * b[0] + a[4] * b[1] + a[8] * b[2] + a[12] * b[3];
 	out[1]  = a[1] * b[0] + a[5] * b[1] + a[9] * b[2] + a[13] * b[3];
@@ -901,7 +900,7 @@ void Matrix4_Multiply(float *a, float *b, float *out)
 }
 
 //transform 4d vector by a 4d matrix.
-void Matrix4_Transform4(float *matrix, float *vector, float *product)
+void Matrix4_Transform4(const float *matrix, const float *vector, float *product)
 {
 	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2] + matrix[12]*vector[3];
 	product[1] = matrix[1]*vector[0] + matrix[5]*vector[1] + matrix[9]*vector[2] + matrix[13]*vector[3];
@@ -909,7 +908,7 @@ void Matrix4_Transform4(float *matrix, float *vector, float *product)
 	product[3] = matrix[3]*vector[0] + matrix[7]*vector[1] + matrix[11]*vector[2] + matrix[15]*vector[3];
 }
 
-void Matrix4_Transform3(float *matrix, float *vector, float *product)
+void Matrix4_Transform3(const float *matrix, const float *vector, float *product)
 {
 	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2] + matrix[12];
 	product[1] = matrix[1]*vector[0] + matrix[5]*vector[1] + matrix[9]*vector[2] + matrix[13];
@@ -951,6 +950,29 @@ void		Matrix4_CreateTranslate (float *out, float x, float y, float z)
 	memcpy(out, Matrix4_NewTranslation(x, y, z), 16*sizeof(float));
 }
 
+void Matrix4Q_CreateTranslate (float *out, float x, float y, float z)
+{
+	out[0] = 1;
+	out[4] = 0;
+	out[8] = 0;
+	out[12] = 0;
+
+	out[1] = 0;
+    out[5] = 1;
+	out[9] = 0;
+	out[13] = 0;
+
+	out[2] = 0;
+	out[6] = 0;
+	out[10] = 1;
+	out[14] = 0;
+
+	out[3] = x;
+	out[7] = y;
+	out[11] = z;
+	out[15] = 1;
+}
+
 void Matrix4_ModelViewMatrixFromAxis(float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg)
 {
 	float tempmat[16];
@@ -976,7 +998,7 @@ void Matrix4_ModelViewMatrixFromAxis(float *modelview, const vec3_t pn, const ve
 }
 
 
-void Matrix4_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
+void Matrix4Q_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
 {
 	vx[0] = in[0];
 	vx[1] = in[4];
@@ -995,23 +1017,23 @@ void Matrix4_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], f
 	t [2] = in[11];
 }
 
-void Matrix4_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
+void Matrix4Q_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
 {
 	out[0] = vx[0];
-	out[4] = vy[0];
-	out[8] = vz[0];
-	out[12] = t[0];
-	out[1] = vx[1];
+	out[1] = vy[0];
+	out[2] = vz[0];
+	out[3] = t[0];
+	out[4] = vx[1];
 	out[5] = vy[1];
-	out[9] = vz[1];
-	out[13] = t[1];
-	out[2] = vx[2];
-	out[6] = vy[2];
+	out[6] = vz[1];
+	out[7] = t[1];
+	out[8] = vx[2];
+	out[9] = vy[2];
 	out[10] = vz[2];
-	out[14] = t[2];
-	out[3] = 0.0f;
-	out[7] = 0.0f;
-	out[11] = 0.0f;
+	out[11] = t[2];
+	out[12] = 0.0f;
+	out[13] = 0.0f;
+	out[14] = 0.0f;
 	out[15] = 1.0f;
 }
 
@@ -1397,7 +1419,7 @@ qboolean Matrix4_Invert(const float *m, float *out)
 #undef SWAP_ROWS
 }
 
-void Matrix4_Invert_Simple (const float *in1, float *out)
+void Matrix4Q_Invert_Simple (const float *in1, float *out)
 {
 	// we only support uniform scaling, so assume the first row is enough
 	// (note the lack of sqrt here, because we're trying to undo the scaling,

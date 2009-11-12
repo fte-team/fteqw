@@ -690,6 +690,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		}
 	}
 
+#ifdef USEODE
+	World_Physics_End(&sv.world);
+#endif
+
 	// wipe the entire per-level structure
 	memset (&sv, 0, sizeof(sv));
 
@@ -826,7 +830,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		Info_SetValueForStarKey(svs.info, "*startspot", "", MAX_SERVERINFO_STRING);
 
 	//
-	// clear physics interaction links
+	// init physics interaction links
 	//
 	World_ClearWorld (&sv.world);
 
@@ -863,9 +867,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	else
 		Info_RemoveKey(svs.info, "*csqcdebug");
 #endif
-
-
-
 
 	if (svs.gametype == GT_PROGS)
 	{

@@ -42,10 +42,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 cvar_t physics_ode_quadtree_depth = CVARDP4(0, "physics_ode_quadtree_depth","5", "desired subdivision level of quadtree culling space");
 cvar_t physics_ode_contactsurfacelayer = CVARDP4(0, "physics_ode_contactsurfacelayer","0", "allows objects to overlap this many units to reduce jitter");
-cvar_t physics_ode_worldquickstep = CVARDP4(0, "physics_ode_worldquickstep","1", "use dWorldQuickStep rather than dWorldStepFast1 or dWorldStep");
+cvar_t physics_ode_worldquickstep = CVARDP4(0, "physics_ode_worldquickstep","1", "use dWorldQuickStep rather than dWorldStep");
 cvar_t physics_ode_worldquickstep_iterations = CVARDP4(0, "physics_ode_worldquickstep_iterations","20", "parameter to dWorldQuickStep");
-cvar_t physics_ode_worldstepfast = CVARDP4(0, "physics_ode_worldstepfast","0", "use dWorldStepFast1 rather than dWorldStep");
-cvar_t physics_ode_worldstepfast_iterations = CVARDP4(0, "physics_ode_worldstepfast_iterations","20", "parameter to dWorldStepFast1");
+//physics_ode_worldstepfast dWorldStepFast1 is not present in more recent versions of ODE. thus we don't use it ever.
 cvar_t physics_ode_contact_mu = CVARDP4(0, "physics_ode_contact_mu", "1", "contact solver mu parameter - friction pyramid approximation 1 (see ODE User Guide)");
 cvar_t physics_ode_contact_erp = CVARDP4(0, "physics_ode_contact_erp", "0.96", "contact solver erp parameter - Error Restitution Percent (see ODE User Guide)");
 cvar_t physics_ode_contact_cfm = CVARDP4(0, "physics_ode_contact_cfm", "0", "contact solver cfm parameter - Constraint Force Mixing (see ODE User Guide)");
@@ -234,7 +233,7 @@ typedef struct dContact
 }
 dContact;
 
-typedef void dNearCallback (void *data, dGeomID o1, dGeomID o2);
+typedef void VARGS dNearCallback (void *data, dGeomID o1, dGeomID o2);
 
 // SAP
 // Order XZY or ZXY usually works best, if your Y is up.
@@ -290,7 +289,7 @@ void            (ODE_API *dWorldSetQuickStepNumIterations)(dWorldID, int num);
 //dReal           (ODE_API *dWorldGetContactMaxCorrectingVel)(dWorldID);
 void            (ODE_API *dWorldSetContactSurfaceLayer)(dWorldID, dReal depth);
 //dReal           (ODE_API *dWorldGetContactSurfaceLayer)(dWorldID);
-void            (ODE_API *dWorldStepFast1)(dWorldID, dReal stepsize, int maxiterations);
+//void            (ODE_API *dWorldStepFast1)(dWorldID, dReal stepsize, int maxiterations);
 //void            (ODE_API *dWorldSetAutoEnableDepthSF1)(dWorldID, int autoEnableDepth);
 //int             (ODE_API *dWorldGetAutoEnableDepthSF1)(dWorldID);
 //dReal           (ODE_API *dWorldGetAutoDisableLinearThreshold)(dWorldID);
@@ -755,7 +754,7 @@ static dllfunction_t odefuncs[] =
 //	{"dWorldGetContactMaxCorrectingVel",			(void **) &dWorldGetContactMaxCorrectingVel},
 	{(void **) &dWorldSetContactSurfaceLayer,		"dWorldSetContactSurfaceLayer"},
 //	{"dWorldGetContactSurfaceLayer",				(void **) &dWorldGetContactSurfaceLayer},
-	{(void **) &dWorldStepFast1,					"dWorldStepFast1"},
+//	{(void **) &dWorldStepFast1,					"dWorldStepFast1"},
 //	{"dWorldSetAutoEnableDepthSF1",					(void **) &dWorldSetAutoEnableDepthSF1},
 //	{"dWorldGetAutoEnableDepthSF1",					(void **) &dWorldGetAutoEnableDepthSF1},
 //	{"dWorldGetAutoDisableLinearThreshold",			(void **) &dWorldGetAutoDisableLinearThreshold},
@@ -1183,8 +1182,6 @@ void World_Physics_Init(void)
 	Cvar_Register(&physics_ode_contactsurfacelayer, "ODE Physics Library");
 	Cvar_Register(&physics_ode_worldquickstep, "ODE Physics Library");
 	Cvar_Register(&physics_ode_worldquickstep_iterations, "ODE Physics Library");
-	Cvar_Register(&physics_ode_worldstepfast, "ODE Physics Library");
-	Cvar_Register(&physics_ode_worldstepfast_iterations, "ODE Physics Library");
 	Cvar_Register(&physics_ode_contact_mu, "ODE Physics Library");
 	Cvar_Register(&physics_ode_contact_erp, "ODE Physics Library");
 	Cvar_Register(&physics_ode_contact_cfm, "ODE Physics Library");
@@ -1284,6 +1281,9 @@ void World_Physics_RemoveJointFromEntity(world_t *world, wedict_t *ed)
 
 void World_Physics_RemoveFromEntity(world_t *world, wedict_t *ed)
 {
+	if (!ed->ode.ode_physics)
+		return;
+
 	// entity is not physics controlled, free any physics data
 	ed->ode.ode_physics = false;
 	if (ed->ode.ode_geom)
@@ -1386,9 +1386,9 @@ static void World_Physics_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	up[2] = r[10];
 	VectorCopy(vel, velocity);
 	VectorCopy(avel, spinvelocity);
-	Matrix4_FromVectors(bodymatrix, forward, left, up, origin);
-	Matrix4_Multiply(entitymatrix, bodymatrix, ed->ode.ode_offsetimatrix);
-	Matrix4_ToVectors(entitymatrix, forward, left, up, origin);
+	Matrix4Q_FromVectors(bodymatrix, forward, left, up, origin);
+	Matrix4_Multiply(bodymatrix, ed->ode.ode_offsetimatrix, entitymatrix);
+	Matrix4Q_ToVectors(entitymatrix, forward, left, up, origin);
 
 	VectorAngles(forward, up, angles);
 	avelocity[PITCH] = RAD2DEG(spinvelocity[PITCH]);
@@ -1612,11 +1612,17 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	for (sno = 0; sno < mod->nummodelsurfaces; sno++)
 	{
 		surf = &mod->surfaces[sno+mod->firstmodelsurface];
-		mesh = surf->mesh;
-		if (!mesh)
-			continue;
-		numverts += mesh->numvertexes;
-		numindexes += mesh->numindexes;
+		if (surf->mesh)
+		{
+			mesh = surf->mesh;
+			numverts += mesh->numvertexes;
+			numindexes += mesh->numindexes;
+		}
+		else
+		{
+			numverts += surf->numedges;
+			numindexes += (surf->numedges-2) * 3;
+		}
 	}
 	if (!numindexes)
 	{
@@ -1625,24 +1631,61 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	}
 	ed->ode.ode_element3i = BZ_Malloc(numindexes*sizeof(index_t));
 	ed->ode.ode_vertex3f = BZ_Malloc(numverts*sizeof(vec3_t));
+	numverts = 0;
+	numindexes = 0;
 	for (sno = 0; sno < mod->nummodelsurfaces; sno++)
 	{
 		surf = &mod->surfaces[sno+mod->firstmodelsurface];
-		mesh = surf->mesh;
-		if (!mesh)
-			continue;
-		for (i = 0; i < mesh->numvertexes; i++)
-			VectorSubtract(mesh->xyz_array[i], geomcenter, (ed->ode.ode_vertex3f + numverts+i));
-		for (i = 0; i < mesh->numindexes; i+=3)
+		if (surf->mesh)
 		{
-			//flip the triangles as we go
-			ed->ode.ode_element3i[numindexes+i+0] = mesh->indexes[i+2];
-			ed->ode.ode_element3i[numindexes+i+1] = mesh->indexes[i+1];
-			ed->ode.ode_element3i[numindexes+i+2] = mesh->indexes[i+0];
+			mesh = surf->mesh;
+			for (i = 0; i < mesh->numvertexes; i++)
+				VectorSubtract(mesh->xyz_array[i], geomcenter, (ed->ode.ode_vertex3f + 3*(numverts+i)));
+			for (i = 0; i < mesh->numindexes; i+=3)
+			{
+				//flip the triangles as we go
+				ed->ode.ode_element3i[numindexes+i+0] = numverts+mesh->indexes[i+2];
+				ed->ode.ode_element3i[numindexes+i+1] = numverts+mesh->indexes[i+1];
+				ed->ode.ode_element3i[numindexes+i+2] = numverts+mesh->indexes[i+0];
+			}
+			numverts += mesh->numvertexes;
+			numindexes += i;
 		}
-		numverts += mesh->numvertexes;
-		numindexes += mesh->numindexes;
+		else
+		{
+			float *vec;
+			medge_t *edge;
+			int lindex;
+			for (i = 0; i < surf->numedges; i++)
+			{
+				lindex = mod->surfedges[surf->firstedge + i];
+
+				if (lindex > 0)
+				{
+					edge = &mod->edges[lindex];
+					vec = mod->vertexes[edge->v[0]].position;
+				}
+				else
+				{
+					edge = &mod->edges[-lindex];
+					vec = mod->vertexes[edge->v[1]].position;
+				}
+			
+				VectorSubtract(vec, geomcenter, (ed->ode.ode_vertex3f + 3*(numverts+i)));
+			}
+			for (i = 2; i < surf->numedges; i++)
+			{
+				//quake is backwards, not ode
+				ed->ode.ode_element3i[numindexes++] = numverts+i;
+				ed->ode.ode_element3i[numindexes++] = numverts+i-1;
+				ed->ode.ode_element3i[numindexes++] = numverts;
+			}
+			numverts += surf->numedges;
+		}
 	}
+
+	ed->ode.ode_numvertices = numverts;
+	ed->ode.ode_numtriangles = numindexes/3;
 	return true;
 }
 
@@ -1650,7 +1693,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 {
 	dBodyID body = (dBodyID)ed->ode.ode_body;
 	dMass mass;
-	dReal test;
+	float test;
 	void *dataID;
 	dVector3 capsulerot[3];
 	model_t *model;
@@ -1676,7 +1719,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	vec_t massval = 1.0f;
 	vec_t movelimit;
 	vec_t radius;
-	vec_t scale = 1.0f;
+	vec_t scale;
 	vec_t spinlimit;
 	qboolean gravity;
 #ifdef ODE_DYNAMIC
@@ -1685,7 +1728,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 #endif
 	solid = (int)ed->v->solid;
 	movetype = (int)ed->v->movetype;
-	scale = ed->xv->scale;
+	scale = ed->xv->scale?ed->xv->scale:1;
 	modelindex = 0;
 	model = NULL;
 
@@ -1698,7 +1741,8 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		{
 			VectorScale(model->mins, scale, entmins);
 			VectorScale(model->maxs, scale, entmaxs);
-			massval = ed->xv->mass;
+			if (ed->xv->mass)
+				massval = ed->xv->mass;
 		}
 		else
 		{
@@ -1707,14 +1751,15 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		}
 		break;
 	case SOLID_BBOX:
-	//case SOLID_SLIDEBOX:
+	case SOLID_SLIDEBOX:
 	case SOLID_CORPSE:
 	case SOLID_PHYSICS_BOX:
 	case SOLID_PHYSICS_SPHERE:
 	case SOLID_PHYSICS_CAPSULE:
 		VectorCopy(ed->v->mins, entmins);
 		VectorCopy(ed->v->maxs, entmaxs);
-		massval = ed->xv->mass;
+		if (ed->xv->mass)
+			massval = ed->xv->mass;
 		break;
 	default:
 		if (ed->ode.ode_physics)
@@ -1771,7 +1816,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			if (!GenerateCollisionMesh(world, model, ed, geomcenter))
 				break;
 
-			Matrix4_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
+			Matrix4Q_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
 			// now create the geom
 			dataID = dGeomTriMeshDataCreate();
 			dGeomTriMeshDataBuildSingle(dataID, (void*)ed->ode.ode_vertex3f, sizeof(float[3]), ed->ode.ode_numvertices, ed->ode.ode_element3i, ed->ode.ode_numtriangles*3, sizeof(int[3]));
@@ -1782,12 +1827,12 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		case SOLID_SLIDEBOX:
 		case SOLID_CORPSE:
 		case SOLID_PHYSICS_BOX:
-			Matrix4_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
+			Matrix4Q_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
 			ed->ode.ode_geom = (void *)dCreateBox(world->ode.ode_space, geomsize[0], geomsize[1], geomsize[2]);
 			dMassSetBoxTotal(&mass, massval, geomsize[0], geomsize[1], geomsize[2]);
 			break;
 		case SOLID_PHYSICS_SPHERE:
-			Matrix4_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
+			Matrix4Q_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
 			ed->ode.ode_geom = (void *)dCreateSphere(world->ode.ode_space, geomsize[0] * 0.5f);
 			dMassSetSphereTotal(&mass, massval, geomsize[0] * 0.5f);
 			break;
@@ -1821,8 +1866,8 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		default:
 			Sys_Error("World_Physics_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
 		}
-		Matrix4_Invert_Simple(ed->ode.ode_offsetmatrix, ed->ode.ode_offsetimatrix);
-		ed->ode.ode_massbuf = BZ_Malloc(sizeof(mass));
+		Matrix4Q_Invert_Simple(ed->ode.ode_offsetmatrix, ed->ode.ode_offsetimatrix);
+		ed->ode.ode_massbuf = BZ_Malloc(sizeof(dMass));
 		memcpy(ed->ode.ode_massbuf, &mass, sizeof(dMass));
 	}
 
@@ -1868,8 +1913,9 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.axis_up);if (val) VectorCopy(val->vector, up);
 	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.spinvelocity);if (val) VectorCopy(val->vector, spinvelocity);
 	VectorCopy(ed->v->angles, angles);
+	angles[0] = 0;
 	VectorCopy(ed->v->avelocity, avelocity);
-	if (ed == world->edicts || (ed->xv->gravity && ed->xv->gravity < 0))
+	if (ed == world->edicts || (ed->xv->gravity && ed->xv->gravity <= 0.01))
 		gravity = false;
 
 	// compatibility for legacy entities
@@ -1966,9 +2012,9 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		VectorCopy(avelocity, ed->ode.ode_avelocity);
 		ed->ode.ode_gravity = gravity;
 
-		Matrix4_FromVectors(entitymatrix, forward, left, up, origin);
-		Matrix4_Multiply(bodymatrix, entitymatrix, ed->ode.ode_offsetmatrix);
-		Matrix4_ToVectors(bodymatrix, forward, left, up, origin);
+		Matrix4Q_FromVectors(entitymatrix, forward, left, up, origin);
+		Matrix4_Multiply(entitymatrix, ed->ode.ode_offsetmatrix, bodymatrix);
+		Matrix4Q_ToVectors(bodymatrix, forward, left, up, origin);
 		r[0][0] = forward[0];
 		r[1][0] = forward[1];
 		r[2][0] = forward[2];
@@ -2038,7 +2084,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 }
 
 #define MAX_CONTACTS 16
-static void nearCallback (void *data, dGeomID o1, dGeomID o2)
+static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 {
 	world_t *world = (world_t *)data;
 	dContact contact[MAX_CONTACTS]; // max contacts per collision pair
@@ -2080,6 +2126,28 @@ static void nearCallback (void *data, dGeomID o1, dGeomID o2)
 	ed1 = (wedict_t *) dGeomGetData(o1);
 	if(ed1 && ed1->isfree)
 		ed1 = NULL;
+	ed2 = (wedict_t *) dGeomGetData(o2);
+	if(ed2 && ed2->isfree)
+		ed2 = NULL;
+
+	// generate contact points between the two non-space geoms
+	numcontacts = dCollide(o1, o2, MAX_CONTACTS, &(contact[0].geom), sizeof(contact[0]));
+	if (numcontacts)
+	{
+		if(ed1 && ed1->v->touch)
+		{
+			world->Event_Touch(world, ed1, ed2);
+		}
+		if(ed2 && ed2->v->touch)
+		{
+			world->Event_Touch(world, ed2, ed1);
+		}
+
+		/* if either ent killed itself, don't collide */
+		if ((ed1&&ed1->isfree) || (ed2&&ed2->isfree))
+			return;
+	}
+
 	if(ed1)
 	{
 		if (ed1->xv->bouncefactor)
@@ -2089,9 +2157,6 @@ static void nearCallback (void *data, dGeomID o1, dGeomID o2)
 			bouncestop1 = ed1->xv->bouncestop;
 	}
 
-	ed2 = (wedict_t *) dGeomGetData(o2);
-	if(ed2 && ed2->isfree)
-		ed2 = NULL;
 	if(ed2)
 	{
 		if (ed2->xv->bouncefactor)
@@ -2101,14 +2166,8 @@ static void nearCallback (void *data, dGeomID o1, dGeomID o2)
 			bouncestop2 = ed2->xv->bouncestop;
 	}
 
-	if(ed1 && ed1->v->touch)
-	{
-		world->Event_Touch(world, ed1, ed2);
-	}
-	if(ed2 && ed2->v->touch)
-	{
-		world->Event_Touch(world, ed2, ed1);
-	}
+	if (ed1->v->owner == ed2->entnum || ed2->v->owner == ed1->entnum)
+		return;
 
 	// merge bounce factors and bounce stop
 	if(bouncefactor2 > 0)
@@ -2130,12 +2189,13 @@ static void nearCallback (void *data, dGeomID o1, dGeomID o2)
 	dWorldGetGravity(world->ode.ode_world, grav);
 	bouncestop1 *= fabs(grav[2]);
 
-	// generate contact points between the two non-space geoms
-	numcontacts = dCollide(o1, o2, MAX_CONTACTS, &(contact[0].geom), sizeof(contact[0]));
 	// add these contact points to the simulation
 	for (i = 0;i < numcontacts;i++)
 	{
-		contact[i].surface.mode = (physics_ode_contact_mu.value != -1 ? dContactApprox1 : 0) | (physics_ode_contact_erp.value != -1 ? dContactSoftERP : 0) | (physics_ode_contact_cfm.value != -1 ? dContactSoftCFM : 0) | (bouncefactor1 > 0 ? dContactBounce : 0);
+		contact[i].surface.mode =	(physics_ode_contact_mu.value != -1 ? dContactApprox1 : 0) |
+									(physics_ode_contact_erp.value != -1 ? dContactSoftERP : 0) |
+									(physics_ode_contact_cfm.value != -1 ? dContactSoftCFM : 0) |
+									(bouncefactor1 > 0 ? dContactBounce : 0);
 		contact[i].surface.mu = physics_ode_contact_mu.value;
 		contact[i].surface.soft_erp = physics_ode_contact_erp.value;
 		contact[i].surface.soft_cfm = physics_ode_contact_cfm.value;
@@ -2160,14 +2220,14 @@ void World_Physics_Frame(world_t *world, double frametime, double gravity)
 		// copy physics properties from entities to physics engine
 		for (i = 0;i < world->num_edicts;i++)
 		{
-			ed = EDICT_NUM(world->progs, i);
+			ed = (wedict_t*)EDICT_NUM(world->progs, i);
 			if (!ed->isfree)
 				World_Physics_Frame_BodyFromEntity(world, ed);
 		}
 		// oh, and it must be called after all bodies were created
 		for (i = 0;i < world->num_edicts;i++)
 		{
-			ed = EDICT_NUM(world->progs, i);
+			ed = (wedict_t*)EDICT_NUM(world->progs, i);
 			if (!ed->isfree)
 				World_Physics_Frame_JointFromEntity(world, ed);
 		}
@@ -2188,8 +2248,6 @@ void World_Physics_Frame(world_t *world, double frametime, double gravity)
 				dWorldSetQuickStepNumIterations(world->ode.ode_world, bound(1, physics_ode_worldquickstep_iterations.ival, 200));
 				dWorldQuickStep(world->ode.ode_world, world->ode.ode_step);
 			}
-			else if (physics_ode_worldstepfast.ival)
-				dWorldStepFast1(world->ode.ode_world, world->ode.ode_step, bound(1, physics_ode_worldstepfast_iterations.ival, 200));
 			else
 				dWorldStep(world->ode.ode_world, world->ode.ode_step);
 
@@ -2200,7 +2258,7 @@ void World_Physics_Frame(world_t *world, double frametime, double gravity)
 		// copy physics properties from physics engine to entities
 		for (i = 1;i < world->num_edicts;i++)
 		{
-			ed = EDICT_NUM(world->progs, i);
+			ed = (wedict_t*)EDICT_NUM(world->progs, i);
 			if (!ed->isfree)
 				World_Physics_Frame_BodyToEntity(world, ed);
 		}

@@ -805,17 +805,17 @@ void() Invent_Draw =
 
 	check = getstati(32);
 	if (check > 0)
-		SlotImage('6 1 0'*IMGSIZEF, 1);
+		SlotImage('6 1 0'*IMGSIZEF - '16 2 0', 1);
 
 
 	check = getstati(33);
 	if (check > 0)
-		SlotImage('6 2 0'*IMGSIZEF, 2);
+		SlotImage('6 2 0'*IMGSIZEF - '16 -5 0', 2);
 
 
 	check = getstati(34);
 	if (check > 0)
-		SlotImage('6 3 0'*IMGSIZEF, 3);
+		SlotImage('6 3 0'*IMGSIZEF - '16 -13 0', 3);
 
 
 
@@ -870,13 +870,15 @@ void() Invent_Draw =
 				if (mousepos_y >= 1*IMGSIZEF && mousepos_y <= 7*IMGSIZEF)
 					slotnum = floor((mousepos_y)/IMGSIZEF) + 10;
 
-			if (mousepos_x >= 5.5*IMGSIZEF && mousepos_x <= 6.5*IMGSIZEF)
+			if (mousepos_x >= 5.5*IMGSIZEF && mousepos_x <= 6.7*IMGSIZEF)
 				if (mousepos_y >= 1*IMGSIZEF && mousepos_y <= 2*IMGSIZEF)
 					slotnum = 1;
-			if (mousepos_x >= 5.5*IMGSIZEF && mousepos_x <= 6.5*IMGSIZEF)
+
+			if (mousepos_x >= 5.5*IMGSIZEF && mousepos_x <= 6.7*IMGSIZEF)
 				if (mousepos_y >= 2*IMGSIZEF && mousepos_y <= 3*IMGSIZEF)
 					slotnum = 2;
-			if (mousepos_x >= 5.5*IMGSIZEF && mousepos_x <= 6.5*IMGSIZEF)
+
+			if (mousepos_x >= 5.5*IMGSIZEF && mousepos_x <= 6.7*IMGSIZEF)
 				if (mousepos_y >= 3*IMGSIZEF && mousepos_y <= 4*IMGSIZEF)
 					slotnum = 3;
 

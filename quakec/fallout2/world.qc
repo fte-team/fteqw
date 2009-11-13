@@ -284,17 +284,17 @@ void() map_startup =
 		world.map_obj = 6;
 
 	if (infokey(world, "objective") == "hostage")
-		time_left = 400;
+		time_left = 600;
 	if (infokey(world, "objective") == "supplies")
-		time_left = 500;
+		time_left = 600;
 	if (infokey(world, "objective") == "shadow")
-		time_left = 300;
+		time_left = 600;
 	if (infokey(world, "objective") == "deadtown")
-		time_left = 300;
+		time_left = 600;
 	if (infokey(world, "objective") == "destroy")
-		time_left = 500;
+		time_left = 600;
 	if (infokey(world, "objective") == "defuse")
-		time_left = 400;
+		time_left = 600;
 
 /*
 	if (world.map_obj == 0)
@@ -669,7 +669,7 @@ if (coop == 1) // Players vs Monsters
 
 	if (world.map_obj == OBJ_HOSTAGE)
 	{
-		//time_left = time_left - 1;
+		time_left = time_left - 1;
 
 		te = find(world, classname, "rhostage");
 		while (te)
@@ -702,8 +702,9 @@ if (coop == 1) // Players vs Monsters
 				localcmd("restart\n");
 
 			sound (world, CHAN_BODY, "misc/menu3.wav", 1, ATTN_NONE);
+			return;
 		}
-		else if (hdead > hcount) //hostages killed
+		else if (hdead > rescue + hcount) //hostages killed
 		{
 			if (endgame_timer == 0)
 				bprint(2, "^4** ^bTHE HOSTAGES WERE KILLED!!!^b **\n");
@@ -719,6 +720,7 @@ if (coop == 1) // Players vs Monsters
 				localcmd("restart\n");
 
 			endgame_timer = endgame_timer + 1;
+			return;
 		}
 		else if (hcount == 0 && hdead <= rescue) //hostages rescued
 		{
@@ -742,23 +744,33 @@ if (coop == 1) // Players vs Monsters
 				localcmd("serverinfo objective return\n");
 				changelevel ("r_bunker");
 			}
+			return;
 		}
 		else if (time_left <= 0) //time ran out
 		{
 			if (endgame_timer == 0)
-				bprint(2, "^4** ^bRADIATION CONSUMES EVERYONE^b **\n");
+			{
+				bprint(2, "^4** ^bSOME HOSTAGES WERE SAVED^b **\n");
+				sound (self, CHAN_VOICE, "misc/beep1.wav", 1, ATTN_NONE);
+				ze = find (world, classname, "player");
+				while (ze != world)
+				{
+					ze.ammo_shells = ze.ammo_shells + 25;
+					stuffcmd(ze, "play music/victory\n");
+					ze = find (ze, classname, "player");
+				}       
+			}
 			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION FAILED^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
-			if (endgame_timer == 5)
-				localcmd("restart\n");
+				bprint(2, "^4** ^bMISSION COMPLETED, RETURN TO BASE^b **\n");
 
+			if (endgame_timer == 10)
+			{
+				localcmd("serverinfo objective return\n");
+				changelevel ("r_bunker");
+			}
+		
 			endgame_timer = endgame_timer + 1;
+			return;
 		}
 		else if (time_left == 480) //time ran out
 				bprint(2, "^4** ^bTIME LEFT: 8:00^b **\n");

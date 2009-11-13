@@ -1013,12 +1013,13 @@ void() brotherhood_soldier =
 	self.xslot7 = SlotVal(IID_AM_ENERGYCELL, 30);
 	self.xslot8 = SlotVal(IID_AM_CASELESS, 30);
 	self.xslot9 = SlotVal(IID_AM_NEEDLER, 30);
+	self.xslot14 = SlotVal(IID_WP_AK112, 1);
 	self.xslot15 = SlotVal(IID_WP_ACR, 1);
 	self.xslot16 = SlotVal(IID_WP_AK112_M, 1);
 	self.xslot17 = SlotVal(IID_WP_G11, 1);
 	self.xslot18 = SlotVal(IID_WP_JACKHAMMER, 1);
 	self.xslot19 = SlotVal(IID_WP_MOONLIGHT, 1);
-	self.xslot19 = SlotVal(IID_WP_MOSSBERG, 1);
+	self.xslot20 = SlotVal(IID_WP_MOSSBERG, 1);
 
 	self.think = shop_face;
 	self.nextthink = time + 0.5;

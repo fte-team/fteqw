@@ -1624,7 +1624,7 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	for (sno = 0; sno < mod->nummodelsurfaces; sno++)
 	{
 		surf = &mod->surfaces[sno+mod->firstmodelsurface];
-		if (surf->flags & SURF_DRAWSKY|SURF_DRAWTURB)
+		if (surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB))
 			continue;
 
 		if (surf->mesh)
@@ -1651,7 +1651,7 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	for (sno = 0; sno < mod->nummodelsurfaces; sno++)
 	{
 		surf = &mod->surfaces[sno+mod->firstmodelsurface];
-		if (surf->flags & SURF_DRAWSKY|SURF_DRAWTURB)
+		if (surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB))
 			continue;
 
 		if (surf->mesh)

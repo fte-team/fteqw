@@ -352,7 +352,8 @@ void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	dlclose((void*)lib);
 }
-dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
+
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	int i;
 	dllhandle_t lib;

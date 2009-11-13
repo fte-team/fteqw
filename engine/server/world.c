@@ -1865,6 +1865,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 				clip.type |= MOVE_LAGGED;
 				w->lagents = svs.clients[passedict->entnum-1].laggedents;
 				w->maxlagents = svs.clients[passedict->entnum-1].laggedents_count;
+				w->lagentsfrac = svs.clients[passedict->entnum-1].laggedents_frac;
 			}
 			else if (passedict->v->owner)
 			{
@@ -1873,6 +1874,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 					clip.type |= MOVE_LAGGED;
 					w->lagents = svs.clients[passedict->v->owner-1].laggedents;
 					w->maxlagents = svs.clients[passedict->v->owner-1].laggedents_count;
+					w->lagentsfrac = svs.clients[passedict->v->owner-1].laggedents_frac;
 				}
 			}
 		}
@@ -1880,6 +1882,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		{
 			trace_t trace;
 			wedict_t *touch;
+			vec3_t lp;
 
 			World_ClipToLinks (w, w->areanodes, &clip );
 
@@ -1914,12 +1917,14 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 						continue;
 				}
 
-				if (clip.boxmins[0] > touch->v->absmax[0]
-				|| clip.boxmins[1] > touch->v->absmax[1]
-				|| clip.boxmins[2] > touch->v->absmax[2]
-				|| clip.boxmaxs[0] < touch->v->absmin[0]
-				|| clip.boxmaxs[1] < touch->v->absmin[1]
-				|| clip.boxmaxs[2] < touch->v->absmin[2] )
+				VectorInterpolate(touch->v->origin, w->lagentsfrac, w->lagents[i].laggedpos, lp);
+
+				if (clip.boxmins[0] > lp[0]+touch->v->maxs[0]
+						|| clip.boxmins[1] > lp[1]+touch->v->maxs[1]
+						|| clip.boxmins[2] > lp[2]+touch->v->maxs[2]
+						|| clip.boxmaxs[0] < lp[0]+touch->v->mins[0]
+						|| clip.boxmaxs[1] < lp[1]+touch->v->mins[1]
+						|| clip.boxmaxs[2] < lp[2]+touch->v->mins[2] )
 					continue;
 
 				if (clip.passedict && clip.passedict->v->size[0] && !touch->v->size[0])
@@ -1933,7 +1938,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 						continue;	// don't clip against owner
 				}
 
-				trace = World_ClipMoveToEntity (w, touch, w->lagents[i].laggedpos, clip.start, clip.mins, clip.maxs, clip.end, clip.hullnum, clip.type & MOVE_HITMODEL);
+				trace = World_ClipMoveToEntity (w, touch, lp, clip.start, clip.mins, clip.maxs, clip.end, clip.hullnum, clip.type & MOVE_HITMODEL);
 
 				if (trace.allsolid || trace.startsolid || trace.fraction < clip.trace.fraction)
 				{

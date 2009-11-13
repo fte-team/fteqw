@@ -45,6 +45,7 @@ cvar_t	sv_spectalk = SCVAR("sv_spectalk", "1");
 cvar_t	sv_mapcheck	= SCVAR("sv_mapcheck", "1");
 
 cvar_t	sv_antilag = SCVARF("sv_antilag", "0", CVAR_SERVERINFO);
+cvar_t	sv_antilag_frac = SCVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
 cvar_t	sv_cheatpc = SCVAR("sv_cheatpc", "125");
 cvar_t	sv_cheatspeedchecktime = SCVAR("sv_cheatspeedchecktime", "30");
 cvar_t	sv_playermodelchecks = SCVAR("sv_playermodelchecks", "1");
@@ -5542,6 +5543,8 @@ void SV_ExecuteClientMessage (client_t *cl)
 					VectorCopy(frame->playerpositions[i], cl->laggedents[i].laggedpos);
 			}
 			cl->laggedents_count = sv.allocated_client_slots;
+
+			cl->laggedents_frac = sv_antilag_frac.value;
 		}
 		else
 			cl->laggedents_count = 0;
@@ -6175,6 +6178,7 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_mapcheck, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_antilag, cvargroup_servercontrol);
+	Cvar_Register (&sv_antilag_frac, cvargroup_servercontrol);
 	Cvar_Register (&sv_cheatpc, cvargroup_servercontrol);
 	Cvar_Register (&sv_cheatspeedchecktime, cvargroup_servercontrol);
 	Cvar_Register (&sv_playermodelchecks, cvargroup_servercontrol);

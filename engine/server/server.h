@@ -399,8 +399,9 @@ typedef struct client_s
 	double			connection_started;	// or time of disconnect for zombies
 	qboolean		send_message;		// set on frames a datagram arived on
 
-	laggedentinfo_t laggedents[MAX_CLIENTS];
-	unsigned int laggedents_count;
+	laggedentinfo_t	laggedents[MAX_CLIENTS];
+	unsigned int	laggedents_count;
+	float			laggedents_frac;
 
 // spawn parms are carried from level to level
 	float			spawn_parms[NUM_SPAWN_PARMS];
@@ -895,6 +896,7 @@ typedef enum multicast_e
 extern	cvar_t	sv_mintic, sv_maxtic;
 extern	cvar_t	sv_maxspeed;
 extern	cvar_t	sv_antilag;
+extern	cvar_t	sv_antilag_frac;
 
 extern	netadr_t	master_adr[MAX_MASTERS];	// address of the master server
 

@@ -2836,7 +2836,7 @@ void (float dam, float ap, string snd, float rng, float rate) FirePistol =
 	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-			dam = dam + self.skill_doctor/2;
+			dam = dam + self.skill_doctor;
 	}
 
 	if (self.extender == weap && self.silencer != weap)
@@ -2983,7 +2983,7 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-			dam = dam + self.skill_doctor/2;
+			dam = dam + self.skill_doctor;
 	}
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
@@ -3305,7 +3305,7 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-			dam = dam + self.skill_doctor/2;
+			dam = dam + self.skill_doctor;
 	}
 
 	if (weap == IID_WP_MOONLIGHT)
@@ -3581,7 +3581,7 @@ void (float dam, float xrecoil, string snd, float rng, float rate) FireMinigun =
 	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-			dam = dam + self.skill_doctor/3;
+			dam = dam + self.skill_doctor;
 	}
 
 	loud_noise(50);
@@ -6002,7 +6002,7 @@ void (float rec, float number, float dam, float spread, float ran, float auto, s
 	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-			dam = dam + self.skill_doctor/5;
+			dam = dam + self.skill_doctor/3;
 	}
 
 	weap = ToIID(self.(SlotField(self.current_slot)));

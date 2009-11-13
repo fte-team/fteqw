@@ -559,15 +559,15 @@ void() Items_Draw =
 
 	it = getstati(32);
 	itname = GetItemName(ToIID(it));
-	drawstring('4 1.5 0'*IMGSIZEF + '0 0 0', itname, '16 16 0', '1 1 1', 1);
+	drawstring('4 1.5 0'*IMGSIZEF + '0 0 0', itname, '8 8 0', '1 1 1', 1);
 
 	it = getstati(33);
 	itname = GetItemName(ToIID(it));
-	drawstring('4 3 0'*IMGSIZEF + '0 0 0', itname, '16 16 0', '1 1 1', 1);
+	drawstring('4 3 0'*IMGSIZEF + '0 0 0', itname, '8 8 0', '1 1 1', 1);
 
 	it = getstati(34);
 	itname = GetItemName(ToIID(it));
-	drawstring('4 4.5 0'*IMGSIZEF + '0 0 0', itname, '16 16 0', '1 1 1', 1);
+	drawstring('4 4.5 0'*IMGSIZEF + '0 0 0', itname, '8 8 0', '1 1 1', 1);
 
 	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
 };
@@ -805,17 +805,17 @@ void() Invent_Draw =
 
 	check = getstati(32);
 	if (check > 0)
-		SlotImage('5.5 1 0'*IMGSIZEF, 1);
+		SlotImage('6 1 0'*IMGSIZEF, 1);
 
 
 	check = getstati(33);
 	if (check > 0)
-		SlotImage('5.5 2 0'*IMGSIZEF, 2);
+		SlotImage('6 2 0'*IMGSIZEF, 2);
 
 
 	check = getstati(34);
 	if (check > 0)
-		SlotImage('5.5 3 0'*IMGSIZEF, 3);
+		SlotImage('6 3 0'*IMGSIZEF, 3);
 
 
 

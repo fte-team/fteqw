@@ -1901,12 +1901,14 @@ static void DrawPass(const shaderpass_t *pass, const mesh_t *meshlist)
 
 	checkerror();
 }
-void Matrix4_TransformN3(float *matrix, float *vector, float *product)
+#if 0
+void Matrix4_TransformN3(float *matrix, float *_vector, float *product)
 {
-	product[0] = -matrix[12] - matrix[0]*vector[0] - matrix[4]*vector[1] - matrix[8]*vector[2];
-	product[1] = -matrix[13] - matrix[1]*vector[0] - matrix[5]*vector[1] - matrix[9]*vector[2];
-	product[2] = -matrix[14] - matrix[2]*vector[0] - matrix[6]*vector[1] - matrix[10]*vector[2];
+	product[0] = -matrix[12] - matrix[0]*_vector[0] - matrix[4]*_vector[1] - matrix[8]*_vector[2];
+	product[1] = -matrix[13] - matrix[1]*_vector[0] - matrix[5]*_vector[1] - matrix[9]*_vector[2];
+	product[2] = -matrix[14] - matrix[2]*_vector[0] - matrix[6]*_vector[1] - matrix[10]*_vector[2];
 }
+#endif
 
 static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pass, const mesh_t *meshlist)
 {

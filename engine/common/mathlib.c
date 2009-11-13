@@ -1449,15 +1449,15 @@ void Matrix4Q_Invert_Simple (const float *in1, float *out)
 
 #ifdef MATRIX4x4_OPENGLORIENTATION
 	// invert the translate
-	out->m[3][0] = -(in1->m[3][0] * out->m[0][0] + in1->m[3][1] * out->m[1][0] + in1->m[3][2] * out->m[2][0]);
-	out->m[3][1] = -(in1->m[3][0] * out->m[0][1] + in1->m[3][1] * out->m[1][1] + in1->m[3][2] * out->m[2][1]);
-	out->m[3][2] = -(in1->m[3][0] * out->m[0][2] + in1->m[3][1] * out->m[1][2] + in1->m[3][2] * out->m[2][2]);
+	out->m[12] = -(in1[12] * out[0] + in1[13] * out[4] + in1[14] * out[8]);
+	out->m[13] = -(in1[12] * out[1] + in1[13] * out[5] + in1[14] * out[9]);
+	out->m[14] = -(in1[12] * out[2] + in1[13] * out[6] + in1[14] * out[10]);
 
 	// don't know if there's anything worth doing here
-	out->m[0][3] = 0;
-	out->m[1][3] = 0;
-	out->m[2][3] = 0;
-	out->m[3][3] = 1;
+	out[3] = 0;
+	out[7] = 0;
+	out[11] = 0;
+	out[15] = 1;
 #else
 	// invert the translate
 	out[3] = -(in1[3] * out[0] + in1[7] * out[1] + in1[11] * out[2]);

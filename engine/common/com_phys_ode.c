@@ -1331,6 +1331,7 @@ void World_Physics_RemoveFromEntity(world_t *world, wedict_t *ed)
 
 static void World_Physics_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 {
+	model_t *model;
 	const dReal *avel;
 	const dReal *o;
 	const dReal *r; // for some reason dBodyGetRotation returns a [3][4] matrix
@@ -1387,13 +1388,24 @@ static void World_Physics_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	VectorCopy(vel, velocity);
 	VectorCopy(avel, spinvelocity);
 	Matrix4Q_FromVectors(bodymatrix, forward, left, up, origin);
-	Matrix4_Multiply(bodymatrix, ed->ode.ode_offsetimatrix, entitymatrix);
+	Matrix4_Multiply(ed->ode.ode_offsetimatrix, bodymatrix, entitymatrix);
 	Matrix4Q_ToVectors(entitymatrix, forward, left, up, origin);
 
 	VectorAngles(forward, up, angles);
+	angles[0]*=-1;
 	avelocity[PITCH] = RAD2DEG(spinvelocity[PITCH]);
 	avelocity[YAW] = RAD2DEG(spinvelocity[ROLL]);
 	avelocity[ROLL] = RAD2DEG(spinvelocity[YAW]);
+
+	if (ed->v->modelindex)
+	{
+		model = world->GetCModel(world, ed->v->modelindex);
+		if (!model || model->type == mod_alias)
+		{
+			angles[PITCH] *= -1;
+			avelocity[PITCH] *= -1;
+		}
+	}
 
 	VectorCopy(origin, ed->v->origin);
 	VectorCopy(velocity, ed->v->velocity);
@@ -1612,6 +1624,9 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	for (sno = 0; sno < mod->nummodelsurfaces; sno++)
 	{
 		surf = &mod->surfaces[sno+mod->firstmodelsurface];
+		if (surf->flags & SURF_DRAWSKY|SURF_DRAWTURB)
+			continue;
+
 		if (surf->mesh)
 		{
 			mesh = surf->mesh;
@@ -1636,6 +1651,9 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	for (sno = 0; sno < mod->nummodelsurfaces; sno++)
 	{
 		surf = &mod->surfaces[sno+mod->firstmodelsurface];
+		if (surf->flags & SURF_DRAWSKY|SURF_DRAWTURB)
+			continue;
+
 		if (surf->mesh)
 		{
 			mesh = surf->mesh;
@@ -1913,7 +1931,6 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.axis_up);if (val) VectorCopy(val->vector, up);
 	//val = PRVM_EDICTFIELDVALUE(ed, prog->fieldoffsets.spinvelocity);if (val) VectorCopy(val->vector, spinvelocity);
 	VectorCopy(ed->v->angles, angles);
-	angles[0] = 0;
 	VectorCopy(ed->v->avelocity, avelocity);
 	if (ed == world->edicts || (ed->xv->gravity && ed->xv->gravity <= 0.01))
 		gravity = false;
@@ -1921,10 +1938,19 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	// compatibility for legacy entities
 	//if (!VectorLength2(forward) || solid == SOLID_BSP)
 	{
-		float pitchsign = 1;
 		vec3_t qangles, qavelocity;
 		VectorCopy(angles, qangles);
 		VectorCopy(avelocity, qavelocity);
+	
+		if (ed->v->modelindex)
+		{
+			model = world->GetCModel(world, ed->v->modelindex);
+			if (!model || model->type == mod_alias)
+			{
+				qangles[PITCH] *= -1;
+				qavelocity[PITCH] *= -1;
+			}
+		}
 
 		AngleVectorsFLU(qangles, forward, left, up);
 		// convert single-axis rotations in avelocity to spinvelocity
@@ -2013,7 +2039,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		ed->ode.ode_gravity = gravity;
 
 		Matrix4Q_FromVectors(entitymatrix, forward, left, up, origin);
-		Matrix4_Multiply(entitymatrix, ed->ode.ode_offsetmatrix, bodymatrix);
+		Matrix4_Multiply(ed->ode.ode_offsetmatrix, entitymatrix, bodymatrix);
 		Matrix4Q_ToVectors(bodymatrix, forward, left, up, origin);
 		r[0][0] = forward[0];
 		r[1][0] = forward[1];
@@ -2166,7 +2192,7 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 			bouncestop2 = ed2->xv->bouncestop;
 	}
 
-	if (ed1->v->owner == ed2->entnum || ed2->v->owner == ed1->entnum)
+	if ((ed2->entnum&&ed1->v->owner == ed2->entnum) || (ed1->entnum&&ed2->v->owner == ed1->entnum))
 		return;
 
 	// merge bounce factors and bounce stop
@@ -2208,6 +2234,7 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 
 void World_Physics_Frame(world_t *world, double frametime, double gravity)
 {
+	SCR_CenterPrint(0, va("ft: %f\n", frametime), true);
 	if (world->ode.ode)
 	{
 		int i;

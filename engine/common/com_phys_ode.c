@@ -2234,7 +2234,6 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 
 void World_Physics_Frame(world_t *world, double frametime, double gravity)
 {
-	SCR_CenterPrint(0, va("ft: %f\n", frametime), true);
 	if (world->ode.ode)
 	{
 		int i;

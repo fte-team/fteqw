@@ -832,13 +832,13 @@ void() Invent_Draw =
 
 	check = getstati(97);
 	if (check > 0)
-		SlotImage('11 12 0'*IMGSIZEK, 23);
+		SlotImageSmall('11 12 0'*IMGSIZEK, 23);
 
 
 
 	check = getstati(98);
 	if (check > 0)
-		SlotImage('13 12 0'*IMGSIZEK, 24);
+		SlotImageSmall('13 12 0'*IMGSIZEK, 24);
 
 
 	if (showcontextmenu && show_inventory)
@@ -883,11 +883,11 @@ void() Invent_Draw =
 
 
 
-			if (mousepos_x >= 11*IMGSIZEK && mousepos_x <= 12*IMGSIZEK)
-				if (mousepos_y >= 12*IMGSIZEK && mousepos_y <= 13*IMGSIZEK)
+			if (mousepos_x >= 10.75*IMGSIZEK && mousepos_x <= 12.25*IMGSIZEK)
+				if (mousepos_y >= 11.75*IMGSIZEK && mousepos_y <= 13.25*IMGSIZEK)
 					slotnum = 23;
-			if (mousepos_x >= 13*IMGSIZEK && mousepos_x <= 14*IMGSIZEK)
-				if (mousepos_y >= 12*IMGSIZEK && mousepos_y <= 13*IMGSIZEK)
+			if (mousepos_x >= 12.75*IMGSIZEK && mousepos_x <= 14.25*IMGSIZEK)
+				if (mousepos_y >= 11.75*IMGSIZEK && mousepos_y <= 13.25*IMGSIZEK)
 					slotnum = 24;
 		}
 		else
@@ -976,7 +976,7 @@ else if (slotnum == 99)
 				it = getstati(98);
 		}
 		itname = GetItemImage(ToIID(it));
-		drawpic(mousepos, strcat("gui/", itname), '48 48 0', '1 1 1', 1);
+		drawpic(mousepos - '16 16 0', strcat("gui/", itname), '48 48 0', '1 1 1', 1);
 	}
 };
 
@@ -1086,21 +1086,8 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 
 				else if (downslotnum == slotnum)	//mouse didn't move away
 				{
-					if (slotnum >= 1 && slotnum <= 26 && show_inventory)
-					{
-						//if there's actually an item there		
-						if ((show_inventory) && (getstati(32+slotnum-1) != 0))	
-						{
-							showcontextmenu = true;	//show the context menu
-							contextpos = mousepos;
-						}
-						else if ((show_trader) && (getstati(70+slotnum) != 0))	
-						{
-							showcontextmenu = true;	//show the context menu
-							contextpos = mousepos;
-						}
-					}
-					else if (show_gainperk)	
+
+					if (show_gainperk)	
 					{
 						if (which_perk == getstati(60))
 							return;
@@ -1232,6 +1219,20 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							show_items = false;
 							show_gainperk = true;
 							perkslot = 2;
+						}
+					}
+					else if (slotnum >= 1 && slotnum <= 26)
+					{
+						//if there's actually an item there		
+						if ((show_inventory) && (getstati(32+slotnum-1) != 0))	
+						{
+							showcontextmenu = true;	//show the context menu
+							contextpos = mousepos;
+						}
+						else if ((show_trader) && (getstati(70+slotnum) != 0))	
+						{
+							showcontextmenu = true;	//show the context menu
+							contextpos = mousepos;
 						}
 					}
 					else

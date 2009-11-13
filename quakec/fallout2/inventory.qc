@@ -2589,7 +2589,8 @@ string (float slot, float int) PerkName =
 			return "Schizophrenia";
 		if (int == 9)
 			return "Sleep Tight";
-
+		if (int == 10)
+			return "Economic Moves";
 };
 
 string (float slot, float int) PerkNameCentered =
@@ -2612,7 +2613,8 @@ string (float slot, float int) PerkNameCentered =
 			return "Schizophrenia";
 		if (int == 9)
 			return " Sleep Tight";
-
+		if (int == 10)
+			return "Economic Moves";
 };
 
 
@@ -2636,6 +2638,8 @@ string(float int) GetPerkImage =
 		return "gui/perks/Schizophrenia.jpg";
 	else if (int == 9)
 		return "gui/perks/Sleep Tight.jpg";
+	else if (int == 10)
+		return "gui/perks/Economic Moves.jpg";
 	else
 		return "gui/perks/none.jpg";
 
@@ -2662,6 +2666,8 @@ string(float int) GetPerkDesc =
 		return "You sometimes gain additional skills from another place";
 	else if (int == 9)
 		return "Automatically kill anything with knife in sneak mode";
+	else if (int == 10)
+		return "Suffer less time-related penalties for all actions";
 	else
 		return "";
 

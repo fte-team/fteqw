@@ -1292,10 +1292,6 @@ void() SneakLevel =
 	if (self.position > 0)
 		sn = sn + 1;
 
-	//light step perk gives a 1% bonus to stealth
-	if (getperk(6))
-		sn = sn + 1;
-
 	//walking in front of a monster at close range is very bad
 	//at longer ranges it isn't so bad to do so
 	//thus even healer and barbarian types can sneak if they do so smartly
@@ -1475,14 +1471,10 @@ void () PositionControl =
 		self.maxspeed = 225;
 	else if (self.position == 1)
 		self.maxspeed = 100;
-	else if (self.position == 2 && getperk(3))//stunt man
-		self.maxspeed = 100;
 	else
 		self.maxspeed = 50;
 
 
-	if (getperk(2))
-			self.maxspeed = self.maxspeed*1.10;
 
 	if (self.rage == IID_CHEM_ADRENALINE)
 			self.maxspeed = self.maxspeed*1.20;
@@ -1560,6 +1552,14 @@ void() PlayerPreThink =
 		}
 	}
 
+
+	//perk1timer and perk2timer are "cooldowns" for each perk
+		if (self.perk1timer > 0)
+			self.perk1timer = self.perk1timer - 1;
+
+		if (self.perk2timer > 0)
+			self.perk2timer = self.perk2timer - 1;
+
 	if (self.cycle1 < time)
 	{
 		if (self.currentmenu != "none")
@@ -1577,14 +1577,6 @@ void() PlayerPreThink =
 
 		local float lgrip, rgrip;
 
-
-		//nintendo gamer: player sometimes goes into 'the zone'
-		if ((self.recoil >= 5) && (getperk(9)) && (random()<=0.10))
-		{
-			sprint(self, 2, "THE ZONE!\n");
-			self.rage = 255;
-			self.ragetime = 15;
-		}
 
 		if (self.health > self.max_health)
 			self.health = self.max_health;
@@ -1686,38 +1678,6 @@ void() PlayerPreThink =
 				self.ammo_cells = 0;
 		}
 
-		if (getperk(100))//SPIRIT LINK
-		{
-			te = findradius(self.origin, 500);
-			
-			while (te)
-			{
-				if (te.classname == "player" && te != self && (te.health < self.health))
-				{
-					if (self.health > 5 && te.health > 0)
-					{
-
-						sound (te, CHAN_BODY, "items/r_item1.wav", 1, ATTN_IDLE);
-						sound (self, CHAN_BODY, "items/r_item1.wav", 1, ATTN_IDLE);
-
-						sprint(self, 2, "!SPIRIT LINK\n");
-						sprint(te, 2, "!SPIRIT LINK\n");
-
-						if ((self.health - te.health) > 10)
-						{
-							self.health -= 5;
-							te.health += 5;
-						}
-						else
-						{
-							self.health -= 1;
-							te.health += 1;
-						}
-					}
-				}
-				te = te.chain;
-			}
-		}
 
 		if (self.regen > 0 && !self.deadflag)	//don't come back to life.
 		{
@@ -2135,9 +2095,10 @@ void() ClientConnect =
 	stuffcmd(self, "alias special impulse 53\n");
 	stuffcmd(self, "alias exit impulse 100\n");
 	stuffcmd(self, "alias drop impulse 55\n");
-	stuffcmd(self, "alias info impulse 56\n");
 	stuffcmd(self, "alias zoom impulse 60\n");
 	stuffcmd(self, "alias hostage impulse 65\n");
+	stuffcmd(self, "alias perk1 impulse 61\n");
+	stuffcmd(self, "alias perk2 impulse 62\n");
 
 	stuffcmd(self, "alias stimpack impulse 225\n");
 	stuffcmd(self, "alias equip \"cmd invuse 4\"\n");
@@ -2181,7 +2142,8 @@ void() ClientConnect =
 	stuffcmd(self, "bind h hostage\n");
 	stuffcmd(self, "bind x stimpack\n");
 	stuffcmd(self, "bind b buy\n");
-	stuffcmd(self, "bind q info\n");
+	stuffcmd(self, "bind q perk1\n");
+	stuffcmd(self, "bind a perk2\n");
 	stuffcmd(self, "bind shift prone\n");
 	stuffcmd(self, "bind ctrl duck\n");
 

@@ -96,6 +96,55 @@ float() crandom =
 	return 2*(random() - 0.5);
 };
 
+
+
+void(float slotno) UsePerk =
+{
+	local float x;
+	local string y, timeleft;
+	local entity te;
+
+	if (slotno == 1 && self.perk1timer > 0)
+	{
+		timeleft = ftos(self.perk1timer);
+		sprint(self, 2, "ability is not ready yet. [");
+		sprint(self, 2, timeleft);
+		sprint(self, 2, "]\n");
+		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+		return;
+	}
+
+	if (slotno == 2 && self.perk2timer > 0)
+	{
+		timeleft = ftos(self.perk2timer);
+		sprint(self, 2, "ability is not ready yet. [");
+		sprint(self, 2, timeleft);
+		sprint(self, 2, "]\n");
+		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+		return;
+	}
+
+	if (self.perk1 == 7 || self.perk2 == 7)
+	{
+		if (slotno == 1)
+			self.perk1timer = 2000;
+		if (slotno == 2)
+			self.perk2timer = 2000;
+
+		sound (self, CHAN_BODY, "misc/r_tele4.wav", 1, ATTN_NORM);
+
+		te = findradius (self.origin, 6000);
+		while (te)
+		{
+			if (te.classname == "monster")
+				te.hold = 100;
+
+			te = te.chain;
+		}
+	}
+};
+
+
 void() muzzleflash =
 {
 	WriteByte (MSG_MULTICAST, SVC_MUZZLEFLASH);
@@ -158,30 +207,15 @@ void(float damage, float dist, float rate) FireMelee =
 	local float weap, dot, tdam;
 	local string sdam;
 
-	if (getperk(16))//power shot adds a small bonus to the first shot fired
+	if (getperk(5))//living anatomy
 	{
 		if (self.steadyaim == 0)
-		{
-			sprint(self, 2, "!POWER SHOT\n");
-			damage = damage * 1.20;
-		}
+			damage = damage + self.skill_doctor;
 	}
 
 	self.recoil = self.recoil + 5;
 
 	weap = ToIID(self.(SlotField(self.current_slot)));
-
-	//large and in charge! adds a small burst of adrenalnie
-	if ((getperk(8)) && ((weap == IID_WP_SPEAR || weap == IID_WP_SLEDGE || weap == IID_WP_WRENCH)))
-	{
-		if (self.ragetime <= 0)
-		{
-			sprint(self, 2, "!LARGE AND IN CHARGE\n");
-			sound (self, CHAN_VOICE, "player/berserk.wav", 1, ATTN_NORM);
-			self.rage = IID_CHEM_ADRENALINE;
-			self.ragetime = 3;
-		}
-	}
 
 	makevectors (self.v_angle);
 	source = self.origin + '0 0 16';
@@ -199,10 +233,10 @@ void(float damage, float dist, float rate) FireMelee =
 
 			if (dot < 0.5 && trace_ent.takedamage)
 			{
-				tdam = 25 + (30*self.skill_sneak);
+				tdam = 20 + (20*self.skill_sneak);
 
-				if (getperk(7))
-					tdam = tdam * 2;
+				if (getperk(9))
+					tdam = 900;
 
 				if (self.steadyaim == 0)
 					tdam = tdam + 10;
@@ -275,13 +309,6 @@ void(float damage, float dist, float rate) FireMelee =
 		if (weap == IID_WP_SLEDGE || weap == IID_WP_SPEAR || weap == IID_WP_KNIFE)
 			SpawnBlood (org, 1);
 
-		if ((getperk(8)) && (weap == IID_WP_SLEDGE || weap == IID_WP_SPEAR || weap == IID_WP_WRENCH))
-		{
-			sprint(self, 2, "!LARGE AND IN CHARGE\n");
-			dir = normalize(trace_ent.origin - self.origin);
-			trace_ent.velocity = dir * 600;
-			trace_ent.velocity_z = 100+random()*200;
-		}
 
 		trace_ent.axhitme = 1;
 		if (trace_ent.classname != "car")
@@ -1413,8 +1440,6 @@ void (float slotno) ReloadWeapon =
 	else if (self.position == 1)
 		player_creload1();
 
-	if (getperk(5))
-		r = r * 0.5;
 
 
 		self.attack_finished = time + r;
@@ -1721,7 +1746,7 @@ void() W_ChangeWeapon =
 
 	if (self.impulse == 1 && self.current_slot != 1)
 	{
-		if (!getperk(5))
+		if (!getperk(10))
 		{
 			self.weaponframe = 4;
 			self.attack_finished = time + 1;
@@ -1734,7 +1759,7 @@ void() W_ChangeWeapon =
 	}
 	else if (self.impulse == 2 && self.current_slot != 2)
 	{
-		if (!getperk(5))
+		if (!getperk(10))
 		{
 			self.weaponframe = 4;
 			self.attack_finished = time + 1;
@@ -1865,7 +1890,7 @@ void () ProneOff =
 	}
 
 	sprint (self, 2, "position: stand.\n");
-	if (getperk(3))
+	if (getperk(10))
 	{
 		self.attack_finished = time + 0.5;
 		self.rtime = time + 0.5;
@@ -1891,7 +1916,7 @@ void () ProneOn =
 		return;
 	}
 
-	if (!getperk(3) && self.velocity_z != 0)
+	if (!getperk(10) && self.velocity_z != 0)
 		return;
 
 	if (self.position == 2)
@@ -1906,7 +1931,7 @@ void () ProneOn =
 	self.position = 2;
 	self.view_ofs = '0 0 -10';
 	sprint (self, 2, "position: prone.\n");
-	if (getperk(3))
+	if (getperk(10))
 	{
 		self.attack_finished = time + 0.5;
 		self.rtime = time + 0.5;
@@ -1932,7 +1957,7 @@ void () DuckOff =
 		return;
 	}
 	sprint (self, 2, "position: stand.\n");
-	if (!getperk(3))
+	if (!getperk(10))
 	{
 		self.attack_finished = time + 0.2;
 		self.rtime = time + 0.2;
@@ -1948,7 +1973,7 @@ void () DuckOn =
 {
 	if (self.waterlevel > 0)
 	{
-		if (!getperk(3))
+		if (!getperk(10))
 		{
 			self.attack_finished = time + 0.5;
 			self.rtime = time + 0.5;
@@ -1971,7 +1996,7 @@ void () DuckOn =
 		return;
 	}
 
-	if (!getperk(3))
+	if (!getperk(10))
 	{
 		self.attack_finished = time + 0.5;
 		self.rtime = time + 0.5;
@@ -2032,19 +2057,8 @@ void() ImpulseCommands =
 	if (self.impulse == 4 && self.currentmenu == "none")
 		Cmd_InvUse("6");
 
-	if (self.impulse >= 1 && self.currentmenu == "shop_perk1")
-	{
-		W_PlayerMenu ();
-		self.impulse = 0;
-		return;
-	}
-	else if (self.impulse >= 1 && self.currentmenu == "shop_perk2")
-	{
-		W_PlayerMenu ();
-		self.impulse = 0;
-		return;
-	}
-	else if (self.impulse >= 1 && self.impulse <= 10 && self.currentmenu != "none")
+
+	if (self.impulse >= 1 && self.impulse <= 10 && self.currentmenu != "none")
 	{
 		W_PlayerMenu ();
 		self.impulse = 0;
@@ -2081,9 +2095,13 @@ void() ImpulseCommands =
 		UseEquipment ();
 	if (self.impulse == 60)
 		ZoomIn ();
+	if (self.impulse == 61)
+		UsePerk (1);
+	if (self.impulse == 62)
+		UsePerk (2);
+
 	if (self.impulse == 65)
 		HostageReport ();
-
 	if (self.impulse == 66)
 		WalkOn ();
 	if (self.impulse == 67)
@@ -2815,13 +2833,10 @@ void (float dam, float ap, string snd, float rng, float rate) FirePistol =
 	stuffcmd(self, "-attack\n");
 	self.attack_finished = (time + rate);
 
-	if (getperk(16))//power shot adds a small bonus to the first shot fired
+	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-		{
-			sprint(self, 2, "!POWER SHOT\n");
-			dam = dam * 1.20;
-		}
+			dam = dam + self.skill_doctor/2;
 	}
 
 	if (self.extender == weap && self.silencer != weap)
@@ -2965,13 +2980,10 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 
 	weap = ToIID(self.(SlotField(self.current_slot)));
 
-	if (getperk(16))//power shot adds a small bonus to the first shot fired
+	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-		{
-			sprint(self, 2, "!POWER SHOT\n");
-			dam = dam * 1.20;
-		}
+			dam = dam + self.skill_doctor/2;
 	}
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
@@ -3290,13 +3302,10 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 
 	weap = ToIID(self.(SlotField(self.current_slot)));
 
-	if (getperk(16))//power shot adds a small bonus to the first shot fired
+	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-		{
-			sprint(self, 2, "!POWER SHOT\n");
-			dam = dam * 1.20;
-		}
+			dam = dam + self.skill_doctor/2;
 	}
 
 	if (weap == IID_WP_MOONLIGHT)
@@ -3569,13 +3578,10 @@ void (float dam, float xrecoil, string snd, float rng, float rate) FireMinigun =
 		self.weaponframe = 9;
 	}
 
-	if (getperk(16))//power shot adds a small bonus to the first shot fired
+	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-		{
-			sprint(self, 2, "!POWER SHOT\n");
-			dam = dam * 1.20;
-		}
+			dam = dam + self.skill_doctor/3;
 	}
 
 	loud_noise(50);
@@ -4003,9 +4009,8 @@ float(float iid) UseBoostingChem =
 		return false;
 	}
 
-	//chem addict: any self-used chem functions better
-	if (getperk(15))
-		duration = duration * 2;
+
+	duration = duration * (1 + (self.skill_doctor / 10));
 
 	self.attack_finished = time + 1;
 
@@ -4110,20 +4115,6 @@ float(float iid) UseHealingChem =
 			return false;
 		}
 
-		if (self.perk1 == 13 || self.perk2 == 13)
-		{
-			sprint(self, 2, "MEDICINE MAN\n");
-			heal = heal * 1.25;
-		}
-		if (self.perk1 == 17 || self.perk2 == 17)
-		{
-			if (random()<0.05)
-			{
-				sprint(self, 2, "ONE IN A MILLION\n");
-				heal = heal * 5;
-			}
-		}
-
 		sprint (trace_ent, PRINT_HIGH, self.netname);
 		sprint (trace_ent, PRINT_HIGH, " used a ");
 		sprint (trace_ent, PRINT_HIGH, x);
@@ -4140,20 +4131,6 @@ float(float iid) UseHealingChem =
 		sprint (self, PRINT_HIGH, "you heal yourself with a ");
 		sprint (self, PRINT_HIGH, x);
 		sprint (self, PRINT_HIGH, ".\n");
-
-		if (self.perk1 == 13 || self.perk2 == 13)
-		{
-			sprint(self, 2, "MEDICINE MAN\n");
-			heal = heal * 1.25;
-		}
-		if (self.perk1 == 17 || self.perk2 == 17)
-		{
-			if (random()<0.05)
-			{
-				sprint(self, 2, "ONE IN A MILLION\n");
-				heal = heal * 5;
-			}
-		}
 
 		sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
 		self.health = self.health + heal;
@@ -4833,12 +4810,6 @@ void () ExitScreen =
 	}
 	if (trace_ent.classname == "body" && self.pickup == 0)
 	{
-			if ((self.perk1 == 12 || self.perk2 == 12) && (ToIID(self.islot3) != IID_ARM_DESERT))
-			{
-				sprint(self, 2, "you loot the raider's desert armor\n");
-				SetItemSlot(self, 3, SlotVal(IID_ARM_DESERT, 1));
-				return;
-			}
 
 			trace_ent.movetype = MOVETYPE_BOUNCE;
 			dir = normalize(trace_ent.origin - self.origin);
@@ -5122,6 +5093,9 @@ void () disappear =
 	local float nearby;
 	//this allows an assassin to vanish, making monsters aggro
 	//those who are visible
+
+	if (!getperk(3))
+		return;
 
 	te = findradius(self.origin, 500);
 	while (te)
@@ -6025,13 +5999,10 @@ void (float rec, float number, float dam, float spread, float ran, float auto, s
 	local float var4;
 	local float weap;
 
-	if (getperk(16))//power shot adds a small bonus to the first shot fired
+	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-		{
-			sprint(self, 2, "!POWER SHOT\n");
-			dam = dam * 1.20;
-		}
+			dam = dam + self.skill_doctor/5;
 	}
 
 	weap = ToIID(self.(SlotField(self.current_slot)));

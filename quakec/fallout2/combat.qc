@@ -219,7 +219,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 //paranoia: if taking cover, 25% miss chance (others get 10% bonus)
 	if (targ.rage == 777)
 	{
-		if (targ.perk1 == 10 || targ.perk2 == 10)
+		if (targ.perk1 == 2 || targ.perk2 == 2)
 		{
 			if (random()<0.20)
 			{
@@ -240,27 +240,28 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	//master blaster: the more you burst, the higher the damage bonus
 	if (attacker.perk1 == 18 || attacker.perk2 == 18)
 	{
-		if (self.recoil > 10)
+		if (attacker.recoil > 10)
 		{
-			sprint(self, 2, "!MASTER BLASTER\n");
-			damage = damage * (1 + (self.recoil * 0.01));
+			sprint(attacker, 2, "!MASTER BLASTER\n");
+			damage = damage * (1 + (attacker.recoil * 0.01));
 		}
 	}
 
+
+	//hit the deck
+	if (targ.perk1 == 4 || targ.perk2 == 4)
+	{
+		if (targ.position == 2)
+			damage = damage * 0.90;
+	}
+
 	//sneak attack: if you attack a creature who isn't fighting you, bonus damage
-	if (attacker.perk1 == 7 || attacker.perk2 == 7)
+	if (attacker.skill_sneak > 0)
 	{
 		if (targ.enemy != attacker)
 		{
 			sprint(attacker, 2, "!SNEAK ATTACK\n");
-			if (damage <= 10)
-				damage = damage * 3;
-			else if (damage <= 20)
-				damage = damage * 2;
-			else if (damage <= 30)
-				damage = damage * 1.5;
-			else
-				damage = damage * 1.25;
+			damage = damage * (1 + (self.skill_sneak/100));
 		}
 	}
 

@@ -1700,7 +1700,7 @@ void () RecoilControl =
 
 		te.lastman = te.lastman - 0.01;
 
-	//steady aim: for power shot, and aimed shots by standing still
+	//steady aim: for living anatomy, and aimed shots by standing still
 		if (te.recoil != 0)
 			te.steadyaim = 6;
 		else if (te.recoil == 0 && te.steadyaim > 0)
@@ -1772,9 +1772,9 @@ void () RecoilControl =
 			if (te.drifty > 250)
 				te.drifty = 250;
 
-	//nintendo gamer: going into the zone gives a -5 recoil bonus
-		if (te.rage == 255)
-			te.recoil = te.recoil - 0.05;
+	//support fire: going prone gives a -10 recoil bonus with this perk during heavy fire
+		if (getperk(1) && self.position == 2 && te.recoil > 5)
+			te.recoil = te.recoil - 0.10;
 
 
 	//prone: going prone gives a -5 recoil bonus
@@ -2091,6 +2091,7 @@ void() worldspawn =
 	precache_sound ("misc/hosdown.wav");
 	precache_sound ("misc/rescued.wav");
 	precache_sound ("misc/beep1.wav");
+	precache_sound ("misc/r_tele4.wav");
 	precache_sound ("buttons/switch02.wav");
 	precache_sound ("buttons/switch04.wav");
 	precache_sound ("misc/secret.wav");

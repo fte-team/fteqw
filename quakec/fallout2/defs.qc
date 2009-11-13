@@ -734,11 +734,13 @@ float   intermission_running;
 .string        ammotype2;
 .string        currentmenu;
 .entity        wielded;
-.float        walk;
+.float        	walk;
 .float          steadyaim;
 .float          lastman;
 .float          popup;
 .float          flare;
+.float 		perk1timer;
+.float		perk2timer;
 
 .entity         friend;
 .entity         tumbler1;

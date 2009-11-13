@@ -132,6 +132,7 @@ FTE_DEPRECATED	unsigned int	edict_size;
 	int			lastcheck;			// used by PF_checkclient
 	double		lastchecktime;		// for monster ai
 
+	float lagentsfrac;
 	laggedentinfo_t *lagents;
 	unsigned int maxlagents;
 

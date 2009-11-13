@@ -364,8 +364,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	vid.width = info->width;
 	vid.height = info->height;
-	vid.maxwarpwidth = WARP_WIDTH;
-	vid.maxwarpheight = WARP_HEIGHT;
 	vid.numpages = 3;
 	vid.colormap = host_colormap;
 
@@ -404,8 +402,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	{
 		if (TinyGLBase->lib_Version > 50 || (TinyGLBase->lib_Version == 50 && TinyGLBase->lib_Revision >= 9))
 		{
-			vid.rowbytes = vid.width;
-			vid.direct = 0; /* Isn't used anywhere, but whatever. */
 			vid.aspect = ((float)vid.height / (float)vid.width) * (320.0 / 240.0);
 
 			if (info->fullscreen)
@@ -596,11 +592,10 @@ void GLVID_DeInit()
 	}
 }
 
-void GL_BeginRendering (int *x, int *y, int *width, int *height)
+void GL_BeginRendering()
 {
-	*x = *y = 0;
-	*width = real_width;
-	*height = real_height;
+	vid.pixelwidth = real_width;
+	vid.pixelheight = real_height;
 }
 
 void GL_EndRendering (void)

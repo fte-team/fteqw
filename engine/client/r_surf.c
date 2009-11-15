@@ -1639,24 +1639,14 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa, int shift)
 	if (!fa->mesh)
 		return;
 
+	//surfaces without lightmaps
 	if (fa->lightmaptexturenum<0)
 		return;
 
-	if (fa->flags & ( SURF_DRAWSKY | SURF_DRAWTURB) )
-		return;
-
+	//surfaces with lightmaps that do not animate, supposedly
 	if (fa->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP))
 		return;
-
-	if (fa->texinfo->flags & (TEX_SPECIAL))
-	{
-		if (cl.worldmodel->fromgame == fg_halflife)
-			return;	//some textures do this.
-	}
 	
-//	fa->polys->chain = lightmap[fa->lightmaptexturenum]->polys;
-//	lightmap[fa->lightmaptexturenum]->polys = fa->polys;
-
 	// check for lightmap modification
 //	if (cl.worldmodel->fromgame != fg_quake3)	//no lightstyles on q3 maps
 	{
@@ -2480,16 +2470,15 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 	return texnum;
 }
 
-static mvertex_t	*r_pcurrentvertbase;
-
 static int	nColinElim;
 
 /*
 ================
 BuildSurfaceDisplayList
+FIXME: this is probably misplaced
 ================
 */
-static void Surf_BuildSurfaceDisplayList (msurface_t *fa)
+void Surf_BuildSurfaceDisplayList (model_t *model, msurface_t *fa)
 {
 	int			i, lindex, lnumverts;
 	medge_t		*pedges, *r_pedge;
@@ -2499,12 +2488,9 @@ static void Surf_BuildSurfaceDisplayList (msurface_t *fa)
 	int	lm;
 
 // reconstruct the polygon
-	pedges = currentmodel->edges;
+	pedges = model->edges;
 	lnumverts = fa->numedges;
 	vertpage = 0;
-
-	if (lnumverts<3)
-		return;	//q3 flares.
 
 	{	//build a nice mesh instead of a poly.
 		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vecV_t) + 3*sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(vec4_t))*lnumverts;
@@ -2533,17 +2519,17 @@ static void Surf_BuildSurfaceDisplayList (msurface_t *fa)
 
 		for (i=0 ; i<lnumverts ; i++)
 		{
-			lindex = currentmodel->surfedges[fa->firstedge + i];
+			lindex = model->surfedges[fa->firstedge + i];
 
 			if (lindex > 0)
 			{
 				r_pedge = &pedges[lindex];
-				vec = r_pcurrentvertbase[r_pedge->v[0]].position;
+				vec = model->vertexes[r_pedge->v[0]].position;
 			}
 			else
 			{
 				r_pedge = &pedges[-lindex];
-				vec = r_pcurrentvertbase[r_pedge->v[1]].position;
+				vec = model->vertexes[r_pedge->v[1]].position;
 			}
 
 			s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
@@ -2623,7 +2609,7 @@ static void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift)
 
 	stainbase = lightmap[surf->lightmaptexturenum]->stainmaps;
 	stainbase += (surf->light_t * LMBLOCK_WIDTH + surf->light_s) * 3;
-	
+
 	Surf_BuildLightMap (surf, base, luxbase, stainbase, shift);
 }
 
@@ -2697,7 +2683,6 @@ void Surf_BuildLightmaps (void)
 		if (m->name[0] == '*')
 			continue;
 
-		r_pcurrentvertbase = m->vertexes;
 		currentmodel = m;
 		shift = Surf_LightmapShift(currentmodel);
 
@@ -2707,11 +2692,13 @@ void Surf_BuildLightmaps (void)
 			{//extra texture loop so we get slightly less texture switches
 				if (m->surfaces[i].texinfo->texture == m->textures[t])
 				{
-					Surf_CreateSurfaceLightmap (m->surfaces + i, shift);
 					P_EmitSkyEffectTris(m, &m->surfaces[i]);
-					if (m->surfaces[i].mesh)	//there are some surfaces that have a display list already (the subdivided ones)
+
+					/*FIXME: move this into model-specific code*/
+					Surf_CreateSurfaceLightmap (m->surfaces + i, shift);
+					if (m->surfaces[i].mesh)	//there are some surfaces that have a display list already (q3 ones)
 						continue;
-					Surf_BuildSurfaceDisplayList (m->surfaces + i);
+					Surf_BuildSurfaceDisplayList (m, m->surfaces + i);
 				}
 			}
 		}

@@ -720,11 +720,19 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		}
 
 	case G_WALKMOVE:
-		return 0;//FIXME WrapQCBuiltin(PF_cvar_set, offset, mask, arg, "ff");
-#ifdef _MSC_VER
-#pragma message("G_WALKMOVE not implemented")
-#elif defined(GCC)
-#endif
+		{
+			edict_t *ed = EDICT_NUM(svprogfuncs, arg[0]);
+			float yaw = VM_FLOAT(arg[1]);
+			float dist = VM_FLOAT(arg[2]);
+			vec3_t move;
+
+			yaw = yaw*M_PI*2 / 360;
+			move[0] = cos(yaw)*dist;
+			move[1] = sin(yaw)*dist;
+			move[2] = 0;
+
+			return SV_movestep(ed, move, true, false, NULL);
+		}
 
 	case G_DROPTOFLOOR:
 		{
@@ -977,14 +985,29 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case G_CVAR_STRING:
 		{
+			char *n = VM_POINTER(arg[0]);
 			cvar_t *cv;
 			if (VM_OOB(arg[1], arg[2]))
 				return -1;
-			cv = Cvar_Get(VM_POINTER(arg[0]), "", 0, "QC variables");
-			if (cv)
-				Q_strncpyz(VM_POINTER(arg[1]), cv->string, VM_LONG(arg[2]));
+			if (!strcmp(n, "version"))
+			{
+#define STRINGIFY2(arg) #arg
+#define STRINGIFY(arg) STRINGIFY2(arg)
+				n = va(FULLENGINENAME 
+#ifdef SVNREVISION
+					" SVN build " STRINGIFY(SVNREVISION)) 
+#endif
+					" Build Number %i\n" "Build Date: " __DATE__ ", " __TIME__, build_number());
+				Q_strncpyz(VM_POINTER(arg[1]), n, VM_LONG(arg[2]));
+			}
 			else
-				Q_strncpyz(VM_POINTER(arg[1]), "", VM_LONG(arg[2]));
+			{
+				cv = Cvar_Get(n, "", 0, "QC variables");
+				if (cv)
+					Q_strncpyz(VM_POINTER(arg[1]), cv->string, VM_LONG(arg[2]));
+				else
+					Q_strncpyz(VM_POINTER(arg[1]), "", VM_LONG(arg[2]));
+			}
 		}
 		break;
 	
@@ -1283,6 +1306,7 @@ void Q1QVM_Shutdown(void)
 qboolean PR_LoadQ1QVM(void)
 {
 	static float writable;
+	static float dimensionsend;
 	int i;
 	gameDataN_t *gd, gdm;
 	gameData32_t *gd32;
@@ -1413,13 +1437,16 @@ qboolean PR_LoadQ1QVM(void)
 
 	pr_nqglobal_struct->trace_surfaceflags = &writable;
 	pr_nqglobal_struct->trace_endcontents = &writable;
+	pr_nqglobal_struct->dimension_send = &dimensionsend;
 
+	dimensionsend = 255;
 	for (i = 0; i < 16; i++)
 		spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)(&gd->global->parm1 + i));
 	for (; i < NUM_SPAWN_PARMS; i++)
 		spawnparamglobals[i] = NULL;
 
 
+	sv.world.progs = &q1qvmprogfuncs;
 	sv.world.edicts = (wedict_t*)EDICT_NUM(svprogfuncs, 0);
 	return true;
 }

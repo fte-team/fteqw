@@ -1033,6 +1033,14 @@ qboolean Sys_InitTerminal (void)
 	if (!AllocConsole())
 		return false;
 
+#ifndef SERVERONLY
+	if (qwclsemaphore)
+	{
+		CloseHandle(qwclsemaphore);
+		qwclsemaphore = NULL;
+	}
+#endif
+
 	//if we still have the splash screen, kill it
 	if (hwnd_dialog)
 		DestroyWindow(hwnd_dialog);

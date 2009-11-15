@@ -995,7 +995,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 #define STRINGIFY(arg) STRINGIFY2(arg)
 				n = va(FULLENGINENAME 
 #ifdef SVNREVISION
-					" SVN build " STRINGIFY(SVNREVISION)) 
+					" SVN build " STRINGIFY(SVNREVISION) 
 #endif
 					" Build Number %i\n" "Build Date: " __DATE__ ", " __TIME__, build_number());
 				Q_strncpyz(VM_POINTER(arg[1]), n, VM_LONG(arg[2]));

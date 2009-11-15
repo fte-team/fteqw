@@ -93,7 +93,9 @@ cvar_t	sv_mintic = SCVAR("sv_mintic","0.03");
 #else
 cvar_t	sv_mintic = SCVAR("sv_mintic","0");	//client builds can think as often as they want.
 #endif
-cvar_t	sv_maxtic = SCVAR("sv_maxtic","0.1");
+cvar_t	sv_maxtic = SCVAR("sv_maxtic","0.1");//never run a tick slower than this
+cvar_t	sv_limittics = SCVAR("sv_limittics","3");//
+
 cvar_t	sv_nailhack = SCVAR("sv_nailhack","0");
 
 
@@ -3525,6 +3527,7 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_mintic,	cvargroup_servercontrol);
 	Cvar_Register (&sv_maxtic,	cvargroup_servercontrol);
+	Cvar_Register (&sv_limittics,	cvargroup_servercontrol);
 
 	Cvar_Register (&fraglimit,	cvargroup_serverinfo);
 	Cvar_Register (&timelimit,	cvargroup_serverinfo);

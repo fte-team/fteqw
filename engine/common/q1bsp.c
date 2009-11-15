@@ -377,9 +377,6 @@ typedef struct {
 
 } fragmentdecal_t;
 
-#define FloatInterpolate(a, bness, b, c) (c) = (a)*(1-bness) + (b)*bness
-#define VectorInterpolate(a, bness, b, c) FloatInterpolate((a)[0], bness, (b)[0], (c)[0]),FloatInterpolate((a)[1], bness, (b)[1], (c)[1]),FloatInterpolate((a)[2], bness, (b)[2], (c)[2])
-
 //#define SHOWCLIPS
 //#define FRAGMENTASTRIANGLES	//works, but produces more fragments.
 

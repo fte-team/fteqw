@@ -780,7 +780,41 @@ coorddata MSG_ToCoord(float f, int bytes)	//return value should be treated as (c
 	switch(bytes)
 	{
 	case 2:
-		r.b2 = LittleShort((short)(f*8));
+		r.b4 = 0;
+		if (f >= 0)
+			r.b2 = LittleShort((short)(f*8+0.5f));
+		else
+			r.b2 = LittleShort((short)(f*8-0.5f));
+		break;
+	case 4:
+		r.f = LittleFloat(f);
+		break;
+	default:
+		Sys_Error("MSG_ToCoord: not a sane coordsize");
+		r.b4 = 0;
+	}
+
+	return r;
+}
+
+coorddata MSG_ToAngle(float f, int bytes)	//return value is NOT byteswapped.
+{
+	coorddata r;
+	switch(bytes)
+	{
+	case 1:
+		r.b4 = 0;
+		if (f >= 0)
+			r.b[0] = (int)(f*(256.0f/360.0f) + 0.5f) & 255;
+		else
+			r.b[0] = (int)(f*(256.0f/360.0f) - 0.5f) & 255;
+		break;
+	case 2:
+		r.b4 = 0;
+		if (f >= 0)
+			r.b2 = LittleShort((int)(f*(65536.0f/360.0f) + 0.5f) & 65535);
+		else
+			r.b2 = LittleShort((int)(f*(65536.0f/360.0f) - 0.5f) & 65535);
 		break;
 	case 4:
 		r.f = LittleFloat(f);
@@ -801,11 +835,17 @@ void MSG_WriteCoord (sizebuf_t *sb, float f)
 
 void MSG_WriteAngle16 (sizebuf_t *sb, float f)
 {
-	MSG_WriteShort (sb, (int)(f*65536/360) & 65535);
+	if (f >= 0)
+		MSG_WriteShort (sb, (int)(f*(65536.0f/360.0f) + 0.5f) & 65535);
+	else
+		MSG_WriteShort (sb, (int)(f*(65536.0f/360.0f) - 0.5f) & 65535);
 }
 void MSG_WriteAngle8 (sizebuf_t *sb, float f)
 {
-	MSG_WriteByte (sb, (int)(f*256/360) & 255);
+	if (f >= 0)
+		MSG_WriteByte (sb, (int)(f*(256.0f/360.0f) + 0.5f) & 255);
+	else
+		MSG_WriteByte (sb, (int)(f*(256.0f/360.0f) - 0.5f) & 255);
 }
 
 void MSG_WriteAngle (sizebuf_t *sb, float f)

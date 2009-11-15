@@ -893,7 +893,7 @@ typedef enum multicast_e
 
 //============================================================================
 
-extern	cvar_t	sv_mintic, sv_maxtic;
+extern	cvar_t	sv_mintic, sv_maxtic, sv_limittics;
 extern	cvar_t	sv_maxspeed;
 extern	cvar_t	sv_antilag;
 extern	cvar_t	sv_antilag_frac;

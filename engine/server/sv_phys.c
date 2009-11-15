@@ -1981,6 +1981,7 @@ qboolean SV_Physics (void)
 	qboolean retouch;
 	edict_t	*ent;
 	qboolean moved = false;
+	int maxtics;
 
 
 	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM && svs.gametype != GT_HALFLIFE)	//make tics multiples of sv_maxtic (defaults to 0.1)
@@ -2075,6 +2076,8 @@ qboolean SV_Physics (void)
 		}
 	}
 
+	maxtics = sv_limittics.ival;
+
 // don't bother running a frame if sys_ticrate seconds haven't passed
 	while (1)
 	{
@@ -2086,18 +2089,17 @@ qboolean SV_Physics (void)
 		}
 		if (host_frametime <= 0 || host_frametime < sv_mintic.value)
 			break;
-		if (host_frametime > ((/*sv_captic.value<=*/0)?1:sv_maxtic.value*5))
+		if (host_frametime > sv_maxtic.value)
 		{
-			//cap the distance to run physics
+			if (--maxtics == 0)
+			{
+				//timewarp, as we're running too slowly
+				sv.world.physicstime = sv.time;
+				break;
+			}
 			host_frametime = sv_maxtic.value;
-			sv.world.physicstime = sv.time;
 		}
-		else
-		{
-			if (host_frametime > sv_maxtic.value)
-				host_frametime = sv_maxtic.value;
-			sv.world.physicstime += host_frametime;
-		}
+		sv.world.physicstime += host_frametime;
 
 		moved = true;
 

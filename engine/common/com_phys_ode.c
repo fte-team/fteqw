@@ -30,8 +30,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef USEODE
 
-#pragma message("fixme: pitch values are probably inverted")
-
 //============================================================================
 // physics engine support
 //============================================================================
@@ -48,6 +46,8 @@ cvar_t physics_ode_worldquickstep_iterations = CVARDP4(0, "physics_ode_worldquic
 cvar_t physics_ode_contact_mu = CVARDP4(0, "physics_ode_contact_mu", "1", "contact solver mu parameter - friction pyramid approximation 1 (see ODE User Guide)");
 cvar_t physics_ode_contact_erp = CVARDP4(0, "physics_ode_contact_erp", "0.96", "contact solver erp parameter - Error Restitution Percent (see ODE User Guide)");
 cvar_t physics_ode_contact_cfm = CVARDP4(0, "physics_ode_contact_cfm", "0", "contact solver cfm parameter - Constraint Force Mixing (see ODE User Guide)");
+cvar_t physics_ode_world_damping_angle = CVARDP4(0, "physics_ode_world_damping_angle", "0", "damping");
+cvar_t physics_ode_world_damping_linear = CVARDP4(0, "physics_ode_world_damping_linear", "0", "damping");
 cvar_t physics_ode_world_erp = CVARDP4(0, "physics_ode_world_erp", "-1", "world solver erp parameter - Error Restitution Percent (see ODE User Guide); use defaults when set to -1");
 cvar_t physics_ode_world_cfm = CVARDP4(0, "physics_ode_world_cfm", "-1", "world solver cfm parameter - Constraint Force Mixing (see ODE User Guide); not touched when -1");
 cvar_t physics_ode_iterationsperframe = CVARDP4(0, "physics_ode_iterationsperframe", "4", "divisor for time step, runs multiple physics steps per frame");
@@ -307,7 +307,7 @@ void            (ODE_API *dWorldSetContactSurfaceLayer)(dWorldID, dReal depth);
 //dReal           (ODE_API *dWorldGetAutoDisableTime)(dWorldID);
 //void            (ODE_API *dWorldSetAutoDisableTime)(dWorldID, dReal time);
 //int             (ODE_API *dWorldGetAutoDisableFlag)(dWorldID);
-//void            (ODE_API *dWorldSetAutoDisableFlag)(dWorldID, int do_auto_disable);
+void            (ODE_API *dWorldSetAutoDisableFlag)(dWorldID, int do_auto_disable);
 //dReal           (ODE_API *dWorldGetLinearDampingThreshold)(dWorldID w);
 //void            (ODE_API *dWorldSetLinearDampingThreshold)(dWorldID w, dReal threshold);
 //dReal           (ODE_API *dWorldGetAngularDampingThreshold)(dWorldID w);
@@ -316,7 +316,7 @@ void            (ODE_API *dWorldSetContactSurfaceLayer)(dWorldID, dReal depth);
 //void            (ODE_API *dWorldSetLinearDamping)(dWorldID w, dReal scale);
 //dReal           (ODE_API *dWorldGetAngularDamping)(dWorldID w);
 //void            (ODE_API *dWorldSetAngularDamping)(dWorldID w, dReal scale);
-//void            (ODE_API *dWorldSetDamping)(dWorldID w, dReal linear_scale, dReal angular_scale);
+void            (ODE_API *dWorldSetDamping)(dWorldID w, dReal linear_scale, dReal angular_scale);
 //dReal           (ODE_API *dWorldGetMaxAngularSpeed)(dWorldID w);
 //void            (ODE_API *dWorldSetMaxAngularSpeed)(dWorldID w, dReal max_speed);
 //dReal           (ODE_API *dBodyGetAutoDisableLinearThreshold)(dBodyID);
@@ -772,7 +772,7 @@ static dllfunction_t odefuncs[] =
 //	{"dWorldGetAutoDisableTime",					(void **) &dWorldGetAutoDisableTime},
 //	{"dWorldSetAutoDisableTime",					(void **) &dWorldSetAutoDisableTime},
 //	{"dWorldGetAutoDisableFlag",					(void **) &dWorldGetAutoDisableFlag},
-//	{"dWorldSetAutoDisableFlag",					(void **) &dWorldSetAutoDisableFlag},
+	{(void **) &dWorldSetAutoDisableFlag,			"dWorldSetAutoDisableFlag"},
 //	{"dWorldGetLinearDampingThreshold",				(void **) &dWorldGetLinearDampingThreshold},
 //	{"dWorldSetLinearDampingThreshold",				(void **) &dWorldSetLinearDampingThreshold},
 //	{"dWorldGetAngularDampingThreshold",			(void **) &dWorldGetAngularDampingThreshold},
@@ -781,7 +781,7 @@ static dllfunction_t odefuncs[] =
 //	{"dWorldSetLinearDamping",						(void **) &dWorldSetLinearDamping},
 //	{"dWorldGetAngularDamping",						(void **) &dWorldGetAngularDamping},
 //	{"dWorldSetAngularDamping",						(void **) &dWorldSetAngularDamping},
-//	{"dWorldSetDamping",							(void **) &dWorldSetDamping},
+	{(void **) &dWorldSetDamping,					"dWorldSetDamping"},
 //	{"dWorldGetMaxAngularSpeed",					(void **) &dWorldGetMaxAngularSpeed},
 //	{"dWorldSetMaxAngularSpeed",					(void **) &dWorldSetMaxAngularSpeed},
 //	{"dBodyGetAutoDisableLinearThreshold",			(void **) &dBodyGetAutoDisableLinearThreshold},
@@ -1185,6 +1185,8 @@ void World_Physics_Init(void)
 	Cvar_Register(&physics_ode_contact_mu, "ODE Physics Library");
 	Cvar_Register(&physics_ode_contact_erp, "ODE Physics Library");
 	Cvar_Register(&physics_ode_contact_cfm, "ODE Physics Library");
+	Cvar_Register(&physics_ode_world_damping_angle, "ODE Physics Library");
+	Cvar_Register(&physics_ode_world_damping_linear, "ODE Physics Library");
 	Cvar_Register(&physics_ode_world_erp, "ODE Physics Library");
 	Cvar_Register(&physics_ode_world_cfm, "ODE Physics Library");
 	Cvar_Register(&physics_ode_iterationsperframe, "ODE Physics Library");
@@ -1251,6 +1253,8 @@ static void World_Physics_EnableODE(world_t *world)
 		dWorldSetERP(world->ode.ode_world, physics_ode_world_erp.value);
 	if(physics_ode_world_cfm.value >= 0)
 		dWorldSetCFM(world->ode.ode_world, physics_ode_world_cfm.value);
+	dWorldSetDamping(world->ode.ode_world, physics_ode_world_damping_linear.value, physics_ode_world_damping_angle.value);
+//	dWorldSetAutoDisableFlag (world->ode.ode_world, true);
 }
 
 void World_Physics_Start(world_t *world)

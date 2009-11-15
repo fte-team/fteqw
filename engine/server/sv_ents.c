@@ -428,7 +428,8 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	int		bits;
 	int		i;
 	int fromeffects;
-	float	miss;
+	coorddata coordd[3];
+	coorddata angled[3];
 
 	static entity_state_t defaultbaseline;
 	if (from == &((edict_t*)NULL)->baseline)
@@ -441,8 +442,8 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	{
 		for (i=0 ; i<3 ; i++)
 		{
-			miss = (short)(to->origin[i]*8) - (short)(from->origin[i]*8);
-			if (miss)
+			coordd[i] = MSG_ToCoord(to->origin[i], sizeofcoord);
+			if (MSG_ToCoord(from->origin[i], sizeofcoord).b4 != coordd[i].b4)
 				bits |= U_ORIGIN1<<i;
 			else
 				to->origin[i] = from->origin[i];
@@ -452,19 +453,29 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	{
 		for (i=0 ; i<3 ; i++)
 		{
+			coordd[i] = MSG_ToCoord(to->origin[i], sizeofcoord);
 			if (to->origin[i] != from->origin[i])
 				bits |= U_ORIGIN1<<i;
 		}
 	}
 
-	if ( to->angles[0] != from->angles[0] )
+	angled[0] = MSG_ToAngle(to->angles[0], sizeofangle);
+	if (MSG_ToAngle(from->angles[0], sizeofcoord).b4 != angled[0].b4)
 		bits |= U_ANGLE1;
+	else
+		to->angles[0] = from->angles[0];
 
-	if ( to->angles[1] != from->angles[1] )
+	angled[1] = MSG_ToAngle(to->angles[1], sizeofangle);
+	if (MSG_ToAngle(from->angles[1], sizeofcoord).b4 != angled[1].b4)
 		bits |= U_ANGLE2;
+	else
+		to->angles[1] = from->angles[1];
 
-	if ( to->angles[2] != from->angles[2] )
+	angled[2] = MSG_ToAngle(to->angles[2], sizeofangle);
+	if (MSG_ToAngle(from->angles[2], sizeofcoord).b4 != angled[2].b4)
 		bits |= U_ANGLE3;
+	else
+		to->angles[2] = from->angles[2];
 
 	if ( to->colormap != from->colormap )
 		bits |= U_COLORMAP;
@@ -599,17 +610,17 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 	if (bits & U_EFFECTS)
 		MSG_WriteByte (msg, to->effects&0x00ff);
 	if (bits & U_ORIGIN1)
-		MSG_WriteCoord (msg, to->origin[0]);
+		SZ_Write(msg, &coordd[0], sizeofcoord);
 	if (bits & U_ANGLE1)
-		MSG_WriteAngle(msg, to->angles[0]);
+		SZ_Write(msg, &angled[0], sizeofangle);
 	if (bits & U_ORIGIN2)
-		MSG_WriteCoord (msg, to->origin[1]);
+		SZ_Write(msg, &coordd[1], sizeofcoord);
 	if (bits & U_ANGLE2)
-		MSG_WriteAngle(msg, to->angles[1]);
+		SZ_Write(msg, &angled[1], sizeofangle);
 	if (bits & U_ORIGIN3)
-		MSG_WriteCoord (msg, to->origin[2]);
+		SZ_Write(msg, &coordd[2], sizeofcoord);
 	if (bits & U_ANGLE3)
-		MSG_WriteAngle(msg, to->angles[2]);
+		SZ_Write(msg, &angled[2], sizeofangle);
 
 #ifdef U_SCALE
 	if (evenmorebits & U_SCALE)
@@ -1417,7 +1428,7 @@ SV_WritePlayersToClient
 void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *clent, qbyte *pvs, sizebuf_t *msg)
 {
 	qboolean isbot;
-	int			i, j;
+	int			j;
 	client_t	*cl;
 	edict_t		*ent, *vent;
 	int			pflags;
@@ -1524,6 +1535,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 		vec3_t vel;
 		float lerp;
 		float a1, a2;
+		int i;
 		extern vec3_t player_mins, player_maxs;
 		clstate_t clst;
 		extern float olddemotime, nextdemotime;

@@ -2801,6 +2801,11 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 	unsigned int chksum;
 	int start;
 	qboolean noerrors;
+#if (defined(ODE_STATIC) || defined(ODE_DYNAMIC))
+	qboolean ode = true;
+#else
+#define ode true
+#endif
 	
 	start = Hunk_LowMark();
 
@@ -2875,13 +2880,14 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 	crouchhullfile = NULL;
 
 // load into heap
-#ifndef CLIENTONLY
-	if (!isDedicated)
-#endif
+	if (!isDedicated || ode)
 	{
 		noerrors = noerrors && RMod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
 		noerrors = noerrors && RMod_LoadEdges (&header->lumps[LUMP_EDGES]);
 		noerrors = noerrors && RMod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
+	}
+	if (!isDedicated)
+	{
 		noerrors = noerrors && RMod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
 		if (noerrors)
 			RMod_LoadLighting (&header->lumps[LUMP_LIGHTING]);	
@@ -2890,14 +2896,13 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 	if (noerrors)
 		RMod_LoadCrouchHull();
 	noerrors = noerrors && RMod_LoadPlanes (&header->lumps[LUMP_PLANES]);
-#ifndef CLIENTONLY
-	if (!isDedicated)
-#endif
+	if (!isDedicated || ode)
 	{
 		noerrors = noerrors && RMod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
 		noerrors = noerrors && RMod_LoadFaces (&header->lumps[LUMP_FACES]);
-		noerrors = noerrors && RMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES]);
-	}	
+	}
+	if (!isDedicated)
+		noerrors = noerrors && RMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES]);	
 	if (noerrors)
 		RMod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
 	noerrors = noerrors && RMod_LoadLeafs (&header->lumps[LUMP_LEAFS]);
@@ -2941,6 +2946,13 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	mod->numframes = 2;		// regular and alternate animation
 	
+	/*FIXME: move mesh_t and lightmap allocation out of r_surf
+	for (i=0 ; i<mod->numsurfaces ; i++)
+	{
+		Surf_BuildSurfaceDisplayList (mod, mod->surfaces + i);
+	}
+	*/
+
 //
 // set up the submodels (FIXME: this is confusing)
 //

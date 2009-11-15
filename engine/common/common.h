@@ -131,6 +131,7 @@ extern int sizeofcoord;
 extern int sizeofangle;
 float MSG_FromCoord(coorddata c, int bytes);
 coorddata MSG_ToCoord(float f, int bytes);
+coorddata MSG_ToAngle(float f, int bytes);
 
 void MSG_WriteChar (sizebuf_t *sb, int c);
 void MSG_WriteByte (sizebuf_t *sb, int c);

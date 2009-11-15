@@ -102,11 +102,10 @@ void GLVID_DeInit (void)
 }
 
 
-void GL_BeginRendering (int *x, int *y, int *width, int *height)
+void GL_BeginRendering ()
 {
-	*x = *y = 0;
-	*width = glwidth;//WindowRect.right - WindowRect.left;
-	*height = glheight;//WindowRect.bottom - WindowRect.top;
+	vid.pixelwidth = glwidth;
+	vid.pixelheight = glheight;
 
 //    if (!wglMakeCurrent( maindc, baseRC ))
 //		Sys_Error ("wglMakeCurrent failed");

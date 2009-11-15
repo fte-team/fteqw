@@ -615,16 +615,11 @@ void() zombie_die =
 
 	r = random();
 
-	if (r <= 0.20)
-		sound (self, CHAN_VOICE, "player/agdie1.wav", 1, ATTN_NORM);
-	else if (r <= 0.40)
-		sound (self, CHAN_VOICE, "player/agdie2.wav", 1, ATTN_NORM);
-	else if (r <= 0.60)
-		sound (self, CHAN_VOICE, "player/agdie3.wav", 1, ATTN_NORM);
-	else if (r <= 0.80)
-		sound (self, CHAN_VOICE, "player/agdie4.wav", 1, ATTN_NORM);
+	if (r <= 0.50)
+		sound (self, CHAN_VOICE, "zombie/z_pain.wav", 1, ATTN_NORM);
 	else
-		sound (self, CHAN_VOICE, "player/agdie5.wav", 1, ATTN_NORM);
+		sound (self, CHAN_VOICE, "zombie/z_pain1.wav", 1, ATTN_NORM);
+
 
 	spawn_live_zombie(self.origin, self.angles);
 	remove(self);
@@ -726,15 +721,21 @@ void () spawn_ghoul_copy =
 	local entity te, ze;
 	local vector jojo;
 	local float zomc, pcount, loadzombie;
-	local string finder;
+	local string finder, waterlev;
 	local vector stuff;
 
 
 
+
 	self.think = spawn_ghoul_copy;
-	self.nextthink = time + 20 + random()*10;
+	self.nextthink = time + 5 + random()*5;
 	stuff = self.origin;
 
+	waterlev = ftos(pointcontents(self.origin));
+
+	bprint(2, "pointcontents: ");
+	bprint(2, waterlev);
+	bprint(2, "\n");
 
 
 	loadzombie = 0;
@@ -747,6 +748,12 @@ void () spawn_ghoul_copy =
 
 		te = te.chain;
 	}
+
+	if (loadzombie == 0)
+		return;
+
+
+
 
 
 
@@ -771,7 +778,7 @@ void () spawn_ghoul_copy =
 		ze = find(ze, classname, "player");
 	}
 
-	if (zomc > 60*pcount)
+	if (zomc > 90*pcount)
 		return;
 
 	zombie = spawn ();
@@ -837,98 +844,6 @@ void () spawn_ghoul_copy =
 	walkmonster_start_go ();
 };
 
-void (vector jojo) spawn_ghoul =
-{
-	local entity zombie, lair;
-	local entity te, ze;
-	local float stop;
-	local vector jojo;
-	local float zomc, pcount;
-
-
-	ze = findradius(jojo, 256);
-	while (ze)
-	{
-
-		if (ze.classname == "lair")
-			stop = 1;
-
-		ze = ze.chain;
-	}
-
-	if (stop == 0)
-	{
-		lair = spawn ();
-		self = lair;
-		self.solid = SOLID_NOT;
-		self.movetype = MOVETYPE_STEP;
-		setsize (self, '0 0 0', '0 0 0');
-		self.netname = "lair";
-		self.think = spawn_ghoul_copy;
-		self.nextthink = time + 20 + random()*10;
-	}
-
-	zombie = spawn ();
-	self = zombie;
-	self.solid = SOLID_SLIDEBOX;
-	self.movetype = MOVETYPE_STEP;
-	setmodel (self, "progs/ghoul.mdl");
-	setsize (self, '-8 -8 -24', '8 8 24');
-	self.health = 60;
-	self.netname = "ghoul";
-	self.max_health = self.health;
-	self.th_stand = zombie_stand1;
-	self.th_walk = zombie_walk1;
-	self.th_run = zombie_run1;
-	self.th_pain = zombie_pain;
-	self.th_die = zombie_die;
-	self.th_melee = zombie_melee;
-	self.angles_y = random()*360;
-
-	self.origin = jojo + '0 64 0';
-	self.origin_z = self.origin_z + 1;
-	droptofloor();
-
-	if (!walkmove(0, 0))
-	{
-		self.origin = jojo + '0 -64 0';
-		self.origin_z = self.origin_z + 1;
-		droptofloor();
-		if (!walkmove(0, 0))
-		{
-			self.origin = jojo + '64 0 0';
-			self.origin_z = self.origin_z + 1;
-			droptofloor();
-			if (!walkmove(0, 0))
-			{
-				self.origin = jojo + '-64 0 0';
-				self.origin_z = self.origin_z + 1;
-				droptofloor();
-				if (!walkmove(0, 0))
-				{
-					remove(self);
-					return;
-				}
-			}
-		}
-	}
-
-	te = findradius (self.origin, 30);
-	while (te)
-	{
-		if (te.classname == "player" || te.classname == "monster" && te.health > 0)
-		{
-			remove(self);
-			return;
-		}
-
-
-		te = te.chain;
-	}
-
-	self.classname = "monster";
-	walkmonster_start_go ();
-};
 
 void() monster_zombie =
 {
@@ -943,8 +858,6 @@ void() monster_zombie =
 		load_monster();
 		return;
 	}
-
-
 
 
 	precache_model ("progs/ghoul.mdl");
@@ -988,6 +901,7 @@ void() monster_zombie =
 			lair.movetype = MOVETYPE_STEP;
 			setsize (lair, '0 0 0', '0 0 0');
 			lair.netname = "lair";
+			lair.classname = "lair";
 			lair.nextthink = time + 30;
 			lair.think = spawn_ghoul_copy;
 			lair.nextthink = time + 30;
@@ -1014,16 +928,6 @@ void() monster_zombie =
 	walkmonster_start();
 
 
-
-/*
-	spawn_ghoul(self.origin + '-128 -128 0');
-	spawn_ghoul(self.origin + '-128 0 0');
-	spawn_ghoul(self.origin + '0 -128 0');
-	spawn_ghoul(self.origin + '0 128 0');
-	spawn_ghoul(self.origin + '128 0 0');
-	spawn_ghoul(self.origin + '128 128 0');
-	spawn_ghoul(self.origin + '-128 128 0');
-	spawn_ghoul(self.origin + '128 -128 0');*/
 
 	if (random()<0.25 && world.map_obj == 1)
 		spawn_civilian(self.origin);

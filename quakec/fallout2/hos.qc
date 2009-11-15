@@ -299,5 +299,8 @@ void (vector jojo) spawn_civilian =
 		te = te.chain;
 	}
 
+	if (self.waterlevel >= 2)
+		remove(self);
+
 	self = oself;
 };

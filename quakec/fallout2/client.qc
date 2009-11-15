@@ -134,14 +134,10 @@ void() DecodeLevelParms =
 	setspawnparms(self);
 
 
-	if (parm5 > 0)
-		self.skill_combat = parm5;
-	if (parm6 > 0)
-		self.skill_doctor = parm6;
-	if (parm7 > 0)
-		self.skill_sneak = parm7;
-	if (parm14 > 0)
-		self.skill_science = parm14;
+	self.skill_combat = parm5;
+	self.skill_doctor = parm6;
+	self.skill_sneak = parm7;
+	self.skill_science = parm14;
 
 	self.ammo_shells = parm8;
 	self.perk1 = parm9;
@@ -358,6 +354,11 @@ void() changelevel_touch =
 		return;
 
 	if ((world.map_obj == OBJ_HOSTAGE && hostages > 0) && random()<0.02)
+	{
+		sprint (other, 2,"there are more hostages to save.\n");
+		return;
+	}
+	else if ((world.map_obj == OBJ_DEADTOWN && hostages > 0) && random()<0.02)
 	{
 		sprint (other, 2,"there are more hostages to save.\n");
 		return;

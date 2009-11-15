@@ -102,7 +102,7 @@ float() crandom =
 
 void(float slotno) UsePerk =
 {
-	local float x;
+	local float x, mcount;
 	local string y, timeleft;
 	local entity te;
 
@@ -140,8 +140,9 @@ void(float slotno) UsePerk =
 		{
 			if (te.classname == "monster")
 			{
-				te.hold = 80;
+				te.hold = 160;
 				spawn_stop(te, 10);
+				mcount = mcount + 1;
 			}
 			te = te.chain;
 		}

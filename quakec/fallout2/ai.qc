@@ -520,15 +520,11 @@ void(float dist) ai_walk =
 {
 	if (self.hold == 1)
 	{
-		self.th_stand;
 		self.hold = 0;
 		return;
 	}
 	if (self.hold > 1)
 	{
-		self.th_stand ();
-	
-
 		self.hold = self.hold - 1;
 		return;
 	}
@@ -554,15 +550,11 @@ void() ai_stand =
 {
 	if (self.hold == 1)
 	{
-		self.th_stand;
 		self.hold = 0;
 		return;
 	}
 	if (self.hold > 1)
 	{
-		self.th_stand ();
-	
-
 		self.hold = self.hold - 1;
 		return;
 	}
@@ -754,8 +746,6 @@ void(float dist) ai_run =
 	if (self.hold > 1)
 	{
 		self.th_stand ();
-	
-
 		self.hold = self.hold - 1;
 		self.think = self.th_run;
 		self.nextthink = time + 0.1;

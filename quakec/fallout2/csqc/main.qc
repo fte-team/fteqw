@@ -123,6 +123,23 @@ void() Chem_Draw =
 
 };
 
+
+
+void() Time_Draw =
+{
+	local float xtime, ytime, ztime;
+	local string qtime, rtime, shadowtime;
+
+	xtime = getstati(104);
+	ytime = floor(xtime/60);
+	ztime = xtime - (ytime*60);
+	qtime = ftos(ytime);
+	rtime = ftos(ztime);
+	shadowtime = ftos(getstati(104));
+
+	drawstring('0 32 0'+('1 0 0'*(scrwidth*0.10))+('0 1 0'*(scrheight*0.90)),  strcat("[", qtime, ":", rtime, "]\n"), '8 8 8', '1 1 1', 1);
+};
+
 void() Ammo_Draw =
 {
 	local float hand, weap, ammo, amount;
@@ -418,6 +435,7 @@ void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 		GainPerk_Draw();
 	else
 	{
+		Time_Draw();
 		Health_Draw();
 		Weight_Draw();
 		Money_Draw();

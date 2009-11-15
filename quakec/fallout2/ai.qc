@@ -3,6 +3,8 @@ void() t_movetarget;
 void() knight_walk1;
 void() knight_bow6;
 void() knight_bow1;
+void() walkmonster_start;
+
 void(entity etemp, entity stemp, entity stemp, float dmg) T_Damage;
 /*
 
@@ -516,6 +518,21 @@ The monster is walking it's beat
 */
 void(float dist) ai_walk =
 {
+	if (self.hold == 1)
+	{
+		self.th_stand;
+		self.hold = 0;
+		return;
+	}
+	if (self.hold > 1)
+	{
+		self.th_stand ();
+	
+
+		self.hold = self.hold - 1;
+		return;
+	}
+
 	movedist = dist;
 	
 	// check for noticing a player
@@ -535,6 +552,21 @@ The monster is staying in one place for a while, with slight angle turns
 */
 void() ai_stand =
 {
+	if (self.hold == 1)
+	{
+		self.th_stand;
+		self.hold = 0;
+		return;
+	}
+	if (self.hold > 1)
+	{
+		self.th_stand ();
+	
+
+		self.hold = self.hold - 1;
+		return;
+	}
+
 	if (FindTarget ())
 		return;
 	
@@ -712,7 +744,14 @@ The monster has an enemy it is trying to kill
 */
 void(float dist) ai_run =
 {
-	if (self.hold > 0)
+
+	if (self.hold == 1)
+	{
+		self.th_stand;
+		self.hold = 0;
+		return;
+	}
+	if (self.hold > 1)
 	{
 		self.th_stand ();
 	

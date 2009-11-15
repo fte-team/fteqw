@@ -83,7 +83,14 @@ void() zombie_cruc6	=	[	$cruc_6,		zombie_cruc1	] {self.nextthink = time + 0.1 + 
 
 void() zombie_walk1		=[	$walk1,		zombie_walk2	] {ai_walk(3);};
 void() zombie_walk2		=[	$walk2,		zombie_walk3	] {ai_walk(3);};
-void() zombie_walk3		=[	$walk3,		zombie_walk4	] {ai_walk(3);};
+void() zombie_walk3		=[	$walk3,		zombie_walk4	] {ai_walk(3);
+
+if (self.takedamage == DAMAGE_NO)
+{
+	remove(self);
+	return;
+}
+};
 void() zombie_walk4		=[	$walk4,		zombie_walk5	] {ai_walk(3);};
 void() zombie_walk5		=[	$walk5,		zombie_walk6	] {ai_walk(3);};
 void() zombie_walk6		=[	$walk6,		zombie_walk7	] {ai_walk(3);};
@@ -105,7 +112,14 @@ if (random() < 0.2)
 	sound (self, CHAN_VOICE, "zombie/z_idle.wav", 1, ATTN_IDLE);};
 
 void() zombie_run1		=[	$run1,		zombie_run2	] {ai_run(4);self.inpain = 0;};
-void() zombie_run2		=[	$run2,		zombie_run3	] {ai_run(4);};
+void() zombie_run2		=[	$run2,		zombie_run3	] {ai_run(4);
+
+if (self.takedamage == DAMAGE_NO)
+{
+	remove(self);
+	return;
+}
+};
 void() zombie_run3		=[	$run3,		zombie_run4	] {ai_run(4);};
 void() zombie_run4		=[	$run4,		zombie_run5	] {ai_run(4);};
 void() zombie_run5		=[	$run5,		zombie_run6	] {ai_run(4);};
@@ -517,7 +531,10 @@ void() zdie6	=[	$painb6,	zdie7	] {};
 void() zdie7	=[	$painb7,	zdie8	] {};
 void() zdie8	=[	$painb8,	zdie9	] {};
 void() zdie9	=[	$painb9,	zdie10] {};
-void() zdie10     =[	$painb10,	zdie10] {};
+void() zdie10     =[	$painb10,	zdie10] {
+self.think = SUB_Remove;
+self.nextthink = time + 20;
+};
 
 
 void () zombie_death =
@@ -538,7 +555,7 @@ void () zombie_death =
 		SpawnBlood (self.origin + '0 0 4', 4);
 
 		self.think = SUB_Remove;
-		self.nextthink = time + 30;
+		self.nextthink = time + 10;
 		self.health = 180;
 		return;
 	}
@@ -708,7 +725,30 @@ void () spawn_ghoul_copy =
 	local entity zombie, lair;
 	local entity te, ze;
 	local vector jojo;
-	local float zomc, pcount;
+	local float zomc, pcount, loadzombie;
+	local string finder;
+	local vector stuff;
+
+
+
+	self.think = spawn_ghoul_copy;
+	self.nextthink = time + 20 + random()*10;
+	stuff = self.origin;
+
+
+
+	loadzombie = 0;
+
+	te = findradius (self.origin, 800);
+	while (te)
+	{
+		if (te.classname == "player")
+			loadzombie = 1;
+
+		te = te.chain;
+	}
+
+
 
 	ze = find (world, netname, "ghoul");
 
@@ -719,7 +759,7 @@ void () spawn_ghoul_copy =
 	
 		zomc = zomc + 1;
 
-		ze = find (ze, netname, "ghoul");
+		ze = find (ze, netname, "monster");
 	}
 
 	ze = find(world, classname, "player");
@@ -731,7 +771,7 @@ void () spawn_ghoul_copy =
 		ze = find(ze, classname, "player");
 	}
 
-	if (zomc > 25*pcount)
+	if (zomc > 60*pcount)
 		return;
 
 	zombie = spawn ();
@@ -749,10 +789,10 @@ void () spawn_ghoul_copy =
 	self.th_pain = zombie_pain;
 	self.th_die = zombie_die;
 	self.th_melee = zombie_melee;
-	self.th_missile = zombie_missile;
+
 	self.angles_y = random()*360;
 
-	self.origin = self.origin + '0 64 0';
+	self.origin = stuff + '0 16 0';
 	self.origin_z = self.origin_z + 1;
 	droptofloor();
 
@@ -802,6 +842,8 @@ void (vector jojo) spawn_ghoul =
 	local entity zombie, lair;
 	local entity te, ze;
 	local float stop;
+	local vector jojo;
+	local float zomc, pcount;
 
 
 	ze = findradius(jojo, 256);
@@ -822,9 +864,8 @@ void (vector jojo) spawn_ghoul =
 		self.movetype = MOVETYPE_STEP;
 		setsize (self, '0 0 0', '0 0 0');
 		self.netname = "lair";
-		self.nextthink = time + 30;
 		self.think = spawn_ghoul_copy;
-		self.nextthink = time + 30;
+		self.nextthink = time + 20 + random()*10;
 	}
 
 	zombie = spawn ();
@@ -842,7 +883,6 @@ void (vector jojo) spawn_ghoul =
 	self.th_pain = zombie_pain;
 	self.th_die = zombie_die;
 	self.th_melee = zombie_melee;
-	self.th_missile = zombie_missile;
 	self.angles_y = random()*360;
 
 	self.origin = jojo + '0 64 0';
@@ -892,11 +932,20 @@ void (vector jojo) spawn_ghoul =
 
 void() monster_zombie =
 {
+	local entity zombie, lair;
+	local entity te, ze;
+	local float stop;
+	local vector jojo;
+	local float zomc, pcount;
+
 	if (self.zone == 0)
 	{
 		load_monster();
 		return;
 	}
+
+
+
 
 	precache_model ("progs/ghoul.mdl");
 	precache_model ("progs/h_zombie.mdl");
@@ -917,6 +966,34 @@ void() monster_zombie =
 	precache_sound ("misc/rock1.wav");
 	precache_sound ("misc/rock2.wav");
 
+
+	if (world.map_obj == OBJ_DEADTOWN)
+	{
+		ze = findradius(self.origin, 256);
+		while (ze)
+		{
+
+			if (ze.classname == "lair")
+				stop = 1;
+
+			ze = ze.chain;
+		}
+
+		if (stop == 0)
+		{
+			jojo = self.origin;
+			lair = spawn ();
+			setorigin(lair, jojo);
+			lair.solid = SOLID_NOT;
+			lair.movetype = MOVETYPE_STEP;
+			setsize (lair, '0 0 0', '0 0 0');
+			lair.netname = "lair";
+			lair.nextthink = time + 30;
+			lair.think = spawn_ghoul_copy;
+			lair.nextthink = time + 30;
+		}
+	}
+
 	self.solid = SOLID_SLIDEBOX;
 	self.movetype = MOVETYPE_STEP;
 
@@ -931,7 +1008,6 @@ void() monster_zombie =
 	self.th_run = zombie_run1;
 	self.th_die = zombie_die;
 	self.th_melee = zombie_melee;
-	self.th_missile = zombie_missile;
 
 	self.angles_y = random()*360;
 
@@ -939,7 +1015,7 @@ void() monster_zombie =
 
 
 
-
+/*
 	spawn_ghoul(self.origin + '-128 -128 0');
 	spawn_ghoul(self.origin + '-128 0 0');
 	spawn_ghoul(self.origin + '0 -128 0');
@@ -947,8 +1023,11 @@ void() monster_zombie =
 	spawn_ghoul(self.origin + '128 0 0');
 	spawn_ghoul(self.origin + '128 128 0');
 	spawn_ghoul(self.origin + '-128 128 0');
-	spawn_ghoul(self.origin + '128 -128 0');
+	spawn_ghoul(self.origin + '128 -128 0');*/
 
 	if (random()<0.25 && world.map_obj == 1)
+		spawn_civilian(self.origin);
+
+	if (random()<0.5 && world.map_obj == 4)
 		spawn_civilian(self.origin);
 };

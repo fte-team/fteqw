@@ -183,7 +183,9 @@ void () OpenDoorBeep =
 		sound (self, CHAN_BODY, "items/lockpick2.wav", 1, ATTN_NORM);
 
 
-	x = (2.51 - (2.5*(self.enemy.skill_sneak/30)));
+	x = (2.51 - (2.5*(self.enemy.skill_sneak/7)));
+	if (x <= 0)
+		x = 0.1;
 
 
 	self.think = OpenDoorBeep;

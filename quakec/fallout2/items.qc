@@ -291,9 +291,6 @@ void(vector loc) SpawnJunk =
 {
 	local entity junk;
 
-	if (random()*100 <= 80)
-		return;
-
 	junk = spawn ();
 
 	setorigin(junk, loc + '0 0 96');
@@ -319,11 +316,13 @@ void(vector loc) SpawnJunk =
 
 
 
-	if (random()*100 <= 25)
-		junk.islot1 = SlotVal(IID_MISC_NUKACOLA, 1);
-	else if (random()*100 <= 25)
+	if (random()*100 <= 50)
+		junk.islot1 = SlotVal(IID_MISC_HMXCOMPOUND, 1);
+	else if (random()*100 <= 50)
 		junk.islot1 = SlotVal(IID_MISC_CHEMICALS, 1);
-	else if (random()*100 <= 25)
+	else if (random()*100 <= 33)
+		junk.islot1 = SlotVal(IID_MISC_NUKACOLA, 1);
+	else if (random()*100 <= 33)
 		junk.islot1 = SlotVal(IID_MISC_AEROSOL, 1);
 	else if (random()*100 <= 10)
 		junk.islot1 = SlotVal(IID_MISC_RDXCRYSTAL, 1);
@@ -337,8 +336,6 @@ void(vector loc) SpawnJunk =
 		junk.islot1 = SlotVal(IID_MISC_CIRCUITBOARD, 1);
 	else if (random()*100 <= 10)
 		junk.islot1 = SlotVal(IID_MISC_COPPERWIRE, 1);
-	else if (random()*100 <= 10)
-		junk.islot1 = SlotVal(IID_MISC_HMXCOMPOUND, 1);
 	else if (random()*100 <= 10)
 		junk.islot1 = SlotVal(IID_MISC_GUM, 1);
 	else
@@ -853,7 +850,7 @@ float (entity to, float iid, float quant) TryGiveStackable =
 	local float item;
 	local float x;
 
-	x = 300;
+	x = 400;
 
 	if (ToIID(self.islot4) == IID_EQUIP_BACKPACK)
 		x = 600;

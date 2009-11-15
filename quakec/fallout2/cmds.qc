@@ -309,6 +309,8 @@ void(string arg1, string arg2) Cmd_GainPerk =
 			self.perk1 = 8;
 		if (arg1 == "9")
 			self.perk1 = 9;
+		if (arg1 == "10")
+			self.perk1 = 10;
 	}
 	if (arg2 == "2")
 	{
@@ -330,6 +332,8 @@ void(string arg1, string arg2) Cmd_GainPerk =
 			self.perk2 = 8;
 		if (arg1 == "9")
 			self.perk2 = 9;
+		if (arg1 == "10")
+			self.perk2 = 10;
 	}
 };
 

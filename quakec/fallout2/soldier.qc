@@ -1321,6 +1321,10 @@ void () army_die10 = [ 17, army_die10 ]
 
 void () army_cdie1 = [ 18, army_cdie2 ]
 {
+	if (random()*4 <= 2)
+		sound (self, CHAN_VOICE, "player/agdie2.wav", 1, ATTN_NORM);
+	else
+		sound (self, CHAN_VOICE, "player/agdie3.wav", 1, ATTN_NORM);
 };
 
 void () army_cdie2 = [ 19, army_cdie3 ]
@@ -1459,16 +1463,7 @@ void () army_die =
 	if (random()<0.75)
 		DropMoney();
 
-	if (r <= 0.20)
-		sound (self, CHAN_VOICE, "player/agdie1.wav", 1, ATTN_NORM);
-	else if (r <= 0.40)
-		sound (self, CHAN_VOICE, "player/agdie2.wav", 1, ATTN_NORM);
-	else if (r <= 0.60)
-		sound (self, CHAN_VOICE, "player/agdie3.wav", 1, ATTN_NORM);
-	else if (r <= 0.80)
-		sound (self, CHAN_VOICE, "player/agdie4.wav", 1, ATTN_NORM);
-	else
-		sound (self, CHAN_VOICE, "player/agdie5.wav", 1, ATTN_NORM);
+
 
 	DeathThroes();
 
@@ -1514,7 +1509,7 @@ void (vector jojo, entity friend) spawn_soldier =
 	setmodel (self, "progs/soldier.mdl");
 	setsize (self, '-12 -12 -24', '12 12 28');
 	self.netname = "raider";
-	self.max_health = 150;
+	self.max_health = 80;
 	self.health = self.max_health;
 	self.armornoise = "misc/thud.wav";
 	self.th_stand = army_stand1;
@@ -1708,7 +1703,7 @@ void () monster_army =
 	self.movetype = MOVETYPE_STEP;
 	setmodel (self, "progs/soldier.mdl");
 	setsize (self, '-12 -12 -24', '12 12 28');
-	self.max_health = 150;
+	self.max_health = 80;
 	self.health = self.max_health;
 	self.team = 3;
       self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
@@ -1904,7 +1899,7 @@ void () monster_commander =
 	commanders = commanders + 1;
 
 	setsize (self, '-12 -12 -24', '12 12 32');
-	self.max_health =250;
+	self.max_health = 200;
 	self.health = self.max_health;
       self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
 	self.armortype = 0.5;

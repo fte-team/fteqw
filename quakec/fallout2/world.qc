@@ -101,14 +101,15 @@ void() SetupStats =
 	clientstat(101, 2, skill_doctor);
 	clientstat(102, 2, skill_sneak);
 	clientstat(103, 2, skill_science);
-	clientstat(104, 2, mixslot1);
-	clientstat(105, 2, mixslot2);
+	clientstat(104, 2, shadowtime);
+	clientstat(105, 2, announcercache);
 	clientstat(108, 2, safezone);
 	clientstat(109, 2, connected);
 	clientstat(110, 2, steadyaim);
 	clientstat(125, 2, timer);
 	clientstat(126, 2, popup);
 	clientstat(127, 2, score);
+
 
 };
 
@@ -163,7 +164,7 @@ void() load_monster =
 	if (infokey(world, "total") == "four")
 		bprint(2, "test - four players\n");*/
 
-
+/*
 	if (infokey(world, "total") == "one" && random()<0.40)
 		return;
 
@@ -174,25 +175,26 @@ void() load_monster =
 		return;
 
 	if (infokey(world, "total") == "four" && random()<0.10)
-		return;
+		return;*/
 
-	if (self.waterlevel > 2)
-	{
-			monster_fish();
-			return;
-	}
+
+	if (self.waterlevel >= 2)
+		return;
 
 	x = random()*100;
 	y = random()*100;
 
-	if (x <= world.map_ent1_percent)
+
+	if (world.map_obj == OBJ_DEADTOWN)
+	{
+		self.zone = 1;
+		monster_zombie();
+	}
+	else if (x <= world.map_ent1_percent)
 	{
 		self.zone = 1;
 
 			
-	if (world.map_obj == OBJ_DEADTOWN)
-		monster_zombie();
-	else
 		monster_army();
 
 
@@ -210,7 +212,7 @@ void() load_monster =
 		if (world.map_ent2 == 5 || world.map_ent2 == 6)
 			monster_ogre();
 		if (world.map_ent2 == 7)
-			monster_enforcer();
+			monster_army();
 		if (world.map_ent2 == 8)
 			monster_demon1();
 		if (world.map_ent2 == 9)
@@ -231,18 +233,14 @@ void() load_monster =
 		else if (random()<0.10)
 			monster_zombie();
 		else if (random()<0.10)
-			monster_enforcer();
+			monster_army();
 		else if (random()<0.10)
 			monster_ogre();
 		else if (random()<0.10)
 			monster_army();
 		else if (random()<0.10)
-			monster_enforcer();
+			monster_army();
 
-	if (world.map_obj == OBJ_DEADTOWN)
-		spawn_ghoul(self.origin + '128 0 0');
-	if (world.map_obj == OBJ_DEADTOWN)
-		spawn_ghoul(self.origin + '0 128 0');
 
 	}
 };
@@ -667,7 +665,20 @@ if (coop == 1) // Players vs Monsters
 	if (pcount == 0 && self.timer > 5)
 		localcmd("restart\n");
 
-	if (world.map_obj == OBJ_HOSTAGE)
+
+	if (endgame_timer > 0)
+	{
+		ze = find (world, classname, "monster");
+		while (ze != world)
+		{
+			remove(ze);
+	
+	
+			ze = find (ze, classname, "monster");
+		}
+	}
+
+	if (world.map_obj == OBJ_HOSTAGE || world.map_obj == OBJ_DEADTOWN)
 	{
 		time_left = time_left - 1;
 
@@ -688,153 +699,105 @@ if (coop == 1) // Players vs Monsters
 
 		if (pcount == 0 && pdead > 0) //everyone died
 		{
-			if (endgame_timer == 0)
-				bprint(2, "^4** ^bTHE PLAYERS WERE SLAIN^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bTHIS AREA WILL RESTART^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
+			announcer = "all players were slain";
+			ze = find (world, classname, "player");
+			while (ze != world)
+			{
+				ze.missionbrief = 3;
+				ze.announcercache = 1;
+
+
+				ze = find (ze, classname, "player");
+			}
 			if (endgame_timer == 5)
 				localcmd("restart\n");
 
 			sound (world, CHAN_BODY, "misc/menu3.wav", 1, ATTN_NONE);
-			return;
 		}
 		else if (hdead > rescue + hcount) //hostages killed
 		{
 			if (endgame_timer == 0)
-				bprint(2, "^4** ^bTHE HOSTAGES WERE KILLED!!!^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bYOU HAVE FAILED THE MISSION^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
+			{
+				ze = find (world, classname, "player");
+				while (ze != world)
+				{
+					ze.missionbrief = 3;
+					ze.announcercache = 2;
+
+
+					ze = find (ze, classname, "player");
+				}
+			}
 			if (endgame_timer == 5)
 				localcmd("restart\n");
 
 			endgame_timer = endgame_timer + 1;
-			return;
 		}
 		else if (hcount == 0 && hdead <= rescue) //hostages rescued
 		{
 			if (endgame_timer == 0)
 			{
-				bprint(2, "^4** ^bTHE HOSTAGES WERE SAVED!!!^b **\n");
-				sound (self, CHAN_VOICE, "misc/fanfare.wav", 1, ATTN_NONE);
 				ze = find (world, classname, "player");
 				while (ze != world)
 				{
-					ze.ammo_shells = ze.ammo_shells + 25;
-					stuffcmd(ze, "play music/victory\n");
-					ze = find (ze, classname, "player");
-				}       
-			}
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION COMPLETED, RETURN TO BASE^b **\n");
+					ze.missionbrief = 3;
+					ze.announcercache = 3;
 
+
+					ze = find (ze, classname, "player");
+				}
+			}
 			if (endgame_timer == 10)
 			{
 				localcmd("serverinfo objective return\n");
 				changelevel ("r_bunker");
 			}
-			return;
 		}
-		else if (time_left <= 0) //time ran out
+		else if (time_left <= 0 && rescue > 0) //time ran out and at least one was rescued
 		{
 			if (endgame_timer == 0)
 			{
-				bprint(2, "^4** ^bSOME HOSTAGES WERE SAVED^b **\n");
-				sound (self, CHAN_VOICE, "misc/beep1.wav", 1, ATTN_NONE);
 				ze = find (world, classname, "player");
 				while (ze != world)
 				{
-					ze.ammo_shells = ze.ammo_shells + 25;
-					stuffcmd(ze, "play music/victory\n");
-					ze = find (ze, classname, "player");
-				}       
-			}
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION COMPLETED, RETURN TO BASE^b **\n");
+					ze.missionbrief = 3;
+					ze.announcercache = 4;
 
-			if (endgame_timer == 10)
+
+					ze = find (ze, classname, "player");
+				}
+			}
+			if (endgame_timer >= 10)
 			{
 				localcmd("serverinfo objective return\n");
 				changelevel ("r_bunker");
 			}
-		
-			endgame_timer = endgame_timer + 1;
-			return;
 		}
-		else if (time_left == 480) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 8:00^b **\n");
-		else if (time_left == 450) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:30^b **\n");
-		else if (time_left == 420) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:00^b **\n");
-		else if (time_left == 390) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:30^b **\n");
-		else if (time_left == 360) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:00^b **\n");
-		else if (time_left == 330) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:30^b **\n");
-		else if (time_left == 300) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:00^b **\n");
-		else if (time_left == 270) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:30^b **\n");
-		else if (time_left == 240) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:00^b **\n");
-		else if (time_left == 210) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:30^b **\n");
-		else if (time_left == 180) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:00^b **\n");
-		else if (time_left == 150) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:30^b **\n");
-		else if (time_left == 120) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:00^b **\n");
-		else if (time_left == 90) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:30^b **\n");
-		else if (time_left == 60) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:00^b **\n");
-		else if (time_left == 45) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:45^b **\n");
-		else if (time_left == 30) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:30^b **\n");
-		else if (time_left == 15) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:15^b **\n");
-		else if (time_left == 10) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:10^b **\n");
-		else if (time_left == 9) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:09^b **\n");
-		else if (time_left == 8) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:08^b **\n");
-		else if (time_left == 7) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:07^b **\n");
-		else if (time_left == 6) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:06^b **\n");
-		else if (time_left == 5) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:05^b **\n");
-		else if (time_left == 4) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:04^b **\n");
-		else if (time_left == 3) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:03^b **\n");
-		else if (time_left == 2) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:02^b **\n");
-		else if (time_left == 1) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:01^b **\n");
+		else if (time_left <= 0 && rescue == 0) //time ran out and no rescues were made
+		{
+			if (endgame_timer == 0)
+			{
+				ze = find (world, classname, "player");
+				while (ze != world)
+				{
+					ze.missionbrief = 3;
+					ze.announcercache = 5;
 
+
+					ze = find (ze, classname, "player");
+				}
+			}
+			if (endgame_timer >= 10)
+				localcmd("restart\n");
+		}
 		if (pcount == 0 && pdead > 0)
 			endgame_timer = endgame_timer + 1;
-		if (hcount == 0 && hdead <= rescue)
+		else if (hcount == 0 && hdead <= rescue)
+			endgame_timer = endgame_timer + 1;
+		else if (time_left <= 0)
 			endgame_timer = endgame_timer + 1;
 	}
-	if (world.map_obj == OBJ_DEFUSE)
+	else if (world.map_obj == OBJ_DEFUSE)
 	{
 		time_left = time_left - 1;
 
@@ -849,42 +812,33 @@ if (coop == 1) // Players vs Monsters
 			te = find(te, classname, "bomb");
 		}
 
-		local string xx;
-
-		if (random()*10 <= 1)
-		{
-			xx = ftos(bcount);
-			bprint(2, xx);
-			bprint(2, " bombs left!!\n");
-		}
-
 		if (pcount == 0 && pdead > 0) //everyone died
 		{
-			if (endgame_timer == 0)
-				bprint(2, "^4** ^bTHE PLAYERS WERE SLAIN^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bTHIS AREA WILL RESTART^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
-			if (endgame_timer == 5)
+			ze = find (world, classname, "player");
+			while (ze != world)
+			{
+				ze.missionbrief = 3;
+				ze.announcercache = 1;
+
+
+				ze = find (ze, classname, "player");
+			}
+
+			if (endgame_timer == 10)
 				localcmd("restart\n");
 
-			sound (world, CHAN_BODY, "misc/menu3.wav", 1, ATTN_NONE);
 		}
 		else if (bcount == 0) //bombs defused
 		{
 			if (endgame_timer == 0)
 			{
-				bprint(2, "^4** ^bTHE FUEL TANKS WERE DESTROYED!!!^b **\n");
-				bprint(2, "^4** ^b     RETURNING TO BASE!!!^b        **\n");
 				ze = find (world, classname, "player");
 				while (ze != world)
 				{
 					ze.ammo_shells = ze.ammo_shells + 25;
+					ze.missionbrief = 3;
+					ze.announcercache = 6;
+
 					stuffcmd(ze, "play music/victory\n");
 					ze = find (ze, classname, "player");
 				}
@@ -896,94 +850,29 @@ if (coop == 1) // Players vs Monsters
 				changelevel ("r_bunker");
 			}
 		}
-
-		else if (time_left == 480) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 8:00^b **\n");
-		else if (time_left == 450) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:30^b **\n");
-		else if (time_left == 420) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:00^b **\n");
-		else if (time_left == 390) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:30^b **\n");
-		else if (time_left == 360) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:00^b **\n");
-		else if (time_left == 330) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:30^b **\n");
-		else if (time_left == 300) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:00^b **\n");
-		else if (time_left == 270) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:30^b **\n");
-		else if (time_left == 240) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:00^b **\n");
-		else if (time_left == 210) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:30^b **\n");
-		else if (time_left == 180) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:00^b **\n");
-		else if (time_left == 150) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:30^b **\n");
-		else if (time_left == 120) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:00^b **\n");
-		else if (time_left == 90) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:30^b **\n");
-		else if (time_left == 60) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:00^b **\n");
-		else if (time_left == 45) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:45^b **\n");
-		else if (time_left == 30) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:30^b **\n");
-		else if (time_left == 15) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:15^b **\n");
-		else if (time_left == 10) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:10^b **\n");
-		else if (time_left == 9) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:09^b **\n");
-		else if (time_left == 8) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:08^b **\n");
-		else if (time_left == 7) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:07^b **\n");
-		else if (time_left == 6) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:06^b **\n");
-		else if (time_left == 5) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:05^b **\n");
-		else if (time_left == 4) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:04^b **\n");
-		else if (time_left == 3) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:03^b **\n");
-		else if (time_left == 2) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:02^b **\n");
-		else if (time_left == 1) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:01^b **\n");
-		else if (time_left == 0) //time ran out
+		else if (time_left <= 0) //time ran out
 		{
 			if (endgame_timer == 0)
-				sound (world, CHAN_BODY, "ambience/gunfire5.wav", 1, ATTN_NONE);
-			if (endgame_timer == 2)
-				sound (world, CHAN_BODY, "ambience/gunfire5.wav", 1, ATTN_NONE);
-			if (endgame_timer == 3)
-				sound (world, CHAN_BODY, "ambience/gunfire5.wav", 1, ATTN_NONE);
-			if (endgame_timer == 4)
-				sound (world, CHAN_BODY, "ambience/gunfire5.wav", 1, ATTN_NONE);
+			{
+				ze = find (world, classname, "player");
+				while (ze != world)
+				{
+					ze.missionbrief = 3;
+					ze.announcercache = 7;
 
-			if (endgame_timer == 0)
-				bprint(2, "^4** ^bTHE EXPLOSIVES WERE NOT DEFUSED^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^b!!! MISSION SITE DESTROYED !!!^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
+					ze = find (ze, classname, "player");
+				}
+			}
 			if (endgame_timer == 5)
 				localcmd("restart\n");
-
-			sound (world, CHAN_BODY, "misc/menu3.wav", 1, ATTN_NONE);
 		}
 		if (pcount == 0 && pdead > 0)
 			endgame_timer = endgame_timer + 1;
-		if (bcount == 0)
+		else if (bcount == 0)
 			endgame_timer = endgame_timer + 1;
-		if (self.timer >= 300)
+		else if (self.timer >= 300)
+			endgame_timer = endgame_timer + 1;
+		else if (time_left <= 0)
 			endgame_timer = endgame_timer + 1;
 	}
 	else if (world.map_obj == OBJ_SUPPLY)
@@ -992,104 +881,49 @@ if (coop == 1) // Players vs Monsters
 
 		if (pcount == 0 && pdead > 0) //everyone died
 		{
-			if (endgame_timer == 0)
-				bprint(2, "^4** ^bYOUR SQUAD WAS SLAIN^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION FAILED^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
-			if (endgame_timer == 5)
+			ze = find (world, classname, "player");
+			while (ze != world)
+			{
+				ze.missionbrief = 3;
+				ze.announcercache = 1;
+
+
+				ze = find (ze, classname, "player");
+			}
+
+			if (endgame_timer == 10)
 				localcmd("restart\n");
 
 		}
 		else if (time_left <= 0) //time ran out
 		{
 			if (endgame_timer == 0)
-				bprint(2, "^4** ^bRADIATION CONSUMES EVERYONE^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION FAILED^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
-			if (endgame_timer == 5)
+			{
+				ze = find (world, classname, "player");
+				while (ze != world)
+				{
+					ze.missionbrief = 3;
+					ze.announcercache = 8;
+
+
+					ze = find (ze, classname, "player");
+				}
+			}
+			if (endgame_timer == 10)
 				localcmd("restart\n");
 
-			endgame_timer = endgame_timer + 1;
 		}
-		else if (time_left == 480) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 8:00^b **\n");
-		else if (time_left == 450) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:30^b **\n");
-		else if (time_left == 420) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:00^b **\n");
-		else if (time_left == 390) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:30^b **\n");
-		else if (time_left == 360) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:00^b **\n");
-		else if (time_left == 330) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:30^b **\n");
-		else if (time_left == 300) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:00^b **\n");
-		else if (time_left == 270) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:30^b **\n");
-		else if (time_left == 240) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:00^b **\n");
-		else if (time_left == 210) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:30^b **\n");
-		else if (time_left == 180) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:00^b **\n");
-		else if (time_left == 150) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:30^b **\n");
-		else if (time_left == 120) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:00^b **\n");
-		else if (time_left == 90) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:30^b **\n");
-		else if (time_left == 60) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:00^b **\n");
-		else if (time_left == 45) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:45^b **\n");
-		else if (time_left == 30) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:30^b **\n");
-		else if (time_left == 15) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:15^b **\n");
-		else if (time_left == 10) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:10^b **\n");
-		else if (time_left == 9) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:09^b **\n");
-		else if (time_left == 8) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:08^b **\n");
-		else if (time_left == 7) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:07^b **\n");
-		else if (time_left == 6) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:06^b **\n");
-		else if (time_left == 5) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:05^b **\n");
-		else if (time_left == 4) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:04^b **\n");
-		else if (time_left == 3) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:03^b **\n");
-		else if (time_left == 2) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:02^b **\n");
-		else if (time_left == 1) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:01^b **\n");
 		else if (supplies == 0) //supplies secured
 		{
 			if (endgame_timer == 0)
 			{
-				bprint(2, "^4** ^bTHE SUPPLIES WERE SECURED!!!^b **\n");
-				bprint(2, "^4** ^bMISSION COMPLETED, RETURN TO BASE^b **\n");
 				ze = find (world, classname, "player");
 				while (ze != world)
 				{
-					ze.ammo_shells = ze.ammo_shells + 25;
-					stuffcmd(ze, "play music/victory\n");
+					ze.missionbrief = 3;
+					ze.announcercache = 9;
+
+
 					ze = find (ze, classname, "player");
 				}
 			}
@@ -1104,6 +938,8 @@ if (coop == 1) // Players vs Monsters
 			endgame_timer = endgame_timer + 1;
 		else if (supplies == 0)
 			endgame_timer = endgame_timer + 1;
+		else if (time_left <= 0)
+			endgame_timer = endgame_timer + 1;
 	}
 	else if (world.map_obj == OBJ_SHADOW)
 	{
@@ -1112,29 +948,31 @@ if (coop == 1) // Players vs Monsters
 		if (pcount == 0 && pdead > 0) //everyone died
 		{
 			if (endgame_timer == 0)
-				bprint(2, "^4** ^bYOUR SQUAD WAS SLAIN^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION FAILED^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
-			if (endgame_timer == 5)
+			{
+				ze = find (world, classname, "player");
+				while (ze != world)
+				{
+					ze.missionbrief = 3;
+					ze.announcercache = 1;
+
+
+					ze = find (ze, classname, "player");
+				}
+			}
+			if (endgame_timer == 10)
 				localcmd("restart\n");
 		}
 		else if (commanders == 0) //commanders assassinated
 		{
 			if (endgame_timer == 0)
 			{
-				bprint(2, "^4** ^bTHE COMMANDERS WERE NEUTRALIZED!!!^b **\n");
-				bprint(2, "^4** ^bMISSION COMPLETED, RETURN TO BASE^b **\n");
 				ze = find (world, classname, "player");
 				while (ze != world)
 				{
-					ze.ammo_shells = ze.ammo_shells + 25;
-					stuffcmd(ze, "play music/victory\n");
+					ze.missionbrief = 3;
+					ze.announcercache = 10;
+
+
 					ze = find (ze, classname, "player");
 				}
 			}
@@ -1144,92 +982,38 @@ if (coop == 1) // Players vs Monsters
 				changelevel ("r_bunker");
 			}
 		}
-		else if (time_left <= 0 && intermission_running == 0) //time ran out
+		else if (time_left <= 0) //time ran out
 		{
 			if (endgame_timer == 0)
-				bprint(2, "^4** ^bRADIATION CONSUMES EVERYONE^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION FAILED^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
-			if (endgame_timer == 5)
-				localcmd("restart\n");
+			{
+				ze = find (world, classname, "player");
+				while (ze != world)
+				{
+					ze.missionbrief = 3;
+					ze.announcercache = 11;
 
-			endgame_timer = endgame_timer + 1;
+
+					ze = find (ze, classname, "player");
+				}
+			}
+			if (endgame_timer == 10)
+				localcmd("restart\n");
 		}
-		else if (time_left == 480) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 8:00^b **\n");
-		else if (time_left == 450) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:30^b **\n");
-		else if (time_left == 420) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:00^b **\n");
-		else if (time_left == 390) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:30^b **\n");
-		else if (time_left == 360) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:00^b **\n");
-		else if (time_left == 330) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:30^b **\n");
-		else if (time_left == 300) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:00^b **\n");
-		else if (time_left == 270) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:30^b **\n");
-		else if (time_left == 240) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:00^b **\n");
-		else if (time_left == 210) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:30^b **\n");
-		else if (time_left == 180) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:00^b **\n");
-		else if (time_left == 150) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:30^b **\n");
-		else if (time_left == 120) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:00^b **\n");
-		else if (time_left == 90) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:30^b **\n");
-		else if (time_left == 60) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:00^b **\n");
-		else if (time_left == 45) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:45^b **\n");
-		else if (time_left == 30) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:30^b **\n");
-		else if (time_left == 15) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:15^b **\n");
-		else if (time_left == 10) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:10^b **\n");
-		else if (time_left == 9) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:09^b **\n");
-		else if (time_left == 8) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:08^b **\n");
-		else if (time_left == 7) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:07^b **\n");
-		else if (time_left == 6) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:06^b **\n");
-		else if (time_left == 5) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:05^b **\n");
-		else if (time_left == 4) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:04^b **\n");
-		else if (time_left == 3) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:03^b **\n");
-		else if (time_left == 2) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:02^b **\n");
-		else if (time_left == 1) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:01^b **\n");
 		else if (called_in >= 5) //soldier radioed in
 		{
 			if (endgame_timer == 0)
-				bprint(2, "^4** ^bYOUR SQUAD WAS DISCOVERED^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION FAILED^b **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 5)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 6)
-				bprint(2, "^4** 1 **\n");
-			if (endgame_timer == 7)
+			{
+				ze = find (world, classname, "player");
+				while (ze != world)
+				{
+					ze.missionbrief = 3;
+					ze.announcercache = 12;
+
+
+					ze = find (ze, classname, "player");
+				}
+			}
+			if (endgame_timer == 10)
 				localcmd("restart\n");
 		}
 
@@ -1237,103 +1021,7 @@ if (coop == 1) // Players vs Monsters
 			endgame_timer = endgame_timer + 1;
 		else if (called_in >= 5)
 			endgame_timer = endgame_timer + 1;
-	}
-	else if (world.map_obj == OBJ_DEADTOWN)
-	{
-		time_left = time_left - 1;
-
-		if (time_left <= 0 && intermission_running == 0) //time ran out
-		{
-			if (endgame_timer == 0)
-				bprint(2, "^4** ^bRADIATION CONSUMES EVERYONE^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION FAILED^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
-			if (endgame_timer == 5)
-				localcmd("restart\n");
-
-			endgame_timer = endgame_timer + 1;
-		}
-		else if (time_left == 480) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 8:00^b **\n");
-		else if (time_left == 450) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:30^b **\n");
-		else if (time_left == 420) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:00^b **\n");
-		else if (time_left == 390) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:30^b **\n");
-		else if (time_left == 360) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:00^b **\n");
-		else if (time_left == 330) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:30^b **\n");
-		else if (time_left == 300) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:00^b **\n");
-		else if (time_left == 270) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:30^b **\n");
-		else if (time_left == 240) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:00^b **\n");
-		else if (time_left == 210) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:30^b **\n");
-		else if (time_left == 180) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:00^b **\n");
-		else if (time_left == 150) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:30^b **\n");
-		else if (time_left == 120) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:00^b **\n");
-		else if (time_left == 90) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:30^b **\n");
-		else if (time_left == 60) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:00^b **\n");
-		else if (time_left == 45) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:45^b **\n");
-		else if (time_left == 30) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:30^b **\n");
-		else if (time_left == 15) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:15^b **\n");
-		else if (time_left == 10) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:10^b **\n");
-		else if (time_left == 9) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:09^b **\n");
-		else if (time_left == 8) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:08^b **\n");
-		else if (time_left == 7) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:07^b **\n");
-		else if (time_left == 6) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:06^b **\n");
-		else if (time_left == 5) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:05^b **\n");
-		else if (time_left == 4) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:04^b **\n");
-		else if (time_left == 3) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:03^b **\n");
-		else if (time_left == 2) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:02^b **\n");
-		else if (time_left == 1) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:01^b **\n");
-		else if (pcount == 0 && pdead > 0 && called_in == 0) //everyone died
-		{
-			if (endgame_timer == 0)
-				bprint(2, "^4** ^bYOUR SQUAD WAS SLAIN^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION FAILED^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
-			if (endgame_timer == 5)
-				localcmd("restart\n");
-		}
-
-		if (pcount == 0 && pdead > 0)
-			endgame_timer = endgame_timer + 1;
-		else if (called_in == 1)
+		else if (time_left <= 0)
 			endgame_timer = endgame_timer + 1;
 	}
 	else if (world.map_obj == OBJ_DESTROY)
@@ -1343,16 +1031,18 @@ if (coop == 1) // Players vs Monsters
 		if (pcount == 0 && pdead > 0 && called_in == 0) //everyone died
 		{
 			if (endgame_timer == 0)
-				bprint(2, "^4** ^bYOUR SQUAD WAS SLAIN^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION FAILED^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
-			if (endgame_timer == 5)
+			{
+				ze = find (world, classname, "player");
+				while (ze != world)
+				{
+					ze.missionbrief = 3;
+					ze.announcercache = 1;
+
+
+					ze = find (ze, classname, "player");
+				}
+			}
+			if (endgame_timer == 10)
 				localcmd("restart\n");
 
 		}
@@ -1360,17 +1050,16 @@ if (coop == 1) // Players vs Monsters
 		{
 			if (endgame_timer == 0)
 			{
-				bprint(2, "^4** ^bTHE FUEL TANKS WERE DESTROYED!!!^b **\n");
 				ze = find (world, classname, "player");
 				while (ze != world)
 				{
-					ze.ammo_shells = ze.ammo_shells + 25;
-					stuffcmd(ze, "play music/victory\n");
+					ze.missionbrief = 3;
+					ze.announcercache = 13;
+
+
 					ze = find (ze, classname, "player");
-				}       
+				}
 			}
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION COMPLETED, RETURN TO BASE^b **\n");
 			if (endgame_timer == 10)
 			{
 				localcmd("serverinfo objective return\n");
@@ -1380,80 +1069,29 @@ if (coop == 1) // Players vs Monsters
 		else if (time_left <= 0) //time ran out
 		{
 			if (endgame_timer == 0)
-				bprint(2, "^4** ^bRADIATION CONSUMES EVERYONE^b **\n");
-			if (endgame_timer == 1)
-				bprint(2, "^4** ^bMISSION FAILED^b **\n");
-			if (endgame_timer == 2)
-				bprint(2, "^4** 3 **\n");
-			if (endgame_timer == 3)
-				bprint(2, "^4** 2 **\n");
-			if (endgame_timer == 4)
-				bprint(2, "^4** 1 **\n");
-			if (endgame_timer == 5)
-				localcmd("restart\n");
+			{
+				ze = find (world, classname, "player");
+				while (ze != world)
+				{
+					ze.missionbrief = 3;
+					ze.announcercache = 14;
 
-			endgame_timer = endgame_timer + 1;
+
+					ze = find (ze, classname, "player");
+				}
+			}
+			if (endgame_timer == 10)
+			{
+				localcmd("serverinfo objective return\n");
+				changelevel ("r_bunker");
+			}
 		}
-		else if (time_left == 480) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 8:00^b **\n");
-		else if (time_left == 450) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:30^b **\n");
-		else if (time_left == 420) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 7:00^b **\n");
-		else if (time_left == 390) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:30^b **\n");
-		else if (time_left == 360) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 6:00^b **\n");
-		else if (time_left == 330) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:30^b **\n");
-		else if (time_left == 300) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 5:00^b **\n");
-		else if (time_left == 270) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:30^b **\n");
-		else if (time_left == 240) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 4:00^b **\n");
-		else if (time_left == 210) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:30^b **\n");
-		else if (time_left == 180) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 3:00^b **\n");
-		else if (time_left == 150) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:30^b **\n");
-		else if (time_left == 120) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 2:00^b **\n");
-		else if (time_left == 90) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:30^b **\n");
-		else if (time_left == 60) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 1:00^b **\n");
-		else if (time_left == 45) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:45^b **\n");
-		else if (time_left == 30) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:30^b **\n");
-		else if (time_left == 15) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:15^b **\n");
-		else if (time_left == 10) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:10^b **\n");
-		else if (time_left == 9) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:09^b **\n");
-		else if (time_left == 8) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:08^b **\n");
-		else if (time_left == 7) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:07^b **\n");
-		else if (time_left == 6) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:06^b **\n");
-		else if (time_left == 5) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:05^b **\n");
-		else if (time_left == 4) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:04^b **\n");
-		else if (time_left == 3) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:03^b **\n");
-		else if (time_left == 2) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:02^b **\n");
-		else if (time_left == 1) //time ran out
-				bprint(2, "^4** ^bTIME LEFT: 0:01^b **\n");
 
 		if (pcount == 0 && pdead > 0)
 			endgame_timer = endgame_timer + 1;
 		else if (supplies == 0)
+			endgame_timer = endgame_timer + 1;
+		else if (time_left <= 0)
 			endgame_timer = endgame_timer + 1;
 	}
 	self.think = GameControl;
@@ -1785,7 +1423,7 @@ void () RecoilControl =
 				te.drifty = 250;
 
 	//support fire: going prone gives a -10 recoil bonus with this perk during heavy fire
-		if (getperk(1) && self.position == 2 && te.recoil > 5)
+		if (getperk(1) && self.position == 2 && te.recoil > 3)
 			te.recoil = te.recoil - 0.10;
 
 
@@ -1948,6 +1586,7 @@ void() worldspawn =
 	precache_model ("progs/s_explod.spr");  // sprite explosion
 	precache_model ("progs/ammobox.mdl");
 	precache_model ("progs/ammobox2.mdl");
+	precache_model ("progs/stop.spr");
 
 	precache_model ("progs/v_axe.mdl");
 	precache_model ("progs/v_span.mdl");
@@ -2006,6 +1645,7 @@ void() worldspawn =
 	precache_model ("progs/blast.mdl");
 	precache_model ("progs/ray.mdl");
 	precache_model ("progs/radio.spr");
+
 
 	precache_model ("progs/w_spear.mdl");
 	precache_model ("progs/w_span.mdl");

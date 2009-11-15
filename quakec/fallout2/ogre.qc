@@ -122,10 +122,10 @@ void (float tmp, float dam) ogre_smg =
 	sound (self, CHAN_WEAPON, "weapons/mp7.wav", 1, ATTN_NORM);
 
 
-	tmp = 350;
+	tmp = 300;
 
 
-	dam = 15;
+	dam = 10;
 
 	if (self.enemy.sneak == 1)
 		tmp = tmp * 2;

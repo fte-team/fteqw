@@ -22,82 +22,83 @@ void () hos_stand5 = [ 15, hos_stand1 ]
 
 void () hos_run1 = [ 0, hos_run2 ]
 {
-	hos_forward (MULTICAST_PVS_R);
+	ai_forward(5);
 };
 
 void () hos_run2 = [ 1, hos_run3 ]
 {
-	hos_forward (AS_MELEE);
+	ai_forward(5);
 };
 
 void () hos_run3 = [ 2, hos_run4 ]
 {
-	hos_forward (MULTICAST_PVS_R);
+	ai_forward(5);
 };
 
 void () hos_run4 = [ 3, hos_run5 ]
 {
-	hos_forward (AS_MELEE);
+	ai_forward(5);
 };
 
 void () hos_run5 = [ 4, hos_run6 ]
 {
-	hos_forward (MULTICAST_PVS_R);
+	ai_forward(5);
 };
 
 void () hos_run6 = [ 5, hos_run1 ]
 {
-	hos_forward (AS_MELEE);
+	ai_forward(5);
 };
 
 void () hos_walk1 = [ 16, hos_walk2 ]
 {
-	hos_forward (MULTICAST_PVS_R);
+	ai_forward(5);
 };
 
 void () hos_walk2 = [ 17, hos_walk3 ]
 {
-	hos_forward (AS_MELEE);
+	ai_forward(5);
 };
 
 void () hos_walk3 = [ 18, hos_walk4 ]
 {
-	hos_forward (MULTICAST_PVS_R);
+	ai_forward(5);
 };
 
 void () hos_walk4 = [ 19, hos_walk5 ]
 {
-	hos_forward (AS_MELEE);
+	ai_forward(5);
 };
 
 void () hos_walk5 = [ 20, hos_walk6 ]
 {
-	hos_forward (MULTICAST_PVS_R);
+	ai_forward(5);
 };
 
 void () hos_walk6 = [ 21, hos_walk7 ]
 {
-	hos_forward (AS_MELEE);
+	ai_forward(5);
 };
 
 void () hos_walk7 = [ 22, hos_walk8 ]
 {
-	hos_forward (MULTICAST_PVS_R);
+	self.angles_y = random()*360;
+	ai_forward(5);
 };
 
 void () hos_walk8 = [ 23, hos_walk9 ]
 {
-	hos_forward (AS_MELEE);
+	ai_forward(5);
 };
 
 void () hos_walk9 = [ 24, hos_walk10 ]
 {
-	hos_forward (MULTICAST_PVS_R);
+	ai_forward(5);
 };
 
 void () hos_walk10 = [ 25, hos_walk1 ]
 {
-	hos_forward (AS_MELEE);
+	ai_forward(5);
 };
 
 void () hos_deatha1 = [ 6, hos_deatha2 ]
@@ -251,7 +252,7 @@ void (vector jojo) spawn_civilian =
 	self.netname = "civilian";
 	self.classname = "rhostage";
 	self.max_health = self.health;
-	hos_stand1 ();
+	hos_walk1 ();
 	self.th_die = hostage_die;
 	self.th_pain = hostage_pain;
 	self.rescued = 0;
@@ -285,7 +286,7 @@ void (vector jojo) spawn_civilian =
 		}
 	}
 
-	te = findradius (self.origin, 40);
+	te = findradius (self.origin, 24);
 	while (te)
 	{
 		if (te.classname == "player" || te.classname == "monster" && te.health > 0)

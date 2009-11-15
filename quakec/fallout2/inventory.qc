@@ -1111,17 +1111,17 @@ float(float iid) GetItemWeight =
 	if (iid == IID_ARM_VANDAL)
 		return 10;
 	if (iid == IID_ARM_METAL)
-		return 20;
+		return 25;
 	if (iid == IID_ARM_TESLA)
-		return 12;
+		return 10;
 	if (iid == IID_ARM_COMBAT)
-		return 14;
+		return 15;
 	if (iid == IID_ARM_SEVA)
-		return 16;
+		return 15;
 	if (iid == IID_ARM_FORCE)
-		return 9;
+		return 10;
 	if (iid == IID_ARM_LPOWER)
-		return 20;
+		return 35;
 
 	if (iid == IID_BUILD_MRAMMO)
 		return 2;
@@ -1281,7 +1281,7 @@ string(float iid) GetItemName =
 	if (iid == IID_GREN_STUN)
 		return "stun grenade";
 	if (iid == IID_GREN_FRAG)
-		return "frag grenade";
+		return "nuka grenade";
 	if (iid == IID_GREN_EMP)
 		return "emp grenade";
 	if (iid == IID_GREN_SMOKE)
@@ -1587,7 +1587,7 @@ float(float iid) GetBaseValue =
 	if (iid == IID_EQUIP_TOOLKIT)
 		return 50;
 	if (iid == IID_EQUIP_BACKPACK)
-		return 100;
+		return 10;
 	if (iid == IID_EQUIP_CLIMBINGGEAR)
 		return 150;
 	if (iid == IID_EQUIP_BATTERY)
@@ -2578,9 +2578,9 @@ string (float slot, float int) PerkName =
 		if (int == 3)
 			return "Harmless";
 		if (int == 4)
-			return "Hit The Deck";
+			return "Stay Low";
 		if (int == 5)
-			return "Living Anatomy";
+			return "Surgical Precision";
 		if (int == 6)
 			return "Mutation";
 		if (int == 7)
@@ -2596,25 +2596,25 @@ string (float slot, float int) PerkName =
 string (float slot, float int) PerkNameCentered =
 {
 		if (int == 1)
-			return " Support Fire";
+			return "  Support Fire";
 		if (int == 2)
-			return "Duck And Cover";
+			return " Duck And Cover";
 		if (int == 3)
-			return "   Harmless";
+			return "    Harmless";
 		if (int == 4)
-			return " Hit The Deck";
+			return "    Stay Low";
 		if (int == 5)
-			return "Living Anatomy";
+			return "Surgical Precision";
 		if (int == 6)
-			return "   Mutation";
+			return "    Mutation";
 		if (int == 7)
-			return "Narrow Escape";
+			return "  Narrow Escape";
 		if (int == 8)
-			return "Schizophrenia";
+			return "  Schizophrenia";
 		if (int == 9)
-			return " Sleep Tight";
+			return "   Sleep Tight";
 		if (int == 10)
-			return "Economic Moves";
+			return "  Economic Moves";
 };
 
 
@@ -2627,9 +2627,9 @@ string(float int) GetPerkImage =
 	else if (int == 3)
 		return "gui/perks/Harmless.jpg";
 	else if (int == 4)
-		return "gui/perks/Hit The Deck.jpg";
+		return "gui/perks/Stay Low.jpg";
 	else if (int == 5)
-		return "gui/perks/Living Anatomy.jpg";
+		return "gui/perks/Surgical Precision.jpg";
 	else if (int == 6)
 		return "gui/perks/Mutation.jpg";
 	else if (int == 7)
@@ -2663,9 +2663,9 @@ string(float int) GetPerkDesc =
 	else if (int == 7)
 		return "Provides you a few hassle-free seconds to escape danger";
 	else if (int == 8)
-		return "You sometimes gain additional skills from another place";
+		return "You may gain additional skills from an unknown source";
 	else if (int == 9)
-		return "Automatically kill anything with knife in sneak mode";
+		return "Paralyze anything with a sneak attack from a knife";
 	else if (int == 10)
 		return "Suffer less time-related penalties for all actions";
 	else

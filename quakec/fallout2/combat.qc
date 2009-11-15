@@ -126,7 +126,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 
 	damage = floor(damage);
 	targ.health = floor(targ.health);
-
+/*
 	if (attacker.classname == "player" && total_players == 4)
 		damage = floor(damage * 0.75);
 	if (attacker.classname == "player" && total_players == 3)
@@ -134,8 +134,8 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	else if (attacker.classname == "player" && total_players == 2)
 		damage = floor(damage * 0.90);
 
-	if (attacker.classname == "monster")
-		damage = floor(damage * 0.80);
+	if (targ.classname == "player")
+		damage = floor(damage * 0.60);*/
 
 
 //getting hurt is slightly painful to the score, play cautiously!
@@ -255,14 +255,12 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 			damage = damage * 0.90;
 	}
 
+
 	//sneak attack: if you attack a creature who isn't fighting you, bonus damage
 	if (attacker.skill_sneak > 0)
 	{
 		if (targ.enemy != attacker)
-		{
-			sprint(attacker, 2, "!SNEAK ATTACK\n");
-			damage = damage * (1 + (self.skill_sneak/100));
-		}
+			damage = damage * (1 + (attacker.skill_sneak/100));
 	}
 
 	//death wish: 20% damage bonus to targ, 10% to attacker
@@ -457,25 +455,25 @@ take = damage;
 		take -= 3;
 		break;
 	case IID_ARM_VANDAL:
-		take -= 4;
-		break;
-	case IID_ARM_METAL:
 		take -= 5;
 		break;
+	case IID_ARM_METAL:
+		take -= 1;
+		break;
 	case IID_ARM_TESLA:
-		take -= 9;
+		take -= 6;
 		break;
 	case IID_ARM_COMBAT:
 		take -= 6;
 		break;
 	case IID_ARM_SEVA:
-		take -= 8;
+		take -= 6;
 		break;
 	case IID_ARM_FORCE:
-		take -= 13;
+		take -= 9;
 		break;
 	case IID_ARM_LPOWER:
-		take -= 11;
+		take -= 10;
 		break;
 	default:
 		break;
@@ -490,22 +488,22 @@ take = damage;
 		take = take * 0.70;
 		break;
 	case IID_ARM_METAL:
-		take = take * 0.50;
+		take = take * 0.40;
 		break;
 	case IID_ARM_TESLA:
-		take = take * 0.65;
+		take = take * 0.60;
 		break;
 	case IID_ARM_COMBAT:
 		take = take * 0.60;
 		break;
 	case IID_ARM_SEVA:
-		take = take * 0.55;
+		take = take * 0.60;
 		break;
 	case IID_ARM_FORCE:
 		take = take * 0.90;
 		break;
 	case IID_ARM_LPOWER:
-		take = take * 0.50;
+		take = take * 0.40;
 		break;
 	default:
 		break;

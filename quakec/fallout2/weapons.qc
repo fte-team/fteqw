@@ -11,6 +11,7 @@ void (string snd, float type) function_radio;
 void () MapInfo;
 void (entity targ, entity inflictor, entity attacker, float damage) T_Damage;
 void () player_run;
+void () walkmonster_start;
 void(entity bomb, entity attacker, float rad, entity ignore, string dtype) T_RadiusDamage;
 void(entity bomb, entity attacker, float rad, entity ignore, float xrange) T_RadiusDamage2;
 void() ZoomIn;
@@ -29,6 +30,7 @@ void (float dam, float rec, string snd, float rng, float rate) FireSMG;
 float() FireToolkit;
 void () HostageReport;
 void (entity jeb, float time) spawn_excla;
+void (entity jeb, float time) spawn_stop;
 void () FireAlienBlaster;
 void () W_PlayerMenu;
 void () player_single_shot;
@@ -124,7 +126,7 @@ void(float slotno) UsePerk =
 		return;
 	}
 
-	if (self.perk1 == 7 || self.perk2 == 7)
+	if ((self.perk1 == 7 && slotno == 1) || (self.perk2 == 7 && slotno == 2))
 	{
 		if (slotno == 1)
 			self.perk1timer = 2000;
@@ -137,8 +139,10 @@ void(float slotno) UsePerk =
 		while (te)
 		{
 			if (te.classname == "monster")
-				te.hold = 100;
-
+			{
+				te.hold = 80;
+				spawn_stop(te, 10);
+			}
 			te = te.chain;
 		}
 	}
@@ -1931,12 +1935,7 @@ void () ProneOn =
 	self.position = 2;
 	self.view_ofs = '0 0 -10';
 	sprint (self, 2, "position: prone.\n");
-	if (getperk(10))
-	{
-		self.attack_finished = time + 0.5;
-		self.rtime = time + 0.5;
-	}
-	else
+	if (!getperk(10))
 	{
 		self.attack_finished = time + 1.5;
 		self.rtime = time + 1.5;
@@ -2502,7 +2501,7 @@ void () Explosion =
 	//self.nextthink = (time + 0.02);
 };
 
-void () FragExplode =
+void (float skill) FragExplode =
 {
 	local float r, d;
 	local entity te;
@@ -2514,7 +2513,6 @@ void () FragExplode =
 	setorigin (self, self.origin);
 	setsize (self, '0 0 0', '0 0 0');
 
-	bprint(2, "fragex\n");
 	Explosion();
 
 	te = findradius(self.origin, 400);
@@ -2531,10 +2529,10 @@ void () FragExplode =
 		te = te.chain;
 	}
 
-	r = 400 + self.skill_science*2;
-	d = 65+random()*65 + self.skill_science;
+	r = 200 + skill*20;
+	d = 10 + skill*10;
 
-	T_RadiusDamage2 (self, self.owner, 65+random()*65, other, r);
+	T_RadiusDamage2 (self, self.owner, d+random()*40, other, r);
 	remove (self);
 };
 
@@ -4215,8 +4213,8 @@ void () UseStimpack =
 				thing = thing.chain;      
 			}
 
-			self.health = self.health + 10 + (self.skill_doctor/2);
-			self.regen = self.regen + (3 + (self.skill_doctor/2));
+			self.health = self.health + 30 + (self.skill_doctor);
+			self.regen = self.regen + (5 + (self.skill_doctor/2));
 		}
 	}
 	else if (trace_ent.classname == "player")//healing another team-mate
@@ -4287,7 +4285,7 @@ void () UseStimpack =
 				sprint(self, PRINT_MEDIUM, trace_ent.netname);
 				sprint(self, PRINT_MEDIUM, " with a stimpack\n");
 
-				trace_ent.health = trace_ent.health + 10 + (self.skill_doctor/2);
+				trace_ent.health = trace_ent.health + 30 + (self.skill_doctor);
 				trace_ent.regen = trace_ent.regen + (3 + (self.skill_doctor/2));
 			}
 		}
@@ -4439,13 +4437,13 @@ void () UseMedicalBag =
 			while (thing)
 			{
 				if (thing.classname == "player" && (thing.health+20) < self.health)
-					self.score = self.score - 50;        
+					self.score = self.score - 25;        
               
 				thing = thing.chain;      
 			}
 
 			sound (self, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
-			sprint(self, PRINT_MEDIUM, "you start to bandage yourself\n");
+			self.health = self.health + 5 + (self.skill_doctor/2);
 			self.regen = self.regen + 3 + (self.skill_doctor/2);
 		}
 	}
@@ -4495,13 +4493,8 @@ void () UseMedicalBag =
 			else
 			{
 				sound (trace_ent, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
-				self.score = self.score + 10;
-				sprint(trace_ent, PRINT_MEDIUM, self.netname);
-				sprint(trace_ent, PRINT_MEDIUM, " bandages your wounds\n");
-				sprint(self, PRINT_MEDIUM, "you heal ");
-				sprint(self, PRINT_MEDIUM, trace_ent.netname);
-				sprint(self, PRINT_MEDIUM, " with a stimpack\n");
-
+				self.score = self.score + 1;
+				trace_ent.health = trace_ent.health + 5 + (self.skill_doctor/2);
 				trace_ent.regen = trace_ent.regen + 3 + (self.skill_doctor/2);
 			}
 		}
@@ -5127,8 +5120,7 @@ void () Sneak =
 
 	if (self.sneak >= 1)
 	{
-		sound (self, CHAN_BODY, "items/inv1.wav", 1, ATTN_NORM);
-		centerprint (self, " Uncloaked \n");
+		sound (self, CHAN_BODY, "items/r_tele4.wav", 1, ATTN_NORM);
 		setmodel (self, "progs/guy.mdl");
 		self.sneak = 0;
 		return;
@@ -5137,7 +5129,6 @@ void () Sneak =
 	{
 		disappear();
 		sound (self, CHAN_BODY, "items/inv1.wav", 1, ATTN_NORM);
-		centerprint (self, " sneaking \n");
 		self.sneak = 1;
 		return;
 	}
@@ -5377,29 +5368,19 @@ void () Bar_Think =
 {
 	local float dot1;
 
-
-	if (self.owner.health >= self.owner.max_health)
-	{
-		self.frame = 0;
-		setmodel (self, "");
-		self.nextthink = time + 0.01;
-		return;
-	}
 	self.flags = self.flags;
 
-	if (self.owner.health >= 1)
-	{
-		self.frame = floor (((self.owner.health / self.owner.max_health) * TE_WIZSPIKE));
-		if (self.owner.position == 0)
-			setorigin (self, (self.owner.origin + '0 0 40'));
-		else if (self.owner.position == 1)
-			setorigin (self, (self.owner.origin + '0 0 32'));
-		else
-			setorigin (self, (self.owner.origin + '0 0 24'));
+	self.frame = floor (((self.owner.health / self.owner.max_health) * TE_WIZSPIKE));
 
-		self.nextthink = (time + 0.01);
-		setmodel (self, "progs/hbar.spr");
-	}
+	if (self.owner.position == 0)
+		setorigin (self, (self.owner.origin + '0 0 40'));
+	else if (self.owner.position == 1)
+		setorigin (self, (self.owner.origin + '0 0 32'));
+	else
+		setorigin (self, (self.owner.origin + '0 0 24'));
+
+	self.nextthink = (time + 0.01);
+	setmodel (self, "progs/hbar.spr");
 };
 
 void (entity guy) spawn_dot =
@@ -6181,7 +6162,25 @@ void (entity jeb, float length) spawn_excla =
 	hologram.solid = SOLID_NOT;
 	hologram.owner = jeb;
 	setmodel (hologram, "progs/radio.spr");
-	setorigin (hologram, jeb.origin);
+	setorigin (hologram, jeb.origin + '0 0 48');
+	setsize (hologram, VEC_ORIGIN, VEC_ORIGIN);
+	hologram.angles = jeb.angles;
+	hologram.colormap = jeb.colormap;
+	hologram.cnt = 100*length;
+	hologram.think = radio_think;
+	hologram.nextthink = (time + 0.01);
+};
+
+void (entity jeb, float length) spawn_stop =
+{
+	local entity hologram;
+
+	hologram = spawn ();
+	hologram.movetype = MOVETYPE_NONE;
+	hologram.solid = SOLID_NOT;
+	hologram.owner = jeb;
+	setmodel (hologram, "progs/stop.spr");
+	setorigin (hologram, jeb.origin + '0 0 48');
 	setsize (hologram, VEC_ORIGIN, VEC_ORIGIN);
 	hologram.angles = jeb.angles;
 	hologram.colormap = jeb.colormap;
@@ -6397,7 +6396,9 @@ float(vector org) light_level =
 	local float brightness;
 
 	light = getlight(self.origin);
-	brightness = light_x*0.3 + light_y*0.51 + light_z*0.2;
+	//brightness = light_x*0.3 + light_y*0.51 + light_z*0.2;
+
+	brightness = light_x + light_y + light_z;
 
 	return brightness;
 };
@@ -6411,6 +6412,13 @@ void() show_light_level =
 	y = ftos(x);
 
 	bprint(2, "light level: ");
+	bprint(2, y);
+	bprint(2, "\n");
+
+	x = self.waterlevel;
+	y = ftos(x);
+
+	bprint(2, "water level: ");
 	bprint(2, y);
 	bprint(2, "\n");
 };

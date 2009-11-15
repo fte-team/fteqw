@@ -8,6 +8,8 @@ float show_trader;
 float show_perks;
 float show_items;
 float show_gainperk;
+float scrwidth;
+float scrheight;
 
 vector mousepos;
 
@@ -214,6 +216,41 @@ void() ScreenImage =
 		drawpic('0 0 0', "gui/xflash.jpg", w, '1 1 1', 1);
 	else if (getstati(57) == 6)
 		drawpic('0 0 0', "gui/xcarnage.jpg", w, '1 1 1', 1);
+
+
+	w = '0 32 0'+('1 0 0'*(scrwidth*0.10))+('0 1 0'*(scrheight*0.20));
+
+	if (getstati(57) == 3)
+	{
+		if (getstati(105) == 1)
+			drawstring(w, "the players were slain...", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 2)
+			drawstring(w, "the hostages were slain...", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 3)
+			drawstring(w, "the hostages were saved!", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 4)
+			drawstring(w, "some hostages were saved.", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 5)
+			drawstring(w, "no hostages were saved...", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 6)
+			drawstring(w, "the bombs were defused!", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 7)
+			drawstring(w, "the bombs were not defused...", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 8)
+			drawstring(w, "the supplies were not found...", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 9)
+			drawstring(w, "the supplies were found!", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 10)
+			drawstring(w, "all commanders were slain!", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 11)
+			drawstring(w, "the players did not escape...", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 12)
+			drawstring(w, "the players were discovered...", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 13)
+			drawstring(w, "the fuel tanks were destroyed!", '8 8 8', '1 1 1', 1);
+		if (getstati(105) == 14)
+			drawstring(w, "the fuel tanks were not destroyed...", '8 8 8', '1 1 1', 1);
+	}
 
 };
 
@@ -480,19 +517,17 @@ void() Perks_Draw =
 
 
 
-	if (mousepos_y >= 2.5*IMGSIZEF && mousepos_y <= 3.5*IMGSIZEF)
+
+	if (mousepos_y >= 2.0*IMGSIZEF && mousepos_y <= 4*IMGSIZEF)
 	{
-
-	
-		if (mousepos_x >= 4*IMGSIZEF && mousepos_x <= 5*IMGSIZEF)
+		if (mousepos_x >= 3*IMGSIZEF && mousepos_x <= 5.5*IMGSIZEF)
 			selected_class = 8;
-
-		if (mousepos_x >= 6.5*IMGSIZEF && mousepos_x <= 7.5*IMGSIZEF)
+		else if (mousepos_x >= 6*IMGSIZEF && mousepos_x <= 7.5*IMGSIZEF)
 			selected_class = 9;
-			
+		else
+			selected_class = 0;		
 	}
-
-	if (mousepos_y >= 390 && mousepos_y <= 425)
+	else if (mousepos_y >= 390 && mousepos_y <= 425)
 	{
 
 
@@ -506,7 +541,8 @@ void() Perks_Draw =
 		else
 			selected_class = 0;
 	}
-
+	else
+		selected_class = 0;
 
 	perki = GetPerkImage(getstati(60));
 	perk2i = GetPerkImage(getstati(59));
@@ -519,8 +555,8 @@ void() Perks_Draw =
 	p1 = PerkNameCentered(1, getstati(60));
 	p2 = PerkNameCentered(2, getstati(59));
 
-	drawstring('4 4.5 0'*IMGSIZEF - '28 0 0', p1, '8 8 8', '1 1 1', 1);
-	drawstring('6 4.5 0'*IMGSIZEF + '8 0 0', p2, '8 8 8', '1 1 1', 1);
+	drawstring('4 4.5 0'*IMGSIZEF - '45 0 0', p1, '8 8 8', '1 1 1', 1);
+	drawstring('6 4.5 0'*IMGSIZEF - '7 0 0', p2, '8 8 8', '1 1 1', 1);
 
 
 
@@ -606,6 +642,8 @@ void() GainPerk_Draw =
 			which_perk = 8;
 		else if (mousepos_x >= 5*IMGSIZEF && mousepos_x <= 6*IMGSIZEF)
 			which_perk = 9;
+		else if (mousepos_x >= 6*IMGSIZEF && mousepos_x <= 7*IMGSIZEF)
+			which_perk = 10;
 		else
 			which_perk = 0;
 	}
@@ -613,13 +651,14 @@ void() GainPerk_Draw =
 	drawpic('2 2 0'*IMGSIZEF, "gui/perks/Support Fire.png", '64 64 0', '1 1 1', 1);
 	drawpic('3 2 0'*IMGSIZEF, "gui/perks/Duck And Cover", '64 64 0', '1 1 1', 1);
 	drawpic('4 2 0'*IMGSIZEF, "gui/perks/Harmless.png", '64 64 0', '1 1 1', 1);
-	drawpic('5 2 0'*IMGSIZEF, "gui/perks/Hit The Deck.png", '64 64 0', '1 1 1', 1);
-	drawpic('6 2 0'*IMGSIZEF, "gui/perks/Living Anatomy.png", '64 64 0', '1 1 1', 1);
+	drawpic('5 2 0'*IMGSIZEF, "gui/perks/Stay Low.png", '64 64 0', '1 1 1', 1);
+	drawpic('6 2 0'*IMGSIZEF, "gui/perks/Surgical Precision.png", '64 64 0', '1 1 1', 1);
 
 	drawpic('2 3 0'*IMGSIZEF, "gui/perks/Mutation.png", '64 64 0', '1 1 1', 1);
 	drawpic('3 3 0'*IMGSIZEF, "gui/perks/Narrow Escape.png", '64 64 0', '1 1 1', 1);
 	drawpic('4 3 0'*IMGSIZEF, "gui/perks/Schizophrenia.png", '64 64 0', '1 1 1', 1);
 	drawpic('5 3 0'*IMGSIZEF, "gui/perks/Sleep Tight.png", '64 64 0', '1 1 1', 1);
+	drawpic('6 3 0'*IMGSIZEF, "gui/perks/Economic Moves.png", '64 64 0', '1 1 1', 1);
 
 	pn = PerkName(1, which_perk);
 	pd = GetPerkDesc(which_perk);
@@ -1095,7 +1134,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							return;
 						if (which_perk == getstati(59))
 							return;
-						if (which_perk >= 1 && which_perk <= 9)
+						if (which_perk >= 1 && which_perk <= 10)
 							localcmd(strcat("cmd gainperk ", ftos(which_perk), " ", ftos(perkslot), "\n"));
 							show_inventory = false;
 							show_pipboy = false;

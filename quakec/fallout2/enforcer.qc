@@ -87,14 +87,9 @@ void (float tmp, float dam) enforcer_single =
 	else if (self.weapon == 6)
 		sound (self, CHAN_WEAPON, "weapons/moonlight-2.wav", 1, ATTN_NORM);
 
-	if (self.weapon == 3)
-		dam = 12;
-	else if (self.weapon == 4)
-		dam = 16;
-	else if (self.weapon == 5)
-		dam = 18;
-	else if (self.weapon == 6)
-		dam = 16;
+
+	dam = 12;
+	tmp = 500;
 
 	self.attack = self.attack + 1;
 
@@ -189,13 +184,13 @@ void()	enf_atk8	=[	$attack3,	enf_atk9	] {ai_face();};
 void()	enf_atk9	=[	$attack2,	enf_atk10	] {ai_face();};
 void()	enf_atk10	=[	$attack1,	enf_run1	] {ai_face();};
 
-void()	enf_burst1	=[	$attack5,	enf_burst2	] {enforcer_single(500, 13);};
-void()	enf_burst2	=[	$attack6,	enf_burst3	] {enforcer_single(500, 13);ai_face();};
-void()	enf_burst3	=[	$attack5,	enf_burst4	] {enforcer_single(50, 13);};
-void()	enf_burst4	=[	$attack6,	enf_burst5	] {enforcer_single(550, 13);ai_face();};
-void()	enf_burst5	=[	$attack5,	enf_burst6	] {enforcer_single(550, 13);};
-void()	enf_burst6	=[	$attack6,	enf_burst7	] {enforcer_single(500, 13);ai_face();};
-void()	enf_burst7	=[	$attack5,	enf_burst8	] {enforcer_single(550, 13);};
+void()	enf_burst1	=[	$attack5,	enf_burst2	] {enforcer_single(600, 13);};
+void()	enf_burst2	=[	$attack6,	enf_burst3	] {enforcer_single(600, 13);ai_face();};
+void()	enf_burst3	=[	$attack5,	enf_burst4	] {enforcer_single(600, 13);};
+void()	enf_burst4	=[	$attack6,	enf_burst5	] {enforcer_single(650, 13);ai_face();};
+void()	enf_burst5	=[	$attack5,	enf_burst6	] {enforcer_single(650, 13);};
+void()	enf_burst6	=[	$attack6,	enf_burst7	] {enforcer_single(650, 13);ai_face();};
+void()	enf_burst7	=[	$attack5,	enf_burst8	] {enforcer_single(650, 13);};
 void()	enf_burst8	=[	$attack4,	enf_burst9	] {enforcer_single(700, 13);ai_face();};
 void()	enf_burst9	=[	$attack3,	enf_burst10	] {ai_face();};
 void()	enf_burst10	=[	$attack2,	enf_run1	] {ai_face();};
@@ -452,7 +447,7 @@ void() monster_enforcer =
 		self.netname = "enforcer";
 
 		setsize (self, '-12 -12 -24', '12 12 32');
-		self.health = 200;
+		self.health = 150;
             self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
 		self.armortype = 0.5;
 		self.helmet = 1;

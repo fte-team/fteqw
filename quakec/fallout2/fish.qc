@@ -151,6 +151,8 @@ void(entity attacker, float damage)	fish_pain =
 
 void() monster_fish =
 {
+
+
 	precache_model2 ("progs/fish.mdl");
 
 	precache_sound2 ("fish/death.wav");
@@ -174,7 +176,8 @@ void() monster_fish =
 	self.th_die = f_death1;
 	self.th_pain = fish_pain;
 	self.th_melee = f_attack1;
-	
-	swimmonster_start ();
+
+	remove(self);
+	//swimmonster_start ();
 };
 

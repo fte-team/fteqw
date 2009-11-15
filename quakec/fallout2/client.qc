@@ -50,14 +50,10 @@ void() SetChangeParms =
 	(IT_KEY1 | IT_KEY2 | IT_INVISIBILITY | IT_INVULNERABILITY | IT_SUIT | IT_QUAD) );
 	
 
-	if (self.skill_combat > 0)
-		parm5 = self.skill_combat;
-	if (self.skill_doctor > 0)
-		parm6 = self.skill_doctor;
-	if (self.skill_sneak > 0)
-		parm7 = self.skill_sneak;
-	if (self.skill_science > 0)
-		parm14 = self.skill_science;
+	parm5 = self.skill_combat;
+	parm6 = self.skill_doctor;
+	parm7 = self.skill_sneak;
+	parm14 = self.skill_science;
 
 
 
@@ -1264,7 +1260,7 @@ void() SneakLevel =
 
 	front = 0;
 
-	te = findradius(self.origin, 1000);
+	te = findradius(self.origin, 1500);
 	while (te)
 	{
 		if (visible(te) && te.classname == "monster" && check_fov(te))			
@@ -1275,7 +1271,7 @@ void() SneakLevel =
 	}
 
 
-	sn = 90 + self.skill_sneak*0.5;
+	sn = 90 + self.skill_sneak/2;
 
 	//sneaking along a wall increases chance by 2%
 	makevectors(self.angles);
@@ -1288,9 +1284,9 @@ void() SneakLevel =
 	else if (pointcontents (self.origin - v_forward*64) == CONTENT_SOLID)
 		sn = sn + 2;
 
-	//duck or prone gives a 1% bonus to stealth
+	//duck or prone gives a 2% bonus to stealth
 	if (self.position > 0)
-		sn = sn + 1;
+		sn = sn + 2;
 
 	//walking in front of a monster at close range is very bad
 	//at longer ranges it isn't so bad to do so
@@ -1300,36 +1296,34 @@ void() SneakLevel =
 	{
 		r = 600 - r;
 		q = 3 + (self.skill_sneak/2);
+		//stealthboy gives a bonus to sneak range
+		st = ToIID(self.islot4);
+		if (st == IID_EQUIP_STEALTHBOY)
+			q = 3 + (self.skill_sneak/2) + 3;
 
 		sn = sn - r/q;
 	}
 
 
-	//wearing no armor gives a 5% bonus to stealth
+	//combat armor gives a penalty to stealth
 	st = ToIID(self.islot3);
-	if (st == 0)
-		sn = sn + 5;
-
-	//bulletproof shirt gives a 2% bonus to stealth
-	st = ToIID(self.islot3);
-	if (st == IID_ARM_LEATHER)
-		sn = sn + 2;
+	if (st == IID_ARM_COMBAT || st == IID_ARM_SEVA)
+		sn = sn - 5;
 
 	//metal armor gives a large penalty to stealth
 	st = ToIID(self.islot3);
 	if (st == IID_ARM_METAL)
-		sn = sn - 5;
+		sn = sn - 10;
 
 	//power armor gives a huge penalty to stealth
 	st = ToIID(self.islot3);
 	if (st == IID_ARM_LPOWER)
-		sn = sn - 10;
+		sn = sn - 25;
 
-
-	//stealthboy allows for an automatic 10-second invisibility
-	st = ToIID(self.islot4);
-	if (st == IID_EQUIP_STEALTHBOY && self.ammo_cells > 0)
-		sn = 99;
+	//tesla armor gives a massive penalty to stealth
+	st = ToIID(self.islot3);
+	if (st == IID_ARM_TESLA)
+		sn = sn - 40;
 
 	if (sn <= 5)
 		sn = 5;
@@ -1559,6 +1553,8 @@ void() PlayerPreThink =
 
 		if (self.perk2timer > 0)
 			self.perk2timer = self.perk2timer - 1;
+
+	self.shadowtime = time_left;
 
 	if (self.cycle1 < time)
 	{

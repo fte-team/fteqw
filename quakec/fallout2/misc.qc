@@ -934,19 +934,19 @@ void() brotherhood_merchant =
 
 	
 	self.xslot1 = SlotVal(IID_WP_USP, 1);
-	self.xslot6 = SlotVal(IID_AM_45ACP, 30);
+	self.xslot6 = SlotVal(IID_AM_45ACP, 100);
 
 	self.xslot2 = SlotVal(IID_WP_PIPERIFLE, 1);
-	self.xslot7 = SlotVal(IID_AM_44MAGNUM, 30);
+	self.xslot7 = SlotVal(IID_AM_44MAGNUM, 100);
 
 	self.xslot3 = SlotVal(IID_WP_WINCHESTER, 1);
-	self.xslot8 = SlotVal(IID_AM_12GAUGESHELLS, 30);
+	self.xslot8 = SlotVal(IID_AM_12GAUGESHELLS, 100);
 
 	self.xslot4 = SlotVal(IID_WP_RANGEMASTER, 1);
-	self.xslot9 = SlotVal(IID_AM_556MM, 30);
+	self.xslot9 = SlotVal(IID_AM_556MM, 100);
 
 	self.xslot5 = SlotVal(IID_WP_MP9, 1);
-	self.xslot10 = SlotVal(IID_AM_10MM, 30);
+	self.xslot10 = SlotVal(IID_AM_10MM, 100);
 
 
 
@@ -961,14 +961,14 @@ void() brotherhood_merchant =
 
 
 	self.xslot16 = SlotVal(IID_WP_DKS1, 1);
-	self.xslot17 = SlotVal(IID_AM_762MM, 30);
+	self.xslot17 = SlotVal(IID_AM_762MM, 100);
 
 
 	self.xslot18 = SlotVal(IID_WP_ALIENBLASTER, 1);
-	self.xslot19 = SlotVal(IID_AM_ENERGYCELL, 30);
+	self.xslot19 = SlotVal(IID_AM_ENERGYCELL, 100);
 
 	if (random()*100 < 20)
-		self.xslot20 = SlotVal(IID_AM_ENERGYCELL, 30);
+		self.xslot20 = SlotVal(IID_AM_ENERGYCELL, 100);
 	else if (random()*100 < 20)
 		self.xslot20 = SlotVal(IID_EQUIP_BELTPOUCH, 1);
 	else if (random()*100 < 20)
@@ -1004,15 +1004,17 @@ void() brotherhood_soldier =
 	setsize (self, '-16 -16 -24', '16 16 32');
 	self.takedamage = DAMAGE_NO;
 
-	self.xslot1 = SlotVal(IID_AM_45ACP, 30);
-	self.xslot2 = SlotVal(IID_AM_10MM, 30);
-	self.xslot3 = SlotVal(IID_AM_12GAUGESHELLS, 30);
-	self.xslot4 = SlotVal(IID_AM_5MMHIGHVEL, 30);
-	self.xslot5 = SlotVal(IID_AM_762MM, 30);
-	self.xslot6 = SlotVal(IID_AM_556MM, 30);
-	self.xslot7 = SlotVal(IID_AM_ENERGYCELL, 30);
-	self.xslot8 = SlotVal(IID_AM_CASELESS, 30);
-	self.xslot9 = SlotVal(IID_AM_NEEDLER, 30);
+	self.xslot1 = SlotVal(IID_AM_45ACP, 100);
+	self.xslot2 = SlotVal(IID_AM_10MM, 100);
+	self.xslot3 = SlotVal(IID_AM_12GAUGESHELLS, 100);
+	self.xslot4 = SlotVal(IID_AM_5MMHIGHVEL, 100);
+	self.xslot5 = SlotVal(IID_AM_762MM, 100);
+	self.xslot6 = SlotVal(IID_AM_556MM, 100);
+	self.xslot7 = SlotVal(IID_AM_ENERGYCELL, 100);
+	self.xslot8 = SlotVal(IID_AM_CASELESS, 100);
+	self.xslot9 = SlotVal(IID_AM_NEEDLER, 100);
+	self.xslot12 = SlotVal(IID_EQUIP_STEALTHBOY, 1);
+	self.xslot13 = SlotVal(IID_EQUIP_BACKPACK, 1);
 	self.xslot14 = SlotVal(IID_WP_AK112, 1);
 	self.xslot15 = SlotVal(IID_WP_ACR, 1);
 	self.xslot16 = SlotVal(IID_WP_AK112_M, 1);

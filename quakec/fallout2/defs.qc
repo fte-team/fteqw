@@ -682,6 +682,10 @@ float   intermission_running;
 .float          skill_doctor;
 .float          skill_sneak;
 .float          skill_science;
+.float          shadowskill_combat;
+.float          shadowskill_doctor;
+.float          shadowskill_sneak;
+.float          shadowskill_science;
 
 .float          rescued;
 .float          scale;
@@ -739,8 +743,12 @@ float   intermission_running;
 .float          lastman;
 .float          popup;
 .float          flare;
+.float		radiation;
 .float 		perk1timer;
 .float		perk2timer;
+.float		shadowtime;
+.float		announcercache;
+string		announcer;
 
 .entity         friend;
 .entity         tumbler1;

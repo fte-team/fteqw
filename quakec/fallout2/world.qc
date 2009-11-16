@@ -103,6 +103,7 @@ void() SetupStats =
 	clientstat(103, 2, skill_science);
 	clientstat(104, 2, shadowtime);
 	clientstat(105, 2, announcercache);
+	clientstat(106, 2, radiation);
 	clientstat(108, 2, safezone);
 	clientstat(109, 2, connected);
 	clientstat(110, 2, steadyaim);
@@ -634,18 +635,22 @@ if (coop == 1) // Players vs Monsters
 		musicplay = 1;
 		musictrack = 1;
 
-		bprint(2, "the battle begins!\n");
+		if (world.map_obj == OBJ_DEADTOWN)
+			musictrack = 2;
+
 		ze = find (world, classname, "player");
 		while (ze != world)
 		{
 			if (musictrack == 1)
 				stuffcmd(ze, "play music/battle\n");
+			if (musictrack == 2)
+				stuffcmd(ze, "play misc/zombies\n");
 
 			ze = find (ze, classname, "player");
 		}       
       
 	}
-	else if (musicplay < 100)
+	else if (musicplay < 50)
 		musicplay = musicplay + 1;
 	else if (musicplay >= 100)
 		musicplay = 0;
@@ -1587,6 +1592,7 @@ void() worldspawn =
 	precache_model ("progs/ammobox.mdl");
 	precache_model ("progs/ammobox2.mdl");
 	precache_model ("progs/stop.spr");
+	precache_model ("progs/healing.spr");
 
 	precache_model ("progs/v_axe.mdl");
 	precache_model ("progs/v_span.mdl");

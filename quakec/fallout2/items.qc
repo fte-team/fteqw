@@ -362,11 +362,49 @@ void() TreasureChest =
 	setsize (self, '-12 -12 0', '12 12 12');
 	self.takedamage = DAMAGE_NO;
 	self.classname = "treasure_chest";
-
-
 };
 
 
+void() rad_think =
+{
+	local entity te;
+
+	self.think = rad_think;
+	self.nextthink = time + 1;
+
+	te = findradius (self.origin, 700);
+	while (te)
+	{
+		if (te.classname == "player")
+			te.radiation = te.radiation + 1;
+
+		te = te.chain;
+	}
+};
+
+void(vector spot) spawn_radiation =
+{
+	local entity rad;
+
+	rad = spawn();
+
+	setorigin(rad, spot + '0 0 64');
+	rad.movetype = MOVETYPE_BOUNCE;
+	rad.velocity_x = crandom()*200;
+	rad.velocity_y = crandom()*200;
+	rad.velocity_z = -200;
+
+	rad.avelocity_y = crandom()*200;
+
+	setmodel (rad, "");
+	rad.solid = SOLID_NOT;
+	setsize (rad, '-12 -12 0', '12 12 12');
+	rad.takedamage = DAMAGE_NO;
+	rad.classname = "rad";
+	
+	rad.think = rad_think;
+	rad.nextthink = time + 1;
+};
 
 
 
@@ -841,6 +879,9 @@ void() item_health =
 		setsize (self, '0 0 0', '32 32 56');
 		StartItem ();
 	}
+
+	if (random()*100 <= 2)
+		spawn_radiation(self.origin);
 };
 
 
@@ -1059,6 +1100,9 @@ void() item_armor1_finish =
 };
 void() item_armor1 =
 {
+	if (random()*100 <= 2)
+		spawn_radiation(self.origin);
+
 	if (random()<0.50)
 	{
 		precache_model ("progs/enforcer.mdl");
@@ -1072,6 +1116,9 @@ void() item_armor1 =
 
 void() item_armor2 =
 {
+	if (random()*100 <= 2)
+		spawn_radiation(self.origin);
+
 	if (random()<0.50)
 	{
 		precache_model ("progs/enforcer.mdl");
@@ -1092,6 +1139,9 @@ void() item_armor2 =
 
 void() item_armorInv =
 {
+	if (random()*100 <= 2)
+		spawn_radiation(self.origin);
+
 	if (random()<0.50)
 	{
 		precache_model ("progs/enforcer.mdl");
@@ -1332,6 +1382,8 @@ void() weapon_supershotgun =
 		TreasureChest();
 
 
+	if (random()*100 <= 5)
+		spawn_radiation(self.origin);
 
 		SpawnJunk(self.origin);
 		SpawnJunk(self.origin);
@@ -1353,6 +1405,11 @@ void() weapon_nailgun =
 	else
 		TreasureChest();
 
+
+	if (random()*100 <= 10)
+		spawn_radiation(self.origin);
+
+
 		SpawnJunk(self.origin);
 		SpawnJunk(self.origin);
 		SpawnJunk(self.origin);
@@ -1372,6 +1429,10 @@ void() weapon_supernailgun =
 		Explosive();
 	else if (random()*100 <= 40)
 		TreasureChest();
+
+
+	if (random()*100 <= 10)
+		spawn_radiation(self.origin);
 
 		SpawnJunk(self.origin);
 		SpawnJunk(self.origin);
@@ -1394,6 +1455,10 @@ void() weapon_grenadelauncher =
 	else if (random()*100 <= 40)
 		TreasureChest();
 
+
+	if (random()*100 <= 5)
+		spawn_radiation(self.origin);
+
 		SpawnJunk(self.origin);
 		SpawnJunk(self.origin);
 		SpawnJunk(self.origin);
@@ -1414,6 +1479,11 @@ void() weapon_rocketlauncher =
 		Explosive();
 	else if (random()*100 <= 40)
 		TreasureChest();
+
+
+	if (random()*100 <= 10)
+		spawn_radiation(self.origin);
+
 
 		SpawnJunk(self.origin);
 		SpawnJunk(self.origin);
@@ -1436,6 +1506,11 @@ void() weapon_lightning =
 		Explosive();
 	else if (random()*100 <= 40)
 		TreasureChest();
+
+
+	if (random()*100 <= 10)
+		spawn_radiation(self.origin);
+
 
 		SpawnJunk(self.origin);
 		SpawnJunk(self.origin);
@@ -1778,6 +1853,9 @@ void() item_rockets =
 	setsize (self, '0 0 0', '32 32 56');
 	StartItem ();
 
+	if (random()*100 <= 2)
+		spawn_radiation(self.origin);
+
 };
 
 
@@ -1816,6 +1894,9 @@ void() item_cells =
 	self.netname = "cells";
 	setsize (self, '0 0 0', '32 32 56');
 	StartItem ();
+
+	if (random()*100 <= 2)
+		spawn_radiation(self.origin);
 
 };
 

@@ -100,6 +100,63 @@ float() crandom =
 
 
 
+
+
+
+void() healing_bob =
+{
+local float             rnd1, rnd2, rnd3;
+
+	self.cnt = self.cnt + 1;
+
+	if (self.cnt == 20)
+		remove(self);
+
+	rnd1 = self.velocity_x + (-30 + (random() * 20));
+	rnd2 = self.velocity_y + (-30 + (random() * 20));
+	rnd3 = self.velocity_z + 30 + random() * 10;
+
+	if (random()*100 > 50)
+		rnd1 = 24;
+	else
+		rnd1 = -24;
+		
+	if (random()*100 > 50)
+		rnd2 = 24;
+	else
+		rnd2 = -24;
+		
+	if (random()*100 > 50)
+		rnd3 = -5;
+	else
+		rnd3 = 10;
+	
+	self.velocity_x = rnd1;
+	self.velocity_y = rnd2;
+	self.velocity_z = rnd3;
+		
+
+	self.think = healing_bob;
+	self.nextthink = time + 0.2;
+};
+
+void (entity spot) spawn_healing =
+{
+	local entity hologram;
+
+	hologram = spawn ();
+	hologram.movetype = MOVETYPE_FLY;
+	hologram.solid = SOLID_NOT;
+	hologram.owner = spot;
+	setmodel (hologram, "progs/healing.spr");
+	setorigin (hologram, spot.origin + '0 0 48');
+	setsize (hologram, VEC_ORIGIN, VEC_ORIGIN);
+	hologram.angles = spot.angles;
+	hologram.think = healing_bob;
+	hologram.nextthink = time + 0.1;
+};
+
+
 void(float slotno) UsePerk =
 {
 	local float x, mcount;
@@ -4169,6 +4226,9 @@ void () UseStimpack =
 			DecreaseDestroySlot(x);//take away a stimpack
 			sound (trace_ent, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
 			RevivePlayer(self, te);
+			spawn_healing(te);
+			spawn_healing(te);
+			spawn_healing(te);
 			found = 1;
 		}
 
@@ -4216,6 +4276,9 @@ void () UseStimpack =
 
 			self.health = self.health + 30 + (self.skill_doctor);
 			self.regen = self.regen + (5 + (self.skill_doctor/2));
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
 		}
 	}
 	else if (trace_ent.classname == "player")//healing another team-mate
@@ -4288,6 +4351,9 @@ void () UseStimpack =
 
 				trace_ent.health = trace_ent.health + 30 + (self.skill_doctor);
 				trace_ent.regen = trace_ent.regen + (3 + (self.skill_doctor/2));
+				spawn_healing(trace_ent);
+				spawn_healing(trace_ent);
+				spawn_healing(trace_ent);
 			}
 		}
 	}
@@ -6189,6 +6255,8 @@ void (entity jeb, float length) spawn_stop =
 	hologram.think = radio_think;
 	hologram.nextthink = (time + 0.01);
 };
+
+
 
 void (string color) ZoomInLarge =
 {

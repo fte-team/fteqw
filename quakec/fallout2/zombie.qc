@@ -56,7 +56,17 @@ float	SPAWN_CRUCIFIED	= 1;
 
 .float inpain;
 
-void() zombie_stand1	=[	$stand1,		zombie_stand2	] {ai_stand();};
+void() zombie_stand1	=[	$stand1,		zombie_stand2	] {ai_stand();
+
+if ((pointcontents(self.origin) <= -2) && (self.owner.netname == "lair"))
+{
+	remove(self.owner);
+	remove(self);
+}
+else if ((pointcontents(self.origin) <= -2))
+	remove(self);
+
+};
 void() zombie_stand2	=[	$stand2,		zombie_stand3	] {ai_stand();};
 void() zombie_stand3	=[	$stand3,		zombie_stand4	] {ai_stand();};
 void() zombie_stand4	=[	$stand4,		zombie_stand5	] {ai_stand();};
@@ -119,6 +129,7 @@ if (self.takedamage == DAMAGE_NO)
 	remove(self);
 	return;
 }
+
 };
 void() zombie_run3		=[	$run3,		zombie_run4	] {ai_run(4);};
 void() zombie_run4		=[	$run4,		zombie_run5	] {ai_run(4);};
@@ -728,19 +739,16 @@ void () spawn_ghoul_copy =
 
 
 	self.think = spawn_ghoul_copy;
-	self.nextthink = time + 5 + random()*5;
+	self.nextthink = time + 8 + random()*4;
 	stuff = self.origin;
 
-	waterlev = ftos(pointcontents(self.origin));
 
-	bprint(2, "pointcontents: ");
-	bprint(2, waterlev);
-	bprint(2, "\n");
 
 
 	loadzombie = 0;
 
-	te = findradius (self.origin, 800);
+
+	te = findradius (self.origin, 1200);
 	while (te)
 	{
 		if (te.classname == "player")
@@ -748,6 +756,17 @@ void () spawn_ghoul_copy =
 
 		te = te.chain;
 	}
+
+
+	te = findradius (self.origin, 400);
+	while (te)
+	{
+		if (te.classname == "player")
+			loadzombie = 0;
+
+		te = te.chain;
+	}
+
 
 	if (loadzombie == 0)
 		return;
@@ -782,12 +801,13 @@ void () spawn_ghoul_copy =
 		return;
 
 	zombie = spawn ();
+	zombie.owner = self;
 	self = zombie;
 	self.solid = SOLID_SLIDEBOX;
 	self.movetype = MOVETYPE_STEP;
 	setmodel (self, "progs/ghoul.mdl");
 	setsize (self, '-8 -8 -24', '8 8 24');
-	self.health = 60;
+	self.health = 90;
 	self.netname = "ghoul";
 	self.max_health = self.health;
 	self.th_stand = zombie_stand1;
@@ -799,7 +819,16 @@ void () spawn_ghoul_copy =
 
 	self.angles_y = random()*360;
 
-	self.origin = stuff + '0 16 0';
+	if (random()*100 <= 3)
+	{
+		setsize (self, '-16 -16 -24', '16 16 32');
+		self.health = 400;
+		self.netname = "ghoul lord";
+		self.max_health = self.health;
+		self.scale = 2;
+	}
+
+	self.origin = stuff + '0 64 0';
 	self.origin_z = self.origin_z + 1;
 	droptofloor();
 
@@ -850,7 +879,7 @@ void() monster_zombie =
 	local entity zombie, lair;
 	local entity te, ze;
 	local float stop;
-	local vector jojo;
+	local vector spot;
 	local float zomc, pcount;
 
 	if (self.zone == 0)
@@ -894,12 +923,16 @@ void() monster_zombie =
 
 		if (stop == 0)
 		{
-			jojo = self.origin;
+			spot = self.origin;
 			lair = spawn ();
-			setorigin(lair, jojo);
+			setorigin(lair, spot);
+			lair.origin = spot;
 			lair.solid = SOLID_NOT;
+			lair.health = 1000;
+			lair.max_health = 1000;
+			setmodel (lair, "");
 			lair.movetype = MOVETYPE_STEP;
-			setsize (lair, '0 0 0', '0 0 0');
+			setsize (lair, '-8 -8 -24', '8 8 24');
 			lair.netname = "lair";
 			lair.classname = "lair";
 			lair.nextthink = time + 30;
@@ -914,7 +947,7 @@ void() monster_zombie =
 	setmodel (self, "progs/ghoul.mdl");
 
 	setsize (self, '-8 -8 -24', '8 8 24');
-	self.health = 60;
+	self.health = 90;
 	self.classname = "monster";
 	self.netname = "ghoul";
 	self.th_stand = zombie_stand1;
@@ -932,6 +965,6 @@ void() monster_zombie =
 	if (random()<0.25 && world.map_obj == 1)
 		spawn_civilian(self.origin);
 
-	if (random()<0.5 && world.map_obj == 4)
+	if (random()<0.25 && world.map_obj == 4)
 		spawn_civilian(self.origin);
 };

@@ -614,29 +614,7 @@ void() PutClientInServer =
 
 
 	DecodeLevelParms ();
-/*
-	if (self.skill_combat == 0 && self.skill_sneak == 0 && self.skill_doctor == 0 && self.skill_science == 0)
-	{
-		self.deadflag = DEAD_NO;
-		self.health = 200;
-		self.max_health = 200;
-		setsize (self, VEC_HULL_MIN, VEC_HULL_MAX);
-		self.view_ofs = '0 0 22';
-		self.takedamage = DAMAGE_NO;
-		self.solid = SOLID_NOT;
-		spot = SelectSpawnPoint ();
-		self.origin = spot.origin + '0 0 1';
-		self.angles = spot.angles;
-		self.fixangle = TRUE;           // turn this way immediately
-		self.movetype = MOVETYPE_WALK;
-		self.flags = FL_CLIENT;
-		self.classname = "player";
-		self.currentmenu = "none";
-		self.air_finished = time + 999;
-		self.active = 1;
-		player_stand1 ();
-		return;
-	}*/
+
 
 	if (self.current_slot == 0)
 	{
@@ -1536,6 +1514,7 @@ void() PlayerPreThink =
 
 
 
+
 	if (self.score < 200)
 	{
 		if ((self.skill_combat + self.skill_doctor + self.skill_sneak + self.skill_science) <= 10)
@@ -1554,6 +1533,7 @@ void() PlayerPreThink =
 
 		if (self.perk2timer > 0)
 			self.perk2timer = self.perk2timer - 1;
+
 
 	self.shadowtime = time_left;
 
@@ -1686,23 +1666,17 @@ void() PlayerPreThink =
 
 		if (self.flash < time || ToIID(self.islot4) == IID_EQUIP_GOGGLES)
 		{
+			local string x;
+
 			if (ToIID(self.islot4) == IID_EQUIP_GOGGLES)
 				stuffcmd(self, "v_cshift 25 0 25 25\n");
 
+			x = ftos(self.recoil);
+
 			if (self.steadyaim == 0)
 				stuffcmd(self, "v_idlescale 0\n");
-			else if (self.recoil >= 4)
-				stuffcmd(self, "v_idlescale 4\n");
-			else if (self.velocity == '0 0 0' && self.health >= self.max_health*0.80 && self.position > 0)
-				stuffcmd(self, "v_idlescale 0\n");
-			else if (self.velocity == '0 0 0' && self.position > 0)
-				stuffcmd(self, "v_idlescale 1\n");
-			else if (self.velocity == '0 0 0' && self.health >= self.max_health*0.80)
-				stuffcmd(self, "v_idlescale 2\n");
-			else if (self.velocity != '0 0 0' || self.health < self.max_health*0.80)
-				stuffcmd(self, "v_idlescale 4\n");
-			else if (self.health < self.max_health*0.50)
-				stuffcmd(self, "v_idlescale 6\n");
+			else
+				stuffcmd(self, strcat("v_idlescale ", x, "\n"));
 
 		}
 		self.cycle2 = time + 1;

@@ -6,38 +6,13 @@ float viewmodelindex;
 float scrwidth;
 float scrheight;
 
-void() Quick_Draw =
-{
 
-      drawstring('32 -80 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), " q1 ", '8 8 8', '1 1 1', 1);
-      QuickImage('32 -72 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), 5);
-
-      drawstring('64 -80 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), " q2 ", '8 8 8', '1 1 1', 1);
-      QuickImage('64 -72 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), 6);
-};
 
 void() DrawScreen =
 {
       ScreenImage();
 };
-
-void() Weapon_Draw =
-{
-	local float hand;
-
-	hand = getstati(61);
-
-	if (hand == 1)
-	{
-		drawstring('0 -32 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), "   HAND 1   ", '8 8 8', '1 1 1', 1);
-		SlotImage('0 -24 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), 1);
-	}
-	if (hand == 2)
-	{
-		drawstring('0 -32 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), "   HAND 2   ", '8 8 8', '1 1 1', 1);
-		SlotImage('0 -24 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), 2);
-	}
-};
+ 
 
 void() Crosshair_Draw =
 {
@@ -83,21 +58,17 @@ void() Position_Draw =
 	s = getstati(58);
 	sn = ftos(s);
 
+	if (pos == 0)
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.93)) +('0 1 0'*(scrheight*0.87)), "gui/hud/stand.png", '0 0 0'+'32 60 0'*(scrwidth/640), '1 1 1');
+	else if (pos == 1)
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.93)) +('0 1 0'*(scrheight*0.87)), "gui/hud/duck.png", '0 0 0'+'32 60 0'*(scrwidth/640), '1 1 1');
+	else if (pos == 2)
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.93)) +('0 1 0'*(scrheight*0.87)), "gui/hud/prone.png", '0 0 0'+'32 60 0'*(scrwidth/640), '1 1 1');
+
 	if (s > 0)
 	{
-		drawstring('0 -32 0'+('1 0 0'*(scrwidth*0.40)) +('0 1 0'*(scrheight*0.90)),  "sneak", '8 8 8', '1 1 1', 1);
-		PosImage('0 -24 0'+('1 0 0'*(scrwidth*0.40)) +('0 1 0'*(scrheight*0.90)), 1);
-		drawstring('0 8 0'+('1 0 0'*(scrwidth*0.40)) +('0 1 0'*(scrheight*0.90)),  strcat("%", sn), '8 8 8', '1 1 1', 1);
-	}
-	else if (pos == 1)
-	{
-		drawstring('0 -32 0'+('1 0 0'*(scrwidth*0.40)) +('0 1 0'*(scrheight*0.90)),  "duck", '8 8 8', '1 1 1', 1);
-		PosImage('0 -24 0'+('1 0 0'*(scrwidth*0.40)) +('0 1 0'*(scrheight*0.90)), 1);
-	}
-	else if (pos == 2)
-	{
-		drawstring('0 -32 0'+('1 0 0'*(scrwidth*0.40)) +('0 1 0'*(scrheight*0.90)),  "prone", '8 8 8', '1 1 1', 1);
-		PosImage('0 -24 0'+('1 0 0'*(scrwidth*0.40)) +('0 1 0'*(scrheight*0.90)), 2);
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.20)) +('0 1 0'*(scrheight*0.79)), "gui/hud/sneak.png", '0 0 0'+'72 25 0'*(scrwidth/640), '1 1 1');
+		//drawstring('0 0 0'+('1 0 0'*(scrwidth*0.20)) +('0 1 0'*(scrheight*0.80)),  strcat("%", sn), '8 8 8', '1 1 1', 1);
 	}
 };
 
@@ -140,63 +111,9 @@ void() Time_Draw =
 	drawstring('0 32 0'+('1 0 0'*(scrwidth*0.10))+('0 1 0'*(scrheight*0.90)),  strcat("[", qtime, ":", rtime, "]\n"), '8 8 8', '1 1 1', 1);
 };
 
-void() Ammo_Draw =
-{
-	local float hand, weap, ammo, amount;
-	local string reveal;
 
-	hand = getstati(61);
 
-	if (hand == 1)
-	{
-           weap = ToIID(getstati(32));
-           ammo = WeaponAmmoType(weap);
-           amount = ShadowSlotOfItem(self, ammo);
-           //drawstring('300 350 0'+('1 0 0'*IMGSIZEF), " AMMO ", '8 8 8', '1 1 1', 1);
-           //SlotImage('300 358 0'+('1 0 0'*IMGSIZEF), amount);
-           drawstring('-64 -32 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), "  AMMO  ", '8 8 8', '1 1 1', 1);
-           if (amount > 0)
-			SlotImage('-64 -24 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), amount);
-           else
-			BlankImage('-64 -24 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), 0);
-	}
-	else if (hand == 2)
-	{
-           weap = ToIID(getstati(33));
-           ammo = WeaponAmmoType(weap);
-           amount = ShadowSlotOfItem(self, ammo);
-           reveal = ftos(amount);
-           //drawstring('300 350 0'+('1 0 0'*IMGSIZEF), " AMMO ", '8 8 8', '1 1 1', 1);
-           //SlotImage('300 358 0'+('1 0 0'*IMGSIZEF), amount);
-           drawstring('-64 -32 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), "  AMMO  ", '8 8 8', '1 1 1', 1);
-           if (amount > 0)
-			SlotImage('-64 -24 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), amount);
-           else
-			BlankImage('-64 -24 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), 0);
-	}
-};
 
-void() Money_Draw =
-{
-	string cash;
-
-	cash = ftos(getstati(50));
-
-      drawstring('64 -32 0'+('1 0 0'*(scrwidth*0.50)) +('0 1 0'*(scrheight*0.90)), cash, '8 8 8', '1 1 1', 1);
-      MoneyImage('64 -24 0'+('1 0 0'*(scrwidth*0.50)) +('0 1 0'*(scrheight*0.90)), "money.jpg");
-
-};
-
-void() Energy_Draw =
-{
-	string cash;
-
-	cash = ftos(getstati(51));
-
-      drawstring('34 -32 0'+('1 0 0'*(scrwidth*0.50)) +('0 1 0'*(scrheight*0.90)), cash, '8 8 8', '1 1 1', 1);
-      MoneyImage('32 -24 0'+('1 0 0'*(scrwidth*0.50)) +('0 1 0'*(scrheight*0.90)), "energy.jpg");
-
-};
 
 void() Weight_Draw =
 {
@@ -229,113 +146,56 @@ void() Weight_Draw =
 
 };
 
-void() Armor_Draw =
-{
-	//drawstring('300 350 0'+('3 0 0'*IMGSIZEF), "   ARMOR   ", '8 8 8', '1 1 1', 1);
-	//SlotImage('300 358 0'+('3 0 0'*IMGSIZEF), 3);
-      drawstring('64 -32 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), "  ARMOR  ", '8 8 8', '1 1 1', 1);
-      SlotImage('64 -24 0'+('1 0 0'*(scrwidth*0.80)) +('0 1 0'*(scrheight*0.90)), 3);
-
-};
 
 void() Health_Draw =
 {
-	float hp, maxhp, status, perc, hpos, tpos, opos, ostatus, ones;
-	string string_hpos, string_tpos, string_opos;
+	local float bar, hp, maxhp, top;
 
 	hp = getstati(48);
 	maxhp = getstati(49);
 
-	status = (floor(hp) * 100) / maxhp;
-	perc = status;
+	bar = 0;
+	top = ceil(150 * (hp/maxhp));
 
-	if (hp >= maxhp)
-		string_hpos = "one.jpg";
-	else
-		string_hpos = "zero.jpg";
+	if (top > 150)
+		top = 150;
 
-	ostatus = status;
-	status = status * 0.10;
-	status = floor(status);
-
-	if (status == 0)
-		string_tpos = "zero.jpg";
-	if (status == 1)
-		string_tpos = "one.jpg";
-	if (status == 2)
-		string_tpos = "two.jpg";
-	if (status == 3)
-		string_tpos = "three.jpg";
-	if (status == 4)
-		string_tpos = "four.jpg";
-	if (status == 5)
-		string_tpos = "five.jpg";
-	if (status == 6)
-		string_tpos = "six.jpg";
-	if (status == 7)
-		string_tpos = "seven.jpg";
-	if (status == 8)
-		string_tpos = "eight.jpg";
-	if (status == 9)
-		string_tpos = "nine.jpg";
-	if (status == 10)
-		string_tpos = "zero.jpg";
-
-	ones = (ostatus - (status*10));
-	ones = floor(ones);
-
-	if (ones == 0)
-		string_opos = "zero.jpg";
-	if (ones == 1)
-		string_opos = "one.jpg";
-	if (ones == 2)
-		string_opos = "two.jpg";
-	if (ones == 3)
-		string_opos = "three.jpg";
-	if (ones == 4)
-		string_opos = "four.jpg";
-	if (ones == 5)
-		string_opos = "five.jpg";
-	if (ones == 6)
-		string_opos = "six.jpg";
-	if (ones == 7)
-		string_opos = "seven.jpg";
-	if (ones == 8)
-		string_opos = "eight.jpg";
-	if (ones == 9)
-		string_opos = "nine.jpg";
-	if (status == 10)
-		string_opos = "zero.jpg";
-
-	if (hp <= 0)
+	while (bar <= top)
 	{
-		string_hpos = "zero.jpg";
-		string_tpos = "zero.jpg";
-		string_opos = "zero.jpg";
+
+			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.07)) +('0 1 0'*(scrheight*0.75)) - ('0 1 0'*bar*(scrheight/640)),  "gui/graph/green.jpg", '0 0 0'+'12 1 0'*(scrwidth/640), '1 1 1', 1);				
+		
+
+		bar = bar + 1;
 	}
 
-	if (perc > 50)
-	{
-      	HealthImage('0 -24 0'+('0 1 0'*(scrheight*0.90)), 0, "percent.jpg");
-      	HealthImage('32 -24 0'+('0 1 0'*(scrheight*0.90)), 0, string_hpos);
-      	HealthImage('64 -24 0'+('0 1 0'*(scrheight*0.90)), 0, string_tpos);
-      	HealthImage('96 -24 0'+('0 1 0'*(scrheight*0.90)), 0, string_opos);
-	}
-	else if (perc > 25)
-	{
-      	HealthImage('0 -24 0'+('0 1 0'*(scrheight*0.90)), 1, "percent.jpg");
-      	HealthImage('32 -24 0'+('0 1 0'*(scrheight*0.90)), 1, string_hpos);
-      	HealthImage('64 -24 0'+('0 1 0'*(scrheight*0.90)), 1, string_tpos);
-      	HealthImage('96 -24 0'+('0 1 0'*(scrheight*0.90)), 1, string_opos);
-	}
-	else
-	{
-      	HealthImage('0 -24 0'+('0 1 0'*(scrheight*0.90)), 2, "percent.jpg");
-      	HealthImage('32 -24 0'+('0 1 0'*(scrheight*0.90)), 2, string_hpos);
-      	HealthImage('64 -24 0'+('0 1 0'*(scrheight*0.90)), 2, string_tpos);
-      	HealthImage('96 -24 0'+('0 1 0'*(scrheight*0.90)), 2, string_opos);
-	}
 };
+
+
+void() Radiation_Draw =
+{
+	local float bar, rad, top;
+
+	rad = getstati(106);
+
+	bar = 0;
+	top = ceil(150 * (rad/100));
+
+	if (top > 150)
+		top = 150;
+
+	while (bar <= top)
+	{
+
+			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.02)) +('0 1 0'*(scrheight*0.75)) - ('0 1 0'*bar*(scrheight/640)),  "gui/graph/yellow.jpg", '0 0 0'+'12 1 0'*(scrwidth/640), '1 1 1', 1);				
+		
+
+		bar = bar + 1;
+	}
+
+};
+
+
 
 void() DoThatViewModelThing =
 {
@@ -375,6 +235,105 @@ void() CSQC_Init =
 };
 
 
+void(vector pos, float x) HUD_Image =
+{
+	local float it, mod_s, mod_e;
+	local string itname;
+
+
+	if (x <= 16)
+		it = getstati(31+x);
+
+
+	itname = GetItemImage(ToIID(it));
+	drawpic(pos, strcat("gui/", itname), '48 48 0', '1 1 1', 1);
+
+	it = ToStatus(it);
+	if (it <= 1)
+		return;
+	itname = ftos(it);
+	it = strlen(itname);
+	drawstring(pos + '48 48 0' - '0 8 0' - '8 0 0'*it, itname, '8 8 8', '1 1 1', 1);
+};
+
+
+void(vector pos, float slotno) HUD_Weapon_Image =
+{
+	local float it, mod_s, mod_e;
+	local string itname;
+
+
+	if (slotno == downslotnum && slotnum)
+		slotno = slotnum;
+	else if (slotno == slotnum && downslotnum)
+		slotno = downslotnum;
+
+	if (slotno <= 16)
+		it = getstati(31+slotno);
+
+
+	itname = GetItemImage(ToIID(it));
+	drawpic(pos, strcat("gui/weapons/", itname), '180 59 0', '1 1 1', 1);
+
+};
+
+void() Ammo_Draw =
+{
+	local float hand, weap, ammo, amount, max, bar, top;
+	local string reveal;
+
+	hand = getstati(61);
+
+	if (hand == 1)
+	{
+           weap = ToIID(getstati(32));
+           ammo = ToStatus(getstati(32));
+           max = WeaponMagQuant(weap);
+
+
+	bar = 0;
+	top = ceil(35 * (ammo/max));
+
+		if (top > 35)
+			top = 35;
+
+		while (bar <= top)
+		{
+
+				drawpic('0 0 0'+('1 0 0'*(scrwidth*0.38)) +('0 1 0'*(scrheight*0.99)) - ('0 2 0'*bar*(scrheight/640)), "gui/graph/green.jpg", '0 0 0'+'8 1 0'*(scrwidth/640), '1 1 1', 1);				
+		
+
+			bar = bar + 1;
+		}
+
+	}
+
+	if (hand == 2)
+	{
+           weap = ToIID(getstati(33));
+           ammo = ToStatus(getstati(33));
+           max = WeaponMagQuant(weap);
+
+
+	bar = 0;
+	top = ceil(35 * (ammo/max));
+
+		if (top > 35)
+			top = 35;
+
+		while (bar <= top)
+		{
+
+				drawpic('0 0 0'+('1 0 0'*(scrwidth*0.38)) +('0 1 0'*(scrheight*0.99)) - ('0 2 0'*bar*(scrheight/640)), "gui/graph/green.jpg", '0 0 0'+'8 1 0'*(scrwidth/640), '1 1 1', 1);					
+		
+
+			bar = bar + 1;
+		}
+
+	}
+
+};
+
 
 void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 {
@@ -406,8 +365,6 @@ void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 
 	renderscene();
 
-//	if (usehud)
-//		Hud_Draw();
 
 	if (getstati(57) == 1)
 		BriefImage();
@@ -435,17 +392,22 @@ void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 		GainPerk_Draw();
 	else
 	{
-		Time_Draw();
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.06)) +('0 1 0'*(scrheight*0.45)), "gui/hud/health.png", '0 0 0'+'25 155 0'*(scrwidth/640), '1 1 1');
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.01)) +('0 1 0'*(scrheight*0.45)), "gui/hud/radiation.png", '0 0 0'+'25 155 0'*(scrwidth/640), '1 1 1');
+		drawpic('0 0 0' + ('0 1 0'*(scrheight*0.84)), "gui/hud/hud.png", '0 0 0'+'80 10 0'*(scrwidth/80), '1 1 1');
+
 		Health_Draw();
-		Weight_Draw();
-		Money_Draw();
+		Radiation_Draw();
+
+		HUD_Weapon_Image('0 0 0'+('1 0 0'*(scrwidth*0.38)) +('0 1 0'*(scrheight*0.87)), getstati(61));
 		Ammo_Draw();
-		Energy_Draw();
-		Weapon_Draw();
-		Armor_Draw();
+
+		SlotImageSmall('0 0 0'+('1 0 0'*(scrwidth*0.72)) +('0 1 0'*(scrheight*0.87)), getstati(5));
+		SlotImageSmall('0 0 0'+('1 0 0'*(scrwidth*0.79)) +('0 1 0'*(scrheight*0.87)), getstati(6));
+
 		Position_Draw();
-		Quick_Draw();
 		Chem_Draw();
+		Time_Draw();
 		Crosshair_Draw();
 	}
 };

@@ -34,7 +34,7 @@ float k_mwheeldown;
 float mouseisdown;
 
 #define IMGSIZEF 64
-#define IMGSIZEV ('1 1 0'*IMGSIZEF)
+#define IMGSIZEV ('1 1 0'*(scrwidth/10))
 #define IMGSIZEK 32
 #define IMGSIZEH ('1 1 0'*IMGSIZEK)
 #define IMGSIZEX 48
@@ -42,8 +42,6 @@ float mouseisdown;
 #define IMGSIZEQ ('1 1 0'*2)
 
 #define CURSORSIZE 8
-
-
 
 
 
@@ -122,6 +120,8 @@ void(vector pos, float slotno) SlotImage =
 	it = strlen(itname);
 	drawstring(pos + IMGSIZEV - '0 8 0' - '8 0 0'*it, itname, '8 8 8', '1 1 1', 1);
 };
+
+
 
 void(vector pos, float slotno) SlotImageSmall =
 {

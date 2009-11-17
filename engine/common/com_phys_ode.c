@@ -1540,7 +1540,7 @@ static void World_Physics_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		//Con_Printf("made new joint %i\n", (int) (ed - prog->edicts));
 		dJointSetData(j, (void *) ed);
 		if(enemy)
-			b1 = (dBodyID)(EDICT_NUM(world->progs, enemy)->ode.ode_body);
+			b1 = (dBodyID)(((wedict_t*)EDICT_NUM(world->progs, enemy))->ode.ode_body);
 		if(aiment)
 			b2 = (dBodyID)world->edicts[aiment].ode.ode_body;
 		dJointAttach(j, b1, b2);

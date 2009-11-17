@@ -60,60 +60,6 @@ extern progstype_t progstype;
 
 //extern progsnum_t mainprogs;
 
-#if defined(ODE_STATIC) || defined(ODE_DYNAMIC)
-#define USEODE 1
-#endif
-
-#ifdef USEODE
-typedef struct {
-	// physics parameters
-	qboolean ode_physics;
-	void *ode_body;
-	void *ode_geom;
-	void *ode_joint;
-	float *ode_vertex3f;
-	int *ode_element3i;
-	int ode_numvertices;
-	int ode_numtriangles;
-	vec3_t ode_mins;
-	vec3_t ode_maxs;
-	vec_t ode_mass;
-	vec3_t ode_origin;
-	vec3_t ode_velocity;
-	vec3_t ode_angles;
-	vec3_t ode_avelocity;
-	qboolean ode_gravity;
-	int ode_modelindex;
-	vec_t ode_movelimit; // smallest component of (maxs[]-mins[])
-	float ode_offsetmatrix[16];
-	float ode_offsetimatrix[16];
-	int ode_joint_type;
-	int ode_joint_enemy;
-	int ode_joint_aiment;
-	vec3_t ode_joint_origin; // joint anchor
-	vec3_t ode_joint_angles; // joint axis
-	vec3_t ode_joint_velocity; // second joint axis
-	vec3_t ode_joint_movedir; // parameters
-	void *ode_massbuf;
-} entityode_t;
-
-typedef struct
-{
-	// for ODE physics engine
-	qboolean ode; // if true then ode is activated
-	void *ode_world;
-	void *ode_space;
-	void *ode_contactgroup;
-	// number of constraint solver iterations to use (for dWorldStepFast)
-	int ode_iterations;
-	// actual step (server frametime / ode_iterations)
-	vec_t ode_step;
-	// max velocity for a 1-unit radius object at current step to prevent
-	// missed collisions
-	vec_t ode_movelimit;
-} worldode_t;
-#endif
-
 typedef struct edict_s
 {
 	//these 5 shared with qclib
@@ -167,7 +113,6 @@ extern progfuncs_t *svprogfuncs;	//instance
 extern progparms_t svprogparms;
 extern progsnum_t svmainprogs;
 extern progsnum_t clmainprogs;
-#define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,wedict_t,area)
 #define	HLEDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,hledict_t,area)
 #define	Q2EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,q2edict_t,area)
 #define	Q3EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,q3serverEntity_t,area)

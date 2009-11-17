@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "pr_common.h"
 
-#ifndef CLIENTONLY
+#if defined(CSQC_DAT) || !defined(CLIENTONLY)
 /*
 
 entities never clip against themselves, or their owner
@@ -1102,7 +1102,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	{
 		model = w->GetCModel(w, ent->v->modelindex);
 		if (!model || (model->type != mod_brush && model->type != mod_heightmap))
-			SV_Error("SOLID_BSP with non bsp model (classname: %s)", PR_GetString(svprogfuncs, ent->v->classname));
+			Host_Error("SOLID_BSP with non bsp model (classname: %s)", PR_GetString(w->progs, ent->v->classname));
 	}
 	else
 	{
@@ -1134,7 +1134,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 
 			model_t *model;
 			if (ent->v->modelindex < 1 || ent->v->modelindex >= MAX_MODELS)
-				SV_Error("SV_ClipMoveToEntity: modelindex out of range\n");
+				Host_Error("SV_ClipMoveToEntity: modelindex out of range\n");
 			model = w->GetCModel(w, ent->v->modelindex);
 
 			if (model && model->funcs.Trace)
@@ -1463,7 +1463,7 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 	wedict_t		*touch;
 	for (e=1 ; e<w->num_edicts ; e++)
 	{
-		touch = (wedict_t*)EDICT_NUM(svprogfuncs, e);
+		touch = (wedict_t*)EDICT_NUM(w->progs, e);
 
 		if (touch->isfree)
 			continue;                 
@@ -1507,9 +1507,9 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 			return;
 		if (clip->passedict)
 		{
-		 	if ((wedict_t*)PROG_TO_EDICT(svprogfuncs, touch->v->owner) == clip->passedict)
+		 	if ((wedict_t*)PROG_TO_EDICT(w->progs, touch->v->owner) == clip->passedict)
 				continue;	// don't clip against own missiles
-			if ((wedict_t*)PROG_TO_EDICT(svprogfuncs, clip->passedict->v->owner) == touch)
+			if ((wedict_t*)PROG_TO_EDICT(w->progs, clip->passedict->v->owner) == touch)
 				continue;	// don't clip against owner
 		}
 
@@ -1585,9 +1585,9 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 				return;
 			if (clip->passedict)
 			{
-		 		if ((wedict_t*)PROG_TO_EDICT(svprogfuncs, touch->v->owner) == clip->passedict)
+		 		if ((wedict_t*)PROG_TO_EDICT(w->progs, touch->v->owner) == clip->passedict)
 					continue;	// don't clip against own missiles
-				if ((wedict_t*)PROG_TO_EDICT(svprogfuncs, clip->passedict->v->owner) == touch)
+				if ((wedict_t*)PROG_TO_EDICT(w->progs, clip->passedict->v->owner) == touch)
 					continue;	// don't clip against owner
 			}
 
@@ -1614,7 +1614,7 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 		if (touch == clip->passedict)
 			continue;
 		if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
-			SV_Error ("Trigger (%s) in clipping list", PR_GetString(svprogfuncs, touch->v->classname));
+			Host_Error ("Trigger (%s) in clipping list", PR_GetString(w->progs, touch->v->classname));
 
 		if (clip->type & MOVE_LAGGED)
 		{
@@ -1656,9 +1656,9 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 			return;
 		if (clip->passedict)
 		{
-		 	if ((wedict_t*)PROG_TO_EDICT(svprogfuncs, touch->v->owner) == clip->passedict)
+		 	if ((wedict_t*)PROG_TO_EDICT(w->progs, touch->v->owner) == clip->passedict)
 				continue;	// don't clip against own missiles
-			if ((wedict_t*)PROG_TO_EDICT(svprogfuncs, clip->passedict->v->owner) == touch)
+			if ((wedict_t*)PROG_TO_EDICT(w->progs, clip->passedict->v->owner) == touch)
 				continue;	// don't clip against owner
 		}
 
@@ -1792,6 +1792,10 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 
 	if (passedict && passedict->xv->hull)
 		hullnum = passedict->xv->hull;
+#ifdef CLIENTONLY
+	else
+		hullnum = 0;
+#else
 	else if (sv_compatiblehulls.value)
 		hullnum = 0;
 	else
@@ -1819,6 +1823,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		}
 		hullnum++;
 	}
+#endif
 
 // clip to world
 	clip.trace = World_ClipMoveToEntity (w, w->edicts, w->edicts->v->origin, start, mins, maxs, end, hullnum, false);
@@ -1859,24 +1864,28 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		if (clip.type & MOVE_LAGGED)
 		{
 			clip.type &= ~MOVE_LAGGED;
-
-			if (passedict->entnum && passedict->entnum <= MAX_CLIENTS)
+#ifndef CLIENTONLY
+			if (w == &sv.world)
 			{
-				clip.type |= MOVE_LAGGED;
-				w->lagents = svs.clients[passedict->entnum-1].laggedents;
-				w->maxlagents = svs.clients[passedict->entnum-1].laggedents_count;
-				w->lagentsfrac = svs.clients[passedict->entnum-1].laggedents_frac;
-			}
-			else if (passedict->v->owner)
-			{
-				if (passedict->v->owner && passedict->v->owner <= MAX_CLIENTS)
+				if (passedict->entnum && passedict->entnum <= MAX_CLIENTS)
 				{
 					clip.type |= MOVE_LAGGED;
-					w->lagents = svs.clients[passedict->v->owner-1].laggedents;
-					w->maxlagents = svs.clients[passedict->v->owner-1].laggedents_count;
-					w->lagentsfrac = svs.clients[passedict->v->owner-1].laggedents_frac;
+					w->lagents = svs.clients[passedict->entnum-1].laggedents;
+					w->maxlagents = svs.clients[passedict->entnum-1].laggedents_count;
+					w->lagentsfrac = svs.clients[passedict->entnum-1].laggedents_frac;
+				}
+				else if (passedict->v->owner)
+				{
+					if (passedict->v->owner && passedict->v->owner <= MAX_CLIENTS)
+					{
+						clip.type |= MOVE_LAGGED;
+						w->lagents = svs.clients[passedict->v->owner-1].laggedents;
+						w->maxlagents = svs.clients[passedict->v->owner-1].laggedents_count;
+						w->lagentsfrac = svs.clients[passedict->v->owner-1].laggedents_frac;
+					}
 				}
 			}
+#endif
 		}
 		if (clip.type & MOVE_LAGGED)
 		{
@@ -1899,7 +1908,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 				if (touch == clip.passedict)
 					continue;
 				if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
-					SV_Error ("Trigger (%s) in clipping list", PR_GetString(svprogfuncs, touch->v->classname));
+					Host_Error ("Trigger (%s) in clipping list", PR_GetString(w->progs, touch->v->classname));
 
 				if (clip.type & MOVE_NOMONSTERS && touch->v->solid != SOLID_BSP)
 					continue;
@@ -1932,9 +1941,9 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 
 				if (clip.passedict)
 				{
-	 				if ((wedict_t*)PROG_TO_EDICT(svprogfuncs, touch->v->owner) == clip.passedict)
+	 				if ((wedict_t*)PROG_TO_EDICT(w->progs, touch->v->owner) == clip.passedict)
 						continue;	// don't clip against own missiles
-					if ((wedict_t*)PROG_TO_EDICT(svprogfuncs, clip.passedict->v->owner) == touch)
+					if ((wedict_t*)PROG_TO_EDICT(w->progs, clip.passedict->v->owner) == touch)
 						continue;	// don't clip against owner
 				}
 

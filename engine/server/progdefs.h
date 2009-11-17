@@ -172,7 +172,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(ideal_yaw,ideal_yaw,ideal_yaw);\
 	comfieldfloat(yaw_speed,yaw_speed,yaw_speed);\
 	comfieldentity(aiment,aiment,aiment);\
-	comfieldentity(goalentity,_goalentity,_goalentity);\
+	comfieldentity(goalentity,goalentity,goalentity);\
 	comfieldfloat(_spawnflags,_spawnflags,_spawnflags);\
 	comfieldstring(_target,_target,_target);\
 	comfieldstring(targetname,_targetname,_targetname);\
@@ -300,9 +300,12 @@ comqcfields
 #undef comfieldentity
 #undef comfieldstring
 #undef comfieldfunction
-} comentvars_t;
 
+#ifdef VM_Q1
+} comentvars_t;
 typedef struct {
+#endif
+
 #define comfieldfloat(name) float name
 #define comfieldvector(name) vec3_t name
 #define comfieldentity(name) int name
@@ -314,7 +317,67 @@ comextqcfields
 #undef comfieldentity
 #undef comfieldstring
 #undef comfieldfunction
-} comextentvars_t;
 
+#ifdef VM_Q1
+} comextentvars_t;
+#else
+} comentvars_t;
+#endif
 
 #define	MAX_ENT_LEAFS	16
+
+
+
+#if defined(ODE_STATIC) || defined(ODE_DYNAMIC)
+#define USEODE 1
+#endif
+
+#ifdef USEODE
+typedef struct {
+	// physics parameters
+	qboolean ode_physics;
+	void *ode_body;
+	void *ode_geom;
+	void *ode_joint;
+	float *ode_vertex3f;
+	int *ode_element3i;
+	int ode_numvertices;
+	int ode_numtriangles;
+	vec3_t ode_mins;
+	vec3_t ode_maxs;
+	vec_t ode_mass;
+	vec3_t ode_origin;
+	vec3_t ode_velocity;
+	vec3_t ode_angles;
+	vec3_t ode_avelocity;
+	qboolean ode_gravity;
+	int ode_modelindex;
+	vec_t ode_movelimit; // smallest component of (maxs[]-mins[])
+	float ode_offsetmatrix[16];
+	float ode_offsetimatrix[16];
+	int ode_joint_type;
+	int ode_joint_enemy;
+	int ode_joint_aiment;
+	vec3_t ode_joint_origin; // joint anchor
+	vec3_t ode_joint_angles; // joint axis
+	vec3_t ode_joint_velocity; // second joint axis
+	vec3_t ode_joint_movedir; // parameters
+	void *ode_massbuf;
+} entityode_t;
+
+typedef struct
+{
+	// for ODE physics engine
+	qboolean ode; // if true then ode is activated
+	void *ode_world;
+	void *ode_space;
+	void *ode_contactgroup;
+	// number of constraint solver iterations to use (for dWorldStepFast)
+	int ode_iterations;
+	// actual step (server frametime / ode_iterations)
+	vec_t ode_step;
+	// max velocity for a 1-unit radius object at current step to prevent
+	// missed collisions
+	vec_t ode_movelimit;
+} worldode_t;
+#endif

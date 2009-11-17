@@ -1719,37 +1719,7 @@ static void P_AddRainParticles(void)
 	skipped = false;
 
 	lastrendered = particletime;
-/*
-{
-	int i;
 
-glDisable(GL_TEXTURE_2D);
-glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-glDisable(GL_DEPTH_TEST);
-glBegin(GL_TRIANGLES);
-
-	st = skytris;
-	for (i = 0; i < r_part_rain_quantity.ival; i++)
-		st = st->next;
-		glVertex3f(st->org[0], st->org[1], st->org[2]);
-		glVertex3f(st->org[0]+st->x[0], st->org[1]+st->x[1], st->org[2]+st->x[2]);
-		glVertex3f(st->org[0]+st->y[0], st->org[1]+st->y[1], st->org[2]+st->y[2]);
-glEnd();
-glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-glBegin(GL_POINTS);
-		for (i = 0; i < 1000; i++)
-		{
-			x = frandom()*frandom();
-			y = frandom() * (1-x);
-			VectorMA(st->org, x, st->x, org);
-			VectorMA(org, y, st->y, org);
-
-			glVertex3f(org[0], org[1], org[2]);
-		}
-glEnd();
-glEnable(GL_DEPTH_TEST);
-}
-*/
 	for (ptype = 0; ptype<numparticletypes; ptype++)
 	{
 		if (!part_type[ptype].loaded)	//woo, batch skipping.
@@ -1757,9 +1727,6 @@ glEnable(GL_DEPTH_TEST);
 
 		for (st = part_type[ptype].skytris; st; st = st->next)
 		{
-	//		if (st->face->visframe != r_framecount)
-	//			continue;
-
 			if (st->face->visframe != r_framecount)
 			{
 				st->nexttime = particletime;
@@ -4122,10 +4089,6 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 	particletime += pframetime;
 }
 
-static void PScript_FlushRenderer(void)
-{
-}
-
 /*
 ===============
 R_DrawParticles
@@ -4133,18 +4096,9 @@ R_DrawParticles
 */
 static void PScript_DrawParticles (void)
 {
-	RSpeedMark();
-
 	P_AddRainParticles();
 
-
-	PScript_FlushRenderer();
-
 	PScript_DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawLineSparkParticle, GL_DrawTrifanParticle, GL_DrawTexturedSparkParticle, GL_DrawParticleBeam, GL_DrawClippedDecal);
-
-	RSpeedRemark();
-	RQ_RenderBatchClear();
-	RSpeedEnd(RSPEED_PARTICLESDRAW);
 }
 
 

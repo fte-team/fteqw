@@ -1156,7 +1156,6 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 	BE_SelectMode(rmode, 0);
 }
 
-#if defined(RTLIGHTS) && defined(GLQUAKE)
 //returns result in the form of the result vector
 void RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lightpoint, vec3_t result)
 {
@@ -1171,6 +1170,7 @@ void RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lig
 	result[2] = DotProduct (offs, axis[2]);
 }
 
+#if defined(RTLIGHTS) && defined(GLQUAKE)
 void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 {
 	vec3_t dir;

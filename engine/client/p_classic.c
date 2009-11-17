@@ -275,7 +275,8 @@ static void PClassic_DrawParticles(void)
 	union c usecolours;
 	RSpeedMark();
 
-	RQ_RenderDistAndClear();
+	//make sure all ents are pushed through first
+	RQ_RenderBatchClear();
 
 	if (!active_particles)
 	{

@@ -3468,6 +3468,15 @@ void PF_svcoredump (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	BZ_Free(buffer);
 }
 
+static void PF_sv_movetogoal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t	*ent;
+	float dist;
+	ent = (wedict_t*)PROG_TO_EDICT(prinst, pr_global_struct->self);
+	dist = G_FLOAT(OFS_PARM0);
+	World_MoveToGoal (&sv.world, ent, dist);
+}
+
 /*
 ===============
 PF_walkmove
@@ -3475,7 +3484,7 @@ PF_walkmove
 float(float yaw, float dist) walkmove
 ===============
 */
-void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent;
 	float	yaw, dist;
@@ -3514,7 +3523,7 @@ void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //	}
 //	else if (!SV_TestEntityPosition(ent))
 //	{
-		G_FLOAT(OFS_RETURN) = SV_movestep(ent, move, true, false, settrace);
+		G_FLOAT(OFS_RETURN) = World_movestep(&sv.world, (wedict_t*)ent, move, true, false, settrace);
 //		if (SV_TestEntityPosition(ent))
 //			Con_Printf("Entity became stuck\n");
 //	}
@@ -3703,13 +3712,13 @@ void PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 PF_checkbottom
 =============
 */
-void PF_checkbottom (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_checkbottom (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent;
 
 	ent = G_EDICT(prinst, OFS_PARM0);
 
-	G_FLOAT(OFS_RETURN) = SV_CheckBottom (ent);
+	G_FLOAT(OFS_RETURN) = World_CheckBottom (&sv.world, (wedict_t*)ent);
 }
 
 /*
@@ -6998,7 +7007,7 @@ void PF_plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
-void PF_movestep (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_movestep (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	vec3_t v;
 	edict_t	*ent;
@@ -7015,7 +7024,7 @@ void PF_movestep (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // save program state, because SV_movestep may call other progs
 	oldself = pr_global_struct->self;
 
-	G_INT(OFS_RETURN) = SV_movestep (ent, v, false, true, set_trace?pr_globals:NULL);
+	G_INT(OFS_RETURN) = World_movestep (&sv.world, (wedict_t*)ent, v, false, true, set_trace?pr_globals:NULL);
 
 // restore program state
 	pr_global_struct->self = oldself;
@@ -9069,7 +9078,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tracetoss",		PF_TraceToss,		0,		0,		0,		64},
 	{"etos",			PF_etos,			0,		0,		0,		65},
 
-	{"movetogoal",		SV_MoveToGoal,		67,		67,		67},	//67
+	{"movetogoal",		PF_sv_movetogoal,		67,		67,		67},	//67
 	{"precache_file",	PF_precache_file,	68,		68,		68},	//68
 	{"makestatic",		PF_makestatic,		69,		69,		69},	//69
 

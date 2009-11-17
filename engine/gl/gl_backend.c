@@ -1901,14 +1901,6 @@ static void DrawPass(const shaderpass_t *pass, const mesh_t *meshlist)
 
 	checkerror();
 }
-#if 0
-void Matrix4_TransformN3(float *matrix, float *_vector, float *product)
-{
-	product[0] = -matrix[12] - matrix[0]*_vector[0] - matrix[4]*_vector[1] - matrix[8]*_vector[2];
-	product[1] = -matrix[13] - matrix[1]*_vector[0] - matrix[5]*_vector[1] - matrix[9]*_vector[2];
-	product[2] = -matrix[14] - matrix[2]*_vector[0] - matrix[6]*_vector[1] - matrix[10]*_vector[2];
-}
-#endif
 
 static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pass, const mesh_t *meshlist)
 {
@@ -2497,8 +2489,10 @@ static void BaseBrushTextures(entity_t *ent)
 	msurface_t *s, *chain;
 	model_t *model;
 
+#ifdef RTLIGHTS
 	if (BE_LightCullModel(ent->origin, ent->model))
 		return;
+#endif
 
 	qglPushMatrix();
 	R_RotateForEntity(ent);

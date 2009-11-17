@@ -352,7 +352,6 @@ void PF_logfrag (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_ExecuteCommand  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_precache_vwep_model(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 int PF_checkclient_Internal (progfuncs_t *prinst);
@@ -365,6 +364,8 @@ void PF_WriteString_Internal (int target, char *str);
 pbool ED_CanFree (edict_t *ed);
 #endif
 
+#define	MOVETYPE_NONE			0		// never moves
+#define MOVETYPE_PHYSICS		32
 
 // edict->solid values
 #define	SOLID_NOT				0		// no interaction with other objects
@@ -375,6 +376,17 @@ pbool ED_CanFree (edict_t *ed);
 #define	SOLID_PHASEH2			5
 #define	SOLID_CORPSE			5
 #define SOLID_LADDER			20		//dmw. touch on edge, not blocking. Touching players have different physics. Otherwise a SOLID_TRIGGER
+#define	SOLID_PHYSICS_BOX		32		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
+#define	SOLID_PHYSICS_SPHERE	33		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
+#define	SOLID_PHYSICS_CAPSULE	34		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
+
+
+#define JOINTTYPE_POINT 1
+#define JOINTTYPE_HINGE 2
+#define JOINTTYPE_SLIDER 3
+#define JOINTTYPE_UNIVERSAL 4
+#define JOINTTYPE_HINGE2 5
+#define JOINTTYPE_FIXED -1
 
 #define	DAMAGE_NO				0
 #define	DAMAGE_YES				1

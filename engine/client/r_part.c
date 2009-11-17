@@ -238,7 +238,7 @@ void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk)
 	if (cl.paused)
 		return;
 
- 	pe->RunParticleEffectState(pos, NULL, host_frametime, type, tsk);
+	pe->RunParticleEffectState(pos, NULL, ((host_frametime>0.1)?0.1:host_frametime), type, tsk);
 }
 
 

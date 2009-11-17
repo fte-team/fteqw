@@ -190,6 +190,7 @@ void Surf_LessenStains(void);
 void Surf_WipeStains(void);
 void Surf_DeInit(void);
 void Surf_BuildLightmaps(void);
+void Surf_BuildSurfaceDisplayList (struct model_s *mod, struct msurface_s *fa);
 void Surf_RenderDynamicLightmaps (struct msurface_s *fa, int shift);
 int Surf_LightmapShift (struct model_s *model);
 #ifndef LMBLOCK_WIDTH

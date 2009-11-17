@@ -3,7 +3,7 @@
 
 void RQ_AddDistReorder(void (*render) (int count, void **objects, void *objtype), void *object, void *objtype, float *pos);
 
-void RQ_RenderDistAndClear(void);
+FTE_DEPRECATED void RQ_RenderDistAndClear(void);
 void RQ_RenderBatchClear(void);
 
 typedef struct renderque_s

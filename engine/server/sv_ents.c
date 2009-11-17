@@ -2514,7 +2514,6 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 					leafnum = sv.world.worldmodel->funcs.LeafnumForPoint (sv.world.worldmodel, ent->v->origin)-1;
 					if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
 					{
-						Con_Printf ("PHS supressed entity\n");
 						continue;
 					}
 				}

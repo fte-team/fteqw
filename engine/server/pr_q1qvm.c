@@ -731,7 +731,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 			move[1] = sin(yaw)*dist;
 			move[2] = 0;
 
-			return SV_movestep(ed, move, true, false, NULL);
+			return World_movestep(&sv.world, (wedict_t*)ed, move, true, false, NULL);
 		}
 
 	case G_DROPTOFLOOR:
@@ -767,7 +767,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case G_CHECKBOTTOM:
-		return SV_CheckBottom(EDICT_NUM(svprogfuncs, VM_LONG(arg[0])));
+		return World_CheckBottom(&sv.world, (wedict_t*)EDICT_NUM(svprogfuncs, VM_LONG(arg[0])));
 
 	case G_POINTCONTENTS:
 		{
@@ -1141,7 +1141,7 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 		//fallthrough
 
 	case G_MOVETOGOAL:
-		return !!WrapQCBuiltin(SV_MoveToGoal, offset, mask, arg, "f");
+		return World_MoveToGoal(&sv.world, (wedict_t*)Q1QVMPF_ProgsToEdict(svprogfuncs, pr_global_struct->self), VM_FLOAT(arg[0]));
 
 	case G_SetBotUserInfo:
 		WrapQCBuiltin(PF_ForceInfoKey, offset, mask, arg, "ess");
@@ -1317,7 +1317,11 @@ qboolean PR_LoadQ1QVM(void)
 
 	q1qvm = VM_Create(NULL, "qwprogs", syscallnative, syscallqvm);
 	if (!q1qvm)
+	{
+		if (svprogfuncs == &q1qvmprogfuncs)
+			sv.world.progs = svprogfuncs = NULL;
 		return false;
+	}
 
 
 	progstype = PROG_QW;
@@ -1578,8 +1582,12 @@ void Q1QVM_GameCodePausedTic(float pausedduration)
 
 void Q1QVM_DropClient(client_t *cl)
 {
+	if (cl->name)
+		Q_strncpyz(cl->namebuf, cl->name, sizeof(cl->namebuf));
+
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
 	VM_Call(q1qvm, GAME_CLIENT_DISCONNECT);
+	cl->name = cl->namebuf;
 }
 
 void Q1QVM_ChainMoved(void)

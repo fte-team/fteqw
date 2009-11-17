@@ -98,6 +98,9 @@ int PR_InitEnts(progfuncs_t *progfuncs, int max_ents)
 	QC_ClearEdict(progfuncs, sv_edicts);
 	sv_num_edicts = 1;
 
+	if (externs->entspawn)
+		externs->entspawn((struct edict_s *)sv_edicts, false);
+
 	return max_fields_size;
 }
 edictrun_t tempedict;	//used as a safty buffer

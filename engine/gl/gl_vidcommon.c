@@ -473,6 +473,7 @@ GLhandleARB GLSlang_CreateShader (char *precompilerconstants, char *shadersource
 	GLhandleARB shader;
 	GLint       compiled;
 	char        str[1024];
+	int loglen;
 
 	char *prstrings[3];
 	if (!precompilerconstants)
@@ -500,6 +501,7 @@ GLhandleARB GLSlang_CreateShader (char *precompilerconstants, char *shadersource
 	qglGetObjectParameterivARB(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
 	if(!compiled)
 	{
+		Con_DPrintf("Shader source:\n%s%s%s\n", prstrings[0], prstrings[1], prstrings[2]);
 		qglGetInfoLogARB(shader, sizeof(str), NULL, str);
 		qglDeleteObjectARB(shader);
 		switch (shadertype)
@@ -515,6 +517,20 @@ GLhandleARB GLSlang_CreateShader (char *precompilerconstants, char *shadersource
 			break;
 		}
 		return 0;
+	}
+
+	if (developer.ival)
+	{
+		qglGetObjectParameterivARB(shader, GL_OBJECT_INFO_LOG_LENGTH_ARB, &loglen);
+		if (loglen)
+		{
+			qglGetInfoLogARB(shader, sizeof(str), NULL, str);
+			if (strstr(str, "WARNING"))
+			{
+				Con_Printf("Shader source:\n%s%s%s\n", prstrings[0], prstrings[1], prstrings[2]);
+				Con_Printf("%s\n", str);
+			}
+		}
 	}
 
 	return shader;

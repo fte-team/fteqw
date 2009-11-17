@@ -105,6 +105,8 @@ typedef struct areanode_s
 
 #define	AREA_DEPTH	4
 #define	AREA_NODES	32 //pow(2, AREA_DEPTH+1)
+#define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,wedict_t,area)
+
 typedef struct wedict_s wedict_t;
 
 typedef struct
@@ -141,8 +143,6 @@ FTE_DEPRECATED	unsigned int	edict_size;
 #endif
 };
 typedef struct world_s world_t;
-
-#ifndef CLIENTONLY
 
 #ifdef USEODE
 void World_Physics_RemoveFromEntity(world_t *world, wedict_t *ed);
@@ -207,4 +207,10 @@ qboolean Q2BSP_EdictInFatPVS(model_t *mod, wedict_t *ent, qbyte *pvs);
 void Q2BSP_FindTouchedLeafs(world_t *w, model_t *mod, wedict_t *ent, float *mins, float *maxs);
 
 #endif
-#endif
+
+
+/*sv_move.c*/
+qboolean World_CheckBottom (world_t *world, wedict_t *ent);
+qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean relink, qboolean noenemy, struct globalvars_s *set_trace);
+qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist);
+

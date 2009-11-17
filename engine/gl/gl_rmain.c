@@ -1224,6 +1224,7 @@ void R_RenderScene (void)
 		TRACE(("dbg: calling R_DrawParticles\n"));
 		P_DrawParticles ();
 	}
+	RQ_RenderBatchClear();
 }
 
 

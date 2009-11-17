@@ -123,6 +123,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define PSET_CLASSIC
 
+		#define CSQC_DAT	//support for csqc
+
 		#ifndef SERVERONLY	//don't be stupid, stupid.
 			#ifndef CLIENTONLY
 				#define CLIENTONLY

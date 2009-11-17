@@ -440,6 +440,8 @@ skelobject_t *skel_get(progfuncs_t *prinst, int skelidx, int bonecount);
 void skel_dodelete(void);
 
 
+qboolean csqc_deprecated_warned;
+#define csqc_deprecated(s) do {if (!csqc_deprecated_warned){Con_Printf("deprecated feature used: %s\n", s); csqc_deprecated_warned = true;}}while(0)
 
 
 static model_t *CSQC_GetModelForIndex(int index);
@@ -543,6 +545,18 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char	*str;
 
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
+
+	if (!strcmp(str, "vid_conwidth"))
+	{
+		csqc_deprecated("vid_conwidth cvar");
+		G_FLOAT(OFS_RETURN) = vid.width;
+	}
+	else if (!strcmp(str, "vid_conheight"))
+	{
+		csqc_deprecated("vid_conheight cvar");
+		G_FLOAT(OFS_RETURN) = vid.height;
+	}
+	else
 	{
 		var = Cvar_Get(str, "", 0, "csqc cvars");
 		if (var)
@@ -1356,8 +1370,6 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 	if (qrenderer == QR_OPENGL)
 	{
 		gl_ztrickdisabled|=16;
-		qglDisable(GL_ALPHA_TEST);
-		qglDisable(GL_BLEND);
 	}
 #endif
 
@@ -1373,16 +1385,6 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 	{
 		gl_ztrickdisabled&=~16;
 		GL_Set2D ();
-		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		GL_TexEnv(GL_MODULATE);
-	}
-#endif
-
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		qglDisable(GL_ALPHA_TEST);
-		qglEnable(GL_BLEND);
 	}
 #endif
 
@@ -2164,6 +2166,8 @@ typedef struct {
 	}
 	else
 	{
+		csqc_deprecated("runplayerphysics with no ent");
+
 		if (csqcg.pmove_jump_held)
 			pmove.jump_held = *csqcg.pmove_jump_held;
 		if (csqcg.pmove_waterjumptime)
@@ -3934,82 +3938,13 @@ static void PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 
 
-
-static qboolean CS_CheckBottom (csqcedict_t *ent)
-{
-	int savedhull;
-	vec3_t	mins, maxs, start, stop;
-	trace_t	trace;
-	int		x, y;
-	float	mid, bottom;
-
-	if (!cl.worldmodel)
-		return false;
-
-	VectorAdd (ent->v->origin, ent->v->mins, mins);
-	VectorAdd (ent->v->origin, ent->v->maxs, maxs);
-
-// if all of the points under the corners are solid world, don't bother
-// with the tougher checks
-// the corners must be within 16 of the midpoint
-	start[2] = mins[2] - 1;
-	for	(x=0 ; x<=1 ; x++)
-		for	(y=0 ; y<=1 ; y++)
-		{
-			start[0] = x ? maxs[0] : mins[0];
-			start[1] = y ? maxs[1] : mins[1];
-			if (!(CS_PointContents (start) & FTECONTENTS_SOLID))
-				goto realcheck;
-		}
-
-//	c_yes++;
-	return true;		// we got out easy
-
-realcheck:
-//	c_no++;
-//
-// check it for real...
-//
-	start[2] = mins[2];
-
-// the midpoint must be within 16 of the bottom
-	start[0] = stop[0] = (mins[0] + maxs[0])*0.5;
-	start[1] = stop[1] = (mins[1] + maxs[1])*0.5;
-	stop[2] = start[2] - 2*movevars.stepheight;
-	trace = World_Move (&csqc_world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)ent);
-
-	if (trace.fraction == 1.0)
-		return false;
-	mid = bottom = trace.endpos[2];
-
-// the corners must be within 16 of the midpoint
-	for	(x=0 ; x<=1 ; x++)
-		for	(y=0 ; y<=1 ; y++)
-		{
-			start[0] = stop[0] = x ? maxs[0] : mins[0];
-			start[1] = stop[1] = y ? maxs[1] : mins[1];
-
-			savedhull = ent->xv->hull;
-			ent->xv->hull = 0;
-			trace = World_Move (&csqc_world, start, vec3_origin, vec3_origin, stop, true, (wedict_t*)ent);
-			ent->xv->hull = savedhull;
-
-			if (trace.fraction != 1.0 && trace.endpos[2] > bottom)
-				bottom = trace.endpos[2];
-			if (trace.fraction == 1.0 || mid - trace.endpos[2] > movevars.stepheight)
-				return false;
-		}
-
-//	c_yes++;
-	return true;
-}
 static void PF_cs_checkbottom (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t	*ent;
 
 	ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 
-	G_FLOAT(OFS_RETURN) = CS_CheckBottom (ent);
+	G_FLOAT(OFS_RETURN) = World_CheckBottom (&csqc_world, (wedict_t*)ent);
 }
 
 static void PF_cs_break (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4113,7 +4048,7 @@ static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qbo
 // check point traces down for dangling corners
 	VectorCopy (trace.endpos, ent->v->origin);
 
-	if (!CS_CheckBottom (ent))
+	if (!World_CheckBottom (&csqc_world, (wedict_t*)ent))
 	{
 		if ( (int)ent->v->flags & FL_PARTIALGROUND )
 		{	// entity had floor mostly pulled out from underneath it
@@ -4175,6 +4110,15 @@ static void PF_cs_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 // restore program state
 	*csqcg.self = oldself;
+}
+
+static void PF_cs_movetogoal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t	*ent;
+	float dist;
+	ent = (wedict_t*)PROG_TO_EDICT(prinst, *csqcg.self);
+	dist = G_FLOAT(OFS_PARM0);
+	World_MoveToGoal (&csqc_world, ent, dist);
 }
 
 static void CS_ConsoleCommand_f(void)
@@ -4801,7 +4745,7 @@ static struct {
 
 	{"etos",	PF_etos,	65},				// #65 string(entity ent) etos (DP_QC_ETOS)
 	{"?",	PF_Fixme,	66},				// #66
-//	{"movetogoal",	PF_Fixme,	67},				// #67 void(float step) movetogoal (QUAKE)
+	{"movetogoal",	PF_cs_movetogoal,	67},				// #67 void(float step) movetogoal (QUAKE)
 	{"precache_file",	PF_NoCSQC,	68},				// #68 void(string s) precache_file (QUAKE) (don't support)
 	{"makestatic",	PF_cs_makestatic,	69},		// #69 void(entity e) makestatic (QUAKE)
 //70
@@ -5311,6 +5255,10 @@ void CSQC_Shutdown(void)
 	}
 	csqcprogs = NULL;
 
+#ifdef USEODE
+	World_Physics_End(&csqc_world);
+#endif
+
 	Z_Free(csqcdelta_pack_new.e);
 	memset(&csqcdelta_pack_new, 0, sizeof(csqcdelta_pack_new));
 	Z_Free(csqcdelta_pack_old.e);
@@ -5513,6 +5461,7 @@ qboolean CSQC_Init (unsigned int checksum)
 		in_sensitivityscale = 1;
 		csqcmapentitydataloaded = true;
 		csqcprogs = InitProgs(&csqcprogparms);
+		csqc_world.progs = csqcprogs;
 		PR_Configure(csqcprogs, -1, 16);
 		csqc_world.worldmodel = cl.worldmodel;
 		csqc_world.Event_Touch = CSQC_Event_Touch;
@@ -5548,18 +5497,22 @@ qboolean CSQC_Init (unsigned int checksum)
 
 		CSQC_FindGlobals();
 
+		csqc_world.physicstime = 0;
+
 		csqc_fakereadbyte = -1;
 		memset(csqcent, 0, sizeof(*csqcent)*maxcsqcentities);	//clear the server->csqc entity translations.
 
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csmaxedicts.value);
 
-		ED_Alloc(csqcprogs);	//we need a word entity.
+		ED_Alloc(csqcprogs);	//we need a world entity.
 		//world edict becomes readonly
 		worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
 
 		worldent->readonly = true;
 		worldent->isfree = false;
-		worldent->v->model = PR_SetString(csqcprogs, cl.model_name[1]);
+		worldent->v->modelindex = 1;
+		worldent->v->model = PR_SetString(csqcprogs, cl.model_name[(int)worldent->v->modelindex]);
+		worldent->v->solid = SOLID_BSP;
 
 		str = (string_t*)csqcprogs->GetEdictFieldValue(csqcprogs, (edict_t*)worldent, "message", NULL);
 		if (str)
@@ -5598,6 +5551,12 @@ void CSQC_WorldLoaded(void)
 		return;
 	csqcmapentitydataloaded = true;
 	csqcmapentitydata = cl.worldmodel->entities;
+
+	csqc_world.worldmodel = cl.worldmodel;
+#ifdef USEODE
+	World_Physics_Start(&csqc_world);
+#endif
+
 	if (csqcg.worldloaded)
 		PR_ExecuteProgram(csqcprogs, csqcg.worldloaded);
 	csqcmapentitydata = NULL;
@@ -5748,13 +5707,39 @@ void CSQC_RegisterCvarsAndThings(void)
 
 qboolean CSQC_DrawView(void)
 {
+#ifdef USEODE
+	int ticlimit = 10;
+	float ft;
+	float mintic = 0.01;
+#endif
+
 	if (!csqcg.draw_function || !csqcprogs || !cl.worldmodel)
 		return false;
 
 	r_secondaryview = 0;
 
 	CL_CalcClientTime();
+
+#ifdef USEODE
+	while(1)
+	{
+		ft = cl.servertime - csqc_world.physicstime;
+		if (ft < mintic)
+			break;
+		if (!--ticlimit)
+		{
+			csqc_world.physicstime = cl.servertime;
+			break;
+		}
+		if (ft > mintic)
+			ft = mintic;
+		csqc_world.physicstime += ft;
+
+		World_Physics_Frame(&csqc_world, ft, 800);
+	}
+#else
 	csqc_world.physicstime = cl.servertime;
+#endif
 
 	DropPunchAngle (0);
 	if (cl.worldmodel)

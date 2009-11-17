@@ -796,17 +796,6 @@ typedef struct
 #define	SOLID_PHASEH2			5
 #define	SOLID_CORPSE			5
 #define SOLID_LADDER			20		//dmw. touch on edge, not blocking. Touching players have different physics. Otherwise a SOLID_TRIGGER
-#define	SOLID_PHYSICS_BOX		32		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
-#define	SOLID_PHYSICS_SPHERE	33		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
-#define	SOLID_PHYSICS_CAPSULE	34		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
-
-
-#define JOINTTYPE_POINT 1
-#define JOINTTYPE_HINGE 2
-#define JOINTTYPE_SLIDER 3
-#define JOINTTYPE_UNIVERSAL 4
-#define JOINTTYPE_HINGE2 5
-#define JOINTTYPE_FIXED -1
 
 #define	DAMAGE_NO				0
 #define	DAMAGE_YES				1
@@ -940,13 +929,8 @@ void SVNQ_FullClientUpdate (client_t *client, sizebuf_t *buf);
 
 int SV_ModelIndex (char *name);
 
-qboolean SV_CheckBottom (edict_t *ent);
-qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noenemy, struct globalvars_s *set_trace);
-
 void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg);
 void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext);
-
-void SV_MoveToGoal (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void SV_SaveSpawnparms (qboolean);
 void SV_SaveLevelCache(qboolean dontharmgame);

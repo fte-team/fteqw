@@ -5,7 +5,7 @@ float viewmodelindex;
 
 float scrwidth;
 float scrheight;
-
+float scenedraw;
 
 
 void() DrawScreen =
@@ -51,11 +51,12 @@ void() Crosshair_Draw =
 
 void() Position_Draw =
 {
-	float pos, s;
+	float pos, s, lvl;
 	string sn;
 
 	pos = getstati(54);
 	s = getstati(58);
+	lvl = getstati(127);
 	sn = ftos(s);
 
 	if (pos == 0)
@@ -69,6 +70,11 @@ void() Position_Draw =
 	{
 		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.20)) +('0 1 0'*(scrheight*0.79)), "gui/hud/sneak.png", '0 0 0'+'72 25 0'*(scrwidth/640), '1 1 1');
 		//drawstring('0 0 0'+('1 0 0'*(scrwidth*0.20)) +('0 1 0'*(scrheight*0.80)),  strcat("%", sn), '8 8 8', '1 1 1', 1);
+	}
+
+	if (lvl >= 200)
+	{
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.70)) +('0 1 0'*(scrheight*0.80)), "gui/hud/level.png", '0 0 0'+'132 22 0'*(scrwidth/640), '1 1 1');
 	}
 };
 
@@ -98,8 +104,8 @@ void() Chem_Draw =
 
 void() Time_Draw =
 {
-	local float xtime, ytime, ztime;
-	local string qtime, rtime, shadowtime;
+	local float xtime, ytime, ztime, obj;
+	local string qtime, rtime, shadowtime, text;
 
 	xtime = getstati(104);
 	ytime = floor(xtime/60);
@@ -108,7 +114,22 @@ void() Time_Draw =
 	rtime = ftos(ztime);
 	shadowtime = ftos(getstati(104));
 
-	drawstring('0 32 0'+('1 0 0'*(scrwidth*0.10))+('0 1 0'*(scrheight*0.90)),  strcat("[", qtime, ":", rtime, "]\n"), '8 8 8', '1 1 1', 1);
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.25))+('0 1 0'*(scrheight*0.86)),  strcat("[", qtime, ":", rtime, "]\n"), '8 8 8', '1 1 1', 1);
+
+
+	obj = getstati(66);
+
+	if (obj == 1)
+		text = "rescue citizens\n";
+	if (obj == 2)
+		text = "capture supplies\n";
+	if (obj == 3)
+		text = "assassinate commanders\n";
+	if (obj == 4)
+		text = "rescue citizens\n";
+
+		drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.86)),  text, '8 8 8', '1 1 1', 1);
+
 };
 
 
@@ -155,22 +176,17 @@ void() Health_Draw =
 	maxhp = getstati(49);
 
 	bar = 0;
-	top = ceil(150 * (hp/maxhp));
+	top = ceil(115 * (hp/maxhp));
 
-	if (top > 150)
-		top = 150;
+	if (top > 115)
+		top = 115;
 
-	while (bar <= top)
-	{
-
-			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.07)) +('0 1 0'*(scrheight*0.75)) - ('0 1 0'*bar*(scrheight/640)),  "gui/graph/green.jpg", '0 0 0'+'12 1 0'*(scrwidth/640), '1 1 1', 1);				
-		
-
+	while (bar < top)
 		bar = bar + 1;
-	}
+
+	drawpic('0 0 0'+('1 0 0'*(scrwidth*0.07)) +('0 1 0'*(scrheight*0.75)) + ('0 1 0'*(scrheight/640)), "gui/graph/green.jpg", '16 1 0'*(scrheight/640)-'0 1 0'*(scrwidth/640)*bar, '1 1 1', 1);	
 
 };
-
 
 void() Radiation_Draw =
 {
@@ -179,21 +195,20 @@ void() Radiation_Draw =
 	rad = getstati(106);
 
 	bar = 0;
-	top = ceil(150 * (rad/100));
+	top = ceil(115 * (rad/100));
 
-	if (top > 150)
-		top = 150;
+	if (top > 115)
+		top = 115;
 
-	while (bar <= top)
-	{
-
-			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.02)) +('0 1 0'*(scrheight*0.75)) - ('0 1 0'*bar*(scrheight/640)),  "gui/graph/yellow.jpg", '0 0 0'+'12 1 0'*(scrwidth/640), '1 1 1', 1);				
-		
-
+	while (bar < top)
 		bar = bar + 1;
-	}
+
+	drawpic('0 0 0'+('1 0 0'*(scrwidth*0.02)) +('0 1 0'*(scrheight*0.75)) + ('0 1 0'*(scrheight/640)), "gui/graph/yellow.jpg", '16 1 0'*(scrheight/640)-'0 1 0'*(scrwidth/640)*bar, '1 1 1', 1);	
 
 };
+
+
+
 
 
 
@@ -241,9 +256,8 @@ void(vector pos, float x) HUD_Image =
 	local string itname;
 
 
-	if (x <= 16)
-		it = getstati(31+x);
 
+	it = getstati(31+x);
 
 	itname = GetItemImage(ToIID(it));
 	drawpic(pos, strcat("gui/", itname), '48 48 0', '1 1 1', 1);
@@ -257,23 +271,17 @@ void(vector pos, float x) HUD_Image =
 };
 
 
-void(vector pos, float slotno) HUD_Weapon_Image =
+void(vector pos, float x) HUD_Weapon_Image =
 {
 	local float it, mod_s, mod_e;
 	local string itname;
 
 
-	if (slotno == downslotnum && slotnum)
-		slotno = slotnum;
-	else if (slotno == slotnum && downslotnum)
-		slotno = downslotnum;
-
-	if (slotno <= 16)
-		it = getstati(31+slotno);
+	it = getstati(31+x);
 
 
 	itname = GetItemImage(ToIID(it));
-	drawpic(pos, strcat("gui/weapons/", itname), '180 59 0', '1 1 1', 1);
+	drawpic(pos, strcat("gui/weapons/", itname), '180 59 0'*(scrwidth/640), '1 1 1', 1);
 
 };
 
@@ -295,7 +303,7 @@ void() Ammo_Draw =
 	top = ceil(35 * (ammo/max));
 
 		if (top > 35)
-			top = 35;
+			top =35;
 
 		while (bar <= top)
 		{
@@ -307,8 +315,7 @@ void() Ammo_Draw =
 		}
 
 	}
-
-	if (hand == 2)
+	else if (hand == 2)
 	{
            weap = ToIID(getstati(33));
            ammo = ToStatus(getstati(33));
@@ -335,6 +342,79 @@ void() Ammo_Draw =
 };
 
 
+
+void() HUD_Perks_Draw =
+{
+	local string perki, perk2i;
+	local float perktime, perktime2, bar, max, top;
+
+
+	perktime = getstati(111);
+	if (perktime == 0)
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.855)) + ('0 1 0'*(scrheight*0.90)), "gui/graph/green.jpg", '0 0 0'+'4 4 0'*(scrwidth/640),  '1 1 1', 1);
+
+	perktime2 = getstati(112);
+	if (perktime2 == 0)
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.855)) + ('0 1 0'*(scrheight*0.96)), "gui/graph/green.jpg", '0 0 0'+'4 4 0'*(scrwidth/640),  '1 1 1', 1);
+
+
+	if (getstati(60) > 0)
+	{
+	perki = GetPerkImage(getstati(60));
+	drawpic('0 0 0'+('1 0 0'*(scrwidth*0.865)) +('0 1 0'*(scrheight*0.875)),  perki, '28 28 0'*(scrwidth/640), '1 1 1', 1);
+	}
+
+	if (getstati(59) > 0)
+	{
+	perk2i = GetPerkImage(getstati(59));
+	drawpic('0 0 0'+('1 0 0'*(scrwidth*0.865)) +('0 1 0'*(scrheight*0.935)), perk2i, '28 28 0'*(scrwidth/640), '1 1 1', 1);
+	}
+
+	perktime = getstati(111);
+	if (perktime > 0)
+	{
+		max = 2000;
+
+		bar = 0;
+		top = ceil(32 * (perktime/max));
+
+		if (top > 32)
+			top = 32;
+
+		while (bar < top)
+		{
+
+			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.865)) +('0 1 0'*(scrheight*0.88)) + ('0 1 0'*bar*(scrheight/640)), "gui/graph/black.jpg", '0 0 0'+'28 1 0'*(scrwidth/640),  '1 1 1', 1);					
+		
+
+			bar = bar + 1;
+		}
+	}
+
+	perktime = getstati(112);
+	if (perktime > 0)
+	{
+		max = 2000;
+
+		bar = 0;
+		top = ceil(32 * (perktime/max));
+
+		if (top > 32)
+			top = 32;
+
+		while (bar < top)
+		{
+
+			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.865)) +('0 1 0'*(scrheight*0.94)) + ('0 1 0'*bar*(scrheight/640)), "gui/graph/black.jpg", '0 0 0'+'28 1 0'*(scrwidth/640),  '1 1 1', 1);					
+		
+
+			bar = bar + 1;
+		}
+	}
+
+};
+
+
 void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 {
 	float usehud;
@@ -343,7 +423,7 @@ void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 	scrheight = vheight;
 
 	clearscene();
-
+/*
 	if (0)//!cvar("cg_usehud"))
 	{
 		setviewprop(VF_DRAWENGINESBAR, 0);
@@ -352,9 +432,9 @@ void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 	else
 	{
 		setviewprop(VF_DRAWENGINESBAR, 1);
-	}
+	}*/
 
-	setviewprop(VF_DRAWCROSSHAIR, 1);
+	setviewprop(VF_DRAWCROSSHAIR, 1);//
 
 	//force fullscreen views.
 	setviewprop(VF_MIN, '0 0 0');
@@ -392,6 +472,7 @@ void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 		GainPerk_Draw();
 	else
 	{
+
 		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.06)) +('0 1 0'*(scrheight*0.45)), "gui/hud/health.png", '0 0 0'+'25 155 0'*(scrwidth/640), '1 1 1');
 		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.01)) +('0 1 0'*(scrheight*0.45)), "gui/hud/radiation.png", '0 0 0'+'25 155 0'*(scrwidth/640), '1 1 1');
 		drawpic('0 0 0' + ('0 1 0'*(scrheight*0.84)), "gui/hud/hud.png", '0 0 0'+'80 10 0'*(scrwidth/80), '1 1 1');
@@ -399,13 +480,27 @@ void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 		Health_Draw();
 		Radiation_Draw();
 
-		HUD_Weapon_Image('0 0 0'+('1 0 0'*(scrwidth*0.38)) +('0 1 0'*(scrheight*0.87)), getstati(61));
-		Ammo_Draw();
+		if ((getstati(61) == 1) && (getstati(32) > 0))
+		{
+			HUD_Weapon_Image('0 0 0'+('1 0 0'*(scrwidth*0.38)) +('0 1 0'*(scrheight*0.87)), getstati(61));
+			Ammo_Draw();
+		}
+		else if ((getstati(61) == 2) && (getstati(33) > 0))
+		{
+			HUD_Weapon_Image('0 0 0'+('1 0 0'*(scrwidth*0.38)) +('0 1 0'*(scrheight*0.87)), getstati(61));
+			Ammo_Draw();
+		}
 
-		SlotImageSmall('0 0 0'+('1 0 0'*(scrwidth*0.72)) +('0 1 0'*(scrheight*0.87)), getstati(5));
-		SlotImageSmall('0 0 0'+('1 0 0'*(scrwidth*0.79)) +('0 1 0'*(scrheight*0.87)), getstati(6));
+		if (getstati(36) > 0)
+			SlotImageSmall('0 0 0'+('1 0 0'*(scrwidth*0.70)) +('0 1 0'*(scrheight*0.90)), 5);
+
+		if (getstati(42) > 0)
+			SlotImageSmall('0 0 0'+('1 0 0'*(scrwidth*0.77)) +('0 1 0'*(scrheight*0.90)), 11);
+
+		HUD_Perks_Draw();
 
 		Position_Draw();
+		
 		Chem_Draw();
 		Time_Draw();
 		Crosshair_Draw();

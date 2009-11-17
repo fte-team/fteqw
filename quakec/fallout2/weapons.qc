@@ -112,24 +112,9 @@ local float             rnd1, rnd2, rnd3;
 	if (self.cnt == 20)
 		remove(self);
 
-	rnd1 = self.velocity_x + (-30 + (random() * 20));
-	rnd2 = self.velocity_y + (-30 + (random() * 20));
-	rnd3 = self.velocity_z + 30 + random() * 10;
-
-	if (random()*100 > 50)
-		rnd1 = 24;
-	else
-		rnd1 = -24;
-		
-	if (random()*100 > 50)
-		rnd2 = 24;
-	else
-		rnd2 = -24;
-		
-	if (random()*100 > 50)
-		rnd3 = -5;
-	else
-		rnd3 = 10;
+	rnd1 = self.velocity_x + (-10 + (random() * 20));
+	rnd2 = self.velocity_y + (-10 + (random() * 20));
+	rnd3 = self.velocity_z + 1 + random() * 3;
 	
 	self.velocity_x = rnd1;
 	self.velocity_y = rnd2;
@@ -203,6 +188,17 @@ void(float slotno) UsePerk =
 			}
 			te = te.chain;
 		}
+	}
+	if ((self.perk1 == 11 && slotno == 1) || (self.perk2 == 11 && slotno == 2))
+	{
+		if (slotno == 1)
+			self.perk1timer = 2000;
+		if (slotno == 2)
+			self.perk2timer = 2000;
+
+		sound (self, CHAN_BODY, "misc/r_tele4.wav", 1, ATTN_NORM);
+
+
 	}
 };
 
@@ -2112,7 +2108,7 @@ void() ImpulseCommands =
 	if (self.impulse == 3 && self.currentmenu == "none")
 		Cmd_InvUse("5");
 	if (self.impulse == 4 && self.currentmenu == "none")
-		Cmd_InvUse("6");
+		Cmd_InvUse("11");
 
 
 	if (self.impulse >= 1 && self.impulse <= 10 && self.currentmenu != "none")
@@ -4342,7 +4338,7 @@ void () UseStimpack =
 			else
 			{
 				sound (trace_ent, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
-				self.score = self.score + 50;
+				self.score = self.score + 1;
 				sprint(trace_ent, PRINT_MEDIUM, self.netname);
 				sprint(trace_ent, PRINT_MEDIUM, " heals you with a stimpack\n");
 				sprint(self, PRINT_MEDIUM, "you heal ");
@@ -4453,7 +4449,7 @@ void () UseSuperStim =
 			{
 				sound (trace_ent, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
 
-				self.score = self.score + 50;
+				self.score = self.score + 1;
 				sprint(trace_ent, PRINT_MEDIUM, self.netname);
 				sprint(trace_ent, PRINT_MEDIUM, " heals you with a superstim!\n");
 				sprint(self, PRINT_MEDIUM, "you heal ");
@@ -4512,6 +4508,7 @@ void () UseMedicalBag =
 			sound (self, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
 			self.health = self.health + 5 + (self.skill_doctor/2);
 			self.regen = self.regen + 3 + (self.skill_doctor/2);
+			spawn_healing(self);
 		}
 	}
 	else if (trace_ent.classname == "player")//healing another team-mate
@@ -4563,6 +4560,7 @@ void () UseMedicalBag =
 				self.score = self.score + 1;
 				trace_ent.health = trace_ent.health + 5 + (self.skill_doctor/2);
 				trace_ent.regen = trace_ent.regen + 3 + (self.skill_doctor/2);
+				spawn_healing(trace_ent);
 			}
 		}
 	}

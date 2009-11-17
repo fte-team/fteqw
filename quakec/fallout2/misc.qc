@@ -281,7 +281,7 @@ void () hostage_die =
 		}
 
 	hos_deatha1 ();
-
+	self.solid = SOLID_NOT;
 	setsize (self, VEC_ORIGIN, VEC_ORIGIN);
 };
 

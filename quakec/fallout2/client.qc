@@ -1132,7 +1132,7 @@ void() WaterMove =
 			else
 				self.dmgtime = time + 0.2;
 
-			T_Damage (self, world, world, 10*self.waterlevel);
+			self.radiation = self.radiation + (1*self.waterlevel);
 		}
 	}
 	else if (self.watertype == CONTENT_SLIME)
@@ -1140,7 +1140,8 @@ void() WaterMove =
 		if (self.dmgtime < time && self.rage != IID_CHEM_RADX)
 		{
 			self.dmgtime = time + 1;
-			T_Damage (self, world, world, 4*self.waterlevel);
+
+			self.radiation = self.radiation + ((1*self.waterlevel)/2);
 		}
 	}
 	
@@ -2074,9 +2075,9 @@ void() ClientConnect =
 	stuffcmd(self, "alias stimpack impulse 225\n");
 	stuffcmd(self, "alias equip \"cmd invuse 4\"\n");
 	stuffcmd(self, "alias q1 \"cmd invuse 5\"\n");
-	stuffcmd(self, "alias q2 \"cmd invuse 6\"\n");
+	stuffcmd(self, "alias q2 \"cmd invuse 11\"\n");
 	stuffcmd(self, "alias quick1 \"cmd invuse 5\"\n");
-	stuffcmd(self, "alias quick2 \"cmd invuse 6\"\n");
+	stuffcmd(self, "alias quick2 \"cmd invuse 11\"\n");
 
 	stuffcmd(self, "alias toolkit \"cmd invswap toolkit 2;impulse 2\"\n");
 

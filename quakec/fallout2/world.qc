@@ -107,6 +107,8 @@ void() SetupStats =
 	clientstat(108, 2, safezone);
 	clientstat(109, 2, connected);
 	clientstat(110, 2, steadyaim);
+	clientstat(111, 2, perk1timer);
+	clientstat(112, 2, perk2timer);
 	clientstat(125, 2, timer);
 	clientstat(126, 2, popup);
 	clientstat(127, 2, score);
@@ -650,9 +652,9 @@ if (coop == 1) // Players vs Monsters
 		}       
       
 	}
-	else if (musicplay < 50)
+	else if (musicplay < 20)
 		musicplay = musicplay + 1;
-	else if (musicplay >= 100)
+	else if (musicplay >= 20)
 		musicplay = 0;
 
 	te = find(world, classname, "player");

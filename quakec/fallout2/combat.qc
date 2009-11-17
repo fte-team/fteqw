@@ -115,7 +115,7 @@ This should be the only function that ever reduces health.
 void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 {
 	local   entity  oldself;
-	local   float   save, dm;
+	local   float   save, dm, radpenalty;
 	local   float   take, severity, helm;
 	local   string  attackerteam, targteam;
 	local string info1, info2;
@@ -137,6 +137,15 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	if (targ.classname == "player")
 		damage = floor(damage * 0.60);*/
 
+	if (targ.radiation > 0)
+	{
+		radpenalty = 1 + (targ.radiation/100);
+
+		if (radpenalty > 1.25)
+			radpenalty = 1.25;
+
+		damage = damage * radpenalty;
+	}
 
 //getting hurt is slightly painful to the score, play cautiously!
 	if (attacker.classname == "monster" && targ.classname == "player")
@@ -449,31 +458,31 @@ take = damage;
 	switch(ToIID(targ.islot3))
 	{
 	case IID_ARM_DESERT:
-		take -= 2;
+		take -= 1;
 		break;
 	case IID_ARM_LEATHER:
-		take -= 3;
+		take -= 2;
 		break;
 	case IID_ARM_VANDAL:
-		take -= 5;
+		take -= 3;
 		break;
 	case IID_ARM_METAL:
 		take -= 1;
 		break;
 	case IID_ARM_TESLA:
-		take -= 6;
+		take -= 5;
 		break;
 	case IID_ARM_COMBAT:
 		take -= 6;
 		break;
 	case IID_ARM_SEVA:
-		take -= 6;
+		take -= 5;
 		break;
 	case IID_ARM_FORCE:
 		take -= 9;
 		break;
 	case IID_ARM_LPOWER:
-		take -= 10;
+		take -= 8;
 		break;
 	default:
 		break;
@@ -485,7 +494,7 @@ take = damage;
 		take = take * 0.80;
 		break;
 	case IID_ARM_VANDAL:
-		take = take * 0.70;
+		take = take * 0.65;
 		break;
 	case IID_ARM_METAL:
 		take = take * 0.40;

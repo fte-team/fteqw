@@ -116,10 +116,7 @@ void() zombie_walk15	=[	$walk15,	zombie_walk16	] {ai_walk(3);};
 void() zombie_walk16	=[	$walk16,	zombie_walk17	] {ai_walk(3);};
 void() zombie_walk17	=[	$walk17,	zombie_walk18	] {ai_walk(3);};
 void() zombie_walk18	=[	$walk18,	zombie_walk19	] {ai_walk(3);};
-void() zombie_walk19	=[	$walk19,	zombie_walk1	] {
-ai_walk(6);
-if (random() < 0.2)
-	sound (self, CHAN_VOICE, "zombie/z_idle.wav", 1, ATTN_IDLE);};
+void() zombie_walk19	=[	$walk19,	zombie_walk1	] {ai_walk(6);};
 
 void() zombie_run1		=[	$run1,		zombie_run2	] {ai_run(4);self.inpain = 0;};
 void() zombie_run2		=[	$run2,		zombie_run3	] {ai_run(4);
@@ -146,13 +143,7 @@ void() zombie_run14		=[	$run14,		zombie_run15	] {ai_run(4);};
 void() zombie_run15		=[	$run15,		zombie_run16	] {ai_run(4);};
 void() zombie_run16		=[	$run16,		zombie_run17	] {ai_run(4);};
 void() zombie_run17		=[	$run17,		zombie_run18	] {ai_run(4);};
-void() zombie_run18		=[	$run18,		zombie_run1	] {
-ai_run(8);
-if (random() < 0.2)
-	sound (self, CHAN_VOICE, "zombie/z_idle.wav", 1, ATTN_IDLE);
-if (random() > 0.8)
-	sound (self, CHAN_VOICE, "zombie/z_idle1.wav", 1, ATTN_IDLE);
-};
+void() zombie_run18		=[	$run18,		zombie_run1	] {ai_run(8);};
 
 /*
 =============================================================================
@@ -314,7 +305,7 @@ void() zombie_attc12	=[	$attc12,	zombie_run1		] {ai_face();ZombieFireGrenade('-1
 
 void() zombie_claw =
 {
-local vector	delta;
+local vector	delta, dir;
 local float 	ldmg;
 
 	if (!self.enemy)
@@ -329,11 +320,22 @@ local float 	ldmg;
 
 	delta = self.enemy.origin - self.origin;
 
-	if (vlen(delta) > (80))
+	if (self.scale == 1.5 && vlen(delta) > (90))
 		return;
-		
+	else if (vlen(delta) > (60))
+		return;	
+
 	ldmg = 5+random()*15;
 
+	if (self.scale == 1.5)
+	{
+		ldmg = 10+random()*15;
+		dir = normalize(self.enemy.origin - self.origin);
+		self.enemy.radiation = self.enemy.radiation + 50;
+		self.enemy.velocity = dir * 300;
+		self.enemy.velocity_z = 300;
+		self.enemy.avelocity_y = (random()* 300);
+	}
 	T_Damage (self.enemy, self, self, ldmg);
 };
 
@@ -589,7 +591,7 @@ void () zombie_death =
 	self.attack = self.attack + 1;
 };
 
-void (vector stuff, vector ang) spawn_live_zombie =
+void (vector stuff, vector ang, float bodysize) spawn_live_zombie =
 {
 	local entity zombie;
 
@@ -611,6 +613,7 @@ void (vector stuff, vector ang) spawn_live_zombie =
 	zombie.think = zombie_death;
 	zombie.th_die = corpse_gib;
 	zombie.nextthink = time + 0.12;
+	zombie.scale = bodysize;
 };
 
 void() DropBackpack;
@@ -619,10 +622,6 @@ void() zombie_die =
 {
 	local float r;
 
-	if (random()<0.25)
-		DropMoney();
-	if (random()<0.25)
-		DropMoney();
 
 	r = random();
 
@@ -632,8 +631,14 @@ void() zombie_die =
 		sound (self, CHAN_VOICE, "zombie/z_pain1.wav", 1, ATTN_NORM);
 
 
-	spawn_live_zombie(self.origin, self.angles);
-	remove(self);
+	if (self.scale == 1)
+	{
+		spawn_live_zombie(self.origin, self.angles, self.scale);
+		remove(self);
+	}
+	else
+		zdie1();
+
 	return;
 };
 
@@ -661,7 +666,7 @@ void(entity attacker, float take) zombie_pain =
 {
 	local float r;
 
-	if (take < 9)
+	if (take < 50)
 		return;				// totally ignore
 
 	if (self.inpain == 2)
@@ -739,7 +744,20 @@ void () spawn_ghoul_copy =
 
 
 	self.think = spawn_ghoul_copy;
-	self.nextthink = time + 8 + random()*4;
+	self.nextthink = time + 9 + random()*8;
+
+
+
+	if (total_players == 2)
+		self.nextthink = time + 9 + random()*5;
+
+	if (total_players == 3)
+		self.nextthink = time + 8 + random()*4;
+
+	if (total_players == 4)
+		self.nextthink = time + 6 + random()*2;
+
+
 	stuff = self.origin;
 
 
@@ -748,7 +766,7 @@ void () spawn_ghoul_copy =
 	loadzombie = 0;
 
 
-	te = findradius (self.origin, 1200);
+	te = findradius (self.origin, 1500);
 	while (te)
 	{
 		if (te.classname == "player")
@@ -758,7 +776,7 @@ void () spawn_ghoul_copy =
 	}
 
 
-	te = findradius (self.origin, 400);
+	te = findradius (self.origin, 250);
 	while (te)
 	{
 		if (te.classname == "player")
@@ -797,7 +815,7 @@ void () spawn_ghoul_copy =
 		ze = find(ze, classname, "player");
 	}
 
-	if (zomc > 90*pcount)
+	if (zomc > 30*pcount)
 		return;
 
 	zombie = spawn ();
@@ -808,7 +826,7 @@ void () spawn_ghoul_copy =
 	setmodel (self, "progs/ghoul.mdl");
 	setsize (self, '-8 -8 -24', '8 8 24');
 	self.health = 90;
-	self.netname = "ghoul";
+	self.netname = "feral ghoul";
 	self.max_health = self.health;
 	self.th_stand = zombie_stand1;
 	self.th_walk = zombie_walk1;
@@ -817,15 +835,19 @@ void () spawn_ghoul_copy =
 	self.th_die = zombie_die;
 	self.th_melee = zombie_melee;
 
+	self.skin = 0;
+
 	self.angles_y = random()*360;
 
-	if (random()*100 <= 3)
+	if (random()*100 <= 8)
 	{
-		setsize (self, '-16 -16 -24', '16 16 32');
-		self.health = 400;
-		self.netname = "ghoul lord";
+		setsize (self, '-16 -16 -40	', '16 16 32');
+		self.health = 1200;
+		self.netname = "glowing one";
 		self.max_health = self.health;
-		self.scale = 2;
+		self.scale = 1.5;
+		self.effects = EF_BLUE;
+		self.skin = 1;
 	}
 
 	self.origin = stuff + '0 64 0';

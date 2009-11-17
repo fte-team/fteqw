@@ -311,6 +311,8 @@ void(string arg1, string arg2) Cmd_GainPerk =
 			self.perk1 = 9;
 		if (arg1 == "10")
 			self.perk1 = 10;
+		if (arg1 == "11")
+			self.perk1 = 11;
 	}
 	if (arg2 == "2")
 	{
@@ -334,6 +336,8 @@ void(string arg1, string arg2) Cmd_GainPerk =
 			self.perk2 = 9;
 		if (arg1 == "10")
 			self.perk2 = 10;
+		if (arg1 == "11")
+			self.perk2 = 11;
 	}
 };
 
@@ -599,22 +603,22 @@ void(string arg1) Cmd_InvMix =
 		DecreaseDestroySlot(23);
 		DecreaseDestroySlot(24);
 
-		if (random()*100 > (self.skill_science*8))
+		if (random()*100 > (self.skill_science*20))
 		{
 			sprint(self, PRINT_MEDIUM, "your concoction exploded!\n");
 			Explosion();
 			return;
 		}
 
-		if (random()*100 < ((self.skill_science*8) - 100))
+		if (random()*100 < ((self.skill_science*20) - 100))
 		{
-			sprint(self, PRINT_MEDIUM, "2 grenades created!\n");
+			sprint(self, PRINT_MEDIUM, "3 nuka bombs created!\n");
 			sound (self, CHAN_BODY, "misc/yourturn.wav", 1, ATTN_NORM);
-			TryGiveStackable(self, IID_GREN_FRAG, 2);
+			TryGiveStackable(self, IID_GREN_FRAG, 3);
 			return;
 		}
 		TryGiveStackable(self, IID_GREN_FRAG, 1);
-		sprint(self, PRINT_MEDIUM, "1 grenade created\n");
+		sprint(self, PRINT_MEDIUM, "1 nuka bomb created\n");
 		sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
 	}
 	else if ((iid1 == IID_MISC_CHEMICALS && iid2 == IID_MISC_RDXCRYSTAL) ||

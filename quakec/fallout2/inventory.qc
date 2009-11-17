@@ -1172,83 +1172,83 @@ string(float iid) GetItemName =
 		return "disruptor";
 
 	if (iid == IID_WP_USP)
-		return "usp (45 acp)";
+		return "usp";
 	if (iid == IID_WP_USP_S)
-		return "usp (silenced)";
+		return "silenced usp";
 	if (iid == IID_WP_GLOCK)
-		return "glock 21 (10mm)";
+		return "10mm pistol";
 	if (iid == IID_WP_GLOCK_S)
-		return "glock 21 (silenced)";
+		return "silenced 10mm pistol";
 	if (iid == IID_WP_DEAGLE)
-		return "desert eagle (.44mag)";
+		return "desert eagle";
 	if (iid == IID_WP_DEAGLE_M)
-		return "desert eagle (silenced)";
+		return "modified desert eagle";
 	if (iid == IID_WP_NEEDLER)
-		return "needler";
+		return "needler pistol";
 	if (iid == IID_WP_ALIENBLASTER)
-		return "alien blaster (energy)";
+		return "alien blaster";
 	if (iid == IID_WP_PIPERIFLE)
-		return "pipe rifle (.44mag)";
+		return "pipe rifle";
 	if (iid == IID_WP_PIPERIFLE_S)
-		return "pipe rifle (silenced)";
+		return "silenced pipe rifle";
 	if (iid == IID_WP_PIPERIFLE_R)
-		return "pipe rifle (rod&spring)";
+		return "modified pipe rifle";
 	if (iid == IID_WP_PIPERIFLE_SCOPE)
-		return "pipe rifle (scope)";
+		return "scoped pipe rifle";
 	if (iid == IID_WP_PIPERIFLE_S_R)
-		return "pipe rifle (silenced, rod&spring)";
+		return "super piperifle mark i";
 	if (iid == IID_WP_PIPERIFLE_SCOPE_R)
-		return "pipe rifle (scope, rod&spring)";
+		return "super piperifle mark ii";
 	if (iid == IID_WP_PIPERIFLE_SCOPE_S)
-		return "pipe rifle (scope, silenced)";
+		return "super piperifle mark iii";
 	if (iid == IID_WP_PIPERIFLE_SCOPE_S_R)
-		return "pipe rifle (scope, silenced, rod&spring)";
+		return "super piperifle mark iv";
 	if (iid == IID_WP_WINCHESTER)
-		return "winchester (12g)";
+		return "sawed-off shotgun";
 	if (iid == IID_WP_MOSSBERG)
-		return "citykiller (12g)";
+		return "citykiller";
 	if (iid == IID_WP_JACKHAMMER)
-		return "jackhammer (12g)";
+		return "jackhammer";
 	if (iid == IID_WP_GREASEGUN)
-		return "grease gun (.45 acp)";
+		return "grease gun";
 	if (iid == IID_WP_MP9)
-		return "mp9 (10mm)";
+		return "mp9";
 	if (iid == IID_WP_RANGEMASTER)
-		return "rangemaster (5.56mm)";
+		return "rangemaster";
 	if (iid == IID_WP_RANGEMASTER_SCOPE)
-		return "rangemaster (x2 SUSAT scope)";
+		return "scoped rangemaster";
 	if (iid == IID_WP_AK47)
-		return "ak-47 (7.62mm warsaw pact)";
+		return "ak-47";
 	if (iid == IID_WP_AK112)
-		return "ak-112 (5mm jhp)";
+		return "ak-112";
 	if (iid == IID_WP_AK112_M)
-		return "light support weapon (5.56mm)";
+		return "light support weapon";
 	if (iid == IID_WP_AK74)
-		return "ak-47 (7.62mm warsaw pact)";
+		return "ak-47";
 	if (iid == IID_WP_ACR)
-		return "bozar (7.62mm)";
+		return "bozar";
 	if (iid == IID_WP_DKS1)
-		return "knight sr-25 widowmaker (7.62mm)";
+		return "dks-1";
 	if (iid == IID_WP_DKS1_S)
-		return "knight sr-25 widowmaker (silenced)";
+		return "dks-1";
 	if (iid == IID_WP_MOONLIGHT)
-		return "moonlight (5.56mm)";
+		return "moonlight";
 	if (iid == IID_WP_G11)
-		return "hk g11 (4mm)";
+		return "hk g11";
 	if (iid == IID_WP_GAUSERIFLE)
-		return "gauss rifle (2mm EC)";
+		return "gauss rifle";
 	if (iid == IID_WP_PULSERIFLE)
-		return "phased plasma rifle (energy)";
+		return "plasma rifle";
 	if (iid == IID_WP_TURBOPLASMA)
-		return "turbo plasma rifle (energy)";
+		return "turbo plasma rifle";
 	if (iid == IID_WP_PLASMACARBINE)
-		return "plasma carbine (energy)";
+		return "laser pistol";
 	if (iid == IID_WP_FNFAL)
-		return "fn fal (7.62mm)";
+		return "fn fal";
 	if (iid == IID_WP_ROCKETLAUNCHER)
 		return "rocket launcher";
 	if (iid == IID_WP_LASERGATLING)
-		return "laser minigun (energy)";
+		return "laser minigun";
 
 	if (iid == IID_AM_NEEDLER)
 		return "needler cartidge";
@@ -1279,15 +1279,15 @@ string(float iid) GetItemName =
 
 
 	if (iid == IID_GREN_STUN)
-		return "stun grenade";
+		return "stun bomb";
 	if (iid == IID_GREN_FRAG)
-		return "nuka grenade";
+		return "nuka bomb";
 	if (iid == IID_GREN_EMP)
-		return "emp grenade";
+		return "emp bomb";
 	if (iid == IID_GREN_SMOKE)
-		return "smoke grenade";
+		return "smoke bomb";
 	if (iid == IID_GREN_FLASH)
-		return "flash grenade";
+		return "flash bomb";
 
 
 	if (iid == IID_ARM_DESERT)
@@ -1435,19 +1435,19 @@ float(float iid) GetBaseValue =
 	if (iid == IID_WP_PIPERIFLE)
 		return 15;
 	if (iid == IID_WP_PIPERIFLE_S)
-		return 25;
+		return 250;
 	if (iid == IID_WP_PIPERIFLE_R)
-		return 25;
+		return 250;
 	if (iid == IID_WP_PIPERIFLE_SCOPE)
-		return 25;
+		return 250;
 	if (iid == IID_WP_PIPERIFLE_S_R)
-		return 35;
+		return 350;
 	if (iid == IID_WP_PIPERIFLE_SCOPE_R)
-		return 35;
+		return 350;
 	if (iid == IID_WP_PIPERIFLE_SCOPE_S)
-		return 35;
+		return 350;
 	if (iid == IID_WP_PIPERIFLE_SCOPE_S_R)
-		return 50;
+		return 500;
 	if (iid == IID_WP_WINCHESTER)
 		return 50;
 	if (iid == IID_WP_MOSSBERG)
@@ -1502,31 +1502,31 @@ float(float iid) GetBaseValue =
 
 
 	if (iid == IID_AM_NEEDLER)
-		return 7;
+		return 35;
 	if (iid == IID_AM_2MMEC)
-		return 15;
+		return 120;
 	if (iid == IID_AM_10MM)
-		return 3;
-	if (iid == IID_AM_556MM)
-		return 5;
-	if (iid == IID_AM_5MMHIGHVEL)
-		return 4;
-	if (iid == IID_AM_12GAUGESHELLS)
-		return 4;
-	if (iid == IID_AM_ENERGYCELL)
 		return 12;
+	if (iid == IID_AM_556MM)
+		return 20;
+	if (iid == IID_AM_5MMHIGHVEL)
+		return 16;
+	if (iid == IID_AM_12GAUGESHELLS)
+		return 16;
+	if (iid == IID_AM_ENERGYCELL)
+		return 48;
 	if (iid == IID_AM_762MM)
-		return 8;
+		return 32;
 	if (iid == IID_AM_44MAGNUM)
-		return 6;
+		return 24;
 	if (iid == IID_AM_WARSAW)
-		return 5;
+		return 20;
 	if (iid == IID_AM_45ACP)
-		return 4;
+		return 16;
 	if (iid == IID_AM_ROCKET)
 		return 30;
 	if (iid == IID_AM_CASELESS)
-		return 10;
+		return 40;
 
 
 	if (iid == IID_GREN_STUN)
@@ -1550,15 +1550,15 @@ float(float iid) GetBaseValue =
 	if (iid == IID_ARM_METAL)
 		return 100;
 	if (iid == IID_ARM_TESLA)
-		return 175;
+		return 125;
 	if (iid == IID_ARM_COMBAT)
-		return 300;
+		return 250;
 	if (iid == IID_ARM_SEVA)
-		return 350;
+		return 275;
 	if (iid == IID_ARM_FORCE)
-		return 500;
+		return 300;
 	if (iid == IID_ARM_LPOWER)
-		return 550;
+		return 450;
 
 
 	if (iid == IID_CHEM_STIMPACK)
@@ -1675,15 +1675,15 @@ string(float iid) GetItemDesc =
 	if (iid == IID_WP_PIPERIFLE_SCOPE)
 		return "a crude scope has been attached to this pipe rifle";
 	if (iid == IID_WP_PIPERIFLE_R)
-		return "a modified pipe rifle with a rod&spring replacement";
+		return "a modified pipe rifle with a box magazine";
 	if (iid == IID_WP_PIPERIFLE_S_R)
-		return "pipe rifle with a silencer and rod&spring replacement";
+		return "pipe rifle with a silencer and box magazine";
 	if (iid == IID_WP_PIPERIFLE_SCOPE_R)
-		return "pipe rifle with a scope and rod&spring replacement";
+		return "pipe rifle with a scope and box magazine";
 	if (iid == IID_WP_PIPERIFLE_SCOPE_S)
 		return "pipe rifle with a scope and silencer";
 	if (iid == IID_WP_PIPERIFLE_SCOPE_S_R)
-		return "pipe rifle with a scope, silencer, and rod&spring";
+		return "the ultimate makeshift rifle!";
 	if (iid == IID_WP_WINCHESTER)
 		return "double-barrelled and sawed off";
 	if (iid == IID_WP_MOSSBERG)
@@ -1715,7 +1715,7 @@ string(float iid) GetItemDesc =
 	if (iid == IID_WP_DKS1)
 		return "semi-auto sniper rifle";
 	if (iid == IID_WP_MOONLIGHT)
-		return "decent rifle with extra utility";
+		return "great all-around rifle with extra utility";
 	if (iid == IID_WP_G11)
 		return "a prototype rifle that uses caseless ammo";
 	if (iid == IID_WP_GAUSERIFLE)
@@ -1733,7 +1733,7 @@ string(float iid) GetItemDesc =
 	if (iid == IID_WP_LASERGATLING)
 		return "quite simply, the ultimate in heavy firepower";
 	if (iid == IID_WP_ACR)
-		return "fast, powerful, and accurate - a sniper's dream";
+		return "refinement of the sniper's art";
 
 
 	if (iid == IID_AM_NEEDLER)
@@ -1881,249 +1881,234 @@ string(float iid) GetItemDesc =
 	return strcat("", ftos(iid));
 };
 
-
-string(float iid) GetItemStats =
+float(float iid) GetArmorThreshold =
 {
-	if (iid == IID_NONE)
-		return "";
-
-
-	if (iid == IID_WP_WRENCH)
-		return "a heavy multi-function wrench";
-	if (iid == IID_WP_KNIFE)
-		return "great for stealth attacks";
-	if (iid == IID_WP_SLEDGE)
-		return "a futuristic battle axe";
-	if (iid == IID_WP_SPEAR)
-		return "a long, sharp polearm";
-	if (iid == IID_WP_POWERAXE)
-		return "a futuristic axe of some sort";
-
-	if (iid == IID_WP_USP)
-		return "dmg: 14   rng: 20   ammo: .45   skill: combat";
-	if (iid == IID_WP_USP_S)
-		return "dmg: 12   rng: 18   ammo: .45   skill: combat";
-	if (iid == IID_WP_GLOCK)
-		return "dmg: 12   rng: 18   ammo: 10mm  skill: combat";
-	if (iid == IID_WP_GLOCK_S)
-		return "dmg: 10   rng: 16   ammo: 10mm  skill: combat";
-	if (iid == IID_WP_DEAGLE)
-		return "dmg: 18   rng: 30   ammo: .44   skill: combat";
-	if (iid == IID_WP_DEAGLE_M)
-		return "dmg: 18   rng: 30   ammo: .44   skill: combat";
-	if (iid == IID_WP_NEEDLER)
-		return "dmg: 16   rng: 20   ammo:  nc   skill: science";
-	if (iid == IID_WP_ALIENBLASTER)
-		return "dmg: 48   rng: 15   ammo: cell  skill: science";
-	if (iid == IID_WP_PIPERIFLE)
-		return "dmg: 20   rng: 50   ammo: .44   skill: combat";
-	if (iid == IID_WP_PIPERIFLE_S)
-		return "dmg: 18   rng: 45   ammo: .44   skill: combat";
-	if (iid == IID_WP_PIPERIFLE_SCOPE)
-		return "dmg: 20   rng: 60   ammo: .44   skill: combat";
-	if (iid == IID_WP_PIPERIFLE_R)
-		return "dmg: 20   rng: 50   ammo: .44   skill: combat";
-	if (iid == IID_WP_PIPERIFLE_S_R)
-		return "dmg: 18   rng: 45   ammo: .44   skill: combat";
-	if (iid == IID_WP_PIPERIFLE_SCOPE_R)
-		return "dmg: 20   rng: 60   ammo: .44   skill: combat";
-	if (iid == IID_WP_PIPERIFLE_SCOPE_S)
-		return "dmg: 18   rng: 50   ammo: .44   skill: combat";
-	if (iid == IID_WP_PIPERIFLE_SCOPE_S_R)
-		return "dmg: 18   rng: 50   ammo: .44   skill: combat";
-	if (iid == IID_WP_WINCHESTER)
-		return "dmg: 40   rng: 10   ammo: 12ga  skill: combat";
-	if (iid == IID_WP_MOSSBERG)
-		return "dmg: 35   rng: 20   ammo: 12ga  skill: combat";
-	if (iid == IID_WP_JACKHAMMER)
-		return "dmg: 35   rng: 15   ammo: 12ga  skill: combat";
-	if (iid == IID_WP_GREASEGUN)
-		return "dmg: 14   rng: 15   ammo: .45   skill: combat";
-	if (iid == IID_WP_GREASEGUN_S)
-		return "dmg: 12   rng: 10   ammo: .45   skill: combat";
-	if (iid == IID_WP_MP9)
-		return "dmg: 12   rng: 15   ammo: 10mm  skill: sneak";
-	if (iid == IID_WP_MP9_S)
-		return "dmg: 10   rng: 15   ammo: 10mm  skill: sneak";
-	if (iid == IID_WP_RANGEMASTER)
-		return "dmg: 18   rng: 40   ammo: 5.56  skill: combat";
-	if (iid == IID_WP_RANGEMASTER_SCOPE)
-		return "dmg: 18   rng: 50   ammo: 5.56  skill: combat";
-	if (iid == IID_WP_AK47)
-		return "an outdated assault rifle with extreme durability";
-	if (iid == IID_WP_AK112)
-		return "dmg: 16   rng: 40   ammo: 5mm   skill: combat";
-	if (iid == IID_WP_AK112_M)
-		return "dmg: 16   rng: 40   ammo: 5mm   skill: combat";
-	if (iid == IID_WP_DKS1)
-		return "dmg: 40   rng: 80   ammo: 7.62  skill: combat";
-	if (iid == IID_WP_DKS1_S)
-		return "dmg: 35   rng: 70   ammo: 7.62  skill: combat";
-	if (iid == IID_WP_MOONLIGHT)
-		return "dmg: 16   rng: 40   ammo: 5.56  skill: combat";
-	if (iid == IID_WP_G11)
-		return "dmg: 14   rng: 40   ammo: csels skill: combat";
-	if (iid == IID_WP_GAUSERIFLE)
-		return "dmg: 30   rng: 90   ammo: 2mmec skill: combat";
-	if (iid == IID_WP_PULSERIFLE)
-		return "dmg: 16   rng: 40   ammo: 5mm   skill: combat";
-	if (iid == IID_WP_TURBOPLASMA)
-		return "dmg: 32   rng: 45   ammo: cell  skill: science";
-	if (iid == IID_WP_PLASMACARBINE)
-		return "dmg: 28   rng: 30   ammo: cell  skill: science";
-	if (iid == IID_WP_FNFAL)
-		return "dmg: 32   rng: 60   ammo: 7.62  skill: combat";
-	if (iid == IID_WP_ROCKETLAUNCHER)
-		return "dmg: 100  rng: 30   ammo: rkt   skill: combat";
-	if (iid == IID_WP_LASERGATLING)
-		return "dmg: 24   rng: 60   ammo: cell  skill: combat";
-	if (iid == IID_WP_ACR)
-		return "dmg: 50   rng: 90   ammo: 7.62  skill: combat";
-
-
-	if (iid == IID_AM_NEEDLER)
-		return "good armor-peircing properties";
-	if (iid == IID_AM_2MMEC)
-		return "virtually ignores armor";
-	if (iid == IID_AM_10MM)
-		return "jacketed hollow-points for good damage";
-	if (iid == IID_AM_556MM)
-		return "standard rifle round, moderate recoil";
-	if (iid == IID_AM_5MMHIGHVEL)
-		return "experimental high-velocity rifle ammo";
-	if (iid == IID_AM_12GAUGESHELLS)
-		return "the old standard, has trouble with heavy armor";
-	if (iid == IID_AM_ENERGYCELL)
-		return "this energy cell comes from an unknown origin";
-	if (iid == IID_AM_762MM)
-		return "good stopping power and armor-piercing performance";
-	if (iid == IID_AM_44MAGNUM)
-		return "full metal jacket, hit 'em hard";
-	if (iid == IID_AM_WARSAW)
-		return "ancient soviet rifle round, used in the ak47";
-	if (iid == IID_AM_45ACP)
-		return "a common pistol round with good stopping power";
-	if (iid == IID_AM_ROCKET)
-		return "expensive and extremely lethal";
-	if (iid == IID_AM_CASELESS)
-		return "a brick of small-caliber caseless ammo";
-
-
-	if (iid == IID_GREN_FRAG)
-		return "all-purpose fragmentation grenade";
-	if (iid == IID_GREN_EMP)
-		return "useful against robots and cyborgs";
-	if (iid == IID_GREN_SMOKE)
-		return "very useful for a quick getaway!";
-	if (iid == IID_GREN_FLASH)
-		return "temporarily blinds nearby enemies";
-	if (iid == IID_GREN_STUN)
-		return "delivers a forceful shock to nearby enemies";
 
 	if (iid == IID_ARM_DESERT)
-		return "the light armor of a raider; makes a great disguise";
+		return 2;
 	if (iid == IID_ARM_LEATHER)
-		return "lightweight leather armor. provides great mobility.";
+		return 3;
 	if (iid == IID_ARM_VANDAL)
-		return "enhanced leather armor for extra protection.";
+		return 4;
 	if (iid == IID_ARM_METAL)
-		return "gives great protection at a sacrifice to speed.";
+		return 1;
 	if (iid == IID_ARM_TESLA)
-		return "experimental armor with high deflection but low absorb.";
+		return 5;
 	if (iid == IID_ARM_COMBAT)
-		return "this all-purpose armor is designed for combat missions.";
+		return 7;
 	if (iid == IID_ARM_SEVA)
-		return "high-tech suit provides more environmental defense";
+		return 6;
 	if (iid == IID_ARM_FORCE)
-		return "experimental energy-field armor, very low absorb";
+		return 10;
 	if (iid == IID_ARM_LPOWER)
-		return "the heaviest armor with great protection";
+		return 8;
+};
 
 
-	if (iid == IID_CHEM_STIMPACK)
-		return "advanced healing chem that replaces lost blood";
-	if (iid == IID_CHEM_MEDICALBAG)
-		return "first aid kit with many high-tech supplies";
-	if (iid == IID_CHEM_SUPERSTIM)
-		return "contains nanobots that heal very fast";
-	if (iid == IID_CHEM_ADRENALINE)
-		return "boosts the metabolism, increasing jump and run speed";
-	if (iid == IID_CHEM_PSYCHO)
-		return "unknown chemicals, probably of military origin";
-	if (iid == IID_CHEM_BESERK)
-		return "unknown chemicals, probably of military origin";
-	if (iid == IID_CHEM_RADX)
-		return "powerful anti-radiation pills";
+float(float iid) GetArmorAbsorb =
+{
+
+	if (iid == IID_ARM_DESERT)
+		return 10;
+	if (iid == IID_ARM_LEATHER)
+		return 20;
+	if (iid == IID_ARM_VANDAL)
+		return 30;
+	if (iid == IID_ARM_METAL)
+		return 50;
+	if (iid == IID_ARM_TESLA)
+		return 40;
+	if (iid == IID_ARM_COMBAT)
+		return 40;
+	if (iid == IID_ARM_SEVA)
+		return 40;
+	if (iid == IID_ARM_FORCE)
+		return 10;
+	if (iid == IID_ARM_LPOWER)
+		return 50;
+};
 
 
-	if (iid == IID_BUILD_MRAMMO)
-		return "provides extra ammunition";
-	if (iid == IID_BUILD_SHIELDGEN)
-		return "protects all nearby allies";
-	if (iid == IID_BUILD_AUTODOC)
-		return "the auto-doc will repair injuries";
-	if (iid == IID_BUILD_ROBOFANG)
-		return "robofang guardian unit";
-	if (iid == IID_BUILD_TTURRET)
-		return "dispatches hostile intruders";
-	if (iid == IID_BUILD_RTURRET)
-		return "rocket turret";
-	if (iid == IID_BUILD_GTURRET)
-		return "machine-gun turret";
+float(float iid) GetWeaponRange =
+{
+	if (iid == IID_NONE)
+		return 0;
 
 
-	if (iid == IID_EQUIP_MEDIC_BAG)
-		return "allows more chems to be carried";
-	if (iid == IID_EQUIP_GOGGLES)
-		return "protects against visual impairments";
-	if (iid == IID_EQUIP_SILENCER)
-		return "attaches to any smallarm";
-	if (iid == IID_EQUIP_BELTPOUCH)
-		return "useful for carrying extra grenades";
-	if (iid == IID_EQUIP_TOOLKIT)
-		return "for picking all sorts of locks";
-	if (iid == IID_EQUIP_BACKPACK)
-		return "this handy bag lets you carry more ammunition";
-	if (iid == IID_EQUIP_CLIMBINGGEAR)
-		return "for those hard to reach places";
-	if (iid == IID_EQUIP_BATTERY)
-		return "provides prolonged battery life";
-	if (iid == IID_EQUIP_STEALTHBOY)
-		return "makes user blurry and hard to see";
-	if (iid == IID_EQUIP_EXTENDER)
-		return "gives a weapon slightly longer range and damage";
-	if (iid == IID_EQUIP_XRAY)
-		return "allows for enemy detection through walls";
+	if (iid == IID_WP_KNIFE)
+		return 5;
 
-	if (iid == IID_MISC_NUKACOLA)
-		return "a bottle of tasty nuka-cola";
-	if (iid == IID_MISC_JUNK)
-		return "metallic bits, pipe and other debris";
-	if (iid == IID_MISC_CHEMICALS)
-		return "standard household cleaner";
-	if (iid == IID_MISC_AEROSOL)
-		return "a half-full aerosol can";
-	if (iid == IID_MISC_RDXCRYSTAL)
-		return "a batch of highly unstable explosive crystals";
-	if (iid == IID_MISC_STEELPIPE)
-		return "a slightly rusted steel pipe";
-	if (iid == IID_MISC_DUCKTAPE)
-		return "ancient, but still highly functional";
-	if (iid == IID_MISC_LCD)
-		return "an lcd from a Lameboy DS videogame unit";
-	if (iid == IID_MISC_CIRCUITBOARD)
-		return "a corroded circuit board from a remote control";
-	if (iid == IID_MISC_COPPERWIRE)
-		return "a small spool of thin copper wire";
-	if (iid == IID_MISC_HMXCOMPOUND)
-		return "a small amount of high-grade military explosive";
-	if (iid == IID_MISC_GUM)
-		return "trident chewing gum, limited edition watermelon flavor";
-	if (iid == IID_MISC_XRAYTUBE)
-		return "??? a strange device ???";
 
-	bprint(PRINT_MEDIUM, ftos(iid), " without a desc!\n");
-	return strcat("", ftos(iid));
+	if (iid == IID_WP_USP)
+		return 20;
+	if (iid == IID_WP_USP_S)
+		return 15;
+	if (iid == IID_WP_GLOCK)
+		return 15;
+	if (iid == IID_WP_GLOCK_S)
+		return 10;
+	if (iid == IID_WP_DEAGLE)
+		return 25;
+	if (iid == IID_WP_DEAGLE_M)
+		return 25;
+	if (iid == IID_WP_NEEDLER)
+		return 20;
+	if (iid == IID_WP_ALIENBLASTER)
+		return 10;
+	if (iid == IID_WP_PIPERIFLE)
+		return 40;
+	if (iid == IID_WP_PIPERIFLE_S)
+		return 40;
+	if (iid == IID_WP_PIPERIFLE_SCOPE)
+		return 40;
+	if (iid == IID_WP_PIPERIFLE_R)
+		return 40;
+	if (iid == IID_WP_PIPERIFLE_S_R)
+		return 40;
+	if (iid == IID_WP_PIPERIFLE_SCOPE_R)
+		return 40;
+	if (iid == IID_WP_PIPERIFLE_SCOPE_S)
+		return 40;
+	if (iid == IID_WP_PIPERIFLE_SCOPE_S_R)
+		return 40;
+	if (iid == IID_WP_WINCHESTER)
+		return 10;
+	if (iid == IID_WP_MOSSBERG)
+		return 10;
+	if (iid == IID_WP_JACKHAMMER)
+		return 10;
+	if (iid == IID_WP_GREASEGUN)
+		return 20;
+	if (iid == IID_WP_GREASEGUN_S)
+		return 20;
+	if (iid == IID_WP_MP9)
+		return 15;
+	if (iid == IID_WP_MP9_S)
+		return 15;
+	if (iid == IID_WP_RANGEMASTER)
+		return 40;
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return 50;
+	if (iid == IID_WP_AK112)
+		return 40;
+	if (iid == IID_WP_AK112_M)
+		return 40;
+	if (iid == IID_WP_DKS1)
+		return 60;
+	if (iid == IID_WP_DKS1_S)
+		return 60;
+	if (iid == IID_WP_MOONLIGHT)
+		return 50;
+	if (iid == IID_WP_G11)
+		return 60;
+	if (iid == IID_WP_GAUSERIFLE)
+		return 70;
+	if (iid == IID_WP_PULSERIFLE)
+		return 50;
+	if (iid == IID_WP_TURBOPLASMA)
+		return 40;
+	if (iid == IID_WP_PLASMACARBINE)
+		return 40;
+	if (iid == IID_WP_FNFAL)
+		return 60;
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return 15;
+	if (iid == IID_WP_LASERGATLING)
+		return 35;
+	if (iid == IID_WP_ACR)
+		return 90;
+
+	return 0;
+};
+
+float(float iid) GetWeaponDamage =
+{
+	if (iid == IID_NONE)
+		return 0;
+
+
+	if (iid == IID_WP_KNIFE)
+		return 10;
+	if (iid == IID_WP_USP)
+		return 14;
+	if (iid == IID_WP_USP_S)
+		return 12;
+	if (iid == IID_WP_GLOCK)
+		return 12;
+	if (iid == IID_WP_GLOCK_S)
+		return 10;
+	if (iid == IID_WP_DEAGLE)
+		return 18;
+	if (iid == IID_WP_DEAGLE_M)
+		return 18;
+	if (iid == IID_WP_NEEDLER)
+		return 16;
+	if (iid == IID_WP_ALIENBLASTER)
+		return 20;
+	if (iid == IID_WP_PIPERIFLE)
+		return 20;
+	if (iid == IID_WP_PIPERIFLE_S)
+		return 20;
+	if (iid == IID_WP_PIPERIFLE_SCOPE)
+		return 20;
+	if (iid == IID_WP_PIPERIFLE_R)
+		return 20;
+	if (iid == IID_WP_PIPERIFLE_S_R)
+		return 20;
+	if (iid == IID_WP_PIPERIFLE_SCOPE_R)
+		return 20;
+	if (iid == IID_WP_PIPERIFLE_SCOPE_S)
+		return 20;
+	if (iid == IID_WP_PIPERIFLE_SCOPE_S_R)
+		return 20;
+	if (iid == IID_WP_WINCHESTER)
+		return 35;
+	if (iid == IID_WP_MOSSBERG)
+		return 35;
+	if (iid == IID_WP_JACKHAMMER)
+		return 35;
+	if (iid == IID_WP_GREASEGUN)
+		return 14;
+	if (iid == IID_WP_GREASEGUN_S)
+		return 12;
+	if (iid == IID_WP_MP9)
+		return 12;
+	if (iid == IID_WP_MP9_S)
+		return 10;
+	if (iid == IID_WP_RANGEMASTER)
+		return 18;
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return 18;
+	if (iid == IID_WP_AK112)
+		return 16;
+	if (iid == IID_WP_AK112_M)
+		return 16;
+	if (iid == IID_WP_DKS1)
+		return 30;
+	if (iid == IID_WP_DKS1_S)
+		return 30;
+	if (iid == IID_WP_MOONLIGHT)
+		return 16;
+	if (iid == IID_WP_G11)
+		return 14;
+	if (iid == IID_WP_GAUSERIFLE)
+		return 22;
+	if (iid == IID_WP_PULSERIFLE)
+		return 26;
+	if (iid == IID_WP_TURBOPLASMA)
+		return 24;
+	if (iid == IID_WP_PLASMACARBINE)
+		return 20;
+	if (iid == IID_WP_FNFAL)
+		return 20;
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return 75;
+	if (iid == IID_WP_LASERGATLING)
+		return 24;
+	if (iid == IID_WP_ACR)
+		return 40;
+
+	return 0;
 };
 
 string(float iid) GetItemImage =
@@ -2148,9 +2133,9 @@ string(float iid) GetItemImage =
 	if (iid == IID_WP_USP_S)
 		return "usp.jpg";
 	if (iid == IID_WP_GLOCK)
-		return "glock.jpg";
+		return "10mmpistol.jpg";
 	if (iid == IID_WP_GLOCK_S)
-		return "glock.jpg";
+		return "10mmpistol.jpg";
 	if (iid == IID_WP_DEAGLE)
 		return "deagle.jpg";
 	if (iid == IID_WP_DEAGLE_M)
@@ -2190,11 +2175,11 @@ string(float iid) GetItemImage =
 	if (iid == IID_WP_DKS1_S)
 		return "dks1_s.jpg";
 	if (iid == IID_WP_MOONLIGHT)
-		return "moonlight.jpg";
+		return "XL70E3.jpg";
 	if (iid == IID_WP_G11)
 		return "g11.jpg";
 	if (iid == IID_WP_GAUSERIFLE)
-		return "grifle.jpg";
+		return "gauss.jpg";
 	if (iid == IID_WP_PULSERIFLE)
 		return "plasma.jpg";
 	if (iid == IID_WP_TURBOPLASMA)
@@ -2591,6 +2576,8 @@ string (float slot, float int) PerkName =
 			return "Sleep Tight";
 		if (int == 10)
 			return "Economic Moves";
+		if (int == 11)
+			return "Nuclear Man";
 };
 
 string (float slot, float int) PerkNameCentered =
@@ -2615,6 +2602,8 @@ string (float slot, float int) PerkNameCentered =
 			return "   Sleep Tight";
 		if (int == 10)
 			return "  Economic Moves";
+		if (int == 11)
+			return "   Nuclear Man";
 };
 
 
@@ -2640,6 +2629,8 @@ string(float int) GetPerkImage =
 		return "gui/perks/Sleep Tight.jpg";
 	else if (int == 10)
 		return "gui/perks/Economic Moves.jpg";
+	else if (int == 11)
+		return "gui/perks/Nuclear Man.jpg";
 	else
 		return "gui/perks/none.jpg";
 
@@ -2651,9 +2642,9 @@ string(float int) GetPerkDesc =
 	if (int == 1)
 		return "33% recoil reduction while prone";
 	else if (int == 2)
-		return "20% damage resist while taking cover and ducking";
+		return "Huge dodge chance while taking cover and ducking";
 	else if (int == 3)
-		return "enemies tend to ignore you over your friends";
+		return "Makes enemies attack your friends instead of you";
 	else if (int == 4)
 		return "50% damage resist to area attacks while prone";
 	else if (int == 5)
@@ -2668,6 +2659,8 @@ string(float int) GetPerkDesc =
 		return "Paralyze anything with a sneak attack from a knife";
 	else if (int == 10)
 		return "Suffer less time-related penalties for all actions";
+	else if (int == 11)
+		return "Eat a small amount of radiation to heal yourself";
 	else
 		return "";
 

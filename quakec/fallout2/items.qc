@@ -370,7 +370,7 @@ void() rad_think =
 	local entity te;
 
 	self.think = rad_think;
-	self.nextthink = time + 1;
+	self.nextthink = time + 4;
 
 	te = findradius (self.origin, 700);
 	while (te)

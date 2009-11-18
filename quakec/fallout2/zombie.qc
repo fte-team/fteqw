@@ -737,7 +737,7 @@ void () spawn_ghoul_copy =
 	local entity te, ze;
 	local vector jojo;
 	local float zomc, pcount, loadzombie;
-	local string finder, waterlev;
+	local string finder, waterlev, diag;
 	local vector stuff;
 
 
@@ -797,13 +797,14 @@ void () spawn_ghoul_copy =
 	ze = find (world, netname, "ghoul");
 
 	zomc = 0;
+	pcount = 0;
 
 	while (ze)
 	{
 	
 		zomc = zomc + 1;
 
-		ze = find (ze, netname, "monster");
+		ze = find (ze, classname, "monster");
 	}
 
 	ze = find(world, classname, "player");
@@ -815,14 +816,31 @@ void () spawn_ghoul_copy =
 		ze = find(ze, classname, "player");
 	}
 
-	if (zomc > 30*pcount)
+
+	if (zomc > 60*pcount)
 		return;
+
+
+	zomc = 0;
+
+	te = findradius (self.origin, 1000);
+	while (te)
+	{
+		if (te.classname == "monster")
+			zomc = zomc + 1;
+
+		te = te.chain;
+	}
+
+	if (zomc >= 25)
+		return;
+
 
 	zombie = spawn ();
 	zombie.owner = self;
 	self = zombie;
 	self.solid = SOLID_SLIDEBOX;
-	self.movetype = MOVETYPE_STEP;
+	self.movetype = MOVETYPE_STEP;		
 	setmodel (self, "progs/ghoul.mdl");
 	setsize (self, '-8 -8 -24', '8 8 24');
 	self.health = 90;

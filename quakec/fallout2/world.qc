@@ -631,7 +631,7 @@ if (coop == 1) // Players vs Monsters
 
 		te = find(te, classname, "monster");
 	}
-
+/*
 	if (musicplay == 0)
 	{
 		musicplay = 1;
@@ -644,18 +644,18 @@ if (coop == 1) // Players vs Monsters
 		while (ze != world)
 		{
 			if (musictrack == 1)
-				stuffcmd(ze, "play music/battle\n");
+				stuffcmd(ze, "play music/battle_a\n");
 			if (musictrack == 2)
-				stuffcmd(ze, "play misc/zombies\n");
+				stuffcmd(ze, "play music/zombies\n");
 
 			ze = find (ze, classname, "player");
 		}       
       
 	}
-	else if (musicplay < 20)
+	else if (musicplay < 120)
 		musicplay = musicplay + 1;
-	else if (musicplay >= 20)
-		musicplay = 0;
+	else if (musicplay >= 120)
+		musicplay = 0;*/
 
 	te = find(world, classname, "player");
 	while (te)

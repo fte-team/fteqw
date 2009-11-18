@@ -1715,7 +1715,7 @@ string(float iid) GetItemDesc =
 	if (iid == IID_WP_DKS1)
 		return "semi-auto sniper rifle";
 	if (iid == IID_WP_MOONLIGHT)
-		return "great all-around rifle with extra utility";
+		return "silenced m16a2 with night-vision scope";
 	if (iid == IID_WP_G11)
 		return "a prototype rifle that uses caseless ammo";
 	if (iid == IID_WP_GAUSERIFLE)
@@ -1723,9 +1723,9 @@ string(float iid) GetItemDesc =
 	if (iid == IID_WP_PULSERIFLE)
 		return "high-tech plasma weapon released just before the war";
 	if (iid == IID_WP_TURBOPLASMA)
-		return "modified plasma rifle for greater heat and pressure dissipation";
+		return "modified plasma rifle";
 	if (iid == IID_WP_PLASMACARBINE)
-		return "prototype plasma rifle released during the final stages of the war";
+		return "prototype plasma rifle";
 	if (iid == IID_WP_FNFAL)
 		return "rifle designed for longer range; high recoil";
 	if (iid == IID_WP_ROCKETLAUNCHER)
@@ -2175,7 +2175,7 @@ string(float iid) GetItemImage =
 	if (iid == IID_WP_DKS1_S)
 		return "dks1_s.jpg";
 	if (iid == IID_WP_MOONLIGHT)
-		return "XL70E3.jpg";
+		return "moonlight.jpg";
 	if (iid == IID_WP_G11)
 		return "g11.jpg";
 	if (iid == IID_WP_GAUSERIFLE)

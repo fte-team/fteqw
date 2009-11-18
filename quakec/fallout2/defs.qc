@@ -687,6 +687,8 @@ float   intermission_running;
 .float          shadowskill_sneak;
 .float          shadowskill_science;
 
+.float		musictimer;
+
 .float          rescued;
 .float          scale;
 .float          bandages;

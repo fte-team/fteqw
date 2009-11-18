@@ -760,6 +760,14 @@ void() PutClientInServer =
 	W_SetCurrentAmmo();
 	stuffcmd(self, "sizeup\n");
 	stuffcmd(self, "sizeup\n");
+
+
+	if (world.model == "maps/r_bunker.bsp")
+		stuffcmd(self, "play music/afterglow\n");
+	else if (world.map_obj == OBJ_DEADTOWN)
+		stuffcmd(self, "play music/necropolis\n");
+	else
+		stuffcmd(self, "play music/raiders\n");
 };
 
 
@@ -1552,6 +1560,7 @@ void() PlayerPreThink =
 		ArmorCheck();
 		SneakLevel();
 		self.accept = 0;
+		
 
 		local float lgrip, rgrip;
 
@@ -1655,7 +1664,22 @@ void() PlayerPreThink =
 			if (self.ammo_cells < 0)
 				self.ammo_cells = 0;
 		}
+		
+		if (self.musictimer == 0)
+		{
+			if (world.model == "maps/r_bunker.bsp")
+				stuffcmd(self, "play music/afterglow\n");
+			else if (world.map_obj == OBJ_DEADTOWN)
+				stuffcmd(self, "play music/necropolis\n");
+			else
+				stuffcmd(self, "play music/raiders\n");
 
+			self.musictimer = 1;
+		}
+		else if (self.musictimer <= 120)
+			self.musictimer = self.musictimer + 1;
+		else if (self.musictimer > 120)
+			self.musictimer = 0;
 
 		if (self.regen > 0 && !self.deadflag)	//don't come back to life.
 		{

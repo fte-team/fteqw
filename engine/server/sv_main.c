@@ -340,7 +340,7 @@ void VARGS SV_Error (char *error, ...)
 }
 
 #ifdef SERVERONLY
-void VARGS Host_EndGame (char *message, ...)
+void VARGS Host_EndGame (char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];

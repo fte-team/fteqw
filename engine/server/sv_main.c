@@ -339,6 +339,20 @@ void VARGS SV_Error (char *error, ...)
 	Sys_Error ("SV_Error: %s\n",string);
 }
 
+#ifdef SERVERONLY
+void VARGS Host_EndGame (char *message, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr,error);
+	vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+	SV_Error("%s", string);
+}
+#endif
+
 /*
 ==================
 SV_FinalMessage

@@ -797,30 +797,6 @@ void() W_PlayerMenu =
 
 		return;
 	}
-	else if (self.currentmenu == "select_team")
-	{
-		if (self.impulse == 1)
-		{
-			sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-			bprint(2, self.netname);
-			bprint(2, " has joined the rangers.\n");
-			self.currentmenu = "confirm_team";
-			DisplayMenu();
-			self.team = 1;
-			return;
-		}
-		if (self.impulse == 2)
-		{
-			sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-			bprint(2, self.netname);
-			bprint(2, " has joined the raiders.\n");
-			self.currentmenu = "confirm_team";
-			DisplayMenu();
-			self.team = 2;
-			return;
-		}
-
-	}
 	else if (self.currentmenu == "gain_skill")
 	{
 		if (self.impulse == 1)
@@ -864,61 +840,8 @@ void() W_PlayerMenu =
 			return;
 		}
 	}
-		else if (self.currentmenu == "confirm_team")
-		{
-			if (self.impulse == 1)
-			{
-				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-				self.currentmenu = "select_skill";
-				DisplayMenu();
-				self.impulse = 0;
-				return;
-			}
-			if (self.impulse == 2)
-			{
-				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-				self.currentmenu = "select_team";
-				DisplayMenu();
-				self.impulse = 0;
-				self.team = 0;
-				return;
-			}
-		}
-		else if (self.currentmenu == "confirm_skill")
-		{
-			if (self.impulse == 1)
-			{
-				self.missionbrief = 0;
-				self.class = self.tclass;
-				if (self.class == 1)
-					self.skill_doctor = self.skill_doctor + 1;
-				if (self.class == 2)
-					self.skill_sneak = self.skill_sneak + 1;
-				if (self.class == 3)
-					self.skill_combat = self.skill_combat + 1;
-				if (self.class == 4)
-					self.skill_science = self.skill_science + 1;
 
-				self.score = 0;
-				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-				self.currentmenu = "none";
-				centerprint(self, "");
-				bprint(2, self.netname);
-				bprint(2, " has gained a level.\n");
-				self.class = self.tclass;
-				self.impulse = 0;
-				return;
-			}
-			if (self.impulse == 2)
-			{
-				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-				self.currentmenu = "gain_skill";
-				DisplayMenu();
-				self.impulse = 0;
-				self.class = 0;
-				return;
-			}
-		}
+
 		else if (self.currentmenu == "display_enter_screen")
 		{
 			if (self.impulse == 1 && coop == 1)
@@ -936,42 +859,39 @@ void() W_PlayerMenu =
 			}
 			else if (self.impulse == 1 && coop == 0)
 			{
-				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-				self.connected = 1;
-				self.currentmenu = "select_team";
-				DisplayMenu();
-				self.impulse = 0;
-				return;
-			}
-		}
-		else if (self.currentmenu == "display_brief")
-		{
-			if (self.impulse == 1)
-			{
-				if (self.skill_combat == 0 && self.skill_sneak == 0 && self.skill_doctor == 0 && self.skill_science == 0)
+				self.missionbrief = 0;
+				if (teamblue == teamred)
+				{
+					if (random()*100 <= 50)
+					{
+						self.team = 1;
+						teamblue = teamblue + 1;
+					}
+					else
+					{
+						self.team = 2;
+						teamred = teamred + 1;
+					}
+				}
+				else if (teamblue > teamred)
+				{
+					self.team = 2;
+					teamred = teamred + 1;
+				}
+				else if (teamblue < teamred)
 				{
 					self.team = 1;
-					self.missionbrief = 2;
-					sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-					self.currentmenu = "select_skill";
-					DisplayMenu();
-					self.impulse = 0;
-					return;
-				}
-				else
-				{
-
-					self.missionbrief = 0;
-					sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
-					self.currentmenu = "none";
-					centerprint(self, "");
-					PutClientInServer();
-					bprint(2, self.netname);
-					bprint(2, " has entered the wasteland.\n");
-					total_players = total_players + 1;
-					return;
+					teamblue = teamblue + 1;
 				}
 
+				self.connected = 1;
+				sound (self, CHAN_WEAPON, "player/yourturn.wav", TRUE, ATTN_NORM);
+				centerprint(self, "\n");
+				self.currentmenu = "none";
+				PutClientInServer();
+				self.impulse = 0;
+				self.current_slot = 1;
+				return;
 			}
 		}
 		else if (self.currentmenu == "select_mission")

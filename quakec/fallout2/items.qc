@@ -372,9 +372,19 @@ void() rad_think =
 	self.think = rad_think;
 	self.nextthink = time + 4;
 
+	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
+	WriteByte (MSG_BROADCAST, TE_LAVASPLASH);
+	WriteCoord (MSG_BROADCAST, self.origin_x);
+	WriteCoord (MSG_BROADCAST, self.origin_y);
+	WriteCoord (MSG_BROADCAST, self.origin_z);
+
+
 	te = findradius (self.origin, 700);
 	while (te)
 	{
+
+
+
 		if (te.classname == "player")
 			te.radiation = te.radiation + 1;
 
@@ -1382,7 +1392,7 @@ void() weapon_supershotgun =
 		TreasureChest();
 
 
-	if (random()*100 <= 5)
+	if (random()*100 <= 100)
 		spawn_radiation(self.origin);
 
 		SpawnJunk(self.origin);

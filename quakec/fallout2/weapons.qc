@@ -142,33 +142,131 @@ void (entity spot) spawn_healing =
 };
 
 
+void () disappear =
+{
+	local entity te;
+	local float nearby;
+	//this allows you to vanish, making monsters aggro
+	//other players
+
+
+	te = findradius(self.origin, 600);
+	while (te)
+	{
+		if (te.classname == "player" && te.sneak == 0 && te != self)
+			nearby = 1;
+			
+		te = te.chain;
+	}
+
+	if (nearby == 1)
+	{
+		te = findradius(self.origin, 1000);
+		while (te)
+		{
+			if (te.enemy == self)
+				te.enemy = world;
+			
+			te = te.chain;
+		}
+	}
+
+		te = findradius(self.origin, 1000);
+		while (te)
+		{
+			if (te.enemy == self)
+				te.enemy = world;
+			
+			te = te.chain;
+		}
+};
+
+void () puppet_master =
+{
+	local entity te;
+	local float charm_monster;
+	//this allows you to control other monsters
+
+
+	charm_monster = 0;
+	te = findradius(self.origin, 400);
+	while (te)
+	{
+		if (te.classname == "monster" && (charm_monster == 0) && (visible(te)))
+		{
+			spawn_excla(te, 60);
+			charm_monster = 1;
+			te.friend = self;
+			te.charmed = 1;
+			te.enemy = world;
+			te.goalentity = self;
+			self.friend = te;
+		}
+		te = te.chain;
+	}
+
+};
+
+void () puppet_master_command =
+{
+	local entity te, ent;
+	local float charm_monster;
+	//this allows you to control other monsters
+
+	makevectors (self.v_angle);
+	traceline (self.origin, self.origin+v_forward*4000, FALSE, self);
+
+	if (trace_ent.classname == "monster" && trace_ent != self.friend)
+	{
+		self.friend.enemy = trace_ent;
+		self.friend.think = HuntTarget;
+		self.friend.nextthink = time + 0.25;
+	}
+	else
+	{
+		self.friend.enemy = self;
+		self.friend.think = HuntTarget;
+		self.friend.nextthink = time + 0.25;
+	}
+};
+
 void(float slotno) UsePerk =
 {
-	local float x, mcount;
+	local float x, mcount, eat;
 	local string y, timeleft;
 	local entity te;
+	local vector org;
 
 	if (slotno == 1 && self.perk1timer > 0)
 	{
+		if ((self.perk1 == 3 && slotno == 1) || (self.perk2 == 3 && slotno == 2))
+		{
+			puppet_master_command();
+			return;
+		}
 		timeleft = ftos(self.perk1timer);
-		sprint(self, 2, "ability is not ready yet. [");
-		sprint(self, 2, timeleft);
-		sprint(self, 2, "]\n");
+		sprint(self, 2, "ability is not ready yet.\n");
 		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
 		return;
 	}
 
 	if (slotno == 2 && self.perk2timer > 0)
 	{
+		if ((self.perk1 == 3 && slotno == 1) || (self.perk2 == 3 && slotno == 2))
+		{
+			puppet_master_command();
+			return;
+		}
 		timeleft = ftos(self.perk2timer);
-		sprint(self, 2, "ability is not ready yet. [");
-		sprint(self, 2, timeleft);
-		sprint(self, 2, "]\n");
+		sprint(self, 2, "ability is not ready yet.\n");
 		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
 		return;
+		
 	}
 
-	if ((self.perk1 == 7 && slotno == 1) || (self.perk2 == 7 && slotno == 2))
+
+
+	if ((self.perk1 == 2 && slotno == 1) || (self.perk2 == 2 && slotno == 2))
 	{
 		if (slotno == 1)
 			self.perk1timer = 2000;
@@ -176,28 +274,97 @@ void(float slotno) UsePerk =
 			self.perk2timer = 2000;
 
 		sound (self, CHAN_BODY, "misc/r_tele4.wav", 1, ATTN_NORM);
+
+		org = self.origin;
+		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
+		WriteByte (MSG_MULTICAST, TE_TELEPORT);
+		WriteCoord (MSG_MULTICAST, org_x);
+		WriteCoord (MSG_MULTICAST, org_y);
+		WriteCoord (MSG_MULTICAST, org_z);
+
+		disappear();
+
+	}
+	if ((self.perk1 == 3 && slotno == 1) || (self.perk2 == 3 && slotno == 2))
+	{
+		if (slotno == 1)
+			self.perk1timer = 2000;
+		if (slotno == 2)
+			self.perk2timer = 2000;
+
+		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+
+		org = self.origin;
+		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
+		WriteByte (MSG_MULTICAST, TE_TELEPORT);
+		WriteCoord (MSG_MULTICAST, org_x);
+		WriteCoord (MSG_MULTICAST, org_y);
+		WriteCoord (MSG_MULTICAST, org_z);
+
+		if (self.friend.classname != "monster")
+			puppet_master();
+		else
+			puppet_master_command();
+
+	}
+	else if ((self.perk1 == 7 && slotno == 1) || (self.perk2 == 7 && slotno == 2))
+	{
+		if (slotno == 1)
+			self.perk1timer = 2000;
+		if (slotno == 2)
+			self.perk2timer = 2000;
+
+		sound (self, CHAN_BODY, "misc/r_tele4.wav", 1, ATTN_NORM);
+
+		org = self.origin;
+		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
+		WriteByte (MSG_MULTICAST, TE_TELEPORT);
+		WriteCoord (MSG_MULTICAST, org_x);
+		WriteCoord (MSG_MULTICAST, org_y);
+		WriteCoord (MSG_MULTICAST, org_z);
 
 		te = findradius (self.origin, 6000);
 		while (te)
 		{
 			if (te.classname == "monster")
 			{
-				te.hold = 160;
+				te.hold = 180;
 				spawn_stop(te, 10);
 				mcount = mcount + 1;
 			}
 			te = te.chain;
 		}
 	}
-	if ((self.perk1 == 11 && slotno == 1) || (self.perk2 == 11 && slotno == 2))
+	else if ((self.perk1 == 11 && slotno == 1) || (self.perk2 == 11 && slotno == 2))
 	{
+		if (self.radiation <= 0)
+			return;
+
 		if (slotno == 1)
 			self.perk1timer = 2000;
 		if (slotno == 2)
 			self.perk2timer = 2000;
 
-		sound (self, CHAN_BODY, "misc/r_tele4.wav", 1, ATTN_NORM);
+		if (self.radiation <= 25)
+		{
+			eat = self.radiation;
+			self.radiation = 0;
+		}
+		else
+		{
+			eat = 25;
+			self.radiation = self.radiation - 25;
+		}
 
+			self.health = self.health + eat;
+			self.regen = self.regen + ceil(eat/5);
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+			sound (trace_ent, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
 
 	}
 };
@@ -1080,10 +1247,9 @@ W_FireGrenade
 */
 void() W_FireGrenade =
 {       
-	if (deathmatch != 4)
-		self.currentammo = self.ammo_rockets = self.ammo_rockets - 1;
+	DropAmmo();
 	
-	sound (self, CHAN_WEAPON, "weapons/grenade.wav", 1, ATTN_NORM);
+	sound (self, CHAN_WEAPON, "weapons/gl-1.wav", 1, ATTN_NORM);
 
 	msg_entity = self;
 	WriteByte (MSG_ONE, SVC_SMALLKICK);
@@ -1680,11 +1846,11 @@ void() W_Attack =
 	else if (weap == IID_WP_NEEDLER)
 		FirePistol(10+self.skill_science, 2, "weapons/needler.wav", 2000, 0.1);
 	else if (weap == IID_WP_GLOCK)
-		FirePistol(12, 6, "weapons/glock.wav", 2000, 0.1);
+		FirePistol(12, 6, "weapons/10mmpistol.wav", 2000, 0.1);
 	else if (weap == IID_WP_GLOCK_S)
 		FirePistol(10, 6, "weapons/smg_s.wav", 2000, 0.1);
 	else if (weap == IID_WP_ALIENBLASTER)
-		FirePulseRifle(16, 0.1, 10+self.skill_science*4, 2);
+		FirePulseRifle(4, 0.1, 20+self.skill_science*6, 3);
 	else if (weap == IID_WP_PIPERIFLE)
 		FireAssaultRifle(15+self.skill_science, 5, "weapons/rangem.wav", 5000, 0.1);
 	else if (weap == IID_WP_PIPERIFLE_S)
@@ -1749,13 +1915,6 @@ void() W_Attack =
 		FireAssaultRifle(30, 80, "weapons/gauss.wav", 9000, 0.2);
 	else if (weap == IID_WP_LASERGATLING)
 		FireMinigun(16, 20, "weapons/ak112.wav", 4000, 0.05);
-
-		//FirePulseRifle(2, 0.1, 30, 3);
-
-
-//float IID_WP_GAUSERIFLE = 421;
-//float IID_WP_PULSERIFLE = 422;
-
 	else if (weap == IID_GREN_FRAG)
 		player_pull1();
 	else if (weap == IID_GREN_EMP)
@@ -1767,7 +1926,8 @@ void() W_Attack =
 
 	else if (weap == IID_WP_ROCKETLAUNCHER)
 		W_FireRocket();
-
+	else if (weap == IID_WP_GRENADELAUNCHER)
+		W_FireGrenade();
 	else if (weap == IID_WP_WRENCH)
 	{
 		if (!FireToolkit())
@@ -1846,16 +2006,7 @@ void() CheatCommand =
 	local string y;
 	local entity te;
 
-	self.ammo_shells = 900;
-
-	te = findradius (self.origin, 6000);
-	while (te)
-	{
-		if (te.classname == "monster")
-			te.hold = 100;
-
-		te = te.chain;
-	}
+		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
 };
 
 /*
@@ -2583,8 +2734,8 @@ void (float skill) FragExplode =
 		te = te.chain;
 	}
 
-	r = 200 + skill*20;
-	d = 10 + skill*10;
+	r = 450;
+	d = 30 + skill*5;
 
 	T_RadiusDamage2 (self, self.owner, d+random()*40, other, r);
 	remove (self);
@@ -2996,9 +3147,9 @@ void (float dam, float ap, string snd, float rng, float rate) FirePistol =
 		dam = dam + random()*dam;
 
 		if (weap == IID_WP_NEEDLER)
-			X_Damage (trace_ent, self, self, dam);
+			T_Damage (trace_ent, self, self, dam);
 		else if (weap == IID_WP_USP)
-			J_Damage (trace_ent, self, self, dam);
+			T_Damage (trace_ent, self, self, dam);
 		else
 			T_Damage (trace_ent, self, self, dam);
 
@@ -3143,11 +3294,11 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 		dam = dam + random()*dam;
 
 	if (weap == IID_WP_GREASEGUN)
-		J_Damage (trace_ent, self, self, dam);
+		T_Damage (trace_ent, self, self, dam);
 	else if (weap == IID_WP_MP9)
 		T_Damage (trace_ent, self, self, dam);
 	else if (weap == IID_WP_GREASEGUN_S)
-		J_Damage (trace_ent, self, self, dam);
+		T_Damage (trace_ent, self, self, dam);
 	else if (weap == IID_WP_MP9_S)
 		T_Damage (trace_ent, self, self, dam);
 
@@ -3174,45 +3325,20 @@ void (float rec, float speed, float dam, float type) FirePulseRifle =
 
 	weap = ToIID(self.(SlotField(self.current_slot)));
 
-	if (weap != IID_WP_ALIENBLASTER)
-	{
-		if (self.recoil >= 15)
-		{
-			loud_noise(60);
-			sound (self, CHAN_WEAPON, "weapons/blowoff-1.wav", 1, ATTN_NORM);
-			self.attack_finished = (time + (1 + random()*1.5));
-			return;
-		}
-		else if (weap != IID_WP_LASERGATLING)
-		{
-			loud_noise(60);
-			sound (self, CHAN_AUTO, "weapons/blowoff-2.wav", 0.5, ATTN_IDLE);
-		}
-	}
-
 
 	if (weap == IID_WP_ALIENBLASTER)
 		stuffcmd (self, "-attack\n");
 
-	if (weap != IID_WP_LASERGATLING)
-	{
-		loud_noise(20);
 
-		if (random()<0.5)
-			sound (self, CHAN_WEAPON, "weapons/plasma-1.wav", 1, ATTN_NORM);
-		else
-			sound (self, CHAN_WEAPON, "weapons/plasma-2.wav", 1, ATTN_NORM);
-	}
-	else if (weap == IID_WP_LASERGATLING && self.attack == 1)
-	{
-			loud_noise(40);
-			sound (self, CHAN_WEAPON, "weapons/laserburst1.wav", 1, ATTN_NORM);
-	}
+	loud_noise(20);
+	sound (self, CHAN_WEAPON, "weapons/blaster.wav", 1, ATTN_NORM);
+
+
 
 	if (self.attack >= 6)
 		self.attack = 0;
 
-	self.attack_finished = time + (speed*0.5) + (random()*speed*0.5);
+	self.attack_finished = time + (speed*1) + (random()*speed*1);
 
 
 //only silenced weapons do not break stealth
@@ -3241,24 +3367,25 @@ void (float rec, float speed, float dam, float type) FirePulseRifle =
 	DropAmmo ();
 	makevectors (self.v_angle);
 
-	if (self.recoil >= 20)
-		self.recoil = 20;
+	if (self.recoil >= 10)
+		self.recoil = 10;
 
-	tmp = 50;
+	tmp = 400;
 
-	if (self.velocity != '0 0 0')
-		tmp = 100;
+	tmp = tmp - (5*self.skill_science);
 
-	tmp = tmp + (5*self.recoil);
+	tmp = tmp * (1 + (self.recoil / 10));
 
-	if (self.recoil <= 1 && self.velocity_z == 0)
+	tmp = tmp * (1.25 - (self.skill_science/20));
+
+	if (self.recoil <= 0 && self.velocity_z == 0)
 		tmp = (tmp * 0.5);
 
 	self.attack = self.attack + 1;
 	self.recoil = self.recoil + rec;
 
 
-	source = self.origin + '0 0 22' + v_right*6 + v_forward*14;
+	source = self.origin + '0 0 24' + v_right*4 + v_forward*14;
 	source = source + adjust;
 
 	tmp = tmp * 0.60;
@@ -3276,15 +3403,16 @@ void (float rec, float speed, float dam, float type) FirePulseRifle =
 	org2 = trace_endpos + (v_forward * ((trace_ent.size_y / 2) + (trace_ent.size_x / 2)));
 
 	zap = spawn();
-	zap.origin = self.origin + v_right*16 + adjust;
+	zap.origin = self.origin + v_right*6 + adjust;
 	zap.velocity = self.velocity;
 	zap.angles = self.angles;
 	zap.v_angle = self.v_angle;
 
+
 	if (type == 1)
 	{
 		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-		WriteByte (MSG_MULTICAST, TE_LIGHTNING1);
+		WriteByte (MSG_MULTICAST, TE_LIGHTNING2);
 		WriteEntity (MSG_MULTICAST, zap);
 		WriteCoord (MSG_MULTICAST, source_x);
 		WriteCoord (MSG_MULTICAST, source_y);
@@ -3563,9 +3691,9 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 		dam = dam + random()*dam;
 
 		if (weap == IID_WP_DKS1 || weap == IID_WP_FNFAL || weap == IID_WP_ACR)
-			X_Damage (trace_ent, self, self, dam);
+			T_Damage (trace_ent, self, self, dam);
 		else if (weap == IID_WP_AK112)
-			J_Damage (trace_ent, self, self, dam);
+			T_Damage (trace_ent, self, self, dam);
 		else
 			T_Damage (trace_ent, self, self, dam);
 
@@ -3737,15 +3865,15 @@ void (float dam, float xrecoil, string snd, float rng, float rate) FireMinigun =
 		dam = dam + random()*dam;
 
 		if (weap == IID_WP_DKS1)
-			X_Damage (trace_ent, self, self, dam);
+			T_Damage (trace_ent, self, self, dam);
 		else if (weap == IID_WP_FNFAL)
-			X_Damage (trace_ent, self, self, dam);
+			T_Damage (trace_ent, self, self, dam);
 		else if (weap == IID_WP_DKS1_S)
-			X_Damage (trace_ent, self, self, dam);
+			T_Damage (trace_ent, self, self, dam);
 		else if (weap == IID_WP_AK112)
-			X_Damage (trace_ent, self, self, dam);
+			T_Damage (trace_ent, self, self, dam);
 		else if (weap == IID_WP_AK112_M)
-			X_Damage (trace_ent, self, self, dam);
+			T_Damage (trace_ent, self, self, dam);
 		else
 			T_Damage (trace_ent, self, self, dam);
 
@@ -4697,33 +4825,7 @@ void () DisplayMenu =
 		centerprint (self, "êchoose skill to gainë\n\nê1ë doctor     \nê2ë sneak      \nê3ë combat     \nê4ë science    \n");
 	}
 
-	if ((self.currentmenu == "select_team"))
-	{
-		if (self.class == 0)
-			centerprint (self, "êCHOOSE YOUR TEAMë\n\nê1ë Rangers     (good)\nê2ë Raiders     (evil)\nê3ë Auto-Assign       \n");
-		if (self.class >= 0 && self.oldteam == 0)
-			centerprint (self, "êCHOOSE YOUR TEAMë\n\nê1ë Rangers     (good)\nê2ë Raiders     (evil)\nê3ë Auto-Assign       \n");
-		if (self.class > 0 && self.oldteam > 0)
-			centerprint (self, "êCHOOSE YOUR TEAMë\n\nê1ë Rangers     (good)\nê2ë Raiders     (evil)\nê3ë Auto-Assign       \nê4ë Keep Previous     \n");
-	}
-	if (self.currentmenu == "confirm_team")
-	{
-		if (self.team == 1)
-			centerprint (self, "êyou will respawn asë\n\nRanger - OK?\nê1ë Yes     \nê2ë No      \n");
-		if (self.team == 2)
-			centerprint (self, "êyou will respawn asë\n\nRaider - OK?\nê1ë Yes     \nê2ë No      \n");
-	}
-	if (self.currentmenu == "confirm_skill")
-	{
-		if (self.tclass == 1)
-			centerprint (self, "êyour skill-set will beë\n\nfirst aid - OK?\nê1ë Yes     \nê2ë No      \n\nprimary:   first aid\nsecondary: buff allies\n");
-		if (self.tclass == 2)
-			centerprint (self, "êyour skill-set will beë\n\nstealth - OK?\nê1ë Yes     \nê2ë No      \n\nprimary:   stealth\nsecondary:  damage");
-		if (self.tclass == 3)
-			centerprint (self, "êyour skill-set will beë\n\ncombat - OK?\nê1ë Yes     \nê2ë No      \n\nprimary:   survival\nsecondary:  damage");
-		if (self.tclass == 4)
-			centerprint (self, "êyour skill-set will beë\n\nscience - OK?\nê1ë Yes     \nê2ë No      \n\nprimary:   create\nsecondary: bypass");
-	}
+
 
 	if (self.currentmenu == "menu_build")
 	{
@@ -5145,37 +5247,7 @@ void () ExitScreen =
 	}
 };
 
-void () disappear =
-{
-	local entity te;
-	local float nearby;
-	//this allows an assassin to vanish, making monsters aggro
-	//those who are visible
 
-	if (!getperk(3))
-		return;
-
-	te = findradius(self.origin, 500);
-	while (te)
-	{
-		if (te.classname == "player" && te.sneak == 0 && te != self)
-			nearby = 1;
-			
-		te = te.chain;
-	}
-
-	if (nearby == 1)
-	{
-		te = findradius(self.origin, 1000);
-		while (te)
-		{
-			if (te.enemy == self)
-				te.enemy = world;
-			
-			te = te.chain;
-		}
-	}
-};
 
 void () Sneak =
 {
@@ -5192,7 +5264,6 @@ void () Sneak =
 	}
 	if (self.sneak == 0)
 	{
-		disappear();
 		sound (self, CHAN_BODY, "items/inv1.wav", 1, ATTN_NORM);
 		self.sneak = 1;
 		return;

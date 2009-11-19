@@ -912,15 +912,31 @@ void() misc_noisemaker =
 void() brotherhood_merchant =
 {
 	local entity sign;
-/*
-	sign = spawn();
-	sign.origin = self.origin + '0 0 32';
-	setmodel(sign, "progs/trader.spr");
-	sign.solid = SOLID_NOT;*/
 
-	setorigin(self, self.origin + '0 0 64');
-	self.movetype = MOVETYPE_BOUNCE;
-	self.velocity_z = -200;
+	sign = spawn();
+	sign.movetype = MOVETYPE_BOUNCE;
+	sign.velocity_x = crandom()*50;
+	sign.velocity_y = crandom()*50;
+	sign.velocity_z = -100;
+	setsize (sign, '-2 -2 -6', '2 2 2');
+	sign.origin = self.origin + '32 0 32';
+	setmodel(sign, "progs/money.mdl");
+	sign.solid = SOLID_BBOX;
+	sign.scale = 10;
+
+	sign = spawn();
+	sign.movetype = MOVETYPE_BOUNCE;
+	sign.velocity_x = crandom()*50;
+	sign.velocity_y = crandom()*50;
+	sign.velocity_z = -100;
+	setsize (sign, '-2 -2 -6', '2 2 2');
+	sign.origin = self.origin + '0 32 32';
+	setmodel(sign, "progs/money.mdl");
+	sign.solid = SOLID_BBOX;
+	sign.scale = 10;
+
+
+
 
 	setmodel (self, "progs/enforcer.mdl");
 	self.touch = SUB_Null;

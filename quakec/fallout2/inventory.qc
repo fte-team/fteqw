@@ -58,6 +58,7 @@ float IID_WP_DKS1_S = 441;
 float IID_WP_RANGEMASTER_SCOPE = 442;
 float IID_WP_AK47 = 443;
 float IID_WP_ACR = 444;
+float IID_WP_GRENADELAUNCHER = 445;
 
 //and ammo for those guns
 float IID_AM_NEEDLER = 507;
@@ -73,6 +74,7 @@ float IID_AM_45ACP = 516; //".45 ACP ammo";
 float IID_AM_ROCKET = 517; //"explosive rocket"
 float IID_AM_CASELESS = 518; //caseless
 float IID_AM_WARSAW = 519; //ak-47 ammo
+float IID_AM_GRENADE = 520; //grenade launcher ammo
 
 //grenade items
 float IID_GREN_FRAG = 101;
@@ -662,9 +664,9 @@ string(float iid) GetItemVModel =
 	if (iid == IID_WP_USP_S)
 		return "progs/v_usp.mdl";
 	if (iid == IID_WP_GLOCK)
-		return "progs/v_glock.mdl";
+		return "progs/v_10mmpistol.mdl";
 	if (iid == IID_WP_GLOCK_S)
-		return "progs/v_glock.mdl";
+		return "progs/v_10mmpistol.mdl";
 	if (iid == IID_WP_DEAGLE)
 		return "progs/v_deagle.mdl";
 	if (iid == IID_WP_NEEDLER)
@@ -721,6 +723,8 @@ string(float iid) GetItemVModel =
 		return "progs/v_carbine.mdl";
 	if (iid == IID_WP_ROCKETLAUNCHER)
 		return "progs/v_rocket.mdl";
+	if (iid == IID_WP_GRENADELAUNCHER)
+		return "progs/v_gl.mdl";
 	if (iid == IID_WP_LASERGATLING)
 		return "progs/v_chain.mdl";
 
@@ -757,9 +761,9 @@ string(float iid) GetItemWModel =
 	if (iid == IID_WP_USP_S)
 		return "progs/w_usp.mdl";
 	if (iid == IID_WP_GLOCK)
-		return "progs/w_glock.mdl";
+		return "progs/w_10mmpistol.mdl";
 	if (iid == IID_WP_GLOCK_S)
-		return "progs/w_glock.mdl";
+		return "progs/w_10mmpistol.mdl";
 	if (iid == IID_WP_DEAGLE)
 		return "progs/w_deagle.mdl";
 	if (iid == IID_WP_DEAGLE_M)
@@ -819,6 +823,8 @@ string(float iid) GetItemWModel =
 
 	if (iid == IID_WP_ROCKETLAUNCHER)
 		return "progs/w_rocket.mdl";
+	if (iid == IID_WP_GRENADELAUNCHER)
+		return "progs/w_gl.mdl";
 	if (iid == IID_WP_LASERGATLING)
 		return "progs/w_chain.mdl";
 
@@ -946,6 +952,8 @@ float(float iid) WeaponAmmoType =
 		return IID_AM_ROCKET;
 	if (iid == IID_WP_LASERGATLING)
 		return IID_AM_ENERGYCELL;
+	if (iid == IID_WP_GRENADELAUNCHER)
+		return IID_AM_GRENADE;
 
 	return IID_NONE;
 };
@@ -957,9 +965,9 @@ float(float iid) WeaponMagQuant =
 	if (iid == IID_WP_USP_S)
 		return 12;
 	if (iid == IID_WP_GLOCK)
-		return 15;
+		return 10;
 	if (iid == IID_WP_GLOCK_S)
-		return 15;
+		return 10;
 	if (iid == IID_WP_DEAGLE)
 		return 7;
 	if (iid == IID_WP_DEAGLE_M)
@@ -1954,7 +1962,7 @@ float(float iid) GetWeaponRange =
 	if (iid == IID_WP_NEEDLER)
 		return 20;
 	if (iid == IID_WP_ALIENBLASTER)
-		return 10;
+		return 6+(getstati(103)*1);
 	if (iid == IID_WP_PIPERIFLE)
 		return 40;
 	if (iid == IID_WP_PIPERIFLE_S)
@@ -2044,7 +2052,7 @@ float(float iid) GetWeaponDamage =
 	if (iid == IID_WP_NEEDLER)
 		return 16;
 	if (iid == IID_WP_ALIENBLASTER)
-		return 20;
+		return 20+(getstati(103)*6);
 	if (iid == IID_WP_PIPERIFLE)
 		return 20;
 	if (iid == IID_WP_PIPERIFLE_S)
@@ -2143,7 +2151,7 @@ string(float iid) GetItemImage =
 	if (iid == IID_WP_NEEDLER)
 		return "needler.jpg";
 	if (iid == IID_WP_ALIENBLASTER)
-		return "ppistol.jpg";
+		return "blaster.jpg";
 	if (iid >= IID_WP_PIPERIFLE && iid <= IID_WP_PIPERIFLE_S_R)
 		return "prifle.jpg";
 	if (iid == IID_WP_WINCHESTER)
@@ -2561,7 +2569,7 @@ string (float slot, float int) PerkName =
 		if (int == 2)
 			return "Duck And Cover";
 		if (int == 3)
-			return "Harmless";
+			return "Puppet Master";
 		if (int == 4)
 			return "Stay Low";
 		if (int == 5)
@@ -2587,7 +2595,7 @@ string (float slot, float int) PerkNameCentered =
 		if (int == 2)
 			return " Duck And Cover";
 		if (int == 3)
-			return "    Harmless";
+			return " Puppet Master ";
 		if (int == 4)
 			return "    Stay Low";
 		if (int == 5)
@@ -2614,7 +2622,7 @@ string(float int) GetPerkImage =
 	else if (int == 2)
 		return "gui/perks/Duck And Cover.jpg";
 	else if (int == 3)
-		return "gui/perks/Harmless.jpg";
+		return "gui/perks/Puppet Master.jpg";
 	else if (int == 4)
 		return "gui/perks/Stay Low.jpg";
 	else if (int == 5)
@@ -2640,11 +2648,11 @@ string(float int) GetPerkImage =
 string(float int) GetPerkDesc =
 {
 	if (int == 1)
-		return "33% recoil reduction while prone";
+		return "Recoil is drastically reduced while lying down";
 	else if (int == 2)
-		return "Huge dodge chance while taking cover and ducking";
-	else if (int == 3)
 		return "Makes enemies attack your friends instead of you";
+	else if (int == 3)
+		return "You can make enemies attack their friends";
 	else if (int == 4)
 		return "50% damage resist to area attacks while prone";
 	else if (int == 5)
@@ -2654,7 +2662,7 @@ string(float int) GetPerkDesc =
 	else if (int == 7)
 		return "Provides you a few hassle-free seconds to escape danger";
 	else if (int == 8)
-		return "You may gain additional skills from an unknown source";
+		return "Your skill levels surge in power from an unknown source";
 	else if (int == 9)
 		return "Paralyze anything with a sneak attack from a knife";
 	else if (int == 10)

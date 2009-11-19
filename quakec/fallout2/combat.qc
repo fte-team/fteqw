@@ -139,13 +139,18 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 
 	if (targ.radiation > 0)
 	{
-		radpenalty = 1 + (targ.radiation/100);
-
-		if (radpenalty > 1.25)
-			radpenalty = 1.25;
-
+		radpenalty = 1 + (targ.radiation/200);
 		damage = damage * radpenalty;
 	}
+
+	if (attacker.radiation > 0)
+	{
+		radpenalty = 1 - (targ.radiation/200);
+		damage = damage * radpenalty;
+	}
+
+	if (targ.classname == "player" && attacker.classname == "monster")
+		targ.superenemy = attacker;
 
 //getting hurt is slightly painful to the score, play cautiously!
 	if (attacker.classname == "monster" && targ.classname == "player")
@@ -573,18 +578,7 @@ take = damage;
 	}
 
 		Killed (targ, attacker);
-		if (attacker.perk1 == 11 || attacker.perk2 == 11)
-		{
-			attacker.lastman += 1.5;
-			lm = ftos(attacker.lastman);
-			sprint(self, 2, "!LAST MAN STANDING: ");
-			sprint(self, 2, lm);
-			sprint(self, 2, "\n");
 
-			attacker.health += attacker.lastman;
-			if (attacker.health > attacker.max_health)
-				attacker.health = attacker.max_health;
-		}	
 		return;
 	}
 

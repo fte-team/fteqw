@@ -268,6 +268,10 @@ void() ChangeYaw =
 
 void() HuntTarget =
 {
+
+	if (self.enemy == self.friend)
+		return;
+
 	self.goalentity = self.enemy;
 	self.think = self.th_run;
 	self.ideal_yaw = vectoyaw(self.enemy.origin - self.origin);
@@ -350,16 +354,21 @@ slower noticing monsters.
 */
 float() FindTarget =
 {
-	local entity	client;
+	local entity	client, te;
 	local float		r, x;
 	local string y;
 
 // if the first spawnflag bit is set, the monster will only wake up on
 // really seeing the player, not another monster getting angry
-
 // spawnflags & 3 is a big hack, because zombie crucified used the first
 // spawn flag prior to the ambush flag, and I forgot about it, so the second
 // spawn flag works as well
+
+
+
+	if (self.charmed == 1)
+		return FALSE;
+
 
 	if (sight_entity_time >= time - 0.1 && !(self.spawnflags & 3) )
 	{
@@ -374,8 +383,14 @@ float() FindTarget =
 			return FALSE;	// current check entity isn't in PVS
 	}
 
+
+	if (client == self.friend)//friends will not be attacked
+		return FALSE;
 	if (client == self.enemy)
 		return FALSE;
+
+	if (self.flash > 0)
+		return;
 
 	if (client.flags & FL_NOTARGET)
 		return FALSE;
@@ -444,10 +459,13 @@ float() FindTarget =
 
 	if (client.sneak > 0)//sneaking players are invisible
 		return FALSE;
+
 //
 // got one
 //
 	self.enemy = client;
+
+/*
 	if (self.enemy.classname != "player")
 	{
 		self.enemy = self.enemy.enemy;
@@ -456,7 +474,7 @@ float() FindTarget =
 			self.enemy = world;
 			return FALSE;
 		}
-	}
+	}*/
 	
 	FoundTarget ();
 
@@ -736,7 +754,6 @@ The monster has an enemy it is trying to kill
 */
 void(float dist) ai_run =
 {
-
 	if (self.hold == 1)
 	{
 		self.th_stand;

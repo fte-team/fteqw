@@ -155,7 +155,7 @@ void (float db) loud_noise =
 				t = t + 32;
 			}
 
-			if (x < db*20 && d <= md)
+			if (x < db*20 && d <= md && (te.friend != self))
 			{
 				te.enemy = self;
 				te.think = HuntTarget;
@@ -248,17 +248,13 @@ void () Footstep =
 	if (self.sneak != 0)
 		return;
 
-	if (getperk(6))
-		r = 0.5;
-	else
-		r = 1;
+
+	r = 1 - (self.skill_sneak/40);
 
 	if (self.classname == "player")
 	{
-		if (getperk(6))
-			loud_noise(10);
-		else
-			loud_noise(20);
+
+		loud_noise(20 - self.skill_sneak);
 	}
 
 	if (world.worldtype == 1 || world.worldtype == 2)

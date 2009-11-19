@@ -723,7 +723,7 @@ void() GainPerk_Draw =
 
 	drawpic('2 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Support Fire.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 	drawpic('3 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Duck And Cover", '64 64 0'*(scrwidth/640), '1 1 1', 1);
-	drawpic('4 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Harmless.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+	drawpic('4 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Puppet Master.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 	drawpic('5 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Stay Low.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 	drawpic('6 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Surgical Precision.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 

@@ -105,7 +105,7 @@ void() Chem_Draw =
 void() Time_Draw =
 {
 	local float xtime, ytime, ztime, obj;
-	local string qtime, rtime, shadowtime, text;
+	local string qtime, rtime, shadowtime, text, text2;
 
 	xtime = getstati(104);
 	ytime = floor(xtime/60);
@@ -129,6 +129,21 @@ void() Time_Draw =
 		text = "rescue citizens\n";
 
 		drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.86)),  text, '8 8 8', '1 1 1', 1);
+
+
+
+
+	text = "citizens rescued: ";
+	text2 = ftos(getstati(113));
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.90)),  strcat(text, text2), '8 8 8', '1 1 1', 1);
+
+	text = "citizens slain:   ";
+	text2 = ftos(getstati(114));
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.92)),  strcat(text, text2), '8 8 8', '1 1 1', 1);
+
+	text = "citizens left:    ";
+	text2 = ftos(getstati(115));
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.94)),  strcat(text, text2), '8 8 8', '1 1 1', 1);
 
 };
 

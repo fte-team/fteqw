@@ -109,6 +109,9 @@ void() SetupStats =
 	clientstat(110, 2, steadyaim);
 	clientstat(111, 2, perk1timer);
 	clientstat(112, 2, perk2timer);
+	clientstat(113, 2, endinfo1);
+	clientstat(114, 2, endinfo2);
+	clientstat(115, 2, endinfo3);
 	clientstat(125, 2, timer);
 	clientstat(126, 2, popup);
 	clientstat(127, 2, score);
@@ -749,7 +752,10 @@ if (coop == 1) // Players vs Monsters
 				{
 					ze.missionbrief = 3;
 					ze.announcercache = 3;
-
+					ze.ammo_shells = ze.ammo_shells + (3*rescue);
+					ze.endinfo1 = rescue;
+					ze.endinfo2 = hostages;
+					ze.endinfo3 = dead_hostage;
 
 					ze = find (ze, classname, "player");
 				}
@@ -769,7 +775,10 @@ if (coop == 1) // Players vs Monsters
 				{
 					ze.missionbrief = 3;
 					ze.announcercache = 4;
-
+					ze.ammo_shells = ze.ammo_shells + (3*rescue);
+					ze.endinfo1 = rescue;
+					ze.endinfo2 = hostages;
+					ze.endinfo3 = dead_hostage;
 
 					ze = find (ze, classname, "player");
 				}
@@ -842,9 +851,10 @@ if (coop == 1) // Players vs Monsters
 				ze = find (world, classname, "player");
 				while (ze != world)
 				{
-					ze.ammo_shells = ze.ammo_shells + 25;
 					ze.missionbrief = 3;
 					ze.announcercache = 6;
+					ze.ammo_shells = ze.ammo_shells + 30;
+
 
 					stuffcmd(ze, "play music/victory\n");
 					ze = find (ze, classname, "player");
@@ -929,6 +939,7 @@ if (coop == 1) // Players vs Monsters
 				{
 					ze.missionbrief = 3;
 					ze.announcercache = 9;
+					ze.ammo_shells = ze.ammo_shells + 30;
 
 
 					ze = find (ze, classname, "player");
@@ -978,6 +989,7 @@ if (coop == 1) // Players vs Monsters
 				{
 					ze.missionbrief = 3;
 					ze.announcercache = 10;
+					ze.ammo_shells = ze.ammo_shells + 40;
 
 
 					ze = find (ze, classname, "player");
@@ -1062,6 +1074,7 @@ if (coop == 1) // Players vs Monsters
 				{
 					ze.missionbrief = 3;
 					ze.announcercache = 13;
+					ze.ammo_shells = ze.ammo_shells + 30;
 
 
 					ze = find (ze, classname, "player");
@@ -1105,7 +1118,7 @@ if (coop == 1) // Players vs Monsters
 	self.nextthink = time + 1;
 	return;
 }
-if (coop == 0) // Players vs Players
+else if (coop == 0) // Players vs Players
 {
 	t1alive = 0;
 	t1dead = 0;
@@ -1607,7 +1620,7 @@ void() worldspawn =
 	precache_model ("progs/v_spear.mdl");
 	precache_model ("progs/v_usp.mdl");
 	precache_model ("progs/v_needler.mdl");
-	precache_model ("progs/v_glock.mdl");
+	precache_model ("progs/v_10mmpistol.mdl");
 	precache_model ("progs/v_fnfal.mdl");
 	precache_model ("progs/v_smg.mdl");
 	precache_model ("progs/v_rangem.mdl");
@@ -1641,7 +1654,6 @@ void() worldspawn =
 
 	precache_model ("progs/junk1.mdl");
 	precache_model ("progs/junk2.mdl");
-	precache_model ("progs/chest.mdl");
 	precache_model ("progs/hosfem.mdl");
 	precache_model ("progs/hosguy.mdl");
 	precache_model ("progs/handgren.mdl");
@@ -1662,12 +1674,11 @@ void() worldspawn =
 	precache_model ("progs/w_double.mdl");
 	precache_model ("progs/w_combat.mdl");
 	precache_model ("progs/w_axe.mdl");
-	precache_model ("progs/w_glock.mdl");
+	precache_model ("progs/w_10mmpistol.mdl");
 	precache_model ("progs/w_usp.mdl");
 	precache_model ("progs/w_deagle.mdl");
 	precache_model ("progs/w_alien.mdl");
 	precache_model ("progs/w_mp9.mdl");
-	precache_model ("progs/w_mp5.mdl");
 	precache_model ("progs/w_jackhammer.mdl");
 	precache_model ("progs/w_rangem.mdl");
 	precache_model ("progs/w_g11.mdl");
@@ -1774,7 +1785,7 @@ void() worldspawn =
 	precache_sound ("ogre/ak74.wav");
 	precache_sound ("ogre/ak47.wav");
 	precache_sound ("weapons/usp.wav");
-	precache_sound ("weapons/glock.wav");
+	precache_sound ("weapons/10mmpistol.wav");
 	precache_sound ("weapons/auto2.wav");
 	precache_sound ("weapons/ak112.wav");
 	precache_sound ("weapons/amr.wav");
@@ -1794,8 +1805,7 @@ void() worldspawn =
 	precache_sound ("weapons/citykiller.wav");
 	precache_sound ("weapons/laser.wav");
 	precache_sound ("weapons/laserburst1.wav");
-	precache_sound ("weapons/plasma-1.wav");
-	precache_sound ("weapons/plasma-2.wav");
+	precache_sound ("weapons/blaster.wav");
 	precache_sound ("weapons/moonlight-1.wav");
 	precache_sound ("weapons/moonlight-2.wav");
 	precache_sound ("weapons/needler.wav");

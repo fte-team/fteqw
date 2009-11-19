@@ -50,6 +50,8 @@ $frame paine29 paine30
 
 $frame cruc_1 cruc_2 cruc_3 cruc_4 cruc_5 cruc_6
 
+$frame rise1 rise2 rise3
+
 float	SPAWN_CRUCIFIED	= 1;
 
 //=============================================================================
@@ -64,7 +66,9 @@ if ((pointcontents(self.origin) <= -2) && (self.owner.netname == "lair"))
 	remove(self);
 }
 else if ((pointcontents(self.origin) <= -2))
+{
 	remove(self);
+}
 
 };
 void() zombie_stand2	=[	$stand2,		zombie_stand3	] {ai_stand();};
@@ -144,6 +148,35 @@ void() zombie_run15		=[	$run15,		zombie_run16	] {ai_run(4);};
 void() zombie_run16		=[	$run16,		zombie_run17	] {ai_run(4);};
 void() zombie_run17		=[	$run17,		zombie_run18	] {ai_run(4);};
 void() zombie_run18		=[	$run18,		zombie_run1	] {ai_run(8);};
+
+
+
+void() zombie_rise1		=[	$rise1,		zombie_rise2	] {};
+void() zombie_rise2		=[	$rise2,		zombie_rise3	] {};
+void() zombie_rise3		=[	$rise3,		zombie_rise4	] {};
+void() zombie_rise4		=[	$paine12,	zombie_rise5	] {};
+void() zombie_rise5		=[	$paine13,	zombie_rise6	] {};
+void() zombie_rise6		=[	$paine14,	zombie_rise7	] {};
+void() zombie_rise7		=[	$paine15,	zombie_rise8	] {};
+void() zombie_rise8		=[	$paine16,	zombie_rise9	] {};
+void() zombie_rise9		=[	$paine17,	zombie_rise10	] {};
+void() zombie_rise10		=[	$paine18,	zombie_rise11	] {};
+void() zombie_rise11		=[	$paine19,	zombie_rise12	] {};
+void() zombie_rise12		=[	$paine20,	zombie_rise13	] {};
+void() zombie_rise13		=[	$paine21,	zombie_rise14	] {};
+void() zombie_rise14		=[	$paine22,	zombie_rise15	] {};
+void() zombie_rise15		=[	$paine23,	zombie_rise16	] {};
+void() zombie_rise16		=[	$paine24,	zombie_rise17	] {};
+void() zombie_rise17		=[	$paine25,	zombie_rise18	] {};
+void() zombie_rise18		=[	$paine26,	zombie_rise19	] {};
+void() zombie_rise19		=[	$paine27,	zombie_rise20	] {};
+void() zombie_rise20		=[	$paine28,	zombie_rise21	] {};
+void() zombie_rise21		=[	$paine29,	zombie_rise22	] {};
+void() zombie_rise22		=[	$paine30,	zombie_stand1	] {
+
+	
+};
+
 
 /*
 =============================================================================
@@ -737,46 +770,27 @@ void () spawn_ghoul_copy =
 	local entity te, ze;
 	local vector jojo;
 	local float zomc, pcount, loadzombie;
-	local string finder, waterlev, diag;
+	local string finder, waterlev, diag, errmsg;
 	local vector stuff;
 
 
 
 
 	self.think = spawn_ghoul_copy;
-	self.nextthink = time + 9 + random()*8;
-
-
+	self.nextthink = time + 7 + random()*7;
 
 	if (total_players == 2)
-		self.nextthink = time + 9 + random()*5;
-
-	if (total_players == 3)
-		self.nextthink = time + 8 + random()*4;
-
-	if (total_players == 4)
-		self.nextthink = time + 6 + random()*2;
-
+		self.nextthink = time + 5 = random()*5;
 
 	stuff = self.origin;
 
 
 
 
-	loadzombie = 0;
+	loadzombie = 1;
 
 
-	te = findradius (self.origin, 1500);
-	while (te)
-	{
-		if (te.classname == "player")
-			loadzombie = 1;
-
-		te = te.chain;
-	}
-
-
-	te = findradius (self.origin, 250);
+	te = findradius (self.origin, 900);
 	while (te)
 	{
 		if (te.classname == "player")
@@ -786,15 +800,13 @@ void () spawn_ghoul_copy =
 	}
 
 
-	if (loadzombie == 0)
+
+
+	if (loadzombie == 1)
 		return;
 
 
-
-
-
-
-	ze = find (world, netname, "ghoul");
+	ze = find (world, netname, "feral ghoul");
 
 	zomc = 0;
 	pcount = 0;
@@ -816,13 +828,12 @@ void () spawn_ghoul_copy =
 		ze = find(ze, classname, "player");
 	}
 
-
-	if (zomc > 60*pcount)
+	if (zomc > (30 + (30*pcount)))
 		return;
 
 
 	zomc = 0;
-
+/*
 	te = findradius (self.origin, 1000);
 	while (te)
 	{
@@ -832,18 +843,20 @@ void () spawn_ghoul_copy =
 		te = te.chain;
 	}
 
-	if (zomc >= 25)
-		return;
+	if (zomc >= 15+(15*pcount))
+		return;*/
 
 
 	zombie = spawn ();
 	zombie.owner = self;
 	self = zombie;
 	self.solid = SOLID_SLIDEBOX;
+	self.frame = 115;
 	self.movetype = MOVETYPE_STEP;		
 	setmodel (self, "progs/ghoul.mdl");
 	setsize (self, '-8 -8 -24', '8 8 24');
 	self.health = 90;
+	self.takedamage = DAMAGE_AIM;
 	self.netname = "feral ghoul";
 	self.max_health = self.health;
 	self.th_stand = zombie_stand1;
@@ -899,18 +912,29 @@ void () spawn_ghoul_copy =
 	te = findradius (self.origin, 30);
 	while (te)
 	{
-		if (te.classname == "player" || te.classname == "monster" && te.health > 0)
+		if (te != self)
 		{
-			remove(self);
-			return;
+			if (te.classname == "player" || te.classname == "monster" && te.health > 0)
+			{
+				remove(self);
+				return;
+			}
 		}
-
 		te = te.chain;
 	}
 
+	self.takedamage = DAMAGE_AIM;
+
+	self.ideal_yaw = self.angles * '0 1 0';
+	if (!self.yaw_speed)
+		self.yaw_speed = 20;
+	self.view_ofs = '0 0 25';
+	self.use = monster_use;
+	
+	self.flags = self.flags | FL_MONSTER;
 
 	self.classname = "monster";
-	walkmonster_start_go ();
+	zombie_rise1();
 };
 
 
@@ -975,9 +999,8 @@ void() monster_zombie =
 			setsize (lair, '-8 -8 -24', '8 8 24');
 			lair.netname = "lair";
 			lair.classname = "lair";
-			lair.nextthink = time + 30;
 			lair.think = spawn_ghoul_copy;
-			lair.nextthink = time + 30;
+			lair.nextthink = time + 1*random();
 		}
 	}
 

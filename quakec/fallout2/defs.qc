@@ -523,6 +523,8 @@ float           gtimer;
 float           total_players;
 float           endgame_timer;
 float           time_left;
+float		teamred;
+float		teamblue;
 
 float           s_map_obj;
 float           s_ent1;
@@ -666,6 +668,9 @@ float   intermission_running;
 .float          equipment_slot;
 .float          has_radio;
 .float          score;
+.float		endinfo1;
+.float		endinfo2;
+.float		endinfo3;
 
 //.float          select;
 //.float          grenade_hold;
@@ -752,6 +757,7 @@ float   intermission_running;
 .float		announcercache;
 string		announcer;
 
+.float		charmed;
 .entity         friend;
 .entity         tumbler1;
 .entity         tumbler2;
@@ -760,6 +766,8 @@ string		announcer;
 .entity         heal_ent;
 .vector         oldorg;
 .vector         home;
+.entity         superenemy;
+
 
 .float           location;
 .float           start_time;

@@ -1561,6 +1561,10 @@ void() PlayerPreThink =
 		SneakLevel();
 		self.accept = 0;
 		
+		self.endinfo1 = rescue;
+		self.endinfo2 = dead_hostage;
+		self.endinfo3 = hostages;
+
 
 		local float lgrip, rgrip;
 
@@ -1612,10 +1616,7 @@ void() PlayerPreThink =
 
 	if (self.cycle2 < time)
 	{
-		if (ToIID(self.islot4) == IID_EQUIP_BATTERY)
-			r = 20;
-		else
-			r = 10;
+
 
 		if (self.ragetime > 0)
 			self.ragetime -= 1;
@@ -1644,26 +1645,6 @@ void() PlayerPreThink =
 		if (rgrip == 0 && lgrip == 1)
 			self.rage = 777;
 
-		if (self.sneak == 0)
-		{
-			if (self.ammo_cells < r)
-				self.ammo_cells = self.ammo_cells + 1;
-
-			if (self.ammo_cells > r)
-				self.ammo_cells = r;
-		}
-
-		if (self.sneak > 0)
-		{
-			if (self.ammo_cells == 3 && ToIID(self.islot4) == IID_EQUIP_STEALTHBOY)
-				sprint(self, 2, "stealthboy running low!\n");
-
-			if (self.ammo_cells > 0)
-				self.ammo_cells = self.ammo_cells - 1;
-
-			if (self.ammo_cells < 0)
-				self.ammo_cells = 0;
-		}
 		
 		if (self.musictimer == 0)
 		{
@@ -2194,6 +2175,11 @@ void() ClientDisconnect =
 	// let everyone else know
 	bprint (PRINT_HIGH, self.netname);
 	bprint (PRINT_HIGH, " left the game.\n");
+	if (self.team == 1)
+		teamblue = teamblue - 1;
+	else if (self.team == 2)
+		teamred = teamred - 1;
+
 	self.classname = "disconnected";
 	sound (self, CHAN_BODY, "player/tornoff2.wav", 1, ATTN_NONE);
 	set_suicide_frame ();

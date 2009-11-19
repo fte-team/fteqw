@@ -657,7 +657,7 @@ void () army_walk8 = [ 80, army_walk1 ]
 void () army_run1 = [ 73, army_run2 ]
 {
 
-	if (random()<0.25 || self.health <= 25)
+	if ((random()<0.25 || self.health <= 25) && self.charmed != 1)
 		find_hide();
 
 	ai_run (TE_TELEPORT);

@@ -129,8 +129,8 @@ void() get_difficulty =
 	//challenge rating system
 	//
 	//0-24 level of difficulty
-      //0 = barely equipped players
-      //24 = using the best arms and equipment
+        //0 = barely equipped players
+        //6 = 1 player using best arms and armor
 
 	challenge_rating = 0;
 
@@ -326,13 +326,13 @@ void() map_startup =
 	world.map_ent2_percent = t;
 	world.map_ent3_percent = x;
 
-if (challenge_rating < 4)
+if (challenge_rating < 2)
 {
 	world.map_ent1 = 2 + ceil(random()*6);
 	world.map_ent2 = ceil(random()*8);
 	world.map_ent3 = ceil(random()*8);
 }
-else if (challenge_rating < 8)
+else if (challenge_rating < 4)
 {
 	world.map_ent1 = 2 + ceil(random()*8);
 	world.map_ent2 = 4 + ceil(random()*6);
@@ -1591,6 +1591,7 @@ void() worldspawn =
 	precache_model ("progs/melee.mdl");
 	precache_model ("progs/guy.mdl");
 	precache_model ("progs/lay.mdl");
+	precache_model ("progs/prone.mdl");
 	precache_model ("progs/eyes.mdl");
 	precache_model ("progs/h_player.mdl");
 	precache_model ("progs/gib1.mdl");
@@ -1786,11 +1787,8 @@ void() worldspawn =
 	precache_sound ("ogre/ak47.wav");
 	precache_sound ("weapons/usp.wav");
 	precache_sound ("weapons/10mmpistol.wav");
-	precache_sound ("weapons/auto2.wav");
 	precache_sound ("weapons/ak112.wav");
 	precache_sound ("weapons/amr.wav");
-	precache_sound ("weapons/blowoff-1.wav");
-	precache_sound ("weapons/blowoff-2.wav");
 	precache_sound ("misc/bounce_1.wav");
 	precache_sound ("misc/bounce_2.wav");
 	precache_sound ("misc/bounce_3.wav");
@@ -1798,13 +1796,11 @@ void() worldspawn =
 	precache_sound ("weapons/click.wav");
 	precache_sound ("weapons/deagle.wav");
 	precache_sound ("weapons/dks-1.wav");
-	precache_sound ("weapons/fnfal.wav");
 	precache_sound ("weapons/g11.wav");
 	precache_sound ("weapons/gauss.wav");
 	precache_sound ("weapons/gpull.wav");
 	precache_sound ("weapons/citykiller.wav");
 	precache_sound ("weapons/laser.wav");
-	precache_sound ("weapons/laserburst1.wav");
 	precache_sound ("weapons/blaster.wav");
 	precache_sound ("weapons/moonlight-1.wav");
 	precache_sound ("weapons/moonlight-2.wav");
@@ -1812,20 +1808,13 @@ void() worldspawn =
 	precache_sound ("weapons/bozar.wav");
 	precache_sound ("weapons/lsw.wav");
 	precache_sound ("weapons/amr.wav");
-	precache_sound ("weapons/smg_s.wav");
-	precache_sound ("weapons/shotgun1.wav");
-	precache_sound ("weapons/mp5.wav");
-	precache_sound ("weapons/mp7.wav");
+	precache_sound ("weapons/greasegun.wav");
+	precache_sound ("weapons/mp9.wav");
 	precache_sound ("weapons/rangem.wav");
 
 	precache_sound ("weapons/tink1.wav");
-	precache_sound ("weapons/shell.wav");
 	precache_sound ("weapons/reload.wav");
-	precache_sound ("weapons/silenced.wav");
-	precache_sound ("misc/greload.wav");
-	precache_sound ("misc/build1.wav");
-	precache_sound ("misc/build2.wav");
-	precache_sound ("misc/build3.wav");
+
 	precache_sound ("player/agdie1.wav");
 	precache_sound ("player/agdie2.wav");
 	precache_sound ("player/agdie3.wav");
@@ -1840,19 +1829,6 @@ void() worldspawn =
 	precache_sound ("contact/armor2.wav");
 	precache_sound ("contact/armor3.wav");
 
-	precache_sound ("contact/rico1.wav");
-	precache_sound ("contact/rico2.wav");
-	precache_sound ("contact/rico3.wav");
-	precache_sound ("contact/rico4.wav");
-	precache_sound ("contact/rico5.wav");
-	precache_sound ("contact/rico6.wav");
-	precache_sound ("contact/rico7.wav");
-	precache_sound ("contact/rico8.wav");
-	precache_sound ("contact/rico9.wav");
-	precache_sound ("contact/rico10.wav");
-	precache_sound ("contact/rico11.wav");
-	precache_sound ("contact/rico12.wav");
-
 	precache_sound ("player/paina.wav");
 	precache_sound ("player/painb.wav");
 	precache_sound ("player/yourturn.wav");
@@ -1860,20 +1836,14 @@ void() worldspawn =
 	precache_model ("progs/bolt2.mdl");             // for lightning gun
 	precache_model ("progs/bolt3.mdl");             // for boss shock
 	precache_model ("progs/lavaball.mdl");  // for testing
-
-
 	precache_model ("progs/bomb.mdl");
 	precache_model ("progs/missile.mdl");
 	precache_model ("progs/grenade.mdl");
 	precache_model ("progs/spike.mdl");
 	precache_model ("progs/s_spike.mdl");
-
 	precache_model ("progs/backpack.mdl");
-
 	precache_model ("progs/zom_gib.mdl");
-
 	precache_model ("progs/v_light.mdl");
-
 	precache_model ("maps/crate.bsp");
 
 //

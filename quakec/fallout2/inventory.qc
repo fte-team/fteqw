@@ -2567,7 +2567,7 @@ string (float slot, float int) PerkName =
 		if (int == 1)
 			return "Support Fire";
 		if (int == 2)
-			return "Duck And Cover";
+			return "I Disappear";
 		if (int == 3)
 			return "Puppet Master";
 		if (int == 4)
@@ -2579,9 +2579,9 @@ string (float slot, float int) PerkName =
 		if (int == 7)
 			return "Narrow Escape";
 		if (int == 8)
-			return "Schizophrenia";
+			return "Schizophrenia!";
 		if (int == 9)
-			return "Place Effect";
+			return "Placebo Effect";
 		if (int == 10)
 			return "Economic Moves";
 		if (int == 11)
@@ -2591,27 +2591,27 @@ string (float slot, float int) PerkName =
 string (float slot, float int) PerkNameCentered =
 {
 		if (int == 1)
-			return "  Support Fire";
+			return "   Support Fire   ";
 		if (int == 2)
-			return " Duck And Cover";
+			return "   I  Disappear   ";
 		if (int == 3)
-			return " Puppet Master ";
+			return "  Puppet  Master  ";
 		if (int == 4)
-			return "    Stay Low";
+			return "     Stay Low     ";
 		if (int == 5)
 			return "Surgical Precision";
 		if (int == 6)
-			return "    Mutation";
+			return "     Mutation     ";
 		if (int == 7)
-			return "  Narrow Escape";
+			return "  Narrow  Escape  ";
 		if (int == 8)
-			return "  Schizophrenia";
+			return "  Schizophrenia!  ";
 		if (int == 9)
-			return "  Place Effect";
+			return "  Placebo Effect  ";
 		if (int == 10)
-			return "  Economic Moves";
+			return "  Economic Moves  ";
 		if (int == 11)
-			return "   Nuclear Man";
+			return "   Nuclear  Man   ";
 };
 
 
@@ -2620,7 +2620,7 @@ string(float int) GetPerkImage =
 	if (int == 1)
 		return "gui/perks/Support Fire.jpg";
 	else if (int == 2)
-		return "gui/perks/Duck And Cover.jpg";
+		return "gui/perks/I Disappear.jpg";
 	else if (int == 3)
 		return "gui/perks/Puppet Master.jpg";
 	else if (int == 4)
@@ -2639,6 +2639,8 @@ string(float int) GetPerkImage =
 		return "gui/perks/Economic Moves.jpg";
 	else if (int == 11)
 		return "gui/perks/Nuclear Man.jpg";
+	else if (int == 12)
+		return "gui/perks/Commander.jpg";
 	else
 		return "gui/perks/none.jpg";
 
@@ -2652,13 +2654,13 @@ string(float int) GetPerkDesc =
 	else if (int == 2)
 		return "Being a hero is overrated! You try your best to not look";
 	else if (int == 3)
-		return "Your black heart has a weird effect over the denizens of";
+		return "Your black heart has a strange effect on the denizens of";
 	else if (int == 4)
 		return "You know how to take cover! While prone, any attack that";
 	else if (int == 5)
 		return "You have gained in-depth knowledge of vital organs. Your";
 	else if (int == 6)
-		return "The radiation has mutated your body slightly. A critical";
+		return "Exposure to the wasteland has caused your body to mutate";
 	else if (int == 7)
 		return "For when your friend really, really needs that stimpack!";
 	else if (int == 8)
@@ -2669,6 +2671,8 @@ string(float int) GetPerkDesc =
 		return "You can move more effectively than most people. Movement";
 	else if (int == 11)
 		return "Your body has adapted to radiation to the point that you";
+	else if (int == 12)
+		return "Your supreme leadership affects all of those around you,";
 	else
 		return "";
 
@@ -2679,129 +2683,163 @@ string(float int) GetPerkDesc2 =
 	if (int == 1)
 		return "will drastically reduce recoil while lying down.";
 	else if (int == 2)
-		return "dangerous - making monsters attack your friends!";
+		return "dangerous - making monsters forget about you!";
 	else if (int == 3)
 		return "the wasteland - you can turn a few to your side!";
 	else if (int == 4)
 		return "is non-aimed deals much less damage to you.";
 	else if (int == 5)
-		return "aimed attacks get a damage bonus equal to Doctor skill.";
+		return "aimed attacks are boosted by your Doctor skill.";
 	else if (int == 6)
-		return "hit no longer has quite the same sting it once had.";
+		return "and change, granting mysterious effects.";
 	else if (int == 7)
 		return "Provides you a few free seconds to escape danger.";
 	else if (int == 8)
 		return "sometimes takes over your body, boosting all skills.";
 	else if (int == 9)
-		return "to believe your stimpak is much better than it is.";
+		return "to believe you are giving them a super stimpack.";
 	else if (int == 10)
 		return "actions suffer much less time-related penalties.";
 	else if (int == 11)
 		return "can absorb small amounts, healing you as well!";
+	else if (int == 12)
+		return " inspiring allies and causing foes to tremble.";
 	else
 		return "";
 
 };
 
+string(float int) GetPerkRequirements =
+{
+	if (int == 1)
+		return "Combat 5";
+	else if (int == 2)
+		return "Sneak 5, Speech 5";
+	else if (int == 3)
+		return "Speech 7, Science 5";
+	else if (int == 4)
+		return "Combat 3";
+	else if (int == 5)
+		return "Doctor 5, Sneak 3";
+	else if (int == 6)
+		return "None";
+	else if (int == 7)
+		return "Sneak: 7";
+	else if (int == 8)
+		return "None";
+	else if (int == 9)
+		return "Speech 5, Doctor 5";
+	else if (int == 10)
+		return "Combat 5, Sneak 5";
+	else if (int == 11)
+		return "None";
+	else if (int == 12)
+		return "Combat 7, Speech 5";
+	else if (int == 13)
+		return "Sneak 5, Science 5";
+	else
+		return "";
+
+};
 
 float(float iid) GetItemThreatLevel =
 {
 	if (iid == IID_NONE)
 		return 0;
 	if (iid == IID_WP_KNIFE)
-		return 1;
+		return 0;
 	if (iid == IID_WP_SLEDGE)
-		return 1;
+		return 0;
 	if (iid == IID_WP_SPEAR)
-		return 1;
+		return 0;
 	if (iid == IID_WP_POWERAXE)
-		return 1;
+		return 0;
 	if (iid == IID_WP_USP)
-		return 1;
+		return 0;
 	if (iid == IID_WP_USP_S)
-		return 1;
+		return 0;
 	if (iid == IID_WP_GLOCK)
-		return 1;
+		return 0;
 	if (iid == IID_WP_GLOCK_S)
-		return 1;
+		return 0;
 	if (iid == IID_WP_DEAGLE)
-		return 1;
+		return 0;
 	if (iid == IID_WP_DEAGLE_M)
-		return 1;
+		return 0;
 	if (iid == IID_WP_NEEDLER)
-		return 3;
+		return 2;
 	if (iid == IID_WP_ALIENBLASTER)
-		return 3;
+		return 2;
 	if (iid == IID_WP_PIPERIFLE)
-		return 1;
+		return 0;
 	if (iid == IID_WP_WINCHESTER)
-		return 1;
+		return 0;
 	if (iid == IID_WP_MOSSBERG)
-		return 3;
+		return 1;
 	if (iid == IID_WP_JACKHAMMER)
-		return 5;
+		return 2;
 	if (iid == IID_WP_GREASEGUN)
-		return 1;
+		return 0;
 	if (iid == IID_WP_GREASEGUN_S)
-		return 1;
+		return 0;
 	if (iid == IID_WP_MP9)
-		return 1;
+		return 0;
 	if (iid == IID_WP_MP9_S)
-		return 1;
+		return 0;
 	if (iid == IID_WP_RANGEMASTER)
-		return 1;
+		return 0;
 	if (iid == IID_WP_RANGEMASTER_SCOPE)
-		return 1;
+		return 0;
 	if (iid == IID_WP_AK112)
-		return 3;
+		return 1;
 	if (iid == IID_WP_AK47)
-		return 3;
+		return 1;
 	if (iid == IID_WP_AK112_M)
-		return 3;
+		return 1;
 	if (iid == IID_WP_AK74)
-		return 5;
+		return 1;
 	if (iid == IID_WP_ACR)
-		return 5;
+		return 2;
 	if (iid == IID_WP_DKS1)
-		return 3;
+		return 1;
 	if (iid == IID_WP_DKS1_S)
-		return 3;
+		return 1;
 	if (iid == IID_WP_MOONLIGHT)
-		return 5;
+		return 2;
 	if (iid == IID_WP_G11)
-		return 5;
+		return 2;
 	if (iid == IID_WP_GAUSERIFLE)
-		return 7;
+		return 2;
 	if (iid == IID_WP_PULSERIFLE)
-		return 7;
+		return 2;
 	if (iid == IID_WP_TURBOPLASMA)
-		return 7;
+		return 2;
 	if (iid == IID_WP_PLASMACARBINE)
-		return 7;
+		return 2;
 	if (iid == IID_WP_FNFAL)
-		return 5;
+		return 2;
 	if (iid == IID_WP_ROCKETLAUNCHER)
-		return 7;
+		return 2;
 	if (iid == IID_WP_LASERGATLING)
-		return 7;
+		return 2;
 
 
 	if (iid == IID_ARM_LEATHER)
-		return 1;
+		return 0;
 	if (iid == IID_ARM_VANDAL)
-		return 1;
+		return 0;
 	if (iid == IID_ARM_METAL)
-		return 1;
+		return 0;
 	if (iid == IID_ARM_TESLA)
 		return 1;
 	if (iid == IID_ARM_COMBAT)
-		return 3;
+		return 1;
 	if (iid == IID_ARM_SEVA)
-		return 3;
+		return 1;
 	if (iid == IID_ARM_FORCE)
-		return 5;
+		return 2;
 	if (iid == IID_ARM_LPOWER)
-		return 7;
+		return 2;
 
 
 

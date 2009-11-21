@@ -98,8 +98,7 @@ void () CrawlSound =
 
 	rand = random ();
 
-	if (self.sneak != 0)
-		return;
+
 	if (self.velocity == '0 0 0')
 	{
 		self.crawltime = 0;
@@ -128,6 +127,14 @@ void () CrawlSound =
 
 void () player_lay = [ 45, player_run ]
 {
+	if (self.velocity != '0 0 0')
+		self.frame = 8 - self.crawltime;
+	else if (self.velocity == '0 0 0')
+	{
+		self.frame = 0;
+		return;
+	}
+
 	self.crawltime = self.crawltime - 1;
 
 	if (self.crawltime <= 0)
@@ -135,6 +142,8 @@ void () player_lay = [ 45, player_run ]
 		CrawlSound();
 		self.crawltime = 8;
 	}
+
+
 };
 
 void () player_single_shot       = [ 89, player_single_shot2       ]{};

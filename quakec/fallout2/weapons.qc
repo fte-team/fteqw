@@ -488,8 +488,8 @@ void(float slotno) UsePerk =
 		{
 			if (te.classname == "monster")
 			{
-				te.hold = 180;
-				spawn_stop(te, 10);
+				te.hold = 120;
+				spawn_stop(te, 8);
 				mcount = mcount + 1;
 			}
 			te = te.chain;
@@ -504,7 +504,7 @@ void(float slotno) UsePerk =
 
 		sound (self, CHAN_BODY, "items/damage.wav", 1, ATTN_NORM);
 		sprint(self, 2, "it is time...\n");
-		self.supertime = 20;
+		self.supertime = 15;
 		self.skill_combat = self.skill_combat + 20;
 		self.skill_doctor = self.skill_doctor + 20;
 		self.skill_sneak = self.skill_sneak + 20;
@@ -775,6 +775,24 @@ void () player_single1_s = [ 182, player_single2_s ]
 void () player_single2_s = [ 183, player_run ]
 {
 	self.weaponframe = 2;
+};
+
+
+
+
+void () player_fire_prone =
+{
+
+	if (self.weaponframe == 0)
+	{
+		self.weaponframe = 1;
+		self.frame = 1;
+	}
+	else
+	{
+		self.weaponframe = 1;
+		self.frame = 1;
+	}
 };
 
 //============================================================================
@@ -3231,7 +3249,7 @@ void (float dam, float ap, string snd, float rng, float rate) FirePistol =
 	if (self.position == 1)
 		player_single1_s();
 	if (self.position == 2)
-		player_single1_s();
+		player_fire_prone();
 
 
 	if (self.position == 0)
@@ -3715,7 +3733,7 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 		if (self.position == 1)
 			player_single1_s ();
 		if (self.position == 2)
-			player_single1 ();
+			player_fire_prone ();
 	}
 	if (self.attack >= 1)
 	{
@@ -3724,7 +3742,7 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 		if (self.position == 1)
 			autofire_s ();
 		if (self.position == 2)
-			player_single1 ();
+			player_fire_prone ();
 	}
 
 	tmp = accuracy * 10;
@@ -6147,8 +6165,10 @@ void (float rec, float number, float dam, float spread, float ran, float auto, s
 
 	if (self.position == 0)
 		player_single1 ();
-	else
+	else if (self.position == 1)
 		player_single1_s ();
+	else if (self.position == 2)
+		player_fire_prone();
 
 	if (self.steadyaim == 0)
 	{
@@ -6510,7 +6530,11 @@ void () HostageReport =
 
 void () clone_think =
 {
-	self.model = self.owner.model;
+	if (self.owner.velocity == '0 0 0')
+		setmodel(self, "progs/lay.mdl");
+	else
+		setmodel(self, "progs/prone.mdl");
+
 	self.frame = self.owner.frame;
 	self.nextthink = time + 0.01;
 };
@@ -6520,7 +6544,11 @@ void () AddClone =
 	local entity clone;
 
 	clone = spawn ();
-	setmodel(clone, "progs/guy.mdl");
+
+
+	setmodel(clone, "progs/prone.mdl");
+
+
 	clone.owner = self;
 	clone.movetype = MOVETYPE_BOUNCE;
 	clone.solid = SOLID_NOT;

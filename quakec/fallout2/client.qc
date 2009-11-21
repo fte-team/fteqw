@@ -12,7 +12,7 @@ void(entity to, float iid, float amount) AddStackable;
 void(entity to, float iid, float amount) AddNonStackable;
 void() shop_face;
 
-float modelindex_dead, modelindex_sneak, modelindex_prone, modelindex_eyes, modelindex_player, modelindex_gone, modelindex_melee;
+float modelindex_dead, modelindex_sneak, modelindex_prone, modelindex_eyes, modelindex_player, modelindex_gone, modelindex_melee, modelindex_crawl;
 
 /*
 =============================================================================
@@ -675,6 +675,9 @@ void() PutClientInServer =
 // oh, this is a hack!
 	setmodel (self, "progs/eyes.mdl");
 	modelindex_eyes = self.modelindex;
+
+	setmodel (self, "progs/prone.mdl");
+	modelindex_crawl = self.modelindex;
 
 	setmodel (self, "progs/lay.mdl");
 	modelindex_prone = self.modelindex;
@@ -1933,8 +1936,10 @@ void() CheckPowerups =
 
 		if (self.position <= 1)
 			self.modelindex = modelindex_player;
-		if (self.position == 2)
+		if (self.position == 2 && self.velocity == '0 0 0')
 			self.modelindex = modelindex_prone;
+		if (self.position == 2 && self.velocity != '0 0 0')
+			self.modelindex = modelindex_crawl;
 		if (self.sneak > 0 && coop == 0)
 			self.modelindex = modelindex_gone;
 		if (self.sneak > 0 && coop == 1)

@@ -87,8 +87,54 @@ void () player_duck = [ 45, player_run ]
 {
 };
 
+
+void () CrawlSound =
+{
+	local float rand;
+	local float r;
+
+
+
+
+	rand = random ();
+
+	if (self.sneak != 0)
+		return;
+	if (self.velocity == '0 0 0')
+	{
+		self.crawltime = 0;
+		return;
+	}
+
+
+	self.attack_finished = time + 1;
+	self.rtime = time + 1;
+
+
+	r = 1 - (self.skill_sneak/40);
+
+	if ((rand < 0.25))
+		sound (self, CHAN_ITEM, "player/prone1.wav", r, ATTN_NORM);
+	else if ((rand < 0.5))
+		sound (self, CHAN_ITEM, "player/prone2.wav", r, ATTN_NORM);
+	else if ((rand < 0.75))
+		sound (self, CHAN_ITEM, "player/prone3.wav", r, ATTN_NORM);
+	else
+		sound (self, CHAN_ITEM, "player/prone4.wav", r, ATTN_NORM);
+
+
+};
+
+
 void () player_lay = [ 45, player_run ]
 {
+	self.crawltime = self.crawltime - 1;
+
+	if (self.crawltime <= 0)
+	{
+		CrawlSound();
+		self.crawltime = 8;
+	}
 };
 
 void () player_single_shot       = [ 89, player_single_shot2       ]{};

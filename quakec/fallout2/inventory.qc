@@ -654,11 +654,11 @@ string(float iid) GetItemVModel =
 	if (iid == IID_WP_KNIFE)
 		return "progs/v_knife.mdl";
 	if (iid == IID_WP_SLEDGE)
-		return "progs/v_axe.mdl";
+		return "progs/v_disruptor.mdl";
 	if (iid == IID_WP_SPEAR)
 		return "progs/v_spear.mdl";
 	if (iid == IID_WP_POWERAXE)
-		return "progs/v_axe.mdl";
+		return "progs/v_disruptor.mdl";
 	if (iid == IID_WP_USP)
 		return "progs/v_usp.mdl";
 	if (iid == IID_WP_USP_S)
@@ -2581,7 +2581,7 @@ string (float slot, float int) PerkName =
 		if (int == 8)
 			return "Schizophrenia";
 		if (int == 9)
-			return "Sleep Tight";
+			return "Place Effect";
 		if (int == 10)
 			return "Economic Moves";
 		if (int == 11)
@@ -2607,7 +2607,7 @@ string (float slot, float int) PerkNameCentered =
 		if (int == 8)
 			return "  Schizophrenia";
 		if (int == 9)
-			return "   Sleep Tight";
+			return "  Place Effect";
 		if (int == 10)
 			return "  Economic Moves";
 		if (int == 11)
@@ -2634,7 +2634,7 @@ string(float int) GetPerkImage =
 	else if (int == 8)
 		return "gui/perks/Schizophrenia.jpg";
 	else if (int == 9)
-		return "gui/perks/Sleep Tight.jpg";
+		return "gui/perks/Placebo Effect.jpg";
 	else if (int == 10)
 		return "gui/perks/Economic Moves.jpg";
 	else if (int == 11)
@@ -2648,28 +2648,163 @@ string(float int) GetPerkImage =
 string(float int) GetPerkDesc =
 {
 	if (int == 1)
-		return "Recoil is drastically reduced while lying down";
+		return "For those who like climbing into the trenches! This perk";
 	else if (int == 2)
-		return "Makes enemies attack your friends instead of you";
+		return "Being a hero is overrated! You try your best to not look";
 	else if (int == 3)
-		return "You can make enemies attack their friends";
+		return "Your black heart has a weird effect over the denizens of";
 	else if (int == 4)
-		return "50% damage resist to area attacks while prone";
+		return "You know how to take cover! While prone, any attack that";
 	else if (int == 5)
-		return "Aimed attacks get a damage bonus equal to Doctor skill";
+		return "You have gained in-depth knowledge of vital organs. Your";
 	else if (int == 6)
-		return "This perk randomly functions as two perks";
+		return "The radiation has mutated your body slightly. A critical";
 	else if (int == 7)
-		return "Provides you a few hassle-free seconds to escape danger";
+		return "For when your friend really, really needs that stimpack!";
 	else if (int == 8)
-		return "Your skill levels surge in power from an unknown source";
+		return "You are haunted by the ghost of a wasteland wanderer who";
 	else if (int == 9)
-		return "Paralyze anything with a sneak attack from a knife";
+		return "Through convincing acts you can force people (even you!)";
 	else if (int == 10)
-		return "Suffer less time-related penalties for all actions";
+		return "You can move more effectively than most people. Movement";
 	else if (int == 11)
-		return "Eat a small amount of radiation to heal yourself";
+		return "Your body has adapted to radiation to the point that you";
 	else
 		return "";
 
+};
+
+string(float int) GetPerkDesc2 =
+{
+	if (int == 1)
+		return "will drastically reduce recoil while lying down.";
+	else if (int == 2)
+		return "dangerous - making monsters attack your friends!";
+	else if (int == 3)
+		return "the wasteland - you can turn a few to your side!";
+	else if (int == 4)
+		return "is non-aimed deals much less damage to you.";
+	else if (int == 5)
+		return "aimed attacks get a damage bonus equal to Doctor skill.";
+	else if (int == 6)
+		return "hit no longer has quite the same sting it once had.";
+	else if (int == 7)
+		return "Provides you a few free seconds to escape danger.";
+	else if (int == 8)
+		return "sometimes takes over your body, boosting all skills.";
+	else if (int == 9)
+		return "to believe your stimpak is much better than it is.";
+	else if (int == 10)
+		return "actions suffer much less time-related penalties.";
+	else if (int == 11)
+		return "can absorb small amounts, healing you as well!";
+	else
+		return "";
+
+};
+
+
+float(float iid) GetItemThreatLevel =
+{
+	if (iid == IID_NONE)
+		return 0;
+	if (iid == IID_WP_KNIFE)
+		return 1;
+	if (iid == IID_WP_SLEDGE)
+		return 1;
+	if (iid == IID_WP_SPEAR)
+		return 1;
+	if (iid == IID_WP_POWERAXE)
+		return 1;
+	if (iid == IID_WP_USP)
+		return 1;
+	if (iid == IID_WP_USP_S)
+		return 1;
+	if (iid == IID_WP_GLOCK)
+		return 1;
+	if (iid == IID_WP_GLOCK_S)
+		return 1;
+	if (iid == IID_WP_DEAGLE)
+		return 1;
+	if (iid == IID_WP_DEAGLE_M)
+		return 1;
+	if (iid == IID_WP_NEEDLER)
+		return 3;
+	if (iid == IID_WP_ALIENBLASTER)
+		return 3;
+	if (iid == IID_WP_PIPERIFLE)
+		return 1;
+	if (iid == IID_WP_WINCHESTER)
+		return 1;
+	if (iid == IID_WP_MOSSBERG)
+		return 3;
+	if (iid == IID_WP_JACKHAMMER)
+		return 5;
+	if (iid == IID_WP_GREASEGUN)
+		return 1;
+	if (iid == IID_WP_GREASEGUN_S)
+		return 1;
+	if (iid == IID_WP_MP9)
+		return 1;
+	if (iid == IID_WP_MP9_S)
+		return 1;
+	if (iid == IID_WP_RANGEMASTER)
+		return 1;
+	if (iid == IID_WP_RANGEMASTER_SCOPE)
+		return 1;
+	if (iid == IID_WP_AK112)
+		return 3;
+	if (iid == IID_WP_AK47)
+		return 3;
+	if (iid == IID_WP_AK112_M)
+		return 3;
+	if (iid == IID_WP_AK74)
+		return 5;
+	if (iid == IID_WP_ACR)
+		return 5;
+	if (iid == IID_WP_DKS1)
+		return 3;
+	if (iid == IID_WP_DKS1_S)
+		return 3;
+	if (iid == IID_WP_MOONLIGHT)
+		return 5;
+	if (iid == IID_WP_G11)
+		return 5;
+	if (iid == IID_WP_GAUSERIFLE)
+		return 7;
+	if (iid == IID_WP_PULSERIFLE)
+		return 7;
+	if (iid == IID_WP_TURBOPLASMA)
+		return 7;
+	if (iid == IID_WP_PLASMACARBINE)
+		return 7;
+	if (iid == IID_WP_FNFAL)
+		return 5;
+	if (iid == IID_WP_ROCKETLAUNCHER)
+		return 7;
+	if (iid == IID_WP_LASERGATLING)
+		return 7;
+
+
+	if (iid == IID_ARM_LEATHER)
+		return 1;
+	if (iid == IID_ARM_VANDAL)
+		return 1;
+	if (iid == IID_ARM_METAL)
+		return 1;
+	if (iid == IID_ARM_TESLA)
+		return 1;
+	if (iid == IID_ARM_COMBAT)
+		return 3;
+	if (iid == IID_ARM_SEVA)
+		return 3;
+	if (iid == IID_ARM_FORCE)
+		return 5;
+	if (iid == IID_ARM_LPOWER)
+		return 7;
+
+
+
+//	bprint(PRINT_MEDIUM, ftos(iid), " without a threat level!\n");
+	return 0;
 };

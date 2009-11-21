@@ -102,6 +102,49 @@ float() crandom =
 
 
 
+float (entity healer, entity saved) RevivePlayer =
+{
+	local entity oself;
+	oself = self;
+
+	self = saved;
+/*	if (!walkmove(0, 0))
+	{
+		//too close?
+		return FALSE;
+	}
+*/
+	saved.deadflag = DEAD_NO;
+	saved.takedamage = DAMAGE_AIM;
+	saved.movetype = MOVETYPE_WALK;
+//	saved.solid = SOLID_NOT;
+
+	self = oself;
+
+//	saved.materialize = 200;
+	saved.ghost = 0;
+	saved.health = 20 + (healer.skill_doctor);
+	saved.air_finished = time + 10;
+	saved.view_ofs = '0 0 22';
+	self = saved;
+	player_run();
+	self = oself;
+	stuffcmd(saved, "impulse 1\n");
+	if (healer.classname == "player")
+	{
+		sprint (healer, PRINT_HIGH, "you revive ");
+		sprint (healer, PRINT_HIGH, trace_ent.netname);
+		sprint (healer, PRINT_HIGH, ".\n ");
+	}
+	sprint (saved, PRINT_HIGH, healer.netname);
+	sprint (saved, PRINT_HIGH, " saves you from death.\n");
+	saved.view2 = world;
+
+	saved.flags (-) FL_FINDABLE_NONSOLID;
+
+	return TRUE;
+};
+
 
 void() healing_bob =
 {
@@ -142,6 +185,36 @@ void (entity spot) spawn_healing =
 };
 
 
+void () heart_think =
+{
+	self.cnt = self.cnt - 1;
+	setorigin (self, (self.owner.origin + '0 0 48'));
+	self.nextthink = (time + 0.01);
+	if (self.cnt <= 0)
+		remove (self);
+
+	if (self.owner.charmed <= 0)
+		remove(self);
+};
+
+void (entity jeb, float length) spawn_heart =
+{
+	local entity hologram;
+
+	hologram = spawn ();
+	hologram.movetype = MOVETYPE_NONE;
+	hologram.solid = SOLID_NOT;
+	hologram.owner = jeb;
+	setmodel (hologram, "progs/heart.spr");
+	setorigin (hologram, jeb.origin + '0 0 48');
+	setsize (hologram, VEC_ORIGIN, VEC_ORIGIN);
+	hologram.angles = jeb.angles;
+	hologram.colormap = jeb.colormap;
+	hologram.cnt = 100*length;
+	hologram.think = heart_think;
+	hologram.nextthink = (time + 0.01);
+};
+
 void () disappear =
 {
 	local entity te;
@@ -150,35 +223,14 @@ void () disappear =
 	//other players
 
 
-	te = findradius(self.origin, 600);
+	te = findradius(self.origin, 6000);
 	while (te)
 	{
-		if (te.classname == "player" && te.sneak == 0 && te != self)
-			nearby = 1;
+		if (te.enemy == self)
+			te.enemy = world;
 			
 		te = te.chain;
 	}
-
-	if (nearby == 1)
-	{
-		te = findradius(self.origin, 1000);
-		while (te)
-		{
-			if (te.enemy == self)
-				te.enemy = world;
-			
-			te = te.chain;
-		}
-	}
-
-		te = findradius(self.origin, 1000);
-		while (te)
-		{
-			if (te.enemy == self)
-				te.enemy = world;
-			
-			te = te.chain;
-		}
 };
 
 void () puppet_master =
@@ -194,10 +246,10 @@ void () puppet_master =
 	{
 		if (te.classname == "monster" && (charm_monster == 0) && (visible(te)))
 		{
-			spawn_excla(te, 60);
+			spawn_heart(te, 300);
 			charm_monster = 1;
 			te.friend = self;
-			te.charmed = 1;
+			te.charmed = 300;
 			te.enemy = world;
 			te.goalentity = self;
 			self.friend = te;
@@ -205,6 +257,108 @@ void () puppet_master =
 		te = te.chain;
 	}
 
+};
+
+
+void () illusion_heal =
+{
+	local float x, found;
+	local vector source;
+	local entity thing, te;
+
+
+	if (self.attack_finished > time)
+		return;
+
+	te = findradius (self.origin, 100);
+	while (te)
+	{
+
+		if (found == 0 && te.classname == "player" && te.deadflag)
+		{
+			sound (trace_ent, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
+			RevivePlayer(self, te);
+			spawn_healing(te);
+			spawn_healing(te);
+			spawn_healing(te);
+			spawn_healing(te);
+			spawn_healing(te);
+			spawn_healing(te);
+			found = 1;
+		}
+
+		te = te.chain;
+	}
+
+	if (found == 1)
+		return;
+
+	self.attack_finished = time + 1;
+	self.rtime = time + 1;
+
+	makevectors (self.v_angle);
+	source = self.origin + '0 0 0';
+	traceline (source, source + v_forward*64, FALSE, self);
+
+	if (trace_fraction == 1.0)//nobody in front of user, so heal self
+	{
+		if (self.health >= self.max_health)
+			sprint(self, PRINT_MEDIUM, "you are not injured.\n");
+		else if (self.health < self.max_health)
+		{
+
+			sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
+			sprint(self, PRINT_MEDIUM, "you heal yourself with a placebo stimpack\n");
+
+			self.health = self.max_health;
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+		}
+	}
+	else if (trace_ent.classname == "player")//healing another team-mate
+	{
+		if (trace_ent.health >= trace_ent.max_health)
+		{
+			sprint(self, PRINT_MEDIUM, trace_ent.netname);
+			sprint(self, PRINT_MEDIUM, " is not injured.\n");
+		}
+		else if (trace_ent.health < trace_ent.max_health)
+		{
+			if (trace_ent.deadflag)
+			{
+				sound (trace_ent, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
+				RevivePlayer(self, trace_ent);
+				spawn_healing(self);
+				spawn_healing(self);
+				spawn_healing(self);
+				spawn_healing(self);
+				spawn_healing(self);
+				spawn_healing(self);
+			}
+			else
+			{
+				sound (trace_ent, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
+				self.score = self.score + 1;
+				sprint(trace_ent, PRINT_MEDIUM, self.netname);
+				sprint(trace_ent, PRINT_MEDIUM, " heals you with a placebo stimpack\n");
+				sprint(self, PRINT_MEDIUM, "you heal ");
+				sprint(self, PRINT_MEDIUM, trace_ent.netname);
+				sprint(self, PRINT_MEDIUM, " with a placebo stimpack\n");
+
+				trace_ent.health = trace_ent.max_health;
+				spawn_healing(trace_ent);
+				spawn_healing(trace_ent);
+				spawn_healing(trace_ent);
+				spawn_healing(trace_ent);
+				spawn_healing(trace_ent);
+				spawn_healing(trace_ent);
+			}
+		}
+	}
 };
 
 void () puppet_master_command =
@@ -215,6 +369,9 @@ void () puppet_master_command =
 
 	makevectors (self.v_angle);
 	traceline (self.origin, self.origin+v_forward*4000, FALSE, self);
+
+	if (self.friend.classname != "monster")
+		return;
 
 	if (trace_ent.classname == "monster" && trace_ent != self.friend)
 	{
@@ -282,7 +439,10 @@ void(float slotno) UsePerk =
 		WriteCoord (MSG_MULTICAST, org_y);
 		WriteCoord (MSG_MULTICAST, org_z);
 
+
+		self.invistime = 10;
 		disappear();
+		sound (self, CHAN_BODY, "items/inv1.wav", 1, ATTN_NORM);
 
 	}
 	if ((self.perk1 == 3 && slotno == 1) || (self.perk2 == 3 && slotno == 2))
@@ -335,6 +495,34 @@ void(float slotno) UsePerk =
 			te = te.chain;
 		}
 	}
+	else if ((self.perk1 == 8 && slotno == 1) || (self.perk2 == 8 && slotno == 2))
+	{
+		if (slotno == 1)
+			self.perk1timer = 2000;
+		if (slotno == 2)
+			self.perk2timer = 2000;
+
+		sound (self, CHAN_BODY, "items/damage.wav", 1, ATTN_NORM);
+		sprint(self, 2, "it is time...\n");
+		self.supertime = 20;
+		self.skill_combat = self.skill_combat + 20;
+		self.skill_doctor = self.skill_doctor + 20;
+		self.skill_sneak = self.skill_sneak + 20;
+		self.skill_science = self.skill_science + 20;
+		self.skill_speech = self.skill_speech + 20;
+	}
+	else if ((self.perk1 == 9 && slotno == 1) || (self.perk2 == 9 && slotno == 2))
+	{
+		if (slotno == 1)
+			self.perk1timer = 2000;
+		if (slotno == 2)
+			self.perk2timer = 2000;
+
+
+
+		illusion_heal();
+
+	}
 	else if ((self.perk1 == 11 && slotno == 1) || (self.perk2 == 11 && slotno == 2))
 	{
 		if (self.radiation <= 0)
@@ -345,15 +533,15 @@ void(float slotno) UsePerk =
 		if (slotno == 2)
 			self.perk2timer = 2000;
 
-		if (self.radiation <= 25)
+		if (self.radiation <= 10)
 		{
 			eat = self.radiation;
 			self.radiation = 0;
 		}
 		else
 		{
-			eat = 25;
-			self.radiation = self.radiation - 25;
+			eat = 10;
+			self.radiation = self.radiation - 10;
 		}
 
 			self.health = self.health + eat;
@@ -378,48 +566,7 @@ void() muzzleflash =
 };
 
 
-float (entity healer, entity saved) RevivePlayer =
-{
-	local entity oself;
-	oself = self;
 
-	self = saved;
-/*	if (!walkmove(0, 0))
-	{
-		//too close?
-		return FALSE;
-	}
-*/
-	saved.deadflag = DEAD_NO;
-	saved.takedamage = DAMAGE_AIM;
-	saved.movetype = MOVETYPE_WALK;
-//	saved.solid = SOLID_NOT;
-
-	self = oself;
-
-//	saved.materialize = 200;
-	saved.ghost = 0;
-	saved.health = 20 + (healer.skill_doctor);
-	saved.air_finished = time + 10;
-	saved.view_ofs = '0 0 22';
-	self = saved;
-	player_run();
-	self = oself;
-	stuffcmd(saved, "impulse 1\n");
-	if (healer.classname == "player")
-	{
-		sprint (healer, PRINT_HIGH, "you revive ");
-		sprint (healer, PRINT_HIGH, trace_ent.netname);
-		sprint (healer, PRINT_HIGH, ".\n ");
-	}
-	sprint (saved, PRINT_HIGH, healer.netname);
-	sprint (saved, PRINT_HIGH, " saves you from death.\n");
-	saved.view2 = world;
-
-	saved.flags (-) FL_FINDABLE_NONSOLID;
-
-	return TRUE;
-};
 
 /*
 ================
@@ -458,7 +605,7 @@ void(float damage, float dist, float rate) FireMelee =
 
 			if (dot < 0.5 && trace_ent.takedamage)
 			{
-				tdam = 20 + (20*self.skill_sneak);
+				tdam = 20 + (60*self.skill_sneak);
 
 				if (getperk(9))
 					tdam = 900;
@@ -527,9 +674,6 @@ void(float damage, float dist, float rate) FireMelee =
 	}
 	else if (trace_ent.takedamage)
 	{
-		//soldiers and assassins do more melee damage
-		if (self.class == 2 || self.class == 3)
-			damage = damage * 1.25;
 
 		if (weap == IID_WP_SLEDGE || weap == IID_WP_SPEAR || weap == IID_WP_KNIFE)
 			SpawnBlood (org, 1);
@@ -585,9 +729,9 @@ void() W_FireMelee =
 	else if (iid == IID_WP_WRENCH)
 		FireMelee(5+random()*30, 64, 1.2);
 	else if (iid == IID_WP_KNIFE)
-		FireMelee(5+random()*20, 64, 0.4);
+		FireMelee(5+(self.skill_sneak*4)+random()*20, 64, 0.4);
 	else if (iid == IID_WP_SLEDGE)
-		FireMelee(5+random()*80, 96, 1);
+		FireMelee(5+(self.skill_combat*6)+random()*40, 96, 1);
 	else if (iid == IID_WP_SPEAR)	
 		FireMelee(5+random()*60, 160, 0.8);
 
@@ -1754,8 +1898,6 @@ void() W_Attack =
 
 	if (self.rtime > time)
 		return;
-	if (self.class == 0)
-		return;
 	if (self.team == 0)
 		return;
 	if (self.attack_finished > time)
@@ -1972,8 +2114,8 @@ void() W_ChangeWeapon =
 		}
 		fl = IT_NAILGUN;
 		self.current_slot = 1;	
-		if (IsMelee(ToIID(self.islot1)))
-			SpawnGModel();
+	//	if (IsMelee(ToIID(self.islot1)))
+	//		SpawnGModel();
 	}
 	else if (self.impulse == 2 && self.current_slot != 2)
 	{
@@ -1985,8 +2127,8 @@ void() W_ChangeWeapon =
 		}
 		fl = IT_SUPER_NAILGUN;
 		self.current_slot = 2;
-		if (IsMelee(ToIID(self.islot2)))
-			SpawnGModel();
+	//	if (IsMelee(ToIID(self.islot2)))
+	//		SpawnGModel();
 	}
 
 	self.weapon = fl;               
@@ -2007,6 +2149,7 @@ void() CheatCommand =
 	local entity te;
 
 		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+		self.ammo_shells = 900;
 };
 
 /*
@@ -2485,23 +2628,38 @@ void (vector org) bullet_hole =
 	WriteCoord (MSG_MULTICAST, org_y);
 	WriteCoord (MSG_MULTICAST, org_z);
 	multicast (self.origin, MULTICAST_PHS);
-
+/*
 	r = random();
 	ric = spawn();
 	setorigin(ric, org);
 
-	if (r <= 0.20)
-		sound (ric, CHAN_WEAPON, "weapons/ric1.wav", TRUE, ATTN_NORM);
+	if (r <= 0.08)
+		sound (ric, CHAN_WEAPON, "contact/rico1.wav", TRUE, ATTN_NORM);
+	else if (r <= 0.16)
+		sound (ric, CHAN_WEAPON, "contact/rico2.wav", TRUE, ATTN_NORM);
+	else if (r <= 0.24)
+		sound (ric, CHAN_WEAPON, "contact/rico3.wav", TRUE, ATTN_NORM);
+	else if (r <= 0.32)
+		sound (ric, CHAN_WEAPON, "contact/rico4.wav", TRUE, ATTN_NORM);
 	else if (r <= 0.40)
-		sound (ric, CHAN_WEAPON, "weapons/ric2.wav", TRUE, ATTN_NORM);
-	else if (r <= 0.60)
-		sound (ric, CHAN_WEAPON, "weapons/ric3.wav", TRUE, ATTN_NORM);
+		sound (ric, CHAN_WEAPON, "contact/rico5.wav", TRUE, ATTN_NORM);
+	else if (r <= 0.48)
+		sound (ric, CHAN_WEAPON, "contact/rico6.wav", TRUE, ATTN_NORM);
+	else if (r <= 0.56)
+		sound (ric, CHAN_WEAPON, "contact/rico7.wav", TRUE, ATTN_NORM);
+	else if (r <= 0.64)
+		sound (ric, CHAN_WEAPON, "contact/rico8.wav", TRUE, ATTN_NORM);
+	else if (r <= 0.72)
+		sound (ric, CHAN_WEAPON, "contact/rico9.wav", TRUE, ATTN_NORM);
 	else if (r <= 0.80)
-		sound (ric, CHAN_WEAPON, "weapons/ric4.wav", TRUE, ATTN_NORM);
+		sound (ric, CHAN_WEAPON, "contact/rico10.wav", TRUE, ATTN_NORM);
+	else if (r <= 0.90)
+		sound (ric, CHAN_WEAPON, "contact/rico11.wav", TRUE, ATTN_NORM);
 	else
-		sound (ric, CHAN_WEAPON, "weapons/ric5.wav", TRUE, ATTN_NORM);
+		sound (ric, CHAN_WEAPON, "contact/rico12.wav", TRUE, ATTN_NORM);
 
-	remove(ric);
+	ric.think = SUB_Remove;
+	ric.nextthink = time + 1;*/
 };
 
 void (vector test, float length, float dam) penetrate =
@@ -3041,9 +3199,6 @@ void (float dam, float ap, string snd, float rng, float rate) FirePistol =
 		if (self.steadyaim == 0)
 			dam = dam + self.skill_doctor;
 	}
-
-	if (self.extender == weap && self.silencer != weap)
-		dam = dam * 1.10;
 
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
@@ -4943,9 +5098,6 @@ void () ExitScreen =
 
 	self.impulse = 0;
 
-	if (self.class == 0)
-		return;
-
 	if (self.ghost == 1)
 		return;
 
@@ -5167,10 +5319,10 @@ void () ExitScreen =
 	}
 	if (trace_ent.classname == "monster" && trace_ent.health > 0)
 	{
-		if (self.sneak == 0)
+		if (self.sneak <= 0)
 			return;
 
-		if (self.class != 2)
+		if (self.skill_sneak <= 0)
 			return;
 
 		if (self.currentmenu != "none")
@@ -5262,42 +5414,14 @@ void () Sneak =
 		self.sneak = 0;
 		return;
 	}
-	if (self.sneak == 0)
+	else
 	{
 		sound (self, CHAN_BODY, "items/inv1.wav", 1, ATTN_NORM);
-		self.sneak = 1;
+		self.sneak = 99;
 		return;
 	}
 };
 
-void () Shield =
-{
-	if (self.class != 6)
-	{
-		centerprint (self, "You can't shield yourself!\n");
-		return;
-	}
-	if (self.sneak == 2)
-	{
-		centerprint (self, " Unshielded \n");
-		self.sneak = 0;
-		sound (self, CHAN_BODY, "items/protect2.wav", 1, ATTN_NORM);
-		return;
-	}
-	if (self.ammo_cells < 10)
-	{
-		centerprint (self, "wait for your shield to recharge.\n");
-		return;
-	}
-	if (self.sneak == 0)
-	{
-		centerprint (self, " Energy Shield \n");
-		self.sneak = 2;
-		sound (self, CHAN_BODY, "items/protect.wav", 1, ATTN_NORM);
-		return;
-	}
-
-};
 
 void () station_die =
 {
@@ -5866,114 +5990,6 @@ void () BuyMenu =
 
 void () CharacterSheet =
 {
-	local string x;
-	local float qq;
-	local float ratio;
-	local float r1;
-	local float r2;
-
-	stuffcmd (self, "toggleconsole\n");
-	sprint (self, PRINT_HIGH, "\n\n\n\n ** INFO ** \n");
-	sprint (self, PRINT_HIGH, "Class     ‘ ");
-		if (self.class == 1)
-			sprint (self, 2, "Medic");
-		if (self.class == 2)
-			sprint (self, 2, "Assassin");
-		if (self.class == 3)
-			sprint (self, 2, "Soldier");
-		if (self.class == 4)
-			sprint (self, 2, "Scientist");
-
-	sprint (self, PRINT_HIGH, "\nTeam      ‘ ");
-
-	if (self.team == 1)
-		sprint (self, 2, "Rangers\n");
-	if (self.team == 2)
-		sprint (self, 2, "Raiders\n");
-
-	sprint (self, PRINT_HIGH, "Score     ‘ ");
-	r1 = (self.score);
-
-	x = ftos (r1);
-	sprint (self, 2, x);
-
-	sprint (self, PRINT_HIGH, "\nSpeed     ‘ ");
-	x = ftos (self.maxspeed);
-	sprint (self, 2, x);
-	sprint (self, PRINT_HIGH, "/300\n");
-	sprint (self, PRINT_HIGH, "Money     ‘ ");
-
-	x = ftos (self.ammo_shells);
-	sprint (self, 2, x);
-	sprint (self, PRINT_HIGH, "$\n");
-
-/*
-	sprint (self, PRINT_HIGH, "\nArmor     ‘ ");
-	x = GetArmorName();
-	sprint (self, 2, x);
-	sprint (self, 2, "  (");
-	x = ftos (self.armor_weight);
-	sprint (self, 2, x);
-	sprint (self, 2, ")\n");
-*/
-	sprint (self, PRINT_HIGH, "Protective‘ ");
-	x = GetProtectName();
-	sprint (self, 2, x);
-	sprint (self, 2, "\n");
-/*
-	sprint (self, PRINT_HIGH, "Chem      ‘ ");
-	x = GetChemName();
-	sprint (self, 2, x);
-	x = ftos (self.chemcount);
-	sprint (self, 2, "[");
-	sprint (self, 2, x);
-	sprint (self, 2, "]");
-	sprint (self, 2, "\n");
-*/
-	sprint (self, PRINT_HIGH, "Gadget    ‘ ");
-
-	x = GetEquipmentName();
-	sprint (self, 2, x);
-	sprint (self, 2, "\n");
-	sprint (self, PRINT_HIGH, "Perk      ‘ ");
-	x = GetPerkName();
-	sprint (self, 2, x);
-	sprint (self, 2, "\n");
-	sprint (self, PRINT_HIGH, "Trait     ‘ ");
-	x = GetTraitName();
-	sprint (self, 2, x);
-	sprint (self, 2, "\n");
-/*
-	sprint (self, PRINT_HIGH, "Weapon 1  ‘ ");
-	x = GetWeaponName (self, self.slot1);
-	sprint (self, 2, x);
-	sprint (self, 2, "  (");
-	x = ftos (self.slot1_weight);
-	sprint (self, 2, x);
-	sprint (self, 2, ") (");
-	sprint (self, 2, self.ammotype1);
-	sprint (self, 2, ")\n");
-
-	sprint (self, PRINT_HIGH, "Weapon 2  ‘ ");
-	x = GetWeaponName (self, self.slot2);
-	sprint (self, 2, x);
-	sprint (self, 2, "  (");
-	x = ftos (self.slot2_weight);
-	sprint (self, 2, x);
-	sprint (self, 2, ") (");
-	sprint (self, 2, self.ammotype2);
-	sprint (self, 2, ")\n\n");
-*/
-	qq = weightx ();
-	sprint (self, PRINT_HIGH, "Weight    ‘ ");
-	x = ftos (qq);
-	sprint (self, 2, x);
-	qq = self.max_weight;
-	sprint (self, PRINT_HIGH, "/");
-	x = ftos (qq);
-	sprint (self, 2, x);
-	sprint (self, PRINT_HIGH, "\n");
-	return;
 };
 
 void () UseEquipment =
@@ -6560,278 +6576,6 @@ void() show_light_level =
 	bprint(2, y);
 	bprint(2, "\n");
 };
-	
-void() AttachSilencer =
-{
-	local float weap, x, y;
-
-	weap = ToIID(self.(SlotField(self.current_slot)));
-
-	y = SlotOfItem(self, IID_EQUIP_SILENCER);
-
-	if (weap == IID_WP_USP)
-	{
-		sprint(self, 2, "silencer attached.\n");
-		DecreaseDestroySlot(y);
-
-		if (self.current_slot == 1)
-		{
-			x = ToStatus(self.islot1);
-			self.islot1 = 0;
-			SetItemSlot(self, 1, SlotVal(IID_WP_USP_S, x));
-			return;
-		}
-		if (self.current_slot == 2)
-		{
-			x = ToStatus(self.islot2);
-			self.islot2 = 0;
-			SetItemSlot(self, 2, SlotVal(IID_WP_USP_S, x));
-			return;
-		}
-	}
-	else if (weap == IID_WP_DKS1)
-	{
-		sprint(self, 2, "silencer attached.\n");
-		DecreaseDestroySlot(y);
-
-		if (self.current_slot == 1)
-		{
-			x = ToStatus(self.islot1);
-			self.islot1 = 0;
-			SetItemSlot(self, 1, SlotVal(IID_WP_DKS1_S, x));
-			return;
-		}
-		if (self.current_slot == 2)
-		{
-			x = ToStatus(self.islot2);
-			self.islot2 = 0;
-			SetItemSlot(self, 2, SlotVal(IID_WP_DKS1_S, x));
-			return;
-		}
-	}
-	else if (weap == IID_WP_GLOCK)
-	{
-		sprint(self, 2, "silencer attached.\n");
-		DecreaseDestroySlot(y);
-
-		if (self.current_slot == 1)
-		{
-			x = ToStatus(self.islot1);
-			self.islot1 = 0;
-			SetItemSlot(self, 1, SlotVal(IID_WP_GLOCK_S, x));
-			return;
-		}
-		if (self.current_slot == 2)
-		{
-			x = ToStatus(self.islot2);
-			self.islot2 = 0;
-			SetItemSlot(self, 2, SlotVal(IID_WP_GLOCK_S, x));
-			return;
-		}
-	}
-	else if (weap == IID_WP_MP9)
-	{
-		sprint(self, 2, "silencer attached.\n");
-		DecreaseDestroySlot(y);
-
-		if (self.current_slot == 1)
-		{
-			x = ToStatus(self.islot1);
-			self.islot1 = 0;
-			SetItemSlot(self, 1, SlotVal(IID_WP_MP9_S, x));
-			return;
-		}
-		if (self.current_slot == 2)
-		{
-			x = ToStatus(self.islot2);
-			self.islot2 = 0;
-			SetItemSlot(self, 2, SlotVal(IID_WP_MP9_S, x));
-			return;
-		}
-	}
-	else if (weap == IID_WP_GREASEGUN)
-	{
-		sprint(self, 2, "silencer attached.\n");
-		DecreaseDestroySlot(y);
-
-		if (self.current_slot == 1)
-		{
-			x = ToStatus(self.islot1);
-			self.islot1 = 0;
-			SetItemSlot(self, 1, SlotVal(IID_WP_GREASEGUN_S, x));
-			return;
-		}
-		if (self.current_slot == 2)
-		{
-			x = ToStatus(self.islot2);
-			self.islot2 = 0;
-			SetItemSlot(self, 2, SlotVal(IID_WP_GREASEGUN_S, x));
-			return;
-		}
-	}
-	else if (weap == IID_WP_PIPERIFLE)
-	{
-		sprint(self, 2, "silencer attached.\n");
-		DecreaseDestroySlot(y);
-
-		if (self.current_slot == 1)
-		{
-			x = ToStatus(self.islot1);
-			self.islot1 = 0;
-			SetItemSlot(self, 1, SlotVal(IID_WP_PIPERIFLE_S, x));
-			return;
-		}
-		if (self.current_slot == 2)
-		{
-			x = ToStatus(self.islot2);
-			self.islot2 = 0;
-			SetItemSlot(self, 2, SlotVal(IID_WP_PIPERIFLE_S, x));
-			return;
-		}
-	}
-	else if (weap == IID_WP_PIPERIFLE_R)
-	{
-		sprint(self, 2, "silencer attached.\n");
-		DecreaseDestroySlot(y);
-
-		if (self.current_slot == 1)
-		{
-			x = ToStatus(self.islot1);
-			self.islot1 = 0;
-			SetItemSlot(self, 1, SlotVal(IID_WP_PIPERIFLE_S_R, x));
-			return;
-		}
-		if (self.current_slot == 2)
-		{
-			x = ToStatus(self.islot2);
-			self.islot2 = 0;
-			SetItemSlot(self, 2, SlotVal(IID_WP_PIPERIFLE_S_R, x));
-			return;
-		}
-	}
-	else if (weap == IID_WP_PIPERIFLE_SCOPE)
-	{
-		sprint(self, 2, "silencer attached.\n");
-		DecreaseDestroySlot(y);
-
-		if (self.current_slot == 1)
-		{
-			x = ToStatus(self.islot1);
-			self.islot1 = 0;
-			SetItemSlot(self, 1, SlotVal(IID_WP_PIPERIFLE_SCOPE_S, x));
-			return;
-		}
-		if (self.current_slot == 2)
-		{
-			x = ToStatus(self.islot2);
-			self.islot2 = 0;
-			SetItemSlot(self, 2, SlotVal(IID_WP_PIPERIFLE_SCOPE_S, x));
-			return;
-		}
-	}
-	else if (weap == IID_WP_PIPERIFLE_SCOPE_R)
-	{
-		sprint(self, 2, "silencer attached.\n");
-		DecreaseDestroySlot(y);
-
-		if (self.current_slot == 1)
-		{
-			x = ToStatus(self.islot1);
-			self.islot1 = 0;
-			SetItemSlot(self, 1, SlotVal(IID_WP_PIPERIFLE_SCOPE_S_R, x));
-			return;
-		}
-		if (self.current_slot == 2)
-		{
-			x = ToStatus(self.islot2);
-			self.islot2 = 0;
-			SetItemSlot(self, 2, SlotVal(IID_WP_PIPERIFLE_SCOPE_S_R, x));
-			return;
-		}
-	}
-	else
-	{
-		sprint(self, 2, "cannot be silenced.\n");
-		return;
-	}
-
-};
-
-
-void() AttachExtender =
-{
-	local float weap;
-
-	weap = ToIID(self.(SlotField(self.current_slot)));
-
-	if (weap == IID_WP_NEEDLER || weap == IID_WP_MOONLIGHT)
-	{
-		sprint(self, 2, "that weapon already has a silencer attached\n");
-		return;
-	}
-	if (weap == IID_WP_ALIENBLASTER)
-	{
-		sprint(self, 2, "how exactly do you extend that???\n");
-		return;
-	}
-	if (self.silencer == weap)
-	{
-		sprint(self, 2, "that weapon already has a silencer attached\n");
-		return;
-	}
-	else if (ToIID(self.islot4) == IID_EQUIP_EXTENDER && self.extender == 0)
-	{
-		self.extender = weap;
-		sprint(self, 2, "extender attached.\n");
-		self.islot4 = 0;
-		self.attack_finished = time + 1;
-		self.rtime = time + 1;
-		return;
-	}
-/*
-	else if (ToIID(self.islot4) == IID_EQUIP_EXTENDER && self.extender > 0)
-	{
-		self.extender = 0;
-		sprint(self, 2, "removing extender...\n");
-		self.attack_finished = time + 1;
-		return;
-	}*/
-};
-
-void (float iid) RemoveSilencer =
-{
-	if (ToIID(self.islot4) == 0)
-	{
-		SetItemSlot(self, 4, SlotVal(IID_EQUIP_SILENCER, 1));
-		sprint(self, 2, "removing silencer...\n");
-		self.attack_finished = time + 1;
-		self.rtime = time + 1;
-		self.silencer = 0;
-	}
-	else if (ToIID(self.islot4) > 0)
-	{
-		sprint(self, 2, "can't remove silencer, equipment slot is full\n");
-		return;
-	}
-};
-
-void (float iid) RemoveExtender =
-{
-	if (ToIID(self.islot4) == 0)
-	{
-		SetItemSlot(self, 4, SlotVal(IID_EQUIP_EXTENDER, 1));
-		sprint(self, 2, "removing extender...\n");
-		self.attack_finished = time + 1;
-		self.rtime = time + 1;
-		self.extender = 0;
-	}
-	else if (ToIID(self.islot4) > 0)
-	{
-		sprint(self, 2, "can't remove extender, equipment slot is full\n");
-		return;
-	}
-};
-
 
 void (string snd, float type) function_radio =
 {

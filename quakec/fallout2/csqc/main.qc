@@ -51,7 +51,7 @@ void() Crosshair_Draw =
 
 void() Position_Draw =
 {
-	float pos, s, lvl;
+	float pos, s, lvl, bar, top;
 	string sn;
 
 	pos = getstati(54);
@@ -68,8 +68,24 @@ void() Position_Draw =
 
 	if (s > 0)
 	{
-		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.20)) +('0 1 0'*(scrheight*0.79)), "gui/hud/sneak.png", '0 0 0'+'72 25 0'*(scrwidth/640), '1 1 1');
-		//drawstring('0 0 0'+('1 0 0'*(scrwidth*0.20)) +('0 1 0'*(scrheight*0.80)),  strcat("%", sn), '8 8 8', '1 1 1', 1);
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.22)) +('0 1 0'*(scrheight*0.79)), "gui/hud/sneak.png", '0 0 0'+'72 25 0'*(scrwidth/640), '1 1 1');
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.01)) +('0 1 0'*(scrheight*0.79)), "gui/hud/sneakbar.png", '0 0 0'+'135 25 0'*(scrwidth/640), '1 1 1');
+
+
+
+	bar = 0;
+	top = ceil(117 * (s/100));
+	if (top > 117)
+		top = 117;
+
+	while (bar < top)
+		bar = bar + 1;
+
+	drawpic('0 0 0'+('1 0 0'*(scrwidth*0.0225)) +('0 1 0'*(scrheight*0.8025)) + ('0 1 0'*(scrheight/640)), "gui/pipboy/graph/blue.jpg", '1 16 0'*(scrheight/640)+'1 0 0'*(scrwidth/640)*bar, '1 1 1', 1);
+
+
+
+		//drawstring('0 0 0'+('1 0 0'*(scrwidth*0.20)) +('0 1 0'*(scrheight*0.78)),  strcat("%", sn), '12 12 12'*(scrheight/640), '1 1 1', 1);
 	}
 
 	if (lvl >= 200)
@@ -107,12 +123,12 @@ void() Time_Draw =
 	local float xtime, ytime, ztime, obj;
 	local string qtime, rtime, shadowtime, text, text2;
 
-	xtime = getstati(104);
+	xtime = getstati(63);
 	ytime = floor(xtime/60);
 	ztime = xtime - (ytime*60);
 	qtime = ftos(ytime);
 	rtime = ftos(ztime);
-	shadowtime = ftos(getstati(104));
+	shadowtime = ftos(getstati(63));
 
 	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.25))+('0 1 0'*(scrheight*0.86)),  strcat("[", qtime, ":", rtime, "]\n"), '8 8 8', '1 1 1', 1);
 
@@ -199,7 +215,7 @@ void() Health_Draw =
 	while (bar < top)
 		bar = bar + 1;
 
-	drawpic('0 0 0'+('1 0 0'*(scrwidth*0.07)) +('0 1 0'*(scrheight*0.75)) + ('0 1 0'*(scrheight/640)), "gui/graph/green.jpg", '16 1 0'*(scrheight/640)-'0 1 0'*(scrwidth/640)*bar, '1 1 1', 1);	
+	drawpic('0 0 0'+('1 0 0'*(scrwidth*0.07)) +('0 1 0'*(scrheight*0.75)) + ('0 1 0'*(scrheight/640)), "gui/pipboy/graph/green.jpg", '16 1 0'*(scrheight/640)-'0 1 0'*(scrwidth/640)*bar, '1 1 1', 1);	
 
 };
 
@@ -218,7 +234,7 @@ void() Radiation_Draw =
 	while (bar < top)
 		bar = bar + 1;
 
-	drawpic('0 0 0'+('1 0 0'*(scrwidth*0.02)) +('0 1 0'*(scrheight*0.75)) + ('0 1 0'*(scrheight/640)), "gui/graph/yellow.jpg", '16 1 0'*(scrheight/640)-'0 1 0'*(scrwidth/640)*bar, '1 1 1', 1);	
+	drawpic('0 0 0'+('1 0 0'*(scrwidth*0.02)) +('0 1 0'*(scrheight*0.75)) + ('0 1 0'*(scrheight/640)), "gui/pipboy/graph/yellow.jpg", '16 1 0'*(scrheight/640)-'0 1 0'*(scrwidth/640)*bar, '1 1 1', 1);	
 
 };
 
@@ -323,7 +339,7 @@ void() Ammo_Draw =
 		while (bar <= top)
 		{
 
-				drawpic('0 0 0'+('1 0 0'*(scrwidth*0.38)) +('0 1 0'*(scrheight*0.99)) - ('0 2 0'*bar*(scrheight/640)), "gui/graph/green.jpg", '0 0 0'+'8 1 0'*(scrwidth/640), '1 1 1', 1);				
+				drawpic('0 0 0'+('1 0 0'*(scrwidth*0.38)) +('0 1 0'*(scrheight*0.99)) - ('0 2 0'*bar*(scrheight/640)), "gui/pipboy/graph/green.jpg", '0 0 0'+'8 1 0'*(scrwidth/640), '1 1 1', 1);				
 		
 
 			bar = bar + 1;
@@ -346,7 +362,7 @@ void() Ammo_Draw =
 		while (bar <= top)
 		{
 
-				drawpic('0 0 0'+('1 0 0'*(scrwidth*0.38)) +('0 1 0'*(scrheight*0.99)) - ('0 2 0'*bar*(scrheight/640)), "gui/graph/green.jpg", '0 0 0'+'8 1 0'*(scrwidth/640), '1 1 1', 1);					
+				drawpic('0 0 0'+('1 0 0'*(scrwidth*0.38)) +('0 1 0'*(scrheight*0.99)) - ('0 2 0'*bar*(scrheight/640)), "gui/pipboy/graph/green.jpg", '0 0 0'+'8 1 0'*(scrwidth/640), '1 1 1', 1);					
 		
 
 			bar = bar + 1;
@@ -366,11 +382,11 @@ void() HUD_Perks_Draw =
 
 	perktime = getstati(111);
 	if (perktime == 0)
-		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.855)) + ('0 1 0'*(scrheight*0.90)), "gui/graph/green.jpg", '0 0 0'+'4 4 0'*(scrwidth/640),  '1 1 1', 1);
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.855)) + ('0 1 0'*(scrheight*0.90)), "gui/pipboy/graph/green.jpg", '0 0 0'+'4 4 0'*(scrwidth/640),  '1 1 1', 1);
 
 	perktime2 = getstati(112);
 	if (perktime2 == 0)
-		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.855)) + ('0 1 0'*(scrheight*0.96)), "gui/graph/green.jpg", '0 0 0'+'4 4 0'*(scrwidth/640),  '1 1 1', 1);
+		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.855)) + ('0 1 0'*(scrheight*0.96)), "gui/pipboy/graph/green.jpg", '0 0 0'+'4 4 0'*(scrwidth/640),  '1 1 1', 1);
 
 
 	if (getstati(60) > 0)
@@ -399,7 +415,7 @@ void() HUD_Perks_Draw =
 		while (bar < top)
 		{
 
-			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.865)) +('0 1 0'*(scrheight*0.88)) + ('0 1 0'*bar*(scrheight/640)), "gui/graph/black.jpg", '0 0 0'+'28 1 0'*(scrwidth/640),  '1 1 1', 1);					
+			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.865)) +('0 1 0'*(scrheight*0.88)) + ('0 1 0'*bar*(scrheight/640)), "gui/pipboy/graph/black.jpg", '0 0 0'+'28 1 0'*(scrwidth/640),  '1 1 1', 1);					
 		
 
 			bar = bar + 1;
@@ -420,7 +436,7 @@ void() HUD_Perks_Draw =
 		while (bar < top)
 		{
 
-			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.865)) +('0 1 0'*(scrheight*0.94)) + ('0 1 0'*bar*(scrheight/640)), "gui/graph/black.jpg", '0 0 0'+'28 1 0'*(scrwidth/640),  '1 1 1', 1);					
+			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.865)) +('0 1 0'*(scrheight*0.94)) + ('0 1 0'*bar*(scrheight/640)), "gui/pipboy/graph/black.jpg", '0 0 0'+'28 1 0'*(scrwidth/640),  '1 1 1', 1);					
 		
 
 			bar = bar + 1;

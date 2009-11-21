@@ -103,6 +103,27 @@ void(entity targ, entity attacker) Killed =
 };
 
 
+void(entity targ, entity attacker) ArmorNoise =
+{
+	local float r;
+
+	if (targ.classname != "player" && targ.classname != "monster")
+		return;
+
+	if (attacker.classname != "player" && attacker.classname != "monster")
+		return;
+
+	r = random();
+
+	if (r <= 0.33)
+		sound (targ, CHAN_WEAPON, "contact/armor1.wav", 1, ATTN_NORM);
+	else if (r <= 0.67)
+		sound (targ, CHAN_WEAPON, "contact/armor2.wav", 1, ATTN_NORM);
+	else
+		sound (targ, CHAN_WEAPON, "contact/armor3.wav", 1, ATTN_NORM);
+};
+
+
 /*
 ============
 T_Damage
@@ -136,6 +157,12 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 
 	if (targ.classname == "player")
 		damage = floor(damage * 0.60);*/
+
+
+	if (challenge_rating <= 6 && attacker.classname == "monster")
+		damage = damage * 0.70;
+	if (challenge_rating <= 9 && attacker.classname == "monster")
+		damage = damage * 0.80;
 
 	if (targ.radiation > 0)
 	{
@@ -303,7 +330,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 
 	if (attacker.classname == "monster")
 	{
-		if (random()*100>= 98)
+		if (random()*100>= 95)
 			attacker.critical = 3;
 		else
 			attacker.critical = 0;
@@ -314,33 +341,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 		if (attacker.critical == 3)
 		{
 
-			if (random()<0.005)
-				severity = 64;
-
-
-			severity = 0 + random()*20;
-
-			if ((attacker.perk1 == 17 || attacker.perk2 == 17) && random()<0.05)
-			{
-				severity = severity + 15;
-				sprint(self, 2, "!ONE IN A MILLION\n");
-			}
-
-			if (attacker.class == 2)
-				severity = severity + 5;
-
-			if (targ.classname == "player")
-				damage = (damage * 2);
-			else if (severity >= 64)
-				damage = (damage * 10);
-			else if (severity >= 30)
-				damage = (damage * 6);
-			else if (severity >= 20)
-				damage = (damage * 5);
-			else if (severity >= 15)
-				damage = (damage * 4);
-			else
-				damage = (damage * 3);
+			damage = (damage * 2);
 
 			if (targ.classname == "monster")
 				attacker.score = attacker.score + 1;
@@ -368,15 +369,8 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 		}
 	}
 
-	if (damage <= 0 && (attacker.classname == "monster" || attacker.classname == "player"))
-	{
-		damage = 0;
-		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
-		return;
-	}
 
-	if (attacker.classname == "monster" || attacker.classname == "player")
-		sound (targ, CHAN_ITEM, targ.armornoise, 1, ATTN_NORM);
+
 
 	
 // add to the damage total for clients, which will be sent as a single
@@ -455,8 +449,6 @@ take = damage;
 	//fix: soldiers inherent armor bonus applies to armor absorb
 	//fix: psycho drug gives similar benefits to a soldiers bonus
 
-	if (targ.class == 3)
-		take -= 1;
 	if (self.rage == IID_CHEM_PSYCHO)
 		take -= 3;
 
@@ -547,6 +539,7 @@ take = damage;
 		return;
 	}
 
+	ArmorNoise(targ, attacker);
 
 	if (targ.hold <= 0)
 		targ.health = targ.health - take;
@@ -612,559 +605,6 @@ take = damage;
 };
 
 
-/*
-============
-J_Damage
-
-This is a special function that is called for weapons using JHP ammo.
-JHP ammo does extra damage against things wearing no armor or little
-armor, but less damage against heavily armored foes.
-============
-*/
-
-void(entity targ, entity inflictor, entity attacker, float damage) J_Damage =
-{
-	local   entity  oldself;
-	local   float   save;
-	local   float   take, severity, helm;
-	local   string  attackerteam, targteam;
-
-
-	if (!targ.takedamage)
-		return;
-
-	damage = damage * 1.25;
-	damage = floor(damage);
-
-// used by buttons and triggers to set activator for target firing
-	damage_attacker = attacker;
-
-	if (attacker.critical == 3 && targ.classname != "car")//attacker scored a headshot/critical
-	{
-		if (attacker.critical == 3)
-		{
-			severity = 0 + random()*20;
-
-			if (attacker.class == 3)
-				severity = severity + 2;
-
-			if (severity >= 19)
-				damage = (damage * 5);
-			else if (severity >= 14)
-				damage = (damage * 4);
-			else
-				damage = (damage * 3);
-
-			if (targ.classname == "monster")
-				attacker.score = attacker.score + 1;
-
-			helm = targ.armortype;
-			if (targ.helmet == 0)
-			{
-				sound (targ, CHAN_VOICE, "player/headshot.wav", 1, ATTN_NORM);
-				helm = 0;
-			}
-			if (targ.helmet == AS_STRAIGHT)
-			{
-				sound (targ, CHAN_BODY, "weapons/helmet.wav", 1, ATTN_NORM);
-				helm = 0.30;
-			}
-			if (targ.helmet == AS_SLIDING)
-			{
-				sound (targ, CHAN_BODY, "weapons/helmet.wav", 1, ATTN_NORM);
-				helm = 0.45;
-			}
-
-			damage = (damage - (damage * helm));
-
-			makevectors (targ.v_angle);
-		}
-	}
-
-	//sneak attack: if you attack a creature who isn't fighting you, bonus damage
-	if (attacker.perk1 == 7 || attacker.perk2 == 7)
-	{
-		if (targ.enemy != attacker)
-		{
-			sprint(attacker, 2, "!SNEAK ATTACK\n");
-			if (damage <= 10)
-				damage = damage * 3;
-			else if (damage <= 20)
-				damage = damage * 2;
-			else if (damage <= 30)
-				damage = damage * 1.5;
-			else
-				damage = damage * 1.25;
-		}
-	}
-
-	if (damage <= 0)
-	{
-		damage = 0;
-		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
-		return;
-	}
-
-		sound (targ, CHAN_ITEM, targ.armornoise, 1, ATTN_NORM);
-
-	
-// add to the damage total for clients, which will be sent as a single
-// message at the end of the frame
-// FIXME: remove after combining shotgun blasts?
-	if (targ.flags & FL_CLIENT)
-	{
-		targ.dmg_take = targ.dmg_take + take;
-		targ.dmg_save = targ.dmg_save + save;
-		targ.dmg_inflictor = inflictor;
-	}
-
-	damage_inflictor = inflictor;        
-
-/*
-// figure momentum add
-	if ( (inflictor != world) && (targ.movetype == MOVETYPE_WALK) )
-	{
-		dir = targ.origin - (inflictor.absmin + inflictor.absmax) * 0.5;
-		dir = normalize(dir);
-		// Set kickback for smaller weapons
-//Zoid -- use normal NQ kickback
-//		// Read: only if it's not yourself doing the damage
-//		if ( (damage < 60) & ((attacker.classname == "player") & (targ.classname == "player")) & ( attacker.netname != targ.netname)) 
-//			targ.velocity = targ.velocity + dir * damage * 11;
-//		else                        
-		// Otherwise, these rules apply to rockets and grenades                        
-		// for blast velocity
-			targ.velocity = targ.velocity + dir * damage * 8;
-		
-		// Rocket Jump modifiers
-		if ( (rj > 1) & ((attacker.classname == "player") & (targ.classname == "player")) & ( attacker.netname == targ.netname)) 
-			targ.velocity = targ.velocity + dir * damage * rj;
-
-	}*/
-
-
-
-// check for godmode or invincibility
-	if (targ.flags & FL_GODMODE)
-		return;
-	if (targ.invincible_finished >= time)
-	{
-		if (self.invincible_sound < time)
-		{
-			sound (targ, CHAN_ITEM, "items/protect3.wav", 1, ATTN_NORM);
-			self.invincible_sound = time + 2;
-		}
-		return;
-	}
-
-// team play damage avoidance
-//ZOID 12-13-96: self.team doesn't work in QW.  Use keys
-	attackerteam = infokey(attacker, "team");
-	targteam = infokey(targ, "team");
-
-	if ((teamplay == 1) && (targteam == attackerteam) &&
-		(attacker.classname == "player") && (attackerteam != "") &&
-		inflictor.classname !="door")
-		return;
-
-	if ((teamplay == 3) && (targteam == attackerteam) &&
-		(attacker.classname == "player") && (attackerteam != "") &&
-		(targ != attacker)&& inflictor.classname !="door")
-		return;
-		
-
-take = damage;
-
-// do the damage
-	//different sorts of armour simply subtract different ammounts
-      //this makes armor like the force armor good against many small rounds
-      //(SMG, shotguns, swords, etc) but useless against big damage (grenades)
-      //power armor, which has the best of both worlds, is also the heaviest :p
-
-	switch(ToIID(targ.islot3))
-	{
-	case IID_ARM_DESERT:
-		take -= 1;
-		break;
-	case IID_ARM_LEATHER:
-		take -= 1;
-		break;
-	case IID_ARM_VANDAL:
-		take -= 15;
-		break;
-	case IID_ARM_METAL:
-		take -= 10;
-		break;
-	case IID_ARM_TESLA:
-		take -= 25;
-		break;
-	case IID_ARM_COMBAT:
-		take -= 20;
-		break;
-	case IID_ARM_SEVA:
-		take -= 20;
-		break;
-	case IID_ARM_FORCE:
-		take -= 30;
-		break;
-	case IID_ARM_LPOWER:
-		take -= 25;
-		break;
-	default:
-		break;
-	}
-
-	switch(ToIID(targ.islot3))
-	{
-	case IID_ARM_LEATHER:
-		take = take * 0.70;
-		break;
-	case IID_ARM_VANDAL:
-		take = take * 0.60;
-		break;
-	case IID_ARM_METAL:
-		take = take * 0.40;
-		break;
-	case IID_ARM_TESLA:
-		take = take * 0.55;
-		break;
-	case IID_ARM_COMBAT:
-		take = take * 0.50;
-		break;
-	case IID_ARM_SEVA:
-		take = take * 0.45;
-		break;
-	case IID_ARM_FORCE:
-		take = take * 0.80;
-		break;
-	case IID_ARM_LPOWER:
-		take = take * 0.40;
-		break;
-	default:
-		break;
-	}
-
-	if (targ.classname == "player" && targ.zoom > 0)
-	{
-		targ.maxspeed = targ.maxspeed * 0.20;
-		stuffcmd(targ, "v_idlescale 20\n");
-	}
-	else if (take > 20 && targ.classname == "player")
-	{
-		targ.maxspeed = targ.maxspeed * 0.20;
-		stuffcmd(targ, "v_cshift 100 0 0 100\n");
-		stuffcmd(targ, "v_idlescale 30\n");
-	}
-	else if (take > 0)
-	{
-		targ.maxspeed = targ.maxspeed * 0.30;
-		stuffcmd(targ, "v_cshift 100 0 0 50\n");
-	}
-
-
-	if (take <= 0)
-	{
-		take = 0;
-		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
-		return;
-	}
-
-
-	targ.health = targ.health - take;
-
-	if (targ.health <= 0)
-	{
-		Killed (targ, attacker);
-		return;
-	}
-
-// react to the damage
-	oldself = self;
-	self = targ;
-
-/*SERVER
-	if ( (self.flags & FL_MONSTER) && attacker != world)
-	{
-	// get mad unless of the same class (except for soldiers)
-		if (self != attacker && attacker != self.enemy)
-		{
-			if ( (self.classname != attacker.classname) 
-			|| (self.classname == "monster" ) )
-			{
-				if (self.enemy.classname == "player")
-					self.oldenemy = self.enemy;
-				self.enemy = attacker;
-				FoundTarget ();
-			}
-		}
-	}
-*/
-	if (self.th_pain)
-	{
-		self.th_pain (attacker, take);
-	}
-
-	self = oldself;
-};
-
-/*
-============
-X_Damage
-
-The purpose of X_Damage is to allow certain weapons to bypass armor
-which is a very large part of the game.
-============
-*/
-
-void(entity targ, entity inflictor, entity attacker, float damage) X_Damage =
-{
-	local   entity  oldself;
-	local   float   save;
-	local   float   take, severity, helm;
-	local   string  attackerteam, targteam;
-
-
-	if (!targ.takedamage)
-		return;
-
-	damage = damage * 0.75;
-	damage = floor(damage);
-
-// used by buttons and triggers to set activator for target firing
-	damage_attacker = attacker;
-
-	if (attacker.critical == 3 && targ.classname != "car")//attacker scored a headshot/critical
-	{
-		if (attacker.critical == 3)
-		{
-			severity = 0 + random()*20;
-
-			if (attacker.class == 2)
-				severity = severity + 4;
-
-			if (severity >= 19)
-				damage = (damage * 5);
-			else if (severity >= 14)
-				damage = (damage * 4);
-			else
-				damage = (damage * 3);
-
-			if (targ.classname == "monster")
-				attacker.score = attacker.score + 1;
-
-			helm = targ.armortype;
-			if (targ.helmet == 0)
-			{
-				sound (targ, CHAN_VOICE, "player/headshot.wav", 1, ATTN_NORM);
-				helm = 0;
-			}
-			if (targ.helmet == AS_STRAIGHT)
-			{
-				sound (targ, CHAN_BODY, "weapons/helmet.wav", 1, ATTN_NORM);
-				helm = 0.15;
-			}
-			if (targ.helmet == AS_SLIDING)
-			{
-				sound (targ, CHAN_BODY, "weapons/helmet.wav", 1, ATTN_NORM);
-				helm = 0.22;
-			}
-
-			damage = (damage - (damage * helm));
-
-			makevectors (targ.v_angle);
-		}
-	}
-
-	if (damage <= 0)
-	{
-		damage = 0;
-		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
-		return;
-	}
-
-		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
-
-// save damage based on the target's armor level
-
-
-	
-	take = ceil(damage);
-
-// add to the damage total for clients, which will be sent as a single
-// message at the end of the frame
-// FIXME: remove after combining shotgun blasts?
-	if (targ.flags & FL_CLIENT)
-	{
-		targ.dmg_take = targ.dmg_take + take;
-		targ.dmg_save = targ.dmg_save + save;
-		targ.dmg_inflictor = inflictor;
-	}
-
-	damage_inflictor = inflictor;        
-
-/*
-// figure momentum add
-	if ( (inflictor != world) && (targ.movetype == MOVETYPE_WALK) )
-	{
-		dir = targ.origin - (inflictor.absmin + inflictor.absmax) * 0.5;
-		dir = normalize(dir);
-		// Set kickback for smaller weapons
-//Zoid -- use normal NQ kickback
-//		// Read: only if it's not yourself doing the damage
-//		if ( (damage < 60) & ((attacker.classname == "player") & (targ.classname == "player")) & ( attacker.netname != targ.netname)) 
-//			targ.velocity = targ.velocity + dir * damage * 11;
-//		else                        
-		// Otherwise, these rules apply to rockets and grenades                        
-		// for blast velocity
-			targ.velocity = targ.velocity + dir * damage * 8;
-		
-		// Rocket Jump modifiers
-		if ( (rj > 1) & ((attacker.classname == "player") & (targ.classname == "player")) & ( attacker.netname == targ.netname)) 
-			targ.velocity = targ.velocity + dir * damage * rj;
-
-	}*/
-
-
-
-// check for godmode or invincibility
-	if (targ.flags & FL_GODMODE)
-		return;
-	if (targ.invincible_finished >= time)
-	{
-		if (self.invincible_sound < time)
-		{
-			sound (targ, CHAN_ITEM, "items/protect3.wav", 1, ATTN_NORM);
-			self.invincible_sound = time + 2;
-		}
-		return;
-	}
-
-// team play damage avoidance
-//ZOID 12-13-96: self.team doesn't work in QW.  Use keys
-	attackerteam = infokey(attacker, "team");
-	targteam = infokey(targ, "team");
-
-	if ((teamplay == 1) && (targteam == attackerteam) &&
-		(attacker.classname == "player") && (attackerteam != "") &&
-		inflictor.classname !="door")
-		return;
-
-	if ((teamplay == 3) && (targteam == attackerteam) &&
-		(attacker.classname == "player") && (attackerteam != "") &&
-		(targ != attacker)&& inflictor.classname !="door")
-		return;
-		
-
-// do the damage
-	//different sorts of armour simply subtract different ammounts
-      //this makes armor like the force armor good against many small rounds
-      //(SMG, shotguns, swords, etc) but useless against big damage (grenades)
-      //power armor, which has the best of both worlds, is also the heaviest :p
-
-	switch(ToIID(targ.islot3))
-	{
-	case IID_ARM_METAL:
-		take -= 1;
-		break;
-	case IID_ARM_SEVA:
-		take -= 1;
-		break;
-	case IID_ARM_FORCE:
-		take -= 3;
-		break;
-	case IID_ARM_LPOWER:
-		take -= 2;
-		break;
-	default:
-		break;
-	}
-
-	switch(ToIID(targ.islot3))
-	{
-		case IID_ARM_LEATHER:
-			take = take * 0.90;
-			break;
-		case IID_ARM_VANDAL:
-			take = take * 0.75;
-			break;
-		case IID_ARM_METAL:
-			take = take * 0.90;
-			break;
-		case IID_ARM_COMBAT:
-			take = take * 0.90;
-			break;
-		case IID_ARM_SEVA:
-			take = take * 0.80;
-			break;
-		case IID_ARM_LPOWER:
-			take = take * 0.75;
-			break;
-		default:
-			break;
-	}
-
-	if (targ.classname == "player" && targ.zoom > 0)
-	{
-		targ.maxspeed = targ.maxspeed * 0.33;
-		stuffcmd(targ, "v_idlescale 20\n");
-	}
-	else if (take > 20 && targ.classname == "player")
-	{
-		targ.maxspeed = targ.maxspeed * 0.25;
-		stuffcmd(targ, "v_cshift 100 0 0 100\n");
-		stuffcmd(targ, "v_idlescale 30\n");
-	}
-	else if (take > 0)
-	{
-		targ.maxspeed = targ.maxspeed * 0.50;
-		stuffcmd(targ, "v_cshift 100 0 0 50\n");
-	}
-
-
-	if (take <= 0)
-	{
-		take = 0;
-		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
-		return;
-	}
-
-
-	targ.health = targ.health - take;
-
-	if (targ.health <= 0)
-	{
-		Killed (targ, attacker);
-		return;
-	}
-
-// react to the damage
-	oldself = self;
-	self = targ;
-
-/*SERVER
-	if ( (self.flags & FL_MONSTER) && attacker != world)
-	{
-	// get mad unless of the same class (except for soldiers)
-		if (self != attacker && attacker != self.enemy)
-		{
-			if ( (self.classname != attacker.classname) 
-			|| (self.classname == "monster" ) )
-			{
-				if (self.enemy.classname == "player")
-					self.oldenemy = self.enemy;
-				self.enemy = attacker;
-				FoundTarget ();
-			}
-		}
-	}
-*/
-	if (self.th_pain)
-	{
-		self.th_pain (attacker, take);
-	}
-
-	self = oldself;
-};
 
 /*
 ============

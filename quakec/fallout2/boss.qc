@@ -41,7 +41,7 @@ void() boss_face =
 {
 	
 // go for another player if multi player
-	if (self.enemy.health <= 0 || random() < 0.02 || self.enemy.class == 0 || self.enemy.team == 0)
+	if (self.enemy.health <= 0 || random() < 0.02 || self.enemy.team == 0)
 	{
 		self.enemy = find(self.enemy, classname, "player");
 		if (!self.enemy)

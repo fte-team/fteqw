@@ -164,18 +164,6 @@ void(string arg1) Cmd_InvUse =
 		return;
 	}
 
-	if (iid == IID_BUILD_MRAMMO ||
-	    iid == IID_BUILD_SHIELDGEN ||
-	    iid == IID_BUILD_AUTODOC ||
-	    iid == IID_BUILD_ROBOFANG ||
-	    iid == IID_BUILD_TTURRET || 
-	    iid == IID_BUILD_RTURRET ||
-	    iid == IID_BUILD_GTURRET)
-	{
-		if (spawn_station(iid))
-			DecreaseDestroySlot(slotno);
-		return;
-	}
 
 	if (iid == IID_EQUIP_CLIMBINGGEAR)
 	{
@@ -210,30 +198,9 @@ void(string arg1) Cmd_InvUse =
 		Sneak();
 		return;
 	}
-	if (iid == IID_EQUIP_SILENCER)
-	{
-		AttachSilencer();
-		return;
-	}
-	if (iid == IID_WP_WRENCH)
-	{
-		FireToolkit();
-		return;
-	}
-	if (iid == IID_EQUIP_HOVERBOOTS)
-	{
-		if (self.equipment_slot == slotno)
-		{
-			self.equipment_slot = 0;
-			sprint(self, PRINT_HIGH, "Hoverboots deactivated\n");
-		}
-		else
-		{
-			self.equipment_slot = slotno;
-			sprint(self, PRINT_HIGH, "Hoverboots activated\n");
-		}
-		return;
-	}
+
+
+
 
 	sprint(self, PRINT_HIGH, "Don't know how to 'use' item\n");
 };
@@ -281,6 +248,8 @@ void(string arg1) Cmd_GainLevel =
 		self.skill_sneak = self.skill_sneak + 1;
 	else if (arg1 == "science")
 		self.skill_science = self.skill_science + 1;
+	else if (arg1 == "speech")
+		self.skill_speech = self.skill_speech + 1;
 };
 
 void(string arg1, string arg2) Cmd_GainPerk =
@@ -401,6 +370,8 @@ void(string arg1) Cmd_InvBuy =
 		iid = ToIID(item);
 		amount = ToStatus(item);
 		money = GetBaseValue(iid);
+		money = ceil(money * (1 - (self.skill_speech/30)));
+
 		if (self.ammo_shells < money)
 		{
 			sprint(self, 2, "not enough money.\n");
@@ -456,7 +427,8 @@ void(string arg1) Cmd_InvSell =
 
 	SetItemSlot(self, slotno, 0);
 	x = GetBaseValue(iid);
-	x = x / 5;
+	x = ceil(x * (1 + (self.skill_speech/30)));
+	x = ceil(x / 5);
 	y = ftos(x);
 	z = GetItemName(iid);
 
@@ -765,390 +737,6 @@ void(string arg1) Cmd_InvMix =
 	}
 };
 
-void(string arg1) Cmd_InvCreate =
-{
-	local float it, iid;
-	local float slotno, q, w, x, y, z;
-	local float weap;
-
-	if (arg1 == "flash")
-	{
-
-		x = SlotOfItem(self, IID_MISC_NUKACOLA);
-		if (x == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need nukacola + chemicals + aerosol can\n");
-			return;
-		}
-
-		y = SlotOfItem(self, IID_MISC_CHEMICALS);
-		if (y == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need nukacola + chemicals + aerosol can\n");
-			return;
-		}
-
-		z = SlotOfItem(self, IID_MISC_AEROSOL);
-		if (z == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need nukacola + chemicals + aerosol can\n");
-			return;
-		}
-
-		DecreaseDestroySlot(x);
-		DecreaseDestroySlot(y);
-		DecreaseDestroySlot(z);
-
-		if ((random()<0.50) && (self.class == 1))
-		{
-			sprint(self, PRINT_MEDIUM, "you failed to create a flash bomb.\n");
-			return;
-		}
-		if ((random()<0.25) && (self.class == 2))
-		{
-			sprint(self, PRINT_MEDIUM, "you failed to create a flash bomb.\n");
-			return;
-		}
-		if ((random()<0.75) && (self.class == 3))
-		{
-			sprint(self, PRINT_MEDIUM, "you failed to create a flash bomb.\n");
-			return;
-		}
-
-		TryGiveStackable(self, IID_GREN_FLASH, 1);
-		sprint(self, PRINT_MEDIUM, "flash bomb created.\n");
-	}
-	if (arg1 == "grenade")
-	{
-		x = SlotOfItem(self, IID_MISC_RDXCRYSTAL);
-		if (x == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need rdx crystals, chemicals, aerosol can\n");
-			return;
-		}
-
-		y = SlotOfItem(self, IID_MISC_CHEMICALS);
-		if (y == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need rdx crystals, chemicals, aerosol can\n");
-			return;
-		}
-
-		z = SlotOfItem(self, IID_MISC_AEROSOL);
-		if (z == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need rdx crystals, chemicals, aerosol can\n");
-			return;
-		}
-
-		DecreaseDestroySlot(x);
-		DecreaseDestroySlot(y);
-		DecreaseDestroySlot(z);
-
-		if ((random()<0.75) && (self.class == 1))
-		{
-			sprint(self, PRINT_MEDIUM, "you failed to create a grenade.\n");
-			return;
-		}
-		if ((random()<0.75) && (self.class == 2))
-		{
-			sprint(self, PRINT_MEDIUM, "you failed to create a grenade.\n");
-			return;
-		}
-		if ((random()<0.75) && (self.class == 3))
-		{
-			sprint(self, PRINT_MEDIUM, "you failed to create a grenade.\n");
-			return;
-		}
-
-		TryGiveStackable(self, IID_GREN_FRAG, 1);
-		sprint(self, PRINT_MEDIUM, "homemade bomb created.\n");
-	}
-	if (arg1 == "silencer")
-	{
-		x = SlotOfItem(self, IID_MISC_DUCKTAPE);
-		if (x == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need junk + aerosol can + duck tape\n");
-			return;
-		}
-		y = SlotOfItem(self, IID_MISC_JUNK);
-		if (y == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need junk + aerosol can + duck tape\n");
-			return;
-		}
-		z = SlotOfItem(self, IID_MISC_AEROSOL);
-		if (z == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need junk + aerosol can + duck tape\n");
-			return;
-		}
-
-		DecreaseDestroySlot(x);
-		DecreaseDestroySlot(y);
-		DecreaseDestroySlot(z);
-
-		if ((random()<0.25) && (self.class == 1))
-		{
-			sprint(self, PRINT_MEDIUM, "you failed to create a silencer.\n");
-			return;
-		}
-		if ((random()<0.10) && (self.class == 2))
-		{
-			sprint(self, PRINT_MEDIUM, "you failed to create a silencer.\n");
-			return;
-		}
-		if ((random()<0.50) && (self.class == 3))
-		{
-			sprint(self, PRINT_MEDIUM, "you failed to create a silencer.\n");
-			return;
-		}
-		AddNonStackable(self, IID_EQUIP_SILENCER, 1);
-		sprint(self, PRINT_MEDIUM, "silencer created.\n");
-	}
-	if (arg1 == "stun")
-	{
-		x = SlotOfItem(self, IID_MISC_NUKACOLA);
-		if (x == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need nukacola + chemicals\n");
-			return;
-		}
-
-		y = SlotOfItem(self, IID_MISC_CHEMICALS);
-		if (y == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need nukacola + chemicals\n");
-			return;
-		}
-		DecreaseDestroySlot(x);
-		DecreaseDestroySlot(y);
-
-		if ((random()<0.40) && (self.class < 4))
-		{
-			sprint(self, PRINT_MEDIUM, "you failed to create a stun grenade.\n");
-			return;
-		}
-
-		TryGiveStackable(self, IID_GREN_STUN, 1);
-		sprint(self, PRINT_MEDIUM, "stun grenade created.\n");
-	}
-	if (arg1 == "extender")
-	{
-		y = SlotOfItem(self, IID_MISC_STEELPIPE);
-		if (y == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need steel pipe + duck tape\n");
-			return;
-		}
-
-		z = SlotOfItem(self, IID_MISC_DUCKTAPE);
-		if (z == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need junk, aerosol can\n");
-			return;
-		}
-
-		DecreaseDestroySlot(y);
-		DecreaseDestroySlot(z);
-
-		AddNonStackable(self, IID_EQUIP_EXTENDER, 1);
-		sprint(self, PRINT_MEDIUM, "barrel extender created.\n");
-	}
-	if (arg1 == "xray")
-	{
-		y = SlotOfItem(self, IID_MISC_LCD);
-		if (y == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-			return;
-		}
-		y = SlotOfItem(self, IID_MISC_CIRCUITBOARD);
-		if (y == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-			return;
-		}
-
-		z = SlotOfItem(self, IID_MISC_GUM);
-		if (z == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-			return;
-		}
-		q = SlotOfItem(self, IID_MISC_XRAYTUBE);
-		if (q == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-			return;
-		}
-		w = SlotOfItem(self, IID_MISC_COPPERWIRE);
-		if (w == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-			return;
-		}
-
-		DecreaseDestroySlot(q);
-		DecreaseDestroySlot(w);
-		DecreaseDestroySlot(x);
-		DecreaseDestroySlot(y);
-		DecreaseDestroySlot(z);
-
-		if ((random()<0.90) && (self.class < 4))
-		{
-			sprint(self, PRINT_MEDIUM, "you failed to create an x-ray device.\n");
-			return;
-		}
-
-		AddNonStackable(self, IID_EQUIP_XRAY, 1);
-		sprint(self, PRINT_MEDIUM, "x-ray device created!\n");
-	}
-	if (arg1 == "modify")
-	{
-			weap = ToIID(self.(SlotField(self.current_slot)));
-
-		if (weap == IID_WP_PULSERIFLE)
-		{
-			y = SlotOfItem(self, IID_MISC_DUCKTAPE);
-			if (y == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-			x = SlotOfItem(self, IID_MISC_CIRCUITBOARD);
-			if (x == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-			z = SlotOfItem(self, IID_MISC_NUKACOLA);
-			if (z == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-			q = SlotOfItem(self, IID_MISC_XRAYTUBE);
-			if (q == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-			w = SlotOfItem(self, IID_MISC_COPPERWIRE);
-			if (w == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-
-			DecreaseDestroySlot(q);
-			DecreaseDestroySlot(w);
-			DecreaseDestroySlot(x);
-			DecreaseDestroySlot(y);
-			DecreaseDestroySlot(z);
-
-			if (ToIID(self.islot1) == IID_WP_PULSERIFLE)
-				SetItemSlot(self, 1, SlotVal(IID_WP_TURBOPLASMA, 40));
-			else if (ToIID(self.islot2) == IID_WP_PULSERIFLE)
-				SetItemSlot(self, 2, SlotVal(IID_WP_TURBOPLASMA, 40));
-
-
-			if ((random()<0.25))
-			{
-				sprint(self, PRINT_MEDIUM, "you try to modify your plasma rifle by hotwiring\n");
-				sprint(self, PRINT_MEDIUM, "the bolt carrier and venting off excess gasses  \n");
-				sprint(self, PRINT_MEDIUM, "but you end up destroying it...\n");
-				return;
-			}
-			AddNonStackable(self, IID_WP_TURBOPLASMA, 1);
-			sprint(self, PRINT_MEDIUM, "turbo plasma rifle created\n");
-		}
-		if (weap == IID_WP_AK112)
-		{
-			y = SlotOfItem(self, IID_MISC_DUCKTAPE);
-			if (y == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-			x = SlotOfItem(self, IID_MISC_JUNK);
-			if (x == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-			z = SlotOfItem(self, IID_MISC_AEROSOL);
-			if (z == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-			w = SlotOfItem(self, IID_MISC_COPPERWIRE);
-			if (w == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-
-			DecreaseDestroySlot(y);
-			DecreaseDestroySlot(w);
-			DecreaseDestroySlot(x);
-			DecreaseDestroySlot(z);
-
-			if (ToIID(self.islot1) == IID_WP_AK112)
-				SetItemSlot(self, 1, SlotVal(IID_WP_AK112_M, 50));
-			else if (ToIID(self.islot2) == IID_WP_AK112)
-				SetItemSlot(self, 2, SlotVal(IID_WP_AK112_M, 50));
-
-			sprint(self, PRINT_MEDIUM, "created expanded magazine for ak-112\n");
-		}
-		if (weap == IID_WP_DEAGLE)
-		{
-			y = SlotOfItem(self, IID_MISC_DUCKTAPE);
-			if (y == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-			x = SlotOfItem(self, IID_MISC_JUNK);
-			if (x == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-			z = SlotOfItem(self, IID_MISC_AEROSOL);
-			if (z == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-			w = SlotOfItem(self, IID_MISC_COPPERWIRE);
-			if (w == 0)
-			{
-				sprint(self, PRINT_MEDIUM, "you need the proper ingredients...\n");
-				return;
-			}
-
-			DecreaseDestroySlot(y);
-			DecreaseDestroySlot(w);
-			DecreaseDestroySlot(x);
-			DecreaseDestroySlot(z);
-
-			if (ToIID(self.islot1) == IID_WP_DEAGLE)
-				SetItemSlot(self, 1, SlotVal(IID_WP_DEAGLE_M, 10));
-			else if (ToIID(self.islot2) == IID_WP_DEAGLE)
-				SetItemSlot(self, 2, SlotVal(IID_WP_DEAGLE_M, 10));
-
-			sprint(self, PRINT_MEDIUM, "created expanded magazine for deagle\n");
-		}
-		else
-		{
-			sprint(self, PRINT_MEDIUM, "can't modify currently held weapon.\n");
-			return;
-		}
-	}
-};
 
 void(string arg1, string arg2) Cmd_InvSwap =
 {
@@ -1263,12 +851,6 @@ void(string line) SV_ParseClientCommand =
 		if (self.deadflag)
 			return;
 		Cmd_InvMix(argv(1));
-	}
-	else if (cmd == "create")
-	{
-		if (self.deadflag)
-			return;
-		Cmd_InvCreate(argv(1));
 	}
 	else if (cmd == "invswap")
 	{

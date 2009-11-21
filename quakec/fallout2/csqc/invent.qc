@@ -154,10 +154,6 @@ void(vector pos, float slotno, vector imgsize) SlotImageBig =
 			it = getstati(97);
 		if (slotno == 24)
 			it = getstati(98);
-		if (slotno == 25)
-			it = getstati(104);
-		if (slotno == 26)
-			it = getstati(105);
 	}
 
 	itname = GetItemImage(ToIID(it));
@@ -203,10 +199,6 @@ void(vector pos, float slotno) SlotImageSmall =
 			it = getstati(97);
 		if (slotno == 24)
 			it = getstati(98);
-		if (slotno == 25)
-			it = getstati(104);
-		if (slotno == 26)
-			it = getstati(105);
 	}
 
 	itname = GetItemImage(ToIID(it));
@@ -545,6 +537,7 @@ void() Trader_Draw =
 		drawstring('32 16 0', itname, '8 8 0', '1 1 1', 1);
 
 	price = GetBaseValue(ToIID(it));
+	price = ceil(price * (1 - (getstati(104)/30)));
 	price2 = ftos(price);
 	money = getstati(50);
 	money2 = ftos(money);
@@ -570,9 +563,9 @@ void() Perks_Draw =
 	if (mousepos_y >= 2.0*IMGSIZEF*(scrwidth/640) && mousepos_y <= 4*IMGSIZEF*(scrwidth/640))
 	{
 		if (mousepos_x >= 3*IMGSIZEF*(scrwidth/640) && mousepos_x <= 5.5*IMGSIZEF*(scrwidth/640))
-			selected_class = 8;
-		else if (mousepos_x >= 6*IMGSIZEF*(scrwidth/640) && mousepos_x <= 7.5*IMGSIZEF*(scrwidth/640))
 			selected_class = 9;
+		else if (mousepos_x >= 6*IMGSIZEF*(scrwidth/640) && mousepos_x <= 7.5*IMGSIZEF*(scrwidth/640))
+			selected_class = 10;
 		else
 			selected_class = 0;		
 	}
@@ -581,12 +574,12 @@ void() Perks_Draw =
 
 
 		if (mousepos_x >= 300*(scrwidth/640) && mousepos_x <= 335*(scrwidth/640))
-			selected_class = 5;
-		else if (mousepos_x >= 350*(scrwidth/640) && mousepos_x <= 385*(scrwidth/640))
 			selected_class = 6;
+		else if (mousepos_x >= 350*(scrwidth/640) && mousepos_x <= 385*(scrwidth/640))
+			selected_class = 7;
 
 		else if (mousepos_x >= 400*(scrwidth/640) && mousepos_x <= 435*(scrwidth/640))
-			selected_class = 7;
+			selected_class = 8;
 		else
 			selected_class = 0;
 	}
@@ -614,7 +607,7 @@ void() Perks_Draw =
 void() Items_Draw =
 {
 	local float it;
-	local string itname;
+	local string itname, w1, w2;
 
 	drawpic('0 0 0', "gui/pipboy/items.png", '640 480 0'*(scrwidth/640), '1 1 1', 1);
 
@@ -624,12 +617,12 @@ void() Items_Draw =
 		drawpic('0 0 0', "gui/pipboy/items.png", '640 480 0'*(scrwidth/640), '1 1 1', 1);
 
 		if (mousepos_x >= 300*(scrwidth/640) && mousepos_x <= 325*(scrwidth/640))
-			selected_class = 5;
-		else if (mousepos_x >= 350*(scrwidth/640) && mousepos_x <= 385*(scrwidth/640))
 			selected_class = 6;
+		else if (mousepos_x >= 350*(scrwidth/640) && mousepos_x <= 385*(scrwidth/640))
+			selected_class = 7;
 
 		else if (mousepos_x >= 400*(scrwidth/640) && mousepos_x <= 435*(scrwidth/640))
-			selected_class = 7;
+			selected_class = 8;
 		else
 			selected_class = 0;
 	}
@@ -671,6 +664,12 @@ void() Items_Draw =
 	itname = (ftos(GetItemWeight(ToIID(it))));
 	drawstring('5 4.3 0'*IMGSIZEF*(scrwidth/640) + '0 24 0'*(scrwidth/640), strcat("weight:    ", itname, "\n"), '8 8 0'*(scrwidth/640), '1 1 1', 1);
 
+	w1 = ftos(getstati(52));
+	w2 = ftos(getstati(53));
+
+	drawstring('7 5 0'*IMGSIZEF*(scrwidth/640) + '0 0 0'*(scrwidth/640), "weight\n", '8 8 0'*(scrwidth/640), '1 1 1', 1);
+	drawstring('7 5 0'*IMGSIZEF*(scrwidth/640) + '0 8 0'*(scrwidth/640), strcat(w1, "/", w2, "\n"), '8 8 0'*(scrwidth/640), '1 1 1', 1);
+
 	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
 };
 
@@ -679,7 +678,7 @@ void() Items_Draw =
 void() GainPerk_Draw =
 {
 	local float it;
-	local string itname, pn, pd;
+	local string itname, pn, pd, pd2;
 
 	drawpic('0 0 0', "gui/pipboy/gainperk.png", '640 480 0'*(scrwidth/640), '1 1 1', 1);
 
@@ -730,16 +729,17 @@ void() GainPerk_Draw =
 	drawpic('2 3 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Mutation.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 	drawpic('3 3 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Narrow Escape.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 	drawpic('4 3 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Schizophrenia.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
-	drawpic('5 3 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Sleep Tight.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+	drawpic('5 3 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Placebo Effect.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 	drawpic('6 3 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Economic Moves.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 
 	drawpic('2 4 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Nuclear Man.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 
 	pn = PerkName(1, which_perk);
 	pd = GetPerkDesc(which_perk);
+	pd2 = GetPerkDesc2(which_perk);
 	drawstring('32 16 0'*(scrwidth/640), pn, '8 8 0'*(scrwidth/640), '1 1 1', 1);
 	drawstring('32 32 0'*(scrwidth/640), pd, '8 8 0'*(scrwidth/640), '1 1 1', 1);
-
+	drawstring('32 40 0'*(scrwidth/640), pd2, '8 8 0'*(scrwidth/640), '1 1 1', 1);
 
 	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
 };
@@ -751,106 +751,70 @@ void() Pipboy_Draw =
 	string skill;
 	vector w;
 
-	width = cvar("vid_conwidth");
-	height = cvar("vid_conheight");
 
 
+	if (mousepos_x >= 192 && mousepos_x <= 512)
+		if (mousepos_y >= 240 && mousepos_y <= 304)
+			selected_class = ceil((mousepos_x-191)/64);
 
-	if (mousepos_y >= 200*(scrwidth/640) && mousepos_y <= 325*(scrwidth/640))
-	{
-		if (mousepos_x >= 150*(scrwidth/640) && mousepos_x <= 250*(scrwidth/640))
-		{
-			drawpic('0 0 0', "gui/pipboy/skills2.jpg", '640 480 0'*(scrwidth/640), '1 1 1', 1);
-			selected_class = 1;
-		}
-		else if (mousepos_x >= 250*(scrwidth/640) && mousepos_x <= 350*(scrwidth/640))
-		{
-			drawpic('0 0 0', "gui/pipboy/skills3.jpg", '640 480 0'*(scrwidth/640), '1 1 1', 1);
-			selected_class = 2;
-		}
-		else if (mousepos_x >= 350*(scrwidth/640) && mousepos_x <= 450*(scrwidth/640))
-		{
-			drawpic('0 0 0', "gui/pipboy/skills4.jpg", '640 480 0'*(scrwidth/640), '1 1 1', 1);
-			selected_class = 3;
-		}
-		else if (mousepos_x >= 450*(scrwidth/640) && mousepos_x <= 550*(scrwidth/640))
-		{
-			drawpic('0 0 0', "gui/pipboy/skills5.jpg", '640 480 0'*(scrwidth/640), '1 1 1', 1);
-			selected_class = 4;
-		}
-		else
-		{
-			drawpic('0 0 0', "gui/pipboy/skills1.jpg", '640 480 0'*(scrwidth/640), '1 1 1', 1);
-			selected_class = 0;
-		}
-	}
+
 	else if (mousepos_y >= 390*(scrwidth/640) && mousepos_y <= 425*(scrwidth/640))
 	{
 
-		drawpic('0 0 0', "gui/pipboy/skills1.jpg", '640 480 0'*(scrwidth/640), '1 1 1', 1);
+		drawpic('0 0 0', "gui/pipboy/items.png", '640 480 0'*(scrwidth/640), '1 1 1', 1);
 
 		if (mousepos_x >= 300*(scrwidth/640) && mousepos_x <= 325*(scrwidth/640))
-			selected_class = 5;
-		else if (mousepos_x >= 350*(scrwidth/640) && mousepos_x <= 375*(scrwidth/640))
 			selected_class = 6;
-
-		else if (mousepos_x >= 400*(scrwidth/640) && mousepos_x <= 425*(scrwidth/640))
+		else if (mousepos_x >= 350*(scrwidth/640) && mousepos_x <= 385*(scrwidth/640))
 			selected_class = 7;
+
+		else if (mousepos_x >= 400*(scrwidth/640) && mousepos_x <= 435*(scrwidth/640))
+			selected_class = 8;
 		else
 			selected_class = 0;
 	}
-	else
-	{
-		drawpic('0 0 0', "gui/pipboy/skills1.jpg", '640 480 0'*(scrwidth/640), '1 1 1', 1);
-		selected_class = 0;
-	}
+
+	drawpic('0 0 0', "gui/pipboy/pipboy.png", '640 480 0'*(scrwidth/640), '1 1 1', 1);
+
+
+	drawpic('192 256 0'*(scrwidth/640), "gui/pipboy/combat.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+	drawpic('256 256 0'*(scrwidth/640), "gui/pipboy/doctor.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+	drawpic('320 256 0'*(scrwidth/640), "gui/pipboy/sneak.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+	drawpic('384 256 0'*(scrwidth/640), "gui/pipboy/science.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+	drawpic('448 256 0'*(scrwidth/640), "gui/pipboy/speech.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+
+	if (selected_class == 1)
+		drawpic('128 64 0'*(scrwidth/640), "gui/pipboy/combat.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
+	else if (selected_class == 2)
+		drawpic('128 64 0'*(scrwidth/640), "gui/pipboy/doctor.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
+	else if (selected_class == 3)
+		drawpic('128 64 0'*(scrwidth/640), "gui/pipboy/sneak.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
+	else if (selected_class == 4)
+		drawpic('128 64 0'*(scrwidth/640), "gui/pipboy/science.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
+	else if (selected_class == 5)
+		drawpic('128 64 0'*(scrwidth/640), "gui/pipboy/speech.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
 
 
 	if (selected_class == 1)
-	{
-		drawstring('200 50 0'*(scrwidth/640), "   combat", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 66 0'*(scrwidth/640), "place points into this skill for improved", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 74 0'*(scrwidth/640), "handling of weapons, as well as increased", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 82 0'*(scrwidth/640), "carry capacity and other aspects of being", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 90 0'*(scrwidth/640), "trained in combat.", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-	}
-	if (selected_class == 2)
-	{
-		drawstring('200 50 0'*(scrwidth/640), "   doctor", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 66 0'*(scrwidth/640), "place points into this skill for improved", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 74 0'*(scrwidth/640), "chem use, which substantially affects the", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 82 0'*(scrwidth/640), "amount of healing done, as well as all of", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 90 0'*(scrwidth/640), "the other aspects of first aid.", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-	}
-	if (selected_class == 3)
-	{
-		drawstring('200 50 0'*(scrwidth/640), "   sneak", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 66 0'*(scrwidth/640), "place points into this skill to maximize", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 74 0'*(scrwidth/640), "your ability to remain unseen by enemies.", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 82 0'*(scrwidth/640), "grants higher sneak ability and how fast", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 90 0'*(scrwidth/640), "you can pick locks, among other things.", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-
-	}
-	if (selected_class == 4)
-	{
-		drawstring('200 50 0'*(scrwidth/640), "   science", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 66 0'*(scrwidth/640), "place points into this skill to increase", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 74 0'*(scrwidth/640), "your chances of making useful items from", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 82 0'*(scrwidth/640), "junk found in the wasteland. use the mix", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-		drawstring('200 90 0'*(scrwidth/640), "box found in your inventory screen.", '8 8 0'*(scrwidth/640), '1 1 1', 1);
-
-	}
-
+		drawstring('196 64 0'*(scrwidth/640), "combat", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+	else if (selected_class == 2)
+		drawstring('196 64 0'*(scrwidth/640), "doctor", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+	else if (selected_class == 3)
+		drawstring('196 64 0'*(scrwidth/640), "sneak", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+	else if (selected_class == 4)
+		drawstring('196 64 0'*(scrwidth/640), "science", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+	else if (selected_class == 5)
+		drawstring('196 64 0'*(scrwidth/640), "speech", '16 16 0'*(scrwidth/640), '1 1 1', 1);
 
 	bar = 0;
 	lvl = getstati(100);
 	skill = ftos(lvl+1);
 	while (bar <= lvl)
 	{
-		drawpic('210 190 0'*(scrwidth/640) - ('0 4 0'*bar*(scrwidth/640)),  "gui/graph/red.jpg", '16 2 0'*2*(scrwidth/640), '1 1 1', 1);		
+		drawpic('208 230 0'*(scrwidth/640) - ('0 4 0'*bar*(scrwidth/640)),  "gui/pipboy/graph/red.jpg", '16 2 0'*2*(scrwidth/640), '1 1 1', 1);		
 		bar = bar + 1;
 	}
-		drawstring('220 190 0'*(scrwidth/640) - ('0 4 0'*(lvl+4)*(scrwidth/640)), skill, '8 8 0'*(scrwidth/640), '1 1 1', 1);
+		drawstring('218 230 0'*(scrwidth/640) - ('0 4 0'*(lvl+4)*(scrwidth/640)), skill, '12 12 0'*(scrwidth/640), '1 1 1', 1);
 
 
 	bar = 0;
@@ -858,30 +822,41 @@ void() Pipboy_Draw =
 	skill = ftos(lvl+1);
 	while (bar <= lvl)
 	{
-		drawpic('305 190 0'*(scrwidth/640)  - ('0 4 0'*bar*(scrwidth/640)),  "gui/graph/green.jpg", '16 2 0'*2*(scrwidth/640), '1 1 1', 1);		
+		drawpic('272 230 0'*(scrwidth/640)  - ('0 4 0'*bar*(scrwidth/640)),  "gui/pipboy/graph/green.jpg", '16 2 0'*2*(scrwidth/640), '1 1 1', 1);		
 		bar = bar + 1;
 	}
-		drawstring('315 190 0'*(scrwidth/640) - ('0 4 0'*(lvl+4)*(scrwidth/640)), skill, '8 8 0'*(scrwidth/640), '1 1 1', 1);
+		drawstring('280 230 0'*(scrwidth/640) - ('0 4 0'*(lvl+4)*(scrwidth/640)), skill, '12 12 0'*(scrwidth/640), '1 1 1', 1);
 
 	bar = 0;
 	lvl = getstati(102);
 	skill = ftos(lvl+1);
 	while (bar <= lvl)
 	{
-		drawpic('395 190 0'*(scrwidth/640) - ('0 4 0'*bar*(scrwidth/640)),  "gui/graph/blue.jpg", '16 2 0'*2*(scrwidth/640), '1 1 1', 1);		
+		drawpic('336 230 0'*(scrwidth/640) - ('0 4 0'*bar*(scrwidth/640)),  "gui/pipboy/graph/blue.jpg", '16 2 0'*2*(scrwidth/640), '1 1 1', 1);		
 		bar = bar + 1;
 	}
-		drawstring('405 190 0'*(scrwidth/640) - ('0 4 0'*(lvl+4)*(scrwidth/640)), skill, '8 8 0'*(scrwidth/640), '1 1 1', 1);
+		drawstring('346 230 0'*(scrwidth/640) - ('0 4 0'*(lvl+4)*(scrwidth/640)), skill, '12 12 0'*(scrwidth/640), '1 1 1', 1);
 
 	bar = 0;
 	lvl = getstati(103);
 	skill = ftos(lvl+1);
 	while (bar <= lvl)
 	{
-		drawpic('485 190 0'*(scrwidth/640) - ('0 4 0'*bar*(scrwidth/640)),  "gui/graph/yellow.jpg", '16 2 0'*2*(scrwidth/640), '1 1 1', 1);		
+		drawpic('400 230 0'*(scrwidth/640) - ('0 4 0'*bar*(scrwidth/640)),  "gui/pipboy/graph/yellow.jpg", '16 2 0'*2*(scrwidth/640), '1 1 1', 1);		
 		bar = bar + 1;
 	}
-		drawstring('495 190 0'*(scrwidth/640) - ('0 4 0'*(lvl+4)*(scrwidth/640)), skill, '8 8 0'*(scrwidth/640), '1 1 1', 1);
+		drawstring('410 230 0'*(scrwidth/640) - ('0 4 0'*(lvl+4)*(scrwidth/640)), skill, '12 12 0'*(scrwidth/640), '1 1 1', 1);
+
+
+	bar = 0;
+	lvl = getstati(104);
+	skill = ftos(lvl+1);
+	while (bar <= lvl)
+	{
+		drawpic('464 230 0'*(scrwidth/640) - ('0 4 0'*bar*(scrwidth/640)),  "gui/pipboy/graph/gray.jpg", '16 2 0'*2*(scrwidth/640), '1 1 1', 1);		
+		bar = bar + 1;
+	}
+		drawstring('472 230 0'*(scrwidth/640) - ('0 4 0'*(lvl+4)*(scrwidth/640)), skill, '12 12 0'*(scrwidth/640), '1 1 1', 1);
 
 	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
 };
@@ -1238,6 +1213,8 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 						else if (selected_class == 4)
 							localcmd("cmd gainlevel science\n");
 						else if (selected_class == 5)
+							localcmd("cmd gainlevel speech\n");
+						else if (selected_class == 6)
 						{
 							show_inventory = false;
 							show_pipboy = true;
@@ -1246,7 +1223,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							show_items = false;
 							show_gainperk = false;
 						}
-						else if (selected_class == 6)
+						else if (selected_class == 7)
 						{
 							show_inventory = false;
 							show_pipboy = false;
@@ -1255,7 +1232,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							show_items = true;
 							show_gainperk = false;
 						}
-						else if (selected_class == 7)
+						else if (selected_class == 8)
 						{
 							show_inventory = false;
 							show_pipboy = false;
@@ -1268,7 +1245,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 					}
 					else if (show_items)	
 					{
-						if (selected_class == 5)
+						if (selected_class == 6)
 						{
 							show_inventory = false;
 							show_pipboy = true;
@@ -1277,7 +1254,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							show_items = false;
 							show_gainperk = false;
 						}
-						else if (selected_class == 6)
+						else if (selected_class == 7)
 						{
 							show_inventory = false;
 							show_pipboy = false;
@@ -1286,7 +1263,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							show_items = true;
 							show_gainperk = false;
 						}
-						else if (selected_class == 7)
+						else if (selected_class == 8)
 						{
 							show_inventory = false;
 							show_pipboy = false;
@@ -1298,7 +1275,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 					}
 					else if (show_perks)	
 					{
-						if (selected_class == 5)
+						if (selected_class == 6)
 						{
 							show_inventory = false;
 							show_pipboy = true;
@@ -1307,7 +1284,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							show_items = false;
 							show_gainperk = false;
 						}
-						else if (selected_class == 6)
+						else if (selected_class == 7)
 						{
 							show_inventory = false;
 							show_pipboy = false;
@@ -1316,7 +1293,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							show_items = true;
 							show_gainperk = false;
 						}
-						else if (selected_class == 7)
+						else if (selected_class == 8)
 						{
 							show_inventory = false;
 							show_pipboy = false;
@@ -1325,7 +1302,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							show_items = false;
 							show_gainperk = false;
 						}
-						else if (selected_class == 8)
+						else if (selected_class == 9)
 						{
 							show_inventory = false;
 							show_pipboy = false;
@@ -1335,7 +1312,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							show_gainperk = true;
 							perkslot = 1;
 						}
-						else if (selected_class == 9)
+						else if (selected_class == 10)
 						{
 							show_inventory = false;
 							show_pipboy = false;

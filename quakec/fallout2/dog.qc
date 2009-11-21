@@ -172,44 +172,8 @@ void() Sniff =
 				sound (self, CHAN_VOICE, "dog/dsight.wav", 1, ATTN_NORM);
 
 				self.rtime = time + 5;
-				if (te.class == 2 && random()*100 > 99)
-				{
-					spawn_excla(te, 1);
-					te.sneak = 0;
-					sprint(te, 2, "detected!\n");
-					self.enemy = te;
-					FoundTarget();
-				}
-				else if (te.class != 2 && random()*100 > 80)
-				{
-					spawn_excla(te, 1);
-					te.sneak = 0;
-					sprint(te, 2, "detected!\n");
-					self.enemy = te;
-					FoundTarget();
-				}
-
 			}
 			return;
-		}
-
-	if (self.classname != "robofang")
-		return;
-
-		x = 20;
-		te = findradius (self.origin, 500);
-		while (te)
-		{
-			if (te.classname == "monster" && te.enemy == self.owner)
-			{
-				if (self.rtime < time)
-					sound (self, CHAN_VOICE, "dog/dsight.wav", 1, ATTN_NORM);
-				self.rtime = time + 5;
-				self.enemy = te;
-				FoundTarget();
-				return;
-			}
-			te = te.chain;
 		}
 };
 

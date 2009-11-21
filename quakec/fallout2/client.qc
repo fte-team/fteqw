@@ -44,7 +44,16 @@ void() SetChangeParms =
 	if (!self.current_slot)	//changing without spawning?
 		DecodeLevelParms();	//make sure we have our inventory!
 
-
+	if (self.supertime > 0)
+	{
+		self.supertime = 0;
+		sprint(self, 2, "you are now back to your normal self.\n");
+		self.skill_combat = self.skill_combat - 20;
+		self.skill_doctor = self.skill_doctor - 20;
+		self.skill_sneak = self.skill_sneak - 20;
+		self.skill_science = self.skill_science - 20;
+		self.skill_speech = self.skill_speech - 20;
+	}
 
 	self.items = self.items - (self.items & 
 	(IT_KEY1 | IT_KEY2 | IT_INVISIBILITY | IT_INVULNERABILITY | IT_SUIT | IT_QUAD) );
@@ -54,13 +63,12 @@ void() SetChangeParms =
 	parm6 = self.skill_doctor;
 	parm7 = self.skill_sneak;
 	parm14 = self.skill_science;
-
+	parm16 = self.skill_speech;
 
 
 	parm8 = self.ammo_shells;
 	parm9 = self.perk1;
 	parm10 = self.perk2;
-	parm16 = self.current_slot;
 	parm17 = self.islot1;
 	parm18 = self.islot2;
 	parm19 = self.islot3;
@@ -102,7 +110,7 @@ void() SetNewParms =
 	parm5 = 0;
 	parm6 = 0;
 	parm7 = 0;
-	parm8 = 200;
+	parm8 = 0;
 	parm9 = 0;
 	parm10 = 0;
 	parm11 = 0;
@@ -138,15 +146,14 @@ void() DecodeLevelParms =
 	self.skill_doctor = parm6;
 	self.skill_sneak = parm7;
 	self.skill_science = parm14;
+	self.skill_speech = parm16;
 
 	self.ammo_shells = parm8;
 	self.perk1 = parm9;
 	self.perk2 = parm10;
 
-	self.class = 1;
 
-	if (parm16 > 0)
-		self.current_slot = parm16;
+	self.current_slot = 1;
 
 	self.islot1 = parm17;
 	self.islot2 = parm18;
@@ -616,17 +623,17 @@ void() PutClientInServer =
 	DecodeLevelParms ();
 
 
-	if (self.current_slot == 0)
+	if (self.islot1 == 0 && self.islot2 == 0 && self.islot3 == 0 && self.islot4 == 0 && self.islot5 == 0 && self.islot6 == 0 && self.islot7 == 0 && self.islot8 == 0 && self.islot9 == 0 && self.islot10 == 0 && self.islot11 == 0 && self.islot12 == 0)
 	{
 		self.islot1 = SlotVal(IID_WP_GLOCK, 15);
 		self.islot2 = SlotVal(IID_WP_KNIFE, 1);
 		self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
-		self.islot5 = SlotVal(IID_CHEM_STIMPACK, 3);
-		self.islot7 = SlotVal(IID_AM_10MM, 30);
+		self.islot5 = SlotVal(IID_CHEM_STIMPACK, 5);
+		self.islot7 = SlotVal(IID_AM_10MM, 70);
 		self.islot8 = 0;
 		self.islot9 = 0;
 		self.islot10 = 0;
-		self.islot11 = 0;
+		self.islot11 = SlotVal(IID_CHEM_MEDICALBAG, 25);
 		self.islot12 = 0;
 		self.islot13 = 0;
 		self.islot14 = 0;
@@ -657,7 +664,7 @@ void() PutClientInServer =
 	self.fixangle = TRUE;           // turn this way immediately
 
 
-	self.max_health = 100 + self.skill_combat;
+	self.max_health = 80 + (self.skill_combat*4) + (self.skill_doctor*2) + (self.skill_sneak*2) + (self.skill_speech);
 
 	self.equipment_slot = 0;
 
@@ -758,16 +765,14 @@ void() PutClientInServer =
 	}
 
 	W_SetCurrentAmmo();
-	stuffcmd(self, "sizeup\n");
-	stuffcmd(self, "sizeup\n");
+	stuffcmd(self, "impulse 2\n");
+	stuffcmd(self, "impulse 1\n");
 
 
 	if (world.model == "maps/r_bunker.bsp")
 		stuffcmd(self, "play music/afterglow\n");
 	else if (world.map_obj == OBJ_DEADTOWN)
 		stuffcmd(self, "play music/necropolis\n");
-	else
-		stuffcmd(self, "play music/raiders\n");
 };
 
 
@@ -1212,12 +1217,25 @@ float(entity targ) check_fov =
 	vec = normalize (self.origin - targ.origin);
 	dot = vec * v_forward;
 	
-	if ( dot > 0.9)
+	if ( dot > 0.5)
 	{
 		return TRUE;
 	}
 
 	return FALSE;
+};
+
+float(entity targ) check_fov_num =
+{
+	local vector	vec;
+	local float		dot;
+	
+	makevectors (targ.angles);
+	vec = normalize (self.origin - targ.origin);
+	dot = vec * v_forward;
+	
+
+	return dot;
 };
 
 float(entity targ) check_fov_side =
@@ -1241,80 +1259,139 @@ float(entity targ) check_fov_side =
 
 void() SneakLevel =
 {
-	local float sn, st, front, r, q;
-	local entity te;
+	local float sn, st, front, r, q, x, b, c, y, z, t;
+	local entity te, ze;
 	local string report;
-
+	
 
 	front = 0;
-
-	te = findradius(self.origin, 1500);
-	while (te)
-	{
-		if (visible(te) && te.classname == "monster" && check_fov(te))			
-			r = vlen(self.origin - te.origin);
-
-			
-		te = te.chain;
-	}
+	q = 1200;
+	q = q - (self.skill_sneak*50);
 
 
-	sn = 90 + self.skill_sneak/2;
+	sn = 99;
+	self.sneak = 99;
 
-	//sneaking along a wall increases chance by 2%
-	makevectors(self.angles);
-	if (pointcontents (self.origin + v_right*64) == CONTENT_SOLID)
-		sn = sn + 2;
-	else if (pointcontents (self.origin - v_right*64) == CONTENT_SOLID)
-		sn = sn + 2;
-	else if (pointcontents (self.origin + v_forward*64) == CONTENT_SOLID)
-		sn = sn + 2;
-	else if (pointcontents (self.origin - v_forward*64) == CONTENT_SOLID)
-		sn = sn + 2;
 
-	//duck or prone gives a 2% bonus to stealth
-	if (self.position > 0)
-		sn = sn + 2;
+	//light level gives a bonus/penalty to stealth
+	b = light_level(self.origin);
+	
+	if (b <= 50)
+		q = q - (200);
+	if (b >= 200)
+		q = q + (200);
+
+
+	//standing still gives a bonus to stealth
+	if (self.velocity == '0 0 0')
+		q = q - (200);
+
+
+	//stealthboy gives a bonus to stealth
+	st = ToIID(self.islot4);
+	if (st == IID_EQUIP_STEALTHBOY)
+		q = q - (100);
+
+	//combat armor gives a penalty to stealth
+	st = ToIID(self.islot3);
+	if (st == IID_ARM_COMBAT || st == IID_ARM_SEVA)
+		q = q + (100);
+
+	//metal armor gives a large penalty to stealth
+	st = ToIID(self.islot3);
+	if (st == IID_ARM_METAL)
+		q = q + (200);
+
+	//power armor gives a huge penalty to stealth
+	st = ToIID(self.islot3);
+	if (st == IID_ARM_LPOWER)
+		q = q + (300);
+
+	//tesla armor gives a massive penalty to stealth
+	st = ToIID(self.islot3);
+	if (st == IID_ARM_TESLA)
+		q = q + (400);
 
 	//walking in front of a monster at close range is very bad
 	//at longer ranges it isn't so bad to do so
 	//thus even healer and barbarian types can sneak if they do so smartly
 
-	if (r > 0 && r <= 600)
-	{
-		r = 600 - r;
-		q = 3 + (self.skill_sneak/2);
-		//stealthboy gives a bonus to sneak range
-		st = ToIID(self.islot4);
-		if (st == IID_EQUIP_STEALTHBOY)
-			q = 3 + (self.skill_sneak/2) + 3;
 
-		sn = sn - r/q;
+	c = 0;
+
+	te = findradius(self.origin, q);
+	while (te)
+	{
+		if (visible(te) && te.classname == "monster" && (check_fov_num(te) > 0.5) && te.health > 3)
+		{	
+			if (c == 0)
+			{
+
+				r = vlen(self.origin - te.origin);
+				t = q * (check_fov_num(te));
+				t = t * (check_fov_num(te));
+				t = t * (check_fov_num(te));
+				y = r / t;
+				ze = te;
+				c = 1;
+/*
+				bprint(2, "test1: ");
+				bprint(2, ftos(r));
+				bprint(2, " ");
+				bprint(2, ftos(q));
+				bprint(2, " ");
+				bprint(2, ftos(t));
+				bprint(2, "\n");*/
+			}
+			else
+			{
+
+				r = vlen(self.origin - te.origin);
+				t = q * (check_fov_num(te));
+				t = t * (check_fov_num(te));
+				t = t * (check_fov_num(te));
+				z = r / t;
+				/*
+				bprint(2, "test2: ");
+				bprint(2, ftos(r));
+				bprint(2, " ");
+				bprint(2, ftos(q));
+				bprint(2, " ");
+				bprint(2, ftos(t));
+				bprint(2, "\n");*/
+
+				if (z < y)
+				{
+					ze = te;
+					y = z;
+				}
+
+			}
+		}
+			
+		te = te.chain;
 	}
 
 
-	//combat armor gives a penalty to stealth
-	st = ToIID(self.islot3);
-	if (st == IID_ARM_COMBAT || st == IID_ARM_SEVA)
-		sn = sn - 5;
+	if (r > 0 && r <= q)
+	{
+		sn = 150 * (r/t);
+		sn = sn - 50;
+	}
 
-	//metal armor gives a large penalty to stealth
-	st = ToIID(self.islot3);
-	if (st == IID_ARM_METAL)
-		sn = sn - 10;
+	if (self.invistime > 0)
+	{
+		bprint(2, "invistime\n");
+		self.sneak = 99;
+	}
 
-	//power armor gives a huge penalty to stealth
-	st = ToIID(self.islot3);
-	if (st == IID_ARM_LPOWER)
-		sn = sn - 25;
 
-	//tesla armor gives a massive penalty to stealth
-	st = ToIID(self.islot3);
-	if (st == IID_ARM_TESLA)
-		sn = sn - 40;
-
-	if (sn <= 5)
-		sn = 5;
+	if (sn <= 1 && sn > 0)
+	{
+		sprint(self, 2, "you've been detected!\n");
+		self.sneak = 0;
+		return;
+	}
 
 	if (sn >= 99)
 		sn = 99;
@@ -1526,23 +1603,39 @@ void() PlayerPreThink =
 
 	if (self.score < 200)
 	{
-		if ((self.skill_combat + self.skill_doctor + self.skill_sneak + self.skill_science) <= 10)
+		if ((self.skill_combat + self.skill_doctor + self.skill_sneak + self.skill_science + self.skill_speech) <= 8)
 		{
 			self.score = 200;
 	
-			sound (self, CHAN_BODY, "misc/secret.wav", 1, ATTN_NORM);
+			sound (self, CHAN_BODY, "misc/levelup.wav", 1, ATTN_NORM);
+			sprint(self, 2, "you have gained a level!\npress 'p' to assign a skill point.\n");
+		}
+	}
+	else if (self.score > 200)
+	{
+		if ((self.skill_combat + self.skill_doctor + self.skill_sneak + self.skill_science + self.skill_speech) > 8)
+		{
+			self.score = 200;
+	
+			sound (self, CHAN_BODY, "misc/levelup.wav", 1, ATTN_NORM);
 			sprint(self, 2, "you have gained a level!\npress 'p' to assign a skill point.\n");
 		}
 	}
 
-
 	//perk1timer and perk2timer are "cooldowns" for each perk
 		if (self.perk1timer > 0)
 			self.perk1timer = self.perk1timer - 1;
-
 		if (self.perk2timer > 0)
 			self.perk2timer = self.perk2timer - 1;
 
+	//speech skill provides faster perk regeneration
+		if (random()*40 < self.skill_speech)
+		{
+			if (self.perk1timer > 0)
+				self.perk1timer = self.perk1timer - 1;
+			if (self.perk2timer > 0)
+				self.perk2timer = self.perk2timer - 1;
+		}
 
 	self.shadowtime = time_left;
 
@@ -1558,13 +1651,36 @@ void() PlayerPreThink =
 		PositionControl();
 		WeightControl();
 		ArmorCheck();
-		SneakLevel();
+		if (self.sneak > 0)
+			SneakLevel();
 		self.accept = 0;
 		
 		self.endinfo1 = rescue;
 		self.endinfo2 = dead_hostage;
 		self.endinfo3 = hostages;
 
+		if (self.invistime > 1)
+			self.invistime = self.invistime -1;
+		else if (self.invistime == 1)
+		{
+			self.invistime = 0;
+			sound (self, CHAN_BODY, "items/inv2.wav", 1, ATTN_NORM);
+			sprint(self, 2, "your disguise wears off.\n");
+		}
+
+		if (self.supertime > 1)
+			self.supertime = self.supertime -1;
+		else if (self.supertime == 1)
+		{
+			self.supertime = 0;
+			sound (self, CHAN_BODY, "items/damage2.wav", 1, ATTN_NORM);
+			sprint(self, 2, "you are now back to your normal self.\n");
+			self.skill_combat = self.skill_combat - 20;
+			self.skill_doctor = self.skill_doctor - 20;
+			self.skill_sneak = self.skill_sneak - 20;
+			self.skill_science = self.skill_science - 20;
+			self.skill_speech = self.skill_speech - 20;
+		}
 
 		local float lgrip, rgrip;
 
@@ -1652,8 +1768,6 @@ void() PlayerPreThink =
 				stuffcmd(self, "play music/afterglow\n");
 			else if (world.map_obj == OBJ_DEADTOWN)
 				stuffcmd(self, "play music/necropolis\n");
-			else
-				stuffcmd(self, "play music/raiders\n");
 
 			self.musictimer = 1;
 		}
@@ -1809,7 +1923,7 @@ void() CheckPowerups =
 	else
 	{
 		self.items = self.items - (self.items & IT_INVISIBILITY);
-		if (self.ghost == 1 || self.class == 0 || self.team == 0)
+		if (self.ghost == 1 || self.team == 0)
 		{
 			self.modelindex = modelindex_gone;
 			return;
@@ -2250,12 +2364,12 @@ void(entity targ, entity attacker) ClientObituary =
 		if (attacker.critical == 3) //headshot
 		{
 			bprint (PRINT_MEDIUM, "X ");
-			attacker.score = attacker.score + 25;
+			attacker.score = attacker.score + 1;
 		}
 		if (attacker.critical == 777) //through the wall
 		{
 			bprint (PRINT_MEDIUM, "% ");
-			attacker.score = attacker.score + 50;
+			attacker.score = attacker.score + 5;
 		}
 		if (attacker.critical == 778) //wall headshot
 		{
@@ -2265,7 +2379,7 @@ void(entity targ, entity attacker) ClientObituary =
 		if (attacker.velocity_z != 0)
 		{
 			bprint (PRINT_MEDIUM, "@ ");
-			attacker.score = attacker.score - 50;
+			attacker.score = attacker.score - 2;
 		}
 //		if (attacker.current_slot == 1 && attacker.mag1 == 0)
 //			bprint (PRINT_MEDIUM, "! ");
@@ -2575,89 +2689,5 @@ void(entity targ, entity attacker) ClientObituary =
 
 void() Identify =
 {
-	local string c1, c2, c3, c5;
-	local float tmp;
-
-	makevectors (self.v_angle);
-	traceline (self.origin, (self.origin + (v_forward * 2000)), 32, self);
-	if (trace_ent.classname == "player" && self.currentmenu == "none" && self.team == trace_ent.team)
-	{
-		if (trace_ent.class == 1)
-			c1 = "\nfirst aid\n";
-		else if (trace_ent.class == 2)
-			c1 = "\nstealth\n";
-		else if (trace_ent.class == 3)
-			c1 = "\ncombat\n";
-		else if (trace_ent.class == 4)
-			c1 = "\nscience\n";
-		else
-			c1 = "\n";
-
-		if (trace_ent.health <= 0)
-			c2 = "dead";
-		c2 = ftos (trace_ent.health);
-		c3 = GetItemName (ToIID(ItemInSlot(trace_ent, trace_ent.current_slot)));
-
-		if (trace_ent.islot3 == 0)
-			c5 = "no armor";
-		else
-			c5 = GetItemName(ToIID(trace_ent.islot3));
-
-		centerprint (self, trace_ent.netname, c1, c2, "\n", c3, "\n", c5);
-	}
-	if (trace_ent.classname == "robowolf" && self.currentmenu == "none")
-	{
-		c1 = "robo-fang\n";
-		c2 = "robot construct\nowned by ";
-		c3 = trace_ent.track.netname;
-		if (trace_ent.team == self.team)
-			c5 = "\nfriendly\n";
-		else
-			c5 = "\nhostile\n";
-
-		centerprint (self, trace_ent.netname, c1, c2, c3, c5, "", "");
-	}
-	if (trace_ent.classname == "station" && self.currentmenu == "none")
-	{
-		c1 = trace_ent.netname;
-		if (self.armortype == 0)
-			c2 = "uncompleted";
-		else if (trace_ent.health >= trace_ent.max_health)
-			c2 = "online";
-		else if (trace_ent.health >= trace_ent.max_health*0.75)
-			c2 = "banged up";
-		else if (trace_ent.health >= trace_ent.max_health*0.50)
-			c2 = "damaged";
-		else
-			c2 = "almost destroyed";
-
-		c3 = trace_ent.track.netname;
-
-		centerprint (self, c1, "\nstationary bot", "\n", c2, "\n", "owned by ", c3);
-	}
-	if (trace_ent.classname == "monster" && self.currentmenu == "none")
-	{
-		c1 = "hostile";
-
-		tmp = ToIID(trace_ent.islot3);
-		if (tmp == 0)
-			c2 = "natural armor";
-		else if (tmp == IID_ARM_LEATHER)
-			c2 = "lightly armored";
-		else
-			c2 = GetItemName(ToIID(trace_ent.islot3));
-
-		if (trace_ent.weapon == 1)
-			c3 = "rifle";
-		if (trace_ent.weapon == 2)
-			c3 = "pistol";
-		if (trace_ent.weapon == 3)
-			c3 = "shotgun";
-		if (trace_ent.weapon == 4)
-			c3 = "smg";
-		if (trace_ent.weapon >= 5)
-			c3 = "assault rifle";
-
-		centerprint (self, trace_ent.netname, "\n", c1, "\n", c2, "\n", c3);
-	}
+return;
 };

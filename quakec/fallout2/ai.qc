@@ -366,8 +366,11 @@ float() FindTarget =
 
 
 
-	if (self.charmed == 1)
+	if (self.charmed >= 1)
+	{
+		self.charmed = self.charmed - 1;
 		return FALSE;
+	}
 
 
 	if (sight_entity_time >= time - 0.1 && !(self.spawnflags & 3) )
@@ -407,8 +410,6 @@ float() FindTarget =
 
 	if (client.team == 0)//client connecting
 		return FALSE;
-	if (client.class == 0)//client connecting
-		return FALSE;
 
 
 	if (r == RANGE_NEAR)
@@ -434,27 +435,13 @@ float() FindTarget =
 			self.alert = self.alert - 1;
 		}
 
-		//if your sneak level is 70% or higher you will never get caught
-		//alert guards get the full 100% random roll, otherwise 90%
-		if (self.alert == 0)
-			x = random()*80;
-		else
-			x = random()*100;
-		if (client.sneak >= 70 && client.velocity == '0 0 0')
-		{
-			sprint(client, 2, self.netname);
-			sprint(client, 2, " failed to detect you.\n");
-		}
-		else if (client.sneak > 0 && (x > client.sneak + 15))
+
+		if ((client.sneak <= 1) && (client.sneak > 0))
 		{
 			sprint(client, 2, "you've been detected!\n");
 			client.sneak = 0;
 		}
-		else if (client.sneak > 0)
-		{
-			sprint(client, 2, self.netname);
-			sprint(client, 2, " failed to detect you.\n");
-		}
+
 	}
 
 	if (client.sneak > 0)//sneaking players are invisible

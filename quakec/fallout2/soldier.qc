@@ -1706,7 +1706,7 @@ void () monster_army =
 	self.max_health = 80;
 	self.health = self.max_health;
 	self.team = 3;
-      self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
+        self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
 	self.armortype = 0.2;
 	self.armornoise = "misc/thud.wav";
 	self.th_stand = army_stand1;
@@ -1732,8 +1732,8 @@ void () monster_army =
 
 //soldiers have either pistol, smg, shotgun or rifle
 
-	if (random()*100 >= 80)
-		self.weapon = ceil(random()*4);
+	if (random()*100 >= 50)
+		self.weapon = 4;
 	else
 		self.weapon = 2;
 
@@ -1901,7 +1901,7 @@ void () monster_commander =
 	setsize (self, '-12 -12 -24', '12 12 32');
 	self.max_health = 200;
 	self.health = self.max_health;
-      self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
+        self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
 	self.armortype = 0.5;
 	self.helmet = 1;
 	self.th_stand = enf_stand1;

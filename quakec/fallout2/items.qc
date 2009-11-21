@@ -229,7 +229,7 @@ void() bomb_touch =
 	{
 		sound (self, CHAN_BODY, "items/locked.wav", 1, ATTN_NORM);
 		sprint(other, 2, "this is a high-tech bomb.\n");
-		if (other.class == 4)
+		if (other.skill_science > 0)
 		{
 			sprint(other, 2, "you may attempt to deactivate this\n");
 			sprint(other, 2, "bomb by pressing your 'action' key\n");

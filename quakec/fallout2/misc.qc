@@ -1020,7 +1020,7 @@ void() brotherhood_soldier =
 	setsize (self, '-16 -16 -24', '16 16 32');
 	self.takedamage = DAMAGE_NO;
 
-	self.xslot1 = SlotVal(IID_AM_45ACP, 100);
+	self.xslot1 = SlotVal(IID_WP_SLEDGE, 1);
 	self.xslot2 = SlotVal(IID_AM_10MM, 100);
 	self.xslot3 = SlotVal(IID_AM_12GAUGESHELLS, 100);
 	self.xslot4 = SlotVal(IID_AM_5MMHIGHVEL, 100);

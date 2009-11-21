@@ -61,7 +61,7 @@ void() SetupStats =
 	clientstat(60, 2, perk1);
 	clientstat(61, 2, current_slot);
 	clientstat(62, 2, team);
-	clientstat(63, 2, class);
+	clientstat(63, 2, shadowtime);
 	clientstat(64, 2, start_time);
 	clientstat(65, 2, location);
 	clientstat(66, 2, map_obj);
@@ -101,7 +101,7 @@ void() SetupStats =
 	clientstat(101, 2, skill_doctor);
 	clientstat(102, 2, skill_sneak);
 	clientstat(103, 2, skill_science);
-	clientstat(104, 2, shadowtime);
+	clientstat(104, 2, skill_speech);
 	clientstat(105, 2, announcercache);
 	clientstat(106, 2, radiation);
 	clientstat(108, 2, safezone);
@@ -124,6 +124,7 @@ void() get_difficulty =
 {
 	local entity te;
 	local float cr;
+	local string rating;
 
 	//challenge rating system
 	//
@@ -136,21 +137,13 @@ void() get_difficulty =
 	te = find (world, classname, "player");
 	while (te)
 	{
-
-		if (te.ammo_shells > 200)//money
-			challenge_rating += 1;
-		if (te.ammo_shells > 500)//money
-			challenge_rating += 1;
-		if (ToIID(te.islot1) >= IID_WP_AK112 || ToIID(te.islot2) >= IID_WP_AK112)//good weapon
-			challenge_rating += 1;
-		if (ToIID(te.islot3) >= IID_ARM_COMBAT)//good armor
-			challenge_rating += 1;
+			challenge_rating += GetItemThreatLevel(ToIID(te.islot1));
+			challenge_rating += GetItemThreatLevel(ToIID(te.islot1));
+			challenge_rating += GetItemThreatLevel(ToIID(te.islot3));
 
 		te = te.chain;
 	}
 
-	if (challenge_rating > 24)
-		challenge_rating = 24;
 };
 
 void() load_monster =
@@ -623,7 +616,9 @@ if (coop == 1) // Players vs Monsters
 	local float combat;
 
 	combat = 0;
-	get_difficulty();
+
+	if (random()*100<25);
+		get_difficulty();
 
 	te = find(world, classname, "monster");
 	while (te)
@@ -664,7 +659,7 @@ if (coop == 1) // Players vs Monsters
 	while (te)
 	{
 
-		if (te.health > 0 && te.class > 0)
+		if (te.health > 0 && te.team > 0)
 			pcount = pcount + 1;
 		if (te.health <= 0)
 			pdead = pdead + 1;
@@ -752,7 +747,7 @@ if (coop == 1) // Players vs Monsters
 				{
 					ze.missionbrief = 3;
 					ze.announcercache = 3;
-					ze.ammo_shells = ze.ammo_shells + (3*rescue);
+					ze.ammo_shells = ze.ammo_shells + (5*rescue);
 					ze.endinfo1 = rescue;
 					ze.endinfo2 = hostages;
 					ze.endinfo3 = dead_hostage;
@@ -775,7 +770,7 @@ if (coop == 1) // Players vs Monsters
 				{
 					ze.missionbrief = 3;
 					ze.announcercache = 4;
-					ze.ammo_shells = ze.ammo_shells + (3*rescue);
+					ze.ammo_shells = ze.ammo_shells + (5*rescue);
 					ze.endinfo1 = rescue;
 					ze.endinfo2 = hostages;
 					ze.endinfo3 = dead_hostage;
@@ -1408,7 +1403,7 @@ void () RecoilControl =
 				}
 
 
-					te.recoil = te.recoil - (0.20+(te.skill_combat*0.005));
+					te.recoil = te.recoil - (0.15+(te.skill_combat*0.005) + (te.skill_doctor*0.003) + (te.skill_sneak*0.002));
 			}
 			else
 			{
@@ -1608,8 +1603,9 @@ void() worldspawn =
 	precache_model ("progs/ammobox2.mdl");
 	precache_model ("progs/stop.spr");
 	precache_model ("progs/healing.spr");
+	precache_model ("progs/heart.spr");
 
-	precache_model ("progs/v_axe.mdl");
+	precache_model ("progs/v_disruptor.mdl");
 	precache_model ("progs/v_span.mdl");
 	precache_model ("progs/v_nail.mdl");
 	precache_model ("progs/v_rock.mdl");
@@ -1695,10 +1691,6 @@ void() worldspawn =
 	precache_model ("progs/w_bozar.mdl");
 	precache_model ("progs/money.mdl");
 
-	precache_model ("progs/turrgun.mdl");
-	precache_model ("progs/turrbase.mdl");
-	precache_model ("progs/miniturr.mdl");
-	precache_model ("progs/minibase.mdl");
 
 	precache_model ("progs/grenade2.mdl");
 	precache_model ("maps/b_bh10.bsp");
@@ -1762,12 +1754,20 @@ void() worldspawn =
 	precache_sound ("misc/hosdown.wav");
 	precache_sound ("misc/rescued.wav");
 	precache_sound ("misc/beep1.wav");
+	precache_sound ("misc/beep2.wav");
 	precache_sound ("misc/r_tele4.wav");
 	precache_sound ("buttons/switch02.wav");
 	precache_sound ("buttons/switch04.wav");
 	precache_sound ("misc/secret.wav");
-	precache_sound ("misc/fanfare.wav");
+	precache_sound ("player/levelup.wav");
+	precache_sound ("items/damage.wav");
+	precache_sound ("items/damage2.wav");
 
+
+	precache_sound ("player/prone1.wav");
+	precache_sound ("player/prone2.wav");
+	precache_sound ("player/prone3.wav");
+	precache_sound ("player/prone4.wav");
 	precache_sound ("player/gib1.wav");
 	precache_sound ("player/step1.wav");
 	precache_sound ("player/step2.wav");
@@ -1817,11 +1817,7 @@ void() worldspawn =
 	precache_sound ("weapons/mp5.wav");
 	precache_sound ("weapons/mp7.wav");
 	precache_sound ("weapons/rangem.wav");
-	precache_sound ("weapons/ric1.wav");
-	precache_sound ("weapons/ric2.wav");
-	precache_sound ("weapons/ric3.wav");
-	precache_sound ("weapons/ric4.wav");
-	precache_sound ("weapons/ric5.wav");
+
 	precache_sound ("weapons/tink1.wav");
 	precache_sound ("weapons/shell.wav");
 	precache_sound ("weapons/reload.wav");
@@ -1838,6 +1834,24 @@ void() worldspawn =
 	precache_sound ("player/berserk.wav");
 	precache_sound ("player/headshot.wav");
 	precache_sound ("player/hit1.wav");
+
+
+	precache_sound ("contact/armor1.wav");
+	precache_sound ("contact/armor2.wav");
+	precache_sound ("contact/armor3.wav");
+
+	precache_sound ("contact/rico1.wav");
+	precache_sound ("contact/rico2.wav");
+	precache_sound ("contact/rico3.wav");
+	precache_sound ("contact/rico4.wav");
+	precache_sound ("contact/rico5.wav");
+	precache_sound ("contact/rico6.wav");
+	precache_sound ("contact/rico7.wav");
+	precache_sound ("contact/rico8.wav");
+	precache_sound ("contact/rico9.wav");
+	precache_sound ("contact/rico10.wav");
+	precache_sound ("contact/rico11.wav");
+	precache_sound ("contact/rico12.wav");
 
 	precache_sound ("player/paina.wav");
 	precache_sound ("player/painb.wav");

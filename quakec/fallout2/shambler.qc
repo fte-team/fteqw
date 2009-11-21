@@ -179,9 +179,8 @@ void() sham_melee =
 	local float chance;
 	
 	chance = random();
-	if (self.class == 3)
-		sham_smash1 ();
-	else if (self.class == 5 && chance > 0.3)
+
+	if (chance > 0.5)
 		sham_swingr1 ();
 	else
 		sham_swingl1 ();
@@ -521,7 +520,6 @@ void() monster_shambler =
 
 	if (random() < 0.001)//shambler warrior
 	{
-		self.class = 3;
 		self.solid = SOLID_SLIDEBOX;
 		self.movetype = MOVETYPE_STEP;
 		setmodel (self, "progs/shambler.mdl");
@@ -539,7 +537,6 @@ void() monster_shambler =
 	}
 	else //shambler shaman
 	{
-		self.class = 5;
 		self.solid = SOLID_SLIDEBOX;
 		self.movetype = MOVETYPE_STEP;
 		setmodel (self, "progs/shambler.mdl");

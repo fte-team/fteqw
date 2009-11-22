@@ -1728,31 +1728,15 @@ void() worldspawn =
 	precache_sound ("items/lockpick1.wav");
 	precache_sound ("items/lockpick2.wav");
 
-
-	precache_sound ("radio/1_yes.wav");
-	precache_sound ("radio/2_no.wav");
-	precache_sound ("radio/3_letsgo.wav");
-	precache_sound ("radio/4_cover.wav");
-	precache_sound ("radio/5_recon.wav");
-	precache_sound ("radio/6_backup.wav");
-	precache_sound ("radio/7_hold.wav");
-	precache_sound ("radio/8_behind.wav");
-	precache_sound ("radio/9_secure.wav");
-	precache_sound ("radio/10_suppressing.wav");
-	precache_sound ("radio/11_silence.wav");
 	precache_sound ("radio/medic.wav");
 	precache_sound ("radio/grenade.wav");
 
 	precache_sound ("ambience/gunfire1.wav");
 	precache_sound ("ambience/gunfire5.wav");
 
-	precache_sound ("weapons/smoke.wav");
-	precache_sound ("weapons/energy2.wav");
-
 
 	precache_sound ("misc/hosdie1.wav");
 	precache_sound ("misc/hosdie2.wav");
-	precache_sound ("misc/hosdown.wav");
 	precache_sound ("misc/rescued.wav");
 	precache_sound ("misc/beep1.wav");
 	precache_sound ("misc/beep2.wav");
@@ -1783,16 +1767,13 @@ void() worldspawn =
 	precache_sound ("dog/dpain1.wav");
 	precache_sound ("dog/dsight.wav");
 	precache_sound ("dog/idle.wav");
-	precache_sound ("ogre/ak74.wav");
 	precache_sound ("ogre/ak47.wav");
-	precache_sound ("weapons/usp.wav");
 	precache_sound ("weapons/10mmpistol.wav");
 	precache_sound ("weapons/ak112.wav");
 	precache_sound ("weapons/amr.wav");
 	precache_sound ("misc/bounce_1.wav");
 	precache_sound ("misc/bounce_2.wav");
 	precache_sound ("misc/bounce_3.wav");
-	precache_sound ("weapons/burst.wav");
 	precache_sound ("weapons/click.wav");
 	precache_sound ("weapons/deagle.wav");
 	precache_sound ("weapons/dks-1.wav");

@@ -130,7 +130,7 @@ void() Time_Draw =
 	rtime = ftos(ztime);
 	shadowtime = ftos(getstati(63));
 
-	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.25))+('0 1 0'*(scrheight*0.86)),  strcat("[", qtime, ":", rtime, "]\n"), '8 8 8', '1 1 1', 1);
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.25))+('0 1 0'*(scrheight*0.86)),  strcat("[", qtime, ":", rtime, "]\n"), '8 8 8'*(scrwidth/640), '1 1 1', 1);
 
 
 	obj = getstati(66);
@@ -144,22 +144,22 @@ void() Time_Draw =
 	if (obj == 4)
 		text = "rescue citizens\n";
 
-		drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.86)),  text, '8 8 8', '1 1 1', 1);
+		drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.86)),  text, '8 8 8'*(scrwidth/640), '1 1 1', 1);
 
 
 
 
 	text = "citizens rescued: ";
 	text2 = ftos(getstati(113));
-	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.90)),  strcat(text, text2), '8 8 8', '1 1 1', 1);
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.90)),  strcat(text, text2), '8 8 8'*(scrwidth/640), '1 1 1', 1);
 
 	text = "citizens slain:   ";
 	text2 = ftos(getstati(114));
-	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.92)),  strcat(text, text2), '8 8 8', '1 1 1', 1);
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.92)),  strcat(text, text2), '8 8 8'*(scrwidth/640), '1 1 1', 1);
 
 	text = "citizens left:    ";
 	text2 = ftos(getstati(115));
-	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.94)),  strcat(text, text2), '8 8 8', '1 1 1', 1);
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.94)),  strcat(text, text2), '8 8 8'*(scrwidth/640), '1 1 1', 1);
 
 };
 

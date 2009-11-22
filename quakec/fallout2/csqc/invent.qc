@@ -71,7 +71,7 @@ void(vector pos, float slotno) TraderImage =
 		return;
 	itname = ftos(it);
 	it = strlen(itname);
-	drawstring(pos + IMGSIZEV - '0 8 0' - '8 0 0'*it, itname, '8 8 8', '1 1 1', 1);
+	drawstring(pos + IMGSIZEV - '0 8 0'*(scrwidth/640) - '8 0 0'*it*(scrwidth/640), itname, '8 8 8'*(scrwidth/640), '1 1 1', 1);
 };
 
 
@@ -120,7 +120,7 @@ void(vector pos, float slotno) SlotImage =
 		return;
 	itname = ftos(it);
 	it = strlen(itname);
-	drawstring(pos + IMGSIZEV - '0 8 0' - '8 0 0'*it, itname, '8 8 8', '1 1 1', 1);
+	drawstring(pos + IMGSIZEV - '0 8 0'*(scrwidth/640) - '8 0 0'*it*(scrwidth/640), itname, '8 8 8'*(scrwidth/640), '1 1 1', 1);
 };
 
 void(vector pos, float slotno, vector imgsize) SlotImageBig =
@@ -164,7 +164,7 @@ void(vector pos, float slotno, vector imgsize) SlotImageBig =
 		return;
 	itname = ftos(it);
 	it = strlen(itname);
-	drawstring(pos + IMGSIZEV - '0 8 0' - '8 0 0'*it, itname, '8 8 8', '1 1 1', 1);
+	drawstring(pos + IMGSIZEV - '0 8 0'*(scrwidth/640) - '8 0 0'*it*(scrwidth/640), itname, '8 8 8'*(scrwidth/640), '1 1 1', 1);
 };
 
 
@@ -210,7 +210,7 @@ void(vector pos, float slotno) SlotImageSmall =
 		return;
 	itname = ftos(it);
 	it = strlen(itname);
-	drawstring(pos + IMGSIZEZ - '0 16 0' - '16 0 0'*it, itname, '8 8 8', '1 1 1', 1);
+	drawstring(pos + IMGSIZEZ - '0 16 0'*(scrwidth/640) - '16 0 0'*it*(scrwidth/640), itname, '8 8 8'*(scrwidth/640), '1 1 1', 1);
 };
 
 void(vector pos, float slotno) QuickImage =
@@ -233,7 +233,7 @@ void(vector pos, float slotno) QuickImage =
 		return;
 	itname = ftos(it);
 	it = strlen(itname);
-	drawstring(pos + IMGSIZEH - '0 8 0' - '8 0 0'*it, itname, '8 8 8', '1 1 1', 1);
+	drawstring(pos + IMGSIZEH - '0 8 0' - '8 0 0'*it, itname, '8 8 8'*(scrwidth/640), '1 1 1', 1);
 };
 
 void() ScreenImage =
@@ -264,33 +264,33 @@ void() ScreenImage =
 	if (getstati(57) == 3)
 	{
 		if (getstati(105) == 1)
-			drawstring(w, "the players were slain...", '8 8 8', '1 1 1', 1);
+			drawstring(w, "the players were slain...", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 2)
-			drawstring(w, "the hostages were slain...", '8 8 8', '1 1 1', 1);
+			drawstring(w, "the hostages were slain...", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 3)
-			drawstring(w, "the hostages were saved!", '8 8 8', '1 1 1', 1);
+			drawstring(w, "the hostages were saved!", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 4)
-			drawstring(w, "some hostages were saved.", '8 8 8', '1 1 1', 1);
+			drawstring(w, "some hostages were saved.", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 5)
-			drawstring(w, "no hostages were saved...", '8 8 8', '1 1 1', 1);
+			drawstring(w, "no hostages were saved...", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 6)
-			drawstring(w, "the bombs were defused!", '8 8 8', '1 1 1', 1);
+			drawstring(w, "the bombs were defused!", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 7)
-			drawstring(w, "the bombs were not defused...", '8 8 8', '1 1 1', 1);
+			drawstring(w, "the bombs were not defused...", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 8)
-			drawstring(w, "the supplies were not found...", '8 8 8', '1 1 1', 1);
+			drawstring(w, "the supplies were not found...", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 9)
-			drawstring(w, "the supplies were found!", '8 8 8', '1 1 1', 1);
+			drawstring(w, "the supplies were found!", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 10)
-			drawstring(w, "all commanders were slain!", '8 8 8', '1 1 1', 1);
+			drawstring(w, "all commanders were slain!", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 11)
-			drawstring(w, "the players did not escape...", '8 8 8', '1 1 1', 1);
+			drawstring(w, "the players did not escape...", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 12)
-			drawstring(w, "the players were discovered...", '8 8 8', '1 1 1', 1);
+			drawstring(w, "the players were discovered...", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 13)
-			drawstring(w, "the fuel tanks were destroyed!", '8 8 8', '1 1 1', 1);
+			drawstring(w, "the fuel tanks were destroyed!", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 		if (getstati(105) == 14)
-			drawstring(w, "the fuel tanks were not destroyed...", '8 8 8', '1 1 1', 1);
+			drawstring(w, "the fuel tanks were not destroyed...", '8 8 8'*(scrwidth/640), '1 1 1', 1);
 	}
 
 };
@@ -483,58 +483,58 @@ void() Trader_Draw =
 
 
 
-	drawpic('0 0 0', "gui/pipboy/buyscreen.jpg", '468 468 0', '1 1 1', 1);
-	TraderImage('1 1 0'*IMGSIZEF, 1);
-	TraderImage('2 1 0'*IMGSIZEF, 2);
-	TraderImage('3 1 0'*IMGSIZEF, 3);
-	TraderImage('4 1 0'*IMGSIZEF, 4);
-	TraderImage('5 1 0'*IMGSIZEF, 5);
-	TraderImage('1 2 0'*IMGSIZEF, 6);
-	TraderImage('2 2 0'*IMGSIZEF, 7);
-	TraderImage('3 2 0'*IMGSIZEF, 8);
-	TraderImage('4 2 0'*IMGSIZEF, 9);
-	TraderImage('5 2 0'*IMGSIZEF, 10);
-	TraderImage('1 3 0'*IMGSIZEF, 11);
-	TraderImage('2 3 0'*IMGSIZEF, 12);
-	TraderImage('3 3 0'*IMGSIZEF, 13);
-	TraderImage('4 3 0'*IMGSIZEF, 14);
-	TraderImage('5 3 0'*IMGSIZEF, 15);
-	TraderImage('1 4 0'*IMGSIZEF, 16);
-	TraderImage('2 4 0'*IMGSIZEF, 17);
-	TraderImage('3 4 0'*IMGSIZEF, 18);
-	TraderImage('4 4 0'*IMGSIZEF, 19);
-	TraderImage('5 4 0'*IMGSIZEF, 20);
+	drawpic('0 0 0', "gui/pipboy/buyscreen.jpg", '468 468 0'*(scrwidth/640), '1 1 1', 1);
+	TraderImage('1 1 0'*IMGSIZEF*(scrwidth/640), 1);
+	TraderImage('2 1 0'*IMGSIZEF*(scrwidth/640), 2);
+	TraderImage('3 1 0'*IMGSIZEF*(scrwidth/640), 3);
+	TraderImage('4 1 0'*IMGSIZEF*(scrwidth/640), 4);
+	TraderImage('5 1 0'*IMGSIZEF*(scrwidth/640), 5);
+	TraderImage('1 2 0'*IMGSIZEF*(scrwidth/640), 6);
+	TraderImage('2 2 0'*IMGSIZEF*(scrwidth/640), 7);
+	TraderImage('3 2 0'*IMGSIZEF*(scrwidth/640), 8);
+	TraderImage('4 2 0'*IMGSIZEF*(scrwidth/640), 9);
+	TraderImage('5 2 0'*IMGSIZEF*(scrwidth/640), 10);
+	TraderImage('1 3 0'*IMGSIZEF*(scrwidth/640), 11);
+	TraderImage('2 3 0'*IMGSIZEF*(scrwidth/640), 12);
+	TraderImage('3 3 0'*IMGSIZEF*(scrwidth/640), 13);
+	TraderImage('4 3 0'*IMGSIZEF*(scrwidth/640), 14);
+	TraderImage('5 3 0'*IMGSIZEF*(scrwidth/640), 15);
+	TraderImage('1 4 0'*IMGSIZEF*(scrwidth/640), 16);
+	TraderImage('2 4 0'*IMGSIZEF*(scrwidth/640), 17);
+	TraderImage('3 4 0'*IMGSIZEF*(scrwidth/640), 18);
+	TraderImage('4 4 0'*IMGSIZEF*(scrwidth/640), 19);
+	TraderImage('5 4 0'*IMGSIZEF*(scrwidth/640), 20);
 
 
-	if (mousepos_x >= 1*IMGSIZEF && mousepos_x <= 6*IMGSIZEF)
-		if (mousepos_y >= 1*IMGSIZEF && mousepos_y <= 2*IMGSIZEF)
+	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
+		if (mousepos_y >= 1*IMGSIZEF*(scrwidth/640) && mousepos_y <= 2*IMGSIZEF*(scrwidth/640))
 			slotnum = floor((mousepos_x)/IMGSIZEF) + 0;
 
-	if (mousepos_x >= 1*IMGSIZEF && mousepos_x <= 6*IMGSIZEF)
-		if (mousepos_y >= 2*IMGSIZEF && mousepos_y <= 3*IMGSIZEF)
+	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
+		if (mousepos_y >= 2*IMGSIZEF*(scrwidth/640) && mousepos_y <= 3*IMGSIZEF*(scrwidth/640))
 			slotnum = floor((mousepos_x)/IMGSIZEF) + 5;
 
-	if (mousepos_x >= 1*IMGSIZEF && mousepos_x <= 6*IMGSIZEF)
-		if (mousepos_y >= 3*IMGSIZEF && mousepos_y <= 4*IMGSIZEF)
+	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
+		if (mousepos_y >= 3*IMGSIZEF*(scrwidth/640) && mousepos_y <= 4*IMGSIZEF*(scrwidth/640))
 			slotnum = floor((mousepos_x)/IMGSIZEF) + 10;
 
-	if (mousepos_x >= 1*IMGSIZEF && mousepos_x <= 6*IMGSIZEF)
-		if (mousepos_y >= 4*IMGSIZEF && mousepos_y <= 5*IMGSIZEF)
+	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
+		if (mousepos_y >= 4*IMGSIZEF*(scrwidth/640) && mousepos_y <= 5*IMGSIZEF*(scrwidth/640))
 			slotnum = floor((mousepos_x)/IMGSIZEF) + 15;
 
 
 	if (showcontextmenu && show_trader)
 	{
-		drawfill(contextpos - '8 8 0', '48 48 0', '0 0 0', 1.0);
-		op = floor((mousepos_y - contextpos_y)/8);
-		drawstring(contextpos + '0 8 0', "buy?", '8 8 0', '1 1 0' + (op!=1)*'0 0 1', 
+		drawfill(contextpos*(scrwidth/640) - '8 8 0'*(scrwidth/640), '48 48 0'*(scrwidth/640), '0 0 0', 1.0);
+		op = floor((mousepos_y*(scrwidth/640) - contextpos_y*(scrwidth/640))/8*(scrwidth/640));
+		drawstring(contextpos*(scrwidth/640) + '0 8 0'*(scrwidth/640), "buy?", '8 8 0'*(scrwidth/640), '1 1 0' + (op!=1)*'0 0 1', 
 1);
 	}
 
 	if (slotnum <= 20)
 		it = getstati(70+slotnum);
 	itname = GetItemName(ToIID(it));
-		drawstring('32 16 0', itname, '8 8 0', '1 1 1', 1);
+		drawstring('32 16 0'*(scrwidth/640), itname, '8 8 0'*(scrwidth/640), '1 1 1', 1);
 
 	price = GetBaseValue(ToIID(it));
 	price = ceil(price * (1 - (getstati(104)/30)));
@@ -542,12 +542,20 @@ void() Trader_Draw =
 	money = getstati(50);
 	money2 = ftos(money);
 
-	drawstring('2 6 0'*IMGSIZEF - '16 48 0', " TOTAL ", '16 16 0', '1 1 1', 1);
-	drawstring('2 6 0'*IMGSIZEF - '16 32 0', " PRICE ", '16 16 0', '1 1 1', 1);
-	drawstring('2 6 0'*IMGSIZEF + '16 0 0', price2, '16 16 0', '1 1 1', 1);
-	drawstring('4 6 0'*IMGSIZEF - '16 48 0', " TOTAL ", '16 16 0', '1 1 1', 1);
-	drawstring('4 6 0'*IMGSIZEF - '16 32 0', " MONEY ", '16 16 0', '1 1 1', 1);
-	drawstring('4 6 0'*IMGSIZEF + '16 0 0', money2, '16 16 0', '1 1 1', 1);
+	drawstring('2 6 0'*IMGSIZEF*(scrwidth/640) - '16 48 0'*(scrwidth/640), " TOTAL ", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+	drawstring('2 6 0'*IMGSIZEF*(scrwidth/640) - '16 32 0'*(scrwidth/640), " PRICE ", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+	drawstring('2 6 0'*IMGSIZEF*(scrwidth/640) + '16 0 0'*(scrwidth/640), price2, '16 16 0'*(scrwidth/640), '1 1 1', 1);
+	drawstring('4 6 0'*IMGSIZEF*(scrwidth/640) - '16 48 0'*(scrwidth/640), " TOTAL ", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+	drawstring('4 6 0'*IMGSIZEF*(scrwidth/640) - '16 32 0'*(scrwidth/640), " MONEY ", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+	drawstring('4 6 0'*IMGSIZEF*(scrwidth/640) + '16 0 0'*(scrwidth/640), money2, '16 16 0'*(scrwidth/640), '1 1 1', 1);
+
+
+	if (mousepos_x > scrwidth*0.95)
+		mousepos_x = scrwidth*0.95;
+
+	if (mousepos_y > scrheight*0.95)
+		mousepos_y = scrheight*0.95;
+
 	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
 };
 
@@ -571,13 +579,10 @@ void() Perks_Draw =
 	}
 	else if (mousepos_y >= 390*(scrwidth/640) && mousepos_y <= 425*(scrwidth/640))
 	{
-
-
 		if (mousepos_x >= 300*(scrwidth/640) && mousepos_x <= 335*(scrwidth/640))
 			selected_class = 6;
 		else if (mousepos_x >= 350*(scrwidth/640) && mousepos_x <= 385*(scrwidth/640))
 			selected_class = 7;
-
 		else if (mousepos_x >= 400*(scrwidth/640) && mousepos_x <= 435*(scrwidth/640))
 			selected_class = 8;
 		else
@@ -601,6 +606,12 @@ void() Perks_Draw =
 
 
 
+	if (mousepos_x > scrwidth*0.95)
+		mousepos_x = scrwidth*0.95;
+
+	if (mousepos_y > scrheight*0.95)
+		mousepos_y = scrheight*0.95;
+
 	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
 };
 
@@ -613,19 +624,17 @@ void() Items_Draw =
 
 	if (mousepos_y >= 390*(scrwidth/640) && mousepos_y <= 425*(scrwidth/640))
 	{
-
-		drawpic('0 0 0', "gui/pipboy/items.png", '640 480 0'*(scrwidth/640), '1 1 1', 1);
-
-		if (mousepos_x >= 300*(scrwidth/640) && mousepos_x <= 325*(scrwidth/640))
+		if (mousepos_x >= 300*(scrwidth/640) && mousepos_x <= 335*(scrwidth/640))
 			selected_class = 6;
 		else if (mousepos_x >= 350*(scrwidth/640) && mousepos_x <= 385*(scrwidth/640))
 			selected_class = 7;
-
 		else if (mousepos_x >= 400*(scrwidth/640) && mousepos_x <= 435*(scrwidth/640))
 			selected_class = 8;
 		else
 			selected_class = 0;
 	}
+	else
+		selected_class = 0;
 
 	SlotImageBig('3 1.25 0'*IMGSIZEF*(scrwidth/640), 1, '180 64 0'*(scrwidth/640));
 
@@ -669,6 +678,14 @@ void() Items_Draw =
 
 	drawstring('7 5 0'*IMGSIZEF*(scrwidth/640) + '0 0 0'*(scrwidth/640), "weight\n", '8 8 0'*(scrwidth/640), '1 1 1', 1);
 	drawstring('7 5 0'*IMGSIZEF*(scrwidth/640) + '0 8 0'*(scrwidth/640), strcat(w1, "/", w2, "\n"), '8 8 0'*(scrwidth/640), '1 1 1', 1);
+
+
+
+	if (mousepos_x > scrwidth*0.95)
+		mousepos_x = scrwidth*0.95;
+
+	if (mousepos_y > scrheight*0.95)
+		mousepos_y = scrheight*0.95;
 
 	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
 };
@@ -741,6 +758,14 @@ void() GainPerk_Draw =
 	drawstring('32 32 0'*(scrwidth/640), pd, '8 8 0'*(scrwidth/640), '1 1 1', 1);
 	drawstring('32 40 0'*(scrwidth/640), pd2, '8 8 0'*(scrwidth/640), '1 1 1', 1);
 
+
+
+	if (mousepos_x > scrwidth*0.95)
+		mousepos_x = scrwidth*0.95;
+
+	if (mousepos_y > scrheight*0.95)
+		mousepos_y = scrheight*0.95;
+
 	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
 };
 
@@ -752,27 +777,40 @@ void() Pipboy_Draw =
 	vector w;
 
 
-
-	if (mousepos_x >= 192 && mousepos_x <= 512)
-		if (mousepos_y >= 240 && mousepos_y <= 304)
-			selected_class = ceil((mousepos_x-191)/64);
-
-
-	else if (mousepos_y >= 390*(scrwidth/640) && mousepos_y <= 425*(scrwidth/640))
+	if (mousepos_y >= 240*(scrwidth/640) && mousepos_y <= 304*(scrwidth/640))
 	{
 
-		drawpic('0 0 0', "gui/pipboy/items.png", '640 480 0'*(scrwidth/640), '1 1 1', 1);
+		if (mousepos_x >= 192*(scrwidth/640) && mousepos_x <= 256*(scrwidth/640))
+			selected_class = 1;
+		else if (mousepos_x >= 256*(scrwidth/640) && mousepos_x <= 320*(scrwidth/640))
+			selected_class = 2;
+		else if (mousepos_x >= 320*(scrwidth/640) && mousepos_x <= 384*(scrwidth/640))
+			selected_class = 3;
+		else if (mousepos_x >= 384*(scrwidth/640) && mousepos_x <= 448*(scrwidth/640))
+			selected_class = 4;
+		else if (mousepos_x >= 448*(scrwidth/640) && mousepos_x <= 512*(scrwidth/640))
+			selected_class = 5;
+		else
+			selected_class = 0;
 
-		if (mousepos_x >= 300*(scrwidth/640) && mousepos_x <= 325*(scrwidth/640))
+	}
+	else if (mousepos_y >= 390*(scrwidth/640) && mousepos_y <= 425*(scrwidth/640))
+	{
+		if (mousepos_x >= 300*(scrwidth/640) && mousepos_x <= 335*(scrwidth/640))
 			selected_class = 6;
 		else if (mousepos_x >= 350*(scrwidth/640) && mousepos_x <= 385*(scrwidth/640))
 			selected_class = 7;
-
 		else if (mousepos_x >= 400*(scrwidth/640) && mousepos_x <= 435*(scrwidth/640))
 			selected_class = 8;
 		else
 			selected_class = 0;
 	}
+	else
+		selected_class = 0;
+
+		skill = ftos(getstati(selected_class));
+
+		drawstring('128 64 0'*(scrwidth/640), skill, '16 16 0'*(scrwidth/640), '1 1 1', 1);
 
 	drawpic('0 0 0', "gui/pipboy/pipboy.png", '640 480 0'*(scrwidth/640), '1 1 1', 1);
 
@@ -784,27 +822,27 @@ void() Pipboy_Draw =
 	drawpic('448 256 0'*(scrwidth/640), "gui/pipboy/speech.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 
 	if (selected_class == 1)
-		drawpic('128 64 0'*(scrwidth/640), "gui/pipboy/combat.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
+		drawpic('192 64 0'*(scrwidth/640), "gui/pipboy/combat.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
 	else if (selected_class == 2)
-		drawpic('128 64 0'*(scrwidth/640), "gui/pipboy/doctor.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
+		drawpic('192 64 0'*(scrwidth/640), "gui/pipboy/doctor.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
 	else if (selected_class == 3)
-		drawpic('128 64 0'*(scrwidth/640), "gui/pipboy/sneak.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
+		drawpic('192 64 0'*(scrwidth/640), "gui/pipboy/sneak.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
 	else if (selected_class == 4)
-		drawpic('128 64 0'*(scrwidth/640), "gui/pipboy/science.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
+		drawpic('192 64 0'*(scrwidth/640), "gui/pipboy/science.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
 	else if (selected_class == 5)
-		drawpic('128 64 0'*(scrwidth/640), "gui/pipboy/speech.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
+		drawpic('192 64 0'*(scrwidth/640), "gui/pipboy/speech.png", '128 128 0'*(scrwidth/640), '1 1 1', 1);
 
 
 	if (selected_class == 1)
-		drawstring('196 64 0'*(scrwidth/640), "combat", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+		drawstring('320 64 0'*(scrwidth/640), "combat", '16 16 0'*(scrwidth/640), '1 1 1', 1);
 	else if (selected_class == 2)
-		drawstring('196 64 0'*(scrwidth/640), "doctor", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+		drawstring('320 64 0'*(scrwidth/640), "doctor", '16 16 0'*(scrwidth/640), '1 1 1', 1);
 	else if (selected_class == 3)
-		drawstring('196 64 0'*(scrwidth/640), "sneak", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+		drawstring('320 64 0'*(scrwidth/640), "sneak", '16 16 0'*(scrwidth/640), '1 1 1', 1);
 	else if (selected_class == 4)
-		drawstring('196 64 0'*(scrwidth/640), "science", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+		drawstring('320 64 0'*(scrwidth/640), "science", '16 16 0'*(scrwidth/640), '1 1 1', 1);
 	else if (selected_class == 5)
-		drawstring('196 64 0'*(scrwidth/640), "speech", '16 16 0'*(scrwidth/640), '1 1 1', 1);
+		drawstring('320 64 0'*(scrwidth/640), "speech", '16 16 0'*(scrwidth/640), '1 1 1', 1);
 
 	bar = 0;
 	lvl = getstati(100);
@@ -857,6 +895,13 @@ void() Pipboy_Draw =
 		bar = bar + 1;
 	}
 		drawstring('472 230 0'*(scrwidth/640) - ('0 4 0'*(lvl+4)*(scrwidth/640)), skill, '12 12 0'*(scrwidth/640), '1 1 1', 1);
+
+
+	if (mousepos_x > scrwidth*0.95)
+		mousepos_x = scrwidth*0.95;
+
+	if (mousepos_y > scrheight*0.95)
+		mousepos_y = scrheight*0.95;
 
 	drawpic(mousepos, "gui/cursor.jpg", '1 1 0'*CURSORSIZE, '1 1 1', 1);
 };

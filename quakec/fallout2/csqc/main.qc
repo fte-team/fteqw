@@ -508,6 +508,7 @@ void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.01)) +('0 1 0'*(scrheight*0.45)), "gui/hud/radiation.png", '0 0 0'+'25 155 0'*(scrwidth/640), '1 1 1');
 		drawpic('0 0 0' + ('0 1 0'*(scrheight*0.84)), "gui/hud/hud.png", '0 0 0'+'80 10 0'*(scrwidth/80), '1 1 1');
 
+
 		Health_Draw();
 		Radiation_Draw();
 
@@ -527,6 +528,9 @@ void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 
 		if (getstati(42) > 0)
 			SlotImageSmall('0 0 0'+('1 0 0'*(scrwidth*0.77)) +('0 1 0'*(scrheight*0.90)), 11);
+
+		if (getstati(110) == 0)
+			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.64)) +('0 1 0'*(scrheight*0.97)), "gui/hud/aim.png", '16 16 0'*(scrheight/640), '1 1 1');
 
 		HUD_Perks_Draw();
 

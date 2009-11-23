@@ -2586,6 +2586,12 @@ string (float slot, float int) PerkName =
 			return "Economic Moves";
 		if (int == 11)
 			return "Nuclear Man";
+		if (int == 12)
+			return "Commander";
+		if (int == 14)
+			return "Blaster Master";
+		if (int == 15)
+			return "Fighting Dirty";
 };
 
 string (float slot, float int) PerkNameCentered =
@@ -2612,6 +2618,12 @@ string (float slot, float int) PerkNameCentered =
 			return "  Economic Moves  ";
 		if (int == 11)
 			return "   Nuclear  Man   ";
+		if (int == 12)
+			return "    Commander     ";
+		if (int == 14)
+			return "  Blaster Master  ";
+		if (int == 15)
+			return "  Fighting Dirty  ";
 };
 
 
@@ -2641,6 +2653,10 @@ string(float int) GetPerkImage =
 		return "gui/perks/Nuclear Man.jpg";
 	else if (int == 12)
 		return "gui/perks/Commander.jpg";
+	else if (int == 14)
+		return "gui/perks/Blaster Master.jpg";
+	else if (int == 15)
+		return "gui/perks/Fighting Dirty.jpg";
 	else
 		return "gui/perks/none.jpg";
 
@@ -2673,6 +2689,10 @@ string(float int) GetPerkDesc =
 		return "Your body has adapted to radiation to the point that you";
 	else if (int == 12)
 		return "Your supreme leadership affects all of those around you,";
+	else if (int == 14)
+		return "Your mastery of burst weapons is complete. You receive a";
+	else if (int == 15)
+		return "You are an expert in stealth and can now sneak attack an";
 	else
 		return "";
 
@@ -2704,6 +2724,10 @@ string(float int) GetPerkDesc2 =
 		return "can absorb small amounts, healing you as well!";
 	else if (int == 12)
 		return " inspiring allies and causing foes to tremble.";
+	else if (int == 14)
+		return " damage bonus the longer you hold the trigger.";
+	else if (int == 15)
+		return " enemy who is not facing you.";
 	else
 		return "";
 
@@ -2724,7 +2748,7 @@ string(float int) GetPerkRequirements =
 	else if (int == 6)
 		return "None";
 	else if (int == 7)
-		return "Sneak: 7";
+		return "None";
 	else if (int == 8)
 		return "None";
 	else if (int == 9)

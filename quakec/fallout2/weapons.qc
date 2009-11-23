@@ -19,6 +19,8 @@ void (float dam, float xrecoil, string snd, float rng, float rate) FireMinigun;
 void(float db) loud_noise;
 void() player_auto_duck1;
 void() player_auto_ducka1;
+void() player_auto_prone1;
+void() player_auto_pronea1;
 void(vector org, float damage) SpawnBlood;
 void(vector org, float damage) SpawnNonBlood;
 void() SuperDamageSound;
@@ -779,21 +781,30 @@ void () player_single2_s = [ 183, player_run ]
 
 
 
-
 void () player_fire_prone =
 {
-
-	if (self.weaponframe == 0)
+	if (self.weaponframe == 1)
+	{
+		self.weaponframe = 2;
+		self.frame = 1;
+	}
+	else if (self.weaponframe == 2)
 	{
 		self.weaponframe = 1;
-		self.frame = 1;
+		self.frame = 0;
 	}
 	else
 	{
-		self.weaponframe = 1;
+		self.weaponframe = 2;
 		self.frame = 1;
 	}
 };
+
+
+
+
+
+
 
 //============================================================================
 
@@ -2635,6 +2646,28 @@ void() autofire_s =
 };
 
 
+void() autofire_p =
+{
+	if (self.attack == 0)
+		self.cnt = 0;
+
+	if (self.weaponframe == 1)
+		self.weaponframe = 2;
+	else
+		self.weaponframe = 1;
+
+	if (self.cnt == 0)
+		player_auto_prone1();
+	else if (self.cnt == 1)
+		player_auto_pronea1();
+
+	self.cnt = self.cnt + 1;
+
+	if (self.cnt == 2)
+		self.cnt = 0;
+};
+
+
 void (vector org) bullet_hole =
 {
 	local float r;
@@ -3386,8 +3419,10 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 
 	if (self.position == 0)
 		autofire ();
-	if (self.position >= 1)
+	if (self.position == 1)
 		autofire_s ();
+	if (self.position == 2)
+		autofire_p ();
 
 	if (self.position == 0)
 		adjust = '0 0 0';
@@ -3526,8 +3561,10 @@ void (float rec, float speed, float dam, float type) FirePulseRifle =
 
 	if (self.position == 0)
 		autofire ();
-	if (self.position >= 1)
+	if (self.position == 1)
 		autofire_s ();
+	if (self.position == 2)
+		autofire_p ();
 
 	if (self.position == 0)
 		adjust = '0 0 -4';
@@ -3733,7 +3770,8 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 		if (self.position == 1)
 			player_single1_s ();
 		if (self.position == 2)
-			player_fire_prone ();
+			autofire_p ();
+			//player_fire_prone ();
 	}
 	if (self.attack >= 1)
 	{
@@ -3742,16 +3780,18 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 		if (self.position == 1)
 			autofire_s ();
 		if (self.position == 2)
-			player_fire_prone ();
+			autofire_p ();
 	}
 
 	tmp = accuracy * 10;
 	xrecoil = dam / 2;
 
 
-	//for the snipers
-	if (self.position == 2 && self.recoil == 0)
+
+	if (self.position == 1)
 		tmp = tmp * 0.75;
+	else if (self.position == 2)
+		tmp = tmp * 0.50;
 
 	if (self.steadyaim == 0)
 		tmp = tmp * 0.25;
@@ -3770,11 +3810,10 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 	if (tmp > 500)
 		tmp = 500;
 
-	tmp = tmp * 0.75;
 
 	source = self.origin + '0 0 22';
 
-	targ = self.origin + '0 0 22' + v_right*self.driftx + v_up*self.drifty + v_right*crandom()* tmp + v_up*random()*tmp + v_up*random()*tmp;
+	targ = self.origin + '0 0 22' + v_right*self.driftx + v_up*self.drifty + v_right*crandom()*tmp + v_up*random()*tmp + v_up*random()*tmp;
 
 	y = xrecoil * 12;
 
@@ -3789,10 +3828,7 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 
 	if (self.position == 2 && weap == IID_WP_AK112_M)
 	{
-		if (self.recoil >= 8)
-			self.recoil = 8;
-
-		y = y * 0.25;
+		y = y * 0.10;
 		tmp = tmp * 0.80;
 	}
 	if (random()*3<=2)
@@ -3800,9 +3836,9 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 	else
 		self.driftx = self.driftx - y;
 
-	if (random()*2<=1)
+	if (random()*3<=2)
 		self.drifty = self.drifty + y;
-	else
+	else if (self.drifty > 0)
 		self.drifty = self.drifty - y;
 
 	traceline (source+adjust, targ+adjust+v_forward*4000, FALSE, self);

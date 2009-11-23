@@ -124,9 +124,19 @@ void () CrawlSound =
 
 };
 
+void() idle_frames =
+{
+
+
+	self.weaponframe = 0;
+
+};
+
 
 void () player_lay = [ 45, player_run ]
 {
+	idle_frames();
+
 	if (self.velocity != '0 0 0')
 		self.frame = 8 - self.crawltime;
 	else if (self.velocity == '0 0 0')
@@ -152,15 +162,7 @@ void () player_single_shot_duck  = [ 183, player_single_shot_duck2 ]{};
 void () player_single_shot_duck2 = [ 184, player_run               ]{};
 
 
-void() idle_frames =
-{
-	local float weap;
-	local string x;
 
-	self.weaponframe = 0;
-	return;
-
-};
 
 
 
@@ -300,40 +302,33 @@ void () Footstep =
 
 	rand = random ();
 
-	if (self.sneak != 0)
-		return;
 
 
-	r = 1 - (self.skill_sneak/40);
 
-	if (self.classname == "player")
+
+
+
+
+	if (self.sneak <= 0)
 	{
-
 		loud_noise(20 - self.skill_sneak);
+		r = 1 - (self.skill_sneak/40);
 	}
+	else
+		r = 0.25;
 
-	if (world.worldtype == 1 || world.worldtype == 2)
-	{
-		if ((rand < 0.25))
-			sound (self, CHAN_ITEM, "player/step1.wav", r, ATTN_NORM);
-		else if ((rand < 0.5))
-			sound (self, CHAN_ITEM, "player/step2.wav", r, ATTN_NORM);
-		else if ((rand < 0.75))
-			sound (self, CHAN_ITEM, "player/step3.wav", r, ATTN_NORM);
-		else
-			sound (self, CHAN_ITEM, "player/step4.wav", r, ATTN_NORM);
-	}
-	if (world.worldtype == 0)
-	{
-		if ((rand < 0.25))
-			sound (self, CHAN_ITEM, "player/step1a.wav", r, ATTN_NORM);
-		else if ((rand < 0.5))
-			sound (self, CHAN_ITEM, "player/step2a.wav", r, ATTN_NORM);
-		else if ((rand < 0.75))
-			sound (self, CHAN_ITEM, "player/step3a.wav", r, ATTN_NORM);
-		else
-			sound (self, CHAN_ITEM, "player/step4a.wav", r, ATTN_NORM);
-	}
+	if (self.position == 1)
+		r = r * 0.5;
+
+	if (rand < 0.25)
+		sound (self, CHAN_ITEM, "player/step1.wav", r, ATTN_NORM);
+	else if (rand < 0.5)
+		sound (self, CHAN_ITEM, "player/step2.wav", r, ATTN_NORM);
+	else if (rand < 0.75)
+		sound (self, CHAN_ITEM, "player/step3.wav", r, ATTN_NORM);
+	else
+		sound (self, CHAN_ITEM, "player/step4.wav", r, ATTN_NORM);
+
 };
 
 float (entity guy) holding_melee =
@@ -362,13 +357,10 @@ void () player_stand1 = [ 149, player_stand1 ]
 		player_crouch ();
 		return;
 	}
-	else
+	else if (self.position == 2)
 	{
-		if (self.position == 2)
-		{
-			player_lay ();
-			return;
-		}
+		player_lay ();
+		return;
 	}
 	if (self.velocity_x || self.velocity_y)
 	{
@@ -393,18 +385,21 @@ void () player_crouch = [ 45, player_run ]
 		self.frame = 45;
 		return;
 	}
-	else
+	else if (self.position == 2)
 	{
-		if (self.position == 2)
-		{
-			player_lay ();
-			return;
-		}
+		player_lay ();
+		return;
 	}
 
 	idle_frames();
 
 	self.frame = (35 + self.walkframe);
+
+
+	if (self.walkframe == 3 && self.ghost == 0 && self.velocity_z == 0)
+		Footstep ();
+	if (self.walkframe == 8 && self.ghost == 0 && self.velocity_z == 0)
+		Footstep ();
 
 	if (self.walkframe == 11)
 		self.walkframe = 0;
@@ -443,23 +438,20 @@ void () player_run = [ 137, player_run ]
 			}
 		}
 
-	if ((!self.velocity_x && !self.velocity_y))
+	if (!self.velocity_x && !self.velocity_y)
 	{
 		player_stand1 ();
 		return;
 	}
-	if ((self.position == 1))
+	else if (self.position == 1)
 	{
 		player_crouch ();
 		return;
 	}
-	else
+	else if (self.position == 2)
 	{
-		if ((self.position == 2))
-		{
-			player_lay ();
-			return;
-		}
+		player_lay ();
+		return;
 	}
 
 	if (self.speedmulti <= 0.60)
@@ -881,6 +873,12 @@ void()  player_auto_duck2 = [182, player_run         ] {muzzleflash();};
 
 void()  player_auto_ducka1 = [183, player_auto_ducka2    ] {muzzleflash();};
 void()  player_auto_ducka2 = [183, player_run            ] {muzzleflash();};
+
+void()  player_auto_prone1 = [1, player_auto_prone2  ] {muzzleflash();};
+void()  player_auto_prone2 = [1, player_run         ] {muzzleflash();};
+
+void()  player_auto_pronea1 = [0, player_auto_pronea2  ] {muzzleflash();};
+void()  player_auto_pronea2 = [0, player_run         ] {muzzleflash();};
 
 void () player_single1_left = [ 88, player_single2_left ]
 {

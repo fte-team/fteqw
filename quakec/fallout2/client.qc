@@ -1080,6 +1080,9 @@ void() PlayerJump =
 	if (!(self.flags & FL_ONGROUND))
 		return;
 
+	if (self.position > 0)
+		return;
+
 	if ( !(self.flags & FL_JUMPRELEASED) )
 		return;         // don't pogo stick
 
@@ -1610,7 +1613,7 @@ void() PlayerPreThink =
 		{
 			self.score = 200;
 	
-			sound (self, CHAN_BODY, "misc/levelup.wav", 1, ATTN_NORM);
+			sound (self, CHAN_BODY, "player/levelup.wav", 1, ATTN_NORM);
 			sprint(self, 2, "you have gained a level!\npress 'p' to assign a skill point.\n");
 		}
 	}
@@ -1620,7 +1623,7 @@ void() PlayerPreThink =
 		{
 			self.score = 200;
 	
-			sound (self, CHAN_BODY, "misc/levelup.wav", 1, ATTN_NORM);
+			sound (self, CHAN_BODY, "player/levelup.wav", 1, ATTN_NORM);
 			sprint(self, 2, "you have gained a level!\npress 'p' to assign a skill point.\n");
 		}
 	}
@@ -1706,6 +1709,18 @@ void() PlayerPreThink =
 		self.cycle1 = time + 0.5;
 	}
 
+
+	if (walkmove(0, 0) && self.solid != SOLID_SLIDEBOX)
+	{
+		self.materialize = 0;
+		self.solid = SOLID_SLIDEBOX;
+	}
+	else
+	{
+		self.materialize = 5;
+		self.solid = SOLID_NOT;
+	}
+
 	if (self.materialize > 0)
 	{
 		self.materialize = self.materialize - 1;
@@ -1715,12 +1730,13 @@ void() PlayerPreThink =
 			if (walkmove(0, 0))
 			{
 				self.solid = SOLID_SLIDEBOX;
-				//bprint(2, "turning solid\n");
+				bprint(2, "turning solid\n");
 			}
 			else
 			{
 				self.materialize = 50;
-				//bprint(2, "stuck in object, returning non-solid\n");
+				bprint(2, "stuck in object, returning non-solid\n");
+				self.solid = SOLID_NOT;
 			}
 		}
 	}
@@ -1794,12 +1810,19 @@ void() PlayerPreThink =
 			if (ToIID(self.islot4) == IID_EQUIP_GOGGLES)
 				stuffcmd(self, "v_cshift 25 0 25 25\n");
 
-			x = ftos(self.recoil);
+			if (self.position == 0)
+				x = ftos(self.recoil);
+			else if (self.position == 1)
+				x = ftos(self.recoil/2);
+			else if (self.position == 2)
+				x = ftos(self.recoil/4);
 
 			if (self.steadyaim == 0)
 				stuffcmd(self, "v_idlescale 0\n");
-			else
+			else if (self.recoil > 0)
 				stuffcmd(self, strcat("v_idlescale ", x, "\n"));
+			else if (self.velocity != '0 0 0')
+				stuffcmd(self, "v_idlescale 1\n");
 
 		}
 		self.cycle2 = time + 1;
@@ -1818,7 +1841,7 @@ void() PlayerPreThink =
 	{
 		PlayerJump ();
 	}
-	else
+	else if (self.position > 0)
 		self.flags = self.flags | FL_JUMPRELEASED;
 
 // teleporters can force a non-moving pause time        

@@ -1338,11 +1338,6 @@ void () RecoilControl =
 	while (te)
 	{
 
-		te.lastman = te.lastman - 0.01;
-
-		if (te.lastman < 0)
-			te.lastman = 0;
-
 	//superstims: heal at an incredible rate!
 		if ((te.xregen > 0 && te.health < te.max_health) && random()<0.5)
 		{
@@ -1363,20 +1358,14 @@ void () RecoilControl =
 				te.health = te.max_health;
 		}
 
-		te.lastman = te.lastman - 0.01;
-
 	//steady aim: for living anatomy, and aimed shots by standing still
 		if (te.recoil != 0)
 			te.steadyaim = 6;
 		else if (te.recoil == 0 && te.steadyaim > 0)
-		{
 			te.steadyaim = te.steadyaim - 0.05;
-			
-			if (te.perk1 == 13 || te.perk2 == 13)
-				te.steadyaim = te.steadyaim - 0.05;
-		}
 
-		if (te.steadyaim > 0 && te.steadyaim <= 0.10)
+
+		if (te.steadyaim <= 0)
 			te.steadyaim = 0;
 
 
@@ -1403,7 +1392,7 @@ void () RecoilControl =
 				}
 
 
-					te.recoil = te.recoil - (0.15+(te.skill_combat*0.005) + (te.skill_doctor*0.003) + (te.skill_sneak*0.002));
+					te.recoil = te.recoil - (0.10+(te.skill_combat*0.01));
 			}
 			else
 			{
@@ -1420,16 +1409,6 @@ void () RecoilControl =
 						te.drifty = te.drifty + 0.5;
 				}
 
-				if (te.recoil > 5)
-					te.recoil = te.recoil - 0.05;
-
-				if (te.recoil <= 5)
-				{
-					te.recoil = te.recoil + 0.10;
-
-						if (te.recoil >= 5)
-							te.recoil = 5;
-				}
 			}
 
 			if (te.driftx > 250)
@@ -1437,10 +1416,13 @@ void () RecoilControl =
 			if (te.drifty > 250)
 				te.drifty = 250;
 
-	//support fire: going prone gives a -10 recoil bonus with this perk during heavy fire
+	//support fire: going prone gives a -10 recoil bonus with this perk
 		if (getperk(1) && self.position == 2 && te.recoil > 3)
-			te.recoil = te.recoil - 0.10;
-
+		{
+			te.recoil = te.recoil - 0.20;
+			te.driftx = te.driftx * 0.5;
+			te.drifty = te.drifty * 0.5;
+		}
 
 	//prone: going prone gives a -5 recoil bonus
 
@@ -1758,10 +1740,6 @@ void() worldspawn =
 	precache_sound ("player/step2.wav");
 	precache_sound ("player/step3.wav");
 	precache_sound ("player/step4.wav");
-	precache_sound ("player/step1a.wav");
-	precache_sound ("player/step2a.wav");
-	precache_sound ("player/step3a.wav");
-	precache_sound ("player/step4a.wav");
 	precache_sound ("dog/dattack1.wav");
 	precache_sound ("dog/ddeath.wav");
 	precache_sound ("dog/dpain1.wav");

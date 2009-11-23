@@ -321,7 +321,7 @@ void(string arg1) Cmd_InvBuy =
 	if (x == 0)
 	{
 		sprint(self, 2, "no more room in inventory!\n");
-		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+		sound (self, CHAN_BODY, "misc/beep2.wav", 1, ATTN_NORM);
 		return;
 	}
 
@@ -370,8 +370,14 @@ void(string arg1) Cmd_InvBuy =
 		iid = ToIID(item);
 		amount = ToStatus(item);
 		money = GetBaseValue(iid);
-		money = ceil(money * (1 - (self.skill_speech/30)));
-
+		if (self.supertime <= 0)
+			money = ceil(money * (1 - (self.skill_speech/30)));
+		else
+		{
+			sprint(self, 2, "We don't serve your kind here!\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
 		if (self.ammo_shells < money)
 		{
 			sprint(self, 2, "not enough money.\n");

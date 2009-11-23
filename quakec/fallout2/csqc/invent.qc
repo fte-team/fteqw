@@ -476,9 +476,6 @@ void() Trader_Draw =
 	float width,height,lvl,bar;
 	vector w;
 
-	width = cvar("vid_conwidth");
-	height = cvar("vid_conheight");
-	//w = '1 1 0'*height;
 
 
 
@@ -508,19 +505,19 @@ void() Trader_Draw =
 
 	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
 		if (mousepos_y >= 1*IMGSIZEF*(scrwidth/640) && mousepos_y <= 2*IMGSIZEF*(scrwidth/640))
-			slotnum = floor((mousepos_x)/IMGSIZEF) + 0;
+			slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 0;
 
 	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
 		if (mousepos_y >= 2*IMGSIZEF*(scrwidth/640) && mousepos_y <= 3*IMGSIZEF*(scrwidth/640))
-			slotnum = floor((mousepos_x)/IMGSIZEF) + 5;
+			slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 5;
 
 	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
 		if (mousepos_y >= 3*IMGSIZEF*(scrwidth/640) && mousepos_y <= 4*IMGSIZEF*(scrwidth/640))
-			slotnum = floor((mousepos_x)/IMGSIZEF) + 10;
+			slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 10;
 
 	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
 		if (mousepos_y >= 4*IMGSIZEF*(scrwidth/640) && mousepos_y <= 5*IMGSIZEF*(scrwidth/640))
-			slotnum = floor((mousepos_x)/IMGSIZEF) + 15;
+			slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 15;
 
 
 	if (showcontextmenu && show_trader)

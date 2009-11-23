@@ -147,22 +147,14 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 
 	damage = floor(damage);
 	targ.health = floor(targ.health);
-/*
-	if (attacker.classname == "player" && total_players == 4)
-		damage = floor(damage * 0.75);
-	if (attacker.classname == "player" && total_players == 3)
-		damage = floor(damage * 0.80);
-	else if (attacker.classname == "player" && total_players == 2)
-		damage = floor(damage * 0.90);
-
-	if (targ.classname == "player")
-		damage = floor(damage * 0.60);*/
 
 
-	if (challenge_rating <= 6 && attacker.classname == "monster")
-		damage = damage * 0.70;
-	if (challenge_rating <= 9 && attacker.classname == "monster")
-		damage = damage * 0.80;
+	if (challenge_rating >= 20 && attacker.classname == "monster")
+		damage = damage * 1.30;
+	else if (challenge_rating <= 12 && attacker.classname == "monster")
+		damage = damage * 1.20;
+	else if (challenge_rating <= 9 && attacker.classname == "monster")
+		damage = damage * 1.10;
 
 	if (targ.radiation > 0)
 	{
@@ -191,7 +183,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	if (attacker.classname == "player" && targ.classname == "monster" && attacker.recoil <= 5)
 		attacker.score = attacker.score + 1;
 
-//attacker a monster from behind awards points
+//attacking a monster from behind awards points
 
 	local vector vec;
 	local float dot;
@@ -202,21 +194,27 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 		vec = normalize (attacker.origin - targ.origin);
 		dot = (vec * v_forward);
 
-		if (dot > 0.3)
+		if (dot < 0.3)
 			attacker.score = attacker.score + 1;
+
+		if (attacker.perk1 == 15 || attacker.perk2 == 15)
+		{
+			bprint(2, "SNEAK ATTACK\n");
+			damage = damage * (1 + (attacker.skill_sneak/15));
+		}
 	}
 
 //attacking a team-mate is a HUGE penalty
 	if (attacker.classname == "player" && targ.classname == "player")
 	{
-		attacker.score = attacker.score - 3;
+		attacker.score = attacker.score - 5;
 		sprint(attacker, 2, "you just shot a teammate! be careful!\n");
 	}
 
 //attacking a hostage is a HUGE penalty
 	if (attacker.classname == "player" && targ.classname == "hostage")
 	{
-		attacker.score = attacker.score - 3;
+		attacker.score = attacker.score - 5;
 		sprint(attacker, 2, "you just shot a hostage! be careful!\n");
 	}
 
@@ -231,36 +229,23 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 		sound (targ, CHAN_BODY, "effects/miss.wav", 1, ATTN_NORM);
 		return;
 	}
-	else if (targ.position == 1 && random()<0.05)
+	else if (targ.position == 1 && random()<0.10)
 	{
 		sound (targ, CHAN_BODY, "effects/miss.wav", 1, ATTN_NORM);
 		return;
 	}
-	else if (targ.position == 2 && random()<0.10)
+	else if (targ.position == 2 && random()<0.20)
 	{
 		sound (targ, CHAN_BODY, "effects/miss.wav", 1, ATTN_NORM);
 		return;
 	}
 
-	damage = damage * 1.25;
-
-//nintendo gamer: going into the zone gives a 50% miss chance
-
-	if (targ.rage == 255)
-	{
-		if (random()<0.50)
-		{
-			sound (targ, CHAN_BODY, "effects/miss.wav", 1, ATTN_NORM);
-			return;
-		}
-	}
 
 
-
-//paranoia: if taking cover, 25% miss chance (others get 10% bonus)
+//stay low: if taking cover, 20% miss chance (others get 10% bonus)
 	if (targ.rage == 777)
 	{
-		if (targ.perk1 == 2 || targ.perk2 == 2)
+		if (targ.perk1 == 4 || targ.perk2 == 4)
 		{
 			if (random()<0.20)
 			{
@@ -270,7 +255,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 		}
 		else
 		{
-			if (random()<0.05)
+			if (random()<0.10)
 			{
 				sound (targ, CHAN_BODY, "effects/miss.wav", 1, ATTN_NORM);
 				return;
@@ -279,51 +264,35 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	}
 
 	//master blaster: the more you burst, the higher the damage bonus
-	if (attacker.perk1 == 18 || attacker.perk2 == 18)
+	if (attacker.perk1 == 14 || attacker.perk2 == 14)
 	{
-		if (attacker.recoil > 10)
+		if (attacker.recoil > 5)
 		{
-			sprint(attacker, 2, "!MASTER BLASTER\n");
-			damage = damage * (1 + (attacker.recoil * 0.01));
+			damage = damage * (1 + (attacker.recoil * 0.03));
 		}
 	}
 
 
-	//hit the deck
+	//stay low
 	if (targ.perk1 == 4 || targ.perk2 == 4)
 	{
 		if (targ.position == 2)
-			damage = damage * 0.90;
+			damage = damage * 0.75;
 	}
 
 
 	//sneak attack: if you attack a creature who isn't fighting you, bonus damage
-	if (attacker.skill_sneak > 0)
+	if (attacker.skill_sneak > 0 && attacker.sneak > 0)
 	{
 		if (targ.enemy != attacker)
-			damage = damage * (1 + (attacker.skill_sneak/100));
+		{
+			bprint(2, "SNEAK ATTACK\n");
+			damage = damage * (1 + (attacker.skill_sneak/15));
+		}
 	}
 
-	//death wish: 20% damage bonus to targ, 10% to attacker
-	if (targ.perk1 == 19 || targ.perk2 == 19)
-		damage = damage * 1.10;
 
-	//death wish: 20% damage bonus to targ, 10% to attacker
-	if (attacker.perk1 == 19 || attacker.perk2 == 19)
-		damage = damage * 1.20;
 
-//die hard: if below 50% health, 25% damage resistance
-	if (targ.perk1 == 1 || targ.perk2 == 1)
-	{
-		if (targ.health < (targ.max_health*0.5))
-			damage = damage * 0.75;
-	}
-
-	if ((targ.perk1 == 17 || targ.perk2 == 17) && random()<0.02)
-	{
-		damage = damage * 0.10;
-		sprint(self, 2, "!ONE IN A MILLION\n");
-	}
 
 // used by buttons and triggers to set activator for target firing
 	damage_attacker = attacker;
@@ -336,7 +305,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 			attacker.critical = 0;
 	}
 
-	if (attacker.critical == 3 && targ.classname != "car")//attacker scored a headshot/critical
+	if (attacker.critical == 3 && targ.classname == "car")//attacker scored a headshot/critical
 	{
 		if (attacker.critical == 3)
 		{
@@ -346,24 +315,8 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 			if (targ.classname == "monster")
 				attacker.score = attacker.score + 1;
 
-			helm = targ.armortype;
-			if (targ.helmet == 0)
-			{
-				sound (targ, CHAN_VOICE, "player/headshot.wav", 1, ATTN_NORM);
-				helm = 0;
-			}
-			if (targ.helmet == 1)
-			{
-				sound (targ, CHAN_BODY, "weapons/helmet.wav", 1, ATTN_NORM);
-				helm = 0.30;
-			}
-			if (targ.helmet == 2)
-			{
-				sound (targ, CHAN_BODY, "weapons/helmet.wav", 1, ATTN_NORM);
-				helm = 0.45;
-			}
-
-			damage = (damage - (damage * helm));
+			sound (targ, CHAN_VOICE, "player/headshot.wav", 1, ATTN_NORM);
+	
 
 			makevectors (targ.v_angle);
 		}
@@ -518,7 +471,7 @@ take = damage;
 	if (targ.classname == "player" && targ.zoom > 0)
 	{
 		targ.maxspeed = targ.maxspeed * 0.33;
-		stuffcmd(targ, "v_idlescale 20\n");
+		stuffcmd(targ, "v_idlescale 10\n");
 	}
 	else if (take > 20 && targ.classname == "player")
 	{
@@ -532,14 +485,14 @@ take = damage;
 		stuffcmd(targ, "v_cshift 100 0 0 50\n");
 	}
 
+
+	ArmorNoise(targ, attacker);
+
 	if (take <= 0)
 	{
 		take = 0;
-		sound (targ, CHAN_BODY, targ.armornoise, 1, ATTN_NORM);
 		return;
 	}
-
-	ArmorNoise(targ, attacker);
 
 	if (targ.hold <= 0)
 		targ.health = targ.health - take;

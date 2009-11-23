@@ -609,53 +609,32 @@ void(float damage, float dist, float rate) FireMelee =
 			{
 				tdam = 20 + (60*self.skill_sneak);
 
-				if (getperk(9))
-					tdam = 900;
-
-				if (self.steadyaim == 0)
-					tdam = tdam + 10;
-
-			if (trace_ent.solid != SOLID_BSP && trace_ent.classname != "car")
-				SpawnBlood (org, 1);
-			else
-				SpawnNonBlood (org, 1);
-
-				T_Damage (trace_ent, self, self, tdam);
-				self.attack_finished = time + 2;
+				if (trace_ent.solid != SOLID_BSP)
+					SpawnBlood (org, 1);
+				else
+					SpawnNonBlood (org, 1);
+					T_Damage (trace_ent, self, self, tdam);
+					self.attack_finished = time + 2;
 
 				if (trace_ent.health > 0)//victim survived the attack
 				{
-						bprint(2, self.netname);
-						bprint(2, " ambushes ");
-						bprint(2, trace_ent.netname);
-						bprint(2, "!\n");
+					bprint(2, self.netname);
+					bprint(2, " ambushes ");
+					bprint(2, trace_ent.netname);
+					bprint(2, "!\n");
 
-						if (random()*4<2)
-							sound (trace_ent, CHAN_WEAPON, "player/headshot.wav", 1, ATTN_NONE);
-						else
-							sound (trace_ent, CHAN_WEAPON, "player/udeath.wav", 1, ATTN_NONE);
+					if (random()*4<2)
+						sound (trace_ent, CHAN_WEAPON, "player/headshot.wav", 1, ATTN_NONE);
+					else
+						sound (trace_ent, CHAN_WEAPON, "player/udeath.wav", 1, ATTN_NONE);
 
-						loud_noise(15);
-						self.equipment_slot = 0;
-						sprint(self, PRINT_HIGH, "ç Uncloaked ç\n");
-						setmodel (self, "progs/guy.mdl");
-						self.sneak = 0;
-						spawn_excla(self, 3);
+
+					self.equipment_slot = 0;
+					sprint(self, PRINT_HIGH, "ç Uncloaked ç\n");
+					setmodel (self, "progs/guy.mdl");
+					self.sneak = 0;
+					spawn_excla(self, 3);
 				}
-				else
-				{
-						bprint(2, self.netname);
-						bprint(2, " assassinates ");
-						bprint(2, trace_ent.netname);
-						bprint(2, "!\n");
-						self.score = self.score + 5;
-
-						if (random()*4<2)
-							sound (trace_ent, CHAN_WEAPON, "player/headshot.wav", 0.25, ATTN_IDLE);
-						else
-							sound (trace_ent, CHAN_WEAPON, "player/udeath.wav", 0.25, ATTN_IDLE);
-				}
-				return;
 			}
 			else if (trace_ent.takedamage)
 			{
@@ -2047,13 +2026,13 @@ void() W_Attack =
 	else if (weap == IID_WP_JACKHAMMER)
 		W_FireShotgun (1, 5, 6, 30, 1750, 2, "weapons/citykiller.wav");
 	else if (weap == IID_WP_GREASEGUN)
-		FireSMG(14, 0, "weapons/mp5.wav", 1500, 0.10);
+		FireSMG(12, 0, "weapons/greasegun.wav", 1500, 0.08);
 	else if (weap == IID_WP_MP9)
-		FireSMG(12, 0, "ogre/ak74.wav", 1500, 0.08);
+		FireSMG(12, 0, "weapons/mp9.wav", 1500, 0.08);
 	else if (weap == IID_WP_GREASEGUN_S)
-		FireSMG(12, 0, "weapons/smg_s.wav", 1500, 0.10);
+		FireSMG(9, 0, "weapons/greasegun.wav", 1200, 0.08);
 	else if (weap == IID_WP_MP9_S)
-		FireSMG(10, 0, "weapons/smg_s.wav", 1500, 0.08);
+		FireSMG(9, 0, "weapons/mp9.wav", 1200, 0.08);
 	else if (weap == IID_WP_RANGEMASTER)
 		FireAssaultRifle(18, 4, "weapons/rangem.wav", 4000, 0.1);
 	else if (weap == IID_WP_AK112)
@@ -2679,38 +2658,7 @@ void (vector org) bullet_hole =
 	WriteCoord (MSG_MULTICAST, org_y);
 	WriteCoord (MSG_MULTICAST, org_z);
 	multicast (self.origin, MULTICAST_PHS);
-/*
-	r = random();
-	ric = spawn();
-	setorigin(ric, org);
 
-	if (r <= 0.08)
-		sound (ric, CHAN_WEAPON, "contact/rico1.wav", TRUE, ATTN_NORM);
-	else if (r <= 0.16)
-		sound (ric, CHAN_WEAPON, "contact/rico2.wav", TRUE, ATTN_NORM);
-	else if (r <= 0.24)
-		sound (ric, CHAN_WEAPON, "contact/rico3.wav", TRUE, ATTN_NORM);
-	else if (r <= 0.32)
-		sound (ric, CHAN_WEAPON, "contact/rico4.wav", TRUE, ATTN_NORM);
-	else if (r <= 0.40)
-		sound (ric, CHAN_WEAPON, "contact/rico5.wav", TRUE, ATTN_NORM);
-	else if (r <= 0.48)
-		sound (ric, CHAN_WEAPON, "contact/rico6.wav", TRUE, ATTN_NORM);
-	else if (r <= 0.56)
-		sound (ric, CHAN_WEAPON, "contact/rico7.wav", TRUE, ATTN_NORM);
-	else if (r <= 0.64)
-		sound (ric, CHAN_WEAPON, "contact/rico8.wav", TRUE, ATTN_NORM);
-	else if (r <= 0.72)
-		sound (ric, CHAN_WEAPON, "contact/rico9.wav", TRUE, ATTN_NORM);
-	else if (r <= 0.80)
-		sound (ric, CHAN_WEAPON, "contact/rico10.wav", TRUE, ATTN_NORM);
-	else if (r <= 0.90)
-		sound (ric, CHAN_WEAPON, "contact/rico11.wav", TRUE, ATTN_NORM);
-	else
-		sound (ric, CHAN_WEAPON, "contact/rico12.wav", TRUE, ATTN_NORM);
-
-	ric.think = SUB_Remove;
-	ric.nextthink = time + 1;*/
 };
 
 void (vector test, float length, float dam) penetrate =
@@ -3396,24 +3344,16 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 	}
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
-	if (weap == IID_WP_GREASEGUN)
-		loud_noise(50);
-	else if (weap == IID_WP_MP9)
-		loud_noise(40);
-	else if (weap == IID_WP_GREASEGUN_S)
-		loud_noise(5);
-	else if (weap == IID_WP_MP9_S)
-		loud_noise(5);
+	loud_noise(40);
 
-	//only silenced weapons do not break stealth
-	if (weap != IID_WP_GREASEGUN_S && weap != IID_WP_MP9_S && self.sneak > 0)
-	{
-		self.equipment_slot = 0;
-		sprint(self, PRINT_HIGH, "ç Uncloaked ç\n");
-		setmodel (self, "progs/guy.mdl");
-		self.sneak = 0;
-		sound (self, CHAN_BODY, "misc/r_tele4.wav", 1, ATTN_NORM);
-	}
+
+
+	self.equipment_slot = 0;
+	sprint(self, PRINT_HIGH, "ç Uncloaked ç\n");
+	setmodel (self, "progs/guy.mdl");
+	self.sneak = 0;
+	sound (self, CHAN_BODY, "misc/r_tele4.wav", 1, ATTN_NORM);
+
 
 	self.attack_finished = (time + rate);
 
@@ -3452,6 +3392,12 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 		self.recoil = 10;
 
 	tmp = 150;
+
+	if (weap == IID_WP_MP9)
+	{
+		tmp = 200;
+		dam = dam * 1.25;
+	}
 
 	if (self.velocity == '0 0 0')
 		tmp = tmp + (15*self.recoil);
@@ -3501,20 +3447,10 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 
 		dam = dam + random()*dam;
 
-	if (weap == IID_WP_GREASEGUN)
-		T_Damage (trace_ent, self, self, dam);
-	else if (weap == IID_WP_MP9)
-		T_Damage (trace_ent, self, self, dam);
-	else if (weap == IID_WP_GREASEGUN_S)
-		T_Damage (trace_ent, self, self, dam);
-	else if (weap == IID_WP_MP9_S)
-		T_Damage (trace_ent, self, self, dam);
 
 		T_Damage (trace_ent, self, self, dam);
 		self.critical = 0;
 
-		if (trace_ent.solid == SOLID_BSP || trace_ent.classname == "car")
-			penetrate (org, (dam / 2), (dam / 2));
 	}
 	else
 	{
@@ -3821,16 +3757,23 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 		y = y * 0.90;
 	if (self.velocity == '0 0 0')
 		y = y * 0.90;
-	if (self.position == 2)
-		y = y * 0.80;
+
 	if (self.position == 1)
-		y = y * 0.90;
+		y = y * 0.75;
+	else if (self.position == 2)
+		y = y * 0.50;
 
 	if (self.position == 2 && weap == IID_WP_AK112_M)
 	{
-		y = y * 0.10;
-		tmp = tmp * 0.80;
+		y = y * 0.50;
+		tmp = tmp * 0.50;
 	}
+	else if (self.position < 2 && weap == IID_WP_AK112_M)
+	{
+		y = y * 1.25;
+		tmp = tmp * 1.25;
+	}
+
 	if (random()*3<=2)
 		self.driftx = self.driftx + y;
 	else

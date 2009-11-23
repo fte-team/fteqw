@@ -1817,12 +1817,12 @@ void() PlayerPreThink =
 			else if (self.position == 2)
 				x = ftos(self.recoil/4);
 
-			if (self.steadyaim == 0)
+			if (self.steadyaim == 0 && self.velocity == '0 0 0')
 				stuffcmd(self, "v_idlescale 0\n");
 			else if (self.recoil > 0)
 				stuffcmd(self, strcat("v_idlescale ", x, "\n"));
 			else if (self.velocity != '0 0 0')
-				stuffcmd(self, "v_idlescale 1\n");
+				stuffcmd(self, "v_idlescale 4\n");
 
 		}
 		self.cycle2 = time + 1;

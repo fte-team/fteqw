@@ -906,11 +906,11 @@ float(float iid) WeaponAmmoType =
 	if (iid == IID_WP_JACKHAMMER)
 		return IID_AM_12GAUGESHELLS;
 	if (iid == IID_WP_GREASEGUN)
-		return IID_AM_45ACP;
+		return IID_AM_10MM;
 	if (iid == IID_WP_MP9)
 		return IID_AM_10MM;
 	if (iid == IID_WP_GREASEGUN_S)
-		return IID_AM_45ACP;
+		return IID_AM_10MM;
 	if (iid == IID_WP_MP9_S)
 		return IID_AM_10MM;
 	if (iid == IID_WP_RANGEMASTER)
@@ -985,11 +985,11 @@ float(float iid) WeaponMagQuant =
 	if (iid == IID_WP_JACKHAMMER)
 		return 20;
 	if (iid == IID_WP_GREASEGUN)
-		return 25;
+		return 30;
 	if (iid == IID_WP_MP9)
 		return 30;
 	if (iid == IID_WP_GREASEGUN_S)
-		return 25;
+		return 30;
 	if (iid == IID_WP_MP9_S)
 		return 30;
 	if (iid == IID_WP_RANGEMASTER)
@@ -1463,9 +1463,9 @@ float(float iid) GetBaseValue =
 	if (iid == IID_WP_JACKHAMMER)
 		return 250;
 	if (iid == IID_WP_GREASEGUN)
-		return 100;
+		return 150;
 	if (iid == IID_WP_GREASEGUN_S)
-		return 125;
+		return 25;
 	if (iid == IID_WP_MP9)
 		return 110;
 	if (iid == IID_WP_MP9_S)
@@ -1699,13 +1699,13 @@ string(float iid) GetItemDesc =
 	if (iid == IID_WP_JACKHAMMER)
 		return "the ultimate for close range battles";
 	if (iid == IID_WP_GREASEGUN)
-		return "higher recoil due to larger .45 acp round";
+		return "a subpar smg rechambered for 10mm";
 	if (iid == IID_WP_GREASEGUN_S)
-		return "higher recoil due to larger .45 acp round";
+		return "a subpar smg in extremely poor condition";
 	if (iid == IID_WP_MP9)
 		return "great all-around weapon; good burst fire";
 	if (iid == IID_WP_MP9_S)
-		return "silenced 10mm smg; less recoil";
+		return "great all-around weapon in extremely poor condition";
 	if (iid == IID_WP_RANGEMASTER)
 		return "civilian battle rifle. sturdy and effective";
 	if (iid == IID_WP_RANGEMASTER_SCOPE)

@@ -79,7 +79,7 @@ void (float tmp, float dam) army_fire =
 
 	makevectors (self.angles);
 
-	sound (self, CHAN_WEAPON, "weapons/usp.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
+	sound (self, CHAN_WEAPON, "weapons/10mmpistol.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
 
 	src = self.origin + v_forward*10;
 	src_z = self.absmin_z + self.size_z * 0.7;
@@ -323,7 +323,7 @@ void (float tmp, float dam) army_fire3 =
 	if (self.enemy.sneak == 1)
 		tmp = tmp * 2;
 
-	sound (self, CHAN_WEAPON, "weapons/mp5.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
+	sound (self, CHAN_WEAPON, "weapons/greasegun.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
 
 	self.mag1 = self.mag1 - 1;
 
@@ -1476,7 +1476,7 @@ void () army_die =
 	if (self.weapon == 3)
 		DropFromChest(self, IID_WP_WINCHESTER, 1);
 	if (self.weapon == 4)
-		DropFromChest(self, IID_WP_GREASEGUN, 15);
+		DropFromChest(self, IID_WP_GREASEGUN_S, 15);
 	if (self.weapon == 5)
 		DropFromChest(self, IID_WP_AK47, 12);
 
@@ -1487,7 +1487,7 @@ void () army_die =
 	if (self.weapon == 3)
 		DropFromChest(self, IID_AM_12GAUGESHELLS, 8);
 	if (self.weapon == 4)
-		DropFromChest(self, IID_AM_45ACP, 30);
+		DropFromChest(self, IID_AM_10MM, 30);
 	if (self.weapon == 5)
 		DropFromChest(self, IID_AM_5MMHIGHVEL, 24);
 

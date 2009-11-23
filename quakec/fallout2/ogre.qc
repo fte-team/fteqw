@@ -119,7 +119,7 @@ void (float tmp, float dam) ogre_smg =
 
 	self.weapon = 5;
 
-	sound (self, CHAN_WEAPON, "weapons/mp7.wav", 1, ATTN_NORM);
+	sound (self, CHAN_WEAPON, "weapons/mp9.wav", 1, ATTN_NORM);
 
 
 	tmp = 300;

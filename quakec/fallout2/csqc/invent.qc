@@ -1229,7 +1229,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 		{		
 			if (showcontextmenu && show_inventory)
 			{
-				op = ceil((mousepos_y - contextpos_y)/(8*(scrwidth/640)));
+				op = floor((mousepos_y - contextpos_y)/(8*(scrwidth/640)));
 
 				if (op == 0)
 					localcmd(strcat("cmd invuse ", ftos(slotnum), "\n"));

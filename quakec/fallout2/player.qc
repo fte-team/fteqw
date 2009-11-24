@@ -194,7 +194,7 @@ void (float db) loud_noise =
 
 	while (te)
 	{
-		if (te.classname == "monster" && te.enemy.classname != "player")
+		if (te.classname == "monster" && (te.enemy.classname != "player" && te.charmed <= 0))
 		{
 			dir = normalize(te.origin - self.origin);
 			v = vlen(te.origin - self.origin);

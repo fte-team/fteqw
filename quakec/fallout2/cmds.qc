@@ -424,7 +424,8 @@ void(string arg1) Cmd_InvBuy =
 				sprint(self, 2, "full inventory.\n");
 				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
 				m = SlotOfItem(self, IID_MONEY);
-				SetItemSlot(self, m, n);
+				SetItemSlot(self, m, 0);
+				TryGiveStackable(self, IID_MONEY, n);
 				return;
 			}
 		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
@@ -743,16 +744,15 @@ void(string arg1) Cmd_InvMix =
 		sprint(self, PRINT_MEDIUM, "silencer created\n");
 		sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
 	}
-	else if ((iid1 == IID_WP_NEEDLER && iid2 == IID_WP_NEEDLER) ||
-            (iid2 == IID_WP_NEEDLER && iid1 == IID_WP_NEEDLER))
+	else if ((iid1 == IID_ARM_VANDAL && iid2 == IID_MISC_JUNK) ||
+            (iid2 == IID_ARM_VANDAL && iid1 == IID_MISC_JUNK))
 	{
 
 
 
-		if (random()*100 > (self.skill_science*10))
+		if (random()*100 > (self.skill_science*20))
 		{
-			sprint(self, PRINT_MEDIUM, "your concoction exploded!\n");
-			Explosion();
+			sprint(self, PRINT_MEDIUM, "your concoction failed.\n");
 			return;
 		}
 		
@@ -768,8 +768,8 @@ void(string arg1) Cmd_InvMix =
 		DecreaseDestroySlot(23);
 		DecreaseDestroySlot(24);
 
-		SetItemSlot(self, x, SlotVal(IID_WP_ACR, 1));
-		sprint(self, PRINT_MEDIUM, "Steyr ACR created\n");
+		SetItemSlot(self, x, SlotVal(IID_ARM_WASTELAND, 1));
+		sprint(self, PRINT_MEDIUM, "Wasteland Jacket created\n");
 		sound (self, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
 	}
 	else

@@ -351,7 +351,7 @@ void (float tmp, float dam) army_fire3 =
 	if (trace_ent.takedamage)
 	{
 		SpawnBlood (org, PLAT_LOW_TRIGGER);
-		dam = dam + random()*dam;
+		dam = 6 + random()*6;
 		dam = dam * (1 - (trace_fraction/2));
 		T_Damage (trace_ent, self, self, dam);
 	}

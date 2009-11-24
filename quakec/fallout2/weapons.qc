@@ -637,7 +637,10 @@ void(float damage, float dist, float rate) FireMelee =
 
 			if (dot < 0.5 && trace_ent.takedamage)
 			{
-				tdam = 20 + (60*self.skill_sneak);
+				if (trace_ent.enemy.classname == "player")
+					tdam = 20 + (60*self.skill_sneak);
+				else
+					tdam = 20 + (50*self.skill_sneak);
 
 				if (trace_ent.solid != SOLID_BSP)
 					SpawnBlood (org, 1);
@@ -664,6 +667,18 @@ void(float damage, float dist, float rate) FireMelee =
 					setmodel (self, "progs/guy.mdl");
 					self.sneak = 0;
 					spawn_excla(self, 3);
+				}
+				else
+				{
+					bprint(2, self.netname);
+					bprint(2, " assassinates ");
+					bprint(2, trace_ent.netname);
+					bprint(2, "!\n");
+
+					if (random()*4<2)
+						sound (trace_ent, CHAN_WEAPON, "player/headshot.wav", 1, ATTN_NONE);
+					else
+						sound (trace_ent, CHAN_WEAPON, "player/udeath.wav", 1, ATTN_NONE);
 				}
 			}
 			else if (trace_ent.takedamage)
@@ -2060,9 +2075,9 @@ void() W_Attack =
 	else if (weap == IID_WP_MP9)
 		FireSMG(12, 0, "weapons/mp9.wav", 1500, 0.08);
 	else if (weap == IID_WP_GREASEGUN_S)
-		FireSMG(9, 0, "weapons/greasegun.wav", 1200, 0.08);
+		FireSMG(12, 0, "weapons/greasegun.wav", 1200, 0.08);
 	else if (weap == IID_WP_MP9_S)
-		FireSMG(9, 0, "weapons/mp9.wav", 1200, 0.08);
+		FireSMG(12, 0, "weapons/mp9.wav", 1200, 0.08);
 	else if (weap == IID_WP_RANGEMASTER)
 		FireAssaultRifle(18, 4, "weapons/rangem.wav", 4000, 0.1);
 	else if (weap == IID_WP_AK112)
@@ -2661,7 +2676,7 @@ void (vector org) bullet_hole =
 	WriteCoord (MSG_MULTICAST, org_x);
 	WriteCoord (MSG_MULTICAST, org_y);
 	WriteCoord (MSG_MULTICAST, org_z);
-	multicast (self.origin, MULTICAST_PHS);
+	multicast (org, MULTICAST_PHS);
 
 };
 
@@ -3403,6 +3418,10 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 		tmp = 165;
 		dam = dam * 1.1;
 	}
+
+	if (weap == IID_WP_GREASEGUN_S)
+		tmp = 210;
+
 
 	if (self.velocity == '0 0 0')
 		tmp = tmp + (15*self.recoil);
@@ -4623,15 +4642,6 @@ void () UseStimpack =
 			sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
 			sprint(self, PRINT_MEDIUM, "you heal yourself with a stimpack\n");
 
-			thing = findradius(self.origin, 400);
-			while (thing)
-			{
-				if (thing.classname == "player" && thing.health < self.health)
-					self.score = self.score - 50;        
-              
-				thing = thing.chain;      
-			}
-
 			self.health = self.health + 30 + (self.skill_doctor);
 			self.regen = self.regen + (5 + (self.skill_doctor/2));
 			spawn_healing(self);
@@ -4672,15 +4682,6 @@ void () UseSuperStim =
 			sprint(self, PRINT_MEDIUM, "you are not injured.\n");
 		else if (self.health < self.max_health)
 		{
-			local entity thing;
-			thing = findradius(self.origin, 400);
-			while (thing)
-			{
-				if (thing.classname == "player" && (thing.health+20) < self.health)
-					self.score = self.score - 50;        
-              
-				thing = thing.chain;      
-			}
 
 			DecreaseDestroySlot(x);//take away a stimpack
 			sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
@@ -4833,16 +4834,6 @@ void () UseMedicalBag =
 		else if (self.health < self.max_health)
 		{
 			DecreaseDestroySlot(x);//take away a medkit
-
-			local entity thing;
-			thing = findradius(self.origin, 400);
-			while (thing)
-			{
-				if (thing.classname == "player" && (thing.health+20) < self.health)
-					self.score = self.score - 25;        
-              
-				thing = thing.chain;      
-			}
 
 			sound (self, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
 			self.health = self.health + 5 + (self.skill_doctor/2);

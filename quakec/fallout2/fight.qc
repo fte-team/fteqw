@@ -94,16 +94,23 @@ float() CheckAttack =
 	else if (enemy_range == RANGE_NEAR)
 	{
 		if (self.th_melee)
-			chance = 0.2;
+			chance = 0.95;
 		else
-			chance = 0.4;
+			chance = 0.95;
 	}
 	else if (enemy_range == RANGE_MID)
 	{
 		if (self.th_melee)
-			chance = 0.05;
+			chance = 0.95;
 		else
-			chance = 0.1;
+			chance = 0.95;
+	}
+	else if (enemy_range == RANGE_FAR)
+	{
+		if (self.th_melee)
+			chance = 0.9;
+		else
+			chance = 0.9;
 	}
 	else
 		chance = 0;
@@ -111,7 +118,7 @@ float() CheckAttack =
 	if (random () < chance)
 	{
 		self.th_missile ();
-		SUB_AttackFinished (2*random());
+		SUB_AttackFinished (3*random());
 		return TRUE;
 	}
 
@@ -261,9 +268,11 @@ float() SoldierCheckAttack =
 	if (enemy_range == RANGE_MELEE)
 		chance = 0.9;
 	else if (enemy_range == RANGE_NEAR)
-		chance = 0.4;
+		chance = 0.9;
 	else if (enemy_range == RANGE_MID)
-		chance = 0.05;
+		chance = 0.9;
+	else if (enemy_range == RANGE_FAR)
+		chance = 0.9;
 	else
 		chance = 0;
 

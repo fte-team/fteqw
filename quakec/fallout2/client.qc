@@ -1328,7 +1328,7 @@ void() SneakLevel =
 	te = findradius(self.origin, q);
 	while (te)
 	{
-		if (visible(te) && te.classname == "monster" && (check_fov_num(te) > 0.5) && te.health > 3)
+		if ((te.enemy.classname != "player" || te.enemy != self) && visible(te) && te.classname == "monster" && (check_fov_num(te) > 0.5) && te.health > 3)
 		{	
 			if (c == 0)
 			{
@@ -1340,14 +1340,7 @@ void() SneakLevel =
 				y = r / t;
 				ze = te;
 				c = 1;
-/*
-				bprint(2, "test1: ");
-				bprint(2, ftos(r));
-				bprint(2, " ");
-				bprint(2, ftos(q));
-				bprint(2, " ");
-				bprint(2, ftos(t));
-				bprint(2, "\n");*/
+
 			}
 			else
 			{
@@ -1357,14 +1350,7 @@ void() SneakLevel =
 				t = t * (check_fov_num(te));
 				t = t * (check_fov_num(te));
 				z = r / t;
-				/*
-				bprint(2, "test2: ");
-				bprint(2, ftos(r));
-				bprint(2, " ");
-				bprint(2, ftos(q));
-				bprint(2, " ");
-				bprint(2, ftos(t));
-				bprint(2, "\n");*/
+		
 
 				if (z < y)
 				{
@@ -2412,12 +2398,12 @@ void(entity targ, entity attacker) ClientObituary =
 		if (attacker.critical == 778) //wall headshot
 		{
 			bprint (PRINT_MEDIUM, "& ");
-			attacker.score = attacker.score + 75;
+			attacker.score = attacker.score + 10;
 		}
 		if (attacker.velocity_z != 0)
 		{
 			bprint (PRINT_MEDIUM, "@ ");
-			attacker.score = attacker.score - 2;
+			attacker.score = attacker.score + 2;
 		}
 //		if (attacker.current_slot == 1 && attacker.mag1 == 0)
 //			bprint (PRINT_MEDIUM, "! ");

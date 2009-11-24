@@ -85,7 +85,7 @@ float IID_GREN_STUN = 105;
 float IID_GREN_FLARE = 106;
 
 //armour
-#define IsArmor(iid) (iid >= IID_ARM_DESERT && iid <= IID_ARM_LPOWER)
+#define IsArmor(iid) (iid >= IID_ARM_DESERT && iid <= IID_ARM_WASTELAND)
 float IID_ARM_DESERT = 200;
 float IID_ARM_LEATHER = 201;
 float IID_ARM_VANDAL = 202;
@@ -95,6 +95,7 @@ float IID_ARM_COMBAT = 205;
 float IID_ARM_SEVA = 206;
 float IID_ARM_FORCE = 207;
 float IID_ARM_LPOWER = 208;
+float IID_ARM_WASTELAND = 208;
 
 //stims
 #define IsChem(iid) (iid >= IID_CHEM_STIMPACK && iid <= IID_CHEM_BESERK)
@@ -915,6 +916,9 @@ string(float iid) GetItemWModel =
 	if (iid >= IID_MISC_JUNK && iid <= IID_MISC_XRAYTUBE)
 		return "progs/junk1.mdl";
 
+	if (iid >= IID_ARM_LEATHER && iid <= IID_ARM_WASTELAND)
+		return "progs/armor.mdl";
+
 	if (iid == IID_MONEY)
 		return "progs/money.mdl";
 
@@ -1375,7 +1379,8 @@ string(float iid) GetItemName =
 		return "force armor";
 	if (iid == IID_ARM_LPOWER)
 		return "power armor";
-
+	if (iid == IID_ARM_WASTELAND)
+		return "wasteland jacket";
 
 	if (iid == IID_CHEM_STIMPACK)
 		return "stimpack";
@@ -1577,7 +1582,7 @@ float(float iid) GetBaseValue =
 	if (iid == IID_AM_2MMEC)
 		return 120;
 	if (iid == IID_AM_10MM)
-		return 12;
+		return 10;
 	if (iid == IID_AM_556MM)
 		return 20;
 	if (iid == IID_AM_5MMHIGHVEL)
@@ -1630,7 +1635,8 @@ float(float iid) GetBaseValue =
 		return 300;
 	if (iid == IID_ARM_LPOWER)
 		return 450;
-
+	if (iid == IID_ARM_WASTELAND)
+		return 150;
 
 	if (iid == IID_CHEM_STIMPACK)
 		return 5;
@@ -1864,7 +1870,8 @@ string(float iid) GetItemDesc =
 		return "experimental energy-field armor, very low absorb";
 	if (iid == IID_ARM_LPOWER)
 		return "the heaviest armor with great protection";
-
+	if (iid == IID_ARM_WASTELAND)
+		return "upgraded vandal armor with extra small arms protection";
 
 	if (iid == IID_CHEM_STIMPACK)
 		return "advanced healing chem that replaces lost blood";
@@ -1964,6 +1971,8 @@ float(float iid) GetArmorThreshold =
 		return 3;
 	if (iid == IID_ARM_VANDAL)
 		return 4;
+	if (iid == IID_ARM_VANDAL)
+		return 5;
 	if (iid == IID_ARM_METAL)
 		return 1;
 	if (iid == IID_ARM_TESLA)
@@ -1987,6 +1996,8 @@ float(float iid) GetArmorAbsorb =
 	if (iid == IID_ARM_LEATHER)
 		return 20;
 	if (iid == IID_ARM_VANDAL)
+		return 30;
+	if (iid == IID_ARM_WASTELAND)
 		return 30;
 	if (iid == IID_ARM_METAL)
 		return 50;
@@ -2315,6 +2326,8 @@ string(float iid) GetItemImage =
 	if (iid == IID_ARM_LEATHER)
 		return "leather.jpg";
 	if (iid == IID_ARM_VANDAL)
+		return "vandal.jpg";
+	if (iid == IID_ARM_WASTELAND)
 		return "vandal.jpg";
 	if (iid == IID_ARM_METAL)
 		return "metal.jpg";
@@ -2924,6 +2937,8 @@ float(float iid) GetItemThreatLevel =
 	if (iid == IID_ARM_LEATHER)
 		return 0;
 	if (iid == IID_ARM_VANDAL)
+		return 0;
+	if (iid == IID_ARM_WASTELAND)
 		return 0;
 	if (iid == IID_ARM_METAL)
 		return 0;

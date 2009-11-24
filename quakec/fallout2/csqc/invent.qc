@@ -503,30 +503,32 @@ void() Trader_Draw =
 	TraderImage('5 4 0'*IMGSIZEF*(scrwidth/640), 20);
 
 
-	slotnum = 0;
+	if (!showcontextmenu)
+	{
+		slotnum = 0;
 
-	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
-		if (mousepos_y >= 1*IMGSIZEF*(scrwidth/640) && mousepos_y <= 2*IMGSIZEF*(scrwidth/640))
-			slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 0;
+		if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
+			if (mousepos_y >= 1*IMGSIZEF*(scrwidth/640) && mousepos_y <= 2*IMGSIZEF*(scrwidth/640))
+				slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 0;
 
-	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
-		if (mousepos_y >= 2*IMGSIZEF*(scrwidth/640) && mousepos_y <= 3*IMGSIZEF*(scrwidth/640))
-			slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 5;
+		if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
+			if (mousepos_y >= 2*IMGSIZEF*(scrwidth/640) && mousepos_y <= 3*IMGSIZEF*(scrwidth/640))
+				slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 5;
 
-	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
-		if (mousepos_y >= 3*IMGSIZEF*(scrwidth/640) && mousepos_y <= 4*IMGSIZEF*(scrwidth/640))
-			slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 10;
+		if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
+			if (mousepos_y >= 3*IMGSIZEF*(scrwidth/640) && mousepos_y <= 4*IMGSIZEF*(scrwidth/640))
+				slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 10;
 
-	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
-		if (mousepos_y >= 4*IMGSIZEF*(scrwidth/640) && mousepos_y <= 5*IMGSIZEF*(scrwidth/640))
-			slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 15;
-
+		if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
+			if (mousepos_y >= 4*IMGSIZEF*(scrwidth/640) && mousepos_y <= 5*IMGSIZEF*(scrwidth/640))
+				slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 15;
+	}
 
 	if (showcontextmenu && show_trader)
 	{
-		drawfill(contextpos*(scrwidth/640) - '8 8 0'*(scrwidth/640), '48 48 0'*(scrwidth/640), '0 0 0', 1.0);
-		op = floor((mousepos_y*(scrwidth/640) - contextpos_y*(scrwidth/640))/8*(scrwidth/640));
-		drawstring(contextpos*(scrwidth/640) + '0 8 0'*(scrwidth/640), "buy?", '8 8 0'*(scrwidth/640), '1 1 0' + (op!=1)*'0 0 1', 
+		drawfill(contextpos - '8 8 0'*(scrwidth/640), '48 48 0'*(scrwidth/640), '0 0 0', 1.0);
+		op = floor((mousepos_y - contextpos_y)/8*(scrwidth/640));
+		drawstring(contextpos + '0 8 0'*(scrwidth/640), "buy?", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=1)*'0 0 1'*(scrwidth/640), 
 1);
 	}
 
@@ -1013,18 +1015,18 @@ void() Invent_Draw =
 
 	if (showcontextmenu && show_inventory)
 	{
-			drawfill(contextpos - '8 8 0', '88 24 0'+'32 16 0'*(scrwidth/640), '0 0 0', 1);
+			drawfill(contextpos - '8 8 0', '32 48 0'+'32 16 0'*(scrwidth/640), '0 0 0', 1);
 
 		op = floor((mousepos_y - contextpos_y)/8);
-		drawstring(contextpos + (0 * '0 8 0'), "use/reload", '8 8 0', '1 1 0' + (op!=0)*'0 0 1', 1);
-		drawstring(contextpos + (1 * '0 8 0'), "drop", '8 8 0', '1 1 0' + (op!=1)*'0 0 1', 1);
+		drawstring(contextpos + (0 * ('0 8 0'*(scrwidth/640))), "use", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=0)*'0 0 1'*(scrwidth/640), 1);
+		drawstring(contextpos + (2 * ('0 8 0'*(scrwidth/640))), "drop", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=2)*'0 0 1'*(scrwidth/640), 1);
 		if (getstati(108) == 1)
-			drawstring(contextpos + (2 * '0 8 0'), "sell", '8 8 0', '1 1 0' + (op!=2)*'0 0 1', 1);
+		drawstring(contextpos + (4 * ('0 8 0'*(scrwidth/640))), "sell", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=4)*'0 0 1'*(scrwidth/640), 1);
 
 	}
 	else if (showmixmenu && show_inventory)
 	{
-			drawfill(contextpos - '8 8 0', '88 24 0'+'96 96 0', '0 0 0', 0.9);
+			drawfill(contextpos - '8 8 0', '16 24 0'+'96 96 0', '0 0 0', 1);
 
 		op = floor((mousepos_y - contextpos_y)/8);
 		drawstring(contextpos + (0 * '0 8 0'), "mix items", '8 8 0', '1 1 0' + (op!=0)*'0 0 1', 1);
@@ -1227,13 +1229,13 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 		{		
 			if (showcontextmenu && show_inventory)
 			{
-				op = floor((mousepos_y - contextpos_y)/8);
+				op = ceil((mousepos_y - contextpos_y)/(8*(scrwidth/640)));
 
 				if (op == 0)
 					localcmd(strcat("cmd invuse ", ftos(slotnum), "\n"));
-				else if ((op == 1))
+				else if ((op == 2))
 					localcmd(strcat("cmd invdrop ", ftos(slotnum), "\n"));
-				else if (op == 2)
+				else if (op == 4)
 					localcmd(strcat("cmd invsell ", ftos(slotnum), "\n"));
 
 				showcontextmenu = false;

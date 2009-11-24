@@ -180,10 +180,6 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	if (targ.classname == "player" && attacker.classname == "monster")
 		targ.superenemy = attacker;
 
-//getting hurt is slightly painful to the score, play cautiously!
-	if (attacker.classname == "monster" && targ.classname == "player")
-		targ.score = targ.score - 1;
-
 //flanking monsters awards points
 	if (attacker.classname == "player" && targ.classname == "monster" && targ.enemy != attacker)
 		attacker.score = attacker.score + 1;
@@ -216,14 +212,14 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 //attacking a team-mate is a HUGE penalty
 	if (attacker.classname == "player" && targ.classname == "player")
 	{
-		attacker.score = attacker.score - 5;
+		attacker.score = attacker.score - 2;
 		sprint(attacker, 2, "you just shot a teammate! be careful!\n");
 	}
 
 //attacking a hostage is a HUGE penalty
 	if (attacker.classname == "player" && targ.classname == "hostage")
 	{
-		attacker.score = attacker.score - 5;
+		attacker.score = attacker.score - 2;
 		sprint(attacker, 2, "you just shot a hostage! be careful!\n");
 	}
 

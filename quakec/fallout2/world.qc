@@ -1799,6 +1799,7 @@ void() worldspawn =
 	precache_model ("progs/backpack.mdl");
 	precache_model ("progs/zom_gib.mdl");
 	precache_model ("progs/v_light.mdl");
+	precache_model ("progs/armor.mdl");
 	precache_model ("maps/crate.bsp");
 
 //

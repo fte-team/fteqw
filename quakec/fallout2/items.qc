@@ -316,13 +316,13 @@ void(vector loc) SpawnJunk =
 
 
 
-	if (random()*100 <= 50)
+	if (random()*100 <= 25)
 		junk.islot1 = SlotVal(IID_MISC_HMXCOMPOUND, 1);
-	else if (random()*100 <= 50)
+	else if (random()*100 <= 25)
 		junk.islot1 = SlotVal(IID_MISC_CHEMICALS, 1);
-	else if (random()*100 <= 33)
+	else if (random()*100 <= 25)
 		junk.islot1 = SlotVal(IID_MISC_NUKACOLA, 1);
-	else if (random()*100 <= 33)
+	else if (random()*100 <= 25)
 		junk.islot1 = SlotVal(IID_MISC_AEROSOL, 1);
 	else if (random()*100 <= 10)
 		junk.islot1 = SlotVal(IID_MISC_RDXCRYSTAL, 1);

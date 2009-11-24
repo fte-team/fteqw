@@ -2343,6 +2343,8 @@ DropMoney
 
 void() MoneyTouch =
 {
+	local float x, y;
+
 	if (other.classname != "player")
 		return;
 
@@ -2350,9 +2352,15 @@ void() MoneyTouch =
 		return;
 
 	sound (self, CHAN_VOICE, "items/item1.wav", 1, ATTN_IDLE);
-	sprint(other, 2, "a small amount of wasteland currency.\n");
-	other.ammo_shells += self.islot1;
-	remove(self);
+
+	x = ToIID(self.islot1);
+	y = ToStatus(self.islot1);
+
+	if (TryGiveStackable(other, x, y))
+	{
+		sprint(other, 2, "found some bottle caps.\n");
+		remove(self);
+	}
 };
 
 void() DropMoney =
@@ -2373,7 +2381,7 @@ void() DropMoney =
 	item.movetype = MOVETYPE_TOSS;
 	setmodel (item, "progs/money.mdl");
 	setsize (item, '-16 -16 0', '16 16 56');
-	item.islot1 = 2 + random()*5;
+	item.islot1 = SlotVal(IID_MONEY, 1);
 	item.skin = ToIID(item.islot1) - 506;
 
 	item.touch = MoneyTouch;

@@ -949,8 +949,8 @@ void() brotherhood_merchant =
 
 
 	
-	self.xslot1 = SlotVal(IID_WP_USP, 1);
-	self.xslot6 = SlotVal(IID_AM_45ACP, 100);
+	self.xslot1 = SlotVal(IID_WP_GLOCK, 1);
+	self.xslot6 = SlotVal(IID_AM_10MM, 100);
 
 	self.xslot2 = SlotVal(IID_WP_PIPERIFLE, 1);
 	self.xslot7 = SlotVal(IID_AM_44MAGNUM, 100);

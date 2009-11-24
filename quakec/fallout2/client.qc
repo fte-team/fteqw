@@ -48,11 +48,11 @@ void() SetChangeParms =
 	{
 		self.supertime = 0;
 		sprint(self, 2, "you are now back to your normal self.\n");
-		self.skill_combat = self.skill_combat - 20;
-		self.skill_doctor = self.skill_doctor - 20;
-		self.skill_sneak = self.skill_sneak - 20;
-		self.skill_science = self.skill_science - 20;
-		self.skill_speech = self.skill_speech - 20;
+		self.skill_combat = self.skill_combat - 10;
+		self.skill_doctor = self.skill_doctor - 10;
+		self.skill_sneak = self.skill_sneak - 10;
+		self.skill_science = self.skill_science - 10;
+		self.skill_speech = self.skill_speech - 10;
 	}
 
 	self.items = self.items - (self.items & 
@@ -66,7 +66,7 @@ void() SetChangeParms =
 	parm16 = self.skill_speech;
 
 
-	parm8 = self.ammo_shells;
+	parm8 = self.score;
 	parm9 = self.perk1;
 	parm10 = self.perk2;
 	parm17 = self.islot1;
@@ -148,7 +148,7 @@ void() DecodeLevelParms =
 	self.skill_science = parm14;
 	self.skill_speech = parm16;
 
-	self.ammo_shells = parm8;
+	self.score = parm8;
 	self.perk1 = parm9;
 	self.perk2 = parm10;
 
@@ -625,12 +625,12 @@ void() PutClientInServer =
 
 	if (self.islot1 == 0 && self.islot2 == 0 && self.islot3 == 0 && self.islot4 == 0 && self.islot5 == 0 && self.islot6 == 0 && self.islot7 == 0 && self.islot8 == 0 && self.islot9 == 0 && self.islot10 == 0 && self.islot11 == 0 && self.islot12 == 0)
 	{
-		self.islot1 = SlotVal(IID_WP_GLOCK, 15);
-		self.islot2 = SlotVal(IID_WP_KNIFE, 1);
+		self.islot1 = SlotVal(IID_WP_KNIFE, 1);
+		self.islot2 = 0;
 		self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
 		self.islot5 = SlotVal(IID_CHEM_STIMPACK, 5);
-		self.islot7 = SlotVal(IID_AM_10MM, 70);
-		self.islot8 = 0;
+		self.islot7 = 0;
+		self.islot8 = SlotVal(IID_MONEY, 100);
 		self.islot9 = 0;
 		self.islot10 = 0;
 		self.islot11 = SlotVal(IID_CHEM_MEDICALBAG, 25);
@@ -664,7 +664,7 @@ void() PutClientInServer =
 	self.fixangle = TRUE;           // turn this way immediately
 
 
-	self.max_health = 80 + (self.skill_combat*4) + (self.skill_doctor*2) + (self.skill_sneak*2) + (self.skill_speech);
+	self.max_health = 100 + (self.skill_combat*4) + (self.skill_doctor*2) + (self.skill_sneak*2) + (self.skill_speech*2) + (self.skill_science);
 
 	self.equipment_slot = 0;
 
@@ -773,9 +773,9 @@ void() PutClientInServer =
 
 
 	if (world.model == "maps/r_bunker.bsp")
-		stuffcmd(self, "play music/afterglow\n");
+		stuffcmd(self, "play music/vault\n");
 	else if (world.map_obj == OBJ_DEADTOWN)
-		stuffcmd(self, "play music/necropolis\n");
+		stuffcmd(self, "play music/afterglow\n");
 };
 
 
@@ -1635,13 +1635,16 @@ void() PlayerPreThink =
 			self.perk2timer = self.perk2timer - 1;
 
 	//speech skill provides faster perk regeneration
-		if (random()*40 < self.skill_speech)
+		if (random()*30 < self.skill_speech)
 		{
 			if (self.perk1timer > 0)
 				self.perk1timer = self.perk1timer - 1;
 			if (self.perk2timer > 0)
 				self.perk2timer = self.perk2timer - 1;
 		}
+
+
+
 
 	self.shadowtime = time_left;
 
@@ -1681,11 +1684,11 @@ void() PlayerPreThink =
 			self.supertime = 0;
 			sound (self, CHAN_BODY, "items/damage2.wav", 1, ATTN_NORM);
 			sprint(self, 2, "you are now back to your normal self.\n");
-			self.skill_combat = self.skill_combat - 20;
-			self.skill_doctor = self.skill_doctor - 20;
-			self.skill_sneak = self.skill_sneak - 20;
-			self.skill_science = self.skill_science - 20;
-			self.skill_speech = self.skill_speech - 20;
+			self.skill_combat = self.skill_combat - 10;
+			self.skill_doctor = self.skill_doctor - 10;
+			self.skill_sneak = self.skill_sneak - 10;
+			self.skill_science = self.skill_science - 10;
+			self.skill_speech = self.skill_speech - 10;
 		}
 
 		local float lgrip, rgrip;
@@ -1709,7 +1712,7 @@ void() PlayerPreThink =
 		self.cycle1 = time + 0.5;
 	}
 
-
+/*
 	if (walkmove(0, 0) && self.solid != SOLID_SLIDEBOX)
 	{
 		self.materialize = 0;
@@ -1719,7 +1722,7 @@ void() PlayerPreThink =
 	{
 		self.materialize = 5;
 		self.solid = SOLID_NOT;
-	}
+	}*/
 
 	if (self.materialize > 0)
 	{
@@ -1752,6 +1755,13 @@ void() PlayerPreThink =
 	if (self.cycle2 < time)
 	{
 
+		if (self.blurtime > 0 && self.blurtime <= 1)
+			stuffcmd(self, "gl_motionblur 0\n");
+		else if (self.blurtime > 0)
+		{
+			stuffcmd(self, "gl_motionblur 0.9\n");
+			self.blurtime -= 1;
+		}
 
 		if (self.ragetime > 0)
 			self.ragetime -= 1;
@@ -1784,9 +1794,9 @@ void() PlayerPreThink =
 		if (self.musictimer == 0)
 		{
 			if (world.model == "maps/r_bunker.bsp")
-				stuffcmd(self, "play music/afterglow\n");
+				stuffcmd(self, "play music/vault\n");
 			else if (world.map_obj == OBJ_DEADTOWN)
-				stuffcmd(self, "play music/necropolis\n");
+				stuffcmd(self, "play music/afterglow\n");
 
 			self.musictimer = 1;
 		}

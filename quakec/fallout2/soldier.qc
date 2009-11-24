@@ -103,7 +103,7 @@ void (float tmp, float dam) army_fire =
 
 	if (trace_ent.takedamage)
 	{
-		dam = 1 + random()*dam + random()*dam;
+		dam = dam + random()*dam;
                 dam = dam - (1 - (trace_fraction/2));
 		SpawnBlood (org, PLAT_LOW_TRIGGER);
 		T_Damage (trace_ent, self, self, dam);
@@ -175,7 +175,7 @@ void (float tmp, float dam) army_fire1 =
 	if (trace_ent.takedamage)
 	{
 		SpawnBlood (org, PLAT_LOW_TRIGGER);
-		dam = 10 + random()*dam + random()*dam;
+		dam = dam + random()*dam;
 		dam = dam * (1 - (trace_fraction/2));
 		X_Damage (trace_ent, self, self, dam);
 	}
@@ -241,7 +241,7 @@ void (float tmp, float dam) army_fire2 =
 	direction = dir;
 
 	shot = 5;
-	var_o = crandom()*50;
+	var_o = crandom()*75;
 
 	while (shot > 0)
 	{
@@ -281,9 +281,8 @@ void (float tmp, float dam) army_fire2 =
 			if (trace_ent.takedamage)
 			{
 				SpawnBlood (org, PLAT_LOW_TRIGGER);
-				dam = 1 + random()*dam + random()*dam;
 				dam = dam * (1 - (trace_fraction/2));
-				T_Damage (trace_ent, self, self, dam);
+				T_Damage (trace_ent, self, self, dam+random()*dam);
 			}
 			else
 		bullet_hole (trace_endpos);
@@ -352,7 +351,7 @@ void (float tmp, float dam) army_fire3 =
 	if (trace_ent.takedamage)
 	{
 		SpawnBlood (org, PLAT_LOW_TRIGGER);
-		dam = 1 + random()*dam + random()*dam;
+		dam = dam + random()*dam;
 		dam = dam * (1 - (trace_fraction/2));
 		T_Damage (trace_ent, self, self, dam);
 	}
@@ -410,7 +409,7 @@ void (float tmp, float dam) army_fire4 =
 	if (trace_ent.takedamage)
 	{
 		SpawnBlood (org, PLAT_LOW_TRIGGER);
-		dam = 1 + random()*dam + random()*dam;
+		dam = dam + random()*dam;
 		dam = dam * (1 - (trace_fraction/2));
 		T_Damage (trace_ent, self, self, dam);
 	}
@@ -657,7 +656,7 @@ void () army_walk8 = [ 80, army_walk1 ]
 void () army_run1 = [ 73, army_run2 ]
 {
 
-	if ((random()<0.25 || self.health <= 25) && self.charmed != 1)
+	if ((self.health <= 25) && self.charmed <= 1)
 		find_hide();
 
 	ai_run (TE_TELEPORT);
@@ -789,7 +788,7 @@ void () army_atka4 = [ 84, army_atka5 ]
 void () army_atka5 = [ 85, army_atka6 ]
 {
 	ai_face ();
-	army_fire2 (250, 7);
+	army_fire2 (250, 5);
 };
 
 void () army_atka6 = [ 86, army_atka7 ]
@@ -850,7 +849,7 @@ void () army_atkb5 = [ 85, army_atkb6 ]
 	if (r == RANGE_NEAR || r == RANGE_MELEE)
 		self.recoil = 1;
 
-	army_fire3 (120, 15);
+	army_fire3 (120, 9);
 };
 
 void () army_atkb6 = [ 86, army_atkb7 ]
@@ -858,8 +857,8 @@ void () army_atkb6 = [ 86, army_atkb7 ]
 	ai_face ();
 	if (self.recoil == 1)
 	{
-		army_fire3 (160, 14);
-		army_fire3 (160, 14);
+		army_fire3 (160, 9);
+		army_fire3 (160, 9);
 	}
 };
 
@@ -867,7 +866,7 @@ void () army_atkb7 = [ 87, army_atkb8 ]
 {
 	ai_face ();
 	if (self.recoil == 1)
-		army_fire3 (160, 14);
+		army_fire3 (200, 9);
 };
 
 void () army_atkb8 = [ 88, army_atkb9 ]
@@ -875,8 +874,8 @@ void () army_atkb8 = [ 88, army_atkb9 ]
 	ai_face ();
 	if (self.recoil == 1)
 	{
-		army_fire3 (160, 14);
-		army_fire3 (160, 14);
+		army_fire3 (200, 9);
+		army_fire3 (200, 9);
 	}
 };
 
@@ -885,8 +884,8 @@ void () army_atkb9 = [ 89, army_run1 ]
 	ai_face ();
 	if (self.recoil == 1)
 	{
-		army_fire3 (170, 14);
-		army_fire3 (170, 14);
+		army_fire3 (240, 9);
+		army_fire3 (240, 9);
 	}
 };
 
@@ -1384,7 +1383,7 @@ void () grunt_pain =
 	{
 		if (random()*100<10)
 		{
-			remove(self);
+			self.solid = SOLID_NOT;
 			return;
 		}
 		if (random()*100<50)
@@ -1703,7 +1702,7 @@ void () monster_army =
 	self.movetype = MOVETYPE_STEP;
 	setmodel (self, "progs/soldier.mdl");
 	setsize (self, '-12 -12 -24', '12 12 28');
-	self.max_health = 80;
+	self.max_health = 120;
 	self.health = self.max_health;
 	self.team = 3;
         self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
@@ -1899,7 +1898,7 @@ void () monster_commander =
 	commanders = commanders + 1;
 
 	setsize (self, '-12 -12 -24', '12 12 32');
-	self.max_health = 200;
+	self.max_health = 160;
 	self.health = self.max_health;
         self.islot3 = SlotVal(IID_ARM_COMBAT, 1);
 	self.armortype = 0.5;

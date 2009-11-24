@@ -421,10 +421,10 @@ local vector	org;
 
 	spawn_tfog (org);
 	//spawn_tdeath(t.origin, other);
-	if (self.classname == "player")
+	if (other.classname == "player")
 	{
-		self.solid = SOLID_NOT;
-		self.materialize = 200;
+		other.solid = SOLID_NOT;
+		other.materialize = 200;
 	}
 // move the player and lock him down for a little while
 	if (!other.health)

@@ -202,24 +202,22 @@ void() load_monster =
 	{
 		self.zone = 1;
 
-		if (world.map_ent2 == 1)
+		if (world.map_ent2 == 1 || world.map_ent2 == 2)
 			monster_dog();
-		if (world.map_ent2 == 2)
-			monster_zombie();
 		if (world.map_ent2 == 3 || world.map_ent2 == 4)
 			monster_army();
-		if (world.map_ent2 == 5 || world.map_ent2 == 6)
+		if (world.map_ent2 == 5)
+			monster_army();
+		if (world.map_ent2 == 6)
 			monster_ogre();
 		if (world.map_ent2 == 7)
-			monster_army();
+			monster_enforcer();
 		if (world.map_ent2 == 8)
-			monster_demon1();
+			monster_enforcer();
 		if (world.map_ent2 == 9)
 			monster_demon1();
 		if (world.map_ent2 == 10)
-			monster_enforcer();
-		if (world.map_ent2 == 11)
-			monster_shalrath();
+			monster_demon1();
 		if (world.map_ent2 == 12)
 			monster_shambler();
 	}
@@ -233,8 +231,6 @@ void() load_monster =
 			monster_zombie();
 		else if (random()<0.10)
 			monster_army();
-		else if (random()<0.10)
-			monster_ogre();
 		else if (random()<0.10)
 			monster_army();
 		else if (random()<0.10)
@@ -326,23 +322,23 @@ void() map_startup =
 	world.map_ent2_percent = t;
 	world.map_ent3_percent = x;
 
-if (challenge_rating < 2)
+if (challenge_rating < 4)
+{
+	world.map_ent1 = ceil(random()*6);
+	world.map_ent2 = ceil(random()*6);
+	world.map_ent3 = ceil(random()*6);
+}
+else if (challenge_rating < 8)
 {
 	world.map_ent1 = 2 + ceil(random()*6);
-	world.map_ent2 = ceil(random()*8);
-	world.map_ent3 = ceil(random()*8);
-}
-else if (challenge_rating < 4)
-{
-	world.map_ent1 = 2 + ceil(random()*8);
-	world.map_ent2 = 4 + ceil(random()*6);
-	world.map_ent3 = 6 + ceil(random()*4);
+	world.map_ent2 = 2 + ceil(random()*6);
+	world.map_ent3 = 2 + ceil(random()*6);
 }
 else
 {
-	world.map_ent1 = 4 + ceil(random()*8);
-	world.map_ent2 = 6 + ceil(random()*6);
-	world.map_ent3 = 8 + ceil(random()*4);
+	world.map_ent1 = 4 + ceil(random()*6);
+	world.map_ent2 = 4 + ceil(random()*6);
+	world.map_ent3 = 4 + ceil(random()*6);
 }
 	
 	if (world.map_obj == OBJ_HOSTAGE)
@@ -1392,7 +1388,7 @@ void () RecoilControl =
 				}
 
 
-					te.recoil = te.recoil - (0.10+(te.skill_combat*0.01));
+					te.recoil = te.recoil - (0.15+(te.skill_combat*0.01));
 			}
 			else
 			{
@@ -1419,7 +1415,7 @@ void () RecoilControl =
 	//support fire: going prone gives a -10 recoil bonus with this perk
 		if (getperk(1) && self.position == 2 && te.recoil > 3)
 		{
-			te.recoil = te.recoil - 0.20;
+			te.recoil = te.recoil - (0.15 +(self.skill_speech*0.01));
 			te.driftx = te.driftx * 0.5;
 			te.drifty = te.drifty * 0.5;
 		}
@@ -1758,7 +1754,7 @@ void() worldspawn =
 	precache_sound ("weapons/g11.wav");
 	precache_sound ("weapons/gauss.wav");
 	precache_sound ("weapons/gpull.wav");
-	precache_sound ("weapons/citykiller.wav");
+	precache_sound ("weapons/shotgun1.wav");
 	precache_sound ("weapons/laser.wav");
 	precache_sound ("weapons/blaster.wav");
 	precache_sound ("weapons/moonlight-1.wav");

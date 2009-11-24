@@ -469,7 +469,7 @@ void(vector pos, string image) Crosshair =
 
 void() Trader_Draw =
 {
-	local float i, price, money;
+	local float i, price, money, m, n, p;
 	local float it;
 	local string itname, money2, s2, s3, s4, s5, s6, s7, s8, s9, perki, perk2i, p1, p2, pn, pd, price2;
 	local float op;
@@ -503,6 +503,8 @@ void() Trader_Draw =
 	TraderImage('5 4 0'*IMGSIZEF*(scrwidth/640), 20);
 
 
+	slotnum = 0;
+
 	if (mousepos_x >= 1*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
 		if (mousepos_y >= 1*IMGSIZEF*(scrwidth/640) && mousepos_y <= 2*IMGSIZEF*(scrwidth/640))
 			slotnum = floor((mousepos_x)/(IMGSIZEF*(scrwidth/640))) + 0;
@@ -532,21 +534,27 @@ void() Trader_Draw =
 		it = getstati(70+slotnum);
 	itname = GetItemName(ToIID(it));
 		drawstring('32 16 0'*(scrwidth/640), itname, '8 8 0'*(scrwidth/640), '1 1 1', 1);
+	itname = GetItemDesc(ToIID(it));
+		drawstring('32 32 0'*(scrwidth/640), itname, '8 8 0'*(scrwidth/640), '1 1 1', 1);
 
-	price = GetBaseValue(ToIID(it));
-	price = ceil(price * (1 - (getstati(104)/30)));
-	price2 = ftos(price);
-	money = getstati(50);
-	money2 = ftos(money);
+	if (slotnum > 0)
+	{
+		price = GetBaseValue(ToIID(it));
+		price = ceil(price * (1 - (getstati(104)/30)));
+		price2 = ftos(price);
 
-	drawstring('2 6 0'*IMGSIZEF*(scrwidth/640) - '16 48 0'*(scrwidth/640), " TOTAL ", '16 16 0'*(scrwidth/640), '1 1 1', 1);
-	drawstring('2 6 0'*IMGSIZEF*(scrwidth/640) - '16 32 0'*(scrwidth/640), " PRICE ", '16 16 0'*(scrwidth/640), '1 1 1', 1);
-	drawstring('2 6 0'*IMGSIZEF*(scrwidth/640) + '16 0 0'*(scrwidth/640), price2, '16 16 0'*(scrwidth/640), '1 1 1', 1);
-	drawstring('4 6 0'*IMGSIZEF*(scrwidth/640) - '16 48 0'*(scrwidth/640), " TOTAL ", '16 16 0'*(scrwidth/640), '1 1 1', 1);
-	drawstring('4 6 0'*IMGSIZEF*(scrwidth/640) - '16 32 0'*(scrwidth/640), " MONEY ", '16 16 0'*(scrwidth/640), '1 1 1', 1);
-	drawstring('4 6 0'*IMGSIZEF*(scrwidth/640) + '16 0 0'*(scrwidth/640), money2, '16 16 0'*(scrwidth/640), '1 1 1', 1);
+		m = ShadowSlotOfItem(self, IID_MONEY);
+		p = ShadowItemInSlot(self, m);
+		n = ToStatus(p);
+		money2 = ftos(n);
 
 
+		TraderImage('2 5 0'*IMGSIZEF*(scrwidth/640), slotnum);
+		drawpic('4 5 0'*IMGSIZEF*(scrwidth/640) + '16 0 0'*(scrwidth/640), "gui/bottlecaps.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+		drawstring('2 6 0'*IMGSIZEF*(scrwidth/640) + '16 0 0'*(scrwidth/640), price2, '16 16 0'*(scrwidth/640), '1 1 1', 1);
+		drawstring('4 6 0'*IMGSIZEF*(scrwidth/640) + '16 0 0'*(scrwidth/640), money2, '16 16 0'*(scrwidth/640), '1 1 1', 1);
+
+	}
 	if (mousepos_x > scrwidth*0.95)
 		mousepos_x = scrwidth*0.95;
 
@@ -730,12 +738,18 @@ void() GainPerk_Draw =
 	{
 		if (mousepos_x >= 2*IMGSIZEF*(scrwidth/640) && mousepos_x <= 3*IMGSIZEF*(scrwidth/640))
 			which_perk = 11;
+		else if (mousepos_x >= 3*IMGSIZEF*(scrwidth/640) && mousepos_x <= 4*IMGSIZEF*(scrwidth/640))
+			which_perk = 12;
+		else if (mousepos_x >= 4*IMGSIZEF*(scrwidth/640) && mousepos_x <= 5*IMGSIZEF*(scrwidth/640))
+			which_perk = 14;
+		else if (mousepos_x >= 5*IMGSIZEF*(scrwidth/640) && mousepos_x <= 6*IMGSIZEF*(scrwidth/640))
+			which_perk = 15;
 		else
 			which_perk = 0;
 	}
 
 	drawpic('2 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Support Fire.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
-	drawpic('3 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Duck And Cover", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+	drawpic('3 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/I Disappear.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 	drawpic('4 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Puppet Master.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 	drawpic('5 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Stay Low.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 	drawpic('6 2 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Surgical Precision.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
@@ -747,6 +761,9 @@ void() GainPerk_Draw =
 	drawpic('6 3 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Economic Moves.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 
 	drawpic('2 4 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Nuclear Man.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+	drawpic('3 4 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Commander.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+	drawpic('4 4 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Blaster Master.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
+	drawpic('5 4 0'*IMGSIZEF*(scrwidth/640), "gui/perks/Fighting Dirty.png", '64 64 0'*(scrwidth/640), '1 1 1', 1);
 
 	pn = PerkName(1, which_perk);
 	pd = GetPerkDesc(which_perk);
@@ -769,7 +786,7 @@ void() GainPerk_Draw =
 
 void() Pipboy_Draw =
 {
-	float width,height,lvl,bar;
+	float width,height,lvl,bar, top, s;
 	string skill;
 	vector w;
 
@@ -892,6 +909,25 @@ void() Pipboy_Draw =
 		bar = bar + 1;
 	}
 		drawstring('472 230 0'*(scrwidth/640) - ('0 4 0'*(lvl+4)*(scrwidth/640)), skill, '12 12 0'*(scrwidth/640), '1 1 1', 1);
+
+
+	bar = 0;
+	s = getstati(127);
+	top = ceil(200 * (s/200));
+	if (top > 200)
+		top = 200;
+
+	while (bar < top)
+		bar = bar + 1;
+
+	
+	top = 200;
+
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.32)) +('0 1 0'*(scrheight*0.69)), "experience: ", '8 8 0'*(scrwidth/640), '1 1 1', 1);
+
+	drawpic('0 0 0'+('1 0 0'*(scrwidth*0.48)) +('0 1 0'*(scrheight*0.685)) + ('0 1 0'*(scrheight/640)), "gui/pipboy/graph/blue.jpg", '1 16 0'*(scrheight/640)+'1 0 0'*(scrwidth/640)*bar, '1 1 1', 1);
+
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.6)) +('0 1 0'*(scrheight*0.69)), strcat(ftos(s),"/", ftos(top), "\n"), '8 8 0'*(scrwidth/640), '1 1 1', 1);
 
 
 	if (mousepos_x > scrwidth*0.95)
@@ -1072,7 +1108,9 @@ if (slotnum <= 24)
 	}
 
 	itname = GetItemName(ToIID(it));
-	drawstring('32 16 0'*(scrwidth/640), itname, '16 16 0'*(scrwidth/640), '1 1 1', 1);
+	drawstring('32 12 0'*(scrwidth/640), itname, '8 8 0'*(scrwidth/640), '1 1 1', 1);
+	itname = GetItemDesc(ToIID(it));
+	drawstring('32 22 0'*(scrwidth/640), itname, '7 7 0'*(scrwidth/640), '1 1 1', 1);
 }
 
 
@@ -1235,7 +1273,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 							return;
 						if (which_perk == getstati(59))
 							return;
-						if (which_perk >= 1 && which_perk <= 11)
+						if (which_perk >= 1 && which_perk <= 15)
 							localcmd(strcat("cmd gainperk ", ftos(which_perk), " ", ftos(perkslot), "\n"));
 							show_inventory = false;
 							show_pipboy = false;

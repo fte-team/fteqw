@@ -105,12 +105,12 @@ void () CrawlSound =
 		return;
 	}
 
-
-	self.attack_finished = time + 1;
 	self.rtime = time + 1;
 
 
-	r = 1 - (self.skill_sneak/40);
+	r = 0.5;
+	if (self.sneak > 0)
+		r = r / 2;
 
 	if ((rand < 0.25))
 		sound (self, CHAN_ITEM, "player/prone1.wav", r, ATTN_NORM);

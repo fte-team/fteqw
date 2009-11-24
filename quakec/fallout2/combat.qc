@@ -148,6 +148,15 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	damage = floor(damage);
 	targ.health = floor(targ.health);
 
+	if (total_players == 1)
+		damage = damage * 0.70;
+	else if (total_players == 2)
+		damage = damage * 0.80;
+	else if (total_players == 3)
+		damage = damage * 0.90;
+	else
+		damage = damage * 1.00;
+
 
 	if (challenge_rating >= 20 && attacker.classname == "monster")
 		damage = damage * 1.30;
@@ -222,6 +231,19 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	if (targ.classname == "monster" && attacker.classname == "player" && attacker.rage == 777)
 		attacker.score = attacker.score + 1;
 
+
+//charmed monsters will protect their master
+	if (targ.classname == "player" && targ.friend.classname == "monster")
+	{
+		if (targ.friend.enemy.classname != "monster")
+			targ.friend.enemy = attacker;
+	}
+//charmed monsters will assist their master
+	if (attacker.classname == "player" && attacker.friend.classname == "monster")
+	{
+		if (attacker.friend.enemy.classname != "monster")
+			attacker.friend.enemy = targ;
+	}
 //dodge chance
 
 	if (targ.position == 0 && random()<0.05)
@@ -242,12 +264,12 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 
 
 
-//stay low: if taking cover, 20% miss chance (others get 10% bonus)
+//stay low: if taking cover, 33% miss chance (others get 10% bonus)
 	if (targ.rage == 777)
 	{
 		if (targ.perk1 == 4 || targ.perk2 == 4)
 		{
-			if (random()<0.20)
+			if (random()<(0.33+(self.skill_speech*0.01)))
 			{
 				sound (targ, CHAN_BODY, "effects/miss.wav", 1, ATTN_NORM);
 				return;
@@ -268,17 +290,10 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 	{
 		if (attacker.recoil > 5)
 		{
-			damage = damage * (1 + (attacker.recoil * 0.03));
+			damage = damage * (1 + (attacker.recoil * (0.03+(self.skill_speech*0.002))));
 		}
 	}
 
-
-	//stay low
-	if (targ.perk1 == 4 || targ.perk2 == 4)
-	{
-		if (targ.position == 2)
-			damage = damage * 0.75;
-	}
 
 
 	//sneak attack: if you attack a creature who isn't fighting you, bonus damage
@@ -305,7 +320,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 			attacker.critical = 0;
 	}
 
-	if (attacker.critical == 3 && targ.classname == "car")//attacker scored a headshot/critical
+	if (attacker.critical == 3)//attacker scored a headshot/critical
 	{
 		if (attacker.critical == 3)
 		{

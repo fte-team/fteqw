@@ -1,5 +1,4 @@
-/*
-*/
+void () player_use1;
 void() show_light_level;
 void() UseStimpack;
 void() UseSuperStim;
@@ -123,7 +122,7 @@ float (entity healer, entity saved) RevivePlayer =
 
 	self = oself;
 
-//	saved.materialize = 200;
+	saved.materialize = 200;
 	saved.ghost = 0;
 	saved.health = 20 + (healer.skill_doctor);
 	saved.air_finished = time + 10;
@@ -239,27 +238,82 @@ void () puppet_master =
 {
 	local entity te;
 	local float charm_monster;
+	local vector org;
 	//this allows you to control other monsters
 
 
-	charm_monster = 0;
-	te = findradius(self.origin, 400);
-	while (te)
+	makevectors (self.v_angle);
+	traceline (self.origin, self.origin+v_forward*4000, FALSE, self);
+
+	org = self.origin;
+
+	if (trace_ent.classname == "monster" && trace_ent != self.friend)
 	{
-		if (te.classname == "monster" && (charm_monster == 0) && (visible(te)))
-		{
-			spawn_heart(te, 300);
-			charm_monster = 1;
-			te.friend = self;
-			te.charmed = 300;
-			te.enemy = world;
-			te.goalentity = self;
-			self.friend = te;
-		}
-		te = te.chain;
+		trace_ent.friend = self;
+		trace_ent.charmed = 30000;
+		self.friend = trace_ent;
+		spawn_heart(trace_ent, 3000);
+
+		self.friend.think = HuntTarget;
+		self.friend.nextthink = time + 0.25;
+
+		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
+		WriteByte (MSG_MULTICAST, TE_LIGHTNING2);
+		WriteEntity (MSG_MULTICAST, self);
+		WriteCoord (MSG_MULTICAST, org_x);
+		WriteCoord (MSG_MULTICAST, org_y);
+		WriteCoord (MSG_MULTICAST, org_z);
+		WriteCoord (MSG_MULTICAST, trace_endpos_x);
+		WriteCoord (MSG_MULTICAST, trace_endpos_y);
+		WriteCoord (MSG_MULTICAST, trace_endpos_z);
+		multicast (org, MULTICAST_PHS);
 	}
 
 };
+
+void () puppet_master_command =
+{
+	local entity te, ent;
+	local vector org;
+	local float charm_monster;
+	//this allows you to control other monsters
+
+	makevectors (self.v_angle);
+	traceline (self.origin, self.origin+v_forward*4000, FALSE, self);
+
+	if (self.friend.classname != "monster")
+		return;
+
+	org = self.origin;
+
+	if (trace_ent.classname == "monster" && trace_ent != self.friend)
+	{
+		self.friend.enemy = trace_ent;
+		self.friend.think = HuntTarget;
+		self.friend.nextthink = time + 0.25;
+
+			WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
+			WriteByte (MSG_MULTICAST, TE_LIGHTNING2);
+			WriteEntity (MSG_MULTICAST, self);
+			WriteCoord (MSG_MULTICAST, org_x);
+			WriteCoord (MSG_MULTICAST, org_y);
+			WriteCoord (MSG_MULTICAST, org_z);
+			WriteCoord (MSG_MULTICAST, trace_endpos_x);
+			WriteCoord (MSG_MULTICAST, trace_endpos_y);
+			WriteCoord (MSG_MULTICAST, trace_endpos_z);
+			multicast (org, MULTICAST_PHS);
+	}
+	else
+	{
+		self.friend.enemy = self;
+		self.friend.oldenemy = self;
+		self.friend.movetarget = self;
+		self.friend.goalentity = self;
+		self.friend.pausetime = time + 0.01;
+		return;
+	}
+};
+
 
 
 void () illusion_heal =
@@ -302,26 +356,7 @@ void () illusion_heal =
 	source = self.origin + '0 0 0';
 	traceline (source, source + v_forward*64, FALSE, self);
 
-	if (trace_fraction == 1.0)//nobody in front of user, so heal self
-	{
-		if (self.health >= self.max_health)
-			sprint(self, PRINT_MEDIUM, "you are not injured.\n");
-		else if (self.health < self.max_health)
-		{
-
-			sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
-			sprint(self, PRINT_MEDIUM, "you heal yourself with a placebo stimpack\n");
-
-			self.health = self.max_health;
-			spawn_healing(self);
-			spawn_healing(self);
-			spawn_healing(self);
-			spawn_healing(self);
-			spawn_healing(self);
-			spawn_healing(self);
-		}
-	}
-	else if (trace_ent.classname == "player")//healing another team-mate
+	if (trace_ent.classname == "player")//healing another team-mate
 	{
 		if (trace_ent.health >= trace_ent.max_health)
 		{
@@ -361,33 +396,29 @@ void () illusion_heal =
 			}
 		}
 	}
-};
 
-void () puppet_master_command =
-{
-	local entity te, ent;
-	local float charm_monster;
-	//this allows you to control other monsters
-
-	makevectors (self.v_angle);
-	traceline (self.origin, self.origin+v_forward*4000, FALSE, self);
-
-	if (self.friend.classname != "monster")
-		return;
-
-	if (trace_ent.classname == "monster" && trace_ent != self.friend)
+	else//nobody in front of user, so heal self
 	{
-		self.friend.enemy = trace_ent;
-		self.friend.think = HuntTarget;
-		self.friend.nextthink = time + 0.25;
-	}
-	else
-	{
-		self.friend.enemy = self;
-		self.friend.think = HuntTarget;
-		self.friend.nextthink = time + 0.25;
+		if (self.health >= self.max_health)
+			sprint(self, PRINT_MEDIUM, "you are not injured.\n");
+		else if (self.health < self.max_health)
+		{
+
+			sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
+			sprint(self, PRINT_MEDIUM, "you heal yourself with a placebo stimpack\n");
+
+			self.health = self.max_health;
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
+		}
 	}
 };
+
+
 
 void(float slotno) UsePerk =
 {
@@ -449,25 +480,21 @@ void(float slotno) UsePerk =
 	}
 	if ((self.perk1 == 3 && slotno == 1) || (self.perk2 == 3 && slotno == 2))
 	{
-		if (slotno == 1)
-			self.perk1timer = 2000;
-		if (slotno == 2)
-			self.perk2timer = 2000;
 
-		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
 
-		org = self.origin;
-		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-		WriteByte (MSG_MULTICAST, TE_TELEPORT);
-		WriteCoord (MSG_MULTICAST, org_x);
-		WriteCoord (MSG_MULTICAST, org_y);
-		WriteCoord (MSG_MULTICAST, org_z);
 
 		if (self.friend.classname != "monster")
 			puppet_master();
 		else
 			puppet_master_command();
 
+		if (self.friend.classname == "monster")
+		{
+			if (slotno == 1)
+				self.perk1timer = 2000;
+			if (slotno == 2)
+				self.perk2timer = 2000;
+		}
 	}
 	else if ((self.perk1 == 7 && slotno == 1) || (self.perk2 == 7 && slotno == 2))
 	{
@@ -485,13 +512,16 @@ void(float slotno) UsePerk =
 		WriteCoord (MSG_MULTICAST, org_y);
 		WriteCoord (MSG_MULTICAST, org_z);
 
+		stuffcmd(self, "gl_motionblur 0.9\n");
+		self.blurtime = 5;
+
 		te = findradius (self.origin, 6000);
 		while (te)
 		{
 			if (te.classname == "monster")
 			{
 				te.hold = 120;
-				spawn_stop(te, 8);
+				spawn_stop(te, 5);
 				mcount = mcount + 1;
 			}
 			te = te.chain;
@@ -507,11 +537,11 @@ void(float slotno) UsePerk =
 		sound (self, CHAN_BODY, "items/damage.wav", 1, ATTN_NORM);
 		sprint(self, 2, "it is time...\n");
 		self.supertime = 15;
-		self.skill_combat = self.skill_combat + 20;
-		self.skill_doctor = self.skill_doctor + 20;
-		self.skill_sneak = self.skill_sneak + 20;
-		self.skill_science = self.skill_science + 20;
-		self.skill_speech = self.skill_speech + 20;
+		self.skill_combat = self.skill_combat + 10;
+		self.skill_doctor = self.skill_doctor + 10;
+		self.skill_sneak = self.skill_sneak + 10;
+		self.skill_science = self.skill_science + 10;
+		self.skill_speech = self.skill_speech + 10;
 	}
 	else if ((self.perk1 == 9 && slotno == 1) || (self.perk2 == 9 && slotno == 2))
 	{
@@ -584,7 +614,7 @@ void(float damage, float dist, float rate) FireMelee =
 	if (getperk(5))//living anatomy
 	{
 		if (self.steadyaim == 0)
-			damage = damage + self.skill_doctor;
+			damage = damage + self.skill_doctor + self.skill_speech;
 	}
 
 	self.recoil = self.recoil + 5;
@@ -2252,13 +2282,13 @@ void () ProneOff =
 	sprint (self, 2, "position: stand.\n");
 	if (getperk(10))
 	{
-		self.attack_finished = time + 0.5;
-		self.rtime = time + 0.5;
+		self.attack_finished = time + 0.75  - (self.skill_speech*0.05);
+		self.rtime = time + 0.75 - (self.skill_speech*0.05);
 	}
 	else
 	{
-		self.attack_finished = time + 1.5;
-		self.rtime = time + 1.5;
+		self.attack_finished = time + 1.5 - (self.skill_speech*0.05);
+		self.rtime = time + 1.5 - (self.skill_speech*0.05);
 	}
 	self.position = 0;
 	PositionControl();
@@ -2291,10 +2321,15 @@ void () ProneOn =
 	self.position = 2;
 	self.view_ofs = '0 0 -10';
 	sprint (self, 2, "position: prone.\n");
-	if (!getperk(10))
+	if (getperk(10))
 	{
-		self.attack_finished = time + 1.5;
-		self.rtime = time + 1.5;
+		self.attack_finished = time + 0.75  - (self.skill_speech*0.05);
+		self.rtime = time + 0.75 - (self.skill_speech*0.05);
+	}
+	else
+	{
+		self.attack_finished = time + 1.5 - (self.skill_speech*0.05);
+		self.rtime = time + 1.5 - (self.skill_speech*0.05);
 	}
 	PositionControl();
 };
@@ -2312,10 +2347,15 @@ void () DuckOff =
 		return;
 	}
 	sprint (self, 2, "position: stand.\n");
-	if (!getperk(10))
+	if (getperk(10))
 	{
-		self.attack_finished = time + 0.2;
-		self.rtime = time + 0.2;
+		self.attack_finished = time + 0.25  - (self.skill_speech*0.05);
+		self.rtime = time + 0.75 - (self.skill_speech*0.05);
+	}
+	else
+	{
+		self.attack_finished = time + 0.75 - (self.skill_speech*0.05);
+		self.rtime = time + 1.5 - (self.skill_speech*0.05);
 	}
 	self.view_ofs = '0 0 22';
 	self.position = 0;
@@ -2351,10 +2391,15 @@ void () DuckOn =
 		return;
 	}
 
-	if (!getperk(10))
+	if (getperk(10))
 	{
-		self.attack_finished = time + 0.5;
-		self.rtime = time + 0.5;
+		self.attack_finished = time + 0.25  - (self.skill_speech*0.05);
+		self.rtime = time + 0.25 - (self.skill_speech*0.05);
+	}
+	else
+	{
+		self.attack_finished = time + 0.75 - (self.skill_speech*0.05);
+		self.rtime = time + 0.75 - (self.skill_speech*0.05);
 	}
 	self.walk = 0;
 	self.speedmulti = 1.00;
@@ -2421,25 +2466,15 @@ void() ImpulseCommands =
 	}
 
 
-	if (self.impulse == 11)
-		ServerflagsCommand ();
 
 	if (self.impulse == 200)
 		DuckOn ();
 	if (self.impulse == 201)
 		ProneOn ();
-
-	if (self.impulse == 240)
-		AddClone ();
-
 	if (self.impulse == 50)
 		ReloadWeapon (self.current_slot);
-//	if (self.impulse == 51)
-//		UseChem ();
-	if (self.impulse == 52)
-		BuyMenu ();
 	if (self.impulse == 53)
-		Special ();
+		Sneak ();
 	if (self.impulse == 100)
 		ExitScreen ();
 	if (self.impulse == 55)
@@ -2455,39 +2490,13 @@ void() ImpulseCommands =
 	if (self.impulse == 62)
 		UsePerk (2);
 
-	if (self.impulse == 65)
-		HostageReport ();
+
 	if (self.impulse == 66)
 		WalkOn ();
 	if (self.impulse == 67)
 		WalkOff ();
 
-	if (self.impulse == 212)
-		function_radio ("radio/1_yes.wav", 1);
-	if (self.impulse == 213)
-		function_radio ("radio/2_no.wav", 2);
-	if (self.impulse == 214)
-		function_radio ("radio/3_letsgo.wav", 3);
-	if (self.impulse == 215)
-		function_radio ("radio/4_cover.wav", 4);
-	if (self.impulse == 216)
-		function_radio ("radio/5_recon.wav", 5);
-	if (self.impulse == 217)
-		function_radio ("radio/6_backup.wav", 6);
-	if (self.impulse == 218)
-		function_radio ("radio/7_hold.wav", 7);
-	if (self.impulse == 219)
-		function_radio ("radio/8_behind.wav", 8);
-	if (self.impulse == 220)
-		function_radio ("radio/9_secure.wav", 9);
-	if (self.impulse == 221)
-		function_radio ("radio/10_suppressing.wav", 10);
-	if (self.impulse == 222)
-		function_radio ("radio/11_quiet.wav", 11);
-	if (self.impulse == 223)
-		CheatCommand();
-	if (self.impulse == 224)
-		show_light_level();
+
 	if (self.impulse == 225)
 		UseStimpack();
 	if (self.impulse == 226)
@@ -2519,16 +2528,11 @@ void() W_WeaponFrame =
 	
 // check for attack
 	if (self.button0)
-	{
-		SuperDamageSound ();
 		W_Attack ();
-	}
 	if (!self.button0)
 	{
-
 		if (self.attack > 0)
 			player_run ();
-
 		self.attack = 0;
 	}
 };
@@ -3196,7 +3200,7 @@ void (float dam, float ap, string snd, float rng, float rate) FirePistol =
 	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-			dam = dam + self.skill_doctor;
+			dam = dam + self.skill_doctor + self.skill_speech;
 	}
 
 
@@ -3340,20 +3344,21 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-			dam = dam + self.skill_doctor;
+			dam = dam + self.skill_doctor + self.skill_speech;
 	}
 
 	sound (self, CHAN_WEAPON, snd, 1, ATTN_NORM);
 	loud_noise(40);
 
 
-
-	self.equipment_slot = 0;
-	sprint(self, PRINT_HIGH, " Uncloaked \n");
-	setmodel (self, "progs/guy.mdl");
-	self.sneak = 0;
-	sound (self, CHAN_BODY, "misc/r_tele4.wav", 1, ATTN_NORM);
-
+	if (self.sneak > 0)
+	{
+		self.equipment_slot = 0;
+		sprint(self, PRINT_HIGH, " Uncloaked \n");
+		setmodel (self, "progs/guy.mdl");
+		self.sneak = 0;
+		sound (self, CHAN_BODY, "misc/r_tele4.wav", 1, ATTN_NORM);
+	}
 
 	self.attack_finished = (time + rate);
 
@@ -3395,8 +3400,8 @@ void (float dam, float ap, string snd, float rng, float rate) FireSMG =
 
 	if (weap == IID_WP_MP9)
 	{
-		tmp = 200;
-		dam = dam * 1.25;
+		tmp = 165;
+		dam = dam * 1.1;
 	}
 
 	if (self.velocity == '0 0 0')
@@ -3631,7 +3636,7 @@ void (float dam, float accuracy, string snd, float rng, float rate) FireAssaultR
 	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-			dam = dam + self.skill_doctor;
+			dam = dam + self.skill_doctor + self.skill_speech;
 	}
 
 	if (weap == IID_WP_MOONLIGHT)
@@ -3913,7 +3918,7 @@ void (float dam, float xrecoil, string snd, float rng, float rate) FireMinigun =
 	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-			dam = dam + self.skill_doctor;
+			dam = dam + self.skill_doctor + self.skill_speech;
 	}
 
 	loud_noise(50);
@@ -4521,43 +4526,8 @@ void () UseStimpack =
 	source = self.origin + '0 0 0';
 	traceline (source, source + v_forward*64, FALSE, self);
 
-	if (trace_fraction == 1.0)//nobody in front of user, so heal self
-	{
-		x = SlotOfItem(self, IID_CHEM_STIMPACK);
-		if (x == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you don't have a stimpack\n");
-			return;
-		}
 
-		if (self.regen > 0)
-			sprint(self, PRINT_MEDIUM, "you are already affected by a stimpack\n");
-		else if (self.health >= self.max_health)
-			sprint(self, PRINT_MEDIUM, "you are not injured.\n");
-		else if (self.health < self.max_health)
-		{
-			DecreaseDestroySlot(x);//take away a stimpack
-
-			sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
-			sprint(self, PRINT_MEDIUM, "you heal yourself with a stimpack\n");
-
-			thing = findradius(self.origin, 400);
-			while (thing)
-			{
-				if (thing.classname == "player" && thing.health < self.health)
-					self.score = self.score - 50;        
-              
-				thing = thing.chain;      
-			}
-
-			self.health = self.health + 30 + (self.skill_doctor);
-			self.regen = self.regen + (5 + (self.skill_doctor/2));
-			spawn_healing(self);
-			spawn_healing(self);
-			spawn_healing(self);
-		}
-	}
-	else if (trace_ent.classname == "player")//healing another team-mate
+	if (trace_ent.classname == "player")//healing another team-mate
 	{
 		if (trace_ent.regen >= 1 && trace_ent.health > 0)
 		{
@@ -4631,6 +4601,42 @@ void () UseStimpack =
 				spawn_healing(trace_ent);
 				spawn_healing(trace_ent);
 			}
+		}
+	}
+	else
+	{
+		x = SlotOfItem(self, IID_CHEM_STIMPACK);
+		if (x == 0)
+		{
+			sprint(self, PRINT_MEDIUM, "you don't have a stimpack\n");
+			return;
+		}
+
+		if (self.regen > 0)
+			sprint(self, PRINT_MEDIUM, "you are already affected by a stimpack\n");
+		else if (self.health >= self.max_health)
+			sprint(self, PRINT_MEDIUM, "you are not injured.\n");
+		else if (self.health < self.max_health)
+		{
+			DecreaseDestroySlot(x);//take away a stimpack
+
+			sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
+			sprint(self, PRINT_MEDIUM, "you heal yourself with a stimpack\n");
+
+			thing = findradius(self.origin, 400);
+			while (thing)
+			{
+				if (thing.classname == "player" && thing.health < self.health)
+					self.score = self.score - 50;        
+              
+				thing = thing.chain;      
+			}
+
+			self.health = self.health + 30 + (self.skill_doctor);
+			self.regen = self.regen + (5 + (self.skill_doctor/2));
+			spawn_healing(self);
+			spawn_healing(self);
+			spawn_healing(self);
 		}
 	}
 };
@@ -4758,40 +4764,7 @@ void () UseMedicalBag =
 	source = self.origin + '0 0 0';
 	traceline (source, source + v_forward*64, FALSE, self);
 
-	if (trace_fraction == 1.0)//nobody in front of user, so heal self
-	{
-		x = SlotOfItem(self, IID_CHEM_MEDICALBAG);
-		if (x == 0)
-		{
-			sprint(self, PRINT_MEDIUM, "you don't have a medkit\n");
-			return;
-		}
-
-		if (self.regen > 0)
-			sprint(self, PRINT_MEDIUM, "you are already affected by a healing chem\n");
-		else if (self.health >= self.max_health)
-			sprint(self, PRINT_MEDIUM, "you are not injured.\n");
-		else if (self.health < self.max_health)
-		{
-			DecreaseDestroySlot(x);//take away a medkit
-
-			local entity thing;
-			thing = findradius(self.origin, 400);
-			while (thing)
-			{
-				if (thing.classname == "player" && (thing.health+20) < self.health)
-					self.score = self.score - 25;        
-              
-				thing = thing.chain;      
-			}
-
-			sound (self, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
-			self.health = self.health + 5 + (self.skill_doctor/2);
-			self.regen = self.regen + 3 + (self.skill_doctor/2);
-			spawn_healing(self);
-		}
-	}
-	else if (trace_ent.classname == "player")//healing another team-mate
+	if (trace_ent.classname == "player")//healing another team-mate
 	{
 		if (trace_ent.regen >= 1 && trace_ent.health > 0)
 		{
@@ -4844,6 +4817,40 @@ void () UseMedicalBag =
 			}
 		}
 	}
+	else//nobody in front of user, so heal self
+	{
+		x = SlotOfItem(self, IID_CHEM_MEDICALBAG);
+		if (x == 0)
+		{
+			sprint(self, PRINT_MEDIUM, "you don't have a medkit\n");
+			return;
+		}
+
+		if (self.regen > 0)
+			sprint(self, PRINT_MEDIUM, "you are already affected by a healing chem\n");
+		else if (self.health >= self.max_health)
+			sprint(self, PRINT_MEDIUM, "you are not injured.\n");
+		else if (self.health < self.max_health)
+		{
+			DecreaseDestroySlot(x);//take away a medkit
+
+			local entity thing;
+			thing = findradius(self.origin, 400);
+			while (thing)
+			{
+				if (thing.classname == "player" && (thing.health+20) < self.health)
+					self.score = self.score - 25;        
+              
+				thing = thing.chain;      
+			}
+
+			sound (self, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
+			self.health = self.health + 5 + (self.skill_doctor/2);
+			self.regen = self.regen + 3 + (self.skill_doctor/2);
+			spawn_healing(self);
+		}
+	}
+
 };
 
 void () DisplayMenu =
@@ -5111,7 +5118,7 @@ void () ExitScreen =
 
 	makevectors (self.v_angle);
 	traceline (self.origin, self.origin + v_forward*128, FALSE, self);
-
+/*
 	if (self.pickup == 1)
 	{
 		self.pickup = 0;
@@ -5134,7 +5141,7 @@ void () ExitScreen =
 			return;
 	}
 	else if (self.pickup == 1)
-		self.pickup = 0;
+		self.pickup = 0;*/
 
 	if (trace_ent.classname == "bomb")
 	{
@@ -6132,7 +6139,7 @@ void (float rec, float number, float dam, float spread, float ran, float auto, s
 	if (getperk(5))
 	{
 		if (self.steadyaim == 0)
-			dam = dam + self.skill_doctor/3;
+			dam = dam + (self.skill_doctor/3) + (self.skill_speech/3);
 	}
 
 	weap = ToIID(self.(SlotField(self.current_slot)));

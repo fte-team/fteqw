@@ -282,6 +282,13 @@ void(string arg1, string arg2) Cmd_GainPerk =
 			self.perk1 = 10;
 		if (arg1 == "11")
 			self.perk1 = 11;
+		if (arg1 == "12")
+			self.perk1 = 12;
+		if (arg1 == "14")
+			self.perk1 = 14;
+		if (arg1 == "15")
+			self.perk1 = 15;
+
 	}
 	if (arg2 == "2")
 	{
@@ -307,13 +314,19 @@ void(string arg1, string arg2) Cmd_GainPerk =
 			self.perk2 = 10;
 		if (arg1 == "11")
 			self.perk2 = 11;
+		if (arg1 == "12")
+			self.perk2 = 12;
+		if (arg1 == "14")
+			self.perk2 = 14;
+		if (arg1 == "15")
+			self.perk2 = 15;
 	}
 };
 
 
 void(string arg1) Cmd_InvBuy =
 {
-	local float x,y, iid, amount, money, item;
+	local float x,y, iid, amount, money, item, m, n, p;
 
 
 	x = FindEmptySlot(self);
@@ -378,14 +391,28 @@ void(string arg1) Cmd_InvBuy =
 			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
 			return;
 		}
-		if (self.ammo_shells < money)
+
+		m = SlotOfItem(self, IID_MONEY);
+		p = ItemInSlot(self, m);
+		n = ToStatus(p);
+
+		if (m == 0)
 		{
 			sprint(self, 2, "not enough money.\n");
 			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
 			return;
 		}
+		if (n < money)
+		{
+			sprint(self, 2, "not enough money\n");
+			sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
+			return;
+		}
 		else
-			self.ammo_shells = self.ammo_shells - money;
+		{
+			SetItemSlot(self, m, 0);
+			TryGiveStackable(self, IID_MONEY, n-money);
+		}
 
 		if (NotStackable(iid))
 			SetItemSlot(self, x, item);
@@ -396,7 +423,8 @@ void(string arg1) Cmd_InvBuy =
 			{
 				sprint(self, 2, "full inventory.\n");
 				sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
-				self.ammo_shells = self.ammo_shells + money;
+				m = SlotOfItem(self, IID_MONEY);
+				SetItemSlot(self, m, n);
 				return;
 			}
 		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
@@ -431,14 +459,23 @@ void(string arg1) Cmd_InvSell =
 
 	self.missionbrief = 0;
 
-	SetItemSlot(self, slotno, 0);
+
 	x = GetBaseValue(iid);
 	x = ceil(x * (1 + (self.skill_speech/30)));
 	x = ceil(x / 5);
 	y = ftos(x);
 	z = GetItemName(iid);
 
-	self.ammo_shells += x;
+	if (!TryGiveStackable(self, IID_MONEY, x))
+	{
+		sprint(self, 2, "not enough room.\n");
+		return;
+	}
+
+	SetItemSlot(self, slotno, 0);
+
+
+
 	sprint(self, 2, "you sell ");
 	sprint(self, 2, z);
 	sprint(self, 2, " for $");

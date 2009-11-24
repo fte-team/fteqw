@@ -269,8 +269,7 @@ void() ChangeYaw =
 void() HuntTarget =
 {
 
-	if (self.enemy == self.friend)
-		return;
+
 
 	self.goalentity = self.enemy;
 	self.think = self.th_run;
@@ -371,7 +370,11 @@ float() FindTarget =
 		self.charmed = self.charmed - 1;
 		return FALSE;
 	}
-
+	if (self.charmed <= 0)
+	{
+		self.friend = world;
+		return FALSE;
+	}
 
 	if (sight_entity_time >= time - 0.1 && !(self.spawnflags & 3) )
 	{
@@ -534,6 +537,7 @@ void(float dist) ai_walk =
 		return;
 	}
 
+
 	movedist = dist;
 	
 	// check for noticing a player
@@ -648,6 +652,12 @@ float()	DogCheckAttack;
 
 float() CheckAnyAttack =
 {
+
+	if (self.charmed >= 1 && self.enemy == self.friend)
+		return;
+
+
+
 	if (!enemy_vis)
 		return FALSE;
 	if (self.classname == "monster_army")
@@ -678,8 +688,13 @@ void() ai_run_melee =
 	self.ideal_yaw = enemy_yaw;
 	ChangeYaw ();
 
+
 	if (FacingIdeal())
 	{
+
+		if (self.enemy == self.friend)
+			return;
+
 		self.th_melee ();
 		self.attack_state = AS_STRAIGHT;
 	}
@@ -695,10 +710,15 @@ Turn in place until within an angle to launch a missile attack
 */
 void() ai_run_missile =
 {
+
 	self.ideal_yaw = enemy_yaw;
 	ChangeYaw ();
 	if (FacingIdeal())
 	{
+
+		if (self.enemy == self.friend)
+			return;
+
 		self.th_missile ();
 		self.attack_state = AS_STRAIGHT;
 	}
@@ -756,6 +776,19 @@ void(float dist) ai_run =
 		return;
 	}
 
+
+	if (self.charmed >= 1)
+	{
+		if (self.enemy.classname != "monster" || (self.enemy.classname == "monster" && self.enemy.health <= 0))
+		{
+			self.enemy = self.friend;
+			self.movetarget = self.friend;
+			self.goalentity = self.friend;
+			self.pausetime = time + 0.1;
+		}
+	}
+
+
 	movedist = dist;
 // see if the enemy is dead
 	if (self.enemy.health <= 0)
@@ -791,10 +824,12 @@ void(float dist) ai_run =
 			return;
 	}
 
+
 	enemy_infront = infront(self.enemy);
 	enemy_range = range(self.enemy);
 	enemy_yaw = vectoyaw(self.enemy.origin - self.origin);
 	
+
 	if (self.attack_state == AS_MISSILE)
 	{
 //dprint ("ai_run_missile\n");

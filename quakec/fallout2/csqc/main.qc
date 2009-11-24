@@ -529,8 +529,6 @@ void(float vwidth, float vheight, float do2d) CSQC_UpdateView =
 		if (getstati(42) > 0)
 			SlotImageSmall('0 0 0'+('1 0 0'*(scrwidth*0.77)) +('0 1 0'*(scrheight*0.90)), 11);
 
-		if (getstati(110) == 0)
-			drawpic('0 0 0'+('1 0 0'*(scrwidth*0.64)) +('0 1 0'*(scrheight*0.97)), "gui/hud/aim.png", '16 16 0'*(scrheight/640), '1 1 1');
 
 		HUD_Perks_Draw();
 

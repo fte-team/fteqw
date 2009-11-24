@@ -2,11 +2,11 @@ float IID_NONE = 0;
 
 #define IsMelee(iid) (iid == IID_NONE || (iid >= IID_WP_WRENCH && iid <= IID_WP_POWERAXE))
 #define IsGrenade(iid) (iid >= IID_GREN_FRAG && iid <= IID_GREN_STUN)
-#define IsRanged(iid) (iid >= IID_WP_GLOCK && iid <= IID_WP_ACR)
-
+#define IsRanged(iid) ((iid >= IID_WP_GLOCK && iid <= IID_WP_ACR))
+#define IsMoney(iid) (iid == IID_MONEY)
 
 //weapons with ammo, things with a toggle state
-#define NotStackable(iid) (IsRanged(iid))
+#define NotStackable(iid) (IsRanged(iid) || IsMoney(iid))
 
 //the ammoless weapons
 float IID_WP_WRENCH = 399;
@@ -146,6 +146,7 @@ float IID_MISC_HMXCOMPOUND = 320;
 float IID_MISC_GUM = 321;
 float IID_MISC_XRAYTUBE = 322;
 
+float IID_MONEY = 300;
 
 #define IsShootable(iid) (IsMelee(iid) || IsRanged(iid) || IsGrenade(iid))
 
@@ -267,6 +268,62 @@ float(entity e, float slotno) ItemInSlot =
 		return e.mixslot2;
 	return 0;
 };
+
+
+float(entity e, float slotno) ShadowItemInSlot =
+{
+	if (slotno == 1)
+		return getstati(32);
+	if (slotno == 2)
+		return getstati(33);
+	if (slotno == 3)
+		return getstati(34);
+	if (slotno == 4)
+		return getstati(35);
+	if (slotno == 5)
+		return getstati(36);
+	if (slotno == 6)
+		return getstati(37);
+	if (slotno == 7)
+		return getstati(38);
+	if (slotno == 8)
+		return getstati(39);
+	if (slotno == 9)
+		return getstati(40);
+	if (slotno == 10)
+		return getstati(41);
+	if (slotno == 11)
+		return getstati(42);
+	if (slotno == 12)
+		return getstati(43);
+	if (slotno == 13)
+		return getstati(44);
+	if (slotno == 14)
+		return getstati(45);
+	if (slotno == 15)
+		return getstati(46);
+	if (slotno == 16)
+		return getstati(47);
+	if (slotno == 17)
+		return getstati(91);
+	if (slotno == 18)
+		return getstati(92);
+	if (slotno == 19)
+		return getstati(93);
+	if (slotno == 20)
+		return getstati(94);
+	if (slotno == 21)
+		return getstati(95);
+	if (slotno == 22)
+		return getstati(96);
+	if (slotno == 23)
+		return getstati(97);
+	if (slotno == 24)
+		return getstati(98);
+	return 0;
+};
+
+
 
 void(entity e, float slotno, float item) SetItemSlot =
 {
@@ -432,10 +489,7 @@ float(entity e, float iid) ShadowSlotOfItem =
 		return 23;
 	if (ToIID(getstati(98)) == iid)
 		return 24;
-	if (ToIID(getstati(104)) == iid)
-		return 25;
-	if (ToIID(getstati(105)) == iid)
-		return 26;
+
 	return 0;
 };
 
@@ -858,10 +912,11 @@ string(float iid) GetItemWModel =
 		return "maps/b_bh100.bsp";
 	if (iid == IID_CHEM_RADX)
 		return "maps/b_bh25.bsp";
-
 	if (iid >= IID_MISC_JUNK && iid <= IID_MISC_XRAYTUBE)
 		return "progs/junk1.mdl";
 
+	if (iid == IID_MONEY)
+		return "progs/money.mdl";
 
 	return "progs/s_light.spr";	//no model. :/
 };
@@ -981,9 +1036,9 @@ float(float iid) WeaponMagQuant =
 	if (iid == IID_WP_WINCHESTER)
 		return 2;
 	if (iid == IID_WP_MOSSBERG)
-		return 12;
+		return 8;
 	if (iid == IID_WP_JACKHAMMER)
-		return 20;
+		return 10;
 	if (iid == IID_WP_GREASEGUN)
 		return 30;
 	if (iid == IID_WP_MP9)
@@ -1221,6 +1276,10 @@ string(float iid) GetItemName =
 		return "grease gun";
 	if (iid == IID_WP_MP9)
 		return "mp9";
+	if (iid == IID_WP_GREASEGUN_S)
+		return "damaged grease gun";
+	if (iid == IID_WP_MP9_S)
+		return "damaged mp9";
 	if (iid == IID_WP_RANGEMASTER)
 		return "rangemaster";
 	if (iid == IID_WP_RANGEMASTER_SCOPE)
@@ -1376,6 +1435,7 @@ string(float iid) GetItemName =
 	if (iid == IID_EQUIP_XRAY)
 		return "x-ray device";
 
+
 	if (iid == IID_MISC_JUNK)
 		return "random junk";
 	if (iid == IID_MISC_NUKACOLA)
@@ -1403,6 +1463,8 @@ string(float iid) GetItemName =
 	if (iid == IID_MISC_XRAYTUBE)
 		return "x-ray tube";
 
+	if (iid == IID_MONEY)
+		return "bottle caps";
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
 	return strcat("unknown", ftos(iid));
@@ -1412,7 +1474,8 @@ float(float iid) GetBaseValue =
 {
 	if (iid == IID_NONE)
 		return 0;
-
+	if (iid == IID_MONEY)
+		return 1;
 
 	if (iid == IID_WP_WRENCH)
 		return 5;
@@ -1425,13 +1488,13 @@ float(float iid) GetBaseValue =
 
 
 	if (iid == IID_WP_USP)
-		return 40;
-	if (iid == IID_WP_USP_S)
-		return 60;
-	if (iid == IID_WP_GLOCK)
 		return 30;
+	if (iid == IID_WP_USP_S)
+		return 30;
+	if (iid == IID_WP_GLOCK)
+		return 20;
 	if (iid == IID_WP_GLOCK_S)
-		return 50;
+		return 20;
 	if (iid == IID_WP_DEAGLE)
 		return 70;
 	if (iid == IID_WP_DEAGLE_M)
@@ -1471,9 +1534,9 @@ float(float iid) GetBaseValue =
 	if (iid == IID_WP_MP9_S)
 		return 125;
 	if (iid == IID_WP_RANGEMASTER)
-		return 80;
+		return 70;
 	if (iid == IID_WP_RANGEMASTER_SCOPE)
-		return 120;
+		return 100;
 	if (iid == IID_WP_AK47)
 		return 150;
 	if (iid == IID_WP_AK112)
@@ -1858,6 +1921,9 @@ string(float iid) GetItemDesc =
 	if (iid == IID_EQUIP_XRAY)
 		return "allows for enemy detection through walls";
 
+	if (iid == IID_MONEY)
+		return "the standard currency of the wasteland";
+
 	if (iid == IID_MISC_NUKACOLA)
 		return "a bottle of tasty nuka-cola";
 	if (iid == IID_MISC_JUNK)
@@ -2164,6 +2230,10 @@ string(float iid) GetItemImage =
 		return "greasegun.jpg";
 	if (iid == IID_WP_MP9)
 		return "mp9.jpg";
+	if (iid == IID_WP_GREASEGUN_S)
+		return "greasegun.jpg";
+	if (iid == IID_WP_MP9_S)
+		return "mp9.jpg";
 	if (iid == IID_WP_RANGEMASTER)
 		return "rangem.png";
 	if (iid == IID_WP_RANGEMASTER_SCOPE)
@@ -2341,6 +2411,9 @@ string(float iid) GetItemImage =
 		return "junk/gum.jpg";
 	if (iid == IID_MISC_XRAYTUBE)
 		return "junk/tube.jpg";
+
+	if (iid == IID_MONEY)
+		return "bottlecaps.png";
 
 	bprint(PRINT_MEDIUM, ftos(iid), " without a name!\n");
 	return strcat("unknown.jpg", ftos(iid));

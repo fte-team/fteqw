@@ -669,6 +669,8 @@ float   intermission_running;
 .float          hostage;
 .float          xregen;
 .float          sneak;
+.float          morale;
+.float          blurtime;
 
 .float          skill_combat;
 .float          skill_doctor;

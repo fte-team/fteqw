@@ -62,11 +62,10 @@ local float 	ldmg;
 	if (vlen(delta) > (100))
 		return;
 		
-	ldmg = 5+random()*5;
+	ldmg = 7+random()*5;
 
 	T_Damage (self.enemy, self, self, ldmg);
 
-	self.enemy.attack_finished = time + 0.25;
 
 };
 

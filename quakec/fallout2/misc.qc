@@ -1087,7 +1087,7 @@ void() brotherhood_doctor =
 	self.xslot17 = SlotVal(IID_CHEM_MEDICALBAG, 25);
 	self.xslot18 = SlotVal(IID_CHEM_SUPERSTIM, 1);
 	self.xslot19 = SlotVal(IID_CHEM_ADRENALINE, 1);
-	self.xslot20 = SlotVal(IID_CHEM_PSYCHO, 1);
+	self.xslot20 = SlotVal(IID_CHEM_RADX, 1);
 };
 
 

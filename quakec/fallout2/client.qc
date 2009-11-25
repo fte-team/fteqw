@@ -628,6 +628,7 @@ void() PutClientInServer =
 		self.islot1 = SlotVal(IID_WP_KNIFE, 1);
 		self.islot2 = 0;
 		self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
+		self.islot4 = SlotVal(IID_EQUIP_CLIMBINGGEAR, 1);
 		self.islot5 = SlotVal(IID_CHEM_STIMPACK, 5);
 		self.islot7 = 0;
 		self.islot8 = SlotVal(IID_MONEY, 100);
@@ -2216,6 +2217,7 @@ void() ClientConnect =
 	stuffcmd(self, "alias perk2 impulse 62\n");
 
 	stuffcmd(self, "alias stimpack impulse 225\n");
+	stuffcmd(self, "alias radx impulse 228\n");
 	stuffcmd(self, "alias equip \"cmd invuse 4\"\n");
 	stuffcmd(self, "alias q1 \"cmd invuse 5\"\n");
 	stuffcmd(self, "alias q2 \"cmd invuse 11\"\n");
@@ -2224,28 +2226,6 @@ void() ClientConnect =
 
 	stuffcmd(self, "alias toolkit \"cmd invswap toolkit 2;impulse 2\"\n");
 
-	stuffcmd (self, "alias radio1 impulse 212\n");
-	stuffcmd (self, "alias radio2 impulse 213\n");
-	stuffcmd (self, "alias radio3 impulse 214\n");
-	stuffcmd (self, "alias radio4 impulse 215\n");
-	stuffcmd (self, "alias radio5 impulse 216\n");
-	stuffcmd (self, "alias radio6 impulse 217\n");
-	stuffcmd (self, "alias radio7 impulse 218\n");
-	stuffcmd (self, "alias radio8 impulse 219\n");
-	stuffcmd (self, "alias radio9 impulse 220\n");
-	stuffcmd (self, "alias radio10 impulse 221\n");
-	stuffcmd (self, "alias radio11 impulse 222\n");
-	stuffcmd (self, "bind f1 radio1\n");
-	stuffcmd (self, "bind f2 radio2\n");
-	stuffcmd (self, "bind f3 radio3\n");
-	stuffcmd (self, "bind f4 radio4\n");
-	stuffcmd (self, "bind f5 radio5\n");
-	stuffcmd (self, "bind f6 radio6\n");
-	stuffcmd (self, "bind f7 radio7\n");
-	stuffcmd (self, "bind f8 radio8\n");
-	stuffcmd (self, "bind f9 radio9\n");
-	stuffcmd (self, "bind f10 radio10\n");
-	stuffcmd (self, "bind f11 radio11\n");
 
 	stuffcmd(self, "bind 9 impulse 9\n");
 	stuffcmd(self, "bind 0 impulse 10\n");

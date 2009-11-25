@@ -142,6 +142,12 @@ void(string arg1) Cmd_InvUse =
 		return;
 	}
 
+	if (iid == IID_CHEM_RADX)
+	{
+		UseRadX();
+		return;
+	}
+
 	if (iid == IID_GREN_FLARE)
 	{
 		ToggleFlare();
@@ -156,7 +162,6 @@ void(string arg1) Cmd_InvUse =
 
 	if (iid == IID_CHEM_ADRENALINE ||
 	    iid == IID_CHEM_PSYCHO ||
-	    iid == IID_CHEM_RADX ||
 	    iid == IID_CHEM_BESERK)
 	{
 		if (UseBoostingChem(iid))

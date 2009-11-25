@@ -1,6 +1,7 @@
 void () player_use1;
 void() show_light_level;
 void() UseStimpack;
+void() UseRadX;
 void() UseSuperStim;
 void() UseMedicalBag;
 void (entity chest, float iid, float num) DropFromChest;
@@ -2518,6 +2519,8 @@ void() ImpulseCommands =
 		UseSuperStim();
 	if (self.impulse == 227)
 		UseMedicalBag();
+	if (self.impulse == 228)
+		UseRadX();
 
 	if (self.impulse == 255)
 		self.ammo_shells = 200;
@@ -4509,6 +4512,8 @@ void () UseStimpack =
 	if (self.attack_finished > time)
 		return;
 
+
+/*
 	te = findradius (self.origin, 100);
 	while (te)
 	{
@@ -4536,7 +4541,7 @@ void () UseStimpack =
 	}
 
 	if (found == 1)
-		return;
+		return;*/
 
 	self.attack_finished = time + 1;
 	self.rtime = time + 1;
@@ -4563,7 +4568,9 @@ void () UseStimpack =
 			x = SlotOfItem(self, IID_CHEM_STIMPACK);
 			if (x > 0)
 				DecreaseDestroySlot(x);//take away a stimpack
-			else if (x == 0)
+			else if (x == 0 && !trace_ent.deadflag)
+				sprint(self, PRINT_MEDIUM, "no stims!\n");
+			else if (x == 0 && trace_ent.deadflag)
 			{
 				sprint(self, PRINT_MEDIUM, "no stims! searching ");
 				sprint(self, PRINT_MEDIUM, trace_ent.netname);
@@ -4573,13 +4580,13 @@ void () UseStimpack =
 				if (x == 0)
 				{
 					sprint(self, PRINT_MEDIUM, trace_ent.netname);
-					sprint(self, PRINT_MEDIUM, " had no stims!\n");
+					sprint(self, PRINT_MEDIUM, " had no stimpacks!\n");
 				}
 				if (x >= 1)
 				{
 					self.score = self.score + 5;
 					sprint(self, PRINT_MEDIUM, trace_ent.netname);
-					sprint(self, PRINT_MEDIUM, " had a stim. using it to heal.\n");
+					sprint(self, PRINT_MEDIUM, " had a stimpack. using it to heal.\n");
 					DecreaseDestroySlotOther(trace_ent, x);//take away a stimpack
 					return;
 				}
@@ -4587,13 +4594,13 @@ void () UseStimpack =
 				if (x == 0)
 				{
 					sprint(self, PRINT_MEDIUM, trace_ent.netname);
-					sprint(self, PRINT_MEDIUM, " had no medical bag!\n");
+					sprint(self, PRINT_MEDIUM, " had no medkit!\n");
 				}
 				if (x >= 1)
 				{
 					self.score = self.score + 5;
 					sprint(self, PRINT_MEDIUM, trace_ent.netname);
-					sprint(self, PRINT_MEDIUM, " had a stim. using it to heal.\n");
+					sprint(self, PRINT_MEDIUM, " had a medkit. using it to heal.\n");
 					DecreaseDestroySlotOther(trace_ent, x);//take away a stimpack
 					return;
 				}
@@ -4647,6 +4654,84 @@ void () UseStimpack =
 			spawn_healing(self);
 			spawn_healing(self);
 			spawn_healing(self);
+		}
+	}
+};
+
+
+void () UseRadX =
+{
+	local float x, found;
+	local vector source;
+	local entity thing, te;
+
+
+	if (self.attack_finished > time)
+		return;
+
+
+	self.attack_finished = time + 1;
+	self.rtime = time + 1;
+
+	makevectors (self.v_angle);
+	source = self.origin + '0 0 0';
+	traceline (source, source + v_forward*64, FALSE, self);
+
+
+	if (trace_ent.classname == "player")//healing another team-mate
+	{
+		if (trace_ent.radiation <= 0)
+		{
+			sprint(self, PRINT_MEDIUM, trace_ent.netname);
+			sprint(self, PRINT_MEDIUM, " is not irradiated.\n");
+		}
+		else if (trace_ent.radiation > 0)
+		{
+			x = SlotOfItem(self, IID_CHEM_RADX);
+			if (x > 0)
+				DecreaseDestroySlot(x);//take away radx
+			else if (x == 0 && !trace_ent.deadflag)
+				sprint(self, PRINT_MEDIUM, "you don't have any radx\n");
+	
+
+			else
+			{
+				sound (trace_ent, CHAN_BODY, "items/r_item1.wav", 1, ATTN_NORM);
+				self.score = self.score + 1;
+				sprint(trace_ent, PRINT_MEDIUM, self.netname);
+				sprint(trace_ent, PRINT_MEDIUM, " gives you some Rad-X.\n");
+				sprint(self, PRINT_MEDIUM, "Your radiation levels decrease.\n");
+	
+
+				trace_ent.radiation = trace_ent.radiation - (5 + (self.skill_doctor*2));
+				if (self.radiation < 0)
+					self.radiation = 0;
+			}
+		}
+	}
+	else
+	{
+		x = SlotOfItem(self, IID_CHEM_RADX);
+		if (x == 0)
+		{
+			sprint(self, PRINT_MEDIUM, "You don't have any Rad-X.\n");
+			return;
+		}
+
+
+		else if (self.radiation <= 0)
+			sprint(self, PRINT_MEDIUM, "You are not irradiated.\n");
+		else if (self.radiation > 0)
+		{
+			DecreaseDestroySlot(x);//take away a stimpack
+
+			sound (self, CHAN_BODY, "items/r_item2.wav", 1, ATTN_NORM);
+			sprint(self, PRINT_MEDIUM, "You take some Rad-X.\n");
+			sprint(self, PRINT_MEDIUM, "Your radiation levels decrease.\n");
+
+			self.radiation = self.radiation - (5 + (self.skill_doctor*2));
+			if (self.radiation < 0)
+				self.radiation = 0;
 		}
 	}
 };
@@ -5989,58 +6074,20 @@ void () CharacterSheet =
 
 void () UseEquipment =
 {
-
-	if (self.equipment == 0)
+	if (self.equipment_slot == 0)
 	{
-		centerprint(self, "‘ no extra equipment ‘\n");
-		return;
-	}
-	if (self.equipment == 1)
-	{
-		centerprint(self, "‘ medic's bag ‘\nlets you carry more stimpacks\n");
-		return;
-	}
-	if (self.equipment == 4)
-	{
-		centerprint(self, "‘ belt pouch ‘\ngives you room for two extra grenades\n");
-		return;
-	}
-	if (self.equipment == 5)
-	{
-		centerprint(self, "‘ backpack ‘\nlets you carry more ammunition\n");
-		return;
-	}
-	if (self.equipment == 6)
-	{
-		centerprint(self, "‘ toolkit mark ii ‘\nbuild, defuse and open doors faster\n");
-		return;
-	}
-/*
-	if (self.equipment == 7 && self.equipment_slot == 0)
-	{
-		sprint (self, PRINT_HIGH, "climbing gear in place.\n");
+		sprint (self, PRINT_HIGH, "you are now attempting to climb.\n");
 		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
 		self.maxspeed = 100;
 		self.velocity_z = 0;
-		self.equipment_state = 1;
+		self.equipment_slot = 1;
 	}
-	if (self.equipment == 7 && self.equipment_state == 1)
+	else if (self.equipment_slot == 1)
 	{
-		sprint (self, PRINT_HIGH, "climbing gear retrieved.\n");
+		sprint (self, PRINT_HIGH, "no longer attempting to climb.\n");
 		sound (self, CHAN_BODY, "misc/item2.wav", 1, ATTN_NORM);
 		self.grab = 0;
-		self.equipment_state = 0;
-		return;
-	}
-*/
-	if (self.equipment == 8)
-	{
-		centerprint(self, "‘ enhanced battery ‘\nallows longer cloaking\n");
-		return;
-	}
-	if (self.equipment == 9)
-	{
-		Sneak();
+		self.equipment_slot = 0;
 		return;
 	}
 

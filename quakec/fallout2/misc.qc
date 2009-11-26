@@ -909,10 +909,139 @@ void() misc_noisemaker =
 };
 
 
+
+void() explore_think =
+{
+	local entity te;
+
+	self.think = explore_think;
+	self.nextthink = time + 0.5;
+
+	te = findradius(self.origin, 128);
+
+	while (te.classname == "player")
+	{
+		if (te.soundmode != 1)
+		{
+			te.musictimer = 0;
+			te.soundmode = 1;
+		}
+
+		te = te.chain;
+	}
+};
+
+void() sound_explore =
+{
+
+	self.think = explore_think;
+	self.nextthink = time + 0.5;
+
+
+};
+
+void() vault_think =
+{
+	local entity te;
+
+	self.think = vault_think;
+	self.nextthink = time + 0.5;
+
+	te = findradius(self.origin, 128);
+
+	while (te.classname == "player")
+	{
+		if (te.soundmode != 2)
+		{
+			te.musictimer = 0;
+			te.soundmode = 2;
+		}
+
+		te = te.chain;
+	}
+};
+
+void() sound_vault =
+{
+
+	self.think = vault_think;
+	self.nextthink = time + 0.5;
+
+
+};
+
+
+void() env_grass1 =
+{
+	local entity grass;
+
+	setmodel (self, "progs/grass1.spr");
+	self.touch = SUB_Null;
+	self.solid = SOLID_NOT;
+	setsize (self, '-16 -16 -16', '16 16 0');
+	self.takedamage = DAMAGE_NO;
+	self.classname = "env_grass";
+	self.movetype = MOVETYPE_BOUNCE;
+
+	grass = spawn();
+	
+	grass.origin = self.origin;
+	setmodel (grass, "progs/grass1.spr");
+	grass.touch = SUB_Null;
+	grass.solid = SOLID_NOT;
+	setsize (grass, '-16 -16 -16', '16 16 0');
+	grass.takedamage = DAMAGE_NO;
+	grass.classname = "env_grass";
+	grass.angles_y = grass.angles_y + 90;
+	grass.movetype = MOVETYPE_BOUNCE;
+
+};
+
+void() env_grass2 =
+{
+	local entity grass;
+
+	setmodel (self, "progs/grass2.spr");
+	self.touch = SUB_Null;
+	self.solid = SOLID_NOT;
+	setsize (self, '-16 -16 -16', '16 16 0');
+	self.takedamage = DAMAGE_NO;
+	self.classname = "env_grass";
+	self.movetype = MOVETYPE_BOUNCE;
+
+	grass = spawn();
+	
+	grass.origin = self.origin;
+	setmodel (grass, "progs/grass2.spr");
+	grass.touch = SUB_Null;
+	grass.solid = SOLID_NOT;
+	setsize (grass, '-16 -16 -16', '16 16 0');
+	grass.takedamage = DAMAGE_NO;
+	grass.classname = "env_grass";
+	grass.angles_y = grass.angles_y + 90;
+	grass.movetype = MOVETYPE_BOUNCE;
+};
+
+
+void() env_car =
+{
+
+	setmodel (self, "progs/car.mdl");
+	self.touch = SUB_Null;
+	self.solid = SOLID_BBOX;
+	setsize (self, '-16 -16 -16', '16 16 16');
+	self.takedamage = DAMAGE_NO;
+	self.classname = "env_grass";
+	self.movetype = MOVETYPE_BOUNCE;
+
+
+};
+
+
 void() brotherhood_merchant =
 {
 	local entity sign;
-
+/*
 	sign = spawn();
 	sign.movetype = MOVETYPE_BOUNCE;
 	sign.velocity_x = crandom()*50;
@@ -933,7 +1062,7 @@ void() brotherhood_merchant =
 	sign.origin = self.origin + '0 32 32';
 	setmodel(sign, "progs/money.mdl");
 	sign.solid = SOLID_BBOX;
-	sign.scale = 10;
+	sign.scale = 10;*/
 
 
 
@@ -946,7 +1075,7 @@ void() brotherhood_merchant =
 	self.classname = "merchant";
 	self.think = shop_face;
 	self.nextthink = time + 0.5;
-
+	self.netname = "merchant";
 
 	
 	self.xslot1 = SlotVal(IID_WP_GLOCK, 1);
@@ -1001,11 +1130,13 @@ void() brotherhood_sergeant =
 	self.movetype = MOVETYPE_BOUNCE;
 	self.velocity_z = -200;
 
-	setmodel (self, "progs/enforcer.mdl");
+	setmodel (self, "progs/hknight.mdl");
 	self.touch = SUB_Null;
 	self.solid = SOLID_SLIDEBOX;
 	setsize (self, '-16 -16 -24', '16 16 32');
 	self.takedamage = DAMAGE_NO;
+	self.classname = "sergeant";
+	self.netname = "rupert starfall, the commander";
 };
 
 void() brotherhood_soldier =
@@ -1041,6 +1172,7 @@ void() brotherhood_soldier =
 	self.xslot19 = SlotVal(IID_WP_MOONLIGHT, 1);
 	self.xslot20 = SlotVal(IID_WP_MOSSBERG, 1);
 
+	self.netname = "soldier";
 	self.think = shop_face;
 	self.nextthink = time + 0.5;
 
@@ -1063,6 +1195,7 @@ void() brotherhood_guard =
 	self.solid = SOLID_SLIDEBOX;
 	setsize (self, '-16 -16 -24', '16 16 32');
 	self.takedamage = DAMAGE_NO;
+	self.netname = "guard";
 };
 
 void() brotherhood_doctor =
@@ -1088,6 +1221,8 @@ void() brotherhood_doctor =
 	self.xslot18 = SlotVal(IID_CHEM_SUPERSTIM, 1);
 	self.xslot19 = SlotVal(IID_CHEM_ADRENALINE, 1);
 	self.xslot20 = SlotVal(IID_CHEM_RADX, 1);
+
+	self.netname = "doctor";
 };
 
 

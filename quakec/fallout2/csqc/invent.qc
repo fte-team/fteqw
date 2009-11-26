@@ -43,7 +43,7 @@ float mouseisdown;
 #define IMGSIZEZ ('1 1 0'*IMGSIZEX)
 #define IMGSIZEQ ('1 1 0'*2)
 
-#define CURSORSIZE 8
+#define CURSORSIZE 32
 
 
 
@@ -1020,7 +1020,7 @@ void() Invent_Draw =
 		op = floor((mousepos_y - contextpos_y)/8);
 		drawstring(contextpos + (0 * ('0 8 0'*(scrwidth/640))), "use", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=0)*'0 0 1'*(scrwidth/640), 1);
 		drawstring(contextpos + (2 * ('0 8 0'*(scrwidth/640))), "drop", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=2)*'0 0 1'*(scrwidth/640), 1);
-		if (getstati(108) == 1)
+		if (getstati(108) > 0)
 		drawstring(contextpos + (4 * ('0 8 0'*(scrwidth/640))), "sell", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=4)*'0 0 1'*(scrwidth/640), 1);
 
 	}
@@ -1186,7 +1186,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			show_items = false;
 			show_gainperk = false;
 		}
-		if (param1 == 'b' && (getstati(108) == 1))
+		if (param1 == 'b' && (getstati(108) > 0))
 		{
 			show_trader = !show_trader;
 			show_pipboy = false;

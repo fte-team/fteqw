@@ -123,16 +123,6 @@ void() Time_Draw =
 	local float xtime, ytime, ztime, obj;
 	local string qtime, rtime, shadowtime, text, text2;
 
-	xtime = getstati(63);
-	ytime = floor(xtime/60);
-	ztime = xtime - (ytime*60);
-	qtime = ftos(ytime);
-	rtime = ftos(ztime);
-	shadowtime = ftos(getstati(63));
-
-	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.25))+('0 1 0'*(scrheight*0.86)),  strcat("[", qtime, ":", rtime, "]\n"), '8 8 8'*(scrwidth/640), '1 1 1', 1);
-
-
 	obj = getstati(66);
 
 	if (obj == 1)
@@ -143,12 +133,27 @@ void() Time_Draw =
 		text = "assassinate commanders\n";
 	if (obj == 4)
 		text = "rescue citizens\n";
+	else
+		text = "no active mission.\n";
 
-		drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.86)),  text, '8 8 8'*(scrwidth/640), '1 1 1', 1);
+	xtime = getstati(63);
+	ytime = floor(xtime/60);
+	ztime = xtime - (ytime*60);
+	qtime = ftos(ytime);
+	rtime = ftos(ztime);
+	shadowtime = ftos(getstati(63));
+
+	if (obj >= 1)
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.25))+('0 1 0'*(scrheight*0.88)),  strcat("[", qtime, ":", rtime, "]\n"), '8 8 8'*(scrwidth/640), '1 1 1', 1);
 
 
 
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.88)),  text, '8 8 8'*(scrwidth/640), '1 1 1', 1);
 
+
+
+	if (obj >= 1)
+	{
 	text = "citizens rescued: ";
 	text2 = ftos(getstati(113));
 	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.90)),  strcat(text, text2), '8 8 8'*(scrwidth/640), '1 1 1', 1);
@@ -160,6 +165,7 @@ void() Time_Draw =
 	text = "citizens left:    ";
 	text2 = ftos(getstati(115));
 	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.03))+('0 1 0'*(scrheight*0.94)),  strcat(text, text2), '8 8 8'*(scrwidth/640), '1 1 1', 1);
+	}
 
 };
 

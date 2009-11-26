@@ -346,7 +346,8 @@ void() execute_changelevel =
 
 
 
-	localcmd("map r_bunker\n");
+	localcmd(strcat("map ", self.map, "\n"));
+
 
 
 };
@@ -385,6 +386,8 @@ void() changelevel_touch =
 		sprint (other, 2,"there are still bombs to disarm.\n");
 		return;
 	}
+	else
+		localcmd(strcat("map ", self.map, "\n"));
 
 	if (world.map_obj == OBJ_HOSTAGE && hostages > 0)
 		return;
@@ -412,7 +415,7 @@ void() changelevel_touch =
 		other = find (other, classname, "player");
 	}      
 
-	localcmd("serverinfo objective return\n");
+	//localcmd("serverinfo objective return\n");
 
 	SUB_UseTargets ();
 
@@ -1651,6 +1654,10 @@ void() PlayerPreThink =
 			SneakLevel();
 		self.accept = 0;
 		
+
+		if (self.safezone > 0)
+			self.safezone = self.safezone - 1;
+
 		self.endinfo1 = rescue;
 		self.endinfo2 = dead_hostage;
 		self.endinfo3 = hostages;
@@ -1742,6 +1749,8 @@ void() PlayerPreThink =
 	if (self.cycle2 < time)
 	{
 
+
+
 		if (self.blurtime > 0 && self.blurtime <= 1)
 			stuffcmd(self, "gl_motionblur 0\n");
 		else if (self.blurtime > 0)
@@ -1780,7 +1789,11 @@ void() PlayerPreThink =
 		
 		if (self.musictimer == 0)
 		{
-			if (world.model == "maps/r_bunker.bsp")
+			if (self.soundmode == 1)
+				stuffcmd(self, "play music/exploring\n");
+			else if (self.soundmode == 2)
+				stuffcmd(self, "play music/vault\n");
+			else if (world.model == "maps/r_bunker.bsp")
 				stuffcmd(self, "play music/vault\n");
 			else if (world.map_obj == OBJ_DEADTOWN)
 				stuffcmd(self, "play music/afterglow\n");
@@ -2693,5 +2706,12 @@ void(entity targ, entity attacker) ClientObituary =
 
 void() Identify =
 {
-return;
+	local vector source;
+
+	makevectors (self.v_angle);
+	source = self.origin + '0 0 0';
+	traceline (source, source + v_forward*128, FALSE, self);
+
+	if (trace_ent.netname)
+		centerprint (self, trace_ent.netname);
 };

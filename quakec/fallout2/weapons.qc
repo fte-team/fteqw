@@ -1962,7 +1962,6 @@ void() W_Attack =
 
 	weap = ToIID(self.(SlotField(self.current_slot)));
 
-	self.safezone = 0;
 
 	if (weap == IID_NONE)
 	{
@@ -5970,7 +5969,7 @@ void () shop_face =
 		if (te.classname == "player")
 		{
 			self.enemy = te;
-			te.safezone = 1;
+			te.safezone = 2;
 			te.xslot1 = self.xslot1;
 			te.xslot2 = self.xslot2;
 			te.xslot3 = self.xslot3;

@@ -684,6 +684,7 @@ float   intermission_running;
 .float          shadowskill_speech;
 
 .float		musictimer;
+.float		soundmode;
 
 .float          rescued;
 .float          scale;

@@ -526,9 +526,9 @@ void() Trader_Draw =
 
 	if (showcontextmenu && show_trader)
 	{
-		drawfill(contextpos - '8 8 0'*(scrwidth/640), '48 48 0'*(scrwidth/640), '0 0 0', 1.0);
+		drawfill(contextpos - '8 8 0'*(scrwidth/640), '64 64 0'*(scrwidth/640), '0 0 0', 1.0);
 		op = floor((mousepos_y - contextpos_y)/8*(scrwidth/640));
-		drawstring(contextpos + '0 8 0'*(scrwidth/640), "buy?", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=1)*'0 0 1'*(scrwidth/640), 
+		drawstring(contextpos + '0 8 0'*(scrwidth/640), "buy?", '12 12 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op>=6||op<0)*'0 0 1'*(scrwidth/640), 
 1);
 	}
 
@@ -788,7 +788,7 @@ void() GainPerk_Draw =
 
 void() Pipboy_Draw =
 {
-	float width,height,lvl,bar, top, s;
+	float width,height,lvl,bar, top, s, tnl;
 	string skill;
 	vector w;
 
@@ -915,7 +915,8 @@ void() Pipboy_Draw =
 
 	bar = 0;
 	s = getstati(127);
-	top = ceil(200 * (s/200));
+	tnl = getstati(116);
+	top = ceil(200 * (s/tnl));
 	if (top > 200)
 		top = 200;
 
@@ -929,7 +930,7 @@ void() Pipboy_Draw =
 
 	drawpic('0 0 0'+('1 0 0'*(scrwidth*0.48)) +('0 1 0'*(scrheight*0.685)) + ('0 1 0'*(scrheight/640)), "gui/pipboy/graph/blue.jpg", '1 16 0'*(scrheight/640)+'1 0 0'*(scrwidth/640)*bar, '1 1 1', 1);
 
-	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.6)) +('0 1 0'*(scrheight*0.69)), strcat(ftos(s),"/", ftos(top), "\n"), '8 8 0'*(scrwidth/640), '1 1 1', 1);
+	drawstring('0 0 0'+('1 0 0'*(scrwidth*0.6)) +('0 1 0'*(scrheight*0.69)), strcat(ftos(s),"/", ftos(tnl), "\n"), '8 8 0'*(scrwidth/640), '1 1 1', 1);
 
 
 	if (mousepos_x > scrwidth*0.95)
@@ -1015,13 +1016,19 @@ void() Invent_Draw =
 
 	if (showcontextmenu && show_inventory)
 	{
-			drawfill(contextpos - '8 8 0', '32 48 0'+'32 16 0'*(scrwidth/640), '0 0 0', 1);
+			drawfill(contextpos - '8 8 0', '64 128 0'+'32 16 0'*(scrwidth/640), '0 0 0', 1);
 
-		op = floor((mousepos_y - contextpos_y)/8);
-		drawstring(contextpos + (0 * ('0 8 0'*(scrwidth/640))), "use", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=0)*'0 0 1'*(scrwidth/640), 1);
-		drawstring(contextpos + (2 * ('0 8 0'*(scrwidth/640))), "drop", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=2)*'0 0 1'*(scrwidth/640), 1);
+
+	itname = GetItemName(ToIID(it));
+	drawstring(contextpos + (0 * ('0 32 0'*(scrwidth/640))), itname, '8 8 0'*(scrwidth/640), '1 1 1', 1);
+
+
+		op = floor((mousepos_y - contextpos_y)/(32*(scrwidth/640)));
+		drawstring(contextpos + (1 * ('0 32 0'*(scrwidth/640))), "------", '8 8 0'*(scrwidth/640), '1 1 1'*(scrwidth/640), 1);
+		drawstring(contextpos + (2 * ('0 32 0'*(scrwidth/640))), "[use]", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=2)*'0 0 1'*(scrwidth/640), 1);
+		drawstring(contextpos + (3 * ('0 32 0'*(scrwidth/640))), "[drop]", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=3)*'0 0 1'*(scrwidth/640), 1);
 		if (getstati(108) > 0)
-		drawstring(contextpos + (4 * ('0 8 0'*(scrwidth/640))), "sell", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=4)*'0 0 1'*(scrwidth/640), 1);
+		drawstring(contextpos + (4 * ('0 32 0'*(scrwidth/640))), "[sell]", '8 8 0'*(scrwidth/640), '1 1 0'*(scrwidth/640) + (op!=4)*'0 0 1'*(scrwidth/640), 1);
 
 	}
 	else if (showmixmenu && show_inventory)
@@ -1229,11 +1236,11 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 		{		
 			if (showcontextmenu && show_inventory)
 			{
-				op = floor((mousepos_y - contextpos_y)/(8*(scrwidth/640)));
+				op = floor((mousepos_y - contextpos_y)/(32*(scrwidth/640)));
 
-				if (op == 0)
+				if (op == 2)
 					localcmd(strcat("cmd invuse ", ftos(slotnum), "\n"));
-				else if ((op == 2))
+				else if ((op == 3))
 					localcmd(strcat("cmd invdrop ", ftos(slotnum), "\n"));
 				else if (op == 4)
 					localcmd(strcat("cmd invsell ", ftos(slotnum), "\n"));
@@ -1254,7 +1261,7 @@ float(float eventtype, float param1, float param2) CSQC_InputEvent =
 			{
 				op = floor((mousepos_y - contextpos_y)/8);
 
-				if (op == 1)
+				if (op >= 0 && op <=6)
 					localcmd(strcat("cmd invbuy ", ftos(slotnum), "\n"));
 	
 				showcontextmenu = false;

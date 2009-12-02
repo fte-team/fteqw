@@ -347,7 +347,7 @@ void() execute_changelevel =
 
 
 	localcmd(strcat("map ", self.map, "\n"));
-
+	localcmd(strcat("serverinfo direction ", self.direction, "\n"));
 
 
 };
@@ -387,7 +387,25 @@ void() changelevel_touch =
 		return;
 	}
 	else
+	{
+
+		if (infokey(world, "worldtime") == "1")
+			localcmd("serverinfo worldtime 2\n");
+		else if (infokey(world, "worldtime") == "2")
+			localcmd("serverinfo worldtime 3\n");
+		else if (infokey(world, "worldtime") == "3")
+			localcmd("serverinfo worldtime 3\n");
+		else if (infokey(world, "worldtime") == "4")
+			localcmd("serverinfo worldtime 5\n");
+		else if (infokey(world, "worldtime") == "5")
+			localcmd("serverinfo worldtime 6\n");
+		else if (infokey(world, "worldtime") == "6")
+			localcmd("serverinfo worldtime 1\n");
+
 		localcmd(strcat("map ", self.map, "\n"));
+		localcmd(strcat("serverinfo direction ", self.direction, "\n"));
+		return;
+	}
 
 	if (world.map_obj == OBJ_HOSTAGE && hostages > 0)
 		return;
@@ -425,6 +443,20 @@ void() changelevel_touch =
 // in the middle of C movement code, so set a think time to do it
 	self.think = execute_changelevel;
 	self.nextthink = time + 10;
+
+
+		if (infokey(world, "worldtime") == "1")
+			localcmd("serverinfo worldtime 2\n");
+		else if (infokey(world, "worldtime") == "2")
+			localcmd("serverinfo worldtime 3\n");
+		else if (infokey(world, "worldtime") == "3")
+			localcmd("serverinfo worldtime 3\n");
+		else if (infokey(world, "worldtime") == "4")
+			localcmd("serverinfo worldtime 5\n");
+		else if (infokey(world, "worldtime") == "5")
+			localcmd("serverinfo worldtime 6\n");
+		else if (infokey(world, "worldtime") == "6")
+			localcmd("serverinfo worldtime 1\n");
 };
 
 /*QUAKED trigger_changelevel (0.5 0.5 0.5) ? NO_INTERMISSION
@@ -514,8 +546,19 @@ entity() SelectSpawnPoint =
 	if (coop == 0)
 		ent1 = "info_player_deathmatch";
 	else
-		ent1 = "info_player_coop";
+	{
 
+		if (infokey(world, "direction") == "north")
+			ent1 = "info_player_coop_south";
+		else if (infokey(world, "direction") == "west")
+			ent1 = "info_player_coop_east";
+		else if (infokey(world, "direction") == "east")
+			ent1 = "info_player_coop_west";
+		else if (infokey(world, "direction") == "south")
+			ent1 = "info_player_coop_north";
+		else
+			ent1 = "info_player_coop";
+	}
 	if (ent1 == "spawn3")
 	{
 		if (self.team == 1)
@@ -651,6 +694,7 @@ void() PutClientInServer =
      		self.islot22 = 0;
      		self.islot23 = 0;
      		self.islot24 = 0;
+		self.score = 200;
 	}
 
 	self.attack_finished = time;
@@ -780,6 +824,13 @@ void() PutClientInServer =
 		stuffcmd(self, "play music/vault\n");
 	else if (world.map_obj == OBJ_DEADTOWN)
 		stuffcmd(self, "play music/afterglow\n");
+
+	if (infokey(world, "worldtime") == "1" || infokey(world, "worldtime") == "2")
+		stuffcmd(self, "r_skybox dawn\n");
+	else if (infokey(world, "worldtime") == "3" || infokey(world, "worldtime") == "4")
+		stuffcmd(self, "r_skybox dusk\n");
+	else if (infokey(world, "worldtime") == "5" || infokey(world, "worldtime") == "6")
+		stuffcmd(self, "r_skybox night\n");
 };
 
 
@@ -846,6 +897,21 @@ void() info_player_coop =
 {
 };
 
+void() info_player_coop_north =
+{
+};
+
+void() info_player_coop_west =
+{
+};
+
+void() info_player_coop_east =
+{
+};
+
+void() info_player_coop_south =
+{
+};
 
 void() spawn1 =
 {
@@ -1596,26 +1662,14 @@ void() PlayerPreThink =
 
 
 
+	self.tnl = self.skill_combat + self.skill_doctor + self.skill_sneak + self.skill_science + self.skill_speech;
+	self.tnl = 10 + 10*self.tnl;
 
-	if (self.score < 200)
+	if (self.score > self.tnl)
 	{
-		if ((self.skill_combat + self.skill_doctor + self.skill_sneak + self.skill_science + self.skill_speech) <= 8)
-		{
-			self.score = 200;
-	
-			sound (self, CHAN_BODY, "player/levelup.wav", 1, ATTN_NORM);
-			sprint(self, 2, "you have gained a level!\npress 'p' to assign a skill point.\n");
-		}
-	}
-	else if (self.score > 200)
-	{
-		if ((self.skill_combat + self.skill_doctor + self.skill_sneak + self.skill_science + self.skill_speech) > 8)
-		{
-			self.score = 200;
-	
-			sound (self, CHAN_BODY, "player/levelup.wav", 1, ATTN_NORM);
-			sprint(self, 2, "you have gained a level!\npress 'p' to assign a skill point.\n");
-		}
+		self.score = self.tnl;
+		sound (self, CHAN_BODY, "player/levelup.wav", 1, ATTN_NORM);
+		sprint(self, 2, "you have gained a level!\npress 'p' to assign a skill point.\n");
 	}
 
 	//perk1timer and perk2timer are "cooldowns" for each perk

@@ -908,6 +908,62 @@ void() misc_noisemaker =
 	self.think = noise_think;
 };
 
+void() random_monster =
+{
+	load_monster();
+};
+
+void () npc_doctor =
+{
+	precache_model ("progs/hosguy.mdl");
+	precache_sound ("misc/hosdie1.wav");
+	precache_sound ("misc/hosdie2.wav");
+	hos_stand1 ();
+	self.movetype = MOVETYPE_STEP;
+	self.velocity = VEC_ORIGIN;
+	self.touch = SUB_Null;
+	self.takedamage = DAMAGE_NO;
+	setsize (self, VEC_HULL_MIN, VEC_HULL_MAX);
+	setmodel (self, "progs/hosguy.mdl");
+	self.health = 70;
+	self.think = hostage_think;
+	self.nextthink = (time + START_OFF);
+	self.team = START_OFF;
+	self.solid = SOLID_BBOX;
+	self.th_die = hostage_die;
+	self.th_pain = hostage_pain;
+	self.rescued = MULTICAST_ALL;
+	self.netname = "doctor";
+
+	self.classname = "merchant";
+	self.think = shop_face;
+	self.nextthink = time + 0.5;
+
+	self.xslot1 = SlotVal(IID_WP_KNIFE, 1);
+	self.xslot2 = SlotVal(IID_WP_NEEDLER, 1);
+	self.xslot3 = SlotVal(IID_ARM_LEATHER, 1);
+	self.xslot16 = SlotVal(IID_CHEM_STIMPACK, 1);
+	self.xslot17 = SlotVal(IID_CHEM_MEDICALBAG, 25);
+	self.xslot18 = SlotVal(IID_CHEM_SUPERSTIM, 1);
+	self.xslot19 = SlotVal(IID_CHEM_ADRENALINE, 1);
+	self.xslot20 = SlotVal(IID_CHEM_RADX, 1);
+};
+
+
+void () hurt_citizen =
+{
+	precache_model ("progs/hoshurt.mdl");
+	self.velocity = VEC_ORIGIN;
+	self.touch = SUB_Null;
+	self.classname = "citizen";
+	self.takedamage = DAMAGE_NO;
+	setsize (self, VEC_HULL_MIN, VEC_HULL_MAX);
+	setmodel (self, "progs/hoshurt.mdl");
+	self.solid = SOLID_BBOX;
+	self.netname = "injured citizen";
+	self.movetype = MOVETYPE_STEP;
+};
+
 
 
 void() explore_think =
@@ -971,10 +1027,49 @@ void() sound_vault =
 };
 
 
+void() env_gun1 =
+{
+	precache_model ("progs/w_rangem.mdl");
+	setmodel (self, "progs/w_rangem.mdl");
+	self.touch = SUB_Null;
+	self.solid = SOLID_BBOX;
+	setsize (self, '-8 -8 -1', '8 8 1');
+	self.takedamage = DAMAGE_NO;
+	self.classname = "env_gun1";
+	self.movetype = MOVETYPE_BOUNCE;
+	self.netname = "rangemaster rifle";
+};
+
+void() env_gun2 =
+{
+	precache_model ("progs/w_10mmpistol.mdl");
+	setmodel (self, "progs/w_10mmpistol.mdl");
+	self.touch = SUB_Null;
+	self.solid = SOLID_BBOX;
+	setsize (self, '-8 -8 -1', '8 8 1');
+	self.takedamage = DAMAGE_NO;
+	self.classname = "env_gun2";
+	self.movetype = MOVETYPE_BOUNCE;
+	self.netname = "10mm pistol";
+};
+
+void() env_armor =
+{
+	precache_model ("progs/w_armor.mdl");
+	setmodel (self, "progs/w_armor.mdl");
+	self.solid = SOLID_BBOX;
+	setsize (self, '-16 -16 -16', '16 16 16');
+	self.takedamage = DAMAGE_NO;
+	self.classname = "env_gun2";
+	self.movetype = MOVETYPE_BOUNCE;
+	self.classname = "armor";
+};
+
 void() env_grass1 =
 {
 	local entity grass;
 
+	precache_model ("progs/grass1.spr");
 	setmodel (self, "progs/grass1.spr");
 	self.touch = SUB_Null;
 	self.solid = SOLID_NOT;
@@ -1000,7 +1095,7 @@ void() env_grass1 =
 void() env_grass2 =
 {
 	local entity grass;
-
+	precache_model ("progs/grass2.spr");
 	setmodel (self, "progs/grass2.spr");
 	self.touch = SUB_Null;
 	self.solid = SOLID_NOT;
@@ -1025,7 +1120,7 @@ void() env_grass2 =
 
 void() env_car =
 {
-
+	precache_model ("progs/car.mdl");
 	setmodel (self, "progs/car.mdl");
 	self.touch = SUB_Null;
 	self.solid = SOLID_BBOX;
@@ -1035,6 +1130,15 @@ void() env_car =
 	self.movetype = MOVETYPE_BOUNCE;
 
 
+};
+
+void() func_transparent =
+{
+	self.solid = SOLID_BSP;
+	self.movetype = MOVETYPE_PUSH;
+	setorigin (self, self.origin);
+	self.classname = "glass";
+	self.netname = "unbreakable glass";
 };
 
 
@@ -1179,6 +1283,26 @@ void() brotherhood_soldier =
 };
 
 void() brotherhood_guard =
+{
+	precache_model ("progs/enforcer.mdl");
+	precache_sound ("enforcer/sight1.wav");
+	precache_sound ("enforcer/sight2.wav");
+	precache_sound ("enforcer/sight3.wav");
+	precache_sound ("enforcer/sight4.wav");
+
+	setorigin(self, self.origin + '0 0 64');
+	self.movetype = MOVETYPE_BOUNCE;
+	self.velocity_z = -200;
+
+	setmodel (self, "progs/enforcer.mdl");
+	self.touch = SUB_Null;
+	self.solid = SOLID_SLIDEBOX;
+	setsize (self, '-16 -16 -24', '16 16 32');
+	self.takedamage = DAMAGE_NO;
+	self.netname = "guard";
+};
+
+void() npc_guard =
 {
 	precache_model ("progs/enforcer.mdl");
 	precache_sound ("enforcer/sight1.wav");

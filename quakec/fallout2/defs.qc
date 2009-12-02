@@ -535,6 +535,8 @@ float           s_p2;
 float           s_p3;
 
 float           challenge_rating;
+
+.string		direction;
 //================================================
 
 //
@@ -630,6 +632,7 @@ float   intermission_running;
 
 .float          ghost;
 .float          ghostcnt;
+.float		tnl;
 .float          dtime;
 .float          active;
 .float          zone;

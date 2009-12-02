@@ -233,16 +233,16 @@ void(string arg1) Cmd_InvDrop =
 
 void(string arg1) Cmd_GainLevel =
 {
-	if (self.score < 200)
+	if (self.score < self.tnl)
 	{
 		sprint(self, 2, "not enough experience points.\n");
 		sound (self, CHAN_BODY, "misc/beep1.wav", 1, ATTN_NORM);
 		return;
 	}
-	if (self.score >= 200)
+	if (self.score >= self.tnl)
 	{
 		sound (self, CHAN_BODY, "buttons/switch02.wav", 1, ATTN_NORM);
-		self.score = self.score - 200;
+		self.score = self.score - self.tnl;
 	}	
 
 	if (arg1 == "combat")
@@ -255,6 +255,8 @@ void(string arg1) Cmd_GainLevel =
 		self.skill_science = self.skill_science + 1;
 	else if (arg1 == "speech")
 		self.skill_speech = self.skill_speech + 1;
+
+	self.max_health = 80 + (self.skill_combat*4) + (self.skill_doctor*2) + (self.skill_sneak*2) + (self.skill_speech*2) + (self.skill_science);
 };
 
 void(string arg1, string arg2) Cmd_GainPerk =

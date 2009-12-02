@@ -116,11 +116,11 @@ void(entity targ, entity attacker) ArmorNoise =
 	r = random();
 
 	if (r <= 0.33)
-		sound (targ, CHAN_WEAPON, "contact/armor1.wav", 1, ATTN_NORM);
+		sound (targ, CHAN_BODY, "contact/armor1.wav", 1, ATTN_NONE);
 	else if (r <= 0.67)
-		sound (targ, CHAN_WEAPON, "contact/armor2.wav", 1, ATTN_NORM);
+		sound (targ, CHAN_BODY, "contact/armor2.wav", 1, ATTN_NONE);
 	else
-		sound (targ, CHAN_WEAPON, "contact/armor3.wav", 1, ATTN_NORM);
+		sound (targ, CHAN_BODY, "contact/armor3.wav", 1, ATTN_NONE);
 };
 
 
@@ -326,7 +326,7 @@ void(entity targ, entity inflictor, entity attacker, float damage) T_Damage =
 			if (targ.classname == "monster")
 				attacker.score = attacker.score + 1;
 
-			sound (targ, CHAN_VOICE, "player/headshot.wav", 1, ATTN_NORM);
+			sound (targ, CHAN_VOICE, "player/headshot.wav", 1, ATTN_NONE);
 	
 
 			makevectors (targ.v_angle);

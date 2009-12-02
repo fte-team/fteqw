@@ -1819,41 +1819,8 @@ void (float slotno) ReloadWeapon =
 
 	r = 3;
 
-	if (wid == IID_WP_ROCKETLAUNCHER || wid == IID_WP_WINCHESTER || wid == IID_WP_MOSSBERG)
-	{
-		sound (self, CHAN_VOICE, "weapons/shell.wav", TRUE, ATTN_NORM);
-		r = 1;
-		if (self.current_slot == slotno)
-			self.currentammo = ToStatus(ItemInSlot(self, slotno));
-		self.attack_finished = time + r;
-		self.rtime = time + r;
 
-		return;
-	}
-	else if (wid == IID_WP_PIPERIFLE_R || wid == IID_WP_PIPERIFLE_S_R || wid == IID_WP_PIPERIFLE_SCOPE_R || wid == IID_WP_PIPERIFLE_SCOPE_S_R)
-	{
-		sound (self, CHAN_VOICE, "weapons/shell.wav", TRUE, ATTN_NORM);
-		r = 0.5;
-		if (self.current_slot == slotno)
-			self.currentammo = ToStatus(ItemInSlot(self, slotno));
-		self.attack_finished = time + r;
-		self.rtime = time + r;
-
-		return;
-	}
-	else if (wid >= IID_WP_PIPERIFLE && wid <= IID_WP_PIPERIFLE_S_R)
-	{
-		sound (self, CHAN_VOICE, "weapons/shell.wav", TRUE, ATTN_NORM);
-		r = 1;
-		if (self.current_slot == slotno)
-			self.currentammo = ToStatus(ItemInSlot(self, slotno));
-		self.attack_finished = time + r;
-		self.rtime = time + r;
-
-		return;
-	}
-	else
-		sound (self, CHAN_WEAPON, "weapons/reload.wav", TRUE, ATTN_NORM);
+	sound (self, CHAN_WEAPON, "weapons/reload.wav", TRUE, ATTN_NORM);
 
 	sprint(self, 2, "reloading...\n");
 
@@ -2067,9 +2034,9 @@ void() W_Attack =
 	else if (weap == IID_WP_WINCHESTER)
 		W_FireShotgun (2, 5, 7, 50, 1500, 0, "weapons/shotgun1.wav");
 	else if (weap == IID_WP_MOSSBERG)
-		W_FireShotgun (2, 5, 6, 20, 2000, 1, "weapons/citykiller.wav");
+		W_FireShotgun (2, 5, 6, 20, 2000, 1, "weapons/shotgun1.wav");
 	else if (weap == IID_WP_JACKHAMMER)
-		W_FireShotgun (1, 5, 6, 30, 1750, 2, "weapons/citykiller.wav");
+		W_FireShotgun (1, 5, 6, 30, 1750, 2, "weapons/shotgun1.wav");
 	else if (weap == IID_WP_GREASEGUN)
 		FireSMG(12, 0, "weapons/greasegun.wav", 1500, 0.08);
 	else if (weap == IID_WP_MP9)
@@ -2522,7 +2489,7 @@ void() ImpulseCommands =
 		UseRadX();
 
 	if (self.impulse == 255)
-		self.ammo_shells = 200;
+		self.islot10 = SlotVal(IID_MONEY, 300);
 
 	self.impulse = 0;
 };

@@ -112,6 +112,7 @@ void() SetupStats =
 	clientstat(113, 2, endinfo1);
 	clientstat(114, 2, endinfo2);
 	clientstat(115, 2, endinfo3);
+	clientstat(116, 2, tnl);
 	clientstat(125, 2, timer);
 	clientstat(126, 2, popup);
 	clientstat(127, 2, score);
@@ -260,6 +261,11 @@ void() map_startup =
 
 
 	localcmd("serverinfo total zero\n");
+
+
+
+	localcmd("serverinfo worldtime 3\n");
+
 
 	if (infokey(world, "objective") == "return")
 		world.map_obj = 0;

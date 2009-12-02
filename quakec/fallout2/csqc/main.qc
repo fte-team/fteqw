@@ -88,7 +88,7 @@ void() Position_Draw =
 		//drawstring('0 0 0'+('1 0 0'*(scrwidth*0.20)) +('0 1 0'*(scrheight*0.78)),  strcat("%", sn), '12 12 12'*(scrheight/640), '1 1 1', 1);
 	}
 
-	if (lvl >= 200)
+	if (lvl >= getstati(116))
 	{
 		drawpic('0 0 0'+('1 0 0'*(scrwidth*0.70)) +('0 1 0'*(scrheight*0.80)), "gui/hud/level.png", '0 0 0'+'132 22 0'*(scrwidth/640), '1 1 1');
 	}

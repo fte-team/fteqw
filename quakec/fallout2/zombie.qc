@@ -1031,3 +1031,36 @@ void() monster_zombie =
 	if (random()<0.25 && world.map_obj == 4)
 		spawn_civilian(self.origin);
 };
+
+
+
+
+void() zombie_generator =
+{
+	local entity zombie, lair;
+	local entity te, ze;
+	local float stop;
+	local vector spot;
+	local float zomc, pcount;
+
+
+
+
+
+			spot = self.origin;
+			lair = spawn ();
+			setorigin(lair, spot);
+			lair.origin = spot;
+			lair.solid = SOLID_NOT;
+			lair.health = 1000;
+			lair.max_health = 1000;
+			setmodel (lair, "");
+			lair.movetype = MOVETYPE_STEP;
+			setsize (lair, '-8 -8 -24', '8 8 24');
+			lair.netname = "lair";
+			lair.classname = "lair";
+			lair.think = spawn_ghoul_copy;
+			lair.nextthink = time + 1*random();
+
+
+};

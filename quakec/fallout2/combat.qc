@@ -107,10 +107,9 @@ void(entity targ, entity attacker) ArmorNoise =
 {
 	local float r;
 
-	if (targ.classname != "player" && targ.classname != "monster")
+	if (attacker.classname != "player" && targ.classname != "monster")
 		return;
-
-	if (attacker.classname != "player" && attacker.classname != "monster")
+	else if (targ.classname != "player" && attacker.classname != "monster")
 		return;
 
 	r = random();

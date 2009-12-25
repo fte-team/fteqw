@@ -870,23 +870,42 @@ typedef struct vidmode_s
 
 vidmode_t vid_modes[] =
 {
-	{ "320x200",   320, 200},
-	{ "320x240",   320, 240},
-	{ "400x300",   400, 300},
-	{ "512x384",   512, 384},
-	{ "640x480",   640, 480},
-	{ "800x600",   800, 600},
-	{ "960x720",   960, 720},
-	{ "1024x768 (XGA: 14-15inch LCD Native)",  1024, 768},
-	{ "1152x864",  1152, 864},
-	{ "1280x960",  1280, 960},
-	{ "1280x1024 (SXGA: 17-19inch LCD Native)", 1280, 1024},
-	{ "1440x900 (WXGA: 19inch Widescreen LCD Native Resolution)", 1440, 900},
-	{ "1600x1200 (UXGA: 20+inch LCD Native Resolution)", 1600, 1200},	//sw height is bound to 200 to 1024
-	{ "1680x1050 (WSXGA: 20inch Widescreen LCD Native)", 1680, 1050},
-	{ "1920x1200 (WUXGA: 24inch Widescreen LCD Native)", 1920, 1200},
-	{ "2048x1536", 2048, 1536},	//too much width will disable water warping (>1280) (but at that resolution, it's almost unnoticable)
-	{ "2560x1600 (30inch Widescreen LCD Native)", 2560, 1600}
+	{ "320x200 (16:10)",   320, 200}, // CGA, MCGA
+	{ "320x240 (4:3)",   320, 240}, // QVGA
+	{ "400x300 (4:3)",   400, 300}, // Quarter SVGA
+	{ "512x384 (4:3)",   512, 384}, // Mac LC
+	{ "640x400 (16:10)",   640, 400}, // Atari ST mono, Amiga OCS NTSC Hires interlace
+	{ "640x480 (4:3)",   640, 480}, // VGA, MCGA
+	{ "800x600 (4:3)",   800, 600}, // SVGA
+	{ "856x480 (16:9)",   856, 480}, // WVGA
+	{ "960x720 (4:3)",   960, 720}, // unnamed
+	{ "1024x576 (16:9)",  1024, 576}, // WSVGA
+	{ "1024x640 (16:10)",  1024, 640}, // unnamed
+	{ "1024x768 (4:3)",  1024, 768}, // XGA
+	{ "1152x720 (16:10)",  1152, 720}, // XGA+
+	{ "1152x864 (4:3)",  1152, 864}, // XGA+
+	{ "1280x720 (16:9)", 1280, 720}, // WXGA min.
+	{ "1280x800 (16:10)", 1280, 800}, // WXGA avg (native resolution of 17" widescreen LCDs)
+	{ "1280x960 (4:3)",  1280, 960}, //SXGA-
+	{ "1280x1024 (5:4)", 1280, 1024}, // SXGA (native resolution of 17-19" LCDs)
+	{ "1366x768 (16:9)", 1366, 768}, // WXGA
+	{ "1400x1050 (4:3)", 1400, 1050}, // SXGA+
+	{ "1440x900 (16:10)", 1440, 900}, // WXGA+ (native resolution of 19" widescreen LCDs)
+	{ "1440x1080 (4:3)", 1440, 1080}, // unnamed
+	{ "1600x900 (16:9)", 1600, 900}, // 900p
+	{ "1600x1200 (4:3)", 1600, 1200}, // UXGA (native resolution of 20"+ LCDs) //sw height is bound to 200 to 1024
+	{ "1680x1050 (16:10)", 1680, 1050}, // WSXGA+ (native resolution of 22" widescreen LCDs)
+	{ "1792x1344 (4:3)", 1792, 1344}, // unnamed
+	{ "1800x1440 (5:4)", 1800, 1440}, // unnamed
+	{ "1856x1392 (4:3)", 1856, 1392}, //unnamed
+	{ "1920x1080 (16:9)", 1920, 1080}, // 1080p (native resolution of cheap 24" LCDs, which really are 23.6")
+	{ "1920x1200 (16:10)", 1920, 1200}, // WUXGA (native resolution of good 24" widescreen LCDs)
+	{ "1920x1440 (4:3)", 1920, 1440}, // TXGA
+	{ "2048x1152 (16:9)", 2048, 1152}, // QWXGA (native resolution of 23" ultra-widescreen LCDs)
+	{ "2048x1536 (4:3)", 2048, 1536}, // QXGA	//too much width will disable water warping (>1280) (but at that resolution, it's almost unnoticable)
+	{ "2304x1440 (16:10)", 2304, 1440}, // (unnamed; maximum resolution of the Sony GDM-FW900 and Hewlett Packard A7217A)
+	{ "2560x1600 (16:10)", 2560, 1600}, // WQXGA (maximum resolution of 30" widescreen LCDs, Dell for example)
+	{ "2560x2048 (5:4)", 2560, 2048} // QSXGA
 };
 #define NUMVIDMODES sizeof(vid_modes)/sizeof(vid_modes[0])
 
@@ -905,6 +924,7 @@ typedef struct {
 	menucombo_t *modecombo;
 	menucombo_t *conscalecombo;
 	menucombo_t *bppcombo;
+	menucombo_t *refreshratecombo;
 	menucombo_t *texturefiltercombo;
 	menuedit_t *customwidth;
 	menuedit_t *customheight;
@@ -992,6 +1012,34 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 
 	Cbuf_AddText(va("vid_bpp %i\n", selectedbpp), RESTRICT_LOCAL);
 
+	switch(info->refreshratecombo->selectedoption)
+	{
+	case 0:
+		Cbuf_AddText(va("vid_displayfrequency %i\n", 0), RESTRICT_LOCAL);
+		break;
+	case 1:
+		Cbuf_AddText(va("vid_displayfrequency %i\n", 59), RESTRICT_LOCAL);
+		break;
+	case 2:
+		Cbuf_AddText(va("vid_displayfrequency %i\n", 60), RESTRICT_LOCAL);
+		break;
+	case 3:
+		Cbuf_AddText(va("vid_displayfrequency %i\n", 70), RESTRICT_LOCAL);
+		break;
+	case 4:
+		Cbuf_AddText(va("vid_displayfrequency %i\n", 72), RESTRICT_LOCAL);
+		break;
+	case 5:
+		Cbuf_AddText(va("vid_displayfrequency %i\n", 75), RESTRICT_LOCAL);
+		break;
+	case 6:
+		Cbuf_AddText(va("vid_displayfrequency %i\n", 85), RESTRICT_LOCAL);
+		break;
+	case 7:
+		Cbuf_AddText(va("vid_displayfrequency %i\n", 100), RESTRICT_LOCAL);
+		break;
+	}
+
 	switch(info->renderer->selectedoption)
 	{
 #ifdef GLQUAKE
@@ -1040,12 +1088,25 @@ void M_Menu_Video_f (void)
 		"Trilinear",
 		NULL
 	};
+	static const char *refreshrates[] =
+	{
+		"0Hz (OS Driver refresh rate)",
+		"59Hz (NTSC is 59.94i)",
+		"60Hz",
+		"70Hz",
+		"72Hz", // VESA minimum setting to avoid eye damage on CRT monitors
+		"75Hz",
+		"85Hz",
+		"100Hz",
+		NULL
+	};
 
 	videomenuinfo_t *info;
 	menu_t *menu;
 	int prefabmode;
 	int prefab2dmode;
 	int currentbpp;
+	int currentrefreshrate;
 #ifdef GLQUAKE
 	int currenttexturefilter;
 #endif
@@ -1083,6 +1144,25 @@ void M_Menu_Video_f (void)
 	else
 		currentbpp = 0;
 
+	if (vid_refreshrate.value >= 100)
+		currentrefreshrate = 7;
+	else if (vid_refreshrate.value >= 85)
+		currentrefreshrate = 6;
+	else if (vid_refreshrate.value >= 75)
+		currentrefreshrate = 5;
+	else if (vid_refreshrate.value >= 72)
+		currentrefreshrate = 4;
+	else if (vid_refreshrate.value >= 70)
+		currentrefreshrate = 3;
+	else if (vid_refreshrate.value >= 60)
+		currentrefreshrate = 2;
+	else if (vid_refreshrate.value >= 59)
+		currentrefreshrate = 1;
+	else if (vid_refreshrate.value >= 0)
+		currentrefreshrate = 0;
+	else
+		currentrefreshrate = 0;
+
 #ifdef GLQUAKE
 	if (!Q_strcasecmp(gl_texturemode.string, "gl_nearest_mipmap_nearest"))
 		currenttexturefilter = 0;
@@ -1100,6 +1180,7 @@ void M_Menu_Video_f (void)
 	y = 32;
 	info->renderer = MC_AddCombo(menu,	16, y,				"   Renderer     ", rendererops, i);	y+=8;
 	info->bppcombo = MC_AddCombo(menu,	16, y,				"   Color Depth  ", bppnames, currentbpp); y+=8;
+	info->refreshratecombo = MC_AddCombo(menu,	16, y,		"   Refresh Rate ", refreshrates, currentrefreshrate); y+=8;
 	info->modecombo = MC_AddCombo(menu,	16, y,				"   Video Size   ", modenames, prefabmode+1);	y+=8;
 	info->conscalecombo = MC_AddCombo(menu,	16, y,			"      2d Size   ", modenames, prefab2dmode+1);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"   Fullscreen   ", &vid_fullscreen,0);	y+=8;

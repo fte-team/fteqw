@@ -886,6 +886,9 @@ void M_QuickConnect_f(void);
 
 void M_Menu_MediaFiles_f (void);
 void M_Menu_FPS_f (void);
+void M_Menu_Shadow_Lighting_f (void);
+void M_Menu_3D_f (void);
+void M_Menu_Textures_f (void);
 void M_Menu_Particles_f (void);
 void M_Menu_ParticleSets_f (void);
 void M_Menu_Audio_Speakers_f (void);
@@ -934,6 +937,9 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_speakers", M_Menu_Audio_Speakers_f);
 #endif
 	Cmd_AddRemCommand ("menu_fps", M_Menu_FPS_f);
+	Cmd_AddRemCommand ("menu_3d" , M_Menu_3D_f);
+	Cmd_AddRemCommand ("menu_shadow_lighting", M_Menu_Shadow_Lighting_f);
+	Cmd_AddRemCommand ("menu_textures", M_Menu_Textures_f);
 	Cmd_AddRemCommand ("menu_particles", M_Menu_Particles_f);
 	Cmd_AddRemCommand ("menu_particlesets", M_Menu_ParticleSets_f);
 
@@ -981,6 +987,9 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_audio");
 	Cmd_RemoveCommand ("menu_speakers");
 	Cmd_RemoveCommand ("menu_fps");
+	Cmd_RemoveCommand ("menu_3d");
+	Cmd_RemoveCommand ("menu_shadow_lighting");
+	Cmd_RemoveCommand ("menu_textures");
 	Cmd_RemoveCommand ("menu_particles");
 	Cmd_RemoveCommand ("menu_particlesets");
 

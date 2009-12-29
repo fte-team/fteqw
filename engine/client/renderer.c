@@ -1041,7 +1041,7 @@ typedef struct {
 	menucombo_t *conscalecombo;
 	menucombo_t *bppcombo;
 	menucombo_t *refreshratecombo;
-	menucombo_t *texturefiltercombo;
+	menucombo_t *vsynccombo;
 	menuedit_t *customwidth;
 	menuedit_t *customheight;
 } videomenuinfo_t;
@@ -1113,18 +1113,19 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 		break;
 	}
 
-	switch(info->texturefiltercombo->selectedoption)
+	switch(info->vsynccombo->selectedoption)
 	{
 	case 0:
-		Cbuf_AddText("gl_texturemode gl_nearest_mipmap_nearest\n", RESTRICT_LOCAL);
+		Cbuf_AddText(va("vid_wait %i\n", 0), RESTRICT_LOCAL);
 		break;
 	case 1:
-		Cbuf_AddText("gl_texturemode gl_linear_mipmap_nearest\n", RESTRICT_LOCAL);
+		Cbuf_AddText(va("vid_wait %i\n", 1), RESTRICT_LOCAL);
 		break;
 	case 2:
-		Cbuf_AddText("gl_texturemode gl_linear_mipmap_linear\n", RESTRICT_LOCAL);
+		Cbuf_AddText(va("vid_wait %i\n", 2), RESTRICT_LOCAL);
 		break;
 	}
+
 
 	Cbuf_AddText(va("vid_bpp %i\n", selectedbpp), RESTRICT_LOCAL);
 
@@ -1176,11 +1177,9 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 }
 void M_Menu_Video_f (void)
 {
-	extern cvar_t r_stains, v_contrast;
+	extern cvar_t v_contrast;
 #if defined(RGLQUAKE)
-	extern cvar_t r_bloom;
 #endif
-	extern cvar_t r_bouncysparks;
 	static const char *modenames[128] = {"Custom"};
 	static const char *rendererops[] = {
 #ifdef RGLQUAKE
@@ -1219,15 +1218,25 @@ void M_Menu_Video_f (void)
 		NULL
 	};
 
+	static const char *vsyncoptions[] =
+	{
+		"Off",
+		"Wait for Vertical Sync",
+		"Wait for Display Enable",
+		NULL
+	};
+
 	videomenuinfo_t *info;
 	menu_t *menu;
 	int prefabmode;
 	int prefab2dmode;
 	int currentbpp;
 	int currentrefreshrate;
-#ifdef RGLQUAKE
-	int currenttexturefilter;
-#endif
+	int currentvsync;
+	int aspectratio;
+	char *aspectratio2;
+
+	extern cvar_t _vid_wait_override;
 
 	int i, y;
 	prefabmode = -1;
@@ -1281,47 +1290,49 @@ void M_Menu_Video_f (void)
 	else
 		currentrefreshrate = 0;
 
-#ifdef RGLQUAKE
-	if (!Q_strcasecmp(gl_texturemode.string, "gl_nearest_mipmap_nearest"))
-		currenttexturefilter = 0;
-	else if (!Q_strcasecmp(gl_texturemode.string, "gl_linear_mipmap_linear"))
-		currenttexturefilter = 2;
-	else if (!Q_strcasecmp(gl_texturemode.string, "gl_linear_mipmap_nearest"))
-		currenttexturefilter = 1;
-	else
-		currenttexturefilter = 1;
-#endif
+	aspectratio = (vid_width.value / vid_height.value * 100); // times by 100 so don't have to deal with floats
 
+	if (aspectratio == 125) // 1.25
+		aspectratio2 = "5:4";
+	else if (aspectratio == 160) // 1.6
+		aspectratio2 = "16:10";
+	else if (aspectratio == 133) // 1.333333
+		aspectratio2 = "4:3";
+	else if (aspectratio == 177) // 1.777778
+		aspectratio2 = "16:9";
+	else
+		aspectratio2 = "Unknown Ratio";
+
+	currentvsync = _vid_wait_override.value;
 
 	MC_AddCenterPicture(menu, 4, "vidmodes");
 
 	y = 32;
-	info->renderer = MC_AddCombo(menu,	16, y,				"   Renderer     ", rendererops, i);	y+=8;
-	info->bppcombo = MC_AddCombo(menu,	16, y,				"   Color Depth  ", bppnames, currentbpp); y+=8;
-	info->refreshratecombo = MC_AddCombo(menu,	16, y,		"   Refresh Rate ", refreshrates, currentrefreshrate); y+=8;
-	info->modecombo = MC_AddCombo(menu,	16, y,				"   Video Size   ", modenames, prefabmode+1);	y+=8;
-	info->conscalecombo = MC_AddCombo(menu,	16, y,			"      2d Size   ", modenames, prefab2dmode+1);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Fullscreen   ", &vid_fullscreen,0);	y+=8;
-	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"   Custom width ", vid_width.string);	y+=8;
+	info->renderer = MC_AddCombo(menu,	16, y,				"        Renderer", rendererops, i);	y+=8;
+	info->bppcombo = MC_AddCombo(menu,	16, y,				"     Color Depth", bppnames, currentbpp); y+=8;
+	info->refreshratecombo = MC_AddCombo(menu,	16, y,		"    Refresh Rate", refreshrates, currentrefreshrate); y+=8;
+	info->modecombo = MC_AddCombo(menu,	16, y,				"      Video Size", modenames, prefabmode+1);	y+=8;
+	MC_AddWhiteText(menu, 16, y, 							"     Current A/R", false);
+	MC_AddWhiteText(menu, 160, y, 							aspectratio2, false); y+=8;
+	info->conscalecombo = MC_AddCombo(menu,	16, y,			"         2D Size", modenames, prefab2dmode+1);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"      Fullscreen", &vid_fullscreen,0);	y+=8;
+	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"    Custom width", vid_width.string);	y+=8;
 	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"   Custom height", vid_height.string);	y+=12;
+	info->vsynccombo = MC_AddCombo(menu,	16, y,			"           VSync", vsyncoptions, currentvsync); y+=8;
+	//MC_AddCheckBox(menu,	16, y,							"  Override VSync", &_vid_wait_override,0);	y+=8;
 	y+=8;
 	MC_AddCommand(menu,	16, y,								"           Apply", M_VideoApply);	y+=8;
 	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"      Stain maps", &r_stains,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Bouncy sparks", &r_bouncysparks,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"            Rain", &r_part_rain,0);	y+=8;
-#ifdef RGLQUAKE
-	MC_AddCheckBox(menu,	16, y,							"  GL Bumpmapping", &gl_bump,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"           Bloom", &r_bloom,0);	y+=8;
-#endif
-	MC_AddCheckBox(menu,	16, y,							"  Dynamic lights", &r_dynamic,0);	y+=8;
-	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120, 0.1);y+=8;
+	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120, 1);y+=8;
 	MC_AddSlider(menu,	16, y,								"           Gamma", &v_gamma, 0.3, 1, 0.05);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Desktop Gamma", &vid_desktopgamma,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"  Hardware Gamma", &vid_hardwaregamma,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"  Preserve Gamma", &vid_preservegamma,0);	y+=8;
 	MC_AddSlider(menu,	16, y,								"        Contrast", &v_contrast, 1, 3, 0.05);	y+=8;
-#ifdef RGLQUAKE
-	info->texturefiltercombo = MC_AddCombo(menu, 16, y,		" Texture Filter ", texturefilternames, currenttexturefilter); y+=8;
-	MC_AddSlider(menu, 16, y,								"Anisotropy Level", &gl_texture_anisotropic_filtering, 1, 16, 1); y+=8;	//urm, this shouldn't really be a slider, but should be a combo instead
-#endif
+	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"      Stretching", &vid_stretch,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"     Allow ModeX", &vid_allow_modex,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"  Windowed Mouse", &_windowed_mouse,0);	y+=8;
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, 32, NULL, false);
 	menu->selecteditem = (union menuoption_s *)info->renderer;

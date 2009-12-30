@@ -889,6 +889,10 @@ void M_Menu_FPS_f (void);
 void M_Menu_Shadow_Lighting_f (void);
 void M_Menu_3D_f (void);
 void M_Menu_Textures_f (void);
+void M_Menu_Teamplay_f (void);
+void M_Menu_Teamplay_Locations_f (void);
+void M_Menu_Teamplay_Needs_f (void);
+void M_Menu_Teamplay_Items_f (void);
 void M_Menu_Particles_f (void);
 void M_Menu_ParticleSets_f (void);
 void M_Menu_Audio_Speakers_f (void);
@@ -940,6 +944,10 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_3d" , M_Menu_3D_f);
 	Cmd_AddRemCommand ("menu_shadow_lighting", M_Menu_Shadow_Lighting_f);
 	Cmd_AddRemCommand ("menu_textures", M_Menu_Textures_f);
+	Cmd_AddRemCommand ("menu_teamplay", M_Menu_Teamplay_f);
+	Cmd_AddRemCommand ("menu_teamplay_locations", M_Menu_Teamplay_Locations_f);
+	Cmd_AddRemCommand ("menu_teamplay_needs", M_Menu_Teamplay_Needs_f);
+	Cmd_AddRemCommand ("menu_teamplay_items", M_Menu_Teamplay_Items_f);
 	Cmd_AddRemCommand ("menu_particles", M_Menu_Particles_f);
 	Cmd_AddRemCommand ("menu_particlesets", M_Menu_ParticleSets_f);
 
@@ -986,6 +994,10 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_video");
 	Cmd_RemoveCommand ("menu_audio");
 	Cmd_RemoveCommand ("menu_speakers");
+	Cmd_RemoveCommand ("menu_teamplay");
+	Cmd_RemoveCommand ("menu_teamplay_locations");
+	Cmd_RemoveCommand ("menu_teamplay_needs");
+	Cmd_RemoveCommand ("menu_teamplay_items");
 	Cmd_RemoveCommand ("menu_fps");
 	Cmd_RemoveCommand ("menu_3d");
 	Cmd_RemoveCommand ("menu_shadow_lighting");

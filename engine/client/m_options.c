@@ -91,6 +91,7 @@ void M_Menu_Options_f (void)
 	MC_AddConsoleCommand(menu, 16, y,   "          Texture Options", "menu_textures\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,   "         Particle Options", "menu_particles\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"              FPS Options", "menu_fps\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"         Teamplay Options", "menu_teamplay\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"            Audio Options", "menu_audio\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"                Downloads", "menu_download\n"); y+=8;
 
@@ -497,16 +498,16 @@ void M_Menu_FPS_f (void)
 	for (i = 0; i < PRESET_MAX; i++)
 	{
 		len = strlen(preset[0].value[i]);
-		MC_AddConsoleCommand(menu, 115+8*(9-len), y,		va("(preset) %s", preset[0].value[i]), va("fps_preset %s\n", preset[0].value[i])); y+=8;
+		MC_AddConsoleCommand(menu, 100+8*(9-len), y,		va("(preset) %s", preset[0].value[i]), va("fps_preset %s\n", preset[0].value[i])); y+=8;
 	}
-	MC_AddCheckBox(menu, 16, y,					"                   Show FPS", &show_fps,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,					"           Show FPS", &show_fps,0);y+=8;
 
-	MC_AddCheckBox(menu, 16, y,					"              Content blend", &v_contentblend,0);y+=8;
-	MC_AddCheckBox(menu,	16, y,				"Convert Rockets to Grenades", &cl_r2g,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,				"                 Gib Filter", &cl_gibfilter,0);	y+=8;
-	MC_AddSlider(menu,	16, y,					"           Dead Body Filter", &cl_deadbodyfilter,0,2,1);	y+=8;
-	MC_AddCheckBox(menu,	16, y,				"           Explosion Sprite", &cl_expsprite,0);	y+=8;
-	y+=4;MC_AddEditCvar(menu, 16, y,			"                     Skybox", "r_skybox");y+=8;y+=4;
+	MC_AddCheckBox(menu, 16, y,					"      Content blend", &v_contentblend,0);y+=8;
+	MC_AddCheckBox(menu,	16, y,				"Rockets to Grenades", &cl_r2g,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,				"         Gib Filter", &cl_gibfilter,0);	y+=8;
+	MC_AddSlider(menu,	16, y,					"   Dead Body Filter", &cl_deadbodyfilter,0,2,1);	y+=8;
+	MC_AddCheckBox(menu,	16, y,				"   Explosion Sprite", &cl_expsprite,0);	y+=8;
+	y+=4;MC_AddEditCvar(menu, 16, y,			"             Skybox", "r_skybox");y+=8;y+=4;
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 250, 32, NULL, false);
 }
@@ -994,4 +995,293 @@ void M_Menu_Shadow_Lighting_f (void)
 		MC_AddCommand(menu,	16, y,							"                            Apply", M_VideoApplyShadowLighting);	y+=8;
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 285, 32, NULL, false);
+}
+
+typedef struct {
+menucombo_t *noskinscombo;
+} teamplaymenuinfo_t;
+
+qboolean M_Apply_Teamplay (union menuoption_s *op,struct menu_s *menu,int key)
+{
+	teamplaymenuinfo_t *info = menu->data;
+
+	if (key != K_ENTER)
+		return false;
+
+	switch(info->noskinscombo->selectedoption)
+	{
+	case 0:
+		Cbuf_AddText("noskins 0\n", RESTRICT_LOCAL);
+		break;
+	case 1:
+		Cbuf_AddText("noskins 1\n", RESTRICT_LOCAL);
+		break;
+	case 2:
+		Cbuf_AddText("noskins 2\n", RESTRICT_LOCAL);
+		break;
+	}
+
+	M_RemoveMenu(menu);
+	Cbuf_AddText("menu_teamplay\n", RESTRICT_LOCAL);
+	return true;
+}
+
+void M_Menu_Teamplay_f (void)
+{
+	static const char *noskinsoptions[] =
+	{
+		"Enable Skins (Do Download New Skins)",
+		"Disable Skins",
+		"Enable Skins (Don't Download New Skins)",
+		NULL
+	};
+
+	int y = 32;
+	teamplaymenuinfo_t *info;
+	menu_t *menu;
+	int mgt;
+	int i, len;
+	int currentnoskins;
+	extern cvar_t cl_parseSay, cl_triggers, tp_forceTriggers, tp_loadlocs, cl_parseFunChars, cl_noblink, noskins;
+
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	menu = M_CreateMenu(sizeof(teamplaymenuinfo_t));
+	info = menu->data;
+
+	mgt = M_GameType();
+
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y += 32;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	}
+
+	currentnoskins = noskins.value;
+
+		info->noskinscombo = MC_AddCombo(menu, 16, y,	"                  Skins", noskinsoptions, currentnoskins); y+=8;
+		y+=4;MC_AddEditCvar(menu, 16, y,				"             Enemy Skin", "cl_enemyskin"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,				"              Team Skin", "cl_teamskin"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,				"              Base Skin", "baseskin"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,				"              Fake Name", "cl_fakename"); y+=8+4;
+		MC_AddCheckBox(menu,	16, y,					"        Parse Fun Chars", &cl_parseFunChars,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,					"           Parse Macros", &cl_parseSay,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,					"      Teamplay Triggers", &cl_triggers,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,					"Force Teamplay Triggers", &tp_forceTriggers,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,					"              Load Locs", &tp_loadlocs,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,					"               No Blink", &cl_noblink,0);	y+=8;
+		y+=4;MC_AddEditCvar(menu, 16, y,				"          Sound Trigger", "tp_soundtrigger"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,				"              Fake Name", "cl_fakename"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,				"           Weapon Order", "tp_weapon_order"); y+=8+4;
+
+		MC_AddCommand(menu,	16, y,						"                  Apply", M_Apply_Teamplay);	y+=8;
+
+		y+=8;
+		MC_AddConsoleCommand(menu, 16, y,   			"Teamplay Location Names", "menu_teamplay_locations\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,   			"    Teamplay Item Needs", "menu_teamplay_needs\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,   			"    Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
+
+	menu->selecteditem = (union menuoption_s *)info->noskinscombo;
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
+}
+
+void M_Menu_Teamplay_Locations_f (void)
+{
+	int y = 32;
+	menu_t *menu;
+	int mgt;
+	int i, len;
+	extern cvar_t ;
+
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	menu = M_CreateMenu(0);
+
+	mgt = M_GameType();
+
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y += 32;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	}
+
+		//menu->selecteditem = (union menuoption_s *)
+
+		MC_AddWhiteText(menu, 16, y, 		"Teamplay Location Names", false); y+=8;
+
+		y+=4;MC_AddEditCvar(menu, 16, y,	"    Green Armor ", "loc_name_ga"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"Grenade Launcher", "loc_name_gl"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"   Lightning Gun", "loc_name_lg"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"         Nailgun", "loc_name_ng"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"       Pentagram", "loc_name_pent"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"            Quad", "loc_name_quad"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"       Red Armor", "loc_name_ra"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"            Ring", "loc_name_ring"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	" Rocket Launcher", "loc_name_rl"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"       Seperator", "loc_name_seperator"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"   Super Nailgun", "loc_name_sng"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"   Super Shotgun", "loc_name_ssg"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"            Suit", "loc_name_suit"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"    Yellow Armor", "loc_name_ya"); y+=8+4;
+
+		y+=8;
+		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Options", "menu_teamplay\n"); y+=8;
+
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
+}
+
+void M_Menu_Teamplay_Needs_f (void)
+{
+	int y = 32;
+	menu_t *menu;
+	int mgt;
+	int i, len;
+	extern cvar_t ;
+
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	menu = M_CreateMenu(0);
+
+	mgt = M_GameType();
+
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y += 32;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	}
+
+		//menu->selecteditem = (union menuoption_s *)
+
+		MC_AddWhiteText(menu, 16, y, 		"Teamplay Needed Items", false); y+=8;
+
+		y+=4;MC_AddEditCvar(menu, 16, y,	"          Cells", "tp_need_cells"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"    Green Armor", "tp_need_ga"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"         Health", "tp_need_health"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"          Nails", "tp_need_nails"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"      Red Armor", "tp_need_ra"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"Rocket Launcher", "tp_need_rl"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"        Rockets", "tp_need_rockets"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"         Shells", "tp_need_shells"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"         Weapon", "tp_need_weapon"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"   Yellow Armor", "tp_need_ya"); y+=8+4;
+
+		y+=8;
+		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Options", "menu_teamplay\n"); y+=8;
+
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
+}
+
+void M_Menu_Teamplay_Items_f (void)
+{
+	int y = 32;
+	menu_t *menu;
+	int mgt;
+	int i, len;
+	extern cvar_t ;
+
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	menu = M_CreateMenu(0);
+
+	mgt = M_GameType();
+
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y += 32;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	}
+
+		//menu->selecteditem = (union menuoption_s *)
+
+		MC_AddWhiteText(menu, 16, y, 							"Teamplay Item Names", false); y+=8;
+
+		y+=4;MC_AddEditCvar(menu, 16, y,	"              Armor", "tp_name_armor"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	" Armor Type - Green", "tp_name_armortype_ga"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"   Armor Type - Red", "tp_name_armortype_ra"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"Armor Type - Yellow", "tp_name_armortype_ya"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"                AT?", "tp_name_at"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"                Axe", "tp_name_axe"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"           Backpack", "tp_name_backpack"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"              Cells", "tp_name_cells"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"          Dispenser", "tp_name_disp"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"              Enemy", "tp_name_enemy"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"               Eyes", "tp_name_eyes"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"               Flag", "tp_name_flag"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"        Green Armor", "tp_name_ga"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"   Grenade Launcher", "tp_name_gl"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"             Health", "tp_name_health"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"      Lightning Gun", "tp_name_lg"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"        Mega Health", "tp_name_mh"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"              Nails", "tp_name_nails"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"            Nailgun", "tp_name_ng"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"               None", "tp_name_none"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"            Nothing", "tp_name_nothing"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"          Pentagram", "tp_name_pent"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"             Pented", "tp_name_pented"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"               Quad", "tp_name_quad"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"             Quaded", "tp_name_quaded"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"          Red Armor", "tp_name_ra"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"               Ring", "tp_name_ring"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"    Rocket Launcher", "tp_name_rl"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"            Rockets", "tp_name_rockets"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"             Rune 1", "tp_name_rune_1"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"             Rune 2", "tp_name_rune_2"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"             Rune 3", "tp_name_rune_3"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"             Rune 4", "tp_name_rune_4"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"         Sentry Gun", "tp_name_sentry"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"          Seperator", "tp_name_seperator"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"            Shotgun", "tp_name_sg"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"             Shells", "tp_name_shells"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"      Super Nailgun", "tp_name_sng"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"          Someplace", "tp_name_someplace"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"      Super Shotgun", "tp_name_ssg"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"        Status Blue", "tp_name_status_blue"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"       Status Green", "tp_name_status_green"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"         Status Red", "tp_name_status_red"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"      Status Yellow", "tp_name_status_yellow"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"               Suit", "tp_name_suit"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"           Teammate", "tp_name_teammate"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"             Weapon", "tp_name_weapon"); y+=8+4;
+		y+=4;MC_AddEditCvar(menu, 16, y,	"       Yellow Armor", "tp_name_ya"); y+=8+4;
+
+		y+=8;
+		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Options", "menu_teamplay\n"); y+=8;
+
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
 }

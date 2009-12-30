@@ -1313,7 +1313,7 @@ void M_Menu_Video_f (void)
 	info->refreshratecombo = MC_AddCombo(menu,	16, y,		"    Refresh Rate", refreshrates, currentrefreshrate); y+=8;
 	info->modecombo = MC_AddCombo(menu,	16, y,				"      Video Size", modenames, prefabmode+1);	y+=8;
 	MC_AddWhiteText(menu, 16, y, 							"     Current A/R", false);
-	MC_AddWhiteText(menu, 160, y, 							aspectratio2, false); y+=8;
+	MC_AddWhiteText(menu, 160, y, 								aspectratio2, 	false); y+=8;
 	info->conscalecombo = MC_AddCombo(menu,	16, y,			"         2D Size", modenames, prefab2dmode+1);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"      Fullscreen", &vid_fullscreen,0);	y+=8;
 	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"    Custom width", vid_width.string);	y+=8;

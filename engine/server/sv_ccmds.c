@@ -890,6 +890,17 @@ void SV_FilterIP_f (void)
 		return;
 	}
 
+	nb = svs.bannedips;
+	while (nb)
+	{
+		if (NET_CompareAdr(nb->adr, banadr) && NET_CompareAdr(nb->adrmask, banmask))
+		{
+			Con_Printf("%s is already banned\n", Cmd_Argv(1));
+			break;
+		}
+		nb = nb->next;
+	}
+
 	// loop through clients and kick the ones that match
 	for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
 	{

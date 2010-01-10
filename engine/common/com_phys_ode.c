@@ -38,6 +38,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define ODE_DYNAMIC 1
 //#endif
 
+cvar_t physics_ode_enable = SCVAR("physics_ode_enable", "1");
 cvar_t physics_ode_quadtree_depth = CVARDP4(0, "physics_ode_quadtree_depth","5", "desired subdivision level of quadtree culling space");
 cvar_t physics_ode_contactsurfacelayer = CVARDP4(0, "physics_ode_contactsurfacelayer","0", "allows objects to overlap this many units to reduce jitter");
 cvar_t physics_ode_worldquickstep = CVARDP4(0, "physics_ode_worldquickstep","1", "use dWorldQuickStep rather than dWorldStep");
@@ -1178,6 +1179,7 @@ void World_Physics_Init(void)
 	};
 #endif
 
+	Cvar_Register(&physics_ode_enable, "ODE Physics Library");
 	Cvar_Register(&physics_ode_quadtree_depth, "ODE Physics Library");
 	Cvar_Register(&physics_ode_contactsurfacelayer, "ODE Physics Library");
 	Cvar_Register(&physics_ode_worldquickstep, "ODE Physics Library");
@@ -1218,6 +1220,14 @@ void World_Physics_Init(void)
 		}
 #endif
 	}
+
+#ifdef ODE_DYNAMIC
+	if (!ode_dll)
+	{
+		physics_ode_enable.flags |= CVAR_NOSET;
+		Cvar_ForceSet(&physics_ode_enable, "0");
+	}
+#endif
 }
 
 void World_Physics_Shutdown(void)
@@ -1239,6 +1249,10 @@ static void World_Physics_EnableODE(world_t *world)
 	dVector3 center, extents;
 	if (world->ode.ode)
 		return;
+
+	if (!physics_ode_enable.ival)
+		return;
+
 #ifdef ODE_DYNAMIC
 	if (!ode_dll)
 		return;
@@ -1554,7 +1568,7 @@ static void World_Physics_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 				dJointSetHingeAnchor(j, origin[0], origin[1], origin[2]);
 				dJointSetHingeAxis(j, forward[0], forward[1], forward[2]);
 				dJointSetHingeParam(j, dParamFMax, FMax);
-				dJointSetHingeParam(j, dParamHiStop, Stop);
+				dJointSetHingeParam(j, dParamHiStop, Stop);	
 				dJointSetHingeParam(j, dParamLoStop, -Stop);
 				dJointSetHingeParam(j, dParamStopCFM, CFM);
 				dJointSetHingeParam(j, dParamStopERP, ERP);

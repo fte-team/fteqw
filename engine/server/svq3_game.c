@@ -1634,7 +1634,7 @@ void SVQ3_ShutdownGame(void)
 }
 
 #ifdef USEBOTLIB
-void VARGS BL_Print(int l, char *fmt, ...)
+void QDECL BL_Print(int l, char *fmt, ...)
 {
 	va_list		argptr;
 	char		text[1024];
@@ -1647,11 +1647,11 @@ void VARGS BL_Print(int l, char *fmt, ...)
 }
 
 int botlibmemoryavailable;
-int BL_AvailableMemory(void)
+int QDECL BL_AvailableMemory(void)
 {
 	return botlibmemoryavailable;
 }
-void *BL_Malloc(int size)
+void *QDECL BL_Malloc(int size)
 {
 	int *mem;
 	botlibmemoryavailable-=size;
@@ -1661,22 +1661,22 @@ void *BL_Malloc(int size)
 
 	return (void *)(mem + 1);
 }
-void BL_Free(void *mem)
+void QDECL BL_Free(void *mem)
 {
 	int *memref = ((int *)mem) - 1;
 	botlibmemoryavailable+=memref[0];
 	Z_TagFree(memref);
 }
-void *BL_HunkMalloc(int size)
+void *QDECL BL_HunkMalloc(int size)
 {
 	return BL_Malloc(size);//Hunk_AllocName(size, "botlib");
 }
 
-int BL_FOpenFile(const char *name, fileHandle_t *handle, fsMode_t mode)
+int QDECL  BL_FOpenFile(const char *name, fileHandle_t *handle, fsMode_t mode)
 {
 	return VM_fopen((char*)name, (int*)handle, mode, Z_TAG_BOTLIB);
 }
-int BL_FRead( void *buffer, int len, fileHandle_t f )
+int QDECL BL_FRead( void *buffer, int len, fileHandle_t f )
 {
 	return VM_FRead(buffer, len, (int)f, Z_TAG_BOTLIB);
 }
@@ -1684,7 +1684,7 @@ int BL_FRead( void *buffer, int len, fileHandle_t f )
 //{
 //	return VM_FWrite(buffer, len, f, Z_TAG_BOTLIB);
 //}	
-void BL_FCloseFile( fileHandle_t f )
+void QDECL BL_FCloseFile( fileHandle_t f )
 {
 	VM_fclose((int)f, Z_TAG_BOTLIB);
 }
@@ -1692,11 +1692,11 @@ void BL_FCloseFile( fileHandle_t f )
 //{
 //	VM_fseek(f, Z_TAG_BOTLIB)
 //}
-char *BL_BSPEntityData(void)
+char *QDECL BL_BSPEntityData(void)
 {
 	return sv.worldmodel->entities;
 }
-void BL_Trace(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int passent, int contentmask)
+void QDECL BL_Trace(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int passent, int contentmask)
 {
 	q3trace_t tr;
 	SVQ3_Trace(&tr, start, mins, maxs, end, passent, contentmask);
@@ -1714,17 +1714,17 @@ void BL_Trace(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t
 	trace->contents = 0;//tr.contents;
 	trace->ent = tr.entityNum;
 }
-int BL_PointContents(vec3_t point)
+int QDECL BL_PointContents(vec3_t point)
 {
 	return SVQ3_PointContents(point, -1);
 }
 
-int BL_inPVS(vec3_t p1, vec3_t p2)
+int QDECL BL_inPVS(vec3_t p1, vec3_t p2)
 {
 	return true;// FIXME: :(
 }
 
-void BL_EntityTrace(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int entnum, int contentmask)
+void QDECL BL_EntityTrace(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int entnum, int contentmask)
 {
 	trace->allsolid = 0;//tr.allsolid;
 	trace->startsolid = 0;//tr.startsolid;
@@ -1740,7 +1740,7 @@ void BL_EntityTrace(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, 
 //	trace->ent = tr.entityNum;
 }
 
-void BL_BSPModelMinsMaxsOrigin(int modelnum, vec3_t angles, vec3_t outmins, vec3_t outmaxs, vec3_t origin)
+void QDECL BL_BSPModelMinsMaxsOrigin(int modelnum, vec3_t angles, vec3_t outmins, vec3_t outmaxs, vec3_t origin)
 {
 	model_t *mod;
 	vec3_t mins, maxs;
@@ -1769,7 +1769,7 @@ void BL_BSPModelMinsMaxsOrigin(int modelnum, vec3_t angles, vec3_t outmins, vec3
 	if (origin)
 		VectorClear(origin);
 }
-void BL_BotClientCommand(int clientnum, char *command)
+void QDECL BL_BotClientCommand(int clientnum, char *command)
 {
 	Cmd_TokenizeString(command, false, false);
 	VM_Call(q3gamevm, GAME_CLIENT_COMMAND, clientnum);

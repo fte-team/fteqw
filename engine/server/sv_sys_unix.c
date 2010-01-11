@@ -35,6 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/time.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <dirent.h>
 
 #ifdef MULTITHREAD
 #include <pthread.h>
@@ -697,13 +698,13 @@ int main(int argc, char *argv[])
 
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
-#include <dirent.h>
-	DIR *dir, *dir2;
+	DIR *dir;
 	char apath[MAX_OSPATH];
 	char file[MAX_OSPATH];
 	char truepath[MAX_OSPATH];
 	char *s;
 	struct dirent *ent;
+	struct stat st;
 
 //printf("path = %s\n", gpath);
 //printf("match = %s\n", match);
@@ -744,29 +745,25 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 		if (!ent)
 			break;
 		if (*ent->d_name != '.')
+		{
 			if (wildcmp(match, ent->d_name))
 			{
-				Q_snprintfz(file, sizeof(file), "%s/%s", gpath, ent->d_name);
-//would use stat, but it breaks on fat32.
+				Q_snprintfz(file, sizeof(file), "%s/%s", truepath, ent->d_name);
 
-				if ((dir2 = opendir(file)))
+				if (stat(file, &st) == 0)
 				{
-					closedir(dir2);
-					Q_snprintfz(file, sizeof(file), "%s%s/", apath, ent->d_name);
-//printf("is directory = %s\n", file);
+					Q_snprintfz(file, sizeof(file), "%s%s%s", apath, ent->d_name, S_ISDIR(st.st_mode)?"/":"");
+
+					if (!func(file, st.st_size, parm))
+					{
+						closedir(dir);
+						return false;
+					}
 				}
 				else
-				{
-					Q_snprintfz(file, sizeof(file), "%s%s", apath, ent->d_name);
-//printf("file = %s\n", file);
-				}
-
-				if (!func(file, -2, parm))
-				{
-					closedir(dir);
-					return false;
-				}
+					printf("Stat failed for \"%s\"\n", file);
 			}
+		}
 	} while(1);
 	closedir(dir);
 

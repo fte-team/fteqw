@@ -3841,7 +3841,7 @@ void SV_DisableClientsCSQC(void)
 #endif
 }
 
-void SV_MVDList_f (void);
+void SV_UserCmdMVDList_f (void);
 void SV_MVDInfo_f (void);
 typedef struct
 {
@@ -3905,7 +3905,7 @@ ucmd_t ucmds[] =
 	{"setpos", Cmd_SetPos_f},
 
 	{"stopdownload", SV_StopDownload_f},
-	{"demolist", SV_MVDList_f},
+	{"demolist", SV_UserCmdMVDList_f},
 	{"demoinfo", SV_MVDInfo_f},
 
 	{NULL, NULL}

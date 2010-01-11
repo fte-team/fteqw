@@ -681,7 +681,7 @@ dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
 	dir->files = (file_t*)(dir+1);
 	dir->maxfiles = maxfiles;
 
-	Q_strncpyz(searchterm, va("%s/*.%s", path, ext), sizeof(searchterm));
+	Q_strncpyz(searchterm, va("%s/*%s", path, ext), sizeof(searchterm));
 	COM_EnumerateFiles(searchterm, Sys_listdirFound, dir);
 
 	return dir;
@@ -2444,12 +2444,12 @@ void SV_UserCmdMVDList_f (void)
 	float	f;
 	int		i,j,show;
 
-	Con_Printf("available demos\n");
+	SV_ClientPrintf(host_client, PRINT_HIGH, "available demos:\n");
 	dir = Sys_listdir(sv_demoDir.string, ".mvd", SORT_BY_DATE);
 	list = dir->files;
 	if (!list->name[0])
 	{
-		Con_Printf("no demos\n");
+		SV_ClientPrintf(host_client, PRINT_HIGH, "no demos\n");
 	}
 
 	for (i = 1; i <= dir->numfiles; i++, list++)
@@ -2464,23 +2464,23 @@ void SV_UserCmdMVDList_f (void)
 			for (d = demo.dest; d; d = d->nextdest)
 			{
 				if (!strcmp(list->name, d->name))
-					Con_Printf("*%d: %s %dk\n", i, list->name, d->totalsize/1024);
+					SV_ClientPrintf(host_client, PRINT_HIGH, "*%d: %s %dk\n", i, list->name, d->totalsize/1024);
 			}
 			if (!d)
-				Con_Printf("%d: %s %dk\n", i, list->name, list->size/1024);
+				SV_ClientPrintf(host_client, PRINT_HIGH, "%d: %s %dk\n", i, list->name, list->size/1024);
 		}
 	}
 	
 	for (d = demo.dest; d; d = d->nextdest)
 		dir->size += d->totalsize;
 
-	Con_Printf("\ndirectory size: %.1fMB\n",(float)dir->size/(1024*1024));
+	SV_ClientPrintf(host_client, PRINT_HIGH, "\ndirectory size: %.1fMB\n",(float)dir->size/(1024*1024));
 	if (sv_demoMaxDirSize.value)
 	{
 		f = (sv_demoMaxDirSize.value*1024 - dir->size)/(1024*1024);
 		if ( f < 0)
 			f = 0;
-		Con_Printf("space available: %.1fMB\n", f);
+		SV_ClientPrintf(host_client, PRINT_HIGH, "space available: %.1fMB\n", f);
 	}
 
 	Sys_freedir(dir);

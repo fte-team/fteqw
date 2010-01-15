@@ -204,7 +204,7 @@ void MenuTooltipSplit(menu_t *menu, const char *text)
 		return;
 
 	// calc a line maximum, use a third of the screen or 30 characters, whichever is bigger
-	lnmax = (vid.width / 24) - 2; 
+	lnmax = (vid.width / 24) - 2;
 	if (lnmax < 30)
 		lnmax = 30;
 	// word wrap
@@ -289,7 +289,7 @@ void MenuTooltipSplit(menu_t *menu, const char *text)
 void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 {
 	int i;
-	mpic_t *p; 
+	mpic_t *p;
 	while (option)
 	{
 		if (mousemoved && !bindingactive)
@@ -476,9 +476,9 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				x += strlen(option->bind.caption)*8+28;
 				{
 					l = strlen (option->bind.command);
-					
+
 					M_FindKeysForCommand (option->bind.command, keys);
-					
+
 					if (bindingactive && menu->selecteditem == option)
 					{
 						Draw_String (x, y, "Press key");
@@ -577,7 +577,7 @@ menutext_t *MC_AddWhiteText(menu_t *menu, int x, int y, const char *text, qboole
 {
 	menutext_t *n = Z_Malloc(sizeof(menutext_t));
 	n->common.type = mt_text;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->text = text;
@@ -594,7 +594,7 @@ menutext_t *MC_AddBufferedText(menu_t *menu, int x, int y, const char *text, qbo
 {
 	menutext_t *n = Z_Malloc(sizeof(menutext_t) + strlen(text)+1);
 	n->common.type = mt_text;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->text = (char *)(n+1);
@@ -621,7 +621,7 @@ menubind_t *MC_AddBind(menu_t *menu, int x, int y, const char *caption, char *co
 {
 	menubind_t *n = Z_Malloc(sizeof(menutext_t) + strlen(caption)+1 + strlen(command)+1);
 	n->common.type = mt_bind;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->caption = (char *)(n+1);
@@ -766,7 +766,7 @@ menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def)
 {
 	menuedit_t *n = Z_Malloc(sizeof(menuedit_t));
 	n->common.type = mt_edit;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->modified = true;
@@ -784,7 +784,7 @@ menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name)
 	cvar_t *cvar;
 	cvar = Cvar_Get(name, "", CVAR_USERCREATED|CVAR_ARCHIVE, NULL);	//well, this is a menu/
 	n->common.type = mt_edit;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->common.width = (strlen(text)+17)*8;
@@ -835,7 +835,7 @@ menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t
 {
 	menucheck_t *n = Z_Malloc(sizeof(menucheck_t)+strlen(text)+1);
 	n->common.type = mt_checkbox;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->common.height = 8;
@@ -845,11 +845,13 @@ menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t
 	n->var = var;
 	n->bits = bits;
 
+	#ifdef _DEBUG
 	if (var)
 		if (!(var->flags & CVAR_ARCHIVE))
 			Con_Printf("Warning: %s is not set for archiving\n", var->name);
-		else if (var->flags & CVAR_RENDERERLATCH) 
+		else if (var->flags & CVAR_RENDERERLATCH)
 			Con_Printf("Warning: %s requires a vid_restart\n", var->name);
+	#endif
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -859,7 +861,7 @@ menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int x, int y, const char *text, qb
 {
 	menucheck_t *n = Z_Malloc(sizeof(menucheck_t)+strlen(text)+1);
 	n->common.type = mt_checkbox;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->common.height = 8;
@@ -876,10 +878,10 @@ menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int x, int y, const char *text, qb
 
 //delta may be 0
 menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t *var, float min, float max, float delta)
-{	
+{
 	menuslider_t *n = Z_Malloc(sizeof(menuslider_t)+strlen(text)+1);
 	n->common.type = mt_slider;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->common.height = 8;
@@ -892,8 +894,10 @@ menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t 
 	{
 		n->current = var->value;
 
+#ifdef _DEBUG
 		if (!(var->flags & CVAR_ARCHIVE))
 			Con_Printf("Warning: %s is not set for archiving\n", var->name);
+#endif
 	}
 
 	n->min = min;
@@ -930,15 +934,15 @@ menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const 
 		optbufsize += optlen+1+sizeof(char*);
 		numopts++;
 	}
-	
-	
+
+
 	n = Z_Malloc(sizeof(*n) + optbufsize);
 	newops = (char **)(n+1);
 	optbuf = (char*)(newops + numopts+1);
 	n->common.type = mt_combo;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
-	n->common.posy = y;	
+	n->common.posy = y;
 	n->common.height = 8;
 	n->common.width = strlen(caption)*8 + maxoptlen*8;
 	n->caption = caption;
@@ -956,7 +960,7 @@ menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const 
 	}
 	newops[i] = NULL;
 
-	if (initialvalue >= n->numoptions) 
+	if (initialvalue >= n->numoptions)
 	{
 		Con_Printf("WARNING: Fixed initialvalue for %s\n", caption);
 		initialvalue = n->numoptions-1;
@@ -990,17 +994,17 @@ menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cv
 		optbufsize += strlen(values[numopts])+1+sizeof(char*);
 		numopts++;
 	}
-	
-	
+
+
 
 	n = Z_Malloc(sizeof(*n) + optbufsize);
 	newops = (char **)(n+1);
 	newvalues = (char**)(newops + numopts+1);
 	optbuf = (char*)(newvalues + numopts+1);
 	n->common.type = mt_combo;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
-	n->common.posy = y;	
+	n->common.posy = y;
 	n->common.height = 8;
 	n->common.width = strlen(caption)*8 + maxoptlen*8;
 
@@ -1044,7 +1048,7 @@ menubutton_t *MC_AddConsoleCommand(menu_t *menu, int x, int y, const char *text,
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t)+strlen(text)+1+strlen(command)+1);
 	n->common.type = mt_button;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->common.height = 8;
@@ -1063,7 +1067,7 @@ menubutton_t *MC_AddConsoleCommandQBigFont(menu_t *menu, int x, int y, const cha
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t)+strlen(text)+1+strlen(command)+1);
 	n->common.type = mt_qbuttonbigfont;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->common.height = 20;
@@ -1081,7 +1085,7 @@ menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, cons
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t)+strlen(text)+1+strlen(command)+1);
 	n->common.type = mt_hexen2buttonbigfont;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->common.height = 8;
@@ -1100,7 +1104,7 @@ menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*c
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t));
 	n->common.type = mt_button;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
 	n->text = text;
@@ -1119,17 +1123,17 @@ menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int x, int y, const char
 	va_list		argptr;
 	static char		string[1024];
 	menubutton_t *n;
-	
+
 	va_start (argptr, command);
 	vsnprintf (string,sizeof(string)-1, command,argptr);
-	va_end (argptr);	
+	va_end (argptr);
 
 	n = Z_Malloc(sizeof(menubutton_t) + strlen(string)+1);
 	n->common.type = mt_button;
-	n->common.iszone = true;	
+	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
-	n->text = text;	
+	n->text = text;
 	n->command = (char *)(n+1);
 	strcpy((char *)(n+1), string);
 
@@ -1330,7 +1334,7 @@ void M_HideMenu (menu_t *menu)
 	}
 }
 void M_RemoveMenu (menu_t *menu)
-{	
+{
 	menuoption_t *op, *oop;
 	if (menu->remove)
 		menu->remove(menu);
@@ -1454,7 +1458,7 @@ menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old)
 
 	if (!old)
 		old = M_NextItem(m, old);
-	
+
 	op = old;
 
 	while (1)
@@ -1481,11 +1485,11 @@ menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old)
 
 menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 {
-	menuoption_t *op;	
+	menuoption_t *op;
 
 	if (!old)
 		old = currentmenu->options;
-	
+
 	op = old;
 
 	while (1)
@@ -1510,7 +1514,7 @@ void M_Complex_Key(int key)
 {
 	if (!currentmenu)
 		return;	//erm...
-	
+
 	if (currentmenu->key)
 		if (currentmenu->key(key, currentmenu))
 			return;
@@ -1534,7 +1538,7 @@ void M_Complex_Key(int key)
 			return;
 		}
 	}
-	
+
 	switch(key)
 	{
 	case K_MOUSE2:
@@ -1547,7 +1551,7 @@ void M_Complex_Key(int key)
 	case K_DOWNARROW:
 		currentmenu->selecteditem = M_NextSelectableItem(currentmenu, currentmenu->selecteditem);
 
-		if (currentmenu->selecteditem)				
+		if (currentmenu->selecteditem)
 		{
 			S_LocalSound ("misc/menu1.wav");
 			if (currentmenu->cursoritem)
@@ -1557,7 +1561,7 @@ void M_Complex_Key(int key)
 	case K_UPARROW:
 		currentmenu->selecteditem = M_PrevSelectableItem(currentmenu, currentmenu->selecteditem);
 
-		if (currentmenu->selecteditem)				
+		if (currentmenu->selecteditem)
 		{
 			S_LocalSound ("misc/menu1.wav");
 			if (currentmenu->cursoritem)
@@ -1630,7 +1634,7 @@ qboolean MC_GuiKey(int key, menu_t *menu)
 	guiinfo_t *info = (guiinfo_t *)menu->data;
 	switch(key)
 	{
-	case K_ESCAPE:		
+	case K_ESCAPE:
 		if (info->dropout)
 			MC_GuiKey(key, info->dropout);
 		else
@@ -1670,7 +1674,7 @@ qboolean MC_GuiKey(int key, menu_t *menu)
 			gui->text[1] = "Hello again";
 			gui->text[2] = "Hello yet again";
 			for (y = 0, i = 0; gui->text[i]; i++, y+=1*8)
-			{				
+			{
 				info->op[i] = MC_AddRedText(info->dropout, 0, y, gui->text[i], false);
 			}
 		}
@@ -1753,7 +1757,7 @@ void M_Menu_Main_f (void)
 		mainm = M_CreateMenu(sizeof(guiinfo_t));
 		mainm->key = MC_GuiKey;
 		mainm->xpos=0;
-		gui = (guiinfo_t *)mainm->data;		
+		gui = (guiinfo_t *)mainm->data;
 		gui->text[0] = "Single";
 		gui->text[1] = "Multiplayer";
 		gui->text[2] = "Quit";
@@ -1761,7 +1765,7 @@ void M_Menu_Main_f (void)
 		{
 			gui->op[i] = MC_AddRedText(mainm, x, 0, gui->text[i], false);
 			x+=(strlen(gui->text[i])+1)*8;
-		}		
+		}
 		return;
 	}
 */
@@ -1772,12 +1776,12 @@ void M_Menu_Main_f (void)
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
 	{
 		if (Draw_SafeCachePic("pics/m_main_game"))
-		{			
+		{
 			m_state = m_complex;
 			key_dest = key_menu;
 
-			mainm = M_CreateMenu(0);	
-			mainm->key = MC_Main_Key;	
+			mainm = M_CreateMenu(0);
+			mainm->key = MC_Main_Key;
 
 			MC_AddPicture(mainm, 0, 4, "pics/m_main_plaque");
 			p = Draw_SafeCachePic("pics/m_main_logo");
@@ -1822,8 +1826,8 @@ void M_Menu_Main_f (void)
 	{
 		m_state = m_complex;
 		key_dest = key_menu;
-		mainm = M_CreateMenu(0);	
-		mainm->key = MC_Main_Key;	
+		mainm = M_CreateMenu(0);
+		mainm->key = MC_Main_Key;
 
 		MC_AddPicture(mainm, 16, 0, "gfx/menu/hplaque.lmp");
 		p = Draw_SafeCachePic("gfx/menu/title0.lmp");
@@ -1856,7 +1860,7 @@ void M_Menu_Main_f (void)
 	{
 		m_state = m_complex;
 		key_dest = key_menu;
-		mainm = M_CreateMenu(0);		
+		mainm = M_CreateMenu(0);
 
 		p = Draw_SafeCachePic("gfx/ttl_main.lmp");
 		if (!p)
@@ -1890,7 +1894,7 @@ void M_Menu_Main_f (void)
 	{
 		m_state = m_complex;
 		key_dest = key_menu;
-		mainm = M_CreateMenu(0);		
+		mainm = M_CreateMenu(0);
 
 		p = Draw_SafeCachePic("gfx/ttl_main.lmp");
 		if (!p)

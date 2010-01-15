@@ -913,12 +913,12 @@ void M_Menu_Textures_f (void)
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 220, 32, NULL, false);
 }
 
-typedef struct {
-} shadowlightingmenuinfo_t;
+/*typedef struct {
+} shadowlightingmenuinfo_t;*/
 
 qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,int key)
 {
-	shadowlightingmenuinfo_t *info = menu->data;
+	//shadowlightingmenuinfo_t *info = menu->data;
 
 	if (key != K_ENTER)
 		return false;
@@ -965,7 +965,7 @@ void M_Menu_Shadow_Lighting_f (void)
 
 
 		MC_AddCheckBox(menu,	16, y,						"              Alias Model Shadows", &r_noaliasshadows,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"                          Shadows", &r_shadows,0,2,1);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"                          Shadows", &r_shadows,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"Realtime World Shadows & Lighting", &r_shadow_realtime_world,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"         Realtime World Lightmaps", &r_shadow_realtime_world_lightmaps,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"        GLSL Shadow Offsetmapping", &r_shadow_glsl_offsetmapping,0);	y+=8;

@@ -3,6 +3,7 @@
 #ifdef RGLQUAKE
 #include "gl_draw.h"
 #endif
+#include <string.h>
 
 
 qboolean vid_isfullscreen;
@@ -986,42 +987,42 @@ typedef struct vidmode_s
 
 vidmode_t vid_modes[] =
 {
-	{ "320x200 (16:10)",   320, 200}, // CGA, MCGA
-	{ "320x240 (4:3)",   320, 240}, // QVGA
-	{ "400x300 (4:3)",   400, 300}, // Quarter SVGA
-	{ "512x384 (4:3)",   512, 384}, // Mac LC
-	{ "640x400 (16:10)",   640, 400}, // Atari ST mono, Amiga OCS NTSC Hires interlace
-	{ "640x480 (4:3)",   640, 480}, // VGA, MCGA
-	{ "800x600 (4:3)",   800, 600}, // SVGA
-	{ "856x480 (16:9)",   856, 480}, // WVGA
-	{ "960x720 (4:3)",   960, 720}, // unnamed
-	{ "1024x576 (16:9)",  1024, 576}, // WSVGA
-	{ "1024x640 (16:10)",  1024, 640}, // unnamed
-	{ "1024x768 (4:3)",  1024, 768}, // XGA
-	{ "1152x720 (16:10)",  1152, 720}, // XGA+
-	{ "1152x864 (4:3)",  1152, 864}, // XGA+
-	{ "1280x720 (16:9)", 1280, 720}, // WXGA min.
-	{ "1280x800 (16:10)", 1280, 800}, // WXGA avg (native resolution of 17" widescreen LCDs)
-	{ "1280x960 (4:3)",  1280, 960}, //SXGA-
-	{ "1280x1024 (5:4)", 1280, 1024}, // SXGA (native resolution of 17-19" LCDs)
-	{ "1366x768 (16:9)", 1366, 768}, // WXGA
-	{ "1400x1050 (4:3)", 1400, 1050}, // SXGA+
-	{ "1440x900 (16:10)", 1440, 900}, // WXGA+ (native resolution of 19" widescreen LCDs)
-	{ "1440x1080 (4:3)", 1440, 1080}, // unnamed
-	{ "1600x900 (16:9)", 1600, 900}, // 900p
-	{ "1600x1200 (4:3)", 1600, 1200}, // UXGA (native resolution of 20"+ LCDs) //sw height is bound to 200 to 1024
-	{ "1680x1050 (16:10)", 1680, 1050}, // WSXGA+ (native resolution of 22" widescreen LCDs)
-	{ "1792x1344 (4:3)", 1792, 1344}, // unnamed
-	{ "1800x1440 (5:4)", 1800, 1440}, // unnamed
-	{ "1856x1392 (4:3)", 1856, 1392}, //unnamed
-	{ "1920x1080 (16:9)", 1920, 1080}, // 1080p (native resolution of cheap 24" LCDs, which really are 23.6")
-	{ "1920x1200 (16:10)", 1920, 1200}, // WUXGA (native resolution of good 24" widescreen LCDs)
-	{ "1920x1440 (4:3)", 1920, 1440}, // TXGA
-	{ "2048x1152 (16:9)", 2048, 1152}, // QWXGA (native resolution of 23" ultra-widescreen LCDs)
-	{ "2048x1536 (4:3)", 2048, 1536}, // QXGA	//too much width will disable water warping (>1280) (but at that resolution, it's almost unnoticable)
-	{ "2304x1440 (16:10)", 2304, 1440}, // (unnamed; maximum resolution of the Sony GDM-FW900 and Hewlett Packard A7217A)
-	{ "2560x1600 (16:10)", 2560, 1600}, // WQXGA (maximum resolution of 30" widescreen LCDs, Dell for example)
-	{ "2560x2048 (5:4)", 2560, 2048} // QSXGA
+	{ "320x200\n16:10",   320, 200}, // CGA, MCGA
+	{ "320x240\n4:3",   320, 240}, // QVGA
+	{ "400x300\n4:3",   400, 300}, // Quarter SVGA
+	{ "512x384\n4:3",   512, 384}, // Mac LC
+	{ "640x400\n16:10",   640, 400}, // Atari ST mono, Amiga OCS NTSC Hires interlace
+	{ "640x480\n4:3",   640, 480}, // VGA, MCGA
+	{ "800x600\n4:3",   800, 600}, // SVGA
+	{ "856x480\n16:9",   856, 480}, // WVGA
+	{ "960x720\n4:3",   960, 720}, // unnamed
+	{ "1024x576\n16:9",  1024, 576}, // WSVGA
+	{ "1024x640\n16:10",  1024, 640}, // unnamed
+	{ "1024x768\n4:3",  1024, 768}, // XGA
+	{ "1152x720\n16:10",  1152, 720}, // XGA+
+	{ "1152x864\n4:3",  1152, 864}, // XGA+
+	{ "1280x720\n16:9", 1280, 720}, // WXGA min.
+	{ "1280x800\n16:10", 1280, 800}, // WXGA avg native resolution of 17" widescreen LCDs
+	{ "1280x960\n4:3",  1280, 960}, //SXGA-
+	{ "1280x1024\n5:4", 1280, 1024}, // SXGA native resolution of 17-19" LCDs
+	{ "1366x768\n16:9", 1366, 768}, // WXGA
+	{ "1400x1050\n4:3", 1400, 1050}, // SXGA+
+	{ "1440x900\n16:10", 1440, 900}, // WXGA+ native resolution of 19" widescreen LCDs
+	{ "1440x1080\n4:3", 1440, 1080}, // unnamed
+	{ "1600x900\n16:9", 1600, 900}, // 900p
+	{ "1600x1200\n4:3", 1600, 1200}, // UXGA native resolution of 20"+ LCDs //sw height is bound to 200 to 1024
+	{ "1680x1050\n16:10", 1680, 1050}, // WSXGA+ native resolution of 22" widescreen LCDs
+	{ "1792x1344\n4:3", 1792, 1344}, // unnamed
+	{ "1800x1440\n5:4", 1800, 1440}, // unnamed
+	{ "1856x1392\n4:3", 1856, 1392}, //unnamed
+	{ "1920x1080\n16:9", 1920, 1080}, // 1080p native resolution of cheap 24" LCDs, which really are 23.6"
+	{ "1920x1200\n16:10", 1920, 1200}, // WUXGA native resolution of good 24" widescreen LCDs
+	{ "1920x1440\n4:3", 1920, 1440}, // TXGA
+	{ "2048x1152\n16:9", 2048, 1152}, // QWXGA native resolution of 23" ultra-widescreen LCDs
+	{ "2048x1536\n4:3", 2048, 1536}, // QXGA	//too much width will disable water warping >1280 but at that resolution, it's almost unnoticable
+	{ "2304x1440\n16:10", 2304, 1440}, // unnamed; maximum resolution of the Sony GDM-FW900 and Hewlett Packard A7217A
+	{ "2560x1600\n16:10", 2560, 1600}, // WQXGA maximum resolution of 30" widescreen LCDs, Dell for example
+	{ "2560x2048\n5:4", 2560, 2048} // QSXGA
 };
 #define NUMVIDMODES sizeof(vid_modes)/sizeof(vid_modes[0])
 
@@ -1233,8 +1234,15 @@ void M_Menu_Video_f (void)
 	int currentbpp;
 	int currentrefreshrate;
 	int currentvsync;
-	int aspectratio;
-	char *aspectratio2;
+	int aspectratio3d;
+	int aspectratio2d;
+	char *aspectratio23d;
+	char *aspectratio22d;
+	char *rendererstring;
+	static char current3dres[10]; // enough to fit 1920x1200
+	static char current2dres[10]; // same as above
+	static char colordepth[6]; // enough to fit 32bit
+	static char currenthz[6]; // enough to fit 120hz
 
 	extern cvar_t _vid_wait_override;
 
@@ -1290,49 +1298,99 @@ void M_Menu_Video_f (void)
 	else
 		currentrefreshrate = 0;
 
-	aspectratio = (vid_width.value / vid_height.value * 100); // times by 100 so don't have to deal with floats
+	aspectratio3d = (vid_width.value / vid_height.value * 100); // times by 100 so don't have to deal with floats
 
-	if (aspectratio == 125) // 1.25
-		aspectratio2 = "5:4";
-	else if (aspectratio == 160) // 1.6
-		aspectratio2 = "16:10";
-	else if (aspectratio == 133) // 1.333333
-		aspectratio2 = "4:3";
-	else if (aspectratio == 177) // 1.777778
-		aspectratio2 = "16:9";
+	if (aspectratio3d == 125) // 1.25
+		aspectratio23d = "5:4";
+	else if (aspectratio3d == 160) // 1.6
+		aspectratio23d = "16:10";
+	else if (aspectratio3d == 133) // 1.333333
+		aspectratio23d = "4:3";
+	else if (aspectratio3d == 177) // 1.777778
+		aspectratio23d = "16:9";
 	else
-		aspectratio2 = "Unknown Ratio";
+		aspectratio23d = "Non-standard Ratio";
+
+	aspectratio2d = (vid_conwidth.value / vid_conheight.value * 100); // times by 100 so don't have to deal with floats
+
+	if (aspectratio2d == 125) // 1.25
+		aspectratio22d = "5:4";
+	else if (aspectratio2d == 160) // 1.6
+		aspectratio22d = "16:10";
+	else if (aspectratio2d == 133) // 1.333333
+		aspectratio22d = "4:3";
+	else if (aspectratio2d == 177) // 1.777778
+		aspectratio22d = "16:9";
+	else
+		aspectratio22d = "Non-standard Ratio";
 
 	currentvsync = _vid_wait_override.value;
+
+	snprintf(current3dres, sizeof(current3dres), "%sx%s", vid_width.string, vid_height.string);
+	snprintf(current2dres, sizeof(current2dres), "%sx%s", vid_conwidth.string, vid_conheight.string);
+	snprintf(currenthz, sizeof(currenthz), "%sHz", vid_refreshrate.string);
+
+	if ( stricmp(vid_renderer.string,"gl" ) == 0 )
+		rendererstring = "OpenGL";
+	else if ( stricmp(vid_renderer.string,"d3d7") == 0 )
+		rendererstring = "DirectX 7";
+	else if ( stricmp(vid_renderer.string,"d3d9") == 0 )
+		rendererstring = "DirectX 9";
+	else if ( stricmp(vid_renderer.string,"d3d") == 0)
+		rendererstring = "DirectX";
+	else if ( stricmp(vid_renderer.string,"sw") == 0)
+		rendererstring = "Software";
+	else
+		rendererstring = "Unknown Renderer?";
+
+	sprintf(colordepth,"%sbit", vid_bpp.string);
 
 	MC_AddCenterPicture(menu, 4, "vidmodes");
 
 	y = 32;
-	info->renderer = MC_AddCombo(menu,	16, y,				"        Renderer", rendererops, i);	y+=8;
-	info->bppcombo = MC_AddCombo(menu,	16, y,				"     Color Depth", bppnames, currentbpp); y+=8;
-	info->refreshratecombo = MC_AddCombo(menu,	16, y,		"    Refresh Rate", refreshrates, currentrefreshrate); y+=8;
-	info->modecombo = MC_AddCombo(menu,	16, y,				"      Video Size", modenames, prefabmode+1);	y+=8;
-	MC_AddWhiteText(menu, 16, y, 							"     Current A/R", false);
-	MC_AddWhiteText(menu, 160, y, 								aspectratio2, 	false); y+=8;
-	info->conscalecombo = MC_AddCombo(menu,	16, y,			"         2D Size", modenames, prefab2dmode+1);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"      Fullscreen", &vid_fullscreen,0);	y+=8;
-	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"    Custom width", vid_width.string);	y+=8;
-	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"   Custom height", vid_height.string);	y+=12;
-	info->vsynccombo = MC_AddCombo(menu,	16, y,			"           VSync", vsyncoptions, currentvsync); y+=8;
-	//MC_AddCheckBox(menu,	16, y,							"  Override VSync", &_vid_wait_override,0);	y+=8;
+
+	MC_AddRedText(menu, 0, y, 								"    Current Renderer", false);
+	MC_AddRedText(menu, 180, y, 						        rendererstring, false); y+=8;
+	MC_AddRedText(menu, 0, y, 							    " Current Color Depth", false);
+	MC_AddRedText(menu, 180, y, 						 		colordepth, false); y+=8;
+	MC_AddRedText(menu, 0, y, 								"      Current 3D Res", false);
+	MC_AddRedText(menu, 180, y, 							  	  current3dres, false); y+=8;
+	MC_AddRedText(menu, 0, y, 								"      Current 3D A/R", false);
+	MC_AddRedText(menu, 180, y, 								aspectratio23d, false); y+=8;
+	MC_AddRedText(menu, 0, y, 								"      Current 2D Res", false);
+	MC_AddRedText(menu, 180, y, 								  current2dres, false); y+=8;
+	MC_AddRedText(menu, 0, y, 								"      Current 2D A/R", false);
+	MC_AddRedText(menu, 180, y, 								aspectratio22d, false); y+=8;
+	MC_AddRedText(menu, 0, y, 								"Current Refresh Rate", false);
+	MC_AddRedText(menu, 180, y, 								currenthz, false); y+=8;
+	MC_AddRedText(menu, 0, y,								"---------------------------------------------", false); y+=8;
 	y+=8;
-	MC_AddCommand(menu,	16, y,								"           Apply", M_VideoApply);	y+=8;
+	info->renderer = MC_AddCombo(menu,	16, y,				"         Renderer", rendererops, i);	y+=8;
+	info->bppcombo = MC_AddCombo(menu,	16, y,				"      Color Depth", bppnames, currentbpp); y+=8;
+	info->refreshratecombo = MC_AddCombo(menu,	16, y,		"     Refresh Rate", refreshrates, currentrefreshrate); y+=8;
+	info->modecombo = MC_AddCombo(menu,	16, y,				"       Video Size", modenames, prefabmode+1);	y+=8;
+	MC_AddWhiteText(menu, 16, y, 							"  3D Aspect Ratio", false); y+=8;
+	info->conscalecombo = MC_AddCombo(menu,	16, y,			"          2D Size", modenames, prefab2dmode+1);	y+=8;
+	MC_AddWhiteText(menu, 16, y, 							"  2D Aspect Ratio", false); y+=8;
+	MC_AddCheckBox(menu,	16, y,							"       Fullscreen", &vid_fullscreen,0);	y+=8;
+	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"     Custom width", vid_width.string);	y+=8;
+	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"    Custom height", vid_height.string);	y+=12;
+	info->vsynccombo = MC_AddCombo(menu,	16, y,			"            VSync", vsyncoptions, currentvsync); y+=8;
+	//MC_AddCheckBox(menu,	16, y,							"   Override VSync", &_vid_wait_override,0);	y+=8;
 	y+=8;
-	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120, 1);y+=8;
-	MC_AddSlider(menu,	16, y,								"           Gamma", &v_gamma, 0.3, 1, 0.05);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Desktop Gamma", &vid_desktopgamma,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"  Hardware Gamma", &vid_hardwaregamma,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"  Preserve Gamma", &vid_preservegamma,0);	y+=8;
-	MC_AddSlider(menu,	16, y,								"        Contrast", &v_contrast, 1, 3, 0.05);	y+=8;
+	MC_AddCommand(menu,	16, y,								"= Apply Changes =", M_VideoApply);	y+=8;
 	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"      Stretching", &vid_stretch,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"     Allow ModeX", &vid_allow_modex,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"  Windowed Mouse", &_windowed_mouse,0);	y+=8;
+	MC_AddSlider(menu,	16, y,								"      Screen size", &scr_viewsize,	30,		120, 1);y+=8;
+	MC_AddSlider(menu,	16, y,								"Console Autoscale",&vid_conautoscale, 0, 6, 0.25);	y+=8;
+	MC_AddSlider(menu,	16, y,								"            Gamma", &v_gamma, 0.3, 1, 0.05);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"    Desktop Gamma", &vid_desktopgamma,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Hardware Gamma", &vid_hardwaregamma,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Preserve Gamma", &vid_preservegamma,0);	y+=8;
+	MC_AddSlider(menu,	16, y,								"         Contrast", &v_contrast, 1, 3, 0.05);	y+=8;
+	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"       Stretching", &vid_stretch,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"      Allow ModeX", &vid_allow_modex,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Windowed Mouse", &_windowed_mouse,0);	y+=8;
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, 32, NULL, false);
 	menu->selecteditem = (union menuoption_s *)info->renderer;

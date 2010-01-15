@@ -893,6 +893,12 @@ void M_Menu_Teamplay_f (void);
 void M_Menu_Teamplay_Locations_f (void);
 void M_Menu_Teamplay_Needs_f (void);
 void M_Menu_Teamplay_Items_f (void);
+void M_Menu_Teamplay_Items_Armor_f (void);
+void M_Menu_Teamplay_Items_Weapons_f (void);
+void M_Menu_Teamplay_Items_Powerups_f (void);
+void M_Menu_Teamplay_Items_Ammo_Health_f (void);
+void M_Menu_Teamplay_Items_Team_Fortress_f (void);
+void M_Menu_Teamplay_Items_Status_Location_Misc_f (void);
 void M_Menu_Particles_f (void);
 void M_Menu_ParticleSets_f (void);
 void M_Menu_Audio_Speakers_f (void);
@@ -948,6 +954,12 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_teamplay_locations", M_Menu_Teamplay_Locations_f);
 	Cmd_AddRemCommand ("menu_teamplay_needs", M_Menu_Teamplay_Needs_f);
 	Cmd_AddRemCommand ("menu_teamplay_items", M_Menu_Teamplay_Items_f);
+	Cmd_AddRemCommand ("menu_teamplay_armor", M_Menu_Teamplay_Items_Armor_f);
+	Cmd_AddRemCommand ("menu_teamplay_weapons", M_Menu_Teamplay_Items_Weapons_f);
+	Cmd_AddRemCommand ("menu_teamplay_powerups", M_Menu_Teamplay_Items_Powerups_f);
+	Cmd_AddRemCommand ("menu_teamplay_ammo_health", M_Menu_Teamplay_Items_Ammo_Health_f);
+	Cmd_AddRemCommand ("menu_teamplay_team_fortress", M_Menu_Teamplay_Items_Team_Fortress_f);
+	Cmd_AddRemCommand ("menu_teamplay_status_location_misc", M_Menu_Teamplay_Items_Status_Location_Misc_f);
 	Cmd_AddRemCommand ("menu_particles", M_Menu_Particles_f);
 	Cmd_AddRemCommand ("menu_particlesets", M_Menu_ParticleSets_f);
 
@@ -998,6 +1010,12 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_teamplay_locations");
 	Cmd_RemoveCommand ("menu_teamplay_needs");
 	Cmd_RemoveCommand ("menu_teamplay_items");
+	Cmd_RemoveCommand ("menu_teamplay_armor");
+	Cmd_RemoveCommand ("menu_teamplay_weapons");
+	Cmd_RemoveCommand ("menu_teamplay_powerups");
+	Cmd_RemoveCommand ("menu_teamplay_ammo_health");
+	Cmd_RemoveCommand ("menu_teamplay_team_fortress");
+	Cmd_RemoveCommand ("menu_teamplay_status_location_misc");
 	Cmd_RemoveCommand ("menu_fps");
 	Cmd_RemoveCommand ("menu_3d");
 	Cmd_RemoveCommand ("menu_shadow_lighting");

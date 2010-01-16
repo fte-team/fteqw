@@ -1201,7 +1201,7 @@ void M_Menu_Teamplay_Locations_f (void)
 	menu_t *menu;
 	int mgt;
 	int cursorpositionY;
-	extern cvar_t ;
+
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -1261,7 +1261,7 @@ void M_Menu_Teamplay_Needs_f (void)
 	menu_t *menu;
 	int mgt;
 	int cursorpositionY;
-	extern cvar_t ;
+
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -1317,7 +1317,7 @@ void M_Menu_Teamplay_Items_f (void)
 	menu_t *menu;
 	int mgt;
 	int cursorpositionY;
-	extern cvar_t ;
+
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -1369,7 +1369,7 @@ void M_Menu_Teamplay_Items_Armor_f (void)
 	menu_t *menu;
 	int mgt;
 	int cursorpositionY;
-	extern cvar_t ;
+
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -1422,7 +1422,7 @@ void M_Menu_Teamplay_Items_Weapons_f (void)
 	menu_t *menu;
 	int mgt;
 	int cursorpositionY;
-	extern cvar_t ;
+
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -1477,7 +1477,7 @@ void M_Menu_Teamplay_Items_Powerups_f (void)
 	menu_t *menu;
 	int mgt;
 	int cursorpositionY;
-	extern cvar_t ;
+
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -1534,7 +1534,7 @@ void M_Menu_Teamplay_Items_Ammo_Health_f (void)
 	menu_t *menu;
 	int mgt;
 	int cursorpositionY;
-	extern cvar_t ;
+
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -1587,7 +1587,7 @@ void M_Menu_Teamplay_Items_Team_Fortress_f (void)
 	menu_t *menu;
 	int mgt;
 	int cursorpositionY;
-	extern cvar_t ;
+
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -1636,7 +1636,7 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 	menu_t *menu;
 	int mgt;
 	int cursorpositionY;
-	extern cvar_t ;
+
 
 	key_dest = key_menu;
 	m_state = m_complex;

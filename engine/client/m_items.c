@@ -290,6 +290,11 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 {
 	int i;
 	mpic_t *p;
+
+	int mgt;
+
+	mgt = M_GameType();
+
 	while (option)
 	{
 		if (mousemoved && !bindingactive)
@@ -300,7 +305,11 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 					if (menu->selecteditem != option)
 					{
 						if (!option->common.noselectionsound)
-							S_LocalSound ("misc/menu1.wav");
+								if (mgt == MGT_HEXEN2)
+									S_LocalSound ("raven/menu1.wav");
+								else
+									S_LocalSound ("misc/menu1.wav");
+
 						menu->selecteditem = option;
 						menu->tooltiptime = realtime + 1;
 						MenuTooltipSplit(menu, menu->selecteditem->common.tooltip);
@@ -1512,6 +1521,9 @@ menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 
 void M_Complex_Key(int key)
 {
+	int mgt;
+	mgt = M_GameType();
+
 	if (!currentmenu)
 		return;	//erm...
 
@@ -1528,7 +1540,10 @@ void M_Complex_Key(int key)
 	{
 		if (bindingactive)
 		{
-			S_LocalSound ("misc/menu1.wav");
+			if (mgt == MGT_HEXEN2)
+				S_LocalSound ("raven/menu1.wav");
+			else
+				S_LocalSound ("misc/menu1.wav");
 
 			if (key != K_ESCAPE && key != '`')
 			{
@@ -1545,7 +1560,10 @@ void M_Complex_Key(int key)
 	case K_ESCAPE:
 		//remove
 		M_RemoveMenu(currentmenu);
-		S_LocalSound ("misc/menu3.wav");
+		if (mgt == MGT_HEXEN2)
+			S_LocalSound ("raven/menu3.wav");
+		else
+			S_LocalSound ("misc/menu3.wav");
 		break;
 	case K_TAB:
 	case K_DOWNARROW:
@@ -1553,7 +1571,11 @@ void M_Complex_Key(int key)
 
 		if (currentmenu->selecteditem)
 		{
-			S_LocalSound ("misc/menu1.wav");
+			if (mgt == MGT_HEXEN2)
+				S_LocalSound ("raven/menu1.wav");
+			else
+				S_LocalSound ("misc/menu1.wav");
+
 			if (currentmenu->cursoritem)
 				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy;
 		}
@@ -1563,7 +1585,11 @@ void M_Complex_Key(int key)
 
 		if (currentmenu->selecteditem)
 		{
-			S_LocalSound ("misc/menu1.wav");
+			if (mgt == MGT_HEXEN2)
+				S_LocalSound ("raven/menu1.wav");
+			else
+				S_LocalSound ("misc/menu1.wav");
+
 			if (currentmenu->cursoritem)
 				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy;
 		}
@@ -1591,7 +1617,10 @@ void M_Complex_Key(int key)
 			else if (key == K_ENTER || key == K_MOUSE1)
 			{
 				Cbuf_AddText(currentmenu->selecteditem->button.command, RESTRICT_LOCAL);
-				S_LocalSound ("misc/menu2.wav");
+				if (mgt == MGT_HEXEN2)
+					S_LocalSound ("raven/menu2.wav");
+				else
+					S_LocalSound ("misc/menu2.wav");
 			}
 			break;
 		case mt_custom:

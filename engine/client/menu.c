@@ -545,10 +545,22 @@ void M_Keys_Key (int k)
 {
 	char	cmd[80];
 	int		keys[2];
+	int mgt;
+
+	mgt = M_GameType();
+
+	if (mgt == MGT_HEXEN2)
+		S_LocalSound ("raven/menu1.wav");
+	else
+		S_LocalSound ("misc/menu1.wav");
 
 	if (bind_grab)
 	{	// defining a key
-		S_LocalSound ("misc/menu1.wav");
+		if (mgt == MGT_HEXEN2)
+			S_LocalSound ("raven/menu1.wav");
+		else
+			S_LocalSound ("misc/menu1.wav");
+
 		if (k == K_ESCAPE)
 		{
 			bind_grab = false;
@@ -571,7 +583,11 @@ void M_Keys_Key (int k)
 
 	case K_LEFTARROW:
 	case K_UPARROW:
-		S_LocalSound ("misc/menu1.wav");
+		if (mgt == MGT_HEXEN2)
+			S_LocalSound ("raven/menu1.wav");
+		else
+			S_LocalSound ("misc/menu1.wav");
+
 		keys_cursor--;
 		if (keys_cursor < 0)
 			keys_cursor = numbindnames-1;
@@ -579,7 +595,11 @@ void M_Keys_Key (int k)
 
 	case K_DOWNARROW:
 	case K_RIGHTARROW:
-		S_LocalSound ("misc/menu1.wav");
+		if (mgt == MGT_HEXEN2)
+			S_LocalSound ("raven/menu1.wav");
+		else
+			S_LocalSound ("misc/menu1.wav");
+
 		keys_cursor++;
 		if (keys_cursor >= numbindnames)
 			keys_cursor = 0;
@@ -587,7 +607,12 @@ void M_Keys_Key (int k)
 
 	case K_ENTER:		// go into bind mode
 		M_FindKeysForCommand (bindnames[keys_cursor].command, keys);
-		S_LocalSound ("misc/menu2.wav");
+
+		if (mgt == MGT_HEXEN2)
+			S_LocalSound ("raven/menu2.wav");
+		else
+			S_LocalSound ("misc/menu2.wav");
+
 		if (keys[1] != -1)
 			M_UnbindCommand (bindnames[keys_cursor].command);
 		bind_grab = true;
@@ -595,7 +620,11 @@ void M_Keys_Key (int k)
 
 	case K_BACKSPACE:		// delete bindings
 	case K_DEL:				// delete bindings
-		S_LocalSound ("misc/menu2.wav");
+		if (mgt == MGT_HEXEN2)
+			S_LocalSound ("raven/menu1.wav");
+		else
+			S_LocalSound ("misc/menu1.wav");
+
 		M_UnbindCommand (bindnames[keys_cursor].command);
 		break;
 	}

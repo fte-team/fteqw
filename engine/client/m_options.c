@@ -235,6 +235,7 @@ void M_Menu_Audio_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	extern cvar_t nosound, precache, snd_leftisright, snd_khz, snd_eax, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_usemultipledevices, snd_noextraupdate, snd_show, bgmbuffer;
 
 	static const char *soundqualityoptions[] = {
@@ -277,10 +278,13 @@ void M_Menu_Audio_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -288,7 +292,13 @@ void M_Menu_Audio_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 	menu->selecteditem = (union menuoption_s *)
+
+	MC_AddRedText(menu, 16, y, 			"     Sound Options", false); y+=8;
+	MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+	y+=8;
 
 	MC_AddSlider(menu, 16, y,			"          CD Music Volume", &bgmvolume,		0,		1, 0.1);y+=8;
 	MC_AddSlider(menu, 16, y,			"          CD Music Buffer", &bgmbuffer,		0,		10240, 1024);y+=8;
@@ -299,20 +309,20 @@ void M_Menu_Audio_f (void)
 	MC_AddCheckBox(menu, 16, y,			"                 No Sound", &nosound,0);y+=8;
 	MC_AddCheckBox(menu, 16, y,			"            Static Sounds", &cl_staticsounds,0);y+=8;
 	MC_AddCheckBox(menu, 16, y,			"                 Precache", &precache,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			" Low Quality Sound (8bit)", &loadas8bit,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"               Flip Sound", &snd_leftisright,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"Play Sound While Inactive", &snd_inactive,0);y+=8;
 	MC_AddCheckBox(menu, 16, y,			"       Experimental EAX 2", &snd_eax,0);y+=8;
 	MC_AddCvarCombo(menu, 16, y,		"            Speaker Setup", &snd_speakers, speakeroptions, speakervalues);y+=8;
 	MC_AddCvarCombo(menu, 16, y,		"              Sound Speed", &snd_khz, soundqualityoptions, soundqualityvalues);y+=8;
 	MC_AddSlider(menu, 16, y,			"           Sound Mixahead", &_snd_mixahead,0,1,0.05);y+=8;
 	MC_AddCheckBox(menu, 16, y,			"         Multiple Devices", &snd_usemultipledevices,0);y+=8;
 	MC_AddCheckBox(menu, 16, y,			"    No Extra Sound Update", &snd_noextraupdate,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,			" Low Quality Sound (8bit)", &loadas8bit,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"               Flip Sound", &snd_leftisright,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"Play Sound While Inactive", &snd_inactive,0);y+=8;
 	//MC_AddCombo(menu, 16, y,			"      Show Sounds Playing", &snd_show,0);y+=8;
 	y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"        = Restart Sound =", "snd_restart\n");y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 225, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 225, cursorpositionY, NULL, false);
 }
 
 #else
@@ -329,6 +339,7 @@ void M_Menu_Particles_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	extern cvar_t r_bouncysparks, r_part_rain, gl_part_flame, r_particlesystem, r_grenadetrail, r_rockettrail, r_part_sparks_textured, r_part_sparks_trifan, r_part_rain_quantity, r_part_beams, r_part_beams_textured, r_particle_tracelimit;
 
 	char *psystemopts[] =
@@ -354,10 +365,13 @@ void M_Menu_Particles_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title6.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -365,7 +379,13 @@ void M_Menu_Particles_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 	menu->selecteditem = (union menuoption_s *)
+
+	MC_AddRedText(menu, 16, y, 			"     Particle Options", false); y+=8;
+	MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+	y+=8;
 
 	MC_AddCvarCombo(menu, 16, y,							"        particle system", &r_particlesystem, psystemopts, psystemvals);y+=8;
 	//fixme: hide the rest of the options if r_particlesystem==classic
@@ -380,11 +400,11 @@ void M_Menu_Particles_f (void)
 	MC_AddCheckBox(menu,	16, y,							"                   Rain", &r_part_rain,0);	y+=8;
 	MC_AddSlider(menu,	16, y,								"          Rain Quantity", &r_part_rain_quantity,0,10,1);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"            Torch Flame", &gl_part_flame,0);	y+=8;
+	MC_AddSlider(menu,	16, y,								"    Particle Tracelimit", &r_particle_tracelimit,0,2000,50);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"         Particle Beams", &r_part_beams,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"Textured Particle Beams", &r_part_beams_textured,0);	y+=8;
-	MC_AddSlider(menu,	16, y,								"    Particle Tracelimit", &r_particle_tracelimit,0,2000,50);	y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
 }
 
 enum {
@@ -466,6 +486,7 @@ void M_Menu_FPS_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	int i, len;
 
 	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter;
@@ -480,10 +501,13 @@ void M_Menu_FPS_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -491,25 +515,29 @@ void M_Menu_FPS_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 	menu->selecteditem = (union menuoption_s *)
 
-	MC_AddConsoleCommand(menu, 16, y,			"  Particle Options", "menu_particles\n"); y+=8;
+	MC_AddRedText(menu, 16, y, 			"     FPS Options", false); y+=8;
+	MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+	y+=8;
 
 	for (i = 0; i < PRESET_MAX; i++)
 	{
 		len = strlen(preset[0].value[i]);
-		MC_AddConsoleCommand(menu, 100+8*(9-len), y,		va("(preset) %s", preset[0].value[i]), va("fps_preset %s\n", preset[0].value[i])); y+=8;
+		MC_AddConsoleCommand(menu, 116, y,		va("(preset)   %s", preset[0].value[i]), va("fps_preset %s\n", preset[0].value[i])); y+=8;
 	}
-	MC_AddCheckBox(menu, 16, y,					"           Show FPS", &show_fps,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,					"             Show FPS", &show_fps,0);y+=8;
 
-	MC_AddCheckBox(menu, 16, y,					"      Content blend", &v_contentblend,0);y+=8;
-	MC_AddCheckBox(menu,	16, y,				"Rockets to Grenades", &cl_r2g,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,				"         Gib Filter", &cl_gibfilter,0);	y+=8;
-	MC_AddSlider(menu,	16, y,					"   Dead Body Filter", &cl_deadbodyfilter,0,2,1);	y+=8;
-	MC_AddCheckBox(menu,	16, y,				"   Explosion Sprite", &cl_expsprite,0);	y+=8;
-	y+=4;MC_AddEditCvar(menu, 16, y,			"             Skybox", "r_skybox");y+=8;y+=4;
+	MC_AddCheckBox(menu, 16, y,					"        Content blend", &v_contentblend,0);y+=8;
+	MC_AddCheckBox(menu,	16, y,				"           Gib Filter", &cl_gibfilter,0);	y+=8;
+	MC_AddSlider(menu,	16, y,					"     Dead Body Filter", &cl_deadbodyfilter,0,2,1);	y+=8;
+	MC_AddCheckBox(menu,	16, y,				"     Explosion Sprite", &cl_expsprite,0);	y+=8;
+	y+=4;MC_AddEditCvar(menu, 16, y,			"               Skybox", "r_skybox");y+=8;y+=4;
+	MC_AddCheckBox(menu,	16, y,				"  Rockets to Grenades", &cl_r2g,0);	y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 250, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 188, cursorpositionY, NULL, false);
 }
 
 //copy and pasted from renderer.c
@@ -539,7 +567,7 @@ qboolean M_VideoApply3D (union menuoption_s *op,struct menu_s *menu,int key)
 	if (key != K_ENTER)
 		return false;
 
-	/*switch(info->multisamplingcombo->selectedoption)
+	switch(info->multisamplingcombo->selectedoption)
 	{
 	case 0:
 		Cbuf_AddText("vid_multisample 0\n", RESTRICT_LOCAL);
@@ -556,7 +584,7 @@ qboolean M_VideoApply3D (union menuoption_s *op,struct menu_s *menu,int key)
 	case 4:
 		Cbuf_AddText("vid_multisample 8\n", RESTRICT_LOCAL);
 		break;
-	}*/
+	}
 
 	Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
 
@@ -568,7 +596,7 @@ qboolean M_VideoApply3D (union menuoption_s *op,struct menu_s *menu,int key)
 void M_Menu_3D_f (void)
 {
 	static const char *msaalevels[] =
-		{
+	{
 			"Off",
 			"2x",
 			"4x",
@@ -582,10 +610,12 @@ void M_Menu_3D_f (void)
 	threeDmenuinfo_t *info;
 	menu_t *menu;
 	int mgt;
-	int currentmsaalevel;
+	int cursorpositionY;
+	//int currentmsaalevel;
 #ifdef RGLQUAKE
 #endif
 	extern cvar_t r_novis, gl_dither, cl_item_bobbing, r_waterwarp, r_nolerp, r_fastsky, gl_shadeq1, gl_shadeq3, gl_nocolors, gl_lerpimages, gl_keeptjunctions, gl_lateswap, r_mirroralpha, r_wateralpha, r_drawviewmodel, r_xflip, gl_maxdist, gl_motionblur, gl_motionblurscale, gl_blend2d, gl_blendsprites, r_flashblend, gl_cshiftenabled;
+	//static extern cvar_t vid_multisample;
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -598,16 +628,21 @@ void M_Menu_3D_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
+		y += 25+8;
 	}
 	else
 	{
 		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
+
+	cursorpositionY = (y + 24);
 
 	/*if (vid_multisample.value == 8)
 		currentmsaalevel = 4;
@@ -624,6 +659,10 @@ void M_Menu_3D_f (void)
 
 	menu->selecteditem = (union menuoption_s *)
 
+		MC_AddRedText(menu, 16, y, 			"     3D Renderering Options", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
+
 		//info->multisamplingcombo = MC_AddCombo(menu, 16, y,		" Multisample Anti-Aliasing", msaalevels, currentmsaalevel); y+=8;
 		MC_AddCheckBox(menu,	16, y,							"             Calculate VIS", &r_novis,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"                Water Warp", &r_waterwarp,0);	y+=8;
@@ -631,15 +670,15 @@ void M_Menu_3D_f (void)
 		MC_AddCheckBox(menu,	16, y,							"                Toggle Sky", &r_fastsky,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"                Q1 Shaders", &gl_shadeq1,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"                Q3 Shaders", &gl_shadeq3,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"Ignore Player Model Colors", &gl_nocolors,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"               Lerp Images", &gl_lerpimages,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"  Toggle Colinear Vertexes", &gl_keeptjunctions,0);	y+=8;
+		MC_AddSlider(menu,	16, y,								"          Maximum Distance", &gl_maxdist,1,8192,128);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"       GL Swapbuffer Delay", &gl_lateswap,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"        Mirror Reflections", &r_mirroralpha,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,							"      Flip Horizontal View", &r_xflip,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"        Water Transparency", &r_wateralpha,0);	y+=8;
 		MC_AddSlider(menu,	16, y,								"   View Model Transparency", &r_drawviewmodel,0,1,0.1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"      Flip Horizontal View", &r_xflip,0);	y+=8;
-		MC_AddSlider(menu,	16, y,								"          Maximum Distance", &gl_maxdist,1,8192,128);	y+=8;
+		MC_AddCheckBox(menu,	16, y,							"Ignore Player Model Colors", &gl_nocolors,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,							"  Toggle Colinear Vertexes", &gl_keeptjunctions,0);	y+=8;
 		MC_AddSlider(menu,	16, y,								"               Motion Blur", &gl_motionblur,0,1,0.5);	y+=8;
 		MC_AddSlider(menu,	16, y,								"         Motion Blur Scale", &gl_motionblurscale,0,1,0.5);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"               2D Blending", &gl_blend2d,0);	y+=8;
@@ -652,7 +691,7 @@ void M_Menu_3D_f (void)
 		MC_AddCommand(menu,	16, y,								"           Apply", M_VideoApply3D);	y+=8;
 
 	//menu->selecteditem = (union menuoption_s *)info->multisamplingcombo;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 225, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 225, cursorpositionY, NULL, false);
 }
 
 typedef struct {
@@ -796,6 +835,7 @@ void M_Menu_Textures_f (void)
 	texturemenuinfo_t *info;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	int currenttexturefilter;
 	int currentanisotropylevel;
 	int currentmaxtexturesize;
@@ -812,16 +852,21 @@ void M_Menu_Textures_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
+		y += 25+8;
 	}
 	else
 	{
 		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
+
+	cursorpositionY = (y + 24);
 
 	if (!Q_strcasecmp(gl_texturemode.string, "gl_nearest_mipmap_nearest"))
 		currenttexturefilter = 0;
@@ -877,6 +922,10 @@ void M_Menu_Textures_f (void)
 		currentmaxtexturesize = 0;
 
 
+		MC_AddRedText(menu, 16, y, 			"     Texturing Options", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
+
 		info->texturefiltercombo = MC_AddCombo(menu, 16, y,	"          Texture Filter", texturefilternames, currenttexturefilter); y+=8;
 		info->anisotropycombo =	MC_AddCombo(menu, 16, y,    "        Anisotropy Level", anisotropylevels, currentanisotropylevel); y+=8;
 		MC_AddCheckBox(menu,	16, y,						"          32bit Textures", &gl_load24bit,0);	y+=8;
@@ -908,18 +957,32 @@ void M_Menu_Textures_f (void)
 		MC_AddCommand(menu,	16, y,								"           Apply", M_VideoApplyTextures);	y+=8;
 
 	menu->selecteditem = (union menuoption_s *)info->texturefiltercombo;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 220, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 220, cursorpositionY, NULL, false);
 }
 
-/*typedef struct {
-} shadowlightingmenuinfo_t;*/
+typedef struct {
+	menucombo_t *loadlitcombo;
+} shadowlightingmenuinfo_t;
 
 qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,int key)
 {
-	//shadowlightingmenuinfo_t *info = menu->data;
+	shadowlightingmenuinfo_t *info = menu->data;
 
 	if (key != K_ENTER)
 		return false;
+
+	switch(info->loadlitcombo->selectedoption)
+	{
+	case 0:
+		Cbuf_AddText("gl_loadlit 0\n", RESTRICT_LOCAL);
+		break;
+	case 1:
+		Cbuf_AddText("gl_loadlit 1\n", RESTRICT_LOCAL);
+		break;
+	case 2:
+		Cbuf_AddText("gl_loadlit 2\n", RESTRICT_LOCAL);
+		break;
+	}
 
 	Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
 
@@ -932,25 +995,40 @@ void M_Menu_Shadow_Lighting_f (void)
 {
 	int y = 32;
 	menu_t *menu;
+	shadowlightingmenuinfo_t *info;
 	int mgt;
+	int cursorpositionY;
+	int currentloadlit;
 #ifdef RGLQUAKE
 #endif
 	extern cvar_t r_noaliasshadows, r_shadows, r_shadow_realtime_world, r_loadlits, gl_maxshadowlights, r_lightmap_saturation, r_dynamic, r_vertexlight, r_vertexdlights, r_lightstylesmooth, r_lightstylespeed, r_nolightdir, r_shadow_realtime_world_lightmaps, r_shadow_glsl_offsetmapping, r_shadow_glsl_offsetmapping_bias, r_shadow_glsl_offsetmapping_scale, r_shadow_bumpscale_basetexture, r_shadow_bumpscale_bumpmap, r_fb_bmodels, r_fb_models, gl_overbright, r_rocketlight, r_powerupglow, v_powerupshell, r_lightflicker, r_explosionlight;
 
+	static const char *loadlitoptions[] =
+	{
+			"Off",
+			"On",
+			"On (Regenerate Lighting)",
+			NULL
+	};
+
 	key_dest = key_menu;
 	m_state = m_complex;
 
-	menu = M_CreateMenu(0);
+	menu = M_CreateMenu(sizeof(shadowlightingmenuinfo_t));
+	info = menu->data;
 
 	mgt = M_GameType();
 
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -958,9 +1036,32 @@ void M_Menu_Shadow_Lighting_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
+	currentloadlit = r_loadlits.value;
+
 	menu->selecteditem = (union menuoption_s *)
 
+		MC_AddRedText(menu, 16, y, 			"     Shadow & Lighting Options", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
 
+		//MC_AddSlider(menu,	16, y,						"                   Light Map Mode", &gl_lightmapmode,0,2,1);	y+=8;
+		MC_AddSlider(menu,	16, y,							"             Light Map Saturation", &r_lightmap_saturation,0,1,0.1);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"                 Dynamic Lighting", &r_dynamic,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"                  Vertex Lighting", &r_vertexlight,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"            Dynamic Vertex Lights", &r_vertexdlights,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"             Lightstyle Smoothing", &r_lightstylesmooth,0);	y+=8;
+		MC_AddSlider(menu,	16, y,							"       Lightstyle Animation Speed", &r_lightstylespeed,0,50,1);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"            Fullbright BSP Models", &r_fb_bmodels,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"          Fullbright Alias Models", &r_fb_models,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"                  Overbright Bits", &gl_overbright,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"          Rocket Dynamic Lighting", &r_rocketlight,0);	y+=8;
+		MC_AddSlider(menu,	16, y,							"                     Powerup Glow", &r_powerupglow,0,2,1);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"                    Powerup Shell", &v_powerupshell,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"                 Light Flickering", &r_lightflicker,0);	y+=8;
+		MC_AddSlider(menu,	16, y,							"                  Explosion Light", &r_explosionlight,0,1,0.1);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						" Surface Direction Model Lighting", &r_nolightdir,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"              Alias Model Shadows", &r_noaliasshadows,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"                          Shadows", &r_shadows,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"Realtime World Shadows & Lighting", &r_shadow_realtime_world,0);	y+=8;
@@ -970,28 +1071,14 @@ void M_Menu_Shadow_Lighting_f (void)
 		MC_AddSlider(menu,	16, y,							"  GLSL Shadow Offsetmapping Scale", &r_shadow_glsl_offsetmapping_scale,0,-1,0.01);	y+=8;
 		MC_AddSlider(menu,	16, y,							"     Shadow Bumpscale Basetexture", &r_shadow_bumpscale_basetexture,0,10,1);	y+=8;
 		MC_AddSlider(menu,	16, y,							"         Shadow Bumpscale Bumpmap", &r_shadow_bumpscale_bumpmap,0,50,1);	y+=8;
-		MC_AddSlider(menu,	16, y,							"                      LIT Loading", &r_loadlits,0,2,1);	y+=8;
+		info->loadlitcombo = MC_AddCombo(menu,16, y,		"                      LIT Loading", loadlitoptions, currentloadlit);	y+=8;
 		MC_AddSlider(menu,	16, y,							"            Maximum Shadow Lights", &gl_maxshadowlights,0,1000,2);	y+=8;
-		//MC_AddSlider(menu,	16, y,						"                   Light Map Mode", &gl_lightmapmode,0,2,1);	y+=8;
-		MC_AddSlider(menu,	16, y,							"             Light Map Saturation", &r_lightmap_saturation,0,1,0.1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                 Dynamic Lighting", &r_dynamic,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                  Vertex Lighting", &r_vertexlight,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"            Dynamic Vertex Lights", &r_vertexdlights,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"             Lightstyle Smoothing", &r_lightstylesmooth,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"       Lightstyle Animation Speed", &r_lightstylespeed,0,50,1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						" Surface Direction Model Lighting", &r_nolightdir,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"            Fullbright BSP Models", &r_fb_bmodels,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"          Fullbright Alias Models", &r_fb_models,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                  Overbright Bits", &gl_overbright,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"          Rocket Dynamic Lighting", &r_rocketlight,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"                     Powerup Glow", &r_powerupglow,0,2,1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                    Powerup Shell", &v_powerupshell,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                 Light Flickering", &r_lightflicker,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"                  Explosion Light", &r_explosionlight,0,1,0.1);	y+=8;
 		y+=8;
 		MC_AddCommand(menu,	16, y,							"                            Apply", M_VideoApplyShadowLighting);	y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 285, 32, NULL, false);
+	menu->selecteditem = (union menuoption_s *)info->loadlitcombo;
+
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 285, cursorpositionY, NULL, false);
 }
 
 typedef struct {
@@ -1027,9 +1114,9 @@ void M_Menu_Teamplay_f (void)
 {
 	static const char *noskinsoptions[] =
 	{
-		"Enable Skins (Do Download New Skins)",
+		"Enable Skins (Download)",
 		"Disable Skins",
-		"Enable Skins (Don't Download New Skins)",
+		"Enable Skins (No Download))",
 		NULL
 	};
 
@@ -1037,6 +1124,7 @@ void M_Menu_Teamplay_f (void)
 	teamplaymenuinfo_t *info;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	int currentnoskins;
 	extern cvar_t cl_parseSay, cl_triggers, tp_forceTriggers, tp_loadlocs, cl_parseFunChars, cl_noblink, noskins;
 
@@ -1051,10 +1139,13 @@ void M_Menu_Teamplay_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -1062,7 +1153,13 @@ void M_Menu_Teamplay_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 	currentnoskins = noskins.value;
+
+		MC_AddRedText(menu, 16, y, 			"     Teamplay Options", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
 
 		info->noskinscombo = MC_AddCombo(menu, 16, y,	"                  Skins", noskinsoptions, currentnoskins); y+=8;
 		y+=4;MC_AddEditCvar(menu, 16, y,				"             Enemy Skin", "cl_enemyskin"); y+=8+4;
@@ -1071,13 +1168,13 @@ void M_Menu_Teamplay_f (void)
 		y+=4;MC_AddEditCvar(menu, 16, y,				"              Fake Name", "cl_fakename"); y+=8+4;
 		MC_AddCheckBox(menu,	16, y,					"        Parse Fun Chars", &cl_parseFunChars,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,					"           Parse Macros", &cl_parseSay,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,					"      Teamplay Triggers", &cl_triggers,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,					"Force Teamplay Triggers", &tp_forceTriggers,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,					"              Load Locs", &tp_loadlocs,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,					"               No Blink", &cl_noblink,0);	y+=8;
 		y+=4;MC_AddEditCvar(menu, 16, y,				"          Sound Trigger", "tp_soundtrigger"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,				"              Fake Name", "cl_fakename"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,				"           Weapon Order", "tp_weapon_order"); y+=8+4;
+		MC_AddCheckBox(menu,	16, y,					"      Teamplay Triggers", &cl_triggers,0);	y+=8;
+		MC_AddCheckBox(menu,	16, y,					"Force Teamplay Triggers", &tp_forceTriggers,0);	y+=8;
 
 		MC_AddCommand(menu,	16, y,						"                  Apply", M_Apply_Teamplay);	y+=8;
 
@@ -1087,7 +1184,7 @@ void M_Menu_Teamplay_f (void)
 		MC_AddConsoleCommand(menu, 16, y,   			"    Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
 
 	menu->selecteditem = (union menuoption_s *)info->noskinscombo;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
 }
 
 void M_Menu_Teamplay_Locations_f (void)
@@ -1095,6 +1192,7 @@ void M_Menu_Teamplay_Locations_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	extern cvar_t ;
 
 	key_dest = key_menu;
@@ -1107,10 +1205,13 @@ void M_Menu_Teamplay_Locations_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -1118,11 +1219,13 @@ void M_Menu_Teamplay_Locations_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 		//menu->selecteditem = (union menuoption_s *)
 
-		MC_AddRedText(menu, 16, y, 			"    Teamplay Location Names", false); y+=8;
-		MC_AddRedText(menu, 16, y,			"-------------------------------------------------------------------", false); y+=8;
-
+		MC_AddRedText(menu, 16, y, 			"     Teamplay Location Names", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"        Green Armor ", "loc_name_ga"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"    Grenade Launcher", "loc_name_gl"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"       Lightning Gun", "loc_name_lg"); y+=8+4;
@@ -1141,7 +1244,7 @@ void M_Menu_Teamplay_Locations_f (void)
 		y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Options", "menu_teamplay\n"); y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 232, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 232, cursorpositionY, NULL, false);
 }
 
 void M_Menu_Teamplay_Needs_f (void)
@@ -1149,6 +1252,7 @@ void M_Menu_Teamplay_Needs_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	extern cvar_t ;
 
 	key_dest = key_menu;
@@ -1161,10 +1265,13 @@ void M_Menu_Teamplay_Needs_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -1172,11 +1279,13 @@ void M_Menu_Teamplay_Needs_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 		//menu->selecteditem = (union menuoption_s *)
 
-		MC_AddRedText(menu, 16, y, 			"    Teamplay Needed Items", false); y+=8;
-		MC_AddRedText(menu, 16, y,			"-------------------------------------------------------------------", false); y+=8;
-
+		MC_AddRedText(menu, 16, y, 			"     Teamplay Needed Items", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"              Cells", "tp_need_cells"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"        Green Armor", "tp_need_ga"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"             Health", "tp_need_health"); y+=8+4;
@@ -1191,7 +1300,7 @@ void M_Menu_Teamplay_Needs_f (void)
 		y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Options", "menu_teamplay\n"); y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
 }
 
 void M_Menu_Teamplay_Items_f (void)
@@ -1199,6 +1308,7 @@ void M_Menu_Teamplay_Items_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	extern cvar_t ;
 
 	key_dest = key_menu;
@@ -1211,10 +1321,13 @@ void M_Menu_Teamplay_Items_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -1222,11 +1335,13 @@ void M_Menu_Teamplay_Items_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 		//menu->selecteditem = (union menuoption_s *)
 
-		MC_AddRedText(menu, 16, y, 			"    Teamplay Item Names", false); y+=8;
-		MC_AddRedText(menu, 16, y,			"-------------------------------------------------------------------", false); y+=8;
-
+		MC_AddRedText(menu, 16, y, 			"     Teamplay Item Names", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "    -> Teamplay Armor Names", "menu_teamplay_armor\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "    -> Teamplay Weapon Names", "menu_teamplay_weapons\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "    -> Teamplay Powerup Names", "menu_teamplay_powerups\n"); y+=8;
@@ -1237,7 +1352,7 @@ void M_Menu_Teamplay_Items_f (void)
 		y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "    <- Teamplay Options", "menu_teamplay\n"); y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 64, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 64, cursorpositionY, NULL, false);
 }
 
 void M_Menu_Teamplay_Items_Armor_f (void)
@@ -1245,6 +1360,7 @@ void M_Menu_Teamplay_Items_Armor_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	extern cvar_t ;
 
 	key_dest = key_menu;
@@ -1257,10 +1373,13 @@ void M_Menu_Teamplay_Items_Armor_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -1268,11 +1387,13 @@ void M_Menu_Teamplay_Items_Armor_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 		//menu->selecteditem = (union menuoption_s *)
 
-		MC_AddRedText(menu, 16, y, 			"    Teamplay Armor Names", false); y+=8;
-		MC_AddRedText(menu, 16, y,			"-------------------------------------------------------------------", false); y+=8;
-
+		MC_AddRedText(menu, 16, y, 			"     Teamplay Armor Names", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"                  Armor", "tp_name_armor"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"     Armor Type - Green", "tp_name_armortype_ga"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"       Armor Type - Red", "tp_name_armortype_ra"); y+=8+4;
@@ -1284,7 +1405,7 @@ void M_Menu_Teamplay_Items_Armor_f (void)
 		y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 232, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 232, cursorpositionY, NULL, false);
 }
 
 void M_Menu_Teamplay_Items_Weapons_f (void)
@@ -1292,6 +1413,7 @@ void M_Menu_Teamplay_Items_Weapons_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	extern cvar_t ;
 
 	key_dest = key_menu;
@@ -1304,10 +1426,13 @@ void M_Menu_Teamplay_Items_Weapons_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -1315,11 +1440,13 @@ void M_Menu_Teamplay_Items_Weapons_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 		//menu->selecteditem = (union menuoption_s *)
 
-		MC_AddRedText(menu, 16, y, 			"    Teamplay Weapon Names", false); y+=8;
-		MC_AddRedText(menu, 16, y,			"-------------------------------------------------------------------", false); y+=8;
-
+		MC_AddRedText(menu, 16, y, 			"     Teamplay Weapon Names", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"                 Axe", "tp_name_axe"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"    Grenade Launcher", "tp_name_gl"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"       Lightning Gun", "tp_name_lg"); y+=8+4;
@@ -1333,7 +1460,7 @@ void M_Menu_Teamplay_Items_Weapons_f (void)
 		y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
 }
 
 void M_Menu_Teamplay_Items_Powerups_f (void)
@@ -1341,6 +1468,7 @@ void M_Menu_Teamplay_Items_Powerups_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	extern cvar_t ;
 
 	key_dest = key_menu;
@@ -1353,10 +1481,13 @@ void M_Menu_Teamplay_Items_Powerups_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -1364,11 +1495,13 @@ void M_Menu_Teamplay_Items_Powerups_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 		//menu->selecteditem = (union menuoption_s *)
 
-		MC_AddRedText(menu, 16, y, 			"    Teamplay Powerup Names", false); y+=8;
-		MC_AddRedText(menu, 16, y,			"-------------------------------------------------------------------", false); y+=8;
-
+		MC_AddRedText(menu, 16, y, 			"     Teamplay Powerup Names", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"            Pentagram", "tp_name_pent"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"               Pented", "tp_name_pented"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"                 Quad", "tp_name_quad"); y+=8+4;
@@ -1384,7 +1517,7 @@ void M_Menu_Teamplay_Items_Powerups_f (void)
 		y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
 }
 
 void M_Menu_Teamplay_Items_Ammo_Health_f (void)
@@ -1392,6 +1525,7 @@ void M_Menu_Teamplay_Items_Ammo_Health_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	extern cvar_t ;
 
 	key_dest = key_menu;
@@ -1404,10 +1538,13 @@ void M_Menu_Teamplay_Items_Ammo_Health_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -1415,11 +1552,13 @@ void M_Menu_Teamplay_Items_Ammo_Health_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 		//menu->selecteditem = (union menuoption_s *)
 
-		MC_AddRedText(menu, 16, y, 			"    Teamplay Ammo & Health Names", false); y+=8;
-		MC_AddRedText(menu, 16, y,			"-------------------------------------------------------------------", false); y+=8;
-
+		MC_AddRedText(menu, 16, y, 			"     Teamplay Ammo & Health Names", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"           Backpack", "tp_name_backpack"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"              Cells", "tp_name_cells"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"              Nails", "tp_name_nails"); y+=8+4;
@@ -1431,7 +1570,7 @@ void M_Menu_Teamplay_Items_Ammo_Health_f (void)
 		y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
 }
 
 void M_Menu_Teamplay_Items_Team_Fortress_f (void)
@@ -1439,6 +1578,7 @@ void M_Menu_Teamplay_Items_Team_Fortress_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	extern cvar_t ;
 
 	key_dest = key_menu;
@@ -1451,10 +1591,13 @@ void M_Menu_Teamplay_Items_Team_Fortress_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -1462,11 +1605,13 @@ void M_Menu_Teamplay_Items_Team_Fortress_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 		//menu->selecteditem = (union menuoption_s *)
 
-		MC_AddRedText(menu, 16, y, 			"    Teamplay Team Fortress Item Names", false); y+=8;
-		MC_AddRedText(menu, 16, y,			"-------------------------------------------------------------------", false); y+=8;
-
+		MC_AddRedText(menu, 16, y, 			"     Teamplay Team Fortress Item Names", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"         Sentry Gun", "tp_name_sentry"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"          Dispenser", "tp_name_disp"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"               Flag", "tp_name_flag"); y+=8+4;
@@ -1474,7 +1619,7 @@ void M_Menu_Teamplay_Items_Team_Fortress_f (void)
 		y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
 }
 
 void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
@@ -1482,6 +1627,7 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 	int y = 32;
 	menu_t *menu;
 	int mgt;
+	int cursorpositionY;
 	extern cvar_t ;
 
 	key_dest = key_menu;
@@ -1494,10 +1640,13 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
+		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
 	}
 	else
 	{
@@ -1505,11 +1654,13 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
 	}
 
+	cursorpositionY = (y + 24);
+
 		//menu->selecteditem = (union menuoption_s *)
 
-		MC_AddRedText(menu, 16, y, 			"    Teamplay Status, Location & Misc. Names", false); y+=8;
-		MC_AddRedText(menu, 16, y,			"-------------------------------------------------------------------", false); y+=8;
-
+		MC_AddRedText(menu, 16, y, 			"     Teamplay Status, Location & Misc. Names", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"      At (Location)", "tp_name_at"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"              Enemy", "tp_name_enemy"); y+=8+4;
 		y+=4;MC_AddEditCvar(menu, 16, y,	"               None", "tp_name_none"); y+=8+4;
@@ -1525,5 +1676,5 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 		y+=8;
 		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
 }

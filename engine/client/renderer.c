@@ -1247,6 +1247,8 @@ void M_Menu_Video_f (void)
 	extern cvar_t _vid_wait_override;
 
 	int i, y;
+	int mgt;
+	int cursorpositionY;
 	prefabmode = -1;
 	prefab2dmode = -1;
 	for (i = 0; i < sizeof(vid_modes)/sizeof(vidmode_t); i++)
@@ -1345,25 +1347,46 @@ void M_Menu_Video_f (void)
 
 	sprintf(colordepth,"%sbit", vid_bpp.string);
 
-	MC_AddCenterPicture(menu, 4, "vidmodes");
+	mgt = M_GameType();
 
-	y = 32;
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y = 0;
+		cursorpositionY = 120;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title7.lmp");
+		y = 25;
+		cursorpositionY = 145;
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+		y = 0;
+		cursorpositionY = 120;
+	}
 
-	MC_AddRedText(menu, 0, y, 								"    Current Renderer", false);
-	MC_AddRedText(menu, 180, y, 						        rendererstring, false); y+=8;
-	MC_AddRedText(menu, 0, y, 							    " Current Color Depth", false);
-	MC_AddRedText(menu, 180, y, 						 		colordepth, false); y+=8;
-	MC_AddRedText(menu, 0, y, 								"      Current 3D Res", false);
-	MC_AddRedText(menu, 180, y, 							  	  current3dres, false); y+=8;
-	MC_AddRedText(menu, 0, y, 								"      Current 3D A/R", false);
-	MC_AddRedText(menu, 180, y, 								aspectratio23d, false); y+=8;
-	MC_AddRedText(menu, 0, y, 								"      Current 2D Res", false);
-	MC_AddRedText(menu, 180, y, 								  current2dres, false); y+=8;
-	MC_AddRedText(menu, 0, y, 								"      Current 2D A/R", false);
-	MC_AddRedText(menu, 180, y, 								aspectratio22d, false); y+=8;
-	MC_AddRedText(menu, 0, y, 								"Current Refresh Rate", false);
-	MC_AddRedText(menu, 180, y, 								currenthz, false); y+=8;
-	MC_AddRedText(menu, 0, y,								"---------------------------------------------", false); y+=8;
+	y += 40;
+	MC_AddRedText(menu, 0, y, 								"           Current Renderer", false);
+	MC_AddRedText(menu, 225, y, 						        rendererstring, false); y+=8;
+	MC_AddRedText(menu, 0, y, 							    "        Current Color Depth", false);
+	MC_AddRedText(menu, 225, y, 						 		colordepth, false); y+=8;
+	MC_AddRedText(menu, 0, y, 								"             Current 3D Res", false);
+	MC_AddRedText(menu, 225, y, 							  	  current3dres, false); y+=8;
+	MC_AddRedText(menu, 0, y, 								"             Current 3D A/R", false);
+	MC_AddRedText(menu, 225, y, 								aspectratio23d, false); y+=8;
+	MC_AddRedText(menu, 0, y, 								"             Current 2D Res", false);
+	MC_AddRedText(menu, 225, y, 								  current2dres, false); y+=8;
+	MC_AddRedText(menu, 0, y, 								"             Current 2D A/R", false);
+	MC_AddRedText(menu, 225, y, 								aspectratio22d, false); y+=8;
+	MC_AddRedText(menu, 0, y, 								"       Current Refresh Rate", false);
+	MC_AddRedText(menu, 225, y, 								currenthz, false); y+=8;
+ 	y+=8;
+	MC_AddRedText(menu, 0, y,								"      €‚ ", false); y+=8;
 	y+=8;
 	info->renderer = MC_AddCombo(menu,	16, y,				"         Renderer", rendererops, i);	y+=8;
 	info->bppcombo = MC_AddCombo(menu,	16, y,				"      Color Depth", bppnames, currentbpp); y+=8;
@@ -1377,6 +1400,7 @@ void M_Menu_Video_f (void)
 	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"    Custom height", vid_height.string);	y+=12;
 	info->vsynccombo = MC_AddCombo(menu,	16, y,			"            VSync", vsyncoptions, currentvsync); y+=8;
 	//MC_AddCheckBox(menu,	16, y,							"   Override VSync", &_vid_wait_override,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							" Desktop Settings", &vid_desktopsettings,0);	y+=8;
 	y+=8;
 	MC_AddCommand(menu,	16, y,								"= Apply Changes =", M_VideoApply);	y+=8;
 	y+=8;
@@ -1392,7 +1416,7 @@ void M_Menu_Video_f (void)
 	MC_AddCheckBox(menu,	16, y,							"      Allow ModeX", &vid_allow_modex,0);	y+=8;
 	MC_AddCheckBox(menu,	16, y,							"   Windowed Mouse", &_windowed_mouse,0);	y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, cursorpositionY, NULL, false);
 	menu->selecteditem = (union menuoption_s *)info->renderer;
 	menu->event = CheckCustomMode;
 }

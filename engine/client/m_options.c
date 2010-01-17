@@ -1148,13 +1148,13 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,
 	switch(info->loadlitcombo->selectedoption)
 	{
 	case 0:
-		Cbuf_AddText("gl_loadlit 0\n", RESTRICT_LOCAL);
+		Cbuf_AddText("r_loadlit 0\n", RESTRICT_LOCAL);
 		break;
 	case 1:
-		Cbuf_AddText("gl_loadlit 1\n", RESTRICT_LOCAL);
+		Cbuf_AddText("r_loadlit 1\n", RESTRICT_LOCAL);
 		break;
 	case 2:
-		Cbuf_AddText("gl_loadlit 2\n", RESTRICT_LOCAL);
+		Cbuf_AddText("r_loadlit 2\n", RESTRICT_LOCAL);
 		break;
 	}
 

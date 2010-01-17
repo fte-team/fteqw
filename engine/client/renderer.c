@@ -186,7 +186,7 @@ static cvar_t vid_fullscreen				= SCVARF ("vid_fullscreen", "1",
 #endif
 cvar_t vid_height							= SCVARF ("vid_height", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-static cvar_t vid_multisample				= SCVARF ("vid_multisample", "0",
+cvar_t vid_multisample						= SCVARF ("vid_multisample", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 static cvar_t vid_refreshrate				= SCVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);

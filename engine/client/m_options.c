@@ -563,28 +563,52 @@ typedef struct {
 qboolean M_VideoApply3D (union menuoption_s *op,struct menu_s *menu,int key)
 {
 	threeDmenuinfo_t *info = menu->data;
+	int currentmsaalevel;
+	extern cvar_t vid_multisample;
 
 	if (key != K_ENTER)
 		return false;
 
-	switch(info->multisamplingcombo->selectedoption)
+	if (vid_multisample.value == 8)
+		currentmsaalevel = 4;
+	else if (vid_multisample.value == 6)
+		currentmsaalevel = 3;
+	else if (vid_multisample.value == 4)
+		currentmsaalevel = 2;
+	else if (vid_multisample.value == 2)
+		currentmsaalevel = 1;
+	else if (vid_multisample.value <= 1)
+		currentmsaalevel = 0;
+	else
+		currentmsaalevel = 0;
+
+	if (info->multisamplingcombo->selectedoption != currentmsaalevel) // if MSAA doesn't change, don't bother applying it when the video system is restarted
 	{
-	case 0:
-		Cbuf_AddText("vid_multisample 0\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText("vid_multisample 2\n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("vid_multisample 4\n", RESTRICT_LOCAL);
-		break;
-	case 3:
-		Cbuf_AddText("vid_multisample 6\n", RESTRICT_LOCAL);
-		break;
-	case 4:
-		Cbuf_AddText("vid_multisample 8\n", RESTRICT_LOCAL);
-		break;
+		switch(info->multisamplingcombo->selectedoption)
+		{
+		case 0:
+			Cbuf_AddText("vid_multisample 0\n", RESTRICT_LOCAL);
+			break;
+		case 1:
+			Cbuf_AddText("vid_multisample 2\n", RESTRICT_LOCAL);
+			break;
+		case 2:
+			Cbuf_AddText("vid_multisample 4\n", RESTRICT_LOCAL);
+			break;
+		case 3:
+			Cbuf_AddText("vid_multisample 6\n", RESTRICT_LOCAL);
+			break;
+		case 4:
+			Cbuf_AddText("vid_multisample 8\n", RESTRICT_LOCAL);
+			break;
+		}
 	}
+	#ifdef _DEBUG
+	else
+	{
+		Con_Printf("MSAA: Selected option matches current CVAR value (%d & %d), no change made.\n",info->multisamplingcombo->selectedoption, currentmsaalevel);
+	}
+	#endif
 
 	Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
 
@@ -611,12 +635,11 @@ void M_Menu_3D_f (void)
 	menu_t *menu;
 	int mgt;
 	int cursorpositionY;
-	//int currentmsaalevel;
+	int currentmsaalevel;
 #ifndef MINIMAL
 	extern cvar_t gl_shadeq1, gl_shadeq3, r_xflip;
 #endif
-	extern cvar_t r_novis, gl_dither, cl_item_bobbing, r_waterwarp, r_nolerp, r_fastsky, gl_nocolors, gl_lerpimages, gl_keeptjunctions, gl_lateswap, r_mirroralpha, r_wateralpha, r_drawviewmodel, gl_maxdist, gl_motionblur, gl_motionblurscale, gl_blend2d, gl_blendsprites, r_flashblend, gl_cshiftenabled;
-	//static extern cvar_t vid_multisample;
+	extern cvar_t r_novis, gl_dither, cl_item_bobbing, r_waterwarp, r_nolerp, r_fastsky, gl_nocolors, gl_lerpimages, gl_keeptjunctions, gl_lateswap, r_mirroralpha, r_wateralpha, r_drawviewmodel, gl_maxdist, gl_motionblur, gl_motionblurscale, gl_blend2d, gl_blendsprites, r_flashblend, gl_cshiftenabled, vid_multisample;
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -645,7 +668,7 @@ void M_Menu_3D_f (void)
 
 	cursorpositionY = (y + 24);
 
-	/*if (vid_multisample.value == 8)
+	if (vid_multisample.value == 8)
 		currentmsaalevel = 4;
 	else if (vid_multisample.value == 6)
 		currentmsaalevel = 3;
@@ -656,7 +679,7 @@ void M_Menu_3D_f (void)
 	else if (vid_multisample.value <= 1)
 		currentmsaalevel = 0;
 	else
-		currentmsaalevel = 0;*/
+		currentmsaalevel = 0;
 
 	menu->selecteditem = (union menuoption_s *)
 
@@ -664,7 +687,6 @@ void M_Menu_3D_f (void)
 		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
 		y+=8;
 
-		//info->multisamplingcombo = MC_AddCombo(menu, 16, y,		" Multisample Anti-Aliasing", msaalevels, currentmsaalevel); y+=8;
 		MC_AddCheckBox(menu,	16, y,							"             Calculate VIS", &r_novis,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"                Water Warp", &r_waterwarp,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"      Model Interpollation", &r_nolerp,0);	y+=8;
@@ -692,6 +714,7 @@ void M_Menu_3D_f (void)
 		MC_AddCheckBox(menu,	16, y,							"             Poly Blending", &gl_cshiftenabled,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"     16bit Color Dithering", &gl_dither,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"             Model Bobbing", &cl_item_bobbing,0);	y+=8;
+		info->multisamplingcombo = MC_AddCombo(menu, 16, y,		" Multisample Anti-Aliasing", msaalevels, currentmsaalevel); y+=8;
 		y+=8;
 		MC_AddCommand(menu,	16, y,								"           Apply", M_VideoApply3D);	y+=8;
 
@@ -703,11 +726,19 @@ typedef struct {
 	menucombo_t *texturefiltercombo;
 	menucombo_t *anisotropycombo;
 	menucombo_t *maxtexturesizecombo;
+	menucombo_t *bloomsamplesizecombo;
+	menucombo_t *bloomdiamondcombo;
 } texturemenuinfo_t;
 
 qboolean M_VideoApplyTextures (union menuoption_s *op,struct menu_s *menu,int key)
 {
 	texturemenuinfo_t *info = menu->data;
+	int currentbloomdiamond;
+	int currentbloomsamplesize;
+
+#ifndef MINIMAL
+	extern cvar_t r_bloom_sample_size, r_bloom_diamond_size;
+#endif
 
 	if (key != K_ENTER)
 		return false;
@@ -747,48 +778,125 @@ qboolean M_VideoApplyTextures (union menuoption_s *op,struct menu_s *menu,int ke
 	switch(info->maxtexturesizecombo->selectedoption)
 	{
 	case 0:
-		Cbuf_AddText("gl_max_size 1\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText("gl_max_size 2\n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("gl_max_size 4\n", RESTRICT_LOCAL);
-		break;
-	case 3:
-		Cbuf_AddText("gl_max_size 8\n", RESTRICT_LOCAL);
-		break;
-	case 4:
-		Cbuf_AddText("gl_max_size 16\n", RESTRICT_LOCAL);
-		break;
-	case 5:
-		Cbuf_AddText("gl_max_size 32\n", RESTRICT_LOCAL);
-		break;
-	case 6:
-		Cbuf_AddText("gl_max_size 64\n", RESTRICT_LOCAL);
-		break;
-	case 7:
 		Cbuf_AddText("gl_max_size 128\n", RESTRICT_LOCAL);
 		break;
-	case 8:
+	case 1:
+		Cbuf_AddText("gl_max_size 196\n", RESTRICT_LOCAL);
+		break;
+	case 2:
 		Cbuf_AddText("gl_max_size 256\n", RESTRICT_LOCAL);
 		break;
-	case 9:
+	case 3:
+		Cbuf_AddText("gl_max_size 384\n", RESTRICT_LOCAL);
+		break;
+	case 4:
 		Cbuf_AddText("gl_max_size 512\n", RESTRICT_LOCAL);
 		break;
-	case 10:
+	case 5:
+		Cbuf_AddText("gl_max_size 768\n", RESTRICT_LOCAL);
+		break;
+	case 6:
 		Cbuf_AddText("gl_max_size 1024\n", RESTRICT_LOCAL);
 		break;
-	case 11:
+	case 7:
 		Cbuf_AddText("gl_max_size 2048\n", RESTRICT_LOCAL);
 		break;
-	case 12:
+	case 8:
 		Cbuf_AddText("gl_max_size 4096\n", RESTRICT_LOCAL);
 		break;
-	case 13:
+	case 9:
 		Cbuf_AddText("gl_max_size 8192\n", RESTRICT_LOCAL);
 		break;
 	}
+
+#ifndef MINIMAL
+	if (r_bloom_sample_size.value >= 512)
+		currentbloomsamplesize = 7;
+	else if (r_bloom_sample_size.value == 384)
+		currentbloomsamplesize = 6;
+	else if (r_bloom_sample_size.value == 256)
+		currentbloomsamplesize = 5;
+	else if (r_bloom_sample_size.value == 192)
+		currentbloomsamplesize = 4;
+	else if (r_bloom_sample_size.value == 128)
+		currentbloomsamplesize = 3;
+	else if (r_bloom_sample_size.value == 96)
+		currentbloomsamplesize = 2;
+	else if (r_bloom_sample_size.value == 64)
+		currentbloomsamplesize = 1;
+	else if (r_bloom_sample_size.value <= 32)
+		currentbloomsamplesize = 0;
+	else
+		currentbloomsamplesize = 0;
+
+	if (info->bloomsamplesizecombo->selectedoption != currentbloomsamplesize)
+	{
+		switch(info->bloomsamplesizecombo->selectedoption)
+		{
+		case 0:
+			Cbuf_AddText("r_bloom_sample_size 32\n", RESTRICT_LOCAL);
+			break;
+		case 1:
+			Cbuf_AddText("r_bloom_sample_size 64\n", RESTRICT_LOCAL);
+			break;
+		case 2:
+			Cbuf_AddText("r_bloom_sample_size 96\n", RESTRICT_LOCAL);
+			break;
+		case 3:
+			Cbuf_AddText("r_bloom_sample_size 128\n", RESTRICT_LOCAL);
+			break;
+		case 4:
+			Cbuf_AddText("r_bloom_sample_size 192\n", RESTRICT_LOCAL);
+			break;
+		case 5:
+			Cbuf_AddText("r_bloom_sample_size 256\n", RESTRICT_LOCAL);
+			break;
+		case 6:
+			Cbuf_AddText("r_bloom_sample_size 384\n", RESTRICT_LOCAL);
+			break;
+		case 7:
+			Cbuf_AddText("r_bloom_sample_size 512\n", RESTRICT_LOCAL);
+			break;
+		}
+	}
+	#ifdef _DEBUG
+	else
+	{
+		Con_Printf("Bloom Sample Size: Selected option matches current CVAR value (%d & %d), no change made.\n",info->bloomsamplesizecombo->selectedoption, currentbloomsamplesize);
+	}
+	#endif
+
+	if (r_bloom_diamond_size.value >= 8)
+		currentbloomdiamond = 2;
+	else if (r_bloom_diamond_size.value == 6)
+		currentbloomdiamond = 1;
+	else if (r_bloom_diamond_size.value <= 4)
+		currentbloomdiamond = 0;
+	else
+		currentbloomdiamond = 0;
+
+	if (info->bloomdiamondcombo->selectedoption != currentbloomdiamond)
+	{
+		switch(info->bloomdiamondcombo->selectedoption)
+		{
+		case 0:
+			Cbuf_AddText("r_bloom_diamond_size 4\n", RESTRICT_LOCAL);
+			break;
+		case 1:
+			Cbuf_AddText("r_bloom_diamond_size 6\n", RESTRICT_LOCAL);
+			break;
+		case 2:
+			Cbuf_AddText("r_bloom_diamond_size 8\n", RESTRICT_LOCAL);
+			break;
+		}
+	}
+	#ifdef _DEBUG
+	else
+	{
+		Con_Printf("Bloom Diamond Size: Selected option matches current CVAR value (%d & %d), no change made.\n",info->bloomdiamondcombo->selectedoption, currentbloomdiamond);
+	}
+	#endif
+#endif
 
 	Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
 
@@ -819,20 +927,45 @@ void M_Menu_Textures_f (void)
 
 	static const char *texturesizeoptions[] =
 	{
-		"1x1",
-		"2x2",
-		"4x4",
-		"8x8",
-		"16x16",
-		"32x32",
-		"64x64",
+		// uncommented out the unreadable console text ones
+		//"1x1",
+		//"2x2",
+		//"4x4",
+		//"8x8",
+		//"16x16",
+		//"32x32",
+		//"64x64",
 		"128x128",
+		"196x196",
 		"256x256",
+		"384x384",
 		"512x512",
+		"768x768",
 		"1024x1024",
 		"2048x2048",
 		"4096x4096",
 		"8192x8192",
+		NULL
+	};
+
+	static const char *bloomsamplesizeoptions[] =
+	{
+		"32x32",
+		"64x64",
+		"96x96",
+		"128x128",
+		"192x192",
+		"256x256",
+		"384x384",
+		"512x512",
+		NULL
+	};
+
+	static const char *bloomdiamondoptions[] =
+	{
+		"4x",
+		"6x",
+		"8x",
 		NULL
 	};
 
@@ -844,8 +977,13 @@ void M_Menu_Textures_f (void)
 	int currenttexturefilter;
 	int currentanisotropylevel;
 	int currentmaxtexturesize;
-	extern cvar_t r_bloom, gl_load24bit, gl_specular, gl_fontinwardstep, gl_smoothfont, r_waterlayers, gl_bump, gl_detail, gl_detailscale, gl_compress, gl_savecompressedtex, gl_ztrick, gl_triplebuffer, gl_picmip, gl_picmip2d, gl_playermip, gl_max_size, r_stains, r_bloodstains, r_stainfadetime, r_stainfadeammount, gl_skyboxdist, r_drawflat, gl_schematics, gl_texturemode, gl_texture_anisotropic_filtering;
+	int currentbloomsamplesize;
+	int currentbloomdiamond;
 
+#ifndef MINIMAL
+	extern cvar_t r_bloom_sample_size, r_bloom_darken, r_bloom_intensity, r_bloom_diamond_size, r_bloom_alpha, r_bloom_fast_sample;
+#endif
+	extern cvar_t r_bloom, gl_load24bit, gl_specular, gl_fontinwardstep, gl_smoothfont, r_waterlayers, gl_bump, gl_detail, gl_detailscale, gl_compress, gl_savecompressedtex, gl_ztrick, gl_triplebuffer, gl_picmip, gl_picmip2d, gl_playermip, gl_max_size, r_stains, r_bloodstains, r_stainfadetime, r_stainfadeammount, gl_skyboxdist, r_drawflat, gl_schematics, gl_texturemode, gl_texture_anisotropic_filtering;
 	key_dest = key_menu;
 	m_state = m_complex;
 
@@ -873,6 +1011,38 @@ void M_Menu_Textures_f (void)
 
 	cursorpositionY = (y + 24);
 
+#ifndef MINIMAL
+
+	if (r_bloom_sample_size.value >= 512)
+		currentbloomsamplesize = 7;
+	else if (r_bloom_sample_size.value == 384)
+		currentbloomsamplesize = 6;
+	else if (r_bloom_sample_size.value == 256)
+		currentbloomsamplesize = 5;
+	else if (r_bloom_sample_size.value == 192)
+		currentbloomsamplesize = 4;
+	else if (r_bloom_sample_size.value == 128)
+		currentbloomsamplesize = 3;
+	else if (r_bloom_sample_size.value == 96)
+		currentbloomsamplesize = 2;
+	else if (r_bloom_sample_size.value == 64)
+		currentbloomsamplesize = 1;
+	else if (r_bloom_sample_size.value <= 32)
+		currentbloomsamplesize = 0;
+	else
+		currentbloomsamplesize = 0;
+
+	if (r_bloom_diamond_size.value >= 8)
+		currentbloomdiamond = 2;
+	else if (r_bloom_diamond_size.value == 6)
+		currentbloomdiamond = 1;
+	else if (r_bloom_diamond_size.value <= 4)
+		currentbloomdiamond = 0;
+	else
+		currentbloomdiamond = 0;
+
+#endif
+
 	if (!Q_strcasecmp(gl_texturemode.string, "gl_nearest_mipmap_nearest"))
 		currenttexturefilter = 0;
 	else if (!Q_strcasecmp(gl_texturemode.string, "gl_linear_mipmap_linear"))
@@ -882,7 +1052,7 @@ void M_Menu_Textures_f (void)
 	else
 		currenttexturefilter = 1;
 
-	if (gl_texture_anisotropic_filtering.value == 16)
+	if (gl_texture_anisotropic_filtering.value >= 16)
 		currentanisotropylevel = 4;
 	else if (gl_texture_anisotropic_filtering.value == 8)
 		currentanisotropylevel = 3;
@@ -895,37 +1065,28 @@ void M_Menu_Textures_f (void)
 	else
 		currentanisotropylevel = 0;
 
-	if (gl_max_size.value == 8192)
-		currentmaxtexturesize = 13;
-	else if (gl_max_size.value == 4096)
-		currentmaxtexturesize = 12;
-	else if (gl_max_size.value == 2048)
-		currentmaxtexturesize = 11;
-	else if (gl_max_size.value == 1024)
-		currentmaxtexturesize = 10;
-	else if (gl_max_size.value == 512)
+	if (gl_max_size.value >= 8192)
 		currentmaxtexturesize = 9;
-	else if (gl_max_size.value == 256)
+	else if (gl_max_size.value == 4096)
 		currentmaxtexturesize = 8;
-	else if (gl_max_size.value == 128)
+	else if (gl_max_size.value == 2048)
 		currentmaxtexturesize = 7;
-	else if (gl_max_size.value == 64)
+	else if (gl_max_size.value == 1024)
 		currentmaxtexturesize = 6;
-	else if (gl_max_size.value == 32)
+	else if (gl_max_size.value == 768)
 		currentmaxtexturesize = 5;
-	else if (gl_max_size.value == 16)
+	else if (gl_max_size.value == 512)
 		currentmaxtexturesize = 4;
-	else if (gl_max_size.value == 8)
+	else if (gl_max_size.value == 384)
 		currentmaxtexturesize = 3;
-	else if (gl_max_size.value == 4)
+	else if (gl_max_size.value == 256)
 		currentmaxtexturesize = 2;
-	else if (gl_max_size.value == 2)
+	else if (gl_max_size.value == 196)
 		currentmaxtexturesize = 1;
-	else if (gl_max_size.value <= 1)
+	else if (gl_max_size.value <= 128)
 		currentmaxtexturesize = 0;
 	else
 		currentmaxtexturesize = 0;
-
 
 		MC_AddRedText(menu, 16, y, 			"     Texturing Options", false); y+=8;
 		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
@@ -935,6 +1096,14 @@ void M_Menu_Textures_f (void)
 		info->anisotropycombo =	MC_AddCombo(menu, 16, y,    "        Anisotropy Level", anisotropylevels, currentanisotropylevel); y+=8;
 		MC_AddCheckBox(menu,	16, y,						"          32bit Textures", &gl_load24bit,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"                   Bloom", &r_bloom,0);	y+=8;
+#ifndef MINIMAL
+		MC_AddCheckBox(menu,	16, y,						"       Bloom Fast Sample", &r_bloom_fast_sample,0);	y+=8;
+		info->bloomsamplesizecombo = MC_AddCombo(menu,16, y,"       Bloom Sample Size", bloomsamplesizeoptions, currentbloomsamplesize);	y+=8;
+		MC_AddSlider(menu,	16, y,							"            Bloom Darken", &r_bloom_darken,0,5,0.25);	y+=8;
+		MC_AddSlider(menu,	16, y,							"         Bloom Intensity", &r_bloom_intensity,0,20,1);	y+=8;
+		info->bloomdiamondcombo = MC_AddCombo(menu,16, y,	"      Bloom Diamond Size", bloomdiamondoptions, currentbloomdiamond);	y+=8;
+		MC_AddSlider(menu,	16, y,							"             Bloom Alpha", &r_bloom_alpha,0,1,0.1);	y+=8;
+#endif
 		MC_AddCheckBox(menu,	16, y,						"             Bumpmapping", &gl_bump,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"     Specular Highlights", &gl_specular,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"          Texture Detail", &gl_detail,0);	y+=8;

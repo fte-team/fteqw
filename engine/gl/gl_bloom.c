@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -29,45 +29,45 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern vrect_t gl_truescreenrect;
 
-/* 
-============================================================================== 
- 
-						LIGHT BLOOMS
- 
-============================================================================== 
-*/ 
+/*
+==============================================================================
 
-static float Diamond8x[8][8] = { 
-	{0.0f, 0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f}, 
-	{0.0f, 0.0f, 0.2f, 0.3f, 0.3f, 0.2f, 0.0f, 0.0f}, 
-	{0.0f, 0.2f, 0.4f, 0.6f, 0.6f, 0.4f, 0.2f, 0.0f}, 
-	{0.1f, 0.3f, 0.6f, 0.9f, 0.9f, 0.6f, 0.3f, 0.1f}, 
-	{0.1f, 0.3f, 0.6f, 0.9f, 0.9f, 0.6f, 0.3f, 0.1f}, 
-	{0.0f, 0.2f, 0.4f, 0.6f, 0.6f, 0.4f, 0.2f, 0.0f}, 
-	{0.0f, 0.0f, 0.2f, 0.3f, 0.3f, 0.2f, 0.0f, 0.0f}, 
+						LIGHT BLOOMS
+
+==============================================================================
+*/
+
+static float Diamond8x[8][8] = {
+	{0.0f, 0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f},
+	{0.0f, 0.0f, 0.2f, 0.3f, 0.3f, 0.2f, 0.0f, 0.0f},
+	{0.0f, 0.2f, 0.4f, 0.6f, 0.6f, 0.4f, 0.2f, 0.0f},
+	{0.1f, 0.3f, 0.6f, 0.9f, 0.9f, 0.6f, 0.3f, 0.1f},
+	{0.1f, 0.3f, 0.6f, 0.9f, 0.9f, 0.6f, 0.3f, 0.1f},
+	{0.0f, 0.2f, 0.4f, 0.6f, 0.6f, 0.4f, 0.2f, 0.0f},
+	{0.0f, 0.0f, 0.2f, 0.3f, 0.3f, 0.2f, 0.0f, 0.0f},
 	{0.0f, 0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f} };
 
-static float Diamond6x[6][6] = { 
-	{0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f}, 
-	{0.0f, 0.3f, 0.5f, 0.5f, 0.3f, 0.0f},  
-	{0.1f, 0.5f, 0.9f, 0.9f, 0.5f, 0.1f}, 
-	{0.1f, 0.5f, 0.9f, 0.9f, 0.5f, 0.1f}, 
-	{0.0f, 0.3f, 0.5f, 0.5f, 0.3f, 0.0f}, 
+static float Diamond6x[6][6] = {
+	{0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f},
+	{0.0f, 0.3f, 0.5f, 0.5f, 0.3f, 0.0f},
+	{0.1f, 0.5f, 0.9f, 0.9f, 0.5f, 0.1f},
+	{0.1f, 0.5f, 0.9f, 0.9f, 0.5f, 0.1f},
+	{0.0f, 0.3f, 0.5f, 0.5f, 0.3f, 0.0f},
 	{0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f} };
 
-static float Diamond4x[4][4] = {  
-	{0.3f, 0.4f, 0.4f, 0.3f},  
-	{0.4f, 0.9f, 0.9f, 0.4f}, 
-	{0.4f, 0.9f, 0.9f, 0.4f}, 
+static float Diamond4x[4][4] = {
+	{0.3f, 0.4f, 0.4f, 0.3f},
+	{0.4f, 0.9f, 0.9f, 0.4f},
+	{0.4f, 0.9f, 0.9f, 0.4f},
 	{0.3f, 0.4f, 0.4f, 0.3f} };
 
        cvar_t		r_bloom = FCVAR("r_bloom", "gl_bloom", "0", CVAR_ARCHIVE);
-static cvar_t		r_bloom_alpha = SCVAR("r_bloom_alpha", "0.5");
-static cvar_t		r_bloom_diamond_size = SCVAR("r_bloom_diamond_size", "8");
-static cvar_t		r_bloom_intensity = SCVAR("r_bloom_intensity", "1");
-static cvar_t		r_bloom_darken = SCVAR("r_bloom_darken", "3");
-static cvar_t		r_bloom_sample_size = SCVARF("r_bloom_sample_size", "256", CVAR_RENDERERLATCH);
-static cvar_t		r_bloom_fast_sample = SCVARF("r_bloom_fast_sample", "0", CVAR_RENDERERLATCH);
+       cvar_t		r_bloom_alpha = SCVAR("r_bloom_alpha", "0.5");
+	   cvar_t		r_bloom_diamond_size = SCVAR("r_bloom_diamond_size", "8");
+       cvar_t		r_bloom_intensity = SCVAR("r_bloom_intensity", "1");
+	   cvar_t		r_bloom_darken = SCVAR("r_bloom_darken", "3");
+	   cvar_t		r_bloom_sample_size = SCVARF("r_bloom_sample_size", "256", CVAR_RENDERERLATCH);
+       cvar_t		r_bloom_fast_sample = SCVARF("r_bloom_fast_sample", "0", CVAR_RENDERERLATCH);
 
 typedef struct {
 	//texture numbers
@@ -139,12 +139,12 @@ R_Bloom_InitBackUpTexture
 void R_Bloom_InitBackUpTexture(int widthheight)
 {
 	qbyte	*data;
-	
+
 	data = Z_Malloc(widthheight * widthheight * 4);
 
 	bs.size_backup = widthheight;
 	bs.tx_backup = GL_LoadTexture32("***bs.tx_backup***", bs.size_backup, bs.size_backup, (unsigned int*)data, false, false);
-	
+
 	Z_Free (data);
 }
 
@@ -157,7 +157,7 @@ void R_Bloom_InitEffectTexture(void)
 {
 	qbyte	*data;
 	float	bloomsizecheck;
-	
+
 	if (r_bloom_sample_size.value < 32)
 		Cvar_SetValue (&r_bloom_sample_size, 32);
 
@@ -183,7 +183,7 @@ void R_Bloom_InitEffectTexture(void)
 	data = Z_Malloc(bs.size_sample * bs.size_sample * 4);
 
 	bs.tx_effect = GL_LoadTexture32("***bs.tx_effect***", bs.size_sample, bs.size_sample, (unsigned int*)data, false, false);
-	
+
 	Z_Free (data);
 }
 
@@ -198,7 +198,7 @@ void R_Bloom_InitTextures(void)
 	int		size;
 	int maxtexsize;
 
-	//find closer power of 2 to screen size 
+	//find closer power of 2 to screen size
 	for (bs.scr_w = 1;bs.scr_w < glwidth;bs.scr_w *= 2);
 	for (bs.scr_h = 1;bs.scr_h < glheight;bs.scr_h *= 2);
 
@@ -286,7 +286,7 @@ void R_Bloom_DrawEffect(void)
 	qglBlendFunc(GL_ONE, GL_ONE);
 	qglColor4f(r_bloom_alpha.value, r_bloom_alpha.value, r_bloom_alpha.value, 1.0f);
 	GL_TexEnv(GL_MODULATE);
-	qglBegin(GL_QUADS);							
+	qglBegin(GL_QUADS);
 	qglTexCoord2f	(0,					bs.smp_t);
 	qglVertex2f		(bs.vp_x,			bs.vp_y);
 	qglTexCoord2f	(0,					0);
@@ -296,7 +296,7 @@ void R_Bloom_DrawEffect(void)
 	qglTexCoord2f	(bs.smp_s,			bs.smp_t);
 	qglVertex2f		(bs.vp_x + bs.vp_w,	bs.vp_y);
 	qglEnd();
-	
+
 	qglDisable(GL_BLEND);
 }
 
@@ -337,7 +337,7 @@ void R_Bloom_GeneratexCross(void)
 	{
 		qglBlendFunc(GL_DST_COLOR, GL_ZERO);
 		GL_TexEnv(GL_MODULATE);
-		
+
 		for(i=0; i<r_bloom_darken->integer ;i++) {
 			R_Bloom_SamplePass( 0, 0 );
 		}
@@ -346,7 +346,7 @@ void R_Bloom_GeneratexCross(void)
 
 	//bluring passes
 	if( BLOOM_BLUR_RADIUS ) {
-		
+
 		qglBlendFunc(GL_ONE, GL_ONE);
 
 		range = (float)BLOOM_BLUR_RADIUS;
@@ -381,7 +381,7 @@ void R_Bloom_GeneratexCross(void)
 
 		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, bs.smp_w, bs.smp_h);
 	}
-	
+
 	//restore full screen workspace
 	qglViewport( 0, 0, glState.width, glState.height );
 	qglMatrixMode( GL_PROJECTION );
@@ -424,7 +424,7 @@ void R_Bloom_GeneratexDiamonds(void)
 	{
 		qglBlendFunc(GL_DST_COLOR, GL_ZERO);
 		GL_TexEnv(GL_MODULATE);
-		
+
 		for (i=0; i<r_bloom_darken.value ;i++)
 		{
 			R_Bloom_SamplePass(0, 0);
@@ -435,7 +435,7 @@ void R_Bloom_GeneratexDiamonds(void)
 	//bluring passes
 	//qglBlendFunc(GL_ONE, GL_ONE);
 	qglBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_COLOR);
-	
+
 	if (r_bloom_diamond_size.value > 7 || r_bloom_diamond_size.value <= 3)
 	{
 		if (r_bloom_diamond_size.value != 8)
@@ -487,7 +487,7 @@ void R_Bloom_GeneratexDiamonds(void)
 			}
 		}
 	}
-	
+
 	qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, bs.smp_w, bs.smp_h);
 
 	//restore full screen workspace
@@ -497,7 +497,7 @@ void R_Bloom_GeneratexDiamonds(void)
 	qglOrtho(0, glwidth, glheight, 0, -10, 100);
 	qglMatrixMode(GL_MODELVIEW);
     qglLoadIdentity ();
-}											
+}
 
 /*
 =================
@@ -514,7 +514,7 @@ void R_Bloom_DownsampleView( void )
 	{
 		int		midsample_width = bs.size_downsample * bs.smp_s;
 		int		midsample_height = bs.size_downsample * bs.smp_t;
-		
+
 		//copy the screen and draw resized
 		GL_Bind(bs.tx_screen);
 		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bs.vp_x, glheight - (bs.vp_y + bs.vp_h), bs.vp_w, bs.vp_h);
@@ -605,7 +605,7 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 
 	buw = bs.size_downsample * bs.smp_s;
 	buh = bs.size_downsample * bs.smp_t;
-	
+
 	//copy the screen space we'll use to work into the backup texture
 	GL_Bind(bs.tx_backup);
 	qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, buw, buh);
@@ -620,7 +620,7 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 	qglDisable(GL_BLEND);
 	GL_Bind(bs.tx_backup);
 	qglColor4f(1, 1, 1, 1);
-	R_Bloom_Quad(0, 
+	R_Bloom_Quad(0,
 		glheight - (buh),
 		buw,
 		buh,

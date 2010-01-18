@@ -37,37 +37,13 @@ extern vrect_t gl_truescreenrect;
 ==============================================================================
 */
 
-static float Diamond8x[8][8] = {
-	{0.0f, 0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f},
-	{0.0f, 0.0f, 0.2f, 0.3f, 0.3f, 0.2f, 0.0f, 0.0f},
-	{0.0f, 0.2f, 0.4f, 0.6f, 0.6f, 0.4f, 0.2f, 0.0f},
-	{0.1f, 0.3f, 0.6f, 0.9f, 0.9f, 0.6f, 0.3f, 0.1f},
-	{0.1f, 0.3f, 0.6f, 0.9f, 0.9f, 0.6f, 0.3f, 0.1f},
-	{0.0f, 0.2f, 0.4f, 0.6f, 0.6f, 0.4f, 0.2f, 0.0f},
-	{0.0f, 0.0f, 0.2f, 0.3f, 0.3f, 0.2f, 0.0f, 0.0f},
-	{0.0f, 0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f} };
-
-static float Diamond6x[6][6] = {
-	{0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f},
-	{0.0f, 0.3f, 0.5f, 0.5f, 0.3f, 0.0f},
-	{0.1f, 0.5f, 0.9f, 0.9f, 0.5f, 0.1f},
-	{0.1f, 0.5f, 0.9f, 0.9f, 0.5f, 0.1f},
-	{0.0f, 0.3f, 0.5f, 0.5f, 0.3f, 0.0f},
-	{0.0f, 0.0f, 0.1f, 0.1f, 0.0f, 0.0f} };
-
-static float Diamond4x[4][4] = {
-	{0.3f, 0.4f, 0.4f, 0.3f},
-	{0.4f, 0.9f, 0.9f, 0.4f},
-	{0.4f, 0.9f, 0.9f, 0.4f},
-	{0.3f, 0.4f, 0.4f, 0.3f} };
-
-       cvar_t		r_bloom = FCVAR("r_bloom", "gl_bloom", "0", CVAR_ARCHIVE);
-       cvar_t		r_bloom_alpha = SCVAR("r_bloom_alpha", "0.5");
-	   cvar_t		r_bloom_diamond_size = SCVAR("r_bloom_diamond_size", "8");
-       cvar_t		r_bloom_intensity = SCVAR("r_bloom_intensity", "1");
-	   cvar_t		r_bloom_darken = SCVAR("r_bloom_darken", "3");
-	   cvar_t		r_bloom_sample_size = SCVARF("r_bloom_sample_size", "256", CVAR_RENDERERLATCH);
-       cvar_t		r_bloom_fast_sample = SCVARF("r_bloom_fast_sample", "0", CVAR_RENDERERLATCH);
+cvar_t		r_bloom = FCVAR("r_bloom", "gl_bloom", "0", CVAR_ARCHIVE);
+cvar_t		r_bloom_alpha = SCVAR("r_bloom_alpha", "0.5");
+cvar_t		r_bloom_diamond_size = SCVAR("r_bloom_diamond_size", "8");
+cvar_t		r_bloom_intensity = SCVAR("r_bloom_intensity", "1");
+cvar_t		r_bloom_darken = SCVAR("r_bloom_darken", "3");
+cvar_t		r_bloom_sample_size = SCVARF("r_bloom_sample_size", "256", CVAR_RENDERERLATCH);
+cvar_t		r_bloom_fast_sample = SCVARF("r_bloom_fast_sample", "0", CVAR_RENDERERLATCH);
 
 typedef struct {
 	//texture numbers
@@ -162,7 +138,7 @@ void R_Bloom_InitEffectTexture(void)
 		Cvar_SetValue (&r_bloom_sample_size, 32);
 
 	//make sure bloom size is a power of 2
-	bs.size_sample = r_bloom_sample_size.value;
+	bs.size_sample = min(r_bloom_sample_size.value, gl_max_size.value);
 	bloomsizecheck = (float)bs.size_sample;
 	while (bloomsizecheck > 1.0f) bloomsizecheck /= 2.0f;
 	if (bloomsizecheck != 1.0f)
@@ -436,54 +412,23 @@ void R_Bloom_GeneratexDiamonds(void)
 	//qglBlendFunc(GL_ONE, GL_ONE);
 	qglBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_COLOR);
 
-	if (r_bloom_diamond_size.value > 7 || r_bloom_diamond_size.value <= 3)
 	{
-		if (r_bloom_diamond_size.value != 8)
-			Cvar_SetValue(&r_bloom_diamond_size, 8);
+		int size = r_bloom_diamond_size.value;
+		float rad = r_bloom_diamond_size.value / 2.0f;
+		float point = (r_bloom_diamond_size.value - 1) / 2.0f;
+		float mult = min(1.0f, r_bloom_intensity.value * 2.0f / rad);
 
-		for (i=0; i<r_bloom_diamond_size.value; i++)
+		for (i=0; i<size; i++)
 		{
-			for (j=0; j<r_bloom_diamond_size.value; j++)
+			for (j=0; j<size; j++)
 			{
-				intensity = r_bloom_intensity.value * 0.3 * Diamond8x[i][j];
-				if (intensity < 0.01f)
+				float f = ((point + 1.0f) - (fabs(point - i) + fabs(point - j))) / (point + 1.0f);
+				//float f = 1.0f - (fabs(point - i) * fabs(point - j) / (point * point)); // circle/cross?
+				intensity = mult * f;
+				if (intensity < 0.005f)
 					continue;
 				qglColor4f(intensity, intensity, intensity, 1.0);
-				R_Bloom_SamplePass(i-4, j-4);
-			}
-		}
-	}
-	else if (r_bloom_diamond_size.value > 5)
-	{
-		if (r_bloom_diamond_size.value != 6)
-			Cvar_SetValue(&r_bloom_diamond_size, 6);
-
-		for(i=0; i<r_bloom_diamond_size.value; i++)
-		{
-			for(j=0; j<r_bloom_diamond_size.value; j++)
-			{
-				intensity = r_bloom_intensity.value * 0.5 * Diamond6x[i][j];
-				if (intensity < 0.01f)
-					continue;
-				qglColor4f(intensity, intensity, intensity, 1.0);
-				R_Bloom_SamplePass(i-3, j-3);
-			}
-		}
-	}
-	else if (r_bloom_diamond_size.value > 3)
-	{
-		if (r_bloom_diamond_size.value != 4)
-			Cvar_SetValue(&r_bloom_diamond_size, 4);
-
-		for (i=0; i<r_bloom_diamond_size.value; i++)
-		{
-			for (j=0; j<r_bloom_diamond_size.value; j++)
-			{
-				intensity = r_bloom_intensity.value * 0.8f * Diamond4x[i][j];
-				if (intensity < 0.01f)
-					continue;
-				qglColor4f(intensity, intensity, intensity, 1.0);
-				R_Bloom_SamplePass( i-2, j-2 );
+				R_Bloom_SamplePass( i-rad, j-rad );
 			}
 		}
 	}
@@ -603,8 +548,8 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 	bs.smp_s = (float)bs.smp_w/bs.size_sample;
 	bs.smp_t = (float)bs.smp_h/bs.size_sample;
 
-	buw = bs.size_downsample * bs.smp_s;
-	buh = bs.size_downsample * bs.smp_t;
+	buw = bs.size_backup * bs.smp_s;
+	buh = bs.size_backup * bs.smp_t;
 
 	//copy the screen space we'll use to work into the backup texture
 	GL_Bind(bs.tx_backup);

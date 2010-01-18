@@ -1680,17 +1680,20 @@ qboolean GLVID_Is8bit() {
 	return is8bit;
 }
 
-#define GL_SHARED_TEXTURE_PALETTE_EXT 0x81FB
 
 void VID_Init8bitPalette() 
 {
+#ifdef GL_USE8BITTEX
+#ifdef GL_EXT_paletted_texture
+#define GL_SHARED_TEXTURE_PALETTE_EXT 0x81FB
+
 	// Check for 8bit Extensions and initialize them.
 	int i;
 	char thePalette[256*3];
 	char *oldPalette, *newPalette;
 
 	qglColorTableEXT = (void *)qwglGetProcAddress("glColorTableEXT");
-    if (!qglColorTableEXT || strstr(gl_extensions, "GL_EXT_shared_texture_palette") ||
+    if (!qglColorTableEXT || !strstr(gl_extensions, "GL_EXT_shared_texture_palette") ||
 		COM_CheckParm("-no8bit"))
 		return;
 
@@ -1707,6 +1710,9 @@ void VID_Init8bitPalette()
 	qglColorTableEXT(GL_SHARED_TEXTURE_PALETTE_EXT, GL_RGB, 256, GL_RGB, GL_UNSIGNED_BYTE,
 		(void *) thePalette);
 	is8bit = TRUE;
+
+#endif
+#endif
 }
 
 void GLVID_DeInit (void)

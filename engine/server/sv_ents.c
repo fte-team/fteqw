@@ -298,7 +298,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 		csqcmsgbuffer.currentbit = 0;
 		//Ask CSQC to write a buffer for it.
 		G_INT(OFS_PARM0) = EDICT_TO_PROG(svprogfuncs, client->edict);
-		G_INT(OFS_PARM1) = 0xffffff;	//psudo compatibility with SendFlags (fte doesn't support properly)
+		G_FLOAT(OFS_PARM1) = 0xffffff;	//psudo compatibility with SendFlags (fte doesn't support properly)
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 		PR_ExecuteProgram(svprogfuncs, ent->xv->SendEntity);
 		if (G_INT(OFS_RETURN))	//0 means not to tell the client about it.
@@ -2654,7 +2654,7 @@ void SV_Snapshot_Clear(packet_entities_t *pack)
 	csqcnuments = 0;
 	numnails = 0;
 }
-		
+
 /*
 =============
 SVQ3Q1_BuildEntityPacket

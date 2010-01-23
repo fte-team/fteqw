@@ -1241,10 +1241,13 @@ void M_Menu_Video_f (void)
 	char *rendererstring;
 	static char current3dres[10]; // enough to fit 1920x1200
 	static char current2dres[10]; // same as above
-	static char colordepth[6]; // enough to fit 32bit
 	static char currenthz[6]; // enough to fit 120hz
+	static char currentcolordepth[6];
 
 	extern cvar_t _vid_wait_override;
+	extern int glwidth, glheight;
+	float vidwidth = glwidth;
+	float vidheight = glheight;
 
 	int i, y;
 	int mgt;
@@ -1275,9 +1278,15 @@ void M_Menu_Video_f (void)
 		i = 0;
 
 	if (vid_bpp.value >= 32)
+	{
 		currentbpp = 2;
+		strcpy(currentcolordepth, va("%sbit (16.7m colors)",vid_bpp.string) );
+	}
 	else if (vid_bpp.value >= 16)
+	{
 		currentbpp = 1;
+		strcpy(currentcolordepth, va("%sbit (65.5k colors)",vid_bpp.string) );
+	}
 	else
 		currentbpp = 0;
 
@@ -1300,7 +1309,9 @@ void M_Menu_Video_f (void)
 	else
 		currentrefreshrate = 0;
 
-	aspectratio3d = (vid_width.value / vid_height.value * 100); // times by 100 so don't have to deal with floats
+	strcpy(currenthz, va("%sHz",vid_refreshrate.string) );
+
+	aspectratio3d = (vidwidth / vidheight * 100); // times by 100 so don't have to deal with floats
 
 	if (aspectratio3d == 125) // 1.25
 		aspectratio23d = "5:4";
@@ -1311,7 +1322,10 @@ void M_Menu_Video_f (void)
 	else if (aspectratio3d == 177) // 1.777778
 		aspectratio23d = "16:9";
 	else
+	{
 		aspectratio23d = "Non-standard Ratio";
+		Con_Printf("Ratio: %i, width: %i, height: %i\n", aspectratio3d, glwidth, glheight);
+	}
 
 	aspectratio2d = (vid_conwidth.value / vid_conheight.value * 100); // times by 100 so don't have to deal with floats
 
@@ -1328,10 +1342,6 @@ void M_Menu_Video_f (void)
 
 	currentvsync = _vid_wait_override.value;
 
-	snprintf(current3dres, sizeof(current3dres), "%sx%s", vid_width.string, vid_height.string);
-	snprintf(current2dres, sizeof(current2dres), "%sx%s", vid_conwidth.string, vid_conheight.string);
-	snprintf(currenthz, sizeof(currenthz), "%sHz", vid_refreshrate.string);
-
 	if ( stricmp(vid_renderer.string,"gl" ) == 0 )
 		rendererstring = "OpenGL";
 	else if ( stricmp(vid_renderer.string,"d3d7") == 0 )
@@ -1345,7 +1355,8 @@ void M_Menu_Video_f (void)
 	else
 		rendererstring = "Unknown Renderer?";
 
-	sprintf(colordepth,"%sbit", vid_bpp.string);
+	strcpy(current3dres, va("%ix%i", glwidth, glheight) );
+	strcpy(current2dres, va("%sx%s", vid_conwidth.string, vid_conheight.string) );
 
 	mgt = M_GameType();
 
@@ -1374,15 +1385,32 @@ void M_Menu_Video_f (void)
 	MC_AddRedText(menu, 0, y, 								"           Current Renderer", false);
 	MC_AddRedText(menu, 225, y, 						        rendererstring, false); y+=8;
 	MC_AddRedText(menu, 0, y, 							    "        Current Color Depth", false);
-	MC_AddRedText(menu, 225, y, 						 		colordepth, false); y+=8;
-	MC_AddRedText(menu, 0, y, 								"             Current 3D Res", false);
-	MC_AddRedText(menu, 225, y, 							  	  current3dres, false); y+=8;
-	MC_AddRedText(menu, 0, y, 								"             Current 3D A/R", false);
-	MC_AddRedText(menu, 225, y, 								aspectratio23d, false); y+=8;
-	MC_AddRedText(menu, 0, y, 								"             Current 2D Res", false);
-	MC_AddRedText(menu, 225, y, 								  current2dres, false); y+=8;
-	MC_AddRedText(menu, 0, y, 								"             Current 2D A/R", false);
-	MC_AddRedText(menu, 225, y, 								aspectratio22d, false); y+=8;
+	MC_AddRedText(menu, 225, y, 						 		currentcolordepth, false); y+=8;
+	if ( ( vidwidth == 0) || ( vidheight == 0) )
+		y+=16;
+	else
+	{
+		MC_AddRedText(menu, 0, y, 								"             Current 3D Res", false);
+		MC_AddRedText(menu, 225, y, 							  	  current3dres, false); y+=8;
+		MC_AddRedText(menu, 0, y, 								"             Current 3D A/R", false);
+		MC_AddRedText(menu, 225, y, 								aspectratio23d, false); y+=8;
+	}
+
+	if ( ( vid_conwidth.value == 0) || ( vid_conheight.value == 0) ) // same as 3d resolution
+	{
+		MC_AddRedText(menu, 0, y, 								"             Current 2D Res", false);
+		MC_AddRedText(menu, 225, y, 								  current3dres, false); y+=8;
+		MC_AddRedText(menu, 0, y, 								"             Current 2D A/R", false);
+		MC_AddRedText(menu, 225, y, 								aspectratio23d, false); y+=8;
+	}
+	else
+	{
+		MC_AddRedText(menu, 0, y, 								"             Current 2D Res", false);
+		MC_AddRedText(menu, 225, y, 								  current2dres, false); y+=8;
+		MC_AddRedText(menu, 0, y, 								"             Current 2D A/R", false);
+		MC_AddRedText(menu, 225, y, 								aspectratio22d, false); y+=8;
+	}
+
 	MC_AddRedText(menu, 0, y, 								"       Current Refresh Rate", false);
 	MC_AddRedText(menu, 225, y, 								currenthz, false); y+=8;
  	y+=8;

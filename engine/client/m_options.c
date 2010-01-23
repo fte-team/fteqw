@@ -68,32 +68,50 @@ void M_Menu_Options_f (void)
 	}
 
 	menu->selecteditem = (union menuoption_s *)
-	MC_AddConsoleCommand(menu, 16, y,	"       Customize controls", "menu_keys\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"            Go to console", "toggleconsole\nplay misc/menu2.wav\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"        Reset to defaults", "exec default.cfg\nplay misc/menu2.wav\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"        Customize controls", "menu_keys\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"             Go to console", "toggleconsole\nplay misc/menu2.wav\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"         Reset to defaults", "exec default.cfg\nplay misc/menu2.wav\n"); y+=8;
 
-	MC_AddSlider(menu, 16, y,			"              Mouse Speed", &sensitivity,		1,		10, 0.5); y+=8;
-	MC_AddSlider(menu, 16, y,			"                Crosshair", &crosshair,		0,		22, 1); y+=8;
+	MC_AddSlider(menu, 16, y,			"               Mouse Speed", &sensitivity,		1,		10, 0.5); y+=8;
+	MC_AddSlider(menu, 16, y,			"                 Crosshair", &crosshair,		0,		22, 1); y+=8;
 
-	MC_AddCheckBox(menu, 16, y,			"               Always Run", NULL,0)->func = M_Options_AlwaysRun; y+=8;
-	MC_AddCheckBox(menu, 16, y,			"             Invert Mouse", NULL,0)->func = M_Options_InvertMouse; y+=8;
-	MC_AddCheckBox(menu, 16, y,			"               Lookspring", &lookspring,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,			"               Lookstrafe", &lookstrafe,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,			"       Use old status bar", &cl_sbar,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,			"         HUD on left side", &cl_hudswap,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,			"       Old-style chatting", &cl_standardchat,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"       Old-style messages", &cl_standardmsg,0);y+=8;
-	y+=4;MC_AddEditCvar(menu, 16, y,	"              Imitate FPS", "cl_netfps"); y+=8+4;
+	MC_AddCheckBox(menu, 16, y,			"                Always Run", NULL,0)->func = M_Options_AlwaysRun; y+=8;
+	MC_AddCheckBox(menu, 16, y,			"              Invert Mouse", NULL,0)->func = M_Options_InvertMouse; y+=8;
+	MC_AddCheckBox(menu, 16, y,			"                Lookspring", &lookspring,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,			"                Lookstrafe", &lookstrafe,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,			"        Use old status bar", &cl_sbar,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,			"          HUD on left side", &cl_hudswap,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,			"        Old-style chatting", &cl_standardchat,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"        Old-style messages", &cl_standardmsg,0);y+=8;
+	y+=4;MC_AddEditCvar(menu, 16, y,	"               Imitate FPS", "cl_netfps"); y+=8+4;
 
-	MC_AddConsoleCommand(menu, 16, y,	"            Video Options", "menu_video\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,   "Shadow & Lighting Options", "menu_shadow_lighting\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,   "     3D Rendering Options", "menu_3d\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,   "          Texture Options", "menu_textures\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,   "         Particle Options", "menu_particles\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"              FPS Options", "menu_fps\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"         Teamplay Options", "menu_teamplay\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"            Audio Options", "menu_audio\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"                Downloads", "menu_download\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"             Video Options", "menu_video\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,   " Shadow & Lighting Options", "menu_shadow_lighting\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,   "      3D Rendering Options", "menu_3d\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,   "           Texture Options", "menu_textures\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,   "          Particle Options", "menu_particles\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"               FPS Options", "menu_fps\n"); y+=8;
+
+	if ((mgt != MGT_QUAKE2) && (mgt != MGT_HEXEN2))
+	{
+		MC_AddConsoleCommand(menu, 16, y,	"          Teamplay Options", "menu_teamplay\n"); y+=8;
+	}
+
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddConsoleCommand(menu, 16, y,	"Singleplayer Cheat Options", "menu_quake2_spcheats\n"); y+=8;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+		MC_AddConsoleCommand(menu, 16, y,	"Singleplayer Cheat Options", "menu_hexen2_spcheats\n"); y+=8;
+	}
+	else
+	{
+		MC_AddConsoleCommand(menu, 16, y,	"Singleplayer Cheat Options", "menu_spcheats\n"); y+=8;
+	}
+
+	MC_AddConsoleCommand(menu, 16, y,	"             Audio Options", "menu_audio\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"                 Downloads", "menu_download\n"); y+=8;
 
 #ifdef _WIN32
 	if (!vid_isfullscreen)
@@ -102,7 +120,7 @@ void M_Menu_Options_f (void)
 		MC_AddCheckBox(menu, 16, y,	"             Use Mouse", &_windowed_mouse,0); y+=8;
 	}
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 215, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 225, 32, NULL, false);
 }
 
 #ifndef __CYGWIN__
@@ -866,11 +884,15 @@ qboolean M_VideoApplyTextures (union menuoption_s *op,struct menu_s *menu,int ke
 	}
 	#endif
 
-	if (r_bloom_diamond_size.value >= 8)
+	if (r_bloom_diamond_size.value >= 10)
+		currentbloomdiamond = 4;
+	else if (r_bloom_diamond_size.value >= 8)
+		currentbloomdiamond = 3;
+	else if (r_bloom_diamond_size.value >= 6)
 		currentbloomdiamond = 2;
-	else if (r_bloom_diamond_size.value == 6)
+	else if (r_bloom_diamond_size.value >= 4)
 		currentbloomdiamond = 1;
-	else if (r_bloom_diamond_size.value <= 4)
+	else if (r_bloom_diamond_size.value <= 2)
 		currentbloomdiamond = 0;
 	else
 		currentbloomdiamond = 0;
@@ -880,13 +902,19 @@ qboolean M_VideoApplyTextures (union menuoption_s *op,struct menu_s *menu,int ke
 		switch(info->bloomdiamondcombo->selectedoption)
 		{
 		case 0:
-			Cbuf_AddText("r_bloom_diamond_size 4\n", RESTRICT_LOCAL);
+			Cbuf_AddText("r_bloom_diamond_size 2\n", RESTRICT_LOCAL);
 			break;
 		case 1:
-			Cbuf_AddText("r_bloom_diamond_size 6\n", RESTRICT_LOCAL);
+			Cbuf_AddText("r_bloom_diamond_size 4\n", RESTRICT_LOCAL);
 			break;
 		case 2:
+			Cbuf_AddText("r_bloom_diamond_size 6\n", RESTRICT_LOCAL);
+			break;
+		case 3:
 			Cbuf_AddText("r_bloom_diamond_size 8\n", RESTRICT_LOCAL);
+			break;
+		case 4:
+			Cbuf_AddText("r_bloom_diamond_size 10\n", RESTRICT_LOCAL);
 			break;
 		}
 	}
@@ -963,9 +991,11 @@ void M_Menu_Textures_f (void)
 
 	static const char *bloomdiamondoptions[] =
 	{
+		"2x",
 		"4x",
 		"6x",
 		"8x",
+		"10x",
 		NULL
 	};
 
@@ -1032,15 +1062,18 @@ void M_Menu_Textures_f (void)
 	else
 		currentbloomsamplesize = 0;
 
-	if (r_bloom_diamond_size.value >= 8)
+	if (r_bloom_diamond_size.value >= 10)
+		currentbloomdiamond = 4;
+	else if (r_bloom_diamond_size.value >= 8)
+		currentbloomdiamond = 3;
+	else if (r_bloom_diamond_size.value >= 6)
 		currentbloomdiamond = 2;
-	else if (r_bloom_diamond_size.value == 6)
+	else if (r_bloom_diamond_size.value >= 4)
 		currentbloomdiamond = 1;
-	else if (r_bloom_diamond_size.value <= 4)
+	else if (r_bloom_diamond_size.value <= 2)
 		currentbloomdiamond = 0;
 	else
 		currentbloomdiamond = 0;
-
 #endif
 
 	if (!Q_strcasecmp(gl_texturemode.string, "gl_nearest_mipmap_nearest"))
@@ -1854,4 +1887,1068 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
+}
+
+typedef struct {
+menucombo_t *skillcombo;
+menucombo_t *mapcombo;
+} singleplayerinfo_t;
+
+qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
+{
+	singleplayerinfo_t *info = menu->data;
+
+	if (key != K_ENTER)
+		return false;
+
+	switch(info->skillcombo->selectedoption)
+	{
+	case 0:
+		Cbuf_AddText("skill 0\n", RESTRICT_LOCAL);
+		break;
+	case 1:
+		Cbuf_AddText("skill 1\n", RESTRICT_LOCAL);
+		break;
+	case 2:
+		Cbuf_AddText("skill 2\n", RESTRICT_LOCAL);
+		break;
+	case 3:
+		Cbuf_AddText("skill 3\n", RESTRICT_LOCAL);
+		break;
+	}
+
+	switch(info->mapcombo->selectedoption)
+	{
+	case 0:
+		Cbuf_AddText("map start\n", RESTRICT_LOCAL);
+		break;
+	case 1:
+		Cbuf_AddText("map e1m2\n", RESTRICT_LOCAL);
+		break;
+	case 2:
+		Cbuf_AddText("map e1m2\n", RESTRICT_LOCAL);
+		break;
+	case 3:
+		Cbuf_AddText("map e1m3\n", RESTRICT_LOCAL);
+		break;
+	case 4:
+		Cbuf_AddText("map e1m4\n", RESTRICT_LOCAL);
+		break;
+	case 5:
+		Cbuf_AddText("map e1m5\n", RESTRICT_LOCAL);
+		break;
+	case 6:
+		Cbuf_AddText("map e1m6\n", RESTRICT_LOCAL);
+		break;
+	case 7:
+		Cbuf_AddText("map e1m7\n", RESTRICT_LOCAL);
+		break;
+	case 8:
+		Cbuf_AddText("map e1m8\n", RESTRICT_LOCAL);
+		break;
+	case 9:
+		Cbuf_AddText("map e2m1\n", RESTRICT_LOCAL);
+		break;
+	case 10:
+		Cbuf_AddText("map e2m2\n", RESTRICT_LOCAL);
+		break;
+	case 11:
+		Cbuf_AddText("map e2m3\n", RESTRICT_LOCAL);
+		break;
+	case 12:
+		Cbuf_AddText("map e2m4\n", RESTRICT_LOCAL);
+		break;
+	case 13:
+		Cbuf_AddText("map e2m5\n", RESTRICT_LOCAL);
+		break;
+	case 14:
+		Cbuf_AddText("map e2m6\n", RESTRICT_LOCAL);
+		break;
+	case 15:
+		Cbuf_AddText("map e2m7\n", RESTRICT_LOCAL);
+		break;
+	case 16:
+		Cbuf_AddText("map e3m1\n", RESTRICT_LOCAL);
+		break;
+	case 17:
+		Cbuf_AddText("map e3m2\n", RESTRICT_LOCAL);
+		break;
+	case 18:
+		Cbuf_AddText("map e3m3\n", RESTRICT_LOCAL);
+		break;
+	case 19:
+		Cbuf_AddText("map e3m4\n", RESTRICT_LOCAL);
+		break;
+	case 20:
+		Cbuf_AddText("map e3m5\n", RESTRICT_LOCAL);
+		break;
+	case 21:
+		Cbuf_AddText("map e3m6\n", RESTRICT_LOCAL);
+		break;
+	case 22:
+		Cbuf_AddText("map e3m7\n", RESTRICT_LOCAL);
+		break;
+	case 23:
+		Cbuf_AddText("map e4m1\n", RESTRICT_LOCAL);
+		break;
+	case 24:
+		Cbuf_AddText("map e4m2\n", RESTRICT_LOCAL);
+		break;
+	case 25:
+		Cbuf_AddText("map e4m3\n", RESTRICT_LOCAL);
+		break;
+	case 26:
+		Cbuf_AddText("map e4m4\n", RESTRICT_LOCAL);
+		break;
+	case 27:
+		Cbuf_AddText("map e4m5\n", RESTRICT_LOCAL);
+		break;
+	case 28:
+		Cbuf_AddText("map e4m6\n", RESTRICT_LOCAL);
+		break;
+	case 29:
+		Cbuf_AddText("map e4m7\n", RESTRICT_LOCAL);
+		break;
+	case 30:
+		Cbuf_AddText("map e4m8\n", RESTRICT_LOCAL);
+		break;
+	case 31:
+		Cbuf_AddText("map end\n", RESTRICT_LOCAL);
+		break;
+	}
+
+	M_RemoveMenu(menu);
+	Cbuf_AddText("menu_spcheats\n", RESTRICT_LOCAL);
+	return true;
+}
+
+
+void M_Menu_Singleplayer_Cheats_f (void)
+{
+
+	static const char *skilloptions[] =
+	{
+		"Easy",
+		"Normal",
+		"Hard",
+		"Nightmare",
+		"None Set",
+		NULL
+	};
+
+	static const char *mapoptions[] =
+	{
+		"Start (Introduction)",
+		"E1M1 (The Slipgate Complex)",
+		"E1M2 (Castle Of The Damned)",
+		"E1M3 (The Necropolis)",
+		"E1M4 (The Grisly Grotto)",
+		"E1M5 (Gloom Keep)",
+		"E1M6 (The Door To Chthon)",
+		"E1M7 (The House Of Chthon)",
+		"E1M8 (Ziggarat Vertigo)",
+		"E2M1 (The Installation)",
+		"E2M2 (The Ogre Citadel)",
+		"E2M3 (The Crypt Of Decay)",
+		"E2M4 (The Ebon Fortress)",
+		"E2M5 (The Wizard's Manse)",
+		"E2M6 (The Dismal Oubliette",
+		"E2M7 (The Underearth)",
+		"E3M1 (Termination Central)",
+		"E3M2 (The Vaults Of Zin)",
+		"E3M3 (The Tomb Of Terror)",
+		"E3M4 (Satan's Dark Delight)",
+		"E3M5 (The Wind Tunnels)",
+		"E3M6 (Chambers Of Torment)",
+		"E3M7 (Tha Haunted Halls)",
+		"E4M1 (The Sewage System)",
+		"E4M2 (The Tower Of Despair)",
+		"E4M3 (The Elder God Shrine)",
+		"E4M4 (The Palace Of Hate)",
+		"E4M5 (Hell's Atrium)",
+		"E4M6 (The Pain Maze)",
+		"E4M7 (Azure Agony)",
+		"E4M8 (The Nameless City)",
+		"End (Shub-Niggurath's Pit)",
+		NULL
+	};
+
+	int y = 32;
+	singleplayerinfo_t *info;
+	menu_t *menu;
+	int mgt;
+	int cursorpositionY;
+	int currentskill;
+	int currentmap;
+	extern cvar_t host_mapname, sv_gravity, sv_cheats, sv_friction, skill;
+
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	menu = M_CreateMenu(sizeof(singleplayerinfo_t));
+	info = menu->data;
+
+	mgt = M_GameType();
+
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y += 8;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	}
+
+	cursorpositionY = (y + 24);
+
+	currentskill = skill.value;
+
+	if ( !currentskill )
+		currentskill = 4; // no skill selected
+
+	if ( strcmp ( host_mapname.string, "" ) == 0)
+		currentmap = 0;
+	else if ( stricmp ( host_mapname.string, "start" ) == 0 )
+		currentmap = 0;
+	else if ( stricmp ( host_mapname.string, "e1m1" ) == 0 )
+		currentmap = 1;
+	else if ( stricmp ( host_mapname.string, "e1m2" ) == 0 )
+		currentmap = 2;
+	else if ( stricmp ( host_mapname.string, "e1m3" ) == 0 )
+		currentmap = 3;
+	else if ( stricmp ( host_mapname.string, "e1m4" ) == 0 )
+		currentmap = 4;
+	else if ( stricmp ( host_mapname.string, "e1m5" ) == 0 )
+		currentmap = 5;
+	else if ( stricmp ( host_mapname.string, "e1m6" ) == 0 )
+		currentmap = 6;
+	else if ( stricmp ( host_mapname.string, "e1m7" ) == 0 )
+		currentmap = 7;
+	else if ( stricmp ( host_mapname.string, "e1m8" ) == 0 )
+		currentmap = 8;
+	else if ( stricmp ( host_mapname.string, "e2m1" ) == 0 )
+		currentmap = 9;
+	else if ( stricmp ( host_mapname.string, "e2m2" ) == 0 )
+		currentmap = 10;
+	else if ( stricmp ( host_mapname.string, "e2m3" ) == 0 )
+		currentmap = 11;
+	else if ( stricmp ( host_mapname.string, "e2m4" ) == 0 )
+		currentmap = 12;
+	else if ( stricmp ( host_mapname.string, "e2m5" ) == 0 )
+		currentmap = 13;
+	else if ( stricmp ( host_mapname.string, "e2m6" ) == 0 )
+		currentmap = 14;
+	else if ( stricmp ( host_mapname.string, "e2m7" ) == 0 )
+		currentmap = 15;
+	else if ( stricmp ( host_mapname.string, "e3m1" ) == 0 )
+		currentmap = 16;
+	else if ( stricmp ( host_mapname.string, "e3m2" ) == 0 )
+		currentmap = 17;
+	else if ( stricmp ( host_mapname.string, "e3m3" ) == 0 )
+		currentmap = 18;
+	else if ( stricmp ( host_mapname.string, "e3m4" ) == 0 )
+		currentmap = 19;
+	else if ( stricmp ( host_mapname.string, "e3m5" ) == 0 )
+		currentmap = 20;
+	else if ( stricmp ( host_mapname.string, "e3m6" ) == 0 )
+		currentmap = 21;
+	else if ( stricmp ( host_mapname.string, "e3m7" ) == 0 )
+		currentmap = 22;
+	else if ( stricmp ( host_mapname.string, "e4m1" ) == 0 )
+		currentmap = 23;
+	else if ( stricmp ( host_mapname.string, "e4m2" ) == 0 )
+		currentmap = 24;
+	else if ( stricmp ( host_mapname.string, "e4m3" ) == 0 )
+		currentmap = 25;
+	else if ( stricmp ( host_mapname.string, "e4m4" ) == 0 )
+		currentmap = 26;
+	else if ( stricmp ( host_mapname.string, "e4m5" ) == 0 )
+		currentmap = 27;
+	else if ( stricmp ( host_mapname.string, "e4m6" ) == 0 )
+		currentmap = 28;
+	else if ( stricmp ( host_mapname.string, "e4m7" ) == 0 )
+		currentmap = 29;
+	else if ( stricmp ( host_mapname.string, "e4m8" ) == 0 )
+		currentmap = 30;
+	else if ( stricmp ( host_mapname.string, "end" ) == 0 )
+		currentmap = 31;
+	else
+		currentmap = 0;
+
+		MC_AddRedText(menu, 16, y, 			"     Quake Singleplayer Cheats", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
+		info->skillcombo = MC_AddCombo(menu,16, y,	"         Difficulty", skilloptions, currentskill);	y+=8;
+		info->mapcombo = MC_AddCombo(menu,16, y,	"                Map", mapoptions, currentmap);	y+=8;
+		MC_AddCheckBox(menu,	16, y,		"             Cheats", &sv_cheats,0);	y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"     Toggle Flymode", "fly\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "impulse 255\n"); y+=8;
+		MC_AddSlider(menu,	16, y,			"            Gravity", &sv_gravity,0,800,25);	y+=8;
+		MC_AddSlider(menu,	16, y,			"      Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, y,			"         Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, y,			"         Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, y,			" Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	" Silver & Gold Keys", "impulse 13\nimpulse 14\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"All Weapons & Items", "impulse 9\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"No Enemy Targetting", "notarget\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,   "        Restart Map", "kill\n"); y+=8;
+
+		y+=8;
+		MC_AddCommand(menu,	16, y,			"      Apply Changes", M_Apply_SP_Cheats);	y+=8;
+
+	menu->selecteditem = (union menuoption_s *)info->skillcombo;
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, cursorpositionY, NULL, false);
+}
+
+// Quake 2
+
+typedef struct {
+menucombo_t *skillcombo;
+menucombo_t *mapcombo;
+} singleplayerq2info_t;
+
+qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct menu_s *menu,int key)
+{
+	singleplayerq2info_t *info = menu->data;
+
+	if (key != K_ENTER)
+		return false;
+
+	switch(info->skillcombo->selectedoption)
+	{
+	case 0:
+		Cbuf_AddText("skill 0\n", RESTRICT_LOCAL);
+		break;
+	case 1:
+		Cbuf_AddText("skill 1\n", RESTRICT_LOCAL);
+		break;
+	case 2:
+		Cbuf_AddText("skill 2\n", RESTRICT_LOCAL);
+		break;
+	}
+
+	switch(info->mapcombo->selectedoption)
+	{
+	case 0:
+		Cbuf_AddText("map base1\n", RESTRICT_LOCAL);
+		break;
+	case 1:
+		Cbuf_AddText("map base2\n", RESTRICT_LOCAL);
+		break;
+	case 2:
+		Cbuf_AddText("map base3\n", RESTRICT_LOCAL);
+		break;
+	case 3:
+		Cbuf_AddText("map train\n", RESTRICT_LOCAL);
+		break;
+	case 4:
+		Cbuf_AddText("map bunk1\n", RESTRICT_LOCAL);
+		break;
+	case 5:
+		Cbuf_AddText("map ware1\n", RESTRICT_LOCAL);
+		break;
+	case 6:
+		Cbuf_AddText("map ware2\n", RESTRICT_LOCAL);
+		break;
+	case 7:
+		Cbuf_AddText("map jail1\n", RESTRICT_LOCAL);
+		break;
+	case 8:
+		Cbuf_AddText("map jail2\n", RESTRICT_LOCAL);
+		break;
+	case 9:
+		Cbuf_AddText("map jail3\n", RESTRICT_LOCAL);
+		break;
+	case 10:
+		Cbuf_AddText("map jail4\n", RESTRICT_LOCAL);
+		break;
+	case 11:
+		Cbuf_AddText("map jail5\n", RESTRICT_LOCAL);
+		break;
+	case 12:
+		Cbuf_AddText("map security\n", RESTRICT_LOCAL);
+		break;
+	case 13:
+		Cbuf_AddText("map mintro\n", RESTRICT_LOCAL);
+		break;
+	case 14:
+		Cbuf_AddText("map mine1\n", RESTRICT_LOCAL);
+		break;
+	case 15:
+		Cbuf_AddText("map mine2\n", RESTRICT_LOCAL);
+		break;
+	case 16:
+		Cbuf_AddText("map mine3\n", RESTRICT_LOCAL);
+		break;
+	case 17:
+		Cbuf_AddText("map mine4\n", RESTRICT_LOCAL);
+		break;
+	case 18:
+		Cbuf_AddText("map fact1\n", RESTRICT_LOCAL);
+		break;
+	case 19:
+		Cbuf_AddText("map fact3\n", RESTRICT_LOCAL);
+		break;
+	case 20:
+		Cbuf_AddText("map fact2\n", RESTRICT_LOCAL);
+		break;
+	case 21:
+		Cbuf_AddText("map power1\n", RESTRICT_LOCAL);
+		break;
+	case 22:
+		Cbuf_AddText("map power2\n", RESTRICT_LOCAL);
+		break;
+	case 23:
+		Cbuf_AddText("map cool1\n", RESTRICT_LOCAL);
+		break;
+	case 24:
+		Cbuf_AddText("map waste1\n", RESTRICT_LOCAL);
+		break;
+	case 25:
+		Cbuf_AddText("map waste2\n", RESTRICT_LOCAL);
+		break;
+	case 26:
+		Cbuf_AddText("map waste3\n", RESTRICT_LOCAL);
+		break;
+	case 27:
+		Cbuf_AddText("map biggun\n", RESTRICT_LOCAL);
+		break;
+	case 28:
+		Cbuf_AddText("map hangar1\n", RESTRICT_LOCAL);
+		break;
+	case 29:
+		Cbuf_AddText("map space\n", RESTRICT_LOCAL);
+		break;
+	case 30:
+		Cbuf_AddText("map lab\n", RESTRICT_LOCAL);
+		break;
+	case 31:
+		Cbuf_AddText("map hangar2\n", RESTRICT_LOCAL);
+		break;
+	case 32:
+		Cbuf_AddText("map command\n", RESTRICT_LOCAL);
+		break;
+	case 33:
+		Cbuf_AddText("map strike\n", RESTRICT_LOCAL);
+		break;
+	case 34:
+		Cbuf_AddText("map city1\n", RESTRICT_LOCAL);
+		break;
+	case 35:
+		Cbuf_AddText("map city2\n", RESTRICT_LOCAL);
+		break;
+	case 36:
+		Cbuf_AddText("map city3\n", RESTRICT_LOCAL);
+		break;
+	case 37:
+		Cbuf_AddText("map boss1\n", RESTRICT_LOCAL);
+		break;
+	case 38:
+		Cbuf_AddText("map boss2\n", RESTRICT_LOCAL);
+		break;
+	}
+
+	M_RemoveMenu(menu);
+	Cbuf_AddText("menu_quake2_spcheats\n", RESTRICT_LOCAL);
+	return true;
+}
+
+
+void M_Menu_Singleplayer_Cheats_Quake2_f (void)
+{
+
+	static const char *skilloptions[] =
+	{
+		"Easy",
+		"Normal",
+		"Hard",
+		"None Set",
+		NULL
+	};
+
+	static const char *mapoptions[] =
+	{
+		"base1 (Unit 1 Base Unit: Outer Base)",
+		"base2 (Unit 1 Base Unit: Installation)",
+		"base3 (Unit 1 Base Unit: Comm Center)",
+		"train (Unit 1 Base Unit: Lost Station)",
+		"bunk1 (Unit 2 Warehouse Unit: Ammo Depot)",
+		"ware1 (Unit 2 Warehouse Unit: Supply Station)",
+		"ware2 (Unit 2 Warehouse Unit: Warehouse)",
+		"jail1 (Unit 3 Jail Unit: Main Gate)",
+		"jail2 (Unit 3 Jail Unit: Destination Center)",
+		"jail3 (Unit 3 Jail Unit: Security Compex)",
+		"jail4 (Unit 3 Jail Unit: Torture Chambers)",
+		"jail5 (Unit 3 Jail Unit: Guard House)",
+		"security (Unit 3 Jail Unit: Grid Control)",
+		"mintro (Unit 4 Mine Unit: Mine Entrance)",
+		"mine1 (Unit 4 Mine Unit: Upper Mines)",
+		"mine2 (Unit 4 Mine Unit: Borehole)",
+		"mine3 (Unit 4 Mine Unit: Drilling Area)",
+		"mine4 (Unit 4 Mine Unit: Lower Mines)",
+		"fact1 (Unit 5 Factory Unit: Receiving Center)",
+		"fact3 (Unit 5 Factory Unit: Sudden Death)",
+		"fact2 (Unit 5 Factory Unit: Processing Plant)",
+		"power1 (Unit 6 Power Unit/Big Gun: Power Plant)",
+		"power2 (Unit 6 Power Unit/Big Gun: The Reactor)",
+		"cool1 (Unit 6 Power Unit/Big Gun: Cooling Facility)",
+		"waste1 (Unit 6 Power Unit/Big Gun: Toxic Waste Dump)",
+		"waste2 (Unit 6 Power Unit/Big Gun: Pumping Station 1)",
+		"waste3 (Unit 6 Power Unit/Big Gun: Pumping Station 2)",
+		"biggun (Unit 6 Power Unit/Big Gun: Big Gun)",
+		"hangar1 (Unit 7 Hangar Unit: Outer Hangar)",
+		"space (Unit 7 Hangar Unit: Comm Satelite)",
+		"lab (Unit 7 Hangar Unit: Research Lab)",
+		"hangar2 (Unit 7 Hangar Unit: Inner Hangar)",
+		"command (Unit 7 Hangar Unit: Launch Command)",
+		"strike (Unit 7 Hangar Unit: Outlands)",
+		"city1 (Unit 8 City Unit: Outer Courts)",
+		"city2 (Unit 8 City Unit: Lower Palace)",
+		"city3 (Unit 8 City Unit: Upper Palace)",
+		"boss1 (Unit 9 Boss Levels: Inner Chamber)",
+		"boss2 (Unit 9 Boss Levels: Final Showdown)",
+		NULL
+	};
+
+	int y = 32;
+	singleplayerq2info_t *info;
+	menu_t *menu;
+	int mgt;
+	int cursorpositionY;
+	int currentskill;
+	int currentmap;
+	extern cvar_t host_mapname, sv_gravity, sv_cheats, sv_friction, skill;
+
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	menu = M_CreateMenu(sizeof(singleplayerq2info_t));
+	info = menu->data;
+
+	mgt = M_GameType();
+
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y += 8;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	}
+
+	cursorpositionY = (y + 24);
+
+	currentskill = skill.value;
+
+	if ( !currentskill )
+		currentskill = 4; // no skill selected
+
+	if ( strcmp ( host_mapname.string, "" ) == 0)
+		currentmap = 0;
+	else if ( stricmp ( host_mapname.string, "base1" ) == 0 )
+		currentmap = 0;
+	else if ( stricmp ( host_mapname.string, "base2" ) == 0 )
+		currentmap = 1;
+	else if ( stricmp ( host_mapname.string, "base3" ) == 0 )
+		currentmap = 2;
+	else if ( stricmp ( host_mapname.string, "train" ) == 0 )
+		currentmap = 3;
+	else if ( stricmp ( host_mapname.string, "bunk1" ) == 0 )
+		currentmap = 4;
+	else if ( stricmp ( host_mapname.string, "ware1" ) == 0 )
+		currentmap = 5;
+	else if ( stricmp ( host_mapname.string, "ware2" ) == 0 )
+		currentmap = 6;
+	else if ( stricmp ( host_mapname.string, "jail1" ) == 0 )
+		currentmap = 7;
+	else if ( stricmp ( host_mapname.string, "jail2" ) == 0 )
+		currentmap = 8;
+	else if ( stricmp ( host_mapname.string, "jail3" ) == 0 )
+		currentmap = 9;
+	else if ( stricmp ( host_mapname.string, "jail4" ) == 0 )
+		currentmap = 10;
+	else if ( stricmp ( host_mapname.string, "jail5" ) == 0 )
+		currentmap = 11;
+	else if ( stricmp ( host_mapname.string, "security" ) == 0 )
+		currentmap = 12;
+	else if ( stricmp ( host_mapname.string, "mintro" ) == 0 )
+		currentmap = 13;
+	else if ( stricmp ( host_mapname.string, "mine1" ) == 0 )
+		currentmap = 14;
+	else if ( stricmp ( host_mapname.string, "mine2" ) == 0 )
+		currentmap = 15;
+	else if ( stricmp ( host_mapname.string, "mine3" ) == 0 )
+		currentmap = 16;
+	else if ( stricmp ( host_mapname.string, "mine4" ) == 0 )
+		currentmap = 17;
+	else if ( stricmp ( host_mapname.string, "fact1" ) == 0 )
+		currentmap = 18;
+	else if ( stricmp ( host_mapname.string, "fact3" ) == 0 )
+		currentmap = 19;
+	else if ( stricmp ( host_mapname.string, "fact2" ) == 0 )
+		currentmap = 20;
+	else if ( stricmp ( host_mapname.string, "power1" ) == 0 )
+		currentmap = 21;
+	else if ( stricmp ( host_mapname.string, "power2" ) == 0 )
+		currentmap = 22;
+	else if ( stricmp ( host_mapname.string, "cool1" ) == 0 )
+		currentmap = 23;
+	else if ( stricmp ( host_mapname.string, "waste1" ) == 0 )
+		currentmap = 24;
+	else if ( stricmp ( host_mapname.string, "waste2" ) == 0 )
+		currentmap = 25;
+	else if ( stricmp ( host_mapname.string, "waste3" ) == 0 )
+		currentmap = 26;
+	else if ( stricmp ( host_mapname.string, "biggun" ) == 0 )
+		currentmap = 27;
+	else if ( stricmp ( host_mapname.string, "hangar1" ) == 0 )
+		currentmap = 28;
+	else if ( stricmp ( host_mapname.string, "space" ) == 0 )
+		currentmap = 29;
+	else if ( stricmp ( host_mapname.string, "lab" ) == 0 )
+		currentmap = 30;
+	else if ( stricmp ( host_mapname.string, "hangar2" ) == 0 )
+		currentmap = 31;
+	else if ( stricmp ( host_mapname.string, "command" ) == 0 )
+		currentmap = 32;
+	else if ( stricmp ( host_mapname.string, "strike" ) == 0 )
+		currentmap = 33;
+	else if ( stricmp ( host_mapname.string, "city1" ) == 0 )
+		currentmap = 34;
+	else if ( stricmp ( host_mapname.string, "city2" ) == 0 )
+		currentmap = 35;
+	else if ( stricmp ( host_mapname.string, "city3" ) == 0 )
+		currentmap = 36;
+	else if ( stricmp ( host_mapname.string, "boss1" ) == 0 )
+		currentmap = 37;
+	else if ( stricmp ( host_mapname.string, "boss2" ) == 0 )
+		currentmap = 38;
+	else
+		currentmap = 0;
+
+		MC_AddRedText(menu, 16, y, 			"     Quake2 Singleplayer Cheats", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
+		info->skillcombo = MC_AddCombo(menu,16, y,	"         Difficulty", skilloptions, currentskill);	y+=8;
+		info->mapcombo = MC_AddCombo(menu,16, y,	"                Map", mapoptions, currentmap);	y+=8;
+		MC_AddCheckBox(menu,	16, y,		"             Cheats", &sv_cheats,0);	y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
+		MC_AddSlider(menu,	16, y,			"            Gravity", &sv_gravity,0,850,25);	y+=8;
+		MC_AddSlider(menu,	16, y,			"      Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, y,			"         Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, y,			"         Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, y,			" Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"     Unlimited Ammo", "dmflags 8192\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "give quad damage\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"     Blue & Red Key", "give blue key\ngive red key\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"        Pyramid Key", "give pyramid key\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"All Weapons & Items", "give all\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"       Data Spinner", "give data spinner\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"         Power Cube", "give power cube\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"            Data CD", "give data cd\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"          Ammo Pack", "give ammo pack\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"          Bandolier", "give bandolier\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"         Adrenaline", "give adrenaline\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"       Ancient Head", "give ancient head\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"   Environment Suit", "give environment suit\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"         Rebreather", "give rebreather\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"    Invulnerability", "give invulnerability\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"           Silencer", "give silencer\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"       Power Shield", "give power shield\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"   Commander's Head", "give commander's head\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"      Security Pass", "give security pass\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"   Airstrike Marker", "give airstrike marker\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,   "        Restart Map", va("map %s\n", host_mapname.string)); y+=8;
+
+		y+=8;
+		MC_AddCommand(menu,	16, y,			"      Apply Changes", M_Apply_SP_Cheats_Q2);	y+=8;
+
+	menu->selecteditem = (union menuoption_s *)info->skillcombo;
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, cursorpositionY, NULL, false);
+}
+
+// Hexen 2
+
+// Quake 2
+
+typedef struct {
+menucombo_t *skillcombo;
+menucombo_t *mapcombo;
+} singleplayerh2info_t;
+
+qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct menu_s *menu,int key)
+{
+	singleplayerh2info_t *info = menu->data;
+
+	if (key != K_ENTER)
+		return false;
+
+	switch(info->skillcombo->selectedoption)
+	{
+	case 0:
+		Cbuf_AddText("skill 0\n", RESTRICT_LOCAL);
+		break;
+	case 1:
+		Cbuf_AddText("skill 1\n", RESTRICT_LOCAL);
+		break;
+	case 2:
+		Cbuf_AddText("skill 2\n", RESTRICT_LOCAL);
+		break;
+	case 3:
+		Cbuf_AddText("skill 3\n", RESTRICT_LOCAL);
+		break;
+	}
+
+	switch(info->mapcombo->selectedoption)
+	{
+	case 0:
+		Cbuf_AddText("map demo1\n", RESTRICT_LOCAL);
+		break;
+	case 1:
+		Cbuf_AddText("map demo2\n", RESTRICT_LOCAL);
+		break;
+	case 2:
+		Cbuf_AddText("map demo3\n", RESTRICT_LOCAL);
+		break;
+	case 3:
+		Cbuf_AddText("map village1\n", RESTRICT_LOCAL);
+		break;
+	case 4:
+		Cbuf_AddText("map village2\n", RESTRICT_LOCAL);
+		break;
+	case 5:
+		Cbuf_AddText("map village3\n", RESTRICT_LOCAL);
+		break;
+	case 6:
+		Cbuf_AddText("map village4\n", RESTRICT_LOCAL);
+		break;
+	case 7:
+		Cbuf_AddText("map village5\n", RESTRICT_LOCAL);
+		break;
+	case 8:
+		Cbuf_AddText("map rider1a\n", RESTRICT_LOCAL);
+		break;
+	case 9:
+		Cbuf_AddText("map meso1\n", RESTRICT_LOCAL);
+		break;
+	case 10:
+		Cbuf_AddText("map meso2\n", RESTRICT_LOCAL);
+		break;
+	case 11:
+		Cbuf_AddText("map meso3\n", RESTRICT_LOCAL);
+		break;
+	case 12:
+		Cbuf_AddText("map meso4\n", RESTRICT_LOCAL);
+		break;
+	case 13:
+		Cbuf_AddText("map meso5\n", RESTRICT_LOCAL);
+		break;
+	case 14:
+		Cbuf_AddText("map meso6\n", RESTRICT_LOCAL);
+		break;
+	case 15:
+		Cbuf_AddText("map meso8\n", RESTRICT_LOCAL);
+		break;
+	case 16:
+		Cbuf_AddText("map meso9\n", RESTRICT_LOCAL);
+		break;
+	case 17:
+		Cbuf_AddText("map egypt1\n", RESTRICT_LOCAL);
+		break;
+	case 18:
+		Cbuf_AddText("map egypt2\n", RESTRICT_LOCAL);
+		break;
+	case 19:
+		Cbuf_AddText("map egypt3\n", RESTRICT_LOCAL);
+		break;
+	case 20:
+		Cbuf_AddText("map egypt4\n", RESTRICT_LOCAL);
+		break;
+	case 21:
+		Cbuf_AddText("map egypt5\n", RESTRICT_LOCAL);
+		break;
+	case 22:
+		Cbuf_AddText("map egypt6\n", RESTRICT_LOCAL);
+		break;
+	case 23:
+		Cbuf_AddText("map egypt7\n", RESTRICT_LOCAL);
+		break;
+	case 24:
+		Cbuf_AddText("map rider2c\n", RESTRICT_LOCAL);
+		break;
+	case 25:
+		Cbuf_AddText("map romeric1\n", RESTRICT_LOCAL);
+		break;
+	case 26:
+		Cbuf_AddText("map romeric2\n", RESTRICT_LOCAL);
+		break;
+	case 27:
+		Cbuf_AddText("map romeric3\n", RESTRICT_LOCAL);
+		break;
+	case 28:
+		Cbuf_AddText("map romeric4\n", RESTRICT_LOCAL);
+		break;
+	case 29:
+		Cbuf_AddText("map romeric5\n", RESTRICT_LOCAL);
+		break;
+	case 30:
+		Cbuf_AddText("map romeric6\n", RESTRICT_LOCAL);
+		break;
+	case 31:
+		Cbuf_AddText("map romeric7\n", RESTRICT_LOCAL);
+		break;
+	case 32:
+		Cbuf_AddText("map castle4\n", RESTRICT_LOCAL);
+		break;
+	case 33:
+		Cbuf_AddText("map castle5\n", RESTRICT_LOCAL);
+		break;
+	case 34:
+		Cbuf_AddText("map cath\n", RESTRICT_LOCAL);
+		break;
+	case 35:
+		Cbuf_AddText("map tower\n", RESTRICT_LOCAL);
+		break;
+	case 36:
+		Cbuf_AddText("map eidolon\n", RESTRICT_LOCAL);
+		break;
+	}
+
+	M_RemoveMenu(menu);
+	Cbuf_AddText("menu_hexen2_spcheats\n", RESTRICT_LOCAL);
+	return true;
+}
+
+
+void M_Menu_Singleplayer_Cheats_Hexen2_f (void)
+{
+
+	static const char *skilloptions[] =
+	{
+		"Easy",
+		"Normal",
+		"Hard",
+		"Nightmare",
+		"None Set",
+		NULL
+	};
+
+	static const char *mapoptions[] =
+	{
+		"demo1 (Blackmarsh: Hub 1 Blackmarsh)",
+		"demo2 (Barbican: Hub 1 Blackmarsh)",
+		"demo3 (The Mill: Hub 1 Blackmarsh)",
+		"village1 (King's Court: Hub 1 Blackmarsh)",
+		"village3 (Stables: Hub 1 Blackmarsh)",
+		"village2 (Inner Courtyard: Hub 1 Blackmarsh)",
+		"village4 (Palance Entrance: Hub 1 Blackmarsh)",
+		"village5 (The Forgotten Chapel: Hub 1 Blackmarsh)",
+		"rider1a (Famine's Domain: Hub 1 Blackmarsh)",
+		"meso1 (Palance of Columns: Hub 2 Mazaera)",
+		"meso2 (Plaza of the Sun: Hub 2 Mazaera)",
+		"meso3 (Square of the Stream: Hub 2 Mazaera)",
+		"meso4 (Tomb of the High Priest: Hub 2 Mazaera)",
+		"meso5 (Obelisk of the Moon: Hub 2 Mazaera)",
+		"meso6 (Court of 1000 Warriors: Hub 2 Mazaera)",
+		"meso8 (Bridge of Stars: Hub 2 Mazaera)",
+		"meso9 (Well of Souls: Hub 2 Mazaera)",
+		"egypt1 (Temple of Horus: Hub 3 Thysis)",
+		"egypt2 (Ancient Tempor of Nefertum: Hub 3 Thysis)",
+		"egypt3 (Tempor of Nefertum: Hub 3 Thysis)",
+		"egypt4 (Palace of the Pharaoh: Hub 3 Thysis",
+		"egypt5 (Pyramid of Anubus: Hub 3 Thysis)",
+		"egypt6 (Temple of Light: Hub 3 Thysis)",
+		"egypt7 (Shrine of Naos: Hub 3 Thysis)",
+		"rider2c (Pestilence's Lair: Hub 3 Thysis)",
+		"romeric1 (The Hall of Heroes: Hub 4 Septimus)",
+		"romeric2 (Gardens of Athena: Hub 4 Septimus)",
+		"romeric3 (Forum of Zeus: Hub 4 Septimus)",
+		"romeric4 (Baths of Demetrius: Hub 4 Septimus)",
+		"romeric5 (Temple of Mars: Hub 4 Septimus)",
+		"romeric6 (Coliseum of War: Hub 4 Septimus)",
+		"romeric7 (Reflecting Pool: Hub 4 Septimus)",
+		"castle4 (The Underhalls: Hub 5 Return to Blackmarsh)",
+		"castle5 (Eidolon's Ordeal: Hub 5 Return to Blackmarsh)",
+		"cath (Cathedral: Hub 5 Return to Blackmarsh)",
+		"tower (Tower of the Dark Mage: Hub 5 Return to Blackmarsh)",
+		"eidolon (Eidolon's Lair: Hub 5 Return to Blackmarsh)",
+		NULL
+	};
+
+	int y = 32;
+	singleplayerh2info_t *info;
+	menu_t *menu;
+	int mgt;
+	int cursorpositionY;
+	int currentskill;
+	int currentmap;
+	extern cvar_t host_mapname, sv_gravity, sv_cheats, sv_friction, skill;
+
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	menu = M_CreateMenu(sizeof(singleplayerh2info_t));
+	info = menu->data;
+
+	mgt = M_GameType();
+
+	if (mgt == MGT_QUAKE2)
+	{
+		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
+		y += 8;
+	}
+	else if (mgt == MGT_HEXEN2)
+	{
+		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		y += 25+8;
+	}
+	else
+	{
+		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+	}
+
+	cursorpositionY = (y + 24);
+
+	currentskill = skill.value;
+
+	if ( !currentskill )
+		currentskill = 4; // no skill selected
+
+	if ( strcmp ( host_mapname.string, "" ) == 0)
+		currentmap = 0;
+	else if ( stricmp ( host_mapname.string, "demo1" ) == 0 )
+		currentmap = 0;
+	else if ( stricmp ( host_mapname.string, "demo2" ) == 0 )
+		currentmap = 1;
+	else if ( stricmp ( host_mapname.string, "demo3" ) == 0 )
+		currentmap = 2;
+	else if ( stricmp ( host_mapname.string, "village1" ) == 0 )
+		currentmap = 3;
+	else if ( stricmp ( host_mapname.string, "village2" ) == 0 )
+		currentmap = 4;
+	else if ( stricmp ( host_mapname.string, "village3" ) == 0 )
+		currentmap = 5;
+	else if ( stricmp ( host_mapname.string, "village4" ) == 0 )
+		currentmap = 6;
+	else if ( stricmp ( host_mapname.string, "village5" ) == 0 )
+		currentmap = 7;
+	else if ( stricmp ( host_mapname.string, "rider1a" ) == 0 )
+		currentmap = 8;
+	else if ( stricmp ( host_mapname.string, "meso1" ) == 0 )
+		currentmap = 9;
+	else if ( stricmp ( host_mapname.string, "meso2" ) == 0 )
+		currentmap = 10;
+	else if ( stricmp ( host_mapname.string, "meso3" ) == 0 )
+		currentmap = 11;
+	else if ( stricmp ( host_mapname.string, "meso4" ) == 0 )
+		currentmap = 12;
+	else if ( stricmp ( host_mapname.string, "meso5" ) == 0 )
+		currentmap = 13;
+	else if ( stricmp ( host_mapname.string, "meso6" ) == 0 )
+		currentmap = 14;
+	else if ( stricmp ( host_mapname.string, "meso8" ) == 0 )
+		currentmap = 15;
+	else if ( stricmp ( host_mapname.string, "meso9" ) == 0 )
+		currentmap = 16;
+	else if ( stricmp ( host_mapname.string, "egypt1" ) == 0 )
+		currentmap = 17;
+	else if ( stricmp ( host_mapname.string, "egypt2" ) == 0 )
+		currentmap = 18;
+	else if ( stricmp ( host_mapname.string, "egypt3" ) == 0 )
+		currentmap = 19;
+	else if ( stricmp ( host_mapname.string, "egypt4" ) == 0 )
+		currentmap = 20;
+	else if ( stricmp ( host_mapname.string, "egypt5" ) == 0 )
+		currentmap = 21;
+	else if ( stricmp ( host_mapname.string, "egypt6" ) == 0 )
+		currentmap = 22;
+	else if ( stricmp ( host_mapname.string, "egypt7" ) == 0 )
+		currentmap = 23;
+	else if ( stricmp ( host_mapname.string, "rider2c" ) == 0 )
+		currentmap = 24;
+	else if ( stricmp ( host_mapname.string, "romeric1" ) == 0 )
+		currentmap = 25;
+	else if ( stricmp ( host_mapname.string, "romeric2" ) == 0 )
+		currentmap = 26;
+	else if ( stricmp ( host_mapname.string, "romeric3" ) == 0 )
+		currentmap = 27;
+	else if ( stricmp ( host_mapname.string, "romeric4" ) == 0 )
+		currentmap = 28;
+	else if ( stricmp ( host_mapname.string, "romeric5" ) == 0 )
+		currentmap = 29;
+	else if ( stricmp ( host_mapname.string, "romeric6" ) == 0 )
+		currentmap = 30;
+	else if ( stricmp ( host_mapname.string, "romeric7" ) == 0 )
+		currentmap = 31;
+	else if ( stricmp ( host_mapname.string, "castle4" ) == 0 )
+		currentmap = 32;
+	else if ( stricmp ( host_mapname.string, "castle5" ) == 0 )
+		currentmap = 33;
+	else if ( stricmp ( host_mapname.string, "cath" ) == 0 )
+		currentmap = 34;
+	else if ( stricmp ( host_mapname.string, "tower" ) == 0 )
+		currentmap = 35;
+	else if ( stricmp ( host_mapname.string, "eidolon" ) == 0 )
+		currentmap = 36;
+	else
+		currentmap = 0;
+
+		MC_AddRedText(menu, 16, y, 			"     Hexen2 Singleplayer Cheats", false); y+=8;
+		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
+		y+=8;
+info->skillcombo = MC_AddCombo(menu,16, y,	"                   Difficulty", skilloptions, currentskill);	y+=8;
+info->mapcombo = MC_AddCombo(menu,16, y,	"                          Map", mapoptions, currentmap);	y+=8;
+		MC_AddCheckBox(menu,	16, y,		"                       Cheats", &sv_cheats,0);	y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Godmode", "god\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Flymode", "fly\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"                Toggle Noclip", "noclip\n"); y+=8;
+		MC_AddSlider(menu,	16, y,			"                      Gravity", &sv_gravity,0,800,25);	y+=8;
+		MC_AddSlider(menu,	16, y,			"                Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, y,			"                   Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, y,			"                   Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+		MC_AddSlider(menu,	16, y,			"           Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"         Sheep Transformation", "impulse 14\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"    Change To Paladin (lvl3+)", "impulse 171\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"   Change To Crusader (lvl3+)", "impulse 172\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"Change to Necromancer (lvl3+)", "impulse 173\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"   Change to Assassin (lvl3+)", "impulse 174\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"              Remove Monsters", "impulse 35\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"              Freeze Monsters", "impulse 36\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"            Unfreeze Monsters", "impulse 37\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"          Increase Level By 1", "impulse 40\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"          Increase Experience", "impulse 41\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"         Display Co-ordinates", "impulse 42\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"           All Weapons & Mana", "impulse 9\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"   All Weapons & Mana & Items", "impulse 43\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"          No Enemy Targetting", "notarget\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"             Enable Crosshair", "crosshair 1\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,	"          20 Of Each Artifact", "impulse 299\n"); y+=8;
+		MC_AddConsoleCommand(menu, 16, y,   "                  Restart Map", "impulse 99\n"); y+=8;
+
+		y+=8;
+		MC_AddCommand(menu,	16, y,			"                Apply Changes", M_Apply_SP_Cheats_H2);	y+=8;
+
+	menu->selecteditem = (union menuoption_s *)info->skillcombo;
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 250, cursorpositionY, NULL, false);
 }

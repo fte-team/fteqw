@@ -928,6 +928,9 @@ void M_Menu_Teamplay_Items_Powerups_f (void);
 void M_Menu_Teamplay_Items_Ammo_Health_f (void);
 void M_Menu_Teamplay_Items_Team_Fortress_f (void);
 void M_Menu_Teamplay_Items_Status_Location_Misc_f (void);
+void M_Menu_Singleplayer_Cheats_f (void);
+void M_Menu_Singleplayer_Cheats_Quake2_f (void);
+void M_Menu_Singleplayer_Cheats_Hexen2_f (void);
 void M_Menu_Particles_f (void);
 void M_Menu_ParticleSets_f (void);
 void M_Menu_Audio_Speakers_f (void);
@@ -975,6 +978,9 @@ void M_Init_Internal (void)
 #ifndef __CYGWIN__
 	Cmd_AddRemCommand ("menu_speakers", M_Menu_Audio_Speakers_f);
 #endif
+	Cmd_AddRemCommand ("menu_spcheats", M_Menu_Singleplayer_Cheats_f);
+	Cmd_AddRemCommand ("menu_quake2_spcheats", M_Menu_Singleplayer_Cheats_Quake2_f);
+	Cmd_AddRemCommand ("menu_hexen2_spcheats", M_Menu_Singleplayer_Cheats_Hexen2_f);
 	Cmd_AddRemCommand ("menu_fps", M_Menu_FPS_f);
 	Cmd_AddRemCommand ("menu_3d" , M_Menu_3D_f);
 	Cmd_AddRemCommand ("menu_shadow_lighting", M_Menu_Shadow_Lighting_f);
@@ -1045,6 +1051,9 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_teamplay_ammo_health");
 	Cmd_RemoveCommand ("menu_teamplay_team_fortress");
 	Cmd_RemoveCommand ("menu_teamplay_status_location_misc");
+	Cmd_RemoveCommand ("menu_spcheats");
+	Cmd_RemoveCommand ("menu_hexen2_spcheats");
+	Cmd_RemoveCommand ("menu_quake2_spcheats");
 	Cmd_RemoveCommand ("menu_fps");
 	Cmd_RemoveCommand ("menu_3d");
 	Cmd_RemoveCommand ("menu_shadow_lighting");

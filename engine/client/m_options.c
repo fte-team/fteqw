@@ -2080,7 +2080,10 @@ void M_Menu_Singleplayer_Cheats_f (void)
 	int cursorpositionY;
 	int currentskill;
 	int currentmap;
-	extern cvar_t host_mapname, sv_gravity, sv_cheats, skill, sv_maxspeed;
+	#ifndef MINIMAL
+		extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
+	#endif
+	extern cvar_t host_mapname;
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -2109,7 +2112,9 @@ void M_Menu_Singleplayer_Cheats_f (void)
 
 	cursorpositionY = (y + 24);
 
+	#ifndef MINIMAL
 	currentskill = skill.value;
+	#endif
 
 	if ( !currentskill )
 		currentskill = 4; // no skill selected
@@ -2186,18 +2191,26 @@ void M_Menu_Singleplayer_Cheats_f (void)
 		MC_AddRedText(menu, 16, y, 			"     Quake Singleplayer Cheats", false); y+=8;
 		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
 		y+=8;
+		#ifndef MINIMAL
 		info->skillcombo = MC_AddCombo(menu,16, y,	"         Difficulty", skilloptions, currentskill);	y+=8;
+		#endif
 		info->mapcombo = MC_AddCombo(menu,16, y,	"                Map", mapoptions, currentmap);	y+=8;
+		#ifndef MINIMAL
 		MC_AddCheckBox(menu,	16, y,		"             Cheats", &sv_cheats,0);	y+=8;
+		#endif
 		MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"     Toggle Flymode", "fly\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "impulse 255\n"); y+=8;
+		#ifndef MINIMAL
 		MC_AddSlider(menu,	16, y,			"            Gravity", &sv_gravity,0,800,25);	y+=8;
+		#endif
 		MC_AddSlider(menu,	16, y,			"      Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
 		MC_AddSlider(menu,	16, y,			"         Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
 		MC_AddSlider(menu,	16, y,			"         Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+		#ifndef MINIMAL
 		MC_AddSlider(menu,	16, y,			" Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+		#endif
 		MC_AddConsoleCommand(menu, 16, y,	" Silver & Gold Keys", "impulse 13\nimpulse 14\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"All Weapons & Items", "impulse 9\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"No Enemy Targetting", "notarget\n"); y+=8;
@@ -2427,7 +2440,10 @@ void M_Menu_Singleplayer_Cheats_Quake2_f (void)
 	int cursorpositionY;
 	int currentskill;
 	int currentmap;
-	extern cvar_t host_mapname, sv_gravity, sv_cheats, sv_maxspeed, skill;
+	#ifndef MINIMAL
+		extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
+	#endif
+	extern cvar_t host_mapname;
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -2456,10 +2472,12 @@ void M_Menu_Singleplayer_Cheats_Quake2_f (void)
 
 	cursorpositionY = (y + 24);
 
+	#ifndef MINIMAL
 	currentskill = skill.value;
 
 	if ( !currentskill )
 		currentskill = 4; // no skill selected
+	#endif
 
 	if ( strcmp ( host_mapname.string, "" ) == 0)
 		currentmap = 0;
@@ -2547,16 +2565,24 @@ void M_Menu_Singleplayer_Cheats_Quake2_f (void)
 		MC_AddRedText(menu, 16, y, 			"     Quake2 Singleplayer Cheats", false); y+=8;
 		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
 		y+=8;
+		#ifndef MINIMAL
 		info->skillcombo = MC_AddCombo(menu,16, y,	"         Difficulty", skilloptions, currentskill);	y+=8;
+		#endif
 		info->mapcombo = MC_AddCombo(menu,16, y,	"                Map", mapoptions, currentmap);	y+=8;
+		#ifndef MINIMAL
 		MC_AddCheckBox(menu,	16, y,		"             Cheats", &sv_cheats,0);	y+=8;
+		#endif
 		MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
+		#ifndef MINIMAL
 		MC_AddSlider(menu,	16, y,			"            Gravity", &sv_gravity,0,850,25);	y+=8;
+		#endif
 		MC_AddSlider(menu,	16, y,			"      Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
 		MC_AddSlider(menu,	16, y,			"         Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
 		MC_AddSlider(menu,	16, y,			"         Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+		#ifndef MINIMAL
 		MC_AddSlider(menu,	16, y,			" Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+		#endif
 		MC_AddConsoleCommand(menu, 16, y,	"     Unlimited Ammo", "dmflags 8192\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "give quad damage\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"     Blue & Red Key", "give blue key\ngive red key\n"); y+=8;
@@ -2801,7 +2827,10 @@ void M_Menu_Singleplayer_Cheats_Hexen2_f (void)
 	int cursorpositionY;
 	int currentskill;
 	int currentmap;
-	extern cvar_t host_mapname, sv_gravity, sv_cheats, sv_maxspeed, skill;
+	#ifndef MINIMAL
+		extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
+	#endif
+	extern cvar_t host_mapname;
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -2830,10 +2859,12 @@ void M_Menu_Singleplayer_Cheats_Hexen2_f (void)
 
 	cursorpositionY = (y + 24);
 
+	#ifndef MINIMAL
 	currentskill = skill.value;
 
 	if ( !currentskill )
 		currentskill = 4; // no skill selected
+	#endif
 
 	if ( strcmp ( host_mapname.string, "" ) == 0)
 		currentmap = 0;
@@ -2917,17 +2948,25 @@ void M_Menu_Singleplayer_Cheats_Hexen2_f (void)
 		MC_AddRedText(menu, 16, y, 			"     Hexen2 Singleplayer Cheats", false); y+=8;
 		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
 		y+=8;
+#ifndef MINIMAL
 info->skillcombo = MC_AddCombo(menu,16, y,	"                   Difficulty", skilloptions, currentskill);	y+=8;
+#endif
 info->mapcombo = MC_AddCombo(menu,16, y,	"                          Map", mapoptions, currentmap);	y+=8;
+		#ifndef MINIMAL
 		MC_AddCheckBox(menu,	16, y,		"                       Cheats", &sv_cheats,0);	y+=8;
+		#endif
 		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Godmode", "god\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Flymode", "fly\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"                Toggle Noclip", "noclip\n"); y+=8;
+		#ifndef MINIMAL
 		MC_AddSlider(menu,	16, y,			"                      Gravity", &sv_gravity,0,800,25);	y+=8;
+		#endif
 		MC_AddSlider(menu,	16, y,			"                Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
 		MC_AddSlider(menu,	16, y,			"                   Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
 		MC_AddSlider(menu,	16, y,			"                   Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+		#ifndef MINIMAL
 		MC_AddSlider(menu,	16, y,			"           Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+		#endif
 		MC_AddConsoleCommand(menu, 16, y,	"         Sheep Transformation", "impulse 14\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"    Change To Paladin (lvl3+)", "impulse 171\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"   Change To Crusader (lvl3+)", "impulse 172\n"); y+=8;

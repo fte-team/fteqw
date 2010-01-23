@@ -2427,7 +2427,7 @@ void M_Menu_Singleplayer_Cheats_Quake2_f (void)
 	int cursorpositionY;
 	int currentskill;
 	int currentmap;
-	extern cvar_t host_mapname, sv_gravity, sv_cheats, sv_friction, skill;
+	extern cvar_t host_mapname, sv_gravity, sv_cheats, sv_maxspeed, skill;
 
 	key_dest = key_menu;
 	m_state = m_complex;
@@ -2801,7 +2801,7 @@ void M_Menu_Singleplayer_Cheats_Hexen2_f (void)
 	int cursorpositionY;
 	int currentskill;
 	int currentmap;
-	extern cvar_t host_mapname, sv_gravity, sv_cheats, sv_friction, skill;
+	extern cvar_t host_mapname, sv_gravity, sv_cheats, sv_maxspeed, skill;
 
 	key_dest = key_menu;
 	m_state = m_complex;

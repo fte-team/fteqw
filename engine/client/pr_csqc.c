@@ -3760,7 +3760,7 @@ static void PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	G_FLOAT(OFS_RETURN) = (skelobj - skelobjects) + 1;
 }
 
-//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
+//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_build (FTE_CSQC_SKELETONOBJECTS)
 static void PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -5120,20 +5120,20 @@ static struct {
 	{"htos",			PF_htos,			262},
 
 	{"skel_create",			PF_skel_create,			263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_build",			PF_skel_build,			264},//float(float skel, entity ent, float modlindex, float firstbone, float lastbone) skel_build = #263; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_numbones",	PF_skel_get_numbones,	265},//float(float skel) skel_get_numbones = #264; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_bonename",	PF_skel_get_bonename,	266},//string(float skel, float bonenum) skel_get_bonename = #265; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
-	{"skel_get_boneparent",	PF_skel_get_boneparent,	267},//float(float skel, float bonenum) skel_get_boneparent = #266; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_find_bone",		PF_skel_find_bone,		268},//float(float skel, string tagname) skel_get_boneidx = #267; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_bonerel",	PF_skel_get_bonerel,	269},//vector(float skel, float bonenum) skel_get_bonerel = #268; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-	{"skel_get_boneabs",	PF_skel_get_boneabs,	270},//vector(float skel, float bonenum) skel_get_boneabs = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-	{"skel_set_bone",		PF_skel_set_bone,		271},//void(float skel, float bonenum, vector org) skel_set_bone = #270; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_mul_bone",		PF_skel_mul_bone,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_mul_bones",		PF_skel_mul_bones,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_copybones",		PF_skel_copybones,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #273; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_delete",			PF_skel_delete,			275},//void(float skel) skel_delete = #274; // (FTE_CSQC_SKELETONOBJECTS)
-	{"frameforname",		PF_frameforname,		276},//void(float modidx, string framename) frameforname = #275 (FTE_CSQC_SKELETONOBJECTS)
-	{"frameduration",		PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #276 (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build",			PF_skel_build,			264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_numbones",	PF_skel_get_numbones,	265},//float(float skel) skel_get_numbones = #265; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonename",	PF_skel_get_bonename,	266},//string(float skel, float bonenum) skel_get_bonename = #266; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+	{"skel_get_boneparent",	PF_skel_get_boneparent,	267},//float(float skel, float bonenum) skel_get_boneparent = #267; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_find_bone",		PF_skel_find_bone,		268},//float(float skel, string tagname) skel_get_boneidx = #268; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonerel",	PF_skel_get_bonerel,	269},//vector(float skel, float bonenum) skel_get_bonerel = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_get_boneabs",	PF_skel_get_boneabs,	270},//vector(float skel, float bonenum) skel_get_boneabs = #270; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_set_bone",		PF_skel_set_bone,		271},//void(float skel, float bonenum, vector org) skel_set_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bone",		PF_skel_mul_bone,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bones",		PF_skel_mul_bones,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_copybones",		PF_skel_copybones,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #274; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_delete",			PF_skel_delete,			275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforname",		PF_frameforname,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameduration",		PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
 //300
 	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)

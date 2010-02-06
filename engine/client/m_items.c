@@ -689,7 +689,7 @@ menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname
 	char selname[MAX_QPATH];
 	menupicture_t *n;
 
-	if (!qrenderer)
+	if (qrenderer == QR_NONE)
 		return NULL;
 
 	Q_strncpyz(selname, picname, sizeof(selname));
@@ -715,7 +715,7 @@ menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname
 menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, char *picname)
 {
 	menupicture_t *n;
-	if (!qrenderer)
+	if (qrenderer == QR_NONE)
 		return NULL;
 
 	Draw_SafeCachePic(picname);
@@ -741,7 +741,7 @@ menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picnam
 	int width;
 	mpic_t *p;
 
-	if (!qrenderer)
+	if (qrenderer == QR_NONE)
 		return NULL;
 	p = Draw_SafeCachePic(picname);
 	if (!p)

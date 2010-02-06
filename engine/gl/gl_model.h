@@ -752,6 +752,7 @@ typedef struct model_s
 	char		name[MAX_QPATH];
 	qboolean	needload;		// bmodels and sprites don't cache normally
 	qboolean	tainted;
+	qboolean	pushdepth;		// bsp submodels have this flag set so you don't get z fighting on co-planar surfaces.
 
 	modtype_t	type;
 	fromgame_t	fromgame;

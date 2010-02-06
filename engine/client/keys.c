@@ -416,7 +416,7 @@ vec3_t sccolor;
 
 void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue)
 {
-	if (qrenderer != QR_NONE && qrenderer != -1)
+	if (qrenderer != QR_NONE)
 		SCR_StringToRGB(var->string, sccolor, 1);
 }
 

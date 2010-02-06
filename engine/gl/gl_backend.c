@@ -1,4 +1,9 @@
 #include "quakedef.h"
+
+#define STATEFIXME
+#define FORCESTATE
+
+
 #ifdef GLQUAKE
 
 #include "glquake.h"
@@ -426,7 +431,9 @@ struct {
 
 void GL_TexEnv(GLenum mode)
 {
+#ifndef FORCESTATE
 	if (mode != shaderstate.texenvmode[shaderstate.currenttmu])
+#endif
 	{
 		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
 		shaderstate.texenvmode[shaderstate.currenttmu] = mode;
@@ -461,7 +468,9 @@ void GL_SelectTexture(int target)
 
 void GL_SelectVBO(int vbo)
 {
+#ifndef FORCESTATE
 	if (shaderstate.currentvbo != vbo)
+#endif
 	{
 		shaderstate.currentvbo = vbo;
 		qglBindBufferARB(GL_ARRAY_BUFFER_ARB, shaderstate.currentvbo);
@@ -469,7 +478,9 @@ void GL_SelectVBO(int vbo)
 }
 void GL_SelectEBO(int vbo)
 {
+#ifndef FORCESTATE
 	if (shaderstate.currentebo != vbo)
+#endif
 	{
 		shaderstate.currentebo = vbo;
 		qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, shaderstate.currentebo);
@@ -478,7 +489,9 @@ void GL_SelectEBO(int vbo)
 
 static void GL_ApplyVertexPointer(void)
 {
+#ifndef FORCESTATE
 	if (shaderstate.curvertexpointer != shaderstate.pendingvertexpointer || shaderstate.pendingvertexvbo != shaderstate.curvertexvbo)
+#endif
 	{
 		shaderstate.curvertexpointer = shaderstate.pendingvertexpointer;
 		shaderstate.curvertexvbo = shaderstate.pendingvertexvbo;
@@ -491,8 +504,10 @@ void GL_MBind(int target, texid_t texnum)
 {
 	GL_SelectTexture(target);
 
+#ifndef FORCESTATE
 	if (shaderstate.currenttextures[shaderstate.currenttmu] == texnum.num)
 		return;
+#endif
 
 	shaderstate.currenttextures[shaderstate.currenttmu] = texnum.num;
 	bindTexFunc (GL_TEXTURE_2D, texnum.num);
@@ -500,8 +515,10 @@ void GL_MBind(int target, texid_t texnum)
 
 void GL_Bind(texid_t texnum)
 {
+#ifndef FORCESTATE
 	if (shaderstate.currenttextures[shaderstate.currenttmu] == texnum.num)
 		return;
+#endif
 
 	shaderstate.currenttextures[shaderstate.currenttmu] = texnum.num;
 
@@ -510,8 +527,10 @@ void GL_Bind(texid_t texnum)
 
 void GL_BindType(int type, texid_t texnum)
 {
+#ifndef FORCESTATE
 	if (shaderstate.currenttextures[shaderstate.currenttmu] == texnum.num)
 		return;
+#endif
 
 	shaderstate.currenttextures[shaderstate.currenttmu] = texnum.num;
 	bindTexFunc (type, texnum.num);
@@ -519,8 +538,10 @@ void GL_BindType(int type, texid_t texnum)
 
 void GL_CullFace(unsigned int sflags)
 {
+#ifndef FORCESTATE
 	if (shaderstate.curcull == sflags)
 		return;
+#endif
 	shaderstate.curcull = sflags;
 
 	if (shaderstate.curcull & SHADER_CULL_FRONT)
@@ -1567,8 +1588,6 @@ static void alphagen(const shaderpass_t *pass, int cnt, const avec4_t *src, avec
 	}
 }
 
-#define DVBOMETHOD 1
-
 static void GenerateColourMods(const shaderpass_t *pass, const mesh_t *meshlist)
 {
 	if (meshlist->colors4b_array)
@@ -1686,8 +1705,13 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 
 	delta = sbits^shaderstate.shaderbits;
 
-#pragma message("Hack to work around the fact that other bits of code change this state")
+#ifdef STATEFIXME
+	#pragma message("Hack to work around the fact that other bits of code change this state")
 	delta |= SBITS_MISC_NODEPTHTEST|SBITS_MISC_DEPTHEQUALONLY;
+#endif
+#ifdef FORCESTATE
+	delta |= ~0;
+#endif
 	if (!delta)
 		return;
 	shaderstate.shaderbits = sbits;
@@ -2165,7 +2189,9 @@ static void DrawMeshChain(const mesh_t *meshlist)
 		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->vbocoord;
 	}
 
+#ifndef FORCESTATE
 	if (shaderstate.curcull != (shaderstate.curshader->flags & (SHADER_CULL_FRONT|SHADER_CULL_BACK)))
+#endif
 	{
 		shaderstate.curcull = (shaderstate.curshader->flags & (SHADER_CULL_FRONT|SHADER_CULL_BACK));
 
@@ -2185,7 +2211,7 @@ static void DrawMeshChain(const mesh_t *meshlist)
 		}
 	}
 
-	if (shaderstate.curentity != &r_worldentity)
+	if (shaderstate.flags & BEF_PUSHDEPTH)
 	{
 		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
 		we move them back very slightly using polygonoffset to avoid really ugly z-fighting*/
@@ -2194,7 +2220,9 @@ static void DrawMeshChain(const mesh_t *meshlist)
 		po.factor = shaderstate.curshader->polyoffset.factor + r_polygonoffset_submodel_factor.value;
 		po.unit = shaderstate.curshader->polyoffset.unit + r_polygonoffset_submodel_offset.value;
 
+#ifndef FORCESTATE
 		if (((int*)&shaderstate.curpolyoffset)[0] != ((int*)&po)[0] || ((int*)&shaderstate.curpolyoffset)[1] != ((int*)&po)[1])
+#endif
 		{
 			shaderstate.curpolyoffset = po;
 			if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
@@ -2208,7 +2236,9 @@ static void DrawMeshChain(const mesh_t *meshlist)
 	}
 	else
 	{
+#ifndef FORCESTATE
 		if (*(int*)&shaderstate.curpolyoffset != *(int*)&shaderstate.curshader->polyoffset || *(int*)&shaderstate.curpolyoffset != *(int*)&shaderstate.curshader->polyoffset)
+#endif
 		{
 			shaderstate.curpolyoffset = shaderstate.curshader->polyoffset;
 			if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
@@ -2587,6 +2617,7 @@ void BE_BaseEntTextures(void)
 {
 	extern model_t *currentmodel;
 	int		i;
+	unsigned int bef;
 
 	if (!r_drawentities.ival)
 		return;
@@ -2604,6 +2635,14 @@ void BE_BaseEntTextures(void)
 		switch(currententity->model->type)
 		{
 		case mod_brush:
+			bef = BEF_PUSHDEPTH;
+			if (currententity->flags & Q2RF_ADDITIVE)
+				bef |= BEF_FORCEADDITIVE;
+			else if (currententity->shaderRGBAf[3] < 1)
+				bef |= BEF_FORCETRANSPARENT;
+			if (currententity->flags & RF_NODEPTHTEST)
+				bef |= BEF_FORCENODEPTH;
+			BE_SelectMode(shaderstate.mode, bef);
 			BaseBrushTextures(currententity);
 			break;
 		case mod_alias:

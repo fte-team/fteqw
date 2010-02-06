@@ -71,6 +71,8 @@ extern qboolean (*Draw_IsCached)					(char *picname);	//can be null
 
 extern void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
 extern void	(*Draw_ImageColours)					(float r, float g, float b, float a);
+void R2D_FillBlock(int x, int y, int w, int h);
+#define Draw_FillBlock R2D_FillBlock
 
 extern void	(*R_Init)								(void);
 extern void	(*R_DeInit)								(void);
@@ -149,7 +151,7 @@ void Draw_FunStringWidth(int x, int y, const unsigned char *str, int width);
 
 
 
-typedef struct {
+typedef struct rendererinfo_s {
 	char *description;
 	char *name[4];
 	r_qrenderer_t rtype;

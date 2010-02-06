@@ -922,7 +922,7 @@ void SV_DropClient (client_t *drop);
 struct quakeparms_s;
 void SV_Init (struct quakeparms_s *parms);
 
-int SV_CalcPing (client_t *cl);
+int SV_CalcPing (client_t *cl, qboolean forcecalc);
 void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext);
 void SV_FullClientUpdateToClient (client_t *client, client_t *cl);
 void SVNQ_FullClientUpdate (client_t *client, sizebuf_t *buf);

@@ -437,7 +437,7 @@ void SV_Map_f (void)
 	nextserver = 0;
 
 #ifndef SERVERONLY
-	if (qrenderer == -1)
+	if (!Renderer_Started())
 	{
 		Cbuf_AddText(va("wait;map %s\n", Cmd_Args()), Cmd_ExecLevel);
 		return;
@@ -1445,7 +1445,7 @@ void SV_Status_f (void)
 			}
 			Con_Printf ("%4i %4i %5.2f\n"
 				, (int)(1000*cl->netchan.frame_rate)
-				, (int)SV_CalcPing (cl)
+				, (int)SV_CalcPing (cl, false)
 				, 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence);
 		}
 	}
@@ -1485,7 +1485,7 @@ void SV_Status_f (void)
 			else
 				Con_Printf ("%4i %4i %5.1f %4i"
 				, (int)(1000*cl->netchan.frame_rate)
-				, (int)SV_CalcPing (cl)
+				, (int)SV_CalcPing (cl, false)
 				, 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence
 				, cl->netchan.qport);
 			if (cl->download)

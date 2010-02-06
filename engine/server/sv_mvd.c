@@ -766,7 +766,7 @@ void SV_MVDPings (void)
 		MVDWrite_Begin (dem_all, 0, 7);
 		MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updateping);
 		MSG_WriteByte((sizebuf_t*)demo.dbuf,  j);
-		MSG_WriteShort((sizebuf_t*)demo.dbuf,  SV_CalcPing(client));
+		MSG_WriteShort((sizebuf_t*)demo.dbuf,  SV_CalcPing(client, false));
 		MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatepl);
 		MSG_WriteByte ((sizebuf_t*)demo.dbuf, j);
 		MSG_WriteByte ((sizebuf_t*)demo.dbuf, client->lossage);
@@ -1847,7 +1847,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 		MSG_WriteByte (&buf, svc_updateping);
 		MSG_WriteByte (&buf, i);
-		MSG_WriteShort (&buf, SV_CalcPing(player));
+		MSG_WriteShort (&buf, SV_CalcPing(player, false));
 
 		MSG_WriteByte (&buf, svc_updatepl);
 		MSG_WriteByte (&buf, i);

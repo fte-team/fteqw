@@ -441,7 +441,7 @@ void skel_dodelete(void);
 
 
 qboolean csqc_deprecated_warned;
-#define csqc_deprecated(s) do {if (!csqc_deprecated_warned){Con_Printf("deprecated feature used: %s\n", s); csqc_deprecated_warned = true;}}while(0)
+#define csqc_deprecated(s) do {if (!csqc_deprecated_warned){Con_Printf("csqc warning: %s\n", s); csqc_deprecated_warned = true;}}while(0)
 
 
 static model_t *CSQC_GetModelForIndex(int index);
@@ -530,7 +530,7 @@ static void PF_cs_remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (ed->isfree)
 	{
-		Con_DPrintf("CSQC Tried removing free entity\n");
+		csqc_deprecated("Tried removing free entity");
 		return;
 	}
 
@@ -548,12 +548,12 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (!strcmp(str, "vid_conwidth"))
 	{
-		csqc_deprecated("vid_conwidth cvar");
+		csqc_deprecated("vid_conwidth cvar used");
 		G_FLOAT(OFS_RETURN) = vid.width;
 	}
 	else if (!strcmp(str, "vid_conheight"))
 	{
-		csqc_deprecated("vid_conheight cvar");
+		csqc_deprecated("vid_conheight cvar used");
 		G_FLOAT(OFS_RETURN) = vid.height;
 	}
 	else
@@ -709,6 +709,10 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	cs_getframestate(in, rflags, &out->framestate);
 
 	VectorCopy(in->v->origin, out->origin);
+	{
+		extern cvar_t temp1;
+	out->origin[2] += temp1.value;
+	}
 	if (rflags & CSQCRF_USEAXIS)
 	{
 		VectorCopy(csqcg.forward, out->axis[0]);
@@ -786,6 +790,11 @@ static void PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
 	entity_t ent;
+	if (in->isfree || in->entnum == 0)
+	{
+		csqc_deprecated("Tried drawing a free/removed/world entity\n");
+		return;
+	}
 
 	if (CopyCSQCEdictToEntity(in, &ent))
 		V_AddAxisEntity(&ent);
@@ -1413,7 +1422,7 @@ static void PF_cs_getstatf(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float val = cl.statsf[csqc_lplayernum][stnum];	//copy float into the stat
 	G_FLOAT(OFS_RETURN) = val;
 }
-static void PF_cs_getstati(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_cs_getstatbits(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//convert an int stat into a qc float.
 
 	int stnum = G_FLOAT(OFS_PARM0);
@@ -4912,13 +4921,13 @@ static struct {
 
 //330
 	{"getstatf",	PF_cs_getstatf,					330},	// #330 float(float stnum) getstatf (EXT_CSQC)
-	{"getstati",	PF_cs_getstati,					331},	// #331 float(float stnum) getstati (EXT_CSQC)
+	{"getstatbits",	PF_cs_getstatbits,					331},	// #331 float(float stnum) getstatbits (EXT_CSQC)
 	{"getstats",	PF_cs_getstats,					332},	// #332 string(float firststnum) getstats (EXT_CSQC)
 	{"setmodelindex",	PF_cs_SetModelIndex,			333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
 	{"modelnameforindex",	PF_cs_ModelnameForIndex,		334},	// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
 
 	{"particleeffectnum",	PF_cs_particleeffectnum,			335},	// #335 float(string effectname) particleeffectnum (EXT_CSQC)
-	{"trailparticles",	PF_cs_trailparticles,			336},	// #336 void(entity ent, float effectnum, vector start, vector end) trailparticles (EXT_CSQC),
+	{"trailparticles",	PF_cs_trailparticles,			336},	// #336 void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),
 	{"pointparticles",	PF_cs_pointparticles,			337},	// #337 void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
 
 	{"cprint",	PF_cl_cprint,					338},	// #338 void(string s) cprint (EXT_CSQC)
@@ -5399,7 +5408,7 @@ qboolean CSQC_Init (unsigned int checksum)
 	if (csqcprogs)
 		return false;
 
-	if (!qrenderer)
+	if (qrenderer == QR_NONE)
 	{
 		return false;
 	}
@@ -5415,6 +5424,7 @@ qboolean CSQC_Init (unsigned int checksum)
 			pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
 	}
 
+	csqc_deprecated_warned = false;
 	skel_reset();
 	memset(cl.model_csqcname, 0, sizeof(cl.model_csqcname));
 	memset(cl.model_csqcprecache, 0, sizeof(cl.model_csqcprecache));

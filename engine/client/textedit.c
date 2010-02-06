@@ -985,7 +985,7 @@ int QCLibEditor(progfuncs_t *prfncs, char *filename, int line, int nump, char **
 	if (editormodal || !developer.ival)
 		return line;	//whoops
 
-	if (!qrenderer)
+	if (qrenderer == QR_NONE)
 	{
 		int i;
 		char buffer[8192];

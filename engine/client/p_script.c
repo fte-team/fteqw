@@ -465,7 +465,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 	texnums_t tn;
 	char *defaultshader;
 	char *namepostfix;
-	if (qrenderer<=0)
+	if (qrenderer == QR_NONE)
 		return;
 
 	/*try and load the shader, fail if we would need to generate one*/

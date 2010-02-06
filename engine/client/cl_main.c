@@ -3617,7 +3617,7 @@ void Host_Init (quakeparms_t *parms)
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
 
-	R_SetRenderer(-1);//set the renderer stuff to unset...
+	R_SetRenderer(NULL);//set the renderer stuff to unset...
 
 	host_initialized = true;
 
@@ -3696,24 +3696,7 @@ void Host_FinishInit(void)
 	Cmd_StuffCmds();
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 
-
-	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
-
-//-1 means 'never set'
-	if (qrenderer == -1 && *vid_renderer.string)
-	{
-		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
-	}
-	if (qrenderer == -1)
-	{	//we still failed. Try again, but use the default renderer.
-		Cvar_Set(&vid_renderer, "");
-		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
-	}
-	if (qrenderer == -1)
-		Sys_Error("No renderer was set!\n");
-
-	if (qrenderer == QR_NONE)
-		Con_Printf("Use the setrenderer command to use a gui\n");
+	Renderer_Start();
 
 #ifdef VM_UI
 	UI_Init();

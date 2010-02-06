@@ -356,7 +356,7 @@ int Plug_Emumerated (const char *name, int size, void *param)
 
 qintptr_t VARGS Plug_Con_Print(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-//	if (qrenderer <= 0)
+//	if (qrenderer == QR_NONE)
 //		return false;
 	Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 	return 0;

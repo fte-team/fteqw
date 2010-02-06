@@ -386,6 +386,7 @@ typedef enum
 #define BEF_FORCEADDITIVE		4	//blend dest = GL_ONE
 #define BEF_FORCETRANSPARENT	8	//texenv replace -> modulate
 #define BEF_FORCENODEPTH		16	//disables any and all depth.
+#define BEF_PUSHDEPTH			32	//additional polygon offset
 
 //Select the current render mode and modifier flags
 void BE_SelectMode(backendmode_t mode, unsigned int flags);

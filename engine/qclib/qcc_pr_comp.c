@@ -3430,6 +3430,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 		{
 			//t = (a/%1) / (nextent(world)/%1)
 			//a/%1 does a (int)entity to float conversion type thing
+			func->initialized = 1;
 
 			e = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 			QCC_PR_Expect(")");

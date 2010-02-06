@@ -2037,7 +2037,7 @@ void GLR_RenderView (void)
 
 	if (qglPNTrianglesiATI)
 	{
-		if (gl_ati_truform_type.value)
+		if (gl_ati_truform_type.ival)
 		{	//linear
 			qglPNTrianglesiATI(GL_PN_TRIANGLES_NORMAL_MODE_ATI, GL_PN_TRIANGLES_NORMAL_MODE_LINEAR_ATI);
 			qglPNTrianglesiATI(GL_PN_TRIANGLES_POINT_MODE_ATI, GL_PN_TRIANGLES_POINT_MODE_CUBIC_ATI);

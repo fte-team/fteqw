@@ -340,7 +340,7 @@ void VARGS SV_Error (char *error, ...)
 }
 
 #ifdef SERVERONLY
-void VARGS Host_EndGame (char *error, ...)
+void VARGS Host_Error (char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -734,7 +734,7 @@ SV_CalcPing
 
 ===================
 */
-int SV_CalcPing (client_t *cl)
+int SV_CalcPing (client_t *cl, qboolean forcecalc)
 {
 	float		ping;
 	int			i;
@@ -845,7 +845,7 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 
 	MSG_WriteByte (buf, svc_updateping);
 	MSG_WriteByte (buf, i);
-	MSG_WriteShort (buf, SV_CalcPing (client));
+	MSG_WriteShort (buf, SV_CalcPing (client, false));
 
 	MSG_WriteByte (buf, svc_updatepl);
 	MSG_WriteByte (buf, i);
@@ -994,7 +994,7 @@ void SVC_Status (void)
 			bottom = atoi(Info_ValueForKey (cl->userinfo, "bottomcolor"));
 			top = (top < 0) ? 0 : ((top > 13) ? 13 : top);
 			bottom = (bottom < 0) ? 0 : ((bottom > 13) ? 13 : bottom);
-			ping = SV_CalcPing (cl);
+			ping = SV_CalcPing (cl, false);
 			name = cl->name;
 
 			if (!cl->state)	//show bots differently. Just to be courteous.
@@ -1126,7 +1126,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 									"%d %d \"%s\" \"%s\"\n"
 									,
 									cl->old_frags,
-									SV_CalcPing(cl),
+									SV_CalcPing(cl, false),
 									cl->team,
 									cl->name
 									), sizeof(response) - (resp-response));
@@ -4369,7 +4369,7 @@ void SV_Init (quakeparms_t *parms)
 		Cbuf_Init ();
 		Cmd_Init ();
 #ifndef SERVERONLY
-		R_SetRenderer(QR_NONE);
+		R_SetRenderer(NULL);
 #endif
 		COM_Init ();
 		Mod_Init ();
@@ -4479,3 +4479,4 @@ void SV_Init (quakeparms_t *parms)
 }
 
 #endif
+

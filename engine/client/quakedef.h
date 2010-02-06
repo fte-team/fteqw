@@ -249,6 +249,7 @@ extern	double		realtime;			// not bounded in any way, changed at
 void Host_ServerFrame (void);
 void Host_InitCommands (void);
 void Host_Init (quakeparms_t *parms);
+void Host_FinishInit(void);
 void Host_Shutdown(void);
 NORETURN void VARGS Host_Error (char *error, ...) LIKEPRINTF(1);
 NORETURN void VARGS Host_EndGame (char *message, ...) LIKEPRINTF(1);

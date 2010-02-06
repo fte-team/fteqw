@@ -36,7 +36,7 @@ typedef struct {
 	int rate;
 	int multisample;	//for opengl antialiasing (which requires context stuff)
 	char glrenderer[MAX_QPATH];
-	r_qrenderer_t renderer;
+	struct rendererinfo_s *renderer;
 } rendererstate_t;
 
 typedef struct vrect_s

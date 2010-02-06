@@ -149,7 +149,9 @@ extern cvar_t		scr_conalpha;
 
 texid_t			translate_texture;
 texid_t			missing_texture;	//texture used when one is missing.
+
 texid_t			cs_texture; // crosshair texture
+shader_t		*crosshair_shader;
 
 float custom_char_instep, default_char_instep;	//to avoid blending issues
 float	char_instep;
@@ -387,6 +389,15 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	cs_texture = GL_AllocNewTexture();
 
+	crosshair_shader = R_RegisterShader("crosshairshader",
+		"{\n"
+			"{\n"
+				"map $diffuse\n"
+				"blendfunc blend\n"
+			"}\n"
+		"}\n"
+		);
+
 	missing_texture = GL_LoadTexture("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
 
 	GL_SetupSceneProcessingTextures();
@@ -485,6 +496,17 @@ void GLCrosshair_Callback(struct cvar_s *var, char *oldvalue)
 #undef Pix
 
 	R_Upload(cs_texture, NULL, TF_RGBA32, cs_data, 16, 16, IF_NOMIPMAP|IF_NOGAMMA);
+
+	if (gl_smoothcrosshair.ival)
+	{
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+	else
+	{
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	}
 }
 
 void GLCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue)
@@ -502,9 +524,10 @@ void GLDraw_Crosshair(void)
 {
 	int x, y;
 	int sc;
+	float sx, sy, sizex, sizey;
 
-	float x1, x2, y1, y2;
 	float size, chc;
+	shader_t *shader;
 
 	qboolean usingimage = false;
 
@@ -514,89 +537,71 @@ void GLDraw_Crosshair(void)
 		{
 			SCR_CrosshairPosition(sc, &x, &y);
 			Font_BeginString(font_conchar, x, y, &x, &y);
-			Font_DrawChar(x-4, y-4, '+' | 0xe000 | CON_WHITEMASK);
+			x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
+			y -= Font_CharHeight()/2;
+			Font_DrawChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
 			Font_EndString(font_conchar);
 		}
 		return;
 	}
 
+	shader = crosshair_shader;
 	if (*crosshairimage.string)
 	{
 		usingimage = true;
-		GL_Bind (externalhair);
 		chc = 0;
 
-		qglEnable (GL_BLEND);
-		qglDisable(GL_ALPHA_TEST);
+		shader->defaulttextures.base = externalhair;
 	}
 	else if (crosshair.ival)
 	{
-		GL_Bind (cs_texture);
 		chc = 1/16.0;
 
 		// force crosshair refresh with animated crosshairs
-		if (crosshair.value >= FIRSTANIMATEDCROSHAIR)
+		if (crosshair.ival >= FIRSTANIMATEDCROSHAIR)
 			GLCrosshair_Callback(&crosshair, "");
 
-		if (crosshairalpha.ival<1)
-		{
-			qglEnable (GL_BLEND);
-			qglDisable(GL_ALPHA_TEST);
-		}
-		else
-		{
-			qglDisable (GL_BLEND);
-			qglEnable(GL_ALPHA_TEST);
-		}
+		shader->defaulttextures.base = cs_texture;
 	}
 	else
 		return;
 
-	GL_TexEnv(GL_MODULATE);
-
-	if (usingimage)
-		qglColor4f(chcolor[0], chcolor[1], chcolor[2], crosshairalpha.ival);
-	else
-		qglColor4f(1, 1, 1, crosshairalpha.value);
-
 	size = crosshairsize.value;
-	chc = size * chc;
 
-	if (gl_smoothcrosshair.ival && (size > 16 || usingimage))
+	if (size < 0)
 	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		size = -size;
+		sizex = size;
+		sizey = size;
+		chc = 0;
 	}
 	else
 	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		sizex = (size*vid.pixelwidth) / (float)vid.width;
+		sizey = (size*vid.pixelheight) / (float)vid.height;
+		chc = size * chc;
 	}
+
+	sizex = (int)sizex;
+	sizex = ((sizex)*(int)vid.width) / (float)vid.pixelwidth;
+
+	sizey = (int)sizey;
+	sizey = ((sizey)*(int)vid.height) / (float)vid.pixelheight;
 
 	for (sc = 0; sc < cl.splitclients; sc++)
 	{
 		SCR_CrosshairPosition(sc, &x, &y);
 
-		x1 = x - size - chc;
-		x2 = x + size - chc;
-		y1 = y - size - chc;
-		y2 = y + size - chc;
-		qglBegin (GL_QUADS);
-		qglTexCoord2f (0, 0);
-		qglVertex2f (x1, y1);
-		qglTexCoord2f (1, 0);
-		qglVertex2f (x2, y1);
-		qglTexCoord2f (1, 1);
-		qglVertex2f (x2, y2);
-		qglTexCoord2f (0, 1);
-		qglVertex2f (x1, y2);
-		qglEnd ();
+		//translate to pixel coord, for rounding
+		x = ((x-sizex-chc)*vid.pixelwidth) / (float)vid.width;
+		y = ((y-sizey-chc)*vid.pixelheight) / (float)vid.height;
+
+		//translate to screen coords
+		sx = ((x)*(int)vid.width) / (float)vid.pixelwidth;
+		sy = ((y)*(int)vid.height) / (float)vid.pixelheight;
+
+		R2D_Image(sx, sy, sizex*2, sizey*2, 0, 0, 1, 1, shader);
 	}
-
-//	GL_TexEnv ( GL_REPLACE );
-//	GL_TexEnv ( GL_MODULATE );
-
-	qglColor4f(1, 1, 1, 1);
 }
 
 /*
@@ -860,9 +865,6 @@ void GLDraw_BeginDisc (void)
 {
 	if (!draw_disc || !r_drawdisk.value)
 		return;
-	qglDrawBuffer  (GL_FRONT);
-	Draw_ScalePic(vid.width - 24, 0, 24, 24, draw_disc);
-	qglDrawBuffer  (GL_BACK);
 }
 
 

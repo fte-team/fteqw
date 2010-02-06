@@ -605,7 +605,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		latch = "variable %s is latched and will be applied for the start of the next map\n";
 //	else if (var->flags & CVAR_LATCHFLUSH)
 //		latch = "variable %s is latched (type flush)\n";
-	else if (var->flags & CVAR_RENDERERLATCH && qrenderer)
+	else if (var->flags & CVAR_RENDERERLATCH && qrenderer != QR_NONE)
 		latch = "variable %s will be changed after a vid_restart\n";
 	else if (var->flags & CVAR_RULESETLATCH)
 		latch = "variable %s is latched due to current ruleset\n";

@@ -13,7 +13,7 @@ static plugin_t *protocolclientplugin;
 
 qintptr_t VARGS Plug_Menu_Control(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return 0;
 
 	switch(VM_LONG(arg[0]))
@@ -56,7 +56,7 @@ qintptr_t VARGS Plug_Key_GetKeyCode(void *offset, quintptr_t mask, const qintptr
 
 qintptr_t VARGS Plug_SCR_CenterPrint(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return 0;
 
 	SCR_CenterPrint(0, VM_POINTER(arg[0]), true);
@@ -72,7 +72,7 @@ qintptr_t VARGS Plug_Media_ShowFrameRGBA_32(void *offset, quintptr_t mask, const
 //	int width = VM_LONG(arg[5]);
 //	int height = VM_LONG(arg[6]);
 
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return 0;
 
 	Media_ShowFrameRGBA_32(src, srcwidth, srcheight);
@@ -123,7 +123,7 @@ qintptr_t VARGS Plug_Draw_LoadImage(void *offset, quintptr_t mask, const qintptr
 	if (pluginimagearray[i].pic)
 		return i+1;	//already loaded.
 
-	if (qrenderer > 0)
+	if (qrenderer != QR_NONE)
 	{
 		if (fromwad && Draw_SafePicFromWad)
 			pic = Draw_SafePicFromWad(name);
@@ -184,7 +184,7 @@ qintptr_t VARGS Plug_Draw_Image(void *offset, quintptr_t mask, const qintptr_t *
 {
 	mpic_t *pic;
 	int i;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return 0;
 	if (!Draw_Image)
 		return 0;
@@ -233,7 +233,7 @@ qintptr_t VARGS Plug_Draw_Line(void *offset, quintptr_t mask, const qintptr_t *a
 qintptr_t VARGS Plug_Draw_Character(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int x, y;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return 0;
 	Font_BeginString(font_conchar, arg[0], arg[1], &x, &y);
 	Font_DrawChar(x, y, CON_WHITEMASK | 0xe000 | (unsigned int)arg[2]);
@@ -244,7 +244,7 @@ void	(D3D_Draw_Fill_Colours)				(int x, int y, int w, int h);
 qintptr_t VARGS Plug_Draw_Fill(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	float x, y, width, height;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return 0;
 	x = VM_FLOAT(arg[0]);
 	y = VM_FLOAT(arg[1]);
@@ -315,7 +315,7 @@ qintptr_t VARGS Plug_Draw_Colour4f(void *offset, quintptr_t mask, const qintptr_
 
 qintptr_t VARGS Plug_LocalSound(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 
 	S_LocalSound(VM_POINTER(arg[0]));
@@ -335,7 +335,7 @@ qintptr_t VARGS Plug_CL_GetStats(void *offset, quintptr_t mask, const qintptr_t 
 	if (VM_OOB(arg[1], arg[2]*4))
 		return 0;
 
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 
 	max = pluginstats;
@@ -457,7 +457,7 @@ qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t
 	char *text = VM_POINTER(arg[1]);
 	console_t *con;
 
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 
 	con = Con_FindConsole(name);
@@ -481,7 +481,7 @@ qintptr_t VARGS Plug_Con_RenameSub(void *offset, quintptr_t mask, const qintptr_
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 	con = Con_FindConsole(name);
 	if (!con)
@@ -495,7 +495,7 @@ qintptr_t VARGS Plug_Con_IsActive(void *offset, quintptr_t mask, const qintptr_t
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 	con = Con_FindConsole(name);
 	if (!con)
@@ -507,7 +507,7 @@ qintptr_t VARGS Plug_Con_SetActive(void *offset, quintptr_t mask, const qintptr_
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 	con = Con_FindConsole(name);
 	if (!con)
@@ -520,7 +520,7 @@ qintptr_t VARGS Plug_Con_Destroy(void *offset, quintptr_t mask, const qintptr_t 
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 	con = Con_FindConsole(name);
 	if (!con)
@@ -536,7 +536,7 @@ qintptr_t VARGS Plug_Con_NameForNum(void *offset, quintptr_t mask, const qintptr
 	int buffersize = VM_LONG(arg[2]);
 	if (VM_OOB(arg[1], arg[2]) || buffersize < 1)
 		return false;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 
 	return Con_NameForNum(num, buffer, buffersize);

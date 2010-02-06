@@ -3343,7 +3343,7 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 					Q_strncpyz(skin->name, shadname, sizeof(skin->name));
 				}
 
-				if (qrenderer)
+				if (qrenderer != QR_NONE)
 				{
 					texnum->shader = R_RegisterSkin(shadname);
 					R_BuildDefaultTexnums(texnum, texnum->shader);

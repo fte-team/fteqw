@@ -278,23 +278,10 @@ void PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *size = G_VECTOR(OFS_PARM1);
 	float *rgb = G_VECTOR(OFS_PARM2);
 	float alpha = G_FLOAT(OFS_PARM3);
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		qglColor4f(rgb[0], rgb[1], rgb[2], alpha);
 
-		qglDisable(GL_TEXTURE_2D);
+	Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	Draw_FillBlock(pos[0], pos[1], size[0], size[1]);
 
-		qglBegin(GL_QUADS);
-		qglVertex2f(pos[0],			pos[1]);
-		qglVertex2f(pos[0]+size[0],	pos[1]);
-		qglVertex2f(pos[0]+size[0],	pos[1]+size[1]);
-		qglVertex2f(pos[0],			pos[1]+size[1]);
-		qglEnd();
-
-		qglEnable(GL_TEXTURE_2D);
-	}
-#endif
 	G_FLOAT(OFS_RETURN) = 1;
 }
 //void	drawsetcliparea(float x, float y, float width, float height) = #458;
@@ -555,7 +542,7 @@ void PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
 	while(*text)
 	{
-		x = Font_DrawChar(x, y, 0xe000|(*text++&0xff));
+		x = Font_DrawChar(x, y, CON_WHITEMASK|0xe000|(*text++&0xff));
 	}
 	Font_ForceColour(1, 1, 1, 1);
 	Font_EndString(font_conchar);
@@ -1788,7 +1775,7 @@ void VARGS Menu_Abort (char *format, ...)
 double  menutime;
 void MP_Init (void)
 {
-	if (!qrenderer)
+	if (qrenderer == QR_NONE)
 	{
 		return;
 	}

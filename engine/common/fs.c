@@ -1215,7 +1215,7 @@ qbyte *COM_LoadFile (const char *path, int usehunk)
 
 	((qbyte *)buf)[len] = 0;
 #ifndef SERVERONLY
-	if (qrenderer)
+	if (qrenderer != QR_NONE)
 		if (Draw_BeginDisc)
 			Draw_BeginDisc ();
 #endif
@@ -1224,7 +1224,7 @@ qbyte *COM_LoadFile (const char *path, int usehunk)
 	VFS_CLOSE(f);
 
 #ifndef SERVERONLY
-	if (qrenderer)
+	if (qrenderer != QR_NONE)
 		if (Draw_EndDisc)
 			Draw_EndDisc ();
 #endif
@@ -1755,7 +1755,7 @@ void COM_Gamedir (const char *dir)
 #ifndef SERVERONLY
 	if (!isDedicated)
 	{
-//		if (qrenderer>0)	//only do this if we have already started the renderer
+//		if (qrenderer != QR_NONE)	//only do this if we have already started the renderer
 //			Cbuf_InsertText("vid_restart\n", RESTRICT_LOCAL);
 
 

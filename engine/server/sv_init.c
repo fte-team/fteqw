@@ -586,11 +586,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	int spawnflagmask;
 
 #ifndef SERVERONLY
-	if (!isDedicated && (!qrenderer || qrenderer == -1))
+	if (!isDedicated && qrenderer == QR_NONE)
 	{
 		R_RestartRenderer_f();
 
-		if (!qrenderer || qrenderer == -1)
+		if (qrenderer == QR_NONE)
 		{
 			Sys_Error("No renderer set when map restarted\n");
 			return;
@@ -1428,3 +1428,4 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 }
 
 #endif
+

@@ -2801,7 +2801,7 @@ void SV_Pings_f (void)
 		ClientReliableWrite_SZ(host_client, "pingplreport", 12);
 		for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
 		{
-			s = va(" %i %i", SV_CalcPing(client), client->lossage);
+			s = va(" %i %i", SV_CalcPing(client, false), client->lossage);
 			ClientReliableWrite_SZ(host_client, s, strlen(s));
 		}
 		ClientReliableWrite_Byte (host_client, '\n');
@@ -2817,7 +2817,7 @@ void SV_Pings_f (void)
 
 			ClientReliableWrite_Begin (host_client, svc_updateping, 4);
 			ClientReliableWrite_Byte (host_client, j);
-			ClientReliableWrite_Short (host_client, SV_CalcPing(client));
+			ClientReliableWrite_Short (host_client, SV_CalcPing(client, false));
 			ClientReliableWrite_Begin (host_client, svc_updatepl, 4);
 			ClientReliableWrite_Byte (host_client, j);
 			ClientReliableWrite_Byte (host_client, client->lossage);
@@ -3857,7 +3857,7 @@ void Cmd_FPSList_f(void)
 		}
 
 		if (frames)
-			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %ffps (min%f max %f), in: %fbps, out: %fbps\n", cl->name, ftime/frames, minf, maxf, (1000.0f*inbytes)/msecs, (1000.0f*outbytes)/msecs);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %ffps (min%.2f max %.2f), in: %.2fbps, out: %.2fbps\n", cl->name, ftime/frames, minf, maxf, (1000.0f*inbytes)/msecs, (1000.0f*outbytes)/msecs);
 		else
 			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: no information available\n", cl->name);
 	}
@@ -4478,7 +4478,7 @@ void SVNQ_Ping_f(void)
 		if (!cl->state)
 			continue;
 
-		SV_PrintToClient(host_client, PRINT_HIGH, va("%3i %s\n", SV_CalcPing (cl), cl->name));
+		SV_PrintToClient(host_client, PRINT_HIGH, va("%3i %s\n", SV_CalcPing (cl, false), cl->name));
 	}
 }
 
@@ -5075,7 +5075,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
 	}
 
-	if (SV_PlayerPhysicsQC)
+	if (SV_PlayerPhysicsQC && !host_client->spectator)
 	{	//csqc independant physics support
 		pr_global_struct->frametime = host_frametime;
 		pr_global_struct->time = sv.time;
@@ -5745,7 +5745,7 @@ haveannothergo:
 						}
 						SV_RunCmd (&newcmd, false);
 
-						if (!SV_PlayerPhysicsQC)
+						if (!SV_PlayerPhysicsQC || host_client->spectator)
 							SV_PostRunCmd();
 
 					}
@@ -6536,7 +6536,7 @@ void SV_ClientThink (void)
 		sv_player->xv->movement[2] = cmd.upmove;
 	}
 
-	if (SV_PlayerPhysicsQC)
+	if (SV_PlayerPhysicsQC && !host_client->spectator)
 	{
 		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);

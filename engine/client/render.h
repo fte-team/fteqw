@@ -396,7 +396,7 @@ qbyte *R_CalcVis_Q1 (void);
 qbyte *R_MarkLeaves_Q2 (void);
 qbyte *R_MarkLeaves_Q3 (void);
 void R_SetFrustum (float projmat[16], float viewmat[16]);
-void R_SetRenderer(int wanted);
+void R_SetRenderer(rendererinfo_t *ri);
 void R_AnimateLight (void);
 struct texture_s *R_TextureAnimation (struct texture_s *base);
 void RQ_Init(void);
@@ -427,6 +427,8 @@ void SaturateR8G8B8(qbyte *data, int size, float sat);
 void AddOcranaLEDsIndexed (qbyte *image, int h, int w);
 
 void Renderer_Init(void);
+void Renderer_Start(void);
+qboolean Renderer_Started(void);
 void R_ShutdownRenderer(void);
 void R_RestartRenderer_f (void);//this goes here so we can save some stack when first initing the sw renderer.
 

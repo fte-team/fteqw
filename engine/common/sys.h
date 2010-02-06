@@ -108,6 +108,12 @@ qboolean Sys_ConditionBroadcast(void *condv);
 void Sys_DestroyConditional(void *condv);
 #endif
 
+#ifdef NPQTV
+qboolean NPQTV_Sys_Startup(int argc, char *argv[]);
+void NPQTV_Sys_MainLoop(void);
+void NPQTV_Sys_Shutdown(void);
+#endif
+
 #ifdef _WIN32
 int StartLocalServer(int close);
 #endif

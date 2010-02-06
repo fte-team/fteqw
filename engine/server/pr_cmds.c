@@ -4818,7 +4818,9 @@ char *PF_infokey_Internal (int entnum, char *key)
 		if (!strcmp(key, "ip") || !strcmp(key, "realip"))	//note: FTE doesn't support mvdsv's realip stuff, so pretend that we do if the mod asks
 			value = strcpy(ov, NET_BaseAdrToString (adr, sizeof(adr), svs.clients[entnum-1].netchan.remote_address));
 		else if (!strcmp(key, "ping"))
-			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1]));
+			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], false));
+		else if (!strcmp(key, "svping"))
+			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], true));
 		else if (!strcmp(key, "*userid"))
 			sprintf(ov, "%d", svs.clients[entnum-1].userid);
 		else if (!strcmp(key, "download"))

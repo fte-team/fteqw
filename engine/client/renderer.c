@@ -526,10 +526,8 @@ void R_SetRenderer_f (void);
 
 void Renderer_Init(void)
 {
-	currentrendererstate.bpp = -1;	//no previous.
-
-	currentrendererstate.renderer = -1;
-	qrenderer = -1;
+	currentrendererstate.renderer = NULL;
+	qrenderer = QR_NONE;
 
 	Cmd_AddCommand("setrenderer", R_SetRenderer_f);
 	Cmd_AddCommand("vid_restart", R_RestartRenderer_f);
@@ -671,6 +669,33 @@ void Renderer_Init(void)
 	RQ_Init();
 }
 
+qboolean Renderer_Started(void)
+{
+	return !!currentrendererstate.renderer;
+}
+
+void Renderer_Start(void)
+{
+	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
+
+	//renderer = none && currentrendererstate.bpp == -1 means we've never applied any mode at all
+	//if we currently have none, we do actually need to apply it still
+	if (qrenderer == QR_NONE && *vid_renderer.string)
+	{
+		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+	}
+	if (!currentrendererstate.renderer)
+	{	//we still failed. Try again, but use the default renderer.
+		Cvar_Set(&vid_renderer, "");
+		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+	}
+	if (!currentrendererstate.renderer)
+		Sys_Error("No renderer was set!\n");
+
+	if (qrenderer == QR_NONE)
+		Con_Printf("Use the setrenderer command to use a gui\n");
+}
+
 
 mpic_t	*(*Draw_SafePicFromWad)		(char *name);
 mpic_t	*(*Draw_SafeCachePic)		(char *path);
@@ -692,7 +717,7 @@ void	(*Draw_FadeScreen)			(void);
 void	(*Draw_BeginDisc)			(void);
 void	(*Draw_EndDisc)				(void);
 
-void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
+void	(*Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
 void	(*Draw_ImageColours)		(float r, float g, float b, float a);
 
 void	(*R_Init)					(void);
@@ -750,7 +775,7 @@ char *q_renderername = "Non-Selected renderer";
 
 rendererinfo_t dedicatedrendererinfo = {
 	//ALL builds need a 'none' renderer, as 0.
-	"Dedicated server",
+	"No renderer",
 	{
 		"none",
 		"dedicated",
@@ -1210,22 +1235,14 @@ void M_Menu_Video_f (void)
 	menu->event = CheckCustomMode;
 }
 
-void R_SetRenderer(int wanted)
+void R_SetRenderer(rendererinfo_t *ri)
 {
-	rendererinfo_t *ri;
+	currentrendererstate.renderer = ri;
+	if (!ri)
+		ri = &dedicatedrendererinfo;
 
-	if (wanted<0)
-	{	//-1 is used so we know when we've applied something instead of never setting anything.
-		wanted=0;
-		qrenderer = -1;
-	}
-	else
-		qrenderer = rendererinfo[wanted]->rtype;
-
-	ri = rendererinfo[wanted];
-
+	qrenderer = ri->rtype;
 	q_renderername = ri->name[0];
-
 
 	Draw_SafePicFromWad		= ri->Draw_SafePicFromWad;	//Not supported
 	Draw_SafeCachePic		= ri->Draw_SafeCachePic;
@@ -1348,12 +1365,14 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 {
 	if (newr->bpp == -1)
 		return false;
+	if (!newr->renderer)
+		return false;
 
 	R_ShutdownRenderer();
 
-	if (qrenderer == QR_NONE || qrenderer==-1)
+	if (qrenderer == QR_NONE)
 	{
-		if (newr->renderer == QR_NONE && qrenderer != -1)
+		if (newr->renderer->rtype == qrenderer)
 			return true;	//no point
 
 		Sys_CloseTerminal ();
@@ -1377,7 +1396,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 
 	pmove.numphysent = 0;
 
-	if (qrenderer)	//graphics stuff only when not dedicated
+	if (qrenderer != QR_NONE)	//graphics stuff only when not dedicated
 	{
 		qbyte *data;
 #ifndef CLIENTONLY
@@ -1755,7 +1774,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 
 	Q_strncpyz(newr.glrenderer, gl_driver.string, sizeof(newr.glrenderer));
 
-	newr.renderer = -1;
+	newr.renderer = NULL;
 	for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 	{
 		if (!rendererinfo[i]->description)
@@ -1766,12 +1785,12 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 				continue;
 			if (!stricmp(rendererinfo[i]->name[j], vid_renderer.string))
 			{
-				newr.renderer = i;
+				newr.renderer = rendererinfo[i];
 				break;
 			}
 		}
 	}
-	if (newr.renderer == -1)
+	if (!newr.renderer)
 	{
 		Con_Printf("vid_renderer unset or invalid. Using default.\n");
 		//gotta do this after main hunk is saved off.
@@ -1784,7 +1803,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	}
 
 	// use desktop settings if set to 0 and not dedicated
-	if (newr.renderer != QR_NONE)
+	if (newr.renderer->rtype != QR_NONE)
 	{
 		int dbpp, dheight, dwidth, drate;
 
@@ -1849,7 +1868,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 
 			if (failed)
 			{
-				newr.renderer = QR_NONE;
+				newr.renderer = &dedicatedrendererinfo;
 				if (R_ApplyRenderer(&newr))
 				{
 					TRACE(("dbg: R_RestartRenderer_f going to dedicated\n"));

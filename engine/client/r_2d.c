@@ -6,6 +6,7 @@
 texid_t missing_texture;
 static mpic_t *conback;
 static mpic_t *draw_backtile;
+static mpic_t *draw_fill, *draw_fill_trans;
 mpic_t		*draw_disc;
 
 static mesh_t	draw_mesh;
@@ -82,6 +83,23 @@ void R2D_Init(void)
 	if (!draw_backtile)
 		draw_backtile = Draw_SafeCachePic ("gfx/menu/backtile.lmp");
 
+	draw_fill = R_RegisterShader("fill_opaque",
+		"{\n"
+			"{\n"
+				"map $whiteimage\n"
+				"rgbgen vertex\n"
+			"}\n"
+		"}\n");
+	draw_fill_trans = R_RegisterShader("fill_trans",
+		"{\n"
+			"{\n"
+				"map $whiteimage\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+				"blendfunc blend\n"
+			"}\n"
+		"}\n");
+
 	Cvar_Hook(&gl_conback, R2D_Conback_Callback);
 }
 
@@ -113,6 +131,16 @@ void R2D_ImageColours(float r, float g, float b, float a)
 	draw_mesh_colors[0][0] = r;
 	draw_mesh_colors[0][1] = g;
 	draw_mesh_colors[0][2] = b;
+	draw_mesh_colors[0][3] = a;
+	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[1]);
+	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[2]);
+	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[3]);
+}
+void R2D_ImagePaletteColour(unsigned int i, float a)
+{
+	draw_mesh_colors[0][0] = host_basepal[i*3+0]/255;
+	draw_mesh_colors[0][1] = host_basepal[i*3+1]/255;
+	draw_mesh_colors[0][2] = host_basepal[i*3+2]/255;
 	draw_mesh_colors[0][3] = a;
 	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[1]);
 	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[2]);
@@ -152,6 +180,27 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 	draw_mesh_st[3][1] = t2;
 
 	BE_DrawMeshChain(pic, &draw_mesh, NULL, &pic->defaulttextures);
+}
+
+/*draws a block of the current colour on the screen*/
+void R2D_FillBlock(int x, int y, int w, int h)
+{
+	draw_mesh_xyz[0][0] = x;
+	draw_mesh_xyz[0][1] = y;
+
+	draw_mesh_xyz[1][0] = x+w;
+	draw_mesh_xyz[1][1] = y;
+
+	draw_mesh_xyz[2][0] = x+w;
+	draw_mesh_xyz[2][1] = y+h;
+
+	draw_mesh_xyz[3][0] = x;
+	draw_mesh_xyz[3][1] = y+h;
+
+	if (draw_mesh_colors[0][3] != 1)
+		BE_DrawMeshChain(draw_fill_trans, &draw_mesh, NULL, &draw_fill_trans->defaulttextures);
+	else
+		BE_DrawMeshChain(draw_fill, &draw_mesh, NULL, &draw_fill->defaulttextures);
 }
 
 void R2D_ScalePic (int x, int y, int width, int height, mpic_t *pic)

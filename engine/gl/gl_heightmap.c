@@ -761,7 +761,7 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 
 	mod->entities = COM_LoadHunkFile(entfile);
 
-	if (qrenderer>0)
+	if (qrenderer != QR_NONE)
 	{
 		hm->detailtexture = R_LoadHiResTexture(detailtexname, "", IF_NOGAMMA);
 

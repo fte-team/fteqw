@@ -30875,6 +30875,10 @@
 				RelativePath="..\client\q2.ico"
 				>
 			</File>
+			<File
+				RelativePath="..\client\winquake.rc"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="libmad"

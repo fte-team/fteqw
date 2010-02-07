@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8.00"
+	Version="9.00"
 	Name="npqtv"
 	ProjectGUID="{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}"
 	RootNamespace="npqtv"
+	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
 		<Platform
@@ -87,6 +88,8 @@
 				GenerateDebugInformation="true"
 				GenerateMapFile="true"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -109,9 +112,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -190,6 +190,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\GLDebug/fteglqw_dbg.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -212,9 +214,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -292,6 +291,8 @@
 				ModuleDefinitionFile="../ftequake/npapi.def"
 				GenerateMapFile="true"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -313,9 +314,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -395,6 +393,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\npqtv___Win32_GLRelease/fteglqw.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -416,9 +416,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"

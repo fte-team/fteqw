@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8.00"
+	Version="9.00"
 	Name="ftequake"
 	ProjectGUID="{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}"
 	RootNamespace="ftequake"
+	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
 		<Platform
@@ -88,6 +89,8 @@
 				GenerateDebugInformation="true"
 				GenerateMapFile="true"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -109,9 +112,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -189,6 +189,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\ftequake___Win32_MinGLDebug/fteminglqw_dbg.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -210,9 +212,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -290,6 +289,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\D3DDebug/fted3dqw_dbg.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -311,9 +312,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -392,6 +390,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\D3DDebug/fted3dqw_dbg.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -413,9 +413,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -495,6 +492,8 @@
 				IgnoreDefaultLibraryNames="libc.lib;msvcrt.lib"
 				GenerateMapFile="true"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -516,9 +515,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -599,6 +595,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\ftequake___Win32_MinGLRelease/fteminglqw.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -620,9 +618,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -702,6 +697,8 @@
 				GenerateDebugInformation="true"
 				GenerateMapFile="true"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -724,9 +721,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -806,6 +800,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\GLDebug/fteglqw_dbg.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -828,9 +824,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -909,6 +902,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\ftequake___Win32_Release_Dedicated_Server/fteqwsv.map"
 				SubSystem="1"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -930,9 +925,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -1011,6 +1003,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\ftequake___Win32_Release_Dedicated_Server/fteqwsv.map"
 				SubSystem="1"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -1032,9 +1026,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -1114,6 +1105,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\MRelease/fteqw.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -1135,9 +1128,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -1217,6 +1207,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\MRelease/fteqw.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -1238,9 +1230,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -1318,6 +1307,8 @@
 				GenerateDebugInformation="true"
 				GenerateMapFile="true"
 				SubSystem="1"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -1339,9 +1330,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -1421,6 +1409,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\DebugServer/fteqwsv.map"
 				SubSystem="1"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -1442,9 +1432,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -1522,6 +1509,8 @@
 				GenerateDebugInformation="true"
 				GenerateMapFile="true"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -1543,9 +1532,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -1625,6 +1611,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\MDebug/fteqw_dbg.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -1646,9 +1634,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -1739,6 +1724,8 @@
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
 				OptimizeForWindows98="1"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -1760,9 +1747,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -1843,6 +1827,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\ftequake___Win32_GLRelease/fteglqw.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -1864,9 +1850,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"

@@ -2,8 +2,6 @@
 
 //main reason to use connection close is because we're lazy and don't want to give sizes in advance (yes, we could use chunks..)
 
-//#define ALLOWDOWNLOADS
-
 
 
 
@@ -131,10 +129,18 @@ static void HTTPSV_SendHTTPHeader(cluster_t *cluster, oproxy_t *dest, char *erro
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 }
 
-static void HTTPSV_SendHTMLHeader(cluster_t *cluster, oproxy_t *dest, char *title)
+static void HTTPSV_SendHTMLHeader(cluster_t *cluster, oproxy_t *dest, char *title, char *args)
 {
 	char *s;
 	char buffer[2048];
+
+	qboolean plugin = false;
+	while (*args && *args != ' ')
+	{
+		if (*args == 'p')
+			 plugin = true;
+		args++;
+	}
 
 	s =	"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\n"
 		"<html>\n"
@@ -144,10 +150,10 @@ static void HTTPSV_SendHTMLHeader(cluster_t *cluster, oproxy_t *dest, char *titl
 		"  <link rel=\"StyleSheet\" href=\"/style.css\" type=\"text/css\" />\n"
 		"</head>\n"
 		"<body><div id=\"navigation\"><ul>"
-		"<li><a href=\"/nowplaying/\">Live</a></li><li><a href=\"/demos/\">Demos</a></li><li><a href=\"/admin/\">Admin</a></li>"
+		"<li><a href=\"/nowplaying.html%s\">Live</a></li><li><a href=\"/demos.html%s\">Demos</a></li><li><a href=\"/admin.html%s\">Admin</a></li>"
 		"</ul></div>";
 
-	snprintf(buffer, sizeof(buffer), s, title);
+	snprintf(buffer, sizeof(buffer), s, title, plugin?"?p":"", plugin?"?p":"", plugin?"?p":"");
 
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 }
@@ -157,7 +163,7 @@ static void HTTPSV_SendHTMLFooter(cluster_t *cluster, oproxy_t *dest)
 	char *s;
 	char buffer[2048];
 
-	snprintf(buffer, sizeof(buffer), "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\">www.fteqw.com</a><br />", cluster->buildnumber);
+	snprintf(buffer, sizeof(buffer), "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\" target=\"_blank\">www.fteqw.com</a><br />", cluster->buildnumber);
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 
 	s = "</body>\n"
@@ -167,35 +173,76 @@ static void HTTPSV_SendHTMLFooter(cluster_t *cluster, oproxy_t *dest)
 
 #define HTMLPRINT(str) Net_ProxySend(cluster, dest, str "\n", strlen(str "\n"))
 
-static void HTTPSV_GenerateNowPlaying(cluster_t *cluster, oproxy_t *dest)
+static void HTTPSV_GenerateNowPlaying(cluster_t *cluster, oproxy_t *dest, char *args)
 {
 	int player;
 	char *s;
 	char buffer[1024];
 	char plname[64];
 	sv_t *streams;
+	qboolean plugin = false;
+	qboolean activeonly = false;
 
 	HTTPSV_SendHTTPHeader(cluster, dest, "200", "text/html", true);
-	HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Now Playing");
+	HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Now Playing", args);
+
+	while (*args && *args != ' ')
+	{
+		if (*args == 'p')
+			 plugin = true;
+		else if (*args == 'a')
+			 activeonly = true;
+		args++;
+	}
+
+	s =
+	"<script><!--\n"
+	"function joinserver(d)\n"
+	"{\n"
+		"parent.getplug().server = d;\n"
+		"parent.getplug().running = 1;\n"
+	"}\n"
+	"//--></script>"
+	;
+	Net_ProxySend(cluster, dest, s, strlen(s));
 
 	if (!strcmp(cluster->hostname, DEFAULT_HOSTNAME))
 		snprintf(buffer, sizeof(buffer), "<h1>QuakeTV: Now Playing</h1>");	//don't show the hostname if its set to the default
 	else
-		snprintf(buffer, sizeof(buffer), "<h1>QuakeTV: Now Playing on %s</h1>", cluster->hostname);
+		snprintf(buffer, sizeof(buffer), "<h1>%s: Now Playing</h1>", cluster->hostname);
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 
 	HTMLPRINT("<dl class=\"nowplaying\">");
 	for (streams = cluster->servers; streams; streams = streams->next)
 	{
+		if (activeonly)
+		{
+			for (player = 0; player < MAX_CLIENTS; player++)
+			{
+				if (streams->isconnected && streams->map.thisplayer == player)
+					continue;
+				if (*streams->map.players[player].userinfo)
+				{
+					break;
+				}
+			}
+			if (player == MAX_CLIENTS)
+				continue;
+		}
 		HTMLPRINT("<dt>");
 		HTMLprintf(buffer, sizeof(buffer), "%s (%s: %s)", streams->server, streams->map.gamedir, streams->map.mapname);
 		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
-		snprintf(buffer, sizeof(buffer), "<span class=\"qtvfile\"> [ <a href=\"/watch.qtv?sid=%i\">Watch Now</a> ]</span>", streams->streamid);
+		if (plugin && !strncmp(streams->server, "udp:", 4))
+			snprintf(buffer, sizeof(buffer), "<span class=\"qtvfile\"> [ <a href=\"javascript:joinserver('%s')\">Join</a> ]</span>", streams->server+4);
+		else
+			snprintf(buffer, sizeof(buffer), "<span class=\"qtvfile\"> [ <a href=\"/watch.qtv?sid=%i\">Watch Now</a> ]</span>", streams->streamid);
 		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 		HTMLPRINT("</dt><dd><ul class=\"playerslist\">");
 
 		for (player = 0; player < MAX_CLIENTS; player++)
 		{
+			if (streams->isconnected && streams->map.thisplayer == player)
+				continue;
 			if (*streams->map.players[player].userinfo)
 			{
 				Info_ValueForKey(streams->map.players[player].userinfo, "name", plname, sizeof(plname));
@@ -243,6 +290,8 @@ static void HTTPSV_GenerateCSSFile(cluster_t *cluster, oproxy_t *dest)
     HTMLPRINT("dl.nowplaying ul { margin: 0 0 0 1em; padding: 0; }");
     HTMLPRINT("#navigation { background-color: #eef; }");
     HTMLPRINT("#navigation li { display: inline; list-style: none; margin: 0 3em; }");
+	HTMLPRINT("div.optdiv { margin: 0px 0px 0px 0px; position: fixed; left: 0%; width: 50%; top: 0%; height: 100%; }");
+	HTMLPRINT("div.plugdiv { margin: 0px 0px 0px 0px; position: fixed; left: 50%; width: 50%; top: 0%; height: 100%; }");
 }
 
 static qboolean HTTPSV_GetHeaderField(char *s, char *field, char *buffer, int buffersize)
@@ -304,7 +353,7 @@ static qboolean HTTPSV_GetHeaderField(char *s, char *field, char *buffer, int bu
 static void HTTPSV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *streamtype, char *streamid)
 {
 	char *s;
-	char hostname[64];
+	char hostname[128];
 	char buffer[1024];
 
 
@@ -361,7 +410,7 @@ static void HTTPSV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *str
 	if (!HTTPSV_GetHeaderField((char*)dest->inbuffer, "Host", hostname, sizeof(hostname)))
 	{
 		HTTPSV_SendHTTPHeader(cluster, dest, "400", "text/html", true);
-		HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Error");
+		HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Error", "");
 
 		s = "Your client did not send a Host field, which is required in HTTP/1.1\n<BR />"
 			"Please try a different browser.\n"
@@ -371,14 +420,17 @@ static void HTTPSV_GenerateQTVStub(cluster_t *cluster, oproxy_t *dest, char *str
 		Net_ProxySend(cluster, dest, s, strlen(s));
 		return;
 	}
+	/*if there's a port number on there, strip it*/
+	if (strchr(hostname, ':'))
+		*strchr(hostname, ':') = 0;
 
 	HTTPSV_SendHTTPHeader(cluster, dest, "200", "text/x-quaketvident", false);
 
 	snprintf(buffer, sizeof(buffer), "[QTV]\r\n"
-					"Stream: %s%s@%s\r\n"
+					"Stream: %s%s@%s:%i\r\n"
 					"", 
 					//5, 		256, 		64.	snprintf is not required, but paranoia is a wonderful thing.
-					streamtype, streamid, hostname);
+					streamtype, streamid, hostname, cluster->tcplistenportnum);
 
 
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
@@ -487,7 +539,7 @@ static char *HTTPSV_ParsePOST(char *post, char *buffer, int buffersize)
 
 	return post;
 }
-static void HTTPSV_GenerateAdmin(cluster_t *cluster, oproxy_t *dest, int streamid, char *postbody)
+static void HTTPSV_GenerateAdmin(cluster_t *cluster, oproxy_t *dest, int streamid, char *postbody, char *args)
 {
 	char pwd[64];
 	char cmd[256];
@@ -499,7 +551,7 @@ static void HTTPSV_GenerateAdmin(cluster_t *cluster, oproxy_t *dest, int streami
 	if (!*cluster->adminpassword)
 	{
 		HTTPSV_SendHTTPHeader(cluster, dest, "403", "text/html", true);
-		HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Admin Error");
+		HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Admin Error", args);
 
 		s = "The admin password is disabled. You may not log in remotely.</body></html>\n";
 		Net_ProxySend(cluster, dest, s, strlen(s));
@@ -560,7 +612,7 @@ static void HTTPSV_GenerateAdmin(cluster_t *cluster, oproxy_t *dest, int streami
 	}
 
 	HTTPSV_SendHTTPHeader(cluster, dest, "200", "text/html", true);
-	HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Admin");
+	HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Admin", args);
 
 	s = "<H1>QuakeTV Admin: ";
 	Net_ProxySend(cluster, dest, s, strlen(s));
@@ -608,14 +660,35 @@ static void HTTPSV_GenerateAdmin(cluster_t *cluster, oproxy_t *dest, int streami
 	HTTPSV_SendHTMLFooter(cluster, dest);
 }
 
-static void HTTPSV_GenerateDemoListing(cluster_t *cluster, oproxy_t *dest)
+static void HTTPSV_GenerateDemoListing(cluster_t *cluster, oproxy_t *dest, char *args)
 {
 	int i;
 	char link[256];
 	char *s;
+	qboolean plugframe = false;
+	for (s=args; *s && *s != ' ';)
+	{
+		if (*s == 'p')
+			 plugframe = true;
+		s++;
+	}
 
 	HTTPSV_SendHTTPHeader(cluster, dest, "200", "text/html", true);
-	HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Demos");
+	HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Demos", args);
+
+	if (plugframe)
+	{
+		s =
+		"<script><!--\n"
+		"function playdemo(d)\n"
+		"{\n"
+			"parent.getplug().stream = \"file:\"+d+\"@\"+parent.host;\n"
+			"parent.getplug().running = 1;\n"
+		"}\n"
+		"//--></script>"
+		;
+		Net_ProxySend(cluster, dest, s, strlen(s));
+	}
 
 	s = "<h1>QuakeTV: Demo Listing</h1>";
 	Net_ProxySend(cluster, dest, s, strlen(s));
@@ -623,7 +696,14 @@ static void HTTPSV_GenerateDemoListing(cluster_t *cluster, oproxy_t *dest)
 	Cluster_BuildAvailableDemoList(cluster);
 	for (i = 0; i < cluster->availdemoscount; i++)
 	{
-		snprintf(link, sizeof(link), "<A HREF=\"/watch.qtv?demo=%s\">%s</A> (%ikb)<br/>", cluster->availdemos[i].name, cluster->availdemos[i].name, cluster->availdemos[i].size/1024);
+		if (plugframe)
+		{
+			snprintf(link, sizeof(link), "<A HREF=\"javascript:playdemo('%s')\">%s</A> (%ikb)<br/>", cluster->availdemos[i].name, cluster->availdemos[i].name, cluster->availdemos[i].size/1024);
+		}
+		else
+		{
+			snprintf(link, sizeof(link), "<A HREF=\"/watch.qtv?demo=%s\">%s</A> (%ikb)<br/>", cluster->availdemos[i].name, cluster->availdemos[i].name, cluster->availdemos[i].size/1024);
+		}
 		Net_ProxySend(cluster, dest, link, strlen(link));
 	}
 
@@ -633,26 +713,109 @@ static void HTTPSV_GenerateDemoListing(cluster_t *cluster, oproxy_t *dest)
 	HTTPSV_SendHTMLFooter(cluster, dest);
 }
 
-static void HTTPSV_GenerateDownload(cluster_t *cluster, oproxy_t *dest, char *filename)
+static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 {
-#ifdef ALLOWDOWNLOADS
+	char hostname[1024];
+	char *html;
+	if (!HTTPSV_GetHeaderField((char*)dest->inbuffer, "Host", hostname, sizeof(hostname)))
+	{
+		HTTPSV_SendHTTPHeader(cluster, dest, "400", "text/html", true);
+		HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Error", "p");
+
+		html = "Your client did not send a Host field, which is required in HTTP/1.1\n<BR />"
+			"Please try a different browser.\n"
+			"</BODY>"
+			"</HTML>";
+
+		Net_ProxySend(cluster, dest, html, strlen(html));
+		return;
+	}
+
+	HTTPSV_SendHTTPHeader(cluster, dest, "200", "text/html", true);
+	html = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\n"
+		"<HTML><HEAD><TITLE>QuakeTV With Plugin</TITLE>"
+				"  <link rel=\"StyleSheet\" href=\"/style.css\" type=\"text/css\" />\n"
+				"</HEAD><body>"
+	"<div class=\"optdiv\">"
+				"<iframe frameborder=0 src=\"nowplaying.html?p\" width=\"100%\" height=\"100%\">"
+				"oh dear. your browser doesn't support this site"
+				"</iframe>"
+	"</div>"
+	"<div class=\"plugdiv\">"
+		/*once for IE*/
+		"<object	name=\"ieplug\""
+		" type=\"text/x-quaketvident\""
+		" classid=\"clsid:7d676c9f-fb84-40b6-b3ff-e10831557eeb\""
+		//" codebase=\"http://fteqw.com/test.cab\""
+		" width=100%"
+		" height=100%"
+		" >"
+		"<param name=\"splash\" value=\"http://"
+		;
+	Net_ProxySend(cluster, dest, html, strlen(html));
+	Net_ProxySend(cluster, dest, hostname, strlen(hostname));
+	html =
+		"/plugimg.jpg\">"
+		"<param name=\"game\" value=\"q1\">"
+		"<param name=\"dataDownload\" value=\"id1/pak0.pak:http://random.nquake.com/qsw106.zip\">"
+		/*once again for firefox and similar friends*/
+		"<object	name=\"npplug\""
+		" type=\"text/x-quaketvident\""
+		" width=100%"
+		" height=100%"
+		" >"
+		"<param name=\"splash\" value=\"http://"
+		;
+	Net_ProxySend(cluster, dest, html, strlen(html));
+	Net_ProxySend(cluster, dest, hostname, strlen(hostname));
+	html =
+		"/plugimg.jpg\">"
+		"<param name=\"game\" value=\"q1\">"
+		"<param name=\"dataDownload\" value=\"id1/pak0.pak:http://random.nquake.com/qsw106.zip\">"
+		"It looks like you either don't have the required plugin or its not supported by your browser.<br/>"
+		"<a href=\"npfte.xpi\">You can download one for firefox here.</a><br/>"
+		"<a href=\"iefte.exe\">You can download one for internet explorer here.</a><br/>"
+		"<a href=\"npfte.exe\">You can download one for other browsers here.</a><br/>"
+		"</object>"
+		"</object>"
+	"</div>"
+
+	"<script>"
+	"function getplug(d)\n"
+	"{\n"
+		"return document.npplug;\n"
+	"}\n"
+	"parent.getplug = getplug;\n"
+	"parent.host = \""
+			;
+	Net_ProxySend(cluster, dest, html, strlen(html));
+	Net_ProxySend(cluster, dest, hostname, strlen(hostname));
+	html =
+	"\";\n"
+	"</script>"
+
+	"</body></HTML>";
+	Net_ProxySend(cluster, dest, html, strlen(html));
+}
+
+static void HTTPSV_GenerateDownload(cluster_t *cluster, oproxy_t *dest, char *filename, char *svroot)
+{
 	char fname[256];
 	char link[512];
 	char *s, *suppliedname;
 	int len;
 
-	if (cluster->allowdownloads)
-#endif
+	if (!svroot || !*svroot)
 	{
 		HTTPSV_SendHTTPHeader(cluster, dest, "403", "text/html", true);
-		HTTPSV_SendHTMLHeader(cluster, dest, "Permission denied");
+		HTTPSV_SendHTMLHeader(cluster, dest, "Permission denied", "");
 		HTMLPRINT("<h1>403: Forbidden</h1>");
 		HTMLPRINT("File downloads from this proxy are currently not permitted.");
 		HTTPSV_SendHTMLFooter(cluster, dest);
 		return;
 	}
-#ifdef ALLOWDOWNLOADS
-	suppliedname = s = fname + strlcpy(fname, cluster->downloaddir, sizeof(fname));
+
+	suppliedname = s = fname + strlcpy(fname, svroot, sizeof(fname));
 	while (*filename > ' ')
 	{
 		if (s > fname + sizeof(fname)-4)	//4 cos I'm too lazy to work out what the actual number should be
@@ -689,12 +852,12 @@ static void HTTPSV_GenerateDownload(cluster_t *cluster, oproxy_t *dest, char *fi
 	}
 	*s = 0;
 
-	if (*suppliedname == '\\' || *suppliedname == '/' || strstr(suppliedname, "..") || suppliedname[1] == ':')
+	if (*suppliedname == '\\' || *suppliedname == '/' || strstr(suppliedname, "..") || strchr(suppliedname, ':'))
 	{
 		HTTPSV_SendHTTPHeader(cluster, dest, "403", "text/html", true);
-		HTTPSV_SendHTMLHeader(cluster, dest, "Permission denied");
+		HTTPSV_SendHTMLHeader(cluster, dest, "Permission denied", "");
 		HTMLPRINT("<h1>403: Forbidden</h1>");
-		
+
 		HTMLPRINT("<p>");
 		HTMLprintf(link, sizeof(link), "The filename '%s' names an absolute path.", suppliedname);
 		Net_ProxySend(cluster, dest, link, strlen(link));
@@ -704,10 +867,11 @@ static void HTTPSV_GenerateDownload(cluster_t *cluster, oproxy_t *dest, char *fi
 	len = strlen(fname);
 	if (len > 4)
 	{
+		/*protect id's content (prevent downloading of bsps from pak files - we don't do pak files so just prevent the entire pak)*/
 		if (!stricmp(link+len-4, ".pak"))
 		{
 			HTTPSV_SendHTTPHeader(cluster, dest, "403", "text/html", true);
-			HTTPSV_SendHTMLHeader(cluster, dest, "Permission denied");
+			HTTPSV_SendHTMLHeader(cluster, dest, "Permission denied", "");
 			HTMLPRINT("<h1>403: Forbidden</h1>");
 		
 			HTMLPRINT("<p>");
@@ -728,23 +892,53 @@ static void HTTPSV_GenerateDownload(cluster_t *cluster, oproxy_t *dest, char *fi
 	else
 	{
 		HTTPSV_SendHTTPHeader(cluster, dest, "404", "text/html", true);
-		HTTPSV_SendHTMLHeader(cluster, dest, "File not found");
+		HTTPSV_SendHTMLHeader(cluster, dest, "File not found", "");
 		HTMLPRINT("<h1>404: File not found</h1>");
 
 		HTMLPRINT("<p>");
-		HTMLprintf(link, sizeof(link), "The file '%s' could not be found on this server", fname);
+		HTMLprintf(link, sizeof(link), "The file '%s' could not be found on this server", suppliedname);
 		Net_ProxySend(cluster, dest, link, strlen(link));
 		HTMLPRINT("</p>");
 
 		HTTPSV_SendHTMLFooter(cluster, dest);
 	}
-#endif
 }
 
 
 
 
-
+static qboolean urimatch(char *uri, char *match, int urilen)
+{
+	int mlen = strlen(match);
+	if (urilen < mlen)
+		return false;
+	if (strncmp(uri, match, mlen))
+		return false;
+	if (urilen == mlen)
+		return true;
+	if (uri[mlen] == '?')
+		return true;
+	return false;
+}
+static qboolean uriargmatch(char *uri, char *match, int urilen, char **args)
+{
+	int mlen = strlen(match);
+	if (urilen < mlen)
+		return false;
+	if (strncmp(uri, match, mlen))
+		return false;
+	if (urilen == mlen)
+	{
+		*args = "";
+		return true;
+	}
+	if (uri[mlen] == '?')
+	{
+		*args = uri+mlen+1;
+		return true;
+	}
+	return false;
+}
 
 
 void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata)
@@ -752,6 +946,18 @@ void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata)
 	char tempbuf[512];
 	char *s;
 	int len;
+
+	char *uri, *uriend;
+	char *args;
+	int urilen;
+	uri = pend->inbuffer+4;
+	while (*uri == ' ')
+		uri++;
+	uriend = strchr(uri, '\n');
+	s = strchr(uri, ' ');
+	if (s && s < uriend)
+		uriend = s;
+	urilen = uriend - uri;
 
 	if (!HTTPSV_GetHeaderField((char*)pend->inbuffer, "Content-Length", tempbuf, sizeof(tempbuf)))
 	{
@@ -776,9 +982,9 @@ void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata)
 
 //	if (len <= pend->inbuffersize)
 	{
-		if (!strncmp((char*)pend->inbuffer+5, "/admin", 6))
+		if (uriargmatch(uri, "/admin.html", urilen, &args))
 		{
-			HTTPSV_GenerateAdmin(cluster, pend, 0, postdata);
+			HTTPSV_GenerateAdmin(cluster, pend, 0, postdata, args);
 		}
 		else
 		{
@@ -795,26 +1001,51 @@ void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata)
 	}
 }
 
+#define REDIRECTIF(uri_,url_)	\
+	if (urimatch(uri, uri_, urilen))	\
+	{	\
+		s = "HTTP/1.0 302 Found\n"	\
+			"Location: " url_ "\n"	\
+			"\n";	\
+		Net_ProxySend(cluster, pend, s, strlen(s));	\
+	}
+
 void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 {
 	char *s;
-	if (!strncmp((char*)pend->inbuffer+4, "/nowplaying", 11))
+	char *uri, *uriend;
+	char *args;
+	int urilen;
+	uri = pend->inbuffer+4;
+	while (*uri == ' ')
+		uri++;
+	uriend = strchr(uri, '\n');
+	s = strchr(uri, ' ');
+	if (s && s < uriend)
+		uriend = s;
+	urilen = uriend - uri;
+
+	if (urimatch(uri, "/plugin.html", urilen))
 	{
-		HTTPSV_GenerateNowPlaying(cluster, pend);
+		HTTPSV_GeneratePlugin(cluster, pend);
 	}
-	else if (!strncmp((char*)pend->inbuffer+4, "/watch.qtv?sid=", 15))
+	else if (uriargmatch(uri, "/nowplaying.html", urilen, &args))
+	{
+		HTTPSV_GenerateNowPlaying(cluster, pend, args);
+	}
+	else if (!strncmp(uri, "/watch.qtv?sid=", 15))
 	{
 		HTTPSV_GenerateQTVStub(cluster, pend, "", (char*)pend->inbuffer+19);
 	}
-	else if (!strncmp((char*)pend->inbuffer+4, "/watch.qtv?demo=", 16))
+	else if (!strncmp(uri, "/watch.qtv?demo=", 16))
 	{
 		HTTPSV_GenerateQTVStub(cluster, pend, "file:", (char*)pend->inbuffer+20);
 	}
-	else if (!strncmp((char*)pend->inbuffer+4, "/watch.qtv?join=", 16))
+	else if (!strncmp(uri, "/watch.qtv?join=", 16))
 	{
 		HTTPSV_GenerateQWSVStub(cluster, pend, "Join", (char*)pend->inbuffer+16);
 	}
-	else if (!strncmp((char*)pend->inbuffer+4, "/watch.qtv?obsv=", 16))
+	else if (!strncmp(uri, "/watch.qtv?obsv=", 16))
 	{
 		HTTPSV_GenerateQWSVStub(cluster, pend, "Observe", (char*)pend->inbuffer+16);
 	}
@@ -822,33 +1053,26 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 //	{	//fixme: make this send the demo as an http download
 //		HTTPSV_GenerateQTVStub(cluster, pend, "file:", (char*)pend->inbuffer+10);
 //	}
-	else if (!strncmp((char*)pend->inbuffer+4, "/about", 6))
-	{	//redirect them to our funky website
-		s = "HTTP/1.0 302 Found\n"
-			"Location: http://www.fteqw.com/\n"
-			"\n";
-		Net_ProxySend(cluster, pend, s, strlen(s));
-	}
-	else if (!strncmp((char*)pend->inbuffer+4, "/admin", 6))
+	else if (uriargmatch(uri, "/admin.html", urilen, &args))
 	{
-		HTTPSV_GenerateAdmin(cluster, pend, 0, NULL);
+		HTTPSV_GenerateAdmin(cluster, pend, 0, NULL, args);
 	}
-	else if (!strncmp((char*)pend->inbuffer+4, "/ ", 2))
+	else REDIRECTIF("/", "/plugin.html")
+	else REDIRECTIF("/", "/nowplaying.html")
+	else REDIRECTIF("/about.html", "http://www.fteqw.com/")
+	else REDIRECTIF("/plugimg.jpg", "/file/plugimg.jpg")	/*lame, very lame*/
+	else REDIRECTIF("/npfte.xpi", "/file/npfte.xpi")	/*lame, very lame*/
+	else REDIRECTIF("/npfte.exe", "/file/npfte.exe")	/*lame, very lame*/
+	else REDIRECTIF("/iefte.exe", "/file/iefte.exe")	/*lame, very lame*/
+	else if (uriargmatch(uri, "/demos.html", urilen, &args))
 	{
-		s = "HTTP/1.0 302 Found\n"
-			"Location: /nowplaying/\n"
-			"\n";
-		Net_ProxySend(cluster, pend, s, strlen(s));
-	}
-	else if (!strncmp((char*)pend->inbuffer+4, "/demos", 6))
-	{
-		HTTPSV_GenerateDemoListing(cluster, pend);
+		HTTPSV_GenerateDemoListing(cluster, pend, args);
 	}
 	else if (!strncmp((char*)pend->inbuffer+4, "/file/", 6))
 	{
-		HTTPSV_GenerateDownload(cluster, pend, (char*)pend->inbuffer+10);
+		HTTPSV_GenerateDownload(cluster, pend, (char*)pend->inbuffer+10, cluster->downloaddir);
 	}
-	else if (!strncmp((char*)pend->inbuffer+4, "/style.css", 10))
+	else if (urimatch(uri, "/style.css", urilen))
 	{
 		HTTPSV_GenerateCSSFile(cluster, pend);
 	}
@@ -856,7 +1080,7 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 	{
 #define dest pend
 		HTTPSV_SendHTTPHeader(cluster, dest, "404", "text/html", true);
-		HTTPSV_SendHTMLHeader(cluster, dest, "Address not recognised");
+		HTTPSV_SendHTMLHeader(cluster, dest, "Address not recognised", "");
 		HTMLPRINT("<h1>Address not recognised</h1>");
 		HTTPSV_SendHTMLFooter(cluster, dest);
 	}

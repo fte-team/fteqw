@@ -145,6 +145,7 @@ void S_RunCapture(void)
 }
 
 
+sounddriver pOPENAL_InitCard;
 sounddriver pDSOUND_InitCard;
 sounddriver pALSA_InitCard;
 sounddriver pOSS_InitCard;
@@ -159,13 +160,16 @@ typedef struct {
 } sdriver_t;
 sdriver_t drivers[] = {
 //in order of preference
-	{"DSound", &pDSOUND_InitCard},
-	{"ALSA", &pALSA_InitCard},
-	{"OSS", &pOSS_InitCard},
-	{"MacOS", &pMacOS_InitCard},
-	{"SDL", &pSDL_InitCard},
-	{"WaveOut", &pWAV_InitCard},
-	{"AHI", &pAHI_InitCard},
+	{"OpenAL", &pOPENAL_InitCard},	//yay, get someone else to sort out sound support, woot
+	{"DSound", &pDSOUND_InitCard},	//prefered on windows
+	{"MacOS", &pMacOS_InitCard},	//prefered on mac
+	{"AHI", &pAHI_InitCard},		//prefered on morphos
+
+	{"SDL", &pSDL_InitCard},		//prefered on linux
+	{"ALSA", &pALSA_InitCard},		//pure shite
+	{"OSS", &pOSS_InitCard},		//good, but not likely to work any more
+
+	{"WaveOut", &pWAV_InitCard},	//doesn't work properly in vista, etc.
 	{NULL, NULL}
 };
 
@@ -585,6 +589,10 @@ void S_Init (void)
 	Cvar_Register(&snd_linearresample, "Sound controls");
 	Cvar_Register(&snd_linearresample_stream, "Sound controls");
 
+#ifdef AVAIL_OPENAL
+	OpenAL_CvarInit();
+#endif
+
 	if (COM_CheckParm("-nosound"))
 	{
 		Cvar_ForceSet(&nosound, "1");
@@ -882,6 +890,11 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 
 	if (nosound.ival)
 		return;
+
+#ifdef AVAIL_OPENAL
+	if (sc->openal)
+		OpenAL_StartSound(entnum, entchannel, sfx, origin, fvol, attenuation);
+#endif
 
 	vol = fvol*255;
 
@@ -1302,6 +1315,14 @@ void S_UpdateCard(soundcardinfo_t *sc)
 		if (!sc->inactive_sound)
 			return;
 	}
+
+#ifdef AVAIL_OPENAL
+	if (sc->openal == 1)
+	{
+		OpenAL_Update_Listener(listener_origin, listener_forward, listener_right, listener_up);
+		return;
+	}
+#endif
 
 // update general area ambient sound sources
 	S_UpdateAmbientSounds (sc);

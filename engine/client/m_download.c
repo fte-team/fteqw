@@ -242,15 +242,15 @@ static void ConcatPackageLists(package_t *l2)
 	}
 }
 
-static void dlnotification(char *localfile, qboolean sucess)
+static void dlnotification(struct dl_download *dl)
 {
 	int i;
 	vfsfile_t *f;
-	COM_RefreshFSCache_f();
+	f = dl->file;
+	dl->file = NULL;
 
-	i = atoi(localfile+7);
+	i = dl->user_num;
 
-	f = FS_OpenVFS (localfile, "rb", FS_GAME);
 	if (f)
 	{
 		downloadablelistreceived[i] = 1;
@@ -329,7 +329,7 @@ qboolean MD_PopMenu (union menuoption_s *mo,struct menu_s *m,int key)
 	return false;
 }
 
-static void Menu_Download_Got(char *fname, qboolean successful);
+static void Menu_Download_Got(struct dl_download *dl);
 qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int key)
 {
 	if (key == K_ENTER || key == K_MOUSE1)
@@ -485,6 +485,7 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 
 void M_Download_UpdateStatus(struct menu_s *m)
 {
+	struct dl_download *dl;
 	dlmenu_t *info = m->data;
 	int i;
 
@@ -499,7 +500,10 @@ void M_Download_UpdateStatus(struct menu_s *m)
 			if (!downloadablelistreceived[info->parsedsourcenum])
 			{
 				sprintf(basename, "dlinfo_%i.inf", info->parsedsourcenum);
-				if (!HTTP_CL_Get(downloadablelist[info->parsedsourcenum], basename, dlnotification))
+				dl = HTTP_CL_Get(downloadablelist[info->parsedsourcenum], basename, dlnotification);
+				if (dl)
+					dl->user_num = info->parsedsourcenum;
+				else
 					Con_Printf("Could not contact server\n");
 				return;
 			}
@@ -590,8 +594,10 @@ static void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s
 	}
 }
 */
-static void Menu_Download_Got(char *fname, qboolean successful)
+static void Menu_Download_Got(struct dl_download *dl)
 {
+	char *fname = dl->localname;
+	qboolean successful = dl->status == DL_FINISHED;
 	char *ext;
 	package_t *p;
 	int dlnum = atoi(fname+3);

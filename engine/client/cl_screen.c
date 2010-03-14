@@ -440,7 +440,6 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 	int				bottom;
 	int             remaining;
 
-	conchar_t *str;
 	conchar_t *line_start[MAX_CPRINT_LINES];
 	conchar_t *line_end[MAX_CPRINT_LINES];
 	int linecount;
@@ -492,29 +491,23 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 	{
 		if (p->flags & CPRINT_RALIGN)
 		{
-			x = right;
-			for (str = line_start[l]; str < line_end[l]; str++)
-				x -= Font_CharWidth(*str);
+			x = right - Font_LineWidth(line_start[l], line_end[l]);
 		}
 		else if (p->flags & CPRINT_LALIGN)
 			x = left;
 		else
 		{
-			x = 0;
-			for (str = line_start[l]; str < line_end[l]; str++)
-				x += Font_CharWidth(*str);
-			x = (right + left - x)/2;
+			x = (right + left - Font_LineWidth(line_start[l], line_end[l]))/2;
 		}
 
-		for (str = line_start[l]; str < line_end[l]; str++)
+		remaining -= line_end[l]-line_start[l];
+		if (remaining <= 0)
 		{
-			if (!remaining--)
-			{
-				l = linecount-1;
+			line_end[l] += remaining;
+			if (line_end[l] <= line_start[l])
 				break;
-			}
-			x = Font_DrawChar(x, y, *str);
 		}
+		Font_LineDraw(x, y, line_start[l], line_end[l]);
 	}
 	Font_EndString(font_conchar);
 }
@@ -1618,8 +1611,6 @@ void SCR_SetUpToDrawConsole (void)
 #ifdef TEXTEDITOR
 	extern qboolean editoractive;
 #endif
-	Con_CheckResize ();
-
 	if (scr_drawloading)
 		return;         // never a console with loading plaque
 

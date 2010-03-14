@@ -728,7 +728,7 @@ qboolean SVQ2_InitGameProgs(void)
 	if (ge->apiversion != Q2GAME_API_VERSION)
 	{
 		Con_Printf("game is version %i, not %i", ge->apiversion, Q2GAME_API_VERSION);
-		SVQ2_ShutdownGameProgs();
+		Sys_UnloadGame ();
 		return false;
 	}
 

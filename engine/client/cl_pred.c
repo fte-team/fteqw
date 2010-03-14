@@ -646,7 +646,15 @@ void CL_CalcClientTime(void)
 		float want;
 		float oldst = realtime;
 
-		if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) && cls.protocol == CP_QUAKEWORLD)
+		if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD)
+		{
+			extern float nextdemotime, olddemotime, demtime;
+			float f;
+			f = (demtime - olddemotime) / (nextdemotime - olddemotime);
+			f = bound(0, f, 1);
+			cl.time = cl.servertime = cl.gametime*f + cl.oldgametime*(1-f);
+		}
+		else if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) && cls.protocol == CP_QUAKEWORLD)
 			cl.servertime = cl.time;
 		else
 		{

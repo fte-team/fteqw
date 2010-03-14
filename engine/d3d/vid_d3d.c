@@ -1190,7 +1190,6 @@ static void	(D3D9_R_RenderView)				(void)
 	d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
 	Surf_DrawWorld();
 	P_DrawParticles ();
-	RQ_RenderBatchClear();
 }
 
 void	(D3D9_R_NewMap)					(void);

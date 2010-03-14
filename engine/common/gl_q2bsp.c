@@ -215,7 +215,7 @@ typedef struct
 {
 	int			contents;
 	int			numsides;
-	int			firstbrushside;
+	q2cbrushside_t *brushside;
 	int			checkcount;		// to avoid repeated testings
 } q2cbrush_t;
 
@@ -236,8 +236,10 @@ typedef struct
 {
 	vec3_t		absmins, absmaxs;
 
-	int			numbrushes;
-	q2cbrush_t	*brushes;
+	int			numfacets;
+	q2cbrush_t	*facets;
+#define numbrushes numfacets
+#define brushes facets
 
 	q2mapsurface_t	*surface;
 	int			checkcount;		// to avoid repeated testings
@@ -426,37 +428,31 @@ qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2
 Patch_FlatnessTest
 ===============
 */
-static int Patch_FlatnessTest ( float maxflat, const vec3_t point0, const vec3_t point1, const vec3_t point2 )
+static int Patch_FlatnessTest( float maxflat2, const float *point0, const float *point1, const float *point2 )
 {
-	vec3_t v1, v2, v3;
-	vec3_t t, n;
-	float dist, d, l;
+	float d;
 	int ft0, ft1;
+	vec3_t t, n;
+	vec3_t v1, v2, v3;
 
-	VectorSubtract ( point2, point0, n );
-	l = VectorNormalize ( n );
-
-	if ( !l ) {
+	VectorSubtract( point2, point0, n );
+	if( !VectorNormalize( n ) )
 		return 0;
-	}
 
-	VectorSubtract ( point1, point0, t );
-	d = -DotProduct ( t, n );
-	VectorMA ( t, d, n, t );
-	dist = VectorLength ( t );
-
-	if ( fabs(dist) <= maxflat ) {
+	VectorSubtract( point1, point0, t );
+	d = -DotProduct( t, n );
+	VectorMA( t, d, n, t );
+	if( DotProduct( t, t ) < maxflat2 )
 		return 0;
-	}
 
-	VectorAvg ( point1, point0, v1 );
-	VectorAvg ( point2, point1, v2 );
-	VectorAvg ( v1, v2, v3 );
+	VectorAvg( point1, point0, v1 );
+	VectorAvg( point2, point1, v2 );
+	VectorAvg( v1, v2, v3 );
 
-	ft0 = Patch_FlatnessTest ( maxflat, point0, v1, v3 );
-	ft1 = Patch_FlatnessTest ( maxflat, v3, v2, point2 );
+	ft0 = Patch_FlatnessTest( maxflat2, point0, v1, v3 );
+	ft1 = Patch_FlatnessTest( maxflat2, v3, v2, point2 );
 
-	return 1 + (int)floor( max ( ft0, ft1 ) + 0.5f );
+	return 1 + (int)( floor( max( ft0, ft1 ) ) + 0.5f );
 }
 
 /*
@@ -464,30 +460,31 @@ static int Patch_FlatnessTest ( float maxflat, const vec3_t point0, const vec3_t
 Patch_GetFlatness
 ===============
 */
-void Patch_GetFlatness ( float maxflat, const vec3_t *points, int *patch_cp, int *flat )
+void Patch_GetFlatness( float maxflat, const float *points, int comp, const int *patch_cp, int *flat )
 {
 	int i, p, u, v;
+	float maxflat2 = maxflat * maxflat;
 
 	flat[0] = flat[1] = 0;
-	for (v = 0; v < patch_cp[1] - 1; v += 2)
+	for( v = 0; v < patch_cp[1] - 1; v += 2 )
 	{
-		for (u = 0; u < patch_cp[0] - 1; u += 2)
+		for( u = 0; u < patch_cp[0] - 1; u += 2 )
 		{
 			p = v * patch_cp[0] + u;
 
-			i = Patch_FlatnessTest ( maxflat, points[p], points[p+1], points[p+2] );
-			flat[0] = max ( flat[0], i );
-			i = Patch_FlatnessTest ( maxflat, points[p+patch_cp[0]], points[p+patch_cp[0]+1], points[p+patch_cp[0]+2] );
-			flat[0] = max ( flat[0], i );
-			i = Patch_FlatnessTest ( maxflat, points[p+2*patch_cp[0]], points[p+2*patch_cp[0]+1], points[p+2*patch_cp[0]+2] );
-			flat[0] = max ( flat[0], i );
+			i = Patch_FlatnessTest( maxflat2, &points[p*comp], &points[( p+1 )*comp], &points[( p+2 )*comp] );
+			flat[0] = max( flat[0], i );
+			i = Patch_FlatnessTest( maxflat2, &points[( p+patch_cp[0] )*comp], &points[( p+patch_cp[0]+1 )*comp], &points[( p+patch_cp[0]+2 )*comp] );
+			flat[0] = max( flat[0], i );
+			i = Patch_FlatnessTest( maxflat2, &points[( p+2*patch_cp[0] )*comp], &points[( p+2*patch_cp[0]+1 )*comp], &points[( p+2*patch_cp[0]+2 )*comp] );
+			flat[0] = max( flat[0], i );
 
-			i = Patch_FlatnessTest ( maxflat, points[p], points[p+patch_cp[0]], points[p+2*patch_cp[0]] );
-			flat[1] = max ( flat[1], i );
-			i = Patch_FlatnessTest ( maxflat, points[p+1], points[p+patch_cp[0]+1], points[p+2*patch_cp[0]+1] );
-			flat[1] = max ( flat[1], i );
-			i = Patch_FlatnessTest ( maxflat, points[p+2], points[p+patch_cp[0]+2], points[p+2*patch_cp[0]+2] );
-			flat[1] = max ( flat[1], i );
+			i = Patch_FlatnessTest( maxflat2, &points[p*comp], &points[( p+patch_cp[0] )*comp], &points[( p+2*patch_cp[0] )*comp] );
+			flat[1] = max( flat[1], i );
+			i = Patch_FlatnessTest( maxflat2, &points[( p+1 )*comp], &points[( p+patch_cp[0]+1 )*comp], &points[( p+2*patch_cp[0]+1 )*comp] );
+			flat[1] = max( flat[1], i );
+			i = Patch_FlatnessTest( maxflat2, &points[( p+2 )*comp], &points[( p+patch_cp[0]+2 )*comp], &points[( p+2*patch_cp[0]+2 )*comp] );
+			flat[1] = max( flat[1], i );
 		}
 	}
 }
@@ -497,21 +494,17 @@ void Patch_GetFlatness ( float maxflat, const vec3_t *points, int *patch_cp, int
 Patch_Evaluate_QuadricBezier
 ===============
 */
-static void Patch_Evaluate_QuadricBezier ( float t, vec4_t point0, vec4_t point1, vec3_t point2, vec4_t out )
+static void Patch_Evaluate_QuadricBezier( float t, const vec_t *point0, const vec_t *point1, const vec_t *point2, vec_t *out, int comp )
 {
-	float qt = t * t;
-	float dt = 2.0f * t, tt;
-	vec4_t tvec4;
+	int i;
+	vec_t qt = t * t;
+	vec_t dt = 2.0f * t, tt, tt2;
 
 	tt = 1.0f - dt + qt;
-	Vector4Scale ( point0, tt, out );
+	tt2 = dt - 2.0f * qt;
 
-	tt = dt - 2.0f * qt;
-	Vector4Scale ( point1, tt, tvec4 );
-	Vector4Add ( out, tvec4, out );
-
-	Vector4Scale ( point2, qt, tvec4 );
-	Vector4Add ( out, tvec4, out );
+	for( i = 0; i < comp; i++ )
+		out[i] = point0[i] * tt + point1[i] * tt2 + point2[i] * qt;
 }
 
 /*
@@ -519,73 +512,109 @@ static void Patch_Evaluate_QuadricBezier ( float t, vec4_t point0, vec4_t point1
 Patch_Evaluate
 ===============
 */
-void Patch_Evaluate ( const vec4_t *p, const int *numcp, const int *tess, vec4_t *dest )
+void Patch_Evaluate( const vec_t *p, const int *numcp, const int *tess, vec_t *dest, int comp )
 {
 	int num_patches[2], num_tess[2];
 	int index[3], dstpitch, i, u, v, x, y;
 	float s, t, step[2];
-	vec4_t *tvec, pv[3][3], v1, v2, v3;
+	vec_t *tvec, *tvec2;
+	const vec_t *pv[3][3];
+	vec4_t v1, v2, v3;
 
 	num_patches[0] = numcp[0] / 2;
 	num_patches[1] = numcp[1] / 2;
-	dstpitch = num_patches[0] * tess[0] + 1;
+	dstpitch = ( num_patches[0] * tess[0] + 1 ) * comp;
 
 	step[0] = 1.0f / (float)tess[0];
 	step[1] = 1.0f / (float)tess[1];
 
-	for ( v = 0; v < num_patches[1]; v++ )
+	for( v = 0; v < num_patches[1]; v++ )
 	{
 		// last patch has one more row
-		if ( v < num_patches[1] - 1 ) {
+		if( v < num_patches[1] - 1 )
 			num_tess[1] = tess[1];
-		} else {
+		else
 			num_tess[1] = tess[1] + 1;
-		}
 
-		for ( u = 0; u < num_patches[0]; u++ )
+		for( u = 0; u < num_patches[0]; u++ )
 		{
 			// last patch has one more column
-			if ( u < num_patches[0] - 1 ) {
+			if( u < num_patches[0] - 1 )
 				num_tess[0] = tess[0];
-			} else {
+			else
 				num_tess[0] = tess[0] + 1;
-			}
 
-			index[0] = (v * numcp[0] + u) * 2;
+			index[0] = ( v * numcp[0] + u ) * 2;
 			index[1] = index[0] + numcp[0];
 			index[2] = index[1] + numcp[0];
 
 			// current 3x3 patch control points
-			for ( i = 0; i < 3; i++ )
+			for( i = 0; i < 3; i++ )
 			{
-				Vector4Copy ( p[index[0]+i], pv[i][0] );
-				Vector4Copy ( p[index[1]+i], pv[i][1] );
-				Vector4Copy ( p[index[2]+i], pv[i][2] );
+				pv[i][0] = &p[( index[0]+i ) * comp];
+				pv[i][1] = &p[( index[1]+i ) * comp];
+				pv[i][2] = &p[( index[2]+i ) * comp];
 			}
 
-			t = 0.0f;
-			tvec = dest + v * tess[1] * dstpitch + u * tess[0];
-
-			for ( y = 0; y < num_tess[1]; y++, t += step[1] )
+			tvec = dest + v * tess[1] * dstpitch + u * tess[0] * comp;
+			for( y = 0, t = 0.0f; y < num_tess[1]; y++, t += step[1], tvec += dstpitch )
 			{
-				Patch_Evaluate_QuadricBezier ( t, pv[0][0], pv[0][1], pv[0][2], v1 );
-				Patch_Evaluate_QuadricBezier ( t, pv[1][0], pv[1][1], pv[1][2], v2 );
-				Patch_Evaluate_QuadricBezier ( t, pv[2][0], pv[2][1], pv[2][2], v3 );
+				Patch_Evaluate_QuadricBezier( t, pv[0][0], pv[0][1], pv[0][2], v1, comp );
+				Patch_Evaluate_QuadricBezier( t, pv[1][0], pv[1][1], pv[1][2], v2, comp );
+				Patch_Evaluate_QuadricBezier( t, pv[2][0], pv[2][1], pv[2][2], v3, comp );
 
-				s = 0.0f;
-				for ( x = 0; x < num_tess[0]; x++, s += step[0] )
-				{
-					Patch_Evaluate_QuadricBezier ( s, v1, v2, v3, tvec[x] );
-				}
-
-				tvec += dstpitch;
+				for( x = 0, tvec2 = tvec, s = 0.0f; x < num_tess[0]; x++, s += step[0], tvec2 += comp )
+					Patch_Evaluate_QuadricBezier( s, v1, v2, v3, tvec2, comp );
 			}
 		}
 	}
 }
 
 
+#define	PLANE_NORMAL_EPSILON	0.00001
+#define	PLANE_DIST_EPSILON	0.01
+static qboolean ComparePlanes( const vec3_t p1normal, vec_t p1dist, const vec3_t p2normal, vec_t p2dist )
+{
+	if( fabs( p1normal[0] - p2normal[0] ) < PLANE_NORMAL_EPSILON
+	    && fabs( p1normal[1] - p2normal[1] ) < PLANE_NORMAL_EPSILON
+	    && fabs( p1normal[2] - p2normal[2] ) < PLANE_NORMAL_EPSILON
+	    && fabs( p1dist - p2dist ) < PLANE_DIST_EPSILON )
+		return true;
 
+	return false;
+}
+
+static void SnapVector( vec3_t normal )
+{
+	int i;
+
+	for( i = 0; i < 3; i++ )
+	{
+		if( fabs( normal[i] - 1 ) < PLANE_NORMAL_EPSILON )
+		{
+			VectorClear( normal );
+			normal[i] = 1;
+			break;
+		}
+		if( fabs( normal[i] - -1 ) < PLANE_NORMAL_EPSILON )
+		{
+			VectorClear( normal );
+			normal[i] = -1;
+			break;
+		}
+	}
+}
+
+#define Q_rint( x )   ( ( x ) < 0 ? ( (int)( ( x )-0.5f ) ) : ( (int)( ( x )+0.5f ) ) )
+static void SnapPlane( vec3_t normal, vec_t *dist )
+{
+	SnapVector( normal );
+
+	if( fabs( *dist - Q_rint( *dist ) ) < PLANE_DIST_EPSILON )
+	{
+		*dist = Q_rint( *dist );
+	}
+}
 
 /*
 ===============================================================================
@@ -594,6 +623,283 @@ void Patch_Evaluate ( const vec4_t *p, const int *numcp, const int *tess, vec4_t
 
 ===============================================================================
 */
+
+#if 1
+#define MAX_FACET_PLANES 32
+#define cm_subdivlevel	15
+
+/*
+* CM_CreateFacetFromPoints
+*/
+static int CM_CreateFacetFromPoints(q2cbrush_t *facet, vec3_t *verts, int numverts, q2mapsurface_t *shaderref, mplane_t *brushplanes )
+{
+	int i, j, k;
+	int axis, dir;
+	vec3_t normal, mins, maxs;
+	float d, dist;
+	mplane_t mainplane;
+	vec3_t vec, vec2;
+	int numbrushplanes;
+
+	// set default values for brush
+	facet->numsides = 0;
+	facet->brushside = NULL;
+	facet->contents = shaderref->c.value;
+
+	// calculate plane for this triangle
+	PlaneFromPoints( verts, &mainplane );
+	if( ComparePlanes( mainplane.normal, mainplane.dist, vec3_origin, 0 ) )
+		return 0;
+
+	// test a quad case
+	if( numverts > 3 )
+	{
+		d = DotProduct( verts[3], mainplane.normal ) - mainplane.dist;
+		if( d < -0.1 || d > 0.1 )
+			return 0;
+
+		if( 0 )
+		{
+			vec3_t v[3];
+			mplane_t plane;
+
+			// try different combinations of planes
+			for( i = 1; i < 4; i++ )
+			{
+				VectorCopy( verts[i], v[0] );
+				VectorCopy( verts[( i+1 )%4], v[1] );
+				VectorCopy( verts[( i+2 )%4], v[2] );
+				PlaneFromPoints( v, &plane );
+
+				if( fabs( DotProduct( mainplane.normal, plane.normal ) ) < 0.9 )
+					return 0;
+			}
+		}
+	}
+
+	numbrushplanes = 0;
+
+	// add front plane
+	SnapPlane( mainplane.normal, &mainplane.dist );
+	VectorCopy( mainplane.normal, brushplanes[numbrushplanes].normal );
+	brushplanes[numbrushplanes].dist = mainplane.dist; numbrushplanes++;
+
+	// calculate mins & maxs
+	ClearBounds( mins, maxs );
+	for( i = 0; i < numverts; i++ )
+		AddPointToBounds( verts[i], mins, maxs );
+
+	// add the axial planes
+	for( axis = 0; axis < 3; axis++ )
+	{
+		for( dir = -1; dir <= 1; dir += 2 )
+		{
+			for( i = 0; i < numbrushplanes; i++ )
+			{
+				if( brushplanes[i].normal[axis] == dir )
+					break;
+			}
+
+			if( i == numbrushplanes )
+			{
+				VectorClear( normal );
+				normal[axis] = dir;
+				if( dir == 1 )
+					dist = maxs[axis];
+				else
+					dist = -mins[axis];
+
+				VectorCopy( normal, brushplanes[numbrushplanes].normal );
+				brushplanes[numbrushplanes].dist = dist; numbrushplanes++;
+			}
+		}
+	}
+
+	// add the edge bevels
+	for( i = 0; i < numverts; i++ )
+	{
+		j = ( i + 1 ) % numverts;
+		k = ( i + 2 ) % numverts;
+
+		VectorSubtract( verts[i], verts[j], vec );
+		if( VectorNormalize( vec ) < 0.5 )
+			continue;
+
+		SnapVector( vec );
+		for( j = 0; j < 3; j++ )
+		{
+			if( vec[j] == 1 || vec[j] == -1 )
+				break; // axial
+		}
+		if( j != 3 )
+			continue; // only test non-axial edges
+
+		// try the six possible slanted axials from this edge
+		for( axis = 0; axis < 3; axis++ )
+		{
+			for( dir = -1; dir <= 1; dir += 2 )
+			{
+				// construct a plane
+				VectorClear( vec2 );
+				vec2[axis] = dir;
+				CrossProduct( vec, vec2, normal );
+				if( VectorNormalize( normal ) < 0.5 )
+					continue;
+				dist = DotProduct( verts[i], normal );
+
+				for( j = 0; j < numbrushplanes; j++ )
+				{
+					// if this plane has already been used, skip it
+					if( ComparePlanes( brushplanes[j].normal, brushplanes[j].dist, normal, dist ) )
+						break;
+				}
+				if( j != numbrushplanes )
+					continue;
+
+				// if all other points are behind this plane, it is a proper edge bevel
+				for( j = 0; j < numverts; j++ )
+				{
+					if( j != i )
+					{
+						d = DotProduct( verts[j], normal ) - dist;
+						if( d > 0.1 )
+							break; // point in front: this plane isn't part of the outer hull
+					}
+				}
+				if( j != numverts )
+					continue;
+
+				// add this plane
+				VectorCopy( normal, brushplanes[numbrushplanes].normal );
+				brushplanes[numbrushplanes].dist = dist; numbrushplanes++;
+				if( numbrushplanes == MAX_FACET_PLANES )
+					break;
+			}
+		}
+	}
+
+	return ( facet->numsides = numbrushplanes );
+}
+
+/*
+* CM_CreatePatch
+*/
+static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const vec3_t *verts, const int *patch_cp )
+{
+	int step[2], size[2], flat[2];
+	int i, j, k ,u, v;
+	int numsides, totalsides;
+	q2cbrush_t *facets, *facet;
+	vec3_t *points;
+	vec3_t tverts[4];
+	qbyte *data;
+	mplane_t *brushplanes;
+
+	// find the degree of subdivision in the u and v directions
+	Patch_GetFlatness( cm_subdivlevel, verts[0], 3, patch_cp, flat );
+
+	step[0] = 1 << flat[0];
+	step[1] = 1 << flat[1];
+	size[0] = ( patch_cp[0] >> 1 ) * step[0] + 1;
+	size[1] = ( patch_cp[1] >> 1 ) * step[1] + 1;
+	if( size[0] <= 0 || size[1] <= 0 )
+		return;
+
+	data = BZ_Malloc( size[0] * size[1] * sizeof( vec3_t ) + 
+		( size[0]-1 ) * ( size[1]-1 ) * 2 * ( sizeof( q2cbrush_t ) + 32 * sizeof( mplane_t ) ) );
+
+	points = ( vec3_t * )data; data += size[0] * size[1] * sizeof( vec3_t );
+	facets = ( q2cbrush_t * )data; data += ( size[0]-1 ) * ( size[1]-1 ) * 2 * sizeof( q2cbrush_t );
+	brushplanes = ( mplane_t * )data; data += ( size[0]-1 ) * ( size[1]-1 ) * 2 * MAX_FACET_PLANES * sizeof( mplane_t );
+
+	// fill in
+	Patch_Evaluate( verts[0], patch_cp, step, points[0], 3 );
+
+	totalsides = 0;
+	patch->numfacets = 0;
+	patch->facets = NULL;
+	ClearBounds( patch->absmins, patch->absmaxs );
+
+	// create a set of facets
+	for( v = 0; v < size[1]-1; v++ )
+	{
+		for( u = 0; u < size[0]-1; u++ )
+		{
+			i = v * size[0] + u;
+			VectorCopy( points[i], tverts[0] );
+			VectorCopy( points[i + size[0]], tverts[1] );
+			VectorCopy( points[i + size[0] + 1], tverts[2] );
+			VectorCopy( points[i + 1], tverts[3] );
+
+			for( i = 0; i < 4; i++ )
+				AddPointToBounds( tverts[i], patch->absmins, patch->absmaxs );
+
+			// try to create one facet from a quad
+			numsides = CM_CreateFacetFromPoints( &facets[patch->numfacets], tverts, 4, shaderref, brushplanes + totalsides );
+			if( !numsides )
+			{	// create two facets from triangles
+				VectorCopy( tverts[3], tverts[2] );
+				numsides = CM_CreateFacetFromPoints( &facets[patch->numfacets], tverts, 3, shaderref, brushplanes + totalsides );
+				if( numsides )
+				{
+					totalsides += numsides;
+					patch->numfacets++;
+				}
+
+				VectorCopy( tverts[2], tverts[0] );
+				VectorCopy( points[v *size[0] + u + size[0] + 1], tverts[2] );
+				numsides = CM_CreateFacetFromPoints( &facets[patch->numfacets], tverts, 3, shaderref, brushplanes + totalsides );
+			}
+
+			if( numsides )
+			{
+				totalsides += numsides;
+				patch->numfacets++;
+			}
+		}
+	}
+
+	if( patch->numfacets )
+	{
+		qbyte *data;
+
+		data = Hunk_Alloc( patch->numfacets * sizeof( q2cbrush_t ) + totalsides * ( sizeof( q2cbrushside_t ) + sizeof( mplane_t ) ) );
+
+		patch->facets = ( q2cbrush_t * )data; data += patch->numfacets * sizeof( q2cbrush_t );
+		memcpy( patch->facets, facets, patch->numfacets * sizeof( q2cbrush_t ) );
+		for( i = 0, k = 0, facet = patch->facets; i < patch->numfacets; i++, facet++ )
+		{
+			mplane_t *planes;
+			q2cbrushside_t *s;
+
+			facet->brushside = ( q2cbrushside_t * )data; data += facet->numsides * sizeof( q2cbrushside_t );
+			planes = ( mplane_t * )data; data += facet->numsides * sizeof( mplane_t );
+
+			for( j = 0, s = facet->brushside; j < facet->numsides; j++, s++ )
+			{
+				planes[j] = brushplanes[k++];
+
+				s->plane = &planes[j];
+				SnapPlane( s->plane->normal, &s->plane->dist );
+				CategorizePlane( s->plane );
+				s->surface = shaderref;
+			}
+		}
+
+		patch->surface = shaderref;
+
+		for( i = 0; i < 3; i++ )
+		{
+			// spread the mins / maxs by a pixel
+			patch->absmins[i] -= 1;
+			patch->absmaxs[i] += 1;
+		}
+	}
+
+	BZ_Free( points );
+}
+
+#else
 
 #define cm_subdivlevel	15
 
@@ -607,9 +913,6 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 	static mplane_t mainplane, patchplanes[20];
 	qboolean skip[20];
 	int	numpatchplanes = 0;
-	float dot;
-
-	int matchplane;
 
 	// calc absmins & absmaxs
 	ClearBounds ( absmins, absmaxs );
@@ -628,9 +931,13 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 	plane->dist = -mainplane.dist;
 
 	// axial planes
-	for ( i = 0; i < 3; i++ ) {
-		for (sign = -1; sign <= 1; sign += 2) {
+	for ( i = 0; i < 3; i++ )
+	{
+		for (sign = -1; sign <= 1; sign += 2)
+		{
 			plane = &patchplanes[numpatchplanes++];
+			if (numpatchplanes > 20)
+				return false;
 			VectorClear ( plane->normal );
 			plane->normal[i] = sign;
 			plane->dist = sign > 0 ? absmaxs[i] : -absmins[i];
@@ -638,13 +945,15 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 	}
 
 	// edge planes
-	for ( i = 0; i < 3; i++ ) {
+	for ( i = 0; i < 3; i++ )
+	{
 		vec3_t	normal;
 
 		VectorCopy (verts[i], v1);
 		VectorCopy (verts[(i + 1) % 3], v2);
 
-		for ( k = 0; k < 3; k++ ) {
+		for ( k = 0; k < 3; k++ )
+		{
 			normal[k] = 0;
 			normal[(k+1)%3] = v1[(k+2)%3] - v2[(k+2)%3];
 			normal[(k+2)%3] = -(v1[(k+1)%3] - v2[(k+1)%3]);
@@ -653,6 +962,8 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 				continue;
 
 			plane = &patchplanes[numpatchplanes++];
+			if (numpatchplanes > 20)
+				return false;
 
 			VectorNormalize ( normal );
 			VectorCopy ( normal, plane->normal );
@@ -682,10 +993,13 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 	}
 
 	brush->numsides = 0;
-	brush->firstbrushside = numbrushsides;
+	brush->brushside = Hunk_Alloc((sizeof(*plane) + sizeof(*side))*numpatchplanes);
+	plane = (mplane_t*)(brush->brushside+numpatchplanes);
 
-	for (k = 0; k < 2; k++) {
-		for (i = 0; i < numpatchplanes; i++)	{
+	for (k = 0; k < 2; k++)
+	{
+		for (i = 0; i < numpatchplanes; i++)
+		{
 			if (skip[i])
 				continue;
 
@@ -697,45 +1011,15 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 
 			skip[i] = true;
 
-			for (matchplane = 0; matchplane < numplanes; matchplane++)
-			{
-				if (map_planes[matchplane].dist+0.1 > patchplanes[i].dist && map_planes[matchplane].dist-0.1 < patchplanes[i].dist)
-				{
-					dot = DotProduct(map_planes[matchplane].normal, patchplanes[i].normal);
-					if (dot >= 0.98)
-					{
-						plane = &map_planes[matchplane];
-						break;
-					}
-				}
-			}
-			if (matchplane == numplanes)
-			{
-				if (numplanes == MAX_Q2MAP_PLANES)
-				{
-					Con_Printf (CON_ERROR "CM_CreateBrush: numplanes == MAX_CM_PLANES");
-					return false;
-				}
-
-				plane = &map_planes[numplanes++];
-				*plane = patchplanes[i];
-			}
-
-			if (numbrushsides == MAX_CM_BRUSHSIDES)
-			{
-				Con_Printf (CON_ERROR "CM_CreateBrush: numbrushsides == MAX_CM_BRUSHSIDES\n");
-				return false;
-			}
-
-			side = &map_brushsides[numbrushsides++];
-			side->plane = plane;
+			side = brush->brushside + brush->numsides;
+			side->plane = plane+brush->numsides;
+			plane[brush->numsides] = patchplanes[i];
+			brush->numsides++;
 
 			if (DotProduct(plane->normal, mainplane.normal) >= 0)
 				side->surface = surface;
 			else
 				side->surface = NULL;	// don't clip against this side
-
-			brush->numsides++;
 		}
 	}
 
@@ -760,6 +1044,7 @@ qboolean CM_CreatePatch ( q3cpatch_t *patch, int numverts, const vec3_t *verts, 
 
 	if ( size[0] * size[1] > MAX_CM_PATCH_VERTS ) 
 	{
+		return true;
 		Con_Printf (CON_ERROR "CM_CreatePatch: patch has too many vertices\n");
 		return false;
 	}
@@ -824,7 +1109,7 @@ qboolean CM_CreatePatch ( q3cpatch_t *patch, int numverts, const vec3_t *verts, 
 
 	return true;
 }
-
+#endif
 
 //======================================================
 
@@ -842,6 +1127,9 @@ qboolean CM_CreatePatchesForLeafs (void)
 	q3cpatch_t *patch;
 	int checkout[MAX_CM_FACES];
 
+	if (map_noCurves.ival)
+		return true;
+
 	memset (checkout, -1, sizeof(int)*MAX_CM_FACES);
 
 	for (i = 0, leaf = map_leafs; i < numleafs; i++, leaf++)
@@ -849,7 +1137,7 @@ qboolean CM_CreatePatchesForLeafs (void)
 		leaf->numleafpatches = 0;
 		leaf->firstleafpatch = numleafpatches;
 
-		if (leaf->cluster == -1 || map_noCurves.value)
+		if (leaf->cluster == -1)
 			continue;
 
 		for (j=0 ; j<leaf->numleaffaces ; j++)
@@ -894,13 +1182,11 @@ qboolean CM_CreatePatchesForLeafs (void)
 				}
 
 				patch = &map_patches[numpatches];
-				patch->surface = surf;
 				map_leafpatches[numleafpatches] = numpatches;
 				checkout[k] = numpatches++;
 
 //gcc warns without this cast
-				if (!CM_CreatePatch ( patch, face->numverts, (const vec3_t *)map_verts + face->firstvert, face->patch_cp ))
-					return false;
+				CM_CreatePatch ( patch, surf, (const vec3_t *)map_verts + face->firstvert, face->patch_cp );
 			}
 
 			leaf->contents |= patch->surface->c.value;
@@ -1415,7 +1701,8 @@ qboolean CMod_LoadBrushes (lump_t *l)
 
 	for (i=0 ; i<count ; i++, out++, in++)
 	{
-		out->firstbrushside = LittleLong(in->firstside);
+		//FIXME: missing bounds checks
+		out->brushside = &map_brushsides[LittleLong(in->firstside)];
 		out->numsides = LittleLong(in->numsides);
 		out->contents = LittleLong(in->contents);
 	}
@@ -2207,7 +2494,7 @@ qboolean CModQ3_LoadFogs (lump_t *l)
 		}
 
 		brush = map_brushes + LittleLong ( in->brushNum );
-		brushsides = map_brushsides + brush->firstbrushside;
+		brushsides = brush->brushside;
 		visibleside = brushsides + LittleLong ( in->visibleSide );
 
 		out->visibleplane = visibleside->plane;
@@ -2257,7 +2544,7 @@ mfog_t *CM_FogForOrigin(vec3_t org)
 #define MAX_ARRAY_VERTS 2048
 
 index_t tempIndexesArray[MAX_ARRAY_VERTS*3];
-vec4_t			tempxyz_array[MAX_ARRAY_VERTS];	//structure is used only at load.
+vecV_t			tempxyz_array[MAX_ARRAY_VERTS];	//structure is used only at load.
 vec3_t			tempnormals_array[MAX_ARRAY_VERTS];	//so what harm is there in doing this?
 vec2_t			tempst_array[MAX_ARRAY_VERTS];
 vec2_t			templmst_array[MAX_ARRAY_VERTS];
@@ -2273,11 +2560,13 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	mesh_t *mesh;
 	index_t	*indexes;
 	float subdivlevel;
+	char *allocbuf;
+	int sz;
 
 	patch_cp[0] = patchwidth;
 	patch_cp[1] = patchheight;
 
-	if ( !patch_cp[0] || !patch_cp[1] )
+	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
 	{
 		return NULL;
 	}
@@ -2295,7 +2584,7 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	}
 
 // find the degree of subdivision in the u and v directions
-	Patch_GetFlatness ( subdivlevel, (const vec3_t *)map_verts+firstvert, patch_cp, flat );
+	Patch_GetFlatness ( subdivlevel, map_verts[firstvert], sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
 
 // allocate space for mesh
 	step[0] = (1 << flat[0]);
@@ -2304,27 +2593,41 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	size[1] = (patch_cp[1] / 2) * step[1] + 1;
 	numverts = size[0] * size[1];
 
-	if ( numverts > MAX_ARRAY_VERTS ) {
+	if ( numverts < 0 || numverts > MAX_ARRAY_VERTS ) {
 		return NULL;
 	}
 
 	mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));
-
+	sz = sizeof(mesh_t) + numverts * (
+						sizeof(vecV_t)+
+						sizeof(vec3_t)+
+						sizeof(vec3_t)+
+						sizeof(vec3_t)+
+						sizeof(vec2_t)+
+						sizeof(vec2_t)+
+						sizeof(vec4_t));
+	allocbuf = Hunk_Alloc(sz);
+	mesh = (mesh_t *)(allocbuf+(sz-=sizeof(mesh_t)));
+	mesh->xyz_array = (vecV_t *)(allocbuf+(sz-=numverts*sizeof(vecV_t)));
+	mesh->normals_array = (vec3_t *)(allocbuf+(sz-=numverts*sizeof(vec3_t)));
+	mesh->snormals_array = (vec3_t *)(allocbuf+(sz-=numverts*sizeof(vec3_t)));
+	mesh->tnormals_array = (vec3_t *)(allocbuf+(sz-=numverts*sizeof(vec3_t)));
+	mesh->st_array = (vec2_t *)(allocbuf+(sz-=numverts*sizeof(vec2_t)));
+	mesh->lmst_array = (vec2_t *)(allocbuf+(sz-=numverts*sizeof(vec2_t)));
+	mesh->colors4f_array = (vec4_t *)(allocbuf+(sz-=numverts*sizeof(vec4_t)));
+#ifdef _DEBUG
+	if (sz)
+		Sys_Error("Bug\n");
+#endif
+	
 	mesh->numvertexes = numverts;
-	mesh->xyz_array = Hunk_Alloc ( numverts * sizeof(vec3_t));
-	mesh->normals_array = Hunk_Alloc ( numverts * sizeof(vec3_t));
-	mesh->snormals_array = Hunk_Alloc ( numverts * sizeof(vec3_t));
-	mesh->tnormals_array = Hunk_Alloc ( numverts * sizeof(vec3_t));
-	mesh->st_array = Hunk_Alloc ( numverts * sizeof(vec2_t));
-	mesh->lmst_array = Hunk_Alloc ( numverts * sizeof(vec2_t));
-	mesh->colors4f_array = Hunk_Alloc ( numverts * sizeof(vec4_t));
 
 // fill in
-	Patch_Evaluate ( (const vec4_t *)points, patch_cp, step, points2 );
-	Patch_Evaluate ( (const vec4_t *)colors, patch_cp, step, colors2 );
-	Patch_Evaluate ( (const vec4_t *)normals, patch_cp, step, normals2 );
-	Patch_Evaluate ( (const vec4_t *)lm_st, patch_cp, step, lm_st2 );
-	Patch_Evaluate ( (const vec4_t *)tex_st, patch_cp, step, tex_st2 );
+	Patch_Evaluate ( points[0], patch_cp, step, points2[0], 3 );
+	Patch_Evaluate ( colors[0], patch_cp, step, colors2[0], 4 );
+	Patch_Evaluate ( normals[0], patch_cp, step, normals2[0], 3 );
+	Patch_Evaluate ( lm_st[0], patch_cp, step, lm_st2[0], 2 );
+	Patch_Evaluate ( tex_st[0], patch_cp, step, tex_st2[0], 2 );
 
 	for (i = 0; i < numverts; i++)
 	{
@@ -2483,14 +2786,17 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 		else if (LittleLong(in->facetype) == MST_PATCH)
 		{
 			out->mesh = GL_CreateMeshForPatch(loadmodel, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
-			Mod_AccumulateMeshTextureVectors(out->mesh);
-			Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
+			if (out->mesh)
+			{
+				Mod_AccumulateMeshTextureVectors(out->mesh);
+				Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
+			}
 		}
 		else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
 		{
 			numindexes = LittleLong(in->num_indexes);
 			numverts = LittleLong(in->num_vertices);
-			if (numindexes%3)
+			if (numindexes%3 || numindexes < 0 || numverts < 0)
 			{
 				Con_Printf(CON_ERROR "mesh indexes should be multiples of 3\n");
 				return false;
@@ -2823,7 +3129,7 @@ qboolean CModQ3_LoadBrushes (lump_t *l)
 	{
 		shaderref = LittleLong ( in->shadernum );
 		out->contents = map_surfaces[shaderref].c.value;
-		out->firstbrushside = LittleLong ( in->firstside );
+		out->brushside = &map_brushsides[LittleLong ( in->firstside )];
 		out->numsides = LittleLong ( in->num_sides );
 	}
 
@@ -4015,7 +4321,7 @@ void CM_InitBoxHull (void)
 
 	box_brush = &map_brushes[numbrushes];
 	box_brush->numsides = 6;
-	box_brush->firstbrushside = numbrushsides;
+	box_brush->brushside = &map_brushsides[numbrushsides];
 	box_brush->contents = Q2CONTENTS_MONSTER;
 
 	box_leaf = &map_leafs[numleafs];
@@ -4245,7 +4551,7 @@ int CM_PointContents (model_t *mod, vec3_t p)
 			continue;
 		}
 
-		brushside = &map_brushsides[brush->firstbrushside];
+		brushside = brush->brushside;
 		for ( j = 0; j < brush->numsides; j++, brushside++ )
 		{
 			if ( PlaneDiff (p, brushside->plane) > 0 )
@@ -4295,7 +4601,7 @@ unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int fram
 						continue;
 					}
 					
-					brushside = &map_brushsides[brush->firstbrushside];
+					brushside = brush->brushside;
 					for ( j = 0; j < brush->numsides; j++, brushside++ )
 					{
 						if ( PlaneDiff (p, brushside->plane) > 0 )
@@ -4403,7 +4709,7 @@ void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 
 	for (i=0 ; i<brush->numsides ; i++)
 	{
-		side = &map_brushsides[brush->firstbrushside+i];
+		side = brush->brushside+i;
 		plane = side->plane;
 
 		// FIXME: special case for axial
@@ -4515,7 +4821,7 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 
 	for (i=0 ; i<brush->numsides ; i++)
 	{
-		side = &map_brushsides[brush->firstbrushside+i];
+		side = brush->brushside+i;
 		plane = side->plane;
 
 		if (!trace_ispoint)
@@ -4618,7 +4924,7 @@ void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 
 	for (i=0 ; i<brush->numsides ; i++)
 	{
-		side = &map_brushsides[brush->firstbrushside+i];
+		side = brush->brushside+i;
 		plane = side->plane;
 
 		// FIXME: special case for axial
@@ -4667,7 +4973,7 @@ void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 
 	for (i=0 ; i<brush->numsides ; i++)
 	{
-		side = &map_brushsides[brush->firstbrushside+i];
+		side = brush->brushside+i;
 		plane = side->plane;
 
 		// general box case
@@ -5659,3 +5965,4 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&r_subdivisions, MAPOPTIONS);
 }
 #endif
+

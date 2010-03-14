@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-cvar_t com_fs_cache			= SCVARF("fs_cache", "0", CVAR_ARCHIVE);
+cvar_t com_fs_cache			= SCVARF("fs_cache", "1", CVAR_ARCHIVE);
 cvar_t rcon_level			= SCVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= SCVAR("cmd_maxbuffersize", "65536");
 int	Cmd_ExecLevel;
@@ -450,7 +450,7 @@ void Cmd_StuffCmds (void)
 	{
 		if (!com_argv[i])
 			continue;		// NEXTSTEP nulls out -NXHost
-		if (strchr(com_argv[i], ' ') || strchr(com_argv[i], '\t'))
+		if (strchr(com_argv[i], ' ') || strchr(com_argv[i], '\t') || strchr(com_argv[i], '@'))
 		{
 			Q_strcat (text,"\"");
 			Q_strcat (text,com_argv[i]);
@@ -472,7 +472,7 @@ void Cmd_StuffCmds (void)
 		{
 			i++;
 
-			for (j=i ; (text[j] != '+') && (text[j] != '-') && (text[j] != 0) ; j++)
+			for (j=i ; ((text[j-1] != ' ') || ((text[j] != '+') && (text[j] != '-'))) && (text[j] != 0) ; j++)
 				;
 
 			c = text[j];

@@ -888,13 +888,18 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 	s->failedload = false;
 
+#ifdef AVAIL_OPENAL
+	OpenAL_LoadSound(s, sc, com_filesize, data);
+#endif
 	for (i = sizeof(AudioInputPlugins)/sizeof(AudioInputPlugins[0])-1; i >= 0; i--)
 	{
 		if (AudioInputPlugins[i])
 		{
 			sc = AudioInputPlugins[i](s, data, com_filesize, snd_speed);
 			if (sc)
+			{
 				return sc;
+			}
 		}
 	}
 

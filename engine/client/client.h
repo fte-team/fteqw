@@ -361,6 +361,8 @@ typedef struct
 // demo recording info must be here, because record is started before
 // entering a map (and clearing client_state_t)
 	qboolean	demorecording;
+	vfsfile_t	*demooutfile;
+
 	enum{DPB_NONE,DPB_QUAKEWORLD,DPB_MVD,DPB_EZTV,
 #ifdef NQPROT
 		DPB_NETQUAKE,
@@ -370,7 +372,7 @@ typedef struct
 #endif
 	}	demoplayback;
 	qboolean	timedemo;
-	vfsfile_t	*demofile;
+	vfsfile_t	*demoinfile;
 	float		td_lastframe;		// to meter out one message a frame
 	int			td_startframe;		// host_framecount at start
 	float		td_starttime;		// realtime at second frame of timedemo

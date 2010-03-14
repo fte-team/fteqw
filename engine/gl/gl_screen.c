@@ -97,7 +97,6 @@ void GLVID_Console_Resize(void)
 	vid.height = vid.conheight = cheight;
 
 	vid.recalc_refdef = true;
-	Con_CheckResize();
 
 	if (font_conchar)
 		Font_Free(font_conchar);

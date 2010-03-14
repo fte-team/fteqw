@@ -1,8 +1,7 @@
-#ifdef WEBSERVER
-
 #ifndef IWEB_H__
 #define IWEB_H__
 
+#ifdef WEBSERVER
 
 #ifdef WEBSVONLY
 
@@ -91,22 +90,68 @@ iwboolean	FTP_StringToAdr (const char *s, qbyte ip[4], qbyte port[2]);
 iwboolean FTP_ServerRun(iwboolean ftpserverwanted, int port);
 qboolean HTTP_ServerPoll(qboolean httpserverwanted, int port);
 
-void HTTP_CL_Think(void);
-qboolean HTTP_CL_Get(char *url, char *localfile, void (*NotifyFunction)(char *localfile, qboolean sucess));
-
 //server interface called from main server routines.
 void IWebInit(void);
 void IWebRun(void);
 void IWebShutdown(void);
-
-qboolean FTP_Client_Command (char *cmd, void (*NotifyFunction)(char *localfile, qboolean sucess));
+/*
+qboolean FTP_Client_Command (char *cmd, void (*NotifyFunction)(vfsfile_t *file, char *localfile, qboolean sucess));
 void IRC_Command(char *imsg);
 void FTP_ClientThink (void);
 void IRC_Frame(void);
-
+*/
 qboolean SV_POP3(qboolean activewanted);
 qboolean SV_SMTP(qboolean activewanted);
 
+#endif
+
+
+#if 1
+struct dl_download
+{
+	/*not used by anything in the download itself, useful for context*/
+	unsigned int user_num;
+	void *user_ctx;
+
+	/*not used internally by the backend, but used by HTTP_CL_Get/thread wrapper*/
+	struct dl_download *next;
+	void (*notify) (struct dl_download *dl);
+
+	/*stream config*/
+	char url[MAX_OSPATH];	/*original url*/
+	char redir[MAX_OSPATH];	/*current redirected url*/
+	char localname[MAX_OSPATH];
+	struct vfsfile_s *file;	/*downloaded to, when starting will open localname if not already set*/
+	qboolean (*poll) (struct dl_download *);
+
+	/*stream status*/
+	enum
+	{
+		DL_PENDING,		/*not started*/
+		DL_FAILED,		/*gave up*/
+		DL_RESOLVING,	/*resolving the host*/
+		DL_QUERY,		/*sent query, waiting for response*/
+		DL_ACTIVE,		/*receiving data*/
+		DL_FINISHED		/*its complete*/
+	} status;
+	unsigned int totalsize;	/*max size (can be 0 for unknown)*/
+	unsigned int completed; /*ammount correctly received so far*/
+
+	/*internals*/
+#ifdef MULTITHREAD
+	qboolean threaddie;
+	void *threadctx;
+#endif
+	void *ctx;	/*internal context, depending on http/ftp/etc protocol*/
+	void (*abort) (struct dl_download *); /*cleans up the internal context*/
+};
+
+void HTTP_CL_Think(void);
+struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*NotifyFunction)(struct dl_download *dl));
+
+struct dl_download *DL_Create(const char *url);
+qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyFunction)(struct dl_download *dl));
+void DL_Close(struct dl_download *dl);
 #endif
 
 #endif

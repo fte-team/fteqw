@@ -67,8 +67,8 @@ void CL_StopPlayback (void)
 
 	Media_CaptureDemoEnd();
 
-	VFS_CLOSE (cls.demofile);
-	cls.demofile = NULL;
+	VFS_CLOSE (cls.demoinfile);
+	cls.demoinfile = NULL;
 	cls.state = ca_disconnected;
 	cls.demoplayback = DPB_NONE;
 
@@ -97,10 +97,10 @@ void CL_WriteDemoCmd (usercmd_t *pcmd)
 //Con_Printf("write: %ld bytes, %4.4f\n", msg->cursize, demtime);
 
 	fl = LittleFloat((float)demtime);
-	VFS_WRITE (cls.demofile, &fl, sizeof(fl));
+	VFS_WRITE (cls.demooutfile, &fl, sizeof(fl));
 
 	c = dem_cmd;
-	VFS_WRITE (cls.demofile, &c, sizeof(c));
+	VFS_WRITE (cls.demooutfile, &c, sizeof(c));
 
 	// correct for byte order, bytes don't matter
 
@@ -115,15 +115,15 @@ void CL_WriteDemoCmd (usercmd_t *pcmd)
 	cmd.sidemove    = LittleShort(pcmd->sidemove);
 	cmd.upmove      = LittleShort(pcmd->upmove);
 
-	VFS_WRITE (cls.demofile, &cmd, sizeof(cmd));
+	VFS_WRITE (cls.demooutfile, &cmd, sizeof(cmd));
 
 	for (i=0 ; i<3 ; i++)
 	{
 		fl = LittleFloat (cl.viewangles[0][i]);
-		VFS_WRITE (cls.demofile, &fl, 4);
+		VFS_WRITE (cls.demooutfile, &fl, 4);
 	}
 
-	VFS_FLUSH (cls.demofile);
+	VFS_FLUSH (cls.demooutfile);
 }
 
 /*
@@ -145,16 +145,16 @@ void CL_WriteDemoMessage (sizebuf_t *msg)
 		return;
 
 	fl = LittleFloat((float)demtime);
-	VFS_WRITE (cls.demofile, &fl, sizeof(fl));
+	VFS_WRITE (cls.demooutfile, &fl, sizeof(fl));
 
 	c = dem_read;
-	VFS_WRITE (cls.demofile, &c, sizeof(c));
+	VFS_WRITE (cls.demooutfile, &c, sizeof(c));
 
 	len = LittleLong (msg->cursize);
-	VFS_WRITE (cls.demofile, &len, 4);
-	VFS_WRITE (cls.demofile, msg->data, msg->cursize);
+	VFS_WRITE (cls.demooutfile, &len, 4);
+	VFS_WRITE (cls.demooutfile, msg->data, msg->cursize);
 
-	VFS_FLUSH (cls.demofile);
+	VFS_FLUSH (cls.demooutfile);
 }
 
 int demo_preparsedemo(unsigned char *buffer, int bytes)
@@ -237,7 +237,7 @@ int readdemobytes(int *readpos, void *data, int len)
 
 	trybytes = sizeof(demobuffer)-demobuffersize;
 
-	i = VFS_READ(cls.demofile, demobuffer+demobuffersize, trybytes);
+	i = VFS_READ(cls.demoinfile, demobuffer+demobuffersize, trybytes);
 	if (i > 0)
 	{
 		demobuffersize += i;
@@ -822,8 +822,8 @@ void CL_Stop_f (void)
 	CL_WriteDemoMessage (&net_message);
 
 // finish up
-	VFS_CLOSE (cls.demofile);
-	cls.demofile = NULL;
+	VFS_CLOSE (cls.demooutfile);
+	cls.demooutfile = NULL;
 	cls.demorecording = false;
 	Con_Printf ("Completed demo\n");
 
@@ -851,21 +851,21 @@ void CL_WriteRecordDemoMessage (sizebuf_t *msg, int seq)
 		return;
 
 	fl = LittleFloat((float)demtime);
-	VFS_WRITE (cls.demofile, &fl, sizeof(fl));
+	VFS_WRITE (cls.demooutfile, &fl, sizeof(fl));
 
 	c = dem_read;
-	VFS_WRITE (cls.demofile, &c, sizeof(c));
+	VFS_WRITE (cls.demooutfile, &c, sizeof(c));
 
 	len = LittleLong (msg->cursize + 8);
-	VFS_WRITE (cls.demofile, &len, 4);
+	VFS_WRITE (cls.demooutfile, &len, 4);
 
 	i = LittleLong(seq);
-	VFS_WRITE (cls.demofile, &i, 4);
-	VFS_WRITE (cls.demofile, &i, 4);
+	VFS_WRITE (cls.demooutfile, &i, 4);
+	VFS_WRITE (cls.demooutfile, &i, 4);
 
-	VFS_WRITE (cls.demofile, msg->data, msg->cursize);
+	VFS_WRITE (cls.demooutfile, msg->data, msg->cursize);
 
-	VFS_FLUSH (cls.demofile);
+	VFS_FLUSH (cls.demooutfile);
 }
 
 
@@ -881,17 +881,17 @@ void CL_WriteSetDemoMessage (void)
 		return;
 
 	fl = LittleFloat((float)demtime);
-	VFS_WRITE (cls.demofile, &fl, sizeof(fl));
+	VFS_WRITE (cls.demooutfile, &fl, sizeof(fl));
 
 	c = dem_set;
-	VFS_WRITE (cls.demofile, &c, sizeof(c));
+	VFS_WRITE (cls.demooutfile, &c, sizeof(c));
 
 	len = LittleLong(cls.netchan.outgoing_sequence);
-	VFS_WRITE (cls.demofile, &len, 4);
+	VFS_WRITE (cls.demooutfile, &len, 4);
 	len = LittleLong(cls.netchan.incoming_sequence);
-	VFS_WRITE (cls.demofile, &len, 4);
+	VFS_WRITE (cls.demooutfile, &len, 4);
 
-	VFS_FLUSH (cls.demofile);
+	VFS_FLUSH (cls.demooutfile);
 }
 
 
@@ -1029,8 +1029,8 @@ void CL_Record_f (void)
 //
 // open the demo file
 //
-	cls.demofile = FS_OpenVFS (name, "wb", FS_GAME);
-	if (!cls.demofile)
+	cls.demooutfile = FS_OpenVFS (name, "wb", FS_GAME);
+	if (!cls.demooutfile)
 	{
 		Con_Printf ("ERROR: couldn't open.\n");
 		return;
@@ -1354,8 +1354,8 @@ void CL_ReRecord_f (void)
 //
 	COM_DefaultExtension (name, ".qwd", sizeof(name));
 
-	cls.demofile = FS_OpenVFS (name, "wb", FS_GAME);
-	if (!cls.demofile)
+	cls.demooutfile = FS_OpenVFS (name, "wb", FS_GAME);
+	if (!cls.demooutfile)
 	{
 		Con_Printf ("ERROR: couldn't open.\n");
 		return;
@@ -1397,12 +1397,15 @@ void CL_PlayDemo_f (void)
 	}
 
 #ifdef WEBCLIENT
+#pragma message("playdemo http://blah is broken right now")
+#if 0
 	if (!strncmp(Cmd_Argv(1), "ftp://", 6) || !strncmp(Cmd_Argv(1), "http://", 7))
 	{
 		if (Cmd_ExecLevel == RESTRICT_LOCAL)
 			HTTP_CL_Get(Cmd_Argv(1), COM_SkipPath(Cmd_Argv(1)), CL_PlayDownloadedDemo);
 		return;
 	}
+#endif
 #endif
 
 	CL_PlayDemo(Cmd_Argv(1));
@@ -1430,28 +1433,28 @@ void CL_PlayDemo(char *demoname)
 	Q_strncpyz (name, demoname, sizeof(name));
 	COM_DefaultExtension (name, ".qwd", sizeof(name));
 	if (*name == '#')
-		cls.demofile = VFSOS_Open(name+1, "rb");
+		cls.demoinfile = VFSOS_Open(name+1, "rb");
 	else
-		cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
-	if (!cls.demofile)
+		cls.demoinfile = FS_OpenVFS(name, "rb", FS_GAME);
+	if (!cls.demoinfile)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
 		COM_DefaultExtension (name, ".dem", sizeof(name));
 		if (*name == '#')
-			cls.demofile = VFSOS_Open(name+1, "rb");
+			cls.demoinfile = VFSOS_Open(name+1, "rb");
 		else
-			cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
+			cls.demoinfile = FS_OpenVFS(name, "rb", FS_GAME);
 	}
-	if (!cls.demofile)
+	if (!cls.demoinfile)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
 		COM_DefaultExtension (name, ".mvd", sizeof(name));
 		if (*name == '#')
-			cls.demofile = VFSOS_Open(name+1, "rb");
+			cls.demoinfile = VFSOS_Open(name+1, "rb");
 		else
-			cls.demofile = FS_OpenVFS(name, "rb", FS_GAME);
+			cls.demoinfile = FS_OpenVFS(name, "rb", FS_GAME);
 	}
-	if (!cls.demofile)
+	if (!cls.demoinfile)
 	{
 		Con_Printf ("ERROR: couldn't open \"%s\".\n", demoname);
 		cls.demonum = -1;		// stop demo loop
@@ -1460,10 +1463,10 @@ void CL_PlayDemo(char *demoname)
 	Q_strncpyz (lastdemoname, demoname, sizeof(lastdemoname));
 	Con_Printf ("Playing demo from %s.\n", name);
 
-	if (!VFS_GETLEN (cls.demofile))
+	if (!VFS_GETLEN (cls.demoinfile))
 	{
-		VFS_CLOSE(cls.demofile);
-		cls.demofile = NULL;
+		VFS_CLOSE(cls.demoinfile);
+		cls.demoinfile = NULL;
 		Con_Printf ("demo \"%s\" is empty.\n", demoname);
 		cls.demonum = -1;		// stop demo loop
 		return;
@@ -1488,11 +1491,11 @@ void CL_PlayDemo(char *demoname)
 	cls.netchan.last_received=demtime;
 
 
-	start = VFS_TELL(cls.demofile);
-	VFS_READ(cls.demofile, &len, sizeof(len));
-	VFS_READ(cls.demofile, &type, sizeof(type));
-	VFS_READ(cls.demofile, &protocol, sizeof(protocol));
-	VFS_SEEK(cls.demofile, start);
+	start = VFS_TELL(cls.demoinfile);
+	VFS_READ(cls.demoinfile, &len, sizeof(len));
+	VFS_READ(cls.demoinfile, &type, sizeof(type));
+	VFS_READ(cls.demoinfile, &protocol, sizeof(protocol));
+	VFS_SEEK(cls.demoinfile, start);
 	if (len > 5 && type == svcq2_serverdata && protocol == PROTOCOL_VERSION_Q2)
 	{
 #ifdef Q2CLIENT
@@ -1509,7 +1512,7 @@ void CL_PlayDemo(char *demoname)
 		cls.protocol = CP_QUAKEWORLD;
 
 		ft = 0;	//work out if the first line is a int for the track number.
-		while ((VFS_READ(cls.demofile, &chr, 1)==1) && (chr != '\n'))
+		while ((VFS_READ(cls.demoinfile, &chr, 1)==1) && (chr != '\n'))
 		{
 			if (chr == '-')
 				neg = true;
@@ -1530,7 +1533,7 @@ void CL_PlayDemo(char *demoname)
 #endif
 		}
 		else
-			VFS_SEEK(cls.demofile, start);	//quakeworld demo, so go back to start.
+			VFS_SEEK(cls.demoinfile, start);	//quakeworld demo, so go back to start.
 	}
 
 	TP_ExecTrigger ("f_demostart");
@@ -1540,7 +1543,7 @@ void CL_QTVPlay (vfsfile_t *newf, qboolean iseztv)
 {
 	CL_Disconnect_f ();
 
-	cls.demofile = newf;
+	cls.demoinfile = newf;
 
 	demo_flushcache();	//just in case
 
@@ -1566,6 +1569,7 @@ void CL_QTVPlay (vfsfile_t *newf, qboolean iseztv)
 	TP_ExecTrigger ("f_demostart");
 }
 
+/*used with qtv*/
 void CL_Demo_ClientCommand(char *commandtext)
 {
 	unsigned char b = 1;
@@ -1573,9 +1577,12 @@ void CL_Demo_ClientCommand(char *commandtext)
 #ifndef _MSC_VER
 #warning "this needs buffering safely"
 #endif
-	VFS_WRITE(cls.demofile, &len, sizeof(len));
-	VFS_WRITE(cls.demofile, &b, sizeof(b));
-	VFS_WRITE(cls.demofile, commandtext, strlen(commandtext)+1);
+	if (cls.demoplayback == DPB_EZTV)
+	{
+		VFS_WRITE(cls.demoinfile, &len, sizeof(len));
+		VFS_WRITE(cls.demoinfile, &b, sizeof(b));
+		VFS_WRITE(cls.demoinfile, commandtext, strlen(commandtext)+1);
+	}
 }
 
 char qtvhostname[1024];

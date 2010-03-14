@@ -91,7 +91,7 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 			sv = viewer->server;
 			if (i++ == viewer->menuop)
 			{	//auto disconnect
-				sv->disconnectwhennooneiswatching ^= 1;
+				sv->autodisconnect = sv->autodisconnect?AD_NO:AD_WHENEMPTY;
 			}
 			if (i++ == viewer->menuop)
 			{	//disconnect
@@ -390,12 +390,22 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 
 			WriteString2(&m, " auto disconnect");
 			WriteString2(&m, (viewer->menuop==(i++))?" \r ":" : ");
-			if (viewer->server->disconnectwhennooneiswatching == 2)
+			switch(viewer->server->autodisconnect)
+			{
+			default:
+			case AD_NO:
+				sprintf(str, "%-20s", "permanent connection");
+				break;
+			case AD_REVERSECONNECT:
 				sprintf(str, "%-20s", "when server disconnects");
-			else if (viewer->server->disconnectwhennooneiswatching)
+				break;
+			case AD_WHENEMPTY:
 				sprintf(str, "%-20s", "when inactive");
-			else
-				sprintf(str, "%-20s", "never");
+				break;
+			case AD_STATUSPOLL:
+				sprintf(str, "%-20s", "idle when empty");
+				break;
+			}
 			WriteString2(&m, str);
 			WriteString2(&m, "\n");
 

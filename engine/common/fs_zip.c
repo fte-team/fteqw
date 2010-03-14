@@ -17,7 +17,7 @@ typedef struct
 
 typedef struct zipfile_s
 {
-	char filename[MAX_QPATH];
+	char filename[MAX_OSPATH];
 	unzFile handle;
 	int		numfiles;
 	zpackfile_t	*files;
@@ -451,3 +451,4 @@ searchpathfuncs_t zipfilefuncs = {
 };
 
 #endif
+

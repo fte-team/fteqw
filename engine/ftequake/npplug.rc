@@ -28,8 +28,8 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,1
- PRODUCTVERSION 1,0,0,1
+ FILEVERSION 1,0,0,2
+ PRODUCTVERSION 1,0,0,2
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -48,15 +48,15 @@ BEGIN
             VALUE "CompanyName", "Forethought Entertainment\0"
             VALUE "FileDescription", "Quake in a browser\0"
             VALUE "FileExtents", "qtv|mvd\0"
-            VALUE "FileVersion", "1, 0, 0, 1\0"
+            VALUE "FileVersion", "1, 0, 0, 2\0"
             VALUE "InternalName", "npqtv\0"
-            VALUE "LegalCopyright", "Copyright © 2009\0"
+            VALUE "LegalCopyright", "Copyright © 2010\0"
             VALUE "LegalTrademarks", "\0"
             VALUE "MIMEType", "text/x-quaketvident|application/x-multiviewdemo|application/x-fteplugin\0"
             VALUE "OriginalFilename", "npqtv.dll\0"
             VALUE "PrivateBuild", "\0"
             VALUE "ProductName", "QTV Viewer\0"
-            VALUE "ProductVersion", "1, 0, 0, 1\0"
+            VALUE "ProductVersion", "1, 0, 0, 2\0"
             VALUE "SpecialBuild", "\0"
         END
     END

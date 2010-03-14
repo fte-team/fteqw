@@ -2125,6 +2125,21 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			return true;
 		}
 	}
+
+	if (!strcmp(gamename, "wop"))
+	{
+		DWORD resultlen;
+		HKEY key = NULL;
+		//reads HKEY_LOCAL_MACHINE\SOFTWARE\World Of Padman\Path
+		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\World Of Padman", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		{
+			resultlen = basepathlen;
+			RegQueryValueEx(key, "Path", NULL, NULL, basepath, &resultlen);
+			RegCloseKey(key);
+			return true;
+		}
+	}
+
 /*
 	if (!strcmp(gamename, "d3"))
 	{

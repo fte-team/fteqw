@@ -1292,10 +1292,7 @@ void GL_EndRenderBuffer_DepthOnly(texid_t depthtexture, int texsize)
 
 static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face)
 {
-	int i;
-	msurface_t *s;
 	float mvm[16], proj[16];
-	int ve;
 
 	int smsize = 512;
 	int tno, sno;

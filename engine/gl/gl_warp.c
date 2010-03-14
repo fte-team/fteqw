@@ -600,7 +600,6 @@ static void GL_DrawSkySphere (msurface_t *fa)
 	{	//the shader route.
 		meshbuffer_t mb;
 		gl_skyspherecalc(2);
-		mb.sortkey = 0;
 		mb.infokey = -1;
 		mb.dlightbits = 0;
 		mb.entity = &r_worldentity;

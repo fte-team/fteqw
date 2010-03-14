@@ -1,3 +1,5 @@
+#ifndef SHADER_H
+#define SHADER_H
 typedef void (shader_gen_t)(char *name, shader_t*, const void *args);
 
 #define SHADER_PASS_MAX	8
@@ -54,15 +56,8 @@ typedef struct
     float			args[4];			// offset, amplitude, phase_offset, rate
 } shaderfunc_t;
 
-#if _MSC_VER || __BORLANDC__
-typedef unsigned __int64 msortkey_t;
-#else
-typedef unsigned long long msortkey_t;
-#endif
-
 typedef struct meshbuffer_s
 {
-	msortkey_t			sortkey;
 	int					infokey;		// lightmap number or mesh number
 	unsigned int		dlightbits;
 	entity_t			*entity;
@@ -422,4 +417,5 @@ void BE_BaseEntShadowDepth(void);
 void BE_SelectDLight(dlight_t *dl, vec3_t colour);
 //Returns true if the mesh is not lit by the current light
 qboolean BE_LightCullModel(vec3_t org, model_t *model);
+#endif
 #endif

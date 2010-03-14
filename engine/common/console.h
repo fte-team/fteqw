@@ -89,8 +89,9 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 
 typedef struct conline_s {
 	struct conline_s *older;
-	unsigned int length;
 	struct conline_s *newer;
+	unsigned short length;
+	unsigned short lines;
 } conline_t;
 
 typedef struct console_s
@@ -101,6 +102,7 @@ typedef struct console_s
 	conline_t *current;		// line where next message will be printed
 	int		x;				// offset in current line for next print
 	conline_t *display;		// bottom of console displays this line
+	int		subline;
 	int		vislines;		// pixel lines
 	int		linesprinted;	// for notify times
 	qboolean unseentext;

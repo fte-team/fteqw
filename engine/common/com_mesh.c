@@ -212,7 +212,7 @@ void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v)
 #ifdef SKELETALMODELS
 
 
-void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, float *xyzout, float *normout)
+void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout)
 {
 	int i;
 	float *out, *matrix;
@@ -223,8 +223,8 @@ void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weight
 	{
 		for (i = 0;i < numweights;i++, v++)
 		{
-			out = xyzout + v->vertexindex * 3;
-			normo = normout + v->vertexindex * 3;
+			out = xyzout[v->vertexindex];
+			normo = normout[ + v->vertexindex];
 			matrix = bonepose+v->boneindex*12;
 			// FIXME: this can very easily be optimized with SSE or 3DNow
 			out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
@@ -244,7 +244,7 @@ void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weight
 	{
 		for (i = 0;i < numweights;i++, v++)
 		{
-			out = xyzout + v->vertexindex * 3;
+			out = xyzout[v->vertexindex];
 			matrix = bonepose+v->boneindex*12;
 			// FIXME: this can very easily be optimized with SSE or 3DNow
 			out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
@@ -265,7 +265,7 @@ static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 	(n)[2] = ((a)[0] - (b)[0]) * ((c)[1] - (b)[1]) - ((a)[1] - (b)[1]) * ((c)[0] - (b)[0]) \
 	)
 	int i, j;
-	vec3_t *xyz;
+	vecV_t *xyz;
 	vec3_t *normals;
 	int *mvert;
 	float *inversepose;
@@ -288,7 +288,7 @@ static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		else
 			next = NULL;
 
-		xyz = Z_Malloc(numverts*sizeof(vec3_t));
+		xyz = Z_Malloc(numverts*sizeof(vecV_t));
 		normals = Z_Malloc(numverts*sizeof(vec3_t));
 		inversepose = Z_Malloc(numbones*sizeof(float)*9);
 		mvert = Z_Malloc(numverts*sizeof(*mvert));
@@ -307,7 +307,7 @@ static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		}
 
 		//build the actual base pose positions
-		Alias_TransformVerticies(bonepose, v, numweights, (float*)xyz, NULL);
+		Alias_TransformVerticies(bonepose, v, numweights, xyz, NULL);
 
 		//work out which verticies are identical
 		//this is needed as two verts can have same origin but different tex coords
@@ -945,9 +945,9 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 #ifndef SERVERONLY
 static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galisskeletaltransforms_t *weights, int numweights)
 {
-	memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vec3_t));
+	memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vecV_t));
 	memset(mesh->normals_array, 0, mesh->numvertexes*sizeof(vec3_t));
-	Alias_TransformVerticies(bonepose, weights, numweights, (float*)mesh->xyz_array, (float*)mesh->normals_array);
+	Alias_TransformVerticies(bonepose, weights, numweights, mesh->xyz_array, mesh->normals_array);
 }
 
 #ifdef GLQUAKE
@@ -1202,7 +1202,7 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, ve
 
 	vec3_t impactpoint;
 
-	float *posedata;
+	vecV_t *posedata;
 	index_t *indexes;
 
 	while(mod)
@@ -1210,12 +1210,12 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, ve
 		indexes = (index_t*)((char*)mod + mod->ofs_indexes);
 		group = (galiasgroup_t*)((char*)mod + mod->groupofs);
 		pose = (galiaspose_t*)((char*)&group[0] + group[0].poseofs);
-		posedata = (float*)((char*)pose + pose->ofsverts);
+		posedata = (vecV_t*)((char*)pose + pose->ofsverts);
 #ifdef SKELETALMODELS
 		if (mod->numbones && !mod->sharesverts)
 		{
 			float bonepose[MAX_BONES][12];
-			posedata = alloca(mod->numverts*sizeof(vec3_t));
+			posedata = alloca(mod->numverts*sizeof(vecV_t));
 			frac = 1;
 			if (group->isheirachical)
 			{
@@ -1230,9 +1230,9 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, ve
 
 		for (i = 0; i < mod->numindexes; i+=3)
 		{
-			p1 = posedata + 3*indexes[i+0];
-			p2 = posedata + 3*indexes[i+1];
-			p3 = posedata + 3*indexes[i+2];
+			p1 = posedata[indexes[i+0]];
+			p2 = posedata[indexes[i+1]];
+			p3 = posedata[indexes[i+2]];
 
 			VectorSubtract(p1, p2, edge1);
 			VectorSubtract(p3, p2, edge2);

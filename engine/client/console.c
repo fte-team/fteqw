@@ -77,12 +77,27 @@ static unsigned int	selstartoffset, selendoffset;
 
 qboolean	con_initialized;
 
-void Con_ResizeCon (console_t *con);
+/*makes sure the console object works*/
+void Con_Finit (console_t *con)
+{
+	if (con->current == NULL)
+	{
+		con->oldest = con->current = Z_Malloc(sizeof(conline_t));
+		con->linecount = 0;
+	}
+	if (con->display == NULL)
+		con->display = con->current;
+}
 
-qboolean Con_IsActive (console_t *con)
+/*returns a bitmask:
+1: currently active
+2: has text that has not been seen yet
+*/
+int Con_IsActive (console_t *con)
 {
 	return (con == con_current) | (con->unseentext*2);
 }
+/*kills a console_t object. will never destroy the main console*/
 void Con_Destroy (console_t *con)
 {
 	console_t *prev;
@@ -104,6 +119,7 @@ void Con_Destroy (console_t *con)
 	if (con_current == con)
 		con_current = &con_main;
 }
+/*obtains a console_t without creating*/
 console_t *Con_FindConsole(char *name)
 {
 	console_t *con;
@@ -114,22 +130,25 @@ console_t *Con_FindConsole(char *name)
 	}
 	return NULL;
 }
+/*creates a potentially duplicate console_t - please use Con_FindConsole first, as its confusing otherwise*/
 console_t *Con_Create(char *name)
 {
 	console_t *con;
 	con = Z_Malloc(sizeof(console_t));
 	Q_strncpyz(con->name, name, sizeof(con->name));
 
-	Con_ResizeCon(con);
+	Con_Finit(con);
 	con->next = con_main.next;
 	con_main.next = con;
 
 	return con;
 }
+/*sets a console as the active one*/
 void Con_SetActive (console_t *con)
 {
 	con_current = con;
 }
+/*for enumerating consoles*/
 qboolean Con_NameForNum(int num, char *buffer, int buffersize)
 {
 	console_t *con;
@@ -146,6 +165,7 @@ qboolean Con_NameForNum(int num, char *buffer, int buffersize)
 	return false;
 }
 
+/*print text to a console*/
 void Con_PrintCon (console_t *con, char *txt);
 
 
@@ -364,6 +384,23 @@ void Con_ToggleChat_f (void)
 	Con_ClearNotify ();
 }
 
+void Con_ClearCon(console_t *con)
+{
+	conline_t *t;
+	while (con->current)
+	{
+		t = con->current;
+		con->current = t->older;
+		Z_Free(t);
+	}
+	con->display = con->current = con->oldest = NULL;
+	selstartline = NULL;
+	selendline = NULL;
+
+	/*reset the line pointers, create an active line*/
+	Con_Finit(con);
+}
+
 /*
 ================
 Con_Clear_f
@@ -371,20 +408,46 @@ Con_Clear_f
 */
 void Con_Clear_f (void)
 {
-	conline_t *t;
-	while (con_main.current)
-	{
-		t = con_main.current;
-		con_main.current = t->older;
-		Z_Free(t);
-	}
-	con_main.display = con_main.current = con_main.oldest = NULL;
-	selstartline = NULL;
-	selendline = NULL;
-
-	Con_ResizeCon(&con_main);
+	Con_ClearCon(&con_main);
 }
 
+
+
+void Cmd_ConEcho_f(void)
+{
+	console_t *con;
+	con = Con_FindConsole(Cmd_Argv(1));
+	if (!con)
+		con = Con_Create(Cmd_Argv(1));
+	if (con)
+	{
+		Cmd_ShiftArgs(1, false);
+		Con_PrintCon(con, Cmd_Args());
+		Con_PrintCon(con, "\n");
+	}
+}
+
+void Cmd_ConClear_f(void)
+{
+	console_t *con;
+	con = Con_FindConsole(Cmd_Argv(1));
+	if (con)
+		Con_ClearCon(con);
+}
+void Cmd_ConClose_f(void)
+{
+	console_t *con;
+	con = Con_FindConsole(Cmd_Argv(1));
+	if (con)
+		Con_Destroy(con);
+}
+void Cmd_ConActivate_f(void)
+{
+	console_t *con;
+	con = Con_FindConsole(Cmd_Argv(1));
+	if (con)
+		Con_SetActive(con);
+}
 						
 /*
 ================
@@ -422,37 +485,6 @@ void Con_MessageMode2_f (void)
 	key_dest = key_message;
 }
 
-/*
-================
-Con_Resize
-
-================
-*/
-void Con_ResizeCon (console_t *con)
-{
-	if (con->current == NULL)
-	{
-		con->oldest = con->current = Z_Malloc(sizeof(conline_t));
-		con->linecount = 0;
-	}
-	if (con->display == NULL)
-		con->display = con->current;
-}
-					
-/*
-================
-Con_CheckResize
-
-If the line width has changed, reformat the buffer.
-================
-*/
-void Con_CheckResize (void)
-{
-	console_t *c;
-	for (c = &con_main; c; c = c->next)
-		Con_ResizeCon (c);
-}
-
 void Con_ForceActiveNow(void)
 {
 	key_dest = key_console;
@@ -469,9 +501,10 @@ void Log_Init (void);
 void Con_Init (void)
 {
 	con_current = &con_main;
+	Con_Finit(&con_main);
+
 	con_main.linebuffered = Con_ExecuteLine;
 	con_main.commandcompletion = true;
-	Con_CheckResize ();
 	Con_Printf ("Console initialized.\n");
 
 //
@@ -492,6 +525,12 @@ void Con_Init (void)
 #ifdef QTERM
 	Cmd_AddCommand ("qterm", Con_QTerm_f);
 #endif
+
+	Cmd_AddCommand ("conecho", Cmd_ConEcho_f);
+	Cmd_AddCommand ("conclear", Cmd_ConClear_f);
+	Cmd_AddCommand ("conclose", Cmd_ConClose_f);
+	Cmd_AddCommand ("conactivate", Cmd_ConActivate_f);
+
 	con_initialized = true;
 
 	Log_Init();
@@ -521,15 +560,17 @@ void Con_PrintCon (console_t *con, char *txt)
 	{
 		conchar_t *o;
 
-		if ((*c&CON_CHARMASK)=='\t')
+		/*if ((*c&CON_CHARMASK)=='\t')
 			*c = (*c&~CON_CHARMASK)|' ';
-
+*/
 		switch (*c & (CON_CHARMASK&~CON_HIGHCHARSMASK))
 		{
 		case '\r':
 			cr = true;
 			break;
 		case '\n':
+
+#pragma message("Really inefficient consistancy checking, with no side effects other than sys_errors")
 {
 conline_t *cl;
 cl = con->oldest;
@@ -544,6 +585,7 @@ cl = cl->newer;
 if (cl != con->current)
 Sys_Error("not newest?\n");
 }
+
 			cr = false;
 			while (con->linecount >= con_maxlines.value)
 			{
@@ -664,26 +706,6 @@ void VARGS Con_Printf (const char *fmt, ...)
 
 // write it to the scrollable buffer
 	Con_Print (msg);
-/*
-	if (con != &con_main)
-		return;
-
-// update the screen immediately if the console is displayed
-	if (cls.state != ca_active && !filmactive)
-#ifndef CLIENTONLY
-	if (progfuncs != svprogfuncs)	//cover our back - don't do rendering stuff that will change this
-#endif
-	{
-	// protect against infinite loop if something in SCR_UpdateScreen calls
-	// Con_Printd
-		if (!inupdate)
-		{
-			inupdate = true;
-			SCR_UpdateScreen ();
-			inupdate = false;
-		}
-	}
-*/
 }
 
 void VARGS Con_SafePrintf (char *fmt, ...)
@@ -946,8 +968,7 @@ void Con_DrawNotify (void)
 			}
 			x = (vid.width - x) / 2;
 		}
-		for (c = starts[lines]; c < ends[lines]; c++)
-			x = Font_DrawChar(x, y, *c);
+		Font_LineDraw(x, y, starts[lines], ends[lines]);
 
 		y += Font_CharHeight();
 
@@ -967,12 +988,8 @@ void Con_DrawNotify (void)
 		lines = Font_LineBreaks(markup, c, Font_ScreenWidth(), 8, starts, ends);
 		for (i = 0; i < lines; i++)
 		{
-			c = starts[i];
 			x = 0;
-			while (c < ends[i])
-			{
-				x = Font_DrawChar(x, y, *c++);
-			}
+			Font_LineDraw(x, y, starts[i], ends[i]);
 			y += Font_CharHeight();
 		}
 	}
@@ -1190,6 +1207,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	conchar_t *starts[64], *ends[sizeof(starts)/sizeof(starts[0])];
 	int i;
 	qboolean haveprogress;
+	int hidelines;
 
 	if (lines <= 0)
 		return;
@@ -1206,6 +1224,8 @@ void Con_DrawConsole (int lines, qboolean noback)
 	con_current->unseentext = false;
 
 	con_current->vislines = lines;
+
+	top = Con_DrawAlternateConsoles(lines);
 
 	x = 8;
 	y = lines;
@@ -1269,11 +1289,10 @@ void Con_DrawConsole (int lines, qboolean noback)
 		seley += y;
 	}
 
-	top = Con_DrawAlternateConsoles(lines);
-
 	if (!con_current->display)
 		con_current->display = con_current->current;
 	l = con_current->display;
+	hidelines = con_current->subline;
 
 	if (l != con_current->current)
 	{
@@ -1296,6 +1315,15 @@ void Con_DrawConsole (int lines, qboolean noback)
 		{
 			linecount = 1;
 			starts[0] = ends[0] = NULL;
+		}
+		l->lines = linecount;
+
+		if (hidelines > 0)
+		{
+			linecount -= hidelines;
+			if (linecount < 0)
+				linecount = 0;
+			hidelines -= linecount;
 		}
 
 		while (linecount-- > 0)
@@ -1365,10 +1393,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 			}
 
 			x = sx;
-			for (i = 0; i < linelength; i++)
-			{
-				x = Font_DrawChar(x, y, *s++);
-			}
+			Font_LineDraw(x, y, s, s+linelength);
 
 			if (y < top)
 				break;

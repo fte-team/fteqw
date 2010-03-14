@@ -2,6 +2,7 @@
 #include "winquake.h"
 
 #include <SDL.h>
+#pragma comment(lib, "sdl.lib")
 
 //SDL calls a callback each time it needs to repaint the 'hardware' buffers
 //This results in extra latency.
@@ -17,36 +18,30 @@ static void SSDL_Shutdown(soundcardinfo_t *sc)
 {
 Con_Printf("Shutdown SDL sound\n");
 	SDL_CloseAudio();
-Con_Printf("buffer\n");
 	if (sc->sn.buffer)
 		free(sc->sn.buffer);
 	sc->sn.buffer = NULL;
-Con_Printf("down\n");
 }
 static unsigned int SSDL_GetDMAPos(soundcardinfo_t *sc)
 {
-	sc->sn.samplepos = (sc->snd_sent / (sc->sn.samplebits/8));
-//	printf("%i\n", sc->sn.samplepos);
+	sc->sn.samplepos = sc->snd_sent / (sc->sn.samplebits/8);
 	return sc->sn.samplepos;
 }
 
 //this function is called from inside SDL.
 //transfer the 'dma' buffer into the buffer it requests.
-static void SSDL_Paint(void *userdata, qbyte *stream, int len)
+static void VARGS SSDL_Paint(void *userdata, qbyte *stream, int len)
 {
 	soundcardinfo_t *sc = userdata;
 	int buffersize = sc->sn.samples*(sc->sn.samplebits/8);
 
-//printf("SDL_Paint (%i)\n", len);
 	if (len > buffersize)
 	{
-//		printf("SDLSound: len(%i) > SOUND_BUFFER_SIZE(%i)\n", len, buffersize);
 		len = buffersize;	//whoa nellie!
 	}
 
 	if (len + sc->snd_sent%buffersize > buffersize)
 	{	//buffer will wrap, fill in the rest
-//printf("Wrap\n");
 		memcpy(stream, (char*)sc->sn.buffer + (sc->snd_sent%buffersize), buffersize - (sc->snd_sent%buffersize));
 		stream += buffersize - sc->snd_sent%buffersize;
 		len -= buffersize - (sc->snd_sent%buffersize);
@@ -55,10 +50,6 @@ static void SSDL_Paint(void *userdata, qbyte *stream, int len)
 	}	//and finish from the start
 	memcpy(stream, (char*)sc->sn.buffer + (sc->snd_sent%buffersize), len);
 	sc->snd_sent += len;
-
-
-
-//memcpy(stream, sc->sn.buffer, len);
 }
 
 static void *SSDL_LockBuffer(soundcardinfo_t *sc)
@@ -103,7 +94,7 @@ static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
 	memset(&desired, 0, sizeof(desired));
 
 	desired.freq = sc->sn.speed;
-	desired.channels = 2;	//fixme!
+	desired.channels = sc->sn.numchannels;	//fixme!
 	desired.samples = 0x0100;
 	desired.format = AUDIO_S16SYS;
 	desired.callback = SSDL_Paint;

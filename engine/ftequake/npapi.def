@@ -3,3 +3,5 @@ EXPORTS
 	NP_GetMIMEDescription
 	NP_Initialize
 	NP_Shutdown
+	
+	Plug_GetFuncs

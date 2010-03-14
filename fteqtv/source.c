@@ -63,6 +63,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define RECONNECT_TIME (1000*30)
 #define RECONNECT_TIME_DEMO (1000*5)
 #define UDPRECONNECT_TIME (1000)
+#define STATUSPOLL_TIME 1000*30
 #define PINGSINTERVAL_TIME (1000*5)
 #define UDPTIMEOUT_LENGTH (1000*20)
 #define UDPPACKETINTERVAL (1000/72)
@@ -212,22 +213,41 @@ qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2)
 	return false;
 }
 
-SOCKET Net_MVDListen(int port)
+SOCKET Net_TCPListen(int port, qboolean ipv6)
 {
 	SOCKET sock;
 
-	struct sockaddr_in	address;
+	struct sockaddr_in	address4;
+	struct sockaddr_in6	address6;
+	struct sockaddr	*address;
+	int prot;
+	int addrsize;
 //	int fromlen;
 
 	unsigned long nonblocking = true;
 
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons((u_short)port);
+	if (ipv6)
+	{
+		prot = PF_INET6;
+		memset(&address6, 0, sizeof(address6));
+		address6.sin6_family = AF_INET6;
+		address6.sin6_port = htons((u_short)port);
+		address = (struct sockaddr *)&address6;
+		addrsize = sizeof(struct sockaddr_in6);
+	}
+	else
+	{
+		prot = PF_INET;
+		address4.sin_family = AF_INET;
+		address4.sin_addr.s_addr = INADDR_ANY;
+		address4.sin_port = htons((u_short)port);
+		address = (struct sockaddr *)&address4;
+		addrsize = sizeof(struct sockaddr_in);
+	}
 
 
 
-	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
+	if ((sock = socket (prot, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 	{
 		return INVALID_SOCKET;
 	}
@@ -238,8 +258,9 @@ SOCKET Net_MVDListen(int port)
 		return INVALID_SOCKET;
 	}
 
-	if( bind (sock, (void *)&address, sizeof(address)) == -1)
+	if( bind (sock, address, addrsize) == -1)
 	{
+		printf("socket bind error %i\n", qerrno);
 		closesocket(sock);
 		return INVALID_SOCKET;
 	}
@@ -388,6 +409,9 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 	int err;
 	netadr_t from;
 	unsigned long nonblocking = true;
+	int afam;
+	int pfam;
+	int asz;
 
 	if (!NET_StringToAddr(ip, &qtv->serveraddress, 27500))
 	{
@@ -395,7 +419,10 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 		strcpy(qtv->status, "Unable to resolve server\n");
 		return false;
 	}
-	qtv->sourcesock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	afam = ((struct sockaddr*)&qtv->serveraddress)->sa_family;
+	pfam = ((afam==AF_INET6)?PF_INET6:PF_INET);
+	asz = ((afam==AF_INET6)?sizeof(struct sockaddr_in6):sizeof(struct sockaddr_in));
+	qtv->sourcesock = socket(pfam, SOCK_STREAM, IPPROTO_TCP);
 	if (qtv->sourcesock == INVALID_SOCKET)
 	{
 		strcpy(qtv->status, "Network error\n");
@@ -403,7 +430,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 	}
 
 	memset(&from, 0, sizeof(from));
-	((struct sockaddr*)&from)->sa_family = ((struct sockaddr*)&qtv->serveraddress)->sa_family;
+	((struct sockaddr*)&from)->sa_family = afam;
 	if (bind(qtv->sourcesock, (struct sockaddr *)&from, sizeof(from)) == -1)
 	{
 		closesocket(qtv->sourcesock);
@@ -420,7 +447,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 		return false;
 	}
 
-	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress, sizeof(qtv->serveraddress)) == INVALID_SOCKET)
+	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress, asz) == INVALID_SOCKET)
 	{
 		err = qerrno;
 		if (err != EINPROGRESS && err != EAGAIN && err != EWOULDBLOCK)	//bsd sockets are meant to return EINPROGRESS, but some winsock drivers use EWOULDBLOCK instead. *sigh*...
@@ -445,19 +472,23 @@ qboolean Net_ConnectToUDPServer(sv_t *qtv, char *ip)
 {
 	netadr_t from;
 	unsigned long nonblocking = true;
+	int afam, pfam, asz;
 
 	if (!NET_StringToAddr(ip, &qtv->serveraddress, 27500))
 	{
 		Sys_Printf(qtv->cluster, "Stream %i: Unable to resolve %s\n", qtv->streamid, ip);
 		return false;
 	}
-	qtv->sourcesock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	afam = ((struct sockaddr*)&qtv->serveraddress)->sa_family;
+	pfam = ((afam==AF_INET6)?PF_INET6:PF_INET);
+	asz = ((afam==AF_INET6)?sizeof(struct sockaddr_in6):sizeof(struct sockaddr_in));
+	qtv->sourcesock = socket(pfam, SOCK_DGRAM, IPPROTO_UDP);
 	if (qtv->sourcesock == INVALID_SOCKET)
 		return false;
 
 	memset(&from, 0, sizeof(from));
-	((struct sockaddr*)&from)->sa_family = ((struct sockaddr*)&qtv->serveraddress)->sa_family;
-	if (bind(qtv->sourcesock, (struct sockaddr *)&from, sizeof(from)) == -1)
+	((struct sockaddr*)&from)->sa_family = afam;
+	if (bind(qtv->sourcesock, (struct sockaddr *)&from, asz) == -1)
 	{
 		closesocket(qtv->sourcesock);
 		qtv->sourcesock = INVALID_SOCKET;
@@ -522,7 +553,8 @@ qboolean DemoFilenameIsOkay(char *fname)
 */
 }
 
-qboolean Net_ConnectToServer(sv_t *qtv)
+/*figures out the ip to connect to, and decides the protocol for it*/
+char *Net_DiagnoseProtocol(sv_t *qtv)
 {
 	char *at;
 	sourcetype_t type = SRC_BAD;
@@ -557,6 +589,14 @@ qboolean Net_ConnectToServer(sv_t *qtv)
 		ip = at+1;
 	}
 
+	qtv->sourcetype = type;
+	return ip;
+}
+
+qboolean Net_ConnectToServer(sv_t *qtv)
+{
+	char *ip = Net_DiagnoseProtocol(qtv);
+
 	qtv->usequakeworldprotocols = false;
 
 	if (qtv->sourcetype == SRC_DEMO)
@@ -564,9 +604,7 @@ qboolean Net_ConnectToServer(sv_t *qtv)
 	else
 		qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;	//wait half a minuite before trying to reconnect
 
-	qtv->sourcetype = type;
-
-	switch(type)
+	switch(	qtv->sourcetype)
 	{
 	case SRC_DEMO:
 		qtv->sourcesock = INVALID_SOCKET;
@@ -585,7 +623,7 @@ qboolean Net_ConnectToServer(sv_t *qtv)
 			qtv->filelength = ftell(qtv->sourcefile);
 
 			//attempt to detect the end of the file
-			fseek(qtv->sourcefile, -sizeof(smallbuffer), SEEK_CUR);
+			fseek(qtv->sourcefile, 0-sizeof(smallbuffer), SEEK_CUR);
 			fread(smallbuffer, 1, 17, qtv->sourcefile);
 			//0 is the time
 			if (smallbuffer[1] == dem_all || smallbuffer[1] == dem_read) //mvdsv changed it to read...
@@ -1019,6 +1057,19 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 		qtv->sourcefile = NULL;
 	}
 
+	memcpy(qtv->server, serverurl, sizeof(qtv->server)-1);
+	if (qtv->autodisconnect == AD_STATUSPOLL && !qtv->numviewers && !qtv->proxies)
+	{
+		char *ip;
+		ip = Net_DiagnoseProtocol(qtv);
+		if (!NET_StringToAddr(ip, &qtv->serveraddress, 27500))
+		{
+			Sys_Printf(qtv->cluster, "Stream %i: Unable to resolve %s\n", qtv->streamid, ip);
+			return false;
+		}
+		return true;
+	}
+
 	*qtv->map.serverinfo = '\0';
 	Info_SetValueForStarKey(qtv->map.serverinfo, "*version",	"FTEQTV",	sizeof(qtv->map.serverinfo));
 	Info_SetValueForStarKey(qtv->map.serverinfo, "*qtv",		VERSION,	sizeof(qtv->map.serverinfo));
@@ -1029,9 +1080,7 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 	else
 		Info_SetValueForStarKey(qtv->map.serverinfo, "server",		qtv->server,	sizeof(qtv->map.serverinfo));
 
-	memcpy(qtv->server, serverurl, sizeof(qtv->server)-1);
-
-	if (qtv->disconnectwhennooneiswatching == 2)
+	if (qtv->autodisconnect == AD_REVERSECONNECT)
 	{	//added because of paranoia rather than need. Should never occur.
 		printf("bug: autoclose==2\n");
 		strcpy(qtv->status, "Network error\n");
@@ -1115,7 +1164,6 @@ void QTV_Cleanup(sv_t *qtv, qboolean leaveadmins)
 {	//disconnects the stream
 	viewer_t *v;
 	cluster_t *cluster;
-	int i;
 	oproxy_t *prox;
 	oproxy_t *old;
 
@@ -1509,10 +1557,18 @@ void QTV_Run(sv_t *qtv)
 	int oldcurtime;
 	int packettime;
 
-	if (qtv->disconnectwhennooneiswatching == 1 && qtv->numviewers == 0 && qtv->proxies == NULL)
+	if (qtv->numviewers == 0 && qtv->proxies == NULL)
 	{
-		Sys_Printf(qtv->cluster, "Stream %i: %s became inactive\n", qtv->streamid, qtv->server);
-		qtv->errored = ERR_DROP;
+		if (qtv->autodisconnect == AD_WHENEMPTY)
+		{
+			Sys_Printf(qtv->cluster, "Stream %i: %s became inactive\n", qtv->streamid, qtv->server);
+			qtv->errored = ERR_DROP;
+		}
+		else if (qtv->autodisconnect == AD_STATUSPOLL && qtv->isconnected)
+		{
+			/*switch to status polling instead of packet spamming*/
+			qtv->errored = ERR_RECONNECT;
+		}
 	}
 	if (qtv->errored)
 	{
@@ -1571,6 +1627,7 @@ void QTV_Run(sv_t *qtv)
 		qtv->buffersize = 0;
 		qtv->forwardpoint = 0;
 		QTV_DisconnectFromSource(qtv);
+		qtv->isconnected = 0;
 		qtv->errored = ERR_NONE;
 		qtv->nextconnectattempt = qtv->curtime;	//make the reconnect happen _now_
 	}
@@ -1583,11 +1640,18 @@ void QTV_Run(sv_t *qtv)
 		if (qtv->simtime > qtv->nextpackettime)
 			qtv->simtime = qtv->nextpackettime;	//too old
 
-		if (!qtv->isconnected && (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - UDPRECONNECT_TIME*2))
+		if (!qtv->isconnected && (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - (UDPRECONNECT_TIME+STATUSPOLL_TIME)))
 		{
 			if (qtv->errored == ERR_DISABLED)
 			{
 				strcpy(qtv->status, "Given up connecting\n");
+			}
+			else if (qtv->autodisconnect == AD_STATUSPOLL)
+			{
+				QTV_DisconnectFromSource(qtv);
+				Netchan_OutOfBand(qtv->cluster, NET_ChooseSocket(qtv->cluster->qwdsocket, &qtv->serveraddress), qtv->serveraddress, 13, "status\n");
+				qtv->nextconnectattempt = qtv->curtime + STATUSPOLL_TIME;
+				return;
 			}
 			else
 			{
@@ -1746,7 +1810,7 @@ void QTV_Run(sv_t *qtv)
 
 		if (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - RECONNECT_TIME*2)
 		{
-			if (qtv->disconnectwhennooneiswatching == 2)	//2 means a reverse connection
+			if (qtv->autodisconnect == AD_REVERSECONNECT)	//2 means a reverse connection
 			{
 				qtv->errored = ERR_DROP;
 				return;
@@ -1877,7 +1941,7 @@ void QTV_Run(sv_t *qtv)
 				qtv->buffersize = 0;
 				qtv->forwardpoint = 0;
 
-				if (qtv->disconnectwhennooneiswatching)
+				if (qtv->autodisconnect == AD_WHENEMPTY || qtv->autodisconnect == AD_REVERSECONNECT)
 					qtv->errored = ERR_DROP;	//if its a user registered stream, drop it immediatly
 				else
 				{	//otherwise close the socket (this will result in a timeout and reconnect)
@@ -2107,7 +2171,7 @@ void QTV_Run(sv_t *qtv)
 	}
 }
 
-sv_t *QTV_NewServerConnection(cluster_t *cluster, int newstreamid, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates, qboolean query)
+sv_t *QTV_NewServerConnection(cluster_t *cluster, int newstreamid, char *server, char *password, qboolean force, enum autodisconnect_e autoclose, qboolean noduplicates, qboolean query)
 {
 	sv_t *qtv;
 
@@ -2158,7 +2222,7 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, int newstreamid, char *server,
 
 //	qtv->tcpsocket = INVALID_SOCKET;
 	qtv->sourcesock = INVALID_SOCKET;
-	qtv->disconnectwhennooneiswatching = autoclose;
+	qtv->autodisconnect = autoclose;
 	qtv->parsingconnectiondata = true;
 	qtv->serverquery = query;
 	qtv->silentstream = true;
@@ -2169,7 +2233,7 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, int newstreamid, char *server,
 	qtv->cluster = cluster;
 	qtv->next = cluster->servers;
 
-	if (autoclose != 2)	//2 means reverse connection (don't ever try reconnecting)
+	if (autoclose != AD_REVERSECONNECT)	//2 means reverse connection (don't ever try reconnecting)
 	{
 		if (!QTV_Connect(qtv, server) && !force)
 		{

@@ -19,6 +19,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "qtv.h"
+#ifdef _WIN32
+#include <direct.h>
+#else
+#include <unistd.h>
+#endif
 
 #include "bsd_string.h"
 
@@ -387,7 +392,7 @@ void Cmd_Master(cmdctxt_t *ctx)
 	ctx->cluster->mastersendtime = ctx->cluster->curtime;
 
 	if (ctx->cluster->qwdsocket != INVALID_SOCKET)
-		NET_SendPacket (ctx->cluster, ctx->cluster->qwdsocket, 1, "k", addr);
+		NET_SendPacket (ctx->cluster, NET_ChooseSocket(ctx->cluster->qwdsocket, &addr), 1, "k", addr);
 	Cmd_Printf(ctx, "Master server set.\n");
 }
 
@@ -395,19 +400,32 @@ void Cmd_UDPPort(cmdctxt_t *ctx)
 {
 	int news;
 	int newp = atoi(Cmd_Argv(ctx, 1));
-	news = QW_InitUDPSocket(newp);
+	news = QW_InitUDPSocket(newp, true);
 
 	if (news != INVALID_SOCKET)
 	{
 		ctx->cluster->mastersendtime = ctx->cluster->curtime;
-		closesocket(ctx->cluster->qwdsocket);
-		ctx->cluster->qwdsocket = news;
+		closesocket(ctx->cluster->qwdsocket[1]);
+		ctx->cluster->qwdsocket[1] = news;
 		ctx->cluster->qwlistenportnum = newp;
 
-		Cmd_Printf(ctx, "Opened udp port %i (all connected qw clients will time out)\n", newp);
+		Cmd_Printf(ctx, "Opened udp6 port %i (all connected qw clients will time out)\n", newp);
 	}
 	else
-		Cmd_Printf(ctx, "Failed to open udp port %i\n", newp);
+		Cmd_Printf(ctx, "Failed to open udp6 port %i\n", newp);
+
+	news = QW_InitUDPSocket(newp, false);
+	if (news != INVALID_SOCKET)
+	{
+		ctx->cluster->mastersendtime = ctx->cluster->curtime;
+		closesocket(ctx->cluster->qwdsocket[0]);
+		ctx->cluster->qwdsocket[0] = news;
+		ctx->cluster->qwlistenportnum = newp;
+
+		Cmd_Printf(ctx, "Opened udp4 port %i (all connected qw clients will time out)\n", newp);
+	}
+	else
+		Cmd_Printf(ctx, "Failed to open udp4 port %i\n", newp);
 }
 void Cmd_AdminPassword(cmdctxt_t *ctx)
 {
@@ -448,7 +466,7 @@ void Cmd_GenericQuery(cmdctxt_t *ctx, int dataset)
 	memmove(address+strlen(method), address, ARG_LEN-(1+strlen(method)));
 	strncpy(address, method, strlen(method));
 
-	if (!QTV_NewServerConnection(ctx->cluster, ctx->streamid, address, password, false, false, false, dataset))
+	if (!QTV_NewServerConnection(ctx->cluster, ctx->streamid, address, password, false, AD_NO, false, dataset))
 		Cmd_Printf(ctx, "Failed to connect to \"%s\", connection aborted\n", address);
 
 	Cmd_Printf(ctx, "Querying \"%s\"\n", address);
@@ -464,7 +482,7 @@ void Cmd_QTVDemoList(cmdctxt_t *ctx)
 	Cmd_GenericQuery(ctx, 2);
 }
 
-void Cmd_GenericConnect(cmdctxt_t *ctx, char *method)
+void Cmd_GenericConnect(cmdctxt_t *ctx, char *method, enum autodisconnect_e autoclose)
 {
 	sv_t *sv;
 	char *address, *password;
@@ -484,7 +502,7 @@ void Cmd_GenericConnect(cmdctxt_t *ctx, char *method)
 	memmove(address+strlen(method), address, ARG_LEN-(1+strlen(method)));
 	strncpy(address, method, strlen(method));
 
-	sv = QTV_NewServerConnection(ctx->cluster, ctx->streamid?ctx->streamid:1, address, password, false, false, false, false);
+	sv = QTV_NewServerConnection(ctx->cluster, ctx->streamid?ctx->streamid:1, address, password, false, autoclose, false, false);
 	if (!sv)
 		Cmd_Printf(ctx, "Failed to connect to \"%s\", connection aborted\n", address);
 	else
@@ -493,15 +511,15 @@ void Cmd_GenericConnect(cmdctxt_t *ctx, char *method)
 
 void Cmd_QTVConnect(cmdctxt_t *ctx)
 {
-	Cmd_GenericConnect(ctx, "tcp:");
+	Cmd_GenericConnect(ctx, "tcp:", AD_NO);
 }
 void Cmd_QWConnect(cmdctxt_t *ctx)
 {
-	Cmd_GenericConnect(ctx, "udp:");
+	Cmd_GenericConnect(ctx, "udp:", AD_STATUSPOLL);
 }
 void Cmd_MVDConnect(cmdctxt_t *ctx)
 {
-	Cmd_GenericConnect(ctx, "file:");
+	Cmd_GenericConnect(ctx, "file:", AD_NO);
 }
 
 void Cmd_Exec(cmdctxt_t *ctx)
@@ -646,8 +664,10 @@ void Cmd_Status(cmdctxt_t *ctx)
 		if (ctx->qtv->errored == ERR_DISABLED)
 			Cmd_Printf(ctx, " Stream is disabled\n");
 
-		if (ctx->qtv->disconnectwhennooneiswatching)
-			Cmd_Printf(ctx, " Stream is temporary\n");
+		if (ctx->qtv->autodisconnect == AD_WHENEMPTY)
+			Cmd_Printf(ctx, " Stream is user created\n");
+		else if (ctx->qtv->autodisconnect == AD_REVERSECONNECT)
+			Cmd_Printf(ctx, " Stream is server created\n");
 
 /*		if (ctx->qtv->tcpsocket != INVALID_SOCKET)
 		{
@@ -784,7 +804,7 @@ void Cmd_Ping(cmdctxt_t *ctx)
 	char *val = Cmd_Argv(ctx, 1);
 	if (NET_StringToAddr(val, &addr, 27500))
 	{
-		NET_SendPacket (ctx->cluster, ctx->cluster->qwdsocket, 1, "k", addr);
+		NET_SendPacket (ctx->cluster, NET_ChooseSocket(ctx->cluster->qwdsocket, &addr), 1, "k", addr);
 		Cmd_Printf(ctx, "pinged\n");
 	}
 	Cmd_Printf(ctx, "couldn't resolve\n");
@@ -844,6 +864,7 @@ void Cmd_Streams(cmdctxt_t *ctx)
 			break;
 		case ERR_PAUSED:
 			status = " (paused)";
+			break;
 		case ERR_DISABLED:
 			status = " (disabled)";
 			break;
@@ -964,8 +985,10 @@ void Cmd_Stop(cmdctxt_t *ctx)
 
 void Cmd_Reconnect(cmdctxt_t *ctx)
 {
-	if (ctx->qtv->disconnectwhennooneiswatching == 2)
+	if (ctx->qtv->autodisconnect == AD_REVERSECONNECT)
 		Cmd_Printf(ctx, "Stream is a reverse connection (command rejected)\n");
+//	else if (ctx->qtv->autodisconnect == AD_STATUSPOLL && !ctx->qtv->numviewers && !ctx->qtv->proxies)
+//		Cmd_Printf(ctx, "Not reconnecting to idle server\n");
 	else if (QTV_Connect(ctx->qtv, ctx->qtv->server))
 		Cmd_Printf(ctx, "Reconnected\n");
 	else
@@ -980,32 +1003,57 @@ void Cmd_MVDPort(cmdctxt_t *ctx)
 
 	if (!newp)
 	{
-		if (ctx->cluster->tcpsocket != INVALID_SOCKET)
+		if (ctx->cluster->tcpsocket[0] != INVALID_SOCKET && ctx->cluster->tcpsocket[1] != INVALID_SOCKET)
+			Cmd_Printf(ctx, "Already closed\n");
+
+		if (ctx->cluster->tcpsocket[0] != INVALID_SOCKET)
 		{
-			closesocket(ctx->cluster->tcpsocket);
-			ctx->cluster->tcpsocket = INVALID_SOCKET;
+			closesocket(ctx->cluster->tcpsocket[0]);
+			ctx->cluster->tcpsocket[0] = INVALID_SOCKET;
 			ctx->cluster->tcplistenportnum = 0;
 
-			Cmd_Printf(ctx, "mvd port is now closed\n");
+			Cmd_Printf(ctx, "tcp4 port is now closed\n");
 		}
-		else
-			Cmd_Printf(ctx, "Already closed\n");
+
+		if (ctx->cluster->tcpsocket[1] != INVALID_SOCKET)
+		{
+			closesocket(ctx->cluster->tcpsocket[1]);
+			ctx->cluster->tcpsocket[1] = INVALID_SOCKET;
+			ctx->cluster->tcplistenportnum = 0;
+
+			Cmd_Printf(ctx, "tcp6 port is now closed\n");
+		}
 	}
 	else
 	{
-		news = Net_MVDListen(newp);
+
+		news = Net_TCPListen(newp, true);
 
 		if (news != INVALID_SOCKET)
 		{
-			if (ctx->cluster->tcpsocket != INVALID_SOCKET)
-				closesocket(ctx->cluster->tcpsocket);
-			ctx->cluster->tcpsocket = news;
+			if (ctx->cluster->tcpsocket[1] != INVALID_SOCKET)
+				closesocket(ctx->cluster->tcpsocket[1]);
+			ctx->cluster->tcpsocket[1] = news;
 			ctx->cluster->tcplistenportnum = newp;
 
-			Cmd_Printf(ctx, "Opened tcp port %i\n", newp);
+			Cmd_Printf(ctx, "Opened tcp6 port %i\n", newp);
 		}
 		else
-			Cmd_Printf(ctx, "Failed to open tcp port %i\n", newp);
+			Cmd_Printf(ctx, "Failed to open tcp6 port %i\n", newp);
+
+		news = Net_TCPListen(newp, false);
+
+		if (news != INVALID_SOCKET)
+		{
+			if (ctx->cluster->tcpsocket[0] != INVALID_SOCKET)
+				closesocket(ctx->cluster->tcpsocket[0]);
+			ctx->cluster->tcpsocket[0] = news;
+			ctx->cluster->tcplistenportnum = newp;
+
+			Cmd_Printf(ctx, "Opened tcp4 port %i\n", newp);
+		}
+		else
+			Cmd_Printf(ctx, "Failed to open tcp4 port %i\n", newp);
 	}
 }
 
@@ -1072,6 +1120,36 @@ void Cmd_DemoDir(cmdctxt_t *ctx)
 	}
 }
 
+void Cmd_DLDir(cmdctxt_t *ctx)
+{
+	char *val;
+	val = Cmd_Argv(ctx, 1);
+
+	if (!Cmd_IsLocal(ctx))
+	{
+		Cmd_Printf(ctx, "dldir may not be used remotely\n");
+		return;
+	}
+
+	if (*val)
+	{
+		while (*val > 0 &&*val <= ' ')
+			val++;
+
+//		if (strchr(val, '.') || strchr(val, ':') || *val == '/')
+//			Cmd_Printf(ctx, "Rejecting path\n");
+//		else
+		{
+			strlcpy(ctx->cluster->downloaddir, val, sizeof(ctx->cluster->downloaddir));
+			Cmd_Printf(ctx, "Changed download dir to \"%s\"\n", ctx->cluster->downloaddir);
+		}
+	}
+	else
+	{
+		Cmd_Printf(ctx, "Current download directory is \"%s\"\n", ctx->cluster->downloaddir);
+	}
+}
+
 void Cmd_MuteStream(cmdctxt_t *ctx)
 {
 	char *val;
@@ -1120,7 +1198,7 @@ extern const rconcommands_t rconcommands[];
 
 void Cmd_Commands(cmdctxt_t *ctx)
 {
-	rconcommands_t *cmd;
+	const rconcommands_t *cmd;
 	consolecommand_t lastfunc = NULL;
 
 	Cmd_Printf(ctx, "Commands:\n");
@@ -1167,6 +1245,7 @@ const rconcommands_t rconcommands[] =
 	{"maxproxies",		0, 1, Cmd_MaxProxies,	"sets a limit on tcp/qtv client connections"},
 	{"demodir",		0, 1, Cmd_DemoDir,	"specifies where to get the demo list from"},
 	{"basedir",		0, 1, Cmd_BaseDir,	"specifies where to get any files required by the game. this is prefixed to the server-specified game dir."},
+	{"dldir",		0, 1, Cmd_DLDir,	"specifies the path to download stuff from (http://server/file/ maps here)"},
 	{"ping",		0, 1, Cmd_Ping,		"sends a udp ping to a qtv proxy or server"},
 	{"reconnect",		0, 1, Cmd_Reconnect,	"forces a stream to reconnect to its server (restarts demos)"},
 	{"echo",		0, 1, Cmd_Echo,		"a useless command that echos a string"},
@@ -1174,7 +1253,6 @@ const rconcommands_t rconcommands[] =
 	{"exit",		0, 1, Cmd_Quit},
 	{"streams",		0, 1, Cmd_Streams,	"shows a list of active streams"},
 	{"allownq",		0, 1, Cmd_AllowNQ,	"permits nq clients to connect. This can be disabled as this code is less tested than the rest"},
-
 
 
 	{"halt",		1, 0, Cmd_Halt,		"disables a stream, preventing it from reconnecting until someone tries watching it anew. Boots current spectators"},

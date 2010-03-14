@@ -28,7 +28,7 @@ typedef vec_t vec5_t[5];
 /*16-byte aligned vectors, for auto-vectorising, should propogate to structs
 sse and altivec can unroll loops using aligned reads, which should be faster... 4 at once.
 */
-#ifdef _MSC_VER
+#if _MSC_VER >= 1300
 typedef __declspec(align(16)) vec3_t avec3_t;
 typedef __declspec(align(16)) vec4_t avec4_t;
 typedef __declspec(align(4)) qbyte byte_vec4_t[4];

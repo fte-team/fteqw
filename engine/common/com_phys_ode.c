@@ -1844,6 +1844,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		{
 		case SOLID_BSP:
 			Matrix4_Identity(ed->ode.ode_offsetmatrix);
+			ed->ode.ode_geom = NULL;
 			if (!model)
 			{
 				Con_Printf("entity %i (classname %s) has no model\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));

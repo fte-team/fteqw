@@ -180,6 +180,8 @@ void GLR_RenderDlights (void)
 
 	if (!r_flashblend.ival)
 		return;
+#pragma message("backend fixme")
+	Con_Printf("flashblends are not updated for the backend\n");
 
 //	r_dlightframecount = r_framecount + 1;	// because the count hasn't
 											//  advanced yet for this frame
@@ -229,6 +231,8 @@ void GLR_RenderDlights (void)
 	qglEnable (GL_TEXTURE_2D);
 	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	qglDepthMask (1);
+
+	PPL_RevertToKnownState();
 }
 #endif
 

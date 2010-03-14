@@ -183,6 +183,46 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 	strcpy(tv->status, "Receiving soundlist\n");
 }
 
+/*called if the server changed the map.serverinfo, so we can corrupt it again*/
+void QTV_UpdatedServerInfo(sv_t *tv)
+{
+	qboolean fromproxy;
+	char text[1024];
+	char value[256];
+
+	Info_ValueForKey(tv->map.serverinfo, "*qtv", value, sizeof(value));
+	if (*value)
+	{
+		fromproxy = true;
+		tv->serverisproxy = fromproxy;
+	}
+	else
+		fromproxy = false;
+
+	//add on our extra infos
+	Info_SetValueForStarKey(tv->map.serverinfo, "*qtv", VERSION, sizeof(tv->map.serverinfo));
+	Info_SetValueForStarKey(tv->map.serverinfo, "*z_ext", Z_EXT_STRING, sizeof(tv->map.serverinfo));
+
+	Info_ValueForKey(tv->map.serverinfo, "hostname", tv->map.hostname, sizeof(tv->map.hostname));
+
+	//change the hostname (the qtv's hostname with the server's hostname in brackets)
+	Info_ValueForKey(tv->map.serverinfo, "hostname", value, sizeof(value));
+	if (fromproxy && strchr(value, '(') && value[strlen(value)-1] == ')')	//already has brackets
+	{	//the fromproxy check is because it's fairly common to find a qw server with brackets after it's name.
+		char *s;
+		s = strchr(value, '(');	//so strip the parent proxy's hostname, and put our hostname first, leaving the origional server's hostname within the brackets
+		snprintf(text, sizeof(text), "%s %s", tv->cluster->hostname, s);
+	}
+	else
+	{
+		if (tv->sourcefile)
+			snprintf(text, sizeof(text), "%s (recorded from: %s)", tv->cluster->hostname, value);
+		else
+			snprintf(text, sizeof(text), "%s (live: %s)", tv->cluster->hostname, value);
+	}
+	Info_SetValueForStarKey(tv->map.serverinfo, "hostname", text, sizeof(tv->map.serverinfo));
+}
+
 static void ParseCDTrack(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	char nqversion[3];
@@ -199,8 +239,6 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	viewer_t *v;
 	char text[1024];
-	char value[256];
-	qboolean fromproxy;
 
 	ReadString(m, text, sizeof(text));
 //	Sys_Printf(tv->cluster, "stuffcmd: %s", text);
@@ -250,43 +288,17 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	}
 	else if (!strncmp(text, "fullserverinfo ", 15))
 	{
+		/*strip newline*/
 		text[strlen(text)-1] = '\0';
+		/*strip trailing quote*/
 		text[strlen(text)-1] = '\0';
+
+
 
 		//copy over the server's serverinfo
 		strlcpy(tv->map.serverinfo, text+16, sizeof(tv->map.serverinfo));
 
-		Info_ValueForKey(tv->map.serverinfo, "*qtv", value, sizeof(value));
-		if (*value)
-		{
-			fromproxy = true;
-			tv->serverisproxy = fromproxy;
-		}
-		else
-			fromproxy = false;
-
-		//add on our extra infos
-		Info_SetValueForStarKey(tv->map.serverinfo, "*qtv", VERSION, sizeof(tv->map.serverinfo));
-		Info_SetValueForStarKey(tv->map.serverinfo, "*z_ext", Z_EXT_STRING, sizeof(tv->map.serverinfo));
-
-		Info_ValueForKey(tv->map.serverinfo, "hostname", tv->map.hostname, sizeof(tv->map.hostname));
-
-		//change the hostname (the qtv's hostname with the server's hostname in brackets)
-		Info_ValueForKey(tv->map.serverinfo, "hostname", value, sizeof(value));
-		if (fromproxy && strchr(value, '(') && value[strlen(value)-1] == ')')	//already has brackets
-		{	//the fromproxy check is because it's fairly common to find a qw server with brackets after it's name.
-			char *s;
-			s = strchr(value, '(');	//so strip the parent proxy's hostname, and put our hostname first, leaving the origional server's hostname within the brackets
-			snprintf(text, sizeof(text), "%s %s", tv->cluster->hostname, s);
-		}
-		else
-		{
-			if (tv->sourcefile)
-				snprintf(text, sizeof(text), "%s (recorded from: %s)", tv->cluster->hostname, value);
-			else
-				snprintf(text, sizeof(text), "%s (live: %s)", tv->cluster->hostname, value);
-		}
-		Info_SetValueForStarKey(tv->map.serverinfo, "hostname", text, sizeof(tv->map.serverinfo));
+		QTV_UpdatedServerInfo(tv);
 
 		if (tv->controller && (tv->controller->netchan.isnqprotocol == false))
 			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);

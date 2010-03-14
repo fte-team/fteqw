@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#ifdef WEBCLIENT
+#if 0//def WEBCLIENT
 
 #include "iweb.h"
 
@@ -28,7 +28,7 @@ typedef struct FTPclientconn_s{
 
 	struct FTPclientconn_s *next;
 
-	void (*NotifyFunction)(char *localfile, qboolean sucess);	//called when failed or succeeded, and only if it got a connection in the first place.
+	void (*NotifyFunction)(vfsfile_t *file, char *localfile, qboolean sucess);	//called when failed or succeeded, and only if it got a connection in the first place.
 																//ftp doesn't guarentee it for anything other than getting though. :(
 } FTPclientconn_t;
 

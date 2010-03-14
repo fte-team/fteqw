@@ -619,7 +619,7 @@ void R_DrawSpriteModel (entity_t *e)
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
 	mesh.istrifan = true;
-	BE_DrawMeshChain(frame->shader, &mesh, NULL, NULL);
+	BE_DrawMeshChain(frame->shader, &mesh, NULL, &frame->shader->defaulttextures);
 }
 
 //==================================================================================
@@ -877,9 +877,12 @@ void R_PolyBlend (void)
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
 
+#pragma message("backend fixme")
+	Con_Printf("polyblends are not updated for the backend\n");
+
 	GLV_CalcBlendServer(shift);	//figure out the shift we need (normally just the server specified one)
 
-//Con_Printf("R_PolyBlend(): %4.2f %4.2f %4.2f %4.2f\n",shift[0], shift[1],	shift[2],	shift[3]);
+Con_Printf("R_PolyBlend(): %4.2f %4.2f %4.2f %4.2f\n",shift[0], shift[1],	shift[2],	shift[3]);
 
 	PPL_RevertToKnownState();
 
@@ -1119,7 +1122,7 @@ void R_SetupGL (void)
 	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
 
-	if (r_waterwarp.value<0 && r_viewleaf->contents <= Q1CONTENTS_WATER)
+	if (r_waterwarp.value<0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER)
 	{
 		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
@@ -1236,6 +1239,8 @@ R_Clear
 int gldepthfunc = GL_LEQUAL;
 void R_Clear (void)
 {
+	/*tbh, this entire function should be in the backend*/
+	GL_ForceDepthWritable();
 	if (r_mirroralpha.value != 1.0)
 	{
 		if (gl_clear.value && !r_secondaryview)
@@ -1298,6 +1303,9 @@ void R_Mirror (void)
 		r_inmirror = false;
 		return;
 	}
+
+#pragma message("backend fixme")
+	Con_Printf("mirrors are not updated for the backend\n");
 
 	r_inmirror = true;
 
@@ -1600,6 +1608,8 @@ static void R_RenderMotionBlur(void)
 {
 	int vwidth = 1, vheight = 1;
 	float vs, vt, cs, ct;
+#pragma message("backend fixme")
+	Con_Printf("motionblur is not updated for the backend\n");
 
 	if (gl_config.arb_texture_non_power_of_two)
 	{	//we can use any size, supposedly
@@ -1672,6 +1682,9 @@ static void R_RenderWaterWarp(void)
 	float vs, vt;
 
 	PPL_RevertToKnownState();
+
+#pragma message("backend fixme")
+	Con_Printf("waterwarp is not updated for the backend\n");
 
 	// get the powers of 2 for the size of the texture that will hold the scene
 
@@ -1818,6 +1831,9 @@ qboolean R_RenderScene_Fish(void)
 	int numsides = 4;
 	vec3_t saveang;
 	int rot45 = 0;
+
+#pragma message("backend fixme")
+	Con_Printf("fisheye/panorama is not updated for the backend\n");
 
 	if (!scenepp_panorama_program)
 		return false;

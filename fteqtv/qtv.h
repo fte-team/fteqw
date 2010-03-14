@@ -53,7 +53,53 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef _WIN32
 	#include <conio.h>
-	#include <winsock.h>	//this includes windows.h and is the reason for much compiling slowness with windows builds.
+	#include <winsock2.h>	//this includes windows.h and is the reason for much compiling slowness with windows builds.
+	#ifdef IPPROTO_IPV6
+		#include <ws2tcpip.h>
+	#else
+		#define	IPPROTO_IPV6
+		#define EAI_NONAME 8
+		struct ip6_scope_id
+		{
+			union
+			{
+				struct
+				{
+					u_long  Zone : 28;
+					u_long  Level : 4;
+				};
+				u_long  Value;
+			};
+		};
+		struct in6_addr
+		{
+			u_char	s6_addr[16];	/* IPv6 address */
+		};
+		typedef struct sockaddr_in6
+		{
+			short  sin6_family;
+			u_short  sin6_port;
+			u_long  sin6_flowinfo;
+			struct in6_addr  sin6_addr;
+			union
+			{
+				u_long  sin6_scope_id;
+				struct ip6_scope_id  sin6_scope_struct; 
+			};
+		};
+
+		struct addrinfo
+		{
+		  int ai_flags;
+		  int ai_family;
+		  int ai_socktype;
+		  int ai_protocol;
+		  size_t ai_addrlen;
+		  char* ai_canonname;
+		  struct sockaddr * ai_addr;
+		  struct addrinfo * ai_next;
+		};
+	#endif
 	#ifdef _MSC_VER
 		#pragma comment (lib, "wsock32.lib")
 	#endif
@@ -191,7 +237,9 @@ typedef int qboolean;
 extern "C" {
 #endif
 
-typedef unsigned char netadr_t[64];
+typedef struct{
+	char blob[64];
+} netadr_t;
 
 
 #ifdef COMMENTARY
@@ -551,7 +599,12 @@ struct sv_s {	//details about a server connection (also known as stream)
 
 
 	errorstate_t errored;
-	qboolean disconnectwhennooneiswatching;
+	enum autodisconnect_e {
+		AD_NO,
+		AD_WHENEMPTY,
+		AD_REVERSECONNECT,
+		AD_STATUSPOLL
+	} autodisconnect;
 	unsigned int numviewers;
 
 	cluster_t *cluster;
@@ -610,9 +663,10 @@ typedef struct {
 	int time, smalltime;
 } availdemo_t;
 
+#define SOCKETGROUPS 2
 struct cluster_s {
-	SOCKET qwdsocket;	//udp + quakeworld protocols
-	SOCKET tcpsocket;	//tcp listening socket (for mvd and listings and stuff)
+	SOCKET qwdsocket[2];	//udp + quakeworld protocols
+	SOCKET tcpsocket[2];	//tcp listening socket (for mvd and listings and stuff)
 
 	char commandinput[512];
 	int inputlength;
@@ -645,8 +699,6 @@ struct cluster_s {
 	qboolean nobsp;
 	qboolean allownqclients;	//nq clients require no challenge
 	qboolean nouserconnects;	//prohibit users from connecting to new streams.
-
-	qboolean allowdownloads;
 
 	int maxviewers;
 
@@ -735,7 +787,7 @@ void Broadcast(cluster_t *cluster, void *buffer, int length, int suitablefor);
 void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask);
 void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *spectatorflag);
 void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
-SOCKET QW_InitUDPSocket(int port);
+SOCKET QW_InitUDPSocket(int port, qboolean ipv6);
 void QW_UpdateUDPStuff(cluster_t *qtv);
 unsigned int Sys_Milliseconds(void);
 void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
@@ -754,9 +806,10 @@ void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcomman
 void PM_PlayerMove (pmove_t *pmove);
 
 void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qboolean isclient);
-void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock, netadr_t adr, char *format, ...) PRINTFWARNING(4);
+void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock[], netadr_t adr, char *format, ...) PRINTFWARNING(4);
 int Netchan_IsLocal (netadr_t adr);
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, netadr_t adr);
+SOCKET NET_ChooseSocket(SOCKET sock[], netadr_t *adr);
 qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);
 qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg);
 qboolean NQNetchan_Process(cluster_t *cluster, netchan_t *chan, netmsg_t *msg);
@@ -797,8 +850,8 @@ void Sys_Printf(cluster_t *cluster, char *fmt, ...) PRINTFWARNING(2);
 
 void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length);
 oproxy_t *Net_FileProxy(sv_t *qtv, char *filename);
-sv_t *QTV_NewServerConnection(cluster_t *cluster, int streamid, char *server, char *password, qboolean force, qboolean autoclose, qboolean noduplicates, qboolean query);
-SOCKET Net_MVDListen(int port);
+sv_t *QTV_NewServerConnection(cluster_t *cluster, int streamid, char *server, char *password, qboolean force, enum autodisconnect_e autodisconnect, qboolean noduplicates, qboolean query);
+SOCKET Net_TCPListen(int port, qboolean ipv6);
 qboolean Net_StopFileProxy(sv_t *qtv);
 
 

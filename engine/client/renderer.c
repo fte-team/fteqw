@@ -634,6 +634,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_menutint, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
+	Cvar_Register (&r_skin_overlays, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_replacemodels, GRAPHICALNICETIES);
 
@@ -934,7 +935,7 @@ vidmode_t vid_modes[] =
 };
 #define NUMVIDMODES sizeof(vid_modes)/sizeof(vid_modes[0])
 
-qboolean M_Vid_GetMove(int num, int *w, int *h)
+qboolean M_Vid_GetMode(int num, int *w, int *h)
 {
 	if ((unsigned)num >= NUMVIDMODES)
 		return false;

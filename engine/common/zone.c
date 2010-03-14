@@ -1341,7 +1341,7 @@ void *Hunk_AllocName (int size, char *name)
 		char *buf;
 		Hunk_Print(true);
 		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR) &buf, 0, NULL);
-		Sys_Error ("VirtualCommit failed\nNot enough RAM allocated on allocation of \"%s\".  Try starting using \"-heapsize 64000\" on the QuakeWorld command line.", name);
+		Sys_Error ("VirtualCommit failed\nNot enough RAM allocated on allocation of \"%s\".  Try starting using \"-heapsize %i\" on the QuakeWorld command line.", name, roundupold/512);
 	}
 #endif
 

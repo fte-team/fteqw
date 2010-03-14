@@ -1420,6 +1420,7 @@ qboolean Shader_Init (void)
 //	COM_EnumerateFiles("scripts/*.rscript", Shader_InitCallback, NULL);
 
 	Shader_NeedReload();
+	Shader_DoReload();
 	return true;
 }
 
@@ -2857,6 +2858,7 @@ void Shader_DoReload(void)
 	if (!shader_reload_needed)
 		return;
 	shader_reload_needed = false;
+	Font_InvalidateColour();
 	Con_Printf("Reloading all shaders\n");
 
 	for (s = r_shaders, i = 0; i < MAX_SHADERS; i++, s++)

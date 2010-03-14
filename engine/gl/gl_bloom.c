@@ -565,6 +565,9 @@ void R_BloomBlend (void)//refdef_t *fd, meshlist_t *meshlist )
 		bs.scr_h < bs.size_sample)
 		return;
 
+#pragma message("backend fixme")
+	Con_Printf("bloom is not updated for the backend\n");
+
 	//set up full screen workspace
 	qglViewport(0, 0, vid.pixelwidth, vid.pixelheight);
 	qglDisable(GL_DEPTH_TEST);

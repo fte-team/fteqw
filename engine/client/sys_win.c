@@ -35,7 +35,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifdef _DEBUG
+#if _MSC_VER >= 1300
 #define CATCHCRASH
+#endif
 #endif
 
 #if !defined(CLIENTONLY) && !defined(SERVERONLY)
@@ -250,7 +252,7 @@ void *Sys_GetGameAPI (void *parms)
 
 
 #define MINIMUM_WIN_MEMORY	0x0800000
-#define MAXIMUM_WIN_MEMORY	0x4000000
+#define MAXIMUM_WIN_MEMORY	0x8000000
 
 #define PAUSE_SLEEP		50				// sleep time on pause or minimization
 #define NOT_FOCUS_SLEEP	20				// sleep time when not focus
@@ -327,7 +329,7 @@ typedef BOOL (WINAPI *MINIDUMPWRITEDUMP) (
 	PMINIDUMP_CALLBACK_INFORMATION CallbackParam
 	);
 
-static DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
+DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
 {
 	char dumpPath[1024];
 	HANDLE hProc = GetCurrentProcess();
@@ -1071,7 +1073,6 @@ void Sys_Sleep (void)
 
 void Sys_SendKeyEvents (void)
 {
-#ifndef NPQTV
     MSG        msg;
 
 	if (isDedicated)
@@ -1094,7 +1095,6 @@ void Sys_SendKeyEvents (void)
 //			continue;
       	DispatchMessage (&msg);
 	}
-#endif
 }
 
 
@@ -1303,7 +1303,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			cpuid
 			mov idedx, edx
 		}
-//		MessageBox(NULL, cpuname, cpuname, 0);
 #if _M_IX86_FP >= 2
 		if (!(idedx&(1<<26)))
 			MessageBox(NULL, "This is an SSE2 optimised build, and your cpu doesn't seem to support it", DISTRIBUTION, 0);
@@ -1634,7 +1633,8 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 	if (!tw)
 		return NULL;
 
-	stacksize += 128; // wrapper overhead, also prevent default stack size
+	if (stacksize)
+		stacksize += 128; // wrapper overhead, also prevent default stack size
 	tw->func = func;
 	tw->args = args;
 #ifdef WIN32CRTDLL
@@ -1653,7 +1653,13 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 
 void Sys_WaitOnThread(void *thread)
 {	
-	WaitForSingleObject((HANDLE)thread, INFINITE);
+	while (WaitForSingleObject((HANDLE)thread, 10) == WAIT_TIMEOUT)
+	{
+		/*keep responding to window messages*/
+		MSG msg;
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+			DispatchMessage(&msg);
+	}
 	CloseHandle((HANDLE)thread);
 }
 
@@ -1670,6 +1676,13 @@ qboolean Sys_TryLockMutex(void *mutex)
 
 qboolean Sys_LockMutex(void *mutex)
 {
+#ifdef _DEBUG
+	/*in debug builds, trigger a debug break if we sit on a mutex for longer than 20 secs*/
+	if (WaitForSingleObject(mutex, 20000) == WAIT_OBJECT_0)
+		return true;
+	OutputDebugString("Warning: Suspected mutex deadlock\n");
+	DebugBreak();
+#endif
 	return WaitForSingleObject(mutex, INFINITE) == WAIT_OBJECT_0;
 }
 

@@ -624,6 +624,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 	//Binary Map formats
 #ifdef Q2BSPS
+		case ('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 		case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 		case IDBSPHEADER:	//looks like id switched to have proper ids
 			if (!Mod_LoadQ2BrushModel (mod, buf))
@@ -3147,19 +3148,19 @@ void * RMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum,
 	if (!TEXVALID(texnum))
 	{	//the dp way
 		Q_strncpyz(name, loadmodel->name, sizeof(name));
-		Q_strncatz(name, va("_%i", framenum), sizeof(name));
+		Q_strncatz(name, va("_%i.tga", framenum), sizeof(name));
 		texnum = R_LoadReplacementTexture(name, "sprites", 0);
 	}
 	if (!TEXVALID(texnum))
 	{	//the older fte way.
 		COM_StripExtension(loadmodel->name, name, sizeof(name));
-		Q_strncatz(name, va("_%i", framenum), sizeof(name));
+		Q_strncatz(name, va("_%i.tga", framenum), sizeof(name));
 		texnum = R_LoadReplacementTexture(name, "sprites", 0);
 	}
 	if (!TEXVALID(texnum))
 	{	//the fuhquake way
 		COM_StripExtension(COM_SkipPath(loadmodel->name), name, sizeof(name));
-		Q_strncatz(name, va("_%i", framenum), sizeof(name));
+		Q_strncatz(name, va("_%i.tga", framenum), sizeof(name));
 		texnum = R_LoadReplacementTexture(name, "sprites", 0);
 	}
 
@@ -3180,16 +3181,16 @@ void * RMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum,
 	else
 	{
 		if (!TEXVALID(texnum))
-			texnum = R_LoadTexture8 (name, width, height, (qbyte *)(pinframe + 1), IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA, 1);
+			texnum = R_LoadTexture8 (name, width, height, (qbyte *)(pinframe + 1), IF_NOMIPMAP|IF_NOGAMMA, 1);
 	}
 
 	Q_strncpyz(name, loadmodel->name, sizeof(name));
-	Q_strncatz(name, va("_%i", framenum), sizeof(name));
+	Q_strncatz(name, va("_%i.tga", framenum), sizeof(name));
 	pspriteframe->shader = R_RegisterShader(name,
 			"{\n"
 				"{\n"
 					"map $diffuse\n"
-					"blendfunc blend\n"
+					"alphafunc ge128\n"
 					"rgbgen entity\n"
 					"alphagen entity\n"
 				"}\n"

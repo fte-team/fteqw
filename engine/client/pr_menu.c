@@ -511,11 +511,11 @@ void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-#pragma message("fixme: this doesn't scale or colour chars")
+#pragma message("fixme: this doesn't scale")
 	Font_BeginString(font_conchar, pos[0], pos[1], &x, &y);
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
 	Font_DrawChar(x, y, CON_WHITEMASK | 0xe000|(chara&0xff));
-	Font_ForceColour(1, 1, 1, 1);
+	Font_InvalidateColour();
 	Font_EndString(font_conchar);
 
 	G_FLOAT(OFS_RETURN) = 1;
@@ -544,7 +544,7 @@ void PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 		x = Font_DrawChar(x, y, CON_WHITEMASK|0xe000|(*text++&0xff));
 	}
-	Font_ForceColour(1, 1, 1, 1);
+	Font_InvalidateColour();
 	Font_EndString(font_conchar);
 }
 
@@ -757,17 +757,15 @@ static void PF_menu_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 	str = RemapCvarNameFromDPToFTE(str);
+	var = Cvar_Get(str, "", 0, "menu cvars");
+	if (var)
 	{
-		var = Cvar_Get(str, "", 0, "menu cvars");
-		if (var)
-		{
-			if (var->latched_string)
-				G_FLOAT(OFS_RETURN) = atof(var->latched_string);			else
-				G_FLOAT(OFS_RETURN) = var->value;
-		}
-		else
-			G_FLOAT(OFS_RETURN) = 0;
+		if (var->latched_string)
+			G_FLOAT(OFS_RETURN) = atof(var->latched_string);			else
+			G_FLOAT(OFS_RETURN) = var->value;
 	}
+	else
+		G_FLOAT(OFS_RETURN) = 0;
 }
 static void PF_menu_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -788,7 +786,7 @@ static void PF_menu_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, cv->string );
 }
 
-qboolean M_Vid_GetMove(int num, int *w, int *h);
+qboolean M_Vid_GetMode(int num, int *w, int *h);
 //a bit pointless really
 void PF_cl_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -797,7 +795,7 @@ void PF_cl_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int w, h;
 
 	w=h=0;
-	M_Vid_GetMove(mode, &w, &h);
+	M_Vid_GetMode(mode, &w, &h);
 
 	ret[0] = w;
 	ret[1] = h;

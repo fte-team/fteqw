@@ -54,6 +54,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define AVAIL_ZLIB
 
 		#define AVAIL_OGGVORBIS
+
+//		#define AVAIL_OPENAL	/* Jogi's OpenAL support */
 	#endif
 	#define AVAIL_MASM
 
@@ -179,6 +181,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define OFFSCREENGECKO
 #endif
 
+		//#define SQL
+
 		#define CSQC_DAT	//support for csqc
 		#define MENU_DAT	//support for menu.dat
 
@@ -195,6 +199,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 //fix things a little...
+#ifdef NPQTV
+	/*plugins require threads and stuff now, and http download support*/
+	#ifndef MULTITHREAD
+		#define MULTITHREAD
+		#define WEBCLIENT
+	#endif
+#endif
 
 #ifndef _WIN32
 	#undef QTERM	//not supported - FIXME: move to native plugin
@@ -356,7 +367,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef _MSC_VER
 	#define VARGS __cdecl
 	#define MSVCDISABLEWARNINGS
-	#define FTE_DEPRECATED __declspec(deprecated)
+	#if _MSC_VER >= 1300
+		#define FTE_DEPRECATED __declspec(deprecated)
+	#endif
 	#define NORETURN __declspec(noreturn)
 #endif
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))

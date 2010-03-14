@@ -2107,7 +2107,7 @@ messedup:
 			*out++ = (unsigned char)(*str++) | ext;
 		else
 		{
-			if (strchr("\n\r ", *str))
+			if (strchr("\n\r\t ", *str))
 				*out++ = (unsigned char)(*str++) | (ext&~CON_HIGHCHARSMASK);
 			else
 				*out++ = (unsigned char)(*str++) | ext | 0xe000;

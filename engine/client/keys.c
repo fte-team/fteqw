@@ -262,7 +262,7 @@ int PaddedPrint (char *s, int x)
 		Con_Printf ("\n");
 		x=0;
 	}
-*/
+
 	if (x)
 	{
 		Con_Printf (" ");
@@ -272,8 +272,8 @@ int PaddedPrint (char *s, int x)
 	{
 		Con_Printf (" ");
 		x++;
-	}
-	Con_Printf ("%s", s);
+	}*/
+	Con_Printf ("%s\t", s);
 	x+=strlen(s);
 
 	return x;
@@ -1484,6 +1484,11 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 		if (key_dest == key_game)
 #endif
 		{
+			if (Media_PlayingFullScreen())
+			{
+				Media_PlayFilm("");
+				return;
+			}
 			if (UI_KeyPress(key, unicode, down))	//Allow the UI to see the escape key. It is possible that a developer may get stuck at a menu.
 				return;
 		}

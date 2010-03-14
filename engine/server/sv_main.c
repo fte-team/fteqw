@@ -260,7 +260,7 @@ void SV_Shutdown (void)
 		SV_MVDStop_f();
 
 	NET_Shutdown ();
-#ifdef IWEB_H__
+#ifdef WEBSERVER
 	IWebShutdown();
 #endif
 
@@ -3334,7 +3334,7 @@ void SV_Frame (void)
 	}
 
 
-#ifdef IWEB_H__
+#ifdef WEBSERVER
 	IWebRun();
 #endif
 
@@ -4381,7 +4381,7 @@ void SV_Init (quakeparms_t *parms)
 
 	SV_InitLocal ();
 
-#ifdef IWEB_H__
+#ifdef WEBSERVER
 	IWebInit();
 #endif
 

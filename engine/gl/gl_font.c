@@ -14,6 +14,7 @@ void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
 int Font_CharHeight(void);
 int Font_CharWidth(unsigned int charcode);
+int Font_CharEndCoord(int x, unsigned int charcode);
 int Font_DrawChar(int px, int py, unsigned int charcode);
 void Font_EndString(struct font_s *font);
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
@@ -270,7 +271,7 @@ void Font_Init(void)
 }
 
 //flush the font buffer, by drawing it to the screen
-void Font_Flush(void)
+static void Font_Flush(void)
 {
 	if (!font_mesh.numindexes)
 		return;
@@ -892,6 +893,28 @@ int Font_CharHeight(void)
 	return curfont->charheight;
 }
 
+/*
+This is where the character ends.
+Note: this function supports tabs - x must always be based off 0, with Font_LineDraw actually used to draw the line.
+*/
+int Font_CharEndCoord(int x, unsigned int charcode)
+{
+	struct charcache_s *c;
+#define TABWIDTH (8*20)
+	if ((charcode&CON_CHARMASK) == '\t')
+		return x + ((TABWIDTH - (x % TABWIDTH)) % TABWIDTH);
+
+	c = Font_GetChar(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+	if (!c)
+	{
+		c = Font_TryLoadGlyph(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+		if (!c)
+			return x+0;
+	}
+
+	return x+c->advance;
+}
+
 //obtains the width of a character from a given font. This is how wide it is. The next char should be drawn at x + result.
 int Font_CharWidth(unsigned int charcode)
 {
@@ -927,7 +950,7 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 			if ((start[l]&CON_CHARMASK) == '\n' || (start+l >= end))
 				break;
 			l++;
-			px += Font_CharWidth(start[l]);
+			px = Font_CharEndCoord(px, start[l]);
 		}
 		//if we did get to the end
 		if (px > maxpixelwidth)
@@ -940,7 +963,6 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 			}
 			if (l == 0 && bt>0)
 				l = bt-1;
-			px -= Font_CharWidth(start[l]);
 		}
 
 		starts[foundlines] = start;
@@ -956,6 +978,25 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 	}
 
 	return foundlines;
+}
+
+int Font_LineWidth(conchar_t *start, conchar_t *end)
+{
+	int x = 0;
+	for (; start < end; start++)
+	{
+		x = Font_CharEndCoord(x, *start);
+	}
+	return x;
+}
+void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end)
+{
+	int lx = 0;
+	for (; start < end; start++)
+	{
+		Font_DrawChar(x+lx, y, *start);
+		lx = Font_CharEndCoord(lx, *start);
+	}
 }
 
 /*Note: *all* strings after the current one will inherit the same colour, until one changes it explicitly
@@ -975,6 +1016,11 @@ void Font_ForceColour(float r, float g, float b, float a)
 	fontplanes.backshader->passes[0].alphagen_func.args[0] = 0;
 
 	/*Any drawchars that are now drawn will get the forced colour*/
+}
+void Font_InvalidateColour(void)
+{
+	Font_Flush();
+	font_colourmask = ~0;
 }
 
 void GLDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b);

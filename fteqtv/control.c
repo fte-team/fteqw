@@ -256,11 +256,17 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 
 		FD_ZERO(&socketset);
 		m = 0;
-		if (cluster->qwdsocket != INVALID_SOCKET)
+		if (cluster->qwdsocket[0] != INVALID_SOCKET)
 		{
-			FD_SET(cluster->qwdsocket, &socketset);
-			if (cluster->qwdsocket >= m)
-				m = cluster->qwdsocket+1;
+			FD_SET(cluster->qwdsocket[0], &socketset);
+			if (cluster->qwdsocket[0] >= m)
+				m = cluster->qwdsocket[0]+1;
+		}
+		if (cluster->qwdsocket[1] != INVALID_SOCKET)
+		{
+			FD_SET(cluster->qwdsocket[1], &socketset);
+			if (cluster->qwdsocket[1] >= m)
+				m = cluster->qwdsocket[1]+1;
 		}
 
 		for (sv = cluster->servers; sv; sv = sv->next)
@@ -375,7 +381,8 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 		QTV_Run(old);
 	}
 
-	SV_FindProxies(cluster->tcpsocket, cluster, NULL);	//look for any other proxies wanting to muscle in on the action.
+	SV_FindProxies(cluster->tcpsocket[0], cluster, NULL);	//look for any other proxies wanting to muscle in on the action.
+	SV_FindProxies(cluster->tcpsocket[1], cluster, NULL);	//look for any other proxies wanting to muscle in on the action.
 
 	QW_UpdateUDPStuff(cluster);
 
@@ -489,7 +496,7 @@ int main(int argc, char **argv)
 #ifdef _WIN32
 	{
 		WSADATA discard;
-		WSAStartup(MAKEWORD(2,0), &discard);
+		WSAStartup(MAKEWORD(1,1), &discard);
 	}
 #endif
 
@@ -498,15 +505,16 @@ int main(int argc, char **argv)
 	{
 		memset(cluster, 0, sizeof(*cluster));
 
-		cluster->qwdsocket = INVALID_SOCKET;
-		cluster->tcpsocket = INVALID_SOCKET;
+		cluster->qwdsocket[0] = INVALID_SOCKET;
+		cluster->qwdsocket[1] = INVALID_SOCKET;
+		cluster->tcpsocket[0] = INVALID_SOCKET;
+		cluster->tcpsocket[1] = INVALID_SOCKET;
 		cluster->qwlistenportnum = 0;
 		cluster->allownqclients = true;
 		strcpy(cluster->hostname, DEFAULT_HOSTNAME);
 		cluster->buildnumber = build_number();
 		cluster->maxproxies = -1;
 
-		strcpy(cluster->downloaddir, "id1/");
 		strcpy(cluster->demodir, "qw/demos/");
 
 		Sys_Printf(cluster, "QTV Build %i.\n", cluster->buildnumber);
@@ -515,17 +523,25 @@ int main(int argc, char **argv)
 
 		if (!cluster->numservers)
 		{	//probably running on a home user's computer
-			if (cluster->qwdsocket == INVALID_SOCKET && !cluster->qwlistenportnum)
+			if (cluster->qwdsocket[0] == INVALID_SOCKET && cluster->qwdsocket[1] == INVALID_SOCKET && !cluster->qwlistenportnum)
 			{
-				cluster->qwdsocket = QW_InitUDPSocket(cluster->qwlistenportnum = 27599);
-				if (cluster->qwdsocket != INVALID_SOCKET)
-					Sys_Printf(cluster, "opened udp port %i\n", cluster->qwlistenportnum);
+				cluster->qwlistenportnum = 27599;
+				cluster->qwdsocket[1] = QW_InitUDPSocket(cluster->qwlistenportnum, true);
+				if (cluster->qwdsocket[1] != INVALID_SOCKET)
+					Sys_Printf(cluster, "opened udp6 port %i\n", cluster->qwlistenportnum);
+				cluster->qwdsocket[0] = QW_InitUDPSocket(cluster->qwlistenportnum, false);
+				if (cluster->qwdsocket[0] != INVALID_SOCKET)
+					Sys_Printf(cluster, "opened udp4 port %i\n", cluster->qwlistenportnum);
 			}
-			if (cluster->tcpsocket == INVALID_SOCKET && !cluster->tcplistenportnum)
+			if (cluster->tcpsocket[0] == INVALID_SOCKET && cluster->tcpsocket[1] == INVALID_SOCKET && !cluster->tcplistenportnum)
 			{
-				cluster->tcpsocket = Net_MVDListen(cluster->tcplistenportnum = 27599);
-				if (cluster->tcpsocket != INVALID_SOCKET)
-					Sys_Printf(cluster, "opened tcp port %i\n", cluster->tcplistenportnum);
+				cluster->tcplistenportnum = 27599;
+				cluster->tcpsocket[1] = Net_TCPListen(cluster->tcplistenportnum, true);
+				if (cluster->tcpsocket[1] != INVALID_SOCKET)
+					Sys_Printf(cluster, "opened tcp6 port %i\n", cluster->tcplistenportnum);
+				cluster->tcpsocket[0] = Net_TCPListen(cluster->tcplistenportnum, false);
+				if (cluster->tcpsocket[0] != INVALID_SOCKET)
+					Sys_Printf(cluster, "opened tcp4 port %i\n", cluster->tcplistenportnum);
 			}
 
 			Sys_Printf(cluster, "\n"

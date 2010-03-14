@@ -1,4 +1,7 @@
 #include "qwsvdef.h"
+
+#ifdef SQL
+
 #include "win_mysql.h"
 
 MYSQLDLL_FUNC1(my_ulonglong, mysql_affected_rows, MYSQL *)
@@ -92,3 +95,4 @@ int mysql_dll_close()
 
 	return 1;
 }
+#endif

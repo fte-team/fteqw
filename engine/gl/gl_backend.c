@@ -1,7 +1,7 @@
 #include "quakedef.h"
 
-#define STATEFIXME
-#define FORCESTATE
+//#define STATEFIXME
+//#define FORCESTATE
 
 
 #ifdef GLQUAKE
@@ -306,6 +306,7 @@ extern cvar_t r_shadow_glsl_offsetmapping;
 #define checkerror()
 #endif
 
+static void BE_SendPassBlendAndDepth(unsigned int sbits);
 
 void PPL_CreateShaderObjects(void){}
 void PPL_BaseBModelTextures(entity_t *e){}
@@ -440,18 +441,20 @@ void GL_TexEnv(GLenum mode)
 	}
 }
 
+/*OpenGL requires glDepthMask(GL_TRUE) or glClear(GL_DEPTH_BUFFER_BIT) will fail*/
+void GL_ForceDepthWritable(void)
+{
+	if (!(shaderstate.shaderbits & SBITS_MISC_DEPTHWRITE))
+	{
+		shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
+		qglDepthMask(GL_TRUE);
+	}
+}
+
 void GL_SetShaderState2D(qboolean is2d)
 {
 	shaderstate.force2d = is2d;
-
-	if (!is2d)
-	{
-		qglEnable(GL_DEPTH_TEST);
-		shaderstate.shaderbits &= ~SBITS_MISC_NODEPTHTEST;
-
-		qglDepthMask(GL_TRUE);
-		shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
-	}
+	BE_SelectMode(BEM_STANDARD, 0);
 }
 
 void GL_SelectTexture(int target) 
@@ -640,10 +643,13 @@ static void RevertToKnownState(void)
 	checkerror();
 
 	qglColor3f(1,1,1);
+
+	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY|SBITS_MISC_NODEPTHTEST);
+	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
+
 	qglDepthFunc(GL_LEQUAL);
 	qglDepthMask(GL_TRUE);
-	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY);
-	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
+	qglEnable(GL_DEPTH_TEST);
 
 	qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 }
@@ -892,6 +898,8 @@ void BE_Init(void)
 		}
 	}
 
+	shaderstate.shaderbits = ~0;
+	BE_SendPassBlendAndDepth(0);
 	qglEnableClientState(GL_VERTEX_ARRAY);
 }
 
@@ -1702,6 +1710,24 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 		sbits &= ~(SBITS_MISC_DEPTHWRITE|SBITS_MISC_DEPTHEQUALONLY);
 		sbits |= SBITS_MISC_NODEPTHTEST;
 	}
+	if (shaderstate.flags)
+	{
+		if (shaderstate.flags & BEF_FORCEADDITIVE)
+			sbits = (sbits & ~SBITS_ATEST_BITS) | (SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
+		else if (shaderstate.flags & BEF_FORCETRANSPARENT) 	/*if transparency is forced, clear alpha test bits*/
+			sbits = (sbits & ~SBITS_ATEST_BITS) | (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
+
+		if (shaderstate.flags & BEF_FORCENODEPTH) 	/*EF_NODEPTHTEST dp extension*/
+			sbits |= SBITS_MISC_NODEPTHTEST;
+		else
+		{
+			if (shaderstate.flags & BEF_FORCEDEPTHTEST) 	/*if transparency is forced, clear alpha test bits*/
+				sbits &= ~SBITS_MISC_NODEPTHTEST;
+			if (shaderstate.flags & BEF_FORCEDEPTHWRITE) 	/*if transparency is forced, clear alpha test bits*/
+				sbits |= SBITS_MISC_DEPTHWRITE;
+		}
+	}
+
 
 	delta = sbits^shaderstate.shaderbits;
 
@@ -1764,6 +1790,7 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 		case SBITS_ATEST_GT0:
 			qglEnable(GL_ALPHA_TEST);
 			qglAlphaFunc(GL_GREATER, 0);
+			break;
 		case SBITS_ATEST_LT128:
 			qglEnable(GL_ALPHA_TEST);
 			qglAlphaFunc(GL_LESS, 0.5f);
@@ -1775,19 +1802,19 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 		}
 	}
 
-	if (delta & SBITS_MISC_DEPTHWRITE)
-	{
-		if (sbits & SBITS_MISC_DEPTHWRITE)
-			qglDepthMask(GL_TRUE);
-		else
-			qglDepthMask(GL_FALSE);
-	}
 	if (delta & SBITS_MISC_NODEPTHTEST)
 	{
 		if (sbits & SBITS_MISC_NODEPTHTEST)
 			qglDisable(GL_DEPTH_TEST);
 		else
 			qglEnable(GL_DEPTH_TEST);
+	}
+	if (delta & SBITS_MISC_DEPTHWRITE)
+	{
+		if (sbits & SBITS_MISC_DEPTHWRITE)
+			qglDepthMask(GL_TRUE);
+		else
+			qglDepthMask(GL_FALSE);
 	}
 	if (delta & (SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY))
 	{

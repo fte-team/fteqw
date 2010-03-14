@@ -417,9 +417,9 @@ static void ApplyPreset (int presetnum)
 	for (i = 1; preset[i].cvarname; i++)
 	{
 		Cbuf_AddText(preset[i].cvarname, Cmd_ExecLevel);
-		Cbuf_AddText(" ", Cmd_ExecLevel);
+		Cbuf_AddText(" \"", Cmd_ExecLevel);
 		Cbuf_AddText(preset[i].value[presetnum], Cmd_ExecLevel);
-		Cbuf_AddText("\n", Cmd_ExecLevel);
+		Cbuf_AddText("\"\n", Cmd_ExecLevel);
 	}
 }
 

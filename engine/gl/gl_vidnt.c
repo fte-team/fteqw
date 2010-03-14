@@ -750,13 +750,14 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	VID_SetPalette (palette);
 
 #ifndef NPQTV
+	/*I don't like this, but if we */
 	while (PeekMessage (&msg, mainwindow, 0, 0, PM_REMOVE))
 	{
       	TranslateMessage (&msg);
       	DispatchMessage (&msg);
 	}
-#endif
 	Sleep (100);
+#endif
 
 	SetWindowPos (mainwindow, HWND_TOP, 0, 0, 0, 0,
 				  SWP_DRAWFRAME | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW |

@@ -1086,35 +1086,30 @@ void SListOptionChanged(serverinfo_t *newserver)
 }
 
 #ifdef WEBCLIENT
-void MasterInfo_ProcessHTTP(char *name, qboolean success, int type)
+void MasterInfo_ProcessHTTP(vfsfile_t *file, int type)
 {
 	netadr_t adr;
 	char *s;
 	char *el;
 	serverinfo_t *info;
 	char adrbuf[MAX_ADR_SIZE];
+	char linebuffer[2048];
 
-	if (!success)
+	if (!file)
 		return;
 
-	el = COM_LoadTempFile(name);
-	if (!el)
-		return;
-	while(*el)
+	while(VFS_GETS(file, linebuffer, sizeof(linebuffer)))
 	{
-		s = el;
-		while(*s <= ' ' && *s != '\n' && *s)
+		s = linebuffer;
+		while (*s == '\t' || *s == ' ')
 			s++;
-		el = strchr(s, '\n');
-		if (!el)
-			el = s + strlen(s);
-		else if (el>s && el[-1] == '\r')
+
+		el = s + strlen(s);
+		if (el>s && el[-1] == '\r')
 			el[-1] = '\0';
 
 		if (*s == '#')	//hash is a comment, apparently.
 			continue;
-		*el = '\0';
-		el++;
 
 		if (!NET_StringToAdr(s, &adr))
 			continue;
@@ -1139,19 +1134,17 @@ void MasterInfo_ProcessHTTP(char *name, qboolean success, int type)
 			Master_ResortServer(info);
 		}
 	}
-
-	FS_Remove(name, FS_GAME);
 }
 
 // wrapper functions for the different server types
-void MasterInfo_ProcessHTTPNQ(char *name, qboolean success)
+void MasterInfo_ProcessHTTPNQ(struct dl_download *dl)
 {
-	MasterInfo_ProcessHTTP(name, success, SS_NETQUAKE);
+	MasterInfo_ProcessHTTP(dl->file, SS_NETQUAKE);
 }
 
-void MasterInfo_ProcessHTTPQW(char *name, qboolean success)
+void MasterInfo_ProcessHTTPQW(struct dl_download *dl)
 {
-	MasterInfo_ProcessHTTP(name, success, 0);
+	MasterInfo_ProcessHTTP(dl->file, SS_GENERICQUAKEWORLD);
 }
 #endif
 
@@ -1887,3 +1880,4 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 }
 
 #endif
+

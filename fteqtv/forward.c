@@ -67,6 +67,8 @@ void SV_FindProxies(SOCKET sock, cluster_t *cluster, sv_t *defaultqtv)
 	unsigned long nonblocking = true;
 	oproxy_t *prox;
 
+	if (sock == INVALID_SOCKET)
+		return;
 	sock = accept(sock, NULL, NULL);
 	if (sock == INVALID_SOCKET)
 		return;
@@ -797,7 +799,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 						//FIXME: does this work?
 #if 0	//left disabled until properly tested
-						qtv = QTV_NewServerConnection(cluster, "reverse"/*server*/, "", true, 2, false, 0);
+						qtv = QTV_NewServerConnection(cluster, "reverse"/*server*/, "", true, AD_REVERSECONNECT, false, 0);
 
 						Net_ProxySendString(cluster, pend, QTVSVHEADER);
 						Net_ProxySendString(cluster, pend, "REVERSED\n");
@@ -826,7 +828,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 							sv_t *suitable = NULL;	//shush noisy compilers
 							for (qtv = cluster->servers; qtv; qtv = qtv->next)
 							{
-								if (!qtv->disconnectwhennooneiswatching)
+								if (qtv->autodisconnect == AD_NO)
 								{
 									suitable = qtv;
 									numfound++;
@@ -901,7 +903,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 							if (*t < '0' || *t > '9')
 								break;
 						if (*t)
-							qtv = QTV_NewServerConnection(cluster, 0, colon, "", false, true, true, false);
+							qtv = QTV_NewServerConnection(cluster, 0, colon, "", false, AD_WHENEMPTY, true, false);
 						else
 						{
 							//numerical source, use a stream id.
@@ -915,7 +917,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						char buf[256];
 	
 						snprintf(buf, sizeof(buf), "demo:%s", colon);
-						qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, true, true, false);
+						qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, AD_WHENEMPTY, true, false);
 						if (!qtv)
 						{
 							Net_ProxySendString(cluster, pend,	QTVSVHEADER

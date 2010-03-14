@@ -2486,11 +2486,18 @@ void Surf_BuildSurfaceDisplayList (model_t *model, msurface_t *fa)
 	float		*vec;
 	float		s, t;
 	int	lm;
+	extern mesh_t nullmesh;
 
 // reconstruct the polygon
 	pedges = model->edges;
 	lnumverts = fa->numedges;
 	vertpage = 0;
+
+	if (!lnumverts)
+	{
+		fa->mesh = &nullmesh;
+		return;
+	}
 
 	{	//build a nice mesh instead of a poly.
 		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vecV_t) + 3*sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(vec4_t))*lnumverts;

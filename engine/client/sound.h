@@ -48,6 +48,9 @@ typedef struct {
 typedef struct sfx_s
 {
 	char 	name[MAX_OSPATH];
+#ifdef AVAIL_OPENAL
+	unsigned int	openal_buffer;
+#endif
 	qboolean failedload; //no more super-spammy
 	cache_user_t	cache;
 	sfxdecode_t *decoder;
@@ -163,6 +166,16 @@ void CLVC_Poll (void);
 
 void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 
+
+
+#ifdef AVAIL_OPENAL
+void OpenAL_LoadSound (sfx_t *s, sfxcache_t *sc, size_t size, void *data);
+void OpenAL_StartSound(int entnum, int entchannel, sfx_t * sfx, vec3_t origin, float fvol, float attenuation);
+void OpenAL_Update_Listener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up);
+void OpenAL_CvarInit(void);
+#endif
+
+
 // ====================================================================
 // User-setable variables
 // ====================================================================
@@ -209,6 +222,7 @@ void S_AmbientOn (void);
 
 //inititalisation functions.
 typedef int (*sounddriver) (soundcardinfo_t *sc, int cardnum);
+extern sounddriver pOPENAL_InitCard;
 extern sounddriver pDSOUND_InitCard;
 extern sounddriver pALSA_InitCard;
 extern sounddriver pOSS_InitCard;
@@ -252,6 +266,11 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	int snd_sent;
 	int snd_completed;
 	int audio_fd;
+
+// no clue how else to handle this yet!
+#ifdef AVAIL_OPENAL
+	int openal;
+#endif
 };
 
 extern soundcardinfo_t *sndcardinfo;

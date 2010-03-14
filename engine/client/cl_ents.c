@@ -478,7 +478,17 @@ void CL_ParsePacketEntities (qboolean delta)
 	newp = &cl.frames[newpacket].packet_entities;
 	cl.frames[newpacket].invalid = false;
 
-	if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) && cls.protocol == CP_QUAKEWORLD)
+	if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD)
+	{
+		extern float nextdemotime, olddemotime, demtime;
+		cl.oldgametime = cl.gametime;
+		cl.oldgametimemark = cl.gametimemark;
+		cl.gametime = nextdemotime;
+		cl.gametimemark = realtime;
+
+		newp->servertime = cl.gametime;
+	}
+	else if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) && cls.protocol == CP_QUAKEWORLD)
 	{
 		cl.oldgametime = cl.gametime;
 		cl.oldgametimemark = cl.gametimemark;
@@ -1403,7 +1413,7 @@ static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le)
 	fs->g[fsanim].lerpfrac = bound(0, fs->g[FS_REG].lerpfrac, 1);
 }
 
-void CL_UpdateNetFrameLerpState(qboolean force, unsigned int curframe, lerpents_t *le)
+static void CL_UpdateNetFrameLerpState(qboolean force, unsigned int curframe, lerpents_t *le)
 {
 	if (force || curframe != le->newframe)
 	{
@@ -1432,7 +1442,10 @@ CL_LinkPacketEntities
 */
 void R_FlameTrail(vec3_t start, vec3_t end, float seperation);
 
-void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entities_t *oldpack, float servertime)
+/*
+Interpolates the two packets by the given time, writes its results into the lerpentities array.
+*/
+static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entities_t *oldpack, float servertime)
 {
 	lerpents_t		*le;
 	entity_state_t		*snew, *sold;
@@ -1562,21 +1575,13 @@ void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entities_t *
 	}
 }
 
-packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp)
+static qboolean CL_ChooseInterpolationFrames(int *newf, int *oldf, float servertime)
 {
-	packet_entities_t	*packnew, *packold;
-	int					i;
-	//, spnum;
+	int i;
+	float newtime = 0;
+	*oldf = -1;
+	*newf = -1;
 
-	if (nolerp)
-	{	//force our emulated time to as late as we can.
-		//this will disable all position interpolation
-		*servertime = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime;
-//		Con_DPrintf("No lerp\n");
-	}
-
-	packnew = NULL;
-	packold = NULL;
 	//choose the two packets.
 	//we should be picking the packet just after the server time, and the one just before
 	for (i = cls.netchan.incoming_sequence; i >= cls.netchan.incoming_sequence-UPDATE_MASK; i--)
@@ -1584,44 +1589,72 @@ packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp)
 		if (cl.frames[i&UPDATE_MASK].receivedtime < 0 || cl.frames[i&UPDATE_MASK].invalid)
 			continue;	//packetloss/choke, it's really only a problem for the oldframe, but...
 
-		if (cl.frames[i&UPDATE_MASK].packet_entities.servertime >= *servertime)
+		if (cl.frames[i&UPDATE_MASK].packet_entities.servertime >= servertime)
 		{
 			if (cl.frames[i&UPDATE_MASK].packet_entities.servertime)
 			{
-				if (!packnew || packnew->servertime != cl.frames[i&UPDATE_MASK].packet_entities.servertime)	//if it's a duplicate, pick the latest (so just-shot rockets are still present)
-					packnew = &cl.frames[i&UPDATE_MASK].packet_entities;
+				if (!newtime || newtime != cl.frames[i&UPDATE_MASK].packet_entities.servertime)	//if it's a duplicate, pick the latest (so just-shot rockets are still present)
+				{
+					newtime = cl.frames[i&UPDATE_MASK].packet_entities.servertime;
+					*newf = i;
+				}
 			}
 		}
-		else if (packnew)
+		else if (newtime)
 		{
-			if (cl.frames[i&UPDATE_MASK].packet_entities.servertime != packnew->servertime)
+			if (cl.frames[i&UPDATE_MASK].packet_entities.servertime != newtime)
 			{	//it does actually lerp, and isn't an identical frame.
-				packold = &cl.frames[i&UPDATE_MASK].packet_entities;
+				*oldf = i;
 				break;
 			}
 		}
 	}
 
-	//Note, hacking this to return anyway still needs the lerpent array to be valid for all contained entities.
-
-	if (!packnew)	//should never happen
+	if (*newf == -1)
 	{
+		/*
+		This can happen if the client's predicted time is greater than the most recently received packet.
+		This should of course not happen...
+		*/
 		Con_DPrintf("Warning: No lerp-to frame packet\n");
-		return NULL;
+
+		/*just grab the most recent frame that is valid*/
+		for (i = cls.netchan.incoming_sequence; i >= cls.netchan.incoming_sequence-UPDATE_MASK; i--)
+		{
+			if (cl.frames[i&UPDATE_MASK].receivedtime < 0 || cl.frames[i&UPDATE_MASK].invalid)
+				continue;	//packetloss/choke, it's really only a problem for the oldframe, but...
+			*oldf = *newf = i;
+			return true;
+		}
+		return false;
 	}
-	if (!packold)	//can happem at map start, and really laggy games, but really shouldn't in a normal game
+	else if (*oldf == -1)	//can happen at map start, and really laggy games, but really shouldn't in a normal game
 	{
-//		Con_DPrintf("Warning: No lerp-from frame packet\n");
-		packold = packnew;
+		*oldf = *newf;
 	}
+	return true;
+}
+
+/*obtains the current entity frame, and invokes CL_TransitionPacketEntities to process the interpolation details
+*/
+static packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp)
+{
+	packet_entities_t	*packnew, *packold;
+	int newf, oldf;
+
+	if (nolerp)
+	{	//force our emulated time to as late as we can.
+		//this will disable all position interpolation
+		*servertime = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime;
+	}
+
+	if (!CL_ChooseInterpolationFrames(&newf, &oldf, *servertime))
+		return NULL;
+
+	packnew = &cl.frames[newf&UPDATE_MASK].packet_entities;
+	packold = &cl.frames[oldf&UPDATE_MASK].packet_entities;
 
 	CL_TransitionPacketEntities(packnew, packold, *servertime);
-
-//	Con_DPrintf("%f %f %f %f %f %f\n", packnew->servertime, *servertime, packold->servertime, cl.gametime, cl.oldgametime, cl.servertime);
-
-//	if (packold->servertime < oldoldtime)
-//		Con_Printf("Spike screwed up\n");
-//	oldoldtime = packold->servertime;
 
 	return packnew;
 }
@@ -1660,24 +1693,32 @@ void CL_LinkPacketEntities (void)
 	float servertime;
 
 	CL_CalcClientTime();
-	if ((cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) || cls.protocol != CP_QUAKEWORLD)
+	if (cls.protocol == CP_QUAKEWORLD && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
+	{
 		servertime = cl.servertime;
+		nolerp = false;
+	}
 	else
-		servertime = realtime;
+	{
+		if ((cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) || cls.protocol != CP_QUAKEWORLD)
+			servertime = cl.servertime;
+		else
+			servertime = realtime;
 
-	nolerp = !CL_MayLerp() && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
-#ifdef NQPROT
-	nolerp = nolerp && cls.demoplayback != DPB_NETQUAKE;
-#endif
+		nolerp = !CL_MayLerp() && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
+	#ifdef NQPROT
+		nolerp = nolerp && cls.demoplayback != DPB_NETQUAKE;
+	#endif
+	}
 	pack = CL_ProcessPacketEntities(&servertime, nolerp);
 	if (!pack)
 		return;
-
+/*
 	if ((cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) || cls.protocol != CP_QUAKEWORLD)
 		servertime = cl.servertime;
 	else
 		servertime = realtime;
-
+*/
 
 	autorotate = anglemod(100*servertime);
 
@@ -2574,6 +2615,7 @@ void CL_LinkPlayers (void)
 	int				oldphysent;
 	vec3_t			angles;
 	float			*org;
+	qboolean		predictplayers;
 
 	if (!cl.worldmodel || cl.worldmodel->needload)
 		return;
@@ -2584,6 +2626,10 @@ void CL_LinkPlayers (void)
 
 	frame = &cl.frames[cl.validsequence&UPDATE_MASK];
 	fromf = &cl.frames[cl.oldvalidsequence&UPDATE_MASK];
+
+	predictplayers = cl_predict_players.ival || cl_predict_players2.ival;
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		predictplayers = false;
 
 	for (j=0, info=cl.players, state=frame->playerstate ; j < MAX_CLIENTS
 		; j++, info++, state++)
@@ -2755,7 +2801,7 @@ void CL_LinkPlayers (void)
 		if (pnum < cl.splitclients)
 		{	//this is a local player
 		}
-		else if (msec <= 0 || (!cl_predict_players.ival && !cl_predict_players2.ival))
+		else if (msec <= 0 || (!predictplayers))
 		{
 			VectorCopy (state->origin, ent->origin);
 //Con_DPrintf ("nopredict\n");
@@ -3382,8 +3428,8 @@ void MVD_Interpolate(void)
 	if (nextdemotime <= olddemotime)
 		return;
 
-	frame = &cl.frames[cl.parsecount & UPDATE_MASK];
-	oldframe = &cl.frames[cl.oldparsecount & UPDATE_MASK];
+	frame = &cl.frames[cl.validsequence & UPDATE_MASK];
+	oldframe = &cl.frames[cl.oldvalidsequence & UPDATE_MASK];
 	oldents = oldframe->packet_entities.entities;
 
 	f = (demtime - olddemotime) / (nextdemotime - olddemotime);

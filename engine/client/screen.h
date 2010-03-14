@@ -106,8 +106,12 @@ int Font_CharHeight(void);
 int Font_CharWidth(unsigned int charcode);
 int Font_DrawChar(int px, int py, unsigned int charcode);
 void Font_ForceColour(float r, float g, float b, float a);	//This colour will be applied while the char mask remains WHITE. If you print char by char, make sure to include the mask.
+void Font_InvalidateColour(void);
 void Font_EndString(struct font_s *font);
+/*these three functions deal with formatted blocks of text (including tabs and new lines)*/
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
+int Font_LineWidth(conchar_t *start, conchar_t *end);
+void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end);
 extern struct font_s *font_conchar;
 extern struct font_s *font_tiny;
 /*end fonts*/

@@ -429,8 +429,6 @@ void GLDraw_Init (void)
 //	memset(scrap_texels, 255, sizeof(scrap_texels));
 
 	GLDraw_ReInit();
-
-	R2D_Init();
 }
 void GLDraw_DeInit (void)
 {
@@ -986,11 +984,14 @@ void MediaGL_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight)//top 
 
 	GL_Set2D ();
 
+	PPL_RevertToKnownState(); 
+
 	GL_Bind(filmtexture);
 	GL_Upload32("", (unsigned *)framedata, inwidth, inheight, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);	//we may need to rescale the image
 
 	qglDisable(GL_BLEND);
 	qglDisable(GL_ALPHA_TEST);
+	qglEnable(GL_TEXTURE_2D);
 	qglBegin(GL_QUADS);
 	qglTexCoord2f(0, 0);
 	qglVertex2f(0, 0);

@@ -2838,13 +2838,14 @@ void CL_ServerInfo_f(void)
 }
 #endif
 
-
+/*
 #ifdef WEBCLIENT
 void CL_FTP_f(void)
 {
 	FTP_Client_Command(Cmd_Args(), NULL);
 }
 #endif
+*/
 
 void CL_Skygroup_f(void);
 void SCR_ShowPic_Script_f(void);
@@ -3022,9 +3023,9 @@ void CL_Init (void)
 
 	Cvar_Register (&qtvcl_forceversion1,				cl_controlgroup);
 	Cvar_Register (&qtvcl_eztvextensions,				cl_controlgroup);
-#ifdef WEBCLIENT
-	Cmd_AddCommand ("ftp", CL_FTP_f);
-#endif
+//#ifdef WEBCLIENT
+//	Cmd_AddCommand ("ftp", CL_FTP_f);
+//#endif
 
 	Cmd_AddCommand ("changing", CL_Changing_f);
 	Cmd_AddCommand ("disconnect", CL_Disconnect_f);
@@ -3293,7 +3294,7 @@ void Host_Frame (double time)
 	time *= cl.gamespeed;
 
 #ifdef WEBCLIENT
-	FTP_ClientThink();
+//	FTP_ClientThink();
 	HTTP_CL_Think();
 #endif
 
@@ -3703,7 +3704,7 @@ void Host_FinishInit(void)
 #endif
 
 #ifndef NOMEDIA
-	if (!cls.demofile && !cls.state && !Media_PlayingFullScreen())
+	if (!cls.demoinfile && !cls.state && !Media_PlayingFullScreen())
 	{
 		int ol_depth;
 		int idcin_depth;
@@ -3740,7 +3741,7 @@ Con_TPrintf (TL_NL);
 				"See the GNU General Public License for more details.\n");
 
 
-	if (!*cls.servername)
+	if (!cls.demoinfile && !*cls.servername)
 	{
 #ifndef CLIENTONLY
 		if (!sv.state)

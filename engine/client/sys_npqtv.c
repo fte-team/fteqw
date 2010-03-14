@@ -9,6 +9,7 @@
 #endif
 
 #include "npapi/npupp.h"
+#include "sys_plugfte.h"
 
 #define Q_STRINGZ_TO_NPVARIANT(_val, _v)                                        \
 NP_BEGIN_MACRO                                                                \
@@ -18,10 +19,6 @@ NP_BEGIN_MACRO                                                                \
 NP_END_MACRO
 #undef STRINGZ_TO_NPVARIANT
 #define STRINGZ_TO_NPVARIANT Q_STRINGZ_TO_NPVARIANT
-
-
-
-#define NPQTV_VERSION 0.1
 
 #define FIREFOX_BUGS_OVER_25MB
 
@@ -42,615 +39,109 @@ NPNetscapeFuncs *browserfuncs;
 #define SetWindowLongPtr SetWindowLong
 #define LONG_PTR LONG
 #endif
-
-
-extern HWND sys_parentwindow;
-extern unsigned int sys_parentwidth;
-extern unsigned int sys_parentheight;
-HINSTANCE	global_hInstance;
-
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
-{
-	switch (fdwReason)
-	{
-	case DLL_PROCESS_ATTACH:
-		global_hInstance = hinstDLL;
-		break;
-	default:
-		break;
-	}
-	return TRUE;
-}
 #endif
 
 
 
 
 
-
-typedef struct 
+qboolean NPFTE_BeginDownload(void *ctx, struct pipetype *ftype, char *url)
 {
-	vfsfile_t funcs;
-
-	char *data;
-	int maxlen;
-	int writepos;
-	int readpos;
-} vfspipe_t;
-
-void VFSPIPE_Close(vfsfile_t *f)
-{
-	vfspipe_t *p = (vfspipe_t*)f;
-	free(p->data);
-	free(p);
+	return NPERR_NO_ERROR==browserfuncs->geturlnotify(ctx, url, NULL, ftype);
 }
-unsigned long VFSPIPE_GetLen(vfsfile_t *f)
-{
-	vfspipe_t *p = (vfspipe_t*)f;
-	return p->writepos - p->readpos;
-}
-unsigned long VFSPIPE_Tell(vfsfile_t *f)
-{
-	return 0;
-}
-qboolean VFSPIPE_Seek(vfsfile_t *f, unsigned long offset)
-{
-	Con_Printf("Seeking is a bad plan, mmkay?");
-	return false;
-}
-int VFSPIPE_ReadBytes(vfsfile_t *f, void *buffer, int len)
-{
-	vfspipe_t *p = (vfspipe_t*)f;
-	if (len > p->writepos - p->readpos)
-		len = p->writepos - p->readpos;
-	memcpy(buffer, p->data+p->readpos, len);
-	p->readpos += len;
-
-	if (p->readpos > 8192)
-	{
-		//shift the memory down periodically
-		//fixme: use cyclic buffer? max size, etc?
-		memmove(p->data, p->data+p->readpos, p->writepos-p->readpos);
-
-		p->writepos -= p->readpos;
-		p->readpos = 0;
-	}
-	return len;
-}
-int VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
-{
-	vfspipe_t *p = (vfspipe_t*)f;
-	if (p->writepos + len > p->maxlen)
-	{
-		p->maxlen = p->writepos + len;
-		p->data = realloc(p->data, p->maxlen);
-	}
-	memcpy(p->data+p->writepos, buffer, len);
-	p->writepos += len;
-	return len;
-}
-
-vfsfile_t *VFSPIPE_Open(void)
-{
-	vfspipe_t *newf;
-	newf = malloc(sizeof(*newf));
-	newf->data = NULL;
-	newf->maxlen = 0;
-	newf->readpos = 0;
-	newf->writepos = 0;
-	newf->funcs.Close = VFSPIPE_Close;
-	newf->funcs.Flush = NULL;
-	newf->funcs.GetLen = VFSPIPE_GetLen;
-	newf->funcs.ReadBytes = VFSPIPE_ReadBytes;
-	newf->funcs.Seek = VFSPIPE_Seek;
-	newf->funcs.Tell = VFSPIPE_Tell;
-	newf->funcs.WriteBytes = VFSPIPE_WriteBytes;
-	newf->funcs.seekingisabadplan = true;
-
-	return &newf->funcs;
-}
-
-char binaryname[MAX_PATH];
-
-struct qstream
-{
-	vfsfile_t *pipe;
-	struct pipetype *type;
-
-	struct qstream *next;
-
-	char url[1];
-};
-struct context
-{
-	NPWindow window;
-	qboolean contextrunning;
-	int waitingfordatafiles;
-	float availver;
-
-#ifdef _WIN32
-	WNDPROC oldproc;
-#endif
-
-	char *datadownload;
-	char *gamename;
-	char *password;
-	char *onstart;
-	char *onend;
-	char *ondemoend;
-
-	NPP nppinstance;
-
-	struct qstream *donestreams;
-
-	int wait_size;
-	int wait_offset;
-	struct qstream *wait_stream;
-
-	qtvfile_t qtvf;
-
-	unsigned char *splashdata;
-	int splashwidth;
-	int splashheight;
-
-	struct context *next;
-};
-
-struct context *activecontext;
-struct context *contextlist;
-
-
-
-
-
-
-
-
-
-////////////////////////////////////////
-
-struct pipetype
-{
-	enum {
-		WAIT_NO,
-		WAIT_YES,
-		WAIT_DONE
-	} wait;
-	qboolean needseeking;
-	void (*completionfunc)	(struct context *ctx, vfsfile_t *file, const char *streamsource);
-	void (*beginfunc)		(struct context *ctx, vfsfile_t *file, const char *streamsource);
-};
-
-#include "fs.h"
-extern searchpathfuncs_t zipfilefuncs;
-
-int ExtractDataFile(const char *fname, int fsize, void *ptr)
-{
-	char buffer[8192];
-	int read;
-	void *zip = ptr;
-	flocation_t loc;
-	int slashes;
-	const char *s;
-	vfsfile_t *compressedpak;
-	vfsfile_t *decompressedpak;
-
-	if (zipfilefuncs.FindFile(zip, &loc, fname, NULL))
-	{
-		compressedpak = zipfilefuncs.OpenVFS(zip, &loc, "rb");
-		if (compressedpak)
-		{
-			//this extra logic is so we can handle things like nexuiz/data/blah.pk3
-			//as well as just data/blah.pk3
-			slashes = 0;
-			for (s = strchr(fname, '/'); s; s = strchr(s+1, '/'))
-				slashes++;
-			for (; slashes > 1; slashes--)
-				fname = strchr(fname, '/')+1;
-
-			if (!slashes)
-			{
-				FS_CreatePath(fname, FS_GAMEONLY);
-				decompressedpak = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
-			}
-			else
-			{
-				FS_CreatePath(fname, FS_ROOT);
-				decompressedpak = FS_OpenVFS(fname, "wb", FS_ROOT);
-			}
-			if (decompressedpak)
-			{
-				for(;;)
-				{
-					read = VFS_READ(compressedpak, buffer, sizeof(buffer));
-					if (read <= 0)
-						break;
-					VFS_WRITE(decompressedpak, buffer, read);
-				}
-				VFS_CLOSE(decompressedpak);
-			}
-			VFS_CLOSE(compressedpak);
-		}
-	}
-	return true;
-}
-
-void UnpackAndExtractPakFiles_Complete(struct context *ctx, vfsfile_t *file, const char *streamsource)
-{
-	extern searchpathfuncs_t zipfilefuncs;
-	void *zip;
-
-	zip = zipfilefuncs.OpenNew(file, streamsource);
-	if (zip)
-	{
-		zipfilefuncs.EnumerateFiles(zip, "*.pk3", ExtractDataFile, zip);
-		zipfilefuncs.EnumerateFiles(zip, "*.pak", ExtractDataFile, zip);
-
-		zipfilefuncs.ClosePath(zip);
-
-		Cmd_ExecuteString("fs_restart", RESTRICT_LOCAL);
-	}
-}
-struct pipetype UnpackAndExtractPakFiles =
-{
-	WAIT_YES,
-	true,
-	UnpackAndExtractPakFiles_Complete
-};
-
-void LoadSplashImage(struct context *ctx, vfsfile_t *f, const char *name)
-{
-	int x, y;
-	int width = 0;
-	int height = 0;
-	int len = VFS_GETLEN(f);
-	char *buffer = malloc(len);
-	unsigned char *image;
-	VFS_READ(f, buffer, len);
-	VFS_CLOSE(f);
-
-	image = NULL;
-	if (!image)
-		image = ReadJPEGFile(buffer, len, &width, &height);
-	if (!image)
-		image = ReadPNGFile(buffer, len, &width, &height, name);
-
-	free(buffer);
-	if (image)
-	{
-		if (ctx->splashdata)
-			free(ctx->splashdata);
-		ctx->splashdata = malloc(width*height*4);
-		for (y = 0; y < height; y++)
-		{
-			for (x = 0; x < width; x++)
-			{
-				ctx->splashdata[(y*width + x)*4+0] = image[((height-y-1)*width + x)*4+2];
-				ctx->splashdata[(y*width + x)*4+1] = image[((height-y-1)*width + x)*4+1];
-				ctx->splashdata[(y*width + x)*4+2] = image[((height-y-1)*width + x)*4+0];
-			}
-		}
-		ctx->splashwidth = width;
-		ctx->splashheight = height;
-		BZ_Free(image);
-
-		if (ctx->window.window)
-			InvalidateRgn(ctx->window.window, NULL, FALSE);
-	}
-}
-
-struct pipetype SplashscreenImageDescriptor =
-{
-	WAIT_DONE,
-	false,
-	LoadSplashImage
-};
-
-static void ReadQTVFileDescriptor(struct context *ctx, vfsfile_t *f, const char *name)
-{
-	CL_ParseQTVFile(f, name, &ctx->qtvf);
-
-	if (*ctx->qtvf.splashscreen)
-	{
-		browserfuncs->geturlnotify(ctx->nppinstance, ctx->qtvf.splashscreen, NULL, &SplashscreenImageDescriptor);
-	}
-}
-struct pipetype QTVFileDescriptor =
-{
-	WAIT_DONE,
-	false,
-	ReadQTVFileDescriptor
-};
-void CL_QTVPlay (vfsfile_t *newf, qboolean iseztv);
-static void BeginDemo(struct context *ctx, vfsfile_t *f, const char *name)
-{
-	if (!activecontext)
-		activecontext = ctx;
-
-	CL_QTVPlay(f, false);
-}
-static void EndDemo(struct context *ctx, vfsfile_t *f, const char *name)
-{
-	Cmd_ExecuteString("disconnect", RESTRICT_LOCAL);
-}
-struct pipetype DemoFileDescriptor =
-{
-	WAIT_NO,
-	false,
-	EndDemo,
-	BeginDemo
-};
-
-/////////////////////////////////////
 
 
 #ifdef _WIN32
 void DrawWndBack(struct context *ctx, HWND hWnd, HDC hdc, PAINTSTRUCT *p)
 {
-	if (ctx->splashdata)
+	int width, height;
+	HBITMAP bmp = Plug_GetSplashBack(ctx, hdc, &width, &height);
+	if (bmp)
 	{
-		HBITMAP bmp;
-		BITMAPINFOHEADER bmh;
 		HDC memDC;
 
-		bmh.biSize = sizeof(bmh);
-        bmh.biWidth = ctx->splashwidth;
-        bmh.biHeight = ctx->splashheight;
-        bmh.biPlanes = 1;
-        bmh.biBitCount = 32;
-        bmh.biCompression = BI_RGB;
-        bmh.biSizeImage = 0;
-        bmh.biXPelsPerMeter = 0;
-        bmh.biYPelsPerMeter = 0;
-        bmh.biClrUsed = 0;
-        bmh.biClrImportant = 0;
-
 		memDC = CreateCompatibleDC(hdc);
-		bmp = CreateDIBitmap(hdc, 
-                &bmh, 
-                CBM_INIT, 
-                (LPSTR)ctx->splashdata, 
-                (LPBITMAPINFO)&bmh, 
-                DIB_RGB_COLORS ); 
-
 		SelectObject(memDC, bmp);
-//		StretchBlt(hdc, 0, 0, p->rcPaint.right-p->rcPaint.left, p->rcPaint.bottom-p->rcPaint.top, memDC, 0, 0, ctx->splashwidth, ctx->splashheight, SRCCOPY);
-		StretchBlt(hdc, 0, 0, ctx->window.width, ctx->window.height, memDC, 0, 0, ctx->splashwidth, ctx->splashheight, SRCCOPY);
+		StretchBlt(hdc, p->rcPaint.left, p->rcPaint.top, p->rcPaint.right-p->rcPaint.left,p->rcPaint.bottom-p->rcPaint.top, memDC, 0, 0, width, height, SRCCOPY);
 		SelectObject(memDC, NULL);
 		DeleteDC(memDC);
-		DeleteObject(bmp);
+		Plug_ReleaseSplashBack(ctx, bmp);
 	}
 	else
 		PatBlt(hdc, p->rcPaint.left, p->rcPaint.top, p->rcPaint.right-p->rcPaint.left,p->rcPaint.bottom-p->rcPaint.top,PATCOPY);
 }
 
-char *cleanarg(char *arg)
-{
-	//no hacking us, please.
-	while (*arg == '-' || *arg == '+')
-		arg++;
-	while (*arg && *arg <= ' ')
-		arg++;
-	if (*arg)
-		return arg;
-	return "badarg";
-}
-
 LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	struct qstream *str;
 	struct context *ctx;
+	struct contextpublic *pub;
 	ctx = (struct context *)GetWindowLongPtr(hWnd, GWL_USERDATA);
 	if (!ctx)
 		return DefWindowProc(hWnd, msg, wParam, lParam);
+	pub = (struct contextpublic*)ctx;
 
 	switch(msg)
 	{
-	case WM_MOVE:
-		if (ctx->contextrunning)
+	case WM_USER:
+		/*if the plugin is somewhere in video code, the plugin might depend upon us being able to respond to window messages*/
+/*		while(ctx->queuedstreams)
 		{
-			PostMessage(mainwindow, WM_MOVE, 0, 0);
+			struct qstream *strm;
+			strm = ctx->queuedstreams;
+			ctx->queuedstreams = strm->next;
+
+			if (!browserfuncs->geturlnotify(ctx->nppinstance, strm->url, NULL, strm->type))
+			{
+				VS_DebugLocation(__FILE__, __LINE__, "Starting Download %s", strm->url);
+				if (strm->type->wait == WAIT_YES)
+					ctx->waitingfordatafiles++;
+			}
+			free(strm);
 		}
-		break;
-	case WM_TIMER:
-		if (ctx->contextrunning && !ctx->waitingfordatafiles)
-		{
-			while (ctx->donestreams)
-			{
-				str = ctx->donestreams;
-				ctx->donestreams = str->next;
-
-				if (str->pipe)
-				{
-					if (str->type->completionfunc)
-						str->type->completionfunc(ctx, str->pipe, str->url);
-					else
-						VFS_CLOSE(str->pipe);
-				}
-
-				free(str);
-			}
-
-			if (sys_parentwindow != ctx->window.window)
-			{
-				if (qrenderer == -1)
-				{
-					//urgh, its not started up yet
-					sys_parentwindow = ctx->window.window;
-
-					Host_FinishInit();
-					if (ctx->onstart)
-						browserfuncs->geturl(ctx->nppinstance, va("javascript:%s;", ctx->onstart), "_self");
-				}
-				else
-				{
-					sys_parentwindow = ctx->window.window;
-					if (sys_parentwindow)
-					{
-						sys_parentwidth = ctx->window.width;
-						sys_parentheight = ctx->window.height;
-						Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
-					}
-				}
-
-			}
-			else if (sys_parentwindow)
-			{
-				NPQTV_Sys_MainLoop();
-				if (!host_initialized)
-				{
-					//quit was issued
-					ctx->contextrunning = false;
-					activecontext = NULL;
-					InvalidateRgn(hWnd, NULL, FALSE);
-
-					if (ctx->onend)
-						browserfuncs->geturl(ctx->nppinstance, va("javascript:%s;", ctx->onend), "_self");
-				}
-			}
-		}
+*/
 		return TRUE;
 
 	case WM_PAINT:
-		if (activecontext == ctx && !ctx->contextrunning && ctx->window.window)
-		{
-			char *s;
-			int argc;
-			char *argv[16];
-			sys_parentwindow = NULL;
-
-			GetModuleFileName(global_hInstance, binaryname, sizeof(binaryname));
-			argv[0] = binaryname;
-			argc = 1;
-
-			activecontext = ctx;
-
-			switch(ctx->qtvf.connectiontype)
-			{
-			default:
-				break;
-			case QTVCT_STREAM:
-				argv[argc++] = "+qtvplay";
-				argv[argc++] = cleanarg(ctx->qtvf.server);
-				break;
-			case QTVCT_CONNECT:
-				argv[argc++] = "+connect";
-				argv[argc++] = cleanarg(ctx->qtvf.server);
-				break;
-			case QTVCT_JOIN:
-				argv[argc++] = "+join";
-				argv[argc++] = cleanarg(ctx->qtvf.server);
-				break;
-			case QTVCT_OBSERVE:
-				argv[argc++] = "+observe";
-				argv[argc++] = cleanarg(ctx->qtvf.server);
-				break;
-			case QTVCT_MAP:
-				argv[argc++] = "+map";
-				argv[argc++] = cleanarg(ctx->qtvf.server);
-				break;
-			}
-
-			if (ctx->password)
-			{
-				argv[argc++] = "+password";
-				argv[argc++] = cleanarg(ctx->password);
-			}
-
-			//figure out the game dirs (first token is the base game)
-			s = ctx->gamename;
-			s = COM_ParseOut(s, com_token, sizeof(com_token));
-			if (!*com_token || !strcmp(com_token, "q1") || !strcmp(com_token, "qw") || !strcmp(com_token, "quake"))
-				argv[argc++] = "-quake";
-			else if (!strcmp(com_token, "q2") || !strcmp(com_token, "quake2"))
-				argv[argc++] = "-q2";
-			else if (!strcmp(com_token, "q3") || !strcmp(com_token, "quake3"))
-				argv[argc++] = "-q3";
-			else if (!strcmp(com_token, "hl") || !strcmp(com_token, "halflife"))
-				argv[argc++] = "-halflife";
-			else if (!strcmp(com_token, "h2") || !strcmp(com_token, "hexen2"))
-				argv[argc++] = "-hexen2";
-			else if (!strcmp(com_token, "nex") || !strcmp(com_token, "nexuiz"))
-				argv[argc++] = "-nexuiz";
-			else
-			{
-				argv[argc++] = "-basegame";
-				argv[argc++] = strdup(cleanarg(com_token));	//FIXME: this will leak
-			}
-			//later options are additions to that
-			while ((s = COM_ParseOut(s, com_token, sizeof(com_token))))
-			{
-				if (argc == sizeof(argv)/sizeof(argv[0]))
-					break;
-				argv[argc++] = "-addbasegame";
-				argv[argc++] = strdup(cleanarg(com_token));	//FIXME: this will leak
-			}
-			
-			sys_parentwidth = ctx->window.width;
-			sys_parentheight = ctx->window.height;
-			ctx->contextrunning = NPQTV_Sys_Startup(argc, argv);
-
-			//now that the file system is started up, check to make sure its complete
-			if (ctx->datadownload)
-			{
-				char *s = ctx->datadownload;
-				char *c;
-				vfsfile_t *f;
-				while ((s = COM_ParseOut(s, com_token, sizeof(com_token))))
-				{
-					//FIXME: do we want to add some sort of file size indicator?
-					c = strchr(com_token, ':');
-					if (!c)
-						continue;
-					*c++ = 0;
-					f = FS_OpenVFS(com_token, "rb", FS_ROOT);
-					if (f)
-					{
-						Con_Printf("Already have %s\n", com_token);
-						VFS_CLOSE(f);
-						continue;
-					}
-					
-					Con_Printf("Attempting to download %s\n", c);
-					if (!browserfuncs->geturlnotify(ctx->nppinstance, c, NULL, &UnpackAndExtractPakFiles))
-						ctx->waitingfordatafiles++;
-				}
-			}
-
-			if (ctx->contextrunning)
-			{
-				//windows timers have low precision, ~10ms
-				//they're low priority anyway, so we might as well just create lots and spam them
-				SetTimer(hWnd, 1, 1, NULL);
-				SetTimer(hWnd, 2, 1, NULL);
-				SetTimer(hWnd, 3, 1, NULL);
-				SetTimer(hWnd, 4, 1, NULL);
-				SetTimer(hWnd, 5, 1, NULL);
-			}
-		}
-
-		if (ctx->waitingfordatafiles)
+/*		if (ctx->waitingfordatafiles)
 		{
 			HDC hdc;
 			PAINTSTRUCT paint;
 			char *s;
+			unsigned int progress;
+			unsigned int total;
+			bool sizeknown = true;
+			struct qstream *strm;
+
+			progress = 0;
+			total = 0;
+			if (Sys_TryLockMutex(ctx->mutex))	//this lock doesn't have to be here
+			{
+				for (strm = ctx->activestreams; strm; strm = strm->next)
+				{
+					progress += strm->offset;
+					total += strm->size;
+					if (!total && progress)
+						sizeknown = false;
+				}
+				Plug_LockPlugin(ctx, false);
+			}
 
 			hdc = BeginPaint(hWnd, &paint);
 			DrawWndBack(ctx, hWnd, hdc, &paint);
 			SetBkMode(hdc, TRANSPARENT);
 			TextOutA(hdc, 0, 0, "Downloading Data, please wait", 16);
-			if (!ctx->wait_stream)
+			if (!progress && !total)
 				s = "connecting";
-			else if (ctx->wait_size > 0)
-				s = va("%i bytes (%i%%)", ctx->wait_offset, (int)((100.0f*ctx->wait_offset)/ctx->wait_size));
+			else if (sizeknown)
+				s = va("%i bytes (%i%%)", progress, (int)((100.0f*progress)/total));
 			else
-				s = va("%i bytes", ctx->wait_offset);
+				s = va("%i bytes", progress);
 			TextOutA(hdc, 0, 32, s, strlen(s));
 			EndPaint(hWnd, &paint);
 			return TRUE;
 		}
 		else
-		{
+*/		{
 			HDC hdc;
 			PAINTSTRUCT paint;
 			char *s;
@@ -658,19 +149,17 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			hdc = BeginPaint(hWnd, &paint);
 			DrawWndBack(ctx, hWnd, hdc, &paint);
 			SetBkMode(hdc, TRANSPARENT);
-			if (!ctx->contextrunning)
+			if (!pub->running)
 			{
-				if (!activecontext)
+				s = "Click to activate";
+				TextOutA(hdc, 0, 0, s, strlen(s));
+
+				if (pub->availver)
 				{
-					s = "Click to activate";
-					TextOutA(hdc, 0, 0, s, strlen(s));
-				}
-				if (ctx->availver)
-				{
-					s = va("Your plugin is out of date");
-					TextOutA(hdc, 0, 16, s, strlen(s));
-					s = va("Version %3.1f is available", ctx->availver);
+					s = va("Your plugin may be incompatible");
 					TextOutA(hdc, 0, 32, s, strlen(s));
+					s = va("Version %3.2f was requested, you are using version %3.2f", pub->availver, (float)build_number());
+					TextOutA(hdc, 0, 48, s, strlen(s));
 				}
 			}
 			EndPaint(hWnd, &paint);
@@ -679,13 +168,9 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		break;
 
 	case WM_LBUTTONDOWN:
-		if (!activecontext)
-		{
-			activecontext = ctx;
-			InvalidateRgn(hWnd, NULL, FALSE);
-		}
-		else if (activecontext != ctx)
-			Cbuf_AddText("quit\n", RESTRICT_LOCAL);
+		SetActiveWindow(hWnd);
+		if (!Plug_StartContext(ctx))
+			Plug_StopContext(NULL);
 		break;
 	default:
 		break;
@@ -696,6 +181,11 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 }
 
 #endif
+
+static const struct browserfuncs npqtv_browserfuncs =
+{
+	NPFTE_BeginDownload
+};
 
 NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
                           uint16 mode, int16 argc, char* argn[],
@@ -713,187 +203,39 @@ NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
 		return NPERR_INVALID_PLUGIN_ERROR;
 	}
 
-	ctx = malloc(sizeof(struct context));
+	ctx = Plug_CreateContext(instance, &npqtv_browserfuncs);
+	instance->pdata = ctx;
 	if (!ctx)
 	{
 		return NPERR_OUT_OF_MEMORY_ERROR;
 	}
 
-	memset(ctx, 0, sizeof(struct context));
-
-	//link the instance to the context and the context to the instance
-	instance->pdata = ctx;
-	ctx->nppinstance = instance;
-
-	ctx->gamename = strdup("q1");
-
 	//parse out the properties
 	for (i = 0; i < argc; i++)
 	{
-		if (!stricmp(argn[i], "dataDownload"))
-		{
-			ctx->datadownload = strdup(argv[i]);
-		}
-		else if (!stricmp(argn[i], "game"))
-		{
-			if (!strstr(argn[i], "."))
-				if (!strstr(argn[i], "/"))
-					if (!strstr(argn[i], "\\"))
-						if (!strstr(argn[i], ":"))
-						{
-							free(ctx->gamename);
-							ctx->gamename = strdup(argv[i]);
-						}
-		}
-		else if (!stricmp(argn[i], "connType"))
-		{
-			if (ctx->qtvf.connectiontype)
-				continue;
-			if (!stricmp(argn[i], "join"))
-				ctx->qtvf.connectiontype = QTVCT_JOIN;
-			else if (!stricmp(argn[i], "qtv"))
-				ctx->qtvf.connectiontype = QTVCT_STREAM;
-			else if (!stricmp(argn[i], "connect"))
-				ctx->qtvf.connectiontype = QTVCT_CONNECT;
-			else if (!stricmp(argn[i], "map"))
-				ctx->qtvf.connectiontype = QTVCT_MAP;
-			else if (!stricmp(argn[i], "join"))
-				ctx->qtvf.connectiontype = QTVCT_JOIN;
-			else if (!stricmp(argn[i], "observe"))
-				ctx->qtvf.connectiontype = QTVCT_OBSERVE;
-			else
-				ctx->qtvf.connectiontype = QTVCT_NONE;
-		}
-		else if (!stricmp(argn[i], "server") || !stricmp(argn[i], "stream"))
-		{
-			if (*ctx->qtvf.server)
-				continue;
-			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
-		}
-		else if (!stricmp(argn[i], "map"))
-		{
-			if (ctx->qtvf.connectiontype)
-				continue;
-			ctx->qtvf.connectiontype = QTVCT_MAP;
-			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
-		}
-		else if (!stricmp(argn[i], "stream"))
-		{
-			if (ctx->qtvf.connectiontype)
-				continue;
-			ctx->qtvf.connectiontype = QTVCT_STREAM;
-			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
-		}
-		else if (!stricmp(argn[i], "join"))
-		{
-			if (ctx->qtvf.connectiontype)
-				continue;
-			ctx->qtvf.connectiontype = QTVCT_JOIN;
-			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
-		}
-		else if (!stricmp(argn[i], "observe"))
-		{
-			if (ctx->qtvf.connectiontype)
-				continue;
-			ctx->qtvf.connectiontype = QTVCT_OBSERVE;
-			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
-		}
-		else if (!stricmp(argn[i], "password"))
-		{
-			ctx->password = strdup(argv[i]);
-		}
-		else if (!stricmp(argn[i], "splash"))
-		{
-			Q_strncpyz(ctx->qtvf.splashscreen, argv[i], sizeof(ctx->qtvf.splashscreen));
-			browserfuncs->geturlnotify(ctx->nppinstance, ctx->qtvf.splashscreen, NULL, &SplashscreenImageDescriptor);
-		}
-		else if (!stricmp(argn[i], "onStart"))
-		{
-			ctx->onstart = strdup(argv[i]);
-		}
-		else if (!stricmp(argn[i], "onEnd"))
-		{
-			ctx->onend = strdup(argv[i]);
-		}
-		else if (!stricmp(argn[i], "onDemoEnd"))
-		{
-			ctx->ondemoend = strdup(argv[i]);
-		}
-		else if (!stricmp(argn[i], "availVer"))
-		{
-			ctx->availver = atof(argv[i]);
-			if (ctx->availver <= NPQTV_VERSION)
-				ctx->availver = 0;
-		}
-		else if (!stricmp(argn[i], "begin"))
-		{
-			if (atoi(argv[i]) && !activecontext)
-				activecontext = ctx;
-		}
+		Plug_SetString(ctx, Plug_FindProp(ctx, argn[i]), argv[i]);
 	}
 
-	if (!*ctx->qtvf.server)
-		ctx->qtvf.connectiontype = QTVCT_NONE;
-	else if (ctx->qtvf.connectiontype == QTVCT_NONE)
-		ctx->qtvf.connectiontype = QTVCT_STREAM;
-
-	//add it to the linked list
-	ctx->next = contextlist;
-	contextlist = ctx;
 	return NPERR_NO_ERROR;
 }
 NPError NP_LOADDS NPP_Destroy(NPP instance, NPSavedData** save)
 {
 	struct context *ctx = instance->pdata;
-	struct context *prev;
+	struct contextpublic *pub = (struct contextpublic *)ctx;
 
 	if (!ctx)
 		return NPERR_INVALID_INSTANCE_ERROR;
 
 #ifdef _WIN32
-	if (ctx->window.window)
+	if (pub->oldwnd)
 	{
-		if (ctx->oldproc)
-			SetWindowLongPtr(ctx->window.window, GWL_WNDPROC, (LONG_PTR)ctx->oldproc);
-		SetWindowLongPtr(ctx->window.window, GWL_USERDATA, (LONG_PTR)NULL);
+		if (pub->oldproc)
+			SetWindowLongPtr(pub->oldwnd, GWL_WNDPROC, (LONG_PTR)pub->oldproc);
+		SetWindowLongPtr(pub->oldwnd, GWL_USERDATA, (LONG_PTR)NULL);
 	}
 #endif
 
-	//actually these ifs are not required, just the frees
-	if (ctx->gamename)
-		free(ctx->gamename);
-	if (ctx->password)
-		free(ctx->password);
-	if (ctx->datadownload)
-		free(ctx->datadownload);
-	if (ctx->splashdata)
-		free(ctx->splashdata);
-
-	if (ctx == contextlist)
-		contextlist = ctx->next;
-	else
-	{
-		for (prev = contextlist; prev->next; prev = prev->next)
-		{
-			if (prev->next == ctx)
-			{
-				prev->next = ctx->next;
-				break;
-			}
-		}
-	}
-
-	if (ctx->contextrunning)
-	{
-		NPQTV_Sys_Shutdown();
-	}
-	if (ctx == activecontext)
-	{
-		activecontext = NULL;
-		sys_parentwindow = NULL;
-	}
-
-	free(ctx);
+	Plug_DestroyContext(ctx);
 	instance->pdata = NULL;
 
 	return NPERR_NO_ERROR;
@@ -902,6 +244,7 @@ NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 {
 	extern cvar_t vid_width;
 	struct context *ctx = instance->pdata;
+	struct contextpublic *pub = (struct contextpublic*)ctx;
 
 #ifdef _WIN32
 	HWND oldwindow;
@@ -910,46 +253,26 @@ NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 	if (!ctx)
 		return NPERR_INVALID_INSTANCE_ERROR;
 
-	oldwindow = ctx->window.window;
-
-	memcpy(&ctx->window, window, sizeof(ctx->window));
-
 	//if the window changed
-	if (ctx->window.window != oldwindow)
+	if (Plug_ChangeWindow(ctx, window->window, window->width, window->height))
 	{
 		//we switched window?
-		if (oldwindow && ctx->oldproc)
+		if (pub->oldwnd && pub->oldproc)
 		{
-			SetWindowLongPtr(oldwindow, GWL_WNDPROC, (LONG_PTR)ctx->oldproc);
-			ctx->oldproc = NULL;
+			SetWindowLongPtr(pub->oldwnd, GWL_WNDPROC, (LONG_PTR)pub->oldproc);
 		}
+		pub->oldproc = NULL;
 
-		p = (WNDPROC)GetWindowLongPtr(ctx->window.window, GWL_WNDPROC);
+		p = (WNDPROC)GetWindowLongPtr(window->window, GWL_WNDPROC);
 		if (p != MyPluginWndProc)
-			ctx->oldproc = p;
+			pub->oldproc = p;
+		pub->oldwnd = window->window;
 
-		SetWindowLongPtr(ctx->window.window, GWL_WNDPROC, (LONG_PTR)MyPluginWndProc);
-		SetWindowLongPtr(ctx->window.window, GWL_USERDATA, (LONG_PTR)ctx);
-
-		if (ctx->contextrunning && mainwindow && oldwindow == sys_parentwindow)
-		{
-			sys_parentwindow = ctx->window.window;
-			SetParent(mainwindow, ctx->window.window);
-
-			oldwindow = sys_parentwindow;
-		}
+		SetWindowLongPtr(window->window, GWL_WNDPROC, (LONG_PTR)MyPluginWndProc);
+		SetWindowLongPtr(window->window, GWL_USERDATA, (LONG_PTR)ctx);
 	}
 
-	if (ctx->contextrunning)
-	{
-		extern cvar_t vid_conwidth;
-		sys_parentwidth = ctx->window.width;
-		sys_parentheight = ctx->window.height;
-		Cvar_ForceCallback(&vid_width);
-		Cvar_ForceCallback(&vid_conwidth);
-	}
-
-	InvalidateRgn(ctx->window.window, NULL, FALSE);
+	InvalidateRgn(window->window, NULL, FALSE);
 #endif
 	return NPERR_NO_ERROR;
 }
@@ -958,12 +281,20 @@ NPError NP_LOADDS NPP_NewStream(NPP instance, NPMIMEType type,
                                 NPStream* stream, NPBool seekable,
                                 uint16* stype)
 {
-//	struct context *ctx = instance->pdata;
+	return NPERR_NO_ERROR;
+/*	struct context *ctx = instance->pdata;
 	struct qstream *qstr;
 
 	stream->pdata = qstr = malloc(sizeof(*qstr) + strlen(stream->url));
 	memset(qstr, 0, sizeof(*qstr));
 	strcpy(qstr->url, stream->url);
+
+	Plug_LockPlugin(ctx, true);
+	qstr->next = ctx->activestreams;
+	if (qstr->next)
+		qstr->next->prev = qstr;
+	ctx->activestreams = qstr;
+	Plug_LockPlugin(ctx, false);
 
 	if (!stream->notifyData)
 	{
@@ -997,63 +328,73 @@ NPError NP_LOADDS NPP_NewStream(NPP instance, NPMIMEType type,
 		qstr->pipe = VFSPIPE_Open();
 	}
 
-	return NPERR_NO_ERROR;
+	return NPERR_NO_ERROR;*/
 }
 NPError NP_LOADDS NPP_DestroyStream(NPP instance, NPStream* stream,
                                     NPReason reason)
 {
-	struct context *ctx = instance->pdata;
+	return NPERR_NO_ERROR;
+/*	struct context *ctx = instance->pdata;
 	struct qstream *qstr = stream->pdata;
 
 	if (!qstr)	//urm, got canceled before it finished downloading?
 		return NPERR_NO_ERROR;
-
-	if (ctx->wait_stream == qstr)
-		ctx->wait_stream = NULL;
 
 	if (qstr->type->wait == WAIT_YES)
 	{
 		ctx->waitingfordatafiles--;
 	}
 
-	if (qstr->type->wait == WAIT_DONE)
+	if (qstr->next)
+		qstr->next->prev = qstr->prev;
+	if (qstr->prev)
+		qstr->prev->next = qstr->next;
+	else
+		ctx->activestreams = qstr->next;
+
+	if (qstr->type->wait == WAIT_NONACTIVE)
+	{
+		Plug_LockPlugin(ctx, true);
 		qstr->type->completionfunc(ctx, qstr->pipe, qstr->url);
+		Plug_LockPlugin(ctx, false);
+	}
 	else
 	{
 		qstr->next = ctx->donestreams;
 		ctx->donestreams = qstr;
 	}
 
-	return NPERR_NO_ERROR;
+	if (qstr && qstr->type && qstr->type->wait)
+	{
+		InvalidateRgn(ctx->window.window, NULL, FALSE);
+	}
+	return NPERR_NO_ERROR;*/
 }
 int32   NP_LOADDS NPP_WriteReady(NPP instance, NPStream* stream)
 {
-	struct qstream *qstr = stream->pdata;
+	return 8192;
+
+/*	struct qstream *qstr = stream->pdata;
 	vfsfile_t *pipe = qstr?qstr->pipe:NULL;
 	
 	if (pipe && pipe->seekingisabadplan)
 		return 1024*1024 - VFS_GETLEN(pipe);
 	else
-		return 8192;
+		return 8192;*/
 }
 int32   NP_LOADDS NPP_Write(NPP instance, NPStream* stream, int32 offset,
                             int32 len, void* buffer)
 {
-	int bytes = NPP_WriteReady(instance, stream);
+	return NPERR_NO_ERROR;
+/*	int bytes = NPP_WriteReady(instance, stream);
 	struct context *ctx = instance->pdata;
 	struct qstream *qstr = stream->pdata;
 
 	if (qstr && qstr->type && qstr->type->wait)
 	{
-		if (!ctx->wait_stream)
-			ctx->wait_stream = qstr;
-		if (ctx->wait_stream == qstr)
-		{
-			ctx->wait_offset = offset;
-			ctx->wait_size = stream->end;
-
-			InvalidateRgn(ctx->window.window, NULL, FALSE);
-		}
+		qstr->offset = offset;
+		qstr->size = stream->end;
+		InvalidateRgn(ctx->window.window, NULL, FALSE);
 	}
 
 	if (!qstr || !qstr->pipe)
@@ -1063,12 +404,13 @@ int32   NP_LOADDS NPP_Write(NPP instance, NPStream* stream, int32 offset,
 	if (len > bytes)
 		len = bytes;
 
-	return VFS_WRITE(qstr->pipe, buffer, len);
+	return VFS_WRITE(qstr->pipe, buffer, len);*/
 }
 void    NP_LOADDS NPP_StreamAsFile(NPP instance, NPStream* stream,
                                    const char* fname)
 {
-	struct qstream *qstr = stream->pdata;
+	return;
+/*	struct qstream *qstr = stream->pdata;
 
 	if (!qstr)
 		return;
@@ -1076,7 +418,9 @@ void    NP_LOADDS NPP_StreamAsFile(NPP instance, NPStream* stream,
 	if (qstr->pipe)
 		VFS_CLOSE(qstr->pipe);
 	qstr->pipe = VFSOS_Open(fname, "rb");
+*/
 }
+
 void    NP_LOADDS NPP_Print(NPP instance, NPPrint* platformPrint)
 {
 	//we don't support printing.
@@ -1093,80 +437,11 @@ void    NP_LOADDS NPP_URLNotify(NPP instance, const char* url,
 {
 }
 
-struct npscript_property
-{
-	char *name;
-	qboolean onlyifactive;
-
-	cvar_t *cvar;
-
-	char *(*getstring)(struct context *ctx);
-	void (*setstring)(struct context *ctx, const char *val);
-
-	int (*getint)(struct context *ctx);
-	void (*setint)(struct context *ctx, int val);
-};
-
-int npscript_property_isrunning_getb(struct context *ctx)
-{
-	if (ctx->contextrunning)
-		return true;
-	else
-		return false;
-}
-
-char *npscript_property_startserver_gets(struct context *ctx)
-{
-	return ctx->qtvf.server;
-}
-void npscript_property_startserver_sets(struct context *ctx, const char *val)
-{
-	ctx->qtvf.connectiontype = QTVCT_CONNECT;
-	Q_strncpyz(ctx->qtvf.server, val, sizeof(ctx->qtvf.server));
-}
-char *npscript_property_curserver_gets(struct context *ctx)
-{
-	if (!npscript_property_isrunning_getb(ctx))
-		return npscript_property_startserver_gets(ctx);
-
-	return cls.servername;
-}
-void npscript_property_curserver_sets(struct context *ctx, const char *val)
-{
-	if (!npscript_property_isrunning_getb(ctx))
-	{
-		npscript_property_startserver_sets(ctx, val);
-		return;
-	}
-
-	Q_strncpyz(cls.servername, val, sizeof(cls.servername));
-	CL_BeginServerConnect();
-}
-
-extern cvar_t skin, team, topcolor, bottomcolor, vid_fullscreen;
-struct npscript_property npscript_properties[] =
-{
-	{"isrunning",	false,	NULL,	NULL, NULL, npscript_property_isrunning_getb},
-	{"startserver",	false,	NULL,	npscript_property_startserver_gets, npscript_property_startserver_sets},
-	{"server",		false,	NULL,	npscript_property_curserver_gets, npscript_property_curserver_sets},
-	{"playername",	true,	&name},
-	{NULL,			true,	&skin},
-	{NULL,			true,	&team},
-	{NULL,			true,	&topcolor},
-	{NULL,			true,	&bottomcolor},
-	{NULL,			true,	&password},
-//	{NULL,			true,	&spectator},
-	{"fullscreen",	true,	&vid_fullscreen},
-	{NULL}
-};
-
 struct npscript
 {
 	NPObject obj;
 
 	struct context *ctx;
-
-	struct npscript_property *props;
 };
 
 NPObject *npscript_allocate(NPP npp, NPClass *aClass)
@@ -1178,13 +453,6 @@ NPObject *npscript_allocate(NPP npp, NPClass *aClass)
 	obj->obj.referenceCount = 1;
 	obj->ctx = npp->pdata;
 
-	obj->props = npscript_properties;
-
-	for (prop = obj->props; prop->name||prop->cvar; prop++)
-	{
-		if(!prop->name)
-			prop->name = prop->cvar->name;
-	}
 	return (NPObject*)obj;
 }
 void npscript_deallocate(NPObject *npobj)
@@ -1217,11 +485,8 @@ bool npscript_hasProperty(NPObject *npobj, NPIdentifier name)
 	NPUTF8 *pname;
 	pname = browserfuncs->utf8fromidentifier(name);
 
-	for (prop = obj->props; prop->name; prop++)
-	{
-		if (!strcmp(prop->name, pname))
-			return true;
-	}
+	if (Plug_FindProp(obj->ctx, pname))
+		return true;
 	return false;
 }
 bool npscript_getProperty(NPObject *npobj, NPIdentifier name, NPVariant *result)
@@ -1229,53 +494,44 @@ bool npscript_getProperty(NPObject *npobj, NPIdentifier name, NPVariant *result)
 	struct npscript *obj = (struct npscript *)npobj;
 	struct context *ctx = obj->ctx;
 	NPUTF8 *pname;
-	char *res, *ns;
-	int len;
-	struct npscript_property *prop;
+	struct pscript_property *prop;
+	bool success = false;
+	char *strval;
+	int intval;
+	float floatval;
 	pname = browserfuncs->utf8fromidentifier(name);
 
-	for (prop = obj->props; prop->name; prop++)
+	Plug_LockPlugin(ctx, true);
+	prop = Plug_FindProp(obj->ctx, pname);
+	if (prop)
 	{
-		if (!strcmp(prop->name, pname))
+		if (Plug_GetString(ctx, prop, &strval))
 		{
-			if (prop->onlyifactive)
+			char *ns;
+			int len;
+			len = strlen(strval);
+			ns = browserfuncs->memalloc(len);
+			if (ns)
 			{
-				if (!ctx->contextrunning)
-					return false;
-			}
-			if (prop->getstring)
-			{
-				//FIXME: Are we meant to malloc a new string buffer here?
-				res = prop->getstring(ctx);
-				len = strlen(res);
-				ns = browserfuncs->memalloc(len);
-				if (!ns)
-					return false;
-				memcpy(ns, res, len);
+				memcpy(ns, strval, len);
 				STRINGZ_TO_NPVARIANT(ns, *result);
-				return true;
+				success = true;
 			}
-			else if (prop->getint)
-			{
-				INT32_TO_NPVARIANT(prop->getint(ctx), *result);
-				return true;
-			}
-			else if (prop->cvar)
-			{
-				//FIXME: Are we meant to malloc a new string buffer here?
-				res = prop->cvar->string;
-				len = strlen(res);
-				ns = browserfuncs->memalloc(len);
-				if (!ns)
-					return false;
-				memcpy(ns, res, len);
-				STRINGZ_TO_NPVARIANT(ns, *result);
-				return true;
-			}
-			return false;
+			Plug_GotString(strval);
+		}
+		else if (Plug_GetInteger(ctx, prop, &intval))
+		{
+			INT32_TO_NPVARIANT(intval, *result);
+			success = true;
+		}
+		else if (Plug_GetFloat(ctx, prop, &floatval))
+		{
+			DOUBLE_TO_NPVARIANT(floatval, *result);
+			success = true;
 		}
 	}
-	return false;
+	Plug_LockPlugin(ctx, false);
+	return success;
 }
 bool npscript_setProperty(NPObject *npobj, NPIdentifier name, const NPVariant *value)
 {
@@ -1283,95 +539,42 @@ bool npscript_setProperty(NPObject *npobj, NPIdentifier name, const NPVariant *v
 	struct context *ctx = obj->ctx;
 	NPUTF8 *pname;
 	NPString str;
-	struct npscript_property *prop;
+	struct pscript_property *prop;
+	bool success = false;
 	pname = browserfuncs->utf8fromidentifier(name);
 
-	for (prop = obj->props; prop->name; prop++)
+	Plug_LockPlugin(ctx, true);
+	prop = Plug_FindProp(obj->ctx, pname);
+	if (prop)
 	{
-		if (!strcmp(prop->name, pname))
+		success = true;
+		if (NPVARIANT_IS_STRING(*value))
 		{
-			if (prop->onlyifactive)
-			{
-				if (!ctx->contextrunning)
-					return false;
-			}
+			char *t = NULL;
 
-			if (NPVARIANT_IS_STRING(*value))
+			str = NPVARIANT_TO_STRING(*value);
+			if (str.utf8characters[str.utf8length] != 0)
 			{
-				char *t = NULL;
-
-				str = NPVARIANT_TO_STRING(*value);
-				if (str.utf8characters[str.utf8length] != 0)
-				{
-					t = malloc(str.utf8length+1);
-					memcpy(t, str.utf8characters, str.utf8length);
-					t[str.utf8length] = 0;
-					str.utf8characters = t;
-				}
-				if (prop->setstring)
-				{
-					prop->setstring(ctx, str.utf8characters);
-					if (t)
-						free(t);
-					return true;
-				}
-				if (prop->setint)
-				{
-					prop->setint(ctx, atoi(str.utf8characters));
-					if (t)
-						free(t);
-					return true;
-				}
-				if (t)
-					free(t);
+				t = malloc(str.utf8length+1);
+				memcpy(t, str.utf8characters, str.utf8length);
+				t[str.utf8length] = 0;
+				str.utf8characters = t;
 			}
-			if (NPVARIANT_IS_INT32(*value))
-			{
-				if (prop->setint)
-				{
-					prop->setint(ctx, NPVARIANT_TO_INT32(*value));
-					return true;
-				}
-			}
-			if (NPVARIANT_IS_DOUBLE(*value))
-			{
-				if (prop->setint)
-				{
-					prop->setint(ctx, NPVARIANT_TO_DOUBLE(*value));
-					return true;
-				}
-			}
-
-			if (prop->cvar)
-			{
-				if (NPVARIANT_IS_STRING(*value))
-				{
-					str = NPVARIANT_TO_STRING(*value);
-					Cvar_Set(prop->cvar, str.utf8characters);
-					return true;
-				}
-				if (NPVARIANT_IS_INT32(*value))
-				{
-					Cvar_SetValue(prop->cvar, NPVARIANT_TO_INT32(*value));
-					return true;
-				}
-				if (NPVARIANT_IS_DOUBLE(*value))
-				{
-					Cvar_SetValue(prop->cvar, NPVARIANT_TO_DOUBLE(*value));
-					return true;
-				}
-				if (NPVARIANT_IS_BOOLEAN(*value))
-				{
-					Cvar_SetValue(prop->cvar, NPVARIANT_TO_BOOLEAN(*value));
-					return true;
-				}
-			}
-			//sorry, no can do
-			return false;
+			Plug_SetString(ctx, prop, str.utf8characters);
+			if (t)
+				free(t);
 		}
+		else if (NPVARIANT_IS_INT32(*value))
+			Plug_SetInteger(ctx, prop, NPVARIANT_TO_INT32(*value));
+		else if (NPVARIANT_IS_BOOLEAN(*value))
+			Plug_SetInteger(ctx, prop, NPVARIANT_TO_BOOLEAN(*value));
+		else if (NPVARIANT_IS_DOUBLE(*value))
+			Plug_SetFloat(ctx, prop, NPVARIANT_TO_DOUBLE(*value));
+		else
+			success = false;
 	}
-	//not known
-	return false;
+	Plug_LockPlugin(ctx, false);
+	return success;
 }
 bool npscript_removeProperty(NPObject *npobj, NPIdentifier name)
 {
@@ -1435,11 +638,11 @@ NPError OSCALL NP_Initialize(NPNetscapeFuncs* pFuncs)
 
 NPError OSCALL NP_Shutdown(void)
 {
-	if (contextlist)
+/*	if (contextlist)
 	{	//the browser isn't meant to call this when there's still instances left...
 		return NPERR_GENERIC_ERROR;
 	}
-
+*/
 	return NPERR_NO_ERROR;
 }
 

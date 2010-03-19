@@ -1556,7 +1556,7 @@ static void World_Physics_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		if(enemy)
 			b1 = (dBodyID)(((wedict_t*)EDICT_NUM(world->progs, enemy))->ode.ode_body);
 		if(aiment)
-			b2 = (dBodyID)world->edicts[aiment].ode.ode_body;
+			b2 = (dBodyID)(((wedict_t*)EDICT_NUM(world->progs, aiment))->ode.ode_body);
 		dJointAttach(j, b1, b2);
 
 		switch(jointtype)
@@ -1659,7 +1659,7 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	}
 	if (!numindexes)
 	{
-		Con_Printf("entity %i (classname %s) has no geometry\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
+		Con_DPrintf("entity %i (classname %s) has no geometry\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
 		return false;
 	}
 	ed->ode.ode_element3i = BZ_Malloc(numindexes*sizeof(index_t));
@@ -1848,10 +1848,16 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			if (!model)
 			{
 				Con_Printf("entity %i (classname %s) has no model\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
-				break;
+				if (ed->ode.ode_physics)
+					World_Physics_RemoveFromEntity(world, ed);
+				return;
 			}
 			if (!GenerateCollisionMesh(world, model, ed, geomcenter))
-				break;
+			{
+				if (ed->ode.ode_physics)
+					World_Physics_RemoveFromEntity(world, ed);
+				return;
+			}
 
 			Matrix4Q_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
 			// now create the geom

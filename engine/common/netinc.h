@@ -92,6 +92,7 @@
 		#define ioctlsocket ioctl
 	#endif
 
+	#define SOCKET int
 #endif
 
 #if defined(_WIN32)
@@ -101,7 +102,6 @@
 #else
 	#define qerrno errno
 #endif
-
 
 #ifndef INVALID_SOCKET
 	#define INVALID_SOCKET -1

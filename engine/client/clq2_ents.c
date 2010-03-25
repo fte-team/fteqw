@@ -2024,7 +2024,7 @@ void CLQ2_CalcViewValues (void)
 
 	// don't interpolate blend color
 	for (i=0 ; i<4 ; i++)
-		v_blend[i] = ps->blend[i];
+		sw_blend[i] = ps->blend[i];
 
 	// add the weapon
 	CLQ2_AddViewWeapon (ps, ops);

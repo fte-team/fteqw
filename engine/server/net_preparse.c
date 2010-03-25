@@ -154,7 +154,7 @@ void NPP_NQFlush(void)
 	case svc_temp_entity:
 		switch (buffer[1])
 		{
-		case NQTE_EXPLOSION2:	//happens with rogue.
+		case TENQ_EXPLOSION2:	//happens with rogue.
 			bufferlen -= 2;	//trim the colour
 			buffer[1] = TE_EXPLOSION;
 			break;
@@ -375,7 +375,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svc_temp_entity:
 			switch(data)
 			{
-			case NQTE_BEAM:
+			case TENQ_BEAM:
 				data = TE_LIGHTNING1;	//QW doesn't do te_beam. Replace with lightning1.
 						//fallthrough
 			case TE_LIGHTNING1:
@@ -414,7 +414,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				protocollen = sizeof(qbyte) + sizeofcoord*6;
 				ignoreprotocol = true;
 				break;
-			case NQTE_EXPLOSION2:
+			case TENQ_EXPLOSION2:
 				protocollen = sizeof(qbyte)*4 + sizeofcoord*3;
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS_R;
@@ -430,48 +430,48 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS;
 				break;
-			case TE_STREAM_CHAIN:
-			case TE_STREAM_SUNSTAFF1:
-			case TE_STREAM_SUNSTAFF2:
-			case TE_STREAM_LIGHTNING:
-			case TE_STREAM_ICECHUNKS:
-			case TE_STREAM_GAZE:
-			case TE_STREAM_FAMINE:
+			case TEH2_STREAM_CHAIN:
+			case TEH2_STREAM_SUNSTAFF1:
+			case TEH2_STREAM_SUNSTAFF2:
+			case TEH2_STREAM_LIGHTNING:
+			case TEH2_STREAM_ICECHUNKS:
+			case TEH2_STREAM_GAZE:
+			case TEH2_STREAM_FAMINE:
 				protocollen = sizeofcoord*6+sizeof(short)+sizeof(qbyte)*(2+2);
 				multicastpos = 8;
 				multicasttype=MULTICAST_PHS;
 				break;
-			case TE_STREAM_COLORBEAM:
+			case TEH2_STREAM_COLORBEAM:
 				protocollen = sizeofcoord*6+sizeof(short)+sizeof(qbyte)*(3+2);
 				multicastpos = 8;
 				multicasttype=MULTICAST_PHS;
 				break;
 
-			case DPTE_FLAMEJET:	//TE_FLAMEJET
+			case TEDP_FLAMEJET:	//TE_FLAMEJET
 				protocollen = sizeofcoord*6 +sizeof(qbyte)*3;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PVS;
 				break;
 
-			case DPTE_TEI_G3:
+			case TEDP_TEI_G3:
 				protocollen = sizeofcoord*9+sizeof(qbyte)*2;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
 
-			case DPTE_SMOKE:
+			case TEDP_SMOKE:
 				protocollen = sizeofcoord*6+sizeof(qbyte)*3;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
 
-			case DPTE_TEI_BIGEXPLOSION:
+			case TEDP_TEI_BIGEXPLOSION:
 				protocollen = sizeofcoord*3+sizeof(qbyte)*2;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
 
-			case DPTE_TEI_PLASMAHIT:
+			case TEDP_TEI_PLASMAHIT:
 				protocollen = sizeofcoord*6+sizeof(qbyte)*3;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
@@ -894,8 +894,8 @@ void NPP_QWFlush(void)
 	case svc_temp_entity:
 		switch(minortype)
 		{
-		case TE_LIGHTNINGBLOOD:
-		case TE_BLOOD:		//needs to be converted to a particle
+		case TEQW_LIGHTNINGBLOOD:
+		case TEQW_BLOOD:		//needs to be converted to a particle
 			{
 				vec3_t org;
 				qbyte count;
@@ -910,7 +910,7 @@ void NPP_QWFlush(void)
 				org[1] = (*(short*)&buffer[multicastpos+2])/8.0f;
 				org[2] = (*(short*)&buffer[multicastpos+4])/8.0f;
 				count = buffer[2]*20;
-				if (minortype == TE_LIGHTNINGBLOOD)
+				if (minortype == TEQW_LIGHTNINGBLOOD)
 					colour = 225;
 				else
 					colour = 73;
@@ -1169,13 +1169,13 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				multicasttype=MULTICAST_PHS;
 				protocollen = sizeofcoord*6+sizeof(short)+sizeof(qbyte)*2;
 				break;
-			case TE_BLOOD:		//needs to be converted to a particle
+			case TEQW_BLOOD:		//needs to be converted to a particle
 			case TE_GUNSHOT:	//needs qbyte 2 removed
 				multicastpos=3;
 				multicasttype=MULTICAST_PVS;
 				protocollen = sizeofcoord*3+sizeof(qbyte)*3;
 				break;
-			case TE_LIGHTNINGBLOOD:
+			case TEQW_LIGHTNINGBLOOD:
 			case TE_EXPLOSION:
 			case TE_SPIKE:
 			case TE_SUPERSPIKE:

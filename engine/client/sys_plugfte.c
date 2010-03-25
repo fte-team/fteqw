@@ -825,7 +825,7 @@ void pscript_property_splash_sets(struct context *ctx, const char *val)
 */
 }
 
-extern cvar_t skin, team, topcolor, bottomcolor, vid_fullscreen;
+extern cvar_t skin, team, topcolor, bottomcolor, vid_fullscreen, cl_download_mapsrc;
 static struct pscript_property pscript_properties[] =
 {
 	{"running",		false,	NULL,	NULL, NULL, pscript_property_running_getb, pscript_property_running_setb},
@@ -838,6 +838,7 @@ static struct pscript_property pscript_properties[] =
 	{NULL,			true,	&bottomcolor},
 	{NULL,			true,	&password},
 //	{NULL,			true,	&spectator},
+	{"mapsrc",		true,	&cl_download_mapsrc},
 	{"fullscreen",	true,	&vid_fullscreen},
 
 	{"datadownload",false,	NULL,	NULL, pscript_property_datadownload_sets},

@@ -202,7 +202,7 @@ char *svc_nqstrings[] =
 	"dpsvc_pointparticles1"	//62
 };
 
-extern cvar_t requiredownloads, cl_standardchat, msg_filter, cl_countpendingpl;
+extern cvar_t requiredownloads, cl_standardchat, msg_filter, cl_countpendingpl, cl_download_mapsrc;
 int	oldparsecountmod;
 int	parsecountmod;
 double	parsecounttime;
@@ -285,8 +285,19 @@ int CL_CalcNet (void)
 qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 {
 	downloadlist_t *dl;
-	if (!localname)
-		localname = filename;
+	qboolean webdl = false;
+	if (localname && !strncmp(filename, "http://", 7))
+	{
+		webdl = true;
+	}
+	else
+	{
+		if (!localname)
+			localname = filename;
+
+		if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
+			return false;
+	}
 
 	if (strchr(localname, '\\') || strchr(localname, ':') || strstr(localname, ".."))
 	{
@@ -294,13 +305,10 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 		return false;
 	}
 
-	if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
-		return false;
-
 	if (!(flags & DLLF_IGNOREFAILED))
 	{
 #ifdef NQPROT
-		if (cls.protocol == CP_NETQUAKE)
+		if (!webdl && cls.protocol == CP_NETQUAKE)
 			if (!cl_dp_serverextension_download)
 				return false;
 #endif
@@ -347,11 +355,11 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 	dl->size = 0;
 	dl->flags = flags | DLLF_SIZEUNKNOWN;
 
-	if (cls.fteprotocolextensions & (PEXT_CHUNKEDDOWNLOADS
+	if (!webdl && (cls.fteprotocolextensions & (PEXT_CHUNKEDDOWNLOADS
 #ifdef PEXT_PK3DOWNLOADS
 		| PEXT_PK3DOWNLOADS
 #endif
-		))
+		)))
 		CL_SendClientCommand(true, "dlsize \"%s\"", dl->rname);
 
 	if (flags & DLLF_VERBOSE)
@@ -413,6 +421,19 @@ void CL_DisenqueDownload(char *filename)
 	}
 }
 
+void CL_WebDownloadFinished(struct dl_download *dl)
+{
+	if (dl->status == DL_FAILED)
+		CL_DownloadFailed(dl->url);
+	else if (dl->status == DL_FINISHED)
+	{
+		if (dl->file)
+			VFS_CLOSE(dl->file);
+		dl->file = NULL;
+		CL_DownloadFinished();
+	}
+}
+
 void CL_SendDownloadStartRequest(char *filename, char *localname)
 {
 	strcpy (cls.downloadremotename, filename);
@@ -425,12 +446,21 @@ void CL_SendDownloadStartRequest(char *filename, char *localname)
 	COM_StripExtension (localname, cls.downloadtempname, sizeof(cls.downloadtempname)-5);
 	strcat (cls.downloadtempname, ".tmp");
 
-	CL_SendClientCommand(true, "download %s", filename);
+	if (!strncmp(cls.downloadremotename, "http://", 7))
+	{
+		cls.downloadmethod = DL_HTTP;
+		cls.downloadpercent = 0;
+		if (!HTTP_CL_Get(cls.downloadremotename, cls.downloadtempname, CL_WebDownloadFinished))
+			CL_DownloadFailed(cls.downloadremotename);
+	}
+	else
+	{
+		CL_SendClientCommand(true, "download %s", filename);
 
-	//prevent ftp/http from changing stuff
-	cls.downloadmethod = DL_QWPENDING;
-	cls.downloadpercent = 0;
-
+		//prevent ftp/http from changing stuff
+		cls.downloadmethod = DL_QWPENDING;
+		cls.downloadpercent = 0;
+	}
 	CL_DisenqueDownload(filename);
 }
 
@@ -525,16 +555,6 @@ void CL_DownloadFinished(void)
 		Skin_FlushSkin(filename);
 	}
 }
-/*
-void MapDownload(char *name, qboolean gotornot)
-{
-	if (gotornot)	//yay
-		return;
-
-
-	CL_EnqueDownload(filename, false, false);
-}
-*/
 
 qboolean CL_CheckFile(char *filename)
 {
@@ -554,8 +574,7 @@ qboolean CL_CheckFile(char *filename)
 ===============
 CL_CheckOrEnqueDownloadFile
 
-Returns true if the file exists, otherwise it attempts
-to start a download from the server.
+Returns true if the file exists, returns false if it triggered a download.
 ===============
 */
 
@@ -564,13 +583,13 @@ qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned 
 	if (!localname)
 		localname = filename;
 
-	if (!(flags & DLLF_OVERWRITE) && CL_CheckFile(localname))
-		return true;
-
 #ifndef CLIENTONLY
 	if (sv.state)
 		return true;
 #endif
+
+	if (!(flags & DLLF_OVERWRITE) && CL_CheckFile(localname))
+		return true;
 
 	//ZOID - can't download when recording
 	if (cls.demorecording)
@@ -579,21 +598,22 @@ qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned 
 		return true;
 	}
 	//ZOID - can't download when playback
-	if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
-		return true;
+//	if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
+//		return true;
 
 	SCR_EndLoadingPlaque();	//release console.
 
-/*	if (1)
-	if (strncmp(filename, "maps/", 5))
-	if (strcmp(filename + strlen(filename)-4, ".bsp"))
+	if (*cl_download_mapsrc.string)
+	if (!strncmp(filename, "maps/", 5))
+	if (!strcmp(filename + strlen(filename)-4, ".bsp"))
 	{
 		char base[MAX_QPATH];
-		COM_FileBase(filename, base);
-		HTTP_CL_Get(va("http://maps.quakeworld.nu/%s/download/", base), filename, MapDownload);
+		COM_FileBase(filename, base, sizeof(base));
+		filename = va("%s%s.bsp", cl_download_mapsrc.string, base);
 	}
-*/
-	CL_EnqueDownload(filename, localname, flags);
+
+	if (!CL_EnqueDownload(filename, localname, flags))
+		return true;	/*don't stall waiting for it if it failed*/
 
 
 	if (!(flags & DLLF_IGNOREFAILED))
@@ -807,6 +827,9 @@ void Model_CheckDownloads (void)
 		s = cl.model_name_vwep[i];
 
 		if (!stricmp(COM_FileExtension(s), "dsp"))	//doom sprites are weird, and not really downloadable via this system
+			continue;
+
+		if (!*s)
 			continue;
 
 		CL_CheckOrEnqueDownloadFile(s, s, 0);

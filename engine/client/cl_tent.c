@@ -739,7 +739,7 @@ void CL_ParseTEnt (void)
 		S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1);
 		break;
 		
-	case DPTE_SPIKEQUAD:
+	case TEDP_SPIKEQUAD:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -790,7 +790,7 @@ void CL_ParseTEnt (void)
 				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
 		}
 		break;
-	case DPTE_SUPERSPIKEQUAD:			// super spike hitting wall
+	case TEDP_SUPERSPIKEQUAD:			// super spike hitting wall
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -900,7 +900,7 @@ void CL_ParseTEnt (void)
 		break;
 #endif
 
-	case DPTE_EXPLOSIONQUAD:			// rocket explosion
+	case TEDP_EXPLOSIONQUAD:			// rocket explosion
 	// particles
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -982,7 +982,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case DPTE_EXPLOSIONRGB:
+	case TEDP_EXPLOSIONRGB:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1012,7 +1012,7 @@ void CL_ParseTEnt (void)
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
 		break;
 
-	case DPTE_TEI_BIGEXPLOSION:
+	case TEDP_TEI_BIGEXPLOSION:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1074,7 +1074,7 @@ void CL_ParseTEnt (void)
 		P_RunParticleEffectType(pos, NULL, 1, pt_teleportsplash);
 		break;
 
-	case DPTE_GUNSHOTQUAD:			// bullet hitting wall
+	case TEDP_GUNSHOTQUAD:			// bullet hitting wall
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1102,7 +1102,7 @@ void CL_ParseTEnt (void)
 
 		break;
 		
-	case TE_BLOOD:				// bullets hitting body
+	case TEQW_BLOOD:				// bullets hitting body
 		cnt = MSG_ReadByte ();
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1116,7 +1116,7 @@ void CL_ParseTEnt (void)
 
 		break;
 
-	case TE_LIGHTNINGBLOOD:		// lightning hitting body
+	case TEQW_LIGHTNINGBLOOD:		// lightning hitting body
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1153,7 +1153,7 @@ void CL_ParseTEnt (void)
 		CL_ParseStream (type);
 		break;
 
-	case DPTE_BLOOD:
+	case TEDP_BLOOD:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1167,7 +1167,7 @@ void CL_ParseTEnt (void)
 		P_RunParticleEffectType(pos, pos2, cnt, ptdp_blood);
 		break;
 
-	case DPTE_SPARK:
+	case TEDP_SPARK:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1182,7 +1182,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case DPTE_BLOODSHOWER:
+	case TEDP_BLOODSHOWER:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1202,7 +1202,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case DPTE_SMALLFLASH:
+	case TEDP_SMALLFLASH:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1218,7 +1218,7 @@ void CL_ParseTEnt (void)
 		dl->color[2] = 0.4;
 		break;
 
-	case DPTE_CUSTOMFLASH:
+	case TEDP_CUSTOMFLASH:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1238,7 +1238,7 @@ void CL_ParseTEnt (void)
 		
 		break;
 
-	case DPTE_FLAMEJET:
+	case TEDP_FLAMEJET:
 		// origin
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1256,7 +1256,7 @@ void CL_ParseTEnt (void)
 			P_RunParticleEffect (pos, pos2, 232, cnt);
 		break;
 
-	case DPTE_PLASMABURN:
+	case TEDP_PLASMABURN:
 		// origin
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1279,7 +1279,7 @@ void CL_ParseTEnt (void)
 			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
 		break;
 
-	case DPTE_TEI_G3:	//nexuiz's nex beam
+	case TEDP_TEI_G3:	//nexuiz's nex beam
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1297,7 +1297,7 @@ void CL_ParseTEnt (void)
 			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
 		break;
 
-	case DPTE_SMOKE:
+	case TEDP_SMOKE:
 		//org
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1315,7 +1315,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case DPTE_TEI_PLASMAHIT:
+	case TEDP_TEI_PLASMAHIT:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1331,7 +1331,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case DPTE_PARTICLECUBE:
+	case TEDP_PARTICLECUBE:
 		{
 			vec3_t dir;
 			int jitter;
@@ -1360,7 +1360,7 @@ void CL_ParseTEnt (void)
 			P_RunParticleCube(pos, pos2, dir, cnt, colour, gravity, jitter);
 		}
 		break;
-	case DPTE_PARTICLERAIN:
+	case TEDP_PARTICLERAIN:
 		{
 			vec3_t dir;
 
@@ -1385,7 +1385,7 @@ void CL_ParseTEnt (void)
 			P_RunParticleWeather(pos, pos2, dir, cnt, colour, "rain");
 		}
 		break;
-	case DPTE_PARTICLESNOW:
+	case TEDP_PARTICLESNOW:
 		{
 			vec3_t dir;
 

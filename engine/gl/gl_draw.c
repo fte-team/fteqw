@@ -417,6 +417,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
 	PPL_CreateShaderObjects();
+	GL_InitSceneProcessingShaders();
 
 #ifdef PLUGINS
 	Plug_DrawReloadImages();

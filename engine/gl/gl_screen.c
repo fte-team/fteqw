@@ -278,8 +278,11 @@ void GLSCR_UpdateScreen (void)
 
 	GL_Set2D ();
 
-	R_PolyBlend ();
-	GLR_BrightenScreen();
+	if (!noworld)
+	{
+		R_PolyBlend ();
+		GLR_BrightenScreen();
+	}
 
 	scr_con_forcedraw = false;
 	if (noworld)

@@ -1218,10 +1218,10 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 #endif
 #ifdef WEBCLIENT
 	case MT_MASTERHTTP:
-		HTTP_CL_Get(mast->address, va("master_%i_%i.tmp", mastersequence++, mast->servertype), MasterInfo_ProcessHTTPNQ);
+		HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPNQ);
 		break;
 	case MT_MASTERHTTPQW:
-		HTTP_CL_Get(mast->address, va("master_%i_%i.tmp", mastersequence++, mast->servertype), MasterInfo_ProcessHTTPQW);
+		HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPQW);
 		break;
 #endif
 	}

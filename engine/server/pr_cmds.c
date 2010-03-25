@@ -2330,7 +2330,7 @@ static void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said
 		if (color == 73)
 	{
 		MSG_WriteByte (&sv.multicast, svc_temp_entity);
-		MSG_WriteByte (&sv.multicast, TE_BLOOD);
+		MSG_WriteByte (&sv.multicast, TEQW_BLOOD);
 		MSG_WriteByte (&sv.multicast, count<10?1:(count+10)/20);
 		MSG_WriteCoord (&sv.multicast, org[0]);
 		MSG_WriteCoord (&sv.multicast, org[1]);
@@ -2340,7 +2340,7 @@ static void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said
 	else if (color == 225)
 	{
 		MSG_WriteByte (&sv.multicast, svc_temp_entity);
-		MSG_WriteByte (&sv.multicast, TE_LIGHTNINGBLOOD);
+		MSG_WriteByte (&sv.multicast, TEQW_LIGHTNINGBLOOD);
 		MSG_WriteCoord (&sv.multicast, org[0]);
 		MSG_WriteCoord (&sv.multicast, org[1]);
 		MSG_WriteCoord (&sv.multicast, org[2]);
@@ -2395,7 +2395,7 @@ void PF_te_blooddp (progfuncs_t *prinst, globalvars_t *pr_globals)
 #endif
 
 	MSG_WriteByte (&sv.multicast, svc_temp_entity);
-	MSG_WriteByte (&sv.multicast, TE_BLOOD);
+	MSG_WriteByte (&sv.multicast, TEQW_BLOOD);
 	MSG_WriteByte (&sv.multicast, count<10?1:(count+10)/20);
 	MSG_WriteCoord (&sv.multicast, org[0]);
 	MSG_WriteCoord (&sv.multicast, org[1]);
@@ -4517,7 +4517,7 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		type = TE_SUPERBULLET;
 		split = PEXT_TE_BULLET;
 		break;
-	case TE_BLOOD:
+	case TEQW_BLOOD:
 	case TE_GUNSHOT:
 		MSG_WriteByte (&sv.multicast, type);
 		MSG_WriteByte (&sv.multicast, count);
@@ -4543,7 +4543,7 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 	MSG_WriteCoord (&sv.nqmulticast, o[1]);
 	MSG_WriteCoord (&sv.nqmulticast, o[2]);
 #endif
-	if (type == TE_BLOOD || type == TE_LIGHTNINGBLOOD)
+	if (type == TEQW_BLOOD || type == TEQW_LIGHTNINGBLOOD)
 	{
 #ifdef NQPROT
 		sv.nqmulticast.cursize = 0;	//don't send a te_blood or lightningblood to an nq client - they'll die horribly.
@@ -4558,7 +4558,7 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		MSG_WriteChar (&sv.nqmulticast, 0);
 		MSG_WriteChar (&sv.nqmulticast, 0);
 		MSG_WriteByte (&sv.nqmulticast, count*20);
-		if (type == TE_BLOOD)
+		if (type == TEQW_BLOOD)
 			MSG_WriteByte (&sv.nqmulticast, 73);
 		else
 			MSG_WriteByte (&sv.nqmulticast, 225);
@@ -4595,7 +4595,7 @@ void SV_beam_tempentity (int ownerent, vec3_t start, vec3_t end, int type)
 	if (type == TE_LIGHTNING2 && ownerent<0)	//special handling for TE_BEAM (don't do TE_RAILGUN - it's a tomaz extension)
 	{
 		MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
-		MSG_WriteByte (&sv.nqmulticast, NQTE_BEAM);
+		MSG_WriteByte (&sv.nqmulticast, TENQ_BEAM);
 		MSG_WriteShort (&sv.nqmulticast, -1-ownerent);
 		MSG_WriteCoord (&sv.nqmulticast, start[0]);
 		MSG_WriteCoord (&sv.nqmulticast, start[1]);
@@ -7426,7 +7426,7 @@ void PF_te_gunshotquad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		count = G_FLOAT(OFS_PARM1);
 	else
 		count = 1;
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_GUNSHOTQUAD, count);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEDP_GUNSHOTQUAD, count);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
@@ -7439,13 +7439,13 @@ void PF_te_spike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //DP_TE_QUADEFFECTS1
 void PF_te_spikequad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_SPIKEQUAD, 1);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEDP_SPIKEQUAD, 1);
 }
 
 // FTE_TE_STANDARDEFFECTBUILTINS
 void PF_te_lightningblood(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_LIGHTNINGBLOOD, 1);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_LIGHTNINGBLOOD, 1);
 }
 
 // FTE_TE_STANDARDEFFECTBUILTINS
@@ -7456,7 +7456,7 @@ void PF_te_bloodqw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		count = G_FLOAT(OFS_PARM1);
 	else
 		count = 1;
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_BLOOD, count);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_BLOOD, count);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
@@ -7468,7 +7468,7 @@ void PF_te_superspike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //DP_TE_QUADEFFECTS1
 void PF_te_superspikequad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_SUPERSPIKEQUAD, 1);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEDP_SUPERSPIKEQUAD, 1);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
@@ -7480,7 +7480,7 @@ void PF_te_explosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //DP_TE_QUADEFFECTS1
 void PF_te_explosionquad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_EXPLOSIONQUAD, 1);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEDP_EXPLOSIONQUAD, 1);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
@@ -7563,7 +7563,7 @@ void PF_te_spark(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_SPARK);
+	MSG_WriteByte(&sv.multicast, TEDP_SPARK);
 	// origin
 	MSG_WriteCoord(&sv.multicast, org[0]);
 	MSG_WriteCoord(&sv.multicast, org[1]);
@@ -7578,7 +7578,7 @@ void PF_te_spark(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //the nq version
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_SPARK);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_SPARK);
 	// origin
 	MSG_WriteCoord(&sv.nqmulticast, org[0]);
 	MSG_WriteCoord(&sv.nqmulticast, org[1]);
@@ -7597,7 +7597,7 @@ void PF_te_spark(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_te_smallflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
-	SV_point_tempentity(org, DPTE_SMALLFLASH, 0);
+	SV_point_tempentity(org, TEDP_SMALLFLASH, 0);
 }
 
 // #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
@@ -7608,7 +7608,7 @@ void PF_te_customflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (G_FLOAT(OFS_PARM1) < 8 || G_FLOAT(OFS_PARM2) < (1.0 / 256.0))
 		return;
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_CUSTOMFLASH);
+	MSG_WriteByte(&sv.multicast, TEDP_CUSTOMFLASH);
 	// origin
 	MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0)[0]);
 	MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0)[1]);
@@ -7624,7 +7624,7 @@ void PF_te_customflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_CUSTOMFLASH);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_CUSTOMFLASH);
 	// origin
 	MSG_WriteCoord(&sv.nqmulticast, G_VECTOR(OFS_PARM0)[0]);
 	MSG_WriteCoord(&sv.nqmulticast, G_VECTOR(OFS_PARM0)[1]);
@@ -7660,7 +7660,7 @@ void PF_te_particlecube(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	// [vector] min [vector] max [vector] dir [short] count [byte] color [byte] gravity [coord] randomvel
 
 	MSG_WriteByte (&sv.multicast, svc_temp_entity);
-	MSG_WriteByte (&sv.multicast, DPTE_PARTICLECUBE);
+	MSG_WriteByte (&sv.multicast, TEDP_PARTICLECUBE);
 	MSG_WriteCoord(&sv.multicast, min[0]);
 	MSG_WriteCoord(&sv.multicast, min[1]);
 	MSG_WriteCoord(&sv.multicast, min[2]);
@@ -7677,7 +7677,7 @@ void PF_te_particlecube(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #ifdef NQPROT
 	MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte (&sv.nqmulticast, DPTE_PARTICLECUBE);
+	MSG_WriteByte (&sv.nqmulticast, TEDP_PARTICLECUBE);
 	MSG_WriteCoord(&sv.nqmulticast, min[0]);
 	MSG_WriteCoord(&sv.nqmulticast, min[1]);
 	MSG_WriteCoord(&sv.nqmulticast, min[2]);
@@ -7704,7 +7704,7 @@ void PF_te_explosionrgb(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *colour = G_VECTOR(OFS_PARM0);
 
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_EXPLOSIONRGB);
+	MSG_WriteByte(&sv.multicast, TEDP_EXPLOSIONRGB);
 	// origin
 	MSG_WriteCoord(&sv.multicast, org[0]);
 	MSG_WriteCoord(&sv.multicast, org[1]);
@@ -7715,7 +7715,7 @@ void PF_te_explosionrgb(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	MSG_WriteByte(&sv.multicast, bound(0, (int) (colour[2] * 255), 255));
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_EXPLOSIONRGB);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_EXPLOSIONRGB);
 	// origin
 	MSG_WriteCoord(&sv.nqmulticast, org[0]);
 	MSG_WriteCoord(&sv.nqmulticast, org[1]);
@@ -7740,7 +7740,7 @@ void PF_te_particlerain(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_PARTICLERAIN);
+	MSG_WriteByte(&sv.multicast, TEDP_PARTICLERAIN);
 	// min
 	MSG_WriteCoord(&sv.multicast, min[0]);
 	MSG_WriteCoord(&sv.multicast, min[1]);
@@ -7760,7 +7760,7 @@ void PF_te_particlerain(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_PARTICLERAIN);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_PARTICLERAIN);
 	// min
 	MSG_WriteCoord(&sv.nqmulticast, min[0]);
 	MSG_WriteCoord(&sv.nqmulticast, min[1]);
@@ -7794,7 +7794,7 @@ void PF_te_particlesnow(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_PARTICLESNOW);
+	MSG_WriteByte(&sv.multicast, TEDP_PARTICLESNOW);
 	// min
 	MSG_WriteCoord(&sv.multicast, min[0]);
 	MSG_WriteCoord(&sv.multicast, min[1]);
@@ -7814,7 +7814,7 @@ void PF_te_particlesnow(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_PARTICLESNOW);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_PARTICLESNOW);
 	// min
 	MSG_WriteCoord(&sv.nqmulticast, min[0]);
 	MSG_WriteCoord(&sv.nqmulticast, min[1]);
@@ -7847,7 +7847,7 @@ void PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	vec3_t org;
 
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_BLOODSHOWER);
+	MSG_WriteByte(&sv.multicast, TEDP_BLOODSHOWER);
 	// min
 	MSG_WriteCoord(&sv.multicast, min[0]);
 	MSG_WriteCoord(&sv.multicast, min[1]);
@@ -7863,7 +7863,7 @@ void PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_BLOODSHOWER);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_BLOODSHOWER);
 	// min
 	MSG_WriteCoord(&sv.nqmulticast, min[0]);
 	MSG_WriteCoord(&sv.nqmulticast, min[1]);

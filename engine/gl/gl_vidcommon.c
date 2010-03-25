@@ -448,8 +448,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUniform3fvARB			= (void *)getglext("glUniform3fvARB");
 		qglUniform1iARB				= (void *)getglext("glUniform1iARB");
 		qglUniform1fARB				= (void *)getglext("glUniform1fARB");
-
-		GL_InitSceneProcessingShaders();
 	}
 
 	if (GL_CheckExtension("GL_ARB_fragment_shader"))

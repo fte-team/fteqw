@@ -144,6 +144,8 @@ cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
 cvar_t	cl_item_bobbing = SCVAR("cl_model_bobbing", "0");
 cvar_t	cl_countpendingpl = SCVAR("cl_countpendingpl", "0");
 
+cvar_t  cl_download_mapsrc = SCVAR("cl_download_mapsrc", ""); //EG: "http://bigfoot.morphos-team.net/misc/quakemaps/"
+
 cvar_t	cl_standardchat = SCVARF("cl_standardchat", "0", CVAR_ARCHIVE);
 cvar_t	msg_filter = SCVAR("msg_filter", "0");	//0 for neither, 1 for mm1, 2 for mm2, 3 for both
 cvar_t  cl_standardmsg = SCVARF("cl_standardmsg", "0", CVAR_ARCHIVE);
@@ -2998,6 +3000,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_indepphysics,				cl_controlgroup);
 	Cvar_Register (&cl_antibunch,					"evil hacks");
 	Cvar_Register (&hud_tracking_show,				"statusbar");
+	Cvar_Register (&cl_download_mapsrc,				cl_controlgroup);
 
 	Cvar_Register (&cl_dlemptyterminate,				cl_controlgroup);
 

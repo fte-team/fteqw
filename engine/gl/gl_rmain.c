@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"
 #include "renderque.h"
 #include "shader.h"
+#include "gl_draw.h"
 
 void R_RenderBrushPoly (msurface_t *fa);
 
@@ -156,6 +157,9 @@ int scenepp_fisheye_program;
 int scenepp_fisheye_parm_fov;
 int scenepp_panorama_program;
 int scenepp_panorama_parm_fov;
+
+shader_t *shader_brighten;
+shader_t *shader_polyblend;
 
 // KrimZon - init post processing - called in GL_CheckExtensions, when they're called
 // I put it here so that only this file need be changed when messing with the post
@@ -336,9 +340,34 @@ void GL_InitSceneProcessingShaders_MenuTint(void)
 
 void GL_InitSceneProcessingShaders (void)
 {
-	GL_InitSceneProcessingShaders_WaterWarp();
-	GL_InitFisheyeFov();
-	GL_InitSceneProcessingShaders_MenuTint();
+	shader_brighten = R_RegisterShader("constrastshader", 
+			"{\n"
+				"{\n"
+					"map $whiteimage\n"
+					"blendfunc gl_dst_color gl_one\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
+				"}\n"
+			"}\n"
+	);
+	shader_polyblend = R_RegisterShader("polyblendshader",
+			"{\n"
+				"{\n"
+					"map $whiteimage\n"
+					"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
+				"}\n"
+			"}\n"
+	);
+
+
+	if (gl_config.arb_shader_objects)
+	{
+		GL_InitSceneProcessingShaders_WaterWarp();
+		GL_InitFisheyeFov();
+		GL_InitSceneProcessingShaders_MenuTint();
+	}
 }
 
 #define PP_WARP_TEX_SIZE 64
@@ -865,49 +894,17 @@ void GLR_DrawEntitiesOnList (void)
 R_PolyBlend
 ============
 */
-void GLV_CalcBlendServer (float colors[4]);
 //bright flashes and stuff
 void R_PolyBlend (void)
 {
-	float shift[4];
-	extern qboolean gammaworks;
-	if ((!v_blend[3] || !gl_nohwblend.value) && !cl.cshifts[CSHIFT_SERVER].percent)
+	if (!sw_blend[3])
 		return;
 
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
 
-#pragma message("backend fixme")
-	Con_Printf("polyblends are not updated for the backend\n");
-
-	GLV_CalcBlendServer(shift);	//figure out the shift we need (normally just the server specified one)
-
-Con_Printf("R_PolyBlend(): %4.2f %4.2f %4.2f %4.2f\n",shift[0], shift[1],	shift[2],	shift[3]);
-
-	PPL_RevertToKnownState();
-
-	qglDisable (GL_ALPHA_TEST);
-	qglEnable (GL_BLEND);
-	qglDisable (GL_DEPTH_TEST);
-	qglDisable (GL_TEXTURE_2D);
-
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	qglColor4fv (shift);
-
-	qglBegin (GL_QUADS);
-
-	qglVertex3f (r_refdef.vrect.x, r_refdef.vrect.y, -1);
-	qglVertex3f (r_refdef.vrect.x, r_refdef.vrect.y+r_refdef.vrect.height, -1);
-	qglVertex3f (r_refdef.vrect.x+r_refdef.vrect.width, r_refdef.vrect.y+r_refdef.vrect.height, -1);
-	qglVertex3f (r_refdef.vrect.x+r_refdef.vrect.width, r_refdef.vrect.y, -1);
-	qglEnd ();
-
-	qglDisable (GL_BLEND);
-	qglEnable (GL_TEXTURE_2D);
-	qglEnable (GL_ALPHA_TEST);
-
-	PPL_RevertToKnownState();
+	R2D_ImageColours (sw_blend[0], sw_blend[1], sw_blend[2], sw_blend[3]);
+	R2D_ScalePic(0, 0, vid.width, vid.height, shader_polyblend);
 }
 
 //for lack of hardware gamma
@@ -923,33 +920,18 @@ void GLR_BrightenScreen (void)
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
 
-	PPL_RevertToKnownState();
-
 	f = gl_contrast.value;
 	f = min (f, 3);
 
-	qglDisable (GL_TEXTURE_2D);
-	qglEnable (GL_BLEND);
-	qglBlendFunc (GL_DST_COLOR, GL_ONE);
-	qglBegin (GL_QUADS);
-	while (f > 1) {
+	while (f > 1)
+	{
 		if (f >= 2)
-			qglColor3f (1,1,1);
+			R2D_ImageColours (1, 1, 1, 1);
 		else
-			qglColor3f (f - 1, f - 1, f - 1);
-		qglVertex2f (0, 0);
-		qglVertex2f (vid.width, 0);
-		qglVertex2f (vid.width, vid.height);
-		qglVertex2f (0, vid.height);
+			R2D_ImageColours (f - 1, f - 1, f - 1, 1);
+		R2D_ScalePic(0, 0, vid.width, vid.height, shader_brighten);
 		f *= 0.5;
 	}
-	qglEnd ();
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglEnable (GL_TEXTURE_2D);
-	qglDisable (GL_BLEND);
-	qglColor3f(1, 1, 1);
-
-	PPL_RevertToKnownState();
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
 }
@@ -1061,7 +1043,6 @@ static void GLR_SetupFrame (void)
 		if (r_viewleaf)
 			V_SetContentsColor (r_viewleaf->contents);
 	}
-	GLV_CalcBlend ();
 
 	c_brush_polys = 0;
 	c_alias_polys = 0;

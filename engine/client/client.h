@@ -503,8 +503,7 @@ typedef struct
 	float		item_gettime[MAX_SPLITS][32];	// cl.time of aquiring item, for blinking
 	float		faceanimtime[MAX_SPLITS];		// use anim frame if cl.time < this
 
-	cshift_t	cshifts[NUM_CSHIFTS];	// color shifts for damage, powerups
-	cshift_t	prev_cshifts[NUM_CSHIFTS];	// and content types
+	cshift_t	cshifts[NUM_CSHIFTS];	// color shifts for damage, powerups and content types
 
 // the client maintains its own idea of view angles, which are
 // sent to the server each frame.  And only reset at level change
@@ -927,7 +926,6 @@ void V_RenderView (void);
 void V_Register (void);
 void V_ParseDamage (int pnum);
 void V_SetContentsColor (int contents);
-void GLV_CalcBlend (void);
 
 //used directly by csqc
 void V_CalcRefdef (int pnum);

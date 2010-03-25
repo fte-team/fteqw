@@ -21,7 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern	cvar_t		v_gamma;
 extern	cvar_t		lcd_x;
-extern float v_blend[4];
+extern float sw_blend[4];
+extern float hw_blend[4];
 
 extern int gl_ztrickdisabled;
 extern qboolean r_secondaryview;

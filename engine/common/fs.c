@@ -74,7 +74,7 @@ char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen)
 		return NULL;
 	while (len > 0)
 	{
-		if (!VFS_READ(vf, &in, 1))
+		if (VFS_READ(vf, &in, 1) != 1)
 		{
 			if (len == buflen-1)
 				return NULL;

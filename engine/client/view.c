@@ -309,7 +309,8 @@ qbyte		gammatable[256];	// palette is sent through this
 
 unsigned short		ramps[3][256];
 //extern qboolean		gammaworks;
-float		v_blend[4];		// rgba 0.0 - 1.0
+float		sw_blend[4];		// rgba 0.0 - 1.0
+float		hw_blend[4];		// rgba 0.0 - 1.0
 /*
 void BuildGammaTable (float g)
 {
@@ -600,74 +601,61 @@ V_CalcBlend
 */
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 
-void GLV_CalcBlendServer (float colors[4])
+void GLV_CalcBlend (float *hw_blend)
 {
-//	extern qboolean gammaworks;
-//	if (gammaworks || !v_blend[3])
-	if (!v_blend[3])
-	{	//regular cshifts work through hardware gamma
-		//server sent cshifts do not.
-		colors[0] = cl.cshifts[CSHIFT_SERVER].destcolor[0]/255.0f;
-		colors[1] = cl.cshifts[CSHIFT_SERVER].destcolor[1]/255.0f;
-		colors[2] = cl.cshifts[CSHIFT_SERVER].destcolor[2]/255.0f;
-		colors[3] = cl.cshifts[CSHIFT_SERVER].percent/255.0f;
-	}
-	else
-	{
-		float na;
-		na = cl.cshifts[CSHIFT_SERVER].percent/255.0f;
-
-		colors[3] = v_blend[3] + na*(1-v_blend[3]);
-//Con_Printf ("j:%i a:%f\n", j, a);
-		na = na/colors[3];
-		colors[0] = v_blend[0]*(1-na) + (cl.cshifts[CSHIFT_SERVER].destcolor[0]/255.0f)*na;
-		colors[1] = v_blend[1]*(1-na) + (cl.cshifts[CSHIFT_SERVER].destcolor[1]/255.0f)*na;
-		colors[2] = v_blend[2]*(1-na) + (cl.cshifts[CSHIFT_SERVER].destcolor[2]/255.0f)*na;
-	}
-}
-void GLV_CalcBlend (void)
-{
-	float	r, g, b, a, a2;
+	float	a2;
 	int		j;
+	float *blend;
 
-	r = 0;
-	g = 0;
-	b = 0;
-	a = 0;
+	memset(hw_blend, 0, sizeof(float)*4);
+	memset(sw_blend, 0, sizeof(float)*4);
 
 	//don't apply it to the server, we'll blend the two later if the user has no hardware gamma (if they do have it, we use just the server specified value) This way we avoid winnt users having a cheat with flashbangs and stuff.
-	for (j=0 ; j<CSHIFT_SERVER ; j++)	
+	for (j=0 ; j<NUM_CSHIFTS ; j++)	
 	{
-//		if (j != CSHIFT_SERVER)
-//		{
+		if (j != CSHIFT_SERVER)
+		{
 			if (!gl_cshiftpercent.value || !gl_cshiftenabled.ival)
 				continue;
 
 			a2 = ((cl.cshifts[j].percent * gl_cshiftpercent.value) / 100.0) / 255.0;
-//		}
-//		else
-//		{
-//			a2 = cl.cshifts[j].percent / 255.0;	//don't allow modification of this one.
-//		}
+		}
+		else
+		{
+			a2 = cl.cshifts[j].percent / 255.0;	//don't allow modification of this one.
+		}
 
 		if (!a2)
 			continue;
-		a = a + a2*(1-a);
-//Con_Printf ("j:%i a:%f\n", j, a);
-		a2 = a2/a;
-		r = r*(1-a2) + cl.cshifts[j].destcolor[0]*a2;
-		g = g*(1-a2) + cl.cshifts[j].destcolor[1]*a2;
-		b = b*(1-a2) + cl.cshifts[j].destcolor[2]*a2;
+
+		if (j == CSHIFT_SERVER)
+		{
+			/*server blend always goes into sw, ALWAYS*/
+			blend = sw_blend;
+		}
+		else
+		{
+			if (/*j == CSHIFT_BONUS || j == CSHIFT_DAMAGE ||*/ gl_nohwblend.ival)
+				blend = sw_blend;
+			else	//powerup or contents?
+				blend = hw_blend;
+		}
+
+		blend[3] = blend[3] + a2*(1-blend[3]);
+		a2 = a2/blend[3];
+		blend[0] = blend[0]*(1-a2) + cl.cshifts[j].destcolor[0]*a2/255.0;
+		blend[1] = blend[1]*(1-a2) + cl.cshifts[j].destcolor[1]*a2/255.0;
+		blend[2] = blend[2]*(1-a2) + cl.cshifts[j].destcolor[2]*a2/255.0;
 	}
 
-	v_blend[0] = r/255.0;
-	v_blend[1] = g/255.0;
-	v_blend[2] = b/255.0;
-	v_blend[3] = a;
-	if (v_blend[3] > 1)
-		v_blend[3] = 1;
-	if (v_blend[3] < 0)
-		v_blend[3] = 0;
+	if (hw_blend[3] > 1)
+		hw_blend[3] = 1;
+	if (hw_blend[3] < 0)
+		hw_blend[3] = 0;
+	if (sw_blend[3] > 1)
+		sw_blend[3] = 1;
+	if (sw_blend[3] < 0)
+		sw_blend[3] = 0;
 }
 
 /*
@@ -682,40 +670,12 @@ void GLV_UpdatePalette (qboolean force, double ftime)
 	qboolean	update;
 //	qbyte	*basepal, *newpal;
 //	qbyte	pal[768];
-	float	r,g,b,a;
+	float	newhw_blend[4];
 	int		ir, ig, ib;
 
 	RSpeedMark();
 
 	V_CalcPowerupCshift ();
-
-	update = false;
-
-	for (i=0 ; i<CSHIFT_SERVER ; i++)
-	{
-		if (gl_nohwblend.ival || !gl_cshiftenabled.ival)
-		{
-			if (0 != cl.prev_cshifts[i].percent)
-			{
-				update = true;
-				cl.prev_cshifts[i].percent = 0;
-			}
-		}
-		else
-		{
-			if (cl.cshifts[i].percent != cl.prev_cshifts[i].percent)
-			{
-				update = true;
-				cl.prev_cshifts[i].percent = cl.cshifts[i].percent;
-			}
-			for (j=0 ; j<3 ; j++)
-				if (cl.cshifts[i].destcolor[j] != cl.prev_cshifts[i].destcolor[j])
-				{
-					update = true;
-					cl.prev_cshifts[i].destcolor[j] = cl.cshifts[i].destcolor[j];
-				}
-		}
-	}
 
 // drop the damage value
 	cl.cshifts[CSHIFT_DAMAGE].percent -= ftime*150;
@@ -727,16 +687,17 @@ void GLV_UpdatePalette (qboolean force, double ftime)
 	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
 		cl.cshifts[CSHIFT_BONUS].percent = 0;
 
-	if (update || force)
-	{
-		GLV_CalcBlend ();
+	GLV_CalcBlend(newhw_blend);
 
-		a = v_blend[3];
-		if (gl_nohwblend.ival)
-			a = 0;
-		r = 255*v_blend[0]*a;
-		g = 255*v_blend[1]*a;
-		b = 255*v_blend[2]*a;
+	if (hw_blend[0] != newhw_blend[0] || hw_blend[1] != newhw_blend[1] || hw_blend[2] != newhw_blend[2] || hw_blend[3] != newhw_blend[3] || force)
+	{
+		float r,g,b,a;
+		Vector4Copy(newhw_blend, hw_blend);
+
+		a = hw_blend[3];
+		r = 255*hw_blend[0]*a;
+		g = 255*hw_blend[1]*a;
+		b = 255*hw_blend[2]*a;
 
 		a = 1-a;
 		for (i=0 ; i<256 ; i++)

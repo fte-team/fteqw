@@ -2,6 +2,7 @@
 // Microsoft Developer Studio generated include file.
 // Used by winquake.rc
 //
+#define IDC_STATIC    -1
 #define IDI_ICON1                       1
 #define IDI_ICON2                       2
 

@@ -150,10 +150,20 @@ static void HTTPSV_SendHTMLHeader(cluster_t *cluster, oproxy_t *dest, char *titl
 		"  <link rel=\"StyleSheet\" href=\"/style.css\" type=\"text/css\" />\n"
 		"</head>\n"
 		"<body><div id=\"navigation\"><ul>"
-		"<li><a href=\"/nowplaying.html%s\">Live</a></li><li><a href=\"/demos.html%s\">Demos</a></li><li><a href=\"/admin.html%s\">Admin</a></li>"
+		"<li><a href=\"/nowplaying.html%s\">Live</a></li>"
+		"<li><a href=\"/demos.html%s\">Demos</a></li>"
+		"%s"
+		"%s"
 		"</ul></div>";
 
-	snprintf(buffer, sizeof(buffer), s, title, plugin?"?p":"", plugin?"?p":"", plugin?"?p":"");
+	snprintf(buffer, sizeof(buffer), s, title, 
+
+		plugin?"?p":"", 
+		plugin?"?p":"", 
+		(!*cluster->adminpassword)?"":(plugin?"<li><a href=\"/admin.html?p\">Admin</a></li>":"<li><a href=\"/admin.html\">Admin</a></li>"),
+		plugin?"<li><a target=\"_top\" href=\"/nowplaying.html\">Basic</a></li>":"<li><a href=\"/plugin.html\">Plugin</a></li>"
+		
+		);
 
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 }
@@ -195,17 +205,6 @@ static void HTTPSV_GenerateNowPlaying(cluster_t *cluster, oproxy_t *dest, char *
 		args++;
 	}
 
-	s =
-	"<script><!--\n"
-	"function joinserver(d)\n"
-	"{\n"
-		"parent.getplug().server = d;\n"
-		"parent.getplug().running = 1;\n"
-	"}\n"
-	"//--></script>"
-	;
-	Net_ProxySend(cluster, dest, s, strlen(s));
-
 	if (!strcmp(cluster->hostname, DEFAULT_HOSTNAME))
 		snprintf(buffer, sizeof(buffer), "<h1>QuakeTV: Now Playing</h1>");	//don't show the hostname if its set to the default
 	else
@@ -233,7 +232,7 @@ static void HTTPSV_GenerateNowPlaying(cluster_t *cluster, oproxy_t *dest, char *
 		HTMLprintf(buffer, sizeof(buffer), "%s (%s: %s)", streams->server, streams->map.gamedir, streams->map.mapname);
 		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 		if (plugin && !strncmp(streams->server, "udp:", 4))
-			snprintf(buffer, sizeof(buffer), "<span class=\"qtvfile\"> [ <a href=\"javascript:joinserver('%s')\">Join</a> ]</span>", streams->server+4);
+			snprintf(buffer, sizeof(buffer), "<span class=\"qtvfile\"> [ <a href=\"javascript:parent.joinserver('%s')\">Join</a> ]</span>", streams->server+4);
 		else
 			snprintf(buffer, sizeof(buffer), "<span class=\"qtvfile\"> [ <a href=\"/watch.qtv?sid=%i\">Watch Now</a> ]</span>", streams->streamid);
 		Net_ProxySend(cluster, dest, buffer, strlen(buffer));
@@ -676,20 +675,6 @@ static void HTTPSV_GenerateDemoListing(cluster_t *cluster, oproxy_t *dest, char 
 	HTTPSV_SendHTTPHeader(cluster, dest, "200", "text/html", true);
 	HTTPSV_SendHTMLHeader(cluster, dest, "QuakeTV: Demos", args);
 
-	if (plugframe)
-	{
-		s =
-		"<script><!--\n"
-		"function playdemo(d)\n"
-		"{\n"
-			"parent.getplug().stream = \"file:\"+d+\"@\"+parent.host;\n"
-			"parent.getplug().running = 1;\n"
-		"}\n"
-		"//--></script>"
-		;
-		Net_ProxySend(cluster, dest, s, strlen(s));
-	}
-
 	s = "<h1>QuakeTV: Demo Listing</h1>";
 	Net_ProxySend(cluster, dest, s, strlen(s));
 
@@ -698,7 +683,7 @@ static void HTTPSV_GenerateDemoListing(cluster_t *cluster, oproxy_t *dest, char 
 	{
 		if (plugframe)
 		{
-			snprintf(link, sizeof(link), "<A HREF=\"javascript:playdemo('%s')\">%s</A> (%ikb)<br/>", cluster->availdemos[i].name, cluster->availdemos[i].name, cluster->availdemos[i].size/1024);
+			snprintf(link, sizeof(link), "<A HREF=\"javascript:parent.playdemo('%s')\">%s</A> (%ikb)<br/>", cluster->availdemos[i].name, cluster->availdemos[i].name, cluster->availdemos[i].size/1024);
 		}
 		else
 		{
@@ -751,11 +736,11 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 		" height=100%"
 		" >"
 		"<param name=\"splash\" value=\"http://"
-		;
-	Net_ProxySend(cluster, dest, html, strlen(html));
-	Net_ProxySend(cluster, dest, hostname, strlen(hostname));
-	html =
-		"/plugimg.jpg\">"
+					;
+				Net_ProxySend(cluster, dest, html, strlen(html));
+				Net_ProxySend(cluster, dest, hostname, strlen(hostname));
+				html =
+					"/plugimg.jpg\">"
 		"<param name=\"game\" value=\"q1\">"
 		"<param name=\"dataDownload\" value=\"id1/pak0.pak:http://random.nquake.com/qsw106.zip\">"
 		/*once again for firefox and similar friends*/
@@ -765,15 +750,15 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 		" height=100%"
 		" >"
 		"<param name=\"splash\" value=\"http://"
-		;
-	Net_ProxySend(cluster, dest, html, strlen(html));
-	Net_ProxySend(cluster, dest, hostname, strlen(hostname));
-	html =
-		"/plugimg.jpg\">"
+					;
+				Net_ProxySend(cluster, dest, html, strlen(html));
+				Net_ProxySend(cluster, dest, hostname, strlen(hostname));
+				html =
+					"/plugimg.jpg\">"
 		"<param name=\"game\" value=\"q1\">"
 		"<param name=\"dataDownload\" value=\"id1/pak0.pak:http://random.nquake.com/qsw106.zip\">"
 		"It looks like you either don't have the required plugin or its not supported by your browser.<br/>"
-		"<a href=\"npfte.xpi\">You can download one for firefox here.</a><br/>"
+		"<a href=\"npfte.xpi\">You can download one for firefox here (open with firefox itself).</a><br/>"
 		"<a href=\"iefte.exe\">You can download one for internet explorer here.</a><br/>"
 		"<a href=\"npfte.exe\">You can download one for other browsers here.</a><br/>"
 		"</object>"
@@ -785,13 +770,36 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 	"{\n"
 		"return document.npplug;\n"
 	"}\n"
-	"parent.getplug = getplug;\n"
 	"parent.host = \""
-			;
-	Net_ProxySend(cluster, dest, html, strlen(html));
-	Net_ProxySend(cluster, dest, hostname, strlen(hostname));
-	html =
-	"\";\n"
+					;
+			Net_ProxySend(cluster, dest, html, strlen(html));
+			Net_ProxySend(cluster, dest, hostname, strlen(hostname));
+			html =
+			"\";\n"
+
+
+	"function joinserver(d)\n"
+	"{\n"
+		"getplug().mapsrc = \"http://bigfoot.morphos-team.net/misc/quakemaps/\";\n"
+		"getplug().server = d;\n"
+		"getplug().running = 1;\n"
+	"}\n"
+
+	"function playdemo(d)\n"
+	"{\n"
+		"getplug().mapsrc = \"http://bigfoot.morphos-team.net/misc/quakemaps/\";\n"
+		"getplug().stream = \"file:\"+d+\"@"
+						;
+				Net_ProxySend(cluster, dest, html, strlen(html));
+				Net_ProxySend(cluster, dest, hostname, strlen(hostname));
+				html =
+					"\";\n"
+		"getplug().running = 1;\n"
+	"}\n"
+
+	"parent.joinserver = joinserver;\n"
+	"parent.playdemo = playdemo;\n"
+
 	"</script>"
 
 	"</body></HTML>";
@@ -852,7 +860,7 @@ static void HTTPSV_GenerateDownload(cluster_t *cluster, oproxy_t *dest, char *fi
 	}
 	*s = 0;
 
-	if (*suppliedname == '\\' || *suppliedname == '/' || strstr(suppliedname, "..") || strchr(suppliedname, ':'))
+	if (*suppliedname == '\\' || *suppliedname == '/' || strstr(suppliedname, "..") || strstr(suppliedname, "//") || strstr(suppliedname, "\\\\") || strchr(suppliedname, ':'))
 	{
 		HTTPSV_SendHTTPHeader(cluster, dest, "403", "text/html", true);
 		HTTPSV_SendHTMLHeader(cluster, dest, "Permission denied", "");
@@ -882,7 +890,7 @@ static void HTTPSV_GenerateDownload(cluster_t *cluster, oproxy_t *dest, char *fi
 		}		
 	}
 
-
+	printf("Download request for %s\n", fname);
 	dest->srcfile = fopen(fname, "rb");
 
 	if (dest->srcfile)

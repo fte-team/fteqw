@@ -362,6 +362,7 @@ void R_DrawHLModel(entity_t	*curent);
 void GLR_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 void GLR_RenderDlights (void);
+void R_InitFlashblends (void);
 int GLR_LightPoint (vec3_t p);
 
 void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);

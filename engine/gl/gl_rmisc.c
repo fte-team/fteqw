@@ -333,6 +333,7 @@ void GLR_ReInit (void)
 #endif
 
 	R_InitBloomTextures();
+	R_InitFlashblends();
 }
 /*
 typedef struct

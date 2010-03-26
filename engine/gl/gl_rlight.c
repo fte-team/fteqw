@@ -22,6 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 #include "glquake.h"
+#include "shader.h"
+
 
 int	r_dlightframecount;
 int		d_lightstylevalue[256];	// 8.8 fraction of base light value
@@ -113,6 +115,45 @@ void R_InitBubble(void)
 }
 
 #ifdef GLQUAKE
+#define FLASHBLEND_VERTS 16
+avec4_t flashblend_colours[FLASHBLEND_VERTS+1]; 
+vecV_t flashblend_vcoords[FLASHBLEND_VERTS+1];
+vec2_t flashblend_tccoords[FLASHBLEND_VERTS+1];
+int flashblend_indexes[FLASHBLEND_VERTS*3];
+mesh_t flashblend_mesh;
+shader_t *flashblend_shader;
+void R_InitFlashblends(void)
+{
+	int i;
+	for (i = 0; i < FLASHBLEND_VERTS; i++)
+	{
+		flashblend_indexes[i*3+0] = 0;
+		if (i+1 == FLASHBLEND_VERTS)
+			flashblend_indexes[i*3+1] = 1;
+		else
+			flashblend_indexes[i*3+1] = i+2;
+		flashblend_indexes[i*3+2] = i+1;
+	}
+	flashblend_mesh.numvertexes = FLASHBLEND_VERTS+1;
+	flashblend_mesh.xyz_array = flashblend_vcoords;
+	flashblend_mesh.st_array = flashblend_tccoords;
+	flashblend_mesh.colors4f_array = flashblend_colours;
+	flashblend_mesh.indexes = flashblend_indexes;
+	flashblend_mesh.numindexes = FLASHBLEND_VERTS*3;
+	flashblend_mesh.istrifan = true;
+
+	flashblend_shader = R_RegisterShader("flashblend", 
+		"{\n"
+			"{\n"
+				"map $whitetexture\n"
+				"blendfunc gl_one gl_one\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+			"}\n"
+		"}\n"
+		);
+}
+
 void R_RenderDlight (dlight_t *light)
 {
 	int		i, j;
@@ -145,26 +186,23 @@ void R_RenderDlight (dlight_t *light)
 		return;
 	}
 
-	qglBegin (GL_TRIANGLE_FAN);
-//	qglColor3f (0.2,0.1,0.0);
-//	qglColor3f (0.2,0.1,0.05); // changed dimlight effect
-	qglColor4f (colour[0]*2, colour[1]*2, colour[2]*2,
-		1);//light->color[3]);
+	flashblend_colours[0][0] = colour[0]*2;
+	flashblend_colours[0][1] = colour[1]*2;
+	flashblend_colours[0][2] = colour[2]*2;
+	flashblend_colours[0][3] = 1;
+	
 	for (i=0 ; i<3 ; i++)
-		v[i] = light->origin[i] - vpn[i]*rad/1.5;
-	qglVertex3fv (v);
-	qglColor3f (0,0,0);
-	for (i=16 ; i>=0 ; i--)
+		flashblend_vcoords[0][i] = light->origin[i] - vpn[i]*rad/1.5;
+	for (i=16 ; i>0 ; i--)
 	{
-//		a = i/16.0 * M_PI*2;
 		for (j=0 ; j<3 ; j++)
-			v[j] = light->origin[j] + (vright[j]*(*bub_cos) +
+			flashblend_vcoords[i][j] = light->origin[j] + (vright[j]*(*bub_cos) +
 				+ vup[j]*(*bub_sin)) * rad;
 		bub_sin++; 
 		bub_cos++;
-		qglVertex3fv (v);
 	}
-	qglEnd ();
+
+	BE_DrawMeshChain(flashblend_shader, &flashblend_mesh, NULL, &flashblend_shader->defaulttextures);
 }
 
 /*
@@ -178,27 +216,21 @@ void GLR_RenderDlights (void)
 	dlight_t	*l;
 	vec3_t waste1, waste2;
 
-	if (!r_flashblend.ival)
+	switch(r_flashblend.ival)
+	{
+	case 0:
 		return;
-#pragma message("backend fixme")
-	Con_Printf("flashblends are not updated for the backend\n");
+	default:
+	case 1:
+		BE_SelectMode(BEM_STANDARD, 0);
+		break;
+	case 2:
+		BE_SelectMode(BEM_STANDARD, BEF_FORCENODEPTH);
+		break;
+	}
 
 //	r_dlightframecount = r_framecount + 1;	// because the count hasn't
 											//  advanced yet for this frame
-
-	PPL_RevertToKnownState();
-
-	qglDepthMask (0);
-	qglDisable (GL_TEXTURE_2D);
-	qglShadeModel (GL_SMOOTH);
-	qglEnable (GL_BLEND);
-	qglBlendFunc (GL_ONE, GL_ONE);
-
-	if (r_flashblend.ival == 2)
-	{
-		qglDisable(GL_DEPTH_TEST);
-		qglDepthMask(0);
-	}
 
 	l = cl_dlights+rtlights_first;
 	for (i=rtlights_first; i<rtlights_max; i++, l++)
@@ -220,19 +252,7 @@ void GLR_RenderDlights (void)
 		R_RenderDlight (l);
 	}
 
-	if (r_flashblend.ival == 2)
-	{
-		qglEnable(GL_DEPTH_TEST);
-		qglDepthMask(1);
-	}
-
-	qglColor3f (1,1,1);
-	qglDisable (GL_BLEND);
-	qglEnable (GL_TEXTURE_2D);
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglDepthMask (1);
-
-	PPL_RevertToKnownState();
+	BE_SelectMode(BEM_STANDARD, 0);
 }
 #endif
 

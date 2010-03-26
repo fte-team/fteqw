@@ -4052,7 +4052,7 @@ PR_ParseValue
 Returns the global ofs for the current token
 ============
 */
-QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass)
+QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 {
 	QCC_def_t	*ao=NULL;	//arrayoffset
 	QCC_def_t		*d, *nd, *od;
@@ -4352,7 +4352,7 @@ reloop:
 					if (d->scope)
 						QCC_PR_ParseError(0, "Scoped array without specific engine support");
 
-					if (QCC_PR_CheckToken("="))
+					if (allowarrayassign && QCC_PR_CheckToken("="))
 					{
 						QCC_def_t *args[2];
 
@@ -4645,7 +4645,7 @@ reloop:
 				QCC_PR_Expect(")");
 			}
 			else
-				field = QCC_PR_ParseValue(d->type);
+				field = QCC_PR_ParseValue(d->type, false);
 			if (field->type->type == ev_field)
 			{
 				if (!field->type->aux_type)
@@ -4980,7 +4980,7 @@ QCC_def_t *QCC_PR_Term (void)
 			return e;
 		}
 	}
-	return QCC_PR_ParseValue (pr_classtype);
+	return QCC_PR_ParseValue (pr_classtype, true);
 }
 
 
@@ -6529,7 +6529,7 @@ void QCC_PR_ParseAsm(void)
 				{
 					patch1 = &statements[numstatements];
 
-					a = QCC_PR_ParseValue(pr_classtype);
+					a = QCC_PR_ParseValue(pr_classtype, false);
 					QCC_PR_Statement3(&pr_opcodes[op], a, NULL, NULL, true);
 
 					if (pr_token_type == tt_name)
@@ -6548,8 +6548,8 @@ void QCC_PR_ParseAsm(void)
 				{
 					patch1 = &statements[numstatements];
 
-					a = QCC_PR_ParseValue(pr_classtype);
-					b = QCC_PR_ParseValue(pr_classtype);
+					a = QCC_PR_ParseValue(pr_classtype, false);
+					b = QCC_PR_ParseValue(pr_classtype, false);
 					QCC_PR_Statement3(&pr_opcodes[op], a, b, NULL, true);
 
 					if (pr_token_type == tt_name)
@@ -6568,15 +6568,15 @@ void QCC_PR_ParseAsm(void)
 			else
 			{				
 				if (pr_opcodes[op].type_a != &type_void)
-					a = QCC_PR_ParseValue(pr_classtype);
+					a = QCC_PR_ParseValue(pr_classtype, false);
 				else
 					a=NULL;
 				if (pr_opcodes[op].type_b != &type_void)
-					b = QCC_PR_ParseValue(pr_classtype);
+					b = QCC_PR_ParseValue(pr_classtype, false);
 				else
 					b=NULL;
 				if (pr_opcodes[op].associative==ASSOC_LEFT && pr_opcodes[op].type_c != &type_void)
-					c = QCC_PR_ParseValue(pr_classtype);
+					c = QCC_PR_ParseValue(pr_classtype, false);
 				else
 					c=NULL;
 

@@ -22,10 +22,16 @@ typedef char *string_t;
 */
 
 #ifdef _MSC_VER
-#define VARGS __cdecl
+	#define VARGS __cdecl
+#endif
+#if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
+	#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
+#endif
+#ifndef LIKEPRINTF
+	#define LIKEPRINTF(x)
 #endif
 #ifndef VARGS
-#define VARGS
+	#define VARGS
 #endif
 
 
@@ -60,7 +66,7 @@ struct progfuncs_s {
 	struct globalvars_s	*(*globals)		(progfuncs_t *prinst, progsnum_t num);	//get the globals of a progs
 	struct entvars_s	*(*entvars)		(progfuncs_t *prinst, struct edict_s *ent);	//return a pointer to the entvars of an ent. can be achieved via the edict_t structure instead, so obsolete.
 
-	void	(VARGS *RunError)			(progfuncs_t *prinst, char *msg, ...);		//builtins call this to say there was a problem
+	void	(VARGS *RunError)			(progfuncs_t *prinst, char *msg, ...) LIKEPRINTF(2);		//builtins call this to say there was a problem
 	void	(*PrintEdict)				(progfuncs_t *prinst, struct edict_s *ed);	//get a listing of all vars on an edict (sent back via 'print')
 
 	struct edict_s	*(*EntAlloc)		(progfuncs_t *prinst);
@@ -137,7 +143,9 @@ struct progfuncs_s {
 	char *(*StringToNative)				(progfuncs_t *prinst, string_t str);
 	int stringtablesize;
 
-	int (*QueryField)		(progfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache);	//find info on a field definition at an offset
+	int (*QueryField)					(progfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache);	//find info on a field definition at an offset
+
+	void (*EntClear)					(progfuncs_t *progfuncs, struct edict_s *e);
 };
 
 typedef struct progexterns_s {
@@ -146,9 +154,9 @@ typedef struct progexterns_s {
 	unsigned char *(*ReadFile) (char *fname, void *buffer, int len);
 	int (*FileSize) (char *fname);	//-1 if file does not exist
 	pbool (*WriteFile) (char *name, void *data, int len);
-	int (VARGS *printf) (const char *, ...);
-	void (VARGS *Sys_Error) (const char *, ...);
-	void (VARGS *Abort) (char *, ...);
+	int (VARGS *printf) (const char *, ...) LIKEPRINTF(1);
+	void (VARGS *Sys_Error) (const char *, ...) LIKEPRINTF(1);
+	void (VARGS *Abort) (char *, ...) LIKEPRINTF(1);
 	int edictsize;	//size of edict_t
 
 	void (*entspawn) (struct edict_s *ent, int loading);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
@@ -183,7 +191,9 @@ typedef struct progexterns_s {
 //FIXMEs
 void QC_AddSharedVar(progfuncs_t *progfuncs, int start, int size);
 void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *relstringtable);
-void ED_Print (progfuncs_t *progfuncs, struct edict_s *ed);
+void ED_Print(progfuncs_t *progfuncs, struct edict_s *ed);
+char *PR_RemoveProgsString(progfuncs_t *progfuncs, string_t str);
+int PR_GetFuncArgCount(progfuncs_t *progfuncs, func_t func);
 
 #if defined(QCLIBDLL_EXPORTS)
 __declspec(dllexport)
@@ -218,7 +228,7 @@ typedef union eval_s
 #define PR_LoadProgs(pf, s, headercrc, builtins, numb)		(*pf->LoadProgs)			(pf, s, headercrc, builtins, numb)
 #define PR_InitEnts(pf, maxents)							(*pf->InitEnts)				(pf, maxents)
 #define PR_ExecuteProgram(pf, fnum)							(*pf->ExecuteProgram)		(pf, fnum)
-#define PR_SwitchProgs(pf, num)								(*pf->SwitchProgs)			(pf, num);
+#define PR_SwitchProgs(pf, num)								(*pf->SwitchProgs)			(pf, num)
 #define PR_globals(pf, num)									(*pf->globals)				(pf, num)
 #define PR_entvars(pf, ent)									(*pf->entvars)				(pf, ent)
 
@@ -226,6 +236,7 @@ typedef union eval_s
 
 #define ED_Alloc(pf)										(*pf->EntAlloc)				(pf)
 #define ED_Free(pf, ed)										(*pf->EntFree)				(pf, ed)
+#define ED_Clear(pf, ed)									(*pf->EntClear)				(pf, ed)
 
 #define PR_LoadEnts(pf, s, kf)								(*pf->load_ents)			(pf, s, kf)
 #define PR_SaveEnts(pf, buf, size, mode)					(*pf->save_ents)			(pf, buf, size, mode)
@@ -251,7 +262,7 @@ typedef union eval_s
 #define PR_Alloc(pf,size)									(*pf->Tempmem)				(pf, size)
 
 #define PROG_TO_EDICT(pf, ed)								(*pf->ProgsToEdict)			(pf, ed)
-#define EDICT_TO_PROG(pf, ed)								(*pf->EdictToProgs)			(pf, ed)
+#define EDICT_TO_PROG(pf, ed)								(*pf->EdictToProgs)			(pf, (struct edict_s*)ed)
 
 #define PR_RegisterBuiltin(pf, name, func)					(*pf->RegisterBuiltin)		(pf, name, func)
 

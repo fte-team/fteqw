@@ -119,7 +119,7 @@ pbool PR_GenerateJit(progfuncs_t *progfuncs)
 	int *glob = (int*)current_progstate->globals;
 
 	if (current_progstate->numbuiltins)
-		return;
+		return false;
 
 	jitstatements = numstatements;
 
@@ -259,7 +259,7 @@ pbool PR_GenerateJit(progfuncs_t *progfuncs)
 				//remember to change the je above
 
 				//err... exit depth? no idea
-				EmitByte(0xcd);EmitByte(op[i].op);
+				EmitByte(0xcd);EmitByte(op[i].op);	//int $X
 
 
 				//ret
@@ -560,7 +560,7 @@ EmitByte(0xcc);
 			//jmp 10
 			EmitByte(0xeb);EmitByte(0x0a);
 			//mov 1.0f,glob[C]
-			EmitByte(0xc7);EmitByte(0x05); EmitAdr(glob + op[i].a);EmitFloat(1.0f);
+			EmitByte(0xc7);EmitByte(0x05); EmitAdr(glob + op[i].c);EmitFloat(1.0f);
 			break;
 
 		case OP_BITOR:	//floats...
@@ -972,7 +972,55 @@ EmitByte(0xcc);
 			//add $12,%esp
 			EmitByte(0x83); EmitByte(0xc4); EmitByte(0x0c);
 			break;
-/*
+#if 0
+		case OP_NOT_V:
+			//flds 0
+			//flds glob[A+0]
+			//fcomip %st(1),%st
+			//jne _true
+			//flds glob[A+1]
+			//fcomip %st(1),%st
+			//jne _true
+			//flds glob[A+1]
+			//fcomip %st(1),%st
+			//jne _true
+			//mov 1,C
+			//jmp done
+			//_true:
+			//mov 0,C
+			//done:
+			break;
+
+		case OP_EQ_V:
+			//flds glob[A]
+			EmitByte(0xd9);EmitByte(0x05);EmitAdr(glob + op[i].a+0);
+			//flds glob[B]
+			EmitByte(0xd9);EmitByte(0x05);EmitAdr(glob + op[i].b+0);
+			//fcomip %st(1),%st
+			EmitByte(0xdf);EmitByte(0xe9);
+			//fstp %st(0)	(aka: pop)
+			EmitByte(0xdd);EmitByte(0xd8);
+
+			//jncc _true
+			if (op[i].op == OP_NE_V)
+				EmitByte(0x74);	//je
+			else
+				EmitByte(0x75);	//jne
+			EmitByte(0x0c);
+//_false0:
+			//mov 0.0f,c
+			EmitByte(0xc7); EmitByte(0x05); EmitAdr(glob + op[i].c); EmitFloat(1.0f);
+			//jmp done
+			EmitByte(0xeb); EmitByte(0x0a);
+
+
+//_true:
+			//mov 1.0f,c
+			EmitByte(0xc7); EmitByte(0x05); EmitAdr(glob + op[i].c); EmitFloat(0.0f);
+//_done:
+			break;
+
+
 		case OP_EQ_V:
 			EmitByte(0xcd);EmitByte(op[i].op);
 			printf("QCJIT: instruction %i is not implemented\n", op[i].op);
@@ -987,7 +1035,7 @@ EmitByte(0xcc);
 			EmitByte(0xcd);EmitByte(op[i].op);
 			printf("QCJIT: instruction %i is not implemented\n", op[i].op);
 			break;
-*/
+#endif
 		default:
 			printf("QCJIT: Extended instruction set %i is not supported, not using jit.\n", op[i].op);
 
@@ -1021,7 +1069,7 @@ void PR_EnterJIT(progfuncs_t *progfuncs, int statement)
 {
 #ifdef __GNUC__
 	//call, it clobbers pretty much everything.
-	asm("call %0" :: "r"(statementoffsets[statement+1]),"b"(prinst->edicttable):"cc","memory","eax","ecx","edx");
+	asm("call *%0" :: "r"(statementoffsets[statement+1]),"b"(prinst->edicttable):"cc","memory","eax","ecx","edx");
 #elif defined(_MSC_VER)
 	void *entry = statementoffsets[statement+1];
 	void *edicttable = prinst->edicttable;

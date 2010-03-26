@@ -431,7 +431,7 @@ reeval:
 			st--;
 			goto cont;
 #else
-			PR_RunError (progfuncs, "OP_ADDRESS references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			PR_RunError (progfuncs, "OP_ADDRESS references invalid entity in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 #endif
 		}
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
@@ -448,7 +448,13 @@ reeval:
 			st--;
 			goto cont;
 #else
-			PR_RunError (progfuncs, "assignment to read-only entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			{
+				ddef16_t *d16;
+				fdef_t *f;
+				d16 = ED_GlobalAtOfs16(progfuncs, st->a);
+				f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->fieldadjust);
+				PR_RunError (progfuncs, "assignment to read-only entity in %s (%s.%s)", PR_StringToNative(progfuncs, pr_xfunction->s_name), PR_StringToNative(progfuncs, d16->s_name), f?f->name:NULL);
+			}
 #endif
 		}
 

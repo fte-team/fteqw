@@ -1401,7 +1401,7 @@ void QCC_PR_LexNumber (void)
 				pr_file_p++;
 			}
 			pr_token[tokenlen++] = 0;
-			pr_immediate._float = atof(pr_token);
+			pr_immediate._float = (float)atof(pr_token);
 			return;
 		}
 		else if (c == 'i')
@@ -2419,7 +2419,7 @@ int QCC_PR_CheakCompConst(void)
 	if (!strncmp(pr_file_p, "__NULL__", 8))
 	{
 		static char retbuf[256];
-		sprintf(retbuf, "~0");
+		sprintf(retbuf, "0i");
 		pr_file_p = retbuf;
 		QCC_PR_Lex();	//translate the macro's value
 		pr_file_p = oldpr_file_p+8;
@@ -2599,7 +2599,12 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 	if (qccwarningdisabled[type])
 		return;
 	if (def->s_file)
-		printf ("%s:%i:    %s  is defined here\n", strings + def->s_file, def->s_line, def->name);
+	{
+		if (flag_msvcstyle)
+			printf ("%s(%i) :    %s  is defined here\n", strings + def->s_file, def->s_line, def->name);
+		else
+			printf ("%s:%i:    %s  is defined here\n", strings + def->s_file, def->s_line, def->name);
+	}
 }
 void *errorscope;
 void QCC_PR_PrintScope (void)
@@ -2645,7 +2650,10 @@ void VARGS QCC_PR_ParseError (int errortype, char *error, ...)
 #endif
 
 	QCC_PR_PrintScope();
-	printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
+	if (flag_msvcstyle)
+		printf ("%s(%i) : error: %s\n", strings + s_file, pr_source_line, string);
+	else
+		printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
 	
 	longjmp (pr_parse_abort, 1);
 }
@@ -2662,7 +2670,10 @@ void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, char *error
 	editbadfile(strings+s_file, pr_source_line);
 #endif
 	QCC_PR_PrintScope();
-	printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
+	if (flag_msvcstyle)
+		printf ("%s(%i) : error: %s\n", strings + s_file, pr_source_line, string);
+	else
+		printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
 
 	QCC_PR_ParsePrintDef(WARN_ERROR, def);
 	
@@ -2683,12 +2694,18 @@ void VARGS QCC_PR_ParseWarning (int type, char *error, ...)
 	QCC_PR_PrintScope();
 	if (type >= ERR_PARSEERRORS)
 	{
-		printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
+		if (flag_msvcstyle)
+			printf ("%s(%i) : error: %s\n", strings + s_file, pr_source_line, string);
+		else
+			printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
 		pr_error_count++;
 	}
 	else
 	{
-		printf ("%s:%i: warning: %s\n", strings + s_file, pr_source_line, string);
+		if (flag_msvcstyle)
+			printf ("%s(%i) : warning: %s\n", strings + s_file, pr_source_line, string);
+		else
+			printf ("%s:%i: warning: %s\n", strings + s_file, pr_source_line, string);
 		pr_warning_count++;
 	}
 }
@@ -2707,7 +2724,12 @@ void VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)
 
 	QCC_PR_PrintScope();
 	if (file)
-		printf ("%s:%i: warning: %s\n", file, line, string);
+	{
+		if (flag_msvcstyle)
+			printf ("%s(%i) : warning: %s\n", file, line, string);
+		else
+			printf ("%s:%i: warning: %s\n", file, line, string);
+	}
 	else
 		printf ("warning: %s\n", string);
 	pr_warning_count++;

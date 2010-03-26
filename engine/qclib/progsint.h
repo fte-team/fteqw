@@ -1,4 +1,4 @@
-#ifdef WIN32
+#ifdef _WIN32
 
 	#ifndef AVAIL_ZLIB
 		#ifdef _MSC_VER
@@ -89,8 +89,13 @@ void PRHunkFree(progfuncs_t *progfuncs, int mark);
 void *PRHunkAlloc(progfuncs_t *progfuncs, int size);
 void *PRAddressableAlloc(progfuncs_t *progfuncs, int ammount);
 
+#ifdef printf
+#undef LIKEPRINTF
+#define LIKEPRINTF(x)
+#endif
+
 //void *HunkAlloc (int size);
-char *VARGS qcva (char *text, ...);
+char *VARGS qcva (char *text, ...) LIKEPRINTF(1);
 void QC_InitShares(progfuncs_t *progfuncs);
 void QC_StartShares(progfuncs_t *progfuncs);
 void QC_AddSharedVar(progfuncs_t *progfuncs, int num, int type);
@@ -129,8 +134,6 @@ typedef union eval_s
 #endif
 */
 
-
-#define	MAX_ENT_LEAFS	16
 typedef struct edictrun_s
 {
 	pbool	isfree;
@@ -281,7 +284,7 @@ const extern	unsigned int		type_size[];
 
 extern	unsigned short		pr_crc;
 
-void VARGS PR_RunError (progfuncs_t *progfuncs, char *error, ...);
+void VARGS PR_RunError (progfuncs_t *progfuncs, char *error, ...) LIKEPRINTF(2);
 
 void ED_PrintEdicts (progfuncs_t *progfuncs);
 void ED_PrintNum (progfuncs_t *progfuncs, int ent);
@@ -447,7 +450,7 @@ func_t PR_FindFunc(progfuncs_t *progfncs, char *funcname, progsnum_t pnum);
 void PR_Configure (progfuncs_t *progfncs, int addressable_size, int max_progs);
 int PR_InitEnts(progfuncs_t *progfncs, int maxents);
 char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val);
-void ED_ClearEdict (progfuncs_t *progfuncs, edictrun_t *e);
+void QC_ClearEdict (progfuncs_t *progfuncs, struct edict_s *ed);
 void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount);
 void QC_FlushProgsOffsets(progfuncs_t *progfuncs);
 
@@ -465,6 +468,9 @@ char *PR_GlobalString (progfuncs_t *progfuncs, int ofs);
 char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs);
 
 pbool CompileFile(progfuncs_t *progfuncs, char *filename);
+
+pbool PR_GenerateJit(progfuncs_t *progfuncs);
+void PR_EnterJIT(progfuncs_t *progfuncs, int statement);
 
 char *QCC_COM_Parse (char *data);
 extern char	qcc_token[1024];

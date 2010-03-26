@@ -45,13 +45,14 @@ static gefv_cache	gefvCache[GEFV_CACHESIZE] = {{NULL, ""}, {NULL, ""}};
 
 /*
 =================
-ED_ClearEdict
+QC_ClearEdict
 
 Sets everything to NULL
 =================
 */
-void ED_ClearEdict (progfuncs_t *progfuncs, edictrun_t *e)
+void QC_ClearEdict (progfuncs_t *progfuncs, struct edict_s *ed)
 {
+	edictrun_t *e = (edictrun_t *)ed;
 	int num = e->entnum;
 	memset (e->fields, 0, fields_size);
 	e->isfree = false;
@@ -66,7 +67,7 @@ edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num)
 	memset(e, 0, externs->edictsize);
 	e->fields = PRAddressableAlloc(progfuncs, fields_size);
 	e->entnum = num;
-	ED_ClearEdict(progfuncs, e);
+	QC_ClearEdict(progfuncs, (struct edict_s*)e);
 
 	return e;
 }
@@ -97,7 +98,7 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 			if (!e)
 				e = ED_AllocIntoTable(progfuncs, i);
 			else
-				ED_ClearEdict (progfuncs, e);
+				QC_ClearEdict (progfuncs, (struct edict_s*)e);
 
 			if (externs->entspawn)
 				externs->entspawn((struct edict_s *) e, false);
@@ -117,7 +118,7 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 				if (!e)
 					e = ED_AllocIntoTable(progfuncs, i);
 				else
-					ED_ClearEdict (progfuncs, e);
+					QC_ClearEdict (progfuncs, (struct edict_s*)e);
 
 				if (externs->entspawn)
 					externs->entspawn((struct edict_s *) e, false);
@@ -146,7 +147,7 @@ struct edict_s *ED_Alloc (progfuncs_t *progfuncs)
 	if (!e)
 		e = ED_AllocIntoTable(progfuncs, i);
 	else
-		ED_ClearEdict (progfuncs, e);
+		QC_ClearEdict (progfuncs, (struct edict_s*)e);
 
 	if (externs->entspawn)
 		externs->entspawn((struct edict_s *) e, false);
@@ -1165,7 +1166,7 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 			break;
 		if (!data)
 		{
-			printf ("ED_ParseEntity: EOF without closing brace");
+			printf ("ED_ParseEntity: EOF without closing brace\n");
 			return NULL;
 		}
 
@@ -1184,13 +1185,13 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 		data = QCC_COM_Parse (data);
 		if (!data)
 		{
-			printf ("ED_ParseEntity: EOF without closing brace");
+			printf ("ED_ParseEntity: EOF without closing brace\n");
 			return NULL; 
 		}
 
 		if (qcc_token[0] == '}')
 		{
-			printf ("ED_ParseEntity: closing brace without data");
+			printf ("ED_ParseEntity: closing brace without data\n");
 			return NULL;
 		}
 
@@ -3112,6 +3113,6 @@ unsigned int NUM_FOR_EDICT(progfuncs_t *progfuncs, struct edict_s *e)
 {
 	edictrun_t *er = (edictrun_t*)e;
 	if (er->entnum >= maxedicts)
-		Sys_Error ("QCLIB: NUM_FOR_EDICT: bad pointer (%i)", e);
+		Sys_Error ("QCLIB: NUM_FOR_EDICT: bad pointer (%p)", e);
 	return er->entnum;
 }

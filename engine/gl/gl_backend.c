@@ -1,6 +1,5 @@
 #include "quakedef.h"
 
-//#define STATEFIXME
 //#define FORCESTATE
 
 
@@ -644,12 +643,11 @@ static void RevertToKnownState(void)
 
 	qglColor3f(1,1,1);
 
-	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY|SBITS_MISC_NODEPTHTEST);
+	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY);
 	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
 
 	qglDepthFunc(GL_LEQUAL);
 	qglDepthMask(GL_TRUE);
-	qglEnable(GL_DEPTH_TEST);
 
 	qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 }
@@ -1713,9 +1711,9 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 	if (shaderstate.flags)
 	{
 		if (shaderstate.flags & BEF_FORCEADDITIVE)
-			sbits = (sbits & ~SBITS_ATEST_BITS) | (SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
+			sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS)) | (SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
 		else if (shaderstate.flags & BEF_FORCETRANSPARENT) 	/*if transparency is forced, clear alpha test bits*/
-			sbits = (sbits & ~SBITS_ATEST_BITS) | (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
+			sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS)) | (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
 
 		if (shaderstate.flags & BEF_FORCENODEPTH) 	/*EF_NODEPTHTEST dp extension*/
 			sbits |= SBITS_MISC_NODEPTHTEST;
@@ -1731,10 +1729,6 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 
 	delta = sbits^shaderstate.shaderbits;
 
-#ifdef STATEFIXME
-	#pragma message("Hack to work around the fact that other bits of code change this state")
-	delta |= SBITS_MISC_NODEPTHTEST|SBITS_MISC_DEPTHEQUALONLY;
-#endif
 #ifdef FORCESTATE
 	delta |= ~0;
 #endif
@@ -1751,6 +1745,7 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 			switch(sbits & SBITS_SRCBLEND_BITS)
 			{
 			case SBITS_SRCBLEND_ZERO:					src = GL_ZERO;	break;
+			default:
 			case SBITS_SRCBLEND_ONE:					src = GL_ONE;	break;
 			case SBITS_SRCBLEND_DST_COLOR:				src = GL_DST_COLOR;	break;
 			case SBITS_SRCBLEND_ONE_MINUS_DST_COLOR:	src = GL_ONE_MINUS_DST_COLOR;	break;
@@ -1759,11 +1754,11 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 			case SBITS_SRCBLEND_DST_ALPHA:				src = GL_DST_ALPHA;	break;
 			case SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA:	src = GL_ONE_MINUS_DST_ALPHA;	break;
 			case SBITS_SRCBLEND_ALPHA_SATURATE:			src = GL_SRC_ALPHA_SATURATE;	break;
-			default: Sys_Error("Invalid shaderbits\n");
 			}
 			switch(sbits & SBITS_DSTBLEND_BITS)
 			{
 			case SBITS_DSTBLEND_ZERO:					dst = GL_ZERO;	break;
+			default:
 			case SBITS_DSTBLEND_ONE:					dst = GL_ONE;	break;
 			case SBITS_DSTBLEND_SRC_COLOR:				dst = GL_SRC_COLOR;	break;
 			case SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR:	dst = GL_ONE_MINUS_SRC_COLOR;	break;
@@ -1771,7 +1766,6 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 			case SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA:	dst = GL_ONE_MINUS_SRC_ALPHA;	break;
 			case SBITS_DSTBLEND_DST_ALPHA:				dst = GL_DST_ALPHA;	break;
 			case SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA:	dst = GL_ONE_MINUS_DST_ALPHA;	break;
-			default: Sys_Error("Invalid shaderbits\n");
 			}
 			qglEnable(GL_BLEND);
 			qglBlendFunc(src, dst);
@@ -1929,6 +1923,7 @@ static void DrawPass(const shaderpass_t *pass, const mesh_t *meshlist)
 				GL_TexEnv(pass[i].blendmode);
 				break;
 			}
+			//fallthrough
 		default:
 		case GL_MODULATE:
 			GL_TexEnv(GL_MODULATE);

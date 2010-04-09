@@ -153,6 +153,7 @@ typedef enum
 	\
 	/*These are pointers to the csqc's globals.*/	\
 	globalfloat(svtime,					"time");				/*float		Written before entering most qc functions*/	\
+	globalfloat(frametime,					"frametime");			/*float		Written before entering most qc functions*/	\
 	globalfloat(cltime,					"cltime");				/*float		Written before entering most qc functions*/	\
 	globalentity(self,					"self");				/*entity	Written before entering most qc functions*/	\
 	globalentity(other,					"other");				/*entity	Written before entering most qc functions*/	\
@@ -1758,6 +1759,12 @@ static void PF_cs_PrecacheModel(progfuncs_t *prinst, struct globalvars_s *pr_glo
 	int modelindex, freei;
 	char *modelname = PR_GetStringOfs(prinst, OFS_PARM0);
 	int i;
+
+	if (!*modelname)
+	{
+		G_FLOAT(OFS_RETURN) = 0;
+		return;
+	}
 
 	for (i = 1; i < MAX_MODELS; i++)	//Make sure that the server specified model is loaded..
 	{
@@ -3549,13 +3556,16 @@ static void PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_globals
 //float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
 static void PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	#define MAX_BONES 256
 	int skelidx = G_FLOAT(OFS_PARM0);
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
 	int midx = G_FLOAT(OFS_PARM2);
-	int retainfrac = G_FLOAT(OFS_PARM3);
+	float retainfrac = G_FLOAT(OFS_PARM3);
 	int firstbone = G_FLOAT(OFS_PARM4)-1;
 	int lastbone = G_FLOAT(OFS_PARM5)-1;
+	float addition = 1?G_FLOAT(OFS_PARM6):1-retainfrac;
 
+	int i, j;
 	int numbones;
 	framestate_t fstate;
 	skelobject_t *skelobj;
@@ -3591,16 +3601,45 @@ static void PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (firstbone < 0)
 		firstbone = 0;
 
-	if (retainfrac >= 1)
+	if (retainfrac == 0 && addition == 1)
 	{
-		//retain everything...
-	}
-	else if (retainfrac>0)
-	{
-		//codeme
+		/*replace everything*/
+		Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, skelobj->bonematrix);
 	}
 	else
-		Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, skelobj->bonematrix);
+	{
+		if (retainfrac != 1)
+		{
+			//rescale the existing bones
+			for (i = firstbone; i < lastbone; i++)
+			{
+				for (j = 0; j < 12; j++)
+					skelobj->bonematrix[i*12+j] *= retainfrac;
+			}
+		}
+		if (addition == 1)
+		{
+			//just add
+			float relationsbuf[MAX_BONES*12];
+			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
+			for (i = firstbone; i < lastbone; i++)
+			{
+				for (j = 0; j < 12; j++)
+					skelobj->bonematrix[i*12+j] += relationsbuf[i*12+j];
+			}
+		}
+		else if (addition)
+		{
+			//add+scale
+			float relationsbuf[MAX_BONES*12];
+			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
+			for (i = firstbone; i < lastbone; i++)
+			{
+				for (j = 0; j < 12; j++)
+					skelobj->bonematrix[i*12+j] += addition*relationsbuf[i*12+j];
+			}
+		}
+	}
 
 	G_FLOAT(OFS_RETURN) = (skelobj - skelobjects) + 1;
 }
@@ -5729,6 +5768,9 @@ qboolean CSQC_DrawView(void)
 	r_secondaryview = 0;
 
 	CL_CalcClientTime();
+
+	if (csqcg.frametime)
+		*csqcg.frametime = host_frametime;
 
 #ifdef USEODE
 	while(1)

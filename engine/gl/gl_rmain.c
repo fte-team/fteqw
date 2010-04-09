@@ -658,7 +658,7 @@ void GLR_DrawSprite(int count, void **e, void *parm)
 	while(count--)
 	{
 #pragma message("this needs merging or q3 railgun will lag like hell")
-		currententity = *e++;
+		currententity = e[count];
 
 		R_DrawSpriteModel (currententity);
 	}

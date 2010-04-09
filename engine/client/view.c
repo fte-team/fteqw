@@ -665,11 +665,7 @@ V_UpdatePalette
 */
 void GLV_UpdatePalette (qboolean force, double ftime)
 {
-//	qboolean ogw;
-	int		i, j;
-	qboolean	update;
-//	qbyte	*basepal, *newpal;
-//	qbyte	pal[768];
+	int		i;
 	float	newhw_blend[4];
 	int		ir, ig, ib;
 
@@ -717,12 +713,7 @@ void GLV_UpdatePalette (qboolean force, double ftime)
 			ramps[2][i] = gammatable[ib]<<8;
 		}
 
-//		ogw = gammaworks;
 		VID_ShiftPalette (NULL);
-//		if (ogw != gammaworks)
-//		{
-//			Con_DPrintf("Gamma working state %i\n", gammaworks);
-//		}
 	}
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);

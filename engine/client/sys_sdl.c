@@ -139,18 +139,6 @@ void Sys_ServerActivity(void)
 {
 }
 
-
-
-//Without these two we cannot run Q2 gamecode.
-void Sys_UnloadGame (void)
-{
-}
-void *Sys_GetGameAPI (void *parms)
-{
-	return NULL;
-}
-
-
 void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	SDL_UnloadObject((void*)lib);
@@ -178,6 +166,60 @@ dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
 
 	return (dllhandle_t*)lib;
 }
+
+//Without these two we cannot run Q2 gamecode.
+dllhandle_t *q2gamedll;
+void Sys_UnloadGame (void)
+{
+	if (q2gamedll)
+		Sys_CloseLibrary(q2gamedll);
+	q2gamedll = NULL;
+}
+void *Sys_GetGameAPI (void *parms)
+{
+	void *(*GetGameAPI)(void *);
+	dllfunction_t funcs[] =
+	{
+		{(void**)GetGameAPI, "GetGameAPI"},
+		{NULL,NULL}
+	};
+
+	char name[MAX_OSPATH];
+	char curpath[MAX_OSPATH];
+	char *searchpath;
+	const char *gamename = "gamei386.so";
+
+	void *ret;
+
+	Con_DPrintf("Searching for %s\n", gamename);
+
+	getcwd(curpath, sizeof(curpath));
+
+	searchpath = 0;
+	while((searchpath = COM_NextPath(searchpath)))
+	{
+		if (searchpath[0] == '/')
+			snprintf(name, sizeof(name), "%s/%s", searchpath, gamename);
+		else
+			snprintf(name, sizeof(name), "%s/%s/%s", curpath, searchpath, gamename);
+
+		q2gamedll = Sys_LoadLibrary(name, funcs);
+		if (q2gamedll && gamename)
+		{
+			ret = GetGameAPI(parms);
+			if (ret)
+			{
+				return ret;
+			}
+
+			Sys_CloseLibrary(q2gamedll);
+			q2gamedll = 0;
+		}
+	}
+
+	return NULL;
+}
+
 
 
 //used to see if a file exists or not.

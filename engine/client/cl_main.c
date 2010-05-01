@@ -3574,26 +3574,12 @@ void Host_Init (quakeparms_t *parms)
 	Key_Init ();
 	Con_Init ();
 	M_Init ();
-
-	//fixme: this difference needs to go.
-#ifndef _WIN32
 	IN_Init ();
-	CDAudio_Init ();
-
 	S_Init ();
-
-	cls.state = ca_disconnected;
-	Sbar_Init ();
-	CL_Init ();
-#else
-	S_Init ();
-
 	cls.state = ca_disconnected;
 	CDAudio_Init ();
 	Sbar_Init ();
 	CL_Init ();
-	IN_Init ();
-#endif
 
 	TranslateInit();
 #ifndef CLIENTONLY
@@ -3634,7 +3620,6 @@ void Host_FinishInit(void)
 	int qrc, hrc, def;
 #endif
 
-
 	Cbuf_AddText ("cl_warncmd 0\n", RESTRICT_LOCAL);
 
 	Cbuf_AddText ("+mlook\n", RESTRICT_LOCAL);		//fixme: this is bulky, only exec one of these.
@@ -3660,7 +3645,10 @@ void Host_FinishInit(void)
 	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
 	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
 
-
+	{
+		extern cvar_t com_parseutf8;
+		com_parseutf8.ival = com_parseutf8.value;
+	}
 
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 

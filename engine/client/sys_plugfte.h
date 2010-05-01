@@ -3,21 +3,19 @@ typedef enum qboolean;
 typedef void *vfsfile_t;
 #endif
 
-
-struct pipetype
-{
-	int dead;
-};
-
 struct browserfuncs
 {
 	qboolean (*RequestDownload)(void *ctx, struct pipetype *ftype, char *url);
+	void (*StatusChanged)(void *ctx);	/*tells it that it needs to redraw the pre-active image*/
 };
 
-/*the conext structure contains this at the start*/
+/*the conext structure contains this at the start (you can safely cast context->contextpublic)*/
 struct contextpublic
 {
 	qboolean running;	/*set if the plugin context is actually active*/
+	qboolean downloading;
+	unsigned int dlsize;
+	unsigned int dldone;
 	float availver;	/*this is the version of the plugin that is available, if current is better, use 0*/
 
 #if defined(_WIN32) && defined(__QUAKEDEF_H__)
@@ -25,6 +23,7 @@ struct contextpublic
 	void *oldwnd;	/*not used in the plugin itself*/
 	void *oldproc;	/*not used in the plugin itself*/
 #endif
+	void *user;
 };
 
 #include <windows.h>

@@ -2,8 +2,6 @@
 //#include "cg_public.h"
 #ifdef VM_CG
 
-#ifdef GLQUAKE
-
 #include "shader.h"
 
 #if 1
@@ -31,7 +29,6 @@ extern int mod_numknown;
 #define VM_FROMMHANDLE(a) ((a&&((unsigned int)a)<=mod_numknown)?mod_known+a-1:NULL)
 #define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
 
-extern shader_t r_shaders[];
 #define VM_FROMSHANDLE(a) (a?r_shaders+a-1:NULL)
 #define VM_TOSHANDLE(a) (a?a-r_shaders+1:0)
 
@@ -771,18 +768,14 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 	case CG_R_REGISTERSHADER:
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
-		else if (qrenderer == QR_OPENGL)
+		else
 			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
-//FIXME: 64bit		else
-//			VM_LONG(ret) = VM_TOHANDLE(Draw_SafeCachePic(VM_POINTER(arg[0])));
 		break;
 	case CG_R_REGISTERSHADERNOMIP:
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
-		else if (qrenderer == QR_OPENGL)
+		else
 			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
-//FIXME: 64bit		else
-//			VM_LONG(ret) = VM_TOHANDLE(Draw_SafeCachePic(VM_POINTER(arg[0])));
 		break;
 
 	case CG_R_CLEARSCENE:	//clear scene (not rtlights, only dynamic ones)
@@ -806,7 +799,7 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 		}
 		break;
 	case CG_R_RENDERSCENE:	//render scene
-		GLR_PushDlights();
+		R_PushDlights();
 		VQ3_RenderView(VM_POINTER(arg[0]));
 		break;
 
@@ -1085,11 +1078,8 @@ static int EXPORT_FN CG_SystemCalls(int arg, ...)
 	return CG_SystemCallsEx(NULL, (unsigned)~0, arg, args);
 }
 
-#endif
-
 int CG_Refresh(void)
 {
-#ifdef GLQUAKE
 	int time;
 	if (!cgvm)
 		return false;
@@ -1100,16 +1090,12 @@ int CG_Refresh(void)
 	Draw_ImageColours(1, 1, 1, 1);
 
 	return true;
-#else
-	return false;
-#endif
 }
 
 
 
 void CG_Stop (void)
 {
-#ifdef GLQUAKE
 	keycatcher &= ~2;
 	if (cgvm)
 	{
@@ -1118,7 +1104,6 @@ void CG_Stop (void)
 		VM_fcloseall(1);
 		cgvm = NULL;
 	}
-#endif
 }
 
 void CG_Start (void)
@@ -1130,7 +1115,6 @@ void CG_Start (void)
 		return;
 	}
 
-#if defined(GLQUAKE) || defined(DIRECT3D)
 	if (!Draw_SafeCachePic)	//no renderer loaded
 	{
 		CG_Stop();
@@ -1158,21 +1142,14 @@ void CG_Start (void)
 		SCR_EndLoadingPlaque();
 		Host_EndGame("Failed to initialise cgame module\n");
 	}
-#else
-	Host_EndGame("Unable to connect to q3 servers without opengl.\n");
-#endif
 }
 
 qboolean CG_Command(void)
 {
-#ifdef GLQUAKE
 	if (!cgvm)
 		return false;
 	Con_DPrintf("CG_Command: %s %s\n", Cmd_Argv(0), Cmd_Args());
 	return VM_Call(cgvm, CG_CONSOLE_COMMAND);
-#else
-	return false;
-#endif
 }
 
 void CG_Command_f(void)

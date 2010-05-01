@@ -79,21 +79,24 @@ void R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 	if (pe)
 		pe->ShutdownParticles();
 
-	pe = NULL;
-
-	for (i = 0; particlesystem[i]; i++)
+	if (!qrenderer)
+		pe = &pe_null;
+	else
 	{
-		if (   (particlesystem[i]->name1 && !stricmp(var->string, particlesystem[i]->name1))
-			|| (particlesystem[i]->name2 && !stricmp(var->string, particlesystem[i]->name2)))
+		pe = NULL;
+		for (i = 0; particlesystem[i]; i++)
 		{
-			pe = particlesystem[i];
-			break;
-		}
-		if (!pe)
-			if (particlesystem[i]->name1)
+			if (   (particlesystem[i]->name1 && !stricmp(var->string, particlesystem[i]->name1))
+				|| (particlesystem[i]->name2 && !stricmp(var->string, particlesystem[i]->name2)))
+			{
 				pe = particlesystem[i];
+				break;
+			}
+			if (!pe)
+				if (particlesystem[i]->name1)
+					pe = particlesystem[i];
+		}
 	}
-
 	if (!pe)
 		Sys_Error("No particle system available. Please recompile.");
 

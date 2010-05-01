@@ -54,9 +54,9 @@ LPDIRECT3DDEVICE9 pD3DDev9;
 
 static qboolean vid_initializing;
 
-extern qboolean        scr_initialized;                // ready to draw
-extern qboolean        scr_drawloading;
-
+extern qboolean		scr_initialized;                // ready to draw
+extern qboolean		scr_drawloading;
+extern qboolean		scr_con_forcedraw;
 
 cvar_t vid_hardwaregamma;
 
@@ -313,8 +313,8 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			{
 				GetClientRect(mainwindow, &window_rect);
 				// force width/height to be updated
-				vid.pixelwidth = window_rect.right - window_rect.left;
-				vid.pixelheight = window_rect.bottom - window_rect.top;
+				//vid.pixelwidth = window_rect.right - window_rect.left;
+				//vid.pixelheight = window_rect.bottom - window_rect.top;
 //				Cvar_ForceCallback(&vid_conautoscale);
 //				Cvar_ForceCallback(&vid_conwidth);
 			}
@@ -475,7 +475,7 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 				i,
 				D3DDEVTYPE_HAL,
 				hWnd,
-				D3DCREATE_SOFTWARE_VERTEXPROCESSING,
+				D3DCREATE_HARDWARE_VERTEXPROCESSING,
 				&d3dpp,
 				&pD3DDev9);
 
@@ -761,7 +761,7 @@ void Matrix4_OrthographicD3D(float *proj, float xmin, float xmax, float ymax, fl
 		     float znear, float zfar);
 void d3dx_ortho(float *m);
 
-static void D3D9_Set2D (void)
+void D3D9_Set2D (void)
 {
 	float m[16];
 	D3DVIEWPORT9 vport;
@@ -804,80 +804,6 @@ static int d3d9error(int i)
 	return i;
 }
 
-typedef struct {
-	float x, y, z;
-	unsigned int colour;
-} d3d9bsvert_t;
-static void D3D9_BrightenScreen (void)
-{
-	d3d9bsvert_t d3d9bsvert[4];
-	index_t d3d9quadindexes[6] = {
-		0, 1, 2,
-		0, 2, 3
-	};
-
-	extern cvar_t gl_contrast;
-	float f;
-	unsigned int colour;
-
-	RSpeedMark();
-
-	if (gl_contrast.value <= 1.0)
-		return;
-
-	f = gl_contrast.value;
-	f = min (f, 3);
-
-	IDirect3DDevice9_SetTexture (pD3DDev9, 0, NULL);
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ALPHABLENDENABLE, TRUE);
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SRCBLEND, D3DBLEND_DESTCOLOR);
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_DESTBLEND, D3DBLEND_ONE);
-
-	while (f > 1)
-	{
-		if (f >= 2)
-			colour = 0xffffffff;
-		else
-		{
-			colour = (f-1)*255;
-			colour = (colour * 0x010101) | 0xff000000;
-		}
-
-
-		d3d9bsvert[0].x = 0;
-		d3d9bsvert[0].y = 0;
-		d3d9bsvert[0].z = 0;
-		d3d9bsvert[0].colour = colour;
-
-		d3d9bsvert[1].x = vid.width;
-		d3d9bsvert[1].y = 0;
-		d3d9bsvert[1].z = 0;
-		d3d9bsvert[1].colour = colour;
-
-		d3d9bsvert[2].x = vid.width;
-		d3d9bsvert[2].y = vid.height;
-		d3d9bsvert[2].z = 0;
-		d3d9bsvert[2].colour = colour;
-
-		d3d9bsvert[3].x = 0;
-		d3d9bsvert[3].y = vid.height;
-		d3d9bsvert[3].z = 0;
-		d3d9bsvert[3].colour = colour;
-
-		IDirect3DDevice9_SetFVF(pD3DDev9, D3DFVF_XYZ|D3DFVF_DIFFUSE);
-		IDirect3DDevice9_DrawIndexedPrimitiveUP(pD3DDev9, D3DPT_TRIANGLELIST, 0, 4, 2, d3d9quadindexes, D3DFMT_QINDEX, d3d9bsvert, sizeof(d3d9bsvert[0]));
-
-
-		f *= 0.5;
-	}
-	
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ALPHABLENDENABLE, FALSE);
-
-	RSpeedEnd(RSPEED_PALETTEFLASHES);
-}
-
 static void	(D3D9_SCR_UpdateScreen)			(void)
 {
 	extern int keydown[];
@@ -886,7 +812,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 #ifdef TEXTEDITOR
 	extern qboolean editormodal;
 #endif
-	qboolean nohud;
+	qboolean nohud, noworld;
 	RSpeedMark();
 
 	switch (IDirect3DDevice9_TestCooperativeLevel(pD3DDev9))
@@ -987,7 +913,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 #if defined(_WIN32) && defined(GLQUAKE)
 		Media_RecordFrame();
 #endif
-		GLR_BrightenScreen();
+		R2D_BrightenScreen();
 
 		if (key_dest == key_console)
 			Con_DrawConsole(vid_conheight.value/2, false);
@@ -1005,7 +931,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 #if defined(_WIN32)
 		Media_RecordFrame();
 #endif
-//		GLR_BrightenScreen();
+//		R2D_BrightenScreen();
 		IDirect3DDevice9_EndScene(pD3DDev9);
 		IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
 
@@ -1026,6 +952,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 //
 	SCR_SetUpToDrawConsole ();
 
+	noworld = false;
 	nohud = false;
 
 #ifdef VM_CG
@@ -1038,18 +965,32 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 		nohud = true;
 	else
 #endif
-		if (r_worldentity.model && uimenu != 1)
+		if (uimenu != 1)
 		{
-		V_RenderView ();
-//		Q1BSP_TestClipDecal();
+			if (r_worldentity.model && cls.state == ca_active)
+ 				V_RenderView ();
+			else
+			{
+				noworld = true;
+			}
 		}
 
 
 	D3D9_Set2D ();
 
-	D3D9_BrightenScreen();
+	R2D_BrightenScreen();
 
-	if (!nohud)
+	scr_con_forcedraw = false;
+	if (noworld)
+	{
+		if (scr_con_current != vid.height)
+			Draw_ConsoleBackground(0, vid.height, true);
+		else
+			scr_con_forcedraw = true;
+
+		nohud = true;
+	}
+	else if (!nohud)
 		SCR_TileClear ();
 
 	SCR_DrawTwoDimensional(uimenu, nohud);
@@ -1188,7 +1129,9 @@ static void	(D3D9_R_RenderView)				(void)
 {
 	D3D9_SetupViewPort();
 	d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
-	Surf_DrawWorld();
+	R_SetFrustum (r_projection_matrix, r_view_matrix);
+	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		Surf_DrawWorld();
 	P_DrawParticles ();
 }
 

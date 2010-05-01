@@ -57,8 +57,6 @@ void GL_InitFogTexture(void);
 void GL_BeginRendering (void);
 void GL_EndRendering (void);
 
-void R_PolyBlend (void);
-void GLR_BrightenScreen (void);
 void GLR_NetGraph (void);
 void GLR_FrameTimeGraph (int frametime);
 void GL_FlushSkinCache(void);
@@ -235,12 +233,6 @@ extern	const char *gl_vendor;
 extern	const char *gl_renderer;
 extern	const char *gl_version;
 
-
-#ifdef Q3SHADERS
-FTE_DEPRECATED void R_UnlockArrays (void);
-FTE_DEPRECATED void R_IBrokeTheArrays(void);
-FTE_DEPRECATED void R_ClearArrays (void);
-#endif
 FTE_DEPRECATED void PPL_RevertToKnownState(void);
 
 #ifdef GLQUAKE
@@ -364,9 +356,8 @@ void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 void GLR_RenderDlights (void);
 void R_InitFlashblends (void);
 int GLR_LightPoint (vec3_t p);
-
-void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 #endif
+void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
 //
 // gl_heightmap.c

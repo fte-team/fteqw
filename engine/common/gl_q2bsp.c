@@ -1,5 +1,5 @@
 #include "quakedef.h"
-#ifdef GLQUAKE
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 #include "glquake.h"
 #endif
 #include "com_mesh.h"
@@ -784,19 +784,21 @@ static int CM_CreateFacetFromPoints(q2cbrush_t *facet, vec3_t *verts, int numver
 /*
 * CM_CreatePatch
 */
-static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const vec3_t *verts, const int *patch_cp )
+static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const vec_t *verts, const int *patch_cp )
 {
 	int step[2], size[2], flat[2];
 	int i, j, k ,u, v;
 	int numsides, totalsides;
 	q2cbrush_t *facets, *facet;
-	vec3_t *points;
+	vecV_t *points;
 	vec3_t tverts[4];
 	qbyte *data;
 	mplane_t *brushplanes;
 
+	patch->surface = shaderref;
+
 	// find the degree of subdivision in the u and v directions
-	Patch_GetFlatness( cm_subdivlevel, verts[0], 3, patch_cp, flat );
+	Patch_GetFlatness( cm_subdivlevel, verts, sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
 
 	step[0] = 1 << flat[0];
 	step[1] = 1 << flat[1];
@@ -805,15 +807,15 @@ static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const 
 	if( size[0] <= 0 || size[1] <= 0 )
 		return;
 
-	data = BZ_Malloc( size[0] * size[1] * sizeof( vec3_t ) + 
+	data = BZ_Malloc( size[0] * size[1] * sizeof( vecV_t ) + 
 		( size[0]-1 ) * ( size[1]-1 ) * 2 * ( sizeof( q2cbrush_t ) + 32 * sizeof( mplane_t ) ) );
 
-	points = ( vec3_t * )data; data += size[0] * size[1] * sizeof( vec3_t );
+	points = ( vec3_t * )data; data += size[0] * size[1] * sizeof( vecV_t );
 	facets = ( q2cbrush_t * )data; data += ( size[0]-1 ) * ( size[1]-1 ) * 2 * sizeof( q2cbrush_t );
 	brushplanes = ( mplane_t * )data; data += ( size[0]-1 ) * ( size[1]-1 ) * 2 * MAX_FACET_PLANES * sizeof( mplane_t );
 
 	// fill in
-	Patch_Evaluate( verts[0], patch_cp, step, points[0], 3 );
+	Patch_Evaluate(verts, patch_cp, step, points[0], sizeof(vecV_t)/sizeof(vec_t));
 
 	totalsides = 0;
 	patch->numfacets = 0;
@@ -859,7 +861,7 @@ static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const 
 		}
 	}
 
-	if( patch->numfacets )
+	if (patch->numfacets)
 	{
 		qbyte *data;
 
@@ -885,8 +887,6 @@ static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const 
 				s->surface = shaderref;
 			}
 		}
-
-		patch->surface = shaderref;
 
 		for( i = 0; i < 3; i++ )
 		{
@@ -1026,7 +1026,7 @@ qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surf
 	return true;
 }
 
-qboolean CM_CreatePatch ( q3cpatch_t *patch, int numverts, const vec3_t *verts, int *patch_cp )
+qboolean CM_CreatePatch ( q3cpatch_t *patch, int numverts, const vec_t *verts, int *patch_cp )
 {
     int step[2], size[2], flat[2], i, u, v;
 	vec4_t points[MAX_CM_PATCH_VERTS], pointss[MAX_CM_PATCH_VERTS];
@@ -1186,7 +1186,7 @@ qboolean CM_CreatePatchesForLeafs (void)
 				checkout[k] = numpatches++;
 
 //gcc warns without this cast
-				CM_CreatePatch ( patch, surf, (const vec3_t *)map_verts + face->firstvert, face->patch_cp );
+				CM_CreatePatch ( patch, surf, (const vec_t *)map_verts + face->firstvert, face->patch_cp );
 			}
 
 			leaf->contents |= patch->surface->c.value;
@@ -2355,10 +2355,10 @@ qboolean CModQ3_LoadIndexes (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	if (count < 1 || count >= MAX_Q3MAP_INDICES)
+	if (count < 1 || count >= MAX_Q3MAP_INDICES || count > MAX_INDICIES)
 	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: bad surfedges count in %s: %i\n",
-		loadmodel->name, count);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: too many indicies in %s: %i\n",
+					loadmodel->name, count);
 		return false;
 	}
 
@@ -2459,7 +2459,7 @@ qboolean CModRBSP_LoadFaces (lump_t *l)
 	return true;
 }
 
-#ifdef GLQUAKE
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 
 /*
 =================
@@ -2554,9 +2554,6 @@ byte_vec4_t		tempcolors_array[MAX_ARRAY_VERTS];
 mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, int numverts, int firstvert)
 {
     int numindexes, patch_cp[2], step[2], size[2], flat[2], i, u, v, p;
-	vec4_t colors[MAX_ARRAY_VERTS], points[MAX_ARRAY_VERTS], normals[MAX_ARRAY_VERTS],
-		lm_st[MAX_ARRAY_VERTS], tex_st[MAX_ARRAY_VERTS];
-	vec4_t colors2[MAX_ARRAY_VERTS], points2[MAX_ARRAY_VERTS], normals2[MAX_ARRAY_VERTS], lm_st2[MAX_ARRAY_VERTS], tex_st2[MAX_ARRAY_VERTS];
 	mesh_t *mesh;
 	index_t	*indexes;
 	float subdivlevel;
@@ -2575,14 +2572,6 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	if ( subdivlevel < 1 )
 		subdivlevel = 1;
 
-	for ( i = 0; i < numverts; i++ ) {
-		VectorCopy ( map_verts[firstvert + i], points[i] );
-		VectorCopy ( map_normals_array[firstvert + i], normals[i] );
-		Vector4Copy ( map_colors4f_array[firstvert + i], colors[i] );
-		Vector2Copy ( map_vertstmexcoords[firstvert + i], tex_st[i] );
-		Vector2Copy ( map_vertlstmexcoords[firstvert + i], lm_st[i] );
-	}
-
 // find the degree of subdivision in the u and v directions
 	Patch_GetFlatness ( subdivlevel, map_verts[firstvert], sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
 
@@ -2593,11 +2582,9 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	size[1] = (patch_cp[1] / 2) * step[1] + 1;
 	numverts = size[0] * size[1];
 
-	if ( numverts < 0 || numverts > MAX_ARRAY_VERTS ) {
+	if ( numverts < 0 || numverts > MAX_ARRAY_VERTS )
 		return NULL;
-	}
 
-	mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));
 	sz = sizeof(mesh_t) + numverts * (
 						sizeof(vecV_t)+
 						sizeof(vec3_t)+
@@ -2607,36 +2594,31 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 						sizeof(vec2_t)+
 						sizeof(vec4_t));
 	allocbuf = Hunk_Alloc(sz);
-	mesh = (mesh_t *)(allocbuf+(sz-=sizeof(mesh_t)));
-	mesh->xyz_array = (vecV_t *)(allocbuf+(sz-=numverts*sizeof(vecV_t)));
-	mesh->normals_array = (vec3_t *)(allocbuf+(sz-=numverts*sizeof(vec3_t)));
-	mesh->snormals_array = (vec3_t *)(allocbuf+(sz-=numverts*sizeof(vec3_t)));
-	mesh->tnormals_array = (vec3_t *)(allocbuf+(sz-=numverts*sizeof(vec3_t)));
-	mesh->st_array = (vec2_t *)(allocbuf+(sz-=numverts*sizeof(vec2_t)));
-	mesh->lmst_array = (vec2_t *)(allocbuf+(sz-=numverts*sizeof(vec2_t)));
-	mesh->colors4f_array = (vec4_t *)(allocbuf+(sz-=numverts*sizeof(vec4_t)));
-#ifdef _DEBUG
-	if (sz)
-		Sys_Error("Bug\n");
-#endif
-	
+	sz-=sizeof(mesh_t);
+	mesh = (mesh_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vecV_t);
+	mesh->xyz_array = (vecV_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec3_t);
+	mesh->normals_array = (vec3_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec3_t);
+	mesh->snormals_array = (vec3_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec3_t);
+	mesh->tnormals_array = (vec3_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec2_t);
+	mesh->st_array = (vec2_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec2_t);
+	mesh->lmst_array = (vec2_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec4_t);
+	mesh->colors4f_array = (vec4_t *)(allocbuf+sz);
 	mesh->numvertexes = numverts;
 
 // fill in
-	Patch_Evaluate ( points[0], patch_cp, step, points2[0], 3 );
-	Patch_Evaluate ( colors[0], patch_cp, step, colors2[0], 4 );
-	Patch_Evaluate ( normals[0], patch_cp, step, normals2[0], 3 );
-	Patch_Evaluate ( lm_st[0], patch_cp, step, lm_st2[0], 2 );
-	Patch_Evaluate ( tex_st[0], patch_cp, step, tex_st2[0], 2 );
 
-	for (i = 0; i < numverts; i++)
-	{
-		VectorCopy ( points2[i], mesh->xyz_array[i] );
-		VectorNormalize2 ( normals2[i], mesh->normals_array[i] );
-		ColorNormalize ( colors2[i], mesh->colors4f_array[i] );
-		Vector2Copy ( tex_st2[i], mesh->st_array[i] );
-		Vector2Copy ( lm_st2[i], mesh->lmst_array[i] );
-    }
+	Patch_Evaluate ( map_verts[firstvert], patch_cp, step, mesh->xyz_array[0], sizeof(vecV_t)/sizeof(vec_t));
+	Patch_Evaluate ( map_colors4f_array[firstvert], patch_cp, step, mesh->colors4f_array[0], 4 );
+	Patch_Evaluate ( map_normals_array[firstvert], patch_cp, step, mesh->normals_array[0], 3 );
+	Patch_Evaluate ( map_vertstmexcoords[firstvert], patch_cp, step, mesh->st_array[0], 2 );
+	Patch_Evaluate ( map_vertlstmexcoords[firstvert], patch_cp, step, mesh->lmst_array[0], 2 );
 
 // compute new indexes avoiding adding invalid triangles
 	numindexes = 0;

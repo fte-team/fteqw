@@ -417,7 +417,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_multisample, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_fontinwardstep, GRAPHICALNICETIES);
-	Cvar_Register (&gl_font, GRAPHICALNICETIES);
 	Cvar_Register (&gl_smoothfont, GRAPHICALNICETIES);
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
@@ -592,6 +591,7 @@ void Renderer_Init(void)
 
 
 //screen
+	Cvar_Register (&gl_font, GRAPHICALNICETIES);
 	Cvar_Register (&scr_conspeed, SCREENOPTIONS);
 	Cvar_Register (&scr_conalpha, SCREENOPTIONS);
 	Cvar_Register (&scr_showturtle, SCREENOPTIONS);
@@ -2205,7 +2205,7 @@ qbyte *R_MarkLeaves_Q3 (void)
 	r_visframecount++;
 	r_oldviewcluster = r_viewcluster;
 
-	if (r_novis.value || r_viewcluster == -1 || !cl.worldmodel->vis )
+	if (r_novis.ival || r_viewcluster == -1 || !cl.worldmodel->vis )
 	{
 		// mark everything
 		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
@@ -2260,10 +2260,10 @@ qbyte *R_MarkLeaves_Q2 (void)
 	r_oldviewcluster = r_viewcluster;
 	r_oldviewcluster2 = r_viewcluster2;
 
-	if (r_novis.value == 2)
+	if (r_novis.ival == 2)
 		return vis;
 	r_visframecount++;
-	if (r_novis.value || r_viewcluster == -1 || !cl.worldmodel->vis)
+	if (r_novis.ival || r_viewcluster == -1 || !cl.worldmodel->vis)
 	{
 		// mark everything
 		for (i=0 ; i<cl.worldmodel->numleafs ; i++)
@@ -2318,7 +2318,7 @@ qbyte *R_CalcVis_Q1 (void)
 		r_oldviewleaf = r_viewleaf;
 		r_oldviewleaf2 = r_viewleaf2;
 
-		if ((int)r_novis.value&1)
+		if (r_novis.ival&1)
 		{
 			vis = curframevis;
 			memset (vis, 0xff, (cl.worldmodel->numleafs+7)>>3);
@@ -2347,7 +2347,7 @@ qbyte *R_MarkLeaves_Q1 (void)
 	int		i;
 	qbyte	solid[4096];
 
-	if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.value) || r_novis.value == 2)
+	if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.ival) || r_novis.ival & 2)
 		return vis;
 
 //	if (mirror)
@@ -2489,7 +2489,7 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 	int i;
 	float mvp[16];
 
-	if ((int)r_novis.value & 4)
+	if (r_novis.ival & 4)
 		return;
 
 	Matrix4_Multiply(projmat, viewmat, mvp);
@@ -2526,7 +2526,7 @@ void R_SetFrustum (void)
 {
 	int		i;
 
-	if ((int)r_novis.value & 4)
+	if (r_novis.ival & 4)
 		return;
 
 	/*	removed - assumes fov_x == fov_y

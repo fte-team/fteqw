@@ -1244,7 +1244,7 @@ static void colourgen(const shaderpass_t *pass, int cnt, const avec4_t *src, ave
 	}
 }
 
-static void deformgen(const deformv_t *deformv, int cnt, const avec4_t *src, avec4_t *dst, const mesh_t *mesh)
+static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV_t *dst, const mesh_t *mesh)
 {
 	float *table;
 	int j, k;
@@ -1710,18 +1710,23 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 	}
 	if (shaderstate.flags)
 	{
-		if (shaderstate.flags & BEF_FORCEADDITIVE)
-			sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS)) | (SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
-		else if (shaderstate.flags & BEF_FORCETRANSPARENT) 	/*if transparency is forced, clear alpha test bits*/
-			sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS)) | (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
+		if (!(sbits & SBITS_BLEND_BITS))
+		{	/*only force blend bits if its not already blended*/
+			if (shaderstate.flags & BEF_FORCEADDITIVE)
+				sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
+							| (SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
+			else if (shaderstate.flags & BEF_FORCETRANSPARENT) 	/*if transparency is forced, clear alpha test bits*/
+				sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
+							| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
+		}
 
 		if (shaderstate.flags & BEF_FORCENODEPTH) 	/*EF_NODEPTHTEST dp extension*/
 			sbits |= SBITS_MISC_NODEPTHTEST;
 		else
 		{
-			if (shaderstate.flags & BEF_FORCEDEPTHTEST) 	/*if transparency is forced, clear alpha test bits*/
+			if (shaderstate.flags & BEF_FORCEDEPTHTEST)
 				sbits &= ~SBITS_MISC_NODEPTHTEST;
-			if (shaderstate.flags & BEF_FORCEDEPTHWRITE) 	/*if transparency is forced, clear alpha test bits*/
+			if (shaderstate.flags & BEF_FORCEDEPTHWRITE)
 				sbits |= SBITS_MISC_DEPTHWRITE;
 		}
 	}

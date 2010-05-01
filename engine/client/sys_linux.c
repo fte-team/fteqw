@@ -376,6 +376,8 @@ void *Sys_GetGameAPI(void *parms)
 	void *ret;
 
 	getcwd(curpath, sizeof(curpath));
+
+	Con_DPrintf("Searching for %s\n", gamename);
 	
 	searchpath = 0;
 	while((searchpath = COM_NextPath(searchpath)))

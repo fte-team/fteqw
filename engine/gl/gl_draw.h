@@ -46,3 +46,6 @@ void R2D_EditorBackground (void);
 void R2D_TileClear (int x, int y, int w, int h);
 void R2D_Init(void);
 void R2D_Shutdown(void);
+
+void R2D_PolyBlend (void);
+void R2D_BrightenScreen (void);

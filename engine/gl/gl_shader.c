@@ -30,6 +30,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h>
 
+#include <GL/gl.h>
+#include "glsupp.h"
+
+
+
 extern texid_t missing_texture;
 static qboolean shader_reload_needed;
 
@@ -181,11 +186,11 @@ typedef struct shadercache_s {
 	struct shadercache_s *hash_next;
 } shadercache_t;
 
-static shadercache_t *shader_hash[HASH_SIZE];
+static shadercache_t **shader_hash;
 static char shaderbuf[MAX_QPATH * 256];
 int shaderbuflen;
 
-shader_t	r_shaders[MAX_SHADERS];
+shader_t	*r_shaders;
 
 //static char		r_skyboxname[MAX_QPATH];
 //static float	r_skyheight;
@@ -959,9 +964,19 @@ static void Shaderpass_VideoMap (shader_t *shader, shaderpass_t *pass, char **pt
 	else
 		Con_DPrintf (CON_WARNING "(shader %s) Couldn't load video %s\n", shader->name, token);
 
-	pass->flags |= SHADER_PASS_VIDEOMAP;
-	shader->flags |= SHADER_VIDEOMAP;
-	pass->texgen = T_GEN_VIDEOMAP;
+	if (pass->cin)
+	{
+		pass->flags |= SHADER_PASS_VIDEOMAP;
+		shader->flags |= SHADER_VIDEOMAP;
+		pass->texgen = T_GEN_VIDEOMAP;
+	}
+	else
+	{
+		pass->texgen = T_GEN_DIFFUSE;
+		pass->rgbgen = RGB_GEN_CONST;
+		pass->rgbgen_func.type = SHADER_FUNC_CONSTANT;
+		pass->rgbgen_func.args[0] = pass->rgbgen_func.args[1] = pass->rgbgen_func.args[2] = 0;
+	}
 #endif
 }
 
@@ -1413,6 +1428,10 @@ qboolean Shader_Init (void)
 {
 	shaderbuflen = 0;
 
+	r_shaders = calloc(MAX_SHADERS, sizeof(shader_t));
+
+	shader_hash = calloc (HASH_SIZE, sizeof(*shader_hash));
+
 	Con_Printf ( "Initializing Shaders.\n" );
 
 	COM_EnumerateFiles("shaders/*.shader", Shader_InitCallback, NULL);
@@ -1604,16 +1623,16 @@ void Shader_Shutdown (void)
 		}
 	}
 
-	memset (r_shaders, 0, sizeof(shader_t)*MAX_SHADERS);
-
-	memset (shader_hash, 0, sizeof(shader_hash));
+	Z_Free(r_shaders);
+	r_shaders = NULL;
+	Z_Free(shader_hash);
+	shader_hash = NULL;
 
 	shader_reload_needed = false;
 }
 
 void Shader_SetBlendmode (shaderpass_t *pass)
 {
-#ifdef GLQUAKE
 	if (pass->texgen == T_GEN_DELUXMAP)
 	{
 		pass->blendmode = GL_DOT3_RGB_ARB;
@@ -1626,7 +1645,7 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 		return;
 	}
 
-	if (!(pass->shaderbits & SBITS_BLEND_BITS) && qglMTexCoord2fSGIS)
+	if (!(pass->shaderbits & SBITS_BLEND_BITS))
 	{
 		if ((pass->rgbgen == RGB_GEN_IDENTITY) && (pass->alphagen == ALPHA_GEN_IDENTITY))
 		{
@@ -1652,7 +1671,6 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 		pass->blendmode = GL_DECAL;
 	else
 		pass->blendmode = GL_MODULATE;
-#endif
 }
 
 void Shader_Readpass (shader_t *shader, char **ptr)

@@ -397,7 +397,8 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 	int frame2;
 	float mlerp;	//minor lerp, poses within a group.
 	int l = 0;
-
+	if (fg1time < 0)
+		fg1time = 0;
 	mlerp = (fg1time)*g1->rate;
 	frame1=mlerp;
 	frame2=frame1+1;
@@ -422,6 +423,8 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 
 	if (lerpfrac)
 	{
+		if (fg2time < 0)
+			fg2time = 0;
 		mlerp = (fg2time)*g2->rate;
 		frame1=mlerp;
 		frame2=frame1+1;

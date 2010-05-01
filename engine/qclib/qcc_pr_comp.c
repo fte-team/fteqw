@@ -8308,13 +8308,12 @@ void QCC_PR_ParseDefs (char *classname)
 	QCC_function_t	*f;
 	QCC_dfunction_t	*df;
 	int			i;
-	extern pbool defaultstatic;
 	pbool shared=false;
 	pbool isstatic=defaultstatic;
 	pbool externfnc=false;
 	pbool isconstant = false;
 	pbool isvar = false;
-	pbool noref = false;
+	pbool noref = defaultnoref;
 	pbool nosave = false;
 	pbool allocatenew = true;
 	pbool inlinefunction = false;

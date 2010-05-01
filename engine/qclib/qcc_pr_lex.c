@@ -202,6 +202,7 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 	QCC_Include(fullname);
 }
 
+pbool defaultnoref;
 pbool defaultstatic;
 int ForcedCRC;
 int QCC_PR_LexInteger (void);
@@ -798,6 +799,10 @@ pbool QCC_PR_Precompiler(void)
 			else if (!strncmp(qcc_token, "forcecrc", 8))
 			{
 				ForcedCRC = atoi(msg);
+			}
+			else if (!strncmp(qcc_token, "noref", 8))
+			{
+				defaultnoref = atoi(msg);
 			}
 			else if (!strncmp(qcc_token, "defaultstatic", 13))
 			{
@@ -2708,6 +2713,30 @@ void VARGS QCC_PR_ParseWarning (int type, char *error, ...)
 			printf ("%s:%i: warning: %s\n", strings + s_file, pr_source_line, string);
 		pr_warning_count++;
 	}
+}
+
+void VARGS QCC_PR_Note (int type, char *file, int line, char *error, ...)
+{
+		va_list		argptr;
+	char		string[1024];
+
+	if (qccwarningdisabled[type])
+		return;
+
+	va_start (argptr,error);
+	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+	QCC_PR_PrintScope();
+	if (file)
+	{
+		if (flag_msvcstyle)
+			printf ("%s(%i) : note: %s\n", file, line, string);
+		else
+			printf ("%s:%i: note: %s\n", file, line, string);
+	}
+	else
+		printf ("note: %s\n", string);
 }
 
 void VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)

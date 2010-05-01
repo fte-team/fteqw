@@ -282,6 +282,7 @@ static void Font_Flush(void)
 
 		fontplanes.planechanged = false;
 	}
+	font_mesh.istrifan = (font_mesh.numvertexes == 4);
 	if (font_colourmask & CON_NONCLEARBG)
 	{
 		fontplanes.backshader->defaulttextures.base = r_nulltex;

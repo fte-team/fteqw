@@ -118,7 +118,7 @@ int					sizeofuploadmemorybuffer;
 qbyte				*uploadmemorybufferintermediate;
 int					sizeofuploadmemorybufferintermediate;
 
-index_t r_quad_indexes[6] = {0, 1, 2, 0, 2, 3};
+static index_t r_quad_indexes[6] = {0, 1, 2, 0, 2, 3};
 
 extern qbyte		gammatable[256];
 
@@ -382,10 +382,6 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	TRACE(("dbg: GLDraw_ReInit: GL_EndRendering\n"));
 	GL_EndRendering ();
 	GL_DoSwap();
-
-	Font_Init();
-
-	Shader_Init();
 
 	cs_texture = GL_AllocNewTexture();
 
@@ -877,38 +873,6 @@ Call after completing any disc IO
 */
 void GLDraw_EndDisc (void)
 {
-}
-
-// conback/font callbacks
-void GL_Smoothfont_Callback(struct cvar_s *var, char *oldvalue)
-{
-	//FIXME: reimplement
-}
-
-void GL_Fontinwardstep_Callback(struct cvar_s *var, char *oldvalue)
-{
-	//FIXME: reimplement
-	if (var->value)
-		char_instep = custom_char_instep*bound(0, var->value, 1);
-	else
-		char_instep = 0;
-}
-
-void GL_Font_Callback(struct cvar_s *var, char *oldvalue)
-{
-	//FIXME: reimplement
-
-	GLVID_Console_Resize();
-}
-
-void GL_Conback_Callback(struct cvar_s *var, char *oldvalue)
-{
-	if (*var->string)
-		conback = R_RegisterPic(var->string);
-	if (!conback || !conback->width)
-		conback = R_RegisterCustom("console", NULL, NULL);
-	if (!conback || !conback->width)
-		conback = R_RegisterPic("gfx/conback.lmp");
 }
 
 /*

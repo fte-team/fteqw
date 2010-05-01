@@ -338,7 +338,7 @@ struct shader_s
 	int registration_sequence;
 };
 
-extern shader_t	r_shaders[];
+extern shader_t	*r_shaders;
 extern int be_maxpasses;
 
 

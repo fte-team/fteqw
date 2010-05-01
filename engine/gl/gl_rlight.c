@@ -66,7 +66,7 @@ void R_AnimateLight (void)
 		v2 = cl_lightstyle[j].map[v2] - 'a';
 
 		d_lightstylevalue[j] = (v1*(1-f) + v2*(f))*22;
-	}	
+	}
 }
 
 /*
@@ -509,26 +509,7 @@ void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_a
 	index[5] = index[1]+(index[1]<(lg->numlightgridelems-1));
 	index[6] = index[2]+(index[2]<(lg->numlightgridelems-1));
 	index[7] = index[3]+(index[3]<(lg->numlightgridelems-1));
-/*
-	qglDisable(GL_TEXTURE_2D);
-	qglDisable(GL_DEPTH_TEST);
-	GL_CullFace(0);
-	qglColor4f(1,1,1,1);
-	qglBegin(GL_QUADS);
-	for ( i = 0; i < 8; i++ )
-	{
-		vec3_t pos;
-		for(j=0;j<3;j++)
-			pos[j] = (vi[j]
-			+((i&1)/1*(j==0))
-			+((i&2)/2*(j==1))
-			+((i&4)/4*(j==2))
-			
-			)*lg->gridSize[j] + lg->gridMins[j];
-		qglVertex3fv(pos);
-	}
-	qglEnd();
-*/
+
 	for ( i = 0; i < 8; i++ )
 	{
 		if ( index[i] < 0 || index[i] >= (lg->numlightgridelems) )

@@ -1636,6 +1636,7 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	mesh_t *mesh;
 	unsigned int numverts;
 	unsigned int numindexes,i;
+	unsigned int ni;
 
 	numverts = 0;
 	numindexes = 0;
@@ -1662,8 +1663,11 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 		Con_DPrintf("entity %i (classname %s) has no geometry\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
 		return false;
 	}
-	ed->ode.ode_element3i = BZ_Malloc(numindexes*sizeof(index_t));
+	ed->ode.ode_element3i = BZ_Malloc(numindexes*sizeof(*ed->ode.ode_element3i));
 	ed->ode.ode_vertex3f = BZ_Malloc(numverts*sizeof(vec3_t));
+
+	ni = numindexes;
+
 	numverts = 0;
 	numindexes = 0;
 	for (sno = 0; sno < mod->nummodelsurfaces; sno++)

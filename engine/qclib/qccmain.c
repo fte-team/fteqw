@@ -564,6 +564,7 @@ pbool QCC_WriteData (int crc)
 	pbool debugtarget = false;
 	pbool types = false;
 	int outputsize = 16;
+	pbool warnedunref = false;
 
 	if (numstatements==1 && numfunctions==1 && numglobaldefs==1 && numfielddefs==1)
 	{
@@ -704,6 +705,11 @@ pbool QCC_WriteData (int crc)
 				QCC_PR_Warning(WARN_NOTREFERENCEDCONST, strings + def->s_file, def->s_line, "%s  no references", def->name);
 			else
 				QCC_PR_Warning(WARN_NOTREFERENCED, strings + def->s_file, def->s_line, "%s  no references", def->name);
+			if (!warnedunref)
+			{
+				QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "You can use the noref prefix or pragma to silence this message.");
+				warnedunref = true;
+			}
 
 			if (opt_unreferenced && def->type->type != ev_field)
 			{
@@ -2987,12 +2993,12 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 			if (!p || p >= argc-1 || argv[p+1][0] == '-')
 				p = QCC_CheckParm ("-srcfile");
 			if (p && p < argc-1 )
-				sprintf (qccmprogsdat, "%s%s", qccmsourcedir, argv[p+1]);		
+				sprintf (qccmprogsdat, "%s", argv[p+1]);		
 			else
 			{	//look for a preprogs.src... :o)
-				sprintf (qccmprogsdat, "%spreprogs.src", qccmsourcedir);
+				sprintf (qccmprogsdat, "preprogs.src");
 				if (externs->FileSize(qccmprogsdat) <= 0)
-					sprintf (qccmprogsdat, "%sprogs.src", qccmsourcedir);
+					sprintf (qccmprogsdat, "progs.src");
 			}
 
 			numsourcefiles = 0;
@@ -3011,8 +3017,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		if (currentsourcefile)
 			printf("-------------------------------------\n");
 
-		strcpy(qccmprogsdat, sourcefileslist[currentsourcefile++]);
-
+		sprintf (qccmprogsdat, "%s%s", qccmsourcedir, sourcefileslist[currentsourcefile++]);
 		printf ("Source file: %s\n", qccmprogsdat);
 
 		if (QCC_LoadFile (qccmprogsdat, (void *)&qccmsrc) == -1)

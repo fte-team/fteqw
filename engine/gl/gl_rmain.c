@@ -114,7 +114,6 @@ cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
 cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
 cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
 
-extern cvar_t	gl_contrast;
 extern cvar_t	gl_mindist;
 
 extern cvar_t	ffov;
@@ -157,9 +156,6 @@ int scenepp_fisheye_program;
 int scenepp_fisheye_parm_fov;
 int scenepp_panorama_program;
 int scenepp_panorama_parm_fov;
-
-shader_t *shader_brighten;
-shader_t *shader_polyblend;
 
 // KrimZon - init post processing - called in GL_CheckExtensions, when they're called
 // I put it here so that only this file need be changed when messing with the post
@@ -340,28 +336,6 @@ void GL_InitSceneProcessingShaders_MenuTint(void)
 
 void GL_InitSceneProcessingShaders (void)
 {
-	shader_brighten = R_RegisterShader("constrastshader", 
-			"{\n"
-				"{\n"
-					"map $whiteimage\n"
-					"blendfunc gl_dst_color gl_one\n"
-					"rgbgen vertex\n"
-					"alphagen vertex\n"
-				"}\n"
-			"}\n"
-	);
-	shader_polyblend = R_RegisterShader("polyblendshader",
-			"{\n"
-				"{\n"
-					"map $whiteimage\n"
-					"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-					"rgbgen vertex\n"
-					"alphagen vertex\n"
-				"}\n"
-			"}\n"
-	);
-
-
 	if (gl_config.arb_shader_objects)
 	{
 		GL_InitSceneProcessingShaders_WaterWarp();
@@ -887,53 +861,6 @@ void GLR_DrawEntitiesOnList (void)
 			break;
 		}
 	}
-}
-
-/*
-============
-R_PolyBlend
-============
-*/
-//bright flashes and stuff
-void R_PolyBlend (void)
-{
-	if (!sw_blend[3])
-		return;
-
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
-		return;
-
-	R2D_ImageColours (sw_blend[0], sw_blend[1], sw_blend[2], sw_blend[3]);
-	R2D_ScalePic(0, 0, vid.width, vid.height, shader_polyblend);
-}
-
-//for lack of hardware gamma
-void GLR_BrightenScreen (void)
-{
-	float f;
-
-	RSpeedMark();
-
-	if (gl_contrast.value <= 1.0)
-		return;
-
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
-		return;
-
-	f = gl_contrast.value;
-	f = min (f, 3);
-
-	while (f > 1)
-	{
-		if (f >= 2)
-			R2D_ImageColours (1, 1, 1, 1);
-		else
-			R2D_ImageColours (f - 1, f - 1, f - 1, 1);
-		R2D_ScalePic(0, 0, vid.width, vid.height, shader_brighten);
-		f *= 0.5;
-	}
-
-	RSpeedEnd(RSPEED_PALETTEFLASHES);
 }
 
 /*
@@ -1800,6 +1727,7 @@ static void R_RenderWaterWarp(void)
 }
 
 #ifdef FISH
+/*FIXME: we could use geometry shaders to draw to all 6 faces at once*/
 qboolean R_RenderScene_Fish(void)
 {
 	int cmapsize = 512;

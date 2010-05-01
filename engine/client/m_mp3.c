@@ -1316,22 +1316,22 @@ cin_t *Media_Cin_TryLoad(char *name)
 
 #ifdef OFFSCREENGECKO
 
-int (*posgk_release) (OSGK_BaseObject* obj);
+int (VARGS *posgk_release) (OSGK_BaseObject* obj);
 
-OSGK_Browser* (*posgk_browser_create) (OSGK_Embedding* embedding, int width, int height);
-void (*posgk_browser_resize) (OSGK_Browser* browser, int width, int height);
-void (*posgk_browser_navigate) (OSGK_Browser* browser, const char* uri);
-const unsigned char* (*posgk_browser_lock_data) (OSGK_Browser* browser, int* isDirty);
-void (*posgk_browser_unlock_data) (OSGK_Browser* browser, const unsigned char* data);
+OSGK_Browser* (VARGS *posgk_browser_create) (OSGK_Embedding* embedding, int width, int height);
+void (VARGS *posgk_browser_resize) (OSGK_Browser* browser, int width, int height);
+void (VARGS *posgk_browser_navigate) (OSGK_Browser* browser, const char* uri);
+const unsigned char* (VARGS *posgk_browser_lock_data) (OSGK_Browser* browser, int* isDirty);
+void (VARGS *posgk_browser_unlock_data) (OSGK_Browser* browser, const unsigned char* data);
 
-void (*posgk_browser_event_mouse_move) (OSGK_Browser* browser, int x, int y);
-void (*posgk_browser_event_mouse_button) (OSGK_Browser* browser, OSGK_MouseButton button, OSGK_MouseButtonEventType eventType);
-int (*posgk_browser_event_key) (OSGK_Browser* browser, unsigned int key, OSGK_KeyboardEventType eventType);
+void (VARGS *posgk_browser_event_mouse_move) (OSGK_Browser* browser, int x, int y);
+void (VARGS *posgk_browser_event_mouse_button) (OSGK_Browser* browser, OSGK_MouseButton button, OSGK_MouseButtonEventType eventType);
+int (VARGS *posgk_browser_event_key) (OSGK_Browser* browser, unsigned int key, OSGK_KeyboardEventType eventType);
 
-OSGK_EmbeddingOptions* (*posgk_embedding_options_create) (void);
-OSGK_Embedding* (*posgk_embedding_create2) (unsigned int apiVer, OSGK_EmbeddingOptions* options, OSGK_GeckoResult* geckoResult);
-void (*posgk_embedding_options_set_profile_dir) (OSGK_EmbeddingOptions* options, const char* profileDir, const char* localProfileDir);
-void (*posgk_embedding_options_add_search_path) (OSGK_EmbeddingOptions* options, const char* path);
+OSGK_EmbeddingOptions* (VARGS *posgk_embedding_options_create) (void);
+OSGK_Embedding* (VARGS *posgk_embedding_create2) (unsigned int apiVer, OSGK_EmbeddingOptions* options, OSGK_GeckoResult* geckoResult);
+void (VARGS *posgk_embedding_options_set_profile_dir) (OSGK_EmbeddingOptions* options, const char* profileDir, const char* localProfileDir);
+void (VARGS *posgk_embedding_options_add_search_path) (OSGK_EmbeddingOptions* options, const char* path);
 
 dllhandle_t geckodll;
 dllfunction_t gecko_functions[] =
@@ -1367,7 +1367,7 @@ qboolean Media_Gecko_DecodeFrame(cin_t *cin, qboolean nosound)
 	cin->outdata = (char*)posgk_browser_lock_data(cin->gecko.gbrowser, &cin->outunchanged);
 	cin->outwidth = cin->gecko.bwidth;
 	cin->outheight = cin->gecko.bheight;
-	cin->outtype = MOT_BGRA;
+	cin->outtype = TF_BGRA32;
 	return !!cin->gecko.gbrowser;
 }
 
@@ -1382,7 +1382,7 @@ void Media_Gecko_MoveCursor (struct cin_s *cin, float posx, float posy)
 	posgk_browser_event_mouse_move(cin->gecko.gbrowser, posx*cin->gecko.bwidth, posy*cin->gecko.bheight);
 }
 
-void Media_Gecko_KeyPress (struct cin_s *cin, int code, int event)
+void Media_Gecko_KeyPress (struct cin_s *cin, int code, int unicode, int event)
 {
 	if (code >= K_MOUSE1 && code < K_MOUSE10)
 	{
@@ -1494,8 +1494,10 @@ void Media_Gecko_KeyPress (struct cin_s *cin, int code, int event)
 		case K_LWIN:
 			code = OSGKKey_Meta;
 			break;
+		default:
+			code = unicode;
+			break;
 		}
-		Con_Printf("Sending %c\n", code);
 		posgk_browser_event_key(cin->gecko.gbrowser, code, kePress);
 		//posgk_browser_event_key(cin->gecko.gbrowser, code, event);
 	}
@@ -1548,7 +1550,7 @@ cin_t *Media_Gecko_TryLoad(char *name)
 				return NULL;
 
 			posgk_embedding_options_add_search_path(opts, "./xulrunner/");
-			if (FS_NativePath("xulrunner_profile/", FS_GAMEONLY, xulprofiledir, sizeof(xulprofiledir));
+			if (FS_NativePath("xulrunner_profile/", FS_ROOT, xulprofiledir, sizeof(xulprofiledir)))
 				posgk_embedding_options_set_profile_dir(opts, xulprofiledir, 0);
 
 			gecko_embedding = posgk_embedding_create2(OSGK_API_VERSION, opts, &result);
@@ -1575,6 +1577,7 @@ cin_t *Media_Gecko_TryLoad(char *name)
 		cin->gecko.gbrowser = posgk_browser_create(gecko_embedding, cin->gecko.bwidth, cin->gecko.bheight);
 		if (!cin->gecko.gbrowser)
 		{
+			Con_Printf("osgk_browser_create failed, your version of xulrunner is likely unsupported\n");
 			Z_Free(cin);
 			return NULL;
 		}
@@ -1688,7 +1691,8 @@ qboolean Media_ShowFilm(void)
 	switch(fullscreenvid->outtype)
 	{
 	case TF_RGBA32:
-		Media_ShowFrameRGBA_32(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
+		if (Media_ShowFrameRGBA_32)
+			Media_ShowFrameRGBA_32(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
 		break;
 	case TF_TRANS8:
 	case TF_SOLID8:
@@ -1710,7 +1714,7 @@ qboolean Media_ShowFilm(void)
 	return true;
 }
 
-#ifdef GLQUAKE
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 texid_t Media_UpdateForShader(cin_t *cin)
 {
 	if (!cin)

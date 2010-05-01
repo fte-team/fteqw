@@ -740,7 +740,7 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 				Net_ProxySend(cluster, dest, html, strlen(html));
 				Net_ProxySend(cluster, dest, hostname, strlen(hostname));
 				html =
-					"/plugimg.jpg\">"
+					"/qtvsplash.jpg\">"
 		"<param name=\"game\" value=\"q1\">"
 		"<param name=\"dataDownload\" value=\"id1/pak0.pak:http://random.nquake.com/qsw106.zip\">"
 		/*once again for firefox and similar friends*/
@@ -754,7 +754,7 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 				Net_ProxySend(cluster, dest, html, strlen(html));
 				Net_ProxySend(cluster, dest, hostname, strlen(hostname));
 				html =
-					"/plugimg.jpg\">"
+					"/qtvsplash.jpg\">"
 		"<param name=\"game\" value=\"q1\">"
 		"<param name=\"dataDownload\" value=\"id1/pak0.pak:http://random.nquake.com/qsw106.zip\">"
 		"It looks like you either don't have the required plugin or its not supported by your browser.<br/>"
@@ -1068,7 +1068,7 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 	else REDIRECTIF("/", "/plugin.html")
 	else REDIRECTIF("/", "/nowplaying.html")
 	else REDIRECTIF("/about.html", "http://www.fteqw.com/")
-	else REDIRECTIF("/plugimg.jpg", "/file/plugimg.jpg")	/*lame, very lame*/
+	else REDIRECTIF("/qtvsplash.jpg", "/file/qtvsplash.jpg")	/*lame, very lame*/
 	else REDIRECTIF("/npfte.xpi", "/file/npfte.xpi")	/*lame, very lame*/
 	else REDIRECTIF("/npfte.exe", "/file/npfte.exe")	/*lame, very lame*/
 	else REDIRECTIF("/iefte.exe", "/file/iefte.exe")	/*lame, very lame*/

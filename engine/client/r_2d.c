@@ -9,15 +9,19 @@ static mpic_t *draw_backtile;
 static mpic_t *draw_fill, *draw_fill_trans;
 mpic_t		*draw_disc;
 
+shader_t *shader_brighten;
+shader_t *shader_polyblend;
+
 static mesh_t	draw_mesh;
 static vecV_t	draw_mesh_xyz[4];
 static vec2_t	draw_mesh_st[4];
 static avec4_t	draw_mesh_colors[4];
-static index_t r_quad_indexes[6] = {0, 1, 2, 0, 2, 3};
+index_t r_quad_indexes[6] = {0, 1, 2, 2, 3, 0};
 
 extern cvar_t scr_conalpha;
 extern cvar_t gl_conback;
 extern cvar_t gl_font;
+extern cvar_t gl_contrast;
 
 void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue);
 
@@ -57,7 +61,10 @@ Image loading code must be ready for use at this point.
 */
 void R2D_Init(void)
 {
+	Shader_Init();
+
 	BE_Init();
+	draw_mesh.istrifan = true;
 	draw_mesh.numvertexes = 4;
 	draw_mesh.numindexes = 6;
 	draw_mesh.xyz_array = draw_mesh_xyz;
@@ -99,6 +106,26 @@ void R2D_Init(void)
 				"blendfunc blend\n"
 			"}\n"
 		"}\n");
+	shader_brighten = R_RegisterShader("constrastshader", 
+		"{\n"
+			"{\n"
+				"map $whiteimage\n"
+				"blendfunc gl_dst_color gl_one\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+			"}\n"
+		"}\n"
+	);
+	shader_polyblend = R_RegisterShader("polyblendshader",
+		"{\n"
+			"{\n"
+				"map $whiteimage\n"
+				"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+			"}\n"
+		"}\n"
+	);
 
 	Cvar_Hook(&gl_conback, R2D_Conback_Callback);
 }
@@ -318,10 +345,57 @@ void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (*var->string)
 		conback = R_RegisterPic(var->string);
-	if (!conback || !conback->width)
+	if (!conback)
 		conback = R_RegisterCustom("console", NULL, NULL);
-	if (!conback || !conback->width)
+	if (!conback)
 		conback = R_RegisterPic("gfx/conback.lmp");
 }
 
+
+/*
+============
+R_PolyBlend
+============
+*/
+//bright flashes and stuff
+void R2D_PolyBlend (void)
+{
+	if (!sw_blend[3])
+		return;
+
+	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
+		return;
+
+	R2D_ImageColours (sw_blend[0], sw_blend[1], sw_blend[2], sw_blend[3]);
+	R2D_ScalePic(0, 0, vid.width, vid.height, shader_polyblend);
+}
+
+//for lack of hardware gamma
+void R2D_BrightenScreen (void)
+{
+	float f;
+
+	RSpeedMark();
+
+	if (gl_contrast.value <= 1.0)
+		return;
+
+	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
+		return;
+
+	f = gl_contrast.value;
+	f = min (f, 3);
+
+	while (f > 1)
+	{
+		if (f >= 2)
+			R2D_ImageColours (1, 1, 1, 1);
+		else
+			R2D_ImageColours (f - 1, f - 1, f - 1, 1);
+		R2D_ScalePic(0, 0, vid.width, vid.height, shader_brighten);
+		f *= 0.5;
+	}
+
+	RSpeedEnd(RSPEED_PALETTEFLASHES);
+}
 #endif

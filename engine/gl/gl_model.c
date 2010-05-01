@@ -565,7 +565,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 // fill it in
 //
 		Mod_DoCRC(mod, (char*)buf, com_filesize);
-		
+
 		switch (LittleLong(*(unsigned *)buf))
 		{
 //The binary 3d mesh model formats
@@ -573,7 +573,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 			if (!Mod_LoadQ1Model(mod, buf))
 				continue;
 			break;
-		
+
 #ifdef MD2MODELS
 		case MD2IDALIASHEADER:
 			if (!Mod_LoadQ2Model(mod, buf))
@@ -623,7 +623,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 
 	//Binary Map formats
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 		case ('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 		case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 		case IDBSPHEADER:	//looks like id switched to have proper ids

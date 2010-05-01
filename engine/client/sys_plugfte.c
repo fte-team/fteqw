@@ -310,10 +310,24 @@ int Plug_PluginThread(void *ctxptr)
 			Sys_UnlockMutex(ctx->mutex);
 		}
 
+		ctx->pub.downloading = true;
 		while(host_initialized && !ctx->shutdown && ctx->packagelist)
 		{
+			int total=0, done=0;
 			Sys_LockMutex(ctx->mutex);
+			for (dl = ctx->packagelist; dl; dl = dl->next)
+			{
+				total += dl->totalsize;
+				done += dl->completed;
+			}
 			dl = ctx->packagelist;
+			if (total != ctx->pub.dlsize || done != ctx->pub.dldone)
+			{
+				ctx->pub.dlsize = total;
+				ctx->pub.dldone = done;
+				if (ctx->bfuncs.StatusChanged)
+					ctx->bfuncs.StatusChanged(&ctx->pub);
+			}
 			if (!dl->file)
 				ctx->packagelist = dl->next;
 			else
@@ -325,6 +339,7 @@ int Plug_PluginThread(void *ctxptr)
 				DL_Close(dl);
 			Sleep(10);
 		}
+		ctx->pub.downloading = false;
 
 		if (host_initialized && !ctx->shutdown)
 		{
@@ -337,6 +352,8 @@ int Plug_PluginThread(void *ctxptr)
 			Host_FinishInit();
 			Sys_UnlockMutex(ctx->mutex);
 		}
+		if (ctx->bfuncs.StatusChanged)
+			ctx->bfuncs.StatusChanged(&ctx->pub);
 
 		VS_DebugLocation(__FILE__, __LINE__, "main loop");
 		while(host_initialized)
@@ -354,7 +371,7 @@ int Plug_PluginThread(void *ctxptr)
 				sys_parentwindow = ctx->windowhnd;
 				sys_parentwidth = ctx->windowwidth;
 				sys_parentheight = ctx->windowheight;
-//				R_RestartRenderer_f();
+				Cbuf_AddText("vid_recenter\n", RESTRICT_LOCAL);
 			}
 			else
 				NPQTV_Sys_MainLoop();
@@ -381,7 +398,8 @@ int Plug_PluginThread(void *ctxptr)
 	}
 	ctx->pub.running = false;
 	Sys_UnlockMutex(ctx->mutex);
-	InvalidateRgn(ctx->windowhnd, NULL, FALSE);
+	if (ctx->bfuncs.StatusChanged)
+		ctx->bfuncs.StatusChanged(&ctx->pub);
 
 	while(argc-- > 0)
 		free(argv[argc]);
@@ -637,7 +655,11 @@ void LoadSplashImage(struct dl_download *dl)
 	free(image);
 
 	if (!f)
+	{
+		if (ctx->bfuncs.StatusChanged)
+			ctx->bfuncs.StatusChanged(&ctx->pub);
 		return;
+	}
 
 	len = VFS_GETLEN(f);
 	buffer = malloc(len);
@@ -670,8 +692,8 @@ void LoadSplashImage(struct dl_download *dl)
 		ctx->splashheight = height;
 		BZ_Free(image);
 
-		if (ctx->windowhnd)
-			InvalidateRgn(ctx->windowhnd, NULL, FALSE);
+		if (ctx->bfuncs.StatusChanged)
+			ctx->bfuncs.StatusChanged(&ctx->pub);
 	}
 }
 
@@ -744,7 +766,7 @@ char *pscript_property_startserver_gets(struct context *ctx)
 }
 void pscript_property_startserver_sets(struct context *ctx, const char *val)
 {
-	ctx->qtvf.connectiontype = QTVCT_CONNECT;
+	ctx->qtvf.connectiontype = QTVCT_JOIN;
 	Q_strncpyz(ctx->qtvf.server, val, sizeof(ctx->qtvf.server));
 }
 char *pscript_property_curserver_gets(struct context *ctx)
@@ -773,6 +795,20 @@ void pscript_property_stream_sets(struct context *ctx, const char *val)
 
 	if (pscript_property_running_getb(ctx))
 		Cmd_ExecuteString(va("qtvplay \"%s\"\n", val), RESTRICT_INSECURE);
+}
+void pscript_property_map_sets(struct context *ctx, const char *val)
+{
+	ctx->qtvf.connectiontype = QTVCT_MAP;
+	FILTER(val)
+	Q_strncpyz(ctx->qtvf.server, val, sizeof(ctx->qtvf.server));
+
+	if (pscript_property_running_getb(ctx))
+		Cmd_ExecuteString(va("map \"%s\"\n", val), RESTRICT_INSECURE);
+}
+
+float pscript_property_curver_getf(struct context *ctx)
+{
+	return build_number();
 }
 
 void pscript_property_availver_setf(struct context *ctx, float val)
@@ -816,13 +852,6 @@ void pscript_property_splash_sets(struct context *ctx, const char *val)
 		DL_Close(ctx->splashdownload);
 		ctx->splashdownload = NULL;
 	}
-
-/*
-	if (ctx->browserfuncs.RequestDownload)
-		ctx->browserfuncs.RequestDownload(ctx->nppinstance, &SplashscreenImageDescriptor, ctx->qtvf.splashscreen);
-	else
-		HTTP_CL_Get();
-*/
 }
 
 extern cvar_t skin, team, topcolor, bottomcolor, vid_fullscreen, cl_download_mapsrc;
@@ -849,6 +878,7 @@ static struct pscript_property pscript_properties[] =
 	{"splash",		false,	NULL,	NULL, pscript_property_splash_sets},
 
 	{"stream",		false,	NULL,	NULL, pscript_property_stream_sets},
+	{"map",			false,	NULL,	NULL, pscript_property_map_sets},
 
 /*
 		else if (!stricmp(argn[i], "connType"))
@@ -906,12 +936,6 @@ static struct pscript_property pscript_properties[] =
 		else if (!stricmp(argn[i], "onDemoEnd"))
 		{
 			ctx->ondemoend = strdup(argv[i]);
-		}
-		else if (!stricmp(argn[i], "availVer"))
-		{
-			ctx->availver = atof(argv[i]);
-			if (ctx->availver <= NPQTV_VERSION)
-				ctx->availver = 0;
 		}
 */
 	{NULL}

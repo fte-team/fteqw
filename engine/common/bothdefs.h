@@ -253,37 +253,30 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef VM_Q1
 #endif
 
-#if defined(D3DQUAKE)
-	//not supported in anything but GL. avoid bugs.
-	#undef AVAIL_FREETYPE
-#endif
-
 //remove any options that depend upon GL.
 #ifndef SERVERONLY
-	#if !defined(GLQUAKE)
+	#if !defined(GLQUAKE) && !defined(D3DQUAKE)
 		#undef DOOMWADS
 		#undef HALFLIFEMODELS
 		#undef Q3BSPS
 		#undef R_XFLIP
 		#undef RUNTIMELIGHTING
-		#undef TERRAIN
 		#undef Q3CLIENT
+	#endif
+
+	#if !defined(GLQUAKE)
+		#undef TERRAIN
 	#endif
 
 	// undefine things not supported yet for D3D
 	#if defined(D3DQUAKE) && !defined(GLQUAKE)
 		#undef DDS // this is dumb
 		#undef HALFLIFEMODELS
-		#undef Q3BSPS
-		#undef Q3CLIENT
-		#undef Q2BSPS
-		#undef Q2CLIENT
-		#undef Q2SERVER
 	#endif
 
 #endif
 
-#if !defined(GLQUAKE) && !defined(SERVERONLY)
+#if !defined(GLQUAKE) && !defined(D3DQUAKE) && !defined(SERVERONLY)
 	#undef Q3BSPS
 #endif
 #if !defined(Q3BSPS)

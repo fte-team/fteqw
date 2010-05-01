@@ -221,7 +221,7 @@ vfsfile_t	*sv_fraglogfile;
 void SV_FixupName(char *in, char *out, unsigned int outlen);
 void SV_AcceptClient (netadr_t adr, int userid, char *userinfo);
 void Master_Shutdown (void);
-void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
+void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
 char *SV_BannedReason (netadr_t *a);
 
 #ifdef SQL
@@ -4270,7 +4270,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	val = Info_ValueForKey (cl->userinfo, "cl_playerclass");
 	if (val)
 	{
-		PR_SetPlayerClass(cl, atoi(val), false);
+		PRH2_SetPlayerClass(cl, atoi(val), false);
 	}
 
 	// msg command

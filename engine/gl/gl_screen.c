@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef GLQUAKE
 #include "glquake.h"
 #include "shader.h"
+#include "gl_draw.h"
 
 #include <time.h>
 
@@ -216,7 +217,7 @@ void GLSCR_UpdateScreen (void)
 #if defined(_WIN32) && defined(GLQUAKE)
 		Media_RecordFrame();
 #endif
-		GLR_BrightenScreen();
+		R2D_BrightenScreen();
 
 		if (key_dest == key_console)
 			Con_DrawConsole(vid_conheight.value/2, false);
@@ -233,7 +234,7 @@ void GLSCR_UpdateScreen (void)
 #if defined(_WIN32) && defined(GLQUAKE)
 		Media_RecordFrame();
 #endif
-		GLR_BrightenScreen();
+		R2D_BrightenScreen();
 		GL_EndRendering ();	
 		GL_DoSwap();
 		RSpeedEnd(RSPEED_TOTALREFRESH);
@@ -280,8 +281,8 @@ void GLSCR_UpdateScreen (void)
 
 	if (!noworld)
 	{
-		R_PolyBlend ();
-		GLR_BrightenScreen();
+		R2D_PolyBlend ();
+		R2D_BrightenScreen();
 	}
 
 	scr_con_forcedraw = false;

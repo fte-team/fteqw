@@ -297,7 +297,6 @@ extern model_t mod_known[];
 #define VM_FROMMHANDLE(a) (a?mod_known+a-1:NULL)
 #define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
 
-extern shader_t r_shaders[];
 #define VM_FROMSHANDLE(a) (a?r_shaders+a-1:NULL)
 #define VM_TOSHANDLE(a) (a?a-r_shaders+1:0)
 
@@ -454,7 +453,7 @@ void VQ3_AddPoly(shader_t *s, int num, q3polyvert_t *verts)
 	if (cl_maxstrisvert < cl_numstrisvert+num)
 	{
 		cl_maxstrisvert = cl_numstrisvert+num + 64;
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(vec3_t)*cl_maxstrisvert);
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
 		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
 		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
 	}
@@ -565,7 +564,7 @@ struct q3refdef_s {
 	// text messages for deform text shaders
 	char		text[MAX_RENDER_STRINGS][MAX_RENDER_STRING_LENGTH];
 };
-
+void D3D9_Set2D (void);
 void VQ3_RenderView(const q3refdef_t *ref)
 {
 	extern cvar_t r_torch;
@@ -615,15 +614,14 @@ void VQ3_RenderView(const q3refdef_t *ref)
 		GL_Set2D ();
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		GL_TexEnv(GL_MODULATE);
-	}
-#endif
 
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
 		qglDisable(GL_ALPHA_TEST);
 		qglEnable(GL_BLEND);
 	}
+#endif
+#ifdef D3DQUAKE
+	if (qrenderer == QR_DIRECT3D)
+		D3D9_Set2D();
 #endif
 
 	vid.recalc_refdef = 1;
@@ -878,10 +876,8 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 	case UI_R_REGISTERSHADERNOMIP:
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
-		else if (qrenderer == QR_OPENGL)
+		else
 			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
-//FIXME: 64bit		else
-//			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));
 		break;
 
 	case UI_R_CLEARSCENE:	//clear scene
@@ -1198,22 +1194,6 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 		VM_FLOAT(ret)=(float)ceil(VM_FLOAT(arg[0]));
 		break;
 /*
-	case UI_CACHE_PIC:
-		if (!Draw_SafeCachePic)
-			VM_LONG(ret) = 0;
-		else
-		{
-			VM_LONG(ret) = 0;//FIXME: 64bit (long)R_RegisterPic(VM_POINTER(arg[0]));
-		}
-		break;
-	case UI_PICFROMWAD:
-		if (!Draw_SafePicFromWad)
-			VM_LONG(ret) = 0;
-		else
-		{
-			VM_LONG(ret) = 0;//FIXME: 64bit (long)R_RegisterPic(VM_POINTER(arg[0]));
-		}
-		break;
 	case UI_GETPLAYERINFO:
 		if (arg[1] + sizeof(vmuiclientinfo_t) >= mask || VM_POINTER(arg[1]) < offset)
 			break;	//out of bounds.
@@ -1450,7 +1430,7 @@ void UI_Reset(void)
 {
 	keycatcher &= ~2;
 
-	if (!Draw_SafeCachePic || qrenderer != QR_OPENGL)	//no renderer loaded
+	if (qrenderer == QR_NONE)	//no renderer loaded
 		UI_Stop();
 	else if (uivm)
 		VM_Call(uivm, UI_INIT);
@@ -1541,9 +1521,6 @@ void UI_Stop (void)
 void UI_Start (void)
 {
 	int apiversion;
-	if (!Draw_SafeCachePic)	//no renderer loaded
-		return;
-
 	if (qrenderer != QR_OPENGL && qrenderer != QR_DIRECT3D)
 		return;
 

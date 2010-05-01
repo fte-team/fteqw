@@ -75,16 +75,16 @@ void M_Menu_Options_f (void)
 	MC_AddSlider(menu, 16, y,			"           Mouse Speed", &sensitivity,		1,		10, 0.5); y+=8;
 	MC_AddSlider(menu, 16, y,			"             Crosshair", &crosshair,		0,		22, 1); y+=8;
 
-	MC_AddCheckBox(menu, 16, y,		"            Always Run", NULL,0)->func = M_Options_AlwaysRun; y+=8;
-	MC_AddCheckBox(menu, 16, y,		"          Invert Mouse", NULL,0)->func = M_Options_InvertMouse; y+=8;
-	MC_AddCheckBox(menu, 16, y,		"            Lookspring", &lookspring,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,		"            Lookstrafe", &lookstrafe,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,		"    Use old status bar", &cl_sbar,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,		"      HUD on left side", &cl_hudswap,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,		"    Old-style chatting", &cl_standardchat,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,		"    Old-style messages", &cl_standardmsg,0);y+=8;
-	y+=4;MC_AddEditCvar(menu, 16, y,"           Imitate FPS", "cl_netfps"); y+=8+4;
-	y+=4;MC_AddEditCvar(menu, 16, y,"    Auto status format", "tp_autostatus"); y+=8+4;
+	MC_AddCheckBox(menu, 16, y,			"            Always Run", NULL,0)->func = M_Options_AlwaysRun; y+=8;
+	MC_AddCheckBox(menu, 16, y,			"          Invert Mouse", NULL,0)->func = M_Options_InvertMouse; y+=8;
+	MC_AddCheckBox(menu, 16, y,			"            Lookspring", &lookspring,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,			"            Lookstrafe", &lookstrafe,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,			"    Use old status bar", &cl_sbar,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,			"      HUD on left side", &cl_hudswap,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,			"    Old-style chatting", &cl_standardchat,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"    Old-style messages", &cl_standardmsg,0);y+=8;
+	y+=4;MC_AddEditCvar(menu, 16, y,	"           Imitate FPS", "cl_netfps"); y+=8+4;
+	y+=4;MC_AddEditCvar(menu, 16, y,	"    Auto status format", "tp_autostatus"); y+=8+4;
 
 	MC_AddConsoleCommand(menu, 16, y,	"         Video Options", "menu_video\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"           FPS Options", "menu_fps\n"); y+=8;

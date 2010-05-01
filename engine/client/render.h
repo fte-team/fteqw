@@ -48,10 +48,12 @@ static const texid_t r_nulltex = {0};
 	#define GL_INDEX_TYPE GL_UNSIGNED_SHORT
 	#define D3DFMT_QINDEX D3DFMT_INDEX16
 	typedef unsigned short index_t;
+	#define MAX_INDICIES 0xffff
 #else
 	#define GL_INDEX_TYPE GL_UNSIGNED_INT
 	#define D3DFMT_QINDEX D3DFMT_INDEX32
 	typedef unsigned int index_t;
+	#define MAX_INDICIES 0xffffffff
 #endif
 
 //=============================================================================
@@ -292,8 +294,8 @@ enum uploadfmt
 	#define R_FindTexture(name)  ((qrenderer == QR_DIRECT3D)?D3D_FindTexture(name):GL_FindTexture(name))
 	#define R_LoadCompressed(name)  ((qrenderer == QR_DIRECT3D)?D3D_LoadCompressed(name):GL_LoadCompressed(name))
 #elif defined(D3DQUAKE)
-//	#define R_LoadTexture8Pal32
-//	#define R_LoadTexture8Pal24
+	#define R_LoadTexture8Pal32 D3D_LoadTexture8Pal32
+	#define R_LoadTexture8Pal24 D3D_LoadTexture8Pal24
 
 	#define R_FindTexture		D3D_FindTexture
 	#define R_LoadCompressed	D3D_LoadCompressed
@@ -334,6 +336,9 @@ texid_t D3D_LoadTextureFmt (char *identifier, int width, int height, enum upload
 
 texid_t D3D_LoadCompressed(char *name);
 texid_t D3D_FindTexture (char *identifier);
+
+texid_t D3D_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+texid_t D3D_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
 #endif
 
 extern int image_width, image_height;

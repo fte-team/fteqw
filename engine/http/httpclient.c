@@ -6,6 +6,8 @@
 
 #ifdef WEBCLIENT
 
+qboolean HTTPDL_Decide(struct dl_download *dl);
+
 /*
 This file does one thing. Connects to servers and grabs the specified file. It doesn't do any uploading whatsoever. Live with it.
 It doesn't use persistant connections.
@@ -108,6 +110,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		if (strnicmp(msg, "HTTP/", 5))
 		{	//pre version 1. (lame servers.
 			con->state = HC_GETTING;
+			dl->status = DL_ACTIVE;
 			con->contentlength = -1;	//meaning end of stream.
 		}
 		else
@@ -176,7 +179,27 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				else
 				{
 					HTTP_Cleanup(dl);
-					Q_strncpyz(dl->redir, Location, sizeof(dl->redir));
+					if (*Location == '/')
+					{
+						char *cur = *dl->redir?dl->redir:dl->url;
+						char *curserver = cur;
+						char *curpath;
+						/*same server+protocol*/
+						if (!strncmp(curserver, "http://", 7))
+							curserver += 7;
+						curpath = strchr(curserver, '/');
+						if (!curpath)
+							curpath = curserver + strlen(curserver);
+						if (cur == dl->redir)
+							*curpath = 0;
+						else
+							Q_strncpyz(dl->redir, cur, (curpath-cur) + 1);
+						Q_strncatz(dl->redir, Location, sizeof(dl->redir));
+					}
+					else
+						Q_strncpyz(dl->redir, Location, sizeof(dl->redir));
+					dl->poll = HTTPDL_Decide;
+					dl->status = DL_PENDING;
 				}
 				return true;
 			}
@@ -194,6 +217,8 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			}
 
 			con->bufferused -= ammount;
+
+			dl->totalsize = con->contentlength;
 
 			if (!dl->file)
 			{
@@ -216,6 +241,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 
 			con->state = HC_GETTING;
+			dl->status = DL_ACTIVE;
 
 		}
 		//Fall through
@@ -313,6 +339,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				dl->status = DL_FINISHED; 
 			return false;
 		}
+		dl->completed = con->totalreceived;
 
 		break;
 	}
@@ -412,7 +439,9 @@ qboolean HTTPDL_Poll(struct dl_download *dl)
 
 	if (dl->ctx)
 	{
-		HTTP_DL_Work(dl);
+		if (!HTTP_DL_Work(dl))
+			if (dl->status != DL_FINISHED)
+				dl->status = DL_FAILED;
 		if (dl->status == DL_FAILED)
 		{
 			HTTP_Cleanup(dl);
@@ -512,6 +541,7 @@ void DL_Close(struct dl_download *dl)
 
 
 static struct dl_download *activedownloads;
+static struct dl_download *showndownload;
 /*create a download context and add it to the list, for lazy people*/
 struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*NotifyFunction)(struct dl_download *dl))
 {
@@ -549,7 +579,7 @@ void HTTP_CL_Think(void)
 
 			if (cls.downloadmethod == DL_HTTP)
 			{
-				if (!strcmp(cls.downloadlocalname, con->localname))
+				if (showndownload == con)
 				{
 					cls.downloadmethod = DL_NONE;
 					*cls.downloadlocalname = *cls.downloadremotename = 0;
@@ -562,12 +592,13 @@ void HTTP_CL_Think(void)
 		if (!cls.downloadmethod)
 		{
 			cls.downloadmethod = DL_HTTP;
+			showndownload = con;
 			strcpy(cls.downloadlocalname, con->localname);
-			strcpy(cls.downloadremotename, con->localname);
+			strcpy(cls.downloadremotename, con->url);
 		}
 		if (cls.downloadmethod == DL_HTTP)
 		{
-			if (!strcmp(cls.downloadlocalname, con->localname))
+			if (showndownload == con)
 			{
 				if (con->status == DL_FINISHED)
 					cls.downloadpercent = 100;

@@ -2018,7 +2018,7 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PF_setmodel_Internal(prinst, e, m);
 }
 
-void PF_set_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2set_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//qc/hc lacks string manipulation.
 	edict_t	*e;
 	char *shortname;
@@ -3227,7 +3227,7 @@ void PF_conprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-void PF_printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char temp[256];
 	float	v;
@@ -3242,7 +3242,7 @@ void PF_printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Con_Printf (PR_GetStringOfs(prinst, OFS_PARM0),temp);
 }
 
-void PF_printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char temp[256];
 
@@ -3251,7 +3251,7 @@ void PF_printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Con_Printf (PR_GetStringOfs(prinst, OFS_PARM0),temp);
 }
 
-void PF_spawn_temp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2spawn_temp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ed;
 	ed = ED_Alloc(prinst);
@@ -3400,7 +3400,7 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PF_precache_model_Internal(prinst, s);
 }
 
-void PF_precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//qc/hc lacks string manipulation.
 	char *shortname;
 	char fullname[MAX_QPATH];
@@ -4413,68 +4413,68 @@ void PF_WriteString2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_PARM1) = old;
 }
 
-void PF_Single_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtSingle_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteByte(MSG_PRERELONE, (qbyte)G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtSingle_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteChar(MSG_PRERELONE, (char)G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtSingle_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteShort(MSG_PRERELONE, (short)G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtSingle_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteLong(MSG_PRERELONE, G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtSingle_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteAngle(MSG_PRERELONE, G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtSingle_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteCoord(MSG_PRERELONE, G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtSingle_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteString(MSG_PRERELONE, PF_VarString(prinst, 1, pr_globals));
 }
-void PF_Single_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtSingle_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteEntity(MSG_PRERELONE, (short)G_EDICTNUM(prinst, OFS_PARM1));
 }
 
-void PF_Broadcast_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtBroadcast_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteByte(MSG_BROADCAST, (qbyte)G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtBroadcast_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteChar(MSG_BROADCAST, (char)G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtBroadcast_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteShort(MSG_BROADCAST, (short)G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtBroadcast_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteLong(MSG_BROADCAST, G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtBroadcast_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteAngle(MSG_BROADCAST, G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtBroadcast_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteCoord(MSG_BROADCAST, G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtBroadcast_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteString(MSG_BROADCAST, PF_VarString(prinst, 0, pr_globals));
 }
-void PF_Broadcast_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_qtBroadcast_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteEntity(MSG_BROADCAST, (short)G_EDICTNUM(prinst, OFS_PARM0));
 }
@@ -6734,7 +6734,7 @@ void PF_clientcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-void PF_AdvanceFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2AdvanceFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t *Ent;
 	float Start,End,Result;
@@ -6779,7 +6779,7 @@ void PF_AdvanceFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = Result;
 }
 
-void PF_RewindFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2RewindFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t *Ent;
 	float Start,End,Result;
@@ -6813,7 +6813,7 @@ void PF_RewindFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #define WF_CYCLE_WRAPPED 2
 #define WF_LAST_FRAME 3
 
-void PF_advanceweaponframe (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2advanceweaponframe (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t *ent;
 	float startframe,endframe;
@@ -6850,7 +6850,7 @@ void PF_advanceweaponframe (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	G_FLOAT(OFS_RETURN) = state;
 }
 
-void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
+void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
 {
 	char		temp[16];
 	if (classnum < 1)
@@ -6877,7 +6877,7 @@ void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
 	}
 }
 
-void PF_setclass (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2setclass (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float		NewClass;
 	int			entnum;
@@ -6906,7 +6906,7 @@ void PF_setclass (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	client->sendinfo = true;
 }
 
-void PF_v_factor(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2v_factor(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // returns (v_right * factor_x) + (v_forward * factor_y) + (v_up * factor_z)
 {
 	float *range;
@@ -6929,7 +6929,7 @@ void PF_v_factor(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorCopy (result, G_VECTOR(OFS_RETURN));
 }
 
-void PF_v_factorrange(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2v_factorrange(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // returns (v_right * factor_x) + (v_forward * factor_y) + (v_up * factor_z)
 {
 	float num,*minv,*maxv;
@@ -6961,7 +6961,7 @@ void PF_v_factorrange(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 char *T_GetString(int num);
-void PF_plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char		*s;
 
@@ -7009,7 +7009,7 @@ void PF_plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
-static void PF_movestep (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_h2movestep (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	vec3_t v;
 	edict_t	*ent;
@@ -7032,7 +7032,7 @@ static void PF_movestep (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pr_global_struct->self = oldself;
 }
 
-void PF_concatv(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2concatv(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *in,*range;
 	vec3_t result;
@@ -7051,7 +7051,7 @@ void PF_concatv(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorCopy (result, G_VECTOR(OFS_RETURN));
 }
 
-void PF_matchAngleToSlope(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2matchAngleToSlope(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*actor;
 	vec3_t v_forward, old_forward, old_right, new_angles2 = { 0, 0, 0 };
@@ -7083,25 +7083,25 @@ void PF_matchAngleToSlope(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	actor->v->angles[2] = (1-fabs(dot))*pitch*mod;
 }
 
-void PF_starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_DPrintf("Start effect %i\n", (int)G_FLOAT(OFS_PARM0));
 }
 
-void PF_endeffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2endeffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_DPrintf("Stop effect %i\n", (int)G_FLOAT(OFS_PARM0));
 }
 
-void PF_rain_go(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2rain_go(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 }
 
-void PF_StopSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2StopSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 }
 
-void PF_getstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void PF_h2getstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *s = T_GetString(G_FLOAT(OFS_PARM0)-1);
 	RETURN_PSTRING(s);
@@ -9042,39 +9042,39 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"writestring",		PF_WriteString,		58,		58,		58},	//58
 	{"writeentity",		PF_WriteEntity,		59,		59,		59},	//59
 
-	{"swritebyte",		PF_Single_WriteByte},	//52
-	{"swritechar",		PF_Single_WriteChar},	//53
-	{"swriteshort",		PF_Single_WriteShort},	//54
-	{"swritelong",		PF_Single_WriteLong},	//55
-	{"swritecoord",		PF_Single_WriteCoord},	//56
-	{"swriteangle",		PF_Single_WriteAngle},	//57
-	{"swritestring",	PF_Single_WriteString},	//58
-	{"swriteentity",	PF_Single_WriteEntity},
+	{"swritebyte",		PF_qtSingle_WriteByte},	//52
+	{"swritechar",		PF_qtSingle_WriteChar},	//53
+	{"swriteshort",		PF_qtSingle_WriteShort},	//54
+	{"swritelong",		PF_qtSingle_WriteLong},	//55
+	{"swritecoord",		PF_qtSingle_WriteCoord},	//56
+	{"swriteangle",		PF_qtSingle_WriteAngle},	//57
+	{"swritestring",	PF_qtSingle_WriteString},	//58
+	{"swriteentity",	PF_qtSingle_WriteEntity},
 
-	{"bwritebyte",		PF_Broadcast_WriteByte},	//59
-	{"bwritechar",		PF_Broadcast_WriteChar},	//60
-	{"bwriteshort",		PF_Broadcast_WriteShort},	//61
-	{"bwritelong",		PF_Broadcast_WriteLong},	//62
-	{"bwritecoord",		PF_Broadcast_WriteCoord},	//63
-	{"bwriteangle",		PF_Broadcast_WriteAngle},	//64
-	{"bwritestring",	PF_Broadcast_WriteString},	//65
-	{"bwriteentity",	PF_Broadcast_WriteEntity},	//66
+	{"bwritebyte",		PF_qtBroadcast_WriteByte},	//59
+	{"bwritechar",		PF_qtBroadcast_WriteChar},	//60
+	{"bwriteshort",		PF_qtBroadcast_WriteShort},	//61
+	{"bwritelong",		PF_qtBroadcast_WriteLong},	//62
+	{"bwritecoord",		PF_qtBroadcast_WriteCoord},	//63
+	{"bwriteangle",		PF_qtBroadcast_WriteAngle},	//64
+	{"bwritestring",	PF_qtBroadcast_WriteString},	//65
+	{"bwriteentity",	PF_qtBroadcast_WriteEntity},	//66
 
 
-	{"printfloat",		PF_printf,			0,		0,		60},	//60
+	{"printfloat",		PF_h2printf,			0,		0,		60},	//60
 
 	{"sin",				PF_Sin,				0,		0,		62,		60},	//60
 	{"cos",				PF_Cos,				0,		0,		61,		61},	//61
 	{"sqrt",			PF_Sqrt,			0,		0,		84,		62},	//62
 
-	{"AdvanceFrame",	PF_AdvanceFrame,	0,		0,		63,		0},
-	{"printvec",		PF_printv,			0,		0,		64,		0},	//64
-	{"RewindFrame",		PF_RewindFrame,		0,		0,		65,		0},
+	{"AdvanceFrame",	PF_h2AdvanceFrame,	0,		0,		63,		0},
+	{"printvec",		PF_h2printv,			0,		0,		64,		0},	//64
+	{"RewindFrame",		PF_h2RewindFrame,		0,		0,		65,		0},
 	{"particleexplosion",PF_h2particleexplosion,0,	0,		81,		0},
-	{"movestep",		PF_movestep,		0,		0,		82,		0},
-	{"advanceweaponframe",PF_advanceweaponframe,0,	0,		83,		0},
+	{"movestep",		PF_h2movestep,		0,		0,		82,		0},
+	{"advanceweaponframe",PF_h2advanceweaponframe,0,	0,		83,		0},
 
-	{"setclass",		PF_setclass,		0,		0,		66,		0},
+	{"setclass",		PF_h2setclass,		0,		0,		66,		0},
 
 	{"changepitch",		PF_changepitch,		0,		0,		0,		63},
 	{"tracetoss",		PF_TraceToss,		0,		0,		0,		64},
@@ -9097,7 +9097,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_file2",	PF_precache_file,	77,		77,		0},	//77
 
 	{"setspawnparms",	PF_setspawnparms,	78,		78,		78},	//78
-	{"plaque_draw",		PF_plaque_draw,		0,		0,		79},	//79
+	{"plaque_draw",		PF_h2plaque_draw,		0,		0,		79},	//79
 	{"logfrag",			PF_logfrag,			0,		79,		0,		79},	//79
 
 // Tomaz - QuakeC String Manipulation Begin
@@ -9117,7 +9117,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tq_fputs",		PF_fputs,			0,		0,		0,		89, true},// #89 void(float fhandle, string s) fputs (QSG_FILE)
 // Tomaz - QuakeC File System End
 
-	{"rain_go",			PF_rain_go,			0,		0,		80,		0},	//80
+	{"rain_go",			PF_h2rain_go,		0,		0,		80,		0},	//80
 
 	{"infokey",			PF_infokey,			0,		80,		0,		80},	//80
 	{"stof",			PF_stof,			0,		81,		0,		81},	//81
@@ -9154,25 +9154,25 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, true},
 //end of mvdsv
 
-	{"setpuzzlemodel",	PF_set_puzzle_model,0,		0,		87,		0},
-	{"starteffect",		PF_starteffect,		0,		0,		88,		0},	//FIXME
-	{"endeffect",		PF_endeffect,		0,		0,		89,		0},	//FIXME
-	{"getstring",		PF_getstring,		0,		0,		92,		0},	//FIXME
-	{"spawntemp",		PF_spawn_temp,		0,		0,		93,		0},
+	{"setpuzzlemodel",	PF_h2set_puzzle_model,0,		0,		87,		0},
+	{"starteffect",		PF_h2starteffect,		0,		0,		88,		0},	//FIXME
+	{"endeffect",		PF_h2endeffect,		0,		0,		89,		0},	//FIXME
+	{"getstring",		PF_h2getstring,		0,		0,		92,		0},	//FIXME
+	{"spawntemp",		PF_h2spawn_temp,		0,		0,		93,		0},
 
-	{"v_factor",		PF_v_factor,		0,		0,		94,		0},
-	{"v_factorrange",	PF_v_factorrange,	0,		0,		95,		0},
+	{"v_factor",		PF_h2v_factor,		0,		0,		94,		0},
+	{"v_factorrange",	PF_h2v_factorrange,	0,		0,		95,		0},
 
-	{"precache_puzzle_model", PF_precache_puzzle_model,	0,		0,		90,		0},
-	{"concatv",			PF_concatv,			0,		0,		91,		0},
+	{"precache_puzzle_model", PF_h2precache_puzzle_model,	0,		0,		90,		0},
+	{"concatv",			PF_h2concatv,			0,		0,		91,		0},
 	{"precache_sound3",	PF_precache_sound,	0,		0,		96,		0},
 	{"precache_model3",	PF_precache_model,	0,		0,		97,		0},//please don't use...
-	{"matchangletoslope",PF_matchAngleToSlope,0,	0,		99,		0},
+	{"matchangletoslope",PF_h2matchAngleToSlope,0,	0,		99,		0},
 
 	{"precache_sound4",	PF_precache_sound,	0,		0,		101,	0},
 	{"precache_model4",	PF_precache_model,	0,		0,		102,	0},
 	{"precache_file4",	PF_precache_file,	0,		0,		103,	0},
-	{"stopsound",		PF_StopSound,		0,		0,		106,	0},
+	{"stopsound",		PF_h2StopSound,		0,		0,		106,	0},
 
 	{"precache_model4",	PF_precache_model,	0,		0,		116,	0},//please don't use...
 	{"precache_sound4",	PF_precache_sound,	0,		0,		117,	0},
@@ -9588,23 +9588,23 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 	if (type == PROG_PREREL)
 	{
-		pr_builtin[52] = PF_Single_WriteByte;
-		pr_builtin[53] = PF_Single_WriteChar;
-		pr_builtin[54] = PF_Single_WriteShort;
-		pr_builtin[55] = PF_Single_WriteLong;
-		pr_builtin[56] = PF_Single_WriteCoord;
-		pr_builtin[57] = PF_Single_WriteAngle;
-		pr_builtin[58] = PF_Single_WriteString;
+		pr_builtin[52] = PF_qtSingle_WriteByte;
+		pr_builtin[53] = PF_qtSingle_WriteChar;
+		pr_builtin[54] = PF_qtSingle_WriteShort;
+		pr_builtin[55] = PF_qtSingle_WriteLong;
+		pr_builtin[56] = PF_qtSingle_WriteCoord;
+		pr_builtin[57] = PF_qtSingle_WriteAngle;
+		pr_builtin[58] = PF_qtSingle_WriteString;
 		//lack of writeentity is intentional (prerel doesn't have it.
 
-		pr_builtin[59] = PF_Broadcast_WriteByte;
-		pr_builtin[60] = PF_Broadcast_WriteChar;
-		pr_builtin[61] = PF_Broadcast_WriteShort;
-		pr_builtin[62] = PF_Broadcast_WriteLong;
-		pr_builtin[63] = PF_Broadcast_WriteCoord;
-		pr_builtin[64] = PF_Broadcast_WriteAngle;
-		pr_builtin[65] = PF_Broadcast_WriteString;
-		pr_builtin[66] = PF_Broadcast_WriteEntity;
+		pr_builtin[59] = PF_qtBroadcast_WriteByte;
+		pr_builtin[60] = PF_qtBroadcast_WriteChar;
+		pr_builtin[61] = PF_qtBroadcast_WriteShort;
+		pr_builtin[62] = PF_qtBroadcast_WriteLong;
+		pr_builtin[63] = PF_qtBroadcast_WriteCoord;
+		pr_builtin[64] = PF_qtBroadcast_WriteAngle;
+		pr_builtin[65] = PF_qtBroadcast_WriteString;
+		pr_builtin[66] = PF_qtBroadcast_WriteEntity;
 	}
 
 	if (!pr_compatabilitytest.value)

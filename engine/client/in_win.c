@@ -1346,8 +1346,6 @@ void IN_Init (void)
 	Cvar_Register (&in_rawinput_combine, "Input Controls");
 	Cvar_Register (&in_rawinput_rdp, "Input Controls");
 #endif
-
-	IN_ReInit();
 }
 
 /*

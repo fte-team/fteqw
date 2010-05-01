@@ -803,6 +803,9 @@ void Con_DrawInput (int left, int right, int y)
 	extern int con_commandmatch;
 	conchar_t maskedtext[MAXCMDLINE];
 	conchar_t *endmtext;
+	conchar_t *cursor;
+	conchar_t *cchar;
+	qboolean cursorframe;
 
 	int x;
 
@@ -819,12 +822,11 @@ void Con_DrawInput (int left, int right, int y)
 	//if it's not a command, and the cursor is at the end of the line, leave it as is,
 	//	but add to the end to show what the compleation will be.
 
+	i = text[key_linepos];
+	text[key_linepos] = 0;
+	cursor = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext)-1*sizeof(conchar_t), true);
+	text[key_linepos] = i;
 	endmtext = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext)-1*sizeof(conchar_t), true);
-
-	//FIXME: key_linepos is not corrected for multibyte codes.
-	if (endmtext < maskedtext+key_linepos)
-		key_linepos = endmtext-maskedtext;
-
 
 	endmtext[1] = 0;
 
@@ -841,7 +843,7 @@ void Con_DrawInput (int left, int right, int y)
 //		else
 //			Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8, si, con_current->linewidth);
 
-		if (!text[key_linepos])	//cursor is at end
+		if (cursor == endmtext)	//cursor is at end
 		{
 			int cmdstart;
 			cmdstart = text[1] == '/'?2:1;
@@ -858,12 +860,11 @@ void Con_DrawInput (int left, int right, int y)
 //		Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8, si, con_current->linewidth);
 
 #ifdef _WIN32
-	if (ActiveApp)
+	if (!ActiveApp)
+		cursorframe = 0;
+	else
 #endif
-	if (((int)(realtime*con_cursorspeed)&1))
-	{
-		maskedtext[key_linepos] = 0xe000|11|CON_WHITEMASK;	//make it blink
-	}
+		cursorframe = ((int)(realtime*con_cursorspeed)&1);
 
 	for (lhs = 0, i = key_linepos-1; i >= 0; i--)
 	{
@@ -884,14 +885,25 @@ void Con_DrawInput (int left, int right, int y)
 		x = lhs;
 		
 	lhs = x - lhs + left;
-	for (i = 0; i < key_linepos; i++)
+	for (cchar = maskedtext; cchar < cursor; cchar++)
 	{
-		lhs = Font_DrawChar(lhs, y, maskedtext[i]);
+		lhs = Font_DrawChar(lhs, y, *cchar);
 	}
 	rhs = x + left;
-	for (i = key_linepos; maskedtext[i]; i++)
+	if (cursorframe)
 	{
-		rhs = Font_DrawChar(rhs, y, maskedtext[i]);
+		extern cvar_t com_parseutf8;
+		if (com_parseutf8.ival)
+			Font_DrawChar(rhs, y, (*cursor&~(CON_BGMASK|CON_FGMASK)) | (COLOR_BLUE<<CON_BGSHIFT) | CON_NONCLEARBG | CON_WHITEMASK);
+		else
+			Font_DrawChar(rhs, y, 0xe000|11|CON_WHITEMASK);
+	}
+	else if (*cursor)
+		Font_DrawChar(rhs, y, *cursor);
+	rhs += Font_CharWidth(*cursor);
+	for (cchar = cursor+1; *cchar; cchar++)
+	{
+		rhs = Font_DrawChar(rhs, y, *cchar);
 	}
 }
 

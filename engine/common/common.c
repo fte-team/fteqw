@@ -1801,7 +1801,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 	conchar_t extstack[4];
 	int extstackdepth = 0;
 	unsigned int uc, l;
-	int utf8 = com_parseutf8.value;
+	int utf8 = com_parseutf8.ival;
 
 	conchar_t ext;
 
@@ -1821,7 +1821,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 
 	if (*str == 1 || *str == 2)
 	{
-		if (com_parseutf8.value)
+		if (com_parseutf8.ival)
 			defaultflags = (defaultflags&~CON_FGMASK) | (COLOR_MAGENTA<<CON_FGSHIFT);
 		else
 			defaultflags |= CON_HIGHCHARSMASK;
@@ -1973,7 +1973,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			}
 			else if (str[1] == 'm')
 			{
-				if (com_parseutf8.value)
+				if (com_parseutf8.ival)
 				{
 					if ((ext & CON_FGMASK) != (COLOR_MAGENTA<<CON_FGSHIFT))
 						ext = (ext&~CON_FGMASK) | (COLOR_MAGENTA<<CON_FGSHIFT);
@@ -2027,7 +2027,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				{
 					if (!--outsize)
 						break;
-					if (com_parseutf8.value)
+					if (com_parseutf8.ival)
 						*out++ = (unsigned char)(*str) | ext;
 					else
 						*out++ = (unsigned char)(*str) | ext | 0xe000;
@@ -3160,6 +3160,7 @@ void COM_Init (void)
 	Cvar_Register (&registered, "Copy protection");
 	Cvar_Register (&gameversion, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
+	com_parseutf8.ival = 1;
 
 
 

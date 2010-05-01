@@ -50,6 +50,11 @@ qboolean NPFTE_BeginDownload(void *ctx, struct pipetype *ftype, char *url)
 	return NPERR_NO_ERROR==browserfuncs->geturlnotify(ctx, url, NULL, ftype);
 }
 
+void NPFTE_StatusChanged(struct context *ctx)
+{
+	struct contextpublic *pub = (struct contextpublic*)ctx;
+	InvalidateRgn(pub->oldwnd, NULL, FALSE);
+}
 
 #ifdef _WIN32
 void DrawWndBack(struct context *ctx, HWND hWnd, HDC hdc, PAINTSTRUCT *p)
@@ -59,10 +64,12 @@ void DrawWndBack(struct context *ctx, HWND hWnd, HDC hdc, PAINTSTRUCT *p)
 	if (bmp)
 	{
 		HDC memDC;
+		RECT irect;
 
 		memDC = CreateCompatibleDC(hdc);
 		SelectObject(memDC, bmp);
-		StretchBlt(hdc, p->rcPaint.left, p->rcPaint.top, p->rcPaint.right-p->rcPaint.left,p->rcPaint.bottom-p->rcPaint.top, memDC, 0, 0, width, height, SRCCOPY);
+		GetClientRect(hWnd, &irect);
+		StretchBlt(hdc, irect.left, irect.top, irect.right-irect.left,irect.bottom-irect.top, memDC, 0, 0, width, height, SRCCOPY);
 		SelectObject(memDC, NULL);
 		DeleteDC(memDC);
 		Plug_ReleaseSplashBack(ctx, bmp);
@@ -102,29 +109,16 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 		return TRUE;
 
 	case WM_PAINT:
-/*		if (ctx->waitingfordatafiles)
+		if (pub->downloading)
 		{
 			HDC hdc;
 			PAINTSTRUCT paint;
 			char *s;
 			unsigned int progress;
 			unsigned int total;
-			bool sizeknown = true;
-			struct qstream *strm;
 
-			progress = 0;
-			total = 0;
-			if (Sys_TryLockMutex(ctx->mutex))	//this lock doesn't have to be here
-			{
-				for (strm = ctx->activestreams; strm; strm = strm->next)
-				{
-					progress += strm->offset;
-					total += strm->size;
-					if (!total && progress)
-						sizeknown = false;
-				}
-				Plug_LockPlugin(ctx, false);
-			}
+			progress = pub->dldone;
+			total = pub->dlsize;
 
 			hdc = BeginPaint(hWnd, &paint);
 			DrawWndBack(ctx, hWnd, hdc, &paint);
@@ -132,7 +126,7 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			TextOutA(hdc, 0, 0, "Downloading Data, please wait", 16);
 			if (!progress && !total)
 				s = "connecting";
-			else if (sizeknown)
+			else if (total)
 				s = va("%i bytes (%i%%)", progress, (int)((100.0f*progress)/total));
 			else
 				s = va("%i bytes", progress);
@@ -141,7 +135,7 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 			return TRUE;
 		}
 		else
-*/		{
+		{
 			HDC hdc;
 			PAINTSTRUCT paint;
 			char *s;
@@ -184,7 +178,8 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
 static const struct browserfuncs npfte_browserfuncs =
 {
-	NPFTE_BeginDownload
+	NPFTE_BeginDownload,
+	NPFTE_StatusChanged
 };
 
 NPError NP_LOADDS NPP_New(NPMIMEType pluginType, NPP instance,
@@ -247,7 +242,6 @@ NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 	struct contextpublic *pub = (struct contextpublic*)ctx;
 
 #ifdef _WIN32
-	HWND oldwindow;
 	WNDPROC p;
 
 	if (!ctx)
@@ -446,7 +440,6 @@ struct npscript
 
 NPObject *npscript_allocate(NPP npp, NPClass *aClass)
 {
-	struct npscript_property *prop;
 	struct npscript *obj;
 	obj = malloc(sizeof(*obj));
 	obj->obj._class = aClass;
@@ -481,7 +474,6 @@ bool npscript_invokeDefault(NPObject *npobj, const NPVariant *args, uint32_t arg
 bool npscript_hasProperty(NPObject *npobj, NPIdentifier name)
 {
 	struct npscript *obj = (struct npscript *)npobj;
-	struct npscript_property *prop;
 	NPUTF8 *pname;
 	pname = browserfuncs->utf8fromidentifier(name);
 

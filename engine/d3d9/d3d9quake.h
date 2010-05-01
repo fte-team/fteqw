@@ -104,7 +104,6 @@ void					D3D9R_RenderDynamicLightmaps (msurface_t *fa, int shift);
 //
 // vid_d3d9.c
 //
-void					D3D9_BrightenScreen (void);
 void					D3D9_D_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height);
 void					D3D9_D_EndDirectRect (int x, int y, int width, int height);
 void					D3D9_GetBufferSize(int *width, int *height);

@@ -273,7 +273,15 @@ static void PClassic_DrawParticles(void)
 	vec3_t up, right;
 	float dist, scale, r_partscale=0;
 	union c usecolours;
+	unsigned int *palette;
 	RSpeedMark();
+
+/*#ifdef D3DQUAKE
+	if (qrenderer == QR_DIRECT3D)
+		palette = d_8to24bgrtable;
+	else
+#endif*/
+		palette = d_8to24rgbtable;
 
 	//make sure all ents are pushed through first
 	RQ_RenderBatchClear();
@@ -336,7 +344,7 @@ static void PClassic_DrawParticles(void)
 		scale = 1 + dist * r_partscale;
 
 
-		usecolours.i = d_8to24rgbtable[(int)p->color];
+		usecolours.i = palette[(int)p->color];
 		if (p->type == pt_fire)
 			usecolours.b[3] = 255 * (6 - p->ramp) / 6;
 		else

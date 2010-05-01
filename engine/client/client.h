@@ -1199,7 +1199,6 @@ texid_t Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
 
 //these accept NULL for cin to mean the current fullscreen video
-void Media_Gecko_KeyPress (struct cin_s *cin, int code, int event);
 void Media_Send_Command(cin_t *cin, char *command);
 void Media_Send_MouseMove(cin_t *cin, float x, float y);
 void Media_Send_Resize(cin_t *cin, int x, int y);

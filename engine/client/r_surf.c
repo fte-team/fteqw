@@ -32,9 +32,10 @@ static vec3_t			modelorg;	/*set before recursively entering the visible surface 
 static qbyte			areabits[MAX_Q2MAP_AREAS/8];
 
 model_t		*currentmodel;
-
+mesh_t nullmesh;
 
 int		lightmap_bytes;		// 1, 3 or 4
+qboolean lightmap_bgra;
 
 texid_t	*lightmap_textures;
 texid_t	*deluxmap_textures;
@@ -768,24 +769,30 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 		{
 			if (currentmodel->fromgame == fg_quake3)	//rgb
 			{
-			/*	for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
-					 maps++)	//no light styles in q3 apparently.
+				if (lightmap_bgra)
 				{
-					scale = d_lightstylevalue[surf->styles[maps]];
-					surf->cached_light[maps] = scale;	// 8.8 fraction
-					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
-				}
-					 */
-				for (i = 0; i < tmax; i++)	//q3 maps store their light in a block fashion, q1/q2/hl store it in a linear fashion.
-				{
-					for (j = 0; j < smax; j++)
+					for (i = 0; i < tmax; i++)	//q3 maps store their light in a block fashion, q1/q2/hl store it in a linear fashion.
 					{
-						blocklights[i*smax+j]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3];
-						greenblklights[i*smax+j]	= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+1];
-						blueblklights[i*smax+j]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+2];
+						for (j = 0; j < smax; j++)
+						{
+							blocklights[i*smax+j]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+2];
+							greenblklights[i*smax+j]	= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+1];
+							blueblklights[i*smax+j]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3  ];
+						}
 					}
 				}
-//				memset(blocklights, 255, sizeof(blocklights));
+				else
+				{
+					for (i = 0; i < tmax; i++)	//q3 maps store their light in a block fashion, q1/q2/hl store it in a linear fashion.
+					{
+						for (j = 0; j < smax; j++)
+						{
+							blocklights[i*smax+j]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3];
+							greenblklights[i*smax+j]	= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+1];
+							blueblklights[i*smax+j]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+2];
+						}
+					}
+				}
 			}
 			else if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
 			{				
@@ -796,27 +803,53 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 					surf->cached_light[maps] = scale;	// 8.8 fraction
 					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
 
-
-					if (cl_lightstyle[surf->styles[maps]].colour == 7)	//hopefully a faster alternative.
+					if (lightmap_bgra)
 					{
-						for (i=0 ; i<size ; i++)
+						if (cl_lightstyle[surf->styles[maps]].colour == 7)	//hopefully a faster alternative.
 						{
-							blocklights[i]		+= lightmap[i*3  ] * scale;
-							greenblklights[i]	+= lightmap[i*3+1] * scale;
-							blueblklights[i]	+= lightmap[i*3+2] * scale;
+							for (i=0 ; i<size ; i++)
+							{
+								blocklights[i]		+= lightmap[i*3+2] * scale;
+								greenblklights[i]	+= lightmap[i*3+1] * scale;
+								blueblklights[i]	+= lightmap[i*3  ] * scale;
+							}
+						}
+						else
+						{
+							if (cl_lightstyle[surf->styles[maps]].colour & 1)
+								for (i=0 ; i<size ; i++)
+									blocklights[i]		+= lightmap[i*3+2] * scale;
+							if (cl_lightstyle[surf->styles[maps]].colour & 2)
+								for (i=0 ; i<size ; i++)
+									greenblklights[i]	+= lightmap[i*3+1] * scale;
+							if (cl_lightstyle[surf->styles[maps]].colour & 4)
+								for (i=0 ; i<size ; i++)
+									blueblklights[i]	+= lightmap[i*3  ] * scale;
 						}
 					}
 					else
 					{
-						if (cl_lightstyle[surf->styles[maps]].colour & 1)
+						if (cl_lightstyle[surf->styles[maps]].colour == 7)	//hopefully a faster alternative.
+						{
 							for (i=0 ; i<size ; i++)
+							{
 								blocklights[i]		+= lightmap[i*3  ] * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 2)
-							for (i=0 ; i<size ; i++)
 								greenblklights[i]	+= lightmap[i*3+1] * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 4)
-							for (i=0 ; i<size ; i++)
 								blueblklights[i]	+= lightmap[i*3+2] * scale;
+							}
+						}
+						else
+						{
+							if (cl_lightstyle[surf->styles[maps]].colour & 1)
+								for (i=0 ; i<size ; i++)
+									blocklights[i]		+= lightmap[i*3  ] * scale;
+							if (cl_lightstyle[surf->styles[maps]].colour & 2)
+								for (i=0 ; i<size ; i++)
+									greenblklights[i]	+= lightmap[i*3+1] * scale;
+							if (cl_lightstyle[surf->styles[maps]].colour & 4)
+								for (i=0 ; i<size ; i++)
+									blueblklights[i]	+= lightmap[i*3+2] * scale;
+						}
 					}
 					lightmap += size*3;	// skip to next lightmap
 				}
@@ -1370,7 +1403,7 @@ store:
 					}
 //					else if (b < 0)
 //						b = 0;
-				//*
+				/*
 					if ((r+cr) > 255)
 						dest[0] = 0;	//inverse lighting
 					else if ((r+cr) < 0)
@@ -1412,7 +1445,7 @@ store:
 						dest[2] = 0;
 					else
 						dest[2] = (b+cb);
-*/
+//*/
 
 
 
@@ -2440,6 +2473,10 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 			{
 				lightmap[i]->allocated[l] = LMBLOCK_HEIGHT;
 			}
+			lightmap[i]->rectchange.l = 0;
+			lightmap[i]->rectchange.t = 0;
+			lightmap[i]->rectchange.w = LMBLOCK_WIDTH;
+			lightmap[i]->rectchange.h = LMBLOCK_HEIGHT;
 
 			//clear out the deluxmaps incase there is none on the map.
 			for (l = 0; l < LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3; l+=3)
@@ -2449,8 +2486,6 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 				lightmap[i]->deluxmaps[l+2] = 255;
 			}
 
-			//maybe someone screwed with my lightmap...
-			memset(lightmap[i]->lightmaps, 255, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
 			if (cl.worldmodel->lightdata)
 			{
 				memcpy(lightmap[i]->lightmaps, cl.worldmodel->lightdata+3*LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
@@ -2458,6 +2493,9 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 			else
 			{
 				char basename[MAX_QPATH];
+				//maybe someone screwed with my lightmap...
+				memset(lightmap[i]->lightmaps, 255, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
+
 				COM_StripExtension(cl.worldmodel->name, basename, sizeof(basename));
 				lightmap_textures[i] = R_LoadHiResTexture(va("%s/lm_%04i", basename, i), NULL, IF_NOALPHA|IF_NOGAMMA);
 				lightmap[i]->modified = false;
@@ -2486,7 +2524,6 @@ void Surf_BuildSurfaceDisplayList (model_t *model, msurface_t *fa)
 	float		*vec;
 	float		s, t;
 	int	lm;
-	extern mesh_t nullmesh;
 
 // reconstruct the polygon
 	pedges = model->edges;
@@ -2625,6 +2662,7 @@ static void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift)
 void Surf_DeInit(void)
 {
 	int i;
+
 	for (i = 0; i < numlightmaps; i++)
 	{
 		if (!lightmap[i])
@@ -2674,7 +2712,11 @@ void Surf_BuildLightmaps (void)
 	if (cl.worldmodel->fromgame == fg_doom)
 		return;	//no lightmaps.
 
-	if ((cl.worldmodel->engineflags & MDLF_RGBLIGHTING) || cl.worldmodel->deluxdata || r_loadlits.value)
+	lightmap_bgra = (qrenderer == QR_DIRECT3D);
+
+	if (qrenderer == QR_DIRECT3D)
+		lightmap_bytes = 4;
+	else if ((cl.worldmodel->engineflags & MDLF_RGBLIGHTING) || cl.worldmodel->deluxdata || r_loadlits.value)
 		lightmap_bytes = 3;
 	else
 		lightmap_bytes = 1;

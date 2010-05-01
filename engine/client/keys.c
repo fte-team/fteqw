@@ -253,26 +253,6 @@ int PaddedPrint (char *s, int x)
 {
 	int	nextcolx = 0;
 
-/*	if (x)
-		nextcolx = (int)((x + COLUMNWIDTH)/COLUMNWIDTH)*COLUMNWIDTH;
-
-	if (nextcolx > con_main.linewidth - MINCOLUMNWIDTH
-		|| (x && nextcolx + strlen(s) >= con_main.linewidth))
-	{
-		Con_Printf ("\n");
-		x=0;
-	}
-
-	if (x)
-	{
-		Con_Printf (" ");
-		x++;
-	}
-	while (x % COLUMNWIDTH)
-	{
-		Con_Printf (" ");
-		x++;
-	}*/
 	Con_Printf ("%s\t", s);
 	x+=strlen(s);
 
@@ -420,20 +400,6 @@ void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue)
 		SCR_StringToRGB(var->string, sccolor, 1);
 }
 
-/*
-// TODO: fix this to be used as the common coord function for selection logic
-void GetSelectionCoords(int *selectcoords)
-{
-	extern cvar_t vid_conwidth, vid_conheight;
-	extern int mousecursor_x, mousecursor_y;
-	int xpos, ypos;
-
-	// convert to console coords
-	xpos = (int)(mousecursor_x*vid_conwidth.value)/vid.width;
-	ypos = (int)(mousecursor_y*vid_conheight.value)/vid.height;
-}
-*/
-
 qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey)
 {
 	extern int mousecursor_x, mousecursor_y;
@@ -478,6 +444,7 @@ Interactive line editing and console scrollback
 */
 void Key_Console (unsigned int unicode, int key)
 {
+	extern cvar_t com_parseutf8;
 	char	*clipText;
 
 	if (con_current->redirect)
@@ -590,9 +557,17 @@ void Key_Console (unsigned int unicode, int key)
 
 	if (key == K_DEL)
 	{
-		if (strlen(key_lines[edit_line]+key_linepos))
+		if (key_lines[edit_line][key_linepos])
 		{
-			memmove(key_lines[edit_line]+key_linepos, key_lines[edit_line]+key_linepos+1, strlen(key_lines[edit_line]+key_linepos+1)+1);
+			int charlen = 1;
+			if (com_parseutf8.ival &&
+				(key_lines[edit_line][key_linepos] & 0xc0) != 0x80)
+			{
+				while((key_lines[edit_line][key_linepos+charlen] & 0xc0) == 0x80)
+					charlen++;
+			}
+
+			memmove(key_lines[edit_line]+key_linepos, key_lines[edit_line]+key_linepos+charlen, strlen(key_lines[edit_line]+key_linepos+charlen)+charlen);
 			return;
 		}
 		else
@@ -603,8 +578,14 @@ void Key_Console (unsigned int unicode, int key)
 	{
 		if (key_linepos > 1)
 		{
-			memmove(key_lines[edit_line]+key_linepos-1, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
-			key_linepos--;
+			int charlen = 1;
+			if (com_parseutf8.ival)
+			{
+				while (key_linepos > charlen && (key_lines[edit_line][key_linepos-charlen] & 0xc0) == 0x80)
+					charlen++;
+			}
+			memmove(key_lines[edit_line]+key_linepos-charlen, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+charlen);
+			key_linepos -= charlen;
 		}
 		return;
 	}
@@ -745,57 +726,82 @@ void Key_Console (unsigned int unicode, int key)
 	{
 		unsigned char c1;
 		unsigned char c2;
+		unsigned char c3;
 
 		if (unicode > 127)
 		{
 			extern cvar_t com_parseutf8;
-			if (com_parseutf8.value)
+			if (com_parseutf8.ival)
 			{
-				c1 = 0xc0 | ((unicode>>6)&0x1f);
-				c2 = 0x80 | (unicode&0x3f);
-				if (key_linepos < MAXCMDLINE-2)
+				if (unicode > 0xffff)
 				{
-					memmove(key_lines[edit_line]+key_linepos+2, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
-					key_lines[edit_line][key_linepos] = c1;
-					key_linepos++;
-					key_lines[edit_line][key_linepos] = c2;
-					key_linepos++;
-			//		key_lines[edit_line][key_linepos] = 0;
 				}
-				return;
+				else if (unicode > 0x7ff)
+				{
+					c1 = 0xe0 | ((unicode>>12)&0x0f);
+					c2 = 0x80 | ((unicode>> 6)&0x3f);
+					c3 = 0x80 | ((unicode>> 0)&0x3f);
+					if (key_linepos < MAXCMDLINE-3)
+					{
+						memmove(key_lines[edit_line]+key_linepos+2, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
+						key_lines[edit_line][key_linepos] = c1;
+						key_linepos++;
+						key_lines[edit_line][key_linepos] = c2;
+						key_linepos++;
+						key_lines[edit_line][key_linepos] = c3;
+						key_linepos++;
+					}
+					return;
+				}
+				else
+				{
+					c1 = 0xc0 | ((unicode>>6)&0x1f);
+					c2 = 0x80 | ((unicode>>0)&0x3f);
+					if (key_linepos < MAXCMDLINE-2)
+					{
+						memmove(key_lines[edit_line]+key_linepos+2, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
+						key_lines[edit_line][key_linepos] = c1;
+						key_linepos++;
+						key_lines[edit_line][key_linepos] = c2;
+						key_linepos++;
+					}
+					return;
+				}
 			}
 			unicode = '?';	//sorry
 		}
 	}
 
-	if (keydown[K_CTRL]) {
-		if (key >= '0' && key <= '9')
-				key = key - '0' + 0x12;	// yellow number
-		else switch (key) {
-			case '[': key = 0x10; break;
-			case ']': key = 0x11; break;
-			case 'g': key = 0x86; break;
-			case 'r': key = 0x87; break;
-			case 'y': key = 0x88; break;
-			case 'b': key = 0x89; break;
-			case '(': key = 0x80; break;
-			case '=': key = 0x81; break;
-			case ')': key = 0x82; break;
-			case 'a': key = 0x83; break;
-			case '<': key = 0x1d; break;
-			case '-': key = 0x1e; break;
-			case '>': key = 0x1f; break;
-			case ',': key = 0x1c; break;
-			case '.': key = 0x9c; break;
-			case 'B': key = 0x8b; break;
-			case 'C': key = 0x8d; break;
-			case 'n': key = '\r'; break;
+	if (!com_parseutf8.ival)
+	{
+		if (keydown[K_CTRL]) {
+			if (key >= '0' && key <= '9')
+					key = key - '0' + 0x12;	// yellow number
+			else switch (key) {
+				case '[': key = 0x10; break;
+				case ']': key = 0x11; break;
+				case 'g': key = 0x86; break;
+				case 'r': key = 0x87; break;
+				case 'y': key = 0x88; break;
+				case 'b': key = 0x89; break;
+				case '(': key = 0x80; break;
+				case '=': key = 0x81; break;
+				case ')': key = 0x82; break;
+				case 'a': key = 0x83; break;
+				case '<': key = 0x1d; break;
+				case '-': key = 0x1e; break;
+				case '>': key = 0x1f; break;
+				case ',': key = 0x1c; break;
+				case '.': key = 0x9c; break;
+				case 'B': key = 0x8b; break;
+				case 'C': key = 0x8d; break;
+				case 'n': key = '\r'; break;
+			}
 		}
+
+		if (keydown[K_ALT])
+			key |= 128;		// red char
 	}
-
-	if (keydown[K_ALT])
-		key |= 128;		// red char
-
 
 		
 	if (strlen(key_lines[edit_line])+1 < MAXCMDLINE-1)
@@ -803,7 +809,6 @@ void Key_Console (unsigned int unicode, int key)
 		memmove(key_lines[edit_line]+key_linepos+1, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
 		key_lines[edit_line][key_linepos] = key;
 		key_linepos++;
-//		key_lines[edit_line][key_linepos] = 0;
 	}
 
 }

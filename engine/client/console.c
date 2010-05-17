@@ -1058,7 +1058,7 @@ static int Con_LineBreaks(conchar_t *start, conchar_t *end, int scrwidth, int ma
 //		for (l=0 ; l<40 && *start && *start != '\n'; l++)
  //			start++;
 
-		if ((*start&CON_CHARMASK) == '\n'||!l)
+		if (start < end && (*start&CON_CHARMASK) == '\n'||!l)
 			start++;                // skip the \n
 	}
 

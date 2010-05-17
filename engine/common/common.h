@@ -178,6 +178,7 @@ int wildcmp(const char *wild, const char *string);	//1 if match
 
 #define Q_memset(d, f, c) memset((d), (f), (c))
 #define Q_memcpy(d, s, c) memcpy((d), (s), (c))
+#define Q_memmove(d, s, c) memmove((d), (s), (c))
 #define Q_memcmp(m1, m2, c) memcmp((m1), (m2), (c))
 #define Q_strcpy(d, s) strcpy((d), (s))
 #define Q_strncpy(d, s, n) strncpy((d), (s), (n))

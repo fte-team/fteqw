@@ -309,7 +309,7 @@ start:
 	{
 		i++;
 		cmd_text[level].buf.cursize -= i;
-		Q_memcpy (text, text+i, cmd_text[level].buf.cursize);
+		Q_memmove (text, text+i, cmd_text[level].buf.cursize);
 	}
 
 //	Con_Printf("Found \"%s\"\n", line);
@@ -387,7 +387,7 @@ void Cbuf_ExecuteLevel (int level)
 		{
 			i++;
 			cmd_text[level].buf.cursize -= i;
-			Q_memcpy (text, text+i, cmd_text[level].buf.cursize);
+			Q_memmove (text, text+i, cmd_text[level].buf.cursize);
 		}
 
 // execute the command line

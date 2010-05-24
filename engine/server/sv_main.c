@@ -477,7 +477,7 @@ void SV_DropClient (client_t *drop)
 				}
 
 				if (progstype == PROG_NQ)
-					ED_ClearEdict(svprogfuncs, drop->edict);
+					ED_Clear(svprogfuncs, drop->edict);
 			}
 
 			if (drop->spawninfo)

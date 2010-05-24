@@ -3534,7 +3534,6 @@ void Cmd_SetPos_f(void)
 	SV_LinkEdict (sv_player, false);
 }
 
-void ED_ClearEdict (progfuncs_t *progfuncs, edict_t *e);
 void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 {
 	extern int pr_teamfield;
@@ -3550,7 +3549,7 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 #endif
 	{
 		if (progstype != PROG_NQ)	//allow frikbots to work in NQ mods (but not qw!)
-			ED_ClearEdict(svprogfuncs, ent);
+			ED_Clear(svprogfuncs, ent);
 		ent->v->netname = PR_SetString(svprogfuncs, cl->name);
 	}
 	ED_Spawned(ent, false);

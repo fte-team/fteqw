@@ -60,7 +60,6 @@ extern int	MAX_FUNCTIONS;
 
 extern int MAX_CONSTANTS;
 #define MAXCONSTANTLENGTH 64
-#define MAXCONSTANTVALUELENGTH 1024
 #define MAXCONSTANTPARAMLENGTH 32
 #define MAXCONSTANTPARAMS 32
 
@@ -406,7 +405,7 @@ extern	QCC_pr_info_t	pr;
 typedef struct
 {
 	char name[MAXCONSTANTLENGTH];
-	char value[MAXCONSTANTVALUELENGTH];
+	char *value;
 	char params[MAXCONSTANTPARAMS][MAXCONSTANTPARAMLENGTH];
 	int numparams;
 	pbool used;
@@ -624,7 +623,6 @@ enum {
 	ERR_TOOMANYPAKFILES,
 	ERR_PRECOMPILERCONSTANTTOOLONG,
 	ERR_MACROTOOMANYPARMS,
-	ERR_CONSTANTTOOLONG,
 	ERR_TOOMANYFRAMEMACROS,
 
 	//limitations, some are imposed by compiler, some arn't.

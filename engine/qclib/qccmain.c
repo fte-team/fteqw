@@ -2385,10 +2385,8 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			cnst = QCC_PR_DefineName(name);
 			if (val)
 			{
-				if (strlen(val)+1 >= sizeof(cnst->value))
-					QCC_Error(ERR_PRECOMPILERCONSTANTTOOLONG, "Compiler constant value is too long\n");
-				strncpy(cnst->value, val, sizeof(cnst->value)-1);
-				cnst->value[sizeof(cnst->value)-1] = '\0';
+				cnst->value = qccHunkAlloc(strlen(val)+1);
+				memcpy(cnst->value, val, strlen(val)+1);
 			}
 		}
 

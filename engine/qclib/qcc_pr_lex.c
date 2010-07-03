@@ -159,7 +159,7 @@ extern char qccmsourcedir[];
 //also meant to include it.
 void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 {
-	char fullname[10248];
+	char fullname[1024];
 	char *stripfrom;
 	int doubledots;
 
@@ -488,7 +488,7 @@ pbool QCC_PR_Precompiler(void)
 		else if (!strncmp(directive, "error", 5))
 		{		
 			pr_file_p = directive+5;
-			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
 
 			msg[a-1] = '\0';
@@ -533,7 +533,7 @@ pbool QCC_PR_Precompiler(void)
 		else if (!strncmp(directive, "copyright", 9))
 		{
 			pr_file_p = directive+9;
-			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
 
 			msg[a-1] = '\0';
@@ -560,7 +560,7 @@ pbool QCC_PR_Precompiler(void)
 					ifmode = 1;
 				pr_file_p++;
 			}
-			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
 
 			msg[a-1] = '\0';
@@ -585,7 +585,7 @@ pbool QCC_PR_Precompiler(void)
 
 			pr_file_p++;
 				
-			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
 
 			msg[a-1] = '\0';
@@ -624,7 +624,7 @@ pbool QCC_PR_Precompiler(void)
 				if (*pr_file_p == '\r')
 					pr_file_p++;
 
-				for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+				for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
 					msg[a] = pr_file_p[a];
 
 				msg[a-1] = '\0';
@@ -699,7 +699,7 @@ pbool QCC_PR_Precompiler(void)
 
 			pr_file_p++;
 
-			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
 
 			msg[a-1] = '\0';
@@ -723,7 +723,7 @@ pbool QCC_PR_Precompiler(void)
 
 			pr_file_p++;
 				
-			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
 
 			msg[a-1] = '\0';
@@ -1111,7 +1111,7 @@ void QCC_PR_LexString (void)
 	char	*end, *cnst;
 
 	int texttype=0;
-	
+
 	len = 0;
 	pr_file_p++;
 	do
@@ -1929,38 +1929,6 @@ pbool QCC_PR_UndefineName(char *name)
 
 	Hash_Remove(&compconstantstable, name);
 	return true;
-	/*
-	a = c-CompilerConstant;
-//	for (a = 0; a < numCompilerConstants; a++)
-	{
-//		if (!STRCMP(name, CompilerConstant[a].name))
-		{
-			memmove(&CompilerConstant[a], &CompilerConstant[a+1], sizeof(CompilerConstant_t) * (numCompilerConstants-a));
-			numCompilerConstants--;
-
-
-
-
-			if (!STRCMP(name, "OP_NODUP"))
-				qccop_noduplicatestrings = false;
-
-			if (!STRCMP(name, "OP_COMP_ALL"))		//group	
-			{
-				QCC_PR_UndefineName("OP_COMP_STATEMENTS");
-				QCC_PR_UndefineName("OP_COMP_DEFS");
-				QCC_PR_UndefineName("OP_COMP_FIELDS");
-				QCC_PR_UndefineName("OP_COMP_FUNCTIONS");
-				QCC_PR_UndefineName("OP_COMP_STRINGS");
-				QCC_PR_UndefineName("OP_COMP_GLOBALS");
-				QCC_PR_UndefineName("OP_COMP_LINES");
-				QCC_PR_UndefineName("OP_COMP_TYPES");
-			}
-
-			return true;
-		}
-	}
-//	return false;
-*/
 }
 
 CompilerConstant_t *QCC_PR_DefineName(char *name)
@@ -1972,10 +1940,10 @@ CompilerConstant_t *QCC_PR_DefineName(char *name)
 //		QCC_PR_ParseError("Too many compiler constants - %i >= %i", numCompilerConstants, MAX_CONSTANTS);
 
 	if (strlen(name) >= MAXCONSTANTLENGTH || !*name)
-		QCC_PR_ParseError(ERR_CONSTANTTOOLONG, "Compiler constant name length is too long or short");
+		QCC_PR_ParseError(ERR_NAMETOOLONG, "Compiler constant name length is too long or short");
 	
 	cnst = pHash_Get(&compconstantstable, name);
-	if (cnst )
+	if (cnst)
 	{
 		QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "Duplicate definition for Precompiler constant %s", name);
 		Hash_Remove(&compconstantstable, name);
@@ -1987,56 +1955,11 @@ CompilerConstant_t *QCC_PR_DefineName(char *name)
 	cnst->numparams = 0;
 	strcpy(cnst->name, name);
 	cnst->namelen = strlen(name);
-	*cnst->value = '\0';
+	cnst->value = cnst->name + strlen(cnst->name);
 	for (i = 0; i < MAXCONSTANTPARAMS; i++)
 		cnst->params[i][0] = '\0';
 
 	pHash_Add(&compconstantstable, cnst->name, cnst, qccHunkAlloc(sizeof(bucket_t)));
-
-	if (!STRCMP(name, "OP_NODUP"))
-		opt_noduplicatestrings = true;
-
-
-	if (!STRCMP(name, "OP_TIME"))	//group - optimize for a fast compiler
-	{
-		QCC_PR_UndefineName("OP_SIZE");
-		QCC_PR_UndefineName("OP_SPEED");
-
-		QCC_PR_UndefineName("OP_NODUP");
-		QCC_PR_UndefineName("OP_COMP_ALL");
-	}
-
-	if (!STRCMP(name, "OP_SPEED"))	//group - optimize run speed
-	{
-		QCC_PR_UndefineName("OP_SIZE");
-		QCC_PR_UndefineName("OP_TIME");
-
-//		QCC_PR_UndefineName("OP_NODUP");
-		QCC_PR_UndefineName("OP_COMP_ALL");
-	}
-
-	if (!STRCMP(name, "OP_SIZE"))	//group - produce small output.
-	{
-		QCC_PR_UndefineName("OP_SPEED");
-		QCC_PR_UndefineName("OP_TIME");
-
-		QCC_PR_DefineName("OP_NODUP");
-		QCC_PR_DefineName("OP_COMP_ALL");
-	}
-
-	if (!STRCMP(name, "OP_COMP_ALL"))	//group	- compress the output
-	{
-		QCC_PR_DefineName("OP_COMP_STATEMENTS");
-		QCC_PR_DefineName("OP_COMP_DEFS");
-		QCC_PR_DefineName("OP_COMP_FIELDS");
-		QCC_PR_DefineName("OP_COMP_FUNCTIONS");
-		QCC_PR_DefineName("OP_COMP_STRINGS");
-		QCC_PR_DefineName("OP_COMP_GLOBALS");
-		QCC_PR_DefineName("OP_COMP_LINES");
-		QCC_PR_DefineName("OP_COMP_TYPES");
-	}
-
-
 
 	return cnst;
 }
@@ -2053,6 +1976,8 @@ void QCC_PR_ConditionCompilation(void)
 {
 	char *oldval;
 	char *d;
+	char *dbuf;
+	int dbuflen;
 	char *s;
 	int quote=false;
 	CompilerConstant_t *cnst;
@@ -2103,11 +2028,21 @@ void QCC_PR_ConditionCompilation(void)
 	else cnst->numparams = -1;
 
 	s = pr_file_p;
-	d = cnst->value;
+	d = dbuf = NULL;
+	dbuflen = 0;
 	while(*s == ' ' || *s == '\t')
 		s++;
 	while(1)
 	{
+		if ((d - dbuf) + 2 >= dbuflen)
+		{
+			int len = d - dbuf;
+			dbuflen = (len+128) * 2;
+			dbuf = qccHunkAlloc(dbuflen);
+			memcpy(dbuf, d - len, len);
+			d = dbuf + len;
+		}
+
 		if( *s == '\\' )
 		{
 			// read over a newline if necessary
@@ -2137,11 +2072,8 @@ void QCC_PR_ConditionCompilation(void)
 		s++;
 	}
 	*d = '\0';
-	d--;
-	while(*d<= ' ' && d >= cnst->value)
-		*d-- = '\0';
-	if (strlen(cnst->value) >= sizeof(cnst->value))	//this is too late.
-		QCC_PR_ParseError(ERR_CONSTANTTOOLONG, "Macro %s too long (%i not %i)", cnst->name, strlen(cnst->value), sizeof(cnst->value));
+
+	cnst->value = dbuf;
 
 	if (oldval)
 	{	//we always warn if it was already defined

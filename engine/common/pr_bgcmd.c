@@ -1599,7 +1599,7 @@ void PF_strdecolorize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *in = PR_GetStringOfs(prinst, OFS_PARM0);
 	char result[8192];
-	unsigned long flagged[8192];
+	unsigned int flagged[8192];
 	COM_ParseFunString(CON_WHITEMASK, in, flagged, sizeof(flagged), false);
 	COM_DeFunString(flagged, result, sizeof(result), true);
 
@@ -1741,8 +1741,8 @@ void PF_buf_copy  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_buf_sort  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int bufno = G_FLOAT(OFS_PARM0)-1;
-	int sortpower = G_FLOAT(OFS_PARM1);
-	int backwards = G_FLOAT(OFS_PARM2);
+	//int sortpower = G_FLOAT(OFS_PARM1);
+	//int backwards = G_FLOAT(OFS_PARM2);
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
@@ -1755,7 +1755,7 @@ void PF_buf_sort  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_buf_implode  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int bufno = G_FLOAT(OFS_PARM0)-1;
-	char *glue = PR_GetStringOfs(prinst, OFS_PARM1);
+	//char *glue = PR_GetStringOfs(prinst, OFS_PARM1);
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
@@ -1821,8 +1821,8 @@ void PF_bufstr_set  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_bufstr_add  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int bufno = G_FLOAT(OFS_PARM0)-1;
-	char *string = PR_GetStringOfs(prinst, OFS_PARM1);
-	int order = G_FLOAT(OFS_PARM2);
+	//char *string = PR_GetStringOfs(prinst, OFS_PARM1);
+	//int order = G_FLOAT(OFS_PARM2);
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
@@ -1837,7 +1837,7 @@ void PF_bufstr_add  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_bufstr_free  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int bufno = G_FLOAT(OFS_PARM0)-1;
-	int index = G_FLOAT(OFS_PARM1);
+	//int index = G_FLOAT(OFS_PARM1);
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;
@@ -1850,8 +1850,8 @@ void PF_bufstr_free  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_buf_cvarlist  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int bufno = G_FLOAT(OFS_PARM0)-1;
-	char *pattern = PR_GetStringOfs(prinst, OFS_PARM1);
-	char *antipattern = PR_GetStringOfs(prinst, OFS_PARM2);
+	//char *pattern = PR_GetStringOfs(prinst, OFS_PARM1);
+	//char *antipattern = PR_GetStringOfs(prinst, OFS_PARM2);
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 		return;

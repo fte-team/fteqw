@@ -31,9 +31,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h>
 
-#include <GL/gl.h>
-#include "glsupp.h"
-
 
 
 extern texid_t missing_texture;

@@ -778,22 +778,22 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 // set vid parameters
 	if ((i = COM_CheckParm("-conwidth")) != 0)
-		vid.conwidth = Q_atoi(com_argv[i+1]);
+		vid.width = Q_atoi(com_argv[i+1]);
 	else
-		vid.conwidth = 640;
+		vid.width = 640;
 
-	vid.conwidth &= ~7; // make it a multiple of eight
+	vid.width &= ~7; // make it a multiple of eight
 
-	if (vid.conwidth < 320)
-		vid.conwidth = 320;
+	if (vid.width < 320)
+		vid.width = 320;
 
 	// pick a conheight that matches with correct aspect
-	vid.conheight = vid.conwidth*3 / 4;
+	vid.height = vid.width*3 / 4;
 
 	if ((i = COM_CheckParm("-conheight")) != 0)
-		vid.conheight = Q_atoi(com_argv[i+1]);
-	if (vid.conheight < 200)
-		vid.conheight = 200;
+		vid.height = Q_atoi(com_argv[i+1]);
+	if (vid.height < 200)
+		vid.height = 200;
 	if (!vid_dpy)
 		vid_dpy = XOpenDisplay(NULL);
 	if (!vid_dpy)
@@ -946,12 +946,10 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid.pixelwidth = info->width;
 	vid.pixelheight = info->height;
 
-	if (vid.conheight > info->height)
-		vid.conheight = info->height;
-	if (vid.conwidth > info->width)
-		vid.conwidth = info->width;
-	vid.width = vid.conwidth;
-	vid.height = vid.conheight;
+	if (vid.height > info->height)
+		vid.height = info->height;
+	if (vid.width > info->width)
+		vid.width = info->width;
 
 	vid.aspect = ((float)vid.height / (float)vid.width) * (320.0 / 240.0);
 	vid.numpages = 2;

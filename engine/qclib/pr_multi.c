@@ -205,7 +205,7 @@ void QC_FlushProgsOffsets(progfuncs_t *progfuncs)
 //origionaloffs is used to track matching field offsets. fields with the same progs offset overlap
 
 //note: we probably suffer from progs with renamed system globals.
-int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, int engineofs, int progsofs)
+int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, size_t engineofs, size_t progsofs)
 {
 //	progstate_t *p;
 //	int pnum;
@@ -296,7 +296,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 			}
 		}*/
 		if (engineofs&3)
-			Sys_Error("field %s is %i&3", name, engineofs);
+			Sys_Error("field %s is %i&3", name, (int)engineofs);
 		field[fnum].ofs = ofs = engineofs/4;
 	}
 	else

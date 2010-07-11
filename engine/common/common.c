@@ -3018,7 +3018,7 @@ void COM_Version_f (void)
 #endif
 
 #ifdef __GNUC__
-	Con_Printf("Compiled with GCC version: %i.%i.%i (%i)\n",__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __VERSION__);
+	Con_Printf("Compiled with GCC version: %i.%i.%i (%s)\n",__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __VERSION__);
 
 	#ifdef __OPTIMIZE__
 		#ifdef __OPTIMIZE_SIZE__

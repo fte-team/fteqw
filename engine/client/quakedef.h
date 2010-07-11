@@ -269,8 +269,6 @@ extern qboolean isDedicated;
 
 
 
-void FTE_DEPRECATED R_RenderMeshBuffer(struct meshbuffer_s *mb, qboolean shadowpass);
-
 #ifdef __cplusplus
 }
 #endif

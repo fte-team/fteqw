@@ -85,7 +85,7 @@ void *Hash_GetKey(hashtable_t *table, int key)
 	}
 	return NULL;
 }
-void *Hash_GetNext(hashtable_t *table, char *name, void *old)
+void *Hash_GetNext(hashtable_t *table, const char *name, void *old)
 {
 	int bucknum = Hash_Key(name, table->numbuckets);
 	bucket_t *buck;
@@ -115,7 +115,7 @@ void *Hash_GetNext(hashtable_t *table, char *name, void *old)
 	}
 	return NULL;
 }
-void *Hash_GetNextInsensative(hashtable_t *table, char *name, void *old)
+void *Hash_GetNextInsensative(hashtable_t *table, const char *name, void *old)
 {
 	int bucknum = Hash_KeyInsensative(name, table->numbuckets);
 	bucket_t *buck;
@@ -147,7 +147,7 @@ void *Hash_GetNextInsensative(hashtable_t *table, char *name, void *old)
 }
 
 
-void *Hash_Add(hashtable_t *table, char *name, void *data, bucket_t *buck)
+void *Hash_Add(hashtable_t *table, const char *name, void *data, bucket_t *buck)
 {
 	int bucknum = Hash_Key(name, table->numbuckets);
 
@@ -158,7 +158,7 @@ void *Hash_Add(hashtable_t *table, char *name, void *data, bucket_t *buck)
 
 	return buck;
 }
-void *Hash_AddInsensative(hashtable_t *table, char *name, void *data, bucket_t *buck)
+void *Hash_AddInsensative(hashtable_t *table, const char *name, void *data, bucket_t *buck)
 {
 	int bucknum = Hash_KeyInsensative(name, table->numbuckets);
 
@@ -181,7 +181,7 @@ void *Hash_AddKey(hashtable_t *table, int key, void *data, bucket_t *buck)
 	return buck;
 }
 
-void Hash_Remove(hashtable_t *table, char *name)
+void Hash_Remove(hashtable_t *table, const char *name)
 {
 	int bucknum = Hash_Key(name, table->numbuckets);
 	bucket_t *buck;	
@@ -208,7 +208,7 @@ void Hash_Remove(hashtable_t *table, char *name)
 	return;
 }
 
-void Hash_RemoveData(hashtable_t *table, char *name, void *data)
+void Hash_RemoveData(hashtable_t *table, const char *name, void *data)
 {
 	int bucknum = Hash_Key(name, table->numbuckets);
 	bucket_t *buck;	

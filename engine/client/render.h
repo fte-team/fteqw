@@ -30,9 +30,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern int		r_framecount;
 
 struct msurface_s;
+struct batch_s;
 
 typedef union {
-	int num;
+	unsigned int num;
 #ifdef D3DQUAKE
 	void *ptr;
 #endif
@@ -294,7 +295,7 @@ enum uploadfmt
 	#define R_AllocNewTexture(w,h) GL_AllocNewTexture()
 	#define R_Upload			GL_UploadFmt
 	#define R_LoadTexture		GL_LoadTextureFmt
-	#define R_DestroyTexture(tno)	0
+	#define R_DestroyTexture	GL_DestroyTexture
 #endif
 
 #define R_LoadTexture8(id,w,h,d,f,t)		R_LoadTexture(id,w,h,t?TF_TRANS8:TF_SOLID8,d,f)

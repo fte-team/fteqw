@@ -70,14 +70,14 @@ extern cvar_t sv_nomsec;
 
 #define	MOVE_EPSILON	0.01
 
-void SV_Physics_Toss (edict_t *ent);
+static void SV_Physics_Toss (edict_t *ent);
 
 /*
 ================
 SV_CheckAllEnts
 ================
 */
-void SV_CheckAllEnts (void)
+static void SV_CheckAllEnts (void)
 {
 	int			e;
 	edict_t		*check;
@@ -210,7 +210,7 @@ SV_Impact
 Two entities have touched, so run their touch functions
 ==================
 */
-void SV_Impact (edict_t *e1, edict_t *e2)
+static void SV_Impact (edict_t *e1, edict_t *e2)
 {
 	int		old_self, old_other;
 
@@ -256,7 +256,7 @@ Slide off of the impacting object
 */
 #define	STOP_EPSILON	0.1
 //courtesy of darkplaces, it's just more efficient.
-void ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
+static void ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
 {
 	int i;
 	float backoff;
@@ -284,7 +284,7 @@ If steptrace is not NULL, the trace of any vertical wall hit will be stored
 ============
 */
 #define	MAX_CLIP_PLANES	5
-int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
+static int SV_FlyMove (edict_t *ent, float time, trace_t *steptrace)
 {
 	int			bumpcount, numbumps;
 	vec3_t		dir;
@@ -452,7 +452,7 @@ SV_AddGravity
 
 ============
 */
-void SV_AddGravity (edict_t *ent, float scale)
+static void SV_AddGravity (edict_t *ent, float scale)
 {
 	if (!scale && progstype != PROG_QW)
 		scale = 1;
@@ -474,7 +474,7 @@ SV_PushEntity
 Does not change the entities velocity at all
 ============
 */
-trace_t SV_PushEntity (edict_t *ent, vec3_t push, unsigned int traceflags)
+static trace_t SV_PushEntity (edict_t *ent, vec3_t push, unsigned int traceflags)
 {
 	trace_t	trace;
 	vec3_t	end;
@@ -514,7 +514,7 @@ typedef struct
 	vec3_t	angles;
 //	float	deltayaw;
 } pushed_t;
-pushed_t	pushed[MAX_EDICTS], *pushed_p;
+static pushed_t	pushed[MAX_EDICTS], *pushed_p;
 
 /*
 ============
@@ -524,7 +524,7 @@ Objects need to be moved back on a failed push,
 otherwise riders would continue to slide.
 ============
 */
-qboolean SV_PushAngles (edict_t *pusher, vec3_t move, vec3_t amove)
+static qboolean SV_PushAngles (edict_t *pusher, vec3_t move, vec3_t amove)
 {
 	int			i, e;
 	edict_t		*check, *block;
@@ -704,7 +704,7 @@ SV_Push
 
 ============
 */
-qboolean SV_Push (edict_t *pusher, vec3_t move, vec3_t amove)
+static qboolean SV_Push (edict_t *pusher, vec3_t move, vec3_t amove)
 {
 	int			i, e;
 	edict_t		*check, *block;
@@ -848,7 +848,7 @@ SV_PushMove
 
 ============
 */
-void SV_PushMove (edict_t *pusher, float movetime)
+static void SV_PushMove (edict_t *pusher, float movetime)
 {
 	int			i;
 	vec3_t		move;
@@ -878,7 +878,7 @@ SV_Physics_Pusher
 
 ================
 */
-void SV_Physics_Pusher (edict_t *ent)
+static void SV_Physics_Pusher (edict_t *ent)
 {
 	float	thinktime;
 	float	oldltime;
@@ -943,7 +943,7 @@ SV_Physics_Follow
 Entities that are "stuck" to another entity
 =============
 */
-void SV_Physics_Follow (edict_t *ent)
+static void SV_Physics_Follow (edict_t *ent)
 {
 	vec3_t vf, vr, vu, angles, v;
 	edict_t *e;
@@ -987,7 +987,7 @@ SV_Physics_Noclip
 A moving object that doesn't obey physics
 =============
 */
-void SV_Physics_Noclip (edict_t *ent)
+static void SV_Physics_Noclip (edict_t *ent)
 {
 // regular thinking
 	if (!SV_RunThink (ent))
@@ -1013,7 +1013,7 @@ SV_CheckWaterTransition
 
 =============
 */
-void SV_CheckWaterTransition (edict_t *ent)
+static void SV_CheckWaterTransition (edict_t *ent)
 {
 	int		cont;
 
@@ -1063,7 +1063,7 @@ SV_Physics_Toss
 Toss, bounce, and fly movement.  When onground, do nothing.
 =============
 */
-void SV_Physics_Toss (edict_t *ent)
+static void SV_Physics_Toss (edict_t *ent)
 {
 	trace_t	trace;
 	vec3_t	move;
@@ -1168,7 +1168,7 @@ will fall if the floor is pulled out from under them.
 FIXME: is this true?
 =============
 */
-void SV_Physics_Step (edict_t *ent)
+static void SV_Physics_Step (edict_t *ent)
 {
 	qboolean	hitsound;
 
@@ -1240,7 +1240,7 @@ This is a big hack to try and fix the rare case of getting stuck in the world
 clipping hull.
 =============
 */
-void SV_CheckStuck (edict_t *ent)
+static void SV_CheckStuck (edict_t *ent)
 {
 	int		i, j;
 	int		z;
@@ -1285,7 +1285,7 @@ void SV_CheckStuck (edict_t *ent)
 SV_CheckWater
 =============
 */
-qboolean SV_CheckWater (edict_t *ent)
+static qboolean SV_CheckWater (edict_t *ent)
 {
 	vec3_t	point;
 	int		cont;
@@ -1330,7 +1330,7 @@ SV_WallFriction
 
 ============
 */
-void SV_WallFriction (edict_t *ent, trace_t *trace)
+static void SV_WallFriction (edict_t *ent, trace_t *trace)
 {
 	vec3_t		forward, right, up;
 	float		d, i;
@@ -1364,7 +1364,7 @@ Try fixing by pushing one pixel in each direction.
 This is a hack, but in the interest of good gameplay...
 ======================
 */
-int SV_TryUnstick (edict_t *ent, vec3_t oldvel)
+static int SV_TryUnstick (edict_t *ent, vec3_t oldvel)
 {
 	int		i;
 	vec3_t	oldorg;
@@ -1422,7 +1422,7 @@ Only used by players
 */
 #if 0
 #define	SMSTEPSIZE	4
-void SV_WalkMove (edict_t *ent)
+static void SV_WalkMove (edict_t *ent)
 {
 	vec3_t		upmove, downmove;
 	vec3_t		oldorg, oldvel;
@@ -1581,7 +1581,7 @@ void SV_WalkMove (edict_t *ent)
 
 // 1/32 epsilon to keep floating point happy
 #define	DIST_EPSILON	(0.03125)
-int SV_SetOnGround (edict_t *ent)
+static int SV_SetOnGround (edict_t *ent)
 {
 	vec3_t end;
 	trace_t trace;
@@ -1599,7 +1599,7 @@ int SV_SetOnGround (edict_t *ent)
 	}
 	return 0;
 }
-void SV_WalkMove (edict_t *ent)
+static void SV_WalkMove (edict_t *ent)
 {
 	int clip, oldonground, originalmove_clip, originalmove_flags, originalmove_groundentity;
 	vec3_t upmove, downmove, start_origin, start_velocity, originalmove_origin, originalmove_velocity;
@@ -1732,7 +1732,7 @@ void SV_WalkMove (edict_t *ent)
 }
 #endif
 
-void SV_MoveChain(edict_t *ent, edict_t *movechain, float *initial_origin, float *initial_angle)
+static void SV_MoveChain(edict_t *ent, edict_t *movechain, float *initial_origin, float *initial_angle)
 {
 	qboolean callfunc;
 	if ((callfunc=DotProduct(ent->v->origin, initial_origin)) || DotProduct(ent->v->angles, initial_angle))

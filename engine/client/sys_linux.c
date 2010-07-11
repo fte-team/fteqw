@@ -483,10 +483,10 @@ int main (int c, char **v)
 
 	memset(&parms, 0, sizeof(parms));
 
-	COM_InitArgv(c, v);
+	parms.argc = c;
+	parms.argv = v;
+	COM_InitArgv(parms.argc, parms.argv);
 	TL_InitLanguages();
-	parms.argc = com_argc;
-	parms.argv = com_argv;
 
 	parms.memsize = 16*1024*1024;
 

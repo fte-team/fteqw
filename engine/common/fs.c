@@ -135,7 +135,6 @@ int fs_hash_files;
 
 
 
-static int COM_FileOpenRead (char *path, FILE **hndl);
 static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen);
 void FS_RegisterDefaultFileSystems(void);
 
@@ -833,8 +832,8 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, gzheader_t *header)
 
 
 	{
-		char inbuffer[16384];
-		char outbuffer[16384];
+		unsigned char inbuffer[16384];
+		unsigned char outbuffer[16384];
 		int ret;
 
 		z_stream strm = {
@@ -1749,7 +1748,7 @@ void COM_Gamedir (const char *dir)
 	if (strchr(dir, ';'))
 	{
 		//separate case because parsestringset splits by whitespace too
-		while (dir = COM_ParseStringSet(dir))
+		while ((dir = COM_ParseStringSet(dir)))
 		{
 			if (!strcmp(dir, ";"))
 				continue;
@@ -2558,6 +2557,10 @@ extern searchpathfuncs_t doomwadfilefuncs;
 void FS_RegisterDefaultFileSystems(void)
 {
 	FS_RegisterFileSystemType("pak", &packfilefuncs);
+#ifndef _WIN32
+	/*for systems that have case sensitive paths, also include *.PAK */
+	FS_RegisterFileSystemType("PAK", &packfilefuncs);
+#endif
 #ifdef AVAIL_ZLIB
 	FS_RegisterFileSystemType("pk3", &zipfilefuncs);
 	FS_RegisterFileSystemType("pk4", &zipfilefuncs);

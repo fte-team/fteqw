@@ -27,8 +27,6 @@
 
 #define MAX_BONES 256
 
-static model_t *loadmodel;
-
 #include "com_mesh.h"
 
 //FIXME
@@ -881,10 +879,6 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel, unsigned int 
 static shader_t reskinnedmodelshader;
 void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 {
-#ifndef GLQUAKE
-#pragma message("DISABLED MODEL RENDERING")
-#else
-	extern cvar_t r_drawflat;
 	model_t *clmodel;
 	galiasinfo_t *inf;
 	mesh_t mesh;
@@ -1157,7 +1151,6 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 		qglDepthRange (gldepthmin, gldepthmax);
 
 	BE_SelectMode(rmode, 0);
-#endif
 }
 
 //returns the rotated offset of the two points in result

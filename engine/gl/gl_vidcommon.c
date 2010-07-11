@@ -226,6 +226,11 @@ texid_t GL_AllocNewTexture(void)
 	return r;
 }
 
+void GL_DestroyTexture(texid_t tex)
+{
+	qglDeleteTextures(1, &tex.num);
+}
+
 void APIENTRY GL_DrawRangeElementsEmul(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices)
 {
 	qglDrawElements(mode, count, type, indices);

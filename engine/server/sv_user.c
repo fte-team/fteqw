@@ -189,7 +189,7 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 		}
 
 		ClientReliableWrite_Begin(client, svc_stufftext, 256);
-		ClientReliableWrite_String(client, va("packet %s \"realip %i %i\"\n", serverip, client-svs.clients, client->realip_num));
+		ClientReliableWrite_String(client, va("packet %s \"realip %i %i\"\n", serverip, (int)(client-svs.clients), client->realip_num));
 	}
 	return false;
 }

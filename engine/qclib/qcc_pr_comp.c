@@ -125,9 +125,9 @@ int optres_logicops;
 int optres_test1;
 int optres_test2;
 
-void *(*pHash_Get)(hashtable_t *table, char *name);
-void *(*pHash_GetNext)(hashtable_t *table, char *name, void *old);
-void *(*pHash_Add)(hashtable_t *table, char *name, void *data, bucket_t *);
+void *(*pHash_Get)(hashtable_t *table, const char *name);
+void *(*pHash_GetNext)(hashtable_t *table, const char *name, void *old);
+void *(*pHash_Add)(hashtable_t *table, const char *name, void *data, bucket_t *);
 
 QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int arraysize, unsigned int ofs, int referable, pbool saved);
 QCC_type_t *QCC_PR_NewType (char *name, int basictype);
@@ -3016,7 +3016,6 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	QCC_type_t		*t, *p;
 	int extraparms=false;
 	int np;
-	int laststatement = numstatements;
 
 	int callconvention;
 

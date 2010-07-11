@@ -1123,7 +1123,7 @@ strofs = (strofs+3)&~3;
 			qcc_typeinfo[i].aux_type = (QCC_type_t*)(qcc_typeinfo[i].aux_type - qcc_typeinfo);
 		if (qcc_typeinfo[i].next)
 			qcc_typeinfo[i].next = (QCC_type_t*)(qcc_typeinfo[i].next - qcc_typeinfo);
-		qcc_typeinfo[i].name = (char *)QCC_CopyDupBackString(qcc_typeinfo[i].name);
+		qcc_typeinfo[i].name = QCC_CopyDupBackString(qcc_typeinfo[i].name);
 	}
 
 	progs.ofsfiles = 0;

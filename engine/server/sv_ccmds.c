@@ -808,7 +808,6 @@ void SV_BanIP_f (void)
 	netadr_t banadr;
 	netadr_t banmask;
 	char *reason = NULL;
-	int reasonsize = 0;
 
 	if (Cmd_Argc() < 2)
 	{

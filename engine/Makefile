@@ -319,7 +319,6 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	p_null.o	\
 	p_classic.o	\
 	r_partset.o	\
-	r_efrag.o	\
 	renderer.o	\
 	renderque.o	\
 	sbar.o	\

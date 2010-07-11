@@ -165,7 +165,7 @@ void Draw_ExpandedString(int x, int y, conchar_t *str)
 }
 
 //Draws a marked-up string using the regular char set with no width limit. doesn't support new lines
-void Draw_FunString(int x, int y, const unsigned char *str)
+void Draw_FunString(int x, int y, const void *str)
 {
 	conchar_t buffer[2048];
 	COM_ParseFunString(CON_WHITEMASK, str, buffer, sizeof(buffer), false);
@@ -173,7 +173,7 @@ void Draw_FunString(int x, int y, const unsigned char *str)
 	Draw_ExpandedString(x, y, buffer);
 }
 //Draws a marked up string using the alt char set (legacy mode would be |128)
-void Draw_AltFunString(int x, int y, const unsigned char *str)
+void Draw_AltFunString(int x, int y, const void *str)
 {
 	conchar_t buffer[2048];
 	COM_ParseFunString(CON_ALTMASK, str, buffer, sizeof(buffer), false);
@@ -182,7 +182,7 @@ void Draw_AltFunString(int x, int y, const unsigned char *str)
 }
 
 //Draws a marked up string no wider than $width virtual pixels.
-void Draw_FunStringWidth(int x, int y, const unsigned char *str, int width)
+void Draw_FunStringWidth(int x, int y, const void *str, int width)
 {
 	conchar_t buffer[2048];
 	conchar_t *w = buffer;
@@ -203,7 +203,7 @@ void Draw_FunStringWidth(int x, int y, const unsigned char *str, int width)
 }
 
 //Draws a marked up string with at most $numchars characters. obsolete
-FTE_DEPRECATED void Draw_FunStringLen(int x, int y, unsigned char *str, int numchars)
+FTE_DEPRECATED void Draw_FunStringLen(int x, int y, void *str, int numchars)
 {
 	conchar_t buffer[2048];
 

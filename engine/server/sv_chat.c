@@ -331,10 +331,8 @@ void SV_SendChat(void)
 		text++;
 		s2++;
 	}
-	*s2='\n';
-	*s2++;
-	*s2='\n';
-	*s2++;
+	*s2++='\n';
+	*s2++='\n';
 	*s2='\0';
 	for (i = 0; i < host_client->chat.options; i++)
 	{

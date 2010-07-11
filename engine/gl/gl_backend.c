@@ -857,19 +857,19 @@ static float *FTableForFunc ( unsigned int func )
 void Shader_LightPass_Std(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
-	sprintf(shadertext, LIGHTPASS_SHADER, args, LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT);
+	sprintf(shadertext, LIGHTPASS_SHADER, (char*)args, LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT);
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 void Shader_LightPass_PCF(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
-	sprintf(shadertext, PCFPASS_SHADER, args, "", LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT);
+	sprintf(shadertext, PCFPASS_SHADER, (char*)args, "", LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT);
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 void Shader_LightPass_Spot(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
-	sprintf(shadertext, PCFPASS_SHADER, args, "#define SPOT\n", LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT);
+	sprintf(shadertext, PCFPASS_SHADER, (char*)args, "#define SPOT\n", LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT);
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 
@@ -1145,7 +1145,7 @@ static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 
 //source is always packed
 //dest is packed too
-static void colourgen(const shaderpass_t *pass, int cnt, const avec4_t *src, avec4_t *dst, const mesh_t *mesh)
+static void colourgen(const shaderpass_t *pass, int cnt, const vec4_t *src, vec4_t *dst, const mesh_t *mesh)
 {
 	switch (pass->rgbgen)
 	{
@@ -1299,14 +1299,14 @@ static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV
 	{
 	default:
 	case DEFORMV_NONE:
-		if (src != dst)
+		if (src != (const avec4_t*)dst)
 			memcpy(dst, src, sizeof(*src)*cnt);
 		break;
 
 	case DEFORMV_WAVE:
 		if (!mesh->normals_array)
 		{
-			if (src != dst)
+			if (src != (const avec4_t*)dst)
 				memcpy(dst, src, sizeof(*src)*cnt);
 			return;
 		}
@@ -1328,7 +1328,7 @@ static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV
 	case DEFORMV_NORMAL:
 		//normal does not actually move the verts, but it does change the normals array
 		//we don't currently support that.
-		if (src != dst)
+		if (src != (const avec4_t*)dst)
 			memcpy(dst, src, sizeof(*src)*cnt);
 /*
 		args[0] = deformv->args[1] * shaderstate.curtime;
@@ -2612,7 +2612,6 @@ static void BaseBrushTextures(entity_t *ent)
 #ifdef RTLIGHTS
 void BE_BaseEntShadowDepth(void)
 {
-	extern model_t *currentmodel;
 	int		i;
 
 	if (!r_drawentities.value)
@@ -2643,7 +2642,6 @@ void BE_BaseEntShadowDepth(void)
 
 void BE_BaseEntTextures(void)
 {
-	extern model_t *currentmodel;
 	int		i;
 	unsigned int bef;
 

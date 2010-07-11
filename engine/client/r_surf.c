@@ -2303,7 +2303,7 @@ void Surf_DrawWorld (void)
 		else
 #endif
 		{
-			extern cvar_t temp1;
+			//extern cvar_t temp1;
 			if (0)//temp1.value)
 				vis = R_MarkLeafSurfaces_Q1();
 			else

@@ -507,7 +507,7 @@ typedef struct
 
 	int	secondaryversion;	//Constant - to say that any version 7 progs are actually ours, not someone else's alterations.
 } dprograms_t;
-#define standard_dprograms_t_size ((int)&((dprograms_t*)NULL)->ofsfiles)
+#define standard_dprograms_t_size ((size_t)&((dprograms_t*)NULL)->ofsfiles)
 
 #endif
 
@@ -536,5 +536,5 @@ typedef struct typeinfo_s
 
 	int		ofs;	//inside a structure.
 	int		size;
-	char	*name;
+	string_t	name;
 } typeinfo_t;

@@ -991,16 +991,14 @@ qboolean SVQ3_Command(void);
 //
 // sv_phys.c
 //
-void SV_ProgStartFrame (void);
+void SV_SetMoveVars(void);
+void SV_RunNewmis (void);
 qboolean SV_Physics (void);
 void SV_CheckVelocity (edict_t *ent);
-void SV_AddGravity (edict_t *ent, float scale);
+trace_t SV_Trace_Toss (edict_t *ent, edict_t *ignore);
+void SV_ProgStartFrame (void);
+void SV_RunEntity (edict_t *ent);
 qboolean SV_RunThink (edict_t *ent);
-void SV_Physics_Toss (edict_t *ent);
-void SV_RunNewmis (void);
-void SV_Impact (edict_t *e1, edict_t *e2);
-void SV_SetMoveVars(void);
-
 //
 // sv_send.c
 //

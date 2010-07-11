@@ -146,9 +146,9 @@ int Mod_GetBoneRelations(struct model_s *model, int firstbone, int lastbone, fra
 int Mod_GetBoneParent(struct model_s *model, int bonenum);
 char *Mod_GetBoneName(struct model_s *model, int bonenum);
 
-void Draw_FunString(int x, int y, const unsigned char *str);
-void Draw_AltFunString(int x, int y, const unsigned char *str);
-void Draw_FunStringWidth(int x, int y, const unsigned char *str, int width);
+void Draw_FunString(int x, int y, const void *str);
+void Draw_AltFunString(int x, int y, const void *str);
+void Draw_FunStringWidth(int x, int y, const void *str, int width);
 
 
 #ifdef SERVERONLY

@@ -80,11 +80,9 @@ void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void 
 		GL_Upload8Pal32(data, palette, width, height, flags);
 		break;
 
-#ifdef _MSC_VER
 	default:
 		Sys_Error("Unsupported image format type\n");
 		break;
-#endif
 	}
 }
 
@@ -114,11 +112,9 @@ texid_t GL_LoadTextureFmt (char *name, int width, int height, enum uploadfmt fmt
 	case TF_HEIGHT8:
 		return GL_LoadTexture8Bump(name, width, height, data, flags, r_shadow_bumpscale_basetexture.value);
 
-#ifdef _MSC_VER
 	default:
 		Sys_Error("Unsupported image format type\n");
-		break;
-#endif
+		return r_nulltex;
 	}
 }
 

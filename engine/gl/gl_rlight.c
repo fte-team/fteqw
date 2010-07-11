@@ -119,7 +119,7 @@ void R_InitBubble(void)
 avec4_t flashblend_colours[FLASHBLEND_VERTS+1]; 
 vecV_t flashblend_vcoords[FLASHBLEND_VERTS+1];
 vec2_t flashblend_tccoords[FLASHBLEND_VERTS+1];
-int flashblend_indexes[FLASHBLEND_VERTS*3];
+index_t flashblend_indexes[FLASHBLEND_VERTS*3];
 mesh_t flashblend_mesh;
 shader_t *flashblend_shader;
 void R_InitFlashblends(void)

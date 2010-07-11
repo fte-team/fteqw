@@ -844,7 +844,7 @@ void SHM_RecursiveWorldNodeQ3_r (dlight_t *dl, mnode_t *node)
 }
 #endif
 
-static SHM_ComposeVolume_BruteForce(dlight_t *dl)
+static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 {
 	shadowmeshsurfs_t *sms;
 	unsigned int tno;

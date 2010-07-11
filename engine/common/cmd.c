@@ -2631,7 +2631,7 @@ void Cmd_set_f(void)
 			end = strstr(text, "//");
 			if (end)
 			{
-				*end--;
+				end--;
 				while (end >= text)
 				{
 					if (*end == ' ')

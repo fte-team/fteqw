@@ -957,6 +957,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	InitSig(); // trap evil signals
 
 	GL_Init(&GLX_GetSymbol);
+	qglGetIntegerv(GL_STENCIL_BITS, &gl_canstencil);
 
 	GLVID_SetPalette(palette);
 	GLVID_ShiftPalette(palette);

@@ -1034,6 +1034,45 @@ static struct shadowmesh_s *SHM_BuildShadowVolumeMesh(dlight_t *dl, unsigned cha
 
 
 
+static qboolean Sh_VisOverlaps(qbyte *v1, qbyte *v2)
+{
+	int i, m;
+	m = (cl.worldmodel->numleafs-1)>>3;
+	for (i=0 ; i<m ; i++)
+	{
+		if (v1[i] & v2[i])
+			return true;
+	}
+	return false;
+}
+
+static qboolean Sh_LeafInView(qbyte *lightvis, qbyte *vvis)
+{
+	int i;
+	int m = (cl.worldmodel->numleafs);
+	mleaf_t *wl = cl.worldmodel->leafs;
+	unsigned char lv;
+
+	/*we can potentially walk off the end of the leafs, but lightvis shouldn't be set for those*/
+
+
+	for (i = 0; i < m; i += 1<<3)
+	{
+		lv = lightvis[i>>3];// & vvis[i>>3];
+		if (!lv)
+			continue;
+		if ((lv&0x01) && wl[i+0].visframe == r_visframecount) return true;
+		if ((lv&0x02) && wl[i+1].visframe == r_visframecount) return true;
+		if ((lv&0x04) && wl[i+2].visframe == r_visframecount) return true;
+		if ((lv&0x08) && wl[i+3].visframe == r_visframecount) return true;
+		if ((lv&0x10) && wl[i+4].visframe == r_visframecount) return true;
+		if ((lv&0x20) && wl[i+5].visframe == r_visframecount) return true;
+		if ((lv&0x40) && wl[i+6].visframe == r_visframecount) return true;
+		if ((lv&0x80) && wl[i+7].visframe == r_visframecount) return true;
+	}
+
+	return false;
+}
 
 static void Sh_Scissor (int x, int y, int width, int height)
 {
@@ -1395,7 +1434,7 @@ void Sh_Shutdown(void)
 	}
 }
 
-void Sh_GenShadowMap (dlight_t *l)
+void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 {
 	int f;
 	int smsize = SHADOWMAP_SIZE;
@@ -1426,11 +1465,6 @@ void Sh_GenShadowMap (dlight_t *l)
 		smesh = l->worldshadowmesh;
 	else
 	{
-		unsigned int leaf;
-		qbyte lvisb[MAX_MAP_LEAFS/8];
-		qbyte *lvis;
-		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, l->origin);
-		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
 		smesh = SHM_BuildShadowVolumeMesh(l, lvis, NULL);
 	}
 
@@ -1476,6 +1510,8 @@ void Sh_GenShadowMap (dlight_t *l)
 	qglLoadMatrixf(r_refdef.m_view);
 
 	qglViewport(r_refdef.pxrect.x, vid.pixelheight - r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
+
+	R_SetFrustum(r_refdef.m_projection, r_refdef.m_view);
 }
 
 static float shadowprojectionbias[16] =
@@ -1486,7 +1522,7 @@ static float shadowprojectionbias[16] =
 	0.5f, 0.5f, 0.4993f, 1.0f
 };
 
-static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour)
+static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 {
 	float t[16];
 	float bp[16];
@@ -1494,6 +1530,8 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour)
 	vec3_t biasorg;
 	int ve;
 	vec3_t mins, maxs;
+	qbyte *lvis;
+	qbyte	lvisb[MAX_MAP_LEAFS/8];
 
 	if (R_CullSphere(l->origin, l->radius))
 	{
@@ -1515,7 +1553,28 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour)
 		return;
 	}
 
-	Sh_GenShadowMap(l);
+        if (l->worldshadowmesh)
+        {
+                //fixme: check head node first?
+                if (!Sh_LeafInView(l->worldshadowmesh->litleaves, vvis))
+                {
+                        bench.numpvsculled++;
+                        return;
+                }
+	}
+	else
+	{
+		int leaf;
+		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, l->origin);
+		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
+		{
+			bench.numpvsculled++;
+			return;
+		}
+	}
+
+	Sh_GenShadowMap(l, lvis);
 
 	if (l->fov)
 		Matrix4_Projection_Far(proj, l->fov, l->fov, nearplane, l->radius);
@@ -1819,51 +1878,10 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	}
 }
 
-static qboolean Sh_VisOverlaps(qbyte *v1, qbyte *v2)
-{
-	int i, m;
-	m = (cl.worldmodel->numleafs-1)>>3;
-	for (i=0 ; i<m ; i++)
-	{
-		if (v1[i] & v2[i])
-			return true;
-	}
-	return false;
-}
-static qboolean Sh_LeafInView(qbyte *lightvis, qbyte *vvis)
-{
-	int i;
-	int m = (cl.worldmodel->numleafs);
-	mleaf_t *wl = cl.worldmodel->leafs;
-	unsigned char lv;
-
-	/*we can potentially walk off the end of the leafs, but lightvis shouldn't be set for those*/
-
-
-	for (i = 0; i < m; i += 1<<3)
-	{
-		lv = lightvis[i>>3];// & vvis[i>>3];
-		if (!lv)
-			continue;
-		if ((lv&0x01) && wl[i+0].visframe == r_visframecount) return true;
-		if ((lv&0x02) && wl[i+1].visframe == r_visframecount) return true;
-		if ((lv&0x04) && wl[i+2].visframe == r_visframecount) return true;
-		if ((lv&0x08) && wl[i+3].visframe == r_visframecount) return true;
-		if ((lv&0x10) && wl[i+4].visframe == r_visframecount) return true;
-		if ((lv&0x20) && wl[i+5].visframe == r_visframecount) return true;
-		if ((lv&0x40) && wl[i+6].visframe == r_visframecount) return true;
-		if ((lv&0x80) && wl[i+7].visframe == r_visframecount) return true;
-	}
-
-	return false;
-}
-
 //draws a light using stencil shadows.
 //redraws world geometry up to 3 times per light...
 static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 {
-	extern int gldepthfunc;
-	int i;
 	int sdecrw;
 	int sincrw;
 	int leaf;
@@ -1896,31 +1914,13 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 			bench.numpvsculled++;
 			return false;
 		}
-/*
-		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
-			i = cl.worldmodel->funcs.LeafForPoint(r_refdef.vieworg, cl.worldmodel);
-		else
-			i = r_viewleaf - cl.worldmodel->leafs;
-
-	//	if (!(lvis[i>>3] & (1<<(i&7))))	//light might not be visible, but it's effects probably should be.
-	//		return;
-		if (!Sh_VisOverlaps(dl->worldshadowmesh->litleaves, vvis))	//The two viewing areas do not intersect.
-			return;
-*/
 		lvis = NULL;
 	}
 	else
 	{
-		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
-			i = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, r_refdef.vieworg);
-		else
-			i = r_viewleaf - cl.worldmodel->leafs;
-
 		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
 		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
 
-	//	if (!(lvis[i>>3] & (1<<(i&7))))	//light might not be visible, but it's effects probably should be.
-	//		return;
 		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		{
 			bench.numpvsculled++;
@@ -2106,14 +2106,9 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	}
 	else
 	{
-		int i;
 		int leaf;
 		qbyte *lvis;
 		qbyte	lvisb[MAX_MAP_LEAFS/8];
-		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
-			i = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, r_refdef.vieworg);
-		else
-			i = r_viewleaf - cl.worldmodel->leafs;
 
 		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
 		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
@@ -2121,8 +2116,6 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		if (!dl->die)
 			SHM_BuildShadowVolumeMesh(dl, lvis, vvis);
 
-	//	if (!(lvis[i>>3] & (1<<(i&7))))	//light might not be visible, but it's effects probably should be.
-	//		return;
 		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		{
 			bench.numpvsculled++;
@@ -2215,7 +2208,7 @@ void Sh_DrawLights(qbyte *vis)
 		}
 		else if (dl->flags & LFLAG_SHADOWMAP)
 		{
-			Sh_DrawShadowMapLight(dl, colour);
+			Sh_DrawShadowMapLight(dl, colour, vis);
 		}
 		else
 		{

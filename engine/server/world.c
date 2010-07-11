@@ -905,7 +905,7 @@ wedict_t	*World_TestEntityPosition (world_t *w, wedict_t *ent)
 {
 	trace_t	trace;
 
-	trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, ent->v->origin, 0, ent);
+	trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, ent->v->origin, ((ent->v->solid == SOLID_NOT || ent->v->solid == SOLID_TRIGGER)?MOVE_NOMONSTERS:0), ent);
 	
 	if (trace.startsolid)
 		return w->edicts;
@@ -1138,12 +1138,6 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 				//do the second trace
 				TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, eorg, ent->v->angles);
 			}
-		}
-
-		if (trace.startsolid)
-		{
-			if (ent != w->edicts)
-				Con_Printf("Trace started solid\n");
 		}
 	}
 

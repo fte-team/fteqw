@@ -44,11 +44,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // callbacks
 void Sys_Linebuffer_Callback (struct cvar_s *var, char *oldvalue);
 
-cvar_t sys_nostdout = SCVAR("sys_nostdout","0");
-cvar_t sys_extrasleep = SCVAR("sys_extrasleep","0");
-cvar_t sys_maxtic = SCVAR("sys_maxtic", "100");
-cvar_t sys_colorconsole = SCVAR("sys_colorconsole", "0");
-cvar_t sys_linebuffer = SCVARC("sys_linebuffer", "1", Sys_Linebuffer_Callback);
+cvar_t sys_nostdout = CVAR("sys_nostdout","0");
+cvar_t sys_extrasleep = CVAR("sys_extrasleep","0");
+cvar_t sys_maxtic = CVAR("sys_maxtic", "100");
+cvar_t sys_colorconsole = CVAR("sys_colorconsole", "0");
+cvar_t sys_linebuffer = CVARC("sys_linebuffer", "1", Sys_Linebuffer_Callback);
 
 qboolean	stdin_ready;
 

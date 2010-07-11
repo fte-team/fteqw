@@ -12,6 +12,7 @@ void (APIENTRY *qglClear) (GLbitfield mask);
 void (APIENTRY *qglClearColor) (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
 void (APIENTRY *qglClearDepth) (GLclampd depth);
 void (APIENTRY *qglClearStencil) (GLint s);
+void (APIENTRY *qglClipPlane) (GLenum plane, const GLdouble *equation);
 void (APIENTRY *qglColor3f) (GLfloat red, GLfloat green, GLfloat blue);
 void (APIENTRY *qglColor3ub) (GLubyte red, GLubyte green, GLubyte blue);
 void (APIENTRY *qglColor4f) (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
@@ -200,6 +201,10 @@ static unsigned int gl_num_extensions;
 qboolean GL_CheckExtension(char *extname)
 {
 	int i;
+	cvar_t *v = Cvar_Get(va("gl_ext_%s", extname), "1", 0, "GL Extensions");
+	if (v && !v->ival)
+		return false;
+
 	if (gl_num_extensions && qglGetStringi)
 	{
 		for (i = 0; i < gl_num_extensions; i++)
@@ -290,6 +295,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	gl_config.arb_texture_cube_map = false;
 
 	gl_config.arb_shader_objects = false;
+	gl_config.ext_framebuffer_objects = false;
 
 	gl_config.ext_texture_filter_anisotropic = 0;
 
@@ -389,17 +395,19 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUnlockArraysEXT = (void *)getglext("glUnlockArraysEXT");
 	}
 
+	/*various combiner features*/
 	gl_config.tex_env_combine = GL_CheckExtension("GL_EXT_texture_env_combine");
 	gl_config.env_add = GL_CheckExtension("GL_EXT_texture_env_add");
 	gl_config.nv_tex_env_combine4 = GL_CheckExtension("GL_NV_texture_env_combine4");
-
 	gl_config.arb_texture_env_combine = GL_CheckExtension("GL_ARB_texture_env_combine");
 	gl_config.arb_texture_env_dot3 = GL_CheckExtension("GL_ARB_texture_env_dot3");
+
 	gl_config.arb_texture_cube_map = GL_CheckExtension("GL_ARB_texture_cube_map");
 
 	if (gl_mtexarbable && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_combine && gl_config.arb_texture_env_dot3 && !COM_CheckParm("-nobump") && gl_bump.value)
 		gl_bumpmappingpossible = true;
 
+	/*vbos*/
 	if (GL_CheckExtension("GL_ARB_vertex_buffer_object"))
 	{
 		qglGenBuffersARB = (void *)getglext("glGenBuffersARB");
@@ -425,9 +433,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	// glslang
 	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.
 	//but our code kinda requires both for clean workings.
-	if (GL_CheckExtension("GL_ARB_fragment_shader"))
-	if (GL_CheckExtension("GL_ARB_vertex_shader"))
-	if (GL_CheckExtension("GL_ARB_shader_objects"))
+	if (GL_CheckExtension("GL_ARB_fragment_shader")
+		&& GL_CheckExtension("GL_ARB_vertex_shader")
+		&& GL_CheckExtension("GL_ARB_shader_objects"))
 	{
 		gl_config.arb_shader_objects = true;
 		qglCreateProgramObjectARB	= (void *)getglext("glCreateProgramObjectARB");
@@ -450,8 +458,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUniform1fARB				= (void *)getglext("glUniform1fARB");
 	}
 
-	if (GL_CheckExtension("GL_ARB_fragment_shader"))
+	if (GL_CheckExtension("GL_EXT_framebuffer_object"))
 	{
+		gl_config.ext_framebuffer_objects = true;
 		qglGenFramebuffersEXT		= (void *)getglext("glGenFramebuffersEXT");
 		qglDeleteFramebuffersEXT	= (void *)getglext("glDeleteFramebuffersEXT");
 		qglBindFramebufferEXT		= (void *)getglext("glBindFramebufferEXT");
@@ -603,6 +612,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglClearColor		= (void *)getglcore("glClearColor");
 	qglClearDepth		= (void *)getglcore("glClearDepth");
 	qglClearStencil		= (void *)getglcore("glClearStencil");
+	qglClipPlane 		= (void *)getglcore("glClipPlane");
 	qglColor3f			= (void *)getglcore("glColor3f");
 	qglColor3ub			= (void *)getglcore("glColor3ub");
 	qglColor4f			= (void *)getglcore("glColor4f");
@@ -817,11 +827,6 @@ rendererinfo_t openglrendererinfo = {
 
 	Surf_AddStain,
 	Surf_LessenStains,
-
-	MediaGL_ShowFrameBGR_24_Flip,
-	MediaGL_ShowFrameRGBA_32,
-	MediaGL_ShowFrame8bit,
-
 
 	RMod_Init,
 	RMod_ClearAll,

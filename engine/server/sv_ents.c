@@ -2126,7 +2126,7 @@ unsigned int Q2BSP_FatPVS(model_t *mod, vec3_t org, qbyte *buffer, unsigned int 
 	return SV_Q2BSP_FatPVS (mod, org, buffer, buffersize, add);
 }
 
-qboolean Q2BSP_EdictInFatPVS(model_t *mod, wedict_t *ent, qbyte *pvs)
+qboolean Q2BSP_EdictInFatPVS(model_t *mod, pvscache_t *ent, qbyte *pvs)
 {
 	int i,l;
 	if (!CM_AreasConnected (mod, clientarea, ent->areanum))
@@ -2446,13 +2446,18 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 				continue;
 		}
 
-		if (ent == clent)
+		if (ent->xv->viewmodelforclient)
+		{
+			if (ent->xv->viewmodelforclient != EDICT_TO_PROG(svprogfuncs, host_client->edict))
+				continue;
+			pvsflags = PVSF_IGNOREPVS;
+		}
+		else if (ent == clent)
 		{
 			pvsflags = PVSF_IGNOREPVS;
 		}
 		else
 		{
-
 			// ignore ents without visible models
 			if (!ent->xv->SendEntity && (!ent->v->modelindex || !*PR_GetString(svprogfuncs, ent->v->model)) && !((int)ent->xv->pflags & PFLAGS_FULLDYNAMIC))
 				continue;
@@ -2483,11 +2488,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 				else if ((pvsflags & PVSF_MODE_MASK) < PVSF_USEPHS)
 				{
 					//branch out to the pvs testing.
-					if (ent->xv->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, clent))
-					{
-						//unconditional
-					}
-					else if (ent->xv->tag_entity)
+					if (ent->xv->tag_entity)
 					{
 						edict_t *p = ent;
 						int c = 10;
@@ -2495,12 +2496,12 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 						{
 							p = EDICT_NUM(svprogfuncs, p->xv->tag_entity);
 						}
-						if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, (wedict_t*)p, pvs))
+						if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)p)->pvsinfo, pvs))
 							continue;
 					}
 					else
 					{
-						if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, (wedict_t*)ent, pvs))
+						if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)ent)->pvsinfo, pvs))
 							continue;
 					}
 				}
@@ -2523,15 +2524,9 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 			}
 		}
 
-
-		//fte's gib filters
 		//DP_SV_NODRAWONLYTOCLIENT
 		if (ent->xv->nodrawtoclient)	//DP extension.
 			if (ent->xv->nodrawtoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
-				continue;
-		//DP_ENT_VIEWMODEL
-		if (ent->xv->viewmodelforclient)	//only the one set sees it
-			if (ent->xv->viewmodelforclient != EDICT_TO_PROG(svprogfuncs, client->edict))
 				continue;
 		//DP_SV_DRAWONLYTOCLIENT
 		if (ent->xv->drawonlytoclient)
@@ -2682,7 +2677,7 @@ void SV_Snapshot_Clear(packet_entities_t *pack)
 	csqcnuments = 0;
 	numnails = 0;
 }
-		
+
 /*
 =============
 SVQ3Q1_BuildEntityPacket

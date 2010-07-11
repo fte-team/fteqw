@@ -500,7 +500,10 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "%s", PR_StringToNative(progfuncs, val->string));
 		break;
 	case ev_entity:
-		sprintf (line, "entity %i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)) );
+//		if (val->edict >= maxedicts)
+			sprintf (line, "entity %i", val->edict);
+//		else
+//			sprintf (line, "entity %i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)) );
 		break;
 	case ev_function:
 		if (!val->function)
@@ -511,8 +514,13 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 				sprintf (line, "Bad function");
 			else
 			{
-				f = pr_progstate[(val->function & 0xff000000)>>24].functions + (val->function & ~0xff000000);
-				sprintf (line, "%i:%s()", (val->function & 0xff000000)>>24, f->s_name+progfuncs->stringtable);
+				if ((val->function &~0xff000000) >= pr_progs->numfunctions)
+					sprintf(line, "bad function %i:%i\n", (val->function & 0xff000000)>>24, val->function & ~0xff000000);
+				else
+				{
+					f = pr_progstate[(val->function & 0xff000000)>>24].functions + (val->function & ~0xff000000);
+					sprintf (line, "%i:%s()", (val->function & 0xff000000)>>24, f->s_name+progfuncs->stringtable);
+				}
 			}
 		}
 		break;
@@ -1166,7 +1174,7 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 			break;
 		if (!data)
 		{
-			printf ("ED_ParseEntity: EOF without closing brace");
+			printf ("ED_ParseEntity: EOF without closing brace\n");
 			return NULL;
 		}
 
@@ -1191,7 +1199,7 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 
 		if (qcc_token[0] == '}')
 		{
-			printf ("ED_ParseEntity: closing brace without data");
+			printf ("ED_ParseEntity: closing brace without data\n");
 			return NULL;
 		}
 
@@ -2827,8 +2835,12 @@ retry:
 			if (st16[i].op >= OP_CALL1 && st16[i].op <= OP_CALL8)
 			{
 				if (st16[i].b)
+				{
 					hexencalling = true;
-
+#ifdef NOENDIAN
+					break;
+#endif
+				}
 			}
 		}
 		if (hexencalling)

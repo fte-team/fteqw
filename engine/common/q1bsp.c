@@ -549,6 +549,7 @@ void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
 #define MAXFRAGMENTVERTS 360
 int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist)
 {
+#define C 4
 	float dotv[MAXFRAGMENTVERTS+1];
 	char keep[MAXFRAGMENTVERTS+1];
 #define KEEP_KILL 0
@@ -562,7 +563,7 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 
 	for (i = 0; i < incount; i++)
 	{
-		dotv[i] = DotProduct((inverts+i*3), plane) - planedist;
+		dotv[i] = DotProduct((inverts+i*C), plane) - planedist;
 		if (dotv[i]<-FRAG_EPSILON)
 		{
 			keep[i] = KEEP_KILL;
@@ -580,32 +581,33 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 		return 0;	//all were clipped
 	if (clippedcount == 0)
 	{	//none were clipped
-		memcpy(outverts, inverts, sizeof(float)*3*incount);
+		for (i = 0; i < incount; i++)
+			VectorCopy((inverts+i*C), (outverts+i*C));
 		return incount;
 	}
 
 	for (i = 0; i < incount; i++)
 	{
-		p1 = inverts+i*3;
+		p1 = inverts+i*C;
 		if (keep[i] == KEEP_BORDER)
 		{
-			out = outverts+outcount++*3;
+			out = outverts+outcount++*C;
 			VectorCopy(p1, out);
 			continue;
 		}
 		if (keep[i] == KEEP_KEEP)
 		{
-			out = outverts+outcount++*3;
+			out = outverts+outcount++*C;
 			VectorCopy(p1, out);
 		}
 		if (keep[i+1] == KEEP_BORDER || keep[i] == keep[i+1])
 			continue;
-		p2 = inverts+((i+1)%incount)*3;
+		p2 = inverts+((i+1)%incount)*C;
 		d = dotv[i] - dotv[i+1];
 		if (d)
 			d = dotv[i] / d;
 
-		out = outverts+outcount++*3;
+		out = outverts+outcount++*C;
 		VectorInterpolate(p1, d, p2, out);
 	}
 	return outcount;
@@ -615,8 +617,8 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts)
 {
 	//emit the triangle, and clip it's fragments.
 	int p;
-	float verts[MAXFRAGMENTVERTS*3];
-	float verts2[MAXFRAGMENTVERTS*3];
+	float verts[MAXFRAGMENTVERTS*C];
+	float verts2[MAXFRAGMENTVERTS*C];
 	float *cverts;
 	int flip;
 
@@ -656,9 +658,9 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts)
 
 		numverts--;
 
-		VectorCopy((cverts+3*0),			decalfragmentverts[dec->numtris*3+0]);
-		VectorCopy((cverts+3*(numverts-1)),	decalfragmentverts[dec->numtris*3+1]);
-		VectorCopy((cverts+3*numverts),		decalfragmentverts[dec->numtris*3+2]);
+		VectorCopy((cverts+C*0),			decalfragmentverts[dec->numtris*3+0]);
+		VectorCopy((cverts+C*(numverts-1)),	decalfragmentverts[dec->numtris*3+1]);
+		VectorCopy((cverts+C*numverts),		decalfragmentverts[dec->numtris*3+2]);
 		dec->numtris++;
 	}
 }
@@ -670,7 +672,7 @@ void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
 {
 	int i;
 
-	vec3_t verts[3];
+	vecV_t verts[3];
 
 	/*if its a triangle fan/poly/quad then we can just submit the entire thing without generating extra fragments*/
 	if (mesh->istrifan)
@@ -975,7 +977,7 @@ unsigned int Q1BSP_FatPVS (model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned 
 	return fatbytes;
 }
 
-qboolean Q1BSP_EdictInFatPVS(model_t *mod, wedict_t *ent, qbyte *pvs)
+qboolean Q1BSP_EdictInFatPVS(model_t *mod, struct pvscache_s *ent, qbyte *pvs)
 {
 	int i;
 
@@ -996,7 +998,7 @@ SV_FindTouchedLeafs
 Links the edict to the right leafs so we can get it's potential visability.
 ===============
 */
-void Q1BSP_RFindTouchedLeafs (world_t *w, wedict_t *ent, mnode_t *node, float *mins, float *maxs)
+void Q1BSP_RFindTouchedLeafs (model_t *wm, struct pvscache_s *ent, mnode_t *node, float *mins, float *maxs)
 {
 	mplane_t	*splitplane;
 	mleaf_t		*leaf;
@@ -1017,7 +1019,7 @@ void Q1BSP_RFindTouchedLeafs (world_t *w, wedict_t *ent, mnode_t *node, float *m
 		}
 
 		leaf = (mleaf_t *)node;
-		leafnum = leaf - w->worldmodel->leafs - 1;
+		leafnum = leaf - wm->leafs - 1;
 
 		ent->leafnums[ent->num_leafs] = leafnum;
 		ent->num_leafs++;
@@ -1031,16 +1033,16 @@ void Q1BSP_RFindTouchedLeafs (world_t *w, wedict_t *ent, mnode_t *node, float *m
 
 // recurse down the contacted sides
 	if (sides & 1)
-		Q1BSP_RFindTouchedLeafs (w, ent, node->children[0], mins, maxs);
+		Q1BSP_RFindTouchedLeafs (wm, ent, node->children[0], mins, maxs);
 
 	if (sides & 2)
-		Q1BSP_RFindTouchedLeafs (w, ent, node->children[1], mins, maxs);
+		Q1BSP_RFindTouchedLeafs (wm, ent, node->children[1], mins, maxs);
 }
-void Q1BSP_FindTouchedLeafs(world_t *w, model_t *mod, wedict_t *ent, float *mins, float *maxs)
+void Q1BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, float *mins, float *maxs)
 {
 	ent->num_leafs = 0;
-	if (ent->v->modelindex)
-		Q1BSP_RFindTouchedLeafs (w, ent, mod->nodes, mins, maxs);
+	if (mins && maxs)
+		Q1BSP_RFindTouchedLeafs (mod, ent, mod->nodes, mins, maxs);
 }
 
 #endif
@@ -1186,7 +1188,7 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 #ifndef CLIENTONLY
 	mod->funcs.FatPVS				= Q1BSP_FatPVS;
 	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
-	mod->funcs.FindTouchedLeafs_Q1	= Q1BSP_FindTouchedLeafs;
+	mod->funcs.FindTouchedLeafs		= Q1BSP_FindTouchedLeafs;
 #endif
 	mod->funcs.LightPointValues		= NULL;
 	mod->funcs.StainNode			= NULL;

@@ -681,7 +681,7 @@ dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
 	dir->files = (file_t*)(dir+1);
 	dir->maxfiles = maxfiles;
 
-	Q_strncpyz(searchterm, va("%s/*.%s", path, ext), sizeof(searchterm));
+	Q_strncpyz(searchterm, va("%s/*%s", path, ext), sizeof(searchterm));
 	COM_EnumerateFiles(searchterm, Sys_listdirFound, dir);
 
 	return dir;
@@ -706,23 +706,25 @@ void Sys_freedir(dir_t *dir)
 
 static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
 
-cvar_t	sv_demoUseCache = SCVAR("sv_demoUseCache", "");
-cvar_t	sv_demoCacheSize = SCVAR("sv_demoCacheSize", "");
-cvar_t	sv_demoMaxDirSize = SCVAR("sv_demoMaxDirSize", "102400");	//so ktpro autorecords.
-cvar_t	sv_demoDir = SCVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
-cvar_t	sv_demofps = SCVAR("sv_demofps", "");
-cvar_t	sv_demoPings = SCVAR("sv_demoPings", "");
-cvar_t	sv_demoNoVis = SCVAR("sv_demoNoVis", "");
-cvar_t	sv_demoMaxSize = SCVAR("sv_demoMaxSize", "");
-cvar_t	sv_demoExtraNames = SCVAR("sv_demoExtraNames", "");
+cvar_t	sv_demoUseCache = CVAR("sv_demoUseCache", "");
+cvar_t	sv_demoCacheSize = CVAR("sv_demoCacheSize", "");
+cvar_t	sv_demoMaxDirSize = CVAR("sv_demoMaxDirSize", "102400");	//so ktpro autorecords.
+cvar_t	sv_demoDir = CVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
+cvar_t	sv_demofps = CVAR("sv_demofps", "");
+cvar_t	sv_demoPings = CVAR("sv_demoPings", "");
+cvar_t	sv_demoNoVis = CVAR("sv_demoNoVis", "");
+cvar_t	sv_demoMaxSize = CVAR("sv_demoMaxSize", "");
+cvar_t	sv_demoExtraNames = CVAR("sv_demoExtraNames", "");
 
-cvar_t qtv_password = SCVAR("qtv_password", "");
-cvar_t qtv_streamport = FCVAR("qtv_streamport", "mvd_streamport", "0", 0);
-cvar_t qtv_maxstreams = FCVAR("qtv_maxstreams", "mvd_maxstreams", "1", 0);
+cvar_t qtv_password		= CVAR(		"qtv_password", "");
+cvar_t qtv_streamport	= CVARAF(	"qtv_streamport", "0",
+									"mvd_streamport", 0);
+cvar_t qtv_maxstreams	= CVARAF(	"qtv_maxstreams", "1",
+									"mvd_maxstreams",  0);
 
-cvar_t			sv_demoPrefix = SCVAR("sv_demoPrefix", "");
-cvar_t			sv_demoSuffix = SCVAR("sv_demoSuffix", "");
-cvar_t			sv_demotxt = SCVAR("sv_demotxt", "1");
+cvar_t			sv_demoPrefix = CVAR("sv_demoPrefix", "");
+cvar_t			sv_demoSuffix = CVAR("sv_demoSuffix", "");
+cvar_t			sv_demotxt = CVAR("sv_demotxt", "1");
 
 void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
 
@@ -2444,12 +2446,12 @@ void SV_UserCmdMVDList_f (void)
 	float	f;
 	int		i,j,show;
 
-	Con_Printf("available demos\n");
+	SV_ClientPrintf(host_client, PRINT_HIGH, "available demos:\n");
 	dir = Sys_listdir(sv_demoDir.string, ".mvd", SORT_BY_DATE);
 	list = dir->files;
 	if (!list->name[0])
 	{
-		Con_Printf("no demos\n");
+		SV_ClientPrintf(host_client, PRINT_HIGH, "no demos\n");
 	}
 
 	for (i = 1; i <= dir->numfiles; i++, list++)
@@ -2464,23 +2466,23 @@ void SV_UserCmdMVDList_f (void)
 			for (d = demo.dest; d; d = d->nextdest)
 			{
 				if (!strcmp(list->name, d->name))
-					Con_Printf("*%d: %s %dk\n", i, list->name, d->totalsize/1024);
+					SV_ClientPrintf(host_client, PRINT_HIGH, "*%d: %s %dk\n", i, list->name, d->totalsize/1024);
 			}
 			if (!d)
-				Con_Printf("%d: %s %dk\n", i, list->name, list->size/1024);
+				SV_ClientPrintf(host_client, PRINT_HIGH, "%d: %s %dk\n", i, list->name, list->size/1024);
 		}
 	}
 	
 	for (d = demo.dest; d; d = d->nextdest)
 		dir->size += d->totalsize;
 
-	Con_Printf("\ndirectory size: %.1fMB\n",(float)dir->size/(1024*1024));
+	SV_ClientPrintf(host_client, PRINT_HIGH, "\ndirectory size: %.1fMB\n",(float)dir->size/(1024*1024));
 	if (sv_demoMaxDirSize.value)
 	{
 		f = (sv_demoMaxDirSize.value*1024 - dir->size)/(1024*1024);
 		if ( f < 0)
 			f = 0;
-		Con_Printf("space available: %.1fMB\n", f);
+		SV_ClientPrintf(host_client, PRINT_HIGH, "space available: %.1fMB\n", f);
 	}
 
 	Sys_freedir(dir);

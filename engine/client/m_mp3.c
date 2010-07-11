@@ -801,12 +801,14 @@ struct cin_s {
 	qbyte *outdata;
 	qbyte *outpalette;
 	int outunchanged;
+	qboolean ended;
 
 	texid_t texture;
 
 	qboolean (*decodeframe)(cin_t *cin, qboolean nosound);
 	void (*doneframe)(cin_t *cin);
-	void (*shutdown)(cin_t *cin);	//warning: don't free cin_t
+	void (*shutdown)(cin_t *cin);	//warning: doesn't free cin_t
+	void (*rewind)(cin_t *cin);
 	//these are any interactivity functions you might want...
 	void (*cursormove) (struct cin_s *cin, float posx, float posy);	//pos is 0-1
 	void (*key) (struct cin_s *cin, int code, int unicode, int event);
@@ -856,6 +858,10 @@ struct cin_s {
 		roq_info *roqfilm;
 	} roq;
 
+	struct {
+		struct cinematics_s *cin;
+	} q2cin;
+
 	float filmstarttime;
 	float nextframetime;
 	float filmlasttime;
@@ -864,7 +870,7 @@ struct cin_s {
 	qbyte *framedata;	//Z_Malloced buffer
 };
 
-cin_t *fullscreenvid;
+shader_t *videoshader;
 
 //////////////////////////////////////////////////////////////////////////////////
 //AVI Support (windows)
@@ -1159,6 +1165,7 @@ qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound)
 	}
 	else
 	{
+		cin->ended = true;
 		cin->roq.roqfilm->frame_num = 0;
 		cin->roq.roqfilm->aud_pos = cin->roq.roqfilm->roq_start;
 		cin->roq.roqfilm->vid_pos = cin->roq.roqfilm->roq_start;
@@ -1275,33 +1282,44 @@ cin_t *Media_Static_TryLoad(char *name)
 #ifdef Q2CLIENT
 void Media_Cin_Shutdown(struct cin_s *cin)
 {
-	CIN_FinishCinematic();
+	CIN_StopCinematic(cin->q2cin.cin);
 }
 
 qboolean Media_Cin_DecodeFrame(cin_t *cin, qboolean nosound)
 {
-	//FIXME!
-	if (CIN_RunCinematic())
+	cin->outunchanged = cin->outdata!=NULL;
+	switch (CIN_RunCinematic(cin->q2cin.cin, &cin->outdata, &cin->outwidth, &cin->outheight, &cin->outpalette))
 	{
-		CIN_DrawCinematic();
-		return true;
+	default:
+	case 0:
+		cin->ended = true;
+		return cin->outdata!=NULL;
+	case 1:
+		cin->outunchanged = false;
+		return cin->outdata!=NULL;
+	case 2:
+		return cin->outdata!=NULL;
 	}
-	return false;
 }
 
 cin_t *Media_Cin_TryLoad(char *name)
 {
+	struct cinematics_s *q2cin;
 	cin_t *cin;
 	char *dot = strrchr(name, '.');
 
 	if (dot && (!strcmp(dot, ".cin")))
 	{
-		if (CIN_PlayCinematic(name))
+		q2cin = CIN_PlayCinematic(name);
+		if (q2cin)
 		{
 			cin = Z_Malloc(sizeof(cin_t));
+			cin->q2cin.cin = q2cin;
 			cin->filmtype = MFT_CIN;
 			cin->decodeframe = Media_Cin_DecodeFrame;
 			cin->shutdown = Media_Cin_Shutdown;
+
+			cin->outtype = TF_8PAL24;
 			return cin;
 		}
 	}
@@ -1598,7 +1616,7 @@ cin_t *Media_Gecko_TryLoad(char *name)
 
 qboolean Media_PlayingFullScreen(void)
 {
-	return fullscreenvid!=NULL;
+	return videoshader!=NULL;
 }
 
 void Media_ShutdownCin(cin_t *cin)
@@ -1659,11 +1677,46 @@ qboolean Media_DecodeFrame(cin_t *cin, qboolean nosound)
 
 qboolean Media_PlayFilm(char *name)
 {
-	Media_ShutdownCin(fullscreenvid);
-	fullscreenvid = Media_StartCin(name);
+	cin_t *cin;
+	static char sname[MAX_QPATH];
 
-	if (fullscreenvid)
+	if (videoshader)
 	{
+		R_UnloadShader(videoshader);
+		videoshader = NULL;
+	}
+
+	if (!*name)
+	{
+		if (cls.state == ca_active)
+		{
+			CL_SendClientCommand(true, "nextserver %i", cl.servercount);
+		}
+		S_RawAudio(0, NULL, 0, 0, 0, 0);
+		videoshader = NULL;
+	}
+	else
+	{
+		snprintf(sname, sizeof(sname), "cinematic/%s", name);
+		videoshader = R_RegisterCustom(sname, Shader_DefaultCinematic, sname+10);
+
+		cin = R_ShaderGetCinematic(videoshader);
+		if (cin)
+		{
+			cin->ended = false;
+			if (cin->rewind)
+				cin->rewind(cin);
+		}
+	}
+
+//	Media_ShutdownCin(fullscreenvid);
+//	fullscreenvid = Media_StartCin(name);
+
+	if (videoshader)
+	{
+		CDAudio_Stop();
+		SCR_EndLoadingPlaque();
+
 		Con_ClearNotify();
 		if (key_dest == key_menu)
 		{
@@ -1679,39 +1732,23 @@ qboolean Media_PlayFilm(char *name)
 }
 qboolean Media_ShowFilm(void)
 {
-	if (!fullscreenvid)
-		return false;
-	if (!Media_DecodeFrame(fullscreenvid, false))
+	if (videoshader)
 	{
-		Media_ShutdownCin(fullscreenvid);
-		fullscreenvid = NULL;
-		return false;
+		cin_t *cin = R_ShaderGetCinematic(videoshader);
+		if (cin && cin->ended)
+			Media_PlayFilm("");
+		else
+		{
+			Draw_ImageColours(1, 1, 1, 1);
+			Draw_ScalePic(0, 0, vid.width, vid.height, videoshader);
+
+			SCR_SetUpToDrawConsole();
+			if  (scr_con_current)
+				SCR_DrawConsole (false);
+			return true;
+		}
 	}
-
-	switch(fullscreenvid->outtype)
-	{
-	case TF_RGBA32:
-		if (Media_ShowFrameRGBA_32)
-			Media_ShowFrameRGBA_32(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
-		break;
-	case TF_TRANS8:
-	case TF_SOLID8:
-		Media_ShowFrame8bit(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight, fullscreenvid->outpalette);
-		break;
-	case TF_BGR24_FLIP:
-		Media_ShowFrameBGR_24_Flip(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
-		break;
-	case TF_BGRA32:
-#pragma message("Media_ShowFilm: BGRA comes out as RGBA")
-//		Media_ShowFrameBGRA_32
-		Media_ShowFrameRGBA_32(fullscreenvid->outdata, fullscreenvid->outwidth, fullscreenvid->outheight);
-		break;
-	}
-
-	if (fullscreenvid->doneframe)
-		fullscreenvid->doneframe(fullscreenvid);
-
-	return true;
+	return false;
 }
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
@@ -1728,7 +1765,7 @@ texid_t Media_UpdateForShader(cin_t *cin)
 	{
 		if (!TEXVALID(cin->texture))
 			cin->texture = R_AllocNewTexture(cin->outwidth, cin->outheight);
-		R_Upload(cin->texture, "cin", cin->outtype, cin->outdata, cin->outwidth, cin->outheight, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);
+		R_Upload(cin->texture, "cin", cin->outtype, cin->outdata, cin->outpalette, cin->outwidth, cin->outheight, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);
 	}
 
 	if (cin->doneframe)
@@ -1742,7 +1779,7 @@ texid_t Media_UpdateForShader(cin_t *cin)
 void Media_Send_Command(cin_t *cin, char *command)
 {
 	if (!cin)
-		cin = fullscreenvid;
+		cin = R_ShaderGetCinematic(videoshader);
 	if (!cin || !cin->key)
 		return;
 	cin->changestream(cin, command);
@@ -1750,7 +1787,7 @@ void Media_Send_Command(cin_t *cin, char *command)
 void Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event)
 {
 	if (!cin)
-		cin = fullscreenvid;
+		cin = R_ShaderGetCinematic(videoshader);
 	if (!cin || !cin->key)
 		return;
 	cin->key(cin, button, unicode, event);
@@ -1758,7 +1795,7 @@ void Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event)
 void Media_Send_MouseMove(cin_t *cin, float x, float y)
 {
 	if (!cin)
-		cin = fullscreenvid;
+		cin = R_ShaderGetCinematic(videoshader);
 	if (!cin || !cin->key)
 		return;
 	cin->cursormove(cin, x, y);
@@ -1770,7 +1807,7 @@ void Media_Send_Resize(cin_t *cin, int x, int y)
 void Media_Send_GetSize(cin_t *cin, int *x, int *y)
 {
 	if (!cin)
-		cin = fullscreenvid;
+		cin = R_ShaderGetCinematic(videoshader);
 	if (!cin || !cin->key)
 		return;
 	cin->getsize(cin, x, y);

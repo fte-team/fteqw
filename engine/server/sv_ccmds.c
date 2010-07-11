@@ -53,9 +53,9 @@ void deleetstring(char *match, char *leet)
 			*s = *s - 18 + '0';
 		else if (*s >= 'A' && *s <= 'Z')
 			*s = *s - 'A' + 'a';
-		else if (*s<' ' || *s == '~')
+		else if (*s == ' ' || *s == '~')
 			continue;
-			s++;
+		s++;
 	}
 	*s = '\0';
 
@@ -889,6 +889,17 @@ void SV_FilterIP_f (void)
 	{
 		Con_Printf("You're not allowed to filter loopback!\n");
 		return;
+	}
+
+	nb = svs.bannedips;
+	while (nb)
+	{
+		if (NET_CompareAdr(nb->adr, banadr) && NET_CompareAdr(nb->adrmask, banmask))
+		{
+			Con_Printf("%s is already banned\n", Cmd_Argv(1));
+			break;
+		}
+		nb = nb->next;
 	}
 
 	// loop through clients and kick the ones that match

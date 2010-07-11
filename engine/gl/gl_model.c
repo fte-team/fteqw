@@ -67,7 +67,8 @@ extern cvar_t r_loadlits;
 extern cvar_t gl_specular;
 #endif
 extern cvar_t r_fb_bmodels;
-
+mesh_t nullmesh;
+void Mod_SortShaders(void);
 
 #ifdef RUNTIMELIGHTING
 model_t *lightmodel;
@@ -152,7 +153,7 @@ void RMod_BlockTextureColour_f (void)
 	{
 		memset(&tn, 0, sizeof(tn));
 		tn.base = R_LoadTexture32(texname, 8, 8, colour, IF_NOALPHA|IF_NOGAMMA);
-		s = R_RegisterCustom (texname, Shader_DefaultBSP, NULL);
+		s = R_RegisterCustom (texname, Shader_DefaultBSPQ1, NULL);
 	}
 
 	for (i = 0; i < sizeof(colour)/sizeof(colour[0]); i++)
@@ -923,16 +924,16 @@ void Mod_FinishTexture(texture_t *tx, texnums_t tn)
 	char *star;
 	//find the *
 	if (!*gl_shadeq1_name.string || !strcmp(gl_shadeq1_name.string, "*"))
-		tx->shader = R_RegisterShader_Lightmap(tx->name);	//just load the regular name.
+		tx->shader = R_RegisterCustom (tx->name, Shader_DefaultBSPQ1, NULL);	//just load the regular name.
 	else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(tx->name)+1>=sizeof(altname)))	//it's got to fit.
-		tx->shader = R_RegisterShader_Lightmap(gl_shadeq1_name.string);
+		tx->shader = R_RegisterCustom (gl_shadeq1_name.string, Shader_DefaultBSPQ1, NULL);
 	else
 	{
 		strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
 		altname[star-gl_shadeq1_name.string] = '\0';
 		strcat(altname, tx->name);	//insert the *
 		strcat(altname, star+1);	//add any final text.
-		tx->shader = R_RegisterShader_Lightmap(altname);
+		tx->shader = R_RegisterCustom (altname, Shader_DefaultBSPQ1, NULL);
 	}
 
 	R_BuildDefaultTexnums(&tn, tx->shader);
@@ -1996,7 +1997,6 @@ qboolean RMod_LoadFaces (lump_t *l)
 		}*/
 		if (!Q_strncmp(out->texinfo->texture->name,"{",1))		// alpha
 		{
-			out->texinfo->flags |= TI_ALPHATEST;
 			out->flags |= (SURF_DRAWALPHA);
 			continue;
 		}
@@ -2124,7 +2124,6 @@ qboolean RMod_LoadLeafs (lump_t *l)
 			out->compressed_vis = NULL;
 		else
 			out->compressed_vis = loadmodel->visdata + p;
-		out->efrags = NULL;
 		
 		for (j=0 ; j<4 ; j++)
 			out->ambient_sound_level[j] = in->ambient_level[j];
@@ -2914,6 +2913,9 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 		RMod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
 		RMod_MakeHull0 ();
 	}
+
+	if (!isDedicated && noerrors)
+		Mod_SortShaders();
 
 	if (crouchhullfile)
 	{

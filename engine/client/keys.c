@@ -57,8 +57,8 @@ qboolean deltaused[K_MAX][KEY_MODIFIERSTATES];
 void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue);
 
 extern cvar_t con_displaypossibilities;
-cvar_t con_selectioncolour = SCVARFC("con_selectioncolour", "0", CVAR_RENDERERCALLBACK, Con_Selectioncolour_Callback);
-cvar_t con_echochat = SCVAR("con_echochat", "0");
+cvar_t con_selectioncolour = CVARFC("con_selectioncolour", "0", CVAR_RENDERERCALLBACK, Con_Selectioncolour_Callback);
+cvar_t con_echochat = CVAR("con_echochat", "0");
 extern cvar_t cl_chatmode;
 
 static int KeyModifier (qboolean shift, qboolean alt, qboolean ctrl)

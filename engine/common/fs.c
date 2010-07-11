@@ -19,6 +19,7 @@
 
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;
+static unsigned int fs_restarts;
 extern cvar_t com_fs_cache;
 int active_fs_cachetype;
 
@@ -491,7 +492,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 		goto fail;
 	}
 
-	if (com_fs_cache.value)
+	if (com_fs_cache.ival)
 	{
 		if (com_fschanged)
 			FS_RebuildFSHash();
@@ -987,9 +988,11 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 
 
 	if (strcmp(mode, "rb"))
-		if (strcmp(mode, "wb"))
-			if (strcmp(mode, "ab"))
-				return NULL; //urm, unable to write/append
+		if (strcmp(mode, "r+b"))
+			if (strcmp(mode, "wb"))
+				if (strcmp(mode, "w+b"))
+					if (strcmp(mode, "ab"))
+						return NULL; //urm, unable to write/append
 
 	//if there can only be one file (eg: write access) find out where it is.
 	switch (relativeto)
@@ -1527,9 +1530,21 @@ void COM_RefreshFSCache_f(void)
 
 void COM_FlushFSCache(void)
 {
-	if (com_fs_cache.value != 2)
+	if (com_fs_cache.ival != 2)
 		com_fschanged=true;
 }
+
+/*since should start as 0, otherwise this can be used to poll*/
+qboolean FS_Restarted(unsigned int *since)
+{
+	if (*since < fs_restarts)
+	{
+		*since = fs_restarts;
+		return true;
+	}
+	return false;
+}
+
 /*
 ================
 FS_AddGameDirectory
@@ -1543,6 +1558,8 @@ void FS_AddGameDirectory (const char *puredir, const char *dir, unsigned int loa
 	searchpath_t	*search;
 
 	char			*p;
+
+	fs_restarts++;
 
 	if ((p = strrchr(dir, '/')) != NULL)
 		strcpy(gamedirfile, ++p);
@@ -2164,8 +2181,6 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	}
 
 #if !defined(NPQTV) && !defined(SERVERONLY) //this is *really* unfortunate, but doing this crashes the browser
-				//I assume its because the client
-
 	if (poshname)
 	{
 		char resultpath[MAX_PATH];

@@ -225,7 +225,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				if (*dl->localname)
 				{
 					FS_CreatePath(dl->localname, FS_GAME);
-					dl->file = FS_OpenVFS(dl->localname, "wb", FS_GAME);
+					dl->file = FS_OpenVFS(dl->localname, "w+b", FS_GAME);
 				}
 				else
 					dl->file = FS_OpenTemp();

@@ -1380,7 +1380,7 @@ void Mod_CompileTriangleNeighbours(galiasinfo_t *galias)
 #ifdef GLQUAKE
 	if (qrenderer != QR_OPENGL)
 		return;
-	if (r_shadow_realtime_dlight_shadows.value || r_shadow_realtime_world_shadows.value)
+	if (r_shadow_realtime_dlight_shadows.ival || r_shadow_realtime_world_shadows.ival)
 	{
 		int *neighbours;
 		neighbours = Hunk_Alloc(sizeof(int)*galias->numindexes/3*3);
@@ -2612,7 +2612,7 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 	{
 		pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vecV_t)*numverts
 #ifndef SERVERONLY
-			+ sizeof(vec3_t)*numverts
+			+ 3*sizeof(vec3_t)*numverts
 #endif
 			);
 		poutframe->poseofs = (char *)pose - (char *)poutframe;
@@ -2624,6 +2624,9 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 #ifndef SERVERONLY
 		normals = (vec3_t*)&verts[galias->numverts];
 		pose->ofsnormals = (char *)normals - (char *)pose;
+
+		pose->ofssvector = (char *)&normals[galias->numverts] - (char *)pose;
+		pose->ofstvector = (char *)&normals[galias->numverts*2] - (char *)pose;
 #endif
 
 

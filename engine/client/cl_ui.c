@@ -685,7 +685,7 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 #ifndef _DEBUG
 static
 #endif
-int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
+int UI_SystemCallsEx(void *offset, quintptr_t mask, int fn, const int *arg)
 {
 	int ret=0;
 	char adrbuf[MAX_ADR_SIZE];
@@ -1333,21 +1333,21 @@ static int UI_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, cons
 
 //I'm not keen on this.
 //but dlls call it without saying what sort of vm it comes from, so I've got to have them as specifics
-static int EXPORT_FN UI_SystemCalls(int arg, ...)
+static qintptr_t EXPORT_FN UI_SystemCalls(qintptr_t arg, ...)
 {
-	int args[9];
+	qintptr_t args[9];
 	va_list argptr;
 
 	va_start(argptr, arg);
-	args[0]=va_arg(argptr, int);
-	args[1]=va_arg(argptr, int);
-	args[2]=va_arg(argptr, int);
-	args[3]=va_arg(argptr, int);
-	args[4]=va_arg(argptr, int);
-	args[5]=va_arg(argptr, int);
-	args[6]=va_arg(argptr, int);
-	args[7]=va_arg(argptr, int);
-	args[8]=va_arg(argptr, int);
+	args[0]=va_arg(argptr, qintptr_t);
+	args[1]=va_arg(argptr, qintptr_t);
+	args[2]=va_arg(argptr, qintptr_t);
+	args[3]=va_arg(argptr, qintptr_t);
+	args[4]=va_arg(argptr, qintptr_t);
+	args[5]=va_arg(argptr, qintptr_t);
+	args[6]=va_arg(argptr, qintptr_t);
+	args[7]=va_arg(argptr, qintptr_t);
+	args[8]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
 	return UI_SystemCallsEx(NULL, ~0, arg, args);

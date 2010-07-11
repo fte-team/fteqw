@@ -1171,7 +1171,7 @@ void CL_Record_f (void)
 
 	for (i = 0; i < cl.num_statics; i++)
 	{
-		ent = cl_static_entities + i;
+		ent = &cl_static_entities[i].ent;
 
 		MSG_WriteByte (&buf, svc_spawnstatic);
 

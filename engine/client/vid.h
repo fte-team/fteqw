@@ -56,11 +56,6 @@ typedef struct
 	int				numpages;
 	int				recalc_refdef;	// if true, recalc vid-based stuff
 
-FTE_DEPRECATED	pixel_t			*conbuffer;
-FTE_DEPRECATED	int				conrowbytes;
-FTE_DEPRECATED	unsigned		conwidth;
-FTE_DEPRECATED	unsigned		conheight;
-
 	unsigned		pixelwidth;
 	unsigned		pixelheight;
 } viddef_t;

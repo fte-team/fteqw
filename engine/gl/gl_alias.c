@@ -223,12 +223,12 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 	unsigned int tc, bc;
 	qboolean forced;
 
-	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && !ruleset_allow_sensative_texture_replacements.value)
+	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && !ruleset_allow_sensative_texture_replacements.ival)
 		forced = true;
 	else
 		forced = false;
 
-	if (!gl_nocolors.value || forced)
+	if (!gl_nocolors.ival || forced)
 	{
 		if (e->scoreboard)
 		{
@@ -517,7 +517,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 					}
 				}
 				texnums->base = R_AllocNewTexture(scaled_width, scaled_height);
-				R_Upload(texnums->base, "", TF_RGBX32, pixels, scaled_width, scaled_height, IF_NOMIPMAP);
+				R_Upload(texnums->base, "", TF_RGBX32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
 
 				//now do the fullbrights.
 				out = pixels;
@@ -534,7 +534,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 					}
 				}
 				texnums->fullbright = R_AllocNewTexture(scaled_width, scaled_height);
-				R_Upload(texnums->fullbright, "", TF_RGBA32, pixels, scaled_width, scaled_height, IF_NOMIPMAP);
+				R_Upload(texnums->fullbright, "", TF_RGBA32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
 			}
 			else
 			{
@@ -905,7 +905,7 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 //	if (e->flags & Q2RF_VIEWERMODEL && e->keynum == cl.playernum[r_refdef.currentplayernum]+1)
 //		return;
 
-	if (r_secondaryview && e->flags & Q2RF_WEAPONMODEL)
+	if (r_refdef.externalview && e->flags & Q2RF_WEAPONMODEL)
 		return;
 
 	{
@@ -1139,7 +1139,7 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 			}
 		}
 
-		BE_DrawMeshChain(shader, &mesh, NULL, skin);
+		BE_DrawMesh_Single(shader, &mesh, NULL, skin);
 	}
 
 	if (e->flags & Q2RF_WEAPONMODEL)
@@ -1160,7 +1160,7 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 #endif
 }
 
-//returns result in the form of the result vector
+//returns the rotated offset of the two points in result
 void RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lightpoint, vec3_t result)
 {
 	vec3_t offs;

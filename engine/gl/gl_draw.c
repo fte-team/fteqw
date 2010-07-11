@@ -37,8 +37,9 @@ static void GL_Upload32 (char *name, unsigned *data, int width, int height, unsi
 static void GL_Upload32_BGRA (char *name, unsigned *data, int width, int height, unsigned int flags);
 static void GL_Upload24BGR_Flip (char *name, qbyte *framedata, int inwidth, int inheight, unsigned int flags);
 static void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int flags, unsigned int alpha);
+static void GL_Upload8Pal32 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags);
 
-void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, int width, int height, unsigned int flags)
+void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
 {
 	GL_Bind(tex);
 	switch(fmt)
@@ -72,6 +73,13 @@ void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, int w
 		GL_Upload8(name, data, width, height, flags, 1);
 		break;
 
+	case TF_8PAL24:
+		GL_Upload8Pal24(data, palette, width, height, flags);
+		break;
+	case TF_8PAL32:
+		GL_Upload8Pal32(data, palette, width, height, flags);
+		break;
+
 #ifdef _MSC_VER
 	default:
 		Sys_Error("Unsupported image format type\n");
@@ -79,6 +87,7 @@ void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, int w
 #endif
 	}
 }
+
 texid_t GL_LoadTextureFmt (char *name, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags)
 {
 	extern cvar_t r_shadow_bumpscale_basetexture;
@@ -122,39 +131,29 @@ static index_t r_quad_indexes[6] = {0, 1, 2, 0, 2, 3};
 
 extern qbyte		gammatable[256];
 
+#ifdef GL_USE8BITTEX
 unsigned char *d_15to8table;
 qboolean inited15to8;
+#endif
 extern cvar_t crosshair, crosshairimage, crosshairalpha, cl_crossx, cl_crossy, crosshaircolor, crosshairsize;
 
 static texid_t filmtexture;
 
-extern cvar_t		gl_nobind;
 extern cvar_t		gl_max_size;
 extern cvar_t		gl_picmip;
 extern cvar_t		gl_lerpimages;
 extern cvar_t		gl_picmip2d;
-extern cvar_t		r_drawdisk;
 extern cvar_t		gl_compress;
-extern cvar_t		gl_smoothfont, gl_smoothcrosshair, gl_fontinwardstep;
+extern cvar_t		gl_smoothcrosshair;
 extern cvar_t		gl_texturemode, gl_texture_anisotropic_filtering;
-extern cvar_t cl_noblink;
 
 extern cvar_t		gl_savecompressedtex;
-
-extern cvar_t		gl_load24bit;
-
-extern cvar_t		con_ocranaleds;
-extern cvar_t		gl_blend2d;
-extern cvar_t		scr_conalpha;
 
 texid_t			translate_texture;
 texid_t			missing_texture;	//texture used when one is missing.
 
 texid_t			cs_texture; // crosshair texture
 shader_t		*crosshair_shader;
-
-float custom_char_instep, default_char_instep;	//to avoid blending issues
-float	char_instep;
 
 static unsigned cs_data[16*16];
 static texid_t externalhair;
@@ -171,8 +170,6 @@ int		gl_lightmap_format = 4;
 int		gl_filter_min = GL_LINEAR_MIPMAP_NEAREST;
 int		gl_filter_max = GL_LINEAR;
 int		gl_filter_max_2d = GL_LINEAR;
-
-int		texels;
 
 typedef struct gltexture_s
 {
@@ -407,7 +404,9 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	TRACE(("dbg: GLDraw_ReInit: Draw_SafePicFromWad\n"));
 	draw_disc = Draw_SafePicFromWad ("disc");
 
+#ifdef GL_USE8BITTEX
 	inited15to8 = false;
+#endif
 
 	qglClearColor (1,0,0,0);
 
@@ -449,6 +448,9 @@ void GLDraw_DeInit (void)
 	sizeofuploadmemorybuffer = 0;	//and give a nice safe sys_error if we try using it.
 	sizeofuploadmemorybufferintermediate = 0;
 
+#ifdef RTLIGHTS
+	Sh_Shutdown();
+#endif
 	Shader_Shutdown();
 }
 
@@ -490,7 +492,7 @@ void GLCrosshair_Callback(struct cvar_s *var, char *oldvalue)
 	}
 #undef Pix
 
-	R_Upload(cs_texture, NULL, TF_RGBA32, cs_data, 16, 16, IF_NOMIPMAP|IF_NOGAMMA);
+	R_Upload(cs_texture, NULL, TF_RGBA32, cs_data, NULL, 16, 16, IF_NOMIPMAP|IF_NOGAMMA);
 
 	if (gl_smoothcrosshair.ival)
 	{
@@ -744,7 +746,7 @@ void GLDraw_FadeScreen (void)
 
 	if (!faderender)
 		return;
-
+#pragma message("Warning: This doesn't use the backend")
 	if (scenepp_mt_program && gl_menutint_shader.ival)
 	{
 		float vwidth = 1, vheight = 1;
@@ -858,8 +860,6 @@ Call before beginning any disc IO.
 */
 void GLDraw_BeginDisc (void)
 {
-	if (!draw_disc || !r_drawdisk.value)
-		return;
 }
 
 
@@ -902,7 +902,7 @@ void GL_Set2D (void)
 
 
 
-
+#if 0
 void MediaGL_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette)	//bottom up
 {
 	if (!TEXVALID(filmtexture))
@@ -1079,7 +1079,7 @@ void MediaGL_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight)
 	if  (scr_con_current)
 	SCR_DrawConsole (false);
 }
-
+#endif
 
 
 //====================================================================
@@ -1289,7 +1289,7 @@ void GL_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,
 	unsigned	*inrow;
 	unsigned	frac, fracstep;
 
-	if (gl_lerpimages.value)
+	if (gl_lerpimages.ival)
 	{
 		Image_Resample32Lerp(in, inwidth, inheight, out, outwidth, outheight);
 		return;
@@ -1611,8 +1611,6 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	if (gl_config.arb_texture_compression && gl_compress.value && name && !(flags&IF_NOMIPMAP))
 		samples = (flags&IF_NOALPHA) ? GL_COMPRESSED_RGB_ARB : GL_COMPRESSED_RGBA_ARB;
 
-texels += scaled_width * scaled_height;
-
 	if (gl_config.sgis_generate_mipmap && !(flags&IF_NOMIPMAP))
 	{
 		TRACE(("dbg: GL_Upload32: GL_SGIS_generate_mipmap\n"));
@@ -1900,8 +1898,6 @@ void GL_Upload8Grey (unsigned char*data, int width, int height, unsigned int fla
 
 	samples = 1;//alpha ? gl_alpha_format : gl_solid_format;
 
-texels += scaled_width * scaled_height;
-
 	if (scaled_width == width && scaled_height == height)
 	{
 		if (flags&IF_NOMIPMAP)
@@ -2185,8 +2181,6 @@ void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qbool
 
 	samples = 1; // alpha ? gl_alpha_format : gl_solid_format;
 
-	texels += scaled_width * scaled_height;
-
 	if (scaled_width == width && scaled_height == height)
 	{
 		if (!mipmap)
@@ -2457,7 +2451,7 @@ void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height, unsigned i
 	}
 	GL_Upload32 (NULL, (unsigned*)trans, width, height, flags);
 }
-void GL_Upload8Pal32 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags)
+static void GL_Upload8Pal32 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags)
 {
 	qbyte		*trans = uploadmemorybufferintermediate;
 	int			i, s;

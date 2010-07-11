@@ -201,6 +201,6 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		AMDCaProjectFile = C:\Games\Quake\ftesrc\engine\dotnet2005\CodeAnalyst\ftequake.caw
+		AMDCaProjectFile = C:\Games\Quake\wip\engine\dotnet2005\CodeAnalyst\ftequake.caw
 	EndGlobalSection
 EndGlobal

@@ -123,7 +123,6 @@ int						D3D9_R_LightPoint (vec3_t point);
 void					D3D9_R_NewMap (void);
 void					D3D9_R_PreNewMap (void);
 void					D3D9_R_PushDlights (void);
-void					D3D9_R_SetSky (char *name, float rotate, vec3_t axis);
 void					D3D9_SCR_UpdateScreen (void);
 void					D3D9_Set2D (void);
 void					D3D9_VID_DeInit (void);

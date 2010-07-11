@@ -768,3 +768,15 @@ typedef struct
 	int patchwidth;
 	int patchheight;
 } rbspface_t;
+
+#define	MAX_ENT_LEAFS	16
+typedef struct pvscache_s
+{
+	int			num_leafs;
+	short		leafnums[MAX_ENT_LEAFS];
+#ifdef Q2BSPS
+	int areanum;	//q2bsp
+	int areanum2;	//q2bsp
+	int headnode;	//q2bsp
+#endif
+} pvscache_t;

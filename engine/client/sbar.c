@@ -27,6 +27,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t hud_tracking_show;
 
+extern cvar_t com_parseutf8;
+#define CON_ALTMASK (com_parseutf8.ival?(COLOR_MAGENTA<<CON_FGSHIFT):(CON_WHITEMASK|0x80))
+
 cvar_t scr_scoreboard_drawtitle = SCVAR("scr_scoreboard_drawtitle", "1");
 cvar_t scr_scoreboard_forcecolors = SCVAR("scr_scoreboard_forcecolors", "0");	//damn americans
 cvar_t scr_scoreboard_newstyle = SCVAR("scr_scoreboard_newstyle", "1");	// New scoreboard style ported from Electro, by Molgrum
@@ -173,7 +176,7 @@ void Draw_FunString(int x, int y, const unsigned char *str)
 void Draw_AltFunString(int x, int y, const unsigned char *str)
 {
 	conchar_t buffer[2048];
-	COM_ParseFunString(COLOR_MAGENTA<<CON_FGSHIFT, str, buffer, sizeof(buffer), false);
+	COM_ParseFunString(CON_ALTMASK, str, buffer, sizeof(buffer), false);
 
 	Draw_ExpandedString(x, y, buffer);
 }
@@ -223,49 +226,13 @@ static qboolean largegame = false;
 
 
 
-
-
-
 #ifdef Q2CLIENT
-void DrawHUDString (char *string, int x, int y, int centerwidth, int xor)
+static void DrawHUDString (char *string, int x, int y, int centerwidth, qboolean alt)
 {
-#pragma message("q2: reimplement me")
-/*
-	int		margin;
-	char	line[1024];
-	int		width;
-	int		i;
-
-	margin = x;
-
-	while (*string)
-	{
-		// scan out one line of text from the string
-		width = 0;
-		while (*string && *string != '\n')
-			line[width++] = *string++;
-		line[width] = 0;
-
-		if (centerwidth)
-			x = margin + (centerwidth - width*8)/2;
-		else
-			x = margin;
-		for (i=0 ; i<width ; i++)
-		{
-			Draw_Character (x, y, line[i]^xor);
-			x += 8;
-		}
-		if (*string)
-		{
-			string++;	// skip the \n
-			x = margin;
-			y += 8;
-		}
-	}
-*/
+	R_DrawTextField(x, y, centerwidth, 1024, string, alt?CON_ALTMASK:CON_WHITEMASK, CPRINT_TALIGN);
 }
 #define STAT_MINUS		10	// num frame for '-' stats digit
-char		*q2sb_nums[2][11] =
+static char		*q2sb_nums[2][11] =
 {
 	{"num_0", "num_1", "num_2", "num_3", "num_4", "num_5",
 	"num_6", "num_7", "num_8", "num_9", "num_minus"},
@@ -282,7 +249,7 @@ static mpic_t *Sbar_Q2CachePic(char *name)
 #define	ICON_HEIGHT	24
 #define	CHAR_WIDTH	16
 #define	ICON_SPACE	8
-void SCR_DrawField (int x, int y, int color, int width, int value)
+static void SCR_DrawField (int x, int y, int color, int width, int value)
 {
 	char	num[16], *ptr;
 	int		l;
@@ -330,6 +297,8 @@ char *Get_Q2ConfigString(int i)
 		return cl.model_name [i-Q2CS_MODELS];
 	if (i >= Q2CS_SOUNDS && i < Q2CS_SOUNDS	+ Q2MAX_SOUNDS)
 		return cl.model_name [i-Q2CS_SOUNDS];
+	if (i == Q2CS_AIRACCEL)
+		return "4";
 //#define	Q2CS_LIGHTS				(Q2CS_IMAGES	+Q2MAX_IMAGES)
 //#define	Q2CS_ITEMS				(Q2CS_LIGHTS	+Q2MAX_LIGHTSTYLES)
 //#define	Q2CS_PLAYERSKINS		(Q2CS_ITEMS		+Q2MAX_ITEMS)
@@ -491,7 +460,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			s = COM_Parse (s);
 //			SCR_AddDirtyPoint (x, y);
 //			SCR_AddDirtyPoint (x+23, y+23);
-			p = Draw_SafeCachePic(com_token);
+			p = Sbar_Q2CachePic(com_token);
 			if (p)
 				Draw_ScalePic (x, y, p->width, p->height, p);
 			continue;
@@ -522,7 +491,7 @@ void Sbar_ExecuteLayoutString (char *s)
 
 			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 1)
 			{
-				p = Draw_SafeCachePic("field_3");
+				p = Sbar_Q2CachePic("field_3");
 				if (p)
 					Draw_ScalePic (x, y, p->width, p->height, p);
 			}
@@ -546,7 +515,7 @@ void Sbar_ExecuteLayoutString (char *s)
 
 			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 4)
 			{
-				p = Draw_SafeCachePic("field_3");
+				p = Sbar_Q2CachePic("field_3");
 				if (p)
 					Draw_ScalePic (x, y, p->width, p->height, p);
 			}
@@ -590,7 +559,7 @@ void Sbar_ExecuteLayoutString (char *s)
 		if (!strcmp(com_token, "cstring"))
 		{
 			s = COM_Parse (s);
-			DrawHUDString (com_token, x, y, 320, 0);
+			DrawHUDString (com_token, x, y, 320, false);
 			continue;
 		}
 
@@ -604,7 +573,7 @@ void Sbar_ExecuteLayoutString (char *s)
 		if (!strcmp(com_token, "cstring2"))
 		{
 			s = COM_Parse (s);
-			DrawHUDString (com_token, x, y, 320,0x80);
+			DrawHUDString (com_token, x, y, 320, true);
 			continue;
 		}
 
@@ -2155,7 +2124,7 @@ void Sbar_Draw (void)
 	if (cls.protocol == CP_QUAKE2)
 	{
 		SCR_VRectForPlayer(&sbar_rect, 0);
-
+		Draw_ImageColours(1, 1, 1, 1);
 		if (*cl.q2statusbar)
 			Sbar_ExecuteLayoutString(cl.q2statusbar);
 		if (*cl.q2layout)

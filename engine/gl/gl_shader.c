@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 // r_shader.c - based on code by Stephen C. Taylor
+// Ported to FTE from qfusion, there are numerous changes since then.
 
 
 #include "quakedef.h"
@@ -37,10 +38,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern texid_t missing_texture;
 static qboolean shader_reload_needed;
+static qboolean shader_rescan_needed;
 
 //cvars that affect shader generation
 cvar_t r_vertexlight = SCVAR("r_vertexlight", "0");
-extern cvar_t r_fastsky, r_skyboxname;
+extern cvar_t r_fastturb, r_fastsky, r_skyboxname;
 extern cvar_t r_drawflat;
 
 //backend fills this in to say the max pass count
@@ -191,6 +193,8 @@ static char shaderbuf[MAX_QPATH * 256];
 int shaderbuflen;
 
 shader_t	*r_shaders;
+static hashtable_t shader_active_hash;
+void *shader_active_hash_mem;
 
 //static char		r_skyboxname[MAX_QPATH];
 //static float	r_skyheight;
@@ -218,6 +222,22 @@ static char *Shader_ParseString ( char **ptr )
 
 	token = COM_ParseExt ( ptr, false );
 	Q_strlwr ( token );
+	
+	return token;
+}
+
+static char *Shader_ParseSensString ( char **ptr )
+{
+	char *token;
+
+	if ( !ptr || !(*ptr) ) {
+		return "";
+	}
+	if ( !**ptr || **ptr == '}' ) {
+		return "";
+	}
+
+	token = COM_ParseExt ( ptr, false );
 	
 	return token;
 }
@@ -254,6 +274,8 @@ static void Shader_ParseVector ( char **ptr, vec3_t v )
 		}
 		ptr = &scratch;
 		scratch = var->string;
+
+		token = Shader_ParseString ( ptr );
 	}
 	if ( !Q_stricmp (token, "(") ) {
 		bracket = true;
@@ -287,10 +309,10 @@ static void Shader_ParseVector ( char **ptr, vec3_t v )
 	}
 }
 
-static void Shader_ParseSkySides ( shader_t *shader, char **ptr, texid_t *images )
+qboolean Shader_ParseSkySides (char *shadername, char *texturename, texid_t *images)
 {
+	qboolean allokay = true;
 	int i, ss, sp;
-	char *token;
 	char path[MAX_QPATH];
 
 	static char	*skyname_suffix[][6] = {
@@ -309,24 +331,29 @@ static void Shader_ParseSkySides ( shader_t *shader, char **ptr, texid_t *images
 		"gfx/env/%s%s"
 	};
 
-	token = Shader_ParseString ( ptr );
-	if (*token == '$')
+	if (*texturename == '$')
 	{
 		cvar_t *v;
-		v = Cvar_FindVar(token+1);
+		v = Cvar_FindVar(texturename+1);
 		if (v)
-			token = v->string;
+			texturename = v->string;
 	}
+	if (!*texturename)
+		texturename = "-";
+
 	for ( i = 0; i < 6; i++ )
 	{
-		if ( token[0] == '-' ) {
+		if ( texturename[0] == '-' )
+		{
 			images[i] = r_nulltex;
-		} else {
+		}
+		else
+		{
 			for (sp = 0; sp < sizeof(skyname_pattern)/sizeof(skyname_pattern[0]); sp++)
 			{
 				for (ss = 0; ss < sizeof(skyname_suffix)/sizeof(skyname_suffix[0]); ss++)
 				{
-					Com_sprintf ( path, sizeof(path), skyname_pattern[sp], token, skyname_suffix[ss][i] );
+					Com_sprintf ( path, sizeof(path), skyname_pattern[sp], texturename, skyname_suffix[ss][i] );
 					images[i] = R_LoadHiResTexture ( path, NULL, IF_NOALPHA);
 					if (TEXVALID(images[i]))
 						break;
@@ -336,11 +363,13 @@ static void Shader_ParseSkySides ( shader_t *shader, char **ptr, texid_t *images
 			}
 			if (!TEXVALID(images[i]))
 			{
-				Con_Printf("Shader \"%s\" missing texture: %s\n", shader->name, path);
+				Con_Printf("Sky \"%s\" missing texture: %s\n", shadername, path);
 				images[i] = missing_texture;
+				allokay = false;
 			}
 		}
 	}
+	return allokay;
 }
 
 static void Shader_ParseFunc ( char **ptr, shaderfunc_t *func )
@@ -472,34 +501,39 @@ static void Shader_DeformVertexes ( shader_t *shader, shaderpass_t *pass, char *
 }
 
 
-static void Shader_SkyParms ( shader_t *shader, shaderpass_t *pass, char **ptr )
+static void Shader_SkyParms(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	int	i;
 	skydome_t *skydome;
 	float skyheight;
+	char *boxname;
 
 	if (shader->skydome)
 	{
-		for ( i = 0; i < 5; i++ ) {
-			Z_Free ( shader->skydome->meshes[i].xyz_array );
-			Z_Free ( shader->skydome->meshes[i].normals_array );
-			Z_Free ( shader->skydome->meshes[i].st_array );
+		for (i = 0; i < 5; i++)
+		{
+			Z_Free(shader->skydome->meshes[i].xyz_array);
+			Z_Free(shader->skydome->meshes[i].normals_array);
+			Z_Free(shader->skydome->meshes[i].st_array);
 		}
 
-		Z_Free ( shader->skydome );
+		Z_Free(shader->skydome);
 	}
 
-	skydome = (skydome_t *)Z_Malloc ( sizeof(skydome_t) );
+	skydome = (skydome_t *)Z_Malloc(sizeof(skydome_t));
 	shader->skydome = skydome;
 
-	Shader_ParseSkySides ( shader, ptr, skydome->farbox_textures );
+	boxname = Shader_ParseString(ptr);
+	Shader_ParseSkySides(shader->name, boxname, skydome->farbox_textures);
 
-	skyheight = Shader_ParseFloat ( ptr );
-	if ( !skyheight ) {
+	skyheight = Shader_ParseFloat(ptr);
+	if (!skyheight)
+	{
 		skyheight = 512.0f;
 	}
 
-	Shader_ParseSkySides ( shader, ptr, skydome->nearbox_textures );
+	boxname = Shader_ParseString(ptr);
+	Shader_ParseSkySides(shader->name, boxname, skydome->nearbox_textures);
 
 	shader->flags |= SHADER_SKY;
 	shader->sort = SHADER_SORT_SKY;
@@ -553,12 +587,16 @@ static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
 		shader->sort = SHADER_SORT_SKY;
 	} else if( !Q_stricmp( token, "opaque" ) ) {
 		shader->sort = SHADER_SORT_OPAQUE;
+	} else if( !Q_stricmp( token, "decal" ) ) {
+		shader->sort = SHADER_SORT_DECAL;
+	} else if( !Q_stricmp( token, "seethrough" ) ) {
+		shader->sort = SHADER_SORT_SEETHROUGH;
 	} else if( !Q_stricmp( token, "banner" ) ) {
 		shader->sort = SHADER_SORT_BANNER;
-	} else if( !Q_stricmp( token, "underwater" ) ) {
-		shader->sort = SHADER_SORT_UNDERWATER;
 	} else if( !Q_stricmp( token, "additive" ) ) {
 		shader->sort = SHADER_SORT_ADDITIVE;
+	} else if( !Q_stricmp( token, "underwater" ) ) {
+		shader->sort = SHADER_SORT_UNDERWATER;
 	} else if( !Q_stricmp( token, "nearest" ) ) {
 		shader->sort = SHADER_SORT_NEAREST;
 	} else {
@@ -586,6 +624,16 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 
 static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr, int qrtype)
 {
+	/*accepts:
+	program
+	{
+		BLAH
+	}
+	where BLAH is both vertex+frag with #ifdefs
+	or
+	program vert frag
+	on one line.
+	*/
 	void *vert, *frag;
 	char *token;
 	if (shader->programhandle.glsl)
@@ -701,7 +749,7 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	}
 	else if (!Q_stricmp(token, "cvari"))
 	{
-		token = Shader_ParseString(ptr);
+		token = Shader_ParseSensString(ptr);
 		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
 		if (cv)
 		{	//Cvar_Get returns null if the cvar is the name of a command
@@ -712,7 +760,7 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	}
 	else if (!Q_stricmp(token, "cvarf"))
 	{
-		token = Shader_ParseString(ptr);
+		token = Shader_ParseSensString(ptr);
 		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
 		if (cv)
 		{	//Cvar_Get returns null if the cvar is the name of a command
@@ -742,7 +790,7 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	else
 		Con_Printf("shader %s: parameter type \"%s\" not known\n", shader->name, token);
 
-	token = Shader_ParseString(ptr);
+	token = Shader_ParseSensString(ptr);
 
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -1027,6 +1075,9 @@ static void Shaderpass_AlphaGen (shader_t *shader, shaderpass_t *pass, char **pt
 	if (!Q_stricmp (token, "portal"))
 	{
 		pass->alphagen = ALPHA_GEN_PORTAL;
+		shader->portaldist = Shader_ParseFloat(ptr);
+		if (!shader->portaldist)
+			shader->portaldist = 256;
 		shader->flags |= SHADER_AGEN_PORTAL;
 	}
 	else if (!Q_stricmp (token, "vertex"))
@@ -1432,12 +1483,11 @@ qboolean Shader_Init (void)
 
 	shader_hash = calloc (HASH_SIZE, sizeof(*shader_hash));
 
-	Con_Printf ( "Initializing Shaders.\n" );
+	shader_active_hash_mem = malloc(Hash_BytesForBuckets(1024));
+	memset(shader_active_hash_mem, 0, Hash_BytesForBuckets(1024));
+	Hash_InitTable(&shader_active_hash, 1024, shader_active_hash_mem);
 
-	COM_EnumerateFiles("shaders/*.shader", Shader_InitCallback, NULL);
-	COM_EnumerateFiles("scripts/*.shader", Shader_InitCallback, NULL);
-//	COM_EnumerateFiles("scripts/*.rscript", Shader_InitCallback, NULL);
-
+	shader_rescan_needed = true;
 	Shader_NeedReload();
 	Shader_DoReload();
 	return true;
@@ -1474,7 +1524,7 @@ static void Shader_MakeCache ( char *path )
 
 		t = NULL;
 		Shader_GetPathAndOffset ( token, &t, &i );
-		if ( t )
+		if (t)
 		{
 			ptr = Shader_Skip ( ptr );
 			continue;
@@ -1567,6 +1617,8 @@ void Shader_Free (shader_t *shader)
 	int i;
 	shaderpass_t *pass;
 
+	Hash_RemoveData(&shader_active_hash, shader->name, shader);
+
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 		if (shader->programhandle.glsl)
@@ -1594,6 +1646,7 @@ void Shader_Free (shader_t *shader)
 	{
 		Shader_FreePass (pass);
 	}
+	shader->numpasses = 0;
 }
 
 void Shader_Shutdown (void)
@@ -1605,7 +1658,7 @@ void Shader_Shutdown (void)
 	shader = r_shaders;
 	for (i = 0; i < MAX_SHADERS; i++, shader++)
 	{
-		if ( !shader->registration_sequence )
+		if ( !shader->uses )
 			continue;
 
 		Shader_Free ( shader );
@@ -1623,10 +1676,12 @@ void Shader_Shutdown (void)
 		}
 	}
 
-	Z_Free(r_shaders);
+	free(r_shaders);
 	r_shaders = NULL;
-	Z_Free(shader_hash);
+	free(shader_hash);
 	shader_hash = NULL;
+	free(shader_active_hash_mem);
+	shader_active_hash_mem = NULL;
 
 	shader_reload_needed = false;
 }
@@ -1703,7 +1758,7 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 	pass->numtcmods = 0;
 	pass->numMergedPasses = 1;
 
-	while ( ptr )
+	while ( *ptr )
 	{
 		token = COM_ParseExt (ptr, true);
 
@@ -2013,7 +2068,7 @@ void Shader_Finish (shader_t *s)
 					"{\n"
 						"{\n"
 							"map $whiteimage\n"
-							"rgbgen $r_fastskycolour\n"
+							"rgbgen const $r_fastskycolour\n"
 						"}\n"
 					"}\n"
 				);
@@ -2161,7 +2216,7 @@ done:;
 		pass = s->passes;
 		for (i = 0; i < s->numpasses; i++, pass++ )
 		{
-			if ((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_DST_COLOR|SBITS_DSTBLEND_ZERO))
+			if (pass->shaderbits & SBITS_ATEST_BITS)
 			{
 				opaque = i;
 			}
@@ -2180,11 +2235,9 @@ done:;
 		if (!(s->flags & SHADER_SKY ) && !s->sort)
 		{
 			if (opaque == -1)
-				s->sort = SHADER_SORT_ADDITIVE;
-			else if (s->passes[opaque].shaderbits & SBITS_ATEST_BITS)
-				s->sort = SHADER_SORT_OPAQUE + 1;
+				s->sort = SHADER_SORT_BLEND;
 			else
-				s->sort = SHADER_SORT_OPAQUE;
+				s->sort = SHADER_SORT_SEETHROUGH;
 		}
 	}
 	else
@@ -2206,7 +2259,7 @@ done:;
 		if (!s->sort)
 		{
 			if (pass->shaderbits & SBITS_ATEST_BITS)
-				s->sort = SHADER_SORT_OPAQUE + 1;
+				s->sort = SHADER_SORT_SEETHROUGH;
 		}
 
 		if (!( s->flags & SHADER_DEPTHWRITE) &&
@@ -2314,6 +2367,11 @@ void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 	if (!TEXVALID(tn->bump) && gl_bump.ival)
 		tn->bump = R_LoadHiResTexture(va("normalmaps/%s", shader->name), NULL, IF_NOALPHA);
 
+	if (!TEXVALID(tn->loweroverlay))
+		tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", shader->name), NULL, 0);	/*how rude*/
+	if (!TEXVALID(tn->upperoverlay))
+		tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->name), NULL, 0);
+
 	shader->defaulttextures = *tn;
 }
 
@@ -2331,24 +2389,211 @@ void Shader_DefaultScript(char *shortname, shader_t *s, const void *args)
 	}
 };
 
-void Shader_DefaultBSP(char *shortname, shader_t *s, const void *args)
+void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 {
 	char *builtin = NULL;
+	if (!builtin && r_drawflat.value)
+		builtin = (
+				"{\n"
+					"{\n"
+						"map $lightmap\n"
+						"tcgen lightmap\n"
+						"rgbgen const $r_floorcolour\n"
+					"}\n"
+				"}\n"
+			);
+
+	if (!builtin)
+		builtin = (
+				"{\n"
+					"if $deluxmap\n"
+					"[\n"
+						"{\n"
+							"map $normalmap\n"
+							"tcgen base\n"
+						"}\n"
+						"{\n"
+							"map $deluxmap\n"
+							"tcgen lightmap\n"
+						"}\n"
+					"]\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcgen base\n"
+					"}\n"
+					"if $lightmap\n"
+					"[\n"
+						"{\n"
+							"map $lightmap\n"
+							"blendfunc gl_dst_color gl_zero\n"
+						"}\n"
+					"]\n"
+					"{\n"
+						"map $fullbright\n"
+						"blendfunc add\n"
+						"depthfunc equal\n"
+					"}\n"
+				"}\n"
+			);
+
+	Shader_DefaultScript(shortname, s, builtin);
+}
+
+void Shader_DefaultCinematic(char *shortname, shader_t *s, const void *args)
+{
+	Shader_DefaultScript(shortname, s,
+		va(
+			"{\n"
+				"{\n"
+					"videomap %s\n"
+				"}\n"
+			"}\n"
+		, args)
+	);
+}
+
+/*shortname should begin with 'skybox_'*/
+void Shader_DefaultSkybox(char *shortname, shader_t *s, const void *args)
+{
+	Shader_DefaultScript(shortname, s,
+		va(
+			"{\n"
+				"skyparms %s - -\n"
+			"}\n"
+		, shortname+7)
+	);
+}
+
+void Shader_DefaultBSPQ2(char *shortname, shader_t *s, const void *args)
+{
+	if (!strncmp(shortname, "sky/", 4))
+	{
+		Shader_DefaultScript(shortname, s,
+				"{\n"
+					"skyparms - - -\n"
+				"}\n"
+			);
+	}
+	else if (!strncmp(shortname, "warp/", 7))
+	{
+		Shader_DefaultScript(shortname, s,
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcmod turb 0 0.01 0.5 0\n"
+					"}\n"
+				"}\n"
+			);
+	}
+	else if (!strncmp(shortname, "warp33/", 7))
+	{
+		Shader_DefaultScript(shortname, s,
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcmod turb 0 0.01 0.5 0\n"
+						"alphagen const 0.333\n"
+						"blendfunc blend\n"
+					"}\n"
+				"}\n"
+			);
+	}
+	else if (!strncmp(shortname, "warp66/", 7))
+	{
+		Shader_DefaultScript(shortname, s,
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcmod turb 0 0.01 0.5 0\n"
+						"alphagen const 0.666\n"
+						"blendfunc blend\n"
+					"}\n"
+				"}\n"
+			);
+	}
+	else if (!strncmp(shortname, "trans/", 7))
+		Shader_DefaultScript(shortname, s,
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"alphagen const 1\n"
+						"blendfunc blend\n"
+					"}\n"
+				"}\n"
+			);
+	else if (!strncmp(shortname, "trans33/", 7))
+		Shader_DefaultScript(shortname, s,
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"alphagen const 0.333\n"
+						"blendfunc blend\n"
+					"}\n"
+				"}\n"
+			);
+	else if (!strncmp(shortname, "trans66/", 7))
+		Shader_DefaultScript(shortname, s,
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"alphagen const 0.666\n"
+						"blendfunc blend\n"
+					"}\n"
+				"}\n"
+			);
+	else
+		Shader_DefaultBSPLM(shortname, s, args);
+}
+
+void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
+{
+	char *builtin = NULL;
+	if (r_mirroralpha.value < 1 && !strcmp(shortname, "window02_1"))
+	{
+		if (r_mirroralpha.value < 0)
+		{
+			builtin =	"{\n"
+							"portal\n"
+							"{\n"
+								"map $diffuse\n"
+								"blendfunc blend\n"
+								"alphagen portal 512\n"
+								"depthwrite\n"
+							"}\n"
+						"}\n";
+		}
+		else
+		{
+			builtin =	"{\n"
+							"portal\n"
+							"{\n"
+								"map $diffuse\n"
+								"blendfunc blend\n"
+								"alphagen const $r_mirroralpha\n"
+								"depthwrite\n"
+							"}\n"
+						"}\n";
+		}
+
+	}
+
 	if (!builtin && (*shortname == '*'))
 	{
 		//q1 water
-	/*	if (r_fastturb.value)
+		if (r_fastturb.ival)
 		{
-					builtin = (
+			builtin = (
+				"{\n"
 					"{\n"
-						"{\n"
-							"map $whiteimage\n"
-							"rgbgen $r_fastturbcolour\n"
-						"}\n"
+						"map $whiteimage\n"
+						"rgbgen $r_fastturbcolour\n"
 					"}\n"
-				);
+				"}\n"
+			);
 		}
-		else*/
+#ifdef GLQUAKE
+		else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects)
+		{
 			builtin = (
 				"{\n"
 					"program\n"
@@ -2388,6 +2633,19 @@ void Shader_DefaultBSP(char *shortname, shader_t *s, const void *args)
 					"}\n"
 				"}\n"
 			);
+		}
+#endif
+		else
+		{
+			builtin = (
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcmod turb 0 0.01 0.5 0\n"
+					"}\n"
+				"}\n"
+			);
+		}
 	}
 	if (!builtin && !strncmp(shortname, "sky", 3))
 	{
@@ -2397,7 +2655,7 @@ void Shader_DefaultBSP(char *shortname, shader_t *s, const void *args)
 					"{\n"
 						"{\n"
 							"map $whiteimage\n"
-							"rgbgen $r_fastskycolour\n"
+							"rgbgen const $r_fastskycolour\n"
 						"}\n"
 					"}\n"
 				);
@@ -2407,7 +2665,8 @@ void Shader_DefaultBSP(char *shortname, shader_t *s, const void *args)
 						"skyparms $r_skybox - -\n"
 					"}\n"
 				);
-		else
+#ifdef GLQUAKE
+		else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects)
 			builtin = (
 				"{\n"
 					"program\n"
@@ -2464,6 +2723,25 @@ void Shader_DefaultBSP(char *shortname, shader_t *s, const void *args)
 					"}\n"
 				"}\n"
 			);
+#endif
+		else
+			builtin = (
+				"{\n"
+					"skyparms - 512 -\n"
+					/*WARNING: these values are not authentic quake, only close aproximations*/
+					"{\n"
+						"map $diffuse\n"
+						"tcmod scale 10 10\n"
+						"tcmod scroll 0.04 0.04\n"
+					"}\n"
+					"{\n"
+						"map $fullbright\n"
+						"blendfunc blend\n"
+						"tcmod scale 10 10\n"
+						"tcmod scroll 0.02 0.02\n"
+					"}\n"
+				"}\n"
+			);
 	}
 	if (!builtin && *shortname == '{')
 	{
@@ -2504,7 +2782,7 @@ void Shader_DefaultBSP(char *shortname, shader_t *s, const void *args)
 	}
 
 	/*Hack: note that halflife would normally expect you to use rendermode/renderampt*/
-	if (!builtin && (!strncmp(shortname, "glass", 5) || !strncmp(shortname, "window", 6)))
+	if (!builtin && (!strncmp(shortname, "glass", 5)/* || !strncmp(shortname, "window", 6)*/))
 	{
 		/*alpha bended*/
 		builtin = (
@@ -2518,51 +2796,10 @@ void Shader_DefaultBSP(char *shortname, shader_t *s, const void *args)
 		);
 	}
 
-	if (!builtin && r_drawflat.value)
-		builtin = (
-				"{\n"
-					"{\n"
-						"map $lightmap\n"
-						"tcgen lightmap\n"
-						"rgbgen const $r_floorcolour\n"
-					"}\n"
-				"}\n"
-			);
-
-	if (!builtin)
-		builtin = (
-				"{\n"
-					"if $deluxmap\n"
-					"[\n"
-						"{\n"
-							"map $normalmap\n"
-							"tcgen base\n"
-						"}\n"
-						"{\n"
-							"map $deluxmap\n"
-							"tcgen lightmap\n"
-						"}\n"
-					"]\n"
-					"{\n"
-						"map $diffuse\n"
-						"tcgen base\n"
-					"}\n"
-					"if $lightmap\n"
-					"[\n"
-						"{\n"
-							"map $lightmap\n"
-							"blendfunc gl_dst_color gl_zero\n"
-						"}\n"
-					"]\n"
-					"{\n"
-						"map $fullbright\n"
-						"blendfunc add\n"
-						"depthfunc equal\n"
-					"}\n"
-				"}\n"
-			);
-
-	Shader_DefaultScript(shortname, s, builtin);
+	if (builtin)
+		Shader_DefaultScript(shortname, s, builtin);
+	else
+		Shader_DefaultBSPLM(shortname, s, args);
 }
 
 void Shader_DefaultBSPVertex(char *shortname, shader_t *s, const void *args)
@@ -2588,7 +2825,7 @@ void Shader_DefaultBSPVertex(char *shortname, shader_t *s, const void *args)
 	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
 	s->features = MF_STCOORDS|MF_COLORS;
 	s->sort = SHADER_SORT_OPAQUE;
-	s->registration_sequence = 1;//fizme: registration_sequence;
+	s->uses = 1;
 }
 void Shader_DefaultBSPFlare(char *shortname, shader_t *s, const void *args)
 {
@@ -2615,7 +2852,7 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s, const void *args)
 	s->flags = SHADER_FLARE;
 	s->features = MF_STCOORDS|MF_COLORS;
 	s->sort = SHADER_SORT_ADDITIVE;
-	s->registration_sequence = 1;//fizme: registration_sequence;
+	s->uses = 1;
 }
 void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 {
@@ -2628,10 +2865,12 @@ void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 			"{\n"
 				"map $loweroverlay\n"
 				"rgbgen bottomcolor\n"
+				"blendfunc gl_src_alpha gl_one\n"
 			"}\n"
 			"{\n"
 				"map $upperoverlay\n"
-				"rgbgen uppercolor\n"
+				"rgbgen topcolor\n"
+				"blendfunc gl_src_alpha gl_one\n"
 			"}\n"
 			"{\n"
 				"map $fullbright\n"
@@ -2668,7 +2907,7 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s, const void *args)
 	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
 	s->features = MF_STCOORDS|MF_NORMALS;
 	s->sort = SHADER_SORT_OPAQUE;
-	s->registration_sequence = 1;//fizme: registration_sequence;
+	s->uses = 1;
 }
 void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 {
@@ -2698,7 +2937,7 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 	s->flags = SHADER_NOPICMIP|SHADER_NOMIPMAPS|SHADER_BLEND;
 	s->features = MF_STCOORDS|MF_COLORS;
 	s->sort = SHADER_SORT_ADDITIVE;
-	s->registration_sequence = 1;//fizme: registration_sequence;
+	s->uses = 1;
 }
 
 //loads a shader string into an existing shader object, and finalises it and stuff
@@ -2708,7 +2947,7 @@ static void Shader_ReadShader(shader_t *s, char *shadersource)
 
 // set defaults
 	s->flags = SHADER_CULL_FRONT;
-	s->registration_sequence = 1;//fizme: registration_sequence;
+	s->uses = 1;
 
 	while (shadersource)
 	{
@@ -2747,7 +2986,7 @@ static void Shader_ReadShader(shader_t *s, char *shadersource)
 	Shader_Finish ( s );
 }
 
-qboolean Shader_ParseShader(char *shortname, char *usename, shader_t *s)
+static qboolean Shader_ParseShader(char *shortname, char *usename, shader_t *s)
 {
 	unsigned int offset = 0, length;
 	char path[MAX_QPATH];
@@ -2780,6 +3019,7 @@ qboolean Shader_ParseShader(char *shortname, char *usename, shader_t *s)
 		Shader_Free(s);
 		memset ( s, 0, sizeof( shader_t ) );
 		Com_sprintf ( s->name, MAX_QPATH, usename );
+		Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
 
 		Shader_ReadShader(s, file);
 
@@ -2792,8 +3032,12 @@ qboolean Shader_ParseShader(char *shortname, char *usename, shader_t *s)
 
 	return false;
 }
-
-int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *genargs)
+void R_UnloadShader(shader_t *shader)
+{
+	if (shader->uses-- == 1)
+		Shader_Free(shader);
+}
+static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *genargs)
 {
 	int i, f = -1;
 	char shortname[MAX_QPATH];
@@ -2803,20 +3047,25 @@ int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *genargs)
 
 	COM_CleanUpPath(shortname);
 
-	// test if already loaded
+	// check the hash first
+	s = Hash_Get(&shader_active_hash, shortname);
+	if (s)
+	{
+		i = s - r_shaders;
+		r_shaders[i].uses++;
+		return i;
+	}
+
+	// not loaded, find a free slot
 	for (i = 0; i < MAX_SHADERS; i++)
 	{
-		if (!r_shaders[i].generator)
+		if (!r_shaders[i].uses)
 		{
 			if ( f == -1 )	// free shader
+			{
 				f = i;
-			continue;
-		}
-
-		if (!Q_stricmp (shortname, r_shaders[i].name) )
-		{
-			r_shaders[i].registration_sequence = 1;//fizme: registration_sequence;
-			return i;
+				break;
+			}
 		}
 	}
 
@@ -2857,6 +3106,7 @@ int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *genargs)
 		s->generator = defaultgen;
 		s->genargs = genargs;
 		Com_sprintf ( s->name, MAX_QPATH, shortname );
+		Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
 		defaultgen(shortname, s, genargs);
 
 		return f;
@@ -2873,6 +3123,18 @@ void Shader_DoReload(void)
 	const char *genargs;
 	texnums_t oldtn;
 
+	if (shader_rescan_needed && ruleset_allow_shaders.ival)
+	{
+		Con_Printf ( "Initializing Shaders.\n" );
+
+		COM_EnumerateFiles("shaders/*.shader", Shader_InitCallback, NULL);
+		COM_EnumerateFiles("scripts/*.shader", Shader_InitCallback, NULL);
+		//COM_EnumerateFiles("scripts/*.rscript", Shader_InitCallback, NULL);
+
+		shader_reload_needed = true;
+		shader_rescan_needed = false;
+	}
+
 	if (!shader_reload_needed)
 		return;
 	shader_reload_needed = false;
@@ -2881,7 +3143,7 @@ void Shader_DoReload(void)
 
 	for (s = r_shaders, i = 0; i < MAX_SHADERS; i++, s++)
 	{
-		if (!s->generator)
+		if (!s->uses)
 			continue;
 
 		defaultgen = s->generator;
@@ -2918,6 +3180,7 @@ void Shader_DoReload(void)
 			s->generator = defaultgen;
 			s->genargs = genargs;
 			Com_sprintf ( s->name, MAX_QPATH, shortname );
+			Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
 			s->generator(shortname, s, s->genargs);
 			R_BuildDefaultTexnums(&oldtn, s);
 		}
@@ -2929,14 +3192,27 @@ void Shader_NeedReload(void)
 	shader_reload_needed = true;
 }
 
-cin_t *R_ShaderGetCinematic(char *name)
+cin_t *R_ShaderGetCinematic(shader_t *s)
+{
+#ifndef NOMEDIA
+	int j;
+	if (!s)
+		return NULL;
+	for (j = 0; j < s->numpasses; j++)
+		if (s->passes[j].cin)
+			return s->passes[j].cin;
+#endif
+	/*no cinematic in this shader!*/
+	return NULL;
+}
+
+cin_t *R_ShaderFindCinematic(char *name)
 {
 #ifdef NOMEDIA
 	return NULL;
 #else
-	int i, j;
-		char shortname[MAX_QPATH];
-	shader_t *s;
+	int i;
+	char shortname[MAX_QPATH];
 
 	COM_StripExtension ( name, shortname, sizeof(shortname));
 
@@ -2945,7 +3221,7 @@ cin_t *R_ShaderGetCinematic(char *name)
 	//try and find it
 	for (i = 0; i < MAX_SHADERS; i++)
 	{
-		if (!r_shaders[i].registration_sequence)
+		if (!r_shaders[i].uses)
 			continue;
 
 		if (!Q_stricmp (shortname, r_shaders[i].name) )
@@ -2954,14 +3230,8 @@ cin_t *R_ShaderGetCinematic(char *name)
 	if (i == MAX_SHADERS)
 		return NULL;
 
-	//we have a currently-loaded shader.
-	s = &r_shaders[i];
-	for (j = 0; j < s->numpasses; j++)
-		if (s->passes[j].cin)
-			return s->passes[j].cin;
-
-	//but it has no cinematic passes.
-	return NULL;
+	//found the named shader.
+	return R_ShaderGetCinematic(&r_shaders[i]);
 #endif
 }
 
@@ -2977,7 +3247,7 @@ shader_t *R_RegisterShader (char *name, const char *shaderscript)
 
 shader_t *R_RegisterShader_Lightmap (char *name)
 {
-	return &r_shaders[R_LoadShader (name, Shader_DefaultBSP, NULL)];
+	return &r_shaders[R_LoadShader (name, Shader_DefaultBSPLM, NULL)];
 }
 
 shader_t *R_RegisterShader_Vertex (char *name)

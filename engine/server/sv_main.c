@@ -64,25 +64,25 @@ typedef struct {
 	netadr_t	adr;
 } sv_masterlist_t;
 sv_masterlist_t sv_masterlist[] = {
-	{MP_QUAKEWORLD, SCVARC("sv_master1", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master2", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master3", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master4", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master5", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master6", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master7", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master8", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master1", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master2", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master3", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master4", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master5", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master6", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master7", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master8", "", SV_Masterlist_Callback)},
 
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra1", "qwmaster.ocrana.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra2", "masterserver.exhale.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra3", "kubus.rulez.pl:27000", SV_Masterlist_Callback)},	//poland. admin unknown
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra4", "master.quakeservers.net:27000", SV_Masterlist_Callback)},	//european. admin: raz0?
-	//{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra5", "asgaard.morphos-team.net:27000", SV_Masterlist_Callback)},	//admin bigfoot
+	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra1", "qwmaster.ocrana.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
+	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra2", "masterserver.exhale.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
+	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra3", "kubus.rulez.pl:27000", SV_Masterlist_Callback)},	//poland. admin unknown
+	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra4", "master.quakeservers.net:27000", SV_Masterlist_Callback)},	//european. admin: raz0?
+	//{MP_QUAKEWORLD, CVARC("sv_qwmasterextra5", "asgaard.morphos-team.net:27000", SV_Masterlist_Callback)},	//admin bigfoot
 
-	{MP_DARKPLACES, SCVARC("sv_masterextra1", "ghdigital.com:27950", SV_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
-	{MP_DARKPLACES, SCVARC("sv_masterextra2", "dpmaster.deathmask.net:27950", SV_Masterlist_Callback)}, //209.164.24.243 (admin: Willis)
-	{MP_DARKPLACES, SCVARC("sv_masterextra3", "dpmaster.tchr.no:27950", SV_Masterlist_Callback)}, // (admin: tChr)
-	{MP_NONE, SCVAR(NULL, NULL)}
+	{MP_DARKPLACES, CVARC("sv_masterextra1", "ghdigital.com:27950", SV_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
+	{MP_DARKPLACES, CVARC("sv_masterextra2", "dpmaster.deathmask.net:27950", SV_Masterlist_Callback)}, //209.164.24.243 (admin: Willis)
+	{MP_DARKPLACES, CVARC("sv_masterextra3", "dpmaster.tchr.no:27950", SV_Masterlist_Callback)}, // (admin: tChr)
+	{MP_NONE, CVAR(NULL, NULL)}
 };
 
 client_t	*host_client;			// current client
@@ -112,102 +112,104 @@ extern cvar_t	developer;
 extern cvar_t	rcon_password;
 extern cvar_t	password;
 #endif
-cvar_t	spectator_password = SCVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
+cvar_t	spectator_password = CVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
 
-cvar_t	allow_download = SCVAR("allow_download", "1");
-cvar_t	allow_download_skins = SCVAR("allow_download_skins", "1");
-cvar_t	allow_download_models = SCVAR("allow_download_models", "1");
-cvar_t	allow_download_sounds = SCVAR("allow_download_sounds", "1");
-cvar_t	allow_download_demos = SCVAR("allow_download_demos", "1");
-cvar_t	allow_download_maps = SCVAR("allow_download_maps", "1");
-cvar_t	allow_download_anymap = SCVAR("allow_download_pakmaps", "0");
-cvar_t	allow_download_pakcontents = SCVAR("allow_download_pakcontents", "1");
-cvar_t	allow_download_root = SCVAR("allow_download_root", "0");
-cvar_t	allow_download_textures = SCVAR("allow_download_textures", "1");
-cvar_t	allow_download_pk3s = SCVAR("allow_download_pk3s", "1");
-cvar_t	allow_download_wads = SCVAR("allow_download_wads", "1");
-cvar_t	allow_download_configs = SCVAR("allow_download_configs", "0");
+cvar_t	allow_download = CVAR("allow_download", "1");
+cvar_t	allow_download_skins = CVAR("allow_download_skins", "1");
+cvar_t	allow_download_models = CVAR("allow_download_models", "1");
+cvar_t	allow_download_sounds = CVAR("allow_download_sounds", "1");
+cvar_t	allow_download_demos = CVAR("allow_download_demos", "1");
+cvar_t	allow_download_maps = CVAR("allow_download_maps", "1");
+cvar_t	allow_download_anymap = CVAR("allow_download_pakmaps", "0");
+cvar_t	allow_download_pakcontents = CVAR("allow_download_pakcontents", "1");
+cvar_t	allow_download_root = CVAR("allow_download_root", "0");
+cvar_t	allow_download_textures = CVAR("allow_download_textures", "1");
+cvar_t	allow_download_pk3s = CVAR("allow_download_pk3s", "1");
+cvar_t	allow_download_wads = CVAR("allow_download_wads", "1");
+cvar_t	allow_download_configs = CVAR("allow_download_configs", "0");
 
-cvar_t sv_public = SCVAR("sv_public", "0");
-cvar_t sv_listen_qw = FCVAR("sv_listen_qw", "sv_listen", "1", 0);
-cvar_t sv_listen_nq = SCVAR("sv_listen_nq", "0");
-cvar_t sv_listen_dp = SCVAR("sv_listen_dp", "1");
-cvar_t sv_listen_q3 = SCVAR("sv_listen_q3", "0");
-cvar_t sv_reportheartbeats = SCVAR("sv_reportheartbeats", "1");
-cvar_t sv_highchars = SCVAR("sv_highchars", "1");
-cvar_t sv_loadentfiles = SCVAR("sv_loadentfiles", "1");
-cvar_t sv_maxrate = SCVAR("sv_maxrate", "10000");
-cvar_t sv_maxdrate = FCVAR("sv_maxdrate", "sv_maxdownloadrate", "10000", 0);
-cvar_t sv_minping = SCVARF("sv_minping", "0", CVAR_SERVERINFO);
+cvar_t sv_public = CVAR("sv_public", "0");
+cvar_t sv_listen_qw = CVARAF("sv_listen_qw", "1", "sv_listen", 0);
+cvar_t sv_listen_nq = CVAR("sv_listen_nq", "0");
+cvar_t sv_listen_dp = CVAR("sv_listen_dp", "1");
+cvar_t sv_listen_q3 = CVAR("sv_listen_q3", "0");
+cvar_t sv_reportheartbeats = CVAR("sv_reportheartbeats", "1");
+cvar_t sv_highchars = CVAR("sv_highchars", "1");
+cvar_t sv_loadentfiles = CVAR("sv_loadentfiles", "1");
+cvar_t sv_maxrate = CVAR("sv_maxrate", "10000");
+cvar_t sv_maxdrate = CVARAF("sv_maxdrate", "10000",
+							"sv_maxdownloadrate", 0);
+cvar_t sv_minping = CVARF("sv_minping", "0", CVAR_SERVERINFO);
 
-cvar_t sv_bigcoords = SCVARF("sv_bigcoords", "", CVAR_SERVERINFO);
+cvar_t sv_bigcoords = CVARF("sv_bigcoords", "", CVAR_SERVERINFO);
 
-cvar_t sv_cullplayers_trace = SCVARF("sv_cullplayers_trace", "", CVAR_SERVERINFO);
-cvar_t sv_cullentities_trace = SCVARF("sv_cullentities_trace", "", CVAR_SERVERINFO);
-cvar_t sv_phs = SCVAR("sv_phs", "1");
-cvar_t sv_resetparms = SCVAR("sv_resetparms", "0");
+cvar_t sv_cullplayers_trace = CVARF("sv_cullplayers_trace", "", CVAR_SERVERINFO);
+cvar_t sv_cullentities_trace = CVARF("sv_cullentities_trace", "", CVAR_SERVERINFO);
+cvar_t sv_phs = CVAR("sv_phs", "1");
+cvar_t sv_resetparms = CVAR("sv_resetparms", "0");
 
-cvar_t sv_master = SCVAR("sv_master", "0");
-cvar_t sv_masterport = SCVAR("sv_masterport", "0");
+cvar_t sv_master = CVAR("sv_master", "0");
+cvar_t sv_masterport = CVAR("sv_masterport", "0");
 
-cvar_t	sv_voicechat = SCVAR("sv_voicechat", "0");	//still development.
-cvar_t	sv_gamespeed = SCVAR("sv_gamespeed", "1");
-cvar_t	sv_csqcdebug = SCVAR("sv_csqcdebug", "0");
-cvar_t	sv_csqc_progname = SCVAR("sv_csqc_progname", "csprogs.dat");
+cvar_t	sv_voicechat = CVAR("sv_voicechat", "0");	//still development.
+cvar_t	sv_gamespeed = CVAR("sv_gamespeed", "1");
+cvar_t	sv_csqcdebug = CVAR("sv_csqcdebug", "0");
+cvar_t	sv_csqc_progname = CVAR("sv_csqc_progname", "csprogs.dat");
 #ifdef TCPCONNECT
-cvar_t	sv_port_tcp = SCVARC("sv_port_tcp", "", SV_Tcpport_Callback);
+cvar_t	sv_port_tcp = CVARC("sv_port_tcp", "", SV_Tcpport_Callback);
 #ifdef IPPROTO_IPV6
-cvar_t	sv_port_tcp6 = SCVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
+cvar_t	sv_port_tcp6 = CVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
 #endif
 #endif
-cvar_t  sv_port = SCVARC("sv_port", "27500", SV_Port_Callback);
+cvar_t  sv_port = CVARC("sv_port", "27500", SV_Port_Callback);
 #ifdef IPPROTO_IPV6
-cvar_t  sv_port_ipv6 = SCVARC("sv_port_ipv6", "27500", SV_PortIPv6_Callback);
+cvar_t  sv_port_ipv6 = CVARC("sv_port_ipv6", "27500", SV_PortIPv6_Callback);
 #endif
 #ifdef USEIPX
-cvar_t  sv_port_ipx = SCVARC("sv_port_ipx", "27500", SV_PortIPX_Callback);
+cvar_t  sv_port_ipx = CVARC("sv_port_ipx", "27500", SV_PortIPX_Callback);
 #endif
 
-cvar_t pausable	= SCVAR("pausable", "1");
+cvar_t pausable	= CVAR("pausable", "1");
 
 
 //
 // game rules mirrored in svs.info
 //
-cvar_t	fraglimit		= SCVARF("fraglimit",		"" ,	CVAR_SERVERINFO);
-cvar_t	timelimit		= SCVARF("timelimit",		"" ,	CVAR_SERVERINFO);
-cvar_t	teamplay		= SCVARF("teamplay",		"" ,	CVAR_SERVERINFO);
-cvar_t	samelevel		= SCVARF("samelevel",		"" ,	CVAR_SERVERINFO);
-cvar_t	maxclients		= FCVAR("maxclients","sv_maxclients","8",CVAR_SERVERINFO);
-cvar_t	maxspectators	= SCVARF("maxspectators",	"8",	CVAR_SERVERINFO);
+cvar_t	fraglimit		= CVARF("fraglimit",		"" ,	CVAR_SERVERINFO);
+cvar_t	timelimit		= CVARF("timelimit",		"" ,	CVAR_SERVERINFO);
+cvar_t	teamplay		= CVARF("teamplay",		"" ,	CVAR_SERVERINFO);
+cvar_t	samelevel		= CVARF("samelevel",		"" ,	CVAR_SERVERINFO);
+cvar_t	maxclients		= CVARAF("maxclients",		"8",
+								 "sv_maxclients",			CVAR_SERVERINFO);
+cvar_t	maxspectators	= CVARF("maxspectators",	"8",	CVAR_SERVERINFO);
 #ifdef SERVERONLY
-cvar_t	deathmatch		= SCVARF("deathmatch",		"1",	CVAR_SERVERINFO);			// 0, 1, or 2
+cvar_t	deathmatch		= CVARF("deathmatch",		"1",	CVAR_SERVERINFO);			// 0, 1, or 2
 #else
-cvar_t	deathmatch		= SCVARF("deathmatch",		"0",	CVAR_SERVERINFO);			// 0, 1, or 2
+cvar_t	deathmatch		= CVARF("deathmatch",		"0",	CVAR_SERVERINFO);			// 0, 1, or 2
 #endif
-cvar_t	coop			= SCVARF("coop",			"" ,	CVAR_SERVERINFO);
-cvar_t	skill			= SCVARF("skill",			"" ,	CVAR_SERVERINFO);			// 0, 1, 2 or 3
-cvar_t	spawn			= SCVARF("spawn",			"" ,	CVAR_SERVERINFO);
-cvar_t	watervis		= SCVARF("watervis",		"" ,	CVAR_SERVERINFO);
-cvar_t	rearview		= SCVARF("rearview",		"" ,	CVAR_SERVERINFO);
-cvar_t	allow_fish		= SCVARF("allow_fish",		"0",	CVAR_SERVERINFO);
-cvar_t	allow_luma		= SCVARF("allow_luma",		"1",	CVAR_SERVERINFO);
-cvar_t	allow_bump		= SCVARF("allow_bump",		"1",	CVAR_SERVERINFO);
-cvar_t	allow_skybox	= SCVARF("allow_skybox",	"",		CVAR_SERVERINFO);
-cvar_t	sv_allow_splitscreen = SCVARF("allow_splitscreen","",CVAR_SERVERINFO);
-cvar_t	fbskins			= SCVARF("fbskins",			"1",	CVAR_SERVERINFO);	//to get rid of lame fuhquake fbskins
-cvar_t	mirrors			= SCVARF("mirrors",			"" ,	CVAR_SERVERINFO);
+cvar_t	coop			= CVARF("coop",			"" ,	CVAR_SERVERINFO);
+cvar_t	skill			= CVARF("skill",			"" ,	CVAR_SERVERINFO);			// 0, 1, 2 or 3
+cvar_t	spawn			= CVARF("spawn",			"" ,	CVAR_SERVERINFO);
+cvar_t	watervis		= CVARF("watervis",		"" ,	CVAR_SERVERINFO);
+cvar_t	rearview		= CVARF("rearview",		"" ,	CVAR_SERVERINFO);
+cvar_t	allow_fish		= CVARF("allow_fish",		"0",	CVAR_SERVERINFO);
+cvar_t	allow_luma		= CVARF("allow_luma",		"1",	CVAR_SERVERINFO);
+cvar_t	allow_bump		= CVARF("allow_bump",		"1",	CVAR_SERVERINFO);
+cvar_t	allow_skybox	= CVARF("allow_skybox",	"",		CVAR_SERVERINFO);
+cvar_t	sv_allow_splitscreen = CVARF("allow_splitscreen","",CVAR_SERVERINFO);
+cvar_t	fbskins			= CVARF("fbskins",			"1",	CVAR_SERVERINFO);	//to get rid of lame fuhquake fbskins
+cvar_t	mirrors			= CVARF("mirrors",			"" ,	CVAR_SERVERINFO);
 
-cvar_t	sv_motd[]		={	SCVAR("sv_motd1",		""),
-							SCVAR("sv_motd2",		""),
-							SCVAR("sv_motd3",		""),
-							SCVAR("sv_motd4",		"")	};
+cvar_t	sv_motd[]		={	CVAR("sv_motd1",		""),
+							CVAR("sv_motd2",		""),
+							CVAR("sv_motd3",		""),
+							CVAR("sv_motd4",		"")	};
 
-cvar_t sv_compatiblehulls = SCVAR("sv_compatiblehulls", "1");
+cvar_t sv_compatiblehulls = CVAR("sv_compatiblehulls", "1");
 
-cvar_t	hostname = SCVARF("hostname","unnamed", CVAR_SERVERINFO);
+cvar_t	hostname = CVARF("hostname","unnamed", CVAR_SERVERINFO);
 
-cvar_t	secure = SCVARF("secure", "", CVAR_SERVERINFO);
+cvar_t	secure = CVARF("secure", "", CVAR_SERVERINFO);
 
 extern cvar_t sv_nomsec;
 
@@ -1811,7 +1813,7 @@ client_t *SVC_DirectConnect(void)
 	else
 		maxpacketentities = MAX_STANDARD_PACKET_ENTITIES;
 
-	if (!sv_allow_splitscreen.value)
+	if (!sv_allow_splitscreen.ival)
 		numssclients = 1;
 
 	if (!(protextsupported & PEXT_SPLITSCREEN))
@@ -2012,14 +2014,14 @@ client_t *SVC_DirectConnect(void)
 	if (!newcl)	//client has no slot. It's possible to bipass this if server is loading a game. (or a duplicated qsocket)
 	{
 		// if at server limits, refuse connection
-		if ( maxclients.value > MAX_CLIENTS )
+		if ( maxclients.ival > MAX_CLIENTS )
 			Cvar_SetValue (&maxclients, MAX_CLIENTS);
-		if (maxspectators.value > MAX_CLIENTS)
+		if (maxspectators.ival > MAX_CLIENTS)
 			Cvar_SetValue (&maxspectators, MAX_CLIENTS);
-//		if (maxspectators.value + maxclients.value > MAX_CLIENTS)	//maybe a server wishes to allow this sort of thing?
-//			Cvar_SetValue ("maxspectators", MAX_CLIENTS - maxspectators.value + maxclients.value);
-		if (svprogfuncs && ((spectator && spectators >= (int)maxspectators.value)
-			|| (!spectator && clients >= (int)maxclients.value)
+//		if (maxspectators.ival + maxclients.value > MAX_CLIENTS)	//maybe a server wishes to allow this sort of thing?
+//			Cvar_SetValue ("maxspectators", MAX_CLIENTS - maxspectators.ival + maxclients.ival);
+		if (svprogfuncs && ((spectator && spectators >= maxspectators.ival)
+			|| (!spectator && clients >= maxclients.ival)
 			|| (clients + spectators >= sv.allocated_client_slots) ))
 		{
 			Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
@@ -4359,6 +4361,8 @@ void SV_Init (quakeparms_t *parms)
 
 //		if (parms->memsize < MINIMUM_MEMORY)
 //			SV_Error ("Only %4.1f megs of memory reported, can't execute game", parms->memsize / (float)0x100000);
+
+		Cvar_Init();
 
 		Memory_Init (parms->membase, parms->memsize);
 

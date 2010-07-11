@@ -163,8 +163,8 @@ void TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
 	TP_CVAR(loc_name_suit,		"suit")
 
 //create the globals for all the TP cvars.
-#define TP_CVAR(name,def) cvar_t	name = SCVAR(#name, def)
-#define TP_CVARC(name,def,call) cvar_t name = SCVARC(#name, def, call)
+#define TP_CVAR(name,def) cvar_t	name = CVAR(#name, def)
+#define TP_CVARC(name,def,call) cvar_t name = CVARC(#name, def, call)
 TP_CVARS;
 #undef TP_CVAR
 #undef TP_CVARC

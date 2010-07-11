@@ -324,12 +324,12 @@ comextqcfields
 } comentvars_t;
 #endif
 
-#define	MAX_ENT_LEAFS	16
 
 
-
-#if defined(ODE_STATIC) || defined(ODE_DYNAMIC)
-#define USEODE 1
+#if defined(CSQC_DAT) || !defined(CLIENTONLY)
+	#if defined(ODE_STATIC) || defined(ODE_DYNAMIC)
+		#define USEODE 1
+	#endif
 #endif
 
 #ifdef USEODE

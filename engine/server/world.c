@@ -292,7 +292,7 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 }
 
 #ifdef Q2BSPS
-void Q2BSP_FindTouchedLeafs(world_t *w, model_t *model, wedict_t *ent, float *mins, float *maxs)
+void Q2BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, float *mins, float *maxs)
 {
 #define MAX_TOTAL_ENT_LEAFS		128
 	int			leafs[MAX_TOTAL_ENT_LEAFS];
@@ -306,6 +306,9 @@ void Q2BSP_FindTouchedLeafs(world_t *w, model_t *model, wedict_t *ent, float *mi
 	ent->num_leafs = 0;
 	ent->areanum = 0;
 	ent->areanum2 = 0;
+
+	if (!mins || !maxs)
+		return;
 
 	//get all leafs, including solids
 	num_leafs = CM_BoxLeafnums (model, mins, maxs,
@@ -468,19 +471,12 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	
 // link to PVS leafs
 	if (w->worldmodel)
-		w->worldmodel->funcs.FindTouchedLeafs_Q1(w, w->worldmodel, ent, ent->v->absmin, ent->v->absmax);
-/*
-#ifdef Q2BSPS
-	if (w->worldmodel->fromgame == fg_quake2 || w->worldmodel->fromgame == fg_quake3)
-		Q2BSP_FindTouchedLeafs(ent);
-	else
-#endif
-		if (w->worldmodel->fromgame == fg_doom)
 	{
+		if (ent->v->modelindex)
+			w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, ent->v->absmin, ent->v->absmax);
+		else
+			w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, NULL, NULL);
 	}
-	else
-		Q1BSP_FindTouchedLeafs(ent);
-*/
 
 	if (ent->v->solid == SOLID_NOT)
 		return;
@@ -1614,7 +1610,10 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 		if (touch == clip->passedict)
 			continue;
 		if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
-			Host_Error ("Trigger (%s) in clipping list", PR_GetString(w->progs, touch->v->classname));
+		{
+			Con_Printf ("Trigger (%s) in clipping list\n", PR_GetString(w->progs, touch->v->classname));
+			continue;
+		}
 
 		if (clip->type & MOVE_LAGGED)
 		{

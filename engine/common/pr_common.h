@@ -29,13 +29,8 @@ struct wedict_s
 #endif
 	/*the above is shared with qclib*/
 	link_t	area;
-	int			num_leafs;
-	short		leafnums[MAX_ENT_LEAFS];
-#ifdef Q2BSPS
-	int areanum;	//q2bsp
-	int areanum2;	//q2bsp
-	int headnode;	//q2bsp
-#endif
+	pvscache_t pvsinfo;
+
 #ifdef USEODE
 	entityode_t ode;
 #endif
@@ -51,8 +46,6 @@ struct wedict_s
 #define PF_drawline PF_Fixme
 #define PF_drawcolorcodedstring PF_Fixme
 #define PF_uri_get PF_Fixme
-#define PF_strreplace PF_Fixme
-#define PF_strireplace PF_Fixme
 #define PF_gecko_create PF_Fixme
 #define PF_gecko_destroy PF_Fixme
 #define PF_gecko_navigate PF_Fixme
@@ -115,7 +108,10 @@ void PF_floor (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_ceil (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_Tokenize  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_tokenizebyseparator  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_tokenize_console  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_ArgV  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_argv_start_index  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_argv_end_index  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_FindString (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_nextent (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -219,6 +215,8 @@ void PF_etos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_stof (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_strreplace (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_strireplace (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_stov (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_dupstring(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -277,6 +275,7 @@ void PF_strpad (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_edict_for_num (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_num_for_edict (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_cvar_defstring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_cvar_description (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 //these functions are from pr_menu.dat
 void PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -315,6 +314,7 @@ void PF_bufstr_get  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_bufstr_set  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_bufstr_add  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_bufstr_free  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_buf_cvarlist  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void PF_whichpack (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 

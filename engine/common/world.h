@@ -115,16 +115,16 @@ typedef struct
 	vec3_t laggedpos;
 } laggedentinfo_t;
 
-struct world_s {
+struct world_s
+{
 	void (*Event_Touch)(struct world_s *w, wedict_t *s, wedict_t *o);
 	model_t *(*GetCModel)(struct world_s *w, int modelindex);
 
+	int				*global_self;
 	unsigned int	max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.
 	unsigned int	num_edicts;			// increases towards MAX_EDICTS
-FTE_DEPRECATED	unsigned int	edict_size;
-	wedict_t		*edicts;			// can NOT be array indexed, because
-									// edict_t is variable sized, but can
-									// be used to reference the world ent
+FTE_DEPRECATED	unsigned int	edict_size; //still used in copyentity
+	wedict_t		*edicts;			// can NOT be array indexed.
 	struct progfuncs_s *progs;
 	model_t			*worldmodel;
 	areanode_t	areanodes[AREA_NODES];
@@ -203,8 +203,8 @@ int VARGS WorldQ2_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, q2edict_t **
 trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, q2edict_t *passedict);
 
 unsigned int Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *buffer, unsigned int buffersize, qboolean add);
-qboolean Q2BSP_EdictInFatPVS(model_t *mod, wedict_t *ent, qbyte *pvs);
-void Q2BSP_FindTouchedLeafs(world_t *w, model_t *mod, wedict_t *ent, float *mins, float *maxs);
+qboolean Q2BSP_EdictInFatPVS(model_t *mod, struct pvscache_s *ent, qbyte *pvs);
+void Q2BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, float *mins, float *maxs);
 
 #endif
 

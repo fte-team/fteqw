@@ -243,14 +243,6 @@ CENTER PRINTING
 
 typedef struct {
 	unsigned int	flags;
-#define CPRINT_BALIGN		(1<<0)	//B
-#define CPRINT_OBITUARTY	(1<<1)	//O
-#define CPRINT_TALIGN		(1<<2)	//T
-#define CPRINT_LALIGN		(1<<3)	//L
-#define CPRINT_RALIGN		(1<<4)	//R
-#define CPRINT_PERSIST		(1<<5)	//P
-#define CPRINT_BACKGROUND	(1<<6)	//P
-#define CPRINT_TYPEWRITER	(1<<7)	//
 
 	conchar_t		string[1024];
 	unsigned int charcount;
@@ -537,6 +529,24 @@ extern qboolean sb_showscores;
 		SCR_VRectForPlayer(&rect, pnum);
 		SCR_DrawCenterString(&rect, p);
 	}
+}
+
+void R_DrawTextField(int x, int y, int w, int h, char *text, unsigned int defaultmask, unsigned int fieldflags)
+{
+	cprint_t p;
+	vrect_t r;
+
+	r.x = x;
+	r.y = y;
+	r.width = w;
+	r.height = h;
+
+	p.flags = fieldflags;
+	p.charcount = COM_ParseFunString(defaultmask, text, p.string, sizeof(p.string), false) - p.string;
+	p.time_off = scr_centertime.value;
+	p.time_start = cl.time;
+
+	SCR_DrawCenterString(&r, &p);
 }
 
 void SCR_DrawCursor(int prydoncursornum)
@@ -1488,7 +1498,7 @@ void SCR_DrawLoading (void)
 		unsigned int tsize;
 		qboolean sizeextra;
 		
-		x = vid.conwidth/2 - 160;
+		x = vid.width/2 - 160;
 
 		CL_GetDownloadSizes(&fcount, &tsize, &sizeextra);
 		//downloading files?

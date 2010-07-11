@@ -1824,7 +1824,7 @@ void SV_UpdateToReliableMessages (void)
 			if (progstype != PROG_QW)
 			{
 				if (!curgrav)
-					curgrav = 1;
+					curgrav = sv_gravity.value;
 				if (!curspeed)
 					curspeed = sv_maxspeed.value;
 			}

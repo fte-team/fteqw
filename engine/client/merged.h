@@ -86,10 +86,6 @@ extern void	(*R_PushDlights)						(void);
 extern void	(*R_AddStain)							(vec3_t org, float red, float green, float blue, float radius);
 extern void	(*R_LessenStains)						(void);
 
-extern void (*Media_ShowFrameBGR_24_Flip)			(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
-extern void (*Media_ShowFrameRGBA_32)				(qbyte *framedata, int inwidth, int inheight);	//top down
-extern void (*Media_ShowFrame8bit)					(qbyte *framedata, int inwidth, int inheight, qbyte *palette);	//paletted topdown (framedata is 8bit indexes into palette)
-
 extern qboolean	(*VID_Init)							(rendererstate_t *info, unsigned char *palette);
 extern void	(*VID_DeInit)							(void);
 extern void	(*VID_LockBuffer)						(void);
@@ -112,6 +108,17 @@ extern void SCR_DrawConsole							(qboolean noback);
 extern void SCR_SetUpToDrawConsole					(void);
 extern void SCR_EraseCenterString					(void);
 extern void SCR_CenterPrint							(int pnum, char *str, qboolean skipgamecode);
+
+void R_DrawTextField(int x, int y, int w, int h, char *text, unsigned int defaultmask, unsigned int fieldflags);
+#define CPRINT_BALIGN		(1<<0)	//B
+#define CPRINT_TALIGN		(1<<1)	//T
+#define CPRINT_LALIGN		(1<<2)	//L
+#define CPRINT_RALIGN		(1<<3)	//R
+#define CPRINT_BACKGROUND	(1<<4)	//P
+
+#define CPRINT_OBITUARTY	(1<<16)	//O (show at 2/3rds from top)
+#define CPRINT_PERSIST		(1<<17)	//P (doesn't time out)
+#define CPRINT_TYPEWRITER	(1<<18)	//  (char at a time)
 
 #endif
 
@@ -187,10 +194,6 @@ typedef struct rendererinfo_s {
 	void	(*R_PushDlights)			(void);
 	void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
 	void	(*R_LessenStains)			(void);
-
-	void (*Media_ShowFrameBGR_24_Flip)	(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
-	void (*Media_ShowFrameRGBA_32)		(qbyte *framedata, int inwidth, int inheight);	//top down
-	void (*Media_ShowFrame8bit)			(qbyte *framedata, int inwidth, int inheight, qbyte *palette);	//paletted topdown (framedata is 8bit indexes into palette)
 
 	void	(*Mod_Init)					(void);
 	void	(*Mod_ClearAll)				(void);

@@ -40,38 +40,40 @@ cvar_t	cl_rollangle = SCVAR("cl_rollangle", "2.0");
 extern cvar_t	cl_rollspeed;
 extern cvar_t	cl_rollangle;
 #endif
-cvar_t	sv_spectalk = SCVAR("sv_spectalk", "1");
+cvar_t	sv_spectalk	= SCVAR("sv_spectalk", "1");
 
 cvar_t	sv_mapcheck	= SCVAR("sv_mapcheck", "1");
 
-cvar_t	sv_antilag = SCVARF("sv_antilag", "0", CVAR_SERVERINFO);
-cvar_t	sv_antilag_frac = SCVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
-cvar_t	sv_cheatpc = SCVAR("sv_cheatpc", "125");
-cvar_t	sv_cheatspeedchecktime = SCVAR("sv_cheatspeedchecktime", "30");
-cvar_t	sv_playermodelchecks = SCVAR("sv_playermodelchecks", "1");
+cvar_t	sv_antilag			= SCVARF("sv_antilag", "0", CVAR_SERVERINFO);
+cvar_t	sv_antilag_frac		= SCVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
+cvar_t	sv_cheatpc				= SCVAR("sv_cheatpc", "125");
+cvar_t	sv_cheatspeedchecktime	= SCVAR("sv_cheatspeedchecktime", "30");
+cvar_t	sv_playermodelchecks	= SCVAR("sv_playermodelchecks", "1");
 
-cvar_t	sv_cmdlikercon = SCVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
-cvar_t cmd_allowaccess = SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
-cvar_t cmd_gamecodelevel = SCVAR("cmd_gamecodelevel", "50");	//execution level which gamecode is told about (for unrecognised commands)
+cvar_t	sv_cmdlikercon	= SCVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
+cvar_t cmd_allowaccess	= SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
+cvar_t cmd_gamecodelevel	= SCVAR("cmd_gamecodelevel", "50");	//execution level which gamecode is told about (for unrecognised commands)
 
-cvar_t	sv_nomsec = SCVAR("sv_nomsec", "0");
-cvar_t	sv_edgefriction = FCVAR("sv_edgefriction", "edgefriction", "2", 0);
+cvar_t	sv_nomsec	= SCVAR("sv_nomsec", "0");
+cvar_t	sv_edgefriction	= CVARAF("sv_edgefriction", "2",
+								 "edgefriction", 0);
 
-cvar_t	sv_brokenmovetypes = SCVAR("sv_brokenmovetypes", "0");
+cvar_t	sv_brokenmovetypes	= SCVAR("sv_brokenmovetypes", "0");
 
-cvar_t	sv_chatfilter = SCVAR("sv_chatfilter", "0");
+cvar_t	sv_chatfilter	= CVAR("sv_chatfilter", "0");
 
-cvar_t	sv_floodprotect = SCVAR("sv_floodprotect", "1");
-cvar_t	sv_floodprotect_messages = SCVAR("sv_floodprotect_messages", "4");
-cvar_t	sv_floodprotect_interval = SCVAR("sv_floodprotect_interval", "4");
-cvar_t  sv_floodprotect_silencetime = SCVAR("sv_floodprotect_silencetime", "10");
-cvar_t	sv_floodprotect_suicide = SCVAR("sv_floodprotect_suicide", "1");
-cvar_t	sv_floodprotect_sendmessage = FCVAR("sv_floodprotect_sendmessage", "floodprotmsg", "", 0);
+cvar_t	sv_floodprotect				= CVAR("sv_floodprotect", "1");
+cvar_t	sv_floodprotect_messages	= CVAR("sv_floodprotect_messages", "4");
+cvar_t	sv_floodprotect_interval	= CVAR("sv_floodprotect_interval", "4");
+cvar_t  sv_floodprotect_silencetime	= CVAR("sv_floodprotect_silencetime", "10");
+cvar_t	sv_floodprotect_suicide		= CVAR("sv_floodprotect_suicide", "1");
+cvar_t	sv_floodprotect_sendmessage	= CVARAF("sv_floodprotect_sendmessage", "",
+											 "floodprotmsg", 0);
 
 cvar_t	votelevel	= SCVAR("votelevel", "0");
 cvar_t	voteminimum	= SCVAR("voteminimum", "4");
-cvar_t	votepercent = SCVAR("votepercent", "-1");
-cvar_t	votetime = SCVAR("votetime", "10");
+cvar_t	votepercent	= SCVAR("votepercent", "-1");
+cvar_t	votetime	= SCVAR("votetime", "10");
 
 cvar_t	pr_allowbutton1 = SCVARF("pr_allowbutton1", "1", CVAR_LATCH);
 extern cvar_t sv_minping;
@@ -3572,7 +3574,6 @@ void Cmd_SetPos_f(void)
 	World_LinkEdict (&sv.world, (wedict_t*)sv_player, false);
 }
 
-void ED_ClearEdict (progfuncs_t *progfuncs, edict_t *e);
 void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 {
 	extern int pr_teamfield;
@@ -3879,6 +3880,7 @@ void SV_DisableClientsCSQC(void)
 #endif
 }
 
+void SV_UserCmdMVDList_f (void);
 void SV_STFU_f(void)
 {
 	char *msg;
@@ -3954,7 +3956,7 @@ ucmd_t ucmds[] =
 	{"setpos", Cmd_SetPos_f},
 
 	{"stopdownload", SV_StopDownload_f},
-	{"demolist", SV_MVDList_f},
+	{"demolist", SV_UserCmdMVDList_f},
 	{"demoinfo", SV_MVDInfo_f},
 
 	{NULL, NULL}
@@ -4163,7 +4165,7 @@ void SVNQ_Spawn_f (void)
 	}
 	else
 	{
-		memset (ent->v, 0, sv.world.edict_size);
+		ED_Clear(svprogfuncs, ent);
 		ED_Spawned(ent, false);
 
 		ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
@@ -5684,7 +5686,7 @@ haveannothergo:
 #endif
 					if (!sv.paused)
 					{
-						if (sv_nomsec.value)
+						if (sv_nomsec.ival)
 						{
 							cl->isindependant = false;
 							if (!sv_player->v->fixangle)

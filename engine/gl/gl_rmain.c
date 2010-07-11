@@ -34,8 +34,6 @@ void R_RenderBrushPoly (msurface_t *fa);
 
 extern int		gl_canstencil;
 
-vrect_t gl_truescreenrect;
-
 FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
 FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 
@@ -55,14 +53,6 @@ float		r_wateralphaval;	//allowed or not...
 
 int			c_brush_polys, c_alias_polys;
 
-qboolean	envmap;				// true during envmap command capture
-
-int			mirrortexturenum;	// quake texturenum, not gltexturenum
-qboolean	mirror;
-mplane_t	*mirror_plane;
-msurface_t	*r_mirror_chain;
-qboolean	r_inmirror;	//or out-of-body
-
 //
 // view origin
 //
@@ -70,9 +60,6 @@ vec3_t	vup;
 vec3_t	vpn;
 vec3_t	vright;
 vec3_t	r_origin;
-
-extern float	r_projection_matrix[16];
-extern float	r_view_matrix[16];
 
 //
 // screen size info
@@ -85,22 +72,13 @@ int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 
 texture_t	*r_notexture_mip;
 
-//void R_MarkLeaves (void);
-
 cvar_t	r_norefresh = SCVAR("r_norefresh","0");
-//cvar_t	r_drawentities = SCVAR("r_drawentities","1");
-//cvar_t	r_drawviewmodel = SCVAR("r_drawviewmodel","1");
-//cvar_t	r_speeds = SCVAR("r_speeds","0");
-//cvar_t	r_fullbright = SCVAR("r_fullbright","0");
 cvar_t	r_mirroralpha = SCVARF("r_mirroralpha","1", CVAR_CHEAT);
-//cvar_t	r_waterwarp = SCVAR("r_waterwarp", "0");
-//cvar_t	r_novis = SCVAR("r_novis","0");
-//cvar_t	r_netgraph = SCVAR("r_netgraph","0");
 
 extern cvar_t	gl_part_flame;
+extern cvar_t	r_bloom;
 
 cvar_t	gl_clear = SCVAR("gl_clear","0");
-cvar_t	gl_cull = SCVAR("gl_cull","1");
 cvar_t	gl_smoothmodels = SCVAR("gl_smoothmodels","1");
 cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
 cvar_t	gl_playermip = SCVAR("gl_playermip","0");
@@ -110,7 +88,6 @@ cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
 cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
 
-#pragma message("r_polygonoffset_submodel_offset: not implemented at the mo")
 cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
 cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
 
@@ -133,6 +110,8 @@ cvar_t	r_xflip = SCVAR("leftisright", "0");
 
 extern	cvar_t	gl_ztrick;
 extern	cvar_t	scr_fov;
+
+shader_t *scenepp_waterwarp;
 
 // post processing stuff
 texid_t sceneblur_texture;
@@ -162,6 +141,85 @@ int scenepp_panorama_parm_fov;
 // processing shaders
 void GL_InitSceneProcessingShaders_WaterWarp (void)
 {
+#if 1
+	/*
+	inputs:
+	texcoords: edge points
+	coords: vertex coords (duh)
+	time
+	ampscale (cvar = r_waterwarp)
+
+	use ifs instead of an edge map?
+	*/
+	if (gl_config.arb_shader_objects)
+	{
+		scenepp_waterwarp = R_RegisterShader("waterwarp",
+			"{\n"
+			"glslprogram\n"
+			"{\n"
+			"#ifdef VERTEX_SHADER\n"
+			"\
+			varying vec2 v_stc;\
+			varying vec2 v_warp;\
+			varying vec2 v_edge;\
+			uniform float time;\
+			void main (void)\
+			{\
+				gl_Position = ftransform();\
+				v_stc = (1.0+(gl_Position.xy / gl_Position.w))/2.0;\
+				v_warp.s = "/*FIXME: Multiply by screen matricies*/"time * 0.25 + gl_MultiTexCoord0.s;\
+				v_warp.t = time * 0.25 + gl_MultiTexCoord0.t;\
+				v_edge = gl_MultiTexCoord0.xy;\
+			}\
+			\n"
+			"#endif\n"
+			"#ifdef FRAGMENT_SHADER\n"
+			"\
+			varying vec2 v_stc;\
+			varying vec2 v_warp;\
+			varying vec2 v_edge;\
+			uniform sampler2D texScreen;\
+			uniform sampler2D texWarp;\
+			uniform sampler2D texEdge;\
+			uniform float ampscale;\
+			void main (void)\
+			{\
+				float amptemp;\
+				vec3 edge;\
+				edge = texture2D( texEdge, v_edge ).rgb;\
+				amptemp = (0.010 / 0.625) * ampscale * edge.x;\
+				vec3 offset;\
+				offset = texture2D( texWarp, v_warp ).rgb;\
+				offset.x = (offset.x - 0.5) * 2.0;\
+				offset.y = (offset.y - 0.5) * 2.0;\
+				vec2 temp;\
+				temp.x = v_stc.x + offset.x * amptemp;\
+				temp.y = v_stc.y + offset.y * amptemp;\
+				gl_FragColor = texture2D( texScreen, temp );\
+			}\
+			\n"
+			"#endif\n"
+			"}\n"
+			"param cvarf r_waterwarp ampscale\n"
+			"param texture 0 texScreen\n"
+			"param texture 1 texWarp\n"
+			"param texture 2 texEdge\n"
+			"param time time\n"
+			"{\n"
+			"map $currentrender\n"
+			"}\n"
+			"{\n"
+			"map $upperoverlay\n"
+			"}\n"
+			"{\n"
+			"map $loweroverlay\n"
+			"}\n"
+			"}\n"
+			);
+		scenepp_waterwarp->defaulttextures.upperoverlay = scenepp_texture_warp;
+		scenepp_waterwarp->defaulttextures.loweroverlay = scenepp_texture_edge;
+	}
+#else
 	char *genericvert = "\
 		varying vec2 v_texCoord0;\
 		varying vec2 v_texCoord1;\
@@ -224,6 +282,7 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 
 	if (qglGetError())
 		Con_Printf(CON_ERROR "GL Error initing shader object\n");
+#endif
 }
 
 void GL_InitFisheyeFov(void)
@@ -508,7 +567,7 @@ void R_DrawSpriteModel (entity_t *e)
 	unsigned int fl;
 	unsigned int sprtype;
 
-	static vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
+	static vec2_t texcoords[4]={{0, 0},{0,1},{1,1},{1,0}};
 	static index_t indexes[6] = {0, 1, 2, 0, 2, 3};
 	vecV_t vertcoords[4];
 	avec4_t colours[4];
@@ -622,7 +681,7 @@ void R_DrawSpriteModel (entity_t *e)
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
 	mesh.istrifan = true;
-	BE_DrawMeshChain(frame->shader, &mesh, NULL, &frame->shader->defaulttextures);
+	BE_DrawMesh_Single(frame->shader, &mesh, NULL, &frame->shader->defaulttextures);
 }
 
 //==================================================================================
@@ -651,7 +710,7 @@ void R_DrawLightning(entity_t *e)
 
 	vecV_t points[4];
 	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-	index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
+	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
 
 	mesh_t mesh;
 
@@ -694,7 +753,7 @@ void R_DrawLightning(entity_t *e)
 	mesh.normals_array = NULL;
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
-	BE_DrawMeshChain(e->forcedshader, &mesh, NULL, NULL);
+	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL);
 }
 //q3 railgun beam
 void R_DrawRailCore(entity_t *e)
@@ -707,7 +766,7 @@ void R_DrawRailCore(entity_t *e)
 	mesh_t mesh;
 	vecV_t points[4];
 	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-	index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
+	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
 	vec4_t colors[4];
 
 	if (!e->forcedshader)
@@ -755,9 +814,104 @@ void R_DrawRailCore(entity_t *e)
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
 
-	BE_DrawMeshChain(e->forcedshader, &mesh, NULL, NULL);
+	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL);
 }
 #endif
+
+/*quick test: map bunk1 ware1 */
+void R_DrawBeam(entity_t *e)
+{
+	float r, g, b;
+
+	vec3_t dir, v, cr;
+	vecV_t points[4];
+	float length, scale;
+	static byte_vec4_t colours[4];
+	static vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
+	mesh_t mesh;
+
+shader_t *beamshader;
+	beamshader = R_RegisterShader("q2beam",
+		"{\n"
+			"{\n"
+				"map $whiteimage\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+				"blendfunc blend\n"
+			"}\n"
+		"}\n"
+		);
+
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	length = Length(dir);
+
+	scale = e->scale;
+	if (!scale)
+		scale = 1;
+	scale *= e->framestate.g[FS_REG].frame[0];
+	if (!scale)
+		scale = 6;
+
+	scale/= 2;
+
+	VectorSubtract(r_refdef.vieworg, e->origin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+	VectorMA(e->origin, scale, cr, points[0]);
+	VectorMA(e->origin, -scale, cr, points[1]);
+
+	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+	VectorMA(e->oldorigin, -scale, cr, points[2]);
+	VectorMA(e->oldorigin, scale, cr, points[3]);
+
+	r = ( d_8to24rgbtable[e->skinnum & 0xFF] ) & 0xFF;
+	g = ( d_8to24rgbtable[e->skinnum & 0xFF] >> 8 ) & 0xFF;
+	b = ( d_8to24rgbtable[e->skinnum & 0xFF] >> 16 ) & 0xFF;
+
+	r *= e->shaderRGBAf[0];
+	g *= e->shaderRGBAf[1];
+	b *= e->shaderRGBAf[2];
+
+	colours[0][0] = r;
+	colours[0][1] = g;
+	colours[0][2] = b;
+	colours[0][3] = 255*0.666;
+	*(int*)colours[1] = *(int*)colours[0];
+	*(int*)colours[2] = *(int*)colours[0];
+	*(int*)colours[3] = *(int*)colours[0];
+
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = points;
+	mesh.indexes = indexarray;
+	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+	mesh.colors4b_array = colours;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = sizeof(points)/sizeof(points[0]);
+	mesh.st_array = texcoords;
+	BE_DrawMesh_Single(beamshader, &mesh, NULL, &beamshader->defaulttextures);
+}
+
+/*
+=============
+R_ShouldDraw
+Ents are added to the list regardless.
+This is where they're filtered (based on which view is currently being drawn).
+=============
+*/
+qboolean R_ShouldDraw(entity_t *e)
+{
+	if (e->flags & Q2RF_EXTERNALMODEL && !r_refdef.externalview)
+		return false;
+	if (!Cam_DrawPlayer(r_refdef.currentplayernum, e->keynum-1))
+		return false;
+	return true;
+}
 
 /*
 =============
@@ -776,7 +930,7 @@ void GLR_DrawEntitiesOnList (void)
 	{
 		currententity = &cl_visedicts[i];
 
-		if (!PPL_ShouldDraw())
+		if (!R_ShouldDraw(currententity))
 			continue;
 
 
@@ -864,119 +1018,6 @@ void GLR_DrawEntitiesOnList (void)
 }
 
 /*
-===============
-R_SetupFrame
-===============
-*/
-static void GLR_SetupFrame (void)
-{
-// don't allow cheats in multiplayer
-	r_wateralphaval = r_wateralpha.value;
-	if (!cls.allow_watervis)
-		r_wateralphaval = 1;
-
-	if (!mirror)
-	{
-		R_AnimateLight ();
-
-	// build the transformation matrix for the given view angles
-
-		AngleVectors (r_refdef.viewangles, vpn, vright, vup);
-
-		r_framecount++;
-	}
-	VectorCopy (r_refdef.vieworg, r_origin);
-
-// current viewleaf
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
-	{
-	}
-#ifdef Q2BSPS
-	else if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3))
-	{
-		static mleaf_t fakeleaf;
-		mleaf_t	*leaf;
-
-		r_viewleaf = &fakeleaf;	//so we can use quake1 rendering routines for q2 bsps.
-		r_viewleaf->contents = Q1CONTENTS_EMPTY;
-		r_viewleaf2 = NULL;
-
-		r_oldviewcluster = r_viewcluster;
-		r_oldviewcluster2 = r_viewcluster2;
-		leaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
-		r_viewcluster = r_viewcluster2 = leaf->cluster;
-
-		// check above and below so crossing solid water doesn't draw wrong
-		if (!leaf->contents)
-		{	// look down a bit
-			vec3_t	temp;
-
-			VectorCopy (r_origin, temp);
-			temp[2] -= 16;
-			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
-			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
-				(leaf->cluster != r_viewcluster2) )
-				r_viewcluster2 = leaf->cluster;
-		}
-		else
-		{	// look up a bit
-			vec3_t	temp;
-
-			VectorCopy (r_origin, temp);
-			temp[2] += 16;
-			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
-			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
-				(leaf->cluster != r_viewcluster2) )
-				r_viewcluster2 = leaf->cluster;
-		}
-	}
-#endif
-	else
-	{
-		mleaf_t	*leaf;
-		vec3_t	temp;
-
-		r_oldviewleaf = r_viewleaf;
-		r_oldviewleaf2 = r_viewleaf2;
-		r_viewleaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
-
-		if (!r_viewleaf)
-		{
-		}
-		else if (r_viewleaf->contents == Q1CONTENTS_EMPTY)
-		{	//look down a bit
-			VectorCopy (r_origin, temp);
-			temp[2] -= 16;
-			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
-			if (leaf->contents <= Q1CONTENTS_WATER && leaf->contents >= Q1CONTENTS_LAVA)
-				r_viewleaf2 = leaf;
-			else
-				r_viewleaf2 = NULL;
-		}
-		else if (r_viewleaf->contents <= Q1CONTENTS_WATER && r_viewleaf->contents >= Q1CONTENTS_LAVA)
-		{	//in water, look up a bit.
-
-			VectorCopy (r_origin, temp);
-			temp[2] += 16;
-			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
-			if (leaf->contents == Q1CONTENTS_EMPTY)
-				r_viewleaf2 = leaf;
-			else
-				r_viewleaf2 = NULL;
-		}
-		else
-			r_viewleaf2 = NULL;
-
-		if (r_viewleaf)
-			V_SetContentsColor (r_viewleaf->contents);
-	}
-
-	c_brush_polys = 0;
-	c_alias_polys = 0;
-
-}
-
-/*
 =============
 R_SetupGL
 =============
@@ -988,93 +1029,89 @@ void R_SetupGL (void)
 
 	float fov_x, fov_y;
 
-	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
-	VectorCopy (r_refdef.vieworg, r_origin);
-
-	//
-	// set up viewpoint
-	//
-	x = r_refdef.vrect.x * vid.pixelwidth/(int)vid.width;
-	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * vid.pixelwidth/(int)vid.width;
-	y = (vid.height-r_refdef.vrect.y) * vid.pixelheight/(int)vid.height;
-	y2 = ((int)vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * vid.pixelheight/(int)vid.height;
-
-	// fudge around because of frac screen scale
-	if (x > 0)
-		x--;
-	if (x2 < vid.pixelwidth)
-		x2++;
-	if (y2 < 0)
-		y2--;
-	if (y < vid.pixelheight)
-		y++;
-
-	w = x2 - x;
-	h = y - y2;
-
-	if (envmap)
+	if (!r_refdef.recurse)
 	{
-		x = y2 = 0;
-		w = h = 256;
+		AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+		VectorCopy (r_refdef.vieworg, r_origin);
+
+		//
+		// set up viewpoint
+		//
+		x = r_refdef.vrect.x * vid.pixelwidth/(int)vid.width;
+		x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * vid.pixelwidth/(int)vid.width;
+		y = (vid.height-r_refdef.vrect.y) * vid.pixelheight/(int)vid.height;
+		y2 = ((int)vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * vid.pixelheight/(int)vid.height;
+
+		// fudge around because of frac screen scale
+		if (x > 0)
+			x--;
+		if (x2 < vid.pixelwidth)
+			x2++;
+		if (y2 < 0)
+			y2--;
+		if (y < vid.pixelheight)
+			y++;
+
+		w = x2 - x;
+		h = y - y2;
+
+		r_refdef.pxrect.x = x;
+		r_refdef.pxrect.y = y;
+		r_refdef.pxrect.width = w;
+		r_refdef.pxrect.height = h;
+
+		qglViewport (x, y2, w, h);
+
+		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
+		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+
+		if (r_waterwarp.value<0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER)
+		{
+			fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+			fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+		}
+
+		screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
+		if (r_refdef.useperspective)
+		{
+			int stencilshadows = 0;
+	#ifdef RTLIGHTS
+			stencilshadows |= r_shadow_realtime_dlight.ival && r_shadow_realtime_dlight_shadows.ival;
+			stencilshadows |= r_shadow_realtime_world.ival && r_shadow_realtime_world_shadows.ival;
+	#endif
+
+			if ((!stencilshadows || !gl_canstencil) && gl_maxdist.value>=100)//gl_nv_range_clamp)
+			{
+		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
+		//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
+		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
+		//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
+
+				Matrix4_Projection_Far(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value, gl_maxdist.value);
+			}
+			else
+			{
+				Matrix4_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
+			}
+		}
+		else
+		{
+			if (gl_maxdist.value>=1)
+				Matrix4_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, fov_y/2, -fov_y/2, -gl_maxdist.value, gl_maxdist.value);
+			else
+				Matrix4_Orthographic(r_refdef.m_projection, 0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
+		}
+
+		Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 	}
-
-	gl_truescreenrect.x = x;
-	gl_truescreenrect.y = y;
-	gl_truescreenrect.width = w;
-	gl_truescreenrect.height = h;
-
-	qglViewport (x, y2, w, h);
 
 	qglMatrixMode(GL_PROJECTION);
-
-	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
-	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
-
-	if (r_waterwarp.value<0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER)
-	{
-		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
-		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
-	}
-
-	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
-	if (r_refdef.useperspective)
-	{
-		int stencilshadows = 0;
-#ifdef RTLIGHTS
-		stencilshadows |= r_shadow_realtime_dlight.value && r_shadow_realtime_dlight_shadows.value;
-		stencilshadows |= r_shadow_realtime_world.value && r_shadow_realtime_world_shadows.value;
-#endif
-
-		if ((!stencilshadows || !gl_canstencil) && gl_maxdist.value>=100)//gl_nv_range_clamp)
-		{
-	//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
-	//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
-	//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
-	//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
-
-			Matrix4_Projection_Far(r_projection_matrix, fov_x, fov_y, gl_mindist.value, gl_maxdist.value);
-		}
-		else
-		{
-			Matrix4_Projection_Inf(r_projection_matrix, fov_x, fov_y, gl_mindist.value);
-		}
-	}
-	else
-	{
-		if (gl_maxdist.value>=1)
-			GL_ParallelPerspective(-fov_x/2, fov_x/2, fov_y/2, -fov_y/2, -gl_maxdist.value, gl_maxdist.value);
-		else
-			GL_ParallelPerspective(0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
-	}
-	qglLoadMatrixf(r_projection_matrix);
+	qglLoadMatrixf(r_refdef.m_projection);
 
 	qglMatrixMode(GL_MODELVIEW);
+	qglLoadMatrixf(r_refdef.m_view);
 
-
-	Matrix4_ModelViewMatrixFromAxis(r_view_matrix, vpn, vright, vup, r_refdef.vieworg);
-	qglLoadMatrixf(r_view_matrix);
-
-	if (gl_dither.value)
+	if (gl_dither.ival)
 	{
 		qglEnable(GL_DITHER);
 	}
@@ -1098,16 +1135,11 @@ void R_RenderScene (void)
 	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 
-#ifdef RTLIGHTS
-	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-		Sh_GenShadowMaps();
-#endif
-
 	TRACE(("dbg: calling R_SetupGL\n"));
 	R_SetupGL ();
 
 	TRACE(("dbg: calling R_SetFrustrum\n"));
-	R_SetFrustum (r_projection_matrix, r_view_matrix);
+	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
@@ -1121,6 +1153,8 @@ void R_RenderScene (void)
 	}
 
 	S_ExtraUpdate ();	// don't let sound get messed up if going slow
+
+	RQ_BeginFrame();
 
 	TRACE(("dbg: calling GLR_DrawEntitiesOnList\n"));
 	GLR_DrawEntitiesOnList ();
@@ -1137,6 +1171,247 @@ void R_RenderScene (void)
 	}
 	RQ_RenderBatchClear();
 }
+/*generates a new modelview matrix, as well as vpn vectors*/
+static void R_MirrorMatrix(plane_t *plane)
+{
+	float mirror[16];
+	float view[16];
+	float result[16];
+
+	vec3_t pnorm;
+	VectorNegate(plane->normal, pnorm);
+
+	mirror[0] = 1-2*pnorm[0]*pnorm[0];
+	mirror[1] = -2*pnorm[0]*pnorm[1];
+	mirror[2] = -2*pnorm[0]*pnorm[2];
+	mirror[3] = 0;
+
+	mirror[4] = -2*pnorm[1]*pnorm[0];
+	mirror[5] = 1-2*pnorm[1]*pnorm[1];
+	mirror[6] = -2*pnorm[1]*pnorm[2] ;
+	mirror[7] = 0;
+
+	mirror[8]  = -2*pnorm[2]*pnorm[0];
+	mirror[9]  = -2*pnorm[2]*pnorm[1];
+	mirror[10] = 1-2*pnorm[2]*pnorm[2];
+	mirror[11] = 0;
+
+	mirror[12] = -2*pnorm[0]*plane->dist;
+	mirror[13] = -2*pnorm[1]*plane->dist;
+	mirror[14] = -2*pnorm[2]*plane->dist;
+	mirror[15] = 1;
+
+	view[0] = vpn[0];
+	view[1] = vpn[1];
+	view[2] = vpn[2];
+	view[3] = 0;
+
+	view[4] = -vright[0];
+	view[5] = -vright[1];
+	view[6] = -vright[2];
+	view[7] = 0;
+
+	view[8]  = vup[0];
+	view[9]  = vup[1];
+	view[10] = vup[2];
+	view[11] = 0;
+
+	view[12] = r_refdef.vieworg[0];
+	view[13] = r_refdef.vieworg[1];
+	view[14] = r_refdef.vieworg[2];
+	view[15] = 1;
+
+	VectorMA(r_refdef.vieworg, 0.25, plane->normal, r_refdef.pvsorigin);
+
+	Matrix4_Multiply(mirror, view, result);
+
+	vpn[0] = result[0];
+	vpn[1] = result[1];
+	vpn[2] = result[2];
+
+	vright[0] = -result[4];
+	vright[1] = -result[5];
+	vright[2] = -result[6];
+
+	vup[0] = result[8];
+	vup[1] = result[9];
+	vup[2] = result[10];
+
+	r_refdef.vieworg[0] = result[12];
+	r_refdef.vieworg[1] = result[13];
+	r_refdef.vieworg[2] = result[14];
+}
+static entity_t *R_NearestPortal(plane_t *plane)
+{
+	int i;
+	entity_t *best = NULL;
+	float dist, bestd = 0;
+	for (i = 0; i < cl_numvisedicts; i++)
+	{
+		if (cl_visedicts[i].rtype == RT_PORTALSURFACE)
+		{
+			dist = DotProduct(cl_visedicts[i].origin, plane->normal)-plane->dist;
+			dist = fabs(dist);
+			if (dist < 64 && (!best || dist < bestd))
+				best = &cl_visedicts[i];
+		}
+	}
+	return best;
+}
+
+static void TransformCoord(vec3_t in, vec3_t planea[3], vec3_t planeo, vec3_t viewa[3], vec3_t viewo, vec3_t result)
+{
+	int		i;
+	vec3_t	local;
+	vec3_t	transformed;
+	float	d;
+
+	local[0] = in[0] - planeo[0];
+	local[1] = in[1] - planeo[1];
+	local[2] = in[2] - planeo[2];
+
+	VectorClear(transformed);
+	for ( i = 0 ; i < 3 ; i++ )
+	{
+		d = DotProduct(local, planea[i]);
+		VectorMA(transformed, d, viewa[i], transformed);
+	}
+
+	result[0] = transformed[0] + viewo[0];
+	result[1] = transformed[1] + viewo[1];
+	result[2] = transformed[2] + viewo[2];
+}
+static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t result)
+{
+	int		i;
+	float	d;
+	vec3_t tmp;
+
+	VectorCopy(in, tmp);
+
+	VectorClear(result);
+	for ( i = 0 ; i < 3 ; i++ )
+	{
+		d = DotProduct(tmp, planea[i]);
+		VectorMA(result, d, viewa[i], result);
+	}
+}
+void R_DrawPortal(batch_t *batch)
+{
+	entity_t *view;
+	GLdouble glplane[4];
+	plane_t plane;
+	refdef_t oldrefdef;
+	mesh_t *mesh = batch->mesh[batch->firstmesh];
+
+	if (r_refdef.recurse)
+		return;
+
+	VectorCopy(mesh->normals_array[0], plane.normal);
+	plane.dist = DotProduct(mesh->xyz_array[0], plane.normal);
+
+	//if we're too far away from the surface, don't draw anything
+	if (batch->shader->flags & SHADER_AGEN_PORTAL)
+	{
+		/*there's a portal alpha blend on that surface, that fades out after this distance*/
+		if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist > batch->shader->portaldist)
+			return;
+	}
+	//if we're behind it, then also don't draw anything.
+	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < 0)
+		return;
+
+	view = R_NearestPortal(&plane);
+	//if (!view)
+	//	return;
+
+	oldrefdef = r_refdef;
+	r_refdef.recurse = true;
+
+	r_refdef.externalview = true;
+
+	if (!view || VectorCompare(view->origin, view->oldorigin))
+	{
+		r_refdef.flipcull ^= true;
+		R_MirrorMatrix(&plane);
+	}
+	else
+	{
+		float d;
+		vec3_t paxis[3], porigin, vaxis[3], vorg;
+		void PerpendicularVector( vec3_t dst, const vec3_t src );
+
+		/*calculate where the surface is meant to be*/
+		VectorCopy(mesh->normals_array[0], paxis[0]);
+		PerpendicularVector(paxis[1], paxis[1]);
+		CrossProduct(paxis[0], paxis[1], paxis[2]);
+		d = DotProduct(view->origin, plane.normal) - plane.dist;
+		VectorMA(view->origin, -d, paxis[0], porigin);
+
+		/*grab the camera origin*/
+		VectorNegate(view->axis[0], vaxis[0]);
+		VectorNegate(view->axis[1], vaxis[1]);
+		VectorCopy(view->axis[2], vaxis[2]);
+		VectorCopy(view->oldorigin, vorg);
+
+		VectorCopy(vorg, r_refdef.pvsorigin);
+
+		/*rotate it a bit*/
+		RotatePointAroundVector(vaxis[1], vaxis[0], view->axis[1], sin(realtime)*4);
+		CrossProduct(vaxis[0], vaxis[1], vaxis[2]);
+
+		TransformCoord(oldrefdef.vieworg, paxis, porigin, vaxis, vorg, r_refdef.vieworg);
+		TransformDir(vpn, paxis, vaxis, vpn);
+		TransformDir(vright, paxis, vaxis, vright);
+		TransformDir(vup, paxis, vaxis, vup);
+	}
+	Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
+	VectorAngles(vpn, vup, r_refdef.viewangles);
+	VectorCopy(r_refdef.vieworg, r_origin);
+
+/*FIXME: the batch stuff should be done in renderscene*/
+
+	/*fixup the first mesh index*/
+	for (batch = cl.worldmodel->batches; batch; batch = batch->next)
+	{
+		batch->firstmesh = batch->meshes;
+	}
+
+	GL_CullFace(0);
+
+	/*FIXME: can we get away with stenciling the screen?*/
+	/*Add to frustum culling instead of clip planes?*/
+	glplane[0] = -plane.normal[0];
+	glplane[1] = -plane.normal[1];
+	glplane[2] = -plane.normal[2];
+	glplane[3] = plane.dist;
+	qglClipPlane(GL_CLIP_PLANE0, glplane);
+	qglEnable(GL_CLIP_PLANE0);
+	R_RenderScene();
+	qglDisable(GL_CLIP_PLANE0);
+
+	for (batch = cl.worldmodel->batches; batch; batch = batch->next)
+	{
+		batch->firstmesh = 0;
+	}
+	r_refdef = oldrefdef;
+
+	/*broken stuff*/
+	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+	VectorCopy (r_refdef.vieworg, r_origin);
+	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+
+	/*put GL back the way it was*/
+	qglMatrixMode(GL_PROJECTION);
+	qglLoadMatrixf(r_refdef.m_projection);
+
+	qglMatrixMode(GL_MODELVIEW);
+	qglLoadMatrixf(r_refdef.m_view);
+
+	GL_CullFace(0);
+
+#pragma message("warning: there's a bug with rtlights in portals, culling is broken or something. May also be loading the wrong matrix")
+}
 
 
 /*
@@ -1149,20 +1424,10 @@ void R_Clear (void)
 {
 	/*tbh, this entire function should be in the backend*/
 	GL_ForceDepthWritable();
-	if (r_mirroralpha.value != 1.0)
-	{
-		if (gl_clear.value && !r_secondaryview)
-			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		else
-			qglClear (GL_DEPTH_BUFFER_BIT);
-		gldepthmin = 0;
-		gldepthmax = 0.5;
-		gldepthfunc=GL_LEQUAL;
-	}
 #ifdef SIDEVIEWS
-	else if (gl_ztrick.value && !gl_ztrickdisabled)
+	if (gl_ztrick.value && !gl_ztrickdisabled)
 #else
-	else if (gl_ztrick.value)
+	if (gl_ztrick.value)
 #endif
 	{
 		static int trickframe;
@@ -1196,265 +1461,6 @@ void R_Clear (void)
 	}
 	qglDepthRange (gldepthmin, gldepthmax);
 }
-
-void R_Mirror (void)
-{
-	msurface_t	*s, *prevs, *prevr, *rejects;
-//	entity_t	*ent;
-	mplane_t *mirror_plane;
-
-	vec3_t oldangles, oldorg, oldvpn, oldvright, oldvup;	//cache - for rear view mirror and stuff.
-	float	base_view_matrix[16];
-
-	if (!mirror)
-	{
-		r_inmirror = false;
-		return;
-	}
-
-#pragma message("backend fixme")
-	Con_Printf("mirrors are not updated for the backend\n");
-
-	r_inmirror = true;
-
-	memcpy(oldangles, r_refdef.viewangles, sizeof(vec3_t));
-	memcpy(oldorg, r_refdef.vieworg, sizeof(vec3_t));
-	memcpy(oldvpn, vpn, sizeof(vec3_t));
-	memcpy(oldvright, vright, sizeof(vec3_t));
-	memcpy(oldvup, vup, sizeof(vec3_t));
-	memcpy (base_view_matrix, r_view_matrix, sizeof(base_view_matrix));
-
-	s = r_mirror_chain;
-	while(s)	//okay, so this is a hack
-	{
-		s->nextalphasurface = s->texturechain;
-		s = s->nextalphasurface;
-	}
-	cl.worldmodel->textures[mirrortexturenum]->texturechain = NULL;
-
-	while(r_mirror_chain)
-	{
-		s = r_mirror_chain;
-		r_mirror_chain = r_mirror_chain->nextalphasurface;
-#if 0
-		s->nextalphasurface = NULL;
-
-#else
-		//this loop figures out all surfaces with the same plane.
-		//yes, this can mean that the list is reversed a few times, but we do have depth testing to solve that anyway.
-		for(prevs = s,prevr=NULL,rejects=NULL;r_mirror_chain;r_mirror_chain=r_mirror_chain->nextalphasurface)
-		{
-			if (s->plane->dist != r_mirror_chain->plane->dist || s->plane->signbits != r_mirror_chain->plane->signbits
-				|| s->plane->normal[0] != r_mirror_chain->plane->normal[0] || s->plane->normal[1] != r_mirror_chain->plane->normal[1] || s->plane->normal[2] != r_mirror_chain->plane->normal[2])
-			{	//reject
-				if (prevr)
-					prevr->nextalphasurface = r_mirror_chain;
-				else
-					rejects = r_mirror_chain;
-				prevr = r_mirror_chain;
-			}
-			else
-			{	//matches
-				prevs->nextalphasurface = r_mirror_chain;
-				prevs = r_mirror_chain;
-			}
-		}
-		prevs->nextalphasurface = NULL;
-		if (prevr)
-			prevr->nextalphasurface = NULL;
-
-		r_mirror_chain = rejects;
-#endif
-		mirror_plane = s->plane;
-
-		//enable stencil writing
-		qglClearStencil(0);
-		qglClear(GL_STENCIL_BUFFER_BIT);
-		qglDisable(GL_ALPHA_TEST);
-		qglDisable(GL_STENCIL_TEST);
-		qglEnable(GL_STENCIL_TEST);
-		qglStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);	//replace where it passes
-		qglStencilFunc( GL_ALWAYS, 1, ~0 );	//always pass (where z passes set to 1)
-		qglDisable(GL_TEXTURE_2D);
-		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
-		qglDepthMask( GL_FALSE );
-
-		qglEnableClientState( GL_VERTEX_ARRAY );
-		for (prevs = s; s; s=s->nextalphasurface)	//write the polys to the stencil buffer.
-		{
-			qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), s->mesh->xyz_array);
-			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
-		}
-
-
-		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-		qglStencilFunc( GL_EQUAL, 1, ~0 );	//pass if equal to 1
-
-//now clear the depth buffer where the stencil passed
-//we achieve this by changing the projection matrix underneath.
-//the stencil only shows where the final surface will appear, and only where not obscured
-//we rewrite the depth with the blending pass after.
-		qglEnable(GL_DEPTH_TEST);	//use only the stencil test
-		qglDepthRange(1, 1);
-		qglDepthFunc (GL_ALWAYS);
-		qglDepthMask( GL_TRUE );
-		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
-
-		qglMatrixMode(GL_PROJECTION);
-		qglLoadIdentity();
-		qglOrtho  (0, 1, 1, 0, -99999, 99999);
-		qglMatrixMode(GL_MODELVIEW);
-		qglLoadIdentity ();
-
-		qglBegin(GL_QUADS);
-		qglVertex3f(0, 0, -99999);
-		qglVertex3f(1, 0, -99999);
-		qglVertex3f(1, 1, -99999);
-		qglVertex3f(0, 1, -99999);
-		qglEnd();
-
-		qglEnable(GL_DEPTH_TEST);	//use only the stencil test
-		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
-/*
-Thus the final mirror matrix for any given plane p*<nx,ny,nz>+k=0 is:
-
-| 1-2*nx*nx    -2*nx*ny     -2*nx*nz     -2*nx*k |
-
-|  -2*ny*nx   1-2*ny*ny     -2*ny*nz     -2*ny*k |
-
-|  -2*nz*nx    -2*nz*ny    1-2*nz*nz     -2*nz*k |
-
-|      0           0            0            1   |
-*/
-	{
-		float mirror[16];
-		float view[16];
-		float result[16];
-		float nx = mirror_plane->normal[0];
-		float ny = mirror_plane->normal[1];
-		float nz = mirror_plane->normal[2];
-		float k = -mirror_plane->dist;
-
-		mirror[0] = 1-2*nx*nx;
-		mirror[1] = -2*nx*ny;
-		mirror[2] = -2*nx*nz;
-		mirror[3] = 0;
-
-		mirror[4] = -2*ny*nx;
-		mirror[5] = 1-2*ny*ny;
-		mirror[6] = -2*ny*nz;
-		mirror[7] = 0;
-
-		mirror[8]  = -2*nz*nx;
-		mirror[9]  = -2*nz*ny;
-		mirror[10] = 1-2*nz*nz;
-		mirror[11] = 0;
-
-		mirror[12] = -2*nx*k;
-		mirror[13] = -2*ny*k;
-		mirror[14] = -2*nz*k;
-		mirror[15] = 1;
-
-		view[0] = oldvpn[0];
-		view[1] = oldvpn[1];
-		view[2] = oldvpn[2];
-		view[3] = 0;
-
-		view[4] = -oldvright[0];
-		view[5] = -oldvright[1];
-		view[6] = -oldvright[2];
-		view[7] = 0;
-
-		view[8]  = oldvup[0];
-		view[9]  = oldvup[1];
-		view[10] = oldvup[2];
-		view[11] = 0;
-
-		view[12] = oldorg[0];
-		view[13] = oldorg[1];
-		view[14] = oldorg[2];
-		view[15] = 1;
-
-		Matrix4_Multiply(mirror, view, result);
-
-		vpn[0] = result[0];
-		vpn[1] = result[1];
-		vpn[2] = result[2];
-
-		vright[0] = -result[4];
-		vright[1] = -result[5];
-		vright[2] = -result[6];
-
-		vup[0] = result[8];
-		vup[1] = result[9];
-		vup[2] = result[10];
-
-		r_refdef.vieworg[0] = result[12];
-		r_refdef.vieworg[1] = result[13];
-		r_refdef.vieworg[2] = result[14];
-	}
-
-	r_refdef.viewangles[0] = 0;
-	r_refdef.viewangles[1] = 0;
-	r_refdef.viewangles[2] = 0;
-
-
-	gldepthmin = 0.5;
-	gldepthmax = 1;
-	qglDepthRange (gldepthmin, gldepthmax);
-	qglDepthFunc (gldepthfunc);
-
-	R_RenderScene ();
-
-//	GLR_DrawWaterSurfaces ();
-
-
-	gldepthmin = 0;
-	gldepthmax = 0.5;
-	qglDepthRange (gldepthmin, gldepthmax);
-	qglDepthFunc (gldepthfunc);
-
-
-	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
-	memcpy(r_refdef.vieworg, oldorg, sizeof(vec3_t));
-
-	qglCullFace(GL_FRONT);
-	qglMatrixMode(GL_MODELVIEW);
-
-	qglLoadMatrixf (base_view_matrix);
-
-	qglDisable(GL_STENCIL_TEST);
-
-	// blend on top
-	qglDisable(GL_ALPHA_TEST);
-	qglEnable (GL_BLEND);
-	qglEnable(GL_TEXTURE_2D);
-	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglColor4f (1,1,1,r_mirroralpha.value);
-qglDisable(GL_STENCIL_TEST);
-qglPolygonOffset(1, 0);
-qglEnable(GL_POLYGON_OFFSET_FILL);
-		for (s=prevs ; s ; s=s->nextalphasurface)
-		{
-			qglEnable (GL_BLEND);
-			//R_RenderBrushPoly (s);
-		}
-qglDisable(GL_POLYGON_OFFSET_FILL);
-qglPolygonOffset(0, 0);
-	qglEnable(GL_TEXTURE_2D);
-	qglDisable (GL_BLEND);
-	qglColor4f (1,1,1,1);
-	}
-	qglDisable(GL_STENCIL_TEST);
-
-	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
-	memcpy(r_refdef.vieworg, oldorg, sizeof(vec3_t));
-
-	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
-
-	r_inmirror = false;
-}
-//#endif
 
 #if 0
 void GLR_SetupFog (void)
@@ -1845,8 +1851,6 @@ qboolean R_RenderScene_Fish(void)
 	ang[5][0] = -saveang[0]*2;
 	for (i = 0; i < numsides; i++)
 	{
-		mirror = false;
-
 		r_refdef.fov_x = 90;
 		r_refdef.fov_y = 90;
 		r_refdef.viewangles[0] = saveang[0]+ang[order[i]][0];
@@ -1861,9 +1865,6 @@ qboolean R_RenderScene_Fish(void)
 
 		// render normal view
 		R_RenderScene ();
-
-		// render mirror view
-		R_Mirror ();
 
 		qglDisable(GL_TEXTURE_2D);
 		qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
@@ -1997,8 +1998,6 @@ void GLR_RenderView (void)
 	else
 #endif
 	{
-		mirror = false;
-
 		GL_SetShaderState2D(false);
 
 		R_Clear ();
@@ -2007,12 +2006,10 @@ void GLR_RenderView (void)
 
 		// render normal view
 		R_RenderScene ();
-
-		// render mirror view
-		R_Mirror ();
 	}
 
-	R_BloomBlend();
+	if (r_bloom.ival)
+		R_BloomBlend();
 
 //	qglDisable(GL_FOG);
 
@@ -2036,9 +2033,14 @@ void GLR_RenderView (void)
 
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
-	if (scenepp_ww_program)
 	if ((r_waterwarp.value>0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
-		R_RenderWaterWarp();
+	{
+		GL_Set2D();
+		if (scenepp_waterwarp)
+			R2D_ScalePic(0, 0, vid.width, vid.height, scenepp_waterwarp);
+		else if (scenepp_ww_program)
+			R_RenderWaterWarp();
+	}
 
 
 

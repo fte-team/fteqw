@@ -132,8 +132,6 @@ unsigned char	vid_curpal[256*3];
 HGLRC	baseRC;
 HDC		maindc;
 
-glvert_t glv;
-
 
 HWND WINAPI InitializeWindow (HINSTANCE hInstance, int nCmdShow);
 
@@ -199,6 +197,7 @@ void *getwglfunc(char *name)
 {
 	FARPROC proc;
 	TRACE(("dbg: getwglfunc: %s: getting\n", name));
+
 	proc = GetProcAddress(hInstGL, name);
 	if (!proc)
 	{
@@ -267,9 +266,12 @@ qboolean GLInitialise (char *renderer)
 	
 	if (!hInstGL)
 	{
+		unsigned int emode;
 		strcpy(opengldllname, "opengl32");
 		Con_DPrintf ("Loading renderer dll \"%s\"", opengldllname);
+		emode = SetErrorMode(SEM_FAILCRITICALERRORS); /*no annoying errors if they use glide*/
 		hInstGL = LoadLibrary(opengldllname);
+		SetErrorMode(emode);
 
 		if (hInstGL)
 			Con_DPrintf (" Success\n");
@@ -476,31 +478,29 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 
 
 	if ((i = COM_CheckParm("-conwidth")) != 0)
-		vid.conwidth = Q_atoi(com_argv[i+1]);
+		vid.width = Q_atoi(com_argv[i+1]);
 	else
 	{
-		vid.conwidth = 640;
+		vid.width = 640;
 	}
 
-	vid.conwidth &= 0xfff8; // make it a multiple of eight
+	vid.width &= 0xfff8; // make it a multiple of eight
 
-	if (vid.conwidth < 320)
-		vid.conwidth = 320;
+	if (vid.width < 320)
+		vid.width = 320;
 
 	// pick a conheight that matches with correct aspect
-	vid.conheight = vid.conwidth*3 / 4;
+	vid.height = vid.width*3 / 4;
 
 	if ((i = COM_CheckParm("-conheight")) != 0)
-		vid.conheight = Q_atoi(com_argv[i+1]);
-	if (vid.conheight < 200)
-		vid.conheight = 200;
+		vid.height = Q_atoi(com_argv[i+1]);
+	if (vid.height < 200)
+		vid.height = 200;
 
-	if (vid.conheight > info->height)
-		vid.conheight = info->height;
-	if (vid.conwidth > info->width)
-		vid.conwidth = info->width;
-	vid.width = vid.conwidth;
-	vid.height = vid.conheight;
+	if (vid.height > info->height)
+		vid.height = info->height;
+	if (vid.width > info->width)
+		vid.width = info->width;
 
 	vid.numpages = 2;
 
@@ -601,29 +601,27 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 
 
 	if ((i = COM_CheckParm("-conwidth")) != 0)
-		vid.conwidth = Q_atoi(com_argv[i+1]);
+		vid.width = Q_atoi(com_argv[i+1]);
 	else
-		vid.conwidth = 640;
+		vid.width = 640;
 
-	vid.conwidth &= 0xfff8; // make it a multiple of eight
+	vid.width &= 0xfff8; // make it a multiple of eight
 
-	if (vid.conwidth < 320)
-		vid.conwidth = 320;
+	if (vid.width < 320)
+		vid.width = 320;
 
 	// pick a conheight that matches with correct aspect
-	vid.conheight = vid.conwidth*3 / 4;
+	vid.height = vid.width*3 / 4;
 
 	if ((i = COM_CheckParm("-conheight")) != 0)
-		vid.conheight = Q_atoi(com_argv[i+1]);
-	if (vid.conheight < 200)
-		vid.conheight = 200;
+		vid.height = Q_atoi(com_argv[i+1]);
+	if (vid.height < 200)
+		vid.height = 200;
 
-	if (vid.conheight > info->height)
-		vid.conheight = info->height;
-	if (vid.conwidth > info->width)
-		vid.conwidth = info->width;
-	vid.width = vid.conwidth;
-	vid.height = vid.conheight;
+	if (vid.height > info->height)
+		vid.height = info->height;
+	if (vid.width > info->width)
+		vid.width = info->width;
 
 	vid.numpages = 2;
 
@@ -1781,21 +1779,24 @@ qboolean GLVID_Is8bit(void) {
 	return is8bit;
 }
 
-#define GL_SHARED_TEXTURE_PALETTE_EXT 0x81FB
 
 void VID_Init8bitPalette(void) 
 {
+#ifdef GL_USE8BITTEX
+#ifdef GL_EXT_paletted_texture
+#define GL_SHARED_TEXTURE_PALETTE_EXT 0x81FB
+
 	// Check for 8bit Extensions and initialize them.
 	int i;
 	char thePalette[256*3];
 	char *oldPalette, *newPalette;
 
 	qglColorTableEXT = (void *)qwglGetProcAddress("glColorTableEXT");
-    if (!qglColorTableEXT || !GL_CheckExtension("GL_EXT_shared_texture_palette") || COM_CheckParm("-no8bit"))
+	if (!qglColorTableEXT || !GL_CheckExtension("GL_EXT_shared_texture_palette") || COM_CheckParm("-no8bit"))
 		return;
 
 	Con_SafePrintf("8-bit GL extensions enabled.\n");
-    qglEnable(GL_SHARED_TEXTURE_PALETTE_EXT);
+	qglEnable(GL_SHARED_TEXTURE_PALETTE_EXT);
 	oldPalette = (char *) d_8to24rgbtable; //d_8to24table3dfx;
 	newPalette = thePalette;
 	for (i=0;i<256;i++)
@@ -1808,6 +1809,9 @@ void VID_Init8bitPalette(void)
 	qglColorTableEXT(GL_SHARED_TEXTURE_PALETTE_EXT, GL_RGB, 256, GL_RGB, GL_UNSIGNED_BYTE,
 		(void *) thePalette);
 	is8bit = TRUE;
+
+#endif
+#endif
 }
 
 void GLVID_DeInit (void)

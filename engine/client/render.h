@@ -38,7 +38,7 @@ typedef union {
 #endif
 } texid_t;
 static const texid_t r_nulltex = {0};
-#define TEXVALID(t) (t.num!=0)
+#define TEXVALID(t) ((t).num!=0)
 
 
 #ifdef D3DQUAKE
@@ -57,14 +57,6 @@ static const texid_t r_nulltex = {0};
 #endif
 
 //=============================================================================
-
-typedef struct efrag_s
-{
-	struct mleaf_s		*leaf;
-	struct efrag_s		*leafnext;
-	struct entity_s		*entity;
-	struct efrag_s		*entnext;
-} efrag_t;
 
 typedef enum {
 	RT_MODEL,
@@ -132,35 +124,17 @@ typedef struct entity_s
 #endif
 } entity_t;
 
-// !!! if this is changed, it must be changed in asm_draw.h too !!!
 typedef struct
 {
 	vrect_t		vrect;				// subwindow in video for refresh
 									// FIXME: not need vrect next field here?
-	vrect_t		aliasvrect;			// scaled Alias version
-	int			vrectright, vrectbottom;	// right & bottom screen coords
-	int			aliasvrectright, aliasvrectbottom;	// scaled Alias versions
-	float		vrectrightedge;			// rightmost right edge we care about,
-										//  for use in edge list
-	float		fvrectx, fvrecty;		// for floating-point compares
-	float		fvrectx_adj, fvrecty_adj; // left and top edges, for clamping
-	int			vrect_x_adj_shift20;	// (vrect.x + 0.5 - epsilon) << 20
-	int			vrectright_adj_shift20;	// (vrectright + 0.5 - epsilon) << 20
-	float		fvrectright_adj, fvrectbottom_adj;
-										// right and bottom edges, for clamping
-	float		fvrectright;			// rightmost edge, for Alias clamping
-	float		fvrectbottom;			// bottommost edge, for Alias clamping
-	float		horizontalFieldOfView;	// at Z = 1.0, this many X is visible 
-										// 2.0 = 90 degrees
-	float		xOrigin;			// should probably always be 0.5
-	float		yOrigin;			// between be around 0.3 to 0.5
 
-	vec3_t		vieworg;
+	vec3_t		pvsorigin;			/*render the view using this point for pvs (useful for mirror views)*/
+	vec3_t		vieworg;			/*logical view center*/
 	vec3_t		viewangles;
+	vec3_t		viewaxis[3];		/*forward, left, up (NOT RIGHT)*/
 
 	float		fov_x, fov_y;
-	
-	int			ambientlight;
 
 	int			flags;
 
@@ -168,7 +142,14 @@ typedef struct
 
 	float		time;
 
-	qboolean	useperspective;
+	float		m_projection[16];
+	float		m_view[16];
+
+	vrect_t		pxrect;		/*vrect, but in pixels rather than virtual coords*/
+	qboolean	externalview; /*draw external models and not viewmodels*/
+	qboolean	recurse;	/*in a mirror/portal/half way through drawing something else*/
+	qboolean	flipcull;	/*reflected/flipped view, requires inverted culling*/
+	qboolean	useperspective; /*not orthographic*/
 } refdef_t;
 
 extern	refdef_t	r_refdef;
@@ -223,7 +204,7 @@ extern int			lightmap_bytes;		// 1, 3(, or 4)
 
 
 
-
+void R_SetSky(char *skyname);		/*override all sky shaders*/
 
 #if defined(GLQUAKE)
 void GLR_Init (void);
@@ -232,9 +213,7 @@ void GLR_InitTextures (void);
 void GLR_InitEfrags (void);
 void GLR_RenderView (void);		// must set r_refdef first
 								// called whenever r_refdef or vid change
-
-void GLR_AddEfrags (entity_t *ent);
-void GLR_RemoveEfrags (entity_t *ent);
+void R_DrawPortal(struct batch_s *batch);
 
 void GLR_PreNewMap(void);
 void GLR_NewMap (void);
@@ -253,10 +232,6 @@ void GLVID_Console_Resize(void);
 
 int GLR_LightPoint (vec3_t p);
 #endif
-
-
-void R_AddEfrags (entity_t *ent);
-void R_RemoveEfrags (entity_t *ent);
 
 enum imageflags
 {
@@ -283,7 +258,12 @@ enum uploadfmt
 	TF_HEIGHT8PAL, /*source data is palette values rather than actual heights, generate a fallback heightmap*/
 	TF_H2_T7G1, /*8bit data, odd indexes give greyscale transparence*/
 	TF_H2_TRANS8_0,	/*8bit data, 0 is transparent, not 255*/
-	TF_H2_T4A4	/*8bit data, weird packing*/
+	TF_H2_T4A4,	/*8bit data, weird packing*/
+
+	/*anything below requires a palette*/
+	TF_PALETTES,
+	TF_8PAL24,
+	TF_8PAL32
 };
 
 
@@ -326,7 +306,7 @@ enum uploadfmt
 /*it seems a little excessive to have to include glquake (and windows headers), just to load some textures/shaders for the backend*/
 #ifdef GLQUAKE
 texid_t GL_AllocNewTexture(void);
-void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, int width, int height, unsigned int flags);
+void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
 texid_t GL_LoadTextureFmt (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
 #endif
 #ifdef D3DQUAKE
@@ -353,8 +333,6 @@ extern	texid_t balltexture;
 extern	texid_t beamtexture;
 extern	texid_t ptritexture;
 
-extern	float	r_projection_matrix[16];
-extern	float	r_view_matrix[16];
 void GL_ParallelPerspective(double xmin, double xmax, double ymax, double ymin, double znear, double zfar);
 void GL_InfinatePerspective(double fovx, double fovy, double zNear);
 
@@ -461,7 +439,6 @@ extern cvar_t	r_xflip;
 #endif
 
 extern	cvar_t	gl_clear;
-extern	cvar_t	gl_cull;
 extern	cvar_t	gl_poly;
 extern	cvar_t	gl_smoothmodels;
 extern	cvar_t	gl_affinemodels;
@@ -518,6 +495,12 @@ int rquant[RQUANT_MAX];
 
 #define RQuantAdd(type,quant) rquant[type] += quant;
 
+#if defined(NDEBUG) || !defined(_WIN32)
+#define RSpeedLocals()
+#define RSpeedMark()
+#define RSpeedRemark()
+#define RSpeedEnd(spt)
+#else
 #define RSpeedLocals() int rsp
 #define RSpeedMark() int rsp = r_speeds.ival?Sys_DoubleTime()*1000000:0
 #define RSpeedRemark() rsp = r_speeds.ival?Sys_DoubleTime()*1000000:0
@@ -527,4 +510,5 @@ extern void (_stdcall *qglFinish) (void);
 #define RSpeedEnd(spt) do {if(r_speeds.ival && qglFinish){qglFinish(); rspeeds[spt] += (int)(Sys_DoubleTime()*1000000) - rsp;}}while (0)
 #else
 #define RSpeedEnd(spt) rspeeds[spt] += r_speeds.value?Sys_DoubleTime()*1000000 - rsp:0
+#endif
 #endif

@@ -302,6 +302,7 @@ menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name);
 menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *data);
 menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
 
+menu_t *M_Options_Title(int *y, int infosize);	/*Create a menu with the default options titlebar*/
 menu_t *M_CreateMenu (int extrasize);
 void M_AddMenu (menu_t *menu);
 void M_AddMenuFront (menu_t *menu);

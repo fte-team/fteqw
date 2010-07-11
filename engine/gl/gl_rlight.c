@@ -166,6 +166,7 @@ void R_RenderDlight (dlight_t *light)
 	bub_sin = bubble_sintable;
 	bub_cos = bubble_costable;
 	rad = light->radius * 0.35;
+	rad = 16;
 
 	VectorCopy(light->color, colour);
 
@@ -202,7 +203,7 @@ void R_RenderDlight (dlight_t *light)
 		bub_cos++;
 	}
 
-	BE_DrawMeshChain(flashblend_shader, &flashblend_mesh, NULL, &flashblend_shader->defaulttextures);
+	BE_DrawMesh_Single(flashblend_shader, &flashblend_mesh, NULL, &flashblend_shader->defaulttextures);
 }
 
 /*

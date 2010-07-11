@@ -94,8 +94,8 @@ void GLVID_Console_Resize(void)
 	if (cheight < 200)
 		cheight = 200;
 
-	vid.width = vid.conwidth = cwidth;
-	vid.height = vid.conheight = cheight;
+	vid.width = cwidth;
+	vid.height = cheight;
 
 	vid.recalc_refdef = true;
 

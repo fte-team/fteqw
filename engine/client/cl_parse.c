@@ -421,6 +421,7 @@ void CL_DisenqueDownload(char *filename)
 	}
 }
 
+#ifdef WEBCLIENT
 void CL_WebDownloadFinished(struct dl_download *dl)
 {
 	if (dl->status == DL_FAILED)
@@ -433,6 +434,7 @@ void CL_WebDownloadFinished(struct dl_download *dl)
 		CL_DownloadFinished();
 	}
 }
+#endif
 
 void CL_SendDownloadStartRequest(char *filename, char *localname)
 {
@@ -446,6 +448,7 @@ void CL_SendDownloadStartRequest(char *filename, char *localname)
 	COM_StripExtension (localname, cls.downloadtempname, sizeof(cls.downloadtempname)-5);
 	strcat (cls.downloadtempname, ".tmp");
 
+#ifdef WEBCLIENT
 	if (!strncmp(cls.downloadremotename, "http://", 7))
 	{
 		cls.downloadmethod = DL_HTTP;
@@ -454,6 +457,7 @@ void CL_SendDownloadStartRequest(char *filename, char *localname)
 			CL_DownloadFailed(cls.downloadremotename);
 	}
 	else
+#endif
 	{
 		CL_SendClientCommand(true, "download %s", filename);
 
@@ -787,10 +791,10 @@ void Model_CheckDownloads (void)
 
 //	Con_TPrintf (TLC_CHECKINGMODELS);
 
+	R_SetSky(cl.skyname);
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
-//		R_SetSky(cl.skyname);
 		for (i = 0; i < Q2MAX_IMAGES; i++)
 		{
 			char picname[256];
@@ -845,18 +849,19 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	float giveuptime = Sys_DoubleTime()+0.1;	//small things get padded into a single frame
 
 #define atstage() ((cl.contentstage == stage++ && !dontactuallyload)?++cl.contentstage:false)
-#define endstage() if (giveuptime<Sys_DoubleTime()) return -1;
+#define endstage() if (!cls.timedemo && giveuptime<Sys_DoubleTime()) return -1;
 
 	pmove.numphysent = 0;
 
 #ifdef PEXT_CSQC
 	if (atstage())
 	{
-		if (cls.protocol == CP_NETQUAKE)
+		extern cvar_t  cl_nocsqc;
+		if (cls.protocol == CP_NETQUAKE && !cl_nocsqc.ival && !cls.demoplayback)
 		{
 			char *s;
 			s = Info_ValueForKey(cl.serverinfo, "*csprogs");
-			if (*s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
+			if (*s)	//only allow csqc if the server says so, and the 'checksum' matches.
 			{
 				extern cvar_t allow_download_csprogs;
 				unsigned int chksum = strtoul(s, NULL, 0);
@@ -1102,9 +1107,12 @@ void Sound_CheckDownloads (void)
 		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
 		if (*s)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
-			extern cvar_t allow_download_csprogs;
+			extern cvar_t allow_download_csprogs, cl_nocsqc;
 			unsigned int chksum = strtoul(s, NULL, 0);
-			if (allow_download_csprogs.ival)
+			if (cl_nocsqc.ival || cls.demoplayback)
+			{
+			}
+			else if (allow_download_csprogs.ival)
 			{
 				char *str = va("csprogsvers/%x.dat", chksum);
 				CL_CheckOrEnqueDownloadFile("csprogs.dat", str, DLLF_REQUIRED);
@@ -3107,6 +3115,7 @@ void CL_ParseStatic (int version)
 	entity_t *ent;
 	int		i;
 	entity_state_t	es;
+	vec3_t mins,maxs;
 
 	if (version == 1)
 	{
@@ -3120,10 +3129,9 @@ void CL_ParseStatic (int version)
 		es.number+=MAX_EDICTS;
 
 		for (i = 0; i < cl.num_statics; i++)
-			if (cl_static_entities[i].keynum == es.number)
+			if (cl_static_entities[i].ent.keynum == es.number)
 			{
-				R_RemoveEfrags (&cl_static_entities[i]);
-				pe->DelinkTrailstate (&cl_static_emit[i]);
+				pe->DelinkTrailstate (&cl_static_entities[i].emit);
 				break;
 			}
 
@@ -3137,9 +3145,9 @@ void CL_ParseStatic (int version)
 		Con_Printf ("Too many static entities");
 		return;
 	}
-	ent = &cl_static_entities[i];
+	ent = &cl_static_entities[i].ent;
 	memset(ent, 0, sizeof(*ent));
-	cl_static_emit[i] = NULL;
+	cl_static_entities[i].emit = NULL;
 
 	ent->keynum = es.number;
 
@@ -3171,8 +3179,12 @@ void CL_ParseStatic (int version)
 		Con_TPrintf (TLC_PARSESTATICWITHNOMAP);
 		return;
 	}
-
-	R_AddEfrags (ent);
+	if (ent->model)
+	{
+		VectorAdd(es.origin, ent->model->mins, mins);
+		VectorAdd(es.origin, ent->model->maxs, maxs);
+		cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, mins, maxs);
+	}
 }
 
 /*
@@ -4525,9 +4537,9 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 			}
 #endif
 #ifdef CSQC_DAT
-			else
-				 if (CSQC_StuffCmd(destsplit, stufftext))
-				 {}
+			else if (CSQC_StuffCmd(destsplit, stufftext, msg))
+			{
+			}
 #endif
 			else
 			{
@@ -4666,7 +4678,7 @@ void CL_ParseServerMessage (void)
 		{
 			SHOWNET(svc_strings[cmd]);
 
-			destsplit = MSG_ReadByte();
+			destsplit = MSG_ReadByte() % MAX_SPLITS;
 			cmd = MSG_ReadByte();
 		}
 		else
@@ -4902,11 +4914,11 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_killedmonster:
-			cl.stats[0][STAT_MONSTERS]++;
+			cl.stats[destsplit][STAT_MONSTERS]++;
 			break;
 
 		case svc_foundsecret:
-			cl.stats[0][STAT_SECRETS]++;
+			cl.stats[destsplit][STAT_SECRETS]++;
 			break;
 
 		case svc_updatestat:

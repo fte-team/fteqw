@@ -1434,6 +1434,50 @@ static void CL_UpdateNetFrameLerpState(qboolean force, unsigned int curframe, le
 	}
 }
 
+void CL_LinkStaticEntities(void *pvs)
+{
+	int i;
+	entity_t *ent, *stat;
+	model_t		*clmodel;
+	extern cvar_t r_drawflame, gl_part_flame;
+
+//	if (!cl_staticentities.ival)
+//		return;
+
+	if (!cl.worldmodel)
+		return;
+
+	for (i = 0; i < cl.num_statics; i++)
+	{
+		if (cl_numvisedicts == MAX_VISEDICTS)
+			break;
+		stat = &cl_static_entities[i].ent;
+
+		clmodel = stat->model;
+
+		if ((!r_drawflame.ival) && (clmodel->engineflags & MDLF_FLAME))
+			continue;
+
+		if (!cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &cl_static_entities[i].pvscache, pvs))
+			continue;
+		/*pvs test*/
+
+		ent = &cl_visedicts[cl_numvisedicts++];
+		*ent = *stat;
+		ent->framestate.g[FS_REG].frametime[0] = cl.time;
+		ent->framestate.g[FS_REG].frametime[1] = cl.time;
+
+	// emit particles for statics (we don't need to cheat check statics)
+		if (clmodel->particleeffect >= 0 && gl_part_flame.ival)
+		{
+			// TODO: this is ugly.. assumes ent is in static entities, and subtracts
+			// pointer math to get an index to use in cl_static emit
+			// there needs to be a cleaner method for this
+			P_EmitEffect(ent->origin, clmodel->particleeffect, &cl_static_entities[i].emit);
+		}
+	}
+}
+
 /*
 ===============
 CL_LinkPacketEntities
@@ -1669,9 +1713,11 @@ qboolean CL_MayLerp(void)
 		return true;
 
 	if (cls.protocol == CP_NETQUAKE)	//this includes DP protocols.
-		return !cl_nolerp_netquake.value;
+		return !cl_nolerp_netquake.ival;
 #endif
-	return !cl_nolerp.value;
+	if (cl_nolerp.ival == 2 && cls.gamemode != GAME_DEATHMATCH)
+		return true;
+	return !cl_nolerp.ival;
 }
 
 void CL_LinkPacketEntities (void)

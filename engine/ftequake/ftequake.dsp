@@ -640,69 +640,6 @@ SOURCE=..\server\svq3_game.c
 !ENDIF 
 
 # End Source File
-# Begin Source File
-
-SOURCE=..\server\world.c
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# ADD CPP /Yu"quakedef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
-
-# ADD CPP /Yu"qwsvdef.h"
-
-!ENDIF 
-
-# End Source File
 # End Group
 # Begin Group "client"
 
@@ -2180,6 +2117,10 @@ SOURCE=..\client\p_null.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\client\p_qmb.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\client\p_script.c
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
@@ -2338,50 +2279,6 @@ SOURCE=..\client\r_bulleten.c
 
 # PROP BASE Exclude_From_Build 1
 # PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
-SOURCE=..\client\r_efrag.c
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-# ADD CPP /G6 /O1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
 
@@ -3803,52 +3700,6 @@ SOURCE=..\gl\gl_ngraph.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\gl\gl_ppl.c
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
 SOURCE=..\common\gl_q2bsp.c
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
@@ -4391,6 +4242,14 @@ SOURCE=..\gl\LTFACE.C
 # End Source File
 # Begin Source File
 
+SOURCE=..\client\r_2d.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\client\r_surf.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\gl\shader.h
 # End Source File
 # End Group
@@ -4541,6 +4400,69 @@ SOURCE=..\common\qvm.c
 # Begin Source File
 
 SOURCE=..\common\translate.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\server\world.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+# ADD CPP /Yu"quakedef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
+
+# ADD CPP /Yu"quekdef.h"
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 

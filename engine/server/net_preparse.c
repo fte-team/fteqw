@@ -479,7 +479,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 
 			default:
 				protocollen = sizeof(buffer);
-				Con_Printf("NQWriteByte: bad tempentity\n");
+				Con_Printf("NQWriteByte: bad tempentity %i\n", data);
 				PR_StackTrace(svprogfuncs);
 				break;
 			}

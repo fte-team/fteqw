@@ -299,7 +299,6 @@ extern cvar_t r_part_sparks;
 extern cvar_t r_part_sparks_trifan;
 extern cvar_t r_part_sparks_textured;
 extern cvar_t r_part_beams;
-extern cvar_t r_part_beams_textured;
 extern cvar_t r_part_contentswitch;
 
 static float particletime;
@@ -1351,12 +1350,12 @@ static void P_PartInfo_f (void)
 R_InitParticles
 ===============
 */
-static void PScript_InitParticles (void)
+static qboolean PScript_InitParticles (void)
 {
 	int		i;
 
 	if (r_numparticles)	//already inited
-		return;
+		return true;
 
 	buildsintable();
 
@@ -1437,6 +1436,7 @@ static void PScript_InitParticles (void)
 	pscripttmesh.st_array = pscripttexcoords;
 	pscripttmesh.colors4f_array = pscriptcolours;
 	pscripttmesh.indexes = pscripttriindexes;
+	return true;
 }
 
 static void PScript_Shutdown (void)
@@ -3240,7 +3240,7 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
 		{
 			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-			BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
 			pscriptmesh.numvertexes = 0;
 		}
 
@@ -3298,7 +3298,7 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 	if (pscriptmesh.numvertexes)
 	{
 		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-		BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
 		pscriptmesh.numvertexes = 0;
 	}
 }
@@ -3316,7 +3316,7 @@ static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 		if (pscripttmesh.numvertexes >= BUFFERVERTS-3)
 		{
 			pscripttmesh.numindexes = pscripttmesh.numvertexes;
-			BE_DrawMeshChain(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
+			BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
 			pscripttmesh.numvertexes = 0;
 		}
 
@@ -3352,7 +3352,7 @@ static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 	if (pscripttmesh.numvertexes)
 	{
 		pscripttmesh.numindexes = pscripttmesh.numvertexes;
-		BE_DrawMeshChain(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
+		BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
 		pscripttmesh.numvertexes = 0;
 	}
 }
@@ -3400,7 +3400,7 @@ static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t
 		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
 		{
 			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-			BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
 			pscriptmesh.numvertexes = 0;
 		}
 
@@ -3439,7 +3439,7 @@ static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t
 	if (pscriptmesh.numvertexes)
 	{
 		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-		BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
 		pscriptmesh.numvertexes = 0;
 	}
 }
@@ -3461,7 +3461,7 @@ static void GL_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
 		{
 			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-			BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
 			pscriptmesh.numvertexes = 0;
 		}
 
@@ -3498,7 +3498,7 @@ static void GL_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 	if (pscriptmesh.numvertexes)
 	{
 		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-		BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
 		pscriptmesh.numvertexes = 0;
 	}
 }
@@ -3514,7 +3514,7 @@ static void GL_DrawClippedDecal(int count, clippeddecal_t **dlist, plooks_t *typ
 		if (pscripttmesh.numvertexes >= BUFFERVERTS-3)
 		{
 			pscripttmesh.numindexes = pscripttmesh.numvertexes;
-			BE_DrawMeshChain(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
+			BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
 			pscripttmesh.numvertexes = 0;
 		}
 
@@ -3537,15 +3537,13 @@ static void GL_DrawClippedDecal(int count, clippeddecal_t **dlist, plooks_t *typ
 	if (pscriptmesh.numvertexes)
 	{
 		pscripttmesh.numindexes = pscripttmesh.numvertexes;
-		BE_DrawMeshChain(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
 		pscripttmesh.numvertexes = 0;
 	}
 }
 
 static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticles)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*))
 {
-	RSpeedMark();
-
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 	void *pdraw, *bdraw;
 
@@ -3565,6 +3563,7 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 
 	int traces=r_particle_tracelimit.ival;
 	int rampind;
+	RSpeedMark();
 
 	if (r_plooksdirty)
 	{
@@ -3586,7 +3585,7 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 	}
 
 	pframetime = host_frametime;
-	if (cl.paused || r_secondaryview)
+	if (cl.paused || r_secondaryview || r_refdef.recurse)
 		pframetime = 0;
 
 	VectorScale (vup, 1.5, pup);

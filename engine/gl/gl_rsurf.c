@@ -266,11 +266,11 @@ void BE_GenBrushModelVBO(model_t *mod)
 			BZ_Free(vboedata);
 		}
 	}
-	for (i=0 ; i<mod->numsurfaces ; i++)
+/*	for (i=0 ; i<mod->numsurfaces ; i++)
 	{
 		if (!mod->surfaces[i].mark)
 			Host_EndGame("Surfaces with bad textures detected\n");
-	}
+	}*/
 }
 
 void BE_UploadAllLightmaps(void)
@@ -294,8 +294,8 @@ void BE_UploadAllLightmaps(void)
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		qglTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes
-		, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
-		((lightmap_bytes==3)?GL_RGB:GL_LUMINANCE), GL_UNSIGNED_BYTE, lightmap[i]->lightmaps);
+				, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
+				((lightmap_bytes==3)?GL_RGB:GL_LUMINANCE), GL_UNSIGNED_BYTE, lightmap[i]->lightmaps);
 
 		if (gl_bump.ival)
 		{
@@ -308,8 +308,8 @@ void BE_UploadAllLightmaps(void)
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			qglTexImage2D (GL_TEXTURE_2D, 0, 3
-			, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
-			GL_RGB, GL_UNSIGNED_BYTE, lightmap[i]->deluxmaps);
+					, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
+					GL_RGB, GL_UNSIGNED_BYTE, lightmap[i]->deluxmaps);
 		}
 	}
 }

@@ -270,7 +270,6 @@ typedef struct dlight_s
 	} face [6];
 	int style;	//multiply by style values if > 0
 	float	fov; //spotlight
-	int		refresh;
 	float	dist;
 	struct dlight_s *next;
 } dlight_t;
@@ -582,7 +581,6 @@ typedef struct
 
 // refresh related state
 	struct model_s	*worldmodel;	// cl_entitites[0].model
-	struct efrag_s	*free_efrags;
 	int			num_entities;	// stored bottom up in cl_entities array
 	int			num_statics;	// stored top down in cl_entitiers
 
@@ -701,11 +699,16 @@ extern cvar_t ruleset_allow_shaders;
 
 extern	client_state_t	cl;
 
+typedef struct
+{
+	entity_t		ent;
+	trailstate_t   *emit;
+	pvscache_t		pvscache;
+} static_entity_t;
+
 // FIXME, allocate dynamically
 extern	entity_state_t *cl_baselines;
-extern	efrag_t			cl_efrags[MAX_EFRAGS];
-extern	entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
-extern  trailstate_t   *cl_static_emit[MAX_STATIC_ENTITIES];
+extern	static_entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
 extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 extern	dlight_t		*cl_dlights;
 extern	unsigned int	cl_maxdlights;
@@ -956,6 +959,7 @@ void CLDP_ParsePointParticles(qboolean compact);
 //
 void CL_SetSolidPlayers (int playernum);
 void CL_SetUpPlayerPrediction(qboolean dopred);
+void CL_LinkStaticEntities(void *pvs);
 void CL_EmitEntities (void);
 void CL_ClearProjectiles (void);
 void CL_ParseProjectiles (int modelindex, qboolean nails2);
@@ -998,7 +1002,7 @@ qboolean CSQC_Init (unsigned int checksum);
 void CSQC_RegisterCvarsAndThings(void);
 qboolean CSQC_DrawView(void);
 void CSQC_Shutdown(void);
-qboolean CSQC_StuffCmd(int lplayernum, char *cmd);
+qboolean CSQC_StuffCmd(int lplayernum, char *cmd, char *cmdend);
 qboolean CSQC_LoadResource(char *resname, char *restype);
 qboolean CSQC_ParsePrint(char *message, int printlevel);
 qboolean CSQC_ParseGamePacket(void);
@@ -1184,15 +1188,16 @@ int SCR_StringToPalIndex (char *rgbstring, float rgbinputscale);
 struct model_s;
 void CL_AddVWeapModel(entity_t *player, struct model_s *model);
 
+/*q2 cinematics*/
+struct cinematics_s;
+void CIN_StopCinematic (struct cinematics_s *cin);
+struct cinematics_s *CIN_PlayCinematic (char *arg);
+int CIN_RunCinematic (struct cinematics_s *cin, qbyte **outdata, int *outwidth, int *outheight, qbyte **outpalette);
 
+/*media playing system*/
 qboolean Media_PlayingFullScreen(void);
 void Media_Init(void);
 qboolean Media_PlayFilm(char *name);
-void CIN_FinishCinematic (void);
-qboolean CIN_PlayCinematic (char *arg);
-qboolean CIN_DrawCinematic (void);
-qboolean CIN_RunCinematic (void);
-
 typedef struct cin_s cin_t;
 struct cin_s *Media_StartCin(char *name);
 texid_t Media_UpdateForShader(cin_t *cin);

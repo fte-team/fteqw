@@ -328,7 +328,14 @@ void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-
+void PF_CL_DrawTextField (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	float *size = G_VECTOR(OFS_PARM1);
+	unsigned int flags = G_FLOAT(OFS_PARM2);
+	char *text = PR_GetStringOfs(prinst, OFS_PARM3);
+	R_DrawTextField(pos[0], pos[1], size[0], size[1], text, CON_WHITEMASK, flags);
+}
 
 //float	drawstring(vector position, string text, vector scale, float alpha, float flag) = #455;
 void PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -336,8 +343,11 @@ void PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	float *pos = G_VECTOR(OFS_PARM0);
 	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
 	float *size = G_VECTOR(OFS_PARM2);
-//	float *alpha = G_FLOAT(OFS_PARM3);
+	float alpha = G_FLOAT(OFS_PARM3);
 //	float flag = G_FLOAT(OFS_PARM4);
+
+	conchar_t buffer[2048], *str;
+	float px, py;
 
 	if (!text)
 	{
@@ -345,7 +355,17 @@ void PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_s *pr_glob
 		return;
 	}
 
-	Draw_FunString(pos[0], pos[1], text);
+	COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), false);
+	str = buffer;
+
+	Font_BeginScaledString(font_conchar, pos[0], pos[1], &px, &py);
+	Font_ForceColour(1, 1, 1, alpha);
+	while(*str)
+	{
+		px = Font_DrawScaleChar(px, py, size[0], size[1], *str++);
+	}
+	Font_InvalidateColour();
+	Font_EndString(font_conchar);
 }
 
 void PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -503,7 +523,7 @@ void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float alpha = G_FLOAT(OFS_PARM4);
 //	float flag = G_FLOAT(OFS_PARM5);
 
-	int x, y;
+	float x, y;
 
 	if (!chara)
 	{
@@ -511,10 +531,9 @@ void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-#pragma message("fixme: this doesn't scale")
-	Font_BeginString(font_conchar, pos[0], pos[1], &x, &y);
+	Font_BeginScaledString(font_conchar, pos[0], pos[1], &x, &y);
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
-	Font_DrawChar(x, y, CON_WHITEMASK | 0xe000|(chara&0xff));
+	Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK | 0xe000|(chara&0xff));
 	Font_InvalidateColour();
 	Font_EndString(font_conchar);
 
@@ -529,7 +548,7 @@ void PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *rgb = G_VECTOR(OFS_PARM3);
 	float alpha = G_FLOAT(OFS_PARM4);
 //	float flag = G_FLOAT(OFS_PARM5);
-	int x, y;
+	float x, y;
 
 	if (!text)
 	{
@@ -537,12 +556,11 @@ void PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-#pragma message("fixme: this doesn't scale")
-	Font_BeginString(font_conchar, pos[0], pos[1], &x, &y);
+	Font_BeginScaledString(font_conchar, pos[0], pos[1], &x, &y);
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
 	while(*text)
 	{
-		x = Font_DrawChar(x, y, CON_WHITEMASK|0xe000|(*text++&0xff));
+		x = Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK|0xe000|(*text++&0xff));
 	}
 	Font_InvalidateColour();
 	Font_EndString(font_conchar);
@@ -1125,6 +1143,17 @@ void PF_M_getextresponse(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	//this does something weird
 	G_INT(OFS_RETURN) = 0;
 }
+
+void PF_netaddress_resolve(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *address = PR_GetStringOfs(prinst, OFS_PARM0);
+	netadr_t adr;
+	char result[256];
+	if (NET_StringToAdr(address, &adr))
+		RETURN_TSTRING(NET_AdrToString (result, sizeof(result), adr));
+	else
+		RETURN_TSTRING("");
+}
 #else
 
 void PF_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
@@ -1595,7 +1624,7 @@ builtin_t menu_builtins[] = {
 //480
 	PF_strtolower,						// #480 string(string s) VM_strtolower : DRESK - Return string as lowercase
 	PF_strtoupper,						// #481 string(string s) VM_strtoupper : DRESK - Return string as uppercase
-	skip1									// #482
+	PF_cvar_defstring,									// #482
 	skip1									// #483
 	PF_strreplace,						// #484 string(string search, string replace, string subject) strreplace (DP_QC_STRREPLACE)
 	PF_strireplace,					// #485 string(string search, string replace, string subject) strireplace (DP_QC_STRREPLACE)
@@ -1633,11 +1662,11 @@ builtin_t menu_builtins[] = {
 	PF_uri_unescape,				// #511 string(string in) uri_unescape = #511;
 	PF_etof,					// #512 float(entity ent) num_for_edict = #512 (DP_QC_NUM_FOR_EDICT)
 	PF_uri_get,						// #513 float(string uril, float id) uri_get = #513; (DP_QC_URI_GET)
-	skip1									// #514
-	skip1									// #515
-	skip1									// #516
-	skip1									// #517
-	skip1									// #518
+	PF_tokenize_console,									// #514
+	PF_argv_start_index,					// #515
+	PF_argv_end_index,						// #516
+	PF_buf_cvarlist,						// #517
+	PF_cvar_description,					// #518
 	skip1									// #519
 
 //520
@@ -1672,7 +1701,8 @@ builtin_t menu_builtins[] = {
 	PF_M_gethostcachenumber,
 	PF_M_gethostcacheindexforkey,
 	PF_M_addwantedhostcachekey,
-	PF_M_getextresponse			// #624
+	PF_M_getextresponse,			// #624
+	PF_netaddress_resolve
 };
 int menu_numbuiltins = sizeof(menu_builtins)/sizeof(menu_builtins[0]);
 

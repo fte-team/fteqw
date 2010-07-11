@@ -49,8 +49,8 @@ typedef struct {
 	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
 
 	unsigned int (*FatPVS)		(struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge);
-	qboolean (*EdictInFatPVS)	(struct model_s *model, struct wedict_s *edict, qbyte *pvsbuffer);
-	void (*FindTouchedLeafs_Q1)	(struct world_s *w, struct model_s *model, struct wedict_s *ent, vec3_t cullmins, vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
+	qboolean (*EdictInFatPVS)	(struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer);
+	void (*FindTouchedLeafs)	(struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
 
 	void (*LightPointValues)	(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 	void (*StainNode)			(struct mnode_s *node, float *parms);
@@ -62,41 +62,49 @@ typedef struct {
 
 typedef struct mesh_s
 {
+	int				numvertexes;
+	int				numindexes;
+
+	/*position within its vbo*/
 	unsigned int	vbofirstvert;
 	unsigned int	vbofirstelement;
 
-
-    int				numvertexes;
+	/*arrays used for rendering*/
 	vecV_t			*xyz_array;
-	vec3_t			*normals_array;
-	vec3_t			*snormals_array;
-	vec3_t			*tnormals_array;
-	vec2_t			*st_array;
-	vec2_t			*lmst_array;
-	avec4_t			*colors4f_array;
-	byte_vec4_t		*colors4b_array;
+	vec3_t			*normals_array;	/*required for lighting*/
+	vec3_t			*snormals_array;/*required for rtlighting*/
+	vec3_t			*tnormals_array;/*required for rtlighting*/
+	vec2_t			*st_array;		/*texture coords*/
+	vec2_t			*lmst_array;	/*second texturecoord set (merely dubbed lightmap)*/
+	avec4_t			*colors4f_array;/*floating point colours array*/
+	byte_vec4_t		*colors4b_array;/*byte colours array*/
 
-    int				numindexes;
     index_t			*indexes;
+
+	//required for shadow volumes
 	int				*trneighbors;
 	vec3_t			*trnormals;
 
-	vec3_t			mins, maxs;
-	float			radius;
-
-	qboolean		istrifan;	/*if its a fan/poly/single quad*/
-
-	struct mesh_s	*next;
+	qboolean		istrifan;	/*if its a fan/poly/single quad  (permits optimisations)*/
 } mesh_t;
-FTE_DEPRECATED struct meshbuffer_s;
-
-void FTE_DEPRECATED R_PushMesh ( mesh_t *mesh, int features );
-void FTE_DEPRECATED R_RenderMeshBuffer ( struct meshbuffer_s *mb, qboolean shadowpass );
-qboolean FTE_DEPRECATED R_MeshWillExceed(mesh_t *mesh);
+extern mesh_t nullmesh;
 
 extern int gl_canbumpmap;
 
+typedef struct batch_s
+{
+	mesh_t **mesh; /*list must be long enough for all surfaces that will form part of this batch times two, for mirrors/portals*/
+	unsigned int firstmesh;
+	unsigned int meshes;
+	struct batch_s *next;
 
+	shader_t *shader;
+	struct texture_s *texture;
+	struct vbo_s *vbo;
+	int lightmap;
+	unsigned int maxmeshes;
+	vec3_t normal;
+} batch_t;
 /*
 
 d*_t structures are on-disk representations
@@ -166,8 +174,11 @@ typedef struct {
 	struct shader_s *shader;	//fixme: remove...
 } texnums_t;
 
-typedef struct 
+typedef struct vbo_s
 {
+	int numvisible;
+	struct msurface_s **vislist;
+
 	int meshcount;
 	struct msurface_s **meshlist;
 
@@ -205,11 +216,10 @@ typedef struct texture_s
 	int parttype;
 
 	struct shader_s	*shader;
+	int wtexno;
 
 	vbo_t vbo;
 
-	struct msurface_s	*texturechain;	// for gl_texsort drawing
-	struct msurface_s	**texturechain_tail;	//so we can link them in depth order
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
 	struct texture_s *anim_next;		// in the animation sequence
@@ -295,8 +305,6 @@ typedef struct msurface_s
 	int			firstedge;	// look up in model->surfedges[], negative numbers
 	int			numedges;	// are backwards edges
 
-	struct	msurface_s	*nextalphasurface;
-	
 	short		texturemins[2];
 	short		extents[2];
 
@@ -306,7 +314,7 @@ typedef struct msurface_s
 	mesh_t		*mesh;
 	entity_t	*ownerent;
 
-	struct	msurface_s	*texturechain;
+	batch_t		*sbatch;
 	mtexinfo_t	*texinfo;
 	struct msurface_s	**mark;
 	int			visframe;		// should be drawn when node is crossed
@@ -369,7 +377,6 @@ typedef struct mleaf_s
 
 // leaf specific
 	qbyte		*compressed_vis;
-	struct efrag_s		*efrags;
 
 	msurface_t	**firstmarksurface;
 	int			nummarksurfaces;
@@ -429,12 +436,11 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 qboolean Q1BSP_Trace(struct model_s *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
 unsigned int Q1BSP_FatPVS (struct model_s *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean add);
-qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct wedict_s *ent, qbyte *pvs);
-void Q1BSP_FindTouchedLeafs(struct world_s *w, struct model_s *mod, struct wedict_s *ent, float *mins, float *maxs);
+qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct pvscache_s *ent, qbyte *pvs);
+void Q1BSP_FindTouchedLeafs(struct model_s *mod, struct pvscache_s *ent, float *mins, float *maxs);
 qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, qbyte *buffer, unsigned int buffersize);
 
-
-FTE_DEPRECATED texnums_t R_InitSky (struct texture_s *mt);
+texnums_t R_InitSky (struct texture_s *mt);
 /*
 ==============================================================================
 
@@ -830,6 +836,7 @@ typedef struct model_s
 	char		*entities;
 
 	void *terrain;
+	batch_t *batches;
 
 	unsigned	checksum;
 	unsigned	checksum2;

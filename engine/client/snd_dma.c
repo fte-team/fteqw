@@ -61,32 +61,51 @@ int 		desired_bits = 16;
 
 int sound_started=0;
 
-cvar_t bgmvolume = SCVARF("musicvolume", "0", CVAR_ARCHIVE);
-cvar_t volume = SCVARF("volume", "0.7", CVAR_ARCHIVE);
+cvar_t bgmvolume				= CVARF(	"musicvolume", "0", CVAR_ARCHIVE);
+cvar_t volume					= CVARF(	"volume", "0.7", CVAR_ARCHIVE);
 
-cvar_t nosound = SCVAR("nosound", "0");
-cvar_t precache = FCVAR("s_precache", "precache", "1", 0);
-cvar_t loadas8bit = FCVAR("s_loadas8bit", "loadas8bit", "0", 0);
-cvar_t bgmbuffer = SCVAR("bgmbuffer", "4096");
-cvar_t ambient_level = FCVAR("s_ambientlevel", "ambient_level", "0.3", 0);
-cvar_t ambient_fade = FCVAR("s_ambientfade", "ambient_fade", "100", 0);
-cvar_t snd_noextraupdate = FCVAR("s_noextraupdate", "snd_noextraupdate", "0", 0);
-cvar_t snd_show = FCVAR("s_show", "snd_show", "0", 0);
-cvar_t snd_khz = FCVAR("s_khz", "snd_khz", "11", CVAR_ARCHIVE);
-cvar_t	snd_inactive = FCVAR("s_inactive", "snd_inactive", "0", 0);	//set if you want sound even when tabbed out.
-cvar_t _snd_mixahead = FCVAR("s_mixahead", "_snd_mixahead", "0.2", CVAR_ARCHIVE);
-cvar_t snd_leftisright = FCVAR("s_swapstereo", "snd_leftisright", "0", CVAR_ARCHIVE);
-cvar_t snd_eax = FCVAR("s_eax", "snd_eax", "0", 0);
-cvar_t snd_speakers = FCVAR("s_numspeakers", "snd_numspeakers", "2", 0);
-cvar_t snd_buffersize = FCVAR("s_buffersize", "snd_buffersize", "0", 0);
-cvar_t snd_samplebits = FCVAR("s_bits", "snd_samplebits", "16", CVAR_ARCHIVE);
-cvar_t snd_playersoundvolume = FCVAR("s_localvolume", "snd_localvolume", "1", 0);	//sugested by crunch
+cvar_t nosound					= CVAR(		"nosound", "0");
+cvar_t precache					= CVARAF(	"s_precache", "1",
+											"precache", 0);
+cvar_t loadas8bit				= CVARAF(	"s_loadas8bit", "0",
+											"loadas8bit", 0);
+cvar_t bgmbuffer				= CVAR(		"bgmbuffer", "4096");
+cvar_t ambient_level			= CVARAF(	"s_ambientlevel", "0.3",
+											"ambient_level", 0);
+cvar_t ambient_fade				= CVARAF(	"s_ambientfade", "100",
+											"ambient_fade", 0);
+cvar_t snd_noextraupdate		= CVARAF(	"s_noextraupdate", "0",
+											"snd_noextraupdate", 0);
+cvar_t snd_show					= CVARAF(	"s_show", "0",
+											"snd_show", 0);
+cvar_t snd_khz					= CVARAF(	"s_khz", "11",
+											"snd_khz", CVAR_ARCHIVE);
+cvar_t	snd_inactive			= CVARAF(	"s_inactive", "0",
+											"snd_inactive", 0);	//set if you want sound even when tabbed out.
+cvar_t _snd_mixahead			= CVARAF(	"s_mixahead", "0.2",
+											"_snd_mixahead", CVAR_ARCHIVE);
+cvar_t snd_leftisright			= CVARAF(	"s_swapstereo", "0",
+											"snd_leftisright", CVAR_ARCHIVE);
+cvar_t snd_eax					= CVARAF(	"s_eax", "0",
+											"snd_eax", 0);
+cvar_t snd_speakers				= CVARAF(	"s_numspeakers", "2",
+											"snd_numspeakers", 0);
+cvar_t snd_buffersize			= CVARAF(	"s_buffersize", "0",
+											"snd_buffersize", 0);
+cvar_t snd_samplebits			= CVARAF(	"s_bits", "16",
+											"snd_samplebits", CVAR_ARCHIVE);
+cvar_t snd_playersoundvolume	= CVARAF(	"s_localvolume", "1",
+											"snd_localvolume", 0);	//sugested by crunch
 
-cvar_t snd_capture = FCVAR("s_capture", "snd_capture", "0", 0);
-cvar_t snd_linearresample = FCVAR("s_linearresample", "snd_linearresample", "1", 0);
-cvar_t snd_linearresample_stream = FCVAR("s_linearresample_stream", "snd_linearresample_stream", "0", 0);
+cvar_t snd_capture				= CVARAF(	"s_capture", "0",
+											"snd_capture", 0);
+cvar_t snd_linearresample		= CVARAF(	"s_linearresample", "1",
+											"snd_linearresample", 0);
+cvar_t snd_linearresample_stream = CVARAF(	"s_linearresample_stream", "0",
+											"snd_linearresample_stream", 0);
 
-cvar_t snd_usemultipledevices = FCVAR("s_multipledevices", "snd_multipledevices", "0", 0);
+cvar_t snd_usemultipledevices	= CVARAF(	"s_multipledevices", "0",
+											"snd_multipledevices", 0);
 
 extern vfsfile_t *rawwritefile;
 

@@ -880,7 +880,8 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		CLQ3_SendClientCommand("userinfo \"%s\"", cls.userinfo);
 	}
 
-	cl.gametime = ccs.serverTime = ccs.snap.serverTime + (Sys_Milliseconds()-ccs.snap.localTime);
+	ccs.serverTime = ccs.snap.serverTime + (Sys_Milliseconds()-ccs.snap.localTime);
+	cl.servertime = ccs.serverTime / 1000.0f;
 
 	//reuse the q1 array
 	cmd->servertime = ccs.serverTime;

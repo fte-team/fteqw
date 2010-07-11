@@ -587,12 +587,12 @@ unsigned int Heightmap_FatPVS		(model_t *mod, vec3_t org, qbyte *pvsbuffer, unsi
 }
 
 #ifndef CLIENTONLY
-qboolean Heightmap_EdictInFatPVS	(model_t *mod, wedict_t *edict, qbyte *pvsdata)
+qboolean Heightmap_EdictInFatPVS	(model_t *mod, struct pvscache_s *edict, qbyte *pvsdata)
 {
 	return true;
 }
 
-void Heightmap_FindTouchedLeafs	(world_t *w, model_t *mod, wedict_t *ent, float *mins, float *maxs)
+void Heightmap_FindTouchedLeafs	(model_t *mod, pvscache_t *ent, float *mins, float *maxs)
 {
 }
 #endif
@@ -790,7 +790,7 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 	mod->funcs.LeafPVS				= Heightmap_LeafnumPVS;
 
 #ifndef CLIENTONLY
-	mod->funcs.FindTouchedLeafs_Q1	= Heightmap_FindTouchedLeafs;
+	mod->funcs.FindTouchedLeafs		= Heightmap_FindTouchedLeafs;
 	mod->funcs.EdictInFatPVS		= Heightmap_EdictInFatPVS;
 	mod->funcs.FatPVS				= Heightmap_FatPVS;
 #endif

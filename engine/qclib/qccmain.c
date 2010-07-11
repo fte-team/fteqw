@@ -742,7 +742,7 @@ pbool QCC_WriteData (int crc)
 //			numfunctions++;
 
 		}
-		else if (def->type->type == ev_field)// && !def->constant)
+		else if (def->type->type == ev_field && def->constant)
 		{
 			dd = &fields[numfielddefs];
 			numfielddefs++;

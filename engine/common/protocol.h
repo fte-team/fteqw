@@ -679,17 +679,18 @@ typedef struct entity_state_s
 	unsigned short		modelindex2;	//q2
 #endif
 	unsigned short		frame;
+	unsigned int		skinnum; /*q2 needs 32 bits, which is quite impressive*/
 	unsigned short		colormap;
-	unsigned short		skinnum;
-
+	//pad 2 bytes
 	qbyte glowsize;
 	qbyte glowcolour;
 	qbyte	scale;
-
 	char	fatness;
+
 	qbyte	hexen2flags;
 	qbyte	abslight;
 	qbyte	dpflags;
+	//pad
 
 	qbyte	colormod[3];//multiply this by 8 to read as 0 to 1...
 	qbyte	trans;

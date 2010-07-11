@@ -62,22 +62,6 @@ qintptr_t VARGS Plug_SCR_CenterPrint(void *offset, quintptr_t mask, const qintpt
 	SCR_CenterPrint(0, VM_POINTER(arg[0]), true);
 	return 0;
 }
-qintptr_t VARGS Plug_Media_ShowFrameRGBA_32(void *offset, quintptr_t mask, const qintptr_t *arg)
-{
-	void *src = VM_POINTER(arg[0]);
-	int srcwidth = VM_LONG(arg[1]);
-	int srcheight = VM_LONG(arg[2]);
-//	int x = VM_LONG(arg[3]);
-//	int y = VM_LONG(arg[4]);
-//	int width = VM_LONG(arg[5]);
-//	int height = VM_LONG(arg[6]);
-
-	if (qrenderer == QR_NONE)
-		return 0;
-
-	Media_ShowFrameRGBA_32(src, srcwidth, srcheight);
-	return 0;
-}
 
 
 
@@ -568,7 +552,6 @@ void Plug_Client_Init(void)
 
 	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, PLUG_BIF_NEEDSRENDERER);
 
 	Plug_RegisterBuiltin("GetLocationName",			Plug_GetLocationName, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetPlayerInfo",			Plug_GetPlayerInfo, PLUG_BIF_NEEDSRENDERER);

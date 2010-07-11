@@ -45,52 +45,52 @@ cvar_t	cl_timeout = SCVAR("cl_timeout", "60");
 
 cvar_t	cl_shownet = SCVAR("cl_shownet","0");	// can be 0, 1, or 2
 
-cvar_t	cl_sbar		= SCVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
-cvar_t	cl_hudswap	= SCVARF("cl_hudswap", "0", CVAR_ARCHIVE);
-cvar_t	cl_maxfps	= SCVARF("cl_maxfps", "1000", CVAR_ARCHIVE);
-cvar_t	cl_nopext	= SCVARF("cl_nopext", "0", CVAR_ARCHIVE);
-cvar_t	cl_pext_mask = SCVAR("cl_pext_mask", "0xffffffff");
-cvar_t	cl_nolerp	= SCVAR("cl_nolerp", "1");
-cvar_t	cl_nolerp_netquake = SCVAR("cl_nolerp_netquake", "0");
-cvar_t	hud_tracking_show = SCVAR("hud_tracking_show", "1");
+cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
+cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
+cvar_t	cl_maxfps	= CVARF("cl_maxfps", "1000", CVAR_ARCHIVE);
+cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
+cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
+cvar_t	cl_nolerp	= CVAR("cl_nolerp", "2");
+cvar_t	cl_nolerp_netquake = CVAR("cl_nolerp_netquake", "0");
+cvar_t	hud_tracking_show = CVAR("hud_tracking_show", "1");
 
-cvar_t	cfg_save_name = SCVARF("cfg_save_name", "fte", CVAR_ARCHIVE);
+cvar_t	cfg_save_name = CVARF("cfg_save_name", "fte", CVAR_ARCHIVE);
 
-cvar_t	cl_splitscreen = SCVAR("cl_splitscreen", "0");
+cvar_t	cl_splitscreen = CVAR("cl_splitscreen", "0");
 
-cvar_t	lookspring = SCVARF("lookspring","0", CVAR_ARCHIVE);
-cvar_t	lookstrafe = SCVARF("lookstrafe","0", CVAR_ARCHIVE);
-cvar_t	sensitivity = SCVARF("sensitivity","10", CVAR_ARCHIVE);
+cvar_t	lookspring = CVARF("lookspring","0", CVAR_ARCHIVE);
+cvar_t	lookstrafe = CVARF("lookstrafe","0", CVAR_ARCHIVE);
+cvar_t	sensitivity = CVARF("sensitivity","10", CVAR_ARCHIVE);
 
-cvar_t cl_staticsounds = SCVAR("cl_staticsounds", "1");
+cvar_t cl_staticsounds = CVAR("cl_staticsounds", "1");
 
-cvar_t	m_pitch = SCVARF("m_pitch","0.022", CVAR_ARCHIVE);
-cvar_t	m_yaw = SCVARF("m_yaw","0.022", CVAR_ARCHIVE);
-cvar_t	m_forward = SCVARF("m_forward","1", CVAR_ARCHIVE);
-cvar_t	m_side = SCVARF("m_side","0.8", CVAR_ARCHIVE);
+cvar_t	m_pitch = CVARF("m_pitch","0.022", CVAR_ARCHIVE);
+cvar_t	m_yaw = CVARF("m_yaw","0.022", CVAR_ARCHIVE);
+cvar_t	m_forward = CVARF("m_forward","1", CVAR_ARCHIVE);
+cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 
-cvar_t	entlatency = SCVAR("entlatency", "20");
-cvar_t	cl_predict_players = SCVAR("cl_predict_players", "1");
-cvar_t	cl_predict_players2 = SCVAR("cl_predict_players2", "1");
-cvar_t	cl_solid_players = SCVAR("cl_solid_players", "1");
-cvar_t	cl_noblink = SCVAR("cl_noblink", "0");
-cvar_t	cl_servername = SCVAR("cl_servername", "none");
-cvar_t	cl_serveraddress = SCVAR("cl_serveraddress", "none");
-cvar_t	qtvcl_forceversion1 = SCVAR("qtvcl_forceversion1", "0");
-cvar_t	qtvcl_eztvextensions = SCVAR("qtvcl_eztvextensions", "0");
+cvar_t	entlatency = CVAR("entlatency", "20");
+cvar_t	cl_predict_players = CVAR("cl_predict_players", "1");
+cvar_t	cl_predict_players2 = CVAR("cl_predict_players2", "1");
+cvar_t	cl_solid_players = CVAR("cl_solid_players", "1");
+cvar_t	cl_noblink = CVAR("cl_noblink", "0");
+cvar_t	cl_servername = CVAR("cl_servername", "none");
+cvar_t	cl_serveraddress = CVAR("cl_serveraddress", "none");
+cvar_t	qtvcl_forceversion1 = CVAR("qtvcl_forceversion1", "0");
+cvar_t	qtvcl_eztvextensions = CVAR("qtvcl_eztvextensions", "0");
 
-cvar_t cl_demospeed = FCVAR("cl_demospeed", "demo_setspeed", "1", 0);
+cvar_t cl_demospeed = CVARAF("cl_demospeed", "1", "demo_setspeed", 0);
 
-cvar_t cl_loopbackprotocol = SCVAR("cl_loopbackprotocol", "qw");
+cvar_t cl_loopbackprotocol = CVAR("cl_loopbackprotocol", "qw");
 
 
-cvar_t	cl_indepphysics = SCVAR("cl_indepphysics", "0");
+cvar_t	cl_indepphysics = CVAR("cl_indepphysics", "0");
 
 cvar_t  localid = SCVAR("localid", "");
 
-cvar_t	cl_antibunch = SCVAR("cl_antibunch", "0");
+cvar_t	cl_antibunch = CVAR("cl_antibunch", "0");
 
-cvar_t	r_drawflame = SCVAR("r_drawflame", "1");
+cvar_t	r_drawflame = CVAR("r_drawflame", "1");
 
 static qboolean allowremotecmd = true;
 
@@ -99,33 +99,33 @@ extern int			total_loading_size, current_loading_size, loading_stage;
 //
 // info mirrors
 //
-cvar_t	password = SCVARF("password",		"",			CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy...
-cvar_t	spectator = SCVARF("spectator",		"",			CVAR_USERINFO);
-cvar_t	name = SCVARFC("name",				"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
-cvar_t	team = SCVARF("team",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	skin = SCVARF("skin",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	model = SCVARF("model",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	topcolor = SCVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	bottomcolor = SCVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	rate = SCVARF("rate",				"10000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	drate = SCVARF("drate",				"100000",	CVAR_ARCHIVE | CVAR_USERINFO);		// :)
-cvar_t	noaim = SCVARF("noaim",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	msg = SCVARF("msg",					"1",		CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	b_switch = SCVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	w_switch = SCVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	cl_nofake = SCVAR("cl_nofake",		"2");
-cvar_t	cl_chatsound = SCVAR("cl_chatsound","1");
-cvar_t	cl_enemychatsound = SCVAR("cl_enemychatsound", "misc/talk.wav");
-cvar_t	cl_teamchatsound = SCVAR("cl_teamchatsound", "misc/talk.wav");
+cvar_t	password = CVARF("password",		"",			CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy...
+cvar_t	spectator = CVARF("spectator",		"",			CVAR_USERINFO);
+cvar_t	name = CVARFC("name",				"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
+cvar_t	team = CVARF("team",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	skin = CVARF("skin",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	model = CVARF("model",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	topcolor = CVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	bottomcolor = CVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	rate = CVARF("rate",				"10000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	drate = CVARF("drate",				"100000",	CVAR_ARCHIVE | CVAR_USERINFO);		// :)
+cvar_t	noaim = CVARF("noaim",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	msg = CVARF("msg",					"1",		CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	b_switch = CVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	w_switch = CVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	cl_nofake = CVAR("cl_nofake",		"2");
+cvar_t	cl_chatsound = CVAR("cl_chatsound","1");
+cvar_t	cl_enemychatsound = CVAR("cl_enemychatsound", "misc/talk.wav");
+cvar_t	cl_teamchatsound = CVAR("cl_teamchatsound", "misc/talk.wav");
 
-cvar_t	r_torch			= SCVARF("r_torch",	"0",	CVAR_CHEAT);
-cvar_t	r_rocketlight	= SCVARC("r_rocketlight",	"1", Cvar_Limiter_ZeroToOne_Callback);
-cvar_t	r_lightflicker	= SCVAR("r_lightflicker",	"1");
-cvar_t	cl_r2g			= SCVAR("cl_r2g",	"0");
-cvar_t	r_powerupglow	= SCVAR("r_powerupglow", "1");
-cvar_t	v_powerupshell	= SCVAR("v_powerupshell", "0");
-cvar_t	cl_gibfilter	= SCVAR("cl_gibfilter", "0");
-cvar_t	cl_deadbodyfilter	= SCVAR("cl_deadbodyfilter", "0");
+cvar_t	r_torch			= CVARF("r_torch",	"0",	CVAR_CHEAT);
+cvar_t	r_rocketlight	= CVARC("r_rocketlight",	"1", Cvar_Limiter_ZeroToOne_Callback);
+cvar_t	r_lightflicker	= CVAR("r_lightflicker",	"1");
+cvar_t	cl_r2g			= CVAR("cl_r2g",	"0");
+cvar_t	r_powerupglow	= CVAR("r_powerupglow", "1");
+cvar_t	v_powerupshell	= CVAR("v_powerupshell", "0");
+cvar_t	cl_gibfilter	= CVAR("cl_gibfilter", "0");
+cvar_t	cl_deadbodyfilter	= CVAR("cl_deadbodyfilter", "0");
 
 cvar_t  cl_gunx = SCVAR("cl_gunx", "0");
 cvar_t  cl_guny = SCVAR("cl_guny", "0");
@@ -153,7 +153,8 @@ cvar_t  cl_parsewhitetext = SCVAR("cl_parsewhitetext", "1");
 
 cvar_t	cl_dlemptyterminate = SCVAR("cl_dlemptyterminate", "1");
 
-cvar_t	host_mapname = FCVAR("mapname", "host_mapname", "", 0);
+cvar_t	host_mapname = CVARAF("mapname", "",
+							  "host_mapname", 0);
 
 cvar_t	ruleset_allow_playercount	= SCVAR("ruleset_allow_playercount", "1");
 cvar_t	ruleset_allow_frj		= SCVAR("ruleset_allow_frj", "1");
@@ -165,7 +166,7 @@ cvar_t	ruleset_allow_larger_models	= SCVAR("ruleset_allow_larger_models", "1");
 cvar_t	ruleset_allow_modified_eyes = SCVAR("ruleset_allow_modified_eyes", "0");
 cvar_t	ruleset_allow_sensative_texture_replacements = SCVAR("ruleset_allow_sensative_texture_replacements", "1");
 cvar_t	ruleset_allow_localvolume	= SCVAR("ruleset_allow_localvolume", "1");
-cvar_t  ruleset_allow_shaders	= SCVAR("ruleset_allow_shaders", "1");
+cvar_t  ruleset_allow_shaders	= SCVARF("ruleset_allow_shaders", "1", CVAR_SHADERSYSTEM);
 
 extern cvar_t cl_hightrack;
 extern cvar_t	vid_renderer;
@@ -181,9 +182,7 @@ client_state_t	cl;
 
 // alot of this should probably be dynamically allocated
 entity_state_t	*cl_baselines;
-efrag_t			cl_efrags[MAX_EFRAGS];
-entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
-trailstate_t   *cl_static_emit[MAX_STATIC_ENTITIES];
+static_entity_t cl_static_entities[MAX_STATIC_ENTITIES];
 lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 //lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 dlight_t		*cl_dlights;
@@ -1053,7 +1052,6 @@ void CL_ClearState (void)
 	r_worldentity.model = NULL;
 
 // clear other arrays
-	memset (cl_efrags, 0, sizeof(cl_efrags));
 //	memset (cl_dlights, 0, sizeof(cl_dlights));
 	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
 
@@ -1065,14 +1063,6 @@ void CL_ClearState (void)
 		cl_baselines = NULL;
 	}
 	cl_baselines_count = 0;
-
-//
-// allocate the efrags and chain together into a free list
-//
-	cl.free_efrags = cl_efrags;
-	for (i=0 ; i<MAX_EFRAGS-1 ; i++)
-		cl.free_efrags[i].entnext = &cl.free_efrags[i+1];
-	cl.free_efrags[i].entnext = NULL;
 
 	for (i = 0; i < MAX_SPLITS; i++)
 		cl.viewheight[i] = DEFAULT_VIEWHEIGHT;
@@ -1758,7 +1748,7 @@ void CL_Packet_f (void)
 
 	if (!NET_StringToAdr (Cmd_Argv(1), &adr))
 	{
-		Con_TPrintf (TLC_BADADDRESS);
+		Con_Printf ("Bad address: %s\n", Cmd_Argv(1));
 		return;
 	}
 
@@ -1799,6 +1789,26 @@ void CL_Packet_f (void)
 		if (in[i] == '\\' && in[i+1] == 'n')
 		{
 			*out++ = '\n';
+			i++;
+		}
+		else if (in[i] == '\\' && in[i+1] == '\\')
+		{
+			*out++ = '\\';
+			i++;
+		}
+		else if (in[i] == '\\' && in[i+1] == 'r')
+		{
+			*out++ = '\r';
+			i++;
+		}
+		else if (in[i] == '\\' && in[i+1] == '\"')
+		{
+			*out++ = '\"';
+			i++;
+		}
+		else if (in[i] == '\\' && in[i+1] == '0')
+		{
+			*out++ = '\0';
 			i++;
 		}
 		else
@@ -3551,6 +3561,7 @@ void Host_Init (quakeparms_t *parms)
 	if (parms->memsize < MINIMUM_MEMORY)
 		Sys_Error ("Only %4.1f megs of memory reported, can't execute game", parms->memsize / (float)0x100000);
 
+	Cvar_Init();
 	Memory_Init (parms->membase, parms->memsize);
 
 	Sys_Init();
@@ -3637,7 +3648,8 @@ void Host_FinishInit(void)
 	{	//they didn't give us an rc file!
 		Cbuf_AddText ("bind ~ toggleconsole\n", RESTRICT_LOCAL);	//we expect default.cfg to not exist. :(
 		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
-		Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
+		if (COM_FCheckExists ("config.cfg"))
+			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
 		if (COM_FCheckExists ("q3config.cfg"))
 			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);

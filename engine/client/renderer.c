@@ -1,6 +1,8 @@
 #include "quakedef.h"
 #include "winquake.h"
 #include "pr_common.h"
+#include "gl_draw.h"
+#include <string.h>
 
 
 refdef_t	r_refdef;
@@ -38,59 +40,56 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldvalue);
 #endif
 
-cvar_t _vid_wait_override					= FCVAR  ("vid_wait", "_vid_wait_override", "",
-												CVAR_ARCHIVE);
+cvar_t _vid_wait_override					= CVARAF  ("vid_wait", "",
+													   "_vid_wait_override", CVAR_ARCHIVE);
 
-cvar_t _windowed_mouse						= SCVARF ("_windowed_mouse","1", CVAR_ARCHIVE);
+cvar_t _windowed_mouse						= CVARF ("_windowed_mouse","1",
+													 CVAR_ARCHIVE);
 
-cvar_t con_ocranaleds						= SCVAR  ("con_ocranaleds", "2");
+cvar_t con_ocranaleds						= CVAR  ("con_ocranaleds", "2");
 
-cvar_t d_palconvwrite						= SCVAR  ("d_palconvwrite", "1");
-cvar_t d_palremapsize						= SCVARF ("d_palremapsize", "64",
-												CVAR_RENDERERLATCH);
+cvar_t d_palconvwrite						= CVAR  ("d_palconvwrite", "1");
+cvar_t d_palremapsize						= CVARF ("d_palremapsize", "64",
+													 CVAR_RENDERERLATCH);
 
-cvar_t cl_cursor							= SCVAR  ("cl_cursor", "");
-cvar_t cl_cursorsize						= SCVAR  ("cl_cursorsize", "32");
-cvar_t cl_cursorbias						= SCVAR  ("cl_cursorbias", "4");
+cvar_t cl_cursor							= CVAR  ("cl_cursor", "");
+cvar_t cl_cursorsize						= CVAR  ("cl_cursorsize", "32");
+cvar_t cl_cursorbias						= CVAR  ("cl_cursorbias", "4");
 
-cvar_t gl_nocolors							= SCVAR  ("gl_nocolors", "0");
-cvar_t gl_part_flame						= SCVAR  ("gl_part_flame", "1");
+cvar_t gl_nocolors							= CVAR  ("gl_nocolors", "0");
+cvar_t gl_part_flame						= CVAR  ("gl_part_flame", "1");
 
 //opengl library, blank means try default.
-static cvar_t gl_driver						= SCVARF ("gl_driver", "",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t gl_shadeq1_name						= SCVAR  ("gl_shadeq1_name", "*");
+static cvar_t gl_driver						= CVARF ("gl_driver", "", 
+													 CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t gl_shadeq1_name						= CVAR  ("gl_shadeq1_name", "*");
 extern cvar_t r_vertexlight;
 
-cvar_t mod_md3flags							= SCVAR  ("mod_md3flags", "1");
+cvar_t mod_md3flags							= CVAR  ("mod_md3flags", "1");
 
-cvar_t r_ambient							= SCVARF ("r_ambient", "0",
+cvar_t r_ambient							= CVARF ("r_ambient", "0",
 												CVAR_CHEAT);
-cvar_t r_bloodstains						= SCVAR  ("r_bloodstains", "1");
-cvar_t r_bouncysparks						= SCVARF ("r_bouncysparks", "0",
+cvar_t r_bloodstains						= CVAR  ("r_bloodstains", "1");
+cvar_t r_bouncysparks						= CVARF ("r_bouncysparks", "0",
 												CVAR_ARCHIVE);
-cvar_t r_drawdisk							= SCVAR  ("r_drawdisk", "1");
-cvar_t r_drawentities						= SCVAR  ("r_drawentities", "1");
-cvar_t r_drawflat							= SCVARF ("r_drawflat", "0",
+cvar_t r_drawentities						= CVAR  ("r_drawentities", "1");
+cvar_t r_drawflat							= CVARF ("r_drawflat", "0",
 												CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
-cvar_t gl_miptexLevel						= SCVAR  ("gl_miptexLevel", "0");
-cvar_t r_drawviewmodel						= SCVAR  ("r_drawviewmodel", "1");
-cvar_t r_drawviewmodelinvis					= SCVAR  ("r_drawviewmodelinvis", "0");
-#ifdef MINIMAL
-cvar_t r_dynamic							= SCVARF ("r_dynamic", "0",
+cvar_t gl_miptexLevel						= CVAR  ("gl_miptexLevel", "0");
+cvar_t r_drawviewmodel						= CVAR  ("r_drawviewmodel", "1");
+cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
+cvar_t r_dynamic							= CVARF ("r_dynamic", IFMINIMAL("0","1"),
 												CVAR_ARCHIVE);
-#else
-cvar_t r_dynamic							= SCVARF ("r_dynamic", "1",
-												CVAR_ARCHIVE);
-#endif
-cvar_t r_fastsky							= SCVARF ("r_fastsky", "0",
+cvar_t r_fastturb							= CVARF ("r_fastturb", "0",
 												CVAR_SHADERSYSTEM);
-cvar_t r_fastskycolour						= SCVARF ("r_fastskycolour", "0",
+cvar_t r_fastsky							= CVARF ("r_fastsky", "0",
+												CVAR_SHADERSYSTEM);
+cvar_t r_fastskycolour						= CVARF ("r_fastskycolour", "0",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
-cvar_t r_fb_bmodels							= SCVARF("gl_fb_bmodels", "1",
+cvar_t r_fb_bmodels							= CVARF("gl_fb_bmodels", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
-cvar_t r_fb_models							= FCVAR  ("r_fb_models", "gl_fb_models", "1",
-												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t r_fb_models							= CVARAF  ("r_fb_models", "1",
+													"gl_fb_models", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
@@ -115,39 +114,38 @@ cvar_t r_nolightdir							= SCVAR  ("r_nolightdir", "0");
 cvar_t r_novis								= SCVAR  ("r_novis", "0");
 cvar_t r_part_rain							= SCVARF ("r_part_rain", "0",
 												CVAR_ARCHIVE);
-//whack in a value of 2 and you get easily visible players.
 cvar_t r_skyboxname							= SCVARF ("r_skybox", "",
 												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
 cvar_t r_speeds								= SCVAR ("r_speeds", "0");
 cvar_t r_stainfadeammount					= SCVAR  ("r_stainfadeammount", "1");
 cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
-cvar_t r_stains								= SCVARFC("r_stains", "0.75",
+cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0.75"),
 												CVAR_ARCHIVE,
 												Cvar_Limiter_ZeroToOne_Callback);
-cvar_t r_wallcolour							= SCVARF ("r_wallcolour", "255 255 255",
+cvar_t r_wallcolour							= CVARF ("r_wallcolour", "255 255 255",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
-cvar_t r_walltexture						= SCVARF ("r_walltexture", "",
+cvar_t r_walltexture						= CVARF ("r_walltexture", "",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);	//FIXME: broken
-cvar_t r_wateralpha							= SCVARF  ("r_wateralpha", "1",
+cvar_t r_wateralpha							= CVARF  ("r_wateralpha", "1",
 												CVAR_SHADERSYSTEM);
-cvar_t r_waterwarp							= SCVARF ("r_waterwarp", "1",
+cvar_t r_waterwarp							= CVARF ("r_waterwarp", "1",
 												CVAR_ARCHIVE);
 
-cvar_t r_replacemodels						= SCVARF ("r_replacemodels", "md3 md2",
+cvar_t r_replacemodels						= CVARF ("r_replacemodels", IFMINIMAL("","md3 md2"),
 												CVAR_ARCHIVE);
 
 //otherwise it would defeat the point.
-cvar_t scr_allowsnap						= SCVARF ("scr_allowsnap", "1",
+cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
 												CVAR_NOTFROMSERVER);
-cvar_t scr_centersbar						= SCVAR  ("scr_centersbar", "0");
-cvar_t scr_centertime						= SCVAR  ("scr_centertime", "2");
-cvar_t scr_chatmodecvar						= SCVAR  ("scr_chatmode", "0");
-cvar_t scr_conalpha							= SCVARC ("scr_conalpha", "0.7",
+cvar_t scr_centersbar						= CVAR  ("scr_centersbar", "0");
+cvar_t scr_centertime						= CVAR  ("scr_centertime", "2");
+cvar_t scr_chatmodecvar						= CVAR  ("scr_chatmode", "0");
+cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 												Cvar_Limiter_ZeroToOne_Callback);
-cvar_t scr_consize							= SCVAR  ("scr_consize", "0.5");
-cvar_t scr_conspeed							= SCVAR  ("scr_conspeed", "300");
+cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
+cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "300");
 // 10 - 170
-cvar_t scr_fov								= SCVARFC("fov", "90",
+cvar_t scr_fov								= CVARFC("fov", "90",
 												CVAR_ARCHIVE,
 												SCR_Fov_Callback);
 cvar_t scr_printspeed						= SCVAR  ("scr_printspeed", "8");
@@ -156,44 +154,44 @@ cvar_t scr_showturtle						= SCVAR  ("showturtle", "0");
 cvar_t scr_turtlefps						= SCVAR  ("scr_turtlefps", "10");
 cvar_t scr_sshot_compression				= SCVAR  ("scr_sshot_compression", "75");
 cvar_t scr_sshot_type						= SCVAR  ("scr_sshot_type", "jpg");
-cvar_t scr_viewsize							= SCVARFC("viewsize", "100",
+cvar_t scr_viewsize							= CVARFC("viewsize", "100",
 												CVAR_ARCHIVE,
 												SCR_Viewsize_Callback);
 
-cvar_t vid_conautoscale						= SCVARF ("vid_conautoscale", "0",
+cvar_t vid_conautoscale						= CVARF ("vid_conautoscale", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
-cvar_t vid_conheight						= SCVARF ("vid_conheight", "0",
+cvar_t vid_conheight						= CVARF ("vid_conheight", "0",
 												CVAR_ARCHIVE);
-cvar_t vid_conwidth							= SCVARF ("vid_conwidth", "0",
+cvar_t vid_conwidth							= CVARF ("vid_conwidth", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
 //see R_RestartRenderer_f for the effective default 'if (newr.renderer == -1)'.
-cvar_t vid_renderer							= SCVARF ("vid_renderer", "",
+cvar_t vid_renderer							= CVARF ("vid_renderer", "",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
-static cvar_t vid_allow_modex				= SCVARF ("vid_allow_modex", "1",
+static cvar_t vid_allow_modex				= CVARF ("vid_allow_modex", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);	//FIXME: remove
-static cvar_t vid_bpp						= SCVARF ("vid_bpp", "32",
+static cvar_t vid_bpp						= CVARF ("vid_bpp", "32",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-static cvar_t vid_desktopsettings			= SCVARF ("vid_desktopsettings", "0",
+static cvar_t vid_desktopsettings			= CVARF ("vid_desktopsettings", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 #ifdef NPQTV
-static cvar_t vid_fullscreen_npqtv			= SCVARF ("vid_fullscreen", "1",
+static cvar_t vid_fullscreen_npqtv			= CVARF ("vid_fullscreen", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t vid_fullscreen						= SCVARF ("vid_fullscreen_embedded", "0",
+cvar_t vid_fullscreen						= CVARF ("vid_fullscreen_embedded", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 #else
-static cvar_t vid_fullscreen				= SCVARF ("vid_fullscreen", "1",
+static cvar_t vid_fullscreen				= CVARF ("vid_fullscreen", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 #endif
-cvar_t vid_height							= SCVARF ("vid_height", "0",
+cvar_t vid_height							= CVARF ("vid_height", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-static cvar_t vid_multisample				= SCVARF ("vid_multisample", "0",
+cvar_t vid_multisample						= CVARF ("vid_multisample", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-static cvar_t vid_refreshrate				= SCVARF ("vid_displayfrequency", "0",
+static cvar_t vid_refreshrate				= CVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t vid_wndalpha							= SCVAR ("vid_wndalpha", "1");
+cvar_t vid_wndalpha							= CVAR ("vid_wndalpha", "1");
 //more readable defaults to match conwidth/conheight.
-cvar_t vid_width							= SCVARF ("vid_width", "0",
+cvar_t vid_width							= CVARF ("vid_width", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
 extern cvar_t bul_backcol;
@@ -223,7 +221,6 @@ extern cvar_t r_mirroralpha;
 extern cvar_t r_netgraph;
 extern cvar_t r_norefresh;
 extern cvar_t r_novis;
-extern cvar_t r_shadows;
 extern cvar_t r_speeds;
 extern cvar_t r_waterwarp;
 
@@ -251,15 +248,14 @@ cvar_t gl_bump								= SCVARF ("gl_bump", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t gl_compress							= SCVARF ("gl_compress", "0",
 												CVAR_ARCHIVE);
-cvar_t gl_conback							= SCVARF ("gl_conback", "",
-												CVAR_RENDERERCALLBACK);
+cvar_t gl_conback							= CVARFC ("gl_conback", "",
+												CVAR_RENDERERCALLBACK, R2D_Conback_Callback);
 cvar_t gl_contrast							= SCVAR  ("gl_contrast", "1");
 cvar_t gl_detail							= SCVARF ("gl_detail", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_detailscale						= SCVAR  ("gl_detailscale", "5");
 cvar_t gl_font								= SCVARF ("gl_font", "",
 												CVAR_RENDERERCALLBACK);
-cvar_t gl_fontinwardstep					= SCVAR  ("gl_fontinwardstep", "0");
 cvar_t gl_lateswap							= SCVAR  ("gl_lateswap", "0");
 cvar_t gl_lerpimages						= SCVAR  ("gl_lerpimages", "1");
 cvar_t gl_lightmap_shift					= SCVARF ("gl_lightmap_shift", "0",
@@ -269,7 +265,7 @@ cvar_t gl_lightmap_shift					= SCVARF ("gl_lightmap_shift", "0",
 cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
 												CVAR_ARCHIVE);
 
-cvar_t gl_max_size							= SCVAR  ("gl_max_size", "1024");
+cvar_t gl_max_size							= SCVARF  ("gl_max_size", "1024", CVAR_RENDERERLATCH);
 cvar_t gl_maxshadowlights					= SCVARF ("gl_maxshadowlights", "2",
 												CVAR_ARCHIVE);
 cvar_t gl_menutint_shader					= SCVAR  ("gl_menutint_shader", "1");
@@ -281,8 +277,6 @@ cvar_t gl_mindist							= SCVARF ("gl_mindist", "4",
 cvar_t gl_motionblur						= SCVARF ("gl_motionblur", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_motionblurscale					= SCVAR  ("gl_motionblurscale", "1");
-cvar_t gl_mylumassuck						= SCVAR  ("gl_mylumassuck", "0");
-cvar_t gl_nobind							= SCVAR  ("gl_nobind", "0");
 cvar_t gl_overbright						= SCVARF ("gl_overbright", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_overbright_all					= SCVARF ("gl_overbright_all", "0",
@@ -295,23 +289,19 @@ cvar_t gl_schematics						= SCVAR  ("gl_schematics", "0");
 cvar_t gl_skyboxdist						= SCVAR  ("gl_skyboxdist", "0");	//0 = guess.
 cvar_t gl_smoothcrosshair					= SCVAR  ("gl_smoothcrosshair", "1");
 
-//gl blends. Set this to 1 to stop the outside of your conchars from being visible
-cvar_t gl_smoothfont						= SCVARF  ("gl_smoothfont", "1",
-												CVAR_RENDERERCALLBACK);
-
 #ifdef SPECULAR
 cvar_t gl_specular							= SCVAR  ("gl_specular", "0");
 #endif
 
 // The callbacks are not in D3D yet (also ugly way of seperating this)
 #ifdef GLQUAKE
-cvar_t gl_texture_anisotropic_filtering		= SCVARFC("gl_texture_anisotropic_filtering", "0",
+cvar_t gl_texture_anisotropic_filtering		= CVARFC("gl_texture_anisotropic_filtering", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												GL_Texture_Anisotropic_Filtering_Callback);
-cvar_t gl_texturemode						= SCVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST",
+cvar_t gl_texturemode						= CVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												GL_Texturemode_Callback);
-cvar_t gl_texturemode2d						= SCVARFC("gl_texturemode2d", "GL_LINEAR",
+cvar_t gl_texturemode2d						= CVARFC("gl_texturemode2d", "GL_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												GL_Texturemode2d_Callback);
 #endif
@@ -320,6 +310,7 @@ cvar_t gl_triplebuffer						= SCVARF ("gl_triplebuffer", "1",
 												CVAR_ARCHIVE);
 cvar_t gl_ztrick							= SCVAR  ("gl_ztrick", "0");
 
+cvar_t r_noportals							= SCVAR  ("r_noportals", "0");
 cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
 												CVAR_ARCHIVE);
 
@@ -335,7 +326,6 @@ cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shado
 cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_dlight_shadows		= SCVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0.8", 0);
-cvar_t r_shadows							= SCVARF ("r_shadows", "0", CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
 cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "0");
 
@@ -383,7 +373,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_clear, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_cull, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_smoothmodels, GRAPHICALNICETIES);
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nohwblend, GLRENDEREROPTIONS);
@@ -394,7 +383,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_lateswap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lerpimages, GLRENDEREROPTIONS);
 
-	Cvar_Register (&r_shadows, GLRENDEREROPTIONS);
+	Cvar_Register (&r_noportals, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxshadowlights, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_basetexture, GLRENDEREROPTIONS);
@@ -416,8 +405,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_multisample, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_fontinwardstep, GRAPHICALNICETIES);
-	Cvar_Register (&gl_smoothfont, GRAPHICALNICETIES);
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_bump, GRAPHICALNICETIES);
@@ -440,10 +427,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_polygonoffset_submodel_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_offset, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_nobind, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_picmip, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_picmip2d, GLRENDEREROPTIONS);
-	Cvar_Register (&r_drawdisk, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
@@ -479,8 +464,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_blend2d, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_blendsprites, GLRENDEREROPTIONS);
-
-	Cvar_Register (&gl_mylumassuck, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_lightmap_shift, GLRENDEREROPTIONS);
 
@@ -625,6 +608,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_nolerp, GRAPHICALNICETIES);
 	Cvar_Register (&r_nolightdir, GRAPHICALNICETIES);
 
+	Cvar_Register (&r_fastturb, GRAPHICALNICETIES);
 	Cvar_Register (&r_fastsky, GRAPHICALNICETIES);
 	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
 	Cvar_Register (&r_wateralpha, GRAPHICALNICETIES);
@@ -733,10 +717,6 @@ void	(*R_PushDlights)			(void);
 void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
 void	(*R_LessenStains)			(void);
 
-void (*Media_ShowFrameBGR_24_Flip)	(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
-void (*Media_ShowFrameRGBA_32)		(qbyte *framedata, int inwidth, int inheight);	//top down
-void (*Media_ShowFrame8bit)			(qbyte *framedata, int inwidth, int inheight, qbyte *palette);	//paletted topdown (framedata is 8bit indexes into palette)
-
 void	(*Mod_Init)					(void);
 void	(*Mod_ClearAll)				(void);
 struct model_s *(*Mod_ForName)		(char *name, qboolean crash);
@@ -817,10 +797,6 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL,	//R_AddStain;
 	NULL,	//R_LessenStains;
-
-	NULL,	//Media_ShowFrameBGR_24_Flip;
-	NULL,	//Media_ShowFrameRGBA_32;
-	NULL,	//Media_ShowFrame8bit;
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 	RMod_Init,
@@ -951,7 +927,7 @@ typedef struct {
 	menucombo_t *conscalecombo;
 	menucombo_t *bppcombo;
 	menucombo_t *refreshratecombo;
-	menucombo_t *texturefiltercombo;
+	menucombo_t *vsynccombo;
 	menuedit_t *customwidth;
 	menuedit_t *customheight;
 } videomenuinfo_t;
@@ -1023,18 +999,19 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 		break;
 	}
 
-	switch(info->texturefiltercombo->selectedoption)
+	switch(info->vsynccombo->selectedoption)
 	{
 	case 0:
-		Cbuf_AddText("gl_texturemode gl_nearest_mipmap_nearest\n", RESTRICT_LOCAL);
+		Cbuf_AddText(va("vid_wait %i\n", 0), RESTRICT_LOCAL);
 		break;
 	case 1:
-		Cbuf_AddText("gl_texturemode gl_linear_mipmap_nearest\n", RESTRICT_LOCAL);
+		Cbuf_AddText(va("vid_wait %i\n", 1), RESTRICT_LOCAL);
 		break;
 	case 2:
-		Cbuf_AddText("gl_texturemode gl_linear_mipmap_linear\n", RESTRICT_LOCAL);
+		Cbuf_AddText(va("vid_wait %i\n", 2), RESTRICT_LOCAL);
 		break;
 	}
+
 
 	Cbuf_AddText(va("vid_bpp %i\n", selectedbpp), RESTRICT_LOCAL);
 
@@ -1085,11 +1062,9 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 }
 void M_Menu_Video_f (void)
 {
-	extern cvar_t r_stains, v_contrast;
+	extern cvar_t v_contrast;
 #if defined(GLQUAKE)
-	extern cvar_t r_bloom;
 #endif
-	extern cvar_t r_bouncysparks;
 	static const char *modenames[128] = {"Custom"};
 	static const char *rendererops[] = {
 #ifdef GLQUAKE
@@ -1114,6 +1089,7 @@ void M_Menu_Video_f (void)
 		"Trilinear",
 		NULL
 	};
+
 	static const char *refreshrates[] =
 	{
 		"0Hz (OS Driver refresh rate)",
@@ -1127,17 +1103,38 @@ void M_Menu_Video_f (void)
 		NULL
 	};
 
+	static const char *vsyncoptions[] =
+	{
+		"Off",
+		"Wait for Vertical Sync",
+		"Wait for Display Enable",
+		NULL
+	};
+
 	videomenuinfo_t *info;
-	menu_t *menu;
 	int prefabmode;
 	int prefab2dmode;
 	int currentbpp;
 	int currentrefreshrate;
-#ifdef GLQUAKE
-	int currenttexturefilter;
-#endif
+	int currentvsync;
+	int aspectratio3d;
+	int aspectratio2d;
+	char *aspectratio23d;
+	char *aspectratio22d;
+	char *rendererstring;
+	static char current3dres[10]; // enough to fit 1920x1200
+	static char current2dres[10]; // same as above
+	static char currenthz[6]; // enough to fit 120hz
+	static char currentcolordepth[6];
+
+	extern cvar_t _vid_wait_override;
+	float vidwidth = vid.pixelwidth;
+	float vidheight = vid.pixelheight;
 
 	int i, y;
+	menu_t *menu = M_Options_Title(&y, sizeof(videomenuinfo_t));
+	info = menu->data;
+
 	prefabmode = -1;
 	prefab2dmode = -1;
 	for (i = 0; i < sizeof(vid_modes)/sizeof(vidmode_t); i++)
@@ -1150,13 +1147,7 @@ void M_Menu_Video_f (void)
 	}
 	modenames[i+1] = NULL;
 
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(sizeof(videomenuinfo_t));
-	info = menu->data;
-
-#if defined(GLQUAKE) && defined(USE_D3D)
+#if defined(GLQUAKE) && defined(D3DQUAKE)
 	if (!strcmp(vid_renderer.string, "d3d9"))
 		i = 1;
 	else
@@ -1164,9 +1155,15 @@ void M_Menu_Video_f (void)
 		i = 0;
 
 	if (vid_bpp.value >= 32)
+	{
 		currentbpp = 2;
+		strcpy(currentcolordepth, va("%sbit (16.7m colors)",vid_bpp.string) );
+	}
 	else if (vid_bpp.value >= 16)
+	{
 		currentbpp = 1;
+		strcpy(currentcolordepth, va("%sbit (65.5k colors)",vid_bpp.string) );
+	}
 	else
 		currentbpp = 0;
 
@@ -1189,50 +1186,119 @@ void M_Menu_Video_f (void)
 	else
 		currentrefreshrate = 0;
 
-#ifdef GLQUAKE
-	if (!Q_strcasecmp(gl_texturemode.string, "gl_nearest_mipmap_nearest"))
-		currenttexturefilter = 0;
-	else if (!Q_strcasecmp(gl_texturemode.string, "gl_linear_mipmap_linear"))
-		currenttexturefilter = 2;
-	else if (!Q_strcasecmp(gl_texturemode.string, "gl_linear_mipmap_nearest"))
-		currenttexturefilter = 1;
+	strcpy(currenthz, va("%sHz",vid_refreshrate.string) );
+
+	aspectratio3d = (vidwidth / vidheight * 100); // times by 100 so don't have to deal with floats
+
+	if (aspectratio3d == 125) // 1.25
+		aspectratio23d = "5:4";
+	else if (aspectratio3d == 160) // 1.6
+		aspectratio23d = "16:10";
+	else if (aspectratio3d == 133) // 1.333333
+		aspectratio23d = "4:3";
+	else if (aspectratio3d == 177) // 1.777778
+		aspectratio23d = "16:9";
 	else
-		currenttexturefilter = 1;
-#endif
+	{
+		aspectratio23d = "Non-standard Ratio";
+		Con_Printf("Ratio: %i, width: %i, height: %i\n", aspectratio3d, vid.pixelwidth, vid.pixelheight);
+	}
 
+	aspectratio2d = (vid_conwidth.value / vid_conheight.value * 100); // times by 100 so don't have to deal with floats
 
-	MC_AddCenterPicture(menu, 4, 24, "vidmodes");
+	if (aspectratio2d == 125) // 1.25
+		aspectratio22d = "5:4";
+	else if (aspectratio2d == 160) // 1.6
+		aspectratio22d = "16:10";
+	else if (aspectratio2d == 133) // 1.333333
+		aspectratio22d = "4:3";
+	else if (aspectratio2d == 177) // 1.777778
+		aspectratio22d = "16:9";
+	else
+		aspectratio22d = "Non-standard Ratio";
 
-	y = 32;
-	info->renderer = MC_AddCombo(menu,	16, y,				"   Renderer     ", rendererops, i);	y+=8;
-	info->bppcombo = MC_AddCombo(menu,	16, y,				"   Color Depth  ", bppnames, currentbpp); y+=8;
-	info->refreshratecombo = MC_AddCombo(menu,	16, y,		"   Refresh Rate ", refreshrates, currentrefreshrate); y+=8;
-	info->modecombo = MC_AddCombo(menu,	16, y,				"   Video Size   ", modenames, prefabmode+1);	y+=8;
-	info->conscalecombo = MC_AddCombo(menu,	16, y,			"      2d Size   ", modenames, prefab2dmode+1);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Fullscreen   ", &vid_fullscreen,0);	y+=8;
-	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"   Custom width ", vid_width.string);	y+=8;
-	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"   Custom height", vid_height.string);	y+=12;
+	currentvsync = _vid_wait_override.value;
+
+	if ( stricmp(vid_renderer.string,"gl" ) == 0 )
+		rendererstring = "OpenGL";
+	else if ( stricmp(vid_renderer.string,"d3d7") == 0 )
+		rendererstring = "DirectX 7";
+	else if ( stricmp(vid_renderer.string,"d3d9") == 0 )
+		rendererstring = "DirectX 9";
+	else if ( stricmp(vid_renderer.string,"d3d") == 0)
+		rendererstring = "DirectX";
+	else if ( stricmp(vid_renderer.string,"sw") == 0)
+		rendererstring = "Software";
+	else
+		rendererstring = "Unknown Renderer?";
+
+	strcpy(current3dres, va("%ix%i", vid.pixelwidth, vid.pixelheight) );
+	strcpy(current2dres, va("%sx%s", vid_conwidth.string, vid_conheight.string) );
+
+	y += 40;
+	MC_AddRedText(menu, 0, y, 								"           Current Renderer", false);
+	MC_AddRedText(menu, 225, y, 						        rendererstring, false); y+=8;
+	MC_AddRedText(menu, 0, y, 							    "        Current Color Depth", false);
+	MC_AddRedText(menu, 225, y, 						 		currentcolordepth, false); y+=8;
+	if ( ( vidwidth == 0) || ( vidheight == 0) )
+		y+=16;
+	else
+	{
+		MC_AddRedText(menu, 0, y, 								"             Current 3D Res", false);
+		MC_AddRedText(menu, 225, y, 							  	  current3dres, false); y+=8;
+		MC_AddRedText(menu, 0, y, 								"             Current 3D A/R", false);
+		MC_AddRedText(menu, 225, y, 								aspectratio23d, false); y+=8;
+	}
+
+	if ( ( vid_conwidth.value == 0) || ( vid_conheight.value == 0) ) // same as 3d resolution
+	{
+		MC_AddRedText(menu, 0, y, 								"             Current 2D Res", false);
+		MC_AddRedText(menu, 225, y, 								  current3dres, false); y+=8;
+		MC_AddRedText(menu, 0, y, 								"             Current 2D A/R", false);
+		MC_AddRedText(menu, 225, y, 								aspectratio23d, false); y+=8;
+	}
+	else
+	{
+		MC_AddRedText(menu, 0, y, 								"             Current 2D Res", false);
+		MC_AddRedText(menu, 225, y, 								  current2dres, false); y+=8;
+		MC_AddRedText(menu, 0, y, 								"             Current 2D A/R", false);
+		MC_AddRedText(menu, 225, y, 								aspectratio22d, false); y+=8;
+	}
+
+	MC_AddRedText(menu, 0, y, 								"       Current Refresh Rate", false);
+	MC_AddRedText(menu, 225, y, 								currenthz, false); y+=8;
+ 	y+=8;
+	MC_AddRedText(menu, 0, y,								"      €‚ ", false); y+=8;
 	y+=8;
-	MC_AddCommand(menu,	16, y,								"           Apply", M_VideoApply);	y+=8;
+	info->renderer = MC_AddCombo(menu,	16, y,				"         Renderer", rendererops, i);	y+=8;
+	info->bppcombo = MC_AddCombo(menu,	16, y,				"      Color Depth", bppnames, currentbpp); y+=8;
+	info->refreshratecombo = MC_AddCombo(menu,	16, y,		"     Refresh Rate", refreshrates, currentrefreshrate); y+=8;
+	info->modecombo = MC_AddCombo(menu,	16, y,				"       Video Size", modenames, prefabmode+1);	y+=8;
+	MC_AddWhiteText(menu, 16, y, 							"  3D Aspect Ratio", false); y+=8;
+	info->conscalecombo = MC_AddCombo(menu,	16, y,			"          2D Size", modenames, prefab2dmode+1);	y+=8;
+	MC_AddWhiteText(menu, 16, y, 							"  2D Aspect Ratio", false); y+=8;
+	MC_AddCheckBox(menu,	16, y,							"       Fullscreen", &vid_fullscreen,0);	y+=8;
+	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"     Custom width", vid_width.string);	y+=8;
+	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"    Custom height", vid_height.string);	y+=12;
+	info->vsynccombo = MC_AddCombo(menu,	16, y,			"            VSync", vsyncoptions, currentvsync); y+=8;
+	//MC_AddCheckBox(menu,	16, y,							"   Override VSync", &_vid_wait_override,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							" Desktop Settings", &vid_desktopsettings,0);	y+=8;
 	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"      Stain maps", &r_stains,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Bouncy sparks", &r_bouncysparks,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"            Rain", &r_part_rain,0);	y+=8;
-#ifdef GLQUAKE
-	MC_AddCheckBox(menu,	16, y,							"  GL Bumpmapping", &gl_bump,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"           Bloom", &r_bloom,0);	y+=8;
-#endif
-	MC_AddCheckBox(menu,	16, y,							"  Dynamic lights", &r_dynamic,0);	y+=8;
-	MC_AddSlider(menu,	16, y,								"     Screen size", &scr_viewsize,	30,		120, 0.1);y+=8;
-	MC_AddSlider(menu,	16, y,								"           Gamma", &v_gamma, 0.3, 1, 0.05);	y+=8;
-	MC_AddSlider(menu,	16, y,								"        Contrast", &v_contrast, 1, 3, 0.05);	y+=8;
-#ifdef GLQUAKE
-	info->texturefiltercombo = MC_AddCombo(menu, 16, y,		" Texture Filter ", texturefilternames, currenttexturefilter); y+=8;
-	MC_AddSlider(menu, 16, y,								"Anisotropy Level", &gl_texture_anisotropic_filtering, 1, 16, 1); y+=8;	//urm, this shouldn't really be a slider, but should be a combo instead
-#endif
+	MC_AddCommand(menu,	16, y,								"= Apply Changes =", M_VideoApply);	y+=8;
+	y+=8;
+	MC_AddSlider(menu,	16, y,								"      Screen size", &scr_viewsize,	30,		120, 1);y+=8;
+	MC_AddSlider(menu,	16, y,								"Console Autoscale",&vid_conautoscale, 0, 6, 0.25);	y+=8;
+	MC_AddSlider(menu,	16, y,								"            Gamma", &v_gamma, 0.3, 1, 0.05);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"    Desktop Gamma", &vid_desktopgamma,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Hardware Gamma", &vid_hardwaregamma,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Preserve Gamma", &vid_preservegamma,0);	y+=8;
+	MC_AddSlider(menu,	16, y,								"         Contrast", &v_contrast, 1, 3, 0.05);	y+=8;
+	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"      Allow ModeX", &vid_allow_modex,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Windowed Mouse", &_windowed_mouse,0);	y+=8;
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, 32, NULL, false);
 	menu->selecteditem = (union menuoption_s *)info->renderer;
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, menu->selecteditem->common.posy, NULL, false);
 	menu->event = CheckCustomMode;
 }
 
@@ -1288,10 +1354,6 @@ void R_SetRenderer(rendererinfo_t *ri)
 	VID_ShiftPalette		= ri->VID_ShiftPalette;
 	VID_GetRGBInfo			= ri->VID_GetRGBInfo;
 	VID_SetWindowCaption	= ri->VID_SetWindowCaption;
-
-	Media_ShowFrame8bit			= ri->Media_ShowFrame8bit;
-	Media_ShowFrameRGBA_32		= ri->Media_ShowFrameRGBA_32;
-	Media_ShowFrameBGR_24_Flip	= ri->Media_ShowFrameBGR_24_Flip;
 
 	Mod_Init				= ri->Mod_Init;
 	Mod_Think				= ri->Mod_Think;
@@ -1612,7 +1674,7 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 		{
 			staticmodelindex[i] = 0;
 			for (j = 1; j < MAX_MODELS; j++)
-				if (cl_static_entities[i].model == cl.model_precache[j])
+				if (cl_static_entities[i].ent.model == cl.model_precache[j])
 				{
 					staticmodelindex[i] = j;
 					break;
@@ -1701,11 +1763,10 @@ TRACE(("dbg: R_ApplyRenderer: R_NewMap\n"));
 TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		for (i = 0; i < cl.num_statics; i++)	//make the static entities reappear.
 		{
-			cl_static_entities[i].model = cl.model_precache[staticmodelindex[i]];
-			if (staticmodelindex[i])	//make sure it's worthwhile.
-			{
-				R_AddEfrags(&cl_static_entities[i]);
-			}
+			cl_static_entities[i].ent.model = cl.model_precache[staticmodelindex[i]];
+			if (cl_static_entities[i].ent.model)
+				cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, NULL, NULL);
+#pragma message("STATIC ENTITITES --- relink")
 		}
 	}
 #ifdef VM_UI
@@ -2031,43 +2092,10 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 	return pspriteframe;
 }
 
-
-
-float	r_projection_matrix[16];
-float	r_view_matrix[16];
-
+/*
 void MYgluPerspective(double fovx, double fovy, double zNear, double zFar)
 {
-	Matrix4_Projection_Far(r_projection_matrix, fovx, fovy, zNear, zFar);
-	/*
-	double xmin, xmax, ymin, ymax;
-
-	ymax = zNear * tan( fovy * M_PI / 360.0 );
-	ymin = -ymax;
-
-	xmax = zNear * tan( fovx * M_PI / 360.0 );
-	xmin = -xmax;
-
-	r_projection_matrix[0] = (2*zNear) / (xmax - xmin);
-	r_projection_matrix[4] = 0;
-	r_projection_matrix[8] = (xmax + xmin) / (xmax - xmin);
-	r_projection_matrix[12] = 0;
-
-	r_projection_matrix[1] = 0;
-	r_projection_matrix[5] = (2*zNear) / (ymax - ymin);
-	r_projection_matrix[9] = (ymax + ymin) / (ymax - ymin);
-	r_projection_matrix[13] = 0;
-
-	r_projection_matrix[2] = 0;
-	r_projection_matrix[6] = 0;
-	r_projection_matrix[10] = - (zFar+zNear)/(zFar-zNear);
-	r_projection_matrix[14] = - (2.0f*zFar*zNear)/(zFar-zNear);
-
-	r_projection_matrix[3] = 0;
-	r_projection_matrix[7] = 0;
-	r_projection_matrix[11] = -1;
-	r_projection_matrix[15] = 0;
-	*/
+	Matrix4_Projection_Far(r_refdef.m_projection, fovx, fovy, zNear, zFar);
 }
 
 void GL_InfinatePerspective(double fovx, double fovy,
@@ -2128,7 +2156,7 @@ void GL_ParallelPerspective(double xmin, double xmax, double ymax, double ymin,
 	r_projection_matrix[11] = 0;
 	r_projection_matrix[15] = 1;
 }
-
+*/
 
 
 /*
@@ -2349,9 +2377,6 @@ qbyte *R_MarkLeaves_Q1 (void)
 
 	if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.ival) || r_novis.ival & 2)
 		return vis;
-
-//	if (mirror)
-//		return;
 
 	r_visframecount++;
 
@@ -2714,5 +2739,7 @@ void R_InitParticleTexture (void)
 		}
 	}
 	ptritexture = R_LoadTexture32("", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
+
+	Cvar_ForceCallback(&r_particlesystem);
 }
 

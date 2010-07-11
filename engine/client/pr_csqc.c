@@ -58,10 +58,10 @@ static qboolean csqc_isdarkplaces;
 static char csqc_printbuffer[8192];
 
 #define CSQCPROGSGROUP "CSQC progs control"
-cvar_t	pr_csmaxedicts = SCVAR("pr_csmaxedicts", "3072");	//not tied to protocol nor server.
-cvar_t	cl_csqcdebug = SCVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
-cvar_t  cl_nocsqc = SCVAR("cl_nocsqc", "0");
-cvar_t  pr_csqc_coreonerror = SCVAR("pr_csqc_coreonerror", "1");
+cvar_t	pr_csmaxedicts = CVAR("pr_csmaxedicts", "3072");	//not tied to protocol nor server.
+cvar_t	cl_csqcdebug = CVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
+cvar_t  cl_nocsqc = CVAR("cl_nocsqc", "0");
+cvar_t  pr_csqc_coreonerror = CVAR("pr_csqc_coreonerror", "1");
 
 
 #define MASK_DELTA 1
@@ -153,7 +153,7 @@ typedef enum
 	\
 	/*These are pointers to the csqc's globals.*/	\
 	globalfloat(svtime,					"time");				/*float		Written before entering most qc functions*/	\
-	globalfloat(frametime,					"frametime");			/*float		Written before entering most qc functions*/	\
+	globalfloat(frametime,				"frametime");			/*float		Written before entering most qc functions*/	\
 	globalfloat(cltime,					"cltime");				/*float		Written before entering most qc functions*/	\
 	globalentity(self,					"self");				/*entity	Written before entering most qc functions*/	\
 	globalentity(other,					"other");				/*entity	Written before entering most qc functions*/	\
@@ -777,11 +777,11 @@ static void PF_cs_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globa
 		return;
 	}
 
-	ent = &cl_static_entities[cl.num_statics];
+	ent = &cl_static_entities[cl.num_statics].ent;
 	if (CopyCSQCEdictToEntity(in, ent))
 	{
+		#pragma message("Link static entity")
 		cl.num_statics++;
-		R_AddEfrags(ent);
 	}
 
 	PF_cs_remove(prinst, pr_globals);
@@ -1352,7 +1352,7 @@ static void PF_R_GetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 		break;
 
 	case VF_DRAWWORLD:
-		*r = !(r_refdef.flags&Q2RDF_NOWORLDMODEL);;
+		*r = !(r_refdef.flags&Q2RDF_NOWORLDMODEL);
 		break;
 	case VF_ENGINESBAR:
 		*r = csqc_drawsbar;
@@ -2373,6 +2373,11 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 		ret = buffer;
 		sprintf(ret, "%i", (int)cl.players[pnum].entertime);
 	}
+	else if (!strcmp(keyname, "viewentity"))	//compat with DP
+	{
+		ret = buffer;
+		sprintf(ret, "%i", pnum+1);
+	}
 	else
 	{
 		ret = Info_ValueForKey(cl.players[pnum].userinfo, keyname);
@@ -3103,7 +3108,7 @@ static void PF_cs_gecko_create (progfuncs_t *prinst, struct globalvars_s *pr_glo
 {
 	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	cin_t *cin;
-	cin = R_ShaderGetCinematic(shader);
+	cin = R_ShaderFindCinematic(shader);
 
 	if (!cin)
 		G_FLOAT(OFS_RETURN) = 0;
@@ -3120,7 +3125,7 @@ static void PF_cs_gecko_navigate (progfuncs_t *prinst, struct globalvars_s *pr_g
 	char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *command = PR_GetStringOfs(prinst, OFS_PARM1);
 	cin_t *cin;
-	cin = R_ShaderGetCinematic(shader);
+	cin = R_ShaderFindCinematic(shader);
 
 	if (!cin)
 		return;
@@ -3134,7 +3139,7 @@ static void PF_cs_gecko_keyevent (progfuncs_t *prinst, struct globalvars_s *pr_g
 	int key = G_FLOAT(OFS_PARM1);
 	int eventtype = G_FLOAT(OFS_PARM2);
 	cin_t *cin;
-	cin = R_ShaderGetCinematic(shader);
+	cin = R_ShaderFindCinematic(shader);
 
 	if (!cin)
 		return;
@@ -3147,7 +3152,7 @@ static void PF_cs_gecko_mousemove (progfuncs_t *prinst, struct globalvars_s *pr_
 	float posx = G_FLOAT(OFS_PARM1);
 	float posy = G_FLOAT(OFS_PARM2);
 	cin_t *cin;
-	cin = R_ShaderGetCinematic(shader);
+	cin = R_ShaderFindCinematic(shader);
 
 	if (!cin)
 		return;
@@ -3160,7 +3165,7 @@ static void PF_cs_gecko_resize (progfuncs_t *prinst, struct globalvars_s *pr_glo
 	float sizex = G_FLOAT(OFS_PARM1);
 	float sizey = G_FLOAT(OFS_PARM2);
 	cin_t *cin;
-	cin = R_ShaderGetCinematic(shader);
+	cin = R_ShaderFindCinematic(shader);
 	if (!cin)
 		return;
 	Media_Send_Resize(cin, sizex, sizey);
@@ -3172,7 +3177,7 @@ static void PF_cs_gecko_get_texture_extent (progfuncs_t *prinst, struct globalva
 	float *ret = G_VECTOR(OFS_RETURN);
 	int sx, sy;
 	cin_t *cin;
-	cin = R_ShaderGetCinematic(shader);
+	cin = R_ShaderFindCinematic(shader);
 	if (cin)
 	{
 		Media_Send_GetSize(cin, &sx, &sy);
@@ -3553,7 +3558,7 @@ static void PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	G_FLOAT(OFS_RETURN) = (skelobj - skelobjects) + 1;
 }
 
-//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
+//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_build (FTE_CSQC_SKELETONOBJECTS)
 static void PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	#define MAX_BONES 256
@@ -4845,20 +4850,20 @@ static struct {
 	{"htos",			PF_htos,			262},
 
 	{"skel_create",			PF_skel_create,			263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_build",			PF_skel_build,			264},//float(float skel, entity ent, float modlindex, float firstbone, float lastbone) skel_build = #263; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_numbones",	PF_skel_get_numbones,	265},//float(float skel) skel_get_numbones = #264; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_bonename",	PF_skel_get_bonename,	266},//string(float skel, float bonenum) skel_get_bonename = #265; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
-	{"skel_get_boneparent",	PF_skel_get_boneparent,	267},//float(float skel, float bonenum) skel_get_boneparent = #266; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_find_bone",		PF_skel_find_bone,		268},//float(float skel, string tagname) skel_get_boneidx = #267; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_bonerel",	PF_skel_get_bonerel,	269},//vector(float skel, float bonenum) skel_get_bonerel = #268; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-	{"skel_get_boneabs",	PF_skel_get_boneabs,	270},//vector(float skel, float bonenum) skel_get_boneabs = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-	{"skel_set_bone",		PF_skel_set_bone,		271},//void(float skel, float bonenum, vector org) skel_set_bone = #270; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_mul_bone",		PF_skel_mul_bone,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_mul_bones",		PF_skel_mul_bones,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_copybones",		PF_skel_copybones,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #273; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_delete",			PF_skel_delete,			275},//void(float skel) skel_delete = #274; // (FTE_CSQC_SKELETONOBJECTS)
-	{"frameforname",		PF_frameforname,		276},//void(float modidx, string framename) frameforname = #275 (FTE_CSQC_SKELETONOBJECTS)
-	{"frameduration",		PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #276 (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build",			PF_skel_build,			264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_numbones",	PF_skel_get_numbones,	265},//float(float skel) skel_get_numbones = #265; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonename",	PF_skel_get_bonename,	266},//string(float skel, float bonenum) skel_get_bonename = #266; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+	{"skel_get_boneparent",	PF_skel_get_boneparent,	267},//float(float skel, float bonenum) skel_get_boneparent = #267; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_find_bone",		PF_skel_find_bone,		268},//float(float skel, string tagname) skel_get_boneidx = #268; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonerel",	PF_skel_get_bonerel,	269},//vector(float skel, float bonenum) skel_get_bonerel = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_get_boneabs",	PF_skel_get_boneabs,	270},//vector(float skel, float bonenum) skel_get_boneabs = #270; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_set_bone",		PF_skel_set_bone,		271},//void(float skel, float bonenum, vector org) skel_set_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bone",		PF_skel_mul_bone,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bones",		PF_skel_mul_bones,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_copybones",		PF_skel_copybones,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #274; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_delete",			PF_skel_delete,			275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforname",		PF_frameforname,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameduration",		PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
 //300
 	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
@@ -4882,9 +4887,9 @@ static struct {
 
 //	{"?",	PF_Fixme,			312},				// #312
 //	{"?",	PF_Fixme,		313},					// #313
-//	{"?",	PF_Fixme,			314},				// #314
 
 //2d (immediate) operations
+//	{"drawtextfield", PF_CL_DrawTextField,  314},
 	{"drawline",	PF_CL_drawline,			315},			// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
 	{"iscachedpic",	PF_CL_is_cached_pic,		316},		// #316 float(string name) iscachedpic (EXT_CSQC)
 	{"precache_pic",	PF_CL_precache_pic,			317},		// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
@@ -5139,8 +5144,14 @@ static struct {
 //DP_QC_URI_GET
 	{"uri_get",			PF_uri_get,			513},	// #513 float(string uril, float id) uri_get
 
-	{"keynumtostring",			PF_cl_keynumtostring,			520},	// #520
-	{"findkeysforcommand",			PF_cl_findkeysforcommand,			521},	// #521
+	{"tokenize_console",	PF_tokenize_console,		514},
+	{"argv_start_index",	PF_argv_start_index,		515},
+	{"argv_end_index",		PF_argv_end_index,			516},
+	{"buf_cvarlist",		PF_buf_cvarlist,			517},
+	{"cvar_description",	PF_cvar_description,		518},
+
+	{"keynumtostring",		PF_cl_keynumtostring,		520},
+	{"findkeysforcommand",	PF_cl_findkeysforcommand,	521},
 
 	{NULL}
 };
@@ -5499,14 +5510,10 @@ qboolean CSQC_Init (unsigned int checksum)
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csmaxedicts.value);
 
 		ED_Alloc(csqcprogs);	//we need a world entity.
+
 		//world edict becomes readonly
 		worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
-
-		worldent->readonly = true;
 		worldent->isfree = false;
-		worldent->v->modelindex = 1;
-		worldent->v->model = PR_SetString(csqcprogs, cl.model_name[(int)worldent->v->modelindex]);
-		worldent->v->solid = SOLID_BSP;
 
 		str = (string_t*)csqcprogs->GetEdictFieldValue(csqcprogs, (edict_t*)worldent, "message", NULL);
 		if (str)
@@ -5539,6 +5546,8 @@ qboolean CSQC_Init (unsigned int checksum)
 
 void CSQC_WorldLoaded(void)
 {
+	csqcedict_t *worldent;
+
 	if (!csqcprogs)
 		return;
 	if (csqcmapentitydataloaded)
@@ -5551,9 +5560,16 @@ void CSQC_WorldLoaded(void)
 	World_Physics_Start(&csqc_world);
 #endif
 
+	worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
+	worldent->v->modelindex = 1;
+	worldent->v->model = PR_SetString(csqcprogs, cl.model_name[(int)worldent->v->modelindex]);
+	worldent->v->solid = SOLID_BSP;
+
 	if (csqcg.worldloaded)
 		PR_ExecuteProgram(csqcprogs, csqcg.worldloaded);
 	csqcmapentitydata = NULL;
+
+	worldent->readonly = true;
 }
 
 void CSQC_CoreDump(void)
@@ -5911,16 +5927,23 @@ qboolean CSQC_ParsePrint(char *message, int printlevel)
 	return true;
 }
 
-qboolean CSQC_StuffCmd(int lplayernum, char *cmd)
+qboolean CSQC_StuffCmd(int lplayernum, char *cmd, char *cmdend)
 {
 	void *pr_globals;
+	char tmp[2];
 	if (!csqcprogs || !csqcg.parse_stuffcmd)
 		return false;
 
 	CSQC_ChangeLocalPlayer(lplayernum);
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	tmp[0] = cmdend[0];
+	tmp[1] = cmdend[1];
+	cmdend[0] = '\n';
+	cmdend[1] = 0;
 	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, cmd));
+	cmdend[0] = tmp[0];
+	cmdend[1] = tmp[1];
 
 	PR_ExecuteProgram (csqcprogs, csqcg.parse_stuffcmd);
 	return true;
@@ -6062,7 +6085,7 @@ void CSQC_ParseEntities(void)
 
 			CSQC_EntityCheck(entnum);
 
-			if (cl_csqcdebug.value)
+			if (cl_csqcdebug.ival)
 				Con_Printf("Remove %i\n", entnum);
 
 			ent = csqcent[entnum];
@@ -6098,13 +6121,13 @@ void CSQC_ParseEntities(void)
 				ent->xv->entnum = entnum;
 				G_FLOAT(OFS_PARM0) = true;
 
-				if (cl_csqcdebug.value)
+				if (cl_csqcdebug.ival)
 					Con_Printf("Add %i\n", entnum);
 			}
 			else
 			{
 				G_FLOAT(OFS_PARM0) = false;
-				if (cl_csqcdebug.value)
+				if (cl_csqcdebug.ival)
 					Con_Printf("Update %i\n", entnum);
 			}
 

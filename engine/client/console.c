@@ -569,23 +569,6 @@ void Con_PrintCon (console_t *con, char *txt)
 			cr = true;
 			break;
 		case '\n':
-
-#pragma message("Really inefficient consistancy checking, with no side effects other than sys_errors")
-{
-conline_t *cl;
-cl = con->oldest;
-if (cl->older)
-Sys_Error("older?\n");
-while(cl->newer)
-{
-	if (cl->newer->older != cl)
-		Sys_Error("bad backlink\n");
-cl = cl->newer;
-}
-if (cl != con->current)
-Sys_Error("not newest?\n");
-}
-
 			cr = false;
 			while (con->linecount >= con_maxlines.value)
 			{
@@ -1416,7 +1399,13 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 	if (!haveprogress && lines == vid.height)
 	{
-		char *version = va(DISTRIBUTION " Quake %i", build_number());
+#ifdef SVNREVISION
+		#define STRINGIFY2(arg) #arg
+		#define STRINGIFY(arg) STRINGIFY2(arg)
+		char *version = va(DISTRIBUTION " Quake B%i" IFMINIMAL("m","") " (R%s)\n", build_number(), STRINGIFY(SVNREVISION));
+#else
+		char *version = va(DISTRIBUTION " Quake %i" IFMINIMAL("m",""), build_number());
+#endif
 		int i;
 		Font_BeginString(font_conchar, vid.width, lines, &x, &y);
 		y -= Font_CharHeight();

@@ -89,6 +89,7 @@ typedef enum { BM_BLEND, BM_BLENDCOLOUR, BM_ADD, BM_SUBTRACT } blendmode_t;
 
 // used for callback
 extern cvar_t r_particlesdesc;
+extern cvar_t r_particlesystem;
 
 struct model_s;
 struct msurface_s;
@@ -137,7 +138,7 @@ typedef struct {
 
 	void (*ParticleTrailIndex) (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk);
 	void (*EmitSkyEffectTris) (struct model_s *mod, struct msurface_s 	*fa);
-	void (*InitParticles) (void);
+	qboolean (*InitParticles) (void);
 	void (*ShutdownParticles) (void);
 	void (*DelinkTrailstate) (trailstate_t **tsk);
 	void (*ClearParticles) (void);

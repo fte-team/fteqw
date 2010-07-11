@@ -520,7 +520,7 @@ void PR_LoadGlabalStruct(void)
 #define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
 #define globalvec(need,name) ((nqglobalvars_t*)pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
 #define globalvec_(need,name) ((nqglobalvars_t*)pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) {static func_t strippedout; strippedout = PR_FindFunction(svprogfuncs, #name, 0); if (strippedout) ((nqglobalvars_t*)pr_globals)->name = &strippedout; else SV_Error("Could not find function \""#name"\" in progs\n"); }
 //			globalint(pad);
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -624,7 +624,7 @@ void PR_LoadGlabalStruct(void)
 	gfuncs.ClassChangeWeapon = PR_FindFunction(svprogfuncs, "ClassChangeWeapon", PR_ANY);
 	gfuncs.RunClientCommand = PR_FindFunction(svprogfuncs, "SV_RunClientCommand", PR_ANY);
 
-	if (pr_no_playerphysics.value)
+	if (pr_no_playerphysics.ival)
 		SV_PlayerPhysicsQC = 0;
 	else
 		SV_PlayerPhysicsQC = PR_FindFunction(svprogfuncs, "SV_PlayerPhysics", PR_ANY);
@@ -3145,6 +3145,8 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			char *def = "";
 			if (!strcmp(str, "sv_maxairspeed"))
 				def = "30";
+			else if (!strcmp(str, "sv_jumpvelocity"))
+				def = "270";
 			else
 				def = "";
 
@@ -8926,7 +8928,7 @@ void PF_checkpvs(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	//and yeah, this is overkill what with the whole fat thing and all.
 	sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, viewpos, qcpvs, sizeof(qcpvs), false);
 
-	G_FLOAT(OFS_RETURN) = sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, (wedict_t*)ent, qcpvs);
+	G_FLOAT(OFS_RETURN) = sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)ent)->pvsinfo, qcpvs);
 }
 
 //entity(string match [, float matchnum]) matchclient = #241;
@@ -9508,6 +9510,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //DP_QC_WHICHPACK
 	{"whichpack",		PF_whichpack,		0,		0,		0,		503},	// #503 string(string filename) whichpack
+	//no 504
 
 //DP_QC_URI_ESCAPE
 	{"uri_escape",		PF_uri_escape,		0,		0,		0,		510},	// #510 string(string in) uri_escape
@@ -9519,7 +9522,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_URI_GET
 	{"uri_get",			PF_uri_get,			0,		0,		0,		513},	// #513 float(string uril, float id) uri_get
 
-	//no 504
+	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514},
+	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515},
+	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516},
+	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517},
+	{"cvar_description",PF_cvar_description,0,		0,		0,		518},
 //end dp extras
 
 	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532},	// #532 float(string mname) precache_vwep_model

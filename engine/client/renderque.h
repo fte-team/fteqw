@@ -1,9 +1,9 @@
 #ifndef RENDERQUE_H
 #define RENDERQUE_H
 
+void RQ_BeginFrame(void);
 void RQ_AddDistReorder(void (*render) (int count, void **objects, void *objtype), void *object, void *objtype, float *pos);
 
-FTE_DEPRECATED void RQ_RenderDistAndClear(void);
 void RQ_RenderBatchClear(void);
 
 typedef struct renderque_s

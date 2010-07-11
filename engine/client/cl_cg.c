@@ -453,7 +453,7 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to cgame trap %i passes invalid pointer\n", fn);	//out of bounds.
 
-static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
+static qintptr_t CG_SystemCallsEx(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
 	int ret=0;
 
@@ -1048,7 +1048,7 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 	return ret;
 }
 #ifdef _DEBUG
-static int CG_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, const int *arg)
+static qintptr_t CG_SystemCallsExWrapper(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {	//this is so we can use edit and continue properly (vc doesn't like function pointers for edit+continue)
 	return CG_SystemCallsEx(offset, mask, fn, arg);
 }

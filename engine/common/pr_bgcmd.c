@@ -385,6 +385,14 @@ void PF_cvar_defstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_CSTRING(cv->defaultstr);
 }
 
+//string(string cvarname) cvar_description
+void PF_cvar_description (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
+	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
+	RETURN_CSTRING(cv->description);
+}
+
 //float(string name) cvar_type
 void PF_cvar_type (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1510,6 +1518,65 @@ void PF_instr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		RETURN_SSTRING(sub);	//last as long as the original string
 }
 
+void PF_strreplace (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char resultbuf[4096];
+	char *result = resultbuf;
+	char *search = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *replace = PR_GetStringOfs(prinst, OFS_PARM1);
+	char *subject = PR_GetStringOfs(prinst, OFS_PARM2);
+	int searchlen = strlen(search);
+	int replacelen = strlen(replace);
+
+	if (searchlen)
+	{
+		while (*subject && result < resultbuf + sizeof(resultbuf) - replacelen - 2)
+		{
+			if (!strncmp(subject, search, searchlen))
+			{
+				subject += searchlen;
+				memcpy(result, replace, replacelen);
+				result += replacelen;
+			}
+			else
+				*result++ = *subject++;
+		}
+		*result = 0;
+		RETURN_TSTRING(resultbuf);
+	}
+	else
+		RETURN_TSTRING(subject);
+}
+void PF_strireplace (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char resultbuf[4096];
+	char *result = resultbuf;
+	char *search = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *replace = PR_GetStringOfs(prinst, OFS_PARM1);
+	char *subject = PR_GetStringOfs(prinst, OFS_PARM2);
+	int searchlen = strlen(search);
+	int replacelen = strlen(replace);
+
+	if (searchlen)
+	{
+		while (*subject && result < resultbuf + sizeof(resultbuf) - replacelen - 2)
+		{
+			if (!strnicmp(subject, search, searchlen))
+			{
+				subject += searchlen;
+				memcpy(result, replace, replacelen);
+				result += replacelen;
+			}
+			else
+				*result++ = *subject++;
+		}
+		*result = 0;
+		RETURN_TSTRING(resultbuf);
+	}
+	else
+		RETURN_TSTRING(subject);
+}
+
 //string(entity ent) etos = #65
 void PF_etos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1668,7 +1735,7 @@ void PF_buf_copy  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (strbuflist[bufto].prinst != prinst)
 		return;
 
-	//codeme
+	Con_Printf("PF_buf_copy: stub\n");
 }
 // #444 void(float bufhandle, float sortpower, float backward) buf_sort (DP_QC_STRINGBUFFERS)
 void PF_buf_sort  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1682,7 +1749,7 @@ void PF_buf_sort  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
-	//codeme
+	Con_Printf("PF_buf_sort: stub\n");
 }
 // #445 string(float bufhandle, string glue) buf_implode (DP_QC_STRINGBUFFERS)
 void PF_buf_implode  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1695,7 +1762,7 @@ void PF_buf_implode  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
-	//codeme
+	Con_Printf("PF_buf_implode: stub\n");
 
 	RETURN_TSTRING("");
 }
@@ -1762,7 +1829,7 @@ void PF_bufstr_add  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
-	//codeme
+	Con_Printf("PF_bufstr_add: stub\n");
 
 	G_FLOAT(OFS_RETURN) = 0;
 }
@@ -1777,7 +1844,21 @@ void PF_bufstr_free  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
-	//codeme
+	Con_Printf("PF_bufstr_free: stub\n");
+}
+
+void PF_buf_cvarlist  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int bufno = G_FLOAT(OFS_PARM0)-1;
+	char *pattern = PR_GetStringOfs(prinst, OFS_PARM1);
+	char *antipattern = PR_GetStringOfs(prinst, OFS_PARM2);
+
+	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+		return;
+	if (strbuflist[bufno].prinst != prinst)
+		return;
+
+	Con_Printf("PF_buf_cvarlist: stub\n");
 }
 
 //515's String functions
@@ -1826,9 +1907,10 @@ void PF_uri_escape  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_uri_unescape  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned char *s = (unsigned char*)PR_GetStringOfs(prinst, OFS_PARM0);
+	unsigned char resultbuf[8192];
 	unsigned char *i, *o;
 	unsigned char hex;
-	i = s; o = s;
+	i = s; o = resultbuf;
 	while (*i)
 	{
 		if (*i == '%')
@@ -1860,43 +1942,180 @@ void PF_uri_unescape  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			*o++ = hex;
 			i += 3;
 		}
-		*o++ = *i++;
+		else
+			*o++ = *i++;
 	}
 	*o = 0;
-	RETURN_TSTRING(s);
+	RETURN_TSTRING(resultbuf);
 }
 
 ////////////////////////////////////////////////////
 //Console functions
 
+#define MAXQCTOKENS 64
+static struct {
+	char *token;
+	unsigned int start;
+	unsigned int end;
+} qctoken[MAXQCTOKENS];
+unsigned int qctoken_count;
+
 void PF_ArgC  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//85			//float() argc;
 {
-	G_FLOAT(OFS_RETURN) = Cmd_Argc();
+	G_FLOAT(OFS_RETURN) = qctoken_count;
 }
 
-//KRIMZON_SV_PARSECLIENTCOMMAND added these two.
+int tokenizeqc(char *str, qboolean dpfuckage)
+{
+	char *start = str;
+	while(qctoken_count > 0)
+	{
+		qctoken_count--;
+		free(qctoken[qctoken_count].token);
+	}
+	qctoken_count = 0;
+	while (qctoken_count < MAXQCTOKENS)
+	{
+		/*skip whitespace here so the token's start is accurate*/
+		while (*str && *(unsigned char*)str <= ' ')
+			str++;
+
+		if (!*str)
+			break;
+
+		qctoken[qctoken_count].start = str - start;
+		str = COM_StringParse (str, false, dpfuckage);
+		if (!str)
+			break;
+
+		qctoken[qctoken_count].token = strdup(com_token);
+
+		qctoken[qctoken_count].end = str - start;
+		qctoken_count++;
+	}
+	return qctoken_count;
+}
+
+/*KRIMZON_SV_PARSECLIENTCOMMAND added these two - note that for compatibility with DP, this tokenize builtin is veeery vauge and doesn't match the console*/
 void PF_Tokenize  (progfuncs_t *prinst, struct globalvars_s *pr_globals)			//84			//void(string str) tokanize;
 {
-	Cmd_TokenizeString(PR_GetStringOfs(prinst, OFS_PARM0), false, true);
-	G_FLOAT(OFS_RETURN) = Cmd_Argc();
+	G_FLOAT(OFS_RETURN) = tokenizeqc(PR_GetStringOfs(prinst, OFS_PARM0), true);
+}
+
+void PF_tokenize_console  (progfuncs_t *prinst, struct globalvars_s *pr_globals)			//84			//void(string str) tokanize;
+{
+	G_FLOAT(OFS_RETURN) = tokenizeqc(PR_GetStringOfs(prinst, OFS_PARM0), false);
 }
 
 void PF_tokenizebyseparator  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	Cmd_TokenizePunctation(PR_GetStringOfs(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM1));
-	G_FLOAT(OFS_RETURN) = Cmd_Argc();
+	char *str = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *sep[7];
+	int seplen[7];
+	int seps = 0, s;
+	char *start = str;
+	int tlen;
+	qboolean found = true;
+
+	while (seps < *prinst->callargc - 1 && seps < 7)
+	{
+		sep[seps] = PR_GetStringOfs(prinst, OFS_PARM1 + seps*3);
+		seplen[seps] = strlen(sep[seps]);
+		seps++;
+	}
+
+	/*flush the old lot*/
+	while(qctoken_count > 0)
+	{
+		qctoken_count--;
+		free(qctoken[qctoken_count].token);
+	}
+	qctoken_count = 0;
+
+	qctoken[qctoken_count].start = 0;
+	if (*str)
+	for(;;)
+	{
+		found = false;
+		/*see if its a separator*/
+		if (!*str)
+		{
+			qctoken[qctoken_count].end = str - start;
+			found = true;
+		}
+		else
+		{
+			for (s = 0; s < seps; s++)
+			{
+				if (!strncmp(str, sep[s], seplen[s]))
+				{
+					qctoken[qctoken_count].end = str - start;
+					str += seplen[s];
+					found = true;
+					break;
+				}
+			}
+		}
+		/*it was, split it out*/
+		if (found)
+		{
+			tlen = qctoken[qctoken_count].end - qctoken[qctoken_count].start;
+			qctoken[qctoken_count].token = malloc(tlen + 1);
+			memcpy(qctoken[qctoken_count].token, start + qctoken[qctoken_count].start, tlen);
+			qctoken[qctoken_count].token[tlen] = 0;
+
+			qctoken_count++;
+
+			if (*str && qctoken_count < MAXQCTOKENS)
+				qctoken[qctoken_count].start = str - start;
+			else
+				break;
+		}
+		str++;
+	}
+	G_FLOAT(OFS_RETURN) = qctoken_count;
+}
+
+void PF_argv_start_index  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int idx = G_FLOAT(OFS_PARM0);
+
+	/*negative indexes are relative to the end*/
+	if (idx < 0)
+		idx += qctoken_count;	
+
+	if ((unsigned int)idx >= qctoken_count)
+		G_FLOAT(OFS_RETURN) = -1;
+	else
+		G_FLOAT(OFS_RETURN) = qctoken[idx].start;
+}
+
+void PF_argv_end_index  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int idx = G_FLOAT(OFS_PARM0);
+
+	/*negative indexes are relative to the end*/
+	if (idx < 0)
+		idx += qctoken_count;	
+
+	if ((unsigned int)idx >= qctoken_count)
+		G_FLOAT(OFS_RETURN) = -1;
+	else
+		G_FLOAT(OFS_RETURN) = qctoken[idx].end;
 }
 
 void PF_ArgV  (progfuncs_t *prinst, struct globalvars_s *pr_globals)				//86			//string(float num) argv;
 {
-	int i = G_FLOAT(OFS_PARM0);
-	if (i < 0)
-	{
-		PR_BIError(prinst, "pr_argv with i < 0");
+	int idx = G_FLOAT(OFS_PARM0);
+
+	/*negative indexes are relative to the end*/
+	if (idx < 0)
+		idx += qctoken_count;	
+
+	if ((unsigned int)idx >= qctoken_count)
 		G_INT(OFS_RETURN) = 0;
-		return;
-	}
-	RETURN_TSTRING(Cmd_Argv(i));
+	else
+		RETURN_TSTRING(qctoken[idx].token);
 }
 
 //Console functions

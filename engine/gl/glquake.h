@@ -129,6 +129,7 @@ typedef struct {
 	qboolean arb_texture_compression;
 //	qboolean arb_fragment_program;
 	qboolean arb_shader_objects;
+	qboolean ext_framebuffer_objects;
 	qboolean ext_stencil_wrap;
 	int ext_texture_filter_anisotropic;
 	int maxtmus;	//max texture units
@@ -158,7 +159,7 @@ texid_t GL_FindTexture (char *identifier);
 
 texid_t GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, unsigned int flags);
 void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags);
-
+/*
 typedef struct
 {
 	float	x, y, z;
@@ -167,7 +168,7 @@ typedef struct
 } glvert_t;
 
 FTE_DEPRECATED extern glvert_t glv;
-
+*/
 #endif
 
 // r_local.h -- private refresh defs
@@ -187,7 +188,6 @@ FTE_DEPRECATED extern glvert_t glv;
 
 
 void R_TimeRefresh_f (void);
-FTE_DEPRECATED texture_t *SWR_TextureAnimation (texture_t *base);
 
 #include "particles.h"
 
@@ -220,7 +220,6 @@ extern	int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;	
 extern	texture_t	*r_notexture_mip;
 extern	int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
-FTE_DEPRECATED extern	qboolean	envmap;
 extern	texid_t	netgraphtexture;	// netgraph texture
 
 extern	int		gl_lightmap_format;
@@ -293,24 +292,13 @@ void FTE_DEPRECATED R_BackendInit(void);
 void FTE_DEPRECATED R_IBrokeTheArrays(void);
 #endif
 
-void R_DrawSkyChain (msurface_t *s);
-texnums_t R_InitSky (texture_t *mt);
+
 
 //
 // gl_warp.c
 //
-#ifdef GLQUAKE
-void FTE_DEPRECATED GL_SubdivideSurface (msurface_t *fa, float dividesize);
-void FTE_DEPRECATED GL_EmitBothSkyLayers (msurface_t *fa);
-
-void R_DrawSkyBox (msurface_t *s);
-void R_ForceSkyBox (void);
-void R_AddSkySurface (msurface_t *fa);
-#endif
-#ifdef D3DQUAKE
-void D3D7_DrawSkyChain (msurface_t *s);
-void D3D9_DrawSkyChain (msurface_t *s);
-#endif
+void R_DrawSkyChain (batch_t *batch); /*called from the backend, and calls back into it*/
+texnums_t R_InitSky (texture_t *mt); /*generate q1 sky texnums*/
 
 //
 // gl_draw.c
@@ -323,6 +311,7 @@ void GL_Set2D (void);
 //
 // gl_rmain.c
 //
+qboolean R_ShouldDraw(entity_t *e);
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 #ifdef GLQUAKE
 qboolean R_CullSphere (vec3_t origin, float radius);
@@ -378,21 +367,8 @@ void R_InitBloomTextures(void);
 // gl_rsurf.c
 //
 #ifdef GLQUAKE
-FTE_DEPRECATED void R_DrawBrushModel (entity_t *e);
-
 void GL_LoadShaders(void);
 #endif
-
-
-//gl_ppl.c
-FTE_DEPRECATED void PPL_DrawWorld (qbyte *viewvis);
-FTE_DEPRECATED qboolean PPL_ShouldDraw(void);
-FTE_DEPRECATED void RotateLightVector(const vec3_t *angles, const vec3_t origin, const vec3_t lightpoint, vec3_t result);
-
-//
-// gl_refrag.c
-//
-void R_StoreEfrags (efrag_t **ppefrag);
 
 
 //

@@ -62,12 +62,14 @@ void R_Grenadetrail_Callback(struct cvar_s *var, char *oldvalue)
 particleengine_t pe_null;
 particleengine_t pe_classic;
 particleengine_t pe_darkplaces;
+particleengine_t pe_qmb;
 particleengine_t pe_script;
 
 particleengine_t *particlesystem[] =
 {
 	&pe_script,
 	&pe_darkplaces,
+	&pe_qmb,
 	&pe_classic,
 	&pe_null,
 	NULL,
@@ -100,32 +102,32 @@ void R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 	if (!pe)
 		Sys_Error("No particle system available. Please recompile.");
 
-	pe->InitParticles();
+	if (!pe->InitParticles())
+	{
+		Con_Printf("Particlesystem %s failed to init\n", pe->name1);
+		pe = &pe_null;
+		pe->InitParticles();
+	}
 	pe->ClearParticles();
 	CL_RegisterParticles();
 }
 
-cvar_t r_rockettrail = SCVARFC("r_rockettrail", "1", CVAR_SEMICHEAT, R_Rockettrail_Callback);
-cvar_t r_grenadetrail = SCVARFC("r_grenadetrail", "1", CVAR_SEMICHEAT, R_Grenadetrail_Callback);
-#ifdef MINIMAL
-//minimal builds get a different default.
-cvar_t r_particlesystem = SCVARFC("r_particlesystem", "classic", CVAR_SEMICHEAT, R_ParticleSystem_Callback);
-#else
-cvar_t r_particlesystem = SCVARFC("r_particlesystem", "script", CVAR_SEMICHEAT, R_ParticleSystem_Callback);
-#endif
-cvar_t r_particlesdesc = SCVARF("r_particlesdesc", "spikeset tsshaft", CVAR_SEMICHEAT);
+cvar_t r_rockettrail = CVARFC("r_rockettrail", "1", CVAR_SEMICHEAT, R_Rockettrail_Callback);
+cvar_t r_grenadetrail = CVARFC("r_grenadetrail", "1", CVAR_SEMICHEAT, R_Grenadetrail_Callback);
+cvar_t r_particlesystem = CVARFC("r_particlesystem", IFMINIMAL("classic", "script"), CVAR_SEMICHEAT, R_ParticleSystem_Callback);
+cvar_t r_particlesdesc = CVARF("r_particlesdesc", "spikeset tsshaft", CVAR_SEMICHEAT);
 extern cvar_t r_bouncysparks;
 extern cvar_t r_part_rain;
 extern cvar_t r_bloodstains;
 extern cvar_t gl_part_flame;
-cvar_t r_part_rain_quantity = SCVAR("r_part_rain_quantity", "1");
+cvar_t r_part_rain_quantity = CVAR("r_part_rain_quantity", "1");
 
-cvar_t r_particle_tracelimit = SCVAR("r_particle_tracelimit", "250");
-cvar_t r_part_sparks = SCVAR("r_part_sparks", "1");
-cvar_t r_part_sparks_trifan = SCVAR("r_part_sparks_trifan", "1");
-cvar_t r_part_sparks_textured = SCVAR("r_part_sparks_textured", "1");
-cvar_t r_part_beams = SCVAR("r_part_beams", "1");
-cvar_t r_part_contentswitch = SCVAR("r_part_contentswitch", "1");
+cvar_t r_particle_tracelimit = CVAR("r_particle_tracelimit", "250");
+cvar_t r_part_sparks = CVAR("r_part_sparks", "1");
+cvar_t r_part_sparks_trifan = CVAR("r_part_sparks_trifan", "1");
+cvar_t r_part_sparks_textured = CVAR("r_part_sparks_textured", "1");
+cvar_t r_part_beams = CVAR("r_part_beams", "1");
+cvar_t r_part_contentswitch = CVAR("r_part_contentswitch", "1");
 
 
 particleengine_t *pe;
@@ -206,7 +208,8 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 				if (len < bestlen)
 				{
 					bestlen = len;
-					VectorCopy (trace.plane.normal, normal);
+					if (normal)
+						VectorCopy (trace.plane.normal, normal);
 					VectorAdd (pe->origin, trace.endpos, impact);
 				}
 
@@ -215,9 +218,12 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 			if (trace.startsolid)
 			{
 				VectorNormalize(delta);
-				normal[0] = -delta[0];
-				normal[1] = -delta[1];
-				normal[2] = -delta[2];
+				if (normal)
+				{
+					normal[0] = -delta[0];
+					normal[1] = -delta[1];
+					normal[2] = -delta[2];
+				}
 				VectorCopy (start, impact);
 				return true;
 			}

@@ -20,12 +20,14 @@ typedef enum {
 
 typedef enum {
 	SHADER_SORT_NONE,
-	SHADER_SORT_SKY,
 	SHADER_SORT_PORTAL,
+	SHADER_SORT_SKY,
 	SHADER_SORT_OPAQUE,
+	SHADER_SORT_DECAL,
+	SHADER_SORT_SEETHROUGH,
 	SHADER_SORT_BANNER,
 	SHADER_SORT_UNDERWATER,
-	SHADER_SORT_DECAL,
+	SHADER_SORT_BLEND,
 	SHADER_SORT_ADDITIVE,
 	SHADER_SORT_NEAREST
 } shadersort_t;
@@ -55,17 +57,6 @@ typedef struct
 	} type;				// SHADER_FUNC enum
     float			args[4];			// offset, amplitude, phase_offset, rate
 } shaderfunc_t;
-
-typedef struct meshbuffer_s
-{
-	int					infokey;		// lightmap number or mesh number
-	unsigned int		dlightbits;
-	entity_t			*entity;
-	struct shader_s		*shader;
-	mesh_t				*mesh;
-	struct mfog_s		*fog;
-} meshbuffer_t;
-
 
 //tecture coordinate manipulation
 typedef struct 
@@ -282,6 +273,7 @@ typedef struct {
 } polyoffset_t;
 struct shader_s
 {
+	int uses;
 	int width;
 	int height;
 	int numpasses;
@@ -292,6 +284,7 @@ struct shader_s
 
 	byte_vec4_t fog_color;
 	float fog_dist;
+	float portaldist;
 
 	int numdeforms;
 	deformv_t	deforms[SHADER_DEFORM_MAX];
@@ -334,14 +327,14 @@ struct shader_s
 	const char	*genargs;
 
 	meshfeatures_t features;
-
-	int registration_sequence;
+	bucket_t bucket;
 };
 
 extern shader_t	*r_shaders;
 extern int be_maxpasses;
 
 
+void R_UnloadShader(shader_t *shader);
 shader_t *R_RegisterPic (char *name);
 shader_t *R_RegisterShader (char *name, const char *shaderscript);
 shader_t *R_RegisterShader_Lightmap (char *name);
@@ -351,10 +344,15 @@ shader_t *R_RegisterSkin (char *name);
 shader_t *R_RegisterCustom (char *name, shader_gen_t *defaultgen, const void *args);
 void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader);
 
-cin_t *R_ShaderGetCinematic(char *name);
+cin_t *R_ShaderGetCinematic(shader_t *s);
+cin_t *R_ShaderFindCinematic(char *name);
 
 void Shader_DefaultSkinShell(char *shortname, shader_t *s, const void *args);
-void Shader_DefaultBSP(char *shortname, shader_t *s, const void *args);
+void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args);
+void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args);
+void Shader_DefaultBSPQ2(char *shortname, shader_t *s, const void *args);
+void Shader_DefaultSkybox(char *shortname, shader_t *s, const void *args);
+void Shader_DefaultCinematic(char *shortname, shader_t *s, const void *args);
 void Shader_DefaultScript(char *shortname, shader_t *s, const void *args);
 
 void Shader_DoReload(void);
@@ -373,6 +371,7 @@ typedef enum
 	BEM_STENCIL,		//used for drawing shadow volumes to the stencil buffer.
 	BEM_DEPTHDARK,		//a quick depth pass. textures used only for alpha test. additive textures still shown as normal.
 	BEM_LIGHT,			//we have a valid light
+	BEM_SMAPLIGHTSPOT,	//we have a spot light using a shadowmap
 	BEM_SMAPLIGHT		//we have a light using a shadowmap
 } backendmode_t;
 
@@ -386,8 +385,10 @@ typedef enum
 //Select the current render mode and modifier flags
 void BE_SelectMode(backendmode_t mode, unsigned int flags);
 
-//Draws an entire mesh chain from a VBO. vbo can be null, in which case the chain may be drawn without batching.
-void BE_DrawMeshChain(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
+/*Draws an entire mesh list from a VBO. vbo can be null, in which case the chain may be drawn without batching.
+  Rules for using a list: Every mesh must be part of the same VBO, shader, lightmap, and must have the same pointers set*/
+void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums);
+void BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
 
 //Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required
 void BE_DrawWorld (qbyte *vis);
@@ -407,10 +408,11 @@ void BE_UploadAllLightmaps(void);
 void BE_SubmitMeshes (void);
 //sets up gl for depth-only FIXME
 void BE_SetupForShadowMap(void);
-//Generates shadow maps (called before anything is drawn in case it needs to clobber the normal view)
-void Sh_GenShadowMaps (void);
+//Called from shadowmapping code into backend
+void BE_BaseEntTextures(void);
 //Draws lights, called from the backend
 void Sh_DrawLights(qbyte *vis);
+void Sh_Shutdown(void);
 //Draws the depth of ents in the world near the current light
 void BE_BaseEntShadowDepth(void);
 //Sets the given light+colour to be the current one that everything is to be lit/culled by.

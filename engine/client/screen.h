@@ -102,12 +102,15 @@ void Font_Shutdown(void);
 struct font_s *Font_LoadFont(int height, char *fontfilename);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
+void Font_BeginScaledString(struct font_s *font, float vx, float vy, float *px, float *py); /*avoid using*/
 int Font_CharHeight(void);
 int Font_CharWidth(unsigned int charcode);
+int Font_CharEndCoord(int x, unsigned int charcode);
 int Font_DrawChar(int px, int py, unsigned int charcode);
+float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int charcode); /*avoid using*/
+void Font_EndString(struct font_s *font);
 void Font_ForceColour(float r, float g, float b, float a);	//This colour will be applied while the char mask remains WHITE. If you print char by char, make sure to include the mask.
 void Font_InvalidateColour(void);
-void Font_EndString(struct font_s *font);
 /*these three functions deal with formatted blocks of text (including tabs and new lines)*/
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
 int Font_LineWidth(conchar_t *start, conchar_t *end);

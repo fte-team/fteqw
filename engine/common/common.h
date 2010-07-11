@@ -378,6 +378,7 @@ char *COM_GetPathInfo (int i, int *crc);
 char *COM_NextPath (char *prevpath);
 void COM_FlushFSCache(void);	//a file was written using fopen
 void COM_RefreshFSCache_f(void);
+qboolean FS_Restarted(unsigned int *since);
 
 void COM_InitFilesystem (void);
 void FS_Shutdown(void);
@@ -402,7 +403,7 @@ char *COM_Effectinfo_ForNumber(unsigned int efnum);
 
 unsigned int COM_RemapMapChecksum(unsigned int checksum);
 
-#define	MAX_INFO_KEY	64
+#define	MAX_INFO_KEY	256
 char *Info_ValueForKey (char *s, const char *key);
 void Info_RemoveKey (char *s, const char *key);
 char *Info_KeyForNumber (char *s, int num);

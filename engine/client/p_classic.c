@@ -28,10 +28,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void D_DrawParticleTrans (vec3_t porg, float palpha, float pscale, unsigned int pcolour, blendmode_t blendmode);
 
 
-
-cvar_t gl_solidparticles = SCVAR("gl_solidparticles", "0");
-
-
 typedef enum {
 	DODGY,
 
@@ -94,8 +90,8 @@ static union c
 	unsigned int i;
 } classiccolours[BUFFERVERTS];
 static vec2_t classictexcoords[BUFFERVERTS];
-index_t classicindexes[BUFFERVERTS];
-static mesh_t classicmesh;
+static index_t classicindexes[BUFFERVERTS];
+mesh_t classicmesh;
 static shader_t *classicshader;
 
 
@@ -184,7 +180,7 @@ static void PClassic_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
 }
 
 //the one-time initialisation function, called no mater which renderer is active.
-static void PClassic_InitParticles (void)
+static qboolean PClassic_InitParticles (void)
 {
 	int i;
 	model_t *mod;
@@ -238,6 +234,8 @@ static void PClassic_InitParticles (void)
 		"}\n"
 		);
 	classicshader->defaulttextures.base = particlecqtexture;
+
+	return true;
 }
 
 static void PClassic_ShutdownParticles(void)
@@ -296,7 +294,7 @@ static void PClassic_DrawParticles(void)
 	VectorScale (vright, 1.5, right);
 
 	frametime = host_frametime;
-	if (cl.paused)
+	if (cl.paused || r_secondaryview || r_refdef.recurse)
 		frametime = 0;
 	time3 = frametime * 15;
 	time2 = frametime * 10; // 15;
@@ -335,7 +333,7 @@ static void PClassic_DrawParticles(void)
 		if (classicmesh.numvertexes >= BUFFERVERTS-3)
 		{
 			classicmesh.numindexes = classicmesh.numvertexes;
-			BE_DrawMeshChain(classicshader, &classicmesh, NULL, &classicshader->defaulttextures);
+			BE_DrawMesh_Single(classicshader, &classicmesh, NULL, &classicshader->defaulttextures);
 			classicmesh.numvertexes = 0;
 		}
 
@@ -418,7 +416,7 @@ static void PClassic_DrawParticles(void)
 	if (classicmesh.numvertexes)
 	{
 		classicmesh.numindexes = classicmesh.numvertexes;
-		BE_DrawMeshChain(classicshader, &classicmesh, NULL, &classicshader->defaulttextures);
+		BE_DrawMesh_Single(classicshader, &classicmesh, NULL, &classicshader->defaulttextures);
 		classicmesh.numvertexes = 0;
 	}
 

@@ -12,10 +12,12 @@ void Font_Shutdown(void);
 struct font_s *Font_LoadFont(int height, char *fontfilename);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
+void Font_BeginScaledString(struct font_s *font, float vx, float vy, float *px, float *py); /*avoid using*/
 int Font_CharHeight(void);
 int Font_CharWidth(unsigned int charcode);
 int Font_CharEndCoord(int x, unsigned int charcode);
 int Font_DrawChar(int px, int py, unsigned int charcode);
+float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int charcode); /*avoid using*/
 void Font_EndString(struct font_s *font);
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
 struct font_s *font_conchar;
@@ -157,7 +159,6 @@ static const char *imgs[] =
 
 #define GEN_CONCHAR_GLYPHS 0	//set to 0 or 1 to define whether to generate glyphs from conchars too, or if it should just draw them as glquake always used to
 extern cvar_t cl_noblink;
-extern cvar_t gl_smoothfont;
 extern cvar_t con_ocranaleds;
 
 typedef struct font_s
@@ -278,7 +279,7 @@ static void Font_Flush(void)
 
 	if (fontplanes.planechanged)
 	{
-		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, PLANEWIDTH, PLANEHEIGHT, IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
+		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
 
 		fontplanes.planechanged = false;
 	}
@@ -286,15 +287,15 @@ static void Font_Flush(void)
 	if (font_colourmask & CON_NONCLEARBG)
 	{
 		fontplanes.backshader->defaulttextures.base = r_nulltex;
-		BE_DrawMeshChain(fontplanes.backshader, &font_mesh, NULL, &fontplanes.backshader->defaulttextures);
+		BE_DrawMesh_Single(fontplanes.backshader, &font_mesh, NULL, &fontplanes.backshader->defaulttextures);
 
 		fontplanes.shader->defaulttextures.base = font_texture;
-		BE_DrawMeshChain(fontplanes.shader, &font_mesh, NULL, &fontplanes.shader->defaulttextures);
+		BE_DrawMesh_Single(fontplanes.shader, &font_mesh, NULL, &fontplanes.shader->defaulttextures);
 	}
 	else
 	{
 		fontplanes.shader->defaulttextures.base = font_texture;
-		BE_DrawMeshChain(fontplanes.shader, &font_mesh, NULL, &fontplanes.shader->defaulttextures);
+		BE_DrawMesh_Single(fontplanes.shader, &font_mesh, NULL, &fontplanes.shader->defaulttextures);
 	}
 
 	font_mesh.numindexes = 0;
@@ -448,13 +449,14 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 	struct charcache_s *c;
 
 #if GEN_CONCHAR_GLYPHS != 0
-	if (charidx >= 0xe000 && charidx <= 0xe0ff && draw_chars)
+	if (charidx >= 0xe000 && charidx <= 0xe0ff)
 	{
 		int cpos = charidx & 0xff;
 		unsigned int img[64*64], *d;
 		unsigned char *s;
 		int scale;
 		int x,y, ys;
+		qbyte *draw_chars = W_GetLumpName("conchars");
 		if (draw_chars)
 		{
 			d = img;
@@ -881,6 +883,12 @@ void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py)
 	*px = (vx*vid.pixelwidth) / (float)vid.width;
 	*py = (vy*vid.pixelheight) / (float)vid.height;
 }
+void Font_BeginScaledString(struct font_s *font, float vx, float vy, float *px, float *py)
+{
+	curfont = font;
+	*px = (vx*vid.pixelwidth) / (float)vid.width;
+	*py = (vy*vid.pixelheight) / (float)vid.height;
+}
 
 void Font_EndString(struct font_s *font)
 {
@@ -1098,8 +1106,8 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	{
 		sx = ((px+c->left)*(int)vid.width) / (float)vid.pixelwidth;
 		sy = ((py+c->top)*(int)vid.height) / (float)vid.pixelheight;
-		sw = ((c->bmw+1)*vid.width) / (float)vid.pixelwidth;
-		sh = ((c->bmh+1)*vid.height) / (float)vid.pixelheight;
+		sw = ((c->bmw)*vid.width) / (float)vid.pixelwidth;
+		sh = ((c->bmh)*vid.height) / (float)vid.pixelheight;
 		v = Font_BeginChar(fontplanes.texnum[c->texplane]);
 	}
 
@@ -1123,4 +1131,107 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 
 	return nextx;
 }
+
+/*there is no sane way to make this pixel-correct*/
+float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int charcode)
+{
+	struct charcache_s *c;
+	float s0, s1;
+	float t0, t1;
+	float nextx;
+	float sx, sy, sw, sh;
+	int col;
+	int v;
+
+	cw /= curfont->charheight;
+	ch /= curfont->charheight;
+
+
+	//crash if there is no current font.
+	c = Font_GetChar(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+	if (!c)
+	{
+		c = Font_TryLoadGlyph(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+		if (!c)
+			return px;
+	}
+
+	nextx = px + c->advance*cw;
+
+	if ((charcode & CON_CHARMASK) == ' ')
+		return nextx;
+
+	if (charcode & CON_BLINKTEXT)
+	{
+		if (!cl_noblink.ival)
+			if ((int)(realtime*3) & 1)
+				return nextx;
+	}
+
+	col = charcode & (CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
+	if (col != font_colourmask)
+	{
+		Font_Flush();
+		font_colourmask = col;
+
+		col = (charcode&CON_FGMASK)>>CON_FGSHIFT;
+		fontplanes.shader->passes[0].rgbgen_func.args[0] = consolecolours[col].fr;
+		fontplanes.shader->passes[0].rgbgen_func.args[1] = consolecolours[col].fg;
+		fontplanes.shader->passes[0].rgbgen_func.args[2] = consolecolours[col].fb;
+		fontplanes.shader->passes[0].alphagen_func.args[0] = (charcode & CON_HALFALPHA)?0.5:1;
+
+		col = (charcode&CON_BGMASK)>>CON_BGSHIFT;
+		fontplanes.backshader->passes[0].rgbgen_func.args[0] = consolecolours[col].fr;
+		fontplanes.backshader->passes[0].rgbgen_func.args[1] = consolecolours[col].fg;
+		fontplanes.backshader->passes[0].rgbgen_func.args[2] = consolecolours[col].fb;
+		fontplanes.backshader->passes[0].alphagen_func.args[0] = (charcode & CON_NONCLEARBG)?0.5:0;
+	}
+
+	s0 = (float)c->bmx/PLANEWIDTH;
+	t0 = (float)c->bmy/PLANEWIDTH;
+	s1 = (float)(c->bmx+c->bmw)/PLANEWIDTH;
+	t1 = (float)(c->bmy+c->bmh)/PLANEWIDTH;
+
+	if (c->texplane >= DEFAULTPLANE)
+	{
+		sx = ((px+c->left)*(int)vid.width) / (float)vid.pixelwidth;
+		sy = ((py+c->top)*(int)vid.height) / (float)vid.pixelheight;
+		sw = ((curfont->charheight*cw)*vid.width) / (float)vid.pixelwidth;
+		sh = ((curfont->charheight*ch)*vid.height) / (float)vid.pixelheight;
+
+		if (c->texplane == DEFAULTPLANE)
+			v = Font_BeginChar(fontplanes.defaultfont);
+		else
+			v = Font_BeginChar(curfont->singletexture);
+	}
+	else
+	{
+		sx = ((px+c->left)*(int)vid.width) / (float)vid.pixelwidth;
+		sy = ((py+c->top)*(int)vid.height) / (float)vid.pixelheight;
+		sw = ((c->bmw*cw)*vid.width) / (float)vid.pixelwidth;
+		sh = ((c->bmh*ch)*vid.height) / (float)vid.pixelheight;
+		v = Font_BeginChar(fontplanes.texnum[c->texplane]);
+	}
+
+	font_texcoord[v+0][0] = s0;
+	font_texcoord[v+0][1] = t0;
+	font_texcoord[v+1][0] = s1;
+	font_texcoord[v+1][1] = t0;
+	font_texcoord[v+2][0] = s1;
+	font_texcoord[v+2][1] = t1;
+	font_texcoord[v+3][0] = s0;
+	font_texcoord[v+3][1] = t1;
+
+	font_coord[v+0][0] = sx;
+	font_coord[v+0][1] = sy;
+	font_coord[v+1][0] = sx+sw;
+	font_coord[v+1][1] = sy;
+	font_coord[v+2][0] = sx+sw;
+	font_coord[v+2][1] = sy+sh;
+	font_coord[v+3][0] = sx;
+	font_coord[v+3][1] = sy+sh;
+
+	return nextx;
+}
+
 #endif	//!SERVERONLY

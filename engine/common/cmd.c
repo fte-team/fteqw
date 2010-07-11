@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-cvar_t com_fs_cache			= SCVARF("fs_cache", "1", CVAR_ARCHIVE);
+cvar_t com_fs_cache			= SCVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
 cvar_t rcon_level			= SCVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= SCVAR("cmd_maxbuffersize", "65536");
 int	Cmd_ExecLevel;
@@ -2607,7 +2607,7 @@ void Cmd_set_f(void)
 	else
 		docalc = false;
 
-	var = Cvar_Get (Cmd_Argv(1), "0", 0, "Custom variables");
+	var = Cvar_Get (Cmd_Argv(1), "", 0, "Custom variables");
 
 	if (Cmd_FromGamecode())	//AAHHHH!!! Q2 set command is different
 	{

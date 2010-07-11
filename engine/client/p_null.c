@@ -47,7 +47,7 @@ static void PNULL_DrawParticles(void)
 	RSpeedLocals();
 
 	RSpeedRemark();
-	RQ_RenderDistAndClear();
+	RQ_RenderBatchClear();
 	RSpeedEnd(RSPEED_PARTICLESDRAW);
 }
 

@@ -32,7 +32,6 @@ static vec3_t			modelorg;	/*set before recursively entering the visible surface 
 static qbyte			areabits[MAX_Q2MAP_AREAS/8];
 
 model_t		*currentmodel;
-mesh_t nullmesh;
 
 int		lightmap_bytes;		// 1, 3 or 4
 qboolean lightmap_bgra;
@@ -1795,10 +1794,6 @@ static qbyte *R_MarkLeafSurfaces_Q1 (void)
 
 				*surf->mark = surf;
 			}
-
-			//deal with static ents.
-			if (leaf->efrags)
-				R_StoreEfrags (&leaf->efrags);
 		}
 	}
 
@@ -1820,8 +1815,7 @@ static qbyte *R_MarkLeafSurfaces_Q1 (void)
 					Surf_RenderDynamicLightmaps (surf, shift);
 
 					tex->vbo.meshlist[j] = NULL;
-					surf->texturechain = surf->texinfo->texture->texturechain;
-					surf->texinfo->texture->texturechain = surf;
+					surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
 				}
 			}
 		}
@@ -1878,10 +1872,6 @@ start:
 				(*mark++)->visframe = r_framecount;
 			} while (--c);
 		}
-
-	// deal with model fragments in this leaf
-		if (pleaf->efrags)
-			R_StoreEfrags (&pleaf->efrags);
 		return;
 	}
 
@@ -1937,9 +1927,7 @@ start:
 					continue;		// wrong side
 
 				Surf_RenderDynamicLightmaps (surf, shift);
-				// if sorting by texture, just store it out
-				surf->texturechain = surf->texinfo->texture->texturechain;
-				surf->texinfo->texture->texturechain = surf;
+				surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
 			}
 		}
 	}
@@ -2046,8 +2034,7 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 
 		Surf_RenderDynamicLightmaps (surf, shift);
 
-		surf->texturechain = surf->texinfo->texture->texturechain;
-		surf->texinfo->texture->texturechain = surf;
+		surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
 	}
 
 
@@ -2114,10 +2101,6 @@ static void Surf_LeafWorldNode (void)
 				surf->visframe = r_framecount;
 				if (surf->mark)
 					*surf->mark = surf;
-				/*
-				surf->texturechain = surf->texinfo->texture->texturechain;
-				surf->texinfo->texture->texturechain = surf;#
-				*/
 			}
 		} while (--i);
 
@@ -2141,8 +2124,7 @@ static void Surf_LeafWorldNode (void)
 				if (surf)
 				{
 					tex->vbo.meshlist[j] = NULL;
-					surf->texturechain = surf->texinfo->texture->texturechain;
-					surf->texinfo->texture->texturechain = surf;
+					surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
 				}
 			}
 		}
@@ -2150,26 +2132,24 @@ static void Surf_LeafWorldNode (void)
 }
 #endif
 
-static void Surf_ClearChains(void)
-{
-	int i;
-	for (i = 0; i < cl.worldmodel->numtextures; i++)
-	{
-		if (!cl.worldmodel->textures[i])
-			continue;
-		cl.worldmodel->textures[i]->texturechain = NULL;
-		cl.worldmodel->textures[i]->texturechain_tail = &cl.worldmodel->textures[i]->texturechain;
-	}
-}
-
 static void Surf_CleanChains(void)
 {
-	int i;
 	model_t *model = cl.worldmodel;
+	batch_t *batch;
 
-	for (i=0 ; i<model->numtextures ; i++)
+	if (r_refdef.recurse)
 	{
-		model->textures[i]->texturechain = NULL;
+		for (batch = model->batches; batch; batch = batch->next)
+		{
+			batch->meshes = batch->firstmesh;
+		}
+	}
+	else
+	{
+		for (batch = model->batches; batch; batch = batch->next)
+		{
+			batch->meshes = batch->firstmesh;
+		}
 	}
 }
 
@@ -2229,7 +2209,10 @@ void Surf_SetupFrame(void)
 	{
 		r_oldviewleaf = r_viewleaf;
 		r_oldviewleaf2 = r_viewleaf2;
-		r_viewleaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
+		if (r_refdef.recurse)
+			r_viewleaf = RMod_PointInLeaf (cl.worldmodel, r_refdef.pvsorigin);
+		else
+			r_viewleaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
 
 		if (!r_viewleaf)
 		{
@@ -2271,29 +2254,25 @@ R_DrawWorld
 
 void Surf_DrawWorld (void)
 {
+	int tmp;
 	qbyte *vis;
 	RSpeedLocals();
-	entity_t	ent;
 
 	Surf_SetupFrame();
 
-	memset (&ent, 0, sizeof(ent));
-	ent.model = cl.worldmodel;
 	currentmodel = cl.worldmodel;
+	currententity = &r_worldentity;
 
-	currententity = &ent;
 #ifdef TERRAIN
 	if (currentmodel->type == mod_heightmap)
 		GL_DrawHeightmapModel(currententity);
 	else
 #endif
 	{
-		Surf_ClearChains();
-
 		RSpeedRemark();
 
 #ifdef Q2BSPS
-		if (ent.model->fromgame == fg_quake2 || ent.model->fromgame == fg_quake3)
+		if (currententity->model->fromgame == fg_quake2 || currententity->model->fromgame == fg_quake3)
 		{
 			int leafnum;
 			int clientarea;
@@ -2308,7 +2287,7 @@ void Surf_DrawWorld (void)
 				CM_WriteAreaBits(cl.worldmodel, areabits, clientarea);
 			}
 #ifdef Q3BSPS
-			if (ent.model->fromgame == fg_quake3)
+			if (currententity->model->fromgame == fg_quake3)
 			{
 				vis = R_MarkLeaves_Q3 ();
 				Surf_LeafWorldNode ();
@@ -2335,13 +2314,19 @@ void Surf_DrawWorld (void)
 			}
 		}
 
+		tmp = cl_numvisedicts;
+		CL_LinkStaticEntities(vis);
+
 		RSpeedEnd(RSPEED_WORLDNODE);
 		TRACE(("dbg: calling BE_DrawWorld\n"));
 		BE_DrawWorld(vis);
-		Surf_CleanChains();
+		cl_numvisedicts = tmp;
 
 
+		/*FIXME: move this away*/
 		Surf_LessenStains();
+
+		Surf_CleanChains();
 	}
 }
 
@@ -2514,6 +2499,7 @@ static int	nColinElim;
 ================
 BuildSurfaceDisplayList
 FIXME: this is probably misplaced
+lightmaps are already built by the time this is called
 ================
 */
 void Surf_BuildSurfaceDisplayList (model_t *model, msurface_t *fa)
@@ -2630,7 +2616,10 @@ static void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift)
 	if (surf->texinfo->flags & TEX_SPECIAL)
 		surf->lightmaptexturenum = -1;
 	if (surf->lightmaptexturenum<0)
+	{
+		surf->lightmaptexturenum = -1;
 		return;
+	}
 
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;
@@ -2691,6 +2680,7 @@ GL_BuildLightmaps
 
 Builds the lightmap texture
 with all the surfaces from all brush models
+Groups surfaces into their respective batches (based on the lightmap number).
 ==================
 */
 void Surf_BuildLightmaps (void)
@@ -2698,6 +2688,9 @@ void Surf_BuildLightmaps (void)
 	int		i, j, t;
 	model_t	*m;
 	int shift;
+	msurface_t *surf;
+	batch_t *batch, *bstop;
+	vec3_t sn;
 
 	r_framecount = 1;		// no dlightcache
 
@@ -2735,23 +2728,70 @@ void Surf_BuildLightmaps (void)
 		currentmodel = m;
 		shift = Surf_LightmapShift(currentmodel);
 
-		for (t = 0; t < m->numtextures; t++)
+		for (t = m->numtextures-1; t >= 0; t--)
 		{
+			m->textures[t]->wtexno = t;
+
+			bstop = m->batches;
+			batch = NULL;
 			for (i=0 ; i<m->numsurfaces ; i++)
 			{//extra texture loop so we get slightly less texture switches
-				if (m->surfaces[i].texinfo->texture == m->textures[t])
+				surf = m->surfaces + i;
+				if (surf->texinfo->texture == m->textures[t])
 				{
-					P_EmitSkyEffectTris(m, &m->surfaces[i]);
+					P_EmitSkyEffectTris(m, surf);
+					Surf_CreateSurfaceLightmap (surf, shift);
 
-					/*FIXME: move this into model-specific code*/
-					Surf_CreateSurfaceLightmap (m->surfaces + i, shift);
+					if (m->textures[t]->shader->sort == SHADER_SORT_PORTAL)
+					{
+						if (surf->flags & SURF_PLANEBACK)
+							VectorNegate(surf->plane->normal, sn);
+						else
+							VectorCopy(surf->plane->normal, sn);
+					}
+					else
+						VectorClear(sn);
+					if (!batch || batch->lightmap != surf->lightmaptexturenum || (m->textures[t]->shader->sort == SHADER_SORT_PORTAL && !VectorCompare(sn, batch->normal)))
+					{
+						if (m->textures[t]->shader->sort == SHADER_SORT_PORTAL)
+						{
+							for (batch = m->batches; batch != bstop; batch = batch->next)
+							{
+								if (batch->lightmap == surf->lightmaptexturenum && VectorCompare(sn, batch->normal))
+									break;
+							}
+						}
+						else
+						{
+							for (batch = m->batches; batch != bstop; batch = batch->next)
+							{
+								if (batch->lightmap == surf->lightmaptexturenum)
+									break;
+							}
+						}
+						if (batch == bstop)
+						{
+							batch = Z_Malloc(sizeof(*batch));
+							batch->lightmap = surf->lightmaptexturenum;
+							batch->texture = m->textures[t];
+							batch->next = m->batches;
+							VectorCopy(sn, batch->normal);
+							m->batches = batch;
+						}
+					}
+					surf->sbatch = batch;
+					batch->maxmeshes++;
+
 					if (m->surfaces[i].mesh)	//there are some surfaces that have a display list already (q3 ones)
 						continue;
-					Surf_BuildSurfaceDisplayList (m, m->surfaces + i);
+					Surf_BuildSurfaceDisplayList (m, surf);
 				}
 			}
 		}
-
+		for (batch = m->batches; batch != NULL; batch = batch->next)
+		{
+			batch->mesh = BZ_Malloc(sizeof(*batch->mesh)*batch->maxmeshes*2);
+		}
 		BE_GenBrushModelVBO(m);
 	}
 

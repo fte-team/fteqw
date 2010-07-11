@@ -5,7 +5,7 @@
 #ifndef HASH_H__
 #define HASH_H__
 
-#define Hash_BytesForBuckets(b) (sizeof(bucket_t)*b)
+#define Hash_BytesForBuckets(b) (sizeof(bucket_t*)*b)
 
 #define STRCMP(s1,s2) (((*s1)!=(*s2)) || strcmp(s1+1,s2+1))	//saves about 2-6 out of 120 - expansion of idea from fastqcc
 typedef struct bucket_s {

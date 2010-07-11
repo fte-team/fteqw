@@ -24,6 +24,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 cvar_group_t *cvar_groups;
 
+hashtable_t cvar_hash;
+bucket_t *cvar_buckets[1024];
+
 //cvar_t	*cvar_vars;
 static char	*cvar_null_string = "";
 static char *cvar_zero_string = "0";
@@ -65,6 +68,8 @@ Cvar_FindVar
 */
 cvar_t *Cvar_FindVar (const char *var_name)
 {
+	return Hash_GetInsensative(&cvar_hash, var_name);
+/*
 	cvar_group_t	*grp;
 	cvar_t	*var;
 
@@ -76,7 +81,7 @@ cvar_t *Cvar_FindVar (const char *var_name)
 			if (var->name2 && !Q_strcasecmp (var_name, var->name2))
 				return var;
 		}
-
+*/
 	return NULL;
 }
 
@@ -885,6 +890,9 @@ unlinked:
 		Cvar_DefaultFree(tbf->defaultstr);
 	if (tbf->latched_string)
 		Z_Free(tbf->latched_string);
+	Hash_RemoveData(&cvar_hash, tbf->name, tbf);
+	if (tbf->name2)
+		Hash_RemoveData(&cvar_hash, tbf->name2, tbf);
 	Z_Free(tbf);
 }
 
@@ -939,6 +947,11 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 				Cvar_SetCore (variable, old->string, true);
 
 			Cvar_Free(old);
+
+			Hash_AddInsensative(&cvar_hash, variable->name, variable, &variable->hbn1);
+			if (variable->name2)
+				Hash_AddInsensative(&cvar_hash, variable->name2, variable, &variable->hbn2);
+
 			return false;
 		}
 
@@ -959,6 +972,10 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 	variable->next = group->cvars;
 	variable->restriction = 0;	//exe registered vars
 	group->cvars = variable;
+
+	Hash_AddInsensative(&cvar_hash, variable->name, variable, &variable->hbn1);
+	if (variable->name2)
+		Hash_AddInsensative(&cvar_hash, variable->name2, variable, &variable->hbn2);
 
 	variable->string = (char*)Z_Malloc (1);
 
@@ -1207,6 +1224,12 @@ void Cvar_Limiter_ZeroToOne_Callback(struct cvar_s *var, char *oldvalue)
 		Cvar_ForceSet(var, "0");
 		return;
 	}
+}
+
+void Cvar_Init(void)
+{
+	memset(cvar_buckets, 0, sizeof(cvar_buckets));
+	Hash_InitTable(&cvar_hash, sizeof(cvar_buckets)/Hash_BytesForBuckets(1), cvar_buckets);
 }
 
 void Cvar_Shutdown(void)

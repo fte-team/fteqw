@@ -38,7 +38,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define ODE_DYNAMIC 1
 //#endif
 
-cvar_t physics_ode_enable = SCVAR("physics_ode_enable", "1");
+cvar_t physics_ode_enable = CVARD("physics_ode_enable", IFMINIMAL("0", "1"), "Enables the use of ODE physics, but only if the mod supports it.");
 cvar_t physics_ode_quadtree_depth = CVARDP4(0, "physics_ode_quadtree_depth","5", "desired subdivision level of quadtree culling space");
 cvar_t physics_ode_contactsurfacelayer = CVARDP4(0, "physics_ode_contactsurfacelayer","0", "allows objects to overlap this many units to reduce jitter");
 cvar_t physics_ode_worldquickstep = CVARDP4(0, "physics_ode_worldquickstep","1", "use dWorldQuickStep rather than dWorldStep");

@@ -49,3 +49,5 @@ void R2D_Shutdown(void);
 
 void R2D_PolyBlend (void);
 void R2D_BrightenScreen (void);
+
+void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue);

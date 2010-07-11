@@ -62,7 +62,8 @@ cvar_t	pm_slidefix			 = SCVARF("pm_slidefix", "0", CVAR_SERVERINFO);
 cvar_t	pm_slidyslopes		 = SCVARF("pm_slidyslopes", "0", CVAR_SERVERINFO);
 cvar_t	pm_airstep			 = SCVARF("pm_airstep", "0", CVAR_SERVERINFO);
 cvar_t	pm_walljump			 = SCVARF("pm_walljump", "0", CVAR_SERVERINFO);
-cvar_t	pm_stepheight		 = FCVAR("pm_stepheight", "sv_stepheight", "18", CVAR_SERVERINFO);
+cvar_t	pm_stepheight		 = CVARAF("pm_stepheight", "18",
+									  "sv_stepheight", CVAR_SERVERINFO);
 
 extern cvar_t sv_nomsec;
 
@@ -145,7 +146,7 @@ qboolean SV_RunThink (edict_t *ent)
 {
 	float	thinktime;
 
-	if (sv_nomsec.value>=2)	//try and imitate nq as closeley as possible
+	if (sv_nomsec.ival>=2)	//try and imitate nq as closeley as possible
 	{
 		thinktime = ent->v->nextthink;
 		if (thinktime <= 0 || thinktime > sv.world.physicstime + host_frametime)
@@ -745,13 +746,6 @@ qboolean SV_Push (edict_t *pusher, vec3_t move, vec3_t amove)
 		|| check->v->movetype == MOVETYPE_NOCLIP)
 			continue;
 
-		oldsolid = pusher->v->solid;
-		pusher->v->solid = SOLID_NOT;
-		block = (edict_t*)World_TestEntityPosition (&sv.world, (wedict_t*)check);
-		pusher->v->solid = oldsolid;
-		if (block)
-			continue;
-
 	// if the entity is standing on the pusher, it will definately be moved
 		if ( ! ( ((int)check->v->flags & FL_ONGROUND)
 		&&
@@ -769,6 +763,13 @@ qboolean SV_Push (edict_t *pusher, vec3_t move, vec3_t amove)
 			if (!World_TestEntityPosition (&sv.world, (wedict_t*)check))
 				continue;
 		}
+
+		oldsolid = pusher->v->solid;
+		pusher->v->solid = SOLID_NOT;
+		block = (edict_t*)World_TestEntityPosition (&sv.world, (wedict_t*)check);
+		pusher->v->solid = oldsolid;
+		if (block)
+			continue;
 
 		VectorCopy (check->v->origin, moved_from[num_moved]);
 		moved_edict[num_moved] = check;
@@ -1913,7 +1914,7 @@ void SV_RunNewmis (void)
 	if (!realpr_nqglobal_struct.newmis)	//newmis variable is not exported.
 		return;
 
-	if (sv_nomsec.value >= 2)
+	if (sv_nomsec.ival >= 2)
 		return;
 
 	if (!pr_global_struct->newmis)

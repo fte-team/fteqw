@@ -44,11 +44,11 @@ static char	*argvdummy = " ";
 static char	*safeargvs[NUM_SAFE_ARGVS] =
 	{"-stdvid", "-nolan", "-nosound", "-nocdaudio", "-nojoy", "-nomouse"};
 
-cvar_t	registered = SCVAR("registered","0");
-cvar_t	gameversion = SCVARF("gameversion","", CVAR_SERVERINFO);
-cvar_t	com_gamename = SCVAR("com_gamename", "");
-cvar_t	com_modname = SCVAR("com_modname", "");
-cvar_t	com_parseutf8 = SCVAR("com_parseutf8", "0");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
+cvar_t	registered = CVARD("registered","0","Set if quake's pak1.pak is available");
+cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version for server browsers");
+cvar_t	com_gamename = CVARD("com_gamename", "", "The game name used for dpmaster queries");
+cvar_t	com_modname = CVARD("com_modname", "", "dpmaster information");
+cvar_t	com_parseutf8 = CVARD("com_parseutf8", "0", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts.");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -2003,7 +2003,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 					ext = extstack[extstackdepth];
 				}
 			}
-			else if (str[1] == 'U')	//restore from stack (it's great for names)
+			else if (str[1] == 'U')	//unicode (16bit) char ^Uxxxx
 			{
 				if (!keepmarkup)
 				{

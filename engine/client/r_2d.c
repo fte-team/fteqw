@@ -22,8 +22,7 @@ extern cvar_t scr_conalpha;
 extern cvar_t gl_conback;
 extern cvar_t gl_font;
 extern cvar_t gl_contrast;
-
-void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue);
+extern cvar_t vid_conautoscale;
 
 
 //We need this for minor things though, so we'll just use the slow accurate method.
@@ -61,6 +60,8 @@ Image loading code must be ready for use at this point.
 */
 void R2D_Init(void)
 {
+	conback = NULL;
+
 	Shader_Init();
 
 	BE_Init();
@@ -76,13 +77,6 @@ void R2D_Init(void)
 	Font_Init();
 
 #pragma message("Fixme: move conwidth handling into here")
-
-
-	if (font_conchar)
-		Font_Free(font_conchar);
-	font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, gl_font.string);
-	if (!font_conchar && *gl_font.string)
-		font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, "");
 
 	missing_texture = R_LoadTexture8("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
 
@@ -127,7 +121,9 @@ void R2D_Init(void)
 		"}\n"
 	);
 
-	Cvar_Hook(&gl_conback, R2D_Conback_Callback);
+	Cvar_ForceCallback(&gl_conback);
+	Cvar_ForceCallback(&vid_conautoscale);
+	Cvar_ForceCallback(&gl_font);
 }
 
 mpic_t	*R2D_SafeCachePic (char *path)
@@ -206,7 +202,7 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 	draw_mesh_st[3][0] = s1;
 	draw_mesh_st[3][1] = t2;
 
-	BE_DrawMeshChain(pic, &draw_mesh, NULL, &pic->defaulttextures);
+	BE_DrawMesh_Single(pic, &draw_mesh, NULL, &pic->defaulttextures);
 }
 
 /*draws a block of the current colour on the screen*/
@@ -225,9 +221,9 @@ void R2D_FillBlock(int x, int y, int w, int h)
 	draw_mesh_xyz[3][1] = y+h;
 
 	if (draw_mesh_colors[0][3] != 1)
-		BE_DrawMeshChain(draw_fill_trans, &draw_mesh, NULL, &draw_fill_trans->defaulttextures);
+		BE_DrawMesh_Single(draw_fill_trans, &draw_mesh, NULL, &draw_fill_trans->defaulttextures);
 	else
-		BE_DrawMeshChain(draw_fill, &draw_mesh, NULL, &draw_fill->defaulttextures);
+		BE_DrawMesh_Single(draw_fill, &draw_mesh, NULL, &draw_fill->defaulttextures);
 }
 
 void R2D_ScalePic (int x, int y, int width, int height, mpic_t *pic)
@@ -261,8 +257,8 @@ void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque)
 	if (!conback)
 		return;
 
-	w = vid.conwidth;
-	h = vid.conheight;
+	w = vid.width;
+	h = vid.height;
 
 	if (forceopaque)
 	{
@@ -284,19 +280,19 @@ void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque)
 	if (a >= 1)
 	{
 		R2D_ImageColours(1, 1, 1, 1);
-		R2D_ScalePic(0, lastline-(int)vid.conheight, w, h, conback);
+		R2D_ScalePic(0, lastline-(int)vid.height, w, h, conback);
 	}
 	else
 	{
 		R2D_ImageColours(1, 1, 1, a);
-		R2D_ScalePic (0, lastline - (int)vid.conheight, w, h, conback);
+		R2D_ScalePic (0, lastline - (int)vid.height, w, h, conback);
 		R2D_ImageColours(1, 1, 1, 1);
 	}
 }
 
 void R2D_EditorBackground (void)
 {
-	R2D_ScalePic(0, 0, vid.conwidth, vid.conheight, conback);
+	R2D_ScalePic(0, 0, vid.width, vid.height, conback);
 }
 
 /*
@@ -338,17 +334,33 @@ void R2D_TileClear (int x, int y, int w, int h)
 	draw_mesh_st[3][0] = newsl;
 	draw_mesh_st[3][1] = newth;
 
-	BE_DrawMeshChain(draw_backtile, &draw_mesh, NULL, NULL);
+	BE_DrawMesh_Single(draw_backtile, &draw_mesh, NULL, NULL);
 }
 
 void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (*var->string)
 		conback = R_RegisterPic(var->string);
-	if (!conback)
+	if (!conback || !conback->width)
+	{
 		conback = R_RegisterCustom("console", NULL, NULL);
-	if (!conback)
-		conback = R_RegisterPic("gfx/conback.lmp");
+		if (!conback)
+		{
+			if (M_GameType() == MGT_QUAKE2)
+				conback = R_RegisterPic("pics/conback.pcx");
+			else
+				conback = R_RegisterPic("gfx/conback.lmp");
+		}
+	}
+}
+
+void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (font_conchar)
+		Font_Free(font_conchar);
+	font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, var->string);
+	if (!font_conchar && *var->string)
+		font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, "");
 }
 
 

@@ -234,10 +234,10 @@ sfx_t			*cl_sfx_ric2;
 sfx_t			*cl_sfx_ric3;
 sfx_t			*cl_sfx_r_exp3;
 
-cvar_t	cl_expsprite = SCVAR("cl_expsprite", "0");
-cvar_t  r_explosionlight = SCVARC("r_explosionlight", "1", Cvar_Limiter_ZeroToOne_Callback);
-cvar_t	cl_truelightning = SCVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
-cvar_t  cl_beam_trace = SCVAR("cl_beam_trace", "0");
+cvar_t	cl_expsprite = CVAR("cl_expsprite", "0");
+cvar_t  r_explosionlight = CVARC("r_explosionlight", "1", Cvar_Limiter_ZeroToOne_Callback);
+cvar_t	cl_truelightning = CVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
+cvar_t  cl_beam_trace = CVAR("cl_beam_trace", "0");
 
 typedef struct {
 	sfx_t **sfx;
@@ -1762,7 +1762,7 @@ void CL_Laser (vec3_t start, vec3_t end, int colors)
 	ex->firstframe = 0;
 	ex->numframes = 10;
 	ex->alpha = 0.33f;
-	ex->model = (void*)0xDEAFF00D;	//something not null
+	ex->model = NULL;
 	ex->skinnum = (colors >> ((rand() % 4)*8)) & 0xff;
 	VectorCopy (start, ex->origin);
 	VectorCopy (end, ex->oldorigin);
@@ -1913,7 +1913,7 @@ void CLQ2_ParseTEnt (void)
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
 		ex->firstframe = 0;
 		ex->numframes = 4;
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|Q2RF_ADDITIVE|RF_NOSHADOW;
 		
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
@@ -2240,7 +2240,7 @@ void CLQ2_ParseTEnt (void)
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
 		ex->firstframe = 0;
 		ex->numframes = 4;
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
@@ -2290,7 +2290,7 @@ void CLQ2_ParseTEnt (void)
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
 		ex->firstframe = 0;
 		ex->numframes = 4;
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
@@ -2343,7 +2343,7 @@ void CLQ2_ParseTEnt (void)
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
 //		ex->type = ex_poly;
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->angles[1] = rand() % 360;
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, false);
 		if (rand() < RAND_MAX/2)
@@ -2530,7 +2530,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
 		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0.1, 0);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_muzzleflash");
@@ -2539,7 +2539,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
 		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0.1, 0);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_blue_muzzleflash");
@@ -2548,7 +2548,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
 		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0, 0.2);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_smart_muzzleflash");
@@ -2559,7 +2559,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
 		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0, 0.2);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_deathfield");
@@ -2824,7 +2824,7 @@ void CL_UpdateExplosions (void)
 
 	for (i=0, ex=cl_explosions; i < explosions_running; i++, ex++)
 	{
-		if (!ex->model)
+		if (!ex->model && !ex->flags)
 			continue;
 
 		lastrunningexplosion = i;
@@ -2844,6 +2844,7 @@ void CL_UpdateExplosions (void)
 		if ((int)f >= numframes || (int)f < 0)
 		{
 			ex->model = NULL;
+			ex->flags = 0;
 			continue;
 		}
 		if (of < 0)

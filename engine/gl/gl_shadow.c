@@ -6,14 +6,17 @@
 #include "glquake.h"
 #include "shader.h"
 
-#define lradius l->radius
+#define SHADOWMAP_SIZE 512
+
 #define nearplane	(16)
 
-#if 0//def _DEBUG
+#if 1//def _DEBUG
 #define checkerror() if (qglGetError()) Con_Printf("Error detected at line %s:%i\n", __FILE__, __LINE__)
 #else
 #define checkerror()
 #endif
+
+static int shadow_fbo_id;
 
 static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour);
 
@@ -37,7 +40,7 @@ struct {
 typedef struct {
 	unsigned int count;
 	unsigned int max;
-	msurface_t **s;
+	mesh_t **s;
 } shadowmeshsurfs_t;
 typedef struct shadowmesh_s {
 	unsigned int numindicies;
@@ -185,21 +188,17 @@ static void SHM_Shadow_Cache_Surface(msurface_t *surf)
 {
 	int i;
 
-#pragma message("Remove this loop ffs!")
-	for (i = 0; i < cl.worldmodel->numtextures; i++)
+	i = surf->texinfo->texture->wtexno;
+	if (i < 0)
+		return;
+
+	if (sh_shmesh->litsurfs[i].count == sh_shmesh->litsurfs[i].max)
 	{
-		if (surf->texinfo->texture == cl.worldmodel->textures[i])
-		{
-			if (sh_shmesh->litsurfs[i].count == sh_shmesh->litsurfs[i].max)
-			{
-				sh_shmesh->litsurfs[i].max += 64;
-				sh_shmesh->litsurfs[i].s = BZ_Realloc(sh_shmesh->litsurfs[i].s, sizeof(void*)*(sh_shmesh->litsurfs[i].max));
-			}
-			sh_shmesh->litsurfs[i].s[sh_shmesh->litsurfs[i].count] = surf;
-			sh_shmesh->litsurfs[i].count++;
-			break;
-		}
+		sh_shmesh->litsurfs[i].max += 64;
+		sh_shmesh->litsurfs[i].s = BZ_Realloc(sh_shmesh->litsurfs[i].s, sizeof(void*)*(sh_shmesh->litsurfs[i].max));
 	}
+	sh_shmesh->litsurfs[i].s[sh_shmesh->litsurfs[i].count] = surf->mesh;
+	sh_shmesh->litsurfs[i].count++;
 }
 
 static void SHM_Shadow_Cache_Leaf(mleaf_t *leaf)
@@ -862,7 +861,7 @@ static SHM_ComposeVolume_BruteForce(dlight_t *dl)
 			continue;
 		for (sno = 0; sno < sms->count; sno++)
 		{
-			sm = sms->s[sno]->mesh;
+			sm = sms->s[sno];
 
 			if (sm->istrifan)
 			{
@@ -1259,19 +1258,17 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 
 void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
 {
-	static int fboid;
-
-	if (qglGenRenderbuffersEXT)
+	if (gl_config.ext_framebuffer_objects)
 	{
-		if (!fboid)
+		if (!shadow_fbo_id)
 		{
-			qglGenRenderbuffersEXT(1, &fboid);
-			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fboid);
+			qglGenRenderbuffersEXT(1, &shadow_fbo_id);
+			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
 			qglDrawBuffer(GL_NONE);
 			qglReadBuffer(GL_NONE);
 		}
 		else
-			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fboid);
+			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
 
 		if (TEXVALID(depthtexture))
 			qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, depthtexture.num, 0);
@@ -1279,7 +1276,7 @@ void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
 }
 void GL_EndRenderBuffer_DepthOnly(texid_t depthtexture, int texsize)
 {
-	if (qglGenRenderbuffersEXT)
+	if (gl_config.ext_framebuffer_objects)
 	{
 		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 	}
@@ -1290,43 +1287,66 @@ void GL_EndRenderBuffer_DepthOnly(texid_t depthtexture, int texsize)
 	}
 }
 
-static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face)
+static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float proj[16])
 {
-	float mvm[16], proj[16];
+	float mvm[16];
+	vec3_t t1,t2;
 
-	int smsize = 512;
-	int tno, sno;
-	mesh_t *m, *sm;
+	int smsize = SHADOWMAP_SIZE;
+	int tno;
+	mesh_t *m;
 	texture_t *tex;
 
 //	qglDepthRange(0, 1);
 
-	BE_SetupForShadowMap();
 
 checkerror();
-	if (1)
-	{
+	if (l->fov)
 		qglViewport (0, 0, smsize, smsize);
+	else
+		qglViewport (((face/2)*smsize)/3, ((face&1)*smsize)/2, smsize/3, smsize/2);
 
-		if (!l->fov)
-			l->fov = 90;
-
-		Matrix4_Projection_Far(proj, l->fov, l->fov, nearplane, lradius);
+	switch(face)
+	{
+	case 0:
+		//forward
 		Matrix4_ModelViewMatrixFromAxis(mvm, l->axis[0], l->axis[1], l->axis[2], l->origin);
-
-		qglMatrixMode(GL_PROJECTION);
-		qglLoadMatrixf(proj);
-		qglMatrixMode(GL_MODELVIEW);
-		qglLoadMatrixf(mvm);
-
-		R_SetFrustum(proj, mvm);
+		break;
+	case 1:
+		//back
+		VectorNegate(l->axis[0], t1);
+		VectorNegate(l->axis[1], t2);
+		Matrix4_ModelViewMatrixFromAxis(mvm, t1, t2, l->axis[2], l->origin);
+		break;
+	case 2:
+		//left
+		VectorNegate(l->axis[1], t1);
+		VectorNegate(l->axis[0], t2);
+		Matrix4_ModelViewMatrixFromAxis(mvm, l->axis[1], t2, l->axis[2], l->origin);
+		break;
+	case 3:
+		//right
+		VectorNegate(l->axis[1], t1);
+		Matrix4_ModelViewMatrixFromAxis(mvm, t1, l->axis[0], l->axis[2], l->origin);
+		break;
+	case 4:
+		//up
+		VectorNegate(l->axis[0], t2);
+		Matrix4_ModelViewMatrixFromAxis(mvm, l->axis[2], l->axis[1], t2, l->origin);
+		break;
+	case 5:
+		//down
+		VectorNegate(l->axis[2], t1);
+		Matrix4_ModelViewMatrixFromAxis(mvm, t1, l->axis[1], l->axis[0], l->origin);
+		break;
 	}
-checkerror();
 
-	BE_SelectMode(BEM_DEPTHONLY, 0);
+	qglMatrixMode(GL_MODELVIEW);
+	qglLoadMatrixf(mvm);
 
-	GL_BeginRenderBuffer_DepthOnly(l->stexture);
-	qglClear (GL_DEPTH_BUFFER_BIT);
+	R_SetFrustum(proj, mvm);
+
+	checkerror();
 
 	if (smesh)
 	for (tno = 0; tno < smesh->numsurftextures; tno++)
@@ -1334,30 +1354,19 @@ checkerror();
 		m = NULL;
 		if (!smesh->litsurfs[tno].count)
 			continue;
-		tex = smesh->litsurfs[tno].s[0]->texinfo->texture;
-		for (sno = 0; sno < smesh->litsurfs[tno].count; sno++)
-		{
-			sm = smesh->litsurfs[tno].s[sno]->mesh;
-			if (!sm)
-				continue;
-			sm->next = m;
-			m = sm;
-		}
-		if (m)
-			BE_DrawMeshChain(tex->shader, m, &tex->vbo, &tex->shader->defaulttextures);
+		tex = cl.worldmodel->textures[tno];
+		BE_DrawMesh_List(tex->shader, smesh->litsurfs[tno].count, smesh->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures);
 	}
 
 	BE_BaseEntShadowDepth();
 
-	GL_EndRenderBuffer_DepthOnly(l->stexture, smsize);
-
 	if (0)
 	{
 		int i;
-		static float depth[512*512];
+		static float depth[SHADOWMAP_SIZE*SHADOWMAP_SIZE];
 		qglReadPixels(0, 0, smsize, smsize,
 			GL_DEPTH_COMPONENT, GL_FLOAT, depth);
-		for (i = 512*512; i --> 0; )
+		for (i = SHADOWMAP_SIZE*SHADOWMAP_SIZE; i --> 0; )
 		{
 			if (depth[i] == 1)
 				*((unsigned int*)depth+i) = 0;
@@ -1377,69 +1386,96 @@ checkerror();
 	checkerror();
 }
 
-void Sh_GenShadowMaps (void)
+void Sh_Shutdown(void)
 {
-	dlight_t *l;
-	int i;
+	if (shadow_fbo_id)
+	{
+		qglDeleteRenderbuffersEXT(1, &shadow_fbo_id);
+		shadow_fbo_id = 0;
+	}
+}
+
+void Sh_GenShadowMap (dlight_t *l)
+{
 	int f;
-	int smsize = 512;
+	int smsize = SHADOWMAP_SIZE;
+	float proj[16];
 
 	shadowmesh_t *smesh;
 
-	//FIXME: push dynamic shadow volume generation to another thread.
-	//FIXME: cull lights here.
-
-	for (l = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, l++)
+	if (!TEXVALID(l->stexture))
 	{
-		if (!(l->flags & LFLAG_SHADOWMAP))
-			continue;
-		if (!l->radius || l->flags & LFLAG_NOSHADOWS)
-			continue;
-		if (l->color[0]<0)
-			continue;	//quick check for darklight
+		l->stexture = GL_AllocNewTexture();
+		
+		checkerror();
 
-		if (!TEXVALID(l->stexture))
-		{
-			l->stexture = GL_AllocNewTexture();
-			
-			checkerror();
+		GL_Bind(l->stexture);
+		checkerror();
+		qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, smsize, smsize, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+	//	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize, smsize, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		checkerror();
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
-			GL_Bind(l->stexture);
-			checkerror();
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, smsize, smsize, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
-		//	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize, smsize, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-			checkerror();
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
-			checkerror();
-		}
-		else if (l->refresh-->0)
-			continue;	//FIXME: need to optimise GenShadowFace first
-		l->refresh = 0;
-
-		if (l->worldshadowmesh)
-			smesh = l->worldshadowmesh;
-		else
-		{
-			unsigned int leaf;
-			qbyte lvisb[MAX_MAP_LEAFS/8];
-			qbyte *lvis;
-			leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, l->origin);
-			lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
-			smesh = SHM_BuildShadowVolumeMesh(l, lvis, NULL);
-		}
-
-		qglEnable(GL_POLYGON_OFFSET_FILL);
-		qglPolygonOffset(5, 25);
-		for (f = 0; f < 1; f++)
-		{
-			Sh_GenShadowFace(l, smesh, f);
-		}
-		qglDisable(GL_POLYGON_OFFSET_FILL);
+		checkerror();
 	}
+
+	if (l->worldshadowmesh)
+		smesh = l->worldshadowmesh;
+	else
+	{
+		unsigned int leaf;
+		qbyte lvisb[MAX_MAP_LEAFS/8];
+		qbyte *lvis;
+		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, l->origin);
+		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+		smesh = SHM_BuildShadowVolumeMesh(l, lvis, NULL);
+	}
+
+	/*polygon offsets. urgh.*/
+	qglEnable(GL_POLYGON_OFFSET_FILL);
+	qglPolygonOffset(5, 25);
+	BE_SetupForShadowMap();
+
+	/*set framebuffer*/
+	GL_BeginRenderBuffer_DepthOnly(l->stexture);
+	qglClear (GL_DEPTH_BUFFER_BIT);
+
+	if (l->fov)
+	{
+		Matrix4_Projection_Far(proj, l->fov, l->fov, nearplane, l->radius);
+		qglMatrixMode(GL_PROJECTION);
+		qglLoadMatrixf(proj);
+
+		/*single face*/
+		Sh_GenShadowFace(l, smesh, 0, proj);
+	}
+	else
+	{
+		Matrix4_Projection_Far(proj, 90, 90, nearplane, l->radius);
+		qglMatrixMode(GL_PROJECTION);
+		qglLoadMatrixf(proj);
+
+		/*generate faces*/
+		for (f = 0; f < 6; f++)
+		{
+			Sh_GenShadowFace(l, smesh, f, proj);
+		}
+	}
+	/*end framebuffer*/
+	GL_EndRenderBuffer_DepthOnly(l->stexture, smsize);
+
+	qglDisable(GL_POLYGON_OFFSET_FILL);
+
+	qglMatrixMode(GL_PROJECTION);
+	qglLoadMatrixf(r_refdef.m_projection);
+
+	qglMatrixMode(GL_MODELVIEW);
+	qglLoadMatrixf(r_refdef.m_view);
+
+	qglViewport(r_refdef.pxrect.x, vid.pixelheight - r_refdef.pxrect.y, r_refdef.pxrect.width, r_refdef.pxrect.height);
 }
 
 static float shadowprojectionbias[16] =
@@ -1450,15 +1486,41 @@ static float shadowprojectionbias[16] =
 	0.5f, 0.5f, 0.4993f, 1.0f
 };
 
-static void Sh_DrawLameSpotLightShadowMap(dlight_t *l, vec3_t colour)
+static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour)
 {
 	float t[16];
 	float bp[16];
 	float proj[16], view[16];
 	vec3_t biasorg;
 	int ve;
+	vec3_t mins, maxs;
 
-	Matrix4_Projection_Far(proj, l->fov, l->fov, nearplane, lradius);
+	if (R_CullSphere(l->origin, l->radius))
+	{
+		bench.numfrustumculled++;
+		return;	//this should be the more common case
+	}
+
+	mins[0] = l->origin[0] - l->radius;
+	mins[1] = l->origin[1] - l->radius;
+	mins[2] = l->origin[2] - l->radius;
+
+	maxs[0] = l->origin[0] + l->radius;
+	maxs[1] = l->origin[1] + l->radius;
+	maxs[2] = l->origin[2] + l->radius;
+
+	if (Sh_ScissorForBox(mins, maxs))
+	{
+		bench.numscissorculled++;
+		return;
+	}
+
+	Sh_GenShadowMap(l);
+
+	if (l->fov)
+		Matrix4_Projection_Far(proj, l->fov, l->fov, nearplane, l->radius);
+	else
+		Matrix4_Projection_Far(proj, 90, 90, nearplane, l->radius);
 	VectorMA(l->origin, 0, l->axis[0], biasorg);
 	Matrix4_ModelViewMatrixFromAxis(view, l->axis[0], l->axis[1], l->axis[2], l->origin);
 
@@ -1486,7 +1548,6 @@ checkerror();
 
 	bench.numlights++;
 
-#if 1
 	qglMatrixMode(GL_TEXTURE);
 	GL_MBind(7, l->stexture);
 //	qglEnable(GL_TEXTURE_2D);
@@ -1495,7 +1556,6 @@ checkerror();
 	qglTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_LUMINANCE);
 	qglLoadMatrixf(bp);
 	qglMatrixMode(GL_MODELVIEW);
-	PPL_RevertToKnownState();
 
 	GL_SelectTexture(0);
 
@@ -1503,7 +1563,7 @@ checkerror();
 	ve = 0;
 
 	BE_SelectDLight(l, colour);
-	BE_SelectMode(BEM_SMAPLIGHT, 0);
+	BE_SelectMode(l->fov?BEM_SMAPLIGHTSPOT:BEM_SMAPLIGHT, 0);
 	Sh_DrawEntLighting(l, colour);
 
 	GL_SelectTexture(7);
@@ -1511,118 +1571,9 @@ checkerror();
 	qglMatrixMode(GL_TEXTURE);
 	qglLoadIdentity();
 	qglMatrixMode(GL_MODELVIEW);
-//	PPL_RevertToKnownState();
+
 
 	checkerror();
-#else
-GL_MBind(0, l->stexture);
-qglEnable(GL_TEXTURE_2D);
-	//Set up texture coordinate generation.
-	qglTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-	qglTexGenfv(GL_S, GL_EYE_PLANE, &t[0]);
-	qglEnable(GL_TEXTURE_GEN_S);
-
-	qglTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-	qglTexGenfv(GL_T, GL_EYE_PLANE, &t[4]);
-	qglEnable(GL_TEXTURE_GEN_T);
-
-	qglTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-	qglTexGenfv(GL_R, GL_EYE_PLANE, &t[8]);
-	qglEnable(GL_TEXTURE_GEN_R);
-
-	qglTexGeni(GL_Q, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-	qglTexGenfv(GL_Q, GL_EYE_PLANE, &t[12]);
-	qglEnable(GL_TEXTURE_GEN_Q);
-checkerror();
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_R_TO_TEXTURE_ARB);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
-	qglTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_ALPHA);
-checkerror();
-
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-if (1)
-{
-	GL_MBind(1, balltexture);
-	qglEnable(GL_TEXTURE_2D);
-
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
-
-	qglTexGeni(GL_S, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-	qglTexGenfv(GL_S, GL_EYE_PLANE, &t[0]);
-	qglEnable(GL_TEXTURE_GEN_S);
-
-	qglTexGeni(GL_T, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-	qglTexGenfv(GL_T, GL_EYE_PLANE, &t[4]);
-	qglEnable(GL_TEXTURE_GEN_T);
-
-	qglTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-	qglTexGenfv(GL_R, GL_EYE_PLANE, &t[8]);
-	qglEnable(GL_TEXTURE_GEN_R);
-
-	qglTexGeni(GL_Q, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
-	qglTexGenfv(GL_Q, GL_EYE_PLANE, &t[12]);
-	qglEnable(GL_TEXTURE_GEN_Q);
-}
-else
-{
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_NONE);
-	qglTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_ALPHA);
-}
-
-	qglEnable(GL_BLEND);
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE);
-	qglDisable(GL_ALPHA_TEST);
-	qglColor3f(colour[0], colour[1], colour[2]);
-	qglEnableClientState(GL_VERTEX_ARRAY);
-	qglDisableClientState(GL_COLOR_ARRAY);
-checkerror();
-	qglDepthMask(0);
-	GL_TexEnv(GL_MODULATE);
-	ve = 0;
-
-	//qglEnable(GL_POLYGON_OFFSET_FILL);
-	qglPolygonOffset(-0.5, -25);
-
-	for (i = 0; i < cl.worldmodel->numsurfaces; i++)
-	{
-		s = &cl.worldmodel->surfaces[i];
-//		if(s->visframe != r_framecount)
-//			continue;
-
-		if (ve != s->texinfo->texture->vbo.vboe)
-		{
-			ve = s->texinfo->texture->vbo.vboe;
-
-			GL_SelectVBO(s->texinfo->texture->vbo.vbocoord);
-			GL_SelectEBO(s->texinfo->texture->vbo.vboe);
-			qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), s->texinfo->texture->vbo.coord);
-		}
-		qglDrawRangeElements(GL_TRIANGLES, s->mesh->vbofirstvert, s->mesh->numvertexes, s->mesh->numindexes, GL_INDEX_TYPE, (index_t*)(s->mesh->vbofirstelement*sizeof(index_t)));
-	}
-	checkerror();
-
-	qglDisable(GL_POLYGON_OFFSET_FILL);
-
-	GL_SelectVBO(0);
-	GL_SelectEBO(0);
-
-	GL_MBind(1, 0);
-	qglDisable(GL_TEXTURE_2D);
-	qglDisable(GL_TEXTURE_GEN_S);
-	qglDisable(GL_TEXTURE_GEN_T);
-	qglDisable(GL_TEXTURE_GEN_R);
-	qglDisable(GL_TEXTURE_GEN_Q);
-	GL_MBind(0, 0);
-	qglDisable(GL_TEXTURE_GEN_S);
-	qglDisable(GL_TEXTURE_GEN_T);
-	qglDisable(GL_TEXTURE_GEN_R);
-	qglDisable(GL_TEXTURE_GEN_Q);
-	checkerror();
-#endif
 }
 
 
@@ -1655,21 +1606,13 @@ static void Sh_WorldLightingPass(void)
 	}
 }
 
-
-
-
-#pragma message("move to header")
-void BE_BaseEntTextures(void);
-
 /*
 draws faces facing the light
 Note: Backend mode must have been selected in advance, as must the light to light from
 */
 static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 {
-	mesh_t *meshchain, *surfmesh;
-	int tno, sno;
-	msurface_t *surf;
+	int tno;
 	texture_t *tex;
 	shadowmesh_t *sm;
 
@@ -1681,21 +1624,8 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 		{
 			if (!sm->litsurfs[tno].count)
 				continue;
-			meshchain = NULL;
-			tex = sm->litsurfs[tno].s[0]->texinfo->texture;
-			for (sno = 0; sno < sm->litsurfs[tno].count; sno++)
-			{
-				surf = sm->litsurfs[tno].s[sno];
-//				if (surf->visframe == r_visframecount)
-				{
-					/*was visible this frame*/
-					surfmesh = surf->mesh;
-					surfmesh->next = meshchain;
-					meshchain = surfmesh;
-				}
-			}
-			if (meshchain)
-				BE_DrawMeshChain(tex->shader, meshchain, &tex->vbo, &tex->shader->defaulttextures);
+			tex = cl.worldmodel->textures[tno];
+			BE_DrawMesh_List(tex->shader, sm->litsurfs[tno].count, sm->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures);
 		}
 
 		BE_BaseEntTextures();
@@ -1709,8 +1639,8 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 
 
 
-
-
+#pragma message "move to header"
+void BE_PushOffsetShadow(qboolean foobar);
 
 
 #define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
@@ -1738,6 +1668,8 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 	GL_SelectEBO(0);
 	qglEnableClientState(GL_VERTEX_ARRAY);
 	qglEnable(GL_VERTEX_ARRAY);
+
+	BE_PushOffsetShadow(true);
 
 	model = e->model;
 	surf = model->surfaces+model->firstmodelsurface;
@@ -1807,6 +1739,8 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 		qglEnd();
 	}
 	qglPopMatrix();
+
+	BE_PushOffsetShadow(false);
 }
 
 
@@ -1818,6 +1752,8 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	extern cvar_t gl_part_flame;
 	int		i;
 	struct shadowmesh_s *sm;
+
+	BE_PushOffsetShadow(false);
 
 	sm = SHM_BuildShadowVolumeMesh(dl, lvis, vvis);
 	if (!sm)
@@ -1848,18 +1784,12 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	{
 		currententity = &cl_visedicts[i];
 
-		if (currententity->flags & RF_NOSHADOW)
+		if (currententity->flags & (RF_NOSHADOW|Q2RF_BEAM))
 			continue;
 
 		{
 			if (currententity->keynum == dl->key && currententity->keynum)
 				continue;
-		}
-
-		if (currententity->flags & Q2RF_BEAM)
-		{
-			R_DrawBeam(currententity);
-			continue;
 		}
 		if (!currententity->model)
 			continue;
@@ -2065,7 +1995,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	}
 	else if (qglActiveStencilFaceEXT)
 	{
-		/*personally I prefer the ATI way*/
+		/*personally I prefer the ATI way (nvidia method)*/
 		qglClearStencil(0);
 		qglClear(GL_STENCIL_BUFFER_BIT);
 		GL_CullFace(0);
@@ -2089,7 +2019,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		qglActiveStencilFaceEXT(GL_FRONT);
 		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 		qglStencilFunc( GL_EQUAL, 0, ~0 );
-#pragma message("fixme: does this work properly on ati cards? cull front, but leave front as equals?")
+
 		qglDisable(GL_STENCIL_TEST_TWO_SIDE_EXT);
 
 		GL_CullFace(SHADER_CULL_FRONT);
@@ -2150,27 +2080,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 
 	qglDisable(GL_STENCIL_TEST);
 	qglStencilFunc( GL_ALWAYS, 0, ~0 );
-/*
-	if (developer.ival)
-	{
-		PPL_RevertToKnownState();
-		qglEnable(GL_BLEND);
-		qglBlendFunc(GL_ONE, GL_ONE);
-		qglDisable(GL_DEPTH_TEST);
-		qglDepthMask(0);
-		qglShadeModel (GL_SMOOTH);
-	qglDepthMask (0);
-	qglDisable (GL_TEXTURE_2D);
-	qglShadeModel (GL_SMOOTH);
-	qglEnable (GL_BLEND);
-	qglBlendFunc (GL_ONE, GL_ONE);
 
-		R_RenderDlight (dl);
-		qglEnable(GL_DEPTH_TEST);
-		qglShadeModel (GL_FLAT);
-		PPL_RevertToKnownState();
-	}
-*/
 	checkerror();
 	return true;
 }
@@ -2231,7 +2141,10 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 
 //sets up the gl scissor (and culls to view)
 	if (Sh_ScissorForBox(mins, maxs))
+	{
+		bench.numscissorculled++;
 		return;	//was culled.
+	}
 
 	bench.numlights++;
 
@@ -2296,13 +2209,13 @@ void Sh_DrawLights(qbyte *vis)
 		if (colour[0] < 0.001 && colour[1] < 0.001 && colour[2] < 0.001)
 			continue;	//just switch these off.
 
-		if (((!dl->die)?!r_shadow_realtime_world_shadows.value:!r_shadow_realtime_dlight_shadows.value) || dl->flags & LFLAG_NOSHADOWS)
+		if (((!dl->die)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
 		{
 			Sh_DrawShadowlessLight(dl, colour, vis);
 		}
 		else if (dl->flags & LFLAG_SHADOWMAP)
 		{
-			Sh_DrawLameSpotLightShadowMap(dl, colour);
+			Sh_DrawShadowMapLight(dl, colour);
 		}
 		else
 		{
@@ -2313,9 +2226,9 @@ void Sh_DrawLights(qbyte *vis)
 	qglDisable(GL_SCISSOR_TEST);
 	BE_SelectMode(BEM_STANDARD, 0);
 
-	if (developer.value)
-	Con_Printf("%i lights drawn, %i frustum culled, %i pvs culled, %i scissor culled\n", bench.numlights, bench.numfrustumculled, bench.numpvsculled, bench.numscissorculled);
-	memset(&bench, 0, sizeof(bench));
+//	if (developer.value)
+//	Con_Printf("%i lights drawn, %i frustum culled, %i pvs culled, %i scissor culled\n", bench.numlights, bench.numfrustumculled, bench.numpvsculled, bench.numscissorculled);
+//	memset(&bench, 0, sizeof(bench));
 }
 #endif
 #endif

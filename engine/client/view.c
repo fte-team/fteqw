@@ -1363,7 +1363,7 @@ void V_RenderPlayerViews(int plnum)
 			r_refdef.viewangles[2]=e->angles[2];//*s+(1-s)*e->msg_angles[1][2];
 			r_refdef.viewangles[PITCH] *= -1;
 
-			r_secondaryview = 3;	//show the player
+			r_refdef.externalview = true;	//show the player
 
 			R_RenderView ();
 //				r_framecount = old_framecount;
@@ -1390,7 +1390,7 @@ void V_RenderPlayerViews(int plnum)
 		vid.recalc_refdef=true;
 	}
 #endif
-	r_secondaryview = 0;
+	r_refdef.externalview = false;
 }
 
 void V_RenderView (void)

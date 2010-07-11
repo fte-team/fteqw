@@ -629,6 +629,19 @@ static int	VARGS SVQ2_AreaEdicts (vec3_t mins, vec3_t maxs, q2edict_t **list,	in
 	return WorldQ2_AreaEdicts(&sv.world, mins, maxs, list, maxcount, areatype);
 }
 
+static model_t *SVQ2_GetCModel(world_t *w, int modelindex)
+{
+	if ((unsigned int)modelindex < MAX_MODELS)
+		return sv.models[modelindex];
+	else
+		return NULL;
+}
+
+void SVQ2_InitWorld(void)
+{
+	sv.world.GetCModel = SVQ2_GetCModel;
+}
+
 qboolean SVQ2_InitGameProgs(void)
 {
 	volatile static game_import_t	import;	//volatile because msvc sucks
@@ -646,7 +659,10 @@ qboolean SVQ2_InitGameProgs(void)
 	}
 
 	if (ge)
+	{
+		SVQ2_InitWorld();
 		return true;
+	}
 
 	// calc the imports. 
 	import.multicast			= SV_Multicast;
@@ -732,6 +748,7 @@ qboolean SVQ2_InitGameProgs(void)
 		return false;
 	}
 
+	SVQ2_InitWorld();
 	ge->Init ();
 
 	return true;

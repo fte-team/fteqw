@@ -125,7 +125,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define PSET_CLASSIC
 
-		#define CSQC_DAT	//support for csqc
+		//#define CSQC_DAT	//support for csqc
 
 		#ifndef SERVERONLY	//don't be stupid, stupid.
 			#ifndef CLIENTONLY
@@ -298,6 +298,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define PROTOCOLEXTENSIONS
 
+#ifdef MINIMAL
+	#define IFMINIMAL(x,y) x
+#else
+	#define IFMINIMAL(x,y) y
+#endif
+
 //#define PRE_SAYONE	2.487	//FIXME: remove.
 
 // defs common to client and server
@@ -361,6 +367,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define MSVCDISABLEWARNINGS
 	#if _MSC_VER >= 1300
 		#define FTE_DEPRECATED __declspec(deprecated)
+		#define _CRT_SECURE_NO_WARNINGS
+		#define _CRT_NONSTDC_NO_WARNINGS
 	#endif
 	#define NORETURN __declspec(noreturn)
 #endif

@@ -745,15 +745,15 @@ void GL_Init(void *(*getglfunction) (char *name))
 		gl_minor_version = 1;
 	}
 	qglGetIntegerv(GL_NUM_EXTENSIONS, &gl_num_extensions);
-	if (!qglGetError())
+	if (gl_num_extensions && !qglGetError())
 	{
 		int i;
 		if (developer.value)
 		{
-			Con_DPrintf ("GL_EXTENSIONS:");
+			Con_Printf ("GL_EXTENSIONS:");
 			for (i = 0; i < gl_num_extensions; i++)
-				Con_DPrintf (" %s", qglGetStringi(GL_EXTENSIONS, i));
-			Con_DPrintf ("\n");
+				Con_Printf (" %s", qglGetStringi(GL_EXTENSIONS, i));
+			Con_Printf ("\n");
 		}
 		else
 			Con_Printf ("GL_EXTENSIONS: %i extensions\n", gl_num_extensions);

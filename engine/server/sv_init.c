@@ -553,6 +553,9 @@ void SV_UnspawnServer (void)	//terminate the running server.
 	}
 	for (i = 0; i < MAX_CLIENTS; i++)
 	{
+		if (svs.clients[i].frameunion.frames)
+			Z_Free(svs.clients[i].frameunion.frames);
+		svs.clients[i].frameunion.frames = NULL;
 		svs.clients[i].state = 0;
 		*svs.clients[i].namebuf = '\0';
 		svs.clients[i].name = NULL;

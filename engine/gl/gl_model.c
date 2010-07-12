@@ -282,6 +282,7 @@ void RMod_ClearAll (void)
 
 		if (mod->type == mod_brush)
 		{
+			Surf_Clear(mod);
 			for (t = 0; t < mod->numtextures; t++)
 			{
 				if (!mod->textures[t])
@@ -304,6 +305,7 @@ Mod_Init
 */
 void RMod_Init (void)
 {
+	RMod_ClearAll();
 	mod_numknown = 0;
 	Q1BSP_Init();
 
@@ -313,12 +315,11 @@ void RMod_Init (void)
 
 void RMod_Shutdown (void)
 {
+	RMod_ClearAll();
 	mod_numknown = 0;
 
 	Cmd_RemoveCommand("mod_texturelist");
 	Cmd_RemoveCommand("mod_usetexture");
-
-	RMod_ClearAll();
 }
 
 /*
@@ -2412,6 +2413,7 @@ qboolean RMod_LoadClipnodes (lump_t *l)
 
 	if (numsuplementryclipnodes)	//now load the crouch ones.
 	{
+/*This looks buggy*/
 		for (i = 3; i < MAX_MAP_HULLSM; i++)
 		{
 			hull = &loadmodel->hulls[i];
@@ -2965,7 +2967,8 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 
 		mod->hulls[0].firstclipnode = bm->headnode[0];
 		mod->hulls[0].available = true;
-		Q1BSP_SetHullFuncs(&mod->hulls[0]);
+		Q1BSP_CheckHullNodes(&mod->hulls[0]);
+
 
 		for (j=1 ; j<MAX_MAP_HULLSM ; j++)
 		{
@@ -2976,7 +2979,8 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 			if (mod->hulls[j].firstclipnode > mod->hulls[j].lastclipnode)
 				mod->hulls[j].available = false;
 
-			Q1BSP_SetHullFuncs(&mod->hulls[j]);
+			if (mod->hulls[j].available)
+				Q1BSP_CheckHullNodes(&mod->hulls[j]);
 		}
 		
 		mod->firstmodelsurface = bm->firstface;

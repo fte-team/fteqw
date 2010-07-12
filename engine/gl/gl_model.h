@@ -31,12 +31,6 @@ struct model_s;
 struct world_s;
 
 typedef struct {
-//	qboolean (*RecursiveHullCheck) (struct hull_s *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
-//	int (*HullPointContents) (struct hull_s *hull, vec3_t p);	//return FTE contents
-	int dummy;
-} hullfuncs_t;
-
-typedef struct {
 	//deals with FTECONTENTS (assumes against solid)
 	void (*PurgeModel) (struct model_s *mod);
 
@@ -423,11 +417,9 @@ typedef struct hull_s
 	vec3_t		clip_mins;
 	vec3_t		clip_maxs;
 	int			available;
-
-	hullfuncs_t funcs;
 } hull_t;
 
-void Q1BSP_SetHullFuncs(hull_t *hull);
+void Q1BSP_CheckHullNodes(hull_t *hull);
 void Q1BSP_SetModelFuncs(struct model_s *mod);
 void Q1BSP_Init(void);
 

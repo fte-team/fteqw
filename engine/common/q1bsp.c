@@ -8,6 +8,21 @@
 Physics functions (common)
 */
 
+void Q1BSP_CheckHullNodes(hull_t *hull)
+{
+	int num, c;
+	dclipnode_t	*node;
+	for (num = hull->firstclipnode; num < hull->lastclipnode; num++)
+	{
+		node = hull->clipnodes + num;
+		for (c = 0; c < 2; c++)
+			if (node->children[c] >= 0)
+				if (node->children[c] < hull->firstclipnode || node->children[c] > hull->lastclipnode)
+					Sys_Error ("Q1BSP_CheckHull: bad node number");
+				
+	}
+}
+
 #if	!id386
 
 /*
@@ -24,9 +39,6 @@ static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
 
 	while (num >= 0)
 	{
-		if (num < hull->firstclipnode || num > hull->lastclipnode)
-			Sys_Error ("SV_HullPointContents: bad node number");
-
 		node = hull->clipnodes + num;
 		plane = hull->planes + node->planenum;
 
@@ -49,6 +61,153 @@ int VARGS Q1_HullPointContents (hull_t *hull, int num, vec3_t p);
 
 
 #define	DIST_EPSILON	(0.03125)
+#if 1
+enum
+{
+	rht_solid,
+	rht_empty,
+	rht_impact
+};
+vec3_t rht_start, rht_end;
+static int Q1BSP_RecursiveHullTrace (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
+{
+	dclipnode_t	*node;
+	mplane_t	*plane;
+	float		t1, t2;
+	vec3_t		mid;
+	int			side;
+	float		midf;
+	int rht;
+
+reenter:
+
+	if (num < 0)
+	{
+		/*hit a leaf*/
+		if (num == Q1CONTENTS_SOLID)
+		{
+			if (trace->allsolid)
+				trace->startsolid = true;
+			return rht_solid;
+		}
+		else
+		{
+			trace->allsolid = false;
+			if (num == Q1CONTENTS_EMPTY)
+				trace->inopen = true;
+			else
+				trace->inwater = true;
+			return rht_empty;
+		}
+	}
+
+	/*its a node*/
+	
+	/*get the node info*/
+	node = hull->clipnodes + num;
+	plane = hull->planes + node->planenum;
+
+	if (plane->type < 3)
+	{
+		t1 = p1[plane->type] - plane->dist;
+		t2 = p2[plane->type] - plane->dist;
+	}
+	else
+	{
+		t1 = DotProduct (plane->normal, p1) - plane->dist;
+		t2 = DotProduct (plane->normal, p2) - plane->dist;
+	}
+	
+	/*if its completely on one side, resume on that side*/
+	if (t1 >= 0 && t2 >= 0)
+	{
+		//return Q1BSP_RecursiveHullTrace (hull, node->children[0], p1f, p2f, p1, p2, trace);
+		num = node->children[0];
+		goto reenter;
+	}
+	if (t1 < 0 && t2 < 0)
+	{
+		//return Q1BSP_RecursiveHullTrace (hull, node->children[1], p1f, p2f, p1, p2, trace);
+		num = node->children[1];
+		goto reenter;
+	}
+
+	if (plane->type < 3)
+	{
+		t1 = rht_start[plane->type] - plane->dist;
+		t2 = rht_end[plane->type] - plane->dist;
+	}
+	else
+	{
+		t1 = DotProduct (plane->normal, rht_start) - plane->dist;
+		t2 = DotProduct (plane->normal, rht_end) - plane->dist;
+	}
+
+	side = t1 < 0;
+
+	midf = t1 / (t1 - t2);
+	if (midf < p1f) midf = p1f;
+	if (midf > p2f) midf = p2f;
+	VectorInterpolate(rht_start, midf, rht_end, mid);
+
+	rht = Q1BSP_RecursiveHullTrace(hull, node->children[side], p1f, midf, p1, mid, trace);
+	if (rht != rht_empty)
+		return rht;
+	rht = Q1BSP_RecursiveHullTrace(hull, node->children[side^1], midf, p2f, mid, p2, trace);
+	if (rht != rht_solid)
+		return rht;
+	
+	trace->fraction = midf;
+	if (side)
+	{
+		/*we impacted the back of the node, so flip the plane*/
+		trace->plane.dist = -plane->dist;
+		VectorNegate(plane->normal, trace->plane.normal);
+		midf = (t1 + DIST_EPSILON) / (t1 - t2);
+	}
+	else
+	{
+		/*we impacted the front of the node*/
+		trace->plane.dist = plane->dist;
+		VectorCopy(plane->normal, trace->plane.normal);
+		midf = (t1 - DIST_EPSILON) / (t1 - t2);
+	}
+	VectorCopy (mid, trace->endpos);
+	VectorInterpolate(rht_start, midf, rht_end, trace->endpos);
+
+	return rht_impact;
+}
+
+qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
+{
+	if (VectorEquals(p1, p2))
+	{
+		/*points cannot cross planes, so do it faster*/
+		switch(Q1_HullPointContents(hull, num, p1))
+		{
+		case Q1CONTENTS_SOLID:
+			trace->startsolid = true;
+			break;
+		case Q1CONTENTS_EMPTY:
+			trace->allsolid = false;
+			trace->inopen = true;
+			break;
+		default:
+			trace->allsolid = false;
+			trace->inwater = true;
+			break;
+		}
+		return true;
+	}
+	else
+	{
+		VectorCopy(p1, rht_start);
+		VectorCopy(p2, rht_end);
+		return Q1BSP_RecursiveHullTrace(hull, num, p1f, p2f, p1, p2, trace) != rht_impact;
+	}
+}
+
+#else
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
 {
 	dclipnode_t	*node;
@@ -75,9 +234,6 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 			trace->startsolid = true;
 		return true;		// empty
 	}
-
-	if (num < hull->firstclipnode || num > hull->lastclipnode)
-		Sys_Error ("Q1BSP_RecursiveHullCheck: bad node number");
 
 //
 // find the point distances
@@ -187,6 +343,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 
 	return false;
 }
+#endif
 
 int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
 {
@@ -208,11 +365,6 @@ int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
 		Sys_Error("Q1_PointContents: Unknown contents type");
 		return FTECONTENTS_SOLID;
 	}
-}
-
-void Q1BSP_SetHullFuncs(hull_t *hull)
-{
-//	hull->funcs.HullPointContents = Q1BSP_HullPointContents;
 }
 
 unsigned int Q1BSP_PointContents(model_t *model, vec3_t point)

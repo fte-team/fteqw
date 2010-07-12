@@ -2135,12 +2135,7 @@ qboolean SV_Physics (void)
 			if (ent->isfree)
 				continue;
 
-			if (ent->solidtype != ent->v->solid)
-			{
-	//			Con_Printf("Entity \"%s\" improperly changed solid type\n", svprogfuncs->stringtable+ent->v->classname);
-				World_LinkEdict (&sv.world, (wedict_t*)ent, true);	// a change of solidity should always relink the edict. someone messed up.
-			}
-			else if (retouch)
+			if (retouch)
 				World_LinkEdict (&sv.world, (wedict_t*)ent, true);	// force retouch even for stationary
 
 			if (i > 0 && i <= sv.allocated_client_slots)
@@ -2157,6 +2152,12 @@ qboolean SV_Physics (void)
 
 			SV_RunEntity (ent);
 			SV_RunNewmis ();
+			
+			if (ent->solidtype != ent->v->solid)
+			{
+				Con_DPrintf("Entity \"%s\" improperly changed solid type\n", PR_GetString(svprogfuncs, ent->v->classname));
+				World_LinkEdict (&sv.world, (wedict_t*)ent, true);	// a change of solidity should always relink the edict. someone messed up.
+			}
 		}
 
 		if (retouch)

@@ -1709,7 +1709,6 @@ int menu_numbuiltins = sizeof(menu_builtins)/sizeof(menu_builtins[0]);
 
 
 
-void M_Init_Internal (void);
 void M_DeInit_Internal (void);
 
 int inmenuprogs;
@@ -1762,8 +1761,6 @@ void MP_Shutdown (void)
 
 	mouseusedforgui = false;
 
-	M_Init_Internal();
-
 	if (inmenuprogs)	//something in the menu caused the problem, so...
 	{
 		inmenuprogs = 0;
@@ -1801,15 +1798,15 @@ void VARGS Menu_Abort (char *format, ...)
 }
 
 double  menutime;
-void MP_Init (void)
+qboolean MP_Init (void)
 {
 	if (qrenderer == QR_NONE)
 	{
-		return;
+		return false;
 	}
 
 	if (forceqmenu.value)
-		return;
+		return false;
 
 	M_DeInit_Internal();
 
@@ -1863,15 +1860,13 @@ void MP_Init (void)
 			//failed to load or something
 //			CloseProgs(menuprogs);
 //			menuprogs = NULL;
-			M_Init_Internal();
-			return;
+			return false;
 		}
 		if (setjmp(mp_abort))
 		{
-			M_Init_Internal();
 			Con_DPrintf("Failed to initialize menu.dat\n");
 			inmenuprogs = false;
-			return;
+			return false;
 		}
 		inmenuprogs++;
 
@@ -1900,6 +1895,7 @@ void MP_Init (void)
 		inmenuprogs--;
 
 		Con_DPrintf("Initialized menu.dat\n");
+		return true;
 	}
 }
 
@@ -1923,7 +1919,7 @@ void MP_CoreDump_f(void)
 void MP_Reload_f(void)
 {
 	MP_Shutdown();
-	MP_Init();
+	M_Init();
 }
 
 void MP_RegisterCvarsAndCmds(void)

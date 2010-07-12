@@ -2674,6 +2674,18 @@ void Surf_DeInit(void)
 	numlightmaps=0;
 }
 
+void Surf_Clear(model_t *mod)
+{
+	batch_t *b;
+	while ((b = mod->batches))
+	{
+		mod->batches = b->next;
+
+		BZ_Free(b->mesh);
+		Z_Free(b);
+	}
+}
+
 /*
 ==================
 GL_BuildLightmaps

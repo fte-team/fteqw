@@ -1166,13 +1166,8 @@ void CL_Disconnect (void)
 
 	if (cl.worldmodel)
 	{
-#if defined(RUNTIMELIGHTING) && defined(GLQUAKE)
-		extern model_t *lightmodel;
-		lightmodel = NULL;
-#endif
-
-		cl.worldmodel->needload=true;
-		cl.worldmodel=NULL;
+		Mod_ClearAll();
+		cl.worldmodel = NULL;
 	}
 
 	if (cls.downloadmethod <= DL_QWPENDING)
@@ -3784,6 +3779,8 @@ void Host_Shutdown(void)
 	S_Shutdown();
 	IN_Shutdown ();
 	R_ShutdownRenderer();
+	CL_FreeDlights();
+	M_Shutdown();
 #ifndef CLIENTONLY
 	SV_Shutdown();
 #else

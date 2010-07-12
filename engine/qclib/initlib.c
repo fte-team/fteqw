@@ -736,6 +736,14 @@ void CloseProgs(progfuncs_t *inst)
 	free(inst->addressablehunk);
 #endif
 
+	if (inst->prinst->allocedstrings)
+                f(inst->prinst->allocedstrings);
+       	inst->prinst->allocedstrings = NULL;
+	if (inst->prinst->tempstrings)
+		f(inst->prinst->tempstrings);
+	inst->prinst->tempstrings = NULL;
+
+
 /*
 	while(inst->prinst->extensionbuiltin)
 	{

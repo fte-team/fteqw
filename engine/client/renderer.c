@@ -1815,9 +1815,7 @@ void R_RestartRenderer_f (void)
 	int i, j;
 	rendererstate_t oldr;
 	rendererstate_t newr;
-#ifdef MENU_DAT
-	MP_Shutdown();
-#endif
+	M_Shutdown();
 	memset(&newr, 0, sizeof(newr));
 
 TRACE(("dbg: R_RestartRenderer_f\n"));
@@ -1951,9 +1949,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	SCR_EndLoadingPlaque();
 
 	TRACE(("dbg: R_RestartRenderer_f success\n"));
-#ifdef MENU_DAT
-	MP_Init();
-#endif
+	M_Reinit();
 	CL_InitDlights();
 }
 

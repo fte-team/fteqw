@@ -387,7 +387,7 @@ void Cbuf_ExecuteLevel (int level)
 		{
 			i++;
 			cmd_text[level].buf.cursize -= i;
-			Q_memcpy (text, text+i, cmd_text[level].buf.cursize);
+			memmove (text, text+i, cmd_text[level].buf.cursize);
 		}
 
 // execute the command line
@@ -521,7 +521,6 @@ void Cmd_Exec_f (void)
 	else
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
-	FS_LoadFile(name, &f);
 	if (FS_LoadFile(name, &f) != -1)
 		;
 	else if (FS_LoadFile(va("%s.cfg", name), &f) != -1)

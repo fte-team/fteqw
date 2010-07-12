@@ -53,6 +53,11 @@ void BE_ClearVBO(vbo_t *vbo)
 		if (j == 7)
 			qglDeleteBuffersARB(1, &vboh[i]);
 	}
+	if (!vbo->vbocoord)
+		BZ_Free(vbo->coord);
+	if (!vbo->vboe)
+		BZ_Free(vbo->indicies);
+	BZ_Free(vbo->meshlist);
 	memset(vbo, 0, sizeof(*vbo));
 }
 

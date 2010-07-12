@@ -33,7 +33,6 @@ qboolean RMod_LoadSurfedges (lump_t *l);
 void RMod_LoadLighting (lump_t *l);
 
 
-void Q2BSP_SetHullFuncs(hull_t *hull);
 qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
 qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace);
 unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
@@ -3907,13 +3906,11 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 		mod->hulls[0].firstclipnode = map_cmodels[0].headnode;
 		mod->hulls[0].available = true;
-		Q2BSP_SetHullFuncs(&mod->hulls[0]);
 
 		for (j=1 ; j<MAX_MAP_HULLSM ; j++)
 		{
 			mod->hulls[j].firstclipnode = map_cmodels[0].headnode;
 			mod->hulls[j].available = false;
-			Q2BSP_SetHullFuncs(&mod->hulls[j]);
 		}
 
 		for (i=1 ; i< loadmodel->numsubmodels ; i++)
@@ -3935,13 +3932,11 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			mod->hulls[j].available = true;
 			mod->nummodelsurfaces = bm->numsurfaces;
 			mod->firstmodelsurface = bm->firstsurface;
-			Q2BSP_SetHullFuncs(&mod->hulls[0]);
 			for (j=1 ; j<MAX_MAP_HULLSM ; j++)
 			{
 				mod->hulls[j].firstclipnode = bm->headnode;
 				mod->hulls[j].lastclipnode = mod->numclipnodes-1;
 				mod->hulls[j].available = false;
-				Q2BSP_SetHullFuncs(&mod->hulls[j]);
 			}
 
 			VectorCopy (bm->maxs, mod->maxs);
@@ -4063,7 +4058,6 @@ void CM_InitBoxHull (void)
 	box_model.funcs.NativeTrace			= CM_NativeTrace;
 
 	box_model.hulls[0].available = true;
-	Q2BSP_SetHullFuncs(&box_model.hulls[0]);
 
 	box_model.nodes = Hunk_Alloc(sizeof(mnode_t)*6);
 	box_planes = &map_planes[numplanes];
@@ -5691,11 +5685,6 @@ unsigned int Q2BSP_PointContents(model_t *mod, vec3_t p)
 
 	return ret;
 }
-void Q2BSP_SetHullFuncs(hull_t *hull)
-{
-//	hull->funcs.HullPointContents = Q2BSP_HullPointContents;
-}
-
 
 
 

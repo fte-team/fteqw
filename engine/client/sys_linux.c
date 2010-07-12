@@ -319,20 +319,6 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 
 
 int secbase;
-unsigned int Sys_Milliseconds (void)
-{
-	struct timeval tp;
-	struct timezone tzp;
-
-	gettimeofday(&tp, &tzp);
-
-	if (!secbase)
-	{
-		secbase = tp.tv_sec;
-		return tp.tv_usec/1000;
-	}
-	return (tp.tv_sec - secbase)*1000 + tp.tv_usec/1000;
-}
 
 double Sys_DoubleTime (void)
 {
@@ -348,6 +334,11 @@ double Sys_DoubleTime (void)
 	}
 
 	return (tp.tv_sec - secbase) + tp.tv_usec/1000000.0;
+}
+
+unsigned int Sys_Milliseconds (void)
+{
+	return Sys_DoubleTime() * 1000;
 }
 
 static void *game_library;

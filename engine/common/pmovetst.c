@@ -46,8 +46,6 @@ void PM_InitBoxHull (void)
 	box_hull.firstclipnode = 0;
 	box_hull.lastclipnode = 5;
 
-	Q1BSP_SetHullFuncs(&box_hull);
-
 	for (i=0 ; i<6 ; i++)
 	{
 		box_clipnodes[i].planenum = i;

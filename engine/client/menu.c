@@ -852,12 +852,30 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("quickconnect");
 }
 
+void M_Shutdown(void)
+{
+#ifdef MENU_DAT
+	MP_Shutdown();
+#endif
+	M_DeInit_Internal();
+}
+
+void M_Reinit(void)
+{
+#ifdef MENU_DAT
+	if (!MP_Init())
+#endif
+	{
+		M_Init_Internal();
+	}
+}
+#warning ----------- move menu reload here --------------
+
 void FPS_Preset_f(void);
 
 //menu.dat is loaded later... after the video and everything is up.
 void M_Init (void)
 {
-	M_Init_Internal();
 
 	Cmd_AddCommand("togglemenu", M_ToggleMenu_f);
 	Cmd_AddCommand("closemenu", M_CloseMenu_f);
@@ -870,6 +888,8 @@ void M_Init (void)
 	M_Serverlist_Init();
 #endif
 	M_Script_Init();
+
+	M_Reinit();
 }
 
 

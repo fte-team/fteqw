@@ -389,8 +389,7 @@ void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic);
 void M_FindKeysForCommand (char *command, int *twokeys);
 void M_UnbindCommand (char *command);
 
-void MP_Shutdown (void);
-void MP_Init (void);
+qboolean MP_Init (void);
 qboolean MP_Toggle(void);
 void MP_Draw(void);
 void MP_RegisterCvarsAndCmds(void);

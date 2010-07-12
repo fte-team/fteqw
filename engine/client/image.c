@@ -2104,7 +2104,11 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	//now look in wad files. (halflife compatability)
 	data = W_GetTexture(name, &image_width, &image_height, &alphaed);
 	if (data)
-		return R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, flags);
+	{
+		tex = R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, flags)
+		BZ_Free(data);
+		return tex;
+	}
 	return r_nulltex;
 }
 texid_t R_LoadReplacementTexture(char *name, char *subpath, unsigned int flags)

@@ -236,7 +236,7 @@ void GLR_RenderDlights (void)
 	l = cl_dlights+rtlights_first;
 	for (i=rtlights_first; i<rtlights_max; i++, l++)
 	{
-		if (!l->radius || !(l->flags & LFLAG_ALLOW_FLASH))
+		if (!l->radius)// || !(l->flags & LFLAG_ALLOW_FLASH))
 			continue;
 
 		//dlights emitting from the local player are not visible as flashblends

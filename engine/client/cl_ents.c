@@ -83,10 +83,16 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 
 //============================================================
 
+void CL_FreeDlights(void)
+{
+	rtlights_max = cl_maxdlights = 0;
+	BZ_Free(cl_dlights);
+	cl_dlights = NULL;
+}
 void CL_InitDlights(void)
 {
 	rtlights_max = cl_maxdlights = RTL_FIRST;
-	cl_dlights = BZ_Realloc(NULL, sizeof(*cl_dlights)*cl_maxdlights);
+	cl_dlights = BZ_Realloc(cl_dlights, sizeof(*cl_dlights)*cl_maxdlights);
 	memset(cl_dlights, 0, sizeof(*cl_dlights)*cl_maxdlights);
 }
 
@@ -1555,6 +1561,11 @@ static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entit
 			//new this frame (or we noticed something changed significantly)
 			VectorCopy(snew->origin, le->origin);
 			VectorCopy(snew->angles, le->angles);
+				
+			VectorCopy(snew->origin, le->oldorigin);
+			VectorCopy(snew->angles, le->oldangle);
+			VectorCopy(snew->origin, le->neworigin);
+			VectorCopy(snew->angles, le->newangle);
 
 			le->orglerpdeltatime = 0.1;
 			le->orglerpstarttime = oldpack->servertime;

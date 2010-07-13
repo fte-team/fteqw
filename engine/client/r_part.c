@@ -80,7 +80,6 @@ void R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 	int i;
 	if (pe)
 	{
-		OutputDebugString("foo\n");
 		pe->ShutdownParticles();
 	}
 

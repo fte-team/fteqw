@@ -19,9 +19,9 @@ MORPHOS=$(ls -1 /home/moodles/htdocs/unstable/morphos/ | wc -l)
 MACOSX=$(ls -1 /home/moodles/htdocs/unstable/macosx_tiger_10.4/ | wc -l)
 
 # known count when all binaries build
-LIN32TOTAL=16 # 4 compilers (GCC, ICC, CLANG & LLVM) * 3 targets (sv, mingl, gl) * 2 (SDL versions)
-LIN64TOTAL=4 # 2 compilers (GCC, CLANG) * 3 targets (sv, mingl, gl)
-WIN32TOTAL=5 # 1 compiler (MinGW32) * 3 targets (sv, mingl, gl) * 2 (SDL versions) + 1 firefox plugin (npqtv)
+LIN32TOTAL=24 # 4 compilers (GCC, ICC, CLANG & LLVM) * 3 targets (sv, mingl, gl) * 2 (SDL versions)
+LIN64TOTAL=6 # 2 compilers (GCC, CLANG) * 3 targets (sv, mingl, gl)
+WIN32TOTAL=6 # 1 compiler (MinGW32) * 3 targets (sv, mingl, gl) * 2 (SDL versions)
 MORPHTOTAL=1 # 1 compiler (GCC based by bigfoot) * 2 targets (gl, mingl)
 MACOSTOTAL=4 # 2 compilers (10.4 x86 and ppc) * 3 targets (gl, mingl, sv)
 

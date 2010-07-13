@@ -26,15 +26,10 @@
 
 //#include "vid_macos.h"
 
-#define WARP_WIDTH		320
-#define WARP_HEIGHT		200
-
 // note: cocoa code is separated in vid_cocoa.m because of compilation pbs
 
 cvar_t in_xflip = SCVAR("in_xflip", "0");
 extern cvar_t vid_hardwaregamma;
-
-static int real_width, real_height;
 
 static void *agllibrary;
 static void *opengllibrary;
@@ -70,10 +65,6 @@ qboolean GLVID_Init(rendererstate_t *info, unsigned char *palette)
 	opengllibrary = dlopen("/System/Library/Frameworks/OpenGL.framework/OpenGL", RTLD_LAZY);
 	//don't care if opengl failed.
 
-	vid.width = info->width;
-	vid.height = info->height;
-	vid.maxwarpwidth = WARP_WIDTH;
-	vid.maxwarpheight = WARP_HEIGHT;
 	vid.numpages = 2;
 	vid.colormap = host_colormap;
 	vid.fullbright = 256 - LittleLong (*((int *)vid.colormap + 2048));
@@ -81,53 +72,37 @@ qboolean GLVID_Init(rendererstate_t *info, unsigned char *palette)
     // initialise the NSApplication and the screen
 	initCocoa(info);
 
-    // initCocoa stores current screen size in vid
-	real_width = vid.width;
-	real_height = vid.height;
-
 
     // calculate the conwidth AFTER the screen has been opened
-	if (vid.width <= 640)
+	if (vid.pixelwidth <= 640)
 	{
-		vid.conwidth = vid.width;
-		vid.conheight = vid.height;
+		vid.width = vid.pixelwidth;
+		vid.height = vid.pixelheight;
 	}
 	else
 	{
-		vid.conwidth = vid.width/2;
-		vid.conheight = vid.height/2;
+		vid.width = vid.pixelwidth/2;
+		vid.height = vid.pixelheight/2;
 	}
     
 	if ((i = COM_CheckParm("-conwidth")) && i + 1 < com_argc)
 	{
-		vid.conwidth = Q_atoi(com_argv[i + 1]);
+		vid.width = Q_atoi(com_argv[i + 1]);
         
 		// pick a conheight that matches with correct aspect
-		vid.conheight = vid.conwidth * 3 / 4;
+		vid.height = vid.width * 3 / 4;
 	}
     
-	vid.conwidth &= 0xfff8; // make it a multiple of eight
+	vid.width &= 0xfff8; // make it a multiple of eight
     
 	if ((i = COM_CheckParm("-conheight")) && i + 1 < com_argc)
-		vid.conheight = Q_atoi(com_argv[i + 1]);
+		vid.height = Q_atoi(com_argv[i + 1]);
     
-	if (vid.conwidth < 320)
-		vid.conwidth = 320;
+	if (vid.width < 320)
+		vid.width = 320;
     
-	if (vid.conheight < 200)
-		vid.conheight = 200;
-    
-	vid.rowbytes = vid.width;
-	vid.direct = 0; /* Isn't used anywhere, but whatever. */
-	vid.aspect = ((float)vid.height / (float)vid.width) * (320.0 / 240.0);
-
-	if (vid.conheight > vid.height)
-		vid.conheight = vid.height;
-	if (vid.conwidth > vid.width)
-		vid.conwidth = vid.width;
-
-	vid.width = vid.conwidth;
-	vid.height = vid.conheight;
+	if (vid.height < 200)
+		vid.height = 200;
 
 	GL_Init(AGL_GetProcAddress);
 
@@ -226,11 +201,8 @@ void GLVID_SetCaption(char *text)
 {
 }
 
-void GL_BeginRendering (int *x, int *y, int *width, int *height)
+void GL_BeginRendering (void)
 {
-	*x = *y = 0;
-	*width = real_width;
-	*height = real_height;
 }
 
 void GL_EndRendering(void)

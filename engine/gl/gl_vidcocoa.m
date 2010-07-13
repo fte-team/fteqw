@@ -364,8 +364,8 @@ int checkDepth(int d)
 	}
 
 	// get screen size
-	vid.width = CGDisplayPixelsWide(kCGDirectMainDisplay);
-	vid.height = CGDisplayPixelsHigh(kCGDirectMainDisplay);
+	vid.pixelwidth = CGDisplayPixelsWide(kCGDirectMainDisplay);
+	vid.pixelheight = CGDisplayPixelsHigh(kCGDirectMainDisplay);
 
 	// capture the display!
 	CGDisplayCapture(kCGDirectMainDisplay);

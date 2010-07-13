@@ -1577,12 +1577,13 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 		bm = &mod->submodels[i];
 
 		mod->hulls[0].firstclipnode = bm->headnode[0];
-		Q1BSP_SetHullFuncs(&mod->hulls[0]);
+		Q1BSP_CheckHullNodes(&mod->hulls[0]);
 		for (j=1 ; j<MAX_MAP_HULLSM ; j++)
 		{
 			mod->hulls[j].firstclipnode = bm->headnode[j];
 			mod->hulls[j].lastclipnode = mod->numclipnodes-1;
-			Q1BSP_SetHullFuncs(&mod->hulls[j]);
+			if (mod->hulls[j].available)
+				Q1BSP_CheckHullNodes(&mod->hulls[j]);
 		}
 
 		mod->firstmodelsurface = bm->firstface;

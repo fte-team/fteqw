@@ -173,6 +173,7 @@ void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius)
 void Surf_LessenStains(void);
 void Surf_WipeStains(void);
 void Surf_DeInit(void);
+void Surf_Clear(struct model_s *mod);
 void Surf_BuildLightmaps(void);
 void Surf_BuildSurfaceDisplayList (struct model_s *mod, struct msurface_s *fa);
 void Surf_RenderDynamicLightmaps (struct msurface_s *fa, int shift);
@@ -309,6 +310,7 @@ enum uploadfmt
 texid_t GL_AllocNewTexture(void);
 void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
 texid_t GL_LoadTextureFmt (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
+void GL_DestroyTexture(texid_t tex);
 #endif
 #ifdef D3DQUAKE
 texid_t D3D_AllocNewTexture(int width, int height);

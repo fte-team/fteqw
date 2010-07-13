@@ -1553,14 +1553,15 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 		return;
 	}
 
-        if (l->worldshadowmesh)
+    if (l->worldshadowmesh)
+    {
+		lvis = l->worldshadowmesh->litleaves;
+        //fixme: check head node first?
+        if (!Sh_LeafInView(l->worldshadowmesh->litleaves, vvis))
         {
-                //fixme: check head node first?
-                if (!Sh_LeafInView(l->worldshadowmesh->litleaves, vvis))
-                {
-                        bench.numpvsculled++;
-                        return;
-                }
+                bench.numpvsculled++;
+                return;
+        }
 	}
 	else
 	{

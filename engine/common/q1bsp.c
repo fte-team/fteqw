@@ -61,7 +61,7 @@ int VARGS Q1_HullPointContents (hull_t *hull, int num, vec3_t p);
 
 
 #define	DIST_EPSILON	(0.03125)
-#if 1
+#if 0
 enum
 {
 	rht_solid,

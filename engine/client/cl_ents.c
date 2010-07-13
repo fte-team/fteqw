@@ -3145,20 +3145,6 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 		pplayer->active = true;
 		pplayer->flags = state->flags;
 
-		/*
-		if (pplayer->frame != state->frame)
-		{
-			state->oldframe = pplayer->oldframe = pplayer->frame;
-			state->lerpstarttime = pplayer->lerptime = realtime;
-			pplayer->frame = state->frame;
-		}
-		else
-		{
-			state->lerpstarttime = pplayer->lerptime;
-			state->oldframe = pplayer->oldframe;
-		}
-		*/
-
 		// note that the local player is special, since he moves locally
 		// we use his last predicted postition
 		for (s = 0; s < cl.splitclients; s++)

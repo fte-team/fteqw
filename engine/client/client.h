@@ -726,6 +726,7 @@ extern float	server_version;	// version of server we connected to
 // cl_main
 //
 void CL_InitDlights(void);
+void CL_FreeDlights(void);
 dlight_t *CL_AllocDlight (int key);
 dlight_t *CL_AllocSlight (void);	//allocates a static light
 dlight_t *CL_NewDlight (int key, const vec3_t origin, float radius, float time, int type);

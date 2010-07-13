@@ -102,6 +102,8 @@ void M_SomeInitialisationFunctionCalledAtStartup(void)
 // menus
 //
 void M_Init (void);
+void M_Reinit(void);
+void M_Shutdown(void);
 void M_Keydown (int key, int unicode);
 void M_Keyup (int key, int unicode);
 void M_Draw (int uimenu);
@@ -390,6 +392,7 @@ void M_FindKeysForCommand (char *command, int *twokeys);
 void M_UnbindCommand (char *command);
 
 qboolean MP_Init (void);
+void MP_Shutdown (void);
 qboolean MP_Toggle(void);
 void MP_Draw(void);
 void MP_RegisterCvarsAndCmds(void);

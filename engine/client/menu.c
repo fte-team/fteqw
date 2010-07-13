@@ -869,7 +869,6 @@ void M_Reinit(void)
 		M_Init_Internal();
 	}
 }
-#warning ----------- move menu reload here --------------
 
 void FPS_Preset_f(void);
 

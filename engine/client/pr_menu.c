@@ -1897,6 +1897,7 @@ qboolean MP_Init (void)
 		Con_DPrintf("Initialized menu.dat\n");
 		return true;
 	}
+	return false;
 }
 
 void MP_CoreDump_f(void)

@@ -2105,7 +2105,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	data = W_GetTexture(name, &image_width, &image_height, &alphaed);
 	if (data)
 	{
-		tex = R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, flags)
+		tex = R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, flags);
 		BZ_Free(data);
 		return tex;
 	}

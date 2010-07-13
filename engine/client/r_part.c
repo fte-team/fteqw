@@ -79,10 +79,15 @@ void R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 {
 	int i;
 	if (pe)
+	{
+		OutputDebugString("foo\n");
 		pe->ShutdownParticles();
+	}
 
 	if (!qrenderer)
+	{
 		pe = &pe_null;
+	}
 	else
 	{
 		pe = NULL;

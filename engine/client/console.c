@@ -679,6 +679,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 #endif
 
 // also echo to debugging console
+//	OutputDebugString(msg);	//msvc debug output
 	Sys_Printf ("%s", msg);	// also echo to debugging console
 
 // log all messages to file

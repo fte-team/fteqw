@@ -381,7 +381,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		vid.width = Q_atoi(com_argv[i + 1]);
 
 		// pick a conheight that matches with correct aspect
-		vid.height = vid.conwidth * 3 / 4;
+		vid.height = vid.width * 3 / 4;
 	}
 
 	vid.width &= 0xfff8; // make it a multiple of eight

@@ -306,25 +306,6 @@ qboolean GLInitialise (char *renderer)
 	return true;
 }
 
-// direct draw software compatability stuff
-
-void GLVID_ForceLockState (int lk)
-{
-}
-
-void GLVID_LockBuffer (void)
-{
-}
-
-void GLVID_UnlockBuffer (void)
-{
-}
-
-int GLVID_ForceUnlockedAndReturnState (void)
-{
-	return 0;
-}
-
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify)
 {
 //    RECT    rect;

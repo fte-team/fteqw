@@ -1904,8 +1904,9 @@ static void BE_SubmitMeshChain(void)
 	int startv, starti, endv, endi;
 	int m;
 	mesh_t *mesh;
-	extern cvar_t temp1;
-	if (temp1.ival)
+
+/*
+	if (qglLockArraysEXT)
 	{
 		endv = 0;
 		startv = 0x7fffffff;
@@ -1921,7 +1922,7 @@ static void BE_SubmitMeshChain(void)
 		}
 		qglLockArraysEXT(startv, endv);
 	}
-
+*/
 	for (m = 0, mesh = shaderstate.meshes[0]; m < shaderstate.meshcount; )
 	{
 		startv = mesh->vbofirstvert;
@@ -1947,8 +1948,10 @@ static void BE_SubmitMeshChain(void)
 
 		qglDrawRangeElements(GL_TRIANGLES, startv, endv, endi-starti, GL_INDEX_TYPE, shaderstate.sourcevbo->indicies + starti);
 	}
-	if (temp1.ival)
+/*
+	if (qglUnlockArraysEXT)
 		qglUnlockArraysEXT();
+*/
 }
 
 static void DrawPass(const shaderpass_t *pass)

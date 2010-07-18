@@ -118,9 +118,6 @@ qboolean Sys_remove (char *path)
 //someone used the 'quit' command
 void Sys_Quit (void)
 {
-	if (VID_ForceUnlockedAndReturnState)
-		VID_ForceUnlockedAndReturnState ();
-
 	Host_Shutdown();
 
 	exit (0);

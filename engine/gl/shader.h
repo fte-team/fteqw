@@ -309,7 +309,8 @@ struct shader_s
 		SHADER_NODRAW			= 1 << 14,	//parsed only to pee off developers when they forget it on no-pass shaders.
 
 		SHADER_NODLIGHT			= 1 << 15,	//from surfaceflags
-		SHADER_HASLIGHTMAP		= 1 << 16
+		SHADER_HASLIGHTMAP		= 1 << 16,
+		SHADER_HASTOPBOTTOM		= 1 << 17
 	} flags;
 
 	union {

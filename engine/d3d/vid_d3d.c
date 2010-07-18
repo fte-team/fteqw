@@ -720,25 +720,6 @@ static void	 (D3D9_VID_DeInit)				(void)
 		mainwindow = NULL;
 	}
 }
-static void	(D3D9_VID_LockBuffer)			(void)
-{
-}
-static void	(D3D9_VID_UnlockBuffer)			(void)
-{
-}
-static void	(D3D9_D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height)
-{
-}
-static void	(D3D9_D_EndDirectRect)			(int x, int y, int width, int height)
-{
-}
-static void	(D3D9_VID_ForceLockState)		(int lk)
-{
-}
-static int		(D3D9_VID_ForceUnlockedAndReturnState) (void)
-{
-	return 0;
-}
 
 static void	(D3D9_VID_SetPalette)			(unsigned char *palette)
 {

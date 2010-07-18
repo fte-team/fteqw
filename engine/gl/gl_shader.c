@@ -899,11 +899,13 @@ static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 	}
 	else if (!Q_stricmp (token, "$upperoverlay"))
 	{
+		shader->flags |= SHADER_HASTOPBOTTOM;
 		pass->texgen = T_GEN_UPPEROVERLAY;
 		pass->tcgen = TC_GEN_BASE;
 	}
 	else if (!Q_stricmp (token, "$loweroverlay"))
 	{
+		shader->flags |= SHADER_HASTOPBOTTOM;
 		pass->texgen = T_GEN_LOWEROVERLAY;
 		pass->tcgen = TC_GEN_BASE;
 	}
@@ -2358,17 +2360,23 @@ void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 	if (!TEXVALID(tn->base))
 		tn->base = R_LoadHiResTexture(shader->name, NULL, IF_NOALPHA);
 
-	if (!TEXVALID(tn->bump) && gl_bump.ival)
-		tn->bump = R_LoadHiResTexture(va("%s_norm", shader->name), NULL, IF_NOALPHA);
-	if (!TEXVALID(tn->bump) && gl_bump.ival)
-		tn->bump = R_LoadHiResTexture(va("%s_bump", shader->name), NULL, IF_NOALPHA);
-	if (!TEXVALID(tn->bump) && gl_bump.ival)
-		tn->bump = R_LoadHiResTexture(va("normalmaps/%s", shader->name), NULL, IF_NOALPHA);
+	if (gl_bump.ival)
+	{
+		if (!TEXVALID(tn->bump))
+			tn->bump = R_LoadHiResTexture(va("%s_norm", shader->name), NULL, IF_NOALPHA);
+		if (!TEXVALID(tn->bump))
+			tn->bump = R_LoadHiResTexture(va("%s_bump", shader->name), NULL, IF_NOALPHA);
+		if (!TEXVALID(tn->bump))
+			tn->bump = R_LoadHiResTexture(va("normalmaps/%s", shader->name), NULL, IF_NOALPHA);
+	}
 
-	if (!TEXVALID(tn->loweroverlay))
-		tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", shader->name), NULL, 0);	/*how rude*/
-	if (!TEXVALID(tn->upperoverlay))
-		tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->name), NULL, 0);
+	if (shader->flags & SHADER_HASTOPBOTTOM)
+	{
+		if (!TEXVALID(tn->loweroverlay))
+			tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", shader->name), NULL, 0);	/*how rude*/
+		if (!TEXVALID(tn->upperoverlay))
+			tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->name), NULL, 0);
+	}
 
 	shader->defaulttextures = *tn;
 }

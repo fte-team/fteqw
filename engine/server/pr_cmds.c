@@ -4801,7 +4801,7 @@ string(entity e, string key) infokey
 char *PF_infokey_Internal (int entnum, char *key)
 {
 	char	*value;
-	char ov[256];
+	static char ov[256];
 	char adr[MAX_ADR_SIZE];
 
 	if (entnum == 0)

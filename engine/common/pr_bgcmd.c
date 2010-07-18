@@ -523,6 +523,7 @@ void PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	switch (fmode)
 	{
 	case 0:	//read
+	case 4:	//read whole file
 		pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name);
 		if (!pf_fopen_files[i].data)
 		{
@@ -590,6 +591,7 @@ void PF_fclose_i (int fnum)
 	switch(pf_fopen_files[fnum].accessmode)
 	{
 	case 0:
+	case 4:
 		BZ_Free(pf_fopen_files[fnum].data);
 		break;
 	case 1:
@@ -657,9 +659,9 @@ void PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	while(s < eof)
 	{
 		c = *s++;
-		if (c == '\n')
+		if (c == '\n' && pf_fopen_files[fnum].accessmode != 4)
 			break;
-		if (c == '\r')
+		if (c == '\r' && pf_fopen_files[fnum].accessmode != 4)
 			continue;
 
 		if (o == max)

@@ -2,6 +2,7 @@
 
 #define PROGSUSED
 #include "qcc.h"
+#include <sys/stat.h>
 int mkdir(const char *path);
 
 char QCC_copyright[1024];
@@ -232,6 +233,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_hashonly,		FLAG_MIDCOMPILE,"hashonly",		"Hash-only constants",	"Allows use of only #constant for precompiler constants, allows certain preqcc using mods to compile"},
 	{&opt_logicops,			FLAG_MIDCOMPILE,"lo",			"Logic ops",			"This changes the behaviour of your code. It generates additional if operations to early-out in if statements. With this flag, the line if (0 && somefunction()) will never call the function. It can thus be considered an optimisation. However, due to the change of behaviour, it is not considered so by fteqcc. Note that due to inprecisions with floats, this flag can cause runaway loop errors within the player walk and run functions (without iffloat also enabled). This code is advised:\nplayer_stand1:\n    if (self.velocity_x || self.velocity_y)\nplayer_run\n    if (!(self.velocity_x || self.velocity_y))"},
 	{&flag_msvcstyle,		FLAG_MIDCOMPILE,"msvcstyle",	"MSVC-style errors",	"Generates warning and error messages in a format that msvc understands, to facilitate ide integration."},
+	{&flag_filetimes,		0,				"filetimes",	"Check Filetimes",		"Recompiles the progs only if the file times are modified."},
 	{&flag_fasttrackarrays,	FLAG_MIDCOMPILE|FLAG_ASDEFAULT,"fastarrays","fast arrays where possible",	"Generates extra instructions inside array handling functions to detect engine and use extension opcodes only in supporting engines.\nAdds a global which is set by the engine if the engine supports the extra opcodes. Note that this applies to all arrays or none."},
 	{&flag_assume_integer,	FLAG_MIDCOMPILE,"assumeint",	"Assume Integers",		"Numerical constants are assumed to be integers, instead of floats."},
 	{NULL}
@@ -3108,6 +3110,36 @@ newstyle:
 	}
 #endif
 
+	if (flag_filetimes)
+	{
+		struct stat s, os;
+		pbool modified = false;
+
+		if (stat(destfile, &os) != -1)
+		{
+			while (pr_file_p=QCC_COM_Parse(pr_file_p))
+			{
+				struct stat s;
+				if (stat(qcc_token, &s) == -1 || s.st_mtime > os.st_mtime)
+				{
+					printf("%s changed\n", qcc_token);
+					modified = true;
+					break;
+				}
+			}
+			if (!modified)
+			{
+				printf("No changes\n");
+				qcc_compileactive = false;
+				return;
+			}
+			else
+			{
+				pr_file_p = qccmsrc;
+			}
+		}
+	}
+
 	printf ("outputfile: %s\n", destfile);
 	
 	pr_dumpasm = false;
@@ -3156,7 +3188,7 @@ void QCC_ContinueCompile(void)
 	strcpy (qccmfilename, qccmsourcedir);
 	while(1)
 	{
-		if (!strncmp(s, "..\\", 3))
+		if (!strncmp(s, "..\\", 3) || !strncmp(s, "../", 3))
 		{
 			s2 = qccmfilename + strlen(qccmfilename)-2;
 			while (s2>=qccmfilename)
@@ -3168,10 +3200,13 @@ void QCC_ContinueCompile(void)
 				}
 				s2--;
 			}
-			s+=3;
-			continue;
+			if (s2>=qccmfilename)
+			{
+				s+=3;
+				continue;
+			}
 		}
-		if (!strncmp(s, ".\\", 2))
+		if (!strncmp(s, ".\\", 2) || !strncmp(s, "./", 2))
 		{
 			s+=2;
 			continue;

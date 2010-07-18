@@ -477,6 +477,7 @@ extern pbool flag_hashonly;
 extern pbool flag_fasttrackarrays;
 extern pbool flag_assume_integer;
 extern pbool flag_msvcstyle;
+extern pbool flag_filetimes;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;

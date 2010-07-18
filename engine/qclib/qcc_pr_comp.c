@@ -76,6 +76,7 @@ pbool flag_hashonly;		//Allows use of only #constant for precompiler constants, 
 pbool flag_fasttrackarrays;	//Faster arrays, dynamically detected, activated only in supporting engines.
 pbool flag_msvcstyle;		//MSVC style warnings, so msvc's ide works properly
 pbool flag_assume_integer;	//5 - is that an integer or a float? qcc says float. but we support int too, so maybe we want that instead?
+pbool flag_filetimes;
 
 pbool opt_overlaptemps;		//reduce numpr_globals by reuse of temps. When they are not needed they are freed for reuse. The way this is implemented is better than frikqcc's. (This is the single most important optimisation)
 pbool opt_assignments;		//STORE_F isn't used if an operation wrote to a temp.

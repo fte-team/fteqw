@@ -3,7 +3,9 @@
 #define PROGSUSED
 #include "qcc.h"
 #include <sys/stat.h>
-int mkdir(const char *path);
+#ifdef _WIN32
+#include <direct.h>
+#endif
 
 char QCC_copyright[1024];
 int QCC_packid;

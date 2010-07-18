@@ -638,31 +638,6 @@ void GLVID_ShiftPalette (unsigned char *palette)
 	}
 }
 
-void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height)
-{
-}
-
-void GLD_EndDirectRect (int x, int y, int width, int height)
-{
-}
-
-void GLVID_UnlockBuffer(void)
-{
-}
-
-void GLVID_LockBuffer(void)
-{
-}
-
-int GLVID_ForceUnlockedAndReturnState (void)
-{
-	return 0;
-}
-
-void GLVID_ForceLockState (int lk)
-{
-}
-
 void Sys_SendKeyEvents(void)
 {
 }

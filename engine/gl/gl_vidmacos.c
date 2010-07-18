@@ -122,15 +122,6 @@ void GL_DoSwap(void)
 {
 }
 
-void GLVID_ForceLockState(int i)
-{
-}
-
-int GLVID_ForceUnlockedAndReturnState(void)
-{
-	return 0;
-}
-
 void GLVID_SetPalette (unsigned char *palette)
 {
 	qbyte *pal;

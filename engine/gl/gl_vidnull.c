@@ -45,23 +45,6 @@ void GL_DoSwap(void)
 {
 }
 
-void GLVID_LockBuffer (void)
-{
-}
-
-void GLVID_UnlockBuffer (void)
-{
-}
-
-int GLVID_ForceUnlockedAndReturnState (void)
-{
-	return 0;
-}
-
-void GLVID_ForceLockState (int lk)
-{
-}
-
 void GLVID_SetCaption(char *text)
 {
 }

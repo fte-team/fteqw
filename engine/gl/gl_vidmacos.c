@@ -189,14 +189,6 @@ qboolean GLVID_IsLocked(void)
 	return 0;
 }
 
-void GLD_BeginDirectRect(int x, int y, qbyte *pbitmap, int width, int height)
-{
-}
-
-void GLD_EndDirectRect(int x, int y, int width, int height)
-{
-}
-
 void GLVID_SetCaption(char *text)
 {
 }

@@ -101,7 +101,7 @@ void QC_InitShares(progfuncs_t *progfuncs);
 void QC_StartShares(progfuncs_t *progfuncs);
 void QC_AddSharedVar(progfuncs_t *progfuncs, int num, int type);
 void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable);
-int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, size_t requestedpos, size_t originalofs);
+int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, signed long requestedpos, signed long originalofs);
 pbool Decompile(progfuncs_t *progfuncs, char *fname);
 int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int flag);
 void    StripExtension (char *path);

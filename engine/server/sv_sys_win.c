@@ -41,6 +41,93 @@ static HANDLE hconsoleout;
 
 
 
+
+#ifdef _DEBUG
+#if _MSC_VER >= 1300
+#define CATCHCRASH
+#endif
+#endif
+
+
+#ifdef CATCHCRASH
+#include "dbghelp.h"
+typedef BOOL (WINAPI *MINIDUMPWRITEDUMP) (
+	HANDLE hProcess,
+	DWORD ProcessId,
+	HANDLE hFile,
+	MINIDUMP_TYPE DumpType,
+	PMINIDUMP_EXCEPTION_INFORMATION ExceptionParam,
+	PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
+	PMINIDUMP_CALLBACK_INFORMATION CallbackParam
+	);
+
+DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
+{
+	char dumpPath[1024];
+	HANDLE hProc = GetCurrentProcess();
+	DWORD procid = GetCurrentProcessId();
+	HANDLE dumpfile;
+	HMODULE hDbgHelp;
+	MINIDUMPWRITEDUMP fnMiniDumpWriteDump;
+	HMODULE hKernel;
+	BOOL (WINAPI *pIsDebuggerPresent)(void);
+
+	hKernel = LoadLibrary ("kernel32");
+	pIsDebuggerPresent = (void*)GetProcAddress(hKernel, "IsDebuggerPresent");
+
+#ifdef GLQUAKE
+	GLVID_Crashed();
+#endif
+
+	if (pIsDebuggerPresent ())
+	{
+		/*if we have a current window, minimize it to bring us out of fullscreen*/
+		return EXCEPTION_CONTINUE_SEARCH;
+	}
+
+	hDbgHelp = LoadLibrary ("DBGHELP");
+	if (hDbgHelp)
+		fnMiniDumpWriteDump = (MINIDUMPWRITEDUMP)GetProcAddress (hDbgHelp, "MiniDumpWriteDump");
+	else
+		fnMiniDumpWriteDump = NULL;
+
+	if (fnMiniDumpWriteDump)
+	{
+		if (MessageBox(NULL, "KABOOM! We crashed!\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNO) != IDYES)
+			return EXCEPTION_EXECUTE_HANDLER;
+
+		/*take a dump*/
+		GetTempPath (sizeof(dumpPath)-16, dumpPath);
+		Q_strncatz(dumpPath, DISTRIBUTION"CrashDump.dmp", sizeof(dumpPath));
+		dumpfile = CreateFile (dumpPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (dumpfile)
+		{
+			MINIDUMP_EXCEPTION_INFORMATION crashinfo;
+			crashinfo.ClientPointers = TRUE;
+			crashinfo.ExceptionPointers = exceptionInfo;
+			crashinfo.ThreadId = GetCurrentThreadId ();
+			if (fnMiniDumpWriteDump(hProc, procid, dumpfile, MiniDumpWithIndirectlyReferencedMemory|MiniDumpWithDataSegs, &crashinfo, NULL, NULL))
+			{
+				CloseHandle(dumpfile);
+				MessageBox(NULL, va("You can find the crashdump at\n%s\nPlease send this file to someone.\n\nWarning: sensitive information (like your current user name) might be present in the dump.\nYou will probably want to compress it.", dumpPath), DISTRIBUTION " Sucks", 0);
+				return EXCEPTION_EXECUTE_HANDLER;
+			}
+		}
+	}
+	else
+		MessageBox(NULL, "Kaboom! Sorry. No MiniDumpWriteDump function.", DISTRIBUTION " Sucks", 0);
+	return EXCEPTION_EXECUTE_HANDLER;
+}
+#endif
+
+
+
+
+
+
+
+
+
 void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	FreeLibrary((HMODULE)lib);
@@ -1191,31 +1278,42 @@ int main (int argc, char **argv)
 	}
 #endif
 
-	COM_InitArgv (argc, argv);
-#ifdef USESERVICE
-	if (COM_CheckParm("-register"))
+#ifdef CATCHCRASH
+	__try
+#endif
 	{
-		CreateSampleService(1);
-		return true;
+		COM_InitArgv (argc, argv);
+	#ifdef USESERVICE
+		if (COM_CheckParm("-register"))
+		{
+			CreateSampleService(1);
+			return true;
+		}
+		if (COM_CheckParm("-unregister"))
+		{
+			CreateSampleService(0);
+			return true;
+		}
+	#endif
+
+	#ifndef _DEBUG
+		if (COM_CheckParm("-noreset"))
+		{
+			signal (SIGFPE,	Signal_Error_Handler);
+			signal (SIGILL,	Signal_Error_Handler);
+			signal (SIGSEGV,	Signal_Error_Handler);
+		}
+	#endif
+		StartQuakeServer();
+
+		ServerMainLoop();
 	}
-	if (COM_CheckParm("-unregister"))
+#ifdef CATCHCRASH
+	__except (CrashExceptionHandler(GetExceptionCode(), GetExceptionInformation()))
 	{
-		CreateSampleService(0);
-		return true;
+		return 1;
 	}
 #endif
-
-#ifndef _DEBUG
-	if (COM_CheckParm("-noreset"))
-	{
-		signal (SIGFPE,	Signal_Error_Handler);
-		signal (SIGILL,	Signal_Error_Handler);
-		signal (SIGSEGV,	Signal_Error_Handler);
-	}
-#endif
-	StartQuakeServer();
-
-	ServerMainLoop();
 
 	return true;
 }

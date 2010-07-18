@@ -710,7 +710,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 
 	if (!(fp = fopen (name, "wb")))
 	{
-		COM_CreatePath (name);
+		FS_CreatePath (filename, FS_GAMEONLY);
 		if (!(fp = fopen (name, "wb")))
 			return false;
 	}

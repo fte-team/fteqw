@@ -1698,11 +1698,6 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 }
 
 
-
-#pragma message "move to header"
-void BE_PushOffsetShadow(qboolean foobar);
-
-
 #define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
 /*Fixme: this is brute forced*/
 static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
@@ -1722,7 +1717,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 	RotateLightVector(e->axis, e->origin, dl->origin, lightorg);
 
 	qglPushMatrix();
-	R_RotateForEntity(e);
+	R_RotateForEntity(e, e->model);
 
 	GL_SelectVBO(0);
 	GL_SelectEBO(0);

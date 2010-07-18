@@ -77,7 +77,7 @@ typedef struct trailstate_s {
 
 #define PARTICLE_Z_CLIP	8.0
 
-typedef enum { BM_BLEND, BM_BLENDCOLOUR, BM_ADD, BM_SUBTRACT } blendmode_t;
+typedef enum { BM_BLEND, BM_BLENDCOLOUR, BM_ADD, BM_SUBTRACT, BM_INVMOD } blendmode_t;
 
 #define frandom() (rand()*(1.0f/RAND_MAX))
 #define crandom() (rand()*(2.0f/RAND_MAX)-1.0f)

@@ -2187,6 +2187,14 @@ void CL_ConnectionlessPacket (void)
 				pext = MSG_ReadLong ();
 			else if (c == PROTOCOL_VERSION_FTE2)
 				pext2 = MSG_ReadLong ();
+			else if (c == PROTOCOL_VERSION_VARLENGTH)
+			{
+				int len = MSG_ReadLong();
+				if (len < 0 || len > 8192)
+					break;
+				c = MSG_ReadLong();/*ident*/
+				MSG_ReadSkip(len); /*payload*/
+			}
 #ifdef HUFFNETWORK
 			else if (c == (('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24)))
 				huffcrc = MSG_ReadLong ();

@@ -404,6 +404,7 @@ void BE_ClearVBO(vbo_t *vbo);
 void BE_UploadAllLightmaps(void);
 
 #ifdef RTLIGHTS
+void BE_PushOffsetShadow(qboolean foobar);
 //submits the world and ents... used only by gl_shadows.c
 void BE_SubmitMeshes (void);
 //sets up gl for depth-only FIXME

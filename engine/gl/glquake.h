@@ -316,7 +316,7 @@ qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 #ifdef GLQUAKE
 qboolean R_CullSphere (vec3_t origin, float radius);
 qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs);
-void R_RotateForEntity (entity_t *e);
+void R_RotateForEntity (entity_t *e, model_t *mod);
 
 void GL_InitSceneProcessingShaders (void);
 void GL_SetupSceneProcessingTextures (void);

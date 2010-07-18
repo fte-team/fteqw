@@ -386,7 +386,8 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 			}
 		}
 	}
-	MessageBox(NULL, "Kaboom! Sorry. Blame the nubs.", DISTRIBUTION " Sucks", 0);
+	else
+		MessageBox(NULL, "Kaboom! Sorry. No MiniDumpWriteDump function.", DISTRIBUTION " Sucks", 0);
 	return EXCEPTION_EXECUTE_HANDLER;
 }
 #endif
@@ -739,9 +740,6 @@ void VARGS Sys_Printf (char *fmt, ...)
 void Sys_Quit (void)
 {
 #ifndef SERVERONLY
-	if (VID_ForceUnlockedAndReturnState)
-		VID_ForceUnlockedAndReturnState ();
-
 	SetHookState(false);
 
 	Host_Shutdown ();

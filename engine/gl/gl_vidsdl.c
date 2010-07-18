@@ -102,7 +102,7 @@ void GLVID_DeInit (void)
 }
 
 
-void GL_BeginRendering ()
+void GL_BeginRendering (void)
 {
 	vid.pixelwidth = glwidth;
 	vid.pixelheight = glheight;
@@ -148,32 +148,6 @@ void GL_EndRendering (void)
 	screenflush = true;
 	if (!gl_lateswap.value)
 		GL_DoSwap();
-}
-
-
-
-void GLVID_LockBuffer (void)
-{
-}
-
-void GLVID_UnlockBuffer (void)
-{
-}
-
-int GLVID_ForceUnlockedAndReturnState (void)
-{
-	return 0;
-}
-
-void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height)
-{
-}
-
-void GLD_EndDirectRect (int x, int y, int width, int height)
-{
-}
-void GLVID_ForceLockState (int lk)
-{
 }
 
 void	GLVID_SetPalette (unsigned char *palette)

@@ -2385,14 +2385,6 @@ CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def)
 {
 	CompilerConstant_t *c = pHash_Get(&compconstantstable, def);
 	return c;
-	/*int a;	
-	for (a = 0; a < numCompilerConstants; a++)
-	{
-		if (!strncmp(def, CompilerConstant[a].name, CompilerConstant[a].namelen+1))		
-			return &CompilerConstant[a];								
-	}
-	return NULL;
-	*/
 }
 
 //============================================================================

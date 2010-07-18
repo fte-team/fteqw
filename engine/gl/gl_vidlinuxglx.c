@@ -183,15 +183,6 @@ void *GLX_GetSymbol(char *name)
 	return symb;
 }
 
-
-void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height)
-{
-}
-
-void GLD_EndDirectRect (int x, int y, int width, int height)
-{
-}
-
 static int XLateKey(XKeyEvent *ev, unsigned int *unicode)
 {
 
@@ -951,7 +942,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	if (vid.width > info->width)
 		vid.width = info->width;
 
-	vid.aspect = ((float)vid.height / (float)vid.width) * (320.0 / 240.0);
 	vid.numpages = 2;
 
 	InitSig(); // trap evil signals
@@ -1120,13 +1110,6 @@ void IN_Move (float *movements, int pnum)
 	IN_MouseMove(movements, pnum);
 }
 #endif
-
-
-void GLVID_UnlockBuffer() {}
-void GLVID_LockBuffer() {}
-
-int GLVID_ForceUnlockedAndReturnState (void) {return 0;}
-void GLVID_ForceLockState (int lk) {}
 
 void GL_DoSwap(void) {}
 

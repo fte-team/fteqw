@@ -358,13 +358,7 @@ typedef struct csqcedict_s
 #endif
 	/*the above is shared with qclib*/
 	link_t	area;
-	int			num_leafs;
-	short		leafnums[MAX_ENT_LEAFS];
-#ifdef Q2BSPS
-	int areanum;	//q2bsp
-	int areanum2;	//q2bsp
-	int headnode;	//q2bsp
-#endif
+	pvscache_t pvsinfo;
 #ifdef USEODE
 	entityode_t ode;
 #endif

@@ -9103,7 +9103,7 @@ void QCC_PR_ParseDefs (char *classname)
 					def->constant = false;
 				else
 					def->constant = true;
-				if (QCC_PR_CheckImmediate("0"))
+				if (QCC_PR_CheckImmediate("0") || QCC_PR_CheckImmediate("0i"))
 				{
 					def->constant = 0;
 					def->initialized = 1;	//fake function

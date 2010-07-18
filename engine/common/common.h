@@ -168,6 +168,7 @@ float MSG_ReadAngle16 (void);
 void MSG_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *cmd);
 void MSGQ2_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *move);
 void MSG_ReadData (void *data, int len);
+void MSG_ReadSkip (int len);
 
 //============================================================================
 
@@ -372,7 +373,6 @@ qbyte *COM_LoadTempFile (const char *path);
 qbyte *COM_LoadTempFile2 (const char *path);	//allocates a little bit more without freeing old temp
 qbyte *COM_LoadHunkFile (const char *path);
 void COM_LoadCacheFile (const char *path, struct cache_user_s *cu);
-void COM_CreatePath (char *path);
 void FS_ForceToPure(const char *str, const char *crcs, int seed);
 char *COM_GetPathInfo (int i, int *crc);
 char *COM_NextPath (char *prevpath);

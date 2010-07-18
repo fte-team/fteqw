@@ -35,6 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void ED_Print (struct progfuncs_s *progfuncs, struct edict_s *ed);
 int PR_EnableEBFSBuiltin(char *name, int binum);
 
+/*cvars for the gamecode only*/
 cvar_t	nomonsters = SCVAR("nomonsters", "0");
 cvar_t	gamecfg = SCVAR("gamecfg", "0");
 cvar_t	scratch1 = SCVAR("scratch1", "0");
@@ -49,9 +50,15 @@ cvar_t	saved4 = SCVARF("saved4", "0", CVAR_ARCHIVE);
 cvar_t	temp1 = SCVARF("temp1", "0", CVAR_ARCHIVE);
 cvar_t	noexit = SCVAR("noexit", "0");
 
-cvar_t	pr_maxedicts = SCVARF("pr_maxedicts", "2048", CVAR_LATCH);
+/*cvars purely for compat with others*/
+cvar_t	dpcompat_trailparticles = SCVAR("dpcompat_trailparticles", "0");
 cvar_t	pr_imitatemvdsv = SCVARF("pr_imitatemvdsv", "0", CVAR_LATCH);
+
+/*compat with frikqcc's arrays (ensures that unknown fields are at the same offsets*/
 cvar_t	pr_fixbrokenqccarrays = SCVARF("pr_fixbrokenqccarrays", "1", CVAR_LATCH);
+
+/*other stuff*/
+cvar_t	pr_maxedicts = SCVARF("pr_maxedicts", "2048", CVAR_LATCH);
 
 cvar_t	pr_no_playerphysics = SCVARF("pr_no_playerphysics", "0", CVAR_LATCH);
 
@@ -1013,9 +1020,11 @@ void PR_Init(void)
 	Cmd_AddCommand ("svtestprogs", QCLibTest);
 #endif
 */
-	Cvar_Register(&pr_maxedicts, cvargroup_progs);
+	Cvar_Register(&dpcompat_trailparticles, "Darkplaces compatibility");
 	Cvar_Register(&pr_imitatemvdsv, cvargroup_progs);
 	Cvar_Register(&pr_fixbrokenqccarrays, cvargroup_progs);
+
+	Cvar_Register(&pr_maxedicts, cvargroup_progs);
 	Cvar_Register(&pr_no_playerphysics, cvargroup_progs);
 
 	for (i = 0; i < MAXADDONS; i++)
@@ -7228,11 +7237,22 @@ void PF_sv_particleeffectnum(progfuncs_t *prinst, struct globalvars_s *pr_global
 void PF_sv_trailparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifdef PEXT_CSQC
-#pragma message("PF_sv_trailparticles: first two parameters differ from dp, but comply with spec")
-	int efnum = G_FLOAT(OFS_PARM0);
-	int ednum = G_EDICTNUM(prinst, OFS_PARM1);
+	int efnum;
+	int ednum;
 	float *start = G_VECTOR(OFS_PARM2);
 	float *end = G_VECTOR(OFS_PARM3);
+
+	/*DP gets this wrong*/
+	if (dpcompat_trailparticles.ival)
+	{
+		ednum = G_EDICTNUM(prinst, OFS_PARM0);
+		efnum = G_FLOAT(OFS_PARM1);
+	}
+	else
+	{
+		efnum = G_FLOAT(OFS_PARM0);
+		ednum = G_EDICTNUM(prinst, OFS_PARM1);
+	}
 
 	MSG_WriteByte(&sv.multicast, svcfte_trailparticles);
 	MSG_WriteShort(&sv.multicast, ednum);

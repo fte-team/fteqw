@@ -851,12 +851,6 @@ rendererinfo_t openglrendererinfo = {
 
 	GLVID_Init,
 	GLVID_DeInit,
-	GLVID_LockBuffer,
-	GLVID_UnlockBuffer,
-	GLD_BeginDirectRect,
-	GLD_EndDirectRect,
-	GLVID_ForceLockState,
-	GLVID_ForceUnlockedAndReturnState,
 	GLVID_SetPalette,
 	GLVID_ShiftPalette,
 	GLVID_GetRGBInfo,

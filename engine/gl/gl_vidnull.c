@@ -33,11 +33,8 @@ void GLD_EndDirectRect(int x, int y, int width, int height)
 {
 }
 
-void GL_BeginRendering (int *x, int *y, int *width, int *height)
+void GL_BeginRendering (void)
 {
-	*x = *y = 0;
-	*width = 640;
-	*height = 480;
 }
 
 void GL_EndRendering (void)

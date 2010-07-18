@@ -2440,7 +2440,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 		if (ent->xv->customizeentityforclient)
 		{
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, clent);
+			pr_global_struct->other = (clent?EDICT_TO_PROG(svprogfuncs, clent):0);
 			PR_ExecuteProgram(svprogfuncs, ent->xv->customizeentityforclient);
 			if(!G_FLOAT(OFS_RETURN))
 				continue;
@@ -2448,7 +2448,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 
 		if (ent->xv->viewmodelforclient)
 		{
-			if (ent->xv->viewmodelforclient != EDICT_TO_PROG(svprogfuncs, host_client->edict))
+			if (ent->xv->viewmodelforclient != (clent?EDICT_TO_PROG(svprogfuncs, clent):0))
 				continue;
 			pvsflags = PVSF_IGNOREPVS;
 		}

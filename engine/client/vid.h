@@ -52,7 +52,6 @@ typedef struct
 
 	unsigned		width;		
 	unsigned		height;
-	float			aspect;		// width / height -- < 0 is taller than wide
 	int				numpages;
 	int				recalc_refdef;	// if true, recalc vid-based stuff
 
@@ -88,16 +87,8 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette);
 // sets the mode; only used by the Quake engine for resetting to mode 0 (the
 // base mode) on memory allocation failures
 
-void GLVID_LockBuffer (void);
-void GLVID_UnlockBuffer (void);
-
-int GLVID_ForceUnlockedAndReturnState (void);
-void GLVID_ForceLockState (int lk);
-
 qboolean GLVID_Is8bit();
 
-void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height);
-void GLD_EndDirectRect (int x, int y, int width, int height);
 char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight);
 void GLVID_SetCaption(char *caption);
 #endif

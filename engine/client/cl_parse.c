@@ -2051,13 +2051,31 @@ void CL_ParseServerData (void)
 		protover = MSG_ReadLong ();
 		if (protover == PROTOCOL_VERSION_FTE)
 		{
-			cls.fteprotocolextensions =  MSG_ReadLong();
+			cls.fteprotocolextensions = MSG_ReadLong();
 			continue;
 		}
 		if (protover == PROTOCOL_VERSION_FTE2)
 		{
-			cls.fteprotocolextensions2 =  MSG_ReadLong();
+			cls.fteprotocolextensions2 = MSG_ReadLong();
 			continue;
+		}
+		if (protover == PROTOCOL_VERSION_VARLENGTH)
+		{
+			int ident;
+			int len;
+			char data[1024];
+			ident = MSG_ReadLong();
+			len = MSG_ReadLong();
+			if (len <= sizeof(data))
+			{
+				MSG_ReadData(data, len);
+				switch(ident)
+				{
+				default:
+					break;
+				}
+				continue;
+			}
 		}
 		if (protover == PROTOCOL_VERSION_QW)	//this ends the version info
 			break;

@@ -1,26 +1,6 @@
 
 #ifndef PROGSLIB_H
 #define PROGSLIB_H
-/*#define true 1
-#define false 0
-
-#define PITCH	0
-#define YAW		1
-#define ROLL	2
-
-typedef char bool;
-//typedef float vec3_t[3];
-typedef int progsnum_t;
-typedef int	func_t;
-#ifndef COMPILER
-typedef char *string_t;
-#endif
-//typedef struct globalvars_s globalvars_t;
-//typedef struct edict_s edict_t;
-#define globalvars_t void
-#define edict_t void
-*/
-
 #ifdef _MSC_VER
 	#define VARGS __cdecl
 #endif
@@ -132,7 +112,7 @@ struct progfuncs_s {
 
 	int lastcalledbuiltinnumber;			//useful with non-implemented opcodes.
 
-	int (*RegisterFieldVar)				(progfuncs_t *prinst, unsigned int type, char *name, size_t requestedpos, size_t originalofs);
+	int (*RegisterFieldVar)				(progfuncs_t *prinst, unsigned int type, char *name, signed long requestedpos, signed long originalofs);
 
 	char	*tempstringbase;				//for engine's use. Store your base tempstring pointer here.
 	int		tempstringnum;			//for engine's use.

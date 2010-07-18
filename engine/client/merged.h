@@ -88,12 +88,6 @@ extern void	(*R_LessenStains)						(void);
 
 extern qboolean	(*VID_Init)							(rendererstate_t *info, unsigned char *palette);
 extern void	(*VID_DeInit)							(void);
-extern void	(*VID_LockBuffer)						(void);
-extern void	(*VID_UnlockBuffer)						(void);
-extern void	(*D_BeginDirectRect)					(int x, int y, qbyte *pbitmap, int width, int height);
-extern void	(*D_EndDirectRect)						(int x, int y, int width, int height);
-extern void	(*VID_ForceLockState)					(int lk);
-extern int		(*VID_ForceUnlockedAndReturnState)	(void);
 extern void	(*VID_SetPalette)						(unsigned char *palette);
 extern void	(*VID_ShiftPalette)						(unsigned char *palette);
 extern char *(*VID_GetRGBInfo)						(int prepad, int *truevidwidth, int *truevidheight);
@@ -213,12 +207,6 @@ typedef struct rendererinfo_s {
 
 	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 	void	 (*VID_DeInit)				(void);
-	void	(*VID_LockBuffer)			(void);
-	void	(*VID_UnlockBuffer)			(void);
-	void	(*D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height);
-	void	(*D_EndDirectRect)			(int x, int y, int width, int height);
-	void	(*VID_ForceLockState)		(int lk);
-	int		(*VID_ForceUnlockedAndReturnState) (void);
 	void	(*VID_SetPalette)			(unsigned char *palette);
 	void	(*VID_ShiftPalette)			(unsigned char *palette);
 	char	*(*VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);

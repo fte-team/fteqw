@@ -736,12 +736,6 @@ float (*Mod_GetFrameDuration)		(struct model_s *model, int framenum);
 
 qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (*VID_DeInit)				(void);
-void	(*VID_LockBuffer)			(void);
-void	(*VID_UnlockBuffer)			(void);
-void	(*D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height);
-void	(*D_EndDirectRect)			(int x, int y, int width, int height);
-void	(*VID_ForceLockState)		(int lk);
-int		(*VID_ForceUnlockedAndReturnState) (void);
 void	(*VID_SetPalette)			(unsigned char *palette);
 void	(*VID_ShiftPalette)			(unsigned char *palette);
 char	*(*VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
@@ -821,12 +815,6 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL, //VID_Init,
 	NULL, //VID_DeInit,
-	NULL, //VID_LockBuffer,
-	NULL, //VID_UnlockBuffer,
-	NULL, //D_BeginDirectRect,
-	NULL, //D_EndDirectRect,
-	NULL, //VID_ForceLockState,
-	NULL, //VID_ForceUnlockedAndReturnState,
 	NULL, //VID_SetPalette,
 	NULL, //VID_ShiftPalette,
 	NULL, //VID_GetRGBInfo,
@@ -1344,12 +1332,6 @@ void R_SetRenderer(rendererinfo_t *ri)
 
 	VID_Init				= ri->VID_Init;
 	VID_DeInit				= ri->VID_DeInit;
-	VID_LockBuffer			= ri->VID_LockBuffer;
-	VID_UnlockBuffer		= ri->VID_UnlockBuffer;
-	D_BeginDirectRect		= ri->D_BeginDirectRect;
-	D_EndDirectRect			= ri->D_EndDirectRect;
-	VID_ForceLockState		= ri->VID_ForceLockState;
-	VID_ForceUnlockedAndReturnState	= ri->VID_ForceUnlockedAndReturnState;
 	VID_SetPalette			= ri->VID_SetPalette;
 	VID_ShiftPalette		= ri->VID_ShiftPalette;
 	VID_GetRGBInfo			= ri->VID_GetRGBInfo;

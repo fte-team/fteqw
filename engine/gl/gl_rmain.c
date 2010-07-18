@@ -491,7 +491,7 @@ void GL_SetupSceneProcessingTextures (void)
 	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_edge_tex);
 }
 
-void R_RotateForEntity (entity_t *e)
+void R_RotateForEntity (entity_t *e, model_t *mod)
 {
 	float m[16];
 	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum>=0)
@@ -540,6 +540,101 @@ void R_RotateForEntity (entity_t *e)
 	m[15] = 1;
 
 	qglMultMatrixf(m);
+
+	if (!mod)
+		return;
+
+	if (e->scale != 1 && e->scale != 0)	//hexen 2 stuff
+	{
+		float tmatrix[3][4];
+		vec3_t scale;
+		vec3_t scale_origin;
+		float xyfact, zfact, entScale;
+		scale[0] = (mod->maxs[0]-mod->mins[0])/255;
+		scale[1] = (mod->maxs[1]-mod->mins[1])/255;
+		scale[2] = (mod->maxs[2]-mod->mins[2])/255;
+		scale_origin[0] = mod->mins[0];
+		scale_origin[1] = mod->mins[1];
+		scale_origin[2] = mod->mins[2];
+
+
+		entScale = (float)e->scale;
+		switch(e->drawflags&SCALE_TYPE_MASKIN)
+		{
+		default:
+		case SCALE_TYPE_UNIFORM:
+			tmatrix[0][0] = scale[0]*entScale;
+			tmatrix[1][1] = scale[1]*entScale;
+			tmatrix[2][2] = scale[2]*entScale;
+			xyfact = zfact = (entScale-1.0)*127.95;
+			break;
+		case SCALE_TYPE_XYONLY:
+			tmatrix[0][0] = scale[0]*entScale;
+			tmatrix[1][1] = scale[1]*entScale;
+			tmatrix[2][2] = scale[2];
+			xyfact = (entScale-1.0)*127.95;
+			zfact = 1.0;
+			break;
+		case SCALE_TYPE_ZONLY:
+			tmatrix[0][0] = scale[0];
+			tmatrix[1][1] = scale[1];
+			tmatrix[2][2] = scale[2]*entScale;
+			xyfact = 1.0;
+			zfact = (entScale-1.0)*127.95;
+			break;
+		}
+		switch(currententity->drawflags&SCALE_ORIGIN_MASKIN)
+		{
+		default:
+		case SCALE_ORIGIN_CENTER:
+			tmatrix[0][3] = scale_origin[0]-scale[0]*xyfact;
+			tmatrix[1][3] = scale_origin[1]-scale[1]*xyfact;
+			tmatrix[2][3] = scale_origin[2]-scale[2]*zfact;
+			break;
+		case SCALE_ORIGIN_BOTTOM:
+			tmatrix[0][3] = scale_origin[0]-scale[0]*xyfact;
+			tmatrix[1][3] = scale_origin[1]-scale[1]*xyfact;
+			tmatrix[2][3] = scale_origin[2];
+			break;
+		case SCALE_ORIGIN_TOP:
+			tmatrix[0][3] = scale_origin[0]-scale[0]*xyfact;
+			tmatrix[1][3] = scale_origin[1]-scale[1]*xyfact;
+			tmatrix[2][3] = scale_origin[2]-scale[2]*zfact*2.0;
+			break;
+		}
+		/*
+		{
+			tmatrix[0][0] = scale[0];
+			tmatrix[1][1] = scale[1];
+			tmatrix[2][2] = scale[2];
+			tmatrix[0][3] = scale_origin[0];
+			tmatrix[1][3] = scale_origin[1];
+			tmatrix[2][3] = scale_origin[2];
+		}
+		*/
+
+		qglTranslatef (tmatrix[0][3],tmatrix[1][3],tmatrix[2][3]);
+		qglScalef (tmatrix[0][0],tmatrix[1][1],tmatrix[2][2]);
+
+		qglScalef(	1/scale[0],
+					1/scale[1],
+					1/scale[2]);
+		qglTranslatef (	-scale_origin[0],
+						-scale_origin[1],
+						-scale_origin[2]);
+	}
+	else if (!strcmp(mod->name, "progs/eyes.mdl"))
+	{
+		// double size of eyes, since they are really hard to see in gl
+		qglTranslatef (0, 0, 0 - (22 + 8));
+		qglScalef (2, 2, 2);
+	}
+
+	if (!ruleset_allow_larger_models.ival && mod->clampscale != 1)
+	{	//possibly this should be on a per-frame basis, but that's a real pain to do
+		Con_DPrintf("Rescaling %s by %f\n", mod->name, mod->clampscale);
+		qglScalef(mod->clampscale, mod->clampscale, mod->clampscale);
+	}
 }
 
 /*

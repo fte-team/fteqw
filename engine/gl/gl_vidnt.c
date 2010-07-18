@@ -325,15 +325,6 @@ int GLVID_ForceUnlockedAndReturnState (void)
 	return 0;
 }
 
-void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height)
-{
-}
-
-void GLD_EndDirectRect (int x, int y, int width, int height)
-{
-}
-
-
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify)
 {
 //    RECT    rect;

@@ -3347,16 +3347,16 @@ void NET_InitServer(void)
 	char *port;
 	port = STRINGIFY(PORT_SERVER);
 
-	if (!svs.sockets)
-	{
-		svs.sockets = FTENET_CreateCollection(true);
-#ifndef SERVERONLY
-		FTENET_AddToCollection(svs.sockets, "SVLoopback", port, FTENET_Loop_EstablishConnection, true);
-#endif
-	}
-
 	if (sv_listen_nq.value || sv_listen_dp.value || sv_listen_qw.value || sv_listen_q3.value)
 	{
+		if (!svs.sockets)
+		{
+			svs.sockets = FTENET_CreateCollection(true);
+	#ifndef SERVERONLY
+			FTENET_AddToCollection(svs.sockets, "SVLoopback", port, FTENET_Loop_EstablishConnection, true);
+	#endif
+		}
+
 		allowconnects = true;
 
 		Cvar_ForceCallback(&sv_port);
@@ -3374,7 +3374,14 @@ void NET_InitServer(void)
 #endif
 	}
 	else
+	{
 		NET_CloseServer();
+
+#ifndef SERVERONLY
+		svs.sockets = FTENET_CreateCollection(true);
+		FTENET_AddToCollection(svs.sockets, "SVLoopback", port, FTENET_Loop_EstablishConnection, true);
+#endif
+	}
 
 
 	//

@@ -1614,7 +1614,8 @@ void Shader_Free (shader_t *shader)
 	int i;
 	shaderpass_t *pass;
 
-	Hash_RemoveData(&shader_active_hash, shader->name, shader);
+	if (shader->bucket.data == shader)
+		Hash_RemoveData(&shader_active_hash, shader->name, shader);
 
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -2408,6 +2409,7 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 						"{\n"
 							"map $normalmap\n"
 							"tcgen base\n"
+							"depthwrite\n"
 						"}\n"
 						"{\n"
 							"map $deluxmap\n"
@@ -2417,6 +2419,10 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 					"{\n"
 						"map $diffuse\n"
 						"tcgen base\n"
+						"if $deluxmap\n"
+						"[\n"
+							"blendfunc gl_one gl_zero\n"
+						"]\n"
 					"}\n"
 					"if $lightmap\n"
 					"[\n"
@@ -2425,11 +2431,14 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 							"blendfunc gl_dst_color gl_zero\n"
 						"}\n"
 					"]\n"
-					"{\n"
-						"map $fullbright\n"
-						"blendfunc add\n"
-						"depthfunc equal\n"
-					"}\n"
+					"if r_fb_bmodels\n"
+					"[\n"
+						"{\n"
+							"map $fullbright\n"
+							"blendfunc add\n"
+							"depthfunc equal\n"
+						"}\n"
+					"]\n"
 				"}\n"
 			);
 

@@ -1963,7 +1963,7 @@ void SV_MVD_Record_f (void)
 
 	COM_StripExtension(name, name, sizeof(name));
 	COM_DefaultExtension(name, ".mvd", sizeof(name));
-	COM_CreatePath(name);
+	FS_CreatePath (name, FS_GAMEONLY);
 
 	//
 	// open the demo file and start recording
@@ -2243,8 +2243,8 @@ void SV_MVDEasyRecord_f (void)
 	Q_strncpyz(name, va("%s/%s", sv_demoDir.string, name), sizeof(name));
 // find a filename that doesn't exist yet
 	Q_strncpyz(name2, name, sizeof(name2));
-	FS_CreatePath (sv_demoDir.string, FS_GAMEONLY);
 //	COM_StripExtension(name2, name2);
+	FS_CreatePath (name2, FS_GAMEONLY);
 	strcat (name2, ".mvd");
 	if ((f = FS_OpenVFS(name2, "rb", FS_GAMEONLY)) == 0)
 		f = FS_OpenVFS(va("%s.gz", name2), "rb", FS_GAMEONLY);

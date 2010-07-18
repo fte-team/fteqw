@@ -137,6 +137,7 @@ int fs_hash_files;
 
 static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen);
 void FS_RegisterDefaultFileSystems(void);
+static void	COM_CreatePath (char *path);
 
 #define ENFORCEFOPENMODE(mode) {if (strcmp(mode, "r") && strcmp(mode, "w")/* && strcmp(mode, "rw")*/)Sys_Error("fs mode %s is not permitted here\n");}
 
@@ -351,7 +352,7 @@ COM_CreatePath
 Only used for CopyFile and download
 ============
 */
-void	COM_CreatePath (char *path)
+static void	COM_CreatePath (char *path)
 {
 	char	*ofs;
 
@@ -1799,7 +1800,8 @@ void COM_Gamedir (const char *dir)
 #endif
 }
 
-#define NEXCFG "set sv_maxairspeed \"400\"\nset sv_mintic \"0.01\"\ncl_nolerp 0\n"
+#define DPCOMPAT "set dpcompat_set 1\nset dpcompat_trailparticles 1\n"
+#define NEXCFG DPCOMPAT "set sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\nset r_particlesdesc effectinfo\n"
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\n"
 
 typedef struct {

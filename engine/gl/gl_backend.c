@@ -185,7 +185,6 @@ void main (void)\n\
 	vec3 halfdir = (normalize(eyevector) + normalize(lightvector))/2.0;\n\
 	float dv = dot(halfdir, bumps);\n\
 	diff += pow(dv, 8.0) * specs;\n\
-	diff.g = pow(dv, 8.0);\n\
 #endif\n\
 ""\n\
 #ifdef PCF\n\
@@ -942,7 +941,7 @@ static void tcgen_environment(float *st, unsigned int numverts, float *xyz, floa
 
 	RotateLightVector(shaderstate.curentity->axis, shaderstate.curentity->origin, r_origin, rorg);
 
-	for (i = 0 ; i < numverts ; i++, xyz += 3, normal += 3, st += 2 ) 
+	for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), normal += 3, st += 2 ) 
 	{
 		VectorSubtract (rorg, xyz, viewer);
 		VectorNormalizeFast (viewer);
@@ -1777,15 +1776,12 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 	}
 	if (shaderstate.flags & ~BEF_PUSHDEPTH)
 	{
-		if (!(sbits & SBITS_BLEND_BITS))
-		{	/*only force blend bits if its not already blended*/
-			if (shaderstate.flags & BEF_FORCEADDITIVE)
-				sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
-							| (SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
-			else if (shaderstate.flags & BEF_FORCETRANSPARENT) 	/*if transparency is forced, clear alpha test bits*/
-				sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
-							| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
-		}
+		if (shaderstate.flags & BEF_FORCEADDITIVE)
+			sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
+						| (SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
+		else if ((shaderstate.flags & BEF_FORCETRANSPARENT) && !(sbits & SBITS_BLEND_BITS)) 	/*if transparency is forced, clear alpha test bits*/
+			sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
+						| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
 
 		if (shaderstate.flags & BEF_FORCENODEPTH) 	/*EF_NODEPTHTEST dp extension*/
 			sbits |= SBITS_MISC_NODEPTHTEST;
@@ -1908,10 +1904,25 @@ static void BE_SubmitMeshChain(void)
 	int startv, starti, endv, endi;
 	int m;
 	mesh_t *mesh;
+	extern cvar_t temp1;
+	if (temp1.ival)
+	{
+		endv = 0;
+		startv = 0x7fffffff;
+		for (m = 0; m < shaderstate.meshcount; m++)
+		{
+			mesh = shaderstate.meshes[m];
+			starti = mesh->vbofirstvert;
+			if (starti < startv)
+				startv = starti;
+			endi = mesh->vbofirstvert+mesh->numvertexes;
+			if (endi > endv)
+				endv = endi;
+		}
+		qglLockArraysEXT(startv, endv);
+	}
 
-	mesh = shaderstate.meshes[0];
-
-	for (m = 0; m < shaderstate.meshcount; )
+	for (m = 0, mesh = shaderstate.meshes[0]; m < shaderstate.meshcount; )
 	{
 		startv = mesh->vbofirstvert;
 		starti = mesh->vbofirstelement;
@@ -1936,6 +1947,8 @@ static void BE_SubmitMeshChain(void)
 
 		qglDrawRangeElements(GL_TRIANGLES, startv, endv, endi-starti, GL_INDEX_TYPE, shaderstate.sourcevbo->indicies + starti);
 	}
+	if (temp1.ival)
+		qglUnlockArraysEXT();
 }
 
 static void DrawPass(const shaderpass_t *pass)
@@ -2546,15 +2559,16 @@ static void BaseBrushTextures(entity_t *ent)
 	batch_t batch;
 	mesh_t *batchmeshes[64];
 
+	model = ent->model;
+
 #ifdef RTLIGHTS
-	if (BE_LightCullModel(ent->origin, ent->model))
+	if (BE_LightCullModel(ent->origin, model))
 		return;
 #endif
 
 	qglPushMatrix();
-	R_RotateForEntity(ent);
+	R_RotateForEntity(ent, model);
 
-	model = ent->model;
 	chain = NULL;
 
 // calculate dynamic lighting for bmodel if it's not an

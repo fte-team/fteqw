@@ -613,7 +613,7 @@ void R_DrawHLModel(entity_t	*curent)
 		qglColor4f(difuse[0]/255+ambient[0]/255, difuse[1]/255+ambient[1]/255, difuse[2]/255+ambient[2]/255, curent->shaderRGBAf[3]);
 	}
 
-    R_RotateForEntity (curent);
+    R_RotateForEntity (curent, curent->model);
 
 	cbone = 0;
 	for (bgroup = 0; bgroup < FS_COUNT; bgroup++)

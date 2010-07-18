@@ -1103,6 +1103,31 @@ int MSG_ReadBits(int bits)
 	return bitmask;
 }
 
+void MSG_ReadSkip(int bytes)
+{
+	if (net_message.packing!=SZ_RAWBYTES)
+	{
+		while (bytes > 4)
+		{
+			MSG_ReadBits(32);
+			bytes-=4;
+		}
+		while (bytes > 0)
+		{
+			MSG_ReadBits(8);
+			bytes--;
+		}
+	}
+	if (msg_readcount+bytes > net_message.cursize)
+	{
+		msg_readcount = net_message.cursize;
+		msg_badread = true;
+		return;
+	}
+	msg_readcount += bytes;
+}
+
+
 // returns -1 and sets msg_badread if no more characters are available
 int MSG_ReadChar (void)
 {
@@ -2392,6 +2417,12 @@ skipwhite:
 		if (c == 0)
 			return NULL;			// end of file;
 		data++;
+	}
+	if (c == '\n')
+	{
+		com_token[len++] = c;
+		com_token[len] = 0;
+		return (char*)data+1;
 	}
 
 // skip // comments

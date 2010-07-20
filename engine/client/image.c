@@ -902,7 +902,7 @@ term_source (j_decompress_ptr cinfo)
 #define GLOBAL(x) x
 
 GLOBAL(void)
-jpeg_mem_src (j_decompress_ptr cinfo, qbyte * infile, int maxlen)
+ftejpeg_mem_src (j_decompress_ptr cinfo, qbyte * infile, int maxlen)
 {
   my_source_mgr *src;
 
@@ -968,7 +968,7 @@ badjpeg:
   }
   jpeg_create_decompress(&cinfo);
 
-  jpeg_mem_src(&cinfo, infile, length);
+  ftejpeg_mem_src(&cinfo, infile, length);
 
   (void) jpeg_read_header(&cinfo, TRUE);
 
@@ -1064,7 +1064,7 @@ METHODDEF(void) term_destination (j_compress_ptr cinfo)
 	dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
 }
 
-void jpeg_mem_dest (j_compress_ptr cinfo, vfsfile_t *vfs)
+void ftejpeg_mem_dest (j_compress_ptr cinfo, vfsfile_t *vfs)
 {
   my_destination_mgr *dest;
 
@@ -1124,7 +1124,7 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 
 	buffer = screendata;
 
-	jpeg_mem_dest(&cinfo, outfile);
+	ftejpeg_mem_dest(&cinfo, outfile);
 	cinfo.image_width = screenwidth;
 	cinfo.image_height = screenheight;
 	cinfo.input_components = 3;

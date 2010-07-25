@@ -933,8 +933,8 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg);
 void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext);
 
 void SV_SaveSpawnparms (qboolean);
-void SV_SaveLevelCache(qboolean dontharmgame);
-qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers);
+void SV_SaveLevelCache(char *savename, qboolean dontharmgame);
+qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolean ignoreplayers);
 
 void SV_Physics_Client (edict_t	*ent, int num);
 

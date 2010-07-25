@@ -560,7 +560,7 @@ void SV_Map_f (void)
 				savedinuse[i] = svs.clients[i].q2edict->inuse;
 				svs.clients[i].q2edict->inuse = false;
 			}
-			SV_SaveLevelCache(false);
+			SV_SaveLevelCache(NULL, false);
 			for (i=0 ; i<sv.allocated_client_slots; i++)
 			{
 				svs.clients[i].q2edict->inuse = savedinuse[i];
@@ -568,7 +568,7 @@ void SV_Map_f (void)
 		}
 		else
 #endif
-			SV_SaveLevelCache(false);
+			SV_SaveLevelCache(NULL, false);
 	}
 
 #ifdef Q3SERVER
@@ -603,7 +603,7 @@ void SV_Map_f (void)
 	SV_BroadcastCommand ("changing \"%s\"\n", level);
 	SV_SendMessagesToAll ();
 
-	if (newunit || !startspot || !SV_LoadLevelCache(level, startspot, false))
+	if (newunit || !startspot || !SV_LoadLevelCache(NULL, level, startspot, false))
 	{
 		if (waschangelevel && !startspot)
 			startspot = "";

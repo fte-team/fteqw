@@ -445,12 +445,12 @@ void SV_CalcPHS (void)
 		return;
 	}
 
-	if (developer.value)
-		Con_TPrintf (STL_BUILDINGPHS);
-
 	num = sv.world.worldmodel->numleafs;
 	rowwords = (num+31)>>5;
 	rowbytes = rowwords*4;
+
+	if (developer.value)
+		Con_TPrintf (STL_BUILDINGPHS);
 
 	sv.pvs = Hunk_AllocName (rowbytes*num, "phs vis");
 	scan = sv.pvs;
@@ -471,6 +471,19 @@ void SV_CalcPHS (void)
 		}
 	}
 
+	/*this routine takes an exponential amount of time, so cache it if its too big*/
+	if (rowbytes*num >= 0x100000)
+	{
+		sv.phs = COM_LoadHunkFile(va("maps/%s.phs", sv.name));
+		if (sv.phs && com_filesize == rowbytes*num + 8 && ((unsigned*)sv.phs)[0] == *(unsigned*)"QPHS" && ((unsigned*)sv.phs)[1] == *(unsigned*)"\1\0\0\0")
+		{
+			sv.phs += 8;
+			Con_DPrintf("Loaded cached PHS\n");
+			return;
+		}
+		else
+			Con_DPrintf("Stale cached PHS\n");
+	}
 
 	sv.phs = Hunk_AllocName (rowbytes*num, "phs hear");
 	count = 0;
@@ -504,6 +517,18 @@ void SV_CalcPHS (void)
 		for (j=0 ; j<num ; j++)
 			if ( ((qbyte *)dest)[j>>3] & (1<<(j&7)) )
 				count++;
+	}
+
+	if (rowbytes*num >= 0x100000)
+	{
+		vfsfile_t *f = FS_OpenVFS(va("maps/%s.phs", sv.name), "wb", FS_GAMEONLY);
+		if (f)
+		{
+			VFS_WRITE(f, "QPHS\1\0\0\0", 8);
+			VFS_WRITE(f, sv.phs, rowbytes*num);
+			VFS_CLOSE(f);
+			Con_Printf("Written PHS cache (%u bytes)\n", rowbytes*num);
+		}
 	}
 
 	if (num)
@@ -762,6 +787,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 //reset the server time.
 	sv.time = 0.1;	//some progs don't like time starting at 0.
 					//cos of spawn funcs like self.nextthink = time...
+					//NQ uses 1, QW uses 0. Awkward.
 	sv.starttime = Sys_DoubleTime();
 
 	COM_FlushTempoaryPacks();

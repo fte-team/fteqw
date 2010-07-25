@@ -2100,6 +2100,8 @@ qboolean SV_Physics (void)
 			}
 			host_frametime = sv_maxtic.value;
 		}
+		if (!host_frametime)
+			continue;
 		sv.world.physicstime += host_frametime;
 
 		moved = true;

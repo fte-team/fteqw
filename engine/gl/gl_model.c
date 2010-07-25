@@ -50,7 +50,7 @@ qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
 model_t *RMod_LoadModel (model_t *mod, qboolean crash);
 
-#ifdef DOOMWADS
+#ifdef MAP_DOOM
 qboolean Mod_LoadDoomLevel(model_t *mod);
 #endif
 
@@ -633,7 +633,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 				continue;
 			break;
 #endif
-#ifdef DOOMWADS
+#ifdef MAP_DOOM
 		case (('D'<<24)+('A'<<16)+('W'<<8)+'I'):	//the id is hacked by the FS .wad loader (main wad).
 		case (('D'<<24)+('A'<<16)+('W'<<8)+'P'):	//the id is hacked by the FS .wad loader (patch wad).
 			if (!Mod_LoadDoomLevel (mod))
@@ -662,6 +662,14 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 			if (!strcmp(com_token, "EXTERNALANIM"))	//custom format, text based, specifies skeletal models to load and which md5anim files to use.
 			{
 				if (!Mod_LoadCompositeAnim (mod, buf))
+					continue;
+				break;
+			}
+#endif
+#ifdef MAP_PROC
+			if (!strcmp(com_token, "PROC"))	//custom format, text based, specifies skeletal models to load and which md5anim files to use.
+			{
+				if (!Mod_LoadMap_Proc (mod, buf))
 					continue;
 				break;
 			}
@@ -3490,7 +3498,7 @@ typedef struct {
 	short xpos;
 	short ypos;
 } doomimage_t;
-static int FindDoomSprites(char *name, int size, void *param)
+static int FindDoomSprites(const char *name, int size, void *param)
 {
 	if (*(int *)param + strlen(name)+1 > 16000)
 		Sys_Error("Too many doom sprites\n");
@@ -3542,8 +3550,6 @@ static void LoadDoomSpriteFrame(char *imagename, mspriteframedesc_t *pdesc, int 
 	palette = COM_LoadTempFile("wad/playpal");
 	header = (doomimage_t *)COM_LoadTempFile2(imagename);
 	data = (qbyte *)header;
-	pframe->width = header->width;
-	pframe->height = header->height;
 	pframe->up = +header->ypos;
 	pframe->down = -header->height + header->ypos;
 
@@ -3592,7 +3598,10 @@ static void LoadDoomSpriteFrame(char *imagename, mspriteframedesc_t *pdesc, int 
 		}
 	}
 
-	pframe->gl_texturenum = GL_LoadTexture8Pal24(imagename, pframe->width, pframe->height, image, palette, true, true);
+	pframe->shader = R_RegisterShader(imagename,
+		"{\n{\nmap $diffuse\nblendfunc blend\n}\n}\n");
+	pframe->shader->defaulttextures.base = R_LoadTexture8Pal24(imagename, header->width, header->height, image, palette, IF_CLAMP);
+	R_BuildDefaultTexnums(&pframe->shader->defaulttextures, pframe->shader);
 }
 
 /*

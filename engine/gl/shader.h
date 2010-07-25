@@ -254,6 +254,8 @@ typedef struct {
 		SP_EYEPOS,
 		SP_ENTMATRIX,
 
+		SP_RENDERTEXTURESCALE,	/*multiplier for currentrender->texcoord*/
+
 		SP_LIGHTRADIUS,
 		SP_LIGHTCOLOUR,
 		SP_LIGHTPOSITION,

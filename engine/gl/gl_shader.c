@@ -784,6 +784,8 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 		parmtype = SP_LIGHTCOLOUR;
 	else if (!Q_stricmp(token, "lightpos"))
 		parmtype = SP_LIGHTPOSITION;
+	else if (!Q_stricmp(token, "rendertexturescale"))
+		parmtype = SP_RENDERTEXTURESCALE;
 	else
 		Con_Printf("shader %s: parameter type \"%s\" not known\n", shader->name, token);
 
@@ -1656,6 +1658,8 @@ void Shader_Shutdown (void)
 	shadercache_t *cache, *cache_next;
 
 	shader = r_shaders;
+	if (!r_shaders)
+		return;	/*nothing needs freeing yet*/
 	for (i = 0; i < MAX_SHADERS; i++, shader++)
 	{
 		if ( !shader->uses )

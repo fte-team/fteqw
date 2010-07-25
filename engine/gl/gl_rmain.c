@@ -167,7 +167,7 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 			{\
 				gl_Position = ftransform();\
 				v_stc = (1.0+(gl_Position.xy / gl_Position.w))/2.0;\
-				v_warp.s = "/*FIXME: Multiply by screen matricies*/"time * 0.25 + gl_MultiTexCoord0.s;\
+				v_warp.s = time * 0.25 + gl_MultiTexCoord0.s;\
 				v_warp.t = time * 0.25 + gl_MultiTexCoord0.t;\
 				v_edge = gl_MultiTexCoord0.xy;\
 			}\
@@ -182,6 +182,7 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 			uniform sampler2D texWarp;\
 			uniform sampler2D texEdge;\
 			uniform float ampscale;\
+			uniform vec3 rendertexturescale;\
 			void main (void)\
 			{\
 				float amptemp;\
@@ -195,7 +196,7 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 				vec2 temp;\
 				temp.x = v_stc.x + offset.x * amptemp;\
 				temp.y = v_stc.y + offset.y * amptemp;\
-				gl_FragColor = texture2D( texScreen, temp );\
+				gl_FragColor = texture2D( texScreen, temp*rendertexturescale.st );\
 			}\
 			\n"
 			"#endif\n"
@@ -205,6 +206,7 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 			"param texture 1 texWarp\n"
 			"param texture 2 texEdge\n"
 			"param time time\n"
+			"param rendertexturescale rendertexturescale\n"
 			"{\n"
 			"map $currentrender\n"
 			"}\n"
@@ -1225,8 +1227,6 @@ r_refdef must be set before the first call
 */
 void R_RenderScene (void)
 {
-	qboolean GLR_DoomWorld(void);
-
 	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 
@@ -1238,13 +1238,8 @@ void R_RenderScene (void)
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
-#ifdef DOOMWADS
-		if (!GLR_DoomWorld ())
-#endif
-		{
-			TRACE(("dbg: calling R_DrawWorld\n"));
-			Surf_DrawWorld ();		// adds static entities to the list
-		}
+		TRACE(("dbg: calling R_DrawWorld\n"));
+		Surf_DrawWorld ();		// adds static entities to the list
 	}
 
 	S_ExtraUpdate ();	// don't let sound get messed up if going slow

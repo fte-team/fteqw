@@ -2097,16 +2097,37 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 			break;
 		case SP_TOPCOLOURS:
 			R_FetchTopColour(&r, &g, &b);
-			param3[0] = r/255;
-			param3[1] = g/255;
-			param3[2] = b/255;
+			param3[0] = r/255.0f;
+			param3[1] = g/255.0f;
+			param3[2] = b/255.0f;
 			qglUniform3fvARB(s->progparm[i].handle, 1, param3);
 			break;
 		case SP_BOTTOMCOLOURS:
 			R_FetchBottomColour(&r, &g, &b);
-			param3[0] = r/255;
-			param3[1] = g/255;
-			param3[2] = b/255;
+			param3[0] = r/255.0f;
+			param3[1] = g/255.0f;
+			param3[2] = b/255.0f;
+			qglUniform3fvARB(s->progparm[i].handle, 1, param3);
+			break;
+
+		case SP_RENDERTEXTURESCALE:
+			if (gl_config.arb_texture_non_power_of_two)
+			{
+				param3[0] = 1;
+				param3[1] = 1;
+			}
+			else
+			{
+				r = 1;
+				g = 1;
+				while (r < vid.pixelwidth)
+					r *= 2;
+				while (g < vid.pixelheight)
+					g *= 2;
+				param3[0] = vid.pixelwidth/(float)r;
+				param3[1] = vid.pixelheight/(float)g;
+			}
+			param3[2] = 1;
 			qglUniform3fvARB(s->progparm[i].handle, 1, param3);
 			break;
 

@@ -356,6 +356,11 @@ void GL_DrawHeightmapModel (entity_t *e);
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 #endif
 
+//doom
+#ifdef MAP_DOOM
+void GLR_DoomWorld();
+#endif
+
 //gl_bloom.c
 #ifdef GLQUAKE
 void R_BloomRegister(void);

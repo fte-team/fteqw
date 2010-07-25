@@ -1,11 +1,11 @@
 #include "quakedef.h"
-#ifdef DOOMWADS
+#ifdef MAP_DOOM
 #ifdef GLQUAKE
 #include "glquake.h"
+#include "shader.h"
 
 #include "doommap.h"
 
-vec_t VectorNormalize2 (vec3_t v, vec3_t out);
 int SignbitsForPlane (mplane_t *out);
 int	PlaneTypeForNormal ( vec3_t normal );
 
@@ -17,7 +17,6 @@ int	PlaneTypeForNormal ( vec3_t normal );
 
 //(aol suck)
 
-void Doom_SetHullFuncs(hull_t *hull);
 void Doom_SetModelFunc(model_t *mod);
 
 //skill/dm is appears in rather than quake's excuded in.
@@ -37,49 +36,29 @@ int Doom_SectorNearPoint(vec3_t p);
 //4. That ALL sectors are fully enclosed, and not made of two areas.
 //5. That no sectors are inside out.
 
-enum {
-	THING_PLAYER		= 1,
-	THING_PLAYER2		= 2,
-	THING_PLAYER3		= 3,
-	THING_PLAYER4		= 4,
-	THING_DMSPAWN		= 11,
-
-//we need to balance weapons according to ammo types.
-	THING_WCHAINSAW		= 2005,	//-> quad
-	THING_WSHOTGUN1		= 2001,	//-> ng
-	THING_WSHOTGUN2		= 82,	//-> sng
-	THING_WCHAINGUN		= 2002,	//-> ssg
-	THING_WROCKETL		= 2003,	//-> lightning
-	THING_WPLASMA		= 2004,	//-> grenade
-	THING_WBFG			= 2006	//-> rocket
 
 
-} THING_TYPES;
-
-
-
-
-extern ddoomnode_t		*nodel;
-extern dssector_t		*ssectorsl;
-extern dthing_t			*thingsl;
-extern mdoomvertex_t	*vertexesl;
-extern dgl_seg3_t		*segsl;
-extern dlinedef_t		*linedefsl;
-extern msidedef_t		*sidedefsm;
-extern msector_t		*sectorm;
-extern plane_t			*nodeplanes;
-extern plane_t			*lineplanes;
-extern blockmapheader_t *blockmapl;
-extern unsigned short	*blockmapofs;
-extern unsigned int nodec;
-extern unsigned int sectorc;
-extern unsigned int segsc;
-extern unsigned int ssectorsc;
-extern unsigned int thingsc;
-extern unsigned int linedefsc;
-extern unsigned int sidedefsc;
-extern unsigned int vertexesc;
-extern unsigned int vertexsglbase;
+ddoomnode_t		*nodel;
+dssector_t		*ssectorsl;
+dthing_t			*thingsl;
+mdoomvertex_t	*vertexesl;
+dgl_seg3_t		*segsl;
+dlinedef_t		*linedefsl;
+msidedef_t		*sidedefsm;
+msector_t		*sectorm;
+plane_t			*nodeplanes;
+plane_t			*lineplanes;
+blockmapheader_t *blockmapl;
+unsigned short	*blockmapofs;
+unsigned int nodec;
+unsigned int sectorc;
+unsigned int segsc;
+unsigned int ssectorsc;
+unsigned int thingsc;
+unsigned int linedefsc;
+unsigned int sidedefsc;
+unsigned int vertexesc;
+unsigned int vertexsglbase;
 
 extern model_t	*loadmodel;
 extern char loadname[];
@@ -98,11 +77,11 @@ static qboolean paletteloaded;
 void Doom_LoadPalette(void)
 {
 	char *file;
-	int tex;
+	int greyscale;
 	if (!paletteloaded)
 	{
 		paletteloaded = true;
-		file = COM_LoadMallocFile("wad/playpal");
+		file = FS_LoadMallocFile("wad/playpal");
 		if (file)
 		{
 			memcpy(doompalette, file, 768);
@@ -110,48 +89,53 @@ void Doom_LoadPalette(void)
 		}
 		else
 		{
-			for (tex = 0; tex < 256; tex++)
+			for (greyscale = 0; greyscale < 256; greyscale++)
 			{
-				doompalette[tex*3+0] = tex;
-				doompalette[tex*3+1] = tex;
-				doompalette[tex*3+2] = tex;
+				doompalette[greyscale*3+0] = greyscale;
+				doompalette[greyscale*3+1] = greyscale;
+				doompalette[greyscale*3+2] = greyscale;
 			}
 		}
 	}
 }
 
-int Doom_LoadFlat(char *name)
+shader_t *Doom_LoadFlat(char *name)
 {
 	char *file;
 	char texname[64];
-	int tex;
+	shader_t *shad;
 
 	Doom_LoadPalette();
 
-	sprintf(texname, "flat-%-.8s", name);
-	Q_strlwr(texname);
-	tex = R_LoadReplacementTexture(texname, "flats", true, false, true);
-	if (tex)
-		return tex;
-
 	sprintf(texname, "flats/%-.8s", name);
 	Q_strlwr(texname);
-	file = COM_LoadMallocFile(texname);
+	shad = R_RegisterShader(texname, "{\n{\nmap $diffuse\n}\n}\n");
+	file = FS_LoadMallocFile(texname);
 	if (file)
 	{
-		tex = GL_LoadTexture8Pal24(texname, 64, 64, file, doompalette, true, false);
+		shad->defaulttextures.base = R_LoadTexture8Pal24(texname, 64, 64, file, doompalette, 0);
 		Z_Free(file);
 	}
 	else
 	{
-		tex = 0;
 		Con_Printf("Flat %-0.8s not found\n", name);
 	}
 
-	return tex;
+	return shad;
 }
 
-static void GLR_DrawWall(unsigned short texnum, unsigned short s, unsigned short t, float x1, float y1, float frontfloor, float x2, float y2, float backfloor, qboolean unpegged)
+typedef struct
+{
+	char name[8];
+	shader_t *shader;
+	unsigned short width;
+	unsigned short height;
+	batch_t *batch;
+} gldoomtexture_t;
+gldoomtexture_t *gldoomtextures;
+int numgldoomtextures;
+
+static void GLR_DrawWall(int texnum, int s, int t, float x1, float y1, float frontfloor, float x2, float y2, float backfloor, qboolean unpegged, unsigned int colour4b)
 {
 	gldoomtexture_t *tex = gldoomtextures+texnum;
 	float len = sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2));
@@ -173,6 +157,7 @@ static void GLR_DrawWall(unsigned short texnum, unsigned short s, unsigned short
 	}
 
 
+#if 0
 	GL_Bind(tex->gltexture);
 
 	qglBegin(GL_QUADS);
@@ -185,6 +170,7 @@ static void GLR_DrawWall(unsigned short texnum, unsigned short s, unsigned short
 	qglTexCoord2f(s2, t2);
 	qglVertex3f(x2, y2, frontfloor);
 	qglEnd();
+#endif
 }
 
 static void GLR_DrawSSector(unsigned int ssec)
@@ -200,8 +186,32 @@ static void GLR_DrawSSector(unsigned int ssec)
 			break;
 	sec = sectorm + sidedefsm[linedefsl[segsl[seg].linedef].sidedef[segsl[seg].direction]].sector;
 
-	qglColor4ub(sec->lightlev, sec->lightlev, sec->lightlev, 255);
-	sec->visframe = r_visframecount;
+	if (sec->visframe != r_visframecount)
+	{
+#if 0
+		qglColor4ub(sectorm[i].lightlev, sectorm[i].lightlev, sectorm[i].lightlev, 255);
+		GL_Bind(sectorm[i].floortex);
+		qglBegin(GL_TRIANGLES);
+		for (v = 0; v < sectorm[i].numflattris*3; v++)
+		{
+			v1 = sectorm[i].flats[v];
+			qglTexCoord2f(vertexesl[v1].xpos/64.0f, vertexesl[v1].ypos/64.0f);
+			qglVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sectorm[i].floorheight);
+		}
+		qglEnd();
+
+		GL_Bind(sectorm[i].ceilingtex);
+		qglBegin(GL_TRIANGLES);
+		for (v = sectorm[i].numflattris*3-1; v >= 0; v--)
+		{
+			v1 = sectorm[i].flats[v];
+			qglTexCoord2f(vertexesl[v1].xpos/64.0f, vertexesl[v1].ypos/64.0f);
+			qglVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sectorm[i].ceilingheight);
+		}
+		qglEnd();
+#endif
+		sec->visframe = r_visframecount;
+	}
 	for (seg = ssectorsl[ssec].first + ssectorsl[ssec].segcount-1; seg >= ssectorsl[ssec].first; seg--)
 	{
 		if (segsl[seg].linedef == 0xffff)
@@ -224,32 +234,16 @@ static void GLR_DrawSSector(unsigned int ssec)
 					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texx,
 					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texy,
 					vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight,
-					vertexesl[v1].xpos, vertexesl[v1].ypos, sec2->floorheight, ld->flags & LINEDEF_LOWERUNPEGGED);
+					vertexesl[v1].xpos, vertexesl[v1].ypos, sec2->floorheight, ld->flags & LINEDEF_LOWERUNPEGGED, sec->lightlev);
 			}
 
 			if (sec->ceilingheight > sec2->ceilingheight)
 			{
-			//	if (sec2->ceilingheight != sec2->floorheight)
-			//	sec2->floorheight = sec2->ceilingheight-32;
-				
 				GLR_DrawWall(sidedefsm[sd].uppertex, 
 					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texx,
 					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texy,
 					vertexesl[v0].xpos, vertexesl[v0].ypos, sec2->ceilingheight,
-					vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight, ld->flags & LINEDEF_UPPERUNPEGGED);
-
-/*
-				GL_Bind(sidedefsm[sd].uppertex);
-				glBegin(GL_QUADS);
-				glTexCoord2f(0, 1);
-				glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec2->ceilingheight);
-				glTexCoord2f(0, 0);
-				glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec->ceilingheight);
-				glTexCoord2f(1, 0);
-				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight);
-				glTexCoord2f(1, 1);
-				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec2->ceilingheight);
-				glEnd();*/
+					vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight, ld->flags & LINEDEF_UPPERUNPEGGED, sec->lightlev);
 			}
 
 			if (sidedefsm[sd].middletex)
@@ -258,40 +252,7 @@ static void GLR_DrawSSector(unsigned int ssec)
 					sidedefsm[ld->sidedef[segsl[seg].direction]].texx,
 					sidedefsm[ld->sidedef[segsl[seg].direction]].texy,
 					vertexesl[v1].xpos, vertexesl[v1].ypos, (sec2->ceilingheight < sec->ceilingheight)?sec2->ceilingheight:sec->ceilingheight,
-					vertexesl[v0].xpos, vertexesl[v0].ypos, (sec2->floorheight > sec->floorheight)?sec2->floorheight:sec->floorheight, false);
-/*
-				GL_Bind(sidedefsm[sd].middletex);
-				glBegin(GL_QUADS);
-				if (sec2->ceilingheight < sec->ceilingheight)
-				{
-					glTexCoord2f(0, 0);
-					glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec2->ceilingheight);
-					glTexCoord2f(1, 0);
-					glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec2->ceilingheight);
-				}
-				else
-				{
-					glTexCoord2f(0, 0);
-					glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec->ceilingheight);
-					glTexCoord2f(1, 0);
-					glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight);
-				}
-				if (sec2->floorheight > sec->floorheight)
-				{
-					glTexCoord2f(1, 1);
-					glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec2->floorheight);
-					glTexCoord2f(0, 1);
-					glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec2->floorheight);
-				}
-				else
-				{
-					glTexCoord2f(1, 1);
-					glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec->floorheight);
-					glTexCoord2f(0, 1);
-					glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight);
-				}
-				glEnd();
-				*/
+					vertexesl[v0].xpos, vertexesl[v0].ypos, (sec2->floorheight > sec->floorheight)?sec2->floorheight:sec->floorheight, false, sec->lightlev);
 			}
 		}
 		else
@@ -301,35 +262,7 @@ static void GLR_DrawSSector(unsigned int ssec)
 				sidedefsm[ld->sidedef[segsl[seg].direction]].texx,
 				sidedefsm[ld->sidedef[segsl[seg].direction]].texy,
 				vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight,
-				vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight, false);
-#if 0
-
-			GL_Bind(sidedefsm[sd].middletex);
-			glBegin(GL_QUADS);
-		/*	if (ld->flags & LINEDEF_LOWERUNPEGGED)
-			{
-				glTexCoord2f(0, 0);
-				glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight);
-				glTexCoord2f(0, (sec->ceilingheight-sec->floorheight)/64.0f);
-				glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec->ceilingheight);
-				glTexCoord2f(1, (sec->ceilingheight-sec->floorheight)/64.0f);
-				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight);
-				glTexCoord2f(1, 0);
-				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec->floorheight);
-			}
-			else*/
-			{
-				glTexCoord2f(0, (sec->ceilingheight)/128.0f);
-				glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight);
-				glTexCoord2f(0, (sec->floorheight)/128.0f);
-				glVertex3f(vertexesl[v0].xpos, vertexesl[v0].ypos, sec->ceilingheight);
-				glTexCoord2f(1, (sec->floorheight)/128.0f);
-				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight);
-				glTexCoord2f(1, (sec->ceilingheight)/128.0f);
-				glVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sec->floorheight);
-			}
-			glEnd();
-#endif
+				vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight, false, sec->lightlev);
 		}
 	}
 }
@@ -463,55 +396,13 @@ static void GLR_RecursiveDoomNode(unsigned int node)
 		GLR_RecursiveDoomNode(nodel[node].node2);
 }
 
-qboolean GLR_DoomWorld(void)
+void GLR_DoomWorld(void)
 {
-	int i, v;
-	int v1;
-
-	if (cl.worldmodel->fromgame != fg_doom)
-		return false;
-
 	if (!nodel || !nodec)
-		return true;	//err... buggy
+		return;	//err... buggy
 
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	qglDisable(GL_BLEND);
-	qglDisable(GL_ALPHA_TEST);
-	qglEnable(GL_CULL_FACE);
-	GL_DisableMultitexture();
 	r_visframecount++;
 	GLR_RecursiveDoomNode(nodec-1);
-
-	if (developer.value)
-	qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	for (i = 0; i < sectorc; i++)
-	{
-		if (sectorm[i].visframe == r_visframecount)
-		{
-			qglColor4ub(sectorm[i].lightlev, sectorm[i].lightlev, sectorm[i].lightlev, 255);
-			GL_Bind(sectorm[i].floortex);
-			qglBegin(GL_TRIANGLES);
-			for (v = 0; v < sectorm[i].numflattris*3; v++)
-			{
-				v1 = sectorm[i].flats[v];
-				qglTexCoord2f(vertexesl[v1].xpos/64.0f, vertexesl[v1].ypos/64.0f);
-				qglVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sectorm[i].floorheight);
-			}
-			qglEnd();
-
-			GL_Bind(sectorm[i].ceilingtex);
-			qglBegin(GL_TRIANGLES);
-			for (v = sectorm[i].numflattris*3-1; v >= 0; v--)
-			{
-				v1 = sectorm[i].flats[v];
-				qglTexCoord2f(vertexesl[v1].xpos/64.0f, vertexesl[v1].ypos/64.0f);
-				qglVertex3f(vertexesl[v1].xpos, vertexesl[v1].ypos, sectorm[i].ceilingheight);
-			}
-			qglEnd();
-		}
-	}
-	qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	return true;
 }
 #endif
 
@@ -763,7 +654,7 @@ static void Triangulate_Sectors(dsector_t *sectorl, qboolean glbspinuse)
 	int seg, nsec;
 	int i, sec=-1;
 
-	sectorm = BZ_Malloc(sectorc * sizeof(*sectorm));
+	sectorm = Z_Malloc(sectorc * sizeof(*sectorm));
 
 #ifdef GLQUAKE
 	if (glbspinuse)
@@ -849,9 +740,9 @@ static void *textures2;
 static char *pnames;
 static void Doom_LoadTextureInfos(void)
 {
-	textures1 = COM_LoadMallocFile("wad/texture1");
-	textures2 = COM_LoadMallocFile("wad/texture2");
-	pnames = COM_LoadMallocFile("wad/pnames");
+	textures1 = FS_LoadMallocFile("wad/texture1");
+	textures2 = FS_LoadMallocFile("wad/texture2");
+	pnames = FS_LoadMallocFile("wad/pnames");
 }
 
 typedef struct {
@@ -947,12 +838,13 @@ static void Doom_ExtractPName(unsigned int *out, doomimage_t *di, int outwidth, 
 	}
 }
 
-static int Doom_LoadPatchFromTexWad(char *name, void *texlump, unsigned short *width, unsigned short *height)
+static texid_t Doom_LoadPatchFromTexWad(char *name, void *texlump, unsigned short *width, unsigned short *height)
 {
 	char patch[32] = "patches/";
 	unsigned int *tex;
 	ddoomtexture_t *tx;
 	ddoomtexturecomponant_t *tc;
+	texid_t result;
 	int i;
 	int count;
 
@@ -978,15 +870,15 @@ static int Doom_LoadPatchFromTexWad(char *name, void *texlump, unsigned short *w
 				Doom_ExtractPName(tex, (doomimage_t *)COM_LoadTempFile(patch), tx->width, tx->height, tc->xoffset, tc->yoffset);
 			}
 
-			i = GL_LoadTexture32(name, tx->width, tx->height, tex, true, true);
+			result = R_LoadTexture32(name, tx->width, tx->height, tex, 0);
 			BZ_Free(tex);
-			return i;
+			return result;
 		}
 
 		tex++;
 	}
 
-	return 0;
+	return r_nulltex;
 }
 static int Doom_LoadPatch(char *name)
 {
@@ -1007,21 +899,21 @@ static int Doom_LoadPatch(char *name)
 
 	strncpy(gldoomtextures[texnum].name, name, 8);
 
+	gldoomtextures[texnum].shader = R_RegisterShader(name, "{\n{\nmap $diffuse\n}\n}\n");
 
 	if (textures1)
 	{
-		gldoomtextures[texnum].gltexture = Doom_LoadPatchFromTexWad(name, textures1, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height);
-		if (gldoomtextures[texnum].gltexture)
+		gldoomtextures[texnum].shader->defaulttextures.base = Doom_LoadPatchFromTexWad(name, textures1, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height);
+		if (TEXVALID(gldoomtextures[texnum].shader->defaulttextures.base))
 			return texnum;
 	}
 	if (textures2)
 	{
-		gldoomtextures[texnum].gltexture = Doom_LoadPatchFromTexWad(name, textures2, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height);
-		if (gldoomtextures[texnum].gltexture)
+		gldoomtextures[texnum].shader->defaulttextures.base = Doom_LoadPatchFromTexWad(name, textures2, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height);
+		if (TEXVALID(gldoomtextures[texnum].shader->defaulttextures.base))
 			return texnum;
 	}
 	//all else failed.
-	gldoomtextures[texnum].gltexture = Mod_LoadHiResTexture(name, "patches", true, false, true);
 	gldoomtextures[texnum].width = image_width;
 	gldoomtextures[texnum].height = image_height;
 	return texnum;
@@ -1136,13 +1028,13 @@ void QuakifyThings(dthing_t *thingsl)
 			name = "weapon_supershotgun";
 			break;
 		case THING_WROCKETL:
-			name = "weapon_lightning";
+			name = "weapon_rocketlauncher";
 			break;
 		case THING_WPLASMA:
 			name = "weapon_grenadelauncher";
 			break;
 		case THING_WBFG:
-			name = "weapon_rocketlauncher";
+			name = "weapon_lightning";
 			break;
 
 		default:
@@ -1220,6 +1112,11 @@ void Doom_GeneratePlanes(ddoomnode_t *nodel)
 	}
 }
 
+/*
+doom maps have no network limitations, but has +/-32767 map size limits (same as quake bsp)
+fte defaults to a +/- 4096 world
+a lot of maps are off-centered and can be moved to get them to fit fte's constraints, so if we can, do so
+*/
 static void MoveWorld(void)
 {
 	int v;
@@ -1248,12 +1145,15 @@ static void MoveWorld(void)
 			return;	//doesn't need adjusting, live with it.
 
 	if (max[0]-min[0]>=8192 || max[1]-min[1]>=8192)
+	{
 		Con_Printf(CON_WARNING "Warning: Map is too large for the network protocol\n");
-
-	Con_Printf("Adjusting map\n");
+		return;
+	}
 
 	adj[0] = (max[0]-4096)&~63;	//don't harm the tiling.
 	adj[1] = (max[1]-4096)&~63;
+
+	Con_Printf("Adjusting map (%i %i)\n", -adj[0], -adj[1]);
 
 	for (v = 0; v < vertexesc; v++)
 	{
@@ -1349,9 +1249,9 @@ static void Doom_LoadVerticies(char *name)
 
 static void Doom_LoadSSectors(char *name)
 {
-	ssectorsl	= (void *)COM_LoadMallocFile	(va("%s.gl_ssect",	name));
+	ssectorsl	= (void *)FS_LoadMallocFile	(va("%s.gl_ssect",	name));
 	if (!ssectorsl)
-		ssectorsl	= (void *)COM_LoadMallocFile	(va("%s.ssectors",	name));
+		ssectorsl	= (void *)FS_LoadMallocFile	(va("%s.ssectors",	name));
 	//FIXME: "gNd3" means that it's glbsp version 3.
 	ssectorsc	= com_filesize/sizeof(*ssectorsl);
 }
@@ -1365,10 +1265,10 @@ static void Doom_LoadSSegs(char *name)
 	dseg_t		*s0;
 	int i;
 
-	file	= (void *)COM_LoadMallocFile	(va("%s.gl_segs",	name));
+	file	= (void *)FS_LoadMallocFile	(va("%s.gl_segs",	name));
 	if (!file)
 	{
-		s0 = (void *)COM_LoadMallocFile	(va("%s.segs",	name));
+		s0 = (void *)FS_LoadMallocFile	(va("%s.segs",	name));
 		segsc	= com_filesize/sizeof(*s0);
 
 		segsl = BZ_Malloc(segsc * sizeof(*segsl));
@@ -1433,7 +1333,7 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 		return false;
 	}
 
-	gl_nodes	= (void *)COM_LoadMallocFile	(va("%s.gl_nodes",	name));
+	gl_nodes	= (void *)FS_LoadMallocFile	(va("%s.gl_nodes",	name));
 	if (gl_nodes && com_filesize>0)
 	{
 		nodel = (void *)gl_nodes;
@@ -1442,10 +1342,10 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 	else
 	{
 		gl_nodes=NULL;
-		nodel		= (void *)COM_LoadMallocFile	(va("%s.nodes",		name));
+		nodel		= (void *)FS_LoadMallocFile	(va("%s.nodes",		name));
 		nodec		= com_filesize/sizeof(*nodel);
 	}
-	sectorl		= (void *)COM_LoadMallocFile	(va("%s.sectors",	name));
+	sectorl		= (void *)FS_LoadMallocFile	(va("%s.sectors",	name));
 	sectorc		= com_filesize/sizeof(*sectorl);
 
 #ifndef SERVERONLY
@@ -1459,13 +1359,13 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 	Doom_LoadSSegs(name);
 	Doom_LoadSSectors(name);
 
-	thingsl		= (void *)COM_LoadMallocFile	(va("%s.things",	name));
+	thingsl		= (void *)FS_LoadMallocFile	(va("%s.things",	name));
 	thingsc		= com_filesize/sizeof(*thingsl);
-	linedefsl	= (void *)COM_LoadMallocFile	(va("%s.linedefs",	name));
+	linedefsl	= (void *)FS_LoadMallocFile	(va("%s.linedefs",	name));
 	linedefsc	= com_filesize/sizeof(*linedefsl);
-	sidedefsl	= (void *)COM_LoadMallocFile	(va("%s.sidedefs",	name));
+	sidedefsl	= (void *)FS_LoadMallocFile	(va("%s.sidedefs",	name));
 	sidedefsc	= com_filesize/sizeof(*sidedefsl);
-	blockmapl	= (void *)COM_LoadMallocFile	(va("%s.blockmap",	name));
+	blockmapl	= (void *)FS_LoadMallocFile	(va("%s.blockmap",	name));
 //	blockmaps	= com_filesize;
 #ifndef SERVERONLY
 	Doom_LoadTextureInfos();
@@ -1491,35 +1391,8 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 	mod->hulls[0].clip_maxs[2] = 0;
 	mod->hulls[0].available = true;
 
-	mod->hulls[1].clip_mins[0] = -16;
-	mod->hulls[1].clip_mins[1] = -16;
-	mod->hulls[1].clip_mins[2] = -24;
-	mod->hulls[1].clip_maxs[0] = 16;
-	mod->hulls[1].clip_maxs[1] = 16;
-	mod->hulls[1].clip_maxs[2] = 32;
-	mod->hulls[1].available = true;
-
-	mod->hulls[2].clip_mins[0] = -32;
-	mod->hulls[2].clip_mins[1] = -32;
-	mod->hulls[2].clip_mins[2] = -24;
-	mod->hulls[2].clip_maxs[0] = 32;
-	mod->hulls[2].clip_maxs[1] = 32;
-	mod->hulls[2].clip_maxs[2] = 64;
-	mod->hulls[2].available = true;
-
-	mod->hulls[3].clip_mins[0] = -16;	//allow a crouched sized hull.
-	mod->hulls[3].clip_mins[1] = -16;
-	mod->hulls[3].clip_mins[2] = -6;
-	mod->hulls[3].clip_maxs[0] = 16;
-	mod->hulls[3].clip_maxs[1] = 16;
-	mod->hulls[3].clip_maxs[2] = 30;
-	mod->hulls[3].available = true;
-
-	for (h = 4; h < MAX_MAP_HULLSM; h++)
+	for (h = 1; h < MAX_MAP_HULLSM; h++)
 		mod->hulls[h].available = false;
-
-	for (h = 0; h < MAX_MAP_HULLSM; h++)
-		Doom_SetHullFuncs(&mod->hulls[h]);
 
 	Doom_SetModelFunc(mod);
 
@@ -1535,15 +1408,7 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 	return true;
 }
 
-
-
-void Doom_SetHullFuncs(hull_t *hull)
-{
-	hull->funcs.RecursiveHullCheck = Doom_RecursiveHullCheck;
-	hull->funcs.HullPointContents = Doom_PointContents;
-}
-
-void Doom_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+void Doom_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 	msector_t *sec;
 	sec = sectorm + Doom_SectorNearPoint(point);
@@ -1559,16 +1424,17 @@ void Doom_LightPointValues(vec3_t point, vec3_t res_diffuse, vec3_t res_ambient,
 	res_ambient[2] = sec->lightlev;
 }
 
-void Doom_FatPVS(vec3_t org, qboolean add)
+unsigned int Doom_FatPVS(struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge)
 {
 	//FIXME: use REJECT lump.
+	return 0;
 }
 
-qboolean Doom_EdictInFatPVS(edict_t *edict)
+qboolean Doom_EdictInFatPVS(struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer)
 {	//FIXME: use REJECT lump.
 	return true;
 }
-void Doom_FindTouchedLeafs(edict_t *edict)
+void Doom_FindTouchedLeafs(struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs)
 {
 	//work out the sectors this ent is in for easy pvs.
 }
@@ -1585,12 +1451,19 @@ void Doom_MarkLights(struct dlight_s *light, int bit, struct mnode_s *node)
 
 void Doom_SetModelFunc(model_t *mod)
 {
+	//mod->funcs.PurgeModel = ;
+
 	mod->funcs.FatPVS				= Doom_FatPVS;
 	mod->funcs.EdictInFatPVS		= Doom_EdictInFatPVS;
-	mod->funcs.FindTouchedLeafs_Q1	= Doom_FindTouchedLeafs;
+	mod->funcs.FindTouchedLeafs		= Doom_FindTouchedLeafs;
+
 	mod->funcs.LightPointValues		= Doom_LightPointValues;
 	mod->funcs.StainNode			= Doom_StainNode;
 	mod->funcs.MarkLights			= Doom_MarkLights;
+
+//	mod->funcs.LeafPVS)			(struct model_s *model, int num, qbyte *buffer, unsigned int buffersize);
+
+	Doom_SetCollisionFuncs(mod);
 }
 
 #endif

@@ -175,6 +175,91 @@ FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 //quick hack that made quake work on both 1 and 1.1 gl implementations.
 BINDTEXFUNCPTR bindTexFunc;
 
+#if defined(_DEBUG) && !defined(DEBUG)
+#define DEBUG
+#endif
+#if defined(DEBUG)
+
+#define GLchar char
+typedef void (APIENTRY *GLDEBUGPROCAMD)(GLuint id,
+					GLenum category,
+					GLenum severity,
+					GLsizei lengt,
+					const GLchar* message,
+					GLvoid* userParam);
+void (*qglDebugMessageEnableAMD)(GLenum category,
+					GLenum severity,
+					GLsizei count,
+					const GLuint* ids,
+					GLboolean enabled);
+void (*qglDebugMessageInsertAMD)(enum category,
+					enum severity,
+					GLuint id,
+					GLsizei length, 
+					const char* buf);
+void (*qglDebugMessageCallbackAMD)(GLDEBUGPROCAMD callback,
+					void* userParam);
+GLuint (*qglGetDebugMessageLogAMD)(GLuint count,
+					GLsizei bufsize,
+					GLenum* categories,
+					GLuint* severities,
+					GLuint* ids,
+					GLsizei* lengths, 
+					char* message);
+
+#define GL_DEBUG_CATEGORY_API_ERROR_AMD                    0x9149
+#define GL_DEBUG_CATEGORY_WINDOW_SYSTEM_AMD                0x914A
+#define GL_DEBUG_CATEGORY_DEPRECATION_AMD                  0x914B
+#define GL_DEBUG_CATEGORY_UNDEFINED_BEHAVIOR_AMD           0x914C
+#define GL_DEBUG_CATEGORY_PERFORMANCE_AMD                  0x914D
+#define GL_DEBUG_CATEGORY_SHADER_COMPILER_AMD              0x914E
+#define GL_DEBUG_CATEGORY_APPLICATION_AMD                  0x914F
+#define GL_DEBUG_CATEGORY_OTHER_AMD                        0x9150
+
+
+void (APIENTRY myGLDEBUGPROCAMD)(GLuint id,
+					GLenum category,
+					GLenum severity,
+					GLsizei length,
+					const GLchar* message,
+					GLvoid* userParam)
+{
+#ifndef _WIN32
+#define OutputDebugString(s) puts(s)
+#endif
+	switch(category)
+	{
+	case GL_DEBUG_CATEGORY_API_ERROR_AMD:
+		OutputDebugString("glerr: ");
+		break;
+	case GL_DEBUG_CATEGORY_WINDOW_SYSTEM_AMD:
+		OutputDebugString("glwsys: ");
+		break;
+	case GL_DEBUG_CATEGORY_DEPRECATION_AMD:
+		OutputDebugString("gldepr: ");
+		break;
+	case GL_DEBUG_CATEGORY_UNDEFINED_BEHAVIOR_AMD:
+		OutputDebugString("glundef: ");
+		break;
+	case GL_DEBUG_CATEGORY_PERFORMANCE_AMD:
+		OutputDebugString("glperf: ");
+		break;
+	case GL_DEBUG_CATEGORY_SHADER_COMPILER_AMD:
+		OutputDebugString("glshad: ");
+		break;
+	case GL_DEBUG_CATEGORY_APPLICATION_AMD:
+		OutputDebugString("glappm: ");
+		break;
+	default:
+	case GL_DEBUG_CATEGORY_OTHER_AMD:
+		OutputDebugString("glothr: ");
+		break;
+	}
+	OutputDebugString(message);
+	OutputDebugString("\n");
+}
+#endif
+
 
 int gl_mtexarbable=0;	//max texture units
 qboolean gl_mtexable = false;
@@ -475,6 +560,23 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglRenderbufferStorageEXT	= (void *)getglext("glRenderbufferStorageEXT");
 		qglFramebufferTexture2DEXT	= (void *)getglext("glFramebufferTexture2DEXT");
 	}
+
+#ifdef DEBUG
+	if (GL_CheckExtension("GL_AMD_debug_output"))
+	{
+		qglDebugMessageEnableAMD	= (void *)getglext("glDebugMessageEnableAMD");
+		qglDebugMessageInsertAMD	= (void *)getglext("glDebugMessageInsertAMD");
+		qglDebugMessageCallbackAMD	= (void *)getglext("glDebugMessageCallbackAMD");
+		qglGetDebugMessageLogAMD	= (void *)getglext("glGetDebugMessageLogAMD");
+	}
+	else
+	{
+		qglDebugMessageEnableAMD = NULL;
+		qglDebugMessageInsertAMD = NULL;
+		qglDebugMessageCallbackAMD = NULL;
+		qglGetDebugMessageLogAMD = NULL;
+	}
+#endif
 }
 
 
@@ -745,7 +847,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 		gl_minor_version = 1;
 	}
 	qglGetIntegerv(GL_NUM_EXTENSIONS, &gl_num_extensions);
-	if (gl_num_extensions && !qglGetError())
+	if (!qglGetError() && gl_num_extensions)
 	{
 		int i;
 		if (developer.value)
@@ -781,6 +883,13 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+#ifdef DEBUG
+	if (qglDebugMessageEnableAMD)
+		qglDebugMessageEnableAMD(0, 0, 0, NULL, true);
+	if (qglDebugMessageCallbackAMD)
+		qglDebugMessageCallbackAMD(myGLDEBUGPROCAMD, NULL);
+#endif
 }
 
 unsigned int	d_8to24rgbtable[256];

@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include "quakedef.h"
 
-static int tryrates[] = { 11025, 22051, 44100, 8000 };
+static int tryrates[] = { 11025, 22051, 44100, 8000, 48000 };
 
 static void OSS_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)	//simply a stub. Any ideas how to actually implement this properly?
 {
@@ -90,6 +90,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	}
 	Q_strncpyz(sc->name, snddev, sizeof(sc->name));
 
+//reset it
 	rc = ioctl(sc->audio_fd, SNDCTL_DSP_RESET, 0);
 	if (rc < 0)
 	{
@@ -99,6 +100,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		return 0;
 	}
 
+//check its general capabilities, we need trigger+mmap
 	if (ioctl(sc->audio_fd, SNDCTL_DSP_GETCAPS, &caps)==-1)
 	{
 		perror(snddev);
@@ -106,7 +108,6 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		OSS_Shutdown(sc);
 		return 0;
 	}
-
 	if (!(caps & DSP_CAP_TRIGGER) || !(caps & DSP_CAP_MMAP))
 	{
 		Con_Printf(CON_ERROR "OSS: Sorry but your soundcard can't do this\n");
@@ -114,61 +115,19 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		return 0;
 	}
 
-	if (ioctl(sc->audio_fd, SNDCTL_DSP_GETOSPACE, &info)==-1)
-	{
-		perror("GETOSPACE");
-		Con_Printf(CON_ERROR "OSS: Um, can't do GETOSPACE?\n");
-		OSS_Shutdown(sc);
-		return 0;
-	}
-
-// set sample bits & speed
-
-	ioctl(sc->audio_fd, SNDCTL_DSP_GETFMTS, &fmt);
-	if (!(fmt & AFMT_S16_LE) && sc->sn.samplebits > 8)
-		sc->sn.samplebits = 8;	// they asked for 16bit (the default) but their card does not support it
-	if (!(fmt & AFMT_U8) && sc->sn.samplebits == 8)
-	{	//their card doesn't support 8bit which we're trying to use.
-		Con_Printf(CON_ERROR "OSS: No needed sample formats supported\n");
-		OSS_Shutdown(sc);
-		return 0;
-	}
-
-	//use the default - menu set value.
-	if (ioctl(sc->audio_fd, SNDCTL_DSP_SPEED, &sc->sn.speed))	
-	{	//humph, default didn't work. Go for random preset ones that should work.
-		for (i=0 ; i<sizeof(tryrates)/4 ; i++)
-			if (!ioctl(sc->audio_fd, SNDCTL_DSP_SPEED, &tryrates[i])) break;
-		if (i == (sizeof(tryrates)/4))
-		{
-			perror(snddev);
-			Con_Printf(CON_ERROR "OSS: Failed to obtain a suitable rate\n");
-			OSS_Shutdown(sc);
-			return 0;
-		}
-		sc->sn.speed = tryrates[i];
-	}
-
-	if (sc->sn.samples > (info.fragstotal * info.fragsize * 4))
-	{
-		Con_Printf(CON_NOTICE "OSS: Enabling bigfoot's mmap hack! Hope you know what you're doing!\n");
-		sc->sn.samples = info.fragstotal * info.fragsize * 4;
-	}
-	sc->sn.samples = info.fragstotal * info.fragsize;
-
-// memory map the dma buffer
-
-	sc->sn.buffer = (unsigned char *) mmap(NULL, sc->sn.samples, PROT_WRITE, MAP_FILE|MAP_SHARED, sc->audio_fd, 0);
-	if (!sc->sn.buffer)
+//choose channels
+#ifdef SNDCTL_DSP_CHANNELS /*I'm paranoid, okay?*/
+	tmp = sc->sn.numchannels;
+	rc = ioctl(sc->audio_fd, SNDCTL_DSP_CHANNELS, &tmp);
+	if (rc < 0)
 	{
 		perror(snddev);
-		Con_Printf(CON_ERROR "OSS: Could not mmap %s\n", snddev);
+		Con_Printf(CON_ERROR "OSS: Could not set %s to channels=%d\n", snddev, sc->sn.numchannels);
 		OSS_Shutdown(sc);
 		return 0;
 	}
-
-	sc->sn.samples /= (sc->sn.samplebits/8);
-
+	sc->sn.numchannels = tmp;
+#else
 	tmp = 0;
 	if (sc->sn.numchannels == 2)
 		tmp = 1;
@@ -184,16 +143,19 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		sc->sn.numchannels = 2;
 	else
 		sc->sn.numchannels = 1;
+#endif
 
-	rc = ioctl(sc->audio_fd, SNDCTL_DSP_SPEED, &sc->sn.speed);
-	if (rc < 0)
-	{
-		perror(snddev);
-		Con_Printf(CON_ERROR "OSS: Could not set %s speed to %d\n", snddev, sc->sn.speed);
+//choose bits
+	// ask the device what it supports
+	ioctl(sc->audio_fd, SNDCTL_DSP_GETFMTS, &fmt);
+	if (!(fmt & AFMT_S16_LE) && sc->sn.samplebits > 8)
+		sc->sn.samplebits = 8;	// they asked for 16bit (the default) but their card does not support it
+	if (!(fmt & AFMT_U8) && sc->sn.samplebits == 8)
+	{	//their card doesn't support 8bit which we're trying to use.
+		Con_Printf(CON_ERROR "OSS: No needed sample formats supported\n");
 		OSS_Shutdown(sc);
 		return 0;
 	}
-
 	if (sc->sn.samplebits == 16)
 	{
 		rc = AFMT_S16_LE;
@@ -226,8 +188,49 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		return 0;
 	}
 
-// toggle the trigger & start her up
+//choose speed
+	//use the default - menu set value.
+	tmp = sc->sn.speed;
+	if (ioctl(sc->audio_fd, SNDCTL_DSP_SPEED, &tmp) != 0)	
+	{	//humph, default didn't work. Go for random preset ones that should work.
+		for (i=0 ; i<sizeof(tryrates)/4 ; i++)
+		{
+			tmp = tryrates[i];
+			if (!ioctl(sc->audio_fd, SNDCTL_DSP_SPEED, &tmp)) break;
+		}
+		if (i == (sizeof(tryrates)/4))
+		{
+			perror(snddev);
+			Con_Printf(CON_ERROR "OSS: Failed to obtain a suitable rate\n");
+			OSS_Shutdown(sc);
+			return 0;
+		}
+	}
+	sc->sn.speed = tmp;
 
+//figure out buffer size
+	if (ioctl(sc->audio_fd, SNDCTL_DSP_GETOSPACE, &info)==-1)
+	{
+		perror("GETOSPACE");
+		Con_Printf(CON_ERROR "OSS: Um, can't do GETOSPACE?\n");
+		OSS_Shutdown(sc);
+		return 0;
+	}
+	sc->sn.samples = info.fragstotal * info.fragsize;
+	sc->sn.samples /= (sc->sn.samplebits/8);
+	/*samples is the number of samples*channels */
+
+// memory map the dma buffer
+	sc->sn.buffer = (unsigned char *) mmap(NULL, sc->sn.samples*(sc->sn.samplebits/8), PROT_WRITE, MAP_FILE|MAP_SHARED, sc->audio_fd, 0);
+	if (!sc->sn.buffer)
+	{
+		perror(snddev);
+		Con_Printf(CON_ERROR "OSS: Could not mmap %s\n", snddev);
+		OSS_Shutdown(sc);
+		return 0;
+	}
+
+// toggle the trigger & start her up
 	tmp = 0;
 	rc  = ioctl(sc->audio_fd, SNDCTL_DSP_SETTRIGGER, &tmp);
 	if (rc < 0)

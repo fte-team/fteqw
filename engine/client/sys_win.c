@@ -1556,19 +1556,19 @@ int __cdecl main(void)
 	char *cmdline;
 	FreeConsole();
 	cmdline = GetCommandLine();
-	while (*cmdline && cmdline == ' ')
+	while (*cmdline && *cmdline == ' ')
 		cmdline++;
 	if (*cmdline == '\"')
 	{
 		cmdline++;
-		while (*cmdline && cmdline != '\"')
+		while (*cmdline && *cmdline != '\"')
 			cmdline++;
 		if (*cmdline == '\"')
 			cmdline++;
 	}
 	else
 	{
-		while (*cmdline && cmdline != ' ')
+		while (*cmdline && *cmdline != ' ')
 			cmdline++;
 	}
 	return WinMain(GetModuleHandle(NULL), NULL, cmdline, SW_NORMAL);
